@@ -1,0 +1,610 @@
+{
+  "arquitetura": {
+    "resumo": "Fase 1 (Carteira), versão final. Vale só abaixo de lg (1024px); no desktop o markup e as classes continuam os mesmos. Esta versão implementa o protótipo do designer e incorpora as 16 críticas do revisor. O que mudou em relação à v1:\n\n(1) A fatia 0 ficou maior. Ela concentra tudo que duas fatias consumiriam: primitivos (ResponsiveCardList com cabeçalho-botão expansível, MobileEditSheet com contrato de falha correto, MobileNumberField, MobileSaveToast com Desfazer, ResponsiveTabNav, CardSectionBand), quantoFaltaMobileClass, as cores AA, o Sidebar com footer, o hook de teclado (visualViewport) no Sidebar e no BottomSheet, os helpers de e2e, a correção do READY_SELECTOR e do mobile-shell e a guarda de desktop estrutural. Essa guarda roda também no CI e não mascara a <table> inteira. Com isso, A, B, C e D compilam e testam sozinhas depois do merge da 0.\n\n(2) Previdência usa GenericAssetTable, então saiu da fatia C e foi para a B. A C deixou de importar qualquer coisa da B.\n\n(3) Cada fatia é dona do próprio e2e mobile. A cobre Resumo, navegação e o + Lançar a partir da Análise. B cobre cartões e edição. C cobre as abas próprias e a Análise. D cobre o wizard até o passo 'info' pelo id do passo, sem nunca gravar, e as páginas /ativos.\n\n(4) A edição no celular trata o retorno `false` como falha. O objetivo não invalida nada: é update otimista, por decisão. O Desfazer é uma nova chamada ao MESMO callback com o valor antigo. Na Alocação, o botão é 'Aplicar', com uma barra 'Alterações não salvas · Salvar configurações'. Nada ali grava sozinho.\n\n(5) O listener do + Lançar e os wizards (lazy) sobem para o CarteiraTabs, então funcionam também com a Análise aberta.\n\n(6) O h1 fica sr-only no celular, como pede o protótipo. A fatia 0 troca o READY_SELECTOR para uma união que já inclui [data-mf-carteira-ready] e faz o mobile-shell ignorar títulos sr-only.\n\n(7) As abas continuam sendo <button> com o nome acessível atual. O rótulo curto ('Visão geral', 'Moedas e cripto') é só visual, e os chips têm alvo de toque de 44px. O role=tab do protótipo foi rejeitado; o porquê está em riscos.\n\n(8) Data nativa em TODOS os DatePicker do wizard e do resgate. O progresso do wizard usa visibleStepIds.length (de 3 a 5 etapas).\n\n(9) As pizzas das abas mudam pelo `responsive` do Apex, com breakpoint 1023, e não pelo ApexChartWrapper.\n\n(10) A performance é medida no chunk do CarteiraResumo e no tempo decomposto em API + render, sem prometer LCP.\n\nNenhuma regra de cálculo, rota de API ou payload muda.",
+    "fatias": [
+      {
+        "id": "0",
+        "titulo": "Contratos, primitivos, guardas de teste e baselines (tech lead, mergeia ANTES)",
+        "objetivo": "Entregar TODAS as APIs e exports que mais de uma fatia consome, ajustar os e2e existentes que quebrariam com o protótipo e gravar a referência de desktop a partir do branch base, antes de qualquer mudança visual.",
+        "arquivos_novos": [
+          "/home/huske/dev/front/src/components/ui/sheet/MobileEditSheet.tsx",
+          "/home/huske/dev/front/src/components/ui/sheet/MobileNumberField.tsx",
+          "/home/huske/dev/front/src/components/ui/sheet/MobileSaveToast.tsx",
+          "/home/huske/dev/front/src/components/ui/sheet/__tests__/MobileEditSheet.test.tsx",
+          "/home/huske/dev/front/src/components/ui/table/CardSectionBand.tsx",
+          "/home/huske/dev/front/src/components/ui/tabs/ResponsiveTabNav.tsx",
+          "/home/huske/dev/front/src/components/ui/tabs/__tests__/ResponsiveTabNav.test.tsx",
+          "/home/huske/dev/front/src/lib/ui/numberInput.ts",
+          "/home/huske/dev/front/src/lib/ui/__tests__/numberInput.test.ts",
+          "/home/huske/dev/front/src/hooks/useKeyboardInset.ts",
+          "/home/huske/dev/front/src/hooks/__tests__/useKeyboardInset.test.ts",
+          "/home/huske/dev/front/e2e/helpers/mobileFit.ts",
+          "/home/huske/dev/front/e2e/helpers/desktopStructure.ts",
+          "/home/huske/dev/front/e2e/desktop-carteira.spec.ts",
+          "/home/huske/dev/front/e2e/desktop-carteira.spec.ts-snapshots/* (screenshots locais + *.local.structure.json + *.ci.structure.json)"
+        ],
+        "arquivos_alterados": [
+          "/home/huske/dev/front/src/components/ui/table/ResponsiveTable.tsx",
+          "/home/huske/dev/front/src/components/ui/table/tableStyles.ts",
+          "/home/huske/dev/front/src/components/ui/table/index.tsx",
+          "/home/huske/dev/front/src/components/ui/table/__tests__/ResponsiveTable.test.tsx",
+          "/home/huske/dev/front/src/components/ui/sheet/BottomSheet.tsx",
+          "/home/huske/dev/front/src/components/ui/sidebar/Sidebar.tsx",
+          "/home/huske/dev/front/src/components/carteira/shared/cardStyles.ts",
+          "/home/huske/dev/front/src/components/carteira/shared/quantoFaltaClass.ts",
+          "/home/huske/dev/front/src/components/charts/ApexChartWrapper.tsx",
+          "/home/huske/dev/front/e2e/helpers/routes.ts",
+          "/home/huske/dev/front/e2e/mobile-shell.spec.ts",
+          "/home/huske/dev/front/docs/pwa/README.md"
+        ],
+        "detalhes": "1) ResponsiveTable.tsx. Extrair `export function ResponsiveCardList<T>(props)`. O ResponsiveTable passa a usá-lo com className 'lg:hidden' quando strategy='css', e o DOM atual fica idêntico (o teste existente passa sem update). ResponsiveMobileRole ganha 'detail'. No ResponsiveTable não expansível, 'detail' é tratado como 'field' excedente.\n\nNovas props do ResponsiveCardList:\n- `expandable?: boolean`\n- `defaultExpanded?(row)`\n- `getRowAttributes?(row): Record<string,string|undefined>`\n- `renderCardBody?(row,i)`: conteúdo do cartão aberto, que substitui a lista padrão de detail\n- `renderCardFooter?(row,i)`\n- `cardClassName?(row)`: ex. borda tracejada do planejado\n- `className?`\n\nCom expandable, o CABEÇALHO do cartão (primary, subtitle, value e fields) vira `<button type=button data-mf-card-toggle aria-expanded aria-controls={bodyId} className='w-full text-left min-h-[72px]'>`, com chevron que gira 90° (motion-safe:transition-transform). O corpo `<div id=bodyId data-mf-card-body>` só é montado quando aberto. Colunas de papel primary/value/subtitle/field dentro de cartão expansível NÃO podem renderizar elementos interativos. Por isso ResponsiveColumn ganha `mobileCell?(row,i)` (texto puro), usado no lugar de `cell` no cartão. Links e botões ficam no corpo ou no rodapé. Todo <li> recebe `data-mf-card`. Sem expandable, o comportamento é o da fase 0.\n\n2) tableStyles.ts. TABLE_STYLES não muda. Acrescentar chaves em TABLE_MOBILE_STYLES:\n- card: rounded-2xl, p-3.5 px-4, gap entre cartões 2 (8px)\n- cardDetailGrid: 'grid grid-cols-3 gap-x-3 gap-y-2 max-[359px]:grid-cols-2', rótulo 'text-[11px] text-gray-500', valor 'text-[13.5px] font-medium tabular-nums'\n- sectionBandButton: 'flex w-full min-h-11 items-center gap-2 rounded-xl px-3 text-left bg-mf-tranquilidade/[0.18] text-mf-seguranca dark:bg-mf-tranquilidade/[0.14] dark:text-mf-escolha font-semibold'. Contraste AA; substitui o uso do groupBand, que continua exportado para a fase 0.\n- chip: 'relative inline-flex h-9 shrink-0 items-center rounded-full border px-3 text-sm snap-start before:absolute before:inset-x-0 before:-inset-y-1 before:content-[\"\"]'. Área de toque de 44px.\n- chipActive: 'border-mf-seguranca bg-mf-seguranca text-white dark:border-mf-tranquilidade dark:bg-mf-tranquilidade/25 dark:text-white'. No escuro, borda tranquilidade para o estado ativo passar de 3:1.\n- chipRail: 'flex gap-2 overflow-x-auto snap-x -mx-4 px-4 pb-1 [scrollbar-width:none] [mask-image:linear-gradient(to_right,transparent,#000_12px,#000_calc(100%-24px),transparent)]'\n- editButton: 'relative inline-flex min-h-11 items-center gap-1 rounded-md px-2 text-sm font-medium text-mf-patrimonio dark:text-mf-tranquilidade'\n- totalCard\n- needBlock: 'bg-mf-escolha text-mf-potencia'\n- caixaBlock: 'bg-mf-patrimonio/[0.12] text-mf-seguranca dark:text-mf-escolha'\n\n3) CardSectionBand.tsx: `{id,label,subtotal?,count?,expanded,onToggle}`. Renderiza `<button data-mf-section aria-expanded aria-controls>` com chevron, rótulo, 'N ativos' e subtotal tabular-nums.\n\n4) numberInput.ts: `parseDecimalInput(str, locale='pt-BR'): number|null` e `formatDecimalInput(n, locale, digits=2)`.\n- pt-BR: com vírgula, remove os pontos e troca a vírgula por ponto. Sem vírgula, usa parseFloat (o mesmo resultado do EditableValorCell e do input type=number de hoje; '1.234' dá 1.234, e isso vai testado).\n- en-US: remove as vírgulas e mantém o ponto.\n- Aceita '−' e '-'. Retorna null para NaN.\n\n5) MobileNumberField.tsx: `<MobileNumberField id label kind('percent'|'currency'|'decimal'|'integer') value onChange prefix? suffix? error? hint? enterKeyHint? autoFocus?>`.\n- Input h-12, text-base (16px), rounded-xl e anel de foco de 3px.\n- inputMode 'decimal' ou 'numeric' conforme o kind.\n- aria-invalid e aria-describedby apontando para o erro (role=alert, 12.5px, vermelho #D92D20/#F97066).\n- Usado pelo MobileEditSheet, pelo AlocacaoMetaSheet (A) e pelos steps (D, opcional).\n\n6) MobileEditSheet.tsx, sobre o BottomSheet (footer prop). Props:\n- `isOpen, onClose, title, subject?, label`\n- `kind: 'percent'|'currency'|'decimal'|'integer'|'text'|'textarea'|'select'|'date'`\n- `initialValue: string|number|null, options?, prefix?, suffix?, locale?`\n- `min?, max?, minExclusive?, validate?(v)=>string|null, parseValue?(raw)=>number|string|null, formatValue?(v)=>string, hint?: ReactNode`\n- `submitLabel?='Salvar'`\n- `onSubmit(v)=>void|boolean|Promise<void|boolean>`\n- `undoable?=true, savedMessage?(v)=>string`\n\nRegras:\n- Salva no botão ou no Enter; com textarea, o Enter quebra linha. Nunca salva no blur.\n- Durante o save, o botão mostra spinner, fica desabilitado e com aria-busy.\n- FALHA = exceção OU retorno `=== false`. Aí mostra 'Não foi possível salvar. Tente de novo.' e o sheet NÃO fecha.\n- Sucesso: fecha e, se `undoable`, mostra o MobileSaveToast ('{savedMessage}', 'Desfazer' por 4s). O Desfazer chama `onSubmit(initialValue)` de novo, com a mesma regra de falha.\n- Validação antes do submit: vazio, NaN, abaixo de min (ou igual, com minExclusive) e acima de max geram erro inline; validate() também.\n- kind 'date': `<input type=date>`, devolve 'yyyy-mm-dd'.\n- Salvar/Cancelar com 48px.\n\n7) MobileSaveToast.tsx: portal com role=status e aria-live=polite, fixo em `bottom: calc(64px + env(safe-area-inset-bottom) + 8px)`, acima da barra de abas. Fundo #2D2D2D com texto branco no claro, #EAEAEA com texto #2D2D2D no escuro. Botão de ação com min-h-11; lg:hidden.\n\n8) useKeyboardInset.ts: `useKeyboardInset(enabled:boolean): {inset:number; height:number|null}`. Escuta window.visualViewport (resize e scroll); inset = max(0, innerHeight - vv.height - vv.offsetTop). No Android com resizes-content dá cerca de 0, então não soma duas vezes. Sem visualViewport, devolve 0/null.\n- BottomSheet.tsx: quando aberto e abaixo de lg, style `{ bottom: inset }` no painel e max-height 'calc(var(--vvh,100dvh) - 1rem)'.\n- Sidebar.tsx: quando aberto e abaixo de lg, style `{ height: height ?? undefined, top: vv.offsetTop }`.\n\n9) Sidebar.tsx:\n- Nova prop opcional `footer?: ReactNode`, renderizada depois do div de conteúdo: `<div data-mf-wizard-footer className='shrink-0 border-t border-gray-200 bg-white px-4 pt-2.5 pb-[max(0.625rem,env(safe-area-inset-bottom))] dark:border-gray-700 dark:bg-gray-900'>`.\n- Nova prop `headerExtra?: ReactNode` (barra de progresso sob o título).\n- Classes só com max-lg: cabeçalho 'max-lg:px-4 max-lg:py-2 max-lg:min-h-14', h2 'max-lg:text-lg max-lg:truncate', X 'max-lg:h-11 max-lg:w-11', conteúdo 'max-lg:p-4'. No celular, o painel já é w-full e tela cheia.\n- Sem footer/headerExtra, o desktop fica byte a byte igual.\n\n10) ResponsiveTabNav.tsx: `{tabs:{id,label,mobileLabel?,muted?}[], activeId, onChange, ariaLabel, variant:'main'|'underline'|'segmented-sub', leading?: ReactNode, sticky?: boolean, className?}`.\n- Desktop: as MESMAS strings de classe de hoje (MainTabButton do CarteiraTabs; TabButton do CarteiraResumo, CarteiraAnalise, ProventosTabs e IRTabs, copiadas literalmente). O teste unitário compara com essas strings.\n- Abaixo de lg:\n  - variant 'main': segmentado Resumo|Análise de 44px (container 'max-lg:rounded-xl max-lg:bg-gray-100 max-lg:p-[3px] dark:max-lg:bg-white/[0.06]', botões 'max-lg:flex-1 max-lg:h-[38px] max-lg:rounded-[9px]' e ativo com fundo branco/#26262A). A área de toque chega a 44px com o padding do container.\n  - variant 'underline': chipRail + chip/chipActive, com `data-mf-scroll-x` no nav e `leading` antes dos chips (o botão 'Classes', fixo).\n- Botões sem role=tab, com nome acessível = label atual. Com mobileLabel: `<span className='lg:hidden'>{mobileLabel}</span><span className='max-lg:hidden'>{label}</span>` e aria-label={label}.\n- aria-current='page' no ativo. Ao trocar, centraliza o ativo (el.parentElement.scrollTo({left: offsetLeft - (w-elW)/2})).\n- muted → 'max-lg:opacity-60', mas continua tocável.\n\n11) cardStyles.ts: CARD_BASE_CLASS += ' min-w-0'. CARD_VALUE_CLASS mantém 'text-xl' e ganha 'max-lg:text-lg max-[359px]:text-base max-lg:break-words'. Criar e exportar `CARD_HERO_VALUE_CLASS = 'text-[28px] font-semibold tabular-nums max-[359px]:text-2xl'` (só usado abaixo de lg).\n\n12) quantoFaltaClass.ts: `quantoFaltaClass` intacta (desktop). Nova `quantoFaltaMobile(v): {label: 'Falta'|'Quase lá'|'Acima'|'No objetivo'; textClass; dotClass}`:\n- ≥1: texto 'text-mf-patrimonio dark:text-mf-tranquilidade', ponto 'bg-[#0079F2]'\n- 0<v<1: texto 'text-[#B45309] dark:text-amber-300', ponto 'bg-[#D97706] dark:bg-[#FBBF24]'\n- <0: texto 'text-[#D92D20] dark:text-[#F97066]', ponto igual\n- 0: neutro\n\n13) ApexChartWrapper.tsx: props opcionais `mobileOptions?: ApexOptions` (deep-merge abaixo de lg, via useIsBelowLg) e `mobileHeight?`. Sem elas, nada muda. Consumidores: LineChartCarteiraHistorico e PieChartCarteiraInvestimentos (A); RentabilidadeChart e Proventos*Chart (C).\n\n14) e2e/helpers/routes.ts: READY_SELECTOR['/carteira'] = `:is(h1, h2):has-text(\"Carteira de Investimentos\"):not(.sr-only), [data-mf-carteira-ready]`. Funciona antes e depois da fatia A, que acrescenta o atributo. Em mobile-overflow e mobile-shell, a condição de 'visível e com texto' passa com o nav.\n\n15) mobile-shell.spec.ts: o 'primeiro título' passa a ser o primeiro h1–h3 cujo getBoundingClientRect tenha width>2 e height>2, via evaluateAll, ignorando sr-only.\n\n16) e2e/helpers/mobileFit.ts:\n- `expectFitsWithoutClip(page,label,{width=390})`: addStyleTag '[data-mf-content]{overflow-x:visible!important}' e exige documentElement.scrollWidth ≤ width, sem nenhum elemento visível em [data-mf-content] com overflow-x auto|scroll e scrollWidth>clientWidth+1 fora de [data-mf-scroll-x]. Anexa os culpados.\n- `openCarteiraTab(page,label)`: getByRole('button',{name:label,exact:true}); abaixo de lg, rola o chip até ele.\n- `waitCarteiraReady(page)`.\n\n17) e2e/helpers/desktopStructure.ts: `collectStructure(page)` devolve `{tabs:[{name,className}], tables:[{ths:string[], colCount, theadClass, thClasses:sorted unique, trClasses, tdClasses}], mobileArtifactsVisible: number}`.\n- mobileArtifactsVisible conta [data-mf-card], [data-mf-edit], [data-mf-section] e [data-mf-wizard-footer] visíveis.\n- As classes passam por normalização que remove as utilitárias de cor dependentes de dado (/^(dark:)?(text|bg)-(red|green|amber|emerald|\\[#)/) e mantém layout e tipografia.\n- Sem contagem de linhas, que depende de dado.\n\n18) desktop-carteira.spec.ts (projeto chromium): percorre a 1280x800 (e a 1024 no Resumo e em Ações):\n- Resumo e as 14 abas por nome atual\n- 'Análise' e as sub-abas 'Rentabilidade Geral', 'Proventos', 'Risco x Retorno', 'Cobertura FGC' e 'Imposto de Renda'\n- wizard passo 1\n- /ativos/{id} e /editar (link dinâmico de routes.ts)\n\n(a) `expect(JSON.stringify(collectStructure(page),null,1)).toMatchSnapshot(`${slug}.${process.env.CI?'ci':'local'}.structure.json`)`. Roda NO CI. A baseline 'ci' é gerada rodando localmente contra um banco recém-semeado ('npm run seed', como o ci.yml) com CI=1.\n(b) Screenshot só local, com máscara própria da carteira: 'tbody td:not(:first-child)', 'canvas', 'svg.apexcharts-svg', '.apexcharts-canvas', '.tabular-nums:not(table *)' e 'nextjs-portal'. A <table> NÃO é mascarada inteira; a geometria das células mascaradas continua sendo comparada.\n(c) `expect(mobileArtifactsVisible).toBe(0)`.\n\nBaselines geradas com --update-snapshots NESTE branch, antes de A a D, e commitadas.\n\n19) README: seção 'Fase 1 – contratos' com a tabela de atributos data-mf-* e a ordem de merge.",
+        "testes": "vitest:\n- ResponsiveTable.test: casos antigos sem update. Novos para ResponsiveCardList: cabeçalho é botão com aria-expanded, corpo só montado quando aberto, mobileCell, data-mf-card, getRowAttributes, cardClassName.\n- MobileEditSheet.test:\n  - '12,5' chama onSubmit(12.5)\n  - retorno false mantém aberto com erro\n  - throw mantém aberto\n  - sucesso fecha e mostra toast\n  - Desfazer chama onSubmit(initial)\n  - minExclusive\n  - textarea: Enter não envia\n  - validate\n  - undoable=false sem toast\n- numberInput.test: pt-BR, en-US, '1.234', '1.234,56', '−3'.\n- useKeyboardInset.test: mock de visualViewport.\n- ResponsiveTabNav.test: className de desktop idêntico às strings atuais, nome acessível = label, aria-current, classe do chip com before:.\n\nPlaywright:\n- desktop-carteira.spec gera e depois passa sem update no branch base.\n- mobile-shell.spec e mobile-overflow.spec continuam verdes.",
+        "criterios_aceite": [
+          "type-check, lint e vitest dos arquivos tocados verdes",
+          "ResponsiveTable da fase 0 com DOM idêntico (testes antigos sem update)",
+          "Sidebar e BottomSheet sem as props novas: desktop idêntico (desktop-layout.spec verde sem update)",
+          "Nenhum arquivo de feature (carteira/*Table, wizard, analises, ativos) alterado, exceto cardStyles.ts e quantoFaltaClass.ts, que só ganham exports",
+          "Baselines estruturais (local e ci) e screenshots locais da carteira inteira commitados a partir do branch base",
+          "Merge em feat/pwa-fase1-carteira antes de abrir as worktrees A–D"
+        ]
+      },
+      {
+        "id": "A",
+        "titulo": "Casca da /carteira: navegação, Resumo, Alocação, Caixa, + Lançar, skeleton e performance",
+        "objetivo": "Implementar as telas (a), (b) e (j) do protótipo, subir o + Lançar e os wizards para o CarteiraTabs e fazer os ganhos de carregamento.",
+        "arquivos_novos": [
+          "/home/huske/dev/front/src/components/carteira/carteiraTabsConfig.ts",
+          "/home/huske/dev/front/src/components/carteira/ClassePickerSheet.tsx",
+          "/home/huske/dev/front/src/components/carteira/CarteiraLaunchContext.tsx",
+          "/home/huske/dev/front/src/components/carteira/CarteiraSkeleton.tsx",
+          "/home/huske/dev/front/src/components/carteira/AlocacaoMetaSheet.tsx",
+          "/home/huske/dev/front/src/components/carteira/__tests__/ClassePickerSheet.test.tsx",
+          "/home/huske/dev/front/src/components/carteira/__tests__/AlocacaoAtivosTableMobile.test.tsx",
+          "/home/huske/dev/front/e2e/mobile-carteira.spec.ts"
+        ],
+        "arquivos_alterados": [
+          "/home/huske/dev/front/src/components/carteira/CarteiraTabs.tsx",
+          "/home/huske/dev/front/src/components/carteira/CarteiraResumo.tsx",
+          "/home/huske/dev/front/src/components/carteira/MarketIndicatorsCards.tsx",
+          "/home/huske/dev/front/src/components/carteira/shared/CaixaParaInvestirCard.tsx",
+          "/home/huske/dev/front/src/components/carteira/shared/MetricCard.tsx",
+          "/home/huske/dev/front/src/components/carteira/AlocacaoAtivosTable.tsx",
+          "/home/huske/dev/front/src/components/carteira/EditableCell.tsx",
+          "/home/huske/dev/front/src/components/carteira/EditableTextCell.tsx",
+          "/home/huske/dev/front/src/components/charts/line/LineChartCarteiraHistorico.tsx",
+          "/home/huske/dev/front/src/components/carteira/__tests__/CarteiraTabs.test.tsx",
+          "/home/huske/dev/front/src/components/carteira/shared/__tests__/CaixaParaInvestirCard.test.tsx",
+          "/home/huske/dev/front/e2e/mobile-overflow.spec.ts"
+        ],
+        "detalhes": "1) carteiraTabsConfig.ts: exporta `CARTEIRA_CLASS_TABS`, com ids e labels IGUAIS aos de hoje, na mesma ordem, mais `mobileLabel` (ex. 'Visão geral' para 'Carteira Consolidada', 'Reserva emergência', 'Moedas e cripto', 'Previdência', 'Imóveis e bens') e `categoria`. Exporta também `CATEGORIA_TO_TAB` (movido da AlocacaoAtivosTable, que passa a importar daqui).\n\n2) CarteiraLaunchContext.tsx: `CarteiraLaunchProvider` e `useCarteiraLaunch(): {openAdd(): void; openRedeem(): void}`.\n\n3) CarteiraTabs.tsx:\n(a) Move do CarteiraResumo para cá o useEffect de ?acao, takePendingQuickLaunch e QUICK_LAUNCH_EVENT, o estado isSidebarOpen/isRedeemSidebarOpen e os handlers de onSuccess. O onSuccess chama invalidateAssets() do contexto; ele já cobre reserva.emergencia e oportunidade via invalidatePortfolioDerivedQueries, então o refetchReservaEmergencia sai.\n(b) Wizards: `const AddAssetWizard = lazy(() => import('./AddAssetWizard'))`, idem Redeem, montados só depois da 1ª abertura (`wizardMontado`), dentro de <Suspense fallback={null}>. Prefetch com requestIdleCallback depois de o resumo carregar. Como o listener vive aqui, o + Lançar funciona com a Análise aberta, sem trocar de aba. O caso 'carteira ainda carregando' continua coberto: o evento marca pendente, e o efeito consome o pendente assim que loading=false.\n(c) Nav principal via `<ResponsiveTabNav variant='main' ariaLabel='Seções da carteira' data-mf-carteira-ready>`. O wrapper fica 'max-lg:sticky max-lg:top-[calc(3.5rem+env(safe-area-inset-top))] max-lg:z-20 max-lg:-mx-4 max-lg:px-4 max-lg:py-2 max-lg:bg-gray-50 dark:max-lg:bg-gray-950'. Borda de 1px só quando gruda (IntersectionObserver com sentinela e data-stuck).\n(d) Loading: abaixo de lg, `<CarteiraSkeleton/>` (aria-busy, blocos com as medidas do protótipo, brilho 'motion-safe:animate-pulse'); a partir de lg, o LoadingSpinner atual (useIsBelowLg). Erro abaixo de lg: bloco role=alert 'Não deu para carregar a carteira' com botão 'Tentar de novo' (refetch do useCarteira). O desktop mantém o h3 atual. O vazio segue o EmptyState do protótipo (Adicionar investimento → openAdd; 'Planejar um ativo' → openAdd com operação planejar, SE o AddAssetWizard já aceitar operação inicial por prop; senão só o primeiro botão).\n(e) `?aba=` (se aprovado): lido na montagem, validado contra os ids de CARTEIRA_CLASS_TABS e 'analise', e escrito com history.replaceState, preservando a limpeza do ?acao.\n\n4) CarteiraResumo.tsx:\n(a) Header: h1 'max-lg:sr-only'; <p> e os botões Adicionar/Resgatar 'max-lg:hidden' (no desktop, os botões chamam useCarteiraLaunch). Resolve o título duplicado.\n(b) Contêiner das abas: 'max-lg:border-0 max-lg:bg-transparent'; wrapper do nav 'max-lg:px-0 max-lg:border-0'; conteúdo 'max-lg:px-0 max-lg:py-3'; TabContent 'max-lg:pt-0'.\n(c) Nav de classes: `<ResponsiveTabNav variant='underline' tabs={CARTEIRA_CLASS_TABS} leading={<button className={chip+' lg:hidden'} aria-haspopup='dialog'>Classes</button>} />`, com muted nas classes de valor 0. O trilho fica sticky logo abaixo do segmentado (mesmo wrapper sticky, top + 52px). 'Classes' abre o ClassePickerSheet: BottomSheet com rádios (role=radiogroup, itens min-h-12), nome completo, valor (resumo.distribuicao[categoria].valor) e % de totais.dinheiro, só lendo o contexto. Tocar troca a aba e fecha.\n(d) As 13 tabelas viram `lazy(() => import('./XTable'))` com <Suspense fallback={<LoadingSpinner/>}>. A AlocacaoAtivosTable fica estática.\n(e) useReservaEmergencia sai do topo e vai para `function ReservaEmergenciaTab()` local, que passa as MESMAS props.\n(f) Carteira Consolidada abaixo de lg, em coluna única com order:\n  1. 'Carteira total': hero com CARD_HERO_VALUE_CLASS, rentabilidade desde o início, aplicado e rendimento. São os mesmos MetricCards/valores de hoje, só rearranjados em hero + grade 2 colunas, via className max-lg:.\n  2. Histórico (LineChartCarteiraHistorico)\n  3. CaixaParaInvestirCard\n  4. MarketIndicatorsCards em grade 2x2 compacta\n  5. AlocacaoAtivosTable em lista\n  A PieChartCarteiraInvestimentos NÃO é montada abaixo de lg (useIsBelowLg); a lista da Alocação a substitui, como no protótipo, sem segunda fonte de edição. No desktop, a ordem DOM e a pizza continuam.\n(g) `performance.mark('mf:carteira:resumo-pronto')` num useEffect da 1ª renderização com dados.\n\n5) MarketIndicatorsCards.tsx: fetch cru → useQuery({queryKey:['analises','indicadores'], staleTime:300_000}), com a mesma normalização. 'max-lg:gap-3' e cartões compactos (max-lg:p-3).\n\n6) CaixaParaInvestirCard.tsx (também usado como 'Caixa da aba' nas abas da B; a API não muda):\n- Abaixo de lg, 'Editar' é um botão editButton que abre MobileEditSheet kind='currency' prefix='R$' min=0, com onSubmit chamando o MESMO onSave. Se onSave devolver false, o sheet trata como falha.\n- Barra 'nas abas × livre' com fundo mf-escolha e preenchimento #0079F2.\n- 'Distribuir o livre pelas metas' com o mesmo handler de hoje, full-width.\n- Desktop: mesmo markup.\n\n7) MetricCard.tsx: title 'truncate', valor com as classes da fatia 0; prop opcional `variant?: 'default'|'hero'`.\n\n8) AlocacaoAtivosTable.tsx (strategy js: `isBelowLg ? mobile : tabela atual intocada`). Mobile, conforme o protótipo:\n- Barra empilhada de alocação no topo (segmentos por categoria, cores da paleta e role=img com aria-label resumindo os %).\n- Um cartão por categoria: nome como botão que chama onNavigateToTab; valor; medidor do % atual com traço na meta (% target); Quanto Falta (quantoFaltaMobile); necessidade de aporte em R$; lápis de 44px (aria-label 'Editar meta de {categoria}') que abre o AlocacaoMetaSheet.\n- Imóveis & Bens, se estiverem na lista, em bloco separado 'Fora da rentabilidade e das metas'.\n\nAlocacaoMetaSheet.tsx: BottomSheet com 3 MobileNumberField (Alvo, Mínimo, Máximo). Na linha da Reserva de Emergência, os três são em R$ (kind currency, com o MESMO parseValorReserva e max 999999 de hoje); nas demais, %. Botão 'Aplicar' chama handleConfigChange(categoria, field, v) para cada campo alterado. Isso é só estado local, como no desktop; NÃO grava e não mostra 'salvo'. Enquanto houver alteração pendente (hasChanges do useAlocacaoConfig, ou flag local se o hook não expuser), aparece a barra fixa acima da barra de abas: 'Alterações não salvas · Salvar configurações', que chama o MESMO handleSaveConfigurations, e o sucesso mostra o alerta atual. Modal 'Distribuir caixa livre' (já vira sheet) com botão full-width.\n\n9) EditableCell.tsx e EditableTextCell.tsx (da Alocação no desktop): abaixo de lg, não são renderizados (o sheet acima substitui). Só entram aqui se algum teste exigir; senão, ficam intocados.\n\n10) LineChartCarteiraHistorico.tsx (já usa ApexChartWrapper): mobileHeight 180, mobileOptions {toolbar off, legend bottom, xaxis.tickAmount 4, yaxis.tickAmount 4, série 'aplicado' tracejada (já é), markers só no último ponto}. Cores do protótipo SÓ abaixo de lg (carteira #0079F2, aplicado #314666/#6E9DC4). O desktop fica igual. A fatia D consome o componente em /ativos/[id].\n\n11) e2e/mobile-carteira.spec.ts (dono):\n(i) Resumo e Carteira Consolidada com expectFitsWithoutClip a 390 e 320.\n(ii) 'Classes' abre o sheet (role=dialog), escolher 'Ações' troca a aba (aria-current) e o chip fica visível.\n(iii) Segmentado sticky: rolar 800px e o nav continua no viewport.\n(iv) Análise → + Lançar → Novo investimento: o wizard (role=dialog 'Adicionar Investimento') abre; fechar.\n(v) ?acao=novo continua abrindo.\n(vi) Editar meta: abrir o AlocacaoMetaSheet, Aplicar, ver a barra 'Alterações não salvas' e descartar recarregando a página, SEM salvar.\n\nmobile-overflow.spec.ts: para /carteira, usar expectFitsWithoutClip em vez da medição com corte.",
+        "testes": "vitest:\n- CarteiraTabs.test:\n  - abas via ResponsiveTabNav; findBy para o lazy\n  - QUICK_LAUNCH_EVENT com activeMainTab='analise' abre o wizard\n  - pendente consumido depois de loading\n- CaixaParaInvestirCard.test (matchMedia <lg): o sheet chama onSave(1234.56) para '1.234,56'; onSave→false mantém aberto; ≥lg inline como antes.\n- ClassePickerSheet.test.\n- AlocacaoAtivosTableMobile.test:\n  - Aplicar chama updateConfiguracao e NÃO chama saveChanges\n  - a barra aparece e chama saveChanges\n  - Reserva em R$ com parseValorReserva\n\ne2e: mobile-carteira.spec, mobile-overflow.spec, mobile-shell.spec, carteira.spec e desktop-carteira.spec, sem update de snapshot.",
+        "criterios_aceite": [
+          "Resumo/Consolidada cabem a 390 e 320 com o corte desligado; só [data-mf-scroll-x] rola na horizontal",
+          "+ Lançar abre o wizard a partir do Resumo, da Análise, via ?acao e com a carteira ainda carregando",
+          "Nenhum 'salvo' na Alocação sem chamar saveChanges; na Reserva, o alvo é em R$",
+          "Chunk do CarteiraResumo (next build, .next/static/chunks) sem código das 13 tabelas nem dos wizards; os wizards não são baixados até a 1ª abertura ou o prefetch em idle",
+          "desktop-carteira.spec (estrutura + screenshot) igual para Resumo/Consolidada e wizard passo 1",
+          "Diff sem mudança em cálculo (useMemo de totais/necessidade de aporte)"
+        ]
+      },
+      {
+        "id": "B",
+        "titulo": "As 9 abas do GenericAssetTable em cartões + edição por sheet",
+        "objetivo": "Implementar as telas (c) e (d) do protótipo para Ações, FII, ETF, Fundos (FIM/FIA), Stocks, REIT, Moedas/Cripto, Opções e Previdência/Seguros.",
+        "arquivos_novos": [
+          "/home/huske/dev/front/src/components/carteira/shared/AssetCardSections.tsx",
+          "/home/huske/dev/front/src/components/carteira/shared/mobileColumnRoles.ts",
+          "/home/huske/dev/front/src/components/carteira/shared/__tests__/AssetCardSections.test.tsx",
+          "/home/huske/dev/front/src/components/carteira/shared/__tests__/EditableCellsMobile.test.tsx",
+          "/home/huske/dev/front/e2e/mobile-carteira-cards.spec.ts"
+        ],
+        "arquivos_alterados": [
+          "/home/huske/dev/front/src/components/carteira/shared/GenericAssetTable.tsx",
+          "/home/huske/dev/front/src/components/carteira/shared/EditableObjetivoCell.tsx",
+          "/home/huske/dev/front/src/components/carteira/shared/EditableValorCell.tsx",
+          "/home/huske/dev/front/src/components/carteira/shared/EditableTextCell.tsx",
+          "/home/huske/dev/front/src/components/carteira/shared/PlanejadoNameCell.tsx",
+          "/home/huske/dev/front/src/components/carteira/shared/index.ts",
+          "/home/huske/dev/front/src/components/carteira/AssetNameLink.tsx",
+          "/home/huske/dev/front/src/components/carteira/AcoesTable.tsx",
+          "/home/huske/dev/front/src/components/carteira/FiiTable.tsx",
+          "/home/huske/dev/front/src/components/carteira/EtfTable.tsx",
+          "/home/huske/dev/front/src/components/carteira/FimFiaTable.tsx",
+          "/home/huske/dev/front/src/components/carteira/StocksTable.tsx",
+          "/home/huske/dev/front/src/components/carteira/ReitTable.tsx",
+          "/home/huske/dev/front/src/components/carteira/MoedasCriptosTable.tsx",
+          "/home/huske/dev/front/src/components/carteira/OpcoesTable.tsx",
+          "/home/huske/dev/front/src/components/carteira/PrevidenciaSegurosTable.tsx",
+          "/home/huske/dev/front/src/components/charts/pie/PieChartFiiSegmento.tsx",
+          "/home/huske/dev/front/src/components/charts/pie/PieChartFiiAtivo.tsx",
+          "/home/huske/dev/front/src/components/charts/pie/PieChartEtfAtivo.tsx",
+          "/home/huske/dev/front/src/components/charts/pie/PieChartStocksAtivo.tsx",
+          "/home/huske/dev/front/src/components/charts/pie/PieChartReitAtivo.tsx",
+          "/home/huske/dev/front/src/components/charts/pie/PieChartMoedasCriptosAtivo.tsx",
+          "/home/huske/dev/front/src/components/charts/pie/PieChartPrevidenciaSegurosAtivo.tsx",
+          "/home/huske/dev/front/src/components/carteira/shared/__tests__/GenericAssetTable.test.tsx"
+        ],
+        "detalhes": "1) ColumnDef ganha `mobile?: 'primary'|'value'|'subtitle'|'field'|'detail'|'hidden'` e `mobileLabel?: string` (obrigatório quando o header é ReactNode).\n\n2) mobileColumnRoles.ts: `DEFAULT_MOBILE_ROLE_BY_KEY` + `resolveAssetMobileRole(col)`. O cartão fechado segue o protótipo:\n- linha 1: ticker (primary) com nome e quantidade (subtitle), e à direita valor atualizado (value) e rentabilidade (com '−'/▼ e #D92D20/#F97066 quando negativa)\n- linha 2: pílula do Quanto Falta (ponto + palavra, via quantoFaltaMobile) e 'Obj. {objetivo} · atual {percentualCarteira}'\n\nAberto: grade 3x3 (cardDetailGrid) com quantidade, preço médio, cotação, aplicado, % da aba, proventos, nec. aporte, setor e subsetor. São as colunas detail na ordem da tabela, até 9, e o excedente vira dt/dd. Depois, a linha 'Objetivo {x}' + botão Editar (EditableObjetivoCell mobile) e o link 'Ver detalhes do ativo' (AssetNameLink, min-h-11) no rodapé.\n\n3) GenericAssetTable: `const isBelowLg = useIsBelowLg()` ANTES dos early returns.\n- Métricas abaixo de lg, como no protótipo: cartão-resumo (valor atualizado em hero, variação do mês, rendimento, saldo do início do mês, que são os valores dos metric cards atuais) + blocos 'Necessidade de aporte' (needBlock) e 'Caixa da aba' (CaixaParaInvestirCard da fatia A, sem mudar a API).\n- No desktop, a grade atual.\n- Tabela: `isBelowLg ? <AssetCardSections …/> : <ComponentCard>{tabela atual byte a byte}</ComponentCard>`.\n- Exportar COLUNAS_VISIVEIS_PLANEJADO.\n- Nova prop `extraTotalMobile?: ReactNode` (REIT 'Total em USD').\n\n4) AssetCardSections.tsx:\n- Barra de ferramentas 'N ativos' + <select> 'Ordenar' (Padrão/Maior valor/Mais falta/Rentabilidade), que ordena uma CÓPIA dentro de cada seção; os totais não mudam.\n- Por seção COM ativos: CardSectionBand (label, subtotal = renderSectionTotal de valorAtualizado, count), usando o MESMO estado expandedSections/toggleSection do desktop, + ResponsiveCardList expandable (mobileCell de texto puro nas colunas do cabeçalho; renderCardBody com a grade + Objetivo; renderCardFooter com 'Ver detalhes do ativo' e, se planejado, 'Remover do planejamento' em texto vermelho, min-h-11, chamando o MESMO handler).\n- Seções vazias ficam escondidas (pergunta).\n- Aba vazia: EmptyState com CTA que chama useCarteiraLaunch().openAdd (contexto da fatia A; se B mergear antes, fazer fallback sem CTA quando o contexto for undefined).\n- Cartão de total geral ao fim (totalCard).\n- Planejado: cardClassName 'border-dashed border-mf-tranquilidade', selo 'Planejado', valor '— sem posição' e só as colunas de COLUNAS_VISIVEIS_PLANEJADO.\n\n5) Células editáveis (desktop: mesmo JSX no ramo !isBelowLg):\n- Os tipos de callback passam a `(…) => void | boolean | Promise<boolean | void>`. Os hooks já devolvem Promise<boolean|void>, então compila sem mudar hooks.\n- EditableObjetivoCell ganha `subject?`. Abaixo de lg, renderiza '{fmt(objetivo)}' + `<button data-mf-edit='objetivo' aria-label={`Editar objetivo de ${subject}`} className={editButton}>Editar</button>` → MobileEditSheet kind='percent' suffix='%' min=0 max=100 title={`Objetivo de ${subject}`} hint='Hoje: {percentualCarteira} da carteira total. Soma dos objetivos da aba: {soma}%' (hint via prop opcional `hint`, com a soma já calculada pelo pai a partir dos dados existentes) savedMessage=v=>`Objetivo de ${subject} salvo: ${fmt(v)}` e onSubmit=v=>onUpdateObjetivo(ativoId,v).\n- EditableValorCell: kind currency, locale repassado, data-mf-edit='valor', respeitando as mesmas regras de hoje (minExclusive quando o desktop exige >0).\n- EditableTextCell: kind text/textarea, data-mf-edit='texto'.\n- Undo: habilitado.\n\n6) Tabelas: passar subject={a.ticker} e mobileLabel onde o header é ReactNode. FiiTable/ReitTable 'Resumo de Aportes': manter a tabela manual no desktop e, abaixo de lg, usar ResponsiveCardList (nome primary, necessidade value, cotação/lote field). A grade de gráficos ganha 'max-lg:grid-cols-1'.\n\n7) Pizzas (usam react-apexcharts direto): acrescentar ao array `responsive` uma entrada `{breakpoint: 1023, options:{chart:{height:300}, legend:{position:'bottom'}, dataLabels:{enabled:false}}}`, mantendo a de 640. O Apex só aplica abaixo de 1024, então o desktop fica igual.\n\n8) PlanejadoNameCell: prop opcional `variant?: 'table'|'card'`. 'card' mostra o selo 'Planejado' em pílula mf-tranquilidade e sem o X de 12px. 'table' é o default atual.\n\n9) AssetNameLink: prop opcional `variant?: 'card-link'` → 'min-h-11 inline-flex items-center text-mf-patrimonio dark:text-mf-tranquilidade', com texto 'Ver detalhes do ativo'. O href não muda.\n\n10) e2e/mobile-carteira-cards.spec.ts:\n(i) expectFitsWithoutClip a 390 e 320 nas 9 abas.\n(ii) Ações (fallback FII/Renda Fixa não; se vazia, test.skip com anotação): [data-mf-card-toggle] → aria-expanded=true e o corpo visível.\n(iii) Editar objetivo: ler o valor, abrir [data-mf-edit='objetivo'], dialog com nome 'Objetivo de …', digitar valor+0,5 com vírgula, Salvar, ver o valor no cartão e o toast 'salvo', tocar Desfazer e ver o valor original. try/finally restaura via sheet se algo falhar.\n(iv) Planejado (se houver): selo e botão Remover visíveis, sem clicar.",
+        "testes": "vitest (matchMedia <lg):\n- GenericAssetTable renderiza [data-mf-card] e não <table>; ≥lg renderiza a <table> (teste atual inalterado).\n- Toggle de seção compartilha estado.\n- Ordenar não altera totais.\n- Planejado mostra só as colunas permitidas e o Remover chama o handler.\n- EditableCellsMobile:\n  - '12,5' chama onUpdateObjetivo(id,12.5)\n  - callback→false mantém o sheet aberto\n  - Desfazer chama com o valor antigo\n  - ≥lg continua inline\n\nPlaywright: mobile-carteira-cards.spec; desktop-carteira.spec sem update.",
+        "criterios_aceite": [
+          "9 abas cabem a 390/320 com o corte desligado",
+          "Edição no celular usa o mesmo endpoint, método e payload do desktop (Network); objetivo com update otimista (atualiza cartão e Quanto Falta da aba, sem invalidação ampla, como hoje)",
+          "Estrutura e screenshots de desktop das 9 abas idênticos às baselines; mobileArtifactsVisible=0",
+          "Nenhum cálculo alterado (useMemo de totais/necessidadeAporte/dataComRisco com diff vazio)"
+        ]
+      },
+      {
+        "id": "C",
+        "titulo": "Renda Fixa, Imóveis, Reservas e a Análise inteira",
+        "objetivo": "Implementar as telas (e) e (i) do protótipo e os cartões das 4 abas com tabela própria.",
+        "arquivos_novos": [
+          "/home/huske/dev/front/src/components/carteira/__tests__/RendaFixaTableMobile.test.tsx",
+          "/home/huske/dev/front/src/components/analises/__tests__/CarteiraAnaliseMobile.test.tsx",
+          "/home/huske/dev/front/src/components/analises/PeriodoPersonalizadoSheet.tsx",
+          "/home/huske/dev/front/e2e/mobile-carteira-analise.spec.ts"
+        ],
+        "arquivos_alterados": [
+          "/home/huske/dev/front/src/components/carteira/RendaFixaTable.tsx",
+          "/home/huske/dev/front/src/components/carteira/ImoveisBensTable.tsx",
+          "/home/huske/dev/front/src/components/carteira/ReservaEmergenciaTable.tsx",
+          "/home/huske/dev/front/src/components/carteira/ReservaOportunidadeTable.tsx",
+          "/home/huske/dev/front/src/components/carteira/CarteiraAnalise.tsx",
+          "/home/huske/dev/front/src/components/analises/*.tsx (RentabilidadeGeral, RentabilidadeResumo, RentabilidadeChart, RiscoRetorno*, Sensibilidade*, Proventos*, ProventosTabs, CoberturaFgc, IRTabs)",
+          "/home/huske/dev/front/src/components/analises/ir/*.tsx",
+          "/home/huske/dev/front/src/components/charts/GaugeChart.tsx"
+        ],
+        "detalhes": "1) Padrão: `useIsBelowLg()` antes dos early returns. Abaixo de lg: CardSectionBand + ResponsiveCardList expandable, com o mesmo expandedSections e cartão de total. A partir de lg, a <table> atual intocada.\n\n2) RendaFixaTable, conforme o protótipo:\n- Seções por tipo (as mesmas do desktop).\n- Cartão fechado: nome do título, taxa contratada (texto já existente na linha, ex. '110% do CDI'), saldo (value), rentabilidade e selo de vencimento. Até 30 dias: selo âmbar #B45309 e aviso no topo da aba ('{n} título vence em até 30 dias'), calculado só na apresentação a partir da data de vencimento já presente. Selo 'PU oficial' quando isAutoUpdated; 'Isento' para LCI/LCA, se o tipo já estiver no dado.\n- Aberto: aplicado, aportes, resgates, benchmark, cotização, liquidação, vencimento com prazo por extenso (formatter novo e puro), % da aba e risco. 'IR se resgatar hoje' SÓ se já existir função pronta em src/lib (fixedIncomeIR) usada hoje; senão fica fora (pergunta).\n- Edições (cotização, liquidação, benchmark, valorAtualizado, observações): botão data-mf-edit que abre MobileEditSheet do mesmo tipo do controle desktop (select quando o desktop usa lista fechada) e chama o MESMO onUpdateCampo. valorAtualizado com minExclusive (>0) e SEM botão quando isAutoUpdated. Observações em textarea (Enter quebra linha). Falha = retorno false.\n\n3) ImoveisBensTable: subtitle = cidade; valor editável (currency) com o mesmo handler.\n\n4) ReservaEmergencia/Oportunidade: cartões sem edição (nome, valor, rentabilidade).\n\n5) CarteiraAnalise.tsx:\n- h1 'max-lg:sr-only', subtítulo 'max-lg:hidden', contêiner 'max-lg:border-0 max-lg:bg-transparent max-lg:px-0'.\n- Sub-abas via ResponsiveTabNav 'underline', em chips no mesmo estilo do trilho do Resumo e com os nomes atuais.\n- Sub-abas com React.lazy + Suspense.\n- ProventosTabs: segmentado Consolidado/Agenda/Distribuição via ResponsiveTabNav 'segmented-sub', com os mesmos nomes.\n- IRTabs: chips.\n\n6) Rentabilidade:\n- Chips de período com data-mf-scroll-x e alvos de 44px (classe chip da fatia 0). 'Personalizado' abre o PeriodoPersonalizadoSheet: BottomSheet com 2 <input type=date> que devolve as datas para a MESMA função/estado de periodoPersonalizado.ts.\n- Destaque 12 meses (TWR) com lista Carteira/CDI/IBOV.\n- RentabilidadeChart (ApexChartWrapper): mobileHeight 180, mobileOptions com toolbar off, legend bottom, xaxis.tickAmount 4, labels.rotate 0, carteira #0079F2 stroke 3, CDI #314666/#6E9DC4, IBOV tracejado #2D2D2D/#CCCCCC. Também é consumido por /ativos (D).\n- Tabela anos×meses abaixo de lg: <select> de ano + grade 4x3 de meses (negativo com '−' e #D92D20/#F97066).\n- 'Por classe' em lista.\n\n7) Proventos: destaque do ano (média, a receber), barras de 12 meses (ProventosHistoricoChart com mobileOptions: barras #396CAA/#6E9DC4 e mês atual #0079F2), próximos pagamentos (agenda em lista com data-com), ranking por ativo em lista.\n\n8) Risco×Retorno: dispersão com mobileHeight 240 e rótulos só nos 5 maiores pontos (dataLabels formatter por índice, só abaixo de lg). Cobertura FGC em lista (excedente em vermelho da paleta). IR em lista e chips; tabela de 12 meses em cartão por mês.\n\n9) Todos os gráficos com role=img e aria-label resumindo os números, abaixo de lg. Tabelas pequenas passam a ResponsiveTable quando o desktop já é TABLE_STYLES; senão, manter o manual no desktop e usar ResponsiveCardList abaixo de lg.\n\n10) Não mexer em services nem em /api/analises/*.\n\n11) e2e/mobile-carteira-analise.spec.ts: expectFitsWithoutClip a 390 e 320 em Renda Fixa, Imóveis, 2 Reservas, Análise e cada sub-aba (e sub-abas de Proventos/IR). Abrir um cartão da Renda Fixa. Abrir o sheet Personalizado e fechar.",
+        "testes": "vitest (matchMedia):\n- RendaFixaTableMobile:\n  - cartões <lg\n  - '1.234,56' chama onUpdateCampo(id,'valorAtualizado',1234.56)\n  - false mantém aberto\n  - sem botão quando isAutoUpdated\n  - ≥lg <table>\n- CarteiraAnaliseMobile: sub-abas lazy com findByRole('button',{name}).\n- Testes existentes de analises/__tests__ verdes.\n\ne2e: mobile-carteira-analise.spec; carteira.spec ('Rentabilidade Geral') e desktop-carteira.spec sem update.",
+        "criterios_aceite": [
+          "4 abas + Análise e sub-abas a 390/320 sem rolagem horizontal fora de [data-mf-scroll-x]",
+          "Edições da Renda Fixa/Imóveis com as mesmas requests",
+          "Gráficos sem rótulos sobrepostos a 320 e legenda embaixo",
+          "Estrutura e screenshots de desktop iguais às baselines",
+          "Nenhum import de arquivo da fatia B (só da 0)"
+        ]
+      },
+      {
+        "id": "D",
+        "titulo": "Wizards de cadastro/resgate + /ativos/[id] e /editar",
+        "objetivo": "Implementar as telas (f), (g) e (h) do protótipo.",
+        "arquivos_novos": [
+          "/home/huske/dev/front/src/components/carteira/wizard/WizardFooter.tsx",
+          "/home/huske/dev/front/src/components/carteira/wizard/WizardProgress.tsx",
+          "/home/huske/dev/front/src/components/carteira/wizard/tipoAtivoGroups.ts",
+          "/home/huske/dev/front/src/components/carteira/wizard/__tests__/WizardFooter.test.tsx",
+          "/home/huske/dev/front/src/components/form/__tests__/date-picker-native.test.tsx",
+          "/home/huske/dev/front/e2e/mobile-carteira-wizard.spec.ts"
+        ],
+        "arquivos_alterados": [
+          "/home/huske/dev/front/src/components/carteira/AddAssetWizard.tsx",
+          "/home/huske/dev/front/src/components/carteira/RedeemAssetWizard.tsx",
+          "/home/huske/dev/front/src/components/carteira/wizard/Step1AssetType.tsx",
+          "/home/huske/dev/front/src/components/carteira/wizard/Step*.tsx (wrappers max-lg:, DatePicker nativeOnMobile)",
+          "/home/huske/dev/front/src/components/carteira/wizard/step4Utils.ts",
+          "/home/huske/dev/front/src/components/carteira/wizard/shared/BusinessDayDatePicker.tsx",
+          "/home/huske/dev/front/src/components/carteira/wizard/shared/InstitutionPicker.tsx",
+          "/home/huske/dev/front/src/components/carteira/wizard/PriceDeviationConfirmModal.tsx",
+          "/home/huske/dev/front/src/components/carteira/redeemWizard/*.tsx",
+          "/home/huske/dev/front/src/components/form/date-picker.tsx",
+          "/home/huske/dev/front/src/components/form/input/InputField.tsx",
+          "/home/huske/dev/front/src/components/form/AutocompleteInput.tsx",
+          "/home/huske/dev/front/src/app/(admin)/(home)/ativos/[id]/page.tsx",
+          "/home/huske/dev/front/src/app/(admin)/(home)/ativos/[id]/editar/page.tsx",
+          "/home/huske/dev/front/src/components/carteira/shared/EditableField.tsx",
+          "/home/huske/dev/front/src/layout/mobile/MobileHeader.tsx",
+          "/home/huske/dev/front/src/layout/navigation.tsx",
+          "/home/huske/dev/front/src/components/carteira/__tests__/RedeemAssetWizard.test.tsx"
+        ],
+        "detalhes": "1) WizardProgress.tsx: `<WizardProgress steps={visibleStepIds.map(id=>title)} current={index} />`.\n- Segmentos = visibleStepIds.length (de 3 a 5), preenchimento #0079F2 e texto 'Etapa {n} de {N} · {título}' em text-gray-600.\n- Passado ao Sidebar via headerExtra só abaixo de lg. No desktop, a barra atual intocada.\n\n2) WizardFooter.tsx: `{onBack?, backLabel ('Voltar'|'Cancelar'), onNext, nextLabel, nextDisabled, loading}`.\n- Botões h-12; primário bg-mf-patrimonio com texto branco (pressionado mf-seguranca).\n- grid-cols-[auto_1fr] gap-2.5.\n\n3) AddAssetWizard/RedeemAssetWizard: `isBelowLg`.\n- <lg: Sidebar footer={<WizardFooter/>}; o bloco de navegação inline não renderiza; na 1ª etapa, 'Cancelar' chama o mesmo handleCancel.\n- Conteúdo 'max-lg:min-h-0'.\n- `data-mf-step={currentStepId}` no contêiner da etapa.\n- Ao trocar de etapa, rolar o contêiner para o topo e focar o h3 da etapa.\n- Sem mudança de validação, steps, payload, autoSubmit ou onSuccess.\n\n4) Step1AssetType: abaixo de lg, a Operação vira 3 cartões de rádio (role=radiogroup, itens min-h-14) e o tipo vira grade de 2 colunas de cartões de rádio, agrupada por `TIPO_ATIVO_GRUPOS` (tipoAtivoGroups.ts: Reservas, Renda fixa, Renda variável no Brasil, Exterior e cripto, Outros). A grade é aplicada sobre a MESMA lista que o Select usa hoje: filtrada por TIPOS_ATIVO_PLANEJAVEIS em 'planejar' e vinda de /api/carteira/aporte/tipos em 'aporte'. Valores desconhecidos vão para 'Outros'. Os values não mudam, e o onChange é o mesmo. A partir de lg, o Select atual.\n\n5) Campos:\n- DECIMAL_INPUT_PROPS/INTEGER_INPUT_PROPS em step4Utils ganham enterKeyHint 'next'.\n- InputField ganha a prop opcional enterKeyHint, repassada ao input.\n- Inputs abaixo de lg com 'max-lg:h-12 max-lg:text-base max-lg:rounded-xl'.\n- Grades sem prefixo passam a 'grid-cols-1 sm:grid-cols-2' e 'grid-cols-2 sm:grid-cols-3' (desktop igual).\n- 'Estratégia' abaixo de lg em segmentado (mesmos values).\n- Total ao vivo: o que já existe na etapa, fixado acima do rodapé.\n- Resumo 'ativo · instituição' com botão 'Trocar' no topo da etapa 4, que volta ao passo correspondente com a mesma função de navegação.\n\n6) Data:\n- date-picker.tsx ganha `nativeOnMobile?: boolean`. Com true e <lg, renderiza <input type=date> e emite onChange([new Date(y,m-1,d)], iso, null) (meia-noite local).\n- Passar nativeOnMobile no BusinessDayDatePicker e em TODOS os <DatePicker> diretos do wizard e do resgate: Step4RendaFixaFields:71, Step4ReservaFields:58, Step4TesouroReservaFields:68, Step4TesouroRendaFixaFields:126, Step4OpcoesFields:74, Step4FundoDebenturePrevidenciaFields:276, redeemWizard/Step4RedeemInfo:127. Nos de vencimento, sem max=hoje.\n\n7) Busca (Step3Asset, Step3SearchWithManualFallback, AutocompleteInput, InstitutionPicker): lista 'max-lg:max-h-[40dvh]', itens min-h-11, trecho digitado em <mark className='bg-transparent font-semibold'>, blocos 'Você já tem' e 'Cadastrar manualmente' (o fallback manual já existe), enterKeyHint 'search', autoCapitalize 'characters' e autoComplete 'off'. Ao focar, scrollIntoView({block:'start'}).\n\n8) Resgate (h):\n- Cabeçalho 'posição disponível' com dados já presentes.\n- Atalhos 25%/50%/Tudo, que só preenchem quantidade = floor(posição×p), ou a posição inteira em 'Tudo', respeitando as casas decimais do tipo.\n- Erro 'Você tem {q} {unidade} de {ticker}. Use até {q}.' via aria-invalid/aria-describedby, com Avançar desabilitado. A regra de limite é a MESMA de hoje; só a mensagem e o estado do botão mudam.\n\n9) PriceDeviationConfirmModal: já é Modal (sheet z 99990 > sidebar 500); botões com 48px.\n\n10) /ativos/[id]/page.tsx:\n- Hero do saldo bruto (CARD_HERO_VALUE_CLASS) + grade 3x2 (2 colunas abaixo de 360px) com os valores atuais.\n- Gráficos consumidos (Line de A, Rentabilidade de C) sem editar.\n- Extrato e histórico mensal com ResponsiveCardList (etiquetas Compra/JCP/Dividendo como pílulas) e 'Ver tudo', que mostra 10 e depois todos (paginação só de apresentação).\n- MobileHeader/navigation.tsx: `getMobileHeaderAction(pathname)` devolve {label:'Editar', href: pathname+'/editar'} para /ativos/[id] e esconde sino e avatar em rotas /ativos/*. O voltar já existe via isNestedRoute. Rodar mobile-shell.spec.\n\n11) /ativos/[id]/editar:\n- Formulário em 1 coluna, campos com 48px, rodapé fixo Cancelar/Salvar abaixo de lg (sticky bottom acima da barra de abas, ou barra escondida por ser rota aninhada; confirmar no MobileTabBar sem editá-lo).\n- Transações em ResponsiveCardList com renderCardFooter Editar/Excluir (44px).\n- EditableDateCell e EditableField abaixo de lg abrem MobileEditSheet (date / decimal com min/max/suffix) chamando o MESMO onSubmit (csrfFetch + invalidatePortfolioDerivedQueries inalterados).\n\n12) AddInvestmentModal, AddInvestmentSidebar e AddReservaModal: código morto; não adaptar.\n\n13) e2e/mobile-carteira-wizard.spec.ts:\n(i) + Lançar → Novo investimento. Passo 1 (radiogroup) 'Conta corrente' (compra). No passo 'institution', escolher a 1ª instituição da lista. Esperar [data-mf-step='info']. Conferir: [data-mf-wizard-footer] visível e dentro do viewport; input de valor com inputmode=decimal; input date nativo presente; barra de abas oculta; WizardProgress com N = 4. Fechar pelo X SEM avançar da info (nunca chega à confirmação). Se o InstitutionPicker depender de rede indisponível, usar test.skip com anotação.\n(ii) Mesmo roteiro a 390x500 (altura reduzida): o footer continua no viewport.\n(iii) Resgate até a etapa de info, se houver posição: digitar quantidade acima da posição e ver a mensagem + Avançar desabilitado; fechar.\n(iv) /ativos/{id} e /editar com expectFitsWithoutClip.",
+        "testes": "vitest:\n- WizardFooter e WizardProgress (N variável).\n- RedeemAssetWizard.test atualizado (<lg footer no Sidebar; ≥lg inline).\n- date-picker-native: <lg + nativeOnMobile emite Date local e getDate() igual ao dia digitado; sem a prop, flatpickr.\n- Step1AssetType <lg: grade agrupada respeita o filtro de planejar.\n\nOs 3 Step4*Fields.test que travam continuam excluídos.\n\ne2e: mobile-carteira-wizard.spec, mobile-shell.spec (casca /ativos), desktop-carteira.spec (wizard passo 1, /ativos) sem update.",
+        "criterios_aceite": [
+          "Cada etapa cabe a 390/320; footer visível com altura 500 no Chromium; no iOS (Simulador ou aparelho), footer acima do teclado via useKeyboardInset (teste manual documentado no PR)",
+          "Todas as datas do wizard e do resgate nativas no celular, com o mesmo ISO do flatpickr",
+          "Nenhuma mudança de payload/endpoint; e2e nunca grava ativo",
+          "/ativos/{id} e /editar sem rolagem lateral fora de [data-mf-scroll-x]; desktop idêntico às baselines"
+        ]
+      }
+    ],
+    "componentes_compartilhados": [
+      {
+        "nome": "ResponsiveCardList",
+        "caminho": "/home/huske/dev/front/src/components/ui/table/ResponsiveTable.tsx",
+        "api": "<ResponsiveCardList<T> columns (mobile: primary|value|subtitle|field|detail|hidden; mobileCell?) rows getRowKey ariaLabel expandable? defaultExpanded? getRowAttributes? renderCardBody? renderCardFooter? cardClassName? groupBy? total? emptyState? className?/> — li[data-mf-card]; com expandable, o cabeçalho é button[data-mf-card-toggle][aria-expanded][aria-controls] e o corpo [data-mf-card-body] só existe aberto",
+        "uso": "B (AssetCardSections), C (abas próprias e Análise), A (Resumo de Aportes não; Alocação usa markup próprio), D (extrato/transações). Padrão: `isBelowLg ? <ResponsiveCardList/> : <tabela atual>`"
+      },
+      {
+        "nome": "MobileEditSheet",
+        "caminho": "/home/huske/dev/front/src/components/ui/sheet/MobileEditSheet.tsx",
+        "api": "{isOpen,onClose,title,subject?,label,kind:'percent'|'currency'|'decimal'|'integer'|'text'|'textarea'|'select'|'date',initialValue,options?,prefix?,suffix?,locale?,min?,max?,minExclusive?,validate?,parseValue?,formatValue?,hint?,submitLabel?,onSubmit(v)=>void|boolean|Promise<void|boolean>,undoable?=true,savedMessage?} — falha = throw ou false (fica aberto); sucesso fecha e mostra toast com Desfazer, que chama onSubmit(initialValue)",
+        "uso": "Edição de um campo abaixo de lg (B células, C Renda Fixa/Imóveis, A Caixa, D EditableField/datas), sempre com o MESMO callback do desktop"
+      },
+      {
+        "nome": "MobileNumberField",
+        "caminho": "/home/huske/dev/front/src/components/ui/sheet/MobileNumberField.tsx",
+        "api": "{id,label,kind,value,onChange,prefix?,suffix?,error?,hint?,enterKeyHint?,autoFocus?} — h-12, 16px, inputMode por kind, aria-invalid/describedby",
+        "uso": "MobileEditSheet, AlocacaoMetaSheet (A), opcional nos steps (D)"
+      },
+      {
+        "nome": "MobileSaveToast",
+        "caminho": "/home/huske/dev/front/src/components/ui/sheet/MobileSaveToast.tsx",
+        "api": "{message, actionLabel?, onAction?, durationMs=4000, onDismiss} — role=status, acima da barra de abas, lg:hidden",
+        "uso": "Interno ao MobileEditSheet"
+      },
+      {
+        "nome": "ResponsiveTabNav",
+        "caminho": "/home/huske/dev/front/src/components/ui/tabs/ResponsiveTabNav.tsx",
+        "api": "{tabs:{id,label,mobileLabel?,muted?}[],activeId,onChange,ariaLabel,variant:'main'|'underline'|'segmented-sub',leading?,className?} — ≥lg classes idênticas às atuais; <lg segmentado/chips de 44px de toque; <button> com nome = label atual; aria-current",
+        "uso": "CarteiraTabs/CarteiraResumo (A); CarteiraAnalise, ProventosTabs, IRTabs (C)"
+      },
+      {
+        "nome": "CardSectionBand",
+        "caminho": "/home/huske/dev/front/src/components/ui/table/CardSectionBand.tsx",
+        "api": "{id,label,subtotal?,count?,expanded,onToggle} — button[data-mf-section] com sectionBandButton (AA)",
+        "uso": "Seções Value/Growth/Risk e tipos de RF (B, C)"
+      },
+      {
+        "nome": "TABLE_MOBILE_STYLES (novas chaves)",
+        "caminho": "/home/huske/dev/front/src/components/ui/table/tableStyles.ts",
+        "api": "card, cardDetailGrid, sectionBandButton, chip, chipActive, chipRail, editButton, totalCard, needBlock, caixaBlock (TABLE_STYLES inalterado)",
+        "uso": "Todas as fatias"
+      },
+      {
+        "nome": "quantoFaltaMobile",
+        "caminho": "/home/huske/dev/front/src/components/carteira/shared/quantoFaltaClass.ts",
+        "api": "quantoFaltaMobile(v): {label, textClass, dotClass} — paleta AA; quantoFaltaClass (desktop) intacta",
+        "uso": "B (cartões), A (lista da Alocação)"
+      },
+      {
+        "nome": "cardStyles",
+        "caminho": "/home/huske/dev/front/src/components/carteira/shared/cardStyles.ts",
+        "api": "CARD_BASE_CLASS += min-w-0; CARD_VALUE_CLASS com max-lg:; novo CARD_HERO_VALUE_CLASS",
+        "uso": "A (Resumo), B (resumo da aba), D (/ativos)"
+      },
+      {
+        "nome": "useKeyboardInset",
+        "caminho": "/home/huske/dev/front/src/hooks/useKeyboardInset.ts",
+        "api": "useKeyboardInset(enabled): {inset, height} via visualViewport",
+        "uso": "BottomSheet e Sidebar (fatia 0), que cobrem sheets e wizards no iOS"
+      },
+      {
+        "nome": "Sidebar footer/headerExtra",
+        "caminho": "/home/huske/dev/front/src/components/ui/sidebar/Sidebar.tsx",
+        "api": "footer?: ReactNode (div[data-mf-wizard-footer] shrink-0 + safe-area); headerExtra?: ReactNode; altura = visualViewport no celular",
+        "uso": "Wizards (D)"
+      },
+      {
+        "nome": "ApexChartWrapper mobileOptions",
+        "caminho": "/home/huske/dev/front/src/components/charts/ApexChartWrapper.tsx",
+        "api": "mobileOptions?: ApexOptions (deep-merge <lg), mobileHeight?",
+        "uso": "LineChartCarteiraHistorico (A), RentabilidadeChart/Proventos*Chart (C). As pizzas das abas NÃO usam: B ajusta o `responsive` delas"
+      },
+      {
+        "nome": "parseDecimalInput / formatDecimalInput",
+        "caminho": "/home/huske/dev/front/src/lib/ui/numberInput.ts",
+        "api": "parseDecimalInput(str, locale='pt-BR'): number|null (en-US pelo próprio separador); formatDecimalInput(n, locale, digits)",
+        "uso": "MobileEditSheet, AlocacaoMetaSheet"
+      },
+      {
+        "nome": "CarteiraLaunchContext",
+        "caminho": "/home/huske/dev/front/src/components/carteira/CarteiraLaunchContext.tsx (fatia A)",
+        "api": "useCarteiraLaunch(): {openAdd(), openRedeem()} | undefined",
+        "uso": "CarteiraResumo (desktop), EmptyState das abas (B, com fallback se undefined)"
+      },
+      {
+        "nome": "Helpers e2e",
+        "caminho": "/home/huske/dev/front/e2e/helpers/mobileFit.ts e desktopStructure.ts",
+        "api": "expectFitsWithoutClip(page,label,{width}); openCarteiraTab(page,label); waitCarteiraReady(page); collectStructure(page)",
+        "uso": "Specs mobile de cada fatia e desktop-carteira.spec"
+      },
+      {
+        "nome": "Atributos de contrato",
+        "caminho": "docs/pwa/README.md",
+        "api": "data-mf-card, data-mf-card-toggle, data-mf-card-body, data-mf-edit='objetivo'|'valor'|'texto'|'data', data-mf-section, data-mf-wizard-footer, data-mf-step, data-mf-scroll-x, data-mf-carteira-ready, data-planejado",
+        "uso": "e2e e guardas"
+      }
+    ],
+    "performance": "A medição usa build de produção. O 9s do `next dev` é quase todo compilação sob demanda e não serve de número.\n\nLinha de base e depois:\n1) `npm run build`: registrar o First Load JS da /carteira e o tamanho do chunk do CarteiraResumo, que JÁ é lazy no CarteiraTabs. O critério é o chunk do CarteiraResumo, não o da rota.\n2) `next start` com DevTools a 390px, 'Fast 4G' e 'Slow 4G', CPU 4x, com e sem cache. Tempos a decompor:\n   (a) API: duração de /api/carteira/resumo?includeHistorico=false e da versão completa na aba Network. Esse tempo é linha de base de back-end e não é prometido nesta fase.\n   (b) Render: da resposta até performance.mark('mf:carteira:resumo-pronto').\n   (c) Cascata: config de alocação, reserva (hoje sempre), indicadores (hoje sem cache), pluggy.\n   (d) Troca para a aba Ações e abertura do wizard (1ª vez e depois do prefetch).\n3) Registrar a tabela antes/depois em docs/pwa/README.md.\n\nGanhos sem mudar cálculo:\n- A1: as 13 tabelas de classe lazy por aba. O Resumo baixa só a Alocação.\n- A2: wizards lazy, montados na 1ª abertura e com prefetch em idle. Ficam no CarteiraTabs.\n- A3: useReservaEmergencia só dentro da aba Reserva de Emergência.\n- A4: MarketIndicatorsCards via useQuery com staleTime de 5 min.\n- A5: a pizza do Resumo não é montada abaixo de lg.\n- A6: skeleton no celular. Não reduz tempo, mas elimina pulo de layout e dá feedback.\n- B1/C1: strategy js (um DOM só) nas tabelas grandes.\n- C2: sub-abas da Análise lazy.\n\nNão mexer no fetch duplo fast/full do useCarteira nem nas rotas. Se (a) dominar, abrir um item de back-end. Não há meta de LCP: sem back-end, 4s em 4G lento não é realista.",
+    "plano_qa": "Ordem: a fatia 0 mergeia primeiro e gera as baselines a partir do branch base. A, B, C e D são implementadas em paralelo, mergeadas em qualquer ordem e cada uma roda os próprios e2e. No fim, uma rodada completa de integração.\n\nQA MOBILE (Wellington: DevTools no navegador, sem túnel e sem instalar). Build de produção, 390x844 e 320x640, claro e escuro, usuário demo.\n1) Resumo:\n   - hero, histórico, Caixa, mercado 2x2 e Alocação em lista, sem pizza\n   - segmentado Resumo|Análise e trilho grudam no topo ao rolar\n   - 'Classes' abre o sheet com valor e % de cada classe\n   - chips com toque confortável (44px)\n2) Em cada aba de classe:\n   - resumo da aba, Necessidade de aporte e Caixa da aba\n   - Ordenar\n   - faixas recolhíveis com subtotal\n   - cartão fechado e aberto (grade 3x3, Objetivo + Editar, 'Ver detalhes do ativo')\n   - planejado tracejado com Remover\n   - Quanto Falta com a palavra e o ponto colorido\n   - total geral\n3) Edição por sheet:\n   - teclado decimal e vírgula aceita\n   - erro inline\n   - Salvar fecha e mostra 'salvo' com Desfazer, que volta o valor\n   - Objetivo atualiza só o cartão e o Quanto Falta da aba (é por decisão; o Resumo não muda)\n   - Valor/Caixa/Renda Fixa atualizam totais e Resumo\n   - no Network: mesmo endpoint, método e payload do desktop\n   - simular falha (DevTools, request blocking): o sheet continua aberto com erro e sem 'salvo'\n4) Alocação: o lápis abre a meta (na Reserva em R$), 'Aplicar' mostra a barra 'Alterações não salvas', e só 'Salvar configurações' grava.\n5) + Lançar a partir do Resumo, da Análise e de uma aba de classe.\n6) Wizard:\n   - progresso com o número certo de etapas (3 a 5)\n   - grade de tipos agrupada (em 'planejar', só os planejáveis)\n   - rodapé fixo; com altura reduzida a ~500px continua visível\n   - data nativa com o dia certo\n   - busca de ativo\n   - resgate com atalhos e erro de limite\n   - aviso de preço por cima do wizard\n7) /ativos/{id}: Editar no cabeçalho, extrato em lista. /editar: sheets de data e quantidade.\n8) Análise: chips, Personalizado com 2 datas, grade de meses, gráficos legíveis a 320.\n9) Barra de abas some com sheet ou wizard aberto.\n10) e2e: mobile-carteira, mobile-carteira-cards, mobile-carteira-analise, mobile-carteira-wizard, mobile-overflow e mobile-shell verdes.\n\nTeste manual no iPhone (Simulador ou aparelho, fora do DevTools): teclado aberto no sheet de objetivo e na etapa 4. Salvar e Avançar precisam ficar acima do teclado.\n\nQA DESKTOP (projeto chromium):\n- desktop-carteira.spec SEM --update-snapshots:\n  - estrutura por aba (th, colunas, classes normalizadas, botões de aba) igual à baseline; roda também no CI, com a baseline ci\n  - screenshots locais com a nova máscara, que não cobre a <table> inteira\n  - mobileArtifactsVisible=0\n- desktop-layout.spec e carteira.spec verdes.\n- Manual a 1280 e 1024:\n  - edição de Objetivo continua inline\n  - botões Adicionar/Resgatar e h1 visíveis\n  - pizza do Resumo presente\n  - 1023px já é mobile e 1024px é desktop\n\nREVISOR DE CÓDIGO (code-review):\n- useIsBelowLg antes dos early returns\n- ramo desktop byte a byte igual (diff do JSX do ramo !isBelowLg vazio)\n- cálculo inalterado (useMemo/hooks)\n- células mobile chamam o mesmo callback e tratam false como falha\n- nada interativo dentro do cabeçalho-botão do cartão\n- a11y: aria-expanded/controls, aria-current, nomes dos sheets e dos botões Editar, alvos de 44px, role=img nos gráficos\n- cores só da paleta e AA; #0079F2 só em elemento não textual\n- lazy com Suspense e quick-launch no CarteiraTabs\n- nenhuma fatia tocando arquivo de outra\n\nSEGURANÇA (security-review):\n- nenhum fetch novo: mutações só pelos callbacks existentes (csrfFetch)\n- ?aba= validado contra a lista de ids\n- nada de valores financeiros em log\n- Desfazer usa o mesmo endpoint autenticado",
+    "riscos": [
+      "REJEITADO (parcial), role=tab do protótipo: as abas continuam <button> com aria-current, porque carteira.spec, mobile-overflow (reveal CARTEIRA_TABS) e routes.ts usam getByRole('button',{name}) nas duas larguras. Um tablist exigiria setas de teclado e aria-controls em 14 abas com o desktop idêntico. Os rótulos curtos do protótipo ('Visão geral', 'Moedas e cripto') viram só visuais, e o nome acessível continua sendo o atual.",
+      "REJEITADO (parcial), aviso 'Meta salva' na Alocação: a meta só muda o estado local até 'Salvar configurações'. O sheet usa 'Aplicar' e uma barra de pendência; salvar automaticamente dependeria de chamar saveChanges com estado ainda não atualizado (closure antiga).",
+      "REJEITADO, meta de LCP ≤ 4s em 4G lento do designer: o gargalo é /api/carteira/resumo (cerca de 10s em dev, 30s no CI). A fase mede e decompõe API × render e registra o tempo da API como linha de base para uma fase de back-end.",
+      "REJEITADO (parcial), lista de alocação como segundo componente: a lista do protótipo é implementada DENTRO da AlocacaoAtivosTable abaixo de lg, que substitui a pizza. Não se cria uma segunda fonte de edição de metas.",
+      "Desfazer = segunda mutação com o valor antigo. Se o dado mudar no servidor entre os dois cliques (outro dispositivo), o Desfazer sobrescreve. É aceitável num campo de um usuário só, mas precisa estar documentado.",
+      "Objetivo sem invalidação ampla (decisão do hook): o QA não deve esperar que o Resumo mude ao editar o objetivo.",
+      "A baseline estrutural 'ci' é gerada localmente contra o seed. Se o seed mudar, a baseline precisa ser regenerada; a normalização de classes de cor reduz esse ruído, mas não elimina.",
+      "iOS: DevTools e Playwright/Chromium não reproduzem o teclado do Safari. O useKeyboardInset só é validado em aparelho ou Simulador; sem esse teste, o rodapé pode ficar sob o teclado.",
+      "Sticky do segmentado e do trilho dentro de [data-mf-content] (overflow-x-clip não cria contêiner de rolagem, então o sticky funciona). Se alguma fatia trocar clip por hidden, o sticky quebra.",
+      "Ordem de merge: B usa useCarteiraLaunch (A). Até A mergear, o EmptyState da B fica sem CTA (fallback). Os demais consumos vêm todos da fatia 0.",
+      "e2e de edição altera dado real do usuário demo. Ele restaura por Desfazer ou try/finally; se o processo morrer no meio, o dado fica sujo.",
+      "e2e do wizard depende do InstitutionPicker ter itens sem rede externa. Se depender de BRAPI ou rede, o teste é pulado com anotação e o QA manual cobre.",
+      "RentabilidadeChart e LineChartCarteiraHistorico são compartilhados com /ativos/[id]. As mudanças mobile de C e A aparecem lá (esperado); D não edita.",
+      "Cores do Quanto Falta ficam diferentes entre desktop (#0079F2 em texto, red-600) e celular (paleta AA) até um PR separado.",
+      "A 320px, valores de 7 dígitos nos cartões de 2 colunas podem quebrar em 2 linhas (aceito; validar).",
+      "3 Step4*Fields.test travam (conhecido): excluir da execução para não confundir com regressão da D."
+    ],
+    "perguntas_para_wellington": [
+      "Navegação das classes: o botão 'Classes' abre um painel com todas as classes (valor e %) e ao lado fica o trilho de chips, como no protótipo. Posso seguir? Recomendação: sim.",
+      "Esconder no celular o título 'Carteira de Investimentos' e os botões Adicionar/Resgatar (o + Lançar faz os dois)? Recomendação: sim. Resolve o título duplicado e o + Lançar passa a funcionar também na aba Análise.",
+      "No celular, a pizza 'Tipos de investimento' é trocada pela lista de alocação por classe (valor, % atual × meta, quanto falta, aporte). No computador, a pizza continua. Recomendação: sim.",
+      "Metas da alocação no celular: 'Aplicar' no painel e depois 'Salvar configurações' numa barra fixa (igual ao computador, que também só grava no botão), OU gravar direto ao tocar Aplicar? Recomendação: manter os dois passos nesta fase; gravar direto exige mudar o fluxo de salvamento.",
+      "Aviso 'Objetivo salvo' com Desfazer (desfazer = salvar de novo o valor antigo)? Recomendação: sim, em todos os campos de um valor só.",
+      "Ordenar no celular (Padrão/Maior valor/Mais falta/Rentabilidade, dentro de cada seção)? Recomendação: incluir. É só apresentação; o computador continua sem.",
+      "Seções vazias (ex.: Growth sem ativos) no celular: esconder? Recomendação: esconder.",
+      "Calendário nativo do celular em todas as datas do cadastro e do resgate? Recomendação: sim, mantendo o aviso de dia útil da B3.",
+      "Guardar a aba na URL (/carteira?aba=acoes)? Recomendação: sim, sem encher o histórico.",
+      "'IR se resgatar hoje' no cartão de Renda Fixa: só entra se já existir o cálculo pronto no sistema; se não existir, fica para depois (não criamos cálculo novo nesta fase). Ok? Recomendação: sim.",
+      "Cor do 'Quanto falta' no computador (hoje azul #0079F2 como texto) trocar para a regra nova num PR separado? Recomendação: sim, depois da fase 1.",
+      "Apagar AddInvestmentModal, AddInvestmentSidebar e AddReservaModal (não são usados) num PR separado? Recomendação: sim."
+    ]
+  },
+  "design": {
+    "resumo": "Revisão 2 do protótipo da fase 1 (Carteira). Atualizei o mesmo arquivo e republiquei no mesmo link, https://claude.ai/artifact/LbiZZsYikje6P8FzcpCQqa (versão 2, privado; só abre para outras pessoas depois que o Wellington compartilhar pelo menu Share). O protótipo tem 18 cenários, botão claro/escuro e botão de 320px. Testei no Chromium: nenhum erro de JS e nada passa de 320px em nenhum cenário. Conferi quatro coisas: (1) a falha ao salvar deixa o sheet aberto com o erro; (2) \"Aplicar\" na alocação faz aparecer a barra de \"não salvas\"; (3) o progresso do wizard muda de 5 para 3 etapas (Imóvel) e para 4 (Planejar); (4) o toque nos chips cobre 44px.\n\nO que mudou em relação à v1, crítica por crítica:\n- h1: continua visível e compacto, com 18px. Assim o READY_SELECTOR e o mobile-shell seguem funcionando. Somem só o subtítulo e os botões Adicionar/Resgatar.\n- + Lançar: o listener sobe para o CarteiraTabs e o wizard abre por cima da Análise (cenário i1).\n- Navegação: role=button com aria-current, os labels de hoje (sem rótulo curto) e o botão \"Todas\", no lugar de tablist/\"Classes\".\n- Alvos de toque: o segmento passa para 44px. Chips, chips de período e atalhos ganham uma área de toque ::before que já conta a borda de 1px.\n- Chip ativo no escuro: ganha borda #6E9DC4.\n- MobileEditSheet: retorno false ou exceção conta como falha, e o sheet fica aberto (novo cenário d2). O \"Desfazer\" saiu. O texto deixa claro que o objetivo só atualiza o cartão e o Quanto Falta da aba.\n- Alocação: virou o próprio AlocacaoAtivosTable em cartões. O botão do sheet diz \"Aplicar\", e uma barra fixa \"n alterações não salvas\" traz Descartar/Salvar (saveChanges). A Reserva de Emergência usa campos em R$ (novo cenário a2).\n- Pizza: mantida, com legenda embaixo. A lista de alocação editável inventada na v1 saiu.\n- Wizard: o progresso segue visibleStepIds, com 3 a 5 etapas. O agrupamento de tipos respeita Planejar (TIPOS_ATIVO_PLANEJAVEIS) e Aporte (lista da API). O e2e para em data-mf-step=\"info\". Personalizado traz um aviso de autoSubmit.\n- Página do ativo: o MobileHeader fica intocado. Ele já tem Voltar e o título \"Ativo\"; o ticker virou o h1 do conteúdo.\n- Renda Fixa: o valor precisa ser maior que 0 e fica travado quando vem do PU oficial. As Observações são um textarea em que o Enter quebra a linha.\n- Na especificação:\n  - datas nativas em todos os DatePicker;\n  - useVisualViewportInset para o teclado do iOS;\n  - performance sem meta de LCP (linha de base da API + critério pelo chunk do CarteiraResumo);\n  - snapshot estrutural do desktop rodando no CI;\n  - pizzas das abas ajustadas na fatia B;\n  - parse em en-US pelo separador do locale.",
+    "prototipo_path": "/tmp/claude-1000/-home-huske-dev-front/1e033ac6-991e-468f-92d5-d21605cc0a38/scratchpad/pwa-fase1/prototipo.html",
+    "telas": [
+      {
+        "nome": "(a) Resumo da carteira",
+        "descricao": "Coluna única, na ordem: h1 compacto, segmento Resumo | Análise, trilho de classes, Carteira total, histórico, Caixa para Investir, mercado 2x2, rosca 'Tipos de investimento' com legenda e 'Alocação de ativos' em cartões.",
+        "decisoes": [
+          "h1 'Carteira de Investimentos' continua visível (18px/600, max-lg:). Ele é o READY_SELECTOR dos e2e e o único heading da página, já que o MobileHeader usa <p>. Rejeitei a proposta da v1 (max-lg:hidden) e a do arquiteto (sr-only).",
+          "Só o subtítulo e os botões Adicionar/Resgatar ficam max-lg:hidden. O título duplicado se resolve na fase 3, quando a casca tiver heading próprio.",
+          "A pizza PieChartCarteiraInvestimentos continua (mobileOptions: legenda embaixo com %). A lista de alocação editável da v1 foi retirada porque duplicava o AlocacaoAtivosTable.",
+          "O conteúdo pronto ganha data-mf-carteira-ready."
+        ]
+      },
+      {
+        "nome": "(a2) Metas da alocação",
+        "descricao": "O AlocacaoAtivosTable em cartões. Cada classe mostra link para a aba, valor, grade % Atual / Mín·Máx / % Target, Quanto Falta, aporte e o botão Editar (44px). O Editar abre um sheet com 3 campos e o botão 'Aplicar'. Depois de aplicar, uma barra fixa '1 alteração de alocação ainda não salva' oferece Descartar e Salvar.",
+        "decisoes": [
+          "Segue o modelo do desktop: a célula só chama updateConfiguracao, e quem grava é saveChanges. Por isso o sheet diz 'Aplicar' e não mostra aviso de 'salvo'.",
+          "Reserva de Emergência em R$ (parseValorReserva, máximo 999.999), com Quanto Falta 'Falta R$ 1.600,00'.",
+          "O MobileEditSheet aceita vários campos, com parse, format e validate por campo (kind currency ou percent).",
+          "O campo alterado ganha um ponto #0079F2 (não textual)."
+        ]
+      },
+      {
+        "nome": "(b) Navegação entre abas de classe",
+        "descricao": "Botão fixo 'Todas' (abre um BottomSheet com as 14 classes, valor e %) mais um trilho de chips com os labels atuais do desktop, dentro de <nav data-mf-scroll-x>.",
+        "decisoes": [
+          "role=button com aria-current (não tablist): getByRole('button',{name}) do carteira.spec, do routes.ts e do mobile-overflow continua valendo nas duas larguras.",
+          "Os chips usam o texto completo de hoje ('Carteira Consolidada', 'Moedas, Criptomoedas & outros'), sem rótulo curto. O nome visível fica igual ao acessível (WCAG 2.5.3).",
+          "Chip de 36px com ::before de inset −5px (4px + 1px de borda), totalizando 44px de toque. O trilho tem 4px de padding para a área não ser cortada.",
+          "Chip ativo #314666 com texto branco; no escuro, borda #6E9DC4, porque #314666 sobre #18181B dá 1,85:1."
+        ]
+      },
+      {
+        "nome": "(c) Aba Ações em cartões",
+        "descricao": "Cartão-resumo, blocos Nec. aporte e Caixa da aba, Ordenar, faixas Value/Growth/Risk com subtotal, cartões fechado e aberto, planejado PRIO3 e total geral.",
+        "decisoes": [
+          "Cartão com data-mf-card e cabeçalho <button data-mf-card-toggle aria-expanded>. O Editar do objetivo tem data-mf-edit='objetivo'.",
+          "Faixa (CardSectionBand): tint tranquilidade 18% com texto segurança, 7,7:1.",
+          "quantoFaltaMobileClass entra na fatia 0; as fatias B e C só importam.",
+          "'Remover do planejamento' faz o mesmo DELETE do desktop, sem confirmação e sem Desfazer (o desktop também não tem)."
+        ]
+      },
+      {
+        "nome": "(d) Edição de objetivo, e (d2) falha",
+        "descricao": "Sheet de um campo com teclado decimal. Salvar mostra spinner e 'Salvando…'. No sucesso o sheet fecha e aparece 'Objetivo de BBAS3: 3,5%'. No cenário d2 o callback devolve false: o sheet fica aberto, com o valor digitado e a mensagem 'Não deu para salvar… toque em Salvar de novo'.",
+        "decisoes": [
+          "Retorno false ou exceção contam como falha: updateObjetivo (throwOnError=false), updateCampo e updateRendaFixaCampo devolvem false sem lançar. As props passam a (…) => void | Promise<boolean | void>.",
+          "Desfazer removido da fase 1, porque não existe API de desfazer.",
+          "O plano de QA foi corrigido: o objetivo atualiza só o cartão e o Quanto Falta da aba. A mutação é otimista e não chama invalidatePortfolioDerivedQueries.",
+          "Salva no botão ou no Enter, nunca no blur. No textarea, o Enter quebra a linha."
+        ]
+      },
+      {
+        "nome": "(e) Renda Fixa",
+        "descricao": "Cartões por título, com taxa, saldo, rentabilidade e selo de vencimento. O cartão aberto mostra IR se resgatar hoje, Valor atualizado e Observações.",
+        "decisoes": [
+          "O Valor atualizado abre um sheet em R$ e exige valor maior que zero (min exclusivo).",
+          "Com isAutoUpdated (Tesouro com PU oficial), a linha tem cadeado e o motivo 'Pelo PU oficial do Tesouro', sem botão.",
+          "Observações em textarea: o Enter quebra a linha e só o botão salva."
+        ]
+      },
+      {
+        "nome": "(f) Página do ativo",
+        "descricao": "Cabeçalho da fase 0 sem mudança (Voltar da rota aninhada + 'Ativo', sino e conta). No conteúdo: h1 'ITSA4' com o link Editar, destaque, grade 3x2, gráficos e listas.",
+        "decisoes": [
+          "Rejeitei o backHref/ação no MobileHeader da v1: a casca fica fora das fatias, e o isNestedRoute já dá o Voltar.",
+          "A 320px, a grade passa para 2 colunas."
+        ]
+      },
+      {
+        "nome": "(g) Wizard de cadastro",
+        "descricao": "Tela cheia, com o progresso e o texto 'Etapa n de N' calculados pela lista real de etapas. Etapa 1 com Operação e tipos; etapa de busca; etapa Informações com teclado numérico e rodapé acima do teclado.",
+        "decisoes": [
+          "Progresso = visibleStepIds.length: Ações 5; Personalizado, Conta Corrente e Poupança 4; Imóvel 3; Planejar 4; Aporte 5. aria-valuemax segue esse total.",
+          "Os tipos são agrupados só em Adicionar e Planejar. Planejar já filtra por TIPOS_ATIVO_PLANEJAVEIS e esconde grupos vazios. Aporte mostra a lista de /api/carteira/aporte/tipos sem agrupar.",
+          "wz-body com data-mf-step. O e2e para em 'info' pelo id, com Ações ou Conta Corrente, e nunca avança dali. O Personalizado mostra aviso de autoSubmit.",
+          "Rodapé com data-mf-wizard-footer. No iOS, useVisualViewportInset (fatia 0) usa visualViewport para manter o rodapé acima do teclado; o teste é manual no iPhone ou no Simulador.",
+          "nativeOnMobile vale em todos os DatePicker do wizard, inclusive os de vencimento (sem max = hoje)."
+        ]
+      },
+      {
+        "nome": "(h) Resgate",
+        "descricao": "Etapa Informações: posição, data nativa, método, quantidade com erro de limite, atalhos 25%/50%/Tudo e valor ao vivo.",
+        "decisoes": [
+          "O DatePicker do Step4RedeemInfo também recebe nativeOnMobile.",
+          "Atalhos com 44px de toque. O resgate tem sempre 5 etapas."
+        ]
+      },
+      {
+        "nome": "(i) Análise",
+        "descricao": "Rentabilidade e Proventos com chips de análise, chips de período, gráfico, grade mensal e listas. O + Lançar abre o wizard por cima da Análise.",
+        "decisoes": [
+          "O listener do QUICK_LAUNCH_EVENT e os wizards (lazy) sobem do CarteiraResumo para o CarteiraTabs. Novo caso de e2e: Análise → + Lançar → wizard abre.",
+          "ProventosTabs no mesmo padrão button + aria-current.",
+          "Chips de período: 32px visíveis e 44px de toque."
+        ]
+      },
+      {
+        "nome": "(j) Estados",
+        "descricao": "Vazio, carregando (skeleton) e erro, com o h1 sempre no topo.",
+        "decisoes": [
+          "O skeleton fica só dentro do CarteiraTabs (fatia A). O h1 do page.tsx aparece antes, então o READY_SELECTOR não muda.",
+          "O skeleton não promete velocidade: o gargalo é a /api/carteira/resumo."
+        ]
+      },
+      {
+        "nome": "(k) Desktop inalterado",
+        "descricao": "Miniatura em 1280px da tela atual.",
+        "decisoes": [
+          "Snapshot estrutural por aba a 1280px rodando no CI: th, linhas, colunas e hash das classNames. A máscara cobre só os números (td .tabular-nums), não a table inteira.",
+          "Nenhuma troca de cor no desktop nesta fase."
+        ]
+      }
+    ],
+    "especificacao_visual": "Cores só da paleta brandColors.ts mais os neutros da fase 0 e os semânticos já aceitos. Claro: fundo #F9FAFB, superfície #FFFFFF, borda #E4E7EC, texto #1D2939 e #344054, mudo #667085. Escuro: #18181B, #1F1F22, #2A2F3A, #F2F4F7 e #98A2B3. #0079F2 só em elementos não textuais: FAB, pílula, ponto do Quanto Falta, ponto de campo alterado, progresso, foco e linha da carteira. Texto de marca #396CAA / #6E9DC4. Botão primário #396CAA com texto branco. Chip ativo #314666 com texto branco (no escuro, borda #6E9DC4). Faixa de seção: tranquilidade 18% com texto #314666 (escuro: 14% com #EAEAEA). Negativo #D92D20 / #F97066 com '−' ou ▼. Âmbar: texto #B45309 e ponto #D97706 (escuro #FBBF24).\n\nTipografia: Outfit. h1 da página 18px/600; h1 da página do ativo 24px/600; número principal 28px (24px abaixo de 360px); valor do cartão 15px/600; rótulos 12px em maiúsculas; tabular-nums em todos os números.\n\nMedidas: gutter de 16px. Segmento Resumo | Análise com 50px e botões de 44px. Chips com 36px visíveis (período 32px) e 44px de toque via ::before (inset −5px / −7px, já contando a borda); o trilho tem padding vertical de 4px e o de período de 6px. Segmentos pequenos, atalhos e botão do aviso com 44px. Cartão de ativo com raio 16 e pelo menos 72px. Cartão de alocação com grade de 3 colunas (2 abaixo de 360px) e Editar de 44px. Barra 'não salvas' sticky com bottom = 64 + safe-area + 8px e borda tranquilidade. Faixa de seção com 44px. Campos com 48px e fonte de 16px; textarea com pelo menos 104px. Rodapé com botões de 48px; com o teclado aberto, altura = visualViewport.height via --mf-kb-inset. Rosca de 132px com legenda ao lado (embaixo a 320px).\n\nEstados: salvando (spinner, 'Salvando…', desabilitado); falha (sheet aberto, role=alert, valor mantido); salvo (aviso de 4s sem Desfazer); aplicado (barra de não salvas, Descartar restaura); bloqueado (cadeado com o motivo); vencendo (selo âmbar); skeleton com brilho de 1,3s.\n\nDark mode: os mesmos tokens da fase 0 trocados em variáveis, mais --chip-on-line #6E9DC4.\n\nAnimações: sheet em 260ms, cartão em 180ms, spinner de 0,8s; tudo desligado com prefers-reduced-motion.",
+    "acessibilidade": [
+      "Todos os alvos com pelo menos 44x44px, medidos no protótipo (hit-test do ::before do chip confirmado 3px fora da borda); segmento com 44px.",
+      "Navegação: role=button com aria-current='true' dentro de <nav aria-label>. O nome acessível é igual ao label visível de hoje, sem rótulo curto (WCAG 2.5.3).",
+      "Cartão com <button data-mf-card-toggle aria-expanded aria-controls> e nada interativo aninhado.",
+      "Sheets: role=dialog e aria-modal. O foco vai para o 1º campo e volta para quem abriu; Esc fecha.",
+      "Campos com label, inputmode decimal ou numeric e enterkeyhint (next/done; 'enter' no textarea). O erro de cada campo fica em aria-describedby, com aria-invalid e role=alert. A falha da gravação também usa role=alert.",
+      "Progresso do wizard: role=progressbar, com aria-valuemax igual ao total real de etapas e aria-valuetext 'Etapa 3 de 4: Informações'.",
+      "Contraste AA: #396CAA/branco 5,4:1; #6E9DC4/#1F1F22 5,7:1; #D92D20 4,8:1; #F97066 5,9:1; âmbar #B45309 5,0:1; faixa #314666 sobre tint 7,7:1. Chip ativo no escuro com borda #6E9DC4 (cerca de 6:1 contra #18181B), em vez de só #314666 (1,85:1).",
+      "A cor nunca é o único sinal: Falta/Acima/No objetivo, '−' e ▼, e o cadeado com texto no valor bloqueado.",
+      "Gráficos com role=img e resumo em aria-label; a rosca também tem a legenda com %.",
+      "Aviso em role=status aria-live=polite; skeleton com aria-busy e texto só para leitor de tela.",
+      "prefers-reduced-motion desliga shimmer, spinner, entrada dos cartões e sheets."
+    ],
+    "perguntas_para_wellington": [
+      "Navegação das 14 classes: botão 'Todas' (sheet com valor e %) mais trilho de chips, ou só um dos dois? Recomendo os dois juntos.",
+      "Topo da Carteira no celular: manter o título 'Carteira de Investimentos' visível (menor) e esconder só o subtítulo e os botões Adicionar/Resgatar? Recomendo assim. Esconder o título quebra os testes e deixa a página sem heading; o título duplicado se resolve na fase 3.",
+      "Manter a pizza 'Tipos de investimento' e mostrar a tabela 'Alocação de ativos' em cartões, com o mesmo Salvar do computador? Recomendo: fica uma única fonte de edição, sem lista nova.",
+      "Colocar a aba ativa na URL (/carteira?aba=acoes), para o Voltar do celular e para links? Recomendo sim.",
+      "Quanto Falta no celular com ponto colorido e texto AA com a palavra, e o desktop num PR separado? Recomendo.",
+      "Faixa de seção no celular com fundo claro e texto segurança (a da fase 0 tem 2,9:1)? Recomendo trocar.",
+      "Edição: salvar só no botão, sem Desfazer nesta fase, e o sheet fica aberto se a gravação falhar? Recomendo. O Desfazer exige uma chamada nova e fica para depois.",
+      "Alocação no celular: 'Aplicar' em cada classe mais a barra 'Salvar' (igual ao computador), ou gravar a cada edição? Recomendo igual ao computador; duas regras para a mesma tabela confundem.",
+      "Ordenar no celular (recurso novo) entra na fase 1? Recomendo entrar, só no celular.",
+      "Agrupar os tipos no wizard (Adicionar e Planejar; o Aporte segue a lista da carteira)? Recomendo agrupar; os valores não mudam.",
+      "Performance: medir primeiro o tempo da API do resumo e só depois prometer número? Recomendo. O gargalo é o back-end; a fase 1 faz só os ganhos baratos de front-end (abas e wizards sob demanda, gráficos lazy), sem mexer em cálculo."
+    ]
+  },
+  "revisao": {
+    "problemas": [
+      {
+        "alvo": "ambos",
+        "gravidade": "alta",
+        "descricao": "Esconder o h1 da Carteira no celular quebra e2e que já existem. Na proposta do designer (h1 max-lg:hidden), o READY_SELECTOR da /carteira nunca fica visível, e o waitForContent do mobile-overflow e do mobile-shell estoura o tempo. Na do arquiteto (h1 max-lg:sr-only), o h1 de 1x1px com clip continua sendo o primeiro 'h1:visible' da página: o MobileHeader usa <p>, não heading. O teste 'título não coberto' do mobile-shell faz elementFromPoint no centro recortado e recebe outro elemento, e aí covered=true.",
+        "evidencia": "e2e/helpers/routes.ts:91 READY_SELECTOR '/carteira': ':is(h1, h2):has-text(\"Carteira de Investimentos\")' com filter visible; e2e/mobile-shell.spec.ts:88-97 (heading = 'h1:visible, h2:visible, h3:visible'.first() + elementFromPoint); src/layout/mobile/MobileHeader.tsx:84 título é <p>",
+        "sugestao": "Colocar na fatia A a troca do READY_SELECTOR da /carteira (ex.: [data-mf-carteira-ready] ou o nav de abas) e ajustar o mobile-shell para ignorar .sr-only, ou esconder só o <p> e os botões e manter o h1 visível até a casca ter um heading próprio."
+      },
+      {
+        "alvo": "arquitetura",
+        "gravidade": "alta",
+        "descricao": "A guarda de desktop proposta não enxerga as tabelas. O MARKET_MASK mascara 'table' inteiro e também '.tabular-nums' e '[class*=font-mono]', e os screenshots são pulados no CI. As fatias B e C mudam exatamente o JSX das tabelas (ramo isBelowLg, props novas nas células), então um desvio no desktop dentro da tabela passa pelos 'baselines idênticos'. A contagem de <table> também não pega mudança de classe ou de coluna.",
+        "evidencia": "e2e/desktop-layout.spec.ts:31-41 (MARKET_MASK inclui 'table') e :127-131 (test.skip(!!process.env.CI, ...))",
+        "sugestao": "Na fatia 0, somar ao screenshot um snapshot estrutural por aba a 1280px, rodando também no CI: lista de th (texto), número de linhas e colunas, e hash das classNames de table/thead/tr/td e dos botões de aba. Mascarar só os números (.tabular-nums dentro de td), não a <table> inteira."
+      },
+      {
+        "alvo": "ambos",
+        "gravidade": "alta",
+        "descricao": "O contrato do MobileEditSheet ('await do onSubmit, fecha no sucesso, erro mantém aberto') e o aviso 'Salvo… Desfazer' do designer não batem com os callbacks reais. (1) updateObjetivo das abas Ações, FII, ETF e FimFia usa throwOnError=false: engole o erro e devolve false. updateCampo e updateRendaFixaCampo também devolvem false sem lançar. O sheet vai fechar e anunciar 'salvo' numa falha. (2) As props onUpdateObjetivo/onUpdateValorAtualizado são tipadas como void, e o EditableObjetivoCell descarta a promise. (3) A mutação de objetivo NÃO chama invalidatePortfolioDerivedQueries, por decisão (só update otimista), mas o plano de QA espera que 'totais/Alocação/Resumo atualizam'. (4) Não existe API de desfazer: o Desfazer seria uma segunda mutação, fora do escopo.",
+        "evidencia": "src/hooks/useAssetData.ts:224-240 (sem invalidate; catch → return false quando !throwOnError) e :247-265 (updateCampo return false); src/hooks/useRendaFixa.ts:100-110; src/components/carteira/shared/EditableObjetivoCell.tsx:8 (onUpdateObjetivo => void)",
+        "sugestao": "No MobileEditSheet, tratar como falha tanto exceção quanto retorno === false, e mudar os tipos das props para (…) => void | Promise<boolean | void>. Tirar o 'Desfazer' da fase 1 ou implementá-lo como nova chamada ao mesmo callback com o valor antigo. Corrigir o plano de QA: o objetivo só atualiza o cartão e a coluna Quanto Falta da aba."
+      },
+      {
+        "alvo": "ambos",
+        "gravidade": "alta",
+        "descricao": "A edição da Alocação num sheet de 'Salvar' engana o usuário. As EditableCell da AlocacaoAtivosTable só alteram o estado local (updateConfiguracao), e a gravação acontece no botão global 'Salvar Configurações'. Um sheet com Salvar ou o aviso 'Meta salva' fecharia sem persistir nada. Além disso, na linha da Reserva de Emergência o 'Alvo', o mínimo e o máximo são em R$ (parseValorReserva, max 999999), não em %. O arquiteto propõe 'kind percent, min/max iguais' com parseDecimalInput, o que perde o parseValue próprio.",
+        "evidencia": "src/components/carteira/AlocacaoAtivosTable.tsx:312-322 (handleConfigChange → updateConfiguracao), :303-310 e :614-619 (Salvar Configurações), :452-456 e :503-507 (isReservaEmergencia → parseValorReserva, suffix '', max 999999)",
+        "sugestao": "No celular: rótulo do botão 'Aplicar' (não 'Salvar') mais um aviso fixo 'Alterações não salvas' com Salvar Configurações sempre visível, ou salvar de verdade chamando saveChanges depois do update. O MobileEditSheet precisa aceitar parseValue e format por campo, com kind currency para a reserva."
+      },
+      {
+        "alvo": "ambos",
+        "gravidade": "alta",
+        "descricao": "O e2e 'wizard até a etapa 4' com tipo manual grava um ativo de verdade. Com Personalizado, o passo 'asset' é pulado: a etapa 3 vira info e a 4 vira confirmation, e o Step5Confirmation recebe autoSubmit={tipoAtivo==='personalizado'}, que chama onSubmit ao montar. Imóvel pula também a instituição (3 etapas; não existe etapa 4). Pelo mesmo motivo, o 'Etapa n de 5 / 5 segmentos' do designer está errado: o total varia de 3 a 5 (planejar tem 4).",
+        "evidencia": "src/components/carteira/AddAssetWizard.tsx:136-153 (getVisibleStepIds) e :851-856 (autoSubmit personalizado); src/components/carteira/wizard/Step5Confirmation.tsx:29-34",
+        "sugestao": "No e2e, medir até a etapa 'info' pelo id do passo (ex.: data-mf-step='info') e não pelo número. Usar conta-corrente/poupança, ou um tipo com Step3ManualEntry sem autoSubmit, e nunca avançar da info. O progresso visual tem que usar visibleStepIds.length."
+      },
+      {
+        "alvo": "arquitetura",
+        "gravidade": "alta",
+        "descricao": "O rodapé do wizard 'acima do teclado' depende só de interactiveWidget 'resizes-content' e de h-dvh. O Safari do iOS ignora interactive-widget: o teclado cobre o Sidebar fixo (h-dvh não encolhe) e Voltar/Avançar ficam embaixo do teclado. Isso atinge também o MobileEditSheet (fixed bottom-0). O designer cita visualViewport, mas nenhuma fatia tem isso nos arquivos. E o critério de aceite só testa no Chromium ('footer no viewport'), que não reproduz o problema.",
+        "evidencia": "src/app/layout.tsx:55 (interactiveWidget: 'resizes-content'); src/components/ui/sidebar/Sidebar.tsx (fixed top-0 h-full max-lg:h-dvh); grep por visualViewport em src/ → nenhum resultado",
+        "sugestao": "Na fatia 0, criar um hook useVisualViewportInset (visualViewport resize/scroll → --mf-kb-inset) aplicado ao Sidebar e ao BottomSheet (padding-bottom ou height = visualViewport.height), e documentar o teste manual no iPhone ou no Simulador."
+      },
+      {
+        "alvo": "arquitetura",
+        "gravidade": "media",
+        "descricao": "As fatias 'em paralelo, sem arquivos em comum' dependem umas das outras em tempo de compilação e de teste. C importa quantoFaltaMobileClass, que só existe depois de B (quantoFaltaClass.ts é de B), e usa o PlanejadoNameCell alterado por B. O mobile-carteira.spec da fatia A exige [data-mf-card], [data-mf-edit='objetivo'] e [data-mf-wizard-footer], que são entregues por B e D. A branch de C não compila e o e2e de A não passa até B e D mergearem.",
+        "evidencia": "Spec fatia C item 3 ('quantoFaltaMobileClass (exportada pela fatia B — só consumo)'); fatia A item 10 (ii)-(iv) usando atributos de B/D",
+        "sugestao": "Mover quantoFaltaMobileClass (e qualquer export consumido por C) para a fatia 0. Dar a cada fatia o e2e da própria parte (B: cartão+edição; D: wizard) e deixar em A só o loop de abas e o picker, ou definir a ordem de merge A por último."
+      },
+      {
+        "alvo": "ambos",
+        "gravidade": "media",
+        "descricao": "'+ Lançar' não funciona com a sub-aba Análise aberta, e escondê-los no celular deixa esse caminho sem saída. O listener de QUICK_LAUNCH_EVENT e o consumo do pendente vivem no CarteiraResumo, que é desmontado quando a aba principal é 'analise' (MainTabContent devolve null). Já na /carteira, o LaunchSheet cancela a navegação e só dispara o evento, então nada abre, e o pendente expira em 60s ou abre o wizard de surpresa ao voltar ao Resumo. Com Adicionar/Resgatar max-lg:hidden (as duas propostas), não sobra outro caminho.",
+        "evidencia": "src/components/carteira/CarteiraTabs.tsx:43-46 (MainTabContent null) e :203-212; src/components/carteira/CarteiraResumo.tsx:122-141; src/layout/mobile/LaunchSheet.tsx (pathname === targetPath → preventDefault + requestQuickLaunch)",
+        "sugestao": "Subir o listener e os wizards (lazy) para o CarteiraTabs ou forçar setActiveMainTab('resumo') ao receber o evento, e incluir no mobile-carteira.spec o caso Análise → + Lançar → wizard abre."
+      },
+      {
+        "alvo": "ambos",
+        "gravidade": "media",
+        "descricao": "As duas propostas divergem na semântica das abas e nos nomes. O designer usa role=tablist/tab com aria-selected, rótulos novos ('Visão geral', 'Renda fixa', 'Moedas e cripto') e um botão 'Classes'. O arquiteto mantém role=button (os e2e usam getByRole('button',{name})) e usa 'Todas ▾'. Seguindo o protótipo, o carteira.spec, o mobile-overflow (reveal CARTEIRA_TABS) e o routes.ts quebram. 'Visão geral' não é o label atual ('Carteira Consolidada').",
+        "evidencia": "e2e/carteira.spec.ts:10-27, e2e/mobile-overflow.spec.ts:147, e2e/helpers/routes.ts:62; prototipo.html:912-919 (role=\"tab\")",
+        "sugestao": "Fechar uma única decisão antes de codar. Se for role=tab, a fatia 0 atualiza os helpers de e2e para getByRole('tab') nas duas larguras. O nome acessível continua sendo o label atual; o rótulo curto fica só visual."
+      },
+      {
+        "alvo": "ambos",
+        "gravidade": "media",
+        "descricao": "Alvos de toque abaixo de 44px. O ResponsiveTabNav do arquiteto usa max-lg:min-h-9 (36px) sem área estendida. O designer diz que 'chips de 36px ganham área invisível via ::before', mas o protótipo não tem ::before em .chip nem em .rail .all. Medi a 320px no protótipo: Resumo/Análise 38px, chips 36px, chips de período (12 meses, 2 anos…) 32px e 'Mês atual' 32px.",
+        "evidencia": "prototipo.html:123,126,130,177 (min-height 38/36/36/32px; só .tile .edit e .quick button têm ::before); spec fatia 0 item 6 'max-lg:min-h-9'",
+        "sugestao": "Chips com min-h-11, ou h-9 com um pseudo-elemento absoluto inset-y-[-4px] no TABLE_MOBILE_STYLES.chip e no ResponsiveTabNav, e o teste unitário conferindo a classe."
+      },
+      {
+        "alvo": "arquitetura",
+        "gravidade": "media",
+        "descricao": "Cores reprovadas no AA entram nos contratos novos. O CardSectionBand usa sectionBandButton = groupBand (texto branco sobre #6E9DC4, 2,88:1). O quantoFaltaMobileClass mantém o 'âmbar atual' (amber-600 #D97706 sobre branco, 3,19:1). O designer já aponta as duas coisas e propõe tint + #314666 e #B45309. No escuro, o chip ativo #314666 sobre #18181B tem 1,85:1 como indicador de estado.",
+        "evidencia": "src/components/ui/table/tableStyles.ts groupBand 'bg-mf-tranquilidade … text-white'; src/components/carteira/shared/quantoFaltaClass.ts:16 'text-amber-600'; contraste calculado: #FFF/#6E9DC4 2.88, #D97706/#FFF 3.19",
+        "sugestao": "Na fatia 0, criar sectionBandButton com fundo tranquilidade/18% e texto mf-seguranca (escuro: #EAEAEA), âmbar-700 #B45309 no mobile, e chip ativo no escuro com borda ou fundo mf-tranquilidade."
+      },
+      {
+        "alvo": "arquitetura",
+        "gravidade": "media",
+        "descricao": "As pizzas das abas não usam o ApexChartWrapper. PieChartFiiAtivo, FiiSegmento, Etf, Stocks e Reit importam react-apexcharts direto com next/dynamic e já têm responsive (breakpoint 640, height 250). As props mobileOptions/mobileHeight da fatia 0 não chegam a elas, e o item 7 da fatia B não tem efeito.",
+        "evidencia": "src/components/charts/pie/PieChartFiiAtivo.tsx:6-8 (dynamic(() => import('react-apexcharts'))), :117-131 (responsive), :156",
+        "sugestao": "Na fatia B, ajustar o bloco responsive do Apex (breakpoint 1024, legend bottom, altura) em cada pizza em vez de contar com o wrapper. Ou migrar as pizzas para o ApexChartWrapper e verificar o screenshot de desktop."
+      },
+      {
+        "alvo": "arquitetura",
+        "gravidade": "media",
+        "descricao": "A data nativa fica pela metade. nativeOnMobile só é passado pelo BusinessDayDatePicker, mas vários Step4 usam <DatePicker> direto para outra data da mesma etapa (vencimento em Renda Fixa, Tesouro, Reserva, Opções e Fundos) e para a data do resgate. O resultado é flatpickr e seletor nativo misturados na mesma tela, e o resgate sem data nativa.",
+        "evidencia": "src/components/carteira/wizard/Step4RendaFixaFields.tsx:60 e :71; Step4ReservaFields.tsx:58; Step4TesouroRendaFixaFields.tsx:126; Step4OpcoesFields.tsx:74; Step4FundoDebenturePrevidenciaFields.tsx:276; src/components/carteira/redeemWizard/Step4RedeemInfo.tsx:127",
+        "sugestao": "Passar nativeOnMobile em todos os DatePicker da pasta wizard e do redeemWizard (sem maxDate='today' nos de vencimento) e cobrir a conversão local nos dois casos."
+      },
+      {
+        "alvo": "ambos",
+        "gravidade": "media",
+        "descricao": "A meta e os ganhos de performance não atacam o gargalo. O CarteiraTabs mostra só o spinner até o useCarteira terminar (/api/carteira/resumo, que o próprio e2e diz levar ~10s em dev e ~30s no CI). O CarteiraResumo já é lazy, então 'o chunk inicial da /carteira não contém as 13 tabelas' já é verdade hoje e não serve de critério. O 'LCP ≤ 4s em 4G lento' do designer não é realista sem mexer no back-end.",
+        "evidencia": "src/components/carteira/CarteiraTabs.tsx:13-14 (lazy CarteiraResumo/CarteiraAnalise) e :146-148 (if (loading) return <LoadingSpinner/>); e2e/helpers/routes.ts:90 e e2e/mobile-shell.spec.ts:81",
+        "sugestao": "Critério: o chunk do CarteiraResumo (não a rota) sem as tabelas e wizards, mais o tempo até 'resumo-pronto' decomposto em (API) + (render). Registrar o tempo da /api/carteira/resumo como linha de base, sem prometer LCP."
+      },
+      {
+        "alvo": "design",
+        "gravidade": "media",
+        "descricao": "O protótipo inventa telas e fluxos que nenhuma fatia constrói e que colidem com o código. (1) A pizza é trocada por uma lista de alocação com metas editáveis, o que duplica o AlocacaoAtivosTable, que fica logo abaixo e tem o próprio Salvar. (2) A etapa 1 vira uma grade agrupada dos 19 tipos, mas o Step1 filtra TIPOS_ATIVO_PLANEJAVEIS em 'planejar' e o aporte busca os tipos em /api/carteira/aporte/tipos. (3) MobileHeader com backHref e sem sino/avatar na página do ativo: é a casca da fase 0, fora das fatias, e o mobile-shell cobre. (4) Skeleton no lugar do LoadingSpinner, com risco para o READY_SELECTOR.",
+        "evidencia": "src/components/carteira/wizard/Step1AssetType.tsx:99-122 (Select com filtro planejar); AddAssetWizard.tsx:131-133 (aporte via API); src/layout/mobile/MobileHeader.tsx",
+        "sugestao": "Marcar essas quatro como 'fora da fase 1' ou atribuir cada uma a uma fatia com dono e arquivo. Para a lista de alocação, reusar os cartões do AlocacaoAtivosTable (fatia A) em vez de criar uma segunda fonte de edição."
+      },
+      {
+        "alvo": "arquitetura",
+        "gravidade": "baixa",
+        "descricao": "Detalhes que vão falhar na implementação. (1) O caminho do InputField está errado na fatia D: o arquivo é src/components/form/input/InputField.tsx. (2) parseDecimalInput 'igual ao EditableValorCell' com locale 'en-US' transforma '1,234.56' em 1.23456: a vírgula faz remover os pontos. Hoje só se usa pt-BR, mas a API expõe en-US. (3) O valor da Renda Fixa não é editável quando isAutoUpdated e exige > 0, não ≥ 0; o sheet precisa respeitar as duas regras. (4) Com kind 'textarea' e 'Enter salva', não dá para quebrar linha nas observações.",
+        "evidencia": "src/components/form/input/InputField.tsx; src/components/carteira/shared/EditableValorCell.tsx:30-37; src/components/carteira/RendaFixaTable.tsx:204-225",
+        "sugestao": "Corrigir o caminho. No parse, tratar o en-US pelo separador decimal do locale. O MobileEditSheet recebe min exclusivo ou validate(v), e não renderiza o botão quando o valor não é editável. Enter só envia quando o kind não é textarea."
+      }
+    ],
+    "pontos_fortes": [
+      "Editar no celular pelo MESMO callback do desktop, com a célula virando botão e abrindo sheet, mantém csrfFetch e as invalidações sem tocar nos hooks. Os *Table.tsx genéricos quase não mudam.",
+      "strategy 'js' (um DOM só) com o JSX de desktop intocado no ramo !isBelowLg: é a forma certa de proteger o desktop, e useIsBelowLg já existe (src/hooks/useMediaQuery.ts).",
+      "A fatia 0 antes das outras, com contratos (ResponsiveCardList, MobileEditSheet, ResponsiveTabNav, data-mf-*) e o helper expectFitsWithoutClip, que tira a dependência do corte [data-mf-content].",
+      "Achados de performance corretos e baratos: as 13 tabelas e os 2 wizards são import estático no CarteiraResumo; useReservaEmergencia roda sempre; invalidatePortfolioDerivedQueries já cobre reserva.emergencia, então dá para tirar o refetch manual.",
+      "O arquiteto conferiu os riscos certos: ordem dos hooks antes dos early returns, getByRole('button') nos e2e, data local no input date, dados do seed e restauração com try/finally.",
+      "O designer acertou as auditorias de contraste (groupBand 2,88:1; quantoFaltaClass com #0079F2 e âmbar-600 em texto) e a correção de que Alocação não é aba. O protótipo não transborda a 320px em nenhum dos 16 cenários (medido com Playwright: scrollWidth = clientWidth = 320) e não teve erro de JS.",
+      "Dar a cor do Quanto Falta com palavra ('Falta', 'Acima', 'No objetivo') e sinal '−', em vez de só cor, é bom para acessibilidade."
+    ]
+  }
+}

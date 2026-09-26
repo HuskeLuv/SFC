@@ -4,6 +4,7 @@ import { ApexOptions } from 'apexcharts';
 import { FiiAlocacaoSegmento } from '@/types/fii';
 
 import dynamic from 'next/dynamic';
+import { PIE_MOBILE_RESPONSIVE } from './pieMobileResponsive';
 // Dynamically import the ReactApexChart component
 const ReactApexChart = dynamic(() => import('react-apexcharts'), {
   ssr: false,
@@ -116,12 +117,13 @@ const PieChartFiiSegmento: React.FC<PieChartFiiSegmentoProps> = ({ data, isDarkM
         },
       },
       responsive: [
+        PIE_MOBILE_RESPONSIVE,
         {
           breakpoint: 640,
           options: {
             chart: {
               width: '100%',
-              height: 250,
+              height: 320,
             },
             legend: {
               fontSize: '10px',

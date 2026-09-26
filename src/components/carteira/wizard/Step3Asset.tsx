@@ -396,6 +396,7 @@ export default function Step3Asset({
           loading={loading}
           error={!!errors.ativo}
           hint={errors.ativo}
+          autoCapitalize="characters"
         />
       </div>
 

@@ -13,6 +13,8 @@ import {
 } from '@/components/carteira/shared';
 import AssetNameLink from '@/components/carteira/AssetNameLink';
 import ComponentCard from '@/components/common/ComponentCard';
+import { useIsBelowLg } from '@/hooks/useMediaQuery';
+import { ResumoAportesCards, UsdTotalMobile } from '@/components/carteira/shared/AssetCardSections';
 import { TABLE_STYLES, TABLE_HEADER_STYLE } from '@/components/ui/table/tableStyles';
 import { formatWallClockDate } from '@/utils/formatDate';
 import PieChartStocksAtivo from '@/components/charts/pie/PieChartStocksAtivo';
@@ -40,10 +42,11 @@ export default function StocksTable({ totalCarteira = 0 }: StocksTableProps) {
     updateObjetivo,
     updateCaixaParaInvestir,
   } = useCarteiraStocks();
+  const isBelowLg = useIsBelowLg();
 
-  const handleUpdateObjetivo = async (ativoId: string, novoObjetivo: number) => {
-    await updateObjetivo(ativoId, novoObjetivo);
-  };
+  // Devolve o resultado (false = falha) para o sheet do celular manter o erro aberto.
+  const handleUpdateObjetivo = (ativoId: string, novoObjetivo: number) =>
+    updateObjetivo(ativoId, novoObjetivo);
 
   const cotacaoDolar = data?.cotacaoDolar ?? null;
   const formatCurrencyBRL = (valueUSD: number) =>
@@ -272,6 +275,18 @@ export default function StocksTable({ totalCarteira = 0 }: StocksTableProps) {
     </tr>
   );
 
+  // Celular: a mesma linha "TOTAL EM USD" no cartão de total.
+  const extraTotalMobile = (
+    <UsdTotalMobile
+      aplicado={formatCurrency(
+        ((data?.totalGeral as unknown as Record<string, unknown>)?.valorAplicado as number) ?? 0,
+      )}
+      atualizado={formatCurrency(
+        ((data?.totalGeral as unknown as Record<string, unknown>)?.valorAtualizado as number) ?? 0,
+      )}
+    />
+  );
+
   return (
     <GenericAssetTable<CarteiraStockAtivo, CarteiraStockSecao>
       data={data as unknown as Record<string, unknown>}
@@ -297,6 +312,8 @@ export default function StocksTable({ totalCarteira = 0 }: StocksTableProps) {
       totalCarteira={totalCarteira}
       cotacaoParaBRL={cotacaoDolar}
       extraTotalRows={extraTotalRows}
+      extraTotalMobile={extraTotalMobile}
+      mobileQuantityUnit="ações"
     >
       {/* Charts and aux table */}
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-12">
@@ -307,43 +324,60 @@ export default function StocksTable({ totalCarteira = 0 }: StocksTableProps) {
         </div>
         <div className="xl:col-span-6">
           <ComponentCard title="Resumo de Aportes">
-            <div className={TABLE_STYLES.wrapper}>
-              <table className={TABLE_STYLES.table}>
-                <thead>
-                  <tr className={TABLE_STYLES.headRow} style={TABLE_HEADER_STYLE}>
-                    <th className={`${TABLE_STYLES.th} text-left`}>Nome</th>
-                    <th className={`${TABLE_STYLES.th} text-left`}>Data da Compra</th>
-                    <th className={`${TABLE_STYLES.th} text-right`}>Cotacao Atual</th>
-                    <th className={`${TABLE_STYLES.th} text-right`}>Necessidade Aporte</th>
-                    <th className={`${TABLE_STYLES.th} text-right`}>Lote Aproximado</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {(data?.tabelaAuxiliar || []).map((item, index) => (
-                    <tr key={index} className={`${TABLE_STYLES.row} ${TABLE_STYLES.rowHover}`}>
-                      <td className={TABLE_STYLES.td}>{item.nome}</td>
-                      <td className={TABLE_STYLES.td}>
-                        {item.dataCompra ? formatWallClockDate(item.dataCompra) : '-'}
-                      </td>
-                      <td className={`${TABLE_STYLES.td} text-right`}>
-                        {formatCurrency(item.cotacaoAtual)}
-                      </td>
-                      <td className={`${TABLE_STYLES.td} text-right`}>
-                        {formatCurrency(item.necessidadeAporte)}
-                      </td>
-                      <td className={`${TABLE_STYLES.td} text-right`}>
-                        {formatNumber(item.loteAproximado)}
-                      </td>
+            {isBelowLg ? (
+              <ResumoAportesCards
+                withData
+                items={(data?.tabelaAuxiliar || []).map((item, index) => ({
+                  key: index,
+                  nome: item.nome,
+                  data: item.dataCompra ? formatWallClockDate(item.dataCompra) : '-',
+                  cotacao: formatCurrency(item.cotacaoAtual),
+                  necessidade: formatCurrency(item.necessidadeAporte),
+                  lote: formatNumber(item.loteAproximado),
+                }))}
+              />
+            ) : (
+              <div className={TABLE_STYLES.wrapper}>
+                <table className={TABLE_STYLES.table}>
+                  <thead>
+                    <tr className={TABLE_STYLES.headRow} style={TABLE_HEADER_STYLE}>
+                      <th className={`${TABLE_STYLES.th} text-left`}>Nome</th>
+                      <th className={`${TABLE_STYLES.th} text-left`}>Data da Compra</th>
+                      <th className={`${TABLE_STYLES.th} text-right`}>Cotacao Atual</th>
+                      <th className={`${TABLE_STYLES.th} text-right`}>Necessidade Aporte</th>
+                      <th className={`${TABLE_STYLES.th} text-right`}>Lote Aproximado</th>
                     </tr>
-                  ))}
-                  <BasicTablePlaceholderRows
-                    count={Math.max(0, MIN_PLACEHOLDER_ROWS - (data?.tabelaAuxiliar?.length || 0))}
-                    colSpan={5}
-                    compact={false}
-                  />
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  <tbody>
+                    {(data?.tabelaAuxiliar || []).map((item, index) => (
+                      <tr key={index} className={`${TABLE_STYLES.row} ${TABLE_STYLES.rowHover}`}>
+                        <td className={TABLE_STYLES.td}>{item.nome}</td>
+                        <td className={TABLE_STYLES.td}>
+                          {item.dataCompra ? formatWallClockDate(item.dataCompra) : '-'}
+                        </td>
+                        <td className={`${TABLE_STYLES.td} text-right`}>
+                          {formatCurrency(item.cotacaoAtual)}
+                        </td>
+                        <td className={`${TABLE_STYLES.td} text-right`}>
+                          {formatCurrency(item.necessidadeAporte)}
+                        </td>
+                        <td className={`${TABLE_STYLES.td} text-right`}>
+                          {formatNumber(item.loteAproximado)}
+                        </td>
+                      </tr>
+                    ))}
+                    <BasicTablePlaceholderRows
+                      count={Math.max(
+                        0,
+                        MIN_PLACEHOLDER_ROWS - (data?.tabelaAuxiliar?.length || 0),
+                      )}
+                      colSpan={5}
+                      compact={false}
+                    />
+                  </tbody>
+                </table>
+              </div>
+            )}
           </ComponentCard>
         </div>
       </div>

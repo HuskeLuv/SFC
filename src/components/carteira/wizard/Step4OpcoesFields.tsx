@@ -72,6 +72,7 @@ export default function Step4OpcoesFields({
       />
       <div>
         <DatePicker
+          nativeOnMobile
           id="dataVencimento"
           label="Vencimento *"
           placeholder="Selecione a data"

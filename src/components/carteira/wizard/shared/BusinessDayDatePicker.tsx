@@ -117,6 +117,7 @@ export default function BusinessDayDatePicker({
         staticPosition={staticPosition}
         appendToBody={appendToBody}
         maxDate="today"
+        nativeOnMobile
         onChange={(selectedDates) => {
           if (!selectedDates || selectedDates.length === 0) return;
           const rawIso = selectedDates[0].toISOString().split('T')[0];

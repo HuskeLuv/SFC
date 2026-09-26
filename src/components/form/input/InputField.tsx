@@ -1,7 +1,7 @@
-import React, { forwardRef } from "react";
+import React, { forwardRef } from 'react';
 
 interface InputProps {
-  type?: "text" | "number" | "email" | "password" | "date" | "time" | string;
+  type?: 'text' | 'number' | 'email' | 'password' | 'date' | 'time' | string;
   id?: string;
   name?: string;
   placeholder?: string;
@@ -10,7 +10,7 @@ interface InputProps {
   onChange?: (e: React.ChangeEvent<HTMLInputElement>) => void;
   onKeyDown?: (e: React.KeyboardEvent<HTMLInputElement>) => void;
   onFocus?: () => void;
-  inputMode?: React.HTMLAttributes<HTMLInputElement>["inputMode"];
+  inputMode?: React.HTMLAttributes<HTMLInputElement>['inputMode'];
   pattern?: string;
   className?: string;
   min?: string;
@@ -21,82 +21,97 @@ interface InputProps {
   error?: boolean;
   hint?: string;
   required?: boolean;
+  /** Tecla de ação do teclado do celular ('next', 'done', 'search'…). */
+  enterKeyHint?: React.InputHTMLAttributes<HTMLInputElement>['enterKeyHint'];
+  autoComplete?: string;
+  autoCapitalize?: string;
 }
 
-const Input = forwardRef<HTMLInputElement, InputProps>(({
-  type = "text",
-  id,
-  name,
-  placeholder,
-  defaultValue,
-  value,
-  onChange,
-  onKeyDown,
-  onFocus,
-  inputMode,
-  pattern,
-  className = "",
-  min,
-  max,
-  step,
-  disabled = false,
-  success = false,
-  error = false,
-  hint,
-  required = false,
-}, ref) => {
-  let inputClasses = ` h-11 w-full rounded-lg border appearance-none px-4 py-2.5 text-sm shadow-theme-xs placeholder:text-gray-400 focus:outline-hidden focus:ring-3  dark:bg-gray-900 dark:text-white/90 dark:placeholder:text-white/30 ${className}`;
+const Input = forwardRef<HTMLInputElement, InputProps>(
+  (
+    {
+      type = 'text',
+      id,
+      name,
+      placeholder,
+      defaultValue,
+      value,
+      onChange,
+      onKeyDown,
+      onFocus,
+      inputMode,
+      pattern,
+      className = '',
+      min,
+      max,
+      step,
+      disabled = false,
+      success = false,
+      error = false,
+      hint,
+      required = false,
+      enterKeyHint,
+      autoComplete,
+      autoCapitalize,
+    },
+    ref,
+  ) => {
+    const hintId = hint && id ? `${id}-hint` : undefined;
+    let inputClasses = ` h-11 w-full rounded-lg border appearance-none px-4 py-2.5 text-sm shadow-theme-xs placeholder:text-gray-400 focus:outline-hidden focus:ring-3  dark:bg-gray-900 dark:text-white/90 dark:placeholder:text-white/30 max-lg:h-12 max-lg:rounded-xl max-lg:text-base ${className}`;
 
-  if (disabled) {
-    inputClasses += ` text-gray-500 border-gray-300 opacity-40 bg-gray-100 cursor-not-allowed dark:bg-gray-800 dark:text-gray-400 dark:border-gray-700 opacity-40`;
-  } else if (error) {
-    inputClasses += `  border-error-500 focus:border-error-300 focus:ring-error-500/20 dark:text-error-400 dark:border-error-500 dark:focus:border-error-800`;
-  } else if (success) {
-    inputClasses += `  border-success-500 focus:border-success-300 focus:ring-success-500/20 dark:text-success-400 dark:border-success-500 dark:focus:border-success-800`;
-  } else {
-    inputClasses += ` bg-transparent text-gray-800 border-gray-300 focus:border-brand-300 focus:ring-brand-500/20 dark:border-gray-700 dark:text-white/90  dark:focus:border-brand-800`;
-  }
+    if (disabled) {
+      inputClasses += ` text-gray-500 border-gray-300 opacity-40 bg-gray-100 cursor-not-allowed dark:bg-gray-800 dark:text-gray-400 dark:border-gray-700 opacity-40`;
+    } else if (error) {
+      inputClasses += `  border-error-500 focus:border-error-300 focus:ring-error-500/20 dark:text-error-400 dark:border-error-500 dark:focus:border-error-800`;
+    } else if (success) {
+      inputClasses += `  border-success-500 focus:border-success-300 focus:ring-success-500/20 dark:text-success-400 dark:border-success-500 dark:focus:border-success-800`;
+    } else {
+      inputClasses += ` bg-transparent text-gray-800 border-gray-300 focus:border-brand-300 focus:ring-brand-500/20 dark:border-gray-700 dark:text-white/90  dark:focus:border-brand-800`;
+    }
 
-  return (
-    <div className="relative">
-      <input
-        ref={ref}
-        type={type}
-        id={id}
-        name={name}
-        placeholder={placeholder}
-        defaultValue={defaultValue}
-        value={value}
-        onChange={onChange}
-        onKeyDown={onKeyDown}
-        onFocus={onFocus}
-        inputMode={inputMode}
-        pattern={pattern}
-        min={min}
-        max={max}
-        step={step}
-        disabled={disabled}
-        required={required}
-        className={inputClasses}
-      />
+    return (
+      <div className="relative">
+        <input
+          ref={ref}
+          type={type}
+          id={id}
+          name={name}
+          placeholder={placeholder}
+          defaultValue={defaultValue}
+          value={value}
+          onChange={onChange}
+          onKeyDown={onKeyDown}
+          onFocus={onFocus}
+          inputMode={inputMode}
+          pattern={pattern}
+          min={min}
+          max={max}
+          step={step}
+          disabled={disabled}
+          required={required}
+          enterKeyHint={enterKeyHint}
+          autoComplete={autoComplete}
+          autoCapitalize={autoCapitalize}
+          aria-invalid={error || undefined}
+          aria-describedby={hintId}
+          className={inputClasses}
+        />
 
-      {hint && (
-        <p
-          className={`mt-1.5 text-xs ${
-            error
-              ? "text-error-500"
-              : success
-              ? "text-success-500"
-              : "text-gray-500"
-          }`}
-        >
-          {hint}
-        </p>
-      )}
-    </div>
-  );
-});
+        {hint && (
+          <p
+            id={hintId}
+            className={`mt-1.5 text-xs ${
+              error ? 'text-error-500' : success ? 'text-success-500' : 'text-gray-500'
+            }`}
+          >
+            {hint}
+          </p>
+        )}
+      </div>
+    );
+  },
+);
 
-Input.displayName = "Input";
+Input.displayName = 'Input';
 
 export default Input;

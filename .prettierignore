@@ -1,0 +1,2 @@
+# Baselines do Playwright (snapshots estruturais .json): o conteúdo é comparado byte a byte.
+e2e/**/*-snapshots/

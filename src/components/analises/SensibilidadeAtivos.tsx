@@ -43,8 +43,8 @@ export default function SensibilidadeAtivos({ data }: SensibilidadeAtivosProps) 
                 return (
                   <div key={item.ticker}>
                     {/* Asset name + beta value */}
-                    <div className="mb-2 flex items-center justify-between">
-                      <span className="text-sm font-medium text-gray-900 dark:text-white">
+                    <div className="mb-2 flex items-center justify-between gap-2">
+                      <span className="min-w-0 text-sm font-medium text-gray-900 dark:text-white max-lg:break-words">
                         {item.ticker} - {item.nome}
                         {item.beta < 0 && (
                           <span className="ml-2 rounded-full bg-blue-light-50 px-2 py-0.5 text-xs font-medium text-blue-light-600 dark:bg-blue-light-900/30 dark:text-blue-light-400">
@@ -52,7 +52,7 @@ export default function SensibilidadeAtivos({ data }: SensibilidadeAtivosProps) 
                           </span>
                         )}
                       </span>
-                      <span className="text-sm font-semibold text-[#465FFF]">
+                      <span className="shrink-0 text-sm font-semibold text-[#465FFF]">
                         {item.beta.toFixed(2).replace('.', ',')}
                       </span>
                     </div>

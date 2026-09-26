@@ -106,3 +106,14 @@ const TableCell = forwardRef<HTMLTableCellElement, TableCellProps>(
 TableCell.displayName = 'TableCell';
 
 export { Table, TableHeader, TableBody, TableRow, TableCell };
+
+// PWA (fases 0 e 1): tabela ↔ cartões abaixo de lg.
+export {
+  ResponsiveTable,
+  ResponsiveCardList,
+  type ResponsiveColumn,
+  type ResponsiveMobileRole,
+  type ResponsiveCardListProps,
+  type ResponsiveTableProps,
+} from './ResponsiveTable';
+export { CardSectionBand, type CardSectionBandProps } from './CardSectionBand';

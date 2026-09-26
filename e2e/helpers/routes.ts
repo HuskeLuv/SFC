@@ -56,7 +56,15 @@ export interface DynamicRoute {
   toRoute?: (href: string) => string;
   /** Botões (nome exato) a clicar, em ordem, até o link aparecer — ex.: abas da carteira. */
   reveal?: string[];
+  /**
+   * Abaixo de lg, o link pode ficar dentro de um cartão fechado (PWA fase 1): seletor do botão que
+   * abre o cartão, clicado (se visível) quando a aba não mostra o link.
+   */
+  expand?: string;
 }
+
+/** Botão que abre um cartão fechado da carteira no celular (ResponsiveCardList). */
+const CARD_TOGGLE_FECHADO = '[data-mf-card-toggle][aria-expanded="false"]';
 
 /** Abas da /carteira onde costuma haver ativos com link para /ativos/{id}. */
 const CARTEIRA_TABS = ['Ações', "FII's", 'Renda Fixa', 'Fundos', "ETF's", 'Stocks'];
@@ -67,12 +75,14 @@ export const DYNAMIC_ROUTES: DynamicRoute[] = [
     from: '/carteira',
     linkSelector: 'a[href^="/ativos/"]',
     reveal: CARTEIRA_TABS,
+    expand: CARD_TOGGLE_FECHADO,
   },
   {
     name: '/ativos/{id}/editar',
     from: '/carteira',
     linkSelector: 'a[href^="/ativos/"]',
     reveal: CARTEIRA_TABS,
+    expand: CARD_TOGGLE_FECHADO,
     toRoute: (href) => `${href.split('?')[0].replace(/\/$/, '')}/editar`,
   },
   { name: '/educacao/{slug}', from: '/educacao', linkSelector: 'a[href^="/educacao/"]' },
@@ -88,7 +98,10 @@ export const DEFAULT_READY_SELECTOR = 'main h1, main h2, :is(h1, h2, h3):not(asi
 
 export const READY_SELECTOR: Record<string, string> = {
   // A /carteira mostra um spinner por ~10s antes do cabeçalho real (onde está o transbordo).
-  '/carteira': ':is(h1, h2):has-text("Carteira de Investimentos")',
+  // Fase 1: o h1 continua visível no celular (compacto); `[data-mf-carteira-ready]` (fatia A)
+  // também serve. `.sr-only` fica de fora: um h1 de 1px não prova que a página montou.
+  '/carteira':
+    ':is(h1, h2):has-text("Carteira de Investimentos"):not(.sr-only), [data-mf-carteira-ready]',
   // FullCalendar é carregado sob demanda e os eventos chegam depois; o transbordo só aparece com
   // os eventos na tela (nomes longos). Abaixo de 768px a visão inicial é a LISTA
   // (AgendaFullCalendar) — é ela que um celular vê. O usuário demo tem parcelas de dívida todo mês.

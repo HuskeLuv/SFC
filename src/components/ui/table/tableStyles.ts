@@ -98,6 +98,39 @@ export const TABLE_MOBILE_STYLES = {
   /** Cartão de total (par da `totalRow`). */
   totalCard:
     'rounded-2xl bg-gray-50 px-4 py-3.5 font-medium text-gray-800 dark:bg-white/[0.02] dark:text-gray-100',
-  chip: 'inline-flex min-h-9 items-center rounded-full border border-gray-200 px-3 text-sm dark:border-gray-700',
-  chipActive: 'border-mf-seguranca bg-mf-seguranca text-white',
+  /**
+   * Chip de 36px visíveis com 44px de toque (o `before:` estende a área 4px para cima e para baixo).
+   * Par de `chipActive` (combinar com twMerge). Sem `max-lg:`: quem usa já está no ramo mobile.
+   */
+  chip: 'relative inline-flex h-9 shrink-0 snap-start items-center whitespace-nowrap rounded-full border border-gray-200 px-3 text-sm text-gray-700 before:absolute before:inset-x-0 before:-inset-y-1 before:content-[""] dark:border-gray-700 dark:text-gray-300',
+  /** Chip ativo. No escuro a borda `tranquilidade` garante ≥ 3:1 para o estado. */
+  chipActive:
+    'border-mf-seguranca bg-mf-seguranca text-white dark:border-mf-tranquilidade dark:bg-mf-tranquilidade/25 dark:text-white',
+
+  // ── PWA fase 1 (Carteira) ──────────────────────────────────────────────────────────────────
+  /** <ul> dos cartões expansíveis (`ResponsiveCardList`): 8px entre cartões. */
+  cardList: 'flex flex-col gap-2',
+  /** Grade do cartão aberto: 3 colunas (2 abaixo de 360px). */
+  cardDetailGrid: 'grid grid-cols-3 gap-x-3 gap-y-2 max-[359px]:grid-cols-2',
+  cardDetailLabel: 'text-[11px] text-gray-500 dark:text-gray-400',
+  cardDetailValue: 'text-[13.5px] font-medium tabular-nums text-gray-800 dark:text-gray-100',
+  /**
+   * Faixa de seção recolhível (`CardSectionBand`): tint `tranquilidade` + texto `seguranca`
+   * (claro) / `escolha` (escuro) — AA. Substitui a `groupBand` (branco sobre #6E9DC4, 2,88:1),
+   * que continua exportada para a fase 0.
+   */
+  sectionBandButton:
+    'flex w-full min-h-11 items-center gap-2 rounded-xl px-3 text-left text-sm bg-mf-tranquilidade/[0.18] text-mf-seguranca dark:bg-mf-tranquilidade/[0.14] dark:text-mf-escolha font-semibold',
+  /** Trilho horizontal de chips (o <nav> leva `data-mf-scroll-x`). */
+  chipRail:
+    'flex gap-2 overflow-x-auto snap-x -mx-4 px-4 py-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden [mask-image:linear-gradient(to_right,transparent,#000_12px,#000_calc(100%-24px),transparent)]',
+  /** Botão "Editar" dentro do cartão (44px de altura). */
+  editButton:
+    'relative inline-flex min-h-11 items-center gap-1 rounded-md px-2 text-sm font-medium text-mf-patrimonio dark:text-mf-tranquilidade',
+  /** Bloco "Necessidade de aporte". */
+  needBlock:
+    'rounded-2xl bg-mf-escolha px-4 py-3.5 text-mf-potencia dark:bg-mf-escolha/[0.08] dark:text-mf-escolha',
+  /** Bloco "Caixa para investir". */
+  caixaBlock:
+    'rounded-2xl bg-mf-patrimonio/[0.12] px-4 py-3.5 text-mf-seguranca dark:text-mf-escolha',
 } as const;

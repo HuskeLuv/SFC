@@ -2,6 +2,7 @@
 import React, { useMemo } from 'react';
 import { ApexOptions } from 'apexcharts';
 import dynamic from 'next/dynamic';
+import { useIsBelowLg } from '@/hooks/useMediaQuery';
 
 const ReactApexChart = dynamic(() => import('react-apexcharts'), { ssr: false });
 
@@ -14,14 +15,22 @@ interface GaugeChartProps {
   trackColor?: string;
   /** Altura do gráfico em pixels */
   height?: number;
+  /** PWA fase 1: altura abaixo de lg (padrão: `height`). */
+  mobileHeight?: number;
+  /** PWA fase 1: resumo para leitor de tela abaixo de lg (vira role=img). */
+  ariaLabel?: string;
 }
 
 export default function GaugeChart({
   value,
   color = '#465FFF',
   trackColor = '#E4E7EC',
-  height = 250,
+  height: desktopHeight = 250,
+  mobileHeight,
+  ariaLabel,
 }: GaugeChartProps) {
+  const isBelowLg = useIsBelowLg();
+  const height = isBelowLg && mobileHeight !== undefined ? mobileHeight : desktopHeight;
   const series = [Math.max(0, Math.min(100, value))];
 
   const options: ApexOptions = useMemo(
@@ -61,5 +70,15 @@ export default function GaugeChart({
     [color, trackColor, height],
   );
 
-  return <ReactApexChart options={options} series={series} type="radialBar" height={height} />;
+  const chart = (
+    <ReactApexChart options={options} series={series} type="radialBar" height={height} />
+  );
+  if (isBelowLg && ariaLabel) {
+    return (
+      <div role="img" aria-label={ariaLabel}>
+        {chart}
+      </div>
+    );
+  }
+  return chart;
 }

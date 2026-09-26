@@ -6,11 +6,14 @@ import IRSummaryCard from './IRSummaryCard';
 import IRStateMessage from './IRStateMessage';
 import { CATEGORIA_LABEL, formatBRL, formatYearMonth } from './irFormatters';
 import { TABLE_STYLES, TABLE_HEADER_STYLE } from '@/components/ui/table/tableStyles';
+import { ResponsiveCardList } from '@/components/ui/table/ResponsiveTable';
+import { useIsBelowLg } from '@/hooks/useMediaQuery';
 
 const CATEGORIES: IRRendaVariavelCategory[] = ['acao_br', 'fii', 'etf_br'];
 
 export default function IRMensalRendaVariavel() {
   const { data, isLoading, error } = useIRMensal();
+  const isBelowLg = useIsBelowLg();
 
   if (isLoading) return <LoadingSpinner text="Carregando apuração mensal..." />;
   if (error)
@@ -70,77 +73,117 @@ export default function IRMensalRendaVariavel() {
         />
       </div>
 
-      <div className={TABLE_STYLES.wrapper}>
-        <table className={TABLE_STYLES.table}>
-          <thead>
-            <tr className={TABLE_STYLES.headRow} style={TABLE_HEADER_STYLE}>
-              <th className={`${TABLE_STYLES.th} text-left`}>Mês</th>
-              {CATEGORIES.map((cat) => (
-                <th key={cat} className={`${TABLE_STYLES.th} text-right`}>
-                  {CATEGORIA_LABEL[cat]}
-                </th>
-              ))}
-              <th className={`${TABLE_STYLES.th} text-right`}>Total IR</th>
-            </tr>
-          </thead>
-          <tbody>
-            {data.meses.map((mes) => (
-              <tr key={mes.yearMonth} className={`${TABLE_STYLES.row} ${TABLE_STYLES.rowHover}`}>
-                <td
-                  className={`${TABLE_STYLES.td} whitespace-nowrap font-medium text-gray-900 dark:text-white`}
-                >
-                  {formatYearMonth(mes.yearMonth)}
-                </td>
-                {CATEGORIES.map((cat) => {
-                  const r = mes.porCategoria[cat];
-                  if (!r) {
+      {isBelowLg ? (
+        <ResponsiveCardList<(typeof data.meses)[number]>
+          ariaLabel="Apuração mensal de renda variável"
+          rows={data.meses}
+          getRowKey={(m) => m.yearMonth}
+          columns={[
+            {
+              id: 'mes',
+              header: 'Mês',
+              mobile: 'primary',
+              cell: (m) => formatYearMonth(m.yearMonth),
+            },
+            {
+              id: 'total',
+              header: 'Total IR',
+              mobile: 'value',
+              cell: (m) => (m.irTotalDevido > 0 ? formatBRL(m.irTotalDevido) : '—'),
+            },
+            ...CATEGORIES.map((cat) => ({
+              id: cat,
+              header: CATEGORIA_LABEL[cat],
+              mobile: 'field' as const,
+              cell: (m: (typeof data.meses)[number]) => {
+                const r = m.porCategoria[cat];
+                if (!r) return <span className="text-gray-400">—</span>;
+                if (r.isento) return 'Isento';
+                if (r.irDevido > 0) return formatBRL(r.irDevido);
+                if (r.lucroBruto < 0)
+                  return (
+                    <span className="text-[#D92D20] dark:text-[#F97066]">
+                      Prej. {formatBRL(Math.abs(r.lucroBruto))}
+                    </span>
+                  );
+                return '—';
+              },
+            })),
+          ]}
+        />
+      ) : (
+        <div className={TABLE_STYLES.wrapper}>
+          <table className={TABLE_STYLES.table}>
+            <thead>
+              <tr className={TABLE_STYLES.headRow} style={TABLE_HEADER_STYLE}>
+                <th className={`${TABLE_STYLES.th} text-left`}>Mês</th>
+                {CATEGORIES.map((cat) => (
+                  <th key={cat} className={`${TABLE_STYLES.th} text-right`}>
+                    {CATEGORIA_LABEL[cat]}
+                  </th>
+                ))}
+                <th className={`${TABLE_STYLES.th} text-right`}>Total IR</th>
+              </tr>
+            </thead>
+            <tbody>
+              {data.meses.map((mes) => (
+                <tr key={mes.yearMonth} className={`${TABLE_STYLES.row} ${TABLE_STYLES.rowHover}`}>
+                  <td
+                    className={`${TABLE_STYLES.td} whitespace-nowrap font-medium text-gray-900 dark:text-white`}
+                  >
+                    {formatYearMonth(mes.yearMonth)}
+                  </td>
+                  {CATEGORIES.map((cat) => {
+                    const r = mes.porCategoria[cat];
+                    if (!r) {
+                      return (
+                        <td key={cat} className={`${TABLE_STYLES.td} text-right`}>
+                          <span className="text-gray-400">—</span>
+                        </td>
+                      );
+                    }
                     return (
-                      <td key={cat} className={`${TABLE_STYLES.td} text-right`}>
-                        <span className="text-gray-400">—</span>
+                      <td key={cat} className={`${TABLE_STYLES.td} whitespace-nowrap text-right`}>
+                        {r.isento ? (
+                          <div>
+                            <div className="text-emerald-600 dark:text-emerald-400">Isento</div>
+                            <div className="text-xs text-gray-500 dark:text-gray-400">
+                              Vendas {formatBRL(r.vendasTotal)}
+                            </div>
+                          </div>
+                        ) : r.irDevido > 0 ? (
+                          <div>
+                            <div className="font-medium text-gray-900 dark:text-white">
+                              {formatBRL(r.irDevido)}
+                            </div>
+                            <div className="text-xs text-gray-500 dark:text-gray-400">
+                              Lucro {formatBRL(r.lucroTributavel)}
+                            </div>
+                          </div>
+                        ) : (
+                          <div>
+                            <div className="text-gray-500">—</div>
+                            {r.lucroBruto < 0 && (
+                              <div className="text-xs text-red-500 dark:text-red-400">
+                                Prej. {formatBRL(Math.abs(r.lucroBruto))}
+                              </div>
+                            )}
+                          </div>
+                        )}
                       </td>
                     );
-                  }
-                  return (
-                    <td key={cat} className={`${TABLE_STYLES.td} whitespace-nowrap text-right`}>
-                      {r.isento ? (
-                        <div>
-                          <div className="text-emerald-600 dark:text-emerald-400">Isento</div>
-                          <div className="text-xs text-gray-500 dark:text-gray-400">
-                            Vendas {formatBRL(r.vendasTotal)}
-                          </div>
-                        </div>
-                      ) : r.irDevido > 0 ? (
-                        <div>
-                          <div className="font-medium text-gray-900 dark:text-white">
-                            {formatBRL(r.irDevido)}
-                          </div>
-                          <div className="text-xs text-gray-500 dark:text-gray-400">
-                            Lucro {formatBRL(r.lucroTributavel)}
-                          </div>
-                        </div>
-                      ) : (
-                        <div>
-                          <div className="text-gray-500">—</div>
-                          {r.lucroBruto < 0 && (
-                            <div className="text-xs text-red-500 dark:text-red-400">
-                              Prej. {formatBRL(Math.abs(r.lucroBruto))}
-                            </div>
-                          )}
-                        </div>
-                      )}
-                    </td>
-                  );
-                })}
-                <td
-                  className={`${TABLE_STYLES.td} whitespace-nowrap text-right font-semibold text-gray-900 dark:text-white`}
-                >
-                  {mes.irTotalDevido > 0 ? formatBRL(mes.irTotalDevido) : '—'}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+                  })}
+                  <td
+                    className={`${TABLE_STYLES.td} whitespace-nowrap text-right font-semibold text-gray-900 dark:text-white`}
+                  >
+                    {mes.irTotalDevido > 0 ? formatBRL(mes.irTotalDevido) : '—'}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   );
 }

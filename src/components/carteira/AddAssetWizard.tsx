@@ -6,7 +6,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '@/lib/queryKeys';
 import Sidebar from '@/components/ui/sidebar/Sidebar';
 import Button from '@/components/ui/button/Button';
-import { WizardFormData, WizardErrors, WizardStep } from '@/types/wizard';
+import { WizardFormData, WizardErrors, WizardStep, TIPOS_ATIVO } from '@/types/wizard';
 import Step1AssetType from './wizard/Step1AssetType';
 import Step2Institution from './wizard/Step2Institution';
 import Step3Asset from './wizard/Step3Asset';
@@ -27,6 +27,10 @@ import {
   computeSplitScaleHint,
 } from './wizard/priceDeviationWarning';
 import PriceDeviationConfirmModal from './wizard/PriceDeviationConfirmModal';
+import WizardProgress from './wizard/WizardProgress';
+import WizardFooter from './wizard/WizardFooter';
+import { useIsBelowLg } from '@/hooks/useMediaQuery';
+import { useWizardStepFocus } from './wizard/useWizardStepFocus';
 
 interface AddAssetWizardProps {
   isOpen: boolean;
@@ -185,6 +189,7 @@ function getPriceCheckParams(
 export default function AddAssetWizard({ isOpen, onClose, onSuccess }: AddAssetWizardProps) {
   const { csrfFetch } = useCsrf();
   const queryClient = useQueryClient();
+  const isBelowLg = useIsBelowLg();
 
   // A operação pode refletir no fluxo de caixa (Aporte/Resgate e, com vínculo
   // de sonho, o realizado da linha-espelho) e no planejamento — invalida junto.
@@ -615,6 +620,8 @@ export default function AddAssetWizard({ isOpen, onClose, onSuccess }: AddAssetW
 
   const visibleStepIds = getVisibleStepIds(formData);
   const currentStepId = visibleStepIds[currentStep];
+  // Celular: ao trocar de etapa, volta ao topo e foca o título da etapa.
+  const { stepRef, titleRef } = useWizardStepFocus(currentStepId, isOpen && isBelowLg);
 
   const proceedToNextStep = () => {
     if (currentStep < visibleStepIds.length - 1) {
@@ -863,6 +870,61 @@ export default function AddAssetWizard({ isOpen, onClose, onSuccess }: AddAssetW
   const currentStepMeta = steps.find((step) => step.id === currentStepId);
   const canProceed = currentStepMeta?.isValid || false;
   const isLastStep = currentStep === visibleStepIds.length - 1;
+  const isPlanejar = formData.operacao === 'planejar';
+  const submitLabel = loading ? 'Salvando...' : isPlanejar ? 'Planejar' : 'Confirmar';
+
+  // Celular (PWA fase 1): progresso pelas etapas visíveis reais e rodapé fixo. Mesmas funções de
+  // navegação e envio do desktop — nada de validação, etapa ou payload muda.
+  const mobileProgress = isBelowLg ? (
+    <WizardProgress
+      steps={visibleStepIds.map((id) => steps.find((step) => step.id === id)?.title ?? '')}
+      current={currentStep}
+    />
+  ) : undefined;
+  const mobileFooter = isBelowLg ? (
+    <WizardFooter
+      onBack={currentStep > 0 ? handlePrevious : handleCancel}
+      backLabel={currentStep > 0 ? 'Voltar' : 'Cancelar'}
+      onNext={isLastStep ? handleSubmit : handleNext}
+      nextLabel={isLastStep ? submitLabel : 'Avançar'}
+      nextDisabled={isLastStep ? isPlanejar && !canProceed : !canProceed}
+      loading={loading}
+    />
+  ) : undefined;
+
+  // Resumo "ativo · instituição" no topo da etapa de informações, com "Trocar" (celular).
+  const pickedStepId = visibleStepIds.includes('asset')
+    ? 'asset'
+    : visibleStepIds.includes('institution')
+      ? 'institution'
+      : 'asset-type';
+  const pickedName =
+    formData.ativo ||
+    formData.nomePersonalizado ||
+    TIPOS_ATIVO.find((t) => t.value === formData.tipoAtivo)?.label ||
+    '';
+  const pickedSummary =
+    isBelowLg && currentStepId === 'info' && pickedName ? (
+      <div className="flex items-center gap-3 rounded-xl bg-gray-100 px-3.5 py-2.5 dark:bg-white/[0.06]">
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-sm font-semibold text-gray-900 dark:text-white">
+            {pickedName}
+          </p>
+          {formData.instituicao && (
+            <p className="truncate text-xs text-gray-600 dark:text-gray-400">
+              {formData.instituicao}
+            </p>
+          )}
+        </div>
+        <button
+          type="button"
+          onClick={() => setCurrentStep(Math.max(visibleStepIds.indexOf(pickedStepId), 0))}
+          className="min-h-11 shrink-0 rounded-md px-2 text-sm font-medium text-mf-patrimonio dark:text-mf-tranquilidade"
+        >
+          Trocar
+        </button>
+      </div>
+    ) : null;
 
   return (
     <Sidebar
@@ -874,34 +936,41 @@ export default function AddAssetWizard({ isOpen, onClose, onSuccess }: AddAssetW
           : 'Adicionar Ativo à Carteira'
       }
       noBackdrop
+      headerExtra={mobileProgress}
+      footer={mobileFooter}
     >
-      <div className="space-y-6">
-        {/* Progress Indicator */}
-        {(() => {
-          const totalSteps = visibleStepIds.length;
-          const currentStepNumber = currentStep + 1;
+      <div className="space-y-6 max-lg:space-y-4">
+        {/* Progress Indicator (desktop; no celular vai no cabeçalho) */}
+        {!isBelowLg &&
+          (() => {
+            const totalSteps = visibleStepIds.length;
+            const currentStepNumber = currentStep + 1;
 
-          return (
-            <div className="space-y-2">
-              <div className="flex items-center justify-between text-sm text-gray-600 dark:text-gray-400">
-                <span>
-                  Passo {currentStepNumber} de {totalSteps}
-                </span>
-                <span>{Math.round((currentStepNumber / totalSteps) * 100)}%</span>
+            return (
+              <div className="space-y-2">
+                <div className="flex items-center justify-between text-sm text-gray-600 dark:text-gray-400">
+                  <span>
+                    Passo {currentStepNumber} de {totalSteps}
+                  </span>
+                  <span>{Math.round((currentStepNumber / totalSteps) * 100)}%</span>
+                </div>
+                <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
+                  <div
+                    className="bg-brand-500 h-2 rounded-full transition-all duration-300"
+                    style={{ width: `${(currentStepNumber / totalSteps) * 100}%` }}
+                  />
+                </div>
               </div>
-              <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
-                <div
-                  className="bg-brand-500 h-2 rounded-full transition-all duration-300"
-                  style={{ width: `${(currentStepNumber / totalSteps) * 100}%` }}
-                />
-              </div>
-            </div>
-          );
-        })()}
+            );
+          })()}
 
         {/* Step Title */}
         <div>
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+          <h3
+            ref={titleRef}
+            tabIndex={isBelowLg ? -1 : undefined}
+            className={`text-lg font-semibold text-gray-900 dark:text-white${isBelowLg ? ' focus:outline-none' : ''}`}
+          >
             {currentStepMeta?.title || ''}
           </h3>
           <p className="text-sm text-gray-500 dark:text-gray-400">
@@ -909,57 +978,63 @@ export default function AddAssetWizard({ isOpen, onClose, onSuccess }: AddAssetW
           </p>
         </div>
 
+        {pickedSummary}
+
         {/* Step Content */}
-        <div className="min-h-[400px]">{renderCurrentStep()}</div>
+        <div ref={stepRef} data-mf-step={currentStepId} className="min-h-[400px] max-lg:min-h-0">
+          {renderCurrentStep()}
+        </div>
 
-        {/* Navigation Buttons */}
-        <div className="flex space-x-3 pt-4 border-t border-gray-200 dark:border-gray-700">
-          <Button
-            type="button"
-            variant="outline"
-            onClick={handleCancel}
-            className="flex-1"
-            disabled={loading}
-          >
-            Cancelar
-          </Button>
-
-          {currentStep > 0 && (
+        {/* Navigation Buttons (desktop; no celular vão no rodapé fixo) */}
+        {!isBelowLg && (
+          <div className="flex space-x-3 pt-4 border-t border-gray-200 dark:border-gray-700">
             <Button
               type="button"
               variant="outline"
-              onClick={handlePrevious}
+              onClick={handleCancel}
               className="flex-1"
               disabled={loading}
             >
-              Voltar
+              Cancelar
             </Button>
-          )}
 
-          {!isLastStep ? (
-            <Button
-              type="button"
-              onClick={handleNext}
-              className="flex-1"
-              disabled={!canProceed || loading}
-            >
-              Avançar
-            </Button>
-          ) : (
-            <Button
-              type="button"
-              onClick={handleSubmit}
-              className="flex-1"
-              disabled={loading || (formData.operacao === 'planejar' && !canProceed)}
-            >
-              {loading
-                ? 'Salvando...'
-                : formData.operacao === 'planejar'
-                  ? 'Planejar'
-                  : 'Confirmar'}
-            </Button>
-          )}
-        </div>
+            {currentStep > 0 && (
+              <Button
+                type="button"
+                variant="outline"
+                onClick={handlePrevious}
+                className="flex-1"
+                disabled={loading}
+              >
+                Voltar
+              </Button>
+            )}
+
+            {!isLastStep ? (
+              <Button
+                type="button"
+                onClick={handleNext}
+                className="flex-1"
+                disabled={!canProceed || loading}
+              >
+                Avançar
+              </Button>
+            ) : (
+              <Button
+                type="button"
+                onClick={handleSubmit}
+                className="flex-1"
+                disabled={loading || (formData.operacao === 'planejar' && !canProceed)}
+              >
+                {loading
+                  ? 'Salvando...'
+                  : formData.operacao === 'planejar'
+                    ? 'Planejar'
+                    : 'Confirmar'}
+              </Button>
+            )}
+          </div>
+        )}
       </div>
 
       {hasHistoricClose && (

@@ -12,6 +12,9 @@ import {
   type CardColor,
 } from './cardStyles';
 import { formatBRL } from '@/utils/format';
+import { useIsBelowLg } from '@/hooks/useMediaQuery';
+import MobileEditSheet from '@/components/ui/sheet/MobileEditSheet';
+import { TABLE_MOBILE_STYLES } from '@/components/ui/table/tableStyles';
 import { useCarteiraResumoContextOptional } from '@/context/CarteiraResumoContext';
 import type { CaixaSaveFailure, SaveCaixaFn } from '@/lib/caixaParaInvestirClient';
 
@@ -57,6 +60,14 @@ const CaixaParaInvestirCard: React.FC<CaixaParaInvestirCardProps> = ({
   const [inputValue, setInputValue] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  // Celular (PWA fase 1): edição num sheet, com o MESMO onSave.
+  const isBelowLg = useIsBelowLg();
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const [sheetFailure, setSheetFailure] = useState<CaixaSaveFailure | null>(null);
+  // Motivo de recusa do "Aumentar o total…" (a recusa do Salvar aparece como erro do próprio sheet).
+  const [sheetAjusteErro, setSheetAjusteErro] = useState<string | null>(null);
+  const [sheetUltimoValor, setSheetUltimoValor] = useState<number | null>(null);
+  const [sheetAjustando, setSheetAjustando] = useState(false);
 
   const formattedValue = useMemo(() => formatCurrency(value ?? 0), [formatCurrency, value]);
 
@@ -139,6 +150,169 @@ const CaixaParaInvestirCard: React.FC<CaixaParaInvestirCardProps> = ({
           { rotulo: 'Caixa total', valor: caixa.total },
           { rotulo: 'Livre', valor: Math.max(0, caixa.livre) },
         ]);
+
+  if (isBelowLg) {
+    // Recusa por regra do bolso: o sheet fica aberto (retorno false) e mostra o motivo; em
+    // "reserva não cabe" oferece subir o total junto, como no desktop.
+    const handleSheetSubmit = async (valor: number | string | null) => {
+      if (!onSave || typeof valor !== 'number') return false;
+      setSheetFailure(null);
+      setSheetAjusteErro(null);
+      setSheetUltimoValor(valor);
+      const result = await onSave(valor);
+      if (result === true) return true;
+      if (result === false) return false;
+      // Recusa por regra: o motivo vai como o erro do sheet (sem o genérico "Tente de novo").
+      setSheetFailure(result);
+      return { error: result.message };
+    };
+    const handleAjustarTotal = async () => {
+      if (!onSave || sheetUltimoValor === null) return;
+      setSheetAjustando(true);
+      const result = await onSave(sheetUltimoValor, { ajustarTotal: true });
+      setSheetAjustando(false);
+      if (result === true) {
+        setSheetFailure(null);
+        setSheetAjusteErro(null);
+        setSheetOpen(false);
+      } else if (result !== false) {
+        setSheetFailure(result);
+        setSheetAjusteErro(result.message);
+      }
+    };
+    const livre = caixa ? Math.max(0, caixa.livre) : 0;
+    const somaBarra = caixa ? caixa.reservado + livre : 0;
+    const sheetHint = (
+      <>
+        {sheetAjusteErro && (
+          <span className="block text-[12.5px] text-[#D92D20] dark:text-[#F97066]">
+            {sheetAjusteErro}
+          </span>
+        )}
+        {sheetFailure?.totalNecessario != null && (
+          <button
+            type="button"
+            onClick={() => void handleAjustarTotal()}
+            disabled={sheetAjustando}
+            className="mt-2 inline-flex min-h-11 w-full items-center justify-center rounded-xl border border-mf-patrimonio px-3 text-sm font-semibold text-mf-patrimonio disabled:opacity-60 dark:border-mf-tranquilidade dark:text-mf-tranquilidade"
+          >
+            Aumentar o total para {formatBRL(sheetFailure.totalNecessario)} e salvar
+          </button>
+        )}
+        {definirCaixaProventos && (
+          <label className="mt-2 flex min-h-11 items-start gap-2 text-sm text-gray-700 dark:text-gray-300">
+            <input
+              type="checkbox"
+              className="mt-1 h-4 w-4"
+              checked={!!proventosDesde}
+              disabled={salvandoProventos}
+              onChange={(e) => void handleToggleProventos(e.target.checked)}
+            />
+            <span>
+              {proventosDesde
+                ? `Proventos pagos entram aqui como caixa livre (desde ${formatDataBr(proventosDesde)})`
+                : 'Somar aqui os proventos pagos a partir de hoje'}
+              {erroProventos && (
+                <span className="block text-[#D92D20] dark:text-[#F97066]">{erroProventos}</span>
+              )}
+            </span>
+          </label>
+        )}
+        {!sheetFailure && escopo === 'aba' && (
+          <span className="mt-1 block">Reserva desta aba dentro do Caixa para Investir total.</span>
+        )}
+      </>
+    );
+
+    return (
+      <div className={`${CARD_BASE_CLASS} ${CARD_COLOR_CLASSES[color]}`}>
+        <div className="flex items-start justify-between gap-2">
+          <div className="min-w-0">
+            <p className={CARD_TITLE_CLASS} title={title}>
+              {title}
+            </p>
+            <p className={CARD_VALUE_CLASS}>{formattedValue}</p>
+          </div>
+          {!readOnly && (
+            <button
+              type="button"
+              data-mf-edit="valor"
+              className={`-mt-1.5 -mr-2 shrink-0 ${TABLE_MOBILE_STYLES.editButton}`}
+              onClick={() => {
+                setSheetFailure(null);
+                setSheetOpen(true);
+              }}
+              aria-label={`Editar ${title.toLowerCase()}`}
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <path
+                  d="M4 20h4L19 9a2.83 2.83 0 0 0-4-4L4 16v4Zm9.5-13.5 4 4"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+              Editar
+            </button>
+          )}
+        </div>
+
+        {escopo === 'total' && caixa && somaBarra > 0 && (
+          <div
+            aria-hidden="true"
+            className="mt-2 flex h-2 w-full overflow-hidden rounded-full bg-mf-escolha dark:bg-white/10"
+          >
+            <span
+              className="h-full bg-[#0079F2]"
+              style={{ width: `${(caixa.reservado / somaBarra) * 100}%` }}
+            />
+          </div>
+        )}
+
+        {detalhes && (
+          <dl className="mt-1.5 flex flex-wrap items-baseline gap-x-3 gap-y-0.5 text-xs">
+            {detalhes.map(({ rotulo, valor }) => (
+              <div key={rotulo} className="flex items-baseline gap-1">
+                <dt className="opacity-80">{rotulo}</dt>
+                <dd className="whitespace-nowrap font-medium tabular-nums">{formatBRL(valor)}</dd>
+              </div>
+            ))}
+            {escopo === 'total' && proventosDesde && (
+              <div className="flex items-baseline">
+                <dt className="sr-only">Proventos</dt>
+                <dd className="opacity-80">+ proventos</dd>
+              </div>
+            )}
+          </dl>
+        )}
+
+        {caixa && caixa.livre < 0 && (
+          <p className="mt-1 text-xs font-medium text-[#B45309] dark:text-amber-300">
+            As reservas das abas passam do total em {formatBRL(-caixa.livre)}. Ajuste o total ou as
+            reservas.
+          </p>
+        )}
+
+        {!readOnly && (
+          <MobileEditSheet
+            isOpen={sheetOpen}
+            onClose={() => setSheetOpen(false)}
+            title={`Editar ${title.toLowerCase()}`}
+            label={escopo === 'total' ? 'Valor total do caixa' : 'Reserva desta aba'}
+            kind="currency"
+            prefix="R$"
+            min={0}
+            initialValue={value ?? 0}
+            parseValue={(raw) => parseCurrencyInput(raw)}
+            hint={sheetHint}
+            onSubmit={handleSheetSubmit}
+            savedMessage={() => `${title} salvo`}
+          />
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className={`${CARD_BASE_CLASS} ${CARD_COLOR_CLASSES[color]}`}>

@@ -6,9 +6,12 @@ import IRSummaryCard from './IRSummaryCard';
 import IRStateMessage from './IRStateMessage';
 import { FUNDO_TIPO_LABEL, formatBRL, formatDate, formatPercent } from './irFormatters';
 import { TABLE_STYLES, TABLE_HEADER_STYLE } from '@/components/ui/table/tableStyles';
+import { ResponsiveCardList } from '@/components/ui/table/ResponsiveTable';
+import { useIsBelowLg } from '@/hooks/useMediaQuery';
 
 export default function IRComecotas() {
   const { data, isLoading, error } = useIRComecotas();
+  const isBelowLg = useIsBelowLg();
 
   if (isLoading) return <LoadingSpinner text="Projetando come-cotas..." />;
   if (error)
@@ -65,57 +68,92 @@ export default function IRComecotas() {
         />
       </div>
 
-      <div className={TABLE_STYLES.wrapper}>
-        <table className={TABLE_STYLES.table}>
-          <thead>
-            <tr className={TABLE_STYLES.headRow} style={TABLE_HEADER_STYLE}>
-              <Th>Fundo</Th>
-              <Th>Tipo</Th>
-              <Th align="right">Rendimento</Th>
-              <Th align="right">Alíquota</Th>
-              <Th align="right">IR estimado</Th>
-            </tr>
-          </thead>
-          <tbody>
-            {data.fundos.map((f) => (
-              <tr key={f.symbol} className={`${TABLE_STYLES.row} ${TABLE_STYLES.rowHover}`}>
-                <td className={`${TABLE_STYLES.td} whitespace-nowrap`}>
-                  <div className="font-medium text-gray-900 dark:text-white">{f.nome}</div>
-                  <div className="text-xs text-gray-500 dark:text-gray-400">
-                    {f.symbol} · {f.diasDecorridos} dias na carteira
-                  </div>
-                </td>
-                <td className={`${TABLE_STYLES.td} whitespace-nowrap`}>
-                  <span className="inline-flex rounded-md bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-700 dark:bg-gray-800 dark:text-gray-300">
-                    {FUNDO_TIPO_LABEL[f.tipo]}
-                  </span>
-                </td>
-                <td className={`${TABLE_STYLES.td} whitespace-nowrap text-right font-medium`}>
-                  <span
-                    className={
-                      f.rendimentoEstimado > 0 ? 'text-emerald-600 dark:text-emerald-400' : ''
-                    }
-                  >
-                    {formatBRL(f.rendimentoEstimado)}
-                  </span>
-                </td>
-                <td className={`${TABLE_STYLES.td} whitespace-nowrap text-right`}>
-                  {f.isentoComeCotas ? '—' : formatPercent(f.aliquota, 0)}
-                </td>
-                <td
-                  className={`${TABLE_STYLES.td} whitespace-nowrap text-right font-semibold text-gray-900 dark:text-white`}
-                >
-                  {f.isentoComeCotas ? (
-                    <span className="text-emerald-600 dark:text-emerald-400">Isento</span>
-                  ) : (
-                    formatBRL(f.irEstimado)
-                  )}
-                </td>
+      {isBelowLg ? (
+        <ResponsiveCardList<(typeof data.fundos)[number]>
+          ariaLabel="Come-cotas por fundo"
+          rows={data.fundos}
+          getRowKey={(f) => f.symbol}
+          columns={[
+            { id: 'nome', header: 'Fundo', mobile: 'primary', cell: (f) => f.nome },
+            {
+              id: 'tipo',
+              header: 'Tipo',
+              mobile: 'subtitle',
+              cell: (f) => `${FUNDO_TIPO_LABEL[f.tipo]} · ${f.diasDecorridos} dias na carteira`,
+            },
+            {
+              id: 'ir',
+              header: 'IR estimado',
+              mobile: 'value',
+              cell: (f) => (f.isentoComeCotas ? 'Isento' : formatBRL(f.irEstimado)),
+            },
+            {
+              id: 'rend',
+              header: 'Rendimento',
+              mobile: 'field',
+              cell: (f) => formatBRL(f.rendimentoEstimado),
+            },
+            {
+              id: 'aliq',
+              header: 'Alíquota',
+              mobile: 'field',
+              cell: (f) => (f.isentoComeCotas ? '—' : formatPercent(f.aliquota, 0)),
+            },
+          ]}
+        />
+      ) : (
+        <div className={TABLE_STYLES.wrapper}>
+          <table className={TABLE_STYLES.table}>
+            <thead>
+              <tr className={TABLE_STYLES.headRow} style={TABLE_HEADER_STYLE}>
+                <Th>Fundo</Th>
+                <Th>Tipo</Th>
+                <Th align="right">Rendimento</Th>
+                <Th align="right">Alíquota</Th>
+                <Th align="right">IR estimado</Th>
               </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+            </thead>
+            <tbody>
+              {data.fundos.map((f) => (
+                <tr key={f.symbol} className={`${TABLE_STYLES.row} ${TABLE_STYLES.rowHover}`}>
+                  <td className={`${TABLE_STYLES.td} whitespace-nowrap`}>
+                    <div className="font-medium text-gray-900 dark:text-white">{f.nome}</div>
+                    <div className="text-xs text-gray-500 dark:text-gray-400">
+                      {f.symbol} · {f.diasDecorridos} dias na carteira
+                    </div>
+                  </td>
+                  <td className={`${TABLE_STYLES.td} whitespace-nowrap`}>
+                    <span className="inline-flex rounded-md bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-700 dark:bg-gray-800 dark:text-gray-300">
+                      {FUNDO_TIPO_LABEL[f.tipo]}
+                    </span>
+                  </td>
+                  <td className={`${TABLE_STYLES.td} whitespace-nowrap text-right font-medium`}>
+                    <span
+                      className={
+                        f.rendimentoEstimado > 0 ? 'text-emerald-600 dark:text-emerald-400' : ''
+                      }
+                    >
+                      {formatBRL(f.rendimentoEstimado)}
+                    </span>
+                  </td>
+                  <td className={`${TABLE_STYLES.td} whitespace-nowrap text-right`}>
+                    {f.isentoComeCotas ? '—' : formatPercent(f.aliquota, 0)}
+                  </td>
+                  <td
+                    className={`${TABLE_STYLES.td} whitespace-nowrap text-right font-semibold text-gray-900 dark:text-white`}
+                  >
+                    {f.isentoComeCotas ? (
+                      <span className="text-emerald-600 dark:text-emerald-400">Isento</span>
+                    ) : (
+                      formatBRL(f.irEstimado)
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   );
 }

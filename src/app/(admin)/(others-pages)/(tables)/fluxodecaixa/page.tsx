@@ -60,13 +60,13 @@ export default function FluxoDeCaixa() {
 
   return (
     <div
-      className={`${cardWidth} min-w-0 transition-all duration-300 -m-[30px] h-[calc(100vh-60px)] max-lg:h-[calc(100dvh-var(--mf-header-h,0px)-var(--mf-bottom-nav-h,0px)-2rem)] flex flex-col overflow-hidden`}
+      className={`${cardWidth} min-w-0 transition-all duration-300 -m-[30px] max-lg:m-0 h-[calc(100vh-60px)] max-lg:h-[calc(100dvh-var(--mf-header-h,0px)-var(--mf-bottom-nav-h,0px)-3rem-1px)] flex flex-col overflow-hidden`}
     >
       <ComponentCard
         title={modo === 'planilha' ? `Fluxo de Caixa · ${year}` : `Orçamento vs Real · ${year}`}
-        className="flex-1 flex flex-col min-w-0 m-[30px] overflow-hidden"
+        className="flex-1 flex flex-col min-w-0 m-[30px] max-lg:m-0 overflow-hidden"
       >
-        <div className="flex-1 flex flex-col min-h-0 min-w-0 p-[30px] pt-5 overflow-hidden">
+        <div className="flex-1 flex flex-col min-h-0 min-w-0 p-[30px] pt-5 max-lg:p-4 max-lg:pt-3 overflow-hidden">
           {/* Entrada do Open Finance (faixa compacta: a planilha ocupa a altura toda). */}
           <ConectarBancoCard contexto="fluxo" className="mb-3" />
           <div className="mb-4">{pills}</div>

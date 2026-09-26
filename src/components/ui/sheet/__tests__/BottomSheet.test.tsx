@@ -63,4 +63,67 @@ describe('BottomSheet', () => {
     unmount();
     expect(mq.listenerCount()).toBe(0);
   });
+
+  it('teclado aberto (iOS): o painel sobe o inset e limita a altura à área visível', () => {
+    stubMatchMedia(true);
+    Object.defineProperty(window, 'innerHeight', { configurable: true, value: 844 });
+    Object.defineProperty(window, 'visualViewport', {
+      configurable: true,
+      value: { height: 500, offsetTop: 0, addEventListener() {}, removeEventListener() {} },
+    });
+    try {
+      render(
+        <BottomSheet isOpen onClose={() => {}} title="Editar">
+          conteúdo
+        </BottomSheet>,
+      );
+      const panel = screen.getByRole('dialog', { name: 'Editar' });
+      expect(panel.style.bottom).toBe('344px');
+      expect(panel.style.maxHeight).toBe('calc(500px - 1rem)');
+    } finally {
+      // @ts-expect-error — remove o stub
+      delete window.visualViewport;
+    }
+  });
+
+  it('sem teclado: sem style (mesmo painel da fase 0)', () => {
+    stubMatchMedia(true);
+    render(
+      <BottomSheet isOpen onClose={() => {}} title="Mais">
+        conteúdo
+      </BottomSheet>,
+    );
+    expect(screen.getByRole('dialog', { name: 'Mais' }).getAttribute('style')).toBeNull();
+  });
+
+  it('não rouba o foco de um campo com autoFocus e devolve o foco ao gatilho ao fechar', () => {
+    stubMatchMedia(true);
+    function Harness({ open }: { open: boolean }) {
+      return (
+        <>
+          <button type="button">Editar</button>
+          <BottomSheet isOpen={open} onClose={() => {}} title="Objetivo">
+            <input aria-label="Valor" autoFocus />
+          </BottomSheet>
+        </>
+      );
+    }
+    const { rerender } = render(<Harness open={false} />);
+    const trigger = screen.getByRole('button', { name: 'Editar' });
+    trigger.focus();
+    rerender(<Harness open />);
+    expect(document.activeElement).toBe(screen.getByRole('textbox', { name: 'Valor' }));
+    rerender(<Harness open={false} />);
+    expect(document.activeElement).toBe(trigger);
+  });
+
+  it('sem campo com autoFocus: o foco vai para o painel', () => {
+    stubMatchMedia(true);
+    render(
+      <BottomSheet isOpen onClose={() => {}} title="Mais">
+        conteúdo
+      </BottomSheet>,
+    );
+    expect(document.activeElement).toBe(screen.getByRole('dialog', { name: 'Mais' }));
+  });
 });

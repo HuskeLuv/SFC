@@ -4,6 +4,7 @@ import { ApexOptions } from 'apexcharts';
 import { FiiAlocacaoAtivo } from '@/types/fii';
 
 import dynamic from 'next/dynamic';
+import { PIE_MOBILE_RESPONSIVE } from './pieMobileResponsive';
 // Dynamically import the ReactApexChart component
 const ReactApexChart = dynamic(() => import('react-apexcharts'), {
   ssr: false,
@@ -115,17 +116,18 @@ const PieChartFiiAtivo: React.FC<PieChartFiiAtivoProps> = ({ data, isDarkMode = 
         },
       },
       responsive: [
+        PIE_MOBILE_RESPONSIVE,
         {
           breakpoint: 640,
           options: {
             chart: {
               width: '100%',
-              height: 250,
+              height: 320,
             },
             legend: {
-              fontSize: '8px',
+              fontSize: '12px',
               markers: {
-                size: 2,
+                size: 5,
               },
             },
           },

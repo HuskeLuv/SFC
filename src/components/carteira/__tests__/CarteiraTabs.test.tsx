@@ -1,12 +1,28 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
 import React from 'react';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { useCarteira } from '@/hooks/useCarteira';
 import { useAlocacaoConfig } from '@/hooks/useAlocacaoConfig';
 import { createTestQueryWrapper } from '@/test/wrappers';
 import CarteiraTabs from '../CarteiraTabs';
+import { QUICK_LAUNCH_EVENT, requestQuickLaunch } from '@/layout/mobile/quickLaunch';
+
+const routerReplace = vi.fn();
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({ replace: routerReplace, push: vi.fn(), prefetch: vi.fn() }),
+}));
+
+vi.mock('../AddAssetWizard', () => ({
+  default: ({ isOpen }: { isOpen: boolean }) =>
+    isOpen ? <div role="dialog" aria-label="Adicionar Ativo à Carteira" /> : null,
+}));
+
+vi.mock('../RedeemAssetWizard', () => ({
+  default: ({ isOpen }: { isOpen: boolean }) =>
+    isOpen ? <div role="dialog" aria-label="Resgatar Ativo" /> : null,
+}));
 
 vi.mock('@/hooks/useCarteira', () => ({
   useCarteira: vi.fn(),
@@ -92,6 +108,7 @@ const defaultAlocacaoReturn = {
   stopEditing: vi.fn(),
   isEditing: vi.fn(() => false),
   totalTargets: 65,
+  changedCategorias: [],
   refetch: vi.fn(),
 };
 
@@ -237,6 +254,73 @@ describe('CarteiraTabs', () => {
 
       expect(screen.queryByTestId('carteira-resumo-provider')).not.toBeInTheDocument();
       expect(screen.getByText('Nenhum dado encontrado')).toBeInTheDocument();
+    });
+  });
+
+  describe('+ Lançar e wizards (PWA fase 1)', () => {
+    beforeEach(() => {
+      routerReplace.mockClear();
+      window.history.replaceState(null, '', '/carteira');
+    });
+
+    it('abas via ResponsiveTabNav: botão com aria-current e nome acessível atual', () => {
+      renderCarteiraTabs();
+      expect(screen.getByRole('button', { name: 'Resumo' })).toHaveAttribute(
+        'aria-current',
+        'page',
+      );
+      expect(screen.getByRole('navigation', { name: 'Seções da carteira' })).toBeInTheDocument();
+    });
+
+    it('QUICK_LAUNCH_EVENT com a Análise aberta abre o wizard (lazy)', async () => {
+      renderCarteiraTabs();
+      fireEvent.click(screen.getByText('Análise'));
+      await screen.findByTestId('carteira-analise');
+      expect(routerReplace).toHaveBeenCalledWith('/carteira?aba=analise', { scroll: false });
+
+      act(() => {
+        window.dispatchEvent(new CustomEvent(QUICK_LAUNCH_EVENT, { detail: 'novo-ativo' }));
+      });
+      expect(
+        await screen.findByRole('dialog', { name: 'Adicionar Ativo à Carteira' }),
+      ).toBeInTheDocument();
+      expect(screen.getByTestId('carteira-analise')).toBeInTheDocument();
+    });
+
+    it('atalho tocado com a carteira carregando fica pendente e abre ao montar', async () => {
+      requestQuickLaunch('resgate');
+      vi.mocked(useCarteira).mockReturnValue({
+        ...defaultCarteiraReturn,
+        resumo: null,
+        loading: true,
+      });
+      renderCarteiraTabs();
+      expect(await screen.findByRole('dialog', { name: 'Resgatar Ativo' })).toBeInTheDocument();
+    });
+
+    it('?acao=novo abre o wizard e limpa só o parâmetro acao', async () => {
+      window.history.replaceState(null, '', '/carteira?aba=acoes&acao=novo');
+      renderCarteiraTabs();
+      expect(
+        await screen.findByRole('dialog', { name: 'Adicionar Ativo à Carteira' }),
+      ).toBeInTheDocument();
+      expect(window.location.search).toBe('?aba=acoes');
+    });
+
+    it('?aba=analise abre a Análise; valor inválido é ignorado', async () => {
+      window.history.replaceState(null, '', '/carteira?aba=analise');
+      const { unmount } = renderCarteiraTabs();
+      expect(await screen.findByTestId('carteira-analise')).toBeInTheDocument();
+      unmount();
+
+      window.history.replaceState(null, '', '/carteira?aba=%3Cscript%3E');
+      renderCarteiraTabs();
+      expect(await screen.findByTestId('carteira-resumo')).toBeInTheDocument();
+    });
+
+    it('wizard não é montado antes da 1ª abertura', () => {
+      renderCarteiraTabs();
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     });
   });
 });

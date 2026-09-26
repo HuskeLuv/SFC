@@ -224,6 +224,7 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
         cotizacaoResgate: metadata.cotizacaoResgate || 'D+0',
         liquidacaoResgate: metadata.liquidacaoResgate || 'Imediata',
         vencimento: new Date(),
+        semVencimento: true,
         benchmark: metadata.benchmark || 'CDI',
         valorInicialAplicado: item.totalInvested,
         aporte: 0,

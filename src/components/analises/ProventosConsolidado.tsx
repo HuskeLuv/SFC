@@ -7,7 +7,14 @@ import ProventosHistoricoChart from './ProventosHistoricoChart';
 import ProventosDistribuicao from './ProventosDistribuicao';
 import ProventosKpiCard from './ProventosKpiCard';
 import { inicioUltimosNMeses, inicioDoAno, toISODate } from '@/utils/periodWindow';
-import { TABLE_STYLES, TABLE_HEADER_STYLE } from '@/components/ui/table/tableStyles';
+import { twMerge } from 'tailwind-merge';
+import {
+  TABLE_STYLES,
+  TABLE_HEADER_STYLE,
+  TABLE_MOBILE_STYLES,
+} from '@/components/ui/table/tableStyles';
+import { MOBILE_SEGMENTED_NAV, mobileTabClassName } from '@/components/ui/tabs/ResponsiveTabNav';
+import { useIsBelowLg } from '@/hooks/useMediaQuery';
 
 type PeriodPill = 'ano' | '12m' | '24m' | '36m' | 'inicio';
 type GroupByType = 'ativo' | 'classe' | 'tipo';
@@ -76,6 +83,7 @@ export default function ProventosConsolidado() {
   const [period, setPeriod] = useState<PeriodPill>('24m');
   const [groupBy, setGroupBy] = useState<GroupByType>('ativo');
   const [dataBase, setDataBase] = useState<ProventosDataBase>('pagamento');
+  const isBelowLg = useIsBelowLg();
 
   const { startDate, endDate } = useMemo(() => resolvePeriodRange(period), [period]);
 
@@ -121,57 +129,111 @@ export default function ProventosConsolidado() {
   return (
     <div className="space-y-6">
       {/* Data-base + Period pills */}
-      <div className="flex flex-wrap items-center justify-end gap-2">
-        {isFetching && !loading && (
-          <span
-            className="inline-flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400"
-            role="status"
-            aria-live="polite"
+      {isBelowLg ? (
+        <div className="space-y-2">
+          <div
+            role="radiogroup"
+            aria-label="Data-base dos proventos"
+            className={MOBILE_SEGMENTED_NAV}
           >
-            <span className="h-3 w-3 animate-spin rounded-full border-2 border-brand-500 border-t-transparent" />
-            Atualizando…
-          </span>
-        )}
-        <span className="text-sm text-gray-500 dark:text-gray-400">Data-base:</span>
-        <div
-          className="inline-flex items-center gap-1 rounded-lg bg-gray-100 p-1 dark:bg-gray-800"
-          role="radiogroup"
-          aria-label="Data-base dos proventos"
-        >
-          {DATA_BASE_OPTIONS.map((opt) => (
+            {DATA_BASE_OPTIONS.map((opt) => (
+              <button
+                key={opt.value}
+                type="button"
+                role="radio"
+                aria-checked={dataBase === opt.value}
+                title={opt.title}
+                onClick={() => setDataBase(opt.value)}
+                className={mobileTabClassName('segmented-sub', dataBase === opt.value)}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+          <div
+            role="group"
+            aria-label="Período dos proventos"
+            data-mf-scroll-x=""
+            className={TABLE_MOBILE_STYLES.chipRail}
+          >
+            {PERIOD_OPTIONS.map((opt) => (
+              <button
+                key={opt.value}
+                type="button"
+                aria-pressed={period === opt.value}
+                onClick={() => setPeriod(opt.value)}
+                className={twMerge(
+                  TABLE_MOBILE_STYLES.chip,
+                  period === opt.value && TABLE_MOBILE_STYLES.chipActive,
+                )}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+          {isFetching && !loading && (
+            <span
+              className="inline-flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400"
+              role="status"
+              aria-live="polite"
+            >
+              Atualizando…
+            </span>
+          )}
+        </div>
+      ) : (
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          {isFetching && !loading && (
+            <span
+              className="inline-flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400"
+              role="status"
+              aria-live="polite"
+            >
+              <span className="h-3 w-3 animate-spin rounded-full border-2 border-brand-500 border-t-transparent" />
+              Atualizando…
+            </span>
+          )}
+          <span className="text-sm text-gray-500 dark:text-gray-400">Data-base:</span>
+          <div
+            className="inline-flex items-center gap-1 rounded-lg bg-gray-100 p-1 dark:bg-gray-800"
+            role="radiogroup"
+            aria-label="Data-base dos proventos"
+          >
+            {DATA_BASE_OPTIONS.map((opt) => (
+              <button
+                key={opt.value}
+                type="button"
+                role="radio"
+                aria-checked={dataBase === opt.value}
+                title={opt.title}
+                onClick={() => setDataBase(opt.value)}
+                className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                  dataBase === opt.value
+                    ? 'bg-white text-gray-900 shadow-sm dark:bg-gray-700 dark:text-white'
+                    : 'text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white'
+                }`}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+          <span className="mx-1 hidden h-5 w-px bg-gray-200 sm:inline-block dark:bg-gray-700" />
+          <span className="text-sm text-gray-500 dark:text-gray-400">Período:</span>
+          {PERIOD_OPTIONS.map((opt) => (
             <button
               key={opt.value}
-              type="button"
-              role="radio"
-              aria-checked={dataBase === opt.value}
-              title={opt.title}
-              onClick={() => setDataBase(opt.value)}
-              className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
-                dataBase === opt.value
-                  ? 'bg-white text-gray-900 shadow-sm dark:bg-gray-700 dark:text-white'
-                  : 'text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white'
+              onClick={() => setPeriod(opt.value)}
+              className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                period === opt.value
+                  ? 'bg-brand-500 text-white'
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700'
               }`}
             >
               {opt.label}
             </button>
           ))}
         </div>
-        <span className="mx-1 hidden h-5 w-px bg-gray-200 sm:inline-block dark:bg-gray-700" />
-        <span className="text-sm text-gray-500 dark:text-gray-400">Período:</span>
-        {PERIOD_OPTIONS.map((opt) => (
-          <button
-            key={opt.value}
-            onClick={() => setPeriod(opt.value)}
-            className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-              period === opt.value
-                ? 'bg-brand-500 text-white'
-                : 'bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700'
-            }`}
-          >
-            {opt.label}
-          </button>
-        ))}
-      </div>
+      )}
 
       {/* KPI strip */}
       <div className="grid grid-cols-1 md:grid-cols-3 xl:grid-cols-5 gap-4">
@@ -220,7 +282,7 @@ export default function ProventosConsolidado() {
         periodLabel={periodLabel}
       />
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-lg:gap-4">
         <ComponentCard title="Proventos por Mês">
           <div className={TABLE_STYLES.wrapper}>
             <table className={TABLE_STYLES.table}>
