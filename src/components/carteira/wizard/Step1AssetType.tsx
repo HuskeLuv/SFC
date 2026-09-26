@@ -22,11 +22,11 @@ const RADIO_CARD_ON =
   'border-mf-patrimonio bg-mf-patrimonio/[0.08] text-gray-900 dark:border-mf-tranquilidade dark:bg-mf-tranquilidade/[0.14] dark:text-white';
 
 /** Bolinha do rádio (decorativa: o estado vai no aria-checked do botão). */
-function RadioDot({ checked }: { checked: boolean }) {
+function RadioDot({ checked, className = '' }: { checked: boolean; className?: string }) {
   return (
     <span
       aria-hidden="true"
-      className={`ml-auto flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 ${
+      className={`${className} ml-auto flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 ${
         checked
           ? 'border-mf-patrimonio dark:border-mf-tranquilidade'
           : 'border-gray-300 dark:border-gray-600'
@@ -245,7 +245,7 @@ export default function Step1AssetType({
                       className={`${RADIO_CARD_CLASS} min-h-12 ${checked ? RADIO_CARD_ON : RADIO_CARD_OFF}`}
                     >
                       <span className="min-w-0 break-words font-medium">{opt.label}</span>
-                      <RadioDot checked={checked} />
+                      <RadioDot checked={checked} className="max-[359px]:hidden" />
                     </button>
                   );
                 })}
