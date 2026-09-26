@@ -1,12 +1,11 @@
 import { test, expect, type Locator, type Page } from '@playwright/test';
-import { fluxoMobileReadyOrSkip, gotoFluxo, rowByName } from './helpers/fluxo';
+import { gotoFluxo, rowByName, waitFluxoMobileReady } from './helpers/fluxo';
 
 /**
  * PWA fase 2, fatia B: sheets de edição do Fluxo de caixa no celular.
  *
- * Roda no projeto `mobile` (390x844, isMobile). Depende da visão do mês (fatia A): enquanto
- * `[data-mf-fluxo-mobile]` não existir, `fluxoMobileReadyOrSkip` pula (worktrees). No CI (banco do
- * seed) roda de verdade.
+ * Roda no projeto `mobile` (390x844, isMobile). Depende da visão do mês (fatia A): se ela não
+ * montar, o teste FALHA (`waitFluxoMobileReady`), não pula.
  *
  * GRAVA no banco: só a célula Internet/julho, X → X+1 → X, com restauração em `finally` (serial).
  * Nenhum outro spec lê essa célula (convenção do helpers/fluxo.ts). Sem Desfazer nesta fase: a
@@ -68,7 +67,7 @@ async function saveAndWaitClose(dialog: Locator) {
 test('valor com fórmula pela barra de teclas: X → X+1 → X', async ({ page }) => {
   test.setTimeout(120_000);
   await gotoFluxo(page, { mes: 7 });
-  await fluxoMobileReadyOrSkip(test, page);
+  await waitFluxoMobileReady(page);
 
   const row = await rowByName(page, LINHA);
   test.skip(!(await row.isVisible()), `linha ${LINHA} não existe neste banco`);
@@ -111,7 +110,7 @@ test('valor com fórmula pela barra de teclas: X → X+1 → X', async ({ page }
 
 test('Mover: oferece "Mover para cima" (sem executar)', async ({ page }) => {
   await gotoFluxo(page, { mes: 7 });
-  await fluxoMobileReadyOrSkip(test, page);
+  await waitFluxoMobileReady(page);
 
   const row = await rowByName(page, LINHA);
   test.skip(!(await row.isVisible()), `linha ${LINHA} não existe neste banco`);
@@ -132,7 +131,7 @@ test('Mover: oferece "Mover para cima" (sem executar)', async ({ page }) => {
 
 test('Aporte/Resgate abre só leitura (sem Salvar)', async ({ page }) => {
   await gotoFluxo(page, { mes: 7 });
-  await fluxoMobileReadyOrSkip(test, page);
+  await waitFluxoMobileReady(page);
 
   const invest = page.locator('[data-mf-fluxo-row][data-item-id^="investimento-"]');
   if ((await invest.count()) === 0) {

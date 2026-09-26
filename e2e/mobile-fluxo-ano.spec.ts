@@ -1,12 +1,11 @@
 import { test, expect, type Page } from '@playwright/test';
-import { fluxoMobileReadyOrSkip, gotoFluxo, monthLabel } from './helpers/fluxo';
+import { gotoFluxo, monthLabel, waitFluxoMobileReady } from './helpers/fluxo';
 
 /**
  * PWA fase 2, fatia D: "Ano inteiro" do Fluxo no celular (projeto `mobile`, SÓ LEITURA).
  *
- * Aberto pela visão do mês (fatia A: "Mais ações" → "Ver ano inteiro"). Enquanto a visão do mês não
- * existir no branch, `fluxoMobileReadyOrSkip` pula o teste (worktree da fatia D); no integrador e
- * no CI ele roda de verdade.
+ * Aberto pela visão do mês (fatia A: "Mais ações" → "Ver ano inteiro"). Se a visão do mês não
+ * montar, o teste FALHA (`waitFluxoMobileReady`), não pula.
  *
  * Decisão do Wellington (26/09/2026): coluna de itens fixa de 128px, Total do ano como ÚLTIMA
  * coluna e NÃO fixa, mês atual marcado sem texto sobre #0079F2, tocar no mês volta à visão do mês.
@@ -54,7 +53,7 @@ async function abrirAnoInteiro(page: Page) {
 test('Ano inteiro @ 390: só a coluna de itens fixa, rolagem só na grade', async ({ page }) => {
   test.setTimeout(180_000);
   await gotoFluxo(page, { mes: 7 });
-  await fluxoMobileReadyOrSkip(test, page);
+  await waitFluxoMobileReady(page);
   const dialog = await abrirAnoInteiro(page);
 
   const m = await page.evaluate(() => {
@@ -100,7 +99,7 @@ test('Ano inteiro @ 390: só a coluna de itens fixa, rolagem só na grade', asyn
 test('Ano inteiro: tocar no mês volta à visão do mês', async ({ page }) => {
   test.setTimeout(180_000);
   await gotoFluxo(page, { mes: 7 });
-  await fluxoMobileReadyOrSkip(test, page);
+  await waitFluxoMobileReady(page);
   const dialog = await abrirAnoInteiro(page);
   const marco = dialog.getByRole('button', { name: 'Ver Março no detalhe' });
   await marco.scrollIntoViewIfNeeded();
@@ -112,7 +111,7 @@ test('Ano inteiro: tocar no mês volta à visão do mês', async ({ page }) => {
 test('Ano inteiro: Esc fecha', async ({ page }) => {
   test.setTimeout(180_000);
   await gotoFluxo(page, { mes: 7 });
-  await fluxoMobileReadyOrSkip(test, page);
+  await waitFluxoMobileReady(page);
   const dialog = await abrirAnoInteiro(page);
   await page.keyboard.press('Escape');
   await expect(dialog).toBeHidden();
@@ -123,7 +122,7 @@ test('Ano inteiro em paisagem (844×390): pelo menos 6 meses à vista', async ({
   test.setTimeout(180_000);
   await page.setViewportSize({ width: 844, height: 390 });
   await gotoFluxo(page, { mes: 7 });
-  await fluxoMobileReadyOrSkip(test, page);
+  await waitFluxoMobileReady(page);
   await abrirAnoInteiro(page);
   const visiveis = await page.evaluate(() => {
     const vw = 844;

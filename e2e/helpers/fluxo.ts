@@ -70,23 +70,3 @@ export async function rowByName(page: Page, nome: string): Promise<Locator> {
   }
   return row;
 }
-
-/**
- * Pula o teste enquanto a visão do mês não existir (os specs das fatias B e D ficam verdes nos
- * worktrees antes da A entrar). Se existir, espera montar.
- */
-export async function fluxoMobileReadyOrSkip(
-  test: { skip(condition: boolean, description: string): void },
-  page: Page,
-  { timeout = 60_000 } = {},
-) {
-  // Espera a página decidir o que mostra: a visão do mês ou a planilha de desktop.
-  await page
-    .locator('[data-mf-fluxo-mobile], table tbody tr')
-    .first()
-    .waitFor({ state: 'attached', timeout })
-    .catch(() => undefined);
-  const temVisaoDoMes = (await page.locator('[data-mf-fluxo-mobile]').count()) > 0;
-  test.skip(!temVisaoDoMes, 'visão do mês (fatia A) ainda não existe neste branch');
-  await waitFluxoMobileReady(page, { timeout });
-}
