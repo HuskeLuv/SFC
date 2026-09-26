@@ -189,6 +189,7 @@ describe('CashflowEditSheets', () => {
     render(<Harness initial={cell('internet', 'moradia')} />);
     expect(screen.getByRole('dialog', { name: 'Internet' })).toBeInTheDocument();
     expect(field().value).toBe('100,00');
+    expect(field()).toHaveFocus();
     fireEvent.change(field(), { target: { value: '150,50' } });
     fireEvent.click(saveButton());
     await waitFor(() => expect(onSaved).toHaveBeenCalledWith('Valor salvo', expect.anything()));

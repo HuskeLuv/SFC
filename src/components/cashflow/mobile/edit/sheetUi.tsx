@@ -108,7 +108,7 @@ export function PrimaryButton({
       )}
     >
       {busy && SPINNER}
-      {busy ? busyLabel : children}
+      <span className="min-w-0 truncate">{busy ? busyLabel : children}</span>
     </button>
   );
 }

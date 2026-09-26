@@ -160,7 +160,7 @@ export function CellValuePanel({
         groupId: item.groupId || group.id,
         updates: [{ itemId: item.id, values: [change] }],
       });
-      if (!res.ok) failure = res.error || SAVE_FAILED_MESSAGE;
+      if (!res.ok) failure = (res.httpOk && res.error) || SAVE_FAILED_MESSAGE;
     } catch {
       failure = SAVE_FAILED_MESSAGE;
     }
