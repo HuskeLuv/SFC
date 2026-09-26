@@ -4,7 +4,9 @@ on:
   push:
     branches: [main]
   pull_request:
-    branches: [main]
+    # feat/pwa-fase0 = branch de integração do PWA (docs/pwa/README.md): os PRs de fase apontam
+    # para ele e precisam do mesmo CI até o merge final na main.
+    branches: [main, feat/pwa-fase0]
 
 concurrency:
   group: ci-${{ github.ref }}
