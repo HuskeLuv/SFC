@@ -1,5 +1,6 @@
 'use client';
 import React, { useState, useMemo } from 'react';
+import Link from 'next/link';
 import { useRendaFixa } from '@/hooks/useRendaFixa';
 import { RendaFixaSecao, RendaFixaAtivo, TipoRendaFixa } from '@/types/rendaFixa';
 import LoadingSpinner from '@/components/common/LoadingSpinner';
@@ -13,12 +14,21 @@ import {
 import CaixaParaInvestirCard from '@/components/carteira/shared/CaixaParaInvestirCard';
 import { useCarteiraResumoContext } from '@/context/CarteiraResumoContext';
 import AssetNameLink from '@/components/carteira/AssetNameLink';
-import { formatAssetDisplayTitle } from '@/utils/assetDisplayName';
+import { formatAssetDisplayTitle, simplifyAssetName } from '@/utils/assetDisplayName';
 import {
   TABLE_STYLES,
   TABLE_HEADER_STYLE,
   TABLE_SECTION_STYLE,
+  TABLE_MOBILE_STYLES,
 } from '@/components/ui/table/tableStyles';
+import { ResponsiveCardList, type ResponsiveColumn } from '@/components/ui/table/ResponsiveTable';
+import { CardSectionBand } from '@/components/ui/table/CardSectionBand';
+import {
+  MobileEditSheet,
+  type MobileEditKind,
+  type MobileEditValue,
+} from '@/components/ui/sheet/MobileEditSheet';
+import { useIsBelowLg } from '@/hooks/useMediaQuery';
 
 const MIN_PLACEHOLDER_ROWS = 4;
 const RENDA_FIXA_COLUMN_COUNT = 13;
@@ -365,6 +375,424 @@ const RendaFixaSection: React.FC<RendaFixaSectionProps> = ({
 };
 
 // ---------------------------------------------------------------------------
+// Celular (PWA fase 1): cartões expansíveis por seção + edição por sheet
+// ---------------------------------------------------------------------------
+
+type RendaFixaCampo =
+  | 'cotizacaoResgate'
+  | 'liquidacaoResgate'
+  | 'benchmark'
+  | 'valorAtualizado'
+  | 'observacoes';
+
+const DIA_MS = 24 * 60 * 60 * 1000;
+/** Vencimento a até N dias vira selo âmbar + aviso no topo da aba. */
+export const RF_VENCE_EM_BREVE_DIAS = 30;
+
+/** Dias corridos (dia UTC do vencimento × dia local de hoje) — negativo se já venceu. */
+export function diasAteVencimento(vencimento: Date, hoje: Date = new Date()): number {
+  const v = Date.UTC(
+    vencimento.getUTCFullYear(),
+    vencimento.getUTCMonth(),
+    vencimento.getUTCDate(),
+  );
+  const h = Date.UTC(hoje.getFullYear(), hoje.getMonth(), hoje.getDate());
+  return Math.round((v - h) / DIA_MS);
+}
+
+/** Prazo até o vencimento por extenso ("em 12 dias", "em 1 ano e 3 meses", "já venceu"). */
+export function formatPrazoVencimento(dias: number): string {
+  if (!Number.isFinite(dias)) return '';
+  if (dias < 0) return 'já venceu';
+  if (dias === 0) return 'vence hoje';
+  if (dias === 1) return 'vence amanhã';
+  if (dias <= 45) return `em ${dias} dias`;
+  const meses = Math.round(dias / 30.4375);
+  const anos = Math.floor(meses / 12);
+  const resto = meses % 12;
+  const txtMeses = `${resto} ${resto === 1 ? 'mês' : 'meses'}`;
+  if (anos === 0) return `em ${txtMeses}`;
+  const txtAnos = `${anos} ${anos === 1 ? 'ano' : 'anos'}`;
+  return resto === 0 ? `em ${txtAnos}` : `em ${txtAnos} e ${txtMeses}`;
+}
+
+const formatDateUtc = (d: Date) => d.toLocaleDateString('pt-BR', { timeZone: 'UTC' });
+
+const rfDisplayName = (ativo: RendaFixaAtivo) => {
+  const full = formatAssetDisplayTitle({ ticker: ativo.nome, nome: null }, 'Renda Fixa').full;
+  return simplifyAssetName(full) || full;
+};
+
+const PILL_BASE =
+  'inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium leading-4 whitespace-nowrap';
+const PILL_SOFT = `${PILL_BASE} bg-gray-100 text-gray-700 dark:bg-white/[0.06] dark:text-gray-300`;
+const PILL_WARN = `${PILL_BASE} bg-[#D97706]/[0.12] text-[#B45309] dark:bg-[#FBBF24]/[0.14] dark:text-amber-300`;
+
+const EDIT_META: Record<
+  RendaFixaCampo,
+  { label: string; title: string; kind: MobileEditKind; hint?: string }
+> = {
+  cotizacaoResgate: {
+    label: 'Cotização de resgate',
+    title: 'Editar cotização',
+    kind: 'text',
+    hint: 'Ex.: D+0, D+30',
+  },
+  liquidacaoResgate: {
+    label: 'Liquidação de resgate',
+    title: 'Editar liquidação',
+    kind: 'text',
+    hint: 'Ex.: D+0, D+1',
+  },
+  benchmark: {
+    label: 'Benchmark',
+    title: 'Editar benchmark',
+    kind: 'text',
+    hint: 'Ex.: CDI, IPCA + 6%',
+  },
+  valorAtualizado: {
+    label: 'Valor atualizado',
+    title: 'Editar valor atualizado',
+    kind: 'currency',
+  },
+  observacoes: { label: 'Observações', title: 'Editar observações', kind: 'textarea' },
+};
+
+interface RendaFixaMobileListProps {
+  secoes: RendaFixaSecao[];
+  expandedSections: Set<string>;
+  onToggleSection: (tipo: string) => void;
+  totalGeral: {
+    valorAplicado: number;
+    aporte: number;
+    resgate: number;
+    valorAtualizado: number;
+    rentabilidade: number;
+  };
+  formatCurrency: (value: number) => string;
+  formatPercentage: (value: number) => string;
+  /** O MESMO `updateRendaFixaCampo` do desktop (devolve false em falha). */
+  onUpdateCampo: (
+    ativoId: string,
+    campo: RendaFixaCampo,
+    valor: string | number,
+  ) => void | boolean | Promise<void | boolean>;
+}
+
+function DetailItem({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="min-w-0">
+      <dt className={TABLE_MOBILE_STYLES.cardDetailLabel}>{label}</dt>
+      <dd className={`${TABLE_MOBILE_STYLES.cardDetailValue} break-words`}>{children}</dd>
+    </div>
+  );
+}
+
+export function RendaFixaMobileList({
+  secoes,
+  expandedSections,
+  onToggleSection,
+  totalGeral,
+  formatCurrency,
+  formatPercentage,
+  onUpdateCampo,
+}: RendaFixaMobileListProps) {
+  const [editing, setEditing] = useState<{ ativo: RendaFixaAtivo; campo: RendaFixaCampo } | null>(
+    null,
+  );
+  const [editOpen, setEditOpen] = useState(false);
+
+  const hoje = useMemo(() => new Date(), []);
+  // Seções vazias somem no celular (decisão 7).
+  const visiveis = secoes.filter((s) => s.ativos.length > 0);
+  const vencendo = visiveis
+    .flatMap((s) => s.ativos)
+    .filter((a) => {
+      const d = diasAteVencimento(a.vencimento, hoje);
+      return d >= 0 && d <= RF_VENCE_EM_BREVE_DIAS;
+    });
+
+  const openEdit = (ativo: RendaFixaAtivo, campo: RendaFixaCampo) => {
+    setEditing({ ativo, campo });
+    setEditOpen(true);
+  };
+
+  const vencimentoPill = (ativo: RendaFixaAtivo) => {
+    const dias = diasAteVencimento(ativo.vencimento, hoje);
+    const emBreve = dias >= 0 && dias <= RF_VENCE_EM_BREVE_DIAS;
+    let texto: string;
+    if (emBreve)
+      texto = dias === 0 ? 'Vence hoje' : `Vence em ${dias} ${dias === 1 ? 'dia' : 'dias'}`;
+    else if (dias < 0) texto = `Venceu ${formatDateUtc(ativo.vencimento)}`;
+    else texto = `Vence ${formatDateUtc(ativo.vencimento)}`;
+    return <span className={emBreve ? PILL_WARN : PILL_SOFT}>{texto}</span>;
+  };
+
+  const columns: ResponsiveColumn<RendaFixaAtivo>[] = [
+    {
+      id: 'nome',
+      header: 'Nome',
+      mobile: 'primary',
+      cell: (a) => rfDisplayName(a),
+      mobileCell: (a) => <span className="block truncate">{rfDisplayName(a)}</span>,
+    },
+    {
+      id: 'meta',
+      header: 'Benchmark',
+      mobile: 'subtitle',
+      cell: (a) => a.benchmark,
+      mobileCell: (a) => (
+        <span className="mt-1 flex flex-wrap items-center gap-1">
+          <span className="mr-0.5">{a.benchmark}</span>
+          {vencimentoPill(a)}
+          {a.isAutoUpdated && <span className={PILL_SOFT}>PU oficial</span>}
+          {a.ir?.isento && <span className={PILL_SOFT}>Isento</span>}
+        </span>
+      ),
+    },
+    {
+      id: 'valor',
+      header: 'Valor Atualizado',
+      mobile: 'value',
+      cell: (a) => formatCurrency(a.valorAtualizado),
+      mobileCell: (a) => (
+        <>
+          <span className="block">{formatCurrency(a.valorAtualizado)}</span>
+          <span
+            className={`block text-xs font-medium ${
+              a.rentabilidade < 0 ? TABLE_MOBILE_STYLES.negative : TABLE_MOBILE_STYLES.positive
+            }`}
+          >
+            {formatPercentage(a.rentabilidade)}
+          </span>
+        </>
+      ),
+    },
+  ];
+
+  const editRow = (
+    ativo: RendaFixaAtivo,
+    campo: RendaFixaCampo,
+    valor: React.ReactNode,
+    vazio = false,
+  ) => (
+    <div className="flex items-center justify-between gap-3 border-t border-gray-100 py-1.5 dark:border-gray-800">
+      <div className="min-w-0">
+        <div className={TABLE_MOBILE_STYLES.cardDetailLabel}>{EDIT_META[campo].label}</div>
+        <div
+          className={`text-sm break-words ${
+            vazio
+              ? 'text-gray-500 dark:text-gray-400'
+              : 'font-medium text-gray-800 dark:text-gray-100'
+          }`}
+        >
+          {valor}
+        </div>
+      </div>
+      <button
+        type="button"
+        data-mf-edit={campo}
+        className={TABLE_MOBILE_STYLES.editButton}
+        aria-label={`Editar ${EDIT_META[campo].label.toLowerCase()} de ${rfDisplayName(ativo)}`}
+        onClick={() => openEdit(ativo, campo)}
+      >
+        Editar
+      </button>
+    </div>
+  );
+
+  const renderBody = (a: RendaFixaAtivo) => {
+    const dias = diasAteVencimento(a.vencimento, hoje);
+    return (
+      <div className="space-y-3">
+        <dl className={TABLE_MOBILE_STYLES.cardDetailGrid}>
+          <DetailItem label="Aplicado">{formatCurrency(a.valorInicialAplicado)}</DetailItem>
+          <DetailItem label="Aportes">{formatCurrency(a.aporte)}</DetailItem>
+          <DetailItem label="Resgates">{formatCurrency(a.resgate)}</DetailItem>
+          <DetailItem label="Vencimento">
+            {formatDateUtc(a.vencimento)}
+            <span className="block text-xs font-normal text-gray-500 dark:text-gray-400">
+              {formatPrazoVencimento(dias)}
+            </span>
+          </DetailItem>
+          <DetailItem label="% da aba">{formatPercentageSimple(a.percentualCarteira)}</DetailItem>
+          <DetailItem label="Risco cart.">{formatPercentageSimple(a.riscoPorAtivo)}</DetailItem>
+        </dl>
+        {a.ir && (
+          <p
+            className="rounded-xl bg-gray-50 px-3 py-2 text-[13px] text-gray-700 dark:bg-white/[0.04] dark:text-gray-300"
+            data-mf-rf-ir=""
+          >
+            {a.ir.isento ? (
+              <>
+                IR se resgatar hoje: <b className="font-semibold">isento</b>
+                {a.ir.motivoIsencao ? ` (${a.ir.motivoIsencao})` : ''}
+              </>
+            ) : (
+              <>
+                IR se resgatar hoje:{' '}
+                <b className="font-semibold tabular-nums">{formatCurrency(a.ir.ir + a.ir.iof)}</b> ·
+                líquido{' '}
+                <b className="font-semibold tabular-nums">{formatCurrency(a.ir.valorLiquido)}</b>
+              </>
+            )}
+          </p>
+        )}
+        <div>
+          {editRow(a, 'cotizacaoResgate', a.cotizacaoResgate)}
+          {editRow(a, 'liquidacaoResgate', a.liquidacaoResgate)}
+          {editRow(a, 'benchmark', a.benchmark)}
+          {a.isAutoUpdated ? (
+            <div
+              className="flex items-center justify-between gap-3 border-t border-gray-100 py-1.5 dark:border-gray-800"
+              data-mf-locked="valorAtualizado"
+            >
+              <div className="min-w-0">
+                <div className={TABLE_MOBILE_STYLES.cardDetailLabel}>Valor atualizado</div>
+                <div className="text-sm font-medium tabular-nums text-gray-800 dark:text-gray-100">
+                  {formatCurrency(a.valorAtualizado)}
+                </div>
+              </div>
+              <span className="inline-flex min-h-11 items-center gap-1 text-right text-xs text-gray-500 dark:text-gray-400">
+                <svg
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  aria-hidden="true"
+                  className="shrink-0"
+                >
+                  <rect x="4" y="11" width="16" height="10" rx="2" />
+                  <path d="M8 11V7a4 4 0 0 1 8 0v4" />
+                </svg>
+                Pelo PU oficial do Tesouro
+              </span>
+            </div>
+          ) : (
+            editRow(
+              a,
+              'valorAtualizado',
+              <span className="tabular-nums">{formatCurrency(a.valorAtualizado)}</span>,
+            )
+          )}
+          {editRow(a, 'observacoes', a.observacoes || 'Nenhuma', !a.observacoes)}
+        </div>
+      </div>
+    );
+  };
+
+  const renderFooter = (a: RendaFixaAtivo) => (
+    <Link href={`/ativos/${a.id}`} className={TABLE_MOBILE_STYLES.editButton}>
+      Ver detalhes do ativo
+    </Link>
+  );
+
+  const meta = editing ? EDIT_META[editing.campo] : null;
+  let initialValue: MobileEditValue = null;
+  if (editing) {
+    if (editing.campo === 'valorAtualizado') initialValue = editing.ativo.valorAtualizado;
+    else if (editing.campo === 'observacoes') initialValue = editing.ativo.observacoes ?? '';
+    else initialValue = editing.ativo[editing.campo];
+  }
+
+  return (
+    <div className="space-y-3" data-mf-rf-mobile="">
+      {vencendo.length > 0 && (
+        <div
+          role="note"
+          className="flex items-start gap-2 rounded-2xl bg-[#D97706]/[0.10] px-4 py-3 text-sm text-[#B45309] dark:bg-[#FBBF24]/[0.12] dark:text-amber-300"
+        >
+          <span aria-hidden="true">⚠</span>
+          <span>
+            <b className="font-semibold">
+              {vencendo.length === 1
+                ? `1 título vence em até ${RF_VENCE_EM_BREVE_DIAS} dias`
+                : `${vencendo.length} títulos vencem em até ${RF_VENCE_EM_BREVE_DIAS} dias`}
+            </b>
+            {vencendo.length === 1 ? ` (${rfDisplayName(vencendo[0])}).` : '.'}
+          </span>
+        </div>
+      )}
+
+      {visiveis.length === 0 && (
+        <p className={`${TABLE_MOBILE_STYLES.card} text-sm text-gray-500 dark:text-gray-400`}>
+          Nenhum título de renda fixa na carteira.
+        </p>
+      )}
+
+      {visiveis.map((secao) => {
+        const bodyId = `rf-secao-${secao.tipo}`;
+        const expanded = expandedSections.has(secao.tipo);
+        return (
+          <section key={secao.tipo} className="space-y-2" aria-label={secao.nome}>
+            <CardSectionBand
+              id={bodyId}
+              label={secao.nome}
+              count={secao.ativos.length}
+              subtotal={formatCurrency(secao.totalValorAtualizado)}
+              expanded={expanded}
+              onToggle={() => onToggleSection(secao.tipo)}
+            />
+            {expanded && (
+              <div id={bodyId}>
+                <ResponsiveCardList<RendaFixaAtivo>
+                  columns={columns}
+                  rows={secao.ativos}
+                  getRowKey={(a) => a.id}
+                  ariaLabel={`Títulos ${secao.nome}`}
+                  expandable
+                  renderCardBody={renderBody}
+                  renderCardFooter={renderFooter}
+                />
+              </div>
+            )}
+          </section>
+        );
+      })}
+
+      <section aria-label="Total geral de Renda Fixa" className={TABLE_MOBILE_STYLES.totalCard}>
+        <div className={TABLE_MOBILE_STYLES.cardHeader}>
+          <span className="font-semibold">Total geral</span>
+          <span className="font-semibold tabular-nums">
+            {formatCurrency(totalGeral.valorAtualizado)}
+          </span>
+        </div>
+        <dl className={`${TABLE_MOBILE_STYLES.cardDetailGrid} mt-2`}>
+          <DetailItem label="Aplicado">{formatCurrency(totalGeral.valorAplicado)}</DetailItem>
+          <DetailItem label="Aportes">{formatCurrency(totalGeral.aporte)}</DetailItem>
+          <DetailItem label="Resgates">{formatCurrency(totalGeral.resgate)}</DetailItem>
+          <DetailItem label="Rentabilidade">
+            {formatPercentage(totalGeral.rentabilidade)}
+          </DetailItem>
+        </dl>
+      </section>
+
+      <MobileEditSheet
+        isOpen={editOpen}
+        onClose={() => setEditOpen(false)}
+        title={meta?.title ?? 'Editar'}
+        subject={editing ? rfDisplayName(editing.ativo) : undefined}
+        label={meta?.label ?? ''}
+        kind={meta?.kind ?? 'text'}
+        initialValue={initialValue}
+        min={editing?.campo === 'valorAtualizado' ? 0 : undefined}
+        minExclusive={editing?.campo === 'valorAtualizado'}
+        allowEmpty={editing?.campo === 'observacoes'}
+        hint={meta?.hint}
+        savedMessage={() => (meta ? `${meta.label}: salvo` : 'Salvo')}
+        onSubmit={async (v) => {
+          if (!editing) return false;
+          const valor = typeof v === 'number' ? v : String(v ?? '');
+          return onUpdateCampo(editing.ativo.id, editing.campo, valor);
+        }}
+      />
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Main RendaFixaTable component
 // ---------------------------------------------------------------------------
 
@@ -382,6 +810,7 @@ export default function RendaFixaTable({ totalCarteira = 0 }: RendaFixaTableProp
     updateCaixaParaInvestir,
     updateRendaFixaCampo,
   } = useRendaFixa();
+  const isBelowLg = useIsBelowLg();
   const { necessidadeAporteMap } = useCarteiraResumoContext();
   const necessidadeAporteCalculada =
     necessidadeAporteMap.rendaFixaFundos ?? data?.resumo?.necessidadeAporte ?? 0;
@@ -506,73 +935,95 @@ export default function RendaFixaTable({ totalCarteira = 0 }: RendaFixaTableProp
         />
       </div>
 
-      {/* Main table */}
-      <ComponentCard title="Renda Fixa">
-        <div className={TABLE_STYLES.wrapper}>
-          <table className={TABLE_STYLES.table}>
-            <thead>
-              <tr className={TABLE_STYLES.headRow} style={TABLE_HEADER_STYLE}>
-                <th className={`${TABLE_STYLES.compact.th} text-left`}>Nome dos Ativos</th>
-                <th className={`${TABLE_STYLES.compact.th} text-center`}>Cotizacao de resgate</th>
-                <th className={`${TABLE_STYLES.compact.th} text-center`}>Liquidacao de resgate</th>
-                <th className={`${TABLE_STYLES.compact.th} text-center`}>Vencimento</th>
-                <th className={`${TABLE_STYLES.compact.th} text-center`}>Benchmark</th>
-                <th className={`${TABLE_STYLES.compact.th} text-right`}>Valor inicial aplicado</th>
-                <th className={`${TABLE_STYLES.compact.th} text-right`}>Aporte</th>
-                <th className={`${TABLE_STYLES.compact.th} text-right`}>Resgate</th>
-                <th className={`${TABLE_STYLES.compact.th} text-right`}>Valor Atualizado</th>
-                <th className={`${TABLE_STYLES.compact.th} text-right`}>% da Aba</th>
-                <th className={`${TABLE_STYLES.compact.th} text-right`}>
-                  <span className="block">Risco por ativo</span>
-                  <span className="block">(Carteira Total)</span>
-                </th>
-                <th className={`${TABLE_STYLES.compact.th} text-right`}>Rentabilidade</th>
-                <th className={`${TABLE_STYLES.compact.th} text-left`}>Observações</th>
-              </tr>
-            </thead>
-            <tbody>
-              {/* Grand total row */}
-              <tr className={TABLE_STYLES.totalRow}>
-                <td className={TABLE_STYLES.compact.td}>TOTAL GERAL</td>
-                <td className={`${TABLE_STYLES.compact.td} text-center`}>-</td>
-                <td className={`${TABLE_STYLES.compact.td} text-center`}>-</td>
-                <td className={`${TABLE_STYLES.compact.td} text-center`}>-</td>
-                <td className={`${TABLE_STYLES.compact.td} text-center`}>-</td>
-                <td className={`${TABLE_STYLES.compact.td} text-right`}>
-                  {formatCurrency(dataComRisco?.totalGeral?.valorAplicado || 0)}
-                </td>
-                <td className={`${TABLE_STYLES.compact.td} text-right`}>
-                  {formatCurrency(dataComRisco?.totalGeral?.aporte || 0)}
-                </td>
-                <td className={`${TABLE_STYLES.compact.td} text-right`}>
-                  {formatCurrency(dataComRisco?.totalGeral?.resgate || 0)}
-                </td>
-                <td className={`${TABLE_STYLES.compact.td} text-right`}>
-                  {formatCurrency(dataComRisco?.totalGeral?.valorAtualizado || 0)}
-                </td>
-                <td className={`${TABLE_STYLES.compact.td} text-right`}>100.00%</td>
-                <td className={`${TABLE_STYLES.compact.td} text-center`}>-</td>
-                <td className={`${TABLE_STYLES.compact.td} text-right`}>
-                  {formatPercentage(dataComRisco?.totalGeral?.rentabilidade || 0)}
-                </td>
-                <td className={`${TABLE_STYLES.compact.td} text-center`}>-</td>
-              </tr>
+      {isBelowLg ? (
+        <RendaFixaMobileList
+          secoes={normalizedSections}
+          expandedSections={expandedSections}
+          onToggleSection={toggleSection}
+          totalGeral={{
+            valorAplicado: dataComRisco?.totalGeral?.valorAplicado || 0,
+            aporte: dataComRisco?.totalGeral?.aporte || 0,
+            resgate: dataComRisco?.totalGeral?.resgate || 0,
+            valorAtualizado: dataComRisco?.totalGeral?.valorAtualizado || 0,
+            rentabilidade: dataComRisco?.totalGeral?.rentabilidade || 0,
+          }}
+          formatCurrency={formatCurrency}
+          formatPercentage={formatPercentage}
+          onUpdateCampo={updateRendaFixaCampo}
+        />
+      ) : (
+        /* Main table */
+        <ComponentCard title="Renda Fixa">
+          <div className={TABLE_STYLES.wrapper}>
+            <table className={TABLE_STYLES.table}>
+              <thead>
+                <tr className={TABLE_STYLES.headRow} style={TABLE_HEADER_STYLE}>
+                  <th className={`${TABLE_STYLES.compact.th} text-left`}>Nome dos Ativos</th>
+                  <th className={`${TABLE_STYLES.compact.th} text-center`}>Cotizacao de resgate</th>
+                  <th className={`${TABLE_STYLES.compact.th} text-center`}>
+                    Liquidacao de resgate
+                  </th>
+                  <th className={`${TABLE_STYLES.compact.th} text-center`}>Vencimento</th>
+                  <th className={`${TABLE_STYLES.compact.th} text-center`}>Benchmark</th>
+                  <th className={`${TABLE_STYLES.compact.th} text-right`}>
+                    Valor inicial aplicado
+                  </th>
+                  <th className={`${TABLE_STYLES.compact.th} text-right`}>Aporte</th>
+                  <th className={`${TABLE_STYLES.compact.th} text-right`}>Resgate</th>
+                  <th className={`${TABLE_STYLES.compact.th} text-right`}>Valor Atualizado</th>
+                  <th className={`${TABLE_STYLES.compact.th} text-right`}>% da Aba</th>
+                  <th className={`${TABLE_STYLES.compact.th} text-right`}>
+                    <span className="block">Risco por ativo</span>
+                    <span className="block">(Carteira Total)</span>
+                  </th>
+                  <th className={`${TABLE_STYLES.compact.th} text-right`}>Rentabilidade</th>
+                  <th className={`${TABLE_STYLES.compact.th} text-left`}>Observações</th>
+                </tr>
+              </thead>
+              <tbody>
+                {/* Grand total row */}
+                <tr className={TABLE_STYLES.totalRow}>
+                  <td className={TABLE_STYLES.compact.td}>TOTAL GERAL</td>
+                  <td className={`${TABLE_STYLES.compact.td} text-center`}>-</td>
+                  <td className={`${TABLE_STYLES.compact.td} text-center`}>-</td>
+                  <td className={`${TABLE_STYLES.compact.td} text-center`}>-</td>
+                  <td className={`${TABLE_STYLES.compact.td} text-center`}>-</td>
+                  <td className={`${TABLE_STYLES.compact.td} text-right`}>
+                    {formatCurrency(dataComRisco?.totalGeral?.valorAplicado || 0)}
+                  </td>
+                  <td className={`${TABLE_STYLES.compact.td} text-right`}>
+                    {formatCurrency(dataComRisco?.totalGeral?.aporte || 0)}
+                  </td>
+                  <td className={`${TABLE_STYLES.compact.td} text-right`}>
+                    {formatCurrency(dataComRisco?.totalGeral?.resgate || 0)}
+                  </td>
+                  <td className={`${TABLE_STYLES.compact.td} text-right`}>
+                    {formatCurrency(dataComRisco?.totalGeral?.valorAtualizado || 0)}
+                  </td>
+                  <td className={`${TABLE_STYLES.compact.td} text-right`}>100.00%</td>
+                  <td className={`${TABLE_STYLES.compact.td} text-center`}>-</td>
+                  <td className={`${TABLE_STYLES.compact.td} text-right`}>
+                    {formatPercentage(dataComRisco?.totalGeral?.rentabilidade || 0)}
+                  </td>
+                  <td className={`${TABLE_STYLES.compact.td} text-center`}>-</td>
+                </tr>
 
-              {normalizedSections.map((secao) => (
-                <RendaFixaSection
-                  key={secao.tipo}
-                  secao={secao}
-                  formatCurrency={formatCurrency}
-                  formatPercentage={formatPercentage}
-                  isExpanded={expandedSections.has(secao.tipo)}
-                  onToggle={() => toggleSection(secao.tipo)}
-                  onUpdateCampo={updateRendaFixaCampo}
-                />
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </ComponentCard>
+                {normalizedSections.map((secao) => (
+                  <RendaFixaSection
+                    key={secao.tipo}
+                    secao={secao}
+                    formatCurrency={formatCurrency}
+                    formatPercentage={formatPercentage}
+                    isExpanded={expandedSections.has(secao.tipo)}
+                    onToggle={() => toggleSection(secao.tipo)}
+                    onUpdateCampo={updateRendaFixaCampo}
+                  />
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </ComponentCard>
+      )}
     </div>
   );
 }
