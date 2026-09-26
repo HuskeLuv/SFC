@@ -128,7 +128,8 @@ export const TABLE_MOBILE_STYLES = {
   editButton:
     'relative inline-flex min-h-11 items-center gap-1 rounded-md px-2 text-sm font-medium text-mf-patrimonio dark:text-mf-tranquilidade',
   /** Bloco "Necessidade de aporte". */
-  needBlock: 'rounded-2xl bg-mf-escolha px-4 py-3.5 text-mf-potencia',
+  needBlock:
+    'rounded-2xl bg-mf-escolha px-4 py-3.5 text-mf-potencia dark:bg-mf-escolha/[0.08] dark:text-mf-escolha',
   /** Bloco "Caixa para investir". */
   caixaBlock:
     'rounded-2xl bg-mf-patrimonio/[0.12] px-4 py-3.5 text-mf-seguranca dark:text-mf-escolha',
