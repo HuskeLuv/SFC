@@ -108,7 +108,8 @@ export interface MonthDerived {
 export type MonthBlock = MonthGroup | MonthDerived;
 
 export const DERIVED_LABEL: Record<DerivedKey, string> = {
-  saldoCcAnterior: 'Saldo Conta Corrente Mês Anterior',
+  // Sem "mês anterior" no nome: o botão da linha não pode concorrer com a seta "Mês anterior".
+  saldoCcAnterior: 'Saldo Conta Corrente anterior',
   inflacao: 'Inflação Pedro',
   saldoMes: 'Saldo do mês (Lucro Líquido)',
   poupanca: 'Índice de Poupança Mensal',
