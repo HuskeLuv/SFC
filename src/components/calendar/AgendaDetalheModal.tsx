@@ -4,6 +4,7 @@ import React from 'react';
 import Link from 'next/link';
 import { Modal } from '@/components/ui/modal';
 import { formatBRL } from '@/utils/format';
+import { MODAL_STICKY_FOOTER } from '@/lib/ui/mobile';
 import type { EventoAgenda } from '@/services/calendario/types';
 import { corDoTipo, formatarDataCivil, metaDoTipo } from './agendaTipos';
 
@@ -106,7 +107,7 @@ export default function AgendaDetalheModal({
 
   return (
     <Modal isOpen={true} onClose={onClose} className="max-w-[560px] p-6 lg:p-8">
-      <div className="flex flex-col px-1">
+      <div className="flex flex-col px-1 max-lg:px-0">
         <span
           className="mb-2 inline-flex w-fit items-center gap-2 rounded-md px-2 py-0.5 text-xs font-medium"
           style={{ backgroundColor: `${cor}22`, color: cor }}
@@ -114,7 +115,9 @@ export default function AgendaDetalheModal({
           <span className="h-2 w-2 rounded-full" style={{ backgroundColor: cor }} />
           {meta.label}
         </span>
-        <h5 className="text-xl font-semibold text-gray-800 dark:text-white/90">{evento.titulo}</h5>
+        <h5 className="text-xl font-semibold text-gray-800 max-lg:pr-12 max-lg:text-lg dark:text-white/90">
+          {evento.titulo}
+        </h5>
         <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{quando}</p>
         {evento.valor != null && (
           <p className="mt-3 text-2xl font-semibold text-gray-900 tabular-nums dark:text-white">
@@ -132,19 +135,21 @@ export default function AgendaDetalheModal({
             campo chega na próxima versão.
           </p>
         )}
-        <dl className="mt-4 grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5 text-sm">
+        <dl className="mt-4 grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5 text-sm max-lg:grid-cols-1 max-lg:gap-y-0">
           {linhasDoDetalhe(evento).map(([k, v]) => (
             <React.Fragment key={k}>
-              <dt className="text-gray-500 dark:text-gray-400">{k}</dt>
+              <dt className="text-gray-500 max-lg:mt-2 max-lg:text-xs dark:text-gray-400">{k}</dt>
               <dd className="text-gray-800 tabular-nums dark:text-gray-200">{v}</dd>
             </React.Fragment>
           ))}
         </dl>
-        <div className="mt-6 flex flex-wrap justify-end gap-3">
+        <div
+          className={`mt-6 flex flex-wrap justify-end gap-3 max-lg:flex-nowrap ${MODAL_STICKY_FOOTER.p6}`}
+        >
           <button
             type="button"
             onClick={onClose}
-            className="rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-white/[0.03]"
+            className="rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 max-lg:min-h-11 max-lg:flex-1 max-lg:rounded-xl dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-white/[0.03]"
           >
             Fechar
           </button>
@@ -152,7 +157,7 @@ export default function AgendaDetalheModal({
             <button
               type="button"
               onClick={() => onEditar(evento)}
-              className="rounded-lg bg-brand-500 px-4 py-2.5 text-sm font-medium text-white hover:bg-brand-600"
+              className="rounded-lg bg-brand-500 px-4 py-2.5 text-sm font-medium text-white hover:bg-brand-600 max-lg:inline-flex max-lg:min-h-11 max-lg:flex-[2] max-lg:items-center max-lg:justify-center max-lg:rounded-xl max-lg:bg-mf-seguranca max-lg:font-semibold dark:max-lg:bg-mf-patrimonio"
             >
               Editar
             </button>
@@ -160,7 +165,7 @@ export default function AgendaDetalheModal({
           {evento.link && (
             <Link
               href={evento.link}
-              className="rounded-lg bg-brand-500 px-4 py-2.5 text-sm font-medium text-white hover:bg-brand-600"
+              className="rounded-lg bg-brand-500 px-4 py-2.5 text-sm font-medium text-white hover:bg-brand-600 max-lg:inline-flex max-lg:min-h-11 max-lg:flex-[2] max-lg:items-center max-lg:justify-center max-lg:rounded-xl max-lg:bg-mf-seguranca max-lg:font-semibold dark:max-lg:bg-mf-patrimonio"
             >
               {rotuloDoLink(evento.link)}
             </Link>
