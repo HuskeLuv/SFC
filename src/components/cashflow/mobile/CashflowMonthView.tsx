@@ -381,7 +381,7 @@ export default function CashflowMonthView() {
                     strokeLinejoin="round"
                   />
                 </svg>
-                <span aria-hidden="true" className="max-[359px]:hidden">
+                <span aria-hidden="true" className="max-[429px]:hidden">
                   Ano
                 </span>
               </button>

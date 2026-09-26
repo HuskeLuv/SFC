@@ -59,6 +59,20 @@ test('Jan → "Mês anterior" cruza o ano e a URL (?mes=12&ano=) sobrevive ao re
   await expect(label).toContainText(`Dezembro de ${anoAnterior}`);
 });
 
+test('o nome do mês cabe na barra (sem corte) de 360 a 414px', async ({ page }) => {
+  const text = page.locator('[data-mf-month-label-text]');
+  for (const width of [360, 390, 414]) {
+    await page.setViewportSize({ width, height: 844 });
+    // Fevereiro e Setembro: os nomes mais largos.
+    for (const mes of [2, 9]) {
+      await abrir(page, mes);
+      await expect(text).toBeVisible();
+      const { sw, cw } = await text.evaluate((el) => ({ sw: el.scrollWidth, cw: el.clientWidth }));
+      expect(sw, `mês ${mes} @ ${width}px: "${await text.textContent()}"`).toBeLessThanOrEqual(cw);
+    }
+  }
+});
+
 test('a linha Supermercado aparece (expandindo as linhas sem valor se preciso)', async ({
   page,
 }) => {

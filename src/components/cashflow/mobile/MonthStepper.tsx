@@ -1,6 +1,13 @@
 'use client';
 
-import React, { useEffect, useRef, useState, type ReactNode, type RefObject } from 'react';
+import React, {
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type ReactNode,
+  type RefObject,
+} from 'react';
 import BottomSheet from '@/components/ui/sheet/BottomSheet';
 import { formatBRL } from '@/utils/format';
 
@@ -13,6 +20,15 @@ import { formatBRL } from '@/utils/format';
  * Usada pela visão do mês (fatia A) e pelo Orçamento mobile (fatia D). O lançamento rápido usa um
  * trilho de chips próprio.
  */
+
+/** Formatos do nome do mês, do mais longo ao mais curto (ver `tier` no MonthStepper). */
+const LABEL_TIERS = [0, 1, 2] as const;
+function monthLabelTier(month: number, year: number, tier: number): string {
+  const name = MONTH_NAMES[month];
+  if (tier === 0) return `${name} de ${year}`;
+  if (tier === 1) return `${name} ${year}`;
+  return `${name.slice(0, 3)} ${year}`;
+}
 
 export type MonthStatus = 'atual' | 'fechado' | 'previsto';
 
@@ -153,6 +169,43 @@ export default function MonthStepper({
   const labelRef = useRef<HTMLElement>(null);
   const previous = useRef({ year, month });
 
+  // Nome do mês que cabe na largura: "Setembro de 2026" → "Setembro 2026" → "Set 2026" (e, se nem
+  // isso couber, a elipse). O formato é o mesmo nos 12 meses (o do mês mais largo), para o rótulo
+  // não mudar de forma ao passar de mês. Os textos ficam medidos num bloco invisível com a MESMA
+  // fonte do rótulo; o botão tem a largura da grade (não do conteúdo), então medir não muda o que é medido.
+  const [tier, setTier] = useState(0);
+  const sizerRef = useRef<HTMLSpanElement>(null);
+  const chevronRef = useRef<SVGSVGElement>(null);
+  useLayoutEffect(() => {
+    const button = nameRef.current;
+    const label = labelRef.current;
+    const sizer = sizerRef.current;
+    if (!button || !label || !sizer) return;
+    const measure = () => {
+      const bs = getComputedStyle(button);
+      const ls = getComputedStyle(label);
+      sizer.style.font = ls.font;
+      const gap = parseFloat(ls.columnGap) || 0;
+      const chevron = chevronRef.current?.getBoundingClientRect().width ?? 0;
+      const avail =
+        button.clientWidth -
+        (parseFloat(bs.paddingLeft) || 0) -
+        (parseFloat(bs.paddingRight) || 0) -
+        chevron -
+        gap;
+      const widest = Array.from(sizer.children, (group) =>
+        Math.max(...Array.from(group.children, (el) => el.getBoundingClientRect().width)),
+      );
+      const fit = widest.findIndex((w) => w <= avail);
+      setTier(fit === -1 ? widest.length - 1 : fit);
+    };
+    measure();
+    if (typeof ResizeObserver === 'undefined') return;
+    const observer = new ResizeObserver(measure);
+    observer.observe(button);
+    return () => observer.disconnect();
+  }, [year]);
+
   const status = monthStatus ?? monthStatusFor(year, month);
   const canPrev = month > 0 || !!onYearChange;
   const canNext = month < 11 || !!onYearChange;
@@ -216,16 +269,29 @@ export default function MonthStepper({
           type="button"
           aria-haspopup="dialog"
           onClick={() => setPickerOpen(true)}
-          className="flex min-h-11 min-w-0 flex-col items-center justify-center rounded-xl px-1 text-gray-800 active:bg-gray-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0079F2] dark:text-white/90 dark:active:bg-white/5"
+          className="relative flex min-h-11 min-w-0 flex-col items-center justify-center rounded-xl px-1 text-gray-800 active:bg-gray-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0079F2] dark:text-white/90 dark:active:bg-white/5"
         >
           <b
             ref={labelRef}
             data-mf-month-label=""
             aria-live="polite"
-            className="inline-flex max-w-full items-center gap-1.5 truncate text-[17px] font-semibold whitespace-nowrap"
+            className="flex max-w-full min-w-0 items-center gap-1.5 text-[17px] font-semibold whitespace-nowrap"
           >
-            {MONTH_NAMES[month]} de {year}
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            {/* Leitor de tela lê sempre o nome inteiro; a versão curta é só visual. */}
+            <span className="sr-only">{monthLabelTier(month, year, 0)}</span>
+            {/* O texto num span próprio: `truncate` num flex não mostra a elipse. */}
+            <span aria-hidden="true" data-mf-month-label-text="" className="min-w-0 truncate">
+              {monthLabelTier(month, year, tier)}
+            </span>
+            <svg
+              ref={chevronRef}
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              aria-hidden="true"
+              className="shrink-0"
+            >
               <path
                 d="M6 9l6 6 6-6"
                 stroke="currentColor"
@@ -235,6 +301,22 @@ export default function MonthStepper({
               />
             </svg>
           </b>
+          {/* Fora do rótulo (o texto dele fica só com o mês mostrado); a fonte vem do rótulo. */}
+          <span
+            ref={sizerRef}
+            aria-hidden="true"
+            className="pointer-events-none invisible absolute top-0 left-0 h-0 w-0 overflow-hidden"
+          >
+            {LABEL_TIERS.map((t) => (
+              <span key={t} className="block">
+                {MONTH_NAMES.map((_, m) => (
+                  <span key={m} className="block w-max">
+                    {monthLabelTier(m, year, t)}
+                  </span>
+                ))}
+              </span>
+            ))}
+          </span>
           <small
             className={`text-xs font-medium ${
               status === 'atual'
