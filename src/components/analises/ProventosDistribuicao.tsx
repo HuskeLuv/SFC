@@ -28,7 +28,7 @@ export default function ProventosDistribuicao({
   const [displayMode, setDisplayMode] = useState<'chart' | 'table'>('chart');
 
   return (
-    <div className="rounded-2xl border border-gray-200 bg-white p-6 dark:border-white/[0.05] dark:bg-white/[0.03]">
+    <div className="rounded-2xl border border-gray-200 bg-white p-6 dark:border-white/[0.05] dark:bg-white/[0.03] max-lg:p-4">
       {/* Header: título + período */}
       <div className="mb-4">
         <div className="flex items-center gap-2">

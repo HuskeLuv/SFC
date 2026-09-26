@@ -5,7 +5,15 @@ import LoadingSpinner from '@/components/common/LoadingSpinner';
 import Badge from '@/components/ui/badge/Badge';
 import { useProventos } from '@/hooks/useProventos';
 import DatePicker from '@/components/form/date-picker';
-import { TABLE_STYLES, TABLE_HEADER_STYLE } from '@/components/ui/table/tableStyles';
+import { twMerge } from 'tailwind-merge';
+import {
+  TABLE_STYLES,
+  TABLE_HEADER_STYLE,
+  TABLE_MOBILE_STYLES,
+} from '@/components/ui/table/tableStyles';
+import { ResponsiveCardList } from '@/components/ui/table/ResponsiveTable';
+import { useIsBelowLg } from '@/hooks/useMediaQuery';
+import type { ProventoData } from '@/hooks/useProventos';
 
 const FILTER_OPTIONS = [
   { value: 'all', label: 'Todos' },
@@ -19,6 +27,7 @@ export default function ProventosAgenda() {
   const [filter, setFilter] = useState<FilterType>('all');
   const [startDate, setStartDate] = useState<string>('');
   const [endDate, setEndDate] = useState<string>('');
+  const isBelowLg = useIsBelowLg();
 
   const { proventos, loading, isFetching, error } = useProventos(
     startDate || undefined,
@@ -122,21 +131,45 @@ export default function ProventosAgenda() {
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
             Filtro:
           </label>
-          <div className="flex gap-2">
-            {FILTER_OPTIONS.map((option) => (
-              <button
-                key={option.value}
-                onClick={() => setFilter(option.value)}
-                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                  filter === option.value
-                    ? 'bg-brand-500 text-white'
-                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700'
-                }`}
-              >
-                {option.label}
-              </button>
-            ))}
-          </div>
+          {isBelowLg ? (
+            <div
+              role="group"
+              aria-label="Filtro da agenda"
+              data-mf-scroll-x=""
+              className={TABLE_MOBILE_STYLES.chipRail}
+            >
+              {FILTER_OPTIONS.map((option) => (
+                <button
+                  key={option.value}
+                  type="button"
+                  aria-pressed={filter === option.value}
+                  onClick={() => setFilter(option.value)}
+                  className={twMerge(
+                    TABLE_MOBILE_STYLES.chip,
+                    filter === option.value && TABLE_MOBILE_STYLES.chipActive,
+                  )}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
+          ) : (
+            <div className="flex gap-2">
+              {FILTER_OPTIONS.map((option) => (
+                <button
+                  key={option.value}
+                  onClick={() => setFilter(option.value)}
+                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                    filter === option.value
+                      ? 'bg-brand-500 text-white'
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700'
+                  }`}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
         <div>
           <DatePicker
@@ -188,8 +221,8 @@ export default function ProventosAgenda() {
                 key={month}
                 className="border-b border-gray-200 dark:border-gray-700 last:border-b-0 pb-6 last:pb-0"
               >
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                <div className="flex items-center justify-between mb-4 max-lg:mb-2 max-lg:flex-wrap max-lg:gap-x-3">
+                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white max-lg:text-base">
                     {formatMonth(month)}
                   </h3>
                   <p className="text-sm font-medium text-gray-700 dark:text-gray-300">
@@ -203,53 +236,98 @@ export default function ProventosAgenda() {
                     </span>
                   </p>
                 </div>
-                <div className={TABLE_STYLES.wrapper}>
-                  <table className={TABLE_STYLES.table}>
-                    <thead>
-                      <tr className={TABLE_STYLES.headRow} style={TABLE_HEADER_STYLE}>
-                        <th className={`${TABLE_STYLES.th} text-left`}>Data</th>
-                        <th className={`${TABLE_STYLES.th} text-left`}>Ativo</th>
-                        <th className={`${TABLE_STYLES.th} text-left`}>Tipo</th>
-                        <th className={`${TABLE_STYLES.th} text-right`}>Valor</th>
-                        <th className={`${TABLE_STYLES.th} text-center`}>Status</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {items.map((provento) => (
-                        <tr
-                          key={provento.id}
-                          className={`${TABLE_STYLES.row} ${TABLE_STYLES.rowHover}`}
-                        >
-                          <td className={TABLE_STYLES.td}>{formatDate(provento.data)}</td>
-                          <td
-                            className={`${TABLE_STYLES.td} font-medium text-gray-900 dark:text-white`}
-                          >
-                            {provento.ativo}
-                          </td>
-                          <td className={TABLE_STYLES.td}>{provento.tipo}</td>
-                          <td
-                            className={`${TABLE_STYLES.td} text-right font-medium text-gray-900 dark:text-white`}
-                          >
-                            R${' '}
-                            {provento.valor.toLocaleString('pt-BR', {
-                              minimumFractionDigits: 2,
-                              maximumFractionDigits: 2,
-                            })}
-                          </td>
-                          <td className={`${TABLE_STYLES.td} text-center`}>
-                            <Badge
-                              variant="light"
-                              color={provento.status === 'realizado' ? 'success' : 'warning'}
-                              size="sm"
+                {isBelowLg ? (
+                  <ResponsiveCardList<ProventoData>
+                    ariaLabel={`Proventos de ${formatMonth(month)}`}
+                    rows={items}
+                    getRowKey={(p) => p.id}
+                    columns={[
+                      { id: 'ativo', header: 'Ativo', mobile: 'primary', cell: (p) => p.ativo },
+                      {
+                        id: 'quando',
+                        header: 'Data',
+                        mobile: 'subtitle',
+                        cell: (p) =>
+                          `${p.tipo} · ${formatDate(p.data)}${
+                            p.dataCom ? ` · data-com ${formatDate(p.dataCom)}` : ''
+                          }`,
+                      },
+                      {
+                        id: 'valor',
+                        header: 'Valor',
+                        mobile: 'value',
+                        cell: (p) => (
+                          <>
+                            <span className="block">
+                              R${' '}
+                              {p.valor.toLocaleString('pt-BR', {
+                                minimumFractionDigits: 2,
+                                maximumFractionDigits: 2,
+                              })}
+                            </span>
+                            <span
+                              className={`block text-xs font-medium ${
+                                p.status === 'realizado'
+                                  ? 'text-gray-500 dark:text-gray-400'
+                                  : 'text-[#B45309] dark:text-amber-300'
+                              }`}
                             >
-                              {provento.status === 'realizado' ? 'Realizado' : 'A Receber'}
-                            </Badge>
-                          </td>
+                              {p.status === 'realizado' ? 'Realizado' : 'A receber'}
+                            </span>
+                          </>
+                        ),
+                      },
+                    ]}
+                  />
+                ) : (
+                  <div className={TABLE_STYLES.wrapper}>
+                    <table className={TABLE_STYLES.table}>
+                      <thead>
+                        <tr className={TABLE_STYLES.headRow} style={TABLE_HEADER_STYLE}>
+                          <th className={`${TABLE_STYLES.th} text-left`}>Data</th>
+                          <th className={`${TABLE_STYLES.th} text-left`}>Ativo</th>
+                          <th className={`${TABLE_STYLES.th} text-left`}>Tipo</th>
+                          <th className={`${TABLE_STYLES.th} text-right`}>Valor</th>
+                          <th className={`${TABLE_STYLES.th} text-center`}>Status</th>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                      </thead>
+                      <tbody>
+                        {items.map((provento) => (
+                          <tr
+                            key={provento.id}
+                            className={`${TABLE_STYLES.row} ${TABLE_STYLES.rowHover}`}
+                          >
+                            <td className={TABLE_STYLES.td}>{formatDate(provento.data)}</td>
+                            <td
+                              className={`${TABLE_STYLES.td} font-medium text-gray-900 dark:text-white`}
+                            >
+                              {provento.ativo}
+                            </td>
+                            <td className={TABLE_STYLES.td}>{provento.tipo}</td>
+                            <td
+                              className={`${TABLE_STYLES.td} text-right font-medium text-gray-900 dark:text-white`}
+                            >
+                              R${' '}
+                              {provento.valor.toLocaleString('pt-BR', {
+                                minimumFractionDigits: 2,
+                                maximumFractionDigits: 2,
+                              })}
+                            </td>
+                            <td className={`${TABLE_STYLES.td} text-center`}>
+                              <Badge
+                                variant="light"
+                                color={provento.status === 'realizado' ? 'success' : 'warning'}
+                                size="sm"
+                              >
+                                {provento.status === 'realizado' ? 'Realizado' : 'A Receber'}
+                              </Badge>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
               </div>
             ))
           )}
