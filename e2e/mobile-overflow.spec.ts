@@ -28,18 +28,11 @@ const KNOWN_OVERFLOW: Record<string, string> = {};
  * ([data-mf-content] overflow-x: clip) ou rola na horizontal fora de `data-mf-scroll-x` —
  * `expectFitsWithoutClip` reprova. Medidas em 26/09/2026, antes das fatias (390 e 320; banco de dev
  * e banco do seed), com a fatia dona. Para elas o teste só anota (as fatias não editam este arquivo; quando uma
- * rota passa, a anotação avisa para tirá-la daqui). O INTEGRADOR esvazia a lista depois das 5
- * fatias. Chave = rota; `@320` = só a 320px.
+ * rota passa, a anotação avisa para tirá-la daqui). Esvaziada na integração da fase 3: com as 5
+ * fatias, /saude-financeira, /relatorios, /dividas, /conexoes-bancarias e /comunidade cabem a 390
+ * e 320. Chave = rota; `@320` = só a 320px.
  */
-const KNOWN_CLIP: Record<string, string> = {
-  '/saude-financeira': 'fatia B (Saúde): tabelas com rolagem horizontal própria',
-  '/relatorios': 'fatia B (Relatórios): tabelas com rolagem horizontal própria',
-  // Com dados (banco de dev); no CI o seed não tem dívida nem conexão e a flag está desligada.
-  '/dividas': 'fatia C (Dívidas): tabela de dívidas com rolagem horizontal própria',
-  '/conexoes-bancarias': 'fatia D (Conexões): tabelas da caixa de entrada com rolagem própria',
-  '/comunidade':
-    'fatia E (Comunidade): trilho de categorias (<nav> overflow-x) sem data-mf-scroll-x',
-};
+const KNOWN_CLIP: Record<string, string> = {};
 
 /**
  * Mede sem o corte da casca. Rota em KNOWN_CLIP só anota (passando ou não); as outras falham.
