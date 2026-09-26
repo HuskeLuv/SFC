@@ -1,10 +1,12 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { DollarLineIcon, HorizontaLDots, PencilIcon, TableIcon } from '@/icons';
 import { getActiveTab, TAB_ITEM_NAMES, useMainNavItems, type MobileTab } from '@/layout/navigation';
+import { onOpenLancamento } from '@/lib/cashflow/cashflowEvents';
+import LancamentoRapidoSheet from './LancamentoRapidoSheet';
 import LaunchSheet, { getAvailableQuickLaunchActions } from './LaunchSheet';
 import MoreSheet, { openMoreSheet, useMoreSheetState } from './MoreSheet';
 
@@ -63,6 +65,8 @@ export default function MobileTabBar() {
   const items = useMainNavItems();
   const { open: moreOpen } = useMoreSheetState();
   const [launchOpen, setLaunchOpen] = useState(false);
+  // Lançamento rápido do Fluxo (PWA fase 2): abre em qualquer tela.
+  const [lancamentoOpen, setLancamentoOpen] = useState(false);
 
   const has = (name: string) => items.some((item) => item.name === name);
   const pathOf = (name: string) => items.find((item) => item.name === name)?.path ?? '/';
@@ -95,7 +99,17 @@ export default function MobileTabBar() {
   ].filter((tab) => has(tab.itemName));
 
   const launchActions = getAvailableQuickLaunchActions(items);
-  const showLaunch = launchActions.some((action) => action.href);
+  const showLaunch = launchActions.length > 0;
+  const canLancarFluxo = launchActions.some((action) => action.kind === 'sheet');
+
+  // A visão do mês (estado vazio) pede o lançamento rápido pelo barramento do Fluxo.
+  useEffect(() => {
+    if (!canLancarFluxo) return;
+    return onOpenLancamento(() => {
+      setLaunchOpen(false);
+      setLancamentoOpen(true);
+    });
+  }, [canLancarFluxo]);
 
   const count = leftTabs.length + rightTabs.length + 1 + (showLaunch ? 1 : 0);
   const gridCols = GRID_COLS[Math.min(5, Math.max(3, count)) as 3 | 4 | 5];
@@ -184,7 +198,12 @@ export default function MobileTabBar() {
           isOpen={launchOpen}
           onClose={() => setLaunchOpen(false)}
           actions={launchActions}
+          // Abre depois do fechamento do "+ Lançar" (a trava de rolagem e o foco se acertam antes).
+          onOpenCashflowLaunch={() => window.requestAnimationFrame(() => setLancamentoOpen(true))}
         />
+      ) : null}
+      {canLancarFluxo ? (
+        <LancamentoRapidoSheet isOpen={lancamentoOpen} onClose={() => setLancamentoOpen(false)} />
       ) : null}
       <MoreSheet />
     </>
