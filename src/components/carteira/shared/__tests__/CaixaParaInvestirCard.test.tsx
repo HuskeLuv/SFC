@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import React from 'react';
-import { describe, it, expect, vi } from 'vitest';
+import { afterEach, beforeEach, describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import CaixaParaInvestirCard from '../CaixaParaInvestirCard';
 import { CarteiraResumoProvider } from '@/context/CarteiraResumoContext';
@@ -208,5 +208,76 @@ describe('CaixaParaInvestirCard', () => {
       fireEvent.click(screen.getByRole('button', { name: 'Editar caixa para investir' }));
       expect(screen.queryByRole('checkbox')).not.toBeInTheDocument();
     });
+  });
+});
+
+describe('CaixaParaInvestirCard no celular (abaixo de lg)', () => {
+  beforeEach(() => {
+    Object.defineProperty(window, 'matchMedia', {
+      configurable: true,
+      value: (query: string) => ({
+        matches: true,
+        media: query,
+        addEventListener: () => {},
+        removeEventListener: () => {},
+      }),
+    });
+  });
+  afterEach(() => {
+    // @ts-expect-error — volta ao jsdom sem matchMedia (desktop nos outros testes)
+    delete window.matchMedia;
+    document.body.style.overflow = '';
+  });
+
+  const abrirSheet = () =>
+    fireEvent.click(screen.getByRole('button', { name: 'Editar caixa para investir' }));
+  const campo = () => screen.getByLabelText('Reserva desta aba') as HTMLInputElement;
+
+  it("Editar abre o sheet e '1.234,56' chama o MESMO onSave com 1234.56", async () => {
+    const onSave = vi.fn().mockResolvedValue(true);
+    render(<CaixaParaInvestirCard value={100} formatCurrency={formatBRL} onSave={onSave} />);
+    abrirSheet();
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+    fireEvent.change(campo(), { target: { value: '1.234,56' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Salvar' }));
+    await waitFor(() => expect(onSave).toHaveBeenCalledWith(1234.56));
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+  });
+
+  it('onSave → false mantém o sheet aberto com erro', async () => {
+    const onSave = vi.fn().mockResolvedValue(false);
+    render(<CaixaParaInvestirCard value={100} formatCurrency={formatBRL} onSave={onSave} />);
+    abrirSheet();
+    fireEvent.change(campo(), { target: { value: '50' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Salvar' }));
+    await waitFor(() => expect(onSave).toHaveBeenCalledWith(50));
+    expect(await screen.findByText('Não foi possível salvar. Tente de novo.')).toBeInTheDocument();
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+  });
+
+  it('recusa do bolso mostra o motivo e "Aumentar o total" salva com ajustarTotal', async () => {
+    const onSave = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: false,
+        code: 'RESERVA_EXCEDE_TOTAL',
+        message: 'A reserva de Ações não cabe no Caixa para Investir total.',
+        totalNecessario: 12000,
+      })
+      .mockResolvedValueOnce(true);
+    render(<CaixaParaInvestirCard value={0} formatCurrency={formatBRL} onSave={onSave} />);
+    abrirSheet();
+    fireEvent.change(campo(), { target: { value: '9000' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Salvar' }));
+    expect(await screen.findByText(/não cabe no Caixa para Investir total/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /Aumentar o total para/ }));
+    await waitFor(() => expect(onSave).toHaveBeenLastCalledWith(9000, { ajustarTotal: true }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+  });
+
+  it('não renderiza o input inline do desktop', () => {
+    render(<CaixaParaInvestirCard value={100} formatCurrency={formatBRL} onSave={vi.fn()} />);
+    abrirSheet();
+    expect(screen.queryByRole('button', { name: 'Salvar caixa para investir' })).toBeNull();
   });
 });
