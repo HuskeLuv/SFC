@@ -9,8 +9,12 @@ import { useCsrf } from '@/hooks/useCsrf';
  * Chama DELETE /api/profile/sessoes, que incrementa o sessionVersion: todas
  * as sessões deixam de valer (as outras em até 1 minuto) e este aparelho
  * também sai. Confirmação em linha antes de executar.
+ *
+ * PWA fase 3: `embedded` (sheet "Sessões ativas" do Perfil no celular) tira o cartão e o título
+ * (o sheet já tem) e deixa os botões com 44px e largura total. Mesmo texto, mesma confirmação em
+ * dois passos, foco no Cancelar. Sem `embedded` o DOM é o de hoje.
  */
-export default function SairTodosDispositivos() {
+export default function SairTodosDispositivos({ embedded = false }: { embedded?: boolean } = {}) {
   const { csrfFetch } = useCsrf();
   const [confirming, setConfirming] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -38,11 +42,10 @@ export default function SairTodosDispositivos() {
     }
   };
 
-  return (
-    <section className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03] lg:p-6">
-      <h3 className="mb-2 text-base font-semibold text-gray-800 dark:text-white/90">
-        Sessões ativas
-      </h3>
+  const noSheet = (base: string, extra: string) => (embedded ? `${base} ${extra}` : base);
+
+  const conteudo = (
+    <>
       <p className="mb-3 text-sm text-gray-600 dark:text-gray-400">
         Encerra o acesso em todos os aparelhos e navegadores onde você entrou, inclusive este. Use
         se perdeu o celular ou entrou em um computador que não é seu.
@@ -55,7 +58,10 @@ export default function SairTodosDispositivos() {
             setError(null);
             setConfirming(true);
           }}
-          className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
+          className={noSheet(
+            'rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800',
+            'min-h-11 w-full',
+          )}
         >
           Sair de todos os dispositivos
         </button>
@@ -80,7 +86,10 @@ export default function SairTodosDispositivos() {
               type="button"
               onClick={handleConfirm}
               disabled={loading}
-              className="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-60"
+              className={noSheet(
+                'rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-60',
+                'min-h-11 flex-1',
+              )}
             >
               {loading ? 'Saindo…' : 'Sim, sair de todos'}
             </button>
@@ -89,7 +98,10 @@ export default function SairTodosDispositivos() {
               type="button"
               onClick={() => setConfirming(false)}
               disabled={loading}
-              className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-60 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
+              className={noSheet(
+                'rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-60 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800',
+                'min-h-11 flex-1',
+              )}
             >
               Cancelar
             </button>
@@ -102,6 +114,17 @@ export default function SairTodosDispositivos() {
           {error}
         </p>
       )}
+    </>
+  );
+
+  if (embedded) return <div data-sair-todos="">{conteudo}</div>;
+
+  return (
+    <section className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03] lg:p-6">
+      <h3 className="mb-2 text-base font-semibold text-gray-800 dark:text-white/90">
+        Sessões ativas
+      </h3>
+      {conteudo}
     </section>
   );
 }

@@ -4,6 +4,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useCsrf } from '@/hooks/useCsrf';
 import { logger } from '@/lib/logger';
+import { useResponsiveConfirm } from '@/components/ui/sheet/useResponsiveConfirm';
 
 /**
  * Card do perfil: liga/desliga os lembretes da Agenda. Sem registro no banco
@@ -11,6 +12,8 @@ import { logger } from '@/lib/logger';
  */
 export default function AgendaPreferencias() {
   const { csrfFetch } = useCsrf();
+  // PWA fase 3: no celular as 2 confirmações viram sheet; no desktop, o window.confirm de hoje.
+  const { confirm, confirmSheet } = useResponsiveConfirm();
   const [lembretes, setLembretes] = useState(true);
   const [icalToken, setIcalToken] = useState<string | null>(null);
   const [carregando, setCarregando] = useState(true);
@@ -68,7 +71,12 @@ export default function AgendaPreferencias() {
       if (mexendoNoLink) return;
       if (
         regerando &&
-        !window.confirm('Gerar um link novo faz o antigo parar de funcionar. Continuar?')
+        !(await confirm({
+          desktopMessage: 'Gerar um link novo faz o antigo parar de funcionar. Continuar?',
+          title: 'Gerar link novo?',
+          message: 'Gerar um link novo faz o antigo parar de funcionar.',
+          confirmLabel: 'Gerar',
+        }))
       ) {
         return;
       }
@@ -87,12 +95,20 @@ export default function AgendaPreferencias() {
         setMexendoNoLink(false);
       }
     },
-    [csrfFetch, mexendoNoLink],
+    [confirm, csrfFetch, mexendoNoLink],
   );
 
   const revogarLink = useCallback(async () => {
     if (mexendoNoLink) return;
-    if (!window.confirm('Revogar o link? Os calendários que já assinaram param de atualizar.')) {
+    if (
+      !(await confirm({
+        desktopMessage: 'Revogar o link? Os calendários que já assinaram param de atualizar.',
+        title: 'Revogar o link?',
+        message: 'Os calendários que já assinaram param de atualizar.',
+        confirmLabel: 'Revogar',
+        danger: true,
+      }))
+    ) {
       return;
     }
     setMexendoNoLink(true);
@@ -107,7 +123,7 @@ export default function AgendaPreferencias() {
     } finally {
       setMexendoNoLink(false);
     }
-  }, [csrfFetch, mexendoNoLink]);
+  }, [confirm, csrfFetch, mexendoNoLink]);
 
   const copiar = useCallback(async () => {
     if (!urlDoFeed) return;
@@ -121,8 +137,12 @@ export default function AgendaPreferencias() {
   }, [urlDoFeed]);
 
   return (
-    <div className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03] lg:p-6">
-      <h3 className="mb-1 text-lg font-semibold text-gray-800 dark:text-white/90">Agenda</h3>
+    // Abaixo de lg este cartão só aparece dentro do sheet "Lembretes e iCal" do Perfil: sem moldura
+    // e sem o título (o sheet já tem).
+    <div className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03] lg:p-6 max-lg:rounded-none max-lg:border-0 max-lg:bg-transparent max-lg:p-0 dark:max-lg:bg-transparent">
+      <h3 className="mb-1 text-lg font-semibold text-gray-800 dark:text-white/90 max-lg:hidden">
+        Agenda
+      </h3>
       <p className="mb-4 text-sm text-gray-500 dark:text-gray-400">
         Avisos do que está por vencer, no sininho do app. Tudo continua aparecendo na{' '}
         <Link href="/calendario" className="text-brand-500 underline">
@@ -137,7 +157,7 @@ export default function AgendaPreferencias() {
         </p>
       ) : null}
 
-      <label className="flex cursor-pointer items-start justify-between gap-4">
+      <label className="flex cursor-pointer items-start justify-between gap-4 max-lg:min-h-11">
         <span className="text-sm text-gray-700 dark:text-gray-200">
           Receber lembretes
           <span className="mt-0.5 block text-xs text-gray-500 dark:text-gray-400">
@@ -173,22 +193,22 @@ export default function AgendaPreferencias() {
                 value={urlDoFeed}
                 onFocus={(e) => e.currentTarget.select()}
                 aria-label="Endereço do feed da Agenda"
-                className="min-w-0 flex-1 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 font-mono text-xs text-gray-600 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300"
+                className="min-w-0 flex-1 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 font-mono text-xs text-gray-600 max-lg:min-h-11 max-lg:basis-full dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300"
               />
               <button
                 type="button"
                 onClick={copiar}
-                className="rounded-lg border border-gray-200 px-3 py-2 text-xs font-medium text-gray-700 dark:border-gray-700 dark:text-gray-200"
+                className="rounded-lg border border-gray-200 px-3 py-2 text-xs font-medium text-gray-700 max-lg:min-h-11 max-lg:px-4 dark:border-gray-700 dark:text-gray-200"
               >
                 {copiado ? 'Copiado!' : 'Copiar'}
               </button>
             </div>
-            <div className="mt-2 flex flex-wrap gap-3 text-xs">
+            <div className="mt-2 flex flex-wrap gap-3 text-xs max-lg:gap-x-5">
               <button
                 type="button"
                 onClick={() => gerarLink(true)}
                 disabled={mexendoNoLink}
-                className="text-brand-500 underline disabled:opacity-60"
+                className="text-brand-500 underline disabled:opacity-60 max-lg:min-h-11"
               >
                 Gerar link novo
               </button>
@@ -196,7 +216,7 @@ export default function AgendaPreferencias() {
                 type="button"
                 onClick={revogarLink}
                 disabled={mexendoNoLink}
-                className="text-error-600 underline disabled:opacity-60 dark:text-error-400"
+                className="text-error-600 underline disabled:opacity-60 max-lg:min-h-11 dark:text-error-400"
               >
                 Revogar
               </button>
@@ -207,12 +227,13 @@ export default function AgendaPreferencias() {
             type="button"
             onClick={() => gerarLink(false)}
             disabled={carregando || mexendoNoLink}
-            className="mt-3 rounded-lg bg-brand-500 px-3 py-2 text-xs font-medium text-white disabled:opacity-60"
+            className="mt-3 rounded-lg bg-brand-500 px-3 py-2 text-xs font-medium text-white disabled:opacity-60 max-lg:min-h-11 max-lg:w-full"
           >
             {mexendoNoLink ? 'Gerando…' : 'Gerar link da agenda'}
           </button>
         )}
       </div>
+      {confirmSheet}
     </div>
   );
 }
