@@ -342,7 +342,7 @@ function LancamentoRapidoConteudo({
             onClick={lancar}
             disabled={pendente === 'lancar'}
             aria-busy={pendente === 'lancar' || undefined}
-            className={PRIMARY_BUTTON}
+            className={twMerge(PRIMARY_BUTTON, 'flex-[2] leading-tight')}
           >
             {pendente === 'lancar' && <Spinner />}
             {pendente === 'lancar'
@@ -491,6 +491,7 @@ function LancamentoRapidoConteudo({
               </span>
               <div
                 ref={railRef}
+                data-mf-scroll-x=""
                 role="group"
                 aria-labelledby={ids.mes}
                 className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 [scrollbar-width:none]"
@@ -833,6 +834,10 @@ export interface LancamentoRapidoSheetProps {
 export default function LancamentoRapidoSheet({ isOpen, onClose }: LancamentoRapidoSheetProps) {
   const [aviso, setAviso] = useState<LancamentoFeito | null>(null);
   const undo = useUndoAlteracao();
+  // A barra de abas vem do servidor: o aviso (portal no body) só entra depois da hidratação, senão
+  // o HTML do servidor (sem portal) não bate com o do cliente.
+  const [hidratado, setHidratado] = useState(false);
+  useEffect(() => setHidratado(true), []);
 
   const desfazer = useCallback(
     (changeLogId: string) => {
@@ -863,13 +868,15 @@ export default function LancamentoRapidoSheet({ isOpen, onClose }: LancamentoRap
           }}
         />
       ) : null}
-      <MobileSaveToast
-        message={aviso?.mensagem ?? null}
-        onDismiss={() => setAviso(null)}
-        action={
-          changeLogId ? { label: 'Desfazer', onClick: () => desfazer(changeLogId) } : undefined
-        }
-      />
+      {hidratado ? (
+        <MobileSaveToast
+          message={aviso?.mensagem ?? null}
+          onDismiss={() => setAviso(null)}
+          action={
+            changeLogId ? { label: 'Desfazer', onClick: () => desfazer(changeLogId) } : undefined
+          }
+        />
+      ) : null}
     </>
   );
 }
