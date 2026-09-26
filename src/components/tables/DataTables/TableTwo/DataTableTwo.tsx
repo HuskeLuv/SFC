@@ -41,7 +41,28 @@ import DataTableTwoGroupRenderer from './DataTableTwoGroupRenderer';
 import { GroupRenderContext } from './dataTableTwoTypes';
 import { CashflowDndProvider } from '@/components/cashflow/CashflowDnd';
 
-export default function DataTableTwo() {
+/** Largura da coluna de mês da grade do ano no celular (5.25rem, ver globals.css). */
+const YEAR_GRID_MONTH_PX = 84;
+
+export interface DataTableTwoProps {
+  /**
+   * 'default' (padrão) = a planilha de sempre, DOM idêntico. 'mobile-year' = "Ano inteiro" do
+   * celular (PWA fase 2): só leitura, sem barra de ferramentas, sem arrastar, sem modais, e cada mês
+   * do cabeçalho vira botão (`onPickMonth`).
+   */
+  presentation?: 'default' | 'mobile-year';
+  /** 'mobile-year': mês (0..11) que a rolagem inicial deixa à vista. */
+  initialMonth?: number;
+  /** 'mobile-year': toque no nome do mês no cabeçalho. */
+  onPickMonth?: (month: number) => void;
+}
+
+export default function DataTableTwo({
+  presentation = 'default',
+  initialMonth,
+  onPickMonth,
+}: DataTableTwoProps = {}) {
+  const isYearGrid = presentation === 'mobile-year';
   const { year: currentYear } = useCashflowYear();
   const [importModalOpen, setImportModalOpen] = useState(false);
   // Modelo de leitura compartilhado com a visão do mês (PWA fase 2): árvore, proventos,
@@ -86,6 +107,7 @@ export default function DataTableTwo() {
 
   // Garantir que o scroll inicial mostre janeiro (primeira coluna de mês)
   useEffect(() => {
+    if (isYearGrid) return;
     if (!scrollContainerRef.current || loading || !data?.length) return;
 
     const container = scrollContainerRef.current;
@@ -122,7 +144,19 @@ export default function DataTableTwo() {
     return () => {
       clearTimeout(timeout);
     };
-  }, [loading, data]);
+  }, [loading, data, isYearGrid]);
+
+  // Grade do ano no celular: abre com o mês em foco logo depois da coluna de itens fixa (128px).
+  // Só na montagem com dados — depois a rolagem é do usuário.
+  const initialScrollDoneRef = useRef(false);
+  useEffect(() => {
+    if (!isYearGrid || initialScrollDoneRef.current) return;
+    const container = scrollContainerRef.current;
+    if (!container || loading || !data?.length) return;
+    initialScrollDoneRef.current = true;
+    const month = Math.min(11, Math.max(0, initialMonth ?? 0));
+    container.scrollLeft = month * YEAR_GRID_MONTH_PX;
+  }, [isYearGrid, initialMonth, loading, data]);
 
   // Barra de ferramentas: recolher/expandir tudo e rolar meses.
   const collapseAll = useCallback(() => {
@@ -355,7 +389,7 @@ export default function DataTableTwo() {
             currentYear={currentYear}
             // Grupos calculados (Aporte/Resgate da carteira, Conta Corrente)
             // não têm linhas no banco — sem alça.
-            reorderable={group.type !== 'investimento' && group.type !== 'saldo'}
+            reorderable={!isYearGrid && group.type !== 'investimento' && group.type !== 'saldo'}
           />
         );
       }
@@ -371,6 +405,7 @@ export default function DataTableTwo() {
       handleCommentCellClick,
       isCommentModeActive,
       currentYear,
+      isYearGrid,
     ],
   );
 
@@ -400,8 +435,10 @@ export default function DataTableTwo() {
       handleCommentButtonClick,
       handleCommentCellClick,
       renderItemRowConditional,
+      readOnly: isYearGrid || undefined,
     }),
     [
+      isYearGrid,
       collapsed,
       addingRow,
       newRow,
@@ -444,12 +481,14 @@ export default function DataTableTwo() {
         </div>
       )}
 
-      <CashflowToolbar
-        onExpandAll={expandAll}
-        onCollapseAll={collapseAll}
-        onScrollMonths={scrollMonths}
-        onImport={() => setImportModalOpen(true)}
-      />
+      {isYearGrid ? null : (
+        <CashflowToolbar
+          onExpandAll={expandAll}
+          onCollapseAll={collapseAll}
+          onScrollMonths={scrollMonths}
+          onImport={() => setImportModalOpen(true)}
+        />
+      )}
 
       {/* pb-24: garante que as últimas linhas rolem acima do banner de cookies */}
       <div
@@ -462,14 +501,20 @@ export default function DataTableTwo() {
         // afetados. TABLE_STYLES.wrapper: cantos arredondados + borda, padrão do app.
         className={`${TABLE_STYLES.wrapper} relative isolate z-0 w-full max-w-full min-w-0 h-full overflow-y-auto custom-scrollbar cashflow-table pb-24`}
         style={{ scrollBehavior: 'auto', position: 'relative' }}
+        {...(isYearGrid
+          ? { tabIndex: 0, 'aria-label': 'Planilha do ano', 'data-mf-year-grid-scroll': '' }
+          : {})}
       >
-        <CashflowDndProvider onReorder={handleReorder} onMove={handleMove}>
+        <CashflowDndProvider onReorder={handleReorder} onMove={handleMove} disabled={isYearGrid}>
           <Table
             className={`relative ${GRID.table}`}
             style={GRID.tableStyle}
             aria-label="Planilha de fluxo de caixa"
           >
-            <TableHeaderComponent currentMonth={currentMonth} />
+            <TableHeaderComponent
+              currentMonth={currentMonth}
+              onPickMonth={isYearGrid ? onPickMonth : undefined}
+            />
             <TableBody>
               {mainGroups.map((group, groupIndex, groups) => {
                 const isFirstDespesaGroup =
@@ -586,22 +631,26 @@ export default function DataTableTwo() {
         </CashflowDndProvider>
       </div>
 
-      <ImportPlanilhaModal
-        isOpen={importModalOpen}
-        onClose={() => setImportModalOpen(false)}
-        year={currentYear}
-      />
+      {isYearGrid ? null : (
+        <>
+          <ImportPlanilhaModal
+            isOpen={importModalOpen}
+            onClose={() => setImportModalOpen(false)}
+            year={currentYear}
+          />
 
-      <CommentModal
-        isOpen={commentModal.isOpen}
-        onClose={closeCommentModal}
-        onSave={handleSaveComment}
-        initialComment={commentModal.initialComment}
-        updatedAt={commentModal.updatedAt}
-        itemName={commentModal.itemName}
-        month={commentModal.month}
-        year={commentModal.year}
-      />
+          <CommentModal
+            isOpen={commentModal.isOpen}
+            onClose={closeCommentModal}
+            onSave={handleSaveComment}
+            initialComment={commentModal.initialComment}
+            updatedAt={commentModal.updatedAt}
+            itemName={commentModal.itemName}
+            month={commentModal.month}
+            year={commentModal.year}
+          />
+        </>
+      )}
     </div>
   );
 }

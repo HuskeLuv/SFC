@@ -2,6 +2,11 @@ import { CashflowItem, CashflowGroup, NewRowData } from '@/types/cashflow';
 import { ColorOption } from '@/components/cashflow/ColorPickerButton';
 
 export interface GroupRenderContext {
+  /**
+   * Grade só de leitura ("Ano inteiro" do celular, PWA fase 2): sem Editar/Salvar/Cancelar nos
+   * cabeçalhos de grupo nem alça de arrastar nas linhas. Ausente = planilha editável de sempre.
+   */
+  readOnly?: boolean;
   collapsed: Record<string, boolean>;
   addingRow: Record<string, boolean>;
   newRow: Record<string, NewRowData>;
