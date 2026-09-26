@@ -116,16 +116,31 @@ const PieChartFiiAtivo: React.FC<PieChartFiiAtivoProps> = ({ data, isDarkMode = 
       },
       responsive: [
         {
+          // PWA fase 1: abaixo de lg (o Apex só aplica abaixo de 1024px — o desktop não muda),
+          // legenda embaixo e legível, sem rótulos em cima das fatias.
+          breakpoint: 1023,
+          options: {
+            chart: { height: 340 },
+            legend: {
+              position: 'bottom',
+              fontSize: '12px',
+              markers: { size: 5 },
+              itemMargin: { horizontal: 8, vertical: 4 },
+            },
+            dataLabels: { enabled: false },
+          },
+        },
+        {
           breakpoint: 640,
           options: {
             chart: {
               width: '100%',
-              height: 250,
+              height: 320,
             },
             legend: {
-              fontSize: '8px',
+              fontSize: '12px',
               markers: {
-                size: 2,
+                size: 5,
               },
             },
           },

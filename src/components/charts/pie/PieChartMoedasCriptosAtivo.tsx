@@ -1,10 +1,10 @@
-"use client";
-import React, { useMemo } from "react";
-import { ApexOptions } from "apexcharts";
-import dynamic from "next/dynamic";
+'use client';
+import React, { useMemo } from 'react';
+import { ApexOptions } from 'apexcharts';
+import dynamic from 'next/dynamic';
 
 // Dynamically import the ReactApexChart component
-const ReactApexChart = dynamic(() => import("react-apexcharts"), {
+const ReactApexChart = dynamic(() => import('react-apexcharts'), {
   ssr: false,
 });
 
@@ -22,58 +22,69 @@ export default function PieChartMoedasCriptosAtivo({ data }: PieChartMoedasCript
 
   const chartData = useMemo(() => {
     if (!data || data.length === 0) return { series: [], labels: [] };
-    
+
     return {
-      series: data.map(item => item.percentual),
-      labels: data.map(item => item.ticker),
+      series: data.map((item) => item.percentual),
+      labels: data.map((item) => item.ticker),
     };
   }, [data]);
 
   // Chart configuration using useMemo for optimization
   const options: ApexOptions = useMemo(
     () => ({
-      colors: ["#3B82F6", "#10B981", "#F59E0B", "#EF4444", "#8B5CF6", "#06B6D4", "#84CC16", "#F97316", "#EC4899", "#6B7280"],
+      colors: [
+        '#3B82F6',
+        '#10B981',
+        '#F59E0B',
+        '#EF4444',
+        '#8B5CF6',
+        '#06B6D4',
+        '#84CC16',
+        '#F97316',
+        '#EC4899',
+        '#6B7280',
+      ],
       labels: chartData.labels,
       chart: {
-        fontFamily: "Outfit, sans-serif",
-        type: "donut",
-        width: "100%",
+        fontFamily: 'Outfit, sans-serif',
+        type: 'donut',
+        width: '100%',
         height: 300,
       },
       stroke: {
         show: false,
         width: 4,
-        colors: ["transparent"],
+        colors: ['transparent'],
       },
       plotOptions: {
         pie: {
           donut: {
-            size: "65%",
-            background: "transparent",
+            size: '65%',
+            background: 'transparent',
             labels: {
               show: true,
               name: {
                 show: true,
                 offsetY: -10,
-                color: isDarkMode ? "#ffffff" : "#1D2939",
-                fontSize: "14px",
-                fontWeight: "500",
+                color: isDarkMode ? '#ffffff' : '#1D2939',
+                fontSize: '14px',
+                fontWeight: '500',
               },
               value: {
                 show: true,
                 offsetY: 10,
-                color: isDarkMode ? "#D1D5DB" : "#667085",
-                fontSize: "12px",
-                fontWeight: "400",
+                color: isDarkMode ? '#D1D5DB' : '#667085',
+                fontSize: '12px',
+                fontWeight: '400',
                 formatter: (val: string) => `${val}%`,
               },
               total: {
                 show: true,
-                label: "Total",
-                color: isDarkMode ? "#ffffff" : "#000000",
-                fontSize: "16px",
-                fontWeight: "bold",
-                formatter: () => "100%",
+                label: 'Total',
+                color: isDarkMode ? '#ffffff' : '#000000',
+                fontSize: '16px',
+                fontWeight: 'bold',
+                formatter: () => '100%',
               },
             },
           },
@@ -86,24 +97,24 @@ export default function PieChartMoedasCriptosAtivo({ data }: PieChartMoedasCript
       tooltip: {
         enabled: true,
         y: {
-          formatter: function(val: number, { seriesIndex, w }) {
+          formatter: function (val: number, { seriesIndex, w }) {
             const ticker = w.globals.labels[seriesIndex];
             const percentual = val;
             const valor = data[seriesIndex]?.valor || 0;
             return `${ticker}: ${percentual.toFixed(2)}% (R$ ${valor.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })})`;
-          }
-        }
+          },
+        },
       },
       legend: {
         show: true,
-        position: "bottom",
-        horizontalAlign: "center",
-        fontFamily: "Outfit",
-        fontSize: "12px",
+        position: 'bottom',
+        horizontalAlign: 'center',
+        fontFamily: 'Outfit',
+        fontSize: '12px',
         fontWeight: 400,
         markers: {
           size: 4,
-          shape: "circle",
+          shape: 'circle',
           strokeWidth: 0,
         },
         itemMargin: {
@@ -116,19 +127,34 @@ export default function PieChartMoedasCriptosAtivo({ data }: PieChartMoedasCript
       },
       responsive: [
         {
+          // PWA fase 1: abaixo de lg (o Apex só aplica abaixo de 1024px — o desktop não muda),
+          // legenda embaixo e legível, sem rótulos em cima das fatias.
+          breakpoint: 1023,
+          options: {
+            chart: { height: 340 },
+            legend: {
+              position: 'bottom',
+              fontSize: '12px',
+              markers: { size: 5 },
+              itemMargin: { horizontal: 8, vertical: 4 },
+            },
+            dataLabels: { enabled: false },
+          },
+        },
+        {
           breakpoint: 640,
           options: {
             chart: {
-              height: 250,
+              height: 320,
             },
             legend: {
-              fontSize: "10px",
+              fontSize: '10px',
             },
           },
         },
       ],
     }),
-    [chartData.labels, isDarkMode, data]
+    [chartData.labels, isDarkMode, data],
   );
 
   if (!data || data.length === 0) {
@@ -143,12 +169,7 @@ export default function PieChartMoedasCriptosAtivo({ data }: PieChartMoedasCript
 
   return (
     <div className="w-full">
-      <ReactApexChart
-        options={options}
-        series={chartData.series}
-        type="donut"
-        height={300}
-      />
+      <ReactApexChart options={options} series={chartData.series} type="donut" height={300} />
     </div>
   );
 }
