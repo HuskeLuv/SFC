@@ -1,17 +1,89 @@
 'use client';
 import React, { useState } from 'react';
+import { useIsBelowLg } from '@/hooks/useMediaQuery';
+import MobileEditSheet from '@/components/ui/sheet/MobileEditSheet';
+import { formatDecimalInput } from '@/lib/ui/numberInput';
+import { MobileEditTrigger, useAssetCardContext } from './AssetCardSections';
 
 interface EditableValorCellProps {
   ativoId: string;
   valorAtualizado: number;
   formatCurrency: (value: number) => string;
-  onUpdateValorAtualizado: (ativoId: string, novoValor: number) => void;
+  /**
+   * O MESMO callback no desktop e no celular. No celular (sheet), retorno `false` ou exceção =
+   * falha: o sheet fica aberto com o erro.
+   */
+  onUpdateValorAtualizado: (
+    ativoId: string,
+    novoValor: number,
+  ) => void | boolean | Promise<boolean | void>;
   /** Locale for formatting the initial value in the input */
   locale?: 'pt-BR' | 'en-US';
   placeholder?: string;
+  /** Ticker/nome do ativo no título do sheet (padrão: o do cartão). */
+  subject?: string;
 }
 
-const EditableValorCell: React.FC<EditableValorCellProps> = ({
+const EditableValorCell: React.FC<EditableValorCellProps> = (props) => {
+  const isBelowLg = useIsBelowLg();
+  if (isBelowLg) return <ValorMobile {...props} />;
+  return <ValorDesktop {...props} />;
+};
+
+/**
+ * Mesmo parse do desktop: aceita '1.234,56' e '1234.56'; ignora símbolos; negativo não passa
+ * (o desktop descarta o sinal — no celular vira erro de validação, sem salvar).
+ */
+const parseValorMonetarioMobile = (str: string): number | null => {
+  if (/-|−/.test(str)) return -1;
+  const cleaned = str.replace(/[^\d,.]/g, '').trim();
+  if (!cleaned) return null;
+  const hasComma = cleaned.includes(',');
+  const normalized = hasComma ? cleaned.replace(/\./g, '').replace(',', '.') : cleaned;
+  const num = Number.parseFloat(normalized);
+  return Number.isFinite(num) ? num : null;
+};
+
+/** Celular (PWA fase 1): valor + "Editar" → MobileEditSheet de moeda. */
+const ValorMobile: React.FC<EditableValorCellProps> = ({
+  ativoId,
+  valorAtualizado,
+  formatCurrency,
+  onUpdateValorAtualizado,
+  locale = 'pt-BR',
+  subject: subjectProp,
+}) => {
+  const card = useAssetCardContext();
+  const [open, setOpen] = useState(false);
+  const subject = subjectProp ?? card?.subject ?? 'ativo';
+  return (
+    <>
+      <MobileEditTrigger
+        field="valor"
+        display={formatCurrency(valorAtualizado)}
+        ariaLabel={`Editar valor atualizado de ${subject}, hoje ${formatCurrency(valorAtualizado)}`}
+        onOpen={() => setOpen(true)}
+      />
+      <MobileEditSheet
+        isOpen={open}
+        onClose={() => setOpen(false)}
+        title={`Valor atualizado de ${subject}`}
+        label="Valor atualizado"
+        kind="currency"
+        locale={locale}
+        prefix={locale === 'en-US' ? 'US$' : 'R$'}
+        initialValue={valorAtualizado}
+        formatValue={(v) => formatDecimalInput(typeof v === 'number' ? v : null, locale, 2)}
+        parseValue={locale === 'pt-BR' ? parseValorMonetarioMobile : undefined}
+        min={0}
+        onSubmit={(v) => onUpdateValorAtualizado(ativoId, v as number)}
+        savedMessage={(v) => `Valor de ${subject} salvo: ${formatCurrency(v as number)}`}
+      />
+    </>
+  );
+};
+
+const ValorDesktop: React.FC<EditableValorCellProps> = ({
   ativoId,
   valorAtualizado,
   formatCurrency,
