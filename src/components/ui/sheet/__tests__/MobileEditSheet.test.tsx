@@ -98,6 +98,17 @@ describe('MobileEditSheet', () => {
     expect(screen.queryByRole('status')).not.toHaveTextContent('Salvo');
   });
 
+  it('{ error } mantém aberto só com o motivo, sem o erro genérico', async () => {
+    const onSubmit = vi.fn().mockResolvedValue({ error: 'A reserva não cabe no caixa.' });
+    render(<Harness onSubmit={onSubmit} />);
+    await act(async () => {
+      fireEvent.click(save());
+    });
+    expect(screen.getByTestId('estado')).toHaveTextContent('aberto');
+    expect(screen.getByRole('alert')).toHaveTextContent('A reserva não cabe no caixa.');
+    expect(screen.getByRole('alert')).not.toHaveTextContent(SAVE_ERROR_MESSAGE);
+  });
+
   it('exceção mantém aberto com o erro', async () => {
     const onSubmit = vi.fn().mockRejectedValue(new Error('500'));
     render(<Harness onSubmit={onSubmit} />);

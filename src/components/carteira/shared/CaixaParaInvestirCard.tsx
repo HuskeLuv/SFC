@@ -64,6 +64,8 @@ const CaixaParaInvestirCard: React.FC<CaixaParaInvestirCardProps> = ({
   const isBelowLg = useIsBelowLg();
   const [sheetOpen, setSheetOpen] = useState(false);
   const [sheetFailure, setSheetFailure] = useState<CaixaSaveFailure | null>(null);
+  // Motivo de recusa do "Aumentar o total…" (a recusa do Salvar aparece como erro do próprio sheet).
+  const [sheetAjusteErro, setSheetAjusteErro] = useState<string | null>(null);
   const [sheetUltimoValor, setSheetUltimoValor] = useState<number | null>(null);
   const [sheetAjustando, setSheetAjustando] = useState(false);
 
@@ -155,11 +157,14 @@ const CaixaParaInvestirCard: React.FC<CaixaParaInvestirCardProps> = ({
     const handleSheetSubmit = async (valor: number | string | null) => {
       if (!onSave || typeof valor !== 'number') return false;
       setSheetFailure(null);
+      setSheetAjusteErro(null);
       setSheetUltimoValor(valor);
       const result = await onSave(valor);
       if (result === true) return true;
-      if (result !== false) setSheetFailure(result);
-      return false;
+      if (result === false) return false;
+      // Recusa por regra: o motivo vai como o erro do sheet (sem o genérico "Tente de novo").
+      setSheetFailure(result);
+      return { error: result.message };
     };
     const handleAjustarTotal = async () => {
       if (!onSave || sheetUltimoValor === null) return;
@@ -168,16 +173,20 @@ const CaixaParaInvestirCard: React.FC<CaixaParaInvestirCardProps> = ({
       setSheetAjustando(false);
       if (result === true) {
         setSheetFailure(null);
+        setSheetAjusteErro(null);
         setSheetOpen(false);
-      } else if (result !== false) setSheetFailure(result);
+      } else if (result !== false) {
+        setSheetFailure(result);
+        setSheetAjusteErro(result.message);
+      }
     };
     const livre = caixa ? Math.max(0, caixa.livre) : 0;
     const somaBarra = caixa ? caixa.reservado + livre : 0;
     const sheetHint = (
       <>
-        {sheetFailure && (
+        {sheetAjusteErro && (
           <span className="block text-[12.5px] text-[#D92D20] dark:text-[#F97066]">
-            {sheetFailure.message}
+            {sheetAjusteErro}
           </span>
         )}
         {sheetFailure?.totalNecessario != null && (

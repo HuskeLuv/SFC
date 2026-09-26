@@ -65,9 +65,13 @@ export interface MobileEditSheetProps {
   submitLabel?: string;
   /**
    * O MESMO callback do desktop. FALHA = exceção OU retorno `=== false` (os hooks da carteira
-   * devolvem false sem lançar): o sheet fica aberto com o erro. Qualquer outro retorno = sucesso.
+   * devolvem false sem lançar): o sheet fica aberto com o erro genérico. `{ error }` = falha com
+   * o motivo (recusa por regra de negócio, que não adianta "tentar de novo"). Qualquer outro
+   * retorno = sucesso.
    */
-  onSubmit: (value: MobileEditValue) => void | boolean | Promise<void | boolean>;
+  onSubmit: (
+    value: MobileEditValue,
+  ) => void | boolean | MobileEditFailure | Promise<void | boolean | MobileEditFailure>;
   /** Mostrar o aviso "salvo" ao fechar com sucesso (padrão true). Sem Desfazer na fase 1. */
   showSavedToast?: boolean;
   /** Texto do aviso (padrão 'Salvo'). */
@@ -82,6 +86,14 @@ const NUMERIC_KINDS: ReadonlySet<MobileEditKind> = new Set([
 ]);
 
 export const SAVE_ERROR_MESSAGE = 'Não foi possível salvar. Tente de novo.';
+
+/** Falha com mensagem própria (ver `onSubmit`). */
+export interface MobileEditFailure {
+  error: string;
+}
+
+const isFailure = (r: unknown): r is MobileEditFailure =>
+  typeof r === 'object' && r !== null && typeof (r as MobileEditFailure).error === 'string';
 
 function defaultFormat(kind: MobileEditKind, value: MobileEditValue, locale: DecimalLocale) {
   if (value === null || value === undefined) return '';
@@ -204,15 +216,16 @@ export function MobileEditSheet({
     setFieldError(null);
     setSaveError(null);
     setSaving(true);
-    let ok: boolean;
+    let failure: string | null;
     try {
-      ok = (await onSubmit(result.value)) !== false;
+      const r = await onSubmit(result.value);
+      failure = r === false ? SAVE_ERROR_MESSAGE : isFailure(r) ? r.error : null;
     } catch {
-      ok = false;
+      failure = SAVE_ERROR_MESSAGE;
     }
     setSaving(false);
-    if (!ok) {
-      setSaveError(SAVE_ERROR_MESSAGE);
+    if (failure) {
+      setSaveError(failure);
       return;
     }
     onClose();
