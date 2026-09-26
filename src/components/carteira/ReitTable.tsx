@@ -13,6 +13,8 @@ import {
 } from '@/components/carteira/shared';
 import AssetNameLink from '@/components/carteira/AssetNameLink';
 import ComponentCard from '@/components/common/ComponentCard';
+import { useIsBelowLg } from '@/hooks/useMediaQuery';
+import { ResumoAportesCards, UsdTotalMobile } from '@/components/carteira/shared/AssetCardSections';
 import { TABLE_STYLES, TABLE_HEADER_STYLE } from '@/components/ui/table/tableStyles';
 import PieChartReitAtivo from '@/components/charts/pie/PieChartReitAtivo';
 
@@ -39,10 +41,11 @@ export default function ReitTable({ totalCarteira = 0 }: ReitTableProps) {
     updateObjetivo,
     updateCaixaParaInvestir,
   } = useReit();
+  const isBelowLg = useIsBelowLg();
 
-  const handleUpdateObjetivo = async (ativoId: string, novoObjetivo: number) => {
-    await updateObjetivo(ativoId, novoObjetivo);
-  };
+  // Devolve o resultado (false = falha) para o sheet do celular manter o erro aberto.
+  const handleUpdateObjetivo = (ativoId: string, novoObjetivo: number) =>
+    updateObjetivo(ativoId, novoObjetivo);
 
   const cotacaoDolar = data?.cotacaoDolar ?? null;
   const formatCurrencyBRL = (valueUSD: number) =>
@@ -231,6 +234,18 @@ export default function ReitTable({ totalCarteira = 0 }: ReitTableProps) {
     </tr>
   );
 
+  // Celular: a mesma linha "TOTAL EM USD" no cartão de total.
+  const extraTotalMobile = (
+    <UsdTotalMobile
+      aplicado={formatCurrency(
+        ((data?.totalGeral as unknown as Record<string, unknown>)?.valorAplicado as number) ?? 0,
+      )}
+      atualizado={formatCurrency(
+        ((data?.totalGeral as unknown as Record<string, unknown>)?.valorAtualizado as number) ?? 0,
+      )}
+    />
+  );
+
   const metricCards: MetricCardConfig[] = [
     {
       title: 'Necessidade de Aporte Total',
@@ -284,44 +299,62 @@ export default function ReitTable({ totalCarteira = 0 }: ReitTableProps) {
       totalCarteira={totalCarteira}
       cotacaoParaBRL={cotacaoDolar}
       extraTotalRows={extraTotalRows}
+      extraTotalMobile={extraTotalMobile}
+      mobileTitleFromName
+      mobileQuantityUnit="cotas"
     >
       {/* Charts and aux table */}
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-12">
         <div className="xl:col-span-6">
           <ComponentCard title="Resumo de Aportes">
-            <div className={TABLE_STYLES.wrapper}>
-              <table className={TABLE_STYLES.table}>
-                <thead>
-                  <tr className={TABLE_STYLES.headRow} style={TABLE_HEADER_STYLE}>
-                    <th className={`${TABLE_STYLES.th} text-left`}>Nome Ativo</th>
-                    <th className={`${TABLE_STYLES.th} text-right`}>Cotacao Atual</th>
-                    <th className={`${TABLE_STYLES.th} text-right`}>Necessidade Aporte</th>
-                    <th className={`${TABLE_STYLES.th} text-right`}>Lote Aproximado</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {(data?.tabelaAuxiliar || []).map((item, index) => (
-                    <tr key={index} className={`${TABLE_STYLES.row} ${TABLE_STYLES.rowHover}`}>
-                      <td className={`${TABLE_STYLES.td} font-medium`}>{item.nome}</td>
-                      <td className={`${TABLE_STYLES.td} text-right font-medium`}>
-                        {formatCurrency(item.cotacaoAtual)}
-                      </td>
-                      <td className={`${TABLE_STYLES.td} text-right font-medium`}>
-                        {formatCurrency(item.necessidadeAporte)}
-                      </td>
-                      <td className={`${TABLE_STYLES.td} text-right font-medium`}>
-                        {formatNumber(item.loteAproximado)}
-                      </td>
+            {isBelowLg ? (
+              <ResumoAportesCards
+                items={(data?.tabelaAuxiliar || []).map((item, index) => ({
+                  key: index,
+                  nome: item.nome,
+                  cotacao: formatCurrency(item.cotacaoAtual),
+                  necessidade: formatCurrency(item.necessidadeAporte),
+                  lote: formatNumber(item.loteAproximado),
+                }))}
+              />
+            ) : (
+              <div className={TABLE_STYLES.wrapper}>
+                <table className={TABLE_STYLES.table}>
+                  <thead>
+                    <tr className={TABLE_STYLES.headRow} style={TABLE_HEADER_STYLE}>
+                      <th className={`${TABLE_STYLES.th} text-left`}>Nome Ativo</th>
+                      <th className={`${TABLE_STYLES.th} text-right`}>Cotacao Atual</th>
+                      <th className={`${TABLE_STYLES.th} text-right`}>Necessidade Aporte</th>
+                      <th className={`${TABLE_STYLES.th} text-right`}>Lote Aproximado</th>
                     </tr>
-                  ))}
-                  <BasicTablePlaceholderRows
-                    count={Math.max(0, MIN_PLACEHOLDER_ROWS - (data?.tabelaAuxiliar?.length || 0))}
-                    colSpan={4}
-                    compact={false}
-                  />
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  <tbody>
+                    {(data?.tabelaAuxiliar || []).map((item, index) => (
+                      <tr key={index} className={`${TABLE_STYLES.row} ${TABLE_STYLES.rowHover}`}>
+                        <td className={`${TABLE_STYLES.td} font-medium`}>{item.nome}</td>
+                        <td className={`${TABLE_STYLES.td} text-right font-medium`}>
+                          {formatCurrency(item.cotacaoAtual)}
+                        </td>
+                        <td className={`${TABLE_STYLES.td} text-right font-medium`}>
+                          {formatCurrency(item.necessidadeAporte)}
+                        </td>
+                        <td className={`${TABLE_STYLES.td} text-right font-medium`}>
+                          {formatNumber(item.loteAproximado)}
+                        </td>
+                      </tr>
+                    ))}
+                    <BasicTablePlaceholderRows
+                      count={Math.max(
+                        0,
+                        MIN_PLACEHOLDER_ROWS - (data?.tabelaAuxiliar?.length || 0),
+                      )}
+                      colSpan={4}
+                      compact={false}
+                    />
+                  </tbody>
+                </table>
+              </div>
+            )}
           </ComponentCard>
         </div>
         <div className="xl:col-span-6">
