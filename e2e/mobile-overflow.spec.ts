@@ -6,6 +6,7 @@ import {
   PUBLIC_ROUTES,
 } from './helpers/routes';
 import { waitForContent } from './helpers/waitForContent';
+import { expectFitsWithoutClip } from './helpers/mobileFit';
 
 /**
  * Transbordo horizontal a 390px (projeto `mobile`: isMobile + hasTouch).
@@ -110,6 +111,9 @@ test.describe('Mobile 390px: sem transbordo horizontal (autenticado)', () => {
       test.fail(route in KNOWN_OVERFLOW, KNOWN_OVERFLOW[route]);
       await waitForContent(page, route);
       await expectNoHorizontalOverflow(page, route);
+      // PWA fase 1: na /carteira mede também com o corte da casca desligado (um conteúdo largo
+      // demais seria escondido pelo overflow-x: clip do [data-mf-content]).
+      if (route === '/carteira') await expectFitsWithoutClip(page, route, { width: 390 });
     });
   }
 
