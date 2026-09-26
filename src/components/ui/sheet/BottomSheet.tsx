@@ -49,6 +49,14 @@ export default function BottomSheet({
   const panelRef = useRef<HTMLDivElement>(null);
   const titleId = useId();
   const onCloseRef = useRef(onClose);
+  // Gatilho guardado no render da abertura: o autoFocus do conteúdo (campo do MobileEditSheet)
+  // roda antes do efeito abaixo, e aí o activeElement já seria o próprio campo.
+  const triggerRef = useRef<HTMLElement | null>(null);
+  const wasOpenRef = useRef(false);
+  if (isOpen && !wasOpenRef.current && typeof document !== 'undefined') {
+    triggerRef.current = document.activeElement as HTMLElement | null;
+  }
+  wasOpenRef.current = isOpen;
   const isBelowLg = useIsBelowLg();
   const keyboard = useKeyboardInset(isOpen && isBelowLg);
   const keyboardStyle: React.CSSProperties | undefined =
@@ -61,9 +69,11 @@ export default function BottomSheet({
 
   useEffect(() => {
     if (!isOpen) return;
-    const trigger = document.activeElement as HTMLElement | null;
+    const trigger = triggerRef.current;
     const release = lockBodyScroll();
-    panelRef.current?.focus();
+    // Não rouba o foco de um campo com autoFocus (o teclado do celular abre sozinho).
+    const panel = panelRef.current;
+    if (panel && !panel.contains(document.activeElement)) panel.focus();
 
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {

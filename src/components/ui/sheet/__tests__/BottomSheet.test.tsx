@@ -95,4 +95,35 @@ describe('BottomSheet', () => {
     );
     expect(screen.getByRole('dialog', { name: 'Mais' }).getAttribute('style')).toBeNull();
   });
+
+  it('não rouba o foco de um campo com autoFocus e devolve o foco ao gatilho ao fechar', () => {
+    stubMatchMedia(true);
+    function Harness({ open }: { open: boolean }) {
+      return (
+        <>
+          <button type="button">Editar</button>
+          <BottomSheet isOpen={open} onClose={() => {}} title="Objetivo">
+            <input aria-label="Valor" autoFocus />
+          </BottomSheet>
+        </>
+      );
+    }
+    const { rerender } = render(<Harness open={false} />);
+    const trigger = screen.getByRole('button', { name: 'Editar' });
+    trigger.focus();
+    rerender(<Harness open />);
+    expect(document.activeElement).toBe(screen.getByRole('textbox', { name: 'Valor' }));
+    rerender(<Harness open={false} />);
+    expect(document.activeElement).toBe(trigger);
+  });
+
+  it('sem campo com autoFocus: o foco vai para o painel', () => {
+    stubMatchMedia(true);
+    render(
+      <BottomSheet isOpen onClose={() => {}} title="Mais">
+        conteúdo
+      </BottomSheet>,
+    );
+    expect(document.activeElement).toBe(screen.getByRole('dialog', { name: 'Mais' }));
+  });
 });
