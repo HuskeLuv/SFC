@@ -907,17 +907,23 @@ export default function RendaFixaTable({ totalCarteira = 0 }: RendaFixaTableProp
     <div className="space-y-4">
       {/* Metric cards */}
       <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-6">
-        <MetricCard
-          title="Necessidade de Aporte"
-          value={formatCurrency(necessidadeAporteCalculada)}
-          color="warning"
-        />
-        <CaixaParaInvestirCard
-          value={data?.resumo?.caixaParaInvestir ?? 0}
-          formatCurrency={formatCurrency}
-          onSave={updateCaixaParaInvestir}
-          color="success"
-        />
+        {/* Celular (< md): Necessidade e Caixa em largura inteira, como nas outras abas (a 320px
+            o valor e o título não cabem em meia coluna). A partir de md o wrapper some. */}
+        <div className="min-w-0 max-md:col-span-2 md:contents">
+          <MetricCard
+            title="Necessidade de Aporte"
+            value={formatCurrency(necessidadeAporteCalculada)}
+            color="warning"
+          />
+        </div>
+        <div className="min-w-0 max-md:col-span-2 md:contents">
+          <CaixaParaInvestirCard
+            value={data?.resumo?.caixaParaInvestir ?? 0}
+            formatCurrency={formatCurrency}
+            onSave={updateCaixaParaInvestir}
+            color="success"
+          />
+        </div>
         <MetricCard
           title="Saldo Inicio do Mes"
           value={formatCurrency(data?.resumo?.saldoInicioMes ?? 0)}

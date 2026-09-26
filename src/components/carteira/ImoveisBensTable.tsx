@@ -40,9 +40,12 @@ const ImoveisBensMetricCard: React.FC<ImoveisBensMetricCardProps> = ({
   };
 
   return (
-    <div className={`rounded-lg p-4 ${colorClasses[color]}`}>
+    <div className={`min-w-0 rounded-lg p-4 max-lg:p-3 ${colorClasses[color]}`}>
       <p className="text-xs font-medium opacity-80 mb-1">{title}</p>
-      <p className="text-xl font-semibold">{value}</p>
+      {/* Celular: mesmo encolhimento do CARD_VALUE_CLASS (valores milionários cabem a 320px). */}
+      <p className="text-xl font-semibold max-lg:text-lg max-lg:tabular-nums max-lg:break-words max-[359px]:text-base">
+        {value}
+      </p>
     </div>
   );
 };
@@ -386,7 +389,7 @@ export default function ImoveisBensTable({ totalCarteira = 0 }: ImoveisBensTable
   return (
     <div className="space-y-4">
       {/* Cards de resumo */}
-      <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-5">
+      <div className="grid grid-cols-2 gap-4 max-lg:gap-3 max-[359px]:grid-cols-1 md:grid-cols-3 lg:grid-cols-5">
         <ImoveisBensMetricCard
           title="Valor Total Aquisições"
           value={formatCurrency(data?.resumo?.valorTotalAquisicoes ?? 0)}
