@@ -508,6 +508,7 @@ export function RendaFixaMobileList({
   const vencendo = visiveis
     .flatMap((s) => s.ativos)
     .filter((a) => {
+      if (a.semVencimento) return false;
       const d = diasAteVencimento(a.vencimento, hoje);
       return d >= 0 && d <= RF_VENCE_EM_BREVE_DIAS;
     });
@@ -518,6 +519,7 @@ export function RendaFixaMobileList({
   };
 
   const vencimentoPill = (ativo: RendaFixaAtivo) => {
+    if (ativo.semVencimento) return null;
     const dias = diasAteVencimento(ativo.vencimento, hoje);
     const emBreve = dias >= 0 && dias <= RF_VENCE_EM_BREVE_DIAS;
     let texto: string;
@@ -610,10 +612,16 @@ export function RendaFixaMobileList({
           <DetailItem label="Aportes">{formatCurrency(a.aporte)}</DetailItem>
           <DetailItem label="Resgates">{formatCurrency(a.resgate)}</DetailItem>
           <DetailItem label="Vencimento">
-            {formatDateUtc(a.vencimento)}
-            <span className="block text-xs font-normal text-gray-500 dark:text-gray-400">
-              {formatPrazoVencimento(dias)}
-            </span>
+            {a.semVencimento ? (
+              '—'
+            ) : (
+              <>
+                {formatDateUtc(a.vencimento)}
+                <span className="block text-xs font-normal text-gray-500 dark:text-gray-400">
+                  {formatPrazoVencimento(dias)}
+                </span>
+              </>
+            )}
           </DetailItem>
           <DetailItem label="% da aba">{formatPercentageSimple(a.percentualCarteira)}</DetailItem>
           <DetailItem label="Risco cart.">{formatPercentageSimple(a.riscoPorAtivo)}</DetailItem>
