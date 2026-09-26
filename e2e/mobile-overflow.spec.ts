@@ -111,9 +111,12 @@ test.describe('Mobile 390px: sem transbordo horizontal (autenticado)', () => {
       test.fail(route in KNOWN_OVERFLOW, KNOWN_OVERFLOW[route]);
       await waitForContent(page, route);
       await expectNoHorizontalOverflow(page, route);
-      // PWA fase 1: na /carteira mede também com o corte da casca desligado (um conteúdo largo
-      // demais seria escondido pelo overflow-x: clip do [data-mf-content]).
-      if (route === '/carteira') await expectFitsWithoutClip(page, route, { width: 390 });
+      // PWA fase 1/2: na /carteira e na /fluxodecaixa (planilha) mede também com o corte da casca
+      // desligado (um conteúdo largo demais seria escondido pelo overflow-x: clip do
+      // [data-mf-content]). O ?modo=orcamento fica no spec da fase 2 (fatia D).
+      if (route === '/carteira' || route === '/fluxodecaixa') {
+        await expectFitsWithoutClip(page, route, { width: 390 });
+      }
     });
   }
 
