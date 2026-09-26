@@ -148,7 +148,8 @@ export default function HistoricoAlteracoesPage() {
     <div className="rounded-2xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-white/[0.03] sm:p-6 space-y-4">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h2 className="text-lg font-semibold text-gray-800 dark:text-white/90">
+          {/* Abaixo de lg o título é o do PageBreadCrumb (compacto): este repetiria o mesmo texto. */}
+          <h2 className="text-lg font-semibold text-gray-800 dark:text-white/90 max-lg:hidden">
             Histórico de alterações
           </h2>
           <p className="text-sm text-gray-500 dark:text-gray-400">
