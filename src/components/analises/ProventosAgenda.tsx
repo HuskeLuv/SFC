@@ -176,7 +176,12 @@ export default function ProventosAgenda() {
             id="start-date-agenda"
             label="Data Inicial"
             mode="single"
-            defaultDate={startDate ? new Date(startDate) : undefined}
+            nativeOnMobile
+            // Celular: a string 'YYYY-MM-DD' (o new Date() dela é meia-noite UTC = véspera no
+            // fuso local, e o input nativo voltaria um dia). Desktop: igual a antes.
+            defaultDate={
+              isBelowLg ? startDate || undefined : startDate ? new Date(startDate) : undefined
+            }
             onChange={(selectedDates) => {
               if (selectedDates && selectedDates.length > 0) {
                 const date = selectedDates[0];
@@ -192,7 +197,10 @@ export default function ProventosAgenda() {
             id="end-date-agenda"
             label="Data Final"
             mode="single"
-            defaultDate={endDate ? new Date(endDate) : undefined}
+            nativeOnMobile
+            // Celular: a string 'YYYY-MM-DD' (o new Date() dela é meia-noite UTC = véspera no
+            // fuso local, e o input nativo voltaria um dia). Desktop: igual a antes.
+            defaultDate={isBelowLg ? endDate || undefined : endDate ? new Date(endDate) : undefined}
             onChange={(selectedDates) => {
               if (selectedDates && selectedDates.length > 0) {
                 const date = selectedDates[0];
