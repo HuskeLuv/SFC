@@ -123,7 +123,8 @@ export function sortAtivos<TAtivo>(
   const cmp: Record<Exclude<AssetSortKey, 'padrao'>, (a: TAtivo, b: TAtivo) => number> = {
     valor: (a, b) => num(rec(b).valorAtualizado) - num(rec(a).valorAtualizado),
     rent: (a, b) => num(rec(b).rentabilidade) - num(rec(a).rentabilidade),
-    qf: (a, b) => num(rec(b).quantoFalta) - num(rec(a).quantoFalta),
+    // "Mais longe do objetivo": distância nos dois sentidos (10% acima vem antes de 2% faltando).
+    qf: (a, b) => Math.abs(num(rec(b).quantoFalta)) - Math.abs(num(rec(a).quantoFalta)),
     nome: (a, b) => titleOf(a).localeCompare(titleOf(b), 'pt-BR', { sensitivity: 'base' }),
   };
   return [...ativos].sort(cmp[sort]);

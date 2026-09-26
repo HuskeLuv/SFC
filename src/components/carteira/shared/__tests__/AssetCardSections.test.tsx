@@ -250,6 +250,15 @@ describe('AssetCardSections', () => {
     expect(sortAtivos(lista, 'qf', (a) => a.ticker)[0].id).toBe('a1');
   });
 
+  it("'Mais longe do objetivo' considera quem passou da meta (valor absoluto)", () => {
+    const acima = { ...BBAS, id: 'acima', quantoFalta: -10 };
+    const falta = { ...ITSA, id: 'falta', quantoFalta: 2 };
+    expect(sortAtivos([falta, acima], 'qf', (a) => a.ticker).map((a) => a.id)).toEqual([
+      'acima',
+      'falta',
+    ]);
+  });
+
   it('planejado: borda tracejada, selo, só colunas permitidas e Remover chama o handler', () => {
     const onRemove = vi.fn();
     render(<Harness onRemove={onRemove} />);
