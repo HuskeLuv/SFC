@@ -5,6 +5,9 @@ import Button from '@/components/ui/button/Button';
 import { Table, TableBody, TableCell, TableHeader, TableRow } from '@/components/ui/table';
 import { TABLE_HEADER_STYLE, TABLE_STYLES } from '@/components/ui/table/tableStyles';
 import { formatBRL } from '@/utils/format';
+import { useIsBelowLg } from '@/hooks/useMediaQuery';
+import { ResponsiveCardList, type ResponsiveColumn } from '@/components/ui/table/ResponsiveTable';
+import MobileStatusPill, { type MobileStatusTone } from '@/components/ui/mobile/MobileStatusPill';
 import {
   useCarteiraImportada,
   useIgnorarInvestimento,
@@ -50,6 +53,40 @@ function rotuloEmprestimo(l: EmprestimoImportadoDTO): string {
   return st ? (l.importStatus === 'importado' ? 'Em Dívidas' : st.rotulo) : l.importStatus;
 }
 
+/** Selo do celular (ponto + palavra, sem verde): mesma situação do Badge do desktop. */
+const TOM_MOBILE: Record<string, MobileStatusTone> = {
+  success: 'ok',
+  info: 'neutro',
+  warning: 'atencao',
+  error: 'problema',
+  light: 'neutro',
+};
+
+const dataCurta = (iso: string) => new Date(iso).toLocaleDateString('pt-BR', { timeZone: 'UTC' });
+
+function detalheInvestimento(i: InvestimentoImportadoDTO): string {
+  return [
+    i.banco,
+    i.code,
+    i.rate && i.rateType ? `${i.rate}% ${i.rateType}` : null,
+    i.dueDate ? `vence ${dataCurta(i.dueDate)}` : null,
+    !i.ativo ? 'não consta mais no banco' : null,
+  ]
+    .filter(Boolean)
+    .join(' · ');
+}
+
+function detalheEmprestimo(l: EmprestimoImportadoDTO): string {
+  return [
+    l.banco,
+    l.amortization,
+    l.cet != null ? `CET ${(l.cet * 100).toFixed(1)}% a.a.` : null,
+    l.dueDate ? `até ${dataCurta(l.dueDate)}` : null,
+  ]
+    .filter(Boolean)
+    .join(' · ');
+}
+
 const th = TABLE_STYLES.th;
 const td = TABLE_STYLES.td;
 
@@ -62,6 +99,8 @@ export default function CarteiraImportada({ onAviso }: { onAviso: (msg: string) 
   const { data, isLoading, isError, error } = useCarteiraImportada();
   const importar = useImportarCarteira();
   const ignorar = useIgnorarInvestimento();
+  // PWA fase 3: abaixo de lg, as mesmas colunas em cartões; o desktop mantém as tabelas.
+  const isBelowLg = useIsBelowLg();
 
   if (isLoading || isError) {
     return isError ? (
@@ -73,6 +112,95 @@ export default function CarteiraImportada({ onAviso }: { onAviso: (msg: string) 
   const pendentes =
     data.investimentos.filter((i) => i.importStatus === 'pendente').length +
     data.emprestimos.filter((l) => l.importStatus === 'pendente').length;
+
+  const podeIgnorar = (i: InvestimentoImportadoDTO) =>
+    ['pendente', 'sem-suporte', 'erro'].includes(i.importStatus);
+
+  const colunasInvestimentos: ResponsiveColumn<InvestimentoImportadoDTO>[] = [
+    {
+      id: 'investimento',
+      header: 'Investimento',
+      mobile: 'primary',
+      cell: (i) => <span className="[overflow-wrap:anywhere]">{i.name}</span>,
+    },
+    { id: 'detalhe', header: '', mobile: 'subtitle', cell: detalheInvestimento },
+    { id: 'saldo', header: 'Saldo no banco', mobile: 'value', cell: (i) => formatBRL(i.balance) },
+    {
+      id: 'tipo',
+      header: 'Tipo',
+      cell: (i) => `${TIPO[i.type] ?? i.type}${i.subtype ? ` · ${i.subtype}` : ''}`,
+    },
+    {
+      id: 'situacao',
+      header: 'Situação',
+      cell: (i) => {
+        const st = STATUS[i.importStatus] ?? { rotulo: i.importStatus, cor: 'light' as const };
+        return (
+          <>
+            <MobileStatusPill tone={TOM_MOBILE[st.cor]}>{st.rotulo}</MobileStatusPill>
+            {i.importError && i.importStatus !== 'importado' ? (
+              <span className="mt-1 block text-xs font-normal text-gray-500 dark:text-gray-400">
+                {i.importError}
+              </span>
+            ) : null}
+            {podeIgnorar(i) ? (
+              <button
+                type="button"
+                disabled={ignorar.isPending}
+                onClick={() => ignorar.mutate({ id: i.id })}
+                aria-label={`Ignorar ${i.name}`}
+                className="mt-1 inline-flex min-h-11 items-center rounded-lg border border-gray-300 px-3 text-sm font-semibold text-gray-700 disabled:opacity-50 dark:border-gray-700 dark:text-gray-300"
+              >
+                Ignorar
+              </button>
+            ) : null}
+          </>
+        );
+      },
+    },
+  ];
+
+  const colunasEmprestimos: ResponsiveColumn<EmprestimoImportadoDTO>[] = [
+    {
+      id: 'emprestimo',
+      header: 'Empréstimo',
+      mobile: 'primary',
+      cell: (l) => <span className="[overflow-wrap:anywhere]">{l.productName}</span>,
+    },
+    { id: 'detalhe', header: '', mobile: 'subtitle', cell: detalheEmprestimo },
+    {
+      id: 'saldo',
+      header: 'Saldo devedor',
+      mobile: 'value',
+      cell: (l) => (
+        <span className="text-[#D92D20] dark:text-[#F97066]">
+          {l.outstanding != null ? formatBRL(l.outstanding) : '—'}
+        </span>
+      ),
+    },
+    {
+      id: 'contratado',
+      header: 'Contratado',
+      cell: (l) => (l.contractAmount != null ? formatBRL(l.contractAmount) : '—'),
+    },
+    {
+      id: 'parcelas',
+      header: 'Parcelas',
+      cell: (l) =>
+        l.paidInstallments != null && l.totalInstallments != null
+          ? `${l.paidInstallments}/${l.totalInstallments}`
+          : '—',
+    },
+    {
+      id: 'situacao',
+      header: 'Situação',
+      cell: (l) => (
+        <MobileStatusPill tone={TOM_MOBILE[STATUS[l.importStatus]?.cor ?? 'light']}>
+          {rotuloEmprestimo(l)}
+        </MobileStatusPill>
+      ),
+    },
+  ];
 
   async function reimportar() {
     try {
@@ -86,7 +214,7 @@ export default function CarteiraImportada({ onAviso }: { onAviso: (msg: string) 
   }
 
   return (
-    <div className="rounded-xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03]">
+    <div className="rounded-xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03] max-lg:rounded-2xl max-lg:p-4">
       <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
         <div>
           <h3 className="text-base font-semibold text-gray-800 dark:text-white/90">
@@ -98,13 +226,38 @@ export default function CarteiraImportada({ onAviso }: { onAviso: (msg: string) 
           </p>
         </div>
         {pendentes > 0 ? (
-          <Button size="sm" onClick={reimportar} disabled={importar.isPending}>
+          <Button
+            size="sm"
+            onClick={reimportar}
+            disabled={importar.isPending}
+            className="max-lg:w-full"
+          >
             Importar pendentes ({pendentes})
           </Button>
         ) : null}
       </div>
 
-      {data.investimentos.length > 0 ? (
+      {isBelowLg && data.investimentos.length > 0 ? (
+        <ResponsiveCardList
+          columns={colunasInvestimentos}
+          rows={data.investimentos}
+          getRowKey={(i) => i.id}
+          ariaLabel="Investimentos importados"
+          cardClassName={(i) => (i.ativo ? undefined : 'opacity-60')}
+        />
+      ) : null}
+      {isBelowLg && data.emprestimos.length > 0 ? (
+        <ResponsiveCardList
+          columns={colunasEmprestimos}
+          rows={data.emprestimos}
+          getRowKey={(l) => l.id}
+          ariaLabel="Empréstimos importados"
+          cardClassName={(l) => (l.ativo ? undefined : 'opacity-60')}
+          className="mt-4"
+        />
+      ) : null}
+
+      {!isBelowLg && data.investimentos.length > 0 ? (
         <div className={TABLE_STYLES.wrapper}>
           <Table className={TABLE_STYLES.table} aria-label="Investimentos importados">
             <TableHeader>
@@ -174,7 +327,7 @@ export default function CarteiraImportada({ onAviso }: { onAviso: (msg: string) 
         </div>
       ) : null}
 
-      {data.emprestimos.length > 0 ? (
+      {!isBelowLg && data.emprestimos.length > 0 ? (
         <div className={`mt-4 ${TABLE_STYLES.wrapper}`}>
           <Table className={TABLE_STYLES.table} aria-label="Empréstimos importados">
             <TableHeader>

@@ -4,8 +4,14 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { TEXTO_CONSENTIMENTO_ATUAL } from '@/lib/openFinanceConsentimento';
 import Button from '@/components/ui/button/Button';
 import LoadingSpinner from '@/components/common/LoadingSpinner';
+import { useIsBelowLg } from '@/hooks/useMediaQuery';
+import { useMobileHistoryView } from '@/hooks/useMobileHistoryView';
+import BottomSheet from '@/components/ui/sheet/BottomSheet';
+import MobileSaveToast from '@/components/ui/sheet/MobileSaveToast';
+import { useResponsiveConfirm } from '@/components/ui/sheet/useResponsiveConfirm';
 import {
   useAtualizarConexao,
+  useCaixaEntrada,
   useConexoes,
   useConnectToken,
   useConsentimentos,
@@ -22,11 +28,18 @@ import {
 import ConexaoRealizadaModal from './ConexaoRealizadaModal';
 import AutorizacaoModal, { dataHora, ROTULO_MOTIVO } from './AutorizacaoModal';
 import ConectarBancoModal from './ConectarBancoModal';
-import CaixaEntrada from './CaixaEntrada';
+import CaixaEntrada, { ehIgnoravel, temSugestaoDeLinha } from './CaixaEntrada';
+import CaixaEntradaResumo from './mobile/CaixaEntradaResumo';
 import CarteiraImportada from './CarteiraImportada';
 import ConexaoCard from './ConexaoCard';
 import ExtratoConta from './ExtratoConta';
 import PluggyConnectWidget from './PluggyConnectWidget';
+
+/** Texto da confirmação de "Desconectar" (o mesmo no window.confirm do desktop e no sheet). */
+const DESCONECTAR_TEXTO =
+  'A autorização é revogada e o My Finance para de receber dados desse banco. ' +
+  'O extrato importado é apagado; o que você já aplicou no Fluxo de Caixa, na Carteira ' +
+  'ou em Dívidas continua. O registro desta autorização fica no seu histórico.';
 
 type Widget = { token: ConnectTokenResposta; updateItem?: string; consentimentoId: string } | null;
 /** Jornada antes do widget: aviso → consentimento → redirecionamento. */
@@ -56,6 +69,35 @@ export default function ConexoesBancariasRoot() {
   const [autorizacaoAberta, setAutorizacaoAberta] = useState<ConsentimentoDTO | null>(null);
   const [contaExtrato, setContaExtrato] = useState<BankAccountDTO | null>(null);
   const [aviso, setAviso] = useState<string | null>(null);
+
+  // PWA fase 3: no celular a Caixa de entrada vira um cartão-resumo que abre tela própria
+  // (?caixa=1 com o voltar do sistema), o extrato abre em sheet, "Desconectar" confirma em sheet e
+  // cada aviso também aparece como toast. O desktop fica como hoje (a URL não muda).
+  const isBelowLg = useIsBelowLg();
+  const isBelowLgRef = useRef(isBelowLg);
+  useEffect(() => {
+    isBelowLgRef.current = isBelowLg;
+  }, [isBelowLg]);
+  const caixa = useMobileHistoryView('caixa', isBelowLg);
+  const { confirm, confirmSheet } = useResponsiveConfirm();
+  const [toast, setToast] = useState<string | null>(null);
+  const temConexoes = (conexoes?.length ?? 0) > 0;
+  // Mesma query (página 1) da CaixaEntrada: as contagens do resumo são as mesmas da tela da caixa.
+  const { data: caixaPagina1 } = useCaixaEntrada(1, isBelowLg && temConexoes);
+  const contagensCaixa = useMemo(
+    () => ({
+      total: caixaPagina1?.total ?? 0,
+      sugeridas: caixaPagina1?.pendentes.filter(temSugestaoDeLinha).length ?? 0,
+      transferencias: caixaPagina1?.pendentes.filter(ehIgnoravel).length ?? 0,
+    }),
+    [caixaPagina1],
+  );
+
+  /** Aviso de hoje (banner) + o mesmo texto como toast no celular. */
+  const avisar = useCallback((msg: string) => {
+    setAviso(msg);
+    if (isBelowLgRef.current) setToast(msg);
+  }, []);
 
   const ocupada =
     connectToken.isPending ||
@@ -128,10 +170,10 @@ export default function ConexoesBancariasRoot() {
         // Tela de retorno: "Conexão realizada. Os seguintes dados serão importados".
         setRealizada(r);
       } catch (e) {
-        setAviso(e instanceof Error ? e.message : 'A conexão foi criada, mas o registro falhou');
+        avisar(e instanceof Error ? e.message : 'A conexão foi criada, mas o registro falhou');
       }
     },
-    [registrar, registrarEvento, widget],
+    [registrar, registrarEvento, widget, avisar],
   );
 
   const onAtualizar = useCallback(
@@ -139,32 +181,33 @@ export default function ConexoesBancariasRoot() {
       setAviso(null);
       try {
         await atualizar.mutateAsync({ id: c.id });
-        setAviso(`Atualização de ${c.connectorName} pedida. Os dados chegam em alguns minutos.`);
+        avisar(`Atualização de ${c.connectorName} pedida. Os dados chegam em alguns minutos.`);
       } catch (e) {
-        setAviso(e instanceof Error ? e.message : 'Não foi possível atualizar');
+        avisar(e instanceof Error ? e.message : 'Não foi possível atualizar');
       }
     },
-    [atualizar],
+    [atualizar, avisar],
   );
 
   const onExcluir = useCallback(
     async (c: BankConnectionDTO) => {
-      const ok = window.confirm(
-        `Desconectar ${c.connectorName}?\n\n` +
-          'A autorização é revogada e o My Finance para de receber dados desse banco. ' +
-          'O extrato importado é apagado; o que você já aplicou no Fluxo de Caixa, na Carteira ' +
-          'ou em Dívidas continua. O registro desta autorização fica no seu histórico.',
-      );
+      const ok = await confirm({
+        desktopMessage: `Desconectar ${c.connectorName}?\n\n${DESCONECTAR_TEXTO}`,
+        title: `Desconectar ${c.connectorName}?`,
+        message: DESCONECTAR_TEXTO,
+        confirmLabel: 'Desconectar',
+        danger: true,
+      });
       if (!ok) return;
       setAviso(null);
       try {
         await excluir.mutateAsync({ id: c.id });
         if (contaExtrato && c.accounts.some((a) => a.id === contaExtrato.id)) setContaExtrato(null);
       } catch (e) {
-        setAviso(e instanceof Error ? e.message : 'Não foi possível excluir');
+        avisar(e instanceof Error ? e.message : 'Não foi possível excluir');
       }
     },
-    [excluir, contaExtrato],
+    [excluir, contaExtrato, confirm, avisar],
   );
 
   // Vindo do card da Carteira/Fluxo (?conectar=1): abre a jornada uma vez e limpa a URL.
@@ -195,6 +238,33 @@ export default function ConexoesBancariasRoot() {
 
   const lista = conexoes ?? [];
 
+  const bannerAviso = aviso ? (
+    <div className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800 dark:border-blue-800 dark:bg-blue-900/20 dark:text-blue-200">
+      {aviso}
+    </div>
+  ) : null;
+  const toastAviso = (
+    <MobileSaveToast message={toast} durationMs={6000} onDismiss={() => setToast(null)} />
+  );
+
+  // Celular com ?caixa=1: só a tela da Caixa de entrada (o voltar do sistema volta às conexões).
+  if (isBelowLg && caixa.value && lista.length > 0) {
+    return (
+      <div data-mf-mobile="" data-caixa-tela="" className="space-y-4">
+        <button
+          type="button"
+          onClick={caixa.close}
+          className="-ml-2 inline-flex min-h-11 items-center gap-1 rounded-lg px-2 text-sm font-semibold text-mf-patrimonio dark:text-mf-tranquilidade"
+        >
+          <span aria-hidden="true">←</span> Conexões
+        </button>
+        {bannerAviso}
+        <CaixaEntrada onAviso={avisar} />
+        {toastAviso}
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -208,22 +278,28 @@ export default function ConexoesBancariasRoot() {
           </a>
           .
         </p>
-        <Button onClick={() => abrirJornada()} disabled={ocupada}>
+        <Button
+          onClick={() => abrirJornada()}
+          disabled={ocupada}
+          className="max-lg:w-full max-lg:min-h-11"
+        >
           Conectar banco
         </Button>
       </div>
 
-      {aviso ? (
-        <div className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800 dark:border-blue-800 dark:bg-blue-900/20 dark:text-blue-200">
-          {aviso}
-        </div>
-      ) : null}
+      {bannerAviso}
       {registrar.isPending ? (
         <LoadingSpinner size="md" text="Importando contas e transações..." />
       ) : null}
 
-      {lista.length > 0 ? <CaixaEntrada onAviso={setAviso} /> : null}
-      {lista.length > 0 ? <CarteiraImportada onAviso={setAviso} /> : null}
+      {lista.length > 0 ? (
+        isBelowLg ? (
+          <CaixaEntradaResumo contagens={contagensCaixa} onOpen={() => caixa.open('1')} />
+        ) : (
+          <CaixaEntrada onAviso={avisar} />
+        )
+      ) : null}
+      {lista.length > 0 ? <CarteiraImportada onAviso={avisar} /> : null}
 
       {lista.length === 0 && !registrar.isPending ? (
         <div className="rounded-xl border border-dashed border-gray-300 p-8 text-center text-sm text-gray-500 dark:border-gray-700 dark:text-gray-400">
@@ -248,14 +324,14 @@ export default function ConexoesBancariasRoot() {
             />
           ))}
         </div>
-        {contaExtrato ? (
+        {contaExtrato && !isBelowLg ? (
           <ExtratoConta conta={contaExtrato} onFechar={() => setContaExtrato(null)} />
         ) : null}
       </div>
 
       {encerradas.length > 0 ? (
         <details className="rounded-xl border border-gray-200 p-4 text-sm dark:border-gray-800">
-          <summary className="cursor-pointer font-medium text-gray-700 dark:text-gray-300">
+          <summary className="cursor-pointer font-medium text-gray-700 dark:text-gray-300 max-lg:-my-1 max-lg:py-3">
             Autorizações encerradas ({encerradas.length})
           </summary>
           <ul className="mt-3 divide-y divide-gray-100 dark:divide-gray-800">
@@ -270,7 +346,7 @@ export default function ConexoesBancariasRoot() {
                 </span>
                 <button
                   type="button"
-                  className="text-xs text-brand-500 underline"
+                  className="text-xs text-brand-500 underline max-lg:-my-2 max-lg:min-h-11 max-lg:px-2 max-lg:text-sm max-lg:text-mf-patrimonio dark:max-lg:text-mf-tranquilidade"
                   onClick={() => setAutorizacaoAberta(c)}
                 >
                   Ver autorização
@@ -280,6 +356,23 @@ export default function ConexoesBancariasRoot() {
           </ul>
         </details>
       ) : null}
+
+      {isBelowLg && contaExtrato ? (
+        <BottomSheet
+          isOpen
+          onClose={() => setContaExtrato(null)}
+          title={`Extrato · ${contaExtrato.name}`}
+        >
+          <ExtratoConta
+            conta={contaExtrato}
+            onFechar={() => setContaExtrato(null)}
+            variant="sheet"
+          />
+        </BottomSheet>
+      ) : null}
+
+      {confirmSheet}
+      {toastAviso}
 
       {jornada ? (
         <ConectarBancoModal
@@ -332,7 +425,7 @@ export default function ConexoesBancariasRoot() {
               ...(e?.message ? { detalhe: e.message } : {}),
             });
             setWidget(null);
-            setAviso(e?.message ?? 'O banco não concluiu a conexão. Tente de novo.');
+            avisar(e?.message ?? 'O banco não concluiu a conexão. Tente de novo.');
           }}
           onClose={() => {
             if (!concluiuRef.current) {

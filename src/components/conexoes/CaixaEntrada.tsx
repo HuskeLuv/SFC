@@ -6,6 +6,9 @@ import LoadingSpinner from '@/components/common/LoadingSpinner';
 import { Table, TableBody, TableCell, TableHeader, TableRow } from '@/components/ui/table';
 import { TABLE_HEADER_STYLE, TABLE_STYLES } from '@/components/ui/table/tableStyles';
 import { formatBRL } from '@/utils/format';
+import { useIsBelowLg } from '@/hooks/useMediaQuery';
+import MobilePageState from '@/components/ui/mobile/MobilePageState';
+import CaixaEntradaCards from './mobile/CaixaEntradaCards';
 import {
   useAplicarTransacoes,
   useCaixaEntrada,
@@ -28,6 +31,14 @@ function rotuloSugestao(p: PendenteDTO): string {
       return 'Sem sugestão';
   }
 }
+
+/** Tem linha do fluxo sugerida ("Lançar sugeridas"). */
+export const temSugestaoDeLinha = (p: PendenteDTO): boolean =>
+  p.sugestao.tipo === 'linha' && !!p.sugestao.itemId;
+
+/** Transferência própria / fatura ou aporte-resgate ("Ignorar transferências"). */
+export const ehIgnoravel = (p: PendenteDTO): boolean =>
+  p.sugestao.tipo === 'transferencia' || p.sugestao.tipo === 'investimento';
 
 /**
  * Caixa de entrada: transações importadas ainda não lançadas. Cada linha vem
@@ -58,17 +69,10 @@ export default function CaixaEntrada({ onAviso }: { onAviso: (msg: string) => vo
 
   const ocupado = aplicar.isPending || ignorar.isPending;
   const pendentes = useMemo(() => data?.pendentes ?? [], [data]);
-  const comSugestao = useMemo(
-    () => pendentes.filter((p) => p.sugestao.tipo === 'linha' && p.sugestao.itemId),
-    [pendentes],
-  );
-  const ignoraveis = useMemo(
-    () =>
-      pendentes.filter(
-        (p) => p.sugestao.tipo === 'transferencia' || p.sugestao.tipo === 'investimento',
-      ),
-    [pendentes],
-  );
+  const comSugestao = useMemo(() => pendentes.filter(temSugestaoDeLinha), [pendentes]);
+  const ignoraveis = useMemo(() => pendentes.filter(ehIgnoravel), [pendentes]);
+  // PWA fase 3: abaixo de lg, cartões (mesmo estado e handlers); o desktop mantém a tabela.
+  const isBelowLg = useIsBelowLg();
 
   const alternar = (id: string) =>
     setMarcadas((s) => {
@@ -112,10 +116,19 @@ export default function CaixaEntrada({ onAviso }: { onAviso: (msg: string) => vo
 
   if (isLoading) return <LoadingSpinner size="md" text="Carregando a Caixa de entrada..." />;
   if (isError) return <p className="text-sm text-red-600 dark:text-red-400">{error?.message}</p>;
-  if (!data || data.total === 0) return null;
+  if (!data || data.total === 0) {
+    // No celular a caixa tem tela própria: vazia, diz que acabou em vez de ficar em branco.
+    return data && isBelowLg ? (
+      <MobilePageState
+        kind="empty"
+        title="Tudo revisado"
+        text="Novas transações chegam aqui quando o banco manda."
+      />
+    ) : null;
+  }
 
   return (
-    <div className="rounded-xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03]">
+    <div className="rounded-xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03] max-lg:border-0 max-lg:bg-transparent max-lg:p-0 dark:max-lg:bg-transparent">
       <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
         <div>
           <h3 className="text-base font-semibold text-gray-800 dark:text-white/90">
@@ -127,129 +140,150 @@ export default function CaixaEntrada({ onAviso }: { onAviso: (msg: string) => vo
             do que você lançar aqui.
           </p>
         </div>
-        <div className="flex flex-wrap gap-2">
-          <Button
-            size="sm"
-            onClick={() => aplicarIds(comSugestao.map((p) => p.id))}
-            disabled={ocupado || comSugestao.length === 0}
-          >
-            Lançar sugeridas ({comSugestao.length})
-          </Button>
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => ignorarIds(ignoraveis.map((p) => p.id))}
-            disabled={ocupado || ignoraveis.length === 0}
-          >
-            Ignorar transferências ({ignoraveis.length})
-          </Button>
-        </div>
+        {!isBelowLg ? (
+          <div className="flex flex-wrap gap-2">
+            <Button
+              size="sm"
+              onClick={() => aplicarIds(comSugestao.map((p) => p.id))}
+              disabled={ocupado || comSugestao.length === 0}
+            >
+              Lançar sugeridas ({comSugestao.length})
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => ignorarIds(ignoraveis.map((p) => p.id))}
+              disabled={ocupado || ignoraveis.length === 0}
+            >
+              Ignorar transferências ({ignoraveis.length})
+            </Button>
+          </div>
+        ) : null}
       </div>
 
-      {marcadas.size > 0 ? (
-        <div className="mb-3 flex flex-wrap items-center gap-2 rounded-lg bg-gray-50 px-3 py-2 text-sm dark:bg-gray-800/60">
-          <span className="text-gray-600 dark:text-gray-300">{marcadas.size} marcada(s)</span>
-          <Button size="sm" onClick={() => aplicarIds([...marcadas])} disabled={ocupado}>
-            Lançar marcadas
-          </Button>
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => ignorarIds([...marcadas])}
-            disabled={ocupado}
-          >
-            Ignorar marcadas
-          </Button>
-        </div>
-      ) : null}
+      {isBelowLg ? (
+        <CaixaEntradaCards
+          pendentes={pendentes}
+          linhas={linhas ?? []}
+          escolhas={escolhas}
+          setEscolha={(id, itemId) => setEscolhas((s) => ({ ...s, [id]: itemId }))}
+          marcadas={marcadas}
+          onAlternar={alternar}
+          ocupado={ocupado}
+          onLancar={aplicarIds}
+          onIgnorar={ignorarIds}
+          sugeridas={comSugestao.map((p) => p.id)}
+          transferencias={ignoraveis.map((p) => p.id)}
+          rotuloSugestao={rotuloSugestao}
+        />
+      ) : (
+        <>
+          {marcadas.size > 0 ? (
+            <div className="mb-3 flex flex-wrap items-center gap-2 rounded-lg bg-gray-50 px-3 py-2 text-sm dark:bg-gray-800/60">
+              <span className="text-gray-600 dark:text-gray-300">{marcadas.size} marcada(s)</span>
+              <Button size="sm" onClick={() => aplicarIds([...marcadas])} disabled={ocupado}>
+                Lançar marcadas
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => ignorarIds([...marcadas])}
+                disabled={ocupado}
+              >
+                Ignorar marcadas
+              </Button>
+            </div>
+          ) : null}
 
-      <div className={TABLE_STYLES.wrapper}>
-        <Table className={TABLE_STYLES.table} aria-label="Caixa de entrada">
-          <TableHeader>
-            <TableRow className={TABLE_STYLES.headRow} style={TABLE_HEADER_STYLE}>
-              {['', 'Data', 'Transação', 'Valor', 'Linha do fluxo de caixa', ''].map((h, i) => (
-                <TableCell
-                  key={i}
-                  isHeader
-                  className={`${TABLE_STYLES.th} ${h === 'Valor' ? 'text-right' : 'text-left'}`}
-                >
-                  {h}
-                </TableCell>
-              ))}
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {pendentes.map((p) => {
-              const saida = p.amount < 0; // negativo = saída (conta e cartão)
-              return (
-                <TableRow key={p.id} className={TABLE_STYLES.row}>
-                  <TableCell className={TABLE_STYLES.td}>
-                    <input
-                      id={`caixa-${p.id}`}
-                      type="checkbox"
-                      aria-label={`Marcar ${p.description}`}
-                      checked={marcadas.has(p.id)}
-                      onChange={() => alternar(p.id)}
-                    />
-                  </TableCell>
-                  <TableCell className={`${TABLE_STYLES.td} whitespace-nowrap`}>
-                    {new Date(p.date).toLocaleDateString('pt-BR', { timeZone: 'UTC' })}
-                  </TableCell>
-                  <TableCell className={TABLE_STYLES.td}>
-                    <div className="text-gray-800 dark:text-white/90">
-                      {p.merchantName ?? p.description}
-                    </div>
-                    <div className="text-xs text-gray-500 dark:text-gray-400">
-                      {p.contaNome}
-                      {p.providerCategory ? ` · ${p.providerCategory}` : ''}
-                    </div>
-                  </TableCell>
-                  <TableCell
-                    className={`${TABLE_STYLES.td} whitespace-nowrap text-right font-medium tabular-nums ${saida ? 'text-red-600 dark:text-red-400' : 'text-emerald-600 dark:text-emerald-400'}`}
-                  >
-                    {saida ? '−' : '+'}
-                    {formatBRL(Math.abs(p.amount))}
-                  </TableCell>
-                  <TableCell className={TABLE_STYLES.td}>
-                    <select
-                      id={`linha-${p.id}`}
-                      aria-label={`Linha para ${p.description}`}
-                      className="w-full max-w-xs rounded-lg border border-gray-300 bg-white px-2 py-1.5 text-sm dark:border-gray-700 dark:bg-gray-900 dark:text-white/90"
-                      value={escolhas[p.id] ?? SEM_LINHA}
-                      onChange={(e) => setEscolhas((s) => ({ ...s, [p.id]: e.target.value }))}
+          <div className={TABLE_STYLES.wrapper}>
+            <Table className={TABLE_STYLES.table} aria-label="Caixa de entrada">
+              <TableHeader>
+                <TableRow className={TABLE_STYLES.headRow} style={TABLE_HEADER_STYLE}>
+                  {['', 'Data', 'Transação', 'Valor', 'Linha do fluxo de caixa', ''].map((h, i) => (
+                    <TableCell
+                      key={i}
+                      isHeader
+                      className={`${TABLE_STYLES.th} ${h === 'Valor' ? 'text-right' : 'text-left'}`}
                     >
-                      <option value={SEM_LINHA}>— escolher linha —</option>
-                      {(linhas ?? []).map((l) => (
-                        <option key={l.itemId} value={l.itemId}>
-                          {l.rotulo}
-                        </option>
-                      ))}
-                    </select>
-                    <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                      {rotuloSugestao(p)}
-                    </div>
-                  </TableCell>
-                  <TableCell className={`${TABLE_STYLES.td} whitespace-nowrap`}>
-                    <div className="flex gap-1">
-                      <Button size="sm" onClick={() => aplicarIds([p.id])} disabled={ocupado}>
-                        Lançar
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => ignorarIds([p.id])}
-                        disabled={ocupado}
-                      >
-                        Ignorar
-                      </Button>
-                    </div>
-                  </TableCell>
+                      {h}
+                    </TableCell>
+                  ))}
                 </TableRow>
-              );
-            })}
-          </TableBody>
-        </Table>
-      </div>
+              </TableHeader>
+              <TableBody>
+                {pendentes.map((p) => {
+                  const saida = p.amount < 0; // negativo = saída (conta e cartão)
+                  return (
+                    <TableRow key={p.id} className={TABLE_STYLES.row}>
+                      <TableCell className={TABLE_STYLES.td}>
+                        <input
+                          id={`caixa-${p.id}`}
+                          type="checkbox"
+                          aria-label={`Marcar ${p.description}`}
+                          checked={marcadas.has(p.id)}
+                          onChange={() => alternar(p.id)}
+                        />
+                      </TableCell>
+                      <TableCell className={`${TABLE_STYLES.td} whitespace-nowrap`}>
+                        {new Date(p.date).toLocaleDateString('pt-BR', { timeZone: 'UTC' })}
+                      </TableCell>
+                      <TableCell className={TABLE_STYLES.td}>
+                        <div className="text-gray-800 dark:text-white/90">
+                          {p.merchantName ?? p.description}
+                        </div>
+                        <div className="text-xs text-gray-500 dark:text-gray-400">
+                          {p.contaNome}
+                          {p.providerCategory ? ` · ${p.providerCategory}` : ''}
+                        </div>
+                      </TableCell>
+                      <TableCell
+                        className={`${TABLE_STYLES.td} whitespace-nowrap text-right font-medium tabular-nums ${saida ? 'text-red-600 dark:text-red-400' : 'text-emerald-600 dark:text-emerald-400'}`}
+                      >
+                        {saida ? '−' : '+'}
+                        {formatBRL(Math.abs(p.amount))}
+                      </TableCell>
+                      <TableCell className={TABLE_STYLES.td}>
+                        <select
+                          id={`linha-${p.id}`}
+                          aria-label={`Linha para ${p.description}`}
+                          className="w-full max-w-xs rounded-lg border border-gray-300 bg-white px-2 py-1.5 text-sm dark:border-gray-700 dark:bg-gray-900 dark:text-white/90"
+                          value={escolhas[p.id] ?? SEM_LINHA}
+                          onChange={(e) => setEscolhas((s) => ({ ...s, [p.id]: e.target.value }))}
+                        >
+                          <option value={SEM_LINHA}>— escolher linha —</option>
+                          {(linhas ?? []).map((l) => (
+                            <option key={l.itemId} value={l.itemId}>
+                              {l.rotulo}
+                            </option>
+                          ))}
+                        </select>
+                        <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                          {rotuloSugestao(p)}
+                        </div>
+                      </TableCell>
+                      <TableCell className={`${TABLE_STYLES.td} whitespace-nowrap`}>
+                        <div className="flex gap-1">
+                          <Button size="sm" onClick={() => aplicarIds([p.id])} disabled={ocupado}>
+                            Lançar
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => ignorarIds([p.id])}
+                            disabled={ocupado}
+                          >
+                            Ignorar
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </div>
+        </>
+      )}
 
       <div className="mt-3 flex items-center justify-between text-xs text-gray-500 dark:text-gray-400">
         <span>
