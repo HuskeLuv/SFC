@@ -131,6 +131,28 @@ describe('ImportPlanilhaModal', () => {
     expect(screen.getByRole('button', { name: /gerar prévia/i })).toBeInTheDocument();
   });
 
+  it('é um diálogo modal com nome e fecha no Esc (PWA fase 2)', () => {
+    const onClose = vi.fn();
+    renderModal({ onClose });
+    const dialog = screen.getByRole('dialog', { name: 'Importar planilha FLC' });
+    expect(dialog).toHaveAttribute('aria-modal', 'true');
+    // Celular: passo atual no cabeçalho.
+    expect(screen.getByText(/Passo 1 de 3/)).toBeInTheDocument();
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it('Esc não fecha enquanto grava', async () => {
+    const onClose = vi.fn();
+    mockCsrfFetch.mockReturnValueOnce(new Promise(() => undefined));
+    renderModal({ onClose });
+    escolherArquivo();
+    fireEvent.click(screen.getByRole('button', { name: /gerar prévia/i }));
+    await waitFor(() => expect(screen.getByText(/lendo planilha/i)).toBeInTheDocument());
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
   it('fechado não renderiza nada', () => {
     renderModal({ isOpen: false });
     expect(screen.queryByText(/importar planilha flc/i)).not.toBeInTheDocument();
