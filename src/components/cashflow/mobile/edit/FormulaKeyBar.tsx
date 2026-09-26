@@ -10,8 +10,26 @@ import React, { type RefObject } from 'react';
  * - as outras teclas inserem no cursor e, se o texto ainda não é fórmula, põem o "=" na frente;
  * - a tecla "−" MOSTRA o sinal de menos, mas INSERE o hífen ASCII "-" (o `formulaParser` não aceita
  *   U+2212); × e ÷ inserem os próprios caracteres, que o parser aceita.
- * - `pointerdown.preventDefault` mantém o foco no campo (o teclado não fecha).
+ * - `pointerdown.preventDefault` mantém o foco no campo (o teclado não fecha);
+ * - ao virar fórmula, um número com milhar sem vírgula ('1.500', que o campo lê como 1500) perde os
+ *   pontos ('=1500'): o `formulaParser` leria '1.500' como 1,5.
  */
+
+/** '1.500' / '-1.500.000' → sem os pontos de milhar (o `parseDecimalInput` lê como milhar). */
+const THOUSANDS_ONLY = /^[-−]?\d{1,3}(\.\d{3})+$/;
+
+/**
+ * Texto (sem espaços à esquerda) que vai virar fórmula: tira os pontos de milhar do número puro e
+ * normaliza o '−'. `pos` = posição do cursor no texto original → posição no novo texto.
+ */
+function toFormulaBody(trimmed: string): { body: string; map: (pos: number) => number } {
+  if (!THOUSANDS_ONLY.test(trimmed.trimEnd())) return { body: trimmed, map: (pos) => pos };
+  const body = trimmed.replace(/−/g, '-').replace(/\./g, '');
+  return {
+    body,
+    map: (pos) => pos - (trimmed.slice(0, Math.max(0, pos)).match(/\./g)?.length ?? 0),
+  };
+}
 
 export interface FormulaKey {
   label: string;
@@ -41,18 +59,18 @@ export function applyFormulaKey(
   const isFormulaText = text.trimStart().startsWith('=');
   if (insert === '=') {
     if (isFormulaText) return { text, caret: selEnd ?? text.length };
-    const next = `=${text.trimStart()}`;
+    const next = `=${toFormulaBody(text.trimStart()).body}`;
     return { text: next, caret: next.length };
   }
   let base = text;
   let start = selStart ?? base.length;
   let end = selEnd ?? start;
   if (!isFormulaText) {
-    const trimmed = base.trimStart();
-    const shift = 1 - (base.length - trimmed.length);
-    base = `=${trimmed}`;
-    start = Math.max(1, start + shift);
-    end = Math.max(1, end + shift);
+    const lead = base.length - base.trimStart().length;
+    const { body, map } = toFormulaBody(base.trimStart());
+    base = `=${body}`;
+    start = Math.max(1, map(start - lead) + 1);
+    end = Math.max(1, map(end - lead) + 1);
   }
   const next = base.slice(0, start) + insert + base.slice(end);
   return { text: next, caret: start + insert.length };

@@ -489,6 +489,21 @@ describe('regras puras do sheet da célula', () => {
     expect(applyFormulaKey('=1', '-', null, null)).toEqual({ text: '=1-', caret: 3 });
   });
 
+  it('applyFormulaKey: milhar sem vírgula ("1.500" = 1500) perde os pontos ao virar fórmula', () => {
+    expect(applyFormulaKey('1.500', '+', null, null)).toEqual({ text: '=1500+', caret: 6 });
+    expect(applyFormulaKey('1.500', '+', 5, 5)).toEqual({ text: '=1500+', caret: 6 });
+    expect(applyFormulaKey('1.500', '=', null, null)).toEqual({ text: '=1500', caret: 5 });
+    expect(applyFormulaKey('−1.500.000', '×', null, null)).toEqual({
+      text: '=-1500000×',
+      caret: 10,
+    });
+    // Com vírgula ou decimal com ponto o texto fica como está (os dois parsers leem igual).
+    expect(applyFormulaKey('1.500,00', '+', null, null)).toEqual({ text: '=1.500,00+', caret: 10 });
+    expect(applyFormulaKey('3.5', '+', null, null)).toEqual({ text: '=3.5+', caret: 5 });
+    // Espaço à esquerda: o cursor continua no lugar.
+    expect(applyFormulaKey(' 1.500', '+', 3, 3)).toEqual({ text: '=1+500', caret: 3 });
+  });
+
   it('buildCellValueChange segue o getChangesForGroup', () => {
     const orig = value('x', 2, { value: 10, color: '#FF0000', formula: null });
     expect(
