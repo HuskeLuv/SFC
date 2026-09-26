@@ -4,6 +4,8 @@ import { logger } from '@/lib/logger';
 import React, { useEffect, useState, useMemo } from 'react';
 import { ApexOptions } from 'apexcharts';
 import { GroupedProventoData } from '@/hooks/useProventos';
+import { useIsBelowLg } from '@/hooks/useMediaQuery';
+import { PIE_MOBILE_RESPONSIVE } from '@/components/charts/pie/pieMobileResponsive';
 
 const hasFunctionValue = (value: unknown): boolean => {
   if (typeof value === 'function') return true;
@@ -90,6 +92,9 @@ export default function ProventosDistribuicaoChart({
   grouped,
   viewMode,
 }: ProventosDistribuicaoChartProps) {
+  // PWA fase 3: legenda embaixo e altura menor SÓ pelo JS de celular. Na impressão do computador
+  // o JS é o de desktop (janela larga) — o PDF não muda.
+  const isBelowLg = useIsBelowLg();
   const { series, labels } = useMemo(() => {
     const entries = Object.entries(grouped).sort((a, b) => b[1].total - a[1].total);
 
@@ -181,16 +186,25 @@ export default function ProventosDistribuicaoChart({
           },
         },
       },
+      ...(isBelowLg ? { responsive: [PIE_MOBILE_RESPONSIVE] } : {}),
     }),
-    [series, labels, viewMode],
+    [series, labels, viewMode, isBelowLg],
   );
 
   const chartSeries = useMemo(() => series, [series]);
 
   return (
     <div className="max-w-full overflow-x-auto custom-scrollbar">
-      <div id="chartProventosDistribuicao" className="min-w-[600px] xl:min-w-full">
-        <ApexChartWrapper options={options} series={chartSeries} type="donut" height={400} />
+      <div
+        id="chartProventosDistribuicao"
+        className={`min-w-[600px] xl:min-w-full${isBelowLg ? ' mscreen:min-w-0' : ''}`}
+      >
+        <ApexChartWrapper
+          options={options}
+          series={chartSeries}
+          type="donut"
+          height={isBelowLg ? 340 : 400}
+        />
       </div>
     </div>
   );
