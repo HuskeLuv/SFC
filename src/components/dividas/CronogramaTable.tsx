@@ -4,6 +4,8 @@ import { useMemo, useState } from 'react';
 import { Table, TableBody, TableCell, TableHeader, TableRow } from '@/components/ui/table';
 import { TABLE_HEADER_STYLE, TABLE_STYLES } from '@/components/ui/table/tableStyles';
 import type { ParcelaCronograma } from '@/hooks/useDividas';
+import { useIsBelowLg } from '@/hooks/useMediaQuery';
+import CronogramaLista from './mobile/CronogramaLista';
 import { formatBRL, formatYearMonth } from './utils';
 
 interface CronogramaTableProps {
@@ -25,6 +27,8 @@ export default function CronogramaTable({
   proximaParcela,
 }: CronogramaTableProps) {
   const [expanded, setExpanded] = useState(false);
+  // PWA fase 3: abaixo de lg o cronograma vira lista agrupada por ano (janela de 14 parcelas).
+  const isBelowLg = useIsBelowLg();
 
   const visible = useMemo(() => {
     if (expanded || cronograma.length <= 24) return cronograma;
@@ -43,6 +47,16 @@ export default function CronogramaTable({
     }),
     [cronograma],
   );
+
+  if (isBelowLg) {
+    return (
+      <CronogramaLista
+        cronograma={cronograma}
+        parcelasPagas={parcelasPagas}
+        proximaParcela={proximaParcela}
+      />
+    );
+  }
 
   return (
     <div className="rounded-2xl border border-gray-200 dark:border-gray-800">
