@@ -6,6 +6,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useCsrf } from '@/hooks/useCsrf';
 import { queryKeys } from '@/lib/queryKeys';
 import { shouldHandleLayerEvent, useTopLayer } from '@/components/ui/sheet/layerStack';
+import { MOBILE_MEDIA_QUERY } from '@/lib/ui/mobile';
 import type { FlcImportPlan } from '@/services/cashflow/import/mapFlcToCashflow';
 import type {
   FlcImportRelatorio,
@@ -21,8 +22,8 @@ import type {
  *
  * Celular (PWA fase 2, protótipo cenário i): abaixo de lg o mesmo modal vira TELA CHEIA com
  * "Passo N de 3", contadores em 3 colunas e botões de 44px — só tokens `max-lg:`/`lg:hidden`, as
- * mesmas chamadas. Em qualquer largura: `role=dialog` + `aria-modal` e Esc fecha (só quando é a
- * camada do topo e nada está gravando).
+ * mesmas chamadas. Em qualquer largura: `role=dialog` + `aria-modal`. Só abaixo de lg, Esc fecha
+ * (quando é a camada do topo e nada está gravando); no desktop o modal segue sem tratar Esc.
  */
 
 interface ImportPlanilhaModalProps {
@@ -107,8 +108,8 @@ export const ImportPlanilhaModal: React.FC<ImportPlanilhaModalProps> = ({
   const [loading, setLoading] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
   const titleId = useId();
-  // Esc fecha só quando este modal é a camada do topo (pilha de overlays do celular) e não está
-  // gravando — o mesmo critério do toque no fundo.
+  // Esc fecha só abaixo de lg (o desktop não muda), quando este modal é a camada do topo (pilha de
+  // overlays do celular) e não está gravando — o mesmo critério do toque no fundo.
   const { layerId } = useTopLayer(isOpen);
   const onCloseRef = useRef(onClose);
   const loadingRef = useRef(loading);
@@ -120,6 +121,8 @@ export const ImportPlanilhaModal: React.FC<ImportPlanilhaModalProps> = ({
     if (!isOpen) return;
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key !== 'Escape' || loadingRef.current) return;
+      if (typeof window.matchMedia !== 'function' || !window.matchMedia(MOBILE_MEDIA_QUERY).matches)
+        return;
       if (!shouldHandleLayerEvent(layerId, event)) return;
       event.stopPropagation();
       onCloseRef.current();
