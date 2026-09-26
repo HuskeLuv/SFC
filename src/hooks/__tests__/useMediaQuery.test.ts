@@ -63,6 +63,24 @@ describe('useMediaQuery', () => {
     expect(renderToString(createElement(Probe, { fallback: true }))).toContain('true');
   });
 
+  it('congela o valor de tela entre beforeprint e afterprint', () => {
+    const mm = installMatchMedia(false);
+    const { result } = renderHook(() => useMediaQuery('(max-width: 1023.98px)'));
+    expect(result.current).toBe(false);
+    act(() => {
+      window.dispatchEvent(new Event('beforeprint'));
+      mm.set(true); // a folha A4 faz a query casar na impressão
+    });
+    expect(result.current).toBe(false);
+    act(() => {
+      window.dispatchEvent(new Event('afterprint'));
+    });
+    // Depois da impressão volta a seguir o matchMedia real (aqui ainda `true`).
+    expect(result.current).toBe(true);
+    act(() => mm.set(false));
+    expect(result.current).toBe(false);
+  });
+
   it('useIsBelowLg usa MOBILE_MEDIA_QUERY', () => {
     const mm = installMatchMedia(true);
     const { result } = renderHook(() => useIsBelowLg());
