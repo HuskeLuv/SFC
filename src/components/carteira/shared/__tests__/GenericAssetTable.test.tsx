@@ -2,7 +2,7 @@
 import '@testing-library/jest-dom/vitest';
 import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { QueryClientProvider } from '@tanstack/react-query';
 import GenericAssetTable, {
   type ColumnDef,
@@ -528,5 +528,54 @@ describe('GenericAssetTable — aba vazia com planejado', () => {
     // 20% do valor-alvo da classe (R$ 5.000) = R$ 1.000, na linha e no total
     expect(screen.getAllByText('R$ 1000.00').length).toBeGreaterThanOrEqual(2);
     contextMock.necessidadeAporteMap = {};
+  });
+});
+
+// ---------------------------------------------------------------------------
+// PWA fase 1: abaixo de lg a aba vira cartões (a <table> fica só no desktop)
+// ---------------------------------------------------------------------------
+
+describe('GenericAssetTable — celular (< lg)', () => {
+  const stubMatchMedia = (mobile: boolean) =>
+    Object.defineProperty(window, 'matchMedia', {
+      configurable: true,
+      value: (query: string) => ({
+        matches: mobile,
+        media: query,
+        addEventListener: () => {},
+        removeEventListener: () => {},
+      }),
+    });
+
+  afterEach(() => {
+    // @ts-expect-error — limpa o stub (o resto do arquivo roda sem matchMedia = desktop)
+    delete window.matchMedia;
+  });
+
+  it('renderiza [data-mf-card] e nenhuma <table>', () => {
+    stubMatchMedia(true);
+    render(<GenericAssetTable {...buildDefaultProps()} />, { wrapper: TestWrapper });
+    expect(document.querySelector('table')).toBeNull();
+    expect(document.querySelectorAll('[data-mf-card]')).toHaveLength(1);
+    expect(document.querySelector('[data-mf-card-toggle]')).toHaveTextContent('PETR4');
+    expect(document.querySelector('[data-mf-total-card]')).toHaveTextContent('Total geral');
+    expect(screen.getByText('Caixa da aba')).toBeInTheDocument();
+  });
+
+  it('>= lg continua com a <table> e sem artefatos do celular', () => {
+    stubMatchMedia(false);
+    render(<GenericAssetTable {...buildDefaultProps()} />, { wrapper: TestWrapper });
+    expect(document.querySelector('table')).not.toBeNull();
+    expect(document.querySelector('[data-mf-card], [data-mf-section]')).toBeNull();
+  });
+
+  it('a faixa da seção usa o mesmo estado de abrir/fechar', () => {
+    stubMatchMedia(true);
+    render(<GenericAssetTable {...buildDefaultProps()} />, { wrapper: TestWrapper });
+    const band = document.querySelector('[data-mf-section]') as HTMLElement;
+    expect(band).toHaveAttribute('aria-expanded', 'true');
+    fireEvent.click(band);
+    expect(band).toHaveAttribute('aria-expanded', 'false');
+    expect(document.querySelector('[data-mf-card]')).toBeNull();
   });
 });

@@ -20,6 +20,11 @@ import {
   TABLE_HIGHLIGHT_HEADER_STYLE,
   TABLE_SECTION_STYLE,
 } from '@/components/ui/table/tableStyles';
+import { useIsBelowLg } from '@/hooks/useMediaQuery';
+import AssetCardSections, { AssetTabMobileSummary } from './AssetCardSections';
+import { COLUNAS_VISIVEIS_PLANEJADO, type AssetMobileRole } from './mobileColumnRoles';
+
+export { COLUNAS_VISIVEIS_PLANEJADO };
 
 const MIN_PLACEHOLDER_ROWS = 4;
 
@@ -40,6 +45,17 @@ export interface ColumnDef<TAtivo, TSecao = Record<string, unknown>> {
   highlight?: boolean;
   /** Render the cell content for a single asset row */
   render: (ativo: TAtivo, formatters: Formatters) => ReactNode;
+  /**
+   * Papel no cartão do celular (PWA fase 1). Sem ele: `DEFAULT_MOBILE_ROLE_BY_KEY[key]` ou
+   * `detail` (ver `mobileColumnRoles.ts`).
+   */
+  mobile?: AssetMobileRole;
+  /** Rótulo no cartão (obrigatório na prática quando `header` é ReactNode). */
+  mobileLabel?: string;
+  /** Conteúdo SÓ TEXTO no cartão (quando `render` tem link/célula editável). */
+  mobileRender?: (ativo: TAtivo, formatters: Formatters) => ReactNode;
+  /** Além do papel, mostra `render` como linha "rótulo + Editar" no cartão aberto. */
+  mobileEdit?: boolean;
   /** Render the cell content for the section total row. Return '-' to show a dash. */
   renderSectionTotal?: (secao: TSecao, formatters: Formatters) => ReactNode;
   /** Render the cell content for the grand total row. Return '-' to show a dash. */
@@ -143,6 +159,16 @@ export interface GenericAssetTableProps<TAtivo, TSecao> {
 
   // Extra content after the main table (charts, aux tables)
   children?: ReactNode;
+
+  // ── Celular (PWA fase 1) ──
+  /** Conteúdo extra do cartão de total no celular (ex.: REIT/Stocks 'Total em USD'). */
+  extraTotalMobile?: ReactNode;
+  /** Título do cartão = nome do ativo (fundos, REIT, opções) em vez do ticker. */
+  mobileTitleFromName?: boolean;
+  /** Subtítulo do cartão (padrão: nome · quantidade). */
+  mobileSubtitle?: (ativo: TAtivo, formatters: Formatters) => string | null | undefined;
+  /** Unidade da quantidade no subtítulo do cartão (ex.: 'ações', 'cotas'). */
+  mobileQuantityUnit?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -162,17 +188,10 @@ interface GenericSectionProps<TAtivo, TSecao> {
 
 /**
  * Ativo PLANEJADO (sem posição, 16/09/2026): só as colunas de planejamento
- * mostram valor; quantidade/preços/valores viram traço. A 1ª coluna é
- * renderizada aqui (nome + selo + remover) porque a coluna da tabela
- * linka para /ativos/<id>, e o id do planejado não é uma posição.
+ * mostram valor (`COLUNAS_VISIVEIS_PLANEJADO`); quantidade/preços/valores viram
+ * traço. A 1ª coluna é renderizada aqui (nome + selo + remover) porque a coluna
+ * da tabela linka para /ativos/<id>, e o id do planejado não é uma posição.
  */
-const COLUNAS_VISIVEIS_PLANEJADO = new Set([
-  'cotacaoAtual',
-  'percentualCarteira',
-  'objetivo',
-  'quantoFalta',
-  'necessidadeAporte',
-]);
 const isPlanejado = (ativo: unknown): boolean =>
   !!(ativo as { planejado?: boolean } | null)?.planejado;
 
@@ -341,7 +360,13 @@ export default function GenericAssetTable<TAtivo, TSecao>({
   dataComRisco: dataComRiscoProp,
   extraTotalRows,
   children,
+  extraTotalMobile,
+  mobileTitleFromName = false,
+  mobileSubtitle,
+  mobileQuantityUnit,
 }: GenericAssetTableProps<TAtivo, TSecao>) {
+  // Antes dos early returns (regra dos hooks). Desktop (>= lg) segue na <table> de sempre.
+  const isBelowLg = useIsBelowLg();
   const { necessidadeAporteMap } = useCarteiraResumoContext();
   const queryClient = useQueryClient();
   const { csrfFetch } = useCsrf();
@@ -549,6 +574,75 @@ export default function GenericAssetTable<TAtivo, TSecao>({
           </h3>
           <p className="text-xs text-gray-500 dark:text-gray-400">{error}</p>
         </div>
+      </div>
+    );
+  }
+
+  const renderCaixaCard = (card: MetricCardConfig, key: React.Key, title?: string) => (
+    <CaixaParaInvestirCard
+      key={key}
+      title={title}
+      value={(resumo?.caixaParaInvestir as number) ?? 0}
+      formatCurrency={(value) => formatCurrency(value ?? 0)}
+      onSave={onUpdateCaixaParaInvestir}
+      color={card.color ?? 'success'}
+    />
+  );
+
+  if (isBelowLg) {
+    // Celular: cartão-resumo (valor atualizado em destaque + rentabilidade + mini-indicadores),
+    // blocos Necessidade de aporte / Caixa da aba, e a lista de cartões por seção. Os VALORES
+    // são os mesmos dos metric cards do desktop (mesmos getValue/getColor).
+    const caixaCard = metricCards.find((c) => c.title === '__CAIXA_PARA_INVESTIR__');
+    const needCard = metricCards.find((c) => /^necessidade/i.test(c.title));
+    const heroCard = metricCards.find((c) => /^valor atualizado/i.test(c.title));
+    const rentCard = metricCards.find((c) => /^rentabilidade/i.test(c.title));
+    const minis = metricCards
+      .filter((c) => c !== caixaCard && c !== needCard && c !== heroCard && c !== rentCard)
+      .map((c) => ({
+        label: c.title,
+        value: c.getValue(resumo, necessidadeAporteTotalCalculada),
+        negative: c.getColor?.(resumo, necessidadeAporteTotalCalculada) === 'error',
+      }));
+    return (
+      <div className="space-y-4">
+        <AssetTabMobileSummary
+          heroLabel="Valor atualizado"
+          heroValue={
+            heroCard
+              ? heroCard.getValue(resumo, necessidadeAporteTotalCalculada)
+              : formatCurrency(Number(totalGeral?.valorAtualizado ?? 0) || 0)
+          }
+          rentabilidade={
+            rentCard
+              ? { value: Number(resumo?.rentabilidade ?? 0) || 0, formatPercentage }
+              : undefined
+          }
+          minis={minis}
+          necessidadeAporte={
+            needCard ? needCard.getValue(resumo, necessidadeAporteTotalCalculada) : undefined
+          }
+          caixa={caixaCard ? renderCaixaCard(caixaCard, 'caixa', 'Caixa da aba') : undefined}
+        />
+        <AssetCardSections<TAtivo, TSecao>
+          sections={sections}
+          columns={columns}
+          formatters={formatters}
+          getSectionKey={getSectionKey}
+          getSectionName={getSectionName}
+          getSectionAtivos={getSectionAtivos}
+          expandedSections={expandedSections}
+          onToggleSection={toggleSection}
+          totalGeral={totalGeral}
+          onRemovePlanejado={handleRemovePlanejado}
+          removendoPlanejado={removendoPlanejado}
+          ariaLabel={tableTitle}
+          titleFromName={mobileTitleFromName}
+          getSubtitle={mobileSubtitle}
+          quantityUnit={mobileQuantityUnit}
+          extraTotal={extraTotalMobile}
+        />
+        {children}
       </div>
     );
   }
