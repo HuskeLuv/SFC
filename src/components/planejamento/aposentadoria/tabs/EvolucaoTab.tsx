@@ -33,8 +33,10 @@ function ChartCard({
   children: React.ReactNode;
 }) {
   return (
-    <div className="rounded-2xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-white/[0.03]">
-      <p className="text-[10px] font-semibold uppercase tracking-wider text-brand-500">{eyebrow}</p>
+    <div className="rounded-2xl border border-gray-200 bg-white p-4 max-lg:p-3 dark:border-gray-800 dark:bg-white/[0.03]">
+      <p className="text-[10px] font-semibold uppercase tracking-wider text-brand-500 max-lg:text-mf-patrimonio dark:max-lg:text-mf-tranquilidade">
+        {eyebrow}
+      </p>
       <h3 className="mb-2 text-base font-semibold text-gray-900 dark:text-white/90">{title}</h3>
       {children}
     </div>
@@ -106,7 +108,7 @@ export default function EvolucaoTab({ params, entries }: EvolucaoTabProps) {
   const hasRent = rentabilidade.rent.length > 0;
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 max-lg:space-y-3">
       <ChartCard eyebrow="Evolução patrimonial" title="Planejado vs Realizado">
         <EvolucaoPatrimonioChart {...patrimonio} />
       </ChartCard>
