@@ -23,6 +23,10 @@ import { useIndices } from '@/hooks/useIndices';
 import { ChevronDownIcon } from '@/icons';
 import { formatAssetDisplayTitle } from '@/utils/assetDisplayName';
 import { utcMidnight } from '@/utils/utcDay';
+import { useIsBelowLg } from '@/hooks/useMediaQuery';
+import { ResponsiveCardList, type ResponsiveColumn } from '@/components/ui/table/ResponsiveTable';
+import { TABLE_MOBILE_STYLES } from '@/components/ui/table/tableStyles';
+import { CARD_HERO_VALUE_CLASS } from '@/components/carteira/shared/cardStyles';
 
 const formatCurrency = (value: number) =>
   new Intl.NumberFormat('pt-BR', {
@@ -66,6 +70,113 @@ const formatDateProventos = (dateStr: string) => {
 };
 
 type RentabilidadeRange = '12M' | '2A' | '5A' | '10A' | 'MAX';
+
+/** Celular: listas longas mostram as 10 primeiras e "Ver tudo" (paginação só de apresentação). */
+const MOBILE_LIST_PREVIEW = 10;
+
+interface HistoricoMensalRow {
+  monthKey: string;
+  date: number;
+  saldoBruto: number;
+  quantidade: number;
+  rentabilidade: number;
+  acumulada: number;
+  cdi: number | null;
+  proventos: number;
+}
+
+interface ExtratoItem {
+  id: string;
+  tipo: string;
+  data: string;
+  quantity: number;
+  total: number;
+  detail?: string;
+}
+
+const signedClass = (value: number) =>
+  value < 0 ? TABLE_MOBILE_STYLES.negative : TABLE_MOBILE_STYLES.positive;
+
+const HISTORICO_MENSAL_COLUMNS: ResponsiveColumn<HistoricoMensalRow>[] = [
+  { id: 'mes', header: 'Mês', mobile: 'primary', cell: (r) => formatMonthYear(r.date) },
+  {
+    id: 'saldo',
+    header: 'Saldo atual',
+    mobile: 'value',
+    cell: (r) => formatCurrency(r.saldoBruto),
+  },
+  {
+    id: 'rentMes',
+    header: 'Rent. mês',
+    mobile: 'field',
+    cell: (r) => (
+      <span className={signedClass(r.rentabilidade)}>{formatPercentage(r.rentabilidade)}</span>
+    ),
+  },
+  {
+    id: 'acum',
+    header: 'Acum.',
+    mobile: 'field',
+    cell: (r) => <span className={signedClass(r.acumulada)}>{formatPercentage(r.acumulada)}</span>,
+  },
+  {
+    id: 'cdi',
+    header: 'CDI',
+    mobile: 'field',
+    cell: (r) => (r.cdi !== null ? formatPercentage(r.cdi) : '—'),
+  },
+  { id: 'qtde', header: 'Qtde', mobile: 'detail', cell: (r) => formatNumber(r.quantidade) },
+  {
+    id: 'proventos',
+    header: 'Proventos',
+    mobile: 'detail',
+    cell: (r) => formatCurrency(r.proventos),
+  },
+];
+
+const EXTRATO_COLUMNS: ResponsiveColumn<ExtratoItem>[] = [
+  {
+    id: 'tipo',
+    header: 'Tipo',
+    mobile: 'primary',
+    cell: (item) => (
+      <span className="inline-flex max-w-full items-center rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-700 dark:bg-white/[0.08] dark:text-gray-200">
+        <span className="truncate">{item.tipo}</span>
+      </span>
+    ),
+  },
+  { id: 'data', header: 'Data', mobile: 'subtitle', cell: (item) => formatDate(item.data) },
+  { id: 'valor', header: 'Valor', mobile: 'value', cell: (item) => formatCurrency(item.total) },
+  {
+    id: 'qtd',
+    header: 'Qtd',
+    mobile: 'detail',
+    cell: (item) => item.detail ?? formatNumber(item.quantity),
+  },
+];
+
+/** Botão "Ver tudo" / "Ver menos" das listas do celular. */
+function MobileShowAll({
+  total,
+  expanded,
+  onToggle,
+}: {
+  total: number;
+  expanded: boolean;
+  onToggle: () => void;
+}) {
+  if (total <= MOBILE_LIST_PREVIEW) return null;
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      aria-expanded={expanded}
+      className={`${TABLE_MOBILE_STYLES.editButton} mt-2 w-full justify-center`}
+    >
+      {expanded ? 'Ver menos' : `Ver tudo (${total})`}
+    </button>
+  );
+}
 
 const RENTABILIDADE_OPTIONS: { value: RentabilidadeRange; label: string }[] = [
   { value: '12M', label: 'Últimos 12 meses' },
@@ -137,6 +248,10 @@ function AtivoDetalheContent() {
   // 12M esconde a maior parte da série e dá impressão de bug. Quem quer
   // janela menor escolhe explícito.
   const [rentabilidadeRange, setRentabilidadeRange] = useState<RentabilidadeRange>('MAX');
+  // PWA fase 1: abaixo de lg, destaque + grade e listas em cartões (o desktop não muda).
+  const isBelowLg = useIsBelowLg();
+  const [showAllMensal, setShowAllMensal] = useState(false);
+  const [showAllExtrato, setShowAllExtrato] = useState(false);
 
   useEffect(() => {
     if (!id) return;
@@ -343,14 +458,7 @@ function AtivoDetalheContent() {
   const rentabilidadePeriod = rentabilidadeRange === '12M' ? '1d' : '1mo';
 
   const extratoUnificado = useMemo(() => {
-    const items: Array<{
-      id: string;
-      tipo: string;
-      data: string;
-      quantity: number;
-      total: number;
-      detail?: string;
-    }> = [];
+    const items: ExtratoItem[] = [];
 
     data?.transacoes?.forEach((tx) => {
       items.push({
@@ -401,55 +509,114 @@ function AtivoDetalheContent() {
     nome: data.ativo.nome,
   });
 
-  return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-            {displayNome || data.ativo.nome}
-          </h1>
-          <p className="text-gray-600 dark:text-gray-400">
-            {displayTicker}
-            {displayTicker && instituicaoLabel !== '—' && ' • '}
-            {instituicaoLabel !== '—' && instituicaoLabel}
-          </p>
-        </div>
-        <Link href={`/ativos/${id}/editar`}>
-          <Button variant="outline">Editar produto</Button>
-        </Link>
-      </div>
+  const posicao = data.posicao;
+  const temProventos = (posicao.proventosRecebidos ?? 0) > 0;
 
-      {/* Resumo - MetricCards */}
-      <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-7">
-        <MetricCard title="Quantidade" value={formatNumber(data.posicao.quantidade)} />
-        <MetricCard title="Preço médio" value={formatCurrency(data.posicao.precoMedio)} />
-        <MetricCard
-          title="Rentabilidade"
-          value={formatPercentage(data.posicao.rentabilidade)}
-          color={data.posicao.rentabilidade >= 0 ? 'success' : 'error'}
-          change={
-            (data.posicao.proventosRecebidos ?? 0) > 0
-              ? `preço ${formatPercentage(data.posicao.rentabilidadePreco ?? 0)} + proventos`
-              : undefined
-          }
-          changeDirection="neutral"
-        />
-        <MetricCard title="Última cotação" value={formatCurrency(data.posicao.cotacaoAtual)} />
-        <MetricCard title="Valor aplicado" value={formatCurrency(data.posicao.valorAplicado)} />
-        <MetricCard title="Saldo bruto" value={formatCurrency(data.posicao.saldoBruto)} />
-        <MetricCard
-          title="Resultado"
-          value={formatCurrency(data.posicao.resultado)}
-          color={data.posicao.resultado >= 0 ? 'success' : 'error'}
-          change={
-            (data.posicao.proventosRecebidos ?? 0) > 0
-              ? `inclui ${formatCurrency(data.posicao.proventosRecebidos ?? 0)} de proventos`
-              : undefined
-          }
-          changeDirection="neutral"
-        />
-      </div>
+  return (
+    <div className="space-y-6 max-lg:space-y-4">
+      {isBelowLg ? (
+        <>
+          {/* Celular: ticker como título, Editar ao lado (o cabeçalho da casca já tem Voltar). */}
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <h1 className="break-words text-2xl font-semibold text-gray-900 dark:text-white">
+                {displayTicker || displayNome || data.ativo.nome}
+              </h1>
+              <p className="text-sm text-gray-600 dark:text-gray-400">
+                {displayTicker && displayNome ? displayNome : null}
+                {displayTicker && displayNome && instituicaoLabel !== '—' && ' • '}
+                {instituicaoLabel !== '—' && instituicaoLabel}
+              </p>
+            </div>
+            <Link
+              href={`/ativos/${id}/editar`}
+              className={`${TABLE_MOBILE_STYLES.editButton} shrink-0 border border-gray-300 px-3 dark:border-gray-600`}
+            >
+              Editar
+            </Link>
+          </div>
+
+          <section aria-label="Posição" data-mf-ativo-hero="" className={TABLE_MOBILE_STYLES.card}>
+            <p className="text-xs text-gray-500 dark:text-gray-400">Saldo bruto</p>
+            <p className={`${CARD_HERO_VALUE_CLASS} text-gray-900 dark:text-white`}>
+              {formatCurrency(posicao.saldoBruto)}
+            </p>
+            <p className={`text-sm font-medium tabular-nums ${signedClass(posicao.resultado)}`}>
+              {formatCurrency(posicao.resultado)} ({formatPercentage(posicao.rentabilidade)})
+            </p>
+            {temProventos && (
+              <p className="text-xs text-gray-500 dark:text-gray-400">
+                inclui {formatCurrency(posicao.proventosRecebidos ?? 0)} de proventos
+              </p>
+            )}
+            <dl className={`mt-3 ${TABLE_MOBILE_STYLES.cardDetailGrid}`}>
+              {[
+                ['Quantidade', formatNumber(posicao.quantidade)],
+                ['Preço médio', formatCurrency(posicao.precoMedio)],
+                ['Última cotação', formatCurrency(posicao.cotacaoAtual)],
+                ['Valor aplicado', formatCurrency(posicao.valorAplicado)],
+                ['Rentabilidade', formatPercentage(posicao.rentabilidade)],
+                ['Resultado', formatCurrency(posicao.resultado)],
+              ].map(([label, value]) => (
+                <div key={label} className="min-w-0">
+                  <dt className={TABLE_MOBILE_STYLES.cardDetailLabel}>{label}</dt>
+                  <dd className={`${TABLE_MOBILE_STYLES.cardDetailValue} break-words`}>{value}</dd>
+                </div>
+              ))}
+            </dl>
+          </section>
+        </>
+      ) : (
+        <>
+          {/* Header */}
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
+                {displayNome || data.ativo.nome}
+              </h1>
+              <p className="text-gray-600 dark:text-gray-400">
+                {displayTicker}
+                {displayTicker && instituicaoLabel !== '—' && ' • '}
+                {instituicaoLabel !== '—' && instituicaoLabel}
+              </p>
+            </div>
+            <Link href={`/ativos/${id}/editar`}>
+              <Button variant="outline">Editar produto</Button>
+            </Link>
+          </div>
+
+          {/* Resumo - MetricCards */}
+          <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-7">
+            <MetricCard title="Quantidade" value={formatNumber(data.posicao.quantidade)} />
+            <MetricCard title="Preço médio" value={formatCurrency(data.posicao.precoMedio)} />
+            <MetricCard
+              title="Rentabilidade"
+              value={formatPercentage(data.posicao.rentabilidade)}
+              color={data.posicao.rentabilidade >= 0 ? 'success' : 'error'}
+              change={
+                (data.posicao.proventosRecebidos ?? 0) > 0
+                  ? `preço ${formatPercentage(data.posicao.rentabilidadePreco ?? 0)} + proventos`
+                  : undefined
+              }
+              changeDirection="neutral"
+            />
+            <MetricCard title="Última cotação" value={formatCurrency(data.posicao.cotacaoAtual)} />
+            <MetricCard title="Valor aplicado" value={formatCurrency(data.posicao.valorAplicado)} />
+            <MetricCard title="Saldo bruto" value={formatCurrency(data.posicao.saldoBruto)} />
+            <MetricCard
+              title="Resultado"
+              value={formatCurrency(data.posicao.resultado)}
+              color={data.posicao.resultado >= 0 ? 'success' : 'error'}
+              change={
+                (data.posicao.proventosRecebidos ?? 0) > 0
+                  ? `inclui ${formatCurrency(data.posicao.proventosRecebidos ?? 0)} de proventos`
+                  : undefined
+              }
+              changeDirection="neutral"
+            />
+          </div>
+        </>
+      )}
 
       {/* Conteúdo principal: coluna esquerda (~65%) | coluna direita Extrato (~35%) - como no exemplo */}
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,3fr)_minmax(320px,2fr)] xl:items-stretch">
@@ -475,7 +642,23 @@ function AtivoDetalheContent() {
           </Suspense>
 
           <ComponentCard title="Histórico Mensal" className="overflow-hidden">
-            {historicoMensal.length > 0 ? (
+            {historicoMensal.length > 0 && isBelowLg ? (
+              <>
+                <ResponsiveCardList
+                  ariaLabel="Histórico mensal"
+                  columns={HISTORICO_MENSAL_COLUMNS}
+                  rows={
+                    showAllMensal ? historicoMensal : historicoMensal.slice(0, MOBILE_LIST_PREVIEW)
+                  }
+                  getRowKey={(row) => row.monthKey}
+                />
+                <MobileShowAll
+                  total={historicoMensal.length}
+                  expanded={showAllMensal}
+                  onToggle={() => setShowAllMensal((v) => !v)}
+                />
+              </>
+            ) : historicoMensal.length > 0 ? (
               <div className="max-h-80 overflow-y-auto">
                 <StandardTable>
                   <StandardTableHeader>
@@ -658,7 +841,25 @@ function AtivoDetalheContent() {
         {/* Extrato: coluna direita com espaço reservado - ocupa altura total da coluna */}
         <div className="flex min-w-0 flex-col">
           <ComponentCard title="Extrato" className="flex flex-1 flex-col min-h-0">
-            {extratoUnificado.length > 0 ? (
+            {extratoUnificado.length > 0 && isBelowLg ? (
+              <>
+                <ResponsiveCardList
+                  ariaLabel="Extrato"
+                  columns={EXTRATO_COLUMNS}
+                  rows={
+                    showAllExtrato
+                      ? extratoUnificado
+                      : extratoUnificado.slice(0, MOBILE_LIST_PREVIEW)
+                  }
+                  getRowKey={(item) => item.id}
+                />
+                <MobileShowAll
+                  total={extratoUnificado.length}
+                  expanded={showAllExtrato}
+                  onToggle={() => setShowAllExtrato((v) => !v)}
+                />
+              </>
+            ) : extratoUnificado.length > 0 ? (
               <div className="min-h-[320px] flex-1">
                 <StandardTable>
                   <StandardTableHeader>
