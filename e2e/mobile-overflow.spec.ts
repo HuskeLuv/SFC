@@ -152,6 +152,13 @@ test.describe('Mobile 390px: sem transbordo horizontal (autenticado)', () => {
         if ((await btn.count()) === 0) continue;
         await btn.click();
         href = await findHref(10_000);
+        if (!href && dyn.expand) {
+          const toggle = page.locator(dyn.expand).first();
+          if (await toggle.isVisible().catch(() => false)) {
+            await toggle.click();
+            href = await findHref(5_000);
+          }
+        }
       }
       if (!href) {
         test.info().annotations.push({

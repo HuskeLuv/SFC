@@ -201,6 +201,17 @@ test('/ativos/{id} e /editar cabem sem rolagem lateral', async ({ page }) => {
       .first()
       .getAttribute('href', { timeout: 2_000 })
       .catch(() => null);
+    if (!href && dyn.expand) {
+      const toggle = page.locator(dyn.expand).first();
+      if (await toggle.isVisible().catch(() => false)) {
+        await toggle.click();
+        href = await page
+          .locator(dyn.linkSelector)
+          .first()
+          .getAttribute('href', { timeout: 5_000 })
+          .catch(() => null);
+      }
+    }
     if (href) break;
   }
   test.skip(!href, `sem link ${dyn.linkSelector} na /carteira (usuário sem ativos)`);
