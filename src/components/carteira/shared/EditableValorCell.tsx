@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import { useIsBelowLg } from '@/hooks/useMediaQuery';
 import MobileEditSheet from '@/components/ui/sheet/MobileEditSheet';
-import { formatDecimalInput } from '@/lib/ui/numberInput';
+import { formatDecimalInput, parseDecimalInput } from '@/lib/ui/numberInput';
 import { MobileEditTrigger, useAssetCardContext } from './AssetCardSections';
 
 interface EditableValorCellProps {
@@ -36,12 +36,7 @@ const EditableValorCell: React.FC<EditableValorCellProps> = (props) => {
  */
 const parseValorMonetarioMobile = (str: string): number | null => {
   if (/-|−/.test(str)) return -1;
-  const cleaned = str.replace(/[^\d,.]/g, '').trim();
-  if (!cleaned) return null;
-  const hasComma = cleaned.includes(',');
-  const normalized = hasComma ? cleaned.replace(/\./g, '').replace(',', '.') : cleaned;
-  const num = Number.parseFloat(normalized);
-  return Number.isFinite(num) ? num : null;
+  return parseDecimalInput(str, 'pt-BR');
 };
 
 /** Celular (PWA fase 1): valor + "Editar" → MobileEditSheet de moeda. */

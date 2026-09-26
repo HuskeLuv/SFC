@@ -9,9 +9,17 @@ describe('parseDecimalInput', () => {
     expect(parseDecimalInput('7%')).toBe(7);
   });
 
-  it("pt-BR sem vírgula segue o parseFloat do desktop: '1.234' → 1.234", () => {
-    expect(parseDecimalInput('1.234')).toBe(1.234);
+  it('pt-BR sem vírgula: pontos em grupos de 3 são milhar (campo aberto como 1.234,50 sem os centavos)', () => {
+    expect(parseDecimalInput('1.234')).toBe(1234);
+    expect(parseDecimalInput('15.000')).toBe(15000);
+    expect(parseDecimalInput('R$ 1.234.567')).toBe(1234567);
     expect(parseDecimalInput('10')).toBe(10);
+  });
+
+  it('pt-BR sem vírgula: outro ponto é decimal', () => {
+    expect(parseDecimalInput('3.5')).toBe(3.5);
+    expect(parseDecimalInput('1234.56')).toBe(1234.56);
+    expect(parseDecimalInput('0.14499999')).toBe(0.14499999);
   });
 
   it('en-US: vírgula de milhar e ponto decimal', () => {

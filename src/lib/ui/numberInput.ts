@@ -3,8 +3,10 @@
  *
  * `parseDecimalInput` segue o que as células editáveis da carteira já fazem (EditableValorCell e o
  * input type=number), para o celular salvar o MESMO valor que o desktop:
- * - pt-BR: com vírgula, os pontos são milhar e a vírgula é o decimal ('1.234,56' → 1234.56); SEM
- *   vírgula vale o parseFloat ('1.234' → 1.234, como o desktop — o ponto é lido como decimal);
+ * - pt-BR: com vírgula, os pontos são milhar e a vírgula é o decimal ('1.234,56' → 1234.56). SEM
+ *   vírgula, pontos em grupos de 3 dígitos são milhar ('1.234' → 1234, '15.000' → 15000 — o campo
+ *   de moeda abre como '1.234,50' e o usuário pode apagar só os centavos); qualquer outro ponto é
+ *   decimal ('3.5' → 3.5, '0.14499999' → 0.14499999), como o `parseCurrencyInput`;
  * - en-US: as vírgulas são milhar e o ponto é o decimal ('1,234.56' → 1234.56).
  * Aceita sinal '-' ou '−' (U+2212), ignora prefixo/sufixo ('R$', '%', espaços) e devolve `null`
  * para vazio ou não numérico.
@@ -22,7 +24,11 @@ export function parseDecimalInput(str: string, locale: DecimalLocale = 'pt-BR'):
   if (locale === 'en-US') {
     normalized = cleaned.replace(/,/g, '');
   } else {
-    normalized = cleaned.includes(',') ? cleaned.replace(/\./g, '').replace(',', '.') : cleaned;
+    normalized = cleaned.includes(',')
+      ? cleaned.replace(/\./g, '').replace(',', '.')
+      : /^\d{1,3}(\.\d{3})+$/.test(cleaned)
+        ? cleaned.replace(/\./g, '')
+        : cleaned;
   }
   const num = Number.parseFloat(normalized);
   if (!Number.isFinite(num)) return null;
