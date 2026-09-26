@@ -6,12 +6,16 @@ import type { ApexOptions } from 'apexcharts';
 import { useSaudeFinanceiraEvolucao } from '@/hooks/useSaudeFinanceira';
 import { formatBRL, MONTH_NAMES_PT } from './utils';
 import EvolucaoTabela from './EvolucaoTabela';
+import { mobileYAxis, useMobileChart } from '@/components/charts/mobileChartOptions';
 
 const ReactApexChart = dynamic(() => import('react-apexcharts'), { ssr: false });
 
 const COLOR_PL = '#465FFF';
 const COLOR_LIQUIDEZ = '#12B76A';
 const COLOR_DIVIDA = '#F04438';
+
+/** Celular sem verde (PWA fase 3): PL no azul segurança, liquidez no #0079F2, dívida no vermelho. */
+const MOBILE_COLORS = ['#314666', '#0079F2', '#D92D20'];
 
 /**
  * Bloco ⑤ — evolução mensal dos indicadores a partir dos snapshots. A série
@@ -58,12 +62,29 @@ export default function EvolucaoChart() {
       tooltip: { y: { formatter: (v: number) => formatBRL(v) } },
       dataLabels: { enabled: false },
     };
-    return { series, options };
+    return {
+      series,
+      options,
+      mobileExtra: { colors: MOBILE_COLORS, yaxis: mobileYAxis(options.yaxis) },
+    };
   }, [snapshots]);
+  const {
+    options: chartOptions,
+    height: chartHeight,
+    isBelowLg,
+  } = useMobileChart(chart.options, {
+    extra: chart.mobileExtra,
+    desktopHeight: 320,
+    mobileHeight: 220,
+  });
 
   return (
     <div className="print:break-inside-avoid rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03]">
-      <h3 className="text-base font-semibold text-gray-900 dark:text-white/90">
+      <h3
+        className={`text-base font-semibold text-gray-900 dark:text-white/90${
+          isBelowLg ? ' mscreen:hidden' : ''
+        }`}
+      >
         Evolução Indicadores Financeiros
       </h3>
       {loading ? (
@@ -81,9 +102,9 @@ export default function EvolucaoChart() {
           <div className="mt-2">
             <ReactApexChart
               type="line"
-              height={320}
+              height={chartHeight}
               series={chart.series}
-              options={chart.options}
+              options={chartOptions}
             />
           </div>
           <EvolucaoTabela snapshots={snapshots} />
