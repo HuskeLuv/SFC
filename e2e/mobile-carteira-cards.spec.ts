@@ -152,7 +152,8 @@ test.describe('Carteira em cartões (fatia B)', () => {
     try {
       await salvarPeloSheet(toInput(novoNum));
       alterado = true;
-      await expect(page.locator('[data-mf-save-toast]')).toContainText('salvo');
+      // Cada MobileEditSheet (cartões, Caixa para Investir…) tem sua região de aviso; vale a que tem texto.
+      await expect(page.locator('[data-mf-save-toast]').filter({ hasText: 'salvo' })).toBeVisible();
       await expect(row).toContainText(`${toInput(novoNum)}%`);
     } finally {
       if (alterado) {
