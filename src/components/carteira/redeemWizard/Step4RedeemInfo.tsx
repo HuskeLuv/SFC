@@ -35,7 +35,15 @@ export const quickRedeemQuantity = (available: number, fraction: number): number
   if (!(available > 0)) return 0;
   if (fraction >= 1) return available;
   const factor = 10 ** quantityDecimals(available);
-  return Math.floor(available * fraction * factor) / factor;
+  // Erro de ponto flutuante (0.29 × 0.5 × 1e8 = 14499999.999999998): se já é um inteiro a menos de
+  // 1e-9 relativo, arredonda; senão, floor.
+  const scaled = available * fraction * factor;
+  const nearest = Math.round(scaled);
+  const units =
+    Math.abs(scaled - nearest) <= 1e-9 * Math.max(1, Math.abs(scaled))
+      ? nearest
+      : Math.floor(scaled);
+  return units / factor;
 };
 
 const formatQuantity = (value: number) =>

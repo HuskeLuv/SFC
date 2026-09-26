@@ -58,6 +58,9 @@ describe('quickRedeemQuantity', () => {
     expect(quickRedeemQuantity(1200, 0.25)).toBe(300);
     expect(quickRedeemQuantity(1201, 0.5)).toBe(600);
     expect(quickRedeemQuantity(0.12345678, 0.5)).toBe(0.06172839);
+    // Erro de ponto flutuante não pode tirar 1e-8 do atalho
+    expect(quickRedeemQuantity(0.29, 0.5)).toBe(0.145);
+    expect(quickRedeemQuantity(0.29, 0.25)).toBe(0.0725);
     expect(quickRedeemQuantity(1200, 1)).toBe(1200);
     expect(quickRedeemQuantity(0, 0.5)).toBe(0);
   });
