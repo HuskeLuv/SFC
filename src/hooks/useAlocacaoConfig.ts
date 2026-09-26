@@ -69,13 +69,15 @@ export const useAlocacaoConfig = (): UseAlocacaoConfigReturn => {
 
   const updateConfiguracao = useCallback(
     (categoria: string, field: AlocacaoConfigField, valor: number | string) => {
-      const base = localEdits ?? serverConfiguracoes;
-      const novasConfiguracoes = base.map((config) =>
-        config.categoria === categoria ? { ...config, [field]: valor } : config,
+      // Atualização funcional: várias chamadas seguidas (ex.: o painel de metas do celular aplica
+      // mínimo, máximo e alvo de uma vez) se acumulam em vez de a última apagar as anteriores.
+      setLocalEdits((prev) =>
+        (prev ?? serverConfiguracoes).map((config) =>
+          config.categoria === categoria ? { ...config, [field]: valor } : config,
+        ),
       );
-      setLocalEdits(novasConfiguracoes);
     },
-    [localEdits, serverConfiguracoes],
+    [serverConfiguracoes],
   );
 
   const saveChanges = useCallback(async () => {
