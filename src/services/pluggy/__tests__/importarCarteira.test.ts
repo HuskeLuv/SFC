@@ -33,6 +33,7 @@ vi.mock('@/lib/logger', () => ({ logger: { info: vi.fn(), warn: vi.fn(), error: 
 
 import {
   chaveEmprestimo,
+  emprestimoRotativo,
   chaveInvestimento,
   importarEmprestimo,
   importarInvestimento,
@@ -480,6 +481,28 @@ describe('importarEmprestimo', () => {
     expect(mockPrisma.bankLoan.update).toHaveBeenCalledWith({
       where: { id: 'bl-1' },
       data: expect.objectContaining({ importStatus: 'importado', dividaId: 'div-1' }),
+    });
+  });
+
+  it('cheque especial e adiantamento a depositante não viram dívida', async () => {
+    expect(emprestimoRotativo('CHEQUE_ESPECIAL')).toBe(true);
+    expect(emprestimoRotativo('ADIANTAMENTO_A_DEPOSITANTES')).toBe(true);
+    expect(emprestimoRotativo('CREDITO_PESSOAL_COM_CONSIGNACAO')).toBe(false);
+    const st = await importarEmprestimo(
+      {
+        ...loan,
+        productName: 'CEP PLUS DIAS SEM JUROS',
+        type: 'CHEQUE_ESPECIAL',
+        contractAmount: 4070,
+        outstanding: 0,
+      },
+      'Itaú',
+    );
+    expect(st).toBe('ignorado');
+    expect(mockPrisma.divida.create).not.toHaveBeenCalled();
+    expect(mockPrisma.bankLoan.update).toHaveBeenCalledWith({
+      where: { id: 'bl-1' },
+      data: expect.objectContaining({ importStatus: 'ignorado' }),
     });
   });
 

@@ -18,6 +18,8 @@
  *  - renda fixa que o banco parou de atualizar (data da posição com mais de
  *    POSICAO_DESATUALIZADA_DIAS) fica 'sem-suporte': o Itaú segue mandando como
  *    ativo CDB já resgatado, com o saldo do último dia (bug 26/09/2026);
+ *  - cheque especial e adiantamento a depositante são limite rotativo, não
+ *    dívida parcelada: ficam 'ignorado';
  *  - COE, Tesouro e o que não der para mapear ficam 'sem-suporte' para o
  *    usuário cadastrar pelo wizard;
  *  - posição sintética (renda fixa, fundo/previdência sem catálogo) e dívida
@@ -200,6 +202,12 @@ export function indexadorDivida(indexer: string | null): 'PREFIXADO' | 'TR' | 'I
   if (t.includes('IPCA')) return 'IPCA';
   if (t.includes('CDI')) return 'CDI';
   return 'PREFIXADO';
+}
+
+/** Cheque especial / adiantamento a depositante: limite rotativo, não vira Dívida. */
+export function emprestimoRotativo(tipoProvedor: string | null): boolean {
+  const t = (tipoProvedor ?? '').toUpperCase();
+  return t.includes('CHEQUE') || t.includes('ADIANTAMENTO');
 }
 
 /**
@@ -617,6 +625,13 @@ export async function importarEmprestimo(
   connectorId?: number | null,
 ): Promise<string> {
   if (loan.importStatus !== 'pendente') return loan.importStatus;
+  if (emprestimoRotativo(loan.type)) {
+    await marcar('bankLoan', loan.id, {
+      importStatus: 'ignorado',
+      importError: 'limite rotativo (cheque especial/adiantamento), não é dívida parcelada',
+    });
+    return 'ignorado';
+  }
   const principal = Number(loan.contractAmount ?? loan.outstanding ?? 0);
   if (!(principal > 0)) {
     await marcar('bankLoan', loan.id, {
