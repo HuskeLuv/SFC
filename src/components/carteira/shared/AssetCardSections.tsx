@@ -6,6 +6,7 @@ import { ResponsiveCardList, type ResponsiveColumn } from '@/components/ui/table
 import { CardSectionBand } from '@/components/ui/table/CardSectionBand';
 import { TABLE_MOBILE_STYLES } from '@/components/ui/table/tableStyles';
 import AssetNameLink from '@/components/carteira/AssetNameLink';
+import { useCarteiraLaunch } from '@/components/carteira/CarteiraLaunchContext';
 import PlanejadoNameCell from './PlanejadoNameCell';
 import EmptyState from './EmptyState';
 import { quantoFaltaMobile } from './quantoFaltaClass';
@@ -329,6 +330,7 @@ export default function AssetCardSections<TAtivo, TSecao>({
 }: AssetCardSectionsProps<TAtivo, TSecao>) {
   const baseId = useId();
   const [sort, setSort] = useState<AssetSortKey>('padrao');
+  const launch = useCarteiraLaunch();
   const { formatCurrency, formatPercentage, formatNumber } = formatters;
 
   const byKey = useMemo(() => new Map(columns.map((c) => [c.key, c])), [columns]);
@@ -578,8 +580,23 @@ export default function AssetCardSections<TAtivo, TSecao>({
       >
         <EmptyState
           title="Nenhum ativo nesta aba"
-          description="Use o botão ＋ Lançar para cadastrar um ativo desta classe."
+          description={
+            launch
+              ? 'Cadastre um ativo desta classe para acompanhar aqui.'
+              : 'Use o botão ＋ Lançar para cadastrar um ativo desta classe.'
+          }
         />
+        {launch && (
+          <div className="px-4 pb-6">
+            <button
+              type="button"
+              onClick={launch.openAdd}
+              className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-mf-patrimonio px-4 text-base font-semibold text-white"
+            >
+              Adicionar investimento
+            </button>
+          </div>
+        )}
       </div>
     );
   }

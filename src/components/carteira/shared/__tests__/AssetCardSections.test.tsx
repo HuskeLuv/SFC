@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import { describe, it, expect, vi } from 'vitest';
 import { fireEvent, render, screen, within } from '@testing-library/react';
 import AssetCardSections, { sortAtivos } from '../AssetCardSections';
+import { CarteiraLaunchProvider } from '@/components/carteira/CarteiraLaunchContext';
 import type { ColumnDef, Formatters } from '../GenericAssetTable';
 import { resolveAssetMobileRole, orderDetailColumns } from '../mobileColumnRoles';
 
@@ -283,5 +284,29 @@ describe('AssetCardSections', () => {
     );
     expect(screen.getByText('Nenhum ativo nesta aba')).toBeInTheDocument();
     expect(document.querySelector('[data-mf-card]')).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Adicionar investimento' })).toBeNull();
+  });
+
+  it('estado vazio dentro da /carteira abre o cadastro pelo CarteiraLaunch', () => {
+    const openAdd = vi.fn();
+    render(
+      <CarteiraLaunchProvider value={{ openAdd, openRedeem: vi.fn() }}>
+        <AssetCardSections<Ativo, Secao>
+          sections={[{ key: 'value', nome: 'Value', ativos: [], totalValorAtualizado: 0 }]}
+          columns={COLUMNS}
+          formatters={fmt}
+          getSectionKey={(s) => s.key}
+          getSectionName={(s) => s.nome}
+          getSectionAtivos={(s) => s.ativos}
+          expandedSections={new Set(['value'])}
+          onToggleSection={vi.fn()}
+          totalGeral={{}}
+          onRemovePlanejado={vi.fn()}
+          ariaLabel="Ações"
+        />
+      </CarteiraLaunchProvider>,
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Adicionar investimento' }));
+    expect(openAdd).toHaveBeenCalledTimes(1);
   });
 });
