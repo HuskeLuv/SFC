@@ -43,6 +43,22 @@ test('abre no mês de ?mes= e "Mês anterior" volta um mês gravando ?mes=', asy
   await expect(page).toHaveURL(/[?&]mes=6(&|$)/);
 });
 
+test('Jan → "Mês anterior" cruza o ano e a URL (?mes=12&ano=) sobrevive ao reload', async ({
+  page,
+}) => {
+  const anoAnterior = new Date().getFullYear() - 1;
+  await abrir(page, 1);
+  await page.getByRole('button', { name: 'Mês anterior', exact: true }).click();
+  const label = page.locator('[data-mf-month-label]');
+  await expect(label).toContainText(`Dezembro de ${anoAnterior}`);
+  await expect(page).toHaveURL(new RegExp(`[?&]ano=${anoAnterior}(&|$)`));
+  await expect(page).toHaveURL(/[?&]mes=12(&|$)/);
+  // O reload lê a URL final (antes o router do Next regravava o ?mes= antigo).
+  await page.reload({ waitUntil: 'domcontentloaded' });
+  await waitFluxoMobileReady(page, { timeout: 120_000 });
+  await expect(label).toContainText(`Dezembro de ${anoAnterior}`);
+});
+
 test('a linha Supermercado aparece (expandindo as linhas sem valor se preciso)', async ({
   page,
 }) => {

@@ -1,7 +1,7 @@
 /**
  * Mês da visão do Fluxo de caixa na URL (`?mes=1..12`), compartilhado entre Planilha e Orçamento
  * no celular (PWA fase 2). Escrita via history.replaceState — sem navegação do Next, mesmo padrão
- * do `?modo=` da página.
+ * do `?modo=` da página e do `?ano=` do CashflowYearContext.
  */
 
 const PARAM = 'mes';
@@ -25,5 +25,8 @@ export function writeMesParam(month: number | null): void {
     url.searchParams.set(PARAM, String(month + 1));
   }
   if (url.toString() === window.location.href) return;
-  window.history.replaceState(window.history.state, '', url.toString());
+  // Estado `null` (como o `?ano=` e o `?modo=`): o Next copia o estado interno e sincroniza a URL
+  // canônica do router. Passar o `history.state` atual (com __NA) pulava essa sincronização, e um
+  // ACTION_RESTORE em andamento (ex.: o `?ano=` da virada Jan→Dez) regravava o `?mes=` antigo.
+  window.history.replaceState(null, '', url.toString());
 }
