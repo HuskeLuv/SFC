@@ -3,6 +3,10 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/* PWA fase 3 — mscreen: é o max-lg só na TELA; nunca vale na impressão (a folha A4 do desktop tem
+   ~794px e casaria com max-lg:). Obrigatório em /relatorios e /saude-financeira. */
+@custom-variant mscreen (@media screen and (width < 64rem));
+
 @theme {
   --font-*: initial;
   --font-outfit: Outfit, sans-serif;
