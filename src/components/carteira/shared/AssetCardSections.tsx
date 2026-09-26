@@ -110,6 +110,10 @@ export const ASSET_SORT_OPTIONS: ReadonlyArray<{ value: AssetSortKey; label: str
   { value: 'nome', label: 'Nome' },
 ];
 
+/** Singular da unidade do cartão ("1 ação", "1 cota"); só tirar o "s" daria "1 açõe". */
+const singularUnit = (unit: string) =>
+  (({ ações: 'ação', cotas: 'cota' }) as Record<string, string>)[unit] ?? unit.replace(/s$/, '');
+
 const num = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? v : 0);
 
 /** Ordena uma CÓPIA (a ordem da carteira fica intacta para o desktop e para os totais). */
@@ -367,8 +371,7 @@ export default function AssetCardSections<TAtivo, TSecao>({
     const parts: string[] = [];
     if (nome && simplifyAssetName(nome) !== title && nome !== title) parts.push(nome);
     if (!isPlanejado(a) && typeof r.quantidade === 'number') {
-      const unit =
-        quantityUnit && r.quantidade === 1 ? quantityUnit.replace(/s$/, '') : quantityUnit;
+      const unit = quantityUnit && r.quantidade === 1 ? singularUnit(quantityUnit) : quantityUnit;
       parts.push(`${formatNumber(r.quantidade)}${unit ? ` ${unit}` : ''}`);
     }
     return parts.join(' · ') || null;
