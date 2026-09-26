@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { COMUNIDADE_LIMITES } from '@/constants/comunidade';
 import {
   useComentar,
@@ -8,6 +8,8 @@ import {
   useModerar,
   usePostComunidade,
 } from '@/hooks/useComunidade';
+import { useIsBelowLg } from '@/hooks/useMediaQuery';
+import { useKeyboardInset } from '@/hooks/useKeyboardInset';
 import type { ComentarioComunidade } from '@/types/comunidade';
 import {
   BOTAO_PRIMARIO,
@@ -76,7 +78,7 @@ function ItemComentario({
 
   return (
     <li
-      className={`rounded-xl bg-gray-50 p-3 dark:bg-white/[0.03] ${c.oculto ? 'opacity-60' : ''}`}
+      className={`rounded-xl bg-gray-50 p-3 dark:bg-white/[0.03] max-lg:rounded-2xl max-lg:rounded-tl-md ${c.oculto ? 'opacity-60' : ''}`}
     >
       <div className="flex items-start justify-between gap-2">
         <CabecalhoAutor
@@ -126,7 +128,7 @@ function ItemComentario({
       ) : (
         <TextoComLinks
           texto={c.conteudo}
-          className="mt-2 pl-11 text-sm text-gray-700 dark:text-gray-300"
+          className="mt-2 pl-11 text-sm text-gray-700 dark:text-gray-300 max-lg:pl-0"
         />
       )}
     </li>
@@ -137,6 +139,33 @@ export function Comentarios({ postId, moderador, suspenso, onDenunciar, onConfir
   const { data, isLoading, error } = usePostComunidade(postId);
   const comentar = useComentar();
   const [texto, setTexto] = useState('');
+  // PWA fase 3 (C2): no celular o campo fica numa barra fixa acima da barra de abas; com foco, a
+  // barra de abas some (data-mf-overlay) e o campo sobe com o teclado (useKeyboardInset).
+  const isBelowLg = useIsBelowLg();
+  const [focado, setFocado] = useState(false);
+  const teclado = useKeyboardInset(isBelowLg && focado);
+  const barraRef = useRef<HTMLFormElement>(null);
+  const campoRef = useRef<HTMLTextAreaElement>(null);
+  const [alturaBarra, setAlturaBarra] = useState(0);
+
+  useEffect(() => {
+    const barra = barraRef.current;
+    if (!isBelowLg || !barra || typeof ResizeObserver === 'undefined') {
+      setAlturaBarra(barra?.offsetHeight ?? 0);
+      return;
+    }
+    const obs = new ResizeObserver(() => setAlturaBarra(barra.offsetHeight));
+    obs.observe(barra);
+    return () => obs.disconnect();
+  }, [isBelowLg, suspenso]);
+
+  // Campo de 44 a 120px, crescendo com o texto.
+  useEffect(() => {
+    const campo = campoRef.current;
+    if (!isBelowLg || !campo) return;
+    campo.style.height = 'auto';
+    campo.style.height = `${Math.min(Math.max(campo.scrollHeight, 44), 120)}px`;
+  }, [texto, isBelowLg]);
 
   const enviar = (e: React.FormEvent) => {
     e.preventDefault();
@@ -144,8 +173,13 @@ export function Comentarios({ postId, moderador, suspenso, onDenunciar, onConfir
     comentar.mutate({ postId, conteudo: texto }, { onSuccess: () => setTexto('') });
   };
 
+  const barraMobile = isBelowLg && !suspenso;
+
   return (
-    <div className="mt-4 border-t border-gray-100 pt-4 dark:border-gray-800">
+    <div
+      className="mt-4 border-t border-gray-100 pt-4 dark:border-gray-800"
+      style={barraMobile ? { paddingBottom: alturaBarra } : undefined}
+    >
       {isLoading && <p className="text-sm text-gray-500">Carregando comentários…</p>}
       {error && <p className="text-sm text-error-600">{error.message}</p>}
       {data && data.comentarios.length > 0 && (
@@ -165,7 +199,53 @@ export function Comentarios({ postId, moderador, suspenso, onDenunciar, onConfir
       {data && data.comentarios.length === 0 && (
         <p className="text-sm text-gray-500 dark:text-gray-400">Seja o primeiro a comentar.</p>
       )}
-      {!suspenso && (
+      {barraMobile && (
+        <form
+          ref={barraRef}
+          onSubmit={enviar}
+          data-mf-comment-bar=""
+          // Sem foco, pb-6 deixa o botão ＋ Lançar (que sobressai da barra de abas) fora do campo.
+          className={`fixed inset-x-0 z-30 border-t border-gray-200 bg-white px-4 pt-2 dark:border-gray-800 dark:bg-gray-900 ${
+            focado ? 'pb-[calc(0.5rem+env(safe-area-inset-bottom))]' : 'pb-6'
+          }`}
+          style={{
+            bottom: teclado.inset > 0 ? teclado.inset : 'var(--mf-bottom-nav-h, 0px)',
+          }}
+        >
+          {/* O botão flutuante do assistente cobriria o Enviar; some enquanto a barra existe. */}
+          <style>{`@media (width < 64rem) { :root:has([data-mf-comment-bar]) [data-mf-fab] { display: none; } }`}</style>
+          {focado && <span data-mf-overlay="" hidden />}
+          {comentar.error && (
+            <p role="alert" className="mb-1 text-xs text-[#D92D20] dark:text-[#F97066]">
+              {comentar.error.message}
+            </p>
+          )}
+          <div className="flex items-end gap-2">
+            <textarea
+              ref={campoRef}
+              value={texto}
+              onChange={(e) => setTexto(e.target.value)}
+              onFocus={() => setFocado(true)}
+              onBlur={() => setFocado(false)}
+              maxLength={COMUNIDADE_LIMITES.comentarioMaxChars}
+              rows={1}
+              placeholder="Escreva um comentário…"
+              aria-label="Escreva um comentário"
+              className={`${INPUT_CLASS} max-h-[120px] min-h-11 resize-none rounded-2xl`}
+            />
+            <button
+              type="submit"
+              // Não tira o foco do campo (o teclado não fecha antes do envio).
+              onMouseDown={(e) => e.preventDefault()}
+              className="min-h-11 shrink-0 rounded-xl bg-mf-seguranca px-4 text-sm font-semibold text-white disabled:opacity-50 dark:bg-mf-patrimonio"
+              disabled={comentar.isPending || !texto.trim()}
+            >
+              Enviar
+            </button>
+          </div>
+        </form>
+      )}
+      {!suspenso && !isBelowLg && (
         <form onSubmit={enviar} className="mt-3 flex items-end gap-2">
           <textarea
             value={texto}
@@ -185,7 +265,7 @@ export function Comentarios({ postId, moderador, suspenso, onDenunciar, onConfir
           </button>
         </form>
       )}
-      {comentar.error && (
+      {comentar.error && !barraMobile && (
         <p className="mt-2 text-xs text-error-600 dark:text-error-400">{comentar.error.message}</p>
       )}
     </div>
