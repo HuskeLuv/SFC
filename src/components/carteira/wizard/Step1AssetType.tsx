@@ -157,11 +157,12 @@ export default function Step1AssetType({
   // handlers. Adicionar e Planejar agrupados; Aporte na ordem da API, sem agrupar.
   if (isBelowLg) {
     const operacaoValues = OPERACOES.map((o) => o.value);
-    const allTipoValues = tipoOptions.map((o) => o.value);
     const grupos =
       formData.operacao === 'aporte'
         ? [{ id: 'aporte', label: 'Tipos que você já tem', options: tipoOptions }]
         : groupTiposAtivo(tipoOptions);
+    // Setas seguem a ordem da tela (grupo a grupo), não a de TIPOS_ATIVO.
+    const allTipoValues = grupos.flatMap((g) => g.options.map((o) => o.value));
 
     return (
       <div className="space-y-5" data-mf-radio-scope="">
