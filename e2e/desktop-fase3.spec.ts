@@ -1,7 +1,13 @@
 import { test, expect, type Page } from '@playwright/test';
 import { collectStructure } from './helpers/desktopStructure';
 import { waitForIdle } from './helpers/mobileFit';
-import { pdfPageCount, printDesktopLike, printPhoneLike, printSignature } from './helpers/print';
+import {
+  pdfPageCount,
+  printDesktopLike,
+  printPhoneLike,
+  printSignature,
+  printTreeSwapsFromWideWindow,
+} from './helpers/print';
 import { waitForContent } from './helpers/waitForContent';
 
 /**
@@ -288,6 +294,21 @@ test.describe('Fase 3: impressão do desktop inalterada (A4)', () => {
       expect
         .soft(String(pages), `${slug}: páginas do PDF`)
         .toMatchSnapshot(`${slug}.pdf-pages.${ENV}.txt`);
+    });
+
+    // Sem stub: o Chromium faz a query de "abaixo de lg" casar durante o page.pdf numa janela de
+    // 1280. A árvore de desktop não pode trocar (gráficos remontados saem vazios no PDF).
+    test(`${scenario.route}: page.pdf de uma janela de 1280 não troca a árvore`, async ({
+      page,
+    }) => {
+      test.setTimeout(240_000);
+      await page.setViewportSize({ width: 1280, height: 800 });
+      await waitForContent(page, scenario.route, { readySelector: scenario.ready, settleMs: 500 });
+      await page.waitForLoadState('networkidle', { timeout: 45_000 }).catch(() => {});
+      await page.waitForTimeout(1_500);
+      const swap = await printTreeSwapsFromWideWindow(page);
+      expect(swap.mobileNodesAdded, `${slug}: nós de celular montados na impressão`).toBe(0);
+      expect(swap.chartsRemoved, `${slug}: gráficos desmontados na impressão`).toBe(0);
     });
 
     // Liga na fatia B: imprimir do celular dá a mesma assinatura do desktop (gráficos à parte) e

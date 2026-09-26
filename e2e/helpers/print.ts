@@ -5,10 +5,13 @@ import { waitForContent } from './waitForContent';
  * Guarda REAL da impressão (PWA fase 3) para /relatorios e /saude-financeira.
  *
  * Ao imprimir no computador, a folha A4 tem ~794px: `max-lg:` (width < 64rem) CASA na impressão e
- * mudaria o PDF do desktop. Por isso essas páginas usam só `mscreen:` (tela e < 64rem). A janela
- * do desktop continua larga ao imprimir, então o JS (useIsBelowLg) segue dizendo "desktop": o
- * `printDesktopLike` reproduz isso forçando o matchMedia de "abaixo de lg" a `false` com a viewport
- * na largura da folha.
+ * mudaria o PDF do desktop. Por isso essas páginas usam só `mscreen:` (tela e < 64rem).
+ *
+ * No JS, o Chromium também faz `(max-width: 1023.98px)` casar entre `beforeprint` e `afterprint`
+ * (a janela continua com 1280px). O useIsBelowLg congela o valor de tela durante a impressão para
+ * a árvore de desktop não trocar; `printTreeSwapsFromWideWindow` guarda isso SEM stub, com o
+ * `page.pdf` real. `printDesktopLike` (assinatura do layout) força o matchMedia de "abaixo de lg" a
+ * `false` porque redimensiona a viewport para a folha antes de emular a impressão.
  */
 
 /** Largura e altura de uma folha A4 em px CSS (96 dpi). */
@@ -120,4 +123,70 @@ export function visibleMobileOnly(page: Page): Promise<number> {
         return r.width > 0 && r.height > 0 && cs.display !== 'none' && cs.visibility !== 'hidden';
       }).length,
   );
+}
+
+export interface PrintTreeSwap {
+  /** A query de "abaixo de lg" passou a casar durante o page.pdf (sanidade da sonda). */
+  queryMatchedWhilePrinting: boolean;
+  /** Nós `[data-mf-mobile]` / `[data-mf-collapsible]` montados durante a impressão. */
+  mobileNodesAdded: number;
+  /** Gráficos Apex (`.apexcharts-canvas`) desmontados durante a impressão. */
+  chartsRemoved: number;
+}
+
+/**
+ * Imprime (`page.pdf`, A4) a partir da janela atual SEM mexer no matchMedia e conta o que o React
+ * trocou no DOM durante a impressão. Numa janela de desktop tem de dar 0 e 0: se a árvore de
+ * celular montar no meio da impressão, os gráficos remontam e saem vazios no PDF.
+ */
+export async function printTreeSwapsFromWideWindow(page: Page): Promise<PrintTreeSwap> {
+  await page.evaluate(() => {
+    const w = window as unknown as {
+      __mfPrintProbe?: { matched: boolean; added: number; removed: number; stop: () => void };
+    };
+    const probe = { matched: false, added: 0, removed: 0, stop: () => {} };
+    const mql = window.matchMedia('(max-width: 1023.98px)');
+    const onChange = () => {
+      if (mql.matches) probe.matched = true;
+    };
+    mql.addEventListener('change', onChange);
+    const isMobileNode = (n: Node) =>
+      n instanceof Element &&
+      (n.matches('[data-mf-mobile],[data-mf-collapsible]') ||
+        !!n.querySelector('[data-mf-mobile],[data-mf-collapsible]'));
+    const isChart = (n: Node) =>
+      n instanceof Element &&
+      (n.classList.contains('apexcharts-canvas') || !!n.querySelector('.apexcharts-canvas'));
+    const observer = new MutationObserver((records) => {
+      for (const r of records) {
+        r.addedNodes.forEach((n) => {
+          if (isMobileNode(n)) probe.added += 1;
+        });
+        r.removedNodes.forEach((n) => {
+          if (isChart(n)) probe.removed += 1;
+        });
+      }
+    });
+    observer.observe(document.body, { childList: true, subtree: true });
+    probe.stop = () => {
+      observer.disconnect();
+      mql.removeEventListener('change', onChange);
+    };
+    w.__mfPrintProbe = probe;
+  });
+  await page.pdf({ format: 'A4', printBackground: true });
+  // Deixa o React assentar o que a impressão tenha agendado antes de ler a sonda.
+  await page.waitForTimeout(300);
+  return page.evaluate(() => {
+    const w = window as unknown as {
+      __mfPrintProbe: { matched: boolean; added: number; removed: number; stop: () => void };
+    };
+    const p = w.__mfPrintProbe;
+    p.stop();
+    return {
+      queryMatchedWhilePrinting: p.matched,
+      mobileNodesAdded: p.added,
+      chartsRemoved: p.removed,
+    };
+  });
 }
