@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useSyncExternalStore } from 'react';
 import { createPortal } from 'react-dom';
 
 export interface MobileSaveToastProps {
@@ -36,6 +36,20 @@ const CHECK_ICON = (
  * separado (alvo de 44px), na cor tranquilidade sobre potência (claro) / segurança sobre escolha
  * (escuro) — 4,78:1 e 7,94:1. Sem `action`, o DOM é o mesmo da fase 1.
  */
+const noopSubscribe = () => () => {};
+
+/**
+ * `true` só no cliente depois da hidratação: o portal não existe no HTML do servidor, então o
+ * primeiro render do cliente também devolve `null` (sem erro de hidratação #418).
+ */
+function useIsClient(): boolean {
+  return useSyncExternalStore(
+    noopSubscribe,
+    () => true,
+    () => false,
+  );
+}
+
 export function MobileSaveToast({ message, durationMs, onDismiss, action }: MobileSaveToastProps) {
   const onDismissRef = useRef(onDismiss);
   const actionRef = useRef(action);
@@ -45,6 +59,7 @@ export function MobileSaveToast({ message, durationMs, onDismiss, action }: Mobi
   }, [onDismiss, action]);
   const hasAction = !!action;
   const duration = durationMs ?? (hasAction ? 6000 : 4000);
+  const isClient = useIsClient();
 
   useEffect(() => {
     if (!message) return;
@@ -52,7 +67,7 @@ export function MobileSaveToast({ message, durationMs, onDismiss, action }: Mobi
     return () => window.clearTimeout(timer);
   }, [message, duration]);
 
-  if (typeof document === 'undefined') return null;
+  if (!isClient) return null;
 
   return createPortal(
     <div
