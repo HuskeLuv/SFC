@@ -29,7 +29,10 @@ export interface TableStructure {
 export interface DesktopStructure {
   tabs: TabStructure[];
   tables: TableStructure[];
-  /** Cartões, botões de edição mobile, faixas de seção e rodapé de wizard VISÍVEIS (tem que ser 0). */
+  /**
+   * Cartões, botões de edição mobile, faixas de seção, rodapé de wizard, visão do mês e grade do
+   * ano do Fluxo VISÍVEIS (tem que ser 0).
+   */
   mobileArtifactsVisible: number;
 }
 
@@ -37,7 +40,8 @@ export const DATA_COLOR_CLASS = /^(dark:)?(text|bg)-(red|green|amber|emerald|\[#
 export const MOBILE_ONLY_CLASS = /(^|:)max-(lg|md|sm|xl|\[)/;
 
 export const MOBILE_ARTIFACTS_SELECTOR =
-  '[data-mf-card], [data-mf-edit], [data-mf-section], [data-mf-wizard-footer]';
+  '[data-mf-card], [data-mf-edit], [data-mf-section], [data-mf-wizard-footer], ' +
+  '[data-mf-fluxo-mobile], [data-mf-year-grid]';
 
 /** Mesma normalização do navegador, exportada para teste/depuração em Node. */
 export function normalizeClassName(className: string): string {

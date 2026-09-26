@@ -157,7 +157,14 @@ test('Lançar → Novo investimento abre o wizard na Carteira e limpa ?acao', as
   await page.getByRole('button', { name: 'Lançar' }).click();
   const sheet = page.getByRole('dialog', { name: 'O que você quer lançar?' });
   await expect(sheet).toBeVisible();
-  await expect(sheet.locator('[aria-disabled="true"]')).toContainText('Em breve');
+  // "Despesa ou receita" existe no sheet (botão ou item desabilitado); o selo "Em breve" saiu da
+  // exigência — o lançamento rápido (fase 2) é coberto no próprio spec.
+  await expect(
+    sheet
+      .locator('button, a, [aria-disabled="true"]')
+      .filter({ hasText: 'Despesa ou receita' })
+      .first(),
+  ).toBeVisible();
   await sheet.getByRole('link', { name: /Novo investimento/ }).click();
 
   await page.waitForURL('**/carteira', { timeout: 30000 });
@@ -226,18 +233,14 @@ test('o sino abre para baixo, dentro da tela', async ({ page }) => {
   expect(box.right).toBeLessThanOrEqual(390);
 });
 
-test('/fluxodecaixa: sem rolagem do documento e com o ano no cabeçalho', async ({ page }) => {
+// Fase 2: a visão do mês rola o documento de propósito — a garantia de "cabe sem corte" fica no
+// mobile-overflow.spec. Aqui só o ano no cabeçalho.
+test('/fluxodecaixa: com o ano no cabeçalho', async ({ page }) => {
   await page.goto('/fluxodecaixa');
   await waitForShell(page);
   await expect(
     header(page).getByRole('combobox', { name: 'Ano da planilha de fluxo de caixa' }),
   ).toBeVisible();
-  await page.waitForTimeout(1500);
-  const { scrollHeight, innerHeight } = await page.evaluate(() => ({
-    scrollHeight: document.documentElement.scrollHeight,
-    innerHeight: window.innerHeight,
-  }));
-  expect(scrollHeight).toBeLessThanOrEqual(innerHeight + 1);
 });
 
 test('campo com foco esconde a barra (teclado)', async ({ page }) => {

@@ -40,6 +40,8 @@ interface TableCellProps {
   id?: string; // Optional id attribute
   scope?: 'col' | 'row' | 'colgroup' | 'rowgroup'; // Header scope (th only)
   title?: string; // Native tooltip
+  // data-* attributes (ex.: marcação de coluna da planilha do fluxo para o CSS mobile)
+  [dataAttribute: `data-${string}`]: string | number | undefined;
 }
 
 // Table Component
@@ -84,10 +86,14 @@ TableRow.displayName = 'TableRow';
 
 // TableCell Component
 const TableCell = forwardRef<HTMLTableCellElement, TableCellProps>(
-  ({ children, isHeader = false, className, colSpan, rowSpan, style, id, scope, title }, ref) => {
+  (
+    { children, isHeader = false, className, colSpan, rowSpan, style, id, scope, title, ...data },
+    ref,
+  ) => {
     const CellTag = isHeader ? 'th' : 'td';
     return (
       <CellTag
+        {...data}
         ref={ref}
         id={id}
         className={` ${className}`}

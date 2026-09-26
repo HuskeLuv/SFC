@@ -57,17 +57,21 @@ function ActionIcon({ id }: { id: QuickLaunchId }) {
 }
 
 /**
- * "+ Lançar" (fase 0): Novo investimento e Resgatar abrem os wizards da Carteira
- * (/carteira?acao=...); Despesa ou receita aparece desabilitado até a fase 2.
+ * "+ Lançar": Novo investimento e Resgatar abrem os wizards da Carteira (/carteira?acao=...);
+ * Despesa ou receita (PWA fase 2) fecha este sheet e abre o lançamento rápido do Fluxo, em
+ * qualquer tela (`onOpenCashflowLaunch`).
  */
 export default function LaunchSheet({
   isOpen,
   onClose,
   actions,
+  onOpenCashflowLaunch,
 }: {
   isOpen: boolean;
   onClose: () => void;
   actions: QuickLaunchAction[];
+  /** "Despesa ou receita": chamado depois de fechar este sheet. */
+  onOpenCashflowLaunch?: () => void;
 }) {
   const pathname = usePathname();
 
@@ -88,21 +92,45 @@ export default function LaunchSheet({
             </span>
           );
 
-          if (!action.href) {
+          const rowClass =
+            'flex min-h-14 w-full items-center gap-3 rounded-xl border border-gray-100 bg-gray-50 px-3 py-2.5 text-left active:bg-gray-100 dark:border-gray-800 dark:bg-white/[0.03] dark:active:bg-white/5';
+          const chevron = (
+            <svg
+              width="20"
+              height="20"
+              viewBox="0 0 24 24"
+              fill="none"
+              aria-hidden="true"
+              className="shrink-0 text-gray-400"
+            >
+              <path
+                d="M9 6l6 6-6 6"
+                stroke="currentColor"
+                strokeWidth="1.8"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+          );
+
+          if (action.kind === 'sheet') {
             return (
               <li key={action.id}>
-                <div
-                  aria-disabled="true"
-                  className="flex min-h-14 cursor-not-allowed items-center gap-3 rounded-xl border border-dashed border-gray-300 px-3 py-2.5 opacity-60 dark:border-gray-700"
+                <button
+                  type="button"
+                  aria-haspopup="dialog"
+                  onClick={() => {
+                    onClose();
+                    onOpenCashflowLaunch?.();
+                  }}
+                  className={rowClass}
                 >
                   <span className={iconBox}>
                     <ActionIcon id={action.id} />
                   </span>
                   {text}
-                  <span className="shrink-0 rounded-full bg-mf-escolha px-2 text-xs font-semibold text-mf-potencia dark:bg-gray-800 dark:text-gray-300">
-                    Em breve
-                  </span>
-                </div>
+                  {chevron}
+                </button>
               </li>
             );
           }
@@ -123,38 +151,18 @@ export default function LaunchSheet({
                     requestQuickLaunch(action.id);
                   }
                 }}
-                className="flex min-h-14 items-center gap-3 rounded-xl border border-gray-100 bg-gray-50 px-3 py-2.5 active:bg-gray-100 dark:border-gray-800 dark:bg-white/[0.03] dark:active:bg-white/5"
+                className={rowClass}
               >
                 <span className={iconBox}>
                   <ActionIcon id={action.id} />
                 </span>
                 {text}
-                <svg
-                  width="20"
-                  height="20"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  aria-hidden="true"
-                  className="shrink-0 text-gray-400"
-                >
-                  <path
-                    d="M9 6l6 6-6 6"
-                    stroke="currentColor"
-                    strokeWidth="1.8"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
-                </svg>
+                {chevron}
               </Link>
             </li>
           );
         })}
       </ul>
-      {actions.some((action) => !action.href) ? (
-        <p className="mx-1 mt-3 mb-1 text-[13px] text-gray-500 dark:text-gray-400">
-          Por enquanto, despesas e receitas continuam na aba Fluxo.
-        </p>
-      ) : null}
     </BottomSheet>
   );
 }

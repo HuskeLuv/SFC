@@ -911,6 +911,121 @@ html {
   }
 }
 
+/*
+  PWA fase 2 — "Ano inteiro" do Fluxo no celular (CashflowYearGridSheet + DataTableTwo em
+  presentation='mobile-year'). A planilha de desktop é reaproveitada só leitura; aqui ela fica com
+  a coluna de itens de 128px fixa, meses de 84px e o Total do ano como última coluna NÃO fixa.
+  Tudo prefixado por [data-mf-year-grid] (só existe no celular) e dentro de width < 64rem.
+*/
+@media (width < 64rem) {
+  [data-mf-year-grid] .cashflow-table {
+    overscroll-behavior-x: contain;
+  }
+
+  [data-mf-year-grid] :is([data-cf-fixed='1'], [data-cf-fixed='2'], [data-cf-fixed='3']) {
+    display: none;
+  }
+
+  [data-mf-year-grid] [data-cf-fixed='0'] {
+    width: 8rem !important;
+    min-width: 8rem !important;
+    max-width: 8rem !important;
+    border-right: 1px solid var(--color-gray-200);
+  }
+
+  .dark [data-mf-year-grid] [data-cf-fixed='0'] {
+    border-right-color: var(--color-gray-800);
+  }
+
+  [data-mf-year-grid] [data-cf-month] {
+    width: 5.25rem !important;
+    min-width: 5.25rem !important;
+    max-width: 5.25rem !important;
+  }
+
+  /* Linhas de 40px (não são alvos de toque); a linha de respiro (aria-hidden) fica como está. */
+  [data-mf-year-grid] tbody tr:not([aria-hidden]) > td {
+    height: 40px;
+  }
+
+  /* Total do ano: última coluna, rola junto com os meses. */
+  [data-mf-year-grid] [data-cf-annual] {
+    position: static !important;
+  }
+
+  [data-mf-year-grid] thead th {
+    height: 44px;
+  }
+
+  /* Cada mês do cabeçalho é um botão de 84×44 que abre aquele mês na visão do mês. */
+  [data-mf-year-grid] thead th[data-cf-month] {
+    padding: 0;
+  }
+
+  [data-mf-year-grid] thead th[data-cf-month] > button {
+    display: block;
+    width: 100%;
+    height: 44px;
+    padding: 0 8px;
+    border: 0;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    letter-spacing: inherit;
+    text-transform: inherit;
+    text-align: center;
+    cursor: pointer;
+  }
+
+  [data-mf-year-grid] thead th[data-cf-month] > button:active {
+    background: rgb(255 255 255 / 0.08);
+  }
+
+  [data-mf-year-grid] thead th[data-cf-month] > button:focus-visible {
+    outline: 2px solid #fff;
+    outline-offset: -3px;
+  }
+
+  /* Mês atual: o cabeçalho continua #314666 (texto branco nunca sobre #0079F2) com uma barra
+     inferior #0079F2 (não textual) e peso 700; a coluna ganha um tint leve. */
+  [data-mf-year-grid] thead th[data-cf-current] {
+    background-color: #314666 !important;
+    box-shadow: inset 0 -4px 0 #0079f2;
+    font-weight: 700;
+  }
+
+  [data-mf-year-grid] td[data-cf-current] {
+    background-color: rgb(0 121 242 / 0.08);
+  }
+
+  .dark [data-mf-year-grid] td[data-cf-current] {
+    background-color: rgb(0 121 242 / 0.16);
+  }
+
+  /* Situação da célula = PONTO na cor escolhida (decisão 2); o valor fica na cor neutra.
+     text-fill-color pinta o texto e mantém `color` (a cor do usuário) para o ponto. */
+  [data-mf-year-grid] [data-cf-month] span[style*='color'] {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    -webkit-text-fill-color: var(--color-gray-700);
+  }
+
+  .dark [data-mf-year-grid] [data-cf-month] span[style*='color'] {
+    -webkit-text-fill-color: var(--color-gray-200);
+  }
+
+  [data-mf-year-grid] [data-cf-month] span[style*='color']::before {
+    content: '';
+    width: 7px;
+    height: 7px;
+    flex: none;
+    border-radius: 50%;
+    background: currentColor;
+    box-shadow: 0 0 0 1px rgb(0 0 0 / 0.18);
+  }
+}
+
 /* Teclado virtual aberto: esconde a barra de abas e o FAB. */
 @media (width < 64rem) and (pointer: coarse) {
   :root:has(

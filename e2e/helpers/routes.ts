@@ -108,8 +108,9 @@ export const READY_SELECTOR: Record<string, string> = {
   // Se não houver evento (ou o mount abrir a visão de mês), a espera estoura e o teste falha.
   // Lista vazia também é conteúdo (o usuário do seed no CI não tem eventos).
   '/calendario': '.fc-list-event, .fc-list-empty',
-  // A planilha não tem título <h1>/<h2>: espera a primeira linha da tabela.
-  '/fluxodecaixa': 'table tbody tr',
+  // A planilha não tem título <h1>/<h2>: espera a primeira linha da tabela (desktop) ou a visão
+  // do mês montada (celular, PWA fase 2).
+  '/fluxodecaixa': 'table tbody tr, [data-mf-fluxo-ready]',
   '/signin': 'form',
   '/signup': 'form',
   '/reset-password': 'form',

@@ -6,6 +6,7 @@ import { lockBodyScroll } from '@/lib/ui/scrollLock';
 import { MOBILE_MEDIA_QUERY } from '@/lib/ui/mobile';
 import { useIsBelowLg } from '@/hooks/useMediaQuery';
 import { useKeyboardInset } from '@/hooks/useKeyboardInset';
+import { shouldHandleLayerEvent, useTopLayer } from './layerStack';
 
 export interface BottomSheetProps {
   isOpen: boolean;
@@ -35,6 +36,9 @@ const FOCUSABLE =
  * Teclado (PWA fase 1): o Safari do iOS não encolhe a janela com o teclado, e o painel fixo em
  * `bottom-0` ficaria embaixo dele. Com o teclado aberto o painel sobe `inset` px e a altura máxima
  * passa a ser a da área visível (`useKeyboardInset`, via visualViewport).
+ *
+ * Pilha de camadas (PWA fase 2, `layerStack`): com sheets empilhados, Esc e Tab só agem no do topo;
+ * a trava de rolagem continua contando referências.
  */
 export default function BottomSheet({
   isOpen,
@@ -57,6 +61,8 @@ export default function BottomSheet({
     triggerRef.current = document.activeElement as HTMLElement | null;
   }
   wasOpenRef.current = isOpen;
+  // Sheets empilhados (fase 2): só o do topo responde ao Esc e prende o Tab.
+  const { layerId } = useTopLayer(isOpen);
   const isBelowLg = useIsBelowLg();
   const keyboard = useKeyboardInset(isOpen && isBelowLg);
   const keyboardStyle: React.CSSProperties | undefined =
@@ -76,12 +82,14 @@ export default function BottomSheet({
     if (panel && !panel.contains(document.activeElement)) panel.focus();
 
     const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape' && event.key !== 'Tab') return;
+      if (!shouldHandleLayerEvent(layerId, event)) return;
       if (event.key === 'Escape') {
         event.stopPropagation();
         onCloseRef.current();
         return;
       }
-      if (event.key !== 'Tab' || !panelRef.current) return;
+      if (!panelRef.current) return;
       const focusable = Array.from(
         panelRef.current.querySelectorAll<HTMLElement>(FOCUSABLE),
       ).filter((el) => el.getAttribute('aria-disabled') !== 'true');
@@ -118,7 +126,7 @@ export default function BottomSheet({
         trigger.focus();
       }
     };
-  }, [isOpen]);
+  }, [isOpen, layerId]);
 
   if (!isOpen || typeof document === 'undefined') return null;
 

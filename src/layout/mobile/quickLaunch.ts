@@ -1,27 +1,30 @@
 /**
  * Atalhos do "+ Lançar" da barra de abas mobile (PWA fase 0).
  *
- * `href` null = ainda não existe (aparece desabilitado com o selo "Em breve"). `requires` é o
- * item do menu (useMainNavItems) que precisa existir para o atalho aparecer — assim a
- * personificação e os perfis filtram o + Lançar do mesmo jeito que filtram a sidebar.
+ * `kind: 'link'` navega para `href`; `kind: 'sheet'` abre um sheet sem sair da tela (PWA fase 2:
+ * "Despesa ou receita" → lançamento rápido do Fluxo). `requires` é o item do menu
+ * (useMainNavItems) que precisa existir para o atalho aparecer — assim a personificação e os
+ * perfis filtram o + Lançar do mesmo jeito que filtram a sidebar.
  */
 export type QuickLaunchId = 'novo-ativo' | 'resgate' | 'fluxo';
 
-export interface QuickLaunchAction {
+interface QuickLaunchBase {
   id: QuickLaunchId;
   label: string;
   description: string;
-  href: string | null;
   requires: 'Carteira' | 'Fluxo de Caixa';
-  /** Fase do PWA em que o atalho passa a funcionar (só para os desabilitados). */
-  phase?: 2;
 }
+
+export type QuickLaunchAction =
+  | (QuickLaunchBase & { kind: 'link'; href: string })
+  | (QuickLaunchBase & { kind: 'sheet' });
 
 export const QUICK_LAUNCH_ACTIONS: QuickLaunchAction[] = [
   {
     id: 'novo-ativo',
     label: 'Novo investimento',
     description: 'Compra de ação, FII, título ou fundo',
+    kind: 'link',
     href: '/carteira?acao=novo',
     requires: 'Carteira',
   },
@@ -29,16 +32,16 @@ export const QUICK_LAUNCH_ACTIONS: QuickLaunchAction[] = [
     id: 'resgate',
     label: 'Resgatar investimento',
     description: 'Venda ou resgate de uma posição',
+    kind: 'link',
     href: '/carteira?acao=resgate',
     requires: 'Carteira',
   },
   {
     id: 'fluxo',
     label: 'Despesa ou receita',
-    description: 'Valor, categoria e data sem sair da tela',
-    href: null,
+    description: 'Valor, linha do fluxo e mês sem sair da tela',
+    kind: 'sheet',
     requires: 'Fluxo de Caixa',
-    phase: 2,
   },
 ];
 

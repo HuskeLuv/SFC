@@ -22,9 +22,15 @@ type Serie = 'orcado' | 'real';
 
 interface OrcamentoChartProps {
   linhas: OrcamentoLinha[];
+  /**
+   * 'mobile' (PWA fase 2): "Para onde foi o dinheiro" — só o Real, 300px de altura, legenda
+   * embaixo. Padrão: o gráfico de desktop, sem mudança.
+   */
+  variant?: 'default' | 'mobile';
 }
 
-export default function OrcamentoChart({ linhas }: OrcamentoChartProps) {
+export default function OrcamentoChart({ linhas, variant = 'default' }: OrcamentoChartProps) {
+  const isMobile = variant === 'mobile';
   const { theme } = useTheme();
   const isDarkMode = theme === 'dark';
   const [serie, setSerie] = useState<Serie>('real');
@@ -109,6 +115,29 @@ export default function OrcamentoChart({ linhas }: OrcamentoChartProps) {
         ? 'bg-white text-brand-600 shadow-theme-xs dark:bg-gray-900 dark:text-brand-400'
         : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'
     }`;
+
+  if (isMobile) {
+    return (
+      <div className="rounded-2xl border border-gray-200 p-4 dark:border-gray-800">
+        <h3 className="mb-1 text-[15px] font-semibold text-gray-800 dark:text-white/90">
+          Para onde foi o dinheiro
+        </h3>
+        {valores.length === 0 ? (
+          <p className="py-8 text-center text-sm text-gray-500 dark:text-gray-400">
+            Sem despesas na janela.
+          </p>
+        ) : (
+          <ApexChartWrapper
+            options={options}
+            series={valores}
+            type="donut"
+            width="100%"
+            height="300"
+          />
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className="rounded-xl border border-gray-200 p-4 dark:border-gray-800">
