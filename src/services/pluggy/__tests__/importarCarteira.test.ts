@@ -38,6 +38,7 @@ import {
   importarInvestimento,
   indexadorRendaFixa,
   mapLoan,
+  posicaoDesatualizada,
   prazoMesesDivida,
   taxaAaParaAm,
   tipoDivida,
@@ -63,7 +64,7 @@ const base = {
   dueDate: new Date('2028-01-10T00:00:00Z'),
   issuer: 'Banco do Pluggy',
   status: 'ACTIVE',
-  providerDate: new Date('2026-09-14T00:00:00Z'),
+  providerDate: new Date(), // posição do dia (não desatualizada)
   ativo: true,
   assetId: null,
   portfolioId: null,
@@ -279,6 +280,46 @@ describe('importarInvestimento', () => {
       data: expect.objectContaining({ quantity: 1, avgPrice: 2000, totalInvested: 2000 }),
     });
     expect(mockRecalc).not.toHaveBeenCalled();
+  });
+
+  it('CDB que o banco parou de atualizar não entra na Carteira', async () => {
+    // Caso Itaú 26/09/2026: CDB resgatado em 08/11/2025 seguia vindo como ativo,
+    // com o saldo de 07/11/2025 — na curva aparecia valendo 59 mil.
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-09-26T00:35:00Z'));
+    try {
+      const st = await importarInvestimento({
+        ...base,
+        type: 'FIXED_INCOME',
+        subtype: 'CDB',
+        name: 'CDB - ITAU UNIBANCO S.A.',
+        rate: 100,
+        rateType: 'CDI',
+        amountOriginal: 52000,
+        balance: 52581.67,
+        issueDate: new Date('2025-10-02T03:00:00Z'),
+        providerDate: new Date('2025-11-07T00:00:00Z'),
+      });
+      expect(st).toBe('sem-suporte');
+      expect(mockPrisma.tx.asset.create).not.toHaveBeenCalled();
+      expect(mockPrisma.bankInvestment.update).toHaveBeenCalledWith({
+        where: { id: 'bi-1' },
+        data: {
+          importStatus: 'sem-suporte',
+          importError: expect.stringContaining('não atualiza esta aplicação desde 07/11/2025'),
+        },
+      });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('posição desatualizada: só depois de 10 dias sem atualização', () => {
+    const agora = new Date('2026-09-26T00:35:00Z');
+    expect(posicaoDesatualizada(new Date('2026-09-25T00:00:00Z'), agora)).toBe(false);
+    expect(posicaoDesatualizada(new Date('2026-09-17T00:00:00Z'), agora)).toBe(false);
+    expect(posicaoDesatualizada(new Date('2026-09-15T00:00:00Z'), agora)).toBe(true);
+    expect(posicaoDesatualizada(null, agora)).toBe(false);
   });
 
   it('LCI com vencimento inválido: isenta e vencimento em +10 anos', async () => {

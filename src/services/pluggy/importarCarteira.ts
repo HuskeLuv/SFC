@@ -15,6 +15,9 @@
  *  - fundo/previdência: pelo CNPJ no catálogo CVM quando existir; senão ativo
  *    manual cujo "valor atual" segue o saldo do banco;
  *  - empréstimo vira Dívida (financiamento) com espelho no fluxo de caixa;
+ *  - renda fixa que o banco parou de atualizar (data da posição com mais de
+ *    POSICAO_DESATUALIZADA_DIAS) fica 'sem-suporte': o Itaú segue mandando como
+ *    ativo CDB já resgatado, com o saldo do último dia (bug 26/09/2026);
  *  - COE, Tesouro e o que não der para mapear ficam 'sem-suporte' para o
  *    usuário cadastrar pelo wizard;
  *  - posição sintética (renda fixa, fundo/previdência sem catálogo) e dívida
@@ -199,6 +202,19 @@ export function indexadorDivida(indexer: string | null): 'PREFIXADO' | 'TR' | 'I
   return 'PREFIXADO';
 }
 
+/**
+ * Dias sem atualização a partir dos quais a posição de renda fixa não é
+ * confiável. O banco atualiza em dia útil; feriado emendado cabe folgado.
+ */
+export const POSICAO_DESATUALIZADA_DIAS = 10;
+
+export function posicaoDesatualizada(dataPosicao: Date | null, agora: Date): boolean {
+  if (!dataPosicao) return false;
+  return agora.getTime() - dataPosicao.getTime() > POSICAO_DESATUALIZADA_DIAS * 86_400_000;
+}
+
+const dataBr = (d: Date) => d.toISOString().slice(0, 10).split('-').reverse().join('/');
+
 const ym = (d: Date) => `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`;
 
 // ---------------------------------------------------------------------------
@@ -338,6 +354,13 @@ export async function importarInvestimento(
     return 'ignorado';
   }
   const agora = new Date();
+  if (inv.type === 'FIXED_INCOME' && posicaoDesatualizada(inv.providerDate, agora)) {
+    await marcar('bankInvestment', inv.id, {
+      importStatus: 'sem-suporte',
+      importError: `o banco não atualiza esta aplicação desde ${dataBr(inv.providerDate!)} — pode já ter sido resgatada; se ainda existir, cadastre à mão`,
+    });
+    return 'sem-suporte';
+  }
   const dataPosicao = inv.issueDate ?? inv.providerDate ?? agora;
   const investido = Number(inv.amountOriginal ?? inv.balance);
 
