@@ -360,25 +360,36 @@ const AtivoEditarContent = () => {
   // PWA fase 1: abaixo de lg, movimentações e proventos em cartões e edição por sheet.
   const isBelowLg = useIsBelowLg();
 
-  const loadData = useCallback(async () => {
-    if (!id) return;
-    setLoading(true);
-    setError(null);
-    try {
-      const res = await fetch(`/api/ativos/${id}/editar`, { credentials: 'include' });
-      if (!res.ok) {
-        if (res.status === 404) throw new Error('Ativo não encontrado');
-        throw new Error('Erro ao carregar dados');
+  /**
+   * `silent`: recarrega sem trocar a página pelo spinner nem limpar o erro — o celular edita por
+   * sheet (MobileEditSheet), que precisa continuar montado para mostrar o erro ou o aviso "salvo".
+   */
+  const loadData = useCallback(
+    async (opts?: { silent?: boolean }) => {
+      if (!id) return;
+      const silent = opts?.silent ?? false;
+      if (!silent) {
+        setLoading(true);
+        setError(null);
       }
-      const json = (await res.json()) as EditarPayload;
-      setData(json);
-      setOperacoesPage(0);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erro desconhecido');
-    } finally {
-      setLoading(false);
-    }
-  }, [id]);
+      try {
+        const res = await fetch(`/api/ativos/${id}/editar`, { credentials: 'include' });
+        if (!res.ok) {
+          if (res.status === 404) throw new Error('Ativo não encontrado');
+          throw new Error('Erro ao carregar dados');
+        }
+        const json = (await res.json()) as EditarPayload;
+        setData(json);
+        setOperacoesPage(0);
+      } catch (err) {
+        if (silent) logger.error('Erro ao recarregar edição do ativo:', err);
+        else setError(err instanceof Error ? err.message : 'Erro desconhecido');
+      } finally {
+        if (!silent) setLoading(false);
+      }
+    },
+    [id],
+  );
 
   useEffect(() => {
     void loadData();
@@ -395,22 +406,25 @@ const AtivoEditarContent = () => {
         });
         if (res.ok) {
           invalidatePortfolioDerivedQueries(queryClient);
-          await loadData();
+          // Celular: recarga silenciosa (o sheet fecha e mostra "salvo" em vez de sumir no spinner).
+          await loadData({ silent: isBelowLg });
           return true;
         } else {
           const errBody = await res.json().catch(() => ({}));
           logger.error(`Erro ao salvar ${field}:`, res.status, errBody);
+          // Celular: o sheet fica aberto com o erro (retorno false); setError trocaria a página.
+          if (isBelowLg) return false;
           setError(`Erro ao salvar: ${(errBody as { error?: string }).error || res.statusText}`);
           await loadData();
           return false;
         }
       } catch (err) {
         logger.error('Erro ao atualizar transação:', err);
-        setError('Erro de rede ao salvar alteração');
+        if (!isBelowLg) setError('Erro de rede ao salvar alteração');
         return false;
       }
     },
-    [loadData, csrfFetch, queryClient],
+    [loadData, csrfFetch, queryClient, isBelowLg],
   );
 
   /**
