@@ -56,9 +56,18 @@ export default function DividasRoot() {
     return null;
   }, [dividas, detailId]);
 
+  // O pagamento só abre a partir do detalhe: se o detalhe sai (voltar do sistema no celular
+  // desempilha o `?divida=`), o sheet fecha junto em vez de ficar sobre a lista.
+  useEffect(() => {
+    if (!detailId) setPagamentoDividaId(null);
+  }, [detailId]);
+
   const pagamentoDivida = useMemo(
-    () => (pagamentoDividaId ? (dividas.find((d) => d.id === pagamentoDividaId) ?? null) : null),
-    [dividas, pagamentoDividaId],
+    () =>
+      pagamentoDividaId && pagamentoDividaId === detailId
+        ? (dividas.find((d) => d.id === pagamentoDividaId) ?? null)
+        : null,
+    [dividas, pagamentoDividaId, detailId],
   );
 
   if (loading) {
