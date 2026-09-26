@@ -57,3 +57,27 @@ export const Z = {
   sheet: 99991,
   modal: 99999,
 } as const;
+
+// ── PWA fase 3 ─────────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Rodapé de ações fixo no fim de um modal que vira sheet abaixo de lg (fase 3), com a área segura
+ * de baixo. `p6` casa com o padding `p-6` do conteúdo do modal; `p6sm8` com `p-6 sm:p-8`
+ * (ConectarBancoModal/AutorizacaoModal). No desktop nada muda (só `max-lg:`). Não usar num cartão
+ * inline (padding diferente): lá, uma barra própria com o padding do cartão.
+ */
+export const MODAL_STICKY_FOOTER = {
+  p6: 'max-lg:sticky max-lg:bottom-0 max-lg:z-10 max-lg:-mx-6 max-lg:px-6 max-lg:mt-4 max-lg:border-t max-lg:border-gray-200 max-lg:bg-white max-lg:pt-3 max-lg:pb-[calc(0.75rem+env(safe-area-inset-bottom))] dark:max-lg:border-gray-800 dark:max-lg:bg-gray-900',
+  p6sm8:
+    'max-lg:sticky max-lg:bottom-0 max-lg:z-10 max-lg:-mx-6 max-lg:px-6 max-lg:mt-4 max-lg:border-t max-lg:border-gray-200 max-lg:bg-white max-lg:pt-3 max-lg:pb-[calc(0.75rem+env(safe-area-inset-bottom))] dark:max-lg:border-gray-800 dark:max-lg:bg-gray-900 sm:max-lg:-mx-8 sm:max-lg:px-8',
+} as const;
+
+/**
+ * De ponta a ponta no celular: anula o padding do `[data-mf-content]` (`p-4 md:p-6`). Par de
+ * `EDGE_TO_EDGE_PAD` para o conteúdo interno voltar ao alinhamento.
+ */
+export const EDGE_TO_EDGE = 'max-lg:-mx-4 md:max-lg:-mx-6';
+export const EDGE_TO_EDGE_PAD = 'max-lg:px-4 md:max-lg:px-6';
+
+/** Gruda sob o cabeçalho mobile ao rolar (só abaixo de lg). */
+export const STICKY_UNDER_HEADER = 'max-lg:sticky max-lg:top-[var(--mf-header-h,0px)] max-lg:z-20';

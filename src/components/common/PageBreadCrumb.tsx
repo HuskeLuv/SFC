@@ -1,20 +1,24 @@
-import Link from "next/link";
-import React from "react";
+import Link from 'next/link';
+import React from 'react';
 
 interface BreadcrumbProps {
   pageTitle: string;
 }
 
+/**
+ * Título da página + trilha "Home >". PWA fase 3: abaixo de lg o título fica visível e compacto
+ * (sem h1 novo) e a trilha some; no desktop nada muda (só tokens `max-lg:`).
+ */
 const PageBreadcrumb: React.FC<BreadcrumbProps> = ({ pageTitle }) => {
   return (
-    <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
+    <div className="flex flex-wrap items-center justify-between gap-3 mb-6 max-lg:mb-3">
       <h2
-        className="text-xl font-semibold text-gray-800 dark:text-white/90"
+        className="text-xl font-semibold text-gray-800 dark:text-white/90 max-lg:text-lg max-lg:font-semibold"
         x-text="pageName"
       >
         {pageTitle}
       </h2>
-      <nav>
+      <nav className="max-lg:hidden">
         <ol className="flex items-center gap-1.5">
           <li>
             <Link
@@ -40,9 +44,7 @@ const PageBreadcrumb: React.FC<BreadcrumbProps> = ({ pageTitle }) => {
               </svg>
             </Link>
           </li>
-          <li className="text-sm text-gray-800 dark:text-white/90">
-            {pageTitle}
-          </li>
+          <li className="text-sm text-gray-800 dark:text-white/90">{pageTitle}</li>
         </ol>
       </nav>
     </div>
