@@ -144,22 +144,33 @@ export default function OrcamentoMobileView({
 
   return (
     <div data-mf-orcamento-mobile="" className="space-y-4 pb-4">
-      {acumulado ? (
-        <div className="flex min-h-11 flex-col items-center justify-center text-center">
-          <b
-            data-mf-month-label=""
-            aria-live="polite"
-            className="text-[17px] font-semibold text-gray-800 dark:text-white/90"
-          >
-            {rotuloAcumulado} de {year}
-          </b>
-          <small className="text-xs font-medium text-gray-500 dark:text-gray-400">
-            Acumulado do ano
-          </small>
-        </div>
-      ) : (
-        <MonthStepper year={year} month={mes} onChange={onMesChange} onYearChange={onYearChange} />
-      )}
+      {/* Barra do mês fixa ao rolar (mesmas classes da barra de CashflowMonthView). */}
+      <div
+        data-mf-month-bar=""
+        className="sticky top-[var(--mf-header-h,0px)] z-20 -mx-4 border-b border-gray-100 bg-white px-2 py-1 max-[359px]:-mx-3 max-[359px]:px-0 dark:border-gray-800 dark:bg-[#1F1F22]"
+      >
+        {acumulado ? (
+          <div className="flex min-h-11 flex-col items-center justify-center text-center">
+            <b
+              data-mf-month-label=""
+              aria-live="polite"
+              className="text-[17px] font-semibold text-gray-800 dark:text-white/90"
+            >
+              {rotuloAcumulado} de {year}
+            </b>
+            <small className="text-xs font-medium text-gray-500 dark:text-gray-400">
+              Acumulado do ano
+            </small>
+          </div>
+        ) : (
+          <MonthStepper
+            year={year}
+            month={mes}
+            onChange={onMesChange}
+            onYearChange={onYearChange}
+          />
+        )}
+      </div>
 
       <div className="space-y-2">
         <Segmented<OrcamentoVisao>

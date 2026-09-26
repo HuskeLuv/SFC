@@ -97,3 +97,31 @@ test('Orçamento: Acumulado do ano troca a barra do mês pelo período', async (
   await expect(page.getByRole('button', { name: 'Mês anterior' })).toHaveCount(0);
   await expectFitsWithoutClip(page, 'orcamento-acumulado-390');
 });
+
+test('Orçamento: a barra do mês fica fixa sob o cabeçalho ao rolar (fase 3)', async ({ page }) => {
+  test.setTimeout(180_000);
+  await gotoOrcamento(page, 390);
+  await page.evaluate(() => window.scrollTo(0, 800));
+  await page.waitForTimeout(300);
+  const medida = await page.evaluate(() => {
+    const label = document.querySelector('[data-mf-month-label]');
+    const bar = label?.closest('[data-mf-month-bar]');
+    const probe = document.createElement('div');
+    probe.style.height = 'var(--mf-header-h, 0px)';
+    document.body.appendChild(probe);
+    const headerH = probe.getBoundingClientRect().height;
+    probe.remove();
+    return {
+      top: bar ? bar.getBoundingClientRect().top : null,
+      headerH,
+      scrollY: window.scrollY,
+    };
+  });
+  test.skip(medida.scrollY < 100, 'página curta demais para rolar');
+  expect(medida.top, 'barra do mês ([data-mf-month-bar]) não encontrada').not.toBeNull();
+  expect(
+    Math.abs(medida.top! - medida.headerH),
+    `barra em ${medida.top}px, cabeçalho de ${medida.headerH}px`,
+  ).toBeLessThan(2);
+  await expect(page.locator('[data-mf-month-label]').first()).toBeInViewport();
+});
