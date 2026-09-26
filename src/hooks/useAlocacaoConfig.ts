@@ -1,5 +1,5 @@
 import { logger } from '@/lib/logger';
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCsrf } from '@/hooks/useCsrf';
 import { queryKeys } from '@/lib/queryKeys';
@@ -29,6 +29,11 @@ export interface UseAlocacaoConfigReturn {
   stopEditing: () => void;
   isEditing: (categoria: string, field: AlocacaoConfigField) => boolean;
   totalTargets: number;
+  /**
+   * Categorias com edição aplicada e ainda não gravada (localEdits × servidor). Vive no hook, e
+   * não no componente, para sobreviver à desmontagem da visão (o celular troca de aba).
+   */
+  changedCategorias: string[];
   refetch: () => Promise<void>;
 }
 
@@ -66,6 +71,23 @@ export const useAlocacaoConfig = (): UseAlocacaoConfigReturn => {
   });
 
   const configuracoes = localEdits ?? serverConfiguracoes;
+
+  const changedCategorias = useMemo(() => {
+    if (!localEdits) return [];
+    const server = new Map(serverConfiguracoes.map((c) => [c.categoria, c]));
+    return localEdits
+      .filter((c) => {
+        const s = server.get(c.categoria);
+        return (
+          !s ||
+          s.minimo !== c.minimo ||
+          s.maximo !== c.maximo ||
+          s.target !== c.target ||
+          (s.descricao ?? '') !== (c.descricao ?? '')
+        );
+      })
+      .map((c) => c.categoria);
+  }, [localEdits, serverConfiguracoes]);
 
   const updateConfiguracao = useCallback(
     (categoria: string, field: AlocacaoConfigField, valor: number | string) => {
@@ -142,6 +164,7 @@ export const useAlocacaoConfig = (): UseAlocacaoConfigReturn => {
     stopEditing,
     isEditing,
     totalTargets,
+    changedCategorias,
     refetch,
   } satisfies UseAlocacaoConfigReturn;
 };

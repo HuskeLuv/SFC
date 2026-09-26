@@ -42,6 +42,8 @@ export interface AlocacaoAtivosMobileProps {
   onSave: () => Promise<boolean>;
   /** Descarta o que foi aplicado e não salvo (volta ao que está gravado). */
   onDiscard: () => void;
+  /** Classes com meta aplicada e não gravada (`changedCategorias` do useAlocacaoConfig). */
+  changedCategorias: string[];
   successMessage: string | null;
   configError: string | null;
   distribuir: { label: string; onOpen: () => void } | null;
@@ -104,14 +106,16 @@ export default function AlocacaoAtivosMobile({
   onConfigChange,
   onSave,
   onDiscard,
+  changedCategorias,
   successMessage,
   configError,
   distribuir,
   children,
 }: AlocacaoAtivosMobileProps) {
   const [editing, setEditing] = useState<string | null>(null);
-  // Classes com meta aplicada e ainda não gravada (o hook não expõe "hasChanges").
-  const [dirty, setDirty] = useState<Set<string>>(() => new Set());
+  // Vem do hook (não é estado local): trocar de aba desmonta este componente, e as metas aplicadas
+  // continuam no useAlocacaoConfig — a barra Salvar/Descartar precisa continuar aparecendo.
+  const dirty = new Set(changedCategorias);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState(false);
 
@@ -135,13 +139,11 @@ export default function AlocacaoAtivosMobile({
     setSaveError(false);
     const ok = await onSave();
     setSaving(false);
-    if (ok) setDirty(new Set());
-    else setSaveError(true);
+    if (!ok) setSaveError(true);
   };
 
   const handleDiscard = () => {
     onDiscard();
-    setDirty(new Set());
     setSaveError(false);
   };
 
@@ -447,7 +449,6 @@ export default function AlocacaoAtivosMobile({
               const valor = changes[field];
               if (valor !== undefined) onConfigChange(editingRow.categoria, field, valor);
             });
-            setDirty((prev) => new Set(prev).add(editingRow.categoria));
           }}
         />
       )}

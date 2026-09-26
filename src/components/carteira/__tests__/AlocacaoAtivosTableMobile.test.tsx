@@ -38,10 +38,67 @@ function makeConfig(overrides: Partial<UseAlocacaoConfigReturn> = {}): UseAlocac
     stopEditing: vi.fn(),
     isEditing: vi.fn(() => false),
     totalTargets: 55,
+    changedCategorias: [],
     refetch: vi.fn().mockResolvedValue(undefined),
     ...overrides,
   };
 }
+
+/**
+ * Simula o useAlocacaoConfig de verdade: as edições aplicadas ficam FORA do componente da tabela
+ * (como na CarteiraResumo), e `changedCategorias` sai da comparação com o gravado.
+ */
+function useFakeConfig(base: UseAlocacaoConfigReturn): UseAlocacaoConfigReturn {
+  const [edits, setEdits] = React.useState<UseAlocacaoConfigReturn['configuracoes'] | null>(null);
+  const configuracoes = edits ?? base.configuracoes;
+  return {
+    ...base,
+    configuracoes,
+    changedCategorias: edits
+      ? edits
+          .filter((c, i) => JSON.stringify(c) !== JSON.stringify(base.configuracoes[i]))
+          .map((c) => c.categoria)
+      : [],
+    updateConfiguracao: (categoria, field, valor) => {
+      base.updateConfiguracao(categoria, field, valor);
+      setEdits((prev) =>
+        (prev ?? base.configuracoes).map((c) =>
+          c.categoria === categoria ? { ...c, [field]: valor } : c,
+        ),
+      );
+    },
+    saveChanges: async () => {
+      const ok = await base.saveChanges();
+      if (ok) setEdits(null);
+      return ok;
+    },
+    refetch: async () => {
+      setEdits(null);
+      await base.refetch();
+    },
+  };
+}
+
+function StatefulTable({ base, visivel }: { base: UseAlocacaoConfigReturn; visivel: boolean }) {
+  const config = useFakeConfig(base);
+  return visivel ? (
+    <AlocacaoAtivosTable
+      distribuicao={distribuicao}
+      alocacaoConfig={config}
+      totais={{ dinheiro: 100000, dinheiroMaisBens: 400000 }}
+      onNavigateToTab={vi.fn()}
+    />
+  ) : null;
+}
+
+const renderStateful = (base: UseAlocacaoConfigReturn) => {
+  const utils = render(<StatefulTable base={base} visivel />);
+  return {
+    ...utils,
+    esconder: () => utils.rerender(<StatefulTable base={base} visivel={false} />),
+    mostrar: () => utils.rerender(<StatefulTable base={base} visivel />),
+  };
+};
 
 const renderTable = (config: UseAlocacaoConfigReturn) =>
   render(
@@ -103,7 +160,7 @@ describe('AlocacaoAtivosTable abaixo de lg (cartões)', () => {
 
   it('a barra "não salvas" aparece e grava com saveChanges', async () => {
     const config = makeConfig();
-    renderTable(config);
+    renderStateful(config);
     fireEvent.click(screen.getByRole('button', { name: "Editar meta de FII's" }));
     fireEvent.change(screen.getByLabelText('% Target'), { target: { value: '20' } });
     fireEvent.click(screen.getByRole('button', { name: 'Aplicar' }));
@@ -124,7 +181,7 @@ describe('AlocacaoAtivosTable abaixo de lg (cartões)', () => {
 
   it('falha ao salvar mantém a barra com erro; Descartar volta ao gravado', async () => {
     const config = makeConfig({ saveChanges: vi.fn().mockResolvedValue(false) });
-    renderTable(config);
+    renderStateful(config);
     fireEvent.click(screen.getByRole('button', { name: 'Editar meta de Ações' }));
     fireEvent.change(screen.getByLabelText('% Target'), { target: { value: '31' } });
     fireEvent.click(screen.getByRole('button', { name: 'Aplicar' }));
@@ -138,6 +195,24 @@ describe('AlocacaoAtivosTable abaixo de lg (cartões)', () => {
     expect(
       screen.queryByRole('region', { name: 'Alterações de alocação não salvas' }),
     ).not.toBeInTheDocument();
+  });
+
+  it('trocar de aba e voltar (remonta) mantém a barra das metas aplicadas e não salvas', () => {
+    const config = makeConfig();
+    const { esconder, mostrar } = renderStateful(config);
+    fireEvent.click(screen.getByRole('button', { name: 'Editar meta de Ações' }));
+    fireEvent.change(screen.getByLabelText('% Target'), { target: { value: '37' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Aplicar' }));
+    expect(
+      screen.getByRole('region', { name: 'Alterações de alocação não salvas' }),
+    ).toBeInTheDocument();
+
+    esconder();
+    mostrar();
+    expect(
+      screen.getByRole('region', { name: 'Alterações de alocação não salvas' }),
+    ).toHaveTextContent('1 alteração de alocação ainda não salva');
+    expect(screen.getByRole('button', { name: 'Salvar configurações' })).toBeInTheDocument();
   });
 
   it('Reserva de Emergência: campos em R$ convertidos com parseValorReserva', () => {

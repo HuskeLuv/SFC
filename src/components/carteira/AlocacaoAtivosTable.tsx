@@ -436,6 +436,7 @@ export default function AlocacaoAtivosTable({
         onConfigChange={handleConfigChange}
         onSave={handleSaveConfigurations}
         onDiscard={() => void alocacaoConfig.refetch()}
+        changedCategorias={alocacaoConfig.changedCategorias}
         successMessage={showSuccessAlert ? successMessage : null}
         configError={configError}
         distribuir={

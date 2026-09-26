@@ -108,6 +108,7 @@ const defaultAlocacaoReturn = {
   stopEditing: vi.fn(),
   isEditing: vi.fn(() => false),
   totalTargets: 65,
+  changedCategorias: [],
   refetch: vi.fn(),
 };
 
