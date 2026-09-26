@@ -4,6 +4,7 @@ import { ApexOptions } from 'apexcharts';
 import { CarteiraStockAlocacaoAtivo } from '@/types/carteiraStocks';
 
 import dynamic from 'next/dynamic';
+import { PIE_MOBILE_RESPONSIVE } from './pieMobileResponsive';
 // Dynamically import the ReactApexChart component
 const ReactApexChart = dynamic(() => import('react-apexcharts'), {
   ssr: false,
@@ -108,21 +109,7 @@ const PieChartStocksAtivo: React.FC<PieChartStocksAtivoProps> = ({ data, isDarkM
         },
       },
       responsive: [
-        {
-          // PWA fase 1: abaixo de lg (o Apex só aplica abaixo de 1024px — o desktop não muda),
-          // legenda embaixo e legível, sem rótulos em cima das fatias.
-          breakpoint: 1023,
-          options: {
-            chart: { height: 340 },
-            legend: {
-              position: 'bottom',
-              fontSize: '12px',
-              markers: { size: 5 },
-              itemMargin: { horizontal: 8, vertical: 4 },
-            },
-            dataLabels: { enabled: false },
-          },
-        },
+        PIE_MOBILE_RESPONSIVE,
         {
           breakpoint: 640,
           options: {
