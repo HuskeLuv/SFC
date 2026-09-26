@@ -23,6 +23,46 @@ import { expectFitsWithoutClip } from './helpers/mobileFit';
 // consertadas porque o transbordo tirava a barra de abas da tela.
 const KNOWN_OVERFLOW: Record<string, string> = {};
 
+/**
+ * KNOWN_CLIP (PWA fase 3): rotas em que o conteúdo passa da tela e é ESCONDIDO pelo corte da casca
+ * ([data-mf-content] overflow-x: clip) ou rola na horizontal fora de `data-mf-scroll-x` —
+ * `expectFitsWithoutClip` reprova. Medidas em 26/09/2026, antes das fatias (390 e 320; banco de dev
+ * e banco do seed), com a fatia dona. Para elas o teste só anota (as fatias não editam este arquivo; quando uma
+ * rota passa, a anotação avisa para tirá-la daqui). O INTEGRADOR esvazia a lista depois das 5
+ * fatias. Chave = rota; `@320` = só a 320px.
+ */
+const KNOWN_CLIP: Record<string, string> = {
+  '/saude-financeira': 'fatia B (Saúde): tabelas com rolagem horizontal própria',
+  '/relatorios': 'fatia B (Relatórios): tabelas com rolagem horizontal própria',
+  // Com dados (banco de dev); no CI o seed não tem dívida nem conexão e a flag está desligada.
+  '/dividas': 'fatia C (Dívidas): tabela de dívidas com rolagem horizontal própria',
+  '/conexoes-bancarias': 'fatia D (Conexões): tabelas da caixa de entrada com rolagem própria',
+  '/comunidade':
+    'fatia E (Comunidade): trilho de categorias (<nav> overflow-x) sem data-mf-scroll-x',
+};
+
+/**
+ * Mede sem o corte da casca. Rota em KNOWN_CLIP só anota (passando ou não); as outras falham.
+ */
+async function expectFitsOrKnownClip(page: Page, route: string, width: number) {
+  const key = width === 390 ? route : `${route}@${width}`;
+  const known = KNOWN_CLIP[key] ?? KNOWN_CLIP[route];
+  if (!known) {
+    await expectFitsWithoutClip(page, `${route}@${width}`, { width });
+    return;
+  }
+  const error = await expectFitsWithoutClip(page, `${route}@${width}`, { width }).then(
+    () => null,
+    (e: unknown) => e,
+  );
+  test.info().annotations.push({
+    type: 'KNOWN_CLIP',
+    description: error
+      ? `${key}: corte conhecido (${known})`
+      : `${key}: já cabe sem o corte — tirar de KNOWN_CLIP (${known})`,
+  });
+}
+
 interface Measure {
   sw: number;
   cw: number;
@@ -111,12 +151,10 @@ test.describe('Mobile 390px: sem transbordo horizontal (autenticado)', () => {
       test.fail(route in KNOWN_OVERFLOW, KNOWN_OVERFLOW[route]);
       await waitForContent(page, route);
       await expectNoHorizontalOverflow(page, route);
-      // PWA fase 1/2: na /carteira e na /fluxodecaixa (planilha) mede também com o corte da casca
-      // desligado (um conteúdo largo demais seria escondido pelo overflow-x: clip do
-      // [data-mf-content]). O ?modo=orcamento fica no spec da fase 2 (fatia D).
-      if (route === '/carteira' || route === '/fluxodecaixa') {
-        await expectFitsWithoutClip(page, route, { width: 390 });
-      }
+      // PWA fase 1/2/3: mede também com o corte da casca desligado (um conteúdo largo demais
+      // seria escondido pelo overflow-x: clip do [data-mf-content]). O ?modo=orcamento fica no
+      // spec da fase 2 (fatia D).
+      await expectFitsOrKnownClip(page, route, 390);
     });
   }
 
@@ -137,6 +175,7 @@ test.describe('Mobile 390px: sem transbordo horizontal (autenticado)', () => {
       test.fail(route in KNOWN_OVERFLOW, KNOWN_OVERFLOW[route]);
       await waitForContent(page, route);
       await expectNoHorizontalOverflow(page, route);
+      await expectFitsOrKnownClip(page, route, 390);
     });
   }
 
@@ -211,6 +250,45 @@ test.describe('Mobile 390px: sem transbordo horizontal (autenticado)', () => {
     expect(error, 'a div de 500px passou despercebida pela medição').not.toBeNull();
     expect(String((error as Error).message)).toMatch(/conteúdo com (\d+)px numa tela de 390px/);
   });
+});
+
+/** A /comunidade responde 200 com a flag desligada (página client); a flag vem da API. */
+async function flaggedRouteOff(page: Page, route: string): Promise<string | null> {
+  if (route === '/comunidade') {
+    const cfg = await page.request.get('/api/comunidade/config');
+    const habilitada = cfg.ok() && ((await cfg.json()) as { habilitada?: boolean }).habilitada;
+    if (!habilitada) return 'flag desligada: COMUNIDADE_HABILITADA';
+  }
+  const res = await page.goto(route, { waitUntil: 'domcontentloaded' });
+  const landed = new URL(page.url()).pathname;
+  if (!res || res.status() !== 200 || landed !== route) {
+    return `flag desligada: status ${res?.status()} em ${landed}`;
+  }
+  return null;
+}
+
+// PWA fase 3: o menor celular comum (320x640), sem transbordo e sem corte.
+test.describe('Mobile 320px: sem transbordo nem corte (autenticado)', () => {
+  test.use({ viewport: { width: 320, height: 640 } });
+  test.describe.configure({ timeout: 120_000 });
+
+  for (const route of AUTH_STATIC_ROUTES) {
+    test(`${route} @320`, async ({ page }) => {
+      await waitForContent(page, route);
+      await expectNoHorizontalOverflow(page, route);
+      await expectFitsOrKnownClip(page, route, 320);
+    });
+  }
+
+  for (const route of FLAGGED_ROUTES) {
+    test(`${route} @320 (atrás de flag)`, async ({ page }) => {
+      const off = await flaggedRouteOff(page, route);
+      test.skip(!!off, off ?? '');
+      await waitForContent(page, route);
+      await expectNoHorizontalOverflow(page, route);
+      await expectFitsOrKnownClip(page, route, 320);
+    });
+  }
 });
 
 test.describe('Mobile 390px: sem transbordo horizontal (público)', () => {

@@ -15,6 +15,12 @@ const ROUTES = [
   '/planejamento-financeiro',
   '/profile',
   '/relatorios',
+  // PWA fase 3
+  '/saude-financeira',
+  '/dividas',
+  '/historico-alteracoes',
+  '/educacao',
+  '/conexoes-bancarias',
 ];
 
 const ERROR_BOUNDARY = /Algo deu errado|Ocorreu um erro inesperado/i;

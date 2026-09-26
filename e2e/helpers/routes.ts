@@ -111,6 +111,12 @@ export const READY_SELECTOR: Record<string, string> = {
   // A planilha não tem título <h1>/<h2>: espera a primeira linha da tabela (desktop) ou a visão
   // do mês montada (celular, PWA fase 2).
   '/fluxodecaixa': 'table tbody tr, [data-mf-fluxo-ready]',
+  // PWA fase 3: o título de cada módulo (o h2 existente fica visível e compacto no celular).
+  '/planejamento-financeiro':
+    'h2:has-text("Planejamento de Aposentadoria"), h2:has-text("Planejamento de Sonhos")',
+  '/dividas': 'h2:has-text("Dívidas")',
+  '/saude-financeira': 'h2:has-text("Saúde Financeira")',
+  '/relatorios': 'h2:has-text("Resumo Executivo")',
   '/signin': 'form',
   '/signup': 'form',
   '/reset-password': 'form',
