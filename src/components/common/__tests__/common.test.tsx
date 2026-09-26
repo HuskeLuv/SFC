@@ -173,4 +173,32 @@ describe('ComponentCard', () => {
     const card = container.firstElementChild;
     expect(card?.className).toContain('custom-class');
   });
+
+  it('sem bodyClassName, corpo e div interno com as classes de sempre', () => {
+    const { container } = render(
+      <ComponentCard title="Title" className="flex-1 flex flex-col">
+        Content
+      </ComponentCard>,
+    );
+    const body = container.firstElementChild?.children[1] as HTMLElement;
+    expect(body.className).toBe(
+      'border-t border-gray-100 dark:border-gray-800 flex-1 flex flex-col min-h-0 min-w-0 overflow-hidden',
+    );
+    expect((body.firstElementChild as HTMLElement).className).toBe('flex-1 flex flex-col min-h-0');
+  });
+
+  it('bodyClassName soma no corpo e no div interno', () => {
+    const { container } = render(
+      <ComponentCard title="Title" bodyClassName="max-lg:overflow-visible">
+        Content
+      </ComponentCard>,
+    );
+    const body = container.firstElementChild?.children[1] as HTMLElement;
+    expect(body.className).toBe(
+      'border-t border-gray-100 dark:border-gray-800 p-4 sm:p-6 max-lg:overflow-visible',
+    );
+    expect((body.firstElementChild as HTMLElement).className).toBe(
+      'space-y-6 max-lg:overflow-visible',
+    );
+  });
 });
