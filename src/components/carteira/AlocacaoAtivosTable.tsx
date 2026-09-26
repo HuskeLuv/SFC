@@ -1,5 +1,8 @@
 'use client';
 import React, { useState } from 'react';
+import { useIsBelowLg } from '@/hooks/useMediaQuery';
+import { CATEGORIA_TO_TAB } from './carteiraTabsConfig';
+import AlocacaoAtivosMobile from './AlocacaoAtivosMobile';
 import { Table, TableBody, TableCell, TableHeader, TableRow } from '../ui/table';
 import type { UseAlocacaoConfigReturn } from '@/hooks/useAlocacaoConfig';
 import EditableCell from './EditableCell';
@@ -43,22 +46,6 @@ interface AlocacaoAtivo {
   excessoAporte: number;
   descricao: string;
 }
-
-const CATEGORIA_TO_TAB: Record<string, string> = {
-  reservaEmergencia: 'reserva-emergencia',
-  reservaOportunidade: 'reserva-oportunidade',
-  rendaFixaFundos: 'renda-fixa',
-  fimFia: 'fim-fia',
-  fiis: 'fiis',
-  acoes: 'acoes',
-  stocks: 'stocks',
-  reits: 'reit',
-  etfs: 'etf',
-  moedasCriptos: 'moedas-criptos',
-  previdenciaSeguros: 'previdencia',
-  opcoes: 'opcoes',
-  imoveisBens: 'imoveis',
-};
 
 interface AlocacaoAtivosTableProps {
   distribuicao: {
@@ -107,6 +94,8 @@ export default function AlocacaoAtivosTable({
 
   // Total Carteira para cálculos de percentuais (exclui Imóveis e Bens)
   const totalCarteira = totalDinheiro;
+  // PWA fase 1: abaixo de lg a tabela vira cartões (um DOM só — a tabela do desktop fica intocada).
+  const isBelowLg = useIsBelowLg();
   const [showSuccessAlert, setShowSuccessAlert] = useState(false);
   const [successMessage, setSuccessMessage] = useState('Configurações salvas com sucesso!');
   const [distribuicaoAberta, setDistribuicaoAberta] = useState(false);
@@ -307,6 +296,7 @@ export default function AlocacaoAtivosTable({
       setShowSuccessAlert(true);
       setTimeout(() => setShowSuccessAlert(false), 3000);
     }
+    return success;
   };
 
   const handleConfigChange = (
@@ -321,6 +311,105 @@ export default function AlocacaoAtivosTable({
     updateConfiguracao(categoria, 'descricao', valor);
   };
 
+  const distribuirModal = (
+    <Modal
+      isOpen={distribuicaoAberta}
+      onClose={() => !distribuindo && setDistribuicaoAberta(false)}
+      className="max-w-lg m-4"
+    >
+      <div className="p-6">
+        <h3 className="pr-10 text-lg font-semibold text-gray-900 dark:text-white">
+          Distribuir caixa livre
+        </h3>
+        <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+          Os {formatarMoeda(caixaParaInvestir)} livres viram reserva das classes abaixo do target,
+          na proporção do que falta para cada uma. O total do caixa não muda.
+        </p>
+
+        <div className={`${TABLE_STYLES.wrapper} mt-4`}>
+          <Table className={TABLE_STYLES.table}>
+            <TableHeader>
+              <TableRow className={TABLE_STYLES.headRow} style={TABLE_HEADER_STYLE}>
+                <TableCell isHeader className={`${TABLE_STYLES.compact.th} text-left`}>
+                  Classe
+                </TableCell>
+                <TableCell isHeader className={`${TABLE_STYLES.compact.th} text-right`}>
+                  Falta p/ o target
+                </TableCell>
+                <TableCell isHeader className={`${TABLE_STYLES.compact.th} text-right`}>
+                  Vai reservar
+                </TableCell>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {(Object.keys(planoDistribuicao.porAba) as CaixaAbaKey[]).map((aba) => (
+                <TableRow key={aba} className={TABLE_STYLES.row}>
+                  <TableCell className={`${TABLE_STYLES.compact.td} whitespace-nowrap`}>
+                    {categoriaPorAba[aba]?.classeAtivo ?? CAIXA_ABAS[aba].label}
+                  </TableCell>
+                  <TableCell
+                    className={`${TABLE_STYLES.compact.td} whitespace-nowrap text-right font-mono`}
+                  >
+                    {formatarMoeda(necessidadesPorAba[aba] ?? 0)}
+                  </TableCell>
+                  <TableCell
+                    className={`${TABLE_STYLES.compact.td} whitespace-nowrap text-right font-mono font-medium`}
+                  >
+                    {formatarMoeda(planoDistribuicao.porAba[aba] ?? 0)}
+                  </TableCell>
+                </TableRow>
+              ))}
+              <TableRow className={TABLE_STYLES.totalRow}>
+                <TableCell className={`${TABLE_STYLES.compact.td} whitespace-nowrap`}>
+                  Continua livre
+                </TableCell>
+                <TableCell className={TABLE_STYLES.compact.td} />
+                <TableCell
+                  className={`${TABLE_STYLES.compact.td} whitespace-nowrap text-right font-mono`}
+                >
+                  {formatarMoeda(planoDistribuicao.sobra)}
+                </TableCell>
+              </TableRow>
+            </TableBody>
+          </Table>
+        </div>
+
+        {semReservaComFalta.length > 0 && (
+          <p className="mt-3 text-xs text-gray-500 dark:text-gray-400">
+            {semReservaComFalta.map((a) => a.classeAtivo).join(' e ')}{' '}
+            {semReservaComFalta.length > 1 ? 'não têm' : 'não tem'} reserva no caixa e{' '}
+            {semReservaComFalta.length > 1 ? 'ficam' : 'fica'} de fora da distribuição.
+          </p>
+        )}
+
+        {erroDistribuicao && (
+          <div className="mt-4">
+            <Alert variant="error" title="Não foi possível distribuir" message={erroDistribuicao} />
+          </div>
+        )}
+
+        <div className="mt-6 flex justify-end gap-2">
+          <button
+            type="button"
+            onClick={() => setDistribuicaoAberta(false)}
+            disabled={distribuindo}
+            className="px-3 py-2 text-xs rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-white/5 disabled:opacity-50 max-lg:h-12 max-lg:flex-1 max-lg:text-base"
+          >
+            Cancelar
+          </button>
+          <button
+            type="button"
+            onClick={handleConfirmarDistribuicao}
+            disabled={distribuindo}
+            className="px-3 py-2 bg-brand-500 text-white text-xs rounded-lg hover:bg-brand-600 transition-colors disabled:opacity-50 max-lg:h-12 max-lg:flex-1 max-lg:bg-mf-patrimonio max-lg:text-base max-lg:font-semibold"
+          >
+            {distribuindo ? 'Distribuindo...' : 'Confirmar distribuição'}
+          </button>
+        </div>
+      </div>
+    </Modal>
+  );
+
   if (configLoading) {
     return (
       <ComponentCard title="Alocação de Ativos">
@@ -328,6 +417,41 @@ export default function AlocacaoAtivosTable({
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand-500"></div>
         </div>
       </ComponentCard>
+    );
+  }
+
+  if (isBelowLg) {
+    return (
+      <AlocacaoAtivosMobile
+        dados={dados}
+        totalDinheiro={totalDinheiro}
+        totalDinheiroMaisBens={totalDinheiroMaisBens}
+        totalPercentualTarget={totalPercentualTarget}
+        formatarMoeda={formatarMoeda}
+        formatarPercentual={formatarPercentual}
+        formatarValorReserva={formatarValorReserva}
+        parseValorReserva={parseValorReserva}
+        totalCarteira={totalCarteira}
+        onNavigateToTab={onNavigateToTab}
+        onConfigChange={handleConfigChange}
+        onSave={handleSaveConfigurations}
+        onDiscard={() => void alocacaoConfig.refetch()}
+        successMessage={showSuccessAlert ? successMessage : null}
+        configError={configError}
+        distribuir={
+          podeDistribuir
+            ? {
+                label: `Distribuir caixa livre (${formatarMoeda(caixaParaInvestir)})`,
+                onOpen: () => {
+                  setErroDistribuicao(null);
+                  setDistribuicaoAberta(true);
+                },
+              }
+            : null
+        }
+      >
+        {distribuirModal}
+      </AlocacaoAtivosMobile>
     );
   }
 
@@ -619,106 +743,7 @@ export default function AlocacaoAtivosTable({
         </button>
       </div>
 
-      <Modal
-        isOpen={distribuicaoAberta}
-        onClose={() => !distribuindo && setDistribuicaoAberta(false)}
-        className="max-w-lg m-4"
-      >
-        <div className="p-6">
-          <h3 className="pr-10 text-lg font-semibold text-gray-900 dark:text-white">
-            Distribuir caixa livre
-          </h3>
-          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-            Os {formatarMoeda(caixaParaInvestir)} livres viram reserva das classes abaixo do target,
-            na proporção do que falta para cada uma. O total do caixa não muda.
-          </p>
-
-          <div className={`${TABLE_STYLES.wrapper} mt-4`}>
-            <Table className={TABLE_STYLES.table}>
-              <TableHeader>
-                <TableRow className={TABLE_STYLES.headRow} style={TABLE_HEADER_STYLE}>
-                  <TableCell isHeader className={`${TABLE_STYLES.compact.th} text-left`}>
-                    Classe
-                  </TableCell>
-                  <TableCell isHeader className={`${TABLE_STYLES.compact.th} text-right`}>
-                    Falta p/ o target
-                  </TableCell>
-                  <TableCell isHeader className={`${TABLE_STYLES.compact.th} text-right`}>
-                    Vai reservar
-                  </TableCell>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {(Object.keys(planoDistribuicao.porAba) as CaixaAbaKey[]).map((aba) => (
-                  <TableRow key={aba} className={TABLE_STYLES.row}>
-                    <TableCell className={`${TABLE_STYLES.compact.td} whitespace-nowrap`}>
-                      {categoriaPorAba[aba]?.classeAtivo ?? CAIXA_ABAS[aba].label}
-                    </TableCell>
-                    <TableCell
-                      className={`${TABLE_STYLES.compact.td} whitespace-nowrap text-right font-mono`}
-                    >
-                      {formatarMoeda(necessidadesPorAba[aba] ?? 0)}
-                    </TableCell>
-                    <TableCell
-                      className={`${TABLE_STYLES.compact.td} whitespace-nowrap text-right font-mono font-medium`}
-                    >
-                      {formatarMoeda(planoDistribuicao.porAba[aba] ?? 0)}
-                    </TableCell>
-                  </TableRow>
-                ))}
-                <TableRow className={TABLE_STYLES.totalRow}>
-                  <TableCell className={`${TABLE_STYLES.compact.td} whitespace-nowrap`}>
-                    Continua livre
-                  </TableCell>
-                  <TableCell className={TABLE_STYLES.compact.td} />
-                  <TableCell
-                    className={`${TABLE_STYLES.compact.td} whitespace-nowrap text-right font-mono`}
-                  >
-                    {formatarMoeda(planoDistribuicao.sobra)}
-                  </TableCell>
-                </TableRow>
-              </TableBody>
-            </Table>
-          </div>
-
-          {semReservaComFalta.length > 0 && (
-            <p className="mt-3 text-xs text-gray-500 dark:text-gray-400">
-              {semReservaComFalta.map((a) => a.classeAtivo).join(' e ')}{' '}
-              {semReservaComFalta.length > 1 ? 'não têm' : 'não tem'} reserva no caixa e{' '}
-              {semReservaComFalta.length > 1 ? 'ficam' : 'fica'} de fora da distribuição.
-            </p>
-          )}
-
-          {erroDistribuicao && (
-            <div className="mt-4">
-              <Alert
-                variant="error"
-                title="Não foi possível distribuir"
-                message={erroDistribuicao}
-              />
-            </div>
-          )}
-
-          <div className="mt-6 flex justify-end gap-2">
-            <button
-              type="button"
-              onClick={() => setDistribuicaoAberta(false)}
-              disabled={distribuindo}
-              className="px-3 py-2 text-xs rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-white/5 disabled:opacity-50"
-            >
-              Cancelar
-            </button>
-            <button
-              type="button"
-              onClick={handleConfirmarDistribuicao}
-              disabled={distribuindo}
-              className="px-3 py-2 bg-brand-500 text-white text-xs rounded-lg hover:bg-brand-600 transition-colors disabled:opacity-50"
-            >
-              {distribuindo ? 'Distribuindo...' : 'Confirmar distribuição'}
-            </button>
-          </div>
-        </div>
-      </Modal>
+      {distribuirModal}
     </ComponentCard>
   );
 }
