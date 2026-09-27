@@ -68,6 +68,9 @@ export default defineConfig({
       // pula sem E2E_ALLOW_WRITES=1 (o CI liga: banco efêmero) e só afirma sobre o que criou.
       // Desktop 1280 por padrão; os de celular declaram o próprio test.use (390x844, isMobile).
       name: 'escrita',
+      // Um de cada vez: o desktop-fase3.escrita espera o SEU evento na 1ª linha do Histórico e os
+      // outros arquivos de escrita também criam/apagam eventos e dívidas.
+      workers: 1,
       use: {
         browserName: 'chromium',
         storageState: 'e2e/.auth/user.json',
