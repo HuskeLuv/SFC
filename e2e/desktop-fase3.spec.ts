@@ -24,7 +24,12 @@ import { waitForContent } from './helpers/waitForContent';
  * e nenhum artefato mobile visível.
  *
  * Impressão (CI e local): folha A4 (794px) + media print + matchMedia de desktop → assinatura do
- * layout computado e nº de páginas do PDF, com snapshot.
+ * layout computado e nº de páginas do PDF, com snapshot. A assinatura mede larguras em décimos da
+ * folha, então depende da VERSÃO do Chromium (métrica de texto): as `*.print.ci` são gravadas com o
+ * Chromium que o `npx playwright install` do CI baixa (headless shell do Playwright do package.json),
+ * NUNCA com PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH — no WSL:
+ * `PLAYWRIGHT_HOST_PLATFORM_OVERRIDE=ubuntu24.04-x64 npx playwright install chromium-headless-shell`
+ * e rodar com CI=true sem o override do executável.
  *
  * Nada aqui grava no banco: o que grava fica em desktop-fase3.escrita.spec.ts (projeto `escrita`).
  * Conexões param na etapa 1 da jornada (Cancelar), NUNCA "Autorizar".
@@ -283,12 +288,18 @@ test.describe('Fase 3: impressão do desktop inalterada (A4)', () => {
     ['relatorios', RELATORIOS],
     ['saude', SAUDE],
   ] as const) {
-    test(`${scenario.route}: assinatura da impressão e nº de páginas`, async ({ page }) => {
+    test(`${scenario.route}: assinatura da impressão e nº de páginas`, async ({
+      page,
+      browser,
+    }) => {
       test.setTimeout(240_000);
       await printDesktopLike(page, scenario.route, scenario.ready);
       const signature = await printSignature(page);
       expect
-        .soft(signature.join('\n'), `${slug}: assinatura da impressão`)
+        .soft(
+          signature.join('\n'),
+          `${slug}: assinatura da impressão (Chromium ${browser.version()}; a baseline depende da versão)`,
+        )
         .toMatchSnapshot(`${slug}.print.${ENV}.json`);
       const pages = await pdfPageCount(page);
       expect
