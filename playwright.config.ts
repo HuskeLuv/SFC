@@ -4,6 +4,21 @@ import { defineConfig } from '@playwright/test';
 const PORT = Number(process.env.PLAYWRIGHT_PORT ?? 3000);
 const CHROMIUM_PATH = process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH;
 
+// O middleware limita 60 req/min por IP e prefixo de rota (src/lib/rateLimit.ts) e toda página
+// chama /api/auth/me. A suíte inteira sai do mesmo IP: com 2 workers o balde do /api/auth/me
+// esgotava, a página ficava sem usuário (avatar "?") e o teste esperava o conteúdo por 60s (CI
+// 36282243449: mobile-perfil e mobile-overflow /saude-financeira); um worker sozinho chega perto
+// de 60/min. O x-forwarded-for é a chave do limitador: cada contexto (cada teste) ganha um IP
+// próprio — o getter roda a cada browser.newContext / request.newContext.
+const WORKER = Number(process.env.TEST_WORKER_INDEX ?? 0) % 256;
+let contextSeq = 0;
+const E2E_HEADERS = {
+  get 'x-forwarded-for'() {
+    contextSeq += 1;
+    return `10.${WORKER}.${Math.floor(contextSeq / 256) % 256}.${contextSeq % 256}`;
+  },
+};
+
 export default defineConfig({
   testDir: './e2e',
   timeout: 30000,
@@ -14,6 +29,7 @@ export default defineConfig({
   use: {
     baseURL: `http://localhost:${PORT}`,
     trace: 'on-first-retry',
+    extraHTTPHeaders: E2E_HEADERS,
     ...(CHROMIUM_PATH ? { launchOptions: { executablePath: CHROMIUM_PATH } } : {}),
   },
   projects: [
