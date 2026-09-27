@@ -1,0 +1,94 @@
+{
+ "tabs": [],
+ "tables": [
+  {
+   "ths": [
+    "",
+    "Data",
+    "Transação",
+    "Valor",
+    "Linha do fluxo de caixa",
+    ""
+   ],
+   "colCount": 6,
+   "theadClass": "",
+   "thClasses": [
+    "font-medium px-4 py-3 text-left whitespace-nowrap",
+    "font-medium px-4 py-3 text-right whitespace-nowrap"
+   ],
+   "trClasses": [
+    "border-b border-gray-100 dark:border-gray-800 last:border-b-0"
+   ],
+   "tdClasses": [
+    "font-medium px-4 py-2.5 tabular-nums text-right text-sm whitespace-nowrap",
+    "px-4 py-2.5 text-sm",
+    "px-4 py-2.5 text-sm whitespace-nowrap"
+   ]
+  },
+  {
+   "ths": [
+    "Investimento",
+    "Tipo",
+    "Saldo no banco",
+    "Situação",
+    ""
+   ],
+   "colCount": 5,
+   "theadClass": "",
+   "thClasses": [
+    "font-medium px-4 py-3 text-left whitespace-nowrap",
+    "font-medium px-4 py-3 text-right whitespace-nowrap"
+   ],
+   "trClasses": [
+    "border-b border-gray-100 dark:border-gray-800 last:border-b-0",
+    "border-b border-gray-100 dark:border-gray-800 last:border-b-0 opacity-60"
+   ],
+   "tdClasses": [
+    "dark:text-gray-300 px-4 py-2.5 text-gray-600 text-sm",
+    "dark:text-white/90 px-4 py-2.5 tabular-nums text-gray-800 text-right text-sm",
+    "px-4 py-2.5 text-sm",
+    "px-4 py-2.5 text-sm whitespace-nowrap"
+   ]
+  },
+  {
+   "ths": [
+    "Empréstimo",
+    "Contratado",
+    "Saldo devedor",
+    "Parcelas",
+    "Situação"
+   ],
+   "colCount": 5,
+   "theadClass": "",
+   "thClasses": [
+    "font-medium px-4 py-3 text-left whitespace-nowrap",
+    "font-medium px-4 py-3 text-right whitespace-nowrap"
+   ],
+   "trClasses": [
+    "border-b border-gray-100 dark:border-gray-800 last:border-b-0",
+    "border-b border-gray-100 dark:border-gray-800 last:border-b-0 opacity-60"
+   ],
+   "tdClasses": [
+    "dark:text-gray-300 px-4 py-2.5 text-gray-600 text-sm",
+    "px-4 py-2.5 tabular-nums text-right text-sm",
+    "px-4 py-2.5 text-sm"
+   ]
+  }
+ ],
+ "mobileArtifactsVisible": 0,
+ "controls": [
+  "a|||dark:text-gray-400 gap-1.5 inline-flex items-center text-gray-500 text-sm",
+  "a|||text-brand-500 underline",
+  "button|||bg-brand-500 disabled:bg-brand-300 font-medium gap-2 hover:bg-brand-600 inline-flex items-center justify-center px-4 py-3 rounded-lg shadow-theme-xs text-sm text-white transition",
+  "button|||bg-brand-500 disabled:bg-brand-300 font-medium gap-2 hover:bg-brand-600 inline-flex items-center justify-center px-5 py-3.5 rounded-lg shadow-theme-xs text-sm text-white transition",
+  "button|||bg-white cursor-not-allowed dark:bg-gray-800 dark:hover:bg-white/[0.03] dark:hover:text-gray-300 dark:ring-gray-700 dark:text-gray-400 font-medium gap-2 hover:bg-gray-50 inline-flex items-center justify-center opacity-50 px-4 py-3 ring-1 ring-gray-300 ring-inset rounded-lg text-gray-700 text-sm transition",
+  "button|||bg-white dark:bg-gray-800 dark:hover:bg-white/[0.03] dark:hover:text-gray-300 dark:ring-gray-700 dark:text-gray-400 font-medium gap-2 hover:bg-gray-50 hover:text-red-700 inline-flex items-center justify-center px-4 py-3 ring-1 ring-gray-300 ring-inset rounded-lg text-gray-700 text-sm transition",
+  "button|||bg-white dark:bg-gray-800 dark:hover:bg-white/[0.03] dark:hover:text-gray-300 dark:ring-gray-700 dark:text-gray-400 font-medium gap-2 hover:bg-gray-50 inline-flex items-center justify-center px-4 py-3 ring-1 ring-gray-300 ring-inset rounded-lg text-gray-700 text-sm transition",
+  "button|||text-brand-500 text-xs underline",
+  "button|||text-brand-500 underline",
+  "h2|||dark:text-white/90 font-semibold text-gray-800 text-xl",
+  "h3|||dark:text-white/90 font-semibold text-base text-gray-800",
+  "input|||",
+  "select|||bg-white border border-gray-300 dark:bg-gray-900 dark:border-gray-700 dark:text-white/90 max-w-xs px-2 py-1.5 rounded-lg text-sm w-full"
+ ]
+}

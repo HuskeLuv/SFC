@@ -4,6 +4,8 @@ import { useMemo, useState } from 'react';
 import { Table, TableBody, TableCell, TableHeader, TableRow } from '@/components/ui/table';
 import { TABLE_HEADER_STYLE, TABLE_STYLES } from '@/components/ui/table/tableStyles';
 import type { DividaDTO } from '@/hooks/useDividas';
+import { useIsBelowLg } from '@/hooks/useMediaQuery';
+import DividasCards from './mobile/DividasCards';
 import {
   CATEGORIA_LABELS,
   INDEXADOR_LABELS,
@@ -30,6 +32,10 @@ export default function DividasTable({ dividas, onSelectDivida }: DividasTablePr
   // Ordenação por CET (pedido ago/2026): clique no cabeçalho alterna
   // maior→menor, menor→maior e ordem original. Rotativas sem taxa vão pro fim.
   const [cetSort, setCetSort] = useState<'desc' | 'asc' | null>(null);
+  const cycleCetSort = () =>
+    setCetSort((prev) => (prev === null ? 'desc' : prev === 'desc' ? 'asc' : null));
+  // PWA fase 3: abaixo de lg a lista vira cartões (mesmos memos e ordenação).
+  const isBelowLg = useIsBelowLg();
 
   const dividasOrdenadas = useMemo(() => {
     if (!cetSort) return dividas;
@@ -66,6 +72,19 @@ export default function DividasTable({ dividas, onSelectDivida }: DividasTablePr
     [dividas],
   );
 
+  if (isBelowLg) {
+    return (
+      <DividasCards
+        dividas={dividasOrdenadas}
+        totalDevido={totalDevido}
+        totalParcelas={totalParcelas}
+        cetSort={cetSort}
+        onCycleCetSort={cycleCetSort}
+        onSelectDivida={onSelectDivida}
+      />
+    );
+  }
+
   return (
     <div className={TABLE_STYLES.wrapper}>
       <Table className={TABLE_STYLES.table}>
@@ -80,9 +99,7 @@ export default function DividasTable({ dividas, onSelectDivida }: DividasTablePr
             <TableCell isHeader className={`${HEAD} text-right`}>
               <button
                 type="button"
-                onClick={() =>
-                  setCetSort((prev) => (prev === null ? 'desc' : prev === 'desc' ? 'asc' : null))
-                }
+                onClick={cycleCetSort}
                 className="inline-flex items-center gap-1 uppercase tracking-wide hover:text-white/80"
                 title="Ordenar pelo CET mensal"
               >

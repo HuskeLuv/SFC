@@ -3,6 +3,8 @@
 import React, { useEffect, useState } from 'react';
 import { Modal } from '@/components/ui/modal';
 import type { EventoManualPayload } from '@/hooks/useAgenda';
+import { useIsBelowLg } from '@/hooks/useMediaQuery';
+import { MODAL_STICKY_FOOTER } from '@/lib/ui/mobile';
 
 export interface EventoFormValores {
   titulo: string;
@@ -35,10 +37,25 @@ interface Props {
   onClose: () => void;
   onSalvar: (payload: EventoManualPayload) => void;
   onExcluir?: () => void;
+  /**
+   * PWA fase 3 (abaixo de lg): "Excluir evento" confirma em sheet (quem abre fecha o modal antes).
+   * Sem ele — e no desktop — fica a confirmação em dois passos de hoje.
+   */
+  onPedirExclusao?: () => void;
 }
 
 const INPUT =
-  'dark:bg-dark-900 h-11 w-full rounded-lg border border-gray-300 bg-transparent px-4 py-2.5 text-sm text-gray-800 shadow-theme-xs placeholder:text-gray-400 focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90 dark:placeholder:text-white/30 dark:focus:border-brand-800';
+  'dark:bg-dark-900 h-11 w-full rounded-lg border border-gray-300 bg-transparent px-4 py-2.5 text-sm text-gray-800 shadow-theme-xs placeholder:text-gray-400 focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90 dark:placeholder:text-white/30 dark:focus:border-brand-800 max-lg:h-12 max-lg:rounded-xl max-lg:text-base';
+/** Borda de erro no campo (só no celular, onde a mensagem fica embaixo do campo). */
+const INPUT_ERRO = 'border-[#D92D20] dark:border-[#F97066]';
+const ERRO_CAMPO = 'mt-1.5 text-[12.5px] text-[#D92D20] dark:text-[#F97066]';
+
+/** Campo de cada mensagem de validarForm (celular: o erro aparece no campo, com foco nele). */
+const CAMPO_DO_ERRO: Record<string, string> = {
+  'Dê um título ao evento.': 'agenda-titulo',
+  'Escolha a data.': 'agenda-data',
+  'A data final vem antes da inicial.': 'agenda-data-fim',
+};
 const LABEL = 'mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400';
 
 const CATEGORIAS = [
@@ -83,7 +100,9 @@ export default function AgendaEventoModal({
   onClose,
   onSalvar,
   onExcluir,
+  onPedirExclusao,
 }: Props) {
+  const isBelowLg = useIsBelowLg();
   const [v, setV] = useState<EventoFormValores>(inicial);
   const [erroLocal, setErroLocal] = useState<string | null>(null);
   const [confirmandoExclusao, setConfirmandoExclusao] = useState(false);
@@ -104,15 +123,34 @@ export default function AgendaEventoModal({
     const problema = validarForm(v);
     if (problema) {
       setErroLocal(problema);
+      const campo = CAMPO_DO_ERRO[problema];
+      if (isBelowLg && campo) requestAnimationFrame(() => document.getElementById(campo)?.focus());
       return;
     }
     setErroLocal(null);
     onSalvar(formParaPayload(v));
   };
 
+  // Celular: a mensagem de validação vai para o campo dela (aria-invalid + aria-describedby).
+  const campoComErro = isBelowLg && erroLocal ? (CAMPO_DO_ERRO[erroLocal] ?? null) : null;
+  const erroDoCampo = (id: string) =>
+    campoComErro === id
+      ? {
+          'aria-invalid': true as const,
+          'aria-describedby': `${id}-erro`,
+        }
+      : {};
+  const mensagemNoCampo = (id: string) =>
+    campoComErro === id ? (
+      <p id={`${id}-erro`} role="alert" className={ERRO_CAMPO}>
+        {erroLocal}
+      </p>
+    ) : null;
+  const erroRodape = campoComErro ? erro : (erroLocal ?? erro);
+
   return (
     <Modal isOpen={aberto} onClose={onClose} className="max-w-[640px] p-6 lg:p-8">
-      <form onSubmit={submit} className="flex flex-col px-1">
+      <form onSubmit={submit} className="flex flex-col px-1 max-lg:px-0">
         <h5 className="mb-1 text-xl font-semibold text-gray-800 dark:text-white/90">
           {modo === 'editar' ? 'Editar evento' : 'Novo evento'}
         </h5>
@@ -131,9 +169,11 @@ export default function AgendaEventoModal({
               maxLength={120}
               value={v.titulo}
               onChange={(e) => set('titulo', e.target.value)}
-              className={INPUT}
+              className={`${INPUT} ${campoComErro === 'agenda-titulo' ? INPUT_ERRO : ''}`}
               placeholder="Ex.: Renovar seguro do carro"
+              {...erroDoCampo('agenda-titulo')}
             />
+            {mensagemNoCampo('agenda-titulo')}
           </div>
           <div>
             <label htmlFor="agenda-data" className={LABEL}>
@@ -144,8 +184,10 @@ export default function AgendaEventoModal({
               type="date"
               value={v.data}
               onChange={(e) => set('data', e.target.value)}
-              className={INPUT}
+              className={`${INPUT} ${campoComErro === 'agenda-data' ? INPUT_ERRO : ''}`}
+              {...erroDoCampo('agenda-data')}
             />
+            {mensagemNoCampo('agenda-data')}
           </div>
           <div>
             <label htmlFor="agenda-hora" className={LABEL}>
@@ -169,8 +211,10 @@ export default function AgendaEventoModal({
               value={v.dataFim}
               min={v.data || undefined}
               onChange={(e) => set('dataFim', e.target.value)}
-              className={INPUT}
+              className={`${INPUT} ${campoComErro === 'agenda-data-fim' ? INPUT_ERRO : ''}`}
+              {...erroDoCampo('agenda-data-fim')}
             />
+            {mensagemNoCampo('agenda-data-fim')}
           </div>
           <div>
             <label htmlFor="agenda-recorrencia" className={LABEL}>
@@ -189,27 +233,61 @@ export default function AgendaEventoModal({
               ))}
             </select>
           </div>
-          <div>
-            <label htmlFor="agenda-categoria" className={LABEL}>
-              Categoria
-            </label>
-            <select
-              id="agenda-categoria"
-              value={v.categoria}
-              onChange={(e) => set('categoria', e.target.value)}
-              className={INPUT}
-            >
-              {CATEGORIAS.map((o) => (
-                <option key={o.value} value={o.value}>
-                  {o.label}
-                </option>
-              ))}
-            </select>
-          </div>
+          {isBelowLg ? (
+            // Celular: a categoria em 4 botões (radiogroup com os mesmos valores do select).
+            <div className="sm:col-span-2">
+              <span id="agenda-categoria-rotulo" className={LABEL}>
+                Categoria
+              </span>
+              <div
+                role="radiogroup"
+                aria-labelledby="agenda-categoria-rotulo"
+                className="grid grid-cols-2 gap-2"
+              >
+                {CATEGORIAS.map((o) => {
+                  const marcado = v.categoria === o.value;
+                  return (
+                    <button
+                      key={o.value}
+                      type="button"
+                      role="radio"
+                      aria-checked={marcado}
+                      onClick={() => set('categoria', o.value)}
+                      className={`min-h-11 rounded-xl border px-3 text-sm font-medium ${
+                        marcado
+                          ? 'border-mf-seguranca bg-mf-seguranca text-white dark:border-mf-patrimonio dark:bg-mf-patrimonio'
+                          : 'border-gray-300 text-gray-700 dark:border-gray-700 dark:text-gray-300'
+                      }`}
+                    >
+                      {o.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          ) : (
+            <div>
+              <label htmlFor="agenda-categoria" className={LABEL}>
+                Categoria
+              </label>
+              <select
+                id="agenda-categoria"
+                value={v.categoria}
+                onChange={(e) => set('categoria', e.target.value)}
+                className={INPUT}
+              >
+                {CATEGORIAS.map((o) => (
+                  <option key={o.value} value={o.value}>
+                    {o.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
           <div className="flex items-end">
             <label
               htmlFor="agenda-lembrete"
-              className="flex cursor-pointer items-center gap-2 pb-3 text-sm text-gray-700 dark:text-gray-300"
+              className="flex cursor-pointer items-center gap-2 pb-3 text-sm text-gray-700 max-lg:min-h-11 max-lg:gap-3 max-lg:pb-0 dark:text-gray-300"
             >
               <input
                 id="agenda-lembrete"
@@ -236,13 +314,15 @@ export default function AgendaEventoModal({
           </div>
         </div>
 
-        {(erroLocal || erro) && (
+        {erroRodape && (
           <p role="alert" className="mt-4 text-sm text-error-500">
-            {erroLocal ?? erro}
+            {erroRodape}
           </p>
         )}
 
-        <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div
+          className={`mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-between ${MODAL_STICKY_FOOTER.p6}`}
+        >
           <div>
             {modo === 'editar' && onExcluir ? (
               confirmandoExclusao ? (
@@ -267,8 +347,10 @@ export default function AgendaEventoModal({
               ) : (
                 <button
                   type="button"
-                  onClick={() => setConfirmandoExclusao(true)}
-                  className="text-sm text-error-500 hover:underline"
+                  onClick={() =>
+                    isBelowLg && onPedirExclusao ? onPedirExclusao() : setConfirmandoExclusao(true)
+                  }
+                  className="text-sm text-error-500 hover:underline max-lg:min-h-11 max-lg:font-medium max-lg:text-[#D92D20] dark:max-lg:text-[#F97066]"
                 >
                   Excluir evento
                 </button>
@@ -279,14 +361,14 @@ export default function AgendaEventoModal({
             <button
               type="button"
               onClick={onClose}
-              className="flex w-full justify-center rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-white/[0.03] sm:w-auto"
+              className="flex w-full justify-center rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 max-lg:min-h-12 max-lg:items-center max-lg:rounded-xl dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-white/[0.03] sm:w-auto"
             >
               Cancelar
             </button>
             <button
               type="submit"
               disabled={salvando}
-              className="flex w-full justify-center rounded-lg bg-brand-500 px-4 py-2.5 text-sm font-medium text-white hover:bg-brand-600 disabled:opacity-60 sm:w-auto"
+              className="flex w-full justify-center rounded-lg bg-brand-500 px-4 py-2.5 text-sm font-medium text-white hover:bg-brand-600 disabled:opacity-60 max-lg:min-h-12 max-lg:items-center max-lg:rounded-xl max-lg:bg-mf-seguranca max-lg:font-semibold sm:w-auto dark:max-lg:bg-mf-patrimonio"
             >
               {salvando ? 'Salvando…' : modo === 'editar' ? 'Salvar' : 'Adicionar'}
             </button>

@@ -6,6 +6,10 @@ import Button from '@/components/ui/button/Button';
 import Label from '@/components/form/Label';
 import Input from '@/components/form/input/InputField';
 import { logger } from '@/lib/logger';
+import { useIsBelowLg } from '@/hooks/useMediaQuery';
+import { MobileNumberField } from '@/components/ui/sheet/MobileNumberField';
+import { formatDecimalInput, parseDecimalInput } from '@/lib/ui/numberInput';
+import { MODAL_STICKY_FOOTER } from '@/lib/ui/mobile';
 import {
   useRegistrarPagamento,
   type DividaDTO,
@@ -26,6 +30,9 @@ interface DividaRegistrarPagamentoModalProps {
  * Defaults inteligentes (financiamento): parcela nº = próxima do cronograma,
  * valor = parcela esperada, mês = mês da próxima parcela. Rotativa: só mês e
  * valor, com opção de "ajuste" (encargos/novos saques que SOMAM ao saldo).
+ *
+ * PWA fase 3 (abaixo de lg o Modal já é sheet): tipo em segmentado de 44px, valor com vírgula
+ * (MobileNumberField — o mesmo número no POST) e rodapé fixo. Desktop igual.
  */
 export default function DividaRegistrarPagamentoModal({
   divida,
@@ -34,6 +41,7 @@ export default function DividaRegistrarPagamentoModal({
   onSaved,
 }: DividaRegistrarPagamentoModalProps) {
   const isFinanciamento = divida.modalidade === 'financiamento';
+  const isBelowLg = useIsBelowLg();
   const proxima = divida.resumo?.proximaParcela ?? null;
   // Contrato indexado: a parcela esperada é a CORRIGIDA pelo índice realizado.
   const parcelaEsperada = proxima
@@ -55,17 +63,31 @@ export default function DividaRegistrarPagamentoModal({
   useEffect(() => {
     if (isOpen) {
       setMonth(initialMonth);
-      setValor(initialValor);
+      // Celular: o campo é de vírgula ('1.100,00'); o parse abaixo devolve o mesmo número.
+      setValor(
+        isBelowLg && parcelaEsperada != null ? formatDecimalInput(parcelaEsperada) : initialValor,
+      );
       setParcelaNumero(initialParcela);
       setVincularParcela(isFinanciamento);
       setTipo('pagamento');
       setError(null);
     }
-  }, [isOpen, initialMonth, initialValor, initialParcela, isFinanciamento]);
+  }, [
+    isOpen,
+    initialMonth,
+    initialValor,
+    initialParcela,
+    isFinanciamento,
+    isBelowLg,
+    parcelaEsperada,
+  ]);
 
   const registrar = useRegistrarPagamento(divida.id);
 
-  const valorNum = useMemo(() => Number(valor.replace(',', '.')) || 0, [valor]);
+  const valorNum = useMemo(
+    () => (isBelowLg ? (parseDecimalInput(valor) ?? 0) : Number(valor.replace(',', '.')) || 0),
+    [valor, isBelowLg],
+  );
   const deltaParcela =
     parcelaEsperada != null && vincularParcela ? valorNum - parcelaEsperada : null;
 
@@ -99,7 +121,7 @@ export default function DividaRegistrarPagamentoModal({
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} className="max-w-md p-6">
-      <h3 className="mb-4 text-lg font-semibold text-gray-900 dark:text-white/90">
+      <h3 className="mb-4 text-lg font-semibold text-gray-900 max-lg:pr-12 dark:text-white/90">
         Registrar pagamento — {divida.nome}
       </h3>
 
@@ -112,7 +134,7 @@ export default function DividaRegistrarPagamentoModal({
       <div className="space-y-3">
         {/* Tipo: rotativa lança ajuste; financiamento lança amortização
             com redução de prazo (quita parcelas do FIM do cronograma). */}
-        <div className="inline-flex flex-wrap rounded-lg border border-gray-200 p-0.5 dark:border-gray-800">
+        <div className="inline-flex flex-wrap rounded-lg border border-gray-200 p-0.5 max-lg:flex max-lg:w-full max-lg:flex-col max-lg:gap-0.5 max-lg:rounded-xl dark:border-gray-800">
           {(isFinanciamento
             ? ([
                 ['pagamento', 'Pagamento'],
@@ -127,9 +149,9 @@ export default function DividaRegistrarPagamentoModal({
               key={value}
               type="button"
               onClick={() => setTipo(value)}
-              className={`rounded-md px-3 py-1.5 text-xs font-medium transition ${
+              className={`rounded-md px-3 py-1.5 text-xs font-medium transition max-lg:min-h-11 max-lg:rounded-[10px] max-lg:text-sm ${
                 tipo === value
-                  ? 'bg-brand-500 text-white'
+                  ? 'bg-brand-500 text-white max-lg:bg-mf-seguranca max-lg:font-semibold'
                   : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'
               }`}
               aria-pressed={tipo === value}
@@ -159,20 +181,44 @@ export default function DividaRegistrarPagamentoModal({
         </div>
 
         <div>
-          <Label htmlFor="pg-valor">Valor (R$)</Label>
-          <Input
-            id="pg-valor"
-            type="number"
-            value={valor}
-            onChange={(e) => setValor(e.target.value)}
-            min="0"
-            step="10"
-          />
+          {isBelowLg ? (
+            <MobileNumberField
+              id="pg-valor"
+              label="Valor"
+              kind="currency"
+              prefix="R$"
+              value={valor}
+              onChange={setValor}
+              enterKeyHint="done"
+            />
+          ) : (
+            <>
+              <Label htmlFor="pg-valor">Valor (R$)</Label>
+              <Input
+                id="pg-valor"
+                type="number"
+                value={valor}
+                onChange={(e) => setValor(e.target.value)}
+                min="0"
+                step="10"
+              />
+            </>
+          )}
           {proxima && vincularParcela && tipo === 'pagamento' ? (
             <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
               Parcela esperada: {formatBRL(parcelaEsperada ?? proxima.parcela)}
               {deltaParcela != null && Math.abs(deltaParcela) >= 0.01 ? (
-                <strong className={deltaParcela > 0 ? 'text-amber-600' : 'text-emerald-600'}>
+                <strong
+                  className={
+                    isBelowLg
+                      ? deltaParcela > 0
+                        ? 'text-[#B45309] dark:text-[#FBBF24]'
+                        : 'text-mf-patrimonio dark:text-mf-tranquilidade'
+                      : deltaParcela > 0
+                        ? 'text-amber-600'
+                        : 'text-emerald-600'
+                  }
+                >
                   {' '}
                   ({deltaParcela > 0 ? '+' : ''}
                   {formatBRL(deltaParcela)})
@@ -184,12 +230,12 @@ export default function DividaRegistrarPagamentoModal({
 
         {isFinanciamento && tipo === 'pagamento' ? (
           <>
-            <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+            <label className="flex items-center gap-2 text-sm text-gray-700 max-lg:min-h-11 max-lg:gap-3 max-lg:text-base dark:text-gray-300">
               <input
                 type="checkbox"
                 checked={vincularParcela}
                 onChange={(e) => setVincularParcela(e.target.checked)}
-                className="h-4 w-4 rounded border-gray-300"
+                className="h-4 w-4 rounded border-gray-300 max-lg:h-5 max-lg:w-5"
               />
               Vincular a uma parcela do cronograma
             </label>
@@ -215,11 +261,21 @@ export default function DividaRegistrarPagamentoModal({
           </>
         ) : null}
 
-        <div className="flex justify-end gap-2 pt-2">
-          <Button onClick={onClose} size="sm" variant="outline">
+        <div className={`flex justify-end gap-2 pt-2 ${MODAL_STICKY_FOOTER.p6}`}>
+          <Button
+            onClick={onClose}
+            size="sm"
+            variant="outline"
+            className="max-lg:min-h-12 max-lg:flex-1 max-lg:rounded-xl"
+          >
             Cancelar
           </Button>
-          <Button onClick={handleSave} size="sm" disabled={registrar.isPending}>
+          <Button
+            onClick={handleSave}
+            size="sm"
+            disabled={registrar.isPending}
+            className="max-lg:min-h-12 max-lg:flex-[2] max-lg:rounded-xl max-lg:bg-mf-seguranca"
+          >
             {registrar.isPending ? 'Salvando…' : 'Salvar'}
           </Button>
         </div>

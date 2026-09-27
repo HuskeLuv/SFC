@@ -59,12 +59,12 @@ export default function AutorizacaoModal({
   const texto = VERSOES_CONSENTIMENTO[consentimento.versaoTexto];
   return (
     <Modal isOpen onClose={onFechar} className="m-4 max-w-2xl">
-      <div className="max-h-[85vh] overflow-y-auto p-6 sm:p-8">
+      <div className="max-h-[85vh] overflow-y-auto p-6 sm:p-8 max-lg:max-h-none max-lg:overflow-visible">
         <h3 className="mb-3 pr-10 text-lg font-semibold text-gray-800 dark:text-white/90">
           Autorização Open Finance
           {consentimento.connectorName ? ` · ${consentimento.connectorName}` : ''}
         </h3>
-        <dl className="mb-5 grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-sm">
+        <dl className="mb-5 grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-sm max-lg:grid-cols-1 max-lg:[&>dd]:mb-2">
           <dt className="text-gray-500 dark:text-gray-400">Situação</dt>
           <dd className="text-gray-800 dark:text-white/90">
             {ROTULO_STATUS[consentimento.status] ?? consentimento.status}

@@ -3,12 +3,14 @@
 import type { SaudeFinanceiraIndicadores } from '@/hooks/useSaudeFinanceira';
 import { formatPercent, taxaMensal } from './utils';
 import { TABLE_STYLES, TABLE_HEADER_STYLE } from '@/components/ui/table/tableStyles';
+import { useIsBelowLg } from '@/hooks/useMediaQuery';
+import DadosEconomicosCards from './mobile/DadosEconomicosCards';
 
 interface DadosEconomicosProps {
   indicadores: SaudeFinanceiraIndicadores;
 }
 
-interface LinhaTaxa {
+export interface LinhaTaxa {
   chave: string;
   label: string;
   aa: number | null;
@@ -23,6 +25,7 @@ interface LinhaTaxa {
  */
 export default function DadosEconomicos({ indicadores }: DadosEconomicosProps) {
   const { economia } = indicadores;
+  const isBelowLg = useIsBelowLg();
 
   const linhas: LinhaTaxa[] = [
     { chave: 'cdi', label: 'CDI', aa: economia.cdiAA },
@@ -49,8 +52,19 @@ export default function DadosEconomicos({ indicadores }: DadosEconomicosProps) {
 
   return (
     <div className="print:break-inside-avoid rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03]">
-      <h3 className="text-base font-semibold text-gray-900 dark:text-white/90">Dados Econômicos</h3>
-      <div className={`mt-3 ${TABLE_STYLES.wrapper}`}>
+      <h3
+        className={`text-base font-semibold text-gray-900 dark:text-white/90${
+          isBelowLg ? ' mscreen:hidden' : ''
+        }`}
+      >
+        Dados Econômicos
+      </h3>
+      {isBelowLg ? (
+        <div className="hidden mscreen:block">
+          <DadosEconomicosCards linhas={linhas} />
+        </div>
+      ) : null}
+      <div className={`mt-3 ${TABLE_STYLES.wrapper}${isBelowLg ? ' mscreen:hidden' : ''}`}>
         <table className={TABLE_STYLES.table}>
           <thead>
             <tr className={TABLE_STYLES.headRow} style={TABLE_HEADER_STYLE}>

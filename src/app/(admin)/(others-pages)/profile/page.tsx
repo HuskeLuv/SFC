@@ -4,6 +4,8 @@ import UserMetaCard from '@/components/user-profile/UserMetaCard';
 import PrivacyControls from '@/components/user-profile/PrivacyControls';
 import { TwoFactorAuthAutoLoad } from '@/components/user-profile/TwoFactorAuth';
 import AgendaPreferencias from '@/components/user-profile/AgendaPreferencias';
+import PerfilMobile from '@/components/user-profile/mobile/PerfilMobile';
+import { useIsBelowLg } from '@/hooks/useMediaQuery';
 
 interface User {
   id: string;
@@ -17,6 +19,8 @@ export default function ProfilePage() {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  // PWA fase 3: abaixo de lg, lista de ajustes com cada formulário num sheet (servidor = desktop).
+  const isBelowLg = useIsBelowLg();
 
   useEffect(() => {
     fetch('/api/profile', { credentials: 'include' })
@@ -30,6 +34,7 @@ export default function ProfilePage() {
 
   if (loading) return <div>Carregando...</div>;
   if (error) return <div className="text-red-500">{error}</div>;
+  if (isBelowLg && user) return <PerfilMobile user={user} />;
 
   return (
     <div className="space-y-6">

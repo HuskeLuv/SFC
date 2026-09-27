@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { useState } from 'react';
+import { useIsBelowLg } from '@/hooks/useMediaQuery';
 import type {
   BenchmarkPatrimonial,
   SaudeFinanceiraConfig,
@@ -17,6 +18,12 @@ interface MetasPatrimoniaisProps {
   idade: number | null;
   /** Parâmetros efetivos (defaults + overrides do user). */
   config: SaudeFinanceiraConfig;
+  /**
+   * Formulário "Personalizar" controlado de fora (PWA fase 3: o ⋯ do celular abre o mesmo
+   * formulário). Sem estas props o estado é interno, como hoje.
+   */
+  configurando?: boolean;
+  onConfigurandoChange?: (aberto: boolean) => void;
 }
 
 interface MetaRowProps {
@@ -25,9 +32,11 @@ interface MetaRowProps {
   benchmark: BenchmarkPatrimonial;
   /** Conteúdo alternativo quando o benchmark é incalculável. */
   indisponivel?: React.ReactNode;
+  /** Ramo celular: barra no azul #0079F2 e o % no nome acessível da barra. */
+  isBelowLg?: boolean;
 }
 
-function MetaRow({ titulo, descricao, benchmark, indisponivel }: MetaRowProps) {
+function MetaRow({ titulo, descricao, benchmark, indisponivel, isBelowLg }: MetaRowProps) {
   const { necessario, atual, atingido } = benchmark;
   const pct = atingido != null ? Math.max(0, Math.min(1, atingido)) : 0;
   const completo = atingido != null && atingido >= 1;
@@ -35,15 +44,18 @@ function MetaRow({ titulo, descricao, benchmark, indisponivel }: MetaRowProps) {
   return (
     <div>
       <div className="flex items-baseline justify-between gap-2">
-        <div className="max-lg:min-w-0">
+        {/* mscreen: na tela abaixo de lg; print: na folha A4 (o max-lg de antes valia nas duas). */}
+        <div className="mscreen:min-w-0 print:min-w-0">
           <p className="text-sm font-medium text-gray-900 dark:text-white/90">{titulo}</p>
           <p className="text-xs text-gray-500 dark:text-gray-400">{descricao}</p>
         </div>
         {necessario != null ? (
-          <p className="shrink-0 text-right text-xs text-gray-500 max-lg:shrink dark:text-gray-400">
+          <p className="shrink-0 text-right text-xs text-gray-500 mscreen:shrink print:shrink dark:text-gray-400">
             <span
               className={`block text-sm font-semibold ${
-                completo ? 'text-green-600 dark:text-green-400' : 'text-gray-900 dark:text-white/90'
+                completo
+                  ? 'text-green-600 dark:text-green-400 mscreen:text-mf-patrimonio dark:mscreen:text-mf-tranquilidade'
+                  : 'text-gray-900 dark:text-white/90'
               }`}
             >
               {formatPercent(atingido, 0)}
@@ -53,11 +65,16 @@ function MetaRow({ titulo, descricao, benchmark, indisponivel }: MetaRowProps) {
         ) : null}
       </div>
       {necessario != null ? (
-        <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-gray-100 dark:bg-gray-800">
+        <div
+          className="mt-2 h-2 w-full overflow-hidden rounded-full bg-gray-100 dark:bg-gray-800"
+          {...(isBelowLg
+            ? { role: 'img', 'aria-label': `${titulo}: ${formatPercent(atingido, 0)} atingido` }
+            : {})}
+        >
           <div
             className={`h-full rounded-full transition-all ${
               completo ? 'bg-green-500' : 'bg-blue-500'
-            }`}
+            }${isBelowLg ? ' mscreen:bg-[#0079F2]' : ''}`}
             style={{ width: `${pct * 100}%` }}
           />
         </div>
@@ -72,9 +89,21 @@ function MetaRow({ titulo, descricao, benchmark, indisponivel }: MetaRowProps) {
  * Bloco ③ — as 4 metas patrimoniais da metodologia, com progresso
  * (correlação real/benchmark da planilha).
  */
-export default function MetasPatrimoniais({ indicadores, idade, config }: MetasPatrimoniaisProps) {
+export default function MetasPatrimoniais({
+  indicadores,
+  idade,
+  config,
+  configurando: configurandoProp,
+  onConfigurandoChange,
+}: MetasPatrimoniaisProps) {
   const { benchmarks, economia } = indicadores;
-  const [configurando, setConfigurando] = useState(false);
+  const [configurandoLocal, setConfigurandoLocal] = useState(false);
+  const configurando = configurandoProp ?? configurandoLocal;
+  const setConfigurando = (aberto: boolean) => {
+    setConfigurandoLocal(aberto);
+    onConfigurandoChange?.(aberto);
+  };
+  const isBelowLg = useIsBelowLg();
   const isCustom = (Object.keys(DEFAULT_SAUDE_CONFIG) as (keyof SaudeFinanceiraConfig)[]).some(
     (k) => config[k] !== DEFAULT_SAUDE_CONFIG[k],
   );
@@ -101,7 +130,7 @@ export default function MetasPatrimoniais({ indicadores, idade, config }: MetasP
         {!configurando ? (
           <button
             type="button"
-            className="text-xs font-medium text-blue-600 hover:underline dark:text-blue-400 print:hidden"
+            className="text-xs font-medium text-blue-600 hover:underline dark:text-blue-400 print:hidden mscreen:min-h-11 mscreen:px-1 mscreen:text-sm mscreen:text-mf-patrimonio dark:mscreen:text-mf-tranquilidade"
             onClick={() => setConfigurando(true)}
           >
             Personalizar
@@ -123,12 +152,14 @@ export default function MetasPatrimoniais({ indicadores, idade, config }: MetasP
           descricao={`${config.multReserva}× o gasto mensal, em reserva dedicada`}
           benchmark={benchmarks.reservaEmergencia}
           indisponivel="Preencha o fluxo de caixa para calcular o gasto mensal."
+          isBelowLg={isBelowLg}
         />
         <MetaRow
           titulo="Patrimônio de Segurança"
           descricao={`${config.multSeguranca} meses de gastos em ativos de alta liquidez`}
           benchmark={benchmarks.patrimonioSeguranca}
           indisponivel="Preencha o fluxo de caixa para calcular o gasto mensal."
+          isBelowLg={isBelowLg}
         />
         <MetaRow
           titulo="Patrimônio Ideal"
@@ -138,6 +169,7 @@ export default function MetasPatrimoniais({ indicadores, idade, config }: MetasP
               : `${fatorIdealPct} × renda anual × idade`
           }
           benchmark={benchmarks.patrimonioIdeal}
+          isBelowLg={isBelowLg}
           indisponivel={
             idade == null ? (
               <>
@@ -160,6 +192,7 @@ export default function MetasPatrimoniais({ indicadores, idade, config }: MetasP
           descricao="Patrimônio que sustenta seus gastos só com o ganho real"
           benchmark={benchmarks.independencia}
           indisponivel="Requer ganho real positivo (rentabilidade acima da inflação)."
+          isBelowLg={isBelowLg}
         />
       </div>
       {rentabilidadeNota ? (

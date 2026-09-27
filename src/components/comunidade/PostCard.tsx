@@ -2,9 +2,11 @@
 
 import React, { useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { COMUNIDADE_LIMITES } from '@/constants/comunidade';
 import { MYFINANCE_BRAND } from '@/constants/brandColors';
 import { useCurtirPost, useEditarPost, useModerar } from '@/hooks/useComunidade';
+import { useIsBelowLg } from '@/hooks/useMediaQuery';
 import type { PostComunidade } from '@/types/comunidade';
 import { Comentarios } from './Comentarios';
 import {
@@ -71,6 +73,11 @@ export function PostCard({
   const curtir = useCurtirPost();
   const editar = useEditarPost();
   const moderar = useModerar();
+  // PWA fase 3 (C1): no feed do celular, 'ver mais' e Comentários abrem o post (/comunidade/{id}),
+  // onde o campo de comentário fica fixo embaixo.
+  const isBelowLg = useIsBelowLg();
+  const router = useRouter();
+  const abrirPost = isBelowLg && !comentariosAbertos;
 
   const longo = post.conteudo.length > LIMITE_RESUMO;
   const conteudo =
@@ -198,8 +205,10 @@ export function PostCard({
           {longo && (
             <button
               type="button"
-              onClick={() => setExpandido((v) => !v)}
-              className="mt-1 text-sm font-medium text-brand-500 hover:text-brand-600"
+              onClick={() =>
+                abrirPost ? router.push(`/comunidade/${post.id}`) : setExpandido((v) => !v)
+              }
+              className="mt-1 text-sm font-medium text-brand-500 hover:text-brand-600 max-lg:min-h-11 max-lg:text-mf-patrimonio dark:max-lg:text-mf-tranquilidade"
             >
               {expandido ? 'ver menos' : 'ver mais'}
             </button>
@@ -213,7 +222,7 @@ export function PostCard({
           disabled={suspenso || post.oculto}
           aria-pressed={post.curtiu}
           onClick={() => curtir.mutate({ id: post.id, curtir: !post.curtiu })}
-          className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm transition hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-60 dark:hover:bg-white/5"
+          className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm transition hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-60 dark:hover:bg-white/5 max-lg:min-h-11"
           style={{ color: post.curtiu ? MYFINANCE_BRAND.outside : undefined }}
         >
           <span className={post.curtiu ? '' : 'text-gray-500 dark:text-gray-400'}>
@@ -225,9 +234,11 @@ export function PostCard({
         </button>
         <button
           type="button"
-          onClick={() => setMostrarComentarios((v) => !v)}
-          aria-expanded={mostrarComentarios}
-          className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm text-gray-600 transition hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-white/5"
+          onClick={() =>
+            abrirPost ? router.push(`/comunidade/${post.id}`) : setMostrarComentarios((v) => !v)
+          }
+          aria-expanded={abrirPost ? undefined : mostrarComentarios}
+          className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm text-gray-600 transition hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-white/5 max-lg:min-h-11"
         >
           <BalaoIcon />
           {post.comentarios > 0 ? post.comentarios : ''}{' '}
@@ -236,7 +247,7 @@ export function PostCard({
         {!comentariosAbertos && (
           <Link
             href={`/comunidade/${post.id}`}
-            className="ml-auto rounded-lg px-3 py-1.5 text-xs text-gray-500 transition hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-white/5"
+            className="ml-auto rounded-lg px-3 py-1.5 text-xs text-gray-500 transition hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-white/5 max-lg:inline-flex max-lg:min-h-11 max-lg:items-center"
           >
             Abrir
           </Link>

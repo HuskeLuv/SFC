@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { CATEGORIAS_COMUNIDADE, type CategoriaComunidade } from '@/constants/comunidade';
 import { MYFINANCE_BRAND } from '@/constants/brandColors';
 import { useFeedComunidade } from '@/hooks/useComunidade';
+import { EDGE_TO_EDGE, EDGE_TO_EDGE_PAD } from '@/lib/ui/mobile';
 import type { MeComunidadeResponse } from '@/types/comunidade';
 import { AvisoSuspensao, ComunidadeGate } from './ComunidadeGate';
 import { Composer } from './Composer';
@@ -42,7 +43,9 @@ function Feed({ me }: { me: MeComunidadeResponse }) {
     <div className="mx-auto max-w-2xl space-y-4">
       <header className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-gray-800 dark:text-white/90">Comunidade</h1>
+          <h1 className="text-2xl font-bold text-gray-800 dark:text-white/90 max-lg:text-lg">
+            Comunidade
+          </h1>
           <p className="text-sm text-gray-500 dark:text-gray-400">
             Troque experiências com quem segue a mesma metodologia.
           </p>
@@ -56,7 +59,12 @@ function Feed({ me }: { me: MeComunidadeResponse }) {
 
       <AvisoSuspensao me={me} />
 
-      <nav aria-label="Categorias" className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1">
+      {/* Celular: trilho de ponta a ponta com rolagem própria; chips com alvo de 44px (::before). */}
+      <nav
+        aria-label="Categorias"
+        data-mf-scroll-x=""
+        className={`-mx-1 flex gap-2 overflow-x-auto px-1 pb-1 max-lg:py-1.5 max-lg:[scrollbar-width:none] ${EDGE_TO_EDGE} ${EDGE_TO_EDGE_PAD}`}
+      >
         {[{ chave: null, nome: 'Todas' }, ...CATEGORIAS_COMUNIDADE].map((c) => {
           const ativo = categoria === c.chave;
           return (
@@ -65,7 +73,7 @@ function Feed({ me }: { me: MeComunidadeResponse }) {
               type="button"
               onClick={() => setCategoria(c.chave)}
               aria-pressed={ativo}
-              className={`shrink-0 rounded-full border px-3 py-1.5 text-sm transition ${
+              className={`shrink-0 rounded-full border px-3 py-1.5 text-sm transition max-lg:relative max-lg:before:absolute max-lg:before:inset-x-0 max-lg:before:top-1/2 max-lg:before:h-11 max-lg:before:-translate-y-1/2 max-lg:before:content-[''] ${
                 ativo
                   ? 'text-white'
                   : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50 dark:border-gray-800 dark:bg-white/[0.03] dark:text-gray-400'
@@ -111,7 +119,7 @@ function Feed({ me }: { me: MeComunidadeResponse }) {
             type="button"
             onClick={() => void feed.fetchNextPage()}
             disabled={feed.isFetchingNextPage}
-            className={BOTAO_SECUNDARIO}
+            className={`${BOTAO_SECUNDARIO} max-lg:w-full`}
           >
             {feed.isFetchingNextPage ? 'Carregando…' : 'Carregar mais'}
           </button>

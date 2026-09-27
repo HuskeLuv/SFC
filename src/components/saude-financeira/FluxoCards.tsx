@@ -2,6 +2,8 @@
 
 import MetricCard from '@/components/carteira/shared/MetricCard';
 import type { SaudeFinanceiraIndicadores, TendenciasSaude } from '@/hooks/useSaudeFinanceira';
+import { MobileMetricGrid } from '@/components/ui/mobile/MobileMetricGrid';
+import { useIsBelowLg } from '@/hooks/useMediaQuery';
 import { formatBRLCompact, formatPercent, tendenciaChange } from './utils';
 
 interface FluxoCardsProps {
@@ -23,13 +25,54 @@ export default function FluxoCards({ indicadores, tendencias, cashflowYear }: Fl
   const gasto = tendenciaChange(tendencias.gastoMensal, false, fonte);
   const poupanca = tendenciaChange(tendencias.poupancaMensal, true, 'renda − gastos');
   const taxa = tendenciaChange(tendencias.taxaPoupanca, true, 'da renda vira patrimônio');
+  const isBelowLg = useIsBelowLg();
 
   return (
     <div className="print:break-inside-avoid">
       <h3 className="mb-3 text-base font-semibold text-gray-900 dark:text-white/90">
         Indicadores Financeiros (Fluxo de Caixa)
       </h3>
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      {isBelowLg ? (
+        <div className="hidden mscreen:block">
+          <MobileMetricGrid
+            items={[
+              {
+                label: 'Renda Mensal',
+                value: formatBRLCompact(fluxo.rendaMensal),
+                hint: renda.change,
+              },
+              {
+                label: 'Gasto Mensal',
+                value: formatBRLCompact(fluxo.gastoMensal),
+                hint: gasto.change,
+              },
+              {
+                label: 'Poupança Mensal',
+                value: (
+                  <span
+                    className={
+                      fluxo.poupancaMensal < 0 ? 'text-[#D92D20] dark:text-[#F97066]' : undefined
+                    }
+                  >
+                    {formatBRLCompact(fluxo.poupancaMensal)}
+                  </span>
+                ),
+                hint: poupanca.change,
+              },
+              {
+                label: 'Taxa de Poupança',
+                value: formatPercent(fluxo.taxaPoupanca),
+                hint: taxa.change,
+              },
+            ]}
+          />
+        </div>
+      ) : null}
+      <div
+        className={`grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4${
+          isBelowLg ? ' mscreen:hidden' : ''
+        }`}
+      >
         <MetricCard
           title="Renda Mensal"
           value={formatBRLCompact(fluxo.rendaMensal)}

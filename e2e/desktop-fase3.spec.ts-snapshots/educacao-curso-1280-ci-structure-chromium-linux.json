@@ -1,0 +1,17 @@
+{
+ "tabs": [],
+ "tables": [],
+ "mobileArtifactsVisible": 0,
+ "controls": [
+  "a|||font-medium gap-1.5 hover:underline inline-flex items-center text-[13px] tracking-[.16em] uppercase",
+  "button|||border border-gray-200 dark:border-gray-700 dark:hover:bg-white/5 dark:text-gray-200 disabled:opacity-40 font-semibold gap-1.5 hover:bg-gray-50 inline-flex items-center px-4 py-3 rounded-xl text-gray-700 text-sm transition-colors",
+  "button|||dark:bg-white/[0.06] flex gap-3 items-center px-4 py-3 text-left transition-colors w-full",
+  "button|||dark:hover:bg-white/[0.04] dark:text-gray-300 flex gap-3 hover:bg-white items-center px-5 py-2.5 text-gray-600 text-left text-sm transition-colors w-full",
+  "button|||dark:hover:bg-white/[0.04] flex gap-3 hover:bg-gray-50 items-center px-4 py-3 text-left transition-colors w-full",
+  "button|||dark:text-white flex font-semibold gap-3 items-center px-5 py-2.5 text-gray-900 text-left text-sm transition-colors w-full",
+  "button|||disabled:opacity-60 font-bold gap-2.5 hover:-translate-y-0.5 inline-flex items-center px-6 py-3 rounded-xl text-base text-white transition-transform",
+  "h1|||dark:text-white font-bold text-3xl text-gray-900 truncate",
+  "h2|||dark:text-white font-bold mt-1.5 text-2xl text-gray-900",
+  "h3|||dark:text-white font-bold text-gray-900 text-lg"
+ ]
+}

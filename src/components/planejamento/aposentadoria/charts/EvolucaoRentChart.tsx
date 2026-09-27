@@ -3,6 +3,7 @@
 import dynamic from 'next/dynamic';
 import { useMemo } from 'react';
 import type { ApexOptions } from 'apexcharts';
+import { useMobileChart } from '@/components/charts/mobileChartOptions';
 import { fPct } from '../utils';
 
 const ReactApexChart = dynamic(() => import('react-apexcharts'), { ssr: false });
@@ -15,6 +16,9 @@ interface EvolucaoRentChartProps {
 
 const COLOR_OK = '#3B6D11';
 const COLOR_BAD = '#8B1A1A';
+/** Celular (PWA fase 3): sem verde — acima da meta em azul da paleta, abaixo em vermelho. */
+const MOBILE_COLOR_OK = '#396CAA';
+const MOBILE_COLOR_BAD = '#D92D20';
 
 /**
  * Rentabilidade mensal realizada vs meta. Barras verdes acima da meta,
@@ -81,9 +85,29 @@ export default function EvolucaoRentChart({ categories, rent, meta }: EvolucaoRe
     [categories, meta],
   );
 
+  const mobileExtra = useMemo<ApexOptions>(
+    () => ({
+      plotOptions: {
+        bar: {
+          colors: {
+            ranges: [
+              { from: -100, to: meta - 1e-9, color: MOBILE_COLOR_BAD },
+              { from: meta, to: 100, color: MOBILE_COLOR_OK },
+            ],
+          },
+        },
+      },
+    }),
+    [meta],
+  );
+  const { options: chartOptions, height } = useMobileChart(options, {
+    desktopHeight: 260,
+    extra: mobileExtra,
+  });
+
   return (
     <div className="w-full">
-      <ReactApexChart options={options} series={series} type="bar" height={260} />
+      <ReactApexChart options={chartOptions} series={series} type="bar" height={height} />
     </div>
   );
 }

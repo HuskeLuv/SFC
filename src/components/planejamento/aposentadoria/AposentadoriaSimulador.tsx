@@ -14,7 +14,12 @@ import {
 import { usePlanejamentoContexto } from '@/hooks/usePlanejamentoContexto';
 import { useRentabilidadeCarteira } from '@/hooks/useRentabilidadeCarteira';
 import { AUTO_FIELDS, deriveAutoValues, buildAutoSyncPatch, type AutoField } from './autoFields';
-import LeftPanel from './LeftPanel';
+import LeftPanel, { type ParamFieldKey } from './LeftPanel';
+import PremissasCard from './mobile/PremissasCard';
+import PremissasSheet from './mobile/PremissasSheet';
+import { MobileTabRail } from '@/components/ui/tabs/MobileTabRail';
+import { useResponsiveConfirm } from '@/components/ui/sheet/useResponsiveConfirm';
+import { useIsBelowLg } from '@/hooks/useMediaQuery';
 import ProjecaoTab from './tabs/ProjecaoTab';
 import AcompanhamentoTab from './tabs/AcompanhamentoTab';
 import EvolucaoTab from './tabs/EvolucaoTab';
@@ -64,6 +69,10 @@ export default function AposentadoriaSimulador() {
 
   const [params, setParams] = useState<PlanoUpsertPayload | null>(null);
   const [tab, setTab] = useState<TabValue>('proj');
+  const isBelowLg = useIsBelowLg();
+  const { confirm, confirmSheet } = useResponsiveConfirm();
+  // Celular: sheet de premissas (null = fechado; '' = aberto sem campo em foco).
+  const [premissasField, setPremissasField] = useState<ParamFieldKey | '' | null>(null);
   const [savedTick, setSavedTick] = useState(false);
   // Rentabilidade da própria carteira: carregada sob demanda (cálculo pesado).
   const [wantCarteira, setWantCarteira] = useState(false);
@@ -214,10 +223,16 @@ export default function AposentadoriaSimulador() {
 
   const handleDeleteEntry = useCallback(
     async (off: number) => {
-      if (!window.confirm('Remover este registro?')) return;
+      const ok = await confirm({
+        desktopMessage: 'Remover este registro?',
+        title: 'Remover este registro?',
+        confirmLabel: 'Remover',
+        danger: true,
+      });
+      if (!ok) return;
       await deleteEntry.mutateAsync(off);
     },
-    [deleteEntry],
+    [confirm, deleteEntry],
   );
 
   if (loading || !params) {
@@ -226,6 +241,66 @@ export default function AposentadoriaSimulador() {
 
   const entries = plano?.entries ?? [];
   const mutating = savePlano.isPending || upsertEntry.isPending || deleteEntry.isPending;
+  const savedLabel = savePlano.isPending ? 'Salvando…' : savedTick ? '✔ Salvo' : '';
+
+  const tabContent = (
+    <>
+      {tab === 'proj' ? <ProjecaoTab params={params} projection={projection} /> : null}
+      {tab === 'track' ? (
+        <AcompanhamentoTab
+          params={params}
+          entries={entries}
+          onSaveEntry={handleSaveEntry}
+          onDeleteEntry={handleDeleteEntry}
+          saving={mutating}
+        />
+      ) : null}
+      {tab === 'evol' ? <EvolucaoTab params={params} entries={entries} /> : null}
+    </>
+  );
+
+  if (isBelowLg) {
+    return (
+      <div className="space-y-4">
+        <div className="flex items-center justify-between gap-3">
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-white/90">
+            Planejamento de Aposentadoria
+          </h2>
+        </div>
+        <PremissasCard
+          params={params}
+          savedLabel={savedLabel}
+          onOpen={(field) => setPremissasField(field ?? '')}
+        />
+        <MobileTabRail
+          variant="segmented"
+          semantics="tabs"
+          sticky
+          ariaLabel="Visão do simulador"
+          // 320px: "Acompanhamento" não cabe com o padding padrão do segmento.
+          className="max-[359px]:[&>button]:px-1.5"
+          tabs={TABS.map((t) => ({ id: t.value, label: t.label }))}
+          activeId={tab}
+          onChange={(id) => setTab(id as TabValue)}
+        />
+        {tabContent}
+        <PremissasSheet
+          isOpen={premissasField !== null}
+          onClose={() => setPremissasField(null)}
+          focusField={premissasField || null}
+          params={params}
+          projection={projection}
+          onChange={handleChange}
+          autoValues={autoValues}
+          onResync={handleResync}
+          rentCarteiraAA={rentCarteiraAA}
+          rentCarteiraLoading={rentCarteiraLoading}
+          onUseCarteira={handleUseCarteira}
+        />
+        {confirmSheet}
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4">
@@ -239,9 +314,7 @@ export default function AposentadoriaSimulador() {
             Projete sua acumulação e acompanhe mês a mês. Valores em R$ de hoje.
           </p>
         </div>
-        <span className="text-xs text-gray-400">
-          {savePlano.isPending ? 'Salvando…' : savedTick ? '✔ Salvo' : ''}
-        </span>
+        <span className="text-xs text-gray-400">{savedLabel}</span>
       </div>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-[360px_1fr]">
@@ -283,19 +356,10 @@ export default function AposentadoriaSimulador() {
             </nav>
           </div>
 
-          {tab === 'proj' ? <ProjecaoTab params={params} projection={projection} /> : null}
-          {tab === 'track' ? (
-            <AcompanhamentoTab
-              params={params}
-              entries={entries}
-              onSaveEntry={handleSaveEntry}
-              onDeleteEntry={handleDeleteEntry}
-              saving={mutating}
-            />
-          ) : null}
-          {tab === 'evol' ? <EvolucaoTab params={params} entries={entries} /> : null}
+          {tabContent}
         </div>
       </div>
+      {confirmSheet}
     </div>
   );
 }

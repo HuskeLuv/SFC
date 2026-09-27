@@ -3,6 +3,7 @@
 import dynamic from 'next/dynamic';
 import { useMemo } from 'react';
 import type { ApexOptions } from 'apexcharts';
+import { mobileYAxis, useMobileChart } from '@/components/charts/mobileChartOptions';
 import { formatBRL, formatBRLCompact } from '../utils';
 
 const ReactApexChart = dynamic(() => import('react-apexcharts'), { ssr: false });
@@ -68,9 +69,19 @@ export default function EvolucaoAportesChart({
     [categories],
   );
 
+  // Celular (PWA fase 3): barras de 70%, legenda embaixo, eixo em R$ compacto, 220px.
+  const mobileExtra = useMemo<ApexOptions>(
+    () => ({ yaxis: mobileYAxis(options.yaxis) }),
+    [options],
+  );
+  const { options: chartOptions, height } = useMobileChart(options, {
+    desktopHeight: 260,
+    extra: mobileExtra,
+  });
+
   return (
     <div className="w-full">
-      <ReactApexChart options={options} series={series} type="bar" height={260} />
+      <ReactApexChart options={chartOptions} series={series} type="bar" height={height} />
     </div>
   );
 }

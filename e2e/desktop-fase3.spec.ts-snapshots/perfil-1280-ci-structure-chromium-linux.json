@@ -1,0 +1,24 @@
+{
+ "tabs": [],
+ "tables": [],
+ "mobileArtifactsVisible": 0,
+ "controls": [
+  "a|||text-brand-500 underline",
+  "button|||bg-brand-500 disabled:opacity-60 font-medium hover:bg-brand-600 px-4 py-2 rounded-lg text-sm text-white",
+  "button|||bg-brand-500 disabled:opacity-60 font-medium mt-3 px-3 py-2 rounded-lg text-white text-xs",
+  "button|||bg-white border border-gray-300 dark:bg-gray-900 dark:border-gray-700 dark:hover:bg-gray-800 dark:text-gray-200 font-medium hover:bg-gray-50 px-4 py-2 rounded-lg text-gray-700 text-sm",
+  "button|||disabled:opacity-60 font-medium hover:bg-red-700 px-4 py-2 rounded-lg text-sm text-white",
+  "h3|||dark:text-white/90 font-semibold lg:mb-7 mb-5 text-gray-800 text-lg",
+  "h3|||dark:text-white/90 font-semibold mb-1 text-gray-800 text-lg",
+  "h3|||dark:text-white/90 font-semibold mb-1 text-gray-800 text-xl",
+  "h3|||dark:text-white/90 font-semibold mb-2 text-base text-gray-800",
+  "h3|||dark:text-white/90 font-semibold mb-4 text-base text-gray-800",
+  "h3|||dark:text-white/90 font-semibold text-base text-gray-800",
+  "h3|||font-semibold mb-2 text-base",
+  "input|||bg-gray-50 border border-gray-200 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-400 mt-1 px-3 py-2 rounded-lg text-gray-500 text-sm w-full",
+  "input|||bg-white border border-gray-200 dark:bg-gray-900 dark:border-gray-700 dark:text-white focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20 mt-1 px-3 py-2 rounded-lg text-gray-900 text-sm w-full",
+  "input|||bg-white border border-gray-200 dark:bg-gray-900 dark:border-gray-700 dark:text-white focus:border-red-500 focus:outline-none focus:ring-2 focus:ring-red-500/20 mt-1 px-3 py-2 rounded-lg text-gray-900 text-sm w-full",
+  "input|||border-gray-300 h-5 mt-1 rounded shrink-0 w-5",
+  "input|||mt-0.5"
+ ]
+}

@@ -1,12 +1,22 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useMemo, useState, type KeyboardEvent, type ReactNode } from 'react';
 import Button from '@/components/ui/button/Button';
 import Label from '@/components/form/Label';
 import Input from '@/components/form/input/InputField';
 import Select from '@/components/form/Select';
 import { logger } from '@/lib/logger';
 import { aaToAm, amToAa } from '@/utils/rateConversion';
+import BottomSheet from '@/components/ui/sheet/BottomSheet';
+import {
+  MOBILE_FIELD_CLASS,
+  MOBILE_FIELD_ERROR_CLASS,
+  MOBILE_FIELD_ERROR_TEXT_CLASS,
+  MOBILE_FIELD_HINT_CLASS,
+  MOBILE_FIELD_LABEL_CLASS,
+  MobileNumberField,
+} from '@/components/ui/sheet/MobileNumberField';
+import { parseDecimalInput } from '@/lib/ui/numberInput';
 import {
   useCreateDivida,
   useUpdateDivida,
@@ -30,6 +40,108 @@ interface DividaFormProps {
   divida: DividaDTO | null; // null = criar
   onCancel: () => void;
   onSaved: (id: string) => void;
+  /**
+   * PWA fase 3: 'sheet' = BottomSheet alto do celular (quem usa já está no ramo isBelowLg e só
+   * monta o form enquanto o sheet está aberto): números com vírgula (MobileNumberField), erro no
+   * próprio campo e rodapé fixo. Padrão 'inline' = o cartão de hoje.
+   */
+  presentation?: 'inline' | 'sheet';
+}
+
+type CampoComErro = 'nome' | 'dia';
+
+const CAMPO_ID: Record<CampoComErro, string> = {
+  nome: 'divida-nome',
+  dia: 'divida-dia-vencimento',
+};
+
+/** Segmentado de 44px com semântica de radiogroup (só no sheet do celular). */
+function SegmentedRadio<T extends string>({
+  labelId,
+  options,
+  value,
+  onChange,
+}: {
+  labelId: string;
+  options: ReadonlyArray<readonly [T, string]>;
+  value: T;
+  onChange: (value: T) => void;
+}) {
+  const onKeyDown = (event: KeyboardEvent<HTMLButtonElement>, index: number) => {
+    let next: number | null = null;
+    if (event.key === 'ArrowRight' || event.key === 'ArrowDown') next = index + 1;
+    else if (event.key === 'ArrowLeft' || event.key === 'ArrowUp') next = index - 1;
+    if (next === null) return;
+    event.preventDefault();
+    const target = options[(next + options.length) % options.length][0];
+    onChange(target);
+    const group = event.currentTarget.parentElement;
+    requestAnimationFrame(() =>
+      group?.querySelector<HTMLButtonElement>(`[data-value="${target}"]`)?.focus(),
+    );
+  };
+  return (
+    <div
+      role="radiogroup"
+      aria-labelledby={labelId}
+      className="flex gap-0.5 rounded-xl bg-gray-100 p-0.5 dark:bg-white/[0.06]"
+    >
+      {options.map(([v, label], index) => {
+        const checked = v === value;
+        return (
+          <button
+            key={v}
+            type="button"
+            role="radio"
+            aria-checked={checked}
+            tabIndex={checked ? 0 : -1}
+            data-value={v}
+            onClick={() => onChange(v)}
+            onKeyDown={(event) => onKeyDown(event, index)}
+            className={`inline-flex min-h-11 flex-1 items-center justify-center rounded-[10px] px-3 text-sm font-medium whitespace-nowrap ${
+              checked
+                ? 'bg-mf-seguranca font-semibold text-white'
+                : 'text-gray-600 dark:text-gray-300'
+            }`}
+          >
+            {label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function SheetField({
+  id,
+  label,
+  error,
+  hint,
+  children,
+}: {
+  id: string;
+  label: ReactNode;
+  error?: string | null;
+  hint?: ReactNode;
+  children: ReactNode;
+}) {
+  return (
+    <div>
+      <label htmlFor={id} className={MOBILE_FIELD_LABEL_CLASS}>
+        {label}
+      </label>
+      {children}
+      {error ? (
+        <p id={`${id}-erro`} role="alert" className={MOBILE_FIELD_ERROR_TEXT_CLASS}>
+          {error}
+        </p>
+      ) : hint ? (
+        <p id={`${id}-dica`} className={MOBILE_FIELD_HINT_CLASS}>
+          {hint}
+        </p>
+      ) : null}
+    </div>
+  );
 }
 
 /**
@@ -38,8 +150,17 @@ interface DividaFormProps {
  * ou % ao ano — é sempre normalizada a.m. antes do POST (aaToAm), e o modo
  * digitado fica em taxaUnidadeEntrada pra reedição fiel.
  */
-export default function DividaForm({ divida, onCancel, onSaved }: DividaFormProps) {
+export default function DividaForm({
+  divida,
+  onCancel,
+  onSaved,
+  presentation = 'inline',
+}: DividaFormProps) {
   const isEdit = divida !== null;
+  const isSheet = presentation === 'sheet';
+  // No sheet os números aparecem com vírgula (o parse abaixo devolve o MESMO número).
+  const numInicial = (n: number | null | undefined) =>
+    n == null ? '' : isSheet ? String(n).replace('.', ',') : String(n);
   const [modalidade, setModalidade] = useState<DividaModalidade>(
     divida?.modalidade ?? 'financiamento',
   );
@@ -53,13 +174,14 @@ export default function DividaForm({ divida, onCancel, onSaved }: DividaFormProp
   const [notes, setNotes] = useState(divida?.notes ?? '');
 
   // ── Financiamento ──
-  const [principal, setPrincipal] = useState(divida?.principal?.toString() ?? '');
+  const [principal, setPrincipal] = useState(() => numInicial(divida?.principal));
   const [taxaUnidade, setTaxaUnidade] = useState<'am' | 'aa'>(divida?.taxaUnidadeEntrada ?? 'am');
   const [taxaPct, setTaxaPct] = useState(() => {
     if (divida?.taxaAm == null) return '';
     const decimal =
       (divida.taxaUnidadeEntrada === 'aa' ? amToAa(divida.taxaAm) : divida.taxaAm) * 100;
-    return decimal.toFixed(4).replace(/\.?0+$/, '');
+    const texto = decimal.toFixed(4).replace(/\.?0+$/, '');
+    return isSheet ? texto.replace('.', ',') : texto;
   });
   const [prazoMeses, setPrazoMeses] = useState(divida?.prazoMeses?.toString() ?? '');
   const [sistema, setSistema] = useState<DividaSistema>(divida?.sistema ?? 'PRICE');
@@ -74,12 +196,14 @@ export default function DividaForm({ divida, onCancel, onSaved }: DividaFormProp
   const [diaVencimento, setDiaVencimento] = useState(divida?.diaVencimento?.toString() ?? '');
 
   // ── Rotativa ──
-  const [saldoInicial, setSaldoInicial] = useState(divida?.saldoInicial?.toString() ?? '');
+  const [saldoInicial, setSaldoInicial] = useState(() => numInicial(divida?.saldoInicial));
   const [dataSaldoInicial, setDataSaldoInicial] = useState(
     divida?.dataSaldoInicial ?? currentYearMonth(),
   );
 
   const [error, setError] = useState<string | null>(null);
+  // Sheet do celular: a validação aparece no campo (aria-invalid + aria-describedby + foco).
+  const [campoErro, setCampoErro] = useState<{ campo: CampoComErro; msg: string } | null>(null);
   const createDivida = useCreateDivida();
   const updateDivida = useUpdateDivida();
   const saving = createDivida.isPending || updateDivida.isPending;
@@ -90,11 +214,28 @@ export default function DividaForm({ divida, onCancel, onSaved }: DividaFormProp
   // → null (em rotativa significa "sem CET informado"; financiamento usa ?? 0).
   const taxaAmNormalizada = useMemo(() => {
     if (taxaPct.trim() === '') return null;
-    const pct = Number(taxaPct.replace(',', '.'));
-    if (!Number.isFinite(pct) || pct < 0) return null;
+    const pct = isSheet ? parseDecimalInput(taxaPct) : Number(taxaPct.replace(',', '.'));
+    if (pct == null || !Number.isFinite(pct) || pct < 0) return null;
     const decimal = pct / 100;
     return taxaUnidade === 'aa' ? aaToAm(decimal) : decimal;
-  }, [taxaPct, taxaUnidade]);
+  }, [taxaPct, taxaUnidade, isSheet]);
+
+  // Campo numérico → número do payload. Inline = o Number() de hoje; no sheet, o texto com
+  // vírgula passa pelo parseDecimalInput (vazio = 0, como o Number('') do desktop).
+  const toNumber = (texto: string): number => {
+    if (!isSheet) return Number(texto);
+    if (texto.trim() === '') return 0;
+    return parseDecimalInput(texto) ?? Number.NaN;
+  };
+
+  const falhaNoCampo = (campo: CampoComErro, msg: string) => {
+    if (!isSheet) {
+      setError(msg);
+      return;
+    }
+    setCampoErro({ campo, msg });
+    requestAnimationFrame(() => document.getElementById(CAMPO_ID[campo])?.focus());
+  };
 
   // Vazio = não informado (a Agenda cai no dia 1 e avisa). Fora de 1..31 vira
   // NaN e é barrado antes do POST pra não tomar 400 do zod.
@@ -107,12 +248,13 @@ export default function DividaForm({ divida, onCancel, onSaved }: DividaFormProp
 
   const handleSave = async () => {
     setError(null);
+    setCampoErro(null);
     if (!nome.trim()) {
-      setError('Informe o nome da dívida.');
+      falhaNoCampo('nome', 'Informe o nome da dívida.');
       return;
     }
     if (Number.isNaN(diaVencimentoNormalizado)) {
-      setError('O dia do vencimento precisa ser um número de 1 a 31.');
+      falhaNoCampo('dia', 'O dia do vencimento precisa ser um número de 1 a 31.');
       return;
     }
 
@@ -126,10 +268,10 @@ export default function DividaForm({ divida, onCancel, onSaved }: DividaFormProp
                 tipo,
                 notes: notes.trim() || null,
                 diaVencimento: diaVencimentoNormalizado,
-                principal: Number(principal),
+                principal: toNumber(principal),
                 taxaAm: taxaAmNormalizada ?? 0,
                 taxaUnidadeEntrada: taxaUnidade,
-                prazoMeses: Number(prazoMeses),
+                prazoMeses: toNumber(prazoMeses),
                 sistema,
                 indexador,
                 primeiroVencimento,
@@ -140,7 +282,7 @@ export default function DividaForm({ divida, onCancel, onSaved }: DividaFormProp
                 tipo,
                 notes: notes.trim() || null,
                 diaVencimento: diaVencimentoNormalizado,
-                saldoInicial: Number(saldoInicial),
+                saldoInicial: toNumber(saldoInicial),
                 dataSaldoInicial,
                 taxaAm: taxaAmNormalizada,
                 taxaUnidadeEntrada: taxaUnidade,
@@ -159,10 +301,10 @@ export default function DividaForm({ divida, onCancel, onSaved }: DividaFormProp
               tipo,
               notes: notes.trim() || null,
               diaVencimento: diaVencimentoNormalizado,
-              principal: Number(principal),
+              principal: toNumber(principal),
               taxaAm: taxaAmNormalizada ?? 0,
               taxaUnidadeEntrada: taxaUnidade,
-              prazoMeses: Number(prazoMeses),
+              prazoMeses: toNumber(prazoMeses),
               sistema,
               indexador,
               primeiroVencimento,
@@ -174,7 +316,7 @@ export default function DividaForm({ divida, onCancel, onSaved }: DividaFormProp
               tipo,
               notes: notes.trim() || null,
               diaVencimento: diaVencimentoNormalizado,
-              saldoInicial: Number(saldoInicial),
+              saldoInicial: toNumber(saldoInicial),
               dataSaldoInicial,
               taxaAm: taxaAmNormalizada,
               taxaUnidadeEntrada: taxaUnidade,
@@ -209,6 +351,307 @@ export default function DividaForm({ divida, onCancel, onSaved }: DividaFormProp
       </p>
     </div>
   );
+
+  if (isSheet) {
+    const erroDe = (campo: CampoComErro) => (campoErro?.campo === campo ? campoErro.msg : null);
+    const campoClasse = (campo: CampoComErro) =>
+      `${MOBILE_FIELD_CLASS} ${erroDe(campo) ? MOBILE_FIELD_ERROR_CLASS : ''}`;
+    const limparErro = (campo: CampoComErro) => {
+      if (campoErro?.campo === campo) setCampoErro(null);
+    };
+    const unidadeTaxa = (
+      <div className="mt-2">
+        <span id="divida-taxa-unidade" className="sr-only">
+          Unidade da taxa
+        </span>
+        <SegmentedRadio
+          labelId="divida-taxa-unidade"
+          options={[
+            ['am', 'ao mês'],
+            ['aa', 'ao ano'],
+          ]}
+          value={taxaUnidade}
+          onChange={setTaxaUnidade}
+        />
+      </div>
+    );
+    const taxaConvertida =
+      taxaUnidade === 'aa' && taxaAmNormalizada != null && taxaAmNormalizada > 0
+        ? `≈ ${(taxaAmNormalizada * 100).toFixed(4).replace('.', ',')}% a.m.`
+        : undefined;
+    const campoDia = (
+      <SheetField
+        id={CAMPO_ID.dia}
+        label="Dia do vencimento (opcional)"
+        error={erroDe('dia')}
+        hint={`Dia do mês em que ${
+          modalidade === 'financiamento' ? 'a parcela vence' : 'a fatura vence'
+        } — só posiciona o lançamento na Agenda. Em branco, a Agenda usa o dia 1.`}
+      >
+        <input
+          id={CAMPO_ID.dia}
+          type="text"
+          inputMode="numeric"
+          autoComplete="off"
+          enterKeyHint="next"
+          value={diaVencimento}
+          onChange={(e) => {
+            setDiaVencimento(e.target.value);
+            limparErro('dia');
+          }}
+          placeholder="Ex.: 10"
+          aria-invalid={erroDe('dia') ? true : undefined}
+          aria-describedby={erroDe('dia') ? `${CAMPO_ID.dia}-erro` : `${CAMPO_ID.dia}-dica`}
+          className={campoClasse('dia')}
+        />
+      </SheetField>
+    );
+
+    return (
+      <BottomSheet
+        isOpen={true}
+        onClose={onCancel}
+        title={isEdit ? 'Editar dívida' : 'Nova dívida'}
+        footer={
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={onCancel}
+              className="min-h-12 flex-1 rounded-xl border border-gray-300 px-4 text-sm font-semibold text-gray-700 dark:border-gray-700 dark:text-gray-200"
+            >
+              Cancelar
+            </button>
+            <button
+              type="button"
+              onClick={handleSave}
+              disabled={saving}
+              className="inline-flex min-h-12 flex-[2] items-center justify-center gap-2 rounded-xl bg-mf-seguranca px-4 text-sm font-semibold text-white disabled:opacity-70 dark:bg-mf-patrimonio"
+            >
+              {saving ? (
+                <span
+                  aria-hidden="true"
+                  className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent"
+                />
+              ) : null}
+              {saving ? 'Salvando…' : isEdit ? 'Salvar alterações' : 'Salvar'}
+            </button>
+          </div>
+        }
+      >
+        <div className="space-y-4 pt-1 pb-4">
+          {error ? (
+            <p
+              role="alert"
+              className="rounded-lg border border-[#D92D20]/30 bg-[#D92D20]/5 px-3 py-2 text-sm text-[#D92D20] dark:border-[#F97066]/30 dark:bg-[#F97066]/10 dark:text-[#F97066]"
+            >
+              {error}
+            </p>
+          ) : null}
+
+          {!isEdit ? (
+            <div>
+              <span id="divida-modalidade" className={MOBILE_FIELD_LABEL_CLASS}>
+                Modalidade
+              </span>
+              <SegmentedRadio
+                labelId="divida-modalidade"
+                options={[
+                  ['financiamento', 'Financiamento'],
+                  ['rotativa', 'Rotativa'],
+                ]}
+                value={modalidade}
+                onChange={(value) => {
+                  setModalidade(value);
+                  setTipo(
+                    value === 'financiamento' ? 'financiamento_imobiliario' : 'cartao_credito',
+                  );
+                }}
+              />
+              <p className={MOBILE_FIELD_HINT_CLASS}>
+                {modalidade === 'financiamento'
+                  ? 'Financiamento (SAC/Price)'
+                  : 'Rotativa (cartão, cheque especial)'}
+              </p>
+            </div>
+          ) : null}
+
+          <SheetField id={CAMPO_ID.nome} label="Nome" error={erroDe('nome')}>
+            <input
+              id={CAMPO_ID.nome}
+              type="text"
+              autoComplete="off"
+              enterKeyHint="next"
+              value={nome}
+              onChange={(e) => {
+                setNome(e.target.value);
+                limparErro('nome');
+              }}
+              placeholder="Ex.: Financiamento do apartamento"
+              aria-invalid={erroDe('nome') ? true : undefined}
+              aria-describedby={erroDe('nome') ? `${CAMPO_ID.nome}-erro` : undefined}
+              className={campoClasse('nome')}
+            />
+          </SheetField>
+
+          <SheetField id="divida-instituicao" label="Instituição (opcional)">
+            <input
+              id="divida-instituicao"
+              type="text"
+              autoComplete="off"
+              enterKeyHint="next"
+              value={instituicao}
+              onChange={(e) => setInstituicao(e.target.value)}
+              placeholder="Ex.: Caixa"
+              className={MOBILE_FIELD_CLASS}
+            />
+          </SheetField>
+
+          <SheetField id="divida-tipo" label="Tipo">
+            <select
+              id="divida-tipo"
+              value={tipo}
+              onChange={(e) => setTipo(e.target.value as DividaTipo)}
+              className={MOBILE_FIELD_CLASS}
+            >
+              {tiposDisponiveis.map((t) => (
+                <option key={t} value={t}>
+                  {TIPO_LABELS[t]}
+                </option>
+              ))}
+            </select>
+          </SheetField>
+
+          {modalidade === 'financiamento' ? (
+            <>
+              <MobileNumberField
+                id="divida-principal"
+                label="Valor financiado"
+                kind="currency"
+                prefix="R$"
+                value={principal}
+                onChange={setPrincipal}
+                enterKeyHint="next"
+              />
+              <div>
+                <MobileNumberField
+                  id="divida-taxa"
+                  label="Taxa de juros (%)"
+                  kind="percent"
+                  suffix="%"
+                  value={taxaPct}
+                  onChange={setTaxaPct}
+                  hint={taxaConvertida}
+                  enterKeyHint="next"
+                />
+                {unidadeTaxa}
+              </div>
+              <MobileNumberField
+                id="divida-prazo"
+                label="Prazo"
+                kind="integer"
+                suffix="meses"
+                value={prazoMeses}
+                onChange={setPrazoMeses}
+                enterKeyHint="next"
+              />
+              <div>
+                <span id="divida-sistema" className={MOBILE_FIELD_LABEL_CLASS}>
+                  Sistema de amortização
+                </span>
+                <SegmentedRadio
+                  labelId="divida-sistema"
+                  options={[
+                    ['PRICE', 'Price'],
+                    ['SAC', 'SAC'],
+                  ]}
+                  value={sistema}
+                  onChange={setSistema}
+                />
+                <p className={MOBILE_FIELD_HINT_CLASS}>{SISTEMA_LABELS[sistema]}</p>
+              </div>
+              <SheetField id="divida-indexador" label="Indexador">
+                <select
+                  id="divida-indexador"
+                  value={indexador}
+                  onChange={(e) => setIndexador(e.target.value as DividaIndexador)}
+                  className={MOBILE_FIELD_CLASS}
+                >
+                  {(['PREFIXADO', 'TR', 'IPCA', 'IGPM', 'CDI'] as const).map((i) => (
+                    <option key={i} value={i}>
+                      {INDEXADOR_LABELS[i]}
+                    </option>
+                  ))}
+                </select>
+              </SheetField>
+              <SheetField id="divida-vencimento" label="Primeiro vencimento">
+                <input
+                  id="divida-vencimento"
+                  type="month"
+                  value={primeiroVencimento}
+                  onChange={(e) => setPrimeiroVencimento(e.target.value)}
+                  className={MOBILE_FIELD_CLASS}
+                />
+              </SheetField>
+              {campoDia}
+            </>
+          ) : (
+            <>
+              <MobileNumberField
+                id="divida-saldo"
+                label="Saldo devedor atual"
+                kind="currency"
+                prefix="R$"
+                value={saldoInicial}
+                onChange={setSaldoInicial}
+                enterKeyHint="next"
+              />
+              <SheetField id="divida-data-saldo" label="Data do saldo">
+                <input
+                  id="divida-data-saldo"
+                  type="month"
+                  value={dataSaldoInicial}
+                  onChange={(e) => setDataSaldoInicial(e.target.value)}
+                  className={MOBILE_FIELD_CLASS}
+                />
+              </SheetField>
+              {campoDia}
+              <div>
+                <MobileNumberField
+                  id="divida-cet"
+                  label="CET (%) — opcional"
+                  kind="percent"
+                  suffix="%"
+                  value={taxaPct}
+                  onChange={setTaxaPct}
+                  hint={
+                    <>
+                      Custo efetivo total da dívida — usado para comparar e priorizar a quitação.
+                      {taxaConvertida ? ` ${taxaConvertida}` : ''}
+                    </>
+                  }
+                  enterKeyHint="next"
+                />
+                {unidadeTaxa}
+              </div>
+            </>
+          )}
+
+          <SheetField id="divida-notes" label="Observações (opcional)">
+            <input
+              id="divida-notes"
+              type="text"
+              autoComplete="off"
+              enterKeyHint="done"
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              placeholder="Ex.: contrato nº 1234"
+              className={MOBILE_FIELD_CLASS}
+            />
+          </SheetField>
+        </div>
+      </BottomSheet>
+    );
+  }
 
   return (
     <div className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03]">

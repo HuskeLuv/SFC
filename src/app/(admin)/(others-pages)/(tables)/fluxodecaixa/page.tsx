@@ -109,7 +109,8 @@ export default function FluxoDeCaixa() {
               <DataTableTwo />
             )
           ) : (
-            <div className="flex-1 min-h-0 overflow-y-auto pr-1">
+            // Abaixo de lg sem rolagem própria: a barra do mês do Orçamento gruda na da página.
+            <div className="flex-1 min-h-0 overflow-y-auto pr-1 max-lg:overflow-visible max-lg:pr-0">
               <OrcamentoVsRealSection />
             </div>
           )}

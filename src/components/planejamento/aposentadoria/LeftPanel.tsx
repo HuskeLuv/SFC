@@ -24,6 +24,133 @@ interface LeftPanelProps {
   onUseCarteira: () => void;
 }
 
+// ── Metadados dos campos (compartilhados com o PremissasSheet do celular) ──
+
+/** Campos numéricos do plano editáveis no painel (as 9 premissas). */
+export type ParamFieldKey =
+  | 'idade'
+  | 'apos'
+  | 'vida'
+  | 'rentNom'
+  | 'inflacao'
+  | 'rentNomRetiro'
+  | 'patrimonio'
+  | 'aporteM'
+  | 'renda';
+
+export interface ParamFieldMeta {
+  key: ParamFieldKey;
+  /** Rótulo do painel (desktop) e do sheet do celular. */
+  label: string;
+  /** Rótulo curto do cartão "Premissas" do celular. */
+  cardLabel: string;
+  group: 'perfil' | 'taxas' | 'acumulacao' | 'aposentadoria';
+  kind: 'integer' | 'percent' | 'currency';
+  min: number;
+  /** Limite do campo/slider (idade, taxas) ou do slider de valor (moeda). */
+  max: number;
+  step: number;
+}
+
+/**
+ * As 9 premissas do plano: chave, rótulo, grupo, tipo e limites. O painel do desktop lê daqui os
+ * mesmos rótulos e limites de sempre; o PremissasSheet (celular) monta os mesmos campos.
+ */
+export const PARAM_FIELDS: Record<ParamFieldKey, ParamFieldMeta> = {
+  idade: {
+    key: 'idade',
+    label: 'Idade',
+    cardLabel: 'Idade atual',
+    group: 'perfil',
+    kind: 'integer',
+    min: 1,
+    max: 79,
+    step: 1,
+  },
+  apos: {
+    key: 'apos',
+    label: 'Aposenta',
+    cardLabel: 'Aposenta aos',
+    group: 'perfil',
+    kind: 'integer',
+    min: 1,
+    max: 85,
+    step: 1,
+  },
+  vida: {
+    key: 'vida',
+    label: 'Exp. vida',
+    cardLabel: 'Expectativa',
+    group: 'perfil',
+    kind: 'integer',
+    min: 3,
+    max: 105,
+    step: 1,
+  },
+  rentNom: {
+    key: 'rentNom',
+    label: 'Rentabilidade nominal a.a.',
+    cardLabel: 'Rentab. nominal',
+    group: 'taxas',
+    kind: 'percent',
+    min: 4,
+    max: 30,
+    step: 0.5,
+  },
+  inflacao: {
+    key: 'inflacao',
+    label: 'Expectativa de inflação a.a.',
+    cardLabel: 'Inflação',
+    group: 'taxas',
+    kind: 'percent',
+    min: 2,
+    max: 30,
+    step: 0.5,
+  },
+  rentNomRetiro: {
+    key: 'rentNomRetiro',
+    label: 'Rent. nominal na aposentadoria a.a.',
+    cardLabel: 'Rentab. na aposentadoria',
+    group: 'taxas',
+    kind: 'percent',
+    min: 4,
+    max: 30,
+    step: 0.5,
+  },
+  patrimonio: {
+    key: 'patrimonio',
+    label: 'Patrimônio inicial',
+    cardLabel: 'Patrimônio atual',
+    group: 'acumulacao',
+    kind: 'currency',
+    min: 0,
+    max: 1_000_000,
+    step: 1000,
+  },
+  aporteM: {
+    key: 'aporteM',
+    label: 'Aportes mensais',
+    cardLabel: 'Aporte mensal',
+    group: 'acumulacao',
+    kind: 'currency',
+    min: 0,
+    max: 30_000,
+    step: 100,
+  },
+  renda: {
+    key: 'renda',
+    label: 'Renda desejada (R$ de hoje)',
+    cardLabel: 'Renda desejada',
+    group: 'aposentadoria',
+    kind: 'currency',
+    min: 0,
+    max: 100_000,
+    step: 500,
+  },
+};
+
+const F = PARAM_FIELDS;
+
 // ── Subcomponentes de campo ──────────────────────────────────────────────
 
 function SectionTitle({ dotColor, children }: { dotColor: string; children: React.ReactNode }) {
@@ -155,7 +282,7 @@ function MoneyField({
  * automático (espelha carteira/fluxo de caixa) ou manual (travado pelo
  * usuário), com atalho para voltar ao automático.
  */
-function AutoBadge({
+export function AutoBadge({
   field,
   locked,
   autoValue,
@@ -298,24 +425,24 @@ export default function LeftPanel({
         <SectionTitle dotColor="#465FFF">Perfil</SectionTitle>
         <div className="grid grid-cols-3 gap-2">
           <SliderField
-            label="Idade"
+            label={F.idade.label}
             value={params.idade}
-            min={1}
-            max={79}
+            min={F.idade.min}
+            max={F.idade.max}
             onChange={(v) => onChange({ idade: v })}
           />
           <SliderField
-            label="Aposenta"
+            label={F.apos.label}
             value={params.apos}
-            min={1}
-            max={85}
+            min={F.apos.min}
+            max={F.apos.max}
             onChange={(v) => onChange({ apos: v })}
           />
           <SliderField
-            label="Exp. vida"
+            label={F.vida.label}
             value={params.vida}
-            min={3}
-            max={105}
+            min={F.vida.min}
+            max={F.vida.max}
             onChange={(v) => onChange({ vida: v })}
           />
         </div>
@@ -327,22 +454,22 @@ export default function LeftPanel({
       <section>
         <SectionTitle dotColor="#3B6D11">Taxas</SectionTitle>
         <SliderField
-          label="Rentabilidade nominal a.a."
+          label={F.rentNom.label}
           value={params.rentNom}
-          min={4}
-          max={30}
-          step={0.5}
+          min={F.rentNom.min}
+          max={F.rentNom.max}
+          step={F.rentNom.step}
           display={fPct(params.rentNom)}
           showNumber={false}
           onChange={(v) => onChange({ rentNom: v })}
           hint={rentNomHint}
         />
         <SliderField
-          label="Expectativa de inflação a.a."
+          label={F.inflacao.label}
           value={params.inflacao}
-          min={2}
-          max={30}
-          step={0.5}
+          min={F.inflacao.min}
+          max={F.inflacao.max}
+          step={F.inflacao.step}
           display={fPct(params.inflacao)}
           showNumber={false}
           onChange={(v) => onChange({ inflacao: v })}
@@ -362,11 +489,11 @@ export default function LeftPanel({
         </div>
 
         <SliderField
-          label="Rent. nominal na aposentadoria a.a."
+          label={F.rentNomRetiro.label}
           value={retiroNom}
-          min={4}
-          max={30}
-          step={0.5}
+          min={F.rentNomRetiro.min}
+          max={F.rentNomRetiro.max}
+          step={F.rentNomRetiro.step}
           display={fPct(retiroNom)}
           showNumber={false}
           onChange={(v) => onChange({ rentNomRetiro: v })}
@@ -410,18 +537,18 @@ export default function LeftPanel({
         <SectionTitle dotColor="#2B7AC8">Acumulação</SectionTitle>
         <div className="grid grid-cols-2 gap-2">
           <MoneyField
-            label="Patrimônio inicial"
+            label={F.patrimonio.label}
             value={params.patrimonio}
-            sliderMax={1_000_000}
-            step={1000}
+            sliderMax={F.patrimonio.max}
+            step={F.patrimonio.step}
             onChange={(v) => onChange({ patrimonio: v })}
             hint={badge('patrimonio', formatBRL)}
           />
           <MoneyField
-            label="Aportes mensais"
+            label={F.aporteM.label}
             value={params.aporteM}
-            sliderMax={30_000}
-            step={100}
+            sliderMax={F.aporteM.max}
+            step={F.aporteM.step}
             onChange={(v) => onChange({ aporteM: v })}
             hint={badge('aporteM', formatBRL)}
           />
@@ -434,10 +561,10 @@ export default function LeftPanel({
       <section>
         <SectionTitle dotColor="#D4A96A">Aposentadoria</SectionTitle>
         <MoneyField
-          label="Renda desejada (R$ de hoje)"
+          label={F.renda.label}
           value={params.renda}
-          sliderMax={100_000}
-          step={500}
+          sliderMax={F.renda.max}
+          step={F.renda.step}
           onChange={(v) => onChange({ renda: v })}
           hint={badge('renda', formatBRL)}
         />

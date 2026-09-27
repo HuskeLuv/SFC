@@ -198,7 +198,8 @@ test('Lançar → Novo investimento com a Carteira ainda carregando abre o wizar
 test('Agenda: o sheet de Novo evento cabe na tela (X e rodapé)', async ({ page }) => {
   await page.goto('/calendario');
   await waitForShell(page);
-  const novo = page.getByRole('button', { name: /Novo evento/ }).first();
+  // Fase 3 (fatia C): abaixo de 768px a Agenda vira lista com cabeçalho próprio ("+ Novo").
+  const novo = page.getByRole('button', { name: 'Novo', exact: true }).first();
   await expect(novo).toBeVisible({ timeout: 60000 });
   await novo.click();
   const dialog = page.getByRole('dialog').last();
@@ -246,12 +247,18 @@ test('/fluxodecaixa: com o ano no cabeçalho', async ({ page }) => {
 test('campo com foco esconde a barra (teclado)', async ({ page }) => {
   await page.goto('/profile');
   await waitForShell(page);
-  const input = page
-    .locator(
-      'main input:not([type=checkbox]):not([type=radio]), input[type=text], input[type=email]',
-    )
-    .first();
-  await expect(input).toBeVisible({ timeout: 30000 });
-  await input.focus();
+  await expect(tabbar(page)).toBeVisible();
+  // Fase 3: no celular nenhuma página tem mais campo de texto solto (os formulários abrem em
+  // sheet, que já esconde a barra). Para medir o contrato da casca (campo com foco → sem barra),
+  // um campo temporário entra no conteúdo, ganha foco e sai.
+  await page.evaluate(() => {
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.setAttribute('data-e2e-teclado', '');
+    document.querySelector('[data-mf-content]')!.prepend(input);
+    input.focus();
+  });
   await expect(tabbar(page)).toBeHidden();
+  await page.evaluate(() => document.querySelector('[data-e2e-teclado]')?.remove());
+  await expect(tabbar(page)).toBeVisible();
 });

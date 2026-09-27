@@ -3,6 +3,7 @@
 import dynamic from 'next/dynamic';
 import { useMemo } from 'react';
 import type { ApexOptions } from 'apexcharts';
+import { mobileYAxis, useMobileChart } from '@/components/charts/mobileChartOptions';
 import { addMonths, planned } from '@/services/planejamento/planejamentoSonhos';
 import type { PlanejamentoObjetivoDTO } from '@/hooks/usePlanejamentoSonhos';
 import { formatBRL, formatBRLCompact, formatYearMonth, categoryAccent } from './utils';
@@ -164,17 +165,57 @@ export default function SonhosObjetivoEvolutionChart({
     [objetivo.id, objetivo.target, objetivo.months, accent, categories, realizedIdxs],
   );
 
+  // Celular (PWA fase 3): 190px, sem zoom/toolbar, eixo em R$ compacto, meta em vermelho da
+  // paleta e área só no realizado.
+  const mobileExtra = useMemo<ApexOptions>(
+    () => ({
+      yaxis: mobileYAxis(options.yaxis),
+      fill: {
+        type: ['solid', 'gradient'],
+        opacity: [1, 0.3],
+        gradient: { opacityFrom: 0.3, opacityTo: 0.04 },
+      },
+      annotations: {
+        yaxis: [
+          {
+            y: objetivo.target,
+            borderColor: '#D92D20',
+            strokeDashArray: 6,
+            label: {
+              text: `Meta · ${formatBRLCompact(objetivo.target)}`,
+              borderColor: '#D92D20',
+              style: { color: '#fff', background: '#D92D20', fontSize: '9px' },
+              position: 'right',
+            },
+          },
+        ],
+      },
+    }),
+    [options, objetivo.target],
+  );
+  const {
+    options: chartOptions,
+    height,
+    isBelowLg,
+  } = useMobileChart(options, { desktopHeight: 320, mobileHeight: 190, extra: mobileExtra });
+
   const series = useMemo(
-    () => [
-      { name: 'Planejado', data: plannedSeries },
-      { name: 'Realizado', data: actualSeries },
-    ],
-    [plannedSeries, actualSeries],
+    () =>
+      isBelowLg
+        ? [
+            { name: 'Planejado', type: 'line', data: plannedSeries },
+            { name: 'Realizado', type: 'area', data: actualSeries },
+          ]
+        : [
+            { name: 'Planejado', data: plannedSeries },
+            { name: 'Realizado', data: actualSeries },
+          ],
+    [plannedSeries, actualSeries, isBelowLg],
   );
 
   return (
     <div className="w-full">
-      <ReactApexChart options={options} series={series} type="line" height={320} />
+      <ReactApexChart options={chartOptions} series={series} type="line" height={height} />
     </div>
   );
 }

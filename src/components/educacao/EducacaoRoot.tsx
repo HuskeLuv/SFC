@@ -6,6 +6,8 @@ import { useCursos, type CursoResumo, type ModuloTrilha } from '@/hooks/useEduca
 import { accessLevelLabel } from '@/utils/accessLevel';
 import { formatDuracaoCurta } from '@/utils/educacaoTrilha';
 import { MYFINANCE_BRAND } from '@/constants/brandColors';
+import { useIsBelowLg } from '@/hooks/useMediaQuery';
+import { MobileStatusPill } from '@/components/ui/mobile/MobileStatusPill';
 
 const OK_GREEN = '#1d9e6f';
 
@@ -52,12 +54,13 @@ function HeroContinuar({ curso }: { curso: CursoResumo }) {
 
   return (
     <section
-      className="flex overflow-hidden rounded-2xl text-white shadow-[0_24px_48px_-20px_rgba(28,42,68,.45)]"
+      data-mf-edu-hero=""
+      className="flex overflow-hidden rounded-2xl text-white shadow-[0_24px_48px_-20px_rgba(28,42,68,.45)] max-lg:relative"
       style={{
         background: `linear-gradient(118deg, #1c2a44 0%, ${MYFINANCE_BRAND.seguranca} 52%, ${MYFINANCE_BRAND.patrimonio} 100%)`,
       }}
     >
-      <div className="flex flex-1 flex-col px-7 py-8 sm:px-11 sm:py-9">
+      <div className="flex flex-1 flex-col px-7 py-8 sm:px-11 sm:py-9 max-lg:px-5 max-lg:py-5">
         <div
           className="text-xs font-semibold uppercase tracking-[.22em]"
           style={{ color: '#8fc0f7' }}
@@ -70,7 +73,9 @@ function HeroContinuar({ curso }: { curso: CursoResumo }) {
                 ? 'Continue de onde parou'
                 : 'Comece sua trilha'}
         </div>
-        <h2 className="mt-2 text-2xl font-bold sm:text-3xl">{c ? c.moduloTitle : curso.title}</h2>
+        <h2 className="mt-2 text-2xl font-bold sm:text-3xl max-lg:text-lg">
+          {c ? c.moduloTitle : curso.title}
+        </h2>
         <p className="mt-1.5 text-sm font-light text-white/75 sm:text-[15px]">
           {curso.bloqueado
             ? `Disponível no plano ${accessLevelLabel(curso.requiredLevel)}.`
@@ -80,7 +85,7 @@ function HeroContinuar({ curso }: { curso: CursoResumo }) {
         </p>
         {c && (
           <>
-            <div className="mt-5 h-[7px] max-w-[420px] rounded-full bg-white/[.18]">
+            <div className="mt-5 h-[7px] max-w-[420px] rounded-full bg-white/[.18] max-lg:mt-4 max-lg:h-1.5">
               <div
                 className="h-full rounded-full"
                 style={{
@@ -97,7 +102,7 @@ function HeroContinuar({ curso }: { curso: CursoResumo }) {
         {!curso.bloqueado && (
           <Link
             href={href}
-            className="mt-6 inline-flex items-center gap-2.5 self-start rounded-xl px-6 py-3 text-base font-bold text-white shadow-[0_12px_26px_-8px_rgba(0,121,242,.65)] transition-transform hover:-translate-y-0.5"
+            className="mt-6 inline-flex items-center gap-2.5 self-start rounded-xl px-6 py-3 text-base font-bold text-white shadow-[0_12px_26px_-8px_rgba(0,121,242,.65)] transition-transform hover:-translate-y-0.5 max-lg:mt-4 max-lg:min-h-11 max-lg:w-full max-lg:justify-center max-lg:after:absolute max-lg:after:inset-0 max-lg:after:content-['']"
             style={{ backgroundColor: MYFINANCE_BRAND.outside }}
           >
             <PlayIcon className="h-4 w-4" />
@@ -251,22 +256,124 @@ function ModuloCard({
   );
 }
 
+/**
+ * Módulos em lista no celular (PWA fase 3, E1): miniatura de 96px, progresso de 6px e cadeado
+ * quando o plano não inclui. Mesmos dados e mesmos links dos cartões do desktop.
+ */
+function ModulosListaMobile({ curso }: { curso: CursoResumo }) {
+  return (
+    <ul data-mf-mobile="" data-mf-edu-modulos="" className="mt-3 space-y-3">
+      {curso.modulos.map((modulo, idx) => {
+        const concluido = modulo.status === 'concluido';
+        const duracao = formatDuracaoCurta(modulo.duracaoSegundos);
+        const meta = [`${modulo.totalAulas} ${modulo.totalAulas === 1 ? 'aula' : 'aulas'}`, duracao]
+          .filter(Boolean)
+          .join(' · ');
+        return (
+          <li key={modulo.id}>
+            <Link
+              href={`/educacao/${curso.slug}?modulo=${modulo.id}`}
+              className="flex min-h-[76px] items-center gap-3 rounded-2xl border border-gray-200 bg-white p-3 active:bg-gray-50 dark:border-gray-800 dark:bg-white/[0.03] dark:active:bg-white/5"
+            >
+              <span className="relative flex aspect-video w-24 shrink-0 items-center justify-center overflow-hidden rounded-lg text-white">
+                {modulo.coverUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={modulo.coverUrl} alt="" className="h-full w-full object-cover" />
+                ) : (
+                  <span
+                    className="flex h-full w-full items-center justify-center text-sm font-bold"
+                    style={{
+                      background: `linear-gradient(118deg, #1c2a44 0%, ${MYFINANCE_BRAND.seguranca} 52%, ${MYFINANCE_BRAND.patrimonio} 100%)`,
+                    }}
+                  >
+                    {numeroModulo(idx)}
+                  </span>
+                )}
+                {curso.bloqueado && (
+                  <span
+                    className="absolute inset-0 flex items-center justify-center bg-[rgba(20,32,54,.55)]"
+                    aria-hidden="true"
+                  >
+                    <LockIcon />
+                  </span>
+                )}
+              </span>
+              <span className="flex min-w-0 flex-1 flex-col gap-1">
+                <span className="text-[11px] font-bold tracking-[.12em] text-mf-patrimonio dark:text-mf-tranquilidade">
+                  MÓDULO {numeroModulo(idx)}
+                </span>
+                <span className="line-clamp-2 text-sm font-semibold text-gray-900 dark:text-white/90">
+                  {modulo.title}
+                </span>
+                {curso.bloqueado ? (
+                  <span className="text-xs text-gray-500 dark:text-gray-400">
+                    Plano {accessLevelLabel(curso.requiredLevel)}
+                  </span>
+                ) : (
+                  <>
+                    <span className="h-1.5 rounded-full bg-gray-100 dark:bg-gray-800">
+                      <span
+                        className="block h-full rounded-full bg-[#0079F2]"
+                        style={{ width: `${modulo.progresso}%` }}
+                      />
+                    </span>
+                    <span className="flex items-center justify-between gap-2 text-xs text-gray-500 dark:text-gray-400">
+                      <span className="truncate">{meta}</span>
+                      {concluido ? (
+                        <MobileStatusPill tone="ok">Concluído</MobileStatusPill>
+                      ) : (
+                        <span className="shrink-0 font-semibold text-mf-patrimonio dark:text-mf-tranquilidade">
+                          {modulo.status === 'nao_iniciado' ? 'Começar' : `${modulo.progresso}%`}
+                        </span>
+                      )}
+                    </span>
+                  </>
+                )}
+              </span>
+            </Link>
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
+const LockIcon = () => (
+  <svg
+    viewBox="0 0 24 24"
+    className="h-5 w-5"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth={2.2}
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    aria-hidden="true"
+  >
+    <rect x="5" y="11" width="14" height="10" rx="2" />
+    <path d="M8 11V7a4 4 0 0 1 8 0v4" />
+  </svg>
+);
+
 /** Home da Área Educacional: hero "continue" + trilha de módulos por curso. */
 export default function EducacaoRoot() {
   const { cursos, loading, error } = useCursos();
+  // PWA fase 3: abaixo de lg os módulos viram lista (servidor = desktop).
+  const isBelowLg = useIsBelowLg();
   const cursoPrincipal = cursos[0];
 
   return (
     <div className="mx-auto max-w-[1240px]">
-      <div className="mb-7">
+      <div className="mb-7 max-lg:mb-4">
         <div
           className="text-[13px] font-medium uppercase tracking-[.16em]"
           style={{ color: MYFINANCE_BRAND.tranquilidade }}
         >
           {cursoPrincipal?.title ?? 'Área de membros'}
         </div>
-        <h1 className="mt-1 text-3xl font-bold text-gray-900 dark:text-white">Educação</h1>
-        <p className="mt-1.5 max-w-[60ch] text-base font-light text-gray-500 dark:text-gray-400">
+        <h1 className="mt-1 text-3xl font-bold text-gray-900 dark:text-white max-lg:text-lg">
+          Educação
+        </h1>
+        <p className="mt-1.5 max-w-[60ch] text-base font-light text-gray-500 dark:text-gray-400 max-lg:text-sm">
           {cursoPrincipal?.description ??
             'Cursos de educação financeira do Escolhi Ser Rico, direto no My Finance.'}
         </p>
@@ -296,8 +403,8 @@ export default function EducacaoRoot() {
         <div key={curso.id} className={i > 0 ? 'mt-14' : undefined}>
           <HeroContinuar curso={curso} />
 
-          <div className="mt-10 flex flex-col gap-1 sm:flex-row sm:items-baseline sm:justify-between">
-            <h2 className="text-[23px] font-bold text-gray-900 dark:text-white">
+          <div className="mt-10 flex flex-col gap-1 sm:flex-row sm:items-baseline sm:justify-between max-lg:mt-6">
+            <h2 className="text-[23px] font-bold text-gray-900 dark:text-white max-lg:text-lg">
               {cursos.length > 1 ? curso.title : 'Sua trilha'}
             </h2>
             <span className="text-sm text-gray-500 dark:text-gray-400">
@@ -311,6 +418,8 @@ export default function EducacaoRoot() {
             <div className="mt-4 rounded-2xl border border-gray-200 bg-white p-8 text-center text-sm text-gray-500 dark:border-gray-800 dark:bg-white/[0.03] dark:text-gray-400">
               Este curso ainda não tem módulos.
             </div>
+          ) : isBelowLg ? (
+            <ModulosListaMobile curso={curso} />
           ) : (
             <div className="mt-4 grid grid-cols-1 gap-6 sm:grid-cols-2 xl:grid-cols-3">
               {curso.modulos.map((modulo, idx) => (

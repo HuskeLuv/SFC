@@ -1,0 +1,29 @@
+{
+ "tabs": [
+  {
+   "name": "Todas (0)",
+   "className": "border-b-2 border-brand-500 dark:text-brand-400 font-medium px-4 py-2 text-brand-600 text-sm transition"
+  },
+  {
+   "name": "Curto Prazo (0)",
+   "className": "border-b-2 border-transparent dark:hover:text-gray-200 dark:text-gray-400 font-medium hover:border-gray-300 hover:text-gray-700 px-4 py-2 text-gray-500 text-sm transition"
+  },
+  {
+   "name": "Médio Prazo (0)",
+   "className": "border-b-2 border-transparent dark:hover:text-gray-200 dark:text-gray-400 font-medium hover:border-gray-300 hover:text-gray-700 px-4 py-2 text-gray-500 text-sm transition"
+  },
+  {
+   "name": "Longo Prazo (0)",
+   "className": "border-b-2 border-transparent dark:hover:text-gray-200 dark:text-gray-400 font-medium hover:border-gray-300 hover:text-gray-700 px-4 py-2 text-gray-500 text-sm transition"
+  }
+ ],
+ "tables": [],
+ "mobileArtifactsVisible": 0,
+ "controls": [
+  "button|||bg-brand-500 disabled:bg-brand-300 font-medium gap-2 hover:bg-brand-600 inline-flex items-center justify-center px-4 py-3 rounded-lg shadow-theme-xs text-sm text-white transition",
+  "button|||border-b-2 border-brand-500 dark:text-brand-400 font-medium px-4 py-2 text-brand-600 text-sm transition",
+  "button|||border-b-2 border-transparent dark:hover:text-gray-200 dark:text-gray-400 font-medium hover:border-gray-300 hover:text-gray-700 px-4 py-2 text-gray-500 text-sm transition",
+  "h2|||dark:text-white/90 font-semibold text-gray-900 text-lg",
+  "h3|||dark:text-white font-semibold mb-2 text-gray-900 text-lg"
+ ]
+}

@@ -11,7 +11,13 @@ import { useDeleteEntry, type PlanejamentoObjetivoDTO } from '@/hooks/usePlaneja
 import { StatusBadge, PriorityBadge, CategoryBadge } from './SonhosBadges';
 import SonhosObjetivoEvolutionChart from './SonhosObjetivoEvolutionChart';
 import SonhosObjetivoInlineForm from './SonhosObjetivoInlineForm';
-import { formatBRL, formatBRLCompact, formatYearMonth } from './utils';
+import { CATEGORY_LONG_LABELS, formatBRL, formatBRLCompact, formatYearMonth } from './utils';
+import { sonhoSituacao } from './mobile/sonhoSituacao';
+import { MobileMetricGrid } from '@/components/ui/mobile/MobileMetricGrid';
+import { MobileStatusPill } from '@/components/ui/mobile/MobileStatusPill';
+import { MobileActionSheet, MobileMoreButton } from '@/components/ui/sheet/MobileActionSheet';
+import { useResponsiveConfirm } from '@/components/ui/sheet/useResponsiveConfirm';
+import { useIsBelowLg } from '@/hooks/useMediaQuery';
 
 interface SonhosObjetivoDetailProps {
   objetivo: PlanejamentoObjetivoDTO;
@@ -40,9 +46,18 @@ export default function SonhosObjetivoDetail({
   const deleteEntry = useDeleteEntry(objetivo.id);
   const [removingMonth, setRemovingMonth] = useState<string | null>(null);
   const [editing, setEditing] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const isBelowLg = useIsBelowLg();
+  const { confirm, confirmSheet } = useResponsiveConfirm();
 
   const handleRemoveEntry = async (month: string) => {
-    if (!window.confirm('Remover este registro?')) return;
+    const ok = await confirm({
+      desktopMessage: 'Remover este registro?',
+      title: 'Remover este registro?',
+      confirmLabel: 'Remover',
+      danger: true,
+    });
+    if (!ok) return;
     setRemovingMonth(month);
     try {
       await deleteEntry.mutateAsync(month);
@@ -50,6 +65,24 @@ export default function SonhosObjetivoDetail({
       setRemovingMonth(null);
     }
   };
+
+  if (isBelowLg) {
+    return (
+      <MobileDetail
+        objetivo={objetivo}
+        onBack={onBack}
+        onRegistrarMes={onRegistrarMes}
+        onDeleted={onDeleted}
+        editing={editing}
+        setEditing={setEditing}
+        menuOpen={menuOpen}
+        setMenuOpen={setMenuOpen}
+        onRemoveEntry={handleRemoveEntry}
+        removingMonth={removingMonth}
+        confirmSheet={confirmSheet}
+      />
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -275,6 +308,245 @@ export default function SonhosObjetivoDetail({
           </div>
         )}
       </ComponentCard>
+      {confirmSheet}
+    </div>
+  );
+}
+
+// ── Celular (PWA fase 3, P5) ──────────────────────────────────────────────
+
+interface MobileDetailProps {
+  objetivo: PlanejamentoObjetivoDTO;
+  onBack: () => void;
+  onRegistrarMes: () => void;
+  onDeleted: () => void;
+  editing: boolean;
+  setEditing: (editing: boolean) => void;
+  menuOpen: boolean;
+  setMenuOpen: (open: boolean) => void;
+  onRemoveEntry: (month: string) => void;
+  removingMonth: string | null;
+  confirmSheet: React.ReactNode;
+}
+
+/**
+ * Detalhe do objetivo no celular: mesmos números do desktop (progress, pmt, planned), métricas em
+ * grade 2×2, gráfico de 190px, registros em cartões e as ações de hoje — "Registrar mês" em
+ * largura total e o menu ⋯ (Editar abre o cadastro em sheet alto; lá fica o "Excluir objetivo").
+ */
+function MobileDetail({
+  objetivo,
+  onBack,
+  onRegistrarMes,
+  onDeleted,
+  editing,
+  setEditing,
+  menuOpen,
+  setMenuOpen,
+  onRemoveEntry,
+  removingMonth,
+  confirmSheet,
+}: MobileDetailProps) {
+  const { pct, balance, count } = progress(objetivo);
+  const aporte = pmt(objetivo);
+  const restante = Math.max(0, objetivo.target - balance);
+  const mesesRestantes = Math.max(0, objetivo.months - count);
+  const conclusaoPrevista = objetivo.startDate
+    ? formatYearMonth(addMonths(objetivo.startDate, objetivo.months))
+    : null;
+  const situacao = sonhoSituacao(objetivo);
+  const negClass = 'text-[#D92D20] dark:text-[#F97066]';
+
+  return (
+    <div data-mf-mobile="" className="space-y-4">
+      <button
+        type="button"
+        onClick={onBack}
+        className="inline-flex min-h-11 items-center text-sm font-medium text-gray-600 dark:text-gray-300"
+      >
+        ← Voltar
+      </button>
+
+      <div className="min-w-0">
+        <h2 className="break-words text-lg font-semibold text-gray-900 dark:text-white/90">
+          {objetivo.name}
+        </h2>
+        <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-gray-500 dark:text-gray-400">
+          <span>
+            {CATEGORY_LONG_LABELS[objetivo.category]} · prioridade {objetivo.priority.toLowerCase()}
+          </span>
+          <MobileStatusPill tone={situacao.tone}>{situacao.label}</MobileStatusPill>
+        </p>
+        {objetivo.notes ? (
+          <p className="mt-2 text-sm italic text-gray-500 dark:text-gray-400">“{objetivo.notes}”</p>
+        ) : null}
+      </div>
+
+      <div className="flex items-center gap-2">
+        <button
+          type="button"
+          onClick={onRegistrarMes}
+          className="h-12 flex-1 rounded-xl bg-mf-patrimonio text-base font-semibold text-white"
+        >
+          Registrar mês
+        </button>
+        <MobileMoreButton onClick={() => setMenuOpen(true)} />
+      </div>
+
+      <MobileMetricGrid
+        items={[
+          { label: 'Meta Total', value: formatBRLCompact(objetivo.target) },
+          {
+            label: 'Patrimônio Atual',
+            value: formatBRLCompact(balance),
+            hint: `${pct.toFixed(1)}% concluído`,
+          },
+          { label: 'Aporte Necessário', value: formatBRLCompact(aporte), hint: 'por mês' },
+          { label: 'Faltam', value: restante <= 0 ? '— Meta!' : formatBRLCompact(restante) },
+          {
+            label: 'Meses Restantes',
+            value: String(mesesRestantes),
+            hint: `de ${objetivo.months} no plano`,
+          },
+        ]}
+      />
+
+      <div className="rounded-2xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-white/[0.03]">
+        <div className="flex items-center gap-3">
+          <div className="text-2xl font-semibold tabular-nums text-gray-900 dark:text-white/90">
+            {pct.toFixed(0)}%
+          </div>
+          <div className="min-w-0 text-sm">
+            <p className="font-medium text-gray-900 dark:text-white/90">
+              {pct >= 100
+                ? 'Meta atingida!'
+                : pct >= 75
+                  ? 'Quase lá!'
+                  : pct >= 50
+                    ? 'Meio caminho!'
+                    : 'Em progresso'}
+            </p>
+            <p className="text-xs text-gray-500 dark:text-gray-400">
+              {formatBRL(balance)} de {formatBRL(objetivo.target)} · Taxa:{' '}
+              {(objetivo.rate * 100).toFixed(2)}%/mês
+              {conclusaoPrevista ? ` · Conclusão: ${conclusaoPrevista}` : ''}
+            </p>
+          </div>
+        </div>
+        <div
+          role="img"
+          aria-label={`${pct.toFixed(0)}% da meta`}
+          className="mt-3 h-2 w-full overflow-hidden rounded-full bg-gray-100 dark:bg-gray-800"
+        >
+          <div
+            className="h-full rounded-full bg-[#0079F2]"
+            style={{ width: `${Math.min(100, pct)}%` }}
+          />
+        </div>
+      </div>
+
+      <div className="rounded-2xl border border-gray-200 bg-white p-3 dark:border-gray-800 dark:bg-white/[0.03]">
+        <h3 className="mb-1 px-1 text-base font-semibold text-gray-900 dark:text-white/90">
+          Evolução · Planejado vs Realizado
+        </h3>
+        <SonhosObjetivoEvolutionChart objetivo={objetivo} />
+      </div>
+
+      <div>
+        <h3 className="mb-2 px-1 text-base font-semibold text-gray-900 dark:text-white/90">
+          Histórico Mensal · {count} registro{count !== 1 ? 's' : ''}
+        </h3>
+        {objetivo.entries.length === 0 ? (
+          <p className="rounded-2xl border border-gray-200 px-4 py-6 text-center text-sm text-gray-500 dark:border-gray-800 dark:text-gray-400">
+            Nenhum registro ainda — toque em &quot;Registrar mês&quot; acima.
+          </p>
+        ) : (
+          <ul aria-label="Registros mensais" className="flex flex-col gap-2">
+            {objetivo.entries.map((entry, idx) => {
+              const planejado = planned(objetivo, idx + 1);
+              const deltaSaldo = entry.balance - planejado;
+              const entryPct =
+                objetivo.target > 0 ? Math.min(100, (entry.balance / objetivo.target) * 100) : 0;
+              const isLast = idx === objetivo.entries.length - 1;
+              const isRemoving = removingMonth === entry.month;
+              return (
+                <li
+                  key={entry.month}
+                  data-mf-card=""
+                  className="rounded-2xl border border-gray-200 bg-white px-4 py-3 dark:border-gray-800 dark:bg-white/[0.03]"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <span className="text-sm font-semibold text-gray-900 dark:text-white/90">
+                      {formatYearMonth(entry.month)}
+                    </span>
+                    <span className="text-sm font-semibold tabular-nums text-gray-900 dark:text-white/90">
+                      {formatBRL(entry.balance)}
+                    </span>
+                  </div>
+                  <dl className="mt-2 grid grid-cols-3 gap-2 text-xs">
+                    <div className="min-w-0">
+                      <dt className="text-gray-500 dark:text-gray-400">Aporte</dt>
+                      <dd className="truncate tabular-nums text-gray-800 dark:text-white/90">
+                        {formatBRL(entry.aporte)}
+                      </dd>
+                    </div>
+                    <div className="min-w-0">
+                      <dt className="text-gray-500 dark:text-gray-400">Δ Saldo</dt>
+                      <dd
+                        className={`truncate tabular-nums ${
+                          deltaSaldo < 0 ? negClass : 'text-gray-800 dark:text-white/90'
+                        }`}
+                      >
+                        {deltaSaldo >= 0 ? '+' : ''}
+                        {formatBRL(deltaSaldo)}
+                      </dd>
+                    </div>
+                    <div className="min-w-0">
+                      <dt className="text-gray-500 dark:text-gray-400">Progresso</dt>
+                      <dd className="tabular-nums text-gray-800 dark:text-white/90">
+                        {entryPct.toFixed(0)}%
+                      </dd>
+                    </div>
+                  </dl>
+                  {isLast ? (
+                    <button
+                      type="button"
+                      onClick={() => onRemoveEntry(entry.month)}
+                      disabled={isRemoving}
+                      className={`mt-1 inline-flex min-h-11 items-center text-sm font-semibold disabled:opacity-50 ${negClass}`}
+                    >
+                      {isRemoving ? 'Removendo…' : 'Remover registro'}
+                    </button>
+                  ) : null}
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </div>
+
+      <MobileActionSheet
+        isOpen={menuOpen}
+        onClose={() => setMenuOpen(false)}
+        title="Objetivo"
+        subject={objetivo.name}
+        actions={[
+          { id: 'editar', label: 'Editar objetivo', onSelect: () => setEditing(true) },
+          { id: 'registrar', label: 'Registrar mês', onSelect: onRegistrarMes },
+        ]}
+      />
+
+      {editing ? (
+        <SonhosObjetivoInlineForm
+          presentation="sheet"
+          objetivo={objetivo}
+          onCancel={() => setEditing(false)}
+          onSaved={() => setEditing(false)}
+          onDeleted={onDeleted}
+        />
+      ) : null}
+
+      {confirmSheet}
     </div>
   );
 }

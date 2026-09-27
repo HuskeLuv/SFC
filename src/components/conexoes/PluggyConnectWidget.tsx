@@ -25,6 +25,16 @@ export type PluggyConnectWidgetProps = Pick<
   | 'onEvent'
 >;
 
+/**
+ * PWA fase 3: enquanto o widget está montado, o marcador `data-mf-overlay` esconde a casca mobile
+ * (cabeçalho e barra de abas) pelo contrato do globals.css — o iframe do react-pluggy-connect
+ * (position: fixed) fica em tela cheia, sem nada por cima. No desktop o marcador não muda nada.
+ */
 export default function PluggyConnectWidget(props: PluggyConnectWidgetProps) {
-  return <PluggyConnect language="pt" countries={['BR']} {...props} />;
+  return (
+    <>
+      <span data-mf-overlay="" hidden aria-hidden="true" />
+      <PluggyConnect language="pt" countries={['BR']} {...props} />
+    </>
+  );
 }

@@ -3,6 +3,7 @@
 import dynamic from 'next/dynamic';
 import { useMemo } from 'react';
 import type { ApexOptions } from 'apexcharts';
+import { mobileYAxis, useMobileChart } from '@/components/charts/mobileChartOptions';
 import type { ProjecaoResult } from '@/services/planejamento/aposentadoria';
 import { formatBRLCompact } from '../utils';
 
@@ -127,9 +128,29 @@ export default function ProjecaoChart({ data, apos, vida }: ProjecaoChartProps) 
     };
   }, [data, apos, vida]);
 
+  // Celular (PWA fase 3): eixo em R$ compacto, sem título do eixo x e anotações em 9px.
+  const mobileExtra = useMemo<ApexOptions>(() => {
+    const small = <T extends { label?: { style?: object } }>(a: T): T => ({
+      ...a,
+      label: { ...a.label, style: { ...a.label?.style, fontSize: '9px' } },
+    });
+    return {
+      yaxis: mobileYAxis(options.yaxis),
+      xaxis: { title: { text: '' } },
+      annotations: {
+        xaxis: (options.annotations?.xaxis ?? []).map(small),
+        points: (options.annotations?.points ?? []).map(small),
+      },
+    };
+  }, [options]);
+  const { options: chartOptions, height } = useMobileChart(options, {
+    desktopHeight: 320,
+    extra: mobileExtra,
+  });
+
   return (
     <div className="w-full">
-      <ReactApexChart options={options} series={series} type="line" height={320} />
+      <ReactApexChart options={chartOptions} series={series} type="line" height={height} />
     </div>
   );
 }

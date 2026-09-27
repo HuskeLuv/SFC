@@ -1,12 +1,13 @@
 'use client';
 
-import React, { useCallback, useMemo } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef } from 'react';
 import FullCalendar from '@fullcalendar/react';
 import dayGridPlugin from '@fullcalendar/daygrid';
 import timeGridPlugin from '@fullcalendar/timegrid';
 import listPlugin from '@fullcalendar/list';
 import interactionPlugin from '@fullcalendar/interaction';
 import type {
+  CalendarApi,
   DateSelectArg,
   DatesSetArg,
   EventClickArg,
@@ -16,6 +17,7 @@ import type {
 import ptBrLocale from '@fullcalendar/core/locales/pt-br';
 import type { EventoAgenda, Periodo } from '@/services/calendario/types';
 import { dataCivilLocal, periodoDaVisao } from './agendaTipos';
+import './mobile/agenda-mobile.css';
 
 interface Props {
   eventos: EventInput[];
@@ -24,6 +26,16 @@ interface Props {
   onSelecionarDia: (data: string) => void;
   onClicarEvento: (evento: EventoAgenda) => void;
   onNovo: () => void;
+  /**
+   * PWA fase 3: lista do celular (abaixo de 768px) com o cabeçalho próprio da Agenda
+   * (AgendaMobileHeader) — sem a toolbar do FullCalendar. Ao entrar nesse modo com a grade aberta,
+   * troca para a lista.
+   */
+  lista?: boolean;
+  /** Expõe a API do calendário para o cabeçalho próprio (‹ › Hoje). */
+  onApi?: (api: CalendarApi) => void;
+  /** Título do período visível e se ele contém hoje (a cada troca de período). */
+  onTitulo?: (info: { titulo: string; contemHoje: boolean }) => void;
 }
 
 function conteudoDoEvento(arg: EventContentArg) {
@@ -60,16 +72,42 @@ export default function AgendaFullCalendar({
   onSelecionarDia,
   onClicarEvento,
   onNovo,
+  lista = false,
+  onApi,
+  onTitulo,
 }: Props) {
+  const calendarRef = useRef<FullCalendar | null>(null);
   const mobile = useMemo(
     () => typeof window !== 'undefined' && window.innerWidth < LARGURA_MOBILE,
     [],
   );
 
   const handleDatesSet = useCallback(
-    (arg: DatesSetArg) => onPeriodo(periodoDaVisao(arg.view.activeStart, arg.view.activeEnd)),
-    [onPeriodo],
+    (arg: DatesSetArg) => {
+      onPeriodo(periodoDaVisao(arg.view.activeStart, arg.view.activeEnd));
+      if (onTitulo) {
+        const agora = new Date();
+        onTitulo({
+          titulo: arg.view.title,
+          contemHoje: agora >= arg.view.currentStart && agora < arg.view.currentEnd,
+        });
+      }
+    },
+    [onPeriodo, onTitulo],
   );
+
+  useEffect(() => {
+    const api = calendarRef.current?.getApi();
+    if (api && onApi) onApi(api);
+  }, [onApi]);
+
+  // Entrou no modo lista (janela encolheu abaixo de 768px) com a grade aberta: vai para a lista,
+  // porque a barra do FullCalendar (com Mês/Semana) some.
+  useEffect(() => {
+    if (!lista) return;
+    const api = calendarRef.current?.getApi();
+    if (api && !api.view.type.startsWith('list')) api.changeView('listMonth');
+  }, [lista]);
   const handleSelect = useCallback(
     (arg: DateSelectArg) => {
       if (podeCriar) onSelecionarDia(dataCivilLocal(arg.start));
@@ -88,15 +126,20 @@ export default function AgendaFullCalendar({
   return (
     <div className="custom-calendar agenda-calendar">
       <FullCalendar
+        ref={calendarRef}
         plugins={[dayGridPlugin, timeGridPlugin, listPlugin, interactionPlugin]}
         locale={ptBrLocale}
         initialView={mobile ? 'listMonth' : 'dayGridMonth'}
         height="auto"
-        headerToolbar={{
-          left: podeCriar ? 'prev,next today novoEvento' : 'prev,next today',
-          center: 'title',
-          right: mobile ? 'dayGridMonth,listMonth' : 'dayGridMonth,timeGridWeek,listMonth',
-        }}
+        headerToolbar={
+          lista
+            ? false
+            : {
+                left: podeCriar ? 'prev,next today novoEvento' : 'prev,next today',
+                center: 'title',
+                right: mobile ? 'dayGridMonth,listMonth' : 'dayGridMonth,timeGridWeek,listMonth',
+              }
+        }
         buttonText={{ today: 'Hoje', month: 'Mês', week: 'Semana', list: 'Lista' }}
         customButtons={{ novoEvento: { text: '+ Novo evento', click: onNovo } }}
         events={eventos}

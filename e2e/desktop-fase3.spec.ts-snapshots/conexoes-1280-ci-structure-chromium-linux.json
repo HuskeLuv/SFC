@@ -1,0 +1,9 @@
+{
+ "tabs": [],
+ "tables": [],
+ "mobileArtifactsVisible": 0,
+ "controls": [
+  "a|||dark:text-gray-400 gap-1.5 inline-flex items-center text-gray-500 text-sm",
+  "h2|||dark:text-white/90 font-semibold text-gray-800 text-xl"
+ ]
+}

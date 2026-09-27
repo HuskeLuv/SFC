@@ -3,6 +3,7 @@
 import { Modal } from '@/components/ui/modal';
 import Button from '@/components/ui/button/Button';
 import type { BankConnectionDTO, ResumoImportado } from '@/hooks/useConexoesBancarias';
+import { MODAL_STICKY_FOOTER } from '@/lib/ui/mobile';
 
 const plural = (n: number, um: string, varios: string) => `${n} ${n === 1 ? um : varios}`;
 
@@ -71,7 +72,7 @@ export default function ConexaoRealizadaModal({
 
   return (
     <Modal isOpen onClose={onFechar} className="m-4 max-w-lg">
-      <div className="p-6 sm:p-8">
+      <div className="p-6 sm:p-8 max-lg:pb-0 sm:max-lg:pb-0">
         <h3 className="mb-1 pr-10 text-lg font-semibold text-gray-800 dark:text-white/90">
           Conexão realizada
         </h3>
@@ -99,7 +100,9 @@ export default function ConexaoRealizadaModal({
             {aviso}
           </p>
         ) : null}
-        <div className="mt-6 flex justify-end">
+        <div
+          className={`mt-6 flex justify-end ${MODAL_STICKY_FOOTER.p6sm8} max-lg:[&>button]:flex-1 max-lg:[&>button]:min-h-11 max-lg:bottom-[calc(-8px-env(safe-area-inset-bottom))]`}
+        >
           <Button size="sm" onClick={onFechar}>
             Entendi
           </Button>

@@ -8,7 +8,9 @@ import type {
 } from '@/hooks/useSaudeFinanceira';
 import { TIPO_LABELS } from '@/components/dividas/utils';
 import type { DividaTipo } from '@/hooks/useDividas';
+import { useIsBelowLg } from '@/hooks/useMediaQuery';
 import { formatBRL, formatPercent, tendenciaSeta } from './utils';
+import BalancoMobile from './mobile/BalancoMobile';
 import {
   TABLE_STYLES,
   TABLE_HEADER_STYLE,
@@ -33,16 +35,26 @@ interface BalancoPatrimonialProps {
   tendencias: TendenciasSaude;
 }
 
+/** Celular sem verde (PWA fase 3): a seta "boa" vira azul da paleta só na tela abaixo de lg. */
+const SETA_SEM_VERDE = (className: string) =>
+  className.includes('green')
+    ? ' mscreen:text-mf-patrimonio dark:mscreen:text-mf-tranquilidade'
+    : '';
+
 function Seta({ seta }: { seta: ReturnType<typeof tendenciaSeta> }) {
   if (!seta) return null;
   return (
-    <span className={`ml-1 text-sm font-semibold ${seta.className}`} title="vs mês anterior">
+    <span
+      className={`ml-1 text-sm font-semibold ${seta.className}${SETA_SEM_VERDE(seta.className)}`}
+      title="vs mês anterior"
+    >
       {seta.glyph}
     </span>
   );
 }
 
-type Item = { key: string; label: string; valor: number };
+export type BalancoItem = { key: string; label: string; valor: number };
+type Item = BalancoItem;
 
 /** Célula de item (rótulo + valor) de um dos lados; vazia quando o outro lado tem mais linhas. */
 function ItemCells({ item }: { item: Item | undefined }) {
@@ -77,6 +89,94 @@ function TotalCells({ label, valor }: { label: string; valor: number }) {
   );
 }
 
+export interface QuadranteBalanco {
+  titulo: string;
+  itens: BalancoItem[];
+  totalLabel: string;
+  total: number;
+}
+
+export interface QuadrantesBalanco {
+  ativo: { curto: QuadranteBalanco; longo: QuadranteBalanco };
+  passivo: { curto: QuadranteBalanco; longo: QuadranteBalanco };
+  patrimonioLiquido: number;
+}
+
+/**
+ * Extração pura dos quadrantes do balanço (PWA fase 3): as MESMAS linhas e totais da tabela da
+ * planilha, para a tabela (desktop/impressão) e o BalancoMobile (celular) lerem a mesma fonte.
+ */
+export function montarQuadrantes(
+  composicao: SaudeFinanceiraPayload['composicao'],
+  indicadores: SaudeFinanceiraIndicadores,
+): QuadrantesBalanco {
+  const { balanco } = indicadores;
+  const ativosCurto: BalancoItem[] = composicao.altaLiquidez.map((l) => ({
+    key: l.chave,
+    label: l.label,
+    valor: l.valor,
+  }));
+  const ativosLongo: BalancoItem[] = composicao.baixaLiquidez.map((l) => ({
+    key: l.chave,
+    label: l.label,
+    valor: l.valor,
+  }));
+  const passivoItem = (
+    p: SaudeFinanceiraPayload['composicao']['passivos'][number],
+  ): BalancoItem => ({
+    key: p.id,
+    label: `${p.nome} (${TIPO_LABELS[p.tipo as DividaTipo] ?? p.tipo})`,
+    valor: p.saldo,
+  });
+  // Formato planilha (ticket 21/08/2026): tipos de dívida SEM cadastro também
+  // aparecem, zerados ("Outro" só aparece com dívida real). Reais vêm antes.
+  const tiposCadastrados = new Set(composicao.passivos.map((p) => p.tipo as DividaTipo));
+  const placeholdersPassivo = (tipos: readonly DividaTipo[]): BalancoItem[] =>
+    tipos
+      .filter((t) => !tiposCadastrados.has(t))
+      .map((t) => ({ key: `modelo-${t}`, label: TIPO_LABELS[t], valor: 0 }));
+  const passivosCurto = [
+    ...composicao.passivos.filter((p) => p.prazo === 'curto').map(passivoItem),
+    ...placeholdersPassivo(TIPOS_MODELO_CURTO),
+  ];
+  const passivosLongo = [
+    ...composicao.passivos.filter((p) => p.prazo === 'longo').map(passivoItem),
+    ...placeholdersPassivo(TIPOS_MODELO_LONGO),
+  ];
+
+  return {
+    ativo: {
+      curto: {
+        titulo: 'Ativos curto prazo',
+        itens: ativosCurto,
+        totalLabel: 'TOTAL Ativos Curto Prazo',
+        total: balanco.ativosAltaLiquidez,
+      },
+      longo: {
+        titulo: 'Ativos longo prazo',
+        itens: ativosLongo,
+        totalLabel: 'TOTAL Ativos Longo Prazo',
+        total: balanco.ativosBaixaLiquidez,
+      },
+    },
+    passivo: {
+      curto: {
+        titulo: 'Passivos curto prazo',
+        itens: passivosCurto,
+        totalLabel: 'TOTAL Passivos Curto Prazo',
+        total: balanco.passivosCurtoPrazo,
+      },
+      longo: {
+        titulo: 'Passivos longo prazo',
+        itens: passivosLongo,
+        totalLabel: 'TOTAL Passivos Longo Prazo',
+        total: balanco.passivosLongoPrazo,
+      },
+    },
+    patrimonioLiquido: balanco.patrimonioLiquido,
+  };
+}
+
 /**
  * Bloco ④ — balanço patrimonial no FORMATO DA PLANILHA (ticket QA 19/08/2026):
  * tabela pareada Ativo × Passivo com quadrantes "curto prazo" e "longo prazo"
@@ -90,37 +190,12 @@ export default function BalancoPatrimonial({
   tendencias,
 }: BalancoPatrimonialProps) {
   const { balanco, metricas } = indicadores;
-
-  const ativosCurto: Item[] = composicao.altaLiquidez.map((l) => ({
-    key: l.chave,
-    label: l.label,
-    valor: l.valor,
-  }));
-  const ativosLongo: Item[] = composicao.baixaLiquidez.map((l) => ({
-    key: l.chave,
-    label: l.label,
-    valor: l.valor,
-  }));
-  const passivoItem = (p: SaudeFinanceiraPayload['composicao']['passivos'][number]): Item => ({
-    key: p.id,
-    label: `${p.nome} (${TIPO_LABELS[p.tipo as DividaTipo] ?? p.tipo})`,
-    valor: p.saldo,
-  });
-  // Formato planilha (ticket 21/08/2026): tipos de dívida SEM cadastro também
-  // aparecem, zerados ("Outro" só aparece com dívida real). Reais vêm antes.
-  const tiposCadastrados = new Set(composicao.passivos.map((p) => p.tipo as DividaTipo));
-  const placeholdersPassivo = (tipos: readonly DividaTipo[]): Item[] =>
-    tipos
-      .filter((t) => !tiposCadastrados.has(t))
-      .map((t) => ({ key: `modelo-${t}`, label: TIPO_LABELS[t], valor: 0 }));
-  const passivosCurto = [
-    ...composicao.passivos.filter((p) => p.prazo === 'curto').map(passivoItem),
-    ...placeholdersPassivo(TIPOS_MODELO_CURTO),
-  ];
-  const passivosLongo = [
-    ...composicao.passivos.filter((p) => p.prazo === 'longo').map(passivoItem),
-    ...placeholdersPassivo(TIPOS_MODELO_LONGO),
-  ];
+  const isBelowLg = useIsBelowLg();
+  const quadrantes = montarQuadrantes(composicao, indicadores);
+  const ativosCurto = quadrantes.ativo.curto.itens;
+  const ativosLongo = quadrantes.ativo.longo.itens;
+  const passivosCurto = quadrantes.passivo.curto.itens;
+  const passivosLongo = quadrantes.passivo.longo.itens;
 
   const pares = (a: Item[], b: Item[]): Array<[Item | undefined, Item | undefined]> =>
     Array.from({ length: Math.max(a.length, b.length, 1) }, (_, i) => [a[i], b[i]]);
@@ -131,19 +206,31 @@ export default function BalancoPatrimonial({
 
   return (
     <div className="print:break-inside-avoid rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03]">
-      <div className="flex items-center justify-between">
-        <h3 className="text-base font-semibold text-gray-900 dark:text-white/90">
+      <div
+        className={`flex items-center justify-between${isBelowLg ? ' mscreen:justify-end' : ''}`}
+      >
+        <h3
+          className={`text-base font-semibold text-gray-900 dark:text-white/90${
+            isBelowLg ? ' mscreen:hidden' : ''
+          }`}
+        >
           Balanço Patrimonial
         </h3>
         <Link
           href="/dividas"
-          className="text-xs font-medium text-blue-600 hover:underline dark:text-blue-400 print:hidden"
+          className="text-xs font-medium text-blue-600 hover:underline dark:text-blue-400 print:hidden mscreen:inline-flex mscreen:min-h-11 mscreen:items-center mscreen:text-sm mscreen:text-mf-patrimonio dark:mscreen:text-mf-tranquilidade"
         >
           Gerenciar dívidas →
         </Link>
       </div>
 
-      <div className={`mt-4 ${TABLE_STYLES.wrapper}`}>
+      {isBelowLg ? (
+        <div className="hidden mscreen:block">
+          <BalancoMobile quadrantes={quadrantes} />
+        </div>
+      ) : null}
+
+      <div className={`mt-4 ${TABLE_STYLES.wrapper}${isBelowLg ? ' mscreen:hidden' : ''}`}>
         <table className={`${TABLE_STYLES.table} min-w-[640px]`}>
           <thead>
             {/* Cabeçalho da planilha: faixa azul Ativo | Passivo */}

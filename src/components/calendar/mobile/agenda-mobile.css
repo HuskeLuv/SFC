@@ -1,0 +1,56 @@
+/*
+  Agenda no celular (PWA fase 3) — lista do mês com o nosso cabeçalho (AgendaMobileHeader).
+
+  Só abaixo de 768px (decisão do Wellington: de 768 a 1023 o tablet mantém a grade de mês) e só na
+  TELA (nunca na impressão). O prefixo duplicado `.agenda-calendar.agenda-calendar` sobe a
+  especificidade acima das regras da Agenda no globals.css (que é da fatia 0). O desktop não é
+  afetado.
+*/
+@media screen and (width < 48rem) {
+  /* Sem a grade não há altura mínima a respeitar. */
+  .agenda-calendar.agenda-calendar .fc.fc-media-screen {
+    min-height: 0;
+  }
+
+  /* A lista rola com a página: sem contêiner de rolagem próprio, o cabeçalho do dia gruda. */
+  .agenda-calendar.agenda-calendar .fc-view-harness,
+  .agenda-calendar.agenda-calendar .fc-list .fc-scroller {
+    overflow: visible !important;
+  }
+
+  /* Linhas de evento com área de toque confortável (≥ 48px). */
+  .agenda-calendar.agenda-calendar .fc-list-event td {
+    padding-block: 0.75rem;
+  }
+  /* Coluna da hora ("dia inteiro") estreita: o nome do evento fica com a largura. */
+  .agenda-calendar.agenda-calendar .fc-list-event-time {
+    width: 1%;
+    padding-inline: 0.75rem 0.5rem;
+    font-size: 0.75rem;
+    color: #667085;
+  }
+  .dark .agenda-calendar.agenda-calendar .fc-list-event-time {
+    color: #98a2b3;
+  }
+
+  /* Cabeçalho do dia gruda sob o cabeçalho do app + a barra do mês (AgendaMobileHeader). */
+  .agenda-calendar.agenda-calendar .fc-list-day > * {
+    position: sticky;
+    top: calc(var(--mf-header-h, 0px) + var(--agenda-bar-h, 3.5rem));
+    z-index: 2;
+  }
+  .agenda-calendar.agenda-calendar .fc .fc-list-day-cushion {
+    background-color: #f9fafb;
+  }
+  .dark .agenda-calendar.agenda-calendar .fc .fc-list-day-cushion {
+    background-color: #1f1f22;
+  }
+
+  /* Hoje em destaque (azul claro da paleta). */
+  .agenda-calendar.agenda-calendar .fc .fc-day-today .fc-list-day-cushion {
+    background-color: #eef4fb;
+  }
+  .dark .agenda-calendar.agenda-calendar .fc .fc-day-today .fc-list-day-cushion {
+    background-color: #1f2a3a;
+  }
+}
