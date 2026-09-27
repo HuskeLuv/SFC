@@ -20,11 +20,11 @@ Pedido do Pedro (23/09/2026): o site é ruim de usar no celular. Decisão do Wel
 | 0 · Base              | App instalável (manifest, ícones, service worker, offline), casca mobile (cabeçalho, barra de abas Carteira · Fluxo · ＋ Lançar · Planejar · Mais), primitivos (Modal→sheet, BottomSheet, ResponsiveTable), sessão de 30 dias + "Sair de todos os dispositivos", testes de transbordo e de desktop                                       | **PR #244** (24/09) — base do branch do PWA                                            |
 | 1 · Carteira          | Resumo, abas de classe em cartões, edição por sheet, página/edição do ativo, wizards de cadastro e resgate, Renda Fixa/Reservas/Imóveis, Análise; performance medida (abaixo)                                                                                                                                                            | **PR para `feat/pwa-fase0`** (25/09) — desenho `fase1-*`, decisões `fase1-decisoes.md` |
 | 2 · Fluxo de caixa    | Visão do mês (linhas vazias escondidas), edição completa por sheet (valor com fórmula, situação, comentário, renomear, mover, reordenar, excluir), Ano inteiro só leitura, Orçamento vs Real, **lançamento rápido real** no ＋ (rota `POST /api/cashflow/lancamento-rapido`, serviço compartilhado com o assistente, Desfazer), Importar | **PR para `feat/pwa-fase0`** (26/09) — desenho `fase2-*`, decisões `fase2-decisoes.md` |
-| 3 · Demais módulos    | Planejamento, Saúde, Dívidas, Agenda (lista no celular), Relatórios/PDF, Histórico, Perfil, Educação, Comunidade, Conexões bancárias                                                                                                                                                                                                     | —                                                                                      |
+| 3 · Demais módulos    | Planejamento, Saúde, Dívidas, Agenda (lista no celular), Relatórios/PDF, Histórico, Perfil, Educação, Comunidade, Conexões bancárias                                                                                                                                                                                                     | **PR para `feat/pwa-fase0`** (26/09) — desenho `fase3-*`, decisões `fase3-decisoes.md` |
 | 5 · Push + acabamento | Web push (PushSubscription + VAPID + `web-push`, ligado às notificações existentes), teste com testers, Lighthouse, dark mode                                                                                                                                                                                                            | —                                                                                      |
 | (depois)              | Consultor e Admin (ficaram FORA desta rodada); Capacitor para lojas (+1–2 sem)                                                                                                                                                                                                                                                           | —                                                                                      |
 
-Rotas ainda transbordando a 390px (exceções no teste `KNOWN_OVERFLOW`): `/carteira` (fase 1), `/calendario` e `/historico-alteracoes` (fase 3) — tirar da lista quando consertar.
+Transbordo a 390/320px: a lista de exceções do `e2e/mobile-overflow.spec.ts` (hoje `KNOWN_CLIP`) ficou **vazia** na fase 3 — nenhuma rota do cliente corta.
 
 ## Fase 1 — performance da /carteira (25/09/2026)
 
@@ -50,6 +50,15 @@ Pendências leves da fase 1: histórico de patrimônio aparece vazio ("Jan 1970"
 - Desfazer do lançamento rápido volta o valor, não a fórmula nem o carimbo do comentário (a prévia avisa).
 - Dark mode conferido só por cálculo de contraste; teclado com foco automático no iPhone real a confirmar.
 - PRs separados depois: cores/corte de 80% da tabela de Orçamento no desktop; linhas de Dívidas no desktop (Excluir falha em silêncio).
+
+## Fase 3 — regras e pendências (26/09/2026)
+
+- **Páginas que imprimem** (`/relatorios`, `/saude-financeira`): diferença de celular só com a variante `mscreen:` (`screen and <64rem`, criada no `globals.css`), nunca `max-lg:` — a folha A4 tem ~794px e casaria `max-lg`. O `useIsBelowLg` congela o valor de tela durante a impressão. Guarda: `desktop-fase3.spec.ts` imprime de uma janela de 1280 (sem stub de `matchMedia`) e compara páginas do PDF.
+- **e2e que grava** vai em `*.escrita.spec.ts` (projeto `escrita`, roda depois de `chromium` e `mobile`) e só grava com `E2E_ALLOW_WRITES=1` (ligado apenas no CI, banco semeado). Gravações deixam linhas no Histórico do demo (sem remoção pela API).
+- Localmente, >2 workers estouram o rate limit de `/api/auth/me` (60/min por IP) e alguns testes mobile caem em "Não autenticado" — use `--workers=2` (o CI já usa).
+- Pendências leves: links `text-blue-600` na Saúde (fora da paleta); título repetido dentro dos blocos dos Relatórios (ComponentCard); campo Nome do "Novo objetivo" sem borda de erro; selos da Comunidade com contraste baixo no escuro; `autoComplete="one-time-code"` do 2FA também no desktop (inofensivo); `max-lg:min-w-0` no ProventosHistoricoChart (sem efeito visível); `useMobileHistoryView` após recarregar com `?divida=` volta para o início da história; RegistrarMesSheet da aposentadoria fecha sem esperar a API; chip do `MobileTabRail` com 42px de alvo; perfil do consultor personificando mostra dados do cliente com ações da conta (comportamento antigo do `/api/profile`).
+- A conferir em aparelho real: teclado nos sheets (premissas, nova dívida, comentário), widget Pluggy aberto (exige consentimento), link `otpauth://` do 2FA, impressão pelo PWA instalado.
+- Desktop, PRs separados: gráfico do cronograma de Dívidas não empilha; "Abrir em Dívidas" da Agenda sem `?divida=`.
 
 ## Como cada fase é executada (formato combinado com o Wellington)
 
