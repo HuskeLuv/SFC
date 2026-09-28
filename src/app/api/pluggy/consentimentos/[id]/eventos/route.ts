@@ -7,7 +7,8 @@ import { requireProprioUsuarioPluggy } from '../../../_lib/auth';
 
 /**
  * POST /api/pluggy/consentimentos/[id]/eventos — marco da etapa Pluggy/instituição
- * (eventos do widget). Só o nome do evento, a hora, a instituição escolhida e o IP.
+ * (eventos do widget). Só o nome do evento, a hora, a instituição escolhida, o IP
+ * e, quando o widget já criou o item, o itemId + status/erro (diagnóstico Pluggy).
  */
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -17,6 +18,7 @@ const bodySchema = z.object({
   em: z.string().datetime().optional(),
   instituicao: z.string().max(200).optional(),
   detalhe: z.string().max(500).optional(),
+  itemId: z.string().uuid().optional(),
 });
 
 export const POST = withErrorHandler(

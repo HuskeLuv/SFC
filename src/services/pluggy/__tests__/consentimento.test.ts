@@ -247,9 +247,66 @@ describe('registrarEventoConsentimento', () => {
     mockPrisma.openFinanceConsentimento.findFirst.mockResolvedValueOnce({
       id: 'c1',
       status: 'pendente',
-      eventos: Array.from({ length: 60 }, () => ({ evento: 'ITEM_RESPONSE', em: 'x' })),
+      eventos: Array.from({ length: 60 }, (_, i) => ({
+        evento: 'SUBMITTED_LOGIN',
+        em: `x${i}`,
+      })),
     });
-    await registrarEventoConsentimento('u1', 'c1', { evento: 'ITEM_RESPONSE' });
+    await registrarEventoConsentimento('u1', 'c1', { evento: 'SUBMITTED_LOGIN' });
     expect(mockPrisma.openFinanceConsentimento.update).not.toHaveBeenCalled();
+  });
+
+  it('polling repetido com o mesmo estado do item não regrava; mudança de estado grava', async () => {
+    const base = {
+      id: 'c1',
+      status: 'pendente',
+      eventos: [
+        { evento: 'ITEM_RESPONSE', em: 'x', itemId: 'i1', detalhe: 'UPDATING/CREATING' },
+        { evento: 'LOGIN_SUCCESS', em: 'x', itemId: 'i1', detalhe: 'UPDATING/CREATING' },
+      ],
+    };
+    // Mesmo evento + mesmo itemId/detalhe do último ITEM_RESPONSE → dedupe, sem update.
+    mockPrisma.openFinanceConsentimento.findFirst.mockResolvedValueOnce(base);
+    await registrarEventoConsentimento('u1', 'c1', {
+      evento: 'ITEM_RESPONSE',
+      itemId: 'i1',
+      detalhe: 'UPDATING/CREATING',
+    });
+    expect(mockPrisma.openFinanceConsentimento.update).not.toHaveBeenCalled();
+    // Estado novo → grava com itemId e detalhe.
+    mockPrisma.openFinanceConsentimento.findFirst.mockResolvedValueOnce(base);
+    await registrarEventoConsentimento('u1', 'c1', {
+      evento: 'ITEM_RESPONSE',
+      em: 'y',
+      itemId: 'i1',
+      detalhe: 'LOGIN_ERROR • USER_INPUT_TIMEOUT: User requested input had expired',
+    });
+    expect(mockPrisma.openFinanceConsentimento.update).toHaveBeenCalledWith({
+      where: { id: 'c1' },
+      data: {
+        eventos: [
+          ...base.eventos,
+          {
+            evento: 'ITEM_RESPONSE',
+            em: 'y',
+            itemId: 'i1',
+            detalhe: 'LOGIN_ERROR • USER_INPUT_TIMEOUT: User requested input had expired',
+          },
+        ],
+      },
+    });
+  });
+
+  it('evento terminal passa do limite e ainda encerra o aceite pendente', async () => {
+    mockPrisma.openFinanceConsentimento.findFirst.mockResolvedValueOnce({
+      id: 'c1',
+      status: 'pendente',
+      eventos: Array.from({ length: 60 }, (_, i) => ({ evento: 'ITEM_RESPONSE', em: `x${i}` })),
+    });
+    await registrarEventoConsentimento('u1', 'c1', { evento: 'FECHADO_SEM_CONCLUIR' });
+    const call = mockPrisma.openFinanceConsentimento.update.mock.calls[0][0];
+    expect(call.data.status).toBe('nao_concluido');
+    expect(call.data.eventos).toHaveLength(61);
+    expect(call.data.eventos[60].evento).toBe('FECHADO_SEM_CONCLUIR');
   });
 });
