@@ -14,6 +14,7 @@ const mockPrisma = vi.hoisted(() => ({
   bankTransaction: { findMany: vi.fn(), createMany: vi.fn(), update: vi.fn(), updateMany: vi.fn() },
   pluggyWebhookEvent: { findMany: vi.fn(), updateMany: vi.fn(), update: vi.fn() },
   openFinanceConsentimento: { updateMany: vi.fn() },
+  cashflowValue: { upsert: vi.fn(), deleteMany: vi.fn() },
 }));
 vi.mock('@/lib/prisma', () => ({ prisma: mockPrisma, default: mockPrisma }));
 
@@ -439,6 +440,50 @@ describe('atualizarManualmente / excluirConexao', () => {
         ipRevogacao: '200.1.2.3',
       },
     });
+  });
+
+  it('recomputa (apaga) a célula do fluxo que só tinha transações desta conexão', async () => {
+    mockPrisma.bankConnection.findFirst.mockResolvedValue({
+      id: 'conn-1',
+      providerItemId: 'item-1',
+    });
+    mockClient.deleteItem.mockResolvedValue(undefined);
+    mockPrisma.bankTransaction.findMany
+      // aplicadas da conexão, capturadas antes do delete (mesma célula: set/2026)
+      .mockResolvedValueOnce([
+        { cashflowItemId: 'cf-item-a', date: new Date('2026-09-25T00:00:00Z') },
+        { cashflowItemId: 'cf-item-a', date: new Date('2026-09-26T00:00:00Z') },
+      ])
+      // recompute pós-cascade: nada restou no mês
+      .mockResolvedValueOnce([]);
+    await excluirConexao('conn-1', 'user-1');
+    expect(mockPrisma.bankConnection.delete).toHaveBeenCalledWith({ where: { id: 'conn-1' } });
+    expect(mockPrisma.cashflowValue.deleteMany).toHaveBeenCalledWith({
+      where: { itemId: 'cf-item-a', userId: 'user-1', year: 2026, month: 8 },
+    });
+    expect(mockPrisma.cashflowValue.upsert).not.toHaveBeenCalled();
+  });
+
+  it('célula com transação restante de outra conexão mantém a soma', async () => {
+    mockPrisma.bankConnection.findFirst.mockResolvedValue({
+      id: 'conn-1',
+      providerItemId: 'item-1',
+    });
+    mockClient.deleteItem.mockResolvedValue(undefined);
+    mockPrisma.bankTransaction.findMany
+      .mockResolvedValueOnce([
+        { cashflowItemId: 'cf-item-a', date: new Date('2026-09-25T00:00:00Z') },
+      ])
+      .mockResolvedValueOnce([{ amount: 123.45 }]);
+    await excluirConexao('conn-1', 'user-1');
+    expect(mockPrisma.cashflowValue.upsert).toHaveBeenCalledWith({
+      where: {
+        itemId_userId_year_month: { itemId: 'cf-item-a', userId: 'user-1', year: 2026, month: 8 },
+      },
+      update: { value: 123.45, formula: null },
+      create: { itemId: 'cf-item-a', userId: 'user-1', year: 2026, month: 8, value: 123.45 },
+    });
+    expect(mockPrisma.cashflowValue.deleteMany).not.toHaveBeenCalled();
   });
 });
 
