@@ -8,7 +8,7 @@ import { EditableItemData } from '@/hooks/useGroupEditMode';
 import { CommentIndicator } from './CommentIndicator';
 import { FixedCell, MonthCell, AnnualCell } from './GridCells';
 import { GRID, currentMonthIndex } from './cashflowGridStyles';
-import { isInvestment } from '@/lib/cashflow/itemCapabilities';
+import { isInvestment, READONLY_REASON_TEXT } from '@/lib/cashflow/itemCapabilities';
 
 interface EditableItemRowProps {
   item: CashflowItem;
@@ -59,12 +59,15 @@ export const EditableItemRow: React.FC<EditableItemRowProps> = ({
   // Sonho com ativos da carteira vinculados: realizado é 100% derivado das
   // transações — valores/cores ficam somente-leitura (o batch-update rejeita).
   const autoRealizado = !!item.objetivoAutoRealizado;
-  // Campos estruturais editáveis? (não em linha de investimento nem de sonho)
-  const canEditStructure = isEditing && !isInvestmentItem && !objetivoLocked;
+  // Linha-espelho de dívida: nome, porquê, nível e exclusão são geridos em Dívidas
+  // (o batch-update ignora/recusa — antes o desktop oferecia e falhava em silêncio).
+  const dividaLocked = !!item.dividaId;
+  // Campos estruturais editáveis? (não em linha de investimento, de sonho nem de dívida)
+  const canEditStructure = isEditing && !isInvestmentItem && !objetivoLocked && !dividaLocked;
   const canEditValues = isEditing && !isInvestmentItem && !autoRealizado;
   // Excluir é permitido também em linha de sonho (propaga pro Planejamento, com
-  // confirmação); só não em linha de investimento (calculada).
-  const canDelete = isEditing && !isInvestmentItem;
+  // confirmação); não em linha de investimento (calculada) nem de dívida.
+  const canDelete = isEditing && !isInvestmentItem && !dividaLocked;
 
   const handleDeleteClick = () => {
     if (
@@ -167,6 +170,11 @@ export const EditableItemRow: React.FC<EditableItemRowProps> = ({
                   }
                 >
                   🎯
+                </span>
+              ) : null}
+              {dividaLocked ? (
+                <span className="mr-1" title={READONLY_REASON_TEXT.divida}>
+                  💳
                 </span>
               ) : null}
               {displayData.name || ''}

@@ -27,6 +27,7 @@ function buildItem(overrides: Partial<CashflowItem> = {}): CashflowItem {
     rank: overrides.rank ?? 'normal',
     values: overrides.values ?? [],
     objetivoId: overrides.objetivoId ?? null,
+    dividaId: overrides.dividaId ?? null,
   };
 }
 
@@ -86,5 +87,17 @@ describe('EditableItemRow — objetivoLocked (linha 🎯 de sonho)', () => {
     expect(nameInput).toBeTruthy();
     // E não renderiza o marcador de sonho.
     expect(screen.queryByText('🎯')).not.toBeInTheDocument();
+  });
+});
+
+describe('EditableItemRow — linha de dívida (💳)', () => {
+  it('nome, porquê e nível travados, sem excluir, com "Gerida em Dívidas"', () => {
+    renderRow({ item: buildItem({ dividaId: 'div-1', name: 'Financiamento' }) });
+    expect(screen.queryByLabelText('Nome do item')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('O seu porquê')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Nível de prioridade')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/remover|excluir|delete/i)).not.toBeInTheDocument();
+    expect(screen.getByTitle('Gerida em Dívidas')).toBeInTheDocument();
+    expect(screen.getByText('Financiamento')).toBeInTheDocument();
   });
 });
