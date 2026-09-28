@@ -30,6 +30,24 @@ export interface CheckAuthOptions {
 /** Ao voltar para o app depois deste tempo em segundo plano, revalida a sessão (renovação). */
 const REVALIDATE_AFTER_HIDDEN_MS = 6 * 60 * 60 * 1000;
 
+/**
+ * Só 401/403 significam sessão recusada. 429 (rate limit de /api/auth/me) e 5xx são
+ * falhas passageiras: sem usuário na tela, tenta de novo algumas vezes; com usuário,
+ * mantém a sessão e a próxima checagem decide.
+ */
+const TRANSIENT_RETRIES = 2;
+const MAX_RETRY_DELAY_MS = 5000;
+
+function isSessionRejected(status: number): boolean {
+  return status === 401 || status === 403;
+}
+
+function retryDelayMs(response: Response, attempt: number): number {
+  const retryAfter = Number(response.headers?.get('Retry-After'));
+  const ms = retryAfter > 0 ? retryAfter * 1000 : 1000 * (attempt + 1);
+  return Math.min(ms, MAX_RETRY_DELAY_MS);
+}
+
 interface ActingClient {
   id: string;
   name: string;
@@ -60,6 +78,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const abortControllerRef = useRef<AbortController | null>(null);
   const lastCheckRef = useRef(0);
+  // Usuário atual para o checkAuth (estável) decidir se uma falha passageira derruba a sessão.
+  const userRef = useRef<User | null>(null);
+  userRef.current = user;
 
   // Verificar se o usuário está autenticado
   const checkAuth = useCallback(async (opts?: CheckAuthOptions) => {
@@ -72,14 +93,27 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     try {
       if (!opts?.silent) setLoading(true);
-      // Usar cache: 'no-store' para garantir que sempre busque dados atualizados
-      const response = await fetch('/api/auth/me', {
-        cache: 'no-store',
-        credentials: 'include',
-        signal: controller.signal,
-      });
+      let response: Response;
+      for (let attempt = 0; ; attempt++) {
+        // Usar cache: 'no-store' para garantir que sempre busque dados atualizados
+        response = await fetch('/api/auth/me', {
+          cache: 'no-store',
+          credentials: 'include',
+          signal: controller.signal,
+        });
+        if (controller.signal.aborted) return;
+        if (response.ok || isSessionRejected(response.status)) break;
 
-      if (controller.signal.aborted) return;
+        // Falha passageira com usuário na tela: não derruba a sessão.
+        if (userRef.current) {
+          setError('Falha temporária ao verificar autenticação');
+          setLoading(false);
+          return;
+        }
+        if (attempt >= TRANSIENT_RETRIES) break;
+        await new Promise((resolve) => setTimeout(resolve, retryDelayMs(response, attempt)));
+        if (controller.signal.aborted) return;
+      }
 
       if (response.ok) {
         const userData = await response.json();
