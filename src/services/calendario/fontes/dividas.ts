@@ -69,7 +69,7 @@ export function parcelasComoEventos(
       hora: null,
       valor,
       descricao: paga ? 'Parcela paga' : 'Parcela a pagar',
-      link: '/dividas',
+      link: `/dividas?divida=${divida.id}`,
       detalhe: {
         dividaId: divida.id,
         instituicao: divida.instituicao,
@@ -113,7 +113,7 @@ export function rotativaComoEventos(
           hora: null,
           valor: null,
           descricao: 'Dívida rotativa: o valor depende da fatura do mês',
-          link: '/dividas',
+          link: `/dividas?divida=${divida.id}`,
           detalhe: {
             dividaId: divida.id,
             instituicao: divida.instituicao,

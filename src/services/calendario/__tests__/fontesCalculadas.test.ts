@@ -72,7 +72,7 @@ describe('fonte divida', () => {
       data: '2026-09-01',
       valor: 1040,
       descricao: 'Parcela paga',
-      link: '/dividas',
+      link: '/dividas?divida=d1',
       detalhe: expect.objectContaining({
         numero: 9,
         total: 10,
