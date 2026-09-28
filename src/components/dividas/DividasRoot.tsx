@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import LoadingSpinner from '@/components/common/LoadingSpinner';
 import { useDividas, type DividaDTO } from '@/hooks/useDividas';
 import { useIsBelowLg } from '@/hooks/useMediaQuery';
@@ -17,9 +17,9 @@ type View = { type: 'dashboard' } | { type: 'detail'; id: string };
  * Planejamento Sonhos).
  *
  * PWA fase 3: no celular o detalhe é uma entrada do histórico (`?divida=id`, pushState), para o
- * voltar do Android e o gesto do iPhone voltarem à lista; o deep link `?divida=` só é lido no
- * celular. No desktop continua o estado local de hoje, sem mexer na URL. Cadastro e edição no
- * celular abrem em sheet (DividasDashboard / DividaDetail).
+ * voltar do Android e o gesto do iPhone voltarem à lista. No desktop continua o estado local; o
+ * deep link `?divida=` (vindo da Agenda) abre o detalhe uma vez e sai da URL ao voltar para a
+ * lista. Cadastro e edição no celular abrem em sheet (DividasDashboard / DividaDetail).
  */
 export default function DividasRoot() {
   const { dividas, loading, error } = useDividas();
@@ -32,9 +32,27 @@ export default function DividasRoot() {
     close: histClose,
   } = useMobileHistoryView('divida', isBelowLg);
 
+  // Desktop: deep link `?divida=` abre o detalhe uma vez. Não limpa a URL aqui — na hidratação o
+  // celular também passa por isBelowLg=false e o hook do celular ainda precisa ler o parâmetro.
+  const deepLinkReadRef = useRef(false);
+  useEffect(() => {
+    if (isBelowLg || deepLinkReadRef.current) return;
+    deepLinkReadRef.current = true;
+    const id = new URLSearchParams(window.location.search).get('divida');
+    if (id) setView({ type: 'detail', id });
+  }, [isBelowLg]);
+
   const goDashboard = useCallback(() => {
-    if (isBelowLg) histClose();
-    else setView({ type: 'dashboard' });
+    if (isBelowLg) {
+      histClose();
+      return;
+    }
+    setView({ type: 'dashboard' });
+    const url = new URL(window.location.href);
+    if (url.searchParams.has('divida')) {
+      url.searchParams.delete('divida');
+      window.history.replaceState(window.history.state, '', url.toString());
+    }
   }, [isBelowLg, histClose]);
   const goDetail = useCallback(
     (id: string) => {
