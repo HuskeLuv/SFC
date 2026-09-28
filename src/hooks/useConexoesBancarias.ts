@@ -143,7 +143,13 @@ export function useRegistrarEventoConsentimento() {
   const { csrfFetch } = useCsrf();
   return (
     consentimentoId: string,
-    evento: { evento: EventoWidget; em?: string; instituicao?: string; detalhe?: string },
+    evento: {
+      evento: EventoWidget;
+      em?: string;
+      instituicao?: string;
+      detalhe?: string;
+      itemId?: string;
+    },
   ): void => {
     csrfFetch(`${BASE_URL}/consentimentos/${consentimentoId}/eventos`, {
       method: 'POST',

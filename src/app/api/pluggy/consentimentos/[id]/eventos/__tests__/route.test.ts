@@ -49,4 +49,22 @@ describe('POST /api/pluggy/consentimentos/[id]/eventos', () => {
     expect((await POST(req({ evento: 'WIDGET_ABERTO' }), ctx)).status).toBe(403);
     expect(mockEvento).not.toHaveBeenCalled();
   });
+
+  it('aceita itemId uuid (diagnóstico Pluggy); rejeita itemId que não é uuid', async () => {
+    const itemId = '6c5cf0dd-4932-4f1c-96a1-70d897956bec';
+    const res = await POST(
+      req({ evento: 'ITEM_RESPONSE', itemId, detalhe: 'UPDATING/CREATING' }),
+      ctx,
+    );
+    expect(res.status).toBe(200);
+    expect(mockEvento).toHaveBeenCalledWith('u1', 'c1', {
+      evento: 'ITEM_RESPONSE',
+      itemId,
+      detalhe: 'UPDATING/CREATING',
+      ip: '200.1.2.3',
+    });
+    expect((await POST(req({ evento: 'ITEM_RESPONSE', itemId: 'nao-uuid' }), ctx)).status).toBe(
+      400,
+    );
+  });
 });

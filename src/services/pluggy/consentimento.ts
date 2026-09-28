@@ -161,11 +161,24 @@ export const EVENTOS_WIDGET = [
 ] as const;
 export type EventoWidget = (typeof EVENTOS_WIDGET)[number];
 
+/** Reemitidos pelo widget a cada poll do item (~2,5 s): só gravamos mudança de estado. */
+const EVENTOS_POLLING: readonly EventoWidget[] = [
+  'LOGIN_SUCCESS',
+  'LOGIN_MFA_SUCCESS',
+  'LOGIN_STEP_COMPLETED',
+  'ITEM_RESPONSE',
+];
+
+/** Encerram a linha do tempo — nunca são cortados pelo limite de eventos. */
+const EVENTOS_TERMINAIS: readonly EventoWidget[] = ['CONCLUIDO', 'FECHADO_SEM_CONCLUIR', 'ERRO'];
+
 export interface EventoConsentimento {
   evento: EventoWidget;
   em: string;
   instituicao?: string;
   detalhe?: string;
+  /** Item do Pluggy da tentativa (é o que o suporte deles pede num diagnóstico). */
+  itemId?: string;
   /** IP de quem enviou o marco (mesma regra do `ip` do aceite). Não vai para a tela. */
   ip?: string;
 }
@@ -187,14 +200,19 @@ export async function registrarEventoConsentimento(
   });
   if (!c) throw new ApiError(404, 'Autorização não encontrada');
   const atuais = Array.isArray(c.eventos) ? (c.eventos as unknown as EventoConsentimento[]) : [];
-  if (atuais.length >= MAX_EVENTOS) return;
   const novo: EventoConsentimento = {
     evento: evento.evento,
     em: evento.em ?? new Date().toISOString(),
     ...(evento.instituicao ? { instituicao: evento.instituicao.slice(0, 120) } : {}),
     ...(evento.detalhe ? { detalhe: evento.detalhe.slice(0, 300) } : {}),
+    ...(evento.itemId ? { itemId: evento.itemId.slice(0, 64) } : {}),
     ...(evento.ip && evento.ip !== 'unknown' ? { ip: evento.ip.slice(0, 64) } : {}),
   };
+  if (EVENTOS_POLLING.includes(evento.evento)) {
+    const anterior = atuais.filter((e) => e.evento === evento.evento).at(-1);
+    if (anterior && anterior.detalhe === novo.detalhe && anterior.itemId === novo.itemId) return;
+  }
+  if (atuais.length >= MAX_EVENTOS && !EVENTOS_TERMINAIS.includes(evento.evento)) return;
   const encerra =
     c.status === 'pendente' &&
     (evento.evento === 'FECHADO_SEM_CONCLUIR' || evento.evento === 'ERRO');

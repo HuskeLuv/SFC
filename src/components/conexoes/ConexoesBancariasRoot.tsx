@@ -42,6 +42,21 @@ const DESCONECTAR_TEXTO =
   'ou em Dívidas continua. O registro desta autorização fica no seu histórico.';
 
 type Widget = { token: ConnectTokenResposta; updateItem?: string; consentimentoId: string } | null;
+
+/** Item do Pluggy como chega nos eventos do widget (tipos do pluggy-js não instalados). */
+type ItemDoWidget = {
+  id?: string;
+  status?: string;
+  executionStatus?: string;
+  error?: { code?: string; message?: string } | null;
+};
+
+/** Resumo curto do estado do item para o marco: "STATUS/EXECUTION • CODIGO: mensagem". */
+function detalheDoItem(item: ItemDoWidget): string | undefined {
+  const status = [item.status, item.executionStatus].filter(Boolean).join('/');
+  const erro = item.error ? [item.error.code, item.error.message].filter(Boolean).join(': ') : '';
+  return [status, erro].filter(Boolean).join(' • ') || undefined;
+}
 /** Jornada antes do widget: aviso → consentimento → redirecionamento. */
 type Jornada = { reconexaoDe: BankConnectionDTO | null; consentimentoId: string | null } | null;
 
@@ -57,6 +72,9 @@ export default function ConexoesBancariasRoot() {
   const registrarEvento = useRegistrarEventoConsentimento();
   // O widget pode avisar "fechou" depois do sucesso: não marcar como não concluído.
   const concluiuRef = useRef(false);
+  // O widget reemite LOGIN_SUCCESS/ITEM_RESPONSE a cada poll (~2,5 s): por tipo de
+  // evento, só mandamos o marco quando o estado do item muda (senão o timeline satura).
+  const marcosEnviadosRef = useRef(new Map<string, string>());
   const [realizada, setRealizada] = useState<RegistroResposta | null>(null);
   const connectToken = useConnectToken();
   const registrar = useRegistrarConexao();
@@ -149,6 +167,7 @@ export default function ConexoesBancariasRoot() {
         ...(updateItem ? { itemId: updateItem } : {}),
       });
       concluiuRef.current = false;
+      marcosEnviadosRef.current = new Map();
       setWidget({ token, updateItem, consentimentoId: jornada.consentimentoId });
       setJornada(null);
     } catch (e) {
@@ -160,7 +179,7 @@ export default function ConexoesBancariasRoot() {
     async ({ item }: { item: { id: string } }) => {
       if (!widget) return;
       concluiuRef.current = true;
-      registrarEvento(widget.consentimentoId, { evento: 'CONCLUIDO' });
+      registrarEvento(widget.consentimentoId, { evento: 'CONCLUIDO', itemId: item.id });
       setWidget(null);
       try {
         const r = await registrar.mutateAsync({
@@ -410,19 +429,35 @@ export default function ConexoesBancariasRoot() {
           onSuccess={onSuccess}
           onOpen={() => registrarEvento(widget.consentimentoId, { evento: 'WIDGET_ABERTO' })}
           // Marcos da etapa Pluggy/instituição (o My Finance não vê as telas, só isto).
-          onEvent={(p) =>
+          // Eventos que carregam o item levam o itemId + status/erro (diagnóstico Pluggy).
+          onEvent={(p) => {
+            const item: ItemDoWidget | null =
+              'item' in p && p.item ? (p.item as ItemDoWidget) : null;
+            const detalhe = item ? detalheDoItem(item) : undefined;
+            if (item) {
+              const assinatura = `${item.id ?? ''}|${detalhe ?? ''}`;
+              if (marcosEnviadosRef.current.get(p.event) === assinatura) return;
+              marcosEnviadosRef.current.set(p.event, assinatura);
+            }
             registrarEvento(widget.consentimentoId, {
               evento: p.event,
               em: new Date(p.timestamp).toISOString(),
               ...(p.event === 'SELECTED_INSTITUTION' && p.connector
                 ? { instituicao: p.connector.name }
                 : {}),
-            })
-          }
+              ...(item?.id ? { itemId: item.id } : {}),
+              ...(detalhe ? { detalhe } : {}),
+            });
+          }}
           onError={(e) => {
+            const item: ItemDoWidget | undefined = e?.data?.item as ItemDoWidget | undefined;
+            const detalheItem = item ? detalheDoItem(item) : undefined;
             registrarEvento(widget.consentimentoId, {
               evento: 'ERRO',
-              ...(e?.message ? { detalhe: e.message } : {}),
+              ...(item?.id ? { itemId: item.id } : {}),
+              ...(e?.message || detalheItem
+                ? { detalhe: [e?.message, detalheItem].filter(Boolean).join(' • ') }
+                : {}),
             });
             setWidget(null);
             avisar(e?.message ?? 'O banco não concluiu a conexão. Tente de novo.');
