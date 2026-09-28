@@ -1,32 +1,14 @@
 'use client';
-import React, { useState } from 'react';
-import RentabilidadeGeral from '@/components/analises/RentabilidadeGeral';
-import ProventosTabs from '@/components/analises/ProventosTabs';
-import RiscoRetorno from '@/components/analises/RiscoRetorno';
-import CoberturaFgc from '@/components/analises/CoberturaFgc';
-import IRTabs from '@/components/analises/IRTabs';
+import React, { Suspense, lazy, useState } from 'react';
+import LoadingSpinner from '@/components/common/LoadingSpinner';
+import { ResponsiveTabNav } from '@/components/ui/tabs/ResponsiveTabNav';
 
-interface TabButtonProps {
-  id: string;
-  label: string;
-  isActive: boolean;
-  onClick: () => void;
-}
-
-const TabButton: React.FC<TabButtonProps> = ({ label, isActive, onClick }) => {
-  return (
-    <button
-      className={`inline-flex items-center border-b-2 px-3 py-3 text-sm font-medium transition-colors duration-200 ease-in-out whitespace-nowrap ${
-        isActive
-          ? 'text-brand-500 dark:text-brand-400 border-brand-500 dark:border-brand-400'
-          : 'bg-transparent text-gray-500 border-transparent hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'
-      }`}
-      onClick={onClick}
-    >
-      {label}
-    </button>
-  );
-};
+// Sub-abas sob demanda (PWA fase 1): só o chunk da aba aberta é baixado.
+const RentabilidadeGeral = lazy(() => import('@/components/analises/RentabilidadeGeral'));
+const ProventosTabs = lazy(() => import('@/components/analises/ProventosTabs'));
+const RiscoRetorno = lazy(() => import('@/components/analises/RiscoRetorno'));
+const CoberturaFgc = lazy(() => import('@/components/analises/CoberturaFgc'));
+const IRTabs = lazy(() => import('@/components/analises/IRTabs'));
 
 interface TabContentProps {
   id: string;
@@ -36,7 +18,11 @@ interface TabContentProps {
 
 const TabContent: React.FC<TabContentProps> = ({ isActive, children }) => {
   if (!isActive) return null;
-  return <div className="pt-6">{children}</div>;
+  return (
+    <div className="pt-6 max-lg:pt-3">
+      <Suspense fallback={<LoadingSpinner text="Carregando..." />}>{children}</Suspense>
+    </div>
+  );
 };
 
 const tabs = [
@@ -52,53 +38,46 @@ export default function CarteiraAnalise() {
 
   return (
     <div>
-      {/* Header */}
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Análises</h1>
-        <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+      {/* Header — no celular o h1 da página já está visível; este fica só para leitores de tela */}
+      <div className="mb-6 max-lg:mb-2">
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-white max-lg:sr-only">
+          Análises
+        </h1>
+        <p className="mt-1 text-sm text-gray-500 dark:text-gray-400 max-lg:hidden">
           Análise de rentabilidade e proventos da sua carteira
         </p>
       </div>
 
       {/* Tabs */}
-      <div className="rounded-2xl border border-gray-200 bg-white dark:border-white/[0.05] dark:bg-white/[0.03]">
-        <div className="border-b border-gray-200 px-6 dark:border-gray-800">
-          <nav className="-mb-px flex space-x-2 overflow-x-auto [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-gray-200 dark:[&::-webkit-scrollbar-thumb]:bg-gray-600 dark:[&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar]:h-1.5">
-            {tabs.map((tab) => (
-              <TabButton
-                key={tab.id}
-                id={tab.id}
-                label={tab.label}
-                isActive={activeTab === tab.id}
-                onClick={() => setActiveTab(tab.id)}
-              />
-            ))}
-          </nav>
+      <div className="rounded-2xl border border-gray-200 bg-white dark:border-white/[0.05] dark:bg-white/[0.03] max-lg:rounded-none max-lg:border-0 max-lg:bg-transparent max-lg:dark:bg-transparent">
+        <div className="border-b border-gray-200 px-6 dark:border-gray-800 max-lg:border-0 max-lg:px-0">
+          <ResponsiveTabNav
+            tabs={tabs}
+            activeId={activeTab}
+            onChange={setActiveTab}
+            ariaLabel="Análises da carteira"
+            variant="underline"
+          />
         </div>
 
         {/* Tab Content */}
-        <div className="p-6">
-          {/* Rentabilidade Geral */}
+        <div className="p-6 max-lg:p-0">
           <TabContent id="rentabilidade-geral" isActive={activeTab === 'rentabilidade-geral'}>
             <RentabilidadeGeral />
           </TabContent>
 
-          {/* Proventos */}
           <TabContent id="proventos" isActive={activeTab === 'proventos'}>
             <ProventosTabs />
           </TabContent>
 
-          {/* Risco x Retorno */}
           <TabContent id="risco-retorno" isActive={activeTab === 'risco-retorno'}>
             <RiscoRetorno />
           </TabContent>
 
-          {/* Cobertura FGC */}
           <TabContent id="cobertura-fgc" isActive={activeTab === 'cobertura-fgc'}>
             <CoberturaFgc />
           </TabContent>
 
-          {/* Imposto de Renda */}
           <TabContent id="imposto-de-renda" isActive={activeTab === 'imposto-de-renda'}>
             <IRTabs />
           </TabContent>

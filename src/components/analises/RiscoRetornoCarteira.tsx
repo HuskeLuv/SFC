@@ -37,6 +37,8 @@ export default function RiscoRetornoCarteira({ data }: RiscoRetornoCarteiraProps
               value={sharpeToGauge(data.sharpe)}
               color={gaugeColor(data.sharpe)}
               height={240}
+              mobileHeight={200}
+              ariaLabel={`Índice Sharpe ${data.sharpe.toFixed(2)}; retorno anual ${data.retornoAnual.toFixed(2)}%; volatilidade ${data.volatilidade.toFixed(2)}%`}
             />
             {/* Center overlay: wallet icon + label */}
             <div className="absolute inset-0 flex flex-col items-center justify-center translate-y-[10%] pointer-events-none">
@@ -63,28 +65,30 @@ export default function RiscoRetornoCarteira({ data }: RiscoRetornoCarteiraProps
         </div>
 
         {/* Metrics */}
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-2 gap-4 max-lg:gap-3">
           <div className="text-center">
             <div className="text-sm text-gray-500 dark:text-gray-400">RETORNO ANUAL</div>
-            <div className="text-2xl font-bold text-gray-900 dark:text-white">
+            <div className="max-lg:text-xl text-2xl font-bold text-gray-900 dark:text-white">
               {data.retornoAnual.toFixed(2)}%
             </div>
           </div>
           <div className="text-center">
             <div className="text-sm text-gray-500 dark:text-gray-400">VOLATILIDADE</div>
-            <div className="text-2xl font-bold text-gray-900 dark:text-white">
+            <div className="max-lg:text-xl text-2xl font-bold text-gray-900 dark:text-white">
               {data.volatilidade.toFixed(2)}%
             </div>
           </div>
           <div className="text-center">
             <div className="text-sm text-gray-500 dark:text-gray-400">RETORNO CDI</div>
-            <div className="text-2xl font-bold text-gray-900 dark:text-white">
+            <div className="max-lg:text-xl text-2xl font-bold text-gray-900 dark:text-white">
               {data.retornoCDI.toFixed(2)}%
             </div>
           </div>
           <div className="text-center">
             <div className="text-sm text-gray-500 dark:text-gray-400">ÍNDICE SHARPE</div>
-            <div className="text-2xl font-bold text-[#465FFF]">{data.sharpe.toFixed(2)}</div>
+            <div className="max-lg:text-xl text-2xl font-bold text-[#465FFF]">
+              {data.sharpe.toFixed(2)}
+            </div>
           </div>
         </div>
       </div>

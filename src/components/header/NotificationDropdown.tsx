@@ -2,33 +2,14 @@
 
 import { logger } from '@/lib/logger';
 
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { Dropdown } from '../ui/dropdown/Dropdown';
-import { useAuth } from '@/hooks/useAuth';
-import { useCsrf } from '@/hooks/useCsrf';
-
-type InviteStatus = 'pending' | 'accepted' | 'rejected';
-
-type NotificationItem = {
-  id: string;
-  title: string;
-  message: string;
-  type: string;
-  metadata?: Record<string, unknown> | null;
-  readAt: string | null;
-  createdAt: string;
-  invite?: {
-    id: string;
-    status: InviteStatus;
-    consultant?: {
-      id: string;
-      userId: string;
-      name: string | null;
-      email: string | null;
-    } | null;
-  } | null;
-};
+import {
+  useNotifications,
+  type InviteStatus,
+  type NotificationItem,
+} from '@/hooks/useNotifications';
 
 const formatDateTime = (isoDate: string) => {
   const date = new Date(isoDate);
@@ -56,115 +37,39 @@ const getInviteStatusLabel = (status: InviteStatus) => {
   return 'Convite pendente';
 };
 
-const NotificationDropdown: React.FC = () => {
+type NotificationDropdownProps = {
+  /**
+   * Direção do painel. 'up' (padrão) é o rodapé da sidebar no desktop; 'down' é o cabeçalho
+   * mobile (PWA fase 0): painel fixo logo abaixo do cabeçalho, a 1rem da borda direita (o sino
+   * não fica no canto, então ancorar no botão estouraria a tela à esquerda), com a altura
+   * limitada entre o cabeçalho e a barra de abas.
+   */
+  placement?: 'up' | 'down';
+};
+
+const PANEL_CLASSES_UP =
+  '!right-auto !mt-0 bottom-full left-0 mb-2 flex h-[480px] max-h-[calc(100vh-6rem)] w-[min(350px,calc(100vw-5rem))] flex-col rounded-2xl border border-gray-200 bg-white p-4 shadow-theme-lg dark:border-gray-800 dark:bg-gray-dark sm:w-[361px]';
+
+const PANEL_CLASSES_DOWN =
+  '!fixed top-[calc(var(--mf-header-h,0px)+0.5rem)] right-4 !left-auto !mt-0 flex h-[480px] max-h-[calc(100dvh-var(--mf-header-h,0px)-var(--mf-bottom-nav-h,0px)-1rem)] w-[min(350px,calc(100vw-2rem))] flex-col rounded-2xl border border-gray-200 bg-white p-4 shadow-theme-lg dark:border-gray-800 dark:bg-gray-dark sm:w-[361px]';
+
+const NotificationDropdown: React.FC<NotificationDropdownProps> = ({ placement = 'up' }) => {
   const [isOpen, setIsOpen] = useState(false);
-  const [notifications, setNotifications] = useState<NotificationItem[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
   const [respondingId, setRespondingId] = useState<string | null>(null);
-  const { user, isLoading: authLoading } = useAuth();
-  const { csrfFetch } = useCsrf();
-
-  const hasUnread = useMemo(
-    () => notifications.some((notification) => !notification.readAt),
-    [notifications],
-  );
-  const unreadCount = useMemo(
-    () => notifications.filter((notification) => !notification.readAt).length,
-    [notifications],
-  );
-
-  const fetchNotifications = useCallback(async () => {
-    if (authLoading) {
-      return;
-    }
-
-    if (!user) {
-      setNotifications([]);
-      setError(null);
-      return;
-    }
-
-    try {
-      setIsLoading(true);
-      setError(null);
-
-      const response = await fetch('/api/notifications', {
-        credentials: 'include',
-      });
-      const body = (await response.json().catch(() => null)) as {
-        notifications?: NotificationItem[];
-        error?: string;
-      } | null;
-
-      if (!response.ok) {
-        logger.warn('[NotificationDropdown] request failed', {
-          status: response.status,
-          body,
-        });
-        setNotifications([]);
-        setError(body?.error ?? null);
-        return;
-      }
-
-      setNotifications(body?.notifications ?? []);
-    } catch (fetchError) {
-      logger.error('[NotificationDropdown] load error', fetchError);
-      setError(
-        fetchError instanceof Error
-          ? fetchError.message
-          : 'Não foi possível carregar as notificações.',
-      );
-    } finally {
-      setIsLoading(false);
-    }
-  }, [authLoading, user]);
-
-  const markNotificationsAsRead = useCallback(
-    async (ids: string[]) => {
-      if (!user || authLoading) {
-        return;
-      }
-
-      if (ids.length === 0) {
-        return;
-      }
-
-      try {
-        await csrfFetch('/api/notifications', {
-          method: 'PATCH',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ ids }),
-        });
-
-        const readTimestamp = new Date().toISOString();
-        setNotifications((previous) =>
-          previous.map((notification) =>
-            ids.includes(notification.id)
-              ? {
-                  ...notification,
-                  readAt: notification.readAt ?? readTimestamp,
-                }
-              : notification,
-          ),
-        );
-      } catch (markError) {
-        logger.error('[NotificationDropdown] mark read error', markError);
-      }
-    },
-    [authLoading, user, csrfFetch],
-  );
+  const {
+    notifications,
+    isLoading,
+    error: loadError,
+    unreadCount,
+    hasUnread,
+    refetch,
+    markAsRead,
+    respondInvite,
+  } = useNotifications();
+  const error = actionError ?? loadError;
 
   useEffect(() => {
-    void fetchNotifications();
-  }, [fetchNotifications, user?.id]);
-
-  useEffect(() => {
-    if (authLoading || !user) {
-      return;
-    }
     if (!isOpen) {
       return;
     }
@@ -176,80 +81,38 @@ const NotificationDropdown: React.FC = () => {
       return;
     }
 
-    void markNotificationsAsRead(unreadIds);
-  }, [isOpen, notifications, markNotificationsAsRead, authLoading, user]);
+    void markAsRead(unreadIds);
+  }, [isOpen, notifications, markAsRead]);
 
   const handleToggle = () => {
     const nextIsOpen = !isOpen;
     setIsOpen(nextIsOpen);
     if (nextIsOpen) {
-      void fetchNotifications();
+      setActionError(null);
+      void refetch();
     }
   };
 
   const handleInviteAction = useCallback(
     async (notification: NotificationItem, action: 'accept' | 'reject') => {
-      if (authLoading || !user) {
-        return;
-      }
-
       if (!notification.invite) {
         return;
       }
 
       try {
         setRespondingId(notification.id);
-        setError(null);
-
-        const response = await csrfFetch(
-          `/api/consultant/invitations/${notification.invite.id}/respond`,
-          {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              action,
-              notificationId: notification.id,
-            }),
-          },
-        );
-
-        const body = (await response.json().catch(() => null)) as {
-          invitation?: { status?: InviteStatus; respondedAt?: string | null };
-          error?: string;
-        } | null;
-
-        if (!response.ok) {
-          throw new Error(body?.error ?? 'Não foi possível registrar a resposta.');
-        }
-
-        const nextStatus =
-          body?.invitation?.status ?? (action === 'accept' ? 'accepted' : 'rejected');
-
-        const readTimestamp = new Date().toISOString();
-
-        setNotifications((previous) =>
-          previous.map((item) =>
-            item.id === notification.id
-              ? {
-                  ...item,
-                  readAt: readTimestamp,
-                  invite: item.invite ? { ...item.invite, status: nextStatus } : item.invite,
-                }
-              : item,
-          ),
-        );
+        setActionError(null);
+        await respondInvite(notification, action);
       } catch (inviteError) {
         logger.error('[NotificationDropdown] respond error', inviteError);
-        setError(
+        setActionError(
           inviteError instanceof Error ? inviteError.message : 'Não foi possível concluir a ação.',
         );
       } finally {
         setRespondingId(null);
       }
     },
-    [authLoading, user, csrfFetch],
+    [respondInvite],
   );
 
   const renderInviteActions = (notification: NotificationItem) => {
@@ -315,14 +178,14 @@ const NotificationDropdown: React.FC = () => {
         ) : null}
       </button>
 
-      {/* O sino vive no rodapé da sidebar (fim da tela), então o painel abre
-          pra cima (bottom-full) e alinhado à esquerda do botão, como o
-          UserDropdown ao lado. A altura é limitada pela viewport pra não
-          cortar em telas baixas; a lista interna rola. */}
+      {/* No desktop o sino vive no rodapé da sidebar (fim da tela), então o painel abre
+          pra cima (bottom-full) e alinhado à esquerda do botão, como o UserDropdown ao
+          lado. No cabeçalho mobile abre pra baixo, alinhado à direita. A altura é
+          limitada pela viewport pra não cortar em telas baixas; a lista interna rola. */}
       <Dropdown
         isOpen={isOpen}
         onClose={() => setIsOpen(false)}
-        className="!right-auto !mt-0 bottom-full left-0 mb-2 flex h-[480px] max-h-[calc(100vh-6rem)] w-[min(350px,calc(100vw-5rem))] flex-col rounded-2xl border border-gray-200 bg-white p-4 shadow-theme-lg dark:border-gray-800 dark:bg-gray-dark sm:w-[361px]"
+        className={placement === 'down' ? PANEL_CLASSES_DOWN : PANEL_CLASSES_UP}
       >
         <div className="mb-3 flex items-center justify-between border-b border-gray-100 pb-3 dark:border-gray-700">
           <div className="flex flex-col">

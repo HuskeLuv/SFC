@@ -3,6 +3,7 @@
 import { logger } from '@/lib/logger';
 import React, { useEffect, useState, useMemo } from 'react';
 import { ApexOptions } from 'apexcharts';
+import { useIsBelowLg } from '@/hooks/useMediaQuery';
 
 interface ApexChartWrapperProps {
   options: ApexOptions;
@@ -10,6 +11,30 @@ interface ApexChartWrapperProps {
   type: string;
   width?: string;
   height?: string;
+  /**
+   * PWA fase 1: opções extras só abaixo de lg, mescladas em profundidade sobre `options` (objetos
+   * se fundem; arrays e funções substituem). Sem elas o gráfico é exatamente o de hoje.
+   */
+  mobileOptions?: ApexOptions;
+  /** PWA fase 1: altura abaixo de lg (padrão: `height`). */
+  mobileHeight?: string | number;
+}
+
+const isPlainObject = (v: unknown): v is Record<string, unknown> =>
+  v !== null && typeof v === 'object' && !Array.isArray(v) && !(v instanceof Date);
+
+/** Mescla `extra` sobre `base` sem mutar nenhum dos dois. */
+export function deepMergeOptions<T>(base: T, extra: unknown): T {
+  if (!isPlainObject(base) || !isPlainObject(extra))
+    return (extra === undefined ? base : extra) as T;
+  const out: Record<string, unknown> = { ...base };
+  for (const key of Object.keys(extra)) {
+    const next = extra[key];
+    if (next === undefined) continue;
+    out[key] =
+      isPlainObject(out[key]) && isPlainObject(next) ? deepMergeOptions(out[key], next) : next;
+  }
+  return out as T;
 }
 
 const ApexChartWrapper: React.FC<ApexChartWrapperProps> = ({
@@ -18,7 +43,10 @@ const ApexChartWrapper: React.FC<ApexChartWrapperProps> = ({
   type,
   width = '100%',
   height = '350',
+  mobileOptions,
+  mobileHeight,
 }) => {
+  const isBelowLg = useIsBelowLg();
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [Chart, setChart] = useState<React.ComponentType<any> | null>(null);
 
@@ -83,6 +111,14 @@ const ApexChartWrapper: React.FC<ApexChartWrapperProps> = ({
     }
   }, [options]);
 
+  const effectiveOptions = useMemo(
+    () =>
+      isBelowLg && mobileOptions
+        ? deepMergeOptions(sanitizedOptions, mobileOptions)
+        : sanitizedOptions,
+    [isBelowLg, mobileOptions, sanitizedOptions],
+  );
+
   useEffect(() => {
     // Importação dinâmica do ReactApexChart apenas no client-side
     const loadChart = async () => {
@@ -106,11 +142,11 @@ const ApexChartWrapper: React.FC<ApexChartWrapperProps> = ({
   }
 
   const chartProps = {
-    options: sanitizedOptions,
+    options: effectiveOptions,
     series: [...series],
     type,
     width,
-    height,
+    height: isBelowLg && mobileHeight !== undefined ? mobileHeight : height,
   };
 
   return <Chart {...chartProps} />;

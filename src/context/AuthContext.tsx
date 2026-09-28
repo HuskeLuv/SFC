@@ -12,6 +12,7 @@ import React, {
   useRef,
 } from 'react';
 import { useRouter } from 'next/navigation';
+import { clearAppCaches, postClearCachesMessage } from '@/lib/pwa/swClient';
 
 interface User {
   id: string;
@@ -20,6 +21,14 @@ interface User {
   role: 'user' | 'consultant' | 'admin';
   avatarUrl?: string;
 }
+
+export interface CheckAuthOptions {
+  /** Revalida sem ligar o isLoading (volta ao app após muito tempo em segundo plano). */
+  silent?: boolean;
+}
+
+/** Ao voltar para o app depois deste tempo em segundo plano, revalida a sessão (renovação). */
+const REVALIDATE_AFTER_HIDDEN_MS = 6 * 60 * 60 * 1000;
 
 interface ActingClient {
   id: string;
@@ -35,7 +44,7 @@ interface AuthContextType {
   error: string | null;
   logout: () => Promise<void>;
   requireAuth: () => boolean;
-  checkAuth: () => Promise<void>;
+  checkAuth: (opts?: CheckAuthOptions) => Promise<void>;
   updateActingClient: (client: ActingClient | null) => void;
   clearError: () => void;
 }
@@ -50,16 +59,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const router = useRouter();
 
   const abortControllerRef = useRef<AbortController | null>(null);
+  const lastCheckRef = useRef(0);
 
   // Verificar se o usuário está autenticado
-  const checkAuth = useCallback(async () => {
+  const checkAuth = useCallback(async (opts?: CheckAuthOptions) => {
     // Cancel any in-flight request
     abortControllerRef.current?.abort();
     const controller = new AbortController();
     abortControllerRef.current = controller;
 
+    lastCheckRef.current = Date.now();
+
     try {
-      setLoading(true);
+      if (!opts?.silent) setLoading(true);
       // Usar cache: 'no-store' para garantir que sempre busque dados atualizados
       const response = await fetch('/api/auth/me', {
         cache: 'no-store',
@@ -111,6 +123,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     } catch (error: unknown) {
       if (error instanceof DOMException && error.name === 'AbortError') return;
+      // Revalidação silenciosa sem rede (app voltou do segundo plano offline): mantém a
+      // sessão da tela; a próxima checagem decide.
+      if (opts?.silent) return;
       setUser(null);
       setActingClient(null);
       setError('Erro ao verificar autenticação');
@@ -126,21 +141,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         method: 'POST',
         credentials: 'include',
       });
-
-      // Limpar estado local
-      setUser(null);
-      setActingClient(null);
-
-      // Redirecionar para a tela de login
-      router.push('/signin');
     } catch (err) {
       logger.error('Erro ao fazer logout:', err);
-      // Mesmo em caso de erro, limpar o estado local e redirecionar
-      setUser(null);
-      setActingClient(null);
-      router.push('/signin');
+      // Mesmo em caso de erro, limpar o estado local, os caches e redirecionar
     }
-  }, [router]);
+
+    // Limpar estado local
+    setUser(null);
+    setActingClient(null);
+
+    // PWA: nada do app fica no aparelho depois do logout (a página offline fica).
+    await clearAppCaches();
+    postClearCachesMessage();
+
+    // replace (e não router.push): recarga completa, sem estado em memória nem
+    // voltar para a tela autenticada pelo histórico.
+    window.location.replace('/signin');
+  }, []);
 
   // Função para atualizar actingClient diretamente (útil após personificação)
   const updateActingClient = useCallback((client: ActingClient | null) => {
@@ -153,6 +170,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return () => {
       abortControllerRef.current?.abort();
     };
+  }, [checkAuth]);
+
+  // App aberto de novo depois de muito tempo em segundo plano (PWA): revalida em
+  // silêncio — é o gatilho da renovação deslizante da sessão em /api/auth/me.
+  useEffect(() => {
+    const onVisibilityChange = () => {
+      if (document.visibilityState !== 'visible') return;
+      if (Date.now() - lastCheckRef.current <= REVALIDATE_AFTER_HIDDEN_MS) return;
+      void checkAuth({ silent: true });
+    };
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', onVisibilityChange);
   }, [checkAuth]);
 
   const isAuthenticated = !!user;

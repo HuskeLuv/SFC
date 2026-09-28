@@ -48,13 +48,15 @@ export default function RiscoRetornoAnual({ data, anosDisponiveis }: RiscoRetorn
   return (
     <div className="rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03]">
       {/* Header with title + year selector */}
-      <div className="flex items-center justify-between px-6 py-5">
+      <div className="flex items-center justify-between px-6 py-5 max-lg:px-4 max-lg:py-3">
         <h3 className="text-base font-medium text-gray-800 dark:text-white/90">Anual</h3>
         <div className="flex items-center gap-3">
           <button
+            type="button"
+            aria-label="Ano anterior"
             onClick={handlePrev}
             disabled={anoIndex >= anosDisponiveis.length - 1}
-            className="rounded-lg p-1 text-gray-500 transition-colors hover:bg-gray-100 disabled:opacity-30 dark:text-gray-400 dark:hover:bg-gray-800"
+            className="rounded-lg p-1 text-gray-500 transition-colors hover:bg-gray-100 disabled:opacity-30 dark:text-gray-400 dark:hover:bg-gray-800 max-lg:inline-flex max-lg:h-11 max-lg:w-11 max-lg:items-center max-lg:justify-center"
           >
             <ChevronLeftIcon className="h-4 w-4" />
           </button>
@@ -62,9 +64,11 @@ export default function RiscoRetornoAnual({ data, anosDisponiveis }: RiscoRetorn
             {anoSelecionado}
           </span>
           <button
+            type="button"
+            aria-label="Próximo ano"
             onClick={handleNext}
             disabled={anoIndex <= 0}
-            className="rounded-lg p-1 text-gray-500 transition-colors hover:bg-gray-100 disabled:opacity-30 dark:text-gray-400 dark:hover:bg-gray-800"
+            className="rounded-lg p-1 text-gray-500 transition-colors hover:bg-gray-100 disabled:opacity-30 dark:text-gray-400 dark:hover:bg-gray-800 max-lg:inline-flex max-lg:h-11 max-lg:w-11 max-lg:items-center max-lg:justify-center"
           >
             <ChevronLeftIcon className="h-4 w-4 rotate-180" />
           </button>
@@ -80,6 +84,8 @@ export default function RiscoRetornoAnual({ data, anosDisponiveis }: RiscoRetorn
                 value={sharpeToGauge(metrics.sharpe)}
                 color={gaugeColor(metrics.sharpe)}
                 height={240}
+                mobileHeight={200}
+                ariaLabel={`Índice Sharpe ${metrics.sharpe.toFixed(2)}; retorno anual ${metrics.retornoAnual.toFixed(2)}%; volatilidade ${metrics.volatilidade.toFixed(2)}%`}
               />
               {/* Center overlay */}
               <div className="absolute inset-0 flex flex-col items-center justify-center translate-y-[10%] pointer-events-none">
@@ -106,28 +112,30 @@ export default function RiscoRetornoAnual({ data, anosDisponiveis }: RiscoRetorn
           </div>
 
           {/* Metrics */}
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-2 gap-4 max-lg:gap-3">
             <div className="text-center">
               <div className="text-sm text-gray-500 dark:text-gray-400">RETORNO ANUAL</div>
-              <div className="text-2xl font-bold text-gray-900 dark:text-white">
+              <div className="max-lg:text-xl text-2xl font-bold text-gray-900 dark:text-white">
                 {metrics.retornoAnual.toFixed(2)}%
               </div>
             </div>
             <div className="text-center">
               <div className="text-sm text-gray-500 dark:text-gray-400">VOLATILIDADE</div>
-              <div className="text-2xl font-bold text-gray-900 dark:text-white">
+              <div className="max-lg:text-xl text-2xl font-bold text-gray-900 dark:text-white">
                 {metrics.volatilidade.toFixed(2)}%
               </div>
             </div>
             <div className="text-center">
               <div className="text-sm text-gray-500 dark:text-gray-400">RETORNO CDI</div>
-              <div className="text-2xl font-bold text-gray-900 dark:text-white">
+              <div className="max-lg:text-xl text-2xl font-bold text-gray-900 dark:text-white">
                 {metrics.retornoCDI.toFixed(2)}%
               </div>
             </div>
             <div className="text-center">
               <div className="text-sm text-gray-500 dark:text-gray-400">ÍNDICE SHARPE</div>
-              <div className="text-2xl font-bold text-[#465FFF]">{metrics.sharpe.toFixed(2)}</div>
+              <div className="max-lg:text-xl text-2xl font-bold text-[#465FFF]">
+                {metrics.sharpe.toFixed(2)}
+              </div>
             </div>
           </div>
         </div>

@@ -149,6 +149,9 @@ function buildContentSecurityPolicy(nonce: string): string {
     "font-src 'self' data:",
     `connect-src 'self' ${VTURB_HOSTS}${pluggyConnect}`,
     `media-src 'self' blob: ${VTURB_HOSTS}`,
+    // PWA: 'strict-dynamic' anula o 'self' do script-src, que é o fallback de worker-src.
+    "worker-src 'self'",
+    "manifest-src 'self'",
     frameSrc,
     "frame-ancestors 'none'",
     "form-action 'self'",

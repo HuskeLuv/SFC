@@ -17,6 +17,8 @@ import prisma from '@/lib/prisma';
 import { withErrorHandler } from '@/utils/apiErrorHandler';
 import { validationError } from '@/utils/validation-schemas';
 import { recordChange } from '@/services/changeHistory';
+import { bumpSessionVersion } from '@/lib/auth/sessionVersion';
+import { issueSession, normalizeClaims } from '@/lib/auth/session';
 
 const schema = z.object({
   currentPassword: z.string().min(1),
@@ -48,5 +50,10 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
     entityId: me.id,
   });
 
-  return NextResponse.json({ ok: true });
+  // Desativar o 2FA derruba as outras sessões; este aparelho recebe um token
+  // novo com o sessionVersion atualizado (mesmos rm e at).
+  const sv = await bumpSessionVersion(me.id);
+  const response = NextResponse.json({ ok: true });
+  issueSession(response, { ...normalizeClaims(payload), sv });
+  return response;
 });

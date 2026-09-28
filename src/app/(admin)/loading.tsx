@@ -8,7 +8,7 @@ function Skeleton({ className }: { className?: string }) {
 
 export default function AdminLoading() {
   return (
-    <div className="min-h-screen xl:flex">
+    <div className="min-h-screen max-lg:min-h-dvh xl:flex">
       {/* Sidebar skeleton */}
       <div className="hidden w-[200px] border-r border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900 lg:block">
         <Skeleton className="mb-8 h-10 w-32" />
@@ -21,7 +21,7 @@ export default function AdminLoading() {
       {/* Content area skeleton */}
       <div className="flex-1">
         {/* Header skeleton */}
-        <div className="flex h-16 items-center justify-between border-b border-gray-200 bg-white px-6 dark:border-gray-700 dark:bg-gray-900">
+        <div className="flex h-16 items-center justify-between max-lg:hidden border-b border-gray-200 bg-white px-6 dark:border-gray-700 dark:bg-gray-900">
           <Skeleton className="h-8 w-48" />
           <Skeleton className="h-8 w-8 rounded-full" />
         </div>

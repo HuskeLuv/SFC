@@ -99,8 +99,15 @@ interface CashflowDndProviderProps {
    * `after` diz se entra depois da linha alvo.
    */
   onMove?: (activeId: string, toGroupId: string, overId: string | null, after: boolean) => void;
+  /**
+   * Sem arrastar (grade só de leitura do celular, PWA fase 2): nenhum sensor e sem fantasma. O
+   * contexto continua montado porque as linhas usam `useSortable`/`useDroppable`.
+   */
+  disabled?: boolean;
   children: React.ReactNode;
 }
+
+const NO_SENSORS: ReturnType<typeof useSensors> = [];
 
 type OverLike = DragOverEvent['over'];
 type ActiveLike = DragOverEvent['active'];
@@ -130,6 +137,7 @@ function pointerY(event: DragOverEvent): number | null {
 export const CashflowDndProvider: React.FC<CashflowDndProviderProps> = ({
   onReorder,
   onMove,
+  disabled = false,
   children,
 }) => {
   const [activeName, setActiveName] = useState<string | null>(null);
@@ -221,7 +229,7 @@ export const CashflowDndProvider: React.FC<CashflowDndProviderProps> = ({
 
   return (
     <DndContext
-      sensors={sensors}
+      sensors={disabled ? NO_SENSORS : sensors}
       collisionDetection={rowCollision}
       modifiers={[restrictToVerticalAxis]}
       onDragStart={handleDragStart}
@@ -235,19 +243,21 @@ export const CashflowDndProvider: React.FC<CashflowDndProviderProps> = ({
       {/* Fantasma: uma etiqueta com o nome da linha (uma <tr> inteira fora
           da tabela não renderiza; as linhas reais abrem espaço no destino).
           Cruzando de grupo, mostra para onde vai. */}
-      <DragOverlay dropAnimation={null}>
-        {activeName ? (
-          <div className="pointer-events-none inline-flex max-w-[360px] items-center gap-2 rounded-md border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-gray-800 shadow-lg dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100">
-            <span aria-hidden className="text-gray-400">
-              ⠿
-            </span>
-            <span className="truncate">{activeName}</span>
-            {destino ? (
-              <span className={`shrink-0 truncate ${VALUE_POSITIVE_CLASS}`}>→ {destino}</span>
-            ) : null}
-          </div>
-        ) : null}
-      </DragOverlay>
+      {disabled ? null : (
+        <DragOverlay dropAnimation={null}>
+          {activeName ? (
+            <div className="pointer-events-none inline-flex max-w-[360px] items-center gap-2 rounded-md border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-gray-800 shadow-lg dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100">
+              <span aria-hidden className="text-gray-400">
+                ⠿
+              </span>
+              <span className="truncate">{activeName}</span>
+              {destino ? (
+                <span className={`shrink-0 truncate ${VALUE_POSITIVE_CLASS}`}>→ {destino}</span>
+              ) : null}
+            </div>
+          ) : null}
+        </DragOverlay>
+      )}
     </DndContext>
   );
 };

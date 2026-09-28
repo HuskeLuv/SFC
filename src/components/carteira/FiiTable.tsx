@@ -14,6 +14,8 @@ import {
 } from '@/components/carteira/shared';
 import AssetNameLink from '@/components/carteira/AssetNameLink';
 import ComponentCard from '@/components/common/ComponentCard';
+import { useIsBelowLg } from '@/hooks/useMediaQuery';
+import { ResumoAportesCards } from '@/components/carteira/shared/AssetCardSections';
 import PieChartFiiSegmento from '@/components/charts/pie/PieChartFiiSegmento';
 import PieChartFiiAtivo from '@/components/charts/pie/PieChartFiiAtivo';
 import {
@@ -50,10 +52,11 @@ export default function FiiTable({ totalCarteira = 0 }: FiiTableProps) {
     updateObjetivo,
     updateCaixaParaInvestir,
   } = useFii();
+  const isBelowLg = useIsBelowLg();
 
-  const handleUpdateObjetivo = async (ativoId: string, novoObjetivo: number) => {
-    await updateObjetivo(ativoId, novoObjetivo);
-  };
+  // Devolve o resultado (false = falha) para o sheet do celular manter o erro aberto.
+  const handleUpdateObjetivo = (ativoId: string, novoObjetivo: number) =>
+    updateObjetivo(ativoId, novoObjetivo);
 
   // FII has a custom normalization for section types (fofi -> fof, ijol -> tijolo)
   const normalizeTipo = (tipo: TipoFii) => {
@@ -268,6 +271,7 @@ export default function FiiTable({ totalCarteira = 0 }: FiiTableProps) {
       formatPercentage={formatPercentage}
       formatNumber={formatNumber}
       totalCarteira={totalCarteira}
+      mobileQuantityUnit="cotas"
     >
       {/* Charts */}
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-12">
@@ -285,39 +289,52 @@ export default function FiiTable({ totalCarteira = 0 }: FiiTableProps) {
 
       {/* Aux table */}
       <ComponentCard title="Resumo de Aportes">
-        <StandardTable>
-          <StandardTableHeader>
-            <StandardTableHeaderRow>
-              <StandardTableHeaderCell align="left">Ticker</StandardTableHeaderCell>
-              <StandardTableHeaderCell align="left">Nome</StandardTableHeaderCell>
-              <StandardTableHeaderCell align="right">Cotação Atual</StandardTableHeaderCell>
-              <StandardTableHeaderCell align="right">Necessidade Aporte</StandardTableHeaderCell>
-              <StandardTableHeaderCell align="right">Lote Aproximado</StandardTableHeaderCell>
-            </StandardTableHeaderRow>
-          </StandardTableHeader>
-          <TableBody>
-            {(data?.tabelaAuxiliar || []).map((item, index) => (
-              <StandardTableRow key={index}>
-                <StandardTableBodyCell align="left">{item.ticker}</StandardTableBodyCell>
-                <StandardTableBodyCell align="left">{item.nome}</StandardTableBodyCell>
-                <StandardTableBodyCell align="right">
-                  {formatCurrency(item.cotacaoAtual)}
-                </StandardTableBodyCell>
-                <StandardTableBodyCell align="right">
-                  <span>{formatCurrency(item.necessidadeAporte)}</span>
-                </StandardTableBodyCell>
-                <StandardTableBodyCell align="right">
-                  {formatNumber(item.loteAproximado)}
-                </StandardTableBodyCell>
-              </StandardTableRow>
-            ))}
-            <BasicTablePlaceholderRows
-              count={Math.max(0, MIN_PLACEHOLDER_ROWS - (data?.tabelaAuxiliar?.length || 0))}
-              colSpan={5}
-              compact={false}
-            />
-          </TableBody>
-        </StandardTable>
+        {isBelowLg ? (
+          <ResumoAportesCards
+            items={(data?.tabelaAuxiliar || []).map((item, index) => ({
+              key: index,
+              nome: item.ticker,
+              detalhe: item.nome,
+              cotacao: formatCurrency(item.cotacaoAtual),
+              necessidade: formatCurrency(item.necessidadeAporte),
+              lote: formatNumber(item.loteAproximado),
+            }))}
+          />
+        ) : (
+          <StandardTable>
+            <StandardTableHeader>
+              <StandardTableHeaderRow>
+                <StandardTableHeaderCell align="left">Ticker</StandardTableHeaderCell>
+                <StandardTableHeaderCell align="left">Nome</StandardTableHeaderCell>
+                <StandardTableHeaderCell align="right">Cotação Atual</StandardTableHeaderCell>
+                <StandardTableHeaderCell align="right">Necessidade Aporte</StandardTableHeaderCell>
+                <StandardTableHeaderCell align="right">Lote Aproximado</StandardTableHeaderCell>
+              </StandardTableHeaderRow>
+            </StandardTableHeader>
+            <TableBody>
+              {(data?.tabelaAuxiliar || []).map((item, index) => (
+                <StandardTableRow key={index}>
+                  <StandardTableBodyCell align="left">{item.ticker}</StandardTableBodyCell>
+                  <StandardTableBodyCell align="left">{item.nome}</StandardTableBodyCell>
+                  <StandardTableBodyCell align="right">
+                    {formatCurrency(item.cotacaoAtual)}
+                  </StandardTableBodyCell>
+                  <StandardTableBodyCell align="right">
+                    <span>{formatCurrency(item.necessidadeAporte)}</span>
+                  </StandardTableBodyCell>
+                  <StandardTableBodyCell align="right">
+                    {formatNumber(item.loteAproximado)}
+                  </StandardTableBodyCell>
+                </StandardTableRow>
+              ))}
+              <BasicTablePlaceholderRows
+                count={Math.max(0, MIN_PLACEHOLDER_ROWS - (data?.tabelaAuxiliar?.length || 0))}
+                colSpan={5}
+                compact={false}
+              />
+            </TableBody>
+          </StandardTable>
+        )}
       </ComponentCard>
     </GenericAssetTable>
   );

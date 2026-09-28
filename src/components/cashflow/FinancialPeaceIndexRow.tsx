@@ -1,5 +1,6 @@
 import React from 'react';
 import { SummaryRow } from './SummaryRow';
+import { peaceIndex } from '@/services/cashflow/derivedIndices';
 
 interface FinancialPeaceIndexRowProps {
   proventosByMonth: number[];
@@ -7,11 +8,6 @@ interface FinancialPeaceIndexRowProps {
   proventosAnnual: number;
   despesasFixasAnnual: number;
 }
-
-// Índice paz financeira = (proventos recebidos / despesas FIXAS) * 100.
-// Denominador exclui despesas variáveis por definição.
-const peaceIndex = (proventos: number, despesasFixas: number): number | null =>
-  despesasFixas === 0 ? null : (proventos / despesasFixas) * 100;
 
 export const FinancialPeaceIndexRow: React.FC<FinancialPeaceIndexRowProps> = ({
   proventosByMonth,

@@ -11,7 +11,9 @@ import { useRouter } from 'next/navigation';
 
 export default function SignInForm() {
   const [showPassword, setShowPassword] = useState(false);
-  const [isChecked, setIsChecked] = useState(false);
+  // "Manter conectado" vem marcado (PWA fase 0): 30 dias renováveis. Desmarcado,
+  // o cookie é de sessão e sai ao fechar o navegador.
+  const [isChecked, setIsChecked] = useState(true);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [email, setEmail] = useState('');
@@ -188,19 +190,27 @@ export default function SignInForm() {
                     </span>
                   </div>
                 </div>
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <Checkbox checked={isChecked} onChange={setIsChecked} />
-                    <span className="block font-normal text-gray-700 text-theme-sm dark:text-gray-400">
-                      Manter-me logado
-                    </span>
+                <div>
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-3">
+                      <Checkbox id="remember-me" checked={isChecked} onChange={setIsChecked} />
+                      <label
+                        htmlFor="remember-me"
+                        className="block font-normal text-gray-700 text-theme-sm dark:text-gray-400 cursor-pointer"
+                      >
+                        Manter conectado por 30 dias
+                      </label>
+                    </div>
+                    <Link
+                      href="/reset-password"
+                      className="text-sm text-brand-500 hover:text-brand-600 dark:text-brand-400"
+                    >
+                      Esqueceu sua senha?
+                    </Link>
                   </div>
-                  <Link
-                    href="/reset-password"
-                    className="text-sm text-brand-500 hover:text-brand-600 dark:text-brand-400"
-                  >
-                    Esqueceu sua senha?
-                  </Link>
+                  <p className="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
+                    Em aparelho compartilhado, desmarque: você sai ao fechar o navegador.
+                  </p>
                 </div>
                 {/* LGPD #12: campo TOTP renderizado só quando backend exigiu */}
                 {totpRequired && (

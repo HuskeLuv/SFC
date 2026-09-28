@@ -4,6 +4,8 @@ import { useCoberturaFgc } from '@/hooks/useCoberturaFgc';
 import LoadingSpinner from '@/components/common/LoadingSpinner';
 import Tooltip from '@/components/ui/tooltip/Tooltip';
 import { TABLE_STYLES, TABLE_HEADER_STYLE } from '@/components/ui/table/tableStyles';
+import { ResponsiveCardList } from '@/components/ui/table/ResponsiveTable';
+import { useIsBelowLg } from '@/hooks/useMediaQuery';
 
 function formatBRL(value: number): string {
   return new Intl.NumberFormat('pt-BR', {
@@ -73,6 +75,7 @@ export function getStatusLabel(
 
 export default function CoberturaFgc() {
   const { data, loading, error } = useCoberturaFgc();
+  const isBelowLg = useIsBelowLg();
   const [expandedInstitutions, setExpandedInstitutions] = useState<Set<string>>(new Set());
 
   if (loading) {
@@ -200,8 +203,8 @@ export default function CoberturaFgc() {
       </div>
 
       {/* Global coverage bar */}
-      <div className="rounded-xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03]">
-        <div className="mb-3 flex items-center justify-between">
+      <div className="rounded-xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03] max-lg:p-4">
+        <div className="mb-3 flex items-center justify-between max-lg:flex-wrap max-lg:gap-x-3 max-lg:gap-y-1">
           <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300">
             Utilização do teto global FGC
           </h3>
@@ -242,7 +245,9 @@ export default function CoberturaFgc() {
             >
               {/* Institution header */}
               <button
-                className="flex w-full items-center justify-between p-5 text-left transition-colors hover:bg-gray-50 dark:hover:bg-white/[0.02]"
+                type="button"
+                aria-expanded={isExpanded}
+                className="flex w-full items-center justify-between p-5 text-left transition-colors hover:bg-gray-50 dark:hover:bg-white/[0.02] max-lg:p-4"
                 onClick={() => toggleInstitution(key)}
               >
                 <div className="min-w-0 flex-1">
@@ -273,7 +278,7 @@ export default function CoberturaFgc() {
                       <h4 className="truncate text-sm font-semibold text-gray-900 dark:text-white">
                         {inst.instituicaoNome}
                       </h4>
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 max-lg:flex-wrap max-lg:gap-x-2 max-lg:gap-y-0.5">
                         {inst.cnpj && (
                           <span className="text-xs text-gray-400 dark:text-gray-500">
                             CNPJ: {inst.cnpj}
@@ -299,7 +304,7 @@ export default function CoberturaFgc() {
 
                   {/* Progress bar */}
                   <div className="mt-3">
-                    <div className="mb-1 flex items-center justify-between text-xs">
+                    <div className="mb-1 flex items-center justify-between text-xs max-lg:flex-wrap max-lg:gap-x-2">
                       <span className="text-gray-500 dark:text-gray-400">
                         {formatBRL(inst.totalCoberto)} coberto
                       </span>
@@ -311,7 +316,7 @@ export default function CoberturaFgc() {
                   </div>
 
                   {inst.excedente > 0 && (
-                    <p className="mt-1.5 text-xs font-medium text-red-600 dark:text-red-400">
+                    <p className="mt-1.5 text-xs font-medium text-red-600 dark:text-red-400 max-lg:text-[#D92D20] max-lg:dark:text-[#F97066]">
                       {formatBRL(inst.excedente)} acima do limite FGC
                     </p>
                   )}
@@ -324,7 +329,7 @@ export default function CoberturaFgc() {
                 </div>
 
                 {/* Expand icon */}
-                <div className="ml-4 shrink-0">
+                <div className="ml-4 shrink-0 max-lg:ml-2">
                   <svg
                     className={`h-5 w-5 text-gray-400 transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`}
                     viewBox="0 0 20 20"
@@ -341,99 +346,119 @@ export default function CoberturaFgc() {
 
               {/* Expanded asset list */}
               {isExpanded && (
-                <div className="border-t border-gray-100 p-4 dark:border-gray-800">
-                  <div className={TABLE_STYLES.wrapper}>
-                    <table className={TABLE_STYLES.table}>
-                      <thead>
-                        <tr className={TABLE_STYLES.headRow} style={TABLE_HEADER_STYLE}>
-                          <th className={`${TABLE_STYLES.th} text-left`}>Ativo</th>
-                          <th className={`${TABLE_STYLES.th} text-left`}>Produto</th>
-                          <th className={`${TABLE_STYLES.th} text-right`}>Valor investido</th>
-                          <th className={`${TABLE_STYLES.th} text-right`}>Valor atual</th>
-                          <th className={`${TABLE_STYLES.th} text-left`}>Vencimento</th>
-                          <th className={`${TABLE_STYLES.th} text-center`}>FGC</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {inst.ativos.map((ativo) => (
-                          <tr
-                            key={ativo.id}
-                            className={`${TABLE_STYLES.row} ${TABLE_STYLES.rowHover}`}
-                          >
-                            <td className={`${TABLE_STYLES.td} whitespace-nowrap`}>
-                              <div className="font-medium text-gray-900 dark:text-white">
-                                {ativo.nome}
-                              </div>
-                              {ativo.isentoIR && (
-                                <span className="text-xs text-emerald-600 dark:text-emerald-400">
-                                  Isento de IR
-                                </span>
-                              )}
-                            </td>
-                            <td className={`${TABLE_STYLES.td} whitespace-nowrap`}>
-                              <span className="inline-flex rounded-md bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-700 dark:bg-gray-800 dark:text-gray-300">
-                                {ativo.produto}
-                              </span>
-                            </td>
-                            <td className={`${TABLE_STYLES.td} whitespace-nowrap text-right`}>
-                              {formatBRL(ativo.valorInvestido)}
-                            </td>
-                            <td
-                              className={`${TABLE_STYLES.td} whitespace-nowrap text-right font-medium text-gray-900 dark:text-white`}
+                <div className="border-t border-gray-100 p-4 dark:border-gray-800 max-lg:p-3">
+                  {isBelowLg ? (
+                    <ResponsiveCardList<(typeof inst.ativos)[number]>
+                      ariaLabel={`Ativos em ${inst.instituicaoNome}`}
+                      rows={inst.ativos}
+                      getRowKey={(a) => a.id}
+                      columns={[
+                        { id: 'nome', header: 'Ativo', mobile: 'primary', cell: (a) => a.nome },
+                        {
+                          id: 'produto',
+                          header: 'Produto',
+                          mobile: 'subtitle',
+                          cell: (a) =>
+                            [a.produto, a.isentoIR ? 'Isento de IR' : null]
+                              .filter(Boolean)
+                              .join(' · '),
+                        },
+                        {
+                          id: 'atual',
+                          header: 'Valor atual',
+                          mobile: 'value',
+                          cell: (a) => formatBRL(a.valorAtual),
+                        },
+                        {
+                          id: 'investido',
+                          header: 'Investido',
+                          mobile: 'field',
+                          cell: (a) => formatBRL(a.valorInvestido),
+                        },
+                        {
+                          id: 'venc',
+                          header: 'Vencimento',
+                          mobile: 'field',
+                          cell: (a) =>
+                            a.vencimento
+                              ? new Date(a.vencimento).toLocaleDateString('pt-BR', {
+                                  timeZone: 'UTC',
+                                })
+                              : '—',
+                        },
+                        {
+                          id: 'fgc',
+                          header: 'FGC',
+                          mobile: 'field',
+                          cell: (a) =>
+                            a.coberto && inst.excedente > 0 ? (
+                              <span className="text-[#B45309] dark:text-amber-300">Parcial</span>
+                            ) : a.coberto ? (
+                              'Coberto'
+                            ) : (
+                              <span className="text-gray-500 dark:text-gray-400">Não coberto</span>
+                            ),
+                        },
+                      ]}
+                    />
+                  ) : (
+                    <div className={TABLE_STYLES.wrapper}>
+                      <table className={TABLE_STYLES.table}>
+                        <thead>
+                          <tr className={TABLE_STYLES.headRow} style={TABLE_HEADER_STYLE}>
+                            <th className={`${TABLE_STYLES.th} text-left`}>Ativo</th>
+                            <th className={`${TABLE_STYLES.th} text-left`}>Produto</th>
+                            <th className={`${TABLE_STYLES.th} text-right`}>Valor investido</th>
+                            <th className={`${TABLE_STYLES.th} text-right`}>Valor atual</th>
+                            <th className={`${TABLE_STYLES.th} text-left`}>Vencimento</th>
+                            <th className={`${TABLE_STYLES.th} text-center`}>FGC</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {inst.ativos.map((ativo) => (
+                            <tr
+                              key={ativo.id}
+                              className={`${TABLE_STYLES.row} ${TABLE_STYLES.rowHover}`}
                             >
-                              {formatBRL(ativo.valorAtual)}
-                            </td>
-                            <td className={`${TABLE_STYLES.td} whitespace-nowrap`}>
-                              {ativo.vencimento
-                                ? new Date(ativo.vencimento).toLocaleDateString('pt-BR', {
-                                    timeZone: 'UTC',
-                                  })
-                                : '—'}
-                            </td>
-                            <td className={`${TABLE_STYLES.td} whitespace-nowrap text-center`}>
-                              {/* 2.7 (auditoria jul/2026): o limite FGC é por INSTITUIÇÃO,
+                              <td className={`${TABLE_STYLES.td} whitespace-nowrap`}>
+                                <div className="font-medium text-gray-900 dark:text-white">
+                                  {ativo.nome}
+                                </div>
+                                {ativo.isentoIR && (
+                                  <span className="text-xs text-emerald-600 dark:text-emerald-400">
+                                    Isento de IR
+                                  </span>
+                                )}
+                              </td>
+                              <td className={`${TABLE_STYLES.td} whitespace-nowrap`}>
+                                <span className="inline-flex rounded-md bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-700 dark:bg-gray-800 dark:text-gray-300">
+                                  {ativo.produto}
+                                </span>
+                              </td>
+                              <td className={`${TABLE_STYLES.td} whitespace-nowrap text-right`}>
+                                {formatBRL(ativo.valorInvestido)}
+                              </td>
+                              <td
+                                className={`${TABLE_STYLES.td} whitespace-nowrap text-right font-medium text-gray-900 dark:text-white`}
+                              >
+                                {formatBRL(ativo.valorAtual)}
+                              </td>
+                              <td className={`${TABLE_STYLES.td} whitespace-nowrap`}>
+                                {ativo.vencimento
+                                  ? new Date(ativo.vencimento).toLocaleDateString('pt-BR', {
+                                      timeZone: 'UTC',
+                                    })
+                                  : '—'}
+                              </td>
+                              <td className={`${TABLE_STYLES.td} whitespace-nowrap text-center`}>
+                                {/* 2.7 (auditoria jul/2026): o limite FGC é por INSTITUIÇÃO,
                                   não por ativo. Se a soma dos ativos cobertos da instituição
                                   excede o limite (mesma condição do header "R$ X acima do
                                   limite"), TODOS os ativos cobertos dela estão parcialmente
                                   expostos — antes o badge só acusava quando o ativo SOZINHO
                                   passava de 250k, contradizendo o header. */}
-                              {ativo.coberto && inst.excedente > 0 ? (
-                                <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
-                                  <svg
-                                    width="12"
-                                    height="12"
-                                    viewBox="0 0 24 24"
-                                    fill="none"
-                                    stroke="currentColor"
-                                    strokeWidth="3"
-                                    strokeLinecap="round"
-                                    strokeLinejoin="round"
-                                  >
-                                    <path d="M12 9v4" />
-                                    <path d="M12 17h.01" />
-                                    <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
-                                  </svg>
-                                  Parcialmente Coberto
-                                </span>
-                              ) : ativo.coberto ? (
-                                <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400">
-                                  <svg
-                                    width="12"
-                                    height="12"
-                                    viewBox="0 0 24 24"
-                                    fill="none"
-                                    stroke="currentColor"
-                                    strokeWidth="3"
-                                    strokeLinecap="round"
-                                    strokeLinejoin="round"
-                                  >
-                                    <polyline points="20 6 9 17 4 12" />
-                                  </svg>
-                                  Coberto
-                                </span>
-                              ) : (
-                                <Tooltip content={FGC_NAO_COBERTO_TOOLTIP}>
-                                  <span className="inline-flex items-center gap-1 rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-500 dark:bg-gray-800 dark:text-gray-400 cursor-help">
+                                {ativo.coberto && inst.excedente > 0 ? (
+                                  <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
                                     <svg
                                       width="12"
                                       height="12"
@@ -444,22 +469,58 @@ export default function CoberturaFgc() {
                                       strokeLinecap="round"
                                       strokeLinejoin="round"
                                     >
-                                      <line x1="18" y1="6" x2="6" y2="18" />
-                                      <line x1="6" y1="6" x2="18" y2="18" />
+                                      <path d="M12 9v4" />
+                                      <path d="M12 17h.01" />
+                                      <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
                                     </svg>
-                                    Não coberto
-                                    <span className="ml-0.5 opacity-60" aria-hidden>
-                                      ⓘ
-                                    </span>
+                                    Parcialmente Coberto
                                   </span>
-                                </Tooltip>
-                              )}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
+                                ) : ativo.coberto ? (
+                                  <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400">
+                                    <svg
+                                      width="12"
+                                      height="12"
+                                      viewBox="0 0 24 24"
+                                      fill="none"
+                                      stroke="currentColor"
+                                      strokeWidth="3"
+                                      strokeLinecap="round"
+                                      strokeLinejoin="round"
+                                    >
+                                      <polyline points="20 6 9 17 4 12" />
+                                    </svg>
+                                    Coberto
+                                  </span>
+                                ) : (
+                                  <Tooltip content={FGC_NAO_COBERTO_TOOLTIP}>
+                                    <span className="inline-flex items-center gap-1 rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-500 dark:bg-gray-800 dark:text-gray-400 cursor-help">
+                                      <svg
+                                        width="12"
+                                        height="12"
+                                        viewBox="0 0 24 24"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        strokeWidth="3"
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                      >
+                                        <line x1="18" y1="6" x2="6" y2="18" />
+                                        <line x1="6" y1="6" x2="18" y2="18" />
+                                      </svg>
+                                      Não coberto
+                                      <span className="ml-0.5 opacity-60" aria-hidden>
+                                        ⓘ
+                                      </span>
+                                    </span>
+                                  </Tooltip>
+                                )}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
                 </div>
               )}
             </div>

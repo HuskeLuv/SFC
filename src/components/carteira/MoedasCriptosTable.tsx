@@ -36,9 +36,9 @@ export default function MoedasCriptosTable({ totalCarteira = 0 }: MoedasCriptosT
     updateCaixaParaInvestir,
   } = useMoedasCriptos();
 
-  const handleUpdateObjetivo = async (ativoId: string, novoObjetivo: number) => {
-    await updateObjetivo(ativoId, novoObjetivo);
-  };
+  // Devolve o resultado (false = falha) para o sheet do celular manter o erro aberto.
+  const handleUpdateObjetivo = (ativoId: string, novoObjetivo: number) =>
+    updateObjetivo(ativoId, novoObjetivo);
 
   // MoedasCriptos has a custom risk computation (flat ativos, not per-section)
   const { necessidadeAporteMap } = useCarteiraResumoContext();

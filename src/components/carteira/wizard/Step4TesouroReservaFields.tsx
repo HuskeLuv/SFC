@@ -66,6 +66,7 @@ export default function Step4TesouroReservaFields({
       </div>
       <div>
         <DatePicker
+          nativeOnMobile
           id="vencimento"
           label="Vencimento *"
           placeholder="Selecione a data"

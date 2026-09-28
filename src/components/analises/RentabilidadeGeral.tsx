@@ -13,6 +13,10 @@ import { inicioUltimosNMeses, inicioDoAno } from '@/utils/periodWindow';
 import { utcMidnight, todayUtcMidnight } from '@/utils/utcDay';
 import DatePicker from '@/components/form/date-picker';
 import Button from '@/components/ui/button/Button';
+import { twMerge } from 'tailwind-merge';
+import { useIsBelowLg } from '@/hooks/useMediaQuery';
+import { TABLE_MOBILE_STYLES } from '@/components/ui/table/tableStyles';
+import PeriodoPersonalizadoSheet from './PeriodoPersonalizadoSheet';
 import {
   cortarNoFim,
   indicesRangeParaInicio,
@@ -111,6 +115,8 @@ export default function RentabilidadeGeral() {
   const [personalizadoErro, setPersonalizadoErro] = useState<string | null>(null);
   const [personalizadoAviso, setPersonalizadoAviso] = useState<string | null>(null);
   const { resumo, loading: carteiraLoading } = useCarteiraResumoContext();
+  const isBelowLg = useIsBelowLg();
+  const [periodoSheetAberto, setPeriodoSheetAberto] = useState(false);
 
   // Calcular data do primeiro investimento (primeira data com valor não-zero do histórico)
   const firstInvestmentDate = useMemo(() => {
@@ -349,8 +355,7 @@ export default function RentabilidadeGeral() {
     [carteiraParaChart, filteredIndices1y, selectedRangeStart],
   );
 
-  const handleRangeChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
-    const value = event.target.value as RentabilidadeRangeValue;
+  const selectRange = (value: RentabilidadeRangeValue) => {
     setSelectedRange(value);
     if (value === 'personalizado' && !personalizadoDraft.inicio && !personalizadoDraft.fim) {
       // Sugestão inicial: 1º investimento → último fechamento.
@@ -362,16 +367,21 @@ export default function RentabilidadeGeral() {
     }
   };
 
-  const aplicarPersonalizado = () => {
+  const handleRangeChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
+    selectRange(event.target.value as RentabilidadeRangeValue);
+  };
+
+  /** Aplica o intervalo (desktop: rascunho dos DatePicker; celular: datas do sheet). */
+  const aplicarPersonalizado = (draft = personalizadoDraft): string | null => {
     const r = resolverPeriodoPersonalizado({
-      inicioIso: personalizadoDraft.inicio,
-      fimIso: personalizadoDraft.fim,
+      inicioIso: draft.inicio,
+      fimIso: draft.fim,
       firstInvestmentDate,
       hojeUtc: todayUtcMidnight(),
     });
     if (!r.ok) {
       setPersonalizadoErro(r.erro);
-      return;
+      return r.erro;
     }
     setPersonalizadoErro(null);
     const avisos: string[] = [];
@@ -383,6 +393,20 @@ export default function RentabilidadeGeral() {
     if (r.fimClampado) avisos.push('A data final foi ajustada para hoje.');
     setPersonalizadoAviso(avisos.length > 0 ? avisos.join(' ') : null);
     setPersonalizado(r.periodo);
+    return null;
+  };
+
+  /** Celular: o chip "Personalizado" abre o sheet com as duas datas. */
+  // O intervalo só vira o filtro ao APLICAR: trocar o período antes recarregaria a aba (spinner)
+  // e desmontaria o sheet aberto.
+  const abrirPeriodoSheet = () => {
+    if (!personalizadoDraft.inicio && !personalizadoDraft.fim) {
+      setPersonalizadoDraft({
+        inicio: firstInvestmentDate ? toIsoDateUtc(firstInvestmentDate) : '',
+        fim: toIsoDateUtc(todayUtcMidnight()),
+      });
+    }
+    setPeriodoSheetAberto(true);
   };
 
   const loading =
@@ -461,30 +485,82 @@ export default function RentabilidadeGeral() {
             TWR
           </button>
         </div>
-        <div className="w-full max-w-[220px]">
-          <label htmlFor="rentabilidade-range" className="sr-only">
-            Filtro de período
-          </label>
-          <select
-            id="rentabilidade-range"
-            aria-label="Filtro de período"
-            value={selectedRange}
-            onChange={handleRangeChange}
-            className="h-11 w-full appearance-none rounded-lg border border-gray-300 bg-transparent px-4 py-2.5 pr-10 text-sm text-gray-800 shadow-theme-xs focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90"
-          >
-            {RENTABILIDADE_RANGE_OPTIONS.map((option) => (
-              <option
-                key={option.value}
-                value={option.value}
-                className="text-gray-700 dark:bg-gray-900 dark:text-gray-400"
-              >
-                {option.label}
-              </option>
-            ))}
-          </select>
-        </div>
+        {!isBelowLg && (
+          <div className="w-full max-w-[220px]">
+            <label htmlFor="rentabilidade-range" className="sr-only">
+              Filtro de período
+            </label>
+            <select
+              id="rentabilidade-range"
+              aria-label="Filtro de período"
+              value={selectedRange}
+              onChange={handleRangeChange}
+              className="h-11 w-full appearance-none rounded-lg border border-gray-300 bg-transparent px-4 py-2.5 pr-10 text-sm text-gray-800 shadow-theme-xs focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90"
+            >
+              {RENTABILIDADE_RANGE_OPTIONS.map((option) => (
+                <option
+                  key={option.value}
+                  value={option.value}
+                  className="text-gray-700 dark:bg-gray-900 dark:text-gray-400"
+                >
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
       </div>
-      {selectedRange === 'personalizado' ? (
+      {isBelowLg && (
+        <div className="space-y-2">
+          <div
+            role="group"
+            aria-label="Filtro de período"
+            data-mf-scroll-x=""
+            className={TABLE_MOBILE_STYLES.chipRail}
+          >
+            {RENTABILIDADE_RANGE_OPTIONS.map((option) => {
+              const ativo = selectedRange === option.value;
+              const isPers = option.value === 'personalizado';
+              return (
+                <button
+                  key={option.value}
+                  type="button"
+                  aria-pressed={ativo}
+                  onClick={() => (isPers ? abrirPeriodoSheet() : selectRange(option.value))}
+                  className={twMerge(
+                    TABLE_MOBILE_STYLES.chip,
+                    ativo && TABLE_MOBILE_STYLES.chipActive,
+                  )}
+                >
+                  {isPers ? 'Personalizado' : option.label}
+                </button>
+              );
+            })}
+          </div>
+          {selectedRange === 'personalizado' && personalizado ? (
+            <p className="text-xs text-gray-500 dark:text-gray-400">
+              {rotuloPeriodo(personalizado)}
+              {personalizadoAviso ? ` · ${personalizadoAviso}` : ''}
+            </p>
+          ) : null}
+          <PeriodoPersonalizadoSheet
+            isOpen={periodoSheetAberto}
+            onClose={() => setPeriodoSheetAberto(false)}
+            inicio={personalizadoDraft.inicio}
+            fim={personalizadoDraft.fim}
+            maxIso={toIsoDateUtc(todayUtcMidnight())}
+            aviso={personalizadoAviso}
+            onApply={(inicio, fim) => {
+              const draft = { inicio, fim };
+              setPersonalizadoDraft(draft);
+              const erro = aplicarPersonalizado(draft);
+              if (!erro) setSelectedRange('personalizado');
+              return erro;
+            }}
+          />
+        </div>
+      )}
+      {selectedRange === 'personalizado' && !isBelowLg ? (
         <div
           className="flex flex-wrap items-end justify-end gap-3"
           data-testid="rentabilidade-periodo-personalizado"
@@ -511,7 +587,7 @@ export default function RentabilidadeGeral() {
               onChange={(_dates, dateStr) => setPersonalizadoDraft((d) => ({ ...d, fim: dateStr }))}
             />
           </div>
-          <Button size="sm" onClick={aplicarPersonalizado}>
+          <Button size="sm" onClick={() => aplicarPersonalizado()}>
             Aplicar
           </Button>
           {personalizadoErro ? (

@@ -1,0 +1,12 @@
+{
+ "tabs": [],
+ "tables": [],
+ "mobileArtifactsVisible": 0,
+ "controls": [
+  "a|||dark:text-gray-400 gap-1.5 inline-flex items-center text-gray-500 text-sm",
+  "button|||bg-brand-500 font-medium px-3 py-1.5 rounded-full text-white text-xs transition-colors",
+  "button|||bg-gray-100 dark:bg-gray-800 dark:hover:bg-gray-700 dark:text-gray-300 font-medium hover:bg-gray-200 px-3 py-1.5 rounded-full text-gray-700 text-xs transition-colors",
+  "h2|||dark:text-white/90 font-semibold text-gray-800 text-lg",
+  "h2|||dark:text-white/90 font-semibold text-gray-800 text-xl"
+ ]
+}

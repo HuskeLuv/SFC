@@ -1,0 +1,635 @@
+{
+  "arquitetura": {
+    "resumo": "VERSÃO FINAL da especificação da fase 0 (Base) do PWA My Finance. Ela incorpora as 21 críticas do revisor e fecha as divergências com o protótipo do designer.\n\nORGANIZAÇÃO (5 fatias, 3 devs, sem arquivo em comum):\n- Fatia 0, \"Contratos\". Dev3, meio dia, mergeada ANTES de tudo. Cria só os arquivos que mais de uma fatia importa: globals.css (variáveis e regras da casca), src/lib/ui/mobile.ts, src/lib/ui/scrollLock.ts, src/hooks/useMediaQuery.ts e src/lib/pwa/installPromptContract.ts. Com isso, nenhuma fatia importa arquivo de outra que ainda não existe em main, e cada worktree compila sozinho.\n- Depois do merge da 0, rodam em paralelo:\n  - A (PWA) → Dev1, que em seguida faz D (sessão);\n  - B (casca mobile) → Dev2;\n  - C (primitivos e testes) → Dev3.\n- A ordem de merge de A, B, C e D é livre.\n\nDECISÕES FECHADAS (divergências entre designer e arquiteto):\n1. O avatar abre o MESMO painel \"Mais\". Não há UserDropdown no celular, então ele não ganha prop placement.\n2. Ícone: marca #0079F2 sobre fundo BRANCO (protótipo), em todas as variantes.\n3. theme-color: #FFFFFF no claro e #18181b no escuro. #18181b é o gray-900 real do app, não #0C111D. Um efeito no MobileHeader sincroniza com o tema de classe.\n4. \"+ Lançar\":\n   - Atalhos que FUNCIONAM: \"Novo investimento\" (/carteira?acao=novo abre o AddAssetWizard de verdade) e \"Resgatar\" (?acao=resgate abre o RedeemAssetWizard).\n   - Mais um item DESABILITADO, \"Despesa ou receita — em breve (fase 2)\".\n   - Nada de atalhos que repetem abas.\n5. Convite para instalar:\n   - Banner só na Carteira, a partir da 2ª visita, dispensa por 30 dias.\n   - No iOS, a opção \"Não mostrar de novo\" dispensa para sempre.\n   - Se o localStorage falhar, o banner não aparece.\n   - \"Instalar app\" fica sempre disponível no Mais.\n6. Modal: API INALTERADA na fase 0. Sem mobileVariant, sem rodapé fixo e sem arrastar para fechar (isso fica para a fase 2).\n7. Tabela: objeto separado TABLE_MOBILE_STYLES, com os nomes do designer (card, cardHeader, cardGrid, dt, dd).\n8. AppSidebar ganha `max-lg:hidden`, que não afeta o desktop, e o hambúrguer sai.\n\nCORREÇÕES TÉCNICAS vindas da revisão:\n- Teste de transbordo: compara com a largura FIXA da viewport (390) e com clientWidth, nunca com innerWidth, porque com isMobile o Chromium estica a viewport de layout. Também espera o conteúdo sair do skeleton antes de medir.\n- Barra de abas, cabeçalho e FAB do Assistente somem abaixo de lg quando há overlay aberto (`[aria-modal=true]` ou `[data-mf-overlay]`) ou teclado aberto (campo com foco em pointer:coarse). O drawer ui/sidebar/Sidebar (wizards) e os 4 overlays próprios são marcados para isso.\n- Contraste AA:\n  - Rótulo da aba ativa em patrimonio #396CAA (5,39:1).\n  - #0079F2 só em ícone, pílula e FAB (elementos não textuais pedem 3:1).\n  - Botões com texto usam #396CAA ou #314666.\n  - No escuro, usa tranquilidade #6E9DC4. O #3D98F5 do designer foi rejeitado por não ser da paleta.\n- Regra de font-size 16px nos campos restrita ao iOS (`@supports (-webkit-touch-callout:none)`).\n- Manifest sem orientation.\n- offline.html sem autorecarregar (a CSP impede script).\n- Ícones rasterizados com width/height do SVG reescritos para o tamanho-alvo.\n- SW com navigation preload.\n- Trava de scroll compartilhada, com contador, entre Modal e BottomSheet.\n- Dropdown com pointerdown.\n- Notificações em React Query compartilhado: sem fetch duplicado e sem estado de lido divergente.\n- Altura do Fluxo e skeleton do loading ajustados para a casca.\n- Parte desktop do teste da casca movida para desktop-layout.spec.\n- Sessão:\n  - Sem \"Manter conectado\", o cookie vira de sessão e não é renovado.\n  - requireRole e requireAdmin viram assíncronos e checam sessionVersion; todas as chamadas de requireAuth síncrono migram para requireSession assíncrono.\n  - SignInForm.test.tsx entra na fatia D.\n\nCOMO O DESKTOP FICA GARANTIDO:\n- Toda classe nova fica em elemento `lg:hidden` ou usa as variantes `max-lg:`, ou é `bottom-[calc(var(--mf-bottom-nav-h,0px)+1rem)]`, que dá 1rem no desktop porque a variável vale 0 lá.\n- Todas as regras CSS novas estão dentro de `@media (width < 64rem)`.\n- e2e/desktop-layout.spec.ts roda no projeto chromium, sem isMobile.\n- QA desktop compara screenshots de antes e depois.",
+    "fatias": [
+      {
+        "id": "0",
+        "titulo": "Contratos compartilhados (mergear primeiro)",
+        "objetivo": "Criar, num PR pequeno mergeado em main antes das outras fatias, todos os símbolos, variáveis CSS e helpers que mais de uma fatia consome. Assim A, B, C e D ramificam de main já com eles e ninguém edita arquivo de outro.",
+        "arquivos_novos": [
+          "src/lib/ui/mobile.ts",
+          "src/lib/ui/scrollLock.ts",
+          "src/lib/ui/__tests__/scrollLock.test.ts",
+          "src/hooks/useMediaQuery.ts",
+          "src/hooks/__tests__/useMediaQuery.test.ts",
+          "src/lib/pwa/installPromptContract.ts"
+        ],
+        "arquivos_alterados": ["src/app/globals.css"],
+        "detalhes": "1) src/app/globals.css (a fatia 0 é a dona; depois do merge dela, a posse passa para a fatia C). Todas as regras novas ficam no fim do arquivo, com o comentário '/* PWA fase 0 — casca mobile */'.\n- Dentro do @theme existente: `--color-mf-potencia:#2D2D2D; --color-mf-seguranca:#314666; --color-mf-patrimonio:#396CAA; --color-mf-outside:#0079F2; --color-mf-tranquilidade:#6E9DC4; --color-mf-transparencia:#CCCCCC; --color-mf-escolha:#EAEAEA;`. Isso habilita text-mf-patrimonio, bg-mf-outside/10 etc. As fatias A e B USAM esses tokens em vez de hex arbitrário.\n- `:root { --mf-bottom-nav-h: 0px; --mf-header-h: 0px; }`\n- `@media (width < 64rem) {`\n  - `:root:has([data-mf-tabbar]) { --mf-bottom-nav-h: calc(4rem + env(safe-area-inset-bottom)); }`\n  - `:root:has([data-mf-mobile-header]) { --mf-header-h: calc(3.5rem + env(safe-area-inset-top)); }`\n  - OVERLAY ABERTO: `:root:has([aria-modal=\"true\"], [data-mf-overlay]) { --mf-bottom-nav-h: 0px; }`, `:root:has([aria-modal=\"true\"], [data-mf-overlay]) :is([data-mf-tabbar], [data-mf-fab]) { display: none; }` e `:root:has([aria-modal=\"true\"], [data-mf-overlay]) [data-mf-mobile-header] { visibility: hidden; }` (visibility para não deslocar o conteúdo sob o backdrop).\n  - `}`\n- TECLADO: `@media (width < 64rem) and (pointer: coarse) { :root:has(:is(input:not([type=checkbox],[type=radio],[type=range],[type=button],[type=submit],[type=file]), textarea, select, [contenteditable=\"true\"]):focus) { --mf-bottom-nav-h: 0px; } :root:has(:is(...mesmo seletor...):focus) :is([data-mf-tabbar],[data-mf-fab]) { display: none; } }`.\n- ZOOM DO iOS, só no iOS: `@supports (-webkit-touch-callout: none) { @media (width < 64rem) { input:not([type=checkbox],[type=radio],[type=range]):not([data-mf-allow-zoom]), select, textarea { font-size: max(16px, 1em); } } }`. Fica fora de layer de propósito, para vencer text-xs e text-sm. Não vale em tablet Android nem no Chromium do Playwright.\n- `html { -webkit-text-size-adjust: 100%; }` (sem efeito visual no desktop) e `@media (width < 64rem) { body { -webkit-tap-highlight-color: transparent; } }`.\n- Utilitários v4: `@utility pt-safe { padding-top: env(safe-area-inset-top); }`, `pb-safe`, `pl-safe`, `pr-safe`, `@utility px-safe { padding-left: env(safe-area-inset-left); padding-right: env(safe-area-inset-right); }`, `@utility pb-nav { padding-bottom: calc(var(--mf-bottom-nav-h) + 1rem); }`, `@utility bottom-nav-offset { bottom: calc(var(--mf-bottom-nav-h) + 1rem); }` e `@utility touch-target { min-height: 44px; min-width: 44px; }`.\n- `@keyframes mf-sheet-in { from { transform: translateY(100%) } to { transform: translateY(0) } }` e `@keyframes mf-fade-in { from { opacity: 0 } to { opacity: 1 } }`, mais `@media (prefers-reduced-motion: reduce) { [data-mf-sheet] { animation: none !important; } }`.\n- PROIBIDO overflow-x hidden ou clip em html, body ou wrappers.\n\n2) src/lib/ui/mobile.ts, com strings literais para o JIT enxergar:\n- `MOBILE_BREAKPOINT_PX = 1024`\n- `MOBILE_MEDIA_QUERY = '(max-width: 1023.98px)'`\n- `TOUCH_TARGET = 'min-h-11 min-w-11'`\n- `SAFE_AREA = { top:'pt-[env(safe-area-inset-top)]', bottom:'pb-[env(safe-area-inset-bottom)]', x:'pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)]' } as const`\n- `FULL_HEIGHT = 'min-h-dvh'`\n- `BOTTOM_NAV_PADDING = 'pb-[calc(var(--mf-bottom-nav-h,0px)+1rem)]'`\n- `BOTTOM_NAV_OFFSET = 'bottom-[calc(var(--mf-bottom-nav-h,0px)+1rem)]'`\n- `TAB_BAR_HEIGHT_REM = 4` e `MOBILE_HEADER_HEIGHT_REM = 3.5`\n- Atributos de contrato: `MF_ATTR = { tabbar:'data-mf-tabbar', header:'data-mf-mobile-header', overlay:'data-mf-overlay', fab:'data-mf-fab', sheet:'data-mf-sheet' } as const`\n- Z-index de referência: `Z = { header: 9980, tabbar: 9990, assistente: 9997, banner: 9999, sheetOverlay: 99990, sheet: 99991, modal: 99999 } as const`, só como documentação; as classes usam z-[n] literal.\n\n3) src/lib/ui/scrollLock.ts: `export function lockBodyScroll(): () => void`. Mantém um contador em módulo: no primeiro lock guarda o `document.body.style.overflow` anterior e aplica 'hidden'; o release é idempotente, decrementa, e no zero restaura o valor guardado. Com SSR guard.\n\n4) src/hooks/useMediaQuery.ts: `useMediaQuery(query: string, serverFallback = false): boolean` com useSyncExternalStore (subscribe em matchMedia change, getServerSnapshot devolve serverFallback) e `useIsBelowLg = () => useMediaQuery(MOBILE_MEDIA_QUERY)`.\n\n5) src/lib/pwa/installPromptContract.ts: `export interface BeforeInstallPromptEvent extends Event { prompt(): Promise<void>; userChoice: Promise<{ outcome: 'accepted'|'dismissed'; platform: string }> }`; `declare global { interface Window { __mfDeferredInstallPrompt?: BeforeInstallPromptEvent | null } interface Navigator { standalone?: boolean } }`; `export const INSTALL_EVENTS = { available:'mf:installprompt', installed:'mf:appinstalled' } as const`; `export const INSTALL_STORAGE_KEYS = { dismissedAt:'myfinance:install-card-dismissed-at', never:'myfinance:install-card-never', visits:'myfinance:visit-count' } as const`; `export const INSTALL_DISMISS_DAYS = 30`.",
+        "testes": "Vitest: scrollLock (dois locks aninhados só liberam no último; restaura o overflow anterior; release duplo não fica negativo); useMediaQuery (matchMedia mockado, evento change, fallback de SSR). `npm run lint && npx tsc --noEmit && npx vitest run src/lib/ui src/hooks`. Revisão visual: nenhuma regra fora de `@media (width < 64rem)`, exceto tokens, variáveis com valor 0, keyframes, utilitários (que só valem quando usados) e -webkit-text-size-adjust.",
+        "criterios_aceite": [
+          "Mergeada em main antes do início de A, B, C e D",
+          "Desktop pixel-idêntico (nenhuma regra ativa acima de 1023px)",
+          "Variáveis --mf-bottom-nav-h e --mf-header-h valem 0 quando não há [data-mf-tabbar] ou [data-mf-mobile-header]",
+          "Tipos e constantes de instalação exportados e compilando"
+        ]
+      },
+      {
+        "id": "A",
+        "titulo": "PWA plataforma: manifest, ícones, service worker, offline, registro, VersionWatcher, logout e lang",
+        "objetivo": "Tornar o app instalável com um service worker mínimo e seguro: só assets estáticos em cache, página offline, navigation preload, atualização acompanhando o VersionWatcher e caches limpos no logout. Também corrige o lang para pt-BR.",
+        "arquivos_novos": [
+          "scripts/generate-pwa-icons.mjs",
+          "public/icons/icon-192.png",
+          "public/icons/icon-512.png",
+          "public/icons/icon-maskable-192.png",
+          "public/icons/icon-maskable-512.png",
+          "public/icons/apple-touch-icon.png",
+          "public/icons/favicon-32.png",
+          "public/icons/splash/apple-splash-{1290x2796,1179x2556,1170x2532,1125x2436,828x1792,750x1334}.png",
+          "public/sw.js",
+          "public/offline.html",
+          "src/app/manifest.ts",
+          "src/components/pwa/ServiceWorkerRegistrar.tsx",
+          "src/lib/pwa/swClient.ts",
+          "src/lib/pwa/__tests__/swClient.test.ts",
+          "e2e/pwa.spec.ts"
+        ],
+        "arquivos_alterados": [
+          "src/app/layout.tsx",
+          "src/middleware.ts",
+          "src/components/common/VersionWatcher.tsx",
+          "src/context/AuthContext.tsx",
+          "src/components/legal/CookieConsentBanner.tsx"
+        ],
+        "detalhes": "1) ÍCONES: scripts/generate-pwa-icons.mjs é ESM e roda UMA vez com `node scripts/generate-pwa-icons.mjs`. Os PNGs são commitados; o script fica fora do build e do CI.\n- Ferramenta: sharp 0.33.5, que já está em node_modules como dependência opcional do next e NÃO entra no package.json. O fallback, documentado no topo do script, é o chromium do Playwright (page.setContent + screenshot com omitBackground).\n- NITIDEZ: o logo-icon.svg declara width=32/height=32 e viewBox 1825x2465. Antes de rasterizar, o script reescreve esses atributos com regex para o tamanho-alvo em px (h = altura desejada, w = round(h*1825/2465)) e rasteriza com `sharp(Buffer.from(svg)).png()` sem resize de ampliação. Alternativa aceita: density = alvo/32*72.\n- Arte (decisão: marca #0079F2 sobre branco, como no protótipo):\n  - icon-192/512 (purpose any): fundo #FFFFFF, marca com 70% da altura.\n  - icon-maskable-192/512: fundo #FFFFFF, marca com 60% da altura (meia-diagonal ≈ 0,37 < 0,40 da zona segura).\n  - apple-touch-icon 180x180: fundo #FFFFFF opaco, marca com 60%.\n  - favicon-32: a partir do logo-icon.\n  - Splash iOS: fundo #FFFFFF com o logo COMPLETO (public/images/logo/logo.svg, mesmo tratamento de width/height) em 50% da largura, centralizado. Um arquivo por tamanho da lista.\n- Composição: `sharp({create:{width,height,channels:4,background:'#FFFFFF'}}).composite([{input: logoPng, gravity:'center'}]).png().toFile(...)`.\n\n2) MANIFEST (src/app/manifest.ts, `export default function manifest(): MetadataRoute.Manifest`):\n- name 'My Finance', short_name 'My Finance', description 'Gestão financeira pessoal'\n- id '/', start_url '/carteira?source=pwa', scope '/', display 'standalone'\n- SEM orientation (o Fluxo em paisagem precisa rodar)\n- background_color '#FFFFFF', theme_color '#FFFFFF', lang 'pt-BR', dir 'ltr', categories ['finance']\n- icons: 192 e 512 com purpose 'any', os maskable com purpose 'maskable'\n- shortcuts: [{name:'Carteira',url:'/carteira'},{name:'Fluxo de caixa',url:'/fluxodecaixa'}]\n\n3) ROOT LAYOUT (src/app/layout.tsx):\n- `<html lang=\"pt-BR\">`\n- metadata (sem mexer no título):\n  - applicationName 'My Finance'\n  - icons { icon:[{url:'/images/logo/logo-icon.svg',type:'image/svg+xml'},{url:'/icons/favicon-32.png',sizes:'32x32',type:'image/png'}], apple:'/icons/apple-touch-icon.png' }\n  - appleWebApp { capable:true, title:'My Finance', statusBarStyle:'default', startupImage:[6 itens {url, media:'(device-width: Wpx) and (device-height: Hpx) and (-webkit-device-pixel-ratio: 3|2) and (orientation: portrait)'}] }\n  - formatDetection { telephone:false }\n- `export const viewport: Viewport = { width:'device-width', initialScale:1, viewportFit:'cover', interactiveWidget:'resizes-content', themeColor:[{media:'(prefers-color-scheme: light)',color:'#FFFFFF'},{media:'(prefers-color-scheme: dark)',color:'#18181b'}] }`. A fatia B sincroniza o conteúdo das metas com o tema de classe.\n- `<ServiceWorkerRegistrar />` dentro de <body>, depois de <Providers>.\n\n4) CSP (src/middleware.ts, só em buildContentSecurityPolicy): acrescentar `\"worker-src 'self'\"` e `\"manifest-src 'self'\"` depois de media-src. Não mexer em mais nada:\n- /sw.js, /offline.html, /manifest.webmanifest e /icons/* já são PUBLIC_FILE com Cache-Control no-store;\n- o registro vem de um chunk confiável via strict-dynamic, sem script inline, então não precisa de nonce;\n- sem importScripts e sem eval no SW.\n\n5) public/sw.js (JS puro):\n- Constantes: `SW_VERSION='mf-sw-v1'; STATIC_CACHE='mf-static-v1'; OFFLINE_CACHE='mf-offline-v1'; MAX_STATIC_ENTRIES=400`.\n- install: `caches.open(OFFLINE_CACHE).addAll(['/offline.html','/icons/icon-192.png','/images/logo/logo-icon.svg'])`, sem skipWaiting.\n- activate: `event.waitUntil(Promise.all([apagar caches 'mf-*' fora da allowlist, self.registration.navigationPreload?.enable()]).then(()=>self.clients.claim()))`.\n- fetch:\n  - (a) method !== 'GET' ou origem diferente → return, sem respondWith;\n  - (b) pathname começa com '/api/' → return;\n  - (c) mode 'navigate' → `event.respondWith((async()=>{ try { const pre = await event.preloadResponse; if (pre) return pre; return await fetch(event.request); } catch { return (await caches.match('/offline.html', {cacheName: OFFLINE_CACHE})) || Response.error(); } })())`. HTML NUNCA é gravado;\n  - (d) isStatic(url) = prefixos '/_next/static/', '/icons/', '/images/logo/' ou sufixo .woff2/.woff → cache-first; grava só se `res.ok && res.type==='basic'` e depois faz trim FIFO até MAX_STATIC_ENTRIES;\n  - (e) resto (?_rsc, /_next/image, avatares) → return.\n- message: `{type:'SKIP_WAITING'}` → skipWaiting(); `{type:'CLEAR_CACHES'}` → apaga os 'mf-*' menos OFFLINE_CACHE e responde por event.ports[0] se existir.\n\n6) public/offline.html: lang pt-BR, SEM <script> e SEM autorecarregar (a CSP com strict-dynamic bloqueia até script externo), só <style> inline.\n- SVG do logo inline, font-family Outfit, system-ui, sans-serif.\n- Título #2D2D2D, texto #314666.\n- Botão-link `<a href=\"/carteira\">Tentar de novo</a>` com fundo #396CAA (patrimonio, 5,39:1 com texto branco), altura mínima 48px e raio 12px.\n- Textos: 'Você está sem conexão' / 'Por segurança, seus dados financeiros não ficam salvos neste aparelho. Conecte-se e tente de novo.'\n- Dark via @media (prefers-color-scheme: dark): fundo #18181b, texto #EAEAEA, botão com fundo #6E9DC4 e texto #2D2D2D.\n\n7) src/lib/pwa/swClient.ts (tipos importados de installPromptContract):\n- `SW_URL`\n- `isSwSupported()`\n- `isSwEnabled()`: NODE_ENV==='production' && NEXT_PUBLIC_SW_ENABLED!=='0'\n- `registerServiceWorker()` → `register(SW_URL,{scope:'/',updateViaCache:'none'})`\n- `unregisterAllServiceWorkers()`\n- `clearAppCaches()`: apaga as chaves 'mf-' menos 'mf-offline-', tudo em try/catch\n- `prepareReloadForNewVersion(timeoutMs=1500)`: reg.update(), apaga 'mf-static-*', manda SKIP_WAITING para o worker waiting e espera controllerchange até o timeout\n- `captureInstallPrompt(): () => void`: beforeinstallprompt → preventDefault, grava `window.__mfDeferredInstallPrompt` e dispara INSTALL_EVENTS.available; appinstalled → zera e dispara INSTALL_EVENTS.installed\n\n8) ServiceWorkerRegistrar ('use client', retorna null): no useEffect chama captureInstallPrompt(). Se isSwEnabled, registra no 'load' (ou na hora, se readyState==='complete'); senão, e se houver suporte, chama unregisterAllServiceWorkers (kill switch).\n\n9) VersionWatcher:\n- Ao detectar stale: `navigator.serviceWorker?.getRegistration().then(r=>r?.update())`.\n- Botão Atualizar e camada 2: `void prepareReloadForNewVersion().finally(()=>window.location.reload())`.\n- Camada 3 (ChunkLoadError): clearAppCaches() antes do reload.\n- Banner: trocar `bottom-4` por `bottom-[calc(var(--mf-bottom-nav-h,0px)+1rem)]`.\n\n10) AuthContext:\n- `logout()`: `await clearAppCaches()` + postMessage CLEAR_CACHES em try/catch, também no caminho de erro, e depois `window.location.replace('/signin')` no lugar de router.push.\n- `checkAuth(opts?: {silent?: boolean})`: no modo silent não faz setLoading(true).\n- `lastCheckRef` + listener de visibilitychange: se ficou visível e a última checagem foi há mais de 6h, chama checkAuth({silent:true}). É o gatilho da renovação da fatia D.\n- Tipo AuthContextType atualizado.\n\n11) CookieConsentBanner: `bottom-4` → `bottom-[calc(var(--mf-bottom-nav-h,0px)+1rem)]`.\n\n12) Mudar o próprio sw.js exige subir SW_VERSION e as constantes de cache. Deploy comum não exige nada, porque o HTML nunca fica em cache.",
+        "testes": "Vitest (jsdom) em src/lib/pwa/__tests__/swClient.test.ts:\n- clearAppCaches apaga só 'mf-*' e preserva 'mf-offline-*';\n- isSwEnabled respeita as envs;\n- captureInstallPrompt chama preventDefault, guarda o evento, dispara o evento de contrato e o cleanup remove os listeners;\n- prepareReloadForNewVersion resolve no timeout sem controllerchange.\n\nAtualizar os testes existentes de AuthContext/VersionWatcher (mock de caches e de location.replace).\n\ne2e/pwa.spec.ts (projeto chromium):\n- manifest 200 com name, display standalone, SEM orientation e ícone maskable 512;\n- /sw.js e /offline.html com 200, sem redirect e com CSP contendo worker-src 'self' e manifest-src 'self';\n- ícones 200 image/png;\n- `document.documentElement.lang==='pt-BR'`;\n- meta viewport com viewport-fit=cover;\n- offline.html sem <script>.\n\nManual em `npm run build && npm start`:\n- Lighthouse installable;\n- console sem erro de CSP;\n- modo avião → offline.html;\n- Cache Storage sem /api e sem HTML;\n- DevTools > Application > Service Workers mostra navigation preload ativo;\n- conferir nitidez dos PNGs (abrir o 512 a 100%).",
+        "criterios_aceite": [
+          "Chrome Android instala; o ícone maskable mostra a marca azul sobre branco sem corte e nítida",
+          "iOS: apple-touch-icon opaco, abre em standalone com splash branco e título My Finance",
+          "Cache Storage só com /_next/static, /icons, /images/logo, fontes e offline.html",
+          "Offline: a navegação mostra offline.html (sem script); online, o HTML vem sempre da rede, com navigation preload",
+          "Logout esvazia mf-static e faz replace para /signin",
+          "Após um deploy, Atualizar carrega a versão nova sem ChunkLoadError",
+          "Sem violação de CSP; <html lang=\"pt-BR\">; app instalado gira para paisagem",
+          "Desktop: VersionWatcher e cookie banner a 1rem do rodapé, como hoje"
+        ]
+      },
+      {
+        "id": "B",
+        "titulo": "Casca mobile: cabeçalho, barra de abas, Mais, + Lançar, Instalar app, notificações compartilhadas e ajustes de altura",
+        "objetivo": "Abaixo de lg, trocar o hambúrguer que cobre os títulos por cabeçalho compacto + barra de abas (Carteira · Fluxo · + Lançar · Planejamento · Mais), exatamente como no protótipo, com contraste AA, os mesmos filtros de menu da sidebar e conteúdo nunca escondido. Desktop idêntico.",
+        "arquivos_novos": [
+          "src/layout/navigation.tsx",
+          "src/layout/mobile/MobileHeader.tsx",
+          "src/layout/mobile/MobileTabBar.tsx",
+          "src/layout/mobile/MoreSheet.tsx",
+          "src/layout/mobile/LaunchSheet.tsx",
+          "src/layout/mobile/quickLaunch.ts",
+          "src/layout/mobile/useThemeColorSync.ts",
+          "src/components/ui/sheet/BottomSheet.tsx",
+          "src/hooks/useExitActing.ts",
+          "src/hooks/useInstallPrompt.ts",
+          "src/hooks/useNotifications.ts",
+          "src/components/pwa/InstallAppCard.tsx",
+          "src/layout/__tests__/navigation.test.tsx",
+          "src/components/pwa/__tests__/InstallAppCard.test.tsx",
+          "src/hooks/__tests__/useNotifications.test.tsx",
+          "e2e/mobile-shell.spec.ts"
+        ],
+        "arquivos_alterados": [
+          "src/app/(admin)/AdminLayoutClient.tsx",
+          "src/layout/AppSidebar.tsx",
+          "src/layout/SidebarFooter.tsx",
+          "src/layout/MobileSidebarTrigger.tsx (REMOVIDO)",
+          "src/components/header/NotificationDropdown.tsx",
+          "src/components/ui/dropdown/Dropdown.tsx",
+          "src/components/assistente/AssistentePanel.tsx",
+          "src/components/carteira/CarteiraResumo.tsx",
+          "src/app/(admin)/(others-pages)/(tables)/fluxodecaixa/page.tsx",
+          "src/app/(admin)/loading.tsx"
+        ],
+        "detalhes": "1) navigation.tsx: mover MAIN_NAV_ITEMS, NavItem e TODA a lógica do useMemo do AppSidebar (dashboardPath do consultor, tirar Dashboard para não consultor, Pluggy depois de Dívidas só com usePluggyConfig().data?.habilitado, Comunidade só com useComunidadeConfig().data?.habilitada, Administração só para admin, allowedItems quando há actingClient) para `export function useMainNavItems(): NavItem[]`. Exportar também:\n- `MORE_GROUPS: {label:'Finanças'|'Organização'|'Aprender e conversar'; names:string[]}[]`, com Finanças = Saúde Financeira, Dívidas, Conexões bancárias; Organização = Agenda, Relatórios, Histórico; Aprender = Educação, Comunidade, Administração. Itens que sobrarem (ex.: Dashboard) caem num grupo 'Outros'.\n- `getMobilePageTitle(pathname)`: maior prefixo casado + extras '/ativos'→'Ativo', '/dashboard/consultor'→'Painel do consultor', '/consultor'→'Consultor', '/comunidade'→'Comunidade', '/admin'→'Administração', '/profile'→'Perfil'; default 'My Finance'.\n- `isNestedRoute(pathname)`.\n- `getActiveTab(pathname, items): 'carteira'|'fluxo'|'planejamento'|'mais'|null`.\n\nAppSidebar só consome o hook e ganha `max-lg:hidden` no <aside>. Nenhuma outra classe muda. O aside some do celular, o que também tira links invisíveis da ordem de foco.\n\n2) useExitActing: extraído do SidebarFooter, com assinatura `{ exitActing(): Promise<void>; leaving: boolean }`. O SidebarFooter passa a usar o hook, com JSX idêntico.\n\n3) NOTIFICAÇÕES COMPARTILHADAS (src/hooks/useNotifications.ts): React Query com key ['notifications'], a mesma função de fetch e as mesmas opções de hoje (credentials, tratamento de erro via logger e o mesmo intervalo/refresh que existir hoje), mais as mutações markAsRead e respondInvite com setQueryData.\n- NotificationDropdown passa a consumir o hook (sem estado local de lista), então as duas instâncias (SidebarFooter no desktop, header no celular) fazem um fetch só e compartilham o estado de lido.\n- Nova prop `placement?: 'up'|'down'` (default 'up', com as classes atuais literalmente iguais). Com 'down': `top-full right-0 !left-auto mt-2 max-h-[calc(100dvh-var(--mf-header-h,0px)-var(--mf-bottom-nav-h,0px)-1rem)] w-[min(350px,calc(100vw-2rem))]`, resto igual.\n- O indicador continua sendo o ponto atual. O badge com contagem fica fora da fase 0, porque texto branco sobre #0079F2 não passa AA.\n\n4) Dropdown.tsx: trocar 'mousedown' por 'pointerdown' no click-outside (o iOS não dispara mousedown ao tocar em área não clicável). O comportamento no desktop é equivalente.\n\n5) BottomSheet (src/components/ui/sheet/BottomSheet.tsx):\n- Props: `{ isOpen; onClose; title?; ariaLabel?; children; footer?: ReactNode; className? }`.\n- Portal no body.\n- Overlay `fixed inset-0 z-[99990] bg-mf-potencia/45 animate-[mf-fade-in_220ms_ease-out]`.\n- Painel `data-mf-sheet role=\"dialog\" aria-modal=\"true\" fixed inset-x-0 bottom-0 z-[99991] flex max-h-[calc(100dvh-env(safe-area-inset-top)-12px)] flex-col rounded-t-3xl bg-white dark:bg-gray-900 lg:hidden animate-[mf-sheet-in_260ms_cubic-bezier(.2,.8,.2,1)]`.\n- Faixa da alça com h-7 e alça `h-[5px] w-9 rounded-full bg-mf-transparencia dark:bg-gray-700`; título `text-lg font-semibold`.\n- Corpo `flex-1 overflow-y-auto overscroll-contain px-4`; footer opcional `border-t px-4 pt-2 pb-[calc(env(safe-area-inset-bottom)+8px)]`; sem footer, o corpo recebe esse padding.\n- Esc e overlay fecham; foco inicial no painel; foco devolvido ao gatilho.\n- Scroll: `lockBodyScroll()` da fatia 0, nunca body.style direto.\n- Sem arrastar para fechar na fase 0.\n\n6) MobileTabBar:\n- `<nav data-mf-tabbar aria-label=\"Navegação principal\" className=\"fixed inset-x-0 bottom-0 z-[9990] border-t border-gray-200 bg-white/95 backdrop-blur pb-[env(safe-area-inset-bottom)] pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)] dark:border-gray-800 dark:bg-gray-900/95 lg:hidden print:hidden\">`, com `<ul className={\"grid h-16 \" + GRID_COLS[n]}>` e `GRID_COLS = {3:'grid-cols-3',4:'grid-cols-4',5:'grid-cols-5'} as const` (literais para o JIT).\n- Aba: Link `flex min-h-11 flex-col items-center justify-center gap-0.5 text-[11px] font-medium`.\n  - Pílula do ícone: `flex h-[30px] w-[52px] items-center justify-center rounded-full transition-colors duration-[180ms] active:scale-[.92]`, ícone 24px.\n  - ATIVA: pílula `bg-mf-outside/10 dark:bg-mf-tranquilidade/15`, ícone `text-mf-outside dark:text-mf-tranquilidade`, RÓTULO `text-mf-patrimonio dark:text-mf-tranquilidade` (AA), aria-current=page.\n  - Inativa: `text-gray-500 dark:text-gray-400`.\n- Rótulo de Planejamento: `<span aria-hidden className=\"min-[360px]:hidden\">Planejar</span><span className=\"max-[359px]:hidden\">Planejamento</span>` + aria-label 'Planejamento'. Os demais rótulos com `max-w-full truncate px-0.5`.\n- Abas:\n  - Carteira (DollarLineIcon; ativa em /carteira e /ativos);\n  - Fluxo (TableIcon; /fluxodecaixa);\n  - + Lançar;\n  - Planejamento (PencilIcon; /planejamento-financeiro);\n  - Mais (HorizontaLDots; ativa quando a rota é uma seção do Mais).\n- Cada aba só aparece se o seu item existir em useMainNavItems() (personificação).\n- Botão central: `-mt-[18px] h-14 w-14 self-start justify-self-center rounded-full bg-mf-outside text-white shadow-[0_6px_16px_rgb(0_121_242/0.35)] ring-4 ring-white active:scale-[.94] dark:ring-gray-900`, ícone + de 28px, aria-label 'Lançar', aria-haspopup=dialog, aria-expanded.\n- Sem auto-hide ao rolar. A barra é escondida pelas regras da fatia 0 quando há overlay ou teclado.\n\n7) quickLaunch.ts: `QUICK_LAUNCH_ACTIONS: { id:'novo-ativo'|'resgate'|'fluxo'; label; description; href: string|null; requires:'Carteira'|'Fluxo de Caixa'; phase?: 2 }[]` =\n- novo-ativo: 'Novo investimento', href '/carteira?acao=novo';\n- resgate: 'Resgatar investimento', href '/carteira?acao=resgate';\n- fluxo: 'Despesa ou receita', href null, phase 2.\n\nLaunchSheet (BottomSheet title 'Lançar'):\n- Ações com href viram Link `flex min-h-14 items-center gap-3 rounded-xl px-3 active:bg-gray-100 dark:active:bg-white/5` com ícone, rótulo, descrição e seta.\n- A ação sem href é `<div aria-disabled=\"true\" className=\"opacity-60\">` com o selo `rounded-full bg-mf-escolha px-2 text-xs text-mf-potencia dark:bg-gray-800 dark:text-gray-300` com o texto 'Em breve'.\n- Filtradas por `requires` presente em useMainNavItems().\n- Se nenhuma ação com href sobrar, o botão central não é renderizado.\n\n8) CarteiraResumo (ligação real do atalho): useEffect no mount lendo `new URLSearchParams(window.location.search).get('acao')` (sem useSearchParams, para não exigir Suspense):\n- 'novo' → setIsSidebarOpen(true);\n- 'resgate' → setIsRedeemSidebarOpen(true);\n- em seguida `window.history.replaceState(null,'',location.pathname)`, para não reabrir no refresh.\n\nO Link com o mesmo pathname não remonta, então o LaunchSheet também dispara `window.dispatchEvent(new CustomEvent('mf:quick-launch',{detail:id}))` quando o pathname atual já é /carteira, e o CarteiraResumo escuta esse evento. Nenhuma mudança de JSX nem de classes.\n\n9) MoreSheet (BottomSheet title 'Mais'), aberto pela aba Mais e pelo avatar:\n- (a) grupos de MORE_GROUPS em grade de 3 colunas com o rótulo do grupo `text-xs font-semibold uppercase tracking-[0.06em] text-gray-500`. Cada item é um Link `flex min-h-[76px] flex-col items-center justify-center gap-1 rounded-2xl text-xs active:bg-gray-100 dark:active:bg-white/5`, e o item ativo usa `text-mf-patrimonio dark:text-mf-tranquilidade`;\n- (b) lista Conta, com linhas `min-h-12`:\n  - avatar + nome + email (useAuth) → /profile;\n  - 'Modo escuro' com ThemeToggleButton;\n  - `<InstallAppCard variant=\"row\" />`;\n  - 'Sair' `text-red-600 dark:text-red-400` → useAuth().logout.\n- Fecha quando o pathname muda.\n\n10) MobileHeader:\n- `<header data-mf-mobile-header className=\"sticky top-0 z-[9980] bg-white/95 backdrop-blur pt-[env(safe-area-inset-top)] pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)] dark:bg-gray-900/95 lg:hidden print:hidden\">`.\n- Borda inferior `border-b border-gray-200 dark:border-gray-800` só depois de rolar 4px (um sentinel de 1px com IntersectionObserver; sem listener de scroll).\n- Linha `flex h-14 items-center gap-1 px-4`:\n  - voltar (useGoBack, 44x44, só em isNestedRoute) ou logo-icon de 28px com link para /carteira;\n  - título `<p className=\"min-w-0 flex-1 truncate text-xl font-semibold text-gray-800 dark:text-white/90\">`, que é um <p> porque as páginas já têm h1;\n  - quando `pathname.startsWith('/fluxodecaixa')`, o CashflowYearSelect compacto (o mesmo componente usado hoje na sidebar; o ano do Fluxo não fica inacessível);\n  - `<NotificationDropdown placement=\"down\" />`;\n  - botão avatar de 44x44 com o visual de 32px `rounded-full bg-mf-seguranca text-white text-sm font-semibold` (iniciais) ou a foto, aria-label 'Abrir menu da conta', abrindo o MoreSheet.\n- Com personificação ativa, uma faixa `flex items-center justify-between px-4 py-1 text-xs bg-mf-tranquilidade/15 text-mf-seguranca dark:bg-mf-tranquilidade/10 dark:text-mf-tranquilidade`: 'Vendo como {nome}' + botão 'Sair' (useExitActing, min-h-8 com área de 44px via padding).\n- useThemeColorSync(): MutationObserver na classe do <html> que define `content` de TODAS as `meta[name=theme-color]` como '#18181b' (dark) ou '#FFFFFF'.\n\n11) AdminLayoutClient:\n- remover o MobileSidebarTrigger (o arquivo é apagado); Backdrop fica;\n- na coluna `flex-1 min-w-0`, antes do div com padding: `<MobileHeader />` + `{pathname?.startsWith('/carteira') && <InstallAppCard variant=\"banner\" className=\"mx-4 mt-3 lg:hidden\" />}`;\n- a coluna ganha `max-lg:pb-[calc(var(--mf-bottom-nav-h,0px)+1rem)]`; o root ganha `max-lg:min-h-dvh` além do min-h-screen;\n- `<MobileTabBar />` dentro do bloco print:hidden;\n- nenhuma classe existente sem variante muda.\n\n12) AssistentePanel:\n- FAB: `data-mf-fab` + `bottom-4 max-lg:bottom-[calc(var(--mf-bottom-nav-h,0px)+1rem)]`;\n- painel: `bottom-20 max-lg:bottom-[calc(var(--mf-bottom-nav-h,0px)+5rem)] max-lg:max-h-[calc(100dvh-var(--mf-header-h,0px)-var(--mf-bottom-nav-h,0px)-6rem)]`.\n\n13) Fluxo (page.tsx:63): manter `h-[calc(100vh-60px)]` e acrescentar `max-lg:h-[calc(100dvh-var(--mf-header-h,0px)-var(--mf-bottom-nav-h,0px)-2rem)]`. O dev ajusta o termo final até o e2e medir que `document.documentElement.scrollHeight <= innerHeight + 1` em /fluxodecaixa a 390x844, sem rolagem dupla.\n\n14) loading.tsx: o header do skeleton ganha `max-lg:hidden`; o root ganha `max-lg:min-h-dvh`.\n\n15) Instalar app (useInstallPrompt):\n- Retorna `{ platform:'android'|'ios'|'other'; canPrompt; isStandalone; promptInstall(): Promise<'accepted'|'dismissed'|'unavailable'>; eligibleForBanner: boolean; dismiss(days=INSTALL_DISMISS_DAYS); dismissForever() }`.\n- Lê window.__mfDeferredInstallPrompt e escuta beforeinstallprompt diretamente e os INSTALL_EVENTS (funciona antes do merge da A).\n- isStandalone = display-mode standalone ou navigator.standalone.\n- iOS = /iPad|iPhone|iPod/ ou (MacIntel e maxTouchPoints>1), e Safari (sem CriOS/FxiOS).\n- Visitas: incrementa INSTALL_STORAGE_KEYS.visits uma vez por sessão (flag em sessionStorage).\n- eligibleForBanner = visitas >= 2 && dispensa vencida && !never.\n- QUALQUER erro de storage → eligibleForBanner=false. Todo acesso ao storage em try/catch.\n\nInstallAppCard `{ variant:'banner'|'row'; className? }`, renderizado só depois de montar:\n- banner (protótipo):\n  - card `rounded-2xl bg-mf-seguranca p-4 text-white` com o ícone real (/icons/icon-192.png, 40px, rounded-xl);\n  - título 'Instale o My Finance' e texto 'Acesso rápido, em tela cheia';\n  - Android: botão 'Instalar' `min-h-11 rounded-xl bg-white px-4 font-semibold text-mf-seguranca` e 'Agora não' `min-h-11 text-white/85`;\n  - X de 44px com aria-label 'Dispensar';\n  - iOS: botão 'Como instalar' que abre um BottomSheet com 3 passos (ícone Compartilhar → 'Adicionar à Tela de Início' → 'Adicionar'), a nota 'No app instalado você entra de novo com seu login' e o link 'Não mostrar de novo' (dismissForever);\n  - a seta animada respeita prefers-reduced-motion.\n- row (no Mais): linha 'Instalar app', ignora a dispensa e some em standalone ou quando não há prompt nem iOS.\n\n16) z-index: header 9980, tab bar 9990, Assistente 9997, banners 9999, sheet 99990/99991, Modal 99999. Os drawers z-500 e os overlays z-50 ficam abaixo, mas as regras da fatia 0 escondem a casca quando eles abrem (a marcação deles é feita pela fatia C).",
+        "testes": "Vitest navigation.test.tsx (mocks de useAuth, usePluggyConfig, useComunidadeConfig):\n- user comum sem Dashboard e sem Admin;\n- Pluggy logo depois de Dívidas;\n- Comunidade só com a flag;\n- admin vê Administração;\n- personificação só com allowedItems;\n- consultor com dashboardPath;\n- MORE_GROUPS cobre todos os itens que não são abas;\n- getMobilePageTitle e getActiveTab.\n\nInstallAppCard: não renderiza em standalone; primeira visita não mostra; segunda mostra; dismiss grava o timestamp; storage que lança exceção → não mostra e não quebra; iOS mostra 'Como instalar'; o row ignora a dispensa.\n\nuseNotifications: duas instâncias → um fetch; markAsRead reflete nas duas.\n\nTeste existente do NotificationDropdown ajustado ao hook.\n\ne2e/mobile-shell.spec.ts (projeto mobile; SÓ mobile, sem describe de desktop):\n- em /carteira, /fluxodecaixa, /planejamento-financeiro e /dividas: header e tab bar visíveis; nenhum botão 'Abrir menu';\n- o elementFromPoint do centro do primeiro h1/h2 pertence a ele;\n- o último elemento do main, depois do scroll, tem bottom <= top da tab bar;\n- Mais abre um dialog com Dívidas, Agenda e Relatórios, e a tab bar fica oculta enquanto ele está aberto;\n- avatar abre o mesmo dialog;\n- Lançar → 'Novo investimento' leva a /carteira, abre o wizard (título visível), a tab bar fica oculta, o botão Avançar/Salvar do wizard está dentro da viewport e a URL fica sem ?acao;\n- o sino abre para baixo, dentro da viewport;\n- /fluxodecaixa sem rolagem vertical do documento e com o seletor de ano no header;\n- focar um input de /profile → tab bar oculta (hasTouch e pointer coarse).",
+        "criterios_aceite": [
+          "A 390px nenhum título fica coberto; o hambúrguer foi removido",
+          "Abas conforme o protótipo; rótulo ativo #396CAA (AA) no claro e #6E9DC4 no escuro; ícone e pílula #0079F2",
+          "Mais e avatar abrem o mesmo painel, com exatamente os itens da sidebar para cada perfil e flag",
+          "'Novo investimento' abre o AddAssetWizard; com ele aberto, barra, cabeçalho e FAB somem e o rodapé do wizard fica visível",
+          "Seletor de ano do Fluxo acessível no cabeçalho em /fluxodecaixa",
+          "Um único GET /api/notifications por carga; lido sincronizado",
+          "Cartão Instalar só na Carteira a partir da 2ª visita; dispensa de 30 dias; iOS com 'Não mostrar de novo'",
+          "Desktop pixel-idêntico (aside, rodapé e dropdowns abrindo para cima)"
+        ]
+      },
+      {
+        "id": "C",
+        "titulo": "Primitivos (Modal → sheet, tabela → cartões, marcação de overlays) + testes de transbordo a 390px e guarda de desktop",
+        "objetivo": "Entregar os blocos das fases 1 a 3 sem mudar o desktop, marcar os overlays existentes para a casca se esconder, e criar um teste de transbordo que realmente falha quando a página transborda.",
+        "arquivos_novos": [
+          "src/components/ui/table/ResponsiveTable.tsx",
+          "src/components/ui/table/__tests__/ResponsiveTable.test.tsx",
+          "src/components/ui/modal/__tests__/Modal.test.tsx",
+          "e2e/helpers/routes.ts",
+          "e2e/helpers/waitForContent.ts",
+          "e2e/mobile-overflow.spec.ts",
+          "e2e/desktop-layout.spec.ts"
+        ],
+        "arquivos_alterados": [
+          "src/components/ui/modal/index.tsx",
+          "src/components/ui/table/tableStyles.ts",
+          "src/components/ui/sidebar/Sidebar.tsx",
+          "src/components/carteira/AddReservaModal.tsx",
+          "src/components/carteira/AddInvestmentModal.tsx",
+          "src/components/cashflow/ImportPlanilhaModal.tsx",
+          "src/components/cashflow/CommentModal.tsx",
+          "src/app/globals.css (só depois do merge da fatia 0, e só para correções globais achadas pelo teste)",
+          "playwright.config.ts"
+        ],
+        "detalhes": "1) MODAL (API inalterada):\n- Wrapper: acrescentar, quando !isFullscreen, `max-lg:items-end max-lg:overflow-hidden`.\n- Conteúdo não-fullscreen: manter as classes atuais e acrescentar `max-lg:m-0! max-lg:max-h-[calc(100dvh-env(safe-area-inset-top)-12px)] max-lg:overflow-y-auto max-lg:overscroll-contain max-lg:rounded-b-none max-lg:pb-[calc(env(safe-area-inset-bottom)+8px)] max-lg:animate-[mf-sheet-in_260ms_cubic-bezier(.2,.8,.2,1)]`.\n- Fullscreen: `max-lg:h-dvh`.\n- Alça: `<div aria-hidden data-mf-sheet className=\"mx-auto mb-2 mt-2 h-[5px] w-9 rounded-full bg-mf-transparencia lg:hidden\" />`.\n- role=\"dialog\" e aria-modal=\"true\" no conteúdo (é o que aciona a regra da fatia 0 que esconde a casca).\n- Botão X: aria-label 'Fechar' e `max-lg:h-11 max-lg:w-11`.\n- Trocar a gestão de `document.body.style.overflow` por `lockBodyScroll()` (corrige Modal aberto sobre sheet).\n- Inventário: 15 arquivos usam <Modal>. Listar no PR os que foram checados a 390px; os que transbordarem dentro do sheet vão para a lista da fase 1 ou 3, sem ajuste pontual.\n\n2) DRAWER ui/sidebar/Sidebar.tsx (usado por AddAssetWizard, RedeemAssetWizard e AddInvestmentSidebar): no painel, `role=\"dialog\" aria-modal=\"true\" aria-label={title}` e as classes `max-lg:h-dvh max-lg:pt-[env(safe-area-inset-top)] max-lg:pb-[env(safe-area-inset-bottom)]`. O z-[500] fica. A casca some pela regra :has.\n\n3) OVERLAYS PRÓPRIOS (AddReservaModal:158, AddInvestmentModal:93, ImportPlanilhaModal:187, CommentModal:89): acrescentar o atributo `data-mf-overlay` no elemento `fixed inset-0`. Só o atributo, sem classe.\n- Documentar no PR o inventário com o comando `grep -rn 'fixed inset-0\\|fixed right-0 top-0' src` e o destino de cada item.\n- Backdrop.tsx do layout não precisa (fica inerte sem o drawer mobile).\n\n4) TABELA:\n- tableStyles.ts: NENHUMA chave de TABLE_STYLES muda. Novo `export const TABLE_MOBILE_STYLES = {`\n  - `list:'flex flex-col gap-3',`\n  - `card:'rounded-2xl border border-gray-200 bg-white px-4 py-3.5 dark:border-gray-800 dark:bg-white/[0.03]',`\n  - `cardClickable:'min-h-[72px] cursor-pointer active:bg-gray-100 dark:active:bg-white/[0.05]',`\n  - `cardHeader:'flex items-start justify-between gap-3',`\n  - `cardTitle:'text-sm font-semibold text-gray-800 dark:text-white/90',`\n  - `cardSubtitle:'text-xs text-gray-500 dark:text-gray-400',`\n  - `cardGrid:'mt-2 grid grid-cols-3 gap-2',`\n  - `dt:'text-[11px] font-medium uppercase tracking-[0.06em] text-gray-500 dark:text-gray-400',`\n  - `dd:'text-sm font-medium tabular-nums text-gray-700 dark:text-gray-200',`\n  - `valuePrimary:'text-sm font-semibold tabular-nums text-right text-gray-800 dark:text-white/90',`\n  - `positive:'text-mf-patrimonio dark:text-mf-tranquilidade',`\n  - `negative:'text-[#D92D20] dark:text-[#F97066]',`\n  - `groupBand:'flex items-center justify-between rounded-lg bg-mf-tranquilidade px-3 py-2 text-sm font-semibold text-white',`\n  - `totalCard:'rounded-2xl bg-gray-50 px-4 py-3.5 font-medium text-gray-800 dark:bg-white/[0.02] dark:text-gray-100',`\n  - `chip:'inline-flex min-h-9 items-center rounded-full border border-gray-200 px-3 text-sm dark:border-gray-700',`\n  - `chipActive:'border-mf-seguranca bg-mf-seguranca text-white'`\n- `} as const`. Os negativos reusam o vermelho semântico que já existe no 'Quanto falta'. Na banda de grupo, texto branco sobre #6E9DC4 dá 2,9:1: usar font-semibold de 14px, ou trocar para bg-mf-seguranca se o QA de contraste reprovar (registrado em riscos).\n- ResponsiveTable.tsx:\n  - `ResponsiveColumn<T> { id; header; cell(row,i); align?; mobile?: 'primary'|'value'|'subtitle'|'field'|'hidden'; mobileLabel?; highlight?; thClassName?; tdClassName? }`;\n  - `ResponsiveTableProps<T> { columns; rows; getRowKey; ariaLabel; onRowClick?; groupBy?: (row:T)=>{key:string;label:ReactNode;subtotal?:ReactNode}; total?: {label; cells: Partial<Record<string,ReactNode>>}; emptyState?; compact?; renderMobileCard?; strategy?: 'css'|'js' }`;\n  - desktop: `<div className=\"hidden lg:block\">` com a <table> usando exatamente TABLE_STYLES;\n  - mobile: `<ul className=\"lg:hidden flex flex-col gap-3\">` com cardHeader (primary à esquerda, value à direita), subtitle e cardGrid com até 3 'field' (os excedentes em linhas dt/dd), mais groupBand e totalCard;\n  - strategy 'js' usa useIsBelowLg da fatia 0;\n  - nenhuma tabela é migrada nesta fase.\n\n5) playwright.config.ts: chromium com `testIgnore: [/auth\\.setup\\.ts/, /mobile-.*\\.spec\\.ts/]`. Novo projeto `mobile`: `{ use:{ browserName:'chromium', storageState:'e2e/.auth/user.json', viewport:{width:390,height:844}, deviceScaleFactor:3, isMobile:true, hasTouch:true }, dependencies:['setup'], testMatch:/mobile-.*\\.spec\\.ts/ }`. O desktop-layout.spec.ts roda no chromium, sem isMobile.\n\n6) e2e/helpers/routes.ts:\n- AUTH_STATIC_ROUTES: /carteira, /fluxodecaixa, /planejamento-financeiro, /saude-financeira, /dividas, /calendario, /profile, /historico-alteracoes, /relatorios, /educacao.\n- FLAGGED_ROUTES: /conexoes-bancarias, /comunidade (pula se houver redirect ou status diferente de 200).\n- PUBLIC_ROUTES: /, /signin, /signup, /reset-password, /politica-de-privacidade, /termos-de-uso, /subprocessadores.\n- OUT_OF_SCOPE_ROUTES com o motivo de cada uma.\n- Dinâmicas resolvidas em runtime: /ativos/{id} e /editar a partir da /carteira, /educacao/{slug}; se não houver link, skip com annotation.\n- READY_SELECTOR por rota (default `main h1, main h2`).\n\n7) e2e/helpers/waitForContent.ts: `waitForContent(page, route)`:\n- goto com domcontentloaded;\n- espera o READY_SELECTOR ficar visível;\n- depois `page.waitForFunction(() => document.querySelectorAll('main .animate-pulse, main [aria-busy=\"true\"]').length === 0, null, { timeout: 30000 })`; se estourar o timeout, anexa uma annotation 'skeleton persistente' e segue;\n- depois waitForTimeout(1500) para os gráficos.\n\n8) e2e/mobile-overflow.spec.ts:\n- `const W = page.viewportSize()!.width` (390).\n- Medir `const m = await page.evaluate(() => ({ sw: document.documentElement.scrollWidth, cw: document.documentElement.clientWidth, bw: document.body.scrollWidth }))`.\n- `expect(Math.max(m.sw, m.bw)).toBeLessThanOrEqual(W)` e `expect(m.cw).toBeLessThanOrEqual(W)`. NUNCA comparar com innerWidth: com isMobile, o Chromium estica a viewport de layout até o conteúdo (verificado pelo revisor: 482 contra 390).\n- Na falha, anexar até 10 elementos com `getBoundingClientRect().right > W + 1` (tag, classes, largura).\n- `KNOWN_OVERFLOW = { '/carteira':'fase 1 — 474px (set/2026)', '/calendario':'fase 3 — FullCalendar 448px' }` + outras medidas na primeira execução, cada uma com largura e fase. Para cada rota: `test.fail(route in KNOWN_OVERFLOW, motivo)`. Quando o conserto chegar, o 'passou inesperadamente' obriga a tirar a rota da lista.\n- Antes de fechar a lista, o dev faz a prova negativa: injeta uma div de 500px numa rota OK, localmente, e confirma que o teste falha.\n- Describe separado para as PUBLIC_ROUTES com storageState vazio.\n- test.setTimeout(90000).\n\n9) e2e/desktop-layout.spec.ts (chromium), com viewports 1024x768, 1280x800 e 1440x900 em /carteira, /fluxodecaixa e /dividas:\n- aside visível;\n- `[data-mf-tabbar]` e `[data-mf-mobile-header]` com count 0 ou ocultos (passa antes e depois da B);\n- nenhum 'Abrir menu' visível;\n- left da coluna de conteúdo = largura do aside (200);\n- scrollWidth <= clientWidth;\n- um Modal aberto (Agenda) centralizado (|top-(vh-bottom)| < 40);\n- `toHaveScreenshot` do aside + main em 1280x800 para as 3 rotas, com mask nos valores de mercado. Baseline gerada em main ANTES do merge das fatias e commitada.\n\n10) globals.css: só correções GLOBAIS que o teste revelar (CSS de terceiros como .fc-toolbar ou .apexcharts sem max-width), sempre sob `@media (width < 64rem)` e sem overflow hidden.",
+        "testes": "Vitest Modal.test.tsx:\n- role=dialog e aria-modal;\n- Esc e overlay chamam onClose; clique dentro não chama;\n- showCloseButton=false esconde o X;\n- as classes do desktop continuam presentes;\n- dois Modais aninhados: fechar o de dentro mantém o body com overflow hidden (lockBodyScroll).\n\nResponsiveTable: TABLE_STYLES na tabela; cartões com primary, value, field e hidden; groupBy com subtotal; total; emptyState; onRowClick; strategy js.\n\nE2E: `npx playwright test --project=mobile` e `npx playwright test --project=chromium e2e/desktop-layout.spec.ts`, rodando com `npm run dev` já ativo (reuseExistingServer). Prova negativa documentada no PR.",
+        "criterios_aceite": [
+          "O teste de transbordo falha com um elemento de 500px injetado (prova negativa anexada ao PR)",
+          "/carteira e /calendario marcadas como falha esperada e documentadas; nenhuma outra rota transborda sem estar listada",
+          "Modais viram sheet abaixo de 1024px, com a casca oculta enquanto abertos; acima disso, idênticos",
+          "Wizards (drawer) e os 4 overlays próprios escondem a barra e o cabeçalho quando abertos",
+          "TABLE_STYLES sem diff (só adições); ResponsiveTable testado e nenhuma tabela migrada",
+          "desktop-layout.spec com screenshots passa antes e depois de todos os merges"
+        ]
+      },
+      {
+        "id": "D",
+        "titulo": "Sessão de 30 dias com renovação deslizante, revogação por sessionVersion e cookie de sessão sem 'Manter conectado'",
+        "objetivo": "Com 'Manter conectado', a sessão dura 30 dias desde o último uso, renovada em /api/auth/me com validação no banco e teto absoluto. Sem 'Manter conectado', o cookie é de sessão e não é renovado. A revogação cobre TODAS as rotas autenticadas, inclusive admin e consultor.",
+        "arquivos_novos": [
+          "src/lib/auth/session.ts",
+          "src/lib/auth/sessionVersion.ts",
+          "src/lib/auth/__tests__/session.test.ts",
+          "src/lib/auth/__tests__/sessionVersion.test.ts",
+          "prisma/migrations/20260924120000_user_session_version/migration.sql",
+          "src/app/api/profile/sessoes/route.ts",
+          "src/app/api/profile/sessoes/__tests__/route.test.ts"
+        ],
+        "arquivos_alterados": [
+          "prisma/schema.prisma",
+          "src/utils/auth.ts",
+          "src/utils/consultantAuth.ts",
+          "src/services/comunidade/membro.ts",
+          "src/app/api/auth/login/route.ts",
+          "src/app/api/auth/register/route.ts",
+          "src/app/api/auth/logout/route.ts",
+          "src/app/api/auth/me/route.ts",
+          "src/app/api/auth/totp/verify/route.ts",
+          "src/app/api/auth/totp/disable/route.ts",
+          "src/app/api/profile/route.ts",
+          "src/app/api/admin/overview/route.ts",
+          "src/app/api/dashboard/route.ts",
+          "src/app/api/pluggy/status/route.ts",
+          "src/app/api/pluggy/config/route.ts",
+          "src/app/api/comunidade/equipe/route.ts",
+          "src/app/api/comunidade/config/route.ts",
+          "src/app/api/comunidade/me/route.ts",
+          "src/app/api/notifications/route.ts",
+          "src/app/api/consultant/invitations/[inviteId]/respond/route.ts",
+          "src/components/auth/SignInForm.tsx",
+          "src/components/auth/__tests__/SignInForm.test.tsx",
+          "src/app/api/auth/__tests__/login.test.ts",
+          "src/app/api/auth/__tests__/register.test.ts",
+          "src/app/api/auth/__tests__/logout.test.ts",
+          "src/app/api/auth/__tests__/me.test.ts",
+          "src/app/api/profile/__tests__/route.test.ts",
+          "src/app/api/admin/overview/__tests__/route.test.ts",
+          "src/app/api/pluggy/status/__tests__/route.test.ts",
+          "src/app/api/notifications/__tests__/route.test.ts",
+          "src/app/api/comunidade/posts/__tests__/route.test.ts"
+        ],
+        "detalhes": "A RENOVAÇÃO FICA EM GET /api/auth/me (Node + Prisma), NÃO no middleware Edge. O Edge não acessa o banco, e renovar lá ressuscitaria sessão revogada; além disso, o middleware pertence à fatia A e fica intocado aqui.\n\n1) Schema: `sessionVersion Int @default(0)` em User. Migração: `ALTER TABLE \"User\" ADD COLUMN \"sessionVersion\" INTEGER NOT NULL DEFAULT 0;` (aditiva). Deploy com db:migrate:prod.\n\n2) session.ts (Node):\n- `SESSION_COOKIE='token'`\n- `TTL_REMEMBER_S=30*86400`\n- `TTL_SESSION_S=12*3600` (JWT de quem não marcou 'Manter conectado')\n- `ABSOLUTE_MAX_S=90*86400`\n- `ABSOLUTE_MAX_PRIVILEGED_S=30*86400` (role admin e consultant; ver pergunta)\n- `RENEW_AFTER_S=12*3600`\n- `interface SessionClaims { id; role; sv: number; rm: boolean; at: number }`\n- `signSessionToken(c)`: HS256 via jsonwebtoken, expiresIn rm ? TTL_REMEMBER_S : TTL_SESSION_S (compatível com o jose do middleware)\n- `setSessionCookie(res, token, rm)`: httpOnly, secure em produção, sameSite 'lax', path '/'. COM rm, maxAge = TTL_REMEMBER_S. SEM rm, NÃO define maxAge nem expires (cookie de sessão, sai ao fechar o navegador) e o JWT expira em 12h\n- `clearSessionCookie(res)`\n- `normalizeClaims(p)`: sv ?? 0; rm ?? (exp-iat > 86400); at ?? iat\n- `shouldRenew(c, iat, nowS)` = c.rm && nowS - iat >= RENEW_AFTER_S && nowS - c.at < (isPrivileged(c.role) ? ABSOLUTE_MAX_PRIVILEGED_S : ABSOLUTE_MAX_S). Tokens sem rm NUNCA são renovados.\n\n3) sessionVersion.ts:\n- `getSessionVersion(userId)`: `prisma.user.findUnique({where:{id},select:{sessionVersion:true}})`, com cache em Map e TTL de 60s (instância única).\n- `bumpSessionVersion(userId)`: increment, invalida o cache e devolve o novo valor.\n- `assertSessionVersion(payload)`: ApiError(401,'Sessão expirada') se o sv diverge ou o usuário não existe.\n\n4) utils/auth.ts:\n- JWTPayload ganha sv?, rm? e at?.\n- Novo `export async function requireSession(req): Promise<JWTPayload>` = requireAuth + assertSessionVersion.\n- `requireRole` e `requireAdmin` passam a ser ASYNC e usam requireSession.\n- `requireAuthWithActing` usa requireSession.\n- `requireAuth` síncrono continua exportado, marcado @deprecated, para o /me e usos internos.\n- Chamadas atualizadas (todas já estão em funções async; é só colocar `await` ou trocar o nome):\n  - admin/overview, dashboard, pluggy/status, comunidade/equipe (2x) e consultantAuth → `await requireAdmin` / `await requireRole`;\n  - comunidade/config, comunidade/me, pluggy/config, notifications (2x), consultant/invitations/[inviteId]/respond e services/comunidade/membro → `await requireSession`.\n- Nos testes dessas rotas: `vi.mock('@/lib/auth/sessionVersion', () => ({ assertSessionVersion: vi.fn().mockResolvedValue(undefined) }))`.\n\n5) login: rememberMe → rm; at=now; sv=user.sessionVersion (acrescentar ao select); signSessionToken + setSessionCookie. Remover '7d'/'1d' e o maxAge fixo.\n\n6) register: rm=true (ver pergunta), at=now, sv=0.\n\n7) me:\n- Verifica o token (requireAuth) e normaliza.\n- assertSessionVersion; se falhar, 401 + clearSessionCookie.\n- Busca o usuário como hoje.\n- Se shouldRenew, reemite com os mesmos id/role/sv/rm/at (sem atualizar `at`) e o Set-Cookie vai na resposta.\n- É GET idempotente e same-origin (SameSite=Lax), por isso fica fora do CSRF (está em /api/auth, rota pública do middleware).\n\n8) Revogação:\n- profile PATCH com newPassword, totp/verify ao ativar e totp/disable: bump + reemissão do cookie do aparelho atual com o novo sv, preservando rm e at.\n- profile DELETE: bump + clear.\n- Novo `DELETE /api/profile/sessoes` ('Sair de todos os dispositivos'): fora de /api/auth para passar pelo CSRF; faz bump + clearSessionCookie + `Clear-Site-Data: \"cache\"`. Sem UI nesta fase (pergunta).\n\n9) logout: clear + `Clear-Site-Data: \"cache\"` (NÃO usar \"storage\", que apagaria o tema, a dispensa e o SW). Continua isento de CSRF.\n\n10) SignInForm:\n- isChecked começa em `true`;\n- rótulo 'Manter conectado por 30 dias';\n- dica `text-xs text-gray-500`: 'Em aparelho compartilhado, desmarque: você sai ao fechar o navegador.' (agora verdadeira, porque é cookie de sessão).\n- SignInForm.test.tsx: o estado inicial passa a ser marcado (linhas 90-96 invertidas) e o payload esperado no submit padrão passa a ter `rememberMe: true` (linha 124), com um caso novo desmarcando.\n\n11) O cookie continua com o nome 'token'.",
+        "testes": "session.test.ts:\n- exp de 30d com rm e 12h sem rm;\n- cookie com rm tem Max-Age=2592000; sem rm, sem Max-Age nem Expires;\n- normalizeClaims com token legado;\n- shouldRenew: falso antes de 12h, verdadeiro depois; falso com rm=false; falso além de 90d (user) e de 30d (admin).\n\nsessionVersion.test.ts: cache de 60s; bump invalida; usuário inexistente → 401.\n\nme.test.ts: iat > 12h e rm → Set-Cookie preservando at; rm=false → nunca renova; sv divergente → 401 + cookie limpo.\n\nlogin: claims e Max-Age dos dois modos.\n\nprofile: senha → bump + reemissão.\n\nsessoes: DELETE bump + clear.\n\nlogout: Clear-Site-Data.\n\nadmin/overview e pluggy/status: sv divergente → 401.\n\nSignInForm atualizado.\n\n`npx vitest run src/app/api src/lib/auth src/components/auth` + `npx tsc --noEmit`.",
+        "criterios_aceite": [
+          "Com 'Manter conectado', cookie de 30 dias, renovado a cada abertura depois de 12h, até o teto de 90 dias (30 para admin e consultor)",
+          "Sem 'Manter conectado', cookie de sessão sem Max-Age, JWT de 12h e sem renovação",
+          "Trocar senha ou 2FA derruba as outras sessões em até 60s em TODAS as rotas autenticadas (inclusive admin, consultor, notificações e comunidade) e mantém o aparelho atual",
+          "Tokens emitidos antes do deploy continuam válidos",
+          "Middleware sem mudança por esta fatia; migração aditiva",
+          "Suíte Vitest verde, inclusive SignInForm.test.tsx"
+        ]
+      }
+    ],
+    "componentes_compartilhados": [
+      {
+        "nome": "Contrato CSS da casca",
+        "caminho": "src/app/globals.css (fatia 0)",
+        "api": "--mf-bottom-nav-h e --mf-header-h (0 no desktop ou fora da casca); casca oculta quando há [aria-modal=true] ou [data-mf-overlay] ou campo com foco (pointer coarse); atributos data-mf-tabbar/data-mf-mobile-header/data-mf-fab/data-mf-overlay/data-mf-sheet; tokens mf-potencia..mf-escolha; @utility pt-safe/pb-safe/px-safe/pb-nav/bottom-nav-offset/touch-target; keyframes mf-sheet-in/mf-fade-in",
+        "uso": "Todo elemento fixo ou rolável no celular; qualquer overlay novo precisa de aria-modal ou data-mf-overlay"
+      },
+      {
+        "nome": "Helpers mobile",
+        "caminho": "src/lib/ui/mobile.ts",
+        "api": "MOBILE_BREAKPOINT_PX, MOBILE_MEDIA_QUERY, TOUCH_TARGET, SAFE_AREA, FULL_HEIGHT, BOTTOM_NAV_PADDING, BOTTOM_NAV_OFFSET, TAB_BAR_HEIGHT_REM, MOBILE_HEADER_HEIGHT_REM, MF_ATTR, Z",
+        "uso": "Classes literais e nomes de contrato"
+      },
+      {
+        "nome": "lockBodyScroll",
+        "caminho": "src/lib/ui/scrollLock.ts",
+        "api": "lockBodyScroll(): () => void (contador, restaura o valor anterior)",
+        "uso": "Modal, BottomSheet e qualquer overlay futuro"
+      },
+      {
+        "nome": "useMediaQuery / useIsBelowLg",
+        "caminho": "src/hooks/useMediaQuery.ts",
+        "api": "useMediaQuery(query, serverFallback=false); useIsBelowLg()",
+        "uso": "Renderização condicional quando CSS não basta"
+      },
+      {
+        "nome": "Contrato de instalação",
+        "caminho": "src/lib/pwa/installPromptContract.ts",
+        "api": "BeforeInstallPromptEvent, Window.__mfDeferredInstallPrompt, INSTALL_EVENTS, INSTALL_STORAGE_KEYS, INSTALL_DISMISS_DAYS",
+        "uso": "swClient (A) produz; useInstallPrompt (B) consome"
+      },
+      {
+        "nome": "Modal responsivo",
+        "caminho": "src/components/ui/modal/index.tsx",
+        "api": "API inalterada { isOpen, onClose, className?, children, showCloseButton?, isFullscreen? }; abaixo de lg vira bottom sheet com role=dialog e aria-modal",
+        "uso": "Formulários modais"
+      },
+      {
+        "nome": "BottomSheet",
+        "caminho": "src/components/ui/sheet/BottomSheet.tsx",
+        "api": "<BottomSheet isOpen onClose title? ariaLabel? footer? className?> — portal, aria-modal, z 99990/99991, lg:hidden, footer com safe area",
+        "uso": "Mais, Lançar, instruções do iOS; fase 2: lançamento rápido e filtros"
+      },
+      {
+        "nome": "ResponsiveTable + TABLE_MOBILE_STYLES",
+        "caminho": "src/components/ui/table/ResponsiveTable.tsx, src/components/ui/table/tableStyles.ts",
+        "api": "ResponsiveColumn { id, header, cell, mobile?: 'primary'|'value'|'subtitle'|'field'|'hidden', mobileLabel?, highlight? }; props rows/getRowKey/ariaLabel/onRowClick/groupBy/total/emptyState/renderMobileCard/strategy; TABLE_MOBILE_STYLES { list, card, cardClickable, cardHeader, cardTitle, cardSubtitle, cardGrid, dt, dd, valuePrimary, positive, negative, groupBand, totalCard, chip, chipActive }",
+        "uso": "Fases 1 a 3 (carteira, fluxo, dívidas, histórico)"
+      },
+      {
+        "nome": "Navegação compartilhada",
+        "caminho": "src/layout/navigation.tsx",
+        "api": "useMainNavItems(), MORE_GROUPS, getMobilePageTitle, isNestedRoute, getActiveTab",
+        "uso": "AppSidebar, MobileTabBar, MoreSheet, MobileHeader"
+      },
+      {
+        "nome": "QUICK_LAUNCH_ACTIONS + evento mf:quick-launch",
+        "caminho": "src/layout/mobile/quickLaunch.ts",
+        "api": "{ id, label, description, href|null, requires, phase? }[]; /carteira?acao=novo|resgate; CustomEvent 'mf:quick-launch' {detail:id}",
+        "uso": "Ponto de extensão do + Lançar; a fase 2 liga 'fluxo'"
+      },
+      {
+        "nome": "useNotifications",
+        "caminho": "src/hooks/useNotifications.ts",
+        "api": "React Query ['notifications'] + markAsRead/respondInvite",
+        "uso": "NotificationDropdown (sidebar e cabeçalho mobile) sem fetch duplicado"
+      },
+      {
+        "nome": "useInstallPrompt + InstallAppCard",
+        "caminho": "src/hooks/useInstallPrompt.ts, src/components/pwa/InstallAppCard.tsx",
+        "api": "{ platform, canPrompt, isStandalone, promptInstall, eligibleForBanner, dismiss, dismissForever }; <InstallAppCard variant='banner'|'row' />",
+        "uso": "Convite de instalação"
+      },
+      {
+        "nome": "swClient",
+        "caminho": "src/lib/pwa/swClient.ts",
+        "api": "registerServiceWorker, unregisterAllServiceWorkers, clearAppCaches, prepareReloadForNewVersion, captureInstallPrompt, isSwEnabled",
+        "uso": "Registrar, logout, VersionWatcher; fase 5 (push)"
+      },
+      {
+        "nome": "useExitActing",
+        "caminho": "src/hooks/useExitActing.ts",
+        "api": "{ exitActing(): Promise<void>; leaving }",
+        "uso": "SidebarFooter, faixa 'Vendo como' no cabeçalho"
+      },
+      {
+        "nome": "Sessão",
+        "caminho": "src/lib/auth/session.ts, src/lib/auth/sessionVersion.ts, src/utils/auth.ts",
+        "api": "signSessionToken, setSessionCookie, clearSessionCookie, normalizeClaims, shouldRenew, bumpSessionVersion, assertSessionVersion, requireSession (async), requireRole/requireAdmin (agora async)",
+        "uso": "Toda rota que emite, verifica ou revoga sessão"
+      }
+    ],
+    "service_worker": "O service worker é o arquivo estático public/sw.js, sem Workbox e sem dependência nova. Quem registra é o ServiceWorkerRegistrar ('use client', montado no root layout), com `register('/sw.js', {scope:'/', updateViaCache:'none'})` no evento load. Só registra em produção, e existe um kill switch: `NEXT_PUBLIC_SW_ENABLED=0` desregistra tudo.\n\nCSP com nonce:\n- O registro vem de um chunk confiável, carregado sob 'strict-dynamic'. Não há script inline, então não precisa de nonce.\n- Entram de forma explícita `worker-src 'self'` e `manifest-src 'self'`, porque o 'strict-dynamic' anula o 'self' do script-src, que é o fallback de worker-src.\n- O SW não usa importScripts nem eval.\n- /sw.js, /offline.html, /manifest.webmanifest e /icons/* já são PUBLIC_FILE e já vêm com Cache-Control no-store.\n- A offline.html não tem script (nem inline nem externo), então não se recarrega sozinha: o usuário usa o botão \"Tentar de novo\".\n\nEstratégias:\n- Navegação (HTML): sempre pela rede, usando navigation preload (habilitado no activate, via event.preloadResponse) para não somar o tempo de boot do SW. Nunca é gravada em cache. Se a rede falhar, entrega /offline.html do cache mf-offline-v1.\n- Cache-first, com teto FIFO de 400 entradas e só para respostas 200 same-origin: /_next/static/** (inclui as fontes do next/font), /icons/**, /images/logo/** e arquivos .woff/.woff2.\n- Nunca interceptados: /api/**, métodos que não são GET, RSC (?_rsc), /_next/image e cross-origin.\n\nAtualização:\n- Caches versionados. O activate apaga os caches 'mf-*' que não estão na allowlist.\n- Como o HTML nunca vem do cache, um deploy comum já entrega a versão nova.\n- O VersionWatcher, ao detectar um BUILD_ID novo, chama reg.update(). Antes do reload, chama prepareReloadForNewVersion(), que apaga mf-static, manda SKIP_WAITING e espera controllerchange por até 1,5s.\n- Mudar o próprio sw.js exige subir SW_VERSION.\n\nLogout: clearAppCaches() + postMessage CLEAR_CACHES + location.replace('/signin'). A rota de logout ainda manda `Clear-Site-Data: \"cache\"`.\n\nDev: o SW não registra em desenvolvimento. O teste real é feito em `npm run build && npm start`.",
+    "sessao_30_dias": "HOJE: o token é um JWT com {id, role}, de 7 dias com rememberMe ou 1 dia sem. O cookie 'token' é httpOnly, lax e secure em produção, e sempre tem maxAge. O middleware Edge só verifica assinatura e exp. Não existe revogação.\n\nPROPOSTA (fatia D):\n1. O token ganha três claims: sv (sessionVersion), rm (rememberMe) e at (auth_time).\n   - COM \"Manter conectado por 30 dias\" (vem MARCADO por padrão): JWT de 30 dias e cookie com Max-Age de 30 dias.\n   - SEM a opção: cookie de SESSÃO (sem Max-Age nem Expires), JWT de 12h e nenhuma renovação. Fechar o navegador desloga, o que torna verdadeira a dica \"Em aparelho compartilhado, desmarque\".\n2. Renovação deslizante em GET /api/auth/me (Node + Prisma), não no middleware Edge.\n   - Condições para renovar: rm=true, iat com mais de 12h e now - at abaixo do teto (90 dias para usuário; 30 dias para admin e consultor).\n   - Reemite o token com exp de +30 dias, preservando at.\n   - Gatilhos: toda carga do app, e o AuthContext da fatia A chama de novo ao voltar para o app depois de 6h em segundo plano.\n   - Resultado: quem abre o app pelo menos uma vez a cada 30 dias não cai até atingir o teto.\n3. Revogação por User.sessionVersion (migração aditiva), com cache de 60s.\n   - Checada em TODAS as rotas autenticadas: requireSession assíncrono substitui o requireAuth síncrono em todas as chamadas, requireRole/requireAdmin viram assíncronos e requireAuthWithActing também checa.\n   - Incrementam o sv: troca de senha, ativar ou desativar o 2FA, exclusão de conta e DELETE /api/profile/sessoes. Este fica fora de /api/auth para passar pelo CSRF do middleware.\n   - O aparelho atual recebe um cookie novo com o sv atualizado.\n4. Logout: limpa o cookie, manda `Clear-Site-Data: \"cache\"` e limpa o CacheStorage no client.\n5. Compatibilidade: tokens antigos são normalizados (sv=0, rm deduzido pela duração, at=iat) e convertidos na primeira passagem por /me.\n\nSEGURANÇA:\n- CSRF: a renovação acontece só em GET same-origin; um GET cross-site no máximo prolonga a sessão da própria vítima. As mutações seguem protegidas por SameSite=Lax + double-submit.\n- Roubo de cookie: httpOnly, CSP com nonce e HSTS limitam o risco. Um token roubado vive no máximo até o teto e morre com um \"sair de todos\".\n- Admin e consultor têm teto menor.\n- Limite residual: o middleware ainda serve a casca HTML para um token revogado até o exp, mas nenhum dado sai, porque todas as APIs checam o sv.",
+    "plano_qa": "SEQUÊNCIA: a fatia 0 é mergeada primeiro. Antes de qualquer outro merge, o QA desktop gera em main as baselines de screenshot (desktop-layout.spec + capturas manuais). Depois disso, A, B, C e D são mergeadas em qualquer ordem, e a cada merge o QA roda `--project=mobile` e `--project=chromium`.\n\nQA MOBILE (iPhone com notch e iOS 17+ no Safari e no app instalado; Android Chrome; Playwright a 390x844):\n1. Instalação\n   - Android: o banner só aparece na Carteira a partir da 2ª visita. Tocar em Instalar abre o prompt nativo. O ícone deve mostrar a marca azul sobre branco, nítida e sem corte.\n   - iOS: \"Como instalar\" mostra os 3 passos. O app instalado usa o splash branco, abre em standalone e pede login de novo (esperado).\n   - \"Agora não\" esconde o banner por 30 dias; \"Não mostrar de novo\" esconde para sempre.\n   - Em aba anônima ou com storage bloqueado, o banner não aparece e nada quebra.\n   - O app instalado gira para paisagem.\n2. Casca, em todas as rotas do menu\n   - Título não coberto; header de 56px mais safe area; barra de 64px mais home indicator; último conteúdo alcançável.\n   - Aba ativa: ícone e pílula em #0079F2, rótulo em #396CAA. No escuro, os dois em #6E9DC4.\n   - Em 320px (zoom de tela), o rótulo de Planejamento aparece como \"Planejar\" e nada se sobrepõe.\n   - O sino abre para baixo e fecha ao tocar fora (iOS). O avatar e a aba Mais abrem o mesmo painel.\n   - O Mais bate com a sidebar para: usuário comum, admin, consultor personificando (com a faixa \"Vendo como\" e Sair) e flags Pluggy/Comunidade ligadas e desligadas.\n   - Seletor de ano no header do Fluxo; o Fluxo não rola duas vezes.\n   - Modo escuro com o toggle do app: theme-color acompanha e a faixa de personificação fica legível.\n3. + Lançar\n   - \"Novo investimento\" abre o wizard na Carteira, também quando já se está na Carteira.\n   - Com o wizard aberto, a barra, o cabeçalho e o FAB somem e Avançar/Salvar ficam visíveis.\n   - \"Despesa ou receita\" aparece desabilitado com o selo \"Em breve\".\n   - Resgatar abre o RedeemAssetWizard.\n4. Modais e overlays\n   - Agenda, Dívidas, Sonhos, Conexões, AddReserva, ImportPlanilha e Comentário: abrem como sheet ou tela cheia, com a casca oculta, rolagem interna e safe area.\n   - Modal aberto sobre sheet: ao fechar o modal, o fundo continua travado.\n   - Teclado aberto: a barra some. No iOS, focar um campo não dá zoom.\n   - Editar uma célula do Fluxo no iPhone e verificar que a planilha não alarga (risco da regra de 16px).\n5. Alvos de toque: tab bar, sino, avatar, X dos modais, itens do Mais e botões do banner com pelo menos 44px (DevTools).\n6. Offline: em modo avião, abre a offline.html em pt-BR e sem dados. Ao voltar a rede, \"Tentar de novo\" funciona.\n7. Atualização: fazer um deploy com o app aberto. O banner aparece acima da barra; Atualizar carrega a versão nova sem ChunkLoadError.\n8. Sessão\n   - Com \"Manter conectado\", reabrir no dia seguinte: continua logado e /me devolve Set-Cookie.\n   - Sem a opção: fechar o navegador desloga.\n   - Trocar a senha em outro aparelho: este cai em até 1 minuto.\n9. `npx playwright test --project=mobile` verde, com a prova negativa do teste de transbordo anexada ao PR da fatia C.\n\nQA DESKTOP (nada pode mudar):\n1. Comparar screenshots de antes e depois em 1024x768, 1280x800 e 1440x900: /carteira, /fluxodecaixa, /planejamento-financeiro, /dividas, /calendario, /profile e /relatorios; sidebar expandida e colapsada (hover); com Modal de Agenda aberto; com os dropdowns de notificação e de usuário abertos para cima; com o wizard de Novo investimento aberto. Só dados de mercado podem diferir.\n2. Automatizado: desktop-layout.spec.ts com toHaveScreenshot (projeto chromium, sem isMobile) + smoke-routes.\n3. Revisão de diff: toda classe nova está sob max-lg: ou num elemento lg:hidden, ou é o bottom-[calc(var(--mf-bottom-nav-h,0px)+1rem)]; toda regra CSS nova está sob @media (width < 64rem), exceto tokens, variáveis 0 e utilitários; TABLE_STYLES sem alteração.\n4. Notificações: marcar como lido continua funcionando e há um único GET /api/notifications por carga (aba Network).\n5. Favicon, título da aba, VersionWatcher e cookie banner a 1rem do rodapé.\n\nSEGURANÇA:\n1. Cache Storage em produção: só estáticos e offline.html; nenhuma URL /api e nenhum HTML depois de navegar pela Carteira e pelo Fluxo. Depois do logout, mf-static vazio e header Clear-Site-Data presente.\n2. CSP: header com worker-src 'self' e manifest-src 'self'; nenhum 'unsafe-inline' novo em script-src; console sem violação no Chrome e no Safari; offline.html sem script.\n3. Sessão:\n   - Cookie com rm: HttpOnly, Secure, SameSite=Lax, Max-Age=2592000. Cookie sem rm: sem Max-Age.\n   - Não renova além do teto (90 dias para usuário, 30 para admin).\n   - sv divergente → 401 em /me, /api/admin/overview, /api/dashboard, /api/notifications, pluggy e comunidade.\n   - DELETE /api/profile/sessoes sem header CSRF → 403.\n   - Tokens legados continuam funcionando.\n4. Celular compartilhado: logout seguido de \"voltar\" não mostra dados.\n5. /sw.js e o manifest respondem 200 sem cookie e não expõem nada autenticado.",
+    "riscos": [
+      "A fatia 0 bloqueia as outras: se atrasar, A, B, C e D atrasam. Mitigação: é pequena (meio dia) e o Dev3 faz primeiro. Mudar depois nomes de atributos data-mf-* ou das variáveis exige combinar entre as fatias",
+      "Esconder a casca por :has([aria-modal],[data-mf-overlay]) depende de todo overlay novo seguir o contrato. Um overlay futuro sem marcação fica coberto pela barra. Regra para as fases 1 a 3: overlay novo usa Modal/BottomSheet ou marca data-mf-overlay. :has exige iOS 15.4+ ou Chrome 105+; em browsers mais antigos a barra continua visível sobre os drawers",
+      "A regra de 16px nos campos, restrita ao iOS, não é exercitada pelo teste de transbordo (Chromium). A edição do Fluxo no iPhone pode alargar células (mesma classe do ticket de 15/09), por isso é checada manualmente; se alargar, marcar os inputs da planilha com data-mf-allow-zoom na fase 2",
+      "Instalado no iOS, o app tem cookies separados do Safari e pede novo login. Além disso, o iOS pode descartar o cookie de sessão (sem 'Manter conectado') quando o app instalado é encerrado, o que é o comportamento desejado para aparelho compartilhado. O Chrome com 'continuar de onde parou' restaura cookies de sessão, então a promessa 'sai ao fechar o navegador' é de melhor esforço",
+      "SW com bug pode prender usuários numa versão ruim. Mitigação: HTML nunca em cache, kill switch NEXT_PUBLIC_SW_ENABLED=0 e teste obrigatório em build de produção",
+      "O theme-color segue prefers-color-scheme na primeira pintura e só depois é sincronizado com o tema de classe (efeito na casca). Pode haver um flash na barra de status. O statusBarStyle 'default' do iOS mostra uma barra clara também no tema escuro",
+      "Na banda de grupo do cartão (texto branco sobre #6E9DC4, cerca de 2,9:1), o bold de 14px não atinge AA. Se o QA reprovar, trocar para bg-mf-seguranca. O primitivo ainda não é usado em nenhuma tela nesta fase",
+      "Tornar requireRole/requireAdmin assíncronos e migrar os requireAuth síncronos toca 11 rotas e os seus testes. Um `await` esquecido faz a checagem de papel virar uma Promise sempre verdadeira. Mitigação: tsc com no-floating-promises no lint, se disponível, e revisão focada nesses diffs",
+      "O cache de sessionVersion de 60s assume instância única (Lightsail). Com várias instâncias, a revogação atrasa até 60s por instância",
+      "Cabeçalho e barra ocupam cerca de 120px mais as safe areas. O Fluxo foi ajustado para não rolar duas vezes, mas a área útil diminui; as fases 1 e 2 precisam considerar isso. O título aparece duplicado (no header e o h1 da página) até as fases seguintes",
+      "Modal virando sheet em todos os 15 usos pode expor modais largos que transbordam dentro do sheet. Esses vão para a lista das fases 1 e 3, sem ajuste pontual",
+      "A /carteira é lenta: waitForContent tem timeout de 30s e segue com annotation se o skeleton persistir. Um skeleton eterno faria o teste medir a tela errada; a annotation deixa isso visível no relatório",
+      "CRÍTICAS ACEITAS INTEGRALMENTE: medição do transbordo, z-index e overlays, contraste, dark da faixa de personificação, + Lançar vazio, orientation, font-size global, revogação em rotas síncronas e admin, cookie sem rm, SignInForm.test, seletor de ano, divergências de design, offline sem autorecarregar, teclado, nitidez dos ícones, fetch duplicado e pointerdown, 320px e grid-cols, describe de desktop no projeto errado, altura do Fluxo e loading, trava de scroll, navigation preload",
+      "CRÍTICAS ACEITAS COM AJUSTE: (a) a sugestão de #3D98F5 para o escuro foi REJEITADA por não ser da paleta obrigatória; usa-se tranquilidade #6E9DC4 (cerca de 6,1:1 sobre #18181b); (b) os tokens de escuro do protótipo (#0C111D/#141B29) foram trocados pelo gray-900 real #18181b, e o designer deve atualizar o protótipo, mas a especificação já vale sem isso; (c) para o fetch duplicado, a opção escolhida foi o React Query compartilhado, e não desmontar o SidebarFooter com useIsBelowLg, porque desmontar ainda dispararia o fetch no primeiro commit da hidratação",
+      "ITENS DO PROTÓTIPO REJEITADOS OU ADIADOS: prop mobileVariant, rodapé fixo e arrastar a alça para fechar (fase 2, para manter a API do Modal intacta e o desktop sem risco); o + girando para × (a barra fica oculta enquanto o sheet está aberto, então o sheet tem o próprio fechar); o badge com contagem no sino (texto branco sobre #0079F2 não passa AA e mudaria o desktop; mantém-se o ponto atual); autorecarregar a offline.html (impossível com a CSP); atalhos Despesa e Receita (sem formulário até a fase 2, aparecem desabilitados)",
+      "Consultor sem personificar e Admin recebem a casca genérica. As abas aparecem só se o item existir no menu (o filtro é o mesmo), mas os fluxos deles não foram otimizados"
+    ],
+    "perguntas_para_wellington": [
+      "Teto absoluto da sessão: 90 dias para usuários e 30 dias para admin e consultor (proposta). Ok, ou preferem outros valores?",
+      "Sem 'Manter conectado', a proposta é cookie de sessão (sai ao fechar o navegador) com JWT de 12h e sem renovação. Ok? E o cadastro novo já entra com 30 dias (rm=true)?",
+      "Botão 'Sair de todos os dispositivos' no Perfil: entra já nesta fase (a API fica pronta), ou só depois?",
+      "Confirmam o comportamento do + Lançar na fase 0: 'Novo investimento' e 'Resgatar' funcionando (abrem os wizards da Carteira), e 'Despesa ou receita' visível e desabilitado com o selo 'Em breve'? Consultor personificando também vê o + quando a Carteira está permitida?",
+      "Confirmam o ícone do app com a marca azul #0079F2 sobre fundo branco (protótipo) e a barra de status branca, ou escura no tema escuro?",
+      "Título da página no cabeçalho mobile e também no h1 da página (duplicado) até as fases 1 a 3: ok?"
+    ]
+  },
+  "design": {
+    "resumo": "Atualizei o protótipo (v2) no mesmo arquivo e republiquei no mesmo link privado: https://claude.ai/artifact/MCNfVMNdoeoZ6NVsW9EMLk (versão 2). A v1 ficou salva como prototipo.v1.html. Abri a página uma vez, a 1280px e a 390px: não rola para o lado e o console não mostrou erros.\n\nContraste e modo escuro:\n- #0079F2 dá 4,19:1 sobre branco, então não passa em texto normal. Ficou só em ícone, pílula, FAB e foco. Rótulo da aba ativa, links, botão primário e badge passaram para #396CAA (5,39:1). No escuro, o texto azul virou #6E9DC4 (6,14:1).\n- O modo escuro agora usa o fundo real do app, #18181B, e não mais #0C111D/#141B29. theme-color e splash acompanharam.\n- A faixa \"Vendo como\" usa texto segurança no claro e #6E9DC4 no escuro.\n- As faixas de grupo da tabela deixaram de ter branco sobre #6E9DC4 (2,9:1): agora são tint de tranquilidade com texto segurança (8:1).\n\n+ Lançar:\n- Não tem mais atalho que repete aba. \"Novo investimento\" é real na fase 0: /carteira?acao=novo abre o AddAssetWizard. Isso exige código novo na Carteira, que ainda não lê esse parâmetro.\n- \"Despesa ou receita\" aparece desabilitado, com o selo \"Em breve\".\n\nCenários novos:\n- Wizard em tela cheia, com a casca escondida por :has([aria-modal]). Isso resolve o drawer z-[500], que ficava atrás da barra.\n- Seletor de ano do Fluxo no cabeçalho, porque o hambúrguer que dava acesso a ele saiu.\n- Teclado aberto: a barra some quando um campo tem foco.\n\nOffline sem script: \"Tentar novamente\" é um link, sem recarga automática.\n\nEspecificação: acrescentei uma tabela de decisões que consolida as 9 divergências com o arquiteto. Também corrigi a sessão, o service worker (navigationPreload), o manifest (sem orientation) e o teste de transbordo, que agora compara com 390 fixo, não com innerWidth, e espera o conteúdo carregar, não o skeleton.\n\nCríticas só de arquitetura (script de ícones, SignInForm.test, requireAdmin, contador de lockScroll, describe de desktop) entraram só como notas na especificação.",
+    "prototipo_path": "/tmp/claude-1000/-home-huske-dev-front/968db12d-cb69-47b5-933b-1a4c7a7dbc48/scratchpad/pwa-fase0/prototipo.html",
+    "telas": [
+      {
+        "nome": "Casca + Carteira",
+        "descricao": "Cabeçalho de 56px (título, sino com badge, avatar) e barra de abas de 64px (Carteira · Fluxo · + Lançar · Planejamento · Mais) sobre uma Carteira de exemplo.",
+        "decisoes": [
+          "Aba ativa: ícone e pílula em #0079F2 (gráfico, precisa de 3:1); rótulo em #396CAA no claro (5,39:1) e #6E9DC4 no escuro (6,14:1). Crítica de contraste aceita: #0079F2 dá 4,19:1 como texto.",
+          "Badge com fundo #396CAA e texto branco (5,39:1), no lugar de #0079F2.",
+          "O avatar abre o painel Mais já na parte Conta. Divergência com o arquiteto resolvida: um componente a menos, e o UserDropdown fica só no desktop.",
+          "Abaixo de lg, a AppSidebar ganha max-lg:hidden e o SidebarFooter não monta (useIsBelowLg). Assim há um só NotificationDropdown e um só fetch de /api/notifications (crítica aceita).",
+          "O Dropdown passa a usar pointerdown em vez de mousedown, para o painel do sino fechar ao tocar fora no iOS.",
+          "Rótulos das abas com truncate max-w-full e classes de grid literais, para não quebrar a 320px (crítica aceita). O rótulo 'Planejamento' foi mantido porque as abas foram decididas; a troca por 'Planejar' virou pergunta.",
+          "A barra só some em dois casos: overlay modal aberto ou campo com foco."
+        ]
+      },
+      {
+        "nome": "Painel Mais (bottom sheet)",
+        "descricao": "Grade de 3 colunas agrupada (Finanças, Organização, Aprender e conversar) mais a lista Conta (Perfil, Modo escuro, Instalar app, Sair), com os mesmos filtros do AppSidebar via useMainNavItems().",
+        "decisoes": [
+          "Faixa 'Vendo como': fundo tranquilidade a 15% com texto segurança no claro; no escuro, texto #6E9DC4 com fundo a 10% (crítica aceita). O botão Sair da faixa subiu para 44px.",
+          "Não coloquei o seletor de ano do Fluxo no Mais: ele foi para o cabeçalho, que é mais fácil de achar (sugestão preferida da própria crítica)."
+        ]
+      },
+      {
+        "nome": "+ Lançar (fase 0)",
+        "descricao": "Sheet com 'Novo investimento' funcional (/carteira?acao=novo abre o AddAssetWizard) e 'Despesa ou receita' desabilitado, com selo 'Em breve' e aria-disabled, mais a nota 'por enquanto, na aba Fluxo'.",
+        "decisoes": [
+          "Crítica aceita, opção (a): saíram os atalhos que só repetiam a aba Fluxo. /carteira?acao=novo precisa ser implementado na fase 0; a Carteira limpa o parâmetro ao abrir, para o Voltar não reabrir o wizard.",
+          "Adotei o href do arquiteto (?acao=novo) em vez de ?novo=ativo, e retirei a afirmação de que isso já existe.",
+          "/dividas (proposta do arquiteto) não entrou: seria só navegação, não um lançamento."
+        ]
+      },
+      {
+        "nome": "Novo investimento (wizard em tela cheia)",
+        "descricao": "Cenário novo. O AddAssetWizard aparece em tela cheia com cabeçalho próprio (X de 44px), progresso 'Etapa 1 de 4', lista de tipos de ativo e rodapé Voltar/Avançar com safe-area. Barra de abas e cabeçalho mobile ficam escondidos.",
+        "decisoes": [
+          "Crítica de z-index aceita. Em vez de brigar por z-index, a regra global :root:has([aria-modal=\"true\"]) esconde [data-mf-tabbar] e [data-mf-header] e zera --mf-bottom-nav-h.",
+          "ui/sidebar/Sidebar (AddAssetWizard, RedeemAssetWizard, AddInvestmentSidebar) e os overlays próprios (AddReservaModal, AddInvestmentModal, ImportPlanilhaModal, CommentModal) ganham role=dialog e aria-modal.",
+          "Critério de aceite corrigido: os 15 usos de <Modal> viram sheet; os 7 overlays acima só escondem a casca por enquanto."
+        ]
+      },
+      {
+        "nome": "Fluxo: seletor de ano",
+        "descricao": "Cenário novo. Em /fluxodecaixa aparece um <select> nativo '2026 ▾' ao lado do título no cabeçalho, com 36px visíveis dentro de 44px de toque e fonte de 16px.",
+        "decisoes": [
+          "Crítica aceita: sem o hambúrguer, o CashflowYearSelect deixaria de ser acessível no celular. O mesmo componente e o mesmo useCashflowYear são reaproveitados, com uma prop de visual compacto.",
+          "A altura da planilha passa a descontar o cabeçalho e a barra (max-lg:h-[calc(100dvh-var(--mf-bottom-nav-h)-3.5rem-env(safe-area-inset-top))]), para ficar uma rolagem só."
+        ]
+      },
+      {
+        "nome": "Teclado aberto",
+        "descricao": "Cenário novo. Uma célula do Fluxo em edição (Alimentação · Set/2026, Realizado R$ 1.642,37) com teclado simulado: a barra de abas some e o cabeçalho com o ano continua visível.",
+        "decisoes": [
+          "Crítica aceita: :root:has(:is(input,textarea,select,[contenteditable]):focus) [data-mf-tabbar]{display:none} abaixo de lg, zerando --mf-bottom-nav-h.",
+          "Ao aparecer e sumir, a barra não anima, para não pular enquanto o usuário digita."
+        ]
+      },
+      {
+        "nome": "Instalar app: Android",
+        "descricao": "Cartão segurança #314666 no topo da Carteira, com o ícone real e os botões Instalar e Agora não, mais o X.",
+        "decisoes": [
+          "Consolidado: só na Carteira, a partir da 2ª visita; some por 30 dias; 'Instalar app' fica fixo no Mais.",
+          "No escuro, o fundo continua #314666 (saiu o #1B2A40, que estava fora da paleta)."
+        ]
+      },
+      {
+        "nome": "Instalar app: iPhone",
+        "descricao": "Simulação do Safari com uma seta apontando para o Compartilhar e um sheet com os 3 passos.",
+        "decisoes": [
+          "O texto passou a dizer 'fica conectado por até 30 dias', porque com o checkbox desmarcado a sessão é mais curta."
+        ]
+      },
+      {
+        "nome": "Modal → bottom sheet",
+        "descricao": "Exemplo 'Objetivo de alocação' como sheet: alça, título, fechar de 44px, campos de 48px e os botões no fim do conteúdo.",
+        "decisoes": [
+          "Divergência resolvida a favor do arquiteto e do revisor: a API do Modal fica inalterada na fase 0, sem prop mobileVariant e sem rodapé fixo automático. O visual de sheet vem só de classes max-lg:.",
+          "Fonte de 16px nos inputs só em iOS/toque (@supports (-webkit-touch-callout:none)), para não inflar as células da planilha em tablets (crítica aceita).",
+          "A trava de rolagem usa um contador compartilhado (lockScroll/unlockScroll), para um Modal aberto de dentro de um sheet não destravar a página ao fechar."
+        ]
+      },
+      {
+        "nome": "Tabela → cartões",
+        "descricao": "Os ativos da carteira em cartões (ticker e nome, valor e rentabilidade, e a régua Qtd · Preço médio · % carteira), com faixas de grupo e subtotal, chips de filtro e de ordenação.",
+        "decisoes": [
+          "Divergência resolvida: TABLE_MOBILE_STYLES fica num objeto separado e TABLE_STYLES não muda.",
+          "Faixas de grupo em tint de tranquilidade com texto segurança (8:1). Não copiei o branco sobre #6E9DC4 da tabela do desktop, que dá 2,88:1."
+        ]
+      },
+      {
+        "nome": "Sem conexão",
+        "descricao": "/offline.html estático: logo, ícone, 'Você está sem conexão', a explicação de segurança e o link 'Tentar novamente'.",
+        "decisoes": [
+          "Crítica aceita: sem script e sem recarga automática, porque a CSP com nonce e strict-dynamic bloquearia o script. O botão agora é um link para /.",
+          "O botão usa #396CAA com texto branco (5,39:1)."
+        ]
+      },
+      {
+        "nome": "Ícone e splash",
+        "descricao": "Tela inicial com o ícone (marca outside sobre branco) e o splash com o logo completo sobre #F9FAFB (#18181B no escuro).",
+        "decisoes": [
+          "O manifest não declara orientation, então a paisagem fica liberada (crítica aceita).",
+          "background_color #F9FAFB, igual ao fundo real do body e ao theme-color.",
+          "O script dos ícones troca o width/height do SVG pelo tamanho-alvo antes de rasterizar (crítica aceita, anotada)."
+        ]
+      },
+      {
+        "nome": "Computador (inalterado)",
+        "descricao": "Miniatura de 1280px com a sidebar, o rodapé e a tabela, como hoje.",
+        "decisoes": [
+          "O teste visual de desktop vai para e2e/desktop-layout.spec.ts (projeto chromium, sem isMobile), e não para o mobile-shell (crítica aceita)."
+        ]
+      }
+    ],
+    "especificacao_visual": "BREAKPOINT: só abaixo de 1024px (max-lg / lg:hidden). O desktop fica intacto: TABLE_STYLES e a API do Modal não mudam, e a AppSidebar só ganha max-lg:hidden.\n\nMEDIDAS\n- Cabeçalho: 56px + env(safe-area-inset-top), sticky, título 20px/600 com reticências. Sino e avatar em alvos de 44x44. Em /fluxodecaixa, um select de ano com 36px de altura visível, dentro de um alvo de 44px, fonte de 16px.\n- Barra de abas: 64px + env(safe-area-inset-bottom). 5 colunas, ícone de 24px, rótulo 11px/500 com truncate max-w-full. Pílula de 52x30. Classes de grid literais.\n- + Lançar: círculo de 56px que sobe 18px, com anel de 4px da cor do fundo.\n- --mf-bottom-nav-h: 4rem + safe-area com a barra visível. Vale 0 no desktop, com overlay aria-modal aberto ou com um campo em foco. O conteúdo usa padding-bottom calc(var(--mf-bottom-nav-h) + 20px). O FAB do Assistente, o VersionWatcher e o CookieConsent ficam em bottom calc(var(--mf-bottom-nav-h) + 1rem).\n- Bottom sheet: raio 24px no topo, max-h 92dvh, alça de 36x5 numa faixa de 28px, safe-bottom + 8px.\n- Wizard (drawer) no celular: tela cheia, cabeçalho de 56px com o X de 44px, rodapé Voltar/Avançar com botões de 48px e safe-bottom.\n- Cartão de lista: raio 16px, padding 14x16, gap 12px, altura de 72px ou mais. Botões de 48px; chips de 36px com folga de 8px; gutter de 16px.\n- 100dvh com fallback. No Fluxo: max-lg:h-[calc(100dvh-var(--mf-bottom-nav-h)-3.5rem-env(safe-area-inset-top))].\n- Sem orientation no manifest.\n\nCORES (só brandColors.ts, cada uma com um papel)\n- outside #0079F2: só elementos gráficos (ícone e pílula da aba ativa, FAB, barra de progresso, anel de foco, radio selecionado). Dá 4,19:1 sobre branco, então nunca é usada como texto.\n- patrimonio #396CAA: rótulo da aba ativa, links, fundo do botão primário, badge, valor positivo e FAB pressionado.\n- seguranca #314666: cartão Instalar, avatar, chip ativo, selos 'Em breve' e botão primário pressionado. Também é o texto da faixa de grupo e da faixa 'Vendo como' no claro.\n- tranquilidade #6E9DC4: tint das faixas de grupo (18%) e da faixa do consultor (15%). No escuro, é o texto azul e o valor positivo.\n- potencia #2D2D2D: escurecimento de fundo a 45%.\n- transparencia e escolha: neutros.\n- Fundos: os cinzas do app. No claro, gray-50 #F9FAFB e cartões brancos. No escuro, o fundo REAL do body (#18181B, redefinido no globals.css), cartões white/3% ≈ #1F1F22 e bordas gray-800 #1D2939.\n- Negativo: #D92D20, ou #F97066 no escuro (semântico, está nas perguntas).\n- theme-color: #F9FAFB no claro e #18181B no escuro, em duas metas com media.\n\nTIPOGRAFIA: Outfit 400/500/600, tabular-nums em todos os números, rótulos em caixa alta com espaçamento de letras de 0,05 a 0,07em.\n\nESTADOS\n- Aba ativa: ícone outside, pílula com outside a 10%, rótulo patrimonio (#6E9DC4 no escuro), aria-current=page.\n- Pressionado: pílula a .92 por 100ms; FAB a .94 e cor #396CAA; botão primário passa de #396CAA para #314666.\n- Badge: 18px, fundo #396CAA, texto 11px/600, '9+' acima de 9.\n- Desabilitado: opacidade .62, borda tracejada, selo e aria-disabled.\n- + aberto: gira 45°.\n- Foco: contorno outside de 2px com offset de 2px.\n- Barra de abas oculta: com :root:has([aria-modal=true]) ou com :root:has(input/textarea/select/[contenteditable]:focus); nos dois casos o cabeçalho também some quando há overlay.\n\nANIMAÇÕES\n- Sheet: entra em 260ms cubic-bezier(.2,.8,.2,1) e sai em 200ms; escurecimento em 220ms; arrastar fecha após 96px.\n- Pílula: 180ms.\n- Troca de página e ocultar/mostrar a barra: sem animação.\n- prefers-reduced-motion: tudo instantâneo.\n\nOFFLINE: HTML e CSS inline, sem script; 'Tentar novamente' é um <a href=\"/\">.",
+    "acessibilidade": [
+      "<html lang=\"pt-BR\"> em src/app/layout.tsx.",
+      "Contraste medido. #0079F2 sobre branco dá 4,19:1, por isso é usado só em elementos gráficos (3:1). Texto azul: #396CAA sobre branco dá 5,39:1 e #6E9DC4 sobre #18181B dá 6,14:1. Branco sobre #396CAA dá 5,39:1 e sobre #314666 dá 9,55:1. #314666 sobre o tint de tranquilidade dá cerca de 8:1. #98A2B3 sobre #18181B dá 6,88:1.",
+      "Barra: <nav aria-label=\"Navegação principal\"> com <Link> e aria-current=\"page\". O + Lançar e o Mais têm aria-haspopup=\"dialog\" e aria-expanded. Rótulos truncados mantêm o nome completo para o leitor de tela.",
+      "Sheets, drawers e overlays próprios com role=\"dialog\", aria-modal=\"true\" e aria-labelledby. O foco vai ao título, fica preso e volta ao botão de origem. Esc fecha. Sempre há um botão Fechar visível de 44px. O aria-modal também serve de gatilho para esconder a casca.",
+      "Item desabilitado do + Lançar com aria-disabled=\"true\" e o selo 'Em breve' em texto, não só com opacidade.",
+      "Seletor de ano do Fluxo como <select> nativo com aria-label 'Ano da planilha de fluxo de caixa'.",
+      "Sino com aria-label que inclui a contagem; o badge fica aria-hidden.",
+      "Alvos de toque de 44x44 ou mais (inclusive o Sair da faixa do consultor); ações principais com 48px.",
+      "Rentabilidade sempre com sinal e seta, sem depender da cor.",
+      "Foco visível: contorno outside de 2px com offset de 2px.",
+      "prefers-reduced-motion desliga as transições e a seta do iOS.",
+      "Fonte de 16px nos inputs só em iOS/toque, contra o zoom automático, sem inflar tabelas densas em tablets."
+    ],
+    "perguntas_para_wellington": [
+      "Valores negativos e despesas: mantenho o vermelho semântico #D92D20 (o mesmo do 'Quanto falta') ou quer tudo dentro da paleta?",
+      "O azul de assinatura #0079F2 não passa no contraste AA como texto (4,19:1). Por isso, no celular, rótulos, links e botões com texto usam patrimônio #396CAA, e o #0079F2 fica nos ícones, na pílula e no botão +. Está de acordo?",
+      "O globals.css define brand-500 = #465fff, que está fora da paleta e pinta o item ativo do menu no computador. Troco isso também no desktop? Isso mudaria o visual do computador.",
+      "Ícone do app: marca azul sobre fundo branco (como no protótipo) ou marca branca sobre fundo azul?",
+      "+ Lançar na fase 0: 'Novo investimento' funcionando e 'Despesa ou receita' marcado como 'Em breve' está bom? Ou prefere deixar o + desabilitado até a fase 2?",
+      "O avatar do cabeçalho abre o painel Mais direto na parte Conta, em vez de um menu próprio. Tudo bem?",
+      "Sessão: 30 dias com renovação diária e teto de 90 dias com 'Manter conectado'. Sem ele, a sessão acaba ao fechar o navegador, ou em no máximo 12h. Admin e consultor ficam com 1 dia, sem renovar. Concorda?",
+      "Convite de instalação: só na Carteira, a partir da 2ª visita, some por 30 dias no 'Agora não'. Está bom?",
+      "A 320px (iPhone SE antigo ou zoom de tela), o rótulo 'Planejamento' corta com reticências. Aceita trocar só o rótulo da aba por 'Planejar'?",
+      "No painel Mais, o agrupamento Finanças / Organização / Aprender e conversar faz sentido, ou prefere a ordem da sidebar atual, sem grupos?"
+    ]
+  },
+  "revisao": {
+    "problemas": [
+      {
+        "alvo": "arquitetura",
+        "gravidade": "alta",
+        "descricao": "O teste de transbordo, do jeito que está especificado, passa mesmo quando a página transborda. O projeto 'mobile' usa isMobile:true, e nesse modo o Chromium aumenta a layout viewport até caber o conteúdo, então window.innerWidth cresce junto com o scrollWidth. Por isso `expect(sw).toBeLessThanOrEqual(iw)` nunca falha. Tem um efeito extra: /carteira e /calendario, marcadas com test.fail, vão 'passar inesperadamente' e derrubar a suíte, enquanto qualquer transbordo novo em outra rota passa em silêncio.",
+        "evidencia": "Teste que rodei (scratchpad/pwa-fase0/revisao-mobile.mjs), com uma div de 474px a 390px. Com isMobile:false deu {sw:482, iw:390, clientWidth:390}; com isMobile:true deu {sw:482, iw:482, clientWidth:390}. Especificação C item 6 (isMobile:true) e item 8 (`const {sw, iw} = ... window.innerWidth`).",
+        "sugestao": "Comparar com uma largura fixa (page.viewportSize().width, ou 390) ou com document.documentElement.clientWidth, nunca com innerWidth. Como o protótipo já faz, usar toBeLessThanOrEqual(390). Também esperar um seletor de conteúdo carregado, e não só load+3000ms, porque na /carteira lenta dá para medir o skeleton e o teste passa por engano."
+      },
+      {
+        "alvo": "ambos",
+        "gravidade": "alta",
+        "descricao": "A barra de abas (z-9990) e o cabeçalho sticky (z-9980) vão ficar por cima dos painéis laterais e modais próprios que usam z-index baixo. O caso mais grave é o AddAssetWizard, justamente o fluxo 'Novo investimento' que o designer liga ao + Lançar. Ele usa o drawer ui/sidebar/Sidebar em z-[500], então os botões Avançar/Salvar no rodapé ficam escondidos atrás da barra e o topo fica escondido atrás do cabeçalho. O mesmo acontece com o RedeemAssetWizard e o AddInvestmentSidebar. Além disso, o critério 'todos os modais viram bottom sheet' não se cumpre: 15 arquivos usam <Modal> (e não 12), e há overlays próprios que não passam pelo Modal.",
+        "evidencia": "src/components/ui/sidebar/Sidebar.tsx:70 e :82 (`fixed ... z-[500]`), usado por AddAssetWizard.tsx, RedeemAssetWizard.tsx e AddInvestmentSidebar.tsx. src/components/carteira/AddReservaModal.tsx:158 e AddInvestmentModal.tsx:93 (`fixed inset-0 z-50`). ImportPlanilhaModal.tsx:187 e CommentModal.tsx:89 são overlays próprios. Na especificação B, item 12: header 9980, tab bar 9990.",
+        "sugestao": "Fazer um inventário dos elementos `fixed` com z menor que 9990 e incluir na fatia C um ajuste global: esconder a barra e o cabeçalho quando houver um overlay aberto (por exemplo `:root:has([role=dialog][aria-modal=true]) [data-mf-tabbar]{display:none}`, com aria-modal nesses drawers), ou subir o Sidebar para um z acima de 9990. Corrigir o critério de aceite para listar os overlays que não são cobertos."
+      },
+      {
+        "alvo": "ambos",
+        "gravidade": "media",
+        "descricao": "A cor de assinatura #0079F2 não passa no contraste AA para texto normal: dá 4,19:1 sobre branco, e o designer afirma 4,6:1. Ela é usada nos rótulos de 11px da aba ativa, no texto branco do botão 'Instalar' (arquiteto) e no botão da offline.html. Em dark, o arquiteto mantém `text-[#0079F2]` sem variante, o que dá 4,23:1 sobre o gray-900 real do app (#18181b).",
+        "evidencia": "Contraste calculado: #0079F2/#FFFFFF = 4,19; #0079F2/#18181b = 4,23; #396CAA/#FFFFFF = 5,39; #3D98F5/#18181b = 5,91. Especificação B, item 4: 'ativa text-[#0079F2]' sem dark:. Item 11: 'botão bg-[#0079F2] text-white'. Fatia A, item 6: botão da offline.html. Designer, acessibilidade: 'outside #0079F2 sobre branco ≈ 4,6:1'.",
+        "sugestao": "Manter #0079F2 no ícone, na pílula e no FAB (elementos não textuais pedem só 3:1) e usar patrimonio #396CAA (5,39:1) no rótulo da aba e no fundo de botões com texto. Em dark, usar #6E9DC4 ou #3D98F5 (os dois acima de 5,9:1)."
+      },
+      {
+        "alvo": "ambos",
+        "gravidade": "media",
+        "descricao": "O modo escuro está quebrado em partes da casca. A faixa 'Vendo como' do arquiteto usa `text-[#314666]` sem variante dark, o que dá 1,85:1 sobre o fundo escuro. Os tokens de dark do protótipo (#0C111D/#141B29) também não são o fundo real do app, que redefine gray-900 para #18181b. O que foi validado no protótipo não vale para o app.",
+        "evidencia": "Especificação B, item 7: `bg-[#6E9DC4]/15 text-[#314666] text-xs` sem dark:. src/app/globals.css:190-191 (`.dark { --color-gray-900: #18181b; }`). No protótipo, prototipo.html:81 usa tokens de dark próprios, e a nota do designer cita #0C111D/#141B29.",
+        "sugestao": "Em dark, usar `dark:text-[#6E9DC4]` (6,1:1 sobre #18181b) e `dark:bg-[#6E9DC4]/10`. Refazer o protótipo com bg-gray-900 = #18181b e revalidar o contraste com os fundos reais."
+      },
+      {
+        "alvo": "ambos",
+        "gravidade": "media",
+        "descricao": "O '+ Lançar' da fase 0 não entrega nada e ainda promete algo. Nenhuma página lê ?lancar, ?acao ou ?novo. O designer afirma que '/carteira?novo=ativo abre o AddAssetWizard', mas isso não existe. O atalho de fluxo leva a uma página que, a 390px, mostra só Itens+Total anual. O botão mais destacado da barra vira um atalho redundante com as abas vizinhas.",
+        "evidencia": "`grep -rn \"get('novo')\\|get('acao')\\|get('lancar')\\|novo=ativo\" src` não retorna nada. Designer, tela '+ Lançar': 'Novo investimento abre /carteira?novo=ativo, que dispara o AddAssetWizard'. Arquiteto: 'Na fase 0 as páginas ignoram os query params'.",
+        "sugestao": "Escolher um dos dois: (a) na fase 0, ligar de verdade só o atalho 'Novo investimento', com /carteira lendo ?acao=novo e abrindo o wizard (depois de resolver o problema de z-index acima); ou (b) deixar o + desabilitado ou com o selo 'em breve' até a fase 2. Não publicar atalhos que só repetem as abas."
+      },
+      {
+        "alvo": "arquitetura",
+        "gravidade": "media",
+        "descricao": "Com `orientation:'portrait'` no manifest, o app instalado no Android fica travado em retrato. Isso contradiz o próprio plano de QA ('Rotação para paisagem: notch lateral') e atrapalha o Fluxo de caixa (12 meses), que é o caso de uso mais óbvio para paisagem no celular e o foco da fase 2.",
+        "evidencia": "Fatia A, item 2: `orientation 'portrait'`. plano_qa, Casca, item 2: 'Rotação para paisagem'.",
+        "sugestao": "Omitir orientation, ou usar 'any'."
+      },
+      {
+        "alvo": "arquitetura",
+        "gravidade": "media",
+        "descricao": "A regra global `input, select, textarea { font-size: max(16px,1em) }` abaixo de lg é CSS fora de layer, então vence todas as utilities do Tailwind v4 (text-xs, text-sm), que ficam em @layer utilities. Ela também vale para tablets de 768 a 1023px, que não têm o problema de zoom. Isso aumenta as células editáveis da planilha do Fluxo (DataTableTwo) e de outras tabelas densas, e pode gerar transbordo novo, o mesmo tipo de bug do ticket de 15/09 (edição do Fluxo alargava colunas).",
+        "evidencia": "Fatia C, item 1: 'Correções globais abaixo de lg: input... font-size: max(16px, 1em)'. A memória do projeto registra o ticket de 15/09 com 'input sem size=1'.",
+        "sugestao": "Restringir a regra ao iOS/toque, com `@supports (-webkit-touch-callout: none)` e/ou `@media (pointer: coarse)`, e rodar o teste de transbordo também no /fluxodecaixa com a planilha em modo de edição."
+      },
+      {
+        "alvo": "arquitetura",
+        "gravidade": "media",
+        "descricao": "A revogação por sessionVersion não cobre as rotas síncronas, entre elas o painel admin. Como o TTL passa de 7 para 30 dias, cresce a janela em que um token revogado (de admin, inclusive) continua lendo dados. A lista de riscos cita requireAuth, mas não o requireAdmin/requireRole, que é o caso mais sensível.",
+        "evidencia": "src/utils/auth.ts:30, 44 e 56 (requireAuth, requireRole e requireAdmin são síncronos, sem banco). Usados em src/app/api/admin/overview/route.ts, src/app/api/dashboard/route.ts, src/app/api/notifications/route.ts e em rotas de pluggy/comunidade.",
+        "sugestao": "Tornar requireAdmin/requireRole assíncronos com assertSessionVersion já na fatia D, ou emitir TTL curto (1d, sem deslizar para 30d) para os papéis admin e consultant."
+      },
+      {
+        "alvo": "arquitetura",
+        "gravidade": "media",
+        "descricao": "Desmarcar 'Manter conectado' continua gerando um cookie persistente de 24h (maxAge), e a proposta ainda faz ele deslizar até 90 dias. Então a dica 'Desmarque em aparelhos compartilhados' promete uma proteção que não existe: fechar o navegador não desloga, e quem usa todo dia fica logado por meses.",
+        "evidencia": "Fatia D, item 2: 'setSessionCookie ... maxAge = rm ? 30d : 1d (manter maxAge também no rm=false)'. shouldRenew não diferencia rm. Item 10: rótulo e dica.",
+        "sugestao": "Com rm=false, usar cookie de sessão (sem maxAge) e não renovar além de um teto curto (por exemplo, 12h desde `at`). Ou tirar a dica."
+      },
+      {
+        "alvo": "arquitetura",
+        "gravidade": "baixa",
+        "descricao": "A fatia D muda o padrão do checkbox, mas não lista o teste de componente que afirma o contrário. O CI quebra na fatia D.",
+        "evidencia": "src/components/auth/__tests__/SignInForm.test.tsx:90 (`expect(checkbox).not.toBeChecked()`) e :124 (`rememberMe: false`). Esse arquivo não está nos arquivos_alterados da fatia D.",
+        "sugestao": "Incluir SignInForm.test.tsx na fatia D."
+      },
+      {
+        "alvo": "design",
+        "gravidade": "media",
+        "descricao": "O painel Mais do designer não tem o seletor de ano do Fluxo de caixa. Hoje o ano só pode ser trocado pelo CashflowYearSelect, que fica dentro da sidebar. Com o hambúrguer removido, o usuário de celular perde o acesso a outros anos. A especificação do arquiteto inclui o seletor no MoreSheet, mas o protótipo não.",
+        "evidencia": "src/layout/AppSidebar.tsx:284-286 (`nav.name === 'Fluxo de Caixa' && ... <CashflowYearSelect />`). A página só lê o ano: fluxodecaixa/page.tsx:19 usa `const { year } = useCashflowYear()`. O painel Mais do protótipo tem só grupos e conta.",
+        "sugestao": "Colocar o seletor de ano no próprio cabeçalho mobile quando a rota for /fluxodecaixa, que é mais achável que o painel Mais, ou pelo menos no Mais, como o arquiteto propõe."
+      },
+      {
+        "alvo": "ambos",
+        "gravidade": "media",
+        "descricao": "Designer e arquiteto divergem em decisões que precisam estar fechadas antes de a fatia B começar. (1) O avatar abre o UserDropdown (designer) ou o MoreSheet (arquiteto). (2) Ícone: marca azul sobre branco ou marca branca sobre azul. (3) theme-color: #314666 único (arquiteto; no Android dá uma barra de status azul-marinho sobre um cabeçalho branco) ou #FFFFFF/escuro via media (designer). (4) Atalhos do Lançar: /fluxodecaixa?mes=atual e /carteira?novo=ativo, ou ?lancar=1, ?acao=novo e /dividas. (5) Dispensa do convite: 30 ou 60 dias; e se aparece a partir da 2ª visita só na Carteira, ou como banner em todas as páginas. (6) Modal: nova prop mobileVariant e rodapé fixo, ou API inalterada. (7) TABLE_STYLES.mobile (muda o objeto existente) ou TABLE_MOBILE_STYLES separado. (8) AppSidebar com max-lg:hidden, ou sem mudança de JSX.",
+        "evidencia": "Designer, telas 'Casca', 'Instalar app: Android', 'Modal → bottom sheet', 'Tabela → cartões' e 'Computador'. Arquiteto, fatia A itens 1-3, fatia B itens 7 e 9-11, fatia C itens 4-5.",
+        "sugestao": "Consolidar numa tabela de decisões com o Wellington antes de dividir o trabalho. Recomendo: theme-color claro/escuro via media (casa com o cabeçalho), convite só na Carteira, API do Modal inalterada na fase 0 e um objeto TABLE_MOBILE_STYLES separado."
+      },
+      {
+        "alvo": "design",
+        "gravidade": "media",
+        "descricao": "A offline.html do designer 'recarrega sozinha no evento online', e 'o SW também recarrega'. Isso não é possível: a CSP bloqueia script inline sem nonce, e com 'strict-dynamic' até um /offline.js externo é bloqueado, porque 'self' é ignorado. O SW não recebe o evento online da página.",
+        "evidencia": "src/middleware.ts:146 (`script-src 'self' 'nonce-${nonce}' 'strict-dynamic' ...`). /offline.html passa pelo middleware como PUBLIC_FILE e recebe essa CSP (linhas 58 e 230-235). No protótipo, prototipo.html:829: 'o SW também recarrega sozinho no evento online'.",
+        "sugestao": "Manter só o link 'Tentar novamente', sem script, como o arquiteto especificou, e tirar essa promessa da especificação visual."
+      },
+      {
+        "alvo": "ambos",
+        "gravidade": "media",
+        "descricao": "Nada trata o teclado virtual em relação à barra de abas. Com `interactiveWidget:'resizes-content'`, no Chrome Android a barra fixa sobe junto com o teclado e ocupa 64px de uma área útil já pequena ao editar campos da página, o que vai ser o caso da edição do Fluxo na fase 2. No iOS a barra fica sob o teclado, mas o `pb` fixo do conteúdo continua lá.",
+        "evidencia": "Fatia A, item 3: `interactiveWidget:'resizes-content'`. Fatia B, item 4: tab bar `fixed inset-x-0 bottom-0` sem regra de ocultação.",
+        "sugestao": "No primitivo da fatia C, esconder [data-mf-tabbar] quando houver um campo editável com foco (por exemplo `:root:has(:is(input,textarea,select,[contenteditable]):focus) [data-mf-tabbar]{display:none}` abaixo de lg) e zerar --mf-bottom-nav-h nesse estado."
+      },
+      {
+        "alvo": "arquitetura",
+        "gravidade": "baixa",
+        "descricao": "Os ícones gerados vão sair borrados. O logo-icon.svg declara width=\"32\" height=\"32\", então `sharp(svg,{density:600})` rasteriza em cerca de 266px, e o `resize({height: 410})` do ícone de 512 amplia a imagem cerca de 1,5x.",
+        "evidencia": "public/images/logo/logo-icon.svg, cabeçalho: `width=\"32\" height=\"32\" viewBox=\"0 0 1825 2465\"`. Fatia A, item 1: `sharp(Buffer.from(svg), { density: 600 }).resize({height})`.",
+        "sugestao": "No script, trocar os atributos width/height pelo tamanho-alvo antes de rasterizar, ou calcular a densidade como alvo/32*72 (cerca de 1200 ou mais para 512px)."
+      },
+      {
+        "alvo": "ambos",
+        "gravidade": "baixa",
+        "descricao": "A AppSidebar continua montada fora da tela no celular, e com ela o SidebarFooter com um segundo NotificationDropdown. Resultado: /api/notifications é buscado duas vezes a cada carga, e os estados de lido ficam separados entre as duas instâncias. Além disso, o Dropdown fecha no mousedown 'fora', mas o iOS Safari não dispara eventos de mouse ao tocar em elementos não clicáveis, então o painel do sino no cabeçalho não fecha ao tocar no conteúdo.",
+        "evidencia": "AppSidebar.tsx:354-357 (sempre renderizada, com -translate-x-full no mobile). SidebarFooter.tsx:87 (`<NotificationDropdown />`). NotificationDropdown.tsx:160-162 (fetch no mount). src/components/ui/dropdown/Dropdown.tsx (`document.addEventListener(\"mousedown\", ...)`).",
+        "sugestao": "Não renderizar o SidebarFooter abaixo de lg (useIsBelowLg), ou passar o estado para um contexto. No Dropdown, usar 'pointerdown' em vez de 'mousedown'."
+      },
+      {
+        "alvo": "arquitetura",
+        "gravidade": "baixa",
+        "descricao": "Numa tela de 320px (iPhone SE de 1ª geração, zoom de tela), cada aba tem 64px, e o rótulo 'Planejamento' em 11px ocupa cerca de 70px. Sem truncate, o texto invade as abas vizinhas. Outro ponto: `grid-cols-{n}` interpolado não é visto pelo JIT do Tailwind.",
+        "evidencia": "Fatia B, item 4: `grid h-16 grid-cols-5`, rótulo `text-[11px]`, 'o grid usa grid-cols-{n} conforme a quantidade'.",
+        "sugestao": "Usar um rótulo curto ('Planejar'), ou `truncate max-w-full`, e mapear as classes literais (`{3:'grid-cols-3',4:'grid-cols-4',5:'grid-cols-5'}`)."
+      },
+      {
+        "alvo": "arquitetura",
+        "gravidade": "baixa",
+        "descricao": "Pelo nome, o e2e/mobile-shell.spec.ts cai no testMatch do projeto 'mobile' e é ignorado pelo 'chromium'. Então o describe de desktop (1280x800) desse arquivo roda com isMobile:true e hasTouch, o que invalida a checagem de desktop.",
+        "evidencia": "Fatia C, item 6: chromium `testIgnore: [..., /mobile-.*\\.spec\\.ts/]` e mobile `testMatch: /mobile-.*\\.spec\\.ts/`. Fatia B, testes: 'Um segundo describe com viewport 1280x800'.",
+        "sugestao": "Mover a parte de desktop para o e2e/desktop-layout.spec.ts (fatia C) e deixar o mobile-shell só com o mobile."
+      },
+      {
+        "alvo": "arquitetura",
+        "gravidade": "baixa",
+        "descricao": "Algumas telas não levam em conta a nova casca e ficam com rolagem dupla ou cabeçalho duplicado no celular. O Fluxo usa altura fixa `h-[calc(100vh-60px)]` com margem negativa, sem descontar o cabeçalho (56px + safe area) e o padding da barra. Com isso sobram duas rolagens, e o fim da planilha só aparece rolando a página. O skeleton do (admin)/loading.tsx desenha o próprio 'header' de 64px embaixo do MobileHeader.",
+        "evidencia": "src/app/(admin)/(others-pages)/(tables)/fluxodecaixa/page.tsx:63. src/app/(admin)/loading.tsx:11-26 (skeleton com sidebar e header de h-16, renderizado dentro do AdminLayoutClient).",
+        "sugestao": "Na fase 0, trocar o 100vh do Fluxo por `max-lg:h-[calc(100dvh-var(--mf-bottom-nav-h)-3.5rem-env(safe-area-inset-top))]` e esconder o header e a sidebar do skeleton com `max-lg:hidden`, ou colocar os dois na lista de exceções documentada."
+      },
+      {
+        "alvo": "arquitetura",
+        "gravidade": "baixa",
+        "descricao": "Modal e BottomSheet mexem os dois em `document.body.style.overflow`. Um Modal aberto a partir de um sheet (cenário previsto no item 12 da fatia B), ao fechar, grava 'unset' e destrava a rolagem da página com o sheet ainda aberto.",
+        "evidencia": "src/components/ui/modal/index.tsx:40-50 (`document.body.style.overflow = \"unset\"`). Fatia B, item 3: 'body overflow hidden enquanto aberto'.",
+        "sugestao": "Usar um contador de travas compartilhado (lockScroll/unlockScroll em src/lib/ui/mobile.ts) pelos dois primitivos."
+      },
+      {
+        "alvo": "arquitetura",
+        "gravidade": "baixa",
+        "descricao": "O SW intercepta toda navegação com respondWith(fetch) sem navigation preload. Isso soma o tempo de boot do SW a cada abertura de página no celular, e a /carteira já é lenta.",
+        "evidencia": "Fatia A, item 5(c): `if (request.mode === 'navigate') respondWith(fetch(req).catch(...))`.",
+        "sugestao": "No activate, habilitar `self.registration.navigationPreload.enable()` e usar `event.preloadResponse` no handler de navegação."
+      }
+    ],
+    "pontos_fortes": [
+      "A análise da CSP está certa: script-src tem 'strict-dynamic' (src/middleware.ts:146), que faz o browser ignorar 'self'. Por isso o worker-src 'self' explícito é necessário, e registrar o SW a partir de um chunk dispensa nonce.",
+      "As quatro fatias realmente não têm arquivo em comum. Conferi as listas de arquivos_novos e arquivos_alterados de A, B, C e D e não há interseção. Os contratos implícitos (data-mf-tabbar, --mf-bottom-nav-h, window.__mfDeferredInstallPrompt) estão documentados.",
+      "O desenho do SW é seguro contra dado autenticado velho: HTML nunca vai para o cache, /api, RSC e /_next/image nunca são interceptados, só respostas 200 same-origin são gravadas, e o logout faz location.replace e limpa os caches. O middleware já manda no-store no HTML (middleware.ts:194-196).",
+      "A renovação deslizante fica no /me (Node + Prisma) e não no Edge, e tem teto absoluto e sessionVersion. Isso evita manter viva uma sessão revogada, e a compatibilidade com tokens legados (normalizeClaims) foi considerada.",
+      "O padrão test.fail na lista de exceções obriga a tirar a rota da lista quando ela for consertada, e evita que a lista fique desatualizada.",
+      "Uma fonte única dos filtros do menu (useMainNavItems) para a sidebar, a barra de abas e o Mais reproduz fielmente a lógica atual (AppSidebar.tsx:111-169), incluindo Pluggy após Dívidas, Comunidade, admin e allowedItems da personificação.",
+      "A constatação de que brand-500 (#465fff) está fora da paleta é verdadeira (globals.css:48) e está bem registrada. Também está correto usar Clear-Site-Data \"cache\" sem \"storage\", e fica corrigido o <html lang=\"en\">.",
+      "O arquiteto incluiu o CashflowYearSelect no MoreSheet, o que preserva o único ponto de troca de ano do Fluxo."
+    ]
+  }
+}

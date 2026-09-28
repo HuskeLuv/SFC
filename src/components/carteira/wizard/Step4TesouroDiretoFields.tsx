@@ -115,7 +115,7 @@ export default function Step4TesouroDiretoFields(props: Step4FieldsProps) {
           <h4 className="text-sm font-semibold text-blue-900 dark:text-blue-100 mb-2">
             Dados do Tesouro Transparente
           </h4>
-          <div className="grid grid-cols-2 gap-2 text-sm text-blue-700 dark:text-blue-300">
+          <div className="grid grid-cols-1 gap-2 text-sm text-blue-700 sm:grid-cols-2 dark:text-blue-300">
             {tesouroDetails.price.sellPU && (
               <div>
                 <span className="font-medium">PU Venda:</span>{' '}

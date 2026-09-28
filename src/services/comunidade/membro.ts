@@ -8,7 +8,7 @@
 import type { NextRequest } from 'next/server';
 import type { CommunityProfile, UserRole } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
-import { requireAuth } from '@/utils/auth';
+import { requireSession } from '@/utils/auth';
 import { ApiError } from '@/utils/apiErrorHandler';
 import { canAccess } from '@/utils/accessLevel';
 import { comunidadeHabilitada } from '@/lib/comunidadeConfig';
@@ -33,7 +33,7 @@ export function exigirComunidadeHabilitada(): void {
 /** Autenticado + dentro da trava de acesso. Perfil pode não existir (termo pendente). */
 export async function exigirAcesso(request: NextRequest): Promise<Membro> {
   exigirComunidadeHabilitada();
-  const payload = requireAuth(request);
+  const payload = await requireSession(request);
   const user = await prisma.user.findUnique({
     where: { id: payload.id },
     select: {

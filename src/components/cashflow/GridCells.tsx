@@ -13,6 +13,9 @@ import { GRID } from './cashflowGridStyles';
  * (item, edição, nova, grupo, resumo, cabeçalho) monta-se com estas peças —
  * o boilerplate de `position: sticky` das colunas fixas vive só aqui.
  *
+ * Atributos `data-cf-fixed` / `data-cf-month` / `data-cf-current` / `data-cf-annual`: só marcam a
+ * coluna para o CSS da grade do ano no celular (`[data-mf-year-grid]` em globals.css, PWA fase 2).
+ *
  * Fundo: célula sticky precisa de fundo OPACO (senão o conteúdo rolado aparece
  * por baixo). Passe-o em `className` (ex.: `GRID.rowBg`, `SECTION_CLASS[1]`).
  */
@@ -55,6 +58,7 @@ export const FixedCell: React.FC<FixedCellProps> = ({
       }}
       title={title}
       colSpan={colSpan}
+      data-cf-fixed={col}
     >
       {children}
     </TableCell>
@@ -81,6 +85,8 @@ export const MonthCell: React.FC<MonthCellProps> = ({
   <TableCell
     className={`${GRID.month} ${GRID.cell} ${index === currentMonth ? GRID.currentMonth : ''} ${className}`}
     style={style}
+    data-cf-month={index}
+    data-cf-current={index === currentMonth ? '' : undefined}
   >
     {children}
   </TableCell>
@@ -110,6 +116,7 @@ export const AnnualCell: React.FC<AnnualCellProps> = ({
       ...(isHeader ? ANNUAL_COLUMN_HEADER_STYLE : ANNUAL_COLUMN_BODY_STYLE),
       ...style,
     }}
+    data-cf-annual=""
   >
     {children}
   </TableCell>

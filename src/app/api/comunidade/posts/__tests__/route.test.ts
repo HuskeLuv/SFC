@@ -9,15 +9,15 @@ const mockPrisma = vi.hoisted(() => ({
   communityComment: { count: vi.fn() },
 }));
 
-const mockRequireAuth = vi.hoisted(() =>
-  vi.fn().mockReturnValue({
+const mockRequireSession = vi.hoisted(() =>
+  vi.fn().mockResolvedValue({
     id: '11111111-1111-4111-8111-111111111111',
     email: 'u@t.com',
     role: 'user',
   }),
 );
 
-vi.mock('@/utils/auth', () => ({ requireAuth: mockRequireAuth }));
+vi.mock('@/utils/auth', () => ({ requireSession: mockRequireSession }));
 vi.mock('@/lib/prisma', () => ({ prisma: mockPrisma, default: mockPrisma }));
 
 import { GET, POST } from '../route';

@@ -3,6 +3,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import dynamic from 'next/dynamic';
 import Link from 'next/link';
+import type { CalendarApi } from '@fullcalendar/core';
 import LoadingSpinner from '@/components/common/LoadingSpinner';
 import { useTheme } from '@/context/ThemeContext';
 import { useAuthOptional } from '@/context/AuthContext';
@@ -18,7 +19,14 @@ import {
 } from '@/hooks/useAgenda';
 import AgendaEventoModal, { FORM_VAZIO, type EventoFormValores } from './AgendaEventoModal';
 import AgendaDetalheModal from './AgendaDetalheModal';
-import AgendaPainel from './AgendaPainel';
+import AgendaPainel, { CardResumo } from './AgendaPainel';
+import AgendaMobileHeader, { AGENDA_LISTA_QUERY } from './mobile/AgendaMobileHeader';
+import AgendaFiltrosSheet from './mobile/AgendaFiltrosSheet';
+import { resumoDoPeriodo } from './agendaResumo';
+import { MobileCollapsible } from '@/components/ui/mobile/MobileCollapsible';
+import { useResponsiveConfirm } from '@/components/ui/sheet/useResponsiveConfirm';
+import { useMediaQuery } from '@/hooks/useMediaQuery';
+import { formatBRL } from '@/utils/format';
 import {
   TIPOS_DISPONIVEIS,
   TIPOS_META,
@@ -64,6 +72,11 @@ function formDoEvento(e: EventoAgenda): EventoFormValores {
  * proventos, renda fixa, IR, planejamento, mercado) + eventos do usuário, com
  * filtros por tipo, painel lateral (resumo do período + próximos 30 dias),
  * criação/edição com histórico e detalhe com atalho para a tela de origem.
+ *
+ * PWA fase 3: abaixo de 768px (decisão do Wellington; de 768 a 1023 fica a grade) a Agenda é a
+ * lista do mês com cabeçalho próprio (AgendaMobileHeader: ‹ mês ›, Hoje, Filtros, + Novo), o
+ * resumo do período recolhível acima, os tipos num sheet (AgendaFiltrosSheet) e sem o painel
+ * lateral. Excluir evento confirma em sheet abaixo de lg. Desktop igual.
  */
 export default function Calendar() {
   const { theme } = useTheme();
@@ -74,6 +87,11 @@ export default function Calendar() {
   const [tipos, setTipos] = useState<Set<TipoEvento>>(() => tiposPadrao());
   const [modal, setModal] = useState<ModalEstado>(null);
   const [erroMutacao, setErroMutacao] = useState<string | null>(null);
+  const lista = useMediaQuery(AGENDA_LISTA_QUERY);
+  const [calendarApi, setCalendarApi] = useState<CalendarApi | null>(null);
+  const [cabecalho, setCabecalho] = useState({ titulo: '', contemHoje: true });
+  const [filtrosAbertos, setFiltrosAbertos] = useState(false);
+  const { confirmAndRun, confirmSheet } = useResponsiveConfirm();
 
   // localStorage só no cliente, depois da hidratação (evita mismatch).
   useEffect(() => {
@@ -154,11 +172,74 @@ export default function Calendar() {
       .catch((e: Error) => setErroMutacao(e.message));
   }, [modal, excluir, fechar]);
 
+  // Celular (abaixo de lg): a confirmação sai do modal (que fica por cima de qualquer sheet) e vem
+  // em sheet; cancelar reabre a edição como estava.
+  const pedirExclusao = useCallback(() => {
+    if (!modal || modal.modo !== 'editar') return;
+    const atual = modal;
+    setModal(null);
+    setErroMutacao(null);
+    void confirmAndRun(
+      {
+        title: 'Excluir este evento?',
+        message: atual.inicial.titulo ? `"${atual.inicial.titulo}" some da Agenda.` : undefined,
+        confirmLabel: 'Excluir',
+        danger: true,
+        busyLabel: 'Excluindo…',
+      },
+      async () => {
+        await excluir.mutateAsync(atual.eventoId);
+      },
+    ).then((ok) => {
+      if (!ok) setModal(atual);
+    });
+  }, [modal, confirmAndRun, excluir]);
+
   const fontesComErro = agenda.data?.fontesComErro ?? [];
+  const ocultos = TIPOS_DISPONIVEIS.filter((t) => !tipos.has(t)).length;
+  const resumoMobile = useMemo(
+    () => (lista ? resumoDoPeriodo(eventos, tipos) : null),
+    [lista, eventos, tipos],
+  );
 
   return (
-    <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_280px]">
-      <div className="relative rounded-2xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-white/[0.03]">
+    <div className="grid grid-cols-1 gap-5 max-md:gap-3 lg:grid-cols-[minmax(0,1fr)_280px]">
+      {lista ? (
+        <>
+          <AgendaMobileHeader
+            api={calendarApi}
+            titulo={cabecalho.titulo}
+            contemHoje={cabecalho.contemHoje}
+            ocultos={ocultos}
+            totalEventos={eventosFc.length}
+            podeCriar={podeEscrever}
+            onNovo={() => abrirNovo()}
+            onFiltros={() => setFiltrosAbertos(true)}
+          />
+          {podeEscrever ? null : (
+            <p
+              data-mf-mobile=""
+              className="rounded-xl bg-gray-100 px-3 py-2 text-xs text-gray-600 dark:bg-white/[0.04] dark:text-gray-300"
+            >
+              Você está vendo a agenda do cliente. Só o cliente cria e edita eventos.
+            </p>
+          )}
+          <div data-mf-mobile="">
+            <MobileCollapsible
+              id="agenda-resumo-periodo"
+              title="Resumo do período"
+              summary={
+                resumoMobile && resumoMobile.aPagar.itens > 0
+                  ? `${formatBRL(resumoMobile.aPagar.total)} a pagar`
+                  : 'nada a pagar'
+              }
+            >
+              <CardResumo eventos={eventos} tipos={tipos} theme={theme} semTitulo />
+            </MobileCollapsible>
+          </div>
+        </>
+      ) : null}
+      <div className="relative rounded-2xl border border-gray-200 bg-white p-4 max-md:border-0 max-md:bg-transparent max-md:p-0 dark:border-gray-800 dark:bg-white/[0.03] dark:max-md:bg-transparent">
         {agenda.isError && (
           <div
             role="alert"
@@ -196,66 +277,83 @@ export default function Calendar() {
           onSelecionarDia={abrirNovo}
           onClicarEvento={abrirEvento}
           onNovo={() => abrirNovo()}
+          lista={lista}
+          onApi={setCalendarApi}
+          onTitulo={setCabecalho}
         />
       </div>
 
-      <aside className="space-y-4">
-        <div className="rounded-2xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-white/[0.03]">
-          <h3 className="mb-3 text-sm font-semibold text-gray-800 dark:text-white/90">Mostrar</h3>
-          <ul className="space-y-2">
-            {TIPOS_META.map((m) => {
-              const disponivel = TIPOS_DISPONIVEIS.includes(m.tipo);
-              const n = contagem.get(m.tipo) ?? 0;
-              return (
-                <li key={m.tipo}>
-                  <label
-                    className={`flex cursor-pointer items-start gap-2 text-sm ${disponivel ? 'text-gray-700 dark:text-gray-200' : 'text-gray-400 dark:text-gray-500'}`}
-                    title={m.descricao}
-                  >
-                    <input
-                      type="checkbox"
-                      className="mt-0.5 h-4 w-4 rounded border-gray-300"
-                      checked={tipos.has(m.tipo)}
-                      disabled={!disponivel}
-                      onChange={() => alternarTipo(m.tipo)}
-                      aria-label={m.label}
-                    />
-                    <span
-                      className="mt-1 h-3 w-3 shrink-0 rounded-sm"
-                      style={{ backgroundColor: corDoTipo(m.tipo, theme) }}
-                    />
-                    <span className="flex-1 leading-snug">
-                      {m.label}
-                      {disponivel && n > 0 ? (
-                        <span className="ml-1 text-xs text-gray-400">({n})</span>
-                      ) : null}
-                      {!disponivel ? <span className="ml-1 text-xs">em breve</span> : null}
-                    </span>
-                  </label>
-                </li>
-              );
-            })}
-          </ul>
-        </div>
-        <AgendaPainel eventos={eventos} tipos={tipos} theme={theme} onSelecionar={abrirEvento} />
-        <div className="rounded-2xl border border-gray-200 bg-white p-4 text-xs text-gray-500 dark:border-gray-800 dark:bg-white/[0.03] dark:text-gray-400">
-          {podeEscrever ? (
-            <p>
-              Clique num dia para anotar um evento. Parcelas, proventos e vencimentos vêm das telas
-              de Dívidas e Carteira e não podem ser editados aqui.
+      {lista ? (
+        <p data-mf-mobile="" className="px-1 text-xs text-gray-500 dark:text-gray-400">
+          Parcelas, proventos e vencimentos vêm das telas de Dívidas e Carteira e não podem ser
+          editados aqui. Eventos criados ou alterados ficam no{' '}
+          <Link
+            href="/historico-alteracoes"
+            className="text-mf-patrimonio underline dark:text-mf-tranquilidade"
+          >
+            Histórico
+          </Link>
+          , com Desfazer.
+        </p>
+      ) : (
+        <aside className="space-y-4">
+          <div className="rounded-2xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-white/[0.03]">
+            <h3 className="mb-3 text-sm font-semibold text-gray-800 dark:text-white/90">Mostrar</h3>
+            <ul className="space-y-2">
+              {TIPOS_META.map((m) => {
+                const disponivel = TIPOS_DISPONIVEIS.includes(m.tipo);
+                const n = contagem.get(m.tipo) ?? 0;
+                return (
+                  <li key={m.tipo}>
+                    <label
+                      className={`flex cursor-pointer items-start gap-2 text-sm ${disponivel ? 'text-gray-700 dark:text-gray-200' : 'text-gray-400 dark:text-gray-500'}`}
+                      title={m.descricao}
+                    >
+                      <input
+                        type="checkbox"
+                        className="mt-0.5 h-4 w-4 rounded border-gray-300"
+                        checked={tipos.has(m.tipo)}
+                        disabled={!disponivel}
+                        onChange={() => alternarTipo(m.tipo)}
+                        aria-label={m.label}
+                      />
+                      <span
+                        className="mt-1 h-3 w-3 shrink-0 rounded-sm"
+                        style={{ backgroundColor: corDoTipo(m.tipo, theme) }}
+                      />
+                      <span className="flex-1 leading-snug">
+                        {m.label}
+                        {disponivel && n > 0 ? (
+                          <span className="ml-1 text-xs text-gray-400">({n})</span>
+                        ) : null}
+                        {!disponivel ? <span className="ml-1 text-xs">em breve</span> : null}
+                      </span>
+                    </label>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+          <AgendaPainel eventos={eventos} tipos={tipos} theme={theme} onSelecionar={abrirEvento} />
+          <div className="rounded-2xl border border-gray-200 bg-white p-4 text-xs text-gray-500 dark:border-gray-800 dark:bg-white/[0.03] dark:text-gray-400">
+            {podeEscrever ? (
+              <p>
+                Clique num dia para anotar um evento. Parcelas, proventos e vencimentos vêm das
+                telas de Dívidas e Carteira e não podem ser editados aqui.
+              </p>
+            ) : (
+              <p>Você está vendo a agenda do cliente. Só o cliente cria e edita eventos.</p>
+            )}
+            <p className="mt-2">
+              Eventos criados ou alterados ficam no{' '}
+              <Link href="/historico-alteracoes" className="text-brand-500 underline">
+                Histórico
+              </Link>
+              , com Desfazer.
             </p>
-          ) : (
-            <p>Você está vendo a agenda do cliente. Só o cliente cria e edita eventos.</p>
-          )}
-          <p className="mt-2">
-            Eventos criados ou alterados ficam no{' '}
-            <Link href="/historico-alteracoes" className="text-brand-500 underline">
-              Histórico
-            </Link>
-            , com Desfazer.
-          </p>
-        </div>
-      </aside>
+          </div>
+        </aside>
+      )}
 
       {modal && modal.modo !== 'detalhe' && (
         <AgendaEventoModal
@@ -267,6 +365,7 @@ export default function Calendar() {
           onClose={fechar}
           onSalvar={salvar}
           onExcluir={modal.modo === 'editar' ? excluirAtual : undefined}
+          onPedirExclusao={modal.modo === 'editar' ? pedirExclusao : undefined}
         />
       )}
       {modal && modal.modo === 'detalhe' && (
@@ -278,6 +377,18 @@ export default function Calendar() {
           onEditar={abrirEdicao}
         />
       )}
+      {lista ? (
+        <AgendaFiltrosSheet
+          isOpen={filtrosAbertos}
+          onClose={() => setFiltrosAbertos(false)}
+          tipos={tipos}
+          contagem={contagem}
+          theme={theme}
+          onAlternar={alternarTipo}
+          totalVisiveis={eventosFc.length}
+        />
+      ) : null}
+      {confirmSheet}
     </div>
   );
 }

@@ -299,6 +299,13 @@ describe('Middleware', () => {
       expect(res.headers.get('x-middleware-request-content-security-policy')).toBe(csp);
     });
 
+    it('CSP libera o service worker e o manifest do próprio domínio (PWA)', async () => {
+      const res = await middleware(createRequest('/signin'));
+      const csp = res.headers.get('Content-Security-Policy')!;
+      expect(csp).toContain("worker-src 'self'");
+      expect(csp).toContain("manifest-src 'self'");
+    });
+
     it('nonce é diferente a cada request', async () => {
       const a = (await middleware(createRequest('/signin'))).headers.get(
         'x-middleware-request-x-nonce',

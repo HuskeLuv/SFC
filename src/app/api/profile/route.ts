@@ -8,6 +8,8 @@ import { passwordPolicy, validationError } from '@/utils/validation-schemas';
 import { BCRYPT_ROUNDS } from '@/utils/passwordHashing';
 import { recordChange, diffFields, PERFIL_FIELD_LABELS } from '@/services/changeHistory';
 import type { JWTPayload } from '@/utils/auth';
+import { bumpSessionVersion } from '@/lib/auth/sessionVersion';
+import { clearSessionCookie, issueSession, normalizeClaims } from '@/lib/auth/session';
 
 // Perfil é sempre self-edit (ignora impersonation) — o histórico registra
 // payload.id como dono e ator.
@@ -137,13 +139,20 @@ export const PATCH = withErrorHandler(async (req: NextRequest) => {
     });
   }
 
-  return NextResponse.json({
+  const response = NextResponse.json({
     id: updated.id,
     email: updated.email,
     name: updated.name,
     avatarUrl: updated.avatarUrl,
     role: updated.role,
   });
+  if (newPassword) {
+    // Troca de senha derruba as outras sessões; este aparelho recebe um token
+    // novo com o sessionVersion atualizado (mesmos rm e at).
+    const sv = await bumpSessionVersion(me.id);
+    issueSession(response, { ...normalizeClaims(payload), sv });
+  }
+  return response;
 });
 
 /**
@@ -206,14 +215,9 @@ export const DELETE = withErrorHandler(async (req: NextRequest) => {
   // eliminado junto com a anonimização (Art. 18, IV).
   await prisma.userChangeLog.deleteMany({ where: { userId: me.id } });
 
-  // Limpa o cookie de auth da resposta.
+  // Derruba todas as sessões e limpa o cookie de auth da resposta.
+  await bumpSessionVersion(me.id);
   const response = NextResponse.json({ success: true });
-  response.cookies.set('token', '', {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'lax',
-    maxAge: 0,
-    path: '/',
-  });
+  clearSessionCookie(response);
   return response;
 });

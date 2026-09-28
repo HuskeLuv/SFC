@@ -1,5 +1,6 @@
 import { logger } from '@/lib/logger';
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useMemo } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import MetricCard from './shared/MetricCard';
 import { formatPct, formatPctSigned } from '@/utils/format';
 
@@ -58,39 +59,25 @@ type MarketIndicatorsCardsProps = {
 };
 
 export default function MarketIndicatorsCards({ extraCards }: MarketIndicatorsCardsProps) {
-  const [data, setData] = useState<IndicatorsResponse | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    let isMounted = true;
-    const fetchIndicators = async () => {
+  // React Query (PWA fase 1): volta ao Resumo sem refazer a busca por 5 min. A normalização e o
+  // "--" em falha continuam os mesmos (erro vira data null).
+  const { data = null, isLoading: loading } = useQuery<IndicatorsResponse | null>({
+    queryKey: ['analises', 'indicadores'],
+    staleTime: 300_000,
+    retry: false,
+    queryFn: async () => {
       try {
-        setLoading(true);
         const response = await fetch('/api/analises/indicadores');
         if (!response.ok) {
           throw new Error('Erro ao buscar indicadores');
         }
-        const result = (await response.json()) as IndicatorsResponse;
-        if (isMounted) {
-          setData(result);
-        }
+        return (await response.json()) as IndicatorsResponse;
       } catch (error) {
         logger.error(error);
-        if (isMounted) {
-          setData(null);
-        }
-      } finally {
-        if (isMounted) {
-          setLoading(false);
-        }
+        return null;
       }
-    };
-
-    void fetchIndicators();
-    return () => {
-      isMounted = false;
-    };
-  }, []);
+    },
+  });
 
   const cards = useMemo(() => {
     const indicators = data?.indicators;
@@ -140,7 +127,7 @@ export default function MarketIndicatorsCards({ extraCards }: MarketIndicatorsCa
   const gridColsClass = totalCards > 4 ? 'md:grid-cols-5' : 'md:grid-cols-4';
 
   return (
-    <div className={`grid grid-cols-2 gap-4 ${gridColsClass}`}>
+    <div className={`grid grid-cols-2 gap-4 max-lg:gap-3 ${gridColsClass}`}>
       {extraCards}
       {cards.map((card) => (
         <MetricCard

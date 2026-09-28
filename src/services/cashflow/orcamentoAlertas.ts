@@ -3,6 +3,7 @@ import { logger } from '@/lib/logger';
 import type { CashflowGroup } from '@/types/cashflow';
 import { getMergedCashflowGroups } from './getCashflowTree';
 import { buildOrcamentoVsReal } from './orcamentoVsReal';
+import { rankDoConsumo } from '@/lib/cashflow/orcamentoNivel';
 
 /**
  * Alertas de orçamento (ticket 20/08/2026): notificação in-app quando o
@@ -27,9 +28,6 @@ import { buildOrcamentoVsReal } from './orcamentoVsReal';
  */
 
 export const ORCAMENTO_ALERTA_TYPE = 'orcamento_alerta';
-
-/** Tolerância para comparações com valores já arredondados a 2 casas. */
-const EPS = 0.005;
 
 const MES_NOME = [
   'janeiro',
@@ -63,14 +61,9 @@ const NIVEL_POR_RANK: Record<number, OrcamentoAlertaNivel> = {
   3: 'estourado',
 };
 
-/** Rank do nível de consumo (0 = sem alerta). */
-export const rankDoConsumo = (real: number, meta: number): number => {
-  if (!(meta > 0)) return 0;
-  if (real - meta > EPS) return 3;
-  if (real >= meta - EPS) return 2;
-  if (real >= meta * 0.8 - EPS) return 1;
-  return 0;
-};
+// Rank do nível de consumo (0 = sem alerta): movido para a lib isomórfica, compartilhada com o
+// Orçamento no celular (PWA fase 2). Re-exportado aqui sem mudança de comportamento.
+export { rankDoConsumo };
 
 const tituloEMensagem = (
   rank: number,

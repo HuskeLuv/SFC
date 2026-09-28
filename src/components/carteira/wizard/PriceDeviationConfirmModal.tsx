@@ -89,11 +89,16 @@ export default function PriceDeviationConfirmModal({
           </div>
         </div>
 
-        <div className="mt-6 flex gap-3">
-          <Button type="button" variant="outline" className="flex-1" onClick={onCancel}>
+        <div className="mt-6 flex gap-3 max-[359px]:flex-col">
+          <Button
+            type="button"
+            variant="outline"
+            className="flex-1 max-lg:min-h-12"
+            onClick={onCancel}
+          >
             Voltar e corrigir
           </Button>
-          <Button type="button" className="flex-1" onClick={onConfirm}>
+          <Button type="button" className="flex-1 max-lg:min-h-12" onClick={onConfirm}>
             Confirmar mesmo assim
           </Button>
         </div>

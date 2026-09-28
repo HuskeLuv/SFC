@@ -6,6 +6,8 @@ import {
   TABLE_HEADER_STYLE,
   TABLE_SECTION_STYLE,
 } from '@/components/ui/table/tableStyles';
+import { useIsBelowLg } from '@/hooks/useMediaQuery';
+import PosicaoConsolidadaCards from './mobile/PosicaoConsolidadaCards';
 
 /**
  * Posição Consolidada do relatório (ticket 20/08/2026, formato Gorila):
@@ -27,6 +29,7 @@ const pctOf = (v: number, total: number): string =>
     : '—';
 
 export default function PosicaoConsolidada({ secoes }: { secoes: PosicaoSecao[] }) {
+  const isBelowLg = useIsBelowLg();
   const totalGeral = secoes.reduce(
     (sum, secao) => sum + secao.ativos.reduce((s, a) => s + a.valorAtual, 0),
     0,
@@ -41,35 +44,42 @@ export default function PosicaoConsolidada({ secoes }: { secoes: PosicaoSecao[] 
   }
 
   return (
-    <div className={TABLE_STYLES.wrapper}>
-      <table className={TABLE_STYLES.table}>
-        <thead>
-          <tr className={TABLE_STYLES.headRow} style={TABLE_HEADER_STYLE}>
-            <th className={`${TABLE_STYLES.th} text-left`}>Ativo</th>
-            <th className={`${TABLE_STYLES.th} text-right`}>Valor Atual</th>
-            <th className={`${TABLE_STYLES.th} text-right`}>% da Carteira</th>
-          </tr>
-        </thead>
-        <tbody>
-          {secoes.map((secao) => {
-            const subtotal = secao.ativos.reduce((s, a) => s + a.valorAtual, 0);
-            return (
-              <SecaoRows
-                key={secao.categoria}
-                secao={secao}
-                subtotal={subtotal}
-                totalGeral={totalGeral}
-              />
-            );
-          })}
-          <tr className={`${TABLE_STYLES.totalRow} font-semibold`}>
-            <td className={`${TABLE_STYLES.td} font-semibold`}>Total Geral</td>
-            <td className={`${TABLE_STYLES.td} text-right font-semibold`}>{brl(totalGeral)}</td>
-            <td className={`${TABLE_STYLES.td} text-right font-semibold`}>100%</td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
+    <>
+      {isBelowLg ? (
+        <div className="hidden mscreen:block">
+          <PosicaoConsolidadaCards secoes={secoes} totalGeral={totalGeral} />
+        </div>
+      ) : null}
+      <div className={`${TABLE_STYLES.wrapper}${isBelowLg ? ' mscreen:hidden' : ''}`}>
+        <table className={TABLE_STYLES.table}>
+          <thead>
+            <tr className={TABLE_STYLES.headRow} style={TABLE_HEADER_STYLE}>
+              <th className={`${TABLE_STYLES.th} text-left`}>Ativo</th>
+              <th className={`${TABLE_STYLES.th} text-right`}>Valor Atual</th>
+              <th className={`${TABLE_STYLES.th} text-right`}>% da Carteira</th>
+            </tr>
+          </thead>
+          <tbody>
+            {secoes.map((secao) => {
+              const subtotal = secao.ativos.reduce((s, a) => s + a.valorAtual, 0);
+              return (
+                <SecaoRows
+                  key={secao.categoria}
+                  secao={secao}
+                  subtotal={subtotal}
+                  totalGeral={totalGeral}
+                />
+              );
+            })}
+            <tr className={`${TABLE_STYLES.totalRow} font-semibold`}>
+              <td className={`${TABLE_STYLES.td} font-semibold`}>Total Geral</td>
+              <td className={`${TABLE_STYLES.td} text-right font-semibold`}>{brl(totalGeral)}</td>
+              <td className={`${TABLE_STYLES.td} text-right font-semibold`}>100%</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </>
   );
 }
 

@@ -1,0 +1,79 @@
+{
+ "tabs": [],
+ "tables": [
+  {
+   "ths": [
+    "dom.seg.ter.qua.qui.sex.sáb.",
+    "dom.",
+    "seg.",
+    "ter.",
+    "qua.",
+    "qui.",
+    "sex.",
+    "sáb."
+   ],
+   "colCount": 7,
+   "theadClass": "",
+   "thClasses": [
+    "",
+    "fc-col-header-cell fc-day fc-day-fri",
+    "fc-col-header-cell fc-day fc-day-mon",
+    "fc-col-header-cell fc-day fc-day-sat",
+    "fc-col-header-cell fc-day fc-day-sun",
+    "fc-col-header-cell fc-day fc-day-thu",
+    "fc-col-header-cell fc-day fc-day-tue",
+    "fc-col-header-cell fc-day fc-day-wed"
+   ],
+   "trClasses": [],
+   "tdClasses": []
+  },
+  {
+   "ths": [
+    "dom.",
+    "seg.",
+    "ter.",
+    "qua.",
+    "qui.",
+    "sex.",
+    "sáb."
+   ],
+   "colCount": 7,
+   "theadClass": "",
+   "thClasses": [
+    "fc-col-header-cell fc-day fc-day-fri",
+    "fc-col-header-cell fc-day fc-day-mon",
+    "fc-col-header-cell fc-day fc-day-sat",
+    "fc-col-header-cell fc-day fc-day-sun",
+    "fc-col-header-cell fc-day fc-day-thu",
+    "fc-col-header-cell fc-day fc-day-tue",
+    "fc-col-header-cell fc-day fc-day-wed"
+   ],
+   "trClasses": [],
+   "tdClasses": []
+  }
+ ],
+ "mobileArtifactsVisible": 0,
+ "controls": [
+  "a|||dark:text-gray-400 gap-1.5 inline-flex items-center text-gray-500 text-sm",
+  "a|||text-brand-500 underline",
+  "button|||absolute bg-gray-100 dark:bg-gray-800 dark:hover:bg-gray-700 dark:hover:text-white dark:text-gray-400 flex h-9.5 hover:bg-gray-200 hover:text-gray-700 items-center justify-center right-3 rounded-full sm:h-11 sm:right-6 sm:top-6 sm:w-11 text-gray-400 top-3 transition-colors w-9.5 z-999",
+  "button|||bg-brand-500 disabled:opacity-60 flex font-medium hover:bg-brand-600 justify-center px-4 py-2.5 rounded-lg sm:w-auto text-sm text-white w-full",
+  "button|||bg-white border border-gray-300 dark:bg-gray-800 dark:border-gray-700 dark:hover:bg-white/[0.03] dark:text-gray-400 flex font-medium hover:bg-gray-50 justify-center px-4 py-2.5 rounded-lg sm:w-auto text-gray-700 text-sm w-full",
+  "button|||fc-button fc-button-active fc-button-primary fc-dayGridMonth-button",
+  "button|||fc-button fc-button-primary fc-listMonth-button",
+  "button|||fc-button fc-button-primary fc-next-button",
+  "button|||fc-button fc-button-primary fc-novoEvento-button",
+  "button|||fc-button fc-button-primary fc-prev-button",
+  "button|||fc-button fc-button-primary fc-timeGridWeek-button",
+  "button|||fc-button fc-button-primary fc-today-button",
+  "div|dialog||bg-white dark:bg-gray-900 lg:p-8 max-w-[640px] p-6 relative rounded-3xl w-full",
+  "h2|||dark:text-white/90 font-semibold text-gray-800 text-xl",
+  "h2|||fc-toolbar-title",
+  "h3|||dark:text-white/90 font-semibold mb-3 text-gray-800 text-sm",
+  "input|||bg-transparent border border-gray-300 dark:bg-dark-900 dark:bg-gray-900 dark:border-gray-700 dark:focus:border-brand-800 dark:placeholder:text-white/30 dark:text-white/90 focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 h-11 placeholder:text-gray-400 px-4 py-2.5 rounded-lg shadow-theme-xs text-gray-800 text-sm w-full",
+  "input|||border-gray-300 h-4 mt-0.5 rounded w-4",
+  "input|||border-gray-300 h-4 rounded w-4",
+  "select|||bg-transparent border border-gray-300 dark:bg-dark-900 dark:bg-gray-900 dark:border-gray-700 dark:focus:border-brand-800 dark:placeholder:text-white/30 dark:text-white/90 focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 h-11 placeholder:text-gray-400 px-4 py-2.5 rounded-lg shadow-theme-xs text-gray-800 text-sm w-full",
+  "textarea|||bg-transparent border border-gray-300 dark:bg-dark-900 dark:bg-gray-900 dark:border-gray-700 dark:focus:border-brand-800 dark:placeholder:text-white/30 dark:text-white/90 focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 h-11 h-auto placeholder:text-gray-400 px-4 py-2.5 rounded-lg shadow-theme-xs text-gray-800 text-sm w-full"
+ ]
+}

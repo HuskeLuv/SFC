@@ -1,0 +1,34 @@
+{
+ "tabs": [],
+ "tables": [
+  {
+   "ths": [
+    "Tipo",
+    "Data com",
+    "Data pagamento",
+    "Precificar por",
+    "Valor total",
+    "Qtde base",
+    "IR (R$)",
+    ""
+   ],
+   "colCount": 8,
+   "theadClass": "",
+   "thClasses": [
+    "font-medium px-4 py-3 text-center whitespace-nowrap",
+    "font-medium px-4 py-3 text-left whitespace-nowrap",
+    "font-medium px-4 py-3 text-right w-28 whitespace-nowrap",
+    "font-medium px-4 py-3 text-right whitespace-nowrap"
+   ],
+   "trClasses": [
+    "border-b border-gray-100 dark:border-gray-800 dark:hover:bg-white/[0.03] hover:bg-gray-50 last:border-b-0 transition-colors"
+   ],
+   "tdClasses": [
+    "capitalize px-4 py-2.5 text-center text-sm",
+    "px-4 py-2.5 text-right text-sm",
+    "px-4 py-2.5 text-sm"
+   ]
+  }
+ ],
+ "mobileArtifactsVisible": 0
+}

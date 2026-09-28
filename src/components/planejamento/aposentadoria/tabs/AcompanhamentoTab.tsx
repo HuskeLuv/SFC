@@ -17,6 +17,10 @@ import { useAcompanhamentoAuto, useAutoFillEntries } from '@/hooks/useAposentado
 import { formatBRL, formatBRLCompact, fPct, fMonth } from '../utils';
 import { aaToAm } from '@/utils/rateConversion';
 import { TABLE_STYLES, TABLE_HEADER_STYLE } from '@/components/ui/table/tableStyles';
+import { MobileStatusPill } from '@/components/ui/mobile/MobileStatusPill';
+import { useIsBelowLg } from '@/hooks/useMediaQuery';
+import AcompanhamentoCards, { type AcompanhamentoRow } from '../mobile/AcompanhamentoCards';
+import RegistrarMesSheet from '../mobile/RegistrarMesSheet';
 
 interface AcompanhamentoTabProps {
   params: PlanoUpsertPayload;
@@ -26,7 +30,32 @@ interface AcompanhamentoTabProps {
   saving: boolean;
 }
 
-function DeltaBadge({ value, label }: { value: number | null; label: string }) {
+function DeltaBadge({
+  value,
+  label,
+  mobile = false,
+}: {
+  value: number | null;
+  label: string;
+  /** Celular: ponto + palavra, sem verde (PWA fase 3). */
+  mobile?: boolean;
+}) {
+  if (mobile) {
+    if (value == null) {
+      return (
+        <MobileStatusPill tone="neutro" className="mt-1">
+          Sem registro
+        </MobileStatusPill>
+      );
+    }
+    const tone = value > 0.01 ? 'ok' : value < -0.01 ? 'problema' : 'neutro';
+    return (
+      <MobileStatusPill tone={tone} className="mt-1 max-w-full flex-wrap">
+        {value >= 0 ? '+' : ''}
+        {label}
+      </MobileStatusPill>
+    );
+  }
   if (value == null) {
     return (
       <span className="mt-1 inline-flex rounded-full bg-gray-100 px-2 py-0.5 text-[10px] text-gray-500 dark:bg-gray-800 dark:text-gray-400">
@@ -55,6 +84,8 @@ export default function AcompanhamentoTab({
   onDeleteEntry,
   saving,
 }: AcompanhamentoTabProps) {
+  const isBelowLg = useIsBelowLg();
+  const [sheetOpen, setSheetOpen] = useState(false);
   const svcEntries = entries as AposentadoriaEntry[];
   const { T, C, retM } = useMemo(() => planTraj(params), [params]);
   const maxOff = maxEOff(svcEntries);
@@ -136,6 +167,28 @@ export default function AcompanhamentoTab({
   const rows: number[] = [];
   for (let off = 1; off <= showMax; off++) rows.push(off);
 
+  // Celular: os mesmos meses da tabela, em cartões (mesmos cálculos por linha).
+  const cardRows: AcompanhamentoRow[] = isBelowLg
+    ? rows.map((off) => {
+        const e = entryByOff(svcEntries, off);
+        const { year, month } = off2date(params, off);
+        const pP = prevPat(params, svcEntries, off);
+        return {
+          off,
+          label: fMonth(month, year),
+          aporteReal: e ? e.aporteReal : null,
+          patFinal: e ? e.patFinal : null,
+          rent: e && pP != null ? calcRent(pP, e.aporteReal, e.patFinal) : null,
+          reqPat: T[off] ?? 0,
+        };
+      })
+    : [];
+  const openRegistrar = (off?: number) => {
+    setCurOffset(off ?? Math.min(Math.max(maxOff + 1, 1), Math.max(retM, 1)));
+    setSheetOpen(true);
+  };
+  const sugestaoMes = derivedByOff.get(curOffset);
+
   return (
     <div className="space-y-4">
       {/* Tags */}
@@ -155,9 +208,9 @@ export default function AcompanhamentoTab({
       </div>
 
       {/* Dashboard */}
-      <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
-        <div className="rounded-lg border border-gray-200 p-3 dark:border-gray-800">
-          <p className="text-[10px] font-semibold uppercase tracking-wider text-brand-500">
+      <div className="grid grid-cols-2 gap-3 max-lg:gap-2 xl:grid-cols-4">
+        <div className="rounded-lg border border-gray-200 p-3 max-lg:min-w-0 dark:border-gray-800">
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-brand-500 max-lg:text-mf-patrimonio dark:max-lg:text-mf-tranquilidade">
             Patrimônio
           </p>
           <p className="text-lg font-semibold text-gray-900 dark:text-white/90">
@@ -165,32 +218,37 @@ export default function AcompanhamentoTab({
           </p>
           <p className="text-[10px] text-gray-400">Necessário: {formatBRLCompact(reqPat)}</p>
           <DeltaBadge
+            mobile={isBelowLg}
             value={latE ? dPat : null}
             label={`${formatBRLCompact(Math.abs(dPat))} (${Math.abs(dPatPct).toFixed(1).replace('.', ',')}%)`}
           />
         </div>
-        <div className="rounded-lg border border-gray-200 p-3 dark:border-gray-800">
-          <p className="text-[10px] font-semibold uppercase tracking-wider text-brand-500">
+        <div className="rounded-lg border border-gray-200 p-3 max-lg:min-w-0 dark:border-gray-800">
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-brand-500 max-lg:text-mf-patrimonio dark:max-lg:text-mf-tranquilidade">
             Último Aporte
           </p>
           <p className="text-lg font-semibold text-gray-900 dark:text-white/90">
             {latE ? formatBRLCompact(latE.aporteReal) : '—'}
           </p>
           <p className="text-[10px] text-gray-400">Necessário: {formatBRLCompact(reqC)}</p>
-          <DeltaBadge value={dAporte} label={formatBRLCompact(Math.abs(dAporte ?? 0))} />
+          <DeltaBadge
+            mobile={isBelowLg}
+            value={dAporte}
+            label={formatBRLCompact(Math.abs(dAporte ?? 0))}
+          />
         </div>
-        <div className="rounded-lg border border-gray-200 p-3 dark:border-gray-800">
-          <p className="text-[10px] font-semibold uppercase tracking-wider text-brand-500">
+        <div className="rounded-lg border border-gray-200 p-3 max-lg:min-w-0 dark:border-gray-800">
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-brand-500 max-lg:text-mf-patrimonio dark:max-lg:text-mf-tranquilidade">
             Rentabilidade
           </p>
           <p className="text-lg font-semibold text-gray-900 dark:text-white/90">
             {actRent != null ? fPct(actRent, 2) : '—'}
           </p>
           <p className="text-[10px] text-gray-400">Necessária: {fPct(reqRentM, 2)}/mês</p>
-          <DeltaBadge value={dRent} label={fPct(Math.abs(dRent ?? 0), 2)} />
+          <DeltaBadge mobile={isBelowLg} value={dRent} label={fPct(Math.abs(dRent ?? 0), 2)} />
         </div>
-        <div className="rounded-lg border border-gray-200 p-3 dark:border-gray-800">
-          <p className="text-[10px] font-semibold uppercase tracking-wider text-brand-500">
+        <div className="rounded-lg border border-gray-200 p-3 max-lg:min-w-0 dark:border-gray-800">
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-brand-500 max-lg:text-mf-patrimonio dark:max-lg:text-mf-tranquilidade">
             Projeção Revisada
           </p>
           <p className="text-lg font-semibold text-gray-900 dark:text-white/90">
@@ -199,6 +257,7 @@ export default function AcompanhamentoTab({
           <p className="text-[10px] text-gray-400">Original: {formatBRLCompact(origRet)}</p>
           {origRet > 0 ? (
             <DeltaBadge
+              mobile={isBelowLg}
               value={revRet - origRet}
               label={fPct(Math.abs((revRet / origRet - 1) * 100), 1)}
             />
@@ -208,288 +267,354 @@ export default function AcompanhamentoTab({
 
       {/* Banner recálculo */}
       {recalcMsg ? (
-        <div className="rounded-lg border border-yellow-200 bg-yellow-50 p-3 text-xs text-yellow-800 dark:border-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-200">
+        <div className="rounded-lg border border-yellow-200 bg-yellow-50 p-3 text-xs text-yellow-800 max-lg:text-[#B45309] dark:border-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-200 dark:max-lg:text-[#FBBF24]">
           ⚠ {recalcMsg}
         </div>
       ) : null}
 
-      {/* Form + Tabela */}
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[300px_1fr]">
-        {/* Entry form */}
-        <div className="rounded-2xl border border-brand-200 bg-brand-50/50 p-4 dark:border-brand-900/40 dark:bg-brand-900/10">
-          <div className="mb-3 flex items-center justify-between">
-            <div>
-              <p className="text-sm font-semibold text-gray-900 dark:text-white/90">
-                {fMonth(curM, curY)}
-              </p>
-              <p className="text-[10px] text-gray-400">
-                mês {curOffset} de {retM} do plano
-              </p>
-            </div>
-            <div className="flex gap-1">
-              <button
-                type="button"
-                disabled={curOffset <= 1}
-                onClick={() => setCurOffset(Math.max(1, curOffset - 1))}
-                className="rounded border border-gray-300 bg-white px-2 py-0.5 text-xs text-gray-500 disabled:opacity-40 dark:border-gray-700 dark:bg-gray-900"
-              >
-                ◀
-              </button>
-              <button
-                type="button"
-                disabled={curOffset >= retM}
-                onClick={() => setCurOffset(Math.min(retM, curOffset + 1))}
-                className="rounded border border-gray-300 bg-white px-2 py-0.5 text-xs text-gray-500 disabled:opacity-40 dark:border-gray-700 dark:bg-gray-900"
-              >
-                ▶
-              </button>
-            </div>
-          </div>
-
-          <label className="mb-1 block text-xs text-gray-500 dark:text-gray-400">
-            Aporte realizado
-          </label>
-          <div className="mb-1 flex">
-            <span className="flex items-center rounded-l-md border border-r-0 border-gray-300 bg-gray-100 px-2 text-xs text-gray-500 dark:border-gray-700 dark:bg-gray-800">
-              R$
-            </span>
-            <input
-              type="number"
-              value={aporteStr}
-              min={0}
-              step={100}
-              onChange={(e) => setAporteStr(e.target.value)}
-              className="w-full rounded-r-md border border-gray-300 bg-white px-2 py-1.5 text-right text-sm outline-none focus:border-brand-500 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90"
-            />
-          </div>
-          <p className="mb-2 text-[10px] text-gray-400">
-            Necessário: {formatBRL(C[curOffset] ?? 0)}
-          </p>
-
-          <label className="mb-1 block text-xs text-gray-500 dark:text-gray-400">
-            Patrimônio final do mês
-          </label>
-          <div className="mb-1 flex">
-            <span className="flex items-center rounded-l-md border border-r-0 border-gray-300 bg-gray-100 px-2 text-xs text-gray-500 dark:border-gray-700 dark:bg-gray-800">
-              R$
-            </span>
-            <input
-              type="number"
-              value={patStr}
-              min={0}
-              step={1000}
-              onChange={(e) => setPatStr(e.target.value)}
-              className="w-full rounded-r-md border border-gray-300 bg-white px-2 py-1.5 text-right text-sm outline-none focus:border-brand-500 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90"
-            />
-          </div>
-          <p className="mb-2 text-[10px] text-gray-400">Necessário: {formatBRL(formReqPat)}</p>
-
-          {(() => {
-            const sug = derivedByOff.get(curOffset);
-            if (!sug || !sug.hasData || editingExists) return null;
-            return (
-              <div className="mb-2 rounded-lg border border-brand-200 bg-white/70 p-2 text-[11px] dark:border-brand-900/40 dark:bg-white/[0.02]">
-                <p className="text-gray-500 dark:text-gray-400">
-                  <span className="font-semibold text-brand-600 dark:text-brand-400">
-                    ✦ Da sua carteira:
-                  </span>{' '}
-                  aporte {formatBRL(sug.aporteReal)} · patrimônio{' '}
-                  {sug.patFinal != null ? formatBRL(sug.patFinal) : '—'}
-                </p>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setAporteStr(String(sug.aporteReal));
-                    if (sug.patFinal != null) setPatStr(String(sug.patFinal));
-                  }}
-                  className="mt-1 rounded border border-brand-300 px-2 py-0.5 text-brand-600 hover:bg-brand-50 dark:border-brand-800 dark:text-brand-400 dark:hover:bg-brand-900/10"
-                >
-                  ↳ usar estes valores
-                </button>
-              </div>
-            );
-          })()}
-
-          <div className="mb-3 rounded-lg border border-gray-200 bg-white/60 p-2 text-xs dark:border-gray-800 dark:bg-white/[0.02]">
-            <div className="flex justify-between py-0.5">
-              <span className="text-gray-500 dark:text-gray-400">Rentabilidade do mês</span>
-              <span
-                className={`font-semibold ${formRent != null ? (formRent >= reqRentM ? 'text-green-600' : 'text-red-600') : ''}`}
-              >
-                {formRent != null ? fPct(formRent, 2) : '—'}
-              </span>
-            </div>
-            <div className="flex justify-between border-t border-gray-100 py-0.5 dark:border-gray-800">
-              <span className="text-gray-500 dark:text-gray-400">Meta mensal</span>
-              <span className="font-semibold text-gray-800 dark:text-white/90">
-                {fPct(reqRentM, 2)}
-              </span>
-            </div>
-            <div className="flex justify-between border-t border-gray-100 py-0.5 dark:border-gray-800">
-              <span className="text-gray-500 dark:text-gray-400">Δ Patrimônio vs plano</span>
-              <span
-                className={`font-semibold ${formDPat != null ? (formDPat >= 0 ? 'text-green-600' : 'text-red-600') : ''}`}
-              >
-                {formDPat != null
-                  ? `${formDPat >= 0 ? '+' : ''}${formatBRLCompact(formDPat)} (${formDPatPct.toFixed(1).replace('.', ',')}%)`
-                  : '—'}
-              </span>
-            </div>
-          </div>
-
-          <div className="flex gap-2">
+      {isBelowLg ? (
+        <div data-mf-mobile="" className="space-y-3">
+          <button
+            type="button"
+            onClick={() => openRegistrar()}
+            className="h-12 w-full rounded-xl bg-mf-patrimonio text-base font-semibold text-white"
+          >
+            Registrar mês
+          </button>
+          {preview && preview.fillable > 0 ? (
             <button
               type="button"
-              onClick={handleSave}
-              disabled={!pat || saving}
-              className="flex-1 rounded-md bg-brand-500 px-3 py-2 text-sm font-medium text-white hover:bg-brand-600 disabled:opacity-50"
+              onClick={() => autoFill.mutate()}
+              disabled={autoFill.isPending || saving}
+              className="h-12 w-full rounded-xl border border-gray-300 text-sm font-semibold text-mf-patrimonio disabled:opacity-50 dark:border-gray-700 dark:text-mf-tranquilidade"
             >
-              ✔ Salvar
+              {autoFill.isPending
+                ? 'Preenchendo…'
+                : `✨ Preencher ${preview.fillable} ${preview.fillable === 1 ? 'mês' : 'meses'}`}
             </button>
-            {editingExists ? (
-              <button
-                type="button"
-                onClick={() => onDeleteEntry(curOffset)}
-                disabled={saving}
-                className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-600 hover:bg-red-100 disabled:opacity-50 dark:bg-red-900/20 dark:text-red-300"
-              >
-                🗑
-              </button>
-            ) : null}
-          </div>
-          <p className="mt-2 text-center text-[10px] text-gray-400">
-            Clique em qualquer linha para editar
-          </p>
-        </div>
-
-        {/* Tabela */}
-        <div className="overflow-hidden rounded-xl border border-gray-200 dark:border-gray-800">
-          <div className="flex items-center justify-between gap-2 border-b border-gray-200 bg-gray-50 px-4 py-2.5 dark:border-gray-800 dark:bg-white/[0.03]">
-            <span className="text-sm font-semibold text-gray-900 dark:text-white/90">
+          ) : null}
+          <div className="flex items-center justify-between gap-2 px-1">
+            <h3 className="text-base font-semibold text-gray-900 dark:text-white/90">
               Histórico Mensal
+            </h3>
+            <span className="text-xs text-gray-500 dark:text-gray-400">
+              {entries.length} registro{entries.length !== 1 ? 's' : ''}
             </span>
-            <div className="flex items-center gap-2">
-              {preview && preview.fillable > 0 ? (
+          </div>
+          <AcompanhamentoCards rows={cardRows} onSelect={(off) => openRegistrar(off)} />
+          <RegistrarMesSheet
+            isOpen={sheetOpen}
+            onClose={() => setSheetOpen(false)}
+            params={params}
+            retM={retM}
+            curOffset={curOffset}
+            setCurOffset={setCurOffset}
+            aporteStr={aporteStr}
+            setAporteStr={setAporteStr}
+            patStr={patStr}
+            setPatStr={setPatStr}
+            preview={{
+              rent: formRent,
+              metaMensal: reqRentM,
+              dPat: formDPat,
+              dPatPct: formDPatPct,
+              aporteNecessario: C[curOffset] ?? 0,
+              patrimonioNecessario: formReqPat,
+            }}
+            sugestao={
+              sugestaoMes && sugestaoMes.hasData
+                ? { aporteReal: sugestaoMes.aporteReal, patFinal: sugestaoMes.patFinal }
+                : null
+            }
+            editingExists={editingExists}
+            saving={saving}
+            onSave={handleSave}
+            onDelete={() => onDeleteEntry(curOffset)}
+          />
+        </div>
+      ) : (
+        /* Form + Tabela */
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-[300px_1fr]">
+          {/* Entry form */}
+          <div className="rounded-2xl border border-brand-200 bg-brand-50/50 p-4 dark:border-brand-900/40 dark:bg-brand-900/10">
+            <div className="mb-3 flex items-center justify-between">
+              <div>
+                <p className="text-sm font-semibold text-gray-900 dark:text-white/90">
+                  {fMonth(curM, curY)}
+                </p>
+                <p className="text-[10px] text-gray-400">
+                  mês {curOffset} de {retM} do plano
+                </p>
+              </div>
+              <div className="flex gap-1">
                 <button
                   type="button"
-                  onClick={() => autoFill.mutate()}
-                  disabled={autoFill.isPending || saving}
-                  className="rounded-md bg-brand-500 px-2.5 py-1 text-[11px] font-medium text-white hover:bg-brand-600 disabled:opacity-50"
-                  title="Preenche os meses sem registro com patrimônio e aportes da sua carteira"
+                  disabled={curOffset <= 1}
+                  onClick={() => setCurOffset(Math.max(1, curOffset - 1))}
+                  className="rounded border border-gray-300 bg-white px-2 py-0.5 text-xs text-gray-500 disabled:opacity-40 dark:border-gray-700 dark:bg-gray-900"
                 >
-                  {autoFill.isPending
-                    ? 'Preenchendo…'
-                    : `✨ Preencher ${preview.fillable} ${preview.fillable === 1 ? 'mês' : 'meses'}`}
+                  ◀
+                </button>
+                <button
+                  type="button"
+                  disabled={curOffset >= retM}
+                  onClick={() => setCurOffset(Math.min(retM, curOffset + 1))}
+                  className="rounded border border-gray-300 bg-white px-2 py-0.5 text-xs text-gray-500 disabled:opacity-40 dark:border-gray-700 dark:bg-gray-900"
+                >
+                  ▶
+                </button>
+              </div>
+            </div>
+
+            <label className="mb-1 block text-xs text-gray-500 dark:text-gray-400">
+              Aporte realizado
+            </label>
+            <div className="mb-1 flex">
+              <span className="flex items-center rounded-l-md border border-r-0 border-gray-300 bg-gray-100 px-2 text-xs text-gray-500 dark:border-gray-700 dark:bg-gray-800">
+                R$
+              </span>
+              <input
+                type="number"
+                value={aporteStr}
+                min={0}
+                step={100}
+                onChange={(e) => setAporteStr(e.target.value)}
+                className="w-full rounded-r-md border border-gray-300 bg-white px-2 py-1.5 text-right text-sm outline-none focus:border-brand-500 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90"
+              />
+            </div>
+            <p className="mb-2 text-[10px] text-gray-400">
+              Necessário: {formatBRL(C[curOffset] ?? 0)}
+            </p>
+
+            <label className="mb-1 block text-xs text-gray-500 dark:text-gray-400">
+              Patrimônio final do mês
+            </label>
+            <div className="mb-1 flex">
+              <span className="flex items-center rounded-l-md border border-r-0 border-gray-300 bg-gray-100 px-2 text-xs text-gray-500 dark:border-gray-700 dark:bg-gray-800">
+                R$
+              </span>
+              <input
+                type="number"
+                value={patStr}
+                min={0}
+                step={1000}
+                onChange={(e) => setPatStr(e.target.value)}
+                className="w-full rounded-r-md border border-gray-300 bg-white px-2 py-1.5 text-right text-sm outline-none focus:border-brand-500 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90"
+              />
+            </div>
+            <p className="mb-2 text-[10px] text-gray-400">Necessário: {formatBRL(formReqPat)}</p>
+
+            {(() => {
+              const sug = derivedByOff.get(curOffset);
+              if (!sug || !sug.hasData || editingExists) return null;
+              return (
+                <div className="mb-2 rounded-lg border border-brand-200 bg-white/70 p-2 text-[11px] dark:border-brand-900/40 dark:bg-white/[0.02]">
+                  <p className="text-gray-500 dark:text-gray-400">
+                    <span className="font-semibold text-brand-600 dark:text-brand-400">
+                      ✦ Da sua carteira:
+                    </span>{' '}
+                    aporte {formatBRL(sug.aporteReal)} · patrimônio{' '}
+                    {sug.patFinal != null ? formatBRL(sug.patFinal) : '—'}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAporteStr(String(sug.aporteReal));
+                      if (sug.patFinal != null) setPatStr(String(sug.patFinal));
+                    }}
+                    className="mt-1 rounded border border-brand-300 px-2 py-0.5 text-brand-600 hover:bg-brand-50 dark:border-brand-800 dark:text-brand-400 dark:hover:bg-brand-900/10"
+                  >
+                    ↳ usar estes valores
+                  </button>
+                </div>
+              );
+            })()}
+
+            <div className="mb-3 rounded-lg border border-gray-200 bg-white/60 p-2 text-xs dark:border-gray-800 dark:bg-white/[0.02]">
+              <div className="flex justify-between py-0.5">
+                <span className="text-gray-500 dark:text-gray-400">Rentabilidade do mês</span>
+                <span
+                  className={`font-semibold ${formRent != null ? (formRent >= reqRentM ? 'text-green-600' : 'text-red-600') : ''}`}
+                >
+                  {formRent != null ? fPct(formRent, 2) : '—'}
+                </span>
+              </div>
+              <div className="flex justify-between border-t border-gray-100 py-0.5 dark:border-gray-800">
+                <span className="text-gray-500 dark:text-gray-400">Meta mensal</span>
+                <span className="font-semibold text-gray-800 dark:text-white/90">
+                  {fPct(reqRentM, 2)}
+                </span>
+              </div>
+              <div className="flex justify-between border-t border-gray-100 py-0.5 dark:border-gray-800">
+                <span className="text-gray-500 dark:text-gray-400">Δ Patrimônio vs plano</span>
+                <span
+                  className={`font-semibold ${formDPat != null ? (formDPat >= 0 ? 'text-green-600' : 'text-red-600') : ''}`}
+                >
+                  {formDPat != null
+                    ? `${formDPat >= 0 ? '+' : ''}${formatBRLCompact(formDPat)} (${formDPatPct.toFixed(1).replace('.', ',')}%)`
+                    : '—'}
+                </span>
+              </div>
+            </div>
+
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={handleSave}
+                disabled={!pat || saving}
+                className="flex-1 rounded-md bg-brand-500 px-3 py-2 text-sm font-medium text-white hover:bg-brand-600 disabled:opacity-50"
+              >
+                ✔ Salvar
+              </button>
+              {editingExists ? (
+                <button
+                  type="button"
+                  onClick={() => onDeleteEntry(curOffset)}
+                  disabled={saving}
+                  className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-600 hover:bg-red-100 disabled:opacity-50 dark:bg-red-900/20 dark:text-red-300"
+                >
+                  🗑
                 </button>
               ) : null}
-              <span className="text-[10px] text-gray-400">
-                {entries.length} registro{entries.length !== 1 ? 's' : ''}
-              </span>
             </div>
+            <p className="mt-2 text-center text-[10px] text-gray-400">
+              Clique em qualquer linha para editar
+            </p>
           </div>
-          {/* Padrão único de tabelas (variante compacta: 8 colunas numa coluna
+
+          {/* Tabela */}
+          <div className="overflow-hidden rounded-xl border border-gray-200 dark:border-gray-800">
+            <div className="flex items-center justify-between gap-2 border-b border-gray-200 bg-gray-50 px-4 py-2.5 dark:border-gray-800 dark:bg-white/[0.03]">
+              <span className="text-sm font-semibold text-gray-900 dark:text-white/90">
+                Histórico Mensal
+              </span>
+              <div className="flex items-center gap-2">
+                {preview && preview.fillable > 0 ? (
+                  <button
+                    type="button"
+                    onClick={() => autoFill.mutate()}
+                    disabled={autoFill.isPending || saving}
+                    className="rounded-md bg-brand-500 px-2.5 py-1 text-[11px] font-medium text-white hover:bg-brand-600 disabled:opacity-50"
+                    title="Preenche os meses sem registro com patrimônio e aportes da sua carteira"
+                  >
+                    {autoFill.isPending
+                      ? 'Preenchendo…'
+                      : `✨ Preencher ${preview.fillable} ${preview.fillable === 1 ? 'mês' : 'meses'}`}
+                  </button>
+                ) : null}
+                <span className="text-[10px] text-gray-400">
+                  {entries.length} registro{entries.length !== 1 ? 's' : ''}
+                </span>
+              </div>
+            </div>
+            {/* Padrão único de tabelas (variante compacta: 8 colunas numa coluna
               estreita); a tabela ganha o próprio wrapper arredondado dentro do card. */}
-          <div className="p-3">
-            <div className={`max-h-[380px] overflow-y-auto ${TABLE_STYLES.wrapper}`}>
-              <table className={TABLE_STYLES.table}>
-                <thead className="sticky top-0 z-10">
-                  <tr className={TABLE_STYLES.headRow} style={TABLE_HEADER_STYLE}>
-                    <th className={`${TABLE_STYLES.compact.th} text-left`}>Mês</th>
-                    <th className={`${TABLE_STYLES.compact.th} text-right`}>Aporte</th>
-                    <th className={`${TABLE_STYLES.compact.th} text-right`}>Nec.</th>
-                    <th className={`${TABLE_STYLES.compact.th} text-right`}>Rent.</th>
-                    <th className={`${TABLE_STYLES.compact.th} text-right`}>Meta</th>
-                    <th className={`${TABLE_STYLES.compact.th} text-right`}>Patrim.</th>
-                    <th className={`${TABLE_STYLES.compact.th} text-right`}>Nec.</th>
-                    <th className={`${TABLE_STYLES.compact.th} text-right`}>Δ%</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {rows.map((off) => {
-                    const e = entryByOff(svcEntries, off);
-                    const { year, month } = off2date(params, off);
-                    const pP = prevPat(params, svcEntries, off);
-                    const rent = e && pP != null ? calcRent(pP, e.aporteReal, e.patFinal) : null;
-                    const reqPa = T[off] ?? 0;
-                    const reqCo = C[off] ?? 0;
-                    const pct = reqPa > 0 && e ? (e.patFinal / reqPa - 1) * 100 : null;
-                    const isActive = off === curOffset;
-                    return (
-                      <tr
-                        key={off}
-                        onClick={() => setCurOffset(off)}
-                        className={`${TABLE_STYLES.row} cursor-pointer ${
-                          isActive ? 'bg-brand-50 dark:bg-brand-900/20' : TABLE_STYLES.rowHover
-                        } ${!e && !isActive ? 'opacity-60' : ''}`}
-                      >
-                        <td className={`${TABLE_STYLES.compact.td} text-left`}>
-                          <span className="font-semibold text-gray-800 dark:text-white/90">
-                            {fMonth(month, year)}
-                          </span>{' '}
-                          <span className="text-[9px] text-gray-400">M{off}</span>
-                        </td>
-                        <td className={`${TABLE_STYLES.compact.td} text-right`}>
-                          <span
-                            className={
-                              e ? 'font-semibold text-gray-800 dark:text-white/90' : 'text-gray-400'
-                            }
-                          >
-                            {e ? formatBRLCompact(e.aporteReal) : '—'}
-                          </span>
-                        </td>
-                        <td className={`${TABLE_STYLES.compact.td} text-right`}>
-                          <span className="text-gray-400">{formatBRLCompact(reqCo)}</span>
-                        </td>
-                        <td className={`${TABLE_STYLES.compact.td} text-right`}>
-                          <span
-                            className={
-                              rent != null
-                                ? 'font-semibold text-gray-800 dark:text-white/90'
-                                : 'text-gray-400'
-                            }
-                          >
-                            {rent != null ? fPct(rent, 2) : '—'}
-                          </span>
-                        </td>
-                        <td className={`${TABLE_STYLES.compact.td} text-right`}>
-                          <span className="text-gray-400">{fPct(reqRentM, 2)}</span>
-                        </td>
-                        <td className={`${TABLE_STYLES.compact.td} text-right`}>
-                          <span
-                            className={
-                              e ? 'font-semibold text-gray-800 dark:text-white/90' : 'text-gray-400'
-                            }
-                          >
-                            {e ? formatBRLCompact(e.patFinal) : '—'}
-                          </span>
-                        </td>
-                        <td className={`${TABLE_STYLES.compact.td} text-right`}>
-                          <span className="text-gray-400">{formatBRLCompact(reqPa)}</span>
-                        </td>
-                        <td className={`${TABLE_STYLES.compact.td} text-right font-semibold`}>
-                          <span
-                            className={
-                              pct == null
-                                ? 'text-gray-400'
-                                : pct >= 0
-                                  ? 'text-green-600'
-                                  : 'text-red-600'
-                            }
-                          >
-                            {pct == null
-                              ? '—'
-                              : `${pct >= 0 ? '+' : ''}${pct.toFixed(1).replace('.', ',')}%`}
-                          </span>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
+            <div className="p-3">
+              <div className={`max-h-[380px] overflow-y-auto ${TABLE_STYLES.wrapper}`}>
+                <table className={TABLE_STYLES.table}>
+                  <thead className="sticky top-0 z-10">
+                    <tr className={TABLE_STYLES.headRow} style={TABLE_HEADER_STYLE}>
+                      <th className={`${TABLE_STYLES.compact.th} text-left`}>Mês</th>
+                      <th className={`${TABLE_STYLES.compact.th} text-right`}>Aporte</th>
+                      <th className={`${TABLE_STYLES.compact.th} text-right`}>Nec.</th>
+                      <th className={`${TABLE_STYLES.compact.th} text-right`}>Rent.</th>
+                      <th className={`${TABLE_STYLES.compact.th} text-right`}>Meta</th>
+                      <th className={`${TABLE_STYLES.compact.th} text-right`}>Patrim.</th>
+                      <th className={`${TABLE_STYLES.compact.th} text-right`}>Nec.</th>
+                      <th className={`${TABLE_STYLES.compact.th} text-right`}>Δ%</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {rows.map((off) => {
+                      const e = entryByOff(svcEntries, off);
+                      const { year, month } = off2date(params, off);
+                      const pP = prevPat(params, svcEntries, off);
+                      const rent = e && pP != null ? calcRent(pP, e.aporteReal, e.patFinal) : null;
+                      const reqPa = T[off] ?? 0;
+                      const reqCo = C[off] ?? 0;
+                      const pct = reqPa > 0 && e ? (e.patFinal / reqPa - 1) * 100 : null;
+                      const isActive = off === curOffset;
+                      return (
+                        <tr
+                          key={off}
+                          onClick={() => setCurOffset(off)}
+                          className={`${TABLE_STYLES.row} cursor-pointer ${
+                            isActive ? 'bg-brand-50 dark:bg-brand-900/20' : TABLE_STYLES.rowHover
+                          } ${!e && !isActive ? 'opacity-60' : ''}`}
+                        >
+                          <td className={`${TABLE_STYLES.compact.td} text-left`}>
+                            <span className="font-semibold text-gray-800 dark:text-white/90">
+                              {fMonth(month, year)}
+                            </span>{' '}
+                            <span className="text-[9px] text-gray-400">M{off}</span>
+                          </td>
+                          <td className={`${TABLE_STYLES.compact.td} text-right`}>
+                            <span
+                              className={
+                                e
+                                  ? 'font-semibold text-gray-800 dark:text-white/90'
+                                  : 'text-gray-400'
+                              }
+                            >
+                              {e ? formatBRLCompact(e.aporteReal) : '—'}
+                            </span>
+                          </td>
+                          <td className={`${TABLE_STYLES.compact.td} text-right`}>
+                            <span className="text-gray-400">{formatBRLCompact(reqCo)}</span>
+                          </td>
+                          <td className={`${TABLE_STYLES.compact.td} text-right`}>
+                            <span
+                              className={
+                                rent != null
+                                  ? 'font-semibold text-gray-800 dark:text-white/90'
+                                  : 'text-gray-400'
+                              }
+                            >
+                              {rent != null ? fPct(rent, 2) : '—'}
+                            </span>
+                          </td>
+                          <td className={`${TABLE_STYLES.compact.td} text-right`}>
+                            <span className="text-gray-400">{fPct(reqRentM, 2)}</span>
+                          </td>
+                          <td className={`${TABLE_STYLES.compact.td} text-right`}>
+                            <span
+                              className={
+                                e
+                                  ? 'font-semibold text-gray-800 dark:text-white/90'
+                                  : 'text-gray-400'
+                              }
+                            >
+                              {e ? formatBRLCompact(e.patFinal) : '—'}
+                            </span>
+                          </td>
+                          <td className={`${TABLE_STYLES.compact.td} text-right`}>
+                            <span className="text-gray-400">{formatBRLCompact(reqPa)}</span>
+                          </td>
+                          <td className={`${TABLE_STYLES.compact.td} text-right font-semibold`}>
+                            <span
+                              className={
+                                pct == null
+                                  ? 'text-gray-400'
+                                  : pct >= 0
+                                    ? 'text-green-600'
+                                    : 'text-red-600'
+                              }
+                            >
+                              {pct == null
+                                ? '—'
+                                : `${pct >= 0 ? '+' : ''}${pct.toFixed(1).replace('.', ',')}%`}
+                            </span>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
             </div>
           </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }

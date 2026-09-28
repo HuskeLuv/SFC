@@ -86,6 +86,7 @@ export const CommentModal: React.FC<CommentModalProps> = ({
     typeof window !== 'undefined' &&
     createPortal(
       <div
+        data-mf-overlay
         className="fixed inset-0 flex items-center justify-center z-[10000] pointer-events-none"
         onClick={(e) => {
           if (e.target === e.currentTarget) {

@@ -21,6 +21,15 @@ import { useObjetivos } from '@/hooks/usePlanejamentoSonhos';
 import { formatWallClockDate, toDateInputValue } from '@/utils/formatDate';
 import { formatAssetDisplayTitle } from '@/utils/assetDisplayName';
 import { ArrowRightIcon, ChevronDownIcon, ChevronLeftIcon, PlusIcon, TrashBinIcon } from '@/icons';
+import { useIsBelowLg } from '@/hooks/useMediaQuery';
+import { MobileEditSheet } from '@/components/ui/sheet/MobileEditSheet';
+import { ResponsiveCardList } from '@/components/ui/table/ResponsiveTable';
+import { TABLE_MOBILE_STYLES } from '@/components/ui/table/tableStyles';
+
+/** Celular (PWA fase 1): campos de 48px e 16px nos formulários desta página. */
+const MOBILE_INPUT_CLASS =
+  'h-12 w-full rounded-xl border border-gray-300 bg-white px-3 text-base text-gray-900 dark:border-gray-600 dark:bg-gray-800 dark:text-white';
+const MOBILE_LABEL_CLASS = 'mb-1 block text-xs font-medium text-gray-500 dark:text-gray-400';
 
 const MO_PAGE_SIZE = 6;
 
@@ -47,15 +56,21 @@ const parseDecimalInput = (raw: string): number => {
 
 interface EditableDateCellProps {
   value: string;
-  onSubmit: (value: string) => void;
+  /** No celular (sheet), retorno `false` ou exceção = falha e o sheet fica aberto. */
+  onSubmit: (value: string) => void | boolean | Promise<void | boolean>;
   inputClassName?: string;
+  /** Rótulo do campo no sheet do celular. */
+  mobileLabel?: string;
 }
 
 const EditableDateCell: React.FC<EditableDateCellProps> = ({
   value,
   onSubmit,
   inputClassName = 'w-full max-w-[9rem] rounded border border-gray-300 px-1 py-0.5 text-sm dark:border-gray-600 dark:bg-gray-800 dark:text-white',
+  mobileLabel = 'Data',
 }) => {
+  const isBelowLg = useIsBelowLg();
+  const [sheetOpen, setSheetOpen] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [inputValue, setInputValue] = useState(toDateInputValue(value));
 
@@ -75,6 +90,32 @@ const EditableDateCell: React.FC<EditableDateCellProps> = ({
       setIsEditing(false);
     }
   };
+
+  // Celular: sheet com o calendário nativo, chamando o MESMO onSubmit ('yyyy-mm-dd').
+  if (isBelowLg) {
+    return (
+      <>
+        <button
+          type="button"
+          data-mf-edit="data"
+          onClick={() => setSheetOpen(true)}
+          aria-label={`Editar ${mobileLabel.toLowerCase()}: ${formatDate(value)}`}
+          className={`${TABLE_MOBILE_STYLES.editButton} -mx-2 tabular-nums text-gray-900 dark:text-white`}
+        >
+          {formatDate(value)}
+        </button>
+        <MobileEditSheet
+          isOpen={sheetOpen}
+          onClose={() => setSheetOpen(false)}
+          title={`Editar ${mobileLabel.toLowerCase()}`}
+          label={mobileLabel}
+          kind="date"
+          initialValue={toDateInputValue(value)}
+          onSubmit={(v) => onSubmit(String(v))}
+        />
+      </>
+    );
+  }
 
   return isEditing ? (
     <input
@@ -194,7 +235,7 @@ const VinculoPlanejamentoSelect: React.FC<{
       disabled={saving}
       onChange={(e) => void handleChange(e.target.value)}
       aria-label="Vínculo com planejamento"
-      className="w-full max-w-md rounded-md border border-gray-200 bg-white px-2 py-1.5 text-sm text-gray-700 focus:border-brand-400 focus:outline-none disabled:opacity-60 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
+      className="w-full max-w-md rounded-md border border-gray-200 bg-white px-2 py-1.5 text-sm text-gray-700 focus:border-brand-400 focus:outline-none disabled:opacity-60 max-lg:h-12 max-lg:rounded-xl max-lg:text-base dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
     >
       <option value="">Sem vínculo</option>
       <option value="aposentadoria">Aposentadoria</option>
@@ -267,7 +308,7 @@ const InstitutionSelect: React.FC<{
       <button
         type="button"
         onClick={handleEdit}
-        className="flex items-center gap-2 rounded-md px-1 py-0.5 text-sm font-normal text-gray-800 transition-colors hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-800"
+        className="flex items-center gap-2 rounded-md px-1 py-0.5 text-sm font-normal text-gray-800 transition-colors hover:bg-gray-100 max-lg:min-h-11 max-lg:text-base dark:text-gray-200 dark:hover:bg-gray-800"
         title="Alterar instituição"
       >
         <span>{currentNome ?? '—'}</span>
@@ -291,7 +332,7 @@ const InstitutionSelect: React.FC<{
         type="button"
         onClick={() => setIsEditing(false)}
         disabled={saving}
-        className="mt-1 text-xs text-gray-500 hover:text-gray-700 dark:text-gray-400"
+        className="mt-1 text-xs text-gray-500 hover:text-gray-700 max-lg:min-h-11 max-lg:px-2 max-lg:text-sm dark:text-gray-400"
       >
         Cancelar
       </button>
@@ -316,26 +357,39 @@ const AtivoEditarContent = () => {
   const [proventoDraft, setProventoDraft] = useState<ProventoDraft | null>(null);
   const [proventoSaving, setProventoSaving] = useState(false);
   const [proventoDeleteId, setProventoDeleteId] = useState<string | null>(null);
+  // PWA fase 1: abaixo de lg, movimentações e proventos em cartões e edição por sheet.
+  const isBelowLg = useIsBelowLg();
 
-  const loadData = useCallback(async () => {
-    if (!id) return;
-    setLoading(true);
-    setError(null);
-    try {
-      const res = await fetch(`/api/ativos/${id}/editar`, { credentials: 'include' });
-      if (!res.ok) {
-        if (res.status === 404) throw new Error('Ativo não encontrado');
-        throw new Error('Erro ao carregar dados');
+  /**
+   * `silent`: recarrega sem trocar a página pelo spinner nem limpar o erro — o celular edita por
+   * sheet (MobileEditSheet), que precisa continuar montado para mostrar o erro ou o aviso "salvo".
+   */
+  const loadData = useCallback(
+    async (opts?: { silent?: boolean }) => {
+      if (!id) return;
+      const silent = opts?.silent ?? false;
+      if (!silent) {
+        setLoading(true);
+        setError(null);
       }
-      const json = (await res.json()) as EditarPayload;
-      setData(json);
-      setOperacoesPage(0);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erro desconhecido');
-    } finally {
-      setLoading(false);
-    }
-  }, [id]);
+      try {
+        const res = await fetch(`/api/ativos/${id}/editar`, { credentials: 'include' });
+        if (!res.ok) {
+          if (res.status === 404) throw new Error('Ativo não encontrado');
+          throw new Error('Erro ao carregar dados');
+        }
+        const json = (await res.json()) as EditarPayload;
+        setData(json);
+        setOperacoesPage(0);
+      } catch (err) {
+        if (silent) logger.error('Erro ao recarregar edição do ativo:', err);
+        else setError(err instanceof Error ? err.message : 'Erro desconhecido');
+      } finally {
+        if (!silent) setLoading(false);
+      }
+    },
+    [id],
+  );
 
   useEffect(() => {
     void loadData();
@@ -352,19 +406,25 @@ const AtivoEditarContent = () => {
         });
         if (res.ok) {
           invalidatePortfolioDerivedQueries(queryClient);
-          await loadData();
+          // Celular: recarga silenciosa (o sheet fecha e mostra "salvo" em vez de sumir no spinner).
+          await loadData({ silent: isBelowLg });
+          return true;
         } else {
           const errBody = await res.json().catch(() => ({}));
           logger.error(`Erro ao salvar ${field}:`, res.status, errBody);
+          // Celular: o sheet fica aberto com o erro (retorno false); setError trocaria a página.
+          if (isBelowLg) return false;
           setError(`Erro ao salvar: ${(errBody as { error?: string }).error || res.statusText}`);
           await loadData();
+          return false;
         }
       } catch (err) {
         logger.error('Erro ao atualizar transação:', err);
-        setError('Erro de rede ao salvar alteração');
+        if (!isBelowLg) setError('Erro de rede ao salvar alteração');
+        return false;
       }
     },
-    [loadData, csrfFetch, queryClient],
+    [loadData, csrfFetch, queryClient, isBelowLg],
   );
 
   /**
@@ -731,6 +791,192 @@ const AtivoEditarContent = () => {
     );
   };
 
+  /** Celular: provento em cartão, com Editar (44px) que abre o mesmo rascunho do desktop. */
+  const renderProventoMobileCard = (p: ProventoRow) => (
+    <div className={TABLE_MOBILE_STYLES.card}>
+      <div className={TABLE_MOBILE_STYLES.cardHeader}>
+        <div className="min-w-0">
+          <p className={TABLE_MOBILE_STYLES.cardTitle}>{p.tipo}</p>
+          <p className={TABLE_MOBILE_STYLES.cardSubtitle}>
+            Pago em {formatDate(p.dataPagamento)} · com {formatDate(p.dataCom)}
+          </p>
+        </div>
+        <p className={TABLE_MOBILE_STYLES.valuePrimary}>{formatCurrency(p.valorTotal)}</p>
+      </div>
+      <dl className={`mt-2 ${TABLE_MOBILE_STYLES.cardDetailGrid}`}>
+        <div className="min-w-0">
+          <dt className={TABLE_MOBILE_STYLES.cardDetailLabel}>Precificar por</dt>
+          <dd className={TABLE_MOBILE_STYLES.cardDetailValue}>
+            {p.precificarPor === 'quantidade' ? 'Quantidade' : 'Valor'}
+          </dd>
+        </div>
+        <div className="min-w-0">
+          <dt className={TABLE_MOBILE_STYLES.cardDetailLabel}>Qtde base</dt>
+          <dd className={TABLE_MOBILE_STYLES.cardDetailValue}>
+            {p.quantidadeBase.toLocaleString('pt-BR')}
+          </dd>
+        </div>
+        <div className="min-w-0">
+          <dt className={TABLE_MOBILE_STYLES.cardDetailLabel}>IR</dt>
+          <dd className={TABLE_MOBILE_STYLES.cardDetailValue}>
+            {p.impostoRenda != null ? formatCurrency(p.impostoRenda) : '—'}
+          </dd>
+        </div>
+      </dl>
+      {proventoEditingId === null && (
+        <div className="mt-2 flex justify-end border-t border-gray-100 pt-1 dark:border-gray-800">
+          <button
+            type="button"
+            onClick={() => handleStartEditProvento(p)}
+            className={TABLE_MOBILE_STYLES.editButton}
+            aria-label={`Editar provento ${p.tipo}`}
+          >
+            Editar
+          </button>
+        </div>
+      )}
+    </div>
+  );
+
+  /** Celular: o rascunho do provento (mesmo estado e handlers da linha do desktop) em 1 coluna. */
+  const renderProventoMobileForm = (p: ProventoRow | null) => {
+    const draft = proventoDraft;
+    if (!draft) return null;
+    const set = (patch: Partial<ProventoDraft>) =>
+      setProventoDraft((d) => (d ? { ...d, ...patch } : d));
+    const fid = (name: string) => `provento-${p?.id ?? 'novo'}-${name}`;
+    return (
+      <div className={`${TABLE_MOBILE_STYLES.card} flex flex-col gap-3`} data-mf-provento-form="">
+        <p className={TABLE_MOBILE_STYLES.cardTitle}>{p ? 'Editar provento' : 'Novo provento'}</p>
+        <div>
+          <label htmlFor={fid('tipo')} className={MOBILE_LABEL_CLASS}>
+            Tipo de movimentação
+          </label>
+          <input
+            id={fid('tipo')}
+            type="text"
+            value={draft.tipo}
+            onChange={(e) => set({ tipo: e.target.value })}
+            enterKeyHint="next"
+            className={MOBILE_INPUT_CLASS}
+          />
+        </div>
+        <div className="grid grid-cols-2 gap-2 max-[359px]:grid-cols-1">
+          <div className="min-w-0">
+            <label htmlFor={fid('dataCom')} className={MOBILE_LABEL_CLASS}>
+              Data com
+            </label>
+            <input
+              id={fid('dataCom')}
+              type="date"
+              value={draft.dataCom}
+              onChange={(e) => set({ dataCom: e.target.value })}
+              className={`${MOBILE_INPUT_CLASS} min-w-0`}
+            />
+          </div>
+          <div className="min-w-0">
+            <label htmlFor={fid('dataPagamento')} className={MOBILE_LABEL_CLASS}>
+              Data pagamento
+            </label>
+            <input
+              id={fid('dataPagamento')}
+              type="date"
+              value={draft.dataPagamento}
+              onChange={(e) => set({ dataPagamento: e.target.value })}
+              className={`${MOBILE_INPUT_CLASS} min-w-0`}
+            />
+          </div>
+        </div>
+        <div>
+          <label htmlFor={fid('precificarPor')} className={MOBILE_LABEL_CLASS}>
+            Precificar por
+          </label>
+          <select
+            id={fid('precificarPor')}
+            value={draft.precificarPor}
+            onChange={(e) => set({ precificarPor: e.target.value })}
+            className={MOBILE_INPUT_CLASS}
+          >
+            <option value="valor">Valor</option>
+            <option value="quantidade">Quantidade</option>
+          </select>
+        </div>
+        <div className="grid grid-cols-2 gap-2 max-[359px]:grid-cols-1">
+          <div className="min-w-0">
+            <label htmlFor={fid('valorTotal')} className={MOBILE_LABEL_CLASS}>
+              Valor total (R$)
+            </label>
+            <input
+              id={fid('valorTotal')}
+              type="text"
+              inputMode="decimal"
+              enterKeyHint="next"
+              value={draft.valorTotal}
+              onChange={(e) => set({ valorTotal: e.target.value })}
+              className={MOBILE_INPUT_CLASS}
+            />
+          </div>
+          <div className="min-w-0">
+            <label htmlFor={fid('quantidadeBase')} className={MOBILE_LABEL_CLASS}>
+              Qtde base
+            </label>
+            <input
+              id={fid('quantidadeBase')}
+              type="text"
+              inputMode="decimal"
+              enterKeyHint="next"
+              value={draft.quantidadeBase}
+              onChange={(e) => set({ quantidadeBase: e.target.value })}
+              className={MOBILE_INPUT_CLASS}
+            />
+          </div>
+        </div>
+        <div>
+          <label htmlFor={fid('impostoRenda')} className={MOBILE_LABEL_CLASS}>
+            IR (R$, opcional)
+          </label>
+          <input
+            id={fid('impostoRenda')}
+            type="text"
+            inputMode="decimal"
+            enterKeyHint="done"
+            placeholder="—"
+            value={draft.impostoRenda}
+            onChange={(e) => set({ impostoRenda: e.target.value })}
+            className={MOBILE_INPUT_CLASS}
+          />
+        </div>
+        <div className="grid grid-cols-[auto_1fr] gap-2.5">
+          <button
+            type="button"
+            onClick={handleCancelProvento}
+            className="h-12 rounded-xl border border-gray-300 px-5 text-base font-medium text-gray-700 dark:border-gray-600 dark:text-gray-200"
+          >
+            Cancelar
+          </button>
+          <button
+            type="button"
+            onClick={() => void handleSaveProvento()}
+            disabled={proventoSaving}
+            aria-busy={proventoSaving || undefined}
+            className="h-12 rounded-xl bg-mf-patrimonio px-5 text-base font-semibold text-white active:bg-mf-seguranca disabled:opacity-50"
+          >
+            {proventoSaving ? 'Salvando…' : 'Salvar'}
+          </button>
+        </div>
+        {p && (
+          <button
+            type="button"
+            onClick={() => setProventoDeleteId(p.id)}
+            className="min-h-11 self-start rounded-md px-2 text-sm font-medium text-[#D92D20] dark:text-[#F97066]"
+          >
+            Apagar provento
+          </button>
+        )}
+      </div>
+    );
+  };
+
   if (loading) {
     return <LoadingSpinner text="Carregando edição do ativo..." />;
   }
@@ -845,6 +1091,7 @@ const AtivoEditarContent = () => {
                         <EditableDateCell
                           value={inicial.date}
                           onSubmit={(v) => handleUpdateTransacao(inicial.id, 'date', v)}
+                          mobileLabel="Data da compra"
                         />
                       </div>
                     </div>
@@ -859,6 +1106,7 @@ const AtivoEditarContent = () => {
                           formatDisplay={(v) => v.toLocaleString('pt-BR')}
                           min={0}
                           inputWidth="w-full max-w-[10rem]"
+                          mobileLabel="Quantidade"
                         />
                       </div>
                     </div>
@@ -873,6 +1121,8 @@ const AtivoEditarContent = () => {
                           formatDisplay={(v) => formatCurrency(v)}
                           min={0}
                           inputWidth="w-full max-w-[10rem]"
+                          mobileLabel="Cotação"
+                          mobileKind="currency"
                         />
                       </div>
                     </div>
@@ -890,6 +1140,8 @@ const AtivoEditarContent = () => {
                           formatDisplay={(v) => formatCurrency(v)}
                           min={0}
                           inputWidth="w-full max-w-[10rem]"
+                          mobileLabel="Taxas"
+                          mobileKind="currency"
                         />
                       </div>
                     </div>
@@ -912,110 +1164,184 @@ const AtivoEditarContent = () => {
               </h2>
             </div>
             <div className="p-4 sm:p-6">
-              <div className="space-y-3">
-                {operacoesPaginadas.length === 0 ? (
-                  <p className="text-sm text-gray-500 dark:text-gray-400">
-                    Nenhuma operação registrada.
-                  </p>
-                ) : (
-                  operacoesPaginadas.map((tx) => (
-                    <div
-                      key={tx.id}
-                      className="border-b border-gray-100 pb-3 last:border-0 dark:border-gray-800"
-                    >
-                      <div className="min-w-0 space-y-2">
-                        <div className="flex flex-wrap items-center justify-between gap-2">
-                          <p className="text-sm font-medium text-gray-800 dark:text-gray-200">
-                            {tx.tipoOperacao}
-                          </p>
-                          <button
-                            type="button"
-                            onClick={() => setTransacaoIdToDelete(tx.id)}
-                            className="text-sm font-medium text-red-600 hover:underline dark:text-red-400"
-                            aria-label={`Excluir movimentação ${tx.tipoOperacao}`}
-                          >
-                            Excluir
-                          </button>
+              {isBelowLg ? (
+                <ResponsiveCardList
+                  ariaLabel="Movimentações"
+                  columns={[]}
+                  rows={operacoesPaginadas}
+                  getRowKey={(tx) => tx.id}
+                  emptyState="Nenhuma operação registrada."
+                  renderMobileCard={(tx) => (
+                    <div className={TABLE_MOBILE_STYLES.card}>
+                      <p className={TABLE_MOBILE_STYLES.cardTitle}>{tx.tipoOperacao}</p>
+                      <dl className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1">
+                        <div className="min-w-0">
+                          <dt className={TABLE_MOBILE_STYLES.cardDetailLabel}>Data</dt>
+                          <dd>
+                            <EditableDateCell
+                              value={tx.date}
+                              onSubmit={(v) => handleUpdateTransacao(tx.id, 'date', v)}
+                            />
+                          </dd>
                         </div>
-                        <div className="grid grid-cols-2 gap-3 text-sm sm:grid-cols-3 lg:grid-cols-5">
-                          <div>
-                            <p className="text-xs font-medium text-gray-500 dark:text-gray-400">
-                              Precificar por
+                        <div className="min-w-0">
+                          <dt className={TABLE_MOBILE_STYLES.cardDetailLabel}>Valor total</dt>
+                          <dd>
+                            <EditableField
+                              value={tx.total}
+                              onSubmit={(v) => handleUpdateTransacao(tx.id, 'total', v)}
+                              formatDisplay={(v) => formatCurrency(v)}
+                              min={0}
+                              mobileLabel="Valor total"
+                              mobileKind="currency"
+                            />
+                          </dd>
+                        </div>
+                        <div className="min-w-0">
+                          <dt className={TABLE_MOBILE_STYLES.cardDetailLabel}>Quantidade</dt>
+                          <dd>
+                            <EditableField
+                              value={tx.quantity}
+                              onSubmit={(v) => handleUpdateTransacao(tx.id, 'quantity', v)}
+                              formatDisplay={(v) => v.toLocaleString('pt-BR')}
+                              min={0}
+                              mobileLabel="Quantidade"
+                            />
+                          </dd>
+                        </div>
+                        <div className="min-w-0">
+                          <dt className={TABLE_MOBILE_STYLES.cardDetailLabel}>Cotação</dt>
+                          <dd>
+                            <EditableField
+                              value={tx.price}
+                              onSubmit={(v) => handleUpdateTransacao(tx.id, 'price', v)}
+                              formatDisplay={(v) => formatCurrency(v)}
+                              min={0}
+                              mobileLabel="Cotação"
+                              mobileKind="currency"
+                            />
+                          </dd>
+                        </div>
+                      </dl>
+                      <div className="mt-2 flex justify-end border-t border-gray-100 pt-1 dark:border-gray-800">
+                        <button
+                          type="button"
+                          onClick={() => setTransacaoIdToDelete(tx.id)}
+                          className="inline-flex min-h-11 items-center rounded-md px-3 text-sm font-medium text-[#D92D20] dark:text-[#F97066]"
+                          aria-label={`Excluir movimentação ${tx.tipoOperacao}`}
+                        >
+                          Excluir
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                />
+              ) : (
+                <div className="space-y-3">
+                  {operacoesPaginadas.length === 0 ? (
+                    <p className="text-sm text-gray-500 dark:text-gray-400">
+                      Nenhuma operação registrada.
+                    </p>
+                  ) : (
+                    operacoesPaginadas.map((tx) => (
+                      <div
+                        key={tx.id}
+                        className="border-b border-gray-100 pb-3 last:border-0 dark:border-gray-800"
+                      >
+                        <div className="min-w-0 space-y-2">
+                          <div className="flex flex-wrap items-center justify-between gap-2">
+                            <p className="text-sm font-medium text-gray-800 dark:text-gray-200">
+                              {tx.tipoOperacao}
                             </p>
-                            <select
-                              disabled
-                              className="mt-1 w-full cursor-not-allowed rounded-md border-0 bg-transparent p-0 text-sm text-gray-800 dark:text-gray-200"
-                              aria-label="Precificar por (fixo)"
-                              value="valor"
+                            <button
+                              type="button"
+                              onClick={() => setTransacaoIdToDelete(tx.id)}
+                              className="text-sm font-medium text-red-600 hover:underline dark:text-red-400"
+                              aria-label={`Excluir movimentação ${tx.tipoOperacao}`}
                             >
-                              <option value="valor">Valor</option>
-                            </select>
+                              Excluir
+                            </button>
                           </div>
-                          <div>
-                            <p className="text-xs font-medium text-gray-500 dark:text-gray-400">
-                              Data
-                            </p>
-                            <div className="mt-1">
-                              <EditableDateCell
-                                value={tx.date}
-                                onSubmit={(v) => handleUpdateTransacao(tx.id, 'date', v)}
-                              />
+                          <div className="grid grid-cols-2 gap-3 text-sm sm:grid-cols-3 lg:grid-cols-5">
+                            <div>
+                              <p className="text-xs font-medium text-gray-500 dark:text-gray-400">
+                                Precificar por
+                              </p>
+                              <select
+                                disabled
+                                className="mt-1 w-full cursor-not-allowed rounded-md border-0 bg-transparent p-0 text-sm text-gray-800 dark:text-gray-200"
+                                aria-label="Precificar por (fixo)"
+                                value="valor"
+                              >
+                                <option value="valor">Valor</option>
+                              </select>
                             </div>
-                          </div>
-                          <div>
-                            <p className="text-xs font-medium text-gray-500 dark:text-gray-400">
-                              Valor total (R$)
-                            </p>
-                            <div className="mt-1">
-                              <EditableField
-                                value={tx.total}
-                                onSubmit={(v) => handleUpdateTransacao(tx.id, 'total', v)}
-                                formatDisplay={(v) => formatCurrency(v)}
-                                min={0}
-                                inputWidth="w-full min-w-[6rem]"
-                              />
+                            <div>
+                              <p className="text-xs font-medium text-gray-500 dark:text-gray-400">
+                                Data
+                              </p>
+                              <div className="mt-1">
+                                <EditableDateCell
+                                  value={tx.date}
+                                  onSubmit={(v) => handleUpdateTransacao(tx.id, 'date', v)}
+                                />
+                              </div>
                             </div>
-                          </div>
-                          <div>
-                            <p className="text-xs font-medium text-gray-500 dark:text-gray-400">
-                              Quantidade
-                            </p>
-                            <div className="mt-1">
-                              <EditableField
-                                value={tx.quantity}
-                                onSubmit={(v) => handleUpdateTransacao(tx.id, 'quantity', v)}
-                                formatDisplay={(v) => v.toLocaleString('pt-BR')}
-                                min={0}
-                                inputWidth="w-full min-w-[5rem]"
-                              />
+                            <div>
+                              <p className="text-xs font-medium text-gray-500 dark:text-gray-400">
+                                Valor total (R$)
+                              </p>
+                              <div className="mt-1">
+                                <EditableField
+                                  value={tx.total}
+                                  onSubmit={(v) => handleUpdateTransacao(tx.id, 'total', v)}
+                                  formatDisplay={(v) => formatCurrency(v)}
+                                  min={0}
+                                  inputWidth="w-full min-w-[6rem]"
+                                />
+                              </div>
                             </div>
-                          </div>
-                          <div>
-                            <p className="text-xs font-medium text-gray-500 dark:text-gray-400">
-                              Cotação
-                            </p>
-                            <div className="mt-1">
-                              <EditableField
-                                value={tx.price}
-                                onSubmit={(v) => handleUpdateTransacao(tx.id, 'price', v)}
-                                formatDisplay={(v) => formatCurrency(v)}
-                                min={0}
-                                inputWidth="w-full min-w-[6rem]"
-                              />
+                            <div>
+                              <p className="text-xs font-medium text-gray-500 dark:text-gray-400">
+                                Quantidade
+                              </p>
+                              <div className="mt-1">
+                                <EditableField
+                                  value={tx.quantity}
+                                  onSubmit={(v) => handleUpdateTransacao(tx.id, 'quantity', v)}
+                                  formatDisplay={(v) => v.toLocaleString('pt-BR')}
+                                  min={0}
+                                  inputWidth="w-full min-w-[5rem]"
+                                />
+                              </div>
+                            </div>
+                            <div>
+                              <p className="text-xs font-medium text-gray-500 dark:text-gray-400">
+                                Cotação
+                              </p>
+                              <div className="mt-1">
+                                <EditableField
+                                  value={tx.price}
+                                  onSubmit={(v) => handleUpdateTransacao(tx.id, 'price', v)}
+                                  formatDisplay={(v) => formatCurrency(v)}
+                                  min={0}
+                                  inputWidth="w-full min-w-[6rem]"
+                                />
+                              </div>
                             </div>
                           </div>
                         </div>
                       </div>
-                    </div>
-                  ))
-                )}
-              </div>
+                    ))
+                  )}
+                </div>
+              )}
 
               {data.operacoes.length > MO_PAGE_SIZE && (
                 <div className="mt-4 flex items-center justify-center gap-3 text-sm text-gray-500 dark:text-gray-400">
                   <button
                     type="button"
-                    className="rounded p-1 hover:bg-gray-100 dark:hover:bg-gray-800 disabled:opacity-40"
+                    className="rounded p-1 hover:bg-gray-100 dark:hover:bg-gray-800 disabled:opacity-40 max-lg:flex max-lg:h-11 max-lg:w-11 max-lg:items-center max-lg:justify-center"
                     disabled={operacoesPage <= 0}
                     onClick={() => setOperacoesPage((p) => Math.max(0, p - 1))}
                     aria-label="Página anterior"
@@ -1027,7 +1353,7 @@ const AtivoEditarContent = () => {
                   </span>
                   <button
                     type="button"
-                    className="rounded p-1 hover:bg-gray-100 dark:hover:bg-gray-800 disabled:opacity-40"
+                    className="rounded p-1 hover:bg-gray-100 dark:hover:bg-gray-800 disabled:opacity-40 max-lg:flex max-lg:h-11 max-lg:w-11 max-lg:items-center max-lg:justify-center"
                     disabled={operacoesPage >= totalOperacoesPages - 1}
                     onClick={() =>
                       setOperacoesPage((p) => Math.min(totalOperacoesPages - 1, p + 1))
@@ -1048,7 +1374,7 @@ const AtivoEditarContent = () => {
                     <button
                       type="button"
                       onClick={handleStartNewProvento}
-                      className="inline-flex items-center gap-1 text-sm font-medium text-brand-600 hover:text-brand-500 dark:text-brand-400"
+                      className="inline-flex items-center gap-1 text-sm font-medium text-brand-600 hover:text-brand-500 max-lg:min-h-11 dark:text-brand-400"
                     >
                       <PlusIcon className="h-4 w-4" aria-hidden />
                       Novo provento
@@ -1056,26 +1382,48 @@ const AtivoEditarContent = () => {
                   ) : null}
                 </div>
 
-                <div className={TABLE_STYLES.wrapper}>
-                  <table className={`${TABLE_STYLES.table} min-w-[760px]`}>
-                    <thead>
-                      <tr className={TABLE_STYLES.headRow} style={TABLE_HEADER_STYLE}>
-                        <th className={`${TABLE_STYLES.th} text-left`}>Tipo</th>
-                        <th className={`${TABLE_STYLES.th} text-right`}>Data com</th>
-                        <th className={`${TABLE_STYLES.th} text-right`}>Data pagamento</th>
-                        <th className={`${TABLE_STYLES.th} text-center`}>Precificar por</th>
-                        <th className={`${TABLE_STYLES.th} text-right`}>Valor total</th>
-                        <th className={`${TABLE_STYLES.th} text-right`}>Qtde base</th>
-                        <th className={`${TABLE_STYLES.th} text-right`}>IR (R$)</th>
-                        <th className={`${TABLE_STYLES.th} w-28 text-right`}> </th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {proventoEditingId === 'new' ? renderProventoRow(null, 'new-row') : null}
-                      {data.proventos.map((p) => renderProventoRow(p, p.id))}
-                    </tbody>
-                  </table>
-                </div>
+                {isBelowLg ? (
+                  <div className="flex flex-col gap-2">
+                    {proventoEditingId === 'new' && proventoDraft
+                      ? renderProventoMobileForm(null)
+                      : null}
+                    <ResponsiveCardList
+                      ariaLabel="Proventos"
+                      columns={[]}
+                      rows={data.proventos}
+                      getRowKey={(p) => p.id}
+                      emptyState={
+                        proventoEditingId === 'new' ? undefined : 'Nenhum provento registrado.'
+                      }
+                      renderMobileCard={(p) =>
+                        proventoEditingId === p.id && proventoDraft
+                          ? renderProventoMobileForm(p)
+                          : renderProventoMobileCard(p)
+                      }
+                    />
+                  </div>
+                ) : (
+                  <div className={TABLE_STYLES.wrapper}>
+                    <table className={`${TABLE_STYLES.table} min-w-[760px]`}>
+                      <thead>
+                        <tr className={TABLE_STYLES.headRow} style={TABLE_HEADER_STYLE}>
+                          <th className={`${TABLE_STYLES.th} text-left`}>Tipo</th>
+                          <th className={`${TABLE_STYLES.th} text-right`}>Data com</th>
+                          <th className={`${TABLE_STYLES.th} text-right`}>Data pagamento</th>
+                          <th className={`${TABLE_STYLES.th} text-center`}>Precificar por</th>
+                          <th className={`${TABLE_STYLES.th} text-right`}>Valor total</th>
+                          <th className={`${TABLE_STYLES.th} text-right`}>Qtde base</th>
+                          <th className={`${TABLE_STYLES.th} text-right`}>IR (R$)</th>
+                          <th className={`${TABLE_STYLES.th} w-28 text-right`}> </th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {proventoEditingId === 'new' ? renderProventoRow(null, 'new-row') : null}
+                        {data.proventos.map((p) => renderProventoRow(p, p.id))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
               </div>
             </div>
           </div>

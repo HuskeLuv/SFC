@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import React from 'react';
 import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import { QueryClientProvider } from '@tanstack/react-query';
@@ -129,6 +129,58 @@ describe('ImportPlanilhaModal', () => {
 
     await waitFor(() => expect(screen.getByText('Aba não encontrada')).toBeInTheDocument());
     expect(screen.getByRole('button', { name: /gerar prévia/i })).toBeInTheDocument();
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  /** Simula a largura: `true` = abaixo de lg (celular), `false` = desktop. */
+  const stubBelowLg = (matches: boolean) =>
+    vi.stubGlobal(
+      'matchMedia',
+      vi.fn().mockImplementation((query: string) => ({
+        matches,
+        media: query,
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+        addListener: vi.fn(),
+        removeListener: vi.fn(),
+        onchange: null,
+        dispatchEvent: vi.fn(),
+      })),
+    );
+
+  it('é um diálogo modal com nome e fecha no Esc no celular (PWA fase 2)', () => {
+    stubBelowLg(true);
+    const onClose = vi.fn();
+    renderModal({ onClose });
+    const dialog = screen.getByRole('dialog', { name: 'Importar planilha FLC' });
+    expect(dialog).toHaveAttribute('aria-modal', 'true');
+    // Celular: passo atual no cabeçalho.
+    expect(screen.getByText(/Passo 1 de 3/)).toBeInTheDocument();
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it('no desktop (>= lg) Esc não fecha — comportamento de antes', () => {
+    stubBelowLg(false);
+    const onClose = vi.fn();
+    renderModal({ onClose });
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it('Esc não fecha enquanto grava', async () => {
+    stubBelowLg(true);
+    const onClose = vi.fn();
+    mockCsrfFetch.mockReturnValueOnce(new Promise(() => undefined));
+    renderModal({ onClose });
+    escolherArquivo();
+    fireEvent.click(screen.getByRole('button', { name: /gerar prévia/i }));
+    await waitFor(() => expect(screen.getByText(/lendo planilha/i)).toBeInTheDocument());
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(onClose).not.toHaveBeenCalled();
   });
 
   it('fechado não renderiza nada', () => {

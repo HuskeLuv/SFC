@@ -6,6 +6,10 @@ import type { ApexOptions } from 'apexcharts';
 import Button from '@/components/ui/button/Button';
 import { useDeleteSeguro, useSeguros, type SeguroDTO } from '@/hooks/useSeguros';
 import SeguroForm from './SeguroForm';
+import SegurosCards from './mobile/SegurosCards';
+import { useIsBelowLg } from '@/hooks/useMediaQuery';
+import { useResponsiveConfirm } from '@/components/ui/sheet/useResponsiveConfirm';
+import { useMobileChart } from '@/components/charts/mobileChartOptions';
 import {
   COBERTURA_EIXO,
   RISCO_EIXO,
@@ -25,6 +29,13 @@ const SERIES_COLORS: Record<string, string> = {
   total: '#12B76A',
 };
 
+/** Celular sem verde (PWA fase 3): nenhuma = vermelho, parcial = âmbar, total = azul. */
+const MOBILE_SERIES_COLORS: Record<string, string> = {
+  nenhuma: '#D92D20',
+  parcial: '#D97706',
+  total: '#0079F2',
+};
+
 type BubblePoint = { x: number; y: number; z: number; nome: string; custo: number };
 
 /**
@@ -39,6 +50,9 @@ export default function GestaoRisco() {
   const [editing, setEditing] = useState<SeguroDTO | null>(null);
   const [creating, setCreating] = useState(false);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const isBelowLg = useIsBelowLg();
+  // Sempre chamado; no desktop a exclusão continua com a confirmação inline (confirmDeleteId).
+  const { confirmAndRun, confirmSheet } = useResponsiveConfirm();
 
   const chart = useMemo(() => {
     // Jitter determinístico por índice para bolhas na mesma célula não se
@@ -63,6 +77,9 @@ export default function GestaoRisco() {
     const colors = (['nenhuma', 'parcial', 'total'] as const)
       .filter((c) => grupos[c].length > 0)
       .map((c) => SERIES_COLORS[c]);
+    const mobileColors = (['nenhuma', 'parcial', 'total'] as const)
+      .filter((c) => grupos[c].length > 0)
+      .map((c) => MOBILE_SERIES_COLORS[c]);
 
     const options: ApexOptions = {
       chart: { type: 'bubble', toolbar: { show: false }, fontFamily: 'inherit' },
@@ -119,8 +136,32 @@ export default function GestaoRisco() {
         ],
       },
     };
-    return { series, options };
+    const mobileExtra: ApexOptions = {
+      colors: mobileColors,
+      legend: { position: 'bottom' },
+      xaxis: { tickAmount: 3 },
+    };
+    return { series, options, mobileExtra };
   }, [seguros]);
+  const { options: chartOptions, height: chartHeight } = useMobileChart(chart.options, {
+    extra: chart.mobileExtra,
+    desktopHeight: 300,
+    mobileHeight: 260,
+  });
+
+  // Celular: confirmação em sheet (sem desktopMessage — o desktop não passa por aqui).
+  const handleDeleteMobile = (seguro: SeguroDTO) =>
+    confirmAndRun(
+      {
+        title: `Excluir ${seguro.nome}?`,
+        confirmLabel: 'Excluir',
+        danger: true,
+        busyLabel: 'Excluindo…',
+      },
+      async () => {
+        await deleteSeguro.mutateAsync(seguro.id);
+      },
+    );
 
   const handleDelete = async (id: string) => {
     try {
@@ -132,9 +173,17 @@ export default function GestaoRisco() {
 
   return (
     <div className="print:break-inside-avoid rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03]">
-      <div className="flex items-center justify-between gap-3">
+      <div
+        className={`flex items-center justify-between gap-3${
+          isBelowLg ? ' mscreen:flex-col mscreen:items-stretch' : ''
+        }`}
+      >
         <div>
-          <h3 className="text-base font-semibold text-gray-900 dark:text-white/90">
+          <h3
+            className={`text-base font-semibold text-gray-900 dark:text-white/90${
+              isBelowLg ? ' mscreen:hidden' : ''
+            }`}
+          >
             Gestão de Risco
           </h3>
           <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
@@ -144,7 +193,11 @@ export default function GestaoRisco() {
         </div>
         {!creating && !editing ? (
           <div className="print:hidden">
-            <Button size="sm" onClick={() => setCreating(true)}>
+            <Button
+              size="sm"
+              onClick={() => setCreating(true)}
+              className="mscreen:min-h-11 mscreen:w-full"
+            >
               + Adicionar seguro
             </Button>
           </div>
@@ -183,13 +236,25 @@ export default function GestaoRisco() {
           <div className="mt-2">
             <ReactApexChart
               type="bubble"
-              height={300}
+              height={chartHeight}
               series={chart.series}
-              options={chart.options}
+              options={chartOptions}
             />
           </div>
 
-          <div className={`mt-3 ${TABLE_STYLES.wrapper}`}>
+          {isBelowLg ? (
+            <div className="mt-3 hidden mscreen:block">
+              <SegurosCards
+                seguros={seguros}
+                onEdit={(s) => {
+                  setCreating(false);
+                  setEditing(s);
+                }}
+                onDelete={(s) => void handleDeleteMobile(s)}
+              />
+            </div>
+          ) : null}
+          <div className={`mt-3 ${TABLE_STYLES.wrapper}${isBelowLg ? ' mscreen:hidden' : ''}`}>
             <table className={TABLE_STYLES.table}>
               <thead>
                 <tr className={TABLE_STYLES.headRow} style={TABLE_HEADER_STYLE}>
@@ -275,6 +340,7 @@ export default function GestaoRisco() {
           </div>
         </>
       )}
+      {confirmSheet}
     </div>
   );
 }

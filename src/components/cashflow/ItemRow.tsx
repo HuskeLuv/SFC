@@ -9,6 +9,7 @@ import { CommentIndicator } from './CommentIndicator';
 import { FixedCell, MonthCell, AnnualCell } from './GridCells';
 import { GRID, currentMonthIndex } from './cashflowGridStyles';
 import { useDropHint } from './CashflowDnd';
+import { isInvestment } from '@/lib/cashflow/itemCapabilities';
 
 interface ItemRowProps {
   item: CashflowItem;
@@ -130,7 +131,7 @@ const ItemRowComponent: React.FC<ItemRowProps> = ({
         <span className="cursor-default truncate block">{item.significado || ''}</span>
       </FixedCell>
       <FixedCell col={2} className={`text-center text-gray-500 dark:text-gray-400 ${GRID.rowBg}`}>
-        {group.type === 'investimento' ? '' : item.rank || ''}
+        {isInvestment(group) ? '' : item.rank || ''}
       </FixedCell>
       <FixedCell col={3} className={`text-right tabular-nums ${GRID.rowBg}`}>
         {!isDerived && itemPercentage > 0 ? formatPercent(itemPercentage) : ''}
@@ -139,8 +140,7 @@ const ItemRowComponent: React.FC<ItemRowProps> = ({
         const monthlyValue = valuesByMonth[index];
         // Aporte/Resgate (grupo investimento, automático da carteira):
         // aporte em verde, resgate em vermelho (regra Pedro Haddad).
-        const signColor =
-          group.type === 'investimento' && value ? (value > 0 ? '#16a34a' : '#dc2626') : null;
+        const signColor = isInvestment(group) && value ? (value > 0 ? '#16a34a' : '#dc2626') : null;
         const cellColor = monthlyValue?.color || signColor;
         const cellComment = monthlyValue?.comment || null;
 

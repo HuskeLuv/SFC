@@ -36,9 +36,9 @@ export default function AcoesTable({ totalCarteira = 0 }: AcoesTableProps) {
     updateCaixaParaInvestir,
   } = useAcoes();
 
-  const handleUpdateObjetivo = async (ativoId: string, novoObjetivo: number) => {
-    await updateObjetivo(ativoId, novoObjetivo);
-  };
+  // Devolve o resultado (false = falha) para o sheet do celular manter o erro aberto.
+  const handleUpdateObjetivo = (ativoId: string, novoObjetivo: number) =>
+    updateObjetivo(ativoId, novoObjetivo);
 
   // Aba sem ativos: o TOTAL GERAL de % da Carteira mostra "—" em vez de 100%.
   const temAtivos = (data?.secoes ?? []).some((s) => s.ativos.length > 0);
@@ -244,6 +244,7 @@ export default function AcoesTable({ totalCarteira = 0 }: AcoesTableProps) {
       formatPercentage={formatPercentage}
       formatNumber={formatNumber}
       totalCarteira={totalCarteira}
+      mobileQuantityUnit="ações"
     />
   );
 }

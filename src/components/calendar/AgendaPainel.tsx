@@ -17,14 +17,17 @@ interface LinhaResumo {
   sinal: '+' | '-' | '';
 }
 
-function CardResumo({
+export function CardResumo({
   eventos,
   tipos,
   theme,
+  semTitulo = false,
 }: {
   eventos: EventoAgenda[];
   tipos: Set<TipoEvento>;
   theme: 'light' | 'dark';
+  /** PWA fase 3: dentro do MobileCollapsible do celular o título vem do cabeçalho dele. */
+  semTitulo?: boolean;
 }) {
   const resumo = useMemo(() => resumoDoPeriodo(eventos, tipos), [eventos, tipos]);
 
@@ -40,9 +43,11 @@ function CardResumo({
 
   return (
     <div className="rounded-2xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-white/[0.03]">
-      <h3 className="mb-3 text-sm font-semibold text-gray-800 dark:text-white/90">
-        Resumo do período
-      </h3>
+      {semTitulo ? null : (
+        <h3 className="mb-3 text-sm font-semibold text-gray-800 dark:text-white/90">
+          Resumo do período
+        </h3>
+      )}
       {linhas.length === 0 ? (
         <p className="text-xs text-gray-500 dark:text-gray-400">
           Nada previsto no período que está aparecendo.
@@ -106,7 +111,7 @@ function CardProximos({
               <button
                 type="button"
                 onClick={() => onSelecionar(e)}
-                className="flex w-full items-start gap-2 rounded-lg px-1 py-1 text-left hover:bg-gray-50 dark:hover:bg-white/[0.04]"
+                className="flex w-full items-start gap-2 rounded-lg px-1 py-1 text-left hover:bg-gray-50 max-lg:min-h-11 dark:hover:bg-white/[0.04]"
               >
                 <span
                   className="mt-1.5 h-2.5 w-2.5 shrink-0 rounded-sm"

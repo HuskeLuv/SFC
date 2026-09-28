@@ -1,17 +1,18 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { NextRequest } from 'next/server';
+import { ApiError } from '@/utils/apiErrorHandler';
 
 const mockPrisma = vi.hoisted(() => ({
   notification: { findMany: vi.fn(), updateMany: vi.fn() },
 }));
 
-const mockRequireAuth = vi.hoisted(() =>
-  vi.fn().mockReturnValue({ id: 'user-1', email: 'test@test.com', role: 'user' }),
+const mockRequireSession = vi.hoisted(() =>
+  vi.fn().mockResolvedValue({ id: 'user-1', email: 'test@test.com', role: 'user' }),
 );
 
 vi.mock('@/lib/prisma', () => ({ default: mockPrisma }));
 vi.mock('@/utils/auth', () => ({
-  requireAuth: mockRequireAuth,
+  requireSession: mockRequireSession,
 }));
 
 import { GET, PATCH } from '../route';
@@ -61,7 +62,7 @@ describe('GET /api/notifications', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    mockRequireAuth.mockReturnValue({ id: 'user-1', email: 'test@test.com', role: 'user' });
+    mockRequireSession.mockResolvedValue({ id: 'user-1', email: 'test@test.com', role: 'user' });
     mockPrisma.notification.findMany.mockResolvedValue(mockNotifications);
   });
 
@@ -86,8 +87,17 @@ describe('GET /api/notifications', () => {
     });
   });
 
+  it('retorna 401 com sessão revogada (sessionVersion divergente)', async () => {
+    mockRequireSession.mockRejectedValueOnce(new ApiError(401, 'Sessão expirada'));
+
+    const response = await GET(createGetRequest());
+
+    expect(response.status).toBe(401);
+    expect(mockPrisma.notification.findMany).not.toHaveBeenCalled();
+  });
+
   it('retorna 401 quando nao autenticado', async () => {
-    mockRequireAuth.mockImplementation(() => {
+    mockRequireSession.mockImplementation(() => {
       throw new Error('Não autorizado');
     });
 
@@ -102,7 +112,7 @@ describe('GET /api/notifications', () => {
 describe('PATCH /api/notifications', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockRequireAuth.mockReturnValue({ id: 'user-1', email: 'test@test.com', role: 'user' });
+    mockRequireSession.mockResolvedValue({ id: 'user-1', email: 'test@test.com', role: 'user' });
     mockPrisma.notification.updateMany.mockResolvedValue({ count: 2 });
   });
 
@@ -137,7 +147,7 @@ describe('PATCH /api/notifications', () => {
   });
 
   it('retorna 401 quando nao autenticado', async () => {
-    mockRequireAuth.mockImplementation(() => {
+    mockRequireSession.mockImplementation(() => {
       throw new Error('Não autorizado');
     });
 

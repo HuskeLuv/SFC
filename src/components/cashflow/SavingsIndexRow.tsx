@@ -1,5 +1,6 @@
 import React from 'react';
 import { SummaryRow } from './SummaryRow';
+import { savingsIndex } from '@/services/cashflow/derivedIndices';
 
 interface SavingsIndexRowProps {
   totalByMonth: number[];
@@ -7,10 +8,6 @@ interface SavingsIndexRowProps {
   totalAnnual: number;
   entradasAnnual: number;
 }
-
-// Índice de poupança = (saldo do mês / entradas do mês) * 100
-const savingsIndex = (saldo: number, entradas: number): number | null =>
-  entradas === 0 ? null : (saldo / entradas) * 100;
 
 export const SavingsIndexRow: React.FC<SavingsIndexRowProps> = ({
   totalByMonth,

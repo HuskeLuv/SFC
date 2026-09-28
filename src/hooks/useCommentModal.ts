@@ -2,11 +2,13 @@ import { logger } from '@/lib/logger';
 import { useCallback, useEffect, useState } from 'react';
 import type { CashflowGroup } from '@/types/cashflow';
 import { findItemById } from '@/utils/cashflowHelpers';
+import { CashflowRequestError, type CellComment } from '@/hooks/useCashflowMutations';
 
 /**
  * Estado e handlers do modal de comentários por célula da planilha de fluxo
  * de caixa (extraído de DataTableTwo). O "modo comentário" em si vive no
- * useGroupEditMode (UIMode unificado) — este hook recebe os controles.
+ * useGroupEditMode (UIMode unificado) — este hook recebe os controles. A rede (buscar/gravar o
+ * comentário) vem do useCashflowMutations.
  */
 
 export interface CommentModalState {
@@ -25,8 +27,10 @@ interface UseCommentModalParams {
   isCommentModeActive: boolean;
   setIsCommentModeActive: (updater: boolean | ((prev: boolean) => boolean)) => void;
   showAlert: (type: 'success' | 'error', title: string, message: string) => void;
-  refetch: () => Promise<void>;
-  csrfFetch: (url: string, init?: RequestInit) => Promise<Response>;
+  /** useCashflowMutations(year).fetchCellComment — mesmo timeout e mesmos erros. */
+  fetchCellComment: (itemId: string, month: number) => Promise<CellComment>;
+  /** useCashflowMutations(year).saveCellComment — grava e faz refetch. */
+  saveCellComment: (itemId: string, month: number, comment: string | null) => Promise<void>;
 }
 
 export function useCommentModal({
@@ -35,8 +39,8 @@ export function useCommentModal({
   isCommentModeActive,
   setIsCommentModeActive,
   showAlert,
-  refetch,
-  csrfFetch,
+  fetchCellComment,
+  saveCellComment,
 }: UseCommentModalParams) {
   const [commentModal, setCommentModal] = useState<CommentModalState>({
     isOpen: false,
@@ -57,28 +61,6 @@ export function useCommentModal({
 
   const closeCommentModal = useCallback(() => {
     setCommentModal((prev) => ({ ...prev, isOpen: false }));
-  }, []);
-
-  const fetchComment = useCallback(async (itemId: string, month: number, year: number) => {
-    const response = await fetch(
-      `/api/cashflow/comments?itemId=${itemId}&month=${month}&year=${year}`,
-      {
-        credentials: 'include',
-        signal: AbortSignal.timeout(10000),
-      },
-    );
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({ error: 'Erro ao buscar comentário' }));
-      if (response.status === 401) {
-        throw new Error('Sessão inválida');
-      }
-      throw new Error(errorData.error || 'Erro ao buscar comentário');
-    }
-    const data = await response.json();
-    return {
-      comment: data.comment || null,
-      updatedAt: data.updatedAt ? new Date(data.updatedAt) : null,
-    };
   }, []);
 
   // setIsCommentModeActive already clears color mode via unified UIMode
@@ -102,7 +84,7 @@ export function useCommentModal({
           return;
         }
 
-        const { comment, updatedAt } = await fetchComment(itemId, monthIndex, currentYear);
+        const { comment, updatedAt } = await fetchCellComment(itemId, monthIndex);
 
         setCommentModal({
           isOpen: true,
@@ -129,7 +111,7 @@ export function useCommentModal({
         setIsCommentModeActive(false);
       }
     },
-    [isCommentModeActive, groups, fetchComment, setIsCommentModeActive, showAlert, currentYear],
+    [isCommentModeActive, groups, fetchCellComment, setIsCommentModeActive, showAlert, currentYear],
   );
 
   const handleSaveComment = useCallback(
@@ -137,46 +119,16 @@ export function useCommentModal({
       if (!commentModal.itemId) return;
 
       try {
-        const response = await csrfFetch('/api/cashflow/comments', {
-          method: 'PATCH',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            itemId: commentModal.itemId,
-            month: commentModal.month,
-            year: commentModal.year,
-            comment: comment.trim() || null,
-          }),
-        });
-
-        if (!response.ok) {
-          const errorData = await response
-            .json()
-            .catch(() => ({ error: 'Erro ao salvar comentário' }));
-
-          if (response.status === 401) {
-            showAlert(
-              'error',
-              'Sessão inválida',
-              errorData.error ||
-                'Sua sessão expirou ou está inválida. Por favor, faça logout e login novamente.',
-            );
-            throw new Error('Sessão inválida');
-          }
-
-          throw new Error(errorData.error || 'Erro ao salvar comentário');
-        }
-
-        // O PATCH pode personalizar o item (id novo no backend) — refetch é o
-        // caminho seguro para o indicador refletir a célula certa.
-        await refetch();
+        // O PATCH pode personalizar o item (id novo no backend) — o saveCellComment faz refetch,
+        // o caminho seguro para o indicador refletir a célula certa.
+        await saveCellComment(commentModal.itemId, commentModal.month, comment.trim() || null);
         showAlert('success', 'Comentário salvo', 'O comentário foi salvo com sucesso.');
       } catch (error: unknown) {
         logger.error('Erro ao salvar comentário:', error);
 
-        if (error instanceof Error && error.message === 'Sessão inválida') {
-          throw error;
+        if (error instanceof CashflowRequestError && error.status === 401) {
+          showAlert('error', 'Sessão inválida', error.message);
+          throw new Error('Sessão inválida');
         }
 
         showAlert(
@@ -188,7 +140,7 @@ export function useCommentModal({
         throw error;
       }
     },
-    [commentModal, refetch, showAlert, csrfFetch],
+    [commentModal, saveCellComment, showAlert],
   );
 
   return {

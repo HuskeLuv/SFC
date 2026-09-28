@@ -372,7 +372,8 @@ export default function AssistentePanel() {
         type="button"
         aria-label={aberto ? 'Fechar assistente' : 'Abrir assistente'}
         onClick={() => setAberto((v) => !v)}
-        className="fixed right-4 bottom-4 z-[9997] flex h-12 w-12 items-center justify-center rounded-full text-white shadow-lg transition hover:opacity-90 print:hidden"
+        data-mf-fab=""
+        className="fixed right-4 bottom-4 max-lg:bottom-[calc(var(--mf-bottom-nav-h,0px)+1rem)] z-[9997] flex h-12 w-12 items-center justify-center rounded-full text-white shadow-lg transition hover:opacity-90 print:hidden"
         style={{ backgroundColor: MYFINANCE_BRAND.outside }}
       >
         {aberto ? (
@@ -405,7 +406,7 @@ export default function AssistentePanel() {
         <section
           role="dialog"
           aria-label="Assistente My Finance"
-          className="fixed right-4 bottom-20 z-[9997] flex w-[calc(100%-2rem)] max-w-md flex-col overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-2xl print:hidden dark:border-gray-800 dark:bg-gray-900"
+          className="fixed right-4 bottom-20 max-lg:bottom-[calc(var(--mf-bottom-nav-h,0px)+5rem)] max-lg:max-h-[calc(100dvh-var(--mf-header-h,0px)-var(--mf-bottom-nav-h,0px)-6rem)] z-[9997] flex w-[calc(100%-2rem)] max-w-md flex-col overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-2xl print:hidden dark:border-gray-800 dark:bg-gray-900"
           style={{ height: 'min(560px, calc(100vh - 7rem))' }}
         >
           <header

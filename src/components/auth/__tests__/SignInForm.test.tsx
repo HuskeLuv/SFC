@@ -84,16 +84,23 @@ describe('SignInForm', () => {
     expect(screen.getByTestId('eye-icon')).toBeInTheDocument();
   });
 
-  it('toggles remember me checkbox', () => {
+  it('toggles remember me checkbox (starts checked)', () => {
     render(<SignInForm />);
-    const checkbox = screen.getByRole('checkbox');
-    expect(checkbox).not.toBeChecked();
-
-    fireEvent.click(checkbox);
+    const checkbox = screen.getByRole('checkbox', { name: 'Manter conectado por 30 dias' });
     expect(checkbox).toBeChecked();
 
     fireEvent.click(checkbox);
     expect(checkbox).not.toBeChecked();
+
+    fireEvent.click(checkbox);
+    expect(checkbox).toBeChecked();
+  });
+
+  it('shows the shared-device hint', () => {
+    render(<SignInForm />);
+    expect(
+      screen.getByText('Em aparelho compartilhado, desmarque: você sai ao fechar o navegador.'),
+    ).toBeInTheDocument();
   });
 
   it('calls fetch with correct body on successful login', async () => {
@@ -121,9 +128,40 @@ describe('SignInForm', () => {
         body: JSON.stringify({
           email: 'test@example.com',
           password: 'password123',
-          rememberMe: false,
+          rememberMe: true,
         }),
       });
+    });
+  });
+
+  it('sends rememberMe false when the checkbox is unchecked', async () => {
+    const mockFetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({ user: { role: 'user' } }),
+    });
+    vi.stubGlobal('fetch', mockFetch);
+
+    render(<SignInForm />);
+    fireEvent.change(screen.getByPlaceholderText('Digite seu email'), {
+      target: { value: 'test@example.com' },
+    });
+    fireEvent.change(screen.getByPlaceholderText('Digite sua senha'), {
+      target: { value: 'password123' },
+    });
+    fireEvent.click(screen.getByRole('checkbox'));
+    fireEvent.click(screen.getByRole('button', { name: 'Entrar' }));
+
+    await waitFor(() => {
+      expect(mockFetch).toHaveBeenCalledWith(
+        '/api/auth/login',
+        expect.objectContaining({
+          body: JSON.stringify({
+            email: 'test@example.com',
+            password: 'password123',
+            rememberMe: false,
+          }),
+        }),
+      );
     });
   });
 

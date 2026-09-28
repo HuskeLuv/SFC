@@ -17,7 +17,7 @@ describe('GET /api/pluggy/status', () => {
   const env = { ...process.env };
   beforeEach(() => {
     vi.clearAllMocks();
-    mockRequireAdmin.mockReturnValue({ id: 'admin-1', role: 'admin' });
+    mockRequireAdmin.mockResolvedValue({ id: 'admin-1', role: 'admin' });
     delete process.env.PLUGGY_HABILITADO;
     delete process.env.PLUGGY_CLIENT_ID;
     delete process.env.PLUGGY_CLIENT_SECRET;
@@ -33,6 +33,12 @@ describe('GET /api/pluggy/status', () => {
       throw new ApiError(403, 'Acesso negado');
     });
     expect((await GET(request())).status).toBe(403);
+    expect(mockFetchConnectors).not.toHaveBeenCalled();
+  });
+
+  it('401 com sessão revogada (sessionVersion divergente)', async () => {
+    mockRequireAdmin.mockRejectedValueOnce(new ApiError(401, 'Sessão expirada'));
+    expect((await GET(request())).status).toBe(401);
     expect(mockFetchConnectors).not.toHaveBeenCalled();
   });
 

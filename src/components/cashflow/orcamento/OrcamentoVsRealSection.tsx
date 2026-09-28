@@ -1,13 +1,16 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useCashflowYear } from '@/context/CashflowYearContext';
+import { useIsBelowLg } from '@/hooks/useMediaQuery';
+import { readMesParam, writeMesParam } from '@/lib/cashflow/monthParam';
 import { useOrcamento } from '@/hooks/useOrcamento';
 import { MONTHS } from '@/constants/cashflow';
 import type { SeriePorModo } from '@/services/cashflow/orcamentoVsReal';
 import { OrcamentoTable, type OrcamentoLinha, type OrcamentoTipoMeta } from './OrcamentoTable';
 import OrcamentoChart from './OrcamentoChart';
 import OrcamentoMensalChart from './OrcamentoMensalChart';
+import OrcamentoMobileView from './OrcamentoMobileView';
 
 type Visao = 'mes' | 'ano';
 type ModoReal = 'lancado' | 'consolidado';
@@ -25,7 +28,9 @@ type ModoReal = 'lancado' | 'consolidado';
  *   antes do Total (fora da soma); real = Aporte/Resgate.
  */
 export default function OrcamentoVsRealSection() {
-  const { year } = useCashflowYear();
+  const { year, setYear } = useCashflowYear();
+  // Celular (PWA fase 2): mesma seção, mesmos dados, apresentação própria. O desktop fica intacto.
+  const isMobile = useIsBelowLg();
   const { data, loading, error, saveMetas } = useOrcamento(year);
 
   const now = new Date();
@@ -35,6 +40,17 @@ export default function OrcamentoVsRealSection() {
   const [visao, setVisao] = useState<Visao>('mes');
   const [modoReal, setModoReal] = useState<ModoReal>('lancado');
   const [saveError, setSaveError] = useState<string | null>(null);
+
+  // Celular: o mês vem de `?mes=` (compartilhado com a visão do mês da Planilha).
+  useEffect(() => {
+    if (!isMobile) return;
+    const fromUrl = readMesParam();
+    if (fromUrl !== null) setMes(fromUrl);
+  }, [isMobile]);
+  const changeMesMobile = (m: number) => {
+    setMes(m);
+    writeMesParam(m);
+  };
 
   // Meses considerados no acumulado: ano corrente conta até o mês atual;
   // anos passados contam os 12; anos futuros ainda não têm meses decorridos.
@@ -95,24 +111,43 @@ export default function OrcamentoVsRealSection() {
     };
   }, [linhas]);
 
+  // Grava a meta (lança em caso de erro): usado pela tabela de desktop e pelo sheet do celular.
+  const persistMeta = async (key: string, valor: number | null, tipoMeta: OrcamentoTipoMeta) => {
+    if (valor === null) {
+      await saveMetas({ deletes: [key] });
+    } else {
+      const isInvestimentos = key === 'investimentos';
+      await saveMetas({
+        metas: [
+          {
+            groupId: isInvestimentos ? null : key,
+            valor,
+            // Só investimentos escolhe o modo; categorias são sempre R$.
+            ...(isInvestimentos ? { tipoMeta } : {}),
+          },
+        ],
+      });
+    }
+  };
+
+  // Celular: a falha volta para o sheet, que fica aberto com a mensagem.
+  const handleSaveMetaMobile = async (
+    key: string,
+    valor: number | null,
+    tipoMeta: OrcamentoTipoMeta,
+  ) => {
+    setSaveError(null);
+    try {
+      await persistMeta(key, valor, tipoMeta);
+    } catch (err: unknown) {
+      return { error: err instanceof Error ? err.message : 'Erro ao salvar meta' };
+    }
+  };
+
   const handleSaveMeta = async (key: string, valor: number | null, tipoMeta: OrcamentoTipoMeta) => {
     setSaveError(null);
     try {
-      if (valor === null) {
-        await saveMetas({ deletes: [key] });
-      } else {
-        const isInvestimentos = key === 'investimentos';
-        await saveMetas({
-          metas: [
-            {
-              groupId: isInvestimentos ? null : key,
-              valor,
-              // Só investimentos escolhe o modo; categorias são sempre R$.
-              ...(isInvestimentos ? { tipoMeta } : {}),
-            },
-          ],
-        });
-      }
+      await persistMeta(key, valor, tipoMeta);
     } catch (err: unknown) {
       setSaveError(err instanceof Error ? err.message : 'Erro ao salvar meta');
     }
@@ -131,6 +166,29 @@ export default function OrcamentoVsRealSection() {
       <div className="flex h-48 items-center justify-center text-sm text-error-600 dark:text-error-400">
         {error ?? 'Erro ao carregar o orçamento.'}
       </div>
+    );
+  }
+
+  if (isMobile) {
+    return (
+      <OrcamentoMobileView
+        year={year}
+        mes={mes}
+        onMesChange={changeMesMobile}
+        onYearChange={setYear}
+        visao={visao}
+        onVisaoChange={setVisao}
+        modoReal={modoReal}
+        onModoRealChange={setModoReal}
+        mesesAcumulados={mesesAcumulados}
+        linhas={linhas}
+        investimentos={investimentos}
+        totais={totais}
+        categorias={data.categorias}
+        orcadoMensal={data.totais.metaMensal}
+        saveError={saveError}
+        onSaveMeta={handleSaveMetaMobile}
+      />
     );
   }
 

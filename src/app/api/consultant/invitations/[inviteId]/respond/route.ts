@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { ConsultantClientStatus, ConsultantInviteStatus, UserRole } from '@prisma/client';
 import prisma from '@/lib/prisma';
-import { requireAuth } from '@/utils/auth';
+import { requireSession } from '@/utils/auth';
 import { invitationRespondSchema } from '@/utils/validation-schemas';
 
 import { withErrorHandler } from '@/utils/apiErrorHandler';
@@ -9,7 +9,7 @@ export const POST = withErrorHandler(
   async (request: NextRequest, { params }: { params: Promise<{ inviteId: string }> }) => {
     let payload;
     try {
-      payload = requireAuth(request);
+      payload = await requireSession(request);
     } catch {
       return NextResponse.json({ error: 'Não autenticado.' }, { status: 401 });
     }

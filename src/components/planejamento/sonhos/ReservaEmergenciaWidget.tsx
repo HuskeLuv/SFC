@@ -55,7 +55,7 @@ export default function ReservaEmergenciaWidget({ contexto }: ReservaEmergenciaW
               key={m}
               type="button"
               onClick={() => setMesesAlvo(m)}
-              className={`px-2 py-0.5 text-[11px] font-medium transition ${
+              className={`px-2 py-0.5 text-[11px] font-medium transition max-lg:min-h-11 max-lg:min-w-11 max-lg:text-sm ${
                 m === mesesAlvo
                   ? 'bg-brand-500 text-white'
                   : 'text-gray-500 hover:bg-gray-50 dark:text-gray-400 dark:hover:bg-gray-800'
@@ -87,14 +87,14 @@ export default function ReservaEmergenciaWidget({ contexto }: ReservaEmergenciaW
 
       <div className="h-2 w-full overflow-hidden rounded-full bg-gray-100 dark:bg-gray-800">
         <div
-          className={`h-full rounded-full ${completa ? 'bg-green-500' : 'bg-brand-500'}`}
+          className={`h-full rounded-full ${completa ? 'bg-green-500 max-lg:bg-[#0079F2]' : 'bg-brand-500 max-lg:bg-[#0079F2]'}`}
           style={{ width: `${pct}%` }}
         />
       </div>
 
       <p className="mt-2 text-xs">
         {completa ? (
-          <span className="text-green-600 dark:text-green-400">
+          <span className="text-green-600 max-lg:text-mf-patrimonio dark:text-green-400 dark:max-lg:text-mf-tranquilidade">
             ✓ Reserva completa para {mesesAlvo} meses.
           </span>
         ) : (

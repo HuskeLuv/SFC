@@ -22,14 +22,19 @@ export type CardColor = keyof typeof CARD_COLOR_CLASSES;
  * Base do card: `h-full` faz todos da linha terminarem na mesma altura (a
  * grade já estica) e `min-h` mantém o tamanho igual entre linhas e telas.
  */
-export const CARD_BASE_CLASS = 'flex h-full min-h-[5.5rem] flex-col rounded-lg p-3 sm:p-4';
+export const CARD_BASE_CLASS = 'flex h-full min-h-[5.5rem] min-w-0 flex-col rounded-lg p-3 sm:p-4';
 
 /** Linha do topo: título à esquerda, ações (ex.: Editar) à direita. */
 export const CARD_HEADER_CLASS = 'mb-1 flex min-h-[1.5rem] items-center justify-between gap-2';
 
 export const CARD_TITLE_CLASS = 'truncate text-xs font-medium opacity-80';
 
-export const CARD_VALUE_CLASS = 'text-xl font-semibold';
+/** No celular o valor desce de tamanho e quebra em vez de vazar do card (PWA fase 1). */
+export const CARD_VALUE_CLASS =
+  'text-xl font-semibold max-lg:text-lg max-[359px]:text-base max-lg:break-words';
+
+/** Número principal do topo no celular (ex.: patrimônio no Resumo). Só usado abaixo de lg. */
+export const CARD_HERO_VALUE_CLASS = 'text-[28px] font-semibold tabular-nums max-[359px]:text-2xl';
 
 /** Botão discreto do topo do card (Editar/Salvar/Cancelar). */
 export const CARD_ACTION_CLASS =

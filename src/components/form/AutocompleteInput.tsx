@@ -1,7 +1,26 @@
-"use client";
-import React, { useState, useRef, useEffect } from "react";
-import Label from "./Label";
-import Input from "./input/InputField";
+'use client';
+import React, { useState, useRef, useEffect } from 'react';
+import Label from './Label';
+import Input from './input/InputField';
+import { MOBILE_MEDIA_QUERY } from '@/lib/ui/mobile';
+
+/** Destaca o trecho digitado no rótulo da opção (sem diferenciar maiúsculas). */
+export function highlightMatch(label: string, query: string): React.ReactNode {
+  const q = query.trim();
+  if (!q) return label;
+  const start = label.toLocaleLowerCase('pt-BR').indexOf(q.toLocaleLowerCase('pt-BR'));
+  if (start < 0) return label;
+  const end = start + q.length;
+  return (
+    <>
+      {label.slice(0, start)}
+      <mark className="bg-transparent text-inherit max-lg:font-semibold">
+        {label.slice(start, end)}
+      </mark>
+      {label.slice(end)}
+    </>
+  );
+}
 
 interface AutocompleteOption {
   value: string;
@@ -21,6 +40,8 @@ interface AutocompleteInputProps {
   error?: boolean;
   hint?: string;
   className?: string;
+  /** Teclado do celular: 'characters' para códigos (tickers). */
+  autoCapitalize?: string;
 }
 
 const AutocompleteInput: React.FC<AutocompleteInputProps> = ({
@@ -34,7 +55,8 @@ const AutocompleteInput: React.FC<AutocompleteInputProps> = ({
   loading = false,
   error = false,
   hint,
-  className = "",
+  className = '',
+  autoCapitalize,
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [highlightedIndex, setHighlightedIndex] = useState(-1);
@@ -53,8 +75,8 @@ const AutocompleteInput: React.FC<AutocompleteInputProps> = ({
       }
     };
 
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -72,32 +94,28 @@ const AutocompleteInput: React.FC<AutocompleteInputProps> = ({
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (!isOpen) {
-      if (e.key === "ArrowDown" || e.key === "Enter") {
+      if (e.key === 'ArrowDown' || e.key === 'Enter') {
         setIsOpen(true);
         return;
       }
     }
 
     switch (e.key) {
-      case "ArrowDown":
+      case 'ArrowDown':
         e.preventDefault();
-        setHighlightedIndex((prev) =>
-          prev < options.length - 1 ? prev + 1 : 0
-        );
+        setHighlightedIndex((prev) => (prev < options.length - 1 ? prev + 1 : 0));
         break;
-      case "ArrowUp":
+      case 'ArrowUp':
         e.preventDefault();
-        setHighlightedIndex((prev) =>
-          prev > 0 ? prev - 1 : options.length - 1
-        );
+        setHighlightedIndex((prev) => (prev > 0 ? prev - 1 : options.length - 1));
         break;
-      case "Enter":
+      case 'Enter':
         e.preventDefault();
         if (highlightedIndex >= 0 && options[highlightedIndex]) {
           handleOptionSelect(options[highlightedIndex]);
         }
         break;
-      case "Escape":
+      case 'Escape':
         setIsOpen(false);
         setHighlightedIndex(-1);
         break;
@@ -119,11 +137,24 @@ const AutocompleteInput: React.FC<AutocompleteInputProps> = ({
           value={value}
           onChange={handleInputChange}
           onKeyDown={handleKeyDown}
-          onFocus={() => setIsOpen(true)}
+          onFocus={() => {
+            setIsOpen(true);
+            // Celular: o campo sobe para o topo, deixando espaço para a lista acima do teclado.
+            if (
+              typeof window !== 'undefined' &&
+              typeof window.matchMedia === 'function' &&
+              window.matchMedia(MOBILE_MEDIA_QUERY).matches
+            ) {
+              inputRef.current?.scrollIntoView?.({ block: 'start', behavior: 'smooth' });
+            }
+          }}
           error={error}
           hint={hint}
+          enterKeyHint="search"
+          autoComplete="off"
+          autoCapitalize={autoCapitalize}
         />
-        
+
         {/* Loading indicator */}
         {loading && (
           <div className="absolute right-3 top-1/2 -translate-y-1/2">
@@ -146,19 +177,19 @@ const AutocompleteInput: React.FC<AutocompleteInputProps> = ({
                 Nenhum resultado encontrado
               </div>
             ) : (
-              <div className="max-h-60 overflow-y-auto">
+              <div className="max-h-60 overflow-y-auto max-lg:max-h-[40dvh]">
                 {filteredOptions.map((option, index) => (
                   <button
                     key={option.value}
                     type="button"
-                    className={`w-full px-3 py-2 text-left text-sm transition-colors ${
+                    className={`w-full px-3 py-2 text-left text-sm transition-colors max-lg:min-h-11 ${
                       index === highlightedIndex
-                        ? "bg-brand-50 text-brand-700 dark:bg-brand-500/10 dark:text-brand-400"
-                        : "text-gray-900 hover:bg-gray-50 dark:text-gray-100 dark:hover:bg-gray-700"
+                        ? 'bg-brand-50 text-brand-700 dark:bg-brand-500/10 dark:text-brand-400'
+                        : 'text-gray-900 hover:bg-gray-50 dark:text-gray-100 dark:hover:bg-gray-700'
                     }`}
                     onClick={() => handleOptionSelect(option)}
                   >
-                    <div className="font-medium">{option.label}</div>
+                    <div className="font-medium">{highlightMatch(option.label, value)}</div>
                     {option.subtitle && (
                       <div className="text-xs text-gray-500 dark:text-gray-400">
                         {option.subtitle}

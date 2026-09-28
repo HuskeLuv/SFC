@@ -3,18 +3,11 @@
 import { logger } from '@/lib/logger';
 import { useCallback, useState, useEffect, useRef, useMemo } from 'react';
 import React from 'react';
-import { useQueryClient } from '@tanstack/react-query';
-import { queryKeys } from '@/lib/queryKeys';
 import Alert from '@/components/ui/alert/Alert';
 import { Table, TableBody } from '@/components/ui/table';
-import {
-  useCashflowData,
-  useCollapsibleState,
-  useAlert,
-  useProcessedData,
-} from '@/hooks/useCashflow';
-import { useProventos } from '@/hooks/useProventos';
-import { useCsrf } from '@/hooks/useCsrf';
+import { useAlert } from '@/hooks/useCashflow';
+import { useCashflowView } from '@/hooks/useCashflowView';
+import { useCashflowMutations } from '@/hooks/useCashflowMutations';
 import { useCashflowYear } from '@/context/CashflowYearContext';
 import { validateNewRow } from '@/utils/validation';
 import {
@@ -37,9 +30,7 @@ import { TABLE_STYLES } from '@/components/ui/table/tableStyles';
 import { CANONICAL_GROUPS, isCanonical } from '@/services/cashflow/groupMatchers';
 import { EditableItemRow } from '@/components/cashflow/EditableItemRow';
 import { CashflowItem, CashflowGroup } from '@/types/cashflow';
-import { createCashflowItem } from '@/utils/cashflowUpdate';
 import { useCommentModal } from '@/hooks/useCommentModal';
-import { useCashflowDerivedRows } from '@/hooks/useCashflowDerivedRows';
 import { useGroupEditMode } from '@/hooks/useGroupEditMode';
 import { getAllItemsInGroup } from '@/utils/cashflowHelpers';
 import { isReceitaGroupByType } from '@/utils/formatters';
@@ -49,39 +40,54 @@ import { SubGroupRenderer, renderGroupHeaderProps } from './DataTableTwoGroupRen
 import DataTableTwoGroupRenderer from './DataTableTwoGroupRenderer';
 import { GroupRenderContext } from './dataTableTwoTypes';
 import { CashflowDndProvider } from '@/components/cashflow/CashflowDnd';
-import {
-  findGroupInTree,
-  insertId,
-  moveItemInTree,
-  reorderIds,
-  reorderItemsInTree,
-} from '@/services/cashflow/reorderItemsInTree';
 
-export default function DataTableTwo() {
-  const { csrfFetch } = useCsrf();
-  const queryClient = useQueryClient();
+/** Largura da coluna de mês da grade do ano no celular (5.25rem, ver globals.css). */
+const YEAR_GRID_MONTH_PX = 84;
+
+export interface DataTableTwoProps {
+  /**
+   * 'default' (padrão) = a planilha de sempre, DOM idêntico. 'mobile-year' = "Ano inteiro" do
+   * celular (PWA fase 2): só leitura, sem barra de ferramentas, sem arrastar, sem modais, e cada mês
+   * do cabeçalho vira botão (`onPickMonth`).
+   */
+  presentation?: 'default' | 'mobile-year';
+  /** 'mobile-year': mês (0..11) que a rolagem inicial deixa à vista. */
+  initialMonth?: number;
+  /** 'mobile-year': toque no nome do mês no cabeçalho. */
+  onPickMonth?: (month: number) => void;
+}
+
+export default function DataTableTwo({
+  presentation = 'default',
+  initialMonth,
+  onPickMonth,
+}: DataTableTwoProps = {}) {
+  const isYearGrid = presentation === 'mobile-year';
   const { year: currentYear } = useCashflowYear();
   const [importModalOpen, setImportModalOpen] = useState(false);
-  const { data, planejamentoPorMes, reinvestimentosPorMes, loading, error, refetch } =
-    useCashflowData(currentYear);
-  const startDateISO = useMemo(() => new Date(currentYear, 0, 1).toISOString(), [currentYear]);
-  const endDateISO = useMemo(
-    () => new Date(currentYear, 11, 31, 23, 59, 59).toISOString(),
-    [currentYear],
-  );
-  const { proventos } = useProventos(startDateISO, endDateISO);
+  // Modelo de leitura compartilhado com a visão do mês (PWA fase 2): árvore, proventos,
+  // agregação, linhas calculadas e recolher/expandir.
   const {
-    collapsed,
-    addingRow,
-    newRow,
-    toggleCollapse,
-    setCollapsedAll,
-    startAddingRow,
-    cancelAddingRow,
-    updateNewRow,
-  } = useCollapsibleState();
+    data,
+    loading,
+    error,
+    processedData,
+    derived,
+    collapsible: {
+      collapsed,
+      addingRow,
+      newRow,
+      toggleCollapse,
+      setCollapsedAll,
+      startAddingRow,
+      cancelAddingRow,
+      updateNewRow,
+    },
+  } = useCashflowView(currentYear);
   const { alert, showAlert } = useAlert();
-  const processedData = useProcessedData(data);
+  // Mutações compartilhadas com os sheets do celular (mesmas rotas, csrf e invalidações).
+  const { saveItemChanges, createItem, reorderItem, moveItem, fetchCellComment, saveCellComment } =
+    useCashflowMutations(currentYear);
   const [newItems, setNewItems] = useState<Record<string, CashflowItem>>({});
   const [savingGroups, setSavingGroups] = useState<Set<string>>(new Set());
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -97,16 +103,11 @@ export default function DataTableTwo() {
     fluxoCaixaLivreByMonth,
     fluxoCaixaLivreAnnual,
     evolucaoPatrimonioByMonth,
-  } = useCashflowDerivedRows({
-    processedData,
-    currentYear,
-    proventos,
-    planejamentoPorMes,
-    reinvestimentosPorMes,
-  });
+  } = derived;
 
   // Garantir que o scroll inicial mostre janeiro (primeira coluna de mês)
   useEffect(() => {
+    if (isYearGrid) return;
     if (!scrollContainerRef.current || loading || !data?.length) return;
 
     const container = scrollContainerRef.current;
@@ -143,7 +144,19 @@ export default function DataTableTwo() {
     return () => {
       clearTimeout(timeout);
     };
-  }, [loading, data]);
+  }, [loading, data, isYearGrid]);
+
+  // Grade do ano no celular: abre com o mês em foco logo depois da coluna de itens fixa (128px).
+  // Só na montagem com dados — depois a rolagem é do usuário.
+  const initialScrollDoneRef = useRef(false);
+  useEffect(() => {
+    if (!isYearGrid || initialScrollDoneRef.current) return;
+    const container = scrollContainerRef.current;
+    if (!container || loading || !data?.length) return;
+    initialScrollDoneRef.current = true;
+    const month = Math.min(11, Math.max(0, initialMonth ?? 0));
+    container.scrollLeft = month * YEAR_GRID_MONTH_PX;
+  }, [isYearGrid, initialMonth, loading, data]);
 
   // Barra de ferramentas: recolher/expandir tudo e rolar meses.
   const collapseAll = useCallback(() => {
@@ -212,8 +225,8 @@ export default function DataTableTwo() {
     isCommentModeActive,
     setIsCommentModeActive,
     showAlert,
-    refetch,
-    csrfFetch,
+    fetchCellComment,
+    saveCellComment,
   });
 
   const handleSaveRow = useCallback(
@@ -228,11 +241,7 @@ export default function DataTableTwo() {
       }
 
       try {
-        const newItem = (await createCashflowItem(
-          groupId,
-          row.name,
-          row.significado,
-        )) as unknown as CashflowItem;
+        const newItem = await createItem(groupId, row.name, row.significado);
         setNewItems((prev) => ({ ...prev, [newItem.id]: newItem }));
         // Criada com o grupo em edição: já entra editável na sessão.
         if (isGroupEditing(groupId)) addItemToEdit(newItem);
@@ -242,86 +251,26 @@ export default function DataTableTwo() {
         showAlert('error', 'Erro ao adicionar', 'Erro ao criar a nova linha.');
       }
     },
-    [newRow, cancelAddingRow, showAlert, isGroupEditing, addItemToEdit],
+    [newRow, cancelAddingRow, showAlert, isGroupEditing, addItemToEdit, createItem],
   );
 
-  // Drag-and-drop (16/09/2026): ao soltar `activeId` sobre `overId` no mesmo
-  // grupo, reordena o cache na hora (a planilha não pisca) e manda a lista
-  // completa pro backend, que personaliza templates e grava orderIndex por
-  // posição. Se falhar, o refetch devolve a ordem do servidor.
+  // Drag-and-drop (16/09/2026): reordena no mesmo grupo (otimista; refetch na falha).
   const handleReorder = useCallback(
     async (groupId: string, activeId: string, overId: string) => {
-      const group = findGroupInTree(data, groupId);
-      if (!group) return;
-      const ids = reorderIds(
-        (group.items ?? []).map((i) => i.id),
-        activeId,
-        overId,
-      );
-      if (!ids) return;
-      queryClient.setQueryData<CashflowGroup[]>(queryKeys.cashflow.year(currentYear), (old) =>
-        old ? reorderItemsInTree(old, groupId, ids) : old,
-      );
-      try {
-        const res = await csrfFetch('/api/cashflow/item/reorder', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ groupId, itemIds: ids }),
-        });
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      } catch (error) {
-        logger.error('Erro ao reordenar linha:', error);
-        showAlert('error', 'Erro ao reordenar', 'Não foi possível mover a linha.');
-        await refetch();
-      }
+      const ok = await reorderItem(groupId, activeId, overId);
+      if (!ok) showAlert('error', 'Erro ao reordenar', 'Não foi possível mover a linha.');
     },
-    [data, queryClient, currentYear, csrfFetch, refetch, showAlert],
+    [reorderItem, showAlert],
   );
 
   // Drag-and-drop entre seções (pedido do Pedro 24/09/2026): solta numa linha
-  // ou no cabeçalho de outro grupo. Move no cache na hora e manda a lista do
-  // destino pro backend; depois refetch, porque personalizar template troca
-  // ids (linha e grupo). Orçamento vs Real soma por grupo → invalida.
+  // ou no cabeçalho de outro grupo (otimista; refetch sempre).
   const handleMove = useCallback(
     async (activeId: string, toGroupId: string, overId: string | null, after: boolean) => {
-      const destino = findGroupInTree(data, toGroupId);
-      if (!destino) return;
-      const ids = insertId(
-        (destino.items ?? []).map((i) => i.id),
-        activeId,
-        overId,
-        after,
-      );
-      queryClient.setQueryData<CashflowGroup[]>(queryKeys.cashflow.year(currentYear), (old) =>
-        old ? moveItemInTree(old, activeId, toGroupId, ids) : old,
-      );
-      try {
-        const res = await csrfFetch('/api/cashflow/item/move', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ itemId: activeId, toGroupId, itemIds: ids }),
-        });
-        if (!res.ok) {
-          const body = await res.json().catch(() => null);
-          throw new Error(body?.error || `HTTP ${res.status}`);
-        }
-        void queryClient.invalidateQueries({
-          queryKey: queryKeys.cashflow.orcamento(currentYear),
-        });
-      } catch (error) {
-        logger.error('Erro ao mover linha:', error);
-        showAlert(
-          'error',
-          'Erro ao mover',
-          error instanceof Error && !error.message.startsWith('HTTP')
-            ? error.message
-            : 'Não foi possível mover a linha.',
-        );
-      } finally {
-        await refetch();
-      }
+      const res = await moveItem(activeId, toGroupId, overId, after);
+      if (!res.ok) showAlert('error', 'Erro ao mover', res.error);
     },
-    [data, queryClient, currentYear, csrfFetch, refetch, showAlert],
+    [moveItem, showAlert],
   );
 
   const handleStartGroupEdit = useCallback(
@@ -347,48 +296,25 @@ export default function DataTableTwo() {
           return;
         }
 
-        const response = await csrfFetch('/api/cashflow/batch-update', {
-          method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            groupId: group.id,
-            year: currentYear,
-            updates: changes.updates,
-            deletes: changes.deletes,
-          }),
+        const res = await saveItemChanges({
+          groupId: group.id,
+          updates: changes.updates,
+          deletes: changes.deletes,
         });
 
-        if (!response.ok) {
+        // Desktop: 2xx = sucesso (linhas recusadas pelo servidor seguem como sempre).
+        if (!res.httpOk) {
           throw new Error('Erro ao salvar alterações');
         }
 
-        // A resposta traz a árvore mesclada pós-mutação: grava direto no cache
-        // em vez de refetch bloqueante. Investimentos atualizam em background.
-        const saved = await response.json().catch(() => null);
-        if (saved?.groups) {
-          queryClient.setQueryData(queryKeys.cashflow.year(currentYear), saved.groups);
+        if (res.treeUpdated) {
           // A árvore salva já traz as linhas criadas nesta sessão.
           setNewItems((prev) =>
             Object.fromEntries(
               Object.entries(prev).filter(([, item]) => item.groupId !== group.id),
             ),
           );
-          void queryClient.invalidateQueries({
-            queryKey: queryKeys.cashflow.investimentos(currentYear),
-          });
-        } else {
-          await refetch();
         }
-        // Valores/cores editados mudam o "Real" da seção Orçamento vs Real.
-        void queryClient.invalidateQueries({
-          queryKey: queryKeys.cashflow.orcamento(currentYear),
-        });
-        // Editar a linha-espelho de um sonho re-deriva o "Realizado" no backend;
-        // invalida a query de sonhos pra a tela de Planejamento refletir na hora.
-        queryClient.invalidateQueries({ queryKey: queryKeys.planejamento.all });
-        queryClient.invalidateQueries({ queryKey: ['planejamento-sonhos'] });
         stopGroupEditing(group.id, allItems);
         showAlert('success', 'Alterações salvas', 'As alterações foram salvas com sucesso.');
       } catch (error) {
@@ -402,16 +328,7 @@ export default function DataTableTwo() {
         });
       }
     },
-    [
-      getChangesForGroup,
-      stopGroupEditing,
-      refetch,
-      showAlert,
-      csrfFetch,
-      queryClient,
-      currentYear,
-      itemsInGroup,
-    ],
+    [getChangesForGroup, stopGroupEditing, showAlert, saveItemChanges, itemsInGroup],
   );
 
   const handleCancelGroupEdit = useCallback(
@@ -472,7 +389,7 @@ export default function DataTableTwo() {
             currentYear={currentYear}
             // Grupos calculados (Aporte/Resgate da carteira, Conta Corrente)
             // não têm linhas no banco — sem alça.
-            reorderable={group.type !== 'investimento' && group.type !== 'saldo'}
+            reorderable={!isYearGrid && group.type !== 'investimento' && group.type !== 'saldo'}
           />
         );
       }
@@ -488,6 +405,7 @@ export default function DataTableTwo() {
       handleCommentCellClick,
       isCommentModeActive,
       currentYear,
+      isYearGrid,
     ],
   );
 
@@ -517,8 +435,10 @@ export default function DataTableTwo() {
       handleCommentButtonClick,
       handleCommentCellClick,
       renderItemRowConditional,
+      readOnly: isYearGrid || undefined,
     }),
     [
+      isYearGrid,
       collapsed,
       addingRow,
       newRow,
@@ -561,12 +481,14 @@ export default function DataTableTwo() {
         </div>
       )}
 
-      <CashflowToolbar
-        onExpandAll={expandAll}
-        onCollapseAll={collapseAll}
-        onScrollMonths={scrollMonths}
-        onImport={() => setImportModalOpen(true)}
-      />
+      {isYearGrid ? null : (
+        <CashflowToolbar
+          onExpandAll={expandAll}
+          onCollapseAll={collapseAll}
+          onScrollMonths={scrollMonths}
+          onImport={() => setImportModalOpen(true)}
+        />
+      )}
 
       {/* pb-24: garante que as últimas linhas rolem acima do banner de cookies */}
       <div
@@ -579,14 +501,20 @@ export default function DataTableTwo() {
         // afetados. TABLE_STYLES.wrapper: cantos arredondados + borda, padrão do app.
         className={`${TABLE_STYLES.wrapper} relative isolate z-0 w-full max-w-full min-w-0 h-full overflow-y-auto custom-scrollbar cashflow-table pb-24`}
         style={{ scrollBehavior: 'auto', position: 'relative' }}
+        {...(isYearGrid
+          ? { tabIndex: 0, 'aria-label': 'Planilha do ano', 'data-mf-year-grid-scroll': '' }
+          : {})}
       >
-        <CashflowDndProvider onReorder={handleReorder} onMove={handleMove}>
+        <CashflowDndProvider onReorder={handleReorder} onMove={handleMove} disabled={isYearGrid}>
           <Table
             className={`relative ${GRID.table}`}
             style={GRID.tableStyle}
             aria-label="Planilha de fluxo de caixa"
           >
-            <TableHeaderComponent currentMonth={currentMonth} />
+            <TableHeaderComponent
+              currentMonth={currentMonth}
+              onPickMonth={isYearGrid ? onPickMonth : undefined}
+            />
             <TableBody>
               {mainGroups.map((group, groupIndex, groups) => {
                 const isFirstDespesaGroup =
@@ -703,22 +631,26 @@ export default function DataTableTwo() {
         </CashflowDndProvider>
       </div>
 
-      <ImportPlanilhaModal
-        isOpen={importModalOpen}
-        onClose={() => setImportModalOpen(false)}
-        year={currentYear}
-      />
+      {isYearGrid ? null : (
+        <>
+          <ImportPlanilhaModal
+            isOpen={importModalOpen}
+            onClose={() => setImportModalOpen(false)}
+            year={currentYear}
+          />
 
-      <CommentModal
-        isOpen={commentModal.isOpen}
-        onClose={closeCommentModal}
-        onSave={handleSaveComment}
-        initialComment={commentModal.initialComment}
-        updatedAt={commentModal.updatedAt}
-        itemName={commentModal.itemName}
-        month={commentModal.month}
-        year={commentModal.year}
-      />
+          <CommentModal
+            isOpen={commentModal.isOpen}
+            onClose={closeCommentModal}
+            onSave={handleSaveComment}
+            initialComment={commentModal.initialComment}
+            updatedAt={commentModal.updatedAt}
+            itemName={commentModal.itemName}
+            month={commentModal.month}
+            year={commentModal.year}
+          />
+        </>
+      )}
     </div>
   );
 }

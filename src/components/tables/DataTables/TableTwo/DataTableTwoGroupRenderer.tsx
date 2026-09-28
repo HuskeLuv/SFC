@@ -13,7 +13,7 @@ interface GroupItemsRendererProps {
 }
 
 function renderGroupHeaderProps(group: CashflowGroup, ctx: GroupRenderContext) {
-  return {
+  const props = {
     group,
     isCollapsed: ctx.collapsed[group.id] || false,
     groupTotals: ctx.processedData.groupTotals[group.id] || Array(12).fill(0),
@@ -31,6 +31,11 @@ function renderGroupHeaderProps(group: CashflowGroup, ctx: GroupRenderContext) {
     isCommentModeActive: ctx.isGroupEditing(group.id) ? ctx.isCommentModeActive : false,
     onCommentClick: ctx.isGroupEditing(group.id) ? ctx.handleCommentButtonClick : undefined,
   };
+  // Só leitura (grade do ano no celular): sem os botões de edição do grupo.
+  if (ctx.readOnly) {
+    return { ...props, onStartEdit: undefined, onSave: undefined, onCancel: undefined };
+  }
+  return props;
 }
 
 function renderItems(

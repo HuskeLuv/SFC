@@ -6,6 +6,9 @@ import { useCurso, useMarcarAula, type AulaDetalhe, type ModuloDetalhe } from '@
 import { accessLevelLabel } from '@/utils/accessLevel';
 import { formatDuracaoCurta } from '@/utils/educacaoTrilha';
 import { MYFINANCE_BRAND } from '@/constants/brandColors';
+import { useIsBelowLg } from '@/hooks/useMediaQuery';
+import { MobileCollapsible } from '@/components/ui/mobile/MobileCollapsible';
+import { EDGE_TO_EDGE, STICKY_UNDER_HEADER } from '@/lib/ui/mobile';
 import VturbPlayer from './VturbPlayer';
 
 const OK_GREEN = '#1d9e6f';
@@ -78,12 +81,117 @@ function CapaMini({ modulo, index }: { modulo: ModuloDetalhe; index: number }) {
   );
 }
 
+/**
+ * Aulas por módulo no celular (PWA fase 3, E2): um MobileCollapsible por módulo (o da aula atual
+ * abre), linhas de 52px. Concluída = ✓ azul (sem verde); atual = aria-current; bloqueada = cadeado
+ * e o plano, sem toque.
+ */
+function AulasMobile({
+  modulos,
+  moduloAbertoId,
+  aulaAtivaId,
+  onSelecionar,
+}: {
+  modulos: ModuloDetalhe[];
+  moduloAbertoId: string | null;
+  aulaAtivaId: string | null;
+  onSelecionar: (aula: AulaDetalhe) => void;
+}) {
+  return (
+    <section data-mf-mobile="" data-mf-edu-aulas="" aria-label="Aulas do curso" className="mt-4">
+      <h2 className="mb-1 text-base font-semibold text-gray-900 dark:text-white/90">
+        Aulas do curso
+      </h2>
+      <div className="divide-y divide-gray-200 dark:divide-gray-800">
+        {modulos.map((modulo, idx) => {
+          const feitas = modulo.aulas.filter((a) => a.concluida).length;
+          return (
+            <MobileCollapsible
+              key={`${modulo.id}-${moduloAbertoId === modulo.id ? 'aberto' : 'fechado'}`}
+              id={`aulas-modulo-${modulo.id}`}
+              defaultOpen={moduloAbertoId === modulo.id}
+              title={`${numeroModulo(idx)} · ${modulo.title}`}
+              summary={`${feitas}/${modulo.aulas.length}`}
+            >
+              <ul className="pb-2">
+                {modulo.aulas.length === 0 && (
+                  <li className="py-3 text-sm text-gray-500 dark:text-gray-400">Aulas em breve.</li>
+                )}
+                {modulo.aulas.map((aula, aIdx) => {
+                  const ativa = aula.id === aulaAtivaId;
+                  const duracao = formatDuracao(aula.durationSeconds);
+                  return (
+                    <li key={aula.id}>
+                      <button
+                        type="button"
+                        disabled={aula.bloqueada}
+                        aria-current={ativa ? 'true' : undefined}
+                        onClick={() => onSelecionar(aula)}
+                        className={`flex min-h-[52px] w-full items-center gap-3 rounded-lg px-1 text-left text-sm disabled:cursor-not-allowed ${
+                          ativa
+                            ? 'bg-[#0079F2]/[0.06] font-semibold text-gray-900 dark:bg-[#0079F2]/[0.12] dark:text-white'
+                            : 'text-gray-700 active:bg-gray-50 dark:text-gray-300 dark:active:bg-white/5'
+                        }`}
+                      >
+                        <span
+                          aria-hidden="true"
+                          className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[11px] font-bold ${
+                            aula.bloqueada
+                              ? 'bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400'
+                              : aula.concluida
+                                ? 'bg-mf-patrimonio text-white dark:bg-mf-tranquilidade dark:text-gray-900'
+                                : ativa
+                                  ? 'bg-[#0079F2] text-white'
+                                  : 'border-[1.5px] border-mf-tranquilidade text-mf-seguranca dark:text-mf-tranquilidade'
+                          }`}
+                        >
+                          {aula.bloqueada ? (
+                            <LockIcon className="h-3.5 w-3.5" />
+                          ) : aula.concluida ? (
+                            <CheckIcon className="h-3.5 w-3.5" />
+                          ) : ativa ? (
+                            <PlayIcon className="h-3.5 w-3.5" />
+                          ) : (
+                            aIdx + 1
+                          )}
+                        </span>
+                        <span className="flex min-w-0 flex-1 flex-col">
+                          <span className="line-clamp-2">{aula.title}</span>
+                          {aula.bloqueada ? (
+                            <span className="text-xs font-normal text-gray-500 dark:text-gray-400">
+                              Plano {accessLevelLabel(aula.requiredLevel)}
+                            </span>
+                          ) : aula.concluida ? (
+                            <span className="sr-only">(concluída)</span>
+                          ) : null}
+                        </span>
+                        {duracao && (
+                          <span className="shrink-0 text-xs text-gray-500 dark:text-gray-400">
+                            {duracao}
+                          </span>
+                        )}
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+            </MobileCollapsible>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
 /** Página de um curso: player VTurb + trilha de módulos/aulas com progresso. */
 export default function CursoDetalheRoot({ slug }: { slug: string }) {
   const { curso, loading, error } = useCurso(slug);
   const marcarAula = useMarcarAula(slug);
   const [aulaSelecionadaId, setAulaSelecionadaId] = useState<string | null>(null);
   const [moduloAbertoId, setModuloAbertoId] = useState<string | null>(null);
+  // PWA fase 3 (E2): abaixo de lg o player fica de ponta a ponta e fixo ao rolar, e as aulas vão
+  // para módulos recolhíveis (servidor = desktop).
+  const isBelowLg = useIsBelowLg();
 
   const todasAulas = useMemo(() => curso?.modulos.flatMap((m) => m.aulas) ?? [], [curso]);
 
@@ -153,6 +261,8 @@ export default function CursoDetalheRoot({ slug }: { slug: string }) {
   const selecionarAula = (aula: AulaDetalhe) => {
     setAulaSelecionadaId(aula.id);
     setModuloAbertoId(null);
+    // No celular a lista fica abaixo do player: volta ao topo para ver a aula escolhida.
+    if (isBelowLg) window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   if (loading) {
@@ -200,7 +310,7 @@ export default function CursoDetalheRoot({ slug }: { slug: string }) {
   return (
     <div className="mx-auto max-w-[1240px]">
       {/* ---------- cabeçalho ---------- */}
-      <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
+      <div className="mb-6 flex flex-wrap items-end justify-between gap-4 max-lg:mb-4 max-lg:gap-3">
         <div className="min-w-0">
           <Link
             href="/educacao"
@@ -219,12 +329,12 @@ export default function CursoDetalheRoot({ slug }: { slug: string }) {
                 {numeroModulo(moduloAtivoIdx)}
               </span>
             )}
-            <h1 className="truncate text-3xl font-bold text-gray-900 dark:text-white">
+            <h1 className="truncate text-3xl font-bold text-gray-900 dark:text-white max-lg:line-clamp-2 max-lg:whitespace-normal max-lg:text-lg">
               {moduloAtivo?.title ?? curso.title}
             </h1>
           </div>
           {(moduloAtivo?.description ?? curso.description) && (
-            <p className="mt-1.5 max-w-[60ch] text-base font-light text-gray-500 dark:text-gray-400">
+            <p className="mt-1.5 max-w-[60ch] text-base font-light text-gray-500 dark:text-gray-400 max-lg:text-sm">
               {moduloAtivo?.description ?? curso.description}
             </p>
           )}
@@ -236,7 +346,10 @@ export default function CursoDetalheRoot({ slug }: { slug: string }) {
                 ? `${statsModuloAtivo?.concluidas ?? 0} de ${statsModuloAtivo?.total ?? 0} aulas do módulo`
                 : `${curso.aulasConcluidas} de ${curso.totalAulas} aulas`}
             </span>
-            <span className="font-bold" style={{ color: MYFINANCE_BRAND.outside }}>
+            <span
+              className="font-bold max-lg:text-mf-patrimonio! dark:max-lg:text-mf-tranquilidade!"
+              style={{ color: MYFINANCE_BRAND.outside }}
+            >
               {moduloAtivo ? progressoModulo : curso.progresso}%
             </span>
           </div>
@@ -255,14 +368,17 @@ export default function CursoDetalheRoot({ slug }: { slug: string }) {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-6 xl:grid-cols-12">
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-12 max-lg:gap-0">
         {/* ---------- player + aula ativa ---------- */}
-        <div className="xl:col-span-8">
-          <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-[0_24px_48px_-28px_rgba(28,42,68,.45)] dark:border-gray-800 dark:bg-white/[0.03]">
+        {/* Abaixo de lg estes dois invólucros somem (contents): o player vira filho da grade e
+            pode grudar sob o cabeçalho enquanto a aula e a lista estão na tela. */}
+        <div className="xl:col-span-8 max-lg:contents">
+          <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-[0_24px_48px_-28px_rgba(28,42,68,.45)] dark:border-gray-800 dark:bg-white/[0.03] max-lg:contents">
             {aulaExibida ? (
               <>
                 <div
-                  className="relative aspect-video w-full text-white"
+                  data-mf-edu-player=""
+                  className={`relative aspect-video w-full text-white max-lg:w-auto ${EDGE_TO_EDGE} ${STICKY_UNDER_HEADER}`}
                   style={{ background: HERO_GRADIENT }}
                 >
                   {aulaExibida.bloqueada ? (
@@ -307,7 +423,7 @@ export default function CursoDetalheRoot({ slug }: { slug: string }) {
                   )}
                 </div>
 
-                <div className="px-6 py-5 sm:px-7">
+                <div className="px-6 py-5 sm:px-7 max-lg:px-0 max-lg:pb-2 max-lg:pt-4">
                   <div
                     className="text-xs font-semibold uppercase tracking-[.2em]"
                     style={{ color: MYFINANCE_BRAND.tranquilidade }}
@@ -319,14 +435,14 @@ export default function CursoDetalheRoot({ slug }: { slug: string }) {
                       ` · ${formatDuracao(aulaExibida.durationSeconds)}`}
                     {aulaExibida.concluida && (
                       <span
-                        className="ml-2 normal-case tracking-normal"
+                        className="ml-2 normal-case tracking-normal max-lg:text-gray-500! dark:max-lg:text-gray-400!"
                         style={{ color: OK_GREEN }}
                       >
                         ✓ Concluída
                       </span>
                     )}
                   </div>
-                  <h2 className="mt-1.5 text-2xl font-bold text-gray-900 dark:text-white">
+                  <h2 className="mt-1.5 text-2xl font-bold text-gray-900 dark:text-white max-lg:text-xl">
                     {aulaExibida.title}
                   </h2>
                   {aulaExibida.description && (
@@ -335,7 +451,7 @@ export default function CursoDetalheRoot({ slug }: { slug: string }) {
                     </p>
                   )}
 
-                  <div className="mt-6 flex flex-wrap items-center gap-3">
+                  <div className="mt-6 flex flex-wrap items-center gap-3 max-lg:mt-4">
                     {!aulaExibida.bloqueada && (
                       <button
                         onClick={() =>
@@ -345,7 +461,12 @@ export default function CursoDetalheRoot({ slug }: { slug: string }) {
                           })
                         }
                         disabled={marcarAula.isPending}
-                        className="inline-flex items-center gap-2.5 rounded-xl px-6 py-3 text-base font-bold text-white transition-transform hover:-translate-y-0.5 disabled:opacity-60"
+                        aria-pressed={isBelowLg ? aulaExibida.concluida : undefined}
+                        className={`inline-flex items-center gap-2.5 rounded-xl px-6 py-3 text-base font-bold text-white transition-transform hover:-translate-y-0.5 disabled:opacity-60 max-lg:min-h-11 max-lg:w-full max-lg:justify-center max-lg:shadow-none! ${
+                          aulaExibida.concluida
+                            ? 'max-lg:border max-lg:border-mf-patrimonio max-lg:bg-white! max-lg:text-mf-patrimonio dark:max-lg:bg-transparent! dark:max-lg:text-mf-tranquilidade'
+                            : 'max-lg:bg-mf-patrimonio!'
+                        }`}
                         style={{
                           backgroundColor: aulaExibida.concluida
                             ? OK_GREEN
@@ -359,11 +480,11 @@ export default function CursoDetalheRoot({ slug }: { slug: string }) {
                         {aulaExibida.concluida ? 'Aula concluída' : 'Marcar como concluída'}
                       </button>
                     )}
-                    <div className="ml-auto flex gap-2">
+                    <div className="ml-auto flex gap-2 max-lg:ml-0 max-lg:grid max-lg:w-full max-lg:grid-cols-2">
                       <button
                         onClick={() => aulaAnterior && selecionarAula(aulaAnterior)}
                         disabled={!aulaAnterior}
-                        className="inline-flex items-center gap-1.5 rounded-xl border border-gray-200 px-4 py-3 text-sm font-semibold text-gray-700 transition-colors hover:bg-gray-50 disabled:opacity-40 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-white/5"
+                        className="inline-flex items-center gap-1.5 rounded-xl border border-gray-200 px-4 py-3 text-sm font-semibold text-gray-700 transition-colors hover:bg-gray-50 disabled:opacity-40 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-white/5 max-lg:min-h-11 max-lg:justify-center"
                       >
                         <ArrowLeftIcon className="h-4 w-4" />
                         Anterior
@@ -371,7 +492,7 @@ export default function CursoDetalheRoot({ slug }: { slug: string }) {
                       <button
                         onClick={() => proximaAula && selecionarAula(proximaAula)}
                         disabled={!proximaAula}
-                        className="inline-flex items-center gap-1.5 rounded-xl border border-gray-200 px-4 py-3 text-sm font-semibold text-gray-700 transition-colors hover:bg-gray-50 disabled:opacity-40 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-white/5"
+                        className="inline-flex items-center gap-1.5 rounded-xl border border-gray-200 px-4 py-3 text-sm font-semibold text-gray-700 transition-colors hover:bg-gray-50 disabled:opacity-40 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-white/5 max-lg:min-h-11 max-lg:justify-center"
                       >
                         Próxima aula
                         <ChevronIcon className="h-4 w-4" />
@@ -405,141 +526,152 @@ export default function CursoDetalheRoot({ slug }: { slug: string }) {
         </div>
 
         {/* ---------- trilha: módulos (acordeão) + aulas ---------- */}
-        <div className="xl:col-span-4">
-          <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03]">
-            <div className="flex items-baseline justify-between border-b border-gray-200 px-5 py-4 dark:border-gray-800">
-              <h3 className="text-lg font-bold text-gray-900 dark:text-white">Sua trilha</h3>
-              <span className="text-xs text-gray-500 dark:text-gray-400">
-                {curso.modulos.length} módulos · {curso.totalAulas} aulas
-              </span>
-            </div>
-            <ul>
-              {curso.modulos.map((modulo, idx) => {
-                const total = modulo.aulas.length;
-                const feitas = modulo.aulas.filter((a) => a.concluida).length;
-                const concluido = total > 0 && feitas === total;
-                const expandido = moduloExpandidoId === modulo.id;
-                return (
-                  <li
-                    key={modulo.id}
-                    className="border-b border-gray-100 last:border-b-0 dark:border-gray-800"
-                  >
-                    <button
-                      onClick={() => setModuloAbertoId(expandido ? '' : modulo.id)}
-                      className={`flex w-full items-center gap-3 px-4 py-3 text-left transition-colors ${
-                        expandido
-                          ? 'bg-[#f0f5fc] dark:bg-white/[0.06]'
-                          : 'hover:bg-gray-50 dark:hover:bg-white/[0.04]'
-                      }`}
+        {isBelowLg ? (
+          <AulasMobile
+            modulos={curso.modulos}
+            moduloAbertoId={moduloExpandidoId}
+            aulaAtivaId={aulaAtiva?.id ?? null}
+            onSelecionar={selecionarAula}
+          />
+        ) : (
+          <div className="xl:col-span-4">
+            <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03]">
+              <div className="flex items-baseline justify-between border-b border-gray-200 px-5 py-4 dark:border-gray-800">
+                <h3 className="text-lg font-bold text-gray-900 dark:text-white">Sua trilha</h3>
+                <span className="text-xs text-gray-500 dark:text-gray-400">
+                  {curso.modulos.length} módulos · {curso.totalAulas} aulas
+                </span>
+              </div>
+              <ul>
+                {curso.modulos.map((modulo, idx) => {
+                  const total = modulo.aulas.length;
+                  const feitas = modulo.aulas.filter((a) => a.concluida).length;
+                  const concluido = total > 0 && feitas === total;
+                  const expandido = moduloExpandidoId === modulo.id;
+                  return (
+                    <li
+                      key={modulo.id}
+                      className="border-b border-gray-100 last:border-b-0 dark:border-gray-800"
                     >
-                      <CapaMini modulo={modulo} index={idx} />
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-2">
-                          <span
-                            className="text-[11px] font-bold tracking-[.12em]"
-                            style={{ color: MYFINANCE_BRAND.tranquilidade }}
-                          >
-                            MÓDULO {numeroModulo(idx)}
-                          </span>
-                          {concluido && (
+                      <button
+                        onClick={() => setModuloAbertoId(expandido ? '' : modulo.id)}
+                        className={`flex w-full items-center gap-3 px-4 py-3 text-left transition-colors ${
+                          expandido
+                            ? 'bg-[#f0f5fc] dark:bg-white/[0.06]'
+                            : 'hover:bg-gray-50 dark:hover:bg-white/[0.04]'
+                        }`}
+                      >
+                        <CapaMini modulo={modulo} index={idx} />
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2">
                             <span
-                              className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold text-white"
-                              style={{ backgroundColor: OK_GREEN }}
+                              className="text-[11px] font-bold tracking-[.12em]"
+                              style={{ color: MYFINANCE_BRAND.tranquilidade }}
                             >
-                              <CheckIcon className="h-2.5 w-2.5" />
-                              Concluído
+                              MÓDULO {numeroModulo(idx)}
                             </span>
-                          )}
-                        </div>
-                        <div className="truncate text-sm font-bold text-gray-900 dark:text-white/90">
-                          {modulo.title}
-                        </div>
-                        <div className="mt-1 flex items-center gap-2">
-                          <div className="h-1 flex-1 rounded-full bg-gray-200 dark:bg-gray-700">
-                            <div
-                              className="h-full rounded-full"
-                              style={{
-                                width: `${total > 0 ? (feitas / total) * 100 : 0}%`,
-                                background: concluido
-                                  ? OK_GREEN
-                                  : `linear-gradient(90deg, ${MYFINANCE_BRAND.outside}, ${MYFINANCE_BRAND.tranquilidade})`,
-                              }}
-                            />
-                          </div>
-                          <span className="text-[11px] text-gray-400 dark:text-gray-500">
-                            {feitas}/{total}
-                          </span>
-                        </div>
-                      </div>
-                      <ChevronIcon
-                        className={`h-4 w-4 shrink-0 text-gray-400 transition-transform ${expandido ? 'rotate-90' : ''}`}
-                      />
-                    </button>
-
-                    {expandido && (
-                      <ul className="bg-gray-50/60 py-1 dark:bg-black/10">
-                        {modulo.aulas.length === 0 && (
-                          <li className="px-5 py-3 text-xs text-gray-400 dark:text-gray-500">
-                            Aulas em breve.
-                          </li>
-                        )}
-                        {modulo.aulas.map((aula, aIdx) => {
-                          const ativa = aulaAtiva?.id === aula.id;
-                          const duracao = formatDuracao(aula.durationSeconds);
-                          return (
-                            <li key={aula.id}>
-                              <button
-                                onClick={() => selecionarAula(aula)}
-                                className={`flex w-full items-center gap-3 px-5 py-2.5 text-left text-sm transition-colors ${
-                                  ativa
-                                    ? 'font-semibold text-gray-900 dark:text-white'
-                                    : 'text-gray-600 hover:bg-white dark:text-gray-300 dark:hover:bg-white/[0.04]'
-                                }`}
+                            {concluido && (
+                              <span
+                                className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold text-white"
+                                style={{ backgroundColor: OK_GREEN }}
                               >
-                                <span
-                                  className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[11px] font-bold"
-                                  style={
-                                    aula.bloqueada
-                                      ? { backgroundColor: '#e3e9f1', color: '#5d708c' }
-                                      : aula.concluida
-                                        ? { backgroundColor: OK_GREEN, color: '#fff' }
-                                        : ativa
-                                          ? {
-                                              backgroundColor: MYFINANCE_BRAND.outside,
-                                              color: '#fff',
-                                            }
-                                          : {
-                                              border: `1.5px solid ${MYFINANCE_BRAND.tranquilidade}`,
-                                              color: MYFINANCE_BRAND.seguranca,
-                                            }
-                                  }
-                                >
-                                  {aula.bloqueada ? (
-                                    <LockIcon className="h-3.5 w-3.5" />
-                                  ) : aula.concluida ? (
-                                    <CheckIcon className="h-3.5 w-3.5" />
-                                  ) : ativa ? (
-                                    <PlayIcon className="h-3.5 w-3.5" />
-                                  ) : (
-                                    aIdx + 1
-                                  )}
-                                </span>
-                                <span className="flex-1 truncate">{aula.title}</span>
-                                {duracao && (
-                                  <span className="shrink-0 text-xs text-gray-400">{duracao}</span>
-                                )}
-                              </button>
+                                <CheckIcon className="h-2.5 w-2.5" />
+                                Concluído
+                              </span>
+                            )}
+                          </div>
+                          <div className="truncate text-sm font-bold text-gray-900 dark:text-white/90">
+                            {modulo.title}
+                          </div>
+                          <div className="mt-1 flex items-center gap-2">
+                            <div className="h-1 flex-1 rounded-full bg-gray-200 dark:bg-gray-700">
+                              <div
+                                className="h-full rounded-full"
+                                style={{
+                                  width: `${total > 0 ? (feitas / total) * 100 : 0}%`,
+                                  background: concluido
+                                    ? OK_GREEN
+                                    : `linear-gradient(90deg, ${MYFINANCE_BRAND.outside}, ${MYFINANCE_BRAND.tranquilidade})`,
+                                }}
+                              />
+                            </div>
+                            <span className="text-[11px] text-gray-400 dark:text-gray-500">
+                              {feitas}/{total}
+                            </span>
+                          </div>
+                        </div>
+                        <ChevronIcon
+                          className={`h-4 w-4 shrink-0 text-gray-400 transition-transform ${expandido ? 'rotate-90' : ''}`}
+                        />
+                      </button>
+
+                      {expandido && (
+                        <ul className="bg-gray-50/60 py-1 dark:bg-black/10">
+                          {modulo.aulas.length === 0 && (
+                            <li className="px-5 py-3 text-xs text-gray-400 dark:text-gray-500">
+                              Aulas em breve.
                             </li>
-                          );
-                        })}
-                      </ul>
-                    )}
-                  </li>
-                );
-              })}
-            </ul>
+                          )}
+                          {modulo.aulas.map((aula, aIdx) => {
+                            const ativa = aulaAtiva?.id === aula.id;
+                            const duracao = formatDuracao(aula.durationSeconds);
+                            return (
+                              <li key={aula.id}>
+                                <button
+                                  onClick={() => selecionarAula(aula)}
+                                  className={`flex w-full items-center gap-3 px-5 py-2.5 text-left text-sm transition-colors ${
+                                    ativa
+                                      ? 'font-semibold text-gray-900 dark:text-white'
+                                      : 'text-gray-600 hover:bg-white dark:text-gray-300 dark:hover:bg-white/[0.04]'
+                                  }`}
+                                >
+                                  <span
+                                    className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[11px] font-bold"
+                                    style={
+                                      aula.bloqueada
+                                        ? { backgroundColor: '#e3e9f1', color: '#5d708c' }
+                                        : aula.concluida
+                                          ? { backgroundColor: OK_GREEN, color: '#fff' }
+                                          : ativa
+                                            ? {
+                                                backgroundColor: MYFINANCE_BRAND.outside,
+                                                color: '#fff',
+                                              }
+                                            : {
+                                                border: `1.5px solid ${MYFINANCE_BRAND.tranquilidade}`,
+                                                color: MYFINANCE_BRAND.seguranca,
+                                              }
+                                    }
+                                  >
+                                    {aula.bloqueada ? (
+                                      <LockIcon className="h-3.5 w-3.5" />
+                                    ) : aula.concluida ? (
+                                      <CheckIcon className="h-3.5 w-3.5" />
+                                    ) : ativa ? (
+                                      <PlayIcon className="h-3.5 w-3.5" />
+                                    ) : (
+                                      aIdx + 1
+                                    )}
+                                  </span>
+                                  <span className="flex-1 truncate">{aula.title}</span>
+                                  {duracao && (
+                                    <span className="shrink-0 text-xs text-gray-400">
+                                      {duracao}
+                                    </span>
+                                  )}
+                                </button>
+                              </li>
+                            );
+                          })}
+                        </ul>
+                      )}
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
           </div>
-        </div>
+        )}
       </div>
     </div>
   );

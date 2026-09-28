@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import bcrypt from 'bcrypt';
-import jwt from 'jsonwebtoken';
 import { registerSchema, validationError } from '@/utils/validation-schemas';
 import { withErrorHandler } from '@/utils/apiErrorHandler';
 import { BCRYPT_ROUNDS } from '@/utils/passwordHashing';
+import { issueSession, nowSeconds } from '@/lib/auth/session';
 
 export const POST = withErrorHandler(async (req: NextRequest) => {
   // Kill-switch temporário de cadastro. Lido em runtime (não no import) pra
@@ -70,22 +70,18 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
   // com overrides do usuário sob demanda. Personalização materializa rows só quando
   // o usuário de fato edita algo (clone-on-write em cashflowPersonalization.ts).
 
-  // LGPD ATENÇÃO: claims mínimos (id + role). Email saiu pra reduzir PII
-  // no payload base64-decodificável do JWT.
-  // Sessão de cadastro = 1 dia (mesmo default do login). User pode marcar
-  // "manter-me logado" no próximo login se quiser 7 dias.
-  const token = jwt.sign({ id: user.id, role: user.role }, process.env.JWT_SECRET!, {
-    expiresIn: '1d',
-  });
+  // LGPD ATENÇÃO: claims mínimos (id + role + sessão). Email fora do JWT pra
+  // reduzir PII no payload base64-decodificável.
+  // Cadastro entra com "Manter conectado" (30 dias renováveis, teto de 90).
   const response = NextResponse.json({
     user: { id: user.id, email: user.email, name: user.name, role: user.role },
   });
-  response.cookies.set('token', token, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'lax',
-    maxAge: 60 * 60 * 24, // 1 day
-    path: '/',
+  issueSession(response, {
+    id: user.id,
+    role: user.role,
+    sv: user.sessionVersion,
+    rm: true,
+    at: nowSeconds(),
   });
   return response;
 });

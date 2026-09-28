@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="color-scheme" content="light dark" />
+    <meta name="theme-color" content="#FFFFFF" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#18181b" media="(prefers-color-scheme: dark)" />
+    <title>Sem conexão · My Finance</title>
+    <!--
+      Página offline do service worker (PWA fase 0). SEM script de propósito: a CSP com nonce e
+      'strict-dynamic' bloquearia qualquer script aqui. Não recarrega sozinha — o usuário usa o
+      botão "Tentar de novo". Só CSS inline e cores da paleta My Finance.
+    -->
+    <style>
+      :root {
+        color-scheme: light dark;
+        --bg: #ffffff;
+        --title: #2d2d2d;
+        --text: #314666;
+        --mark: #0079f2;
+        --tint: rgba(0, 121, 242, 0.1);
+        --btn-bg: #396caa;
+        --btn-text: #ffffff;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #18181b;
+          --title: #eaeaea;
+          --text: #eaeaea;
+          --tint: rgba(0, 121, 242, 0.2);
+          --btn-bg: #6e9dc4;
+          --btn-text: #2d2d2d;
+        }
+      }
+      * {
+        box-sizing: border-box;
+      }
+      html {
+        -webkit-text-size-adjust: 100%;
+      }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        min-height: 100dvh;
+        background: var(--bg);
+        color: var(--text);
+        font-family: Outfit, system-ui, sans-serif;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: calc(env(safe-area-inset-top) + 40px) calc(env(safe-area-inset-right) + 28px)
+          calc(env(safe-area-inset-bottom) + 24px) calc(env(safe-area-inset-left) + 28px);
+      }
+      main {
+        width: 100%;
+        max-width: 24rem;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        text-align: center;
+        gap: 14px;
+      }
+      .mark {
+        height: 56px;
+        width: auto;
+        margin-bottom: 20px;
+      }
+      .circ {
+        width: 76px;
+        height: 76px;
+        border-radius: 50%;
+        background: var(--tint);
+        color: var(--mark);
+        display: grid;
+        place-items: center;
+      }
+      h1 {
+        margin: 8px 0 0;
+        font-size: 22px;
+        font-weight: 600;
+        color: var(--title);
+      }
+      p {
+        margin: 0;
+        font-size: 15px;
+        line-height: 1.5;
+        max-width: 32ch;
+      }
+      a.btn {
+        margin-top: 24px;
+        width: 100%;
+        min-height: 48px;
+        border-radius: 12px;
+        background: var(--btn-bg);
+        color: var(--btn-text);
+        font-size: 16px;
+        font-weight: 600;
+        text-decoration: none;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 0 20px;
+      }
+      a.btn:focus-visible {
+        outline: 3px solid var(--mark);
+        outline-offset: 3px;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <svg class="mark" viewBox="0 0 1825 2465" role="img" aria-label="My Finance">
+        <g transform="translate(0,2465) scale(0.1,-0.1)" fill="#0079F2">
+          <path
+            d="M6230 24631 c-76 -23 -140 -70 -185 -135 -70 -103 -66 42 -63 -2142 l3 -1969 26 -56 c37 -79 90 -133 167 -171 l67 -33 1350 -5 1350 -5 63 -34 c71 -39 110 -79 149 -154 24 -45 28 -64 28 -137 0 -74 -6 -102 -43 -210 -92 -272 -289 -616 -514 -898 -56 -70 -174 -199 -262 -287 -266 -265 -486 -416 -736 -507 l-65 -23 -3640 -5 -3640 -5 -57 -23 c-71 -29 -147 -99 -184 -172 l-29 -55 0 -8675 0 -8675 29 -58 c51 -100 139 -165 251 -186 80 -15 17598 -16 17676 -1 110 21 198 90 246 194 l28 61 0 2020 c0 1535 -3 2028 -12 2052 -9 25 -9 40 0 65 16 43 23 8357 8 8458 -28 178 -170 321 -348 350 -35 6 -777 10 -1893 10 -1116 0 -1858 -4 -1893 -10 -132 -21 -251 -109 -310 -229 l-32 -66 -5 -4055 c-4 -3126 -8 -4063 -17 -4088 -47 -129 -148 -217 -278 -241 -41 -8 -694 -11 -2194 -11 -2024 0 -2249 2 -4290 35 -1394 23 -2169 39 -2195 46 -92 24 -187 106 -229 197 l-22 47 0 4115 0 4115 23 49 c38 84 85 132 169 173 l77 38 1775 1 c1291 1 1806 5 1886 13 755 82 1546 422 2321 999 663 493 1300 1162 1751 1838 293 438 478 799 609 1188 24 70 55 148 69 172 107 182 397 159 486 -38 l24 -53 5 -1195 5 -1195 23 -48 c31 -61 98 -128 159 -159 l48 -23 2002 -3 c2000 -2 2002 -2 2057 18 111 42 195 147 216 270 8 47 10 1339 8 4655 -3 4375 -4 4592 -21 4635 -40 101 -122 180 -220 214 -44 15 -524 16 -5900 15 -3219 0 -5863 -4 -5877 -8z"
+          />
+        </g>
+      </svg>
+      <div class="circ" aria-hidden="true">
+        <svg width="36" height="36" viewBox="0 0 24 24">
+          <g fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
+            <path
+              d="M3 3l18 18M8.5 16.2a5 5 0 0 1 7 0M5 12.8a10 10 0 0 1 4.6-2.5M14.3 10.3A10 10 0 0 1 19 12.8M2 9.3a15 15 0 0 1 4-2.4M10.5 5.6A15 15 0 0 1 22 9.3"
+            />
+            <circle cx="12" cy="19.5" r="1" fill="currentColor" />
+          </g>
+        </svg>
+      </div>
+      <h1>Você está sem conexão</h1>
+      <p>
+        Por segurança, seus dados financeiros não ficam salvos neste aparelho. Conecte-se e tente de
+        novo.
+      </p>
+      <a class="btn" href="/carteira">Tentar de novo</a>
+    </main>
+  </body>
+</html>

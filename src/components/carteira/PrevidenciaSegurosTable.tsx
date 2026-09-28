@@ -2,11 +2,21 @@
 import React, { useState, useMemo } from 'react';
 import { formatPct } from '@/utils/format';
 import { usePrevidenciaSeguros } from '@/hooks/usePrevidenciaSeguros';
-import { PrevidenciaSegurosAtivo } from '@/types/previdencia-seguros';
+import { PrevidenciaSegurosAtivo, PrevidenciaSegurosSecao } from '@/types/previdencia-seguros';
 import LoadingSpinner from '@/components/common/LoadingSpinner';
 import ComponentCard from '@/components/common/ComponentCard';
 import { useCarteiraResumoContext } from '@/context/CarteiraResumoContext';
-import { BasicTablePlaceholderRows, metricColorBySign } from '@/components/carteira/shared';
+import {
+  BasicTablePlaceholderRows,
+  EditableObjetivoCell,
+  metricColorBySign,
+  type ColumnDef,
+  type Formatters,
+} from '@/components/carteira/shared';
+import AssetCardSections, {
+  AssetTabMobileSummary,
+} from '@/components/carteira/shared/AssetCardSections';
+import { useIsBelowLg } from '@/hooks/useMediaQuery';
 import CaixaParaInvestirCard from '@/components/carteira/shared/CaixaParaInvestirCard';
 import AssetNameLink from '@/components/carteira/AssetNameLink';
 import PlanejadoNameCell from '@/components/carteira/shared/PlanejadoNameCell';
@@ -292,9 +302,23 @@ export default function PrevidenciaSegurosTable({
     }));
   }, [data, ativosComRisco]);
 
-  const handleUpdateObjetivo = async (ativoId: string, novoObjetivo: number) => {
-    await updateObjetivo(ativoId, novoObjetivo);
-  };
+  // Devolve o resultado (false = falha) para o sheet do celular manter o erro aberto.
+  const handleUpdateObjetivo = (ativoId: string, novoObjetivo: number) =>
+    updateObjetivo(ativoId, novoObjetivo);
+
+  // ── Celular (PWA fase 1): cartões por seção. Mesmos números da tabela abaixo. ──
+  const isBelowLg = useIsBelowLg();
+  const [secoesFechadas, setSecoesFechadas] = useState<Set<string>>(() => new Set());
+  const formatters: Formatters = useMemo(
+    () => ({ formatCurrency, formatPercentage, formatNumber }),
+    [formatCurrency, formatPercentage, formatNumber],
+  );
+  const mobileColumns = useMemo(
+    () => buildMobileColumns(formatPct, handleUpdateObjetivo, ativosComRisco.length > 0),
+    // handleUpdateObjetivo muda a cada render (como no desktop); o que importa são os dados.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [ativosComRisco.length, updateObjetivo],
+  );
 
   if (loading) {
     return <LoadingSpinner text="Carregando dados de previdência e seguros..." />;
@@ -309,6 +333,74 @@ export default function PrevidenciaSegurosTable({
           </h3>
           <p className="text-xs text-gray-500 dark:text-gray-400">{error}</p>
         </div>
+      </div>
+    );
+  }
+
+  if (isBelowLg) {
+    const secaoKey = (s: PrevidenciaSegurosSecao) => s.tipo;
+    return (
+      <div className="space-y-4">
+        <AssetTabMobileSummary
+          heroLabel="Valor atualizado"
+          heroValue={formatCurrency(data?.resumo?.valorAtualizado ?? 0)}
+          rentabilidade={{ value: data?.resumo?.rentabilidade ?? 0, formatPercentage }}
+          minis={[
+            {
+              label: 'Saldo Início do Mês',
+              value: formatCurrency(data?.resumo?.saldoInicioMes ?? 0),
+            },
+            {
+              label: 'Rendimento',
+              value: formatCurrency(data?.resumo?.rendimento ?? 0),
+              negative: (data?.resumo?.rendimento ?? 0) < 0,
+            },
+          ]}
+          necessidadeAporte={formatCurrency(necessidadeAporteTotalCalculada)}
+          caixa={
+            <CaixaParaInvestirCard
+              title="Caixa da aba"
+              value={data?.resumo?.caixaParaInvestir ?? 0}
+              formatCurrency={(value) => formatCurrency(value ?? 0)}
+              onSave={updateCaixaParaInvestir}
+              color="success"
+            />
+          }
+        />
+        <AssetCardSections<PrevidenciaSegurosAtivo, PrevidenciaSegurosSecao>
+          sections={secoesComRisco}
+          columns={mobileColumns}
+          formatters={formatters}
+          getSectionKey={secaoKey}
+          getSectionName={(s) => s.nome}
+          getSectionAtivos={(s) => s.ativos}
+          expandedSections={
+            new Set(secoesComRisco.map(secaoKey).filter((k) => !secoesFechadas.has(k)))
+          }
+          onToggleSection={(key) =>
+            setSecoesFechadas((prev) => {
+              const next = new Set(prev);
+              if (next.has(key)) next.delete(key);
+              else next.add(key);
+              return next;
+            })
+          }
+          totalGeral={(data?.totalGeral ?? {}) as unknown as Record<string, unknown>}
+          onRemovePlanejado={handleRemovePlanejado}
+          removendoPlanejado={removendoPlanejado}
+          ariaLabel="Previdência e Seguros - Detalhamento"
+          titleFromName
+          getSubtitle={(a) =>
+            a.planejado
+              ? null
+              : [
+                  a.modalidade ? a.modalidade.charAt(0).toUpperCase() + a.modalidade.slice(1) : '',
+                  a.subclasse ? a.subclasse.replace('_', ' ').toUpperCase() : '',
+                ]
+                  .filter(Boolean)
+                  .join(' · ')
+          }
+        />
       </div>
     );
   }
@@ -491,4 +583,109 @@ export default function PrevidenciaSegurosTable({
       </ComponentCard>
     </div>
   );
+}
+
+/**
+ * Colunas SÓ do cartão do celular (o desktop continua com o JSX da tabela acima). Mesmos
+ * valores e somas das células/linhas de seção/TOTAL GERAL da tabela.
+ */
+function buildMobileColumns(
+  formatPctFn: (v: number) => string,
+  onUpdateObjetivo: (ativoId: string, novoObjetivo: number) => Promise<boolean | void>,
+  temAtivos: boolean,
+): ColumnDef<PrevidenciaSegurosAtivo, PrevidenciaSegurosSecao>[] {
+  type Col = ColumnDef<PrevidenciaSegurosAtivo, PrevidenciaSegurosSecao>;
+  const soma = (s: PrevidenciaSegurosSecao, f: (a: PrevidenciaSegurosAtivo) => number) =>
+    s.ativos.reduce((acc, a) => acc + f(a), 0);
+  const cols: Col[] = [
+    { key: 'nome', header: 'Nome do Ativo', render: (a) => a.nome },
+    { key: 'carencia', header: 'Carência', render: (a) => `${a.carencia} meses` },
+    {
+      key: 'cotacaoResgate',
+      header: 'Cotação de Resgate',
+      mobileLabel: 'Cot. resgate',
+      render: (a, f) => f.formatPercentage(a.cotacaoResgate * 100),
+    },
+    {
+      key: 'liquidacaoResgate',
+      header: 'Liquidação de Resgate',
+      mobileLabel: 'Liquidação',
+      render: (a) => `${a.liquidacaoResgate} dias`,
+    },
+    {
+      key: 'modalidade',
+      header: 'Modalidade',
+      mobile: 'hidden',
+      render: (a) => a.modalidade,
+    },
+    { key: 'subclasse', header: 'Subclasse', mobile: 'hidden', render: (a) => a.subclasse },
+    { key: 'quantidade', header: 'Quantidade', render: (a, f) => f.formatNumber(a.quantidade) },
+    {
+      key: 'precoAquisicao',
+      header: 'Preço Aquisição',
+      mobileLabel: 'Preço aquisição',
+      render: (a, f) => f.formatCurrency(a.precoAquisicao),
+    },
+    {
+      key: 'valorTotal',
+      header: 'Valor Total',
+      render: (a, f) => f.formatCurrency(a.valorTotal),
+      renderGrandTotal: (t, f) => f.formatCurrency((t?.valorAplicado as number) || 0),
+    },
+    {
+      key: 'cotacaoAtual',
+      header: 'Cotação em Tempo Real',
+      render: (a, f) => f.formatCurrency(a.cotacaoAtual),
+    },
+    {
+      key: 'valorAtualizado',
+      header: 'Valor Atualizado',
+      render: (a, f) => f.formatCurrency(a.valorAtualizado),
+      renderSectionTotal: (s, f) => f.formatCurrency(soma(s, (a) => a.valorAtualizado)),
+      renderGrandTotal: (t, f) => f.formatCurrency((t?.valorAtualizado as number) || 0),
+    },
+    {
+      key: 'riscoPorAtivo',
+      header: 'Risco Por Ativo (Carteira Total)',
+      render: (a, f) => f.formatPercentage(a.riscoPorAtivo),
+    },
+    {
+      key: 'percentualCarteira',
+      header: '% da Aba',
+      render: (a, f) => f.formatPercentage(a.percentualCarteira),
+      renderGrandTotal: () => (temAtivos ? formatPctFn(100) : '—'),
+    },
+    {
+      key: 'objetivo',
+      header: 'Objetivo',
+      render: (a, f) => (
+        <EditableObjetivoCell
+          ativoId={a.id}
+          objetivo={a.objetivo}
+          formatPercentage={f.formatPercentage}
+          onUpdateObjetivo={onUpdateObjetivo}
+        />
+      ),
+      renderGrandTotal: (t, f) => f.formatPercentage((t?.objetivo as number) || 0),
+    },
+    {
+      key: 'quantoFalta',
+      header: 'Quanto Falta',
+      render: (a, f) => f.formatPercentage(a.quantoFalta),
+      renderGrandTotal: (t, f) => f.formatPercentage((t?.quantoFalta as number) || 0),
+    },
+    {
+      key: 'necessidadeAporte',
+      header: 'Nec. Aporte $',
+      render: (a, f) => f.formatCurrency(a.necessidadeAporte),
+      renderGrandTotal: (t, f) => f.formatCurrency((t?.necessidadeAporte as number) || 0),
+    },
+    {
+      key: 'rentabilidade',
+      header: 'Rentabilidade',
+      render: (a, f) => f.formatPercentage(a.rentabilidade),
+      renderGrandTotal: (t, f) => f.formatPercentage((t?.rentabilidade as number) || 0),
+    },
+  ];
+  return cols;
 }

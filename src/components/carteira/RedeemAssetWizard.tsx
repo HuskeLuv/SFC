@@ -17,6 +17,10 @@ import {
   DEFAULT_PRICE_DEVIATION_THRESHOLD,
 } from './wizard/priceDeviationWarning';
 import PriceDeviationConfirmModal from './wizard/PriceDeviationConfirmModal';
+import WizardProgress from './wizard/WizardProgress';
+import WizardFooter from './wizard/WizardFooter';
+import { useWizardStepFocus } from './wizard/useWizardStepFocus';
+import { useIsBelowLg } from '@/hooks/useMediaQuery';
 
 interface RedeemAssetWizardProps {
   isOpen: boolean;
@@ -105,6 +109,7 @@ function getPriceCheckParams(
 
 export default function RedeemAssetWizard({ isOpen, onClose, onSuccess }: RedeemAssetWizardProps) {
   const { csrfFetch } = useCsrf();
+  const isBelowLg = useIsBelowLg();
   const [currentStep, setCurrentStep] = useState(0);
   const [formData, setFormData] = useState<RedeemWizardFormData>(INITIAL_FORM_DATA);
   const [errors, setErrors] = useState<RedeemWizardErrors>({});
@@ -303,27 +308,58 @@ export default function RedeemAssetWizard({ isOpen, onClose, onSuccess }: Redeem
 
   const canProceed = steps[currentStep]?.isValid || false;
   const isLastStep = currentStep === steps.length - 1;
+  const currentStepId = steps[currentStep]?.id;
+  // Celular: ao trocar de etapa, volta ao topo e foca o título da etapa.
+  const { stepRef, titleRef } = useWizardStepFocus(currentStepId, isOpen && isBelowLg);
+
+  // Celular (PWA fase 1): progresso no cabeçalho e rodapé fixo, com as MESMAS funções do desktop.
+  const mobileProgress = isBelowLg ? (
+    <WizardProgress steps={steps.map((step) => step.title)} current={currentStep} />
+  ) : undefined;
+  const mobileFooter = isBelowLg ? (
+    <WizardFooter
+      onBack={currentStep > 0 ? handlePrevious : handleCancel}
+      backLabel={currentStep > 0 ? 'Voltar' : 'Cancelar'}
+      onNext={isLastStep ? handleSubmit : handleNext}
+      nextLabel={isLastStep ? (loading ? 'Resgatando...' : 'Confirmar') : 'Avançar'}
+      nextDisabled={isLastStep ? false : !canProceed}
+      loading={loading}
+    />
+  ) : undefined;
 
   return (
-    <Sidebar isOpen={isOpen} onClose={handleCancel} title="Resgatar Investimento" noBackdrop>
-      <div className="space-y-6">
-        <div className="space-y-2">
-          <div className="flex items-center justify-between text-sm text-gray-600 dark:text-gray-400">
-            <span>
-              Passo {currentStep + 1} de {steps.length}
-            </span>
-            <span>{Math.round(((currentStep + 1) / steps.length) * 100)}%</span>
+    <Sidebar
+      isOpen={isOpen}
+      onClose={handleCancel}
+      title="Resgatar Investimento"
+      noBackdrop
+      headerExtra={mobileProgress}
+      footer={mobileFooter}
+    >
+      <div className="space-y-6 max-lg:space-y-4">
+        {!isBelowLg && (
+          <div className="space-y-2">
+            <div className="flex items-center justify-between text-sm text-gray-600 dark:text-gray-400">
+              <span>
+                Passo {currentStep + 1} de {steps.length}
+              </span>
+              <span>{Math.round(((currentStep + 1) / steps.length) * 100)}%</span>
+            </div>
+            <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
+              <div
+                className="bg-brand-500 h-2 rounded-full transition-all duration-300"
+                style={{ width: `${((currentStep + 1) / steps.length) * 100}%` }}
+              />
+            </div>
           </div>
-          <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
-            <div
-              className="bg-brand-500 h-2 rounded-full transition-all duration-300"
-              style={{ width: `${((currentStep + 1) / steps.length) * 100}%` }}
-            />
-          </div>
-        </div>
+        )}
 
         <div>
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+          <h3
+            ref={titleRef}
+            tabIndex={isBelowLg ? -1 : undefined}
+            className={`text-lg font-semibold text-gray-900 dark:text-white${isBelowLg ? ' focus:outline-none' : ''}`}
+          >
             {steps[currentStep]?.title || ''}
           </h3>
           <p className="text-sm text-gray-500 dark:text-gray-400">
@@ -331,7 +367,9 @@ export default function RedeemAssetWizard({ isOpen, onClose, onSuccess }: Redeem
           </p>
         </div>
 
-        <div className="min-h-[360px]">{renderCurrentStep()}</div>
+        <div ref={stepRef} data-mf-step={currentStepId} className="min-h-[360px] max-lg:min-h-0">
+          {renderCurrentStep()}
+        </div>
 
         {submitError && (
           <div className="rounded-md bg-red-50 px-4 py-3 text-sm text-red-700 dark:bg-red-500/10 dark:text-red-400">
@@ -339,42 +377,44 @@ export default function RedeemAssetWizard({ isOpen, onClose, onSuccess }: Redeem
           </div>
         )}
 
-        <div className="flex space-x-3 pt-4 border-t border-gray-200 dark:border-gray-700">
-          <Button
-            type="button"
-            variant="outline"
-            onClick={handleCancel}
-            className="flex-1"
-            disabled={loading}
-          >
-            Cancelar
-          </Button>
-          {currentStep > 0 && (
+        {!isBelowLg && (
+          <div className="flex space-x-3 pt-4 border-t border-gray-200 dark:border-gray-700">
             <Button
               type="button"
               variant="outline"
-              onClick={handlePrevious}
+              onClick={handleCancel}
               className="flex-1"
               disabled={loading}
             >
-              Voltar
+              Cancelar
             </Button>
-          )}
-          {!isLastStep ? (
-            <Button
-              type="button"
-              onClick={handleNext}
-              className="flex-1"
-              disabled={!canProceed || loading}
-            >
-              Avançar
-            </Button>
-          ) : (
-            <Button type="button" onClick={handleSubmit} className="flex-1" disabled={loading}>
-              {loading ? 'Resgatando...' : 'Confirmar'}
-            </Button>
-          )}
-        </div>
+            {currentStep > 0 && (
+              <Button
+                type="button"
+                variant="outline"
+                onClick={handlePrevious}
+                className="flex-1"
+                disabled={loading}
+              >
+                Voltar
+              </Button>
+            )}
+            {!isLastStep ? (
+              <Button
+                type="button"
+                onClick={handleNext}
+                className="flex-1"
+                disabled={!canProceed || loading}
+              >
+                Avançar
+              </Button>
+            ) : (
+              <Button type="button" onClick={handleSubmit} className="flex-1" disabled={loading}>
+                {loading ? 'Resgatando...' : 'Confirmar'}
+              </Button>
+            )}
+          </div>
+        )}
       </div>
 
       {hasHistoricClose && (

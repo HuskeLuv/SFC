@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { NextRequest } from 'next/server';
 import bcrypt from 'bcrypt';
+import jwt from 'jsonwebtoken';
 
 const mockPrisma = vi.hoisted(() => ({
   user: { findUnique: vi.fn(), update: vi.fn() },
@@ -16,10 +17,15 @@ const mockRequireAuthWithActing = vi.hoisted(() =>
   }),
 );
 
+const mockBumpSessionVersion = vi.hoisted(() => vi.fn());
+
 vi.mock('@/utils/auth', () => ({ requireAuthWithActing: mockRequireAuthWithActing }));
+vi.mock('@/lib/auth/sessionVersion', () => ({ bumpSessionVersion: mockBumpSessionVersion }));
 vi.mock('@/lib/prisma', () => ({ prisma: mockPrisma, default: mockPrisma }));
 
 import { GET, PATCH, DELETE } from '../route';
+
+process.env.JWT_SECRET = process.env.JWT_SECRET || 'test-secret';
 
 const reqGet = () => new NextRequest('http://localhost/api/profile', { method: 'GET' });
 const reqPatch = (body: object) =>
@@ -130,6 +136,44 @@ describe('PATCH /api/profile', () => {
     expect(JSON.stringify(calls)).not.toContain('correta');
   });
 
+  it('troca de senha derruba as outras sessões e reemite o cookie deste aparelho', async () => {
+    const at = Math.floor(Date.now() / 1000) - 3 * 86400;
+    mockRequireAuthWithActing.mockResolvedValue({
+      payload: { id: 'user-1', email: 't@t.com', role: 'user', sv: 1, rm: true, at, iat: at },
+      targetUserId: 'user-1',
+      actingClient: null,
+    });
+    mockPrisma.user.findUnique.mockResolvedValue({
+      id: 'user-1',
+      email: 't@t.com',
+      name: 'X',
+      avatarUrl: null,
+      role: 'user',
+      password: await bcrypt.hash('correta', 4),
+    });
+    mockPrisma.user.update.mockResolvedValue({ id: 'user-1', role: 'user' });
+    mockBumpSessionVersion.mockResolvedValue(2);
+
+    const res = await PATCH(reqPatch({ currentPassword: 'correta', newPassword: 'NovaSenha123!' }));
+    expect(res.status).toBe(200);
+    expect(mockBumpSessionVersion).toHaveBeenCalledWith('user-1');
+
+    const cookie = res.cookies.get('token');
+    expect(cookie?.value).toBeTruthy();
+    const claims = jwt.verify(cookie!.value, process.env.JWT_SECRET!) as Record<string, unknown>;
+    expect(claims).toMatchObject({ id: 'user-1', role: 'user', sv: 2, rm: true, at });
+    expect(cookie?.maxAge).toBeGreaterThan(0);
+  });
+
+  it('editar só o nome não mexe nas sessões', async () => {
+    mockPrisma.user.findUnique.mockResolvedValue({ id: 'user-1', name: 'Old', password: 'h' });
+    mockPrisma.user.update.mockResolvedValue({ id: 'user-1', name: 'New' });
+    const res = await PATCH(reqPatch({ name: 'New' }));
+    expect(res.status).toBe(200);
+    expect(mockBumpSessionVersion).not.toHaveBeenCalled();
+    expect(res.headers.get('set-cookie')).toBeNull();
+  });
+
   it('exige currentPassword pra trocar senha', async () => {
     const res = await PATCH(reqPatch({ newPassword: 'novasenha123' }));
     expect(res.status).toBe(400);
@@ -174,6 +218,9 @@ describe('DELETE /api/profile', () => {
     expect(mockPrisma.userChangeLog.deleteMany).toHaveBeenCalledWith({
       where: { userId: 'user-1' },
     });
+    // Derruba todas as sessões e limpa o cookie
+    expect(mockBumpSessionVersion).toHaveBeenCalledWith('user-1');
+    expect(res.headers.get('set-cookie')).toMatch(/token=;.*Max-Age=0/);
   });
 
   it('exige confirmação explícita', async () => {

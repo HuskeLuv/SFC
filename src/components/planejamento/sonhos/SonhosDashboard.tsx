@@ -12,6 +12,11 @@ import SonhosObjetivosTable from './SonhosObjetivosTable';
 import SonhosObjetivoInlineForm from './SonhosObjetivoInlineForm';
 import ReservaEmergenciaWidget from './ReservaEmergenciaWidget';
 import { formatBRLCompact, CATEGORY_LONG_LABELS } from './utils';
+import SonhoCardMobile from './mobile/SonhoCardMobile';
+import { MobileMetricGrid } from '@/components/ui/mobile/MobileMetricGrid';
+import { MobilePageState } from '@/components/ui/mobile/MobilePageState';
+import { MobileTabRail } from '@/components/ui/tabs/MobileTabRail';
+import { useIsBelowLg } from '@/hooks/useMediaQuery';
 
 interface SonhosDashboardProps {
   objetivos: PlanejamentoObjetivoDTO[];
@@ -37,6 +42,9 @@ export default function SonhosDashboard({ objetivos, onSelectObjetivo }: SonhosD
   const [view, setView] = useState<'cards' | 'table'>('cards');
   const [creating, setCreating] = useState(false);
   const { contexto } = usePlanejamentoContexto();
+  const isBelowLg = useIsBelowLg();
+  // Celular: sem a alternância Cards/Tabela — sempre cartões.
+  const efetivo = isBelowLg ? 'cards' : view;
 
   const stats = useMemo(() => {
     const total = objetivos.length;
@@ -74,64 +82,100 @@ export default function SonhosDashboard({ objetivos, onSelectObjetivo }: SonhosD
   }, [objetivos, tab]);
 
   const isEmpty = objetivos.length === 0;
+  const countOf = (value: TabValue) =>
+    value === 'all' ? objetivos.length : objetivos.filter((g) => g.category === value).length;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 max-lg:space-y-4">
       {/* Header */}
-      <div className="flex items-center justify-between gap-3">
+      <div className="flex items-center justify-between gap-3 max-lg:flex-col max-lg:items-stretch">
         <div>
           <h2 className="text-lg font-semibold text-gray-900 dark:text-white/90">
             Planejamento de Sonhos
           </h2>
-          <p className="mt-0.5 text-sm text-gray-500 dark:text-gray-400">
+          <p className="mt-0.5 text-sm text-gray-500 max-lg:hidden dark:text-gray-400">
             Acompanhe e organize seus objetivos financeiros.
           </p>
         </div>
-        {!creating ? (
-          <Button onClick={() => setCreating(true)} size="sm">
+        {!creating && !(isBelowLg && isEmpty) ? (
+          <Button
+            onClick={() => setCreating(true)}
+            size="sm"
+            className="max-lg:min-h-11 max-lg:w-full"
+          >
             + Adicionar objetivo
           </Button>
         ) : null}
       </div>
 
-      {/* Stat cards */}
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <MetricCard
-          title="Total em Objetivos"
-          value={String(stats.total)}
-          color="primary"
-          change={
-            stats.concluidos > 0
-              ? `${stats.concluidos} concluído${stats.concluidos !== 1 ? 's' : ''}`
-              : undefined
-          }
+      {/* Stat cards — celular: grade 2×2 com os mesmos números */}
+      {isBelowLg ? (
+        <MobileMetricGrid
+          items={[
+            {
+              label: 'Total em Objetivos',
+              value: String(stats.total),
+              hint:
+                stats.concluidos > 0
+                  ? `${stats.concluidos} concluído${stats.concluidos !== 1 ? 's' : ''}`
+                  : undefined,
+            },
+            {
+              label: 'Patrimônio Alocado',
+              value: formatBRLCompact(stats.totalAlocado),
+              hint: `de ${formatBRLCompact(stats.totalMeta)} total`,
+            },
+            {
+              label: 'Aporte Mensal Ativo',
+              value: formatBRLCompact(stats.aporteAtivo),
+              hint: `${stats.ativos} em andamento`,
+            },
+            {
+              label: 'Progresso Médio',
+              value: `${stats.progressoMedio.toFixed(1)}%`,
+              hint: 'ponderado por meta',
+            },
+          ]}
         />
-        <MetricCard
-          title="Patrimônio Alocado"
-          value={formatBRLCompact(stats.totalAlocado)}
-          color="success"
-          change={`de ${formatBRLCompact(stats.totalMeta)} total`}
-        />
-        <MetricCard
-          title="Aporte Mensal Ativo"
-          value={formatBRLCompact(stats.aporteAtivo)}
-          color="primary"
-          change={`${stats.ativos} em andamento`}
-        />
-        <MetricCard
-          title="Progresso Médio"
-          value={`${stats.progressoMedio.toFixed(1)}%`}
-          color="warning"
-          change="ponderado por meta"
-        />
-      </div>
+      ) : (
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <MetricCard
+            title="Total em Objetivos"
+            value={String(stats.total)}
+            color="primary"
+            change={
+              stats.concluidos > 0
+                ? `${stats.concluidos} concluído${stats.concluidos !== 1 ? 's' : ''}`
+                : undefined
+            }
+          />
+          <MetricCard
+            title="Patrimônio Alocado"
+            value={formatBRLCompact(stats.totalAlocado)}
+            color="success"
+            change={`de ${formatBRLCompact(stats.totalMeta)} total`}
+          />
+          <MetricCard
+            title="Aporte Mensal Ativo"
+            value={formatBRLCompact(stats.aporteAtivo)}
+            color="primary"
+            change={`${stats.ativos} em andamento`}
+          />
+          <MetricCard
+            title="Progresso Médio"
+            value={`${stats.progressoMedio.toFixed(1)}%`}
+            color="warning"
+            change="ponderado por meta"
+          />
+        </div>
+      )}
 
       {/* Capacidade de poupança (Sonhos ↔ fluxo de caixa) */}
       {capacidade ? (
         <div
           className={`rounded-xl border p-3 text-sm ${
             capacidade.excede
-              ? 'border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-900/40 dark:bg-amber-900/15 dark:text-amber-200'
+              ? 'border-amber-200 bg-amber-50 text-amber-800 max-lg:text-[#B45309] dark:border-amber-900/40 dark:bg-amber-900/15 dark:text-amber-200 dark:max-lg:text-[#FBBF24]'
               : 'border-gray-200 bg-gray-50 text-gray-600 dark:border-gray-800 dark:bg-white/[0.03] dark:text-gray-300'
           }`}
         >
@@ -156,9 +200,10 @@ export default function SonhosDashboard({ objetivos, onSelectObjetivo }: SonhosD
       {/* Reserva de emergência: ideal vs. atual (carteira ↔ fluxo de caixa) */}
       <ReservaEmergenciaWidget contexto={contexto} />
 
-      {/* Inline create */}
+      {/* Inline create — celular: sheet alto */}
       {creating ? (
         <SonhosObjetivoInlineForm
+          presentation={isBelowLg ? 'sheet' : 'inline'}
           objetivo={null}
           onCancel={() => setCreating(false)}
           onSaved={(id) => {
@@ -168,55 +213,72 @@ export default function SonhosDashboard({ objetivos, onSelectObjetivo }: SonhosD
         />
       ) : null}
 
-      {/* Tabs categoria + toggle de visualização */}
-      <div className="flex items-end justify-between gap-3 border-b border-gray-200 dark:border-gray-800">
-        <nav className="-mb-px flex flex-wrap gap-1">
-          {TABS.map((t) => {
-            const isActive = t.value === tab;
-            const count =
-              t.value === 'all'
-                ? objetivos.length
-                : objetivos.filter((g) => g.category === t.value).length;
-            return (
-              <button
-                key={t.value}
-                type="button"
-                onClick={() => setTab(t.value)}
-                className={`border-b-2 px-4 py-2 text-sm font-medium transition ${
-                  isActive
-                    ? 'border-brand-500 text-brand-600 dark:text-brand-400'
-                    : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'
-                }`}
-                aria-pressed={isActive}
-              >
-                {t.label} ({count})
-              </button>
-            );
-          })}
-        </nav>
-        {!isEmpty ? (
-          <div className="mb-1 inline-flex shrink-0 rounded-lg border border-gray-200 p-0.5 dark:border-gray-800">
-            {(['cards', 'table'] as const).map((v) => (
-              <button
-                key={v}
-                type="button"
-                onClick={() => setView(v)}
-                className={`rounded-md px-2.5 py-1 text-xs font-medium transition ${
-                  view === v
-                    ? 'bg-brand-500 text-white'
-                    : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'
-                }`}
-                aria-pressed={view === v}
-              >
-                {v === 'cards' ? 'Cards' : 'Tabela'}
-              </button>
-            ))}
-          </div>
-        ) : null}
-      </div>
+      {/* Tabs categoria + toggle de visualização — celular: chips de prazo com contagem */}
+      {isBelowLg ? (
+        isEmpty ? null : (
+          <MobileTabRail
+            variant="chips"
+            semantics="filter"
+            ariaLabel="Filtrar por prazo"
+            tabs={TABS.map((t) => ({ id: t.value, label: t.label, count: countOf(t.value) }))}
+            activeId={tab}
+            onChange={(id) => setTab(id as TabValue)}
+          />
+        )
+      ) : (
+        <div className="flex items-end justify-between gap-3 border-b border-gray-200 dark:border-gray-800">
+          <nav className="-mb-px flex flex-wrap gap-1">
+            {TABS.map((t) => {
+              const isActive = t.value === tab;
+              const count = countOf(t.value);
+              return (
+                <button
+                  key={t.value}
+                  type="button"
+                  onClick={() => setTab(t.value)}
+                  className={`border-b-2 px-4 py-2 text-sm font-medium transition ${
+                    isActive
+                      ? 'border-brand-500 text-brand-600 dark:text-brand-400'
+                      : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'
+                  }`}
+                  aria-pressed={isActive}
+                >
+                  {t.label} ({count})
+                </button>
+              );
+            })}
+          </nav>
+          {!isEmpty ? (
+            <div className="mb-1 inline-flex shrink-0 rounded-lg border border-gray-200 p-0.5 dark:border-gray-800">
+              {(['cards', 'table'] as const).map((v) => (
+                <button
+                  key={v}
+                  type="button"
+                  onClick={() => setView(v)}
+                  className={`rounded-md px-2.5 py-1 text-xs font-medium transition ${
+                    view === v
+                      ? 'bg-brand-500 text-white'
+                      : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'
+                  }`}
+                  aria-pressed={view === v}
+                >
+                  {v === 'cards' ? 'Cards' : 'Tabela'}
+                </button>
+              ))}
+            </div>
+          ) : null}
+        </div>
+      )}
 
       {/* Lista */}
-      {isEmpty && !creating ? (
+      {isEmpty && !creating && isBelowLg ? (
+        <MobilePageState
+          kind="empty"
+          title="Nenhum objetivo cadastrado"
+          text="Crie seu primeiro objetivo financeiro pra começar a planejar."
+          action={{ label: 'Criar primeiro objetivo', onClick: () => setCreating(true) }}
+        />
+      ) : isEmpty && !creating ? (
         <div className="rounded-2xl border border-gray-200 bg-white p-6 dark:border-gray-800 dark:bg-white/[0.03]">
           <EmptyState
             title="Nenhum objetivo cadastrado"
@@ -234,7 +296,15 @@ export default function SonhosDashboard({ objetivos, onSelectObjetivo }: SonhosD
             Nenhum objetivo em <strong>{CATEGORY_LONG_LABELS[tab as PlanejamentoCategory]}</strong>.
           </p>
         </div>
-      ) : view === 'table' ? (
+      ) : isBelowLg ? (
+        <ul aria-label="Objetivos" data-mf-mobile="" className="flex flex-col gap-2">
+          {filtered.map((g) => (
+            <li key={g.id} data-mf-card="">
+              <SonhoCardMobile objetivo={g} onClick={() => onSelectObjetivo(g.id)} />
+            </li>
+          ))}
+        </ul>
+      ) : efetivo === 'table' ? (
         <SonhosObjetivosTable objetivos={filtered} onSelectObjetivo={onSelectObjetivo} />
       ) : (
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">

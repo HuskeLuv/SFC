@@ -1,6 +1,7 @@
 'use client';
 
-import { useCallback, useMemo } from 'react';
+import { useCallback, useMemo, type ReactNode } from 'react';
+import { flushSync } from 'react-dom';
 import ComponentCard from '@/components/common/ComponentCard';
 import LoadingSpinner from '@/components/common/LoadingSpinner';
 import Button from '@/components/ui/button/Button';
@@ -25,6 +26,54 @@ import { calcularRentabilidade } from '@/components/analises/RentabilidadeResumo
 import ResumoExecutivo from './ResumoExecutivo';
 import PosicaoConsolidada, { type PosicaoSecao } from './PosicaoConsolidada';
 import MovimentacoesTable, { type Movimentacao } from './MovimentacoesTable';
+import { useIsBelowLg } from '@/hooks/useMediaQuery';
+import { MobileCollapsible } from '@/components/ui/mobile/MobileCollapsible';
+import { MobileTabRail } from '@/components/ui/tabs/MobileTabRail';
+
+/**
+ * Seção do relatório (PWA fase 3). Desktop: os filhos como hoje, sem invólucro (fragmento). Celular:
+ * bloco recolhível; o título original leva `mscreen:hidden` (o cabeçalho do bloco o substitui só
+ * na tela — na impressão o bloco sai aberto e com o título de sempre).
+ */
+function SecaoRelatorio({
+  isBelowLg,
+  id,
+  titulo,
+  resumo,
+  defaultOpen,
+  children,
+}: {
+  isBelowLg: boolean;
+  id: string;
+  titulo: string;
+  resumo?: ReactNode;
+  defaultOpen?: boolean;
+  children: ReactNode;
+}) {
+  if (!isBelowLg) return <>{children}</>;
+  return (
+    <MobileCollapsible id={id} title={titulo} summary={resumo} defaultOpen={defaultOpen}>
+      {children}
+    </MobileCollapsible>
+  );
+}
+
+/**
+ * Abre (pelo DOM, de forma síncrona) os blocos recolhidos do celular antes de imprimir. O CSS já
+ * imprime o conteúdo fechado (`mscreen:hidden` não vale na impressão); isto garante que a tela
+ * volte com o que foi impresso aberto, sem depender de beforeprint/setState.
+ */
+function abrirBlocosRecolhidos(root: HTMLElement | null) {
+  if (!root) return;
+  const fechados = root.querySelectorAll<HTMLButtonElement>(
+    'button[data-mf-mobile][aria-expanded="false"][aria-controls]',
+  );
+  if (fechados.length === 0) return;
+  flushSync(() => fechados.forEach((b) => b.click()));
+}
+
+const BOTAO_PDF_CELULAR =
+  'inline-flex min-h-11 items-center justify-center gap-2 rounded-xl px-4 text-sm font-semibold';
 
 const formatDateLabel = (date: Date | null) => (date ? date.toLocaleDateString('pt-BR') : '--');
 
@@ -339,11 +388,27 @@ export default function RelatoriosPage() {
     loadingCashflow ||
     loadingInstituicaoDistribuicao;
 
+  const isBelowLg = useIsBelowLg();
+
   const handleExportPdf = () => {
+    abrirBlocosRecolhidos(document.getElementById('relatorios-print'));
     window.print();
   };
 
   const periodLabel = `${label} • ${formatDateLabel(startDate)} - ${formatDateLabel(endDate)}`;
+
+  // Celular: título de cada seção escondido só na tela; na impressão ele volta, com a mesma
+  // margem que o space-y-8 dá no desktop.
+  const cabecalhoSecao = isBelowLg ? ' mscreen:hidden print:mb-8' : '';
+  const nSecoesPosicao = posicaoData?.secoes?.length ?? 0;
+  const resumoPosicao =
+    nSecoesPosicao > 0 ? `${nSecoesPosicao} ${nSecoesPosicao === 1 ? 'classe' : 'classes'}` : null;
+  const resumoProventos =
+    proventosTotal != null && proventosTotal > 0
+      ? proventosTotal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+      : null;
+  const nMov = movimentacoesData?.totalNoPeriodo ?? movimentacoesData?.movimentacoes?.length ?? 0;
+  const resumoMovimentacoes = movimentacoesData ? `${nMov} no período` : null;
 
   return (
     <div className="space-y-6" id="relatorios-print">
@@ -363,13 +428,33 @@ export default function RelatoriosPage() {
         }
       `}</style>
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Relatórios</h1>
-          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+        <div
+          className={
+            isBelowLg ? 'mscreen:flex mscreen:items-center mscreen:justify-between' : undefined
+          }
+        >
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white mscreen:text-lg mscreen:font-semibold">
+            Relatórios
+          </h1>
+          <p
+            className={`text-sm text-gray-500 dark:text-gray-400 mt-1${
+              isBelowLg ? ' mscreen:hidden' : ''
+            }`}
+          >
             Visualize relatórios detalhados da carteira conforme o período selecionado.
           </p>
+          {isBelowLg ? (
+            <button
+              type="button"
+              data-mf-mobile=""
+              onClick={handleExportPdf}
+              className={`hidden mscreen:inline-flex print-hidden ${BOTAO_PDF_CELULAR} -mr-2 text-mf-patrimonio dark:text-mf-tranquilidade`}
+            >
+              Exportar PDF
+            </button>
+          ) : null}
         </div>
-        <div className="w-full max-w-[260px] print-hidden">
+        <div className={`w-full max-w-[260px] print-hidden${isBelowLg ? ' mscreen:hidden' : ''}`}>
           <label htmlFor="report-period" className="sr-only">
             Filtro de período
           </label>
@@ -389,9 +474,26 @@ export default function RelatoriosPage() {
         </div>
       </div>
 
+      {isBelowLg ? (
+        <div className="hidden mscreen:block print-hidden">
+          <MobileTabRail
+            tabs={REPORT_PERIOD_OPTIONS.map((option) => ({
+              id: option.value,
+              label: option.label,
+            }))}
+            activeId={selected}
+            onChange={(id) => setSelected(id as ReportPeriodValue)}
+            ariaLabel="Filtro de período"
+            variant="chips"
+            semantics="filter"
+          />
+        </div>
+      ) : null}
+
       {selected === 'custom' && (
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           <DatePicker
+            nativeOnMobile
             id="report-start-date"
             label="Data inicial"
             mode="single"
@@ -404,6 +506,7 @@ export default function RelatoriosPage() {
             }}
           />
           <DatePicker
+            nativeOnMobile
             id="report-end-date"
             label="Data final"
             mode="single"
@@ -444,7 +547,7 @@ export default function RelatoriosPage() {
                 size="sm"
                 variant="primary"
                 onClick={handleExportPdf}
-                className="print-hidden"
+                className={`print-hidden${isBelowLg ? ' mscreen:hidden' : ''}`}
               >
                 Exportar PDF
               </Button>
@@ -453,209 +556,276 @@ export default function RelatoriosPage() {
               <ResumoExecutivo {...resumoExecutivo} />
             </div>
 
-            <div>
-              <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
-                Posição Consolidada
-              </h2>
-              <p className="text-sm text-gray-500 dark:text-gray-400">
-                Valores atuais por categoria e ativo
-              </p>
-            </div>
-            <ComponentCard title="Posição Consolidada" className="avoid-break">
-              <PosicaoConsolidada secoes={posicaoData?.secoes ?? []} />
-            </ComponentCard>
-
-            <div>
-              <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
-                Rentabilidade da Carteira
-              </h2>
-              <p className="text-sm text-gray-500 dark:text-gray-400">{periodLabel}</p>
-            </div>
-            <div className="space-y-6">
-              <ComponentCard title="Rentabilidade Por Dia" className="avoid-break">
-                <RentabilidadeChart
-                  carteiraData={filteredCarteiraHistorico}
-                  indicesData={filteredIndices1d}
-                  period="1d"
-                  startTimestamp={startTimestamp}
-                  endTimestamp={endTimestamp}
-                />
-              </ComponentCard>
-              <ComponentCard title="Rentabilidade Por Mês" className="avoid-break">
-                <RentabilidadeChart
-                  carteiraData={filteredCarteiraHistorico}
-                  indicesData={filteredIndices1mo}
-                  period="1mo"
-                />
-              </ComponentCard>
-            </div>
-
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <div>
+            <SecaoRelatorio
+              isBelowLg={isBelowLg}
+              id="relatorio-posicao"
+              titulo="Posição Consolidada"
+              resumo={resumoPosicao}
+              defaultOpen
+            >
+              <div className={cabecalhoSecao || undefined}>
                 <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
-                  Proventos Recebidos
+                  Posição Consolidada
+                </h2>
+                <p className="text-sm text-gray-500 dark:text-gray-400">
+                  Valores atuais por categoria e ativo
+                </p>
+              </div>
+              <ComponentCard title="Posição Consolidada" className="avoid-break">
+                <PosicaoConsolidada secoes={posicaoData?.secoes ?? []} />
+              </ComponentCard>
+            </SecaoRelatorio>
+
+            <SecaoRelatorio
+              isBelowLg={isBelowLg}
+              id="relatorio-rentabilidade"
+              titulo="Rentabilidade da Carteira"
+            >
+              <div className={cabecalhoSecao || undefined}>
+                <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
+                  Rentabilidade da Carteira
                 </h2>
                 <p className="text-sm text-gray-500 dark:text-gray-400">{periodLabel}</p>
               </div>
-            </div>
-            <div className="space-y-6">
-              <ComponentCard title="Histórico de Proventos" className="avoid-break">
-                {proventos.length > 0 ? (
-                  <ProventosHistoricoChart proventos={proventos} />
+              <div className="space-y-6">
+                <ComponentCard title="Rentabilidade Por Dia" className="avoid-break">
+                  <RentabilidadeChart
+                    carteiraData={filteredCarteiraHistorico}
+                    indicesData={filteredIndices1d}
+                    period="1d"
+                    startTimestamp={startTimestamp}
+                    endTimestamp={endTimestamp}
+                  />
+                </ComponentCard>
+                <ComponentCard title="Rentabilidade Por Mês" className="avoid-break">
+                  <RentabilidadeChart
+                    carteiraData={filteredCarteiraHistorico}
+                    indicesData={filteredIndices1mo}
+                    period="1mo"
+                  />
+                </ComponentCard>
+              </div>
+            </SecaoRelatorio>
+
+            <SecaoRelatorio
+              isBelowLg={isBelowLg}
+              id="relatorio-proventos"
+              titulo="Proventos Recebidos"
+              resumo={resumoProventos}
+            >
+              <div
+                className={`flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between${cabecalhoSecao}`}
+              >
+                <div>
+                  <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
+                    Proventos Recebidos
+                  </h2>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">{periodLabel}</p>
+                </div>
+              </div>
+              <div className="space-y-6">
+                <ComponentCard title="Histórico de Proventos" className="avoid-break">
+                  {proventos.length > 0 ? (
+                    <ProventosHistoricoChart proventos={proventos} />
+                  ) : (
+                    <div className="flex h-64 items-center justify-center text-sm text-gray-500 dark:text-gray-400">
+                      Sem dados para o período selecionado.
+                    </div>
+                  )}
+                </ComponentCard>
+                <ComponentCard title="Distribuição de Proventos" className="avoid-break">
+                  {Object.keys(grouped).length > 0 ? (
+                    <ProventosDistribuicaoChart grouped={grouped} viewMode="total" />
+                  ) : (
+                    <div className="flex h-64 items-center justify-center text-sm text-gray-500 dark:text-gray-400">
+                      Sem dados para o período selecionado.
+                    </div>
+                  )}
+                </ComponentCard>
+              </div>
+            </SecaoRelatorio>
+
+            <SecaoRelatorio
+              isBelowLg={isBelowLg}
+              id="relatorio-distribuicao"
+              titulo="Distribuição de Ativos"
+            >
+              <div
+                className={`flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between${cabecalhoSecao}`}
+              >
+                <div>
+                  <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
+                    Distribuição de Ativos
+                  </h2>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">{periodLabel}</p>
+                </div>
+              </div>
+              <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+                <ComponentCard title="Distribuição Atual de Ativos" className="avoid-break">
+                  {resumo?.distribuicao && Object.values(resumo.distribuicao).length > 0 ? (
+                    <PieChartCarteiraInvestimentos distribuicao={resumo.distribuicao} />
+                  ) : (
+                    <div className="flex h-64 items-center justify-center text-sm text-gray-500 dark:text-gray-400">
+                      Sem dados para exibir.
+                    </div>
+                  )}
+                </ComponentCard>
+                <ComponentCard title="Divisão por Instituição Financeira" className="avoid-break">
+                  {Object.keys(instituicaoGrouped).length > 0 ? (
+                    <ProventosDistribuicaoChart grouped={instituicaoGrouped} viewMode="total" />
+                  ) : (
+                    <div className="flex h-64 items-center justify-center text-sm text-gray-500 dark:text-gray-400">
+                      Sem dados para exibir.
+                    </div>
+                  )}
+                </ComponentCard>
+              </div>
+            </SecaoRelatorio>
+
+            <SecaoRelatorio
+              isBelowLg={isBelowLg}
+              id="relatorio-evolucao"
+              titulo="Evolução Patrimonial"
+            >
+              <div
+                className={`flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between${cabecalhoSecao}`}
+              >
+                <div>
+                  <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
+                    Evolução Patrimonial
+                  </h2>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">{periodLabel}</p>
+                </div>
+              </div>
+              <ComponentCard title="Evolução Patrimonial" className="avoid-break">
+                {filteredPatrimonio.length > 0 ? (
+                  <LineChartCarteiraHistorico data={filteredPatrimonio} />
                 ) : (
                   <div className="flex h-64 items-center justify-center text-sm text-gray-500 dark:text-gray-400">
                     Sem dados para o período selecionado.
                   </div>
                 )}
               </ComponentCard>
-              <ComponentCard title="Distribuição de Proventos" className="avoid-break">
-                {Object.keys(grouped).length > 0 ? (
-                  <ProventosDistribuicaoChart grouped={grouped} viewMode="total" />
-                ) : (
-                  <div className="flex h-64 items-center justify-center text-sm text-gray-500 dark:text-gray-400">
-                    Sem dados para o período selecionado.
-                  </div>
-                )}
-              </ComponentCard>
-            </div>
+            </SecaoRelatorio>
 
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <div>
+            <SecaoRelatorio
+              isBelowLg={isBelowLg}
+              id="relatorio-movimentacoes"
+              titulo="Movimentações do Período"
+              resumo={resumoMovimentacoes}
+              defaultOpen
+            >
+              <div className={cabecalhoSecao || undefined}>
                 <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
-                  Distribuição de Ativos
+                  Movimentações do Período
                 </h2>
                 <p className="text-sm text-gray-500 dark:text-gray-400">{periodLabel}</p>
               </div>
-            </div>
-            <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-              <ComponentCard title="Distribuição Atual de Ativos" className="avoid-break">
-                {resumo?.distribuicao && Object.values(resumo.distribuicao).length > 0 ? (
-                  <PieChartCarteiraInvestimentos distribuicao={resumo.distribuicao} />
-                ) : (
-                  <div className="flex h-64 items-center justify-center text-sm text-gray-500 dark:text-gray-400">
-                    Sem dados para exibir.
-                  </div>
-                )}
+              <ComponentCard title="Movimentações" className="avoid-break">
+                <MovimentacoesTable
+                  movimentacoes={movimentacoesData?.movimentacoes ?? []}
+                  totalNoPeriodo={movimentacoesData?.totalNoPeriodo ?? 0}
+                />
               </ComponentCard>
-              <ComponentCard title="Divisão por Instituição Financeira" className="avoid-break">
-                {Object.keys(instituicaoGrouped).length > 0 ? (
-                  <ProventosDistribuicaoChart grouped={instituicaoGrouped} viewMode="total" />
-                ) : (
-                  <div className="flex h-64 items-center justify-center text-sm text-gray-500 dark:text-gray-400">
-                    Sem dados para exibir.
+            </SecaoRelatorio>
+
+            <SecaoRelatorio
+              isBelowLg={isBelowLg}
+              id="relatorio-fluxo"
+              titulo="Fluxo de Caixa Consolidado"
+              resumo={label}
+            >
+              <div
+                className={`flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between${cabecalhoSecao}`}
+              >
+                <div>
+                  <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
+                    Fluxo de Caixa Consolidado
+                  </h2>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">{periodLabel}</p>
+                </div>
+              </div>
+              <ComponentCard title="Fluxo de Caixa Consolidado" className="avoid-break">
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+                  <div className="rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-white/[0.03]">
+                    <p className="text-sm text-gray-500 dark:text-gray-400">Entradas</p>
+                    <p className="text-lg font-semibold text-gray-900 dark:text-white">
+                      R$ {formatCurrencyValue(cashflowTotals.entradas)}
+                    </p>
                   </div>
-                )}
-              </ComponentCard>
-            </div>
-
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
-                  Evolução Patrimonial
-                </h2>
-                <p className="text-sm text-gray-500 dark:text-gray-400">{periodLabel}</p>
-              </div>
-            </div>
-            <ComponentCard title="Evolução Patrimonial" className="avoid-break">
-              {filteredPatrimonio.length > 0 ? (
-                <LineChartCarteiraHistorico data={filteredPatrimonio} />
-              ) : (
-                <div className="flex h-64 items-center justify-center text-sm text-gray-500 dark:text-gray-400">
-                  Sem dados para o período selecionado.
+                  <div className="rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-white/[0.03]">
+                    <p className="text-sm text-gray-500 dark:text-gray-400">Saídas</p>
+                    <p className="text-lg font-semibold text-gray-900 dark:text-white">
+                      R$ {formatCurrencyValue(cashflowTotals.despesas)}
+                    </p>
+                  </div>
+                  <div className="rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-white/[0.03]">
+                    <p className="text-sm text-gray-500 dark:text-gray-400">Saldo</p>
+                    <p className="text-lg font-semibold text-gray-900 dark:text-white">
+                      R$ {formatCurrencyValue(cashflowTotals.total)}
+                    </p>
+                  </div>
                 </div>
-              )}
-            </ComponentCard>
-
-            <div>
-              <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
-                Movimentações do Período
-              </h2>
-              <p className="text-sm text-gray-500 dark:text-gray-400">{periodLabel}</p>
-            </div>
-            <ComponentCard title="Movimentações" className="avoid-break">
-              <MovimentacoesTable
-                movimentacoes={movimentacoesData?.movimentacoes ?? []}
-                totalNoPeriodo={movimentacoesData?.totalNoPeriodo ?? 0}
-              />
-            </ComponentCard>
-
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
-                  Fluxo de Caixa Consolidado
-                </h2>
-                <p className="text-sm text-gray-500 dark:text-gray-400">{periodLabel}</p>
-              </div>
-            </div>
-            <ComponentCard title="Fluxo de Caixa Consolidado" className="avoid-break">
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-                <div className="rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-white/[0.03]">
-                  <p className="text-sm text-gray-500 dark:text-gray-400">Entradas</p>
-                  <p className="text-lg font-semibold text-gray-900 dark:text-white">
-                    R$ {formatCurrencyValue(cashflowTotals.entradas)}
-                  </p>
-                </div>
-                <div className="rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-white/[0.03]">
-                  <p className="text-sm text-gray-500 dark:text-gray-400">Saídas</p>
-                  <p className="text-lg font-semibold text-gray-900 dark:text-white">
-                    R$ {formatCurrencyValue(cashflowTotals.despesas)}
-                  </p>
-                </div>
-                <div className="rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-white/[0.03]">
-                  <p className="text-sm text-gray-500 dark:text-gray-400">Saldo</p>
-                  <p className="text-lg font-semibold text-gray-900 dark:text-white">
-                    R$ {formatCurrencyValue(cashflowTotals.total)}
-                  </p>
-                </div>
-              </div>
-              <div className={`mt-6 ${TABLE_STYLES.wrapper}`}>
-                <Table className={TABLE_STYLES.table}>
-                  <TableHeader>
-                    <TableRow className={TABLE_STYLES.headRow} style={TABLE_HEADER_STYLE}>
-                      <TableCell isHeader className={`${TABLE_STYLES.th} text-left`}>
-                        Categoria
-                      </TableCell>
-                      <TableCell isHeader className={`${TABLE_STYLES.th} text-right`}>
-                        Orçamento
-                      </TableCell>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {cashflowCategoryRows.length > 0 ? (
-                      cashflowCategoryRows.map((row) => (
-                        <TableRow key={row.id} className={TABLE_STYLES.row}>
-                          <TableCell className={TABLE_STYLES.td}>
-                            <span
-                              className="inline-flex items-center"
-                              style={{ paddingLeft: `${row.depth * 16}px` }}
-                            >
-                              {row.depth > 0 && (
-                                <span className="mr-2 h-2 w-2 rounded-full bg-gray-300" />
-                              )}
-                              {row.name}
-                            </span>
-                          </TableCell>
-                          <TableCell
-                            className={`${TABLE_STYLES.td} text-right font-medium text-gray-900 dark:text-white`}
-                          >
-                            R$ {formatCurrencyValue(row.total)}
-                          </TableCell>
-                        </TableRow>
-                      ))
-                    ) : (
-                      <TableRow className={TABLE_STYLES.placeholderRow}>
-                        <TableCell
-                          colSpan={2}
-                          className={`${TABLE_STYLES.td} text-center text-gray-500 dark:text-gray-400`}
-                        >
-                          Sem dados para o período selecionado.
+                <div className={`mt-6 ${TABLE_STYLES.wrapper}`}>
+                  <Table className={TABLE_STYLES.table}>
+                    <TableHeader>
+                      <TableRow className={TABLE_STYLES.headRow} style={TABLE_HEADER_STYLE}>
+                        <TableCell isHeader className={`${TABLE_STYLES.th} text-left`}>
+                          Categoria
+                        </TableCell>
+                        <TableCell isHeader className={`${TABLE_STYLES.th} text-right`}>
+                          Orçamento
                         </TableCell>
                       </TableRow>
-                    )}
-                  </TableBody>
-                </Table>
-              </div>
-            </ComponentCard>
+                    </TableHeader>
+                    <TableBody>
+                      {cashflowCategoryRows.length > 0 ? (
+                        cashflowCategoryRows.map((row) => (
+                          <TableRow key={row.id} className={TABLE_STYLES.row}>
+                            <TableCell className={TABLE_STYLES.td}>
+                              <span
+                                className="inline-flex items-center"
+                                style={{ paddingLeft: `${row.depth * 16}px` }}
+                              >
+                                {row.depth > 0 && (
+                                  <span className="mr-2 h-2 w-2 rounded-full bg-gray-300" />
+                                )}
+                                {row.name}
+                              </span>
+                            </TableCell>
+                            <TableCell
+                              className={`${TABLE_STYLES.td} text-right font-medium text-gray-900 dark:text-white`}
+                            >
+                              R$ {formatCurrencyValue(row.total)}
+                            </TableCell>
+                          </TableRow>
+                        ))
+                      ) : (
+                        <TableRow className={TABLE_STYLES.placeholderRow}>
+                          <TableCell
+                            colSpan={2}
+                            className={`${TABLE_STYLES.td} text-center text-gray-500 dark:text-gray-400`}
+                          >
+                            Sem dados para o período selecionado.
+                          </TableCell>
+                        </TableRow>
+                      )}
+                    </TableBody>
+                  </Table>
+                </div>
+              </ComponentCard>
+            </SecaoRelatorio>
+
+            {isBelowLg ? (
+              <button
+                type="button"
+                data-mf-mobile=""
+                onClick={handleExportPdf}
+                className={`hidden mscreen:flex print-hidden w-full ${BOTAO_PDF_CELULAR} bg-mf-seguranca text-white dark:bg-mf-patrimonio`}
+              >
+                Exportar PDF
+              </button>
+            ) : null}
           </div>
         </>
       )}

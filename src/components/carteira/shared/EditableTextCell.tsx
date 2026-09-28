@@ -1,15 +1,27 @@
 'use client';
 import React, { useState } from 'react';
+import { useIsBelowLg } from '@/hooks/useMediaQuery';
+import MobileEditSheet from '@/components/ui/sheet/MobileEditSheet';
+import { MobileEditTrigger, useAssetCardContext } from './AssetCardSections';
 
 interface EditableTextCellProps {
   ativoId: string;
   value: string;
-  onSubmit: (ativoId: string, novoValor: string) => void;
+  /**
+   * O MESMO callback no desktop e no celular. No celular (sheet), retorno `false` ou exceção =
+   * falha: o sheet fica aberto com o erro.
+   */
+  onSubmit: (ativoId: string, novoValor: string) => void | boolean | Promise<boolean | void>;
   /** Exibido no lugar do valor quando vazio (ex.: "—"). */
   emptyLabel?: string;
   placeholder?: string;
   title?: string;
   inputWidth?: string;
+  /** Ticker/nome do ativo e rótulo do campo no sheet (padrão: os do cartão). */
+  subject?: string;
+  label?: string;
+  /** Texto longo no celular (textarea: Enter quebra linha). */
+  multiline?: boolean;
 }
 
 /**
@@ -17,7 +29,58 @@ interface EditableTextCellProps {
  * Padrão da tabela de Renda Fixa (Cot./Liq. Resgate), extraído pra reutilizar
  * em outras abas.
  */
-const EditableTextCell: React.FC<EditableTextCellProps> = ({
+const EditableTextCell: React.FC<EditableTextCellProps> = (props) => {
+  const isBelowLg = useIsBelowLg();
+  if (isBelowLg) return <TextMobile {...props} />;
+  return <TextDesktop {...props} />;
+};
+
+/** Celular (PWA fase 1): valor + "Editar" → MobileEditSheet de texto. */
+const TextMobile: React.FC<EditableTextCellProps> = ({
+  ativoId,
+  value,
+  onSubmit,
+  emptyLabel = '—',
+  placeholder,
+  subject: subjectProp,
+  label: labelProp,
+  multiline = false,
+}) => {
+  const card = useAssetCardContext();
+  const [open, setOpen] = useState(false);
+  const subject = subjectProp ?? card?.subject ?? 'ativo';
+  const label = labelProp ?? card?.label ?? 'Texto';
+  return (
+    <>
+      <MobileEditTrigger
+        field="texto"
+        display={value || emptyLabel}
+        muted={!value}
+        ariaLabel={`Editar ${label.toLowerCase()} de ${subject}`}
+        onOpen={() => setOpen(true)}
+      />
+      <MobileEditSheet
+        isOpen={open}
+        onClose={() => setOpen(false)}
+        title={`${label} de ${subject}`}
+        label={label}
+        kind={multiline ? 'textarea' : 'text'}
+        initialValue={value}
+        allowEmpty
+        hint={placeholder ? `Ex.: ${placeholder}` : undefined}
+        onSubmit={(v) => {
+          // Mesma regra do desktop: aparado, e só envia se mudou.
+          const next = String(v ?? '').trim();
+          if (next === value) return;
+          return onSubmit(ativoId, next);
+        }}
+        savedMessage={() => `${label} de ${subject} salvo`}
+      />
+    </>
+  );
+};
+
+const TextDesktop: React.FC<EditableTextCellProps> = ({
   ativoId,
   value,
   onSubmit,

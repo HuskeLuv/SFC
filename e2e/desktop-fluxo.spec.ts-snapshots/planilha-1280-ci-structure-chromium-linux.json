@@ -1,0 +1,72 @@
+{
+ "tabs": [],
+ "tables": [
+  {
+   "ths": [
+    "Itens",
+    "O seu porquê",
+    "Nível Prioridade",
+    "% Receita",
+    "Jan",
+    "Fev",
+    "Mar",
+    "Abr",
+    "Mai",
+    "Jun",
+    "Jul",
+    "Ago",
+    "Set",
+    "Out",
+    "Nov",
+    "Dez",
+    "Total Anual"
+   ],
+   "colCount": 17,
+   "theadClass": "",
+   "thClasses": [
+    "border-b border-b-0 border-gray-100 border-l border-l-gray-200 dark:border-gray-800 dark:border-l-gray-800 font-medium font-semibold h-7 leading-7 px-3 tabular-nums text-[11px] text-right text-white text-xs tracking-wide uppercase",
+    "border-b border-b-0 border-gray-100 border-r border-r-gray-200 dark:border-gray-800 dark:border-r-gray-800 font-medium h-7 leading-7 px-3 text-[11px] text-right text-white text-xs tracking-wide uppercase whitespace-nowrap",
+    "border-b border-b-0 border-gray-100 dark:border-gray-800 font-medium h-7 leading-7 px-2 tabular-nums text-[11px] text-center text-right text-white text-xs tracking-wide uppercase whitespace-nowrap",
+    "border-b border-b-0 border-gray-100 dark:border-gray-800 font-medium h-7 leading-7 px-3 text-[11px] text-center text-white text-xs tracking-wide uppercase whitespace-nowrap",
+    "border-b border-b-0 border-gray-100 dark:border-gray-800 font-medium h-7 leading-7 px-3 text-[11px] text-left text-white text-xs tracking-wide uppercase whitespace-nowrap"
+   ],
+   "trClasses": [
+    "",
+    "bg-gray-50 dark:bg-gray-800 dark:text-gray-100 font-medium h-7 text-gray-800",
+    "bg-white dark:bg-gray-900 group/linha h-7",
+    "dark:bg-gray-600 dark:text-gray-100 font-semibold h-7",
+    "dark:bg-gray-700 dark:text-gray-100 font-semibold h-7",
+    "dark:text-gray-100 font-medium h-7",
+    "font-semibold h-7 text-white"
+   ],
+   "tdClasses": [
+    "bg-gray-50 border-b border-gray-100 border-l border-l-gray-200 dark:bg-gray-800 dark:border-gray-800 dark:border-l-gray-800 dark:text-gray-100 font-semibold h-7 leading-7 px-3 tabular-nums text-gray-800 text-right text-xs",
+    "bg-gray-50 border-b border-gray-100 border-r border-r-gray-200 dark:bg-gray-800 dark:border-gray-800 dark:border-r-gray-800 dark:text-gray-100 h-7 leading-7 px-3 text-gray-800 text-xs whitespace-nowrap",
+    "bg-gray-50 border-b border-gray-100 dark:bg-gray-800 dark:border-gray-800 dark:text-gray-100 font-semibold h-7 leading-7 px-3 text-gray-800 text-xs whitespace-nowrap",
+    "bg-gray-50 border-b border-gray-100 dark:bg-gray-800 dark:border-gray-800 dark:text-gray-100 h-7 leading-7 px-3 text-gray-800 text-xs whitespace-nowrap",
+    "bg-white border-b border-gray-100 border-l border-l-gray-200 dark:bg-gray-900 dark:border-gray-800 dark:border-l-gray-800 dark:text-gray-100 font-semibold h-7 leading-7 px-3 tabular-nums text-gray-800 text-right text-xs",
+    "bg-white border-b border-gray-100 border-r border-r-gray-200 dark:bg-gray-900 dark:border-gray-800 dark:border-r-gray-800 h-7 leading-7 px-3 tabular-nums text-right text-xs whitespace-nowrap",
+    "bg-white border-b border-gray-100 dark:bg-gray-900 dark:border-gray-800 dark:text-gray-100 font-medium h-7 leading-7 px-3 text-gray-800 text-xs whitespace-nowrap",
+    "bg-white border-b border-gray-100 dark:bg-gray-900 dark:border-gray-800 dark:text-gray-400 h-7 leading-7 px-3 text-center text-gray-500 text-xs whitespace-nowrap",
+    "bg-white border-b border-gray-100 dark:bg-gray-900 dark:border-gray-800 dark:text-gray-400 h-7 leading-7 px-3 text-gray-500 text-xs whitespace-nowrap",
+    "border-0 h-2 p-0",
+    "border-b border-gray-100 border-l border-l-gray-200 dark:bg-gray-600 dark:border-gray-800 dark:border-l-gray-800 dark:text-gray-100 font-semibold h-7 leading-7 px-3 tabular-nums text-right text-xs",
+    "border-b border-gray-100 border-l border-l-gray-200 dark:bg-gray-700 dark:border-gray-800 dark:border-l-gray-800 dark:text-gray-100 font-semibold h-7 leading-7 px-3 tabular-nums text-right text-xs",
+    "border-b border-gray-100 border-l border-l-gray-200 dark:border-gray-800 dark:border-l-gray-800 dark:text-gray-100 font-semibold h-7 leading-7 px-3 tabular-nums text-right text-xs",
+    "border-b border-gray-100 border-l border-l-gray-200 dark:border-gray-800 dark:border-l-gray-800 font-semibold h-7 leading-7 px-3 tabular-nums text-right text-white text-xs",
+    "border-b border-gray-100 border-r border-r-gray-200 dark:bg-gray-600 dark:border-gray-800 dark:border-r-gray-800 dark:text-gray-100 h-7 leading-7 px-3 tabular-nums text-right text-xs whitespace-nowrap",
+    "border-b border-gray-100 border-r border-r-gray-200 dark:bg-gray-700 dark:border-gray-800 dark:border-r-gray-800 dark:text-gray-100 h-7 leading-7 px-3 tabular-nums text-right text-xs whitespace-nowrap",
+    "border-b border-gray-100 border-r border-r-gray-200 dark:border-gray-800 dark:border-r-gray-800 dark:text-gray-100 h-7 leading-7 px-3 text-xs whitespace-nowrap",
+    "border-b border-gray-100 border-r border-r-gray-200 dark:border-gray-800 dark:border-r-gray-800 h-7 leading-7 px-3 tabular-nums text-right text-white text-xs whitespace-nowrap",
+    "border-b border-gray-100 cursor-default dark:border-gray-800 dark:hover:bg-white/[0.03] h-7 hover:bg-gray-50 leading-7 px-2 tabular-nums text-right text-xs",
+    "border-b border-gray-100 dark:bg-gray-600 dark:border-gray-800 dark:text-gray-100 h-7 leading-7 px-3 text-xs whitespace-nowrap",
+    "border-b border-gray-100 dark:bg-gray-700 dark:border-gray-800 dark:text-gray-100 h-7 leading-7 px-3 text-xs whitespace-nowrap",
+    "border-b border-gray-100 dark:border-gray-800 dark:text-gray-100 font-semibold h-7 leading-7 px-3 text-xs whitespace-nowrap",
+    "border-b border-gray-100 dark:border-gray-800 dark:text-gray-100 h-7 leading-7 px-3 text-xs whitespace-nowrap",
+    "border-b border-gray-100 dark:border-gray-800 h-7 leading-7 px-2 tabular-nums text-right text-xs",
+    "border-b border-gray-100 dark:border-gray-800 h-7 leading-7 px-3 text-white text-xs whitespace-nowrap"
+   ]
+  }
+ ],
+ "mobileArtifactsVisible": 0
+}

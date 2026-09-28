@@ -5,6 +5,11 @@ import React, { useEffect, useState, useMemo } from 'react';
 import { ApexOptions } from 'apexcharts';
 import { ProventoData } from '@/hooks/useProventos';
 import { useTheme } from '@/context/ThemeContext';
+import { useIsBelowLg } from '@/hooks/useMediaQuery';
+import { deepMergeOptions } from '@/components/charts/ApexChartWrapper';
+
+/** Altura abaixo de lg (PWA fase 1). */
+const MOBILE_CHART_HEIGHT = 260;
 
 const hasFunctionValue = (value: unknown): boolean => {
   if (typeof value === 'function') {
@@ -181,6 +186,7 @@ export default function ProventosHistoricoChart({ proventos }: ProventosHistoric
   }, [proventos]);
 
   const hasData = series.length > 0 && series.some((s) => s.data.length > 0);
+  const isBelowLg = useIsBelowLg();
 
   const options: ApexOptions = useMemo(
     () => ({
@@ -405,6 +411,32 @@ export default function ProventosHistoricoChart({ proventos }: ProventosHistoric
     [colors, xMin, xMax, isDark],
   );
 
+  // Celular: sem rolagem lateral — o gráfico cabe na largura, legenda embaixo e 4 rótulos no eixo X.
+  const effectiveOptions: ApexOptions = useMemo(
+    () =>
+      isBelowLg
+        ? (deepMergeOptions(options, {
+            chart: { height: MOBILE_CHART_HEIGHT },
+            legend: { position: 'bottom', horizontalAlign: 'center' },
+            xaxis: { tickAmount: 4, labels: { rotate: 0, hideOverlappingLabels: true } },
+          } satisfies ApexOptions) as ApexOptions)
+        : options,
+    [isBelowLg, options],
+  );
+
+  const ariaResumo = useMemo(() => {
+    if (!isBelowLg || !hasData) return undefined;
+    const total = series.reduce(
+      (acc, s) => acc + s.data.reduce((a, p) => a + (Number(p[1]) || 0), 0),
+      0,
+    );
+    const meses = series[0]?.data.length ?? 0;
+    return `Histórico de proventos: ${meses} meses, total de ${total.toLocaleString('pt-BR', {
+      style: 'currency',
+      currency: 'BRL',
+    })} em ${series.length} ${series.length === 1 ? 'ativo' : 'ativos'}.`;
+  }, [isBelowLg, hasData, series]);
+
   if (!hasData) {
     return (
       <div className="flex flex-col items-center justify-center py-16 text-center">
@@ -420,8 +452,18 @@ export default function ProventosHistoricoChart({ proventos }: ProventosHistoric
 
   return (
     <div className="max-w-full overflow-x-auto custom-scrollbar">
-      <div id="chartProventosHistorico" className="min-w-[600px] xl:min-w-full">
-        <ApexChartWrapper options={options} series={series} type="bar" height={350} />
+      <div
+        id="chartProventosHistorico"
+        className="min-w-[600px] xl:min-w-full max-lg:min-w-0"
+        role={ariaResumo ? 'img' : undefined}
+        aria-label={ariaResumo}
+      >
+        <ApexChartWrapper
+          options={effectiveOptions}
+          series={series}
+          type="bar"
+          height={isBelowLg ? MOBILE_CHART_HEIGHT : 350}
+        />
       </div>
     </div>
   );

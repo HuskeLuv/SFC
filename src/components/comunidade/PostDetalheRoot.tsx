@@ -29,7 +29,7 @@ function Detalhe({ id, me }: { id: string; me: MeComunidadeResponse }) {
     <div className="mx-auto max-w-2xl space-y-4">
       <Link
         href="/comunidade"
-        className="inline-flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400"
+        className="inline-flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400 max-lg:min-h-11"
       >
         ← Voltar para a comunidade
       </Link>

@@ -1,0 +1,53 @@
+{
+ "tabs": [],
+ "tables": [
+  {
+   "ths": [
+    "",
+    "Saldo atual",
+    "Qtde",
+    "Rent. mês %",
+    "Rent. acum. %",
+    "CDI",
+    "Proventos"
+   ],
+   "colCount": 7,
+   "theadClass": "",
+   "thClasses": [
+    "font-medium px-4 py-3 text-left whitespace-nowrap",
+    "font-medium px-4 py-3 text-right whitespace-nowrap"
+   ],
+   "trClasses": [
+    "border-b border-gray-100 dark:border-gray-800 last:border-b-0"
+   ],
+   "tdClasses": [
+    "px-4 py-2.5 text-left text-sm",
+    "px-4 py-2.5 text-right text-sm"
+   ]
+  },
+  {
+   "ths": [
+    "Tipo",
+    "Data",
+    "Qtd",
+    "Valor"
+   ],
+   "colCount": 4,
+   "theadClass": "",
+   "thClasses": [
+    "font-medium px-4 py-3 text-center whitespace-nowrap",
+    "font-medium px-4 py-3 text-left whitespace-nowrap",
+    "font-medium px-4 py-3 text-right whitespace-nowrap"
+   ],
+   "trClasses": [
+    "border-b border-gray-100 dark:border-gray-800 last:border-b-0"
+   ],
+   "tdClasses": [
+    "px-4 py-2.5 text-center text-sm",
+    "px-4 py-2.5 text-left text-sm",
+    "px-4 py-2.5 text-right text-sm"
+   ]
+  }
+ ],
+ "mobileArtifactsVisible": 0
+}

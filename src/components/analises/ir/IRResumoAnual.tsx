@@ -33,7 +33,7 @@ export default function IRResumoAnual() {
           <select
             value={year}
             onChange={(e) => setYear(parseInt(e.target.value, 10))}
-            className="rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 focus:border-brand-500 focus:outline-none dark:border-gray-700 dark:bg-white/[0.03] dark:text-gray-200"
+            className="rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 focus:border-brand-500 focus:outline-none dark:border-gray-700 dark:bg-white/[0.03] dark:text-gray-200 max-lg:h-11"
           >
             {yearOptions.map((y) => (
               <option key={y} value={y}>
@@ -112,12 +112,12 @@ export default function IRResumoAnual() {
             />
           </div>
 
-          <div className="rounded-xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03]">
+          <div className="rounded-xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03] max-lg:p-4">
             <h4 className="mb-3 text-sm font-medium text-gray-700 dark:text-gray-300">
               Rendimentos do ano
             </h4>
             <dl className="grid grid-cols-1 gap-x-6 gap-y-2 text-sm sm:grid-cols-2">
-              <div className="flex justify-between border-b border-gray-100 py-1.5 dark:border-gray-800">
+              <div className="flex justify-between gap-3 border-b border-gray-100 py-1.5 dark:border-gray-800">
                 <dt className="text-gray-500 dark:text-gray-400">
                   Dividendos de ações BR (isentos)
                 </dt>
@@ -125,13 +125,13 @@ export default function IRResumoAnual() {
                   {formatBRL(data.rendimentos.isentos.dividendosAcoesBr)}
                 </dd>
               </div>
-              <div className="flex justify-between border-b border-gray-100 py-1.5 dark:border-gray-800">
+              <div className="flex justify-between gap-3 border-b border-gray-100 py-1.5 dark:border-gray-800">
                 <dt className="text-gray-500 dark:text-gray-400">Rendimentos de FII (isentos)</dt>
                 <dd className="font-medium text-gray-900 dark:text-white">
                   {formatBRL(data.rendimentos.isentos.rendimentosFii)}
                 </dd>
               </div>
-              <div className="flex justify-between border-b border-gray-100 py-1.5 dark:border-gray-800">
+              <div className="flex justify-between gap-3 border-b border-gray-100 py-1.5 dark:border-gray-800">
                 <dt className="text-gray-500 dark:text-gray-400">
                   JCP (tributação exclusiva {jcpIrrfRateLabel(year)})
                 </dt>
@@ -139,7 +139,7 @@ export default function IRResumoAnual() {
                   {formatBRL(data.rendimentos.tributacaoExclusiva.jcp)}
                 </dd>
               </div>
-              <div className="flex justify-between py-1.5">
+              <div className="flex justify-between gap-3 py-1.5">
                 <dt className="font-medium text-gray-700 dark:text-gray-200">Total recebido</dt>
                 <dd className="font-semibold text-gray-900 dark:text-white">
                   {formatBRL(data.rendimentos.totalRecebido)}

@@ -22,6 +22,8 @@ export interface RendaFixaAtivo extends BaseFundAtivo {
   cotizacaoResgate: string; // Ex: "D+0", "D+1", "D+30"
   liquidacaoResgate: string; // Ex: "D+0", "D+1"
   vencimento: Date;
+  /** Posição antiga sem FixedIncomeAsset: `vencimento` é só um preenchimento (hoje), não um prazo. */
+  semVencimento?: boolean;
   benchmark: string; // Ex: "CDI", "IPCA + Spread"
   tipo: TipoRendaFixa;
   isAutoUpdated?: boolean; // true para Tesouro Direto sincronizado (PU oficial)

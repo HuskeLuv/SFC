@@ -1,6 +1,8 @@
 import React, { useMemo, useState } from 'react';
 import { GroupedProventoData } from '@/hooks/useProventos';
 import { TABLE_STYLES, TABLE_HEADER_STYLE } from '@/components/ui/table/tableStyles';
+import { ResponsiveCardList } from '@/components/ui/table/ResponsiveTable';
+import { useIsBelowLg } from '@/hooks/useMediaQuery';
 
 type GroupByType = 'ativo' | 'classe' | 'tipo';
 
@@ -25,6 +27,7 @@ export default function ProventosDistribuicaoTable({
 }: ProventosDistribuicaoTableProps) {
   const [sortKey, setSortKey] = useState<SortKey>('total');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
+  const isBelowLg = useIsBelowLg();
 
   const entries = useMemo(() => {
     const raw = Object.entries(grouped);
@@ -47,6 +50,98 @@ export default function ProventosDistribuicaoTable({
       setSortDir('desc');
     }
   };
+
+  // Celular (PWA fase 1): ranking em cartões, do maior total para o menor (a ordem da tabela).
+  if (isBelowLg) {
+    type Entry = (typeof entries)[number];
+    const pct = (data: Entry[1]) => (total > 0 ? (data.total / total) * 100 : 0);
+    return (
+      <ResponsiveCardList<Entry>
+        ariaLabel="Distribuição dos proventos"
+        rows={entries}
+        getRowKey={([name]) => name}
+        emptyState="Nenhum provento encontrado no período selecionado"
+        total={{
+          label: 'Total',
+          cells: { total: formatCurrency(total) },
+        }}
+        columns={[
+          {
+            id: 'nome',
+            header: groupBy === 'ativo' ? 'Ativo' : groupBy === 'classe' ? 'Classe' : 'Tipo',
+            mobile: 'primary',
+            cell: ([name, data]) => (groupBy === 'ativo' ? data.items[0]?.symbol || name : name),
+          },
+          ...(groupBy === 'ativo'
+            ? [
+                {
+                  id: 'classe',
+                  header: 'Classe',
+                  mobile: 'subtitle' as const,
+                  cell: ([name, data]: Entry) => {
+                    const symbol = data.items[0]?.symbol ?? '';
+                    const sub = [symbol && symbol !== name ? name : '', data.classe ?? '']
+                      .filter(Boolean)
+                      .join(' · ');
+                    return sub || null;
+                  },
+                },
+              ]
+            : []),
+          {
+            id: 'total',
+            header: 'Total acumulado',
+            mobile: 'value',
+            cell: ([, data]) => formatCurrency(data.total),
+          },
+          {
+            id: 'pct',
+            header: '% do total',
+            mobile: 'field',
+            cell: ([, data]) => `${pct(data).toFixed(2)}%`,
+          },
+          ...(groupBy === 'ativo'
+            ? [
+                {
+                  id: 'yoc',
+                  header: 'YoC',
+                  mobile: 'field' as const,
+                  cell: ([, data]: Entry) => (data.yoc != null ? formatPercent(data.yoc) : '—'),
+                },
+                {
+                  id: 'dy',
+                  header: 'Div. Yield',
+                  mobile: 'field' as const,
+                  cell: ([, data]: Entry) =>
+                    data.dividendYield != null ? formatPercent(data.dividendYield) : '—',
+                },
+                {
+                  id: 'qtd',
+                  header: 'Qtd. atual',
+                  mobile: 'detail' as const,
+                  cell: ([, data]: Entry) =>
+                    data.quantidadeAtual != null ? formatNumber(data.quantidadeAtual) : '—',
+                },
+                {
+                  id: 'pm',
+                  header: 'P. médio atual',
+                  mobile: 'detail' as const,
+                  cell: ([, data]: Entry) =>
+                    data.precoMedio != null ? formatCurrency(data.precoMedio) : '—',
+                },
+                {
+                  id: 'ult',
+                  header: 'Últ. provento',
+                  mobile: 'detail' as const,
+                  cell: ([, data]: Entry) =>
+                    data.ultimoProvento != null ? formatCurrency(data.ultimoProvento) : '—',
+                },
+              ]
+            : []),
+        ]}
+      />
+    );
+  }
 
   if (groupBy !== 'ativo') {
     // Layout simples para agrupamentos por classe / tipo

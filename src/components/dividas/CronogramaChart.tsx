@@ -5,6 +5,12 @@ import { useMemo } from 'react';
 import type { ApexOptions } from 'apexcharts';
 import { useTheme } from '@/context/ThemeContext';
 import type { ParcelaCronograma } from '@/hooks/useDividas';
+import {
+  chartAriaSummary,
+  mobileYAxis,
+  useMobileChart,
+} from '@/components/charts/mobileChartOptions';
+import { MYFINANCE_BRAND } from '@/constants/brandColors';
 import { formatBRLCompact, formatYearMonth } from './utils';
 
 const ReactApexChart = dynamic(() => import('react-apexcharts'), { ssr: false });
@@ -133,12 +139,64 @@ export default function CronogramaChart({ cronograma, parcelasPagas }: Cronogram
     };
   }, [isDark, cronograma, parcelasPagas]);
 
+  // PWA fase 3: no celular, 220px, eixo em R$ compacto (o secundário sem rótulo), legenda
+  // embaixo e só a paleta My Finance (sem o verde da marcação "Pago até aqui").
+  const mobileExtra: ApexOptions = useMemo(
+    () => ({
+      colors: [MYFINANCE_BRAND.seguranca, MYFINANCE_BRAND.tranquilidade, MYFINANCE_BRAND.outside],
+      // O saldo (eixo da direita) é de outra ordem de grandeza que a parcela: mantém o rótulo
+      // dele, senão a linha pareceria estar na escala da parcela.
+      yaxis: (mobileYAxis(options.yaxis) as ApexYAxis[]).map((axis, i) =>
+        i === 2 ? { ...axis, labels: { ...axis.labels, show: true } } : axis,
+      ),
+      annotations: options.annotations?.xaxis?.length
+        ? {
+            xaxis: options.annotations.xaxis.map((a) => ({
+              ...a,
+              borderColor: MYFINANCE_BRAND.patrimonio,
+              label: {
+                ...a.label,
+                style: {
+                  ...a.label?.style,
+                  color: '#fff',
+                  background: MYFINANCE_BRAND.patrimonio,
+                  fontSize: '10px',
+                },
+              },
+            })),
+          }
+        : undefined,
+    }),
+    [options],
+  );
+  const chart = useMobileChart(options, { extra: mobileExtra, desktopHeight: 320 });
+  const ultima = cronograma[cronograma.length - 1];
+
   return (
     <div className="rounded-2xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-white/[0.03]">
       <h3 className="mb-2 text-sm font-semibold text-gray-900 dark:text-white/90">
         Composição das parcelas
       </h3>
-      <ReactApexChart options={options} series={series} type="line" height={320} />
+      {chart.isBelowLg ? (
+        <div
+          data-mf-mobile=""
+          {...chartAriaSummary(
+            'Composição das parcelas',
+            `${parcelasPagas} de ${cronograma.length} parcelas pagas${
+              ultima ? `, última em ${formatYearMonth(ultima.mes)}` : ''
+            }`,
+          )}
+        >
+          <ReactApexChart
+            options={chart.options}
+            series={series}
+            type="line"
+            height={chart.height}
+          />
+        </div>
+      ) : (
+        <ReactApexChart options={chart.options} series={series} type="line" height={chart.height} />
+      )}
     </div>
   );
 }

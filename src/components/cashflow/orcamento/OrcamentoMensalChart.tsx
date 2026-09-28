@@ -29,6 +29,30 @@ const ReactApexChart = dynamic(() => import('react-apexcharts'), { ssr: false })
 const COLOR_ORCADO = MYFINANCE_BRAND.transparencia;
 const COLOR_REAL = MYFINANCE_BRAND.outside;
 
+/**
+ * Celular (PWA fase 2, `variant='mobile'`): "Orçado × real" em BARRAS HORIZONTAIS na visão Mês
+ * (14 nomes de categoria não cabem em colunas a 320px) e, no acumulado, meses com uma letra e a
+ * legenda embaixo. Orçado em cinza (#CCCCCC / escuro #4A4F5A); real em azul patrimônio
+ * (escuro tranquilidade) ou no vermelho semântico quando passa do orçado.
+ */
+const MOBILE_ORCADO = { light: MYFINANCE_BRAND.transparencia, dark: '#4A4F5A' };
+const MOBILE_REAL = { light: MYFINANCE_BRAND.patrimonio, dark: MYFINANCE_BRAND.tranquilidade };
+const MOBILE_ESTOUROU = { light: '#D92D20', dark: '#F97066' };
+const MESES_LETRA = ['J', 'F', 'M', 'A', 'M', 'J', 'J', 'A', 'S', 'O', 'N', 'D'];
+
+/** Rótulo curto de eixo: 'R$ 1,2 mil' / 'R$ 850'. */
+export function formatBRLCurto(val: number): string {
+  const abs = Math.abs(val);
+  const sinal = val < 0 ? '-' : '';
+  if (abs >= 1_000_000) {
+    return `${sinal}R$ ${(abs / 1_000_000).toLocaleString('pt-BR', { maximumFractionDigits: 1 })} mi`;
+  }
+  if (abs >= 1000) {
+    return `${sinal}R$ ${(abs / 1000).toLocaleString('pt-BR', { maximumFractionDigits: 1 })} mil`;
+  }
+  return `${sinal}R$ ${Math.round(abs).toLocaleString('pt-BR')}`;
+}
+
 interface OrcamentoMensalChartProps {
   visao: 'mes' | 'ano';
   /** Mês selecionado (0-11) — usado só na visão 'mes'. */
@@ -37,6 +61,8 @@ interface OrcamentoMensalChartProps {
   categorias: OrcamentoCategoria[];
   /** Soma das metas mensais das categorias (sem investimentos). */
   orcadoMensal: number;
+  /** 'mobile' = versão do celular (PWA fase 2). Padrão: o gráfico de desktop, sem mudança. */
+  variant?: 'default' | 'mobile';
 }
 
 export default function OrcamentoMensalChart({
@@ -45,7 +71,9 @@ export default function OrcamentoMensalChart({
   modoReal,
   categorias,
   orcadoMensal,
+  variant = 'default',
 }: OrcamentoMensalChartProps) {
+  const isMobile = variant === 'mobile';
   const { theme } = useTheme();
   const isDarkMode = theme === 'dark';
 
@@ -154,7 +182,104 @@ export default function OrcamentoMensalChart({
     };
   }, [visao, porCategoria, anual, isDarkMode]);
 
+  // Celular: opções próprias (o desktop acima fica intacto).
+  const mobileOptions: ApexOptions | null = useMemo(() => {
+    if (!isMobile) return null;
+    const axisLabels = { colors: isDarkMode ? '#98A2B3' : '#64748B', fontSize: '11px' };
+    const base: ApexOptions = {
+      chart: {
+        fontFamily: 'Outfit, sans-serif',
+        type: 'bar',
+        toolbar: { show: false },
+        zoom: { enabled: false },
+        stacked: visao === 'ano',
+        animations: { enabled: false },
+      },
+      dataLabels: { enabled: false },
+      legend: {
+        show: true,
+        position: 'bottom',
+        horizontalAlign: 'center',
+        fontFamily: 'Outfit, sans-serif',
+        fontSize: '11px',
+        labels: { colors: isDarkMode ? '#ffffff' : '#000000' },
+        itemMargin: { horizontal: 6, vertical: 1 },
+      },
+      tooltip: {
+        shared: true,
+        intersect: false,
+        y: { formatter: (val: number) => (val == null ? '—' : formatBRL(val)) },
+      },
+      grid: { borderColor: isDarkMode ? '#374151' : '#E5E7EB', strokeDashArray: 3 },
+    };
+    if (visao === 'mes') {
+      return {
+        ...base,
+        colors: [
+          isDarkMode ? MOBILE_ORCADO.dark : MOBILE_ORCADO.light,
+          isDarkMode ? MOBILE_REAL.dark : MOBILE_REAL.light,
+        ],
+        plotOptions: { bar: { horizontal: true, barHeight: '70%', borderRadius: 2 } },
+        xaxis: {
+          categories: porCategoria?.nomes ?? [],
+          tickAmount: 2,
+          labels: {
+            style: axisLabels,
+            hideOverlappingLabels: true,
+            formatter: (val: string) => formatBRLCurto(Number(val)),
+          },
+          axisBorder: { show: false },
+          axisTicks: { show: false },
+        },
+        yaxis: { labels: { style: axisLabels, maxWidth: 92 } },
+      };
+    }
+    return {
+      ...base,
+      colors: [
+        isDarkMode ? MOBILE_ORCADO.dark : MOBILE_ORCADO.light,
+        ...coresPorNome(anual?.nomes ?? []),
+      ],
+      legend: { ...base.legend, clusterGroupedSeries: false },
+      plotOptions: { bar: { horizontal: false, columnWidth: '70%', borderRadius: 2 } },
+      xaxis: {
+        categories: [...MESES_LETRA],
+        labels: { style: axisLabels },
+        axisBorder: { show: false },
+        axisTicks: { show: false },
+      },
+      yaxis: {
+        tickAmount: 4,
+        labels: { style: axisLabels, formatter: (val: number) => formatBRLCurto(val) },
+      },
+    };
+  }, [isMobile, visao, porCategoria, anual, isDarkMode]);
+
   const series = useMemo(() => {
+    if (isMobile && visao === 'mes') {
+      // Real de cada categoria no vermelho quando passa do orçado (cor por ponto).
+      const estourou = isDarkMode ? MOBILE_ESTOUROU.dark : MOBILE_ESTOUROU.light;
+      const real = isDarkMode ? MOBILE_REAL.dark : MOBILE_REAL.light;
+      const nomes = porCategoria?.nomes ?? [];
+      return [
+        {
+          name: 'Orçado',
+          data: nomes.map((nome, i) => ({ x: nome, y: porCategoria?.orcado[i] ?? 0 })),
+        },
+        {
+          name: 'Real',
+          data: nomes.map((nome, i) => {
+            const orcado = porCategoria?.orcado[i] ?? 0;
+            const valor = porCategoria?.real[i] ?? 0;
+            return {
+              x: nome,
+              y: valor,
+              fillColor: orcado > 0 && valor - orcado > 0.005 ? estourou : real,
+            };
+          }),
+        },
+      ];
+    }
     if (visao === 'mes') {
       return [
         { name: 'Orçado', data: porCategoria?.orcado ?? [] },
@@ -175,13 +300,38 @@ export default function OrcamentoMensalChart({
         data: anual?.series[i] ?? [],
       })),
     ];
-  }, [visao, porCategoria, anual, orcadoMensal]);
+  }, [visao, porCategoria, anual, orcadoMensal, isMobile, isDarkMode]);
 
   const vazio =
     visao === 'mes'
       ? (porCategoria?.nomes.length ?? 0) === 0
       : orcadoMensal <= 0 && (anual?.nomes.length ?? 0) === 0;
   if (vazio) return null;
+
+  if (isMobile && mobileOptions) {
+    const barras = porCategoria?.nomes.length ?? 0;
+    return (
+      <div className="rounded-2xl border border-gray-200 p-4 dark:border-gray-800">
+        <h3 className="mb-1 text-[15px] font-semibold text-gray-800 dark:text-white/90">
+          Orçado × real{visao === 'mes' ? ` · ${MONTHS[mes]}` : ' · acumulado'}
+        </h3>
+        {visao === 'mes' ? (
+          <p className="mb-1 text-xs text-gray-500 dark:text-gray-400">
+            Barra do real em vermelho quando passa do orçado.
+          </p>
+        ) : null}
+        <ReactApexChart
+          // Remonta ao trocar de visão: o Apex não desfaz `horizontal` numa atualização.
+          key={visao}
+          options={mobileOptions}
+          series={series}
+          type="bar"
+          height={visao === 'mes' ? 36 * barras + 80 : 320}
+          width="100%"
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="rounded-xl border border-gray-200 p-4 dark:border-gray-800">

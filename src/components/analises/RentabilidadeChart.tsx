@@ -7,6 +7,8 @@ import { IndexData, IndexResponse } from '@/hooks/useIndices';
 import { monthKeyUtc, yearKeyUtc } from '@/utils/utcDay';
 import { MYFINANCE_BRAND } from '@/constants/brandColors';
 import { useTheme } from '@/context/ThemeContext';
+import { useIsBelowLg } from '@/hooks/useMediaQuery';
+import { deepMergeOptions } from '@/components/charts/ApexChartWrapper';
 
 const hasFunctionValue = (value: unknown): boolean => {
   if (typeof value === 'function') return true;
@@ -153,6 +155,9 @@ const ApexChartWrapper = React.memo(
 );
 
 ApexChartWrapper.displayName = 'ApexChartWrapper';
+
+/** Altura do gráfico abaixo de lg (PWA fase 1). */
+const MOBILE_CHART_HEIGHT = 220;
 
 interface RentabilidadeChartProps {
   carteiraData: IndexData[];
@@ -350,6 +355,7 @@ export default function RentabilidadeChart({
 }: RentabilidadeChartProps) {
   const { theme } = useTheme();
   const isDarkMode = theme === 'dark';
+  const isBelowLg = useIsBelowLg();
   const series = useMemo(() => {
     const seriesData: Array<{ name: string; data: Array<Array<number | null>> }> = [];
 
@@ -865,8 +871,23 @@ export default function RentabilidadeChart({
       };
     }
 
+    // PWA fase 1 — celular: gráfico mais baixo, legenda embaixo, 4 rótulos no eixo X sem girar
+    // e sem título do eixo Y (a largura útil é ~326px). Desktop: nada muda.
+    if (isBelowLg) {
+      return deepMergeOptions(baseOptions, {
+        chart: { height: MOBILE_CHART_HEIGHT },
+        legend: { position: 'bottom', horizontalAlign: 'center', fontSize: '12px' },
+        xaxis: {
+          tickAmount: period === '1y' ? uniqueYearsCount : 4,
+          labels: { rotate: 0, hideOverlappingLabels: true, style: { fontSize: '11px' } },
+        },
+        yaxis: { title: { text: '' }, labels: { style: { fontSize: '11px' } } },
+      } satisfies ApexOptions) as ApexOptions;
+    }
+
     return baseOptions;
   }, [
+    isBelowLg,
     period,
     chartType,
     uniqueYearsCount,
@@ -879,11 +900,31 @@ export default function RentabilidadeChart({
 
   const hasSeriesData = Array.isArray(series) && series.length > 0;
 
+  // Celular: resumo dos números para leitor de tela (o SVG do Apex não é acessível).
+  const ariaResumo = useMemo(() => {
+    if (!isBelowLg || !hasSeriesData) return undefined;
+    const partes = series
+      .map((s) => {
+        const ultimo = [...s.data].reverse().find((p) => Array.isArray(p) && p[1] != null);
+        const v = ultimo ? Number(ultimo[1]) : NaN;
+        return Number.isFinite(v)
+          ? `${s.name} ${v.toLocaleString('pt-BR', { maximumFractionDigits: 2 })}%`
+          : null;
+      })
+      .filter(Boolean);
+    return `Gráfico de rentabilidade${partes.length ? `: último ponto ${partes.join(', ')}` : ''}.`;
+  }, [isBelowLg, hasSeriesData, series]);
+
   return (
     <div className="w-full">
       {hasSeriesData ? (
-        <div className="w-full">
-          <ApexChartWrapper options={options} series={series} type={chartType} height={300} />
+        <div className="w-full" role={ariaResumo ? 'img' : undefined} aria-label={ariaResumo}>
+          <ApexChartWrapper
+            options={options}
+            series={series}
+            type={chartType}
+            height={isBelowLg ? MOBILE_CHART_HEIGHT : 300}
+          />
         </div>
       ) : (
         <div className="flex h-80 items-center justify-center text-sm text-gray-500 dark:text-gray-400">

@@ -4,6 +4,9 @@ import { logger } from '@/lib/logger';
 import React, { useEffect, useState, useMemo } from 'react';
 import { ApexOptions } from 'apexcharts';
 import { yearKeyUtc } from '@/utils/utcDay';
+import { useIsBelowLg } from '@/hooks/useMediaQuery';
+import { useTheme } from '@/context/ThemeContext';
+import { deepMergeOptions } from '../ApexChartWrapper';
 
 const hasFunctionValue = (value: unknown): boolean => {
   if (typeof value === 'function') {
@@ -138,6 +141,11 @@ export default function LineChartCarteiraHistorico({
   data: historicoData,
 }: LineChartCarteiraHistoricoProps) {
   const [periodo, setPeriodo] = useState<PeriodoId>('MAX');
+  // PWA fase 1: abaixo de lg o gráfico cabe na tela (sem a largura mínima de 600px), mais baixo e
+  // com menos marcas nos eixos. O desktop continua com as opções de sempre.
+  const isBelowLg = useIsBelowLg();
+  const { theme } = useTheme();
+  const isDark = theme === 'dark';
 
   const filteredData = useMemo(() => {
     if (historicoData.length === 0) return historicoData;
@@ -328,6 +336,24 @@ export default function LineChartCarteiraHistorico({
     [isShortPeriod, yAxisMin],
   );
 
+  const chartOptions: ApexOptions = useMemo(() => {
+    if (!isBelowLg) return options;
+    // Cores do protótipo só no celular: carteira #0079F2 (linha, não texto) e aplicado no azul
+    // segurança (claro) / tranquilidade (escuro), tracejado.
+    const aplicado = isDark ? '#6E9DC4' : '#314666';
+    return deepMergeOptions(options, {
+      colors: [aplicado, '#0079F2'],
+      legend: { position: 'bottom', horizontalAlign: 'center', fontSize: '12px' },
+      chart: { height: 180, toolbar: { show: false }, zoom: { enabled: false } },
+      stroke: { width: [1.8, 2], dashArray: [4, 0] },
+      fill: {
+        gradient: { gradientToColors: [aplicado, '#0079F2'], opacityFrom: 0.35 },
+      },
+      xaxis: { tickAmount: 4, labels: { style: { fontSize: '11px' } } },
+      yaxis: { tickAmount: 4, labels: { style: { fontSize: '11px' } } },
+    });
+  }, [isBelowLg, isDark, options]);
+
   const series = useMemo(
     () => [
       {
@@ -343,8 +369,12 @@ export default function LineChartCarteiraHistorico({
   );
 
   return (
-    <div className="max-w-full overflow-x-auto custom-scrollbar">
-      <div className="mb-3 flex flex-wrap items-center gap-1">
+    <div className={isBelowLg ? 'max-w-full' : 'max-w-full overflow-x-auto custom-scrollbar'}>
+      <div
+        className={
+          isBelowLg ? 'mb-2 flex items-center gap-1' : 'mb-3 flex flex-wrap items-center gap-1'
+        }
+      >
         {PERIODOS.map((p) => {
           const isActive = p.id === periodo;
           return (
@@ -352,11 +382,20 @@ export default function LineChartCarteiraHistorico({
               key={p.id}
               type="button"
               onClick={() => setPeriodo(p.id)}
-              className={`rounded-md px-3 py-1 text-xs font-medium transition-colors ${
-                isActive
-                  ? 'bg-brand-500 text-white'
-                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700'
-              }`}
+              className={
+                isBelowLg
+                  ? // 32px visíveis, 44px de toque (before:), divididos igualmente na largura.
+                    `relative h-8 flex-1 rounded-lg text-xs font-medium before:absolute before:inset-x-0 before:-inset-y-1.5 before:content-[''] ${
+                      isActive
+                        ? 'bg-mf-seguranca text-white dark:bg-mf-tranquilidade/25 dark:text-white'
+                        : 'bg-gray-100 text-gray-600 dark:bg-white/[0.06] dark:text-gray-300'
+                    }`
+                  : `rounded-md px-3 py-1 text-xs font-medium transition-colors ${
+                      isActive
+                        ? 'bg-brand-500 text-white'
+                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700'
+                    }`
+              }
               aria-pressed={isActive}
             >
               {p.label}
@@ -364,8 +403,22 @@ export default function LineChartCarteiraHistorico({
           );
         })}
       </div>
-      <div id="chartPatrimonio" className="min-w-[600px] xl:min-w-full">
-        <ApexChartWrapper options={options} series={series} type="area" height={335} />
+      <div
+        id="chartPatrimonio"
+        className={isBelowLg ? 'min-w-0' : 'min-w-[600px] xl:min-w-full'}
+        role={isBelowLg ? 'img' : undefined}
+        aria-label={
+          isBelowLg
+            ? 'Histórico de patrimônio: valor atual e valor aplicado ao longo do tempo'
+            : undefined
+        }
+      >
+        <ApexChartWrapper
+          options={chartOptions}
+          series={series}
+          type="area"
+          height={isBelowLg ? 180 : 335}
+        />
       </div>
     </div>
   );

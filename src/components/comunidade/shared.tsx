@@ -2,6 +2,8 @@
 
 import React, { useEffect, useRef, useState } from 'react';
 import { Modal } from '@/components/ui/modal';
+import { MobileActionSheet, MobileMoreButton } from '@/components/ui/sheet/MobileActionSheet';
+import { useIsBelowLg } from '@/hooks/useMediaQuery';
 import { MYFINANCE_BRAND } from '@/constants/brandColors';
 import { categoriaPorChave } from '@/constants/comunidade';
 import type { AutorComunidade, SeloComunidade } from '@/types/comunidade';
@@ -12,10 +14,10 @@ export const CARD_CLASS =
   'rounded-2xl border border-gray-200 bg-white p-4 sm:p-5 dark:border-gray-800 dark:bg-white/[0.03]';
 
 export const BOTAO_PRIMARIO =
-  'inline-flex items-center justify-center gap-2 rounded-lg bg-brand-500 px-4 py-2 text-sm font-medium text-white transition hover:bg-brand-600 disabled:cursor-not-allowed disabled:opacity-50';
+  'inline-flex items-center justify-center gap-2 rounded-lg bg-brand-500 px-4 py-2 text-sm font-medium text-white transition hover:bg-brand-600 disabled:cursor-not-allowed disabled:opacity-50 max-lg:min-h-11';
 
 export const BOTAO_SECUNDARIO =
-  'inline-flex items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50 disabled:opacity-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-white/[0.03]';
+  'inline-flex items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50 disabled:opacity-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-white/[0.03] max-lg:min-h-11';
 
 export const INPUT_CLASS =
   'w-full rounded-lg border border-gray-300 bg-transparent px-3 py-2 text-sm text-gray-800 placeholder:text-gray-400 focus:border-brand-300 focus:outline-none focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90 dark:placeholder:text-white/30';
@@ -150,8 +152,38 @@ export interface ItemMenu {
   perigo?: boolean;
 }
 
-/** Menu "⋯" de ações de um post/comentário. */
+/**
+ * Menu "⋯" de ações de um post/comentário. PWA fase 3: abaixo de lg vira MobileMoreButton (44px)
+ * + MobileActionSheet (a ação roda depois de o sheet fechar); no desktop, o dropdown de hoje.
+ */
 export function MenuAcoes({ itens, rotulo }: { itens: ItemMenu[]; rotulo: string }) {
+  const isBelowLg = useIsBelowLg();
+  if (isBelowLg) return <MenuAcoesMobile itens={itens} rotulo={rotulo} />;
+  return <MenuAcoesDesktop itens={itens} rotulo={rotulo} />;
+}
+
+function MenuAcoesMobile({ itens, rotulo }: { itens: ItemMenu[]; rotulo: string }) {
+  const [aberto, setAberto] = useState(false);
+  if (itens.length === 0) return null;
+  return (
+    <div className="-mr-2 -mt-2 shrink-0">
+      <MobileMoreButton onClick={() => setAberto(true)} label={rotulo} />
+      <MobileActionSheet
+        isOpen={aberto}
+        onClose={() => setAberto(false)}
+        title={rotulo}
+        actions={itens.map((item) => ({
+          id: item.rotulo,
+          label: item.rotulo,
+          danger: item.perigo,
+          onSelect: item.onClick,
+        }))}
+      />
+    </div>
+  );
+}
+
+function MenuAcoesDesktop({ itens, rotulo }: { itens: ItemMenu[]; rotulo: string }) {
   const [aberto, setAberto] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
