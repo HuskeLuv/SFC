@@ -4,6 +4,7 @@ import {
   pluggyCredenciais,
   pluggyHabilitado,
   pluggyIncluiSandbox,
+  pluggyOauthRedirectUrl,
   pluggyWebhookSecret,
 } from '../pluggyConfig';
 
@@ -46,5 +47,21 @@ describe('pluggyConfig', () => {
 
   it('conhece o IP fixo de saída dos webhooks', () => {
     expect(PLUGGY_WEBHOOK_IPS).toContain('52.67.145.81');
+  });
+
+  it('oauthRedirectUrl: produção tem default, dev só com override https', () => {
+    delete process.env.PLUGGY_OAUTH_REDIRECT_URL;
+    expect(pluggyOauthRedirectUrl()).toBeUndefined(); // NODE_ENV=test
+
+    process.env.PLUGGY_OAUTH_REDIRECT_URL = 'https://tunel.exemplo.dev/conexoes-bancarias';
+    expect(pluggyOauthRedirectUrl()).toBe('https://tunel.exemplo.dev/conexoes-bancarias');
+
+    // A Pluggy rejeita HTTP/localhost: override que não é https é descartado.
+    process.env.PLUGGY_OAUTH_REDIRECT_URL = 'http://localhost:3000/conexoes-bancarias';
+    expect(pluggyOauthRedirectUrl()).toBeUndefined();
+
+    delete process.env.PLUGGY_OAUTH_REDIRECT_URL;
+    process.env.NODE_ENV = 'production';
+    expect(pluggyOauthRedirectUrl()).toBe('https://appmyfinance.com.br/conexoes-bancarias');
   });
 });

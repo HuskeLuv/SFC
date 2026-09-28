@@ -10,6 +10,8 @@
  *  - PLUGGY_WEBHOOK_SECRET          valor do header X-Webhook-Secret exigido em
  *                                   POST /api/webhooks/pluggy (configurado no webhook do Pluggy)
  *  - PLUGGY_INCLUI_SANDBOX="true"   lista conectores de sandbox (só dev)
+ *  - PLUGGY_OAUTH_REDIRECT_URL      (opcional) sobrescreve a página de retorno
+ *                                   do OAuth; precisa ser https (túnel em dev)
  */
 
 /** Hosts do widget Pluggy Connect (iframe/modal + script do CDN). */
@@ -45,4 +47,21 @@ export function pluggyIncluiSandbox(): boolean {
 export function pluggyWebhookSecret(): string | null {
   const s = process.env.PLUGGY_WEBHOOK_SECRET?.trim();
   return s ? s : null;
+}
+
+/**
+ * Página para onde a janela de autorização devolve o usuário depois do OAuth
+ * no banco. Sem ela, em vários browsers de celular a janela não fecha e o
+ * usuário fica preso na tela "autorização concluída" do banco até o fluxo
+ * expirar (USER_INPUT_TIMEOUT) — docs.pluggy.ai/docs/oauth-support-guide.
+ * A Pluggy só aceita HTTPS (localhost/HTTP são rejeitados): em dev fica de
+ * fora, a menos que PLUGGY_OAUTH_REDIRECT_URL aponte para um túnel https.
+ */
+export function pluggyOauthRedirectUrl(): string | undefined {
+  const override = process.env.PLUGGY_OAUTH_REDIRECT_URL?.trim();
+  if (override) return override.startsWith('https://') ? override : undefined;
+  if (process.env.NODE_ENV === 'production') {
+    return 'https://appmyfinance.com.br/conexoes-bancarias';
+  }
+  return undefined;
 }

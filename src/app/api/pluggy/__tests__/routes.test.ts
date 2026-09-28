@@ -240,6 +240,18 @@ describe('rotas /api/pluggy', () => {
       avoidDuplicates: true,
     });
 
+    // Com a URL de retorno configurada (https), ela vai junto no token — é o
+    // que devolve o usuário ao app depois do OAuth no banco (mobile).
+    process.env.PLUGGY_OAUTH_REDIRECT_URL = 'https://app.exemplo.com/conexoes-bancarias';
+    mockClient.createConnectToken.mockResolvedValue({ accessToken: 'tok2' });
+    await connectToken(json('/api/pluggy/connect-token', 'POST', { consentimentoId: CONSENT }));
+    expect(mockClient.createConnectToken).toHaveBeenLastCalledWith(undefined, {
+      clientUserId: 'user-1',
+      avoidDuplicates: true,
+      oauthRedirectUri: 'https://app.exemplo.com/conexoes-bancarias',
+    });
+    delete process.env.PLUGGY_OAUTH_REDIRECT_URL;
+
     mockPrisma.bankConnection.findFirst.mockResolvedValue(null);
     const nf = await connectToken(
       json('/api/pluggy/connect-token', 'POST', { itemId: ITEM, consentimentoId: CONSENT }),
