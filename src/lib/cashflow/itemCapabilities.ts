@@ -7,8 +7,8 @@ import { CANONICAL_GROUPS, canonicalName } from '@/services/cashflow/groupMatche
  * (batch-update, item/move): a visão do mês do celular decide por aqui o que cada sheet oferece.
  *
  * O desktop importa só os helpers visuais (isInvestment, groupDisplayName, DESPESAS_PERCENT_STYLE)
- * e mantém as próprias condições — em particular o "Excluir" de linha de dívida, que o desktop
- * ainda mostra e o servidor recusa (PR separado).
+ * e mantém as próprias condições (EditableItemRow), alinhadas a estas — inclusive a linha de dívida
+ * travada (sem renomear/excluir).
  */
 
 export type ReadOnlyReason = 'investimento' | 'auto-realizado' | 'divida' | 'sonho';
