@@ -10,7 +10,7 @@ import { mobileYAxis, useMobileChart } from '@/components/charts/mobileChartOpti
 
 const ReactApexChart = dynamic(() => import('react-apexcharts'), { ssr: false });
 
-const COLOR_PL = '#465FFF';
+const COLOR_PL = '#0079F2';
 const COLOR_LIQUIDEZ = '#12B76A';
 const COLOR_DIVIDA = '#F04438';
 

@@ -70,7 +70,7 @@ const PatrimonioEvolucaoChart: React.FC<PatrimonioEvolucaoChartProps> = ({
 
   const options: ApexOptions = useMemo(
     () => ({
-      colors: ['#465FFF'],
+      colors: ['#0079F2'],
       chart: {
         fontFamily: 'Outfit, sans-serif',
         height: 350,
@@ -147,7 +147,7 @@ const PatrimonioEvolucaoChart: React.FC<PatrimonioEvolucaoChartProps> = ({
         gradient: {
           opacityFrom: 0.55,
           opacityTo: 0,
-          gradientToColors: ['#465FFF'],
+          gradientToColors: ['#0079F2'],
         },
       },
       grid: {

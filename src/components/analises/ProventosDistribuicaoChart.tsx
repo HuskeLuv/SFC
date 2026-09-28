@@ -76,7 +76,7 @@ interface ProventosDistribuicaoChartProps {
 }
 
 const COLORS = [
-  '#465FFF',
+  '#0079F2',
   '#10B981',
   '#F59E0B',
   '#8B5CF6',

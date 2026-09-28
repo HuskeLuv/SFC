@@ -52,7 +52,7 @@ export default function SensibilidadeAtivos({ data }: SensibilidadeAtivosProps) 
                           </span>
                         )}
                       </span>
-                      <span className="shrink-0 text-sm font-semibold text-[#465FFF]">
+                      <span className="shrink-0 text-sm font-semibold text-mf-patrimonio dark:text-mf-tranquilidade">
                         {item.beta.toFixed(2).replace('.', ',')}
                       </span>
                     </div>

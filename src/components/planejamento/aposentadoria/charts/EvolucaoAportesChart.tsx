@@ -15,7 +15,7 @@ interface EvolucaoAportesChartProps {
 }
 
 const COLOR_PROJ = '#94A3B8';
-const COLOR_REAL = '#465FFF';
+const COLOR_REAL = '#0079F2';
 
 /** Aportes: barras agrupadas Projetado vs Realizado por mês registrado. */
 export default function EvolucaoAportesChart({

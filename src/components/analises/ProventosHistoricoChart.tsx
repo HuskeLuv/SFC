@@ -348,7 +348,7 @@ export default function ProventosHistoricoChart({ proventos }: ProventosHistoric
             .map((values: number[], index: number) => ({
               name: seriesNames[index] || 'Ativo',
               value: values?.[dataPointIndex] ?? 0,
-              color: colorsList[index] || '#465FFF',
+              color: colorsList[index] || '#0079F2',
             }))
             .filter((item: TooltipEntry) => item.value > 0);
 

@@ -17,7 +17,7 @@ interface EvolucaoPatrimonioChartProps {
   hojeIndex: number; // offset do último registro (anotação "Hoje")
 }
 
-const COLOR_PLAN = '#465FFF';
+const COLOR_PLAN = '#0079F2';
 const COLOR_REAL = '#B8935A';
 const COLOR_REV = '#2B7AC8';
 

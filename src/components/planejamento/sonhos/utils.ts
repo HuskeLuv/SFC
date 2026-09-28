@@ -96,7 +96,7 @@ export function categoryAccent(cat: PlanejamentoCategory): string {
     case 'c':
       return '#0ea5e9'; // sky-500
     case 'm':
-      return '#465FFF'; // brand-500
+      return '#0079F2'; // outside (paleta)
     case 'l':
       return '#1e3a8a'; // blue-900
   }

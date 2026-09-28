@@ -422,7 +422,7 @@ export default function LeftPanel({
 
       {/* Perfil */}
       <section>
-        <SectionTitle dotColor="#465FFF">Perfil</SectionTitle>
+        <SectionTitle dotColor="#0079F2">Perfil</SectionTitle>
         <div className="grid grid-cols-3 gap-2">
           <SliderField
             label={F.idade.label}

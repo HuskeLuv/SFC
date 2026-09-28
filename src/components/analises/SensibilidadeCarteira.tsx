@@ -61,7 +61,7 @@ export default function SensibilidadeCarteira({
                       <span className="truncate text-sm font-medium text-gray-900 dark:text-white">
                         {item.ticker} — {item.nome}
                       </span>
-                      <span className="shrink-0 text-sm font-semibold text-[#465FFF]">
+                      <span className="shrink-0 text-sm font-semibold text-mf-patrimonio dark:text-mf-tranquilidade">
                         {formatCorrel(item.correlacao)}
                       </span>
                     </div>

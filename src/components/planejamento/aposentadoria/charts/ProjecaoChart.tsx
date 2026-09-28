@@ -16,7 +16,7 @@ interface ProjecaoChartProps {
 }
 
 // Paleta alinhada ao app (brand + tons neutros), legível em claro/escuro.
-const COLOR_ACUM = '#465FFF'; // brand-500
+const COLOR_ACUM = '#0079F2'; // outside (paleta)
 const COLOR_DES = '#1A56A0'; // azul renda desejada
 const COLOR_PRES = '#B8935A'; // dourado preservando
 const COLOR_CONS = '#9A9488'; // neutro consumindo

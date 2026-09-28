@@ -21,7 +21,7 @@ function sharpeToGauge(sharpe: number): number {
 
 function gaugeColor(sharpe: number): string {
   if (sharpe >= 1) return '#10B981';
-  if (sharpe >= 0) return '#465FFF';
+  if (sharpe >= 0) return '#0079F2';
   return '#EF4444';
 }
 
@@ -133,7 +133,7 @@ export default function RiscoRetornoAnual({ data, anosDisponiveis }: RiscoRetorn
             </div>
             <div className="text-center">
               <div className="text-sm text-gray-500 dark:text-gray-400">ÍNDICE SHARPE</div>
-              <div className="max-lg:text-xl text-2xl font-bold text-[#465FFF]">
+              <div className="max-lg:text-xl text-2xl font-bold text-mf-patrimonio dark:text-mf-tranquilidade">
                 {metrics.sharpe.toFixed(2)}
               </div>
             </div>

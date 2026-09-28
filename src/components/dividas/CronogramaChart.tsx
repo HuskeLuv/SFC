@@ -21,7 +21,7 @@ interface CronogramaChartProps {
 }
 
 // Paleta alinhada ao app (brand + dourado), legível em claro/escuro.
-const COLOR_AMORT = '#465FFF'; // brand-500 — amortização
+const COLOR_AMORT = '#0079F2'; // outside (paleta) — amortização
 const COLOR_JUROS = '#B8935A'; // dourado — juros
 const COLOR_SALDO = '#1A56A0'; // azul — saldo devedor
 
