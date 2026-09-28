@@ -2,14 +2,12 @@ import { formatBRL } from '@/utils/format';
 
 /**
  * Nível de consumo do orçamento (isomórfico): fonte ÚNICA dos cortes usados pelos alertas do sino
- * (`services/cashflow/orcamentoAlertas`) e pelo Orçamento no celular (PWA fase 2).
+ * (`services/cashflow/orcamentoAlertas`), pelo Orçamento no celular (PWA fase 2) e pela tabela do
+ * desktop (`OrcamentoTable`).
  *
  * Cortes (os do alerta): abaixo de 80% = dentro da meta; a partir de 80% = atenção; 100% = meta
  * atingida; acima de 100% = estourou. A linha Investimentos tem semântica invertida (atingir 100%
  * da meta de aporte é bom).
- *
- * A tabela de desktop (`OrcamentoTable`) ainda usa ≤ 80 como OK — alinhar é PR separado
- * (decisão 9 do Wellington, 26/09/2026).
  */
 
 /** Tolerância para comparações com valores já arredondados a 2 casas. */

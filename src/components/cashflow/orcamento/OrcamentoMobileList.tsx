@@ -38,7 +38,7 @@ export function tomDoNivel(nivel: OrcamentoNivel, isInvestimentos: boolean): Tom
 }
 
 /** Texto do selo (AA nos dois temas). Âmbar #B45309/#D97706 e vermelho semântico #D92D20/#F97066. */
-const SELO_TEXTO: Record<Tom, string> = {
+export const SELO_TEXTO: Record<Tom, string> = {
   ok: 'text-mf-patrimonio dark:text-mf-tranquilidade',
   atencao: 'text-[#B45309] dark:text-[#D97706]',
   estourou: 'text-[#D92D20] dark:text-[#F97066]',
@@ -46,7 +46,7 @@ const SELO_TEXTO: Record<Tom, string> = {
 };
 
 /** Ponto do selo e preenchimento do medidor (elementos não textuais). */
-const TOM_FUNDO: Record<Tom, string> = {
+export const TOM_FUNDO: Record<Tom, string> = {
   ok: 'bg-[#0079F2]',
   atencao: 'bg-[#D97706]',
   estourou: 'bg-[#D92D20] dark:bg-[#F97066]',

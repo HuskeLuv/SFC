@@ -3,6 +3,8 @@
 import { useState } from 'react';
 import { formatBRL, formatPct } from '@/utils/format';
 import { TABLE_HEADER_BG } from '@/constants/brandColors';
+import { nivelOrcamento } from '@/lib/cashflow/orcamentoNivel';
+import { SELO_TEXTO, TOM_FUNDO, tomDoNivel } from './OrcamentoMobileList';
 
 export type OrcamentoTipoMeta = 'valor' | 'percentual';
 
@@ -148,20 +150,10 @@ export function OrcamentoTable({ linhas, investimentos, totais, onSaveMeta }: Or
       : null;
     const consumo =
       temMeta && linha.metaJanela! > 0 ? (linha.real / linha.metaJanela!) * 100 : null;
-    const consumoCor =
-      consumo === null
-        ? ''
-        : linha.isInvestimentos
-          ? consumo >= 100
-            ? 'bg-success-500'
-            : consumo >= 70
-              ? 'bg-warning-500'
-              : 'bg-error-500'
-          : consumo <= 80
-            ? 'bg-success-500'
-            : consumo <= 100
-              ? 'bg-warning-500'
-              : 'bg-error-500';
+    // Mesmos cortes e cores do celular e do sino (`orcamentoNivel`): < 80% dentro da meta,
+    // 80–100% atenção, > 100% estourou; em Investimentos, atingir a meta é o bom.
+    const nivel = nivelOrcamento(linha.real, linha.metaJanela, linha.isInvestimentos);
+    const tom = tomDoNivel(nivel, linha.isInvestimentos);
 
     return (
       <tr key={linha.key} className="border-b border-gray-100 last:border-b-0 dark:border-gray-800">
@@ -182,8 +174,8 @@ export function OrcamentoTable({ linhas, investimentos, totais, onSaveMeta }: Or
             diferenca === null
               ? 'text-gray-400 dark:text-gray-500'
               : diferenca >= 0
-                ? 'text-success-600 dark:text-success-500'
-                : 'text-error-600 dark:text-error-500'
+                ? SELO_TEXTO.ok
+                : SELO_TEXTO.estourou
           }`}
         >
           {diferenca === null
@@ -194,10 +186,11 @@ export function OrcamentoTable({ linhas, investimentos, totais, onSaveMeta }: Or
           {consumo === null ? (
             <span className="text-xs text-gray-400 dark:text-gray-500">—</span>
           ) : (
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2" title={nivel.texto}>
               <div className="h-2 w-24 overflow-hidden rounded-full bg-gray-100 dark:bg-gray-800">
                 <div
-                  className={`h-full rounded-full ${consumoCor}`}
+                  data-mf-orcamento-nivel={nivel.status}
+                  className={`h-full rounded-full ${TOM_FUNDO[tom]}`}
                   style={{ width: `${Math.min(100, consumo)}%` }}
                 />
               </div>
