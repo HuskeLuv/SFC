@@ -342,6 +342,41 @@ describe('parseFlcXlsx — erros e tolerâncias', () => {
     expect(result.secoes.length).toBe(17);
   });
 
+  it('aceita a aba renomeada no padrão "FLC <ano>" com aviso, ignorando abas-lixo (report 28/09)', () => {
+    // planilha real do Pedro: aba principal "FLC 2026" + abas com nomes-lixo (",;,", "!D1"…)
+    const wb = XLSX.read(buildFlcWorkbook(modeloSpec(), 'FLC 2026'), { type: 'buffer' });
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([['x']]), ',;,');
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([['x']]), '!D1');
+    const buf = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' }) as Buffer;
+    const result = parseFlcXlsx(buf);
+    expect(result.secoes.length).toBe(17);
+    expect(result.avisos).toContain(
+      'aba "FLC 2026" importada como "Fluxo de Caixa" (nome fora do modelo)',
+    );
+  });
+
+  it('aceita "Fluxo de Caixa 2026" como variação do nome', () => {
+    const result = parseFlcXlsx(buildFlcWorkbook(modeloSpec(), 'Fluxo de Caixa 2026'));
+    expect(result.secoes.length).toBe(17);
+    expect(result.avisos.some((a) => a.includes('nome fora do modelo'))).toBe(true);
+  });
+
+  it('duas abas no padrão "FLC …" é ambíguo: continua erro', () => {
+    const wb = XLSX.read(buildFlcWorkbook(modeloSpec(), 'FLC 2026'), { type: 'buffer' });
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([['x']]), 'FLC 2025');
+    const buf = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' }) as Buffer;
+    expect(() => parseFlcXlsx(buf)).toThrow(FlcParseError);
+  });
+
+  it('a aba com nome exato ganha de qualquer variação, sem aviso', () => {
+    const wb = XLSX.read(buildFlcWorkbook(modeloSpec(), 'Fluxo de Caixa'), { type: 'buffer' });
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([['x']]), 'FLC 2026');
+    const buf = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' }) as Buffer;
+    const result = parseFlcXlsx(buf);
+    expect(result.secoes.length).toBe(17);
+    expect(result.avisos.some((a) => a.includes('nome fora do modelo'))).toBe(false);
+  });
+
   it('lança FlcParseError para buffer que não é planilha', () => {
     expect(() => parseFlcXlsx(Buffer.from('não sou xlsx'))).toThrow(FlcParseError);
   });
