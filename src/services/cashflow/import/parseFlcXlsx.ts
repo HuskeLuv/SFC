@@ -266,7 +266,17 @@ export const parseFlcXlsx = (buffer: Buffer | Uint8Array): FlcParseResult => {
     throw new FlcParseError('Arquivo inválido: não foi possível ler como planilha .xlsx');
   }
 
-  const sheetName = wb.SheetNames.find((n) => n.trim() === FLC_SHEET_NAME);
+  // Nome exato primeiro. Cópias de cliente costumam renomear a aba ("FLC 2026",
+  // "Fluxo de Caixa 2026" — report 28/09, planilha do Pedro): sem a exata,
+  // aceita quando há UMA aba nesse padrão; mais de uma continua sendo erro.
+  const exata = wb.SheetNames.find((n) => n.trim() === FLC_SHEET_NAME);
+  const parecidas = exata
+    ? []
+    : wb.SheetNames.filter((n) => {
+        const norm = normalizeLabel(n);
+        return norm === 'flc' || norm.startsWith('flc ') || norm.startsWith('fluxo de caixa');
+      });
+  const sheetName = exata ?? (parecidas.length === 1 ? parecidas[0] : undefined);
   if (!sheetName) {
     throw new FlcParseError(
       `Aba "${FLC_SHEET_NAME}" não encontrada na planilha (abas: ${wb.SheetNames.join(', ')})`,
@@ -279,6 +289,11 @@ export const parseFlcXlsx = (buffer: Buffer | Uint8Array): FlcParseResult => {
   const secoes: FlcSecao[] = [];
   const ignorados: FlcIgnorado[] = [];
   const avisos: string[] = [];
+  if (!exata) {
+    avisos.push(
+      `aba "${sheetName.trim()}" importada como "${FLC_SHEET_NAME}" (nome fora do modelo)`,
+    );
+  }
 
   const range = ws['!ref'] ? XLSX.utils.decode_range(ws['!ref']) : null;
   const ultimaLinha = Math.min(range ? range.e.r + 1 : 0, MAX_LINHAS);
