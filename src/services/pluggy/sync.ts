@@ -32,6 +32,7 @@ import {
   type ImportacaoResultado,
 } from './importarCarteira';
 import { revogarConsentimentosDaConexao } from './consentimento';
+import { recomputarCelula, type Celula } from './caixaEntrada';
 
 export const JANELA_RESYNC_DIAS = 7;
 export const HISTORICO_INICIAL_MESES = 12;
@@ -580,9 +581,26 @@ export async function excluirConexao(connectionId: string, userId: string, ip?: 
     const msg = error instanceof Error ? error.message : '';
     if (!/404/.test(msg)) throw error;
   }
+  // Transações aplicadas no fluxo somem no cascade, mas a célula (soma delas)
+  // não — captura as células afetadas antes do delete pra recomputar depois,
+  // senão o valor fica órfão e o Desfazer do histórico já não alcança (409).
+  const aplicadas = await prisma.bankTransaction.findMany({
+    where: { account: { connectionId }, cashflowItemId: { not: null } },
+    select: { cashflowItemId: true, date: true },
+  });
   // O registro do consentimento fica (revogado): é a prova do que foi autorizado.
   await revogarConsentimentosDaConexao(connectionId, 'usuario', ip);
   await prisma.bankConnection.delete({ where: { id: connectionId } });
+  const celulas = new Map<string, Celula>();
+  for (const t of aplicadas) {
+    const c: Celula = {
+      itemId: t.cashflowItemId!,
+      year: t.date.getUTCFullYear(),
+      month: t.date.getUTCMonth(),
+    };
+    celulas.set(`${c.itemId}|${c.year}|${c.month}`, c);
+  }
+  for (const c of celulas.values()) await recomputarCelula(userId, c);
 }
 
 /**
