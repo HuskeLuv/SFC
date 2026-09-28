@@ -11,7 +11,8 @@ import {
   useMobileChart,
 } from '@/components/charts/mobileChartOptions';
 import { MYFINANCE_BRAND } from '@/constants/brandColors';
-import { formatBRLCompact, formatYearMonth } from './utils';
+import { formatCurrency } from '@/utils/formatters';
+import { formatYearMonth } from './utils';
 
 const ReactApexChart = dynamic(() => import('react-apexcharts'), { ssr: false });
 
@@ -24,6 +25,27 @@ interface CronogramaChartProps {
 const COLOR_AMORT = '#465FFF'; // brand-500 — amortização
 const COLOR_JUROS = '#B8935A'; // dourado — juros
 const COLOR_SALDO = '#1A56A0'; // azul — saldo devedor
+
+const Y_TICKS = 5;
+
+/** Teto "redondo" para `ticks` intervalos (passo 1/2/2,5/5 × 10ⁿ) — os dois eixos Y alinham. */
+function niceMax(value: number, ticks = Y_TICKS): number {
+  if (!(value > 0)) return ticks;
+  const raw = value / ticks;
+  const pow = 10 ** Math.floor(Math.log10(raw));
+  const step = [1, 2, 2.5, 5, 10].map((m) => m * pow).find((m) => m >= raw) ?? 10 * pow;
+  return step * ticks;
+}
+
+/** Rótulo do eixo: "R$ 2,5 K" (o formatBRLCompact da página arredonda para K inteiro). */
+function formatAxis(v: number): string {
+  const abs = Math.abs(v);
+  if (abs >= 1_000_000)
+    return `R$ ${(v / 1_000_000).toLocaleString('pt-BR', { maximumFractionDigits: 1 })} M`;
+  if (abs >= 1_000)
+    return `R$ ${(v / 1_000).toLocaleString('pt-BR', { maximumFractionDigits: 1 })} K`;
+  return `R$ ${Math.round(v)}`;
+}
 
 /** Amostra o cronograma pra no máx. `max` pontos (prazos longos legíveis). */
 function sample(rows: ParcelaCronograma[], max: number): ParcelaCronograma[] {
@@ -73,11 +95,18 @@ export default function CronogramaChart({ cronograma, parcelasPagas }: Cronogram
   const options: ApexOptions = useMemo(() => {
     const textColor = isDark ? '#9ca3af' : '#6b7280';
     const pagoAte = parcelasPagas > 0 ? cronograma[parcelasPagas - 1]?.mes : null;
+    const maxParcela = Math.max(
+      0,
+      ...rows.map((r) => (r.amortizacaoCorrigida ?? r.amortizacao) + (r.jurosCorrigido ?? r.juros)),
+    );
+    const maxSaldo = Math.max(0, ...rows.map((r) => r.saldoDevedorCorrigido ?? r.saldoDevedor));
     return {
       chart: {
         id: 'divida-cronograma',
         fontFamily: 'Outfit, sans-serif',
         stacked: true,
+        // Mistura coluna + linha: sem isto o Apex tenta empilhar a linha do saldo também.
+        stackOnlyBar: true,
         toolbar: { show: false },
         zoom: { enabled: false },
         background: 'transparent',
@@ -86,7 +115,8 @@ export default function CronogramaChart({ cronograma, parcelasPagas }: Cronogram
       stroke: { width: [0, 0, 2], curve: 'smooth' },
       plotOptions: { bar: { columnWidth: '70%' } },
       dataLabels: { enabled: false },
-      legend: { labels: { colors: textColor } },
+      // Empilhado: sem isto o Apex 4 agrupa a legenda em colunas.
+      legend: { labels: { colors: textColor }, clusterGroupedSeries: false },
       xaxis: {
         type: 'category',
         labels: {
@@ -99,26 +129,36 @@ export default function CronogramaChart({ cronograma, parcelasPagas }: Cronogram
       yaxis: [
         {
           seriesName: 'Amortização',
+          // Teto redondo e mesmo nº de marcas nos dois eixos: sem isto as marcas da parcela seguiam
+          // as do saldo e o rótulo em K inteiro saía 500 · 1K · 2K · 3K, desigual.
+          min: 0,
+          max: niceMax(maxParcela),
+          tickAmount: Y_TICKS,
           labels: {
             style: { colors: textColor },
-            formatter: (v: number) => formatBRLCompact(v),
+            formatter: formatAxis,
           },
           title: { text: 'Parcela', style: { color: textColor } },
         },
-        { seriesName: 'Juros', show: false },
+        // Juros na MESMA escala da Amortização (eixo escondido apontando para ela) — antes o eixo
+        // escondido era do próprio Juros, com escala própria, e as barras não empilhavam.
+        { seriesName: 'Amortização', show: false, min: 0, max: niceMax(maxParcela) },
         {
           seriesName: 'Saldo devedor',
           opposite: true,
+          min: 0,
+          max: niceMax(maxSaldo),
+          tickAmount: Y_TICKS,
           labels: {
             style: { colors: textColor },
-            formatter: (v: number) => formatBRLCompact(v),
+            formatter: formatAxis,
           },
           title: { text: 'Saldo devedor', style: { color: textColor } },
         },
       ],
       tooltip: {
         theme: isDark ? 'dark' : 'light',
-        y: { formatter: (v: number) => formatBRLCompact(v) },
+        y: { formatter: (v: number) => `R$ ${formatCurrency(v)}` },
       },
       annotations: pagoAte
         ? {
@@ -137,7 +177,7 @@ export default function CronogramaChart({ cronograma, parcelasPagas }: Cronogram
         : undefined,
       grid: { borderColor: isDark ? '#1f2937' : '#e5e7eb' },
     };
-  }, [isDark, cronograma, parcelasPagas]);
+  }, [isDark, cronograma, parcelasPagas, rows]);
 
   // PWA fase 3: no celular, 220px, eixo em R$ compacto (o secundário sem rótulo), legenda
   // embaixo e só a paleta My Finance (sem o verde da marcação "Pago até aqui").
@@ -146,8 +186,10 @@ export default function CronogramaChart({ cronograma, parcelasPagas }: Cronogram
       colors: [MYFINANCE_BRAND.seguranca, MYFINANCE_BRAND.tranquilidade, MYFINANCE_BRAND.outside],
       // O saldo (eixo da direita) é de outra ordem de grandeza que a parcela: mantém o rótulo
       // dele, senão a linha pareceria estar na escala da parcela.
-      yaxis: (mobileYAxis(options.yaxis) as ApexYAxis[]).map((axis, i) =>
-        i === 2 ? { ...axis, labels: { ...axis.labels, show: true } } : axis,
+      yaxis: (mobileYAxis(options.yaxis) as ApexYAxis[]).map((axis) =>
+        axis.seriesName === 'Saldo devedor'
+          ? { ...axis, labels: { ...axis.labels, show: true } }
+          : axis,
       ),
       annotations: options.annotations?.xaxis?.length
         ? {
