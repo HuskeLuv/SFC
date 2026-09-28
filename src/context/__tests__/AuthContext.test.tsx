@@ -116,3 +116,53 @@ describe('AuthContext — revalidação ao voltar do segundo plano', () => {
     expect(result.current.error).toBeNull();
   });
 });
+
+describe('AuthContext — falhas passageiras de /api/auth/me', () => {
+  it('429 com usuário na tela não desloga', async () => {
+    const fetchMock = vi.fn(async () => mockFetchResponse(USER));
+    vi.stubGlobal('fetch', fetchMock);
+    const { result } = renderHook(() => useAuth(), { wrapper });
+    await waitFor(() => expect(result.current.user?.id).toBe('u1'));
+
+    fetchMock.mockResolvedValueOnce(mockFetchResponse({ error: 'rate' }, 429));
+    await act(async () => {
+      await result.current.checkAuth();
+    });
+
+    expect(result.current.user?.id).toBe('u1');
+    expect(result.current.isLoading).toBe(false);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('429 na carga inicial tenta de novo e entra quando o servidor responde', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(mockFetchResponse({ error: 'rate' }, 429))
+      .mockResolvedValueOnce(mockFetchResponse(USER));
+    vi.stubGlobal('fetch', fetchMock);
+    const { result } = renderHook(() => useAuth(), { wrapper });
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1000);
+    });
+    await waitFor(() => expect(result.current.user?.id).toBe('u1'));
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('401 desloga sem tentar de novo', async () => {
+    const fetchMock = vi.fn(async () => mockFetchResponse(USER));
+    vi.stubGlobal('fetch', fetchMock);
+    const { result } = renderHook(() => useAuth(), { wrapper });
+    await waitFor(() => expect(result.current.user?.id).toBe('u1'));
+
+    fetchMock.mockResolvedValueOnce(mockFetchResponse({ error: 'no' }, 401));
+    await act(async () => {
+      await result.current.checkAuth();
+    });
+
+    expect(result.current.user).toBeNull();
+    expect(result.current.error).toBe('Não autenticado');
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+});
