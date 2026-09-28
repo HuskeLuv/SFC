@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { withErrorHandler, ApiError } from '@/utils/apiErrorHandler';
 import { prisma } from '@/lib/prisma';
 import { getPluggyClient } from '@/lib/pluggy';
-import { pluggyIncluiSandbox } from '@/lib/pluggyConfig';
+import { pluggyIncluiSandbox, pluggyOauthRedirectUrl } from '@/lib/pluggyConfig';
 import { requireProprioUsuarioPluggy } from '../_lib/auth';
 import { PRODUTOS_OPEN_FINANCE } from '@/lib/openFinanceConsentimento';
 import { exigirConsentimentoPendente } from '@/services/pluggy/consentimento';
@@ -41,9 +41,13 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
     itemId = conexao.providerItemId;
   }
 
+  // oauthRedirectUri: sem ela o usuário no celular pode ficar preso na tela do
+  // banco após autorizar e o fluxo expira (USER_INPUT_TIMEOUT). Ver pluggyConfig.
+  const oauthRedirectUri = pluggyOauthRedirectUrl();
   const { accessToken } = await getPluggyClient().createConnectToken(itemId, {
     clientUserId: user.id,
     avoidDuplicates: true,
+    ...(oauthRedirectUri ? { oauthRedirectUri } : {}),
   });
   // Consentimento só do que usamos (contas, cartões, transações, investimentos, empréstimos).
   return NextResponse.json(
