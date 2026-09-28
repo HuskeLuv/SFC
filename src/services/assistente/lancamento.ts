@@ -332,9 +332,20 @@ export async function aplicarPropostas(
 ): Promise<ResultadoLote[]> {
   const out: ResultadoLote[] = [];
   let maisAntigo: { ano: number; mes: number } | null = null;
+  // Duas propostas do MESMO cartão na mesma célula: um segundo `definir`
+  // engoliria o valor do primeiro (report 28/09: Restaurantes 1.000 + Bar 500
+  // + Ifood 500 na mesma linha terminava em 500). Célula já escrita neste
+  // lote rebaixa `definir` para `somar`.
+  const escritas = new Set<string>();
   for (const proposta of propostas) {
+    const chaves = proposta.celulas.map((c) => `${proposta.itemId}|${proposta.ano}|${c.mes}`);
+    const efetiva =
+      proposta.modo === 'definir' && chaves.some((k) => escritas.has(k))
+        ? { ...proposta, modo: 'somar' as ModoLancamento }
+        : proposta;
     try {
-      const resultado = await aplicarProposta(auth, request, proposta, { posProcessar: false });
+      const resultado = await aplicarProposta(auth, request, efetiva, { posProcessar: false });
+      chaves.forEach((k) => escritas.add(k));
       out.push({ ok: true, proposta, resultado });
       const mes = proposta.celulas[0]?.mes ?? 0;
       if (

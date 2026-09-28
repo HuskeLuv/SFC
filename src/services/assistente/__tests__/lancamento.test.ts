@@ -631,5 +631,57 @@ describe('aplicarProposta', () => {
       expect(await aplicarPropostas(auth, request, [])).toEqual([]);
       expect(mocks.recomputeEvolucaoSnapshotsSafe).not.toHaveBeenCalled();
     });
+
+    it('duas propostas "definir" na MESMA célula: a segunda vira "somar" em vez de sobrescrever', async () => {
+      // report 28/09: Restaurantes 1.000 + Bar 500 + Ifood 500 lançados na
+      // mesma linha terminavam na célula valendo só o último valor.
+      const restaurantes: Proposta = {
+        ...proposta,
+        id: 'p-rest',
+        modo: 'definir',
+        valor: 1000,
+        celulas: [{ mes: 8, valorAtual: 0, valorNovo: 1000 }],
+      };
+      const bar: Proposta = {
+        ...restaurantes,
+        id: 'p-bar',
+        valor: 500,
+        descricao: 'Bar',
+        celulas: [{ mes: 8, valorAtual: 0, valorNovo: 500 }],
+      };
+      mocks.prisma.cashflowValue.findUnique
+        .mockResolvedValueOnce(null) // 1ª proposta: célula vazia
+        .mockResolvedValueOnce({ value: 1000, comment: null }); // 2ª: relê o que a 1ª gravou
+      const r = await aplicarPropostas(auth, request, [restaurantes, bar]);
+      expect(r.map((x) => x.ok)).toEqual([true, true]);
+      const valores = mocks.prisma.cashflowValue.upsert.mock.calls.map(
+        (c) => (c[0].create ?? c[0].update).value,
+      );
+      expect(valores).toEqual([1000, 1500]); // 1000 definido + 500 somado, nada engolido
+    });
+
+    it('propostas "definir" em células DIFERENTES seguem definindo', async () => {
+      const rest: Proposta = {
+        ...proposta,
+        id: 'p-rest',
+        modo: 'definir',
+        valor: 1000,
+        celulas: [{ mes: 8, valorAtual: 0, valorNovo: 1000 }],
+      };
+      const outroItem: Proposta = {
+        ...rest,
+        id: 'p-net',
+        itemId: 'i-net',
+        itemNome: 'Internet',
+        valor: 300,
+        celulas: [{ mes: 8, valorAtual: 0, valorNovo: 300 }],
+      };
+      mocks.prisma.cashflowValue.findUnique.mockResolvedValue({ value: 999, comment: null });
+      await aplicarPropostas(auth, request, [rest, outroItem]);
+      const valores = mocks.prisma.cashflowValue.upsert.mock.calls.map(
+        (c) => (c[0].create ?? c[0].update).value,
+      );
+      expect(valores).toEqual([1000, 300]); // definir intacto: substitui, não soma
+    });
   });
 });
