@@ -9,6 +9,7 @@ import {
 } from '@/lib/pwa/installPromptContract';
 
 export type InstallPlatform = 'android' | 'ios' | 'other';
+export type IosBrowser = 'safari' | 'chrome' | 'other';
 export type InstallOutcome = 'accepted' | 'dismissed' | 'unavailable';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -20,10 +21,19 @@ export function detectPlatform(nav: Navigator | undefined): InstallPlatform {
   const ua = nav.userAgent || '';
   const isAppleMobile =
     /iPad|iPhone|iPod/.test(ua) || (nav.platform === 'MacIntel' && nav.maxTouchPoints > 1);
-  // Só o Safari instala no iOS (Chrome/Firefox do iOS não têm "Adicionar à Tela de Início").
-  if (isAppleMobile && !/CriOS|FxiOS|EdgiOS/.test(ua)) return 'ios';
+  // Desde o iOS 16.4, Chrome/Firefox/Edge do iOS também têm "Adicionar à Tela de Início"
+  // (via compartilhar do sistema) — só muda onde fica o botão (ver detectIosBrowser).
+  if (isAppleMobile) return 'ios';
   if (/Android/i.test(ua)) return 'android';
   return 'other';
+}
+
+/** Qual navegador do iOS, para o passo a passo apontar o botão Compartilhar no lugar certo. */
+export function detectIosBrowser(nav: Navigator | undefined): IosBrowser {
+  const ua = nav?.userAgent || '';
+  if (/CriOS/.test(ua)) return 'chrome';
+  if (/FxiOS|EdgiOS/.test(ua)) return 'other';
+  return 'safari';
 }
 
 function detectStandalone(): boolean {
@@ -75,12 +85,14 @@ const INITIAL_STORAGE: StorageState = { ok: false, visits: 0, dismissedAt: null,
  */
 export function useInstallPrompt() {
   const [platform, setPlatform] = useState<InstallPlatform>('other');
+  const [iosBrowser, setIosBrowser] = useState<IosBrowser>('safari');
   const [isStandalone, setIsStandalone] = useState(false);
   const [deferred, setDeferred] = useState<BeforeInstallPromptEvent | null>(null);
   const [storage, setStorage] = useState<StorageState>(INITIAL_STORAGE);
 
   useEffect(() => {
     setPlatform(detectPlatform(window.navigator));
+    setIosBrowser(detectIosBrowser(window.navigator));
     setIsStandalone(detectStandalone());
     setDeferred(window.__mfDeferredInstallPrompt ?? null);
     setStorage(readStorage(true));
@@ -154,6 +166,7 @@ export function useInstallPrompt() {
 
   return {
     platform,
+    iosBrowser,
     canPrompt: deferred !== null,
     isStandalone,
     promptInstall,
