@@ -1,3 +1,4 @@
+import { createHash } from 'crypto';
 import { test, expect } from '@playwright/test';
 import {
   expectFitsWithoutClip,
@@ -115,6 +116,8 @@ test('Perfil: Alterar senha abre o formulário com autocomplete do gerenciador',
 // SÓ LEITURA: a remoção de aparelho vai até a confirmação e CANCELA.
 
 const ENDPOINT_LOCAL = 'https://push.e2e/aparelho-local';
+/** Mesmo hash do servidor: a lista de aparelhos só traz o SHA-256, nunca o endpoint cru. */
+const hashDoEndpoint = (endpoint: string) => createHash('sha256').update(endpoint).digest('base64');
 
 const stubPushApi = async (page: import('@playwright/test').Page) => {
   await page.route('**/api/push/preferencias', (route) =>
@@ -135,13 +138,13 @@ const stubPushApi = async (page: import('@playwright/test').Page) => {
             id: 'sub-local',
             rotulo: 'Chrome · celular',
             criadoEm: '2026-09-29T12:00:00Z',
-            endpoint: ENDPOINT_LOCAL,
+            endpointHash: hashDoEndpoint(ENDPOINT_LOCAL),
           },
           {
             id: 'sub-remoto',
             rotulo: 'Chrome · computador',
             criadoEm: '2026-09-20T12:00:00Z',
-            endpoint: 'https://push.e2e/outro-aparelho',
+            endpointHash: hashDoEndpoint('https://push.e2e/outro-aparelho'),
           },
         ],
       },
