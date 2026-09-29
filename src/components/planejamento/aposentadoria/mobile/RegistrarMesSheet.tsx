@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import BottomSheet from '@/components/ui/sheet/BottomSheet';
+import MobileSaveToast from '@/components/ui/sheet/MobileSaveToast';
 import MobileNumberField, {
   MOBILE_FIELD_CLASS,
   MOBILE_FIELD_HINT_CLASS,
@@ -114,8 +115,8 @@ export interface RegistrarMesSheetProps {
   sugestao: { aporteReal: number; patFinal: number | null } | null;
   editingExists: boolean;
   saving: boolean;
-  /** O MESMO handleSave do formulário do desktop. */
-  onSave: () => void;
+  /** O MESMO fluxo de salvar do desktop — awaitable: o sheet só fecha quando a API responde. */
+  onSave: () => void | Promise<void>;
   /** Remover o registro do mês (o simulador confirma antes). */
   onDelete: () => void;
 }
@@ -148,15 +149,36 @@ export default function RegistrarMesSheet({
   const cur = off2date(params, curOffset);
   const pat = Number(patStr) || 0;
 
+  // Acabamento fase 5 (padrão MobileSaveToast): o sheet aguarda a mutação antes de fechar —
+  // fechava na hora e um erro de rede sumia sem aviso. Erro mantém o sheet aberto.
+  const [salvando, setSalvando] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [toast, setToast] = useState<string | null>(null);
+
   const handleMonth = (value: string) => {
     const off = monthValueToOff(params, value);
     if (off == null) return;
     setCurOffset(Math.min(Math.max(off, 1), Math.max(retM, 1)));
   };
 
-  const handleSave = () => {
-    if (!pat) return;
-    onSave();
+  const handleSave = async () => {
+    if (!pat || salvando || saving) return;
+    setSaveError(null);
+    setSalvando(true);
+    try {
+      await onSave();
+    } catch {
+      setSalvando(false);
+      setSaveError('Não foi possível salvar. Tente novamente.');
+      return;
+    }
+    setSalvando(false);
+    onClose();
+    setToast('Mês registrado');
+  };
+
+  const handleClose = () => {
+    if (salvando) return;
     onClose();
   };
 
@@ -164,132 +186,144 @@ export default function RegistrarMesSheet({
   const negClass = 'text-[#D92D20] dark:text-[#F97066]';
 
   return (
-    <BottomSheet
-      isOpen={isOpen}
-      onClose={onClose}
-      title="Registrar mês"
-      footer={
-        <div className="flex gap-2">
-          {editingExists ? (
-            <button
-              type="button"
-              onClick={onDelete}
-              disabled={saving}
-              aria-label="Remover registro"
-              className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-gray-300 text-[#D92D20] disabled:opacity-50 dark:border-gray-700 dark:text-[#F97066]"
-            >
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                <path
-                  d="M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 002 2h6a2 2 0 002-2l1-12M9 7V4h6v3"
-                  stroke="currentColor"
-                  strokeWidth="1.8"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              </svg>
-            </button>
-          ) : null}
-          <button
-            type="button"
-            onClick={handleSave}
-            disabled={!pat || saving}
-            className="h-12 flex-1 rounded-xl bg-mf-patrimonio text-base font-semibold text-white disabled:opacity-50"
-          >
-            Salvar
-          </button>
-        </div>
-      }
-    >
-      <div className="flex flex-col gap-3 pb-3">
-        <div>
-          <label htmlFor="registrar-mes-mes" className={MOBILE_FIELD_LABEL_CLASS}>
-            Mês de referência
-          </label>
-          <input
-            id="registrar-mes-mes"
-            type="month"
-            value={toMonthValue(cur.year, cur.month)}
-            min={toMonthValue(first.year, first.month)}
-            max={toMonthValue(last.year, last.month)}
-            onChange={(e) => handleMonth(e.target.value)}
-            className={MOBILE_FIELD_CLASS}
-          />
-          <p className={MOBILE_FIELD_HINT_CLASS}>
-            {fMonth(cur.month, cur.year)} · mês {curOffset} de {retM} do plano
-          </p>
-        </div>
-
-        <MoneyTextField
-          id="registrar-mes-aporte"
-          label="Aporte do mês"
-          raw={aporteStr}
-          setRaw={setAporteStr}
-          hint={`Necessário: ${formatBRL(preview.aporteNecessario)}`}
-        />
-        <MoneyTextField
-          id="registrar-mes-patrimonio"
-          label="Patrimônio final do mês"
-          raw={patStr}
-          setRaw={setPatStr}
-          hint={`Necessário: ${formatBRL(preview.patrimonioNecessario)}`}
-        />
-
-        {sugestao && !editingExists ? (
-          <div className="rounded-xl border border-gray-200 p-3 text-sm dark:border-gray-800">
-            <p className="text-gray-600 dark:text-gray-300">
-              <span className="font-semibold text-gray-900 dark:text-white/90">
-                Da sua carteira:
-              </span>{' '}
-              aporte {formatBRL(sugestao.aporteReal)} · patrimônio{' '}
-              {sugestao.patFinal != null ? formatBRL(sugestao.patFinal) : '—'}
+    <>
+      <BottomSheet
+        isOpen={isOpen}
+        onClose={handleClose}
+        title="Registrar mês"
+        footer={
+          <div className="flex flex-col gap-2">
+            {saveError ? (
+              <p role="alert" className={`px-1 text-sm ${negClass}`}>
+                {saveError}
+              </p>
+            ) : null}
+            <div className="flex gap-2">
+              {editingExists ? (
+                <button
+                  type="button"
+                  onClick={onDelete}
+                  disabled={saving || salvando}
+                  aria-label="Remover registro"
+                  className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-gray-300 text-[#D92D20] disabled:opacity-50 dark:border-gray-700 dark:text-[#F97066]"
+                >
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                    <path
+                      d="M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 002 2h6a2 2 0 002-2l1-12M9 7V4h6v3"
+                      stroke="currentColor"
+                      strokeWidth="1.8"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  </svg>
+                </button>
+              ) : null}
+              <button
+                type="button"
+                onClick={handleSave}
+                disabled={!pat || saving || salvando}
+                aria-busy={salvando || undefined}
+                className="h-12 flex-1 rounded-xl bg-mf-patrimonio text-base font-semibold text-white disabled:opacity-50"
+              >
+                {salvando ? 'Salvando…' : 'Salvar'}
+              </button>
+            </div>
+          </div>
+        }
+      >
+        <div className="flex flex-col gap-3 pb-3">
+          <div>
+            <label htmlFor="registrar-mes-mes" className={MOBILE_FIELD_LABEL_CLASS}>
+              Mês de referência
+            </label>
+            <input
+              id="registrar-mes-mes"
+              type="month"
+              value={toMonthValue(cur.year, cur.month)}
+              min={toMonthValue(first.year, first.month)}
+              max={toMonthValue(last.year, last.month)}
+              onChange={(e) => handleMonth(e.target.value)}
+              className={MOBILE_FIELD_CLASS}
+            />
+            <p className={MOBILE_FIELD_HINT_CLASS}>
+              {fMonth(cur.month, cur.year)} · mês {curOffset} de {retM} do plano
             </p>
-            <button
-              type="button"
-              onClick={() => {
-                setAporteStr(String(sugestao.aporteReal));
-                if (sugestao.patFinal != null) setPatStr(String(sugestao.patFinal));
-              }}
-              className="mt-1 inline-flex min-h-11 items-center text-sm font-semibold text-mf-patrimonio dark:text-mf-tranquilidade"
-            >
-              Usar estes valores
-            </button>
           </div>
-        ) : null}
 
-        <dl
-          data-registrar-mes-previa=""
-          className="rounded-xl bg-gray-50 px-3 py-2 text-sm dark:bg-white/[0.04]"
-        >
-          <div className="flex justify-between py-1">
-            <dt className="text-gray-500 dark:text-gray-400">Rentabilidade do mês</dt>
-            <dd
-              className={`font-semibold tabular-nums ${
-                rent != null && rent < metaMensal ? negClass : 'text-gray-900 dark:text-white/90'
-              }`}
-            >
-              {rent != null ? fPct(rent, 2) : '—'}
-            </dd>
-          </div>
-          <div className="flex justify-between border-t border-gray-200 py-1 dark:border-gray-800">
-            <dt className="text-gray-500 dark:text-gray-400">Meta mensal</dt>
-            <dd className="font-semibold tabular-nums text-gray-900 dark:text-white/90">
-              {fPct(metaMensal, 2)}
-            </dd>
-          </div>
-          <div className="flex justify-between border-t border-gray-200 py-1 dark:border-gray-800">
-            <dt className="text-gray-500 dark:text-gray-400">Δ Patrimônio vs plano</dt>
-            <dd
-              className={`font-semibold tabular-nums ${
-                dPat != null && dPat < 0 ? negClass : 'text-gray-900 dark:text-white/90'
-              }`}
-            >
-              {dPat != null
-                ? `${dPat >= 0 ? '+' : ''}${formatBRLCompact(dPat)} (${dPatPct.toFixed(1).replace('.', ',')}%)`
-                : '—'}
-            </dd>
-          </div>
-        </dl>
-      </div>
-    </BottomSheet>
+          <MoneyTextField
+            id="registrar-mes-aporte"
+            label="Aporte do mês"
+            raw={aporteStr}
+            setRaw={setAporteStr}
+            hint={`Necessário: ${formatBRL(preview.aporteNecessario)}`}
+          />
+          <MoneyTextField
+            id="registrar-mes-patrimonio"
+            label="Patrimônio final do mês"
+            raw={patStr}
+            setRaw={setPatStr}
+            hint={`Necessário: ${formatBRL(preview.patrimonioNecessario)}`}
+          />
+
+          {sugestao && !editingExists ? (
+            <div className="rounded-xl border border-gray-200 p-3 text-sm dark:border-gray-800">
+              <p className="text-gray-600 dark:text-gray-300">
+                <span className="font-semibold text-gray-900 dark:text-white/90">
+                  Da sua carteira:
+                </span>{' '}
+                aporte {formatBRL(sugestao.aporteReal)} · patrimônio{' '}
+                {sugestao.patFinal != null ? formatBRL(sugestao.patFinal) : '—'}
+              </p>
+              <button
+                type="button"
+                onClick={() => {
+                  setAporteStr(String(sugestao.aporteReal));
+                  if (sugestao.patFinal != null) setPatStr(String(sugestao.patFinal));
+                }}
+                className="mt-1 inline-flex min-h-11 items-center text-sm font-semibold text-mf-patrimonio dark:text-mf-tranquilidade"
+              >
+                Usar estes valores
+              </button>
+            </div>
+          ) : null}
+
+          <dl
+            data-registrar-mes-previa=""
+            className="rounded-xl bg-gray-50 px-3 py-2 text-sm dark:bg-white/[0.04]"
+          >
+            <div className="flex justify-between py-1">
+              <dt className="text-gray-500 dark:text-gray-400">Rentabilidade do mês</dt>
+              <dd
+                className={`font-semibold tabular-nums ${
+                  rent != null && rent < metaMensal ? negClass : 'text-gray-900 dark:text-white/90'
+                }`}
+              >
+                {rent != null ? fPct(rent, 2) : '—'}
+              </dd>
+            </div>
+            <div className="flex justify-between border-t border-gray-200 py-1 dark:border-gray-800">
+              <dt className="text-gray-500 dark:text-gray-400">Meta mensal</dt>
+              <dd className="font-semibold tabular-nums text-gray-900 dark:text-white/90">
+                {fPct(metaMensal, 2)}
+              </dd>
+            </div>
+            <div className="flex justify-between border-t border-gray-200 py-1 dark:border-gray-800">
+              <dt className="text-gray-500 dark:text-gray-400">Δ Patrimônio vs plano</dt>
+              <dd
+                className={`font-semibold tabular-nums ${
+                  dPat != null && dPat < 0 ? negClass : 'text-gray-900 dark:text-white/90'
+                }`}
+              >
+                {dPat != null
+                  ? `${dPat >= 0 ? '+' : ''}${formatBRLCompact(dPat)} (${dPatPct.toFixed(1).replace('.', ',')}%)`
+                  : '—'}
+              </dd>
+            </div>
+          </dl>
+        </div>
+      </BottomSheet>
+      {/* O aviso "salvo" vive fora do sheet: aparece depois que ele fecha. */}
+      <MobileSaveToast message={toast} onDismiss={() => setToast(null)} />
+    </>
   );
 }
