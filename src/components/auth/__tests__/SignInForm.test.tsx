@@ -86,7 +86,7 @@ describe('SignInForm', () => {
 
   it('toggles remember me checkbox (starts checked)', () => {
     render(<SignInForm />);
-    const checkbox = screen.getByRole('checkbox', { name: 'Manter conectado por 30 dias' });
+    const checkbox = screen.getByRole('checkbox', { name: 'Manter conectado' });
     expect(checkbox).toBeChecked();
 
     fireEvent.click(checkbox);
