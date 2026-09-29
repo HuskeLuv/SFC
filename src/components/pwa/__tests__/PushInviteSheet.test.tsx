@@ -114,9 +114,19 @@ describe('PushInviteSheet', () => {
     expect(mocks.assinarPush).not.toHaveBeenCalled();
   });
 
-  it("'Ativar avisos' chama assinarPush no gesto e mostra o sucesso", async () => {
+  /** A chave chega na ABERTURA (WebKit: rede entre o gesto e o requestPermission mata a
+   *  ativação transitória); o botão fica desabilitado até ela chegar. */
+  async function esperaBotaoAtivar() {
+    const botao = await screen.findByRole('button', { name: 'Ativar avisos' });
+    await waitFor(() => expect(botao).toBeEnabled());
+    return botao;
+  }
+
+  it("'Ativar avisos' chama assinarPush no gesto (chave já pré-carregada) e mostra o sucesso", async () => {
     render(<PushInviteSheet aberto onClose={() => {}} />);
-    fireEvent.click(screen.getByRole('button', { name: 'Ativar avisos' }));
+    // A busca da chave acontece na abertura, nunca dentro do clique.
+    await waitFor(() => expect(window.fetch).toHaveBeenCalledTimes(1));
+    fireEvent.click(await esperaBotaoAtivar());
     await waitFor(() => expect(mocks.assinarPush).toHaveBeenCalledTimes(1));
     expect(mocks.assinarPush).toHaveBeenCalledWith('BChave', mocks.csrfFetch);
     await waitFor(() =>
@@ -127,14 +137,14 @@ describe('PushInviteSheet', () => {
   it('permissão recusada no diálogo do sistema mostra o caminho do Perfil', async () => {
     mocks.assinarPush.mockResolvedValue('negado');
     render(<PushInviteSheet aberto onClose={() => {}} />);
-    fireEvent.click(screen.getByRole('button', { name: 'Ativar avisos' }));
+    fireEvent.click(await esperaBotaoAtivar());
     await waitFor(() => expect(screen.getByText(/ficou sem permissão/)).toBeInTheDocument());
   });
 
   it("'erro' do assinarPush cai no passo a passo de instalação (fallback)", async () => {
     mocks.assinarPush.mockResolvedValue('erro');
     render(<PushInviteSheet aberto onClose={() => {}} />);
-    fireEvent.click(screen.getByRole('button', { name: 'Ativar avisos' }));
+    fireEvent.click(await esperaBotaoAtivar());
     await waitFor(() => expect(screen.getByText('Adicionar à Tela de Início')).toBeInTheDocument());
   });
 
@@ -159,7 +169,7 @@ describe('PushInviteSheet', () => {
   it('chave VAPID indisponível: não pede permissão e cai na orientação', async () => {
     stubPrefs(false, null);
     render(<PushInviteSheet aberto onClose={() => {}} />);
-    fireEvent.click(screen.getByRole('button', { name: 'Ativar avisos' }));
+    fireEvent.click(await esperaBotaoAtivar());
     await waitFor(() =>
       expect(screen.getByText('Instale o app para receber avisos')).toBeInTheDocument(),
     );

@@ -68,12 +68,33 @@ export default function PushInviteSheet({ aberto, onClose }: Props) {
   const { csrfFetch } = useCsrf();
   const [modo, setModo] = useState<Modo>('convite');
   const [ocupado, setOcupado] = useState(false);
+  // undefined = carregando; null = push indisponível; string = pronta para assinar.
+  const [chave, setChave] = useState<string | null | undefined>(undefined);
 
+  // A chave VAPID é buscada na ABERTURA do sheet (nenhuma permissão é pedida aqui): no WebKit a
+  // ativação transitória do gesto expira se houver rede entre o toque e o requestPermission.
   useEffect(() => {
-    if (aberto) {
-      setModo(isIosSemPwa() ? 'instalar' : 'convite');
-      setOcupado(false);
-    }
+    if (!aberto) return;
+    setModo(isIosSemPwa() ? 'instalar' : 'convite');
+    setOcupado(false);
+    setChave(undefined);
+    let cancelado = false;
+    (async () => {
+      let valor: string | null = null;
+      try {
+        const res = await fetch('/api/push/preferencias', { credentials: 'include' });
+        const d = res.ok
+          ? ((await res.json()) as { habilitado?: boolean; vapidPublicKey?: string | null })
+          : null;
+        valor = d?.habilitado ? (d.vapidPublicKey ?? null) : null;
+      } catch {
+        valor = null;
+      }
+      if (!cancelado) setChave(valor);
+    })();
+    return () => {
+      cancelado = true;
+    };
   }, [aberto]);
 
   const agoraNao = () => {
@@ -81,21 +102,12 @@ export default function PushInviteSheet({ aberto, onClose }: Props) {
     onClose();
   };
 
-  /** Gesto do usuário: só aqui o requestPermission (dentro de assinarPush) acontece. */
+  /** Gesto do usuário: só aqui o requestPermission (dentro de assinarPush) acontece — SEM rede
+   *  antes do prompt (a chave já chegou na abertura do sheet). */
   const ativar = async () => {
     if (ocupado) return;
     setOcupado(true);
     try {
-      let chave: string | null = null;
-      try {
-        const res = await fetch('/api/push/preferencias', { credentials: 'include' });
-        const d = res.ok
-          ? ((await res.json()) as { habilitado?: boolean; vapidPublicKey?: string | null })
-          : null;
-        chave = d?.habilitado ? (d.vapidPublicKey ?? null) : null;
-      } catch {
-        chave = null;
-      }
       if (!chave) {
         setModo('instalar');
         return;
@@ -135,7 +147,9 @@ export default function PushInviteSheet({ aberto, onClose }: Props) {
             <button
               type="button"
               onClick={() => void ativar()}
-              disabled={ocupado}
+              // Desabilitado enquanto a chave não chega: clicar sem ela cairia no passo a passo
+              // de instalação à toa (a busca dura o tempo de abrir o sheet).
+              disabled={ocupado || chave === undefined}
               className={btnPrimario}
             >
               {ocupado ? 'Ativando…' : 'Ativar avisos'}
