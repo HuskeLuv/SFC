@@ -137,6 +137,8 @@ export const modeloSpec = (): FixtureLinha[] => [
 export const buildFlcWorkbook = (
   spec: FixtureLinha[] = modeloSpec(),
   sheetName = 'Fluxo de Caixa',
+  /** desloca a grade inteira N colunas (-1 = cópia com a coluna A apagada) */
+  deslocarColunas = 0,
 ): Buffer => {
   const ws: XLSX.WorkSheet = {};
   let r = 2; // linha 1 fica em branco, como na planilha real
@@ -144,30 +146,32 @@ export const buildFlcWorkbook = (
   const set = (addr: string, cell: XLSX.CellObject) => {
     ws[addr] = cell;
   };
-  const colMes = (i: number) => XLSX.utils.encode_col(5 + i); // F..Q
+  const col = (base: number) => XLSX.utils.encode_col(base + deslocarColunas);
+  const colRotulo = col(1); // B no modelo
+  const colMes = (i: number) => col(5 + i); // F..Q no modelo
 
   for (const linha of spec) {
     r += 1;
     if (linha.tipo === 'texto') {
-      set(`B${r}`, { t: 's', v: linha.label });
+      set(`${colRotulo}${r}`, { t: 's', v: linha.label });
       continue;
     }
     if (linha.tipo === 'cabecalho') {
-      set(`B${r}`, { t: 's', v: 'Itens' });
+      set(`${colRotulo}${r}`, { t: 's', v: 'Itens' });
       MESES.forEach((m, i) => set(`${colMes(i)}${r}`, { t: 's', v: m }));
       continue;
     }
     if (linha.tipo === 'ancora') {
       r += 1; // linha em branco antes de cada âncora, como no original
-      set(`B${r}`, { t: 's', v: linha.label });
+      set(`${colRotulo}${r}`, { t: 's', v: linha.label });
       for (let i = 0; i < 12; i++) {
         set(`${colMes(i)}${r}`, { t: 'n', v: 0, f: `SUM(${colMes(i)}1:${colMes(i)}2)` });
       }
       continue;
     }
-    set(`B${r}`, { t: 's', v: linha.label });
-    if (linha.significado !== undefined) set(`C${r}`, { t: 's', v: linha.significado });
-    if (linha.rank !== undefined) set(`D${r}`, { t: 'n', v: linha.rank });
+    set(`${colRotulo}${r}`, { t: 's', v: linha.label });
+    if (linha.significado !== undefined) set(`${col(2)}${r}`, { t: 's', v: linha.significado });
+    if (linha.rank !== undefined) set(`${col(3)}${r}`, { t: 'n', v: linha.rank });
     if (linha.semCelulas) continue;
     for (let i = 0; i < 12; i++) {
       const comentario = linha.comentarios?.[i];
@@ -192,7 +196,7 @@ export const buildFlcWorkbook = (
     }
   }
 
-  ws['!ref'] = `A1:S${r + 1}`;
+  ws['!ref'] = `A1:${col(18)}${r + 1}`;
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, sheetName);
   return XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' }) as Buffer;

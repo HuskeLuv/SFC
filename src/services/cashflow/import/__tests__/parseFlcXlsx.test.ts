@@ -382,6 +382,33 @@ describe('parseFlcXlsx — erros e tolerâncias', () => {
   });
 });
 
+describe('parseFlcXlsx — colunas deslocadas (report 29/09, planilha do Pedro)', () => {
+  it('coluna A apagada (grade 1 col. à esquerda) importa tudo com aviso', () => {
+    // planilha real do Pedro: "Itens" em A, meses em E..P, aba "FLC 2026"
+    const result = parseFlcXlsx(buildFlcWorkbook(modeloSpec(), 'FLC 2026', -1));
+    expect(result.secoes.length).toBe(17);
+    expect(result.avisos.some((a) => a.includes('coluna A') && a.includes('deslocadas'))).toBe(
+      true,
+    );
+    const combustivel = secao(result, 'transporte').itens.find((i) => i.label === 'Combustível');
+    expect(combustivel?.valores[0]).toBe(400);
+    const aluguel = secao(result, 'habitacao').itens[0];
+    expect(aluguel.significado).toBe('Moradia');
+    expect(aluguel.rank).toBe(1);
+  });
+
+  it('coluna extra inserida à esquerda (grade 1 col. à direita) também ajusta', () => {
+    const result = parseFlcXlsx(buildFlcWorkbook(modeloSpec(), 'Fluxo de Caixa', 1));
+    expect(result.secoes.length).toBe(17);
+    expect(result.avisos.some((a) => a.includes('coluna C'))).toBe(true);
+    expect(secao(result, 'conta-corrente').itens[0].valores[0]).toBe(639.9);
+  });
+
+  it('modelo intacto não gera aviso de deslocamento', () => {
+    expect(parseModelo().avisos.some((a) => a.includes('deslocadas'))).toBe(false);
+  });
+});
+
 describe('parseFlcXlsx — cores de fonte das células (report 10/08, item 4)', () => {
   // A fixture (SheetJS CE) não escreve estilos — injeta via cirurgia de zip:
   // styles.xml próprio (fonte 1 = vermelho, fonte 2 = verde da legenda) e o
