@@ -7,7 +7,8 @@ import { readFlcFontColors, type FlcZipFiles } from './flcCellColors';
  *
  * Contrato de layout (verificado na planilha real):
  * - col. B = rótulo; C = "O SEU PORQUÊ" (significado); D = nível de prioridade
- *   (rank); F..Q = Jan..Dez.
+ *   (rank); F..Q = Jan..Dez. Cópia com coluna apagada/inserida à esquerda é
+ *   tolerada: o cabeçalho "Itens" ancora o deslocamento (aviso na prévia).
  * - Âncoras de seção são linhas de FÓRMULA; itens são linhas de VALOR literal
  *   (zero-preenchidas por padrão). O critério fórmula-vs-literal desempata
  *   rótulos homônimos (ex.: "Despesas Financeiras" é seção E item de Despesas
@@ -130,8 +131,37 @@ const LINHAS_IGNORADAS: Record<string, string> = {
   'rendimentos recebidos': 'automático no app (proventos da carteira)',
 };
 
-const MESES_COLS = Array.from({ length: 12 }, (_, i) => 5 + i); // F..Q
+// Colunas do modelo (0-indexed): B = rótulo, C = significado, D = rank, F..Q = Jan..Dez.
+const COL_ROTULO = 1;
+const COL_SIGNIFICADO = 2;
+const COL_RANK = 3;
+const COL_MES_INICIO = 5;
 const MAX_LINHAS = 2000;
+
+const endereco = (col: number, linha: number): string =>
+  XLSX.utils.encode_cell({ r: linha - 1, c: col });
+
+/**
+ * Cópias de cliente chegam com coluna apagada/inserida à esquerda e a grade
+ * inteira desloca (report 29/09, planilha do Pedro: "Itens" em A, meses em
+ * E..P). Localiza o cabeçalho "Itens" e confirma "Jan" na posição relativa
+ * esperada para deduzir o deslocamento; sem cabeçalho reconhecível, assume o
+ * modelo (deslocamento 0).
+ */
+const detectarDeslocamento = (ws: XLSX.WorkSheet, ultimaLinha: number): number => {
+  const limite = Math.min(ultimaLinha, 50);
+  for (let r = 1; r <= limite; r++) {
+    for (let c = 0; c <= 10; c++) {
+      const cell: XLSX.CellObject | undefined = ws[endereco(c, r)];
+      if (!cell || typeof cell.v !== 'string' || normalizeLabel(cell.v) !== 'itens') continue;
+      const jan: XLSX.CellObject | undefined = ws[endereco(c + (COL_MES_INICIO - COL_ROTULO), r)];
+      const confirmaJan = jan && typeof jan.v === 'string' && normalizeLabel(jan.v) === 'jan';
+      // "Itens" sem "Jan" na posição relativa: não arrisca ajuste
+      return confirmaJan ? c - COL_ROTULO : 0;
+    }
+  }
+  return 0;
+};
 
 /** mesmo limite do comentário manual (cashflowCommentSchema) */
 const MAX_COMENTARIO = 1000;
@@ -186,6 +216,7 @@ const lerMeses = (
   ws: XLSX.WorkSheet,
   linha: number,
   coresPorCelula: Map<string, string>,
+  deslocamento: number,
 ): CelulasMes => {
   const valores: (number | null)[] = [];
   const comentarios: (string | null)[] = [];
@@ -195,8 +226,8 @@ const lerMeses = (
   let temFormulaAgregada = false;
   let temFormulaValor = false;
   let temCelula = false;
-  for (const c of MESES_COLS) {
-    const ref = XLSX.utils.encode_cell({ r: linha - 1, c });
+  for (let mes = 0; mes < 12; mes++) {
+    const ref = endereco(COL_MES_INICIO + deslocamento + mes, linha);
     const cell: XLSX.CellObject | undefined = ws[ref];
     comentarios.push(lerComentario(cell));
     cores.push(coresPorCelula.get(ref) ?? null);
@@ -298,6 +329,14 @@ export const parseFlcXlsx = (buffer: Buffer | Uint8Array): FlcParseResult => {
   const range = ws['!ref'] ? XLSX.utils.decode_range(ws['!ref']) : null;
   const ultimaLinha = Math.min(range ? range.e.r + 1 : 0, MAX_LINHAS);
 
+  const deslocamento = detectarDeslocamento(ws, ultimaLinha);
+  if (deslocamento !== 0) {
+    avisos.push(
+      `cabeçalho "Itens" na coluna ${XLSX.utils.encode_col(COL_ROTULO + deslocamento)} — ` +
+        'colunas deslocadas em relação ao modelo, leitura ajustada',
+    );
+  }
+
   type Contexto =
     | { tipo: 'nenhum' }
     | { tipo: 'secao'; secao: FlcSecao }
@@ -312,10 +351,10 @@ export const parseFlcXlsx = (buffer: Buffer | Uint8Array): FlcParseResult => {
   const secoesIgnoradasComValor = new Map<string, { motivo: string; linhas: number }>();
 
   for (let r = 1; r <= ultimaLinha; r++) {
-    const label = lerTexto(ws, `B${r}`);
+    const label = lerTexto(ws, endereco(COL_ROTULO + deslocamento, r));
     if (!label) continue;
     const norm = normalizeLabel(label);
-    const meses = lerMeses(ws, r, coresPorCelula);
+    const meses = lerMeses(ws, r, coresPorCelula, deslocamento);
 
     if (LINHAS_IGNORADAS[norm]) {
       ignorados.push({ linha: r, label, motivo: LINHAS_IGNORADAS[norm], valores: meses.valores });
@@ -363,8 +402,8 @@ export const parseFlcXlsx = (buffer: Buffer | Uint8Array): FlcParseResult => {
       ctx.secao.itens.push({
         linha: r,
         label,
-        significado: lerTexto(ws, `C${r}`),
-        rank: lerNumero(ws, `D${r}`),
+        significado: lerTexto(ws, endereco(COL_SIGNIFICADO + deslocamento, r)),
+        rank: lerNumero(ws, endereco(COL_RANK + deslocamento, r)),
         valores: meses.valores,
         comentarios: meses.comentarios,
         cores: meses.cores,
