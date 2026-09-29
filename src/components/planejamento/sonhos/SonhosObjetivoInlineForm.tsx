@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useId, useMemo, useState, type ReactNode } from 'react';
+import { twMerge } from 'tailwind-merge';
 import Button from '@/components/ui/button/Button';
 import Label from '@/components/form/Label';
 import Input from '@/components/form/input/InputField';
@@ -602,7 +603,9 @@ function SheetTextField({
         placeholder={placeholder}
         aria-invalid={error ? true : undefined}
         aria-describedby={error ? errorId : undefined}
-        className={`${MOBILE_FIELD_CLASS} ${error ? MOBILE_FIELD_ERROR_CLASS : ''}`}
+        // twMerge (acabamento fase 5): concatenar deixava border-gray-300 e a borda de erro
+        // disputando no CSS — o campo Nome ficava sem a borda vermelha.
+        className={twMerge(MOBILE_FIELD_CLASS, error && MOBILE_FIELD_ERROR_CLASS)}
       />
       {error ? (
         <p id={errorId} role="alert" className={MOBILE_FIELD_ERROR_TEXT_CLASS}>
