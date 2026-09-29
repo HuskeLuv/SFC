@@ -142,6 +142,9 @@ model User {
   // src/utils/accessLevel.ts.
   accessLevel                   Int                           @default(0)
   agendaPreferencia             AgendaPreferencia?
+  // Web push (PWA fase 5)
+  pushSubscriptions             PushSubscription[]
+  pushPreferencia               PushPreferencia?
 }
 
 /**
@@ -162,6 +165,44 @@ model AgendaPreferencia {
   updatedAt    DateTime  @updatedAt
 
   @@map("agenda_preferencias")
+}
+
+/**
+ * Assinatura de web push de UM aparelho/navegador (PWA fase 5). O endpoint é a
+ * identidade da assinatura (upsert por endpoint reconcilia rotação); um
+ * usuário pode ter várias (celular + desktop). userAgent alimenta o rótulo da
+ * lista de aparelhos no Perfil.
+ */
+model PushSubscription {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  endpoint  String   @unique
+  p256dh    String
+  auth      String
+  userAgent String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@map("push_subscriptions")
+}
+
+/**
+ * Preferência de push por categoria (PWA fase 5). Linha criada sob demanda,
+ * no molde da AgendaPreferencia: sem registro = tudo ligado.
+ */
+model PushPreferencia {
+  id         String   @id @default(uuid())
+  userId     String   @unique
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  orcamento  Boolean  @default(true)
+  agenda     Boolean  @default(true)
+  comunidade Boolean  @default(true)
+  conta      Boolean  @default(true)
+  updatedAt  DateTime @updatedAt
+
+  @@map("push_preferencias")
 }
 
 /**
