@@ -60,14 +60,16 @@ const SELO_ROTULO: Record<SeloComunidade, string> = {
 
 export function SeloAutor({ selo }: { selo: SeloComunidade }) {
   const equipe = selo === 'equipe';
+  // Contraste no escuro (acabamento fase 5): no claro nada muda; no escuro o selo da equipe
+  // troca o azul-assinatura pelo patrimonio (branco passa de 4,2:1 para 5,4:1) e o do
+  // consultor troca o texto seguranca (ilegível sobre fundo escuro) pelo tranquilidade.
   return (
     <span
-      className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold"
-      style={
+      className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold ${
         equipe
-          ? { background: MYFINANCE_BRAND.outside, color: '#fff' }
-          : { background: `${MYFINANCE_BRAND.tranquilidade}33`, color: MYFINANCE_BRAND.seguranca }
-      }
+          ? 'bg-mf-outside text-white dark:bg-mf-patrimonio'
+          : 'bg-mf-tranquilidade/20 text-mf-seguranca dark:bg-mf-tranquilidade/25 dark:text-mf-tranquilidade'
+      }`}
     >
       {equipe && (
         <svg viewBox="0 0 16 16" className="h-3 w-3" fill="currentColor" aria-hidden="true">
