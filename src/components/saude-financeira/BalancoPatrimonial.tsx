@@ -36,10 +36,7 @@ interface BalancoPatrimonialProps {
 }
 
 /** Celular sem verde (PWA fase 3): a seta "boa" vira azul da paleta só na tela abaixo de lg. */
-const SETA_SEM_VERDE = (className: string) =>
-  className.includes('green')
-    ? ' mscreen:text-mf-patrimonio dark:mscreen:text-mf-tranquilidade'
-    : '';
+const SETA_SEM_VERDE = (className: string) => (className.includes('green') ? '' : '');
 
 function Seta({ seta }: { seta: ReturnType<typeof tendenciaSeta> }) {
   if (!seta) return null;
@@ -218,7 +215,7 @@ export default function BalancoPatrimonial({
         </h3>
         <Link
           href="/dividas"
-          className="text-xs font-medium text-blue-600 hover:underline dark:text-blue-400 print:hidden mscreen:inline-flex mscreen:min-h-11 mscreen:items-center mscreen:text-sm mscreen:text-mf-patrimonio dark:mscreen:text-mf-tranquilidade"
+          className="text-xs font-medium text-mf-patrimonio hover:underline dark:text-mf-tranquilidade print:hidden mscreen:inline-flex mscreen:min-h-11 mscreen:items-center mscreen:text-sm"
         >
           Gerenciar dívidas →
         </Link>
