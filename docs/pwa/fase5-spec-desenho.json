@@ -1,0 +1,458 @@
+{
+  "arquitetura": {
+    "resumo": "Fase 5 do PWA (última): web push de ponta a ponta ligado às notificações EXISTENTES + acabamento, VERSÃO FINAL pós-crítica. 6 fatias com arquivos 100% disjuntos: fatia 0 (contratos FECHADOS — schema PushSubscription/PushPreferencia, migration aditiva, PushPayloadV1 único para A/B/C, pushConfig edge-safe, pushClient com detecção de iPad, web-push no package.json e remoção do react-dnd) mergeia primeiro; depois, em paralelo: A (envio síncrono best-effort com limpeza 404/410, rotas /api/push/* incluindo GET de listagem de aparelhos e DELETE por id — exigidos pelo P2 do protótipo — e tier de rate limit para /api/push/test, gancho nas 5 fontes reais), B (sw.js: push + notificationclick same-origin com dedupe por tag de grupo/evento, badge monocromático, harness de teste; SEM setAppBadge na v1), C (Perfil › Notificações desktop+mobile com 4 estados, lista de aparelhos, PushInviteSheet pós-salvar lembrete na Agenda — cenário C1 do designer incorporado; cartão do sino C2 e recolor A2 cortados), D (acabamento re-auditado: iCal e MobileTabRail REMOVIDOS por já estarem na main) e E (Lighthouse + auditoria dark). Contrato de payload resolvido a favor do arquiteto com concessão no TTL: title = Notification.title real (verificado sem R$ nos 3 serviços), body genérico (o corpo do designer vazaria evento.titulo livre e a message dos lembretes tem brl()), tag por grupo/evento (deduplica a escalada 80%→estourado que a tag por notificationId empilharia), TTL conta = 7d (designer). Snapshots de e2e/desktop-fase3.spec.ts-snapshots viraram recurso compartilhado com atualização única pós-merge (resolve a colisão C×D). Deep link com sessão expirada registrado como limitação aceita da v1. Todas as 8 críticas foram aceitas e incorporadas; nenhuma rejeitada integralmente (rejeições parciais justificadas em riscos).",
+    "fatias": [
+      {
+        "id": "0",
+        "titulo": "Fatia 0 — Contratos fechados, schema e fundação de push (mergeia primeiro na main)",
+        "objetivo": "Criar tudo que é compartilhado e FECHAR o contrato único de payload/rotas que A, B e C implementam sem divergência (crítica 1): modelos Prisma + migration aditiva, PushPayloadV1, config edge-safe de VAPID, pushClient completo com detecção de iPad, dependências.",
+        "arquivos_novos": [
+          "prisma/migrations/20261001120000_push_subscription_preferencia/migration.sql",
+          "src/lib/push/contract.ts",
+          "src/lib/push/pushConfig.ts",
+          "src/lib/push/__tests__/contract.test.ts",
+          "src/lib/pwa/pushClient.ts",
+          "src/lib/pwa/__tests__/pushClient.test.ts"
+        ],
+        "arquivos_alterados": [
+          "prisma/schema.prisma",
+          "package.json",
+          "package-lock.json",
+          "src/components/pwa/ServiceWorkerRegistrar.tsx",
+          "docs/pwa/README.md (envs documentadas + correção dos itens desatualizados achados na re-auditoria da crítica 4)"
+        ],
+        "detalhes": "Schema (aditivo): model PushSubscription { id uuid @id; userId String; user User @relation(onDelete: Cascade); endpoint String @unique; p256dh String; auth String; userAgent String?; createdAt @default(now()); updatedAt @updatedAt; @@index([userId]) }. model PushPreferencia { id uuid @id; userId String @unique; user User (Cascade); orcamento Boolean @default(true); agenda Boolean @default(true); comunidade Boolean @default(true); conta Boolean @default(true); updatedAt @updatedAt } — sem registro = tudo ligado. package.json: + web-push, + @types/web-push (dev); REMOVER react-dnd e react-dnd-html5-backend (linhas 72-73; zero imports em src/, e2e/, scripts/). contract.ts — CONTRATO ÚNICO E FINAL (resolve a divergência arquiteto×designer): type CategoriaPush = 'orcamento'|'agenda'|'comunidade'|'conta'; CATEGORIA_POR_TYPE usando as CONSTANTES exportadas pelos serviços (ORCAMENTO_ALERTA_TYPE 'orcamento_alerta'→orcamento; AGENDA_LEMBRETE_TYPE 'agenda_lembrete'→agenda; COMUNIDADE_COMENTARIO_TYPE|COMUNIDADE_MODERACAO_TYPE→comunidade; 'consultant_invite'|'consultant_invite_response'→conta; desconhecido NÃO envia); PushPayloadV1 { v:1; categoria; title: string /* = Notification.title real, SEM R$ (verificado: tituloEMensagem do orçamento e textoDoLembrete só põem brl() na message) */; body: string /* = corpoGenerico(categoria), ex. 'Toque para ver os detalhes.' — NUNCA Notification.message */; url; tag; notificationId }; TTL_SEGUNDOS_POR_CATEGORIA = { orcamento:86400, agenda:43200, comunidade:86400, conta:604800 /* 7d, alinhado ao designer — convite segue acionável por dias */ }; tagDaNotificacao = 'mf-<categoria>-<groupId|eventoId|postId|inviteId|notificationId>' (POR GRUPO/EVENTO, não por notificationId: a escalada de rank do mesmo grupo — orcamentoAlertas.ts, 3 níveis/grupo/mês — SUBSTITUI em vez de empilhar); deepLinkDaNotificacao(type, metadata) ('/fluxodecaixa?modo=orcamento' | '/calendario' | metadata.href validado startsWith('/') && !startsWith('//') | '/'); setAppBadge FORA do contrato v1 (follow-up registrado — exigiria contagem de não lidas no payload + limpeza na leitura tocando NotificationDropdown, arquivo de fase 0 fora de todas as fatias). Docblock com o contrato HTTP AMPLIADO (crítica 2/P2): POST /api/push/subscriptions {endpoint url https, keys:{p256dh,auth}, userAgent?}→204 (upsert por endpoint); GET /api/push/subscriptions→{subscriptions:[{id, rotulo /* derivado do userAgent, ex. 'Chrome · computador' */, criadoEm, endpoint}]} (endpoint incluído só para o cliente marcar 'este aparelho'); DELETE /api/push/subscriptions {endpoint}→204; DELETE /api/push/subscriptions/[id]→204 (remove aparelho REMOTO, exige userId dono — habilita a lixeira do P2); GET /api/push/preferencias→{habilitado, vapidPublicKey, categorias, comunidadeVisivel}; PATCH parcial→204. Envs SEM NEXT_PUBLIC (build roda no runner sem secrets; chave pública viaja no GET): VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY, VAPID_SUBJECT, WEB_PUSH_HABILITADO. pushConfig.ts edge-safe (só env, nunca importa web-push). pushClient.ts: isPushSupported; isIosSemPwa com heurística de iPad (crítica 8): (UA iOS || (navigator.platform==='MacIntel' && navigator.maxTouchPoints>1)) && !standalone; permissaoAtual; assinarPush(vapidPublicKey, csrfFetch) — requestPermission SÓ dentro de gesto; retorno 'erro' deve ser tratado pela UI com a MESMA orientação de instalação (fallback para detecção furada); cancelarAssinatura; sincronizarAssinaturaSeAtiva (reconcilia rotação de endpoint na abertura do app — o SW não tem CSRF). ServiceWorkerRegistrar: chamada única a sincronizarAssinaturaSeAtiva após registrar. CSP/middleware intocados.",
+        "testes": "vitest: contract.test.ts (mapa de categorias pelas constantes reais, deep links — '//evil' rejeitado, tag por grupo substitui na escalada de rank, TTLs); pushClient.test.ts jsdom (sem suporte, iOS sem PWA, iPad MacIntel+touch sem PWA, permissão negada, subscribe feliz, sincronização reconcilia endpoint novo). npx prisma migrate dev limpa; tsc + lint + build verdes sem react-dnd.",
+        "criterios_aceite": [
+          "migration aditiva roda limpa em banco com dados",
+          "contract.ts é a ÚNICA fonte do shape do payload, tags, TTLs e rotas — A, B e C referenciam este arquivo, não memória",
+          "tag por grupo/evento deduplica a escalada de rank em teste",
+          "isIosSemPwa detecta iPad (MacIntel + maxTouchPoints>1)",
+          "requestPermission só alcançável via função chamada por gesto",
+          "desktop >= lg sem qualquer mudança visual"
+        ]
+      },
+      {
+        "id": "A",
+        "titulo": "Fatia A — Envio no servidor: web-push, rotas de assinatura/aparelhos/preferências, rate limit e gancho nas 5 fontes",
+        "objetivo": "Enviar push síncrono best-effort quando a Notification é criada, respeitando PushPreferencia por categoria, com limpeza de 404/410, listagem/remoção de aparelhos (P2) e tier de rate limit no /api/push/test.",
+        "arquivos_novos": [
+          "src/lib/webPush.ts",
+          "src/services/push/enviarPush.ts",
+          "src/services/push/__tests__/enviarPush.test.ts",
+          "src/app/api/push/subscriptions/route.ts",
+          "src/app/api/push/subscriptions/[id]/route.ts",
+          "src/app/api/push/subscriptions/__tests__/route.test.ts",
+          "src/app/api/push/preferencias/route.ts",
+          "src/app/api/push/preferencias/__tests__/route.test.ts",
+          "src/app/api/push/test/route.ts"
+        ],
+        "arquivos_alterados": [
+          "src/lib/rateLimit.ts",
+          "src/services/cashflow/orcamentoAlertas.ts",
+          "src/services/cashflow/__tests__/orcamentoAlertas.test.ts",
+          "src/services/calendario/lembretes.ts",
+          "src/services/calendario/__tests__/lembretes.test.ts",
+          "src/services/comunidade/notificacoes.ts",
+          "src/services/comunidade/__tests__/moderacao.test.ts",
+          "src/app/api/consultant/invitations/route.ts",
+          "src/app/api/consultant/invitations/[inviteId]/respond/route.ts"
+        ],
+        "detalhes": "DECISÃO síncrono vs fila: SÍNCRONO best-effort, sem fila/cron novo — ~1.000 DAU num Node longevo no Lightsail (fire-and-forget seguro), todas as fontes já são best-effort (checkOrcamentoAlertasSafe, try/catch da comunidade, loop do cron), TTL do web-push já delega retry ao push service; fila só se o volume crescer (registrado). src/lib/webPush.ts (Node only, espelha lib/pluggy.ts): singleton com setVapidDetails do pushConfig; jamais importado por middleware/edge. enviarPush.ts: enviarPushDaNotificacao(n) — !pushHabilitado() → retorna; subscriptions do userId (nenhuma → retorna); categoria = CATEGORIA_POR_TYPE[n.type] (desconhecido → não envia); PushPreferencia (ausente = ligado) gate para TODO envio, cron incluído; comunidade já nasce atrás de COMUNIDADE_HABILITADA na criação; payload = PushPayloadV1 do contract.ts (title real sem message, body genérico, tag por grupo/evento, TTL da categoria); sendNotification por subscription, urgency normal; catch por subscription: 404/410 → delete por endpoint, resto → logger.error, nunca lança. Gancho `void enviarPushDaNotificacao(...)` após cada prisma.notification.create — 6 pontos nas 5 fontes (orcamentoAlertas, lembretes, comunidade ×2 tipos, 2 rotas de convite); profile/export NÃO cria notificação (só findMany — verificado; crítica 7 confirma que a copy do designer estava errada, não o código). Rotas: subscriptions POST/DELETE(body) = requireSession (payload.id, NUNCA requireAuthWithActing — consultor personificando não assina como cliente) + zod + upsert por endpoint (reatribui dono); GET = lista do userId com rotulo derivado do userAgent (parse simples: navegador + 'celular'/'computador') + endpoint + criadoEm; [id]/route.ts DELETE = apaga só se userId bate (lixeira do P2 remove aparelho remoto). preferencias GET devolve vapidPublicKey e comunidadeVisivel; PATCH zod parcial + upsert. /api/push/test POST (sessão): categoria 'conta', title 'Aviso de teste do My Finance', url '/profile', só para as assinaturas do próprio usuário. rateLimit.ts (crítica 6): novo tier ANTES do genérico — match p.startsWith('/api/push/test'), limit 5/60s (o arquivo não é tocado por nenhuma outra fatia). Decisão consultor-agindo: push ESPELHA o sino 1:1 — alerta disparado por edição do consultor VAI para o cliente (paridade com in-app).",
+        "testes": "vitest com vi.mock('web-push'): preferência desligada bloqueia por categoria; padrão ligado sem registro; 404/410 remove subscription; erro de rede não propaga; payload/tag/TTL do contract por tipo; type desconhecido não envia; GET lista só do usuário; DELETE por id de outro usuário → 404/403; tier de rate limit do /api/push/test em teste do rateLimit. Testes das 5 fontes atualizados afirmando o gancho com a notificação criada.",
+        "criterios_aceite": [
+          "nenhuma mutação existente falha por causa de push (best-effort comprovado em teste)",
+          "preferência desligada bloqueia TODAS as fontes, cron incluído",
+          "payload não contém message nem valores monetários (title real verificado por teste contra tituloEMensagem/textoDoLembrete)",
+          "endpoint 404/410 apagado na primeira falha",
+          "DELETE /api/push/subscriptions/[id] só apaga assinatura do próprio usuário",
+          "/api/push/test limitado a 5/min por IP",
+          "rotas de push ignoram o cookie de acting do consultor"
+        ]
+      },
+      {
+        "id": "B",
+        "titulo": "Fatia B — Service worker: handlers de push e notificationclick (contrato v1, sem setAppBadge)",
+        "objetivo": "sw.js exibe a notificação do PushPayloadV1, deep-linka same-origin com dedupe pela tag de grupo/evento do contrato, e degrada com aviso genérico se o payload não parsear.",
+        "arquivos_novos": ["public/icons/badge-96.png", "src/test/sw/swPush.test.ts"],
+        "arquivos_alterados": ["public/sw.js"],
+        "detalhes": "SW_VERSION → 'mf-sw-v2' (caches mantêm nomes; fetch intocado). push: event.waitUntil(showNotification) SEMPRE (userVisibleOnly); parse com try/catch — inválido → title 'My Finance', body 'Você tem uma nova notificação.', url '/'. showNotification(payload.title, { body, tag: payload.tag /* tag de grupo/evento do contract — substitui a anterior; decisão fechada na fatia 0, NÃO a tag por notificationId do protótipo */, icon '/icons/icon-192.png', badge '/icons/badge-96.png' (novo, monocromático branco 96x96), lang 'pt-BR', data:{url, notificationId} }). SEM setAppBadge na v1 (contagem de não lidas não existe no payload e a limpeza na leitura exigiria tocar NotificationDropdown — follow-up registrado; crítica 1). notificationclick: close(); url segura = new URL(data.url, self.location.origin) forçando same-origin (não-'/'-inicial vira '/'); matchAll({type:'window', includeUncontrolled:true}) → focus()+navigate(url), senão openWindow(url). pushsubscriptionchange: re-subscribe local best-effort com oldSubscription.options.applicationServerKey; NÃO tenta POST (sem CSRF) — reconciliação é do pushClient na abertura (fatia 0). Sem importScripts/eval (CSP). Cache/fetch da fase 0 intactos.",
+        "testes": "src/test/sw/swPush.test.ts: harness vitest avaliando public/sw.js em escopo com self/caches/clients/registration falsos (new Function com contexto injetado): push v1 chama showNotification com tag/icon/badge/data corretos; segunda push com MESMA tag substitui (dedupe da escalada); payload quebrado mostra genérico; notificationclick foca cliente e navega, abre janela quando não há, força same-origin em url externa; SKIP_WAITING/CLEAR_CACHES seguem funcionando (regressão).",
+        "criterios_aceite": [
+          "toda mensagem push resulta em exatamente uma notificação visível; mesma tag substitui, nunca empilha",
+          "clique abre a rota do payload no app instalado ou janela nova, nunca origem externa",
+          "payload malformado não quebra o SW",
+          "cache/offline da fase 0 intactos (regressão no harness)",
+          "sem importScripts/eval; nenhuma chamada a setAppBadge"
+        ]
+      },
+      {
+        "id": "C",
+        "titulo": "Fatia C — UI de opt-in: Perfil › Notificações (desktop+mobile), lista de aparelhos e PushInviteSheet da Agenda",
+        "objetivo": "Seção 'Notificações' no Perfil com os 4 estados do protótipo (nunca pediu, ativas com aparelhos e categorias, negada com instrução por navegador, iOS/iPadOS sem PWA), aviso de teste com cooldown, e o convite contextual C1 pós-salvar lembrete na Agenda — permissão SEMPRE atrás de gesto.",
+        "arquivos_novos": [
+          "src/components/user-profile/NotificacoesPreferencias.tsx",
+          "src/components/user-profile/__tests__/NotificacoesPreferencias.test.tsx",
+          "src/components/pwa/PushInviteSheet.tsx",
+          "src/components/pwa/__tests__/PushInviteSheet.test.tsx"
+        ],
+        "arquivos_alterados": [
+          "src/app/(admin)/(others-pages)/profile/page.tsx",
+          "src/components/user-profile/mobile/PerfilMobile.tsx",
+          "src/components/calendar/AgendaEventoModal.tsx",
+          "e2e/mobile-perfil.spec.ts"
+        ],
+        "detalhes": "NotificacoesPreferencias no molde do AgendaPreferencias (toggle otimista + rollback, useCsrf), inserido no desktop entre AgendaPreferencias e PrivacyControls (única mudança visual >= lg da fase — aprovação do Wellington) e no PerfilMobile como grupo 'Notificações' → item abrindo BottomSheet com o MESMO componente. Estados do protótipo: P1 nunca pediu (categorias visíveis aria-disabled + rodapé 'avisos nunca mostram valores em R$'); P2 ativas — master por aparelho (switch 51×31), LISTA DE APARELHOS via GET /api/push/subscriptions (rotulo + data; 'este aparelho' marcado comparando endpoint local; lixeira → DELETE /api/push/subscriptions/[id] com useResponsiveConfirm — contrato ampliado na fatia 0 resolve a crítica 2/P2), categorias Orçamento/Agenda/Comunidade (só se comunidadeVisivel)/'Conta e consultor' com descrição SÓ de convites/atividade da conta (SEM 'exportação de dados' — crítica 7: nenhuma Notification de exportação existe), botão 'Enviar aviso de teste' (POST /api/push/test, gesto, desabilitado ~30s após envio — cinto extra ao tier do servidor) e 'Desativar neste aparelho'; P3 negada — selo vermelho, segmento iPhone|Android·Chrome com instrução de reversão, botão 'Já liberei — verificar de novo' relendo permissaoAtual, NUNCA reexibe o diálogo; C3 iOS/iPadOS sem PWA (isIosSemPwa) — passo a passo Compartilhar → Adicionar à Tela de Início (copy do InstallAppCard); retorno 'erro' de assinarPush cai no MESMO passo a passo (fallback da crítica 8). PushInviteSheet (C1 do designer, incorporado): após salvar lembrete no AgendaEventoModal, se permissão 'default' && push suportado && !isIosSemPwa && sem adiamento → sheet 'Receber lembretes no celular?' com prévia sem valores, 'Agora não' primeiro no DOM (adia 14d via localStorage 'mf-push-invite-adiado'), 'Ativar avisos' → assinarPush no clique; em iOS sem PWA mostra o passo a passo. CORTADOS do protótipo (registrados): C2 cartão-convite no NotificationDropdown e A2 recolor Aceitar/Recusar — o dropdown é arquivo compartilhado da fase 0 que renderiza no desktop >= lg (tocá-lo quebraria guardas e o paralelismo); recolor vai no PR de alinhamento separado que o próprio designer sugeriu, cartão do sino vira follow-up com pergunta ao Wellington. NUNCA pedir permissão na carga. Preferências POR USUÁRIO, assinatura POR APARELHO; push desktop liga junto (mesmo código). Alvos >=44px, linha-switch min-h 56px alvo inteiro, paleta oficial, Outfit, dark mode por tokens. IMPORTANTE: esta fatia NÃO commita binários de e2e/*-snapshots (ver plano_qa — o snapshot do PERFIL vive em desktop-fase3.spec.ts-snapshots, recurso compartilhado com D).",
+        "testes": "RTL jsdom com pushClient/fetch mockados: 5 estados renderizam; ligar o master chama assinarPush uma vez e só após clique; negado não chama subscribe; lixeira chama DELETE por id e remove da lista; toggle de categoria PATCH otimista com rollback; Comunidade some com comunidadeVisivel=false; botão de teste desabilita após clique; PushInviteSheet: só aparece com permissão default + sem adiamento, 'Agora não' grava adiamento 14d, 'Ativar' chama assinarPush no gesto, iOS sem PWA mostra instalação. e2e mobile-perfil.spec.ts com addInitScript stubando Notification/PushManager (granted/denied) — sem push real no CI.",
+        "criterios_aceite": [
+          "nenhum requestPermission fora de gesto (teste garante, inclusive no PushInviteSheet)",
+          "iOS/iPadOS sem PWA (inclusive iPad MacIntel) mostra orientação de instalação em vez do toggle",
+          "lista de aparelhos mostra e remove assinaturas remotas (P2 do protótipo entregue)",
+          "descrição da categoria 'Conta e consultor' não menciona exportação",
+          "estado negado tem instrução por plataforma e não tenta assinar",
+          "nenhum binário de snapshot desktop commitado nesta fatia",
+          "desktop >= lg: única diferença é a nova seção do Perfil"
+        ]
+      },
+      {
+        "id": "D",
+        "titulo": "Fatia D — Acabamento: pendências das fases 0–3 re-auditadas contra a main",
+        "objetivo": "Fechar as pendências de baixo risco que AINDA existem na main (re-auditoria da crítica 4 removeu 2 itens já entregues), sem tocar regra de negócio; mudanças visíveis no desktop (Saúde/Relatórios) são assumidas e aprovadas como as da fase.",
+        "arquivos_novos": [],
+        "arquivos_alterados": [
+          "src/components/ui/modal/index.tsx",
+          "src/components/common/ThemeToggleButton.tsx",
+          "src/components/common/ThemeTogglerTwo.tsx",
+          "src/components/auth/SignInForm.tsx",
+          "src/components/carteira/CarteiraResumo.tsx",
+          "src/components/carteira/CarteiraTabs.tsx",
+          "src/components/carteira/carteiraTabsConfig.ts",
+          "src/components/cashflow/mobile/edit/GroupSheet.tsx",
+          "src/components/cashflow/mobile/** (barra do mês do Orçamento sticky)",
+          "src/components/saude-financeira/BalancoPatrimonial.tsx",
+          "src/components/saude-financeira/GestaoRisco.tsx",
+          "src/components/saude-financeira/MetasPatrimoniais.tsx",
+          "src/components/saude-financeira/ClienteHeader.tsx",
+          "src/components/relatorios/* (título repetido nos blocos)",
+          "src/components/planejamento/sonhos/SonhosObjetivoInlineForm.tsx",
+          "src/components/comunidade/shared.tsx",
+          "src/components/planejamento/aposentadoria/mobile/RegistrarMesSheet.tsx"
+        ],
+        "detalhes": "REMOVIDOS pela re-auditoria (crítica 4, verificada hoje): revogação do token iCal — JÁ EXISTE por completo (DELETE em src/app/api/agenda/preferencias/ical/route.ts anulando icalToken + botão 'Revogar' com useResponsiveConfirm no AgendaPreferencias, entregue no #223); chip do MobileTabRail — JÁ tem min-h-11 (44px) na linha 47. O primeiro passo da fatia é re-grepar CADA item restante contra a main antes de codar (README desatualizado; a fatia 0 corrige o README). Itens que ficam: a11y por atributo no Modal (aria-labelledby/aria-label) e ThemeToggles, sem mudar layout; 'Manter conectado por 30 dias' vira texto neutro (admin/consultor ganham 1 dia — mudança de string desktop documentada ao QA); lacuna 'Jan 1970' → skeleton enquanto includeHistorico não chegou; troca de aba da carteira com history.replaceState em vez de router.replace (elimina GET RSC, visual idêntico); GroupSheet ganha Recolher/Expandir; barra do mês do Orçamento sticky (ÚNICO item com licença para cair: se mobile-overflow.spec.ts regredir, reportar e desistir); links text-blue-600 da Saúde → #396CAA/#6E9DC4 e título repetido dos Relatórios (deixar de passar título duplicado ao ComponentCard nos componentes de relatorios, sem tocar o ComponentCard global) — AMBOS visíveis >= 1024px e snapshotados por desktop-fase3.spec.ts: mudanças desktop ASSUMIDAS no plano (crítica 3), aprovação do Wellington com diff, e esta fatia NÃO commita binários de e2e/desktop-fase3.spec.ts-snapshots (atualização única pós-merge, ver plano_qa); borda de erro no Nome do SonhosObjetivoInlineForm; contraste dos selos da Comunidade no escuro (shared.tsx); RegistrarMesSheet aguarda a mutação antes de fechar (padrão MobileSaveToast).",
+        "testes": "vitest dos componentes tocados (aria do Modal/toggles, borda de erro do Nome, RegistrarMesSheet aguardando API); atualizar snapshots dos specs MOBILE afetados (mobile-carteira, mobile-fluxo-orcamento, mobile-saude, mobile-relatorios, mobile-planejamento, mobile-comunidade); mobile-overflow.spec.ts com KNOWN_CLIP vazio; snapshots desktop ficam para o passo de integração.",
+        "criterios_aceite": [
+          "re-auditoria inicial documentada: cada item confirmado pendente na main ou cortado com evidência",
+          "cada item do escopo fechado ou reportado com motivo (sticky é o único com licença para cair)",
+          "nenhum binário de e2e/desktop-fase3.spec.ts-snapshots commitado nesta fatia",
+          "alvos de toque >=44px nos componentes tocados",
+          "axe/a11y: Modal e ThemeToggle com nome acessível verificado em teste"
+        ]
+      },
+      {
+        "id": "E",
+        "titulo": "Fatia E — Lighthouse, auditoria dark mode e relatório",
+        "objetivo": "Medir PWA/performance/a11y em build de produção com metas numéricas, auditar contraste real do dark mode nas telas mobile das fases 1–3, corrigir só o que for de arquivo exclusivo e listar o resto para o corretor.",
+        "arquivos_novos": ["scripts/lighthouse-mobile.mjs", "docs/pwa/fase5-auditoria.md"],
+        "arquivos_alterados": [
+          "next.config.ts (só se a auditoria pedir)",
+          "src/app/layout.tsx (só se a auditoria pedir: metadata/preload/theme-color)",
+          "public/* (assets: ícones/manifest se o LH apontar — coordenar badge-96.png com a fatia B: o badge é da B, esta fatia não o cria nem edita)"
+        ],
+        "detalhes": "scripts/lighthouse-mobile.mjs: npx lighthouse preset mobile 390px contra next build + next start com usuário demo autenticado (receita da skill verify), rotas /signin, /carteira, /fluxodecaixa, /fluxodecaixa?modo=orcamento, /calendario, /planejamento-financeiro, /saude-financeira, /relatorios, /dividas, /profile; JSON+resumo em docs/pwa/fase5-auditoria.md. METAS: A11y >= 95 e Best Practices >= 95 em todas; instalabilidade PWA sem erros; Performance >= 70 nas rotas sem API pesada e >= 55 na /carteira (gargalo de back-end 2,5–5,0s documentado na fase 1 — fora do escopo). Correções SÓ em next.config.ts, src/app/layout.tsx e public/* exclusivos; achado em arquivo de outra fatia vira tabela 'para o corretor' — nunca edição cruzada. Auditoria dark: capturas Playwright light/dark 390px das telas das fases 1–3 (carteira, fluxo/orçamento, planejamento, saúde, dívidas, agenda, relatórios, histórico, perfil, educação, comunidade, conexões), julgamento visual (não só cálculo), achados com arquivo/dono na tabela.",
+        "testes": "O próprio script é o teste (reprodutível); build de produção verde; se next.config.ts/layout mudarem, guardas desktop e pwa.spec.ts passam.",
+        "criterios_aceite": [
+          "relatório com nota por rota, antes/depois das correções e tabela de pendências com dono",
+          "metas atingidas ou desvio justificado pelo gargalo de back-end documentado",
+          "nenhum arquivo de outra fatia editado",
+          "capturas dark/light arquivadas no relatório"
+        ]
+      }
+    ],
+    "componentes_compartilhados": [
+      {
+        "nome": "Contrato de push (novo, fatia 0) — FONTE ÚNICA pós-crítica",
+        "caminho": "src/lib/push/contract.ts",
+        "api": "CategoriaPush; CATEGORIA_POR_TYPE (pelas constantes ORCAMENTO_ALERTA_TYPE/AGENDA_LEMBRETE_TYPE/COMUNIDADE_*_TYPE + 'consultant_invite'/'consultant_invite_response'; desconhecido não envia); PushPayloadV1 {v:1, categoria, title (Notification.title real, sem R$), body (corpoGenerico — nunca message), url, tag, notificationId}; TTL_SEGUNDOS_POR_CATEGORIA {orcamento:86400, agenda:43200, comunidade:86400, conta:604800}; tagDaNotificacao por grupo/evento (deduplica escalada de rank); deepLinkDaNotificacao com validação same-origin; docblock com o contrato HTTP completo, incluindo GET /api/push/subscriptions (listagem de aparelhos) e DELETE /api/push/subscriptions/[id] exigidos pelo P2 do protótipo.",
+        "uso": "Fatia A monta o payload; fatia B (sw.js estático) consome o MESMO shape com o harness validando; fatia C usa categorias e o contrato de listagem. Divergências do designer (título fixo 'My Finance', corpo com nome de evento, tag por notificationId, setAppBadge) RESOLVIDAS aqui — ver perguntas_para_wellington."
+      },
+      {
+        "nome": "pushConfig (novo, fatia 0; edge-safe no espírito de pluggyConfig)",
+        "caminho": "src/lib/push/pushConfig.ts",
+        "api": "vapidPublicKey()|vapidPrivateKey(): string|null; vapidSubject() (default 'mailto:suporte@appmyfinance.com.br'); pushHabilitado() (WEB_PUSH_HABILITADO==='true' && chaves presentes). Só lê env — NÃO importa web-push.",
+        "uso": "Rotas /api/push/* (A) e enviarPush; o SDK Node fica em src/lib/webPush.ts (A), espelhando pluggyConfig/pluggy."
+      },
+      {
+        "nome": "pushClient (novo, fatia 0 — completo, desbloqueia B e C)",
+        "caminho": "src/lib/pwa/pushClient.ts",
+        "api": "isPushSupported(); isIosSemPwa() — inclui iPad: (UA iOS || (platform==='MacIntel' && maxTouchPoints>1)) && !standalone; permissaoAtual(); assinarPush(vapidPublicKey, csrfFetch): 'ok'|'negado'|'erro' (requestPermission SÓ em gesto → subscribe userVisibleOnly → POST); cancelarAssinatura(csrfFetch); sincronizarAssinaturaSeAtiva(csrfFetch) — reconcilia rotação de endpoint na abertura (SW não tem CSRF).",
+        "uso": "Fatia C (Perfil + PushInviteSheet) chama assinar/cancelar; fatia 0 pluga sincronizar no ServiceWorkerRegistrar; fatia B não o usa."
+      },
+      {
+        "nome": "BottomSheet / Modal / useResponsiveConfirm",
+        "caminho": "src/components/ui/sheet/BottomSheet.tsx, src/components/ui/modal/index.tsx, src/components/ui/sheet/useResponsiveConfirm.tsx (extensão .tsx corrigida — crítica 8)",
+        "api": "Overlays padrão (data-mf-overlay embutido); useResponsiveConfirm → sheet no mobile, window.confirm no desktop.",
+        "uso": "Fatia C: sheet do Perfil, PushInviteSheet, confirmações de desligar/remover aparelho; fatia D: nome acessível do Modal."
+      },
+      {
+        "nome": "useCsrf / csrfFetch + requireSession/withErrorHandler",
+        "caminho": "src/hooks/useCsrf.ts, src/utils/auth.ts, src/utils/apiErrorHandler.ts",
+        "api": "csrfFetch para toda mutação; requireSession(request) → payload.id (rotas de push usam a SESSÃO, nunca requireAuthWithActing — consultor personificando jamais assina como cliente); withErrorHandler envolve handlers.",
+        "uso": "Fatias A (rotas) e C (UI)."
+      },
+      {
+        "nome": "Padrão de preferência no Perfil",
+        "caminho": "src/components/user-profile/AgendaPreferencias.tsx + src/app/api/agenda/preferencias/route.ts",
+        "api": "Card com toggle otimista + rollback; linha criada sob demanda (sem registro = ligado); zod no PATCH. (A revogação do iCal JÁ está neste arquivo — fatia D não o toca mais.)",
+        "uso": "Molde do NotificacoesPreferencias, do PushPreferencia e das rotas de preferências."
+      },
+      {
+        "nome": "brandColors",
+        "caminho": "src/constants/brandColors.ts",
+        "api": "#0079F2 só não-textual; links/texto #396CAA claro / #6E9DC4 escuro; negativos #D92D20/#F97066; âmbar de atenção aceito.",
+        "uso": "Fatias C (estados/switches), D (links da Saúde, selos) e E (auditoria dark)."
+      },
+      {
+        "nome": "swClient / ServiceWorkerRegistrar",
+        "caminho": "src/lib/pwa/swClient.ts, src/components/pwa/ServiceWorkerRegistrar.tsx",
+        "api": "isSwEnabled() (só build de produção; NEXT_PUBLIC_SW_ENABLED=0 kill switch), registerServiceWorker(); Registrar ganha (fatia 0) a chamada única a sincronizarAssinaturaSeAtiva.",
+        "uso": "Somente a fatia 0 o edita; B e C não tocam."
+      },
+      {
+        "nome": "Snapshots desktop (RECURSO COMPARTILHADO — crítica 3)",
+        "caminho": "e2e/desktop-fase3.spec.ts-snapshots/ (e demais desktop-*-snapshots)",
+        "api": "Snapshota SAUDE (:194), RELATORIOS (:206), PERFIL (:236) e COMUNIDADE (:281) no MESMO diretório de binários. C muda o PERFIL (seção nova) e D muda SAUDE/RELATORIOS (paleta/título).",
+        "uso": "NENHUMA fatia commita esses binários. Passo de integração único pós-merge (arquiteto) roda os guardas, atualiza os snapshots UMA vez e anexa o diff visual completo ao PR de integração para aprovação do Wellington — evita conflito de binário entre worktrees e mantém o aceite 'zero regressão além do aprovado'."
+      },
+      {
+        "nome": "rateLimit (existente — dono: fatia A)",
+        "caminho": "src/lib/rateLimit.ts",
+        "api": "Tabela de tiers por prefixo; A adiciona tier /api/push/test (5/60s) antes do genérico /api/ (60/min).",
+        "uso": "Só a fatia A o edita; nenhuma outra fatia toca."
+      }
+    ],
+    "acabamento_escopo": "ENTRA (fatia D, RE-AUDITADA — crítica 4 aplicada): a11y fase 0 — nome acessível do Modal, aria-label dos ThemeToggles, texto neutro do 'Manter conectado por 30 dias' (admin/consultor têm 1 dia; string desktop documentada ao QA); fase 1 — skeleton na lacuna 'Jan 1970' do histórico (CarteiraResumo) e history.replaceState na troca de aba (elimina GET RSC); fase 2 — Recolher/Expandir no GroupSheet e barra do mês do Orçamento sticky (único item com licença para cair se mobile-overflow regredir); fase 3 — links text-blue-600 da Saúde para a paleta e título repetido dos Relatórios (AMBOS visíveis no desktop: mudanças >= lg assumidas explicitamente no plano, snapshots atualizados no passo de integração único — crítica 3), borda de erro no Nome do SonhosObjetivoInlineForm, contraste dos selos da Comunidade no escuro, RegistrarMesSheet aguardar a API antes de fechar. REMOVIDOS por já estarem na main (verificado hoje — README desatualizado, corrigido na fatia 0): revogação do token iCal (DELETE anulando icalToken + botão 'Revogar' com useResponsiveConfirm, entregues no #223 — src/app/api/agenda/preferencias/ical/route.ts:41-52 e AgendaPreferencias.tsx:101-221) e chip do MobileTabRail (já min-h-11 = 44px, MobileTabRail.tsx:47); a fatia D re-grepa cada item restante antes de codar. ENTRA (fatia 0): remoção de react-dnd e react-dnd-html5-backend (package.json:72-73; zero imports). ENTRA (fatia E): Lighthouse com metas + auditoria visual de dark mode. FICA FORA, registrado como decisão: Desfazer do lançamento rápido restaurar fórmula/comentário (regra de negócio do undo — risco alto; a prévia já avisa); tabela de sessões/revogação de JWT por aparelho (decisão já registrada no README); setAppBadge com não lidas do sino (protótipo A1/A3 — exige contagem no payload + limpeza na leitura tocando NotificationDropdown, fora de todas as fatias; follow-up); cartão-convite na central do sino (C2) e recolor Aceitar/Recusar (A2) — NotificationDropdown é arquivo compartilhado de fase 0 que renderiza no desktop (recolor vai no PR de alinhamento separado que o designer sugeriu; cartão vira follow-up com pergunta ao Wellington); notificação de 'exportação concluída' (não existe hoje — follow-up para a copy ficar verdadeira um dia); autoComplete one-time-code do 2FA; ?divida= após reload; perfil do consultor personificando; brand-500 #465fff e pendências desktop-only; Capacitor/lojas.",
+    "plano_producao": "1) Segredos: `npx web-push generate-vapid-keys`; gravar no SSM `/myfinance/prod/`: VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY, VAPID_SUBJECT=mailto:suporte@appmyfinance.com.br, WEB_PUSH_HABILITADO=true; regenerar /etc/myfinance/app.env pela receita do infra/DEPLOY.md (get-parameters-by-path > app.env, chmod 600). Dev usa chaves PRÓPRIAS no .env. Nenhum secret novo no GitHub Actions — o design evita NEXT_PUBLIC de propósito (build no runner com DEPLOY_PREBUILT=1; a chave pública chega em runtime via GET /api/push/preferencias). ORDEM: chaves no app.env ANTES do merge da fase (evita janela de 'push indisponível'). 2) Merge dos PRs na main → deploy.yml builda → infra/deploy.sh roda `prisma migrate deploy` (migration aditiva, sem downtime), health-check na 3001, flip do symlink e restart do systemd myfinance. 3) Crons: NENHUMA mudança em /etc/cron.d/myfinance — o cron de lembretes já chama /api/cron/calendario-lembretes via HTTP e o push sai síncrono no mesmo processo. 4) Teste real pós-deploy (arquiteto, antes do Pedro): Android/Chrome — instalar PWA, Perfil → Notificações → ligar → 'Enviar aviso de teste' → conferir notificação e deep link autenticado; repetir no Chrome desktop; conferir a LISTA DE APARELHOS mostrando os dois e a lixeira removendo o remoto; disparo real: editar meta de orçamento do demo até cruzar 80% e conferir push + sino + que a escalada para 'estourado' SUBSTITUI a notificação (tag); desinstalar o app, reenviar teste, conferir no banco a limpeza 404/410; conferir o rate limit do /api/push/test (6º POST em 1 min → 429). NÃO prometer 'deep link com sessão de 30 dias' no roteiro: clique com sessão expirada cai no /signin SEM retorno ao destino (middleware não preserva a URL — limitação aceita da v1, crítica 5). 5) Kill switch: WEB_PUSH_HABILITADO=false no SSM + regenerar app.env + systemctl restart myfinance (UI mostra indisponível, envio vira no-op; SW sem payload não mostra nada). 6) QA do Pedro em aparelho: iPhone iOS 16.4+ (push só com PWA instalado, fluxo de orientação, permissão via Ajustes, aviso na tela bloqueada SEM valores, deep link COM sessão válida e o comportamento /signin com sessão vencida documentado como esperado); iPad Safari (deve cair na orientação de instalação — heurística MacIntel+touch); Android (app aberto/fechado, negar e reverter, dois aparelhos no mesmo usuário + lixeira); PushInviteSheet após salvar lembrete (aparece uma vez, 'Agora não' silencia 14 dias); reteste das pendências de aparelho real das fases anteriores.",
+    "plano_qa": "Unit (vitest): contract/pushClient com caso iPad (fatia 0); enviarPush com web-push mockado + 5 fontes afirmando o gancho + rate limit tier (A); harness do sw.js com self falso, incluindo dedupe por tag na escalada (B); estados da UI + PushInviteSheet com pushClient mockado (C); componentes do acabamento (D). E2E no CI (sem push real): mobile-perfil.spec.ts com Notification/PushManager stubados via addInitScript (granted/denied/iOS); suíte mobile existente + mobile-overflow (KNOWN_CLIP vazio); --workers=2 local (rate limit do /api/auth/me). SNAPSHOTS DESKTOP (resolução da crítica 3): C e D NÃO commitam binários de e2e/desktop-*-snapshots; após o merge das fatias, um PASSO DE INTEGRAÇÃO único (arquiteto) roda os guardas desktop-layout/desktop-carteira/desktop-fluxo/desktop-fase3 (incluindo impressão A4), atualiza os snapshots UMA vez e abre PR de integração com o diff visual completo anexado para aprovação do Wellington. QA desktop compara ANTES (main) vs DEPOIS a >=1024px; diferenças permitidas e enumeradas: (1) seção Notificações no /profile, (2) string neutra do 'Manter conectado' no /signin, (3) links da Saúde na paleta oficial, (4) título repetido removido dos blocos dos Relatórios — nada além. QA mobile (skill verify): build de produção (SW só registra em prod), 390/320px, demo; roteiro: Perfil → 4 estados de push + lista de aparelhos; PushInviteSheet ao salvar lembrete; sino continua funcionando igual (push não mexe no in-app; central INALTERADA — C2/A2 cortados); telas do acabamento uma a uma; dark mode das rotas auditadas. Integração pós-merge: tsc, lint, vitest (excluindo os 3 Step4*Fields que já travam na main), next build, e o fluxo completo assinar→disparar orçamento→receber num Chrome local com chaves de dev, conferindo que a escalada substitui a notificação. Consultor: logar personificando e conferir que a seção de push age sobre o PRÓPRIO consultor (sessão), nunca assina como cliente.",
+    "riscos": [
+      "iOS: push exige PWA instalado (16.4+) e comportamento próprio — mitigado com isIosSemPwa (agora cobrindo iPad via MacIntel+maxTouchPoints) + fallback do retorno 'erro' de assinarPush mostrando a orientação de instalação; só o teste do Pedro em aparelho real valida de verdade.",
+      "Deep link com sessão expirada (crítica 5, ACEITA como limitação): o middleware redireciona a /signin sem preservar destino; com TTL de até 7d na categoria conta, um clique tardio aterrissa no login e a pessoa reencontra o aviso pelo sino. A alternativa de guardar destino no cliente foi REJEITADA na v1: o fluxo do /signin é arquivo compartilhado fora das fatias e o ganho é pequeno (o sino preserva o conteúdo); registrada como follow-up junto com a pendência de retorno pós-login geral. A promessa foi removida do roteiro de QA.",
+      "Rotação de endpoint (pushsubscriptionchange): o SW não re-registra no servidor (POST exige CSRF) — reconciliação só na próxima abertura do app (sincronizarAssinaturaSeAtiva); janela de perda aceita para não abrir exceção de CSRF (um POST sem CSRF permitiria a um site malicioso plantar o endpoint dele na conta da vítima).",
+      "Assinatura sobrevive ao logout na v1 (payload mínimo, clique cai no /signin) — decisão registrada junto com a tabela de sessões; a lista de aparelhos do P2 dá ao usuário o remédio manual (remover o aparelho de qualquer lugar).",
+      "setAppBadge cortado do protótipo (crítica 1): exigiria contagem de não lidas no payload + limpeza na leitura tocando NotificationDropdown (fase 0, fora das fatias) — follow-up registrado; o badge nativo do sistema (ícone monocromático) continua funcionando via showNotification.",
+      "Cartão-convite do sino (C2) e recolor Aceitar/Recusar (A2) cortados da fase (crítica 2): NotificationDropdown renderiza no desktop >= lg e é arquivo de fase 0 compartilhado — incorporá-lo quebraria guardas e o paralelismo; recolor vai no PR de alinhamento separado (sugestão do próprio designer), cartão vira pergunta ao Wellington. O opt-in contextual não se perde: o PushInviteSheet da Agenda (C1) FOI incorporado à fatia C com arquivos declarados.",
+      "README de pendências estava desatualizado em relação à main (crítica 4): dois itens do acabamento já estavam entregues (iCal #223, MobileTabRail min-h-11). Mitigação: re-auditoria por grep é o primeiro passo obrigatório da fatia D, e a fatia 0 corrige o README.",
+      "Snapshots do desktop-fase3 eram ponto de colisão C×D (crítica 3): resolvido transformando e2e/desktop-*-snapshots em recurso compartilhado com atualização única pós-merge — custo: as fatias C e D não fecham 100% sozinhas (o guard desktop delas só verde no passo de integração), aceito para preservar worktrees sem conflito de binário.",
+      "Corpo do push do designer ('Orçamento: Restaurantes passou do limite em setembro', ≤90 chars com nome de evento) REJEITADO: evento.titulo é texto livre do usuário e a message dos lembretes embute brl(valor) — 'nome de evento pode' é regra frágil de vazamento na tela bloqueada; o title real das Notifications (sem R$, verificado nos 3 serviços) + corpo genérico entrega utilidade equivalente com risco LGPD menor. Divergência explícita na pergunta 1 ao Wellington.",
+      "Sticky da barra do mês do Orçamento mexe em wrapper com overflow que já causou corte — único item da fatia D com licença para cair se o mobile-overflow regredir.",
+      "Fatia E pode identificar correções em arquivos de outras fatias — regra dura: tabela para o corretor, nunca edição cruzada.",
+      "LGPD/legal: mencionar push no Aviso de Privacidade é pendência para os ADVOGADOS (texto legal intocável); v1 sai com opt-in explícito e payload mínimo.",
+      "Performance da /carteira segue refém da API de resumo (2,5–5,0s, back-end) — meta de Lighthouse rebaixada e justificada.",
+      "Migration roda automática no deploy (prisma migrate deploy) — aditiva e segura, mas o deploy deve ir DEPOIS das chaves VAPID no app.env (ordem no plano de produção).",
+      "Aparelho compartilhado: upsert por endpoint reatribui a assinatura ao último usuário que ativou — comportamento padrão de push, registrado; a lista de aparelhos torna isso visível ao usuário."
+    ],
+    "perguntas_para_wellington": [
+      "Payload do push (LGPD) — DIVERGÊNCIA com o designer: o protótipo usa título fixo 'My Finance' + corpo com categoria e nome do evento (ex. 'Orçamento: Restaurantes passou do limite em setembro'). Recomendo o contrário: TÍTULO REAL da notificação (verificado sem R$: 'Orçamento de Alimentação estourado', 'Parcela vence amanhã') + corpo genérico ('Toque para ver os detalhes.') — o corpo do designer vazaria o título livre de eventos da agenda e a regra 'nome de evento pode' é frágil (a message dos lembretes embute valores). Utilidade na tela bloqueada é a mesma; risco menor. Aprova a recomendação do arquiteto?",
+      "setAppBadge (contagem de não lidas no ícone do app, cenários A1/A3 do protótipo) fica FORA da v1: exigiria a contagem no payload e limpeza 'na leitura' tocando o NotificationDropdown (arquivo de fase 0 fora das fatias). Recomendo registrar como follow-up da central de notificações. Aceita o corte?",
+      "Cartão-convite no topo da central do sino (C2) fica FORA da v1 pelo mesmo motivo (NotificationDropdown renderiza no desktop e quebraria guardas/paralelismo); o convite contextual ENTRA pela Agenda (C1 — PushInviteSheet pós-salvar lembrete, incorporado à fatia C) e pelo Perfil. O recolor Aceitar/Recusar (A2) vai no PR de alinhamento separado que o designer sugeriu. Concorda com os três encaminhamentos?",
+      "Lista de aparelhos do P2 ENTRA na v1: ampliei o contrato com GET /api/push/subscriptions (rótulo por user-agent + data) e DELETE por id (a lixeira remove a assinatura de outro aparelho — só do próprio usuário). Custo baixo e o protótipo aprovado passa a ser o construído. Confirma?",
+      "A descrição da categoria 'Conta e consultor' do protótipo promete 'exportação de dados', mas NENHUMA notificação de exportação existe no código (o export só lê). Vou ajustar a copy para só convites/atividade da conta e registrar 'notificação de exportação concluída' como follow-up. Ok?",
+      "Perfil DESKTOP ganha a seção 'Notificações' (entre 'Agenda' e 'Privacidade') e o push liga também no navegador desktop com o mesmo código — recomendo sim. Além disso, a fatia D torna VISÍVEIS no desktop duas correções aprovadas: links da Saúde na paleta oficial e remoção do título repetido nos Relatórios (mais a string neutra do 'Manter conectado'). Os snapshots desktop serão atualizados UMA vez num PR de integração pós-merge com o diff visual completo anexado — quer aprovar esse diff antes de eu abrir os demais PRs?",
+      "Consultor agindo pelo cliente: quando a edição do consultor estoura um alerta de orçamento, o push VAI para o cliente — paridade 1:1 com o sino (o alerta é sobre o orçamento dele). Suprimir exigiria propagar o ator até os serviços. Aprova manter a paridade?",
+      "Acabamento — corte por risco: 'Desfazer do lançamento rápido não restaura fórmula/comentário' fica FORA (regra de negócio do undo). E dois itens do README saíram por JÁ estarem em produção (revogação do iCal, entregue no #223, e chip do MobileTabRail já em 44px). Concorda com os cortes?",
+      "Legal: push é opt-in explícito (permissão do navegador + toggles), recomendo lançar SEM esperar os advogados, registrando 'mencionar notificações push no Aviso de Privacidade' como pendência para a próxima revisão deles. Ok?",
+      "Logout NÃO cancela a assinatura de push do aparelho na v1, e clique com sessão expirada cai no /signin sem voltar ao destino (o middleware não preserva a URL) — duas limitações aceitas e registradas (a lista de aparelhos dá o remédio manual; o sino preserva o conteúdo). Aceita?",
+      "Ordem de produção: primeiro as chaves VAPID no SSM + app.env regenerado, DEPOIS o merge/deploy da fase. Recomendo eu gerar as chaves e aplicar com você conferindo. Fechado?"
+    ]
+  },
+  "design": {
+    "resumo": "Protótipo da fase 5 REVISADO após as críticas, no mesmo arquivo e na mesma casca/bancada das fases 0–3 (3 grupos de cenários, notas com arquivos-alvo, claro/escuro, \"Ver a 320px\", miniaturas do desktop). Mudanças da revisão: (1) o payload agora segue o contrato do arquiteto (PushPayloadV1) — título = Notification.title real verificado sem R$, corpo genérico por categoria, tag = mf-<categoria>-<groupId|eventoId|postId|inviteId> (deduplica a escalada do orçamento), TTL orçamento/comunidade 24h, agenda 12h, conta 2d; abandonei título fixo \"My Finance\", tag por notificationId, TTL 7d e o setAppBadge (virou follow-up registrado, exigiria contagem no payload + tocar a central da fase 0). (2) A lista de aparelhos com lixeira saiu do P2 (o contrato HTTP só conhece a própria subscription): master vira \"este aparelho\" com hint; lista remota = follow-up. (3) Aceitar/Recusar do sino aparecem COMO SÃO HOJE (verde success) — a fase não toca o NotificationDropdown; recolorir é o PR de paleta separado. (4) C1 e C2 continuam no protótipo, mas marcados com ⚠ como entregas que exigem decisão do arquiteto (arquivos fora das fatias); defendo mantê-los. (5) Copy de \"Conta e consultor\" corrigida (exportação NÃO cria Notification hoje) e o mock do sino trocou o aviso de exportação por um segundo nível da escalada de orçamento. (6) Botão de teste trava 30 s após o envio (casa com rate limit da rota). (7) Acabamento re-auditado: iCal e chip do MobileTabRail removidos (já resolvidos na main); registrada a colisão de snapshots desktop-fase3 entre Saúde/Relatórios e o Perfil. (8) Deep link com sessão vencida documentado como limitação aceita da v1. (9) Detecção iOS inclui iPad (MacIntel + maxTouchPoints>1) com fallback de erro → orientação de instalação. Verificado no Chromium sem erros de página.",
+    "prototipo_path": "/tmp/claude-1000/-home-huske-dev-front/6c58f02b-37b5-4b6a-972a-c8c4fb198b85/scratchpad/pwa-fase5/prototipo.html",
+    "telas": [
+      {
+        "nome": "C1 · Convite no momento certo (Agenda)",
+        "descricao": "A pessoa salva um lembrete; vem o sheet 'Receber lembretes no celular?' com a prévia do aviso no formato REAL do payload (título 'Lembrete: IPTU parcela 9' + corpo genérico 'Toque para ver os detalhes na agenda.') e botões 'Agora não' / 'Ativar avisos'. 'Ativar avisos' dispara o diálogo do sistema; Permitir liga, Não Permitir cai no estado 'sem permissão' do Perfil.",
+        "decisoes": [
+          "requestPermission() só dentro do clique — nunca em useEffect, nunca no login/carga; sheet explicativo ANTES do diálogo do sistema (recusa é quase irreversível)",
+          "Prévia atualizada para o contrato do arquiteto: título real + corpo genérico (crítica 1 acatada)",
+          "'Agora não' primeiro no DOM, foco inicial no título; silencia por 14 dias (localStorage por aparelho) sem gastar a permissão",
+          "⚠ Marcado no protótipo: PushInviteSheet + gancho no AgendaEventoModal estão fora das fatias atuais — ou entram declarados na fatia C, ou C1 sai da v1 (crítica 2; decisão explícita pedida ao Wellington)"
+        ]
+      },
+      {
+        "nome": "C2 · Cartão-convite na central do sino",
+        "descricao": "Com não lida e push nunca pedido, a central abre com o cartão 'Receba estes avisos no aparelho' (brand-tint, ícone 36px, botões 44px) acima da lista, sem esconder convites de consultoria.",
+        "decisoes": [
+          "Abrir o sino é o gesto; o cartão não aparece se a permissão já foi decidida; 'Agora não' adia 14 dias",
+          "⚠ Marcado no protótipo: o cartão vive no NotificationDropdown (fase 0), arquivo que nenhuma fatia lista — mesma decisão pendente do C1 (crítica 2); o resto da central fica intocado de qualquer forma"
+        ]
+      },
+      {
+        "nome": "C3 · iPhone Safari sem app instalado",
+        "descricao": "Mesmo gesto do C1, mas sem PWA instalado: sheet vira passo a passo de instalação (Compartilhar → Adicionar à Tela de Início → abrir pelo ícone), sem pedir permissão.",
+        "decisoes": [
+          "Detecção agora inclui iPad: navigator.platform==='MacIntel' + maxTouchPoints>1, já que o Safari do iPadOS se apresenta como macOS (crítica 8 acatada)",
+          "Fallback novo: assinarPush retornando 'erro' mostra esta mesma orientação de instalação — cobre qualquer detecção furada",
+          "iOS 16.4+; InstallAppCard da fase 0 segue como convite geral, este é específico de avisos"
+        ]
+      },
+      {
+        "nome": "P1 · Perfil › Notificações — nunca pediu",
+        "descricao": "Linha 'Notificações' na seção Conta do Perfil (valor = Inativas/Ativas/Sem permissão/Instalar o app). Cartão explica benefício + regra LGPD e botão 'Ativar neste aparelho'; categorias visíveis porém aria-disabled.",
+        "decisoes": [
+          "Categorias visíveis antes de ativar (mostrar o que existe), inertes até haver subscription",
+          "Rodapé fixa a regra: avisos nunca mostram valores em R$ (continua verdadeiro no contrato novo: título verificado sem R$, corpo genérico)"
+        ]
+      },
+      {
+        "nome": "P2 · Perfil › Notificações — ativas",
+        "descricao": "Master 'Avisos neste aparelho' (switch 51×31, subtítulo 'Este iPhone · ativado hoje'), 4 categorias com switch (Orçamento, Agenda, Comunidade·Beta, Conta e consultor) e 'Enviar notificação de teste' com cooldown de 30 s.",
+        "decisoes": [
+          "REVISADO: lista de aparelhos com lixeira CORTADA da v1 — o contrato HTTP só conhece a própria subscription (POST/DELETE por endpoint, sem GET de listagem nem DELETE por id); hint explica que cada aparelho desliga por si; lista remota registrada como follow-up (crítica 2 acatada)",
+          "Categoria 'Conta e consultor' com copy corrigida: 'Convites para um consultor acompanhar sua conta' — exportação NÃO cria Notification hoje (crítica 7 acatada; 'notificação de exportação concluída' registrada como follow-up fora da fase)",
+          "Botão de teste desabilita por 30 s após o envio ('Enviada — aguarde 30 s para reenviar'), casando com o tier de rate limit próprio recomendado para /api/push/test (crítica 6 — lado UI)",
+          "Comunidade não renderiza com COMUNIDADE_HABILITADA desligada; desligar o master confirma em sheet; 404/410 remove subscription morta"
+        ]
+      },
+      {
+        "nome": "P3 · Perfil › Notificações — permissão negada",
+        "descricao": "Selo vermelho 'Sem permissão', segmento iPhone (app instalado) | Android · Chrome trocando o passo a passo, botão 'Já liberei — verificar de novo' que relê Notification.permission.",
+        "decisoes": [
+          "Nunca reexibir o diálogo do sistema quando denied (o navegador suprime)",
+          "Instrução por plataforma: Ajustes → Notificações → My Finance; cadeado do endereço → Permissões no Chrome"
+        ]
+      },
+      {
+        "nome": "A1 · Tela bloqueada + deep link",
+        "descricao": "Mock do push no contrato PushPayloadV1: título = 'Orçamento: Restaurantes passou do limite' (Notification.title real, sem R$), corpo genérico 'Toque para ver os detalhes no app.'; o toque abre o Fluxo com alerta âmbar e linha em flash (os R$ 1.243,90 só dentro do app).",
+        "decisoes": [
+          "REVISADO para o contrato do arquiteto: título real + corpo genérico em vez de título fixo 'My Finance' + corpo com detalhes (crítica 1 acatada — corpo com nome de evento seria frágil: evento.titulo é texto livre e a message dos lembretes embute R$)",
+          "tag = mf-orcamento-<groupId>: a escalada do mesmo grupo (80% → estourado) SUBSTITUI em vez de empilhar (antes era por notificationId, que não deduplicava)",
+          "setAppBadge REMOVIDO da v1 — follow-up registrado (exigiria contagem no payload e tocar a central da fase 0)",
+          "Sessão vencida: clique cai no /signin e perde o destino — limitação aceita da v1, escrita na spec e a tirar do roteiro de QA (crítica 5)"
+        ]
+      },
+      {
+        "nome": "A2 · Central do sino no celular",
+        "descricao": "NotificationDropdown placement='down' da fase 0 com as fontes reais que criam Notification: orçamento (dois níveis da escalada, ilustrando o dedupe por tag), lembrete, convite de consultoria e comentário da comunidade. Aviso de exportação REMOVIDO do mock (não existe no código). Esqueleto 600ms; abrir marca como lida.",
+        "decisoes": [
+          "Central inalterada — push é segundo canal para as MESMAS notificações",
+          "REVISADO: Aceitar/Recusar aparecem como são hoje (Aceitar verde success) — esta fase não toca o NotificationDropdown; recolorir para a paleta é o PR separado já combinado (crítica 2 acatada: o aprovado = o construído)",
+          "Título com href navega e fecha o painel antes"
+        ]
+      },
+      {
+        "nome": "A3 · Central em dia (vazia)",
+        "descricao": "'Você está em dia! Nenhuma notificação no momento.', badge ausente; cartão-convite ainda pode aparecer se o push nunca foi pedido.",
+        "decisoes": [
+          "Mesmo texto do desktop",
+          "setAppBadge(0) removido — quando o follow-up do badge entrar, zera aqui também"
+        ]
+      },
+      {
+        "nome": "Desktop (miniaturas)",
+        "descricao": "Perfil com a seção Notificações nova ('Ativar neste navegador' + 'Enviar teste') e sino do rodapé da sidebar inalterado, com botões do convite na cor atual (verde).",
+        "decisoes": [
+          "Única mudança visível ≥ lg é a seção do Perfil (adição aprovada)",
+          "Miniatura do sino corrigida para mostrar o verde atual — nada muda nele nesta fase"
+        ]
+      }
+    ],
+    "especificacao_visual": "Paleta: exclusivamente brandColors.ts — #0079F2 só não-textual (switch ligado, ponto de não lida, ícone do push, FAB); texto/links #396CAA claro / #6E9DC4 escuro; negativos #D92D20/#F97066; âmbar #B45309/#D97706 claro e #FBBF24 escuro; fonte Outfit. Exceção documentada: os botões Aceitar/Recusar do sino aparecem no verde success atual do componente da fase 0, porque esta fase não o altera (alinhamento à paleta = PR separado). MEDIDAS: linha com interruptor min-h 56px, pad 6/12, alvo = linha inteira (role=switch), interruptor 51×31px bolinha 27px (desligado --line claro / #3A3F4A escuro; ligado #0079F2); sheet do convite: título 18px, corpo 14px/1.55, prévia em cartão raio 12px no formato real do payload, rodapé 2 botões 48px ('Agora não' neutro primeiro no DOM, 'Ativar avisos' primário #396CAA); cartão-convite do sino: raio 12px, pad 12px, fundo --brand-tint, ícone 36px, botões 44px; painel do sino (fase 0): cabeçalho+8px, right 16, w min(350px,100vw−32), raio 16px, item 10/12px, título 13,5px, corpo 12,5px, hora 10,5px caps; badge do sino min 18×18px font 11px '9+' a partir de 10, anel 2px (setAppBadge do ícone do app = FORA da v1, follow-up); passos de instrução: numerais 24px em --brand-tint/--brand-text, linhas ≥44px, texto 14px/1.45; teste: botão 48px largura total com cooldown de 30 s pós-envio; tela bloqueada: cartão raio 22px, ícone 38px, título 14px, corpo 13,5px/1.35, não segue o tema do app. PAYLOAD (contrato do arquiteto, PushPayloadV1): título = Notification.title real ≤60 ch, verificado sem R$ e sem números de conta; corpo = corpoGenerico(categoria) ('Toque para ver os detalhes…'); a message do sino (que embute R$) NUNCA sai no push; data.url = deepLinkDaNotificacao(type, metadata) validado same-origin; tag = mf-<categoria>-<groupId|eventoId|postId|inviteId> (escalada substitui, não empilha); TTL: orçamento/comunidade 24h, agenda 12h, conta 2d (172800s). ESTADOS: 4 do Perfil (nunca pediu / ativas / negada com segmento por navegador / iOS-iPad sem instalar); esqueleto 600ms no sino; vazio 'Você está em dia!'; erro de teste remove subscription morta (404/410); confirmações destrutivas em sheet (padrão fase 3); sessão vencida no deep link = /signin sem retorno (limitação aceita v1). DARK MODE: tokens da casca (superfícies #1F1F22/#18181B, texto #F2F4F7, links #6E9DC4); cartão-convite rgba(0,121,242,.20) texto #D0D5DD; switch desligado #3A3F4A; prefers-reduced-motion desliga sheet/switch/flash. Desktop ≥ lg: nada muda exceto a seção Notificações do Perfil.",
+    "acessibilidade": [
+      "Pedido de permissão sempre atrás de gesto explícito; sheet-convite com 'Agora não' primeiro no DOM e foco inicial no título (role=dialog, aria-modal, Esc e scrim fecham, foco volta à origem)",
+      "Interruptores: botão-linha inteira com role='switch' + aria-checked, nome acessível = título da linha, alvo ≥56px; categoria indisponível usa aria-disabled (permanece na accessibility tree) com opacidade que mantém AA",
+      "Sino: aria-label 'Notificações, N não lidas'; painel role='dialog' com foco gerenciado; abrir marca como lida e badge/aria-label atualizam juntos",
+      "Mudanças de estado (ligado/desligado, teste enviado, permissão liberada) em role='status' (aria-live=polite); falha de envio em role='alert'; botão de teste em cooldown usa disabled real com texto explicativo, não só cor",
+      "Aceitar/Recusar do convite: botões 44px com aria-label completo ('Aceitar convite de consultoria')",
+      "Passos de instrução numerados como lista, ícones com nome escrito (Compartilhar/Adicionar à Tela de Início)",
+      "Contrastes AA: #396CAA/branco 4,7:1; #6E9DC4/#18181B 6,7:1; #B45309/branco 4,8:1; #F97066/#18181B 5:1; #0079F2 nunca em texto; switch ligado ≥3:1 como componente gráfico",
+      "prefers-reduced-motion: remove transições de sheet/scrim/switch e o flash de linha do deep link",
+      "focus-visible com outline 2px --brand em todos os controles",
+      "Segmento iPhone|Android com aria-checked (padrão da fase 3), alvos 44px"
+    ],
+    "perguntas_para_wellington": [
+      "1. C1 e C2 (convite pós-lembrete e cartão no sino) tocam arquivos que NENHUMA fatia do arquiteto lista (AgendaEventoModal e NotificationDropdown). Recomendo mantê-los e declará-los na fatia C — o opt-in só pelo Perfil quase ninguém descobre, e são os dois momentos de maior conversão. Alternativa defensável do arquiteto: cortar da v1 e registrar. Decida item a item ANTES do paralelismo; o protótipo mostra os dois com ⚠ para você decidir vendo.",
+      "2. Payload: acatei o contrato do arquiteto (título real da notificação verificado sem R$ + corpo genérico, tag por grupo/evento que deduplica a escalada do orçamento, TTL conta 2d). Minha versão anterior (título fixo 'My Finance', corpo com nome do evento, tag por notification) tinha os problemas que a crítica apontou — divergência encerrada, sem pendência. Só confirme que o corpo genérico te atende: a tela bloqueada mostra 'Orçamento: Restaurantes passou do limite' + 'Toque para ver os detalhes no app.'",
+      "3. setAppBadge (numerozinho no ícone do app instalado): tirei da v1 — exigiria contagem de não lidas no payload e mexer na central da fase 0, fora de todas as fatias. Recomendo registrar como follow-up formal (entra fácil numa fase de polimento quando o contrato ganhar o campo). Ok?",
+      "4. Lista de aparelhos no P2: cortei para 'apenas este aparelho' (o contrato HTTP não tem GET de listagem nem DELETE por id). Recomendo aceitar assim na v1; se você quiser a lista com remoção à distância, o arquiteto precisa adicionar GET /api/push/subscriptions + DELETE por id à fatia 0 — aí eu devolvo a tela (já desenhada na v1, é só restaurar).",
+      "5. Botões Aceitar/Recusar do sino: o protótipo agora mostra o VERDE atual (a fase não toca o NotificationDropdown). Mantenho a recomendação de alinhar à paleta (#396CAA) em PR separado, desktop e mobile juntos — mas o que você aprova aqui é o que será construído: sino como está.",
+      "6. Momento do convite: mantenho a recomendação — sheet pós-salvar lembrete (C1) + cartão no sino (C2), adiamento de 14 dias no 'Agora não', nunca na carga nem no login. (Sujeito ao item 1.)",
+      "7. Deep link com sessão vencida cai no /signin e perde a tela do aviso (o middleware não guarda destino). Recomendo aceitar como limitação da v1 e TIRAR 'deep link com sessão de 30 dias' do roteiro de QA; follow-up barato sem tocar o middleware: /signin guardar o destino no cliente e devolver pós-login. Divergência com o plano do arquiteto, que tratava como garantido.",
+      "8. Acabamento re-auditado: saem da lista a revogação do iCal (já existe desde o #223) e o chip do MobileTabRail (já está em 44px na main) — o README de pendências está atrás da main; vale 5 min de grep antes de abrir a fatia D. Sigo defendendo: links da Saúde, selos da Comunidade no escuro, borda de erro do Nome do objetivo, RegistrarMesSheet esperar a API, Modal sem nome acessível, ThemeToggle sem label, barra do mês sticky. ATENÇÃO de sequenciamento: Saúde e Relatórios aparecem no desktop e alteram snapshots do desktop-fase3.spec.ts — mesmo diretório que a fatia do Perfil atualiza; não rodar em paralelo, ou atualizar snapshots num passo único pós-merge (e essas mudanças ≥ lg precisam do seu OK, como a string do SignInForm).",
+      "9. Rate limit do /api/push/test: recomendo os dois lados — tier baixo (ex. 5/min) no rateLimit.ts (fatia A) E o cooldown de 30 s no botão (já no protótipo). Qualquer um sozinho basta; os dois custam quase nada.",
+      "10. Comunidade: categoria só aparece (Perfil e push) com COMUNIDade_HABILITADA ligada; no protótipo está com selo Beta só para você ver o layout. 11. Consultor agindo pelo cliente: sem supressão especial nesta fase (push espelha o sino 1:1; transparência joga a favor) — igual ao arquiteto, sem divergência. 12. Push no desktop: liga junto (mesmo código); a seção do Perfil é a única mudança ≥ lg — confirme que está dentro da exceção aprovada. 13. Aviso de Privacidade: nada muda (texto dos advogados); registrar a menção a push para a próxima revisão deles. 14. Exportação de dados NÃO gera notificação hoje — corrigi a copy; se quiser 'exportação concluída' avisando, é follow-up fora da fase 5."
+    ]
+  },
+  "revisao": {
+    "problemas": [
+      {
+        "alvo": "ambos",
+        "gravidade": "alta",
+        "descricao": "O contrato do payload de push divergiu entre arquiteto e designer em 5 pontos, e as fatias A (enviarPush), B (sw.js) e C (prévia do aviso) rodarão em worktrees paralelos implementando shapes diferentes. Arquiteto: title = Notification.title real + body = corpoGenerico(categoria), tag = 'mf-<categoria>-<groupId|eventoId|...>', TTL conta = 172800s (2d), sem setAppBadge. Designer: título fixo 'My Finance' + corpo com categoria e nome do evento (≤90 chars, ex. 'Orçamento: Restaurantes passou do limite em setembro'), tag = id da Notification, TTL conta = 7d, e setAppBadge com as não lidas do sino ('no push e na leitura'). A tag por notificationId do designer NÃO deduplica a escalada de rank do mesmo grupo de orçamento (80% → estourado empilha em vez de substituir); o setAppBadge exige uma contagem de não lidas que não existe no PushPayloadV1 nem chega ao SW, e a limpeza 'na leitura' exige tocar o NotificationDropdown/central (arquivo de fase 0, fora de todas as fatias).",
+        "evidencia": "Spec do arquiteto (contract.ts: PushPayloadV1, tagDaNotificacao, TTL_SEGUNDOS_POR_CATEGORIA, corpoGenerico) × protótipo cenário A1 ('título \"My Finance\"... tag = id da Notification... Badge do ícone do app = mesmas não lidas do sino (setAppBadge no push e na leitura)') e especificacao_visual ('título fixo My Finance (manifest)... TTL 24h (orçamento/agenda) e 7d (conta)'). Escalada de rank verificada em src/services/cashflow/orcamentoAlertas.ts:76-91 (3 níveis por grupo/mês).",
+        "sugestao": "Fechar UM contrato antes da fatia 0 mergear. Recomendo o do arquiteto: title real verificado sem R$ + corpo genérico (o corpo do designer inclui nome de evento — evento.titulo é texto livre do usuário e a message dos lembretes embute brl(valor), lembretes.ts:76-93, então 'nome de evento pode' é regra frágil) e tag por grupo/evento (deduplica escalada). setAppBadge: ou entra formalmente no contrato (campo de contagem no payload + limpeza na leitura, com dono de arquivo definido) ou sai do protótipo e vira follow-up registrado."
+      },
+      {
+        "alvo": "ambos",
+        "gravidade": "alta",
+        "descricao": "O protótipo do designer contém 4 entregas que não cabem em nenhuma fatia do arquiteto e, duas delas, em nenhum endpoint do contrato: (1) C1 — sheet-convite pós-salvar lembrete na Agenda (cita components/pwa/PushInviteSheet.tsx novo + gancho em calendario/AgendaEventoModal.tsx); (2) C2 — cartão-convite no topo da central do sino (cita components/header/NotificationDropdown.tsx, componente da fase 0 que nenhuma fatia lista); (3) P2 — lista de aparelhos com lixeira removendo a subscription de OUTRO aparelho, impossível com o contrato HTTP atual (só POST/DELETE por endpoint — o cliente conhece apenas o próprio endpoint; falta GET de listagem e DELETE por id); (4) A2 — recolorir Aceitar/Recusar do convite no sino móvel. Se o Wellington aprovar o protótipo como está, as fatias não o entregam; se as fatias forem seguidas, o aprovado não é o construído.",
+        "evidencia": "Protótipo, rodapés de arquivos dos cenários C1 ('components/pwa/PushInviteSheet.tsx (novo), calendar io/AgendaEventoModal.tsx (gancho pós-salvar)'), C2 ('components/header/NotificationDropdown.tsx (cartão)') e P2 ('a lixeira apaga a subscription do outro aparelho'; alvo medido 'Remover avisos do Chrome no computador' 44×44 no screenshot revisao-02-p2.png) × spec do arquiteto: docblock do contract.ts só define POST/DELETE subscriptions por endpoint + GET/PATCH preferencias; arquivos_novos/alterados das fatias 0/A/B/C não incluem NotificationDropdown, AgendaEventoModal nem PushInviteSheet.",
+        "sugestao": "Decisão explícita do arquiteto item a item antes do paralelismo: incorporar C1/C2 numa fatia com os arquivos declarados (ou cortá-los e registrar — o opt-in só pelo Perfil é defensável), cortar a lista de aparelhos do P2 para 'apenas este aparelho' na v1 (ou adicionar GET /api/push/subscriptions + DELETE por id ao contrato da fatia 0), e mover a recolorização do sino para o PR de alinhamento separado que o próprio designer sugere."
+      },
+      {
+        "alvo": "arquitetura",
+        "gravidade": "alta",
+        "descricao": "A fatia D viola o próprio critério de aceite e colide com a fatia C nos guardas desktop: os links text-blue-600 da Saúde e o título repetido dos Relatórios são visíveis ≥1024px, e o desktop-fase3.spec.ts snapshota SAUDE, RELATORIOS, SONHOS, COMUNIDADE e PERFIL — logo D altera snapshots do MESMO spec/diretório que C atualiza (seção nova do /profile), quebrando a regra 'fatias sem arquivos em comum' (conflito de binários de snapshot no merge) e tornando impossível o aceite 'zero regressão nos guardas desktop além da string do SignInForm'.",
+        "evidencia": "e2e/desktop-fase3.spec.ts:194 (SAUDE), :206 (RELATORIOS), :236 (PERFIL), :281 (COMUNIDADE) com toHaveScreenshot em e2e/desktop-fase3.spec.ts-snapshots/; fatia D lista src/components/saude-financeira/*.tsx e src/components/relatorios/* como alterados; fatia C lista 'e2e (spec desktop que retratar /profile — atualizar snapshot)'. Os componentes da Saúde e o ComponentCard dos Relatórios renderizam em todas as larguras.",
+        "sugestao": "Assumir no plano que D também atualiza snapshots do desktop-fase3 (cores da Saúde entram na paleta, título dos Relatórios some — mudanças desktop que precisam de aprovação do Wellington como a string do SignInForm), listar e2e/desktop-fase3.spec.ts-snapshots/ como recurso compartilhado e sequenciar: D não roda em paralelo com C, ou C e D atualizam snapshots num passo de integração único pós-merge."
+      },
+      {
+        "alvo": "arquitetura",
+        "gravidade": "media",
+        "descricao": "A fatia D contém pelo menos um item JÁ implementado em produção e um provavelmente resolvido: a revogação do token iCal existe por completo (DELETE que anula icalToken + botão 'Revogar' com useResponsiveConfirm, entregue no #223), e o MobileTabRail já tem min-h-11 (= 44px) no chip — a pendência de '42px' do README pode ter sido corrigida na integração #244. O README de pendências está desatualizado em relação à main.",
+        "evidencia": "src/app/api/agenda/preferencias/ical/route.ts:41-52 (export const DELETE ... icalToken: null) e src/components/user-profile/AgendaPreferencias.tsx:101-221 (revogarLink com confirmação e botão 'Revogar'); src/components/ui/tabs/MobileTabRail.tsx:47 ('inline-flex min-h-11 ...'). git log: feed iCal #223 já incluía a revogação.",
+        "sugestao": "Re-auditar cada item da lista de acabamento contra a main atual antes de abrir a fatia D (5 minutos de grep evitam PRs vazios): remover o iCal do escopo, medir o chip do MobileTabRail em runtime e cortar se já estiver em 44px."
+      },
+      {
+        "alvo": "arquitetura",
+        "gravidade": "media",
+        "descricao": "Deep link do push não sobrevive a sessão expirada: o middleware redireciona para /signin sem guardar o destino (troca só o pathname, sem next= nem retorno pós-login), e o SignIn manda para o dashboard. Com TTLs de até 2 dias ('conta') e QA prometendo 'deep link com sessão de 30 dias', um clique com sessão vencida aterrissa no login e perde a tela do aviso — exatamente o cenário do push (app fechado há dias). O plano trata isso como garantido em vez de limitação.",
+        "evidencia": "src/middleware.ts:243-249 e :256-261 (url.pathname = '/signin'; NextResponse.redirect sem preservar destino); plano_producao item 6 ('deep link com sessão de 30 dias'); risco 3 do arquiteto assume que 'o clique cai no /signin sem sessão' apenas para o caso logout.",
+        "sugestao": "Registrar como limitação aceita da v1 (e tirar a promessa do roteiro de QA), ou guardar o destino no cliente: a página /signin pode ler location.search/sessionStorage e devolver pós-login — sem tocar o middleware (arquivo sensível fora das fatias). Não bloqueia o lançamento."
+      },
+      {
+        "alvo": "arquitetura",
+        "gravidade": "baixa",
+        "descricao": "/api/push/test cai no tier genérico de rate limit (60 req/min por IP): cada POST dispara web-push para todas as assinaturas do usuário, então um cliente insistente gera até 60×N envios/min contra o push service com custo zero de fricção. Auto-spam apenas (só envia para as próprias assinaturas), mas é gratuito de fechar.",
+        "evidencia": "src/lib/rateLimit.ts:160-164 (tier '/api/' genérico limit 60/min; nenhum tier para /api/push); spec da fatia A: '/api/push/test POST (sessão, sem flag de dev)'.",
+        "sugestao": "Adicionar tier baixo para /api/push/test (ex. 5/min) no rateLimit.ts dentro da fatia A, ou desabilitar o botão na UI por ~30s após o envio (fatia C) — qualquer um dos dois basta."
+      },
+      {
+        "alvo": "design",
+        "gravidade": "baixa",
+        "descricao": "A categoria 'Conta e consultor' do protótipo promete 'exportação de dados' (descrição no P2 e notificação de exportação no A2), mas nenhuma Notification de exportação é criada no código — /api/profile/export só LÊ notifications para incluí-las no arquivo exportado (o arquiteto verificou certo; o enunciado da fase e o protótipo estão errados). A copy anuncia um aviso que nunca chegará.",
+        "evidencia": "src/app/api/profile/export/route.ts:57 (prisma.notification.findMany — nenhum create); grep de notification.create no repo só encontra orcamentoAlertas, lembretes, comunidade/notificacoes e as 2 rotas de convite. Protótipo P2: 'Conta e consultor — Convites de consultoria e exportação de dados' (revisao-02-p2.png).",
+        "sugestao": "Ajustar a descrição da categoria para só convites/atividade da conta, ou registrar 'notificação de exportação concluída' como follow-up fora da fase 5 (aí sim a copy fica verdadeira)."
+      },
+      {
+        "alvo": "ambos",
+        "gravidade": "baixa",
+        "descricao": "Detecção iOS-sem-PWA (isIosSemPwa = UA iOS + !standalone) não pega iPad: o Safari do iPadOS se apresenta como macOS (MacIntel), então um iPad sem o PWA instalado cai no fluxo normal e o requestPermission/subscribe falha sem a orientação de instalação que o C3 promete. Além disso useResponsiveConfirm está em .tsx, não .ts como listado nos componentes compartilhados (afeta só o copy-paste do caminho).",
+        "evidencia": "Spec do pushClient ('isIosSemPwa(): iOS + !display-mode standalone'); comportamento documentado do iPadOS ('Request Desktop Website' padrão desde iPadOS 13). Caminho real: src/components/ui/sheet/useResponsiveConfirm.tsx (o plano lista src/components/ui/sheet/useResponsiveConfirm.ts, que não existe).",
+        "sugestao": "No pushClient, incluir a heurística navigator.platform==='MacIntel' && navigator.maxTouchPoints>1 na detecção iOS, e tratar o retorno 'erro' de assinarPush com a mesma orientação de instalação como fallback (cobre qualquer detecção furada). Corrigir a extensão do caminho no plano."
+      }
+    ],
+    "pontos_fortes": [
+      "O mapa type→categoria do contrato confere 1:1 com os types reais do código: 'orcamento_alerta' (orcamentoAlertas.ts:30), 'agenda_lembrete' (lembretes.ts:25), 'comunidade-comentario'/'comunidade-moderacao' (notificacoes.ts:9-10), 'consultant_invite' (invitations/route.ts:166) e 'consultant_invite_response' (respond/route.ts:157) — e os '6 pontos de chamada nas 5 fontes' batem exatamente com os 6 prisma.notification.create existentes; a correção do arquiteto de que profile/export NÃO cria Notification está certa contra o enunciado da fase.",
+      "A afirmação LGPD central foi verificada e é verdadeira: nenhum Notification.title atual contém R$ (orcamentoAlertas.ts:78-91 e lembretes.ts:76-93 só põem brl() no message) — title real + corpo genérico + proibição do message no payload é uma recomendação sólida e testável.",
+      "requireSession existe (src/utils/auth.ts:59) e a regra 'rotas de push nunca usam requireAuthWithActing' fecha corretamente o buraco do consultor personificando assinar push como o cliente — coerente com o precedente do iCal, que já nega acting com 403 (ical/route.ts:22-24 e 43-45).",
+      "CSP e edge respeitados: worker-src 'self' já está no middleware (middleware.ts:153), web-push fica confinado a src/lib/webPush.ts (Node, espelhando o padrão pluggyConfig/pluggy), e o design sem NEXT_PUBLIC é compatível com o build no runner do GitHub sem secrets — a chave pública via GET em runtime é a decisão certa para este deploy.",
+      "A recusa de abrir exceção de CSRF para o SW no pushsubscriptionchange, com reconciliação via sincronizarAssinaturaSeAtiva na abertura do app, é o trade-off de segurança correto e está bem justificada (um POST sem CSRF permitiria plantar endpoint alheio na conta da vítima); a janela de perda é real mas se auto-corrige (404/410 apaga, reabertura re-registra).",
+      "Remoção do react-dnd confirmada segura: zero imports em src/, e2e/ e scripts/ — só as entradas do package.json (linhas 72-73).",
+      "Envio síncrono best-effort é a decisão certa para este runtime: todas as fontes já são best-effort no código real (checkOrcamentoAlertasSafe, try/catch da comunidade, loop com catch do cron), nenhum create roda dentro de $transaction (verificado), e o Node longevo do Lightsail suporta fire-and-forget.",
+      "Deep links conferem com rotas reais: /fluxodecaixa lê ?modo= na carga (page.tsx:52-63), /calendario e /comunidade/[id] existem como páginas, a moderação sem metadata.href cai no fallback /comunidade, e a validação same-origin do href aparece nos dois lados (contract.ts rejeitando '//' e sw.js forçando origin).",
+      "O protótipo executa bem as regras fixas: todos os alvos medidos no cenário P2 ficaram ≥44px (linhas de switch 56-68px, botões 44-48px), dark mode coerente com os tokens da casca, o pedido de permissão só existe atrás de gesto com sheet explicativo ANTES do diálogo do sistema (protege a permissão de uma recusa quase irreversível), e o estado denied evita o botão morto relendo Notification.permission em vez de reexibir o diálogo.",
+      "A ordem de produção está certa nos pontos que mais queimam: chaves VAPID no SSM/app.env ANTES do merge, migration aditiva via prisma migrate deploy sem downtime, crons intocados (o push do cron de lembretes sai no mesmo processo HTTP), e kill switch WEB_PUSH_HABILITADO com degradação limpa (UI 'indisponível', envio no-op, SW sem payload não mostra nada)."
+    ]
+  }
+}
