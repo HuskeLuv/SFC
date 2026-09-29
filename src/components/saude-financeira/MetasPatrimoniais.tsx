@@ -53,7 +53,9 @@ function MetaRow({ titulo, descricao, benchmark, indisponivel, isBelowLg }: Meta
           <p className="shrink-0 text-right text-xs text-gray-500 mscreen:shrink print:shrink dark:text-gray-400">
             <span
               className={`block text-sm font-semibold ${
-                completo ? 'text-green-600 dark:text-green-400' : 'text-gray-900 dark:text-white/90'
+                completo
+                  ? 'text-green-600 dark:text-green-400 mscreen:text-mf-patrimonio dark:mscreen:text-mf-tranquilidade'
+                  : 'text-gray-900 dark:text-white/90'
               }`}
             >
               {formatPercent(atingido, 0)}

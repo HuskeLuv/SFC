@@ -36,7 +36,10 @@ interface BalancoPatrimonialProps {
 }
 
 /** Celular sem verde (PWA fase 3): a seta "boa" vira azul da paleta só na tela abaixo de lg. */
-const SETA_SEM_VERDE = (className: string) => (className.includes('green') ? '' : '');
+const SETA_SEM_VERDE = (className: string) =>
+  className.includes('green')
+    ? ' mscreen:text-mf-patrimonio dark:mscreen:text-mf-tranquilidade'
+    : '';
 
 function Seta({ seta }: { seta: ReturnType<typeof tendenciaSeta> }) {
   if (!seta) return null;
