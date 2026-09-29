@@ -6,6 +6,7 @@ import UserMetaCard from '@/components/user-profile/UserMetaCard';
 import PrivacyControls, { type PrivacySection } from '@/components/user-profile/PrivacyControls';
 import { TwoFactorAuthAutoLoad } from '@/components/user-profile/TwoFactorAuth';
 import AgendaPreferencias from '@/components/user-profile/AgendaPreferencias';
+import NotificacoesPreferencias from '@/components/user-profile/NotificacoesPreferencias';
 
 /**
  * Perfil no celular (PWA fase 3, U1–U3): lista de ajustes em grupos. Cada linha abre, num sheet, o
@@ -21,7 +22,15 @@ export interface PerfilMobileUser {
   avatarUrl?: string;
 }
 
-type ItemId = 'nome' | 'senha' | '2fa' | 'sessoes' | 'agenda' | 'dados' | 'excluir';
+type ItemId =
+  | 'nome'
+  | 'senha'
+  | '2fa'
+  | 'sessoes'
+  | 'notificacoes'
+  | 'agenda'
+  | 'dados'
+  | 'excluir';
 
 interface Item {
   id: ItemId;
@@ -43,6 +52,17 @@ const GRUPOS: { titulo: string; itens: Item[] }[] = [
     itens: [
       { id: '2fa', label: 'Verificação em duas etapas', hint: 'App autenticador (2FA)' },
       { id: 'sessoes', label: 'Sessões ativas', hint: 'Encerrar o acesso nos seus aparelhos' },
+    ],
+  },
+  {
+    // PWA fase 5: web push por aparelho + categorias do que chega.
+    titulo: 'Notificações',
+    itens: [
+      {
+        id: 'notificacoes',
+        label: 'Notificações',
+        hint: 'Avisos no aparelho e categorias',
+      },
     ],
   },
   {
@@ -162,6 +182,8 @@ export default function PerfilMobile({ user }: { user: PerfilMobileUser }) {
         <div data-perfil-sheet={aberto ?? undefined} className="pb-2">
           {aberto === '2fa' ? (
             <TwoFactorAuthAutoLoad />
+          ) : aberto === 'notificacoes' ? (
+            <NotificacoesPreferencias />
           ) : aberto === 'agenda' ? (
             <AgendaPreferencias />
           ) : secao ? (
