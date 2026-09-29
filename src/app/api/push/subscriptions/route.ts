@@ -12,6 +12,7 @@
  * funcionam mesmo com o push desligado — desligar a env não pode prender
  * assinaturas órfãs no banco.
  */
+import { createHash } from 'crypto';
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import prisma from '@/lib/prisma';
@@ -27,6 +28,18 @@ const subscriptionSchema = z.object({
 });
 
 const deleteSchema = z.object({ endpoint: z.string().url() });
+
+/**
+ * Teto de assinaturas por usuário (QA segurança): sem ele, um usuário autenticado
+ * acumularia milhares de endpoints https arbitrários e cada notificação própria
+ * viraria um burst de POSTs do servidor (relay/amplificação). 10 cobre com folga
+ * os aparelhos reais de uma pessoa; ao estourar, a assinatura mais antiga cai.
+ */
+const MAX_ASSINATURAS_POR_USUARIO = 10;
+
+/** O endpoint é URL-capacidade — fora do banco ele circula só como hash (QA segurança). */
+const hashDoEndpoint = (endpoint: string): string =>
+  createHash('sha256').update(endpoint).digest('base64');
 
 /** Rótulo legível do aparelho — parse simples de propósito (navegador + tipo). */
 const rotuloDoUserAgent = (userAgent: string | null): string => {
@@ -60,8 +73,8 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
       id: sub.id,
       rotulo: rotuloDoUserAgent(sub.userAgent),
       criadoEm: sub.createdAt.toISOString(),
-      // Só para o cliente marcar "este aparelho" — nunca exibido cru.
-      endpoint: sub.endpoint,
+      // Só para o cliente marcar "este aparelho" — o endpoint cru nunca sai do servidor.
+      endpointHash: hashDoEndpoint(sub.endpoint),
     })),
   });
 });
@@ -73,6 +86,19 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
   const parsed = subscriptionSchema.safeParse(await request.json().catch(() => ({})));
   if (!parsed.success) return validationError(parsed);
   const { endpoint, keys, userAgent } = parsed.data;
+
+  // Reassociar a assinatura de OUTRO usuário exige as keys originais: o endpoint é
+  // URL-capacidade e pode vazar (log, proxy); as p256dh/auth só existem no navegador
+  // que assinou. Troca de conta no mesmo navegador mantém as keys → segue permitida.
+  // 204 de propósito (sem oráculo de existência).
+  const existente = await prisma.pushSubscription.findUnique({ where: { endpoint } });
+  if (
+    existente &&
+    existente.userId !== payload.id &&
+    (existente.p256dh !== keys.p256dh || existente.auth !== keys.auth)
+  ) {
+    return new NextResponse(null, { status: 204 });
+  }
 
   await prisma.pushSubscription.upsert({
     where: { endpoint },
@@ -90,6 +116,20 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
       userAgent: userAgent ?? null,
     },
   });
+
+  // Estourou o teto? A mais antiga sai (o aparelho dela reassina sozinho no próximo uso —
+  // o sync do pushClient re-POSTa a assinatura local ao abrir o app).
+  const excedentes = await prisma.pushSubscription.findMany({
+    where: { userId: payload.id },
+    orderBy: { createdAt: 'desc' },
+    skip: MAX_ASSINATURAS_POR_USUARIO,
+    select: { id: true },
+  });
+  if (excedentes.length > 0) {
+    await prisma.pushSubscription.deleteMany({
+      where: { id: { in: excedentes.map((sub) => sub.id) } },
+    });
+  }
   return new NextResponse(null, { status: 204 });
 });
 

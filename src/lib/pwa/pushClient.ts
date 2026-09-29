@@ -95,6 +95,20 @@ async function enviarAssinatura(
 }
 
 /**
+ * SHA-256 base64 do endpoint local — o GET /api/push/subscriptions só devolve o hash
+ * (endpoint é URL-capacidade; QA segurança da fase 5). null = sem crypto.subtle
+ * (contexto inseguro): apenas o selo "este aparelho" deixa de aparecer.
+ */
+export async function hashDoEndpoint(endpoint: string): Promise<string | null> {
+  try {
+    const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(endpoint));
+    return btoa(String.fromCharCode(...new Uint8Array(digest)));
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Assina o push DESTE aparelho. Chamar SOMENTE em resposta a gesto do usuário
  * (o requestPermission vive aqui dentro, e só aqui).
  * 'negado' = a pessoa recusou (ou já tinha recusado) a permissão;

@@ -15,6 +15,8 @@ const mocks = vi.hoisted(() => ({
   permissaoAtual: vi.fn<[], NotificationPermission | 'unsupported'>(() => 'default'),
   assinarPush: vi.fn(async () => 'ok' as const),
   cancelarAssinatura: vi.fn(async () => true),
+  // Hash determinístico: o teste só precisa que local × lista casem pelo mesmo valor.
+  hashDoEndpoint: vi.fn(async (endpoint: string) => `hash:${endpoint}`),
   csrfFetch: vi.fn(),
   confirm: vi.fn(async () => true),
 }));
@@ -25,6 +27,7 @@ vi.mock('@/lib/pwa/pushClient', () => ({
   permissaoAtual: mocks.permissaoAtual,
   assinarPush: mocks.assinarPush,
   cancelarAssinatura: mocks.cancelarAssinatura,
+  hashDoEndpoint: mocks.hashDoEndpoint,
   PUSH_SUBSCRIPTIONS_URL: '/api/push/subscriptions',
 }));
 
@@ -54,13 +57,13 @@ const APARELHOS_PADRAO = [
     id: 'sub-1',
     rotulo: 'Chrome · celular',
     criadoEm: '2026-09-29T12:00:00Z',
-    endpoint: ENDPOINT_LOCAL,
+    endpointHash: `hash:${ENDPOINT_LOCAL}`,
   },
   {
     id: 'sub-2',
     rotulo: 'Chrome · computador',
     criadoEm: '2026-09-20T12:00:00Z',
-    endpoint: 'https://push.exemplo/outro',
+    endpointHash: 'hash:https://push.exemplo/outro',
   },
 ];
 

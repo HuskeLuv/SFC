@@ -8,6 +8,7 @@ import {
   assinarPush,
   cancelarAssinatura,
   isIosSemPwa,
+  hashDoEndpoint,
   isPushSupported,
   permissaoAtual,
   PUSH_SUBSCRIPTIONS_URL,
@@ -42,7 +43,8 @@ interface Aparelho {
   id: string;
   rotulo: string;
   criadoEm: string;
-  endpoint: string;
+  /** SHA-256 base64 do endpoint — o servidor nunca manda o endpoint cru (URL-capacidade). */
+  endpointHash: string;
 }
 
 type Estado = 'carregando' | 'instalar' | 'indisponivel' | 'negado' | 'ativas' | 'nunca';
@@ -170,6 +172,8 @@ export default function NotificacoesPreferencias() {
   const [prefs, setPrefs] = useState<PreferenciasPush | null>(null);
   const [aparelhos, setAparelhos] = useState<Aparelho[]>([]);
   const [endpoint, setEndpoint] = useState<string | null>(null);
+  /** Hash do endpoint local, para casar com a lista do servidor (que só traz hashes). */
+  const [endpointHash, setEndpointHash] = useState<string | null>(null);
   const [permissao, setPermissao] = useState<NotificationPermission | 'unsupported'>('unsupported');
   const [suportado, setSuportado] = useState(false);
   const [iosSemPwa, setIosSemPwa] = useState(false);
@@ -222,6 +226,20 @@ export default function NotificacoesPreferencias() {
     },
     [],
   );
+
+  useEffect(() => {
+    let ativo = true;
+    if (!endpoint) {
+      setEndpointHash(null);
+      return;
+    }
+    void hashDoEndpoint(endpoint).then((h) => {
+      if (ativo) setEndpointHash(h);
+    });
+    return () => {
+      ativo = false;
+    };
+  }, [endpoint]);
 
   const assinado = permissao === 'granted' && endpoint !== null;
   const estado: Estado = carregando
@@ -288,14 +306,14 @@ export default function NotificacoesPreferencias() {
     setOcupado(true);
     setErro(null);
     try {
-      const endpointAntigo = endpoint;
+      const hashAntigo = endpointHash;
       await cancelarAssinatura(csrfFetch);
       setEndpoint(null);
-      if (endpointAntigo) setAparelhos((prev) => prev.filter((a) => a.endpoint !== endpointAntigo));
+      if (hashAntigo) setAparelhos((prev) => prev.filter((a) => a.endpointHash !== hashAntigo));
     } finally {
       setOcupado(false);
     }
-  }, [confirm, csrfFetch, endpoint, ocupado]);
+  }, [confirm, csrfFetch, endpointHash, ocupado]);
 
   const removerAparelho = useCallback(
     async (aparelho: Aparelho) => {
@@ -373,7 +391,8 @@ export default function NotificacoesPreferencias() {
     }
   }, [cooldownTeste, csrfFetch, endpoint, ocupado]);
 
-  const aparelhoLocal = aparelhos.find((a) => a.endpoint === endpoint) ?? null;
+  const aparelhoLocal =
+    (endpointHash && aparelhos.find((a) => a.endpointHash === endpointHash)) || null;
   const categoriasVisiveis = CATEGORIAS.filter(
     (c) => c.chave !== 'comunidade' || prefs?.comunidadeVisivel,
   );
@@ -597,7 +616,7 @@ export default function NotificacoesPreferencias() {
           </h4>
           <ul className="divide-y divide-gray-100 overflow-hidden rounded-2xl border border-gray-200 dark:divide-gray-800 dark:border-gray-800">
             {aparelhos.map((aparelho) => {
-              const esteAparelho = aparelho.endpoint === endpoint;
+              const esteAparelho = endpointHash !== null && aparelho.endpointHash === endpointHash;
               return (
                 <li
                   key={aparelho.id}

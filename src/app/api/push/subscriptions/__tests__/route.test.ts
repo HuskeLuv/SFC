@@ -4,16 +4,23 @@ import { NextRequest } from 'next/server';
 const mocks = vi.hoisted(() => ({
   requireSession: vi.fn(),
   prisma: {
-    pushSubscription: { findMany: vi.fn(), upsert: vi.fn(), deleteMany: vi.fn() },
+    pushSubscription: {
+      findMany: vi.fn(),
+      findUnique: vi.fn(),
+      upsert: vi.fn(),
+      deleteMany: vi.fn(),
+    },
   },
 }));
 vi.mock('@/utils/auth', () => ({ requireSession: mocks.requireSession }));
 vi.mock('@/lib/prisma', () => ({ prisma: mocks.prisma, default: mocks.prisma }));
 
+import { createHash } from 'crypto';
 import { GET, POST, DELETE } from '../route';
 import { DELETE as DELETE_BY_ID } from '../[id]/route';
 
 const ENDPOINT = 'https://push.example/abc';
+const hash = (endpoint: string) => createHash('sha256').update(endpoint).digest('base64');
 
 const req = (method: string, body?: unknown) =>
   new NextRequest('http://localhost/api/push/subscriptions', {
@@ -34,6 +41,8 @@ beforeEach(() => {
   mocks.requireSession.mockResolvedValue({ id: 'u1', email: 'a@b.c', role: 'user' });
   mocks.prisma.pushSubscription.upsert.mockResolvedValue({});
   mocks.prisma.pushSubscription.deleteMany.mockResolvedValue({ count: 1 });
+  mocks.prisma.pushSubscription.findUnique.mockResolvedValue(null);
+  mocks.prisma.pushSubscription.findMany.mockResolvedValue([]);
   vi.stubEnv('WEB_PUSH_HABILITADO', 'true');
   vi.stubEnv('VAPID_PUBLIC_KEY', 'pub');
   vi.stubEnv('VAPID_PRIVATE_KEY', 'priv');
@@ -77,6 +86,45 @@ describe('POST /api/push/subscriptions', () => {
     vi.stubEnv('WEB_PUSH_HABILITADO', 'false');
     expect((await POST(req('POST', corpoValido))).status).toBe(503);
   });
+
+  it('NÃO reassocia assinatura de outro usuário quando as keys não batem (endpoint vazado)', async () => {
+    mocks.prisma.pushSubscription.findUnique.mockResolvedValue({
+      id: 's9',
+      userId: 'u2',
+      endpoint: ENDPOINT,
+      p256dh: 'outra-p256dh',
+      auth: 'outra-auth',
+    });
+    const res = await POST(req('POST', corpoValido));
+    // 204 sem oráculo de existência — mas nada é gravado.
+    expect(res.status).toBe(204);
+    expect(mocks.prisma.pushSubscription.upsert).not.toHaveBeenCalled();
+  });
+
+  it('reassocia ao trocar de conta no MESMO navegador (keys batem)', async () => {
+    mocks.prisma.pushSubscription.findUnique.mockResolvedValue({
+      id: 's9',
+      userId: 'u2',
+      endpoint: ENDPOINT,
+      p256dh: 'p256dh-key',
+      auth: 'auth-key',
+    });
+    const res = await POST(req('POST', corpoValido));
+    expect(res.status).toBe(204);
+    expect(mocks.prisma.pushSubscription.upsert).toHaveBeenCalled();
+  });
+
+  it('acima do teto por usuário, apaga as assinaturas mais antigas', async () => {
+    mocks.prisma.pushSubscription.findMany.mockResolvedValue([{ id: 'velha1' }, { id: 'velha2' }]);
+    const res = await POST(req('POST', corpoValido));
+    expect(res.status).toBe(204);
+    expect(mocks.prisma.pushSubscription.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { userId: 'u1' }, skip: 10 }),
+    );
+    expect(mocks.prisma.pushSubscription.deleteMany).toHaveBeenCalledWith({
+      where: { id: { in: ['velha1', 'velha2'] } },
+    });
+  });
 });
 
 describe('GET /api/push/subscriptions', () => {
@@ -108,24 +156,25 @@ describe('GET /api/push/subscriptions', () => {
       expect.objectContaining({ where: { userId: 'u1' } }),
     );
     const { subscriptions } = await res.json();
+    // endpointHash em vez do endpoint cru: URL-capacidade nunca sai do servidor.
     expect(subscriptions).toEqual([
       {
         id: 's1',
         rotulo: 'Chrome · celular',
         criadoEm: '2026-09-29T12:00:00.000Z',
-        endpoint: ENDPOINT,
+        endpointHash: hash(ENDPOINT),
       },
       {
         id: 's2',
         rotulo: 'Safari · computador',
         criadoEm: '2026-09-28T12:00:00.000Z',
-        endpoint: 'https://push.example/def',
+        endpointHash: hash('https://push.example/def'),
       },
       {
         id: 's3',
         rotulo: 'Aparelho desconhecido',
         criadoEm: '2026-09-27T12:00:00.000Z',
-        endpoint: 'https://push.example/ghi',
+        endpointHash: hash('https://push.example/ghi'),
       },
     ]);
   });
