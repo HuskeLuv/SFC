@@ -1,4 +1,4 @@
-import { Outfit } from 'next/font/google';
+import localFont from 'next/font/local';
 import type { Metadata, Viewport } from 'next';
 import './globals.css';
 import 'swiper/css';
@@ -9,8 +9,11 @@ import Providers from './providers';
 import CookieConsentBanner from '@/components/legal/CookieConsentBanner';
 import ServiceWorkerRegistrar from '@/components/pwa/ServiceWorkerRegistrar';
 
-const outfit = Outfit({
-  subsets: ['latin'],
+// Self-hosted (src/fonts) para o build não depender do Google Fonts — o
+// fetch do next/font/google derrubou o build no CI 2× em 28/09 (flake de rede).
+const outfit = localFont({
+  src: '../fonts/outfit-latin-variable.woff2',
+  weight: '100 900',
 });
 
 // CSP com nonce por request exige render dinâmico em todas as rotas: uma
