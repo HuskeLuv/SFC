@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import BottomSheet from '@/components/ui/sheet/BottomSheet';
-import { useInstallPrompt } from '@/hooks/useInstallPrompt';
+import { useInstallPrompt, type IosBrowser } from '@/hooks/useInstallPrompt';
 
 interface InstallAppCardProps {
   /** 'banner': convite no topo da Carteira. 'row': linha fixa "Instalar app" no painel Mais. */
@@ -51,12 +51,14 @@ function AddSquareIcon({ size = 16 }: { size?: number }) {
   );
 }
 
-/** Passo a passo do Safari (iOS não tem prompt de instalação). */
+/** Passo a passo do iOS (não tem prompt de instalação; o botão Compartilhar muda por navegador). */
 function IosInstructionsSheet({
+  browser,
   isOpen,
   onClose,
   onNever,
 }: {
+  browser: IosBrowser;
   isOpen: boolean;
   onClose: () => void;
   onNever?: () => void;
@@ -66,6 +68,15 @@ function IosInstructionsSheet({
     'flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-mf-outside/10 text-[13px] font-semibold text-mf-patrimonio dark:bg-mf-tranquilidade/15 dark:text-mf-tranquilidade';
   const kbd =
     'inline-flex items-center gap-1 whitespace-nowrap rounded-lg border border-gray-200 bg-gray-50 px-2 py-0.5 font-medium dark:border-gray-700 dark:bg-white/5';
+  // Safari: Compartilhar na barra de baixo; Chrome: dentro da barra de endereço, no alto;
+  // Firefox/Edge: dentro do menu do navegador.
+  const shareWhere =
+    browser === 'chrome'
+      ? 'na barra de endereço, no alto'
+      : browser === 'safari'
+        ? 'na barra do Safari'
+        : 'no menu do navegador';
+  const shareArrow = browser === 'chrome' ? '↑' : browser === 'safari' ? '↓' : null;
   return (
     <BottomSheet
       isOpen={isOpen}
@@ -107,13 +118,15 @@ function IosInstructionsSheet({
               </span>
               Compartilhar
             </span>{' '}
-            na barra do Safari
-            <span
-              aria-hidden="true"
-              className="ml-1 inline-block text-mf-outside motion-safe:animate-bounce dark:text-mf-tranquilidade"
-            >
-              ↓
-            </span>
+            {shareWhere}
+            {shareArrow ? (
+              <span
+                aria-hidden="true"
+                className="ml-1 inline-block text-mf-outside motion-safe:animate-bounce dark:text-mf-tranquilidade"
+              >
+                {shareArrow}
+              </span>
+            ) : null}
           </span>
         </li>
         <li className={step}>
@@ -150,6 +163,7 @@ export default function InstallAppCard({ variant, className = '' }: InstallAppCa
   const [iosOpen, setIosOpen] = useState(false);
   const {
     platform,
+    iosBrowser,
     canPrompt,
     isStandalone,
     promptInstall,
@@ -186,7 +200,13 @@ export default function InstallAppCard({ variant, className = '' }: InstallAppCa
             Tela inicial
           </span>
         </button>
-        {isIos ? <IosInstructionsSheet isOpen={iosOpen} onClose={() => setIosOpen(false)} /> : null}
+        {isIos ? (
+          <IosInstructionsSheet
+            browser={iosBrowser}
+            isOpen={iosOpen}
+            onClose={() => setIosOpen(false)}
+          />
+        ) : null}
       </>
     );
   }
@@ -248,6 +268,7 @@ export default function InstallAppCard({ variant, className = '' }: InstallAppCa
       </div>
       {isIos ? (
         <IosInstructionsSheet
+          browser={iosBrowser}
           isOpen={iosOpen}
           onClose={() => setIosOpen(false)}
           onNever={() => {
