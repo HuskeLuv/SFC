@@ -158,6 +158,12 @@ export const RATE_LIMIT_TIERS: RateLimitTier[] = [
     config: { limit: 20, windowMs: 60_000 },
   },
   {
+    // Push de teste (PWA fase 5): cada chamada vira um aviso real no aparelho
+    // — teto curto por IP, antes do tier genérico
+    match: (p) => p.startsWith('/api/push/test'),
+    config: { limit: 5, windowMs: 60_000 },
+  },
+  {
     // General API
     match: (p) => p.startsWith('/api/'),
     config: { limit: 60, windowMs: 60_000 },
