@@ -351,8 +351,18 @@ export default function NotificacoesPreferencias() {
   const enviarTeste = useCallback(async () => {
     if (cooldownTeste || ocupado) return;
     setErro(null);
+    if (!endpoint) {
+      setErro('Não encontrei a assinatura deste aparelho.');
+      return;
+    }
     try {
-      const res = await csrfFetch(TESTE_URL, { method: 'POST' });
+      // A rota exige o endpoint da assinatura DESTE aparelho no body
+      // (contrato da fatia A — o teste só sai para o aparelho chamador).
+      const res = await csrfFetch(TESTE_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ endpoint }),
+      });
       if (!res.ok) throw new Error('Não consegui enviar a notificação de teste.');
       setCooldownTeste(true);
       timerTesteRef.current = window.setTimeout(() => setCooldownTeste(false), COOLDOWN_TESTE_MS);
@@ -361,7 +371,7 @@ export default function NotificacoesPreferencias() {
         error instanceof Error ? error.message : 'Não consegui enviar a notificação de teste.',
       );
     }
-  }, [cooldownTeste, csrfFetch, ocupado]);
+  }, [cooldownTeste, csrfFetch, endpoint, ocupado]);
 
   const aparelhoLocal = aparelhos.find((a) => a.endpoint === endpoint) ?? null;
   const categoriasVisiveis = CATEGORIAS.filter(

@@ -297,7 +297,13 @@ describe('ativas: aparelhos, categorias e teste', () => {
     const botao = await screen.findByRole('button', { name: 'Enviar notificação de teste' });
     fireEvent.click(botao);
     await waitFor(() =>
-      expect(mocks.csrfFetch).toHaveBeenCalledWith('/api/push/test', { method: 'POST' }),
+      expect(mocks.csrfFetch).toHaveBeenCalledWith(
+        '/api/push/test',
+        expect.objectContaining({
+          method: 'POST',
+          body: JSON.stringify({ endpoint: ENDPOINT_LOCAL }),
+        }),
+      ),
     );
     await waitFor(() =>
       expect(
