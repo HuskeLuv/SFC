@@ -38,6 +38,8 @@ const SENSITIVE_KEYS = new Set([
   'api_key',
   'apitoken',
   'cpf',
+  // Endpoint de web push é URL-capacidade (quem o tem controla a assinatura).
+  'endpoint',
 ]);
 
 const EMAIL_REGEX = /\b([A-Za-z0-9._%+-]+)@([A-Za-z0-9.-]+\.[A-Za-z]{2,})\b/g;

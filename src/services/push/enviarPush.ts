@@ -109,10 +109,12 @@ export async function enviarPushDaNotificacao(notificacao: NotificacaoCriada): P
               // já removida por um envio concorrente — nada a fazer
             }
           } else {
+            // Nunca logar o `error` cru: WebPushError carrega o endpoint (URL-capacidade).
             logger.error('[push] envio falhou para uma assinatura:', {
               notificationId: notificacao.id,
+              subscriptionId: sub.id,
               statusCode,
-              error,
+              message: error instanceof Error ? error.message : String(error),
             });
           }
         }

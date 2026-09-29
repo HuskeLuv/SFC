@@ -9,6 +9,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import prisma from '@/lib/prisma';
+import { logger } from '@/lib/logger';
 import { requireSession } from '@/utils/auth';
 import { withErrorHandler, ApiError } from '@/utils/apiErrorHandler';
 import { validationError } from '@/utils/validation-schemas';
@@ -56,6 +57,13 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
       await prisma.pushSubscription.deleteMany({ where: { endpoint: subscription.endpoint } });
       throw new ApiError(410, 'Assinatura expirada — ative as notificações de novo.');
     }
+    // Rota de diagnóstico: sem este log, VAPID errada em prod vira só um 502 mudo no
+    // cliente. Sem o `error` cru (WebPushError carrega o endpoint, URL-capacidade).
+    logger.error('[push] teste falhou:', {
+      subscriptionId: subscription.id,
+      statusCode,
+      message: error instanceof Error ? error.message : String(error),
+    });
     throw new ApiError(502, 'Não foi possível enviar o aviso de teste.');
   }
   return new NextResponse(null, { status: 204 });
