@@ -8,6 +8,8 @@ const ANDROID_UA =
   'Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0 Mobile Safari/537.36';
 const IOS_UA =
   'Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1';
+const IOS_CHROME_UA =
+  'Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) CriOS/128.0.6613.98 Mobile/15E148 Safari/604.1';
 
 let standalone = false;
 
@@ -133,6 +135,23 @@ describe('InstallAppCard banner', () => {
     expect(screen.queryByText('Instale o My Finance')).not.toBeInTheDocument();
   });
 
+  it('Chrome do iOS mostra "Como instalar" com o passo a passo na barra de endereço', () => {
+    setUserAgent(IOS_CHROME_UA);
+    window.localStorage.setItem(INSTALL_STORAGE_KEYS.visits, '2');
+    render(<InstallAppCard variant="banner" />);
+    fireEvent.click(screen.getByRole('button', { name: 'Como instalar' }));
+    expect(screen.getByRole('dialog', { name: 'Instale no iPhone' })).toBeInTheDocument();
+    expect(screen.getByText(/na barra de endereço, no alto/)).toBeInTheDocument();
+  });
+
+  it('Safari do iOS aponta o Compartilhar na barra do Safari', () => {
+    setUserAgent(IOS_UA);
+    window.localStorage.setItem(INSTALL_STORAGE_KEYS.visits, '2');
+    render(<InstallAppCard variant="banner" />);
+    fireEvent.click(screen.getByRole('button', { name: 'Como instalar' }));
+    expect(screen.getByText(/na barra do Safari/)).toBeInTheDocument();
+  });
+
   it('sem prompt e fora do iOS não mostra nada', () => {
     window.localStorage.setItem(INSTALL_STORAGE_KEYS.visits, '5');
     render(<InstallAppCard variant="banner" />);
@@ -157,6 +176,12 @@ describe('InstallAppCard row', () => {
       fireEvent.click(screen.getByRole('button', { name: /Instalar app/ }));
     });
     expect(event.prompt).toHaveBeenCalled();
+  });
+
+  it('aparece no Chrome do iOS mesmo sem prompt nativo', () => {
+    setUserAgent(IOS_CHROME_UA);
+    render(<InstallAppCard variant="row" />);
+    expect(screen.getByRole('button', { name: /Instalar app/ })).toBeInTheDocument();
   });
 
   it('some em standalone', () => {
