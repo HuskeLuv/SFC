@@ -7,6 +7,7 @@ import { consultantInvitationSchema } from '@/utils/validation-schemas';
 import { parsePaginationParams, paginatedResponse } from '@/utils/pagination';
 
 import { withErrorHandler } from '@/utils/apiErrorHandler';
+import { enviarPushDaNotificacao } from '@/services/push/enviarPush';
 const normalizeEmail = (email: string) => email.trim().toLowerCase();
 
 const inviteInclude = {
@@ -158,7 +159,7 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
     },
   });
 
-  await prisma.notification.create({
+  const notification = await prisma.notification.create({
     data: {
       userId: invitedUser.id,
       title: 'Convite de consultoria',
@@ -173,6 +174,8 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
       },
     },
   });
+  // Web push best-effort (fase 5): espelha o sino, nunca falha o convite.
+  void enviarPushDaNotificacao(notification);
 
   return NextResponse.json(
     {

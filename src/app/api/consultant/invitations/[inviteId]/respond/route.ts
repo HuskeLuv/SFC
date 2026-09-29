@@ -5,6 +5,7 @@ import { requireSession } from '@/utils/auth';
 import { invitationRespondSchema } from '@/utils/validation-schemas';
 
 import { withErrorHandler } from '@/utils/apiErrorHandler';
+import { enviarPushDaNotificacao } from '@/services/push/enviarPush';
 export const POST = withErrorHandler(
   async (request: NextRequest, { params }: { params: Promise<{ inviteId: string }> }) => {
     let payload;
@@ -146,7 +147,7 @@ export const POST = withErrorHandler(
       // referencia o cliente apenas pelo `clientId` no metadata; quem
       // precisar do email consulta User pelo id.
       const displayName = invitedUser?.name ?? 'Cliente';
-      await prisma.notification.create({
+      const notification = await prisma.notification.create({
         data: {
           userId: invite.consultant.userId,
           title: 'Resposta ao convite de consultoria',
@@ -162,6 +163,8 @@ export const POST = withErrorHandler(
           },
         },
       });
+      // Web push best-effort (fase 5): espelha o sino, nunca falha a resposta.
+      void enviarPushDaNotificacao(notification);
     }
 
     return NextResponse.json({

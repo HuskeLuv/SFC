@@ -5,6 +5,7 @@
 
 import { prisma } from '@/lib/prisma';
 import { logger } from '@/lib/logger';
+import { enviarPushDaNotificacao } from '@/services/push/enviarPush';
 
 export const COMUNIDADE_COMENTARIO_TYPE = 'comunidade-comentario';
 export const COMUNIDADE_MODERACAO_TYPE = 'comunidade-moderacao';
@@ -34,7 +35,7 @@ export async function notificarComentario(params: {
       select: { id: true },
     });
     if (pendente) return;
-    await prisma.notification.create({
+    const notificacao = await prisma.notification.create({
       data: {
         userId: postAuthorId,
         type: COMUNIDADE_COMENTARIO_TYPE,
@@ -43,6 +44,8 @@ export async function notificarComentario(params: {
         metadata: { postId, href: hrefPost(postId) },
       },
     });
+    // Web push best-effort (fase 5): espelha o sino, nunca falha o comentário.
+    void enviarPushDaNotificacao(notificacao);
   } catch (error: unknown) {
     logger.error('[comunidade] falha ao notificar comentário:', error);
   }
@@ -56,7 +59,7 @@ export async function notificarOcultacao(params: {
 }): Promise<void> {
   const { authorId, tipo, motivo } = params;
   try {
-    await prisma.notification.create({
+    const notificacao = await prisma.notification.create({
       data: {
         userId: authorId,
         type: COMUNIDADE_MODERACAO_TYPE,
@@ -67,6 +70,8 @@ export async function notificarOcultacao(params: {
         metadata: { tipo },
       },
     });
+    // Web push best-effort (fase 5): espelha o sino, nunca falha a moderação.
+    void enviarPushDaNotificacao(notificacao);
   } catch (error: unknown) {
     logger.error('[comunidade] falha ao notificar ocultação:', error);
   }

@@ -18,6 +18,7 @@
  */
 import prisma from '@/lib/prisma';
 import { logger } from '@/lib/logger';
+import { enviarPushDaNotificacao } from '@/services/push/enviarPush';
 import { montarAgenda } from './agenda';
 import { hojeCivil, somarDias } from './datas';
 import type { EventoAgenda, TipoEvento } from './types';
@@ -146,7 +147,7 @@ export async function runAgendaLembretesJob(agora: Date = new Date()): Promise<R
 
       for (const { evento, quando } of novos) {
         const { title, message } = textoDoLembrete(evento, quando);
-        await prisma.notification.create({
+        const notificacao = await prisma.notification.create({
           data: {
             userId,
             title,
@@ -160,6 +161,9 @@ export async function runAgendaLembretesJob(agora: Date = new Date()): Promise<R
             } satisfies LembreteMetadata,
           },
         });
+        // Web push best-effort (fase 5): a preferência por categoria vale
+        // também para o cron — o gate fica dentro do serviço de envio.
+        void enviarPushDaNotificacao(notificacao);
         notificacoes += 1;
       }
     } catch (error: unknown) {
