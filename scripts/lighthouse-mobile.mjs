@@ -100,9 +100,13 @@ function rodarLighthouse(rota, cookie) {
     '--chrome-flags=--headless --no-sandbox --disable-gpu',
   ];
   if (cookie) flags.push(`--extra-headers=${JSON.stringify({ Cookie: cookie })}`);
+  // No WSL o LOCALAPPDATA do Windows vaza para o env e o chrome-launcher cria
+  // diretórios literais "C:\Users\..." no cwd — removê-lo usa o tmp do Linux.
+  const env = { ...process.env, CHROME_PATH: chromePath };
+  delete env.LOCALAPPDATA;
   const r = spawnSync('npx', flags, {
     stdio: ['ignore', 'inherit', 'inherit'],
-    env: { ...process.env, CHROME_PATH: chromePath },
+    env,
     timeout: 300_000,
   });
   if (r.status !== 0) return { rota, erro: `lighthouse saiu com status ${r.status}` };
