@@ -60,6 +60,11 @@ Pendências leves da fase 1: histórico de patrimônio aparece vazio ("Jan 1970"
 - A conferir em aparelho real: teclado nos sheets (premissas, nova dívida, comentário), widget Pluggy aberto (exige consentimento), link `otpauth://` do 2FA, impressão pelo PWA instalado.
 - Desktop, PRs separados: gráfico do cronograma de Dívidas não empilha; "Abrir em Dívidas" da Agenda sem `?divida=`.
 
+## Fase 5 — pendências leves (29/09/2026)
+
+- Rotação de chave VAPID não se recupera sozinha (achado baixo do QA, follow-up): o cliente reusa a subscription existente sem comparar `applicationServerKey` com a chave servida (nunca reassina com a nova), e o servidor só apaga assinatura em 404/410 — mismatch de VAPID responde 403/401 e a linha fica no banco gerando erro de log por envio. Se trocar as chaves um dia: no cliente, `unsubscribe()` + re-subscribe quando a chave divergir; no servidor, tratar 403/401 como assinatura inválida.
+- O workflow de construção caiu no meio da fase de QA (sessão encerrada): qa-codigo e qa-seguranca terminaram (7 achados, 0 altas — corrigidos na conferência), qa-mobile e qa-desktop foram rodados de novo como agentes avulsos fora do workflow.
+
 ## Como cada fase é executada (formato combinado com o Wellington)
 
 1. **Workflow de desenho** (~5 agentes): arquiteto + designer UI/UX em paralelo → revisor crítico → os dois revisam. Designer usa a skill `artifact-design` e gera protótipo HTML navegável (celular + miniatura desktop). Script modelo: `workflow-desenho.js`.

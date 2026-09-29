@@ -25,7 +25,8 @@ import AgendaFiltrosSheet from './mobile/AgendaFiltrosSheet';
 import { resumoDoPeriodo } from './agendaResumo';
 import { MobileCollapsible } from '@/components/ui/mobile/MobileCollapsible';
 import { useResponsiveConfirm } from '@/components/ui/sheet/useResponsiveConfirm';
-import { useMediaQuery } from '@/hooks/useMediaQuery';
+import PushInviteSheet, { deveConvidarParaPush } from '@/components/pwa/PushInviteSheet';
+import { useIsBelowLg, useMediaQuery } from '@/hooks/useMediaQuery';
 import { formatBRL } from '@/utils/format';
 import {
   TIPOS_DISPONIVEIS,
@@ -91,6 +92,9 @@ export default function Calendar() {
   const [calendarApi, setCalendarApi] = useState<CalendarApi | null>(null);
   const [cabecalho, setCabecalho] = useState({ titulo: '', contemHoje: true });
   const [filtrosAbertos, setFiltrosAbertos] = useState(false);
+  // PWA fase 5 (C1): convite de push depois de salvar um lembrete — só no celular.
+  const [convitePush, setConvitePush] = useState(false);
+  const isBelowLg = useIsBelowLg();
   const { confirmAndRun, confirmSheet } = useResponsiveConfirm();
 
   // localStorage só no cliente, depois da hidratação (evita mismatch).
@@ -158,9 +162,14 @@ export default function Calendar() {
         modal.modo === 'novo'
           ? criar.mutateAsync(payload)
           : editar.mutateAsync({ id: modal.eventoId, payload });
-      fn.then(fechar).catch((e: Error) => setErroMutacao(e.message));
+      fn.then(() => {
+        fechar();
+        // C1: a pessoa acabou de pedir para ser lembrada — momento de maior valor do convite.
+        // deveConvidarParaPush NUNCA pede permissão (só lê o estado + adiamento de 14 dias).
+        if (payload.lembrete && isBelowLg && deveConvidarParaPush()) setConvitePush(true);
+      }).catch((e: Error) => setErroMutacao(e.message));
     },
-    [modal, criar, editar, fechar],
+    [modal, criar, editar, fechar, isBelowLg],
   );
 
   const excluirAtual = useCallback(() => {
@@ -388,6 +397,7 @@ export default function Calendar() {
           totalVisiveis={eventosFc.length}
         />
       ) : null}
+      <PushInviteSheet aberto={convitePush} onClose={() => setConvitePush(false)} />
       {confirmSheet}
     </div>
   );

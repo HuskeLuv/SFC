@@ -315,7 +315,7 @@ export default function GestaoRisco() {
                         <span className="inline-flex items-center gap-3 text-xs">
                           <button
                             type="button"
-                            className="font-medium text-blue-600 hover:underline dark:text-blue-400"
+                            className="font-medium text-mf-patrimonio hover:underline dark:text-mf-tranquilidade"
                             onClick={() => {
                               setCreating(false);
                               setEditing(s);

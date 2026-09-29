@@ -31,6 +31,10 @@ const APPLE_SPLASHES = [
 ];
 
 export const metadata: Metadata = {
+  // Título padrão: sem ele nenhuma rota do app tinha <title> (falha o
+  // document-title do Lighthouse em todas as páginas — auditoria da fase 5).
+  // Sem template: páginas que definem o próprio título continuam intactas.
+  title: 'My Finance',
   applicationName: 'My Finance',
   icons: {
     icon: [

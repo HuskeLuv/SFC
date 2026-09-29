@@ -5,9 +5,11 @@ const mockPrisma = vi.hoisted(() => ({
   notification: { findMany: vi.fn(), create: vi.fn() },
 }));
 const mockGetMergedGroups = vi.hoisted(() => vi.fn());
+const mockEnviarPush = vi.hoisted(() => vi.fn());
 
 vi.mock('@/lib/prisma', () => ({ prisma: mockPrisma, default: mockPrisma }));
 vi.mock('../getCashflowTree', () => ({ getMergedCashflowGroups: mockGetMergedGroups }));
+vi.mock('@/services/push/enviarPush', () => ({ enviarPushDaNotificacao: mockEnviarPush }));
 
 import { checkOrcamentoAlertas, rankDoConsumo } from '../orcamentoAlertas';
 import type { CashflowGroup } from '@/types/cashflow';
@@ -48,7 +50,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   mockPrisma.cashflowOrcamento.findMany.mockResolvedValue([]);
   mockPrisma.notification.findMany.mockResolvedValue([]);
-  mockPrisma.notification.create.mockResolvedValue({});
+  mockPrisma.notification.create.mockResolvedValue({ id: 'notif-criada' });
   mockGetMergedGroups.mockResolvedValue([]);
 });
 
@@ -80,6 +82,11 @@ describe('checkOrcamentoAlertas', () => {
     expect(data.type).toBe('orcamento_alerta');
     expect(data.title).toContain('81%');
     expect(data.metadata).toMatchObject({ year: 2026, month: 7, groupId: 'g-hab', rank: 1 });
+    // Gancho de web push (fase 5): dispara com a notificação criada; o título
+    // real não embute R$ — os valores ficam só na message, que não sai no push.
+    expect(mockEnviarPush).toHaveBeenCalledWith({ id: 'notif-criada' });
+    expect(data.title).not.toContain('R$');
+    expect(data.message).toContain('R$');
   });
 
   it('consumo pula direto para >100%: sai SÓ o alerta de estouro', async () => {

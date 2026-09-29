@@ -7,9 +7,11 @@ const mocks = vi.hoisted(() => ({
     notification: { findMany: vi.fn(), create: vi.fn() },
   },
   montarAgenda: vi.fn(),
+  enviarPush: vi.fn(),
 }));
 vi.mock('@/lib/prisma', () => ({ prisma: mocks.prisma, default: mocks.prisma }));
 vi.mock('../agenda', () => ({ montarAgenda: mocks.montarAgenda }));
+vi.mock('@/services/push/enviarPush', () => ({ enviarPushDaNotificacao: mocks.enviarPush }));
 
 import {
   AGENDA_LEMBRETE_TYPE,
@@ -40,7 +42,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   mocks.prisma.agendaPreferencia.findMany.mockResolvedValue([]);
   mocks.prisma.notification.findMany.mockResolvedValue([]);
-  mocks.prisma.notification.create.mockResolvedValue({});
+  mocks.prisma.notification.create.mockResolvedValue({ id: 'notif-criada' });
 });
 
 describe('selecionarLembretes', () => {
@@ -137,6 +139,9 @@ describe('runAgendaLembretesJob', () => {
       { de: HOJE, ate: AMANHA },
       expect.arrayContaining(['divida', 'rf', 'provento', 'ir', 'manual']),
     );
+    // Gancho de web push (fase 5): dispara com a notificação criada — o gate
+    // de preferência por categoria fica no serviço de envio, cron incluído.
+    expect(mocks.enviarPush).toHaveBeenCalledWith({ id: 'notif-criada' });
   });
 
   it('não repete lembrete já enviado para o mesmo evento e data', async () => {

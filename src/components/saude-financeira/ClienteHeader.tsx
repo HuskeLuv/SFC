@@ -48,7 +48,7 @@ export default function ClienteHeader({ nome, fontes, asOf }: ClienteHeaderProps
           Informe sua idade no{' '}
           <Link
             href="/planejamento-financeiro?modo=aposentadoria"
-            className="font-medium text-blue-600 hover:underline dark:text-blue-400"
+            className="font-medium text-mf-patrimonio hover:underline dark:text-mf-tranquilidade"
           >
             simulador de aposentadoria
           </Link>{' '}

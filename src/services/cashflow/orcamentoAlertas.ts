@@ -4,6 +4,7 @@ import type { CashflowGroup } from '@/types/cashflow';
 import { getMergedCashflowGroups } from './getCashflowTree';
 import { buildOrcamentoVsReal } from './orcamentoVsReal';
 import { rankDoConsumo } from '@/lib/cashflow/orcamentoNivel';
+import { enviarPushDaNotificacao } from '@/services/push/enviarPush';
 
 /**
  * Alertas de orçamento (ticket 20/08/2026): notificação in-app quando o
@@ -183,7 +184,7 @@ export async function checkOrcamentoAlertas(
       meta,
       consumoPct,
     );
-    await prisma.notification.create({
+    const notificacao = await prisma.notification.create({
       data: {
         userId,
         title,
@@ -202,6 +203,8 @@ export async function checkOrcamentoAlertas(
         },
       },
     });
+    // Web push best-effort (fase 5): espelha o sino, nunca falha o alerta.
+    void enviarPushDaNotificacao(notificacao);
     criados.push({ groupId: categoria.groupId, categoria: categoria.nome, nivel, consumoPct });
   }
 

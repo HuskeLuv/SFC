@@ -96,6 +96,17 @@ describe('getTierForPath', () => {
     expect(config.limit).toBe(10);
   });
 
+  it('tier próprio do /api/push/test: 5/min, antes do genérico', () => {
+    const config = getTierForPath('/api/push/test');
+    expect(config.limit).toBe(5);
+    expect(config.windowMs).toBe(60_000);
+  });
+
+  it('as demais rotas de push ficam no tier genérico da API', () => {
+    expect(getTierForPath('/api/push/subscriptions').limit).toBe(60);
+    expect(getTierForPath('/api/push/preferencias').limit).toBe(60);
+  });
+
   it('should return general API config for other /api/ paths', () => {
     const config = getTierForPath('/api/carteira/operacao');
     expect(config.limit).toBe(60);

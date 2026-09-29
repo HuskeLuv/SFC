@@ -209,6 +209,20 @@ export default function CarteiraResumo() {
     />
   );
 
+  // Acabamento fase 5: o caminho rápido do resumo (`includeHistorico=false`) chega com a série
+  // vazia — o gráfico renderizava eixos zerados ("Jan 1970") por ~3 s. Skeleton até o resumo
+  // completo chegar (com dados, a série completa nunca vem vazia: usuário novo recebe baseline).
+  const historicoChart =
+    resumo.historicoPatrimonio.length > 0 ? (
+      <LineChartCarteiraHistorico data={resumo.historicoPatrimonio} />
+    ) : (
+      <div
+        aria-hidden
+        data-mf-historico-skeleton=""
+        className="h-[180px] w-full animate-pulse rounded-xl bg-gray-100 lg:h-[335px] dark:bg-white/[0.06]"
+      />
+    );
+
   const caixaCard = (
     <CaixaParaInvestirCard
       key="caixa-para-investir-resumo"
@@ -250,9 +264,7 @@ export default function CarteiraResumo() {
         </dl>
       </section>
 
-      <MobileSection title="Histórico de patrimônio">
-        <LineChartCarteiraHistorico data={resumo.historicoPatrimonio} />
-      </MobileSection>
+      <MobileSection title="Histórico de patrimônio">{historicoChart}</MobileSection>
 
       {caixaCard}
       {patrimonioLiquidoCard}
@@ -282,9 +294,7 @@ export default function CarteiraResumo() {
       {/* Grid de Gráficos */}
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-12">
         <div className="xl:col-span-8">
-          <ComponentCard title="Histórico de Patrimônio">
-            <LineChartCarteiraHistorico data={resumo.historicoPatrimonio} />
-          </ComponentCard>
+          <ComponentCard title="Histórico de Patrimônio">{historicoChart}</ComponentCard>
         </div>
         <div className="xl:col-span-4">
           <ComponentCard title="Tipos de Investimento">

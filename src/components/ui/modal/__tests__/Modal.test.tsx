@@ -148,3 +148,36 @@ describe('Modal', () => {
     expect(document.body.style.overflow).toBe('');
   });
 });
+
+describe('Modal — nome acessível (acabamento PWA fase 5)', () => {
+  it('sem props de rótulo: diálogo ainda tem um nome (fallback genérico)', () => {
+    render(
+      <Modal isOpen onClose={vi.fn()}>
+        <p>conteúdo</p>
+      </Modal>,
+    );
+    expect(screen.getByRole('dialog', { name: 'Janela de diálogo' })).toHaveAttribute(
+      'aria-modal',
+      'true',
+    );
+  });
+
+  it('ariaLabel nomeia o diálogo', () => {
+    render(
+      <Modal isOpen onClose={vi.fn()} ariaLabel="Editar meta">
+        <p>conteúdo</p>
+      </Modal>,
+    );
+    expect(screen.getByRole('dialog', { name: 'Editar meta' })).toBeInTheDocument();
+  });
+
+  it('ariaLabelledby aponta para o título e vence o ariaLabel', () => {
+    render(
+      <Modal isOpen onClose={vi.fn()} ariaLabelledby="titulo-modal" ariaLabel="ignorado">
+        <h3 id="titulo-modal">Confirmar resgate</h3>
+      </Modal>,
+    );
+    const dialog = screen.getByRole('dialog', { name: 'Confirmar resgate' });
+    expect(dialog).not.toHaveAttribute('aria-label');
+  });
+});

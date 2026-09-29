@@ -35,8 +35,8 @@ div|block|0|static|10
 h2|block|0|static|10
 p|block|0|static|10
 div|block|0|static|10
-div|block|0|static|10
-h3|block|0|static|9
+div|block|0|absolute|0
+h3|block|0|static|0
 div|block|0|static|10
 div|block|0|static|9
 div|block|0|static|9
@@ -208,8 +208,8 @@ div|block|0|static|3
 h2|block|0|static|3
 p|block|0|static|3
 div|block|0|static|10
-div|block|0|static|10
-h3|block|0|static|9
+div|block|0|absolute|0
+h3|block|0|static|0
 div|block|0|static|10
 div|block|0|static|9
 div|block|0|static|9
@@ -227,8 +227,8 @@ div|block|0|static|10
 h2|block|0|static|10
 p|block|0|static|10
 div|block|0|static|10
-div|block|0|static|10
-h3|block|0|static|9
+div|block|0|absolute|0
+h3|block|0|static|0
 div|block|0|static|10
 div|block|0|static|9
 div|block|0|static|9
@@ -287,8 +287,8 @@ div|block|0|static|3
 h2|block|0|static|3
 p|block|0|static|3
 div|block|0|static|10
-div|block|0|static|10
-h3|block|0|static|9
+div|block|0|absolute|0
+h3|block|0|static|0
 div|block|0|static|10
 div|block|0|static|9
 div|grid|3|static|9

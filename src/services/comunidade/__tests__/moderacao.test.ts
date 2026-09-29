@@ -8,8 +8,10 @@ const mockPrisma = vi.hoisted(() => ({
   user: { findUnique: vi.fn() },
   notification: { create: vi.fn() },
 }));
+const mockEnviarPush = vi.hoisted(() => vi.fn());
 
 vi.mock('@/lib/prisma', () => ({ prisma: mockPrisma, default: mockPrisma }));
+vi.mock('@/services/push/enviarPush', () => ({ enviarPushDaNotificacao: mockEnviarPush }));
 
 import { executarAcao } from '../moderacao';
 
@@ -19,6 +21,7 @@ const POST_ID = '22222222-2222-4222-8222-222222222222';
 beforeEach(() => {
   vi.clearAllMocks();
   mockPrisma.communityReport.updateMany.mockResolvedValue({ count: 1 });
+  mockPrisma.notification.create.mockResolvedValue({ id: 'notif-criada' });
 });
 
 describe('executarAcao', () => {
@@ -38,6 +41,8 @@ describe('executarAcao', () => {
     expect(mockPrisma.notification.create).toHaveBeenCalledWith({
       data: expect.objectContaining({ userId: 'autor-1', type: 'comunidade-moderacao' }),
     });
+    // Gancho de web push (fase 5): dispara com a notificação criada.
+    expect(mockEnviarPush).toHaveBeenCalledWith({ id: 'notif-criada' });
   });
 
   it('ocultar de novo não reenvia aviso', async () => {

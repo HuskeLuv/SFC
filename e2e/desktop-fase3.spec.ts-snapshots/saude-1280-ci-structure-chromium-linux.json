@@ -50,11 +50,11 @@
  ],
  "mobileArtifactsVisible": 0,
  "controls": [
-  "a|||dark:text-blue-400 font-medium hover:underline print:hidden text-blue-600 text-xs",
-  "a|||dark:text-blue-400 font-medium hover:underline text-blue-600",
+  "a|||dark:text-mf-tranquilidade font-medium hover:underline print:hidden text-mf-patrimonio text-xs",
+  "a|||dark:text-mf-tranquilidade font-medium hover:underline text-mf-patrimonio",
   "button|||bg-brand-500 disabled:bg-brand-300 font-medium gap-2 hover:bg-brand-600 inline-flex items-center justify-center px-4 py-3 rounded-lg shadow-theme-xs text-sm text-white transition",
   "button|||bg-white dark:bg-gray-800 dark:hover:bg-white/[0.03] dark:hover:text-gray-300 dark:ring-gray-700 dark:text-gray-400 font-medium gap-2 hover:bg-gray-50 inline-flex items-center justify-center px-4 py-3 ring-1 ring-gray-300 ring-inset rounded-lg text-gray-700 text-sm transition",
-  "button|||dark:text-blue-400 font-medium hover:underline print:hidden text-blue-600 text-xs",
+  "button|||dark:text-mf-tranquilidade font-medium hover:underline print:hidden text-mf-patrimonio text-xs",
   "h2|||dark:text-white/90 font-semibold text-gray-900 text-lg",
   "h3|||dark:text-white/90 font-semibold mb-3 text-base text-gray-900",
   "h3|||dark:text-white/90 font-semibold text-base text-gray-900"

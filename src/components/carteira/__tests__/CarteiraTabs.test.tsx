@@ -276,7 +276,9 @@ describe('CarteiraTabs', () => {
       renderCarteiraTabs();
       fireEvent.click(screen.getByText('Análise'));
       await screen.findByTestId('carteira-analise');
-      expect(routerReplace).toHaveBeenCalledWith('/carteira?aba=analise', { scroll: false });
+      // Acabamento fase 5: replaceState nativo (sem GET RSC) — o router não é chamado.
+      expect(window.location.search).toBe('?aba=analise');
+      expect(routerReplace).not.toHaveBeenCalled();
 
       act(() => {
         window.dispatchEvent(new CustomEvent(QUICK_LAUNCH_EVENT, { detail: 'novo-ativo' }));

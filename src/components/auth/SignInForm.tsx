@@ -11,8 +11,9 @@ import { useRouter } from 'next/navigation';
 
 export default function SignInForm() {
   const [showPassword, setShowPassword] = useState(false);
-  // "Manter conectado" vem marcado (PWA fase 0): 30 dias renováveis. Desmarcado,
-  // o cookie é de sessão e sai ao fechar o navegador.
+  // "Manter conectado" vem marcado (PWA fase 0): 30 dias renováveis para usuário
+  // comum, 1 dia para admin/consultor — por isso o rótulo não promete prazo
+  // (acabamento fase 5). Desmarcado, o cookie é de sessão e sai ao fechar o navegador.
   const [isChecked, setIsChecked] = useState(true);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -198,7 +199,7 @@ export default function SignInForm() {
                         htmlFor="remember-me"
                         className="block font-normal text-gray-700 text-theme-sm dark:text-gray-400 cursor-pointer"
                       >
-                        Manter conectado por 30 dias
+                        Manter conectado
                       </label>
                     </div>
                     <Link

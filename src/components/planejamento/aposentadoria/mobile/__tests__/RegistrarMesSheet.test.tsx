@@ -2,7 +2,7 @@
 import '@testing-library/jest-dom/vitest';
 import React, { useState } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import type { PlanoUpsertPayload } from '@/hooks/useAposentadoria';
 import RegistrarMesSheet, {
   monthValueToOff,
@@ -98,7 +98,7 @@ describe('RegistrarMesSheet', () => {
     expect(screen.getByLabelText('Patrimônio final do mês')).toHaveValue('20.000,00');
   });
 
-  it('Salvar travado sem patrimônio; com patrimônio chama o mesmo handleSave e fecha', () => {
+  it('Salvar travado sem patrimônio; com patrimônio chama o mesmo fluxo de salvar e fecha', async () => {
     const onSave = vi.fn();
     const onClose = vi.fn();
     render(<Harness spy={vi.fn()} onSave={onSave} onClose={onClose} />);
@@ -110,7 +110,39 @@ describe('RegistrarMesSheet', () => {
     expect(salvar).toBeEnabled();
     fireEvent.click(salvar);
     expect(onSave).toHaveBeenCalledTimes(1);
-    expect(onClose).toHaveBeenCalled();
+    await waitFor(() => expect(onClose).toHaveBeenCalled());
+    // Aviso "salvo" (padrão MobileSaveToast) depois que o sheet fechou.
+    expect(screen.getByText('Mês registrado')).toBeInTheDocument();
+  });
+
+  it('espera a API antes de fechar (acabamento fase 5): pendente = "Salvando…", sem fechar', async () => {
+    let resolver: () => void = () => {};
+    const onSave = vi.fn(() => new Promise<void>((resolve) => (resolver = resolve)));
+    const onClose = vi.fn();
+    render(<Harness spy={vi.fn()} onSave={onSave} onClose={onClose} />);
+    fireEvent.change(screen.getByLabelText('Patrimônio final do mês'), {
+      target: { value: '20.000' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Salvar' }));
+    expect(await screen.findByRole('button', { name: 'Salvando…' })).toBeDisabled();
+    expect(onClose).not.toHaveBeenCalled();
+    act(() => resolver());
+    await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1));
+  });
+
+  it('erro na API mantém o sheet aberto e mostra o aviso', async () => {
+    const onSave = vi.fn().mockRejectedValue(new Error('rede'));
+    const onClose = vi.fn();
+    render(<Harness spy={vi.fn()} onSave={onSave} onClose={onClose} />);
+    fireEvent.change(screen.getByLabelText('Patrimônio final do mês'), {
+      target: { value: '20.000' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Salvar' }));
+    expect(
+      await screen.findByText('Não foi possível salvar. Tente novamente.'),
+    ).toBeInTheDocument();
+    expect(onClose).not.toHaveBeenCalled();
+    expect(screen.getByRole('button', { name: 'Salvar' })).toBeEnabled();
   });
 
   it('mês nativo limitado ao plano (M1..retM) e convertido para o offset', () => {

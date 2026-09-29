@@ -59,6 +59,35 @@ function SecaoRelatorio({
 }
 
 /**
+ * Cartão dos blocos cujo título é o MESMO da seção logo acima (acabamento fase 5): o cabeçalho
+ * visível do ComponentCard repetia o título ("Posição Consolidada" duas vezes seguidas, também
+ * no desktop — mudança aprovada). Mesma casca visual, título só para leitor de tela (o h3
+ * escondido também mantém o gancho dos testes de impressão, que localizam blocos pelo h3).
+ */
+function CartaoDoBloco({
+  titulo,
+  className,
+  children,
+}: {
+  titulo: string;
+  className?: string;
+  children: ReactNode;
+}) {
+  return (
+    <div
+      className={`rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03] ${className ?? ''}`}
+    >
+      <div className="sr-only">
+        <h3>{titulo}</h3>
+      </div>
+      <div className="p-4 sm:p-6">
+        <div className="space-y-6">{children}</div>
+      </div>
+    </div>
+  );
+}
+
+/**
  * Abre (pelo DOM, de forma síncrona) os blocos recolhidos do celular antes de imprimir. O CSS já
  * imprime o conteúdo fechado (`mscreen:hidden` não vale na impressão); isto garante que a tela
  * volte com o que foi impresso aberto, sem depender de beforeprint/setState.
@@ -571,9 +600,9 @@ export default function RelatoriosPage() {
                   Valores atuais por categoria e ativo
                 </p>
               </div>
-              <ComponentCard title="Posição Consolidada" className="avoid-break">
+              <CartaoDoBloco titulo="Posição Consolidada" className="avoid-break">
                 <PosicaoConsolidada secoes={posicaoData?.secoes ?? []} />
-              </ComponentCard>
+              </CartaoDoBloco>
             </SecaoRelatorio>
 
             <SecaoRelatorio
@@ -697,7 +726,7 @@ export default function RelatoriosPage() {
                   <p className="text-sm text-gray-500 dark:text-gray-400">{periodLabel}</p>
                 </div>
               </div>
-              <ComponentCard title="Evolução Patrimonial" className="avoid-break">
+              <CartaoDoBloco titulo="Evolução Patrimonial" className="avoid-break">
                 {filteredPatrimonio.length > 0 ? (
                   <LineChartCarteiraHistorico data={filteredPatrimonio} />
                 ) : (
@@ -705,7 +734,7 @@ export default function RelatoriosPage() {
                     Sem dados para o período selecionado.
                   </div>
                 )}
-              </ComponentCard>
+              </CartaoDoBloco>
             </SecaoRelatorio>
 
             <SecaoRelatorio
@@ -721,12 +750,12 @@ export default function RelatoriosPage() {
                 </h2>
                 <p className="text-sm text-gray-500 dark:text-gray-400">{periodLabel}</p>
               </div>
-              <ComponentCard title="Movimentações" className="avoid-break">
+              <CartaoDoBloco titulo="Movimentações" className="avoid-break">
                 <MovimentacoesTable
                   movimentacoes={movimentacoesData?.movimentacoes ?? []}
                   totalNoPeriodo={movimentacoesData?.totalNoPeriodo ?? 0}
                 />
-              </ComponentCard>
+              </CartaoDoBloco>
             </SecaoRelatorio>
 
             <SecaoRelatorio
@@ -745,7 +774,7 @@ export default function RelatoriosPage() {
                   <p className="text-sm text-gray-500 dark:text-gray-400">{periodLabel}</p>
                 </div>
               </div>
-              <ComponentCard title="Fluxo de Caixa Consolidado" className="avoid-break">
+              <CartaoDoBloco titulo="Fluxo de Caixa Consolidado" className="avoid-break">
                 <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
                   <div className="rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-white/[0.03]">
                     <p className="text-sm text-gray-500 dark:text-gray-400">Entradas</p>
@@ -813,7 +842,7 @@ export default function RelatoriosPage() {
                     </TableBody>
                   </Table>
                 </div>
-              </ComponentCard>
+              </CartaoDoBloco>
             </SecaoRelatorio>
 
             {isBelowLg ? (

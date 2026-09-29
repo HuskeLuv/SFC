@@ -9,6 +9,13 @@ interface ModalProps {
   children: React.ReactNode;
   showCloseButton?: boolean; // New prop to control close button visibility
   isFullscreen?: boolean; // Default to false for backwards compatibility
+  /**
+   * Nome acessível do diálogo (acabamento PWA fase 5): quem chama passa `ariaLabelledby`
+   * (id do título já renderizado) ou `ariaLabel`. Sem nenhum dos dois, cai num rótulo
+   * genérico — nunca um diálogo sem nome para o leitor de tela.
+   */
+  ariaLabel?: string;
+  ariaLabelledby?: string;
 }
 
 export const Modal: React.FC<ModalProps> = ({
@@ -18,6 +25,8 @@ export const Modal: React.FC<ModalProps> = ({
   className,
   showCloseButton = true, // Default to true for backwards compatibility
   isFullscreen = false,
+  ariaLabel,
+  ariaLabelledby,
 }) => {
   const modalRef = useRef<HTMLDivElement>(null);
 
@@ -68,6 +77,8 @@ export const Modal: React.FC<ModalProps> = ({
         ref={modalRef}
         role="dialog"
         aria-modal="true"
+        aria-labelledby={ariaLabelledby}
+        aria-label={ariaLabelledby ? undefined : (ariaLabel ?? 'Janela de diálogo')}
         data-mf-sheet={isFullscreen ? undefined : ''}
         className={`${contentClasses}  ${className}`}
         onClick={(e) => e.stopPropagation()}

@@ -4,6 +4,7 @@ import UserMetaCard from '@/components/user-profile/UserMetaCard';
 import PrivacyControls from '@/components/user-profile/PrivacyControls';
 import { TwoFactorAuthAutoLoad } from '@/components/user-profile/TwoFactorAuth';
 import AgendaPreferencias from '@/components/user-profile/AgendaPreferencias';
+import NotificacoesPreferencias from '@/components/user-profile/NotificacoesPreferencias';
 import PerfilMobile from '@/components/user-profile/mobile/PerfilMobile';
 import { useIsBelowLg } from '@/hooks/useMediaQuery';
 
@@ -49,6 +50,9 @@ export default function ProfilePage() {
 
       {/* Agenda: liga/desliga os lembretes do sininho */}
       {user && <AgendaPreferencias />}
+
+      {/* PWA fase 5: web push por aparelho + categorias (única mudança nova >= lg da fase) */}
+      {user && <NotificacoesPreferencias />}
 
       {/* LGPD Fase 2: controles de privacidade (Art. 18) */}
       {user && <PrivacyControls user={user} />}

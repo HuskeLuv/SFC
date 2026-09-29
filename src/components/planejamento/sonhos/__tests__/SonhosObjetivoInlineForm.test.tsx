@@ -124,4 +124,35 @@ describe('SonhosObjetivoInlineForm', () => {
     fireEvent.click(screen.getByRole('button', { name: /Cancelar/i }));
     expect(onCancel).toHaveBeenCalled();
   });
+
+  it('sheet: submeter sem nome marca o campo Nome com a borda de erro (acabamento fase 5)', async () => {
+    // matchMedia mobile pro BottomSheet (presentation='sheet').
+    Object.defineProperty(window, 'matchMedia', {
+      configurable: true,
+      value: (query: string) => ({
+        matches: true,
+        media: query,
+        addEventListener: () => {},
+        removeEventListener: () => {},
+      }),
+    });
+    const queryClient = createTestQueryClient();
+    render(
+      <QueryClientProvider client={queryClient}>
+        <SonhosObjetivoInlineForm
+          objetivo={null}
+          onCancel={vi.fn()}
+          onSaved={vi.fn()}
+          presentation="sheet"
+        />
+      </QueryClientProvider>,
+    );
+    fireEvent.click(screen.getByRole('button', { name: /Criar objetivo/i }));
+    expect(await screen.findByText(/Informe o nome/i)).toBeInTheDocument();
+    const nome = screen.getByLabelText('Nome');
+    expect(nome).toHaveAttribute('aria-invalid', 'true');
+    // twMerge tirou o border-gray-300 do estado de erro — a borda vermelha vale de fato.
+    expect(nome.className).toContain('border-[#D92D20]');
+    expect(nome.className).not.toContain('border-gray-300');
+  });
 });

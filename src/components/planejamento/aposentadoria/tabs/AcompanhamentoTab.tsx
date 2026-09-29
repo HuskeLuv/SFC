@@ -25,7 +25,8 @@ import RegistrarMesSheet from '../mobile/RegistrarMesSheet';
 interface AcompanhamentoTabProps {
   params: PlanoUpsertPayload;
   entries: AposentadoriaEntryDTO[];
-  onSaveEntry: (off: number, aporteReal: number, patFinal: number) => void;
+  /** Awaitable (acabamento fase 5): o sheet do celular aguarda a mutação antes de fechar. */
+  onSaveEntry: (off: number, aporteReal: number, patFinal: number) => void | Promise<void>;
   onDeleteEntry: (off: number) => void;
   saving: boolean;
 }
@@ -159,6 +160,14 @@ export default function AcompanhamentoTab({
   const handleSave = () => {
     if (!pat) return;
     onSaveEntry(curOffset, ap, pat);
+    if (curOffset === maxOff && retM > curOffset) setCurOffset(curOffset + 1);
+  };
+
+  // Versão awaitable para o RegistrarMesSheet (acabamento fase 5): o sheet fecha só depois de a
+  // API responder; o avanço do mês também espera o sucesso. O desktop segue com handleSave.
+  const handleSaveSheet = async () => {
+    if (!pat) return;
+    await onSaveEntry(curOffset, ap, pat);
     if (curOffset === maxOff && retM > curOffset) setCurOffset(curOffset + 1);
   };
 
@@ -328,7 +337,7 @@ export default function AcompanhamentoTab({
             }
             editingExists={editingExists}
             saving={saving}
-            onSave={handleSave}
+            onSave={handleSaveSheet}
             onDelete={() => onDeleteEntry(curOffset)}
           />
         </div>

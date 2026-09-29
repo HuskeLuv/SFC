@@ -36,6 +36,18 @@ export function detectIosBrowser(nav: Navigator | undefined): IosBrowser {
   return 'safari';
 }
 
+/**
+ * Onde fica o Compartilhar em cada navegador do iOS — Safari: barra de baixo; Chrome: dentro da
+ * barra de endereço, no alto; Firefox/Edge: dentro do menu do navegador.
+ */
+export function ondeFicaCompartilhar(browser: IosBrowser): string {
+  return browser === 'chrome'
+    ? 'na barra de endereço, no alto'
+    : browser === 'safari'
+      ? 'na barra do Safari'
+      : 'no menu do navegador';
+}
+
 function detectStandalone(): boolean {
   if (typeof window === 'undefined') return false;
   const displayStandalone =

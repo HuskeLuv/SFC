@@ -130,7 +130,7 @@ export default function MetasPatrimoniais({
         {!configurando ? (
           <button
             type="button"
-            className="text-xs font-medium text-blue-600 hover:underline dark:text-blue-400 print:hidden mscreen:min-h-11 mscreen:px-1 mscreen:text-sm mscreen:text-mf-patrimonio dark:mscreen:text-mf-tranquilidade"
+            className="text-xs font-medium text-mf-patrimonio hover:underline dark:text-mf-tranquilidade print:hidden mscreen:min-h-11 mscreen:px-1 mscreen:text-sm"
             onClick={() => setConfigurando(true)}
           >
             Personalizar
@@ -176,7 +176,7 @@ export default function MetasPatrimoniais({
                 Informe sua idade no{' '}
                 <Link
                   href="/planejamento-financeiro?modo=aposentadoria"
-                  className="font-medium text-blue-600 hover:underline dark:text-blue-400"
+                  className="font-medium text-mf-patrimonio hover:underline dark:text-mf-tranquilidade"
                 >
                   plano de aposentadoria
                 </Link>{' '}
