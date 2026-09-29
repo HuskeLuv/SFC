@@ -51,14 +51,23 @@ describe('PerfilMobile', () => {
     delete window.matchMedia;
   });
 
-  it('mostra nome, e-mail e as 7 linhas de ajuste, com Excluir por último', () => {
+  it('mostra nome, e-mail e as 8 linhas de ajuste, com Excluir por último', () => {
     render(<PerfilMobile user={USER} />);
     expect(screen.getByText('Ana Ribeiro')).toBeInTheDocument();
     expect(screen.getByText('ana@exemplo.com')).toBeInTheDocument();
     const itens = Array.from(document.querySelectorAll('[data-perfil-item]')).map((el) =>
       el.getAttribute('data-perfil-item'),
     );
-    expect(itens).toEqual(['nome', 'senha', '2fa', 'sessoes', 'agenda', 'dados', 'excluir']);
+    expect(itens).toEqual([
+      'nome',
+      'senha',
+      '2fa',
+      'sessoes',
+      'notificacoes',
+      'agenda',
+      'dados',
+      'excluir',
+    ]);
   });
 
   it.each([
