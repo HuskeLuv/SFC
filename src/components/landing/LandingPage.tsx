@@ -1,5 +1,5 @@
 import Image from 'next/image';
-import { Outfit, Titillium_Web } from 'next/font/google';
+import localFont from 'next/font/local';
 import LandingHeader from './LandingHeader';
 import LandingTour from './LandingTour';
 import LandingLogo from './LandingLogo';
@@ -7,16 +7,19 @@ import { Arrow, Check } from './icons';
 import './landing.css';
 
 // Display: Titillium Web (a mesma das capas da trilha). Corpo: Outfit (a mesma
-// do app). Self-hosted pelo next/font — o CSP só permite font-src 'self'.
-const titillium = Titillium_Web({
-  subsets: ['latin'],
-  weight: ['600', '700'],
+// do app). Self-hosted em src/fonts — o CSP só permite font-src 'self' e o
+// build não pode depender do Google Fonts.
+const titillium = localFont({
+  src: [
+    { path: '../../fonts/titillium-web-600-latin.woff2', weight: '600', style: 'normal' },
+    { path: '../../fonts/titillium-web-700-latin.woff2', weight: '700', style: 'normal' },
+  ],
   variable: '--font-td',
   display: 'swap',
 });
-const outfit = Outfit({
-  subsets: ['latin'],
-  weight: ['300', '400', '500', '600'],
+const outfit = localFont({
+  src: '../../fonts/outfit-latin-variable.woff2',
+  weight: '100 900',
   variable: '--font-tb',
   display: 'swap',
 });
