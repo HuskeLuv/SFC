@@ -1,5 +1,4 @@
 import { useCallback } from 'react';
-import { useRouter } from 'next/navigation';
 
 /**
  * Abas de classe da /carteira (PWA fase 1): ids e rótulos IGUAIS aos de sempre, na mesma ordem —
@@ -91,19 +90,20 @@ export function carteiraAbaHref(pathname: string, search: string, aba: string): 
 }
 
 /**
- * Troca o `?aba=` com `router.replace` (decisão do Wellington: sem encher o histórico — Voltar sai
+ * Troca o `?aba=` com replace (decisão do Wellington: sem encher o histórico — Voltar sai
  * da Carteira, não passeia pelas abas). Não faz nada se a URL já está certa.
+ *
+ * Acabamento fase 5: `window.history.replaceState` no lugar de `router.replace` — a troca de
+ * aba é estado visual e todo consumidor do `?aba=` lê `window.location` na montagem, então o
+ * GET RSC que o router disparava a cada toque era desperdício. O Next (>= 14.1) sincroniza o
+ * App Router com replaceState nativo; visual idêntico.
  */
 export function useReplaceCarteiraAba(): (aba: string) => void {
-  const router = useRouter();
-  return useCallback(
-    (aba: string) => {
-      if (typeof window === 'undefined') return;
-      const { pathname, search } = window.location;
-      const href = carteiraAbaHref(pathname, search, aba);
-      if (href === `${pathname}${search}`) return;
-      router.replace(href, { scroll: false });
-    },
-    [router],
-  );
+  return useCallback((aba: string) => {
+    if (typeof window === 'undefined') return;
+    const { pathname, search } = window.location;
+    const href = carteiraAbaHref(pathname, search, aba);
+    if (href === `${pathname}${search}`) return;
+    window.history.replaceState(window.history.state, '', href);
+  }, []);
 }
