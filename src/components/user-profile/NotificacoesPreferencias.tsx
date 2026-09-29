@@ -2,6 +2,7 @@
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useCsrf } from '@/hooks/useCsrf';
+import { detectIosBrowser, ondeFicaCompartilhar } from '@/hooks/useInstallPrompt';
 import { logger } from '@/lib/logger';
 import { useResponsiveConfirm } from '@/components/ui/sheet/useResponsiveConfirm';
 import {
@@ -147,11 +148,13 @@ function Passos({ passos }: { passos: React.ReactNode[] }) {
 
 /** Passo a passo de instalação no iOS (copy do InstallAppCard, específico de avisos). */
 function PassosInstalarIos() {
+  // Só renderiza no cliente (estado 'instalar' nasce de efeito), então o navigator existe.
+  const onde = ondeFicaCompartilhar(detectIosBrowser(globalThis.navigator));
   return (
     <Passos
       passos={[
         <React.Fragment key="1">
-          Toque em <b className="font-semibold">Compartilhar</b> na barra do Safari
+          Toque em <b className="font-semibold">Compartilhar</b> {onde}
         </React.Fragment>,
         <React.Fragment key="2">
           Escolha <b className="font-semibold">Adicionar à Tela de Início</b> e confirme

@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import BottomSheet from '@/components/ui/sheet/BottomSheet';
 import { useCsrf } from '@/hooks/useCsrf';
+import { detectIosBrowser, ondeFicaCompartilhar } from '@/hooks/useInstallPrompt';
 import { assinarPush, isIosSemPwa, isPushSupported, permissaoAtual } from '@/lib/pwa/pushClient';
 
 /**
@@ -202,7 +203,8 @@ export default function PushInviteSheet({ aberto, onClose }: Props) {
             <ol className="mt-3 flex flex-col gap-2.5">
               {[
                 <React.Fragment key="1">
-                  Toque em <b className="font-semibold">Compartilhar</b> na barra do Safari
+                  Toque em <b className="font-semibold">Compartilhar</b>{' '}
+                  {ondeFicaCompartilhar(detectIosBrowser(globalThis.navigator))}
                 </React.Fragment>,
                 <React.Fragment key="2">
                   Escolha <b className="font-semibold">Adicionar à Tela de Início</b> e confirme

@@ -157,6 +157,16 @@ describe('PushInviteSheet', () => {
     expect(mocks.assinarPush).not.toHaveBeenCalled();
   });
 
+  it('Chrome do iPhone: o passo 1 aponta a barra de endereço, não a do Safari', () => {
+    mocks.isIosSemPwa.mockReturnValue(true);
+    vi.spyOn(window.navigator, 'userAgent', 'get').mockReturnValue(
+      'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 CriOS/129.0 Mobile/15E148 Safari/604.1',
+    );
+    render(<PushInviteSheet aberto onClose={() => {}} />);
+    expect(screen.getByText(/na barra de endereço, no alto/)).toBeInTheDocument();
+    expect(screen.queryByText(/na barra do Safari/)).toBeNull();
+  });
+
   it("fechar o passo a passo ('Entendi') também silencia por 14 dias", () => {
     mocks.isIosSemPwa.mockReturnValue(true);
     const onClose = vi.fn();
