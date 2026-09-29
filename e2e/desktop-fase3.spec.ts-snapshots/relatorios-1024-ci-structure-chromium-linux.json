@@ -75,6 +75,7 @@
   "button|||bg-gray-100 dark:bg-gray-800 dark:hover:bg-gray-700 dark:text-gray-300 font-medium hover:bg-gray-200 px-3 py-1 rounded-md text-gray-600 text-xs transition-colors",
   "h1|||dark:text-white font-bold jsx-5355db7883af20a6 text-2xl text-gray-900",
   "h2|||dark:text-white font-semibold jsx-5355db7883af20a6 text-gray-900 text-xl",
+  "h3|||",
   "h3|||dark:text-white/90 font-medium text-base text-gray-800",
   "select|||appearance-none bg-transparent border border-gray-300 dark:bg-gray-900 dark:border-gray-700 dark:text-white/90 focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 h-11 jsx-5355db7883af20a6 pr-10 px-4 py-2.5 rounded-lg shadow-theme-xs text-gray-800 text-sm w-full"
  ]

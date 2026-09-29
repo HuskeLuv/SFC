@@ -4,9 +4,13 @@
  "mobileArtifactsVisible": 0,
  "controls": [
   "a|||text-brand-500 underline",
+  "button|switch||cursor-default flex gap-3 items-center min-h-14 px-3 py-1.5 text-left w-full",
   "button|||bg-brand-500 disabled:opacity-60 font-medium hover:bg-brand-600 px-4 py-2 rounded-lg text-sm text-white",
   "button|||bg-brand-500 disabled:opacity-60 font-medium mt-3 px-3 py-2 rounded-lg text-white text-xs",
   "button|||bg-white border border-gray-300 dark:bg-gray-900 dark:border-gray-700 dark:hover:bg-gray-800 dark:text-gray-200 font-medium hover:bg-gray-50 px-4 py-2 rounded-lg text-gray-700 text-sm",
+  "button|||bg-white dark:bg-gray-700 dark:text-white/90 font-medium min-h-11 px-2 rounded-lg shadow-sm text-[13px] text-gray-800",
+  "button|||border border-gray-300 dark:border-gray-700 dark:text-gray-200 disabled:opacity-60 flex font-medium items-center justify-center min-h-12 px-4 rounded-xl text-gray-700 text-sm w-full",
+  "button|||dark:text-gray-400 font-medium min-h-11 px-2 rounded-lg text-[13px] text-gray-500",
   "button|||disabled:opacity-60 font-medium hover:bg-red-700 px-4 py-2 rounded-lg text-sm text-white",
   "h3|||dark:text-white/90 font-semibold lg:mb-7 mb-5 text-gray-800 text-lg",
   "h3|||dark:text-white/90 font-semibold mb-1 text-gray-800 text-lg",
