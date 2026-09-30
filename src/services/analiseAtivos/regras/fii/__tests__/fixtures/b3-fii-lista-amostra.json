@@ -1,0 +1,40 @@
+{
+  "baixadoEm": "2026-09-30T19:05:10.538Z",
+  "itens": [
+    {
+      "id": 259,
+      "typeName": null,
+      "acronym": "BTCI",
+      "fundName": "BTG PACTUAL CRÉDITO IMOBILIÁRIO - FUNDO DE CRI - FI IMOBILIÁRIO RESPONSABILIDADE LIMITADA",
+      "tradingName": "FII BTG CRI"
+    },
+    {
+      "id": 6155,
+      "typeName": null,
+      "acronym": "IRIM",
+      "fundName": "IRIDIUM FUNDO DE INVESTIMENTO IMOBILIÁRIO RESPONSABILIDADE LIMITADA",
+      "tradingName": "FII IRIM"
+    },
+    {
+      "id": 319,
+      "typeName": null,
+      "acronym": "KNRI",
+      "fundName": "KINEA RENDA IMOBILIÁRIA FUNDO DE INVESTIMENTO IMOBILIÁRIO RESPONSABILIDADE LIMITADA",
+      "tradingName": "FII KINEA"
+    },
+    {
+      "id": 305,
+      "typeName": null,
+      "acronym": "HGLG",
+      "fundName": "PÁTRIA LOG - FUNDO DE INVESTIMENTO IMOBILIÁRIO - RESPONSABILIDADE LIMITADA",
+      "tradingName": "FII HGLG PAX"
+    },
+    {
+      "id": 841,
+      "typeName": null,
+      "acronym": "TRXF",
+      "fundName": "TRX REAL ESTATE FUNDO DE INVESTIMENTO IMOBILIÁRIO RESPONSABILIDADE LIMITADA",
+      "tradingName": "FII TRX REAL"
+    }
+  ]
+}
