@@ -18,6 +18,7 @@ import { resumoCotacoes } from '@/services/analiseAtivos/repositorio/cotacoes';
 import { ErroFonte, ErroLayoutFonte } from '@/services/analiseAtivos/fontes/erros';
 import { anosDoCron, obterArquivo, urlInformeFii } from '@/services/analiseAtivos/fii/fiiArquivos';
 import { aplicarPlanoMapa, lerMapa } from '@/services/analiseAtivos/fii/gravarFii';
+import { AgregadorAlertas } from '@/services/analiseAtivos/fii/sincronizarFiiMensal';
 import {
   baixarDetalheFundo,
   baixarListaB3Fii,
@@ -191,7 +192,9 @@ export async function sincronizarFiiCadastro(
       : undefined,
     historicosManuais: historicosManuais(),
   });
-  plano.alertas.forEach(ctx.alertar);
+  const agregador = new AgregadorAlertas(ctx.alertar, 20);
+  plano.alertas.forEach(agregador.add);
+  agregador.fechar();
   const tocados = [...detalhes.keys()]
     .map((ac) => vigentes.get(`${ac}11`)?.id)
     .filter((id): id is string => Boolean(id));

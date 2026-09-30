@@ -58,46 +58,51 @@ export interface LinhaFiiMensal {
   sourceUrl: string;
 }
 
-/** Arredonda na escala da coluna (Decimal) ou em 10 dígitos significativos (Float). */
-const r = (v: number | null, casas?: number): string =>
-  v === null || !Number.isFinite(v)
-    ? '∅'
-    : casas === undefined
-      ? Number(v.toPrecision(10)).toString()
-      : v.toFixed(casas);
+/** Casas das colunas Decimal (o resto é Float/Int/texto). */
+const CASAS_DECIMAL: Record<string, number> = {
+  vpCota: 8,
+  cotas: 4,
+  pl: 2,
+  ativoTotal: 2,
+  passivoTotal: 2,
+  rendDistribuir: 2,
+  obrigAquisicao: 2,
+  obrigSecuritizacao: 2,
+  imoveis: 2,
+  spe: 2,
+  cri: 2,
+  lciLca: 2,
+  cotasFii: 2,
+  rendaFixa: 2,
+  acoes: 2,
+  valorCri: 2,
+  receitaAluguel: 2,
+  resultadoTrimestral: 2,
+  rendimentosDeclarados: 2,
+  taxaPerformance: 2,
+};
 
-export function impressaoMensal(l: LinhaFiiMensal): string {
-  return [
-    l.versao,
-    l.dtEntrega ?? '∅',
-    r(l.vpCota, 8),
-    l.vpCotaRecalculado,
-    r(l.pl, 2),
-    r(l.cotas, 4),
-    l.cotistas ?? '∅',
-    r(l.dyMesCvmPct),
-    r(l.rentEfetivaMesPct),
-    r(l.taxaAdmPct),
-    r(l.ativoTotal, 2),
-    r(l.passivoTotal, 2),
-    r(l.rendDistribuir, 2),
-    r(l.obrigAquisicao, 2),
-    r(l.obrigSecuritizacao, 2),
-    r(l.imoveis, 2),
-    r(l.spe, 2),
-    r(l.cri, 2),
-    r(l.lciLca, 2),
-    r(l.cotasFii, 2),
-    r(l.rendaFixa, 2),
-    r(l.acoes, 2),
-    l.segmentoCvm ?? '∅',
-    l.tipoComposicao ?? '∅',
-    l.tipoVigente ?? '∅',
-    l.reguaVigente ?? '∅',
-    r(l.obrigacoesPlPct),
-    r(l.fatorDesdobramento),
-    [...l.flags].sort().join(','),
-  ].join('|');
+/**
+ * A linha nova é "igual" à gravada? Decimal: diferença até 1,5 unidade da última casa (o
+ * arredondamento do Postgres e o binário do JS divergem no último dígito); Float: 1e-9 relativo
+ * (somas em ordem diferente); flags sem ordem. Linha igual não é regravada (idempotência).
+ */
+export function linhasIguais<T extends object>(a: T, b: T): boolean {
+  for (const k of Object.keys(a) as Array<keyof T & string>) {
+    if (k === 'sourceUrl') continue;
+    const x = a[k] as unknown;
+    const y = b[k] as unknown;
+    if (Array.isArray(x) && Array.isArray(y)) {
+      if ([...x].sort().join(',') !== [...y].sort().join(',')) return false;
+    } else if (typeof x === 'number' && typeof y === 'number') {
+      const casas = CASAS_DECIMAL[k];
+      const tol = casas !== undefined ? 1.5 * 10 ** -casas : Math.max(1e-12, 1e-9 * Math.abs(x));
+      if (Math.abs(x - y) > tol) return false;
+    } else if (x !== y) {
+      return false;
+    }
+  }
+  return true;
 }
 
 type RowMensal = Prisma.FiiMonthlyGetPayload<object>;
@@ -185,7 +190,7 @@ export async function gravarMensal(
     const e = existentes.get(`${l.cnpj}|${l.refMonth}`);
     if (!e) novas.push(l);
     else if (l.versao < e.versao) res.versaoMenor++;
-    else if (impressaoMensal(l) === impressaoMensal(e)) res.iguais++;
+    else if (linhasIguais(l, e)) res.iguais++;
     else mudadas.push(l);
   }
   res.criadas = novas.length;
@@ -242,33 +247,6 @@ export interface LinhaFiiTrimestral {
   taxaPerformance: number | null;
   flags: string[];
   sourceUrl: string;
-}
-
-export function impressaoTrimestral(l: LinhaFiiTrimestral): string {
-  return [
-    l.versao,
-    l.nImoveisRenda ?? '∅',
-    l.nImoveisOutros ?? '∅',
-    r(l.areaM2),
-    r(l.areaMaiorImovelM2),
-    r(l.vacanciaFisicaCvmPct),
-    r(l.inadimplenciaCvmPct),
-    r(l.somaPctReceita),
-    r(l.prazoMedioAnosAprox),
-    r(l.vencAte12mPct),
-    r(l.vencAcima36mPct),
-    r(l.idxIpcaPct),
-    r(l.idxIgpmPct),
-    l.nCri ?? '∅',
-    r(l.valorCri, 2),
-    r(l.maiorCriPct),
-    l.nFii ?? '∅',
-    r(l.receitaAluguel, 2),
-    r(l.resultadoTrimestral, 2),
-    r(l.rendimentosDeclarados, 2),
-    r(l.taxaPerformance, 2),
-    [...l.flags].sort().join(','),
-  ].join('|');
 }
 
 type RowTrimestral = Prisma.FiiQuarterlyGetPayload<object>;
@@ -341,7 +319,7 @@ export async function gravarTrimestral(
     const e = existentes.get(`${l.cnpj}|${l.refQuarter}`);
     if (!e) novas.push(l);
     else if (l.versao < e.versao) res.versaoMenor++;
-    else if (impressaoTrimestral(l) === impressaoTrimestral(e)) res.iguais++;
+    else if (linhasIguais(l, e)) res.iguais++;
     else mudadas.push(l);
   }
   res.criadas = novas.length;
