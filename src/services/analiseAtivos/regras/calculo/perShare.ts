@@ -74,7 +74,12 @@ export function perShareAnual(e: EntradaPerShare, p: ScoringParams): PerShareAnu
   if (e.lucroAtribuivel.estado !== 'ok') payoutDmplPct = e.lucroAtribuivel;
   else if (e.dmplDeclarado === null) payoutDmplPct = ausente('sem_dado_fonte', 'dmpl');
   else if (e.lucroAtribuivel.valor === 0) payoutDmplPct = ausente('outro', 'lucro_zero');
-  else payoutDmplPct = ok((e.dmplDeclarado / e.lucroAtribuivel.valor) * 100);
+  else if (e.dmplDeclarado === 0 && e.dpaFimDoAno.estado === 'ok' && e.dpaFimDoAno.valor > 0) {
+    // DMPL sem nenhuma linha de dividendo/JCP num ano com provento declarado: a extração não achou as
+    // linhas (ex.: escopo individual de banco), não é payout zero
+    payoutDmplPct = ausente('sem_dado_fonte', 'dmpl_zero_com_proventos');
+    flags.push('dmpl_zero_com_proventos');
+  } else payoutDmplPct = ok((e.dmplDeclarado / e.lucroAtribuivel.valor) * 100);
 
   if (
     payoutDmplPct.estado === 'ok' &&

@@ -186,6 +186,29 @@ describe('per-share (LPA/VPA ajustados a hoje)', () => {
     expect(r.payoutDmplPct.estado).toBe('ausente');
   });
 
+  it('DMPL = 0 num ano com provento (BBAS3 individual) ⇒ payout DMPL ausente, sem auditoria falsa', () => {
+    const r = perShareAnual(
+      {
+        anoFiscal: 2024,
+        lucroAtribuivel: ok(35_262e6),
+        plControladora: ok(180_883e6),
+        acoesFim: 5708.047 * MI,
+        acoesAnterior: null,
+        fatorEquivalencia: 1,
+        eventos: [],
+        dpaFimDoAno: ok(2.5972),
+        dpaHoje: ok(2.5972),
+        dmplDeclarado: 0,
+      },
+      P,
+    );
+    expect(r.payoutDmplPct).toMatchObject({
+      estado: 'ausente',
+      detalhe: 'dmpl_zero_com_proventos',
+    });
+    expect(r.flags).toEqual(['dmpl_zero_com_proventos']);
+  });
+
   it('unit: LPA × fator de equivalência (TAEE11 = 1 ON + 2 PN)', () => {
     const r = perShareAnual(
       {

@@ -95,6 +95,14 @@ describe('eventos corporativos — ações (regra 6)', () => {
     const lpa2016 = 1117.6 / 1614.353;
     expect(lpa2016 / fatorEventosAnoBaseApos(evs, 2016)).toBeCloseTo(0.2663, 4);
   });
+  it('MGLU3 2024 ×0,1 com follow-on (razão 0,11): emissao_recompra, MANTIDO no ajuste (Fase A: fator 0,105)', () => {
+    const evs = verificarEventosCorporativos(eventosBrutos('MGLU3'), contagensDe('MGLU3'), P);
+    const g = evs.find((x) => x.dataEvento.startsWith('2024-05'))!;
+    expect(g.status).toBe('emissao_recompra');
+    expect(achar(evs, '2025-12-29', 1.05).status).toBe('confirmado');
+    expect(achar(evs, '2020-10-13', 4).status).toBe('confirmado');
+    expect(fatorEventosAnoBaseApos(evs, 2020)).toBeCloseTo(0.105, 10);
+  });
 });
 
 describe('regra 13 — salto de ações sem evento validado', () => {

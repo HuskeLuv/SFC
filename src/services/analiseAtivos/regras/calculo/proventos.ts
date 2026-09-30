@@ -12,6 +12,7 @@
  * Ajuste a hoje POR EVENTO: valor ÷ Π eventos confirmados com data > data-com (MGLU3 2020 teve
  * proventos antes e depois do 4:1 no mesmo ano). Funções puras.
  */
+import { eventoAjustaSerie } from '@/services/analiseAtivos/regras/calculo/eventosCorporativos';
 import { pregaoAnterior } from '@/services/analiseAtivos/regras/comum/pregoes';
 import { ausente, ok } from '@/services/analiseAtivos/regras/comum/valor';
 import type {
@@ -97,7 +98,7 @@ export function dataComReal(
 function fatorApos(eventos: EventoParaAjuste[], data: string | null): number {
   if (!data) return 1;
   return eventos
-    .filter((e) => e.status === 'confirmado' && e.dataEvento > data)
+    .filter((e) => eventoAjustaSerie(e.status) && e.dataEvento > data)
     .reduce((acc, e) => acc * e.fator, 1);
 }
 
@@ -243,7 +244,7 @@ export function dpaNoAno(
     const fator = eventos
       .filter(
         (e) =>
-          e.status === 'confirmado' &&
+          eventoAjustaSerie(e.status) &&
           e.dataEvento > pr.dataComReal! &&
           (base === 'hoje' || e.anoBase <= ano),
       )

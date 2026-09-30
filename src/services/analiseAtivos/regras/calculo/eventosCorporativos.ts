@@ -10,7 +10,10 @@
  *     dezembro pode só aparecer no ano seguinte (CYRE3 2025-12-30 ⇒ anoBase 2026);
  *  3. FII: confirma pela razão de cotas do Informe Mensal no mês do evento (HFOF11 1:10 mai/25) e um
  *     `fatorDesdobramento` do FiiMonthly sem evento bruto vira evento confirmado de origem 'cvm_cotas'.
- * Só 'confirmado' ajusta série (fatorEventosApos/Entre). Funções puras.
+ * Ajustam série (fatorEventos*): 'confirmado' e 'emissao_recompra' — este último é o evento que a
+ * razão de ações não confirma sozinha porque houve emissão/recompra no mesmo ano e que a Fase A
+ * MANTEVE (acoes-cvm.md §2: MGLU3 2024 ×0,1 com follow-on; LREN3 2021 ×1,1 com oferta). Descartado e
+ * não validável nunca ajustam. Funções puras.
  */
 import type {
   ContagemAcoes,
@@ -21,6 +24,11 @@ import type {
 
 const DIA_MS = 24 * 60 * 60 * 1000;
 const MAX_COMBINACOES_EVENTOS = 12;
+
+/** Status que ajustam séries por ação (ver cabeçalho). */
+export function eventoAjustaSerie(status: EventoCorporativoVerificado['status']): boolean {
+  return status === 'confirmado' || status === 'emissao_recompra';
+}
 
 export type TipoEvento = EventoCorporativoVerificado['tipo'];
 
@@ -316,17 +324,17 @@ function verificarFii(
   return out.sort((a, b) => a.dataEvento.localeCompare(b.dataEvento));
 }
 
-/** Π dos eventos CONFIRMADOS com data estritamente posterior a `data`. */
+/** Π dos eventos que ajustam série com data estritamente posterior a `data`. */
 export function fatorEventosApos(
   eventos: Array<Pick<EventoCorporativoVerificado, 'dataEvento' | 'fator' | 'status'>>,
   data: string,
 ): number {
   return produto(
-    eventos.filter((e) => e.status === 'confirmado' && e.dataEvento > data).map((e) => e.fator),
+    eventos.filter((e) => eventoAjustaSerie(e.status) && e.dataEvento > data).map((e) => e.fator),
   );
 }
 
-/** Π dos eventos CONFIRMADOS com data em (de, ate]. */
+/** Π dos eventos que ajustam série com data em (de, ate]. */
 export function fatorEventosEntre(
   eventos: Array<Pick<EventoCorporativoVerificado, 'dataEvento' | 'fator' | 'status'>>,
   de: string,
@@ -334,28 +342,30 @@ export function fatorEventosEntre(
 ): number {
   return produto(
     eventos
-      .filter((e) => e.status === 'confirmado' && e.dataEvento > de && e.dataEvento <= ate)
+      .filter((e) => eventoAjustaSerie(e.status) && e.dataEvento > de && e.dataEvento <= ate)
       .map((e) => e.fator),
   );
 }
 
-/** Π dos eventos CONFIRMADOS com anoBase > ano (ajuste de série anual à base de hoje). */
+/** Π dos eventos que ajustam série com anoBase > ano (série anual na base de hoje). */
 export function fatorEventosAnoBaseApos(
   eventos: Array<Pick<EventoCorporativoVerificado, 'anoBase' | 'fator' | 'status'>>,
   anoFiscal: number,
 ): number {
   return produto(
-    eventos.filter((e) => e.status === 'confirmado' && e.anoBase > anoFiscal).map((e) => e.fator),
+    eventos.filter((e) => eventoAjustaSerie(e.status) && e.anoBase > anoFiscal).map((e) => e.fator),
   );
 }
 
-/** Π dos eventos CONFIRMADOS com anoBase = ano. */
+/** Π dos eventos que ajustam série com anoBase = ano. */
 export function fatorEventosDoAno(
   eventos: Array<Pick<EventoCorporativoVerificado, 'anoBase' | 'fator' | 'status'>>,
   anoFiscal: number,
 ): number {
   return produto(
-    eventos.filter((e) => e.status === 'confirmado' && e.anoBase === anoFiscal).map((e) => e.fator),
+    eventos
+      .filter((e) => eventoAjustaSerie(e.status) && e.anoBase === anoFiscal)
+      .map((e) => e.fator),
   );
 }
 
@@ -390,7 +400,7 @@ export function ajustarSerieCotaFii<
     // o informe do mês do evento já vem na base nova; o ajuste vale para meses ANTERIORES ao evento
     const f = produto(
       eventos
-        .filter((e) => e.status === 'confirmado' && `${e.dataEvento.slice(0, 7)}-01` > m.refMonth)
+        .filter((e) => eventoAjustaSerie(e.status) && `${e.dataEvento.slice(0, 7)}-01` > m.refMonth)
         .map((e) => e.fator),
     );
     if (f === 1) return m;
