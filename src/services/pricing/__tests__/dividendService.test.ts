@@ -367,8 +367,27 @@ describe('getDividends', () => {
       mockPrisma.assetDividendHistory.upsert.mockResolvedValue({});
     });
 
-    it('captures exDate as dataCom when present', async () => {
-      const exDateUtc = Date.UTC(2025, 5, 2); // 2025-06-02 UTC, tz-independent
+    it('usa lastDatePrior (data-com real) e não a exDate (caso PETR4 mai/2024)', async () => {
+      mockFetch.mockResolvedValue(
+        makeBrapiResponse([
+          {
+            paymentDate: '2024-05-20T00:00:00.000Z',
+            lastDatePrior: '2024-05-02T00:00:00.000Z',
+            exDate: '2024-05-03T00:00:00.000Z',
+            rate: 0.84962838,
+            label: 'DIVIDENDO',
+          },
+        ]),
+      );
+
+      const result = await getDividends('PETR4');
+
+      expect(result[0].dataCom).toEqual(new Date('2024-05-02T00:00:00.000Z'));
+    });
+
+    it('sem lastDatePrior, deriva a data-com do pregão anterior à exDate', async () => {
+      // ex numa segunda (02/06/2025) → data-com na sexta (30/05/2025).
+      const exDateUtc = Date.UTC(2025, 5, 2);
       const payDateUtc = Date.UTC(2025, 7, 20);
       mockFetch.mockResolvedValue(
         makeBrapiResponse([
@@ -385,7 +404,7 @@ describe('getDividends', () => {
 
       expect(result).toHaveLength(1);
       expect(result[0].dataCom).toBeInstanceOf(Date);
-      expect(result[0].dataCom?.getTime()).toBe(exDateUtc);
+      expect(result[0].dataCom?.getTime()).toBe(Date.UTC(2025, 4, 30));
       expect(result[0].date.getTime()).toBe(payDateUtc);
     });
 
@@ -414,7 +433,7 @@ describe('getDividends', () => {
       );
     });
 
-    it('falls back to recordDate when exDate/exDividendDate absent', async () => {
+    it('falls back to recordDate when lastDatePrior/exDate/exDividendDate absent', async () => {
       const recordDateUtc = Date.UTC(2025, 5, 5);
       mockFetch.mockResolvedValue(
         makeBrapiResponse([
@@ -602,7 +621,7 @@ describe('BRAPI dedup pré-upsert', () => {
     expect(mockPrisma.assetDividendHistory.upsert).toHaveBeenCalledTimes(3);
   });
 
-  it('preserva primeira exDate não-nula em entries somadas', async () => {
+  it('preserva a primeira data-com não-nula em entries somadas', async () => {
     mockFetch.mockResolvedValue(
       makeBrapiResponse([
         { paymentDate: '2025-06-12', label: 'JCP', rate: 0.1, lastDatePrior: '2025-06-02' },
