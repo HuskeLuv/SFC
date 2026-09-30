@@ -1,0 +1,13 @@
+CNPJ_CIA;DT_REFER;VERSAO;DENOM_CIA;CD_CVM;GRUPO_DFP;MOEDA;ESCALA_MOEDA;ORDEM_EXERC;DT_INI_EXERC;DT_FIM_EXERC;CD_CONTA;DS_CONTA;VL_CONTA;ST_CONTA_FIXA
+00.000.000/0001-91;2025-12-31;1;BCO BRASIL S.A.;001023;DF Individual - Demonstração do Resultado;REAL;MIL;ÚLTIMO;2025-01-01;2025-12-31;3.01;Receitas de Intermediação Financeira;293379482.0000000000;S
+00.000.000/0001-91;2025-12-31;1;BCO BRASIL S.A.;001023;DF Individual - Demonstração do Resultado;REAL;MIL;ÚLTIMO;2025-01-01;2025-12-31;3.02;Despesas de Intermediação Financeira;-262070848.0000000000;S
+00.000.000/0001-91;2025-12-31;1;BCO BRASIL S.A.;001023;DF Individual - Demonstração do Resultado;REAL;MIL;ÚLTIMO;2025-01-01;2025-12-31;3.03;Resultado Bruto de Intermediação Financeira;31308634.0000000000;S
+00.000.000/0001-91;2025-12-31;1;BCO BRASIL S.A.;001023;DF Individual - Demonstração do Resultado;REAL;MIL;ÚLTIMO;2025-01-01;2025-12-31;3.04;Outras Despesas e Receitas Operacionais;-24492144.0000000000;S
+00.000.000/0001-91;2025-12-31;1;BCO BRASIL S.A.;001023;DF Individual - Demonstração do Resultado;REAL;MIL;ÚLTIMO;2025-01-01;2025-12-31;3.05;Resultado antes dos Tributos sobre o Lucro;6816490.0000000000;S
+00.000.000/0001-91;2025-12-31;1;BCO BRASIL S.A.;001023;DF Individual - Demonstração do Resultado;REAL;MIL;ÚLTIMO;2025-01-01;2025-12-31;3.06;Imposto de Renda e Contribuição Social sobre o Lucro;13584491.0000000000;S
+00.000.000/0001-91;2025-12-31;1;BCO BRASIL S.A.;001023;DF Individual - Demonstração do Resultado;REAL;MIL;ÚLTIMO;2025-01-01;2025-12-31;3.07;Lucro ou Prejuízo das Operações Continuadas;20400981.0000000000;S
+00.000.000/0001-91;2025-12-31;1;BCO BRASIL S.A.;001023;DF Individual - Demonstração do Resultado;REAL;MIL;ÚLTIMO;2025-01-01;2025-12-31;3.08;Resultado Líquido das Operações Descontinuadas;0.0000000000;S
+00.000.000/0001-91;2025-12-31;1;BCO BRASIL S.A.;001023;DF Individual - Demonstração do Resultado;REAL;MIL;ÚLTIMO;2025-01-01;2025-12-31;3.09;Lucro ou Prejuízo antes das Participações e Contribuições Estatutárias;20400981.0000000000;S
+00.000.000/0001-91;2025-12-31;1;BCO BRASIL S.A.;001023;DF Individual - Demonstração do Resultado;REAL;MIL;ÚLTIMO;2025-01-01;2025-12-31;3.10;Participações nos Lucros e Contribuições Estatutárias;-2249194.0000000000;S
+00.000.000/0001-91;2025-12-31;1;BCO BRASIL S.A.;001023;DF Individual - Demonstração do Resultado;REAL;MIL;ÚLTIMO;2025-01-01;2025-12-31;3.11;Lucro ou Prejuízo Líquido do Período;18151787.0000000000;S
+00.000.000/0001-91;2025-12-31;1;BCO BRASIL S.A.;001023;DF Individual - Demonstração do Resultado;REAL;MIL;ÚLTIMO;2025-01-01;2025-12-31;3.99;Lucro por Ação (R$/Ação);3.1800000000;N

@@ -328,3 +328,59 @@ export function resolverAcoesExercicio(e: EntradaResolucaoAcoes, p: ScoringParam
   }
   return resultado(cands[0], 'sem_verificacao', null);
 }
+
+/**
+ * Contagem do ITR (fim do trimestre) com a MESMA escolha unidade/×1000 do DFP mais recente da
+ * empresa. A razão Σ(LPA YTD × ações)/lucro YTD só dá o status; LPA em escala errada é corrigido.
+ */
+export function contagemComEscalaFixa(
+  e: EntradaResolucaoAcoes,
+  x1000: boolean,
+  p: ScoringParams,
+): ResolucaoAcoes {
+  const cand = candidatos({ ...e, freAcoes: null }).find(
+    (c) => c.nome === (x1000 ? 'dfp_x1000' : 'dfp'),
+  );
+  if (!cand) {
+    return {
+      acoes: null,
+      on: null,
+      pn: null,
+      tesouraria: null,
+      fonte: null,
+      razaoLpa: null,
+      status: 'nao_verificavel',
+      fatorEscalaLpa: 1,
+      flags: ['sem_fonte'],
+    };
+  }
+  const s = p.sanidade.acoes;
+  const flags = x1000 ? ['escala_x1000', 'escala_do_dfp'] : ['escala_do_dfp'];
+  const base = lucroBase(e, p);
+  let razao = base ? razaoLpa(e, cand, base.lucro) : null;
+  let fator: FatorEscalaLpa = 1;
+  if (razao !== null && razao > s.escalaLpaMil[0] && razao < s.escalaLpaMil[1]) fator = 0.001;
+  else if (razao !== null && razao > s.escalaLpaMilesimo[0] && razao < s.escalaLpaMilesimo[1]) {
+    fator = 1000;
+  }
+  if (razao !== null) razao *= fator;
+  if (base?.fallback) flags.push('lucro_total_fallback');
+  if (fator !== 1) flags.push('lpa_escala_corrigida');
+  const status: ResolucaoAcoes['status'] =
+    razao === null
+      ? 'nao_verificavel'
+      : Math.abs(razao - 1) * 100 > s.razaoLpaAlertaPct
+        ? 'alerta'
+        : 'ok';
+  return {
+    acoes: cand.acoes,
+    on: cand.on,
+    pn: cand.pn,
+    tesouraria: cand.tesouraria,
+    fonte: x1000 ? 'itr_x1000' : 'itr',
+    razaoLpa: razao,
+    status,
+    fatorEscalaLpa: fator,
+    flags,
+  };
+}
