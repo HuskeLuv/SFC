@@ -53,6 +53,7 @@ import {
   urlArquivoCvm,
 } from '@/services/analiseAtivos/acoes/cvmArquivos';
 import {
+  balancosVizinhos,
   contagensExistentes,
   dec2,
   gravarCadastroFca,
@@ -62,6 +63,7 @@ import {
   gravarLinhasDemonstrativo,
   gravarTtm,
   periodosDosEmissores,
+  type BalancoVizinho,
   type ContagemGravavel,
   type LinhaFundamentosDb,
   documentosGravados,
@@ -90,6 +92,12 @@ import {
   extrairFundamentos,
   type FundamentosExtraidos,
 } from '@/services/analiseAtivos/regras/acoes/extrairFundamentos';
+import {
+  aplicarDecisaoEscala,
+  decidirEscala,
+  sinalLpa,
+  sinalVizinho,
+} from '@/services/analiseAtivos/regras/acoes/escalaDeclarada';
 import { ehLayoutFinanceiro } from '@/services/analiseAtivos/regras/acoes/layoutFinanceiro';
 import { aplicarFatorLpa } from '@/services/analiseAtivos/regras/acoes/lpa';
 import {
@@ -575,6 +583,7 @@ async function processarPendentes(
   const fetchedAt = new Date();
   const cnpjsPendentes = [...new Set(pendentes.map((d) => d.cnpj))];
   const existentesContagem = await contagensExistentes(ctx.prisma, cnpjsPendentes);
+  const vizinhos = await balancosVizinhos(ctx.prisma, cnpjsPendentes, `${ano - 3}-01-01`);
   const contagensRun: ContagemGravavel[] = [];
   const linhasFund: Prisma.AssetFundamentalsPeriodCreateManyInput[] = [];
   const linhasRaioX: Prisma.AssetStatementLineCreateManyInput[] = [];
@@ -619,6 +628,11 @@ async function processarPendentes(
       }
     }
     if (extraidos.length === 0) continue;
+    // escala declarada errada (PDTC3 DFP 2024/2025: UNIDADE com valores em milhares)
+    const fatoresEscala = conferirEscala(ctx, d, extraidos, vizinhos, [
+      ...existentesContagem,
+      ...contagensRun,
+    ]);
     // regra 12: controladora e não controladores zerados ⇒ lucro do individual do mesmo documento
     const comLucroInd = aplicarLucroIndividual(extraidos.map((x) => x.f));
     comLucroInd.forEach((f, i) => {
@@ -694,9 +708,10 @@ async function processarPendentes(
     if (a.raioX) {
       const escopos: Escopo[] = temCon ? (layoutFin ? ['con', 'ind'] : ['con']) : ['ind'];
       for (const escopo of escopos) {
+        const fatorEscala = fatoresEscala.get(escopo) ?? 1;
         for (const l of a.raioX[escopo]) {
           if (l.dtFim !== d.dtRefer) continue;
-          const v = dec2(l.valor);
+          const v = dec2(l.cdConta.startsWith('3.99') ? l.valor : l.valor * fatorEscala);
           if (v === null) continue;
           linhasRaioX.push({
             emissorId: d.cnpj,
@@ -736,6 +751,82 @@ async function processarPendentes(
   const fu = await gravarFundamentos(ctx.prisma, ctx, linhasFund);
   ctx.contar('linhasGravadas', fu.gravadas);
   return { parcial: fu.interrompido, contagens };
+}
+
+/**
+ * Confere a escala declarada de cada escopo do documento contra o balanço vizinho já gravado e o LPA
+ * publicado (regras/acoes/escalaDeclarada.ts); corrige `extraidos` no lugar e devolve o fator
+ * aplicado por escopo (para o Raio-X). Registra o balanço do documento como vizinho dos próximos.
+ */
+function conferirEscala(
+  ctx: JobContexto,
+  d: DocIndice,
+  extraidos: Array<{ f: FundamentosExtraidos; escala: string }>,
+  vizinhos: Map<string, BalancoVizinho[]>,
+  contagens: ContagemGravavel[],
+): Map<Escopo, number> {
+  const fatores = new Map<Escopo, number>();
+  const base =
+    extraidos.find((x) => x.f.escopo === 'con' && x.f.tipoPeriodo !== '3M') ??
+    extraidos.find((x) => x.f.tipoPeriodo !== '3M') ??
+    extraidos[0];
+  const acoes =
+    contagens
+      .filter(
+        (c) =>
+          c.cnpj === d.cnpj &&
+          c.status === 'ok' &&
+          c.total !== null &&
+          c.total > 0 &&
+          c.data <= d.dtRefer,
+      )
+      .sort((a, b) => b.data.localeCompare(a.data))[0]?.total ?? null;
+  const lpa = base.f.lpaOn || base.f.lpaPn || null;
+  const sLpa = sinalLpa(base.f.lucroAtribuivel ?? base.f.lucroLiquido, lpa, acoes, ctx.params);
+  for (const escopo of ESCOPOS) {
+    const doEscopo = extraidos.filter((x) => x.f.escopo === escopo);
+    const balanco = doEscopo.find((x) => x.f.tipoPeriodo !== '3M')?.f ?? doEscopo[0]?.f;
+    if (!balanco) continue;
+    const k = `${d.cnpj}|${escopo}`;
+    const lista = vizinhos.get(k) ?? [];
+    const vizinho =
+      [...lista].reverse().find((v) => v.dtFim < d.dtRefer) ??
+      lista.find((v) => v.dtFim > d.dtRefer) ??
+      null;
+    const decisao = decidirEscala(sinalVizinho(balanco, vizinho), sLpa);
+    fatores.set(escopo, decisao.fator);
+    if (decisao.flag !== null) {
+      for (let i = 0; i < extraidos.length; i++) {
+        if (extraidos[i].f.escopo !== escopo) continue;
+        extraidos[i] = { ...extraidos[i], f: aplicarDecisaoEscala(extraidos[i].f, decisao) };
+      }
+      if (escopo === 'con' || !extraidos.some((x) => x.f.escopo === 'con')) {
+        ctx.alertar({
+          codigo: decisao.flag,
+          nivel: decisao.flag === 'escala_ambigua' ? 'aviso' : 'info',
+          mensagem: `${d.cnpj} ${d.dtRefer}: escala declarada ${doEscopo[0].escala}${
+            decisao.fator !== 1 ? ` corrigida ×${decisao.fator}` : ' ambígua (não corrigida)'
+          }`,
+          ref: d.cnpj,
+        });
+      }
+    }
+    if (decisao.flag !== 'escala_ambigua') {
+      const corrigido = extraidos.find((x) => x.f.escopo === escopo && x.f.tipoPeriodo !== '3M');
+      const novo = {
+        dtFim: d.dtRefer,
+        ativoTotal: corrigido?.f.ativoTotal ?? null,
+        pl: corrigido?.f.pl ?? null,
+      };
+      vizinhos.set(
+        k,
+        [...lista.filter((v) => v.dtFim !== d.dtRefer), novo].sort((a, b) =>
+          a.dtFim.localeCompare(b.dtFim),
+        ),
+      );
+    }
+  }
+  return fatores;
 }
 
 /** Regra 10 no DFP; no ITR a escala unidade/×1000 do DFP mais recente da empresa. */
@@ -905,6 +996,11 @@ export function montarLinhasTtm(
       ctx.params,
     );
     const dtFim = paraData(base.dtFim);
+    // período com escala declarada ambígua na janela do TTM ⇒ o TTM herda a flag (Índice incompleto)
+    const limiteEscala = fimDoMesAnterior(dtFim, 15);
+    const escalaAmbigua = vs.some(
+      (l) => paraData(l.dtFim) > limiteEscala && l.flags.includes('escala_ambigua'),
+    );
     const {
       id: _id,
       fetchedAt: _f,
@@ -928,7 +1024,7 @@ export function montarLinhasTtm(
       lpaEscalaCorrigida: false,
       dmplDeclarado: null,
       codContaLucro: base.codContaLucro,
-      flags: r.flags,
+      flags: escalaAmbigua ? [...r.flags, 'escala_ambigua'].sort() : r.flags,
       fetchedAt,
     } as Prisma.AssetFundamentalsPeriodCreateManyInput);
   }

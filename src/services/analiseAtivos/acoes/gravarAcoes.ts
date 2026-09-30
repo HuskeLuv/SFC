@@ -509,3 +509,51 @@ export async function gravarTtm(
   }
   return { ...r, escritas };
 }
+
+// ---------------------------------------------------------------- balanços vizinhos (escala)
+
+export interface BalancoVizinho {
+  dtFim: string;
+  ativoTotal: number | null;
+  pl: number | null;
+}
+
+/**
+ * Ativo total e PL já gravados por `${cnpj}|${escopo}` (dtFim ≥ desde, ordem crescente), um por
+ * data — a referência da conferência de escala declarada (regras/acoes/escalaDeclarada.ts). Linhas
+ * com 'escala_ambigua' não servem de referência.
+ */
+export async function balancosVizinhos(
+  prisma: PrismaClient,
+  cnpjs: string[],
+  desde: string,
+): Promise<Map<string, BalancoVizinho[]>> {
+  const out = new Map<string, BalancoVizinho[]>();
+  if (cnpjs.length === 0) return out;
+  const linhas = await prisma.assetFundamentalsPeriod.findMany({
+    where: {
+      emissorId: { in: cnpjs },
+      tipoPeriodo: { in: ['FY', 'YTD'] },
+      dtFim: { gte: deData(desde) },
+      NOT: { flags: { has: 'escala_ambigua' } },
+    },
+    select: {
+      emissorId: true,
+      escopo: true,
+      dtFim: true,
+      versao: true,
+      ativoTotal: true,
+      pl: true,
+    },
+    orderBy: [{ emissorId: 'asc' }, { escopo: 'asc' }, { dtFim: 'asc' }, { versao: 'desc' }],
+  });
+  for (const l of linhas) {
+    const k = `${l.emissorId}|${l.escopo}`;
+    const lista = out.get(k) ?? [];
+    const dtFim = paraData(l.dtFim);
+    if (lista.length > 0 && lista[lista.length - 1].dtFim === dtFim) continue;
+    lista.push({ dtFim, ativoTotal: paraNumero(l.ativoTotal), pl: paraNumero(l.pl) });
+    out.set(k, lista);
+  }
+  return out;
+}

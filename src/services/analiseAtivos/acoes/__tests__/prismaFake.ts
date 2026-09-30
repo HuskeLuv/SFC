@@ -84,9 +84,11 @@ function igual(a: unknown, b: unknown): boolean {
 function casa(l: Linha, where: Linha | undefined): boolean {
   if (!where) return true;
   return Object.entries(where).every(([k, cond]) => {
+    if (k === 'NOT') return !casa(l, cond as Linha);
     const v = l[k];
     if (cond !== null && typeof cond === 'object' && !(cond instanceof Date)) {
       const c = cond as Record<string, unknown>;
+      if ('has' in c) return Array.isArray(v) && v.includes(c.has);
       if ('in' in c) return (c.in as unknown[]).some((x) => igual(v, x));
       if ('not' in c) return !igual(v, c.not);
       const nv = normalizar(v) as number;

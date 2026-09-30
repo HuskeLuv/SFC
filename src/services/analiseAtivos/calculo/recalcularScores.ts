@@ -230,6 +230,10 @@ export function calcularAtualAcao(e: EntradaAtualAcao, p: ScoringParams): Calcul
     fund = fys[fys.length - 1];
     flags.push('ttm_ausente_usou_fy');
   }
+  // escala declarada ambígua no documento (regras/acoes/escalaDeclarada.ts): não corrigida ⇒ incompleto
+  if (fund?.flags.includes('escala_ambigua') || fyUltimo?.flags.includes('escala_ambigua')) {
+    flags.push('escala_ambigua');
+  }
   const contMaisRecente =
     [...e.contagens]
       .filter((c) => c.total !== null)
@@ -369,6 +373,10 @@ export function scoreAcao(
   if (c.flags.includes('salto_acoes_sem_evento')) {
     indice.incompleto = true;
     indice.motivosIncompleto = [...indice.motivosIncompleto, 'acoes:salto_sem_evento'];
+  }
+  if (c.flags.includes('escala_ambigua')) {
+    indice.incompleto = true;
+    indice.motivosIncompleto = [...indice.motivosIncompleto, 'fundamentos:escala_ambigua'];
   }
   if (c.flags.includes('acoes_nao_verificavel')) {
     indice.incompleto = true;

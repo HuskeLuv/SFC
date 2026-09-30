@@ -636,6 +636,23 @@ describe('calcularAtualAcao — regra 13 na contagem dos múltiplos do dia (acha
     expect(r.vpa.estado).toBe('ok');
   });
 
+  it('fundamentos com escala declarada ambígua (não corrigida) ⇒ Índice incompleto', async () => {
+    const { calcularAtualAcao, scoreAcao } =
+      await import('@/services/analiseAtivos/calculo/recalcularScores');
+    const contagens = [cont('2025-12-31', 640_360_000, 'dfp')];
+    const r = calcularAtualAcao(
+      {
+        ...entradaMinima(contagens),
+        fundAtual: { ...fundPl, flags: ['escala_ambigua'] } as never,
+      },
+      SCORING_PARAMS_V1,
+    );
+    expect(r.flags).toContain('escala_ambigua');
+    const sc = scoreAcao(r, false, SCORING_PARAMS_V1);
+    expect(sc.indice.incompleto).toBe(true);
+    expect(sc.indice.motivosIncompleto).toContain('fundamentos:escala_ambigua');
+  });
+
   function entradaMinima(contagens: ContagemAcoes[]) {
     const ticker: TickerAcao = {
       symbol: 'PSSA3',
