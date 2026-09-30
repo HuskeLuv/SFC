@@ -6,13 +6,16 @@ import { describe, expect, it } from 'vitest';
 import {
   ajustarSerieCotaFii,
   anosBaseCandidatos,
+  dataExDoEvento,
   deduplicarEventos,
+  emissaoRecompraCoerente,
   fatorEventosAnoBaseApos,
   fatorEventosApos,
   fatorEventosEntre,
   saltoAcoesSemEvento,
   verificarEventosCorporativos,
 } from '@/services/analiseAtivos/regras/calculo/eventosCorporativos';
+import type { ContagemAcoes } from '@/services/analiseAtivos/tipos';
 import { P, contagensDe, eventosBrutos, fiiInforme } from './helpers';
 
 function achar(evs: ReturnType<typeof verificarEventosCorporativos>, data: string, fator: number) {
@@ -38,7 +41,7 @@ describe('eventos corporativos — ações (regra 6)', () => {
     const cont = contagensDe('BBDC4');
     for (const s of ['BBDC3', 'BBDC4']) {
       const evs = verificarEventosCorporativos(eventosBrutos(s), cont, P);
-      expect(achar(evs, '2024-02-07', 1.2).status).toBe('descartado');
+      expect(achar(evs, '2024-02-08', 1.2).status).toBe('descartado');
     }
   });
 
@@ -75,7 +78,8 @@ describe('eventos corporativos — ações (regra 6)', () => {
   it('CYRE3 2025-12-30 ×1,19 só aparece no ITR de 2026 ⇒ anoBase 2026, confirmado', () => {
     expect(anosBaseCandidatos('2025-12-30', P)).toEqual([2025, 2026]);
     const evs = verificarEventosCorporativos(eventosBrutos('CYRE3'), contagensDe('CYRE3'), P);
-    const e = evs.find((x) => x.dataEvento === '2025-12-30')!;
+    // BRAPI grava a data-com (30/12); data ex = próximo pregão (02/01/2026)
+    const e = evs.find((x) => x.dataEvento === '2026-01-02')!;
     expect(e.status).toBe('confirmado');
     expect(e.anoBase).toBe(2026);
   });
@@ -88,8 +92,8 @@ describe('eventos corporativos — ações (regra 6)', () => {
 
   it('WEGE3: fator dos eventos posteriores a 2016 = 2,6 (1,3 × 2) — LPA 2016 ajustado 0,2663', () => {
     const evs = verificarEventosCorporativos(eventosBrutos('WEGE3'), contagensDe('WEGE3'), P);
-    expect(achar(evs, '2018-04-24', 1.3).status).toBe('confirmado');
-    expect(achar(evs, '2021-04-27', 2).status).toBe('confirmado');
+    expect(achar(evs, '2018-04-25', 1.3).status).toBe('confirmado');
+    expect(achar(evs, '2021-04-28', 2).status).toBe('confirmado');
     expect(fatorEventosAnoBaseApos(evs, 2016)).toBeCloseTo(2.6, 10);
     expect(fatorEventosEntre(evs, '2016-12-31', '2020-12-31')).toBeCloseTo(1.3, 10);
     const lpa2016 = 1117.6 / 1614.353;
@@ -99,9 +103,133 @@ describe('eventos corporativos — ações (regra 6)', () => {
     const evs = verificarEventosCorporativos(eventosBrutos('MGLU3'), contagensDe('MGLU3'), P);
     const g = evs.find((x) => x.dataEvento.startsWith('2024-05'))!;
     expect(g.status).toBe('emissao_recompra');
-    expect(achar(evs, '2025-12-29', 1.05).status).toBe('confirmado');
-    expect(achar(evs, '2020-10-13', 4).status).toBe('confirmado');
+    expect(achar(evs, '2025-12-30', 1.05).status).toBe('confirmado');
+    expect(achar(evs, '2020-10-14', 4).status).toBe('confirmado');
     expect(fatorEventosAnoBaseApos(evs, 2020)).toBeCloseTo(0.105, 10);
+  });
+});
+
+describe('eventos corporativos — correções do QA de 30/09', () => {
+  const cont = (data: string, total: number): ContagemAcoes => ({
+    cnpj: 'X',
+    data,
+    on: total,
+    pn: 0,
+    total,
+    fonte: data.endsWith('12-31') ? 'dfp' : 'itr',
+    razaoLpa: 1,
+    status: 'ok',
+  });
+  const ev = (
+    symbol: string,
+    date: string,
+    factor: number,
+    source: string,
+    type = 'DESDOBRAMENTO',
+  ) => ({
+    id: `${symbol}-${date}-${factor}-${source}`,
+    symbol,
+    date,
+    type,
+    factor,
+    source,
+  });
+  const statusDe = (evs: ReturnType<typeof verificarEventosCorporativos>) =>
+    evs.map((e) => `${e.fator}:${e.status}`);
+
+  it('LIGT3 2021: par fantasma ×10/×0,01 no mesmo dia com follow-on (razão 1,226) NÃO ajusta', () => {
+    const evs = verificarEventosCorporativos(
+      [
+        ev('LIGT3', '2021-06-25', 10, 'BRAPI'),
+        ev('LIGT3', '2021-06-25', 0.01, 'BRAPI', 'GRUPAMENTO'),
+      ],
+      [cont('2020-12-31', 303_934_060), cont('2021-12-31', 372_555_324)],
+      P,
+    );
+    expect(statusDe(evs)).toEqual(['10:nao_validavel', '0.01:nao_validavel']);
+    expect(fatorEventosAnoBaseApos(evs, 2020)).toBe(1);
+  });
+
+  it('CALI3 2022: ×400 (BRAPI) e ×5 (YAHOO) com razão 9,9994 ⇒ nenhum ajusta', () => {
+    const evs = verificarEventosCorporativos(
+      [ev('CALI3', '2022-06-03', 400, 'BRAPI'), ev('CALI3', '2022-06-06', 5, 'YAHOO')],
+      [cont('2021-12-31', 1_000_000), cont('2022-12-31', 9_999_411)],
+      P,
+    );
+    expect(evs.every((e) => e.status === 'nao_validavel')).toBe(true);
+    expect(fatorEventosAnoBaseApos(evs, 2021)).toBe(1);
+  });
+
+  it('IFCM3 2025: dois ×0,05 com ações SUBINDO 3,51× ⇒ nenhum ajusta', () => {
+    const evs = verificarEventosCorporativos(
+      [
+        ev('IFCM3', '2025-07-31', 0.05, 'YAHOO', 'GRUPAMENTO'),
+        ev('IFCM3', '2025-11-07', 0.05, 'YAHOO', 'GRUPAMENTO'),
+      ],
+      [cont('2024-12-31', 10_000_000), cont('2025-12-31', 35_120_463)],
+      P,
+    );
+    expect(evs.every((e) => e.status === 'nao_validavel')).toBe(true);
+    expect(fatorEventosAnoBaseApos(evs, 2020)).toBe(1);
+  });
+
+  it('AZUL3 2026: ×0,0133 e ×0,0000067 (produto 8,9e-8) contra razão 0,122 ⇒ nenhum ajusta', () => {
+    const evs = verificarEventosCorporativos(
+      [
+        ev('AZUL3', '2026-02-18', 0.01333333, 'BRAPI', 'GRUPAMENTO'),
+        ev('AZUL3', '2026-04-17', 0.00000667, 'BRAPI', 'GRUPAMENTO'),
+      ],
+      [cont('2025-12-31', 100_000_000), cont('2026-06-30', 12_184_498)],
+      P,
+    );
+    expect(evs.every((e) => e.status === 'nao_validavel')).toBe(true);
+  });
+
+  it('emissaoRecompraCoerente: um evento, mesmo lado de 1, razão/fator em [0,5; 2]', () => {
+    expect(emissaoRecompraCoerente(1, 0.1, 0.11, P)).toBe(true); // MGLU3 2024
+    expect(emissaoRecompraCoerente(2, 0.1, 0.11, P)).toBe(false);
+    expect(emissaoRecompraCoerente(1, 0.05, 3.51, P)).toBe(false);
+    expect(emissaoRecompraCoerente(1, 400, 9.9994, P)).toBe(false);
+  });
+
+  it('SBSP3 2026: YAHOO ×1,028 de fonte única descartado; bonificação ×1,0016 e split 1:5 confirmados', () => {
+    const evs = verificarEventosCorporativos(
+      [
+        ev('SBSP3', '2025-12-23', 1.03, 'BRAPI', 'BONIFICACAO'),
+        ev('SBSP3', '2025-12-26', 1.029647, 'YAHOO'),
+        ev('SBSP3', '2026-03-19', 1.0016098, 'BRAPI', 'BONIFICACAO'),
+        ev('SBSP3', '2026-03-19', 1.028346, 'YAHOO'),
+        ev('SBSP3', '2026-03-20', 1.00161, 'YAHOO'),
+        ev('SBSP3', '2026-04-28', 5, 'BRAPI'),
+        ev('SBSP3', '2026-04-29', 5, 'YAHOO'),
+      ],
+      [
+        cont('2024-12-31', 683_509_869),
+        cont('2025-12-31', 700_219_438),
+        cont('2026-03-31', 701_352_376),
+        cont('2026-06-30', 3_506_830_477),
+      ],
+      P,
+    );
+    expect(achar(evs, '2026-03-19', 1.028346).status).toBe('descartado');
+    expect(achar(evs, '2026-03-20', 1.0016098).status).toBe('confirmado');
+    expect(achar(evs, '2026-04-29', 5).status).toBe('confirmado');
+    // antes: 5,15001 (o ×1,028 espúrio entrava); correto ≈ razão CVM 5,008
+    expect(fatorEventosAnoBaseApos(evs, 2025)).toBeCloseTo(5.008049, 5);
+  });
+
+  it('data do evento = data EX: BRAPI grava a data-com (VBBR3 25/11/2025 ⇒ ex 26/11)', () => {
+    const [d] = deduplicarEventos(
+      [
+        ev('VBBR3', '2025-11-25', 1.071, 'BRAPI', 'BONIFICACAO'),
+        ev('VBBR3', '2025-11-26', 1.0711, 'YAHOO'),
+      ],
+      P,
+    );
+    expect(d.dataEvento).toBe('2025-11-26');
+    // só YAHOO (data ex) fica como está; BRAPI no feriado/fim de semana vai ao próximo pregão
+    expect(dataExDoEvento({ date: '2025-11-26', source: 'YAHOO' }, P)).toBe('2025-11-26');
+    expect(dataExDoEvento({ date: '2025-12-30', source: 'BRAPI' }, P)).toBe('2026-01-02');
   });
 });
 

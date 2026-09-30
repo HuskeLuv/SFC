@@ -139,6 +139,14 @@ const baseSchema = z.strictObject({
       confirmacaoTolPct: z.number().nonnegative(),
       anoBaseInicioAnoAte: z.string().regex(/^\d{2}-\d{2}$/),
       anoBaseDezembroSeguinte: z.boolean(),
+      // campos acrescentados na correção de 30/09 (default = valor da v1: JSON gravado antes continua
+      // válido e com o mesmo comportamento do código)
+      emissaoRecompraRazaoFator: faixaNum.default([0.5, 2]),
+      convencaoData: z
+        .record(z.string(), z.enum(['com', 'ex']))
+        .default({ BRAPI: 'com', YAHOO: 'ex' }),
+      fontePreferidaData: z.string().default('BRAPI'),
+      confirmacaoEstritaTolPct: z.number().nonnegative().default(1),
     }),
     fii: z.strictObject({
       vpCotaTolPct: z.number().nonnegative(),

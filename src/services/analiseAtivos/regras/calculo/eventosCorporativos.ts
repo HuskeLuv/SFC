@@ -15,6 +15,7 @@
  * MANTEVE (acoes-cvm.md §2: MGLU3 2024 ×0,1 com follow-on; LREN3 2021 ×1,1 com oferta). Descartado e
  * não validável nunca ajustam. Funções puras.
  */
+import { proximoPregaoOuMesmo } from '@/services/analiseAtivos/regras/comum/pregoes';
 import type {
   ContagemAcoes,
   EventoCorporativoBruto,
@@ -41,6 +42,8 @@ export interface EventoVerificadoCompleto extends EventoCorporativoVerificado {
 interface EventoDedup {
   symbol: string;
   dataEvento: string;
+  /** fonte de onde veio `dataEvento` (a preferida vence as demais no mesmo grupo) */
+  fonteData: string;
   fator: number;
   tipo: TipoEvento;
   idsOrigem: string[];
@@ -70,35 +73,59 @@ export function tipoEvento(type: string, p: ScoringParams): TipoEvento | null {
   return (p.sanidade.eventos.tipos as readonly string[]).includes(t) ? (t as TipoEvento) : null;
 }
 
-/** Mesmo fator (±dedupFatorTolPct) em ≤ dedupDias ⇒ 1 evento (data = a mais antiga). */
+/**
+ * Data EX do evento pela convenção da fonte (params.sanidade.eventos.convencaoData): a BRAPI grava a
+ * DATA-COM (VBBR3 2025-11-25, ex 26/11 no COTAHIST: 'ON EJB'; ITUB4 2025-12-23, ex 26/12) ⇒ próximo
+ * pregão; o Yahoo grava a data ex. Os ajustes comparam `dataEvento > dataComReal` (estrito): com a
+ * data ex, o provento com data-com = data-com do evento (pago sobre as ações antigas) é ajustado.
+ */
+export function dataExDoEvento(
+  b: Pick<EventoCorporativoBruto, 'date' | 'source'>,
+  p: ScoringParams,
+) {
+  const conv = p.sanidade.eventos.convencaoData[b.source] ?? 'ex';
+  if (conv !== 'com') return b.date;
+  return proximoPregaoOuMesmo(new Date(ms(b.date) + DIA_MS).toISOString().slice(0, 10));
+}
+
+/**
+ * Mesmo fator (±dedupFatorTolPct) em ≤ dedupDias ⇒ 1 evento. Data = data EX (dataExDoEvento) da
+ * fonte preferida (fontePreferidaData) quando ela está no grupo; senão a mais antiga.
+ */
 export function deduplicarEventos(
   brutos: EventoCorporativoBruto[],
   p: ScoringParams,
 ): EventoDedup[] {
   const cfg = p.sanidade.eventos;
   const validos = brutos
-    .map((b) => ({ b, tipo: tipoEvento(b.type, p) }))
+    .map((b) => ({ b, tipo: tipoEvento(b.type, p), data: '' }))
     .filter(
-      (x): x is { b: EventoCorporativoBruto; tipo: TipoEvento } =>
+      (x): x is { b: EventoCorporativoBruto; tipo: TipoEvento; data: string } =>
         x.tipo !== null && Number.isFinite(x.b.factor) && x.b.factor > 0 && x.b.factor !== 1,
     )
-    .sort((a, b) => a.b.symbol.localeCompare(b.b.symbol) || a.b.date.localeCompare(b.b.date));
+    .map((x) => ({ ...x, data: dataExDoEvento(x.b, p) }))
+    .sort((a, b) => a.b.symbol.localeCompare(b.b.symbol) || a.data.localeCompare(b.data));
   const out: EventoDedup[] = [];
-  for (const { b, tipo } of validos) {
+  for (const { b, tipo, data } of validos) {
     const par = out.find(
       (e) =>
         e.symbol === b.symbol &&
         dentroTol(e.fator, b.factor, cfg.dedupFatorTolPct) &&
-        Math.abs(ms(b.date) - ms(e.dataEvento)) <= cfg.dedupDias * DIA_MS,
+        Math.abs(ms(data) - ms(e.dataEvento)) <= cfg.dedupDias * DIA_MS,
     );
     if (par) {
       par.idsOrigem.push(b.id);
       if (!par.fontes.includes(b.source)) par.fontes.push(b.source);
+      if (b.source === cfg.fontePreferidaData && par.fonteData !== cfg.fontePreferidaData) {
+        par.dataEvento = data;
+        par.fonteData = b.source;
+      }
       continue;
     }
     out.push({
       symbol: b.symbol,
-      dataEvento: b.date,
+      dataEvento: data,
+      fonteData: b.source,
       fator: b.factor,
       tipo,
       idsOrigem: [b.id],
@@ -165,6 +192,42 @@ function melhorSubconjunto(
   return melhor ? melhor.sel : null;
 }
 
+/**
+ * O subconjunto escolhido bate só na tolerância larga (6%)? Tira eventos de FONTE ÚNICA enquanto
+ * isso fizer o produto bater na tolerância estrita (confirmacaoEstritaTolPct): um evento espúrio
+ * pequeno (< 6%) não entra no ajuste só por estar junto de um evento real grande (SBSP3 2026:
+ * YAHOO ×1,028 junto do split 1:5 e da bonificação ×1,0016; razão CVM 5,008). Remove o menor número
+ * de eventos; empate ⇒ produto mais próximo.
+ */
+function refinarSubconjunto(
+  sel: Set<number>,
+  candidatos: Array<{ idx: number; fator: number; fonteUnica: boolean }>,
+  razao: number,
+  tolEstritaPct: number,
+): Set<number> {
+  const escolhidos = candidatos.filter((c) => sel.has(c.idx));
+  const prodSel = produto(escolhidos.map((c) => c.fator));
+  if (dentroTol(prodSel, razao, tolEstritaPct)) return sel;
+  const removiveis = escolhidos.filter((c) => c.fonteUnica).slice(0, MAX_COMBINACOES_EVENTOS);
+  let melhor: { sel: Set<number>; removidos: number; dist: number } | null = null;
+  for (let mask = 1; mask < 1 << removiveis.length; mask++) {
+    const fora = new Set<number>();
+    for (let i = 0; i < removiveis.length; i++) if (mask & (1 << i)) fora.add(removiveis[i].idx);
+    const resto = escolhidos.filter((c) => !fora.has(c.idx));
+    const prod = produto(resto.map((c) => c.fator));
+    if (!dentroTol(prod, razao, tolEstritaPct)) continue;
+    const dist = Math.abs(prod / razao - 1);
+    if (
+      !melhor ||
+      fora.size < melhor.removidos ||
+      (fora.size === melhor.removidos && dist < melhor.dist)
+    ) {
+      melhor = { sel: new Set(resto.map((c) => c.idx)), removidos: fora.size, dist };
+    }
+  }
+  return melhor ? melhor.sel : sel;
+}
+
 export interface MesCotasFii {
   refMonth: string;
   cotas: number | null;
@@ -202,12 +265,20 @@ function verificarAcoes(
     const fim = acoes.get(a);
     const ini = acoes.get(a - 1);
     const pendentes = eventos
-      .map((e, idx) => ({ idx, fator: e.fator, fixo: cands[idx].length === 1 }))
+      .map((e, idx) => ({
+        idx,
+        fator: e.fator,
+        fixo: cands[idx].length === 1,
+        fonteUnica: e.fontes.length === 1,
+      }))
       .filter((x) => resultado[x.idx] === null && cands[x.idx].includes(a));
     if (pendentes.length === 0) continue;
     if (!fim || !ini) continue;
     const razao = fim.total / ini.total;
-    const sel = melhorSubconjunto(pendentes, razao, tol);
+    const selLarga = melhorSubconjunto(pendentes, razao, tol);
+    const sel =
+      selLarga &&
+      refinarSubconjunto(selLarga, pendentes, razao, p.sanidade.eventos.confirmacaoEstritaTolPct);
     const prodAno = produto(pendentes.map((x) => x.fator));
     for (const x of pendentes) {
       const e = eventos[x.idx];
@@ -216,8 +287,14 @@ function verificarAcoes(
         resultado[x.idx] = completo(e, a, 'confirmado', razao, prodAno);
       } else if (ultimoCandidato) {
         // não entrou no subconjunto que bate: ações não mudaram (ou o subconjunto bastou) ⇒
-        // descartado; nada bate e a razão ≠ 1 ⇒ emissão/recompra no ano
-        const status = sel !== null ? 'descartado' : 'emissao_recompra';
+        // descartado; nada bate ⇒ emissão/recompra no ano SÓ se o evento for coerente com a
+        // razão (senão não validável — nunca ajusta: LIGT3 2021 par ×10/×0,01, CALI3 2022 ×400)
+        const status =
+          sel !== null
+            ? 'descartado'
+            : emissaoRecompraCoerente(pendentes.length, e.fator, razao, p)
+              ? 'emissao_recompra'
+              : 'nao_validavel';
         resultado[x.idx] = completo(e, a, status, razao, prodAno);
       }
     }
@@ -227,6 +304,26 @@ function verificarAcoes(
   return eventos.map(
     (e, idx) => resultado[idx] ?? completo(e, ano(e.dataEvento), 'nao_validavel', null, null),
   );
+}
+
+/**
+ * Evento que a razão de ações não confirma, mas que é explicável por emissão/recompra no mesmo ano
+ * (MGLU3 2024 ×0,1 com follow-on ⇒ razão 0,11): exige UM evento pendente no ano, do mesmo lado de 1
+ * que a razão, e razão ÷ fator dentro de `emissaoRecompraRazaoFator` (achado qa-codigo 30/09:
+ * par fantasma ×10/×0,01 da LIGT3 2021, ×400 da CALI3 2022 com razão 10, ×0,05 da IFCM3 2025 com
+ * ações subindo 3,5×).
+ */
+export function emissaoRecompraCoerente(
+  pendentesNoAno: number,
+  fator: number,
+  razao: number,
+  p: ScoringParams,
+): boolean {
+  if (pendentesNoAno !== 1 || !(fator > 0) || !(razao > 0)) return false;
+  if (fator > 1 !== razao > 1) return false;
+  const [min, max] = p.sanidade.eventos.emissaoRecompraRazaoFator;
+  const r = razao / fator;
+  return r >= min && r <= max;
 }
 
 function completo(

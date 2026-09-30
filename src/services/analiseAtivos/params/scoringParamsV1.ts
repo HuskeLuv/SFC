@@ -324,6 +324,13 @@ export const SCORING_PARAMS_V1: ScoringParams = {
       confirmacaoTolPct: 6,
       anoBaseInicioAnoAte: '02-14',
       anoBaseDezembroSeguinte: true,
+      // razão CVM ÷ fator aceita para 'emissao_recompra' (um evento só no ano, mesmo lado de 1)
+      emissaoRecompraRazaoFator: [0.5, 2],
+      // BRAPI grava a data-com do evento, o Yahoo a data ex (conferido no COTAHIST: VBBR3 EJB 26/11/25)
+      convencaoData: { BRAPI: 'com', YAHOO: 'ex' },
+      fontePreferidaData: 'BRAPI',
+      // subconjunto que só bate nos 6%: tira eventos de fonte única até bater em 1% (SBSP3 2026)
+      confirmacaoEstritaTolPct: 1,
     },
     fii: {
       vpCotaTolPct: 1,

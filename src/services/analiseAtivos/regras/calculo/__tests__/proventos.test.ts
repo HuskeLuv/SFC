@@ -3,6 +3,7 @@
  * asset_dividend_history do dev e os casos de prod descritos nas decisões (PETR4 ex 03/05/2024).
  */
 import { describe, expect, it } from 'vitest';
+import { verificarEventosCorporativos } from '@/services/analiseAtivos/regras/calculo/eventosCorporativos';
 import { menosMeses } from '@/services/analiseAtivos/regras/calculo/proventos';
 import {
   auditarProventos,
@@ -310,5 +311,73 @@ describe('reescrita por símbolo (auditoria completa, sem órfão)', () => {
     const a = auditarProventos(proventosBrutos('XPML11'), [], P, { classe: 'fii' });
     const b = auditarProventos(proventosBrutos('XPML11'), [], P, { classe: 'fii' });
     expect(planejarReescritaProventos(a, b, ['XPML11'])).toEqual({ reescrever: [], orfaos: [] });
+  });
+});
+
+describe('provento com data-com = data-com do evento (achado qa-codigo 30/09)', () => {
+  it('VBBR3 nov/2025: dividendo de data-com 25/11 (ações antigas) é ajustado pela bonificação ×1,071', () => {
+    const evs = verificarEventosCorporativos(
+      [
+        {
+          id: 'b',
+          symbol: 'VBBR3',
+          date: '2025-11-25',
+          type: 'BONIFICACAO',
+          factor: 1.071,
+          source: 'BRAPI',
+        },
+        {
+          id: 'y',
+          symbol: 'VBBR3',
+          date: '2025-11-26',
+          type: 'DESDOBRAMENTO',
+          factor: 1.0711,
+          source: 'YAHOO',
+        },
+      ],
+      [
+        {
+          cnpj: 'X',
+          data: '2024-12-31',
+          on: null,
+          pn: null,
+          total: 1_000_000,
+          fonte: 'dfp',
+          razaoLpa: 1,
+          status: 'ok',
+        },
+        {
+          cnpj: 'X',
+          data: '2025-12-31',
+          on: null,
+          pn: null,
+          total: 1_071_000,
+          fonte: 'dfp',
+          razaoLpa: 1,
+          status: 'ok',
+        },
+      ],
+      P,
+    );
+    const [a] = auditarProventos(
+      [
+        {
+          id: '6812af98',
+          symbol: 'VBBR3',
+          source: 'BRAPI',
+          tipo: 'DIVIDENDO',
+          valor: 0.76344892045,
+          dataPagamento: '2025-12-19',
+          dataExGravada: '2025-11-26',
+          dataExOrigem: 'dataCom',
+        },
+      ],
+      evs,
+      P,
+      { classe: 'acao' },
+    );
+    expect(a.dataComReal).toBe('2025-11-25');
+    // antes: 1 (evento datado na data-com da BRAPI e comparação estrita)
+    expect(a.fatorAjusteHoje).toBeCloseTo(1.071, 6);
   });
 });
