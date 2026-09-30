@@ -10,6 +10,7 @@ import { APPLICABLE_CORPORATE_ACTION_TYPES } from '@/services/portfolio/corporat
 import { fetchQuotes, fetchCryptoQuotes, fetchCurrencyQuotes } from './brapiQuote';
 import { canOverwrite, isRawPriceSource } from './sourcePrecedence';
 import { Decimal } from '@prisma/client/runtime/library';
+import { dataPregaoReferencia, mercadoDoAtivo } from './pregaoReferencia';
 
 const normalizeDateToDayStart = (date: Date): Date => {
   const d = new Date(date);
@@ -334,14 +335,21 @@ export const persistPriceFromBrapi = async (
   options?: { currency?: string; marketDate?: Date },
 ): Promise<void> => {
   const marketDate = options?.marketDate ?? new Date();
-  const dateNormalized = normalizeDateToDayStart(marketDate);
 
   const asset = await prisma.asset.findUnique({
     where: { symbol: symbol.trim().toUpperCase() },
-    select: { id: true, currency: true },
+    select: { id: true, currency: true, type: true },
   });
 
   if (!asset) return;
+
+  // Sem data explícita, a cotação é "a de agora": grava no pregão a que ela se refere
+  // (antes da abertura = fechamento do pregão anterior), nunca no dia da consulta.
+  const mercado = mercadoDoAtivo(asset);
+  const dateNormalized =
+    options?.marketDate || !mercado
+      ? normalizeDateToDayStart(marketDate)
+      : dataPregaoReferencia(marketDate, mercado);
 
   const currency = options?.currency ?? asset.currency ?? null;
 

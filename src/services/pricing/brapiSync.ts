@@ -2,6 +2,7 @@ import { logger } from '@/lib/logger';
 import prisma from '@/lib/prisma';
 import { fetchDetailedQuotes, fetchCryptoQuotes, fetchCurrencyQuotes } from './brapiQuote';
 import { canOverwrite } from './sourcePrecedence';
+import { dataPregaoReferencia, mercadoDoAtivo } from './pregaoReferencia';
 import { Decimal } from '@prisma/client/runtime/library';
 
 // ================== TYPES ==================
@@ -560,6 +561,20 @@ const parseMarketDate = (regularMarketTime: string | undefined): Date => {
 };
 
 /**
+ * Data da linha de histórico de uma cotação consultada em `consultadoEm`: o pregão a que o
+ * preço se refere para ativos de bolsa; para cripto/moeda (negociação contínua) o dia da consulta.
+ */
+const dataHistoricoDoAtivo = (
+  asset: { type?: string | null; currency?: string | null },
+  consultadoEm: Date,
+): Date => {
+  const mercado = mercadoDoAtivo(asset);
+  return mercado
+    ? dataPregaoReferencia(consultadoEm, mercado)
+    : new Date(consultadoEm.getFullYear(), consultadoEm.getMonth(), consultadoEm.getDate());
+};
+
+/**
  * Sincroniza preços dos ativos no banco (AssetPriceHistory + Asset.currentPrice).
  * Busca cotações na BRAPI em batches e persiste.
  */
@@ -625,6 +640,7 @@ export const syncAssetPrices = async (): Promise<SyncPriceResult> => {
       const asset = assetBySymbol.get(symbolUpper);
       if (!asset) continue;
       const marketDate = parseMarketDate(r.regularMarketTime);
+      const dataHistorico = dataHistoricoDoAtivo(asset, marketDate);
       const currency = r.currency || asset.currency;
 
       const refreshedName =
@@ -640,7 +656,7 @@ export const syncAssetPrices = async (): Promise<SyncPriceResult> => {
           where: {
             symbol_date: {
               symbol: symbolUpper,
-              date: new Date(marketDate.getFullYear(), marketDate.getMonth(), marketDate.getDate()),
+              date: dataHistorico,
             },
           },
         });
@@ -655,11 +671,7 @@ export const syncAssetPrices = async (): Promise<SyncPriceResult> => {
                   where: {
                     symbol_date: {
                       symbol: symbolUpper,
-                      date: new Date(
-                        marketDate.getFullYear(),
-                        marketDate.getMonth(),
-                        marketDate.getDate(),
-                      ),
+                      date: dataHistorico,
                     },
                   },
                   update: { price: new Decimal(r.regularMarketPrice) },
@@ -669,11 +681,7 @@ export const syncAssetPrices = async (): Promise<SyncPriceResult> => {
                     price: new Decimal(r.regularMarketPrice),
                     currency: currency ?? null,
                     source: 'BRAPI',
-                    date: new Date(
-                      marketDate.getFullYear(),
-                      marketDate.getMonth(),
-                      marketDate.getDate(),
-                    ),
+                    date: dataHistorico,
                   },
                 }),
               ]
@@ -998,6 +1006,7 @@ export const syncPricesByScope = async (
       const asset = assetBySymbol.get(symbolUpper);
       if (!asset) continue;
       const marketDate = parseMarketDate(r.regularMarketTime);
+      const dataHistorico = dataHistoricoDoAtivo(asset, marketDate);
       const currency = r.currency || asset.currency;
 
       const refreshedName =
@@ -1013,7 +1022,7 @@ export const syncPricesByScope = async (
           where: {
             symbol_date: {
               symbol: symbolUpper,
-              date: new Date(marketDate.getFullYear(), marketDate.getMonth(), marketDate.getDate()),
+              date: dataHistorico,
             },
           },
         });
@@ -1028,11 +1037,7 @@ export const syncPricesByScope = async (
                   where: {
                     symbol_date: {
                       symbol: symbolUpper,
-                      date: new Date(
-                        marketDate.getFullYear(),
-                        marketDate.getMonth(),
-                        marketDate.getDate(),
-                      ),
+                      date: dataHistorico,
                     },
                   },
                   update: { price: new Decimal(r.regularMarketPrice) },
@@ -1042,11 +1047,7 @@ export const syncPricesByScope = async (
                     price: new Decimal(r.regularMarketPrice),
                     currency: currency ?? null,
                     source: 'BRAPI',
-                    date: new Date(
-                      marketDate.getFullYear(),
-                      marketDate.getMonth(),
-                      marketDate.getDate(),
-                    ),
+                    date: dataHistorico,
                   },
                 }),
               ]
