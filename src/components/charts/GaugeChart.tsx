@@ -23,7 +23,7 @@ interface GaugeChartProps {
 
 export default function GaugeChart({
   value,
-  color = '#465FFF',
+  color = '#0079F2',
   trackColor = '#E4E7EC',
   height: desktopHeight = 250,
   mobileHeight,

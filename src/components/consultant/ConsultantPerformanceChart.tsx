@@ -38,7 +38,7 @@ const chartBaseOptions: ApexOptions = {
       opacityTo: 0.05,
     },
   },
-  colors: ['#465FFF'],
+  colors: ['#0079F2'],
   dataLabels: {
     enabled: false,
   },
