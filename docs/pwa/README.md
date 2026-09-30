@@ -49,7 +49,7 @@ Pendências leves da fase 1: histórico de patrimônio aparece vazio ("Jan 1970"
 - Barra do mês do Orçamento não fica fixa (wrapper com overflow); trava de "meses que diminuem" do lançamento rápido compara com a prévia da mesma requisição (janela de ms fora da transação).
 - Desfazer do lançamento rápido volta o valor, não a fórmula nem o carimbo do comentário (a prévia avisa).
 - Dark mode conferido só por cálculo de contraste; teclado com foco automático no iPhone real a confirmar.
-- PRs separados depois: cores/corte de 80% da tabela de Orçamento no desktop; linhas de Dívidas no desktop (Excluir falha em silêncio).
+- ~~PRs separados depois: cores/corte de 80% da tabela de Orçamento no desktop (#256); linhas de Dívidas no desktop (#253)~~ — ✅ em prod 28/09/2026.
 
 ## Fase 3 — regras e pendências (26/09/2026)
 
@@ -58,7 +58,7 @@ Pendências leves da fase 1: histórico de patrimônio aparece vazio ("Jan 1970"
 - Localmente, >2 workers estouram o rate limit de `/api/auth/me` (60/min por IP) e alguns testes mobile caem em "Não autenticado" — use `--workers=2` (o CI já usa).
 - Pendências leves: links `text-blue-600` na Saúde (fora da paleta); título repetido dentro dos blocos dos Relatórios (ComponentCard); campo Nome do "Novo objetivo" sem borda de erro; selos da Comunidade com contraste baixo no escuro; `autoComplete="one-time-code"` do 2FA também no desktop (inofensivo); `max-lg:min-w-0` no ProventosHistoricoChart (sem efeito visível); `useMobileHistoryView` após recarregar com `?divida=` volta para o início da história; RegistrarMesSheet da aposentadoria fecha sem esperar a API; chip do `MobileTabRail` com 42px de alvo; perfil do consultor personificando mostra dados do cliente com ações da conta (comportamento antigo do `/api/profile`).
 - A conferir em aparelho real: teclado nos sheets (premissas, nova dívida, comentário), widget Pluggy aberto (exige consentimento), link `otpauth://` do 2FA, impressão pelo PWA instalado.
-- Desktop, PRs separados: gráfico do cronograma de Dívidas não empilha; "Abrir em Dívidas" da Agenda sem `?divida=`.
+- ~~Desktop, PRs separados: gráfico do cronograma de Dívidas não empilha (#255); "Abrir em Dívidas" da Agenda sem `?divida=` (#254)~~ — ✅ em prod 28/09/2026.
 
 ## Fase 5 — pendências leves (29/09/2026)
 
@@ -88,4 +88,4 @@ Arquivos da fase 0 nesta pasta: `fase0-spec-desenho.json` (spec final do arquite
 - Teste em aparelho real (Android/iPhone: instalar, splash, rotação, barra some com teclado).
 - ~20 achados leves de a11y/testes da fase 0 (no relatório do workflow; ex.: Modal sem nome acessível, ThemeToggle sem label no Mais, texto "Manter conectado por 30 dias" para admin/consultor que ganham 1 dia, revogação do token iCal).
 - Logout não revoga o JWT no servidor (só "Sair de todos") — revogar por aparelho exige tabela de sessões.
-- PR separado: `brand-500` #465fff fora da paleta (muda desktop).
+- PR separado: `brand-500` #465fff fora da paleta (muda desktop) — **PR #257 aberto** (28/09/2026), aguardando revisão visual.
