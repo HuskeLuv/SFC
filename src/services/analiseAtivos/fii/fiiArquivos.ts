@@ -172,15 +172,16 @@ export function fracaoParaPct(v: number | null): number | null {
   return v === null ? null : v * 100;
 }
 
-const RE_CNPJ = /\d{2}\.\d{3}\.\d{3}\/\d{4}-\d{2}/;
+const RE_CNPJ = /\d{2}\.?\d{3}\.?\d{3}\/?\d{4}-?\d{2}/;
 
-/** preFiltro barato na linha crua: 1º CNPJ da linha precisa estar no conjunto. */
+/** preFiltro barato na linha crua: 1º CNPJ da linha (com ou sem máscara) precisa estar no conjunto
+ * (14 dígitos, regras/comum/cnpj.ts). */
 export function preFiltroCnpj(
   cnpjs: Set<string> | undefined,
 ): ((bruta: string) => boolean) | undefined {
   if (!cnpjs) return undefined;
   return (bruta) => {
     const m = RE_CNPJ.exec(bruta.slice(0, 64));
-    return m !== null && cnpjs.has(m[0]);
+    return m !== null && cnpjs.has(m[0].replace(/\D/g, ''));
   };
 }

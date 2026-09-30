@@ -76,19 +76,19 @@ describe('lista pública de FIIs da B3', () => {
 });
 
 describe('tickersManuais', () => {
-  it('cada item tem motivo e CNPJ formatado; IRDM11 é histórico (validTo)', () => {
+  it('cada item tem motivo e CNPJ com 14 dígitos; IRDM11 é histórico (validTo)', () => {
     for (const t of TICKERS_MANUAIS) {
       expect(t.motivo.length).toBeGreaterThan(10);
-      expect(t.cnpj).toMatch(/^\d{2}\.\d{3}\.\d{3}\/\d{4}-\d{2}$/);
+      expect(t.cnpj).toMatch(/^\d{14}$/);
     }
     const vig = mapaManuaisVigentes();
-    expect(vig.get('BTCI11')).toBe('09.552.812/0001-14');
-    expect(vig.get('IRIM11')).toBe('41.076.564/0001-95');
+    expect(vig.get('BTCI11')).toBe('09552812000114');
+    expect(vig.get('IRIM11')).toBe('41076564000195');
     expect(vig.has('IRDM11')).toBe(false);
     expect(historicosManuais()).toEqual([
       expect.objectContaining({
         ticker: 'IRDM11',
-        cnpj: '28.830.325/0001-10',
+        cnpj: '28830325000110',
         validTo: '2025-10-31',
       }),
     ]);

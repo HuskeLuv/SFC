@@ -25,6 +25,10 @@ import {
   textoFixture,
 } from '@/services/analiseAtivos/regras/fii/__tests__/fixturesFii';
 
+/** CNPJ de 14 dígitos na máscara da CVM (as linhas cruas das fixtures vêm assim). */
+const mascarar = (c: string) =>
+  `${c.slice(0, 2)}.${c.slice(2, 5)}.${c.slice(5, 8)}/${c.slice(8, 12)}-${c.slice(12)}`;
+
 const dir = mkdtempSync(path.join(os.tmpdir(), 'fii-parsers-'));
 afterAll(() => rmSync(dir, { recursive: true, force: true }));
 
@@ -74,7 +78,7 @@ describe('parserInformeMensal', () => {
     const r = await mensalFixture('2016_antigo');
     expect(r.meses.length).toBe(5);
     const g = [...r.geral.values()][0];
-    expect(g.cnpj).toMatch(/^\d{2}\.\d{3}\.\d{3}\/\d{4}-\d{2}$/);
+    expect(g.cnpj).toMatch(/^\d{14}$/);
     expect(g.nome).not.toBe('');
     expect(r.meses.every((m) => m.temComposicao)).toBe(true);
   });
@@ -108,7 +112,9 @@ describe('parserInformeMensal', () => {
 
   it('fica com a MAIOR Versao por (CNPJ, mês) — reenvio', async () => {
     const orig = textoFixture('inf_mensal_fii_complemento_2026_amostra.csv').split('\n');
-    const linhaHglg = orig.find((l) => l.startsWith(CNPJ.HGLG) && l.includes(';2026-08-01;'))!;
+    const linhaHglg = orig.find(
+      (l) => l.startsWith(mascarar(CNPJ.HGLG)) && l.includes(';2026-08-01;'),
+    )!;
     const reenvio = linhaHglg
       .replace(';2026-08-01;2;', ';2026-08-01;3;')
       .replace(';608345;', ';999999;');

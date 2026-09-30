@@ -3,6 +3,7 @@
  * referência do documento. SEM coluna de unidade — 598 company-years do DFP vêm em MILHARES sem aviso
  * (VALE3 2024 = "4.539.008"): a escolha unidade × ×1000 é da regra 10 (resolverAcoesExercicio).
  */
+import { cnpjDoInicioDaLinha, cnpjOuOriginal } from '@/services/analiseAtivos/regras/comum/cnpj';
 import { lerCsv } from '@/services/analiseAtivos/fontes/csvStream';
 import { linhasDaEntrada, type EntradaZip } from '@/services/analiseAtivos/fontes/zipStream';
 import { COLUNAS_COMPOSICAO } from '@/services/analiseAtivos/acoes/cvmArquivos';
@@ -33,10 +34,10 @@ export async function lerComposicao(
     separador: ';',
     obrigatorias: COLUNAS_COMPOSICAO,
     arquivo: entrada.nome,
-    preFiltro: (l) => cnpjs.has(l.slice(0, 18)),
+    preFiltro: (l) => cnpjs.has(cnpjDoInicioDaLinha(l) ?? ''),
   });
   for await (const l of csv) {
-    const cnpj = l.get('CNPJ_CIA');
+    const cnpj = cnpjOuOriginal(l.get('CNPJ_CIA'));
     const dtRefer = l.get('DT_REFER');
     const k = chaveDoc(cnpj, dtRefer);
     const versao = Number(l.get('VERSAO'));

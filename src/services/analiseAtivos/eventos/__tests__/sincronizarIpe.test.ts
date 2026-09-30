@@ -19,8 +19,8 @@ const FIXTURE = readFileSync(
 const LINHAS = FIXTURE.toString('latin1').split(/\r?\n/).filter(Boolean);
 const CABECALHO = LINHAS[0];
 
-const BB = '00.000.000/0001-91'; // como a fatia A grava (máscara da CVM)
-const WEG = '84.429.695/0001-11';
+const BB = '00000000000191'; // como a fatia A grava (máscara da CVM)
+const WEG = '84429695000111';
 const AGORA = new Date('2026-09-30T09:25:00Z');
 
 const dir = mkdtempSync(path.join(os.tmpdir(), 'ipe-sync-'));

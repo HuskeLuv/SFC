@@ -162,7 +162,7 @@ describe('sincronizarFiiCadastro', () => {
       vig('TRXF11', CNPJ.TRXF, 'manual', true, 'manual'),
       vig('KNRI11', CNPJ.KNRI, 'b3_nome', false, 'nome_igual;nome_sem_cotacao'),
       {
-        ...vig('IRDM11', '28.830.325/0001-10', 'manual', true, 'x'),
+        ...vig('IRDM11', '28830325000110', 'manual', true, 'x'),
         validTo: new Date('2025-10-31T00:00:00Z'),
       },
     ];

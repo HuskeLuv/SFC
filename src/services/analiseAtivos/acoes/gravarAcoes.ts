@@ -11,6 +11,7 @@
  * - Prazo: lotes param quando ctx.estourouPrazo(); quem chama devolve { parcial: true }.
  */
 import type { Prisma, PrismaClient } from '@prisma/client';
+import { cnpjOuOriginal } from '@/services/analiseAtivos/regras/comum/cnpj';
 import { deData, paraData, paraNumero } from '@/services/analiseAtivos/repositorio/conversao';
 import type { CiaFca, TituloFca } from '@/services/analiseAtivos/acoes/parserFca';
 import type { AlertaJob, JobContexto } from '@/services/analiseAtivos/tipos';
@@ -121,8 +122,12 @@ export async function gravarCadastroFca(
       unitQtdPn: t.unitQtdPn,
       composicaoTexto: t.composicaoTexto,
     };
+    // CNPJ gravado com máscara (antes do formato único de 14 dígitos) é o MESMO emissor: a linha
+    // aberta é migrada no lugar (sem fechar/abrir vigência)
+    const cnpjAberto = aberto ? cnpjOuOriginal(aberto.cnpj) : null;
+    const migrarCnpj = aberto !== undefined && aberto.cnpj !== t.cnpj && cnpjAberto === t.cnpj;
     if (t.dataFim) {
-      if (aberto && aberto.cnpj === t.cnpj) {
+      if (aberto && cnpjAberto === t.cnpj) {
         fechar.push({ id: aberto.id, validTo: t.dataFim });
         alertas.push({
           codigo: 'ticker_encerrado',
@@ -146,7 +151,7 @@ export async function gravarCadastroFca(
       continue;
     }
     if (aberto.origem === 'manual') continue; // override manual vence o FCA
-    if (aberto.cnpj !== t.cnpj || aberto.classeTitulo !== t.classeTitulo) {
+    if (cnpjAberto !== t.cnpj || aberto.classeTitulo !== t.classeTitulo) {
       // troca de emissor/classe: fecha a vigência anterior e abre outra
       const inicioAnterior = paraData(aberto.validFrom);
       const inicio = t.dataInicio && t.dataInicio > inicioAnterior ? t.dataInicio : meta.hoje;
@@ -174,7 +179,12 @@ export async function gravarCadastroFca(
       aberto.unitQtdOn !== dados.unitQtdOn ||
       aberto.unitQtdPn !== dados.unitQtdPn ||
       aberto.composicaoTexto !== dados.composicaoTexto;
-    if (mudou) atualizarTicker.push({ id: aberto.id, data: { ...dados, fetchedAt: agora } });
+    if (mudou || migrarCnpj) {
+      atualizarTicker.push({
+        id: aberto.id,
+        data: { ...dados, ...(migrarCnpj ? { cnpj: t.cnpj } : {}), fetchedAt: agora },
+      });
+    }
   }
   // ticker novo: individual quando poucos; no 1º carregamento (centenas) um alerta só
   if (novosTickers.length > 20) {

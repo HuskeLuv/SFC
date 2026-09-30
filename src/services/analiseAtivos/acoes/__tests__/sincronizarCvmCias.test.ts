@@ -17,13 +17,17 @@ import {
 import { criarPrismaFake } from '@/services/analiseAtivos/acoes/__tests__/prismaFake';
 import { zipDfp2025, zipFca, zipItr } from '@/services/analiseAtivos/acoes/__tests__/zipFixtures';
 
+/** CNPJ de 14 dígitos na máscara da CVM (as linhas cruas das fixtures vêm assim). */
+const mascarar = (c: string) =>
+  `${c.slice(0, 2)}.${c.slice(2, 5)}.${c.slice(5, 8)}/${c.slice(8, 12)}-${c.slice(12)}`;
+
 const dir = mkdtempSync(path.join(os.tmpdir(), 'sync-cvm-'));
 afterAll(() => rmSync(dir, { recursive: true, force: true }));
 
-const WEGE = '84.429.695/0001-11';
-const BBAS = '00.000.000/0001-91';
-const VALE = '33.592.510/0001-54';
-const TAEE = '07.859.971/0001-30';
+const WEGE = '84429695000111';
+const BBAS = '00000000000191';
+const VALE = '33592510000154';
+const TAEE = '07859971000130';
 
 type Ctx = JobContexto & {
   contagem: Record<'linhasLidas' | 'linhasGravadas' | 'rejeitadas', number>;
@@ -143,11 +147,29 @@ describe('sincronizarCvmCias — FCA (cadastro e vigência de tickers)', () => {
     });
   });
 
+  it('ticker aberto gravado com CNPJ mascarado ⇒ migrado no lugar para 14 dígitos (sem nova vigência)', async () => {
+    const { prisma, tabelas } = criarPrismaFake();
+    await rodar(prisma, { [urlArquivoCvm('fca', 2026)]: zipFca(dir, 2026) }, { doc: 'fca' });
+    const aberto = tabelas.cvmCompanyTicker.find((t) => t.symbol === 'WEGE3')!;
+    aberto.cnpj = mascarar(WEGE);
+    const { ctx } = await rodar(
+      prisma,
+      { [urlArquivoCvm('fca', 2026)]: zipFca(dir, 2026, (vm) => `${vm}\n`) },
+      { doc: 'fca' },
+      { hoje: '2026-10-05' },
+    );
+    const wege = tabelas.cvmCompanyTicker.filter((t) => t.symbol === 'WEGE3');
+    expect(wege).toHaveLength(1);
+    expect(wege[0]).toMatchObject({ cnpj: WEGE, validTo: null });
+    expect(ctx.alertas.map((a) => a.codigo)).not.toContain('ticker_trocou_emissor');
+    expect(tabelas.cvmCompany.some((c) => c.cnpj === WEGE)).toBe(true);
+  });
+
   it('troca de CNPJ do ticker ⇒ fecha a vigência anterior e abre outra', async () => {
     const { prisma, tabelas } = criarPrismaFake();
     await rodar(prisma, { [urlArquivoCvm('fca', 2026)]: zipFca(dir, 2026) }, { doc: 'fca' });
     const trocado = zipFca(dir, 2026, (vm) =>
-      vm.replace(`${WEGE};2026-01-01;1;`, `${TAEE};2026-01-01;1;`),
+      vm.replace(`${mascarar(WEGE)};2026-01-01;1;`, `${mascarar(TAEE)};2026-01-01;1;`),
     );
     const { ctx } = await rodar(
       prisma,

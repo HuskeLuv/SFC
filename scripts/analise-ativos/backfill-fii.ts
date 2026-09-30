@@ -19,6 +19,7 @@
  *   npx tsx --env-file=.env scripts/analise-ativos/backfill-fii.ts --desde=2016 --cache-dir=$CACHE --apply
  * Opções: --anos=2025,2026 · --lista-b3=<json {itens:[...]}> · --max-detalhes=N
  */
+import { cnpjOuOriginal } from '../../src/services/analiseAtivos/regras/comum/cnpj';
 import { readFileSync } from 'fs';
 import { lerCsv } from '../../src/services/analiseAtivos/fontes/csvStream';
 import { linhasDaEntrada } from '../../src/services/analiseAtivos/fontes/zipStream';
@@ -98,7 +99,7 @@ async function primeiroMesPorCnpj(): Promise<Map<string, string>> {
         aliases: { CNPJ_Fundo: 'CNPJ_Fundo_Classe' },
         arquivo: url,
       })) {
-        const cnpj = l.get('CNPJ_Fundo_Classe');
+        const cnpj = cnpjOuOriginal(l.get('CNPJ_Fundo_Classe'));
         const ref = inicioDoMes(l.get('Data_Referencia'));
         const atual = out.get(cnpj);
         if (!atual || ref < atual) out.set(cnpj, ref);

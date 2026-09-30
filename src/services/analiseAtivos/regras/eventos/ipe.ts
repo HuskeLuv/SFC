@@ -10,6 +10,7 @@
  * versão nova pode remarcar a data). AGO e AGE na mesma data (ou um AGO/E) viram um só 'AGO/AGE'.
  * Link_Download (rad.cvm.gov.br) é guardado como texto, nunca baixado.
  */
+import { normalizarCnpj as normalizarCnpjComum } from '@/services/analiseAtivos/regras/comum/cnpj';
 import type { LinhaCsv } from '@/services/analiseAtivos/fontes/csvStream';
 
 export const IPE_COLUNAS_OBRIGATORIAS = [
@@ -74,14 +75,13 @@ function dataValida(s: string): boolean {
 }
 
 /**
- * CNPJ com ou sem máscara → forma com máscara (00.000.000/0001-91), a mesma que as fatias A/B
- * gravam em cvm_company_tickers/fii_ticker_map (texto dos arquivos da CVM); inválido ou só zeros
- * (emissor estrangeiro) ⇒ null.
+ * CNPJ com ou sem máscara → 14 dígitos sem máscara (regras/comum/cnpj.ts, o formato de todas as
+ * tabelas da fase); inválido, só zeros ou filial 0000 (emissor estrangeiro) ⇒ null.
  */
 export function normalizarCnpj(s: string): string | null {
-  const d = s.replace(/\D/g, '');
-  if (d.length !== 14 || /^0+$/.test(d) || d.slice(8, 12) === '0000') return null;
-  return `${d.slice(0, 2)}.${d.slice(2, 5)}.${d.slice(5, 8)}/${d.slice(8, 12)}-${d.slice(12)}`;
+  const d = normalizarCnpjComum(s);
+  if (d === null || d.slice(8, 12) === '0000') return null;
+  return d;
 }
 
 function somarAnos(data: string, anos: number): string {

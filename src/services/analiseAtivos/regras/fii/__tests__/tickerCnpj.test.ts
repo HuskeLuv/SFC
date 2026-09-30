@@ -141,7 +141,7 @@ const casamento = (
 describe('reconciliarMapa (vigência)', () => {
   it('IRDM11 → IRIM11: fecha a vigência do antigo e abre o novo', () => {
     const mapa = [
-      linha({ ticker: 'IRDM11', cnpj: '28.830.325/0001-10' }),
+      linha({ ticker: 'IRDM11', cnpj: '28830325000110' }),
       linha({ ticker: 'KNRI11', cnpj: CNPJ.KNRI }),
       linha({ ticker: 'HGLG11', cnpj: CNPJ.HGLG }),
       linha({ ticker: 'MXRF11', cnpj: CNPJ.MXRF }),
@@ -177,7 +177,7 @@ describe('reconciliarMapa (vigência)', () => {
 
   it('CNPJ do ticker mudou ⇒ fecha e abre (validFrom = hoje)', () => {
     const p = reconciliarMapa(
-      [linha({ ticker: 'KNRI11', cnpj: '00.000.000/0001-00' })],
+      [linha({ ticker: 'KNRI11', cnpj: '00000000000100' })],
       [casamento({ ticker: 'KNRI11', cnpj: CNPJ.KNRI })],
       '2026-09-30',
     );
@@ -187,6 +187,20 @@ describe('reconciliarMapa (vigência)', () => {
       cnpj: CNPJ.KNRI,
       validFrom: '2026-09-30',
     });
+  });
+
+  it('CNPJ gravado com máscara (formato antigo) ⇒ migra no lugar, sem fechar/abrir vigência', () => {
+    const k = CNPJ.KNRI;
+    const mascarado = `${k.slice(0, 2)}.${k.slice(2, 5)}.${k.slice(5, 8)}/${k.slice(8, 12)}-${k.slice(12)}`;
+    const p = reconciliarMapa(
+      [linha({ ticker: 'KNRI11', cnpj: mascarado })],
+      [casamento({ ticker: 'KNRI11', cnpj: CNPJ.KNRI })],
+      '2026-09-30',
+    );
+    expect(p.fechar).toEqual([]);
+    expect(p.abrir).toEqual([]);
+    expect(p.atualizar).toEqual([expect.objectContaining({ id: 'id-KNRI11', cnpj: CNPJ.KNRI })]);
+    expect(p.alertas.map((a) => a.codigo)).not.toContain('fii_cnpj_trocado');
   });
 
   it('universo = lista B3 (regra 27): fundo S na CVM fora da lista não entra', () => {
@@ -207,7 +221,7 @@ describe('reconciliarMapa (vigência)', () => {
     );
     expect(p.abrir.find((a) => a.ticker === 'KNRI11')!.validFrom).toBe('2016-10-01');
     expect(p.abrir.find((a) => a.ticker === 'IRDM11')).toMatchObject({
-      cnpj: '28.830.325/0001-10',
+      cnpj: '28830325000110',
       validFrom: '2016-10-01',
       validTo: '2025-10-31',
       origem: 'manual',

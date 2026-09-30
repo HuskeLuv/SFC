@@ -6,6 +6,7 @@
  * NUNCA lê `capital_social`: é o capital da data da versão, reexpresso depois de splits (WEGE3 2019
  * daria 4.197 mi em vez de 2.098,66 mi). Só no backfill (o cron não lê FRE).
  */
+import { cnpjDoInicioDaLinha, cnpjOuOriginal } from '@/services/analiseAtivos/regras/comum/cnpj';
 import { lerCsv } from '@/services/analiseAtivos/fontes/csvStream';
 import { linhasDaEntrada, type EntradaZip } from '@/services/analiseAtivos/fontes/zipStream';
 import {
@@ -37,14 +38,14 @@ export async function lerFreAcoes(
     separador: ';',
     obrigatorias: COLUNAS_FRE_INFORMACAO_FINANCEIRA,
     arquivo: nome,
-    preFiltro: opts.cnpjs ? (b) => opts.cnpjs!.has(b.slice(0, 18)) : undefined,
+    preFiltro: opts.cnpjs ? (b) => opts.cnpjs!.has(cnpjDoInicioDaLinha(b) ?? '') : undefined,
   })) {
     if (l.get('Codigo_Conta') !== 'f') continue;
     if (!l.get('Data_Fim_Exercicio_Social').startsWith(alvo)) continue;
     const acoes = Number(l.get('Valor'));
     const versao = Number(l.get('Versao'));
     if (!Number.isFinite(acoes) || acoes <= 0) continue;
-    const cnpj = l.get('CNPJ_Companhia');
+    const cnpj = cnpjOuOriginal(l.get('CNPJ_Companhia'));
     const dataReferencia = l.get('Data_Referencia');
     const atual = out.get(cnpj);
     // documento mais recente do ano (Data_Referencia) e, nele, a maior versão

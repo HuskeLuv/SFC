@@ -6,7 +6,7 @@
  * Uso:
  *   npx tsx --env-file=.env scripts/analise-ativos/fii-tipo-override.ts --listar
  *   npx tsx --env-file=.env scripts/analise-ativos/fii-tipo-override.ts \
- *     --cnpj=18.979.895/0001-13 --tipo=papel --motivo="gestor classifica como papel" --autor=pedro [--apply]
+ *     --cnpj=18979895000113 --tipo=papel --motivo="gestor classifica como papel" --autor=pedro [--apply]
  *   npx tsx --env-file=.env scripts/analise-ativos/fii-tipo-override.ts --cnpj=... --remover [--apply]
  */
 import { SCORING_PARAMS_V1 } from '../../src/services/analiseAtivos/params/scoringParamsV1';

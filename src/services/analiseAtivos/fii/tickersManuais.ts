@@ -17,31 +17,31 @@ export interface TickerManual {
 export const TICKERS_MANUAIS: readonly TickerManual[] = [
   {
     ticker: 'BTCI11',
-    cnpj: '09.552.812/0001-14',
+    cnpj: '09552812000114',
     motivo:
       'ISIN com código antigo BRFEXCCTF007 (prefixo FEXC ≠ BTCI); razão social da B3 difere da CVM',
   },
   {
     ticker: 'IRIM11',
-    cnpj: '41.076.564/0001-95',
+    cnpj: '41076564000195',
     motivo: 'Iridium: sucessor de IRDM11 na lista B3 (CNPJ diferente do antigo IRDM11)',
   },
   {
     ticker: 'IRDM11',
-    cnpj: '28.830.325/0001-10',
+    cnpj: '28830325000110',
     motivo:
       'Iridium Recebíveis: sem informe desde out/2025; sigla saiu da B3 (sucedido por IRIM11)',
     validTo: '2025-10-31',
   },
   {
     ticker: 'TRXF11',
-    cnpj: '28.548.288/0001-52',
+    cnpj: '28548288000152',
     motivo:
       'colisão: o ISIN completo BRTRXFCTF003 aparece em 2 CNPJs (TRX Real Estate e 63.134.454/0001-75 Liquidez Projetos GD)',
   },
   {
     ticker: 'HUSC11',
-    cnpj: '28.851.767/0001-43',
+    cnpj: '28851767000143',
     motivo:
       'colisão de ISIN BRHUSCCTF009 com 08.696.175/0001-97 (RB Capital Renda I); HUSC = Hospital Unimed Sul Capixaba',
   },

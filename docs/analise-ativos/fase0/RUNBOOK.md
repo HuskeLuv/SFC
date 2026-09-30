@@ -124,7 +124,7 @@ select tipo, count(*), count(distinct cnpj) from asset_eventos group by 1;
 select count(distinct cnpj) from asset_eventos where tipo = 'assembleia' and data >= '2026-01-01';
 select count(distinct cnpj) from asset_eventos where tipo = 'resultado_estimado' and "substituidoEm" is null;
 -- WEGE3: 3T26 estimado em 22/10/2026 (entrega do 3T25 em 22/10/2025)
-select tipo, subtipo, chave, data, "substituidoEm" from asset_eventos where cnpj = '84.429.695/0001-11' order by data;
+select tipo, subtipo, chave, data, "substituidoEm" from asset_eventos where cnpj = '84429695000111' order by data;
 ```
 
 (No dev, com o universo do FCA 2026: 340 emissores listados; 338 com assembleia em 2026; 338 com

@@ -8,6 +8,7 @@
  * - Data_Fim_Negociacao preenchida ⇒ ticker encerrado (fecha a vigência).
  * - Só entram companhias com pelo menos um ticker de ações em bolsa (universo da análise).
  */
+import { cnpjOuOriginal } from '@/services/analiseAtivos/regras/comum/cnpj';
 import { lerCsv } from '@/services/analiseAtivos/fontes/csvStream';
 import { ErroFonte } from '@/services/analiseAtivos/fontes/erros';
 import { linhasDaEntrada, type EntradaZip } from '@/services/analiseAtivos/fontes/zipStream';
@@ -86,7 +87,7 @@ export async function lerFca(
     arquivo: nomeVm,
   })) {
     linhasLidas++;
-    const cnpj = l.get('CNPJ_Companhia');
+    const cnpj = cnpjOuOriginal(l.get('CNPJ_Companhia'));
     const versao = Number(l.get('Versao'));
     versaoVm.set(cnpj, Math.max(versaoVm.get(cnpj) ?? 0, versao));
     if (l.get('Mercado') !== 'Bolsa') continue;
@@ -140,7 +141,7 @@ export async function lerFca(
     arquivo: nomeGeral,
   })) {
     linhasLidas++;
-    const cnpj = l.get('CNPJ_Companhia');
+    const cnpj = cnpjOuOriginal(l.get('CNPJ_Companhia'));
     if (!universo.has(cnpj)) continue;
     const versao = Number(l.get('Versao'));
     const atual = cias.get(cnpj);

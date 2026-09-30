@@ -17,6 +17,7 @@
  * b3_cnpj sem cotação ficam conferidos (motivo *_sem_cotacao); qualquer um 'divergente' ⇒ não
  * conferido + alerta.
  */
+import { normalizarCnpj } from '@/services/analiseAtivos/regras/comum/cnpj';
 import type { AlertaJob, ScoringParams, TickerFii } from '@/services/analiseAtivos/tipos';
 
 export type OrigemTickerFii = TickerFii['origem'] | 'b3_cnpj';
@@ -74,12 +75,8 @@ export function normalizarNomeFundo(nome: string): string {
     .trim();
 }
 
-/** 'XX.XXX.XXX/XXXX-XX' a partir de dígitos (ou já formatado). null se não tem 14 dígitos. */
-export function formatarCnpj(c: string | null | undefined): string | null {
-  const d = (c ?? '').replace(/\D/g, '');
-  if (d.length !== 14) return null;
-  return `${d.slice(0, 2)}.${d.slice(2, 5)}.${d.slice(5, 8)}/${d.slice(8, 12)}-${d.slice(12)}`;
-}
+/** CNPJ da B3/CVM (com ou sem máscara) no formato das tabelas: 14 dígitos. null se inválido. */
+export const formatarCnpj = normalizarCnpj;
 
 /**
  * Ticker da cota = sigla + '11'. Recibos/direitos (RTEL15, SPGM16…) que aparecem no tradingCode
@@ -350,6 +347,8 @@ export interface PlanoMapa {
     razaoSocialB3: string | null;
     isin: string | null;
     origem: OrigemTickerFii;
+    /** só na migração do formato (máscara ⇒ 14 dígitos) do mesmo CNPJ */
+    cnpj?: string;
   }>;
   alertas: AlertaJob[];
   semCasamento: string[];
@@ -442,12 +441,15 @@ export function reconciliarMapa(
       });
       continue;
     }
-    if (atual.cnpj === c.cnpj) {
+    if (normalizarCnpj(atual.cnpj) === c.cnpj) {
+      // mesmo fundo; CNPJ gravado com máscara (antes do formato único) é migrado no lugar
+      const migrarCnpj = atual.cnpj !== c.cnpj;
       // manual nunca é rebaixado por um casamento automático
       const origem = atual.origem === 'manual' ? 'manual' : c.origem!;
       const conferido = atual.origem === 'manual' ? atual.conferido : c.conferido;
       const conferidoPor = atual.origem === 'manual' ? atual.conferidoPor : c.conferidoPor;
       if (
+        migrarCnpj ||
         origem !== atual.origem ||
         conferido !== atual.conferido ||
         conferidoPor !== atual.conferidoPor ||
@@ -463,6 +465,7 @@ export function reconciliarMapa(
           nomeB3: c.nomeB3,
           razaoSocialB3: c.razaoSocialB3,
           isin: c.isin,
+          ...(migrarCnpj ? { cnpj: c.cnpj } : {}),
         });
       }
       continue;

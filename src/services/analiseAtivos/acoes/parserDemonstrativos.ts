@@ -8,6 +8,7 @@
  *  - ESCALA_MOEDA = MIL ⇒ ×1000, exceto LPA (3.99.*), que é R$/ação;
  *  - cabeçalho sem coluna obrigatória ⇒ ErroLayoutFonte (falha alto).
  */
+import { cnpjDoInicioDaLinha, cnpjOuOriginal } from '@/services/analiseAtivos/regras/comum/cnpj';
 import { lerCsv, type LinhaCsv } from '@/services/analiseAtivos/fontes/csvStream';
 import { ErroFonte } from '@/services/analiseAtivos/fontes/erros';
 import { linhasDaEntrada, type EntradaZip } from '@/services/analiseAtivos/fontes/zipStream';
@@ -77,10 +78,10 @@ export async function lerIndice(
     separador: ';',
     obrigatorias: COLUNAS_INDICE,
     arquivo: nome,
-    preFiltro: opts.cnpjs ? (l) => opts.cnpjs!.has(l.slice(0, 18)) : undefined,
+    preFiltro: opts.cnpjs ? (l) => opts.cnpjs!.has(cnpjDoInicioDaLinha(l) ?? '') : undefined,
   });
   for await (const l of csv) {
-    const cnpj = l.get('CNPJ_CIA');
+    const cnpj = cnpjOuOriginal(l.get('CNPJ_CIA'));
     const dtRefer = l.get('DT_REFER');
     const versao = Number(l.get('VERSAO'));
     const dtReceb = l.get('DT_RECEB');
@@ -156,7 +157,7 @@ export async function* lerLinhasDemonstrativo(
     separador: ';',
     obrigatorias: COLUNAS_DEMONSTRATIVO[spec.dem],
     arquivo: entrada.nome,
-    preFiltro: (l) => cnpjs.has(l.slice(0, 18)),
+    preFiltro: (l) => cnpjs.has(cnpjDoInicioDaLinha(l) ?? ''),
   });
   let lidas = 0;
   const fixar = criarInternador();
@@ -177,7 +178,7 @@ function paraLinhaLida(
   fixar: (s: string) => string,
   contadores?: Contadores,
 ): LinhaLida | null {
-  const cnpj = l.get('CNPJ_CIA');
+  const cnpj = cnpjOuOriginal(l.get('CNPJ_CIA'));
   const dtRefer = l.get('DT_REFER');
   const aceita = docs.get(chaveDoc(cnpj, dtRefer));
   if (aceita === undefined || Number(l.get('VERSAO')) !== aceita) return null;

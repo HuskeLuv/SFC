@@ -4,6 +4,7 @@
  * Versao de cada entrada. Data_Referencia é normalizada para o último dia do trimestre (há
  * '2026-03-30' no arquivo). Percentuais do `imovel` e do `complemento` (frações) viram p.p.
  */
+import { cnpjOuOriginal } from '@/services/analiseAtivos/regras/comum/cnpj';
 import { lerCsv, type EspecCsv, type LinhaCsv } from '@/services/analiseAtivos/fontes/csvStream';
 import { linhasDaEntrada } from '@/services/analiseAtivos/fontes/zipStream';
 import {
@@ -117,7 +118,7 @@ class PorVersao<T> {
 
 function chaveDaLinha(l: LinhaCsv, c: Contadores): { k: string; versao: number } | null {
   c.lidas++;
-  const cnpj = l.get('CNPJ_Fundo_Classe');
+  const cnpj = cnpjOuOriginal(l.get('CNPJ_Fundo_Classe'));
   const data = l.get('Data_Referencia');
   if (!cnpj || !/^\d{4}-\d{2}-\d{2}/.test(data)) {
     c.rejeitadas++;

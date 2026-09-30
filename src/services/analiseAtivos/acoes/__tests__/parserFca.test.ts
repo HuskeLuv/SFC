@@ -53,7 +53,7 @@ describe('lerFca (FCA 2026 real)', () => {
       'WEGE3',
     ]);
     expect(r.cias.size).toBe(6);
-    expect(r.cias.get('84.429.695/0001-11')).toMatchObject({
+    expect(r.cias.get('84429695000111')).toMatchObject({
       nome: 'WEG S.A.',
       mesFimExercicio: 12,
       dataRef: '2026-01-01',

@@ -21,12 +21,16 @@ import {
   zipItr,
 } from '@/services/analiseAtivos/acoes/__tests__/zipFixtures';
 
+/** CNPJ de 14 dígitos na máscara da CVM (as linhas cruas das fixtures vêm assim). */
+const mascarar = (c: string) =>
+  `${c.slice(0, 2)}.${c.slice(2, 5)}.${c.slice(5, 8)}/${c.slice(8, 12)}-${c.slice(12)}`;
+
 const dir = mkdtempSync(path.join(os.tmpdir(), 'parser-cvm-'));
 afterAll(() => rmSync(dir, { recursive: true, force: true }));
 
-const WEGE = '84.429.695/0001-11';
-const VALE = '33.592.510/0001-54';
-const BBAS = '00.000.000/0001-91';
+const WEGE = '84429695000111';
+const VALE = '33592510000154';
+const BBAS = '00000000000191';
 
 async function coletar(it: AsyncIterable<LinhaLida>): Promise<LinhaLida[]> {
   const out: LinhaLida[] = [];
@@ -82,7 +86,9 @@ describe('lerLinhasDemonstrativo', () => {
 
   it('maior VERSAO: linha de versão anterior do mesmo documento é descartada', async () => {
     const original = fixture('dfp_cia_aberta_DRE_con_2025.csv');
-    const linhaV2 = original.split('\n').find((l) => l.startsWith(VALE) && l.includes(';3.01;'))!;
+    const linhaV2 = original
+      .split('\n')
+      .find((l) => l.startsWith(mascarar(VALE)) && l.includes(';3.01;'))!;
     const linhaV1 = linhaV2.replace(';2025-12-31;2;', ';2025-12-31;1;');
     const zip = montarZip(dir, 'versoes.zip', {
       'dfp_cia_aberta_DRE_con_2025.csv': `${original}${linhaV1}\n`,

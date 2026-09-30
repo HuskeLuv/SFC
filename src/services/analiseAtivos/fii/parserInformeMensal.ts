@@ -9,6 +9,7 @@
  *   com taxonomia nova (o tipo sai da composição, não do segmento).
  * Frações da CVM (DY do mês, rentabilidade, taxa de adm.) são convertidas ×100 aqui (p.p.).
  */
+import { cnpjOuOriginal } from '@/services/analiseAtivos/regras/comum/cnpj';
 import { lerCsv, type EspecCsv, type LinhaCsv } from '@/services/analiseAtivos/fontes/csvStream';
 import { linhasDaEntrada } from '@/services/analiseAtivos/fontes/zipStream';
 import {
@@ -163,7 +164,7 @@ function chaveDaLinha(
   c: Contadores,
 ): { cnpj: string; ref: string; versao: number } | null {
   c.lidas++;
-  const cnpj = l.get('CNPJ_Fundo_Classe');
+  const cnpj = cnpjOuOriginal(l.get('CNPJ_Fundo_Classe'));
   const data = l.get('Data_Referencia');
   if (!cnpj || !/^\d{4}-\d{2}-\d{2}/.test(data)) {
     c.rejeitadas++;
