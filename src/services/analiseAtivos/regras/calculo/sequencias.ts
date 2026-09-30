@@ -6,28 +6,61 @@ import { ausente, ok } from '@/services/analiseAtivos/regras/comum/valor';
 import type { ProventoAuditado, ScoringParams, Valor } from '@/services/analiseAtivos/tipos';
 
 /**
- * Do último exercício anual (FY) para trás até o 1º ano com lucro ≤ 0, ausente ou faltando na série.
+ * Do último exercício anual (FY) para trás até o 1º ano com lucro ≤ 0 ou faltando na série.
  * "Lucro" = lucro líquido atribuível aos controladores. Último FY ausente ⇒ ausente.
+ * Ano AUSENTE no meio da série (ex.: controladora_zero sem individual) para a contagem mas NÃO é
+ * prejuízo: `lacuna` = esse ano, para o chamador marcar o Índice como incompleto (três estados).
  */
-export function anosLucroConsecutivos(
+export function anosLucroConsecutivosDetalhado(
   serie: Array<{ anoFiscal: number; lucro: Valor<number> }>,
-): Valor<number> {
-  if (serie.length === 0) return ausente('sem_dado_fonte', 'sem_fy');
+): { valor: Valor<number>; lacuna: number | null } {
+  if (serie.length === 0) return { valor: ausente('sem_dado_fonte', 'sem_fy'), lacuna: null };
   const porAno = new Map(serie.map((s) => [s.anoFiscal, s.lucro]));
   const ultimo = Math.max(...serie.map((s) => s.anoFiscal));
   const lucroUltimo = porAno.get(ultimo)!;
   if (lucroUltimo.estado !== 'ok') {
-    return lucroUltimo.estado === 'ausente'
-      ? ausente(lucroUltimo.motivo, 'ultimo_fy')
-      : ausente('sem_dado_fonte', 'ultimo_fy_nao_se_aplica');
+    const valor =
+      lucroUltimo.estado === 'ausente'
+        ? ausente(lucroUltimo.motivo, 'ultimo_fy')
+        : ausente('sem_dado_fonte', 'ultimo_fy_nao_se_aplica');
+    return { valor, lacuna: null };
   }
   let n = 0;
+  let lacuna: number | null = null;
   for (let a = ultimo; ; a--) {
     const l = porAno.get(a);
-    if (!l || l.estado !== 'ok' || !(l.valor > 0)) break;
+    if (!l) break;
+    if (l.estado !== 'ok') {
+      if (l.estado === 'ausente') lacuna = a;
+      break;
+    }
+    if (!(l.valor > 0)) break;
     n++;
   }
-  return ok(n);
+  return { valor: ok(n), lacuna };
+}
+
+export function anosLucroConsecutivos(
+  serie: Array<{ anoFiscal: number; lucro: Valor<number> }>,
+): Valor<number> {
+  return anosLucroConsecutivosDetalhado(serie).valor;
+}
+
+/**
+ * Lucro do ano para a sequência: atribuível; consolidado com controladora_zero ⇒ o do individual
+ * quando houver; senão ausente (nunca zero).
+ */
+export function lucroParaSequencia(f: {
+  lucroAtribuivel: number | null;
+  lucroAtribuivelIndividual?: number | null;
+  flags: string[];
+}): Valor<number> {
+  if (f.lucroAtribuivel !== null) return ok(f.lucroAtribuivel);
+  const controladoraZero = f.flags.includes('controladora_zero');
+  if (controladoraZero && f.lucroAtribuivelIndividual != null) {
+    return ok(f.lucroAtribuivelIndividual);
+  }
+  return ausente(controladoraZero ? 'controladora_zero' : 'sem_dado_fonte');
 }
 
 function mesDe(data: string): string {

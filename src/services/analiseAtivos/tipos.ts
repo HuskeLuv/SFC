@@ -87,6 +87,12 @@ export interface FundamentosPeriodo {
   depreciacaoAmortizacao: number | null;
   lucroLiquido: number | null;
   lucroAtribuivel: number | null;
+  /**
+   * Lucro atribuível do escopo INDIVIDUAL do mesmo documento, preenchido só quando o escopo escolhido
+   * é o consolidado com 'controladora_zero' (regra 12): no individual o lucro é todo da controladora
+   * (CXSE3 FY2023/2024). Usado na sequência de anos com lucro; nunca nos múltiplos.
+   */
+  lucroAtribuivelIndividual?: number | null;
   ativoTotal: number | null;
   ativoCirculante: number | null;
   passivoCirculante: number | null;

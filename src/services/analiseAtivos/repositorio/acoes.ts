@@ -100,7 +100,12 @@ export async function fundamentosVigentes(
   for (const grupo of porPeriodo.values()) {
     const quer = preferido.get(grupo[0].emissorId) ?? 'con';
     const escolhida = grupo.find((g) => g.escopo === quer) ?? grupo[0];
-    out.push(paraFundamentos(escolhida));
+    const f = paraFundamentos(escolhida);
+    if (f.escopo === 'con' && f.lucroAtribuivel === null && f.flags.includes('controladora_zero')) {
+      const ind = grupo.find((g) => g.escopo === 'ind');
+      if (ind) f.lucroAtribuivelIndividual = paraFundamentos(ind).lucroAtribuivel;
+    }
+    out.push(f);
   }
   return out;
 }

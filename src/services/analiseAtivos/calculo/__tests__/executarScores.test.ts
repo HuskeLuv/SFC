@@ -480,3 +480,26 @@ describe('executarScores', () => {
     expect(datas).toContain('2026-09-20');
   });
 });
+
+describe('scoreAcao — lacuna na sequência de lucro (achado qa-dados 30/09)', () => {
+  it('ano ausente no meio da série ⇒ Índice incompleto com motivo lucro:serie_com_lacuna', async () => {
+    const { scoreAcao } = await import('@/services/analiseAtivos/calculo/recalcularScores');
+    const { ok } = await import('@/services/analiseAtivos/regras/comum/valor');
+    const base = {
+      m: { flags: [] },
+      anos: ok(1),
+      lucroUltimoFy: ok(4291.56e6),
+      lpaTtm: ok(1.4),
+      vpa: ok(5),
+      dpa12m: ok(1),
+      payoutPct: ok(70),
+      plControladora: ok(10e9),
+      flags: [],
+    };
+    const sem = scoreAcao({ ...base, anosLacuna: null }, false, SCORING_PARAMS_V1);
+    const com = scoreAcao({ ...base, anosLacuna: 2024 }, false, SCORING_PARAMS_V1);
+    expect(sem.indice.motivosIncompleto).not.toContain('lucro:serie_com_lacuna_2024');
+    expect(com.indice.incompleto).toBe(true);
+    expect(com.indice.motivosIncompleto).toContain('lucro:serie_com_lacuna_2024');
+  });
+});

@@ -49,7 +49,8 @@ import {
 } from '@/services/analiseAtivos/regras/calculo/proventos';
 import { semaforo, type ResultadoSemaforo } from '@/services/analiseAtivos/regras/calculo/semaforo';
 import {
-  anosLucroConsecutivos,
+  anosLucroConsecutivosDetalhado,
+  lucroParaSequencia,
   mesesComRendimentoDetalhado,
 } from '@/services/analiseAtivos/regras/calculo/sequencias';
 import { pregaoAnterior } from '@/services/analiseAtivos/regras/comum/pregoes';
@@ -163,6 +164,8 @@ export interface EntradaAtualAcao {
 export interface CalculoAtualAcao {
   m: MultiplosCalculados & Partial<HistoricoPl>;
   anos: Valor<number>;
+  /** ano ausente que interrompeu a sequência de lucro (≠ prejuízo) ⇒ Índice incompleto */
+  anosLacuna?: number | null;
   lucroUltimoFy: Valor<number>;
   lpaTtm: Valor<number>;
   vpa: Valor<number>;
@@ -178,13 +181,16 @@ export function calcularAtualAcao(e: EntradaAtualAcao, p: ScoringParams): Calcul
   const fys = umFyPorAno(e.fys);
   const serieLucro = fys.map((f) => ({
     anoFiscal: f.anoFiscal,
-    lucro:
-      f.lucroAtribuivel === null
-        ? ausente(f.flags.includes('controladora_zero') ? 'controladora_zero' : 'sem_dado_fonte')
-        : ok(f.lucroAtribuivel),
+    lucro: lucroParaSequencia(f),
   })) as Array<{ anoFiscal: number; lucro: Valor<number> }>;
-  const anos = anosLucroConsecutivos(serieLucro);
-  const ultimoFy = serieLucro[serieLucro.length - 1]?.lucro ?? ausente('sem_dado_fonte', 'sem_fy');
+  const seq = anosLucroConsecutivosDetalhado(serieLucro);
+  const anos = seq.valor;
+  if (seq.lacuna !== null) flags.push(`lucro_serie_com_lacuna_${seq.lacuna}`);
+  // último FY: só o atribuível do escopo escolhido (o individual entra apenas na sequência)
+  const fyUltimo = fys[fys.length - 1];
+  const ultimoFy: Valor<number> = !fyUltimo
+    ? ausente('sem_dado_fonte', 'sem_fy')
+    : lucroParaSequencia({ ...fyUltimo, lucroAtribuivelIndividual: null });
   let fund = e.fundAtual;
   if (!fund && fys.length > 0) {
     fund = fys[fys.length - 1];
@@ -247,6 +253,7 @@ export function calcularAtualAcao(e: EntradaAtualAcao, p: ScoringParams): Calcul
   return {
     m,
     anos,
+    anosLacuna: seq.lacuna,
     lucroUltimoFy: ultimoFy,
     lpaTtm: lpa,
     vpa: m.vpa ?? ausente('sem_dado_fonte'),
@@ -288,6 +295,13 @@ export function scoreAcao(
     p,
   );
   const indice = calcularIndiceComParams(comps, regua, p);
+  if (c.anosLacuna != null) {
+    indice.incompleto = true;
+    indice.motivosIncompleto = [
+      ...indice.motivosIncompleto,
+      `lucro:serie_com_lacuna_${c.anosLacuna}`,
+    ];
+  }
   const plNaoPositivo =
     (m.pl?.estado === 'nao_se_aplica' && m.pl.motivo === 'base_nao_positiva') ||
     (c.lucroUltimoFy.estado === 'ok' && c.lucroUltimoFy.valor <= 0);
