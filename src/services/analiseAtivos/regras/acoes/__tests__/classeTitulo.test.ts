@@ -14,6 +14,7 @@ describe('classeDoTicker (regra 18: sufixo manda, não o FCA)', () => {
     expect(classeDoTicker('CPLE6')).toBe('PN');
     expect(classeDoTicker('TAEE11')).toBe('UNIT');
     expect(classeDoTicker('WEGE3')).toBe('ON');
+    expect(classeDoTicker('B3SA3')).toBe('ON'); // dígito na raiz (antes ficava fora do universo)
   });
 
   it('sufixos fora do padrão de ações (BDR 34, direitos 1/2/9, recibos 10) ⇒ null', () => {

@@ -8,7 +8,8 @@
  */
 import type { ClasseTitulo } from '@/services/analiseAtivos/tipos';
 
-const RE_TICKER = /^[A-Z]{4}(\d{1,2})$/;
+// raiz de 4 caracteres começando e terminando em letra: aceita dígito no meio (B3SA3)
+const RE_TICKER = /^[A-Z][A-Z0-9]{2}[A-Z](\d{1,2})$/;
 
 export function classeDoTicker(ticker: string): ClasseTitulo | null {
   const m = RE_TICKER.exec(ticker.trim().toUpperCase());
@@ -20,8 +21,8 @@ export function classeDoTicker(ticker: string): ClasseTitulo | null {
   return null;
 }
 
-const RE_ON = /(\d+)\s*(?:ON\b|ONs\b|a[çc](?:[ãa]o|[õo]es)\s+ordin|[A-Z]{4}3\b)/i;
-const RE_PN = /(\d+)\s*(?:PN|a[çc](?:[ãa]o|[õo]es)\s+pref|[A-Z]{4}[4-8]\b)/i;
+const RE_ON = /(\d+)\s*(?:ON\b|ONs\b|a[çc](?:[ãa]o|[õo]es)\s+ordin|[A-Z][A-Z0-9]{2}[A-Z]3\b)/i;
+const RE_PN = /(\d+)\s*(?:PN|a[çc](?:[ãa]o|[õo]es)\s+pref|[A-Z][A-Z0-9]{2}[A-Z][4-8]\b)/i;
 
 /** Quantidade de ON e PN por unit; null quando o texto não tem nenhum dos formatos conhecidos. */
 export function parseComposicaoUnit(
