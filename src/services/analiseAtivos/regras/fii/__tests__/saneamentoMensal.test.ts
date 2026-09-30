@@ -99,3 +99,58 @@ describe('sanearMes — casos reais', () => {
     );
   });
 });
+
+describe('sanearMes — salto de cotas só é desdobramento com o VP/cota acompanhando (achado 30/09)', () => {
+  // cotas, PL e VP/cota reais do fii_monthly do dev
+  const m = (refMonth: string, cotas: number, pl: number, vpCota: number): FiiMesBruto => ({
+    ...mes(m26, CNPJ.HGLG, '2026-08-01'),
+    cnpj: 'X',
+    refMonth,
+    cotas,
+    pl,
+    vpCota,
+  });
+
+  it('IRIM11 out→nov/25: cotas ×18,35 com VP/cota estável (incorporação) ⇒ sem fator, com alerta', () => {
+    const {
+      mes: s,
+      flags,
+      alertas,
+    } = sanearMes(
+      m('2025-11-01', 35_225_778, 2_962_321_736.41, 84.095282),
+      m('2025-10-01', 1_920_000, 160_117_646.5, 83.394608),
+      P,
+    );
+    expect(s.fatorDesdobramento).toBeNull();
+    expect(flags).toContain('salto_cotas_sem_desdobramento');
+    expect(alertas.map((a) => a.codigo)).toContain('fii_salto_cotas');
+  });
+
+  it('MGRI11 jun→jul/26: cotas ×8,12 com VP/cota ÷3,6 ⇒ sem fator', () => {
+    const { mes: s } = sanearMes(
+      m('2026-07-01', 2_691_355.1277, 36_586_915.09, 13.59423538),
+      m('2026-06-01', 331_255.6169, 16_414_592.94, 49.55264787),
+      P,
+    );
+    expect(s.fatorDesdobramento).toBeNull();
+  });
+
+  it('GSRF11 mai/26 (cotas ÷7,18 com PL ÷53) e ago/26 (volta ×7,18) ⇒ sem fator nos dois', () => {
+    const abr = m('2026-04-01', 627_751, 64_850_823.11, 103.30660263);
+    const mai = m('2026-05-01', 87_430, 1_230_499.28, 14.0741082);
+    const jul = m('2026-07-01', 87_430, 1_230_499.28, 14.0741082);
+    const ago = m('2026-08-01', 627_751, 55_002_686.81, 87.6186367);
+    expect(sanearMes(mai, abr, P).mes.fatorDesdobramento).toBeNull();
+    expect(sanearMes(ago, jul, P).mes.fatorDesdobramento).toBeNull();
+  });
+
+  it('HGLG11 mar→abr/2018: cotas ×10 e VP/cota 1.173,48 → 116,99 ⇒ desdobramento 10', () => {
+    const { mes: s, flags } = sanearMes(
+      m('2018-04-01', 7_881_340, 922_047_939.58, 116.99126539),
+      m('2018-03-01', 788_134, 924_856_003.25, 1173.47558061),
+      P,
+    );
+    expect(s.fatorDesdobramento).toBe(10);
+    expect(flags).toContain('desdobramento');
+  });
+});

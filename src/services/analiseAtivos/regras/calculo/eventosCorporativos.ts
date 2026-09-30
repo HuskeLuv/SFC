@@ -232,6 +232,8 @@ export interface MesCotasFii {
   refMonth: string;
   cotas: number | null;
   fatorDesdobramento: number | null;
+  /** PL do mês: com o do mês anterior, confirma que o salto de cotas foi desdobramento (PL estável) */
+  pl?: number | null;
 }
 
 /**
@@ -389,22 +391,27 @@ function verificarFii(
       out.push(completo(e, ano(e.dataEvento), 'confirmado', bate, e.fator));
     } else {
       const semMudanca = razoes.every((r) => dentroTol(r, 1, tol));
-      out.push(
-        completo(
-          e,
-          ano(e.dataEvento),
-          semMudanca ? 'descartado' : 'emissao_recompra',
-          razoes[0],
-          e.fator,
-        ),
-      );
+      const status = semMudanca
+        ? 'descartado'
+        : emissaoRecompraCoerente(1, e.fator, razoes[0], p)
+          ? 'emissao_recompra'
+          : 'nao_validavel';
+      out.push(completo(e, ano(e.dataEvento), status, razoes[0], e.fator));
     }
   }
 
-  // fatorDesdobramento do Informe Mensal sem evento bruto no mês ⇒ evento confirmado (regra 22)
+  // fatorDesdobramento do Informe Mensal sem evento bruto no mês ⇒ evento confirmado (regra 22),
+  // desde que o PL fique estável (senão é incorporação/emissão: IRIM11 nov/25 PL ×18)
+  const plPorMes = new Map<string, number>();
+  for (const m of meses) if (m.pl != null && m.pl > 0) plPorMes.set(m.refMonth, m.pl);
   for (const m of meses) {
     if (m.fatorDesdobramento === null || !(m.fatorDesdobramento > 1)) continue;
     if (mesesComEvento.has(m.refMonth) || mesesComEvento.has(mesAnterior(m.refMonth))) continue;
+    const plAtual = plPorMes.get(m.refMonth);
+    const plAnterior = plPorMes.get(mesAnterior(m.refMonth));
+    if (plAtual !== undefined && plAnterior !== undefined && !dentroTol(plAtual, plAnterior, tol)) {
+      continue;
+    }
     out.push({
       symbol,
       dataEvento: m.refMonth,

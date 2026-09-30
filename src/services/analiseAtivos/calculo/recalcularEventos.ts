@@ -59,6 +59,7 @@ export function verificarUniverso(
             refMonth: m.refMonth,
             cotas: m.cotas,
             fatorDesdobramento: m.fatorDesdobramento,
+            pl: m.pl,
           })),
           symbol,
         )

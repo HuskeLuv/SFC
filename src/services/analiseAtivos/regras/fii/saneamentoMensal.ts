@@ -59,6 +59,12 @@ function arredondarFator(f: number): number {
   return Math.round(f * 10_000) / 10_000;
 }
 
+/** VP/cota do mês (PL ÷ cotas quando houver; senão o informado). */
+function vpCotaDoMes(m: FiiMesBruto): number | null {
+  if (finito(m.pl) && m.pl > 0 && finito(m.cotas) && m.cotas > 0) return m.pl / m.cotas;
+  return finito(m.vpCota) ? m.vpCota : null;
+}
+
 export function sanearMes(
   atual: FiiMesBruto,
   anterior: FiiMesBruto | null,
@@ -89,7 +95,24 @@ export function sanearMes(
   let fatorDesdobramento: number | null = null;
   if (finito(atual.cotas) && finito(anterior?.cotas) && atual.cotas > 0 && anterior!.cotas! > 0) {
     const razao = atual.cotas / anterior!.cotas!;
-    if (razao >= s.cotasDesdobramentoFator) {
+    const salto = razao >= s.cotasDesdobramentoFator || razao <= 1 / s.cotasDesdobramentoFator;
+    // desdobramento de verdade: o VP/cota cai (sobe) na MESMA proporção — PL estável. Incorporação,
+    // emissão, fundo novo ou informe com cotas erradas mudam as cotas sem mexer no VP/cota
+    // (IRIM11 nov/25: cotas ×18,3 com VP/cota 83,39 → 84,10) ⇒ só flag + alerta, sem fator.
+    const vpAnt = vpCotaDoMes(anterior!);
+    const razaoVp = finito(vpAnt) && finito(vpCota) && vpCota > 0 ? vpAnt / vpCota : null;
+    const vpAcompanha =
+      razaoVp !== null &&
+      Math.abs(razaoVp / razao - 1) <= p.sanidade.eventos.confirmacaoTolPct / 100;
+    if (salto && !vpAcompanha) {
+      flags.push('salto_cotas_sem_desdobramento');
+      alertas.push({
+        codigo: 'fii_salto_cotas',
+        nivel: 'aviso',
+        mensagem: `cotas ×${razao.toFixed(4)} sem o VP/cota acompanhar (${razaoVp === null ? 'VP ausente' : `VP ÷${razaoVp.toFixed(4)}`})`,
+        ref,
+      });
+    } else if (razao >= s.cotasDesdobramentoFator) {
       fatorDesdobramento = arredondarFator(razao);
       flags.push('desdobramento');
     } else if (razao <= 1 / s.cotasDesdobramentoFator) {

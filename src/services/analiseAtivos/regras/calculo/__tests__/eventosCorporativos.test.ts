@@ -233,6 +233,66 @@ describe('eventos corporativos — correções do QA de 30/09', () => {
   });
 });
 
+describe('FII: fatorDesdobramento gravado sem PL estável não vira evento (achado 30/09)', () => {
+  it('IRIM11 nov/25 (PL ×18,5) ⇒ nenhum evento; rendimento anterior não é dividido', () => {
+    const evs = verificarEventosCorporativos(
+      [],
+      [],
+      P,
+      [
+        { refMonth: '2025-10-01', cotas: 1_920_000, fatorDesdobramento: null, pl: 160_117_646.5 },
+        {
+          refMonth: '2025-11-01',
+          cotas: 35_225_778,
+          fatorDesdobramento: 18.3468,
+          pl: 2_962_321_736.41,
+        },
+      ],
+      'IRIM11',
+    );
+    expect(evs).toEqual([]);
+  });
+
+  it('HGLG11 abr/2018 (PL estável) continua confirmado cvm_cotas', () => {
+    const evs = verificarEventosCorporativos(
+      [],
+      [],
+      P,
+      [
+        { refMonth: '2018-03-01', cotas: 788_134, fatorDesdobramento: null, pl: 924_856_003.25 },
+        { refMonth: '2018-04-01', cotas: 7_881_340, fatorDesdobramento: 10, pl: 922_047_939.58 },
+      ],
+      'HGLG11',
+    );
+    expect(evs.map((e) => [e.fator, e.status, e.fontes])).toEqual([
+      [10, 'confirmado', ['cvm_cotas']],
+    ]);
+  });
+
+  it('evento bruto de FII incoerente com a razão de cotas ⇒ não validável (não ajusta)', () => {
+    const evs = verificarEventosCorporativos(
+      [
+        {
+          id: 'y',
+          symbol: 'XXXX11',
+          date: '2025-11-10',
+          type: 'DESDOBRAMENTO',
+          factor: 10,
+          source: 'YAHOO',
+        },
+      ],
+      [],
+      P,
+      [
+        { refMonth: '2025-10-01', cotas: 1_000_000, fatorDesdobramento: null },
+        { refMonth: '2025-11-01', cotas: 1_300_000, fatorDesdobramento: null },
+      ],
+      'XXXX11',
+    );
+    expect(evs[0].status).toBe('nao_validavel');
+  });
+});
+
 describe('regra 13 — salto de ações sem evento validado', () => {
   it('2,5× sem evento ⇒ salto; com evento confirmado de mesmo fator ⇒ sem salto', () => {
     expect(saltoAcoesSemEvento(100, 260, 1, P)).toBe(true);
