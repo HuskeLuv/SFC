@@ -168,6 +168,7 @@ export async function sincronizarFiiTrimestral(
     const arq = await obterArquivo(ctx.prisma, url, {
       cacheDir: opts.cacheDir,
       condicional: opts.condicional,
+      aplicar: ctx.aplicar,
     });
     try {
       if (arq.status === 'nao_modificado' || !arq.caminho) {

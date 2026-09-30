@@ -64,6 +64,12 @@ export interface OpcoesObter {
    * informe mensal — não pode zerar o processadoEm do job fii-mensal)
    */
   registrar?: boolean;
+  /**
+   * false ⇒ dry-run: lê o condicional (ETag) mas NÃO grava em AnaliseFonteArquivo — senão o
+   * próximo cron perde o condicional e reprocessa o arquivo inteiro (achado qa-operacao 30/09).
+   * Os jobs passam `ctx.aplicar`.
+   */
+  aplicar?: boolean;
 }
 
 const nada = async () => {};
@@ -88,6 +94,7 @@ export async function obterArquivo(
     }
   }
   const registrar = opts.registrar ?? true;
+  const gravar = registrar && (opts.aplicar ?? true);
   const anterior =
     opts.condicional === false || !registrar ? null : await obterFonteArquivo(prisma, url);
   const r = await baixarParaArquivo(url, {
@@ -95,7 +102,7 @@ export async function obterArquivo(
     timeoutMs: opts.timeoutMs ?? LIMITES_FII.timeoutMs,
     condicional: condicionalDownload(anterior),
   });
-  if (r.status === 'baixado' && registrar) {
+  if (r.status === 'baixado' && gravar) {
     await registrarDownload(prisma, url, {
       etag: r.etag,
       lastModified: r.lastModified,
@@ -109,8 +116,7 @@ export async function obterArquivo(
     caminho: r.caminho,
     bytes: r.bytes,
     sha256: r.sha256,
-    concluir:
-      r.status === 'baixado' && registrar ? (job) => marcarProcessado(prisma, url, job) : nada,
+    concluir: r.status === 'baixado' && gravar ? (job) => marcarProcessado(prisma, url, job) : nada,
     descartar: r.descartar,
   };
 }
