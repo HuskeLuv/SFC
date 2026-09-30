@@ -766,7 +766,18 @@ function resolverContagem(
     .filter((c) => ehDfp(c) && c.data < d.dtRefer)
     .sort((a, b) => b.data.localeCompare(a.data))[0];
   if (dfpAnterior) {
-    return contagemComEscalaFixa(entrada, dfpAnterior.flags.includes('escala_x1000'), ctx.params);
+    const ref =
+      dfpAnterior.total !== null &&
+      dfpAnterior.total > 0 &&
+      dfpAnterior.status !== 'nao_verificavel'
+        ? { data: dfpAnterior.data, acoes: dfpAnterior.total, dataDoc: d.dtRefer }
+        : undefined;
+    return contagemComEscalaFixa(
+      entrada,
+      dfpAnterior.flags.includes('escala_x1000'),
+      ctx.params,
+      ref,
+    );
   }
   return resolverAcoesExercicio(entrada, ctx.params);
 }

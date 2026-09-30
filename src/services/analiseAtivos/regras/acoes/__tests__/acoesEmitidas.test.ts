@@ -2,6 +2,7 @@ import { readFileSync } from 'fs';
 import path from 'path';
 import { describe, expect, it } from 'vitest';
 import {
+  contagemComEscalaFixa,
   deduplicarEventos,
   fatorEventosEntre,
   resolverAcoesExercicio,
@@ -228,5 +229,102 @@ describe('eventos brutos (dedup local ≤ 30 dias)', () => {
     ]);
     expect(fatorEventosEntre(d, '2019-12-31', '2021-12-31')).toBe(2);
     expect(fatorEventosEntre(d, '2016-12-31', '2026-09-30')).toBeCloseTo(2.6, 10);
+  });
+});
+
+describe('contagemComEscalaFixa (ITR) — troca de escala entre DFP e ITR (achado qa-dados 30/09)', () => {
+  const entrada = (
+    composicao: EntradaResolucaoAcoes['composicao'],
+    extra: Partial<EntradaResolucaoAcoes> = {},
+  ): EntradaResolucaoAcoes => ({
+    ano: 2026,
+    lucroAtribuivel: null,
+    lucroTotal: null,
+    lpaOn: null,
+    lpaPn: null,
+    pl: null,
+    composicao,
+    freAcoes: null,
+    eventos: [],
+    documento: 'itr',
+    ...extra,
+  });
+
+  // PSSA3 2T26: DFP25 em MILHARES (640.360 ⇒ 640,36 mi) e ITR em UNIDADES; LPA YTD publicado 3,0998
+  const pssa = entrada(
+    { on: 646_586_060, pn: 0, tesOn: 5_593_737, tesPn: 0 },
+    { lucroAtribuivel: 2_013_445_000, lucroTotal: 2_028_262_000, lpaOn: 3.0998 },
+  );
+
+  it('PSSA3 2T26: com o DFP de referência troca para unidades (640,99 mi), sem mexer no LPA', () => {
+    const r = contagemComEscalaFixa(pssa, true, P, {
+      data: '2025-12-31',
+      acoes: 640_360_000,
+      dataDoc: '2026-06-30',
+    });
+    expect(r.acoes).toBe(640_992_323);
+    expect(r.fonte).toBe('itr');
+    expect(r.fatorEscalaLpa).toBe(1);
+    expect(r.status).toBe('ok');
+    expect(r.razaoLpa).toBeCloseTo(0.9868, 3);
+    expect(r.flags).toContain('escala_trocada_no_itr');
+    expect(r.flags).not.toContain('lpa_escala_corrigida');
+  });
+
+  it('PSSA3 2T26 sem referência: comportamento antigo (640 bi + LPA ÷1000) — por isso a referência', () => {
+    const r = contagemComEscalaFixa(pssa, true, P);
+    expect(r.acoes).toBe(640_992_323_000);
+    expect(r.flags).toContain('lpa_escala_corrigida');
+  });
+
+  it('RAPT4 1T26: DFP25 em unidades (348.687.771) e ITR em milhares (348.688) ⇒ ×1000', () => {
+    const r = contagemComEscalaFixa(entrada({ on: 348_688, pn: 0, tesOn: 0, tesPn: 0 }), false, P, {
+      data: '2025-12-31',
+      acoes: 348_687_771,
+      dataDoc: '2026-03-31',
+    });
+    expect(r.acoes).toBe(348_688_000);
+    expect(r.fonte).toBe('itr_x1000');
+    expect(r.flags).toEqual(expect.arrayContaining(['escala_x1000', 'escala_trocada_no_itr']));
+  });
+
+  it('BEES3 2T26: DFP25 em milhares (347.504 mil) e ITR em unidades ⇒ 347.504.146', () => {
+    const r = contagemComEscalaFixa(
+      entrada({ on: 347_504_146, pn: 0, tesOn: 0, tesPn: 0 }),
+      true,
+      P,
+      { data: '2025-12-31', acoes: 347_504_000, dataDoc: '2026-06-30' },
+    );
+    expect(r.acoes).toBe(347_504_146);
+  });
+
+  it('split de verdade (evento bruto no período) não troca a escala: SBSP3 2T26 ×5', () => {
+    const r = contagemComEscalaFixa(
+      entrada(
+        { on: 3_524_530_000, pn: 0, tesOn: 17_699_523, tesPn: 0 },
+        { eventos: [{ date: '2026-04-28', fator: 5 }] },
+      ),
+      false,
+      P,
+      { data: '2025-12-31', acoes: 700_219_438, dataDoc: '2026-06-30' },
+    );
+    expect(r.acoes).toBe(3_506_830_477);
+    expect(r.flags).not.toContain('salto_acoes_sem_evento');
+    expect(r.flags).toContain('escala_do_dfp');
+  });
+
+  it('nenhuma escala cabe no salto [0,4; 2,5] sem evento ⇒ alerta + salto_acoes_sem_evento', () => {
+    const r = contagemComEscalaFixa(
+      entrada({ on: 10_000_000, pn: 0, tesOn: 0, tesPn: 0 }),
+      false,
+      P,
+      {
+        data: '2025-12-31',
+        acoes: 100_000_000,
+        dataDoc: '2026-06-30',
+      },
+    );
+    expect(r.status).toBe('alerta');
+    expect(r.flags).toContain('salto_acoes_sem_evento');
   });
 });

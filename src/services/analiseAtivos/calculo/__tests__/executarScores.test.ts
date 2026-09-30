@@ -503,3 +503,69 @@ describe('scoreAcao — lacuna na sequência de lucro (achado qa-dados 30/09)', 
     expect(com.indice.motivosIncompleto).toContain('lucro:serie_com_lacuna_2024');
   });
 });
+
+describe('calcularAtualAcao — regra 13 na contagem dos múltiplos do dia (achado qa-dados 30/09)', () => {
+  const cont = (data: string, total: number, fonte: string): ContagemAcoes => ({
+    cnpj: 'X',
+    data,
+    on: total,
+    pn: 0,
+    total,
+    fonte,
+    razaoLpa: 1,
+    status: 'ok',
+  });
+  async function calcular(contagens: ContagemAcoes[]) {
+    const { calcularAtualAcao } = await import('@/services/analiseAtivos/calculo/recalcularScores');
+    const ticker: TickerAcao = {
+      symbol: 'PSSA3',
+      cnpj: 'X',
+      classeTitulo: 'ON',
+      unitQtdOn: null,
+      unitQtdPn: null,
+    };
+    return calcularAtualAcao(
+      {
+        ticker,
+        resumo: {
+          symbol: 'PSSA3',
+          ultimoPregao: '2026-09-29',
+          closeRaw: 47,
+          volumeMedio21: 1e8,
+          pregoesComNegocio21: 21,
+          baixaLiquidez: false,
+          negociadoUltimos30: true,
+        },
+        tickersEmpresa: [ticker],
+        resumosEmpresa: new Map([['PSSA3', 47]]),
+        fundAtual: null,
+        fys: [],
+        contagens,
+        emissor: undefined,
+        proventos: [],
+        eventos: [],
+        cobertura: undefined,
+        historicoPl: [],
+        dataRef: '2026-09-29',
+      },
+      SCORING_PARAMS_V1,
+    );
+  }
+
+  it('PSSA3: ITR com 640 bi de ações contra 640 mi do DFP25 ⇒ sem nº de ações e flag', async () => {
+    const r = await calcular([
+      cont('2025-12-31', 640_360_000, 'dfp_x1000'),
+      cont('2026-06-30', 640_992_323_000, 'itr_x1000'),
+    ]);
+    expect(r.flags).toContain('salto_acoes_sem_evento');
+    expect(r.vpa.estado).not.toBe('ok');
+  });
+
+  it('contagem coerente com o DFP ⇒ sem flag', async () => {
+    const r = await calcular([
+      cont('2025-12-31', 640_360_000, 'dfp_x1000'),
+      cont('2026-06-30', 640_992_323, 'itr'),
+    ]);
+    expect(r.flags).not.toContain('salto_acoes_sem_evento');
+  });
+});

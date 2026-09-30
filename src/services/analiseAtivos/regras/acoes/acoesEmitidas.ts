@@ -330,17 +330,41 @@ export function resolverAcoesExercicio(e: EntradaResolucaoAcoes, p: ScoringParam
 }
 
 /**
- * Contagem do ITR (fim do trimestre) com a MESMA escolha unidade/×1000 do DFP mais recente da
- * empresa. A razão Σ(LPA YTD × ações)/lucro YTD só dá o status; LPA em escala errada é corrigido.
+ * Contagem do ITR (fim do trimestre) com a escolha unidade/×1000 do DFP mais recente da empresa.
+ * A razão Σ(LPA YTD × ações)/lucro YTD só dá o status; LPA em escala errada é corrigido.
+ *
+ * Com `ref` (contagem do DFP anterior): se a escala do DFP dá um salto fora de saltoAcoes
+ * [0,4; 2,5] contra ref × eventos brutos do período e a OUTRA escala não, a empresa trocou a
+ * unidade no ITR ⇒ usa a outra (PSSA3 2T26: DFP25 em milhares, ITR em unidades ⇒ 640 bi de ações
+ * com o LPA "corrigido" ×1000). Nenhuma das duas cabe ⇒ status 'alerta' + salto_acoes_sem_evento
+ * (regra 13). Só depois disso a razão ≈ 1000 é lida como LPA em escala errada.
  */
 export function contagemComEscalaFixa(
   e: EntradaResolucaoAcoes,
   x1000: boolean,
   p: ScoringParams,
+  ref?: { data: string; acoes: number; dataDoc: string },
 ): ResolucaoAcoes {
-  const cand = candidatos({ ...e, freAcoes: null }).find(
-    (c) => c.nome === (x1000 ? 'dfp_x1000' : 'dfp'),
-  );
+  const cands = candidatos({ ...e, freAcoes: null });
+  const [saltoMin, saltoMax] = p.sanidade.acoes.saltoAcoes;
+  let escalaTrocada = false;
+  let saltoSemEvento = false;
+  if (ref && ref.acoes > 0) {
+    const esperado = ref.acoes * fatorEventosEntre(e.eventos, ref.data, ref.dataDoc);
+    const cabe = (c: Candidato | undefined) =>
+      c !== undefined && c.acoes / esperado >= saltoMin && c.acoes / esperado <= saltoMax;
+    const fixo = cands.find((c) => c.nome === (x1000 ? 'dfp_x1000' : 'dfp'));
+    const outro = cands.find((c) => c.nome === (x1000 ? 'dfp' : 'dfp_x1000'));
+    if (fixo && !cabe(fixo)) {
+      if (cabe(outro)) {
+        x1000 = !x1000;
+        escalaTrocada = true;
+      } else {
+        saltoSemEvento = true;
+      }
+    }
+  }
+  const cand = cands.find((c) => c.nome === (x1000 ? 'dfp_x1000' : 'dfp'));
   if (!cand) {
     return {
       acoes: null,
@@ -355,7 +379,9 @@ export function contagemComEscalaFixa(
     };
   }
   const s = p.sanidade.acoes;
-  const flags = x1000 ? ['escala_x1000', 'escala_do_dfp'] : ['escala_do_dfp'];
+  const flags = x1000 ? ['escala_x1000'] : [];
+  flags.push(escalaTrocada ? 'escala_trocada_no_itr' : 'escala_do_dfp');
+  if (saltoSemEvento) flags.push('salto_acoes_sem_evento');
   const base = lucroBase(e, p);
   let razao = base ? razaoLpa(e, cand, base.lucro) : null;
   let fator: FatorEscalaLpa = 1;
@@ -366,8 +392,9 @@ export function contagemComEscalaFixa(
   if (razao !== null) razao *= fator;
   if (base?.fallback) flags.push('lucro_total_fallback');
   if (fator !== 1) flags.push('lpa_escala_corrigida');
-  const status: ResolucaoAcoes['status'] =
-    razao === null
+  const status: ResolucaoAcoes['status'] = saltoSemEvento
+    ? 'alerta'
+    : razao === null
       ? 'nao_verificavel'
       : Math.abs(razao - 1) * 100 > s.razaoLpaAlertaPct
         ? 'alerta'

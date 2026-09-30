@@ -47,6 +47,10 @@ import {
   valorProventosComCobertura,
   type ProventoAuditadoCompleto,
 } from '@/services/analiseAtivos/regras/calculo/proventos';
+import {
+  fatorEventosEntre,
+  saltoAcoesSemEvento,
+} from '@/services/analiseAtivos/regras/calculo/eventosCorporativos';
 import { semaforo, type ResultadoSemaforo } from '@/services/analiseAtivos/regras/calculo/semaforo';
 import {
   anosLucroConsecutivosDetalhado,
@@ -196,10 +200,36 @@ export function calcularAtualAcao(e: EntradaAtualAcao, p: ScoringParams): Calcul
     fund = fys[fys.length - 1];
     flags.push('ttm_ausente_usou_fy');
   }
-  const cont =
+  const contMaisRecente =
     [...e.contagens]
       .filter((c) => c.total !== null)
       .sort((a, b) => b.data.localeCompare(a.data))[0] ?? null;
+  // regra 13 também na contagem dos múltiplos do dia: salto contra o último DFP validado que os
+  // eventos confirmados não explicam ⇒ sem nº de ações (múltiplos por ação ausentes, Índice
+  // incompleto) em vez de múltiplos 1000× errados (PSSA3/BEES3/RAPT4 2026)
+  const refDfp = contMaisRecente
+    ? ([...e.contagens]
+        .filter(
+          (c) =>
+            c.total !== null &&
+            c.total > 0 &&
+            c.data < contMaisRecente.data &&
+            !c.fonte.startsWith('itr') &&
+            c.status === 'ok',
+        )
+        .sort((a, b) => b.data.localeCompare(a.data))[0] ?? null)
+    : null;
+  const saltoSemEvento =
+    contMaisRecente !== null &&
+    refDfp !== null &&
+    saltoAcoesSemEvento(
+      refDfp.total!,
+      contMaisRecente.total!,
+      fatorEventosEntre(e.eventos, refDfp.data, contMaisRecente.data),
+      p,
+    );
+  if (saltoSemEvento) flags.push('salto_acoes_sem_evento');
+  const cont = saltoSemEvento ? null : contMaisRecente;
   const fator = fatorEquivalencia(e.ticker);
   if (fator === null) flags.push('unit_sem_composicao');
   const dpa12m = comCobertura(
@@ -295,6 +325,10 @@ export function scoreAcao(
     p,
   );
   const indice = calcularIndiceComParams(comps, regua, p);
+  if (c.flags.includes('salto_acoes_sem_evento')) {
+    indice.incompleto = true;
+    indice.motivosIncompleto = [...indice.motivosIncompleto, 'acoes:salto_sem_evento'];
+  }
   if (c.anosLacuna != null) {
     indice.incompleto = true;
     indice.motivosIncompleto = [
