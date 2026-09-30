@@ -92,7 +92,10 @@ import {
 } from '@/services/analiseAtivos/regras/acoes/extrairFundamentos';
 import { ehLayoutFinanceiro } from '@/services/analiseAtivos/regras/acoes/layoutFinanceiro';
 import { aplicarFatorLpa } from '@/services/analiseAtivos/regras/acoes/lpa';
-import { nivelConta } from '@/services/analiseAtivos/regras/acoes/lucroDoPeriodo';
+import {
+  aplicarLucroIndividual,
+  nivelConta,
+} from '@/services/analiseAtivos/regras/acoes/lucroDoPeriodo';
 import {
   fimDoMesAnterior,
   mesesDoPeriodo,
@@ -616,6 +619,11 @@ async function processarPendentes(
       }
     }
     if (extraidos.length === 0) continue;
+    // regra 12: controladora e não controladores zerados ⇒ lucro do individual do mesmo documento
+    const comLucroInd = aplicarLucroIndividual(extraidos.map((x) => x.f));
+    comLucroInd.forEach((f, i) => {
+      extraidos[i] = { ...extraidos[i], f };
+    });
 
     // nº de ações (regra 10) e escala do LPA (regra 11)
     const base =

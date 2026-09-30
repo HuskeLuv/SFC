@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { lucroDoPeriodo } from '@/services/analiseAtivos/regras/acoes/lucroDoPeriodo';
+import {
+  aplicarLucroIndividual,
+  lucroDoPeriodo,
+} from '@/services/analiseAtivos/regras/acoes/lucroDoPeriodo';
 import type { LinhaDemonstrativo } from '@/services/analiseAtivos/regras/acoes/extrairFundamentos';
 import { CNPJ, filtrar, lerFixture } from '@/services/analiseAtivos/regras/acoes/__tests__/helpers';
 
@@ -8,14 +11,14 @@ const completo = lerFixture('dre_wege_petr_2024.csv');
 const fin = lerFixture('dre_financeiras.csv');
 
 describe('lucroDoPeriodo (regra 12)', () => {
-  it('KLBN11 2025: 3.11.01 publicado 0 com lucro de R$ 1,68 bi ⇒ ausente + flag controladora_zero', () => {
+  it('KLBN11 2025: 3.11.01 e 3.11.02 publicados 0 com lucro de R$ 1,68 bi ⇒ ausente + flags', () => {
     const r = lucroDoPeriodo(filtrar(lpa, { cnpj: CNPJ.KLBN11, escopo: 'con' }), { escopo: 'con' });
     expect(r.lucroTotal).toEqual({ estado: 'ok', valor: 1_678_211_000 });
     expect(r.lucroAtribuivel.estado).toBe('ausente');
     expect(r.lucroAtribuivel.estado === 'ausente' && r.lucroAtribuivel.motivo).toBe(
       'controladora_zero',
     );
-    expect(r.flags).toEqual(['controladora_zero']);
+    expect(r.flags).toEqual(['controladora_zero', 'atribuicoes_zeradas']);
     expect(r.codContaLucro).toBe('3.11.01');
   });
 
@@ -109,5 +112,57 @@ describe('lucroDoPeriodo (regra 12)', () => {
     const r = lucroDoPeriodo([]);
     expect(r.lucroTotal.estado).toBe('ausente');
     expect(r.lucroAtribuivel.estado).toBe('ausente');
+  });
+
+  const dre = (cd: string, ds: string, valor: number): LinhaDemonstrativo => ({
+    demonstrativo: 'DRE',
+    cdConta: cd,
+    dsConta: ds,
+    valor,
+  });
+
+  it('controladora 0 mas não controladores com o lucro ⇒ só controladora_zero (divisão preenchida)', () => {
+    const r = lucroDoPeriodo(
+      [
+        dre('3.11', 'Lucro/Prejuízo Consolidado do Período', 100),
+        dre('3.11.01', 'Atribuído a Sócios da Empresa Controladora', 0),
+        dre('3.11.02', 'Atribuído a Sócios Não Controladores', 100),
+      ],
+      { escopo: 'con' },
+    );
+    expect(r.flags).toEqual(['controladora_zero']);
+  });
+});
+
+describe('aplicarLucroIndividual (regra 12, atribuições zeradas)', () => {
+  const periodo = (
+    escopo: 'con' | 'ind',
+    lucroAtribuivel: number | null,
+    flags: string[],
+    tipoPeriodo = 'FY',
+  ) => ({ escopo, tipoPeriodo, dtIni: '2025-01-01', lucroAtribuivel, flags });
+
+  it('SBSP3 2025: consolidado com as duas atribuições zeradas ⇒ lucro do individual + lucro_individual', () => {
+    const [con, ind] = aplicarLucroIndividual([
+      periodo('con', null, ['controladora_zero', 'atribuicoes_zeradas']),
+      periodo('ind', 8_460_000_000, []),
+    ]);
+    expect(con.lucroAtribuivel).toBe(8_460_000_000);
+    expect(con.flags).toEqual(['atribuicoes_zeradas', 'lucro_individual']);
+    expect(ind.lucroAtribuivel).toBe(8_460_000_000);
+  });
+
+  it('só controladora_zero (não controladores preenchido) ou sem individual ⇒ continua ausente', () => {
+    const [a] = aplicarLucroIndividual([
+      periodo('con', null, ['controladora_zero']),
+      periodo('ind', 10, []),
+    ]);
+    expect(a.lucroAtribuivel).toBeNull();
+    const [b] = aplicarLucroIndividual([
+      periodo('con', null, ['controladora_zero', 'atribuicoes_zeradas']),
+      periodo('ind', 10, [], 'YTD'),
+    ]);
+    expect(b.lucroAtribuivel).toBeNull();
+    expect(b.flags).toContain('controladora_zero');
   });
 });
