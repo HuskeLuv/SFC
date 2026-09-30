@@ -258,14 +258,49 @@ export async function documentosGravados(
   return new Set(linhas.map((l) => `${l.emissorId}|${paraData(l.dtFim)}|${l.versao}`));
 }
 
-export function gravarFundamentos(
+/**
+ * Lotes de ~TAMANHO_LOTE linhas que nunca quebram um documento (cnpj, dtFim, versão): o fundamento é
+ * o marcador de "documento gravado" (documentosGravados), então um documento pela metade (só o 'con',
+ * prazo estourado antes do lote do 'ind') ficaria pulado para sempre. Cada lote é um INSERT só.
+ */
+export function lotesPorDocumento(
+  linhas: Prisma.AssetFundamentalsPeriodCreateManyInput[],
+): Prisma.AssetFundamentalsPeriodCreateManyInput[][] {
+  const chave = (l: Prisma.AssetFundamentalsPeriodCreateManyInput) =>
+    `${l.emissorId}|${paraData(new Date(l.dtFim))}|${l.versao}`;
+  const porDoc = new Map<string, Prisma.AssetFundamentalsPeriodCreateManyInput[]>();
+  for (const l of linhas) {
+    const k = chave(l);
+    const g = porDoc.get(k);
+    if (g) g.push(l);
+    else porDoc.set(k, [l]);
+  }
+  const lotes: Prisma.AssetFundamentalsPeriodCreateManyInput[][] = [];
+  let atual: Prisma.AssetFundamentalsPeriodCreateManyInput[] = [];
+  for (const doc of porDoc.values()) {
+    if (atual.length > 0 && atual.length + doc.length > TAMANHO_LOTE) {
+      lotes.push(atual);
+      atual = [];
+    }
+    atual.push(...doc);
+  }
+  if (atual.length > 0) lotes.push(atual);
+  return lotes;
+}
+
+export async function gravarFundamentos(
   prisma: PrismaClient,
   ctx: Pick<JobContexto, 'estourouPrazo'>,
   linhas: Prisma.AssetFundamentalsPeriodCreateManyInput[],
 ): Promise<ResultadoLotes> {
-  return emLotes(ctx, linhas, (lote) =>
-    prisma.assetFundamentalsPeriod.createMany({ data: lote, skipDuplicates: true }),
-  );
+  let gravadas = 0;
+  for (const lote of lotesPorDocumento(linhas)) {
+    if (ctx.estourouPrazo()) return { gravadas, interrompido: true };
+    gravadas += (
+      await prisma.assetFundamentalsPeriod.createMany({ data: lote, skipDuplicates: true })
+    ).count;
+  }
+  return { gravadas, interrompido: false };
 }
 
 export function gravarLinhasDemonstrativo(
