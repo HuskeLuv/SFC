@@ -216,6 +216,18 @@ SHELL=/bin/bash
 */5 * * * * root /usr/local/bin/myfinance-cron.sh /api/cron/pluggy-sync
 30 8 * * * root /usr/local/bin/myfinance-cron.sh '/api/cron/pluggy-sync?diario=1'
 0 11 * * * root /usr/local/bin/myfinance-cron.sh /api/cron/calendario-lembretes
+# Análise de Ativos (Fase 0) — dados CVM/B3; ver docs/analise-ativos/fase0/RUNBOOK.md
+30 5 * * 0 root /usr/local/bin/myfinance-cron.sh /api/cron/analise-ativos/b3-cadastro
+40 5 * * 0 root /usr/local/bin/myfinance-cron.sh /api/cron/analise-ativos/fii-cadastro
+50 5 * * 0 root /usr/local/bin/myfinance-cron.sh '/api/cron/analise-ativos/cvm-cias?doc=fca'
+5 9 * * * root /usr/local/bin/myfinance-cron.sh '/api/cron/analise-ativos/cvm-cias?doc=dfp'
+10 9 * * * root /usr/local/bin/myfinance-cron.sh '/api/cron/analise-ativos/cvm-cias?doc=itr'
+25 9 * * * root /usr/local/bin/myfinance-cron.sh /api/cron/analise-ativos/cvm-ipe
+35 9 * * * root /usr/local/bin/myfinance-cron.sh /api/cron/analise-ativos/fii-mensal
+45 9 * * * root /usr/local/bin/myfinance-cron.sh /api/cron/analise-ativos/fii-trimestral
+55 9 * * 2-6 root /usr/local/bin/myfinance-cron.sh /api/cron/analise-ativos/cotahist
+5 23 * * 1-5 root /usr/local/bin/myfinance-cron.sh /api/cron/analise-ativos/cotahist
+10 10 * * * root /usr/local/bin/myfinance-cron.sh /api/cron/analise-ativos/scores
 EOF
 # cron ignora arquivos com ponto no nome em /etc/cron.d — é o "desligado".
 # Cutover: mv /etc/cron.d/myfinance.disabled /etc/cron.d/myfinance
