@@ -11,6 +11,7 @@
 
 import { prisma } from '@/lib/prisma';
 import { recordGap } from '@/services/pricing/marketDataGap';
+import { prevBusinessDayB3 } from '@/utils/feriadosB3';
 
 // Default banco-only quando o caller não especifica `useBrapiFallback`. Lido por
 // chamada (não no load) pra permitir reversão de emergência via env sem reiniciar.
@@ -80,13 +81,24 @@ const extractPaymentDate = (dividend: Record<string, unknown>): Date | null => {
   );
 };
 
-const extractExDate = (dividend: Record<string, unknown>): Date | null => {
-  return (
-    parseDateValue(dividend.exDate) ??
-    parseDateValue(dividend.exDividendDate) ??
-    parseDateValue(dividend.recordDate) ??
-    parseDateValue(dividend.lastDatePrior)
-  );
+/**
+ * Data-com = último pregão COM direito ao provento. A BRAPI manda `lastDatePrior`
+ * (a data-com) e `exDate` (o pregão seguinte, já sem direito). Até 30/09/2026 a
+ * ordem preferia `exDate` e o campo `dataCom` guardava a data EX — quem comprava
+ * no dia ex aparecia como elegível e a Agenda mostrava a data-com um dia depois.
+ * Sem `lastDatePrior`, deriva do ex: o pregão B3 anterior.
+ */
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+const extractDataCom = (dividend: Record<string, unknown>): Date | null => {
+  const dataCom = parseDateValue(dividend.lastDatePrior);
+  if (dataCom) return dataCom;
+  const dataEx = parseDateValue(dividend.exDate) ?? parseDateValue(dividend.exDividendDate);
+  if (dataEx) {
+    const exUtc = Date.UTC(dataEx.getUTCFullYear(), dataEx.getUTCMonth(), dataEx.getUTCDate());
+    return new Date(prevBusinessDayB3(exUtc - DAY_MS));
+  }
+  return parseDateValue(dividend.recordDate);
 };
 
 const parseNumericValue = (value: unknown): number | null => {
@@ -140,7 +152,7 @@ const normalizeDividendContainer = (container: unknown): Array<Record<string, un
 };
 
 /** BRAPI pode enviar `dividends: []` (truthy) e os dados reais em `dividendsData.cashDividends`. */
-const flattenBrapiResultDividends = (
+export const flattenBrapiResultDividends = (
   result: Record<string, unknown>,
 ): Array<Record<string, unknown>> => {
   const chunks: unknown[] = [
@@ -289,6 +301,51 @@ const getDividendsFromDb = async (symbol: string): Promise<DividendEntry[]> => {
   return [...byKey.values()].sort((a, b) => a.date.getTime() - b.date.getTime());
 };
 
+// UTC-safe: getters locais geram offset diferente entre TZ do servidor
+// (BRT vs UTC), causando entries com timestamps inconsistentes. UTC garante T00:00Z.
+const toUtcMidnight = (d: Date): Date =>
+  new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
+
+export interface ProventoBrapiAgregado {
+  date: Date;
+  tipo: string;
+  valorUnitario: number;
+  dataCom: Date | null;
+}
+
+/**
+ * Agrega as entries brutas da BRAPI por (pagamento, tipo). Exportada para o script de
+ * correção de data-com (scripts/corrigir-datacom-proventos.ts), que precisa da mesma
+ * chave e da mesma data-com que o persist grava.
+ *
+ * Dedup BRAPI: a API às vezes retorna múltiplas entries com mesmo (paymentDate, tipo)
+ * e rates diferentes (caso BBAS3 JCP 12/06/2025). Política: SOMAR — interpreta como
+ * múltiplas distribuições no mesmo dia. Preserva a primeira data-com não-nula
+ * encontrada (idealmente iguais entre dups).
+ */
+export const agregarProventosBrapi = (
+  normalized: Record<string, unknown>[],
+): ProventoBrapiAgregado[] => {
+  const aggregated = new Map<string, ProventoBrapiAgregado>();
+  for (const d of normalized) {
+    const date = extractPaymentDate(d);
+    const valorUnitario = extractDividendAmount(d);
+    if (!date || !valorUnitario || valorUnitario <= 0) continue;
+
+    const tipo = extractDividendType(d);
+    const dateNorm = toUtcMidnight(date);
+    const key = `${dateNorm.getTime()}\0${tipo}`;
+    const existing = aggregated.get(key);
+    if (existing) {
+      existing.valorUnitario += valorUnitario;
+      existing.dataCom = existing.dataCom ?? extractDataCom(d);
+    } else {
+      aggregated.set(key, { date: dateNorm, tipo, valorUnitario, dataCom: extractDataCom(d) });
+    }
+  }
+  return [...aggregated.values()];
+};
+
 /**
  * Busca dividendos na BRAPI e persiste no banco.
  * Also extracts and persists corporate actions (splits/inplits/bonuses) from the same response.
@@ -316,49 +373,18 @@ const fetchAndPersistDividendsFromBrapi = async (symbol: string): Promise<Divide
     const dbSymbol = symbol.trim().toUpperCase();
     const entries: DividendEntry[] = [];
 
-    // UTC-safe: getters locais geram offset diferente entre TZ do servidor
-    // (BRT vs UTC), causando entries com timestamps inconsistentes. UTC garante T00:00Z.
-    const toUtcMidnight = (d: Date): Date =>
-      new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
+    const aggregated = agregarProventosBrapi(normalized);
 
-    // Dedup BRAPI: a API às vezes retorna múltiplas entries com mesmo
-    // (paymentDate, tipo) e rates diferentes (caso BBAS3 JCP 12/06/2025).
-    // Política: SOMAR — interpreta como múltiplas distribuições no mesmo dia.
-    // Preserva primeira exDate não-nula encontrada (idealmente iguais entre dups).
-    type Aggregated = { date: Date; tipo: string; valorUnitario: number; exDate: Date | null };
-    const aggregated = new Map<string, Aggregated>();
-    for (const d of normalized) {
-      const date = extractPaymentDate(d);
-      const valorUnitario = extractDividendAmount(d);
-      if (!date || !valorUnitario || valorUnitario <= 0) continue;
-
-      const tipo = extractDividendType(d);
-      const dateNorm = toUtcMidnight(date);
-      const key = `${dateNorm.getTime()}\0${tipo}`;
-      const existing = aggregated.get(key);
-      if (existing) {
-        existing.valorUnitario += valorUnitario;
-        existing.exDate = existing.exDate ?? extractExDate(d);
-      } else {
-        aggregated.set(key, {
-          date: dateNorm,
-          tipo,
-          valorUnitario,
-          exDate: extractExDate(d),
-        });
-      }
-    }
-
-    for (const agg of aggregated.values()) {
+    for (const agg of aggregated) {
       entries.push({
         date: agg.date,
-        dataCom: agg.exDate,
+        dataCom: agg.dataCom,
         tipo: agg.tipo,
         valorUnitario: agg.valorUnitario,
         valorUnitarioLiquido: computeValorUnitarioLiquido(agg.tipo, agg.valorUnitario, agg.date),
       });
 
-      const dataComNorm = agg.exDate ? toUtcMidnight(agg.exDate) : null;
+      const dataComNorm = agg.dataCom ? toUtcMidnight(agg.dataCom) : null;
       await prisma.assetDividendHistory.upsert({
         where: {
           symbol_date_tipo: {
