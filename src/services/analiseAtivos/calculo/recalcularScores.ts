@@ -259,7 +259,14 @@ export function calcularAtualAcao(e: EntradaAtualAcao, p: ScoringParams): Calcul
       p,
     );
   if (saltoSemEvento) flags.push('salto_acoes_sem_evento');
-  const cont = saltoSemEvento ? null : contMaisRecente;
+  // sem DFP anterior validado ('ok') para servir de referência (todos 'nao_verificavel'/'alerta',
+  // ou nenhum): a contagem mais recente só vale se ela mesma bater com lucro × LPA publicado
+  // (status 'ok' = razão dentro de ±razaoLpaAlertaPct); senão não há como verificar ⇒ sem nº de
+  // ações (múltiplos por ação ausentes) e Índice incompleto
+  const naoVerificavel =
+    contMaisRecente !== null && refDfp === null && contMaisRecente.status !== 'ok';
+  if (naoVerificavel) flags.push('acoes_nao_verificavel');
+  const cont = saltoSemEvento || naoVerificavel ? null : contMaisRecente;
   const fator = fatorEquivalencia(e.ticker);
   if (fator === null) flags.push('unit_sem_composicao');
   const defasagem = defasagemProventos('acao', e, p);
@@ -362,6 +369,10 @@ export function scoreAcao(
   if (c.flags.includes('salto_acoes_sem_evento')) {
     indice.incompleto = true;
     indice.motivosIncompleto = [...indice.motivosIncompleto, 'acoes:salto_sem_evento'];
+  }
+  if (c.flags.includes('acoes_nao_verificavel')) {
+    indice.incompleto = true;
+    indice.motivosIncompleto = [...indice.motivosIncompleto, 'acoes:nao_verificavel'];
   }
   if (c.anosLacuna != null) {
     indice.incompleto = true;

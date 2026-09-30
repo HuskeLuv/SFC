@@ -568,6 +568,106 @@ describe('calcularAtualAcao — regra 13 na contagem dos múltiplos do dia (acha
     ]);
     expect(r.flags).not.toContain('salto_acoes_sem_evento');
   });
+
+  const naoVerif = (c: ContagemAcoes): ContagemAcoes => ({
+    ...c,
+    razaoLpa: null,
+    status: 'nao_verificavel',
+  });
+  const fundPl = {
+    receita: null,
+    lucroBruto: null,
+    ebit: null,
+    depreciacaoAmortizacao: null,
+    lucroLiquido: null,
+    lucroAtribuivel: null,
+    ativoTotal: null,
+    ativoCirculante: null,
+    passivoCirculante: null,
+    caixa: null,
+    aplicacoesFinanceiras: null,
+    dividaBrutaCp: null,
+    dividaBrutaLp: null,
+    fco: null,
+    fci: null,
+    fcf: null,
+    capex: null,
+    dividendosJcpPagos: null,
+    dmplDeclarado: null,
+    lpaOn: null,
+    lpaPn: null,
+    pl: 1_000_000_000,
+    plControladora: 1_000_000_000,
+    naoSeAplica: [],
+    flags: [],
+  };
+
+  it('DFPs anteriores todos não verificáveis e contagem recente sem LPA ⇒ sem nº de ações, incompleto', async () => {
+    const { calcularAtualAcao, scoreAcao } =
+      await import('@/services/analiseAtivos/calculo/recalcularScores');
+    const contagens = [
+      naoVerif(cont('2024-12-31', 640_000_000, 'dfp')),
+      naoVerif(cont('2025-12-31', 640_360_000, 'dfp')),
+      naoVerif(cont('2026-06-30', 640_992_323_000, 'itr')),
+    ];
+    const r = await calcular(contagens);
+    expect(r.flags).toContain('acoes_nao_verificavel');
+    const comFund = calcularAtualAcao(
+      { ...entradaMinima(contagens), fundAtual: fundPl as never },
+      SCORING_PARAMS_V1,
+    );
+    expect(comFund.vpa.estado).not.toBe('ok');
+    const sc = scoreAcao(comFund, false, SCORING_PARAMS_V1);
+    expect(sc.indice.incompleto).toBe(true);
+    expect(sc.indice.motivosIncompleto).toContain('acoes:nao_verificavel');
+  });
+
+  it('sem DFP de referência, mas a contagem recente bate com lucro × LPA (±5%) ⇒ usa a contagem', async () => {
+    const { calcularAtualAcao } = await import('@/services/analiseAtivos/calculo/recalcularScores');
+    const contagens = [
+      naoVerif(cont('2025-12-31', 640_360_000, 'dfp')),
+      { ...cont('2026-06-30', 640_992_323, 'itr'), razaoLpa: 1.02 },
+    ];
+    const r = calcularAtualAcao(
+      { ...entradaMinima(contagens), fundAtual: fundPl as never },
+      SCORING_PARAMS_V1,
+    );
+    expect(r.flags).not.toContain('acoes_nao_verificavel');
+    expect(r.vpa.estado).toBe('ok');
+  });
+
+  function entradaMinima(contagens: ContagemAcoes[]) {
+    const ticker: TickerAcao = {
+      symbol: 'PSSA3',
+      cnpj: 'X',
+      classeTitulo: 'ON',
+      unitQtdOn: null,
+      unitQtdPn: null,
+    };
+    return {
+      ticker,
+      resumo: {
+        symbol: 'PSSA3',
+        ultimoPregao: '2026-09-29',
+        closeRaw: 47,
+        volumeMedio21: 1e8,
+        pregoesComNegocio21: 21,
+        baixaLiquidez: false,
+        negociadoUltimos30: true,
+      },
+      tickersEmpresa: [ticker],
+      resumosEmpresa: new Map([['PSSA3', 47]]),
+      fundAtual: null,
+      fys: [],
+      contagens,
+      emissor: undefined,
+      proventos: [],
+      eventos: [],
+      cobertura: undefined,
+      historicoPl: [],
+      dataRef: '2026-09-29',
+    };
+  }
 });
 
 describe('calcularAtualFii — base de proventos parada (achado qa-dados 30/09)', () => {
