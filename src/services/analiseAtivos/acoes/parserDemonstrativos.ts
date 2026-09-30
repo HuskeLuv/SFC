@@ -114,6 +114,24 @@ export function valorEmReais(vl: string, escala: string, cdConta: string): numbe
   return escala === 'MIL' && !cdConta.startsWith('3.99') ? v * 1000 : v;
 }
 
+/**
+ * Cópia "achatada" e compartilhada das strings guardadas. Sem isso, cada substring (DS_CONTA, CNPJ…)
+ * é uma SlicedString do V8 que mantém VIVO o bloco inteiro de texto descomprimido de onde saiu: ~100
+ * mil linhas guardadas prenderiam quase todo o CSV em memória (medido: RSS 922 MB no backfill). As
+ * descrições de conta se repetem entre companhias, então o dicionário também economiza memória.
+ */
+export function criarInternador(): (s: string) => string {
+  const vistos = new Map<string, string>();
+  return (s: string) => {
+    let v = vistos.get(s);
+    if (v === undefined) {
+      v = Buffer.from(s, 'utf8').toString('utf8');
+      vistos.set(v, v);
+    }
+    return v;
+  };
+}
+
 function ehUltimo(ordem: string): boolean {
   return /^[ÚU]LTIMO$/i.test(ordem.trim());
 }
@@ -141,10 +159,11 @@ export async function* lerLinhasDemonstrativo(
     preFiltro: (l) => cnpjs.has(l.slice(0, 18)),
   });
   let lidas = 0;
+  const fixar = criarInternador();
   for await (const l of csv) {
     lidas++;
     if (lidas % 10_000 === 0) spec.contadores?.lidas?.(10_000);
-    const linha = paraLinhaLida(l, spec.dem, spec.escopo, spec.docs, spec.contadores);
+    const linha = paraLinhaLida(l, spec.dem, spec.escopo, spec.docs, fixar, spec.contadores);
     if (linha) yield linha;
   }
   spec.contadores?.lidas?.(lidas % 10_000);
@@ -155,6 +174,7 @@ function paraLinhaLida(
   dem: EntradaDemonstrativo,
   escopo: Escopo,
   docs: Map<string, number>,
+  fixar: (s: string) => string,
   contadores?: Contadores,
 ): LinhaLida | null {
   const cnpj = l.get('CNPJ_CIA');
@@ -171,19 +191,20 @@ function paraLinhaLida(
     return null;
   }
   const dtIni = l.tem('DT_INI_EXERC') ? l.get('DT_INI_EXERC') || null : null;
+  const colunaDf = l.tem('COLUNA_DF') ? l.get('COLUNA_DF') || null : null;
   return {
-    cnpj,
-    dtRefer,
+    cnpj: fixar(cnpj),
+    dtRefer: fixar(dtRefer),
     versao: aceita,
     escopo,
     demonstrativo: dem,
-    dtIni: dtIni && RE_DATA.test(dtIni) ? dtIni : null,
-    dtFim,
-    cdConta,
-    dsConta: l.get('DS_CONTA'),
+    dtIni: dtIni && RE_DATA.test(dtIni) ? fixar(dtIni) : null,
+    dtFim: fixar(dtFim),
+    cdConta: fixar(cdConta),
+    dsConta: fixar(l.get('DS_CONTA')),
     valor,
     escala,
     contaFixa: l.get('ST_CONTA_FIXA') === 'S',
-    colunaDf: l.tem('COLUNA_DF') ? l.get('COLUNA_DF') || null : null,
+    colunaDf: colunaDf ? fixar(colunaDf) : null,
   };
 }

@@ -8,6 +8,7 @@ import {
   acharEntrada,
   chaveDoc,
   lerIndice,
+  criarInternador,
   lerLinhasDemonstrativo,
   valorEmReais,
   type LinhaLida,
@@ -142,6 +143,15 @@ describe('lerLinhasDemonstrativo', () => {
       new Map([[chaveDoc(VALE, '2025-12-31'), 2]]),
     );
     expect(comp.get(chaveDoc(VALE, '2025-12-31'))).toMatchObject({ on: 4_539_007, tesOn: 270_228 });
+  });
+
+  it('criarInternador: cópia igual, uma instância por texto (não prende o bloco lido)', () => {
+    const fixar = criarInternador();
+    const bloco = `x;Receitas de Intermediação Financeira;y`;
+    const a = fixar(bloco.slice(2, 38));
+    const b = fixar(`Receitas de Intermediação Financeira`);
+    expect(a).toBe('Receitas de Intermediação Financeira');
+    expect(b).toBe(a);
   });
 
   it('valorEmReais', () => {

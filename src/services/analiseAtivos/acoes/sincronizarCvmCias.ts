@@ -921,28 +921,38 @@ function inferirMesFim(linhas: LinhaFundamentosDb[]): number {
   return fy ? fy.dtFim.getUTCMonth() + 1 : 12;
 }
 
+/** Emissores por consulta no recálculo do TTM (memória: ~2,5 mil linhas com Decimal por vez). */
+const TTM_EMISSORES_POR_LOTE = 50;
+
 async function atualizarTtm(
   ctx: JobContexto,
   cnpjs: string[],
   ano: number,
   apoio: Apoio,
 ): Promise<{ gravadas: number; interrompido: boolean }> {
-  const periodos = await periodosDosEmissores(ctx.prisma, cnpjs, `${ano - 2}-01-01`);
-  const linhas = montarLinhasTtm(periodos, apoio.mesFim, ctx, new Date());
-  const r = await gravarTtm(ctx.prisma, ctx, linhas, periodos);
-  ctx.contar('linhasGravadas', r.gravadas);
-  // alerta só o que mudou neste run (a linha TTM inalterada não realerta todo dia)
-  for (const l of r.escritas) {
-    if ((l.flags as string[]).includes('reapresentacao')) {
-      ctx.alertar({
-        codigo: 'reapresentacao',
-        nivel: 'aviso',
-        mensagem: `${l.emissorId} ${paraData(l.dtFim as Date)} ${l.escopo}: TTM por YTD e Σ4 trimestres divergem > ${ctx.params.sanidade.acoes.ttmDivergenciaMaxPct}%`,
-        ref: l.emissorId,
-      });
+  let gravadas = 0;
+  for (let i = 0; i < cnpjs.length; i += TTM_EMISSORES_POR_LOTE) {
+    if (ctx.estourouPrazo()) return { gravadas, interrompido: true };
+    const lote = cnpjs.slice(i, i + TTM_EMISSORES_POR_LOTE);
+    const periodos = await periodosDosEmissores(ctx.prisma, lote, `${ano - 2}-01-01`);
+    const linhas = montarLinhasTtm(periodos, apoio.mesFim, ctx, new Date());
+    const r = await gravarTtm(ctx.prisma, ctx, linhas, periodos);
+    gravadas += r.gravadas;
+    ctx.contar('linhasGravadas', r.gravadas);
+    // alerta só o que mudou neste run (a linha TTM inalterada não realerta todo dia)
+    for (const l of r.escritas) {
+      if ((l.flags as string[]).includes('reapresentacao')) {
+        ctx.alertar({
+          codigo: 'reapresentacao',
+          nivel: 'aviso',
+          mensagem: `${l.emissorId} ${paraData(l.dtFim as Date)} ${l.escopo}: TTM por YTD e Σ4 trimestres divergem > ${ctx.params.sanidade.acoes.ttmDivergenciaMaxPct}%`,
+          ref: l.emissorId,
+        });
+      }
     }
+    if (r.interrompido) return { gravadas, interrompido: true };
   }
-  return r;
+  return { gravadas, interrompido: false };
 }
 
 // ---------------------------------------------------------------- FRE (só backfill)
