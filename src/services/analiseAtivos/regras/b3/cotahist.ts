@@ -11,7 +11,8 @@
  *   40-49 ESPECI · 109-121 PREULT (2 decimais) · 148-152 TOTNEG · 153-170 QUATOT ·
  *   171-188 VOLTOT (2 decimais) · 211-217 FATCOT
  * Header: TIPREG 00 + 'COTAHIST.AAAA' + 'BOVESPA ' + data de geração (AAAAMMDD).
- * Trailer: TIPREG 99 + mesmo prefixo + data + total de registros (11 dígitos, inclui header e trailer).
+ * Trailer: TIPREG 99 + mesmo prefixo + data + total de registros (11 dígitos). A contagem varia: A2016 e
+ * M082026 incluem header e trailer; A2025 conta só os registros 01.
  */
 import { ErroLayoutFonte } from '@/services/analiseAtivos/fontes/erros';
 
@@ -129,7 +130,7 @@ export function validarCabecalhoCotahist(
   return { nomeArquivo: `COTAHIST.${m[1]}`, dataGeracao };
 }
 
-/** Trailer TIPREG 99: total de registros declarado (inclui header e trailer). null se não for trailer. */
+/** Trailer TIPREG 99: total de registros declarado (com ou sem header/trailer). null se não for trailer. */
 export function lerTrailerCotahist(linha: string): { totalRegistros: number } | null {
   const m = RE_TRAILER.exec(linha);
   if (!m) return null;
