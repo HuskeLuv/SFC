@@ -7,16 +7,21 @@
  *    por que o vencimento caiu noutro dia.
  *  - **Eventos corporativos** dos ativos em carteira (desdobramento,
  *    grupamento, bonificação) — ver `acoesCorporativas.ts`.
+ *  - **Resultados e assembleias** das ações em carteira (Análise de Ativos),
+ *    só com ANALISE_ATIVOS_HABILITADA — ver `resultadosAnaliseAtivos.ts`.
+ *    Desligada, nenhuma consulta nova é feita.
  *
  * FORA daqui, de propósito: calendário do Copom e datas de divulgação do IPCA.
  * Não temos fonte confiável dessas datas futuras dentro do app, e chutar data
  * em produto financeiro é pior do que não mostrar. Entra quando houver uma
  * fonte oficial para ler (decisão 18/09/2026).
  */
+import { analiseAtivosHabilitada } from '@/lib/analiseAtivosConfig';
 import { feriadosB3Nomeados } from '@/utils/feriadosB3';
 import type { EventoAgenda, Periodo } from '../types';
 import { dataCivil, partes } from '../datas';
 import { eventosAcoesCorporativas } from './acoesCorporativas';
+import { eventosResultadosAnaliseAtivos } from './resultadosAnaliseAtivos';
 
 export function feriadosComoEventos(periodo: Periodo): EventoAgenda[] {
   const { ano: anoDe } = partes(periodo.de);
@@ -48,5 +53,7 @@ export async function eventosMercado(userId: string, periodo: Periodo): Promise<
   // corporativos consultam o banco.
   const feriados = feriadosComoEventos(periodo);
   const corporativos = await eventosAcoesCorporativas(userId, periodo);
-  return [...feriados, ...corporativos];
+  if (!analiseAtivosHabilitada()) return [...feriados, ...corporativos];
+  const analise = await eventosResultadosAnaliseAtivos(userId, periodo);
+  return [...feriados, ...corporativos, ...analise];
 }
