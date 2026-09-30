@@ -1,0 +1,92 @@
+ticker;classe;indice_formula;indice_prototipo;diferenca;regua;c_lucro;c_divida;c_rent;c_div;c_preco;criterios;incompleto;motivos_incompleto;ticker_referencia;params_version;data_ref
+WEGE3;acao;9,01;9,1;-0,09;acao;10;10;10;4,98;7,63;4 de 5;não;;WEGE3;1;2026-09-29
+ITSA4;acao;8,8;8,6;0,2;acao_financeira;10;;7,75;8,74;6,77;4 de 4;não;;ITSA4;1;2026-09-29
+BBAS3;acao;6,32;8,2;-1,88;acao_financeira;10;;3,19;3,67;3,67;1 de 4;não;;BBAS3;1;2026-09-29
+TAEE11;acao;7,68;7,9;-0,22;acao;10;4,2;8,06;7,42;6,19;3 de 5;não;;TAEE11;1;2026-09-29
+EGIE3;acao;7,86;8;-0,14;acao;10;4,94;10;2,47;10;3 de 5;não;;EGIE3;1;2026-09-29
+PSSA3;acao;7,64;7,6;0,04;acao_financeira;10;;9,14;5,23;0;3 de 4;não;;PSSA3;1;2026-09-29
+VALE3;acao;5,58;7,1;-1,52;acao;6;7,81;2,11;10;0;3 de 5;não;;VALE3;1;2026-09-29
+PETR4;acao;7,9;6,4;1,5;acao;8;8,09;10;3,2;10;4 de 5;não;;PETR4;1;2026-09-29
+MGLU3;acao;3,65;3,2;0,45;acao;2;8,3;0,32;1,53;10;2 de 5;não;;MGLU3;1;2026-09-29
+AZUL4;acao;;1,8;;sem_score;;;;;;;;;;;
+ABEV3;acao;8,96;6,6;2,36;acao;10;10;7,36;6,59;10;5 de 5;não;;ABEV3;1;2026-09-29
+B3SA3;acao;;3,9;;sem_score;;;;;;;;;;;
+BBDC4;acao;8,69;6,7;1,99;acao_financeira;10;;5,65;8,85;9,98;3 de 4;não;;BBDC4;1;2026-09-29
+BBSE3;acao;9,66;5,7;3,96;acao_financeira;10;;10;8,22;9,95;4 de 4;não;;BBSE3;1;2026-09-29
+CMIG4;acao;7,8;6,9;0,9;acao;10;6,24;6,3;5,67;9,45;5 de 5;não;;CMIG4;1;2026-09-29
+CPLE6;acao;;7,1;;sem_score;;;;;;;;;;;
+CSAN3;acao;0;7,6;-7,6;acao;0;0;0;0;0;0 de 5;não;;CSAN3;1;2026-09-29
+CYRE3;acao;7,77;3,7;4,07;acao;7;6,81;7,31;10;10;5 de 5;não;;CYRE3;1;2026-09-29
+ELET3;acao;;3;;sem_score;;;;;;;;;;;
+EMBR3;acao;;8;;sem_score;;;;;;;;;;;
+ENGI11;acao;5,75;4,6;1,15;acao;10;3,81;3,11;1,54;6,34;1 de 5;não;;ENGI11;1;2026-09-29
+EQTL3;acao;4,88;3,1;1,78;acao;10;1,71;1,47;4,98;0;1 de 5;não;;EQTL3;1;2026-09-29
+FLRY3;acao;7,59;5,5;2,09;acao;10;7,41;5,2;4,36;9,13;3 de 5;não;;FLRY3;1;2026-09-29
+GGBR4;acao;5,44;3,1;2,34;acao;8;8,45;1,67;4,08;0,08;2 de 5;não;;GGBR4;1;2026-09-29
+HYPE3;acao;7,22;7,3;-0,08;acao;10;6,55;4,84;2,93;10;3 de 5;não;;HYPE3;1;2026-09-29
+ITUB4;acao;9,34;7,1;2,24;acao_financeira;10;;8,98;9,16;8,01;4 de 4;não;;ITUB4;1;2026-09-29
+KLBN11;acao;1,47;3,8;-2,33;acao;0;4,84;0;3,31;0;0 de 5;sim;lucro:controladora_zero rent:sem_dado_fonte preco:sem_dado_fonte;KLBN11;1;2026-09-29
+LREN3;acao;8,8;3,9;4,9;acao;9;10;5,76;10;10;4 de 5;não;;LREN3;1;2026-09-29
+MDIA3;acao;8,22;7,5;0,72;acao;10;10;3,06;7,4;10;4 de 5;não;;MDIA3;1;2026-09-29
+MULT3;acao;7,86;5,1;2,76;acao;10;6,78;8,21;2,41;10;4 de 5;não;;MULT3;1;2026-09-29
+ODPV3;acao;;7;;sem_score;;;;;;;;;;;
+PRIO3;acao;6,56;7,2;-0,64;acao;10;7,1;5,49;0;5,46;2 de 5;não;;PRIO3;1;2026-09-29
+RADL3;acao;8,24;5,4;2,84;acao;10;9,07;7,36;3,03;10;4 de 5;não;;RADL3;1;2026-09-29
+RAIL3;acao;3,35;8,1;-4,75;acao;1;5,98;3,39;0,85;10;2 de 5;não;;RAIL3;1;2026-09-29
+RENT3;acao;7,24;7,6;-0,36;acao;10;6,17;5,05;3,3;10;3 de 5;não;;RENT3;1;2026-09-29
+SANB11;acao;8,6;7,7;0,9;acao_financeira;10;;6,28;7,49;10;4 de 4;não;;SANB11;1;2026-09-29
+SAPR11;acao;5,8;6,9;-1,1;acao;10;8,4;1,5;2,1;0;2 de 5;não;;SAPR11;1;2026-09-29
+SBSP3;acao;1,73;3,4;-1,67;acao;0;6,32;0;3,12;0;1 de 5;sim;lucro:controladora_zero rent:sem_dado_fonte preco:sem_dado_fonte;SBSP3;1;2026-09-29
+SLCE3;acao;6,12;4,7;1,42;acao;10;5,05;2,86;6,01;1,38;3 de 5;não;;SLCE3;1;2026-09-29
+SUZB3;acao;4,13;2,4;1,73;acao;1;4,96;6,57;3,16;10;2 de 5;não;;SUZB3;1;2026-09-29
+TOTS3;acao;8,09;8,1;-0,01;acao;10;7,02;10;1,26;10;4 de 5;não;;TOTS3;1;2026-09-29
+TRPL4;acao;;3,2;;sem_score;;;;;;;;;;;
+UGPA3;acao;8,15;8,2;-0,05;acao;10;8,13;7,7;3,26;10;4 de 5;não;;UGPA3;1;2026-09-29
+UNIP6;acao;7,23;6,2;1,03;acao;10;5,8;5,33;10;0;3 de 5;não;;UNIP6;1;2026-09-29
+VIVT3;acao;7,82;8;-0,18;acao;10;9,28;4,02;6,38;7,01;4 de 5;não;;VIVT3;1;2026-09-29
+WIZC3;acao;9;2,4;6,6;acao;10;10;10;10;0;4 de 5;sim;preco:historico_curto;WIZC3;1;2026-09-29
+CSNA3;acao;;6,8;;sem_score;;;;;;;;;;;
+COGN3;acao;3,48;8,2;-4,72;acao;2;6,34;2,04;7,33;0;2 de 5;sim;preco:historico_curto;COGN3;1;2026-09-29
+CVCB3;acao;1,85;6,7;-4,85;acao;0;9,27;0;0;0;1 de 5;sim;rent:sem_dado_fonte;CVCB3;1;2026-09-29
+GOLL4;acao;;8,3;;sem_score;;;;;;;;;;;
+HGLG11;fii;2,89;8,8;-5,91;fii_tijolo;0;4,58;;3,25;9,08;1 de 3;não;;;1;2026-09-29
+KNRI11;fii;3,2;8,5;-5,3;fii_tijolo;0;7,21;;2,4;7,58;2 de 3;não;;;1;2026-09-29
+XPLG11;fii;3,41;8,3;-4,89;fii_tijolo;0;5,13;;5,17;9,27;1 de 3;não;;;1;2026-09-29
+BTLG11;fii;3,92;8,4;-4,48;fii_tijolo;0;8,53;;4,05;8,23;2 de 3;não;;;1;2026-09-29
+VISC11;fii;1,89;7,9;-6,01;fii_tijolo;0;0;;4,04;9,03;1 de 3;não;;;1;2026-09-29
+HGRU11;fii;3,71;8,1;-4,39;fii_tijolo;0;6,5;;5,12;9,02;1 de 3;não;;;1;2026-09-29
+KNCR11;fii;5,46;8;-2,54;fii_papel;0;10;10;3,95;8,68;3 de 4;não;;;1;2026-09-29
+MXRF11;fii;5,37;7,4;-2,03;fii_papel;0;9,24;10;3,91;9,31;3 de 4;não;;;1;2026-09-29
+HCTR11;fii;;4,1;;sem_score;;;;;;;;;;;
+KNIP11;fii;5,1;8,2;-3,1;fii_papel;0;9,62;10;2,26;8,37;3 de 4;não;;;1;2026-09-29
+BRCO11;fii;2,28;8,2;-5,92;fii_tijolo;0;2,35;;4,13;7,31;1 de 3;não;;;1;2026-09-29
+ALZR11;fii;2,56;7,9;-5,34;fii_tijolo;0;2,71;;4,57;8,24;1 de 3;não;;;1;2026-09-29
+BCFF11;fii;;8,2;;sem_score;;;;;;;;;;;
+BRCR11;fii;4,35;5,4;-1,05;fii_tijolo;0;7,59;;6,39;10;2 de 3;não;;;1;2026-09-29
+CPTS11;fii;;1,2;;fora_do_indice;;;;;;0 de 0;não;;;1;2026-09-29
+DEVA11;fii;;2,6;;sem_score;;;;;;;;;;;
+GGRC11;fii;4,83;7,1;-2,27;fii_tijolo;0;6,84;;10;10;3 de 3;não;;;1;2026-09-29
+HFOF11;fii;;4;;fora_do_indice;;;;;;0 de 0;não;;;1;2026-09-29
+HGBS11;fii;2,55;7,2;-4,65;fii_tijolo;0;2,3;;4,92;8,45;1 de 3;não;;;1;2026-09-29
+HGRE11;fii;4,26;3,4;0,86;fii_tijolo;0;9;;4,03;10;2 de 3;não;;;1;2026-09-29
+HSML11;fii;2,41;6,3;-3,89;fii_tijolo;0;1,06;;4,78;10;1 de 3;não;;;1;2026-09-29
+IRDM11;fii;;4,9;;sem_score;;;;;;;;;;;
+JSRE11;fii;4,44;6,1;-1,66;fii_tijolo;0;9,98;;3,71;10;2 de 3;não;;;1;2026-09-29
+KFOF11;fii;;7,1;;fora_do_indice;;;;;;0 de 0;não;;;1;2026-09-29
+KNHY11;fii;5,43;5,1;0,33;fii_papel;0;10;10;4,1;8,2;3 de 4;não;;;1;2026-09-29
+KNSC11;fii;5,16;5;0,16;fii_papel;0;9,06;10;3,24;8,6;3 de 4;não;;;1;2026-09-29
+LVBI11;fii;4,41;4,1;0,31;fii_tijolo;0;9,88;;3,67;10;2 de 3;não;;;1;2026-09-29
+MALL11;fii;;7,8;;sem_score;;;;;;;;;;;
+PVBI11;fii;4,15;4,1;0,05;fii_tijolo;0;9,96;;2,17;10;2 de 3;não;;;1;2026-09-29
+RBRF11;fii;;5,4;;sem_score;;;;;;;;;;;
+RBRR11;fii;4,29;7;-2,71;fii_papel;0;8,07;10;4,48;0;2 de 4;não;;;1;2026-09-29
+RECR11;fii;4,97;2,3;2,67;fii_papel;0;9,6;10;4,68;3,51;2 de 4;não;;;1;2026-09-29
+RZTR11;fii;3;3,6;-0,6;fii_tijolo;0;0;;9,36;9,98;2 de 3;não;;;1;2026-09-29
+TGAR11;fii;5,5;5;0,5;fii_tijolo;0;9,48;;10;10;3 de 3;não;;;1;2026-09-29
+TRXF11;fii;3,13;6,9;-3,77;fii_tijolo;0;0;;10;10;2 de 3;não;;;1;2026-09-29
+VGIP11;fii;4,29;7,2;-2,91;fii_papel;0;7,8;10;3,76;1,69;2 de 4;não;;;1;2026-09-29
+VILG11;fii;3,48;4,6;-1,12;fii_tijolo;0;5,42;;4,66;10;1 de 3;não;;;1;2026-09-29
+VINO11;fii;2,61;6,3;-3,69;fii_tijolo;0;0;;7,25;10;2 de 3;não;;;1;2026-09-29
+VRTA11;fii;5,1;6,6;-1,5;fii_papel;0;9,57;10;4,86;4,59;2 de 4;não;;;1;2026-09-29
+XPCI11;fii;4,81;8,4;-3,59;fii_papel;0;7,86;10;4,28;5,98;2 de 4;não;;;1;2026-09-29
+XPML11;fii;3,49;3,5;-0,01;fii_tijolo;0;5,24;;5,7;8,87;1 de 3;não;;;1;2026-09-29
