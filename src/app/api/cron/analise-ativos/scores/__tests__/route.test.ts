@@ -40,6 +40,8 @@ const relatorio = (status: string) => ({
 beforeEach(() => {
   vi.clearAllMocks();
   process.env.CRON_SECRET = 'segredo-teste';
+  // o worker do vitest pode passar do limite padrão (400 MB) numa rodada grande
+  process.env.ANALISE_ATIVOS_ROTA_RSS_MAX_MB = '100000';
 });
 
 afterEach(() => {
