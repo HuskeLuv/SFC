@@ -195,6 +195,23 @@ echo "$ts $ENDPOINT -> $code" >> /var/log/myfinance-cron.log
 EOF
 chmod 755 /usr/local/bin/myfinance-cron.sh
 touch /var/log/myfinance-cron.log
+# jobs PESADOS da Análise de Ativos (scores): processo próprio, fora do next-server, para a memória
+# voltar ao sistema no fim (pico medido ~260 MB). Ver docs/analise-ativos/fase0/RUNBOOK.md §5.
+cat >/usr/local/bin/myfinance-job.sh <<'EOF'
+#!/bin/bash
+JOB="$1"
+ts=$(date -u +%FT%TZ)
+code=0
+cd /opt/myfinance/current || code="ERR"
+if [ "$code" = "0" ]; then
+  timeout 600 sudo -u myfinance env MALLOC_ARENA_MAX=2 NODE_OPTIONS=--max-old-space-size=256 \
+    nice -n 10 npx --no-install tsx --env-file=/etc/myfinance/app.env \
+    scripts/analise-ativos/rodar-job.ts "$JOB" >>/var/log/myfinance-job.log 2>&1 || code=$?
+fi
+echo "$ts job:$JOB -> exit $code" >> /var/log/myfinance-cron.log
+EOF
+chmod 755 /usr/local/bin/myfinance-job.sh
+touch /var/log/myfinance-job.log
 cat >/etc/cron.d/myfinance.disabled <<'EOF'
 SHELL=/bin/bash
 0 6 * * * root /usr/local/bin/myfinance-cron.sh /api/cron/economic-indexes
@@ -227,7 +244,7 @@ SHELL=/bin/bash
 45 9 * * * root /usr/local/bin/myfinance-cron.sh /api/cron/analise-ativos/fii-trimestral
 55 9 * * 2-6 root /usr/local/bin/myfinance-cron.sh /api/cron/analise-ativos/cotahist
 5 23 * * 1-5 root /usr/local/bin/myfinance-cron.sh /api/cron/analise-ativos/cotahist
-10 10 * * * root /usr/local/bin/myfinance-cron.sh /api/cron/analise-ativos/scores
+10 10 * * * root /usr/local/bin/myfinance-job.sh scores
 EOF
 # cron ignora arquivos com ponto no nome em /etc/cron.d — é o "desligado".
 # Cutover: mv /etc/cron.d/myfinance.disabled /etc/cron.d/myfinance

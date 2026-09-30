@@ -134,7 +134,54 @@ estimativa; ~6,8 mil eventos em 3 anos ≈ 5 MB.)
 
 As 11 linhas já estão no template (`infra/modules/lightsail/provision.sh.tftpl`, dentro de
 `/etc/cron.d/myfinance.disabled`), mas o `user_data` tem `ignore_changes`: a máquina atual **não**
-recebe a mudança sozinha. Copiar à mão para o arquivo ATIVO:
+recebe a mudança sozinha. Copiar à mão para o arquivo ATIVO.
+
+**Jobs pesados rodam fora do app.** Dentro do next-server o `scores` passava de 300 MB de RSS (QA de
+operação: +300 a +400 MB, e a memória não volta para o app depois). Por isso a linha do `scores` chama
+`/usr/local/bin/myfinance-job.sh scores`, que roda `scripts/analise-ativos/rodar-job.ts` num processo
+próprio (tsx, usuário `myfinance`, env do app, `MALLOC_ARENA_MAX=2`, heap 256, `nice`, `timeout 600`),
+com o mesmo wrapper de job e o mesmo `AnaliseJobRun` da rota (origem `cron`). O processo termina e a
+memória volta ao sistema. A rota `/api/cron/analise-ativos/scores` continua para disparo manual, mas
+responde **503 sem rodar** se o RSS do servidor já passar de `ANALISE_ATIVOS_ROTA_RSS_MAX_MB` (padrão
+400). Qualquer job do catálogo pode rodar pelo runner (`myfinance-job.sh cvm-cias:itr`, por exemplo).
+
+Pico do runner (`/usr/bin/time -v`, dev, 30/09/2026, `MALLOC_ARENA_MAX=2` + heap 256; o processo já
+inclui ~135 MB de base do Node/tsx/Prisma):
+
+| Job                                          |   RSS máx. | Onde roda                   |
+| -------------------------------------------- | ---------: | --------------------------- |
+| scores                                       | 259–263 MB | runner (`myfinance-job.sh`) |
+| cotahist                                     |     217 MB | rota HTTP                   |
+| b3-cadastro, cvm-cias (fca/dfp/itr), cvm-ipe | 179–184 MB | rota HTTP                   |
+| fii-cadastro, fii-mensal, fii-trimestral     | 179–183 MB | rota HTTP                   |
+
+Os jobs de ingestão pularam por ETag nessa medição; com arquivo novo a QA de operação mediu +64 MB
+(`cvm-cias:itr`) e +61 MB (`fii-mensal`) sobre a base, e o `cotahist` +78 MB — todos abaixo de 250 MB.
+
+Sem `MALLOC_ARENA_MAX=2` o mesmo `scores` chegava a 308–324 MB (memória nativa do Prisma espalhada
+por arenas do malloc); o heap limitado sozinho não resolvia. Se algum outro job passar de ~250 MB no
+`rssPicoMb` do `analise_job_runs`, trocar a linha dele por `myfinance-job.sh <job>`.
+
+Criar o script do runner (igual ao do template) antes de instalar as linhas:
+
+```bash
+sudo tee /usr/local/bin/myfinance-job.sh >/dev/null <<'EOF'
+#!/bin/bash
+JOB="$1"
+ts=$(date -u +%FT%TZ)
+code=0
+cd /opt/myfinance/current || code="ERR"
+if [ "$code" = "0" ]; then
+  timeout 600 sudo -u myfinance env MALLOC_ARENA_MAX=2 NODE_OPTIONS=--max-old-space-size=256 \
+    nice -n 10 npx --no-install tsx --env-file=/etc/myfinance/app.env \
+    scripts/analise-ativos/rodar-job.ts "$JOB" >>/var/log/myfinance-job.log 2>&1 || code=$?
+fi
+echo "$ts job:$JOB -> exit $code" >> /var/log/myfinance-cron.log
+EOF
+sudo chmod 755 /usr/local/bin/myfinance-job.sh && sudo touch /var/log/myfinance-job.log
+```
+
+Linhas do cron:
 
 ```bash
 sudo cp /etc/cron.d/myfinance /root/myfinance.cron.bak.$(date +%F)
@@ -150,7 +197,7 @@ sudo tee -a /etc/cron.d/myfinance >/dev/null <<'EOF'
 45 9 * * * root /usr/local/bin/myfinance-cron.sh /api/cron/analise-ativos/fii-trimestral
 55 9 * * 2-6 root /usr/local/bin/myfinance-cron.sh /api/cron/analise-ativos/cotahist
 5 23 * * 1-5 root /usr/local/bin/myfinance-cron.sh /api/cron/analise-ativos/cotahist
-10 10 * * * root /usr/local/bin/myfinance-cron.sh /api/cron/analise-ativos/scores
+10 10 * * * root /usr/local/bin/myfinance-job.sh scores
 EOF
 sudo chmod 644 /etc/cron.d/myfinance
 grep -c analise-ativos /etc/cron.d/myfinance     # 11
@@ -160,12 +207,16 @@ Primeiro teste manual de cada rota (fora do horário do cron), com o mesmo scrip
 
 ```bash
 sudo /usr/local/bin/myfinance-cron.sh /api/cron/analise-ativos/cvm-ipe && tail -1 /var/log/myfinance-cron.log   # "-> 200"
+sudo /usr/local/bin/myfinance-job.sh scores && tail -1 /var/log/myfinance-cron.log   # "job:scores -> exit 0"
+tail -5 /var/log/myfinance-job.log   # relatório do job (JSON) + alertas
 ```
 
 ## 6. Monitoramento
 
 - `/var/log/myfinance-cron.log`: uma linha por chamada (`<ts> <rota> -> <HTTP>`); 500 = job falhou,
-  `ERR` = curl cortou em 300 s (o job tem prazo interno de 240 s — investigar).
+  `ERR` = curl cortou em 300 s (o job tem prazo interno de 240 s — investigar). Jobs do runner:
+  `<ts> job:<job> -> exit <n>` (1 = job falhou; 124 = `timeout` de 600 s; saída completa em
+  `/var/log/myfinance-job.log`).
 - `analise_job_runs`: fonte da verdade de cada execução.
 
 ```sql

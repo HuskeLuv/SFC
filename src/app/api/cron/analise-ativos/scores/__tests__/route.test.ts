@@ -44,6 +44,7 @@ beforeEach(() => {
 
 afterEach(() => {
   delete process.env.CRON_SECRET;
+  delete process.env.ANALISE_ATIVOS_ROTA_RSS_MAX_MB;
 });
 
 describe('GET /api/cron/analise-ativos/scores', () => {
@@ -62,7 +63,9 @@ describe('GET /api/cron/analise-ativos/scores', () => {
     );
     const r = await GET(req('segredo-teste'));
     expect(r.status).toBe(200);
-    expect(mocks.executarJobAnalise).toHaveBeenCalledWith('scores', expect.any(Function));
+    expect(mocks.executarJobAnalise).toHaveBeenCalledWith('scores', expect.any(Function), {
+      prazoMs: 240_000,
+    });
     expect(mocks.executarScores).toHaveBeenCalledWith({ ctx: true });
     expect((await r.json()).status).toBe('ok');
   });
@@ -71,5 +74,15 @@ describe('GET /api/cron/analise-ativos/scores', () => {
     mocks.executarJobAnalise.mockResolvedValue(relatorio('falha'));
     const r = await GET(req('segredo-teste'));
     expect(r.status).toBe(500);
+  });
+
+  it('RSS do servidor acima do limite ⇒ 503 sem rodar (job pesado vai para o runner)', async () => {
+    process.env.ANALISE_ATIVOS_ROTA_RSS_MAX_MB = '1';
+    const r = await GET(req('segredo-teste'));
+    expect(r.status).toBe(503);
+    const corpo = await r.json();
+    expect(corpo.status).toBe('recusado');
+    expect(corpo.erro).toContain('rodar-job.ts scores');
+    expect(mocks.executarJobAnalise).not.toHaveBeenCalled();
   });
 });
