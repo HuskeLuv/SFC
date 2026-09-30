@@ -82,6 +82,27 @@ describe('executarJobAnalise', () => {
     expect(typeof dadosUpdate().rssPicoMb).toBe('number');
   });
 
+  it("RSS subindo > 300 MB ⇒ alerta 'rss_acima_limite' nível erro (notifica)", async () => {
+    const real = process.memoryUsage;
+    let mb = 300;
+    const spy = vi
+      .spyOn(process, 'memoryUsage')
+      .mockImplementation(
+        () => ({ ...real.call(process), rss: mb * 1024 * 1024 }) as NodeJS.MemoryUsage,
+      );
+    try {
+      const r = await executarJobAnalise('scores', async () => {
+        mb = 700;
+        return {};
+      });
+      expect(r.alertas).toContainEqual(
+        expect.objectContaining({ codigo: 'rss_acima_limite', nivel: 'erro' }),
+      );
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
   it("resultado parcial ⇒ 'parcial'", async () => {
     const r = await executarJobAnalise('fii-mensal', async () => ({ parcial: true }));
     expect(r.status).toBe('parcial');

@@ -6,7 +6,7 @@
  *   mais velho (processo morreu/curl expirou) ⇒ marcado 'abandonado' e segue.
  * - Prazo interno (240 s por padrão; o cron corta em 300 s): o job consulta ctx.estourouPrazo() e
  *   devolve { parcial: true } para continuar no próximo run.
- * - RSS amostrado a cada 500 ms; delta > 300 MB ⇒ alerta 'rss_acima_limite' (não aborta).
+ * - RSS amostrado a cada 500 ms; delta > 300 MB ⇒ alerta 'rss_acima_limite' nível erro (não aborta).
  * - ScoringParams: sem versão ativa válida no banco, jobs de ingestão usam SCORING_PARAMS_V1 do código
  *   com alerta 'params_fallback_codigo'; jobs que exigem params do banco ('scores') falham.
  * - ErroLayoutFonte ⇒ 'falha' + alerta nível erro. Nunca lança: devolve RelatorioJob.
@@ -213,10 +213,12 @@ export async function executarJobAnalise(
     rssPico = Math.max(rssPico, rssMb());
   }
 
+  // nível ERRO (notifica já na 1ª vez): no Lightsail a RAM de 1,9 GB é dividida com o app e o
+  // Postgres — um 'aviso' com status 'ok' passava despercebido (achado qa-operacao 30/09)
   if (rssPico - rssInicio > LIMITE_RSS_DELTA_MB) {
     alertar({
       codigo: 'rss_acima_limite',
-      nivel: 'aviso',
+      nivel: 'erro',
       mensagem: `RSS subiu ${rssPico - rssInicio} MB (limite ${LIMITE_RSS_DELTA_MB})`,
     });
   }

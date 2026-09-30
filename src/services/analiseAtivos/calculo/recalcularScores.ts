@@ -639,7 +639,23 @@ export interface ResultadoScores {
   amostra: Array<Record<string, unknown>>;
 }
 
-const LOTE_FUND = 100;
+const LOTE_FUND = 50;
+
+/** Fundamento "atual" por emissor: último TTM mesclado ao balanço do mesmo dtFim. */
+function fundamentosAtuais(recentes: FundamentosPeriodo[]): Map<string, FundamentosPeriodo | null> {
+  const out = new Map<string, FundamentosPeriodo | null>();
+  for (const [cnpj, lista] of agrupar(recentes, (f) => f.emissorId)) {
+    const ttm =
+      lista
+        .filter((f) => f.tipoPeriodo === 'TTM')
+        .sort((a, b) => b.dtFim.localeCompare(a.dtFim))[0] ?? null;
+    const balanco = ttm
+      ? (lista.find((f) => f.dtFim === ttm.dtFim && f.tipoPeriodo !== 'TTM') ?? null)
+      : null;
+    out.set(cnpj, mesclarTtm(ttm, balanco));
+  }
+  return out;
+}
 
 export async function recalcularScores(
   ctx: JobContexto,
@@ -678,46 +694,6 @@ export async function recalcularScores(
     }
   };
 
-  // Fundamentos (FY completo para a sequência de lucro; TTM/YTD/3M recentes para o atual)
-  const cnpjsAcoes = [...new Set(u.acoes.map((a) => a.cnpj))];
-  const emissores = [...u.emissores.values()];
-  const fys: FundamentosPeriodo[] = [];
-  const recentes: FundamentosPeriodo[] = [];
-  const desdeRecente = menosMeses(ctx.hoje, 24);
-  for (let i = 0; i < cnpjsAcoes.length; i += LOTE_FUND) {
-    const lote = cnpjsAcoes.slice(i, i + LOTE_FUND);
-    const em = emissores.filter((e) => lote.includes(e.cnpj));
-    fys.push(
-      ...(await fundamentosVigentes(ctx.prisma, lote, {
-        tipos: ['FY'],
-        escopo: 'preferido',
-        emissores: em,
-      })),
-    );
-    recentes.push(
-      ...(await fundamentosVigentes(ctx.prisma, lote, {
-        tipos: ['TTM', 'YTD', 'FY'],
-        desde: desdeRecente,
-        escopo: 'preferido',
-        emissores: em,
-      })),
-    );
-  }
-  ctx.contar('linhasLidas', fys.length + recentes.length);
-  const fysPor = agrupar(fys, (f) => f.emissorId);
-  const recentesPor = agrupar(recentes, (f) => f.emissorId);
-  const fundAtualPor = new Map<string, FundamentosPeriodo | null>();
-  for (const [cnpj, lista] of recentesPor) {
-    const ttm =
-      lista
-        .filter((f) => f.tipoPeriodo === 'TTM')
-        .sort((a, b) => b.dtFim.localeCompare(a.dtFim))[0] ?? null;
-    const balanco = ttm
-      ? (lista.find((f) => f.dtFim === ttm.dtFim && f.tipoPeriodo !== 'TTM') ?? null)
-      : null;
-    fundAtualPor.set(cnpj, mesclarTtm(ttm, balanco));
-  }
-
   const simbolosAcao = u.acoes.map((a) => a.symbol);
   const plGravado = await lerPlAnualGravado(ctx.prisma, simbolosAcao);
   for (const [s, l] of plAnualFresco) plGravado.set(s, l);
@@ -734,75 +710,108 @@ export async function recalcularScores(
     incompletos: 0,
   };
 
-  // Ações, por empresa
-  for (const [cnpj, tickers] of agrupar(u.acoes, (t) => t.cnpj)) {
-    const comPreco = tickers.filter((t) => resumoPor.has(t.symbol));
-    const temFy = (fysPor.get(cnpj) ?? []).length > 0;
-    res.comPreco += comPreco.length;
-    if (temFy) res.comFy += tickers.length;
-    if (temFy) res.comFyEPreco += comPreco.length;
-    if (comPreco.length === 0) continue;
-    const precosEmpresa = new Map(
-      comPreco.map((t) => [t.symbol, resumoPor.get(t.symbol)!.closeRaw]),
-    );
-    const emissor = u.emissores.get(cnpj);
-    const calculos = new Map<string, CalculoAtualAcao>();
-    for (const t of comPreco) {
-      const c = calcularAtualAcao(
-        {
-          ticker: t,
-          resumo: resumoPor.get(t.symbol)!,
-          tickersEmpresa: tickers,
-          resumosEmpresa: precosEmpresa,
-          fundAtual: fundAtualPor.get(cnpj) ?? null,
-          fys: fysPor.get(cnpj) ?? [],
-          contagens: dados.contagensPorCnpj.get(cnpj) ?? [],
-          emissor,
-          proventos: memoria.proventos.get(t.symbol) ?? [],
-          eventos: memoria.eventos.get(t.symbol) ?? [],
-          cobertura: memoria.cobertura.get(t.symbol),
-          historicoPl: plGravado.get(t.symbol) ?? [],
-          dataRef,
-          frescor: frescorDe(t.symbol, ultimaDataComAcoes),
-        },
-        p,
+  // Ações, por empresa, em LOTES de LOTE_FUND emissores: os fundamentos (FY completo para a
+  // sequência de lucro; TTM/YTD/FY recentes para o atual) de um lote por vez — carregar o universo
+  // inteiro de uma vez somava ~200 MB de RSS no next-server (achado qa-operacao 30/09)
+  const emissores = [...u.emissores.values()];
+  const desdeRecente = menosMeses(ctx.hoje, 24);
+  const empresas = [...agrupar(u.acoes, (t) => t.cnpj)];
+  for (let i = 0; i < empresas.length; i += LOTE_FUND) {
+    const loteEmpresas = empresas.slice(i, i + LOTE_FUND);
+    const lote = loteEmpresas.map(([cnpj]) => cnpj);
+    const noLote = new Set(lote);
+    const em = emissores.filter((e) => noLote.has(e.cnpj));
+    const fys = await fundamentosVigentes(ctx.prisma, lote, {
+      tipos: ['FY'],
+      escopo: 'preferido',
+      emissores: em,
+    });
+    const recentes = await fundamentosVigentes(ctx.prisma, lote, {
+      tipos: ['TTM', 'YTD', 'FY'],
+      desde: desdeRecente,
+      escopo: 'preferido',
+      emissores: em,
+    });
+    ctx.contar('linhasLidas', fys.length + recentes.length);
+    const fysPor = agrupar(fys, (f) => f.emissorId);
+    const fundAtualPor = fundamentosAtuais(recentes);
+    processarLoteAcoes(loteEmpresas, fysPor, fundAtualPor);
+  }
+
+  function processarLoteAcoes(
+    loteEmpresas: Array<[string, TickerAcao[]]>,
+    fysPor: Map<string, FundamentosPeriodo[]>,
+    fundAtualPor: Map<string, FundamentosPeriodo | null>,
+  ): void {
+    for (const [cnpj, tickers] of loteEmpresas) {
+      const comPreco = tickers.filter((t) => resumoPor.has(t.symbol));
+      const temFy = (fysPor.get(cnpj) ?? []).length > 0;
+      res.comPreco += comPreco.length;
+      if (temFy) res.comFy += tickers.length;
+      if (temFy) res.comFyEPreco += comPreco.length;
+      if (comPreco.length === 0) continue;
+      const precosEmpresa = new Map(
+        comPreco.map((t) => [t.symbol, resumoPor.get(t.symbol)!.closeRaw]),
       );
-      contarDefasado('acao', c.flags);
-      calculos.set(t.symbol, c);
-      atuais.push(
-        linhaAtual(
-          { symbol: t.symbol, cnpj, classe: 'acao', resumo: resumoPor.get(t.symbol)! },
-          c.m,
+      const emissor = u.emissores.get(cnpj);
+      const calculos = new Map<string, CalculoAtualAcao>();
+      for (const t of comPreco) {
+        const c = calcularAtualAcao(
           {
-            ttmDtFim: fundAtualPor.get(cnpj)?.dtFim ?? null,
-            lpaTtm: c.lpaTtm,
-            vpa: c.vpa,
-            dpa12m: c.dpa12m,
-            anos: c.anos,
-            flags: c.flags,
+            ticker: t,
+            resumo: resumoPor.get(t.symbol)!,
+            tickersEmpresa: tickers,
+            resumosEmpresa: precosEmpresa,
+            fundAtual: fundAtualPor.get(cnpj) ?? null,
+            fys: fysPor.get(cnpj) ?? [],
+            contagens: dados.contagensPorCnpj.get(cnpj) ?? [],
+            emissor,
+            proventos: memoria.proventos.get(t.symbol) ?? [],
+            eventos: memoria.eventos.get(t.symbol) ?? [],
+            cobertura: memoria.cobertura.get(t.symbol),
+            historicoPl: plGravado.get(t.symbol) ?? [],
+            dataRef,
+            frescor: frescorDe(t.symbol, ultimaDataComAcoes),
           },
-          meta,
-        ),
-      );
-    }
-    // decisão 13: índice por empresa no ticker de maior volume médio
-    const ref = [...comPreco].sort(
-      (a, b) =>
-        resumoPor.get(b.symbol)!.volumeMedio21 - resumoPor.get(a.symbol)!.volumeMedio21 ||
-        a.symbol.localeCompare(b.symbol),
-    )[0];
-    const s = scoreAcao(calculos.get(ref.symbol)!, emissor?.ehFinanceira ?? false, p);
-    for (const t of comPreco) {
-      scores.push(
-        linhaScore(
-          { symbol: t.symbol, cnpj, classe: 'acao', dataRef, tickerReferencia: ref.symbol },
-          s,
-          meta,
-        ),
-      );
-      res.comScore++;
-      if (temFy) res.scoreDeFyEPreco++;
-      if (s.indice.incompleto) res.incompletos++;
+          p,
+        );
+        contarDefasado('acao', c.flags);
+        calculos.set(t.symbol, c);
+        atuais.push(
+          linhaAtual(
+            { symbol: t.symbol, cnpj, classe: 'acao', resumo: resumoPor.get(t.symbol)! },
+            c.m,
+            {
+              ttmDtFim: fundAtualPor.get(cnpj)?.dtFim ?? null,
+              lpaTtm: c.lpaTtm,
+              vpa: c.vpa,
+              dpa12m: c.dpa12m,
+              anos: c.anos,
+              flags: c.flags,
+            },
+            meta,
+          ),
+        );
+      }
+      // decisão 13: índice por empresa no ticker de maior volume médio
+      const ref = [...comPreco].sort(
+        (a, b) =>
+          resumoPor.get(b.symbol)!.volumeMedio21 - resumoPor.get(a.symbol)!.volumeMedio21 ||
+          a.symbol.localeCompare(b.symbol),
+      )[0];
+      const s = scoreAcao(calculos.get(ref.symbol)!, emissor?.ehFinanceira ?? false, p);
+      for (const t of comPreco) {
+        scores.push(
+          linhaScore(
+            { symbol: t.symbol, cnpj, classe: 'acao', dataRef, tickerReferencia: ref.symbol },
+            s,
+            meta,
+          ),
+        );
+        res.comScore++;
+        if (temFy) res.scoreDeFyEPreco++;
+        if (s.indice.incompleto) res.incompletos++;
+      }
     }
   }
 
