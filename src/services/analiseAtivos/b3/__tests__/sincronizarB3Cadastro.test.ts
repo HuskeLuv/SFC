@@ -181,4 +181,23 @@ describe('sincronizarB3Cadastro', () => {
     await expect(sincronizarB3Cadastro(criarCtx(prisma).ctx)).rejects.toBeInstanceOf(ErroFonte);
     expect([...setores.values()].every((s) => s.presenteUltimoArquivo)).toBe(true);
   });
+
+  it('.xlsx que infla além do teto ⇒ ErroFonte antes do XLSX.read (achado zip bomb)', async () => {
+    const { prisma } = criarPrisma();
+    // ~21 MB de célula repetida comprime para poucos KB (cabe no maxBytes do download)
+    const wb = XLSX.utils.book_new();
+    const linhas = [...CLASSIF_TRECHOS, ...Array.from({ length: 700 }, () => ['y'.repeat(30_000)])];
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(linhas), 'Planilha');
+    const grande = XLSX.write(wb, {
+      type: 'buffer',
+      bookType: 'xlsx',
+      compression: true,
+    }) as Buffer;
+    expect(grande.length).toBeLessThan(1_000_000);
+    stubFetch({ [URL_CLASSIF_SETORIAL]: grande });
+    await expect(sincronizarB3Cadastro(criarCtx(prisma).ctx)).rejects.toMatchObject({
+      codigo: 'zip_corrompido',
+    });
+    expect(prisma.assetSetorB3.createMany).not.toHaveBeenCalled();
+  });
 });

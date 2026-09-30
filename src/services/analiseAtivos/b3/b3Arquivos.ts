@@ -25,7 +25,10 @@ export const URL_CLASSIF_SETORIAL =
 export const LIMITES_B3 = {
   maxBytesCotahistDiario: 20_000_000,
   maxBytesCotahistAnual: 200_000_000,
-  maxBytesClassifSetorial: 5_000_000,
+  // arquivo real ~16 KB; o .xlsx é descomprimido inteiro em memória (XLSX.read) ⇒ teto também
+  // no tamanho descomprimido (conferido pelo diretório central antes de ler)
+  maxBytesClassifSetorial: 1_000_000,
+  maxDescomprimidoClassifSetorial: 20_000_000,
   timeoutMs: 90_000,
   timeoutMsBackfillAnual: 600_000,
 } as const;

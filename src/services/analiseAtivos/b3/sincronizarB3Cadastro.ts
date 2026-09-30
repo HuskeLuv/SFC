@@ -17,6 +17,11 @@ import {
 import { confirmarSetoresPresentes, gravarSetores } from '@/services/analiseAtivos/b3/gravarB3';
 import { ErroFonte, ErroLayoutFonte } from '@/services/analiseAtivos/fontes/erros';
 import {
+  conferirTetosDescompressao,
+  listarEntradasZip,
+  type EntradaZip,
+} from '@/services/analiseAtivos/fontes/zipStream';
+import {
   diffRaizes,
   parseClassifSetorial,
   type SetorB3,
@@ -83,6 +88,16 @@ export async function sincronizarB3Cadastro(
       });
     }
 
+    // .xlsx = zip: confere o tamanho descomprimido ANTES do XLSX.read (que infla tudo em memória)
+    let entradas: EntradaZip[];
+    try {
+      entradas = await listarEntradasZip(arq.caminho);
+    } catch {
+      throw new ErroLayoutFonte(NOME_CLASSIF_SETORIAL, ['planilha .xlsx legível']);
+    }
+    conferirTetosDescompressao(entradas, NOME_CLASSIF_SETORIAL, {
+      maxTotal: LIMITES_B3.maxDescomprimidoClassifSetorial,
+    });
     const setores = lerClassifSetorial(await readFile(arq.caminho));
     ctx.contar('linhasLidas', setores.length);
 

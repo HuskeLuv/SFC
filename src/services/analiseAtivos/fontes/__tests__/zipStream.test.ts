@@ -4,12 +4,19 @@ import os from 'os';
 import path from 'path';
 import { afterAll, describe, expect, it } from 'vitest';
 import { ErroFonte } from '@/services/analiseAtivos/fontes/erros';
-import { linhasDaEntrada, listarEntradasZip } from '@/services/analiseAtivos/fontes/zipStream';
+import {
+  conferirTetosDescompressao,
+  linhasDaEntrada,
+  listarEntradasZip,
+} from '@/services/analiseAtivos/fontes/zipStream';
 
 const dir = mkdtempSync(path.join(os.tmpdir(), 'zipstream-'));
 afterAll(() => rmSync(dir, { recursive: true, force: true }));
 
-const LINHA_LONGA = 'X'.repeat(70 * 1024);
+// linha longa pouco compressível (texto real da CVM comprime ≤ 36×; teto de razão = 200)
+const LINHA_LONGA = Array.from({ length: 70 * 1024 }, (_, i) =>
+  String.fromCharCode(65 + (((i * 7919) % 9973) % 26)),
+).join('');
 const TEXTO_A = `CNPJ;VALOR\r\n11;1\r\n22;${LINHA_LONGA}\r\n33;Patrimônio Líquido`;
 const TEXTO_B = 'a\nb\nc\n';
 
@@ -98,6 +105,61 @@ describe('zipStream', () => {
     writeFileSync(caminho, buf);
     await expect(listarEntradasZip(caminho)).rejects.toMatchObject({
       codigo: 'zip64_nao_suportado',
+    });
+  });
+
+  describe('zip bomb (achado qa-seguranca 30/09)', () => {
+    /** Zip de ~1 MB que infla 8 MB mas declara `tamanhoOriginal` pequeno no diretório central. */
+    function bomba(nome: string, declarado: number): string {
+      const zip = new AdmZip();
+      zip.addFile('bomba.csv', Buffer.from('A;B\n'.repeat(2 * 1024 * 1024), 'latin1'));
+      const caminho = path.join(dir, nome);
+      zip.writeZip(caminho);
+      const buf = readFileSync(caminho);
+      const cd = buf.lastIndexOf(Buffer.from([0x50, 0x4b, 0x01, 0x02]));
+      buf.writeUInt32LE(declarado, cd + 24);
+      writeFileSync(caminho, buf);
+      return caminho;
+    }
+
+    it('para ASSIM que passa do tamanho declarado, sem entregar o resto das linhas', async () => {
+      const caminho = bomba('bomba.zip', 10);
+      const [e] = await listarEntradasZip(caminho);
+      expect(e.tamanhoOriginal).toBe(10);
+      let entregues = 0;
+      const erro = await (async () => {
+        for await (const _l of linhasDaEntrada(caminho, e, { maxRazaoCompressao: 1e9 })) {
+          entregues++;
+        }
+      })().catch((x: unknown) => x);
+      expect(erro).toMatchObject({ codigo: 'zip_corrompido' });
+      // antes: 2.097.152 linhas entregues e o erro só no fim
+      expect(entregues).toBe(0);
+    });
+
+    it('razão de compressão acima do teto ⇒ recusa antes de inflar', async () => {
+      const caminho = bomba('razao.zip', 8 * 1024 * 1024);
+      const [e] = await listarEntradasZip(caminho);
+      await expect(coletar(linhasDaEntrada(caminho, e))).rejects.toMatchObject({
+        codigo: 'zip_corrompido',
+      });
+      // mesma entrada passa com teto folgado (a razão real é ~1000×)
+      const n = (await coletar(linhasDaEntrada(caminho, e, { maxRazaoCompressao: 1e6 }))).length;
+      expect(n).toBe(2 * 1024 * 1024);
+    });
+
+    it('tamanho declarado acima do teto ⇒ recusa; conferirTetosDescompressao soma as entradas', async () => {
+      const caminho = criarZip('teto.zip');
+      const entradas = await listarEntradasZip(caminho);
+      await expect(
+        coletar(linhasDaEntrada(caminho, entradas[0], { maxDescomprimido: 100 })),
+      ).rejects.toMatchObject({ codigo: 'zip_corrompido' });
+      expect(() =>
+        conferirTetosDescompressao(entradas, 'teto.zip', { maxTotal: 1e6 }),
+      ).not.toThrow();
+      expect(() => conferirTetosDescompressao(entradas, 'teto.zip', { maxTotal: 100 })).toThrow(
+        ErroFonte,
+      );
     });
   });
 });
