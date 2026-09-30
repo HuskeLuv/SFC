@@ -101,21 +101,27 @@ export async function proventosBrutos(
   );
 }
 
+/**
+ * Status da cobertura por símbolo + `verificadoEm` (lastCheckedAt, 'AAAA-MM-DD'; só símbolos com
+ * linha em market_data_coverage) para o frescor da base (motivoProventosDefasados).
+ */
 export async function coberturaProventos(
   prisma: PrismaClient,
   symbols: string[],
-): Promise<Map<string, CoberturaProventos>> {
+): Promise<Map<string, CoberturaProventos> & { verificadoEm: Map<string, string | null> }> {
   const out = new Map<string, CoberturaProventos>(symbols.map((s) => [s, null]));
-  if (symbols.length === 0) return out;
+  const verificadoEm = new Map<string, string | null>();
+  if (symbols.length === 0) return Object.assign(out, { verificadoEm });
   const linhas = await prisma.marketDataCoverage.findMany({
     where: { symbol: { in: symbols } },
-    select: { symbol: true, status: true },
+    select: { symbol: true, status: true, lastCheckedAt: true },
   });
   const validos = new Set(['OK', 'EMPTY', 'FETCH_FAIL', 'GAP_QUEUED']);
   for (const l of linhas) {
     out.set(l.symbol, validos.has(l.status) ? (l.status as CoberturaProventos) : null);
+    verificadoEm.set(l.symbol, l.lastCheckedAt ? l.lastCheckedAt.toISOString().slice(0, 10) : null);
   }
-  return out;
+  return Object.assign(out, { verificadoEm });
 }
 
 export async function eventosCorporativosBrutos(

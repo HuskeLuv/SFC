@@ -43,8 +43,11 @@ import {
   type HistoricoPl,
 } from '@/services/analiseAtivos/regras/calculo/multiplos';
 import {
+  motivoProventosDefasados,
   rendimento12m,
+  ultimaDataCom,
   valorProventosComCobertura,
+  type MotivoDefasagemProventos,
   type ProventoAuditadoCompleto,
 } from '@/services/analiseAtivos/regras/calculo/proventos';
 import {
@@ -163,6 +166,33 @@ export interface EntradaAtualAcao {
   cobertura: CoberturaProventos | undefined;
   historicoPl: Array<{ anoFiscal: number; pl: number | null; plNaoSeAplica: boolean }>;
   dataRef: string;
+  /** frescor da base de proventos (motivoProventosDefasados); sem ele, não confere */
+  frescor?: FrescorProventos;
+}
+
+export interface FrescorProventos {
+  /** lastCheckedAt do símbolo; undefined = sem linha de cobertura (não confere) */
+  verificadoEm: string | null | undefined;
+  ultimaDataComDaClasse: string | null;
+}
+
+/** Valor de proventos (DPA/rendimento 12m, meses) vira ausente('fonte_defasada') com base parada. */
+function defasagemProventos(
+  classe: 'acao' | 'fii',
+  e: { proventos: ProventoAuditadoCompleto[]; dataRef: string; frescor?: FrescorProventos },
+  p: ScoringParams,
+): MotivoDefasagemProventos | null {
+  if (!e.frescor) return null;
+  return motivoProventosDefasados(
+    {
+      classe,
+      proventos: e.proventos,
+      verificadoEm: e.frescor.verificadoEm,
+      ultimaDataComDaClasse: e.frescor.ultimaDataComDaClasse,
+      hoje: e.dataRef,
+    },
+    p,
+  );
 }
 
 export interface CalculoAtualAcao {
@@ -232,11 +262,15 @@ export function calcularAtualAcao(e: EntradaAtualAcao, p: ScoringParams): Calcul
   const cont = saltoSemEvento ? null : contMaisRecente;
   const fator = fatorEquivalencia(e.ticker);
   if (fator === null) flags.push('unit_sem_composicao');
-  const dpa12m = comCobertura(
-    rendimento12m(e.proventos, e.dataRef, 'acao', e.eventos, p),
-    e.proventos,
-    e.cobertura,
-  );
+  const defasagem = defasagemProventos('acao', e, p);
+  if (defasagem) flags.push(`proventos_defasados_${defasagem}`);
+  const dpa12m: Valor<number> = defasagem
+    ? ausente('fonte_defasada', defasagem)
+    : comCobertura(
+        rendimento12m(e.proventos, e.dataRef, 'acao', e.eventos, p),
+        e.proventos,
+        e.cobertura,
+      );
   const vm = valorMercadoEmpresa(e.tickersEmpresa, e.resumosEmpresa, cont);
   const vazio: FundamentosPeriodo['naoSeAplica'] = [];
   const m = multiplosAtuais(
@@ -368,6 +402,7 @@ export interface EntradaAtualFii {
   eventos: EntradaAtualAcao['eventos'];
   cobertura: CoberturaProventos | undefined;
   dataRef: string;
+  frescor?: FrescorProventos;
 }
 
 export interface CalculoAtualFii {
@@ -378,14 +413,18 @@ export interface CalculoAtualFii {
 }
 
 export function calcularAtualFii(e: EntradaAtualFii, p: ScoringParams): CalculoAtualFii {
-  const rend12m = comCobertura(
-    rendimento12m(e.proventos, e.dataRef, 'fii', e.eventos, p),
-    e.proventos,
-    e.cobertura,
-  );
+  const defasagem = defasagemProventos('fii', e, p);
+  const rend12m: Valor<number> = defasagem
+    ? ausente('fonte_defasada', defasagem)
+    : comCobertura(
+        rendimento12m(e.proventos, e.dataRef, 'fii', e.eventos, p),
+        e.proventos,
+        e.cobertura,
+      );
   const det = mesesComRendimentoDetalhado(e.proventos, e.dataRef, p);
-  const meses: Valor<number> =
-    e.proventos.length > 0 || e.cobertura === 'EMPTY' || e.cobertura === 'OK'
+  const meses: Valor<number> = defasagem
+    ? ausente('fonte_defasada', defasagem)
+    : e.proventos.length > 0 || e.cobertura === 'EMPTY' || e.cobertura === 'OK'
       ? ok(det.meses)
       : ausente(e.cobertura === 'FETCH_FAIL' ? 'fonte_falhou' : 'sem_dado_fonte');
   const m = multiplosAtuais(
@@ -402,6 +441,7 @@ export function calcularAtualFii(e: EntradaAtualFii, p: ScoringParams): CalculoA
     p,
   );
   const flags = [...m.flags];
+  if (defasagem) flags.push(`proventos_defasados_${defasagem}`);
   if (det.mesEstimado) flags.push('mes_estimado');
   if (!e.mesAtual) flags.push('sem_informe_mensal');
   return { m, rend12m, meses, flags };
@@ -617,6 +657,26 @@ export async function recalcularScores(
   const resumos = await resumoCotacoes(ctx.prisma);
   const resumoPor = new Map(resumos.map((r) => [r.symbol, r]));
   const dataRef = dataRefScores(resumos, ctx.hoje);
+  // frescor da base de proventos por classe (data-com mais recente do universo da classe)
+  const ultimaDataComClasse = (symbols: string[]) =>
+    ultimaDataCom(
+      symbols.flatMap((s) => memoria.proventos.get(s) ?? []),
+      dataRef,
+    );
+  const ultimaDataComAcoes = ultimaDataComClasse(u.acoes.map((a) => a.symbol));
+  const ultimaDataComFiis = ultimaDataComClasse(u.fiis.map((f) => f.symbol));
+  const frescorDe = (symbol: string, ultima: string | null): FrescorProventos => ({
+    verificadoEm: memoria.verificadoEm?.has(symbol) ? memoria.verificadoEm.get(symbol) : undefined,
+    ultimaDataComDaClasse: ultima,
+  });
+  const defasados: Record<'acao' | 'fii', Record<string, number>> = { acao: {}, fii: {} };
+  const contarDefasado = (classe: 'acao' | 'fii', flags: string[]) => {
+    const f = flags.find((x) => x.startsWith('proventos_defasados_'));
+    if (f) {
+      const m = f.slice('proventos_defasados_'.length);
+      defasados[classe][m] = (defasados[classe][m] ?? 0) + 1;
+    }
+  };
 
   // Fundamentos (FY completo para a sequência de lucro; TTM/YTD/3M recentes para o atual)
   const cnpjsAcoes = [...new Set(u.acoes.map((a) => a.cnpj))];
@@ -703,9 +763,11 @@ export async function recalcularScores(
           cobertura: memoria.cobertura.get(t.symbol),
           historicoPl: plGravado.get(t.symbol) ?? [],
           dataRef,
+          frescor: frescorDe(t.symbol, ultimaDataComAcoes),
         },
         p,
       );
+      contarDefasado('acao', c.flags);
       calculos.set(t.symbol, c);
       atuais.push(
         linhaAtual(
@@ -770,11 +832,13 @@ export async function recalcularScores(
           eventos: memoria.eventos.get(f.symbol) ?? [],
           cobertura: memoria.cobertura.get(f.symbol),
           dataRef,
+          frescor: frescorDe(f.symbol, ultimaDataComFiis),
         }
       : null;
     let calc: CalculoAtualFii | null = null;
     if (entrada) {
       calc = calcularAtualFii(entrada, p);
+      contarDefasado('fii', calc.flags);
       atuais.push(
         linhaAtual(
           { symbol: f.symbol, cnpj: f.cnpj, classe: 'fii', resumo: entrada.resumo },
@@ -835,6 +899,21 @@ export async function recalcularScores(
         mensagem: `cobertura de scores de ${rotulo} ${pct.toFixed(1)}% (< 95%)`,
       });
     }
+  }
+  for (const [classe, rotulo, ultima] of [
+    ['acao', 'ações', ultimaDataComAcoes],
+    ['fii', 'FIIs', ultimaDataComFiis],
+  ] as const) {
+    const porMotivo = defasados[classe];
+    const total = Object.values(porMotivo).reduce((a, b) => a + b, 0);
+    if (total === 0) continue;
+    ctx.alertar({
+      codigo: 'proventos_defasados',
+      nivel: porMotivo.base_parada ? 'erro' : 'aviso',
+      mensagem:
+        `${total} ${rotulo} com base de proventos defasada (DY/rendimento 12m ausentes): ` +
+        `${JSON.stringify(porMotivo)}; data-com mais recente da classe ${ultima ?? '—'}`,
+    });
   }
   return {
     dataRef,

@@ -189,6 +189,23 @@ const baseSchema = z.strictObject({
       ),
       tipoDesconhecido: z.string(),
       somaDuplicadaTolPct: z.number().nonnegative(),
+      frescor: z
+        .strictObject({
+          maxDiasBase: z.number().int().positive(),
+          maxDias: z.strictObject({
+            acao: z.number().int().positive(),
+            fii: z.number().int().positive(),
+          }),
+          recorrenteMinMeses: z.strictObject({
+            acao: z.number().int().positive(),
+            fii: z.number().int().positive(),
+          }),
+        })
+        .default({
+          maxDiasBase: 20,
+          maxDias: { acao: 200, fii: 45 },
+          recorrenteMinMeses: { acao: 2, fii: 6 },
+        }),
     }),
   }),
   universo: z.strictObject({

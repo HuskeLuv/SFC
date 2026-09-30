@@ -569,3 +569,52 @@ describe('calcularAtualAcao — regra 13 na contagem dos múltiplos do dia (acha
     expect(r.flags).not.toContain('salto_acoes_sem_evento');
   });
 });
+
+describe('calcularAtualFii — base de proventos parada (achado qa-dados 30/09)', () => {
+  it('HGLG11 com a base parada em jun/2026 ⇒ rendimento 12m e meses AUSENTES (não subestimados)', async () => {
+    const { calcularAtualFii } = await import('@/services/analiseAtivos/calculo/recalcularScores');
+    const proventos = ['2026-03-31', '2026-04-30', '2026-05-28'].map((d, i) => ({
+      origemId: String(i),
+      symbol: 'HGLG11',
+      source: 'BRAPI',
+      tipoOriginal: 'RENDIMENTO',
+      tipoNormalizado: 'RENDIMENTO' as const,
+      valor: 1.1,
+      dataPagamento: `${d.slice(0, 8)}28`,
+      dataExGravada: d,
+      dataComReal: d,
+      status: 'valido' as const,
+      duplicataDe: null,
+      fatorAjusteHoje: 1,
+      valorAjustadoHoje: 1.1,
+      flags: [],
+    }));
+    const entrada = {
+      resumo: {
+        symbol: 'HGLG11',
+        ultimoPregao: '2026-09-29',
+        closeRaw: 148,
+        volumeMedio21: 1e7,
+        pregoesComNegocio21: 21,
+        baixaLiquidez: false,
+        negociadoUltimos30: true,
+      },
+      mesAtual: null,
+      trimestre: null,
+      proventos: proventos as never,
+      eventos: [],
+      cobertura: 'OK' as const,
+      dataRef: '2026-09-29',
+    };
+    const parado = calcularAtualFii(
+      { ...entrada, frescor: { verificadoEm: '2026-06-10', ultimaDataComDaClasse: '2026-06-10' } },
+      SCORING_PARAMS_V1,
+    );
+    expect(parado.rend12m).toMatchObject({ estado: 'ausente', motivo: 'fonte_defasada' });
+    expect(parado.meses).toMatchObject({ estado: 'ausente', motivo: 'fonte_defasada' });
+    expect(parado.flags).toContain('proventos_defasados_base_parada');
+    // sem frescor (memória antiga) o cálculo é o de antes
+    const antes = calcularAtualFii(entrada, SCORING_PARAMS_V1);
+    expect(antes.rend12m.estado).toBe('ok');
+  });
+});

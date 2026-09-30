@@ -24,6 +24,7 @@ export type ClasseTitulo = 'ON' | 'PN' | 'UNIT';
 export type MotivoAusente =
   | 'sem_dado_fonte'
   | 'fonte_falhou'
+  | 'fonte_defasada'
   | 'historico_curto'
   | 'controladora_zero'
   | 'sem_preco'

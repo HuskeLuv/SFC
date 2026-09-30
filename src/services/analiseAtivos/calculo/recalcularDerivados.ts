@@ -46,6 +46,8 @@ export interface MemoriaCalculo {
   eventos: Map<string, EventoComCnpj[]>;
   proventos: Map<string, ProventoAuditadoCompleto[]>;
   cobertura: Map<string, CoberturaProventos>;
+  /** lastCheckedAt da cobertura por símbolo (frescor; ausente em memórias montadas sem ele) */
+  verificadoEm?: Map<string, string | null>;
 }
 
 /** Fator de equivalência do ticker (units = ON + PN da composição do FCA). null = unit sem composição. */

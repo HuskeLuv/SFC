@@ -9,9 +9,11 @@ import {
   auditarProventos,
   dataComReal,
   dpaNoAno,
+  motivoProventosDefasados,
   normalizarTipo,
   planejarReescritaProventos,
   rendimento12m,
+  ultimaDataCom,
   valorProventosComCobertura,
 } from '@/services/analiseAtivos/regras/calculo/proventos';
 import type { EventoCorporativoVerificado } from '@/services/analiseAtivos/tipos';
@@ -379,5 +381,105 @@ describe('provento com data-com = data-com do evento (achado qa-codigo 30/09)', 
     expect(a.dataComReal).toBe('2025-11-25');
     // antes: 1 (evento datado na data-com da BRAPI e comparação estrita)
     expect(a.fatorAjusteHoje).toBeCloseTo(1.071, 6);
+  });
+});
+
+describe('frescor da base de proventos (achado qa-dados 30/09)', () => {
+  const pr = (dataComReal: string, tipoNormalizado: 'RENDIMENTO' | 'DIVIDENDO' = 'RENDIMENTO') => ({
+    status: 'valido' as const,
+    tipoNormalizado,
+    dataComReal,
+  });
+  // HGLG11 no dev: rendimento mensal até a data-com de 28/05/2026 (base parada desde jun/2026)
+  const hglg = [
+    '2025-06-30',
+    '2025-07-31',
+    '2025-08-29',
+    '2025-09-30',
+    '2025-10-31',
+    '2025-11-28',
+    '2025-12-30',
+    '2026-01-30',
+    '2026-02-27',
+    '2026-03-31',
+    '2026-04-30',
+    '2026-05-28',
+  ].map((d) => pr(d));
+
+  it('base da classe parada (última data-com de jun/2026 com hoje 29/09) ⇒ base_parada', () => {
+    expect(
+      motivoProventosDefasados(
+        {
+          classe: 'fii',
+          proventos: hglg,
+          verificadoEm: '2026-09-28',
+          ultimaDataComDaClasse: '2026-06-10',
+          hoje: '2026-09-29',
+        },
+        P,
+      ),
+    ).toBe('base_parada');
+  });
+
+  it('cobertura verificada há mais de 45 dias (FII) ⇒ cobertura_antiga; ação tolera 200', () => {
+    const e = {
+      proventos: [],
+      verificadoEm: '2026-06-10',
+      ultimaDataComDaClasse: '2026-09-26',
+      hoje: '2026-09-29',
+    };
+    expect(motivoProventosDefasados({ ...e, classe: 'fii' }, P)).toBe('cobertura_antiga');
+    expect(motivoProventosDefasados({ ...e, classe: 'acao' }, P)).toBeNull();
+  });
+
+  it('HGLG11: pagador mensal sem rendimento há 4 meses com a base viva ⇒ pagador_recorrente_parado', () => {
+    expect(
+      motivoProventosDefasados(
+        {
+          classe: 'fii',
+          proventos: hglg,
+          verificadoEm: '2026-09-28',
+          ultimaDataComDaClasse: '2026-09-26',
+          hoje: '2026-09-29',
+        },
+        P,
+      ),
+    ).toBe('pagador_recorrente_parado');
+  });
+
+  it('BBSE3: semestral com a última data-com em 11/02/2026 (231 dias) ⇒ defasado; anual não', () => {
+    const base = {
+      verificadoEm: '2026-09-28',
+      ultimaDataComDaClasse: '2026-09-26',
+      hoje: '2026-09-29',
+    };
+    const semestral = [pr('2025-08-12', 'DIVIDENDO'), pr('2026-02-11', 'DIVIDENDO')];
+    expect(motivoProventosDefasados({ ...base, classe: 'acao', proventos: semestral }, P)).toBe(
+      'pagador_recorrente_parado',
+    );
+    const anual = [pr('2025-02-11', 'DIVIDENDO'), pr('2026-02-11', 'DIVIDENDO')];
+    expect(motivoProventosDefasados({ ...base, classe: 'acao', proventos: anual }, P)).toBeNull();
+  });
+
+  it('base fresca e pagador em dia ⇒ null; ultimaDataCom ignora data futura e inválidos', () => {
+    const emDia = [...hglg, pr('2026-06-30'), pr('2026-07-31'), pr('2026-08-31')];
+    expect(
+      motivoProventosDefasados(
+        {
+          classe: 'fii',
+          proventos: emDia,
+          verificadoEm: '2026-09-28',
+          ultimaDataComDaClasse: '2026-09-26',
+          hoje: '2026-09-29',
+        },
+        P,
+      ),
+    ).toBeNull();
+    expect(
+      ultimaDataCom(
+        [pr('2026-08-31'), pr('2026-10-30'), { status: 'descartado', dataComReal: '2026-09-15' }],
+        '2026-09-29',
+      ),
+    ).toBe('2026-08-31');
   });
 });

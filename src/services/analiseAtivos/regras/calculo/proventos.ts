@@ -291,6 +291,69 @@ export function rendimento12m(
   return ok(soma);
 }
 
+export type MotivoDefasagemProventos =
+  | 'base_parada'
+  | 'cobertura_antiga'
+  | 'pagador_recorrente_parado';
+
+/**
+ * Frescor da base de proventos (achado qa-dados 30/09): o market_data_coverage 'OK' não diz QUANDO a
+ * fonte foi consultada. Base de proventos parada ⇒ rendimento/DPA de 12 meses e meses com rendimento
+ * saem SUBESTIMADOS (HGLG11: R$ 8,80 × 13,41) com cara de dado calculado. Devolve o motivo (⇒ o
+ * chamador trata como ausente 'fonte_defasada') ou null:
+ *  - base_parada: a data-com mais recente da CLASSE inteira é mais velha que maxDiasBase;
+ *  - cobertura_antiga: lastCheckedAt do símbolo mais velho que maxDias[classe] (ou sem data);
+ *  - pagador_recorrente_parado: pagou em ≥ recorrenteMinMeses[classe] meses distintos nos 12 meses
+ *    anteriores ao último provento e o último tem data-com mais velha que maxDias[classe].
+ * Sem nenhum provento e sem cobertura ⇒ null (os três estados de valorProventosComCobertura valem).
+ */
+export function motivoProventosDefasados(
+  e: {
+    classe: 'acao' | 'fii';
+    proventos: Array<Pick<ProventoAuditado, 'status' | 'tipoNormalizado' | 'dataComReal'>>;
+    verificadoEm: string | null | undefined;
+    ultimaDataComDaClasse: string | null;
+    hoje: string;
+  },
+  p: ScoringParams,
+): MotivoDefasagemProventos | null {
+  const cfg = p.sanidade.proventos.frescor;
+  const maxDias = cfg.maxDias[e.classe];
+  if (e.ultimaDataComDaClasse && diasEntre(e.ultimaDataComDaClasse, e.hoje) > cfg.maxDiasBase) {
+    return 'base_parada';
+  }
+  if (e.verificadoEm !== undefined) {
+    if (e.verificadoEm === null || diasEntre(e.verificadoEm, e.hoje) > maxDias) {
+      return 'cobertura_antiga';
+    }
+  }
+  const tipos =
+    e.classe === 'acao' ? p.sanidade.proventos.tiposAcao : p.sanidade.proventos.tiposFii;
+  const datas = e.proventos
+    .filter((x) => x.status === 'valido' && x.dataComReal && tipos.includes(x.tipoNormalizado))
+    .map((x) => x.dataComReal!)
+    .filter((d) => d <= e.hoje)
+    .sort();
+  const ultima = datas[datas.length - 1];
+  if (!ultima || diasEntre(ultima, e.hoje) <= maxDias) return null;
+  const desde = menosMeses(ultima, 12);
+  const meses = new Set(datas.filter((d) => d > desde).map((d) => d.slice(0, 7)));
+  return meses.size >= cfg.recorrenteMinMeses[e.classe] ? 'pagador_recorrente_parado' : null;
+}
+
+/** Maior data-com válida (≤ hoje) entre os proventos dados (para ultimaDataComDaClasse). */
+export function ultimaDataCom(
+  proventos: Iterable<Pick<ProventoAuditado, 'status' | 'dataComReal'>>,
+  hoje: string,
+): string | null {
+  let max: string | null = null;
+  for (const x of proventos) {
+    if (x.status !== 'valido' || !x.dataComReal || x.dataComReal > hoje) continue;
+    if (max === null || x.dataComReal > max) max = x.dataComReal;
+  }
+  return max;
+}
+
 /**
  * Zero × ausente (regra 1): sem nenhum provento na base, só é zero de verdade se o market_data_coverage
  * diz que a fonte foi consultada (EMPTY = sem provento; OK = consultado). FETCH_FAIL/GAP_QUEUED/sem

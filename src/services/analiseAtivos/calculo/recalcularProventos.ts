@@ -34,6 +34,8 @@ import type {
 export interface ResultadoProventos {
   porSimbolo: Map<string, ProventoAuditadoCompleto[]>;
   cobertura: Map<string, CoberturaProventos>;
+  /** lastCheckedAt por símbolo (frescor da base de proventos) */
+  verificadoEm: Map<string, string | null>;
   reescritos: string[];
   orfaos: string[];
   gravadas: number;
@@ -121,6 +123,7 @@ export async function recalcularProventos(
   return {
     porSimbolo,
     cobertura,
+    verificadoEm: cobertura.verificadoEm,
     reescritos: reescritos.sort(),
     orfaos,
     gravadas,

@@ -386,6 +386,12 @@ export const SCORING_PARAMS_V1: ScoringParams = {
       },
       tipoDesconhecido: 'OUTRO',
       somaDuplicadaTolPct: 1,
+      // base de proventos parada ⇒ DY/rendimento 12m e meses com rendimento AUSENTES (fonte_defasada)
+      frescor: {
+        maxDiasBase: 20,
+        maxDias: { acao: 200, fii: 45 },
+        recorrenteMinMeses: { acao: 2, fii: 6 },
+      },
     },
   },
   universo: {

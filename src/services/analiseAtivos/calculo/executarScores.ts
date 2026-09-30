@@ -111,7 +111,12 @@ export async function executarScores(
   };
   if (ctx.estourouPrazo()) return { parcial: true, detalhes };
 
-  const memoria = { eventos: ev.porSimbolo, proventos: pv.porSimbolo, cobertura: pv.cobertura };
+  const memoria = {
+    eventos: ev.porSimbolo,
+    proventos: pv.porSimbolo,
+    cobertura: pv.cobertura,
+    verificadoEm: pv.verificadoEm,
+  };
 
   // 3. derivados anuais
   let plAnual = new Map<
