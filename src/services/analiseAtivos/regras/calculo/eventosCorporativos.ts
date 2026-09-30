@@ -401,17 +401,28 @@ function verificarFii(
   }
 
   // fatorDesdobramento do Informe Mensal sem evento bruto no mês ⇒ evento confirmado (regra 22),
-  // desde que o PL fique estável (senão é incorporação/emissão: IRIM11 nov/25 PL ×18)
-  const plPorMes = new Map<string, number>();
-  for (const m of meses) if (m.pl != null && m.pl > 0) plPorMes.set(m.refMonth, m.pl);
+  // desde que o PL fique estável e positivo (senão é incorporação/emissão: IRIM11 nov/25 PL ×18;
+  // FIIC11 com PL negativo) e que não seja a VOLTA de um salto de cotas errado nos meses anteriores
+  // (ONDA11: cotas ÷101 em fev/26 e ×101 em mar/26; GSRF11 mai→ago/26)
+  const porMes = new Map(meses.map((m) => [m.refMonth, m]));
   for (const m of meses) {
     if (m.fatorDesdobramento === null || !(m.fatorDesdobramento > 1)) continue;
     if (mesesComEvento.has(m.refMonth) || mesesComEvento.has(mesAnterior(m.refMonth))) continue;
-    const plAtual = plPorMes.get(m.refMonth);
-    const plAnterior = plPorMes.get(mesAnterior(m.refMonth));
-    if (plAtual !== undefined && plAnterior !== undefined && !dentroTol(plAtual, plAnterior, tol)) {
-      continue;
+    const ant = porMes.get(mesAnterior(m.refMonth));
+    // pl === undefined: série sem PL (não confere); null/≤ 0 ⇒ não dá para confirmar
+    if (m.pl !== undefined || ant?.pl !== undefined) {
+      const plAtual = m.pl ?? null;
+      const plAnterior = ant?.pl ?? null;
+      if (plAtual === null || plAnterior === null || !dentroTol(plAtual, plAnterior, tol)) continue;
     }
+    let voltaDeSalto = false;
+    let r = m.refMonth;
+    for (let k = 0; k < 6 && !voltaDeSalto; k++) {
+      r = mesAnterior(r);
+      const f = porMes.get(r)?.fatorDesdobramento ?? null;
+      if (f !== null && f < 1 && dentroTol(f * m.fatorDesdobramento, 1, tol)) voltaDeSalto = true;
+    }
+    if (voltaDeSalto) continue;
     out.push({
       symbol,
       dataEvento: m.refMonth,

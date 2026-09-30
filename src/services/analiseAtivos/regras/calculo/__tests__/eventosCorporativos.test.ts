@@ -253,6 +253,45 @@ describe('FII: fatorDesdobramento gravado sem PL estável não vira evento (acha
     expect(evs).toEqual([]);
   });
 
+  it('ONDA11 fev→mar/26: cotas ÷101 e depois ×101 (informe com cotas erradas) ⇒ nenhum evento', () => {
+    const evs = verificarEventosCorporativos(
+      [],
+      [],
+      P,
+      [
+        { refMonth: '2026-01-01', cotas: 8_358_357, fatorDesdobramento: null, pl: 100_838_108.98 },
+        {
+          refMonth: '2026-02-01',
+          cotas: 82_644,
+          fatorDesdobramento: 0.009900990099009901,
+          pl: 100_870_762.38,
+        },
+        { refMonth: '2026-03-01', cotas: 8_358_357, fatorDesdobramento: 101, pl: 95_319_243.03 },
+      ],
+      'ONDA11',
+    );
+    expect(evs).toEqual([]);
+  });
+
+  it('FIIC11 jan/26: PL negativo ⇒ fator ×87 mi não vira evento', () => {
+    const evs = verificarEventosCorporativos(
+      [],
+      [],
+      P,
+      [
+        { refMonth: '2025-12-01', cotas: 5_738, fatorDesdobramento: null, pl: -4_029.68 },
+        {
+          refMonth: '2026-01-01',
+          cotas: 500_000_005_738,
+          fatorDesdobramento: 87_138_377,
+          pl: -16_344.43,
+        },
+      ],
+      'FIIC11',
+    );
+    expect(evs).toEqual([]);
+  });
+
   it('HGLG11 abr/2018 (PL estável) continua confirmado cvm_cotas', () => {
     const evs = verificarEventosCorporativos(
       [],
