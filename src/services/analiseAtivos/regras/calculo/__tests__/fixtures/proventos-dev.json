@@ -1,0 +1,896 @@
+{
+  "origem": "asset_dividend_history do banco DEV (Neon), lido em 30/09/2026: PETR4 2024–mai/25, MGLU3 2020–mai/21, XPML11/VISC11 2024+, TGAR11 YAHOO 2025+",
+  "linhas": [
+    {
+      "id": "1b9ed157-7008-4010-a5ce-b486be391a49",
+      "symbol": "MGLU3",
+      "date": "2020-08-19",
+      "dataCom": "2020-07-31",
+      "tipo": "DIVIDENDO",
+      "valorUnitario": 0.0941659675,
+      "source": "BRAPI"
+    },
+    {
+      "id": "83a63f4a-58e2-496f-b35a-ffc7d8b6e93c",
+      "symbol": "MGLU3",
+      "date": "2020-08-19",
+      "dataCom": "2020-01-02",
+      "tipo": "JCP",
+      "valorUnitario": 0.1093957635,
+      "source": "BRAPI"
+    },
+    {
+      "id": "d17aacb8-7e26-4c51-8d75-f270bbea3dd6",
+      "symbol": "MGLU3",
+      "date": "2021-05-05",
+      "dataCom": "2020-12-30",
+      "tipo": "JCP",
+      "valorUnitario": 0.0263019985,
+      "source": "BRAPI"
+    },
+    {
+      "id": "a727391e-5bb8-43c8-841d-5dfae7243d7c",
+      "symbol": "PETR4",
+      "date": "2024-02-20",
+      "dataCom": "2023-11-21",
+      "tipo": "DIVIDENDO",
+      "valorUnitario": 0.2432872,
+      "source": "BRAPI"
+    },
+    {
+      "id": "c30ff35c-509c-4dc8-b459-144b20d124b4",
+      "symbol": "PETR4",
+      "date": "2024-02-20",
+      "dataCom": "2023-11-21",
+      "tipo": "JCP",
+      "valorUnitario": 0.4293868,
+      "source": "BRAPI"
+    },
+    {
+      "id": "a3eca17d-c2f5-4483-b4b9-96d0d9973089",
+      "symbol": "PETR4",
+      "date": "2024-03-20",
+      "dataCom": "2023-11-21",
+      "tipo": "DIVIDENDO",
+      "valorUnitario": 0.6726735,
+      "source": "BRAPI"
+    },
+    {
+      "id": "b156a6fa-69c2-4695-b4eb-194ce5af5d5a",
+      "symbol": "PETR4",
+      "date": "2024-05-20",
+      "dataCom": "2024-05-02",
+      "tipo": "RENDIMENTO",
+      "valorUnitario": 0.05691824,
+      "source": "BRAPI"
+    },
+    {
+      "id": "60939f0f-7636-4a77-82ff-de9f163175d7",
+      "symbol": "PETR4",
+      "date": "2024-05-20",
+      "dataCom": "2024-05-02",
+      "tipo": "DIVIDENDO",
+      "valorUnitario": 1.39978625,
+      "source": "BRAPI"
+    },
+    {
+      "id": "16cdd7de-6b61-4572-b917-eb1b95a8f74c",
+      "symbol": "PETR4",
+      "date": "2024-06-20",
+      "dataCom": "2024-05-02",
+      "tipo": "RENDIMENTO",
+      "valorUnitario": 0.06955519,
+      "source": "BRAPI"
+    },
+    {
+      "id": "d94158d6-698e-4a5a-af9a-f4b391cd17b1",
+      "symbol": "PETR4",
+      "date": "2024-08-20",
+      "dataCom": "2024-06-11",
+      "tipo": "JCP",
+      "valorUnitario": 0.5216211,
+      "source": "BRAPI"
+    },
+    {
+      "id": "0eaa0812-b5c3-4729-b31e-098ccb96dcca",
+      "symbol": "PETR4",
+      "date": "2024-09-20",
+      "dataCom": "2024-06-11",
+      "tipo": "DIVIDENDO",
+      "valorUnitario": 0.44806668,
+      "source": "BRAPI"
+    },
+    {
+      "id": "a9f84634-5924-483d-8b68-2e2e695f1ef2",
+      "symbol": "PETR4",
+      "date": "2024-09-20",
+      "dataCom": "2024-06-11",
+      "tipo": "JCP",
+      "valorUnitario": 0.07355446,
+      "source": "BRAPI"
+    },
+    {
+      "id": "eca607d1-3af8-4882-9911-a6d6e8ba2bcf",
+      "symbol": "PETR4",
+      "date": "2024-11-21",
+      "dataCom": "2024-08-21",
+      "tipo": "DIVIDENDO",
+      "valorUnitario": 0.11384838,
+      "source": "BRAPI"
+    },
+    {
+      "id": "5748fff4-03b6-4aaf-9990-e0bef8b166bc",
+      "symbol": "PETR4",
+      "date": "2024-11-21",
+      "dataCom": "2024-08-21",
+      "tipo": "JCP",
+      "valorUnitario": 0.4127517,
+      "source": "BRAPI"
+    },
+    {
+      "id": "9776708d-05de-4ffc-bdd0-23c061baf18f",
+      "symbol": "PETR4",
+      "date": "2024-12-20",
+      "dataCom": "2024-08-21",
+      "tipo": "DIVIDENDO",
+      "valorUnitario": 0.52660006,
+      "source": "BRAPI"
+    },
+    {
+      "id": "7dc554a5-2fee-4c2e-a52e-7e01345288da",
+      "symbol": "PETR4",
+      "date": "2024-12-23",
+      "dataCom": "2024-12-11",
+      "tipo": "DIVIDENDO",
+      "valorUnitario": 1.5517429,
+      "source": "BRAPI"
+    },
+    {
+      "id": "f747796c-d2e2-4a1a-b216-7c92f0bfa87a",
+      "symbol": "PETR4",
+      "date": "2025-02-20",
+      "dataCom": "2024-12-23",
+      "tipo": "JCP",
+      "valorUnitario": 0.6641033,
+      "source": "BRAPI"
+    },
+    {
+      "id": "f55cc22d-843d-40af-9d87-d5edd0970063",
+      "symbol": "PETR4",
+      "date": "2025-03-20",
+      "dataCom": "2024-12-23",
+      "tipo": "DIVIDENDO",
+      "valorUnitario": 0.6535651,
+      "source": "BRAPI"
+    },
+    {
+      "id": "9c4bf0ff-8304-45a2-b57a-498c31708ab3",
+      "symbol": "PETR4",
+      "date": "2025-03-20",
+      "dataCom": "2024-12-23",
+      "tipo": "JCP",
+      "valorUnitario": 0.01053822,
+      "source": "BRAPI"
+    },
+    {
+      "id": "e1d36bdc-601d-4c02-850c-732c098e2a62",
+      "symbol": "PETR4",
+      "date": "2025-04-16",
+      "dataCom": "2025-04-16",
+      "tipo": "RENDIMENTO",
+      "valorUnitario": 0.01706013,
+      "source": "BRAPI"
+    },
+    {
+      "id": "d8245d1f-62bd-472e-9451-7c77103b02d3",
+      "symbol": "PETR4",
+      "date": "2025-05-20",
+      "dataCom": "2025-04-16",
+      "tipo": "RENDIMENTO",
+      "valorUnitario": 0.02152467,
+      "source": "BRAPI"
+    },
+    {
+      "id": "645f8612-bcd9-4334-a454-6874f011c53c",
+      "symbol": "PETR4",
+      "date": "2025-05-20",
+      "dataCom": "2025-04-16",
+      "tipo": "DIVIDENDO",
+      "valorUnitario": 0.3547726,
+      "source": "BRAPI"
+    },
+    {
+      "id": "ac3e58fd-9a26-4859-8f37-f65308833db5",
+      "symbol": "VISC11",
+      "date": "2024-01-12",
+      "dataCom": "2023-12-28",
+      "tipo": "RENDIMENTO",
+      "valorUnitario": 1,
+      "source": "BRAPI"
+    },
+    {
+      "id": "4a717fd4-2192-4bc3-9cbe-992840650bc4",
+      "symbol": "VISC11",
+      "date": "2024-02-16",
+      "dataCom": "2024-01-31",
+      "tipo": "RENDIMENTO",
+      "valorUnitario": 1,
+      "source": "BRAPI"
+    },
+    {
+      "id": "ea331582-2c19-4910-b5b7-f0ce7c0a7528",
+      "symbol": "VISC11",
+      "date": "2024-03-14",
+      "dataCom": "2024-02-29",
+      "tipo": "RENDIMENTO",
+      "valorUnitario": 1,
+      "source": "BRAPI"
+    },
+    {
+      "id": "c9972ad9-eba6-4d0c-81fa-cb7faacba7b7",
+      "symbol": "VISC11",
+      "date": "2024-04-12",
+      "dataCom": "2024-03-28",
+      "tipo": "RENDIMENTO",
+      "valorUnitario": 1,
+      "source": "BRAPI"
+    },
+    {
+      "id": "3aed8e99-cd48-4346-852e-678b78315cf2",
+      "symbol": "VISC11",
+      "date": "2024-05-15",
+      "dataCom": "2024-04-30",
+      "tipo": "RENDIMENTO",
+      "valorUnitario": 1,
+      "source": "BRAPI"
+    },
+    {
+      "id": "5eea7013-6158-4d18-b4fc-95bbb288759e",
+      "symbol": "VISC11",
+      "date": "2024-06-14",
+      "dataCom": "2024-05-31",
+      "tipo": "RENDIMENTO",
+      "valorUnitario": 1,
+      "source": "BRAPI"
+    },
+    {
+      "id": "90de427a-74c4-4265-9fc8-fdf46009010a",
+      "symbol": "VISC11",
+      "date": "2024-07-12",
+      "dataCom": "2024-06-28",
+      "tipo": "RENDIMENTO",
+      "valorUnitario": 0.85,
+      "source": "BRAPI"
+    },
+    {
+      "id": "e8a214cc-1173-4efd-8537-3a2688a46648",
+      "symbol": "VISC11",
+      "date": "2024-08-14",
+      "dataCom": "2024-07-31",
+      "tipo": "RENDIMENTO",
+      "valorUnitario": 0.85,
+      "source": "BRAPI"
+    },
+    {
+      "id": "066bbdd8-90ec-4edf-a2d5-c87380fa76d0",
+      "symbol": "VISC11",
+      "date": "2024-09-13",
+      "dataCom": "2024-08-30",
+      "tipo": "RENDIMENTO",
+      "valorUnitario": 0.83,
+      "source": "BRAPI"
+    },
+    {
+      "id": "3c5c737d-a854-4fb9-afbd-a722e5c60db1",
+      "symbol": "VISC11",
+      "date": "2024-10-14",
+      "dataCom": "2024-09-30",
+      "tipo": "RENDIMENTO",
+      "valorUnitario": 0.8,
+      "source": "BRAPI"
+    },
+    {
+      "id": "076bb09d-1cfb-4971-a61a-1fa7dd6a9e5d",
+      "symbol": "VISC11",
+      "date": "2024-11-14",
+      "dataCom": "2024-10-31",
+      "tipo": "RENDIMENTO",
+      "valorUnitario": 0.8,
+      "source": "BRAPI"
+    },
+    {
+      "id": "30b5e9fa-3965-4562-83c3-fae8791c65bb",
+      "symbol": "VISC11",
+      "date": "2024-12-13",
+      "dataCom": "2024-11-29",
+      "tipo": "RENDIMENTO",
+      "valorUnitario": 0.8,
+      "source": "BRAPI"
+    },
+    {
+      "id": "ff56cdbc-51f0-4ac8-b1d5-5599c5e11396",
+      "symbol": "VISC11",
+      "date": "2025-01-15",
+      "dataCom": "2024-12-30",
+      "tipo": "RENDIMENTO",
+      "valorUnitario": 0.8,
+      "source": "BRAPI"
+    },
+    {
+      "id": "5dfdfbac-0ed8-4366-a8d4-14fe0bb97217",
+      "symbol": "VISC11",
+      "date": "2025-02-14",
+      "dataCom": "2025-01-31",
+      "tipo": "RENDIMENTO",
+      "valorUnitario": 0.8,
+      "source": "BRAPI"
+    },
+    {
+      "id": "e914c801-6c78-415f-a30a-fc6fd6132dcd",
+      "symbol": "VISC11",
+      "date": "2025-03-18",
+      "dataCom": "2025-02-28",
+      "tipo": "RENDIMENTO",
+      "valorUnitario": 0.8,
+      "source": "BRAPI"
+    },
+    {
+      "id": "422fd7c3-0a70-4cbd-a571-56d98bfc5f1c",
+      "symbol": "VISC11",
+      "date": "2025-04-14",
+      "dataCom": "2025-03-31",
+      "tipo": "RENDIMENTO",
+      "valorUnitario": 0.8,
+      "source": "BRAPI"
+    },
+    {
+      "id": "cc0047ba-7da2-420b-95d7-240c66583108",
+      "symbol": "VISC11",
+      "date": "2025-05-15",
+      "dataCom": "2025-04-30",
+      "tipo": "RENDIMENTO",
+      "valorUnitario": 0.8,
+      "source": "BRAPI"
+    },
+    {
+      "id": "55a6b6af-b4ab-4213-baf1-8a1d6eeb15f2",
+      "symbol": "VISC11",
+      "date": "2025-06-13",
+      "dataCom": "2025-05-30",
+      "tipo": "RENDIMENTO",
+      "valorUnitario": 0.8,
+      "source": "BRAPI"
+    },
+    {
+      "id": "427e2ef4-8f9c-4be3-bbac-7415fe90037c",
+      "symbol": "VISC11",
+      "date": "2025-07-14",
+      "dataCom": "2025-06-30",
+      "tipo": "RENDIMENTO",
+      "valorUnitario": 0.81,
+      "source": "BRAPI"
+    },
+    {
+      "id": "535742b9-c947-417d-99d1-217b8ec529b4",
+      "symbol": "VISC11",
+      "date": "2025-08-14",
+      "dataCom": "2025-07-31",
+      "tipo": "RENDIMENTO",
+      "valorUnitario": 0.81,
+      "source": "BRAPI"
+    },
+    {
+      "id": "b0fef2e4-aa1e-451a-bccb-deff7508bf3b",
+      "symbol": "VISC11",
+      "date": "2025-09-12",
+      "dataCom": "2025-08-29",
+      "tipo": "RENDIMENTO",
+      "valorUnitario": 0.81,
+      "source": "BRAPI"
+    },
+    {
+      "id": "a8a3b5ca-e713-48c6-afdd-2a80277a1728",
+      "symbol": "VISC11",
+      "date": "2025-10-14",
+      "dataCom": "2025-09-30",
+      "tipo": "RENDIMENTO",
+      "valorUnitario": 0.81,
+      "source": "BRAPI"
+    },
+    {
+      "id": "75625355-c527-4e17-ab84-b5467fd49e45",
+      "symbol": "VISC11",
+      "date": "2025-11-14",
+      "dataCom": "2025-10-31",
+      "tipo": "RENDIMENTO",
+      "valorUnitario": 0.81,
+      "source": "BRAPI"
+    },
+    {
+      "id": "c589283a-bfd5-4dab-a241-b074051fbaf0",
+      "symbol": "VISC11",
+      "date": "2025-12-12",
+      "dataCom": "2025-11-28",
+      "tipo": "RENDIMENTO",
+      "valorUnitario": 0.81,
+      "source": "BRAPI"
+    },
+    {
+      "id": "7d101196-dbbb-4363-8214-e3c5db79ccb9",
+      "symbol": "VISC11",
+      "date": "2026-01-15",
+      "dataCom": "2025-12-30",
+      "tipo": "RENDIMENTO",
+      "valorUnitario": 0.81,
+      "source": "BRAPI"
+    },
+    {
+      "id": "241f53f1-dbe5-4e71-87b8-33d9a7071efe",
+      "symbol": "VISC11",
+      "date": "2026-02-13",
+      "dataCom": "2026-01-30",
+      "tipo": "RENDIMENTO",
+      "valorUnitario": 0.84,
+      "source": "BRAPI"
+    },
+    {
+      "id": "e8e5ff66-4576-46a7-8e64-f680abb20229",
+      "symbol": "VISC11",
+      "date": "2026-03-13",
+      "dataCom": "2026-02-27",
+      "tipo": "RENDIMENTO",
+      "valorUnitario": 0.84,
+      "source": "BRAPI"
+    },
+    {
+      "id": "fdbf982d-fc8a-4bb4-a907-ce907dbb0797",
+      "symbol": "VISC11",
+      "date": "2026-04-15",
+      "dataCom": "2026-03-31",
+      "tipo": "RENDIMENTO",
+      "valorUnitario": 0.84,
+      "source": "BRAPI"
+    },
+    {
+      "id": "f6297349-0593-4129-b732-edd68b637328",
+      "symbol": "VISC11",
+      "date": "2026-05-15",
+      "dataCom": "2026-04-30",
+      "tipo": "RENDIMENTO",
+      "valorUnitario": 0.84,
+      "source": "BRAPI"
+    },
+    {
+      "id": "de0c051f-2221-47bc-aa9e-08a7d3300687",
+      "symbol": "VISC11",
+      "date": "2026-06-15",
+      "dataCom": "2026-05-29",
+      "tipo": "RENDIMENTO",
+      "valorUnitario": 0.84,
+      "source": "BRAPI"
+    },
+    {
+      "id": "32bf28ee-0d62-423c-ba9c-0319a93d0c21",
+      "symbol": "XPML11",
+      "date": "2024-01-25",
+      "dataCom": "2024-01-18",
+      "tipo": "RENDIMENTO",
+      "valorUnitario": 0.92,
+      "source": "BRAPI"
+    },
+    {
+      "id": "6d3739a9-410b-4376-bb0b-dac0d0643bbe",
+      "symbol": "XPML11",
+      "date": "2024-02-23",
+      "dataCom": "2024-02-16",
+      "tipo": "RENDIMENTO",
+      "valorUnitario": 0.9,
+      "source": "BRAPI"
+    },
+    {
+      "id": "5e0040f8-218e-4391-a4d8-fdd048742989",
+      "symbol": "XPML11",
+      "date": "2024-03-25",
+      "dataCom": "2024-03-18",
+      "tipo": "RENDIMENTO",
+      "valorUnitario": 0.9,
+      "source": "BRAPI"
+    },
+    {
+      "id": "6075da51-1370-465b-a1ac-cee16f8dad7e",
+      "symbol": "XPML11",
+      "date": "2024-04-25",
+      "dataCom": "2024-04-18",
+      "tipo": "RENDIMENTO",
+      "valorUnitario": 0.91,
+      "source": "BRAPI"
+    },
+    {
+      "id": "4ab2dde0-d65c-4060-adb0-5befaf7d93cd",
+      "symbol": "XPML11",
+      "date": "2024-05-24",
+      "dataCom": "2024-05-17",
+      "tipo": "RENDIMENTO",
+      "valorUnitario": 0.92,
+      "source": "BRAPI"
+    },
+    {
+      "id": "d57e4f3b-2468-4b7c-9f14-c6876d37cb06",
+      "symbol": "XPML11",
+      "date": "2024-06-25",
+      "dataCom": "2024-06-18",
+      "tipo": "RENDIMENTO",
+      "valorUnitario": 0.92,
+      "source": "BRAPI"
+    },
+    {
+      "id": "9b01dc53-ec10-41fe-a157-ccf5eaff448d",
+      "symbol": "XPML11",
+      "date": "2024-07-25",
+      "dataCom": "2024-07-18",
+      "tipo": "RENDIMENTO",
+      "valorUnitario": 0.92,
+      "source": "BRAPI"
+    },
+    {
+      "id": "ccdb6f5b-2b45-4ccb-a5ff-9afd2b2d6827",
+      "symbol": "XPML11",
+      "date": "2024-08-23",
+      "dataCom": "2024-08-16",
+      "tipo": "RENDIMENTO",
+      "valorUnitario": 0.92,
+      "source": "BRAPI"
+    },
+    {
+      "id": "c8b3c8a5-87d0-4c1d-a7d6-0b913910c5b8",
+      "symbol": "XPML11",
+      "date": "2024-09-25",
+      "dataCom": "2024-09-18",
+      "tipo": "RENDIMENTO",
+      "valorUnitario": 0.92,
+      "source": "BRAPI"
+    },
+    {
+      "id": "8aa33c7b-6f44-4e13-95b7-c09d7191ca55",
+      "symbol": "XPML11",
+      "date": "2024-10-25",
+      "dataCom": "2024-10-18",
+      "tipo": "RENDIMENTO",
+      "valorUnitario": 0.92,
+      "source": "BRAPI"
+    },
+    {
+      "id": "be9bdbd7-21b5-4682-92b7-e6a90b206675",
+      "symbol": "XPML11",
+      "date": "2024-11-25",
+      "dataCom": "2024-11-14",
+      "tipo": "RENDIMENTO",
+      "valorUnitario": 0.92,
+      "source": "BRAPI"
+    },
+    {
+      "id": "f730e4d0-7955-49a7-b47f-16dadf36dd17",
+      "symbol": "XPML11",
+      "date": "2024-12-23",
+      "dataCom": "2024-12-16",
+      "tipo": "RENDIMENTO",
+      "valorUnitario": 0.92,
+      "source": "BRAPI"
+    },
+    {
+      "id": "a4965474-a21e-49eb-99dc-959c8f1fc4a2",
+      "symbol": "XPML11",
+      "date": "2025-01-24",
+      "dataCom": "2025-01-17",
+      "tipo": "RENDIMENTO",
+      "valorUnitario": 0.92,
+      "source": "BRAPI"
+    },
+    {
+      "id": "64206b46-ace8-4a24-a960-2df5fd6c0380",
+      "symbol": "XPML11",
+      "date": "2025-02-25",
+      "dataCom": "2025-02-18",
+      "tipo": "RENDIMENTO",
+      "valorUnitario": 0.92,
+      "source": "BRAPI"
+    },
+    {
+      "id": "057de738-8830-4b31-af55-ca343063eee1",
+      "symbol": "XPML11",
+      "date": "2025-03-25",
+      "dataCom": "2025-03-18",
+      "tipo": "RENDIMENTO",
+      "valorUnitario": 0.92,
+      "source": "BRAPI"
+    },
+    {
+      "id": "b2aa913d-da20-4873-a4d7-9184954c9698",
+      "symbol": "XPML11",
+      "date": "2025-04-25",
+      "dataCom": "2025-04-16",
+      "tipo": "RENDIMENTO",
+      "valorUnitario": 0.92,
+      "source": "BRAPI"
+    },
+    {
+      "id": "fb124c82-fbf7-444d-a57b-cb82565f754a",
+      "symbol": "XPML11",
+      "date": "2025-05-23",
+      "dataCom": "2025-05-19",
+      "tipo": "RENDIMENTO",
+      "valorUnitario": 0.92,
+      "source": "BRAPI"
+    },
+    {
+      "id": "b83fd8f5-3a31-42c2-86d7-eec9879412d7",
+      "symbol": "XPML11",
+      "date": "2025-06-25",
+      "dataCom": "2025-06-17",
+      "tipo": "RENDIMENTO",
+      "valorUnitario": 0.92,
+      "source": "BRAPI"
+    },
+    {
+      "id": "2c99b094-f1f5-4ed0-8b97-a060dfeb898d",
+      "symbol": "XPML11",
+      "date": "2025-07-25",
+      "dataCom": "2025-07-18",
+      "tipo": "RENDIMENTO",
+      "valorUnitario": 0.92,
+      "source": "BRAPI"
+    },
+    {
+      "id": "cf2d5b33-d2c2-499c-8f09-03e6b8d912a9",
+      "symbol": "XPML11",
+      "date": "2025-08-25",
+      "dataCom": "2025-08-18",
+      "tipo": "RENDIMENTO",
+      "valorUnitario": 0.92,
+      "source": "BRAPI"
+    },
+    {
+      "id": "14782728-6b5c-4ade-88fa-ce57396af31a",
+      "symbol": "XPML11",
+      "date": "2025-09-25",
+      "dataCom": "2025-09-18",
+      "tipo": "RENDIMENTO",
+      "valorUnitario": 0.92,
+      "source": "BRAPI"
+    },
+    {
+      "id": "a6a203b6-350a-486f-b670-5ae7ad08c293",
+      "symbol": "XPML11",
+      "date": "2025-10-24",
+      "dataCom": "2025-10-17",
+      "tipo": "RENDIMENTO",
+      "valorUnitario": 0.92,
+      "source": "BRAPI"
+    },
+    {
+      "id": "81777827-2457-4c05-b20a-28c7b314789d",
+      "symbol": "XPML11",
+      "date": "2025-11-25",
+      "dataCom": "2025-11-17",
+      "tipo": "RENDIMENTO",
+      "valorUnitario": 0.92,
+      "source": "BRAPI"
+    },
+    {
+      "id": "c539724d-c76b-4ef0-926a-c2ee70e38a51",
+      "symbol": "XPML11",
+      "date": "2025-12-23",
+      "dataCom": "2025-12-16",
+      "tipo": "RENDIMENTO",
+      "valorUnitario": 0.92,
+      "source": "BRAPI"
+    },
+    {
+      "id": "d14c1e8a-cd08-4c1b-bd63-d335d2c66c5e",
+      "symbol": "XPML11",
+      "date": "2026-01-23",
+      "dataCom": "2026-01-16",
+      "tipo": "RENDIMENTO",
+      "valorUnitario": 0.92,
+      "source": "BRAPI"
+    },
+    {
+      "id": "5eaa3463-4ba6-48ea-b789-ab5134640437",
+      "symbol": "XPML11",
+      "date": "2026-02-25",
+      "dataCom": "2026-02-18",
+      "tipo": "RENDIMENTO",
+      "valorUnitario": 0.92,
+      "source": "BRAPI"
+    },
+    {
+      "id": "bd1ca8dd-c702-4aed-b4f0-b9f155a17607",
+      "symbol": "XPML11",
+      "date": "2026-03-25",
+      "dataCom": "2026-03-18",
+      "tipo": "RENDIMENTO",
+      "valorUnitario": 0.92,
+      "source": "BRAPI"
+    },
+    {
+      "id": "09e60ea0-6b56-4a22-9039-ea142112cfd7",
+      "symbol": "XPML11",
+      "date": "2026-04-24",
+      "dataCom": "2026-04-16",
+      "tipo": "RENDIMENTO",
+      "valorUnitario": 0.92,
+      "source": "BRAPI"
+    },
+    {
+      "id": "8f731ad4-d421-4b35-beaa-c344fdc3e264",
+      "symbol": "XPML11",
+      "date": "2026-05-25",
+      "dataCom": "2026-05-18",
+      "tipo": "RENDIMENTO",
+      "valorUnitario": 0.92,
+      "source": "BRAPI"
+    },
+    {
+      "id": "61ab07f0-f98d-497f-86cf-4edb3376b39b",
+      "symbol": "TGAR11",
+      "date": "2025-01-02",
+      "dataCom": null,
+      "tipo": "Dividendo",
+      "valorUnitario": 1.1,
+      "source": "YAHOO"
+    },
+    {
+      "id": "0d04ac0a-df25-4302-88a5-84a612e26550",
+      "symbol": "TGAR11",
+      "date": "2025-02-03",
+      "dataCom": null,
+      "tipo": "Dividendo",
+      "valorUnitario": 1,
+      "source": "YAHOO"
+    },
+    {
+      "id": "87904f93-098b-4c5e-8311-397cc3dbe99b",
+      "symbol": "TGAR11",
+      "date": "2025-03-05",
+      "dataCom": null,
+      "tipo": "Dividendo",
+      "valorUnitario": 1,
+      "source": "YAHOO"
+    },
+    {
+      "id": "13260727-dac8-4e8b-9061-3d58fdb8a0b7",
+      "symbol": "TGAR11",
+      "date": "2025-04-01",
+      "dataCom": null,
+      "tipo": "Dividendo",
+      "valorUnitario": 1,
+      "source": "YAHOO"
+    },
+    {
+      "id": "c0eadc8e-862a-492f-b96e-e3866ea91772",
+      "symbol": "TGAR11",
+      "date": "2025-05-02",
+      "dataCom": null,
+      "tipo": "Dividendo",
+      "valorUnitario": 1,
+      "source": "YAHOO"
+    },
+    {
+      "id": "9f576c9c-511b-4797-85fa-3cdc541635e7",
+      "symbol": "TGAR11",
+      "date": "2025-06-02",
+      "dataCom": null,
+      "tipo": "Dividendo",
+      "valorUnitario": 1,
+      "source": "YAHOO"
+    },
+    {
+      "id": "104f20bc-38c5-413a-b72c-3db85bfa5175",
+      "symbol": "TGAR11",
+      "date": "2025-07-01",
+      "dataCom": null,
+      "tipo": "Dividendo",
+      "valorUnitario": 1,
+      "source": "YAHOO"
+    },
+    {
+      "id": "d84a18e9-5678-4741-8a98-e80f8418e636",
+      "symbol": "TGAR11",
+      "date": "2025-08-01",
+      "dataCom": null,
+      "tipo": "Dividendo",
+      "valorUnitario": 1,
+      "source": "YAHOO"
+    },
+    {
+      "id": "3a2dde15-194e-402a-9aa2-803a1b993145",
+      "symbol": "TGAR11",
+      "date": "2025-09-01",
+      "dataCom": null,
+      "tipo": "Dividendo",
+      "valorUnitario": 1,
+      "source": "YAHOO"
+    },
+    {
+      "id": "f92dc426-b1a7-4830-b670-7b8afe196164",
+      "symbol": "TGAR11",
+      "date": "2025-10-01",
+      "dataCom": null,
+      "tipo": "Dividendo",
+      "valorUnitario": 1,
+      "source": "YAHOO"
+    },
+    {
+      "id": "246522ce-1f00-4003-83ec-dea2c3d7ce58",
+      "symbol": "TGAR11",
+      "date": "2025-11-03",
+      "dataCom": null,
+      "tipo": "Dividendo",
+      "valorUnitario": 1,
+      "source": "YAHOO"
+    },
+    {
+      "id": "e1b4ca00-07a5-4f72-9b70-7a14ca490449",
+      "symbol": "TGAR11",
+      "date": "2025-12-01",
+      "dataCom": null,
+      "tipo": "Dividendo",
+      "valorUnitario": 1,
+      "source": "YAHOO"
+    },
+    {
+      "id": "d7636527-0ca6-4777-9a83-9e2336a9455e",
+      "symbol": "TGAR11",
+      "date": "2026-01-02",
+      "dataCom": null,
+      "tipo": "Dividendo",
+      "valorUnitario": 1,
+      "source": "YAHOO"
+    },
+    {
+      "id": "6402ad1e-352c-46cc-9902-3ec45926f4ea",
+      "symbol": "TGAR11",
+      "date": "2026-02-02",
+      "dataCom": null,
+      "tipo": "Dividendo",
+      "valorUnitario": 0.71,
+      "source": "YAHOO"
+    },
+    {
+      "id": "f25b8d88-e92d-43a7-b7db-1dbec23df9ef",
+      "symbol": "TGAR11",
+      "date": "2026-03-02",
+      "dataCom": null,
+      "tipo": "Dividendo",
+      "valorUnitario": 0.72,
+      "source": "YAHOO"
+    },
+    {
+      "id": "dae76de8-fa54-4d54-b6d9-7dd7f68c64ec",
+      "symbol": "TGAR11",
+      "date": "2026-04-01",
+      "dataCom": null,
+      "tipo": "Dividendo",
+      "valorUnitario": 0.72,
+      "source": "YAHOO"
+    },
+    {
+      "id": "348b7161-6e26-4c85-bbf6-c8ca0a1ae3b2",
+      "symbol": "TGAR11",
+      "date": "2026-05-04",
+      "dataCom": null,
+      "tipo": "Dividendo",
+      "valorUnitario": 0.72,
+      "source": "YAHOO"
+    },
+    {
+      "id": "24cbab0a-0dda-4980-8757-64e424a28844",
+      "symbol": "TGAR11",
+      "date": "2026-06-01",
+      "dataCom": null,
+      "tipo": "Dividendo",
+      "valorUnitario": 0.72,
+      "source": "YAHOO"
+    }
+  ]
+}
