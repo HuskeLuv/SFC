@@ -273,6 +273,52 @@ describe('FII: fatorDesdobramento gravado sem PL estável não vira evento (acha
     expect(evs).toEqual([]);
   });
 
+  it('ida e volta invertida: salto ×100 por erro e grupamento ÷100 no mês seguinte ⇒ nenhum evento', () => {
+    const evs = verificarEventosCorporativos(
+      [],
+      [],
+      P,
+      [
+        { refMonth: '2026-01-01', cotas: 1_000_000, fatorDesdobramento: null, pl: 100_000_000 },
+        { refMonth: '2026-02-01', cotas: 100_000_000, fatorDesdobramento: 100, pl: 100_500_000 },
+        { refMonth: '2026-03-01', cotas: 1_000_000, fatorDesdobramento: 0.01, pl: 100_700_000 },
+      ],
+      'XPTO11',
+    );
+    expect(evs).toEqual([]);
+  });
+
+  it('salto ×10 cujas cotas voltam ao nível anterior meses depois ⇒ nenhum evento', () => {
+    const evs = verificarEventosCorporativos(
+      [],
+      [],
+      P,
+      [
+        { refMonth: '2026-01-01', cotas: 1_000_000, fatorDesdobramento: null, pl: 100_000_000 },
+        { refMonth: '2026-02-01', cotas: 10_000_000, fatorDesdobramento: 10, pl: 100_000_000 },
+        { refMonth: '2026-03-01', cotas: 10_000_000, fatorDesdobramento: null, pl: 100_000_000 },
+        { refMonth: '2026-04-01', cotas: 1_010_000, fatorDesdobramento: null, pl: 100_000_000 },
+      ],
+      'XPTO11',
+    );
+    expect(evs).toEqual([]);
+  });
+
+  it('desdobramento real seguido de meses estáveis continua confirmado', () => {
+    const evs = verificarEventosCorporativos(
+      [],
+      [],
+      P,
+      [
+        { refMonth: '2026-01-01', cotas: 1_000_000, fatorDesdobramento: null, pl: 100_000_000 },
+        { refMonth: '2026-02-01', cotas: 10_000_000, fatorDesdobramento: 10, pl: 100_000_000 },
+        { refMonth: '2026-03-01', cotas: 10_050_000, fatorDesdobramento: null, pl: 101_000_000 },
+      ],
+      'XPTO11',
+    );
+    expect(evs.map((e) => [e.fator, e.status])).toEqual([[10, 'confirmado']]);
+  });
+
   it('FIIC11 jan/26: PL negativo ⇒ fator ×87 mi não vira evento', () => {
     const evs = verificarEventosCorporativos(
       [],

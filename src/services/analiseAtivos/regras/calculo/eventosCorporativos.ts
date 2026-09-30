@@ -361,6 +361,44 @@ function mesSeguinte(refMonth: string): string {
   return m === 12 ? `${a + 1}-01-01` : `${a}-${String(m + 1).padStart(2, '0')}-01`;
 }
 
+/** Meses olhados para trás E para a frente atrás da outra metade de uma ida e volta de cotas. */
+const JANELA_IDA_E_VOLTA_MESES = 6;
+
+/**
+ * O salto de cotas do mês `m` (fatorDesdobramento > 1) é metade de uma ida e volta? Simétrico:
+ *  - para trás: um grupamento (fator < 1) que ele desfaz (ONDA11 fev→mar/26);
+ *  - para a frente: um grupamento que o desfaz, ou cotas que voltam ao nível de antes do salto
+ *    (informe com cotas ×N por erro, corrigido no(s) mês(es) seguinte(s)).
+ * Só olha os meses disponíveis dentro de JANELA_IDA_E_VOLTA_MESES.
+ */
+function saltoDeIdaEVolta(m: MesCotasFii, porMes: Map<string, MesCotasFii>, tol: number): boolean {
+  const fd = m.fatorDesdobramento;
+  if (fd === null || !(fd > 1)) return false;
+  const desfaz = (f: number | null | undefined) =>
+    f !== null && f !== undefined && f < 1 && dentroTol(f * fd, 1, tol);
+  let r = m.refMonth;
+  for (let k = 0; k < JANELA_IDA_E_VOLTA_MESES; k++) {
+    r = mesAnterior(r);
+    if (desfaz(porMes.get(r)?.fatorDesdobramento)) return true;
+  }
+  const cotasAntes = porMes.get(mesAnterior(m.refMonth))?.cotas ?? null;
+  r = m.refMonth;
+  for (let k = 0; k < JANELA_IDA_E_VOLTA_MESES; k++) {
+    r = mesSeguinte(r);
+    const seg = porMes.get(r);
+    if (!seg) continue;
+    if (desfaz(seg.fatorDesdobramento)) return true;
+    if (
+      cotasAntes !== null &&
+      cotasAntes > 0 &&
+      seg.cotas !== null &&
+      dentroTol(seg.cotas, cotasAntes, tol)
+    )
+      return true;
+  }
+  return false;
+}
+
 function verificarFii(
   eventos: EventoDedup[],
   meses: MesCotasFii[],
@@ -402,8 +440,9 @@ function verificarFii(
 
   // fatorDesdobramento do Informe Mensal sem evento bruto no mês ⇒ evento confirmado (regra 22),
   // desde que o PL fique estável e positivo (senão é incorporação/emissão: IRIM11 nov/25 PL ×18;
-  // FIIC11 com PL negativo) e que não seja a VOLTA de um salto de cotas errado nos meses anteriores
-  // (ONDA11: cotas ÷101 em fev/26 e ×101 em mar/26; GSRF11 mai→ago/26)
+  // FIIC11 com PL negativo) e que não seja metade de uma IDA E VOLTA de cotas erradas — nos dois
+  // sentidos (ONDA11: cotas ÷101 em fev/26 e ×101 em mar/26; GSRF11 mai→ago/26; e o inverso: salto
+  // ×N por erro no informe e correção como grupamento nos meses seguintes)
   const porMes = new Map(meses.map((m) => [m.refMonth, m]));
   for (const m of meses) {
     if (m.fatorDesdobramento === null || !(m.fatorDesdobramento > 1)) continue;
@@ -415,14 +454,7 @@ function verificarFii(
       const plAnterior = ant?.pl ?? null;
       if (plAtual === null || plAnterior === null || !dentroTol(plAtual, plAnterior, tol)) continue;
     }
-    let voltaDeSalto = false;
-    let r = m.refMonth;
-    for (let k = 0; k < 6 && !voltaDeSalto; k++) {
-      r = mesAnterior(r);
-      const f = porMes.get(r)?.fatorDesdobramento ?? null;
-      if (f !== null && f < 1 && dentroTol(f * m.fatorDesdobramento, 1, tol)) voltaDeSalto = true;
-    }
-    if (voltaDeSalto) continue;
+    if (saltoDeIdaEVolta(m, porMes, tol)) continue;
     out.push({
       symbol,
       dataEvento: m.refMonth,
