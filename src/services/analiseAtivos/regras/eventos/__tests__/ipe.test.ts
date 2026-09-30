@@ -21,9 +21,9 @@ const TEXTO = readFileSync(
 const LINHAS = TEXTO.split(/\r?\n/).filter((l) => l.length > 0);
 const CABECALHO = LINHAS[0];
 
-const BB = '00000000000191';
-const WEG = '84429695000111';
-const PETROBRAS = '33000167000101';
+const BB = '00.000.000/0001-91';
+const WEG = '84.429.695/0001-11';
+const PETROBRAS = '33.000.167/0001-01';
 
 async function* deArray(linhas: string[]): AsyncIterable<string> {
   for (const l of linhas) yield l;
@@ -95,7 +95,7 @@ describe('IPE — linha → assembleia', () => {
     expect(e.assunto!.startsWith('Autorizar a alienação')).toBe(true);
   });
 
-  it('normalizarCnpj: máscara removida; emissor estrangeiro (00.000.000/0000-00) ⇒ null', () => {
+  it('normalizarCnpj: máscara padronizada; emissor estrangeiro (00.000.000/0000-00) ⇒ null', () => {
     expect(normalizarCnpj('00.000.000/0001-91')).toBe(BB);
     expect(normalizarCnpj('00.000.000/0000-00')).toBeNull();
     expect(normalizarCnpj('123')).toBeNull();
@@ -164,7 +164,7 @@ describe('consolidarAssembleias', () => {
     expect(new Set(chaves).size).toBe(chaves.length);
     expect(eventos.map((e) => e.cnpj)).toEqual([...eventos.map((e) => e.cnpj)].sort());
     expect(eventos.map((e) => e.cnpj)).toEqual(
-      expect.arrayContaining([BB, WEG, PETROBRAS, '15073274000188']),
+      expect.arrayContaining([BB, WEG, PETROBRAS, '15.073.274/0001-88']),
     );
   });
 });

@@ -73,11 +73,15 @@ function dataValida(s: string): boolean {
   return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === s;
 }
 
-/** CNPJ com ou sem máscara → 14 dígitos; inválido ou só zeros (emissor estrangeiro) ⇒ null. */
+/**
+ * CNPJ com ou sem máscara → forma com máscara (00.000.000/0001-91), a mesma que as fatias A/B
+ * gravam em cvm_company_tickers/fii_ticker_map (texto dos arquivos da CVM); inválido ou só zeros
+ * (emissor estrangeiro) ⇒ null.
+ */
 export function normalizarCnpj(s: string): string | null {
   const d = s.replace(/\D/g, '');
   if (d.length !== 14 || /^0+$/.test(d) || d.slice(8, 12) === '0000') return null;
-  return d;
+  return `${d.slice(0, 2)}.${d.slice(2, 5)}.${d.slice(5, 8)}/${d.slice(8, 12)}-${d.slice(12)}`;
 }
 
 function somarAnos(data: string, anos: number): string {
