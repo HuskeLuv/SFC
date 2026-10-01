@@ -4,6 +4,7 @@ import prisma from '@/lib/prisma';
 import { getAssetPrices } from '@/services/pricing/assetPriceService';
 import { getCashBalances, getMonthlyFlows } from '@/services/cashflow/clientCashflowSummary';
 import { resolveProventoEvents } from '@/services/portfolio/resolveProventos';
+import { overrideEfetivo, type CategoriaMovivel } from '@/lib/carteiraMover';
 
 export interface ConsultantClientDescriptor {
   id: string;
@@ -720,6 +721,16 @@ export const getAportesResgatesByClient = async (
   return results;
 };
 
+/** Aba escolhida no "Mover na Carteira" → classe da distribuição consolidada. */
+const CLASSE_CONSOLIDADA_DA_CATEGORIA: Record<CategoriaMovivel, string> = {
+  acoes: 'Ações',
+  stocks: 'Stocks',
+  fiis: "FII's",
+  fimFia: 'FIM/FIA',
+  etfs: "ETF's",
+  reits: "REIT's",
+};
+
 export const getConsolidatedAssetDistribution = async (
   consultantId: string,
 ): Promise<AssetDistribution[]> => {
@@ -832,6 +843,11 @@ export const getConsolidatedAssetDistribution = async (
         default:
           classKey = 'Outros';
       }
+
+      // Item movido de aba pelo cliente/consultor: soma na classe escolhida.
+      // Override null, igual à base ou em item fora das abas movíveis → regra acima.
+      const movido = item.asset ? overrideEfetivo(item.asset, item.categoriaOverride) : null;
+      if (movido) classKey = CLASSE_CONSOLIDADA_DA_CATEGORIA[movido];
 
       const current = classMap.get(classKey) || 0;
       classMap.set(classKey, current + value);
