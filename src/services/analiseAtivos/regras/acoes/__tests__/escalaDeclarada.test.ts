@@ -18,19 +18,20 @@ describe('escala declarada errada', () => {
     const sl = sinalLpa(-27_838, -0.3503, 79_469_626, P);
     expect(sv).toBe(1000);
     expect(sl).toBe(1000);
-    expect(decidirEscala(sv, sl)).toEqual({ fator: 1000, flag: 'escala_corrigida' });
+    expect(decidirEscala(sv, sl, 'UNIDADE')).toEqual({ fator: 1000, flag: 'escala_corrigida' });
+    expect(decidirEscala(sv, null, 'UNIDADE')).toEqual({ fator: 1000, flag: 'escala_corrigida' });
   });
 
   it('mesma escala (crescimento real) ⇒ nada; LPA ≈ 1000 com vizinho OK é só o LPA (regra 11)', () => {
     expect(sinalVizinho({ ativoTotal: 1.5e9, pl: 6e8 }, { ativoTotal: 1e9, pl: 5e8 })).toBe(1);
-    expect(decidirEscala(1, 1000)).toEqual({ fator: 1, flag: null });
+    expect(decidirEscala(1, 1000, 'MIL')).toEqual({ fator: 1, flag: null });
   });
 
   it('LPA coerente vence o vizinho (o vizinho é que está errado); sinais opostos ⇒ ambígua', () => {
-    expect(decidirEscala(0.001, 1)).toEqual({ fator: 1, flag: null });
-    expect(decidirEscala(1000, 0.001)).toEqual({ fator: 1, flag: 'escala_ambigua' });
-    expect(decidirEscala(null, 1000)).toEqual({ fator: 1, flag: 'escala_ambigua' });
-    expect(decidirEscala(null, null)).toEqual({ fator: 1, flag: null });
+    expect(decidirEscala(1000, 1, 'UNIDADE')).toEqual({ fator: 1, flag: null });
+    expect(decidirEscala(1000, 0.001, 'UNIDADE')).toEqual({ fator: 1, flag: 'escala_ambigua' });
+    expect(decidirEscala(null, 1000, 'MIL')).toEqual({ fator: 1, flag: 'escala_ambigua' });
+    expect(decidirEscala(null, null, 'MIL')).toEqual({ fator: 1, flag: null });
   });
 
   it('declarado MIL com valores em unidades (1000× maior) ⇒ fator 0,001; PL contraditório ⇒ inconclusivo', () => {
@@ -70,5 +71,16 @@ describe('escala declarada errada', () => {
     expect(r.lpaOn).toBe(-0.3503);
     expect(r.flags).toEqual(['escala_corrigida']);
     expect(aplicarDecisaoEscala(f, { fator: 1, flag: null })).toBe(f);
+  });
+
+  it('VAMOS3 2019 (MIL, correto) contra o DFP 2018 declarado UNIDADE em milhares, sem ações conhecidas ⇒ não mexe', () => {
+    const sv = sinalVizinho(
+      { ativoTotal: 3_053_849_000, pl: 490_754_000 },
+      { ativoTotal: 2_023_432, pl: 581_483 },
+    );
+    expect(sv).toBe(0.001);
+    expect(decidirEscala(sv, null, 'MIL')).toEqual({ fator: 1, flag: null });
+    // MIL declarado nunca é "corrigido para cima"
+    expect(decidirEscala(1000, null, 'MIL')).toEqual({ fator: 1, flag: null });
   });
 });

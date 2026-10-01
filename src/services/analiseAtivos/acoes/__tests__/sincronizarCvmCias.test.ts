@@ -325,23 +325,33 @@ describe('sincronizarCvmCias — DFP/ITR', () => {
 });
 
 describe('sincronizarCvmCias — escala declarada errada (PDTC3 DFP 2024/2025)', () => {
-  it('balanço anterior 1000× maior e LPA sem como conferir ⇒ valores ×1000 com escala_corrigida', async () => {
-    // referência: WEGE3 DFP 2025 como publicado
+  const fyWege = (t: Record<string, Array<Record<string, unknown>>>) =>
+    t.assetFundamentalsPeriod.find(
+      (l) =>
+        l.emissorId === WEGE &&
+        l.tipoPeriodo === 'FY' &&
+        l.escopo === 'con' &&
+        dia(l.dtFim) === '2025-12-31',
+    )!;
+
+  it('UNIDADE declarada com valores em milhares e balanço anterior ~1000× maior ⇒ ×1000 com escala_corrigida', async () => {
+    // referência: WEGE3 DFP 2025 como publicado (MIL)
     const normal = criarPrismaFake();
     const zips = zipsPadrao();
     await rodar(normal.prisma, zips, { doc: 'fca', anos: [2026] });
     await rodar(normal.prisma, zips, { doc: 'dfp', anos: [2025] });
-    const fyWege = (t: typeof normal.tabelas) =>
-      t.assetFundamentalsPeriod.find(
-        (l) =>
-          l.emissorId === WEGE &&
-          l.tipoPeriodo === 'FY' &&
-          l.escopo === 'con' &&
-          dia(l.dtFim) === '2025-12-31',
-      )!;
     const ref = fyWege(normal.tabelas);
 
-    // mesmo DFP, mas o balanço de 2024 já gravado é 1000× o de 2025 (o 2025 "veio em milhares")
+    // o mesmo DFP com a WEG declarando UNIDADE (valores continuam em milhares); 2024 já gravado
+    const unidade = zipDfp2025(
+      dir,
+      (_n, texto) =>
+        texto
+          .split('\n')
+          .map((l) => (l.startsWith(mascarar(WEGE)) ? l.replace(';MIL;', ';UNIDADE;') : l))
+          .join('\n'),
+      'dfp_unidade.zip',
+    );
     const fake = criarPrismaFake();
     await rodar(fake.prisma, zips, { doc: 'fca', anos: [2026] });
     fake.tabelas.assetFundamentalsPeriod.push({
@@ -352,23 +362,53 @@ describe('sincronizarCvmCias — escala declarada errada (PDTC3 DFP 2024/2025)',
       docTipo: 'DFP',
       dtFim: new Date('2024-12-31T00:00:00Z'),
       versao: 1,
-      ativoTotal: Number(String(ref.ativoTotal)) * 1000,
-      pl: Number(String(ref.pl)) * 1000,
+      ativoTotal: Number(String(ref.ativoTotal)) * 0.9,
+      pl: Number(String(ref.pl)) * 0.9,
       flags: [],
     });
-    const { ctx } = await rodar(fake.prisma, zips, { doc: 'dfp', anos: [2025] });
+    const { ctx } = await rodar(
+      fake.prisma,
+      { ...zips, [urlArquivoCvm('dfp', 2025)]: unidade },
+      { doc: 'dfp', anos: [2025] },
+    );
     const fy = fyWege(fake.tabelas);
+    expect(fy.escalaOriginal).toBe('UNIDADE');
     expect(fy.flags).toContain('escala_corrigida');
-    expect(Number(String(fy.receita))).toBeCloseTo(Number(String(ref.receita)) * 1000, 0);
+    expect(Number(String(fy.receita))).toBeCloseTo(Number(String(ref.receita)), 0);
+    expect(Number(String(fy.pl))).toBeCloseTo(Number(String(ref.pl)), 0);
     expect(fy.lpaOn).toBe(ref.lpaOn);
-    expect(fy.escalaOriginal).toBe(ref.escalaOriginal);
     expect(ctx.alertas.some((a) => a.codigo === 'escala_corrigida' && a.ref === WEGE)).toBe(true);
-    // os outros emissores não mudam
     const vale = (t: typeof normal.tabelas) =>
       t.assetFundamentalsPeriod.find(
         (l) => l.emissorId === VALE && l.tipoPeriodo === 'FY' && l.escopo === 'con',
       )!;
     expect(vale(fake.tabelas).receita).toEqual(vale(normal.tabelas).receita);
     expect(vale(fake.tabelas).flags).not.toContain('escala_corrigida');
+  });
+
+  it('MIL declarado e 1000× MAIOR que o vizinho (o vizinho é que veio errado) ⇒ não mexe', async () => {
+    const zips = zipsPadrao();
+    const normal = criarPrismaFake();
+    await rodar(normal.prisma, zips, { doc: 'fca', anos: [2026] });
+    await rodar(normal.prisma, zips, { doc: 'dfp', anos: [2025] });
+    const ref = fyWege(normal.tabelas);
+    const fake = criarPrismaFake();
+    await rodar(fake.prisma, zips, { doc: 'fca', anos: [2026] });
+    fake.tabelas.assetFundamentalsPeriod.push({
+      id: 'vizinho-2024',
+      emissorId: WEGE,
+      escopo: 'con',
+      tipoPeriodo: 'FY',
+      docTipo: 'DFP',
+      dtFim: new Date('2024-12-31T00:00:00Z'),
+      versao: 1,
+      ativoTotal: Number(String(ref.ativoTotal)) / 1000,
+      pl: Number(String(ref.pl)) / 1000,
+      flags: [],
+    });
+    await rodar(fake.prisma, zips, { doc: 'dfp', anos: [2025] });
+    const fy = fyWege(fake.tabelas);
+    expect(fy.flags).not.toContain('escala_corrigida');
+    expect(fy.receita).toEqual(ref.receita);
   });
 });

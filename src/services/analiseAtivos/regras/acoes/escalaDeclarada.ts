@@ -8,9 +8,10 @@
  *    até 10× = mesma escala;
  *  - LPA: Σ(LPA publicado × ações)/lucro ≈ 1000 (ou 0,001) com a contagem de ações já conhecida.
  * Decisão: LPA coerente com os valores (razão ≈ 1) ⇒ o documento está certo, mesmo que o vizinho
- * não esteja (VAMOS3 2019 contra o DFP 2018 declarado UNIDADE em milhares); vizinho diz salto e o LPA
- * confirma ou não tem como conferir ⇒ corrige ('escala_corrigida'); vizinho e LPA em sentidos
- * opostos ⇒ ambígua; sem vizinho conclusivo e LPA ≈ 1000 ⇒ ambígua (pode ser só o LPA publicado em
+ * não esteja; só se corrige a direção do erro conhecido — UNIDADE declarada com valores ~1000×
+ * menores que o vizinho, e o LPA confirma ou não tem como conferir ⇒ ×1000 ('escala_corrigida');
+ * valores 1000× MAIORES que o vizinho ⇒ o vizinho é que está errado (VAMOS3 2019 contra o DFP 2018
+ * declarado UNIDADE em milhares): não mexe; vizinho e LPA em sentidos opostos ⇒ ambígua; sem vizinho conclusivo e LPA ≈ 1000 ⇒ ambígua (pode ser só o LPA publicado em
  * escala errada, regra 11 — que o vizinho OK resolve).
  * Documento ambíguo NÃO é corrigido: fica com 'escala_ambigua' e o Índice sai incompleto.
  * Faixas fixas no código (ScoringParams v2): SALTO_ESCALA e MESMA_ESCALA.
@@ -76,11 +77,23 @@ export interface DecisaoEscala {
   flag: 'escala_corrigida' | 'escala_ambigua' | null;
 }
 
-export function decidirEscala(vizinho: SinalEscala, lpa: SinalEscala): DecisaoEscala {
+export function decidirEscala(
+  vizinho: SinalEscala,
+  lpa: SinalEscala,
+  escalaDeclarada: string,
+): DecisaoEscala {
   if (lpa === 1) return { fator: 1, flag: null };
-  if (vizinho === 1000 || vizinho === 0.001) {
-    if (lpa === null || lpa === vizinho) return { fator: vizinho, flag: 'escala_corrigida' };
-    return { fator: 1, flag: 'escala_ambigua' };
+  if (vizinho === 1000) {
+    // só a direção do erro conhecido: UNIDADE declarada com valores em milhares
+    if (escalaDeclarada === 'UNIDADE' && (lpa === null || lpa === 1000)) {
+      return { fator: 1000, flag: 'escala_corrigida' };
+    }
+    return lpa === null ? { fator: 1, flag: null } : { fator: 1, flag: 'escala_ambigua' };
+  }
+  if (vizinho === 0.001) {
+    // valores 1000× MAIORES que o vizinho: quase sempre é o vizinho que veio errado (VAMOS3 2019
+    // MIL correto contra o DFP 2018 declarado UNIDADE em milhares) — não corrige
+    return lpa === 0.001 ? { fator: 1, flag: 'escala_ambigua' } : { fator: 1, flag: null };
   }
   if (vizinho === null && (lpa === 1000 || lpa === 0.001)) {
     return { fator: 1, flag: 'escala_ambigua' };

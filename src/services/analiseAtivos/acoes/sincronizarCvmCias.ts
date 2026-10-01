@@ -793,7 +793,8 @@ function conferirEscala(
       [...lista].reverse().find((v) => v.dtFim < d.dtRefer) ??
       lista.find((v) => v.dtFim > d.dtRefer) ??
       null;
-    const decisao = decidirEscala(sinalVizinho(balanco, vizinho), sLpa);
+    const declarada = doEscopo[0]?.escala ?? 'UNIDADE';
+    const decisao = decidirEscala(sinalVizinho(balanco, vizinho), sLpa, declarada);
     fatores.set(escopo, decisao.fator);
     if (decisao.flag !== null) {
       for (let i = 0; i < extraidos.length; i++) {

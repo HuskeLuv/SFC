@@ -35,11 +35,17 @@ function vazia(de: string): string {
   return `${fixture(de).split('\n')[0]}\n`;
 }
 
-export function zipDfp2025(dir: string): string {
-  const entradas: Record<string, string> = Object.fromEntries(DFP_2025.map((n) => [n, fixture(n)]));
+export function zipDfp2025(
+  dir: string,
+  ajustar?: (entrada: string, texto: string) => string,
+  nomeZip = 'dfp_cia_aberta_2025.zip',
+): string {
+  const entradas: Record<string, string> = Object.fromEntries(
+    DFP_2025.map((n) => [n, ajustar ? ajustar(n, fixture(n)) : fixture(n)]),
+  );
   entradas['dfp_cia_aberta_BPA_ind_2025.csv'] = vazia('dfp_cia_aberta_BPA_con_2025.csv');
   entradas['dfp_cia_aberta_BPP_ind_2025.csv'] = vazia('dfp_cia_aberta_BPP_con_2025.csv');
-  return montarZip(dir, 'dfp_cia_aberta_2025.zip', entradas);
+  return montarZip(dir, nomeZip, entradas);
 }
 
 export function zipItr(dir: string, ano: 2025 | 2026): string {
