@@ -1,0 +1,659 @@
+{
+  "arquitetura": {
+    "resumo": "VERSÃO FINAL (v2) da especificação \"mover investimentos entre abas e subgrupos da Carteira\". Base lida: /home/huske/dev/front-main-leitura (main). As 15 críticas foram incorporadas; nenhuma foi rejeitada por inteiro (ver riscos). O desenho segue o protótipo do designer, com exceções nos pontos em que ele contradiz o código ou a acessibilidade. Essas exceções estão explícitas nas perguntas.\n\nO que o usuário pode fazer:\n- Mover uma posição (Portfolio) ou um ativo planejado (Watchlist) entre SUBGRUPOS de qualquer aba movível.\n- Mover entre ABAS COMPATÍVEIS: Ações, FII's, ETF's, Fundos, Stocks e REIT's.\n- Fazer isso de 4 jeitos:\n  - arrastar a linha para outra seção;\n  - arrastar a linha até a barra de abas, o que abre um popover para escolher a seção (protótipo D3/D4/D5);\n  - usar o menu ⋯ da linha com \"Mover para…\" e o diálogo;\n  - usar o botão \"Mover para outra aba\" na página /ativos/[id].\n- No celular não há arrasto: o cartão ganha o botão \"Mover\", que abre um BottomSheet no padrão do MovePanel.\n\nDecisões centrais:\n1) Asset.type (catálogo compartilhado) NUNCA muda. A aba escolhida fica em Portfolio.categoriaOverride / Watchlist.categoriaOverride e é gravada SOMENTE quando o destino ≠ categoriaBaseDaAba(asset). Voltar para a aba base grava null. Trocar só de subgrupo NÃO cria override, então não prende o item nem atrapalha correções futuras do catálogo.\n2) Uma única função de resolução, categoriaEfetiva(), alimenta pizza, alocação, resumo e Saúde. Um único helper de where alimenta as rotas de aba. Um único overrideEfetivo() (null quando override = base) vale para os demais consumidores.\n3) A compatibilidade vem do modelo de preço (b3-brl, usd, fundo, fixo), com a moeda respeitada. O modelo 'fundo' só troca de subgrupo dentro da própria aba base. Isso inclui etf-cvm, que fica em ETF's.\n4) As compras pelo wizard deixam de sobrescrever o subgrupo de uma posição existente (bug apontado na revisão).\n5) O selo \"movido\" (data, autor, \"via consultor\") e o \"Voltar ao original\" saem do UserChangeLog. Não há colunas novas para isso.\n6) Mover é desfazível pelo Histórico v2, inclusive por consultor agindo pelo cliente.\n7) IR, ações corporativas e proventos de mercado continuam pela natureza do ativo.\n8) A migration é aditiva: 3 colunas TEXT NULL, sem backfill.\n\nFatias:\n- 0 (contratos): merge primeiro.\n- Em paralelo e sem arquivos em comum: A (API, histórico e desfazer), B (rotas de aba, operação e fim-fia), C (demais consumidores no servidor), D (diálogo/sheet/popover, hooks, página do ativo e wizard) e E (DnD na tabela e na barra de abas, cartões mobile e e2e de escrita).",
+    "modelo_dados": "1) PRISMA. Migration aditiva prisma/migrations/20261001120000_carteira_mover_override/migration.sql:\n  ALTER TABLE \"portfolios\" ADD COLUMN \"categoriaOverride\" TEXT;\n  ALTER TABLE \"portfolios\" ADD COLUMN \"tipoFundo\" TEXT;\n  ALTER TABLE \"watchlists\" ADD COLUMN \"categoriaOverride\" TEXT;\nNo schema:\n- Portfolio.categoriaOverride String?, com o comentário \"aba escolhida pelo usuário quando ≠ aba base; null = deriva de Asset.type\";\n- Portfolio.tipoFundo String? (FundoSubtipo; subgrupo escolhido na aba Fundos);\n- Watchlist.categoriaOverride String?.\nSem índice novo e sem CHECK: a validação fica no zod da API. O selo \"movido\" e o \"original\" NÃO ganham colunas; vêm do UserChangeLog, que já tem @@index([userId, entityId, createdAt]).\n\n2) FONTE ÚNICA DE VERDADE.\nsrc/lib/carteiraMover.ts (novo; puro, roda no cliente e no servidor):\n- CATEGORIAS_MOVIVEIS = ['acoes','fiis','etfs','fimFia','stocks','reits'] e isCategoriaMovivel().\n- Regex únicas, usadas também nas rotas e em categorizarAsset:\n  - B3_ACAO_RE = /^[A-Z][A-Z0-9]{3}[0-9]$/, a mesma de hoje;\n  - B3_UNIT_RE = /^[A-Z][A-Z0-9]{3}11$/;\n  - B3_COTADO_RE = /^[A-Z][A-Z0-9]{3}\\d{1,2}[A-Z]?$/ (ticker de bolsa BRL; aceita HGLG11 e AAPL34).\n- SUBGRUPOS_POR_CATEGORIA, com rótulos:\n  - acoes, stocks e reits: value|growth|risk;\n  - fiis: fofi|tvm|tijolo|infra ('FOF (Fundos de Fundos)', 'TVM', 'Tijolo', 'Infra');\n  - etfs: brasil|estados_unidos;\n  - fimFia: FUNDO_SUBTIPO_ORDER, com FUNDO_SUBTIPO_LABEL.\n- CAMPO_SUBGRUPO_PORTFOLIO: acoes/stocks/reits → estrategia, fiis → tipoFii, etfs → regiaoEtf, fimFia → tipoFundo.\n- CAMPO_SECAO_NA_LINHA (campo da linha no JSON da aba): estrategia | tipo | regiao | tipo.\n- CATEGORIA_API_PATH: acoes, stocks, fii, etf, reit, fim-fia.\n- CATEGORIA_TO_ABA_PLANEJAVEL.\n- rotuloCategoria() (reusa os labels de carteiraTabsConfig).\n- categoriaBaseDaAba(asset): em que aba a rota lista o ativo hoje, espelhando os where atuais.\n- overrideEfetivo(asset, override): devolve override só se for movível e ≠ categoriaBaseDaAba; senão null.\n- modeloDePreco(asset, {temRendaFixa}).\n- destinosPermitidos(asset, {temRendaFixa, abaBase}): retorna as 6 categorias com permitido e motivo.\n- subgrupoPadrao(destino, ctx).\n- subgrupoSugerido(asset, destino): heurística leve por nome, por exemplo 'fiagro'/'agro' → fimFia/fiagro e 'infra'/'debênture incentivada' → fiis/infra. Serve para o popover D5; o fallback é subgrupoPadrao.\n- mudaRegraIR(origem, destino).\n- moverInvestimentoSchema (zod) e os tipos de resposta.\n\nsrc/services/portfolio/itemValuation.ts:\n- categoriaEfetiva(asset, override, ctx) = (ctx.isReserva || modelo 'fixo' || !overrideEfetivo(asset, override)) ? categorizarAsset(asset, ctx) : override.\n- PortfolioItemLike ganha categoriaOverride.\n- valuatePortfolioItem passa a usar categoriaEfetiva.\n\nsrc/services/portfolio/categoriaAba.ts:\n- wherePortfolioDaCategoria(userId, cat, baseAssetWhere) = {userId, OR:[{categoriaOverride: cat}, {categoriaOverride: null, asset: base}, {categoriaOverride: {notIn: CATEGORIAS_MOVIVEIS}, asset: base}]};\n- whereWatchlistDaCategoria, análogo.\nComo o override só é gravado quando ≠ base, um item nunca aparece em duas abas. Defesa extra: se o catálogo mudar e o override ficar igual à base, o ramo 1 pega o item e o ramo 2 não, porque exige null.\n\nsrc/services/portfolio/movidoInfo.ts (servidor):\n- movidoInfoPorEntidade(userId, entityIds): para cada entidade, pega o último UserChangeLog com section 'carteira', action in ('investimento.mover','planejado.mover','investimento.restaurar','planejado.restaurar') e undoneAt null. Retorna Map id → {movido: boolean, em, viaConsultant}. movido=false quando o último evento é 'restaurar'.\n- originalPorEntidade(userId, entityId): pega o snapshot.data do evento de mover mais antigo não desfeito, posterior ao último 'restaurar'. Devolve {categoriaBase, subgrupoOriginal | null}. null significa o fallback da rota (FII sem tipoFii → FOF).\n\n3) REGRAS DE GRAVAÇÃO.\n- Troca de aba para destino ≠ base: categoriaOverride = destino.\n- Troca de aba para a base: categoriaOverride = null.\n- Troca só de subgrupo: o override não muda.\n- Sempre: [CAMPO_SUBGRUPO_PORTFOLIO[destino]] = subgrupo. As colunas de subgrupo de outras abas NÃO são apagadas; se o item voltar, a seção anterior reaparece.\n- Restaurar original: categoriaOverride = null e as colunas de subgrupo voltam aos valores do snapshot do primeiro mover (podem ser null). Fica registrado como 'investimento.restaurar' e é desfazível.\n\n4) MATRIZ DE COMPATIBILIDADE (origem → destino; ✓ permitido, M = moeda, C = modelo de cálculo, S = só subgrupo):\n- Ações BRL (ação B3, unit, BDR): Ações S; FII's ✓; ETF's ✓; Fundos ✓; Stocks M; REIT's M.\n- FII's (BRL): Ações ✓; FII's S; ETF's ✓; Fundos ✓; Stocks M; REIT's M.\n- ETF's BRL cotado: Ações ✓; FII's ✓; ETF's S; Fundos ✓; Stocks M; REIT's M.\n- ETF's USD: Ações M; FII's M; ETF's S; Fundos M; Stocks ✓; REIT's ✓.\n- ETF's etf-cvm (sem cotação em bolsa): todas as outras C; ETF's S (brasil/estados_unidos).\n- Fundos com ticker B3 cotado e sem FixedIncomeAsset (ex.: 'fund' HGLG11 legado): Ações ✓; FII's ✓; ETF's ✓; Fundos S; Stocks M; REIT's M.\n- Fundos CVM-/FUNDO-/PLUGGY-FUNDO- ou com FixedIncomeAsset: todas as outras C; Fundos S.\n- Stocks (USD): Ações M; FII's M; ETF's ✓; Fundos M; Stocks S; REIT's ✓.\n- REIT's (USD): Ações M; FII's M; ETF's ✓; Fundos M; Stocks ✓; REIT's S.\n- Renda Fixa, Reservas, Imóveis & Bens, Moedas/Cripto, Previdência e Opções (modelo 'fixo'): nada entra nem sai.\nmodeloDePreco:\n- 'fixo' se a base ∉ CATEGORIAS_MOVIVEIS;\n- senão 'usd' se currency==='USD' e não é tipo de fundo;\n- senão 'b3-brl' se a moeda é BRL/null, não há FixedIncome, o ticker bate em B3_COTADO_RE e o type ≠ 'etf-cvm';\n- senão 'fundo'.\nDestinos por modelo:\n- b3-brl: acoes, fiis, etfs, fimFia;\n- usd: stocks, reits, etfs;\n- fundo: somente [abaBase] (troca de subgrupo);\n- fixo: nenhum.\nDentro de ETF's, as duas regiões ficam SEMPRE habilitadas. A moeda bloqueia só a troca de aba, porque a região é escolha livre no wizard (operacao/route.ts:756-765). Isso diverge do protótipo D10.\nUNITS ('stock' BRL terminadas em 11, como TAEE11): hoje não aparecem em nenhuma aba e somam em Renda Fixa na pizza (acoes/route.ts:62; itemValuation.ts:177). Recomendação, condicionada à pergunta 3:\n- Fatia 0: categorizarAsset passa a mandar B3_ACAO_RE || B3_UNIT_RE para 'acoes';\n- Fatia B: a rota de Ações usa a mesma regra no bucket de ações;\n- categoriaBaseDaAba usa a mesma regra.\nSe não for aprovado, as units continuam 'fixo' e ficam explicitamente fora de escopo. Antes de decidir, rodar o SELECT em prod.\n\n5) SUBGRUPO AO TROCAR DE ABA: sempre é o usuário quem escolhe.\n- Arrasto para uma seção: a seção onde soltou.\n- Arrasto para uma aba: abre o popover, pré-selecionado com subgrupoSugerido.\n- Diálogo e sheet: pré-seleção com subgrupoSugerido, e depois subgrupoPadrao.\n- subgrupoPadrao:\n  - acoes/stocks/reits: estrategia válida → notes.estrategiaReit → 'value';\n  - fiis: tipoFii válido → 'fofi';\n  - etfs: regiaoEtf válido → por moeda;\n  - fimFia: tipoFundo → fundoSubtipoFromAssetType → notes.tipoFundo → 'fim'.\nPrecedência nova nas rotas:\n- REIT: Portfolio.estrategia > notes.estrategiaReit > 'value';\n- Fundos: Portfolio.tipoFundo > cadeia atual.\nCorreção de BDR: a estratégia passa a ser gravada.\n\n6) COMPRA EM POSIÇÃO EXISTENTE (crítica 1). No caminho de update de portfolioExistente da operacao:\n- estrategia, tipoFii e regiaoEtf só são gravados se a coluna atual for null. Hoje são sobrescritos a cada compra (operacao/route.ts:2292-2295);\n- categoriaOverride nunca é tocado.\nO wizard avisa que o ativo continua no subgrupo atual e que, para trocar, é preciso usar \"Mover\". Isso é uma mudança de regra NECESSÁRIA: sem ela, toda compra desfaz o mover em silêncio.\n\n7) INCONSISTÊNCIAS QUE JÁ EXISTEM (não alteradas, exceto as units):\n- 'fund'+11/imobili na pizza vai para fiis, enquanto a rota lista em Fundos;\n- 'cash' aparece em duas abas.\nO override corrige item a item. A limpeza global fica em PR separado (pergunta 4).\n\n8) OBJETIVO (%):\n- Posição que troca de aba: objetivo = 0, com aviso; o undo restaura.\n- Troca só de subgrupo: o objetivo é mantido.\n- PLANEJADO: o objetivo é SEMPRE mantido, porque é o único dado da linha (crítica 15).\n\n9) PLANEJADOS: o mover grava Watchlist.categoriaOverride (mesma regra ≠ base) e secao. Ajustes em ativosPlanejados.ts:\n- listarPlanejados({categoria}) usa o OR de override;\n- subtipoFundoPlanejado respeita secao quando há override;\n- abaDoAssetPlanejado(asset, override);\n- absorverPlanejadoNaCompra devolve categoriaOverride.\nAo comprar, a operacao cria o Portfolio já com o override e o subgrupo da secao.\n\n10) O QUE ZERA O OVERRIDE: venda total que apaga o Portfolio. É aceito. O undo de remoção recria com override e tipoFundo. A Pluggy não toca nas colunas (há teste de regressão).",
+    "consumidores": [
+      {
+        "arquivo": "src/services/portfolio/itemValuation.ts",
+        "uso": "categorizarAsset + valuatePortfolioItem → pizza, alocação, resumo, saúde",
+        "mudanca": "Fatia 0: categoriaEfetiva + PortfolioItemLike.categoriaOverride; valuatePortfolioItem usa categoriaEfetiva. Units (B3_UNIT_RE) passam a ir para 'acoes' (condicional à pergunta 3). CATEGORIA_ASSET_TYPE_FILTERS inalterado."
+      },
+      {
+        "arquivo": "src/app/api/carteira/resumo/route.ts",
+        "uso": "loop valuatePortfolioItem → categorias (PieChartCarteiraInvestimentos, AlocacaoAtivosTable, CarteiraResumo, useCarteira, Necessidade de Aporte por classe)",
+        "mudanca": "Sem código (include asset traz a coluna). Fatia C: teste de que o item movido soma na categoria nova e saldoBruto não muda."
+      },
+      {
+        "arquivo": "src/services/saudeFinanceira/saudeFinanceiraServer.ts",
+        "uso": "valuatePortfolioItem + liquidez por categoria",
+        "mudanca": "Sem código; teste na Fatia C. SaudeFinanceiraSnapshot de meses passados não é reescrito."
+      },
+      {
+        "arquivo": "src/app/api/carteira/acoes/route.ts",
+        "uso": "where type stock/bdr/brd, buckets ação B3 e BDR, regex de units, getAssetPrices",
+        "mudanca": "Fatia B: wherePortfolioDaCategoria('acoes'); bucket ação usa B3_ACAO_RE||B3_UNIT_RE (se aprovado); 3º bucket 'movidos' (override='acoes') via mapStockPortfolioItem, COM os símbolos incluídos no getAssetPrices; planejados {categoria}; campo movido/movidoEm/viaConsultant por linha (movidoInfo)."
+      },
+      {
+        "arquivo": "src/app/api/carteira/stocks/route.ts",
+        "uso": "where stock USD",
+        "mudanca": "Fatia B: where com override; símbolos dos movidos em cotação; planejados; selo movido."
+      },
+      {
+        "arquivo": "src/app/api/carteira/fii/route.ts",
+        "uso": "where fii + filtro JS type==='fii' + fallback fofi",
+        "mudanca": "Fatia B: where com override; remove filtro JS; cotação dos movidos; planejados; selo."
+      },
+      {
+        "arquivo": "src/app/api/carteira/etf/route.ts",
+        "uso": "CATEGORIA_ASSET_TYPE_FILTERS.etfs, regiaoEtf",
+        "mudanca": "Fatia B: where com override; planejados; selo."
+      },
+      {
+        "arquivo": "src/app/api/carteira/reit/route.ts",
+        "uso": "type reit, estratégia via notes.estrategiaReit",
+        "mudanca": "Fatia B: where com override; precedência Portfolio.estrategia; selo."
+      },
+      {
+        "arquivo": "src/app/api/carteira/fim-fia/route.ts (GET e POST campo valorAtualizado)",
+        "uso": "FUNDO_TYPES_AGRUPADOS; valor = Asset.currentPrice (cron) ou curva ou avgPrice; POST valorAtualizado regrava avgPrice quando não há cota",
+        "mudanca": "Fatia B: where com override; subtipo Portfolio.tipoFundo > cadeia; itens modelo 'b3-brl' (ticker cotado) são valorizados por getAssetPrices (igual ao resumo) e marcados isAutoUpdated/não editáveis; POST valorAtualizado devolve 400 para ativo com ticker B3 cotado ou override vindo de aba de bolsa (não corrompe avgPrice/IR); selo."
+      },
+      {
+        "arquivo": "src/app/api/carteira/{renda-fixa,reserva-emergencia,reserva-oportunidade,moedas-criptos,previdencia-seguros,opcoes,imoveis-bens}/route.ts",
+        "uso": "where por type",
+        "mudanca": "Nenhuma (modelo 'fixo')."
+      },
+      {
+        "arquivo": "src/app/api/carteira/*/objetivo (criarHandlerObjetivo)",
+        "uso": "edita objetivo",
+        "mudanca": "Nenhuma."
+      },
+      {
+        "arquivo": "src/services/portfolio/ativosPlanejados.ts",
+        "uso": "TIPOS_ATIVO_PLANEJAVEIS, listarPlanejados, subtipoFundoPlanejado, abaDoAssetPlanejado, absorverPlanejadoNaCompra",
+        "mudanca": "Fatia 0: opção {categoria}, secao vence com override, abaDoAssetPlanejado(asset, override), absorver devolve categoriaOverride."
+      },
+      {
+        "arquivo": "src/app/api/carteira/operacao/route.ts",
+        "uso": "cria/atualiza Portfolio e subgrupos; absorve planejado",
+        "mudanca": "Fatia B: (1) update de posição existente só grava estrategia/tipoFii/regiaoEtf se a coluna for null; (2) BDR grava estrategia no create (e no update se null) e na secao planejada; (3) absorção de planejado com override cria Portfolio com categoriaOverride + subgrupo no campo da categoria; (4) nunca toca categoriaOverride."
+      },
+      {
+        "arquivo": "src/services/portfolio/caixaParaInvestir.ts",
+        "uso": "resolverCaixaAba → categorizarAsset → CATEGORIA_TO_CAIXA_ABA",
+        "mudanca": "Fatia C: busca Portfolio.categoriaOverride (userId, assetId) e usa categoriaEfetiva."
+      },
+      {
+        "arquivo": "src/components/carteira/wizard/shared/caixaDaOperacao.ts + Step5Confirmation.tsx + Step5AporteConfirmation.tsx",
+        "uso": "prévia no cliente 'usa o caixa de <aba>'",
+        "mudanca": "Fatia D: quando o ativo escolhido tem categoria efetiva com override (GET /api/carteira/mover/categoria?assetId=), a prévia usa CATEGORIA_TO_CAIXA_ABA dessa categoria; enquanto carrega, oculta o nome da aba."
+      },
+      {
+        "arquivo": "src/components/carteira/wizard/Step4{Fii,Etf,Acoes,Stocks,Reit}Fields.tsx",
+        "uso": "campo obrigatório de subgrupo",
+        "mudanca": "Fatia D: texto de ajuda 'Se você já tem este ativo, ele continua no subgrupo atual. Para trocar, use Mover na Carteira.' (o campo segue obrigatório para posição nova)."
+      },
+      {
+        "arquivo": "src/app/api/carteira/aporte/route.ts",
+        "uso": "resolverCaixaAba",
+        "mudanca": "Nenhuma (herda C)."
+      },
+      {
+        "arquivo": "src/lib/portfolioCategoria.ts + src/app/api/historico/ativos/route.ts",
+        "uso": "agrupamento por classe no Histórico de ativos",
+        "mudanca": "Fatia C: usa overrideEfetivo quando presente; senão heurística atual."
+      },
+      {
+        "arquivo": "src/app/api/analises/proventos/route.ts",
+        "uso": "mapAssetTypeToClasse (groupBy=classe)",
+        "mudanca": "Fatia C: overrideEfetivo → rótulo da categoria; senão inalterado."
+      },
+      {
+        "arquivo": "src/services/cashflow/investimentosPorMes.ts",
+        "uso": "mapTransactionToTipo(asset.type) → linha Aporte/Resgate",
+        "mudanca": "Fatia C (condicional à pergunta 7): só quando overrideEfetivo != null, mapeia acoes→'stock', fiis→'fii', etfs→'etf', fimFia→'fund', stocks→'stock', reits→'reit'. Sem override (inclui troca só de subgrupo, BDR, fia/multimercado) mapTransactionToTipo intacto."
+      },
+      {
+        "arquivo": "src/services/assistente/contexto.ts",
+        "uso": "posições via rotas de aba + planejados via abaDoAssetPlanejado",
+        "mudanca": "Fatia C: abaDoAssetPlanejado(p.asset, p.categoriaOverride). Fatia A chama invalidarContextoUsuario após mover/restaurar/desfazer."
+      },
+      {
+        "arquivo": "src/services/consultantService.ts (~762-830)",
+        "uso": "distribuição consolidada do consultor por heurística própria de Asset.type ('fund'+11→FII)",
+        "mudanca": "Fatia C: se overrideEfetivo, usar rótulo da categoria antes do switch; heurística base inalterada (limpeza = PR da pergunta 4)."
+      },
+      {
+        "arquivo": "src/app/(admin)/(home)/consultor/[clientId]/page.tsx",
+        "uso": "normalizeTypeLabel(asset.type)",
+        "mudanca": "Follow-up fora desta fase (registrado)."
+      },
+      {
+        "arquivo": "src/services/changeHistory/snapshots.ts, undo/handlers/carteira.ts, planejadoHelpers.ts",
+        "uso": "snapshot/recriação de Portfolio/Watchlist",
+        "mudanca": "Fatia A: incluem categoriaOverride e tipoFundo; handlers novos de mover/restaurar."
+      },
+      {
+        "arquivo": "src/components/historicoAlteracoes/renderChange.ts",
+        "uso": "textos do Histórico",
+        "mudanca": "Fatia A: 'Moveu o investimento {label}', 'Moveu o ativo planejado {label}', 'Voltou {label} à classificação original'."
+      },
+      {
+        "arquivo": "src/services/ir/* (rendaVariavelLoader, stocksUsIR, comecotasLoader, criptoIR, fixedIncomeIR), src/app/api/analises/ir-*, src/services/calendario/fontes/ir.ts",
+        "uso": "tributação por Asset.type + ticker",
+        "mudanca": "NENHUMA. Mover não muda IR (teste de regressão na Fatia C). O diálogo avisa quando mudaRegraIR."
+      },
+      {
+        "arquivo": "src/lib/portfolioTipoMapping.ts + api/carteira/{aporte,resgate}/{tipos,ativos}",
+        "uso": "wizard por natureza operacional",
+        "mudanca": "Nenhuma (pergunta 8)."
+      },
+      {
+        "arquivo": "src/app/api/relatorios/movimentacoes/route.ts",
+        "uso": "tipoAtivo da transação",
+        "mudanca": "Nenhuma."
+      },
+      {
+        "arquivo": "patrimonioHistoricoBuilder.ts, portfolioSnapshotPersistence.ts (PortfolioDailySnapshot), carteira-historico, rentabilidade-janelas, risco-retorno, sensibilidade",
+        "uso": "totais/séries",
+        "mudanca": "Nenhuma: snapshots guardam só totais; rentabilidade por aba é ao vivo e segue a classificação ATUAL (inclusive para o passado)."
+      },
+      {
+        "arquivo": "src/app/api/carteira/configuracao/route.ts",
+        "uso": "alocação-alvo por classe",
+        "mudanca": "Nenhuma no alvo; o 'atual' por classe passa a refletir o override via resumo."
+      },
+      {
+        "arquivo": "portfolioLiveTotals.ts, planejamento/contexto, analises/cobertura-fgc",
+        "uso": "reserva/RF/imóvel",
+        "mudanca": "Nenhuma."
+      },
+      {
+        "arquivo": "src/services/pluggy/importarCarteira.ts",
+        "uso": "cria/atualiza Portfolio",
+        "mudanca": "Nenhuma; teste de regressão (Fatia B) de que reimportar preserva categoriaOverride/tipoFii."
+      },
+      {
+        "arquivo": "src/services/portfolio/portfolioRecalculation.ts",
+        "uso": "upsert/delete",
+        "mudanca": "Nenhuma (update preserva colunas)."
+      },
+      {
+        "arquivo": "corporate actions, proventos de mercado, pricing, cron brapi, busca de ativos, Análise de Ativos",
+        "uso": "Asset.type de catálogo",
+        "mudanca": "Nenhuma."
+      },
+      {
+        "arquivo": "src/components/carteira/CarteiraResumo.tsx + src/components/ui/tabs/ResponsiveTabNav.tsx",
+        "uso": "barra de abas da Carteira (só a aba ativa monta a tabela)",
+        "mudanca": "Fatia E: DndContext sobe para CarteiraResumo; ResponsiveTabNav ganha prop opcional tabWrapper para droppable (sem efeito nos outros usos: CarteiraAnalise, IRTabs, Proventos, Orcamento)."
+      },
+      {
+        "arquivo": "src/components/carteira/carteiraTabsConfig.ts",
+        "uso": "ids/labels, CATEGORIA_TO_TAB",
+        "mudanca": "Nenhuma (só import)."
+      }
+    ],
+    "api": "ROTAS NOVAS (Fatia A). Todas usam withErrorHandler e requireAuthWithActing (posse por targetUserId; consultor pode agir). As mutações passam por CSRF (middleware) e o cliente chama com csrfFetch.\n\n1) GET /api/carteira/mover?tipo=posicao|planejado&id=\n→ { item:{tipo,id,assetId,ticker,nome,moeda}, atual:{categoria,abaId,subgrupo,subgrupoLabel,override:boolean}, movido:{em,viaConsultant}|null, original:{categoria,subgrupo|null,label}|null, modelo, movivel, motivo?, destinos:[{categoria,abaId,label,permitido,motivo?,subgrupos:[{id,label,atual:boolean}],subgrupoSugerido}], avisos:string[] }\n- atual.categoria = override efetivo ?? categoriaBaseDaAba.\n- original só vem preenchido quando o item está movido (movidoInfo/originalPorEntidade).\n- motivos possíveis: 'Em dólar — esta aba é em reais' / 'Em reais — esta aba é em dólar' / 'Sem cotação em bolsa: o valor vem da cota/curva' / '<Aba> ainda não pode ser movida para outra aba'.\n- avisos: 'A aba é só organização: o IR continua pelo tipo do ativo (FII)', quando mudaRegraIR; 'O objetivo (%) volta para 0 na aba nova', só para posição em troca de aba.\n- Retorna 404 quando o item não pertence ao targetUserId.\n\n2) GET /api/carteira/mover/categoria?assetId=\n→ { categoria: CategoriaMovivel|null, override: boolean }. É uma consulta leve para a prévia de caixa do wizard (Fatia D).\n\n3) POST /api/carteira/mover\nbody: zod discriminado:\n  { acao:'mover', tipo:'posicao'|'planejado', id:uuid, categoria:CategoriaMovivel, subgrupo:string }\n  | { acao:'restaurar', tipo, id }\nValidações, em ordem:\n- zod (400);\n- posse (404);\n- origem movível (409);\n- destino ∈ destinosPermitidos (409, com motivo);\n- subgrupo ∈ SUBGRUPOS_POR_CATEGORIA (400);\n- 'restaurar' sem item movido (409).\nSe nada mudar: 200 {noop:true}, sem histórico.\nMutação: um prisma.update, em src/services/portfolio/moverInvestimento.ts:\n- Posição: { categoriaOverride: destino===base ? null : destino, [CAMPO_SUBGRUPO_PORTFOLIO[destino]]: subgrupo, ...(trocouAba ? {objetivo:0} : {}), lastUpdate }.\n- Planejado: { categoriaOverride: idem, secao: subgrupo } (objetivo mantido).\n- Restaurar: { categoriaOverride: null, estrategia/tipoFii/regiaoEtf/tipoFundo = valores do snapshot do primeiro mover }.\nResposta: 200 { ok, origem:{categoria,subgrupo}, destino:{categoria,subgrupo}, objetivoZerado, historicoId }.\nDepois do sucesso:\n- recordChange com section 'carteira', action 'investimento.mover' | 'planejado.mover' | 'investimento.restaurar' | 'planejado.restaurar', entity 'portfolio' | 'watchlist', entityId e entityLabel = assetEntityLabel;\n- changes legíveis: Aba, Subgrupo e Objetivo, este só quando foi zerado;\n- snapshot = {v:1, kind:'mover', data: before{categoriaOverride, estrategia, tipoFii, regiaoEtf, tipoFundo, objetivo | secao}, meta:{after}};\n- invalidarContextoUsuario(targetUserId).\nNão há recalc nem invalidação de snapshots de patrimônio, porque valor e quantidade não mudam.\n\nDESFAZER (Fatia A, undo/handlers/carteira.ts): os 4 actions, strategy 'custom'.\n- Carrega a linha por id + targetUserId. Responde 409 'não existe mais' ou 'o planejado virou posição' quando for o caso.\n- Compara a linha com meta.after. Se divergir, 409 'Foi movido de novo depois desta alteração'. Como a compra não sobrescreve mais o subgrupo, esse 409 não aparece por causa de compra.\n- Restaura data e chama invalidarContextoUsuario.\nAo desfazer, o selo some sozinho, porque movidoInfo ignora logs com undoneAt.\npickPortfolioMeta, recreatePortfolioStub, buildPlanejadoSnapshot e planejadoRemover passam a carregar as colunas novas.\n\nROTAS ALTERADAS (Fatia B):\n- GETs de acoes, stocks, fii, etf, reit e fim-fia. O formato é o mesmo, com campos opcionais novos por linha: movido?:boolean, movidoEm?:string, movidoViaConsultor?:boolean, naoMovivelMotivo?:string.\n- POST fim-fia (valorAtualizado): ganha a trava descrita nos consumidores.\n- operacao: subgrupo não é sobrescrito, BDR e absorção.\nPATCH /api/ativos/[id] não muda.\n\nCLIENTE (Fatia D):\n- useMoverOpcoes: useQuery(queryKeys.carteiraMover.opcoes(tipo,id)), com staleTime de 30s. A Fatia E faz prefetch no onDragStart.\n- useMoverInvestimento: useMutation.\n  - onMutate: cancelQueries(assets.type(origem)) e snapshot do cache.\n    - Mesma aba: moverLinhaEntreSecoes. Troca o CAMPO_SECAO_NA_LINHA, move a linha, cria ou remove a seção, recalcula as somas da seção e marca a linha com _pendente:true, que fica a 60% de opacidade com 'Movendo…'.\n    - Outra aba: removerLinha na origem.\n  - onError: rollback e toast de erro dizendo onde a linha ficou, com 'Tentar de novo'.\n  - onSuccess: toast com Desfazer por 8s (useUndoAlteracao(historicoId)) e 'Ver em <aba>' quando muda de aba. No mobile, MobileSaveToast com action. A linha recebe realce de 1,6s.\n  - onSettled: invalidatePortfolioDerivedQueries(queryClient), historicoAlteracoes.all e carteiraMover.all.\n- queryKeys.carteiraMover = {all, opcoes(tipo,id), categoria(assetId)}, definido na Fatia 0.",
+    "fatias": [
+      {
+        "id": "0",
+        "titulo": "Contratos: schema, migration, categoria efetiva, matriz, where, movidoInfo, tipos de UI e queryKeys",
+        "objetivo": "Entregar a base que todas as fatias importam, sem mudança visível. A única exceção é a correção das units, se aprovada.",
+        "arquivos_novos": [
+          "prisma/migrations/20261001120000_carteira_mover_override/migration.sql",
+          "src/lib/carteiraMover.ts",
+          "src/services/portfolio/categoriaAba.ts",
+          "src/services/portfolio/movidoInfo.ts",
+          "src/types/carteiraMover.ts",
+          "src/lib/__tests__/carteiraMover.test.ts",
+          "src/services/portfolio/__tests__/categoriaEfetiva.test.ts",
+          "src/services/portfolio/__tests__/categoriaAba.test.ts",
+          "src/services/portfolio/__tests__/movidoInfo.test.ts"
+        ],
+        "arquivos_alterados": [
+          "prisma/schema.prisma",
+          "src/services/portfolio/itemValuation.ts",
+          "src/services/portfolio/ativosPlanejados.ts",
+          "src/lib/queryKeys.ts"
+        ],
+        "detalhes": "Implementar exatamente o descrito em modelo_dados §1-§5 e §9.\n\nsrc/types/carteiraMover.ts é o CONTRATO entre D e E:\n- MoverAlvo = {tipo:'posicao'|'planejado'; id; categoria:CategoriaMovivel; secaoAtual:string; label:string};\n- MoverInvestimentoProps = {alvo:MoverAlvo|{tipo;id}; open; onClose(); onMoved?(r)};\n- EscolherSecaoPopoverProps = {alvo:MoverAlvo; destino:CategoriaMovivel; anchorEl:HTMLElement; onConfirm(subgrupo):void; onCancel():void};\n- MovidoBadgeProps = {movidoEm?:string; viaConsultor?:boolean; planejado?:boolean};\n- UseMoverInvestimento = {mover({alvo,categoria,subgrupo}):Promise<MoverResponse>; restaurar(alvo):Promise<MoverResponse>; isPending; pendingId?:string}.\nPaths fixos: '@/components/carteira/mover/MoverInvestimento', '@/components/carteira/mover/EscolherSecaoPopover', '@/components/carteira/mover/MovidoBadge', '@/hooks/useMoverInvestimento', '@/hooks/useMoverOpcoes'.\n\nqueryKeys: acrescentar carteiraMover.\n\nUnits: B3_UNIT_RE em categorizarAsset atrás da constante INCLUIR_UNITS_EM_ACOES no próprio carteiraMover.ts (true se aprovado; false = units 'fixo').",
+        "testes": "Vitest:\n- matriz completa (todos os pares × moeda: HGLG11 'fund', CVM-…11, PLUGGY-FUNDO, etf-cvm, AAPL34, IVVB11, B3SA3, TAEE11);\n- override = base → overrideEfetivo null;\n- categoriaEfetiva ignora override em reserva/fixo/inválido;\n- valuatePortfolioItem com override muda só a categoria;\n- where helper;\n- listarPlanejados com override;\n- subgrupoPadrao e subgrupoSugerido;\n- movidoInfo: último evento restaurar → não movido; log desfeito ignorado; original = primeiro mover após o último restaurar.",
+        "criterios_aceite": [
+          "type-check, lint e test verdes",
+          "migrate dev gera só as 3 colunas",
+          "Com override null, os testes existentes das rotas não mudam",
+          "Contrato congelado antes de D/E"
+        ]
+      },
+      {
+        "id": "A",
+        "titulo": "API mover/restaurar + categoria + histórico + desfazer",
+        "objetivo": "Rotas GET/POST /api/carteira/mover e GET /api/carteira/mover/categoria, gravação pela regra ≠ base, Histórico v2 e Desfazer.",
+        "arquivos_novos": [
+          "src/app/api/carteira/mover/route.ts",
+          "src/app/api/carteira/mover/categoria/route.ts",
+          "src/services/portfolio/moverInvestimento.ts",
+          "src/services/changeHistory/moverHelpers.ts",
+          "src/app/api/carteira/mover/__tests__/route.test.ts",
+          "src/services/portfolio/__tests__/moverInvestimento.test.ts",
+          "src/services/changeHistory/undo/__tests__/mover.test.ts"
+        ],
+        "arquivos_alterados": [
+          "src/services/changeHistory/index.ts",
+          "src/services/changeHistory/undo/handlers/carteira.ts",
+          "src/services/changeHistory/snapshots.ts",
+          "src/services/changeHistory/planejadoHelpers.ts",
+          "src/components/historicoAlteracoes/renderChange.ts"
+        ],
+        "detalhes": "Conforme 'api'.\n- obterOpcoesMover(userId, tipo, id): temRendaFixa via fixedIncomeAsset.findFirst; notes da última compra; movidoInfo/originalPorEntidade.\n- moverInvestimento(userId, input) e restaurarOriginal(userId, tipo, id).\n- moverHelpers: recordInvestimentoMovido, recordPlanejadoMovido e recordRestaurado.\n- Os 4 handlers de undo.\n- Snapshots estendidos.\n- renderChange com os textos novos.\n- invalidarContextoUsuario após mover, restaurar e desfazer.",
+        "testes": "- 401; 404 de outro usuário.\n- Consultor grava viaConsultant.\n- 409 moeda (FII→Stocks), 409 modelo (CVM→FII e etf-cvm→Fundos), 409 fixo (Tesouro).\n- 400 subgrupo.\n- noop.\n- Mover para outra aba grava override; mover de volta grava null; troca só de subgrupo não grava override.\n- Objetivo zera para posição e é mantido para planejado.\n- restaurar volta subgrupo null.\n- Undo restaura exatamente e dá 409 após novo mover.\n- ativo.remover recria com override.",
+        "criterios_aceite": [
+          "POST seguido de GET reflete o estado",
+          "Histórico mostra 'Moveu o investimento KDIF11', Aba/Subgrupo antes→depois e Desfazer funcional",
+          "Undo devolve null quando antes era null",
+          "Cobertura ≥50% nos services novos"
+        ]
+      },
+      {
+        "id": "B",
+        "titulo": "Rotas das abas, operação e fim-fia respeitam o override",
+        "objetivo": "Cada aba lista exatamente os itens cuja categoria efetiva é ela, com cotação e subgrupo corretos, mais o selo 'movido'. A compra não sobrescreve o subgrupo e o fim-fia não corrompe o preço médio.",
+        "arquivos_novos": ["src/services/pluggy/__tests__/importarCarteira.override.test.ts"],
+        "arquivos_alterados": [
+          "src/app/api/carteira/acoes/route.ts",
+          "src/app/api/carteira/stocks/route.ts",
+          "src/app/api/carteira/fii/route.ts",
+          "src/app/api/carteira/etf/route.ts",
+          "src/app/api/carteira/reit/route.ts",
+          "src/app/api/carteira/fim-fia/route.ts",
+          "src/app/api/carteira/acoes/__tests__/route.test.ts",
+          "src/app/api/carteira/stocks/__tests__/route.test.ts",
+          "src/app/api/carteira/fii/__tests__/route.test.ts",
+          "src/app/api/carteira/etf/__tests__/route.test.ts",
+          "src/app/api/carteira/reit/__tests__/route.test.ts",
+          "src/app/api/carteira/fim-fia/__tests__/route.test.ts",
+          "src/app/api/carteira/operacao/route.ts",
+          "src/app/api/carteira/operacao/__tests__/route.test.ts"
+        ],
+        "detalhes": "- Trocar os where por wherePortfolioDaCategoria(userId, cat, base atual idêntica).\n- Os símbolos de TODOS os itens com override entram no getAssetPrices de cada rota. Em Ações, isso inclui o 3º bucket 'movidos', mapeado por mapStockPortfolioItem.\n- FII: remover o filtro JS.\n- Ações: bucket de ações com B3_ACAO_RE || (INCLUIR_UNITS_EM_ACOES && B3_UNIT_RE).\n- Fim-fia:\n  - modelo 'b3-brl' é valorizado por getAssetPrices, com isAutoUpdated=true;\n  - subtipo vem de Portfolio.tipoFundo;\n  - POST valorAtualizado responde 400 'Este ativo tem cotação em bolsa; o valor é atualizado automaticamente' quando o ticker bate em B3_COTADO_RE e não há cota CVM.\n- REIT: precedência de Portfolio.estrategia.\n- Todas as rotas:\n  - listarPlanejados({categoria});\n  - movidoInfoPorEntidade(ids das linhas e dos planejados) → campos movido/movidoEm/movidoViaConsultor;\n  - naoMovivelMotivo para o modelo 'fundo' fora de Fundos/ETF.\n- Operacao: update de portfolioExistente grava estrategia, tipoFii e regiaoEtf só quando o valor atual é null. A BDR entra nos spreads de create e update (null) e no secaoPlanejada. Na absorção com override, o create recebe {categoriaOverride, [campo]: secao}. Nunca tocar categoriaOverride.",
+        "testes": "Por rota:\n- override para a aba aparece na seção do subgrupo;\n- override para outra aba some;\n- null idêntico ao snapshot atual;\n- item movido tem cotação live (não avgPrice).\nFim-fia:\n- FII movido é valorizado pela cotação;\n- POST valorAtualizado é recusado.\nOperacao:\n- mover KDIF11 TVM→Infra e depois comprar pelo wizard com tipoFii=tvm mantém infra;\n- BDR grava estratégia;\n- absorção com override.\nPluggy: reimportar preserva override e tipoFii.",
+        "criterios_aceite": [
+          "Para cada par permitido da matriz, o valor do item na aba destino é igual ao do resumo (±R$0,01; USD convertido)",
+          "Nenhum item em duas abas ou em nenhuma",
+          "Testes existentes verdes"
+        ]
+      },
+      {
+        "id": "C",
+        "titulo": "Demais consumidores no servidor",
+        "objetivo": "Caixa da aba, histórico de ativos, proventos por classe, fluxo de caixa, assistente e consultor seguem o override efetivo. Testes de resumo, saúde e IR.",
+        "arquivos_novos": [
+          "src/app/api/carteira/resumo/__tests__/categoriaOverride.test.ts",
+          "src/services/saudeFinanceira/__tests__/categoriaOverride.test.ts",
+          "src/services/ir/__tests__/categoriaOverride.regressao.test.ts"
+        ],
+        "arquivos_alterados": [
+          "src/lib/portfolioCategoria.ts",
+          "src/app/api/historico/ativos/route.ts",
+          "src/app/api/analises/proventos/route.ts",
+          "src/services/portfolio/caixaParaInvestir.ts",
+          "src/services/cashflow/investimentosPorMes.ts",
+          "src/services/assistente/contexto.ts",
+          "src/services/consultantService.ts",
+          "testes existentes desses módulos (__tests__ ao lado)"
+        ],
+        "detalhes": "Conforme a lista de consumidores. Usar SEMPRE overrideEfetivo(asset, override) (null quando = base), para que a troca só de subgrupo e o override igual à base não alterem nada.\n\ninvestimentosPorMes: findMany portfolio {userId, categoriaOverride not null} → Map; aplicado só se a pergunta 7 for aprovada (constante FLUXO_SEGUE_ABA no próprio arquivo).\n\nNão tocar em IR, corporate actions, portfolioTipoMapping.",
+        "testes": "- Resumo: FII com override fimFia soma em fimFia e o saldo não muda.\n- Saúde: liquidez segue a categoria.\n- Caixa: aporte em ETF movido para Ações debita 'acoes'.\n- Fluxo: BDR com troca só de subgrupo continua na linha 'BDRs'; FII movido para Fundos vai para 'fund'.\n- Proventos e histórico agrupam pela categoria nova.\n- Consultor: distribuição usa a categoria nova.\n- IR: FII movido para Ações continua 'fii' e sem isenção.",
+        "criterios_aceite": [
+          "Pizza, Alocação e Saúde mudam de classe sem mudar o total",
+          "IR idêntico (teste explícito)",
+          "Sem mudança com override null ou igual à base"
+        ]
+      },
+      {
+        "id": "D",
+        "titulo": "UI do mover: hooks, diálogo/sheet/popover, selo, página do ativo e wizard",
+        "objetivo": "Componentes responsivos do protótipo (D5 popover, D9/D10 diálogo, M1-M6 sheet, A1-A6 página do ativo), hook otimista com desfazer, selo 'movido', ajustes do wizard.",
+        "arquivos_novos": [
+          "src/hooks/useMoverInvestimento.ts",
+          "src/hooks/useMoverOpcoes.ts",
+          "src/hooks/useCategoriaEfetivaAtivo.ts",
+          "src/components/carteira/mover/MoverInvestimento.tsx",
+          "src/components/carteira/mover/MoverInvestimentoDialog.tsx",
+          "src/components/carteira/mover/MoverInvestimentoSheet.tsx",
+          "src/components/carteira/mover/DestinoAbaList.tsx",
+          "src/components/carteira/mover/EscolherSecaoPopover.tsx",
+          "src/components/carteira/mover/MovidoBadge.tsx",
+          "src/components/carteira/mover/moverOptimistic.ts",
+          "src/components/carteira/mover/moverToast.tsx",
+          "src/hooks/__tests__/useMoverInvestimento.test.ts",
+          "src/components/carteira/mover/__tests__/MoverInvestimento.test.tsx",
+          "src/components/carteira/mover/__tests__/EscolherSecaoPopover.test.tsx",
+          "src/components/carteira/mover/__tests__/moverOptimistic.test.ts"
+        ],
+        "arquivos_alterados": [
+          "src/app/(admin)/(home)/ativos/[id]/page.tsx",
+          "src/components/carteira/wizard/shared/caixaDaOperacao.ts",
+          "src/components/carteira/wizard/Step5Confirmation.tsx",
+          "src/components/carteira/wizard/Step5AporteConfirmation.tsx",
+          "src/components/carteira/wizard/Step4FiiFields.tsx",
+          "src/components/carteira/wizard/Step4EtfFields.tsx",
+          "src/components/carteira/wizard/Step4AcoesFields.tsx",
+          "src/components/carteira/wizard/Step4StocksFields.tsx",
+          "src/components/carteira/wizard/Step4ReitFields.tsx"
+        ],
+        "detalhes": "MoverInvestimento: Dialog de 600px (lg+) ou BottomSheet (useIsBelowLg).\n- Diálogo (D10):\n  - um fieldset por aba compatível, com a atual primeiro;\n  - rádios nativos com um único name;\n  - a seção atual vem marcada 'atual' e desabilitada;\n  - em ETF's, as duas regiões habilitadas (diverge do protótipo; ver pergunta);\n  - um bloco recolhido lista as abas indisponíveis, cada uma com o motivo;\n  - avisos em caixa neutra;\n  - o primário diz o destino ('Mover para Infra').\n- Sheet (M1-M6): opções de 56px; botões de 44px; altura máxima de 88%; erro preserva a escolha; sucesso fecha e chama o MobileSaveToast com Desfazer.\n- EscolherSecaoPopover (D5): 320px, chips-rádio de 34px (área de toque ≥44px no mobile), pré-seleção subgrupoSugerido; Esc/Cancelar devolvem o foco à alça.\n- MovidoBadge: tranquilidade a 18% com texto seguranca ('movido'; 'planejado' tracejado), com tooltip e texto acessível 'movido por você/pelo consultor em dd/mm/aaaa'.\n- Botão primário = PrimaryButton/Button primary existentes (patrimonio #396CAA), NÃO outside, por contraste AA. Chip 'Soltar aqui' (exportado de MovidoBadge.tsx como SoltarAquiChip) com fundo seguranca e texto branco.\n- Toast (moverToast.tsx): 8s, pausa com hover/foco, Desfazer, 'Ver em <aba>'; no erro, 'Tentar de novo'.\n- Página do ativo:\n  - linha 'Na Carteira: FII's › TVM', clicável para a aba (CATEGORIA_TO_TAB);\n  - botão secundário 'Mover para outra aba' ao lado de 'Editar produto';\n  - se movido: 'movido por você em 01/10/2026 · Voltar ao original (FII's › FOF)', que chama restaurar();\n  - ativo 'fixo' fica SEM botão, só a frase '<Aba> ainda não pode ser movida para outra aba.' (segue o designer A6; ver pergunta);\n  - no mobile, a classificação vira uma linha própria com o botão Mover depois do cartão de posição.\n- Wizard:\n  - texto de ajuda nos Step4 de subgrupo;\n  - prévia de caixa usa useCategoriaEfetivaAtivo(assetId) → CATEGORIA_TO_CAIXA_ABA; oculta o nome da aba enquanto carrega.\n- Cores só de brandColors/TABLE_STYLES, com dark mode.",
+        "testes": "RTL:\n- motivos nas indisponíveis;\n- seção atual desabilitada;\n- as duas regiões de ETF habilitadas;\n- payload do POST;\n- página 'fixo' sem botão;\n- 'Voltar ao original' chama restaurar;\n- popover: foco e Esc.\nHook:\n- otimista entre seções com totais;\n- outra aba remove a linha;\n- rollback;\n- invalidações;\n- toast Desfazer.\nWizard: prévia de caixa com override.",
+        "criterios_aceite": [
+          "Página do ativo move entre abas e subgrupos no desktop e em 390px sem overflow",
+          "Undo pelo toast atualiza a tela",
+          "Contraste AA em botões e chips (≥4,5:1)",
+          "Contrato src/types/carteiraMover.ts respeitado"
+        ]
+      },
+      {
+        "id": "E",
+        "titulo": "Arrastar nas tabelas e até a barra de abas + ação Mover nas linhas e cartões + e2e de escrita",
+        "objetivo": "Reproduzir o protótipo D1-D8, D9 e D11: alça, arrasto para uma seção ou para uma aba (com popover), menu ⋯ e botão Mover no cartão mobile.",
+        "arquivos_novos": [
+          "src/components/carteira/mover/CarteiraDnd.tsx",
+          "src/components/carteira/mover/carteiraDndKeyboard.ts",
+          "src/components/carteira/mover/SecaoDropRow.tsx",
+          "src/components/carteira/mover/AbaDropTarget.tsx",
+          "src/components/carteira/mover/DragHandleCell.tsx",
+          "src/components/carteira/mover/LinhaMoverMenu.tsx",
+          "src/components/carteira/mover/__tests__/CarteiraDnd.test.tsx",
+          "src/components/carteira/mover/__tests__/carteiraDndKeyboard.test.ts",
+          "e2e/desktop-carteira-mover.escrita.spec.ts",
+          "e2e/mobile-carteira-mover.escrita.spec.ts"
+        ],
+        "arquivos_alterados": [
+          "src/components/carteira/CarteiraResumo.tsx",
+          "src/components/ui/tabs/ResponsiveTabNav.tsx",
+          "src/components/carteira/shared/GenericAssetTable.tsx",
+          "src/components/carteira/shared/AssetCardSections.tsx",
+          "src/components/carteira/AcoesTable.tsx",
+          "src/components/carteira/FiiTable.tsx",
+          "src/components/carteira/EtfTable.tsx",
+          "src/components/carteira/ReitTable.tsx",
+          "src/components/carteira/StocksTable.tsx",
+          "src/components/carteira/FimFiaTable.tsx"
+        ],
+        "detalhes": "CarteiraDnd: CarteiraDndProvider, adaptado de CashflowDnd, sem alterar src/components/cashflow/*. Fica montado no CarteiraResumo e envolve a barra de abas e as TabContent.\n- Sensores: Mouse distance 4, Touch delay 250/8, Keyboard com o coordinateGetter de carteiraDndKeyboard (setas percorrem as seções da aba e depois as abas da barra).\n- SEM restrictToVerticalAxis.\n- autoScroll ligado, inclusive horizontal no nav.\n- DragOverlay: 'KDIF11 → Infra', ou '✕ Stocks: Em dólar…' sobre aba recusada.\n- Anúncios em pt-BR.\nResponsiveTabNav ganha a prop opcional tabWrapper?:(tabId, node)=>ReactNode. Sem ela o comportamento é idêntico (CarteiraAnalise, IRTabs, Proventos, Orcamento). O CarteiraResumo passa AbaDropTarget (useDroppable) só para as abas movíveis.\n- Consolidada não é alvo nem leva cadeado.\n- Durante o arrasto, aba incompatível com o item fica a 42% de opacidade e com cadeado de 12px; a compatível ganha contorno tracejado de 1,5px outside; a aba sob o ponteiro, contorno de 2px e preenchimento a 16%; a recusa, contorno vermelho #D92D20/#F97066.\n- No desktop, durante o arrasto, o nav fica sticky no topo (classe aplicada só enquanto active != null), para a barra continuar alcançável com a tabela rolada.\nComportamento ao soltar:\n- numa seção: mover({categoria atual, subgrupo da seção}); na própria seção, cancela;\n- numa aba compatível: abre EscolherSecaoPopover (D) ancorado na aba;\n- numa aba recusada: toast informativo + anúncio.\nAs compatibilidades vêm de useMoverOpcoes (D), com prefetch no onDragStart.\nGenericAssetTable ganha a prop mover?:{categoria; sectionKeyOf(row); alvoOf(row)}. Com ela:\n- 1ª coluna com DragHandleCell (24×28, 45%→100% com hover/foco, aria-label 'Arrastar <ticker>');\n- LinhaMoverMenu ⋯ (32×32): Abrir ativo, Mover para…, Voltar ao original (se movido);\n- MovidoBadge no nome;\n- SecaoDropRow sobre os placeholders de seção vazia que JÁ existem (GenericAssetTable.tsx:511-529), tornando-os droppables;\n- a seção inteira é alvo: faixa com traço inferior de 3px em outside + SoltarAquiChip, linhas com tinta outside a 9% (16% no escuro);\n- linha _pendente fica bloqueada.\nSem a prop, nada muda: as abas fixas não ganham alça nem menu.\nAssetCardSections (mobile): sem DnD; o cartão aberto ganha 'Mover' (44px) ao lado de 'Abrir', abrindo o Sheet de D.\nAs 6 tabelas passam a prop mover. Planejados também (tipo 'planejado').\nE2E *.escrita.spec.ts (projeto 'escrita'):\n- pulam sem E2E_ALLOW_WRITES;\n- criam as fixtures via API dentro do próprio teste e desfazem/apagam no afterEach;\n- afirmam só sobre o que criaram;\n- SEM alterar prisma/seed.ts.",
+        "testes": "RTL:\n- alça só com a prop;\n- soltar em outra seção chama mover;\n- soltar numa aba abre o popover;\n- soltar em aba recusada não chama;\n- teclado percorre seções e depois abas;\n- tabWrapper ausente = DOM idêntico.\nPlaywright desktop (escrita):\n- arrastar FII TVM→Infra (e para seção vazia), persistindo no reload;\n- arrastar até a aba Fundos, escolher Fiagro no popover e ver na pizza;\n- Stock até a aba Ações: recusado;\n- menu ⋯ ETF BRL→Ações;\n- Desfazer pelo toast e pelo Histórico;\n- teclado.\nPlaywright mobile 390 (escrita): Mover no cartão, sheet ≥44px e sem overflow; Renda Fixa sem Mover.",
+        "criterios_aceite": [
+          "Visual do protótipo com paleta brandColors/TABLE_STYLES; contraste AA",
+          "Abas fora do escopo sem alça e sem menu",
+          "e2e de leitura (desktop-carteira, mobile-carteira-cards) sem regressão; snapshots mudam só onde aparece a alça"
+        ]
+      }
+    ],
+    "plano_producao": "Infra: Lightsail, com app e PG16 na mesma máquina. O pipeline é deploy.yml → infra/deploy.sh: build → health na 3001 → prisma migrate deploy → flip → health na 3000 → rollback automático.\n\n1) Migration 20261001120000_carteira_mover_override: 3 ADD COLUMN TEXT NULL. No PG16 é só metadado, sem rewrite. É forward-compatible: a release antiga ignora as colunas e não há backfill.\n\n2) Antes do merge, rodar só SELECTs de diagnóstico em prod, sem escrita:\n- portfolios com asset.type='stock', currency BRL e symbol ~ '^[A-Z][A-Z0-9]{3}11$' (units hoje invisíveis; decide a pergunta 3);\n- 'fund'/'funds' com symbol ~ '11$' ou name ilike '%imobili%' ou '%fii%' (pergunta 4);\n- symbol like 'PLUGGY-FUNDO-%' (pergunta 5);\n- FIIs com tipoFii null (o original é FOF).\n\n3) Ordem de merge (cada merge gera um deploy seguro):\n- Fatia 0;\n- A, B e C, em qualquer ordem e neutras com override null. As mudanças visíveis possíveis são: units em Ações (se aprovado), compra que deixa de sobrescrever subgrupo, estratégia de BDR em compras novas e trava do valorAtualizado em ativo cotado;\n- D e E juntos, no mesmo dia.\nSe quiser liberar primeiro só para o Wellington, usar NEXT_PUBLIC_CARTEIRA_MOVER_HABILITADO, lida em D e E (padrão src/lib/*Config.ts). A API A fica inofensiva sem UI.\n\n4) Pós-deploy:\n- migrate status limpo;\n- smoke e2e;\n- no usuário demo: mover, desfazer e restaurar;\n- conferir que o total de /api/carteira/resumo é igual antes e depois.\n\n5) Rollback: reverter o código basta. As colunas ficam e são ignoradas, e os itens voltam à aba base sem perda de dados. Nunca dropar colunas no rollback.",
+    "plano_qa": "CI unitário:\n- matriz completa (0);\n- API e undo (A);\n- rotas com e sem override, cotação dos movidos, compra que não sobrescreve subgrupo, trava do fim-fia (B);\n- consumidores e IR de regressão (C);\n- hook, componentes e wizard (D);\n- DnD e teclado (E).\n\nConsistência (B), para cada par permitido: o valor da linha na aba destino é igual ao do valuatePortfolioItem do resumo, e a soma das abas é igual ao saldoBruto.\n\nE2E de escrita (desktop 1280 e mobile 390). As fixtures são criadas via API e limpas no próprio teste.\n- Desktop:\n  - arrastar FII entre seções e para uma seção vazia;\n  - arrastar até a aba Fundos e escolher Fiagro no popover;\n  - aba recusada com fantasma '✕' e toast;\n  - fluxo completo só pelo teclado;\n  - menu ⋯ e diálogo;\n  - ETF BRL com as duas regiões habilitadas;\n  - fundo CVM e etf-cvm só com subgrupos;\n  - abas fixas sem alça nem menu;\n  - página do ativo: linha 'Na Carteira', botão Mover, 'Voltar ao original' e RF sem botão;\n  - Desfazer pelo toast e pelo Histórico; o segundo desfazer dá 409 amigável.\n- Mobile: Mover no cartão, sheet de 56/44px, erro que preserva a escolha, MobileSaveToast com Desfazer.\n- Consultor agindo pelo cliente: o histórico marca 'via consultor' e o selo diz 'pelo consultor'.\n- Planejado: mover Ações → FII's › Tijolo, comprar pelo wizard e ver a posição nascer em Tijolo com o objetivo herdado.\n- Regressão do bug da compra: mover KDIF11 para Infra, comprar mais (o wizard pede tipo) e verificar que continua em Infra e que o Desfazer do mover funciona.\n\nRegressão manual:\n- pizza, Alocação e Necessidade de Aporte (o total não muda);\n- Saúde;\n- Fluxo de Caixa (BDR com troca só de subgrupo continua em 'BDRs');\n- Proventos por classe;\n- IR mensal e anual idênticos;\n- wizard de resgate encontra o ativo;\n- prévia de caixa mostra a aba nova;\n- reimportação Pluggy preserva o movimento;\n- FII movido para Fundos sem edição de valor e com cotação live.\n\nVisual em claro e escuro, com contraste AA medido em botões, chips e foco.",
+    "riscos": [
+      "Sem rejeições integrais. Críticas aceitas com ajuste: (a) crítica 2 (arrastar até a aba): a v1 recomendava não fazer; a v2 implementa o protótipo, a pedido ('implementar exatamente o protótipo'), subindo o DndContext para o CarteiraResumo. Isso custa sticky condicional, auto-scroll horizontal e coordinateGetter próprio. Se o Wellington vetar (pergunta 1), saem AbaDropTarget, carteiraDndKeyboard (parte das abas) e as mudanças em ResponsiveTabNav e CarteiraResumo, sem afetar o resto. (b) crítica 3: o 'original' vem do UserChangeLog, sem coluna. Se o histórico for expurgado, o selo e o 'Voltar ao original' somem e o item continua na aba movida (degradação aceitável).",
+      "Mudança de regra NECESSÁRIA: comprar mais de um ativo existente deixa de trocar o subgrupo (hoje é sobrescrito a cada compra). Quem usava o wizard para 'reclassificar' passa a usar o Mover; há texto de ajuda no wizard.",
+      "Units B3 ('stock' BRL terminadas em 11) estão hoje invisíveis nas abas e somam em Renda Fixa na pizza. Corrigir muda a pizza de quem as tem, e não corrigir as deixa fora do escopo. Depende do SELECT e da pergunta 3.",
+      "Duas classificações base continuam convivendo ('fund'+11 na pizza vs. rota; consultantService; portfolioCategoria). O override corrige item a item; a limpeza global fica para PR separado.",
+      "Modelo de cálculo: itens B3 movidos para Fundos passam a usar cotação live na rota fim-fia (correção da crítica 5). Se a cotação falhar, o fallback é avgPrice×qty, sem edição manual. ETF USD ↔ Stocks/REIT precisa de QA com dados reais (preço médio em BRL vs. USD).",
+      "FIIs da Pluggy sem ticker (PLUGGY-FUNDO-*) não podem ir para FII's (modelo 'fundo'). A correção real é religar ao catálogo, fora do escopo.",
+      "Zerar o objetivo de uma posição que troca de aba pode surpreender. Mitigação: aviso, toast e Desfazer. Planejados mantêm o objetivo.",
+      "Override se perde em venda total seguida de recompra (Portfolio apagado). O undo de remoção recria com override.",
+      "Arrastar até a barra de abas: o ponteiro pode sair da viewport. Mitigação: auto-scroll e nav sticky durante o arrasto. O teclado tem caminho completo, e o menu ⋯ é a alternativa acessível.",
+      "Update otimista recalcula só as somas da seção. Percentuais e risco podem piscar por cerca de 300ms até o refetch.",
+      "operacao/route.ts (2,3k linhas) fica na Fatia B. A mudança se limita aos spreads de subgrupo e à absorção, com teste de regressão.",
+      "Cache do assistente: invalidarContextoUsuario após mover, restaurar e desfazer.",
+      "D e E dependem do contrato da Fatia 0. Mudar o contrato exige coordenação.",
+      "Os e2e de escrita rodam só no projeto 'escrita' (workers 1, E2E_ALLOW_WRITES). A seed do demo não é alterada, preservando snapshots e a estabilidade de /relatorios (#272)."
+    ],
+    "perguntas_para_wellington": [
+      "1) Arrastar a linha até a barra de abas (protótipo D3/D4/D5). A v1 do arquiteto recomendava NÃO fazer; o designer prevê. A spec final IMPLEMENTA como no protótipo: solta na aba, abre o popover para escolher a seção, e a barra fica fixa e rola sozinha durante o arrasto. Custa cerca de 1/3 da Fatia E. RECOMENDO manter, já que o menu ⋯ e o teclado continuam como caminho acessível. Se preferir cortar, a Fatia E fica menor e o resto não muda.",
+      "2) Objetivo (%) ao trocar de ABA: RECOMENDO zerar para posições (com aviso, e o Desfazer restaura) e MANTER para planejados, porque é o único dado deles. Na troca só de subgrupo, o objetivo é mantido. Ok?",
+      "3) Units B3 cadastradas como ação (TAEE11, KLBN11, SANB11, BPAC11) hoje não aparecem em nenhuma aba e somam em Renda Fixa na pizza. RECOMENDO corrigir junto: passam a aparecer em Ações e na fatia Ações da pizza, e podem ser movidas. Antes, rodo um SELECT em prod para ver quantas existem. Alternativa: deixar como fora de escopo.",
+      "4) Divergência que já existe: fundos legados 'fund' com ticker terminado em 11 ou com 'imobiliário' no nome aparecem na aba Fundos, mas somam em FII's na pizza. RECOMENDO não mexer agora: o usuário corrige item a item com o Mover. A limpeza global (pizza = aba, incluindo o resumo do consultor) fica para PR separado, com a contagem de prod. Confirma?",
+      "5) Fundo sem ticker (CVM-…, PLUGGY-FUNDO-…, ETF de fundo CVM) só troca de subgrupo dentro da própria aba, porque numa aba de bolsa ficaria sem cotação. Se o caso real for FII importado SEM ticker, a correção certa é religá-lo ao ativo de catálogo (fora deste escopo). Confirma?",
+      "6) IR: RECOMENDO que mover NÃO mude a tributação. Um FII colocado em Ações continua com 20% e sem isenção, e o diálogo avisa. Ok?",
+      "7) Fluxo de Caixa: RECOMENDO que aportes e resgates de um ativo movido de ABA passem para a linha da aba nova em todos os meses. O total não muda, só a linha. Troca só de subgrupo (ex.: BDR Value→Growth) não mexe no Fluxo. Ok?",
+      "8) Wizards de aporte/resgate: RECOMENDO manter o agrupamento pela natureza do ativo (o resgate de fundo é por valor, o de ação por quantidade). A prévia do 'caixa da aba' passa a mostrar a aba nova. Ok?",
+      "9) Comprar mais de um ativo que você já tem NÃO vai mais trocar o subgrupo, mesmo que o wizard peça o tipo (hoje troca sem avisar e desfaria o Mover). Para reclassificar, use o Mover; o wizard terá um aviso. Ok?",
+      "10) DIVERGÊNCIA COM O DESIGNER, ETFs: o protótipo (D10) desabilita 'EUA · Em dólar' para ETF em reais. No sistema, a região do ETF é escolha livre (IVVB11 é em reais com exposição aos EUA e pode estar em EUA). RECOMENDO deixar Brasil e EUA sempre habilitados dentro de ETF's; a moeda bloqueia só a troca de ABA.",
+      "11) DIVERGÊNCIA COM O DESIGNER, contraste: o protótipo usa azul outside (#0079F2) com texto branco no botão principal (4,19:1, abaixo do mínimo de acessibilidade), e o selo 'Soltar aqui' fica branco sobre a faixa azul-clara (2,88:1). RECOMENDO o botão padrão do app (azul patrimonio #396CAA, o mesmo PrimaryButton do Fluxo) e o selo 'Soltar aqui' com fundo seguranca. O azul outside fica só em contornos e realces.",
+      "12) DIVERGÊNCIA DESIGNER × ARQUITETO, ativo fora da fase na página do ativo: o designer (A6) não mostra botão, só a frase 'Renda Fixa ainda não pode ser movida para outra aba.'; o arquiteto (v1) propunha um botão desabilitado com o motivo. A spec final segue o DESIGNER (sem botão, com a frase), porque no toque um botão desabilitado parece quebrado. Confirma?",
+      "13) DIVERGÊNCIA COM O DESIGNER, dados de exemplo: FIIs importados pela Pluggy chegam sem tipo e caem em FOF (não em TVM, como no protótipo). Por isso o 'Voltar ao original' leva, nesses casos, para FOF. Fica assim?",
+      "14) 'Voltar ao original' e selo 'movido por você/pelo consultor em dd/mm': implementados a partir do Histórico de alterações, sem dado novo no banco. Se o histórico daquele ativo for apagado, o selo some e o ativo continua onde você o deixou. Ok?",
+      "15) ETF em dólar ↔ Stocks/REITs: RECOMENDO liberar só depois de validar com uma carteira real que preço médio e rentabilidade batem entre essas abas. Até lá, aparecem bloqueados com o motivo 'em validação'.",
+      "16) Consultor agindo pelo cliente: RECOMENDO permitir mover. Fica registrado 'via consultor' no histórico do cliente e o selo diz 'pelo consultor'. Confirma?"
+    ]
+  },
+  "design": {
+    "resumo": "Atualizei o protótipo no mesmo arquivo e no mesmo link, que agora está na versão 2: https://claude.ai/artifact/KQd3YxzGJjmjGvs2tER9h3. O link é privado e só o Wellington abre, até ele compartilhar. A v1 ficou guardada em prototipo.v1.html, na mesma pasta.\n\nO que mudou, crítica por crítica:\n\n(1) Arrastar até a barra de abas: a barra deixou de ser alvo. Ela rola na horizontal, corta as últimas abas e some quando a tabela está rolada. No lugar, uma bandeja \"Outra aba\" aparece fixa no rodapé da tela enquanto dura o arrasto. Ela mostra Ações, ETF's e Fundos como alvos, e Stocks e REIT's travados com cadeado e \"em dólar\". Ao soltar numa aba da bandeja, um popover abre acima dela para escolher a seção. A bandeja é renderizada pelo próprio CarteiraDnd, dentro do GenericAssetTable. Assim não é preciso subir o DndContext nem alterar o CarteiraResumo ou o ResponsiveTabNav, e a lista de arquivos da Fatia E continua a mesma. Isso cumpre o pedido literal do Wellington (\"mover entre elas\" arrastando) sem o problema da barra. É uma divergência com a pergunta 8 do arquiteto (ver pergunta 1).\n\n(2) Selo \"movido\" e \"Voltar ao original\": o selo e o \"Voltar para <aba>\" agora só aparecem quando o ativo mudou de ABA. Mudar só de seção grava a seção, sem selo, e quem se arrepender usa o Desfazer do toast ou o Histórico. O \"Voltar\" leva o ativo de volta à aba de origem, na seção guardada (as colunas da aba de origem não são apagadas), e grava categoriaOverride = null. A data e o autor vêm do último registro no Histórico de alterações; sem registro, o texto é \"Movido para cá manualmente\". Assim o selo não exige coluna nova.\n\n(3) Região do ETF: dentro de ETF's, Brasil e EUA ficam sempre livres. A moeda só trava a troca de aba.\n\n(4) Contraste: o botão primário passou a usar patrimonio #396CAA (5,4:1), igual ao Button/PrimaryButton do app. O selo \"Soltar aqui\" agora tem fundo seguranca. A aba ativa ficou em patrimonio, como o DESKTOP_UNDERLINE_TAB_ACTIVE. O anel de foco é sólido em outside, e outside só aparece em contornos. No escuro, o toast de erro mostra texto vermelho sobre superfície escura.\n\n(5) Dados de exemplo: os FIIs da Pluggy agora caem em FOF (o fallback da rota), não em TVM. HGLG11 entrou como \"fund\" legado que o usuário trouxe de Fundos, para mostrar o selo e o \"Voltar para Fundos\".\n\n(6) Objetivo: na troca de aba, o popover, o diálogo e o painel mostram \"Objetivo: 10,0% em FII's → 0% em Fundos\" antes de confirmar, e o toast avisa depois. Os planejados mantêm o objetivo.\n\n(7) A especificação ganhou a seção \"Quando o selo 'movido' aparece e como voltar\". Ela diz que o assistente de compra mostra a seção atual já preenchida e não a regrava, que a prévia de caixa usa a aba efetiva, e que um ativo de bolsa movido para Fundos mantém a cotação de mercado sem \"Valor atualizado\" editável. A matriz de compatibilidade agora tem etf-cvm (só troca de seção) e a nota sobre as units B3.\n\nVerificação: rodei os 23 cenários no Playwright sem erro no console. Testei o arrasto real de KNCA11 até Fundos na bandeja: o popover abre e o toast diz \"Objetivo voltou a 0%\". A 390px a página não rola na horizontal. Vi prints do D5 no claro e do D10 no escuro.",
+    "prototipo_path": "/tmp/claude-1000/-home-huske-dev-front/9e55fefb-2c18-49d9-bd39-5773d4d741ec/scratchpad/carteira-mover/prototipo.html",
+    "telas": [
+      {
+        "nome": "D1 — Aba FII's em repouso (interativa)",
+        "descricao": "Tabela no padrão TABLE_STYLES. Mostra o retrato real do problema: os FIIs que a Pluggy criou sem tipoFii caíram em FOF (KDIF11, CPTI11 e BIDB11, que são FI-Infra, e KNCA11, que é Fiagro). IRIM11, VRTA11 e PCIP11 estão em TVM. HGLG11 aparece em Tijolo com o selo 'movido', porque veio de Fundos (era 'fund' legado). XPML11 é um planejado, que caiu em FOF. Cada linha tem a alça ⠿ e o menu ⋯.",
+        "decisoes": [
+          "Os dados foram corrigidos conforme a crítica: o fallback da rota fii é 'fofi', não TVM.",
+          "O selo 'movido' só aparece quando o ativo está em outra aba por escolha manual. Mudar de seção não gera selo.",
+          "A alça segue o ItemRow do Fluxo: 24×28px, 45% de opacidade em repouso e 100% com hover ou foco."
+        ]
+      },
+      {
+        "nome": "D2 — Arrastando entre seções",
+        "descricao": "A seção inteira é o alvo: faixa, linhas e linha vazia (os placeholders já existem no GenericAssetTable). A faixa ganha um traço de 3px em outside e o selo 'Soltar aqui', agora com fundo seguranca e texto branco (10:1). A bandeja 'Outra aba' já aparece no rodapé desde o início do arrasto.",
+        "decisoes": [
+          "Corrigido o contraste do selo 'Soltar aqui': branco sobre tranquilidade dava 2,9:1.",
+          "Não há reordenação dentro da seção, porque a Carteira não tem ordem manual."
+        ]
+      },
+      {
+        "nome": "D3/D4 — Bandeja 'Outra aba' (substitui o arrasto até a barra de abas)",
+        "descricao": "Ao começar o arrasto, a bandeja sobe fixa no rodapé da tela. Ela tem os alvos Ações, ETF's e Fundos (48px de altura, contorno tracejado e a contagem de seções) e os alvos Stocks e REIT's travados, com cadeado e 'em dólar'. Sobre uma aba recusada, o fantasma mostra o motivo e o alvo ganha contorno vermelho; soltar ali não faz nada e o leitor de tela anuncia o motivo.",
+        "decisoes": [
+          "Aceitei a crítica de que a barra de abas real não é um alvo viável: ela rola na horizontal, corta abas a 1360px e some com a tabela rolada.",
+          "Também não tirei o arrasto entre abas, porque o Wellington pediu literalmente para mover 'entre elas' com o sistema do Fluxo. A bandeja resolve isso dentro do CarteiraDnd, sem tocar no CarteiraResumo ou no ResponsiveTabNav. É uma divergência com a pergunta 8 do arquiteto, explicitada para o Wellington.",
+          "Renda Fixa e as outras abas fora da fase não entram na bandeja; o motivo delas aparece no diálogo e no painel do celular."
+        ]
+      },
+      {
+        "nome": "D5 — Soltou na bandeja: escolher seção",
+        "descricao": "Um popover de 320px abre acima do alvo da bandeja, com chips-rádio das seções. A seção sugerida vem do nome ou segmento do ativo (KNCA11 → Fiagro). Tem uma linha nova de objetivo: 'Objetivo: 10,0% em FII's → 0% em Fundos. Ajuste depois na aba.' Os botões são Cancelar e 'Mover para Fiagro' (em patrimonio).",
+        "decisoes": [
+          "Nunca vai para uma seção padrão sem perguntar.",
+          "O objetivo zerado aparece antes de confirmar, e não só no toast.",
+          "Esc ou Cancelar devolvem o foco à alça."
+        ]
+      },
+      {
+        "nome": "D6/D7/D8 — Carregando, sucesso e erro",
+        "descricao": "Atualização otimista: a linha aparece no destino a 60%, com 'Movendo…'. No sucesso, a linha recebe realce de 1,6s e o toast traz Desfazer (8s), além de 'Ver em Fundos' quando muda de aba, com o aviso do objetivo. No erro, a linha volta ao lugar e o toast diz onde ela ficou, com 'Tentar de novo'.",
+        "decisoes": [
+          "Toast de erro no escuro: texto #F97066 sobre a superfície #26262A, com borda vermelha. Branco sobre o vermelho claro do escuro não passava em contraste.",
+          "O Desfazer restaura tudo: aba, seção, objetivo e a escolha manual."
+        ]
+      },
+      {
+        "nome": "D9/D10 — Menu ⋯ e diálogo 'Mover para…'",
+        "descricao": "O menu tem Abrir ativo, Mover para… e, se o ativo mudou de aba, 'Voltar para Fundos', mostrando a seção guardada e 'Você moveu de Fundos em 12/09/2026'. O diálogo tem um fieldset por aba compatível, com a aba atual primeiro e a aba de origem marcada ('aba de origem', seção '· antes'). Em ETF's, Brasil e EUA ficam livres. O rodapé mostra o que muda e o que não muda e, se a aba for outra, a linha do objetivo. Ao voltar à aba de origem, o rodapé diz: 'deixa de ter escolha manual e segue o tipo do catálogo'.",
+        "decisoes": [
+          "'Voltar ao original' virou 'Voltar para <aba>'. Ele só existe para troca de aba e se apoia em dados que o modelo já tem: categoriaBaseDaAba e as colunas de subgrupo que não são apagadas ao sair da aba.",
+          "Corrigido o ETF: as regiões não são travadas pela moeda."
+        ]
+      },
+      {
+        "nome": "D11 — Ativo planejado",
+        "descricao": "XPML11, planejado sem seção, caiu em FOF e é arrastado para Tijolo. Usa a mesma alça e o mesmo menu, com o selo 'planejado' tracejado.",
+        "decisoes": [
+          "O planejado mantém o objetivo na troca de aba, porque é o único dado que ele tem. Isso diverge da spec do arquiteto (Watchlist objetivo: 0) e está na pergunta 12."
+        ]
+      },
+      {
+        "nome": "M1–M6 — Celular",
+        "descricao": "Cartões com faixas de seção. O cartão aberto mostra Abrir e Mover. O painel 'Mover KDIF11' começa pela aba atual e depois traz Ações, ETF's e Fundos, com opções de 56px no padrão do MovePanel. ETF's tem Brasil e EUA livres. Um item recolhido lista as abas indisponíveis com o motivo. O rodapé mostra a linha do objetivo quando a aba muda, depois Voltar e 'Mover para Infra' (patrimonio). Os cenários cobrem Movendo…, erro com a escolha preservada e sucesso com o MobileSaveToast e Desfazer.",
+        "decisoes": [
+          "Sem arrasto no celular, como no Fluxo do PWA.",
+          "O botão primário mudou de outside para patrimonio, no mesmo padrão do PrimaryButton do sheetUi."
+        ]
+      },
+      {
+        "nome": "A1–A6 — Página do ativo",
+        "descricao": "Linha 'Na Carteira: FII's › FOF', clicável. O botão secundário passou a se chamar 'Mover na Carteira' (cobre seção e aba) e fica ao lado de 'Editar produto'. O A4 agora mostra uma troca de aba real: KNCA11 em Fundos › Fiagro, com 'movido por você em 01/10/2026 · Voltar para FII's › FOF' e o toast 'Objetivo voltou a 0%' com 'Ver na Carteira'. Num CDB não aparece botão, só a frase. No celular, uma linha própria com o botão Mover.",
+        "decisoes": [
+          "'Mover para outra aba' virou 'Mover na Carteira', porque a ação também troca a seção.",
+          "Fica fora de /ativos/[id]/editar.",
+          "Mantive a frase no lugar de um botão desabilitado para ativos fora da fase. Os dois funcionam; a decisão fica para o Wellington (pergunta 10)."
+        ]
+      },
+      {
+        "nome": "Críticas sem mudança no protótipo (de arquitetura)",
+        "descricao": "Estas críticas são de arquitetura e não alteram tela. Seguem com o meu parecer de design.",
+        "decisoes": [
+          "Compra que regrava o subgrupo: concordo e reforcei na spec. O assistente de compra deve mostrar a seção atual já preenchida ('definida por você') e não regravá-la.",
+          "Efeito no Fluxo de Caixa e nos proventos (override só quando a categoria ≠ base): é coerente com a nova regra do selo, que só vale para troca de aba. Concordo.",
+          "Valorização na aba Fundos e edição de 'Valor atualizado': na spec, o item de bolsa movido mantém a cotação de mercado e a linha não fica editável.",
+          "Units B3 e etf-cvm: entraram na matriz e na pergunta 9.",
+          "Nomes de E2E (*.escrita.spec.ts), prévia de caixa e consultantService: fora do design. Concordo com as sugestões e não mudei a tela por elas."
+        ]
+      }
+    ],
+    "especificacao_visual": "Fonte Outfit, com fallback ui-sans-serif/system-ui, e tabular-nums nos números. Cores só de brandColors.ts mais os cinzas do Tailwind que o app usa.\n\nTEXTO BRANCO só sobre seguranca #314666 (10:1) ou patrimonio #396CAA (5,4:1). Primário, chips escolhidos e o selo 'Soltar aqui' seguem essa regra.\n\noutside #0079F2 só em contornos, realces e anel de foco: 4,2:1 sobre branco, acima do mínimo de 3:1 para elementos que não são texto. Tinta de alvo em 9% (16% no escuro) e preenchimento sob o ponteiro em 16% (26% no escuro).\n\nAba ativa em patrimonio, como o DESKTOP_UNDERLINE_TAB_ACTIVE (brand-500).\n\nFaixa de seção em tranquilidade com texto branco: é o TABLE_STYLES atual e não foi alterada (2,9:1, ver pergunta 11).\n\nSelo 'movido' com fundo tranquilidade a 18% e texto seguranca (no escuro, 14% com texto escolha).\n\nVermelho semântico #D92D20 (no escuro #F97066, usado como texto sobre #26262A).\n\nMEDIDAS NO COMPUTADOR:\n- Alça: 24×28px.\n- Botão ⋯: 32×32px.\n- Menu: itens de 40px, largura mínima de 260px.\n- Fantasma: 12,5px, raio de 8px.\n- Bandeja 'Outra aba': fixa a 14px do rodapé da viewport (mais safe-area-inset-bottom), centralizada na área de conteúdo, raio de 14px, padding de 10/12px, título 'Outra aba' com a dica ao lado.\n- Alvos da bandeja: 48px de altura e 104px de largura mínima. Compatível: tracejado de 1,5px em outside. Sob o ponteiro: sólido de 2px com preenchimento. Travado: borda cinza, fundo app-bg, cadeado de 12px e 'em dólar'. Recusa: borda de 2px em vermelho.\n- Popover: 320px, raio de 14px, abre ACIMA do alvo, chips de 34px, linha do objetivo em bloco app-bg.\n- Diálogo: 600px, raio de 18px, rodapé fixo com o impacto (incluindo o objetivo e o retorno à aba de origem quando for o caso).\n- Toast: raio de 12px, dura 8s e pausa com hover ou foco.\n\nMEDIDAS NO CELULAR:\n- Opções de 56px e botões de 44px.\n- Painel com até 88% da altura e raio de 22px.\n- Linha do objetivo no rodapé, acima dos botões.\n- Toast acima da barra inferior.\n\nESCURO: fundo #18181B, superfície #1F1F22, linhas #2E3440. O cabeçalho e as faixas mantêm as cores da marca. Foco e links passam a tranquilidade #6E9DC4.",
+    "acessibilidade": [
+      "Alça: um button com o nome 'Mover KDIF11. Espaço para pegar' e aria-describedby com as instruções. Espaço pega a linha. As setas percorrem as outras seções da aba e depois as abas da bandeja ('aba Fundos, na bandeja'). Espaço solta e Esc cancela. Cada passo é anunciado com aria-live assertive; no app, isso fica nos announcements do dnd-kit.",
+      "Se o coordinateGetter de teclado até a bandeja atrasar, o arrasto por teclado pode ficar só nas seções. O menu ⋯ e o diálogo já cobrem a troca de aba sem mouse.",
+      "A bandeja tem role=group com o nome 'Mover para outra aba'. Os alvos travados têm aria-disabled e aria-description com o motivo ('Em dólar…'), então nada some do leitor de tela.",
+      "O menu ⋯ tem aria-haspopup=menu, navegação por setas, e Esc devolve o foco ao botão. O diálogo tem role=dialog, aria-modal e foco preso, com fieldset e legend por aba e rádios nativos com um único name. O impacto no rodapé fica em aria-live polite, para que a linha do objetivo seja lida ao trocar de aba.",
+      "Toasts: o de sucesso usa role=status e o de erro role=alert. Ctrl/Cmd+Z fora de campos aciona o Desfazer. O toast pausa com hover ou foco.",
+      "Foco depois de mover dentro da aba: na alça, já no destino. Depois de cancelar ou desfazer: na alça. Depois de mover pela página do ativo: no botão 'Mover na Carteira'.",
+      "O selo 'movido' tem texto para leitor de tela: ', Você moveu de Fundos em 12/09/2026'. O selo 'planejado' não depende só da cor: tem borda tracejada e texto.",
+      "Contraste: o texto branco só aparece sobre seguranca ou patrimonio. outside fica fora de texto. O anel de foco é sólido, de 3px, em outside (tranquilidade no escuro). O toast de erro no escuro usa texto vermelho claro sobre superfície escura.",
+      "Alvos de toque de 44px ou mais no celular (opções de 56px). A bandeja tem alvos de 48px.",
+      "prefers-reduced-motion desliga o realce e desacelera o spinner.",
+      "Pendente, fora desta feature: a faixa tranquilidade com texto branco do TABLE_STYLES tem 2,9:1."
+    ],
+    "perguntas_para_wellington": [
+      "1. DIVERGÊNCIA COM O ARQUITETO: arrastar a linha para outra aba no computador? O arquiteto recomenda NÃO (pergunta 8 dele). A barra de abas real rola, corta abas e some com a tabela rolada, e isso exigiria subir o DndContext para o CarteiraResumo. RECOMENDO SIM, mas com a bandeja 'Outra aba', que aparece fixa no rodapé durante o arrasto, e não com a barra de abas. A bandeja vive no próprio CarteiraDnd, dentro do GenericAssetTable, então a Fatia E continua com os mesmos arquivos. Isso atende ao seu pedido de mover 'entre elas' com o sistema do Fluxo. Se preferir o mínimo, o arrasto fica só entre seções e a troca de aba vai pelo menu ⋯ e pelo diálogo, sem perda de função.",
+      "2. Ao soltar numa aba, escolher a seção ou mandar para uma seção padrão? RECOMENDO abrir o popover com a seção sugerida já marcada: um clique a mais, mas o ativo nunca vai para o lugar errado.",
+      "3. CONVERGÊNCIA COM A CRÍTICA, AJUSTE NA SPEC DO ARQUITETO: o selo 'movido' e o 'Voltar' devem existir só para troca de ABA? RECOMENDO que sim. Mudar só de seção grava só a seção, sem selo e sem prender o ativo. Isso pede uma mudança na regra da spec ('todo movimento grava categoriaOverride'): gravar o override só quando a aba de destino for diferente da aba base, e gravar null ao voltar para ela. Assim o Fluxo de Caixa, os proventos e as correções futuras do catálogo continuam valendo para quem só ajustou a seção.",
+      "4. Deixamos Ações/ETF entrarem em Fundos e Fundos listados entrarem em Ações/FII's? RECOMENDO liberar como está na matriz e bloquear só fundos e ETFs sem cotação de bolsa (CVM ou curva), que ficariam com valor errado fora da própria aba.",
+      "5. O histórico por classe (evolução da alocação, rentabilidade por classe) segue a nova aba também para trás no tempo? RECOMENDO que sim: a escolha é aplicada na leitura, com uma fonte de verdade só. Senão o gráfico mostra o ativo 'pulando' de classe no dia em que o usuário corrigiu a importação.",
+      "6. O IR muda quando o ativo muda de aba? RECOMENDO que NÃO: o IR segue o Asset.type (o rendaVariavelLoader já faz assim). O diálogo e o painel avisam isso. Arquiteto e designer concordam.",
+      "7. Na troca de aba, o objetivo (%) volta a 0%? É a proposta do arquiteto, já que o objetivo é '% dentro da aba'. CONCORDO, desde que o usuário veja antes de confirmar. O protótipo mostra 'Objetivo: 10,0% em FII's → 0% em Fundos' no popover, no diálogo e no painel, e o Desfazer restaura o valor.",
+      "8. Corrigir junto o bug do BDR que não salva a estratégia? RECOMENDO que sim, porque sem isso mover um BDR de seção não persiste. Também na mesma fatia: a compra NÃO pode regravar tipoFii, regiaoEtf e estrategia de quem já tem posição (crítica de gravidade alta). O assistente de compra deve mostrar a seção atual já preenchida ('Infra · definida por você').",
+      "9. As units B3 cadastradas como 'stock' em real (TAEE11, KLBN11, SANB11, BPAC11) hoje não aparecem em aba nenhuma e somam em Renda Fixa na pizza. RECOMENDO rodar o SELECT em prod antes. Se houver posições, corrigir num PR à parte o regex da rota de Ações e o categorizarAsset, para que elas apareçam em Ações. Sem linha, não há o que mover.",
+      "10. DIVERGÊNCIA COM O ARQUITETO: na página de um ativo que não pode ser movido (CDB, Tesouro, imóvel), mostrar um botão desabilitado com o motivo (arquiteto) ou só uma frase, sem botão (designer)? RECOMENDO só a frase ('Renda Fixa ainda não pode ser movida para outra aba.'), que respeita o seu 'sem botão quebrado' e não polui a página de todo CDB. As duas formas são acessíveis.",
+      "11. A faixa de seção azul-claro (tranquilidade) com texto branco tem contraste de 2,9:1, abaixo do mínimo. É o padrão atual de todas as tabelas (TABLE_STYLES) e não mexi nele aqui. RECOMENDO um ticket separado para escurecer o texto ou trocar o fundo nas faixas, já que isso muda todas as tabelas.",
+      "12. DIVERGÊNCIA COM O ARQUITETO: um ativo PLANEJADO que troca de aba perde o objetivo? A spec zera (Watchlist objetivo: 0). RECOMENDO manter: para o planejado, o objetivo é o único dado, e uma linha zerada perde o sentido.",
+      "13. Arrastar no celular? RECOMENDO que não nesta fase: o painel 'Mover' resolve com toques grandes, igual ao Fluxo no PWA.",
+      "14. O consultor agindo pelo cliente pode mover? RECOMENDO que sim, registrando no Histórico. O selo e a página do ativo diriam 'movido pelo consultor', com o autor vindo do registro do Histórico. Confirmar o texto."
+    ]
+  },
+  "revisao": {
+    "problemas": [
+      {
+        "alvo": "arquitetura",
+        "gravidade": "alta",
+        "descricao": "A operação de compra sobrescreve o subgrupo a cada nova compra, o que desfaz o 'mover' sem aviso e quebra o desfazer. A spec afirma que 'compras de ativo já movido NÃO mexem no override', mas não trata as colunas de subgrupo. No caminho de atualização de posição existente, tipoFii, regiaoEtf e estrategia são regravados a cada compra pelo wizard. Para FII e ETF esses campos são OBRIGATÓRIOS no wizard, então toda compra os envia.",
+        "evidencia": "src/app/api/carteira/operacao/route.ts:2293-2296: `...(tipoAtivo === 'fii' && tipoFii ? { tipoFii } : {})` e `regiaoEtf` dentro do tx.portfolio.update de portfolioExistente. Linhas 653-662 exigem tipoFii e 756-765 exigem regiaoEtf. Cenário: o usuário move KDIF11 de TVM para Infra e depois compra mais 10 cotas pelo wizard, que pede 'Tipo de FII' de novo. tipoFii volta ao valor escolhido no wizard, sem registro no Histórico. O undo do 'investimento.mover' compara com snapshot.meta.after e devolve 409 'movido de novo', que é enganoso.",
+        "sugestao": "Na Fatia B, no update de portfolioExistente: não sobrescrever estrategia, tipoFii e regiaoEtf quando a posição já tem valor (ou quando categoriaOverride != null). Gravar só no create ou quando o campo for null. No wizard, pré-preencher o subgrupo atual (ou omiti-lo) quando o ativo já tem posição. Incluir teste de regressão: mover, comprar de novo e verificar que o subgrupo é mantido."
+      },
+      {
+        "alvo": "ambos",
+        "gravidade": "alta",
+        "descricao": "O protótipo promete arrastar a linha até a barra de abas (D3, D4 e D5, com popover de seção e teclado que percorre 'seções e depois abas'). A arquitetura não entrega nada disso: a Fatia E põe o CarteiraDnd dentro do GenericAssetTable, e a barra de abas é renderizada fora dele (CarteiraResumo, via ResponsiveTabNav), em arquivos que nenhuma fatia altera. Além disso, no desktop a barra não é sticky e tem overflow-x: com a tabela rolada, ela fica fora da tela, e as últimas abas ficam cortadas na horizontal.",
+        "evidencia": "src/components/carteira/CarteiraResumo.tsx renderiza ResponsiveTabNav e as TabContent (só a aba ativa monta a tabela). Em ResponsiveTabNav.tsx:72 o nav tem 'overflow-x-auto'. No CarteiraTabs, o sticky existe só no MobileMainNav. Na Fatia E, nem arquivos_alterados nem os testes incluem CarteiraResumo.tsx ou ResponsiveTabNav.tsx. No screenshot revisao-D5.png (1360px), a aba \"REIT's\" aparece cortada ('R') e ETF's não aparece. Pergunta 8 do arquiteto: 'RECOMENDO NÃO' arrastar para a aba.",
+        "sugestao": "O Wellington precisa decidir antes de começar a Fatia E. Se o arrasto até a aba entrar, o DndContext tem que subir para o CarteiraResumo, que envolve a barra de abas e a tabela, e o ResponsiveTabNav precisa de droppables opcionais. Isso também exige definir como alcançar abas fora da tela (sticky no desktop durante o arrasto e auto-scroll horizontal) e escrever o coordinateGetter de teclado. Se não entrar, o protótipo deve tirar D3, D4 e D5 e o trecho do teclado que vai até as abas."
+      },
+      {
+        "alvo": "ambos",
+        "gravidade": "media",
+        "descricao": "O 'Voltar ao original (FII's › TVM)' e o selo 'movido por você em 01/10/2026 / movido pelo consultor' dependem de dados que o modelo não guarda. Mover dentro da mesma aba sobrescreve tipoFii, estrategia e regiaoEtf, então o subgrupo original se perde. Também não existem colunas para data, autor ou origem. Como o arquiteto grava categoriaOverride até numa troca só de subgrupo, qualquer ajuste de seção vira 'movido' e prende o item para sempre, e correções futuras do catálogo (#274 ou type 'fund' corrigido para 'fii') deixam de valer para ele.",
+        "evidencia": "Spec §3: 'todo movimento (de aba ou só de subgrupo) grava categoriaOverride'. Spec §5: as colunas da aba de origem só são preservadas quando a aba muda. Protótipo: cenários A1–A6 e menu D9 com 'Voltar ao original'. Não há nenhuma rota ou ação de 'restaurar' na API da spec.",
+        "sugestao": "Gravar categoriaOverride somente quando destino ≠ categoriaBaseDaAba. Ao mover de volta para a aba base, gravar null. Guardar o subgrupo original no snapshot do Histórico, ou numa coluna 'subgrupoOriginal', para que o 'Voltar ao original' seja possível. Data e autor do selo devem vir do UserChangeLog (último 'investimento.mover' da entidade), não de colunas novas. Se nada disso for feito, retirar do protótipo o 'Voltar ao original' e o texto com data e autor."
+      },
+      {
+        "alvo": "arquitetura",
+        "gravidade": "media",
+        "descricao": "Override pegajoso em troca só de subgrupo mais o mapeamento categoria→tipo do Fluxo de Caixa (Fatia C) geram efeitos colaterais em todos os meses. Basta trocar um BDR de Value para Growth: o override vira 'acoes', mapeado para 'stock', e os aportes do BDR passam da linha 'BDRs' para 'Ações' no Fluxo inteiro. Fundos 'fia' e 'multimercado' hoje caem nas linhas próprias pelo default de mapTransactionToTipo, e com override 'fimFia' iriam para 'fund'.",
+        "evidencia": "src/services/cashflow/investimentosPorMes.ts:15-56: 'bdr'→'bdr', 'stock'→'stock', e o default devolve o assetType. src/app/api/cashflow/investimentos/route.ts:53-56 tem linhas separadas 'Ações' e 'BDRs'. Na spec, o consumidor investimentosPorMes mapeia acoes→'stock' e fimFia→'fund'.",
+        "sugestao": "Aplicar o override no Fluxo, nos proventos por classe e no histórico/ativos só quando a categoria efetiva ≠ categoriaBaseDaAba (ver item anterior). Quando categoria efetiva = base, manter mapTransactionToTipo intacto."
+      },
+      {
+        "alvo": "arquitetura",
+        "gravidade": "media",
+        "descricao": "Um ativo B3 movido para Fundos é valorizado de outro jeito e pode ter o preço médio corrompido. A rota fim-fia usa Asset.currentPrice, gravado pelo cron (diário, pode estar defasado ou null), e não a cotação live. Já o resumo usa getAssetPrices via valuatePortfolioItem, então o critério '±R$0,01 com o resumo' não fecha. Pior: se currentPrice for null, a rota fim-fia permite editar 'valorAtualizado' inline, e essa edição REGRAVA Portfolio.avgPrice do FII ou da ação. Isso estraga preço médio, rentabilidade e base do IR.",
+        "evidencia": "src/app/api/carteira/fim-fia/route.ts:175-183 (hasCvmCota = Asset.currentPrice). Linhas 399-421: o POST campo='valorAtualizado' só bloqueia quando cvmPrice>0 e senão faz prisma.portfolio.update({avgPrice: numValor/qty}). Spec da Fatia B: 'Item B3 movido para cá é valorizado por Asset.currentPrice×qty'.",
+        "sugestao": "Na rota fim-fia, para itens com modelo 'b3-brl' (ou override de origem B3), buscar a cotação por getAssetPrices, igual ao valuatePortfolioItem, e marcar a linha como não editável. No POST de valorAtualizado, bloquear a edição quando o ativo tem ticker B3 ou override vindo de aba de bolsa. Incluir teste."
+      },
+      {
+        "alvo": "arquitetura",
+        "gravidade": "media",
+        "descricao": "As units B3 cadastradas como 'stock' BRL (TAEE11, KLBN11, SANB11, BPAC11) não aparecem em NENHUMA aba e na pizza somam em Renda Fixa. A spec usa um regex diferente do das rotas (\\d{1,2} contra [0-9]) e diz que categoriaBaseDaAba 'espelha os where das rotas'. Resultado: essas units viram 'fixo' e não podem ser movidas, e nem têm linha na tabela para arrastar ou clicar. É justamente o tipo de 'ativo no lugar errado' que a feature deveria corrigir.",
+        "evidencia": "src/app/api/carteira/acoes/route.ts:62 (/^[A-Z][A-Z0-9]{3}[0-9]$/, comentário 'exclui units (AAAA11)'). renda-fixa/route.ts:41 filtra só bond, cash e tesouro-direto. itemValuation.ts:177-180 manda 'stock' BRL fora do padrão para 'rendaFixaFundos'. A matriz da spec traz \"'stock' BRL não-B3 → fixo\" e um regex que aceita 11.",
+        "sugestao": "Fechar uma regra única: ou as units passam a aparecer em Ações (corrigir o regex da rota e o categorizarAsset), ou entram explicitamente como fora de escopo. Rodar um SELECT em prod (portfolios com asset.type='stock', currency BRL e symbol ~ '11$') antes de decidir. Usar o MESMO regex em categoriaBaseDaAba, modeloDePreco e nas rotas."
+      },
+      {
+        "alvo": "arquitetura",
+        "gravidade": "baixa",
+        "descricao": "ETF 'etf-cvm' (fundo CVM sem cotação em bolsa) fica na aba ETF's, mas para a spec ele é modelo 'fundo', cujos destinos são [fimFia]. Na prática isso libera uma troca de aba (ETF's para Fundos) e proíbe mudar o subgrupo dentro de ETF's, o contrário da regra 'fundo = só subgrupos dentro de Fundos'.",
+        "evidencia": "itemValuation.ts:240 (etfs: ['etf','etf-cvm']), fundoTypes.ts (etf-cvm fora de FUNDO_TYPES_AGRUPADOS). Spec §4: modeloDePreco devolve 'fundo' para CVM-/FUNDO- e 'Destinos por modelo: fundo [fimFia]'.",
+        "sugestao": "Fazer os destinos do modelo 'fundo' dependerem da aba base: um etf-cvm em ETF's só troca de subgrupo (brasil/estados_unidos) dentro de ETF's. Incluir na matriz de testes."
+      },
+      {
+        "alvo": "design",
+        "gravidade": "media",
+        "descricao": "O designer parte de uma premissa errada sobre ETFs ('regiaoEtf vem de currency') e por isso desabilita 'EUA · Em dólar' para ETF BRL. No código, a região é escolhida livremente no wizard (campo obrigatório) e a moeda só é fallback. IVVB11 (BRL, exposição EUA) pode estar hoje em EUA, e o próprio arquiteto prevê esse caso.",
+        "evidencia": "operacao/route.ts:756-765 (regiaoEtf obrigatório, brasil|estados_unidos). Step4EtfFields.tsx:27 oferece 'EUA' sem olhar a moeda. etf/route.ts:96-97: `item.regiaoEtf ?? (currency==='USD' ? ...)`. Protótipo D10: 'EUA · Em dólar' desabilitado para um ativo BRL.",
+        "sugestao": "Dentro de ETF's, as duas regiões ficam sempre habilitadas. A moeda bloqueia só a troca de ABA (BRL↔USD), não a região do ETF."
+      },
+      {
+        "alvo": "design",
+        "gravidade": "media",
+        "descricao": "Há problemas de contraste. O botão primário do protótipo usa outside #0079F2 com texto branco, que dá 4,19:1 e não passa o AA para texto normal. Ele também diverge do PrimaryButton do app, que usa patrimonio #396CAA. O selo 'Soltar aqui' fica sobre a faixa tranquilidade com texto branco (2,88:1). Links e foco em outside sobre branco também ficam em 4,19:1.",
+        "evidencia": "prototipo.html:172 `.btn.primary{background:var(--mf-outside);color:#fff}`. src/components/cashflow/mobile/edit/sheetUi.tsx (PrimaryButton com 'bg-mf-patrimonio') e src/components/ui/button/Button.tsx primary bg-brand-500 (= #396caa, globals.css:56). Cálculo: #FFF/#0079F2 = 4,19 e #FFF/#6E9DC4 = 2,88.",
+        "sugestao": "Usar patrimonio (#396CAA) no primário e reaproveitar PrimaryButton e Button. Pôr o selo 'Soltar aqui' com fundo seguranca, ou texto seguranca sobre um chip claro. Deixar outside só para contornos e realces que não sejam texto."
+      },
+      {
+        "alvo": "arquitetura",
+        "gravidade": "media",
+        "descricao": "Os E2E novos de mover GRAVAM no banco, mas foram nomeados fora da convenção '*.escrita.spec.ts'. Assim eles rodam nos projetos chromium e mobile, em paralelo com as suítes só-leitura e os snapshots (desktop-carteira, mobile-carteira-cards). A seed nova da Fatia E também muda os snapshots e dados de carteira existentes (estabilidade do /relatorios, #272).",
+        "evidencia": "playwright.config.ts:47 e 63 ignoram /\\.escrita\\.spec\\.ts/ nos projetos de leitura, e as linhas 66-79 definem o projeto 'escrita' (workers 1, depois de chromium e mobile, exige E2E_ALLOW_WRITES). Na Fatia E: 'e2e/desktop-carteira-mover.spec.ts', 'e2e/mobile-carteira-mover.spec.ts' e alteração em prisma/seed.ts.",
+        "sugestao": "Renomear para desktop-carteira-mover.escrita.spec.ts e mobile-carteira-mover.escrita.spec.ts, com skip sem E2E_ALLOW_WRITES. Cada teste deve desfazer o que moveu e afirmar só sobre o que criou. Avaliar criar as fixtures no próprio teste, via API, em vez de mexer na seed do demo."
+      },
+      {
+        "alvo": "arquitetura",
+        "gravidade": "baixa",
+        "descricao": "A prévia de caixa no cliente (assistente/wizard) continua decidindo a aba pelo tipo. Depois de um mover, o aviso mostra 'usa o caixa de FII's' enquanto o servidor (Fatia C) debita o caixa de Ações. Isso é dinheiro mostrado errado ao usuário, e a spec aceita a divergência.",
+        "evidencia": "src/components/carteira/wizard/shared/caixaDaOperacao.ts (abaDaCompra por tipoAtivo; o comentário diz que o servidor usa categorizarAsset). src/lib/caixaParaInvestirPlano.ts:83 CATEGORIA_TO_CAIXA_ABA. Fatia C: 'A prévia no cliente fica como está'.",
+        "sugestao": "Fazer a prévia consultar a categoria efetiva quando o ativo já tem posição (a busca de ativo do wizard pode trazer categoriaOverride), ou pelo menos tirar o nome da aba do aviso quando houver override."
+      },
+      {
+        "alvo": "arquitetura",
+        "gravidade": "baixa",
+        "descricao": "Ficou um consumidor de categoria de fora do mapa: o serviço do consultor classifica a distribuição consolidada com uma heurística própria por Asset.type, com o mesmo 'fund'+11→FII. A spec só cita a página consultor/[clientId].",
+        "evidencia": "src/services/consultantService.ts:762-830 (switch assetType com 'bdr'→Stocks, 'fund'/'funds'+'11'→FII's).",
+        "sugestao": "Registrar como follow-up junto com a página do consultor ou, de preferência, trocar por valuatePortfolioItem/categoriaEfetiva."
+      },
+      {
+        "alvo": "arquitetura",
+        "gravidade": "baixa",
+        "descricao": "A Fatia E parte de premissas incompletas. (1) A spec diz que as seções vazias 'hoje não aparecem', mas o GenericAssetTable já cria placeholders para todas as seções de sectionOrder. (2) No 3º bucket de Ações, os símbolos dos itens movidos precisam entrar no getAssetPrices. Hoje a chamada recebe só stockSymbols, bdrSymbols e os planejados, então sem isso o item cai no fallback avgPrice, com rentabilidade 0 e valor diferente da pizza.",
+        "evidencia": "GenericAssetTable.tsx:511-529 (defaultNormalizedSections cria `{ nome, ativos: [] }` para chaves ausentes). acoes/route.ts:80-84 (getAssetPrices só com stock, bdr e planejados).",
+        "sugestao": "Ajustar o texto da Fatia E (a seção vazia já existe; basta torná-la droppable). Na Fatia B, incluir explicitamente os símbolos do bucket 'movidos' na busca de cotações e cobrir isso com teste."
+      },
+      {
+        "alvo": "design",
+        "gravidade": "baixa",
+        "descricao": "O cenário do protótipo não bate com o código. FIIs importados pela Pluggy chegam sem tipoFii e caem em FOF (fallback 'fofi'), não em TVM. O protótipo mostra FOF vazia e os FI-Infra em TVM. Isso afeta o texto 'Voltar ao original (FII's › TVM)'.",
+        "evidencia": "importarCarteira.ts:416-424 cria o Portfolio sem tipoFii. fii/route.ts:120-122 usa fallback 'fofi'.",
+        "sugestao": "Ajustar os dados de exemplo para FOF. Se o 'original' continuar, ele é 'null → FOF'."
+      },
+      {
+        "alvo": "ambos",
+        "gravidade": "baixa",
+        "descricao": "Arquiteto e designer divergem sobre ativos fora do escopo na página do ativo. O arquiteto (Fatia D e pergunta 9) quer o botão desabilitado com o motivo. O designer (A6) não mostra botão nenhum, só a frase. Há também um ponto sobre planejados: zerar o objetivo ao trocar de aba apaga o único dado que um planejado tem.",
+        "evidencia": "Fatia D: 'Se não for movível, o botão fica desabilitado com o motivo visível em texto'. Designer A6: 'Sem botão desabilitado para ativos fora da fase'. Spec, rota POST: Watchlist {..., objetivo: 0} na troca de aba.",
+        "sugestao": "Pedir a decisão ao Wellington, já que ambos funcionam. Para planejados, manter o objetivo na troca de aba (ou perguntar), porque a linha zerada fica sem sentido."
+      }
+    ],
+    "pontos_fortes": [
+      "A spec do arquiteto respeita a restrição central: não altera Asset.type do catálogo. A escolha fica num override por usuário (Portfolio e Watchlist), com uma única função de resolução, categoriaEfetiva, aplicada via valuatePortfolioItem. Assim a pizza, o resumo e a Saúde Financeira seguem o override sem código novo nesses consumidores.",
+      "A migration é aditiva, com colunas TEXT NULL, compatível com o deploy do infra/deploy.sh (health na 3001 antes do migrate). O rollback só por código não perde dados.",
+      "A decisão de não mexer no IR está bem fundamentada, porque rendaVariavelLoader e comecotasLoader classificam por Asset.type. O aviso no diálogo e o teste de regressão evitam dar a um FII a isenção de 20 mil por mudança de aba.",
+      "O desfazer se encaixa na política LIFO por entityId do Histórico v2 (execute.ts/canUndo.ts). Os snapshots de remoção (pickPortfolioMeta/recreatePortfolioStub) também passam a levar o override, o que evita perdê-lo no undo de ativo.remover.",
+      "A matriz de compatibilidade por moeda e modelo de preço é coerente com as rotas: Stocks e REIT em USD nativo, ETF via valuatePortfolioItem, fundos CVM bloqueados fora de Fundos. A spec também identifica as inconsistências que já existiam ('fund'+11 na pizza contra a aba Fundos, 'cash' em duas abas).",
+      "O designer cobre bem a acessibilidade do caminho sem arrasto: menu ⋯, diálogo com rádios nativos de name único, motivos em texto e anúncios aria-live. O mobile não tem arrasto, usa painel no padrão do MovePanel e alvos de 44 a 56px, e o protótipo renderiza sem overflow a 390px (scrollWidth 390, verificado).",
+      "Nenhum dos dois cria botão quebrado para abas fora do escopo, e os dois recomendam corrigir junto o bug do BDR, que não salva a estratégia (operacao/route.ts só grava estrategia para 'acao' e 'stock')."
+    ]
+  }
+}
