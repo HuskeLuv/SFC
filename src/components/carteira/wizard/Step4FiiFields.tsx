@@ -6,6 +6,7 @@ import Select from '@/components/form/Select';
 import BusinessDayDatePicker from './shared/BusinessDayDatePicker';
 import ReinvestimentoToggle from './shared/ReinvestimentoToggle';
 import { Step4FieldsProps } from './step4Types';
+import { SecaoAtualNaCarteira } from '@/components/carteira/mover/SecaoAtualNaCarteira';
 
 export default function Step4FiiFields({
   formData,
@@ -38,6 +39,12 @@ export default function Step4FiiFields({
           value={formData.tipoFii}
           onChange={(value) => handleInputChange('tipoFii', value)}
           className={errors.tipoFii ? 'border-red-500' : ''}
+        />
+        <SecaoAtualNaCarteira
+          formData={formData}
+          categoria="fiis"
+          campo="tipoFii"
+          handleInputChange={handleInputChange}
         />
         {errors.tipoFii && <p className="mt-1 text-sm text-red-500">{errors.tipoFii}</p>}
       </div>

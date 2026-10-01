@@ -6,6 +6,7 @@ import Select from '@/components/form/Select';
 import BusinessDayDatePicker from './shared/BusinessDayDatePicker';
 import ReinvestimentoToggle from './shared/ReinvestimentoToggle';
 import { Step4FieldsProps } from './step4Types';
+import { SecaoAtualNaCarteira } from '@/components/carteira/mover/SecaoAtualNaCarteira';
 
 export default function Step4AcoesFields({
   formData,
@@ -35,9 +36,15 @@ export default function Step4AcoesFields({
             { value: 'risk', label: 'Risk' },
           ]}
           placeholder="Selecione a estratégia"
-          defaultValue={formData.estrategia}
+          value={formData.estrategia ?? ''}
           onChange={(value) => handleInputChange('estrategia', value)}
           className={errors.estrategia ? 'border-red-500' : ''}
+        />
+        <SecaoAtualNaCarteira
+          formData={formData}
+          categoria="acoes"
+          campo="estrategia"
+          handleInputChange={handleInputChange}
         />
         {errors.estrategia && <p className="mt-1 text-sm text-red-500">{errors.estrategia}</p>}
       </div>

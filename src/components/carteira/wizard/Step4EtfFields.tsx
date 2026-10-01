@@ -6,6 +6,7 @@ import Select from '@/components/form/Select';
 import BusinessDayDatePicker from './shared/BusinessDayDatePicker';
 import ReinvestimentoToggle from './shared/ReinvestimentoToggle';
 import { Step4FieldsProps } from './step4Types';
+import { SecaoAtualNaCarteira } from '@/components/carteira/mover/SecaoAtualNaCarteira';
 
 export default function Step4EtfFields({
   formData,
@@ -34,6 +35,12 @@ export default function Step4EtfFields({
         <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
           Define em qual seção da aba ETF o ativo será exibido.
         </p>
+        <SecaoAtualNaCarteira
+          formData={formData}
+          categoria="etfs"
+          campo="regiaoEtf"
+          handleInputChange={handleInputChange}
+        />
         {errors.regiaoEtf && <p className="mt-1 text-sm text-red-500">{errors.regiaoEtf}</p>}
       </div>
       <BusinessDayDatePicker

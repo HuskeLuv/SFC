@@ -7,6 +7,7 @@ import Select from '@/components/form/Select';
 import BusinessDayDatePicker from './shared/BusinessDayDatePicker';
 import ReinvestimentoToggle from './shared/ReinvestimentoToggle';
 import { Step4FieldsProps } from './step4Types';
+import { SecaoAtualNaCarteira } from '@/components/carteira/mover/SecaoAtualNaCarteira';
 
 export default function Step4StocksFields({
   formData,
@@ -44,6 +45,12 @@ export default function Step4StocksFields({
         <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
           O stock será exibido na seção correspondente: Value, Growth ou Risk.
         </p>
+        <SecaoAtualNaCarteira
+          formData={formData}
+          categoria="stocks"
+          campo="estrategia"
+          handleInputChange={handleInputChange}
+        />
         {errors.estrategia && <p className="mt-1 text-sm text-red-500">{errors.estrategia}</p>}
       </div>
       <div>

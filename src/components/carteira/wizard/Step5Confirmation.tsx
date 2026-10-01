@@ -2,7 +2,8 @@
 import React, { useEffect } from 'react';
 import PlanejamentoVinculoField from './shared/PlanejamentoVinculoField';
 import UsarCaixaField from './shared/UsarCaixaField';
-import { abaDaCompra, valorDaCompraBRL } from './shared/caixaDaOperacao';
+import { abaDaCompraEfetiva, valorDaCompraBRL } from './shared/caixaDaOperacao';
+import { useCategoriaEfetivaAtivo } from '@/hooks/useCategoriaEfetivaAtivo';
 import {
   WizardFormData,
   TIPOS_ATIVO,
@@ -26,6 +27,9 @@ export default function Step5Confirmation({
   loading,
   autoSubmit = false,
 }: Step5ConfirmationProps) {
+  // Ativo já movido de aba pelo usuário: a prévia de caixa usa a aba efetiva (a mesma do
+  // servidor). Enquanto a consulta carrega, o aviso de caixa não aparece (sem nome de aba errado).
+  const categoriaEfetiva = useCategoriaEfetivaAtivo(formData.assetId);
   // Auto-submit quando entrar na tela de confirmação
   useEffect(() => {
     if (autoSubmit && !loading) {
@@ -576,13 +580,15 @@ export default function Step5Confirmation({
         </div>
       </div>
 
-      <UsarCaixaField
-        valor={valorDaCompraBRL(formData)}
-        aba={abaDaCompra(formData)}
-        checked={formData.usarCaixa}
-        onChange={(usarCaixa) => onFormDataChange({ usarCaixa })}
-        isReinvestimento={!!formData.isReinvestimento}
-      />
+      {!categoriaEfetiva.carregando && (
+        <UsarCaixaField
+          valor={valorDaCompraBRL(formData)}
+          aba={abaDaCompraEfetiva(formData, categoriaEfetiva)}
+          checked={formData.usarCaixa}
+          onChange={(usarCaixa) => onFormDataChange({ usarCaixa })}
+          isReinvestimento={!!formData.isReinvestimento}
+        />
+      )}
 
       <PlanejamentoVinculoField formData={formData} onFormDataChange={onFormDataChange} />
 

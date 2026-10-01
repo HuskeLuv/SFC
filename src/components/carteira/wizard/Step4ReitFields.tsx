@@ -6,6 +6,7 @@ import Select from '@/components/form/Select';
 import BusinessDayDatePicker from './shared/BusinessDayDatePicker';
 import ReinvestimentoToggle from './shared/ReinvestimentoToggle';
 import { Step4FieldsProps } from './step4Types';
+import { SecaoAtualNaCarteira } from '@/components/carteira/mover/SecaoAtualNaCarteira';
 
 export default function Step4ReitFields({
   formData,
@@ -46,6 +47,12 @@ export default function Step4ReitFields({
         <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
           O REIT será exibido na seção correspondente: Value, Growth ou Risk.
         </p>
+        <SecaoAtualNaCarteira
+          formData={formData}
+          categoria="reits"
+          campo="estrategiaReit"
+          handleInputChange={handleInputChange}
+        />
         {errors.estrategiaReit && (
           <p className="mt-1 text-sm text-red-500">{errors.estrategiaReit}</p>
         )}

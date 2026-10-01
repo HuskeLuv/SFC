@@ -4,10 +4,28 @@ import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import Step5Confirmation from '../Step5Confirmation';
 import type { WizardFormData } from '@/types/wizard';
+import { CarteiraResumoProvider } from '@/context/CarteiraResumoContext';
+import type { CarteiraResumo } from '@/hooks/useCarteira';
 
 // O campo de vínculo com planejamento (PR #27) usa React Query; não é o
 // alvo destes testes (linha Total) e sem QueryClientProvider derrubava os 5.
 vi.mock('../shared/PlanejamentoVinculoField', () => ({ default: () => null }));
+
+// Mover na Carteira (out/2026): a prévia de caixa consulta a aba efetiva do ativo (React Query).
+const { categoriaEfetiva } = vi.hoisted(() => ({
+  categoriaEfetiva: {
+    value: {
+      categoria: null as string | null,
+      override: false,
+      carregando: false,
+      carregandoSecao: false,
+      secaoAtual: null,
+    },
+  },
+}));
+vi.mock('@/hooks/useCategoriaEfetivaAtivo', () => ({
+  useCategoriaEfetivaAtivo: () => categoriaEfetiva.value,
+}));
 
 const baseFormData = (): WizardFormData =>
   ({
@@ -105,5 +123,59 @@ describe('Step5Confirmation — Bug #13 (linha Total)', () => {
     // 100 × 160 + 20 = R$ 16.020,00 (não R$ 99.999)
     expect(screen.getByText(/R\$\s*16\.020,00/)).toBeInTheDocument();
     expect(screen.queryByText(/99\.999/)).not.toBeInTheDocument();
+  });
+});
+
+describe('Step5Confirmation — prévia de caixa com o ativo movido de aba', () => {
+  const comCaixa = (ui: React.ReactElement) => {
+    const value = {
+      resumo: {
+        caixaParaInvestir: 5000,
+        caixa: { total: 5000, reservado: 3000, livre: 2000, porAba: { fii: 1000, fimFia: 2000 } },
+      } as unknown as CarteiraResumo,
+      loading: false,
+      error: null,
+      formatCurrency: () => '',
+      formatPercentage: () => '',
+      updateMeta: vi.fn(),
+      updateCaixaParaInvestir: vi.fn(),
+      refetch: vi.fn(),
+      necessidadeAporteMap: {},
+      isAlocacaoLoading: false,
+      invalidateAssets: vi.fn(),
+    };
+    return render(<CarteiraResumoProvider value={value}>{ui}</CarteiraResumoProvider>);
+  };
+  const fii = () =>
+    ({
+      ...baseFormData(),
+      tipoAtivo: 'fii',
+      acoesBrasilTipo: undefined,
+      ativo: 'KNCA11 - Kinea Crédito Agro',
+      quantidade: 10,
+      cotacaoUnitaria: 100,
+      taxaCorretagem: 0,
+      usarCaixa: true,
+    }) as unknown as WizardFormData;
+  const texto = () => (document.body.textContent ?? '').replace(/\s/g, ' ');
+
+  it('sem override: usa a reserva da aba do tipo (FIIs)', () => {
+    categoriaEfetiva.value = { ...categoriaEfetiva.value, categoria: 'fiis', override: false };
+    comCaixa(<Step5Confirmation formData={fii()} onSubmit={vi.fn()} loading={false} />);
+    expect(texto()).toContain('da reserva de FIIs');
+  });
+
+  it('com override para Fundos: usa a reserva da aba efetiva (FIM/FIA)', () => {
+    categoriaEfetiva.value = { ...categoriaEfetiva.value, categoria: 'fimFia', override: true };
+    comCaixa(<Step5Confirmation formData={fii()} onSubmit={vi.fn()} loading={false} />);
+    expect(texto()).toContain('da reserva de FIM/FIA');
+    expect(texto()).not.toContain('reserva de FIIs');
+  });
+
+  it('enquanto carrega a aba efetiva, o aviso de caixa não aparece', () => {
+    categoriaEfetiva.value = { ...categoriaEfetiva.value, carregando: true };
+    comCaixa(<Step5Confirmation formData={fii()} onSubmit={vi.fn()} loading={false} />);
+    expect(texto()).not.toContain('Caixa para Investir');
+    categoriaEfetiva.value = { ...categoriaEfetiva.value, carregando: false };
   });
 });
