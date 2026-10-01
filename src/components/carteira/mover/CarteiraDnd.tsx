@@ -193,21 +193,25 @@ const CarteiraMoverContext = createContext<CarteiraMoverContextValue | null>(nul
 /** null fora de uma aba movível (as abas fixas não montam o provider). */
 export const useCarteiraMover = () => useContext(CarteiraMoverContext);
 
-/** Tentativas extra (ms): a linha pode ser remontada pelo refetch depois do mover. */
-const REFOCO_MS = [250, 800, 1600];
+/** Por quanto tempo (ms) o foco é recuperado: o refetch depois do mover remonta a linha. */
+const REFOCO_JANELA_MS = 3000;
+const REFOCO_PASSO_MS = 150;
 
 const focarAlca = (id: string) => {
   if (typeof window === 'undefined') return;
   const alca = () => document.querySelector<HTMLElement>(`[data-mover-alca="${CSS.escape(id)}"]`);
   window.requestAnimationFrame(() => alca()?.focus());
   // Só recupera o foco se ele caiu no body (não rouba de quem já foi para outro lugar).
-  for (const ms of REFOCO_MS) {
-    window.setTimeout(() => {
-      const ativo = document.activeElement;
-      if (ativo && ativo !== document.body) return;
-      alca()?.focus();
-    }, ms);
-  }
+  const inicio = Date.now();
+  const timer = window.setInterval(() => {
+    const ativo = document.activeElement;
+    if (ativo && ativo !== document.body && ativo !== alca()) {
+      window.clearInterval(timer);
+      return;
+    }
+    if (!ativo || ativo === document.body) alca()?.focus();
+    if (Date.now() - inicio >= REFOCO_JANELA_MS) window.clearInterval(timer);
+  }, REFOCO_PASSO_MS);
 };
 
 interface PopState {
