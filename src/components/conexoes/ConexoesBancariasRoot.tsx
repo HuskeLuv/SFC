@@ -26,6 +26,7 @@ import {
   type RegistroResposta,
 } from '@/hooks/useConexoesBancarias';
 import ConexaoRealizadaModal from './ConexaoRealizadaModal';
+import ConexaoNaoConcluidaModal from './ConexaoNaoConcluidaModal';
 import AutorizacaoModal, { dataHora, ROTULO_MOTIVO } from './AutorizacaoModal';
 import ConectarBancoModal from './ConectarBancoModal';
 import CaixaEntrada, { ehIgnoravel, temSugestaoDeLinha } from './CaixaEntrada';
@@ -57,6 +58,13 @@ function detalheDoItem(item: ItemDoWidget): string | undefined {
   const erro = item.error ? [item.error.code, item.error.message].filter(Boolean).join(': ') : '';
   return [status, erro].filter(Boolean).join(' • ') || undefined;
 }
+/** A conexão chegou à tela do banco e não voltou concluída (ver ConexaoNaoConcluidaModal). */
+type NaoConcluida = {
+  instituicao: string;
+  detalhe: string | null;
+  reconexaoDe: BankConnectionDTO | null;
+} | null;
+
 /** Jornada antes do widget: aviso → consentimento → redirecionamento. */
 type Jornada = { reconexaoDe: BankConnectionDTO | null; consentimentoId: string | null } | null;
 
@@ -75,6 +83,11 @@ export default function ConexoesBancariasRoot() {
   // O widget reemite LOGIN_SUCCESS/ITEM_RESPONSE a cada poll (~2,5 s): por tipo de
   // evento, só mandamos o marco quando o estado do item muda (senão o timeline satura).
   const marcosEnviadosRef = useRef(new Map<string, string>());
+  // Banco escolhido no widget e se o usuário já foi mandado para a autorização dele:
+  // fechar/errar depois disso abre o aviso "confira se escolheu a instituição certa".
+  const instituicaoRef = useRef<string | null>(null);
+  const chegouAoBancoRef = useRef(false);
+  const [naoConcluida, setNaoConcluida] = useState<NaoConcluida>(null);
   const [realizada, setRealizada] = useState<RegistroResposta | null>(null);
   const connectToken = useConnectToken();
   const registrar = useRegistrarConexao();
@@ -136,6 +149,7 @@ export default function ConexoesBancariasRoot() {
   const abrirJornada = useCallback((reconexaoDe?: BankConnectionDTO) => {
     setAviso(null);
     setErroJornada(null);
+    setNaoConcluida(null);
     setJornada({ reconexaoDe: reconexaoDe ?? null, consentimentoId: null });
   }, []);
 
@@ -168,6 +182,8 @@ export default function ConexoesBancariasRoot() {
       });
       concluiuRef.current = false;
       marcosEnviadosRef.current = new Map();
+      instituicaoRef.current = null;
+      chegouAoBancoRef.current = false;
       setWidget({ token, updateItem, consentimentoId: jornada.consentimentoId });
       setJornada(null);
     } catch (e) {
@@ -238,6 +254,18 @@ export default function ConexoesBancariasRoot() {
     window.history.replaceState(null, '', url.toString());
     abrirJornada();
   }, [isLoading, isError, abrirJornada]);
+
+  /** Aviso de "não concluída" se o usuário já tinha ido à autorização do banco escolhido. */
+  function naoConcluidaAgora(detalhe: string | null): NaoConcluida {
+    if (!chegouAoBancoRef.current) return null;
+    const reconexaoDe = widget?.updateItem
+      ? ((conexoes ?? []).find((c) => c.providerItemId === widget.updateItem) ?? null)
+      : null;
+    // Reconectar pula a escolha do banco no widget: o nome vem da conexão.
+    const instituicao = instituicaoRef.current ?? reconexaoDe?.connectorName;
+    if (!instituicao) return null;
+    return { instituicao, detalhe, reconexaoDe };
+  }
 
   if (isLoading) return <LoadingSpinner size="lg" text="Carregando conexões..." />;
 
@@ -413,6 +441,15 @@ export default function ConexoesBancariasRoot() {
         />
       ) : null}
 
+      {naoConcluida ? (
+        <ConexaoNaoConcluidaModal
+          instituicao={naoConcluida.instituicao}
+          detalhe={naoConcluida.detalhe}
+          onTentarDeNovo={() => abrirJornada(naoConcluida.reconexaoDe ?? undefined)}
+          onFechar={() => setNaoConcluida(null)}
+        />
+      ) : null}
+
       {autorizacaoAberta ? (
         <AutorizacaoModal
           consentimento={autorizacaoAberta}
@@ -434,6 +471,13 @@ export default function ConexoesBancariasRoot() {
             const item: ItemDoWidget | null =
               'item' in p && p.item ? (p.item as ItemDoWidget) : null;
             const detalhe = item ? detalheDoItem(item) : undefined;
+            if (p.event === 'SELECTED_INSTITUTION') {
+              instituicaoRef.current = p.connector?.name ?? null;
+              chegouAoBancoRef.current = false;
+            }
+            if (p.event === 'LOGIN_SUCCESS' || item?.status === 'WAITING_USER_INPUT') {
+              chegouAoBancoRef.current = true;
+            }
             if (item) {
               const assinatura = `${item.id ?? ''}|${detalhe ?? ''}`;
               if (marcosEnviadosRef.current.get(p.event) === assinatura) return;
@@ -460,11 +504,16 @@ export default function ConexoesBancariasRoot() {
                 : {}),
             });
             setWidget(null);
-            avisar(e?.message ?? 'O banco não concluiu a conexão. Tente de novo.');
+            const naoConcluiu = naoConcluidaAgora(e?.message ?? null);
+            if (naoConcluiu) setNaoConcluida(naoConcluiu);
+            else avisar(e?.message ?? 'O banco não concluiu a conexão. Tente de novo.');
           }}
           onClose={() => {
             if (!concluiuRef.current) {
               registrarEvento(widget.consentimentoId, { evento: 'FECHADO_SEM_CONCLUIR' });
+              const naoConcluiu = naoConcluidaAgora(null);
+              // O widget também fecha depois de um onError: não troca o aviso que já abriu.
+              if (naoConcluiu) setNaoConcluida((atual) => atual ?? naoConcluiu);
             }
             setWidget(null);
           }}
