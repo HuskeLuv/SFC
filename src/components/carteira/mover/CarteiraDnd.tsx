@@ -193,12 +193,21 @@ const CarteiraMoverContext = createContext<CarteiraMoverContextValue | null>(nul
 /** null fora de uma aba movível (as abas fixas não montam o provider). */
 export const useCarteiraMover = () => useContext(CarteiraMoverContext);
 
+/** Tentativas extra (ms): a linha pode ser remontada pelo refetch depois do mover. */
+const REFOCO_MS = [250, 800, 1600];
+
 const focarAlca = (id: string) => {
   if (typeof window === 'undefined') return;
-  window.requestAnimationFrame(() => {
-    const el = document.querySelector<HTMLElement>(`[data-mover-alca="${CSS.escape(id)}"]`);
-    el?.focus();
-  });
+  const alca = () => document.querySelector<HTMLElement>(`[data-mover-alca="${CSS.escape(id)}"]`);
+  window.requestAnimationFrame(() => alca()?.focus());
+  // Só recupera o foco se ele caiu no body (não rouba de quem já foi para outro lugar).
+  for (const ms of REFOCO_MS) {
+    window.setTimeout(() => {
+      const ativo = document.activeElement;
+      if (ativo && ativo !== document.body) return;
+      alca()?.focus();
+    }, ms);
+  }
 };
 
 interface PopState {

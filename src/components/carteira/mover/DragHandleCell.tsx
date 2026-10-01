@@ -30,11 +30,13 @@ export function DragHandleCell({ alvo, secaoDropId, secaoLabel, disabled }: Drag
       ref={setNodeRef}
       {...attributes}
       {...listeners}
-      disabled={disabled}
+      // aria-disabled (não `disabled`): a alça continua focável enquanto o mover está em
+      // andamento, para o foco voltar a ela ao terminar. O arrasto fica desligado pelo dnd-kit.
+      aria-disabled={disabled || undefined}
       data-mover-alca={alvo.id}
       aria-label={`Arrastar ${alvo.label}`}
       title="Arraste para outra seção ou aba"
-      className="inline-grid h-7 w-6 shrink-0 cursor-grab touch-none place-items-center rounded-md text-sm leading-none text-gray-500 opacity-45 transition-opacity select-none group-hover/linha:opacity-100 hover:bg-gray-100 hover:text-gray-800 focus-visible:opacity-100 focus-visible:ring-[3px] focus-visible:ring-[#0079F2] focus-visible:outline-none active:cursor-grabbing disabled:cursor-not-allowed disabled:opacity-30 dark:text-gray-400 dark:hover:bg-white/[0.06] dark:hover:text-gray-100 dark:focus-visible:ring-mf-tranquilidade"
+      className="inline-grid h-7 w-6 shrink-0 cursor-grab touch-none place-items-center rounded-md text-sm leading-none text-gray-500 opacity-45 transition-opacity select-none group-hover/linha:opacity-100 hover:bg-gray-100 hover:text-gray-800 focus-visible:opacity-100 focus-visible:ring-[3px] focus-visible:ring-[#0079F2] focus-visible:outline-none active:cursor-grabbing aria-disabled:cursor-not-allowed aria-disabled:opacity-30 dark:text-gray-400 dark:hover:bg-white/[0.06] dark:hover:text-gray-100 dark:focus-visible:ring-mf-tranquilidade"
     >
       <span aria-hidden>⠿</span>
     </button>
