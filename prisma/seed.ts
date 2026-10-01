@@ -189,7 +189,7 @@ async function seedDemoUsers() {
   });
 
   // Aportes (compra) e resgates (venda) espalhados pelo ano anterior inteiro e
-  // pelo ano corrente até o mês atual — verde/vermelho no bloco Aporte/Resgate
+  // pelo ano corrente até o mês anterior — verde/vermelho no bloco Aporte/Resgate
   // em duas categorias (Ações e FII's).
   const currentMonth = new Date().getMonth();
   const transactions: Array<{
@@ -242,7 +242,26 @@ async function seedDemoUsers() {
   };
 
   pushMonthly(previousYear, 11);
-  pushMonthly(currentYear, currentMonth);
+  pushMonthly(currentYear, currentMonth - 1);
+
+  // Mês corrente: só uma compra de ITSA4 no dia 1, para o período padrão de
+  // /relatorios ("Mês atual") ter o mesmo conteúdo em qualquer dia do mês —
+  // as baselines do e2e (desktop-fase3) dependem disso.
+  {
+    const quantity = 10 + currentMonth;
+    const price = 10.5 + currentMonth * 0.2;
+    transactions.push({
+      userId: demoUser.id,
+      assetId: itsa4.id,
+      type: 'compra',
+      quantity,
+      price,
+      total: Math.round(quantity * price * 100) / 100,
+      date: new Date(currentYear, currentMonth, 1),
+      fees: 2.5,
+      notes: `Compra mensal ${currentMonth + 1}/${currentYear}`,
+    });
+  }
 
   await prisma.stockTransaction.createMany({ data: transactions });
 
