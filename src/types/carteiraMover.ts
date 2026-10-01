@@ -51,6 +51,8 @@ export interface EscolherSecaoPopoverProps {
   anchorEl: HTMLElement;
   onConfirm: (subgrupo: string) => void;
   onCancel: () => void;
+  /** As opções chegaram depois de soltar e a aba recusa o item (motivo do servidor). */
+  onRecusado?: (motivo: string | undefined) => void;
 }
 
 /** Selo "movido" (só troca de ABA — decisão 10). */

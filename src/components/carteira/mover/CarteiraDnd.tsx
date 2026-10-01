@@ -24,7 +24,7 @@ import {
   type DragOverEvent,
   type DragStartEvent,
 } from '@dnd-kit/core';
-import { CAMPO_SECAO_NA_LINHA, type CategoriaMovivel } from '@/lib/carteiraMover';
+import { CAMPO_SECAO_NA_LINHA, rotuloCategoria, type CategoriaMovivel } from '@/lib/carteiraMover';
 import type { MoverAlvo } from '@/types/carteiraMover';
 import { useMoverInvestimento } from '@/hooks/useMoverInvestimento';
 import { MoverInvestimento } from '@/components/carteira/mover/MoverInvestimento';
@@ -381,6 +381,23 @@ export const CarteiraDndProvider: React.FC<CarteiraDndProviderProps> = ({
     setPop(null);
   }, [pop]);
 
+  const recusarPop = useCallback(
+    (motivo: string | undefined) => {
+      if (!pop) return;
+      const aba: AbaDropData = {
+        kind: 'aba',
+        categoria: pop.destino,
+        label: rotuloCategoria(pop.destino),
+        permitido: false,
+        motivo,
+      };
+      setAviso(avisoAbaRecusada(aba, pop.alvo.label));
+      focarAlca(pop.alvo.id);
+      setPop(null);
+    },
+    [pop],
+  );
+
   const extras = (
     <>
       {dialogo ? (
@@ -487,6 +504,7 @@ export const CarteiraDndProvider: React.FC<CarteiraDndProviderProps> = ({
             void executarMover(alvo, destino, subgrupo);
           }}
           onCancel={fecharPop}
+          onRecusado={recusarPop}
         />
       ) : null}
       {extras}

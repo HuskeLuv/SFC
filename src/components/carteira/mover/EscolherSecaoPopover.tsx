@@ -49,6 +49,7 @@ export function EscolherSecaoPopover({
   anchorEl,
   onConfirm,
   onCancel,
+  onRecusado,
 }: EscolherSecaoPopoverProps) {
   const baseId = useId();
   const tituloId = `${baseId}-titulo`;
@@ -56,8 +57,9 @@ export function EscolherSecaoPopover({
   const focoAnteriorRef = useRef<HTMLElement | null>(
     typeof document !== 'undefined' ? (document.activeElement as HTMLElement | null) : null,
   );
-  const { data: opcoes } = useMoverOpcoes(alvo.tipo, alvo.id);
+  const { data: opcoes, isPending: verificando } = useMoverOpcoes(alvo.tipo, alvo.id);
   const opcaoDestino = opcoes?.destinos.find((d) => d.categoria === destino);
+  const recusado = opcaoDestino?.permitido === false;
   const secoes =
     opcaoDestino?.subgrupos ??
     SUBGRUPOS_POR_CATEGORIA[destino].map((s) => ({ ...s, atual: false }));
@@ -93,6 +95,14 @@ export function EscolherSecaoPopover({
       window.removeEventListener('scroll', atualizar, true);
     };
   }, [anchorEl]);
+
+  // Soltou no chip enquanto as opções ainda chegavam e a aba é recusada: fecha e avisa,
+  // sem POST (o servidor recusaria do mesmo jeito).
+  const motivoRecusa = recusado ? (opcaoDestino?.motivo ?? null) : undefined;
+  useEffect(() => {
+    if (motivoRecusa === undefined) return;
+    onRecusado?.(motivoRecusa ?? undefined);
+  }, [motivoRecusa, onRecusado]);
 
   // Foco na seção marcada ao abrir.
   useEffect(() => {
@@ -191,9 +201,9 @@ export function EscolherSecaoPopover({
         <Button
           size="sm"
           onClick={() => onConfirm(secao)}
-          disabled={!trocaAba && secao === alvo.secaoAtual}
+          disabled={verificando || recusado || (!trocaAba && secao === alvo.secaoAtual)}
         >
-          Mover para {rotuloSecao}
+          {verificando ? 'Verificando…' : `Mover para ${rotuloSecao}`}
         </Button>
       </div>
     </div>,

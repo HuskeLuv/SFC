@@ -1,10 +1,10 @@
 // @vitest-environment jsdom
 import React from 'react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, fireEvent, within } from '@testing-library/react';
+import { render, screen, fireEvent, within, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { queryKeys } from '@/lib/queryKeys';
-import type { MoverAlvo } from '@/types/carteiraMover';
+import type { CategoriaMovivel, MoverAlvo } from '@/types/carteiraMover';
 import { opcoesKdif } from './fixtures';
 import { EscolherSecaoPopover } from '../EscolherSecaoPopover';
 
@@ -16,7 +16,10 @@ const ALVO: MoverAlvo = {
   label: 'KDIF11',
 };
 
-function montar({ comOpcoes = true } = {}) {
+function montar({
+  comOpcoes = true,
+  destino = 'fimFia',
+}: { comOpcoes?: boolean; destino?: CategoriaMovivel } = {}) {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false, staleTime: Infinity, gcTime: Infinity } },
   });
@@ -24,6 +27,7 @@ function montar({ comOpcoes = true } = {}) {
     queryClient.setQueryData(queryKeys.carteiraMover.opcoes('posicao', 'pf-kdif'), opcoesKdif());
   const onConfirm = vi.fn();
   const onCancel = vi.fn();
+  const onRecusado = vi.fn();
   const alca = document.createElement('button');
   alca.textContent = 'Arrastar KDIF11';
   document.body.appendChild(alca);
@@ -34,14 +38,15 @@ function montar({ comOpcoes = true } = {}) {
     <QueryClientProvider client={queryClient}>
       <EscolherSecaoPopover
         alvo={ALVO}
-        destino="fimFia"
+        destino={destino}
         anchorEl={chip}
         onConfirm={onConfirm}
         onCancel={onCancel}
+        onRecusado={onRecusado}
       />
     </QueryClientProvider>,
   );
-  return { onConfirm, onCancel, alca };
+  return { onConfirm, onCancel, onRecusado, alca };
 }
 
 beforeEach(() => {
@@ -98,5 +103,25 @@ describe('EscolherSecaoPopover', () => {
     montar({ comOpcoes: false });
     expect(screen.getAllByRole('radio')).toHaveLength(8);
     expect(screen.getByRole('radio', { name: /FIM/ })).toBeChecked();
+  });
+
+  it('enquanto as opções não chegam, "Mover" fica desabilitado em "Verificando…"', async () => {
+    let responder: (r: Response) => void = () => {};
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => new Promise<Response>((resolve) => (responder = resolve))),
+    );
+    montar({ comOpcoes: false });
+    expect(screen.getByRole('button', { name: 'Verificando…' })).toBeDisabled();
+    responder(new Response(JSON.stringify(opcoesKdif())));
+    expect(
+      await screen.findByRole('button', { name: 'Mover para FIP Infraestrutura' }),
+    ).toBeEnabled();
+  });
+
+  it('aba recusada quando as opções chegam: chama onRecusado com o motivo, sem confirmar', async () => {
+    const { onRecusado, onConfirm } = montar({ comOpcoes: false, destino: 'stocks' });
+    await waitFor(() => expect(onRecusado).toHaveBeenCalledWith('Em reais — esta aba é em dólar'));
+    expect(onConfirm).not.toHaveBeenCalled();
   });
 });
