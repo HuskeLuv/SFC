@@ -27,6 +27,10 @@ import { useIsBelowLg } from '@/hooks/useMediaQuery';
 import { ResponsiveCardList, type ResponsiveColumn } from '@/components/ui/table/ResponsiveTable';
 import { TABLE_MOBILE_STYLES } from '@/components/ui/table/tableStyles';
 import { CARD_HERO_VALUE_CLASS } from '@/components/carteira/shared/cardStyles';
+import { useMoverOpcoes } from '@/hooks/useMoverOpcoes';
+import { useMoverInvestimento } from '@/hooks/useMoverInvestimento';
+import MoverInvestimento from '@/components/carteira/mover/MoverInvestimento';
+import { NaCarteiraCartao, NaCarteiraLinha } from '@/components/carteira/mover/AtivoNaCarteira';
 
 const formatCurrency = (value: number) =>
   new Intl.NumberFormat('pt-BR', {
@@ -252,6 +256,13 @@ function AtivoDetalheContent() {
   const isBelowLg = useIsBelowLg();
   const [showAllMensal, setShowAllMensal] = useState(false);
   const [showAllExtrato, setShowAllExtrato] = useState(false);
+  // Mover na Carteira (out/2026): onde o ativo está (aba › seção), mover e voltar ao original.
+  const [moverAberto, setMoverAberto] = useState(false);
+  const { data: naCarteira } = useMoverOpcoes('posicao', id);
+  const { restaurar, isPending: restaurando } = useMoverInvestimento({ verNaCarteira: true });
+  const voltarAoOriginal = () => {
+    restaurar({ tipo: 'posicao', id }).catch(() => {});
+  };
 
   useEffect(() => {
     if (!id) return;
@@ -565,6 +576,15 @@ function AtivoDetalheContent() {
               ))}
             </dl>
           </section>
+
+          {naCarteira && (
+            <NaCarteiraCartao
+              opcoes={naCarteira}
+              onMover={() => setMoverAberto(true)}
+              onRestaurar={voltarAoOriginal}
+              restaurando={restaurando}
+            />
+          )}
         </>
       ) : (
         <>
@@ -579,10 +599,24 @@ function AtivoDetalheContent() {
                 {displayTicker && instituicaoLabel !== '—' && ' • '}
                 {instituicaoLabel !== '—' && instituicaoLabel}
               </p>
+              {naCarteira && (
+                <NaCarteiraLinha
+                  opcoes={naCarteira}
+                  onRestaurar={voltarAoOriginal}
+                  restaurando={restaurando}
+                />
+              )}
             </div>
-            <Link href={`/ativos/${id}/editar`}>
-              <Button variant="outline">Editar produto</Button>
-            </Link>
+            <div className="flex items-center gap-3">
+              {naCarteira?.movivel && (
+                <Button variant="outline" onClick={() => setMoverAberto(true)}>
+                  Mover na Carteira
+                </Button>
+              )}
+              <Link href={`/ativos/${id}/editar`}>
+                <Button variant="outline">Editar produto</Button>
+              </Link>
+            </div>
           </div>
 
           {/* Resumo - MetricCards */}
@@ -896,6 +930,14 @@ function AtivoDetalheContent() {
           </ComponentCard>
         </div>
       </div>
+
+      {naCarteira?.movivel && (
+        <MoverInvestimento
+          alvo={{ tipo: 'posicao', id }}
+          open={moverAberto}
+          onClose={() => setMoverAberto(false)}
+        />
+      )}
     </div>
   );
 }
