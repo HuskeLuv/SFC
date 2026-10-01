@@ -189,9 +189,11 @@ export async function lerEventosGravados(prisma: PrismaClient): Promise<EventoGr
   }));
 }
 
+/** Impressão digital do evento gravado; inclui o CNPJ (mudança de formato também regrava). */
 export function chaveEvento(e: Omit<EventoGravado, 'cnpj'> & { cnpj?: string | null }): string {
   return [
     e.symbol,
+    e.cnpj ?? '',
     e.dataEvento,
     e.fator.toFixed(8),
     e.tipo,
