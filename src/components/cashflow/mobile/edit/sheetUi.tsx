@@ -102,7 +102,8 @@ export function PrimaryButton({
       aria-busy={busy || undefined}
       className={twMerge(
         BUTTON_BASE,
-        'font-semibold text-white disabled:opacity-60',
+        // min-w-0: sem ele o min-width:auto do flex item impede o truncate do rótulo longo.
+        'min-w-0 font-semibold text-white disabled:opacity-60',
         busy && 'disabled:opacity-80',
         danger ? 'bg-[#D92D20] dark:bg-[#F97066] dark:text-gray-950' : 'bg-mf-patrimonio',
       )}
