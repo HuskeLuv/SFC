@@ -256,6 +256,9 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
       tipo: tipoFundo,
       observacoes: notes?.observacoes,
       isAutoUpdated,
+      // Cotado em bolsa (ex.: FII movido para Fundos): o ticker identifica a linha para o mover
+      // (rótulo da alça e do aviso) e para a "seção atual" do assistente de compra.
+      ...(idsCotados.has(item.id) && item.asset?.symbol ? { ticker: item.asset.symbol } : {}),
     };
   });
 

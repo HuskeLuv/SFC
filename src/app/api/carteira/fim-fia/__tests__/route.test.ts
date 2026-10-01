@@ -315,6 +315,7 @@ describe('/api/carteira/fim-fia', () => {
       expect(secao.ativos).toHaveLength(1);
       expect(secao.ativos[0]).toMatchObject({
         nome: 'Kinea Infra',
+        ticker: 'KDIF11',
         valorAtualizado: 1300,
         isAutoUpdated: true,
         movido: true,
