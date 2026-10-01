@@ -2117,6 +2117,185 @@ describe('POST /api/carteira/operacao', () => {
     });
   });
 
+  describe('Mover na Carteira (out/2026): compra não desfaz o mover', () => {
+    const kdif = {
+      id: 'asset-kdif',
+      symbol: 'KDIF11',
+      name: 'Kinea Infra',
+      type: 'fii',
+      currency: 'BRL',
+    };
+    const compraFii = (tipoFii: string) =>
+      createRequest({
+        tipoAtivo: 'fii',
+        instituicaoId: 'inst-1',
+        assetId: 'asset-kdif',
+        dataCompra: '2024-01-15',
+        quantidade: 10,
+        cotacaoUnitaria: 120,
+        tipoFii,
+      });
+    const dataDoUpdate = () => mockPrisma.portfolio.update.mock.calls[0][0].data;
+    const dataDoCreate = () => mockPrisma.portfolio.create.mock.calls[0][0].data;
+
+    it('KDIF11 movido TVM→Infra: comprar pelo wizard com tipoFii=tvm mantém Infra', async () => {
+      mockPrisma.asset.findUnique.mockResolvedValueOnce(kdif);
+      mockPrisma.portfolio.findFirst.mockResolvedValue({
+        id: 'port-kdif',
+        quantity: 10,
+        totalInvested: 1000,
+        avgPrice: 100,
+        objetivo: 5,
+        tipoFii: 'infra',
+        categoriaOverride: null,
+      });
+      const response = await POST(compraFii('tvm'));
+      expect(response.status).toBe(201);
+      expect(mockPrisma.portfolio.update).toHaveBeenCalledTimes(1);
+      expect(dataDoUpdate()).not.toHaveProperty('tipoFii');
+      expect(dataDoUpdate()).not.toHaveProperty('categoriaOverride');
+      expect(dataDoUpdate()).toMatchObject({ quantity: 20, totalInvested: 2200 });
+    });
+
+    it('posição movida para outra aba: a compra não toca no override nem no subgrupo', async () => {
+      mockPrisma.asset.findUnique.mockResolvedValueOnce(kdif);
+      mockPrisma.portfolio.findFirst.mockResolvedValue({
+        id: 'port-kdif',
+        quantity: 10,
+        totalInvested: 1000,
+        avgPrice: 100,
+        objetivo: 0,
+        tipoFii: 'tvm',
+        tipoFundo: 'fip-infra',
+        categoriaOverride: 'fimFia',
+      });
+      const response = await POST(compraFii('tijolo'));
+      expect(response.status).toBe(201);
+      expect(dataDoUpdate()).not.toHaveProperty('tipoFii');
+      expect(dataDoUpdate()).not.toHaveProperty('tipoFundo');
+      expect(dataDoUpdate()).not.toHaveProperty('categoriaOverride');
+    });
+
+    it('posição sem subgrupo gravado: a compra preenche a coluna vazia', async () => {
+      mockPrisma.asset.findUnique.mockResolvedValueOnce({
+        id: 'asset-petr4',
+        symbol: 'PETR4',
+        name: 'Petrobras PN',
+        type: 'stock',
+      });
+      mockPrisma.portfolio.findFirst.mockResolvedValue({
+        id: 'port-1',
+        quantity: 50,
+        totalInvested: 500,
+        avgPrice: 10,
+        estrategia: null,
+      });
+      const response = await POST(
+        createRequest({
+          tipoAtivo: 'acao',
+          instituicaoId: 'inst-1',
+          assetId: 'asset-petr4',
+          dataCompra: '2024-01-15',
+          quantidade: 50,
+          cotacaoUnitaria: 12,
+          estrategia: 'growth',
+        }),
+      );
+      expect(response.status).toBe(201);
+      expect(dataDoUpdate()).toMatchObject({ estrategia: 'growth' });
+    });
+
+    it('BDR grava a estratégia escolhida no wizard', async () => {
+      mockPrisma.asset.findUnique.mockResolvedValueOnce({
+        id: 'asset-bdr',
+        symbol: 'AAPL34',
+        name: 'Apple BDR',
+        type: 'bdr',
+      });
+      const response = await POST(
+        createRequest({
+          tipoAtivo: 'bdr',
+          instituicaoId: 'inst-1',
+          assetId: 'asset-bdr',
+          dataCompra: '2024-01-15',
+          quantidade: 20,
+          cotacaoUnitaria: 25,
+          estrategia: 'risk',
+        }),
+      );
+      expect(response.status).toBe(201);
+      expect(dataDoCreate()).toMatchObject({ assetId: 'asset-bdr', estrategia: 'risk' });
+    });
+
+    it('BDR planejado sem estratégia na compra herda a seção do planejamento', async () => {
+      mockPrisma.asset.findUnique.mockResolvedValueOnce({
+        id: 'asset-bdr',
+        symbol: 'AAPL34',
+        name: 'Apple BDR',
+        type: 'bdr',
+      });
+      mockPrisma.watchlist.findFirst.mockResolvedValueOnce({
+        id: 'plan-bdr',
+        userId: 'user-123',
+        assetId: 'asset-bdr',
+        objetivo: 4,
+        secao: 'growth',
+        categoriaOverride: null,
+      });
+      const response = await POST(
+        createRequest({
+          tipoAtivo: 'bdr',
+          instituicaoId: 'inst-1',
+          assetId: 'asset-bdr',
+          dataCompra: '2024-01-15',
+          quantidade: 20,
+          cotacaoUnitaria: 25,
+        }),
+      );
+      expect(response.status).toBe(201);
+      expect(dataDoCreate()).toMatchObject({ estrategia: 'growth', objetivo: 4 });
+      expect(dataDoCreate()).not.toHaveProperty('categoriaOverride');
+    });
+
+    it('absorção de planejado movido: a posição nasce na aba escolhida, com a seção dela', async () => {
+      mockPrisma.asset.findUnique.mockResolvedValueOnce(kdif);
+      mockPrisma.watchlist.findFirst.mockResolvedValueOnce({
+        id: 'plan-kdif',
+        userId: 'user-123',
+        assetId: 'asset-kdif',
+        objetivo: 7,
+        secao: 'fip-infra',
+        categoriaOverride: 'fimFia',
+      });
+      const response = await POST(compraFii('tvm'));
+      expect(response.status).toBe(201);
+      expect(mockPrisma.watchlist.delete).toHaveBeenCalledWith({ where: { id: 'plan-kdif' } });
+      expect(dataDoCreate()).toMatchObject({
+        assetId: 'asset-kdif',
+        objetivo: 7,
+        tipoFii: 'tvm',
+        categoriaOverride: 'fimFia',
+        tipoFundo: 'fip-infra',
+      });
+    });
+
+    it('absorção com override igual à aba base é ignorada (sem override na posição)', async () => {
+      mockPrisma.asset.findUnique.mockResolvedValueOnce(kdif);
+      mockPrisma.watchlist.findFirst.mockResolvedValueOnce({
+        id: 'plan-kdif',
+        userId: 'user-123',
+        assetId: 'asset-kdif',
+        objetivo: 7,
+        secao: 'infra',
+        categoriaOverride: 'fiis',
+      });
+      const response = await POST(compraFii('tvm'));
+      expect(response.status).toBe(201);
+      expect(dataDoCreate()).not.toHaveProperty('categoriaOverride');
+      expect(dataDoCreate()).toMatchObject({ tipoFii: 'tvm' });
+    });
+  });
+
   describe('Caixa para Investir', () => {
     const movimento = (valor: number) => ({
       aba: 'reit',

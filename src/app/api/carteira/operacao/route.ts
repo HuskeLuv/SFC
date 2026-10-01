@@ -27,6 +27,7 @@ import {
   recalculatePortfolioFromTransactions,
 } from '@/services/portfolio/portfolioRecalculation';
 import { FUNDO_TYPES_ALL, FUNDO_SUBTIPO_ORDER } from '@/lib/fundoTypes';
+import { CAMPO_SUBGRUPO_PORTFOLIO, isSubgrupoValido, overrideEfetivo } from '@/lib/carteiraMover';
 import { runCvmFundSync } from '@/services/pricing/cvmFundSync';
 import { applyCorporateActionsToUserPositions } from '@/services/portfolio/applyCorporateActions';
 import {
@@ -2277,6 +2278,14 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
         // seção definidos no planejamento e a linha planejada some (16/09/2026).
         const planejadoAbsorvido = await absorverPlanejadoNaCompra(tx, targetUserId, asset!.id);
         const secaoPlanejada = planejadoAbsorvido?.secao ?? null;
+        // Planejado que o usuário MOVEU de aba (mover na Carteira): a posição
+        // nasce na aba escolhida, com a seção na coluna do subgrupo dela.
+        const overridePlanejado = planejadoAbsorvido
+          ? overrideEfetivo(asset, planejadoAbsorvido.categoriaOverride)
+          : null;
+        const secaoBasePlanejada = overridePlanejado ? null : secaoPlanejada;
+        const estrategiaNaCompra =
+          tipoAtivo === 'acao' || tipoAtivo === 'bdr' || tipoAtivo === 'stock';
 
         if (portfolioExistente) {
           const novaQuantidade = portfolioExistente.quantity + quantidadeFinal;
@@ -2290,10 +2299,17 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
               quantity: novaQuantidade,
               avgPrice: novoPrecoMedio,
               totalInvested: novoTotalInvestido,
-              ...(tipoAtivo === 'acao' && estrategia ? { estrategia } : {}),
-              ...(tipoAtivo === 'stock' && estrategia ? { estrategia } : {}),
-              ...(tipoAtivo === 'fii' && tipoFii ? { tipoFii } : {}),
-              ...(tipoAtivo === 'etf' && regiaoEtf ? { regiaoEtf } : {}),
+              // Compra de um ativo que o usuário já tem NÃO regrava o
+              // subgrupo (decisão 6 do mover): só preenche coluna vazia. Para
+              // trocar de seção, o caminho é "Mover". categoriaOverride
+              // nunca é tocado aqui.
+              ...(estrategiaNaCompra && estrategia && !portfolioExistente.estrategia
+                ? { estrategia }
+                : {}),
+              ...(tipoAtivo === 'fii' && tipoFii && !portfolioExistente.tipoFii ? { tipoFii } : {}),
+              ...(tipoAtivo === 'etf' && regiaoEtf && !portfolioExistente.regiaoEtf
+                ? { regiaoEtf }
+                : {}),
               ...(planejadoAbsorvido && portfolioExistente.objetivo === 0
                 ? { objetivo: planejadoAbsorvido.objetivo }
                 : {}),
@@ -2309,20 +2325,28 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
               quantity: quantidadeFinal,
               avgPrice: precoFinal,
               totalInvested: valorFinal,
-              ...(tipoAtivo === 'acao' && estrategia ? { estrategia } : {}),
-              ...(tipoAtivo === 'stock' && estrategia ? { estrategia } : {}),
+              ...(estrategiaNaCompra && estrategia ? { estrategia } : {}),
               ...(tipoAtivo === 'fii' && tipoFii ? { tipoFii } : {}),
               ...(tipoAtivo === 'etf' && regiaoEtf ? { regiaoEtf } : {}),
               ...(planejadoAbsorvido ? { objetivo: planejadoAbsorvido.objetivo } : {}),
               // Seção do planejamento vale quando a compra não informou uma.
-              ...((tipoAtivo === 'acao' || tipoAtivo === 'stock') && !estrategia && secaoPlanejada
-                ? { estrategia: secaoPlanejada }
+              ...(estrategiaNaCompra && !estrategia && secaoBasePlanejada
+                ? { estrategia: secaoBasePlanejada }
                 : {}),
-              ...(tipoAtivo === 'fii' && !tipoFii && secaoPlanejada
-                ? { tipoFii: secaoPlanejada }
+              ...(tipoAtivo === 'fii' && !tipoFii && secaoBasePlanejada
+                ? { tipoFii: secaoBasePlanejada }
                 : {}),
-              ...(tipoAtivo === 'etf' && !regiaoEtf && secaoPlanejada
-                ? { regiaoEtf: secaoPlanejada }
+              ...(tipoAtivo === 'etf' && !regiaoEtf && secaoBasePlanejada
+                ? { regiaoEtf: secaoBasePlanejada }
+                : {}),
+              // Planejado movido: aba escolhida + seção no campo dela.
+              ...(overridePlanejado
+                ? {
+                    categoriaOverride: overridePlanejado,
+                    ...(isSubgrupoValido(overridePlanejado, secaoPlanejada)
+                      ? { [CAMPO_SUBGRUPO_PORTFOLIO[overridePlanejado]]: secaoPlanejada }
+                      : {}),
+                  }
                 : {}),
               lastUpdate: new Date(),
             },
