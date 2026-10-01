@@ -25,6 +25,7 @@ import { syncSonhoRealizadoBestEffort } from '@/services/planejamento/carteiraTo
 import { invalidarContextoUsuario } from '@/services/assistente/contexto';
 import { MOVER_ACTIONS, type MoverSnapshotEstado } from '@/lib/carteiraMover';
 import { MOVER_SNAPSHOT_KIND } from '../../moverHelpers';
+import { overrideDaVenda } from '@/services/cashflow/investimentosPorMes';
 import { UndoError, type UndoContext, type UndoDefinition, type UndoOutcome } from '../types';
 import {
   assertCurrentMatchesAfter,
@@ -552,6 +553,15 @@ const adicaoRegistrada: UndoDefinition = {
         assetId: transaction.assetId,
         recomputeSnapshotsFrom: snapshotCutoff,
       });
+      // Resgate total de item movido: a venda guardou a aba escolhida; a
+      // posição recriada volta para ela, não para a aba base.
+      const override = transaction.type === 'venda' ? overrideDaVenda(transaction.notes) : null;
+      if (override) {
+        await prisma.portfolio.updateMany({
+          where: { userId: auth.targetUserId, assetId: transaction.assetId },
+          data: { categoriaOverride: override },
+        });
+      }
     } else {
       await invalidatePortfolioSnapshots(auth.targetUserId, snapshotCutoff);
     }

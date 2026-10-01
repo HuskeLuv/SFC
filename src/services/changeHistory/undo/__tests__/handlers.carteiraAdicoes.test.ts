@@ -4,7 +4,7 @@ import type { UserChangeLog } from '@prisma/client';
 
 const mockPrisma = vi.hoisted(() => ({
   stockTransaction: { findFirst: vi.fn(), delete: vi.fn() },
-  portfolio: { findFirst: vi.fn() },
+  portfolio: { findFirst: vi.fn(), updateMany: vi.fn() },
   cashflowItem: { findFirst: vi.fn(), delete: vi.fn() },
   cashflowValue: { deleteMany: vi.fn() },
   $transaction: vi.fn(async (ops: unknown[]) => ops),
@@ -196,6 +196,42 @@ describe('operacao/aporte/resgate.registrar (delete-created composto)', () => {
       );
       expect(mockReverterCaixa).not.toHaveBeenCalled();
     });
+  });
+});
+
+describe('resgate.registrar de item movido de aba e vendido por inteiro', () => {
+  it('a posição recriada volta para a aba gravada na venda', async () => {
+    mockPrisma.stockTransaction.findFirst.mockResolvedValue({
+      id: 'tx-1',
+      assetId: 'asset-1',
+      type: 'venda',
+      date: TX_DATE,
+      notes: JSON.stringify({ operation: { action: 'resgate', categoriaOverride: 'acoes' } }),
+    });
+    mockPrisma.portfolio.findFirst.mockResolvedValue(null);
+    await CARTEIRA_UNDO_HANDLERS['resgate.registrar'].execute(
+      ctx(makeEntry({ action: 'resgate.registrar' })),
+    );
+    expect(mockRecalc).toHaveBeenCalledWith(expect.objectContaining({ assetId: 'asset-1' }));
+    expect(mockPrisma.portfolio.updateMany).toHaveBeenCalledWith({
+      where: { userId: 'user-1', assetId: 'asset-1' },
+      data: { categoriaOverride: 'acoes' },
+    });
+  });
+
+  it('venda sem aba gravada não mexe no override', async () => {
+    mockPrisma.stockTransaction.findFirst.mockResolvedValue({
+      id: 'tx-1',
+      assetId: 'asset-1',
+      type: 'venda',
+      date: TX_DATE,
+      notes: null,
+    });
+    mockPrisma.portfolio.findFirst.mockResolvedValue(null);
+    await CARTEIRA_UNDO_HANDLERS['resgate.registrar'].execute(
+      ctx(makeEntry({ action: 'resgate.registrar' })),
+    );
+    expect(mockPrisma.portfolio.updateMany).not.toHaveBeenCalled();
   });
 });
 

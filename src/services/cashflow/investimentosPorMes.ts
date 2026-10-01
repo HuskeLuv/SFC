@@ -112,14 +112,19 @@ async function completarOverrideDeVendidos(
   userId: string,
   overridePorAsset: Map<string, string>,
 ): Promise<void> {
+  // A venda MAIS RECENTE de cada ativo decide: se ela não gravou aba (o item
+  // tinha voltado para a aba base antes do resgate), o Fluxo usa a aba base.
   const vendas = await prisma.stockTransaction.findMany({
-    where: { userId, type: 'venda', notes: { contains: '"categoriaOverride"' } },
+    where: { userId, type: 'venda', assetId: { not: null } },
     select: { assetId: true, notes: true },
-    orderBy: { date: 'desc' },
+    orderBy: [{ date: 'desc' }, { createdAt: 'desc' }],
+    distinct: ['assetId'],
   });
   const daVenda = new Map<string, string>();
+  const vistos = new Set<string>();
   for (const venda of vendas) {
-    if (!venda.assetId || daVenda.has(venda.assetId)) continue;
+    if (!venda.assetId || vistos.has(venda.assetId)) continue;
+    vistos.add(venda.assetId);
     const override = overrideDaVenda(venda.notes);
     if (override) daVenda.set(venda.assetId, override);
   }

@@ -324,16 +324,25 @@ describe('computeInvestimentosPorMes — movido de aba e vendido por inteiro', (
       asset: { type: 'fii', symbol: 'MXRF11' },
     }),
   ];
-  /** stockTransaction.findMany: a consulta das vendas com override filtra por notes.contains. */
-  const mockTx = () =>
+  /** stockTransaction.findMany: a consulta das vendas (distinct por ativo) traz a mais recente. */
+  const mockTx = (
+    ultimaVenda: { assetId: string; notes: string | null } = {
+      assetId: 'a-fii',
+      notes: notasVenda,
+    },
+  ) =>
     mockPrisma.stockTransaction.findMany.mockImplementation(
-      async ({ where }: { where: Record<string, unknown> }) =>
-        where.notes && typeof where.notes === 'object' && 'contains' in where.notes
-          ? [{ assetId: 'a-fii', notes: notasVenda }]
-          : 'asset' in where
-            ? []
-            : transacoes,
+      async (args: { where: Record<string, unknown>; distinct?: string[] }) =>
+        args.distinct ? [ultimaVenda] : 'asset' in args.where ? [] : transacoes,
     );
+
+  it('venda mais recente sem aba gravada (item tinha voltado à base): Fluxo na aba base', async () => {
+    mockTx({ assetId: 'a-fii', notes: JSON.stringify({ operation: { action: 'resgate' } }) });
+    mockPrisma.portfolio.findMany.mockResolvedValue([]);
+    const { porTipo } = await computeInvestimentosPorMes('u1', 2026);
+    expect(porTipo.fii[0]).toBe(800);
+    expect(porTipo.stock).toBeUndefined();
+  });
 
   it('sem posição: aportes e a venda seguem a aba gravada na venda', async () => {
     mockTx();
