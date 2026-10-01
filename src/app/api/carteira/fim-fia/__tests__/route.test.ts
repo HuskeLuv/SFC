@@ -207,6 +207,39 @@ describe('/api/carteira/fim-fia', () => {
       expect(secaoFia?.ativos).toHaveLength(1);
       expect(secaoFia.ativos[0].tipo).toBe('fia');
     });
+    it('aporte mais recente sem tipoFundo não manda o fundo manual para o padrão', async () => {
+      mockPrisma.portfolio.findMany.mockResolvedValue([
+        {
+          id: 'pf-manual',
+          assetId: 'asset-manual',
+          quantity: 1,
+          avgPrice: 1000,
+          totalInvested: 2000,
+          objetivo: 0,
+          asset: { id: 'asset-manual', type: 'fund', name: 'Fundo Manual', currentPrice: null },
+        },
+      ]);
+      mockPrisma.stockTransaction.findMany.mockResolvedValue([
+        {
+          assetId: 'asset-manual',
+          type: 'compra',
+          total: 1000,
+          date: new Date('2026-02-10'),
+          notes: JSON.stringify({ operation: { action: 'aporte' } }),
+        },
+        {
+          assetId: 'asset-manual',
+          type: 'compra',
+          total: 1000,
+          date: new Date('2026-01-10'),
+          notes: JSON.stringify({ tipoFundo: 'fia', operation: { action: 'compra' } }),
+        },
+      ]);
+      const res = await GET(createGetRequest());
+      const data = await res.json();
+      const secaoFia = data.secoes.find((s: { tipo: string }) => s.tipo === 'fia');
+      expect(secaoFia?.ativos).toHaveLength(1);
+    });
   });
 
   describe('GET — prazo de resgate (ticket 02/09/2026)', () => {

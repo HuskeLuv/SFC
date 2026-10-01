@@ -132,6 +132,9 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     string,
     { cotizacaoResgate?: string; liquidacaoResgate?: string }
   >();
+  // Seção do wizard (notes.tipoFundo): a compra mais recente QUE TENHA o campo — um
+  // aporte sem tipoFundo não pode mandar o fundo para o padrão (decisão 6 do mover).
+  const tipoFundoNotasByAsset = new Map<string, FundoSubtipo>();
   const comprasMap = new Map<string, number>();
   const aportesMap = new Map<string, number>();
   const resgatesMap = new Map<string, number>();
@@ -154,6 +157,9 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
       }
       if (!latestCompraNotes.has(transaction.assetId)) {
         latestCompraNotes.set(transaction.assetId, notes);
+      }
+      if (!tipoFundoNotasByAsset.has(transaction.assetId) && isFundoSubtipo(notes?.tipoFundo)) {
+        tipoFundoNotasByAsset.set(transaction.assetId, notes.tipoFundo);
       }
       const liq = liquidezByAsset.get(transaction.assetId) ?? {};
       for (const campo of ['cotizacaoResgate', 'liquidacaoResgate'] as const) {
@@ -225,7 +231,7 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     const subtipoFromAsset = isFundoCatchAllType(assetType)
       ? null
       : fundoSubtipoFromAssetType(assetType);
-    const subtipoFromNotes = isFundoSubtipo(notes?.tipoFundo) ? notes.tipoFundo : null;
+    const subtipoFromNotes = (assetId ? tipoFundoNotasByAsset.get(assetId) : undefined) ?? null;
     const tipoFundo: FundoSubtipo =
       subtipoEscolhido ??
       subtipoFromAsset ??

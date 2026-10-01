@@ -11,7 +11,7 @@ const mockPrisma = vi.hoisted(() => ({
   portfolio: { findFirst: vi.fn(), update: vi.fn() },
   watchlist: { findFirst: vi.fn(), update: vi.fn() },
   fixedIncomeAsset: { findFirst: vi.fn() },
-  stockTransaction: { findFirst: vi.fn() },
+  stockTransaction: { findMany: vi.fn() },
   asset: { findUnique: vi.fn() },
   userChangeLog: { create: vi.fn(), findMany: vi.fn() },
 }));
@@ -131,7 +131,7 @@ beforeEach(() => {
   mockPrisma.portfolio.findFirst.mockResolvedValue(null);
   mockPrisma.watchlist.findFirst.mockResolvedValue(null);
   mockPrisma.fixedIncomeAsset.findFirst.mockResolvedValue(null);
-  mockPrisma.stockTransaction.findFirst.mockResolvedValue(null);
+  mockPrisma.stockTransaction.findMany.mockResolvedValue([]);
   mockPrisma.userChangeLog.findMany.mockResolvedValue([]);
   mockPrisma.userChangeLog.create.mockResolvedValue({ id: 'log-1' });
   mockPrisma.portfolio.update.mockImplementation(async ({ where, data }) => ({
@@ -332,7 +332,7 @@ describe('POST /api/carteira/mover — gravação', () => {
       entity: 'watchlist',
       entityId: 'w-1',
     });
-    expect(mockPrisma.stockTransaction.findFirst).not.toHaveBeenCalled();
+    expect(mockPrisma.stockTransaction.findMany).not.toHaveBeenCalled();
   });
 
   it('consultor agindo: lê pela posse do cliente e registra via consultor', async () => {

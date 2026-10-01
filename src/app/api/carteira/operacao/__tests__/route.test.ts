@@ -10,7 +10,7 @@ const mockPrisma = vi.hoisted(() => {
     institution: { findFirst: vi.fn(), findUnique: vi.fn() },
     asset: { findUnique: vi.fn(), create: vi.fn() },
     stock: { findUnique: vi.fn() },
-    stockTransaction: { create: vi.fn() },
+    stockTransaction: { create: vi.fn(), findMany: vi.fn() },
     portfolio: { findFirst: vi.fn(), create: vi.fn(), update: vi.fn() },
     // Ativo planejado absorvido na 1ª compra: nenhum nos cenários destes testes.
     watchlist: { findFirst: vi.fn().mockResolvedValue(null), delete: vi.fn() },
@@ -101,6 +101,7 @@ describe('POST /api/carteira/operacao', () => {
     mockPrisma.asset.findUnique.mockResolvedValue(mockAsset);
     mockPrisma.stock.findUnique.mockResolvedValue(mockStock);
     mockPrisma.stockTransaction.create.mockResolvedValue(mockTransaction);
+    mockPrisma.stockTransaction.findMany.mockResolvedValue([]);
     mockPrisma.portfolio.create.mockResolvedValue(mockPortfolio);
     mockPrisma.portfolio.findFirst.mockResolvedValue(null);
     mockPrisma.fixedIncomeAsset.create.mockResolvedValue({});
@@ -2203,6 +2204,79 @@ describe('POST /api/carteira/operacao', () => {
       );
       expect(response.status).toBe(201);
       expect(dataDoUpdate()).toMatchObject({ estrategia: 'growth' });
+    });
+
+    it('REIT sem coluna: recomprar com outra estratégia fixa a seção que a aba exibe hoje', async () => {
+      mockPrisma.asset.findUnique.mockResolvedValueOnce({
+        id: 'asset-reit',
+        symbol: 'O',
+        name: 'Realty Income',
+        type: 'reit',
+        currency: 'USD',
+      });
+      mockPrisma.portfolio.findFirst.mockResolvedValue({
+        id: 'port-reit',
+        quantity: 10,
+        totalInvested: 1000,
+        avgPrice: 100,
+        objetivo: 0,
+        estrategia: null,
+      });
+      mockPrisma.stockTransaction.findMany.mockResolvedValue([
+        { notes: JSON.stringify({ operation: { action: 'aporte' } }) },
+        { notes: JSON.stringify({ estrategiaReit: 'growth' }) },
+      ]);
+      const response = await POST(
+        createRequest({
+          tipoAtivo: 'reit',
+          instituicaoId: 'inst-1',
+          assetId: 'asset-reit',
+          dataCompra: '2024-01-15',
+          quantidade: 5,
+          cotacaoUnitaria: 20,
+          cotacaoMoeda: 5.2,
+          estrategiaReit: 'risk',
+        }),
+      );
+      expect(response.status).toBe(201);
+      expect(mockPrisma.stockTransaction.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ assetId: 'asset-reit', id: { not: 'tx-1' } }),
+        }),
+      );
+      expect(dataDoUpdate()).toMatchObject({ estrategia: 'growth' });
+    });
+
+    it('REIT com a coluna preenchida: a recompra não consulta nem regrava', async () => {
+      mockPrisma.asset.findUnique.mockResolvedValueOnce({
+        id: 'asset-reit',
+        symbol: 'O',
+        name: 'Realty Income',
+        type: 'reit',
+      });
+      mockPrisma.portfolio.findFirst.mockResolvedValue({
+        id: 'port-reit',
+        quantity: 10,
+        totalInvested: 1000,
+        avgPrice: 100,
+        objetivo: 0,
+        estrategia: 'value',
+      });
+      const response = await POST(
+        createRequest({
+          tipoAtivo: 'reit',
+          instituicaoId: 'inst-1',
+          assetId: 'asset-reit',
+          dataCompra: '2024-01-15',
+          quantidade: 5,
+          cotacaoUnitaria: 20,
+          cotacaoMoeda: 5.2,
+          estrategiaReit: 'risk',
+        }),
+      );
+      expect(response.status).toBe(201);
+      expect(mockPrisma.stockTransaction.findMany).not.toHaveBeenCalled();
+      expect(dataDoUpdate()).not.toHaveProperty('estrategia');
     });
 
     it('BDR grava a estratégia escolhida no wizard', async () => {

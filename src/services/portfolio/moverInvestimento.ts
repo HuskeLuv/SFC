@@ -49,6 +49,7 @@ import {
   type SubgrupoCtx,
   type TipoItemMover,
 } from '@/lib/carteiraMover';
+import { isFundoSubtipo } from '@/lib/fundoTypes';
 import { categorizarAsset, type CategoriaCarteira } from '@/services/portfolio/itemValuation';
 import { movidoInfoPorEntidade, originalPorEntidade } from '@/services/portfolio/movidoInfo';
 import { subtipoFundoPlanejado } from '@/services/portfolio/ativosPlanejados';
@@ -89,6 +90,24 @@ const parseNotes = (raw: string | null | undefined): NotesCompra => {
 };
 
 /**
+ * Cada campo vem da compra mais recente QUE O TENHA (mesma regra das rotas /reit e /fim-fia):
+ * um aporte sem estrategiaReit/tipoFundo não muda a seção atual. Compras em ordem decrescente.
+ */
+const notesDasCompras = (compras: { notes: string | null }[]): NotesCompra => {
+  let algum = false;
+  let estrategiaReit: unknown;
+  let tipoFundo: unknown;
+  for (const compra of compras) {
+    const notes = parseNotes(compra.notes);
+    if (!notes) continue;
+    algum = true;
+    if (estrategiaReit === undefined && notes.estrategiaReit) estrategiaReit = notes.estrategiaReit;
+    if (tipoFundo === undefined && isFundoSubtipo(notes.tipoFundo)) tipoFundo = notes.tipoFundo;
+  }
+  return algum ? { estrategiaReit, tipoFundo } : null;
+};
+
+/**
  * Linha (Portfolio ou Watchlist) do usuário com o Asset, a pista de renda fixa
  * (modelo de preço) e as notes da última compra (fallback de subgrupo).
  * null = não existe ou é de outro usuário (a rota responde 404 nos dois casos).
@@ -105,23 +124,23 @@ export async function carregarItemMover(
   if (!row?.asset || !row.assetId) return null;
   const { asset, ...rest } = row;
 
-  const [fixedIncome, ultimaCompra] = await Promise.all([
+  const [fixedIncome, compras] = await Promise.all([
     prisma.fixedIncomeAsset.findFirst({
       where: { userId, assetId: row.assetId },
       select: { id: true },
     }),
     tipo === 'posicao'
-      ? prisma.stockTransaction.findFirst({
+      ? prisma.stockTransaction.findMany({
           where: { userId, assetId: row.assetId, type: 'compra' },
           orderBy: { date: 'desc' },
           select: { notes: true },
         })
-      : Promise.resolve(null),
+      : Promise.resolve([] as { notes: string | null }[]),
   ]);
   const base = {
     asset,
     temRendaFixa: Boolean(fixedIncome),
-    notes: parseNotes(ultimaCompra?.notes),
+    notes: notesDasCompras(compras),
   };
   return tipo === 'posicao'
     ? { tipo, row: rest as Portfolio, ...base }

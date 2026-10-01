@@ -5,7 +5,7 @@ const mockPrisma = vi.hoisted(() => ({
   portfolio: { findFirst: vi.fn(), update: vi.fn() },
   watchlist: { findFirst: vi.fn(), update: vi.fn() },
   fixedIncomeAsset: { findFirst: vi.fn() },
-  stockTransaction: { findFirst: vi.fn() },
+  stockTransaction: { findMany: vi.fn() },
   asset: { findUnique: vi.fn() },
   userChangeLog: { findMany: vi.fn() },
 }));
@@ -63,7 +63,7 @@ beforeEach(() => {
   mockPrisma.portfolio.findFirst.mockResolvedValue(null);
   mockPrisma.watchlist.findFirst.mockResolvedValue(null);
   mockPrisma.fixedIncomeAsset.findFirst.mockResolvedValue(null);
-  mockPrisma.stockTransaction.findFirst.mockResolvedValue(null);
+  mockPrisma.stockTransaction.findMany.mockResolvedValue([]);
   mockPrisma.userChangeLog.findMany.mockResolvedValue([]);
   mockPrisma.portfolio.update.mockImplementation(async ({ data }) => ({
     ...posicao(AAPL),
@@ -72,11 +72,13 @@ beforeEach(() => {
 });
 
 describe('carregarItemMover', () => {
-  it('lê notes da última compra e a pista de renda fixa', async () => {
+  it('lê das compras a seção mais recente que existe (aporte sem o campo não conta) e a pista de RF', async () => {
     mockPrisma.portfolio.findFirst.mockResolvedValue(posicao(O));
-    mockPrisma.stockTransaction.findFirst.mockResolvedValue({
-      notes: JSON.stringify({ estrategiaReit: 'growth' }),
-    });
+    mockPrisma.stockTransaction.findMany.mockResolvedValue([
+      { notes: JSON.stringify({ operation: { action: 'aporte' } }) },
+      { notes: JSON.stringify({ estrategiaReit: 'growth' }) },
+      { notes: JSON.stringify({ estrategiaReit: 'risk' }) },
+    ]);
     mockPrisma.fixedIncomeAsset.findFirst.mockResolvedValue({ id: 'fi-1' });
     const item = (await carregarItemMover('user-1', 'posicao', 'p-1'))!;
     expect(item.tipo).toBe('posicao');
@@ -87,7 +89,7 @@ describe('carregarItemMover', () => {
 
   it('notes malformadas viram null; linha sem asset = null', async () => {
     mockPrisma.portfolio.findFirst.mockResolvedValue(posicao(O));
-    mockPrisma.stockTransaction.findFirst.mockResolvedValue({ notes: '{quebrado' });
+    mockPrisma.stockTransaction.findMany.mockResolvedValue([{ notes: '{quebrado' }]);
     expect((await carregarItemMover('user-1', 'posicao', 'p-1'))!.notes).toBeNull();
 
     mockPrisma.portfolio.findFirst.mockResolvedValue({ ...posicao(O), asset: null, assetId: null });
