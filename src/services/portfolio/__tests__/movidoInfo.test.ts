@@ -164,6 +164,37 @@ describe('resumirOriginal', () => {
     });
   });
 
+  it('1º evento já saiu de fora da base: o original é a aba base (o restaurar grava null)', () => {
+    // Planejado movido para Fundos e depois comprado: a posição nasce em Fundos sem log próprio.
+    const eventos = [
+      ev(
+        'investimento.mover',
+        { categoriaOverride: 'fimFia', tipoFii: 'fofi', tipoFundo: 'fiagro' },
+        { categoriaOverride: 'acoes', tipoFii: 'fofi', tipoFundo: 'fiagro', estrategia: 'value' },
+      ),
+    ];
+    expect(resumirOriginal(eventos, { asset: FII })).toEqual({
+      categoria: 'fiis',
+      subgrupo: 'fofi',
+      antes: { categoriaOverride: null, tipoFii: 'fofi', tipoFundo: 'fiagro' },
+    });
+  });
+
+  it('planejado que começou fora da base: secao da outra aba não vale na base', () => {
+    const eventos = [
+      ev(
+        'planejado.mover',
+        { categoriaOverride: 'fimFia', secao: 'fiagro', objetivo: 2 },
+        { categoriaOverride: 'acoes', secao: 'value', objetivo: 2 },
+      ),
+    ];
+    expect(resumirOriginal(eventos, { asset: FII, tipo: 'planejado' })).toMatchObject({
+      categoria: 'fiis',
+      subgrupo: null,
+      antes: { categoriaOverride: null, secao: null },
+    });
+  });
+
   it('não movido: null', () => {
     expect(resumirOriginal([])).toBeNull();
     expect(

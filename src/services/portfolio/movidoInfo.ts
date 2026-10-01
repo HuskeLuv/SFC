@@ -24,6 +24,7 @@ import {
   MOVER_SECTION,
   categoriaDaAba,
   isAcaoRestaurar,
+  overrideEfetivo,
   type AssetMovivelLike,
   type CategoriaMovivel,
   type MoverSnapshotEstado,
@@ -103,7 +104,19 @@ export function resumirOriginal(
 ): OriginalInfo | null {
   const seq = sequenciaForaDaBase(eventosAsc);
   if (seq.length === 0) return null;
-  const antes = antesDe(seq[0]) ?? { categoriaOverride: null };
+  const antesDoEvento = antesDe(seq[0]) ?? { categoriaOverride: null };
+  // O "Voltar" sempre leva à aba BASE (o restaurar grava categoriaOverride = null). Se o 1º
+  // evento registrado já começou fora da base (planejado movido e depois comprado, ou começo
+  // da sequência expurgado), o original é a aba base — não a aba de onde aquele evento saiu.
+  // A secao do planejado era de outra aba: não vale na base (fica o padrão da rota).
+  const comecouForaDaBase = overrideEfetivo(opts.asset, antesDoEvento.categoriaOverride) !== null;
+  const antes: MoverSnapshotEstado = comecouForaDaBase
+    ? {
+        ...antesDoEvento,
+        categoriaOverride: null,
+        ...(opts.tipo === 'planejado' ? { secao: null } : {}),
+      }
+    : antesDoEvento;
   const categoria = categoriaDaAba(opts.asset, antes.categoriaOverride);
   let subgrupo: string | null = null;
   if (opts.tipo === 'planejado') subgrupo = antes.secao ?? null;
