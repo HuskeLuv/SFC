@@ -7,7 +7,7 @@ const mockPrisma = vi.hoisted(() => ({
 
 vi.mock('@/lib/prisma', () => ({ prisma: mockPrisma, default: mockPrisma }));
 
-import { computeInvestimentosPorMes } from '../investimentosPorMes';
+import { computeInvestimentosPorMes, tipoFluxoDoOverride } from '../investimentosPorMes';
 
 const tx = (overrides: Record<string, unknown>) => ({
   id: 'tx',
@@ -240,5 +240,87 @@ describe('computeInvestimentosPorMes', () => {
       expect(porTipo.bond[0]).toBe(1000);
       expect(porTipo.opportunity).toBeUndefined();
     });
+  });
+});
+
+describe('computeInvestimentosPorMes — ativo movido de aba (mover na Carteira)', () => {
+  /** portfolio.findMany responde por consulta: sonho × movidos. */
+  const portfolios = (movidos: { assetId: string; categoriaOverride: string }[]) =>
+    mockPrisma.portfolio.findMany.mockImplementation(
+      async ({ where }: { where: Record<string, unknown> }) =>
+        'categoriaOverride' in where ? movidos : [],
+    );
+
+  it('FII movido para Fundos vai para a linha fund (o total não muda)', async () => {
+    portfolios([{ assetId: 'a-fii', categoriaOverride: 'fimFia' }]);
+    mockPrisma.stockTransaction.findMany.mockResolvedValue([
+      tx({ assetId: 'a-fii', total: 800, asset: { type: 'fii', symbol: 'HGLG11' } }),
+      tx({ assetId: 'a-fii2', total: 200, asset: { type: 'fii', symbol: 'KNRI11' } }),
+    ]);
+
+    const { porTipo, totaisPorMes } = await computeInvestimentosPorMes('u1', 2026);
+
+    expect(porTipo.fund[0]).toBe(800);
+    expect(porTipo.fii[0]).toBe(200);
+    expect(totaisPorMes[0]).toBe(1000);
+    expect(mockPrisma.portfolio.findMany).toHaveBeenCalledWith({
+      where: { userId: 'u1', categoriaOverride: { not: null } },
+      select: { assetId: true, categoriaOverride: true },
+    });
+  });
+
+  it('BDR com troca só de seção (sem override) continua na linha BDRs', async () => {
+    portfolios([]);
+    mockPrisma.stockTransaction.findMany.mockResolvedValue([
+      tx({ assetId: 'a-bdr', total: 300, asset: { type: 'bdr', symbol: 'AAPL34' } }),
+    ]);
+
+    const { porTipo } = await computeInvestimentosPorMes('u1', 2026);
+
+    expect(porTipo.bdr[0]).toBe(300);
+  });
+
+  it('override igual à aba base não muda a linha', async () => {
+    portfolios([{ assetId: 'a-etf', categoriaOverride: 'etfs' }]);
+    mockPrisma.stockTransaction.findMany.mockResolvedValue([
+      tx({ assetId: 'a-etf', total: 500, asset: { type: 'etf', symbol: 'BOVA11' } }),
+    ]);
+
+    const { porTipo } = await computeInvestimentosPorMes('u1', 2026);
+
+    expect(porTipo.etf[0]).toBe(500);
+  });
+
+  it('reinvestimento e sonho continuam com precedência sobre o override', async () => {
+    mockPrisma.portfolio.findMany.mockImplementation(
+      async ({ where }: { where: Record<string, unknown> }) =>
+        'categoriaOverride' in where
+          ? [{ assetId: 'a-fii', categoriaOverride: 'acoes' }]
+          : [{ assetId: 'a-fii' }],
+    );
+    mockPrisma.stockTransaction.findMany.mockResolvedValue([
+      tx({ assetId: 'a-fii', total: 100, asset: { type: 'fii', symbol: 'HGLG11' } }),
+    ]);
+
+    const { porTipo } = await computeInvestimentosPorMes('u1', 2026);
+
+    expect(porTipo.planejamento[0]).toBe(100);
+    expect(porTipo.stock).toBeUndefined();
+  });
+});
+
+describe('tipoFluxoDoOverride', () => {
+  it('mapeia a aba escolhida para a linha do Aporte/Resgate', () => {
+    expect(tipoFluxoDoOverride({ symbol: 'BOVA11', type: 'etf' }, 'acoes')).toBe('stock');
+    expect(tipoFluxoDoOverride({ symbol: 'O', type: 'reit', currency: 'USD' }, 'stocks')).toBe(
+      'stock',
+    );
+    expect(tipoFluxoDoOverride({ symbol: 'PETR4', type: 'stock' }, 'fiis')).toBe('fii');
+  });
+
+  it('item de aba fixa ou override inválido → null', () => {
+    expect(tipoFluxoDoOverride({ symbol: 'CDB-1', type: 'bond' }, 'acoes')).toBeNull();
+    expect(tipoFluxoDoOverride({ symbol: 'PETR4', type: 'stock' }, 'xpto')).toBeNull();
+    expect(tipoFluxoDoOverride(null, 'acoes')).toBeNull();
   });
 });
