@@ -1,0 +1,31 @@
+n;ativo;metrica;valor_dev;fonte_independente;valor_fonte;dif;veredito;observacao
+1;PETR4;lucro atribuível FY2025 (R$ bi);110,129;CNN/Bloomberg Línea (release 05/03/2026);110,1;0,03%;OK;
+2;WEGE3;lucro atribuível FY2025 (R$ bi);6,376;Infomoney/Times Brasil (release 25/02/2026);6,38;0,06%;OK;
+3;CASH3;lucro atribuível TTM 2T26 (R$ mi) [prejuízo];-100,71;Fundamentus 29/09/2026;-100,71;0%;OK;empresa com prejuízo: cLucro zero_regra; incompleto=false (spec §4.1 pede selo)
+4;ITUB4;LPA TTM;4,2291;Fundamentus;4,23;0,02%;OK;banco
+5;ITUB4;P/L atual;10,00;Fundamentus;10,01;0,1%;OK;banco
+6;ITUB4;VPA atual;18,8396;Fundamentus;18,83;0,05%;OK;banco
+7;BBAS3;LPA TTM;2,5370;Fundamentus;2,53;0,3%;OK;banco (individual BR GAAP)
+8;BBAS3;P/VP atual;0,694;Fundamentus;0,70;0,9%;OK;banco
+9;BBDC4;VPA atual;16,577;Fundamentus;16,54;0,2%;OK;banco
+10;BBSE3;P/L atual;8,19;Fundamentus;8,19;0%;OK;seguradora
+11;BBSE3;DY 12m (%);6,58;Fundamentus;12,0;-5,4 p.p.;FALHA;base de proventos parada (último provento BBSE3 no dev: data-com 11/02/2026); cobertura 'OK' de 10/06/2026
+12;PSSA3;LPA TTM;0,0057;Fundamentus;5,70;÷1000;FALHA;contagem de ações 2T26 = 640.992.323.000 (×1000 aplicado 2×)
+13;PSSA3;P/VP atual;1867,36;Fundamentus;1,88;×993;FALHA;idem; cPreco=0 e semáforo P/L +77.890% vs média; incompleto=false
+14;SBSP3;nº de ações 2T26 (CVM, total ex-tes.);3.506.830.477;Fundamentus (Nro. Ações);3.524.530.000;tesouraria 17,7 mi;OK;split 1:5 em 28/04/2026 (moneytimes/acionista)
+15;SBSP3;fator de ajuste FY2025 (fatorAjusteHoje);5,15001;CVM 2T26 ÷ DFP25 / Fundamentus;5,008 / 5,033;+2,3% a +2,8%;FALHA;evento YAHOO 1,028346 de 19/03/2026 não existe; VPA aj 2025 11,758 vs ~12,03
+16;SBSP3;P/VP atual;2,101;Fundamentus;2,11;0,4%;OK;split recente
+17;RCSL3;fator de ajuste FY2024 (desdobr. 4:1 mar/26);4,0;CVM razão 4,0002;4,0;0%;OK;split recente
+18;RAPT4;VPA atual;8669,33;Fundamentus;8,64;×1003;FALHA;contagem 1T26 = 348.688 (÷1000); status 'ok'
+19;BEES3;P/L atual;7063,52;Fundamentus;7,06;×1000;FALHA;banco; contagem 2T26 = 347.504.146.000
+20;WEGE3;P/L fim de ano 2024;36,64;preço 52,77 ÷ (lucro 2024 R$ 6,04 bi ÷ 4,1955 bi ações);36,6;0,1%;OK;
+21;ITUB4;liquidez 21 pregões (R$ mi);1020,08;recalculado de asset_quotes_daily / Fundamentus 2m;1020,08 / 1009,17;1,1% (janela);OK;janela diferente (21 x ~42 pregões)
+22;HGLG11;VP/cota ago/26;165,9514;Fundamentus / Investidor10;165,95 / 166,09;0,0%/0,08%;OK;tijolo
+23;HGLG11;cotistas ago/26;608.345;Investidor10;608.340;0,001%;OK;tijolo
+24;HGLG11;rendimento 12m (R$/cota);8,80;Investidor10 / Fundamentus;13,41 / 12,33;-34%/-29%;FALHA;meses com rendimento=0 (calculado) -> cLucro 0 sem selo
+25;KNCR11;P/VP atual;1,033;Fundamentus;1,03;0,3%;OK;papel
+26;MXRF11;DY 12m (%);8,74;Fundamentus;14,1;-5,4 p.p.;FALHA;papel; cDiv 3,91 onde seria 10
+27;HFOF11;tipo de FII / VP-cota;fof / 7,5554;Fundamentus (VP 7,56);7,56;0,06%;OK;FoF fora do índice (indiceMf null)
+28;MCRE11;VP/cota / tipo;9,9802 / hibrido;Fundamentus;9,98;0%;OK;híbrido
+29;LREN3;cLucro (anos lucro consecutivos);9;CVM DFP 2016 ind (lucro R$ 625 mi) — Renner lucrativa desde antes de 2015;>=10 (nota 10);-1 ponto;FALHA;ano 2016 'ausente' (controladora_zero) quebra a sequência como se fosse prejuízo
+30;CXSE3;cLucro (anos lucro consecutivos);1;CVM DFP 2023/2024 ind (R$ 3,58 / 3,77 bi);>=10 anos desde 2015;-9;FALHA;idem; estado 'calculado', sem selo por lucro

@@ -1,0 +1,11 @@
+CNPJ_Companhia;Data_Referencia;Versao;ID_Documento;Nome_Empresarial;Valor_Mobiliario;Sigla_Classe_Acao_Preferencial;Classe_Acao_Preferencial;Codigo_Negociacao;Composicao_BDR_Unit;Mercado;Sigla_Entidade_Administradora;Entidade_Administradora;Data_Inicio_Negociacao;Data_Fim_Negociacao;Segmento;Data_Inicio_Listagem;Data_Fim_Listagem
+00.000.000/0001-91;2026-01-01;3;160576;BCO BRASIL S.A.;Ações Ordinárias;;;BBAS3;;Bolsa;B3;B3 S.A. - Brasil, Bolsa, Balcão.;2006-05-31;;Novo Mercado;1977-07-20;
+07.859.971/0001-30;2026-01-01;1;158852;TRANSMISSORA ALIANÇA DE ENERGIA ELÉTRICA S.A.;Ações Ordinárias;;;TAEE3;;Bolsa;B3;B3 S.A. - Brasil, Bolsa, Balcão.;2006-10-27;;Nível 2 de Governança Corporativa;2006-10-26;
+07.859.971/0001-30;2026-01-01;1;158852;TRANSMISSORA ALIANÇA DE ENERGIA ELÉTRICA S.A.;Debêntures;;;;;Balcão Organizado;B3;B3 S.A. - Brasil, Bolsa, Balcão.;2012-10-15;;Básico;2012-10-15;
+07.859.971/0001-30;2026-01-01;1;158852;TRANSMISSORA ALIANÇA DE ENERGIA ELÉTRICA S.A.;Ações Preferenciais;;;TAEE4;;Bolsa;B3;B3 S.A. - Brasil, Bolsa, Balcão.;2006-10-27;;Nível 2 de Governança Corporativa;2006-10-26;
+07.859.971/0001-30;2026-01-01;1;158852;TRANSMISSORA ALIANÇA DE ENERGIA ELÉTRICA S.A.;Units;;;TAEE11;1 ON / 2 PN;Bolsa;B3;B3 S.A. - Brasil, Bolsa, Balcão.;2006-10-27;;Nível 2 de Governança Corporativa;2006-10-26;
+33.592.510/0001-54;2026-01-01;1;156281;VALE S.A.;Ações Ordinárias;;;VALE3;;Bolsa;B3;B3 S.A. - Brasil, Bolsa, Balcão.;2017-12-22;;Novo Mercado;1968-04-01;
+33.592.510/0001-54;2026-01-01;1;156281;VALE S.A.;Debêntures;;;;;Balcão Organizado;B3;B3 S.A. - Brasil, Bolsa, Balcão.;1997-07-08;;Básico;1997-07-08;
+47.960.950/0001-21;2026-01-01;1;158557;MAGAZINE LUIZA S.A.;Ações Preferenciais;PNA;Preferencial Classe A;MGLU3;;Bolsa;B3;B3 S.A. - Brasil, Bolsa, Balcão.;2011-05-02;;Novo Mercado;2011-05-02;
+84.429.695/0001-11;2026-01-01;1;158276;WEG S.A.;Ações Ordinárias;;;WEGE3;;Bolsa;B3;B3 S.A. - Brasil, Bolsa, Balcão.;2007-06-22;;Novo Mercado;2007-06-22;
+89.637.490/0001-45;2026-01-01;1;155729;KLABIN S.A.;Units;;;KLBN11;1 KLBN3 + 4 KLBN4;Bolsa;B3;B3 S.A. - Brasil, Bolsa, Balcão.;2014-01-07;;Nível 2 de Governança Corporativa;2013-11-28;

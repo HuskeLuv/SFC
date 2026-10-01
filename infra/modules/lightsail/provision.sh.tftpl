@@ -195,6 +195,23 @@ echo "$ts $ENDPOINT -> $code" >> /var/log/myfinance-cron.log
 EOF
 chmod 755 /usr/local/bin/myfinance-cron.sh
 touch /var/log/myfinance-cron.log
+# jobs PESADOS da Análise de Ativos (scores): processo próprio, fora do next-server, para a memória
+# voltar ao sistema no fim (pico medido ~255 MB). Ver docs/analise-ativos/fase0/RUNBOOK.md §5.
+cat >/usr/local/bin/myfinance-job.sh <<'EOF'
+#!/bin/bash
+JOB="$1"
+ts=$(date -u +%FT%TZ)
+code=0
+cd /opt/myfinance/current || code="ERR"
+if [ "$code" = "0" ]; then
+  timeout 600 sudo -u myfinance env MALLOC_ARENA_MAX=2 NODE_OPTIONS=--max-old-space-size=256 \
+    nice -n 10 node --env-file=/etc/myfinance/app.env --import tsx \
+    scripts/analise-ativos/rodar-job.ts "$JOB" >>/var/log/myfinance-job.log 2>&1 || code=$?
+fi
+echo "$ts job:$JOB -> exit $code" >> /var/log/myfinance-cron.log
+EOF
+chmod 755 /usr/local/bin/myfinance-job.sh
+touch /var/log/myfinance-job.log
 cat >/etc/cron.d/myfinance.disabled <<'EOF'
 SHELL=/bin/bash
 0 6 * * * root /usr/local/bin/myfinance-cron.sh /api/cron/economic-indexes
@@ -216,6 +233,18 @@ SHELL=/bin/bash
 */5 * * * * root /usr/local/bin/myfinance-cron.sh /api/cron/pluggy-sync
 30 8 * * * root /usr/local/bin/myfinance-cron.sh '/api/cron/pluggy-sync?diario=1'
 0 11 * * * root /usr/local/bin/myfinance-cron.sh /api/cron/calendario-lembretes
+# Análise de Ativos (Fase 0) — dados CVM/B3; ver docs/analise-ativos/fase0/RUNBOOK.md
+30 5 * * 0 root /usr/local/bin/myfinance-cron.sh /api/cron/analise-ativos/b3-cadastro
+40 5 * * 0 root /usr/local/bin/myfinance-cron.sh /api/cron/analise-ativos/fii-cadastro
+50 5 * * 0 root /usr/local/bin/myfinance-cron.sh '/api/cron/analise-ativos/cvm-cias?doc=fca'
+5 9 * * * root /usr/local/bin/myfinance-cron.sh '/api/cron/analise-ativos/cvm-cias?doc=dfp'
+10 9 * * * root /usr/local/bin/myfinance-cron.sh '/api/cron/analise-ativos/cvm-cias?doc=itr'
+25 9 * * * root /usr/local/bin/myfinance-cron.sh /api/cron/analise-ativos/cvm-ipe
+35 9 * * * root /usr/local/bin/myfinance-cron.sh /api/cron/analise-ativos/fii-mensal
+45 9 * * * root /usr/local/bin/myfinance-cron.sh /api/cron/analise-ativos/fii-trimestral
+55 9 * * 2-6 root /usr/local/bin/myfinance-cron.sh /api/cron/analise-ativos/cotahist
+5 23 * * 1-5 root /usr/local/bin/myfinance-cron.sh /api/cron/analise-ativos/cotahist
+10 10 * * * root /usr/local/bin/myfinance-job.sh scores
 EOF
 # cron ignora arquivos com ponto no nome em /etc/cron.d — é o "desligado".
 # Cutover: mv /etc/cron.d/myfinance.disabled /etc/cron.d/myfinance

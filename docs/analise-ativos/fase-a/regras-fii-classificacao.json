@@ -1,0 +1,109 @@
+{
+  "ref": "2025-06",
+  "fundosListadosNoMes": 590,
+  "classificacaoPorComposicao": {
+    "tijolo": 333,
+    "papel": 140,
+    "indefinido": 49,
+    "sem_dados": 4,
+    "fof": 64
+  },
+  "mandatoCvmVsComposicao": {
+    "Renda → tijolo": 133,
+    "Híbrido → tijolo": 96,
+    "(vazio) → tijolo": 38,
+    "(vazio) → papel": 28,
+    "Títulos e Valores Mobiliários → tijolo": 18,
+    "Desenvolvimento para Renda → tijolo": 25,
+    "Títulos e Valores Mobiliários → papel": 84,
+    "Renda → indefinido": 8,
+    "Títulos e Valores Mobiliários → indefinido": 10,
+    "Desenvolvimento para Venda → indefinido": 3,
+    "Desenvolvimento para Venda → tijolo": 23,
+    "Títulos e Valores Mobiliários → sem_dados": 1,
+    "Títulos e Valores Mobiliários → fof": 29,
+    "(vazio) → fof": 12,
+    "Híbrido → indefinido": 17,
+    "Híbrido → papel": 13,
+    "Híbrido → sem_dados": 3,
+    "Renda → fof": 9,
+    "Híbrido → fof": 13,
+    "Renda → papel": 13,
+    "(vazio) → indefinido": 8,
+    "Desenvolvimento para Renda → indefinido": 3,
+    "Desenvolvimento para Venda → papel": 1,
+    "Desenvolvimento para Renda → fof": 1,
+    "Desenvolvimento para Renda → papel": 1
+  },
+  "exemplos": {
+    "tijolo": [
+      "FUNDO DE INVESTIMENTO IMOBILIÁRIO VIA PA (imo 98% · papel 0% · FII 0% · SPE 0%)",
+      "FUNDO DE INV. IMOBILIARIO CENTRO TEXTIL  (imo 98% · papel 0% · FII 0% · SPE 0%)",
+      "FUNDO DE INVESTIMENTO GRAND PLAZA SHOPPI (imo 98% · papel 0% · FII 0% · SPE 0%)",
+      "OPPORTUNITY FUNDO DE INVESTIMENTO IMOBIL (imo 62% · papel 7% · FII 8% · SPE 6%)",
+      "FUNDO DE INVESTIMENTO IMOBILIARIO MEMORI (imo 98% · papel 0% · FII 0% · SPE 0%)",
+      "PATEO MOINHOS FII RL (imo 96% · papel 0% · FII 0% · SPE 0%)"
+    ],
+    "papel": [
+      "FUNDO DE INVESTIMENTO IMOBILIÁRIO GEO GU (imo 0% · papel 93% · FII 0% · SPE 0%)",
+      "BTG CRÉDITO IMOB FII (imo 0% · papel 79% · FII 15% · SPE 0%)",
+      "PÁTRIA RECEBÍVEIS IMOBILIÁRIOS - FII (imo 0% · papel 92% · FII 9% · SPE 0%)",
+      "FATOR VERITA FII (imo 0% · papel 98% · FII 11% · SPE 0%)",
+      "VECTOR QUELUZ LAJES CORPORATIVAS FUNDO D (imo 0% · papel 101% · FII 0% · SPE 0%)",
+      "POLO FII RECEBIVEIS IMOBILIARIOS I (imo 0% · papel 99% · FII 0% · SPE 0%)"
+    ],
+    "indefinido": [
+      "PÁTRIA PRIME OFFICES - FUNDO DE INVESTIM (imo 0% · papel 0% · FII 0% · SPE 0%)",
+      "INCENTIVO FUNDO DE INVESTIMENTO IMOBILIÁ (imo 22% · papel 1% · FII 3% · SPE 0%)",
+      "RB CAPITAL DESENVOLVIMENTO RESIDENCIAL I (imo 0% · papel 0% · FII 0% · SPE 43%)",
+      "PERSONALE I FUNDO DE INVESTIMENTO IMOBIL (imo 49% · papel 0% · FII 0% · SPE 0%)",
+      "PANORAMA PROPERTIES FUNDO DE INVESTIMENT (imo 0% · papel 0% · FII 0% · SPE 0%)",
+      "RB CAPITAL TFO SITUS FUNDO DE INVESTIMEN (imo 0% · papel 0% · FII 0% · SPE 28%)"
+    ],
+    "sem_dados": [
+      "BB RENDA DE PAPÉIS IMOBILIÁRIOS FUNDO DE (imo 0% · papel 0% · FII 0% · SPE 0%)",
+      "FUNDO DE INVESTIMENTO IMOB OURINVEST REN (imo 0% · papel 0% · FII 0% · SPE 0%)",
+      "FUNDO DE INVESTIMENTO IMOBILIÁRIO FATOR  (imo 0% · papel 0% · FII 0% · SPE 0%)",
+      "KRONOLOG II FII RESP LTDA (imo 0% · papel 0% · FII 0% · SPE 0%)"
+    ],
+    "fof": [
+      "CAIXA RIO BRAVO FUNDO DE FUNDOS DE INVES (imo 0% · papel 0% · FII 90% · SPE 0%)",
+      "FII BRASIL PLURAL ABSOLUTO FUNDOS DE FUN (imo 0% · papel 1% · FII 95% · SPE 0%)",
+      "RIO BRAVO FUNDO DE FII DE RESPONSABILIDA (imo 0% · papel 0% · FII 98% · SPE 0%)",
+      "HEDGE TOP FOFII 3 FUNDO DE INVESTIMENTO  (imo 0% · papel 0% · FII 99% · SPE 0%)",
+      "CAPITANIA SEC II FII (imo 0% · papel 41% · FII 77% · SPE 0%)",
+      "BRADESCO CARTEIRA IMOBILIÁRIA ATIVA FII (imo 0% · papel 4% · FII 96% · SPE 0%)"
+    ]
+  },
+  "alavancagemTijolo_obrigacoesSobrePL": {
+    "n": 333,
+    "p50": 0,
+    "p90": 0.27034211453214774,
+    "max": 5.927037378368858,
+    "acimaDe30pct": 30
+  },
+  "cLucroFii_mesesConsecutivosComRendimento": {
+    "anosDisponiveis": [
+      2016,
+      2017,
+      2018,
+      2019,
+      2020,
+      2021,
+      2022,
+      2023,
+      2024,
+      2025,
+      2026
+    ],
+    "fundos": 590,
+    "histograma": {
+      "zero": 247,
+      "1-11": 137,
+      "12-59": 145,
+      "60-119": 61,
+      "120+": 0
+    },
+    "streakParouPorMesSemInforme": 55
+  }
+}

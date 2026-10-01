@@ -1,0 +1,2458 @@
+{
+  "meta": {
+    "titulo": "Análise de Ativos — Fase 0 (fundação de dados, sem tela) — spec do arquiteto",
+    "data": "2026-09-30",
+    "base": [
+      "docs/analise-ativos/decisoes-fase0.md (prevalece)",
+      "docs/analise-ativos/fase-a/RELATORIO-FASE-A.md (§4 sanidade, §5 modelo/jobs)",
+      "docs/analise-ativos/especificacao-v1.3.txt (§4, §4.6, §5, §6)",
+      "docs/analise-ativos/fase-a/{acoes-cvm,fiis-cvm,brapi-precos,regras-spec}.md",
+      "scripts/analise-ativos/{acoes-cvm-fase-a,spike-cvm-fiis,spike-regras-valuation,spike-brapi-cotahist-liquidez}.ts (lógica de parsing que já funcionou)"
+    ],
+    "classes": "Ações B3 e FIIs. Stocks/REITs: só os campos source/sourceConcept/accession/emissorId genérico nas tabelas de fundamentos.",
+    "cacheDeArquivosReais": "Zips reais da Fase A (DFP 2014-2026, ITR 2024-2026, FRE 2014-2026, FCA 2026, IPE 2024-2026, inf_mensal_fii 2016-2026, inf_trimestral_fii 2016-2026, COTAHIST_A2016, COTAHIST_M082026, ClassifSetorial.xlsx, b3-fii-listados.json) em /tmp/claude-1000/-home-huske-dev-front/885541c7-f528-415a-b4b7-a19ca5544b3d/scratchpad/{cvm,b3}. Use-os para recortar fixtures (<50 KB cada) e para backfill local com --cache-dir; se sumirem, baixar de novo pela allowlist.",
+    "convencoes": {
+      "unidades": "Valores monetários de fonte em R$ (unidade, já aplicada ESCALA_MOEDA=MIL) como Decimal. Preços Decimal(18,6). Métricas derivadas (múltiplos, razões) em Float. PERCENTUAIS SEMPRE EM PONTOS PERCENTUAIS (6,4 = 6,4%) com sufixo Pct no nome, em banco, regras e ScoringParams; frações da CVM (vacância 0,183, DY mês 0,0068) são convertidas ×100 na ingestão. Razões (P/L, P/VP, DL/EBITDA) sem sufixo.",
+      "datas": "Datas civis em @db.Date (AAAA-MM-DD, UTC). Timestamps de processamento em DateTime. Cron em UTC (servidor Lightsail com timezone UTC).",
+      "tresEstados": "Todo valor calculado é Valor<T> = ok | ausente | nao_se_aplica (tipos.ts). Em banco: coluna numérica null + array naoSeAplica[] com o nome das colunas n/a; null fora do array = ausente; 0 = zero de verdade. Nunca comparar null com número.",
+      "nomes": "Models PascalCase com prefixo Asset*/Fii*/Cvm*/Analise*/Scoring*, @@map snake_case, colunas camelCase sem @map (padrão do repo). Sem FKs entre tabelas novas nem para tabelas existentes (ingestão independente de ordem, como AssetDividendHistory); ligação por symbol/cnpj.",
+      "ids": "Tabelas pequenas/médias: id String @id @default(uuid()) (padrão do repo). As duas tabelas grandes (AssetQuoteDaily, AssetStatementLine) usam @@id composto para não pagar um índice uuid extra (~35% do tamanho).",
+      "semDependenciaNova": "Nenhum pacote novo: zip em streaming com zlib nativo (createInflateRaw) lendo o diretório central do arquivo baixado em disco; xlsx (SheetJS, já no package.json) só para o ClassifSetorial (~16 KB); zod 4 (já no repo)."
+    }
+  },
+  "modelo": {
+    "principios": [
+      "Migration única, aditiva, na fatia 0: 22 tabelas novas, NENHUMA coluna nova em Asset (ver colunasNovasAsset).",
+      "Point-in-time: fundamentos de ações guardam todas as versões CVM (unique inclui versao); leitura pega a maior versão. FII mensal/trimestral guardam só a maior versão (sobrescreve quando chega versão maior), com versao e dtEntrega gravados.",
+      "Proveniência em toda linha de fonte: source, sourceUrl (zip) e/ou docId/protocolo, versao, dtEntregaOriginal quando existir, fetchedAt.",
+      "Cada tabela tem UMA fatia escritora (coluna fatiaEscritora); leitura cruzada só pelas funções de src/services/analiseAtivos/repositorio/** (fatia 0).",
+      "Nada de derivado em tabela existente: asset_price_history, asset_fundamentals, asset_dividend_history, asset_corporate_actions e market_data_coverage são só LIDAS (as três últimas como insumo da fatia D)."
+    ],
+    "colunasNovasAsset": {
+      "adotadas": [],
+      "virtualRelation": "nenhuma — Asset.prisma não é tocado",
+      "justificativa": [
+        "Regra de operação da fase: escrita no banco dev só em tabelas NOVAS. Colunas novas em Asset seriam escritas pelos jobs, violando a regra.",
+        "Asset.cnpj alimenta o cvmFundSync (\"apenas fundos com CNPJ cadastrado em ativos\"): preencher cnpj de FIIs mudaria o comportamento de um job existente. O CNPJ do emissor fica em CvmCompanyTicker/FiiTickerMap.",
+        "Corrigir os 16 Asset.type='fii' que são ações (PLPL3, LAVV3…) mudaria a Carteira. A classe da análise vem do cadastro próprio (CvmCompanyTicker × FiiTickerMap), não de Asset.type.",
+        "150 FIIs do universo B3 e várias ações não existem em Asset: guardar setor/tipo em Asset deixaria buracos; as tabelas novas são chaveadas por symbol/cnpj e cobrem o universo inteiro.",
+        "Asset tem @updatedAt; escrita diária (liquidez, tipo) mexeria em linhas lidas por telas atuais sem necessidade."
+      ],
+      "ondeFoiCadaColunaProposta": {
+        "analiseClasse": "derivado em repositorio/universo.ts (CvmCompanyTicker vigente ⇒ acao; FiiTickerMap vigente ⇒ fii)",
+        "setorB3/subsetorB3/segmentoB3/segmentoListagem": "AssetSetorB3 (por raiz de 4 letras)",
+        "listadoB3 / negociado 30 pregões": "AssetQuoteResumo.negociadoUltimos30 (muda todo dia; não é cadastro)",
+        "classeTitulo/fatorUnit": "CvmCompanyTicker.classeTitulo + unitQtdOn/unitQtdPn",
+        "emissorCnpj": "CvmCompanyTicker.cnpj / FiiTickerMap.cnpj",
+        "fiiTipo/fiiTipoOverride": "FiiMonthly.tipoVigente + FiiTipoOverride",
+        "liquidez30d": "AssetQuoteResumo.volumeMedio21"
+      }
+    },
+    "correcoesSobreProposta5": [
+      "Asset sem colunas novas (acima).",
+      "CvmCompany.tickers[] virou tabela CvmCompanyTicker com vigência (units, troca de ticker, classe corrigida pelo sufixo) — simétrica a FiiTickerMap.",
+      "AssetFundamentalsPeriod/AssetStatementLine usam emissorId (CNPJ 14 dígitos para CVM; 'CIK:0000320193' para SEC na Fase 4) em vez de cnpj, e docTipo/accession/sourceConcept prontos.",
+      "AssetMultiplesCurrent não guarda liquidez: a liquidez é do COTAHIST (fatia C) em AssetQuoteResumo; múltiplos TTM são da fatia D. Uma tabela, um escritor.",
+      "Nova AssetQuoteResumo (C) e AssetSetorB3 (C); nova AssetProventoAuditado (D) — a auditoria de proventos precisa de rastro por provento (data-com real, duplicata, motivo) e não pode escrever em asset_dividend_history.",
+      "Novas FiiTipoOverride (override manual documentado, decisão 9) e AnaliseFonteArquivo (ETag/sha256 dos zips: pula download/processamento de arquivo inalterado — essencial para o limite de 4 min).",
+      "AssetScore: chave (symbol, dataRef Date) em vez de (symbol, computedAt) + retenção (40 dias diários + último dia de cada mês) e checks compactos (códigos e números, sem frases) — as frases saem de textos.ts na renderização (compliance centralizado, tabela 10× menor).",
+      "FiiMonthly: CRI separado de LCI/LCA/LH/LIG (regra 23: LCI é caixa), obrigações de aquisição/securitização separadas, tipoComposicao e tipoVigente por mês.",
+      "FiiQuarterly: +areaMaiorImovelM2 (regra área > 500 mil m²), maiorCriPct, valorCri, somaPctReceita (sanidade Σ%>105).",
+      "AssetCorporateActionCheck: fator Decimal(18,8) na chave (Float em unique é frágil); anoBase e idsOrigem[].",
+      "AssetShareCount: chave (cnpj, data) com fonte e razaoLpa — datas de fim de exercício (DFP/FRE) e de ITR (valida eventos do ano corrente).",
+      "Percentuais em pontos percentuais com sufixo Pct (a proposta misturava fração e %)."
+    ],
+    "models": [
+      {
+        "nome": "ScoringParams",
+        "map": "scoring_params",
+        "fatiaEscritora": "0 (seed v1); depois só scripts manuais versionados",
+        "campos": [
+          "id String @id @default(uuid())",
+          "version Int @unique",
+          "params Json // validado por scoringParamsSchema (zod) na leitura E na escrita",
+          "validFrom DateTime",
+          "createdBy String // 'seed-fase0' | e-mail do admin",
+          "notas String?",
+          "createdAt DateTime @default(now())"
+        ],
+        "indices": [
+          "@@index([validFrom])"
+        ],
+        "regra": "Versões imutáveis (trilha de auditoria da spec §8: quem, quando, valor anterior = versão anterior). Ativa = maior version com validFrom ≤ agora."
+      },
+      {
+        "nome": "AnaliseJobRun",
+        "map": "analise_job_runs",
+        "fatiaEscritora": "0 (executarJobAnalise); E lê para alertas/frescor",
+        "campos": [
+          "id String @id @default(uuid())",
+          "job String // ver contratos.nomesJobs",
+          "origem String @default(\"cron\") // cron | script",
+          "status String // executando | ok | parcial | falha | pulado | abandonado",
+          "inicio DateTime @default(now())",
+          "fim DateTime?",
+          "duracaoMs Int?",
+          "linhasLidas Int @default(0)",
+          "linhasGravadas Int @default(0)",
+          "rejeitadas Int @default(0)",
+          "alertas Json? // AlertaJob[] (máx. 200, truncado com contador)",
+          "erro String?",
+          "rssInicioMb Int?",
+          "rssPicoMb Int?",
+          "parametros Json?",
+          "detalhes Json? // arquivos processados (url, etag, versões), cursores"
+        ],
+        "indices": [
+          "@@index([job, inicio(sort: Desc)])",
+          "@@index([status])"
+        ]
+      },
+      {
+        "nome": "AnaliseFonteArquivo",
+        "map": "analise_fonte_arquivos",
+        "fatiaEscritora": "0 (util de download, chamado por A/B/C/E)",
+        "campos": [
+          "url String @id",
+          "etag String?",
+          "lastModified String?",
+          "bytes BigInt?",
+          "sha256 String?",
+          "baixadoEm DateTime",
+          "processadoEm DateTime? // só após gravação OK; arquivo baixado e não processado é reprocessado",
+          "jobUltimo String?"
+        ]
+      },
+      {
+        "nome": "CvmCompany",
+        "map": "cvm_companies",
+        "fatiaEscritora": "A (FCA)",
+        "campos": [
+          "cnpj String @id // 14 dígitos sem máscara",
+          "cdCvm String",
+          "nome String",
+          "setorAtividadeFca String? // só referência; setor oficial = AssetSetorB3",
+          "situacao String?",
+          "mesFimExercicio Int? // 12 na maioria; 10 cias fora de dezembro (regra 19)",
+          "layoutFinanceiro Boolean @default(false) // DRE de banco/seguradora (ehLayoutFinanceiro); fallback de financeira quando não há AssetSetorB3",
+          "dataRefFca DateTime @db.Date",
+          "versaoFca Int",
+          "sourceUrl String",
+          "fetchedAt DateTime"
+        ],
+        "indices": [
+          "@@index([cdCvm])"
+        ]
+      },
+      {
+        "nome": "CvmCompanyTicker",
+        "map": "cvm_company_tickers",
+        "fatiaEscritora": "A (FCA valor_mobiliario)",
+        "campos": [
+          "id String @id @default(uuid())",
+          "symbol String",
+          "cnpj String",
+          "classeTitulo String // ON | PN | UNIT — pelo SUFIXO do ticker (regra 18), não pelo FCA",
+          "classeFca String? // como veio no FCA (MGLU3 vem PN)",
+          "unitQtdOn Int? // TAEE11: 1",
+          "unitQtdPn Int? // TAEE11: 2",
+          "composicaoTexto String? // texto livre do FCA",
+          "validFrom DateTime @db.Date",
+          "validTo DateTime? @db.Date // Data_Fim_Negociacao ou sumiu do FCA",
+          "origem String @default(\"fca\") // fca | manual",
+          "fetchedAt DateTime"
+        ],
+        "unicos": [
+          "@@unique([symbol, validFrom])"
+        ],
+        "indices": [
+          "@@index([cnpj])",
+          "@@index([symbol])"
+        ],
+        "regra": "validFrom = Data_Inicio_Negociacao do FCA ou, sem ela, a 1ª data em que o par (symbol, cnpj, classeTitulo) foi visto — NUNCA a data de referência de cada FCA anual (senão cada ano abriria uma linha nova). Só abre linha nova quando cnpj/classe mudam; fecha a anterior com validTo."
+      },
+      {
+        "nome": "AssetFundamentalsPeriod",
+        "map": "asset_fundamentals_period",
+        "fatiaEscritora": "A",
+        "campos": [
+          "id String @id @default(uuid())",
+          "emissorId String // CNPJ (CVM) | 'CIK:<10 dígitos>' (SEC, Fase 4)",
+          "source String // CVM | SEC",
+          "docTipo String // DFP | ITR | 10-K | 10-Q",
+          "docId String? // ID_DOC da CVM",
+          "accession String? // SEC (Fase 4)",
+          "sourceConcept Json? // SEC: conceito XBRL usado por campo (Fase 4)",
+          "sourceUrl String",
+          "tipoPeriodo String // FY | YTD | 3M | TTM (TTM derivado pela A, regra 14)",
+          "escopo String // con | ind",
+          "padraoContabil String // IFRS | BRGAAP | USGAAP (bancos ind = BRGAAP)",
+          "dtIni DateTime @db.Date",
+          "dtFim DateTime @db.Date",
+          "anoFiscal Int",
+          "trimestreFiscal Int? // null em FY",
+          "versao Int",
+          "dtEntrega DateTime @db.Date // DT_RECEB desta versão",
+          "dtEntregaOriginal DateTime @db.Date // menor DT_RECEB do (cnpj, DT_REFER)",
+          "moeda String @default(\"BRL\")",
+          "escalaOriginal String // UNIDADE | MIL",
+          "receita Decimal? @db.Decimal(20, 2)",
+          "lucroBruto Decimal? @db.Decimal(20, 2)",
+          "ebit Decimal? @db.Decimal(20, 2)",
+          "depreciacaoAmortizacao Decimal? @db.Decimal(20, 2) // DFC 6.01.01.* (positivo)",
+          "lucroLiquido Decimal? @db.Decimal(20, 2) // total do período",
+          "lucroAtribuivel Decimal? @db.Decimal(20, 2) // controladora; null quando regra 12",
+          "codContaLucro String? // de onde saiu (auditoria regra 12)",
+          "ativoTotal Decimal? @db.Decimal(20, 2)",
+          "ativoCirculante Decimal? @db.Decimal(20, 2)",
+          "passivoCirculante Decimal? @db.Decimal(20, 2)",
+          "caixa Decimal? @db.Decimal(20, 2) // 1.01.01",
+          "aplicacoesFinanceiras Decimal? @db.Decimal(20, 2) // 1.01.02",
+          "dividaBrutaCp Decimal? @db.Decimal(20, 2) // 2.01.04",
+          "dividaBrutaLp Decimal? @db.Decimal(20, 2) // 2.02.01",
+          "pl Decimal? @db.Decimal(20, 2)",
+          "plControladora Decimal? @db.Decimal(20, 2)",
+          "fco Decimal? @db.Decimal(20, 2)",
+          "fci Decimal? @db.Decimal(20, 2)",
+          "fcf Decimal? @db.Decimal(20, 2)",
+          "capex Decimal? @db.Decimal(20, 2) // positivo = saída",
+          "dividendosJcpPagos Decimal? @db.Decimal(20, 2) // DFC 6.03 (positivo)",
+          "dmplDeclarado Decimal? @db.Decimal(20, 2) // só FY; 'declarado no ano' (regra do papel ações §3)",
+          "lpaOn Float? // publicado 3.99.01.x, já com escala corrigida (regra 11)",
+          "lpaPn Float?",
+          "lpaEscalaCorrigida Boolean @default(false)",
+          "naoSeAplica String[] // ex.: ['ebit','depreciacaoAmortizacao'] em bancos",
+          "flags String[] // controladora_zero, lucro_total_fallback, reapresentacao, ttm_divergente…",
+          "fetchedAt DateTime"
+        ],
+        "unicos": [
+          "@@unique([emissorId, dtFim, tipoPeriodo, escopo, versao])"
+        ],
+        "indices": [
+          "@@index([emissorId, tipoPeriodo, dtFim])",
+          "@@index([fetchedAt])"
+        ],
+        "notas": "ITR traz 3M e YTD (DT_INI_EXERC distingue). Só ORDEM_EXERC=ÚLTIMO. Escopos: grava con E ind sempre que existirem (tabela pequena, ~+8 MB no dev) — a escolha do escopo (ind para bancos, decisão 3) é feita NA LEITURA por fundamentosVigentes(escopo:\"preferido\"); assim a A não depende da classificação setorial da C nem congela um escopo errado (antes: banco ingerido antes da C ficava con para sempre, pois (cnpj, versão) já gravado não reprocessa). naoSeAplica da A = só o que o documento mostra (layout/receita); a D reaplica financeira por segmento."
+      },
+      {
+        "nome": "AssetStatementLine",
+        "map": "asset_statement_lines",
+        "fatiaEscritora": "A",
+        "campos": [
+          "emissorId String",
+          "dtFim DateTime @db.Date",
+          "tipoPeriodo String // FY no MVP (Raio-X anual)",
+          "escopo String",
+          "demonstrativo String // BPA | BPP | DRE | DFC_MI | DFC_MD (DVA/DMPL/DRA fora: Raio-X não usa; DMPL entra só como dmplDeclarado)",
+          "cdConta String",
+          "versao Int",
+          "dsConta String",
+          "nivel Int",
+          "valor Decimal @db.Decimal(20, 2) // R$ unidade",
+          "contaFixa Boolean",
+          "source String // CVM | SEC",
+          "sourceConcept String? // SEC (Fase 4)",
+          "accession String? // SEC (Fase 4)"
+        ],
+        "id": "@@id([emissorId, dtFim, tipoPeriodo, escopo, demonstrativo, cdConta, versao])",
+        "indices": [],
+        "notas": "Sem uuid (tabela grande). Escopo: con; e também ind quando CvmCompany.layoutFinanceiro ou não há con (Raio-X de banco em BR GAAP). Perfil: fora de produção (NODE_ENV !== 'production') o CRON e o backfill gravam linhas só do subconjunto dev (40 companhias) — senão um teste local do cron DFP poria ~700 companhias × 2 anos no Neon (~140 MB)."
+      },
+      {
+        "nome": "AssetShareCount",
+        "map": "asset_share_counts",
+        "fatiaEscritora": "A",
+        "campos": [
+          "id String @id @default(uuid())",
+          "cnpj String",
+          "data DateTime @db.Date // fim do exercício (DFP/FRE) ou fim do trimestre (ITR)",
+          "on Decimal? @db.Decimal(20, 0)",
+          "pn Decimal? @db.Decimal(20, 0)",
+          "tesouraria Decimal? @db.Decimal(20, 0)",
+          "total Decimal? @db.Decimal(20, 0) // ex-tesouraria",
+          "fonte String // dfp | dfp_x1000 | itr | itr_x1000 | fre_f | lpa_implicito | vizinho | limiar | sem_verificacao",
+          "razaoLpa Float? // Σ(LPA×ações)/lucro",
+          "status String // ok | alerta (>±5%) | nao_verificavel — salto sem evento (regra 13) é flag da D em AssetPerShareYearly",
+          "versaoDoc Int?",
+          "flags String[]",
+          "fetchedAt DateTime"
+        ],
+        "unicos": [
+          "@@unique([cnpj, data])"
+        ],
+        "indices": [
+          "@@index([cnpj])"
+        ]
+      },
+      {
+        "nome": "FiiTickerMap",
+        "map": "fii_ticker_map",
+        "fatiaEscritora": "B",
+        "campos": [
+          "id String @id @default(uuid())",
+          "ticker String",
+          "cnpj String",
+          "validFrom DateTime @db.Date",
+          "validTo DateTime? @db.Date",
+          "origem String // b3_isin | b3_nome | manual",
+          "conferido Boolean @default(false) // manual=true; b3_isin com 1 candidato=true; b3_nome só após conferência PL×cotação",
+          "conferidoPor String? // auto_pl_cotacao | manual:<quem>",
+          "nomeB3 String?",
+          "razaoSocialB3 String?",
+          "isin String?",
+          "motivo String?",
+          "fetchedAt DateTime"
+        ],
+        "unicos": [
+          "@@unique([ticker, validFrom])"
+        ],
+        "indices": [
+          "@@index([cnpj])",
+          "@@index([ticker])"
+        ],
+        "regra": "validFrom = 1ª data em que o par (ticker, cnpj) foi visto na lista B3 (backfill: início do 1º informe mensal com o CNPJ) — nunca a data de cada execução; linha nova só quando o CNPJ do ticker muda (IRDM11→IRIM11). 'b3_isin' = ISIN COMPLETO igual ao do informe, nunca prefixo."
+      },
+      {
+        "nome": "FiiMonthly",
+        "map": "fii_monthly",
+        "fatiaEscritora": "B",
+        "campos": [
+          "id String @id @default(uuid())",
+          "cnpj String",
+          "refMonth DateTime @db.Date // 1º dia do mês",
+          "versao Int",
+          "dtEntrega DateTime? @db.Date",
+          "vpCota Decimal? @db.Decimal(18, 8) // recomputado se ≠ PL/cotas >1% (regra 22)",
+          "vpCotaRecalculado Boolean @default(false)",
+          "pl Decimal? @db.Decimal(20, 2)",
+          "cotas Decimal? @db.Decimal(20, 4)",
+          "cotistas Int?",
+          "dyMesCvmPct Float? // SÓ checagem, nunca exibido (regra 21); descartado se <0 ou >5",
+          "rentEfetivaMesPct Float?",
+          "taxaAdmPct Float?",
+          "ativoTotal Decimal? @db.Decimal(20, 2)",
+          "passivoTotal Decimal? @db.Decimal(20, 2)",
+          "rendDistribuir Decimal? @db.Decimal(20, 2)",
+          "obrigAquisicao Decimal? @db.Decimal(20, 2)",
+          "obrigSecuritizacao Decimal? @db.Decimal(20, 2)",
+          "imoveis Decimal? @db.Decimal(20, 2) // Direitos_Bens_Imoveis",
+          "spe Decimal? @db.Decimal(20, 2)",
+          "cri Decimal? @db.Decimal(20, 2) // CRI + CRI_CRA",
+          "lciLca Decimal? @db.Decimal(20, 2) // LCI + LCI_LCA + LH + LIG (caixa, não recebível)",
+          "cotasFii Decimal? @db.Decimal(20, 2)",
+          "rendaFixa Decimal? @db.Decimal(20, 2)",
+          "acoes Decimal? @db.Decimal(20, 2)",
+          "segmentoCvm String?",
+          "tipoComposicao String? // tijolo | papel | fof | hibrido | indefinido",
+          "tipoVigente String? // após histerese e override",
+          "reguaVigente String? // fii_tijolo | fii_papel | fora_do_indice — reguaFii(tipoVigente) gravada pela B (a D não importa regras da B)",
+          "obrigacoesPlPct Float? // (passivoTotal − rendDistribuir) ÷ PL × 100 (decisão 7, 'Obrigações/PL'), gravado pela B",
+          "fatorDesdobramento Float? // cotas ×≥5 no mês (regra 22)",
+          "flags String[]",
+          "sourceUrl String",
+          "fetchedAt DateTime"
+        ],
+        "unicos": [
+          "@@unique([cnpj, refMonth])"
+        ],
+        "indices": [
+          "@@index([refMonth])"
+        ],
+        "notas": "Só CNPJs presentes em FiiTickerMap (universo B3), para caber no dev e não carregar ~1.000 fundos não listados."
+      },
+      {
+        "nome": "FiiQuarterly",
+        "map": "fii_quarterly",
+        "fatiaEscritora": "B",
+        "campos": [
+          "id String @id @default(uuid())",
+          "cnpj String",
+          "refQuarter DateTime @db.Date // último dia do trimestre",
+          "versao Int",
+          "nImoveisRenda Int?",
+          "nImoveisOutros Int?",
+          "areaM2 Float? // 'área informada', não ABL",
+          "areaMaiorImovelM2 Float?",
+          "vacanciaFisicaCvmPct Float? // ponderada pela área; rótulo 'fonte CVM'",
+          "inadimplenciaCvmPct Float?",
+          "somaPctReceita Float? // >105 ⇒ inadimplência descartada",
+          "prazoMedioAnosAprox Float?",
+          "vencAte12mPct Float?",
+          "vencAcima36mPct Float?",
+          "idxIpcaPct Float?",
+          "idxIgpmPct Float?",
+          "nCri Int? // distintos por código CETIP (regra 25)",
+          "valorCri Decimal? @db.Decimal(20, 2)",
+          "maiorCriPct Float? // % do valor total de CRIs",
+          "nFii Int? // FoF (futuro)",
+          "receitaAluguel Decimal? @db.Decimal(20, 2)",
+          "resultadoTrimestral Decimal? @db.Decimal(20, 2)",
+          "rendimentosDeclarados Decimal? @db.Decimal(20, 2)",
+          "taxaPerformance Decimal? @db.Decimal(20, 2)",
+          "flags String[]",
+          "sourceUrl String",
+          "fetchedAt DateTime"
+        ],
+        "unicos": [
+          "@@unique([cnpj, refQuarter])"
+        ],
+        "indices": [
+          "@@index([refQuarter])"
+        ]
+      },
+      {
+        "nome": "FiiTipoOverride",
+        "map": "fii_tipo_override",
+        "fatiaEscritora": "B (script manual fii-tipo-override.ts)",
+        "campos": [
+          "cnpj String @id",
+          "tipo String // tijolo | papel | fof | hibrido | indefinido",
+          "motivo String",
+          "autor String",
+          "criadoEm DateTime @default(now())"
+        ]
+      },
+      {
+        "nome": "AssetQuoteDaily",
+        "map": "asset_quotes_daily",
+        "fatiaEscritora": "C",
+        "campos": [
+          "symbol String",
+          "date DateTime @db.Date",
+          "closeRaw Decimal @db.Decimal(18, 6) // PREULT/100/FATCOT (regra 28), cru",
+          "fatCot Int",
+          "volumeFin Decimal @db.Decimal(20, 2) // VOLTOT/100",
+          "quantidade BigInt // QUATOT",
+          "negocios Int // TOTNEG",
+          "codBdi String // 02 | 12",
+          "especi String? // ESPECI (ON, PN, UNT, CI…)",
+          "source String @default(\"cotahist\")"
+        ],
+        "id": "@@id([symbol, date])",
+        "indices": [
+          "@@index([date])"
+        ],
+        "notas": "Só TPMERC 010 (lote padrão) e BDI 02/12. Fracionário (020) e ETFs (14) não entram. Imutável (createMany skipDuplicates). Estimativa revista: ~95 B/linha + PK ~32 B + índice date ~20 B ⇒ ~70 MB no dev (430 mil linhas), não 55."
+      },
+      {
+        "nome": "AssetQuoteResumo",
+        "map": "asset_quote_resumo",
+        "fatiaEscritora": "C",
+        "campos": [
+          "symbol String @id",
+          "ultimoPregao DateTime @db.Date",
+          "closeRaw Decimal @db.Decimal(18, 6)",
+          "codBdi String",
+          "especi String?",
+          "volumeMedio21 Decimal @db.Decimal(20, 2) // média VOLTOT 21 pregões, sem negócio = 0 (regra 29)",
+          "pregoesComNegocio21 Int",
+          "baixaLiquidez Boolean // < 15 pregões com negócio em 21",
+          "negociadoUltimos30 Boolean // decisão 14: universo do Quadro de FIIs",
+          "saltoSuspeito Boolean @default(false) // regra 30 no último pregão",
+          "atualizadoEm DateTime"
+        ]
+      },
+      {
+        "nome": "AssetSetorB3",
+        "map": "asset_setores_b3",
+        "fatiaEscritora": "C",
+        "campos": [
+          "raiz String @id // 4 letras (WEGE)",
+          "nomePregao String?",
+          "setor String",
+          "subsetor String",
+          "segmento String",
+          "segmentoListagem String? // Novo Mercado, N2, N1…",
+          "presenteUltimoArquivo Boolean // false = saiu da lista (deslistada)",
+          "atualizadoEm DateTime"
+        ],
+        "indices": [
+          "@@index([segmento])",
+          "@@index([subsetor])"
+        ]
+      },
+      {
+        "nome": "AssetProventoAuditado",
+        "map": "asset_proventos_auditados",
+        "fatiaEscritora": "D",
+        "campos": [
+          "id String @id @default(uuid())",
+          "origemId String @unique // asset_dividend_history.id",
+          "symbol String",
+          "source String // BRAPI | YAHOO",
+          "tipoOriginal String",
+          "tipoNormalizado String // DIVIDENDO | JCP | RENDIMENTO | AMORTIZACAO | REST_CAP | OUTRO",
+          "valor Float // por ação/cota, como declarado (bruto)",
+          "dataPagamento DateTime? @db.Date // YAHOO não tem (a coluna date dele é a data EX)",
+          "dataExGravada DateTime? @db.Date // o que o app chama de dataCom",
+          "dataComReal DateTime? @db.Date // pregão B3 anterior à data ex (convenção por fonte)",
+          "dataExOrigem String? // 'dataCom' (BRAPI) | 'date' (YAHOO)",
+          "status String // valido | duplicata | tipo_excluido | sem_data_com | fonte_secundaria_descartada",
+          "duplicataDe String? // origemId mantido",
+          "fatorAjusteHoje Float // Π eventos confirmados com data > dataComReal",
+          "valorAjustadoHoje Float",
+          "flags String[]",
+          "auditadoEm DateTime"
+        ],
+        "indices": [
+          "@@index([symbol, dataComReal])",
+          "@@index([symbol, status])"
+        ],
+        "regra": "Reescrita POR SÍMBOLO (deleteMany symbol + createMany numa transação) sempre que a impressão digital do símbolo em asset_dividend_history mudou: o sync do Yahoo apaga e reinsere as próprias linhas (ids novos) e o upsert da BRAPI altera valor/dataCom sem mexer em createdAt — com origemId @unique e modo incremental por createdAt ficariam órfãos, duplicatas e valores velhos."
+      },
+      {
+        "nome": "AssetCorporateActionCheck",
+        "map": "asset_corporate_action_checks",
+        "fatiaEscritora": "D",
+        "campos": [
+          "id String @id @default(uuid())",
+          "symbol String",
+          "cnpj String?",
+          "dataEvento DateTime @db.Date",
+          "fator Decimal @db.Decimal(18, 8)",
+          "tipo String // DESDOBRAMENTO | GRUPAMENTO | BONIFICACAO",
+          "anoBase Int // ano cujo nº de ações já reflete o evento",
+          "status String // confirmado | descartado | nao_validavel | emissao_recompra",
+          "razaoCvm Float? // ações_fim/ações_início do ano",
+          "fatorProdutoAno Float?",
+          "idsOrigem String[] // asset_corporate_actions.id (dedup ≤30 dias)",
+          "fontes String[]",
+          "verificadoEm DateTime"
+        ],
+        "unicos": [
+          "@@unique([symbol, dataEvento, fator])"
+        ],
+        "indices": [
+          "@@index([symbol])",
+          "@@index([cnpj])"
+        ]
+      },
+      {
+        "nome": "AssetPerShareYearly",
+        "map": "asset_per_share_yearly",
+        "fatiaEscritora": "D",
+        "campos": [
+          "id String @id @default(uuid())",
+          "symbol String",
+          "cnpj String",
+          "classe String // acao | fii",
+          "anoFiscal Int",
+          "dtFim DateTime @db.Date",
+          "acoesFim Decimal? @db.Decimal(20, 0) // ações da empresa (ou cotas)",
+          "fatorEquivalencia Float @default(1) // unit = on+pn",
+          "lpa Float?",
+          "vpa Float?",
+          "dpaDataCom Float? // Σ DIVIDENDO+JCP com dataComReal no ano, na base de ações do fim do ano",
+          "fatorAjusteHoje Float // Π eventos confirmados com anoBase > anoFiscal",
+          "lpaAjHoje Float?",
+          "vpaAjHoje Float?",
+          "dpaAjHoje Float?",
+          "payoutDmplPct Float? // decisão 11: DMPL declarado ÷ lucro",
+          "payoutPorAcaoPct Float? // checagem",
+          "rendCota Float? // FII: Σ rendimentos no ano",
+          "vpCotaFim Float? // FII",
+          "naoSeAplica String[]",
+          "flags String[] // payout_extraordinario_ou_lucro_negativo, auditoria_proventos, dados_incompletos…",
+          "paramsVersion Int",
+          "calculadoEm DateTime"
+        ],
+        "unicos": [
+          "@@unique([symbol, anoFiscal])"
+        ],
+        "indices": [
+          "@@index([cnpj])"
+        ]
+      },
+      {
+        "nome": "AssetMultiplesYearly",
+        "map": "asset_multiples_yearly",
+        "fatiaEscritora": "D",
+        "campos": [
+          "id String @id @default(uuid())",
+          "symbol String",
+          "cnpj String",
+          "classe String",
+          "anoFiscal Int",
+          "dtFim DateTime @db.Date",
+          "precoFimAno Decimal? @db.Decimal(18, 6) // cru, último pregão ≤ dtFim e ≥ dtFim−5d (regra 5)",
+          "precoFimAnoData DateTime? @db.Date",
+          "valorMercadoEmpresa Decimal? @db.Decimal(22, 2)",
+          "pl Float?",
+          "pvp Float?",
+          "pReceita Float?",
+          "evEbitda Float?",
+          "pFco Float?",
+          "pFcl Float?",
+          "dyPct Float?",
+          "payoutPct Float?",
+          "margemLiquidaPct Float?",
+          "roePct Float?",
+          "roaPct Float?",
+          "roicPct Float?",
+          "divLiqEbitda Float?",
+          "divLiqPl Float?",
+          "liquidezCorrente Float?",
+          "vpCota Float?",
+          "rendCota12m Float?",
+          "obrigacoesPlPct Float?",
+          "vacanciaFisicaCvmPct Float?",
+          "nImoveisCvm Int?",
+          "naoSeAplica String[]",
+          "flags String[]",
+          "paramsVersion Int",
+          "calculadoEm DateTime"
+        ],
+        "unicos": [
+          "@@unique([symbol, anoFiscal])"
+        ],
+        "indices": [
+          "@@index([cnpj])"
+        ]
+      },
+      {
+        "nome": "AssetMultiplesCurrent",
+        "map": "asset_multiples_current",
+        "fatiaEscritora": "D",
+        "campos": [
+          "symbol String @id",
+          "cnpj String",
+          "classe String",
+          "preco Decimal @db.Decimal(18, 6) // closeRaw do último pregão (AssetQuoteResumo)",
+          "precoData DateTime @db.Date",
+          "ttmDtFim DateTime? @db.Date",
+          "lpaTtm Float?",
+          "vpa Float?",
+          "dpa12m Float?",
+          "rend12m Float?",
+          "vpCota Float?",
+          "pl Float?",
+          "pvp Float?",
+          "pReceita Float?",
+          "evEbitda Float?",
+          "pFco Float?",
+          "pFcl Float?",
+          "dy12mPct Float?",
+          "payoutPct Float?",
+          "margemLiquidaPct Float?",
+          "roePct Float?",
+          "roaPct Float?",
+          "roicPct Float?",
+          "divLiqEbitda Float?",
+          "divLiqPl Float?",
+          "liquidezCorrente Float?",
+          "obrigacoesPlPct Float?",
+          "anosLucroConsecutivos Int?",
+          "mesesComRendimento Int?",
+          "plMedia10a Float?",
+          "plPontosHistorico Int",
+          "plVsMedia10aPct Float?",
+          "naoSeAplica String[]",
+          "flags String[]",
+          "paramsVersion Int",
+          "calculadoEm DateTime"
+        ],
+        "indices": [
+          "@@index([cnpj])",
+          "@@index([classe])"
+        ]
+      },
+      {
+        "nome": "AssetScore",
+        "map": "asset_scores",
+        "fatiaEscritora": "D",
+        "campos": [
+          "id String @id @default(uuid())",
+          "symbol String",
+          "cnpj String",
+          "dataRef DateTime @db.Date // data do ÚLTIMO PREGÃO com cotação (max AssetQuoteResumo.ultimoPregao), não o dia do run: sábado/domingo regravam a mesma chave em vez de criar linhas iguais",
+          "classe String",
+          "regua String // acao | acao_financeira | fii_tijolo | fii_papel | fora_do_indice",
+          "fiiTipo String?",
+          "tickerReferencia String? // decisão 13: índice por empresa, calculado no ticker de referência",
+          "indiceMf Float? // null = fora do índice (FoF) ou sem nenhum componente",
+          "cLucro Float?",
+          "cDivida Float?",
+          "cRent Float?",
+          "cDiv Float?",
+          "cPreco Float?",
+          "componentes Json // {lucro:{estado,motivo?,metrica?}, …}",
+          "pesosEfetivos Json",
+          "checks Json // CheckSemaforo[] compacto (código, status, valor, referência) — frases vêm de textos.ts",
+          "criteriosAplicaveis Int",
+          "criteriosAtendidos Int",
+          "incompleto Boolean",
+          "motivosIncompleto String[]",
+          "paramsVersion Int",
+          "computedAt DateTime"
+        ],
+        "unicos": [
+          "@@unique([symbol, dataRef])"
+        ],
+        "indices": [
+          "@@index([dataRef])",
+          "@@index([classe, dataRef])"
+        ],
+        "retencao": "job scores apaga dataRef < hoje−40d que não seja o último dataRef do mês"
+      },
+      {
+        "nome": "AssetEvento",
+        "map": "asset_eventos",
+        "fatiaEscritora": "E",
+        "campos": [
+          "id String @id @default(uuid())",
+          "cnpj String",
+          "tipo String // resultado_estimado | resultado | assembleia",
+          "subtipo String // ITR1 | ITR2 | ITR3 | DFP | AGO | AGE | AGO/AGE",
+          "periodoRef String? // '2026-3T' | '2026-FY'",
+          "chave String // assembleia: '<subtipo>:<data>'; resultado(_estimado): '<periodoRef>'",
+          "data DateTime @db.Date",
+          "estimado Boolean",
+          "substituidoEm DateTime? // estimado que virou resultado real",
+          "assunto String? // IPE Assunto (≤200 chars)",
+          "sourceUrl String?",
+          "sourceDocId String? // Protocolo_Entrega (IPE) ou ID_DOC",
+          "versao Int?",
+          "fetchedAt DateTime"
+        ],
+        "unicos": [
+          "@@unique([cnpj, tipo, chave])"
+        ],
+        "indices": [
+          "@@index([data])",
+          "@@index([cnpj, data])"
+        ]
+      }
+    ]
+  },
+  "contratos": {
+    "arquivosDaFatia0": {
+      "src/services/analiseAtivos/tipos.ts": "tipos de domínio compartilhados (abaixo)",
+      "src/services/analiseAtivos/regras/comum/valor.ts": "helpers dos três estados",
+      "src/services/analiseAtivos/params/{scoringParamsSchema,scoringParamsV1,obterScoringParams}.ts": "ScoringParams",
+      "src/services/analiseAtivos/fontes/{allowlist,download,zipStream,csvStream,erros}.ts": "infra de download/streaming",
+      "src/services/analiseAtivos/jobs/{executarJob,nomesJobs}.ts": "wrapper de job + AnaliseJobRun",
+      "src/services/analiseAtivos/observabilidade/alertas.ts": "STUB (só logger) que a fatia E substitui",
+      "src/services/analiseAtivos/repositorio/{universo,acoes,fii,cotacoes,proventos,derivados,jobs,fontesArquivo}.ts": "leituras cruzadas (e escrita de AnaliseFonteArquivo)",
+      "src/services/analiseAtivos/regras/comum/{pregoes,linguagem}.ts": "calendário de pregões B3 (D e E precisam; antes estava em C) e varredura de palavras proibidas (D e E precisam; antes estava em textos.ts da D)"
+    },
+    "tiposTs": "export type ClasseAnalise = 'acao' | 'fii' | 'stock' | 'reit';\nexport type FiiTipo = 'tijolo' | 'papel' | 'fof' | 'hibrido' | 'indefinido';\nexport type Regua = 'acao' | 'acao_financeira' | 'fii_tijolo' | 'fii_papel' | 'fora_do_indice';\nexport type TipoPeriodo = 'FY' | 'YTD' | '3M' | 'TTM'; // TTM = linha derivada gravada pela fatia A (regra 14)\nexport type Escopo = 'con' | 'ind';\nexport type PadraoContabil = 'IFRS' | 'BRGAAP' | 'USGAAP';\nexport type ClasseTitulo = 'ON' | 'PN' | 'UNIT';\n\n// Três estados (regra 1). Zero é ok com valor 0.\nexport type MotivoAusente = 'sem_dado_fonte' | 'fonte_falhou' | 'historico_curto' | 'controladora_zero' | 'sem_preco' | 'sem_acoes' | 'sem_data_com' | 'outro';\nexport type MotivoNaoSeAplica = 'financeira' | 'fof' | 'receita_nao_positiva' | 'receita_menor_que_lucro' | 'base_nao_positiva' | 'sem_fonte_estruturada' | 'criterio_desligado' | 'papel_sem_imoveis' | 'fora_do_escopo';\nexport type Valor<T = number> =\n  | { estado: 'ok'; valor: T }\n  | { estado: 'ausente'; motivo: MotivoAusente; detalhe?: string }\n  | { estado: 'nao_se_aplica'; motivo: MotivoNaoSeAplica; detalhe?: string };\n\nexport type StatusCriterio = 'atende' | 'parcial' | 'nao_atende' | 'nao_se_aplica' | 'sem_dado';\nexport interface CheckSemaforo { codigo: string; status: StatusCriterio; valor: number | null; referencia: number | [number, number] | null; provisorio?: boolean; motivo?: string }\n\nexport type EstadoComponente = { estado: 'calculado'; nota: number; metrica: number } | { estado: 'zero_regra'; nota: 0; motivo: 'prejuizo' | 'pl_nao_positivo' } | { estado: 'ausente'; nota: 0; motivo: MotivoAusente } | { estado: 'nao_se_aplica'; motivo: MotivoNaoSeAplica };\nexport type NomeComponente = 'lucro' | 'divida' | 'rent' | 'div' | 'preco';\nexport interface ResultadoIndice { indice: Valor<number>; componentes: Record<NomeComponente, EstadoComponente>; pesosEfetivos: Partial<Record<NomeComponente, number>>; incompleto: boolean; motivosIncompleto: string[] }\n\nexport interface FundamentosPeriodo { emissorId: string; docTipo: 'DFP' | 'ITR'; tipoPeriodo: TipoPeriodo; escopo: Escopo; padraoContabil: PadraoContabil; dtIni: string; dtFim: string; anoFiscal: number; trimestreFiscal: number | null; versao: number; dtEntregaOriginal: string; receita: number | null; lucroBruto: number | null; ebit: number | null; depreciacaoAmortizacao: number | null; lucroLiquido: number | null; lucroAtribuivel: number | null; ativoTotal: number | null; ativoCirculante: number | null; passivoCirculante: number | null; caixa: number | null; aplicacoesFinanceiras: number | null; dividaBrutaCp: number | null; dividaBrutaLp: number | null; pl: number | null; plControladora: number | null; fco: number | null; fci: number | null; fcf: number | null; capex: number | null; dividendosJcpPagos: number | null; dmplDeclarado: number | null; lpaOn: number | null; lpaPn: number | null; naoSeAplica: string[]; flags: string[] }\nexport interface ContagemAcoes { cnpj: string; data: string; on: number | null; pn: number | null; total: number | null; fonte: string; razaoLpa: number | null; status: 'ok' | 'alerta' | 'nao_verificavel' } // regra 13 (salto sem evento) é flag da fatia D, não status gravado pela A\nexport interface TickerAcao { symbol: string; cnpj: string; classeTitulo: ClasseTitulo; unitQtdOn: number | null; unitQtdPn: number | null }\nexport interface EmissorInfo { cnpj: string; nome: string; mesFimExercicio: number | null; raizes: string[]; setor: string | null; subsetor: string | null; segmento: string | null; segmentoListagem: string | null; ehFinanceira: boolean; ehBanco: boolean; escopoPreferido: Escopo }\nexport interface TickerFii { symbol: string; cnpj: string; conferido: boolean; origem: 'b3_isin' | 'b3_nome' | 'manual' }\nexport interface ItemUniverso { symbol: string; classe: ClasseAnalise; cnpj: string; negociadoUltimos30: boolean; baixaLiquidez: boolean | null; conferido: boolean }\nexport interface CotacaoDia { symbol: string; date: string; closeRaw: number; volumeFin: number; negocios: number; codBdi: string }\nexport interface ResumoCotacao { symbol: string; ultimoPregao: string; closeRaw: number; volumeMedio21: number; pregoesComNegocio21: number; baixaLiquidez: boolean; negociadoUltimos30: boolean }\nexport interface FiiMes { cnpj: string; refMonth: string; vpCota: number | null; pl: number | null; cotas: number | null; cotistas: number | null; passivoTotal: number | null; rendDistribuir: number | null; imoveis: number | null; spe: number | null; cri: number | null; lciLca: number | null; cotasFii: number | null; tipoComposicao: FiiTipo | null; tipoVigente: FiiTipo | null; reguaVigente: Regua | null; obrigacoesPlPct: number | null; segmentoCvm: string | null; fatorDesdobramento: number | null; flags: string[] }\nexport interface FiiTrimestre { cnpj: string; refQuarter: string; nImoveisRenda: number | null; areaM2: number | null; vacanciaFisicaCvmPct: number | null; inadimplenciaCvmPct: number | null; nCri: number | null; maiorCriPct: number | null; flags: string[] }\nexport interface ProventoBruto { id: string; symbol: string; source: string; tipo: string; valor: number; dataPagamento: string | null; dataExGravada: string | null; dataExOrigem: 'dataCom' | 'date' | null } // BRAPI: pagamento=date, ex=dataCom · YAHOO: date É a data EX (dataCom null em 2.863/2.863 linhas do dev), pagamento=null — conversão feita em repositorio.proventos pela convenção de params.sanidade.proventos.camposPorFonte\nexport type CoberturaProventos = 'OK' | 'EMPTY' | 'FETCH_FAIL' | 'GAP_QUEUED' | null;\nexport interface ProventoAuditado { origemId: string; symbol: string; tipoNormalizado: 'DIVIDENDO' | 'JCP' | 'RENDIMENTO' | 'AMORTIZACAO' | 'REST_CAP' | 'OUTRO'; valor: number; dataPagamento: string | null; dataComReal: string | null; status: 'valido' | 'duplicata' | 'tipo_excluido' | 'sem_data_com' | 'fonte_secundaria_descartada'; duplicataDe: string | null; fatorAjusteHoje: number; flags: string[] }\nexport interface EventoCorporativoBruto { id: string; symbol: string; date: string; type: string; factor: number; source: string }\nexport interface EventoCorporativoVerificado { symbol: string; dataEvento: string; fator: number; tipo: 'DESDOBRAMENTO' | 'GRUPAMENTO' | 'BONIFICACAO'; anoBase: number; status: 'confirmado' | 'descartado' | 'nao_validavel' | 'emissao_recompra'; razaoCvm: number | null; idsOrigem: string[] }\nexport interface EntregaDocumento { cnpj: string; docTipo: 'DFP' | 'ITR'; dtFim: string; anoFiscal: number; trimestreFiscal: number | null; dtEntregaOriginal: string }\n\nexport type NomeJob = 'b3-cadastro' | 'fii-cadastro' | 'cvm-cias:fca' | 'cvm-cias:dfp' | 'cvm-cias:itr' | 'cvm-ipe' | 'fii-mensal' | 'fii-trimestral' | 'cotahist' | 'scores' | `backfill:${string}`;\nexport interface AlertaJob { codigo: string; nivel: 'info' | 'aviso' | 'erro'; mensagem: string; ref?: string }\nexport interface JobContexto { prisma: PrismaClient; prazo: number; restanteMs(): number; estourouPrazo(): boolean; alertar(a: AlertaJob): void; contar(campo: 'linhasLidas' | 'linhasGravadas' | 'rejeitadas', n?: number): void; params: ScoringParams; paramsVersion: number; hoje: string; origem: 'cron' | 'script'; aplicar: boolean }\nexport interface ResultadoJob { parcial?: boolean; detalhes?: Record<string, unknown> }\nexport interface RelatorioJob { id: string; job: NomeJob; status: 'ok' | 'parcial' | 'falha' | 'pulado'; duracaoMs: number; linhasLidas: number; linhasGravadas: number; rejeitadas: number; alertas: AlertaJob[]; rssPicoMb: number; erro?: string }\nexport type Camada = 'cotacoes' | 'fundamentos_dfp' | 'fundamentos_itr' | 'fii_mensal' | 'fii_trimestral' | 'cadastro_b3' | 'cadastro_fii' | 'eventos' | 'scores'; // movido da fatia E para cá (E e repositorio.jobs usam)",
+    "funcoesFatia0": [
+      "// regras/comum/valor.ts",
+      "ok<T>(valor: T): Valor<T>; ausente(motivo: MotivoAusente, detalhe?: string): Valor<never>; naoSeAplica(motivo: MotivoNaoSeAplica, detalhe?: string): Valor<never>",
+      "ehOk<T>(v: Valor<T>): v is { estado: 'ok'; valor: T }; valorOuNull<T>(v: Valor<T>): T | null",
+      "deNumero(n: number | null | undefined, motivo?: MotivoAusente): Valor<number> // null/undefined/NaN/Infinity ⇒ ausente; 0 ⇒ ok(0)",
+      "mapearValor<T, U>(v: Valor<T>, f: (x: T) => U): Valor<U>; combinar<A, B, C>(a: Valor<A>, b: Valor<B>, f: (a: A, b: B) => C): Valor<C> // n/a vence ausente",
+      "// regras/comum/pregoes.ts (usa src/utils/feriadosB3, só leitura)",
+      "ehPregaoB3(data: string): boolean; pregaoAnterior(data: string): string; proximoPregaoOuMesmo(data: string): string; pregoesEntre(de: string, ate: string): string[] // datas 'AAAA-MM-DD' UTC; usadas por C (liquidez/lacunas do COTAHIST), D (data-com real = pregão anterior à ex) e E (data estimada no próximo pregão)",
+      "// regras/comum/linguagem.ts",
+      "PALAVRAS_PROIBIDAS: readonly string[] (lista da D_textos); encontrarPalavrasProibidas(texto: string): string[] // casa PALAVRA INTEIRA, sem diferenciar maiúsculas nem acentos ('nota' não casa 'anotação'/'notável'; 'caro' não casa 'carolina'); expressões ('preço justo') casam com espaço flexível",
+      "// params",
+      "scoringParamsSchema: z.ZodType<ScoringParams> (strict: chaves extras = erro)",
+      "SCORING_PARAMS_V1: ScoringParams (idêntico a contratos.scoringParamsV1)",
+      "obterScoringParams(prisma: PrismaClient, opts?: { versao?: number }): Promise<{ versao: number; params: ScoringParams }> // lança ErroParams se não houver versão ativa ou se o JSON não validar",
+      "// fontes",
+      "HOSTS_PERMITIDOS = ['dados.cvm.gov.br', 'bvmf.bmfbovespa.com.br', 'sistemaswebb3-listados.b3.com.br', 'www.b3.com.br'] // lista EXATA, sem curinga; assertUrlPermitida(url: string): void // https obrigatório, host em igualdade exata, lança ErroFonte('host_nao_permitido'). download usa redirect: 'manual' e revalida o host de cada Location (máx. 3 saltos)",
+      "baixarParaArquivo(url: string, opts: { maxBytes: number; timeoutMs: number; condicional?: { etag?: string | null; lastModified?: string | null; sha256?: string | null } }): Promise<{ status: 'baixado' | 'nao_modificado'; caminho: string | null; bytes: number; etag: string | null; lastModified: string | null; sha256: string | null; descartar(): Promise<void> }> // grava em os.tmpdir()/analise-ativos/<sha1(url)>.part, aborta ao passar maxBytes; 304 ou sha256 igual ⇒ nao_modificado",
+      "listarEntradasZip(caminho: string): Promise<EntradaZip[]> // lê EOCD + diretório central; zip64 ⇒ ErroFonte('zip64_nao_suportado')",
+      "linhasDaEntrada(caminho: string, entrada: EntradaZip, opts?: { encoding?: 'latin1' | 'utf8' }): AsyncIterable<string> // createReadStream(range) → createInflateRaw (método 8) ou cru (0) → split por \\n, remove \\r",
+      "lerCsv(linhas: AsyncIterable<string>, spec: EspecCsv): AsyncIterable<LinhaCsv> // EspecCsv { separador: ';'; obrigatorias: string[]; aliases?: Record<string, string>; preFiltro?: (bruta: string) => boolean }; LinhaCsv { get(col: string): string; cols: string[] }; cabeçalho sem alguma obrigatória ⇒ ErroLayoutFonte (falha alto); preFiltro roda na linha crua antes do split (ex.: prefixo CNPJ)",
+      "class ErroFonte extends Error { codigo }; class ErroLayoutFonte extends ErroFonte { arquivo; faltando: string[] }",
+      "// jobs",
+      "executarJobAnalise(job: NomeJob, fn: (ctx: JobContexto) => Promise<ResultadoJob>, opts?: { prazoMs?: number /*240_000*/; lockTtlMs?: number /*600_000*/; origem?: 'cron' | 'script'; aplicar?: boolean; parametros?: Record<string, unknown>; exigeParamsDoBanco?: boolean /* true só em 'scores' */ }): Promise<RelatorioJob> // checagem de lock + INSERT do AnaliseJobRun 'executando' numa transação com pg_advisory_xact_lock(hashtext(job)) (dois curls simultâneos não passam os dois); se já há 'executando' < lockTtl ⇒ status 'pulado'; mais velho ⇒ marca 'abandonado'; amostra RSS a cada 500 ms (unref); carrega ScoringParams — sem versão ativa no banco: jobs de ingestão usam SCORING_PARAMS_V1 do código com alerta 'params_fallback_codigo' (paramsVersion=1), 'scores' falha; captura exceção ⇒ 'falha' com erro; ErroLayoutFonte ⇒ 'falha' + alerta nivel 'erro'; rssPico−rssInicio > 300 ⇒ alerta 'rss_acima_limite'; no fim chama observabilidade/alertas.notificarResultadoJob(relatorio). Nunca lança.",
+      "respostaCron(r: RelatorioJob): NextResponse // 200 para ok/parcial/pulado, 500 para falha (o cron registra o código no log)",
+      "// observabilidade/alertas.ts (stub da fatia 0; E substitui mantendo a assinatura)",
+      "notificarResultadoJob(prisma: PrismaClient, r: RelatorioJob): Promise<void>",
+      "// repositorio (todas recebem prisma e devolvem tipos de tipos.ts com Decimal→number e Date→'AAAA-MM-DD')",
+      "universo.listarTickersAcoes(prisma): Promise<TickerAcao[]> // CvmCompanyTicker validTo null",
+      "universo.listarEmissores(prisma, cnpjs?: string[], params?: ScoringParams): Promise<EmissorInfo[]> // CvmCompany × AssetSetorB3 pela raiz dos tickers; ehFinanceira/ehBanco pelos params.financeiras (segmento B3; holdingsFinanceiras por raiz); SEM AssetSetorB3 (C ainda não rodou) cai para CvmCompany.layoutFinanceiro (A) — nenhuma fatia precisa da outra para gravar; escopoPreferido = 'ind' se ehBanco, senão 'con' (senão o que existir)",
+      "universo.listarFiisListados(prisma): Promise<TickerFii[]> // FiiTickerMap validTo null",
+      "universo.universoAnalise(prisma, classe: 'acao' | 'fii', opts?: { incluirNaoConferidos?: boolean }): Promise<ItemUniverso[]> // FII: por padrão só FiiTickerMap.conferido=true (regra 20 — casamento por nome não publicado sem conferência); FIIs não conferidos saem com contagem no detalhes do run da D",
+      "acoes.fundamentosVigentes(prisma, cnpjs: string[], opts: { tipos: TipoPeriodo[]; desde?: string; escopo?: 'preferido' | Escopo; emissores?: EmissorInfo[] }): Promise<FundamentosPeriodo[]> // maior versão por (emissor, dtFim, tipoPeriodo, escopo); 'preferido' resolve o escopo NA LEITURA (A grava con e ind), pela EmissorInfo",
+      "acoes.contagensAcoes(prisma, cnpjs: string[]): Promise<ContagemAcoes[]>",
+      "acoes.entregasDocumentos(prisma, opts: { desde: string; cnpjs?: string[] }): Promise<EntregaDocumento[]>",
+      "acoes.emissoresAlteradosDesde(prisma, desde: Date): Promise<string[]> // fetchedAt > desde em fundamentos ou share counts",
+      "fii.fiiMensalSerie(prisma, cnpjs: string[], desde: string): Promise<FiiMes[]>; fii.fiisAlteradosDesde(prisma, desde: Date): Promise<string[]> // fetchedAt > desde em FiiMonthly/FiiQuarterly (a D precisa para recalcular só FIIs com mês novo)",
+      "fii.fiiTrimestralUltimos(prisma, cnpjs: string[], n?: number): Promise<FiiTrimestre[]>",
+      "fii.fiiOverrides(prisma): Promise<Map<string, FiiTipo>>",
+      "cotacoes.cotacoesEntre(prisma, symbols: string[], de: string, ate: string): Promise<CotacaoDia[]>",
+      "cotacoes.cotacaoFimDePeriodo(prisma, pares: Array<{ symbol: string; dtFim: string }>, janelaDias: number): Promise<Map<string, CotacaoDia | null>> // chave `${symbol}|${dtFim}`",
+      "cotacoes.resumoCotacoes(prisma, symbols?: string[]): Promise<ResumoCotacao[]>",
+      "proventos.proventosBrutos(prisma, symbols: string[], desde?: string): Promise<ProventoBruto[]> // asset_dividend_history, SÓ LEITURA; aplica params.sanidade.proventos.camposPorFonte (YAHOO: date = data ex, sem pagamento); também devolve a impressão digital por símbolo (n, Σvalor, hash de id|date|dataCom|valor) para a D detectar mudança/remoção sem depender de createdAt",
+      "proventos.coberturaProventos(prisma, symbols: string[]): Promise<Map<string, CoberturaProventos>> // market_data_coverage, SÓ LEITURA",
+      "proventos.eventosCorporativosBrutos(prisma, symbols: string[]): Promise<EventoCorporativoBruto[]> // asset_corporate_actions, SÓ LEITURA",
+      "derivados.scoresNaData(prisma, dataRef: string, symbols?: string[]); derivados.multiplosAtuais(prisma, symbols?: string[]) // para Fase 1 e frescor",
+      "jobs.ultimasExecucoes(prisma, job: NomeJob, n: number): Promise<Array<{ status: string; inicio: Date; fim: Date | null; erro: string | null }>>; jobs.ultimaExecucaoOkPorJob(prisma): Promise<Map<NomeJob, Date>>; jobs.dadoMaisRecentePorCamada(prisma): Promise<Record<Camada, string | null>> // max(date) quotes, max(dtFim) DFP/ITR, max(refMonth/refQuarter), max(atualizadoEm) cadastros, max(data) assembleias, max(dataRef) scores — a E (frescor) não lê tabela de outra fatia direto",
+      "fontesArquivo.obterFonteArquivo(prisma, url); fontesArquivo.registrarDownload(prisma, url, meta); fontesArquivo.marcarProcessado(prisma, url, job)"
+    ],
+    "funcoesPorFatia": {
+      "A_regras_acoes": [
+        "classeDoTicker(ticker: string): ClasseTitulo | null // /3$/ ON, /[4-8]$/ PN, /11$/ UNIT (regra 18)",
+        "parseComposicaoUnit(texto: string): { on: number; pn: number } | null // '1 ON / 2 PN', '1 ação ordinária e 4 ações preferenciais', '1 KLBN3 + 4 KLBN4'",
+        "lucroDoPeriodo(linhasDre: LinhaDemonstrativo[]): { lucroTotal: Valor; lucroAtribuivel: Valor; codContaLucro: string | null; flags: string[] } // regra 12: controladora filha da linha de lucro; controladora=0 com lucro≠0 ⇒ ausente('controladora_zero'); não usar 3.99",
+        "lpaPublicado(linhasDre: LinhaDemonstrativo[]): { on: number | null; pn: number | null } // 3.99.01.x por classe; ignora GERAL (regra 11)",
+        "corrigirEscalaLpa(lpa: number, lucro: number, acoes: number, p: ScoringParams): { lpa: Valor; corrigido: boolean } // razão ~1000/~0,001 ⇒ ÷/×1000; |lpa|>1000 ⇒ ausente",
+        "resolverAcoesExercicio(e: EntradaResolucaoAcoes, p: ScoringParams): ResolucaoAcoes // regra 10 completa: candidatos dfp, dfp×1000, fre_f (nunca capital_social); aceita razão ∈ [0,8;1,25]; LPA escala errada; FRE reexpresso (÷ fator eventos ≤2 anos depois); vizinhança ±30%; lpa_implicito; limiar (<20 mi ações e PL>R$1 bi ⇒ milhares); status alerta se |razão−1|>5%",
+        "calcularTtm(e: { fyAnterior: number | null; ytdAtual: number | null; ytdMesmoPeriodoAnoAnterior: number | null; ultimos4Trimestres: Array<number | null>; trimestreAtual: 1 | 2 | 3 | 4 }, p): { valor: Valor; metodo: 'ytd' | 'soma4' | 'fy'; divergenciaPct: number | null; reapresentacao: boolean } // regra 14. A A GRAVA o resultado como linha tipoPeriodo='TTM' em AssetFundamentalsPeriod (dtFim do último ITR/DFP, versao = versão do doc base, flags ttm_metodo_*/reapresentacao) — a D só lê TTM pelo repositório e nunca importa este arquivo",
+        "metricasNaoAplicaveis(e: { layoutFinanceiro: boolean; receita: number | null; lucro: number | null }): Map<string, MotivoNaoSeAplica> // regra 15 na INGESTÃO só pelo que o próprio documento mostra: layout financeiro (DS_CONTA de 3.01 /Intermedia[cç][aã]o Financeira|Pr[eê]mios|Receitas de Seguros/) ⇒ ebit/D&A/AC/PC n/a; receita ≤ 0 ou ≤ lucro ⇒ margens n/a. A classificação setorial (financeira por segmento B3) é reaplicada pela D no cálculo, via EmissorInfo",
+        "periodoFiscal(dtFim: string, mesFimExercicio: number | null): { anoFiscal: number; trimestreFiscal: number | null } // regra 19",
+        "extrairFundamentos(linhas: LinhaDemonstrativo[], ctx: { demonstrativos: Set<string>; ehFinanceira: boolean; tipoPeriodo: TipoPeriodo }): Omit<FundamentosPeriodo, 'emissorId' | 'docTipo' | 'versao' | 'dtEntregaOriginal'> // mapa de contas: receita 3.01; lucroBruto 3.03; ebit 3.05 (não financeiras); D&A /deprecia|amortiza|exaust/ em 6.01.01.*; AT 1; AC 1.01; caixa 1.01.01; aplic 1.01.02; PC 2.01; dívida 2.01.04 + 2.02.01; PL 2.03 (ou 2.07/2.08 em layouts de banco/seguradora, por DS_CONTA /^Patrim[oô]nio L[ií]quido/); plControladora = PL − /N[aã]o Controlador/; FCO 6.01; FCI 6.02; FCF 6.03; capex = −Σ 6.02.* /aquisi[cç][aã]o.*(imobilizado|intang)/; dividendosJcpPagos = −Σ 6.03.* /dividend|juros sobre (o )?capital|JCP/; dmplDeclarado = regra do spike (5.04.06+5.04.07 + demais 5.04-5.06 de 3º nível negativas com /dividend|JCP/ sem /prescrit|revers|reclassif/, coluna PL da controladora)",
+        "ehLayoutFinanceiro(linhasDre: LinhaDemonstrativo[]): boolean // grava CvmCompany.layoutFinanceiro; decide também gravar AssetStatementLine ind (banco usa ind BR GAAP, decisão 3) sem depender da fatia C"
+      ],
+      "B_regras_fii": [
+        "tipoPorComposicao(m: { pl: number | null; imoveis: number | null; spe: number | null; cri: number | null; cotasFii: number | null }, p): FiiTipo // parcelas sobre o PL: tijolo=(imoveis+spe), papel=cri (LCI/LCA/LH/LIG NÃO contam), fof=cotasFii. Se ALGUMA parcela ≥ 50 ⇒ vence a MAIOR delas (fundo alavancado pode ter duas ≥ 50: nunca decidir pela ordem dos ifs); nenhuma ≥ 50 e soma das três ≥ 50 ⇒ hibrido; senão indefinido; PL ≤ 0/ausente ⇒ indefinido",
+        "reguaFii(tipo: FiiTipo, m: { imoveis; spe; cri; pl }, p): { regua: Regua; incompleto: boolean } // híbrido corrigido: imoveis+spe ≥ cri ⇒ fii_tijolo senão fii_papel; fof ⇒ fora_do_indice (decisão 8); indefinido ⇒ fii_tijolo + incompleto; PL ≤ 0 ⇒ fora_do_indice (regra 22). A B GRAVA o resultado em FiiMonthly.reguaVigente (a partir do tipoVigente) — a D lê a régua pronta e não importa este arquivo",
+        "aplicarHisterese(historico: Array<{ refMonth: string; tipoComposicao: FiiTipo }>, vigenteAnterior: FiiTipo | null, override: FiiTipo | null, p): { tipoVigente: FiiTipo; mudouEm: string | null } // troca só após N=3 meses seguidos do tipo novo; override vence sempre",
+        "sanearMes(atual: FiiMesBruto, anterior: FiiMesBruto | null, p): { mes: FiiMesSaneado; flags: string[]; alertas: AlertaJob[] } // VP/cota vs PL/cotas >1% ⇒ recomputa; PL≤0 ⇒ flag pl_nao_positivo; cotas×≥5 ⇒ fatorDesdobramento; DY CVM <0 ou >5 ⇒ descartado; obrigações/PL >100 ⇒ revisão; cotistas ±50% (base>1000) e VP/cota ±30% sem mudar cotas ⇒ alerta",
+        "obrigacoesSobrePl(m): Valor // (passivoTotal − rendDistribuir) ÷ PL × 100 (decisão 7, nome 'Obrigações/PL'); a B GRAVA em FiiMonthly.obrigacoesPlPct (a D só lê)",
+        "contarCrisDistintos(linhas: Array<{ tipo: string; emissor: string; nomeAtivo: string; emissao: string; serie: string; valor: number | null }>): { nCri: number; valorCri: number; maiorCriPct: number | null } // código CETIP /\\b(\\d{2}[A-L]\\d{7,})\\b/ em emissor+nome; sem código ⇒ emissor|emissão|série (regra 25)",
+        "agregarImoveis(linhas: ImovelTrimestral[], p): { nImoveisRenda; nImoveisOutros; areaM2; areaMaiorImovelM2; vacanciaFisicaCvmPct: Valor; inadimplenciaCvmPct: Valor; somaPctReceita; flags } // só 'renda acabados'; vacância ponderada pela área (fração ×100); inadimplência ponderada por % receita; Σ%receita>105 ⇒ inadimplência ausente; área>500 mil m² ⇒ flag area_nao_abl",
+        "prazoMedioAproximado(faixas: Record<string, number | null>): { prazoMedioAnos: number | null; vencAte12mPct; vencAcima36mPct } // Acima_36Meses = 5 anos (aprox.)",
+        "normalizarNomeFundo(nome: string): string; casarTickerCnpj(item: { acronym: string; fundName: string; tradingName: string; isin?: string | null }, candidatos: FundoCvm[], manuais: Map<string, string>): { cnpj: string | null; origem: 'manual' | 'b3_isin' | 'b3_nome' | null; conferido: boolean; motivo: string } // regra 20: manual > ISIN COMPLETO igual ao Codigo_ISIN do informe com 1 CNPJ ativo > nome normalizado; PREFIXO de ISIN nunca decide (nem desempata); b3_isin e b3_nome só ficam conferido=true depois de conferirPorPlCotacao='ok' (b3_isin sem cotação ⇒ conferido=true com motivo 'isin_sem_cotacao'; b3_nome sem cotação ⇒ false)",
+        "conferirPorPlCotacao(pl: number, cotas: number, cotacao: number | null): 'ok' | 'divergente' | 'sem_cotacao' // valor de mercado/PL ∈ [0,3; 3]"
+      ],
+      "C_regras_b3": [
+        "parseLinhaCotahist(linha: string): RegistroCotahist | null // TIPREG 01; retorna tpMerc/codBdi para o chamador filtrar; closeRaw = PREULT/100/FATCOT; volumeFin = VOLTOT/100; quantidade = QUATOT; negocios = TOTNEG; especi",
+        "validarCabecalhoCotahist(linha: string): { nomeArquivo: string; dataGeracao: string } // TIPREG 00 + 'COTAHIST'; senão ErroLayoutFonte",
+        "filtrarRegistro(r: RegistroCotahist): boolean // TPMERC 010 e CODBDI ∈ {02,12}",
+        "pregoesB3 ⇒ usa regras/comum/pregoes.ts da fatia 0 (não cria cópia)",
+        "liquidez(serie: Array<{ date: string; volumeFin: number }>, calendario: string[], p): { volumeMedio21: number; pregoesComNegocio21: number; baixaLiquidez: boolean; negociadoUltimos30: boolean } // dia sem negócio = 0 (regra 29); janela = últimos 21/30 pregões do calendário",
+        "detectarSaltoDiario(serie: Array<{ date: string; closeRaw: number }>, datasEventos: Array<{ date: string; fator: number }>, p): Array<{ date: string; variacaoPct: number }> // |var|>40% sem evento na data (regra 30)",
+        "parseClassifSetorial(linhas: unknown[][]): Array<{ raiz: string; nomePregao: string; setor: string; subsetor: string; segmento: string; segmentoListagem: string | null }> // células mescladas: setor/subsetor herdados da linha anterior; valida cabeçalho"
+      ],
+      "D_regras_calculo": [
+        "interpolar(v: number, piso: number, teto: number): number // 10×(v−piso)/(teto−piso) limitado a [0,10]; funciona com piso>teto",
+        "anosLucroConsecutivos(serie: Array<{ anoFiscal: number; lucro: Valor }>): Valor<number> // do último FY para trás até o 1º lucro ≤ 0 ou ausente; último FY ausente ⇒ ausente",
+        "mesesComRendimentoConsecutivos(proventos: ProventoAuditado[], hoje: string, p): number // por MÊS DE PAGAMENTO, calendário (regra 26); sem pagamento (YAHOO) usa o mês da dataComReal + 1 com flag mes_estimado; mês corrente sem pagamento é tolerado",
+        "auditarProventos(brutos: ProventoBruto[], eventos: EventoCorporativoVerificado[], p): ProventoAuditado[] // dataComReal = pregaoAnterior(dataExGravada) (regras/comum/pregoes) para BRAPI (ex em dataCom) E para YAHOO (ex em date, pagamento ausente); normaliza tipo (desconhecido ⇒ OUTRO + alerta); dedup: mesmo símbolo+tipo+valor (|Δ|<1e-8) com dataCom diferente e pagamentos a ≤5 dias ⇒ duplicata (mantém a de menor dataCom); LIMITE CONHECIDO: a unique (symbol, date, tipo) de asset_dividend_history + a soma por (pagamento, tipo) do dividendService fazem uma repetição da BRAPI com o MESMO pagamento virar UMA linha com valor em dobro — não há como separar; marcar flag possivel_soma_duplicada quando valor ≈ 2× outro provento do mesmo tipo no ano (±1%) e deixar a checagem DMPL (>15 p.p.) sinalizar; tranches = mesma dataCom com pagamentos ≥20 dias ⇒ válidas; YAHOO só quando não há BRAPI do símbolo no ano; sem data ex ⇒ sem_data_com (não usa pagamento como fallback); fatorAjusteHoje por EVENTO (Π confirmados com data > dataComReal)",
+        "dpaNoAno(proventos: ProventoAuditado[], ano: number, base: 'fim_do_ano' | 'hoje', eventos): Valor // só DIVIDENDO+JCP válidos",
+        "rendimento12m(proventos, hoje: string, classe: 'acao' | 'fii', eventos): Valor // janela de calendário (hoje−12m, hoje] por dataComReal; ações DIVIDENDO+JCP bruto; FII RENDIMENTO+DIVIDENDO",
+        "verificarEventosCorporativos(brutos: EventoCorporativoBruto[], contagens: ContagemAcoes[], p, fii?: Array<{ refMonth: string; cotas: number | null; fatorDesdobramento: number | null }>): EventoCorporativoVerificado[] // regra 6: só DESDOBRAMENTO/GRUPAMENTO/BONIFICACAO; dedup mesmo fator ≤30 dias (BRAPI×YAHOO); anoBase (1/jan–14/fev pode pertencer ao ano anterior; dezembro ao seguinte); ações: confirma se ações_fim/ações_início (validadas) ≈ Π fatores ±6%; FII: confirma pela razão de cotas do FiiMonthly no mês do evento (±6%; HFOF11 1:10 mai/25) e um fatorDesdobramento do FiiMonthly SEM evento bruto vira evento confirmado de origem 'cvm_cotas' (regra 22); subconjunto que bate; ações sem mudança ⇒ descartado; sem contagem ⇒ nao_validavel; não bate e há emissão/recompra ⇒ emissao_recompra",
+        "fatorEventosApos(eventos, data: string): number; fatorEventosEntre(eventos, de: string, ate: string): number // só 'confirmado'",
+        "precoFimDePeriodo(cotacoes: CotacaoDia[], dtFim: string, p): { preco: number; data: string } | null // último pregão ≤ dtFim e ≥ dtFim − 5 dias (regra 5)",
+        "perShareAnual(e: EntradaPerShare, p): PerShareAnual // LPA=lucroAtribuível/ações fim × fatorEquivalencia; VPA=plControladora/ações; ajuste a hoje ÷ Π eventos anoBase>FY; payoutDmplPct; payout>150 ou <0 ⇒ flag (regra 17); |payoutPorAcao−payoutDmpl|>15 p.p. ⇒ flag auditoria_proventos (regra 16)",
+        "multiplosAnuais(e: EntradaMultiplos, p): MultiplosCalculados // preço cru × ações da mesma data ÷ métrica (decisão 19); base ≤ 0 ⇒ nao_se_aplica('base_nao_positiva') (regra 4); financeiras ⇒ n/a em EBITDA/DL-EBITDA/liquidez corrente (regra 15); EV = valor de mercado + dívida líquida",
+        "multiplosAtuais(e: EntradaMultiplosAtuais, p): MultiplosCalculados & { plVsMedia10aPct: Valor; plMedia10a: Valor; plPontosHistorico: number } // TTM; média 10a só com P/L > 0 e ≥ 5 pontos",
+        "componentesIndiceAcao(e: EntradaIndiceAcao, p): Record<NomeComponente, EstadoComponente> // prejuízo no último FY ⇒ lucro=0 e preco zero_regra; financeira (EmissorInfo.ehFinanceira, reaplicada aqui além do naoSeAplica da A) ⇒ divida n/a; EBITDA ≤ 0 com dívida líquida > 0 ⇒ divida zero_regra('ebitda_nao_positivo') e com dívida líquida ≤ 0 ⇒ nota 10 (NUNCA interpolar DL/EBITDA negativo vindo de EBITDA negativo: daria 10 a quem queima caixa); PL ≤ 0 ⇒ rent zero_regra('pl_nao_positivo') (lucro<0 ÷ PL<0 daria ROE positivo)",
+        "componentesIndiceFii(e: EntradaIndiceFii, regua: Regua, p): Record<NomeComponente, EstadoComponente> // regua = FiiMonthly.reguaVigente (gravada pela B); tijolo: rent n/a('criterio_desligado') enquanto params.fii.tijolo.componentes.rent.ativo=false (decisão 6); papel: divida=maiorCriPct e rent=nCri provisórios (decisão 4); nCri = 0 ou sem trimestral ⇒ ausente",
+        "calcularIndice(componentes, pesos, regua): ResultadoIndice // Σ w·c / Σ w só sobre componentes não n/a; ausente conta 0 e marca incompleto; fora_do_indice ⇒ indice n/a('fof'); arredonda 2 casas",
+        "faixaIndice(indice: number, p): 'verde' | 'azul' | 'laranja' | 'vermelho'",
+        "semaforo(e: EntradaSemaforo, regua: Regua, p): { checks: CheckSemaforo[]; aplicaveis: number; atendidos: number } // n/a sai da contagem ('n de 4'); ausente ⇒ 'sem_dado' (conta como não atendido, ícone próprio)",
+        "selecionarPares(alvo: { symbol; segmento; subsetor }, universo: Array<{ symbol; segmento; subsetor; valorMercado: number | null }>, n: number): string[] // decisão 16",
+        "medianaReferencia(valores: Array<Valor>, minimo: number): Valor // <3 pares ⇒ ausente",
+        "saltoAcoesSemEvento(acoesAnterior: number, acoesAtual: number, fatorEventosValidados: number, p): boolean // regra 13 (movida da A: depende de eventos VALIDADOS, que só a D tem): aplicada em perShareAnual ⇒ flag salto_acoes_sem_evento + dados_incompletos; razão ajustada >2,5 ou <0,4",
+        "ajustarSerieCotaFii(serie: Array<{ refMonth: string; vpCota: number | null; rendCota?: number | null }>, eventos: EventoCorporativoVerificado[]): typeof serie // regra 22: séries por cota (VP/cota, rendimento/cota) na base de hoje; múltiplos históricos continuam cru×cru da mesma data (P/VP 2016 do HGLG11 usa 1.100 ÷ VP/cota de 2016)"
+      ],
+      "D_regras_valuation": [
+        "bazin(dpa: number | null, yieldPct: number): number | null // '—' = null (dpa ≤0, yield fora de [0,1;30])",
+        "graham(lpa: number | null, vpa: number | null): number | null // √(22,5×LPA×VPA); LPA≤0 ou VPA≤0 ⇒ null",
+        "multiploAlvo(multiplo: number | null, base: number | null): number | null // base ≤0 ⇒ null",
+        "gordon(dpa: number | null, gPct: number, kPct: number): number | null // k ≤ g ⇒ null",
+        "rendaDesejada(rend12m: number | null, yieldPct: number): number | null",
+        "pvpAlvo(pvp: number | null, vpCota: number | null): number | null",
+        "metaDeRenda(rendaMensal: number, rend12m: number | null, cotacao: number, posicao: number): { cotas: number; custo: number; faltam: number } | null // ⌈arredondar(renda×12/rend, 9)⌉ (regra 8); rend ≤0 ⇒ null",
+        "vsCotacaoPct(resultado: number | null, cotacao: number): number | null; comMargem(resultado: number | null, margemPct: number): number | null",
+        "suaPosicao(e: { pm: number; lpa?: number | null; vpCota?: number | null; ffo?: number | null; dpa?: number | null; rend12m?: number | null }): { multiploSobreCusto: number | null; yieldSobreCustoPct: number | null }",
+        "barraPosicao(atual: number, historico: number[], tipo: 'multiplo' | 'percentual', p, opts?: { excluirNaoPositivos?: boolean }): { visivel: boolean; min?: number; media?: number; max?: number; nPontos: number; status: StatusBarra } // StatusBarra = { tipo: 'variacao_pct'; valor: number } | { tipo: 'variacao_pp'; valor: number } | { tipo: 'acima' | 'abaixo' } | { tipo: 'na_media' } + extremo?: 'maior' | 'menor'; (v−média)/|média| (regra 7); |média|≤0,5 ⇒ só acima/abaixo (na média se |Δ|<0,05); |var|<3% ou <0,15 p.p. ⇒ na_media; <5 pontos ⇒ visivel=false",
+        "validarPremissa(nome: 'yieldPct' | 'gPct' | 'kPct' | 'margemPct', valor: string | number): number | null // aceita vírgula; fora do limite ⇒ null",
+        "aplicarCenarioSalvo(padrao: Premissas, salvo: Premissas | null): { premissas: Premissas; origem: 'salvo' | 'ativo' } ; restaurarPadrao(padrao): { premissas: Premissas; apagarRegistro: true } // caso 22 (persistência em user_scenarios fica para a Fase 2)",
+        "arredondar(x: number, casas: number): number // half-up sobre representação decimal (evita 57,4545→57,45 vs 57,46)"
+      ],
+      "D_textos": "src/services/analiseAtivos/textos.ts: TEXTOS_ANALISE (títulos neutros dos critérios, templates de frase factual 'número + referência', rótulos 'fonte CVM · pode diferir do relatório do gestor', 'critérios provisórios', 'data estimada', rodapé legal da §9, rodapé do Valuation), PALAVRAS_PROIBIDAS reexportada de regras/comum/linguagem.ts (fatia 0; lista: 'preço justo','preço-alvo','barato','caro','desconto','oportunidade','excelente','exigente','saudável','bom','ruim','compre','venda','aproveite','nota'; casamento por palavra inteira), EXCECOES_TEXTO_FIXO = ['rodapeLegal','rodapeValuation'] (regra 9 + caso 23)",
+      "E_regras_eventos": [
+        "estimarDataResultado(entregas: EntregaDocumento[], alvo: { cnpj: string; docTipo: 'DFP' | 'ITR'; anoFiscal: number; trimestreFiscal: number | null }, hoje: string): { data: string; estimado: true; base: string } | null // mesma entrega do ano anterior + 1 ano, levada a proximoPregaoOuMesmo (regras/comum/pregoes); sem histórico ⇒ null (decisão 17)",
+        "proximoPeriodoEsperado(entregas: EntregaDocumento[], cnpj: string, hoje: string): Array<{ docTipo; anoFiscal; trimestreFiscal }>",
+        "parseLinhaIpe(l: LinhaCsv): EventoIpe | null // Categoria='Assembleia'; Tipo AGO/AGE/AGO/AGE; Data_Referencia = data da assembleia; Especie Edital/Ata; Protocolo_Entrega; Versao; Link_Download (só host rad.cvm.gov.br guardado como texto, nunca baixado)",
+        "consolidarAssembleias(eventos: EventoIpe[]): EventoIpe[] // 1 por (cnpj, subtipo, data), maior versão",
+        "deveAlertar(execucoes: Array<{ status: string; inicio: Date }>, agora: Date): { alertar: boolean; motivo: string | null } // 2 falhas/abandonos seguidos; repete no máx. 1×/24h enquanto persistir",
+        "calcularFrescor(entrada: { ultimaOkPorJob: Map<NomeJob, Date>; dadoMaisRecente: Record<Camada, string | null> }, agora: Date, limites: Record<Camada, { maxHorasJob: number; maxDiasDado: number }>): PainelFrescor // Camada vem de tipos.ts; dadoMaisRecente vem de repositorio.jobs.dadoMaisRecentePorCamada"
+      ],
+      "E_textos": "src/services/analiseAtivos/eventos/textosEventos.ts (títulos neutros da agenda; arquivo PRÓPRIO da E para não depender do textos.ts da D; testado com regras/comum/linguagem.encontrarPalavrasProibidas)"
+    },
+    "nomesJobs": [
+      "b3-cadastro",
+      "fii-cadastro",
+      "cvm-cias:fca",
+      "cvm-cias:dfp",
+      "cvm-cias:itr",
+      "cvm-ipe",
+      "fii-mensal",
+      "fii-trimestral",
+      "cotahist",
+      "scores",
+      "backfill:<nome>"
+    ],
+    "padraoRota": "export const runtime = 'nodejs'; export const dynamic = 'force-dynamic';\nexport const GET = withErrorHandler(async (request: NextRequest) => {\n  requireCronSecret(request);\n  const r = await executarJobAnalise('<nome>', (ctx) => sincronizarX(ctx, { ... }));\n  return respostaCron(r);\n});",
+    "scoringParamsV1": {
+      "versao": 1,
+      "descricao": "Valores da spec v1.3 §4 ajustados pelas decisões de 30/09/2026 (decisoes-fase0.md) e pelas regras de sanidade do relatório §4. Percentuais em pontos percentuais.",
+      "indice": {
+        "pesos": {
+          "lucro": 0.35,
+          "divida": 0.2,
+          "rent": 0.2,
+          "div": 0.15,
+          "preco": 0.1
+        },
+        "faixasCor": {
+          "verde": 8,
+          "azul": 6,
+          "laranja": 4
+        },
+        "redistribuirNaoSeAplica": true,
+        "ausenteContaZero": true,
+        "casasDecimais": 2
+      },
+      "acao": {
+        "componentes": {
+          "lucro": {
+            "metrica": "anosLucroConsecutivos",
+            "piso": 0,
+            "teto": 10
+          },
+          "divida": {
+            "metrica": "divLiqEbitda",
+            "piso": 6,
+            "teto": 0,
+            "financeiras": "nao_se_aplica",
+            "ebitdaNaoPositivo": "zero_se_divida_liquida_positiva_senao_teto"
+          },
+          "rent": {
+            "metrica": "roePct",
+            "piso": 0,
+            "teto": 25,
+            "plNaoPositivo": "zero"
+          },
+          "div": {
+            "metrica": "dy12mPct",
+            "piso": 0,
+            "teto": 8
+          },
+          "preco": {
+            "metrica": "plVsMedia10aPct",
+            "piso": 60,
+            "teto": -30,
+            "minPontosHistorico": 5,
+            "plNaoPositivo": "zero",
+            "prejuizoUltimoAno": "zero"
+          }
+        },
+        "semaforo": [
+          {
+            "codigo": "lucros_consecutivos",
+            "metrica": "anosLucroConsecutivos",
+            "direcao": "maior_melhor",
+            "atende": 5,
+            "parcial": 2
+          },
+          {
+            "codigo": "endividamento",
+            "metrica": "divLiqEbitda",
+            "direcao": "menor_melhor",
+            "atende": 3,
+            "parcial": 6,
+            "financeiras": "nao_se_aplica",
+            "ebitdaNaoPositivo": "nao_atende_se_divida_liquida_positiva_senao_atende"
+          },
+          {
+            "codigo": "rentabilidade",
+            "metrica": "roePct",
+            "direcao": "maior_melhor",
+            "atende": 15,
+            "parcial": 8,
+            "plNaoPositivo": "nao_atende"
+          },
+          {
+            "codigo": "preco_historico",
+            "metrica": "plVsMedia10aPct",
+            "direcao": "menor_melhor",
+            "atende": 0,
+            "parcial": 60,
+            "plNaoPositivo": "nao_atende",
+            "minPontosHistorico": 5
+          },
+          {
+            "codigo": "dividendos",
+            "metrica": "dy12mPct",
+            "direcao": "maior_melhor",
+            "atende": 4,
+            "parcial": 1
+          }
+        ]
+      },
+      "fii": {
+        "tijolo": {
+          "componentes": {
+            "lucro": {
+              "metrica": "mesesComRendimento",
+              "piso": 0,
+              "teto": 120
+            },
+            "divida": {
+              "metrica": "obrigacoesPlPct",
+              "piso": 30,
+              "teto": 0
+            },
+            "rent": {
+              "metrica": "vacanciaFisicaCvmPct",
+              "piso": 20,
+              "teto": 0,
+              "ativo": false,
+              "motivoInativo": "decisao_6_validar_20_fundos"
+            },
+            "div": {
+              "metrica": "dy12mPct",
+              "piso": 4,
+              "teto": 10
+            },
+            "preco": {
+              "metrica": "pvp",
+              "piso": 1.3,
+              "teto": 0.85
+            }
+          },
+          "semaforo": [
+            {
+              "codigo": "renda_recorrente",
+              "metrica": "dy12mPct",
+              "direcao": "maior_melhor",
+              "atende": 8,
+              "parcial": 6
+            },
+            {
+              "codigo": "vacancia",
+              "metrica": "vacanciaFisicaCvmPct",
+              "direcao": "menor_melhor",
+              "atende": 5,
+              "parcial": 8,
+              "ativo": false
+            },
+            {
+              "codigo": "diversificacao_imoveis",
+              "metrica": "nImoveisCvm",
+              "direcao": "maior_melhor",
+              "atende": 15,
+              "parcial": 8,
+              "ativo": false
+            },
+            {
+              "codigo": "obrigacoes_pl",
+              "metrica": "obrigacoesPlPct",
+              "direcao": "menor_melhor",
+              "atende": 10,
+              "parcial": 30,
+              "substitui": "padrao_construtivo (decisão 5)",
+              "provisorio": true,
+              "notaCalibracao": "limiares 10/30 sem base na spec (o critério substitui padrão construtivo); coerentes com o piso 30 do C_divida — Pedro calibra"
+            },
+            {
+              "codigo": "preco_vp",
+              "metrica": "pvp",
+              "direcao": "menor_melhor",
+              "atende": 1.05,
+              "parcial": 1.2
+            }
+          ]
+        },
+        "papel": {
+          "componentes": {
+            "lucro": {
+              "metrica": "mesesComRendimento",
+              "piso": 0,
+              "teto": 120
+            },
+            "divida": {
+              "metrica": "maiorCriPct",
+              "piso": 25,
+              "teto": 5,
+              "provisorio": true,
+              "substitui": "ltv (decisão 4)"
+            },
+            "rent": {
+              "metrica": "nCri",
+              "piso": 5,
+              "teto": 40,
+              "provisorio": true,
+              "substitui": "inadimplencia (decisão 4)"
+            },
+            "div": {
+              "metrica": "dy12mPct",
+              "piso": 6,
+              "teto": 13
+            },
+            "preco": {
+              "metrica": "distanciaPvp1",
+              "piso": 0.25,
+              "teto": 0
+            }
+          },
+          "semaforo": [
+            {
+              "codigo": "renda_recorrente",
+              "metrica": "dy12mPct",
+              "direcao": "maior_melhor",
+              "atende": 10,
+              "parcial": 8
+            },
+            {
+              "codigo": "concentracao_cri",
+              "metrica": "maiorCriPct",
+              "direcao": "menor_melhor",
+              "atende": 10,
+              "parcial": 20,
+              "provisorio": true,
+              "substitui": "ltv"
+            },
+            {
+              "codigo": "inadimplencia",
+              "metrica": "inadimplenciaCriPct",
+              "direcao": "menor_melhor",
+              "atende": 1,
+              "parcial": 4,
+              "ativo": false,
+              "motivoInativo": "sem_fonte_estruturada"
+            },
+            {
+              "codigo": "preco_vp",
+              "metrica": "pvp",
+              "direcao": "faixa",
+              "atende": [
+                0.9,
+                1.05
+              ],
+              "parcial": [
+                0.8,
+                1.15
+              ]
+            },
+            {
+              "codigo": "diversificacao_cri",
+              "metrica": "nCri",
+              "direcao": "maior_melhor",
+              "atende": 40,
+              "parcial": 20
+            }
+          ]
+        },
+        "fof": {
+          "indice": "fora",
+          "semaforo": "fora"
+        },
+        "indefinido": {
+          "regua": "fii_tijolo",
+          "marcarIncompleto": true
+        },
+        "hibrido": {
+          "regra": "imoveisMaisSpe_vs_cri",
+          "empate": "fii_tijolo"
+        },
+        "plNaoPositivo": "fora_do_indice",
+        "exigirTickerConferido": true
+      },
+      "fiiTipo": {
+        "limiarComposicaoPct": 50,
+        "mesesHisterese": 3,
+        "recebiveisPapel": [
+          "CRI",
+          "CRI_CRA"
+        ],
+        "caixaNaoRecebivel": [
+          "LCI",
+          "LCI_LCA",
+          "Letras_Hipotecarias",
+          "LIG"
+        ],
+        "imoveis": [
+          "Direitos_Bens_Imoveis",
+          "Acoes_Sociedades_Atividades_FII",
+          "Cotas_Sociedades_Atividades_FII"
+        ]
+      },
+      "financeiras": {
+        "segmentosFinanceiros": [
+          "Bancos",
+          "Outros Intermediarios Financeiros",
+          "Seguradoras",
+          "Resseguradoras"
+        ],
+        "segmentosBanco": [
+          "Bancos"
+        ],
+        "holdingsFinanceirasRaiz": [
+          "ITSA"
+        ],
+        "escopoBancos": "ind",
+        "escopoDemais": "con",
+        "fallbackSemSetorB3": "CvmCompany.layoutFinanceiro",
+        "notaConferencia": "conferido no ClassifSetorial real (30/09): por SEGMENTO, não por subsetor — 'Holdings Diversificadas' tem SIMH (Simpar, operacional e alavancada) e 'Previdência e Seguros' tem WIZC (corretora com EBITDA); ITSA entra pela lista de holdings financeiras. Grafia do arquivo: 'Outros Intermediarios Financeiros' sem acento."
+      },
+      "sanidade": {
+        "acoes": {
+          "razaoLpaAceita": [
+            0.8,
+            1.25
+          ],
+          "razaoLpaAlertaPct": 5,
+          "escalaLpaMil": [
+            800,
+            1250
+          ],
+          "escalaLpaMilesimo": [
+            0.0008,
+            0.00125
+          ],
+          "lpaAbsMax": 1000,
+          "lucroMinVerificavel": 1000000,
+          "vizinhancaToleranciaPct": 30,
+          "fatorImplicitoMaxDistanciaPct": 35,
+          "limiarMilhares": {
+            "acoesMax": 20000000,
+            "plMin": 1000000000
+          },
+          "saltoAcoes": [
+            0.4,
+            2.5
+          ],
+          "ttmDivergenciaMaxPct": 2,
+          "payoutSeloPct": 150,
+          "payoutAuditoriaPp": 15,
+          "precoFimAnoMaxDias": 5
+        },
+        "eventos": {
+          "tipos": [
+            "DESDOBRAMENTO",
+            "GRUPAMENTO",
+            "BONIFICACAO"
+          ],
+          "dedupDias": 30,
+          "dedupFatorTolPct": 1,
+          "confirmacaoTolPct": 6,
+          "anoBaseInicioAnoAte": "02-14",
+          "anoBaseDezembroSeguinte": true
+        },
+        "fii": {
+          "vpCotaTolPct": 1,
+          "cotasDesdobramentoFator": 5,
+          "dyMesCvmMaxPct": 5,
+          "obrigacoesRevisaoPct": 100,
+          "areaMaxAblM2": 500000,
+          "cotistasVariacaoAlertaPct": 50,
+          "cotistasBaseMin": 1000,
+          "vpCotaSaltoAlertaPct": 30,
+          "somaPctReceitaMax": 105,
+          "conferenciaValorMercadoSobrePl": [
+            0.3,
+            3
+          ],
+          "cvmDivergenciaRendimentoPct": 5,
+          "cvmDivergenciaMeses": 3
+        },
+        "b3": {
+          "liquidezPregoes": 21,
+          "baixaLiquidezMinPregoes": 15,
+          "saltoDiarioPct": 40,
+          "cotahistRecuperarPregoes": 5
+        },
+        "proventos": {
+          "tiposAcao": [
+            "DIVIDENDO",
+            "JCP"
+          ],
+          "tiposFii": [
+            "RENDIMENTO",
+            "DIVIDENDO"
+          ],
+          "tiposExcluidos": [
+            "AMORTIZACAO",
+            "REST_CAP"
+          ],
+          "mapaTipos": {
+            "DIVIDENDO": "DIVIDENDO",
+            "Dividendo": "DIVIDENDO",
+            "JCP": "JCP",
+            "RENDIMENTO": "RENDIMENTO",
+            "AMORTIZAÇÃO": "AMORTIZACAO",
+            "REST CAP DIN": "REST_CAP"
+          },
+          "convencaoDataCom": {
+            "BRAPI": "ex",
+            "YAHOO": "ex"
+          },
+          "duplicataJanelaPagamentoDias": 5,
+          "trancheMinDiasEntrePagamentos": 20,
+          "fontePreferida": "BRAPI",
+          "fonteSecundariaSomenteSemPreferidaNoAno": true,
+          "janelaMesesDy": 12,
+          "mesCorrenteTolerado": true,
+          "camposPorFonte": {
+            "BRAPI": {
+              "dataEx": "dataCom",
+              "dataPagamento": "date"
+            },
+            "YAHOO": {
+              "dataEx": "date",
+              "dataPagamento": null
+            }
+          },
+          "tipoDesconhecido": "OUTRO",
+          "somaDuplicadaTolPct": 1
+        }
+      },
+      "universo": {
+        "fiiQuadroPregoes": 30,
+        "fiagroForaDoMvp": true,
+        "fofForaDoIndice": true,
+        "classesFase0": [
+          "acao",
+          "fii"
+        ]
+      },
+      "pares": {
+        "quantidade": 5,
+        "completarCom": "subsetor",
+        "ordem": "valorMercado_desc",
+        "referenciaMinPares": 3
+      },
+      "valuation": {
+        "premissasPadrao": {
+          "acao": {
+            "yieldPct": 6,
+            "gPct": 8,
+            "kPct": 13,
+            "margemPct": 20,
+            "multiploAlvo": "media10a"
+          },
+          "stock": {
+            "yieldPct": 3,
+            "gPct": 8,
+            "kPct": 10,
+            "margemPct": 20,
+            "multiploAlvo": "media10a"
+          },
+          "fii": {
+            "yieldPct": 8,
+            "margemPct": 10,
+            "rendaMensal": 1000,
+            "pvpAlvo": 1
+          },
+          "reit": {
+            "yieldPct": 5.5,
+            "gPct": 3,
+            "kPct": 8,
+            "margemPct": 15,
+            "multiploAlvo": "media10a"
+          }
+        },
+        "limites": {
+          "yieldPct": [
+            0.1,
+            30
+          ],
+          "gPct": [
+            0,
+            20
+          ],
+          "kPct": [
+            1,
+            30
+          ],
+          "margemPct": [
+            0,
+            50
+          ],
+          "margemPasso": 5
+        },
+        "barra": {
+          "minPontos": 5,
+          "naMediaPct": 3,
+          "naMediaPp": 0.15,
+          "mediaPertoDeZeroAbs": 0.5,
+          "naMediaPertoDeZeroAbs": 0.05,
+          "excluirNaoPositivos": [
+            "pl",
+            "pvp",
+            "pReceita",
+            "evEbitda",
+            "pFco",
+            "pFcl",
+            "pffo"
+          ]
+        },
+        "arredondamento": {
+          "monetario": 2,
+          "vsCotacaoPct": 0,
+          "barraPct": 0,
+          "barraPp": 1,
+          "multiplicador1Casa": [
+            "pl",
+            "pffo"
+          ],
+          "multiplicador2Casas": [
+            "pvp"
+          ]
+        },
+        "metaRendaCasasAntesDoTeto": 9
+      },
+      "ranking": {
+        "usoNaFase": 3,
+        "m": 20,
+        "nMinimo": 20,
+        "cPorClasse": "media_ponderada_votos_validos_do_dia",
+        "pesoHolder": 1.5,
+        "pesoContaNova": 0.5,
+        "contaNovaDias": 30,
+        "conflitoDePeso": "menor",
+        "expiracaoDias": 90,
+        "limiteVotosDia": 20,
+        "convergenciaTolerancia": 1,
+        "convergenciaUsa": "bayes",
+        "variacaoMensal": "posicao_anterior_menos_atual",
+        "quarentena": {
+          "votos5Estrelas": 30,
+          "janelaHoras": 1,
+          "contaMenorQueDias": 90
+        }
+      }
+    }
+  },
+  "fatias": [
+    {
+      "id": "0",
+      "nome": "Schema + migration + contratos + infra comum + ScoringParams v1",
+      "objetivo": "Deixar prontos (e commitados) o schema das 22 tabelas, a migration aditiva aplicada no dev, os tipos/contratos, o ScoringParams v1 semeado, a infra de download/zip/CSV em streaming, o wrapper de job e as funções de repositório. As fatias A–E só começam depois do commit da fatia 0 e do `prisma generate`.",
+      "cria": [
+        "prisma/migrations/20260930180000_analise_ativos_fase0/migration.sql",
+        "scripts/analise-ativos/apply-migration-fase0.ts",
+        "scripts/analise-ativos/seed-scoring-params.ts",
+        "src/services/analiseAtivos/tipos.ts",
+        "src/services/analiseAtivos/regras/comum/valor.ts",
+        "src/services/analiseAtivos/regras/comum/__tests__/valor.test.ts",
+        "src/services/analiseAtivos/regras/comum/pregoes.ts",
+        "src/services/analiseAtivos/regras/comum/linguagem.ts",
+        "src/services/analiseAtivos/regras/comum/__tests__/pregoes.test.ts",
+        "src/services/analiseAtivos/regras/comum/__tests__/linguagem.test.ts",
+        "src/services/analiseAtivos/params/scoringParamsSchema.ts",
+        "src/services/analiseAtivos/params/scoringParamsV1.ts",
+        "src/services/analiseAtivos/params/obterScoringParams.ts",
+        "src/services/analiseAtivos/params/__tests__/scoringParams.test.ts",
+        "src/services/analiseAtivos/fontes/allowlist.ts",
+        "src/services/analiseAtivos/fontes/download.ts",
+        "src/services/analiseAtivos/fontes/zipStream.ts",
+        "src/services/analiseAtivos/fontes/csvStream.ts",
+        "src/services/analiseAtivos/fontes/erros.ts",
+        "src/services/analiseAtivos/fontes/__tests__/allowlist.test.ts",
+        "src/services/analiseAtivos/fontes/__tests__/zipStream.test.ts",
+        "src/services/analiseAtivos/fontes/__tests__/csvStream.test.ts",
+        "src/services/analiseAtivos/fontes/__tests__/download.test.ts",
+        "src/services/analiseAtivos/fontes/__tests__/fixtures/dfp_cia_aberta_DRE_con_amostra.csv",
+        "src/services/analiseAtivos/fontes/__tests__/fixtures/inf_mensal_fii_complemento_2016_layout_antigo.csv",
+        "src/services/analiseAtivos/jobs/executarJob.ts",
+        "src/services/analiseAtivos/jobs/nomesJobs.ts",
+        "src/services/analiseAtivos/jobs/__tests__/executarJob.test.ts",
+        "src/services/analiseAtivos/observabilidade/alertas.ts",
+        "src/services/analiseAtivos/repositorio/universo.ts",
+        "src/services/analiseAtivos/repositorio/acoes.ts",
+        "src/services/analiseAtivos/repositorio/fii.ts",
+        "src/services/analiseAtivos/repositorio/cotacoes.ts",
+        "src/services/analiseAtivos/repositorio/proventos.ts",
+        "src/services/analiseAtivos/repositorio/derivados.ts",
+        "src/services/analiseAtivos/repositorio/jobs.ts",
+        "src/services/analiseAtivos/repositorio/fontesArquivo.ts",
+        "src/services/analiseAtivos/repositorio/__tests__/repositorio.test.ts"
+      ],
+      "altera": [
+        "prisma/schema.prisma (só acrescenta os 22 models numa seção '// ===== ANÁLISE DE ATIVOS (Fase 0) =====' no fim; nenhum model existente muda)"
+      ],
+      "migrationProcedimento": [
+        "NUNCA `prisma migrate dev` (o dev tem drift e ele propõe reset — memória project_prisma_schema_drift).",
+        "Gerar o SQL: `git show HEAD:prisma/schema.prisma > $SCRATCH/schema-antes.prisma && npx prisma migrate diff --from-schema-datamodel $SCRATCH/schema-antes.prisma --to-schema-datamodel prisma/schema.prisma --script > prisma/migrations/20260930180000_analise_ativos_fase0/migration.sql` e conferir que só há CREATE TABLE/CREATE INDEX das 22 tabelas.",
+        "apply-migration-fase0.ts: dry-run por padrão (lista statements), --apply executa cada statement com IF NOT EXISTS (reescrito), e insere em _prisma_migrations (checksum = sha256 do arquivo) só se ausente. Idempotente.",
+        "`npx prisma generate`; depois `npx tsx --env-file=.env scripts/analise-ativos/seed-scoring-params.ts --apply` (insere v1 se ausente; valida pelo zod; nunca altera versão existente)."
+      ],
+      "testesObrigatorios": [
+        "valor.test.ts: deNumero(0) é ok(0); deNumero(null) é ausente; NaN/Infinity ausente; combinar(n/a, ausente) ⇒ n/a; nunca `null <= 1` (caso do protótipo: papel sem dados atendia 5/5).",
+        "scoringParams.test.ts: SCORING_PARAMS_V1 passa no schema; chave extra falha; peso fora de [0,1] falha; soma dos pesos = 1; faixas de semáforo coerentes (menor_melhor: atende ≤ parcial); valores-chave batem com a spec (acao.preco piso 60/teto −30; fii.papel.div 6/13; ranking.m 20).",
+        "allowlist.test.ts: aceita dados.cvm.gov.br, bvmf.bmfbovespa.com.br, sistemaswebb3-listados.b3.com.br, www.b3.com.br; recusa http://, rad.cvm.gov.br, brapi.dev, b3.com.br.evil.com, evil.b3.com.br (sem curinga); redirect para host fora da lista ⇒ ErroFonte.",
+        "zipStream.test.ts: zip gerado no teste com adm-zip (entrada deflate e stored, 2 entradas, uma com linha > 64 KB) lido linha a linha sem carregar tudo; zip truncado ⇒ ErroFonte; zip64 ⇒ ErroFonte('zip64_nao_suportado').",
+        "csvStream.test.ts: header da DRE real (CNPJ_CIA;DT_REFER;VERSAO;…;ST_CONTA_FIXA) passa; header sem VL_CONTA ⇒ ErroLayoutFonte com faltando=['VL_CONTA']; alias CNPJ_Fundo→CNPJ_Fundo_Classe (layout 2016–2020); preFiltro por prefixo de CNPJ descarta antes do split; latin1 ('ÚLTIMO', 'Patrimônio Líquido') decodificado certo; \\r\\n.",
+        "download.test.ts (fetch/servidor local mockado): maxBytes estourado aborta e apaga o .part; timeout; 304 ⇒ nao_modificado; sha256 igual ⇒ nao_modificado; host fora da allowlist nem tenta.",
+        "executarJob.test.ts (prisma mockado via vi.hoisted): cria run 'executando' dentro de transação com pg_advisory_xact_lock e fecha 'ok' com contadores; exceção ⇒ 'falha' + erro; ErroLayoutFonte ⇒ 'falha' + alerta erro; run 'executando' recente ⇒ 'pulado'; run velho ⇒ 'abandonado'; sem ScoringParams no banco: job de ingestão roda com v1 do código + alerta params_fallback_codigo, 'scores' ⇒ 'falha'; estourouPrazo() após prazo; notificarResultadoJob chamado 1×; nunca lança.",
+        "repositorio.test.ts (prisma mockado): fundamentosVigentes devolve só a maior versão e resolve escopo 'preferido' (BBAS3 ⇒ ind; WEGE3 ⇒ con; banco sem AssetSetorB3 ⇒ layoutFinanceiro); Decimal→number; Date→'AAAA-MM-DD'; listarEmissores marca BBAS3 (segmento Bancos) ehBanco=true, ITSA4 ehFinanceira=true, SIMH3 (Holdings Diversificadas) ehFinanceira=false; proventosBrutos: linha YAHOO (dataCom null, date=ex) ⇒ dataExGravada=date, dataPagamento=null, dataExOrigem='date'; universoAnalise('fii') exclui conferido=false.",
+        "pregoes.test.ts: pregaoAnterior(2024-05-03) = 2024-05-02 (PETR4); pregaoAnterior de segunda = sexta; 20/11/2024 e carnaval não são pregão; proximoPregaoOuMesmo(sábado) = segunda.",
+        "linguagem.test.ts: 'preço justo', 'Preço-Alvo', 'BARATO' detectados; 'anotação', 'notável', 'Carolina', 'bombeiro', 'vendas' não detectados (casa só a palavra inteira); expressão com dois espaços casa."
+      ],
+      "criteriosAceite": [
+        "`npx tsc --noEmit -p .` e eslint limpos nos arquivos tocados.",
+        "Migration aplicada no dev; `select count(*) from information_schema.tables where table_name in (<22 nomes>)` = 22; nenhuma tabela existente alterada (`git diff prisma/schema.prisma` só acrescenta).",
+        "scoring_params com 1 linha version=1 no dev.",
+        "Nenhum `import` de adm-zip nos arquivos de produção da fatia (só em teste).",
+        "Contratos exportados exatamente com os nomes/assinaturas desta spec (as fatias A–E compilam contra eles).",
+        "CI: `npx prisma migrate deploy` num banco vazio (job do ci.yml) aplica a migration sem erro — o migration.sql commitado é o do migrate diff, sem o IF NOT EXISTS reescrito (esse só existe no apply-migration-fase0.ts do dev)."
+      ],
+      "comandos": [
+        "npx prisma format && npx prisma validate",
+        "npx tsx --env-file=.env scripts/analise-ativos/apply-migration-fase0.ts && npx tsx --env-file=.env scripts/analise-ativos/apply-migration-fase0.ts --apply",
+        "npx prisma generate",
+        "npx tsx --env-file=.env scripts/analise-ativos/seed-scoring-params.ts --apply",
+        "DATABASE_URL=\"postgresql://u:p@localhost:5432/x\" JWT_SECRET=dummy npx vitest run src/services/analiseAtivos/regras/comum src/services/analiseAtivos/params src/services/analiseAtivos/fontes src/services/analiseAtivos/jobs src/services/analiseAtivos/repositorio",
+        "npx tsc --noEmit -p . && npx eslint src/services/analiseAtivos scripts/analise-ativos/apply-migration-fase0.ts scripts/analise-ativos/seed-scoring-params.ts"
+      ],
+      "commits": [
+        "feat(analise-ativos): schema e migration da fase 0 (22 tabelas novas, aditiva)",
+        "feat(analise-ativos): contratos, três estados e ScoringParams v1",
+        "feat(analise-ativos): download em allowlist e leitura de zip/CSV em streaming",
+        "feat(analise-ativos): wrapper de job com AnaliseJobRun e repositórios de leitura"
+      ]
+    },
+    {
+      "id": "A",
+      "nome": "Ações CVM (FCA/DFP/ITR/FRE)",
+      "objetivo": "Ingerir cadastro (FCA), demonstrativos anuais (DFP) e trimestrais (ITR) e o FRE histórico em CvmCompany, CvmCompanyTicker, AssetFundamentalsPeriod, AssetStatementLine e AssetShareCount, com as regras §4.2 10–15, 18, 19; cron cvm-cias (?doc=fca|dfp|itr) e backfill.",
+      "cria": [
+        "src/services/analiseAtivos/regras/acoes/classeTitulo.ts",
+        "src/services/analiseAtivos/regras/acoes/lucroDoPeriodo.ts",
+        "src/services/analiseAtivos/regras/acoes/lpa.ts",
+        "src/services/analiseAtivos/regras/acoes/acoesEmitidas.ts",
+        "src/services/analiseAtivos/regras/acoes/ttm.ts",
+        "src/services/analiseAtivos/regras/acoes/financeiras.ts",
+        "src/services/analiseAtivos/regras/acoes/periodoFiscal.ts",
+        "src/services/analiseAtivos/regras/acoes/extrairFundamentos.ts",
+        "src/services/analiseAtivos/regras/acoes/__tests__/*.test.ts (um por arquivo acima)",
+        "src/services/analiseAtivos/regras/acoes/__tests__/fixtures/*.csv|json (recortes reais: WEGE3 DFP 2016/2024, VALE3 2024 composição, ITUB4 2019 DRE, BBAS3 ITR 2025-2026 DRE ind/con, KLBN11 DRE 2025, TAEE11 FCA valor_mobiliario, MGLU3 FCA, UGPA3 FRE 2019, BBSE3/ITSA4 DRE)",
+        "src/services/analiseAtivos/acoes/cvmArquivos.ts (URLs, entradas usadas por documento, colunas obrigatórias por CSV)",
+        "src/services/analiseAtivos/acoes/parserDemonstrativos.ts",
+        "src/services/analiseAtivos/acoes/parserFca.ts",
+        "src/services/analiseAtivos/acoes/parserFre.ts",
+        "src/services/analiseAtivos/acoes/parserComposicaoCapital.ts",
+        "src/services/analiseAtivos/acoes/sincronizarCvmCias.ts",
+        "src/services/analiseAtivos/acoes/gravarAcoes.ts",
+        "src/services/analiseAtivos/acoes/__tests__/parserDemonstrativos.test.ts",
+        "src/services/analiseAtivos/acoes/__tests__/parserFca.test.ts",
+        "src/services/analiseAtivos/acoes/__tests__/sincronizarCvmCias.test.ts",
+        "src/services/analiseAtivos/acoes/__tests__/fixtures/ (zip mínimo montado no teste a partir dos CSVs recortados)",
+        "src/app/api/cron/analise-ativos/cvm-cias/route.ts",
+        "src/app/api/cron/analise-ativos/cvm-cias/__tests__/route.test.ts",
+        "scripts/analise-ativos/backfill-cvm-cias.ts",
+        "src/services/analiseAtivos/regras/acoes/layoutFinanceiro.ts"
+      ],
+      "altera": [],
+      "comportamento": [
+        "Janela de arquivos do cron: dfp = {ano−1, ano}; itr = {ano} ∪ {ano−1 se mês ≤ 3}; fca = {ano}. FRE só no backfill (item f existe até FY2021).",
+        "Por arquivo: AnaliseFonteArquivo (ETag/sha256) ⇒ inalterado e processado = pula. Alterado: lê primeiro o índice (dfp/itr_cia_aberta_AAAA.csv) → conjunto (cnpj, DT_REFER, VERSAO) NOVO em relação ao banco e restrito ao universo (CNPJs com ticker vigente no FCA); só então faz streaming das entradas DRE/BPA/BPP/DFC_MI/DMPL(só DFP)/composicao_capital com preFiltro pelo prefixo de CNPJ. DVA/DRA/parecer/DFC_MD não são lidos.",
+        "Escopo: grava con E ind em AssetFundamentalsPeriod sempre que existirem; CvmCompany.layoutFinanceiro pelo DRE (ehLayoutFinanceiro). NÃO consulta AssetSetorB3 (fatia C): a escolha de escopo é na leitura. Isso tira a dependência A→C e o risco de um banco ficar congelado em con.",
+        "AssetStatementLine só FY (DFP): con, e ind quando layoutFinanceiro ou sem con. Fora de produção (NODE_ENV !== 'production'), cron e backfill gravam linhas só do subconjunto dev (backfill.subconjuntoDev); --perfil=completo exige NODE_ENV=production ou --forcar-completo.",
+        "AssetShareCount: DFP (fim do exercício) com resolverAcoesExercicio; ITR composição (fim do trimestre) com a mesma escolha unidade/×1000 do DFP mais recente da empresa; FRE item f no backfill.",
+        "Batches createMany(skipDuplicates) de 1.000; upsert só em CvmCompany/CvmCompanyTicker/AssetShareCount.",
+        "Prazo: ao estourar ctx.estourouPrazo(), grava o que já resolveu, não marca o arquivo como processado e devolve parcial (o próximo run continua pelos (cnpj, versão) que ainda faltam).",
+        "TTM: depois de gravar um ITR/DFP novo, recalcula e grava a linha tipoPeriodo='TTM' do emissor (dtFim do doc mais recente) com calcularTtm; flags ttm_metodo_ytd|soma4|fy e reapresentacao. É a única fonte de TTM da D.",
+        "FRE reexpresso (÷ fator de eventos ≤ 2 anos depois) usa repositorio.proventos.eventosCorporativosBrutos (contrato da fatia 0), com dedup local de ≤30 dias; a validação definitiva dos eventos é da D.",
+        "Tickers (CvmCompanyTicker): upsert só quando (symbol → cnpj/classe) muda; validFrom conforme a regra do model."
+      ],
+      "testesObrigatorios": [
+        "WEGE3 2016: FRE item f = 1.614,35 mi aceito (razão LPA 0,69 × ações ÷ lucro ∈ [0,8;1,25]); capital_social (reexpresso) nunca é candidato.",
+        "WEGE3 2019 = 2.098,66 mi (FRE f), não 4.197 mi.",
+        "VALE3 2024 = 4.268,72 mi via dfp×1000 (composição em milhares sem aviso).",
+        "ITUB4 2019: LPA publicado 2.780 ⇒ corrigido ÷1000 (lpaEscalaCorrigida=true); |LPA|>1000 sem correção possível ⇒ ausente.",
+        "BB 2024: LPA 'GERAL' 9,24 ignorado.",
+        "BBAS3 ITR: controladora = 0 com lucro ≠ 0 ⇒ lucroAtribuivel ausente; TTM 2T26 do lucro atribuível = 12.272 mi pelo YTD (não 18.493); divergência YTD×Σ4tri > 2% ⇒ flag reapresentacao.",
+        "KLBN11 2025: 3.11.01 publicado 0 ⇒ ausente + flag controladora_zero; lucroTotal usado só com flag lucro_total_fallback.",
+        "WEGE3 TTM 2T26: receita 40.130,2 mi e lucro 6.254,1 mi pelos dois caminhos.",
+        "WEGE3 2024: receita 37.986,9 mi; lucro atribuível 6.042,6 mi. PETR4 2024 lucro atribuível 36.606 mi.",
+        "EGIE3 2025 = 1.142,30 mi ações; UGPA3 2018 FRE reexpresso ÷2.",
+        "BBSE3 e ITSA4: receita ≤ lucro ⇒ margens e P/Receita n/a; DRE de banco (BBAS3) ⇒ layoutFinanceiro=true e ebit/D&A/liquidez corrente n/a (não zero); BBAS3 grava con E ind.",
+        "classeDoTicker: MGLU3 (FCA diz PN) ⇒ ON; TAEE11 ⇒ UNIT com composição 1 ON + 2 PN; KLBN11 '1 KLBN3 + 4 KLBN4' ⇒ {on:1, pn:4}.",
+        "periodoFiscal: cia com mesFimExercicio ≠ 12 (recortar uma do DFP 2026) ⇒ anoFiscal/trimestre corretos.",
+        "Parser: header real do DFP e do ITR aceito; coluna renomeada ⇒ ErroLayoutFonte; ESCALA_MOEDA=MIL ⇒ ×1000; só ORDEM_EXERC=ÚLTIMO; maior VERSAO; dtEntregaOriginal = menor DT_RECEB.",
+        "sincronizarCvmCias (prisma e download mockados): arquivo inalterado ⇒ 0 leituras; (cnpj, versão) já gravado ⇒ não reprocessa; rodar 2× ⇒ mesmas linhas (idempotente); prazo estourado ⇒ parcial e arquivo não marcado.",
+        "TTM gravado: BBAS3 2T26 linha tipoPeriodo='TTM' com lucroAtribuivel 12.272 mi e WEGE3 2T26 receita 40.130,2 mi / lucro 6.254,1 mi.",
+        "Vigência: FCA 2025 e 2026 com o mesmo WEGE3→CNPJ ⇒ 1 linha em CvmCompanyTicker; troca de classe/CNPJ ⇒ fecha e abre."
+      ],
+      "criteriosAceite": [
+        "No dev após backfill (perfil dev): ≥ 300 companhias em cvm_companies; ≥ 290 com FY 2025 em asset_fundamentals_period; ≥ 205 com 10 FY consecutivos 2016–2025; consistência razão LPA ∈ [0,8;1,25] ≥ 90% dos company-years verificáveis (meta do spike 93,6%).",
+        "asset_statement_lines só para as ~40 companhias do subconjunto dev (< 60 MB).",
+        "Cron `cvm-cias?doc=itr` rodado localmente (NODE_OPTIONS=--max-old-space-size=384) com o zip 2026: < 240 s e rssPico − rssInicio < 300 MB registrados em analise_job_runs; 2ª execução em < 10 s (arquivo inalterado).",
+        "Nenhuma escrita fora das 5 tabelas da fatia e de analise_job_runs/analise_fonte_arquivos; nenhum import de src/services/analiseAtivos/{b3,fii,calculo,eventos} nem de regras/{b3,fii,calculo,valuation,eventos}."
+      ],
+      "comandos": [
+        "npx vitest run src/services/analiseAtivos/regras/acoes src/services/analiseAtivos/acoes src/app/api/cron/analise-ativos/cvm-cias",
+        "npx tsx --env-file=.env scripts/analise-ativos/backfill-cvm-cias.ts --anos=2014-2026 --docs=fca,dfp,itr,fre --perfil=dev --cache-dir=$CACHE (dry-run: imprime contagens e bytes estimados)",
+        "NODE_OPTIONS=--max-old-space-size=512 npx tsx --env-file=.env scripts/analise-ativos/backfill-cvm-cias.ts --anos=2014-2026 --docs=fca,dfp,itr,fre --perfil=dev --cache-dir=$CACHE --apply",
+        "NODE_OPTIONS=--max-old-space-size=384 npx tsx --env-file=.env scripts/analise-ativos/backfill-cvm-cias.ts --como-cron --docs=itr --apply",
+        "npx tsc --noEmit -p . && npx eslint src/services/analiseAtivos/acoes src/services/analiseAtivos/regras/acoes src/app/api/cron/analise-ativos/cvm-cias scripts/analise-ativos/backfill-cvm-cias.ts"
+      ],
+      "commits": [
+        "feat(analise-ativos): regras de ações (nº de ações, LPA, controladora, TTM, financeiras)",
+        "feat(analise-ativos): ingestão CVM de companhias (FCA/DFP/ITR/FRE) em streaming",
+        "feat(analise-ativos): cron cvm-cias e backfill de companhias"
+      ]
+    },
+    {
+      "id": "B",
+      "nome": "FIIs CVM",
+      "objetivo": "Mapa ticker↔CNPJ a partir da lista pública da B3, Informe Mensal e Trimestral em FiiMonthly/FiiQuarterly, tipo pela composição com histerese e override, regras §4.3 20–25 e 27; crons fii-cadastro, fii-mensal, fii-trimestral; backfill 2016+.",
+      "cria": [
+        "src/services/analiseAtivos/regras/fii/tipoFii.ts",
+        "src/services/analiseAtivos/regras/fii/histerese.ts",
+        "src/services/analiseAtivos/regras/fii/saneamentoMensal.ts",
+        "src/services/analiseAtivos/regras/fii/cris.ts",
+        "src/services/analiseAtivos/regras/fii/imoveis.ts",
+        "src/services/analiseAtivos/regras/fii/tickerCnpj.ts",
+        "src/services/analiseAtivos/regras/fii/__tests__/*.test.ts + fixtures/ (recortes reais: HGLG11/KNRI11/MXRF11/CPTS11/KNCR11/XPML11/TRXF11/HFOF11/PABY11 do mensal; KNIP11/KNCR11 ativo; HGLG11/XPLG11/RECR11 imovel; 5 itens da lista B3 incluindo BTCI11 e IRIM11)",
+        "src/services/analiseAtivos/fii/fiiArquivos.ts",
+        "src/services/analiseAtivos/fii/listaB3Fii.ts",
+        "src/services/analiseAtivos/fii/tickersManuais.ts (de-para curado: IRDM11→28.830.325/0001-10 até out/2025, IRIM11→41.076.564/0001-95, BTCI11, e os casos de colisão conhecidos; cada item com motivo)",
+        "src/services/analiseAtivos/fii/parserInformeMensal.ts",
+        "src/services/analiseAtivos/fii/parserInformeTrimestral.ts",
+        "src/services/analiseAtivos/fii/sincronizarFiiCadastro.ts",
+        "src/services/analiseAtivos/fii/sincronizarFiiMensal.ts",
+        "src/services/analiseAtivos/fii/sincronizarFiiTrimestral.ts",
+        "src/services/analiseAtivos/fii/gravarFii.ts",
+        "src/services/analiseAtivos/fii/__tests__/*.test.ts",
+        "src/app/api/cron/analise-ativos/fii-cadastro/route.ts (+ __tests__/route.test.ts)",
+        "src/app/api/cron/analise-ativos/fii-mensal/route.ts (+ __tests__/route.test.ts)",
+        "src/app/api/cron/analise-ativos/fii-trimestral/route.ts (+ __tests__/route.test.ts)",
+        "scripts/analise-ativos/backfill-fii.ts",
+        "scripts/analise-ativos/fii-tipo-override.ts"
+      ],
+      "altera": [],
+      "comportamento": [
+        "fii-cadastro (semanal): baixa a lista B3 (GetListFunds, typeFund FII, paginado, 300 ms entre páginas); casa com os CNPJs do Informe Mensal mais recente (ISIN e nome) + tickersManuais; confere casamentos por nome pelo valor de mercado/PL usando repositorio.cotacoes.resumoCotacoes (se não houver cotação, conferido=false); fecha vigência (validTo) de ticker que sumiu ou trocou de CNPJ; alertas: sigla nova, sumida, trocada, sem casamento.",
+        "fii-mensal (diário, ETag): inf_mensal_fii do ano corrente (+ ano−1 se mês ≤ 2); grava os ÚLTIMOS 3 meses de referência de cada CNPJ do FiiTickerMap (reenvios), maior Versao; saneamento; tipoComposicao; tipoVigente com histerese (lê os 3 meses anteriores do banco) e FiiTipoOverride; GRAVA também reguaVigente (reguaFii) e obrigacoesPlPct — a D consome prontos.",
+        "fii-trimestral (diário, ETag): inf_trimestral_fii do ano corrente (+ ano−1 se mês ≤ 3); imovel/ativo/complemento/resultado_contabil_financeiro; CRIs distintos; só CNPJs do FiiTickerMap.",
+        "Rendimento/DY/meses seguidos NÃO saem daqui (base de proventos, fatia D). dyMesCvmPct só vai para o banco como checagem.",
+        "Tudo em streaming (os zips anuais têm 1–3 MB, mas o padrão vale).",
+        "backfill-fii.ts --so-cadastro roda só lista B3 + FiiTickerMap (passo 4); --reconferir refaz a conferência PL×cotação dos casamentos por nome depois do COTAHIST (passo 5)."
+      ],
+      "testesObrigatorios": [
+        "HGLG11 ago/26: VP/cota 165,95, cotistas 608.345, PL ≈ 7.568 mi (±1%); tipo tijolo.",
+        "MXRF11 ⇒ papel (composição); CPTS11 ⇒ fof (cotas FII 94% do PL); KNRI11 ⇒ tijolo (legado 'híbrido'); KNCR11 ⇒ papel e LCI 12,5% NÃO soma nos recebíveis.",
+        "Regra do híbrido corrigida: fundo com imóveis+SPE 40% e CRI 30% ⇒ régua tijolo; imóveis 20% e CRI 35% ⇒ papel; nunca 'imóveis ≥ 50%' dentro do híbrido. Alavancado com imóveis 55% e CRI 70% do PL ⇒ papel (maior parcela), não tijolo pela ordem dos ifs. reguaVigente e obrigacoesPlPct gravados em FiiMonthly.",
+        "Histerese: sequência tijolo→papel→papel mantém tijolo; 3 meses papel ⇒ papel; override FiiTipoOverride vence.",
+        "KNIP11 nCri = 119 distintos; KNCR11 147 linhas ⇒ 96 CRIs distintos.",
+        "XPML11 jan/26 DY CVM −6,52 ⇒ descartado (flag), nunca usado como rendimento; DY mês > 5% ⇒ descartado.",
+        "TRXF11 Obrigações/PL ≈ 70,3%; > 100% ⇒ flag revisão.",
+        "VP/cota ≠ PL/cotas > 1% ⇒ recomputado (vpCotaRecalculado=true); PABY11 PL ≤ 0 ⇒ flag pl_nao_positivo.",
+        "HFOF11 desdobramento 1:10 mai/25 ⇒ fatorDesdobramento=10.",
+        "Imóveis: HGLG11 2T26 37 imóveis de renda / vacância ≈ 2,4% (fração ×100); XPLG11 18,3% (rótulo 'fonte CVM'); RECR11 (papel) com 1 imóvel 100% vago ⇒ vacância não se aplica ao papel; área > 500 mil m² ⇒ flag area_nao_abl; Σ%receita > 105 ⇒ inadimplência ausente.",
+        "Ticker: BTCI11 (ISIN BRFEXCCTF007) só casa pelo manual/nome, nunca pelo prefixo; colisão de prefixo ISIN com 2 CNPJs ⇒ não decide; IRDM11→IRIM11 fecha vigência do antigo e abre o novo.",
+        "Layout 2016–2020 (CNPJ_Fundo/Nome_Fundo) e pós-ago/2025 (Mandato vazio) aceitos; coluna obrigatória sumida ⇒ ErroLayoutFonte.",
+        "Universo = lista B3 (regra 27): fundo com Mercado_Negociacao_Bolsa=S fora da lista não entra.",
+        "FIAGRO/FI-Infra da lista B3 (typeFund diferente de FII) nunca entram em FiiTickerMap (decisão 14/regra 28).",
+        "Casamento por ISIN: igualdade do ISIN completo com o Codigo_ISIN do informe; b3_nome com cotação divergente (valor de mercado/PL fora de [0,3;3]) ⇒ conferido=false + alerta."
+      ],
+      "criteriosAceite": [
+        "No dev: fii_ticker_map com ≥ 460 tickers vigentes casados (meta 467 de 527) e lista dos não casados no detalhes do run; fii_monthly com ≥ 455 CNPJs no último mês disponível e histórico desde 2016/2017; fii_quarterly com o 2T26 para ≥ 190 tijolos.",
+        "Distribuição de tipoVigente no último mês próxima da medida na Fase A (tijolo ~268 · papel ~85 · fof ~59 · híbrido ~7 · indefinido ~45) — diferença > 10% em alguma classe vira alerta no run, não erro.",
+        "Cada cron: < 60 s e rss delta < 150 MB localmente; 2ª execução pula por ETag/sha256."
+      ],
+      "comandos": [
+        "npx vitest run src/services/analiseAtivos/regras/fii src/services/analiseAtivos/fii src/app/api/cron/analise-ativos/fii-cadastro src/app/api/cron/analise-ativos/fii-mensal src/app/api/cron/analise-ativos/fii-trimestral",
+        "npx tsx --env-file=.env scripts/analise-ativos/backfill-fii.ts --desde=2016 --cache-dir=$CACHE (dry-run)",
+        "npx tsx --env-file=.env scripts/analise-ativos/backfill-fii.ts --desde=2016 --cache-dir=$CACHE --apply",
+        "npx tsc --noEmit -p . && npx eslint src/services/analiseAtivos/fii src/services/analiseAtivos/regras/fii src/app/api/cron/analise-ativos/fii-* scripts/analise-ativos/backfill-fii.ts scripts/analise-ativos/fii-tipo-override.ts"
+      ],
+      "commits": [
+        "feat(analise-ativos): regras de FII (tipo por composição, histerese, CRIs, saneamento)",
+        "feat(analise-ativos): mapa ticker↔CNPJ de FIIs pela lista da B3",
+        "feat(analise-ativos): ingestão dos informes mensal e trimestral de FII",
+        "feat(analise-ativos): crons e backfill de FIIs"
+      ]
+    },
+    {
+      "id": "C",
+      "nome": "B3: COTAHIST + ClassifSetorial",
+      "objetivo": "Preço cru e volume diário (COTAHIST) em AssetQuoteDaily, resumo de liquidez em AssetQuoteResumo, setor/subsetor/segmento em AssetSetorB3; regras §4.4 28–30; crons cotahist e b3-cadastro; backfill 2015+.",
+      "cria": [
+        "src/services/analiseAtivos/regras/b3/cotahist.ts",
+        "src/services/analiseAtivos/regras/b3/liquidez.ts",
+        "src/services/analiseAtivos/regras/b3/saltoDiario.ts",
+        "src/services/analiseAtivos/regras/b3/classifSetorial.ts",
+        "src/services/analiseAtivos/regras/b3/__tests__/*.test.ts + fixtures/ (≈60 linhas reais do COTAHIST_A2016 e M082026: WEGE3 29/12/2016, HGLG11 2016, MGLU3, uma linha BDI 12 de FIAGRO, uma TPMERC 020; header/trailer; 2–3 abas convertidas do ClassifSetorial.xlsx em JSON)",
+        "src/services/analiseAtivos/b3/b3Arquivos.ts",
+        "src/services/analiseAtivos/b3/cotahistStream.ts",
+        "src/services/analiseAtivos/b3/sincronizarCotahist.ts",
+        "src/services/analiseAtivos/b3/sincronizarB3Cadastro.ts",
+        "src/services/analiseAtivos/b3/gravarB3.ts",
+        "src/services/analiseAtivos/b3/__tests__/*.test.ts",
+        "src/app/api/cron/analise-ativos/cotahist/route.ts (+ __tests__/route.test.ts)",
+        "src/app/api/cron/analise-ativos/b3-cadastro/route.ts (+ __tests__/route.test.ts)",
+        "scripts/analise-ativos/backfill-cotahist.ts"
+      ],
+      "altera": [],
+      "comportamento": [
+        "Parser NOVO (não altera cotahistB3Parser.ts nem cotahistB3Sync.ts, que seguem alimentando asset_price_history).",
+        "cotahist (cron): calcula os últimos 5 pregões B3 (feriadosB3) sem linha em asset_quotes_daily; para cada um baixa COTAHIST_D{DDMMAAAA}.ZIP (404 = ainda não publicado ⇒ info, não falha); streaming; grava só BDI 02/12 e TPMERC 010; depois recalcula AssetQuoteResumo de todos os símbolos com negócio nos últimos 30 pregões (1 consulta de 30 pregões × ~1.000 símbolos) com liquidez 21/30 e salto > 40% (eventos de repositorio.proventos.eventosCorporativosBrutos só para marcar, sem validar).",
+        "Distinção FII × FIAGRO × FI-Infra dentro do BDI 12: não é feita aqui (C grava tudo do BDI 12); o universo de FIIs é FiiTickerMap (regra 27) via repositorio.universo.",
+        "b3-cadastro (semanal): ClassifSetorial.xlsx (GetDownloadIndustryClassification/<base64('{\"language\":\"pt-br\"}')>) ⇒ upsert AssetSetorB3; raiz que sumiu ⇒ presenteUltimoArquivo=false + alerta; raiz nova ⇒ alerta info.",
+        "backfill-cotahist: --anos=2015-2026 --modo=completo|dev; dev = diário completo desde 2025-01-01 + para 2015–2024 só as linhas dos 5 últimos pregões de cada ano e de cada fim de trimestre (preço de fim de período para múltiplos anuais/fiscal fora de dezembro); streaming do anual (≈ 90 MB zip, ~500 MB texto) sem carregar na memória; retomável por ano (pula ano cujo último pregão já está gravado).",
+        "backfill-cotahist.ts --so-cadastro roda só o ClassifSetorial (passo 2 do backfill), antes de qualquer COTAHIST."
+      ],
+      "testesObrigatorios": [
+        "WEGE3 29/12/2016 closeRaw = 15,50 (cru); HGLG11 2016 = 1.100,00; MGLU3 2016 = 106,17 (preços crus antes dos splits).",
+        "FATCOT = 1000 (linha sintética derivada de uma linha real, documentada) ⇒ closeRaw = PREULT/100/1000.",
+        "VOLTOT/100, QUATOT, TOTNEG nas posições do layout; linha TPMERC 020 (fracionário) e BDI 14 (ETF) filtradas; header 00 validado ('COTAHIST'); arquivo com header diferente ⇒ ErroLayoutFonte.",
+        "Liquidez: HGLG11 ago/26 ≈ R$ 18,9 mi/dia (21 pregões, fixture agregada do M082026); dia sem negócio conta 0; 14 pregões com negócio em 21 ⇒ baixaLiquidez; negociadoUltimos30.",
+        "Salto > 40%: MGLU3 grupamento 10:1 de 2024 com evento na data ⇒ não marca; mesmo salto sem evento ⇒ marca.",
+        "Lacunas do cron usam regras/comum/pregoes.pregoesEntre (fatia 0): 20/11/2025 não é lacuna; carnaval idem.",
+        "ClassifSetorial: WEGE ⇒ Bens Industriais › Máquinas e Equipamentos › Motores, Compressores e Outros; ITUB ⇒ Financeiro › Intermediários Financeiros › Bancos; SIMH ⇒ Holdings Diversificadas; 'Outros Intermediarios Financeiros' (sem acento, como no arquivo); células mescladas herdadas.",
+        "sincronizarCotahist (mocks): pregão já gravado não é rebaixado; 404 do dia corrente ⇒ ok com alerta info; idempotente."
+      ],
+      "criteriosAceite": [
+        "No dev: asset_quotes_daily com diário 2025-01-02…último pregão (~950 símbolos/dia) + pontos de fim de período 2015–2024; asset_quote_resumo com ~350 FIIs negociados em 30 pregões; asset_setores_b3 com ≥ 350 raízes.",
+        "Cron cotahist para 1 dia: < 30 s, rss delta < 100 MB; backfill de 1 ano anual: rss do processo < 400 MB (medido com /usr/bin/time -v) e tempo registrado no run.",
+        "Tamanho no dev de asset_quotes_daily < 80 MB (pg_total_relation_size; estimativa revista ~70 MB com PK + índice de date)."
+      ],
+      "comandos": [
+        "npx vitest run src/services/analiseAtivos/regras/b3 src/services/analiseAtivos/b3 src/app/api/cron/analise-ativos/cotahist src/app/api/cron/analise-ativos/b3-cadastro",
+        "npx tsx --env-file=.env scripts/analise-ativos/backfill-cotahist.ts --anos=2015-2026 --modo=dev --cache-dir=$CACHE (dry-run)",
+        "/usr/bin/time -v npx tsx --env-file=.env scripts/analise-ativos/backfill-cotahist.ts --anos=2016 --modo=dev --cache-dir=$CACHE --apply",
+        "npx tsc --noEmit -p . && npx eslint src/services/analiseAtivos/b3 src/services/analiseAtivos/regras/b3 src/app/api/cron/analise-ativos/cotahist src/app/api/cron/analise-ativos/b3-cadastro scripts/analise-ativos/backfill-cotahist.ts"
+      ],
+      "commits": [
+        "feat(analise-ativos): parser COTAHIST com preço cru, FATCOT e volume",
+        "feat(analise-ativos): liquidez de 21 pregões e classificação setorial da B3",
+        "feat(analise-ativos): crons cotahist e b3-cadastro e backfill do COTAHIST"
+      ]
+    },
+    {
+      "id": "D",
+      "nome": "Cálculo: proventos, eventos, per-share, múltiplos, Índice MF, semáforo, Valuation",
+      "objetivo": "Todas as regras de cálculo puras (§4.1 regras 1,4–8; §4.2 16–17; §4.3 26; Índice MF; semáforo com 'não se aplica'; fórmulas do Valuation com os 23 casos) + orquestração que lê as tabelas das outras fatias SÓ via repositorio/** e grava AssetProventoAuditado, AssetCorporateActionCheck, AssetPerShareYearly, AssetMultiplesYearly, AssetMultiplesCurrent e AssetScore; cron scores; scripts de recálculo e da tabela de notas reais.",
+      "cria": [
+        "src/services/analiseAtivos/regras/calculo/interpolacao.ts",
+        "src/services/analiseAtivos/regras/calculo/sequencias.ts (anosLucroConsecutivos, mesesComRendimentoConsecutivos)",
+        "src/services/analiseAtivos/regras/calculo/proventos.ts",
+        "src/services/analiseAtivos/regras/calculo/eventosCorporativos.ts",
+        "src/services/analiseAtivos/regras/calculo/perShare.ts",
+        "src/services/analiseAtivos/regras/calculo/precoFimPeriodo.ts",
+        "src/services/analiseAtivos/regras/calculo/multiplos.ts",
+        "src/services/analiseAtivos/regras/calculo/indiceMf.ts",
+        "src/services/analiseAtivos/regras/calculo/semaforo.ts",
+        "src/services/analiseAtivos/regras/calculo/pares.ts",
+        "src/services/analiseAtivos/regras/calculo/__tests__/*.test.ts + fixtures/*.json (números reais dos relatórios da Fase A)",
+        "src/services/analiseAtivos/regras/valuation/metodos.ts",
+        "src/services/analiseAtivos/regras/valuation/barraPosicao.ts",
+        "src/services/analiseAtivos/regras/valuation/metaRenda.ts",
+        "src/services/analiseAtivos/regras/valuation/cenario.ts",
+        "src/services/analiseAtivos/regras/valuation/arredondamento.ts",
+        "src/services/analiseAtivos/regras/valuation/__tests__/casos46.test.ts (os 23 casos, numerados)",
+        "src/services/analiseAtivos/regras/valuation/__tests__/limites.test.ts",
+        "src/services/analiseAtivos/textos.ts",
+        "src/services/analiseAtivos/__tests__/textos.test.ts",
+        "src/services/analiseAtivos/calculo/recalcularProventos.ts",
+        "src/services/analiseAtivos/calculo/recalcularEventos.ts",
+        "src/services/analiseAtivos/calculo/recalcularDerivados.ts",
+        "src/services/analiseAtivos/calculo/recalcularScores.ts",
+        "src/services/analiseAtivos/calculo/executarScores.ts",
+        "src/services/analiseAtivos/calculo/gravarDerivados.ts",
+        "src/services/analiseAtivos/calculo/__tests__/executarScores.test.ts",
+        "src/app/api/cron/analise-ativos/scores/route.ts (+ __tests__/route.test.ts)",
+        "scripts/analise-ativos/recalcular-analise.ts",
+        "scripts/analise-ativos/relatorio-notas-prototipo.ts (gera docs/analise-ativos/fase0/notas-reais-prototipo.csv — decisão 1)"
+      ],
+      "altera": [],
+      "comportamento": [
+        "scores (diário 10:10 UTC): (1) auditoria de proventos COMPLETA a cada run (lê asset_dividend_history inteiro em memória: ~30 mil linhas no dev, ~100 mil em prod, < 30 MB) e reescreve só os símbolos cuja impressão digital mudou, apagando órfãos — nada de incremental por createdAt (Yahoo apaga/reinsere; upsert da BRAPI muda valor sem mexer em createdAt); (2) verificação de eventos corporativos dos símbolos com contagem de ações, cotas FII ou evento novo; (3) per-share e múltiplos anuais dos emissores alterados (repositorio.acoes.emissoresAlteradosDesde) e dos FIIs alterados (repositorio.fii.fiisAlteradosDesde); (4) múltiplos atuais de todo o universo (preço de AssetQuoteResumo; TTM da linha tipoPeriodo=TTM gravada pela A); (5) Índice MF + semáforo de todo o universo com ScoringParams ativo, dataRef = último pregão; (6) retenção de asset_scores. Cada etapa checa ctx.estourouPrazo(); etapas 4–5 são baratas (em memória, ~1.000 símbolos).",
+        "Índice por empresa (decisão 13): calcula no tickerReferencia (maior volumeMedio21 da empresa) e replica indiceMf/componentes não-preço para os demais tickers; DY e preço/P-L por ticker vão em AssetMultiplesCurrent.",
+        "P/L por ticker = preço_ticker ÷ (LPA_empresa × fatorEquivalencia), LPA_empresa = lucro atribuível ÷ ações totais ex-tesouraria; valor de mercado da empresa = Σ classes (preço × ações da classe), usando o preço da classe negociada quando a outra não negocia.",
+        "Bancos: fundamentos do escopo ind (BR GAAP) via fundamentosVigentes(escopo:'preferido'); regua acao_financeira; financeira decidida por EmissorInfo.ehFinanceira (segmento B3 / holdingsFinanceirasRaiz; fallback layoutFinanceiro) e somada ao naoSeAplica que veio da A.",
+        "Provento zero × ausente: MarketDataCoverage EMPTY ⇒ DY ok(0); FETCH_FAIL/GAP_QUEUED/sem registro ⇒ ausente.",
+        "FoF ⇒ AssetScore com indiceMf null, regua fora_do_indice, checks vazios (página e dados ficam para a Fase 1).",
+        "Nenhuma escrita em tabelas existentes; asset_dividend_history/asset_corporate_actions/market_data_coverage só via repositorio.proventos (leitura).",
+        "FII: régua = FiiMonthly.reguaVigente e Obrigações/PL = FiiMonthly.obrigacoesPlPct (gravados pela B); PL ≤ 0 ⇒ fora_do_indice (regra 22); FII com FiiTickerMap.conferido=false não recebe AssetScore (params.fii.exigirTickerConferido) e entra na contagem do run.",
+        "A D NÃO importa nada de regras/{acoes,fii,b3} nem de src/services/analiseAtivos/{acoes,fii,b3,eventos}: tudo o que precisa das outras fatias chega pronto pelo repositório (TTM, régua, obrigações/PL, naoSeAplica, contagens) ou por regras/comum (pregões, linguagem)."
+      ],
+      "testesObrigatorios": [
+        "§4.6 casos 1–21 exatamente como na spec (tolerância 0,005 em R$ após arredondar a 2 casas; 0,5 em % inteiro): 1 Bazin 14,00 · 2 Graham 14,36 · 3 Múltiplo alvo 36,57 · 4 Gordon 18,14 · 5 k=g ⇒ — · 6 yield 0 ⇒ — · 7 LPA<0 ⇒ — · 8 −73% e 11,20 · 9 165,00 · 10 163,10 · 11 910 cotas, 143.962,00, faltam 870 · 12 P/L 23,5 e 2,2% · 13 P/VP 0,93 e 8,7% · 14 73,74 · 15 57,45 · 16 65,10 · 17 mín 13,4, média 22,3, máx 35,1, '+40% vs. média 10a' sem 'maior' · 18 média 25,1 e '+4,3 p.p.' · 19 'abaixo da média 10a' + 'menor em 10 anos' (histórico completo do protótipo em regras-spec-resultados.json) · 20 'na média de 10 anos' (histórico com média 22,3) · 21 4 pontos ⇒ barra oculta.",
+        "Caso 22 (parte pura): aplicarCenarioSalvo(padrão yield 6, salvo yield 4) ⇒ 4 e origem 'salvo'; restaurarPadrao ⇒ 6 e apagarRegistro=true (persistência em user_scenarios é Fase 2 — registrado em riscos/pendências).",
+        "Caso 23 + regra 9: varredura de TEXTOS_ANALISE sem nenhuma palavra proibida, exceto nas chaves de EXCECOES_TEXTO_FIXO (rodapé legal e do Valuation); badge 'Índice acima da comunidade' (nunca 'nota').",
+        "Casos-limite: média −0,908 com atual −0,25 ⇒ '+72%' (acima), nunca '−72%'; Meta de renda 1.700/2,55 ⇒ 8.000 cotas (não 8.001); rendimento 0 ⇒ —; múltiplo alvo com LPA −0,50 ⇒ —; yield 0,05% ⇒ —.",
+        "Índice WEGE3: componentes 10/10/10/2,0/2,22 ⇒ 8,02 (P/L 31,2 vs média 22,3 = +40%; DY 1,6%).",
+        "BBAS3 (financeira): divida n/a, pesos efetivos ÷ 0,8, sem 'incompleto'; semáforo 'n de 4'.",
+        "FII de papel com LTV/inadimplência nulos: inadimplência n/a e nunca 'atende' (bug null<=x do protótipo); com todos os dados nulos ⇒ 0 de 4 + incompleto.",
+        "FII tijolo v1: C_rent n/a (vacância desligada, decisão 6) ⇒ pesos ÷ 0,8; semáforo com vacância e diversificação n/a ⇒ 'n de 3'.",
+        "Prejuízo no último FY ⇒ C_lucro 0 e C_preço zero_regra, sem 'incompleto'; ausência de DL/EBITDA numa não-financeira ⇒ 0 + incompleto; EBITDA negativo com dívida líquida positiva ⇒ C_divida 0 e semáforo endividamento nao_atende (nunca 10 por razão negativa); PL negativo com prejuízo ⇒ C_rent 0 (nunca ROE positivo); SIMH3 (holding operacional) NÃO é financeira; ITSA4 é.",
+        "Eventos: EGIE3 2025-11-28 ×1,1 descartado e ×1,4 confirmado (815,9 → 1.142,3 mi); BBDC3/BBDC4 2024-02-07 ×1,2 descartado; CPLE3 2021 ×10 descartado; LREN3 2021-10-22/11-05 deduplicados; SLCE3 2026-01-02 ×1,125 anoBase 2025; CYRE3 2025-12-30 ×1,19 anoBase 2026.",
+        "Proventos: PETR4 dataExGravada 03/05/2024 ⇒ dataComReal 02/05/2024; YAHOO (dataCom null, date = ex 03/05/2024) ⇒ dataComReal 02/05/2024 e dataPagamento null — nunca sem_data_com por isso; repetição da BRAPI com outra data-com e pagamentos a ≤5 dias (2 linhas) ⇒ 1 duplicata; repetição com o MESMO pagamento (1 linha com valor em dobro, efeito da unique (symbol,date,tipo) + soma do dividendService) ⇒ flag possivel_soma_duplicada, sem corrigir; duas tranches iguais com a mesma data-com e pagamentos a ≥ 20 dias ⇒ ambas válidas; REST CAP DIN / AMORTIZAÇÃO excluídos; RENDIMENTO só em FII; YAHOO descartado quando há BRAPI no ano; sem data ex ⇒ sem_data_com (não usa pagamento); MGLU3 2020 proventos antes/depois do 4:1 ajustados por evento; linha Yahoo reinserida com id novo ⇒ reescrita do símbolo sem órfão.",
+        "Payout: PETR4 2024 DMPL ≈ 275,6% ⇒ flag payout_extraordinario_ou_lucro_negativo, sem corte; WEGE3 2025 161,3% idem; divergência DPA×ações vs DMPL > 15 p.p. ⇒ flag auditoria_proventos.",
+        "Múltiplo histórico: WEGE3 2024 P/L = close cru 30/12/2024 × 4.195,54 mi ÷ 6.042,6 mi ≈ 36,6–36,7 (nunca o 34,7 da BRAPI); WEGE3 2019 ≈ 45,1 (não 19,9); preço de fim de ano > 5 dias antes de 31/12 ⇒ sem ponto.",
+        "Regra 7: anos com P/L ≤ 0 fora de mín/média/máx e do mínimo de 5 pontos.",
+        "Meses com rendimento: XPML11/VISC11 pagando todo mês na base ⇒ contagem contínua (não os 7/52 da CVM); janela de calendário, nunca 'últimos 12 registros'.",
+        "Regra 13 (movida da A): salto de ações 2,5× sem evento confirmado ⇒ flag salto_acoes_sem_evento + dados_incompletos; com evento confirmado de mesmo fator ⇒ sem flag.",
+        "Regra 22: HGLG11 2016 (cota R$ 1.100) — P/VP histórico cru÷cru da mesma data e VP/cota/rendimento por cota ajustados a hoje pelo desdobramento confirmado via cotas do FiiMonthly; HFOF11 1:10 mai/25 confirmado; PABY11 PL ≤ 0 ⇒ fora_do_indice.",
+        "FII não conferido no FiiTickerMap ⇒ sem AssetScore; dataRef num domingo = último pregão (sexta) e 2 runs no fim de semana regravam a mesma chave."
+      ],
+      "criteriosAceite": [
+        "Todos os testes acima verdes; nenhuma função de regras/** importa prisma, fetch ou fs.",
+        "No dev, após o cron scores: asset_scores do dia para ≥ 95% das ações com FY e preço e ≥ 95% dos FIIs (não FoF) com informe e preço (critério da spec §10 fase 0); % 'incompleto' reportado no detalhes do run.",
+        "Run < 120 s e rss delta < 200 MB localmente; 2ª execução no mesmo dia regrava o mesmo dataRef (idempotente).",
+        "docs/analise-ativos/fase0/notas-reais-prototipo.csv gerado (ticker, índice pela fórmula, índice do protótipo, componentes) para os ativos B3 do protótipo."
+      ],
+      "comandos": [
+        "npx vitest run src/services/analiseAtivos/regras/calculo src/services/analiseAtivos/regras/valuation src/services/analiseAtivos/__tests__/textos.test.ts src/services/analiseAtivos/calculo src/app/api/cron/analise-ativos/scores",
+        "npx tsx --env-file=.env scripts/analise-ativos/recalcular-analise.ts --etapas=proventos,eventos,derivados,scores (dry-run: imprime contagens e amostra)",
+        "NODE_OPTIONS=--max-old-space-size=384 npx tsx --env-file=.env scripts/analise-ativos/recalcular-analise.ts --etapas=proventos,eventos,derivados,scores --apply",
+        "npx tsx --env-file=.env scripts/analise-ativos/relatorio-notas-prototipo.ts",
+        "npx tsc --noEmit -p . && npx eslint src/services/analiseAtivos/regras/calculo src/services/analiseAtivos/regras/valuation src/services/analiseAtivos/textos.ts src/services/analiseAtivos/calculo src/app/api/cron/analise-ativos/scores scripts/analise-ativos/recalcular-analise.ts scripts/analise-ativos/relatorio-notas-prototipo.ts"
+      ],
+      "commits": [
+        "feat(analise-ativos): fórmulas do Valuation com os 23 casos da spec",
+        "feat(analise-ativos): auditoria de proventos e validação de eventos corporativos",
+        "feat(analise-ativos): per-share, múltiplos anuais e atuais",
+        "feat(analise-ativos): Índice MF e semáforo com 'não se aplica'",
+        "feat(analise-ativos): cron scores e scripts de recálculo",
+        "test(analise-ativos): varredura de linguagem nos textos centrais"
+      ],
+      "dependenciaDeDados": "Os testes de D rodam só com fixtures (não precisam de A/B/C). O run real no dev precisa dos backfills de A, B e C já aplicados — D faz o seu run de aceite por último."
+    },
+    {
+      "id": "E",
+      "nome": "Eventos IPE + agenda (atrás de flag) + observabilidade + cron no template + RUNBOOK",
+      "objetivo": "AssetEvento a partir do IPE (assembleias) e da estimativa de data de resultado; nova fonte da Agenda atrás de ANALISE_ATIVOS_HABILITADA (desligada por padrão); alertas de 2 falhas seguidas e painel de frescor; linhas de cron no template do Lightsail; RUNBOOK de backfill em produção.",
+      "cria": [
+        "src/lib/analiseAtivosConfig.ts (analiseAtivosHabilitada(): process.env.ANALISE_ATIVOS_HABILITADA === 'true'; espelho de comunidadeConfig.ts)",
+        "src/services/analiseAtivos/regras/eventos/estimativaResultado.ts",
+        "src/services/analiseAtivos/regras/eventos/ipe.ts",
+        "src/services/analiseAtivos/regras/eventos/alertasFrescor.ts (deveAlertar, calcularFrescor)",
+        "src/services/analiseAtivos/regras/eventos/__tests__/*.test.ts + fixtures/ (≈40 linhas reais do ipe_cia_aberta_2026.csv com AGO/AGE/Edital/Ata; entregas WEGE3 2T25/2T26 e DFP)",
+        "src/services/analiseAtivos/eventos/ipeArquivos.ts",
+        "src/services/analiseAtivos/eventos/sincronizarIpe.ts",
+        "src/services/analiseAtivos/eventos/gravarEventos.ts",
+        "src/services/analiseAtivos/eventos/__tests__/sincronizarIpe.test.ts",
+        "src/services/analiseAtivos/observabilidade/frescor.ts (obterPainelFrescor(prisma))",
+        "src/services/analiseAtivos/observabilidade/__tests__/alertas.test.ts",
+        "src/services/calendario/fontes/resultadosAnaliseAtivos.ts",
+        "src/services/calendario/__tests__/resultadosAnaliseAtivos.test.ts",
+        "src/app/api/cron/analise-ativos/cvm-ipe/route.ts (+ __tests__/route.test.ts)",
+        "scripts/analise-ativos/backfill-ipe.ts",
+        "docs/analise-ativos/fase0/RUNBOOK.md",
+        "src/services/analiseAtivos/eventos/textosEventos.ts"
+      ],
+      "altera": [
+        "src/services/analiseAtivos/observabilidade/alertas.ts (substitui o stub da fatia 0, MESMA assinatura: logger.error('[analise-ativos][ALERTA] …') sempre; Notification type 'analise_ativos_alerta' para cada User role=admin SÓ com ANALISE_ATIVOS_ALERTA_ADMIN='true' (desligado por padrão: escrever em Notification muda o sino dos admins em prod, tabela existente) e NODE_ENV=production; sem push; nunca lança)",
+        "src/services/calendario/fontes/mercado.ts (uma chamada condicional: se analiseAtivosHabilitada(), concatena eventosResultadosAnaliseAtivos(userId, periodo); desligada ⇒ zero consultas novas — comportamento atual idêntico)",
+        "infra/modules/lightsail/provision.sh.tftpl (acrescenta as linhas de jobs.cron no heredoc de /etc/cron.d/myfinance.disabled, com comentário; aplicar em prod é passo humano do RUNBOOK)",
+        ".env.example (ANALISE_ATIVOS_HABILITADA=false e ANALISE_ATIVOS_ALERTA_ADMIN=false comentados)"
+      ],
+      "comportamento": [
+        "cvm-ipe (diário 09:25): ipe_cia_aberta do ano corrente (ETag); Categoria=Assembleia ⇒ AssetEvento assembleia (1 por cnpj/subtipo/data, maior versão; só emissores do universo). Depois, a partir de repositorio.acoes.entregasDocumentos: cria resultado_estimado para o próximo ITR/DFP esperado de cada emissor (mesma entrega do ano anterior + 1 ano, próximo pregão) e, quando a entrega real chega, grava tipo 'resultado' e marca o estimado com substituidoEm.",
+        "Agenda: eventos só para ações que o usuário tem em Portfolio (mesma lógica de acoesCorporativas.ts), tipo 'mercado', títulos neutros de eventos/textosEventos.ts (arquivo da E; não importa o textos.ts da D) ('WEGE3 · resultado do 3T26 (data estimada)', 'WEGE3 · assembleia (AGO)'), link '/carteira' (a página do ativo é Fase 1).",
+        "Alerta: após cada run, deveAlertar(últimas 3 execuções do job) ⇒ 2 falhas/abandonos seguidos alerta; repetição no máx. 1×/24h; 'ok' zera. Alertas de nível 'erro' de ErroLayoutFonte alertam já na 1ª ocorrência.",
+        "Frescor: obterPainelFrescor usa repositorio.jobs.ultimaExecucaoOkPorJob + repositorio.jobs.dadoMaisRecentePorCamada (fatia 0; a E não consulta tabelas de A–D direto) e devolve por camada status em_dia/atrasado/sem_dado — insumo do selo 'Dados: fonte · data' da Fase 1 e do /admin futuro. Sem tela nesta fase."
+      ],
+      "testesObrigatorios": [
+        "IPE: linha real 'Assembleia;AGO;Edital de Convocação' ⇒ evento assembleia AGO na Data_Referencia; Ata posterior da mesma assembleia não duplica; versão maior substitui; categoria diferente ignorada; header sem Data_Referencia ⇒ ErroLayoutFonte.",
+        "Estimativa: WEGE3 2T25 entregue 23/07/2025 ⇒ estimativa do 2T26 = 23/07/2026 (real 22/07/2026, erro 1 dia); data caindo em sábado/feriado ⇒ próximo pregão; sem entrega anterior ⇒ sem estimativa; entrega real ⇒ 'resultado' + substituidoEm no estimado.",
+        "deveAlertar: [ok, falha] ⇒ não; [falha, falha] ⇒ sim; [falha, falha, falha] com alerta há < 24h ⇒ não repete; [abandonado, falha] ⇒ sim; [pulado, falha] ⇒ não.",
+        "alertas.ts: em test/dev nunca escreve Notification (só logger); em production SEM ANALISE_ATIVOS_ALERTA_ADMIN=true também não; com a flag cria 1 por admin; exceção interna não propaga.",
+        "calcularFrescor: cotação de 5 pregões atrás ⇒ atrasado; job OK há 30 h com limite 26 h ⇒ atrasado.",
+        "Fonte da agenda: flag desligada ⇒ [] e prisma não é chamado; ligada ⇒ só ativos da carteira do usuário; nenhuma palavra proibida nos títulos.",
+        "Rodar os testes de quem consome o agregador: src/services/calendario/__tests__/mercado.test.ts e src/app/api/calendar/__tests__/route.test.ts continuam verdes (lição do #217)."
+      ],
+      "criteriosAceite": [
+        "No dev: asset_eventos com assembleias 2026 de ≥ 250 emissores do universo e estimativas de resultado para ≥ 280 emissores (após o backfill de A).",
+        "Template infra com as 11 linhas novas (jobs.cron) dentro de myfinance.disabled; `bash -n` no trecho gerado; nenhuma outra linha do template mudou.",
+        "RUNBOOK.md com: pré-checagens (df -h ≥ 5 GB livres, free -m, backup pg_dump manual antes), deploy da migration (prisma migrate deploy via pipeline), seed do ScoringParams, ordem do backfill com comandos exatos (dry-run → --apply, um ano por vez, janela 01:00–05:00 BRT, NODE_OPTIONS=--max-old-space-size=512, nice -n 10), verificação por SQL após cada passo, instalação das linhas de cron em /etc/cron.d/myfinance (passo humano), monitoramento (analise_job_runs, /var/log/myfinance-cron.log), rollback (DROP das 22 tabelas + remoção da linha em _prisma_migrations; nenhum dado existente é afetado), e o que NÃO fazer (não rodar backfill em horário de pregão; não ligar ANALISE_ATIVOS_HABILITADA antes da Fase 1).",
+        "ANALISE_ATIVOS_HABILITADA desligada por padrão; nenhuma mudança visível no app com a flag desligada."
+      ],
+      "comandos": [
+        "npx vitest run src/services/analiseAtivos/regras/eventos src/services/analiseAtivos/eventos src/services/analiseAtivos/observabilidade src/services/calendario/__tests__/resultadosAnaliseAtivos.test.ts src/services/calendario/__tests__/mercado.test.ts src/app/api/calendar/__tests__/route.test.ts src/app/api/cron/analise-ativos/cvm-ipe",
+        "npx tsx --env-file=.env scripts/analise-ativos/backfill-ipe.ts --anos=2024-2026 --cache-dir=$CACHE (dry-run) e depois --apply",
+        "bash -n <(sed -n '/myfinance.disabled/,/^EOF/p' infra/modules/lightsail/provision.sh.tftpl | sed '1d;$d' | sed 's/^/: /')",
+        "npx tsc --noEmit -p . && npx eslint src/lib/analiseAtivosConfig.ts src/services/analiseAtivos/eventos src/services/analiseAtivos/regras/eventos src/services/analiseAtivos/observabilidade src/services/calendario/fontes/resultadosAnaliseAtivos.ts src/services/calendario/fontes/mercado.ts src/app/api/cron/analise-ativos/cvm-ipe scripts/analise-ativos/backfill-ipe.ts"
+      ],
+      "commits": [
+        "feat(analise-ativos): eventos de assembleia (IPE) e data estimada de resultado",
+        "feat(analise-ativos): alerta de 2 falhas seguidas e painel de frescor dos jobs",
+        "feat(analise-ativos): fonte de resultados na agenda atrás de ANALISE_ATIVOS_HABILITADA",
+        "chore(infra): crons da análise de ativos no template do Lightsail (desligados)",
+        "docs(analise-ativos): runbook do backfill em produção"
+      ]
+    }
+  ],
+  "disjuncao": {
+    "regra": "Arquivos de A–E são disjuntos entre si. Único arquivo da fatia 0 alterado depois: observabilidade/alertas.ts (só pela E, mesma assinatura). Nenhuma fatia A–E IMPORTA arquivo de outra fatia A–E (só fatia 0: tipos, repositorio, params, fontes, jobs, regras/comum). Nenhuma fatia A–E toca prisma/, repositorio/, params/, fontes/, jobs/, tipos.ts, regras/comum/. Precisou de algo nesses arquivos? Registre em docs/analise-ativos/fase0/qa/pendencias-<fatia>.md e contorne localmente sem mudar schema.",
+    "rotas": {
+      "A": [
+        "cvm-cias"
+      ],
+      "B": [
+        "fii-cadastro",
+        "fii-mensal",
+        "fii-trimestral"
+      ],
+      "C": [
+        "cotahist",
+        "b3-cadastro"
+      ],
+      "D": [
+        "scores"
+      ],
+      "E": [
+        "cvm-ipe"
+      ]
+    },
+    "tabelasPorEscritor": {
+      "0": [
+        "ScoringParams",
+        "AnaliseJobRun",
+        "AnaliseFonteArquivo"
+      ],
+      "A": [
+        "CvmCompany",
+        "CvmCompanyTicker",
+        "AssetFundamentalsPeriod",
+        "AssetStatementLine",
+        "AssetShareCount"
+      ],
+      "B": [
+        "FiiTickerMap",
+        "FiiMonthly",
+        "FiiQuarterly",
+        "FiiTipoOverride"
+      ],
+      "C": [
+        "AssetQuoteDaily",
+        "AssetQuoteResumo",
+        "AssetSetorB3"
+      ],
+      "D": [
+        "AssetProventoAuditado",
+        "AssetCorporateActionCheck",
+        "AssetPerShareYearly",
+        "AssetMultiplesYearly",
+        "AssetMultiplesCurrent",
+        "AssetScore"
+      ],
+      "E": [
+        "AssetEvento"
+      ]
+    },
+    "leiturasCruzadas": "A NÃO lê AssetSetorB3 (grava con+ind e layoutFinanceiro; escopo resolvido na leitura) e lê eventos brutos existentes via repositorio.proventos; B lê AssetQuoteResumo via repositorio.cotacoes para conferir casamentos (sem cotação ⇒ conferido=false/--reconferir); D lê tudo via repositorio (TTM da A, régua/obrigações da B, preços da C); E lê entregas (A) e frescor via repositorio. Funções puras compartilhadas (pregões, palavras proibidas) ficam em regras/comum (fatia 0)."
+  },
+  "backfill": {
+    "principios": [
+      "Script, nunca cron. Dry-run por padrão (imprime o plano, linhas e bytes estimados); --apply explícito; idempotente (unique keys + skipDuplicates/upsert); retomável (pula ano/arquivo/(cnpj,versão) já gravado; --desde-cnpj para continuar).",
+      "Todos aceitam --cache-dir (reusa zips baixados; no dev usar a pasta da Fase A), --perfil=dev|completo e --como-cron (roda exatamente a função do cron). Registram AnaliseJobRun com job 'backfill:<nome>' e origem 'script'.",
+      "Streaming igual ao cron; NODE_OPTIONS=--max-old-space-size=512 no máximo.",
+      "Em produção: só pelo RUNBOOK, com OK humano, em janela noturna."
+    ],
+    "ordem": [
+      {
+        "passo": 1,
+        "script": "scripts/analise-ativos/apply-migration-fase0.ts --apply + seed-scoring-params.ts --apply",
+        "fatia": "0"
+      },
+      {
+        "passo": 2,
+        "script": "backfill-cotahist.ts --so-cadastro (ClassifSetorial) ",
+        "fatia": "C",
+        "motivo": "setor/segmento para a D (financeiras e pares); a A não depende mais dele (grava con+ind)"
+      },
+      {
+        "passo": 3,
+        "script": "backfill-cvm-cias.ts --docs=fca",
+        "fatia": "A",
+        "motivo": "universo de ações (CNPJ↔ticker)"
+      },
+      {
+        "passo": 4,
+        "script": "backfill-fii.ts --so-cadastro (lista B3 + FiiTickerMap)",
+        "fatia": "B"
+      },
+      {
+        "passo": 5,
+        "script": "backfill-cotahist.ts --anos=2015-2026",
+        "fatia": "C",
+        "motivo": "preço cru e volume; permite a conferência PL×cotação dos FIIs casados por nome (rodar de novo o passo 4 com --reconferir)"
+      },
+      {
+        "passo": 6,
+        "script": "backfill-cvm-cias.ts --docs=dfp,fre --anos=2014-2025 e depois --docs=dfp,itr --anos=2026 (e itr 2024-2025)",
+        "fatia": "A",
+        "motivo": "fundamentos, linhas e nº de ações (FRE item f até FY2021)"
+      },
+      {
+        "passo": 7,
+        "script": "backfill-fii.ts --desde=2016 (mensal ⇒ tipo ⇒ trimestral)",
+        "fatia": "B"
+      },
+      {
+        "passo": 8,
+        "script": "backfill-ipe.ts --anos=2024-2026",
+        "fatia": "E",
+        "motivo": "assembleias + estimativas (usa entregas do passo 6)"
+      },
+      {
+        "passo": 9,
+        "script": "recalcular-analise.ts --etapas=proventos,eventos",
+        "fatia": "D",
+        "motivo": "auditoria de proventos ANTES de per-share (relatório §5.4 passo 6)"
+      },
+      {
+        "passo": 10,
+        "script": "recalcular-analise.ts --etapas=derivados,scores",
+        "fatia": "D"
+      },
+      {
+        "passo": 11,
+        "script": "relatorio-notas-prototipo.ts",
+        "fatia": "D",
+        "motivo": "tabela de notas reais para o Pedro (decisão 1)"
+      }
+    ],
+    "subconjuntoDev": {
+      "regra": "Banco dev deve ficar < 450 MB no total (hoje 118 MB). Tudo completo, exceto: AssetStatementLine só para 40 companhias; AssetQuoteDaily diário só desde 2025-01-02 + pontos de fim de período 2015–2024; ITR só 2024–2026.",
+      "companhiasStatementLine": [
+        "WEGE3",
+        "PETR4",
+        "VALE3",
+        "ITUB4",
+        "BBAS3",
+        "BBDC4",
+        "SANB11",
+        "ITSA4",
+        "BBSE3",
+        "PSSA3",
+        "TAEE11",
+        "EGIE3",
+        "CMIG4",
+        "CPLE6",
+        "ELET3",
+        "EQTL3",
+        "SBSP3",
+        "VIVT3",
+        "TIMS3",
+        "ABEV3",
+        "RADL3",
+        "LREN3",
+        "MGLU3",
+        "CYRE3",
+        "SLCE3",
+        "KLBN11",
+        "SUZB3",
+        "GGBR4",
+        "PRIO3",
+        "UGPA3",
+        "CSAN3",
+        "RAIL3",
+        "RENT3",
+        "B3SA3",
+        "EMBR3",
+        "TOTS3",
+        "HYPE3",
+        "FLRY3",
+        "MULT3",
+        "AZUL4"
+      ]
+    },
+    "estimativas": {
+      "metodo": "bytes/linha ≈ heap (cabeçalho 24 B + colunas) + índices; conferir com pg_total_relation_size após cada passo e parar se o total do dev passar de 400 MB.",
+      "tabelas": [
+        {
+          "tabela": "asset_statement_lines",
+          "devLinhas": 170000,
+          "devMB": 50,
+          "prodLinhas": 1350000,
+          "prodMB": 380,
+          "nota": "~350 contas × 12 FY × companhias; dsConta repetido é o grosso"
+        },
+        {
+          "tabela": "asset_quotes_daily",
+          "devLinhas": 430000,
+          "devMB": 70,
+          "prodLinhas": 2100000,
+          "prodMB": 260,
+          "nota": "~700 símbolos com negócio/dia (BDI 02+12) × 2.950 pregões 2015–2026 em prod · revisto: PK (symbol,date) + índice de date ≈ 50 B/linha além do heap"
+        },
+        {
+          "tabela": "fii_monthly",
+          "devLinhas": 58000,
+          "devMB": 25,
+          "prodLinhas": 58000,
+          "prodMB": 25
+        },
+        {
+          "tabela": "asset_fundamentals_period",
+          "devLinhas": 26000,
+          "devMB": 16,
+          "prodLinhas": 65000,
+          "prodMB": 38,
+          "nota": "con + ind + linhas TTM; prod com ITR 2016+ se desejado; Fase 0 só precisa de 2024+"
+        },
+        {
+          "tabela": "asset_scores",
+          "devLinhas": 30000,
+          "devMB": 20,
+          "prodLinhas": 45000,
+          "prodMB": 30,
+          "nota": "~800 símbolos × (40 diários + 12 mensais/ano), checks compactos"
+        },
+        {
+          "tabela": "asset_proventos_auditados",
+          "devLinhas": 30500,
+          "devMB": 11,
+          "prodLinhas": 80000,
+          "prodMB": 28,
+          "nota": "1 linha por asset_dividend_history (dev tem 30.488)"
+        },
+        {
+          "tabela": "fii_quarterly",
+          "devLinhas": 19000,
+          "devMB": 6,
+          "prodLinhas": 19000,
+          "prodMB": 6
+        },
+        {
+          "tabela": "asset_eventos",
+          "devLinhas": 12000,
+          "devMB": 4,
+          "prodLinhas": 12000,
+          "prodMB": 4
+        },
+        {
+          "tabela": "asset_multiples_yearly",
+          "devLinhas": 9000,
+          "devMB": 4,
+          "prodLinhas": 9000,
+          "prodMB": 4
+        },
+        {
+          "tabela": "asset_per_share_yearly",
+          "devLinhas": 9000,
+          "devMB": 3,
+          "prodLinhas": 9000,
+          "prodMB": 3
+        },
+        {
+          "tabela": "asset_share_counts",
+          "devLinhas": 7000,
+          "devMB": 2,
+          "prodLinhas": 15000,
+          "prodMB": 4
+        },
+        {
+          "tabela": "demais (cvm_companies, cvm_company_tickers, fii_ticker_map, fii_tipo_override, asset_quote_resumo, asset_setores_b3, asset_multiples_current, asset_corporate_action_checks, scoring_params, analise_job_runs, analise_fonte_arquivos)",
+          "devLinhas": 8000,
+          "devMB": 5,
+          "prodLinhas": 8000,
+          "prodMB": 5
+        }
+      ],
+      "totalDevMB": 216,
+      "totalDevComFolgaMB": 259,
+      "bancoDevDepoisMB": "≈ 118 + 259 = ~377 MB (< 450); parar se passar de 400",
+      "totalProdMB": 787,
+      "notaProd": "~0,8 GB a mais no Postgres do Lightsail e ~+200 MB por pg_dump comprimido no S3; RUNBOOK exige checar disco antes."
+    },
+    "tempos": "Fase A: FII completo ~6 s de CPU; ações não cronometradas. Estimativa com streaming: DFP 12 anos ~5–10 min + gravação no Neon (createMany 1.000/lote ~1–2 s) ~10–15 min; COTAHIST anual ~1–2 min/ano de parse + gravação; total dev ≈ 1 h."
+  },
+  "jobs": [
+    {
+      "rota": "/api/cron/analise-ativos/b3-cadastro",
+      "fatia": "C",
+      "cron": "30 5 * * 0",
+      "quando": "dom 05:30 UTC",
+      "fonte": "ClassifSetorial.xlsx (~16 KB)",
+      "prazoS": 60,
+      "rssMaxMb": 50,
+      "idempotencia": "upsert por raiz; sha256 igual ⇒ pula",
+      "alertas": [
+        "raiz nova (info)",
+        "raiz sumida (aviso)",
+        "layout (erro)"
+      ]
+    },
+    {
+      "rota": "/api/cron/analise-ativos/fii-cadastro",
+      "fatia": "B",
+      "cron": "40 5 * * 0",
+      "quando": "dom 05:40 UTC",
+      "fonte": "GetListFunds paginado (~6 req) + inf_mensal_fii do ano (CNPJ/ISIN/nome)",
+      "prazoS": 120,
+      "rssMaxMb": 100,
+      "idempotencia": "unique (ticker, validFrom); só fecha/abre vigência quando muda",
+      "alertas": [
+        "sigla nova/sumida/trocada",
+        "sem casamento",
+        "casado por nome divergente PL×cotação"
+      ]
+    },
+    {
+      "rota": "/api/cron/analise-ativos/cvm-cias?doc=fca",
+      "fatia": "A",
+      "cron": "50 5 * * 0",
+      "quando": "dom 05:50 UTC",
+      "fonte": "fca_cia_aberta_AAAA.zip (~0,4 MB)",
+      "prazoS": 60,
+      "rssMaxMb": 80,
+      "idempotencia": "upsert CvmCompany; vigência de tickers",
+      "alertas": [
+        "ticker novo/encerrado",
+        "unit sem composição parseável"
+      ]
+    },
+    {
+      "rota": "/api/cron/analise-ativos/cvm-cias?doc=dfp",
+      "fatia": "A",
+      "cron": "5 9 * * *",
+      "quando": "diário 09:05 UTC (06:05 BRT; fora do minuto 0 do market-data/refresh horário)",
+      "fonte": "dfp_cia_aberta_{ano−1,ano}.zip (~13 MB cada)",
+      "prazoS": 240,
+      "rssMaxMb": 300,
+      "idempotencia": "ETag/sha256 + (cnpj, dtFim, tipo, escopo, versão) novo; createMany skipDuplicates",
+      "alertas": [
+        "layout",
+        "razão LPA fora de ±5%",
+        "salto de ações sem evento",
+        "controladora zero",
+        "reapresentação"
+      ]
+    },
+    {
+      "rota": "/api/cron/analise-ativos/cvm-cias?doc=itr",
+      "fatia": "A",
+      "cron": "10 9 * * *",
+      "quando": "diário 09:10 UTC",
+      "fonte": "itr_cia_aberta_AAAA.zip (~20–33 MB; ~240 MB de texto lido nas entradas usadas)",
+      "prazoS": 240,
+      "rssMaxMb": 300,
+      "idempotencia": "idem DFP; parcial retoma pelos (cnpj, versão) que faltam",
+      "alertas": [
+        "layout",
+        "TTM divergente > 2%",
+        "controladora zero"
+      ]
+    },
+    {
+      "rota": "/api/cron/analise-ativos/cvm-ipe",
+      "fatia": "E",
+      "cron": "25 9 * * *",
+      "quando": "diário 09:25 UTC",
+      "fonte": "ipe_cia_aberta_AAAA.zip (~1,7 MB; 15 MB texto)",
+      "prazoS": 120,
+      "rssMaxMb": 100,
+      "idempotencia": "unique (cnpj, tipo, chave)",
+      "alertas": [
+        "layout"
+      ]
+    },
+    {
+      "rota": "/api/cron/analise-ativos/fii-mensal",
+      "fatia": "B",
+      "cron": "35 9 * * *",
+      "quando": "diário 09:35 UTC",
+      "fonte": "inf_mensal_fii_AAAA.zip (~1,5 MB)",
+      "prazoS": 120,
+      "rssMaxMb": 150,
+      "idempotencia": "unique (cnpj, refMonth), sobrescreve só versão maior; reprocessa os últimos 3 meses",
+      "alertas": [
+        "layout",
+        "PL≤0",
+        "VP/cota recomputado",
+        "desdobramento",
+        "tipo mudou",
+        "distribuição de tipos fora de ±10%"
+      ]
+    },
+    {
+      "rota": "/api/cron/analise-ativos/fii-trimestral",
+      "fatia": "B",
+      "cron": "45 9 * * *",
+      "quando": "diário 09:45 UTC (pula por ETag; efetivo nos ~60 dias após cada trimestre)",
+      "fonte": "inf_trimestral_fii_AAAA.zip (~2,5 MB)",
+      "prazoS": 120,
+      "rssMaxMb": 150,
+      "idempotencia": "unique (cnpj, refQuarter), versão maior",
+      "alertas": [
+        "layout",
+        "Σ%receita>105",
+        "área>500 mil m²"
+      ]
+    },
+    {
+      "rota": "/api/cron/analise-ativos/cotahist",
+      "fatia": "C",
+      "cron": "5 23 * * 1-5",
+      "quando": "seg–sex 23:05 UTC (20:05 BRT; fora do minuto 0 do market-data/refresh horário)",
+      "fonte": "COTAHIST_D{DDMMAAAA}.ZIP (~1–2 MB) dos últimos 5 pregões ausentes",
+      "prazoS": 180,
+      "rssMaxMb": 150,
+      "idempotencia": "@@id (symbol, date) + skipDuplicates; 404 do dia = ainda não publicado",
+      "alertas": [
+        "layout",
+        "pregão útil sem arquivo após 2 dias",
+        "salto > 40% sem evento"
+      ]
+    },
+    {
+      "rota": "/api/cron/analise-ativos/cotahist",
+      "fatia": "C",
+      "cron": "55 9 * * 2-6",
+      "quando": "ter–sáb 09:55 UTC (repescagem do pregão anterior)",
+      "fonte": "idem",
+      "prazoS": 180,
+      "rssMaxMb": 150,
+      "idempotencia": "idem",
+      "alertas": [
+        "idem"
+      ]
+    },
+    {
+      "rota": "/api/cron/analise-ativos/scores",
+      "fatia": "D",
+      "cron": "10 10 * * *",
+      "quando": "diário 10:10 UTC (depois de CVM, FII e da repescagem do COTAHIST; antes do calendario-lembretes das 11:00)",
+      "fonte": "só banco",
+      "prazoS": 240,
+      "rssMaxMb": 250,
+      "idempotencia": "unique (symbol, dataRef) regravado; per-share/múltiplos por unique (symbol, anoFiscal)",
+      "alertas": [
+        "cobertura < 95% (aviso)",
+        "auditoria de proventos > 15 p.p.",
+        "evento descartado novo",
+        "params inválidos (erro)"
+      ]
+    }
+  ],
+  "jobsComum": {
+    "execucao": "Rodam DENTRO do processo Next (curl -m 300 em localhost:3000), então o limite vale para o app inteiro: prazo interno de 240 s (folga para responder antes do curl cortar), downloads para disco em os.tmpdir() (apagados no finally), zip lido pelo diretório central e inflado em streaming, CSV linha a linha com preFiltro barato, gravação em lotes de 1.000. Horários escalonados (09:00–10:10) para nunca haver dois jobs pesados juntos; lock por AnaliseJobRun 'executando' (TTL 10 min) impede sobreposição quando o curl expira mas o handler continua.",
+    "limitesDownload": {
+      "maxBytesZipCvm": 150000000,
+      "maxBytesCotahistDiario": 20000000,
+      "maxBytesCotahistAnual": 200000000,
+      "maxBytesB3Json": 5000000,
+      "timeoutMs": 90000,
+      "timeoutMsBackfillAnual": 600000
+    },
+    "medicao": "rssInicioMb e rssPicoMb gravados em todo run; delta > 300 MB gera alerta 'rss_acima_limite' e conta como aviso (o run não é abortado para não deixar lote pela metade).",
+    "linhasCronTemplate": [
+      "# Análise de Ativos (Fase 0) — dados CVM/B3; ver docs/analise-ativos/fase0/RUNBOOK.md",
+      "30 5 * * 0 root /usr/local/bin/myfinance-cron.sh /api/cron/analise-ativos/b3-cadastro",
+      "40 5 * * 0 root /usr/local/bin/myfinance-cron.sh /api/cron/analise-ativos/fii-cadastro",
+      "50 5 * * 0 root /usr/local/bin/myfinance-cron.sh '/api/cron/analise-ativos/cvm-cias?doc=fca'",
+      "5 9 * * * root /usr/local/bin/myfinance-cron.sh '/api/cron/analise-ativos/cvm-cias?doc=dfp'",
+      "10 9 * * * root /usr/local/bin/myfinance-cron.sh '/api/cron/analise-ativos/cvm-cias?doc=itr'",
+      "25 9 * * * root /usr/local/bin/myfinance-cron.sh /api/cron/analise-ativos/cvm-ipe",
+      "35 9 * * * root /usr/local/bin/myfinance-cron.sh /api/cron/analise-ativos/fii-mensal",
+      "45 9 * * * root /usr/local/bin/myfinance-cron.sh /api/cron/analise-ativos/fii-trimestral",
+      "55 9 * * 2-6 root /usr/local/bin/myfinance-cron.sh /api/cron/analise-ativos/cotahist",
+      "5 23 * * 1-5 root /usr/local/bin/myfinance-cron.sh /api/cron/analise-ativos/cotahist",
+      "10 10 * * * root /usr/local/bin/myfinance-cron.sh /api/cron/analise-ativos/scores"
+    ],
+    "conflitos": "Corrigido: o template já tem `0 * * * * market-data/refresh` (horário), que colidia com 09:00 e 23:00 — dfp foi para 09:05 e cotahist para 23:05. Demais: 05:00 dom cvm-catalog/lgpd, 06:00–08:30 mercado/BRAPI/snapshots, 11:00 lembretes, 21:30 fluxo, */5 pluggy (leve). Nenhum job novo no minuto 0."
+  },
+  "riscos": [
+    {
+      "risco": "Layout da CVM muda de novo (já mudou em 2021 e ago/2025).",
+      "mitigacao": "Colunas obrigatórias por CSV em cvmArquivos/fiiArquivos/ipeArquivos; ErroLayoutFonte falha o job na hora com alerta de nível erro (não grava vazio); aliases para os layouts conhecidos."
+    },
+    {
+      "risco": "Endpoints da B3 (ClassifSetorial, GetListFunds) são públicos mas não documentados (payload base64).",
+      "mitigacao": "Falha só deixa o cadastro velho (dados continuam válidos); alerta após 2 falhas; tabelas guardam presenteUltimoArquivo/validTo em vez de apagar."
+    },
+    {
+      "risco": "Horário de publicação do COTAHIST diário não medido.",
+      "mitigacao": "Dois horários (23:00 e 09:55 UTC) + recuperação dos últimos 5 pregões; 404 do dia não é falha; alerta só se um pregão útil ficar 2 dias sem arquivo."
+    },
+    {
+      "risco": "Base de proventos: BRAPI grava a data EX em dataCom; YAHOO grava a data EX na coluna date (pagamento) e dataCom null (2.863/2.863 linhas no dev); a unique (symbol, date, tipo) + a soma do dividendService fazem repetição com o mesmo pagamento virar 1 linha em dobro (irreversível na origem); Yahoo apaga/reinsere (ids mudam).",
+      "mitigacao": "camposPorFonte em ScoringParams; auditoria completa por impressão digital, reescrita por símbolo; dedup de repetições em 2 linhas; flag possivel_soma_duplicada + cruzamento DMPL > 15 p.p.; correção do app atual é ticket separado."
+    },
+    {
+      "risco": "Memória: jobs rodam no processo do app (1,9 GB compartilhados).",
+      "mitigacao": "Streaming em disco, prazo de 240 s, lock contra sobreposição, horários escalonados, rssPico medido em todo run e aceite local com --max-old-space-size=384."
+    },
+    {
+      "risco": "Banco dev com drift: `prisma migrate dev` quer resetar.",
+      "mitigacao": "Migration gerada por `migrate diff` e aplicada por script idempotente com registro em _prisma_migrations; em prod `prisma migrate deploy` normal."
+    },
+    {
+      "risco": "Crescimento do Postgres de produção (~0,8 GB) e do pg_dump diário.",
+      "mitigacao": "AssetStatementLine só FY e sem DVA/DMPL; quotes sem uuid; scores com retenção; RUNBOOK checa disco e backup antes; perfil completo só em prod."
+    },
+    {
+      "risco": "Casamento ticker↔CNPJ de FII por nome (98 casos) não auditado; 56 sem casamento.",
+      "mitigacao": "conferido=false até a conferência PL×cotação; lista de não casados no run; tickersManuais curado; a Fase 1 decide exibir só conferidos."
+    },
+    {
+      "risco": "Classificação de 'financeira' por subsetor pegaria SIMH3 (holding operacional alavancada) e WIZC3.",
+      "mitigacao": "Conferido no ClassifSetorial real: params.financeiras por SEGMENTO (Bancos, Outros Intermediarios Financeiros, Seguradoras, Resseguradoras) + holdingsFinanceirasRaiz ['ITSA']; ajuste vira v2 dos params sem código."
+    },
+    {
+      "risco": "Units sem composição parseável no FCA (texto livre).",
+      "mitigacao": "parseComposicaoUnit com os formatos medidos; falha ⇒ múltiplos por ticker ausentes + alerta; override manual via CvmCompanyTicker origem 'manual'."
+    },
+    {
+      "risco": "Limiares provisórios de FII papel (maior CRI, nº de CRIs) e o desligamento da vacância mudam notas quando o Pedro recalibrar.",
+      "mitigacao": "Tudo em ScoringParams versionado; AssetScore guarda paramsVersion; relatorio-notas-prototipo.ts mostra o efeito antes de ligar."
+    },
+    {
+      "risco": "Caso 22 da §4.6 (salvar cenário) depende de user_scenarios, que é Fase 2.",
+      "mitigacao": "Parte pura (aplicarCenarioSalvo/restaurarPadrao) testada na Fase 0; persistência registrada como pendência da Fase 2."
+    },
+    {
+      "risco": "Vitest do repo é lento e a mudança em calendario/fontes/mercado.ts pode quebrar testes de quem consome o agregador (lição #217).",
+      "mitigacao": "Cada fatia roda só seus arquivos; a E roda também os testes de mercado.ts e da rota /api/calendar."
+    },
+    {
+      "risco": "Fatias paralelas no mesmo working tree.",
+      "mitigacao": "Arquivos disjuntos, git add com caminhos explícitos, commits atômicos por fatia; ninguém mexe em arquivos da fatia 0 (exceto alertas.ts pela E)."
+    },
+    {
+      "risco": "Virada de ano (janeiro) — arquivos do 'ano corrente' ainda vazios e o DFP do ano anterior chegando.",
+      "mitigacao": "Janelas de arquivos por documento (dfp {ano−1, ano}; itr/fii com ano−1 no 1º trimestre) descritas nas fatias A/B."
+    },
+    {
+      "risco": "Bancos: IFRS consolidado × BR GAAP individual.",
+      "mitigacao": "Escopo ind para segmento 'Bancos' (decisão 3) com padraoContabil gravado; a tela da Fase 1 exibe o padrão."
+    },
+    {
+      "risco": "Dependência escondida entre fatias paralelas (D importando regras da A/B/C; A precisando do setor da C).",
+      "mitigacao": "TTM, régua FII e Obrigações/PL viram colunas/linhas gravadas pela fatia dona; pregões e palavras proibidas em regras/comum (fatia 0); A grava con+ind; critério de aceite de cada fatia proíbe import cruzado."
+    },
+    {
+      "risco": "Teste local de cron (DFP) gravando todas as companhias no Neon dev.",
+      "mitigacao": "Perfil dev automático fora de NODE_ENV=production para AssetStatementLine; orçamento revisto ~377 MB."
+    }
+  ],
+  "foraDaFase0": [
+    "Correção do preço D-1 da BRAPI e do dataCom=ex no app atual (tickets separados).",
+    "Telas, API /api/analise-ativos/*, user_scenarios, votos/ranking, teses, listas, comparações, reportes (Fases 1–3).",
+    "Stocks/REITs (SEC, preço EUA) — só os campos genéricos ficaram prontos.",
+    "Validação amostral de vacância/nº de imóveis contra gerenciais (curadoria; religa via ScoringParams).",
+    "Extração de PDF (Fase 5), FiiPropertyQuality."
+  ],
+  "revisao": {
+    "data": "2026-09-30",
+    "autor": "revisor crítico (workflow fase 0)",
+    "mudancas": [
+      "Proventos YAHOO: no dev as 2.863 linhas YAHOO têm dataCom null e a coluna date É a data ex (yahooCorporateActions.ts) — a spec as marcaria todas sem_data_com e usaria a ex como pagamento, perdendo o histórico pré-BRAPI (DPA 10a, 120 meses de FII). Criado camposPorFonte nos params, ProventoBruto.dataExOrigem, dataPagamento opcional.",
+      "Duplicata PETR4 set/2024: com a unique (symbol, date, tipo) e a soma por (pagamento, tipo) do dividendService, repetição com o mesmo pagamento vira UMA linha em dobro; o teste pedia 2 linhas (impossível). Teste corrigido + flag possivel_soma_duplicada.",
+      "Auditoria de proventos incremental por createdAt perdia updates (upsert da BRAPI não muda createdAt) e deixava órfãos (Yahoo apaga/reinsere com id novo, origemId @unique). Agora: auditoria completa diária com impressão digital por símbolo e reescrita por símbolo.",
+      "Dependência escondida A→C: a A só sabia quem é banco lendo AssetSetorB3 (C); banco ingerido antes da C ficaria con para sempre (versão já gravada não reprocessa). Agora a A grava con+ind e CvmCompany.layoutFinanceiro; escopo resolvido na leitura (fundamentosVigentes preferido).",
+      "Dependências escondidas D→A/B/C: TTM (calcularTtm da A), régua FII (reguaFii da B), Obrigações/PL (B) e pregoesB3 (C) seriam importados pela D/E. Agora: A grava linha tipoPeriodo='TTM'; B grava FiiMonthly.reguaVigente e obrigacoesPlPct; pregões e palavras proibidas foram para regras/comum (fatia 0); E tem textosEventos.ts próprio; repositório ganhou fii.fiisAlteradosDesde e jobs.dadoMaisRecentePorCamada; Camada foi para tipos.ts.",
+      "Regra 13 (salto de ações sem evento) estava na A, mas precisa de eventos VALIDADOS (D) — movida para a D; AssetShareCount perde o status suspeito.",
+      "Índice MF: DL/EBITDA com EBITDA negativo dava razão negativa ⇒ nota 10; ROE com prejuízo e PL negativo dava ROE positivo. Adicionados ebitdaNaoPositivo e plNaoPositivo (Índice e semáforo) e FII PL ≤ 0 ⇒ fora do Índice (regra 22 não tinha dono).",
+      "Financeiras: conferido no ClassifSetorial real — por subsetor pegaria SIMH3 (Holdings Diversificadas, operacional e alavancada) e WIZC3. Trocado por segmentos (Bancos, Outros Intermediarios Financeiros, Seguradoras, Resseguradoras) + holdingsFinanceirasRaiz ['ITSA'].",
+      "Tipo FII: com fundo alavancado, imóveis e CRI podem passar ambos de 50% do PL; a regra decidia pela ordem dos ifs. Agora vence a maior parcela. Teste novo.",
+      "FII casado só por nome (conferido=false) era pontuado igual (regra 20: 'antes de publicar'); agora universoAnalise exclui por padrão e params.fii.exigirTickerConferido. b3_isin = ISIN completo, nunca prefixo, com conferência PL×cotação.",
+      "Regra 22 (desdobramento de cotas FII ajustando séries por cota) não tinha dono: D confirma eventos FII pelas cotas do FiiMonthly e ajusta séries (HGLG11 2016, HFOF11).",
+      "Vigência: CvmCompanyTicker/FiiTickerMap com unique (symbol, validFrom) abririam uma linha nova por FCA anual se validFrom fosse a data de referência; regra de validFrom explicitada.",
+      "Cron: o template já roda `0 * * * * market-data/refresh`; dfp 09:00 e cotahist 23:00 colidiam — movidos para 09:05 e 23:05 (a spec dizia não haver colisão).",
+      "Allowlist com '*.b3.com.br' (curinga) trocada por lista exata + revalidação de host em redirect.",
+      "Lock do job: check-then-insert do AnaliseJobRun tinha corrida; agora dentro de transação com pg_advisory_xact_lock. Sem ScoringParams no banco, ingestão usa v1 do código com alerta (não para tudo); scores falha.",
+      "AssetScore.dataRef = último pregão (não o dia do run): fim de semana não gera linhas repetidas.",
+      "E: Notification para admins em prod mexe numa tabela existente/sino — agora atrás de ANALISE_ATIVOS_ALERTA_ADMIN (desligado).",
+      "Banco dev: cron DFP rodado localmente gravaria AssetStatementLine de ~700 companhias (~140 MB) — perfil dev automático fora de produção. Estimativas revistas (quotes ~70 MB; fundamentos con+ind+TTM 16 MB): total dev ~377 MB (< 450).",
+      "Params: removida duplicata sanidade.b3.universoFiiPregoes (= universo.fiiQuadroPregoes); limiares de Obrigações/PL do semáforo marcados provisórios (sem base na spec). Varredura de palavras proibidas por palavra inteira ('nota' não casa 'anotação').",
+      "CI roda `prisma migrate deploy` em banco vazio: critério de aceite da fatia 0 exige o migration.sql puro do migrate diff (o IF NOT EXISTS fica só no script do dev)."
+    ],
+    "semMudanca": [
+      "Asset sem colunas novas (justificativa do arquiteto confirmada: cvmFundSync usa Asset.cnpj).",
+      "Nomes: nenhum dos 22 models/@@map colide com o schema atual (conferido: Asset, AssetPriceHistory, AssetDividendHistory, AssetCorporateAction, AssetFundamentals, CvmFundQuota).",
+      "Migration continua única e só na fatia 0 (as colunas novas — CvmCompany.layoutFinanceiro, FiiMonthly.reguaVigente/obrigacoesPlPct, AssetProventoAuditado.dataExOrigem, dataPagamento opcional — entram nela).",
+      "Decimal para dinheiro de fonte e preço; Float para razões/per-share (valorUnitario de origem já é Float). Pesos, réguas e semáforos do v1 conferidos contra a §4.1/§4.2 e as decisões 2–10, 20–23: batem (WEGE3 8,02; BBAS3 e tijolo ÷0,8).",
+      "Jobs cabem em 300 MB/240 s pelo desenho (streaming, ETag, lotes de 1.000); a medição local com --max-old-space-size=384 continua critério de aceite."
+    ]
+  }
+}

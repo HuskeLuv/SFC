@@ -1818,3 +1818,679 @@ model CommunityReport {
   @@index([commentId])
   @@map("community_reports")
 }
+
+// ===== ANÁLISE DE ATIVOS (Fase 0) =====
+// Fundação de dados da área "Análise de Ativos" (docs/analise-ativos/fase0/spec-fase0.json).
+// Tabelas novas, sem FKs entre si nem para tabelas existentes (ingestão independente de ordem);
+// ligação por symbol/cnpj. Cada tabela tem UMA fatia escritora; leituras cruzadas só por
+// src/services/analiseAtivos/repositorio/**. Percentuais em pontos percentuais (sufixo Pct).
+// Três estados: coluna numérica null + naoSeAplica[] = n/a; null fora do array = ausente.
+
+// Versões imutáveis dos limiares (spec §8). Ativa = maior version com validFrom ≤ agora.
+model ScoringParams {
+  id        String   @id @default(uuid())
+  version   Int      @unique
+  // validado por scoringParamsSchema (zod) na leitura E na escrita
+  params    Json
+  validFrom DateTime
+  // 'seed-fase0' | e-mail do admin
+  createdBy String
+  notas     String?
+  createdAt DateTime @default(now())
+
+  @@index([validFrom])
+  @@map("scoring_params")
+}
+
+model AnaliseJobRun {
+  id             String    @id @default(uuid())
+  // ver src/services/analiseAtivos/jobs/nomesJobs.ts
+  job            String
+  // cron | script
+  origem         String    @default("cron")
+  // executando | ok | parcial | falha | pulado | abandonado
+  status         String
+  inicio         DateTime  @default(now())
+  fim            DateTime?
+  duracaoMs      Int?
+  linhasLidas    Int       @default(0)
+  linhasGravadas Int       @default(0)
+  rejeitadas     Int       @default(0)
+  // AlertaJob[] (máx. 200, truncado com contador)
+  alertas        Json?
+  erro           String?
+  rssInicioMb    Int?
+  rssPicoMb      Int?
+  parametros     Json?
+  // arquivos processados (url, etag, versões), cursores
+  detalhes       Json?
+
+  @@index([job, inicio(sort: Desc)])
+  @@index([status])
+  @@map("analise_job_runs")
+}
+
+// ETag/sha256 dos arquivos de fonte: pula download/processamento de arquivo inalterado.
+model AnaliseFonteArquivo {
+  url          String    @id
+  etag         String?
+  lastModified String?
+  bytes        BigInt?
+  sha256       String?
+  baixadoEm    DateTime
+  // só após gravação OK; arquivo baixado e não processado é reprocessado
+  processadoEm DateTime?
+  jobUltimo    String?
+
+  @@map("analise_fonte_arquivos")
+}
+
+model CvmCompany {
+  // 14 dígitos sem máscara
+  cnpj              String   @id
+  cdCvm             String
+  nome              String
+  // só referência; setor oficial = AssetSetorB3
+  setorAtividadeFca String?
+  situacao          String?
+  // 12 na maioria; ~10 cias fora de dezembro (regra 19)
+  mesFimExercicio   Int?
+  // DRE de banco/seguradora; fallback de financeira quando não há AssetSetorB3
+  layoutFinanceiro  Boolean  @default(false)
+  dataRefFca        DateTime @db.Date
+  versaoFca         Int
+  sourceUrl         String
+  fetchedAt         DateTime
+
+  @@index([cdCvm])
+  @@map("cvm_companies")
+}
+
+// validFrom = Data_Inicio_Negociacao do FCA ou 1ª data em que o par foi visto — nunca a data
+// de referência de cada FCA anual. Linha nova só quando cnpj/classe mudam.
+model CvmCompanyTicker {
+  id              String    @id @default(uuid())
+  symbol          String
+  cnpj            String
+  // ON | PN | UNIT — pelo SUFIXO do ticker (regra 18)
+  classeTitulo    String
+  // como veio no FCA (MGLU3 vem PN)
+  classeFca       String?
+  unitQtdOn       Int?
+  unitQtdPn       Int?
+  composicaoTexto String?
+  validFrom       DateTime  @db.Date
+  validTo         DateTime? @db.Date
+  // fca | manual
+  origem          String    @default("fca")
+  fetchedAt       DateTime
+
+  @@unique([symbol, validFrom])
+  @@index([cnpj])
+  @@index([symbol])
+  @@map("cvm_company_tickers")
+}
+
+// Point-in-time: todas as versões CVM (unique inclui versao); leitura pega a maior.
+model AssetFundamentalsPeriod {
+  id                     String   @id @default(uuid())
+  // CNPJ (CVM) | 'CIK:<10 dígitos>' (SEC, Fase 4)
+  emissorId              String
+  // CVM | SEC
+  source                 String
+  // DFP | ITR | 10-K | 10-Q
+  docTipo                String
+  docId                  String?
+  accession              String?
+  sourceConcept          Json?
+  sourceUrl              String
+  // FY | YTD | 3M | TTM (TTM derivado pela fatia A, regra 14)
+  tipoPeriodo            String
+  // con | ind
+  escopo                 String
+  // IFRS | BRGAAP | USGAAP
+  padraoContabil         String
+  dtIni                  DateTime @db.Date
+  dtFim                  DateTime @db.Date
+  anoFiscal              Int
+  trimestreFiscal        Int?
+  versao                 Int
+  // DT_RECEB desta versão
+  dtEntrega              DateTime @db.Date
+  // menor DT_RECEB do (cnpj, DT_REFER)
+  dtEntregaOriginal      DateTime @db.Date
+  moeda                  String   @default("BRL")
+  // UNIDADE | MIL
+  escalaOriginal         String
+  receita                Decimal? @db.Decimal(20, 2)
+  lucroBruto             Decimal? @db.Decimal(20, 2)
+  ebit                   Decimal? @db.Decimal(20, 2)
+  // DFC 6.01.01.* (positivo)
+  depreciacaoAmortizacao Decimal? @db.Decimal(20, 2)
+  lucroLiquido           Decimal? @db.Decimal(20, 2)
+  // controladora; null quando regra 12
+  lucroAtribuivel        Decimal? @db.Decimal(20, 2)
+  codContaLucro          String?
+  ativoTotal             Decimal? @db.Decimal(20, 2)
+  ativoCirculante        Decimal? @db.Decimal(20, 2)
+  passivoCirculante      Decimal? @db.Decimal(20, 2)
+  caixa                  Decimal? @db.Decimal(20, 2)
+  aplicacoesFinanceiras  Decimal? @db.Decimal(20, 2)
+  dividaBrutaCp          Decimal? @db.Decimal(20, 2)
+  dividaBrutaLp          Decimal? @db.Decimal(20, 2)
+  pl                     Decimal? @db.Decimal(20, 2)
+  plControladora         Decimal? @db.Decimal(20, 2)
+  fco                    Decimal? @db.Decimal(20, 2)
+  fci                    Decimal? @db.Decimal(20, 2)
+  fcf                    Decimal? @db.Decimal(20, 2)
+  // positivo = saída
+  capex                  Decimal? @db.Decimal(20, 2)
+  // DFC 6.03 (positivo)
+  dividendosJcpPagos     Decimal? @db.Decimal(20, 2)
+  // só FY; 'declarado no ano'
+  dmplDeclarado          Decimal? @db.Decimal(20, 2)
+  // publicado 3.99.01.x, já com escala corrigida (regra 11)
+  lpaOn                  Float?
+  lpaPn                  Float?
+  lpaEscalaCorrigida     Boolean  @default(false)
+  naoSeAplica            String[]
+  flags                  String[]
+  fetchedAt              DateTime
+
+  @@unique([emissorId, dtFim, tipoPeriodo, escopo, versao])
+  @@index([emissorId, tipoPeriodo, dtFim])
+  @@index([fetchedAt])
+  @@map("asset_fundamentals_period")
+}
+
+// Linhas dos demonstrativos (Raio-X). Tabela grande: chave composta, sem uuid.
+model AssetStatementLine {
+  emissorId     String
+  dtFim         DateTime @db.Date
+  // FY no MVP
+  tipoPeriodo   String
+  escopo        String
+  // BPA | BPP | DRE | DFC_MI | DFC_MD
+  demonstrativo String
+  cdConta       String
+  versao        Int
+  dsConta       String
+  nivel         Int
+  // R$ unidade
+  valor         Decimal  @db.Decimal(20, 2)
+  contaFixa     Boolean
+  // CVM | SEC
+  source        String
+  sourceConcept String?
+  accession     String?
+
+  @@id([emissorId, dtFim, tipoPeriodo, escopo, demonstrativo, cdConta, versao])
+  @@map("asset_statement_lines")
+}
+
+model AssetShareCount {
+  id         String   @id @default(uuid())
+  cnpj       String
+  // fim do exercício (DFP/FRE) ou fim do trimestre (ITR)
+  data       DateTime @db.Date
+  on         Decimal? @db.Decimal(20, 0)
+  pn         Decimal? @db.Decimal(20, 0)
+  tesouraria Decimal? @db.Decimal(20, 0)
+  // ex-tesouraria
+  total      Decimal? @db.Decimal(20, 0)
+  // dfp | dfp_x1000 | itr | itr_x1000 | fre_f | lpa_implicito | vizinho | limiar | sem_verificacao
+  fonte      String
+  // Σ(LPA×ações)/lucro
+  razaoLpa   Float?
+  // ok | alerta (>±5%) | nao_verificavel
+  status     String
+  versaoDoc  Int?
+  flags      String[]
+  fetchedAt  DateTime
+
+  @@unique([cnpj, data])
+  @@index([cnpj])
+  @@map("asset_share_counts")
+}
+
+// validFrom = 1ª data em que o par (ticker, cnpj) foi visto; linha nova só quando o CNPJ muda.
+model FiiTickerMap {
+  id            String    @id @default(uuid())
+  ticker        String
+  cnpj          String
+  validFrom     DateTime  @db.Date
+  validTo       DateTime? @db.Date
+  // b3_isin | b3_nome | manual
+  origem        String
+  conferido     Boolean   @default(false)
+  // auto_pl_cotacao | manual:<quem>
+  conferidoPor  String?
+  nomeB3        String?
+  razaoSocialB3 String?
+  isin          String?
+  motivo        String?
+  fetchedAt     DateTime
+
+  @@unique([ticker, validFrom])
+  @@index([cnpj])
+  @@index([ticker])
+  @@map("fii_ticker_map")
+}
+
+// Só a maior versão por (cnpj, mês); só CNPJs de FiiTickerMap (universo B3).
+model FiiMonthly {
+  id                 String    @id @default(uuid())
+  cnpj               String
+  // 1º dia do mês
+  refMonth           DateTime  @db.Date
+  versao             Int
+  dtEntrega          DateTime? @db.Date
+  // recomputado se ≠ PL/cotas >1% (regra 22)
+  vpCota             Decimal?  @db.Decimal(18, 8)
+  vpCotaRecalculado  Boolean   @default(false)
+  pl                 Decimal?  @db.Decimal(20, 2)
+  cotas              Decimal?  @db.Decimal(20, 4)
+  cotistas           Int?
+  // SÓ checagem, nunca exibido (regra 21)
+  dyMesCvmPct        Float?
+  rentEfetivaMesPct  Float?
+  taxaAdmPct         Float?
+  ativoTotal         Decimal?  @db.Decimal(20, 2)
+  passivoTotal       Decimal?  @db.Decimal(20, 2)
+  rendDistribuir     Decimal?  @db.Decimal(20, 2)
+  obrigAquisicao     Decimal?  @db.Decimal(20, 2)
+  obrigSecuritizacao Decimal?  @db.Decimal(20, 2)
+  // Direitos_Bens_Imoveis
+  imoveis            Decimal?  @db.Decimal(20, 2)
+  spe                Decimal?  @db.Decimal(20, 2)
+  // CRI + CRI_CRA
+  cri                Decimal?  @db.Decimal(20, 2)
+  // LCI + LCI_LCA + LH + LIG (caixa, não recebível)
+  lciLca             Decimal?  @db.Decimal(20, 2)
+  cotasFii           Decimal?  @db.Decimal(20, 2)
+  rendaFixa          Decimal?  @db.Decimal(20, 2)
+  acoes              Decimal?  @db.Decimal(20, 2)
+  segmentoCvm        String?
+  // tijolo | papel | fof | hibrido | indefinido
+  tipoComposicao     String?
+  // após histerese e override
+  tipoVigente        String?
+  // fii_tijolo | fii_papel | fora_do_indice
+  reguaVigente       String?
+  // (passivoTotal − rendDistribuir) ÷ PL × 100 (decisão 7, 'Obrigações/PL')
+  obrigacoesPlPct    Float?
+  // cotas ×≥5 no mês (regra 22)
+  fatorDesdobramento Float?
+  flags              String[]
+  sourceUrl          String
+  fetchedAt          DateTime
+
+  @@unique([cnpj, refMonth])
+  @@index([refMonth])
+  @@map("fii_monthly")
+}
+
+model FiiQuarterly {
+  id                    String   @id @default(uuid())
+  cnpj                  String
+  // último dia do trimestre
+  refQuarter            DateTime @db.Date
+  versao                Int
+  nImoveisRenda         Int?
+  nImoveisOutros        Int?
+  // 'área informada', não ABL
+  areaM2                Float?
+  areaMaiorImovelM2     Float?
+  // ponderada pela área; rótulo 'fonte CVM'
+  vacanciaFisicaCvmPct  Float?
+  inadimplenciaCvmPct   Float?
+  // >105 ⇒ inadimplência descartada
+  somaPctReceita        Float?
+  prazoMedioAnosAprox   Float?
+  vencAte12mPct         Float?
+  vencAcima36mPct       Float?
+  idxIpcaPct            Float?
+  idxIgpmPct            Float?
+  // distintos por código CETIP (regra 25)
+  nCri                  Int?
+  valorCri              Decimal? @db.Decimal(20, 2)
+  // % do valor total de CRIs
+  maiorCriPct           Float?
+  nFii                  Int?
+  receitaAluguel        Decimal? @db.Decimal(20, 2)
+  resultadoTrimestral   Decimal? @db.Decimal(20, 2)
+  rendimentosDeclarados Decimal? @db.Decimal(20, 2)
+  taxaPerformance       Decimal? @db.Decimal(20, 2)
+  flags                 String[]
+  sourceUrl             String
+  fetchedAt             DateTime
+
+  @@unique([cnpj, refQuarter])
+  @@index([refQuarter])
+  @@map("fii_quarterly")
+}
+
+// Override manual documentado do tipo de FII (decisão 9).
+model FiiTipoOverride {
+  cnpj     String   @id
+  // tijolo | papel | fof | hibrido | indefinido
+  tipo     String
+  motivo   String
+  autor    String
+  criadoEm DateTime @default(now())
+
+  @@map("fii_tipo_override")
+}
+
+// COTAHIST (TPMERC 010, BDI 02/12). Imutável. Tabela grande: chave composta, sem uuid.
+model AssetQuoteDaily {
+  symbol     String
+  date       DateTime @db.Date
+  // PREULT/100/FATCOT (regra 28), cru
+  closeRaw   Decimal  @db.Decimal(18, 6)
+  fatCot     Int
+  // VOLTOT/100
+  volumeFin  Decimal  @db.Decimal(20, 2)
+  // QUATOT
+  quantidade BigInt
+  // TOTNEG
+  negocios   Int
+  // 02 | 12
+  codBdi     String
+  // ESPECI (ON, PN, UNT, CI…)
+  especi     String?
+  source     String   @default("cotahist")
+
+  @@id([symbol, date])
+  @@index([date])
+  @@map("asset_quotes_daily")
+}
+
+model AssetQuoteResumo {
+  symbol              String   @id
+  ultimoPregao        DateTime @db.Date
+  closeRaw            Decimal  @db.Decimal(18, 6)
+  codBdi              String
+  especi              String?
+  // média VOLTOT 21 pregões, sem negócio = 0 (regra 29)
+  volumeMedio21       Decimal  @db.Decimal(20, 2)
+  pregoesComNegocio21 Int
+  // < 15 pregões com negócio em 21
+  baixaLiquidez       Boolean
+  // decisão 14: universo do Quadro de FIIs
+  negociadoUltimos30  Boolean
+  // regra 30 no último pregão
+  saltoSuspeito       Boolean  @default(false)
+  atualizadoEm        DateTime
+
+  @@map("asset_quote_resumo")
+}
+
+model AssetSetorB3 {
+  // 4 letras (WEGE)
+  raiz                  String   @id
+  nomePregao            String?
+  setor                 String
+  subsetor              String
+  segmento              String
+  // Novo Mercado, N2, N1…
+  segmentoListagem      String?
+  // false = saiu da lista (deslistada)
+  presenteUltimoArquivo Boolean
+  atualizadoEm          DateTime
+
+  @@index([segmento])
+  @@index([subsetor])
+  @@map("asset_setores_b3")
+}
+
+// Auditoria de asset_dividend_history (só leitura na origem). Reescrita por símbolo.
+model AssetProventoAuditado {
+  id                String    @id @default(uuid())
+  // asset_dividend_history.id
+  origemId          String    @unique
+  symbol            String
+  // BRAPI | YAHOO
+  source            String
+  tipoOriginal      String
+  // DIVIDENDO | JCP | RENDIMENTO | AMORTIZACAO | REST_CAP | OUTRO
+  tipoNormalizado   String
+  // por ação/cota, como declarado (bruto)
+  valor             Float
+  // YAHOO não tem (a coluna date dele é a data EX)
+  dataPagamento     DateTime? @db.Date
+  // o que o app chama de dataCom
+  dataExGravada     DateTime? @db.Date
+  // pregão B3 anterior à data ex
+  dataComReal       DateTime? @db.Date
+  // 'dataCom' (BRAPI) | 'date' (YAHOO)
+  dataExOrigem      String?
+  // valido | duplicata | tipo_excluido | sem_data_com | fonte_secundaria_descartada
+  status            String
+  duplicataDe       String?
+  // Π eventos confirmados com data > dataComReal
+  fatorAjusteHoje   Float
+  valorAjustadoHoje Float
+  flags             String[]
+  auditadoEm        DateTime
+
+  @@index([symbol, dataComReal])
+  @@index([symbol, status])
+  @@map("asset_proventos_auditados")
+}
+
+model AssetCorporateActionCheck {
+  id              String   @id @default(uuid())
+  symbol          String
+  cnpj            String?
+  dataEvento      DateTime @db.Date
+  fator           Decimal  @db.Decimal(18, 8)
+  // DESDOBRAMENTO | GRUPAMENTO | BONIFICACAO
+  tipo            String
+  // ano cujo nº de ações já reflete o evento
+  anoBase         Int
+  // confirmado | descartado | nao_validavel | emissao_recompra
+  status          String
+  // ações_fim/ações_início do ano
+  razaoCvm        Float?
+  fatorProdutoAno Float?
+  // asset_corporate_actions.id (dedup ≤30 dias)
+  idsOrigem       String[]
+  fontes          String[]
+  verificadoEm    DateTime
+
+  @@unique([symbol, dataEvento, fator])
+  @@index([symbol])
+  @@index([cnpj])
+  @@map("asset_corporate_action_checks")
+}
+
+model AssetPerShareYearly {
+  id                String   @id @default(uuid())
+  symbol            String
+  cnpj              String
+  // acao | fii
+  classe            String
+  anoFiscal         Int
+  dtFim             DateTime @db.Date
+  // ações da empresa (ou cotas)
+  acoesFim          Decimal? @db.Decimal(20, 0)
+  // unit = on+pn
+  fatorEquivalencia Float    @default(1)
+  lpa               Float?
+  vpa               Float?
+  // Σ DIVIDENDO+JCP com dataComReal no ano, na base de ações do fim do ano
+  dpaDataCom        Float?
+  // Π eventos confirmados com anoBase > anoFiscal
+  fatorAjusteHoje   Float
+  lpaAjHoje         Float?
+  vpaAjHoje         Float?
+  dpaAjHoje         Float?
+  // decisão 11: DMPL declarado ÷ lucro
+  payoutDmplPct     Float?
+  // checagem
+  payoutPorAcaoPct  Float?
+  // FII: Σ rendimentos no ano
+  rendCota          Float?
+  // FII
+  vpCotaFim         Float?
+  naoSeAplica       String[]
+  flags             String[]
+  paramsVersion     Int
+  calculadoEm       DateTime
+
+  @@unique([symbol, anoFiscal])
+  @@index([cnpj])
+  @@map("asset_per_share_yearly")
+}
+
+model AssetMultiplesYearly {
+  id                   String    @id @default(uuid())
+  symbol               String
+  cnpj                 String
+  classe               String
+  anoFiscal            Int
+  dtFim                DateTime  @db.Date
+  // cru, último pregão ≤ dtFim e ≥ dtFim−5d (regra 5)
+  precoFimAno          Decimal?  @db.Decimal(18, 6)
+  precoFimAnoData      DateTime? @db.Date
+  valorMercadoEmpresa  Decimal?  @db.Decimal(22, 2)
+  pl                   Float?
+  pvp                  Float?
+  pReceita             Float?
+  evEbitda             Float?
+  pFco                 Float?
+  pFcl                 Float?
+  dyPct                Float?
+  payoutPct            Float?
+  margemLiquidaPct     Float?
+  roePct               Float?
+  roaPct               Float?
+  roicPct              Float?
+  divLiqEbitda         Float?
+  divLiqPl             Float?
+  liquidezCorrente     Float?
+  vpCota               Float?
+  rendCota12m          Float?
+  obrigacoesPlPct      Float?
+  vacanciaFisicaCvmPct Float?
+  nImoveisCvm          Int?
+  naoSeAplica          String[]
+  flags                String[]
+  paramsVersion        Int
+  calculadoEm          DateTime
+
+  @@unique([symbol, anoFiscal])
+  @@index([cnpj])
+  @@map("asset_multiples_yearly")
+}
+
+model AssetMultiplesCurrent {
+  symbol                String    @id
+  cnpj                  String
+  classe                String
+  // closeRaw do último pregão (AssetQuoteResumo)
+  preco                 Decimal   @db.Decimal(18, 6)
+  precoData             DateTime  @db.Date
+  ttmDtFim              DateTime? @db.Date
+  lpaTtm                Float?
+  vpa                   Float?
+  dpa12m                Float?
+  rend12m               Float?
+  vpCota                Float?
+  pl                    Float?
+  pvp                   Float?
+  pReceita              Float?
+  evEbitda              Float?
+  pFco                  Float?
+  pFcl                  Float?
+  dy12mPct              Float?
+  payoutPct             Float?
+  margemLiquidaPct      Float?
+  roePct                Float?
+  roaPct                Float?
+  roicPct               Float?
+  divLiqEbitda          Float?
+  divLiqPl              Float?
+  liquidezCorrente      Float?
+  obrigacoesPlPct       Float?
+  anosLucroConsecutivos Int?
+  mesesComRendimento    Int?
+  plMedia10a            Float?
+  plPontosHistorico     Int
+  plVsMedia10aPct       Float?
+  naoSeAplica           String[]
+  flags                 String[]
+  paramsVersion         Int
+  calculadoEm           DateTime
+
+  @@index([cnpj])
+  @@index([classe])
+  @@map("asset_multiples_current")
+}
+
+// Retenção: job scores apaga dataRef < hoje−40d que não seja o último dataRef do mês.
+model AssetScore {
+  id                  String   @id @default(uuid())
+  symbol              String
+  cnpj                String
+  // data do ÚLTIMO PREGÃO com cotação, não o dia do run
+  dataRef             DateTime @db.Date
+  classe              String
+  // acao | acao_financeira | fii_tijolo | fii_papel | fora_do_indice
+  regua               String
+  fiiTipo             String?
+  // decisão 13: índice por empresa, calculado no ticker de referência
+  tickerReferencia    String?
+  // null = fora do índice (FoF) ou sem nenhum componente
+  indiceMf            Float?
+  cLucro              Float?
+  cDivida             Float?
+  cRent               Float?
+  cDiv                Float?
+  cPreco              Float?
+  componentes         Json
+  pesosEfetivos       Json
+  // CheckSemaforo[] compacto — frases vêm de textos.ts
+  checks              Json
+  criteriosAplicaveis Int
+  criteriosAtendidos  Int
+  incompleto          Boolean
+  motivosIncompleto   String[]
+  paramsVersion       Int
+  computedAt          DateTime
+
+  @@unique([symbol, dataRef])
+  @@index([dataRef])
+  @@index([classe, dataRef])
+  @@map("asset_scores")
+}
+
+model AssetEvento {
+  id            String    @id @default(uuid())
+  cnpj          String
+  // resultado_estimado | resultado | assembleia
+  tipo          String
+  // ITR1 | ITR2 | ITR3 | DFP | AGO | AGE | AGO/AGE
+  subtipo       String
+  // '2026-3T' | '2026-FY'
+  periodoRef    String?
+  // assembleia: '<subtipo>:<data>'; resultado(_estimado): '<periodoRef>'
+  chave         String
+  data          DateTime  @db.Date
+  estimado      Boolean
+  // estimado que virou resultado real
+  substituidoEm DateTime?
+  // IPE Assunto (≤200 chars)
+  assunto       String?
+  sourceUrl     String?
+  // Protocolo_Entrega (IPE) ou ID_DOC
+  sourceDocId   String?
+  versao        Int?
+  fetchedAt     DateTime
+
+  @@unique([cnpj, tipo, chave])
+  @@index([data])
+  @@index([cnpj, data])
+  @@map("asset_eventos")
+}

@@ -1,0 +1,383 @@
+{
+  "cobertura": {
+    "listadas": 306,
+    "anos10completos": 211,
+    "anos5completos": 299,
+    "lucroCtrlFy2025": 217,
+    "lpaPublicadoFy2025": 261,
+    "acoesValidadasFy2025": 241,
+    "comProventoDbDev2021a2025": 219
+  },
+  "eventosValidacao": {
+    "foraDaJanela": 273,
+    "gruposComEvento": 194,
+    "validadosIntegral": 118,
+    "validadosComDescarte": 5,
+    "descartadosTodos": 4,
+    "naoValidaveis": 45,
+    "semBateEmitiuAcoes": 22,
+    "eventosDescartados": [
+      "EGIE3 2025-11-28 ×1.1 (ações ×1.4)",
+      "BMEB3 2021-12-02 ×20 (ações ×1.99)",
+      "CBEE3 2016-01-15 ×0.025 (ações ×0)",
+      "UNIP3 2015-01-12 ×0.1 (ações ×1)",
+      "SBSP3 2026-03-19 ×1.028 (ações ×5.008)",
+      "BBDC3 2024-02-07 ×1.2 (ações ×0.996)",
+      "CPLE3 2021-03-12 ×10 (ações ×1)",
+      "PATI3 2021-08-04 ×1.31 (ações ×1.31)",
+      "RAIL3 2015-08-03 ×0.1 (ações ×1)"
+    ]
+  },
+  "geradoEm": "2026-09-30T19:20:36.380Z",
+  "universo": {
+    "companhias": 319,
+    "tickers": 426
+  },
+  "p1_acoes": {
+    "regra": "candidatos DFP composição (unid. e ×1000) e FRE 3.1 item f; escolhe o que bate Σ LPA×ações ≈ lucro (±20%); senão vizinhança ajustada por eventos; senão ações implícitas lucro/LPA; senão limiar",
+    "companyYears": 3395,
+    "semNenhumaFonte": 95,
+    "porFonte": {
+      "fre": 1441,
+      "dfp": 1160,
+      "dfp×1000": 598,
+      "lucro÷LPA": 99,
+      "fre÷eventoPosterior": 2
+    },
+    "porCheck": {
+      "lpa": 2479,
+      "vizinho": 342,
+      "sem-verificacao": 176,
+      "lpa-implicito": 99,
+      "limiar": 146,
+      "lpa(publicado em escala errada)": 43,
+      "lpa-aproximado": 15
+    },
+    "lpaPublicadoComErroDeEscala": 43,
+    "freVsDfpOverlap": {
+      "n": 600,
+      "dentro2pct": 549,
+      "dentro10pct": 570
+    },
+    "freReexpressoPorEventoPosterior": 2,
+    "depois": {
+      "verificaveisPorLpa": 2694,
+      "okPorLpa": 2522,
+      "naoVerificaveis": 606,
+      "suspeitosPorSalto": 119
+    },
+    "antesRegraSpike": {
+      "verificaveisPorLpa": 2737,
+      "okPorLpa": 1743
+    },
+    "exemplosInconsistentes": [
+      "BSLI3 2021: fonte=fre/sem-verificacao salto sem LPA p/ checar",
+      "CEBR3 2015: fonte=fre/vizinho razaoLpa=1.37",
+      "ARML3 2021: fonte=fre/sem-verificacao salto sem LPA p/ checar",
+      "TELB3 2017: fonte=lucro÷LPA/lpa-implicito salto sem LPA p/ checar",
+      "FASA3 2015: fonte=fre/vizinho salto sem LPA p/ checar",
+      "FASA3 2016: fonte=fre/sem-verificacao salto sem LPA p/ checar",
+      "AMER3 2024: fonte=dfp/limiar salto sem LPA p/ checar",
+      "NEOE3 2014: fonte=fre/vizinho razaoLpa=7.48",
+      "BBML3 2022: fonte=dfp/vizinho razaoLpa=-1",
+      "GFSA3 2019: fonte=lucro÷LPA/lpa-implicito salto sem LPA p/ checar",
+      "GFSA3 2020: fonte=dfp×1000/vizinho razaoLpa=1.67",
+      "SEQL3 2019: fonte=fre/sem-verificacao salto sem LPA p/ checar",
+      "SEQL3 2020: fonte=dfp/vizinho salto sem LPA p/ checar",
+      "QVQP3 2021: fonte=fre/sem-verificacao salto sem LPA p/ checar",
+      "QVQP3 2022: fonte=dfp/limiar salto sem LPA p/ checar",
+      "QVQP3 2023: fonte=dfp/limiar salto sem LPA p/ checar",
+      "QVQP3 2024: fonte=dfp/limiar salto sem LPA p/ checar",
+      "QVQP3 2025: fonte=dfp/limiar salto sem LPA p/ checar",
+      "OPTS3 2015: fonte=fre/sem-verificacao salto sem LPA p/ checar",
+      "OPTS3 2016: fonte=fre/sem-verificacao salto sem LPA p/ checar",
+      "OPTS3 2017: fonte=fre/sem-verificacao salto sem LPA p/ checar",
+      "OPTS3 2020: fonte=dfp/limiar salto sem LPA p/ checar",
+      "OPTS3 2021: fonte=fre/sem-verificacao salto sem LPA p/ checar",
+      "OPTS3 2022: fonte=dfp/limiar salto sem LPA p/ checar",
+      "OPTS3 2023: fonte=dfp/limiar salto sem LPA p/ checar",
+      "OPSE3 2020: fonte=fre/sem-verificacao salto sem LPA p/ checar",
+      "OPSE3 2021: fonte=fre/sem-verificacao salto sem LPA p/ checar",
+      "OPSE3 2022: fonte=dfp/limiar salto sem LPA p/ checar",
+      "OPSE3 2023: fonte=dfp/limiar salto sem LPA p/ checar",
+      "FIQE3 2021: fonte=lucro÷LPA/lpa-implicito salto sem LPA p/ checar",
+      "EMAE3 2025: fonte=dfp/limiar salto sem LPA p/ checar",
+      "LWSA3 2020: fonte=lucro÷LPA/lpa-implicito salto sem LPA p/ checar",
+      "RAIL3 2016: fonte=lucro÷LPA/lpa-implicito salto sem LPA p/ checar",
+      "TIMS3 2020: fonte=dfp/vizinho razaoLpa=0.11",
+      "TIMS3 2024: fonte=dfp/vizinho salto sem LPA p/ checar",
+      "TIMS3 2025: fonte=dfp/limiar salto sem LPA p/ checar",
+      "VIVT3 2024: fonte=dfp/limiar salto sem LPA p/ checar",
+      "VIVT3 2025: fonte=dfp/limiar salto sem LPA p/ checar",
+      "SHOW3 2025: fonte=dfp/vizinho razaoLpa=-0.1",
+      "PDGR3 2021: fonte=lucro÷LPA/lpa-implicito salto sem LPA p/ checar"
+    ],
+    "exemplosMilhares": [
+      "BSLI3 2020",
+      "AXIA3 2021",
+      "AESO3 2020",
+      "FASA3 2020",
+      "NEOE3 2020",
+      "GFSA3 2020",
+      "FIGE3 2020",
+      "CSUD3 2020",
+      "PSSA3 2020",
+      "EMAE3 2020",
+      "EKTR3 2020",
+      "PDTC3 2020",
+      "SHOW3 2020",
+      "PDGR3 2020",
+      "GEPA3 2020",
+      "TPIS3 2020",
+      "BRAP3 2020",
+      "ECOR3 2020",
+      "ENEV3 2020",
+      "ASAI3 2020",
+      "BRML3 2020",
+      "BNBR3 2020",
+      "ABEV3 2020",
+      "SMFT3 2020",
+      "EMBJ3 2020",
+      "TAEE3 2020",
+      "TCSA3 2020",
+      "LPSB3 2020",
+      "MRVE3 2020",
+      "GPAR3 2020"
+    ],
+    "exemplosFreReexpresso": [
+      "UGPA3 FY2018: FRE 1086 mi ÷ fator 2",
+      "PNVL3 FY2019: FRE 135.5 mi ÷ fator 30"
+    ],
+    "histRazaoLpaAceitos": {
+      "ate2pct": 1904,
+      "ate5pct": 270,
+      "ate10pct": 199,
+      "ate20pct": 149,
+      "acima": 172
+    }
+  },
+  "p2_desdobramentos": {
+    "tickersComEvento": 270,
+    "eventosAposDedup": 857,
+    "duplicatasRemovidas": 63,
+    "validacaoPorAcoes": {
+      "anosComEventoNoBanco": 169,
+      "eventoConfirmado": 126,
+      "eventoNaoRefletidoNasAcoes": 8,
+      "outro": 35,
+      "anosSemEventoComSalto": 140,
+      "exemplosNaoRefletidos": [
+        "GFSA3 2017: fator banco 0.074, ações ×0.999",
+        "RAIL3 2015: fator banco 0.1, ações ×1",
+        "GSHP3 2019: fator banco 2, ações ×1",
+        "UNIP3 2015: fator banco 0.1, ações ×1",
+        "SMTO3 2016: fator banco 3, ações ×0.998",
+        "BBDC3 2024: fator banco 1.2, ações ×0.996",
+        "CYRE3 2025: fator banco 1.19, ações ×0.999",
+        "CPLE3 2021: fator banco 10, ações ×1"
+      ],
+      "exemplosSaltoSemEvento": [
+        "AXIA3 2022: ações ×1.467",
+        "TELB3 2018: ações ×3.307",
+        "AMER3 2021: ações ×1.606",
+        "VSPT3 2017: ações ×0.474",
+        "VSPT3 2025: ações ×2.493",
+        "NEOE3 2016: ações ×0.133",
+        "NEOE3 2018: ações ×1.435",
+        "BBML3 2018: ações ×2.334",
+        "GFSA3 2016: ações ×0.073",
+        "GFSA3 2018: ações ×1.475",
+        "GFSA3 2019: ações ×17.271",
+        "GFSA3 2023: ações ×1.689",
+        "FIQE3 2021: ações ×15.39",
+        "FIQE3 2022: ações ×1.929",
+        "LWSA3 2020: ações ×5.388",
+        "PDTC3 2020: ações ×4.8",
+        "RAIL3 2016: ações ×3.48",
+        "RAIL3 2017: ações ×0.657",
+        "JALL3 2021: ações ×645.984",
+        "PDGR3 2021: ações ×4.363"
+      ]
+    },
+    "reexpressaoLpa": {
+      "n": 345,
+      "bate": 68,
+      "cvmSemEventoNoBanco": 154,
+      "bancoSemReexpressaoCvm": 105,
+      "exemplos": [
+        "BBAS3 FY2023: cvm=2.008 banco=2",
+        "BSLI3 FY2019: cvm=1 banco=90",
+        "AXIA3 FY2019: cvm=0.956 banco=1",
+        "AXIA3 FY2024: cvm=1.259 banco=1",
+        "CEBR3 FY2015: cvm=2.541 banco=1",
+        "CEBR3 FY2016: cvm=1.061 banco=1",
+        "CEBR3 FY2017: cvm=1.176 banco=1",
+        "CEBR3 FY2020: cvm=1 banco=5",
+        "TELB3 FY2015: cvm=0.122 banco=0.1",
+        "TELB3 FY2016: cvm=1.266 banco=1",
+        "TELB3 FY2017: cvm=3.307 banco=1",
+        "TELB3 FY2019: cvm=1.246 banco=1",
+        "TELB3 FY2022: cvm=0.758 banco=1",
+        "ENGI3 FY2018: cvm=0.001 banco=1",
+        "ENGI3 FY2019: cvm=1003.819 banco=1",
+        "ENGI3 FY2020: cvm=1.08 banco=1",
+        "ENGI3 FY2024: cvm=0.958 banco=1.1",
+        "VSPT3 FY2016: cvm=0.833 banco=1",
+        "VSPT3 FY2018: cvm=3.306 banco=1",
+        "VSPT3 FY2019: cvm=0.863 banco=1",
+        "NEOE3 FY2014: cvm=6.462 banco=1",
+        "NEOE3 FY2015: cvm=0.15 banco=1",
+        "GFSA3 FY2015: cvm=0.074 banco=0.074",
+        "GFSA3 FY2017: cvm=1.118 banco=1",
+        "GFSA3 FY2020: cvm=0.805 banco=1"
+      ]
+    },
+    "freEventos2014mais": {
+      "n": 1054,
+      "casadosNoBanco": 708,
+      "semNoBanco": 346,
+      "exemplos": [
+        "BGIP3 2014-04-22 Bonificação 1.45",
+        "OFSA3 2014-08-20 Grupamento 0.3333",
+        "OFSA3 2014-09-25 Grupamento 0.7926",
+        "TKNO3 2014-04-29 Bonificação 1.0317",
+        "RSID3 2014-11-21 Grupamento 0.2",
+        "KLBN11 2014-01-07 Bonificação 1.0308",
+        "PATI3 2014-12-09 Bonificação 9.1182",
+        "BGIP3 2014-04-22 Bonificação 1.45",
+        "OFSA3 2014-08-20 Grupamento 0.3333",
+        "OFSA3 2014-09-25 Grupamento 0.7926",
+        "TKNO3 2014-04-29 Bonificação 1.0317",
+        "WIZC3 2014-12-10 Desdobramento 501",
+        "RSID3 2014-11-21 Grupamento 0.2",
+        "RSID3 2016-01-18 Grupamento 0.2",
+        "CAMB3 2014-12-31 Desdobramento 1.0431"
+      ]
+    }
+  },
+  "p3_payout": {
+    "gabarito": "FRE 3.5 Dividendo_Distribuido_Total (declarado relativo ao exercício), FY 2014-2021",
+    "metodos": {
+      "dfcPago": {
+        "n": 1163,
+        "dentro5pct": 12.2,
+        "dentro15pct": 27.2,
+        "erroMedianoPct": 37.5
+      },
+      "dmplStd": {
+        "n": 1249,
+        "dentro5pct": 36.1,
+        "dentro15pct": 44.2,
+        "erroMedianoPct": 22
+      },
+      "dmplStdMaisOutros": {
+        "n": 1249,
+        "dentro5pct": 43.9,
+        "dentro15pct": 56.8,
+        "erroMedianoPct": 8.6
+      },
+      "dmplStdMaisAdicionalProximoAno": {
+        "n": 1249,
+        "dentro5pct": 39.8,
+        "dentro15pct": 51.2,
+        "erroMedianoPct": 13.6
+      },
+      "dbDataCom": {
+        "n": 286,
+        "dentro5pct": 14,
+        "dentro15pct": 24.1,
+        "erroMedianoPct": 41.1
+      }
+    },
+    "coberturaFy2025": {
+      "comLucro": 311,
+      "comLinhaDmplDividendos": 194,
+      "comLinhaDfcDividendos": 211
+    },
+    "dbDataComVsDmpl_2020_2025": {
+      "n": 937,
+      "dentro5pct": 29.6,
+      "dentro15pct": 45,
+      "erroMedianoPct": 18.7
+    },
+    "dfcPagoVsDmpl_2020_2025": {
+      "n": 1031,
+      "dentro5pct": 22,
+      "dentro15pct": 39,
+      "erroMedianoPct": 23
+    }
+  },
+  "p4_ttm": {
+    "comItr2026": 302,
+    "ttm2T26": 296,
+    "ttm1T26": 6,
+    "ytdVsTri": {
+      "n": 504,
+      "dentro0_5pct": 467,
+      "exemplos": [
+        "BBAS3 lucroCtrl: ytd=12272 tri=18492.9",
+        "AXIA3 lucroCtrl: ytd=12056.9 tri=10378.2",
+        "AMER3 receita: ytd=11794 tri=12770",
+        "AMER3 lucroCtrl: ytd=-280 tri=378",
+        "BBML3 lucroCtrl: ytd=-163.5 tri=-216.2",
+        "SEQL3 lucroCtrl: ytd=-163.5 tri=-279.3",
+        "DEXP3 lucroCtrl: ytd=145.5 tri=237",
+        "EMAE3 lucroCtrl: ytd=-122.7 tri=-56.6",
+        "BIOM3 lucroCtrl: ytd=30.3 tri=-4.8",
+        "HAPV3 receita: ytd=31855.9 tri=18422.8",
+        "HAPV3 lucroCtrl: ytd=-173.6 tri=-319",
+        "CRDE3 lucroCtrl: ytd=-8.3 tri=-6.9",
+        "NEXP3 lucroCtrl: ytd=93.1 tri=-39.3",
+        "OSXB3 lucroCtrl: ytd=-1156.6 tri=-847.7",
+        "AZUL3 lucroCtrl: ytd=-2996.7 tri=124.9"
+      ]
+    }
+  },
+  "p5_setor": {
+    "b3Linhas": 358,
+    "universoCoberto": "306/319",
+    "segmentosNoUniverso": 79,
+    "segmentosCom5ouMais": 17,
+    "empresasEmSegmentoCom5ouMaisPares": 180,
+    "empresasEmSubsetorCom5ouMaisPares": 280,
+    "fcaSetoresDistintos": 47,
+    "exemplosSemB3": [
+      "NEOE3 (Emp. Adm. Part. - Energia Elétrica)",
+      "SHOW3 (Brinquedos e Lazer)",
+      "ATMP3 (Emp. Adm. Part. - Comunicação e Informática)",
+      "CELP3 (Energia Elétrica)",
+      "BRML3 (Emp. Adm. Part. - Comércio (Atacado e Varejo))",
+      "CRDE3 (Construção Civil, Mat. Constr. e Decoração)",
+      "NGRD3 (Comunicação e Informática)",
+      "MERC3 (Bancos)",
+      "RPMG3 (Petróleo e Gás)",
+      "TKNO3 (Emp. Adm. Part. - Metalurgia e Siderurgia)",
+      "IGTA3 (Comércio (Atacado e Varejo))",
+      "OIBR3 (Telecomunicações)",
+      "TRXR3 (Têxtil e Vestuário)"
+    ]
+  },
+  "p6_calendario": {
+    "itrMesmoTrimestreAnoAnterior_difDias": {
+      "n": 914,
+      "ate3dias": 69.8,
+      "ate7dias": 86.3,
+      "ate14dias": 91,
+      "mediana": 1
+    },
+    "dfpAnoAnterior_difDias": {
+      "n": 314,
+      "ate3dias": 48.7,
+      "ate7dias": 72.3,
+      "ate14dias": 87.6,
+      "mediana": 4
+    },
+    "ipeUniverso": {
+      "calendarioEventos2026_pdf": 255,
+      "comunicadoAgendaResultados2026": 50,
+      "avisoDataPrevistaAgo2026": 210,
+      "pressRelease2026": 224,
+      "universo": 319
+    }
+  }
+}

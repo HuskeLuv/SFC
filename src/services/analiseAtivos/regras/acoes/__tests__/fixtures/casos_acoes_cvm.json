@@ -1,0 +1,243 @@
+{
+  "_fonte": "CVM Dados Abertos: DFP (DRE/BPP/composicao_capital, ORDEM_EXERC=ÚLTIMO, maior VERSAO) e FRE informacao_financeira do ano seguinte ao exercício; extraído em 30/09/2026 dos zips da Fase A. Valores em R$ (ESCALA_MOEDA aplicada), LPA cru, composição como publicada.",
+  "casos": {
+    "WEGE3-2016": {
+      "cnpj": "84.429.695/0001-11",
+      "lucroTotal": 1127832000.0,
+      "lucroAtribuivel": 1117624000.0,
+      "codContaLucro": "3.11",
+      "lpa": {
+        "ON": 0.69278
+      },
+      "pl": 6070832000.0,
+      "composicao": null,
+      "freItemF": 1614353076.0,
+      "freVersao": 4
+    },
+    "WEGE3-2019": {
+      "cnpj": "84.429.695/0001-11",
+      "lucroTotal": 1632455000.0,
+      "lucroAtribuivel": 1614581000.0,
+      "codContaLucro": "3.11",
+      "lpa": {
+        "ON": 0.76978
+      },
+      "pl": 8929990000.0,
+      "composicao": null,
+      "freItemF": 2098658999.0,
+      "freVersao": 8
+    },
+    "WEGE3-2021": {
+      "cnpj": "84.429.695/0001-11",
+      "lucroTotal": 3657480000.0,
+      "lucroAtribuivel": 3585947000.0,
+      "codContaLucro": "3.11",
+      "lpa": {
+        "ON": 0.85459
+      },
+      "pl": 14010672000.0,
+      "composicao": {
+        "QT_ACAO_ORDIN_CAP_INTEGR": 4197317998,
+        "QT_ACAO_PREF_CAP_INTEGR": 0,
+        "QT_ACAO_TOTAL_CAP_INTEGR": 4197317998,
+        "QT_ACAO_ORDIN_TESOURO": 1306348,
+        "QT_ACAO_PREF_TESOURO": 0,
+        "QT_ACAO_TOTAL_TESOURO": 1306348
+      },
+      "freItemF": 4196011650.0,
+      "freVersao": 5
+    },
+    "WEGE3-2024": {
+      "cnpj": "84.429.695/0001-11",
+      "lucroTotal": 6318763000.0,
+      "lucroAtribuivel": 6042593000.0,
+      "codContaLucro": "3.11",
+      "lpa": {
+        "ON": 1.44026
+      },
+      "pl": 23125217000.0,
+      "composicao": {
+        "QT_ACAO_ORDIN_CAP_INTEGR": 4197317998,
+        "QT_ACAO_PREF_CAP_INTEGR": 0,
+        "QT_ACAO_TOTAL_CAP_INTEGR": 4197317998,
+        "QT_ACAO_ORDIN_TESOURO": 1780620,
+        "QT_ACAO_PREF_TESOURO": 0,
+        "QT_ACAO_TOTAL_TESOURO": 1780620
+      },
+      "freItemF": null,
+      "freVersao": null
+    },
+    "WEGE3-2025": {
+      "cnpj": "84.429.695/0001-11",
+      "lucroTotal": 6775958000.0,
+      "lucroAtribuivel": 6376219000.0,
+      "codContaLucro": "3.11",
+      "lpa": {
+        "ON": 1.51971
+      },
+      "pl": 18553364000.0,
+      "composicao": {
+        "QT_ACAO_ORDIN_CAP_INTEGR": 4197317998,
+        "QT_ACAO_PREF_CAP_INTEGR": 0,
+        "QT_ACAO_TOTAL_CAP_INTEGR": 4197317998,
+        "QT_ACAO_ORDIN_TESOURO": 1622025,
+        "QT_ACAO_PREF_TESOURO": 0,
+        "QT_ACAO_TOTAL_TESOURO": 1622025
+      },
+      "freItemF": null,
+      "freVersao": null
+    },
+    "VALE3-2024": {
+      "cnpj": "33.592.510/0001-54",
+      "lucroTotal": 30431000000.0,
+      "lucroAtribuivel": 31592000000.0,
+      "codContaLucro": "3.11",
+      "lpa": {
+        "PNA": 0.0,
+        "ON": 7.39
+      },
+      "pl": 213720000000.0,
+      "composicao": {
+        "QT_ACAO_ORDIN_CAP_INTEGR": 4539008,
+        "QT_ACAO_PREF_CAP_INTEGR": 0,
+        "QT_ACAO_TOTAL_CAP_INTEGR": 4539008,
+        "QT_ACAO_ORDIN_TESOURO": 270288,
+        "QT_ACAO_PREF_TESOURO": 0,
+        "QT_ACAO_TOTAL_TESOURO": 270288
+      },
+      "freItemF": null,
+      "freVersao": null
+    },
+    "ITUB4-2019": {
+      "cnpj": "60.872.504/0001-23",
+      "lucroTotal": 27813000000.0,
+      "lucroAtribuivel": 27113000000.0,
+      "codContaLucro": "3.09",
+      "lpa": {
+        "ON": 2780.0,
+        "PN": 2780.0
+      },
+      "pl": 149465000000.0,
+      "composicao": null,
+      "freItemF": 9745601763.0,
+      "freVersao": 21
+    },
+    "BBAS3-2024": {
+      "cnpj": "00.000.000/0001-91",
+      "lucroTotal": 29171564000.0,
+      "lucroAtribuivel": 26358860000.0,
+      "codContaLucro": "3.11",
+      "lpa": {
+        "ON": 4.62
+      },
+      "pl": 184236344000.0,
+      "composicao": {
+        "QT_ACAO_ORDIN_CAP_INTEGR": 5730834040,
+        "QT_ACAO_PREF_CAP_INTEGR": 0,
+        "QT_ACAO_TOTAL_CAP_INTEGR": 5730834040,
+        "QT_ACAO_ORDIN_TESOURO": 22786568,
+        "QT_ACAO_PREF_TESOURO": 0,
+        "QT_ACAO_TOTAL_TESOURO": 22786568
+      },
+      "freItemF": null,
+      "freVersao": null
+    },
+    "EGIE3-2025": {
+      "cnpj": "02.474.103/0001-19",
+      "lucroTotal": 2857919000.0,
+      "lucroAtribuivel": 2582841000.0,
+      "codContaLucro": "3.11",
+      "lpa": {
+        "ON": 2.26109
+      },
+      "pl": 13914493000.0,
+      "composicao": {
+        "QT_ACAO_ORDIN_CAP_INTEGR": 1142298836,
+        "QT_ACAO_PREF_CAP_INTEGR": 0,
+        "QT_ACAO_TOTAL_CAP_INTEGR": 1142298836,
+        "QT_ACAO_ORDIN_TESOURO": 0,
+        "QT_ACAO_PREF_TESOURO": 0,
+        "QT_ACAO_TOTAL_TESOURO": 0
+      },
+      "freItemF": null,
+      "freVersao": null
+    },
+    "UGPA3-2017": {
+      "cnpj": "33.256.439/0001-39",
+      "lucroTotal": 1573868000.0,
+      "lucroAtribuivel": 1574306000.0,
+      "codContaLucro": "3.11",
+      "lpa": {
+        "ON": 2.9056,
+        "PN": 0.0
+      },
+      "pl": 9720832000.0,
+      "composicao": null,
+      "freItemF": 543363740.0,
+      "freVersao": 9
+    },
+    "UGPA3-2018": {
+      "cnpj": "33.256.439/0001-39",
+      "lucroTotal": 1132320000.0,
+      "lucroAtribuivel": 1150421000.0,
+      "codContaLucro": "3.11",
+      "lpa": {
+        "ON": 2.1223,
+        "PN": 0.0
+      },
+      "pl": 9800029000.0,
+      "composicao": null,
+      "freItemF": 1086029894.0,
+      "freVersao": 11
+    },
+    "UGPA3-2019": {
+      "cnpj": "33.256.439/0001-39",
+      "lucroTotal": 402944000.0,
+      "lucroAtribuivel": 373526000.0,
+      "codContaLucro": "3.11",
+      "lpa": {
+        "ON": 0.3438,
+        "PN": 0.0
+      },
+      "pl": 9835175000.0,
+      "composicao": null,
+      "freItemF": 1086029894.0,
+      "freVersao": 8
+    },
+    "UGPA3-2020": {
+      "cnpj": "33.256.439/0001-39",
+      "lucroTotal": 927697000.0,
+      "lucroAtribuivel": 893383000.0,
+      "codContaLucro": "3.11",
+      "lpa": {
+        "ON": 0.8218,
+        "PN": 0.0
+      },
+      "pl": 9910265000.0,
+      "composicao": {
+        "QT_ACAO_ORDIN_CAP_INTEGR": 1115005712,
+        "QT_ACAO_PREF_CAP_INTEGR": 0,
+        "QT_ACAO_TOTAL_CAP_INTEGR": 1115005712,
+        "QT_ACAO_ORDIN_TESOURO": 24739626,
+        "QT_ACAO_PREF_TESOURO": 0,
+        "QT_ACAO_TOTAL_TESOURO": 24739626
+      },
+      "freItemF": 1088040976.0,
+      "freVersao": 10
+    }
+  },
+  "eventosDevUGPA3": [
+    {
+      "date": "2019-04-18",
+      "type": "DESDOBRAMENTO",
+      "factor": 2,
+      "source": "YAHOO"
+    },
+    {
+      "date": "2011-02-17",
+      "type": "DESDOBRAMENTO",
+      "factor": 4,
+      "source": "YAHOO"
+    }
+  ]
+}

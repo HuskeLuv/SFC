@@ -1,0 +1,485 @@
+/**
+ * Auditoria de proventos (regras 16 e 26 da Fase A; revisão da spec da Fase 0) com linhas reais do
+ * asset_dividend_history do dev e os casos de prod descritos nas decisões (PETR4 ex 03/05/2024).
+ */
+import { describe, expect, it } from 'vitest';
+import { verificarEventosCorporativos } from '@/services/analiseAtivos/regras/calculo/eventosCorporativos';
+import { menosMeses } from '@/services/analiseAtivos/regras/calculo/proventos';
+import {
+  auditarProventos,
+  dataComReal,
+  dpaNoAno,
+  motivoProventosDefasados,
+  normalizarTipo,
+  planejarReescritaProventos,
+  rendimento12m,
+  ultimaDataCom,
+  valorProventosComCobertura,
+} from '@/services/analiseAtivos/regras/calculo/proventos';
+import type { EventoCorporativoVerificado } from '@/services/analiseAtivos/tipos';
+import { P, bruto, proventosBrutos } from './helpers';
+
+const evento = (
+  dataEvento: string,
+  fator: number,
+  anoBase: number,
+): EventoCorporativoVerificado => ({
+  symbol: 'MGLU3',
+  dataEvento,
+  fator,
+  tipo: fator > 1 ? 'DESDOBRAMENTO' : 'GRUPAMENTO',
+  anoBase,
+  status: 'confirmado',
+  razaoCvm: null,
+  idsOrigem: [],
+});
+
+describe('data-com real', () => {
+  it('PETR4: data ex gravada 03/05/2024 ⇒ data-com real 02/05/2024 (01/05 é feriado)', () => {
+    expect(dataComReal('2024-05-03', 'BRAPI', P)).toBe('2024-05-02');
+  });
+
+  it('YAHOO (dataCom null, date = ex 03/05/2024) ⇒ data-com 02/05/2024, sem pagamento, nunca sem_data_com', () => {
+    const [a] = auditarProventos(
+      [
+        bruto({
+          id: 'y1',
+          symbol: 'PETR4',
+          source: 'YAHOO',
+          tipo: 'Dividendo',
+          valor: 1.4,
+          dataExGravada: '2024-05-03',
+          dataPagamento: null,
+          dataExOrigem: 'date',
+        }),
+      ],
+      [],
+      P,
+      { classe: 'acao' },
+    );
+    expect(a.dataComReal).toBe('2024-05-02');
+    expect(a.dataPagamento).toBeNull();
+    expect(a.status).toBe('valido');
+    expect(a.tipoNormalizado).toBe('DIVIDENDO');
+  });
+
+  it('linhas YAHOO reais do dev (TGAR11): date vira data ex, nenhuma sem_data_com', () => {
+    const brutos = proventosBrutos('TGAR11');
+    expect(brutos.length).toBeGreaterThan(10);
+    expect(brutos.every((b) => b.dataPagamento === null && b.dataExOrigem === 'date')).toBe(true);
+    const aud = auditarProventos(brutos, [], P, { classe: 'fii' });
+    expect(aud.every((a) => a.status === 'valido' && a.dataComReal !== null)).toBe(true);
+    // 2025-01-02 (ex) ⇒ 2024-12-30 (31/12 não tem pregão)
+    expect(aud.find((a) => a.dataExGravada === '2025-01-02')?.dataComReal).toBe('2024-12-30');
+  });
+
+  it('sem data ex ⇒ sem_data_com (não usa o pagamento como fallback)', () => {
+    const [a] = auditarProventos(
+      [bruto({ id: 'x', dataExGravada: null, dataPagamento: '2024-05-20', dataExOrigem: null })],
+      [],
+      P,
+    );
+    expect(a.status).toBe('sem_data_com');
+    expect(a.dataComReal).toBeNull();
+  });
+});
+
+describe('tipos', () => {
+  it('REST CAP DIN / AMORTIZAÇÃO excluídos; tipo desconhecido ⇒ OUTRO excluído com flag', () => {
+    expect(normalizarTipo('REST CAP DIN', P).tipo).toBe('REST_CAP');
+    expect(normalizarTipo('AMORTIZAÇÃO', P).tipo).toBe('AMORTIZACAO');
+    expect(normalizarTipo('amortizacao', P).tipo).toBe('AMORTIZACAO');
+    const aud = auditarProventos(
+      [
+        bruto({ id: 'a', tipo: 'REST CAP DIN', dataExGravada: '2024-05-03' }),
+        bruto({ id: 'b', tipo: 'AMORTIZAÇÃO', dataExGravada: '2024-05-03' }),
+        bruto({ id: 'c', tipo: 'BONUS XYZ', dataExGravada: '2024-05-03' }),
+      ],
+      [],
+      P,
+    );
+    expect(aud.map((a) => a.status)).toEqual(['tipo_excluido', 'tipo_excluido', 'tipo_excluido']);
+    expect(aud[2].tipoNormalizado).toBe('OUTRO');
+    expect(aud[2].flags).toContain('tipo_desconhecido');
+  });
+
+  it('RENDIMENTO só em FII: PETR4 (Selic sobre dividendo) sai; em FII entra', () => {
+    const petr = auditarProventos(proventosBrutos('PETR4'), [], P, { classe: 'acao' });
+    const rend = petr.filter((a) => a.tipoOriginal === 'RENDIMENTO');
+    expect(rend.length).toBeGreaterThan(0);
+    expect(rend.every((a) => a.status === 'tipo_excluido')).toBe(true);
+    const xpml = auditarProventos(proventosBrutos('XPML11'), [], P, { classe: 'fii' });
+    expect(xpml.every((a) => a.status === 'valido')).toBe(true);
+  });
+});
+
+describe('duplicatas e tranches', () => {
+  it('repetição da BRAPI com outra data-com e pagamentos a ≤ 5 dias (2 linhas) ⇒ 1 duplicata', () => {
+    const aud = auditarProventos(
+      [
+        bruto({
+          id: 'p1',
+          symbol: 'PETR4',
+          valor: 0.44806668,
+          dataExGravada: '2024-06-12',
+          dataPagamento: '2024-09-20',
+        }),
+        bruto({
+          id: 'p2',
+          symbol: 'PETR4',
+          valor: 0.44806668,
+          dataExGravada: '2024-08-22',
+          dataPagamento: '2024-09-23',
+        }),
+      ],
+      [],
+      P,
+      { classe: 'acao' },
+    );
+    expect(aud.filter((a) => a.status === 'duplicata')).toHaveLength(1);
+    expect(aud[1]).toMatchObject({ status: 'duplicata', duplicataDe: 'p1' });
+    expect(aud[0].status).toBe('valido');
+  });
+
+  it('repetição com o MESMO pagamento (1 linha com valor em dobro) ⇒ flag possivel_soma_duplicada, sem corrigir', () => {
+    const aud = auditarProventos(
+      [
+        bruto({
+          id: 'd1',
+          symbol: 'PETR4',
+          valor: 0.44806668,
+          dataExGravada: '2024-06-12',
+          dataPagamento: '2024-08-20',
+        }),
+        bruto({
+          id: 'd2',
+          symbol: 'PETR4',
+          valor: 0.89613336,
+          dataExGravada: '2024-08-22',
+          dataPagamento: '2024-09-20',
+        }),
+      ],
+      [],
+      P,
+      { classe: 'acao' },
+    );
+    expect(aud[1].flags).toContain('possivel_soma_duplicada');
+    expect(aud[1].valor).toBe(0.89613336);
+    expect(aud.every((a) => a.status === 'valido')).toBe(true);
+  });
+
+  it('duas tranches iguais com a mesma data-com e pagamentos a ≥ 20 dias ⇒ ambas válidas', () => {
+    const aud = auditarProventos(
+      [
+        bruto({ id: 't1', valor: 0.7, dataExGravada: '2023-11-22', dataPagamento: '2024-02-20' }),
+        bruto({ id: 't2', valor: 0.7, dataExGravada: '2023-11-22', dataPagamento: '2024-03-20' }),
+      ],
+      [],
+      P,
+      { classe: 'acao' },
+    );
+    expect(aud.map((a) => a.status)).toEqual(['valido', 'valido']);
+    expect(aud.every((a) => !a.flags.includes('tranche_ambigua'))).toBe(true);
+  });
+
+  it('YAHOO descartado quando há BRAPI do símbolo no ano; mantido em ano sem BRAPI', () => {
+    const aud = auditarProventos(
+      [
+        bruto({
+          id: 'b',
+          source: 'BRAPI',
+          valor: 1,
+          dataExGravada: '2024-05-03',
+          dataPagamento: '2024-05-20',
+        }),
+        bruto({
+          id: 'y',
+          source: 'YAHOO',
+          tipo: 'Dividendo',
+          valor: 1,
+          dataExGravada: '2024-05-03',
+          dataExOrigem: 'date',
+        }),
+        bruto({
+          id: 'y2',
+          source: 'YAHOO',
+          tipo: 'Dividendo',
+          valor: 1,
+          dataExGravada: '2019-05-03',
+          dataExOrigem: 'date',
+        }),
+      ],
+      [],
+      P,
+      { classe: 'acao' },
+    );
+    expect(aud.map((a) => a.status)).toEqual(['valido', 'fonte_secundaria_descartada', 'valido']);
+  });
+});
+
+describe('ajuste por evento (MGLU3 2020: proventos antes e depois do 4:1)', () => {
+  const eventos = [evento('2020-10-13', 4, 2020), evento('2024-05-24', 0.1, 2024)];
+
+  it('fatorAjusteHoje por evento posterior à data-com', () => {
+    const aud = auditarProventos(proventosBrutos('MGLU3'), eventos, P, { classe: 'acao' });
+    const julho = aud.find((a) => a.dataComReal === '2020-07-30')!;
+    const dezembro = aud.find((a) => a.dataComReal === '2020-12-29')!;
+    expect(julho.fatorAjusteHoje).toBeCloseTo(0.4, 10);
+    expect(julho.valorAjustadoHoje).toBeCloseTo(0.0941659675 / 0.4, 10);
+    expect(dezembro.fatorAjusteHoje).toBeCloseTo(0.1, 10);
+    // JCP com data ex 02/01/2020 tem data-com real em 30/12/2019 (31/12 sem pregão): conta em 2019
+    expect(
+      aud.find((a) => a.tipoNormalizado === 'JCP' && a.dataComReal === '2019-12-30'),
+    ).toBeTruthy();
+  });
+
+  it('DPA 2020 na base do fim do ano e na base de hoje', () => {
+    const aud = auditarProventos(proventosBrutos('MGLU3'), eventos, P, { classe: 'acao' });
+    const fim = dpaNoAno(aud, 2020, 'fim_do_ano', eventos);
+    const hoje = dpaNoAno(aud, 2020, 'hoje', eventos);
+    expect(fim.estado).toBe('ok');
+    expect((fim as { valor: number }).valor).toBeCloseTo(0.0941659675 / 4 + 0.0263019985, 9);
+    expect((hoje as { valor: number }).valor).toBeCloseTo(
+      0.0941659675 / 0.4 + 0.0263019985 / 0.1,
+      9,
+    );
+  });
+});
+
+describe('rendimento 12 meses e cobertura', () => {
+  it('janela de calendário por data-com (hoje − 12 meses, hoje]', () => {
+    expect(menosMeses('2026-06-30', 12)).toBe('2025-06-30');
+    expect(menosMeses('2024-02-29', 12)).toBe('2023-02-28');
+    const aud = auditarProventos(proventosBrutos('VISC11'), [], P, { classe: 'fii' });
+    const r = rendimento12m(aud, '2026-06-30', 'fii', [], P);
+    // data-com real (pregão anterior à data ex gravada) de jul/25 a mai/26: 0,81×6 + 0,84×5
+    expect((r as { valor: number }).valor).toBeCloseTo(0.81 * 6 + 0.84 * 5, 9);
+  });
+
+  it('provento zero × ausente: EMPTY ⇒ ok(0); FETCH_FAIL/GAP_QUEUED/sem registro ⇒ ausente', () => {
+    const zero = { estado: 'ok' as const, valor: 0 };
+    expect(valorProventosComCobertura(zero, false, 'EMPTY')).toEqual({ estado: 'ok', valor: 0 });
+    expect(valorProventosComCobertura(zero, false, 'FETCH_FAIL').estado).toBe('ausente');
+    expect(valorProventosComCobertura(zero, false, 'GAP_QUEUED').estado).toBe('ausente');
+    expect(valorProventosComCobertura(zero, false, null).estado).toBe('ausente');
+    expect(valorProventosComCobertura(zero, true, null)).toEqual(zero);
+  });
+});
+
+describe('reescrita por símbolo (auditoria completa, sem órfão)', () => {
+  it('linha Yahoo reinserida com id novo ⇒ reescreve o símbolo; símbolo fora do universo ⇒ órfão', () => {
+    const antigo = auditarProventos(
+      [
+        bruto({
+          id: 'y-old',
+          symbol: 'TGAR11',
+          source: 'YAHOO',
+          tipo: 'Dividendo',
+          dataExGravada: '2025-01-02',
+          dataExOrigem: 'date',
+        }),
+      ],
+      [],
+      P,
+      { classe: 'fii' },
+    );
+    const novo = auditarProventos(
+      [
+        bruto({
+          id: 'y-new',
+          symbol: 'TGAR11',
+          source: 'YAHOO',
+          tipo: 'Dividendo',
+          dataExGravada: '2025-01-02',
+          dataExOrigem: 'date',
+        }),
+      ],
+      [],
+      P,
+      { classe: 'fii' },
+    );
+    const outro = auditarProventos(proventosBrutos('VISC11'), [], P, { classe: 'fii' });
+    const sumiu = { ...antigo[0], symbol: 'OLD11', origemId: 'z' };
+    const plano = planejarReescritaProventos(
+      [...novo, ...outro],
+      [...antigo, ...outro, sumiu],
+      ['TGAR11', 'VISC11'],
+    );
+    expect(plano.reescrever).toEqual(['TGAR11']);
+    expect(plano.orfaos).toEqual(['OLD11']);
+  });
+
+  it('nada mudou ⇒ nada a reescrever (2ª execução idempotente)', () => {
+    const a = auditarProventos(proventosBrutos('XPML11'), [], P, { classe: 'fii' });
+    const b = auditarProventos(proventosBrutos('XPML11'), [], P, { classe: 'fii' });
+    expect(planejarReescritaProventos(a, b, ['XPML11'])).toEqual({ reescrever: [], orfaos: [] });
+  });
+});
+
+describe('provento com data-com = data-com do evento (achado qa-codigo 30/09)', () => {
+  it('VBBR3 nov/2025: dividendo de data-com 25/11 (ações antigas) é ajustado pela bonificação ×1,071', () => {
+    const evs = verificarEventosCorporativos(
+      [
+        {
+          id: 'b',
+          symbol: 'VBBR3',
+          date: '2025-11-25',
+          type: 'BONIFICACAO',
+          factor: 1.071,
+          source: 'BRAPI',
+        },
+        {
+          id: 'y',
+          symbol: 'VBBR3',
+          date: '2025-11-26',
+          type: 'DESDOBRAMENTO',
+          factor: 1.0711,
+          source: 'YAHOO',
+        },
+      ],
+      [
+        {
+          cnpj: 'X',
+          data: '2024-12-31',
+          on: null,
+          pn: null,
+          total: 1_000_000,
+          fonte: 'dfp',
+          razaoLpa: 1,
+          status: 'ok',
+        },
+        {
+          cnpj: 'X',
+          data: '2025-12-31',
+          on: null,
+          pn: null,
+          total: 1_071_000,
+          fonte: 'dfp',
+          razaoLpa: 1,
+          status: 'ok',
+        },
+      ],
+      P,
+    );
+    const [a] = auditarProventos(
+      [
+        {
+          id: '6812af98',
+          symbol: 'VBBR3',
+          source: 'BRAPI',
+          tipo: 'DIVIDENDO',
+          valor: 0.76344892045,
+          dataPagamento: '2025-12-19',
+          dataExGravada: '2025-11-26',
+          dataExOrigem: 'dataCom',
+        },
+      ],
+      evs,
+      P,
+      { classe: 'acao' },
+    );
+    expect(a.dataComReal).toBe('2025-11-25');
+    // antes: 1 (evento datado na data-com da BRAPI e comparação estrita)
+    expect(a.fatorAjusteHoje).toBeCloseTo(1.071, 6);
+  });
+});
+
+describe('frescor da base de proventos (achado qa-dados 30/09)', () => {
+  const pr = (dataComReal: string, tipoNormalizado: 'RENDIMENTO' | 'DIVIDENDO' = 'RENDIMENTO') => ({
+    status: 'valido' as const,
+    tipoNormalizado,
+    dataComReal,
+  });
+  // HGLG11 no dev: rendimento mensal até a data-com de 28/05/2026 (base parada desde jun/2026)
+  const hglg = [
+    '2025-06-30',
+    '2025-07-31',
+    '2025-08-29',
+    '2025-09-30',
+    '2025-10-31',
+    '2025-11-28',
+    '2025-12-30',
+    '2026-01-30',
+    '2026-02-27',
+    '2026-03-31',
+    '2026-04-30',
+    '2026-05-28',
+  ].map((d) => pr(d));
+
+  it('base da classe parada (última data-com de jun/2026 com hoje 29/09) ⇒ base_parada', () => {
+    expect(
+      motivoProventosDefasados(
+        {
+          classe: 'fii',
+          proventos: hglg,
+          verificadoEm: '2026-09-28',
+          ultimaDataComDaClasse: '2026-06-10',
+          hoje: '2026-09-29',
+        },
+        P,
+      ),
+    ).toBe('base_parada');
+  });
+
+  it('cobertura verificada há mais de 45 dias (FII) ⇒ cobertura_antiga; ação tolera 200', () => {
+    const e = {
+      proventos: [],
+      verificadoEm: '2026-06-10',
+      ultimaDataComDaClasse: '2026-09-26',
+      hoje: '2026-09-29',
+    };
+    expect(motivoProventosDefasados({ ...e, classe: 'fii' }, P)).toBe('cobertura_antiga');
+    expect(motivoProventosDefasados({ ...e, classe: 'acao' }, P)).toBeNull();
+  });
+
+  it('HGLG11: pagador mensal sem rendimento há 4 meses com a base viva ⇒ pagador_recorrente_parado', () => {
+    expect(
+      motivoProventosDefasados(
+        {
+          classe: 'fii',
+          proventos: hglg,
+          verificadoEm: '2026-09-28',
+          ultimaDataComDaClasse: '2026-09-26',
+          hoje: '2026-09-29',
+        },
+        P,
+      ),
+    ).toBe('pagador_recorrente_parado');
+  });
+
+  it('BBSE3: semestral com a última data-com em 11/02/2026 (231 dias) ⇒ defasado; anual não', () => {
+    const base = {
+      verificadoEm: '2026-09-28',
+      ultimaDataComDaClasse: '2026-09-26',
+      hoje: '2026-09-29',
+    };
+    const semestral = [pr('2025-08-12', 'DIVIDENDO'), pr('2026-02-11', 'DIVIDENDO')];
+    expect(motivoProventosDefasados({ ...base, classe: 'acao', proventos: semestral }, P)).toBe(
+      'pagador_recorrente_parado',
+    );
+    const anual = [pr('2025-02-11', 'DIVIDENDO'), pr('2026-02-11', 'DIVIDENDO')];
+    expect(motivoProventosDefasados({ ...base, classe: 'acao', proventos: anual }, P)).toBeNull();
+  });
+
+  it('base fresca e pagador em dia ⇒ null; ultimaDataCom ignora data futura e inválidos', () => {
+    const emDia = [...hglg, pr('2026-06-30'), pr('2026-07-31'), pr('2026-08-31')];
+    expect(
+      motivoProventosDefasados(
+        {
+          classe: 'fii',
+          proventos: emDia,
+          verificadoEm: '2026-09-28',
+          ultimaDataComDaClasse: '2026-09-26',
+          hoje: '2026-09-29',
+        },
+        P,
+      ),
+    ).toBeNull();
+    expect(
+      ultimaDataCom(
+        [pr('2026-08-31'), pr('2026-10-30'), { status: 'descartado', dataComReal: '2026-09-15' }],
+        '2026-09-29',
+      ),
+    ).toBe('2026-08-31');
+  });
+});

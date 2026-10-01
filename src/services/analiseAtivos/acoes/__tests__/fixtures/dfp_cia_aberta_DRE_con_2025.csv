@@ -1,0 +1,175 @@
+CNPJ_CIA;DT_REFER;VERSAO;DENOM_CIA;CD_CVM;GRUPO_DFP;MOEDA;ESCALA_MOEDA;ORDEM_EXERC;DT_INI_EXERC;DT_FIM_EXERC;CD_CONTA;DS_CONTA;VL_CONTA;ST_CONTA_FIXA
+00.000.000/0001-91;2025-12-31;1;BCO BRASIL S.A.;001023;DF Consolidado - Demonstração do Resultado;REAL;MIL;PENÚLTIMO;2024-01-01;2024-12-31;3.01;Receitas de Intermediação Financeira;273505274.0000000000;S
+00.000.000/0001-91;2025-12-31;1;BCO BRASIL S.A.;001023;DF Consolidado - Demonstração do Resultado;REAL;MIL;ÚLTIMO;2025-01-01;2025-12-31;3.01;Receitas de Intermediação Financeira;319462104.0000000000;S
+00.000.000/0001-91;2025-12-31;1;BCO BRASIL S.A.;001023;DF Consolidado - Demonstração do Resultado;REAL;MIL;PENÚLTIMO;2024-01-01;2024-12-31;3.01.01;Receita de Juros;273505274.0000000000;N
+00.000.000/0001-91;2025-12-31;1;BCO BRASIL S.A.;001023;DF Consolidado - Demonstração do Resultado;REAL;MIL;ÚLTIMO;2025-01-01;2025-12-31;3.01.01;Receita de Juros;319462104.0000000000;N
+00.000.000/0001-91;2025-12-31;1;BCO BRASIL S.A.;001023;DF Consolidado - Demonstração do Resultado;REAL;MIL;PENÚLTIMO;2024-01-01;2024-12-31;3.02;Despesas de Intermediação Financeira;-168990827.0000000000;S
+00.000.000/0001-91;2025-12-31;1;BCO BRASIL S.A.;001023;DF Consolidado - Demonstração do Resultado;REAL;MIL;ÚLTIMO;2025-01-01;2025-12-31;3.02;Despesas de Intermediação Financeira;-218451386.0000000000;S
+00.000.000/0001-91;2025-12-31;1;BCO BRASIL S.A.;001023;DF Consolidado - Demonstração do Resultado;REAL;MIL;PENÚLTIMO;2024-01-01;2024-12-31;3.02.01;Despesa de Juros;-168990827.0000000000;N
+00.000.000/0001-91;2025-12-31;1;BCO BRASIL S.A.;001023;DF Consolidado - Demonstração do Resultado;REAL;MIL;ÚLTIMO;2025-01-01;2025-12-31;3.02.01;Despesa de Juros;-218451386.0000000000;N
+00.000.000/0001-91;2025-12-31;1;BCO BRASIL S.A.;001023;DF Consolidado - Demonstração do Resultado;REAL;MIL;PENÚLTIMO;2024-01-01;2024-12-31;3.03;Resultado Bruto de Intermediação Financeira;104514447.0000000000;S
+00.000.000/0001-91;2025-12-31;1;BCO BRASIL S.A.;001023;DF Consolidado - Demonstração do Resultado;REAL;MIL;ÚLTIMO;2025-01-01;2025-12-31;3.03;Resultado Bruto de Intermediação Financeira;101010718.0000000000;S
+00.000.000/0001-91;2025-12-31;1;BCO BRASIL S.A.;001023;DF Consolidado - Demonstração do Resultado;REAL;MIL;PENÚLTIMO;2024-01-01;2024-12-31;3.04;Outras Despesas e Receitas Operacionais;-76803858.0000000000;S
+00.000.000/0001-91;2025-12-31;1;BCO BRASIL S.A.;001023;DF Consolidado - Demonstração do Resultado;REAL;MIL;ÚLTIMO;2025-01-01;2025-12-31;3.04;Outras Despesas e Receitas Operacionais;-95397082.0000000000;S
+00.000.000/0001-91;2025-12-31;1;BCO BRASIL S.A.;001023;DF Consolidado - Demonstração do Resultado;REAL;MIL;PENÚLTIMO;2024-01-01;2024-12-31;3.04.01;Despesa de Provisão para Perda Esperada para Risco de Crédito;-47705982.0000000000;S
+00.000.000/0001-91;2025-12-31;1;BCO BRASIL S.A.;001023;DF Consolidado - Demonstração do Resultado;REAL;MIL;ÚLTIMO;2025-01-01;2025-12-31;3.04.01;Despesa de Provisão para Perda Esperada para Risco de Crédito;-66633285.0000000000;S
+00.000.000/0001-91;2025-12-31;1;BCO BRASIL S.A.;001023;DF Consolidado - Demonstração do Resultado;REAL;MIL;PENÚLTIMO;2024-01-01;2024-12-31;3.04.02;Receitas de Prestação de Serviços;33198229.0000000000;S
+00.000.000/0001-91;2025-12-31;1;BCO BRASIL S.A.;001023;DF Consolidado - Demonstração do Resultado;REAL;MIL;ÚLTIMO;2025-01-01;2025-12-31;3.04.02;Receitas de Prestação de Serviços;34714379.0000000000;S
+00.000.000/0001-91;2025-12-31;1;BCO BRASIL S.A.;001023;DF Consolidado - Demonstração do Resultado;REAL;MIL;PENÚLTIMO;2024-01-01;2024-12-31;3.04.03;Despesas com Pessoal;-29248166.0000000000;S
+00.000.000/0001-91;2025-12-31;1;BCO BRASIL S.A.;001023;DF Consolidado - Demonstração do Resultado;REAL;MIL;ÚLTIMO;2025-01-01;2025-12-31;3.04.03;Despesas com Pessoal;-29178666.0000000000;S
+00.000.000/0001-91;2025-12-31;1;BCO BRASIL S.A.;001023;DF Consolidado - Demonstração do Resultado;REAL;MIL;PENÚLTIMO;2024-01-01;2024-12-31;3.04.04;Outras Despesas de Administrativas;-9729298.0000000000;S
+00.000.000/0001-91;2025-12-31;1;BCO BRASIL S.A.;001023;DF Consolidado - Demonstração do Resultado;REAL;MIL;ÚLTIMO;2025-01-01;2025-12-31;3.04.04;Outras Despesas de Administrativas;-9455529.0000000000;S
+00.000.000/0001-91;2025-12-31;1;BCO BRASIL S.A.;001023;DF Consolidado - Demonstração do Resultado;REAL;MIL;PENÚLTIMO;2024-01-01;2024-12-31;3.04.05;Despesas Tributárias;-8717150.0000000000;S
+00.000.000/0001-91;2025-12-31;1;BCO BRASIL S.A.;001023;DF Consolidado - Demonstração do Resultado;REAL;MIL;ÚLTIMO;2025-01-01;2025-12-31;3.04.05;Despesas Tributárias;-8919531.0000000000;S
+00.000.000/0001-91;2025-12-31;1;BCO BRASIL S.A.;001023;DF Consolidado - Demonstração do Resultado;REAL;MIL;PENÚLTIMO;2024-01-01;2024-12-31;3.04.06;Outras Receitas Operacionais;13477139.0000000000;S
+00.000.000/0001-91;2025-12-31;1;BCO BRASIL S.A.;001023;DF Consolidado - Demonstração do Resultado;REAL;MIL;ÚLTIMO;2025-01-01;2025-12-31;3.04.06;Outras Receitas Operacionais;11222487.0000000000;S
+00.000.000/0001-91;2025-12-31;1;BCO BRASIL S.A.;001023;DF Consolidado - Demonstração do Resultado;REAL;MIL;PENÚLTIMO;2024-01-01;2024-12-31;3.04.07;Outras Despesas Operacionais;-35555514.0000000000;S
+00.000.000/0001-91;2025-12-31;1;BCO BRASIL S.A.;001023;DF Consolidado - Demonstração do Resultado;REAL;MIL;ÚLTIMO;2025-01-01;2025-12-31;3.04.07;Outras Despesas Operacionais;-34998114.0000000000;S
+00.000.000/0001-91;2025-12-31;1;BCO BRASIL S.A.;001023;DF Consolidado - Demonstração do Resultado;REAL;MIL;PENÚLTIMO;2024-01-01;2024-12-31;3.04.08;Resultado da Equivalência Patrimonial;7476884.0000000000;S
+00.000.000/0001-91;2025-12-31;1;BCO BRASIL S.A.;001023;DF Consolidado - Demonstração do Resultado;REAL;MIL;ÚLTIMO;2025-01-01;2025-12-31;3.04.08;Resultado da Equivalência Patrimonial;7851177.0000000000;S
+00.000.000/0001-91;2025-12-31;1;BCO BRASIL S.A.;001023;DF Consolidado - Demonstração do Resultado;REAL;MIL;PENÚLTIMO;2024-01-01;2024-12-31;3.05;Resultado antes dos Tributos sobre o Lucro;27710589.0000000000;S
+00.000.000/0001-91;2025-12-31;1;BCO BRASIL S.A.;001023;DF Consolidado - Demonstração do Resultado;REAL;MIL;ÚLTIMO;2025-01-01;2025-12-31;3.05;Resultado antes dos Tributos sobre o Lucro;5613636.0000000000;S
+00.000.000/0001-91;2025-12-31;1;BCO BRASIL S.A.;001023;DF Consolidado - Demonstração do Resultado;REAL;MIL;PENÚLTIMO;2024-01-01;2024-12-31;3.06;Imposto de Renda e Contribuição Social sobre o Lucro;1460975.0000000000;S
+00.000.000/0001-91;2025-12-31;1;BCO BRASIL S.A.;001023;DF Consolidado - Demonstração do Resultado;REAL;MIL;ÚLTIMO;2025-01-01;2025-12-31;3.06;Imposto de Renda e Contribuição Social sobre o Lucro;11168302.0000000000;S
+00.000.000/0001-91;2025-12-31;1;BCO BRASIL S.A.;001023;DF Consolidado - Demonstração do Resultado;REAL;MIL;PENÚLTIMO;2024-01-01;2024-12-31;3.06.01;Corrente;-9506561.0000000000;S
+00.000.000/0001-91;2025-12-31;1;BCO BRASIL S.A.;001023;DF Consolidado - Demonstração do Resultado;REAL;MIL;ÚLTIMO;2025-01-01;2025-12-31;3.06.01;Corrente;-6107576.0000000000;S
+00.000.000/0001-91;2025-12-31;1;BCO BRASIL S.A.;001023;DF Consolidado - Demonstração do Resultado;REAL;MIL;PENÚLTIMO;2024-01-01;2024-12-31;3.06.02;Diferido;10967536.0000000000;S
+00.000.000/0001-91;2025-12-31;1;BCO BRASIL S.A.;001023;DF Consolidado - Demonstração do Resultado;REAL;MIL;ÚLTIMO;2025-01-01;2025-12-31;3.06.02;Diferido;17275878.0000000000;S
+00.000.000/0001-91;2025-12-31;1;BCO BRASIL S.A.;001023;DF Consolidado - Demonstração do Resultado;REAL;MIL;PENÚLTIMO;2024-01-01;2024-12-31;3.07;Lucro ou Prejuízo das Operações Continuadas;29171564.0000000000;S
+00.000.000/0001-91;2025-12-31;1;BCO BRASIL S.A.;001023;DF Consolidado - Demonstração do Resultado;REAL;MIL;ÚLTIMO;2025-01-01;2025-12-31;3.07;Lucro ou Prejuízo das Operações Continuadas;16781938.0000000000;S
+00.000.000/0001-91;2025-12-31;1;BCO BRASIL S.A.;001023;DF Consolidado - Demonstração do Resultado;REAL;MIL;PENÚLTIMO;2024-01-01;2024-12-31;3.08;Resultado Líquido das Operações Descontinuadas;0.0000000000;S
+00.000.000/0001-91;2025-12-31;1;BCO BRASIL S.A.;001023;DF Consolidado - Demonstração do Resultado;REAL;MIL;ÚLTIMO;2025-01-01;2025-12-31;3.08;Resultado Líquido das Operações Descontinuadas;0.0000000000;S
+00.000.000/0001-91;2025-12-31;1;BCO BRASIL S.A.;001023;DF Consolidado - Demonstração do Resultado;REAL;MIL;PENÚLTIMO;2024-01-01;2024-12-31;3.09;Lucro ou Prejuízo antes das Participações e Contribuições Estatutárias;29171564.0000000000;S
+00.000.000/0001-91;2025-12-31;1;BCO BRASIL S.A.;001023;DF Consolidado - Demonstração do Resultado;REAL;MIL;ÚLTIMO;2025-01-01;2025-12-31;3.09;Lucro ou Prejuízo antes das Participações e Contribuições Estatutárias;16781938.0000000000;S
+00.000.000/0001-91;2025-12-31;1;BCO BRASIL S.A.;001023;DF Consolidado - Demonstração do Resultado;REAL;MIL;PENÚLTIMO;2024-01-01;2024-12-31;3.10;Participações nos Lucros e Contribuições Estatutárias;0.0000000000;S
+00.000.000/0001-91;2025-12-31;1;BCO BRASIL S.A.;001023;DF Consolidado - Demonstração do Resultado;REAL;MIL;ÚLTIMO;2025-01-01;2025-12-31;3.10;Participações nos Lucros e Contribuições Estatutárias;0.0000000000;S
+00.000.000/0001-91;2025-12-31;1;BCO BRASIL S.A.;001023;DF Consolidado - Demonstração do Resultado;REAL;MIL;PENÚLTIMO;2024-01-01;2024-12-31;3.11;Lucro ou Prejuízo Líquido Consolidado do Período;29171564.0000000000;S
+00.000.000/0001-91;2025-12-31;1;BCO BRASIL S.A.;001023;DF Consolidado - Demonstração do Resultado;REAL;MIL;ÚLTIMO;2025-01-01;2025-12-31;3.11;Lucro ou Prejuízo Líquido Consolidado do Período;16781938.0000000000;S
+00.000.000/0001-91;2025-12-31;1;BCO BRASIL S.A.;001023;DF Consolidado - Demonstração do Resultado;REAL;MIL;PENÚLTIMO;2024-01-01;2024-12-31;3.11.01;Atribuído aos Sócios da Empresa Controladora;26358860.0000000000;S
+00.000.000/0001-91;2025-12-31;1;BCO BRASIL S.A.;001023;DF Consolidado - Demonstração do Resultado;REAL;MIL;ÚLTIMO;2025-01-01;2025-12-31;3.11.01;Atribuído aos Sócios da Empresa Controladora;13698124.0000000000;S
+00.000.000/0001-91;2025-12-31;1;BCO BRASIL S.A.;001023;DF Consolidado - Demonstração do Resultado;REAL;MIL;PENÚLTIMO;2024-01-01;2024-12-31;3.11.02;Atribuído aos Sócios não Controladores;2812704.0000000000;S
+00.000.000/0001-91;2025-12-31;1;BCO BRASIL S.A.;001023;DF Consolidado - Demonstração do Resultado;REAL;MIL;ÚLTIMO;2025-01-01;2025-12-31;3.11.02;Atribuído aos Sócios não Controladores;3083814.0000000000;S
+00.000.000/0001-91;2025-12-31;1;BCO BRASIL S.A.;001023;DF Consolidado - Demonstração do Resultado;REAL;MIL;PENÚLTIMO;2024-01-01;2024-12-31;3.99;Lucro por Ação (R$/Ação);4.6200000000;N
+00.000.000/0001-91;2025-12-31;1;BCO BRASIL S.A.;001023;DF Consolidado - Demonstração do Resultado;REAL;MIL;ÚLTIMO;2025-01-01;2025-12-31;3.99;Lucro por Ação (R$/Ação);2.4000000000;N
+00.000.000/0001-91;2025-12-31;1;BCO BRASIL S.A.;001023;DF Consolidado - Demonstração do Resultado;REAL;MIL;PENÚLTIMO;2024-01-01;2024-12-31;3.99.01;Lucro Básico por Ação;0.0000000000;N
+00.000.000/0001-91;2025-12-31;1;BCO BRASIL S.A.;001023;DF Consolidado - Demonstração do Resultado;REAL;MIL;ÚLTIMO;2025-01-01;2025-12-31;3.99.01;Lucro Básico por Ação;0.0000000000;N
+00.000.000/0001-91;2025-12-31;1;BCO BRASIL S.A.;001023;DF Consolidado - Demonstração do Resultado;REAL;MIL;PENÚLTIMO;2024-01-01;2024-12-31;3.99.02;Lucro Diluído por Ação;0.0000000000;N
+00.000.000/0001-91;2025-12-31;1;BCO BRASIL S.A.;001023;DF Consolidado - Demonstração do Resultado;REAL;MIL;ÚLTIMO;2025-01-01;2025-12-31;3.99.02;Lucro Diluído por Ação;0.0000000000;N
+33.592.510/0001-54;2025-12-31;2;VALE S.A.;004170;DF Consolidado - Demonstração do Resultado;REAL;MIL;PENÚLTIMO;2024-01-01;2024-12-31;3.01;Receita de Venda de Bens e/ou Serviços;206005000.0000000000;S
+33.592.510/0001-54;2025-12-31;2;VALE S.A.;004170;DF Consolidado - Demonstração do Resultado;REAL;MIL;ÚLTIMO;2025-01-01;2025-12-31;3.01;Receita de Venda de Bens e/ou Serviços;213595000.0000000000;S
+33.592.510/0001-54;2025-12-31;2;VALE S.A.;004170;DF Consolidado - Demonstração do Resultado;REAL;MIL;PENÚLTIMO;2024-01-01;2024-12-31;3.02;Custo dos Bens e/ou Serviços Vendidos;-131318000.0000000000;S
+33.592.510/0001-54;2025-12-31;2;VALE S.A.;004170;DF Consolidado - Demonstração do Resultado;REAL;MIL;ÚLTIMO;2025-01-01;2025-12-31;3.02;Custo dos Bens e/ou Serviços Vendidos;-138887000.0000000000;S
+33.592.510/0001-54;2025-12-31;2;VALE S.A.;004170;DF Consolidado - Demonstração do Resultado;REAL;MIL;PENÚLTIMO;2024-01-01;2024-12-31;3.03;Resultado Bruto;74687000.0000000000;S
+33.592.510/0001-54;2025-12-31;2;VALE S.A.;004170;DF Consolidado - Demonstração do Resultado;REAL;MIL;ÚLTIMO;2025-01-01;2025-12-31;3.03;Resultado Bruto;74708000.0000000000;S
+33.592.510/0001-54;2025-12-31;2;VALE S.A.;004170;DF Consolidado - Demonstração do Resultado;REAL;MIL;PENÚLTIMO;2024-01-01;2024-12-31;3.04;Despesas/Receitas Operacionais;-19228000.0000000000;S
+33.592.510/0001-54;2025-12-31;2;VALE S.A.;004170;DF Consolidado - Demonstração do Resultado;REAL;MIL;ÚLTIMO;2025-01-01;2025-12-31;3.04;Despesas/Receitas Operacionais;-42739000.0000000000;S
+33.592.510/0001-54;2025-12-31;2;VALE S.A.;004170;DF Consolidado - Demonstração do Resultado;REAL;MIL;PENÚLTIMO;2024-01-01;2024-12-31;3.04.01;Despesas com Vendas;0.0000000000;S
+33.592.510/0001-54;2025-12-31;2;VALE S.A.;004170;DF Consolidado - Demonstração do Resultado;REAL;MIL;ÚLTIMO;2025-01-01;2025-12-31;3.04.01;Despesas com Vendas;0.0000000000;S
+33.592.510/0001-54;2025-12-31;2;VALE S.A.;004170;DF Consolidado - Demonstração do Resultado;REAL;MIL;PENÚLTIMO;2024-01-01;2024-12-31;3.04.02;Despesas Gerais e Administrativas;-3397000.0000000000;S
+33.592.510/0001-54;2025-12-31;2;VALE S.A.;004170;DF Consolidado - Demonstração do Resultado;REAL;MIL;ÚLTIMO;2025-01-01;2025-12-31;3.04.02;Despesas Gerais e Administrativas;-3566000.0000000000;S
+33.592.510/0001-54;2025-12-31;2;VALE S.A.;004170;DF Consolidado - Demonstração do Resultado;REAL;MIL;PENÚLTIMO;2024-01-01;2024-12-31;3.04.03;Perdas pela Não Recuperabilidade de Ativos;510000.0000000000;S
+33.592.510/0001-54;2025-12-31;2;VALE S.A.;004170;DF Consolidado - Demonstração do Resultado;REAL;MIL;ÚLTIMO;2025-01-01;2025-12-31;3.04.03;Perdas pela Não Recuperabilidade de Ativos;-25147000.0000000000;S
+33.592.510/0001-54;2025-12-31;2;VALE S.A.;004170;DF Consolidado - Demonstração do Resultado;REAL;MIL;PENÚLTIMO;2024-01-01;2024-12-31;3.04.04;Outras Receitas Operacionais;0.0000000000;S
+33.592.510/0001-54;2025-12-31;2;VALE S.A.;004170;DF Consolidado - Demonstração do Resultado;REAL;MIL;ÚLTIMO;2025-01-01;2025-12-31;3.04.04;Outras Receitas Operacionais;0.0000000000;S
+33.592.510/0001-54;2025-12-31;2;VALE S.A.;004170;DF Consolidado - Demonstração do Resultado;REAL;MIL;PENÚLTIMO;2024-01-01;2024-12-31;3.04.05;Outras Despesas Operacionais;-14771000.0000000000;S
+33.592.510/0001-54;2025-12-31;2;VALE S.A.;004170;DF Consolidado - Demonstração do Resultado;REAL;MIL;ÚLTIMO;2025-01-01;2025-12-31;3.04.05;Outras Despesas Operacionais;-12856000.0000000000;S
+33.592.510/0001-54;2025-12-31;2;VALE S.A.;004170;DF Consolidado - Demonstração do Resultado;REAL;MIL;PENÚLTIMO;2024-01-01;2024-12-31;3.04.06;Resultado de Equivalência Patrimonial;-1570000.0000000000;S
+33.592.510/0001-54;2025-12-31;2;VALE S.A.;004170;DF Consolidado - Demonstração do Resultado;REAL;MIL;ÚLTIMO;2025-01-01;2025-12-31;3.04.06;Resultado de Equivalência Patrimonial;-1170000.0000000000;S
+33.592.510/0001-54;2025-12-31;2;VALE S.A.;004170;DF Consolidado - Demonstração do Resultado;REAL;MIL;PENÚLTIMO;2024-01-01;2024-12-31;3.05;Resultado Antes do Resultado Financeiro e dos Tributos;55459000.0000000000;S
+33.592.510/0001-54;2025-12-31;2;VALE S.A.;004170;DF Consolidado - Demonstração do Resultado;REAL;MIL;ÚLTIMO;2025-01-01;2025-12-31;3.05;Resultado Antes do Resultado Financeiro e dos Tributos;31969000.0000000000;S
+33.592.510/0001-54;2025-12-31;2;VALE S.A.;004170;DF Consolidado - Demonstração do Resultado;REAL;MIL;PENÚLTIMO;2024-01-01;2024-12-31;3.06;Resultado Financeiro;-21235000.0000000000;S
+33.592.510/0001-54;2025-12-31;2;VALE S.A.;004170;DF Consolidado - Demonstração do Resultado;REAL;MIL;ÚLTIMO;2025-01-01;2025-12-31;3.06;Resultado Financeiro;-5276000.0000000000;S
+33.592.510/0001-54;2025-12-31;2;VALE S.A.;004170;DF Consolidado - Demonstração do Resultado;REAL;MIL;PENÚLTIMO;2024-01-01;2024-12-31;3.06.01;Receitas Financeiras;2281000.0000000000;S
+33.592.510/0001-54;2025-12-31;2;VALE S.A.;004170;DF Consolidado - Demonstração do Resultado;REAL;MIL;ÚLTIMO;2025-01-01;2025-12-31;3.06.01;Receitas Financeiras;2803000.0000000000;S
+33.592.510/0001-54;2025-12-31;2;VALE S.A.;004170;DF Consolidado - Demonstração do Resultado;REAL;MIL;PENÚLTIMO;2024-01-01;2024-12-31;3.06.02;Despesas Financeiras;-23516000.0000000000;S
+33.592.510/0001-54;2025-12-31;2;VALE S.A.;004170;DF Consolidado - Demonstração do Resultado;REAL;MIL;ÚLTIMO;2025-01-01;2025-12-31;3.06.02;Despesas Financeiras;-8079000.0000000000;S
+33.592.510/0001-54;2025-12-31;2;VALE S.A.;004170;DF Consolidado - Demonstração do Resultado;REAL;MIL;PENÚLTIMO;2024-01-01;2024-12-31;3.07;Resultado Antes dos Tributos sobre o Lucro;34224000.0000000000;S
+33.592.510/0001-54;2025-12-31;2;VALE S.A.;004170;DF Consolidado - Demonstração do Resultado;REAL;MIL;ÚLTIMO;2025-01-01;2025-12-31;3.07;Resultado Antes dos Tributos sobre o Lucro;26693000.0000000000;S
+33.592.510/0001-54;2025-12-31;2;VALE S.A.;004170;DF Consolidado - Demonstração do Resultado;REAL;MIL;PENÚLTIMO;2024-01-01;2024-12-31;3.08;Imposto de Renda e Contribuição Social sobre o Lucro;-3793000.0000000000;S
+33.592.510/0001-54;2025-12-31;2;VALE S.A.;004170;DF Consolidado - Demonstração do Resultado;REAL;MIL;ÚLTIMO;2025-01-01;2025-12-31;3.08;Imposto de Renda e Contribuição Social sobre o Lucro;-14882000.0000000000;S
+33.592.510/0001-54;2025-12-31;2;VALE S.A.;004170;DF Consolidado - Demonstração do Resultado;REAL;MIL;PENÚLTIMO;2024-01-01;2024-12-31;3.08.01;Corrente;-10595000.0000000000;S
+33.592.510/0001-54;2025-12-31;2;VALE S.A.;004170;DF Consolidado - Demonstração do Resultado;REAL;MIL;ÚLTIMO;2025-01-01;2025-12-31;3.08.01;Corrente;264000.0000000000;S
+33.592.510/0001-54;2025-12-31;2;VALE S.A.;004170;DF Consolidado - Demonstração do Resultado;REAL;MIL;PENÚLTIMO;2024-01-01;2024-12-31;3.08.02;Diferido;6802000.0000000000;S
+33.592.510/0001-54;2025-12-31;2;VALE S.A.;004170;DF Consolidado - Demonstração do Resultado;REAL;MIL;ÚLTIMO;2025-01-01;2025-12-31;3.08.02;Diferido;-15146000.0000000000;S
+33.592.510/0001-54;2025-12-31;2;VALE S.A.;004170;DF Consolidado - Demonstração do Resultado;REAL;MIL;PENÚLTIMO;2024-01-01;2024-12-31;3.09;Resultado Líquido das Operações Continuadas;30431000.0000000000;S
+33.592.510/0001-54;2025-12-31;2;VALE S.A.;004170;DF Consolidado - Demonstração do Resultado;REAL;MIL;ÚLTIMO;2025-01-01;2025-12-31;3.09;Resultado Líquido das Operações Continuadas;11811000.0000000000;S
+33.592.510/0001-54;2025-12-31;2;VALE S.A.;004170;DF Consolidado - Demonstração do Resultado;REAL;MIL;PENÚLTIMO;2024-01-01;2024-12-31;3.10;Resultado Líquido de Operações Descontinuadas;0.0000000000;S
+33.592.510/0001-54;2025-12-31;2;VALE S.A.;004170;DF Consolidado - Demonstração do Resultado;REAL;MIL;ÚLTIMO;2025-01-01;2025-12-31;3.10;Resultado Líquido de Operações Descontinuadas;0.0000000000;S
+33.592.510/0001-54;2025-12-31;2;VALE S.A.;004170;DF Consolidado - Demonstração do Resultado;REAL;MIL;PENÚLTIMO;2024-01-01;2024-12-31;3.10.01;Lucro/Prejuízo Líquido das Operações Descontinuadas;0.0000000000;S
+33.592.510/0001-54;2025-12-31;2;VALE S.A.;004170;DF Consolidado - Demonstração do Resultado;REAL;MIL;ÚLTIMO;2025-01-01;2025-12-31;3.10.01;Lucro/Prejuízo Líquido das Operações Descontinuadas;0.0000000000;S
+33.592.510/0001-54;2025-12-31;2;VALE S.A.;004170;DF Consolidado - Demonstração do Resultado;REAL;MIL;PENÚLTIMO;2024-01-01;2024-12-31;3.10.02;Ganhos/Perdas Líquidas sobre Ativos de Operações Descontinuadas;0.0000000000;S
+33.592.510/0001-54;2025-12-31;2;VALE S.A.;004170;DF Consolidado - Demonstração do Resultado;REAL;MIL;ÚLTIMO;2025-01-01;2025-12-31;3.10.02;Ganhos/Perdas Líquidas sobre Ativos de Operações Descontinuadas;0.0000000000;S
+33.592.510/0001-54;2025-12-31;2;VALE S.A.;004170;DF Consolidado - Demonstração do Resultado;REAL;MIL;PENÚLTIMO;2024-01-01;2024-12-31;3.11;Lucro/Prejuízo Consolidado do Período;30431000.0000000000;S
+33.592.510/0001-54;2025-12-31;2;VALE S.A.;004170;DF Consolidado - Demonstração do Resultado;REAL;MIL;ÚLTIMO;2025-01-01;2025-12-31;3.11;Lucro/Prejuízo Consolidado do Período;11811000.0000000000;S
+33.592.510/0001-54;2025-12-31;2;VALE S.A.;004170;DF Consolidado - Demonstração do Resultado;REAL;MIL;PENÚLTIMO;2024-01-01;2024-12-31;3.11.01;Atribuído a Sócios da Empresa Controladora;31592000.0000000000;S
+33.592.510/0001-54;2025-12-31;2;VALE S.A.;004170;DF Consolidado - Demonstração do Resultado;REAL;MIL;ÚLTIMO;2025-01-01;2025-12-31;3.11.01;Atribuído a Sócios da Empresa Controladora;13814000.0000000000;S
+33.592.510/0001-54;2025-12-31;2;VALE S.A.;004170;DF Consolidado - Demonstração do Resultado;REAL;MIL;PENÚLTIMO;2024-01-01;2024-12-31;3.11.02;Atribuído a Sócios Não Controladores;-1161000.0000000000;S
+33.592.510/0001-54;2025-12-31;2;VALE S.A.;004170;DF Consolidado - Demonstração do Resultado;REAL;MIL;ÚLTIMO;2025-01-01;2025-12-31;3.11.02;Atribuído a Sócios Não Controladores;-2003000.0000000000;S
+33.592.510/0001-54;2025-12-31;2;VALE S.A.;004170;DF Consolidado - Demonstração do Resultado;REAL;MIL;PENÚLTIMO;2024-01-01;2024-12-31;3.99;Lucro por Ação - (Reais / Ação);0.0000000000;N
+33.592.510/0001-54;2025-12-31;2;VALE S.A.;004170;DF Consolidado - Demonstração do Resultado;REAL;MIL;ÚLTIMO;2025-01-01;2025-12-31;3.99;Lucro por Ação - (Reais / Ação);0.0000000000;N
+33.592.510/0001-54;2025-12-31;2;VALE S.A.;004170;DF Consolidado - Demonstração do Resultado;REAL;MIL;PENÚLTIMO;2024-01-01;2024-12-31;3.99.01;Lucro Básico por Ação;0.0000000000;N
+33.592.510/0001-54;2025-12-31;2;VALE S.A.;004170;DF Consolidado - Demonstração do Resultado;REAL;MIL;ÚLTIMO;2025-01-01;2025-12-31;3.99.01;Lucro Básico por Ação;0.0000000000;N
+33.592.510/0001-54;2025-12-31;2;VALE S.A.;004170;DF Consolidado - Demonstração do Resultado;REAL;MIL;PENÚLTIMO;2024-01-01;2024-12-31;3.99.01.01;PNA;0.0000000000;N
+33.592.510/0001-54;2025-12-31;2;VALE S.A.;004170;DF Consolidado - Demonstração do Resultado;REAL;MIL;ÚLTIMO;2025-01-01;2025-12-31;3.99.01.01;PNA;0.0000000000;N
+33.592.510/0001-54;2025-12-31;2;VALE S.A.;004170;DF Consolidado - Demonstração do Resultado;REAL;MIL;PENÚLTIMO;2024-01-01;2024-12-31;3.99.01.02;ON;7.3900000000;N
+33.592.510/0001-54;2025-12-31;2;VALE S.A.;004170;DF Consolidado - Demonstração do Resultado;REAL;MIL;ÚLTIMO;2025-01-01;2025-12-31;3.99.01.02;ON;3.2400000000;N
+33.592.510/0001-54;2025-12-31;2;VALE S.A.;004170;DF Consolidado - Demonstração do Resultado;REAL;MIL;PENÚLTIMO;2024-01-01;2024-12-31;3.99.02;Lucro Diluído por Ação;0.0000000000;N
+33.592.510/0001-54;2025-12-31;2;VALE S.A.;004170;DF Consolidado - Demonstração do Resultado;REAL;MIL;ÚLTIMO;2025-01-01;2025-12-31;3.99.02;Lucro Diluído por Ação;0.0000000000;N
+84.429.695/0001-11;2025-12-31;1;WEG S.A.;005410;DF Consolidado - Demonstração do Resultado;REAL;MIL;PENÚLTIMO;2024-01-01;2024-12-31;3.01;Receita de Venda de Bens e/ou Serviços;37986941.0000000000;S
+84.429.695/0001-11;2025-12-31;1;WEG S.A.;005410;DF Consolidado - Demonstração do Resultado;REAL;MIL;ÚLTIMO;2025-01-01;2025-12-31;3.01;Receita de Venda de Bens e/ou Serviços;40804110.0000000000;S
+84.429.695/0001-11;2025-12-31;1;WEG S.A.;005410;DF Consolidado - Demonstração do Resultado;REAL;MIL;PENÚLTIMO;2024-01-01;2024-12-31;3.02;Custo dos Bens e/ou Serviços Vendidos;-25173096.0000000000;S
+84.429.695/0001-11;2025-12-31;1;WEG S.A.;005410;DF Consolidado - Demonstração do Resultado;REAL;MIL;ÚLTIMO;2025-01-01;2025-12-31;3.02;Custo dos Bens e/ou Serviços Vendidos;-27122477.0000000000;S
+84.429.695/0001-11;2025-12-31;1;WEG S.A.;005410;DF Consolidado - Demonstração do Resultado;REAL;MIL;PENÚLTIMO;2024-01-01;2024-12-31;3.03;Resultado Bruto;12813845.0000000000;S
+84.429.695/0001-11;2025-12-31;1;WEG S.A.;005410;DF Consolidado - Demonstração do Resultado;REAL;MIL;ÚLTIMO;2025-01-01;2025-12-31;3.03;Resultado Bruto;13681633.0000000000;S
+84.429.695/0001-11;2025-12-31;1;WEG S.A.;005410;DF Consolidado - Demonstração do Resultado;REAL;MIL;PENÚLTIMO;2024-01-01;2024-12-31;3.04;Despesas/Receitas Operacionais;-5123317.0000000000;S
+84.429.695/0001-11;2025-12-31;1;WEG S.A.;005410;DF Consolidado - Demonstração do Resultado;REAL;MIL;ÚLTIMO;2025-01-01;2025-12-31;3.04;Despesas/Receitas Operacionais;-5682892.0000000000;S
+84.429.695/0001-11;2025-12-31;1;WEG S.A.;005410;DF Consolidado - Demonstração do Resultado;REAL;MIL;PENÚLTIMO;2024-01-01;2024-12-31;3.04.01;Despesas com Vendas;-2987307.0000000000;S
+84.429.695/0001-11;2025-12-31;1;WEG S.A.;005410;DF Consolidado - Demonstração do Resultado;REAL;MIL;ÚLTIMO;2025-01-01;2025-12-31;3.04.01;Despesas com Vendas;-3353431.0000000000;S
+84.429.695/0001-11;2025-12-31;1;WEG S.A.;005410;DF Consolidado - Demonstração do Resultado;REAL;MIL;PENÚLTIMO;2024-01-01;2024-12-31;3.04.02;Despesas Gerais e Administrativas;-1299421.0000000000;S
+84.429.695/0001-11;2025-12-31;1;WEG S.A.;005410;DF Consolidado - Demonstração do Resultado;REAL;MIL;ÚLTIMO;2025-01-01;2025-12-31;3.04.02;Despesas Gerais e Administrativas;-1513882.0000000000;S
+84.429.695/0001-11;2025-12-31;1;WEG S.A.;005410;DF Consolidado - Demonstração do Resultado;REAL;MIL;PENÚLTIMO;2024-01-01;2024-12-31;3.04.03;Perdas pela Não Recuperabilidade de Ativos;0.0000000000;S
+84.429.695/0001-11;2025-12-31;1;WEG S.A.;005410;DF Consolidado - Demonstração do Resultado;REAL;MIL;ÚLTIMO;2025-01-01;2025-12-31;3.04.03;Perdas pela Não Recuperabilidade de Ativos;0.0000000000;S
+84.429.695/0001-11;2025-12-31;1;WEG S.A.;005410;DF Consolidado - Demonstração do Resultado;REAL;MIL;PENÚLTIMO;2024-01-01;2024-12-31;3.04.04;Outras Receitas Operacionais;163792.0000000000;S
+84.429.695/0001-11;2025-12-31;1;WEG S.A.;005410;DF Consolidado - Demonstração do Resultado;REAL;MIL;ÚLTIMO;2025-01-01;2025-12-31;3.04.04;Outras Receitas Operacionais;222777.0000000000;S
+84.429.695/0001-11;2025-12-31;1;WEG S.A.;005410;DF Consolidado - Demonstração do Resultado;REAL;MIL;PENÚLTIMO;2024-01-01;2024-12-31;3.04.05;Outras Despesas Operacionais;-995183.0000000000;S
+84.429.695/0001-11;2025-12-31;1;WEG S.A.;005410;DF Consolidado - Demonstração do Resultado;REAL;MIL;ÚLTIMO;2025-01-01;2025-12-31;3.04.05;Outras Despesas Operacionais;-1026740.0000000000;S
+84.429.695/0001-11;2025-12-31;1;WEG S.A.;005410;DF Consolidado - Demonstração do Resultado;REAL;MIL;PENÚLTIMO;2024-01-01;2024-12-31;3.04.06;Resultado de Equivalência Patrimonial;-5198.0000000000;S
+84.429.695/0001-11;2025-12-31;1;WEG S.A.;005410;DF Consolidado - Demonstração do Resultado;REAL;MIL;ÚLTIMO;2025-01-01;2025-12-31;3.04.06;Resultado de Equivalência Patrimonial;-11616.0000000000;S
+84.429.695/0001-11;2025-12-31;1;WEG S.A.;005410;DF Consolidado - Demonstração do Resultado;REAL;MIL;PENÚLTIMO;2024-01-01;2024-12-31;3.05;Resultado Antes do Resultado Financeiro e dos Tributos;7690528.0000000000;S
+84.429.695/0001-11;2025-12-31;1;WEG S.A.;005410;DF Consolidado - Demonstração do Resultado;REAL;MIL;ÚLTIMO;2025-01-01;2025-12-31;3.05;Resultado Antes do Resultado Financeiro e dos Tributos;7998741.0000000000;S
+84.429.695/0001-11;2025-12-31;1;WEG S.A.;005410;DF Consolidado - Demonstração do Resultado;REAL;MIL;PENÚLTIMO;2024-01-01;2024-12-31;3.06;Resultado Financeiro;217980.0000000000;S
+84.429.695/0001-11;2025-12-31;1;WEG S.A.;005410;DF Consolidado - Demonstração do Resultado;REAL;MIL;ÚLTIMO;2025-01-01;2025-12-31;3.06;Resultado Financeiro;148936.0000000000;S
+84.429.695/0001-11;2025-12-31;1;WEG S.A.;005410;DF Consolidado - Demonstração do Resultado;REAL;MIL;PENÚLTIMO;2024-01-01;2024-12-31;3.06.01;Receitas Financeiras;1942118.0000000000;S
+84.429.695/0001-11;2025-12-31;1;WEG S.A.;005410;DF Consolidado - Demonstração do Resultado;REAL;MIL;ÚLTIMO;2025-01-01;2025-12-31;3.06.01;Receitas Financeiras;2322314.0000000000;S
+84.429.695/0001-11;2025-12-31;1;WEG S.A.;005410;DF Consolidado - Demonstração do Resultado;REAL;MIL;PENÚLTIMO;2024-01-01;2024-12-31;3.06.02;Despesas Financeiras;-1724138.0000000000;S
+84.429.695/0001-11;2025-12-31;1;WEG S.A.;005410;DF Consolidado - Demonstração do Resultado;REAL;MIL;ÚLTIMO;2025-01-01;2025-12-31;3.06.02;Despesas Financeiras;-2173378.0000000000;S
+84.429.695/0001-11;2025-12-31;1;WEG S.A.;005410;DF Consolidado - Demonstração do Resultado;REAL;MIL;PENÚLTIMO;2024-01-01;2024-12-31;3.07;Resultado Antes dos Tributos sobre o Lucro;7908508.0000000000;S
+84.429.695/0001-11;2025-12-31;1;WEG S.A.;005410;DF Consolidado - Demonstração do Resultado;REAL;MIL;ÚLTIMO;2025-01-01;2025-12-31;3.07;Resultado Antes dos Tributos sobre o Lucro;8147677.0000000000;S
+84.429.695/0001-11;2025-12-31;1;WEG S.A.;005410;DF Consolidado - Demonstração do Resultado;REAL;MIL;PENÚLTIMO;2024-01-01;2024-12-31;3.08;Imposto de Renda e Contribuição Social sobre o Lucro;-1589745.0000000000;S
+84.429.695/0001-11;2025-12-31;1;WEG S.A.;005410;DF Consolidado - Demonstração do Resultado;REAL;MIL;ÚLTIMO;2025-01-01;2025-12-31;3.08;Imposto de Renda e Contribuição Social sobre o Lucro;-1371719.0000000000;S
+84.429.695/0001-11;2025-12-31;1;WEG S.A.;005410;DF Consolidado - Demonstração do Resultado;REAL;MIL;PENÚLTIMO;2024-01-01;2024-12-31;3.08.01;Corrente;-1611654.0000000000;S
+84.429.695/0001-11;2025-12-31;1;WEG S.A.;005410;DF Consolidado - Demonstração do Resultado;REAL;MIL;ÚLTIMO;2025-01-01;2025-12-31;3.08.01;Corrente;-1270231.0000000000;S
+84.429.695/0001-11;2025-12-31;1;WEG S.A.;005410;DF Consolidado - Demonstração do Resultado;REAL;MIL;PENÚLTIMO;2024-01-01;2024-12-31;3.08.02;Diferido;21909.0000000000;S
+84.429.695/0001-11;2025-12-31;1;WEG S.A.;005410;DF Consolidado - Demonstração do Resultado;REAL;MIL;ÚLTIMO;2025-01-01;2025-12-31;3.08.02;Diferido;-101488.0000000000;S
+84.429.695/0001-11;2025-12-31;1;WEG S.A.;005410;DF Consolidado - Demonstração do Resultado;REAL;MIL;PENÚLTIMO;2024-01-01;2024-12-31;3.09;Resultado Líquido das Operações Continuadas;6318763.0000000000;S
+84.429.695/0001-11;2025-12-31;1;WEG S.A.;005410;DF Consolidado - Demonstração do Resultado;REAL;MIL;ÚLTIMO;2025-01-01;2025-12-31;3.09;Resultado Líquido das Operações Continuadas;6775958.0000000000;S
+84.429.695/0001-11;2025-12-31;1;WEG S.A.;005410;DF Consolidado - Demonstração do Resultado;REAL;MIL;PENÚLTIMO;2024-01-01;2024-12-31;3.10;Resultado Líquido de Operações Descontinuadas;0.0000000000;S
+84.429.695/0001-11;2025-12-31;1;WEG S.A.;005410;DF Consolidado - Demonstração do Resultado;REAL;MIL;ÚLTIMO;2025-01-01;2025-12-31;3.10;Resultado Líquido de Operações Descontinuadas;0.0000000000;S
+84.429.695/0001-11;2025-12-31;1;WEG S.A.;005410;DF Consolidado - Demonstração do Resultado;REAL;MIL;PENÚLTIMO;2024-01-01;2024-12-31;3.10.01;Lucro/Prejuízo Líquido das Operações Descontinuadas;0.0000000000;S
+84.429.695/0001-11;2025-12-31;1;WEG S.A.;005410;DF Consolidado - Demonstração do Resultado;REAL;MIL;ÚLTIMO;2025-01-01;2025-12-31;3.10.01;Lucro/Prejuízo Líquido das Operações Descontinuadas;0.0000000000;S
+84.429.695/0001-11;2025-12-31;1;WEG S.A.;005410;DF Consolidado - Demonstração do Resultado;REAL;MIL;PENÚLTIMO;2024-01-01;2024-12-31;3.10.02;Ganhos/Perdas Líquidas sobre Ativos de Operações Descontinuadas;0.0000000000;S
+84.429.695/0001-11;2025-12-31;1;WEG S.A.;005410;DF Consolidado - Demonstração do Resultado;REAL;MIL;ÚLTIMO;2025-01-01;2025-12-31;3.10.02;Ganhos/Perdas Líquidas sobre Ativos de Operações Descontinuadas;0.0000000000;S
+84.429.695/0001-11;2025-12-31;1;WEG S.A.;005410;DF Consolidado - Demonstração do Resultado;REAL;MIL;PENÚLTIMO;2024-01-01;2024-12-31;3.11;Lucro/Prejuízo Consolidado do Período;6318763.0000000000;S
+84.429.695/0001-11;2025-12-31;1;WEG S.A.;005410;DF Consolidado - Demonstração do Resultado;REAL;MIL;ÚLTIMO;2025-01-01;2025-12-31;3.11;Lucro/Prejuízo Consolidado do Período;6775958.0000000000;S
+84.429.695/0001-11;2025-12-31;1;WEG S.A.;005410;DF Consolidado - Demonstração do Resultado;REAL;MIL;PENÚLTIMO;2024-01-01;2024-12-31;3.11.01;Atribuído a Sócios da Empresa Controladora;6042593.0000000000;S
+84.429.695/0001-11;2025-12-31;1;WEG S.A.;005410;DF Consolidado - Demonstração do Resultado;REAL;MIL;ÚLTIMO;2025-01-01;2025-12-31;3.11.01;Atribuído a Sócios da Empresa Controladora;6376219.0000000000;S
+84.429.695/0001-11;2025-12-31;1;WEG S.A.;005410;DF Consolidado - Demonstração do Resultado;REAL;MIL;PENÚLTIMO;2024-01-01;2024-12-31;3.11.02;Atribuído a Sócios Não Controladores;276170.0000000000;S
+84.429.695/0001-11;2025-12-31;1;WEG S.A.;005410;DF Consolidado - Demonstração do Resultado;REAL;MIL;ÚLTIMO;2025-01-01;2025-12-31;3.11.02;Atribuído a Sócios Não Controladores;399739.0000000000;S
+84.429.695/0001-11;2025-12-31;1;WEG S.A.;005410;DF Consolidado - Demonstração do Resultado;REAL;MIL;PENÚLTIMO;2024-01-01;2024-12-31;3.99;Lucro por Ação - (Reais / Ação);0.0000000000;N
+84.429.695/0001-11;2025-12-31;1;WEG S.A.;005410;DF Consolidado - Demonstração do Resultado;REAL;MIL;ÚLTIMO;2025-01-01;2025-12-31;3.99;Lucro por Ação - (Reais / Ação);0.0000000000;N
+84.429.695/0001-11;2025-12-31;1;WEG S.A.;005410;DF Consolidado - Demonstração do Resultado;REAL;MIL;PENÚLTIMO;2024-01-01;2024-12-31;3.99.01;Lucro Básico por Ação;0.0000000000;N
+84.429.695/0001-11;2025-12-31;1;WEG S.A.;005410;DF Consolidado - Demonstração do Resultado;REAL;MIL;ÚLTIMO;2025-01-01;2025-12-31;3.99.01;Lucro Básico por Ação;0.0000000000;N
+84.429.695/0001-11;2025-12-31;1;WEG S.A.;005410;DF Consolidado - Demonstração do Resultado;REAL;MIL;PENÚLTIMO;2024-01-01;2024-12-31;3.99.01.01;ON;1.4402600000;N
+84.429.695/0001-11;2025-12-31;1;WEG S.A.;005410;DF Consolidado - Demonstração do Resultado;REAL;MIL;ÚLTIMO;2025-01-01;2025-12-31;3.99.01.01;ON;1.5197100000;N
+84.429.695/0001-11;2025-12-31;1;WEG S.A.;005410;DF Consolidado - Demonstração do Resultado;REAL;MIL;PENÚLTIMO;2024-01-01;2024-12-31;3.99.02;Lucro Diluído por Ação;0.0000000000;N
+84.429.695/0001-11;2025-12-31;1;WEG S.A.;005410;DF Consolidado - Demonstração do Resultado;REAL;MIL;ÚLTIMO;2025-01-01;2025-12-31;3.99.02;Lucro Diluído por Ação;0.0000000000;N

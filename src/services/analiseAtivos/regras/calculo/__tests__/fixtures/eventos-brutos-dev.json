@@ -1,0 +1,541 @@
+{
+  "origem": "asset_corporate_actions do banco DEV (Neon), lido em 30/09/2026; só >= 2014",
+  "eventos": [
+    {
+      "id": "f7d0ffbb-6485-4213-8099-a70edb0652b0",
+      "symbol": "BBDC3",
+      "date": "2015-03-27",
+      "type": "DESDOBRAMENTO",
+      "factor": 1.2,
+      "source": "YAHOO"
+    },
+    {
+      "id": "cec2496e-29c7-4a64-bb66-1de721897110",
+      "symbol": "BBDC3",
+      "date": "2016-04-18",
+      "type": "DESDOBRAMENTO",
+      "factor": 1.1,
+      "source": "YAHOO"
+    },
+    {
+      "id": "02824239-2406-4913-8915-d4a7f637239e",
+      "symbol": "BBDC3",
+      "date": "2017-05-02",
+      "type": "DESDOBRAMENTO",
+      "factor": 1.1,
+      "source": "YAHOO"
+    },
+    {
+      "id": "516d1488-999e-405d-b109-5d74a6382d0c",
+      "symbol": "BBDC3",
+      "date": "2018-04-02",
+      "type": "DESDOBRAMENTO",
+      "factor": 1.1,
+      "source": "YAHOO"
+    },
+    {
+      "id": "b8aca5e7-6c9a-4a90-86b7-947c06e0b4e0",
+      "symbol": "BBDC3",
+      "date": "2019-04-01",
+      "type": "DESDOBRAMENTO",
+      "factor": 1.2,
+      "source": "YAHOO"
+    },
+    {
+      "id": "445cd6fa-a8ec-45a1-98ab-e6c9da9abc48",
+      "symbol": "BBDC3",
+      "date": "2020-04-14",
+      "type": "DESDOBRAMENTO",
+      "factor": 1.1,
+      "source": "YAHOO"
+    },
+    {
+      "id": "74f6a7f9-243c-4194-9b79-d01418dd25d2",
+      "symbol": "BBDC3",
+      "date": "2021-04-19",
+      "type": "DESDOBRAMENTO",
+      "factor": 1.1,
+      "source": "YAHOO"
+    },
+    {
+      "id": "5429a05e-6de0-4d0d-9528-c64f28fc9104",
+      "symbol": "BBDC3",
+      "date": "2022-04-19",
+      "type": "DESDOBRAMENTO",
+      "factor": 1.1,
+      "source": "YAHOO"
+    },
+    {
+      "id": "3f1c8a76-df35-4111-8c41-d1330b08b116",
+      "symbol": "BBDC3",
+      "date": "2024-02-07",
+      "type": "BONIFICACAO",
+      "factor": 1.2,
+      "source": "BRAPI"
+    },
+    {
+      "id": "7e247cfa-a713-4f63-b3e2-33f13bd04692",
+      "symbol": "BBDC4",
+      "date": "2015-03-27",
+      "type": "BONIFICACAO",
+      "factor": 1.2,
+      "source": "BRAPI"
+    },
+    {
+      "id": "13025277-3e04-4e60-a337-778326103814",
+      "symbol": "BBDC4",
+      "date": "2015-03-27",
+      "type": "DESDOBRAMENTO",
+      "factor": 1.2,
+      "source": "YAHOO"
+    },
+    {
+      "id": "4abcf86a-d08b-46ce-877d-896f79125149",
+      "symbol": "BBDC4",
+      "date": "2016-04-18",
+      "type": "DESDOBRAMENTO",
+      "factor": 1.1,
+      "source": "YAHOO"
+    },
+    {
+      "id": "2f90d21f-1b94-426d-8818-8241af47eec5",
+      "symbol": "BBDC4",
+      "date": "2016-04-18",
+      "type": "BONIFICACAO",
+      "factor": 1.1,
+      "source": "BRAPI"
+    },
+    {
+      "id": "8ce309e4-2cd3-4ead-9690-29da14e23387",
+      "symbol": "BBDC4",
+      "date": "2017-05-02",
+      "type": "BONIFICACAO",
+      "factor": 1.1,
+      "source": "BRAPI"
+    },
+    {
+      "id": "e490a706-8c37-427f-885b-10d37232b8e5",
+      "symbol": "BBDC4",
+      "date": "2017-05-02",
+      "type": "DESDOBRAMENTO",
+      "factor": 1.1,
+      "source": "YAHOO"
+    },
+    {
+      "id": "079c4f9b-615d-47f8-a009-a2dd59887af6",
+      "symbol": "BBDC4",
+      "date": "2018-04-02",
+      "type": "BONIFICACAO",
+      "factor": 1.1,
+      "source": "BRAPI"
+    },
+    {
+      "id": "5b2aebc9-9b61-4d2f-93ce-e95c3bdf52ea",
+      "symbol": "BBDC4",
+      "date": "2018-04-02",
+      "type": "DESDOBRAMENTO",
+      "factor": 1.1,
+      "source": "YAHOO"
+    },
+    {
+      "id": "9e90603e-74ae-4e7c-958f-798c797776f1",
+      "symbol": "BBDC4",
+      "date": "2019-04-01",
+      "type": "BONIFICACAO",
+      "factor": 1.2,
+      "source": "BRAPI"
+    },
+    {
+      "id": "791c9327-fd5f-4ee5-8f2a-be184825c5a8",
+      "symbol": "BBDC4",
+      "date": "2019-04-01",
+      "type": "DESDOBRAMENTO",
+      "factor": 1.2,
+      "source": "YAHOO"
+    },
+    {
+      "id": "7fa31263-9825-486c-aba5-5399791d0f76",
+      "symbol": "BBDC4",
+      "date": "2020-04-14",
+      "type": "BONIFICACAO",
+      "factor": 1.1,
+      "source": "BRAPI"
+    },
+    {
+      "id": "701495a8-2bea-4d1c-8a8a-829c6a4b0ad5",
+      "symbol": "BBDC4",
+      "date": "2020-04-14",
+      "type": "DESDOBRAMENTO",
+      "factor": 1.1,
+      "source": "YAHOO"
+    },
+    {
+      "id": "c5518b8c-adfb-46ed-b3cd-9da506e4bb3b",
+      "symbol": "BBDC4",
+      "date": "2021-04-19",
+      "type": "DESDOBRAMENTO",
+      "factor": 1.1,
+      "source": "YAHOO"
+    },
+    {
+      "id": "842a39b4-ea32-4f4f-9dcc-3536ea69bd7b",
+      "symbol": "BBDC4",
+      "date": "2021-04-19",
+      "type": "BONIFICACAO",
+      "factor": 1.1,
+      "source": "BRAPI"
+    },
+    {
+      "id": "10c3c4b6-3a3d-458f-8b9e-e356e61f0c0a",
+      "symbol": "BBDC4",
+      "date": "2022-04-18",
+      "type": "BONIFICACAO",
+      "factor": 1.1,
+      "source": "BRAPI"
+    },
+    {
+      "id": "c6e2b555-a95e-41d1-b35c-259d64966fa6",
+      "symbol": "BBDC4",
+      "date": "2022-04-19",
+      "type": "DESDOBRAMENTO",
+      "factor": 1.1,
+      "source": "YAHOO"
+    },
+    {
+      "id": "cb824215-e335-4067-bf6d-29a18c5a1121",
+      "symbol": "BBDC4",
+      "date": "2024-02-07",
+      "type": "BONIFICACAO",
+      "factor": 1.2,
+      "source": "BRAPI"
+    },
+    {
+      "id": "83f93bf2-1593-4745-9bbc-a8f16b4a0d2d",
+      "symbol": "CPLE3",
+      "date": "2021-03-12",
+      "type": "DESDOBRAMENTO",
+      "factor": 10,
+      "source": "YAHOO"
+    },
+    {
+      "id": "7220e24c-1af4-4cc6-a69f-12341f665d80",
+      "symbol": "CPLE3",
+      "date": "2025-12-19",
+      "type": "RESG TOTAL RV",
+      "factor": 100,
+      "source": "BRAPI"
+    },
+    {
+      "id": "66ce6306-2cc8-40e6-b0ca-57cab1d13590",
+      "symbol": "CYRE3",
+      "date": "2025-12-30",
+      "type": "BONIFICACAO",
+      "factor": 1.1895833,
+      "source": "BRAPI"
+    },
+    {
+      "id": "82874956-fbf6-4a8b-898c-2b0fb1c65b1a",
+      "symbol": "EGIE3",
+      "date": "2018-12-12",
+      "type": "DESDOBRAMENTO",
+      "factor": 1.25,
+      "source": "YAHOO"
+    },
+    {
+      "id": "5741132e-2b52-4b1f-8834-5f891e39f039",
+      "symbol": "EGIE3",
+      "date": "2025-11-27",
+      "type": "DESDOBRAMENTO",
+      "factor": 1.4,
+      "source": "YAHOO"
+    },
+    {
+      "id": "5071e446-7d8d-4ad9-b2de-a45077c79b5e",
+      "symbol": "EGIE3",
+      "date": "2025-11-28",
+      "type": "DESDOBRAMENTO",
+      "factor": 1.1,
+      "source": "YAHOO"
+    },
+    {
+      "id": "a861a55f-1086-41ee-a51b-2ac2bfe2b454",
+      "symbol": "HFOF11",
+      "date": "2025-05-12",
+      "type": "DESDOBRAMENTO",
+      "factor": 10,
+      "source": "YAHOO"
+    },
+    {
+      "id": "15bf2821-029e-4d88-9bb1-ae2e82d1a71e",
+      "symbol": "HGLG11",
+      "date": "2018-04-18",
+      "type": "DESDOBRAMENTO",
+      "factor": 10,
+      "source": "YAHOO"
+    },
+    {
+      "id": "780c870e-6388-4df9-b106-7adfc5c95d7d",
+      "symbol": "LREN3",
+      "date": "2015-09-23",
+      "type": "DESDOBRAMENTO",
+      "factor": 5,
+      "source": "BRAPI"
+    },
+    {
+      "id": "515fc3da-0693-4fc5-b7d7-1ce48b0d6fc3",
+      "symbol": "LREN3",
+      "date": "2015-09-24",
+      "type": "DESDOBRAMENTO",
+      "factor": 5,
+      "source": "YAHOO"
+    },
+    {
+      "id": "0301331e-31a2-462d-b0cf-12aa4b0bc2fc",
+      "symbol": "LREN3",
+      "date": "2017-05-04",
+      "type": "DESDOBRAMENTO",
+      "factor": 1.1,
+      "source": "YAHOO"
+    },
+    {
+      "id": "ae263534-ef1a-4866-9cc1-36a12d13e6d7",
+      "symbol": "LREN3",
+      "date": "2019-05-02",
+      "type": "DESDOBRAMENTO",
+      "factor": 1.1,
+      "source": "YAHOO"
+    },
+    {
+      "id": "82bcf041-22db-42cf-828e-decd5a96ed88",
+      "symbol": "LREN3",
+      "date": "2021-10-22",
+      "type": "DESDOBRAMENTO",
+      "factor": 1.1,
+      "source": "YAHOO"
+    },
+    {
+      "id": "3b039a8b-66ee-44d1-97fc-e66ba83c64f2",
+      "symbol": "LREN3",
+      "date": "2021-11-05",
+      "type": "DESDOBRAMENTO",
+      "factor": 1.1,
+      "source": "YAHOO"
+    },
+    {
+      "id": "16c686bf-5b81-4458-a317-1c6f81986643",
+      "symbol": "LREN3",
+      "date": "2024-11-28",
+      "type": "DESDOBRAMENTO",
+      "factor": 1.1,
+      "source": "YAHOO"
+    },
+    {
+      "id": "9b0ad1cb-c1c6-4210-b2d0-c2de204cc6bd",
+      "symbol": "LREN3",
+      "date": "2024-12-11",
+      "type": "BONIFICACAO",
+      "factor": 1.1,
+      "source": "BRAPI"
+    },
+    {
+      "id": "11420759-6aae-42a4-ba51-b708ce1ecb6e",
+      "symbol": "LREN3",
+      "date": "2024-12-12",
+      "type": "DESDOBRAMENTO",
+      "factor": 1.1,
+      "source": "YAHOO"
+    },
+    {
+      "id": "59a3f38f-63fd-43bf-8d79-f2f3246a12d9",
+      "symbol": "MGLU3",
+      "date": "2015-09-30",
+      "type": "GRUPAMENTO",
+      "factor": 0.125,
+      "source": "BRAPI"
+    },
+    {
+      "id": "e69a98d5-b9e2-45e3-b185-746a9a7df75b",
+      "symbol": "MGLU3",
+      "date": "2015-10-01",
+      "type": "GRUPAMENTO",
+      "factor": 0.125,
+      "source": "BRAPI"
+    },
+    {
+      "id": "92ecefe1-3294-4a69-81f8-7565edb1ad98",
+      "symbol": "MGLU3",
+      "date": "2017-09-04",
+      "type": "DESDOBRAMENTO",
+      "factor": 8,
+      "source": "BRAPI"
+    },
+    {
+      "id": "d52a5fca-622f-4322-b02e-5a6fa12f2b77",
+      "symbol": "MGLU3",
+      "date": "2017-09-05",
+      "type": "DESDOBRAMENTO",
+      "factor": 8,
+      "source": "BRAPI"
+    },
+    {
+      "id": "b655ddc3-64b5-4dbb-8b7e-3686279baee0",
+      "symbol": "MGLU3",
+      "date": "2019-08-05",
+      "type": "DESDOBRAMENTO",
+      "factor": 8,
+      "source": "BRAPI"
+    },
+    {
+      "id": "dbb8ff40-efa3-493d-840b-df13da026add",
+      "symbol": "MGLU3",
+      "date": "2019-08-06",
+      "type": "DESDOBRAMENTO",
+      "factor": 8,
+      "source": "BRAPI"
+    },
+    {
+      "id": "a665d859-4a46-4375-9195-4d65fdfd932b",
+      "symbol": "MGLU3",
+      "date": "2020-10-13",
+      "type": "DESDOBRAMENTO",
+      "factor": 4,
+      "source": "BRAPI"
+    },
+    {
+      "id": "bda3ad0a-ed11-493f-9739-9b1adbf67732",
+      "symbol": "MGLU3",
+      "date": "2020-10-14",
+      "type": "DESDOBRAMENTO",
+      "factor": 4,
+      "source": "YAHOO"
+    },
+    {
+      "id": "58f6585a-f024-4138-9f3b-cd49a148d1c8",
+      "symbol": "MGLU3",
+      "date": "2024-05-24",
+      "type": "GRUPAMENTO",
+      "factor": 0.1,
+      "source": "BRAPI"
+    },
+    {
+      "id": "8495b59e-d4b9-4b0d-806b-8013a0778465",
+      "symbol": "MGLU3",
+      "date": "2024-05-27",
+      "type": "GRUPAMENTO",
+      "factor": 0.1,
+      "source": "YAHOO"
+    },
+    {
+      "id": "6e6213be-4b89-4644-94e0-4f1870e0ed7d",
+      "symbol": "MGLU3",
+      "date": "2025-12-29",
+      "type": "BONIFICACAO",
+      "factor": 1.05,
+      "source": "BRAPI"
+    },
+    {
+      "id": "37c626b8-4e44-462a-9a2e-2e89d2f2f347",
+      "symbol": "MGLU3",
+      "date": "2025-12-30",
+      "type": "DESDOBRAMENTO",
+      "factor": 1.05,
+      "source": "YAHOO"
+    },
+    {
+      "id": "844d63d8-13c7-4166-8e70-a3d78e59395b",
+      "symbol": "SLCE3",
+      "date": "2019-05-02",
+      "type": "DESDOBRAMENTO",
+      "factor": 2,
+      "source": "YAHOO"
+    },
+    {
+      "id": "b7fa5a77-80a9-4834-996b-dd33b3adbec1",
+      "symbol": "SLCE3",
+      "date": "2021-12-14",
+      "type": "DESDOBRAMENTO",
+      "factor": 1.1,
+      "source": "YAHOO"
+    },
+    {
+      "id": "341a98fb-fe29-48af-8c9e-8228dffa1b86",
+      "symbol": "SLCE3",
+      "date": "2022-01-03",
+      "type": "DESDOBRAMENTO",
+      "factor": 1.1,
+      "source": "YAHOO"
+    },
+    {
+      "id": "620387d7-9fe6-44e8-a9e1-1f93b5c9ee92",
+      "symbol": "SLCE3",
+      "date": "2023-05-05",
+      "type": "DESDOBRAMENTO",
+      "factor": 1.1,
+      "source": "YAHOO"
+    },
+    {
+      "id": "cac9f31b-4340-4f0b-8678-f7da164d2fb8",
+      "symbol": "SLCE3",
+      "date": "2023-12-14",
+      "type": "DESDOBRAMENTO",
+      "factor": 2,
+      "source": "YAHOO"
+    },
+    {
+      "id": "3312b25c-7114-429b-a9c3-bd5b0c813c58",
+      "symbol": "SLCE3",
+      "date": "2026-01-02",
+      "type": "DESDOBRAMENTO",
+      "factor": 1.125,
+      "source": "YAHOO"
+    },
+    {
+      "id": "13230c01-53b8-4e17-87fe-8c8932db74f8",
+      "symbol": "WEGE3",
+      "date": "2014-04-24",
+      "type": "DESDOBRAMENTO",
+      "factor": 1.3,
+      "source": "YAHOO"
+    },
+    {
+      "id": "63864a49-8ddb-422c-9f34-0f769e933965",
+      "symbol": "WEGE3",
+      "date": "2015-04-01",
+      "type": "DESDOBRAMENTO",
+      "factor": 2,
+      "source": "YAHOO"
+    },
+    {
+      "id": "410ed0ea-d584-4649-bd19-936d4cbbcff1",
+      "symbol": "WEGE3",
+      "date": "2018-04-24",
+      "type": "BONIFICACAO",
+      "factor": 1.3,
+      "source": "BRAPI"
+    },
+    {
+      "id": "47f1e356-affa-4b3f-a4b6-52474646f017",
+      "symbol": "WEGE3",
+      "date": "2018-04-25",
+      "type": "DESDOBRAMENTO",
+      "factor": 1.3,
+      "source": "YAHOO"
+    },
+    {
+      "id": "69e75511-9cce-4811-b312-f58945bf54d8",
+      "symbol": "WEGE3",
+      "date": "2021-04-27",
+      "type": "DESDOBRAMENTO",
+      "factor": 2,
+      "source": "BRAPI"
+    },
+    {
+      "id": "873aee22-7c3d-444c-a6e5-672a300060a0",
+      "symbol": "WEGE3",
+      "date": "2021-04-28",
+      "type": "DESDOBRAMENTO",
+      "factor": 2,
+      "source": "YAHOO"
+    }
+  ]
+}
