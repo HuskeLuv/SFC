@@ -1142,4 +1142,59 @@ describe('GET /api/analises/proventos', () => {
       expect(data.proventos[0].tipo).toBe('JCP');
     });
   });
+
+  describe('item movido de aba (mover na Carteira)', () => {
+    const seed = (categoriaOverride: string | null) => {
+      const now = new Date();
+      const compra = new Date(now.getTime() - 60 * 86400000);
+      mockPrisma.portfolio.findMany.mockResolvedValue([
+        {
+          id: 'p1',
+          userId: 'user-123',
+          quantity: 10,
+          totalInvested: 1000,
+          avgPrice: 100,
+          lastUpdate: compra,
+          assetId: 'a1',
+          categoriaOverride,
+          asset: {
+            id: 'a1',
+            symbol: 'HGLG11',
+            name: 'CSHG Logística',
+            type: 'fii',
+            currency: 'BRL',
+          },
+        },
+      ]);
+      mockPrisma.stockTransaction.findMany.mockResolvedValue([
+        {
+          id: 'tx-1',
+          userId: 'user-123',
+          type: 'compra',
+          quantity: 10,
+          price: 100,
+          total: 1000,
+          date: compra,
+          assetId: 'a1',
+          asset: { symbol: 'HGLG11', name: 'CSHG Logística', type: 'fii' },
+        },
+      ]);
+      mockGetDividends.mockResolvedValue([
+        { date: new Date(now.getTime() - 10 * 86400000), tipo: 'Rendimento', valorUnitario: 1 },
+      ]);
+    };
+
+    it('groupBy=classe agrupa o FII movido para Ações em Ações', async () => {
+      seed('acoes');
+      const data = await (await GET(createRequest({ groupBy: 'classe' }))).json();
+      expect(data.proventos[0].classe).toBe('Ações');
+      expect(Object.keys(data.grouped)).toEqual(['Ações']);
+    });
+
+    it('override igual à base mantém a classe original', async () => {
+      seed('fiis');
+      const data = await (await GET(createRequest({ groupBy: 'classe' }))).json();
+      expect(Object.keys(data.grouped)).toEqual(["FII's"]);
+    });
+  });
 });

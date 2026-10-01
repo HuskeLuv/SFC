@@ -17,6 +17,7 @@ import {
 } from '@/services/portfolio/corporateActions';
 import { logSensitiveEndpointAccess } from '@/services/impersonationLogger';
 import { getTtlCache } from '@/lib/simpleTtlCache';
+import { overrideEfetivo, type CategoriaMovivel } from '@/lib/carteiraMover';
 
 import { withErrorHandler } from '@/utils/apiErrorHandler';
 
@@ -57,6 +58,9 @@ interface PortfolioAssetEntry {
   avgPrice: number;
   lastUpdate: Date;
   assetId?: string | null;
+  currency?: string | null;
+  /** Aba escolhida no "Mover na Carteira" (vale só via overrideEfetivo). */
+  categoriaOverride?: string | null;
 }
 
 interface TransactionPoint {
@@ -69,7 +73,25 @@ const BLOCKED_SYMBOL_PREFIXES = ['RESERVA-EMERG', 'RESERVA-OPORT', 'PERSONALIZAD
 const isBlockedSymbol = (symbol: string) =>
   BLOCKED_SYMBOL_PREFIXES.some((prefix) => symbol.toUpperCase().startsWith(prefix));
 
+/** Rótulo da classe (vocabulário desta rota) para o item movido de aba. */
+const CLASSE_DA_CATEGORIA_MOVIDA: Record<CategoriaMovivel, string> = {
+  acoes: 'Ações',
+  fiis: "FII's",
+  etfs: "ETF's",
+  fimFia: 'FIM/FIA',
+  stocks: 'Stocks',
+  reits: "REIT's",
+};
+
 const mapAssetTypeToClasse = (entry: PortfolioAssetEntry) => {
+  // Item movido de aba (mover na Carteira): a classe segue a aba escolhida.
+  // Override null, igual à base ou em item fora das abas movíveis → regra antiga.
+  const movido = overrideEfetivo(
+    { symbol: entry.symbol, type: entry.assetType, currency: entry.currency, name: entry.name },
+    entry.categoriaOverride,
+  );
+  if (movido) return CLASSE_DA_CATEGORIA_MOVIDA[movido];
+
   const assetType = (entry.assetType || '').toLowerCase();
   const symbolUpper = entry.symbol.toUpperCase();
   const nameLower = entry.name.toLowerCase();
@@ -273,6 +295,8 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
         avgPrice: item.avgPrice || 0,
         lastUpdate: item.lastUpdate,
         assetId: item.assetId,
+        currency: item.asset?.currency ?? null,
+        categoriaOverride: item.categoriaOverride ?? null,
       };
     })
     .filter(Boolean) as PortfolioAssetEntry[];
