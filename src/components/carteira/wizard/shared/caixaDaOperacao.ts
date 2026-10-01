@@ -7,7 +7,8 @@
  * Espelha as regras de /api/carteira/operacao: valor calculado por tipo e
  * REIT cotado em US$ (convertido pela cotação informada).
  */
-import type { CaixaAbaKey } from '@/lib/caixaParaInvestirPlano';
+import { CATEGORIA_TO_CAIXA_ABA, type CaixaAbaKey } from '@/lib/caixaParaInvestirPlano';
+import type { CategoriaMovivel } from '@/lib/carteiraMover';
 import type { WizardFormData } from '@/types/wizard';
 
 type CompraForm = Pick<
@@ -81,6 +82,19 @@ export function abaDaCompra(form: CompraForm): CaixaAbaKey | null {
       // reservas, conta corrente, imóvel, personalizado
       return null;
   }
+}
+
+/**
+ * Aba do caixa de uma COMPRA de ativo que o usuário já moveu de aba (mover na Carteira,
+ * out/2026): com override, o servidor debita o caixa da aba efetiva (categorizarAsset segue o
+ * override), então a prévia também. Sem override, a regra de sempre por tipo.
+ */
+export function abaDaCompraEfetiva(
+  form: CompraForm,
+  efetiva: { categoria: CategoriaMovivel | null; override: boolean } | null | undefined,
+): CaixaAbaKey | null {
+  if (efetiva?.override && efetiva.categoria) return CATEGORIA_TO_CAIXA_ABA[efetiva.categoria];
+  return abaDaCompra(form);
 }
 
 /** Valor em R$ de uma COMPRA (mesmo cálculo da API). */

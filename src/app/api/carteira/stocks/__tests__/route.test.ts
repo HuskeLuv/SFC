@@ -3,7 +3,7 @@ import { NextRequest } from 'next/server';
 
 const mockPrisma = vi.hoisted(() => ({
   // Histórico de alterações (recordChange importa prisma como default export).
-  userChangeLog: { create: vi.fn() },
+  userChangeLog: { create: vi.fn(), findMany: vi.fn().mockResolvedValue([]) },
   user: { findUnique: vi.fn() },
   portfolio: { findMany: vi.fn() },
   // Ativos planejados (sem posição): nenhum nos cenários destes testes.
@@ -38,6 +38,30 @@ vi.mock('@/services/pricing/assetPriceService', () => ({
 }));
 
 import { GET, POST } from '../route';
+
+/** Evento de mover (UserChangeLog) que tirou o item da aba base. */
+const eventoMover = (entityId: string, after: Record<string, unknown>, viaConsultant = false) => ({
+  entityId,
+  action: 'investimento.mover',
+  createdAt: new Date('2026-10-01T12:00:00Z'),
+  viaConsultant,
+  snapshot: { v: 1, kind: 'mover', data: { categoriaOverride: null }, meta: { after } },
+});
+
+type Linha = {
+  id: string;
+  ticker?: string;
+  nome?: string;
+  cotacaoAtual?: number;
+  valorAtualizado: number;
+  movido?: boolean;
+  movidoEm?: string;
+  movidoViaConsultor?: boolean;
+  naoMovivelMotivo?: string;
+  planejado?: boolean;
+};
+type Secao = { ativos: Linha[] } & Record<string, unknown>;
+const linhas = (data: { secoes: Secao[] }) => data.secoes.flatMap((s) => s.ativos);
 
 const createGetRequest = () =>
   new NextRequest('http://localhost/api/carteira/stocks', { method: 'GET' });
@@ -100,6 +124,66 @@ describe('/api/carteira/stocks', () => {
       expect(data.secoes.length).toBeGreaterThan(0);
       const allAtivos = data.secoes.flatMap((s: { ativos: { ticker: string }[] }) => s.ativos);
       expect(allAtivos.some((a: { ticker: string }) => a.ticker === 'AAPL')).toBe(true);
+    });
+  });
+
+  describe('mover na Carteira (out/2026)', () => {
+    const posicao = (over: Record<string, unknown>) => ({
+      userId: 'user-1',
+      quantity: 4,
+      totalInvested: 400,
+      avgPrice: 100,
+      objetivo: 0,
+      estrategia: null,
+      categoriaOverride: null,
+      lastUpdate: new Date(),
+      ...over,
+    });
+
+    it('REIT movido para Stocks aparece na seção da estratégia, com cotação live e selo', async () => {
+      const { getAssetPrices } = await import('@/services/pricing/assetPriceService');
+      vi.mocked(getAssetPrices).mockResolvedValueOnce(new Map([['O', 55]]));
+      mockPrisma.portfolio.findMany.mockResolvedValue([
+        posicao({
+          id: 'p-o',
+          assetId: 'a-o',
+          categoriaOverride: 'stocks',
+          estrategia: 'risk',
+          asset: { symbol: 'O', name: 'Realty Income', type: 'reit', currency: 'USD' },
+        }),
+      ]);
+      mockPrisma.userChangeLog.findMany.mockResolvedValueOnce([
+        eventoMover('p-o', { categoriaOverride: 'stocks', estrategia: 'risk' }),
+      ]);
+      const data = await (await GET(createGetRequest())).json();
+      const risk = data.secoes.find((s: Secao) => s.estrategia === 'risk');
+      expect(risk.ativos).toHaveLength(1);
+      expect(risk.ativos[0]).toMatchObject({
+        ticker: 'O',
+        cotacaoAtual: 55,
+        valorAtualizado: 220,
+        movido: true,
+      });
+      expect(risk.ativos[0]).not.toHaveProperty('movidoViaConsultor');
+    });
+
+    it('stock movida para REITs some de Stocks; sem override nada muda', async () => {
+      mockPrisma.portfolio.findMany.mockResolvedValue([
+        posicao({
+          id: 'p-aapl',
+          categoriaOverride: 'reits',
+          asset: { symbol: 'AAPL', name: 'Apple', type: 'stock', currency: 'USD' },
+        }),
+        posicao({
+          id: 'p-msft',
+          estrategia: 'growth',
+          asset: { symbol: 'MSFT', name: 'Microsoft', type: 'stock', currency: 'USD' },
+        }),
+      ]);
+      const data = await (await GET(createGetRequest())).json();
+      expect(linhas(data).map((l) => l.ticker)).toEqual(['MSFT']);
+      expect(linhas(data)[0]).not.toHaveProperty('movido');
+      expect(mockPrisma.userChangeLog.findMany).not.toHaveBeenCalled();
     });
   });
 

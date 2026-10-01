@@ -190,6 +190,9 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
       tipoAtivo,
       instituicaoId: instituicaoId || null,
       assetId: portfolio.assetId,
+      // Item movido de aba: o resgate total apaga o Portfolio (e o override). O Fluxo
+      // de Caixa lê daqui a aba do ativo vendido (decisão 5 do mover na Carteira).
+      categoriaOverride: portfolio.categoriaOverride ?? undefined,
       symbol: portfolio.asset?.symbol || '',
       name: portfolio.asset?.name || '',
       metodoResgate,

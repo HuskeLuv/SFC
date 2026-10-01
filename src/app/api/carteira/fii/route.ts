@@ -1,10 +1,8 @@
 import { logger } from '@/lib/logger';
 import { NextRequest, NextResponse } from 'next/server';
-import {
-  listarPlanejados,
-  linhaPlanejadaBase,
-  TIPOS_ATIVO_PLANEJAVEIS,
-} from '@/services/portfolio/ativosPlanejados';
+import { listarPlanejados, linhaPlanejadaBase } from '@/services/portfolio/ativosPlanejados';
+import { filtrarDaCategoria, wherePortfolioDaCategoria } from '@/services/portfolio/categoriaAba';
+import { aplicarCamposMovido, camposMovidoPorLinha } from '@/app/api/carteira/_lib/linhaMovida';
 import { requireAuthWithActing } from '@/utils/auth';
 import { prisma } from '@/lib/prisma';
 import { FiiData, FiiAtivo, FiiSecao, TipoFii } from '@/types/fii';
@@ -67,21 +65,22 @@ async function calculateFiiData(userId: string): Promise<FiiData> {
   const caixaParaInvestir = caixaParaInvestirData?.value || 0;
 
   // Pós-consolidação Stock → Asset: FIIs vivem na tabela Asset com type='fii'.
-  const portfolio = await prisma.portfolio.findMany({
-    where: {
-      userId,
-      asset: { type: 'fii' },
-    },
-    include: { asset: true },
-  });
-
-  const fiiPortfolio = portfolio.filter((item) => item.asset?.type === 'fii');
+  // Mover na Carteira (out/2026): + itens movidos para FII's (ação, ETF,
+  // fundo cotado), − os FIIs movidos daqui para outra aba. A seção vem de
+  // Portfolio.tipoFii também para os movidos.
+  const fiiPortfolio = filtrarDaCategoria(
+    await prisma.portfolio.findMany({
+      where: wherePortfolioDaCategoria(userId, 'fiis'),
+      include: { asset: true },
+    }),
+    'fiis',
+  );
 
   // Ativos PLANEJADOS (sem posição) da aba — linha zerada com objetivo (16/09/2026).
   const planejados = await listarPlanejados(
     userId,
-    TIPOS_ATIVO_PLANEJAVEIS.fii,
-    portfolio.map((p) => p.assetId),
+    { categoria: 'fiis' },
+    fiiPortfolio.map((p) => p.assetId),
   );
 
   // Buscar cotações atuais dos FIIs (banco primeiro, fallback BRAPI quando necessário)
@@ -155,6 +154,11 @@ async function calculateFiiData(userId: string): Promise<FiiData> {
         : 'fofi',
     });
   }
+
+  aplicarCamposMovido(
+    fiiAtivos,
+    await camposMovidoPorLinha(userId, 'fiis', [...fiiPortfolio, ...planejados]),
+  );
 
   // Calcular totais gerais
   const totalQuantidade = fiiAtivos.reduce((sum, ativo) => sum + ativo.quantidade, 0);

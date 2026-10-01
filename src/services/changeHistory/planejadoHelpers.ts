@@ -33,6 +33,7 @@ export function buildPlanejadoSnapshot(row: Watchlist): ChangeSnapshot {
       assetId: row.assetId,
       objetivo: row.objetivo,
       secao: row.secao,
+      categoriaOverride: row.categoriaOverride ?? null,
       notes: row.notes,
       addedAt: row.addedAt ? new Date(row.addedAt).toISOString() : undefined,
     },

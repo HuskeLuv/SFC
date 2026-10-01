@@ -26,7 +26,14 @@ import {
   invalidatePortfolioSnapshots,
   recalculatePortfolioFromTransactions,
 } from '@/services/portfolio/portfolioRecalculation';
-import { FUNDO_TYPES_ALL, FUNDO_SUBTIPO_ORDER } from '@/lib/fundoTypes';
+import {
+  FUNDO_TYPES_ALL,
+  FUNDO_SUBTIPO_ORDER,
+  fundoSubtipoFromAssetType,
+  isFundoCatchAllType,
+  isFundoSubtipo,
+} from '@/lib/fundoTypes';
+import { CAMPO_SUBGRUPO_PORTFOLIO, isSubgrupoValido, overrideEfetivo } from '@/lib/carteiraMover';
 import { runCvmFundSync } from '@/services/pricing/cvmFundSync';
 import { applyCorporateActionsToUserPositions } from '@/services/portfolio/applyCorporateActions';
 import {
@@ -152,6 +159,66 @@ const expectedAssetTypeByTipoAtivo: Record<string, readonly string[]> = {
   previdencia: ['previdencia'],
   fundo: FUNDO_TYPES_ALL,
 };
+
+type TxCliente = Parameters<Parameters<typeof prisma.$transaction>[0]>[0];
+
+const notasDaCompra = (notes: string | null): Record<string, unknown> | null => {
+  if (!notes) return null;
+  try {
+    const parsed = JSON.parse(notes);
+    return parsed && typeof parsed === 'object' ? parsed : null;
+  } catch {
+    return null;
+  }
+};
+
+/**
+ * Recompra de REIT ou de fundo genérico ('fund'/'funds') com a coluna da seção vazia: devolve
+ * a seção que a aba exibe hoje (mesma regra de /api/carteira/reit e /fim-fia, sem a compra
+ * nova) para gravar no Portfolio. Assim a compra não regrava o subgrupo (decisão 6 do mover).
+ * Fundo classificado pela CVM não precisa: a classificação vence as notes na leitura.
+ */
+async function secaoAtualParaFixarNaRecompra(
+  tx: TxCliente,
+  args: {
+    tipoAtivo: string;
+    assetType: string | null | undefined;
+    portfolio: { estrategia: string | null; tipoFundo: string | null };
+    userId: string;
+    assetId: string;
+    excetoTransacaoId: string;
+  },
+): Promise<{ estrategia?: string; tipoFundo?: string }> {
+  const ehReit = args.tipoAtivo === 'reit' && !args.portfolio.estrategia;
+  const ehFundoGenerico =
+    args.tipoAtivo === 'fundo' && !args.portfolio.tipoFundo && isFundoCatchAllType(args.assetType);
+  if (!ehReit && !ehFundoGenerico) return {};
+
+  const compras = await tx.stockTransaction.findMany({
+    where: {
+      userId: args.userId,
+      assetId: args.assetId,
+      type: 'compra',
+      id: { not: args.excetoTransacaoId },
+    },
+    orderBy: { date: 'desc' },
+    select: { notes: true },
+  });
+  if (ehReit) {
+    for (const compra of compras) {
+      const valor = notasDaCompra(compra.notes)?.estrategiaReit;
+      if (valor) {
+        return { estrategia: isSubgrupoValido('reits', valor) ? (valor as string) : 'value' };
+      }
+    }
+    return { estrategia: 'value' };
+  }
+  for (const compra of compras) {
+    const valor = notasDaCompra(compra.notes)?.tipoFundo;
+    if (isFundoSubtipo(valor)) return { tipoFundo: valor };
+  }
+  return { tipoFundo: fundoSubtipoFromAssetType(args.assetType) ?? 'fim' };
+}
 
 export const POST = withErrorHandler(async (request: NextRequest) => {
   const auth = await requireAuthWithActing(request);
@@ -2277,8 +2344,27 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
         // seção definidos no planejamento e a linha planejada some (16/09/2026).
         const planejadoAbsorvido = await absorverPlanejadoNaCompra(tx, targetUserId, asset!.id);
         const secaoPlanejada = planejadoAbsorvido?.secao ?? null;
+        // Planejado que o usuário MOVEU de aba (mover na Carteira): a posição
+        // nasce na aba escolhida, com a seção na coluna do subgrupo dela.
+        const overridePlanejado = planejadoAbsorvido
+          ? overrideEfetivo(asset, planejadoAbsorvido.categoriaOverride)
+          : null;
+        const secaoBasePlanejada = overridePlanejado ? null : secaoPlanejada;
+        const estrategiaNaCompra =
+          tipoAtivo === 'acao' || tipoAtivo === 'bdr' || tipoAtivo === 'stock';
 
         if (portfolioExistente) {
+          // REIT e fundo genérico ('fund'/'funds') não guardavam a seção no Portfolio: a aba
+          // lia das notes da compra mais recente, então comprar de novo com outra estratégia/
+          // destino movia o item (decisão 6 do mover). Fixa na coluna a seção exibida hoje.
+          const secaoFixada = await secaoAtualParaFixarNaRecompra(tx, {
+            tipoAtivo,
+            assetType: asset?.type,
+            portfolio: portfolioExistente,
+            userId: targetUserId,
+            assetId: asset!.id,
+            excetoTransacaoId: novaTransacao.id,
+          });
           const novaQuantidade = portfolioExistente.quantity + quantidadeFinal;
           const novoTotalInvestido = portfolioExistente.totalInvested + valorFinal;
           const novoPrecoMedio =
@@ -2290,13 +2376,21 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
               quantity: novaQuantidade,
               avgPrice: novoPrecoMedio,
               totalInvested: novoTotalInvestido,
-              ...(tipoAtivo === 'acao' && estrategia ? { estrategia } : {}),
-              ...(tipoAtivo === 'stock' && estrategia ? { estrategia } : {}),
-              ...(tipoAtivo === 'fii' && tipoFii ? { tipoFii } : {}),
-              ...(tipoAtivo === 'etf' && regiaoEtf ? { regiaoEtf } : {}),
+              // Compra de um ativo que o usuário já tem NÃO regrava o
+              // subgrupo (decisão 6 do mover): só preenche coluna vazia. Para
+              // trocar de seção, o caminho é "Mover". categoriaOverride
+              // nunca é tocado aqui.
+              ...(estrategiaNaCompra && estrategia && !portfolioExistente.estrategia
+                ? { estrategia }
+                : {}),
+              ...(tipoAtivo === 'fii' && tipoFii && !portfolioExistente.tipoFii ? { tipoFii } : {}),
+              ...(tipoAtivo === 'etf' && regiaoEtf && !portfolioExistente.regiaoEtf
+                ? { regiaoEtf }
+                : {}),
               ...(planejadoAbsorvido && portfolioExistente.objetivo === 0
                 ? { objetivo: planejadoAbsorvido.objetivo }
                 : {}),
+              ...secaoFixada,
               lastUpdate: new Date(),
             },
           });
@@ -2309,20 +2403,28 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
               quantity: quantidadeFinal,
               avgPrice: precoFinal,
               totalInvested: valorFinal,
-              ...(tipoAtivo === 'acao' && estrategia ? { estrategia } : {}),
-              ...(tipoAtivo === 'stock' && estrategia ? { estrategia } : {}),
+              ...(estrategiaNaCompra && estrategia ? { estrategia } : {}),
               ...(tipoAtivo === 'fii' && tipoFii ? { tipoFii } : {}),
               ...(tipoAtivo === 'etf' && regiaoEtf ? { regiaoEtf } : {}),
               ...(planejadoAbsorvido ? { objetivo: planejadoAbsorvido.objetivo } : {}),
               // Seção do planejamento vale quando a compra não informou uma.
-              ...((tipoAtivo === 'acao' || tipoAtivo === 'stock') && !estrategia && secaoPlanejada
-                ? { estrategia: secaoPlanejada }
+              ...(estrategiaNaCompra && !estrategia && secaoBasePlanejada
+                ? { estrategia: secaoBasePlanejada }
                 : {}),
-              ...(tipoAtivo === 'fii' && !tipoFii && secaoPlanejada
-                ? { tipoFii: secaoPlanejada }
+              ...(tipoAtivo === 'fii' && !tipoFii && secaoBasePlanejada
+                ? { tipoFii: secaoBasePlanejada }
                 : {}),
-              ...(tipoAtivo === 'etf' && !regiaoEtf && secaoPlanejada
-                ? { regiaoEtf: secaoPlanejada }
+              ...(tipoAtivo === 'etf' && !regiaoEtf && secaoBasePlanejada
+                ? { regiaoEtf: secaoBasePlanejada }
+                : {}),
+              // Planejado movido: aba escolhida + seção no campo dela.
+              ...(overridePlanejado
+                ? {
+                    categoriaOverride: overridePlanejado,
+                    ...(isSubgrupoValido(overridePlanejado, secaoPlanejada)
+                      ? { [CAMPO_SUBGRUPO_PORTFOLIO[overridePlanejado]]: secaoPlanejada }
+                      : {}),
+                  }
                 : {}),
               lastUpdate: new Date(),
             },

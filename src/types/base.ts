@@ -2,8 +2,10 @@
 // Asset types extend these bases instead of redeclaring shared fields.
 // See docs/conventions.md for usage guidance.
 
-// Base interface for all asset types
-export interface BaseAtivo {
+import type { LinhaMovidaCampos } from '@/lib/carteiraMover';
+
+// Base interface for all asset types (+ campos do mover nas abas movíveis, Fatia B)
+export interface BaseAtivo extends LinhaMovidaCampos {
   id: string;
   nome: string;
   valorAtualizado: number;

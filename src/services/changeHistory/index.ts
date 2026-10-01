@@ -14,3 +14,4 @@ export * from './labels';
 export * from './carteiraHelpers';
 export * from './snapshots';
 export * from './planejadoHelpers';
+export * from './moverHelpers';

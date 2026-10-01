@@ -3,7 +3,7 @@ import { NextRequest } from 'next/server';
 
 const mockPrisma = vi.hoisted(() => ({
   // Histórico de alterações (recordChange importa prisma como default export).
-  userChangeLog: { create: vi.fn() },
+  userChangeLog: { create: vi.fn(), findMany: vi.fn().mockResolvedValue([]) },
   user: { findUnique: vi.fn() },
   portfolio: { findMany: vi.fn() },
   dashboardData: {
@@ -37,6 +37,30 @@ vi.mock('@/services/pricing/assetPriceService', () => ({
 }));
 
 import { GET, POST } from '../route';
+
+/** Evento de mover (UserChangeLog) que tirou o item da aba base. */
+const eventoMover = (entityId: string, after: Record<string, unknown>, viaConsultant = false) => ({
+  entityId,
+  action: 'investimento.mover',
+  createdAt: new Date('2026-10-01T12:00:00Z'),
+  viaConsultant,
+  snapshot: { v: 1, kind: 'mover', data: { categoriaOverride: null }, meta: { after } },
+});
+
+type Linha = {
+  id: string;
+  ticker?: string;
+  nome?: string;
+  cotacaoAtual?: number;
+  valorAtualizado: number;
+  movido?: boolean;
+  movidoEm?: string;
+  movidoViaConsultor?: boolean;
+  naoMovivelMotivo?: string;
+  planejado?: boolean;
+};
+type Secao = { ativos: Linha[] } & Record<string, unknown>;
+const linhas = (data: { secoes: Secao[] }) => data.secoes.flatMap((s) => s.ativos);
 
 const createGetRequest = () =>
   new NextRequest('http://localhost/api/carteira/fii', { method: 'GET' });
@@ -97,14 +121,91 @@ describe('/api/carteira/fii', () => {
       expect(data.secoes[0].ativos[0].ticker).toBe('HGLG11');
     });
 
-    it('phase C: filtro SQL usa asset.type=fii (não faz over-fetch)', async () => {
+    it('phase C: filtro SQL usa asset.type=fii (não faz over-fetch) + override do mover', async () => {
       await GET(createGetRequest());
       expect(mockPrisma.portfolio.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
-          where: expect.objectContaining({
-            asset: { type: 'fii' },
-          }),
+          where: {
+            userId: 'user-1',
+            OR: expect.arrayContaining([
+              { categoriaOverride: 'fiis' },
+              { categoriaOverride: null, asset: { type: 'fii' } },
+            ]),
+          },
         }),
+      );
+    });
+  });
+
+  describe('mover na Carteira (out/2026)', () => {
+    const posicao = (over: Record<string, unknown>) => ({
+      userId: 'user-1',
+      quantity: 10,
+      totalInvested: 300,
+      avgPrice: 30,
+      objetivo: 0,
+      tipoFii: null,
+      categoriaOverride: null,
+      lastUpdate: new Date(),
+      ...over,
+    });
+
+    it('ação movida para FIIs aparece na seção do tipoFii, com cotação live e selo', async () => {
+      const { getAssetPrices } = await import('@/services/pricing/assetPriceService');
+      vi.mocked(getAssetPrices).mockResolvedValueOnce(new Map([['TAEE4', 12]]));
+      mockPrisma.portfolio.findMany.mockResolvedValue([
+        posicao({
+          id: 'p-taee',
+          categoriaOverride: 'fiis',
+          tipoFii: 'infra',
+          estrategia: 'value',
+          asset: { symbol: 'TAEE4', name: 'Taesa PN', type: 'stock', currency: 'BRL' },
+        }),
+      ]);
+      mockPrisma.userChangeLog.findMany.mockResolvedValueOnce([
+        eventoMover('p-taee', { categoriaOverride: 'fiis', tipoFii: 'infra' }),
+      ]);
+      const data = await (await GET(createGetRequest())).json();
+      const infra = data.secoes.find((s: Secao) => s.tipo === 'infra');
+      expect(infra.ativos).toHaveLength(1);
+      expect(infra.ativos[0]).toMatchObject({
+        ticker: 'TAEE4',
+        cotacaoAtual: 12,
+        valorAtualizado: 120,
+        movido: true,
+      });
+    });
+
+    it('FII movido para Fundos some de FIIs (sem filtro JS de type)', async () => {
+      mockPrisma.portfolio.findMany.mockResolvedValue([
+        posicao({
+          id: 'p-kdif',
+          categoriaOverride: 'fimFia',
+          tipoFii: 'tvm',
+          asset: { symbol: 'KDIF11', name: 'Kinea Infra', type: 'fii', currency: 'BRL' },
+        }),
+        posicao({
+          id: 'p-hglg',
+          tipoFii: 'tijolo',
+          asset: { symbol: 'HGLG11', name: 'CSHG Log', type: 'fii', currency: 'BRL' },
+        }),
+      ]);
+      const data = await (await GET(createGetRequest())).json();
+      expect(linhas(data).map((l) => l.ticker)).toEqual(['HGLG11']);
+      expect(data.secoes.map((s: Secao) => s.tipo)).toEqual(['tijolo']);
+      expect(linhas(data)[0]).not.toHaveProperty('movido');
+    });
+
+    it('FII sem cotação em bolsa (ticker CVM) ganha o motivo de não trocar de aba', async () => {
+      mockPrisma.portfolio.findMany.mockResolvedValue([
+        posicao({
+          id: 'p-cvm',
+          asset: { symbol: 'CVM-123', name: 'FII fechado', type: 'fii', currency: 'BRL' },
+        }),
+      ]);
+      const data = await (await GET(createGetRequest())).json();
+      expect(linhas(data)[0].naoMovivelMotivo).toBe(
+        'Sem cotação em bolsa: o valor vem da cota/curva',
       );
     });
   });

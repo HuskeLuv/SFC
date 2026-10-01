@@ -3,9 +3,9 @@ import { NextRequest } from 'next/server';
 
 const mockPrisma = vi.hoisted(() => ({
   // Histórico de alterações (recordChange importa prisma como default export).
-  userChangeLog: { create: vi.fn() },
+  userChangeLog: { create: vi.fn(), findMany: vi.fn().mockResolvedValue([]) },
   user: { findUnique: vi.fn() },
-  portfolio: { findMany: vi.fn(), findUnique: vi.fn() },
+  portfolio: { findMany: vi.fn(), findUnique: vi.fn(), update: vi.fn() },
   // Ativos planejados (sem posição): nenhum nos cenários destes testes.
   watchlist: { findMany: vi.fn().mockResolvedValue([]) },
   stockTransaction: { findMany: vi.fn(), findFirst: vi.fn(), update: vi.fn() },
@@ -17,7 +17,7 @@ const mockPrisma = vi.hoisted(() => ({
   },
   // Caixa para Investir grava dentro de transação (serviço caixaParaInvestir).
   $transaction: vi.fn(),
-  fixedIncomeAsset: { findMany: vi.fn().mockResolvedValue([]) },
+  fixedIncomeAsset: { findMany: vi.fn().mockResolvedValue([]), findUnique: vi.fn() },
   economicIndex: { findMany: vi.fn().mockResolvedValue([]) },
   tesouroDiretoPrice: { findMany: vi.fn().mockResolvedValue([]) },
 }));
@@ -35,6 +35,10 @@ mockPrisma.$transaction.mockImplementation((fn: (tx: typeof mockPrisma) => unkno
 );
 
 vi.mock('@/lib/prisma', () => ({ prisma: mockPrisma, default: mockPrisma }));
+
+vi.mock('@/services/pricing/assetPriceService', () => ({
+  getAssetPrices: vi.fn().mockResolvedValue(new Map()),
+}));
 
 vi.mock('@/services/impersonationLogger', () => ({
   logSensitiveEndpointAccess: vi.fn().mockResolvedValue(undefined),
@@ -203,6 +207,39 @@ describe('/api/carteira/fim-fia', () => {
       expect(secaoFia?.ativos).toHaveLength(1);
       expect(secaoFia.ativos[0].tipo).toBe('fia');
     });
+    it('aporte mais recente sem tipoFundo não manda o fundo manual para o padrão', async () => {
+      mockPrisma.portfolio.findMany.mockResolvedValue([
+        {
+          id: 'pf-manual',
+          assetId: 'asset-manual',
+          quantity: 1,
+          avgPrice: 1000,
+          totalInvested: 2000,
+          objetivo: 0,
+          asset: { id: 'asset-manual', type: 'fund', name: 'Fundo Manual', currentPrice: null },
+        },
+      ]);
+      mockPrisma.stockTransaction.findMany.mockResolvedValue([
+        {
+          assetId: 'asset-manual',
+          type: 'compra',
+          total: 1000,
+          date: new Date('2026-02-10'),
+          notes: JSON.stringify({ operation: { action: 'aporte' } }),
+        },
+        {
+          assetId: 'asset-manual',
+          type: 'compra',
+          total: 1000,
+          date: new Date('2026-01-10'),
+          notes: JSON.stringify({ tipoFundo: 'fia', operation: { action: 'compra' } }),
+        },
+      ]);
+      const res = await GET(createGetRequest());
+      const data = await res.json();
+      const secaoFia = data.secoes.find((s: { tipo: string }) => s.tipo === 'fia');
+      expect(secaoFia?.ativos).toHaveLength(1);
+    });
   });
 
   describe('GET — prazo de resgate (ticket 02/09/2026)', () => {
@@ -246,6 +283,143 @@ describe('/api/carteira/fim-fia', () => {
       const ativo = (await res.json()).secoes.flatMap((s: { ativos: unknown[] }) => s.ativos)[0];
       expect(ativo.cotizacaoResgate).toBe('D+30');
       expect(ativo.liquidacaoResgate).toBe('D+2');
+    });
+  });
+
+  describe('mover na Carteira (out/2026)', () => {
+    type Linha = {
+      id: string;
+      nome: string;
+      tipo: string;
+      valorAtualizado: number;
+      isAutoUpdated: boolean;
+      movido?: boolean;
+      movidoEm?: string;
+    };
+    type Secao = { tipo: string; ativos: Linha[] };
+    const posicao = (over: Record<string, unknown>) => ({
+      userId: 'user-1',
+      quantity: 10,
+      totalInvested: 1000,
+      avgPrice: 100,
+      objetivo: 0,
+      tipoFundo: null,
+      categoriaOverride: null,
+      lastUpdate: new Date(),
+      ...over,
+    });
+
+    it('FII movido para Fundos: seção do tipoFundo, valor pela cotação de bolsa e selo', async () => {
+      const { getAssetPrices } = await import('@/services/pricing/assetPriceService');
+      vi.mocked(getAssetPrices).mockResolvedValueOnce(new Map([['KDIF11', 130]]));
+      mockPrisma.portfolio.findMany.mockResolvedValue([
+        posicao({
+          id: 'p-kdif',
+          assetId: 'a-kdif',
+          categoriaOverride: 'fimFia',
+          tipoFundo: 'fip-infra',
+          tipoFii: 'tvm',
+          asset: {
+            symbol: 'KDIF11',
+            name: 'Kinea Infra',
+            type: 'fii',
+            currency: 'BRL',
+            currentPrice: null,
+          },
+        }),
+      ]);
+      mockPrisma.userChangeLog.findMany.mockResolvedValueOnce([
+        {
+          entityId: 'p-kdif',
+          action: 'investimento.mover',
+          createdAt: new Date('2026-10-01T12:00:00Z'),
+          viaConsultant: false,
+          snapshot: {
+            v: 1,
+            kind: 'mover',
+            data: { categoriaOverride: null, tipoFii: 'tvm' },
+            meta: { after: { categoriaOverride: 'fimFia', tipoFundo: 'fip-infra' } },
+          },
+        },
+      ]);
+      const data = await (await GET(createGetRequest())).json();
+      expect(vi.mocked(getAssetPrices).mock.calls[0][0]).toEqual(['KDIF11']);
+      const secao = data.secoes.find((s: Secao) => s.tipo === 'fip-infra');
+      expect(secao.ativos).toHaveLength(1);
+      expect(secao.ativos[0]).toMatchObject({
+        nome: 'Kinea Infra',
+        ticker: 'KDIF11',
+        valorAtualizado: 1300,
+        isAutoUpdated: true,
+        movido: true,
+        movidoEm: '2026-10-01T12:00:00.000Z',
+      });
+    });
+
+    it('sem cotação de bolsa, o FII movido cai na cascata de sempre (avgPrice)', async () => {
+      mockPrisma.portfolio.findMany.mockResolvedValue([
+        posicao({
+          id: 'p-kdif',
+          assetId: 'a-kdif',
+          categoriaOverride: 'fimFia',
+          tipoFundo: 'fip-infra',
+          asset: { symbol: 'KDIF11', name: 'Kinea Infra', type: 'fii', currentPrice: null },
+        }),
+      ]);
+      const data = await (await GET(createGetRequest())).json();
+      const [linha] = data.secoes.flatMap((s: Secao) => s.ativos);
+      expect(linha.valorAtualizado).toBe(1000);
+      expect(linha.isAutoUpdated).toBe(false);
+    });
+
+    it('fundo movido para outra aba some de Fundos; fundo CVM não consulta cotação', async () => {
+      const { getAssetPrices } = await import('@/services/pricing/assetPriceService');
+      mockPrisma.portfolio.findMany.mockResolvedValue([
+        posicao({
+          id: 'p-legado',
+          assetId: 'a-legado',
+          categoriaOverride: 'fiis',
+          asset: { symbol: 'HGLG11', name: 'CSHG Log', type: 'fund', currentPrice: null },
+        }),
+        posicao({
+          id: 'p-cvm',
+          assetId: 'a-cvm',
+          asset: {
+            symbol: 'CVM-123',
+            name: 'Fundo FIA',
+            type: 'fia',
+            currentPrice: { toNumber: () => 150 },
+          },
+        }),
+      ]);
+      const data = await (await GET(createGetRequest())).json();
+      const rows = data.secoes.flatMap((s: Secao) => s.ativos);
+      expect(rows.map((r: Linha) => r.id)).toEqual(['p-cvm']);
+      expect(rows[0].valorAtualizado).toBe(1500);
+      expect(rows[0]).not.toHaveProperty('movido');
+      expect(getAssetPrices).not.toHaveBeenCalled();
+    });
+
+    it('Portfolio.tipoFundo (escolhido no mover) vence o Asset.type e as notes', async () => {
+      mockPrisma.portfolio.findMany.mockResolvedValue([
+        posicao({
+          id: 'p-fia',
+          assetId: 'a-fia',
+          tipoFundo: 'fidc',
+          asset: { symbol: 'CVM-9', name: 'Fundo FIA', type: 'fia', currentPrice: null },
+        }),
+      ]);
+      mockPrisma.stockTransaction.findMany.mockResolvedValue([
+        {
+          assetId: 'a-fia',
+          type: 'compra',
+          total: 1000,
+          notes: JSON.stringify({ tipoFundo: 'fim' }),
+        },
+      ]);
+      const data = await (await GET(createGetRequest())).json();
+      const fidc = data.secoes.find((s: Secao) => s.tipo === 'fidc');
+      expect(fidc.ativos.map((a: Linha) => a.id)).toEqual(['p-fia']);
     });
   });
 
@@ -301,6 +475,52 @@ describe('/api/carteira/fim-fia', () => {
       const data = await res.json();
       expect(res.status).toBe(200);
       expect(data.success).toBe(true);
+    });
+
+    it('mover: recusa valorAtualizado de ativo com cotação em bolsa (não corrompe o preço médio)', async () => {
+      mockPrisma.portfolio.findUnique.mockResolvedValue({
+        id: 'pf-kdif',
+        userId: 'user-1',
+        assetId: 'a-kdif',
+        quantity: 10,
+        avgPrice: 100,
+        categoriaOverride: 'fimFia',
+        asset: {
+          symbol: 'KDIF11',
+          name: 'Kinea Infra',
+          type: 'fii',
+          currency: 'BRL',
+          currentPrice: null,
+        },
+      });
+      mockPrisma.fixedIncomeAsset.findUnique.mockResolvedValue(null);
+      const res = await POST(
+        createPostRequest({ ativoId: 'pf-kdif', campo: 'valorAtualizado', valor: 5000 }),
+      );
+      const data = await res.json();
+      expect(res.status).toBe(400);
+      expect(data.error).toBe(
+        'Este ativo tem cotação em bolsa; o valor é atualizado automaticamente',
+      );
+      expect(mockPrisma.portfolio.update).not.toHaveBeenCalled();
+    });
+
+    it('fundo CVM sem cota segue editável (a trava é só para ticker de bolsa)', async () => {
+      mockPrisma.portfolio.findUnique.mockResolvedValue({
+        id: 'pf-cvm',
+        userId: 'user-1',
+        assetId: 'a-cvm',
+        quantity: 1,
+        avgPrice: 1000,
+        asset: { symbol: 'CVM-123', name: 'Fundo X', type: 'multimercado', currentPrice: null },
+      });
+      mockPrisma.portfolio.update.mockResolvedValue({});
+      const res = await POST(
+        createPostRequest({ ativoId: 'pf-cvm', campo: 'valorAtualizado', valor: 1100 }),
+      );
+      expect(res.status).toBe(200);
+      expect(mockPrisma.portfolio.update).toHaveBeenCalled();
+      expect(mockPrisma.fixedIncomeAsset.findUnique).not.toHaveBeenCalled();
     });
 
     it('rejects manual valorAtualizado edit when CVM cota is synced', async () => {

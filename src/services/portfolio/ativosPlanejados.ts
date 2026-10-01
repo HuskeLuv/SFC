@@ -8,6 +8,12 @@ import {
   isFundoSubtipo,
   type FundoSubtipo,
 } from '@/lib/fundoTypes';
+import {
+  CATEGORIA_TO_ABA_PLANEJAVEL,
+  overrideEfetivo,
+  type CategoriaMovivel,
+} from '@/lib/carteiraMover';
+import { filtrarDaCategoria, whereWatchlistDaCategoria } from './categoriaAba';
 
 /**
  * Ativos PLANEJADOS (pedido do Wellington, 16/09/2026).
@@ -93,21 +99,31 @@ export type PlanejadoComAsset = Watchlist & { assetId: string; asset: Asset };
  * já viraram posição (defesa: importação Pluggy/undo criam Portfolio sem
  * passar pela operação; a linha planejada ficaria duplicada até a limpeza).
  * `filtro` refina por Asset (ex.: Stocks = currency USD; Ações = ticker B3).
+ *
+ * Com `{ categoria }` (mover na Carteira): planejados cuja aba — override
+ * efetivo ?? aba base — é `categoria` (whereWatchlistDaCategoria + a regra
+ * completa em JS, incluindo o ticker B3 da aba Ações).
  */
 export async function listarPlanejados(
   userId: string,
-  assetTypes: readonly string[],
+  assetTypesOuCategoria: readonly string[] | { categoria: CategoriaMovivel },
   assetIdsComPosicao: Iterable<string | null | undefined> = [],
   filtro?: (asset: Asset) => boolean,
 ): Promise<PlanejadoComAsset[]> {
   const comPosicao = new Set<string>();
   for (const id of assetIdsComPosicao) if (id) comPosicao.add(id);
 
-  const rows = await prisma.watchlist.findMany({
-    where: { userId, asset: { type: { in: [...assetTypes] } } },
+  const porCategoria =
+    'categoria' in assetTypesOuCategoria ? assetTypesOuCategoria.categoria : null;
+  const where: Prisma.WatchlistWhereInput = porCategoria
+    ? whereWatchlistDaCategoria(userId, porCategoria)
+    : { userId, asset: { type: { in: [...(assetTypesOuCategoria as readonly string[])] } } };
+  const encontrados = await prisma.watchlist.findMany({
+    where,
     include: { asset: true },
     orderBy: { addedAt: 'asc' },
   });
+  const rows = porCategoria ? filtrarDaCategoria(encontrados, porCategoria) : encontrados;
   return rows.filter(
     (r): r is PlanejadoComAsset =>
       !!r.asset && !!r.assetId && !comPosicao.has(r.assetId) && (filtro ? filtro(r.asset) : true),
@@ -168,8 +184,14 @@ export function linhaPlanejadaFundoBase(row: PlanejadoComAsset) {
   };
 }
 
-/** Seção da aba Fundos: classificação CVM do Asset vence; senão a escolhida ao planejar. */
+/**
+ * Seção da aba Fundos: classificação CVM do Asset vence; senão a escolhida ao
+ * planejar. Planejado MOVIDO para Fundos: a seção escolhida no mover vence.
+ */
 export function subtipoFundoPlanejado(row: PlanejadoComAsset): FundoSubtipo {
+  if (overrideEfetivo(row.asset, row.categoriaOverride) && isFundoSubtipo(row.secao)) {
+    return row.secao;
+  }
   const doAsset = isFundoCatchAllType(row.asset.type)
     ? null
     : fundoSubtipoFromAssetType(row.asset.type);
@@ -227,8 +249,16 @@ export async function criarAssetPlanejadoManual(
   });
 }
 
-/** Aba da carteira onde um Asset planejado aparece (null = tipo fora das abas planejáveis). */
-export function abaDoAssetPlanejado(asset: Pick<Asset, 'type' | 'currency' | 'symbol'>) {
+/**
+ * Aba da carteira onde um Asset planejado aparece (null = tipo fora das abas
+ * planejáveis). Com override do mover (efetivo), a aba escolhida.
+ */
+export function abaDoAssetPlanejado(
+  asset: Pick<Asset, 'type' | 'currency' | 'symbol'>,
+  categoriaOverride?: string | null,
+): AbaPlanejavel | null {
+  const override = overrideEfetivo(asset, categoriaOverride);
+  if (override) return CATEGORIA_TO_ABA_PLANEJAVEL[override];
   if (asset.type === 'stock') {
     return asset.currency === 'USD' ? 'stocks' : 'acoes';
   }
@@ -289,16 +319,21 @@ export async function encontrarPlanejadoManual(
 
 /**
  * Primeira compra de um ativo que estava planejado: devolve objetivo/seção
- * guardados e apaga a linha planejada. `null` quando não havia planejado.
- * Chamar DENTRO da transação que cria/atualiza o Portfolio.
+ * (e o override de aba do mover) guardados e apaga a linha planejada. `null`
+ * quando não havia planejado. Chamar DENTRO da transação que cria/atualiza o
+ * Portfolio — o create recebe `categoriaOverride` e a seção na coluna da aba.
  */
 export async function absorverPlanejadoNaCompra(
   tx: TxLike,
   userId: string,
   assetId: string,
-): Promise<{ objetivo: number; secao: string | null } | null> {
+): Promise<{ objetivo: number; secao: string | null; categoriaOverride: string | null } | null> {
   const planejado = await tx.watchlist.findFirst({ where: { userId, assetId } });
   if (!planejado) return null;
   await tx.watchlist.delete({ where: { id: planejado.id } });
-  return { objetivo: planejado.objetivo, secao: planejado.secao };
+  return {
+    objetivo: planejado.objetivo,
+    secao: planejado.secao,
+    categoriaOverride: planejado.categoriaOverride ?? null,
+  };
 }

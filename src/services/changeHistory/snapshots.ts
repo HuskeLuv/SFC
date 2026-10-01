@@ -32,6 +32,9 @@ interface PortfolioMeta {
   estrategia: string | null;
   tipoFii: string | null;
   regiaoEtf: string | null;
+  /** Mover na Carteira (out/2026): aba escolhida quando ≠ base e subgrupo em Fundos. */
+  categoriaOverride?: string | null;
+  tipoFundo?: string | null;
   planejamentoObjetivoId: string | null;
   vinculoAposentadoria: boolean;
 }
@@ -70,6 +73,8 @@ const pickPortfolioMeta = (portfolio: PortfolioMeta) => ({
   estrategia: portfolio.estrategia,
   tipoFii: portfolio.tipoFii,
   regiaoEtf: portfolio.regiaoEtf,
+  categoriaOverride: portfolio.categoriaOverride ?? null,
+  tipoFundo: portfolio.tipoFundo ?? null,
   planejamentoObjetivoId: portfolio.planejamentoObjetivoId,
   vinculoAposentadoria: portfolio.vinculoAposentadoria,
 });

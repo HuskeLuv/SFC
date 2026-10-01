@@ -1,10 +1,9 @@
 import { logger } from '@/lib/logger';
 import { NextRequest, NextResponse } from 'next/server';
-import {
-  listarPlanejados,
-  linhaPlanejadaBase,
-  TIPOS_ATIVO_PLANEJAVEIS,
-} from '@/services/portfolio/ativosPlanejados';
+import { listarPlanejados, linhaPlanejadaBase } from '@/services/portfolio/ativosPlanejados';
+import { filtrarDaCategoria, wherePortfolioDaCategoria } from '@/services/portfolio/categoriaAba';
+import { isTickerAcaoB3, overrideEfetivo } from '@/lib/carteiraMover';
+import { aplicarCamposMovido, camposMovidoPorLinha } from '@/app/api/carteira/_lib/linhaMovida';
 import { requireAuthWithActing } from '@/utils/auth';
 import { prisma } from '@/lib/prisma';
 import { AcaoData, AcaoAtivo, AcaoSecao, SetorAcao } from '@/types/acoes';
@@ -50,39 +49,47 @@ async function calculateAcoesData(userId: string): Promise<AcaoData> {
   // Pós-consolidação Stock → Asset: ações brasileiras (type='stock' com ticker
   // no padrão B3) e BDRs (type='bdr'|'brd') vivem ambos na tabela Asset.
   // FIIs (type='fii') aparecem na aba FIIs e ficam fora dessa busca.
-  const portfolio = await prisma.portfolio.findMany({
-    where: {
-      userId,
-      asset: { type: { in: ['stock', 'bdr', 'brd'] } },
-    },
-    include: { asset: true },
-  });
+  // Mover na Carteira (out/2026): entram também os itens que o usuário moveu
+  // para Ações (categoriaOverride) e saem os que ele moveu para outra aba.
+  const portfolio = filtrarDaCategoria(
+    await prisma.portfolio.findMany({
+      where: wherePortfolioDaCategoria(userId, 'acoes'),
+      include: { asset: true },
+    }),
+    'acoes',
+  );
 
-  // Aceita dígito no meio (ex.: B3SA3, o ticker da própria B3); exclui units
-  // (AAAA11), fracionários (AAAA3F) e BDRs (6+ chars).
-  const isB3StockTicker = (ticker: string) => /^[A-Z][A-Z0-9]{3}[0-9]$/.test(ticker.toUpperCase());
+  // B3_ACAO_RE: aceita dígito no meio (ex.: B3SA3, o ticker da própria B3);
+  // exclui units (AAAA11, fora desta fase — decisão 11), fracionários
+  // (AAAA3F) e BDRs (6+ chars).
+  const movido = (item: (typeof portfolio)[number]) =>
+    overrideEfetivo(item.asset, item.categoriaOverride) !== null;
   const acoesStockPortfolio = portfolio.filter(
-    (item) => item.asset?.type === 'stock' && isB3StockTicker(item.asset.symbol),
+    (item) => !movido(item) && item.asset?.type === 'stock' && isTickerAcaoB3(item.asset.symbol),
   );
   const bdrPortfolio = portfolio.filter(
-    (item) => item.asset && (item.asset.type === 'bdr' || item.asset.type === 'brd'),
+    (item) =>
+      !movido(item) && item.asset && (item.asset.type === 'bdr' || item.asset.type === 'brd'),
   );
+  // 3º bucket: FII/ETF/fundo cotado movido para Ações — cotação de bolsa como ação.
+  const movidosPortfolio = portfolio.filter(movido);
 
   // Ativos PLANEJADOS (sem posição) da aba — entram como linha zerada com
   // objetivo, para Quanto Falta / Necessidade de Aporte (16/09/2026).
-  const planejados = (
-    await listarPlanejados(
-      userId,
-      TIPOS_ATIVO_PLANEJAVEIS.acoes,
-      portfolio.map((p) => p.assetId),
-    )
-  ).filter((r) => r.asset.type !== 'stock' || isB3StockTicker(r.asset.symbol));
+  const planejados = await listarPlanejados(
+    userId,
+    { categoria: 'acoes' },
+    portfolio.map((p) => p.assetId),
+  );
 
   // Buscar cotações atuais (banco primeiro, fallback BRAPI quando necessário)
-  const stockSymbols = acoesStockPortfolio.map((item) => item.asset!.symbol);
-  const bdrSymbols = bdrPortfolio.map((item) => item.asset!.symbol);
   const quotes = await getAssetPrices(
-    [...stockSymbols, ...bdrSymbols, ...planejados.map((r) => r.asset.symbol)],
+    [
+      ...[...acoesStockPortfolio, ...bdrPortfolio, ...movidosPortfolio].map(
+        (item) => item.asset!.symbol,
+      ),
+      ...planejados.map((r) => r.asset.symbol),
+    ],
     { useBrapiFallback: true },
   );
 
@@ -176,6 +183,7 @@ async function calculateAcoesData(userId: string): Promise<AcaoData> {
   const acoesAtivos: AcaoAtivo[] = [
     ...acoesStockPortfolio.map(mapStockPortfolioItem),
     ...bdrPortfolio.map(mapBdrPortfolioItem),
+    ...movidosPortfolio.map(mapStockPortfolioItem),
     ...planejados.map(
       (r): AcaoAtivo => ({
         ...linhaPlanejadaBase(r, quotes.get(r.asset.symbol) ?? 0),
@@ -187,6 +195,11 @@ async function calculateAcoesData(userId: string): Promise<AcaoData> {
       }),
     ),
   ];
+
+  aplicarCamposMovido(
+    acoesAtivos,
+    await camposMovidoPorLinha(userId, 'acoes', [...portfolio, ...planejados]),
+  );
 
   // Calcular totais gerais
   const totalQuantidade = acoesAtivos.reduce((sum, ativo) => sum + ativo.quantidade, 0);

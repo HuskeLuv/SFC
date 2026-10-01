@@ -1,9 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import {
-  listarPlanejados,
-  linhaPlanejadaBase,
-  TIPOS_ATIVO_PLANEJAVEIS,
-} from '@/services/portfolio/ativosPlanejados';
+import { listarPlanejados, linhaPlanejadaBase } from '@/services/portfolio/ativosPlanejados';
+import { filtrarDaCategoria, wherePortfolioDaCategoria } from '@/services/portfolio/categoriaAba';
+import { aplicarCamposMovido, camposMovidoPorLinha } from '@/app/api/carteira/_lib/linhaMovida';
 import { requireAuthWithActing } from '@/utils/auth';
 import { prisma } from '@/lib/prisma';
 import { getAssetPrices } from '@/services/pricing/assetPriceService';
@@ -63,27 +61,25 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
   const caixaParaInvestir = caixaParaInvestirData?.value || 0;
 
   // Buscar portfolio do usuário com ativos do tipo stock e moeda USD (mercado americano)
-  const portfolio = await prisma.portfolio.findMany({
-    where: {
-      userId: user.id,
-      asset: {
-        type: 'stock',
-        currency: 'USD',
+  // Mover na Carteira (out/2026): + itens movidos para Stocks (ex.: REIT), −
+  // os movidos daqui para outra aba.
+  const portfolio = filtrarDaCategoria(
+    await prisma.portfolio.findMany({
+      where: wherePortfolioDaCategoria(user.id, 'stocks'),
+      include: {
+        asset: true,
       },
-    },
-    include: {
-      asset: true,
-    },
-  });
+    }),
+    'stocks',
+  );
 
   // Buscar cotações atuais dos ativos (banco primeiro, fallback BRAPI quando necessário)
   // Ativos PLANEJADOS (sem posição) da aba — linha zerada com objetivo (16/09/2026).
   // type 'stock' também é ação B3: a aba Stocks fica com os em USD.
   const planejados = await listarPlanejados(
     targetUserId,
-    TIPOS_ATIVO_PLANEJAVEIS.stocks,
+    { categoria: 'stocks' },
     portfolio.map((p) => p.assetId),
-    (asset) => asset.currency === 'USD',
   );
   const symbols = [
     ...portfolio.filter((item) => item.asset).map((item) => item.asset!.symbol),
@@ -176,6 +172,11 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
         | 'risk',
     })),
   ];
+
+  aplicarCamposMovido(
+    stocksAtivosComPlanejados,
+    await camposMovidoPorLinha(targetUserId, 'stocks', [...portfolio, ...planejados]),
+  );
 
   // Bug #14 residual: percentualCarteira no backend (paridade com FII).
   // Calcular ANTES das seções pra totalPercentualCarteira/totalRisco/totais

@@ -81,11 +81,13 @@
     "Quanto Falta",
     "Nec. Aporte $",
     "Proventos",
-    "Rentabilidade"
+    "Rentabilidade",
+    "Ações"
    ],
-   "colCount": 14,
+   "colCount": 15,
    "theadClass": "",
    "thClasses": [
+    "font-medium px-3 py-2 relative w-10 whitespace-nowrap",
     "font-medium px-3 py-2 text-center whitespace-nowrap",
     "font-medium px-3 py-2 text-left whitespace-nowrap",
     "font-medium px-3 py-2 text-right whitespace-nowrap"
@@ -103,7 +105,8 @@
     "font-semibold px-3 py-2 text-left text-xs",
     "font-semibold px-3 py-2 text-right text-xs",
     "font-semibold px-3 py-2 text-xs",
-    "italic px-3 py-2 text-gray-400 text-xs"
+    "italic px-3 py-2 text-gray-400 text-xs",
+    "px-3 py-2 text-xs"
    ]
   },
   {

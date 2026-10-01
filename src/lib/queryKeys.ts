@@ -102,6 +102,13 @@ export const queryKeys = {
     cripto: () => [...queryKeys.ir.all, 'cripto'] as const,
     comecotas: () => [...queryKeys.ir.all, 'comecotas'] as const,
   },
+  // Mover investimentos entre abas/seções (out/2026): opções do diálogo e categoria do ativo
+  carteiraMover: {
+    all: ['carteiraMover'] as const,
+    opcoes: (tipo: 'posicao' | 'planejado', id: string) =>
+      [...queryKeys.carteiraMover.all, 'opcoes', tipo, id] as const,
+    categoria: (assetId: string) => [...queryKeys.carteiraMover.all, 'categoria', assetId] as const,
+  },
   comunidade: {
     all: ['comunidade'] as const,
     config: () => [...queryKeys.comunidade.all, 'config'] as const,

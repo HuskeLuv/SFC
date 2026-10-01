@@ -14,6 +14,7 @@ import {
   abaDoAssetPlanejado,
   listarTodosPlanejados,
   ROTULO_ABA,
+  type PlanejadoComAsset,
 } from '@/services/portfolio/ativosPlanejados';
 import { simplifyAssetName } from '@/utils/assetDisplayName';
 import {
@@ -661,6 +662,23 @@ const MESES_LONGOS = [
   'dezembro',
 ];
 
+/**
+ * Planejado (Watchlist) → item de `ativosPlanejadosSemPosicao`. A aba respeita
+ * o "Mover na Carteira" (categoriaOverride efetivo), como na tela. Pura.
+ */
+export function planejadoParaContexto(
+  p: Pick<PlanejadoComAsset, 'asset' | 'categoriaOverride' | 'objetivo' | 'secao' | 'notes'>,
+): Json {
+  const aba = abaDoAssetPlanejado(p.asset, p.categoriaOverride);
+  return {
+    aba: aba ? ROTULO_ABA[aba] : p.asset.type,
+    ativo: simplifyAssetName(p.asset.name) || p.asset.symbol,
+    objetivoPercentualDaAba: p.objetivo,
+    secao: p.secao ?? undefined,
+    observacoes: p.notes ?? undefined,
+  };
+}
+
 /** Monta o JSON compacto a partir das respostas cruas das rotas. Pura. */
 export function montarContexto(raw: ContextoBruto, hoje: Date = new Date()): Json {
   const r = (raw.resumo ?? {}) as Json;
@@ -870,16 +888,7 @@ export async function buildContextoUsuario(request: NextRequest, userId: string)
     metaPatrimonio,
     alocacaoConfig,
     fgc,
-    planejados: planejados.map((p) => {
-      const aba = abaDoAssetPlanejado(p.asset);
-      return {
-        aba: aba ? ROTULO_ABA[aba] : p.asset.type,
-        ativo: simplifyAssetName(p.asset.name) || p.asset.symbol,
-        objetivoPercentualDaAba: p.objetivo,
-        secao: p.secao ?? undefined,
-        observacoes: p.notes ?? undefined,
-      };
-    }),
+    planejados: planejados.map(planejadoParaContexto),
   });
   const json = JSON.stringify(contexto);
   cache.set(key, json, CACHE_TTL_MS);

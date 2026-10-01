@@ -1,4 +1,5 @@
 import prisma from '@/lib/prisma';
+import { overrideEfetivo, type CategoriaMovivel } from '@/lib/carteiraMover';
 
 /**
  * Fonte única dos aportes/resgates mensais derivados das transações reais da
@@ -56,6 +57,89 @@ export const mapTransactionToTipo = (transaction: {
       return assetType || 'outros';
   }
 };
+
+/**
+ * Decisão 5 do mover na Carteira (01/10/2026): aportes e resgates de um ativo
+ * movido de ABA vão para a linha da aba nova em todos os meses (o total não
+ * muda, só a linha). Troca só de seção não mexe no Fluxo.
+ */
+export const FLUXO_SEGUE_ABA = true;
+
+/** Aba escolhida no mover → linha do Aporte/Resgate (tipos de `mapTransactionToTipo`). */
+export const TIPO_FLUXO_DA_CATEGORIA: Record<CategoriaMovivel, string> = {
+  acoes: 'stock',
+  stocks: 'stock',
+  fiis: 'fii',
+  etfs: 'etf',
+  reits: 'reit',
+  fimFia: 'fund',
+};
+
+/**
+ * Linha do Aporte/Resgate de um ativo movido de aba. null quando o override
+ * não vale (nulo, igual à aba base, inválido ou ativo fora das abas movíveis):
+ * aí vale `mapTransactionToTipo` — inclusive a troca só de seção, BDR e
+ * fia/multimercado sem override.
+ */
+export const tipoFluxoDoOverride = (
+  asset: { symbol?: string | null; type?: string | null; currency?: string | null } | null,
+  categoriaOverride: string | null | undefined,
+): string | null => {
+  if (!FLUXO_SEGUE_ABA || !asset) return null;
+  const movido = overrideEfetivo({ ...asset, symbol: asset.symbol ?? '' }, categoriaOverride);
+  return movido ? TIPO_FLUXO_DA_CATEGORIA[movido] : null;
+};
+
+/**
+ * Resgate total apaga o Portfolio (e o override junto). A rota de resgate grava
+ * a aba do item movido em `notes.operation.categoriaOverride` da venda; para o
+ * ativo que não tem mais posição, o Fluxo usa a da venda mais recente — assim o
+ * histórico (inclusive a própria venda) não volta para a linha da aba base.
+ * Ativo com posição de novo (recomprado): vale o Portfolio atual.
+ */
+export const overrideDaVenda = (notes: string | null | undefined): string | null => {
+  if (!notes) return null;
+  try {
+    const parsed = JSON.parse(notes);
+    const valor = parsed?.operation?.categoriaOverride;
+    return typeof valor === 'string' && valor ? valor : null;
+  } catch {
+    return null;
+  }
+};
+
+async function completarOverrideDeVendidos(
+  userId: string,
+  overridePorAsset: Map<string, string>,
+): Promise<void> {
+  // A venda MAIS RECENTE de cada ativo decide: se ela não gravou aba (o item
+  // tinha voltado para a aba base antes do resgate), o Fluxo usa a aba base.
+  const vendas = await prisma.stockTransaction.findMany({
+    where: { userId, type: 'venda', assetId: { not: null } },
+    select: { assetId: true, notes: true },
+    orderBy: [{ date: 'desc' }, { createdAt: 'desc' }],
+    distinct: ['assetId'],
+  });
+  const daVenda = new Map<string, string>();
+  const vistos = new Set<string>();
+  for (const venda of vendas) {
+    if (!venda.assetId || vistos.has(venda.assetId)) continue;
+    vistos.add(venda.assetId);
+    const override = overrideDaVenda(venda.notes);
+    if (override) daVenda.set(venda.assetId, override);
+  }
+  if (daVenda.size === 0) return;
+  const comPosicao = await prisma.portfolio.findMany({
+    where: { userId, assetId: { in: [...daVenda.keys()] } },
+    select: { assetId: true },
+  });
+  const ativos = new Set(comPosicao.map((p) => p.assetId));
+  for (const [assetId, override] of daVenda) {
+    if (!ativos.has(assetId) && !overridePorAsset.has(assetId)) {
+      overridePorAsset.set(assetId, override);
+    }
+  }
+}
 
 /**
  * F1.10: detecta reinvestimento de proventos a partir do JSON `notes` da
@@ -160,7 +244,7 @@ export async function computeInvestimentosPorMes(
   userId: string,
   year: number,
 ): Promise<InvestimentosPorMes> {
-  const [transacoes, vinculados, comprasTesouro] = await Promise.all([
+  const [transacoes, vinculados, comprasTesouro, movidos] = await Promise.all([
     prisma.stockTransaction.findMany({
       where: {
         userId,
@@ -183,7 +267,20 @@ export async function computeInvestimentosPorMes(
       where: { userId, type: 'compra', notes: { not: null }, asset: { type: 'tesouro-direto' } },
       select: { assetId: true, notes: true },
     }),
+    // Posições movidas de aba (mover na Carteira): a linha segue a aba nova.
+    FLUXO_SEGUE_ABA
+      ? prisma.portfolio.findMany({
+          where: { userId, categoriaOverride: { not: null } },
+          select: { assetId: true, categoriaOverride: true },
+        })
+      : Promise.resolve([] as { assetId: string | null; categoriaOverride: string | null }[]),
   ]);
+
+  const overridePorAsset = new Map<string, string>();
+  for (const p of movidos) {
+    if (p.assetId && p.categoriaOverride) overridePorAsset.set(p.assetId, p.categoriaOverride);
+  }
+  if (FLUXO_SEGUE_ABA) await completarOverrideDeVendidos(userId, overridePorAsset);
 
   const assetsDeSonho = new Set(
     vinculados.map((p) => p.assetId).filter((id): id is string => id != null),
@@ -228,7 +325,11 @@ export async function computeInvestimentosPorMes(
       ? 'reinvestimento'
       : transacao.assetId && assetsDeSonho.has(transacao.assetId)
         ? 'planejamento'
-        : (tipoReservaTesouro ?? mapTransactionToTipo(transacao));
+        : (tipoReservaTesouro ??
+          (transacao.assetId
+            ? tipoFluxoDoOverride(transacao.asset, overridePorAsset.get(transacao.assetId))
+            : null) ??
+          mapTransactionToTipo(transacao));
 
     tipos.add(tipoAtivo);
     porTipo[tipoAtivo] = porTipo[tipoAtivo] || {};

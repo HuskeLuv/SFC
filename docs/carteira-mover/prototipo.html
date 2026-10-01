@@ -1,0 +1,1183 @@
+<title>Mover Investimentos na Carteira</title>
+<meta name="description" content="Protótipo navegável: mover investimentos entre seções e abas compatíveis da Carteira do My Finance, no computador, no celular e na página do ativo.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: bancada de protótipo (cenários à esquerda, tela do app à direita) + especificação embaixo.
+   Cores só da paleta My Finance (brandColors.ts) + cinzas do Tailwind usados no app. */
+:root{
+  --mf-potencia:#2D2D2D; --mf-seguranca:#314666; --mf-patrimonio:#396CAA; --mf-outside:#0079F2;
+  --mf-tranquilidade:#6E9DC4; --mf-transparencia:#CCCCCC; --mf-escolha:#EAEAEA;
+  --pg-bg:#F3F5F8; --pg-surface:#FFFFFF; --pg-ink:#2D2D2D; --pg-muted:#5B6576; --pg-line:#DCE2EA; --pg-soft:#E8F1FC;
+  --app-bg:#F9FAFB; --app-surface:#FFFFFF; --app-line:#E5E7EB; --app-line-soft:#F2F4F7; --app-ink:#374151; --app-strong:#1F2937; --app-muted:#6B7280;
+  --head-bg:#314666; --band-bg:#6E9DC4; --band-soft:rgba(110,157,196,.18); --band-soft-ink:#314666;
+  --accent:#0079F2; --link:#396CAA; --drop:rgba(0,121,242,.09); --drop-strong:rgba(0,121,242,.16); --focus:#0079F2;
+  --hl:rgba(0,121,242,.06); --pos:#396CAA; --neg:#D92D20; --danger-bg:rgba(217,45,32,.08);
+  --primary:#396CAA; --primary-fg:#FFFFFF;
+  --toast-bg:#314666; --toast-fg:#FFFFFF; --toast-link:#EAEAEA;
+  --toast-err-bg:#D92D20; --toast-err-fg:#FFFFFF; --toast-err-btn:#FFFFFF;
+  --overlay:rgba(45,45,45,.45); --shadow:0 12px 32px rgba(45,45,45,.18);
+  --font:'Outfit',ui-sans-serif,system-ui,-apple-system,'Segoe UI',sans-serif;
+  --mono:'IBM Plex Mono',ui-monospace,'SFMono-Regular',Menlo,monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    color-scheme:dark;
+    --pg-bg:#111113; --pg-surface:#1F1F22; --pg-ink:#EAEAEA; --pg-muted:#98A2B3; --pg-line:#2E3440; --pg-soft:rgba(110,157,196,.10);
+    --app-bg:#18181B; --app-surface:#1F1F22; --app-line:#2E3440; --app-line-soft:#26262A; --app-ink:#E5E7EB; --app-strong:#F3F4F6; --app-muted:#9CA3AF;
+    --band-soft:rgba(110,157,196,.14); --band-soft-ink:#EAEAEA;
+    --accent:#6E9DC4; --link:#6E9DC4; --drop:rgba(0,121,242,.16); --drop-strong:rgba(0,121,242,.26); --focus:#6E9DC4;
+    --hl:rgba(0,121,242,.16); --pos:#6E9DC4; --neg:#F97066; --danger-bg:rgba(249,112,102,.10);
+    --toast-bg:#26262A; --toast-fg:#EAEAEA; --toast-link:#6E9DC4;
+    --toast-err-bg:#26262A; --toast-err-fg:#F97066; --toast-err-btn:#EAEAEA;
+    --overlay:rgba(0,0,0,.6); --shadow:0 12px 32px rgba(0,0,0,.5);
+  }
+}
+:root[data-theme="dark"]{
+  color-scheme:dark;
+  --pg-bg:#111113; --pg-surface:#1F1F22; --pg-ink:#EAEAEA; --pg-muted:#98A2B3; --pg-line:#2E3440; --pg-soft:rgba(110,157,196,.10);
+  --app-bg:#18181B; --app-surface:#1F1F22; --app-line:#2E3440; --app-line-soft:#26262A; --app-ink:#E5E7EB; --app-strong:#F3F4F6; --app-muted:#9CA3AF;
+  --band-soft:rgba(110,157,196,.14); --band-soft-ink:#EAEAEA;
+  --accent:#6E9DC4; --link:#6E9DC4; --drop:rgba(0,121,242,.16); --drop-strong:rgba(0,121,242,.26); --focus:#6E9DC4;
+  --hl:rgba(0,121,242,.16); --pos:#6E9DC4; --neg:#F97066; --danger-bg:rgba(249,112,102,.10);
+  --toast-bg:#26262A; --toast-fg:#EAEAEA; --toast-link:#6E9DC4;
+    --toast-err-bg:#26262A; --toast-err-fg:#F97066; --toast-err-btn:#EAEAEA;
+  --overlay:rgba(0,0,0,.6); --shadow:0 12px 32px rgba(0,0,0,.5);
+}
+*{box-sizing:border-box}
+body{background:var(--pg-bg);color:var(--pg-ink);font-family:var(--font);font-size:15px;line-height:1.5;padding-inline:16px;padding-block:28px 64px;margin:0}
+.wrap{max-width:1280px;margin:0 auto;display:flex;flex-direction:column;gap:28px}
+h1,h2,h3{text-wrap:balance;margin:0;line-height:1.2}
+p{margin:0}
+code,.mono{font-family:var(--mono);font-size:.86em}
+button{font:inherit;color:inherit}
+.wordmark{font-weight:700;color:var(--mf-outside);letter-spacing:-.01em;font-size:20px}
+.pg-h1{font-size:30px;font-weight:600;letter-spacing:-.01em;margin-top:10px}
+.lede{color:var(--pg-muted);max-width:75ch;margin-top:6px}
+.eyebrow{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--pg-muted);font-weight:600}
+
+.stage{display:grid;grid-template-columns:260px minmax(0,1fr);gap:24px;align-items:start}
+.side{display:flex;flex-direction:column;gap:16px;min-width:0;position:sticky;top:env(safe-area-inset-top,0px)}
+.scen-group{display:flex;flex-direction:column;gap:6px}
+.scen-group .gl{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--pg-muted);font-weight:600;margin-top:4px}
+.scen{text-align:left;font-size:13px;border:1px solid var(--pg-line);background:var(--pg-surface);color:var(--pg-ink);padding:6px 10px;border-radius:10px;cursor:pointer;min-height:36px;display:flex;align-items:center;gap:8px}
+.scen b{font-family:var(--mono);font-weight:500;font-size:11px;color:var(--pg-muted);min-width:22px}
+.scen[aria-pressed="true"]{background:var(--mf-seguranca);border-color:var(--mf-seguranca);color:#fff}
+.scen[aria-pressed="true"] b{color:var(--mf-escolha)}
+.scen:focus-visible,.pg-btn:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.controls{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.pg-btn{font-size:13px;border:1px solid var(--pg-line);background:var(--pg-surface);color:var(--pg-ink);padding:6px 12px;border-radius:10px;cursor:pointer;min-height:36px;display:inline-flex;gap:6px;align-items:center}
+.pg-check{display:flex;gap:8px;align-items:center;font-size:13px;color:var(--pg-muted)}
+.main-col{display:flex;flex-direction:column;gap:16px;min-width:0}
+.notes{background:var(--pg-surface);border:1px solid var(--pg-line);border-radius:16px;padding:18px 20px;display:flex;flex-direction:column;gap:10px}
+.notes h2{font-size:17px;font-weight:600}
+.notes ul{margin:0;padding-left:18px;display:flex;flex-direction:column;gap:5px;color:var(--pg-ink)}
+.notes li{max-width:90ch}
+.tag-ex{display:inline-block;font-size:11px;padding:2px 8px;border-radius:999px;background:var(--pg-soft);color:var(--pg-muted);font-weight:500}
+
+/* ===================== Moldura do app (computador) ===================== */
+.desk{position:relative;background:var(--app-bg);border:1px solid var(--pg-line);border-radius:16px;padding:20px;min-height:560px;overflow:clip;color:var(--app-ink)}
+.desk-top{display:flex;justify-content:space-between;align-items:baseline;gap:12px;flex-wrap:wrap}
+.desk-top h2{font-size:18px;font-weight:600;color:var(--app-strong)}
+.desk-top .crumb{font-size:13px;color:var(--app-muted)}
+.tabs{display:flex;gap:4px;overflow-x:auto;border-bottom:1px solid var(--app-line);margin-top:10px;padding-top:6px;scrollbar-width:thin}
+.tab{position:relative;display:inline-flex;align-items:center;gap:6px;border:0;border-bottom:2px solid transparent;background:transparent;padding:10px 12px;font-size:14px;font-weight:500;color:var(--app-muted);white-space:nowrap;cursor:pointer;border-radius:8px 8px 0 0}
+.tab:hover{color:var(--app-strong)}
+.tab[aria-selected="true"]{color:var(--link);border-bottom-color:var(--link)}
+.tab:focus-visible{outline:none;box-shadow:0 0 0 3px var(--focus)}
+.tab:focus-visible{box-shadow:inset 0 0 0 2px var(--focus)}
+/* bandeja "Outra aba": só existe durante o arrasto. No app: portal fixed no rodapé da viewport,
+   renderizado pelo próprio CarteiraDnd (não depende da barra de abas, que rola e pode estar fora da tela). */
+.tray-dock{position:sticky;bottom:14px;height:0;display:flex;justify-content:center;align-items:flex-end;z-index:58;pointer-events:none}
+.tray{pointer-events:auto;display:flex;flex-direction:column;gap:8px;max-width:calc(100% - 24px);background:var(--app-surface);border:1px solid var(--app-line);border-radius:14px;box-shadow:var(--shadow);padding:10px 12px 12px}
+.tray-h{display:flex;justify-content:space-between;gap:12px;font-size:12px;color:var(--app-muted)}
+.tray-h b{color:var(--app-strong);font-weight:600;font-size:12.5px}
+.tray-row{display:flex;flex-wrap:wrap;gap:8px}
+.tchip{display:inline-flex;flex-direction:column;justify-content:center;min-height:48px;min-width:104px;padding:4px 14px;border-radius:10px;border:1.5px dashed var(--accent);background:var(--app-surface);color:var(--app-strong);font-size:14px;font-weight:600;line-height:1.2;text-align:left}
+.tchip small{font-size:11.5px;font-weight:400;color:var(--app-muted)}
+.tchip.drop-on{border-style:solid;border-width:2px;background:var(--drop-strong)}
+.tchip.locked{border:1px solid var(--app-line);background:var(--app-bg);color:var(--app-muted);cursor:not-allowed;font-weight:500}
+.tchip.locked span{display:inline-flex;gap:5px;align-items:center}
+.tchip .lock{width:12px;height:12px}
+.tchip.drop-bad{border:2px solid var(--neg);background:var(--danger-bg);color:var(--app-strong)}
+
+.tbl-title{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:18px 0 10px;flex-wrap:wrap}
+.tbl-title h3{font-size:16px;font-weight:600;color:var(--app-strong)}
+.tbl-wrap{overflow-x:auto;border:1px solid var(--app-line);border-radius:12px;background:var(--app-surface)}
+table.at{width:100%;border-collapse:collapse;text-align:left;font-variant-numeric:tabular-nums;min-width:900px}
+.at thead tr{background:var(--head-bg);color:#fff;font-size:12px;text-transform:uppercase;letter-spacing:.04em}
+.at th{padding:11px 14px;font-weight:500;white-space:nowrap}
+.at th.hl{background:var(--mf-outside)}
+.at td{padding:9px 14px;font-size:14px;border-bottom:1px solid var(--app-line-soft);white-space:nowrap}
+.at td.r,.at th.r{text-align:right}
+.at td.hl{background:var(--hl)}
+.at tr.band td{background:var(--band-bg);color:#fff;font-weight:600;font-size:14px;border-bottom:1px solid var(--app-line)}
+.at tr.band .drop-label{display:none;font-weight:600;font-size:12px;margin-left:10px;background:var(--mf-seguranca);color:#fff;padding:2px 9px;border-radius:999px}
+.at tr.total td{background:var(--app-line-soft);font-weight:500;color:var(--app-strong)}
+.at tr.ph td{color:var(--app-muted);font-size:13px;font-style:normal;background:var(--app-bg)}
+.at tr.item:hover td{background:var(--app-line-soft)}
+.at tr.item:hover td.hl{background:var(--hl)}
+/* realce da seção de destino */
+.at tbody.drop-on tr.band td{box-shadow:inset 0 -3px 0 var(--mf-outside)}
+.at tbody.drop-on tr.band .drop-label{display:inline-block}
+.at tbody.drop-on tr.item td,.at tbody.drop-on tr.ph td{background:var(--drop)}
+.at tbody.drop-on tr.ph td{color:var(--app-strong)}
+.at tr.drag-src td{opacity:.35}
+.at tr.saving td{opacity:.6}
+.at tr.flash td{animation:flash 1.6s ease-out}
+@keyframes flash{0%{background:var(--drop-strong)}100%{background:transparent}}
+
+.namecell{display:flex;align-items:center;gap:8px}
+.handle{display:inline-grid;place-items:center;width:24px;height:28px;border:0;border-radius:6px;background:transparent;color:var(--app-muted);cursor:grab;opacity:.45;touch-action:none;font-size:14px;line-height:1;flex:none}
+.at tr.item:hover .handle,.handle:focus-visible{opacity:1}
+.handle:hover{background:var(--app-line-soft);color:var(--app-strong)}
+.handle:focus-visible{outline:none;box-shadow:0 0 0 3px var(--focus)}
+.handle.grabbed{opacity:1;background:var(--drop-strong);color:var(--app-strong)}
+.tk{font-weight:600;color:var(--link);text-decoration:none}
+.tk:hover{text-decoration:underline}
+.nm{display:block;font-size:12px;color:var(--app-muted);max-width:240px;overflow:hidden;text-overflow:ellipsis}
+.badge{display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:500;padding:1px 7px;border-radius:999px;border:1px solid var(--app-line);color:var(--app-muted);background:var(--app-surface);white-space:nowrap}
+.badge.moved{border-color:transparent;background:var(--band-soft);color:var(--band-soft-ink)}
+.badge.plan{border-style:dashed}
+.badge .ic{width:11px;height:11px}
+.kebab{width:32px;height:32px;border:0;border-radius:8px;background:transparent;color:var(--app-muted);cursor:pointer;display:inline-grid;place-items:center}
+.kebab:hover{background:var(--app-line-soft);color:var(--app-strong)}
+.kebab:focus-visible{outline:none;box-shadow:0 0 0 3px var(--focus)}
+.pos{color:var(--pos)} .neg{color:var(--neg)}
+.spin{display:inline-block;width:14px;height:14px;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;animation:sp .8s linear infinite;vertical-align:-2px}
+@keyframes sp{to{transform:rotate(360deg)}}
+.saving-label{font-size:12px;color:var(--app-muted);display:inline-flex;gap:6px;align-items:center}
+
+/* fantasma do arrasto (igual ao do Fluxo de Caixa) */
+.ghost{position:absolute;z-index:60;pointer-events:none;display:inline-flex;align-items:center;gap:8px;max-width:420px;padding:6px 12px;border-radius:8px;border:1px solid var(--app-line);background:var(--app-surface);color:var(--app-strong);font-size:12.5px;font-weight:500;box-shadow:var(--shadow);white-space:nowrap}
+.ghost .to{color:var(--pos)}
+.ghost .no{color:var(--neg)}
+.ghost[hidden]{display:none}
+
+/* menu da linha */
+.menu{position:absolute;z-index:50;min-width:260px;background:var(--app-surface);border:1px solid var(--app-line);border-radius:12px;box-shadow:var(--shadow);padding:6px;display:flex;flex-direction:column}
+.menu button{display:flex;flex-direction:column;align-items:flex-start;gap:1px;text-align:left;border:0;background:transparent;border-radius:8px;padding:8px 10px;cursor:pointer;min-height:40px;color:var(--app-strong);font-size:14px}
+.menu button small{font-size:12px;color:var(--app-muted)}
+.menu button:hover,.menu button:focus-visible{background:var(--app-line-soft);outline:none}
+.menu hr{border:0;border-top:1px solid var(--app-line);margin:4px 0}
+
+/* popover "em qual seção?" ao soltar numa aba */
+.pop{position:absolute;z-index:55;width:320px;background:var(--app-surface);border:1px solid var(--app-line);border-radius:14px;box-shadow:var(--shadow);padding:14px;display:flex;flex-direction:column;gap:10px}
+.pop::before{content:"";position:absolute;top:-7px;left:28px;width:12px;height:12px;background:var(--app-surface);border-left:1px solid var(--app-line);border-top:1px solid var(--app-line);transform:rotate(45deg)}
+.pop.up::before{top:auto;bottom:-7px;border-left:0;border-top:0;border-right:1px solid var(--app-line);border-bottom:1px solid var(--app-line)}
+.pop .warn{font-size:12.5px;color:var(--app-strong);background:var(--app-bg);border-radius:8px;padding:6px 8px}
+.pop h4{margin:0;font-size:15px;font-weight:600;color:var(--app-strong)}
+.pop p{font-size:12.5px;color:var(--app-muted)}
+
+/* chips-rádio de seção (computador) */
+.chips{display:flex;flex-wrap:wrap;gap:6px;border:0;padding:0;margin:0}
+.chip{position:relative}
+.chip input{position:absolute;opacity:0;inset:0;margin:0;cursor:pointer}
+.chip span{display:inline-flex;align-items:center;gap:6px;min-height:34px;padding:0 12px;border-radius:999px;border:1px solid var(--app-line);font-size:13.5px;color:var(--app-ink);background:var(--app-surface);cursor:pointer}
+.chip input:checked + span{background:var(--mf-seguranca);border-color:var(--mf-seguranca);color:#fff}
+.chip input:focus-visible + span{box-shadow:0 0 0 3px var(--focus)}
+.chip input:disabled + span{opacity:.5;cursor:not-allowed;border-style:dashed}
+.chip .sug{font-size:10.5px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;opacity:.8}
+
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:38px;padding:0 14px;border-radius:10px;font-size:14px;font-weight:500;cursor:pointer;border:1px solid var(--app-line);background:var(--app-surface);color:var(--app-strong)}
+.btn.primary{background:var(--primary);border-color:var(--primary);color:var(--primary-fg)}
+.btn.primary:disabled{opacity:.45;cursor:not-allowed}
+.btn:focus-visible{outline:none;box-shadow:0 0 0 3px var(--focus)}
+.btn.link{border:0;background:transparent;color:var(--link);padding:0 6px;min-height:32px}
+.row-end{display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap}
+.err{display:flex;gap:8px;align-items:flex-start;font-size:13px;color:var(--neg);background:var(--danger-bg);border-radius:10px;padding:8px 10px}
+
+/* diálogo "Mover para…" (computador) */
+.overlay{position:absolute;inset:0;background:var(--overlay);z-index:70;display:grid;place-items:center;padding:16px}
+.dialog{width:min(600px,100%);max-height:calc(100% - 16px);overflow:auto;background:var(--app-surface);border-radius:18px;box-shadow:var(--shadow);display:flex;flex-direction:column}
+.dlg-h{padding:18px 20px 6px}
+.dlg-h h3{font-size:18px;font-weight:600;color:var(--app-strong)}
+.dlg-h p{font-size:13.5px;color:var(--app-muted);margin-top:4px}
+.dlg-b{padding:8px 20px 4px;display:flex;flex-direction:column;gap:14px}
+.dlg-f{padding:14px 20px 18px;display:flex;flex-direction:column;gap:10px;border-top:1px solid var(--app-line);margin-top:10px;position:sticky;bottom:0;background:var(--app-surface)}
+.dest{border:1px solid var(--app-line);border-radius:12px;padding:10px 12px;display:flex;flex-direction:column;gap:8px;margin:0}
+.dest legend{padding:0 4px;font-size:13px;font-weight:600;color:var(--app-strong)}
+.dest legend small{font-weight:400;color:var(--app-muted);margin-left:6px}
+.dest.cur{background:var(--app-bg)}
+.unavail{border:1px dashed var(--app-line);border-radius:12px;padding:10px 12px;font-size:13px;color:var(--app-muted)}
+.unavail summary{cursor:pointer;color:var(--app-strong);font-weight:500;min-height:28px;display:flex;align-items:center}
+.unavail summary:focus-visible{outline:none;box-shadow:0 0 0 3px var(--focus);border-radius:6px}
+.unavail ul{margin:6px 0 0;padding-left:18px;display:flex;flex-direction:column;gap:3px}
+.impact{font-size:12.5px;color:var(--app-muted);background:var(--app-bg);border-radius:10px;padding:10px 12px}
+.impact b{color:var(--app-strong);font-weight:600}
+
+/* toast */
+.toast{position:absolute;left:50%;bottom:18px;transform:translateX(-50%);z-index:80;display:flex;align-items:center;gap:14px;max-width:calc(100% - 32px);background:var(--toast-bg);color:var(--toast-fg);padding:10px 12px 10px 16px;border-radius:12px;box-shadow:var(--shadow);font-size:14px}
+.toast.err{background:var(--toast-err-bg);color:var(--toast-err-fg);border:1px solid var(--neg)}
+.toast button{border:0;background:transparent;color:var(--toast-link);font-weight:600;text-decoration:underline;text-underline-offset:3px;cursor:pointer;min-height:32px;padding:0 6px;border-radius:6px;white-space:nowrap}
+.toast.err button{color:var(--toast-err-btn)}
+.toast button:focus-visible{outline:2px solid currentColor;outline-offset:1px}
+.toast .x{text-decoration:none;opacity:.8;font-weight:400}
+
+/* ===================== Página do ativo (computador) ===================== */
+.ap-head{display:flex;justify-content:space-between;gap:16px;align-items:flex-start;flex-wrap:wrap}
+.ap-head h2{font-size:24px;font-weight:700;color:var(--app-strong)}
+.ap-head .sub{color:var(--app-muted);font-size:14px}
+.ap-actions{display:flex;gap:8px;flex-wrap:wrap}
+.classline{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:10px;font-size:13.5px;color:var(--app-muted)}
+.crumbchip{display:inline-flex;align-items:center;gap:6px;padding:3px 10px;border-radius:999px;background:var(--band-soft);color:var(--band-soft-ink);font-weight:500;text-decoration:none}
+.metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-top:18px}
+.metric{background:var(--app-surface);border:1px solid var(--app-line);border-radius:14px;padding:12px 14px}
+.metric dt{font-size:12px;color:var(--app-muted)}
+.metric dd{margin:2px 0 0;font-size:17px;font-weight:600;color:var(--app-strong);font-variant-numeric:tabular-nums}
+.ap-section{margin-top:18px;background:var(--app-surface);border:1px solid var(--app-line);border-radius:14px;padding:14px 16px;font-size:14px;color:var(--app-muted)}
+
+/* ===================== Celular ===================== */
+.phone-stage{display:flex;justify-content:center}
+.phone{position:relative;width:390px;max-width:100%;height:780px;background:var(--app-bg);border:10px solid var(--mf-potencia);border-radius:44px;overflow:hidden;display:flex;flex-direction:column;color:var(--app-ink)}
+.ph-status{height:34px;flex:none;display:flex;justify-content:space-between;align-items:center;padding:0 22px;font-size:13px;font-weight:600;color:var(--app-strong)}
+.ph-head{flex:none;display:flex;align-items:center;gap:10px;padding:6px 16px 10px;border-bottom:1px solid var(--app-line);background:var(--app-surface)}
+.ph-head h2{font-size:18px;font-weight:600;color:var(--app-strong)}
+.ph-back{width:44px;height:44px;display:grid;place-items:center;border:0;background:transparent;color:var(--link);margin-left:-10px;font-size:20px}
+.ph-body{flex:1;overflow:auto;padding:12px 16px 90px;display:flex;flex-direction:column;gap:10px}
+.rail{display:flex;gap:8px;overflow-x:auto;margin:0 -16px;padding:2px 16px 4px;scrollbar-width:none}
+.mchip{flex:none;display:inline-flex;align-items:center;height:36px;padding:0 12px;border-radius:999px;border:1px solid var(--app-line);font-size:14px;color:var(--app-ink);background:transparent;white-space:nowrap}
+.mchip.on{background:var(--mf-seguranca);border-color:var(--mf-seguranca);color:#fff}
+.mband{display:flex;align-items:center;gap:8px;min-height:44px;padding:0 12px;border-radius:12px;background:var(--band-soft);color:var(--band-soft-ink);font-weight:600;font-size:14px}
+.mband .cnt{margin-left:auto;font-weight:500;font-size:12.5px;opacity:.85;font-variant-numeric:tabular-nums}
+.mcard{background:var(--app-surface);border:1px solid var(--app-line);border-radius:16px;padding:12px 14px;display:flex;flex-direction:column;gap:8px}
+.mcard .top{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}
+.mcard .t{font-weight:600;color:var(--app-strong);font-size:15px;display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.mcard .n{font-size:12px;color:var(--app-muted)}
+.mcard .v{font-weight:600;color:var(--app-strong);font-variant-numeric:tabular-nums;text-align:right;font-size:14.5px}
+.mcard .v small{display:block;font-weight:500;font-size:12px}
+.mgrid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px 12px}
+.mgrid dt{font-size:11px;color:var(--app-muted)}
+.mgrid dd{margin:0;font-size:13.5px;font-weight:500;color:var(--app-strong);font-variant-numeric:tabular-nums}
+.mactions{display:flex;gap:8px;border-top:1px solid var(--app-line-soft);padding-top:8px}
+.mbtn{flex:1;min-height:44px;border-radius:12px;border:1px solid var(--app-line);background:var(--app-surface);color:var(--link);font-weight:600;font-size:14.5px;display:inline-flex;align-items:center;justify-content:center;gap:6px;cursor:pointer}
+.mbtn.primary{background:var(--primary);border-color:var(--primary);color:var(--primary-fg)}
+.mbtn:disabled{opacity:.45}
+.mbtn:focus-visible{outline:none;box-shadow:0 0 0 3px var(--focus)}
+.ph-tabbar{position:absolute;left:0;right:0;bottom:0;height:64px;background:var(--app-surface);border-top:1px solid var(--app-line);display:flex;justify-content:space-around;align-items:center;font-size:11px;color:var(--app-muted);padding-bottom:6px}
+.ph-tabbar span.on{color:var(--accent);font-weight:600}
+
+.sheet-ov{position:absolute;inset:0;background:var(--overlay);z-index:70;display:flex;flex-direction:column;justify-content:flex-end}
+.sheet{background:var(--app-surface);border-radius:22px 22px 0 0;max-height:88%;display:flex;flex-direction:column;box-shadow:var(--shadow)}
+.sheet .grab{width:40px;height:5px;border-radius:3px;background:var(--mf-transparencia);margin:8px auto 4px}
+.sheet-h{padding:4px 16px 10px;display:flex;align-items:flex-start;justify-content:space-between;gap:8px}
+.sheet-h h3{font-size:17px;font-weight:600;color:var(--app-strong)}
+.sheet-h p{font-size:13px;color:var(--app-muted)}
+.sheet-x{width:44px;height:44px;border:0;background:transparent;color:var(--app-muted);font-size:20px;margin:-6px -10px 0 0;border-radius:10px}
+.sheet-b{overflow:auto;padding:0 16px 8px;display:flex;flex-direction:column;gap:12px}
+.sheet-f{padding:10px 16px 18px;border-top:1px solid var(--app-line);display:flex;flex-direction:column;gap:8px}
+.sheet-f .row{display:flex;gap:8px}
+.mgl{font-size:11.5px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--app-muted);padding:0 4px 4px}
+.mopt{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:10px;min-height:56px;width:100%;padding:8px 12px;border-radius:12px;border:0;background:transparent;text-align:left;cursor:pointer}
+.mopt .l{font-size:15px;font-weight:600;color:var(--app-strong)}
+.mopt .d{display:block;font-size:12.5px;color:var(--app-muted)}
+.mopt .rd{width:22px;height:22px;border-radius:50%;border:2px solid var(--mf-transparencia)}
+.mopt[aria-checked="true"]{background:var(--band-soft)}
+.mopt[aria-checked="true"] .rd{border:7px solid var(--mf-patrimonio)}
+.mopt[aria-disabled="true"]{cursor:default}
+.mopt[aria-disabled="true"] .l{color:var(--app-muted);font-weight:500}
+.mopt:focus-visible{outline:none;box-shadow:0 0 0 3px var(--focus)}
+.mtoast{position:absolute;left:12px;right:12px;bottom:76px;z-index:80;display:flex;align-items:center;gap:10px;background:var(--toast-bg);color:var(--toast-fg);border-radius:14px;padding:10px 10px 10px 14px;font-size:14px;box-shadow:var(--shadow)}
+.mtoast.err{background:var(--toast-err-bg);color:var(--toast-err-fg);border:1px solid var(--neg)}
+.mtoast span{flex:1;min-width:0}
+.mtoast button{min-height:44px;padding:0 10px;border:0;background:transparent;color:var(--toast-link);font-weight:600;border-radius:10px}
+.mtoast.err button{color:var(--toast-err-btn);text-decoration:underline}
+.mrow{display:flex;align-items:center;gap:10px;min-height:56px;background:var(--app-surface);border:1px solid var(--app-line);border-radius:16px;padding:6px 8px 6px 14px}
+.mrow .lbl{font-size:12px;color:var(--app-muted)}
+.mrow .val{font-size:14.5px;font-weight:600;color:var(--app-strong)}
+.mrow .grow{flex:1;min-width:0}
+.mrow .mbtn{flex:none;padding:0 14px}
+.skel{height:14px;border-radius:6px;background:var(--app-line-soft)}
+
+/* ===================== Especificação ===================== */
+.spec{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+.spec .notes{min-width:0}
+.spec .wide{grid-column:1/-1}
+.spec table{border-collapse:collapse;font-size:13.5px;width:100%;font-variant-numeric:tabular-nums}
+.spec th,.spec td{border-bottom:1px solid var(--pg-line);padding:7px 8px;text-align:left;vertical-align:top}
+.spec th{font-weight:600;font-size:12px;letter-spacing:.04em;text-transform:uppercase;color:var(--pg-muted)}
+.spec .ok{color:var(--mf-patrimonio);font-weight:600}
+.spec .no{color:var(--pg-muted)}
+.scroll-x{overflow-x:auto}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+
+@media (max-width: 900px){
+  .stage{grid-template-columns:minmax(0,1fr)}
+  .side{position:static}
+  .scen-groups{display:flex;flex-direction:column;gap:8px}
+  .scen-group{flex-direction:row;flex-wrap:wrap}
+  .scen-group .gl{width:100%}
+  .spec{grid-template-columns:minmax(0,1fr)}
+  .desk{padding:14px}
+}
+@media (max-width: 440px){
+  .phone{border-width:0;border-radius:16px;height:720px}
+}
+@media (prefers-reduced-motion: reduce){
+  .spin{animation-duration:2.4s}
+  .at tr.flash td{animation:none}
+}
+</style>
+
+<div class="wrap">
+  <header>
+    <div class="wordmark">My Finance</div>
+    <h1 class="pg-h1">Mover investimentos entre abas e seções da Carteira</h1>
+    <p class="lede">Correção manual de onde um investimento aparece. No computador: arrastar pela alça entre seções da aba, ou até a bandeja “Outra aba” que surge no rodapé durante o arrasto. Em qualquer linha: menu “Mover para…” (teclado e leitor de tela). No celular: painel “Mover para”. Na página do ativo: “Mover na Carteira”. Só abas de renda variável e fundos com cotação, e só na mesma moeda. Os dados são de exemplo. <b>Revisão 2</b>: arrasto até a barra de abas trocado pela bandeja; selo “movido” só para troca de aba; regiões do ETF livres; botão primário em patrimonio; FIIs da Pluggy caem em FOF.</p>
+  </header>
+
+  <section class="stage" aria-label="Protótipo navegável">
+    <aside class="side">
+      <div class="controls">
+        <button class="pg-btn" type="button" id="themeBtn" aria-label="Alternar tema claro e escuro">Tema: sistema</button>
+        <button class="pg-btn" type="button" id="resetBtn">Recomeçar cenário</button>
+      </div>
+      <label class="pg-check"><input type="checkbox" id="failChk"> Simular falha ao salvar</label>
+      <div class="scen-groups" id="scenarios" role="group" aria-label="Cenários do protótipo"></div>
+    </aside>
+    <div class="main-col">
+      <div id="screen"></div>
+      <div class="notes" id="notes" aria-live="polite"></div>
+    </div>
+  </section>
+
+  <section class="spec" aria-labelledby="spec-h">
+    <div class="notes wide">
+      <p class="eyebrow">Especificação</p>
+      <h2 id="spec-h" style="font-size:22px">Regras, medidas e estados</h2>
+      <p style="color:var(--pg-muted);max-width:80ch">O que o desenvolvimento precisa respeitar. Classes citadas são as que já existem no app (<code>TABLE_STYLES</code>, <code>TABLE_MOBILE_STYLES</code>, <code>CashflowDnd</code>, <code>MovePanel</code>).</p>
+    </div>
+
+    <div class="notes wide">
+      <h2>Para onde cada ativo pode ir</h2>
+      <p style="color:var(--pg-muted)">Regra única: só abas que calculam por quantidade × cotação de bolsa e na mesma moeda. A moeda trava a troca de <b>aba</b>, não a seção: dentro de ETF's, Brasil e EUA ficam sempre livres (IVVB11 é em real com exposição aos EUA).</p>
+      <div class="scroll-x">
+      <table>
+        <thead><tr><th>Origem ↓ / Destino →</th><th>Ações</th><th>FII's</th><th>ETF's</th><th>Fundos</th><th>Stocks</th><th>REIT's</th></tr></thead>
+        <tbody>
+          <tr><td>Ações e BDR (real)</td><td class="no">seções</td><td class="ok">sim</td><td class="ok">sim</td><td class="ok">sim*</td><td class="no">não, dólar</td><td class="no">não, dólar</td></tr>
+          <tr><td>FII's (real)</td><td class="ok">sim</td><td class="no">seções</td><td class="ok">sim</td><td class="ok">sim</td><td class="no">não, dólar</td><td class="no">não, dólar</td></tr>
+          <tr><td>ETF's em real (BOVA11, IVVB11)</td><td class="ok">sim</td><td class="ok">sim</td><td class="no">seções</td><td class="ok">sim*</td><td class="no">não, dólar</td><td class="no">não, dólar</td></tr>
+          <tr><td>ETF's em dólar</td><td class="no">não, real</td><td class="no">não, real</td><td class="no">seções</td><td class="no">não, real</td><td class="ok">sim</td><td class="ok">sim</td></tr>
+          <tr><td>ETF sem cotação em bolsa (etf-cvm)</td><td class="no">não**</td><td class="no">não**</td><td class="no">seções</td><td class="no">não**</td><td class="no">não</td><td class="no">não</td></tr>
+          <tr><td>Fundos com ticker B3 cotado (ex.: “fund” legado)</td><td class="ok">sim</td><td class="ok">sim</td><td class="ok">sim</td><td class="no">seções</td><td class="no">não, dólar</td><td class="no">não, dólar</td></tr>
+          <tr><td>Fundos sem ticker (cota CVM ou curva)</td><td class="no">não**</td><td class="no">não**</td><td class="no">não**</td><td class="no">seções</td><td class="no">não</td><td class="no">não</td></tr>
+          <tr><td>Stocks (dólar)</td><td class="no">não, real</td><td class="no">não, real</td><td class="ok">sim</td><td class="no">não, real</td><td class="no">seções</td><td class="ok">sim</td></tr>
+          <tr><td>REIT's (dólar)</td><td class="no">não, real</td><td class="no">não, real</td><td class="ok">sim</td><td class="no">não, real</td><td class="ok">sim</td><td class="no">seções</td></tr>
+        </tbody>
+      </table>
+      </div>
+      <p style="font-size:13px;color:var(--pg-muted)">* Ação ou ETF dentro de Fundos é estranho, mas a regra de moeda e cálculo permite (pergunta 4). ** Sem cotação de bolsa: fora da própria aba o valor ficaria errado; esses itens só trocam de seção onde estão. Units B3 cadastradas como “stock” (TAEE11, KLBN11) hoje não aparecem em aba nenhuma: sem linha, não há o que mover (pergunta 9). Renda Fixa, Reservas, Moedas/Cripto, Previdência, Opções e Imóveis &amp; Bens não aparecem como destino nem têm a ação de mover nesta fase.</p>
+    </div>
+
+    <div class="notes wide">
+      <h2>Quando o selo “movido” aparece e como voltar</h2>
+      <ul>
+        <li><b>Troca só de seção</b> (KDIF11 de FOF para Infra): é um ajuste comum, como o que o assistente de compra já pede. Grava só a seção (<code>tipoFii</code>, <code>estrategia</code>, <code>regiaoEtf</code>, <code>tipoFundo</code>). Sem selo, sem “voltar”. Arrependeu? Desfazer no toast ou no Histórico.</li>
+        <li><b>Troca de aba</b> (HGLG11 de Fundos para FII's): grava a aba escolhida. O item ganha o selo “movido” e o menu ganha “Voltar para Fundos”. A data e o autor do selo vêm do último registro no Histórico de alterações; sem registro, o texto é só “Movido para cá manualmente”.</li>
+        <li><b>Voltar para a aba de origem</b> apaga a escolha manual (o ativo volta a seguir o tipo do catálogo e correções futuras dele) e reabre a seção que ele tinha lá, que ficou guardada. Mover de volta à aba de origem pelo diálogo tem o mesmo efeito.</li>
+        <li><b>Compras depois de mover</b>: o assistente de compra mostra a seção atual já preenchida (“Infra · definida por você”) e não a regrava. A prévia de caixa usa a aba onde o ativo está agora.</li>
+        <li><b>Ativo de bolsa movido para Fundos</b>: continua com a cotação de mercado, e “Valor atualizado” não fica editável na linha (a edição regravaria o preço médio).</li>
+      </ul>
+    </div>
+
+    <div class="notes">
+      <h2>Computador: medidas</h2>
+      <ul>
+        <li>Alça <code>⠿</code> na 1ª coluna, antes do ticker: alvo 24×28px, opacidade 45% em repouso, 100% no hover da linha ou no foco. Mesmo componente visual do <code>ItemRow</code> do Fluxo.</li>
+        <li>Arrasto começa com 4px de movimento (MouseSensor). Sem <code>restrictToVerticalAxis</code>, para o ponteiro chegar à bandeja.</li>
+        <li>Fantasma: etiqueta 12.5px, raio 8px, sombra. Mostra “⠿ TICKER → destino” ou “✕ motivo” sobre aba recusada.</li>
+        <li>Seção de destino: faixa <code>tranquilidade</code> ganha traço inferior de 3px <code>outside</code> e o selo “Soltar aqui” (fundo <code>seguranca</code>, texto branco, 10:1); linhas da seção recebem tinta <code>outside</code> 9% (16% no escuro).</li>
+        <li>Bandeja “Outra aba”: aparece ao começar o arrasto, fixa a 14px do rodapé da viewport (mais <code>safe-area-inset-bottom</code>), centralizada na área de conteúdo, raio 14px, sombra. Alvos de 48px de altura e 104px de largura mínima: compatíveis com contorno tracejado 1.5px <code>outside</code>; sob o ponteiro, contorno sólido 2px e preenchimento 16%. Stocks e REIT's (o par de moeda oposta) aparecem travados com cadeado e o motivo. A barra de abas real não muda durante o arrasto.</li>
+        <li>Popover de seção: 320px, raio 14px, abre <b>acima</b> do alvo da bandeja, chips-rádio 34px. Na troca de aba mostra a linha do objetivo (“10,0% em FII's → 0% em Fundos”). Fecha com Esc ou clique fora; foco volta à alça.</li>
+        <li>Menu ⋯ da linha: botão 32×32px no fim da linha; itens 40px de altura, 260px de largura mínima.</li>
+        <li>Diálogo “Mover para…”: 600px, raio 18px, um bloco por aba compatível, seção atual marcada “atual” e desabilitada; rodapé fixo com o que muda, o que não muda e os botões. Primário em <code>patrimonio</code> #396CAA (texto branco 5,4:1), como o <code>Button</code> e o <code>PrimaryButton</code> do app.</li>
+        <li>Toast: base do conteúdo, raio 12px, 8s; pausa com hover ou foco; “Desfazer” sempre presente no sucesso.</li>
+      </ul>
+    </div>
+
+    <div class="notes">
+      <h2>Celular: medidas</h2>
+      <ul>
+        <li>Sem arrastar no celular (igual ao Fluxo no PWA). O cartão aberto ganha a ação “Mover” ao lado de “Abrir”, 44px de altura.</li>
+        <li>Painel (BottomSheet) “Mover KDIF11”: até 88% da altura, grupos por aba com rótulo 11.5px em caixa alta; opções 56px de altura, padrão do <code>MovePanel</code> (rádio de 22px, tinta <code>tranquilidade</code> 18% no escolhido).</li>
+        <li>Seção atual aparece com “Atual” e não é selecionável. Em ETF's, Brasil e EUA ficam sempre livres.</li>
+        <li>Abas que não aceitam o ativo ficam num item recolhido no fim (“6 abas não aceitam este ativo”), que abre a lista com o motivo de cada uma.</li>
+        <li>Rodapé: Voltar + botão primário que diz o destino (“Mover para Infra”); “Movendo…” com spinner enquanto salva; erro em vermelho acima dos botões, painel continua aberto.</li>
+        <li>Sucesso: painel fecha, <code>MobileSaveToast</code> “KDIF11 movido para Infra” + Desfazer (44px), acima da barra de abas.</li>
+      </ul>
+    </div>
+
+    <div class="notes">
+      <h2>Estados</h2>
+      <ul>
+        <li><b>Repouso:</b> alça discreta; selo “movido” só em ativos que estão em outra aba por escolha manual.</li>
+        <li><b>Arrastando:</b> linha de origem a 35%; seções da aba viram alvo; a bandeja “Outra aba” sobe no rodapé com a dica “Solte numa seção ou numa aba da bandeja. Esc cancela.”</li>
+        <li><b>Carregando:</b> atualização otimista. A linha já aparece no destino a 60% com “Movendo…”; menu e alça dela ficam bloqueados até a resposta.</li>
+        <li><b>Sucesso:</b> realce de 1.6s na linha no destino + toast com Desfazer. Mudou de aba: o toast traz “Ver em Fundos” e avisa que o objetivo voltou a 0% (planejados mantêm o objetivo).</li>
+        <li><b>Erro:</b> a linha volta para onde estava; toast vermelho “Não foi possível mover KDIF11. Ele continua em TVM.” + “Tentar de novo”.</li>
+        <li><b>Incompatível:</b> nunca um botão quebrado. Aba recusada na bandeja mostra o motivo no fantasma; soltar nela não faz nada e anuncia o motivo. Ativo de aba fora da fase não tem alça nem item de menu; na página do ativo aparece uma frase no lugar do botão (pergunta 10).</li>
+        <li><b>Planejado:</b> mesma alça e mesmo menu; move a seção do planejamento (Watchlist), com o selo “planejado”.</li>
+      </ul>
+    </div>
+
+    <div class="notes">
+      <h2>Acessibilidade e escuro</h2>
+      <ul>
+        <li>Alça: <code>button</code> com nome “Mover KDIF11. Espaço para pegar”. Espaço pega, setas percorrem os destinos (seções desta aba, depois as abas da bandeja), Espaço solta, Esc cancela. Cada passo anunciado em <code>aria-live="assertive"</code> (no app: <code>announcements</code> do dnd-kit). Se o <code>coordinateGetter</code> até a bandeja atrasar, o arrasto por teclado pode ficar só nas seções: o menu já cobre a troca de aba.</li>
+        <li>O caminho principal sem mouse é o menu ⋯ → “Mover para…”: diálogo com <code>role="dialog"</code>, <code>aria-modal</code>, foco preso, rádios nativos com o mesmo <code>name</code> (setas atravessam todas as abas) e <code>legend</code> por aba.</li>
+        <li>Abas recusadas continuam lidas com o motivo (“Stocks, indisponível: em dólar”), nunca somem do leitor. A bandeja tem <code>role="group"</code> com nome “Mover para outra aba”.</li>
+        <li>Toast em <code>role="status"</code>; o erro em <code>role="alert"</code>. Com o toast aberto, Ctrl+Z (fora de campos) aciona Desfazer.</li>
+        <li>Foco depois de mover: na alça da linha já no destino. Depois de desfazer: na alça da linha de volta à origem.</li>
+        <li>Contraste: texto branco só sobre <code>seguranca</code> (10:1) e <code>patrimonio</code> (5,4:1). <code>outside</code> fica para contornos, realces e anel de foco (4,2:1 sobre branco, acima dos 3:1 de elementos não textuais). Aba ativa em <code>patrimonio</code>, igual ao <code>DESKTOP_UNDERLINE_TAB_ACTIVE</code>. Faixa <code>tranquilidade</code> com texto branco (2,9:1) é o <code>TABLE_STYLES</code> atual e ficou como está (pergunta 11).</li>
+        <li>Escuro: faixas e cabeçalho mantêm <code>seguranca</code>/<code>tranquilidade</code>; tinta de alvo sobe para 16–26%, foco em <code>tranquilidade</code>, vermelho #F97066 como texto sobre superfície escura (o toast de erro escuro não usa branco sobre vermelho claro).</li>
+        <li>Movimento: realce e spinner respeitam <code>prefers-reduced-motion</code>.</li>
+      </ul>
+    </div>
+  </section>
+</div>
+
+<div class="sr" id="live" aria-live="assertive" aria-atomic="true"></div>
+
+<script>
+(function(){
+'use strict';
+const $ = (s, r=document) => r.querySelector(s);
+const $$ = (s, r=document) => Array.from(r.querySelectorAll(s));
+const brl = new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'});
+const pct = v => (v>=0?'+':'') + v.toFixed(2).replace('.',',') + '%';
+const pct1 = v => v.toFixed(1).replace('.',',') + '%';
+const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const live = msg => { const l=$('#live'); l.textContent=''; setTimeout(()=>{ l.textContent=msg; },30); };
+
+const ICON_LOCK = '<svg class="lock" viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" d="M5 7V5a3 3 0 1 1 6 0v2h.5A1.5 1.5 0 0 1 13 8.5v5A1.5 1.5 0 0 1 11.5 15h-7A1.5 1.5 0 0 1 3 13.5v-5A1.5 1.5 0 0 1 4.5 7H5Zm1.5 0h3V5a1.5 1.5 0 1 0-3 0v2Z"/></svg>';
+const ICON_MOVED = '<svg class="ic" viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" d="M9.5 2.5 13 6l-3.5 3.5-1-1L10.3 6.7H6a2.5 2.5 0 0 0 0 5h1V13H6a3.75 3.75 0 0 1 0-7.5h4.3L8.5 3.5l1-1Z"/></svg>';
+
+/* ---------------- Abas e compatibilidade ---------------- */
+const TABS = [
+  {id:'consolidada',label:'Carteira Consolidada'},
+  {id:'reserva-emergencia',label:'Reserva Emergência'},
+  {id:'reserva-oportunidade',label:'Reserva Oportunidade'},
+  {id:'renda-fixa',label:'Renda Fixa'},
+  {id:'fim-fia',label:'Fundos'},
+  {id:'fiis',label:"FII's"},
+  {id:'acoes',label:'Ações'},
+  {id:'stocks',label:'Stocks'},
+  {id:'reit',label:"REIT's"},
+  {id:'etf',label:"ETF's"},
+  {id:'moedas-criptos',label:'Moedas, Criptomoedas & outros'},
+  {id:'previdencia',label:'Previdência e Seguros'},
+  {id:'opcoes',label:'Opções'},
+  {id:'imoveis',label:'Imóveis & Bens'},
+];
+const tabLabel = id => (TABS.find(t=>t.id===id)||{}).label || id;
+const SECS = {
+  fiis:[['fof','FOF'],['tvm','TVM'],['tijolo','Tijolo'],['infra','Infra']],
+  acoes:[['value','Value'],['growth','Growth'],['risk','Risk']],
+  etf:[['brasil','Brasil'],['estados_unidos','EUA']],
+  'fim-fia':[['fim','FIM'],['fia','FIA'],['rf','Renda Fixa'],['cambial','Cambial'],['fip','FIP'],['fip-infra','FIP Infraestrutura'],['fidc','FIDC'],['fiagro','Fiagro']],
+};
+const secLabel = (tab, sec) => ((SECS[tab]||[]).find(s=>s[0]===sec)||[0,sec])[1];
+const where = (tab, sec) => tabLabel(tab) + ' › ' + secLabel(tab, sec);
+/* Ativo em real (todos os FIIs do exemplo). */
+function compat(tabId){
+  if (tabId==='consolidada') return {ok:false, reason:'Visão geral, não recebe ativos', hide:true};
+  if (['fiis','acoes','etf','fim-fia'].includes(tabId)) return {ok:true};
+  if (tabId==='stocks'||tabId==='reit') return {ok:false, reason:'Em dólar. Este ativo é negociado em real'};
+  return {ok:false, reason:'Ainda não dá para mover ativos para esta aba'};
+}
+/* Dentro de ETF's as duas regiões ficam sempre livres: a moeda só trava a troca de ABA. */
+const secDisabled = () => null;
+
+/* ---------------- Dados de exemplo ---------------- */
+/* base = aba onde a rota lista o ativo sem escolha manual (categoriaBaseDaAba) + a seção guardada lá.
+   FIIs importados pela Pluggy chegam sem tipoFii e caem no fallback FOF (fii/route.ts). */
+const BASE = [
+  {id:'irim',t:'IRIM11',n:'Iridium Recebíveis Imobiliários',seg:'Papel',tab:'fiis',sec:'tvm',q:120,pm:72.40,c:68.95,obj:12,inst:'XP Investimentos'},
+  {id:'vrta',t:'VRTA11',n:'Fator Verità',seg:'Papel',tab:'fiis',sec:'tvm',q:90,pm:84.10,c:80.20,obj:10,inst:'XP Investimentos'},
+  {id:'pcip',t:'PCIP11',n:'Recebíveis imobiliários',seg:'Papel',tab:'fiis',sec:'tvm',q:60,pm:86.00,c:83.50,obj:8,inst:'XP Investimentos'},
+  {id:'kdif',t:'KDIF11',n:'Kinea Infra FIC FI-Infra',seg:'Infraestrutura',tab:'fiis',sec:'fof',q:70,pm:128.30,c:124.10,obj:12,imp:true,inst:'Itaú (Open Finance)'},
+  {id:'cpti',t:'CPTI11',n:'Capitânia Infra FIC FI-Infra',seg:'Infraestrutura',tab:'fiis',sec:'fof',q:50,pm:92.10,c:86.70,obj:10,imp:true,inst:'Itaú (Open Finance)'},
+  {id:'bidb',t:'BIDB11',n:'Debêntures incentivadas (FI-Infra)',seg:'Infraestrutura',tab:'fiis',sec:'fof',q:40,pm:88.00,c:81.40,obj:8,imp:true,inst:'Itaú (Open Finance)'},
+  {id:'knca',t:'KNCA11',n:'Kinea Crédito Agro Fiagro',seg:'Agronegócio',tab:'fiis',sec:'fof',q:100,pm:99.00,c:95.80,obj:10,imp:true,inst:'Itaú (Open Finance)'},
+  {id:'hglg',t:'HGLG11',n:'CSHG Logística',seg:'Logística',tab:'fiis',sec:'tijolo',q:25,pm:158.20,c:161.30,obj:15,inst:'XP Investimentos',base:{tab:'fim-fia',sec:'fim'},movedAt:'12/09/2026'},
+  {id:'xpml',t:'XPML11',n:'XP Malls',seg:'Shoppings',tab:'fiis',sec:'fof',q:0,pm:0,c:110.40,obj:8,plan:true,inst:''},
+];
+const clone = () => BASE.map(r => Object.assign({}, r, {base: Object.assign({}, r.base || {tab:r.tab, sec:r.sec}), movedAt: r.movedAt || null}));
+
+let S = {}; // estado da tela
+const reset = () => {
+  S = {rows:clone(), drag:null, pop:null, menu:null, dialog:null, toast:null, saving:null, flash:null, sheet:null, expanded:'kdif', kbd:null};
+};
+const row = id => S.rows.find(x=>x.id===id);
+
+/* Regra de gravação: troca só de seção grava só a seção; troca de aba grava a aba (selo "movido").
+   Voltar à aba base apaga a escolha manual. Objetivo zera na troca de aba (planejado mantém). */
+function setPlace(r, tab, sec){
+  const prev = {tab:r.tab, sec:r.sec, obj:r.obj, base:Object.assign({}, r.base), movedAt:r.movedAt};
+  const cross = tab!==r.tab;
+  r.tab = tab; r.sec = sec;
+  if (tab===r.base.tab) { r.base.sec = sec; r.movedAt = null; }
+  else if (cross) r.movedAt = '01/10/2026';
+  if (cross && !r.plan) r.obj = 0;
+  return prev;
+}
+function restorePlace(r, prev){ r.tab=prev.tab; r.sec=prev.sec; r.obj=prev.obj; r.base=Object.assign({}, prev.base); r.movedAt=prev.movedAt; }
+
+/* ---------------- Cenários ---------------- */
+const SC = [
+  {k:'D1',g:'Carteira · computador',label:'Aba FII\'s em repouso (arraste de verdade)',view:'desk'},
+  {k:'D2',g:'Carteira · computador',label:'Arrastando entre seções',view:'desk'},
+  {k:'D3',g:'Carteira · computador',label:'Arrastando: bandeja “Outra aba”',view:'desk'},
+  {k:'D4',g:'Carteira · computador',label:'Aba recusada na bandeja',view:'desk'},
+  {k:'D5',g:'Carteira · computador',label:'Soltou na bandeja: escolher seção',view:'desk'},
+  {k:'D6',g:'Carteira · computador',label:'Carregando (otimista)',view:'desk'},
+  {k:'D7',g:'Carteira · computador',label:'Sucesso + Desfazer',view:'desk'},
+  {k:'D8',g:'Carteira · computador',label:'Erro: volta ao lugar',view:'desk'},
+  {k:'D9',g:'Carteira · computador',label:'Menu ⋯ de ativo movido de aba',view:'desk'},
+  {k:'D10',g:'Carteira · computador',label:'Diálogo sem arrastar',view:'desk'},
+  {k:'D11',g:'Carteira · computador',label:'Ativo planejado',view:'desk'},
+  {k:'M1',g:'Carteira · celular',label:'Cartão aberto com “Mover”',view:'phone'},
+  {k:'M2',g:'Carteira · celular',label:'Painel “Mover para”',view:'phone'},
+  {k:'M3',g:'Carteira · celular',label:'Abas indisponíveis abertas',view:'phone'},
+  {k:'M4',g:'Carteira · celular',label:'Movendo…',view:'phone'},
+  {k:'M5',g:'Carteira · celular',label:'Erro ao mover',view:'phone'},
+  {k:'M6',g:'Carteira · celular',label:'Sucesso + Desfazer',view:'phone'},
+  {k:'A1',g:'Página do ativo',label:'Ação no cabeçalho',view:'asset'},
+  {k:'A2',g:'Página do ativo',label:'Diálogo aba + seção',view:'asset'},
+  {k:'A3',g:'Página do ativo',label:'Salvando / erro',view:'asset'},
+  {k:'A4',g:'Página do ativo',label:'Movido de aba e “Voltar para”',view:'asset'},
+  {k:'A5',g:'Página do ativo',label:'Ativo que não pode mover (CDB)',view:'asset'},
+  {k:'A6',g:'Página do ativo',label:'Celular',view:'phone-asset'},
+];
+
+const NOTES = {
+  D1:['Retrato do problema: a Pluggy cria a posição sem tipo de FII, e a aba cai no padrão FOF. Por isso KDIF11, CPTI11 e BIDB11 (FI-Infra) e KNCA11 (Fiagro) aparecem em FOF.',
+      'Experimente: pegue a alça ⠿ de KDIF11 e solte na faixa Infra. Ou leve KNCA11 até “Fundos” na bandeja que sobe no rodapé. Funciona com o mouse e com o teclado (Tab até a alça, Espaço, setas, Espaço).',
+      'HGLG11 é um “fund” antigo que a aba Fundos listava; o usuário já o trouxe para FII\'s › Tijolo em 12/09. Por isso tem o selo “movido”. Troca só de seção não ganha selo.',
+      'Na mesma seção não há reordenação: a tabela da Carteira não tem ordem manual. Soltar na própria seção cancela.'],
+  D2:['Alvo é a seção inteira (faixa + linhas + linha vazia; as seções vazias já existem no GenericAssetTable). Não existe “entre a linha X e Y”.',
+      'O selo “Soltar aqui” agora tem fundo seguranca: branco sobre tranquilidade não passava em contraste.',
+      'A bandeja “Outra aba” já está no rodapé desde o início do arrasto, para o usuário ver que pode ir além da aba.'],
+  D3:['Revisão: a barra de abas real deixou de ser alvo. Ela rola na horizontal, corta as últimas abas e some quando a tabela está rolada. Arrastar até ela seria tentativa e erro.',
+      'No lugar, a bandeja “Outra aba” sobe fixa no rodapé da tela enquanto dura o arrasto, só com as abas que fazem sentido. É do próprio CarteiraDnd (dentro do GenericAssetTable), então não exige mexer no CarteiraResumo nem no ResponsiveTabNav.',
+      'Compatíveis: contorno tracejado. Sob o ponteiro: contorno sólido e preenchimento.'],
+  D4:['Stocks e REIT\'s aparecem na bandeja travados, com cadeado e “em dólar”: é a dúvida mais provável (“por que meu FII não vai para REIT\'s?”).',
+      'Sobre a aba recusada o fantasma troca o destino pelo motivo e a aba ganha contorno vermelho. Soltar ali não faz nada e o leitor de tela ouve o motivo.',
+      'Renda Fixa e as outras abas fora da fase não entram na bandeja; o motivo delas está no diálogo e no painel do celular.'],
+  D5:['Soltar numa aba nunca escolhe seção às cegas: abre um popover acima da bandeja com as seções da aba. A sugestão vem do nome ou do segmento quando houver (aqui “Fiagro”).',
+      'Linha nova: o objetivo. Na troca de aba o objetivo (% dentro da aba) volta a 0%, e o popover mostra isso antes de confirmar.',
+      'Esc ou Cancelar: nada acontece e o foco volta à alça.'],
+  D6:['Otimista, como no Fluxo: a linha já está no destino, a 60%, com “Movendo…”. Totais das seções já refletem a mudança.',
+      'Alça e menu dessa linha ficam bloqueados até responder. Outras linhas seguem livres.'],
+  D7:['Toast com Desfazer por 8s. Desfazer chama o mesmo caminho do Histórico de alterações (a ação também aparece lá, desfazível depois).',
+      'Troca só de seção: sem selo. KDIF11 passou a estar em Infra, e é só isso.'],
+  D8:['Ligue “Simular falha ao salvar” no D1 para ver ao vivo. A linha volta sozinha; o toast diz onde ela ficou e oferece “Tentar de novo”.',
+      'Toast de erro: no claro, branco sobre vermelho (4,8:1). No escuro, texto vermelho claro sobre superfície escura com borda vermelha.'],
+  D9:['Menu ⋯ em toda linha móvel. É o caminho principal para teclado e leitor de tela, não um extra.',
+      'HGLG11 está em FII\'s por escolha manual. O menu traz “Voltar para Fundos”, com a seção que ele tinha lá (Fundos › FIM, guardada). Voltar apaga a escolha manual: ele passa a seguir o catálogo de novo.'],
+  D10:['Um diálogo serve a tabela e a página do ativo. Rádios nativos com um único nome: setas percorrem todas as seções de todas as abas aceitas.',
+       'Em ETF\'s, Brasil e EUA ficam livres: a região do ETF é escolha do usuário (IVVB11 é em real com exposição aos EUA).',
+       'Escolha outra aba e veja a linha do objetivo aparecer no rodapé.'],
+  D11:['Planejado (sem posição, Watchlist) move do mesmo jeito. Aqui XPML11 foi planejado sem seção e caiu em FOF; o usuário leva para Tijolo.',
+       'Na troca de aba, o planejado mantém o objetivo: é o único dado que ele tem (diverge da spec, ver pergunta 12).',
+       'Se depois o usuário comprar XPML11, a posição nasce já no lugar escolhido.'],
+  M1:['Sem arrastar no celular, igual ao Fluxo no PWA. O cartão aberto ganha “Mover” ao lado de “Abrir”.',
+      'O selo “movido” aparece no cartão de HGLG11 (veio de Fundos).'],
+  M2:['Mesmo padrão do MovePanel do Fluxo: lista agrupada, opções de 56px, botão que diz o destino.',
+      'Primeiro grupo é a própria aba (caso mais comum: seção errada). Depois as abas aceitas, cada uma com suas seções. ETF\'s com Brasil e EUA livres.'],
+  M3:['Abas recusadas não somem: ficam num item recolhido com o motivo de cada uma, para o usuário entender por que Renda Fixa não está lá.'],
+  M4:['Botão vira “Movendo…”, opções bloqueadas, painel não fecha com toque fora até responder.'],
+  M5:['Erro no rodapé, em vermelho, painel aberto com a escolha preservada. O botão continua para tentar de novo.'],
+  M6:['Painel fecha, o cartão aparece em Infra com realce curto, toast com Desfazer acima da barra inferior.'],
+  A1:['Nova linha sob o título: “Na Carteira: FII\'s › FOF” (leva à aba). A ação “Mover na Carteira” fica ao lado de “Editar produto”, como botão secundário. O nome cobre seção e aba.',
+      'Na página de edição (/ativos/[id]/editar) não colocamos de novo: mover não é editar o produto.'],
+  A2:['O mesmo diálogo do D10. Ao confirmar, a página fica onde está; o cabeçalho atualiza e o toast oferece “Ver na Carteira”.'],
+  A3:['Salvando: botão com spinner, rádios bloqueados. Erro: mensagem no diálogo, escolha mantida.'],
+  A4:['KNCA11 foi levado para Fundos › Fiagro. A linha mostra “movido por você em 01/10/2026 · Voltar para FII\'s › FOF”. Data e autor vêm do Histórico de alterações; para o consultor o texto vira “movido pelo consultor”.',
+      'Voltar apaga a escolha manual e reabre a seção guardada da aba de origem.'],
+  A5:['Renda Fixa e as demais abas fora da fase: nada de botão desabilitado. Uma frase explica: “Renda Fixa ainda não pode ser movida para outra aba.” (o arquiteto prefere botão desabilitado com motivo: pergunta 10).'],
+  A6:['No celular a classificação vira uma linha própria logo após o cartão de posição, com o botão “Mover” (44px) que abre o mesmo painel do M2.'],
+};
+
+/* ---------------- Montagem por cenário ---------------- */
+function applyScenario(k){
+  reset();
+  const mv = (id,tab,sec) => setPlace(row(id), tab, sec);
+  S.k = k;
+  S.view = SC.find(s=>s.k===k).view;
+  if (k==='D2') S.drag={id:'kdif', over:'sec:infra', staticG:true};
+  if (k==='D3') S.drag={id:'knca', over:'tab:fim-fia', staticG:true};
+  if (k==='D4') S.drag={id:'knca', over:'tab:stocks', staticG:true};
+  if (k==='D5') S.pop={id:'knca', tab:'fim-fia', sec:'fiagro'};
+  if (k==='D6') { mv('kdif','fiis','infra'); S.saving='kdif'; }
+  if (k==='D7') { const prev=mv('kdif','fiis','infra'); S.toast={kind:'ok', id:'kdif', prev, msg:'KDIF11 movido para Infra.'}; S.flash='kdif'; }
+  if (k==='D8') { S.toast={kind:'err', id:'kdif', retry:{tab:'fiis',sec:'infra'}, msg:'Não foi possível mover KDIF11. Ele continua em FOF.'}; }
+  if (k==='D9') S.menu='hglg';
+  if (k==='D10') S.dialog={id:'cpti', pick:'fiis|infra', status:'idle'};
+  if (k==='D11') S.drag={id:'xpml', over:'sec:tijolo', staticG:true};
+  if (k==='M1') S.expanded='kdif';
+  if (k==='M2') S.sheet={id:'kdif', pick:null, status:'idle', more:false};
+  if (k==='M3') S.sheet={id:'kdif', pick:null, status:'idle', more:true};
+  if (k==='M4') S.sheet={id:'kdif', pick:'fiis|infra', status:'saving', more:false};
+  if (k==='M5') S.sheet={id:'kdif', pick:'fiis|infra', status:'error', more:false};
+  if (k==='M6') { const prev=mv('kdif','fiis','infra'); S.expanded='kdif'; S.flash='kdif'; S.toast={kind:'ok', id:'kdif', prev, msg:'KDIF11 movido para Infra.'}; }
+  if (k==='A1') S.asset='kdif';
+  if (k==='A2') { S.asset='kdif'; S.dialog={id:'kdif', pick:'fiis|infra', status:'idle'}; }
+  if (k==='A3') { S.asset='kdif'; S.dialog={id:'kdif', pick:'fiis|infra', status:'error'}; }
+  if (k==='A4') { S.asset='knca'; const prev=mv('knca','fim-fia','fiagro'); S.toast={kind:'ok', id:'knca', prev, msg:'KNCA11 agora está em Fundos › Fiagro. Objetivo voltou a 0%.', ver:true}; }
+  if (k==='A5') S.asset='cdb';
+  if (k==='A6') S.asset='kdif';
+  render();
+  renderNotes();
+}
+
+/* ---------------- Helpers de linha ---------------- */
+const val = r => r.q * r.c;
+const rent = r => r.pm ? (r.c - r.pm) / r.pm * 100 : 0;
+const isMoved = r => r.tab!==r.base.tab;
+const tabRows = tab => S.rows.filter(r=>r.tab===tab);
+const tabTotal = tab => tabRows(tab).reduce((a,r)=>a+val(r),0);
+const movedText = r => r.movedAt ? `Você moveu de ${tabLabel(r.base.tab)} em ${r.movedAt}` : 'Movido para cá manualmente';
+
+function badges(r){
+  let h = '';
+  if (r.plan) h += ' <span class="badge plan">planejado</span>';
+  if (isMoved(r)) h += ` <span class="badge moved" title="${esc(movedText(r))}">${ICON_MOVED}movido<span class="sr">, ${esc(movedText(r))}</span></span>`;
+  return h;
+}
+
+/* ---------------- Render: computador ---------------- */
+function renderTabs(active){
+  return `<div class="tabs" role="tablist" aria-label="Classes da carteira">${TABS.map(t=>
+    `<button class="tab" role="tab" type="button" data-tab-nav="${t.id}" aria-selected="${t.id===active}">${esc(t.label)}</button>`
+  ).join('')}</div>`;
+}
+
+function renderTray(){
+  const cur = S.drag || S.pop; if (!cur) return '';
+  const r = row(cur.id);
+  const ok = TABS.filter(t=>compat(t.id).ok && t.id!==r.tab);
+  const bad = ['stocks','reit'];
+  return `<div class="tray-dock"><div class="tray" role="group" aria-label="Mover para outra aba" id="tray">
+    <div class="tray-h"><b>Outra aba</b><span>Solte numa seção da tabela ou numa aba abaixo. Esc cancela.</span></div>
+    <div class="tray-row">${ok.map(t=>`<div class="tchip" data-tab="${t.id}"><span>${esc(t.label)}</span><small>${SECS[t.id].length} seções</small></div>`).join('')}${bad.map(id=>`<div class="tchip locked" data-tab="${id}" aria-disabled="true" aria-description="${esc(compat(id).reason)}"><span>${ICON_LOCK}${esc(tabLabel(id))}</span><small>em dólar</small></div>`).join('')}</div>
+  </div></div>`;
+}
+
+function renderDesk(){
+  const total = tabTotal('fiis');
+  let body = '';
+  SECS.fiis.forEach(([sid,sname])=>{
+    const rows = S.rows.filter(r=>r.tab==='fiis'&&r.sec===sid);
+    const sv = rows.reduce((a,r)=>a+val(r),0);
+    body += `<tbody data-sec="${sid}" data-drop="sec:${sid}">
+      <tr class="band"><td colspan="10">${esc(sname)} <span class="drop-label">Soltar aqui</span></td></tr>`;
+    if (!rows.length) body += `<tr class="ph"><td colspan="10">Nenhum ativo em ${esc(sname)}.</td></tr>`;
+    rows.forEach(r=>{
+      const saving = S.saving===r.id;
+      body += `<tr class="item${saving?' saving':''}${S.flash===r.id?' flash':''}" data-row="${r.id}">
+        <td><div class="namecell">
+          <button class="handle" type="button" data-handle="${r.id}" aria-label="Mover ${r.t}. Espaço para pegar" aria-describedby="dndHelp" title="Arraste para outra seção ou aba" ${saving?'disabled':''}>⠿</button>
+          <span><a class="tk" href="#" data-open="${r.id}">${r.t}</a>${badges(r)}<span class="nm">${esc(r.n)}</span></span>
+          ${saving?'<span class="saving-label"><span class="spin" aria-hidden="true"></span>Movendo…</span>':''}
+        </div></td>
+        <td>${esc(r.seg)}</td>
+        <td class="r">${r.q}</td>
+        <td class="r">${r.pm?brl.format(r.pm):'—'}</td>
+        <td class="r">${brl.format(r.c)}</td>
+        <td class="r">${brl.format(val(r))}</td>
+        <td class="r">${total?pct1(val(r)/total*100):'—'}</td>
+        <td class="r hl">${r.obj},0%</td>
+        <td class="r ${rent(r)>=0?'pos':'neg'}">${r.pm?pct(rent(r)):'—'}</td>
+        <td class="r"><button class="kebab" type="button" data-menu="${r.id}" aria-haspopup="menu" aria-expanded="${S.menu===r.id}" aria-label="Ações de ${r.t}" ${saving?'disabled':''}>⋯</button></td>
+      </tr>`;
+    });
+    if (rows.length) body += `<tr class="total"><td>Total ${esc(sname)}</td><td></td><td class="r">${rows.reduce((a,r)=>a+r.q,0)}</td><td></td><td></td><td class="r">${brl.format(sv)}</td><td class="r">${total?pct1(sv/total*100):'—'}</td><td></td><td></td><td></td></tr>`;
+    body += `</tbody>`;
+  });
+  return `<div class="desk" id="desk">
+    <div class="desk-top"><h2>Carteira</h2><span class="crumb">Resumo · ${S.rows.filter(r=>r.tab==='fiis').length} ativos em FII's</span></div>
+    ${renderTabs('fiis')}
+    <div class="tbl-title"><h3>FII's - Detalhamento</h3><span class="tag-ex">dados de exemplo</span></div>
+    <p class="sr" id="dndHelp">Espaço pega a linha. Setas escolhem a seção ou a aba de destino. Espaço solta. Esc cancela. Também dá para usar o menu Ações da linha, opção Mover para.</p>
+    <div class="tbl-wrap"><table class="at">
+      <thead><tr><th>Nome do ativo</th><th>Segmento</th><th class="r">Quantidade</th><th class="r">Preço médio</th><th class="r">Cotação atual</th><th class="r">Valor atualizado</th><th class="r">% da aba</th><th class="r hl">Objetivo</th><th class="r">Rentabilidade</th><th class="r"><span class="sr">Ações</span></th></tr></thead>
+      ${body}
+      <tbody><tr class="total"><td>TOTAL GERAL</td><td></td><td></td><td></td><td></td><td class="r">${brl.format(total)}</td><td class="r">100,0%</td><td class="r">${S.rows.filter(r=>r.tab==='fiis').reduce((a,r)=>a+r.obj,0)},0%</td><td></td><td></td></tr></tbody>
+    </table></div>
+    ${renderTray()}
+    <div class="ghost" id="ghost" hidden></div>
+    ${S.menu?renderMenu():''}
+    ${S.pop?renderPop():''}
+    ${S.dialog?renderDialog():''}
+    ${S.toast?renderToast(false):''}
+  </div>`;
+}
+
+function renderMenu(){
+  const r = row(S.menu);
+  return `<div class="menu" role="menu" id="rowMenu" aria-label="Ações de ${r.t}">
+    <button role="menuitem" type="button" data-act="open">Abrir ativo</button>
+    <button role="menuitem" type="button" data-act="move">Mover para…<small>Outra seção ou outra aba</small></button>
+    ${isMoved(r)?`<hr><button role="menuitem" type="button" data-act="restore">Voltar para ${esc(tabLabel(r.base.tab))}<small>${esc(where(r.base.tab,r.base.sec))} · ${esc(movedText(r))}</small></button>`:''}
+  </div>`;
+}
+
+const objLine = (r, toTab) => (!r.plan && toTab!==r.tab) ? `<b>Objetivo:</b> ${r.obj},0% em ${esc(tabLabel(r.tab))} → 0% em ${esc(tabLabel(toTab))}. Ajuste depois na aba.` : '';
+
+function renderPop(){
+  const r = row(S.pop.id);
+  const t = S.pop.tab;
+  const ol = objLine(r, t);
+  return `<div class="pop up" id="pop" role="dialog" aria-modal="false" aria-labelledby="popH">
+    <h4 id="popH">Mover ${r.t} para ${esc(tabLabel(t))}</h4>
+    <fieldset class="chips" aria-label="Seção em ${esc(tabLabel(t))}">
+      ${SECS[t].map(([s,l])=>`<label class="chip"><input type="radio" name="popsec" value="${s}" ${S.pop.sec===s?'checked':''}><span>${esc(l)}${s==='fiagro'&&t==='fim-fia'?' <em class="sug">sugerida</em>':''}</span></label>`).join('')}
+    </fieldset>
+    ${ol?`<p class="warn">${ol}</p>`:''}
+    <p>Valores e rentabilidade não mudam. Alocação e relatórios passam a contar ${r.t} em ${esc(tabLabel(t))}.</p>
+    <div class="row-end"><button class="btn" type="button" data-pop="cancel">Cancelar</button><button class="btn primary" type="button" data-pop="ok" ${S.pop.sec?'':'disabled'}>Mover para ${esc(S.pop.sec?secLabel(t,S.pop.sec):'…')}</button></div>
+  </div>`;
+}
+
+function destKey(tab,sec){ return tab+'|'+sec; }
+function impactHtml(r, pt){
+  let h = `<b>O que muda:</b> onde ${r.t} aparece na Carteira, na alocação por classe e nos relatórios por classe. <b>Não muda:</b> quantidade, preço médio, rentabilidade, proventos nem o IR (segue o tipo do ativo na B3). Dá para desfazer.`;
+  const ol = pt ? objLine(r, pt) : '';
+  if (ol) h += `<br>${ol}`;
+  if (pt && isMoved(r) && pt===r.base.tab) h += `<br>Voltando para ${esc(tabLabel(pt))}, ${r.t} deixa de ter escolha manual e segue o tipo do catálogo.`;
+  return h;
+}
+function renderDialog(){
+  const d = S.dialog;
+  const r = row(d.id);
+  const saving = d.status==='saving';
+  const okTabs = TABS.filter(t=>compat(t.id).ok);
+  const bad = TABS.filter(t=>{const c=compat(t.id); return !c.ok && !c.hide;});
+  const order = [r.tab, ...okTabs.map(t=>t.id).filter(id=>id!==r.tab)];
+  const [pt,ps] = (d.pick||'|').split('|');
+  const changed = d.pick && d.pick!==destKey(r.tab,r.sec);
+  const blocks = order.map(tab=>{
+    const cur = tab===r.tab;
+    const orig = isMoved(r) && tab===r.base.tab;
+    return `<fieldset class="dest${cur?' cur':''}"><legend>${esc(tabLabel(tab))}${cur?'<small>aba atual</small>':''}${orig?'<small>aba de origem</small>':''}</legend>
+      <div class="chips">${SECS[tab].map(([s,l])=>{
+        const isCur = cur && s===r.sec;
+        return `<label class="chip"><input type="radio" name="dest" value="${destKey(tab,s)}" ${d.pick===destKey(tab,s)?'checked':''} ${isCur||saving?'disabled':''} ${isCur?'aria-describedby="curNote"':''}><span>${esc(l)}${isCur?' · atual':''}${orig&&s===r.base.sec?' · antes':''}</span></label>`;
+      }).join('')}</div></fieldset>`;
+  }).join('');
+  return `<div class="overlay" data-close="dialog"><div class="dialog" role="dialog" aria-modal="true" aria-labelledby="dlgH" aria-describedby="dlgD">
+    <div class="dlg-h"><h3 id="dlgH">Mover ${r.t}</h3><p id="dlgD">Hoje em <b>${esc(where(r.tab,r.sec))}</b>. Escolha a seção desta aba ou de outra aba compatível.</p><span class="sr" id="curNote">Lugar atual</span></div>
+    <div class="dlg-b">
+      ${blocks}
+      <details class="unavail"><summary>${bad.length} abas não aceitam ${r.t}</summary><ul>${bad.map(t=>`<li><b>${esc(t.label)}</b>: ${esc(compat(t.id).reason)}</li>`).join('')}</ul></details>
+    </div>
+    <div class="dlg-f">
+      <p class="impact" aria-live="polite">${impactHtml(r, d.pick?pt:null)}</p>
+      ${d.status==='error'?`<div class="err" role="alert">Não foi possível mover ${r.t}. Confira sua conexão e tente de novo. Ele continua em ${esc(where(r.tab,r.sec))}.</div>`:''}
+      <div class="row-end"><button class="btn" type="button" data-dlg="cancel" ${saving?'disabled':''}>Cancelar</button>
+      <button class="btn primary" type="button" data-dlg="ok" ${changed&&!saving?'':'disabled'}>${saving?'<span class="spin" aria-hidden="true"></span>Movendo…':(changed?`Mover para ${esc(pt===r.tab?secLabel(pt,ps):where(pt,ps))}`:'Mover')}</button></div>
+    </div>
+  </div></div>`;
+}
+
+function renderToast(mobile){
+  const t = S.toast;
+  const cls = mobile ? 'mtoast' : 'toast';
+  if (t.kind==='err') return `<div class="${cls} err" role="alert"><span>${esc(t.msg)}</span><button type="button" data-toast="retry">Tentar de novo</button></div>`;
+  if (t.kind==='info') return `<div class="${cls}" role="status"><span>${esc(t.msg)}</span><button type="button" class="x" data-toast="close" aria-label="Fechar aviso">✕</button></div>`;
+  return `<div class="${cls}" role="status"><span>${esc(t.msg)}</span>${t.ver?`<button type="button" data-toast="ver">Ver na Carteira</button>`:''}${t.verTab?`<button type="button" data-toast="vertab">Ver em ${esc(tabLabel(t.verTab))}</button>`:''}<button type="button" data-toast="undo">Desfazer</button>${mobile?'':'<button type="button" class="x" data-toast="close" aria-label="Fechar aviso">✕</button>'}</div>`;
+}
+
+/* ---------------- Render: página do ativo (computador) ---------------- */
+function renderAsset(){
+  if (S.asset==='cdb') {
+    return `<div class="desk" id="desk">
+      <div class="ap-head"><div><h2>CDB Banco Inter 110% CDI</h2><p class="sub">Vence em 15/03/2028 • Banco Inter</p>
+        <div class="classline">Na Carteira: <a class="crumbchip" href="#">Renda Fixa</a> <span>· Renda Fixa ainda não pode ser movida para outra aba.</span></div></div>
+        <div class="ap-actions"><button class="btn" type="button">Editar produto</button></div></div>
+      <dl class="metrics">${[['Valor aplicado','R$ 20.000,00'],['Saldo bruto','R$ 21.684,32'],['Rentabilidade','+8,42%'],['Taxa','110% CDI'],['Início','15/03/2025']].map(([a,b])=>`<div class="metric"><dt>${a}</dt><dd>${b}</dd></div>`).join('')}</dl>
+      <div class="ap-section">Histórico de aplicações e resgates…</div>
+    </div>`;
+  }
+  const r = row(S.asset);
+  return `<div class="desk" id="desk">
+    <div class="ap-head"><div><h2>${esc(r.n)}</h2><p class="sub">${r.t} • ${esc(r.inst)}</p>
+      <div class="classline">Na Carteira: <a class="crumbchip" href="#" data-goto="D1">${esc(where(r.tab,r.sec))}</a>
+      ${isMoved(r)?`<span>· movido por você em ${esc(r.movedAt||'')} ·</span><button class="btn link" type="button" data-restore="${r.id}">Voltar para ${esc(where(r.base.tab,r.base.sec))}</button>`:''}</div></div>
+      <div class="ap-actions"><button class="btn" type="button" data-movedlg="${r.id}">Mover na Carteira</button><button class="btn" type="button">Editar produto</button></div></div>
+    <dl class="metrics">${[['Quantidade',r.q],['Preço médio',brl.format(r.pm)],['Rentabilidade',pct(rent(r))],['Última cotação',brl.format(r.c)],['Valor aplicado',brl.format(r.q*r.pm)],['Saldo bruto',brl.format(val(r))]].map(([a,b])=>`<div class="metric"><dt>${a}</dt><dd>${b}</dd></div>`).join('')}</dl>
+    <div class="ap-section">Gráfico de evolução e proventos…</div>
+    ${S.dialog?renderDialog():''}
+    ${S.toast?renderToast(false):''}
+  </div>`;
+}
+
+/* ---------------- Render: celular ---------------- */
+function phoneShell(title, back, body, extra){
+  return `<div class="phone-stage"><div class="phone" id="phone" role="region" aria-label="Simulação de celular, 390 pontos de largura">
+    <div class="ph-status" aria-hidden="true"><span>9:41</span><span>●●● ▮</span></div>
+    <div class="ph-head">${back?'<button class="ph-back" type="button" aria-label="Voltar">‹</button>':''}<h2>${title}</h2></div>
+    <div class="ph-body">${body}</div>
+    <nav class="ph-tabbar" aria-label="Navegação principal"><span>Início</span><span class="on">Carteira</span><span>Fluxo</span><span>Planejar</span><span>Mais</span></nav>
+    ${extra||''}
+  </div></div>`;
+}
+
+function renderPhone(){
+  let body = `<nav class="rail" aria-label="Classes da carteira">${['Carteira Consolidada','Renda Fixa','Fundos',"FII's",'Ações','Stocks'].map(l=>`<span class="mchip${l==="FII's"?' on':''}">${esc(l)}</span>`).join('')}</nav>`;
+  SECS.fiis.forEach(([sid,sname])=>{
+    const rows = S.rows.filter(r=>r.tab==='fiis'&&r.sec===sid);
+    body += `<div class="mband"><span aria-hidden="true">▾</span>${esc(sname)}<span class="cnt">${rows.length} · ${brl.format(rows.reduce((a,r)=>a+val(r),0))}</span></div>`;
+    if (!rows.length) body += `<p style="font-size:13px;color:var(--app-muted);padding:0 4px">Nenhum ativo em ${esc(sname)}.</p>`;
+    rows.forEach(r=>{
+      const open = S.expanded===r.id;
+      body += `<article class="mcard${S.flash===r.id?' flash':''}" ${S.flash===r.id?'style="box-shadow:0 0 0 2px var(--accent)"':''}>
+        <div class="top"><div><div class="t">${r.t}${badges(r)}</div><div class="n">${esc(r.n)}</div></div>
+          <div class="v">${brl.format(val(r))}<small class="${rent(r)>=0?'pos':'neg'}">${r.pm?pct(rent(r)):'—'}</small></div></div>
+        ${open?`<dl class="mgrid"><div><dt>Quantidade</dt><dd>${r.q}</dd></div><div><dt>Preço médio</dt><dd>${brl.format(r.pm)}</dd></div><div><dt>Cotação</dt><dd>${brl.format(r.c)}</dd></div><div><dt>Objetivo</dt><dd>${r.obj},0%</dd></div><div><dt>Segmento</dt><dd>${esc(r.seg)}</dd></div></dl>
+        <div class="mactions"><button class="mbtn" type="button">Abrir</button><button class="mbtn" type="button" data-msheet="${r.id}">Mover</button></div>`:''}
+      </article>`;
+    });
+  });
+  return phoneShell('Carteira', false, body, (S.sheet?renderSheet():'') + (S.toast?renderToast(true):''));
+}
+
+function renderSheet(){
+  const sh = S.sheet;
+  const r = row(sh.id);
+  const saving = sh.status==='saving';
+  const order = [r.tab, ...['fiis','acoes','etf','fim-fia'].filter(t=>t!==r.tab)];
+  const bad = TABS.filter(t=>{const c=compat(t.id); return !c.ok && !c.hide;});
+  const [pt,ps] = (sh.pick||'|').split('|');
+  let groups = order.map(tab=>{
+    const cur = tab===r.tab;
+    return `<div><p class="mgl" id="g-${tab}">${cur?`Nesta aba · ${esc(tabLabel(tab))}`:esc(tabLabel(tab))}</p>
+      <div role="radiogroup" aria-labelledby="g-${tab}">${SECS[tab].map(([s,l])=>{
+        const isCur = cur && s===r.sec;
+        const n = S.rows.filter(x=>x.tab===tab&&x.sec===s).length;
+        const disabled = isCur||saving;
+        const desc = isCur ? 'Atual' : (tab==='fiis' ? `${n} ${n===1?'ativo':'ativos'}` : '');
+        return `<button class="mopt" type="button" role="radio" aria-checked="${sh.pick===destKey(tab,s)}" ${disabled?'aria-disabled="true"':''} data-mpick="${destKey(tab,s)}"><span><span class="l">${esc(l)}</span>${desc?`<span class="d">${esc(desc)}</span>`:''}</span><span class="rd" aria-hidden="true" ${disabled&&sh.pick!==destKey(tab,s)?'style="opacity:.4"':''}></span></button>`;
+      }).join('')}</div></div>`;
+  }).join('');
+  groups += `<div><button class="mopt" type="button" aria-expanded="${sh.more}" data-mmore="1"><span><span class="l" style="font-weight:500">${bad.length} abas não aceitam ${r.t}</span><span class="d">Ver o motivo</span></span><span aria-hidden="true">${sh.more?'▴':'▾'}</span></button>
+    ${sh.more?`<ul style="margin:0;padding:0 12px 0 28px;font-size:13px;color:var(--app-muted);display:flex;flex-direction:column;gap:4px">${bad.map(t=>`<li><b style="color:var(--app-strong);font-weight:500">${esc(t.label)}</b>: ${esc(compat(t.id).reason)}</li>`).join('')}</ul>`:''}</div>`;
+  const ol = sh.pick ? objLine(r, pt) : '';
+  return `<div class="sheet-ov" data-close="sheet"><div class="sheet" role="dialog" aria-modal="true" aria-labelledby="shH">
+    <div class="grab" aria-hidden="true"></div>
+    <div class="sheet-h"><div><h3 id="shH">Mover ${r.t}</h3><p>Hoje em ${esc(where(r.tab,r.sec))}</p></div><button class="sheet-x" type="button" data-msheetclose="1" aria-label="Fechar" ${saving?'disabled':''}>✕</button></div>
+    <div class="sheet-b">${groups}<p style="font-size:12px;color:var(--app-muted);padding:0 4px">Valores e rentabilidade não mudam. O IR segue o tipo do ativo na B3. Dá para desfazer.</p></div>
+    <div class="sheet-f">
+      ${ol?`<p class="impact" aria-live="polite">${ol}</p>`:''}
+      ${sh.status==='error'?`<div class="err" role="alert">Não foi possível mover ${r.t}. Confira sua conexão e tente de novo.</div>`:''}
+      <div class="row"><button class="mbtn" type="button" data-msheetclose="1" ${saving?'disabled':''}>Voltar</button>
+      <button class="mbtn primary" type="button" data-mgo="1" ${sh.pick&&!saving?'':'disabled'}>${saving?'<span class="spin" aria-hidden="true"></span>Movendo…':(sh.pick?`Mover para ${esc(pt===r.tab?secLabel(pt,ps):where(pt,ps))}`:'Mover')}</button></div>
+    </div>
+  </div></div>`;
+}
+
+function renderPhoneAsset(){
+  const r = row('kdif');
+  const body = `<div style="display:flex;justify-content:space-between;gap:10px;align-items:flex-start"><div><h3 style="font-size:24px;font-weight:600;color:var(--app-strong)">${r.t}</h3><p style="font-size:13.5px;color:var(--app-muted)">${esc(r.n)} • ${esc(r.inst)}</p></div><button class="mbtn" type="button" style="flex:none;padding:0 12px">Editar</button></div>
+    <section class="mcard" aria-label="Posição"><p style="font-size:12px;color:var(--app-muted)">Saldo bruto</p><p style="font-size:26px;font-weight:600;color:var(--app-strong);font-variant-numeric:tabular-nums">${brl.format(val(r))}</p><p class="neg" style="font-size:14px;font-weight:500">${brl.format(val(r)-r.q*r.pm)} (${pct(rent(r))})</p>
+      <dl class="mgrid"><div><dt>Quantidade</dt><dd>${r.q}</dd></div><div><dt>Preço médio</dt><dd>${brl.format(r.pm)}</dd></div><div><dt>Cotação</dt><dd>${brl.format(r.c)}</dd></div></dl></section>
+    <div class="mrow"><div class="grow"><div class="lbl">Na Carteira</div><div class="val">${esc(where(r.tab,r.sec))}${badges(r)}</div></div><button class="mbtn" type="button" data-msheet="kdif">Mover</button></div>
+    <div class="mcard"><div class="skel" style="width:60%"></div><div class="skel" style="width:90%"></div><div class="skel" style="width:75%"></div></div>`;
+  return phoneShell(r.t, true, body, (S.sheet?renderSheet():'') + (S.toast?renderToast(true):''));
+}
+
+/* ---------------- Render principal ---------------- */
+function render(){
+  const v = S.view;
+  const html = v==='desk' ? renderDesk() : v==='asset' ? renderAsset() : v==='phone' ? renderPhone() : renderPhoneAsset();
+  $('#screen').innerHTML = html;
+  bind();
+  requestAnimationFrame(postRender);
+}
+
+function postRender(){
+  const desk = $('#desk');
+  if (!desk) return;
+  if (S.drag) { applyDrag(); if (S.drag.staticG) placeStaticGhost(); }
+  if (S.menu) {
+    const btn = $(`[data-menu="${S.menu}"]`), m = $('#rowMenu');
+    if (btn && m) { const a = rel(btn, desk); m.style.top = (a.top + a.height + 4) + 'px'; m.style.left = Math.max(8, a.left + a.width - 300) + 'px'; }
+  }
+  if (S.pop) {
+    const chip = $(`.tchip[data-tab="${S.pop.tab}"]`), p = $('#pop');
+    if (chip && p) { chip.classList.add('drop-on');
+      const a = rel(chip, desk); p.style.top = Math.max(8, a.top - p.offsetHeight - 12) + 'px'; p.style.left = Math.min(Math.max(8, a.left - 16), desk.clientWidth - 330) + 'px';
+      if (S.pop.live) { S.pop.live = false; const f=$('#pop input:checked')||$('#pop input'); f && f.focus({preventScroll:true}); } }
+  }
+  if (S.dialog && S.dialog.focus) { const f = $('.dialog input:checked') || $('.dialog input:not(:disabled)'); f && f.focus(); S.dialog.focus=false; }
+}
+const rel = (el, base) => { const a = el.getBoundingClientRect(), b = base.getBoundingClientRect(); return {top:a.top-b.top, left:a.left-b.left, width:a.width, height:a.height}; };
+
+/* ---------------- Arrastar ---------------- */
+function targetEl(key){
+  if (!key) return null;
+  const [kind,id] = key.split(':');
+  return kind==='sec' ? $(`tbody[data-sec="${id}"]`) : $(`.tchip[data-tab="${id}"]`);
+}
+function applyDrag(){
+  const desk = $('#desk'); if (!desk) return;
+  const d = S.drag;
+  desk.classList.toggle('dragging', !!d);
+  $$('.drop-on,.drop-bad', desk).forEach(e=>e.classList.remove('drop-on','drop-bad'));
+  $$('tr.drag-src', desk).forEach(e=>e.classList.remove('drag-src'));
+  const g = $('#ghost');
+  if (!d) { g.hidden = true; return; }
+  const r = row(d.id);
+  const src = $(`tr[data-row="${d.id}"]`); src && src.classList.add('drag-src');
+  let tail = '';
+  if (d.over) {
+    const [kind,id] = d.over.split(':');
+    const el = targetEl(d.over);
+    if (kind==='sec') {
+      if (id!==r.sec) { el && el.classList.add('drop-on'); tail = `<span class="to">→ ${esc(secLabel('fiis',id))}</span>`; }
+    } else {
+      const c = compat(id);
+      if (c.ok) { el && el.classList.add('drop-on'); tail = `<span class="to">→ ${esc(tabLabel(id))} (escolher seção)</span>`; }
+      else { el && el.classList.add('drop-bad'); tail = `<span class="no">✕ ${esc(tabLabel(id))}: ${esc(c.reason)}</span>`; }
+    }
+  }
+  g.innerHTML = `<span aria-hidden="true" style="color:var(--app-muted)">⠿</span><span>${r.t}</span>${tail}`;
+  g.hidden = false;
+}
+function placeStaticGhost(){
+  const desk = $('#desk'), g = $('#ghost'), el = targetEl(S.drag.over);
+  if (!el || !desk) return;
+  if (el.tagName==='TBODY') {
+    const a = rel(el.querySelector('tr'), desk);
+    g.style.left = (a.left + Math.min(a.width*0.35, 260)) + 'px';
+    g.style.top = (a.top + a.height + 6) + 'px';
+  } else {
+    const a = rel(el, desk);
+    g.style.left = Math.min(a.left + 24, desk.clientWidth - 300) + 'px';
+    g.style.top = (a.top - 42) + 'px';
+  }
+}
+
+let P = null; // arrasto com ponteiro
+function onHandleDown(e){
+  if (e.button!==0) return;
+  const id = e.currentTarget.dataset.handle;
+  P = {id, x:e.clientX, y:e.clientY, active:false};
+  e.preventDefault();
+  window.addEventListener('pointermove', onMove);
+  window.addEventListener('pointerup', onUp, {once:true});
+}
+function onMove(e){
+  if (!P) return;
+  if (!P.active) { if (Math.hypot(e.clientX-P.x, e.clientY-P.y) < 4) return; P.active = true; S.drag = {id:P.id, over:null}; S.menu=null; S.toast=null; render(); }
+  const desk = $('#desk'), g = $('#ghost');
+  const b = desk.getBoundingClientRect();
+  g.style.left = (e.clientX - b.left + 14) + 'px';
+  g.style.top = (e.clientY - b.top + 10) + 'px';
+  const under = document.elementFromPoint(e.clientX, e.clientY);
+  let over = null;
+  if (under) { const t = under.closest('.tchip'); const s = under.closest('tbody[data-sec]'); over = t ? 'tab:'+t.dataset.tab : s ? 'sec:'+s.dataset.sec : null; }
+  if (over !== S.drag.over || !P.painted) { S.drag.over = over; P.painted = true; applyDrag(); }
+}
+function onUp(){
+  window.removeEventListener('pointermove', onMove);
+  if (!P || !P.active) { P = null; return; }
+  P = null;
+  drop();
+}
+function drop(){
+  const d = S.drag; S.drag = null;
+  const r = row(d.id);
+  if (!d.over) { render(); live(`${r.t} voltou para ${secLabel(r.tab,r.sec)}.`); focusHandle(r.id); return; }
+  const [kind,id] = d.over.split(':');
+  if (kind==='sec') {
+    if (id===r.sec) { render(); live('Mesma seção. Nada mudou.'); focusHandle(r.id); return; }
+    return commitMove(r, 'fiis', id);
+  }
+  const c = compat(id);
+  if (!c.ok) { S.toast={kind:'info', msg:`${r.t} não foi movido. ${tabLabel(id)}: ${c.reason}.`}; render(); live(S.toast.msg); focusHandle(r.id); return; }
+  const sug = /fiagro/i.test(r.n) && id==='fim-fia' ? 'fiagro' : (id==='etf' ? 'brasil' : null);
+  S.pop = {id:r.id, tab:id, sec:sug, live:true};
+  render();
+  live(`Escolha a seção em ${tabLabel(id)} para ${r.t}.`);
+}
+
+/* teclado na alça: Espaço pega, setas, Espaço solta, Esc cancela */
+function kbdTargets(r){
+  const t = SECS.fiis.map(s=>'sec:'+s[0]).filter(k=>k!=='sec:'+r.sec);
+  TABS.forEach(tb=>{ const c=compat(tb.id); if (c.ok && tb.id!==r.tab) t.push('tab:'+tb.id); });
+  return t;
+}
+function overName(key){ const [k,id]=key.split(':'); return k==='sec' ? `seção ${secLabel('fiis',id)}` : `aba ${tabLabel(id)}, na bandeja`; }
+function onHandleKey(e){
+  const id = e.currentTarget.dataset.handle;
+  const r = row(id);
+  if (!S.kbd) {
+    if (e.key===' '||e.key==='Enter') { e.preventDefault(); S.kbd={id, list:kbdTargets(r), i:-1}; S.drag={id, over:null}; S.toast=null; render(); setTimeout(()=>{ const h=$(`[data-handle="${id}"]`); if (h){ h.classList.add('grabbed'); h.focus(); } },20); live(`${r.t} pego, em ${secLabel(r.tab,r.sec)}. Use as setas para escolher o destino, Espaço para soltar, Esc para cancelar.`); }
+    return;
+  }
+  const k = S.kbd;
+  if (['ArrowDown','ArrowUp','ArrowRight','ArrowLeft'].includes(e.key)) {
+    e.preventDefault();
+    const dir = (e.key==='ArrowDown'||e.key==='ArrowRight') ? 1 : -1;
+    k.i = (k.i + dir + k.list.length) % k.list.length;
+    S.drag.over = k.list[k.i]; applyDrag(); placeStaticGhost();
+    live(`Sobre ${overName(S.drag.over)}. ${k.i+1} de ${k.list.length}.`);
+  } else if (e.key===' '||e.key==='Enter') {
+    e.preventDefault(); S.kbd=null; drop();
+  } else if (e.key==='Escape') {
+    e.preventDefault(); e.stopPropagation(); S.kbd=null; S.drag=null; render(); focusHandle(id); live(`Cancelado. ${r.t} continua em ${secLabel(r.tab,r.sec)}.`);
+  } else if (e.key==='Tab') { S.kbd=null; S.drag=null; render(); }
+}
+
+/* ---------------- Mover / desfazer ---------------- */
+let toastTimer = null;
+function armToast(){ clearTimeout(toastTimer); toastTimer = setTimeout(()=>{ S.toast=null; render(); }, 8000); }
+function focusHandle(id){ setTimeout(()=>{ const h=$(`[data-handle="${id}"]`)||$(`[data-msheet="${id}"]`)||$(`[data-movedlg="${id}"]`); h&&h.focus(); }, 50); }
+function okMsg(r, prev, opts={}){
+  const cross = r.tab!==prev.tab;
+  if (opts.restore) return `${r.t} voltou para ${where(r.tab,r.sec)}.${cross && !r.plan && prev.obj ? ' Objetivo voltou a 0%.' : ''}`;
+  if (!cross) return `${r.t} movido para ${secLabel(r.tab,r.sec)}.`;
+  return `${r.t} movido para ${where(r.tab,r.sec)}.${!r.plan && prev.obj ? ' Objetivo voltou a 0%.' : ''}`;
+}
+function commitMove(r, tab, sec, opts={}){
+  const fail = $('#failChk').checked;
+  const prev = setPlace(r, tab, sec);
+  S.saving = r.id; S.pop=null; S.dialog=null; S.menu=null; S.toast=null; S.flash=null;
+  render(); live(`Movendo ${r.t}…`);
+  setTimeout(()=>{
+    S.saving = null;
+    if (fail) {
+      restorePlace(r, prev);
+      S.toast = {kind:'err', id:r.id, retry:{tab,sec}, msg:`Não foi possível mover ${r.t}. Ele continua em ${secLabel(prev.tab,prev.sec)}.`};
+      render(); focusHandle(r.id); return;
+    }
+    const cross = tab!==prev.tab;
+    S.flash = cross ? null : r.id;
+    S.toast = {kind:'ok', id:r.id, prev, msg: okMsg(r, prev, opts), verTab: cross && S.view==='desk' ? tab : null, ver: S.view==='asset'};
+    render(); armToast(); live(S.toast.msg); if (!cross) focusHandle(r.id);
+  }, 900);
+}
+function undoMove(r, prev){
+  restorePlace(r, prev);
+  S.flash = r.tab==='fiis' ? r.id : null;
+  S.toast = {kind:'info', msg:`Movimento desfeito. ${r.t} voltou para ${where(prev.tab,prev.sec)}.`};
+  render(); armToast(); live(S.toast.msg); focusHandle(r.id);
+}
+
+/* ---------------- Ligações de eventos ---------------- */
+function bind(){
+  $$('[data-handle]').forEach(h=>{ h.addEventListener('pointerdown', onHandleDown); h.addEventListener('keydown', onHandleKey); });
+  $$('[data-menu]').forEach(b=>b.addEventListener('click', e=>{ e.stopPropagation(); S.menu = S.menu===b.dataset.menu ? null : b.dataset.menu; render(); if (S.menu) setTimeout(()=>{ const f=$('#rowMenu button'); f&&f.focus(); },30); }));
+  const menu = $('#rowMenu');
+  if (menu) {
+    menu.addEventListener('keydown', e=>{
+      const items = $$('button', menu); const i = items.indexOf(document.activeElement);
+      if (e.key==='ArrowDown') { e.preventDefault(); items[(i+1)%items.length].focus(); }
+      if (e.key==='ArrowUp') { e.preventDefault(); items[(i-1+items.length)%items.length].focus(); }
+      if (e.key==='Escape') { e.stopPropagation(); const id=S.menu; S.menu=null; render(); setTimeout(()=>{ const b=$(`[data-menu="${id}"]`); b&&b.focus(); },30); }
+    });
+    $$('button', menu).forEach(b=>b.addEventListener('click', ()=>{
+      const r = row(S.menu); const act = b.dataset.act; S.menu = null;
+      if (act==='move') { S.dialog={id:r.id, pick:null, status:'idle', focus:true}; render(); }
+      else if (act==='restore') { commitMove(r, r.base.tab, r.base.sec, {restore:true}); }
+      else if (act==='open') { setScenario('A1'); }
+    }));
+  }
+  // popover
+  $$('#pop input').forEach(i=>i.addEventListener('change', ()=>{ S.pop.sec=i.value; S.pop.live=true; render(); }));
+  $$('[data-pop]').forEach(b=>b.addEventListener('click', ()=>{
+    if (b.dataset.pop==='cancel') { const id=S.pop.id; S.pop=null; render(); focusHandle(id); live('Cancelado.'); return; }
+    const r = row(S.pop.id); commitMove(r, S.pop.tab, S.pop.sec);
+  }));
+  // diálogo
+  $$('.dialog input[name="dest"]').forEach(i=>i.addEventListener('change', ()=>{ S.dialog.pick=i.value; S.dialog.focus=true; render(); }));
+  $$('[data-dlg]').forEach(b=>b.addEventListener('click', ()=>{
+    const d = S.dialog; const r = row(d.id);
+    if (b.dataset.dlg==='cancel') { S.dialog=null; render(); focusHandle(r.id); return; }
+    const [t,s] = d.pick.split('|');
+    if (S.view==='asset') {
+      d.status='saving'; render();
+      setTimeout(()=>{ if ($('#failChk').checked) { d.status='error'; d.focus=true; render(); return; }
+        const prev = setPlace(r, t, s); S.dialog=null;
+        S.toast={kind:'ok',id:r.id,prev,msg:okMsg(r, prev),ver:true}; render(); armToast(); live(S.toast.msg); focusHandle(r.id); }, 900);
+    } else commitMove(r, t, s);
+  }));
+  $$('[data-movedlg]').forEach(b=>b.addEventListener('click', ()=>{ S.dialog={id:b.dataset.movedlg, pick:null, status:'idle', focus:true}; render(); }));
+  $$('[data-restore]').forEach(b=>b.addEventListener('click', ()=>{ const r=row(b.dataset.restore); const prev=setPlace(r, r.base.tab, r.base.sec); S.toast={kind:'ok',id:r.id,prev,msg:okMsg(r, prev, {restore:true})}; render(); armToast(); live(S.toast.msg); focusHandle(r.id); }));
+  $$('[data-goto]').forEach(a=>a.addEventListener('click', e=>{ e.preventDefault(); setScenario(a.dataset.goto); }));
+  $$('[data-open]').forEach(a=>a.addEventListener('click', e=>{ e.preventDefault(); if (a.dataset.open==='kdif') setScenario('A1'); }));
+  // toast
+  $$('[data-toast]').forEach(b=>b.addEventListener('click', ()=>{
+    const t = S.toast; const r = t.id && row(t.id);
+    const a = b.dataset.toast;
+    if (a==='close') { S.toast=null; render(); return; }
+    if (a==='undo' && r && t.prev) { clearTimeout(toastTimer); undoMove(r, t.prev); return; }
+    if (a==='retry' && r) { S.toast=null; commitMove(r, t.retry.tab, t.retry.sec); return; }
+    if (a==='ver') { setScenario('D1'); return; }
+    if (a==='vertab') { S.toast=null; render(); live('No app, isto abre a aba de destino com o ativo realçado.'); }
+  }));
+  // fechar overlays
+  $$('[data-close]').forEach(o=>o.addEventListener('click', e=>{ if (e.target!==o) return; if (o.dataset.close==='dialog' && S.dialog && S.dialog.status!=='saving') { S.dialog=null; render(); } if (o.dataset.close==='sheet' && S.sheet && S.sheet.status!=='saving') { S.sheet=null; render(); } }));
+  // celular
+  $$('[data-msheet]').forEach(b=>b.addEventListener('click', ()=>{ S.sheet={id:b.dataset.msheet, pick:null, status:'idle', more:false}; render(); setTimeout(()=>{ const f=$('.sheet .mopt:not([aria-disabled])'); f&&f.focus(); },30); }));
+  $$('[data-msheetclose]').forEach(b=>b.addEventListener('click', ()=>{ const id=S.sheet.id; S.sheet=null; render(); focusHandle(id); }));
+  $$('[data-mpick]').forEach(b=>b.addEventListener('click', ()=>{ if (b.getAttribute('aria-disabled')) return; S.sheet.pick=b.dataset.mpick; render(); const n=$(`[data-mpick="${b.dataset.mpick}"]`); n&&n.focus(); }));
+  $$('[data-mmore]').forEach(b=>b.addEventListener('click', ()=>{ S.sheet.more=!S.sheet.more; render(); const n=$('[data-mmore]'); n&&n.focus(); }));
+  $$('[data-mgo]').forEach(b=>b.addEventListener('click', ()=>{
+    const sh=S.sheet; const r=row(sh.id); const [t,s]=sh.pick.split('|');
+    sh.status='saving'; render();
+    setTimeout(()=>{
+      if ($('#failChk').checked) { sh.status='error'; render(); return; }
+      const prev = setPlace(r, t, s); S.sheet=null; S.flash=r.id; S.expanded=r.id;
+      S.toast={kind:'ok',id:r.id,prev,msg:okMsg(r, prev)};
+      render(); armToast(); live(S.toast.msg);
+    }, 900);
+  }));
+}
+
+document.addEventListener('click', e=>{ if (S.menu && !e.target.closest('#rowMenu') && !e.target.closest('[data-menu]')) { S.menu=null; render(); } });
+document.addEventListener('keydown', e=>{
+  if (e.key==='Escape') {
+    if (S.pop) { const id=S.pop.id; S.pop=null; render(); focusHandle(id); }
+    else if (S.dialog && S.dialog.status!=='saving') { const id=S.dialog.id; S.dialog=null; render(); focusHandle(id); }
+    else if (S.sheet && S.sheet.status!=='saving') { S.sheet=null; render(); }
+  }
+  if ((e.ctrlKey||e.metaKey) && e.key.toLowerCase()==='z' && S.toast && S.toast.kind==='ok' && !/INPUT|TEXTAREA/.test(document.activeElement.tagName)) { e.preventDefault(); const b=$('[data-toast="undo"]'); b&&b.click(); }
+});
+window.addEventListener('scroll', ()=>{ if (S.pop || (S.drag && S.drag.staticG)) requestAnimationFrame(postRender); }, {passive:true});
+
+/* ---------------- Bancada ---------------- */
+function renderNotes(){
+  const s = SC.find(x=>x.k===S.k);
+  $('#notes').innerHTML = `<p class="eyebrow">${esc(s.g)} · ${s.k}</p><h2>${esc(s.label)}</h2><ul>${(NOTES[s.k]||[]).map(n=>`<li>${esc(n)}</li>`).join('')}</ul>`;
+}
+function setScenario(k){
+  $$('.scen').forEach(b=>b.setAttribute('aria-pressed', String(b.dataset.k===k)));
+  try { localStorage.setItem('mf-mover-cen', k); } catch(_) {}
+  applyScenario(k);
+}
+const groups = [...new Set(SC.map(s=>s.g))];
+$('#scenarios').innerHTML = groups.map(g=>`<div class="scen-group"><span class="gl">${esc(g)}</span>${SC.filter(s=>s.g===g).map(s=>`<button class="scen" type="button" data-k="${s.k}" aria-pressed="false"><b>${s.k}</b>${esc(s.label)}</button>`).join('')}</div>`).join('');
+$$('.scen').forEach(b=>b.addEventListener('click', ()=>setScenario(b.dataset.k)));
+$('#resetBtn').addEventListener('click', ()=>applyScenario(S.k));
+
+const themes = ['system','light','dark'];
+let ti = 0;
+$('#themeBtn').addEventListener('click', ()=>{
+  ti = (ti+1)%3; const t = themes[ti];
+  if (t==='system') document.documentElement.removeAttribute('data-theme'); else document.documentElement.setAttribute('data-theme', t);
+  $('#themeBtn').textContent = 'Tema: ' + ({system:'sistema',light:'claro',dark:'escuro'})[t];
+});
+
+let start = 'D1';
+try { const v = localStorage.getItem('mf-mover-cen'); if (v && SC.some(s=>s.k===v)) start = v; } catch(_) {}
+const hash = (location.hash||'').slice(1).toUpperCase();
+if (SC.some(s=>s.k===hash)) start = hash;
+setScenario(start);
+window.addEventListener('resize', ()=>requestAnimationFrame(postRender));
+})();
+</script>

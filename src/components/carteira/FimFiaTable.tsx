@@ -289,6 +289,7 @@ export default function FimFiaTable({ totalCarteira = 0 }: FimFiaTableProps) {
       formatNumber={formatNumber}
       totalCarteira={totalCarteira}
       mobileTitleFromName
+      mover={{ categoria: 'fimFia' }}
       mobileSubtitle={(a) =>
         [a.categoriaNivel1, a.subcategoriaNivel2].filter((v) => v && v.trim()).join(' • ')
       }

@@ -461,15 +461,17 @@ model CashflowValue {
 // Portfolio.objetivo e a linha é apagada (ver /api/carteira/operacao).
 // (Era a "lista de observação", que nunca ganhou tela.)
 model Watchlist {
-  id       String   @id @default(uuid())
-  userId   String
-  user     User     @relation(fields: [userId], references: [id])
-  assetId  String?
-  asset    Asset?   @relation(fields: [assetId], references: [id])
-  addedAt  DateTime @default(now())
-  notes    String? // Observações do usuário
-  objetivo Float    @default(0) // Objetivo percentual dentro da aba
-  secao    String? // Seção da aba: estrategia (value/growth/risk), tipoFii, regiaoEtf
+  id                String   @id @default(uuid())
+  userId            String
+  user              User     @relation(fields: [userId], references: [id])
+  assetId           String?
+  asset             Asset?   @relation(fields: [assetId], references: [id])
+  addedAt           DateTime @default(now())
+  notes             String? // Observações do usuário
+  objetivo          Float    @default(0) // Objetivo percentual dentro da aba
+  secao             String? // Seção da aba: estrategia (value/growth/risk), tipoFii, regiaoEtf
+  // Aba escolhida pelo usuário quando ≠ aba base (mover na Carteira, out/2026); null = deriva de Asset.type
+  categoriaOverride String?
 
   @@unique([userId, assetId])
   @@index([userId])
@@ -478,20 +480,23 @@ model Watchlist {
 
 // Portfolio do usuário
 model Portfolio {
-  id            String              @id @default(uuid())
-  userId        String
-  user          User                @relation(fields: [userId], references: [id])
-  assetId       String?
-  asset         Asset?              @relation(fields: [assetId], references: [id])
-  quantity      Float // Quantidade (Float para suportar criptomoedas com frações, ex: 0.000001 BTC)
-  avgPrice      Float // Preço médio de compra
-  totalInvested Float // Total investido
-  objetivo      Float               @default(0) // Objetivo percentual do ativo
-  estrategia    String? // Estratégia da ação: 'value', 'growth' ou 'risk'
-  tipoFii       String? // Tipo do FII: 'fofi', 'tvm' ou 'tijolo'
-  regiaoEtf     String? // Região do ETF: 'brasil' ou 'estados_unidos'
-  lastUpdate    DateTime            @default(now())
-  proventos     PortfolioProvento[]
+  id                String              @id @default(uuid())
+  userId            String
+  user              User                @relation(fields: [userId], references: [id])
+  assetId           String?
+  asset             Asset?              @relation(fields: [assetId], references: [id])
+  quantity          Float // Quantidade (Float para suportar criptomoedas com frações, ex: 0.000001 BTC)
+  avgPrice          Float // Preço médio de compra
+  totalInvested     Float // Total investido
+  objetivo          Float               @default(0) // Objetivo percentual do ativo
+  estrategia        String? // Estratégia da ação: 'value', 'growth' ou 'risk'
+  tipoFii           String? // Tipo do FII: 'fofi', 'tvm' ou 'tijolo'
+  regiaoEtf         String? // Região do ETF: 'brasil' ou 'estados_unidos'
+  // Aba escolhida pelo usuário quando ≠ aba base (mover na Carteira, out/2026); null = deriva de Asset.type
+  categoriaOverride String?
+  tipoFundo         String? // Subgrupo escolhido na aba Fundos (FundoSubtipo); null = cadeia atual
+  lastUpdate        DateTime            @default(now())
+  proventos         PortfolioProvento[]
 
   // Vínculo com planejamento (mutuamente exclusivos — validado na API):
   // sonho (FK) OU aposentadoria (flag; AposentadoriaPlano é 1 por usuário).

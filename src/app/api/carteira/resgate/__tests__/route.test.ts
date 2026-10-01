@@ -313,6 +313,28 @@ describe('POST /api/carteira/resgate', () => {
       expect(JSON.parse(createArgs.data.notes).operation.action).toBe('resgate');
     });
 
+    it('item movido de aba: grava a aba nas notes da venda (o Fluxo lê depois do delete)', async () => {
+      mockPrisma.portfolio.findFirst.mockResolvedValue({
+        ...mockPortfolioValueBased,
+        quantity: 1,
+        totalInvested: 1000,
+        avgPrice: 1000,
+        categoriaOverride: 'acoes',
+      });
+
+      const response = await POST(
+        createRequest({
+          portfolioId: 'port-1',
+          dataResgate: '2024-01-15',
+          metodoResgate: 'valor',
+          valorResgate: 1000,
+        }),
+      );
+      expect(response.status).toBe(201);
+      const createArgs = mockPrisma.stockTransaction.create.mock.calls[0][0];
+      expect(JSON.parse(createArgs.data.notes).operation.categoriaOverride).toBe('acoes');
+    });
+
     it('permite resgate por valor ACIMA do custo (rendimento) e encerra a posição', async () => {
       // Auditoria 2026-08-06 achado #10: o teto era o CUSTO (totalInvested) —
       // um CDB de 10k que rendeu para 12,4k não podia ser resgatado integralmente.

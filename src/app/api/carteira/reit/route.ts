@@ -1,9 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import {
-  listarPlanejados,
-  linhaPlanejadaBase,
-  TIPOS_ATIVO_PLANEJAVEIS,
-} from '@/services/portfolio/ativosPlanejados';
+import { listarPlanejados, linhaPlanejadaBase } from '@/services/portfolio/ativosPlanejados';
+import { filtrarDaCategoria, wherePortfolioDaCategoria } from '@/services/portfolio/categoriaAba';
+import { aplicarCamposMovido, camposMovidoPorLinha } from '@/app/api/carteira/_lib/linhaMovida';
+import { isSubgrupoValido } from '@/lib/carteiraMover';
 import { requireAuthWithActing } from '@/utils/auth';
 import { prisma } from '@/lib/prisma';
 import { getAssetPrices } from '@/services/pricing/assetPriceService';
@@ -63,17 +62,17 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
   const caixaParaInvestir = caixaParaInvestirData?.value || 0;
 
   // Buscar portfolio do usuário com ativos do tipo correspondente
-  const portfolio = await prisma.portfolio.findMany({
-    where: {
-      userId: user.id,
-      asset: {
-        type: 'reit',
+  // Mover na Carteira (out/2026): + itens movidos para REIT's (ex.: stock),
+  // − os REITs movidos daqui para outra aba.
+  const portfolio = filtrarDaCategoria(
+    await prisma.portfolio.findMany({
+      where: wherePortfolioDaCategoria(user.id, 'reits'),
+      include: {
+        asset: true,
       },
-    },
-    include: {
-      asset: true,
-    },
-  });
+    }),
+    'reits',
+  );
 
   const assetIds = portfolio.map((p) => p.assetId).filter((id): id is string => id !== null);
   const transactions =
@@ -101,7 +100,7 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
   // Ativos PLANEJADOS (sem posição) da aba — linha zerada com objetivo (16/09/2026).
   const planejados = await listarPlanejados(
     targetUserId,
-    TIPOS_ATIVO_PLANEJAVEIS.reits,
+    { categoria: 'reits' },
     portfolio.map((p) => p.assetId),
   );
   const reitSymbols = [
@@ -115,12 +114,15 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     .map((item) => {
       const assetId = item.assetId || '';
       const notes = latestNotesByAsset.get(assetId);
-      const estrategia =
-        notes?.estrategia === 'growth' ||
-        notes?.estrategia === 'risk' ||
-        notes?.estrategia === 'value'
-          ? notes.estrategia
-          : 'value';
+      // Precedência: Portfolio.estrategia (gravada pelo mover) > notes da
+      // compra (estrategiaReit) > 'value'.
+      const estrategia = (
+        isSubgrupoValido('reits', item.estrategia)
+          ? item.estrategia
+          : isSubgrupoValido('reits', notes?.estrategia)
+            ? notes!.estrategia
+            : 'value'
+      ) as 'value' | 'growth' | 'risk';
       const cotacaoAtual = quotes.get(item.asset!.symbol) || item.avgPrice;
       const valorAtualizado = item.quantity * cotacaoAtual;
 
@@ -165,6 +167,11 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
         | 'risk',
     })),
   ];
+
+  aplicarCamposMovido(
+    reitAtivosComPlanejados,
+    await camposMovidoPorLinha(targetUserId, 'reits', [...portfolio, ...planejados]),
+  );
 
   // Calcular totais gerais
   const totalQuantidade = reitAtivosComPlanejados.reduce((sum, ativo) => sum + ativo.quantidade, 0);

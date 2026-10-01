@@ -18,6 +18,7 @@ import { ResponsiveTabNav } from '@/components/ui/tabs/ResponsiveTabNav';
 import { TABLE_MOBILE_STYLES } from '@/components/ui/table/tableStyles';
 import { useCarteiraLaunch } from './CarteiraLaunchContext';
 import ClassePickerSheet from './ClassePickerSheet';
+import { EVENTO_VER_ABA } from '@/hooks/useMoverInvestimento';
 import {
   CARTEIRA_ABA_PARAM,
   CARTEIRA_CLASS_TABS,
@@ -150,6 +151,18 @@ export default function CarteiraResumo() {
     },
     [replaceAba],
   );
+
+  // "Ver em <aba>" do aviso do mover: troca a aba aqui mesmo, sem recarregar a página.
+  useEffect(() => {
+    const onVerAba = (event: Event) => {
+      const abaId = (event as CustomEvent<{ abaId?: string }>).detail?.abaId;
+      if (!abaId || !tabs.some((t) => t.id === abaId)) return;
+      event.preventDefault();
+      handleTabChange(abaId);
+    };
+    window.addEventListener(EVENTO_VER_ABA, onVerAba);
+    return () => window.removeEventListener(EVENTO_VER_ABA, onVerAba);
+  }, [handleTabChange]);
 
   useEffect(() => {
     if (resumoProntoMarcado || typeof performance === 'undefined') return;
