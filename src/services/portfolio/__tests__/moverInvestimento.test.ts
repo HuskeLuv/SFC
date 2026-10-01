@@ -19,6 +19,7 @@ import {
   obterCategoriaAtivo,
   obterOpcoesMover,
   restaurarOriginal,
+  MSG_SECAO_SEGUE_CVM,
   type ItemMover,
 } from '../moverInvestimento';
 
@@ -215,6 +216,52 @@ describe('moverInvestimento — matriz', () => {
       categoriaOverride: null,
       tipoFundo: 'fidc',
     });
+  });
+});
+
+describe('moverInvestimento — planejado de fundo classificado pela CVM', () => {
+  const planejadoFundo = (type: string) => {
+    const fundo = asset({ id: 'a-fundo', symbol: 'CVM-123', name: 'Fundo Y', type, source: 'cvm' });
+    return {
+      id: 'w-1',
+      userId: 'user-1',
+      assetId: fundo.id,
+      addedAt: new Date(),
+      notes: null,
+      objetivo: 3,
+      secao: 'fim',
+      categoriaOverride: null,
+      asset: fundo,
+    };
+  };
+
+  it('trocar só a seção é recusado (a aba exibe a seção da CVM) e nada é gravado', async () => {
+    mockPrisma.watchlist.findFirst.mockResolvedValue(planejadoFundo('fia'));
+    await expect(
+      moverInvestimento('user-1', {
+        tipo: 'planejado',
+        id: 'w-1',
+        categoria: 'fimFia',
+        subgrupo: 'fim',
+      }),
+    ).rejects.toMatchObject({ statusCode: 409, message: MSG_SECAO_SEGUE_CVM });
+    expect(mockPrisma.watchlist.update).not.toHaveBeenCalled();
+  });
+
+  it('fundo genérico (fund) planejado continua trocando de seção', async () => {
+    mockPrisma.watchlist.findFirst.mockResolvedValue(planejadoFundo('fund'));
+    mockPrisma.watchlist.update.mockImplementation(async ({ data }) => ({
+      ...planejadoFundo('fund'),
+      ...data,
+    }));
+    const r = await moverInvestimento('user-1', {
+      tipo: 'planejado',
+      id: 'w-1',
+      categoria: 'fimFia',
+      subgrupo: 'fidc',
+    });
+    expect(r.noop).toBe(false);
+    expect(mockPrisma.watchlist.update.mock.calls[0][0].data).toMatchObject({ secao: 'fidc' });
   });
 });
 

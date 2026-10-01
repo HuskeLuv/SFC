@@ -49,7 +49,7 @@ import {
   type SubgrupoCtx,
   type TipoItemMover,
 } from '@/lib/carteiraMover';
-import { isFundoSubtipo } from '@/lib/fundoTypes';
+import { fundoSubtipoFromAssetType, isFundoCatchAllType, isFundoSubtipo } from '@/lib/fundoTypes';
 import { categorizarAsset, type CategoriaCarteira } from '@/services/portfolio/itemValuation';
 import { movidoInfoPorEntidade, originalPorEntidade } from '@/services/portfolio/movidoInfo';
 import { subtipoFundoPlanejado } from '@/services/portfolio/ativosPlanejados';
@@ -356,6 +356,20 @@ export interface MoverResultado {
 
 export type MoverOuNoop = MoverResultado | { noop: true };
 
+export const MSG_SECAO_SEGUE_CVM = 'A seção deste fundo segue a classificação da CVM';
+
+/**
+ * Planejado na aba base Fundos com Asset classificado pela CVM (fia, multimercado, fidc…): a
+ * aba exibe a seção da CVM (subtipoFundoPlanejado), e a secao do planejado só vale com
+ * override. Trocar só a seção gravaria algo que a aba nunca mostra — recusa com o motivo.
+ */
+const secaoSegueCvm = (item: ItemMover, atual: EstadoAtual): boolean =>
+  item.tipo === 'planejado' &&
+  atual.categoria === 'fimFia' &&
+  !atual.override &&
+  !isFundoCatchAllType(item.asset.type) &&
+  fundoSubtipoFromAssetType(item.asset.type) !== null;
+
 async function exigirItemMovivel(userId: string, tipo: TipoItemMover, id: string) {
   const item = await carregarItemMover(userId, tipo, id);
   if (!item) throw new ApiError(404, MSG_NAO_ENCONTRADO);
@@ -427,6 +441,7 @@ export async function moverInvestimento(
 
   const trocouAba = destino !== atual.categoria;
   if (!trocouAba && input.subgrupo === atual.subgrupo) return { noop: true };
+  if (!trocouAba && secaoSegueCvm(item, atual)) throw new ApiError(409, MSG_SECAO_SEGUE_CVM);
 
   const objetivoZerado = trocouAba && item.tipo === 'posicao' && item.row.objetivo !== 0;
   const antes = estadoSnapshotDe(item.tipo, item.row);
