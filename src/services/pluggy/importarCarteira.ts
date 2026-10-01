@@ -37,6 +37,8 @@ import { deleteTtlCacheKeyPrefix } from '@/lib/simpleTtlCache';
 import { recalculatePortfolioFromTransactions } from '@/services/portfolio/portfolioRecalculation';
 import { syncDividaRecordToCashflow } from '@/services/dividas/dividaCashflowSync';
 import { gerarCronograma } from '@/services/dividas/amortizacao';
+import { FUNDO_TYPES_ALL } from '@/lib/fundoTypes';
+import { tipoAssetFundoPluggy, tipoFiiImportado } from './secaoImportada';
 
 export const NOTA_IMPORTACAO = 'Importado do banco (Open Finance)';
 
@@ -399,6 +401,9 @@ export async function importarInvestimento(
       }
       const quantidade = inv.quantity && inv.quantity > 0 ? inv.quantity : 1;
       const preco = Math.round((investido / quantidade) * 1_000_000) / 1_000_000;
+      // Sem isso o FII caía na seção default da aba (FOFI).
+      const tipoFii =
+        asset.type === 'fii' ? await tipoFiiImportado(asset.symbol, asset.name) : undefined;
       const port = await prisma.$transaction(async (tx) => {
         await tx.stockTransaction.create({
           data: {
@@ -421,6 +426,7 @@ export async function importarInvestimento(
             avgPrice: preco,
             totalInvested: investido,
             lastUpdate: agora,
+            ...(tipoFii ? { tipoFii } : {}),
           },
         });
       });
@@ -530,7 +536,11 @@ export async function importarInvestimento(
     if (inv.type === 'MUTUAL_FUND' || inv.type === 'SECURITY') {
       const cnpj = (inv.code ?? '').replace(/\D/g, '');
       const catalogo =
-        cnpj.length === 14 ? await prisma.asset.findFirst({ where: { cnpj } }) : null;
+        cnpj.length === 14
+          ? await prisma.asset.findFirst({
+              where: { cnpj, type: { in: [...FUNDO_TYPES_ALL] } },
+            })
+          : null;
       const previdencia = inv.type === 'SECURITY';
       // Sem catálogo o ativo é sintético (id do Pluggy no símbolo): reusa a origem.
       const chave = catalogo ? null : chaveInvestimento(inv, connectorId);
@@ -553,7 +563,7 @@ export async function importarInvestimento(
             data: {
               symbol: `PLUGGY-${previdencia ? 'PREV' : 'FUNDO'}-${inv.providerInvestmentId.slice(0, 8).toUpperCase()}`,
               name: inv.issuer ? `${inv.name} - ${inv.issuer}` : inv.name,
-              type: previdencia ? 'previdencia' : 'fund',
+              type: previdencia ? 'previdencia' : tipoAssetFundoPluggy(inv.subtype),
               currency: 'BRL',
               source: 'pluggy',
               currentPrice: balance / quantidade,

@@ -11,6 +11,8 @@ const mockPrisma = vi.hoisted(() => {
     tx,
     asset: { findFirst: vi.fn(), updateMany: vi.fn() },
     portfolio: { findFirst: vi.fn() },
+    fiiTickerMap: { findFirst: vi.fn() },
+    fiiMonthly: { findFirst: vi.fn() },
     bankInvestment: { update: vi.fn(), findMany: vi.fn(), count: vi.fn() },
     pluggyImportacaoOrigem: { findUnique: vi.fn(), upsert: vi.fn() },
     bankLoan: { update: vi.fn(), findMany: vi.fn() },
@@ -92,6 +94,8 @@ beforeEach(() => {
   mockPrisma.pluggyImportacaoOrigem.findUnique.mockResolvedValue(null);
   mockPrisma.pluggyImportacaoOrigem.upsert.mockResolvedValue({});
   mockPrisma.bankInvestment.count.mockResolvedValue(0);
+  mockPrisma.fiiTickerMap.findFirst.mockResolvedValue(null);
+  mockPrisma.fiiMonthly.findFirst.mockResolvedValue(null);
 });
 
 describe('mapeamentos', () => {
@@ -215,6 +219,54 @@ describe('importarInvestimento', () => {
         portfolioId: 'port-1',
       }),
     });
+  });
+
+  it('FII do catálogo entra na seção do tipo vigente da CVM (papel → TVM)', async () => {
+    mockPrisma.asset.findFirst.mockResolvedValue({
+      id: 'asset-irim',
+      symbol: 'IRIM11',
+      name: 'Iridium Fundo de Investimento Imobiliario',
+      type: 'fii',
+    });
+    mockPrisma.portfolio.findFirst.mockResolvedValue(null);
+    mockPrisma.fiiTickerMap.findFirst.mockResolvedValue({ cnpj: '36642293000158' });
+    mockPrisma.fiiMonthly.findFirst.mockResolvedValue({ tipoVigente: 'papel' });
+    const st = await importarInvestimento({
+      ...base,
+      type: 'EQUITY',
+      subtype: 'REAL_ESTATE_FUND',
+      name: 'IRIM11',
+      code: 'IRIM11',
+      quantity: 10,
+      amountOriginal: 700,
+    });
+    expect(st).toBe('importado');
+    expect(mockPrisma.tx.portfolio.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ tipoFii: 'tvm' }),
+    });
+  });
+
+  it('FI-Infra cadastrado como FII vai para a seção Infra pelo nome', async () => {
+    mockPrisma.asset.findFirst.mockResolvedValue({
+      id: 'asset-kdif',
+      symbol: 'KDIF11',
+      name: 'Kinea Infra Fundo Investimento Cotas Fundos Investimento Direitos Creditorios Infraestrutura',
+      type: 'fii',
+    });
+    mockPrisma.portfolio.findFirst.mockResolvedValue(null);
+    await importarInvestimento({
+      ...base,
+      type: 'EQUITY',
+      subtype: 'REAL_ESTATE_FUND',
+      name: 'KDIF11',
+      code: 'KDIF11',
+      quantity: 5,
+      amountOriginal: 600,
+    });
+    expect(mockPrisma.tx.portfolio.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ tipoFii: 'infra' }),
+    });
+    expect(mockPrisma.fiiTickerMap.findFirst).not.toHaveBeenCalled();
   });
 
   it('ETF que o usuário já tem: só vincula (não duplica)', async () => {
@@ -341,7 +393,7 @@ describe('importarInvestimento', () => {
     const st = await importarInvestimento({
       ...base,
       type: 'MUTUAL_FUND',
-      subtype: 'INVESTMENT_FUND',
+      subtype: 'FIXED_INCOME_FUND',
       name: 'Fundo Premium',
       code: null,
       quantity: 3,
@@ -350,7 +402,11 @@ describe('importarInvestimento', () => {
     });
     expect(st).toBe('importado');
     expect(mockPrisma.tx.asset.create).toHaveBeenCalledWith({
-      data: expect.objectContaining({ type: 'fund', source: 'pluggy', currentPrice: 1359.39 / 3 }),
+      data: expect.objectContaining({
+        type: 'fund-rf',
+        source: 'pluggy',
+        currentPrice: 1359.39 / 3,
+      }),
     });
     expect(mockPrisma.tx.portfolio.create).toHaveBeenCalledWith({
       data: expect.objectContaining({ quantity: 3, totalInvested: 1000 }),
@@ -370,7 +426,9 @@ describe('importarInvestimento', () => {
       balance: 11720,
     });
     expect(st).toBe('importado');
-    expect(mockPrisma.asset.findFirst).toHaveBeenCalledWith({ where: { cnpj: '07400588000110' } });
+    expect(mockPrisma.asset.findFirst).toHaveBeenCalledWith({
+      where: { cnpj: '07400588000110', type: { in: expect.arrayContaining(['previdencia']) } },
+    });
     expect(mockPrisma.tx.asset.create).not.toHaveBeenCalled();
     expect(mockPrisma.tx.portfolio.create).toHaveBeenCalledWith({
       data: expect.objectContaining({ assetId: 'asset-cvm', quantity: 3.6 }),
