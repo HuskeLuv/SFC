@@ -11,6 +11,7 @@
  * por `valuatePortfolioItem`/`categorizarAsset` — não reimplementar.
  */
 import { FUNDO_TYPES_AGRUPADOS, isFundoType } from '@/lib/fundoTypes';
+import { isTickerAcaoB3, overrideEfetivo } from '@/lib/carteiraMover';
 import type { FixedIncomeAssetWithAsset } from './patrimonioHistoricoBuilder';
 
 export type CategoriaCarteira =
@@ -31,9 +32,6 @@ export type CategoriaCarteira =
 /** Tipos cujo preço já vem em BRL da getAssetPrices (não aplicar USD→BRL). */
 const TIPOS_PRECO_EM_BRL: readonly string[] = ['crypto', 'currency', 'metal', 'commodity'];
 
-/** Ticker no padrão B3: 4 letras + dígito (PETR4, HGLG11, BOVA11...). */
-const B3_TICKER_REGEX = /^[A-Z][A-Z0-9]{3}[0-9]$/;
-
 export type AssetLike = {
   symbol: string;
   type?: string | null;
@@ -48,6 +46,8 @@ export type PortfolioItemLike = {
   quantity: number;
   avgPrice: number;
   totalInvested: number;
+  /** Aba escolhida pelo usuário (mover na Carteira); vale via categoriaEfetiva. */
+  categoriaOverride?: string | null;
 };
 
 export type ItemValuationInput = {
@@ -159,7 +159,8 @@ export const categorizarAsset = (
     return 'reservaOportunidade';
   }
 
-  const isB3StockTicker = B3_TICKER_REGEX.test(symbolUpper);
+  // B3_ACAO_RE (+ units se INCLUIR_UNITS_EM_ACOES) — a mesma regra da aba Ações.
+  const isB3StockTicker = isTickerAcaoB3(symbolUpper);
 
   switch (tipo) {
     case 'ação':
@@ -226,6 +227,22 @@ export const categorizarAsset = (
   }
 };
 
+type CategorizarCtx = Parameters<typeof categorizarAsset>[1];
+
+/**
+ * Categoria considerando o override do mover (Portfolio/Watchlist
+ * .categoriaOverride). Reserva, item de aba fixa e override inválido ou igual
+ * à aba base são ignorados: valem as regras de `categorizarAsset`.
+ */
+export const categoriaEfetiva = (
+  asset: AssetLike | null,
+  override: string | null | undefined,
+  ctx: CategorizarCtx = {},
+): CategoriaCarteira => {
+  if (ctx?.isReserva) return categorizarAsset(asset, ctx);
+  return overrideEfetivo(asset, override) ?? categorizarAsset(asset, ctx);
+};
+
 /**
  * Filtros de Asset.type por categoria — fonte única para os `where` das rotas
  * de aba. Uma aba que filtre por estes types exibe exatamente o que a pizza
@@ -261,7 +278,7 @@ export const valuatePortfolioItem = (input: ItemValuationInput): ItemValuation =
   const { item, asset, fixedIncome, quote, cotacaoDolar, fiGetCurrentValue } = input;
   const isReserva = isReservaItem(input);
   const isImovelBem = isImovelBemItem(asset);
-  const categoria = categorizarAsset(asset, {
+  const categoria = categoriaEfetiva(asset, item.categoriaOverride, {
     isReserva,
     tesouroReservaDestino: input.tesouroReservaDestino,
   });
