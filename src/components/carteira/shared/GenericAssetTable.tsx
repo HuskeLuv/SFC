@@ -889,7 +889,10 @@ export default function GenericAssetTable<TAtivo, TSecao>({
                 );
               })}
               {moverConfig ? (
-                <th className={`${TABLE_STYLES.compact.th} w-10`} style={TABLE_HEADER_STYLE}>
+                <th
+                  className={`${TABLE_STYLES.compact.th} relative w-10`}
+                  style={TABLE_HEADER_STYLE}
+                >
                   <span className="sr-only">Ações</span>
                 </th>
               ) : null}
@@ -903,6 +906,9 @@ export default function GenericAssetTable<TAtivo, TSecao>({
               </tbody>
               {sections.map((secao, idx) => {
                 const key = sectionKeyAt(secao, idx);
+                // Seção vazia do padrão (sem o campo da chave) começa recolhida, como sem o
+                // mover; a chave própria só serve para abrir/fechar cada uma separadamente.
+                const expKey = getSectionKey(secao) || `__vazia__:${key}`;
                 return (
                   <GenericSection
                     key={key}
@@ -910,8 +916,8 @@ export default function GenericAssetTable<TAtivo, TSecao>({
                     columns={columns}
                     formatters={formatters}
                     onRemovePlanejado={handleRemovePlanejado}
-                    isExpanded={expandedSections.has(key)}
-                    onToggle={() => toggleSection(key)}
+                    isExpanded={expandedSections.has(expKey)}
+                    onToggle={() => toggleSection(expKey)}
                     getSectionAtivos={getSectionAtivos}
                     getSectionName={getSectionName}
                     mover={{
