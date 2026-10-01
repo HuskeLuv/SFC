@@ -7,6 +7,8 @@ import { logConsultantAction } from '@/services/impersonationLogger';
 import { authenticateConsultant, assertClientOwnership } from '@/utils/consultantAuth';
 
 import { withErrorHandler } from '@/utils/apiErrorHandler';
+import { overrideEfetivo, type CategoriaMovivel } from '@/lib/carteiraMover';
+
 const CACHE_CONTROL_HEADER = 'private, no-cache, no-store, must-revalidate';
 
 const getClientBalances = async (clientId: string) => {
@@ -35,6 +37,19 @@ const getClientBalances = async (clientId: string) => {
   };
 };
 
+/**
+ * Item movido de aba (mover na Carteira): o tipo exibido segue a aba escolhida, como a
+ * pizza do cliente (o Asset.type do catálogo não muda).
+ */
+const TIPO_DA_CATEGORIA_MOVIDA: Record<CategoriaMovivel, string> = {
+  acoes: 'stock',
+  stocks: 'stock',
+  fiis: 'fii',
+  etfs: 'etf',
+  reits: 'reit',
+  fimFia: 'fund',
+};
+
 const getClientPortfolio = async (clientId: string) => {
   const portfolio = await prisma.portfolio.findMany({
     where: { userId: clientId },
@@ -61,7 +76,8 @@ const getClientPortfolio = async (clientId: string) => {
   let totalInvested = 0;
 
   const assets = portfolio.map((item) => {
-    const inferredType = item.asset?.type ?? 'other';
+    const movido = item.asset ? overrideEfetivo(item.asset, item.categoriaOverride) : null;
+    const inferredType = movido ? TIPO_DA_CATEGORIA_MOVIDA[movido] : (item.asset?.type ?? 'other');
     const invested = item.totalInvested ?? item.avgPrice * item.quantity;
     totalInvested += invested;
 
