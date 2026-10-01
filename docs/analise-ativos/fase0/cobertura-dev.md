@@ -319,3 +319,80 @@ Arquivo: `docs/analise-ativos/fase0/notas-reais-prototipo.csv` (91 ativos do pro
    v2 (limiares hoje fixos no código), `b3_cnpj` na união `TickerFii['origem']`, motivo
    `ebitda_nao_positivo` em `EstadoComponente`, `naoSeAplica` em FiiQuarterly, calendário de pregões
    no fim de ano (31/12 em fim de semana) e a curadoria dos 36 FIIs não conferidos.
+
+## 8. Rodada 2 de correções (30/09/2026)
+
+Banco DEV regravado por reprocessamento idempotente, sem TRUNCATE nem DELETE em massa: FCA 2026,
+DFP/FRE 2014–2025, ITR 2024–2026 e DFP 2026 (`--reprocessar`, depois `--revisitar`), cadastro e
+informes de FII desde 2016, IPE 2024–2026 e `recalcular-analise.ts --tudo`. Exceção pontual: as 5
+linhas do DFP 2018 e as 5 do DFP 2019 da VAMOS3, gravadas com a escala errada durante a própria rodada,
+foram apagadas uma a uma e reprocessadas. As chaves antigas com CNPJ mascarado ficaram órfãs; a
+lista e o SQL estão em `qa/orfas-cnpj.md`. O banco foi de 289 MB para **350 MB** (limite 450 MB).
+
+### O que mudou
+
+| #   | Correção                                                                                             | Efeito no dev                                                                                                             |
+| --- | ---------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| 1   | Ida e volta de cotas de FII também olha os meses seguintes (`verificarFii`)                          | 6 desdobramentos `cvm_cotas` saíram (FTCE11, HLMB11 ×2, MOFF11, PNDL11, TJKB11); ficam 40 confirmados                     |
+| 2   | `scores` roda em processo separado (`rodar-job.ts` via `myfinance-job.sh`); rota recusa com RSS alto | pico do runner: 255 MB no dia comum e 246–265 MB recalculando tudo (antes: +300 a +400 MB dentro do app)                  |
+| 3   | Regra 13 sem DFP de referência: a contagem só vale se bater com lucro × LPA (±5%)                    | 12 ações com `acoes:nao_verificavel` (ATED3, AZEV3/4, AZTE3, CCTY3, CTKA3/4, DTCY3, ESTR4, HBTS5, MSPA4, RVEE3)           |
+| 3b  | Nº de ações conferido pelo LPA do individual quando o consolidado não publica (VIVT3)                | contagens `ok` 3.877 → 4.253; `nao_verificavel` 1.308 → 849; `acoes:salto_sem_evento` 32 → 20                             |
+| 4   | Escala declarada errada (UNIDADE com valores em milhares), pelo balanço vizinho e pelo LPA           | 5 documentos em 3 emissores com `escala_corrigida`: PDTC3 DFP 2024/2025, VAMOS3 DFP 2018, PINE4 ITR 2T24/3T24; 0 ambíguos |
+| 5   | CNPJ em 14 dígitos sem máscara em todas as tabelas                                                   | tickers e mapa de FII migrados no lugar; demais tabelas regravadas (órfãs em `qa/orfas-cnpj.md`)                          |
+| 6   | Controladora e não controladores zerados ⇒ lucro do individual (`lucro_individual`)                  | 87 emissores com o flag em documentos de 2025+; 28 ações saem de incompleto (SBSP3, PDTC3, VAMO3, CXSE3…)                 |
+
+Item 6 em detalhe: dos 84 tickers com score desses emissores, 77 estavam incompletos e 50 continuam,
+quase todos por motivos alheios ao lucro (`div:fonte_defasada` da base de proventos parada,
+`preco:historico_curto`, `acoes:*`). 54 perderam `rent:sem_dado_fonte`/`preco:sem_dado_fonte`. SBSP3 foi
+de 5,24 (incompleto) para 7,38 (completo); KLBN11 de 2,72 para 2,87 (incompleto só por
+`div:fonte_defasada`). Restam 9 emissores com `controladora_zero` em documentos de 2025+, em que os não
+controladores vêm preenchidos ou não há individual.
+
+### Números novos (dataRef 2026-09-29)
+
+| Classe | Régua           | Ativos | Incompletos antes → depois | Índice médio antes → depois |
+| ------ | --------------- | -----: | -------------------------: | --------------------------: |
+| ação   | acao            |    310 |                  199 → 171 |                 4,56 → 4,75 |
+| ação   | acao_financeira |     37 |                     14 → 9 |                 7,26 → 7,44 |
+| FII    | fii_papel       |     72 |                    72 → 72 |                 2,93 → 2,93 |
+| FII    | fii_tijolo      |    205 |                  204 → 204 |                 2,76 → 2,76 |
+| FII    | fora_do_indice  |     57 |                      0 → 0 |                           — |
+
+"Antes" é o estado do dev no início da rodada 2 (já com a base de proventos marcada como defasada, por
+isso acima dos 113 da seção 2). Ações: 213 → 180 incompletas (35 saíram, 2 entraram: ATED3 e DTCY3, por
+`acoes:nao_verificavel`). FIIs não mudam porque todos seguem com `div/lucro:fonte_defasada` (base de
+proventos do dev parada em jun/2026).
+
+Motivos de incompleto das ações depois da rodada: `div:fonte_defasada` 120, `preco:historico_curto` 50,
+`acoes:salto_sem_evento` 20, `div:sem_dado_fonte` 13, `acoes:nao_verificavel` 12, `preco:sem_acoes` 7,
+`rent:sem_dado_fonte` 6, `preco:sem_dado_fonte` 5, `divida:sem_dado_fonte` 3. `lucro:controladora_zero`
+não aparece mais.
+
+Outras contagens: 315 companhias com DFP FY2025; 231 com LPA em 10+ anos (era 213); 301 com TTM no 2T26;
+318 emissores com assembleia em 2026 e 318 com estimativa de resultado vigente.
+
+### Medições (`/usr/bin/time -v`, dev)
+
+| Execução                                                        |      Tempo |   RSS máx. |
+| --------------------------------------------------------------- | ---------: | ---------: |
+| `rodar-job.ts scores` (MALLOC_ARENA_MAX=2, heap 256), dia comum |       20 s |     255 MB |
+| `recalcular-analise.ts --tudo` (mesmas opções), lote de FII 50  |    63–72 s | 246–265 MB |
+| idem com lote de FII 200 (antes do ajuste)                      |       60 s |     305 MB |
+| `rodar-job.ts scores` sem MALLOC_ARENA_MAX (heap 160–384)       |       18 s | 306–317 MB |
+| demais jobs pelo runner (pularam por ETag)                      |     2–50 s | 179–217 MB |
+| `backfill-cvm-cias --docs=dfp,fre` por ano (heap 512)           |    16–21 s | 234–274 MB |
+| `backfill-cvm-cias --docs=itr` por ano (heap 512)               |    20–22 s | 335–341 MB |
+| `backfill-fii --so-cadastro`                                    | 7 min 10 s |     201 MB |
+| `backfill-fii --desde=2016 --sem-cadastro`                      |       72 s |     391 MB |
+| `backfill-ipe --anos=2024-2026 --forcar`                        |       13 s |     240 MB |
+
+### Ainda abertos
+
+- Órfãs com CNPJ mascarado no dev (`qa/orfas-cnpj.md`): apagar exige DELETE em massa.
+- Primeiro documento de um emissor só tem o LPA para conferir a escala. No backfill em ordem
+  crescente, ele não tem vizinho anterior. Foi o caso da VAMOS3 2018, corrigida aqui à mão (apagar e
+  reprocessar o documento).
+- Os 12 tickers com `acoes:nao_verificavel` não têm contagem conferível pelo LPA em nenhum DFP. Vale
+  curadoria (FRE ou contagem manual) se algum entrar na Fase 1.
+- O alerta `controladora_zero` da ingestão continua saindo também quando o lucro do individual
+  resolveu o caso (é informativo). A flag na linha gravada é a que vale.
