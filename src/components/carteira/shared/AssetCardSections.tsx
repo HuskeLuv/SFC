@@ -20,6 +20,8 @@ import {
 } from './mobileColumnRoles';
 import { simplifyAssetName } from '@/utils/assetDisplayName';
 import type { ColumnDef, Formatters } from './GenericAssetTable';
+import type { MoverAlvo } from '@/types/carteiraMover';
+import { useCarteiraMover } from '@/components/carteira/mover/CarteiraDnd';
 
 /**
  * Abas da carteira em CARTÕES abaixo de lg (PWA fase 1, fatia B — telas c/d do protótipo).
@@ -291,6 +293,11 @@ export interface AssetCardSectionsProps<TAtivo, TSecao> {
   quantityUnit?: string;
   /** Conteúdo extra no fim do cartão de total (ex.: REIT/Stocks 'Total em USD'). */
   extraTotal?: ReactNode;
+  /**
+   * Mover investimentos (abas movíveis): linha → alvo. Com ele (e o `CarteiraDndProvider` em
+   * volta), o cartão aberto ganha o botão "Mover" (44px), que abre o sheet da Fatia D.
+   */
+  moverAlvoOf?: (ativo: TAtivo) => MoverAlvo | null;
 }
 
 const rec = (a: unknown) => (a ?? {}) as Record<string, unknown>;
@@ -332,8 +339,10 @@ export default function AssetCardSections<TAtivo, TSecao>({
   getSubtitle,
   quantityUnit,
   extraTotal,
+  moverAlvoOf,
 }: AssetCardSectionsProps<TAtivo, TSecao>) {
   const baseId = useId();
+  const moverCtx = useCarteiraMover();
   const [sort, setSort] = useState<AssetSortKey>('padrao');
   const launch = useCarteiraLaunch();
   const { formatCurrency, formatPercentage, formatNumber } = formatters;
@@ -536,7 +545,47 @@ export default function AssetCardSections<TAtivo, TSecao>({
     );
   };
 
+  // Celular: sem arrastar — "Mover" ao lado da ação do rodapé do cartão aberto.
+  const renderMoverButton = (a: TAtivo) => {
+    const alvo = moverCtx ? moverAlvoOf?.(a) : null;
+    if (!alvo || !moverCtx) return null;
+    const pendente = moverCtx.pendingId === alvo.id || !!rec(a)._pendente;
+    return (
+      <button
+        type="button"
+        onClick={() => moverCtx.abrirMover(alvo)}
+        disabled={pendente}
+        aria-label={`Mover ${alvo.label}`}
+        data-mover-card={alvo.id}
+        className="inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-xl border border-gray-200 bg-white px-4 text-sm font-semibold text-mf-patrimonio focus-visible:ring-[3px] focus-visible:ring-[#0079F2] focus-visible:outline-none disabled:opacity-45 dark:border-gray-700 dark:bg-gray-900 dark:text-mf-tranquilidade dark:focus-visible:ring-mf-tranquilidade"
+      >
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <path
+            d="M7 4 3 8l4 4M3 8h13M17 20l4-4-4-4M21 16H8"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </svg>
+        {pendente ? 'Movendo…' : 'Mover'}
+      </button>
+    );
+  };
+
   const renderCardFooter = (a: TAtivo) => {
+    const acao = renderCardFooterAcao(a);
+    const moverBtn = renderMoverButton(a);
+    if (!moverBtn) return acao;
+    return (
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        {acao}
+        {moverBtn}
+      </div>
+    );
+  };
+
+  const renderCardFooterAcao = (a: TAtivo) => {
     const r = rec(a);
     if (isPlanejado(a)) {
       const busy = removendoPlanejado === String(r.id);
