@@ -69,7 +69,8 @@ export interface PrintSignatureOptions {
 
 /**
  * Assinatura do layout computado: para cada elemento visível de [data-mf-content], em ordem de
- * documento, `tag|display|nº de trilhas do grid|position|largura em décimos da folha`. Os gráficos
+ * documento, `tag|display|nº de trilhas do grid|position|largura em décimos da folha` (`-` em
+ * th/td, cuja largura depende do dado). Os gráficos
  * entram só pelo contêiner (o miolo do Apex/SVG depende de dado e da altura).
  */
 export function printSignature(
@@ -95,11 +96,11 @@ export function printSignature(
           cs.display.includes('grid') && cs.gridTemplateColumns !== 'none'
             ? cs.gridTemplateColumns.split(/\s+(?![^(]*\))/).filter(Boolean).length
             : 0;
-        out.push(
-          `${el.tagName.toLowerCase()}|${cs.display}|${tracks}|${cs.position}|${Math.round(
-            (r.width / width) * 10,
-          )}`,
-        );
+        const tag = el.tagName.toLowerCase();
+        // Célula de tabela se ajusta ao conteúdo (datas, valores do seed mudam com o
+        // mês do CI): só a estrutura conta, a largura fica de fora.
+        const bucket = tag === 'td' || tag === 'th' ? '-' : Math.round((r.width / width) * 10);
+        out.push(`${tag}|${cs.display}|${tracks}|${cs.position}|${bucket}`);
       }
       return out;
     },
