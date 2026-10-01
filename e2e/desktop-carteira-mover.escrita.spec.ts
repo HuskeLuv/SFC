@@ -140,7 +140,11 @@ test.describe('mover grava e desfaz', () => {
       await page.mouse.up();
       const pop = page.getByRole('dialog').filter({ hasText: 'Fundos' }).last();
       await expect(pop).toBeVisible();
+      // O dnd-kit engole (stopPropagation em captura) os cliques até 50ms depois de soltar: o
+      // radio ficaria marcado no DOM sem o React saber. Uma pessoa não clica tão rápido.
+      await page.waitForTimeout(200);
       await pop.getByRole('radio', { name: /Fiagro/ }).check();
+      await expect(pop.getByRole('button', { name: /^Mover para Fiagro/ })).toBeVisible();
       const post2 = page.waitForResponse(isMoverPost);
       await pop.getByRole('button', { name: /^Mover/ }).click();
       expect((await post2).status()).toBe(200);
