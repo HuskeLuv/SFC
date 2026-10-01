@@ -13,6 +13,10 @@ import { secaoDropId, useCarteiraMover, type SecaoDropData } from './CarteiraDnd
  */
 export const SECAO_REALCE_CLASS = 'bg-[#0079F2]/[0.09] dark:bg-[#0079F2]/[0.16]';
 /** Traço inferior de 3px `outside` nas células da faixa da seção sob o arrasto. */
+/** Linha que acabou de chegar à seção (1,6s, protótipo D7); sem transição se reduced-motion. */
+export const LINHA_REALCE_CLASS =
+  'bg-[#0079F2]/[0.09] transition-colors duration-500 motion-reduce:transition-none dark:bg-[#0079F2]/[0.16]';
+
 export const SECAO_FAIXA_REALCE_CLASS = 'shadow-[inset_0_-3px_0_#0079F2]';
 
 interface SecaoDropRowProps {

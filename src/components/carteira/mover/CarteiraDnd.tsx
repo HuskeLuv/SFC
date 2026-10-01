@@ -182,6 +182,8 @@ export interface CarteiraMoverContextValue {
   ativo: LinhaDragData | null;
   /** id do item com mutação em andamento (linha a 60% com "Movendo…"). */
   pendingId?: string;
+  /** id do item que acabou de chegar à seção (realce de 1,6s, troca só de seção). */
+  realceId?: string;
   abrirMover: (alvo: MoverAlvo) => void;
   restaurar: (alvo: MoverAlvo) => void;
 }
@@ -217,7 +219,7 @@ export const CarteiraDndProvider: React.FC<CarteiraDndProviderProps> = ({
   dnd = true,
   children,
 }) => {
-  const { mover, restaurar, pendingId } = useMoverInvestimento();
+  const { mover, restaurar, pendingId, realceId } = useMoverInvestimento();
   const teclado = useMemo(() => criarTecladoCarteira(), []);
   const collision = useMemo(() => criarColisaoCarteira(teclado.alvoAtual), [teclado]);
   const areaRef = useRef<HTMLDivElement>(null);
@@ -367,10 +369,11 @@ export const CarteiraDndProvider: React.FC<CarteiraDndProviderProps> = ({
       dnd,
       ativo,
       pendingId,
+      realceId,
       abrirMover: setDialogo,
       restaurar: restaurarAlvo,
     }),
-    [categoria, dnd, ativo, pendingId, restaurarAlvo],
+    [categoria, dnd, ativo, pendingId, realceId, restaurarAlvo],
   );
 
   const fecharPop = useCallback(() => {

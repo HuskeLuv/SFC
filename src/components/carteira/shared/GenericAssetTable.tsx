@@ -33,7 +33,11 @@ import {
 } from '@/components/carteira/mover/CarteiraDnd';
 import { DragHandleCell } from '@/components/carteira/mover/DragHandleCell';
 import { LinhaMoverMenu } from '@/components/carteira/mover/LinhaMoverMenu';
-import { SECAO_FAIXA_REALCE_CLASS, SecaoDropRow } from '@/components/carteira/mover/SecaoDropRow';
+import {
+  LINHA_REALCE_CLASS,
+  SECAO_FAIXA_REALCE_CLASS,
+  SecaoDropRow,
+} from '@/components/carteira/mover/SecaoDropRow';
 import { MovidoBadge, SoltarAquiChip } from '@/components/carteira/mover/MovidoBadge';
 
 export { COLUNAS_VISIVEIS_PLANEJADO };
@@ -341,8 +345,9 @@ function GenericSection<TAtivo, TSecao>({
           const info = a as LinhaMovidaInfo;
           const pendente = !!alvo && (!!info._pendente || moverCtx?.pendingId === alvo.id);
           const arrastando = !!alvo && moverCtx?.ativo?.alvo.id === alvo.id;
+          const chegou = !!alvo && moverCtx?.realceId === alvo.id;
           const moverRowClass = mover
-            ? ` group/linha${arrastando ? ' opacity-35' : pendente ? ' opacity-60' : ''}`
+            ? ` group/linha${arrastando ? ' opacity-35' : pendente ? ' opacity-60' : ''}${chegou ? ` ${LINHA_REALCE_CLASS}` : ''}`
             : '';
           const comAlca = (content: ReactNode) =>
             mover ? (
