@@ -15,7 +15,12 @@ import {
   type OpcoesCvmCias,
 } from '@/services/analiseAtivos/acoes/sincronizarCvmCias';
 import { criarPrismaFake } from '@/services/analiseAtivos/acoes/__tests__/prismaFake';
-import { zipDfp2025, zipFca, zipItr } from '@/services/analiseAtivos/acoes/__tests__/zipFixtures';
+import {
+  fixture,
+  zipDfp2025,
+  zipFca,
+  zipItr,
+} from '@/services/analiseAtivos/acoes/__tests__/zipFixtures';
 
 /** CNPJ de 14 dígitos na máscara da CVM (as linhas cruas das fixtures vêm assim). */
 const mascarar = (c: string) =>
@@ -410,5 +415,67 @@ describe('sincronizarCvmCias — escala declarada errada (PDTC3 DFP 2024/2025)',
     const fy = fyWege(fake.tabelas);
     expect(fy.flags).not.toContain('escala_corrigida');
     expect(fy.receita).toEqual(ref.receita);
+  });
+});
+
+describe('sincronizarCvmCias — nº de ações com o LPA só no individual (VIVT3)', () => {
+  /** WEG sem as linhas 3.99 (LPA) no consolidado e com o DRE completo no individual. */
+  function dfpLpaSoNoIndividual(): string {
+    const doWege = (texto: string) => texto.split('\n').filter((l) => l.startsWith(mascarar(WEGE)));
+    const dreCon = fixture('dfp_cia_aberta_DRE_con_2025.csv');
+    const linhasInd = doWege(dreCon).map((l) => l.replace('DF Consolidado', 'DF Individual'));
+    return zipDfp2025(
+      dir,
+      (nome, texto) => {
+        if (nome === 'dfp_cia_aberta_DRE_con_2025.csv') {
+          return texto
+            .split('\n')
+            .filter((l) => !(l.startsWith(mascarar(WEGE)) && l.includes(';3.99')))
+            .join('\n');
+        }
+        if (nome === 'dfp_cia_aberta_DRE_ind_2025.csv') {
+          return `${texto.replace(/\n$/, '')}\n${linhasInd.join('\n')}\n`;
+        }
+        return texto;
+      },
+      'dfp_lpa_ind.zip',
+    );
+  }
+
+  it('consolidado sem LPA e individual com LPA ⇒ contagem verificada pelo LPA do individual', async () => {
+    const fake = criarPrismaFake();
+    const zips = { ...zipsPadrao(), [urlArquivoCvm('dfp', 2025)]: dfpLpaSoNoIndividual() };
+    await rodar(fake.prisma, zips, { doc: 'fca', anos: [2026] });
+    await rodar(fake.prisma, zips, { doc: 'dfp', anos: [2025] });
+    const cont = fake.tabelas.assetShareCount.find(
+      (c) => c.cnpj === WEGE && dia(c.data) === '2025-12-31',
+    )!;
+    expect(cont.status).toBe('ok');
+    expect(Number(cont.razaoLpa)).toBeCloseTo(1, 2);
+  });
+
+  it('revisitar: documento já gravado é processado de novo e só a contagem que mudou é regravada', async () => {
+    const fake = criarPrismaFake();
+    const zips = zipsPadrao();
+    await rodar(fake.prisma, zips, { doc: 'fca', anos: [2026] });
+    await rodar(fake.prisma, zips, { doc: 'dfp', anos: [2025] });
+    const cont = fake.tabelas.assetShareCount.find(
+      (c) => c.cnpj === WEGE && dia(c.data) === '2025-12-31',
+    )!;
+    const original = { status: cont.status, total: cont.total };
+    cont.status = 'nao_verificavel';
+    const antes = fake.tabelas.assetFundamentalsPeriod.length;
+    await rodar(fake.prisma, zips, {
+      doc: 'dfp',
+      anos: [2025],
+      reprocessar: true,
+      revisitar: true,
+    });
+    expect(fake.tabelas.assetFundamentalsPeriod.length).toBe(antes);
+    const depois = fake.tabelas.assetShareCount.filter(
+      (c) => c.cnpj === WEGE && dia(c.data) === '2025-12-31',
+    );
+    expect(depois).toHaveLength(1);
+    expect(depois[0].status).toBe(original.status);
   });
 });

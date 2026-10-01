@@ -138,6 +138,8 @@ export interface OpcoesCvmCias {
   universo?: Map<string, string[]>;
   /** ignora AnaliseFonteArquivo (arquivo inalterado é relido; os (cnpj, versão) gravados continuam pulados) */
   reprocessar?: boolean;
+  /** processa também documentos já gravados (regrava só contagens de ações que mudaram) */
+  revisitar?: boolean;
   /** injeção para testes */
   baixar?: typeof baixarParaArquivo;
 }
@@ -473,9 +475,13 @@ async function processarDemonstrativos(
     const docs = [...indice.values()];
     const docTipo = doc === 'dfp' ? 'DFP' : 'ITR';
     const cnpjsArquivo = [...new Set(docs.map((d) => d.cnpj))];
-    const gravados = await documentosGravados(ctx.prisma, docTipo, cnpjsArquivo, [
-      ...new Set(docs.map((d) => d.dtRefer)),
-    ]);
+    // revisitar: processa também os documentos já gravados — fundamentos e Raio-X são createMany
+    // idempotentes (não duplicam) e as contagens de ações são regravadas só se mudaram
+    const gravados = opts.revisitar
+      ? new Set<string>()
+      : await documentosGravados(ctx.prisma, docTipo, cnpjsArquivo, [
+          ...new Set(docs.map((d) => d.dtRefer)),
+        ]);
     const pendentes = docs
       .filter((d) => !gravados.has(`${d.cnpj}|${d.dtRefer}|${d.versao}`))
       .sort((a, b) => a.cnpj.localeCompare(b.cnpj) || a.dtRefer.localeCompare(b.dtRefer));
@@ -640,10 +646,7 @@ async function processarPendentes(
     });
 
     // nº de ações (regra 10) e escala do LPA (regra 11)
-    const base =
-      extraidos.find((x) => x.f.escopo === 'con' && x.f.tipoPeriodo !== '3M') ??
-      extraidos.find((x) => x.f.tipoPeriodo !== '3M') ??
-      extraidos[0];
+    const base = baseDoDocumento(extraidos);
     const resol = resolverContagem(
       ctx,
       doc,
@@ -754,6 +757,24 @@ async function processarPendentes(
 }
 
 /**
+ * Período-base do documento para o nº de ações e o LPA: consolidado (FY/YTD); se o consolidado não
+ * publica LPA e o individual publica (VIVT3: 3.99 só no individual), o individual do mesmo período —
+ * lucro e LPA do mesmo escopo, e no BR GAAP o lucro individual é o da controladora.
+ */
+function baseDoDocumento<T extends { f: FundamentosExtraidos }>(extraidos: T[]): T {
+  const naoTrimestral = extraidos.filter((x) => x.f.tipoPeriodo !== '3M');
+  const con = naoTrimestral.find((x) => x.f.escopo === 'con');
+  const temLpa = (x: T | undefined) => Boolean(x && (x.f.lpaOn || x.f.lpaPn));
+  if (con && !temLpa(con)) {
+    const ind = naoTrimestral.find(
+      (x) => x.f.escopo === 'ind' && x.f.dtIni === con.f.dtIni && temLpa(x),
+    );
+    if (ind) return ind;
+  }
+  return con ?? naoTrimestral[0] ?? extraidos[0];
+}
+
+/**
  * Confere a escala declarada de cada escopo do documento contra o balanço vizinho já gravado e o LPA
  * publicado (regras/acoes/escalaDeclarada.ts); corrige `extraidos` no lugar e devolve o fator
  * aplicado por escopo (para o Raio-X). Registra o balanço do documento como vizinho dos próximos.
@@ -766,10 +787,7 @@ function conferirEscala(
   contagens: ContagemGravavel[],
 ): Map<Escopo, number> {
   const fatores = new Map<Escopo, number>();
-  const base =
-    extraidos.find((x) => x.f.escopo === 'con' && x.f.tipoPeriodo !== '3M') ??
-    extraidos.find((x) => x.f.tipoPeriodo !== '3M') ??
-    extraidos[0];
+  const base = baseDoDocumento(extraidos);
   const acoes =
     contagens
       .filter(

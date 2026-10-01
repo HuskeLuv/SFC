@@ -19,7 +19,8 @@
  *
  * Opções: --perfil=dev|completo (completo = AssetStatementLine de todo o universo; exige
  * NODE_ENV=production ou --forcar-completo) · --reprocessar (ignora o registro de arquivo já
- * processado) · --cache-dir (reusa/guarda os zips). Perfil dev: ITR só 2024+ e Raio-X só das 40
+ * processado) · --revisitar (processa também documentos já gravados: regrava só as contagens de
+ * ações que mudaram; fundamentos/Raio-X existentes ficam) · --cache-dir (reusa/guarda os zips). Perfil dev: ITR só 2024+ e Raio-X só das 40
  * companhias do subconjunto. Em produção: só pelo RUNBOOK, com OK humano, em janela noturna.
  */
 import {
@@ -81,6 +82,7 @@ async function main() {
   const docs = (a.get('docs') ?? 'fca,dfp,itr,fre').split(',') as Doc[];
   const cacheDir = a.get('cache-dir');
   const reprocessar = a.has('reprocessar');
+  const revisitar = a.has('revisitar');
   const perfil = (a.get('perfil') ?? 'dev') as PerfilLinhas;
   if (perfil !== 'dev' && perfil !== 'completo') throw new Error('--perfil=dev|completo');
   if (perfil === 'completo' && process.env.NODE_ENV !== 'production' && !a.has('forcar-completo')) {
@@ -113,7 +115,7 @@ async function main() {
     aplicar,
     prazoMs: PRAZO_BACKFILL_MS,
     lockTtlMs: PRAZO_BACKFILL_MS,
-    parametros: { anos, docs, perfil, cacheDir: cacheDir ?? null, reprocessar },
+    parametros: { anos, docs, perfil, cacheDir: cacheDir ?? null, reprocessar, revisitar },
   };
   console.log(
     `=== backfill cvm-cias (${aplicar ? 'APPLY' : 'dry-run'}) anos=${anos.join(',')} docs=${docs} perfil=${perfil} ===`,
@@ -156,6 +158,7 @@ async function main() {
             cacheDir,
             perfil,
             reprocessar,
+            revisitar,
             freAcoes: fre,
             universo,
           });
