@@ -91,6 +91,52 @@ export const tipoFluxoDoOverride = (
 };
 
 /**
+ * Resgate total apaga o Portfolio (e o override junto). A rota de resgate grava
+ * a aba do item movido em `notes.operation.categoriaOverride` da venda; para o
+ * ativo que não tem mais posição, o Fluxo usa a da venda mais recente — assim o
+ * histórico (inclusive a própria venda) não volta para a linha da aba base.
+ * Ativo com posição de novo (recomprado): vale o Portfolio atual.
+ */
+export const overrideDaVenda = (notes: string | null | undefined): string | null => {
+  if (!notes) return null;
+  try {
+    const parsed = JSON.parse(notes);
+    const valor = parsed?.operation?.categoriaOverride;
+    return typeof valor === 'string' && valor ? valor : null;
+  } catch {
+    return null;
+  }
+};
+
+async function completarOverrideDeVendidos(
+  userId: string,
+  overridePorAsset: Map<string, string>,
+): Promise<void> {
+  const vendas = await prisma.stockTransaction.findMany({
+    where: { userId, type: 'venda', notes: { contains: '"categoriaOverride"' } },
+    select: { assetId: true, notes: true },
+    orderBy: { date: 'desc' },
+  });
+  const daVenda = new Map<string, string>();
+  for (const venda of vendas) {
+    if (!venda.assetId || daVenda.has(venda.assetId)) continue;
+    const override = overrideDaVenda(venda.notes);
+    if (override) daVenda.set(venda.assetId, override);
+  }
+  if (daVenda.size === 0) return;
+  const comPosicao = await prisma.portfolio.findMany({
+    where: { userId, assetId: { in: [...daVenda.keys()] } },
+    select: { assetId: true },
+  });
+  const ativos = new Set(comPosicao.map((p) => p.assetId));
+  for (const [assetId, override] of daVenda) {
+    if (!ativos.has(assetId) && !overridePorAsset.has(assetId)) {
+      overridePorAsset.set(assetId, override);
+    }
+  }
+}
+
+/**
  * F1.10: detecta reinvestimento de proventos a partir do JSON `notes` da
  * StockTransaction. Operações marcadas com `notes.operation.action =
  * 'reinvestimento'` são compras feitas com dividendo/JCP/rendimento recebido
@@ -229,6 +275,7 @@ export async function computeInvestimentosPorMes(
   for (const p of movidos) {
     if (p.assetId && p.categoriaOverride) overridePorAsset.set(p.assetId, p.categoriaOverride);
   }
+  if (FLUXO_SEGUE_ABA) await completarOverrideDeVendidos(userId, overridePorAsset);
 
   const assetsDeSonho = new Set(
     vinculados.map((p) => p.assetId).filter((id): id is string => id != null),

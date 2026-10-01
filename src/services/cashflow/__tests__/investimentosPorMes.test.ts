@@ -309,6 +309,52 @@ describe('computeInvestimentosPorMes — ativo movido de aba (mover na Carteira)
   });
 });
 
+describe('computeInvestimentosPorMes — movido de aba e vendido por inteiro', () => {
+  const notasVenda = JSON.stringify({
+    operation: { action: 'resgate', categoriaOverride: 'acoes' },
+  });
+  const transacoes = [
+    tx({ assetId: 'a-fii', total: 800, asset: { type: 'fii', symbol: 'MXRF11' } }),
+    tx({
+      assetId: 'a-fii',
+      type: 'venda',
+      total: 900,
+      notes: notasVenda,
+      date: new Date(Date.UTC(2026, 2, 10, 12)),
+      asset: { type: 'fii', symbol: 'MXRF11' },
+    }),
+  ];
+  /** stockTransaction.findMany: a consulta das vendas com override filtra por notes.contains. */
+  const mockTx = () =>
+    mockPrisma.stockTransaction.findMany.mockImplementation(
+      async ({ where }: { where: Record<string, unknown> }) =>
+        where.notes && typeof where.notes === 'object' && 'contains' in where.notes
+          ? [{ assetId: 'a-fii', notes: notasVenda }]
+          : 'asset' in where
+            ? []
+            : transacoes,
+    );
+
+  it('sem posição: aportes e a venda seguem a aba gravada na venda', async () => {
+    mockTx();
+    const { porTipo } = await computeInvestimentosPorMes('u1', 2026);
+    expect(porTipo.stock[0]).toBe(800);
+    expect(porTipo.stock[2]).toBe(-900);
+    expect(porTipo.fii).toBeUndefined();
+  });
+
+  it('recomprado (posição sem override): vale o Portfolio atual, linha da aba base', async () => {
+    mockTx();
+    mockPrisma.portfolio.findMany.mockImplementation(
+      async ({ where }: { where: Record<string, unknown> }) =>
+        'assetId' in where ? [{ assetId: 'a-fii' }] : [],
+    );
+    const { porTipo } = await computeInvestimentosPorMes('u1', 2026);
+    expect(porTipo.fii[0]).toBe(800);
+    expect(porTipo.stock).toBeUndefined();
+  });
+});
+
 describe('tipoFluxoDoOverride', () => {
   it('mapeia a aba escolhida para a linha do Aporte/Resgate', () => {
     expect(tipoFluxoDoOverride({ symbol: 'BOVA11', type: 'etf' }, 'acoes')).toBe('stock');
