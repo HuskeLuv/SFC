@@ -22,6 +22,9 @@ import {
   invalidatePortfolioSnapshots,
 } from '@/services/portfolio/portfolioRecalculation';
 import { syncSonhoRealizadoBestEffort } from '@/services/planejamento/carteiraToSonhoRealizado';
+import { invalidarContextoUsuario } from '@/services/assistente/contexto';
+import { MOVER_ACTIONS, type MoverSnapshotEstado } from '@/lib/carteiraMover';
+import { MOVER_SNAPSHOT_KIND } from '../../moverHelpers';
 import { UndoError, type UndoContext, type UndoDefinition, type UndoOutcome } from '../types';
 import {
   assertCurrentMatchesAfter,
@@ -30,6 +33,7 @@ import {
   invertChanges,
   isUniqueViolation,
   restoreData,
+  valuesMatch,
 } from '../helpers';
 
 const TX_DATE_FIELDS = new Set(['date']);
@@ -42,6 +46,8 @@ interface SnapshotPortfolioMeta {
   estrategia?: string | null;
   tipoFii?: string | null;
   regiaoEtf?: string | null;
+  categoriaOverride?: string | null;
+  tipoFundo?: string | null;
   planejamentoObjetivoId?: string | null;
   vinculoAposentadoria?: boolean;
 }
@@ -97,6 +103,9 @@ async function recreatePortfolioStub(userId: string, meta: SnapshotPortfolioMeta
       estrategia: meta.estrategia ?? null,
       tipoFii: meta.tipoFii ?? null,
       regiaoEtf: meta.regiaoEtf ?? null,
+      // Mover na Carteira: a posição volta na aba/subgrupo em que estava.
+      categoriaOverride: meta.categoriaOverride ?? null,
+      tipoFundo: meta.tipoFundo ?? null,
       planejamentoObjetivoId: await safePlanejamentoObjetivoId(meta.planejamentoObjetivoId),
       vinculoAposentadoria: meta.vinculoAposentadoria ?? false,
     },
@@ -678,6 +687,7 @@ const planejadoRemover: UndoDefinition = {
       assetId: string;
       objetivo: number;
       secao: string | null;
+      categoriaOverride?: string | null;
       notes: string | null;
       addedAt?: string;
     };
@@ -694,6 +704,7 @@ const planejadoRemover: UndoDefinition = {
           assetId: data.assetId,
           objetivo: data.objetivo,
           secao: data.secao,
+          ...(data.categoriaOverride ? { categoriaOverride: data.categoriaOverride } : {}),
           notes: data.notes,
           ...(data.addedAt ? { addedAt: new Date(data.addedAt) } : {}),
         },
@@ -706,6 +717,85 @@ const planejadoRemover: UndoDefinition = {
       changes: invertChanges(getChanges(entry)),
       entityLabel: entry.entityLabel ?? undefined,
     };
+  },
+};
+
+// ---------------------------------------------------------------------------
+// MOVER na Carteira (out/2026) — investimento/planejado .mover/.restaurar.
+// snapshot = MoverChangeSnapshot: data = estado antes, meta.after = depois.
+// O desfazer reaplica `data` se a linha ainda está igual a `meta.after`; o selo
+// "movido" some sozinho (movidoInfo ignora logs com undoneAt).
+// ---------------------------------------------------------------------------
+
+const CAMPOS_MOVER_POSICAO = [
+  'categoriaOverride',
+  'estrategia',
+  'tipoFii',
+  'regiaoEtf',
+  'tipoFundo',
+  'objetivo',
+] as const;
+const CAMPOS_MOVER_PLANEJADO = ['categoriaOverride', 'secao'] as const;
+
+export const MSG_MOVIDO_DE_NOVO = 'Foi movido de novo depois desta alteração';
+
+/** Só os campos allowlisted presentes no estado gravado. */
+function camposMover(
+  estado: MoverSnapshotEstado,
+  campos: readonly string[],
+): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const campo of campos) {
+    if (campo in estado) out[campo] = (estado as unknown as Record<string, unknown>)[campo] ?? null;
+  }
+  return out;
+}
+
+const moverDesfazer: UndoDefinition = {
+  strategy: 'custom',
+  requires: { entityId: true, snapshot: true },
+  async execute({ auth, entry }: UndoContext): Promise<UndoOutcome> {
+    const { targetUserId } = auth;
+    const snap = getSnapshot(entry)!;
+    const after = (snap.meta as { after?: MoverSnapshotEstado } | undefined)?.after;
+    if (snap.kind !== MOVER_SNAPSHOT_KIND || !after) {
+      throw new UndoError(400, 'Snapshot incompatível', 'UNDO_MISSING_DATA');
+    }
+    const antes = snap.data as unknown as MoverSnapshotEstado;
+    const planejado = entry.action.startsWith('planejado.');
+    const campos = planejado ? CAMPOS_MOVER_PLANEJADO : CAMPOS_MOVER_POSICAO;
+
+    const row = planejado
+      ? await prisma.watchlist.findFirst({ where: { id: entry.entityId!, userId: targetUserId } })
+      : await prisma.portfolio.findFirst({ where: { id: entry.entityId!, userId: targetUserId } });
+    if (!row) {
+      throw new UndoError(
+        409,
+        planejado
+          ? 'O ativo planejado não existe mais (foi removido ou virou posição)'
+          : 'O investimento não existe mais na carteira',
+      );
+    }
+
+    const atual = row as unknown as Record<string, unknown>;
+    for (const [campo, valor] of Object.entries(camposMover(after, campos))) {
+      if (!valuesMatch(atual[campo], valor)) throw new UndoError(409, MSG_MOVIDO_DE_NOVO);
+    }
+
+    const data = camposMover(antes, campos);
+    if (planejado) {
+      await prisma.watchlist.update({ where: { id: row.id }, data });
+    } else {
+      await prisma.portfolio.update({
+        where: { id: row.id },
+        data: { ...data, lastUpdate: new Date() },
+      });
+    }
+
+    // Pizza/alocação (resumo cacheado) e o contexto do assistente mudam de aba.
+    invalidateCaixaCaches(targetUserId);
+    invalidarContextoUsuario(targetUserId);
+    return { changes: invertChanges(getChanges(entry)) };
   },
 };
 
@@ -730,4 +820,8 @@ export const CARTEIRA_UNDO_HANDLERS: Record<string, UndoDefinition> = {
   'planejado.adicionar': planejadoAdicionar,
   'planejado.editar': planejadoEditar,
   'planejado.remover': planejadoRemover,
+  [MOVER_ACTIONS.investimentoMover]: moverDesfazer,
+  [MOVER_ACTIONS.planejadoMover]: moverDesfazer,
+  [MOVER_ACTIONS.investimentoRestaurar]: moverDesfazer,
+  [MOVER_ACTIONS.planejadoRestaurar]: moverDesfazer,
 };

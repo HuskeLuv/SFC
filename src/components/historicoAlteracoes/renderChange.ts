@@ -61,6 +61,16 @@ const ACTION_RENDERERS: Record<string, Renderer> = {
     'Removeu um ativo planejado',
     (l) => `Removeu o ativo planejado ${l}`,
   ),
+  'investimento.mover': withLabel('Moveu um investimento', (l) => `Moveu o investimento ${l}`),
+  'planejado.mover': withLabel('Moveu um ativo planejado', (l) => `Moveu o ativo planejado ${l}`),
+  'investimento.restaurar': withLabel(
+    'Voltou um investimento à classificação original',
+    (l) => `Voltou ${l} à classificação original`,
+  ),
+  'planejado.restaurar': withLabel(
+    'Voltou um ativo planejado à classificação original',
+    (l) => `Voltou ${l} à classificação original`,
+  ),
   'renda-fixa.editar': withLabel(
     'Editou um ativo de renda fixa',
     (l) => `Editou o ativo de renda fixa ${l}`,
