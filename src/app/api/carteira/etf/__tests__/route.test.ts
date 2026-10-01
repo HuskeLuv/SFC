@@ -3,7 +3,7 @@ import { NextRequest } from 'next/server';
 
 const mockPrisma = vi.hoisted(() => ({
   // Histórico de alterações (recordChange importa prisma como default export).
-  userChangeLog: { create: vi.fn() },
+  userChangeLog: { create: vi.fn(), findMany: vi.fn().mockResolvedValue([]) },
   user: { findUnique: vi.fn() },
   portfolio: { findMany: vi.fn() },
   dashboardData: {
@@ -34,7 +34,39 @@ mockPrisma.$transaction.mockImplementation((fn: (tx: typeof mockPrisma) => unkno
 
 vi.mock('@/lib/prisma', () => ({ prisma: mockPrisma, default: mockPrisma }));
 
+vi.mock('@/services/pricing/assetPriceService', () => ({
+  getAssetPrices: vi.fn().mockResolvedValue(new Map()),
+}));
+
+vi.mock('@/services/market/marketIndicatorService', () => ({
+  getIndicator: vi.fn().mockResolvedValue({ price: 5 }),
+}));
+
 import { GET, POST } from '../route';
+
+/** Evento de mover (UserChangeLog) que tirou o item da aba base. */
+const eventoMover = (entityId: string, after: Record<string, unknown>, viaConsultant = false) => ({
+  entityId,
+  action: 'investimento.mover',
+  createdAt: new Date('2026-10-01T12:00:00Z'),
+  viaConsultant,
+  snapshot: { v: 1, kind: 'mover', data: { categoriaOverride: null }, meta: { after } },
+});
+
+type Linha = {
+  id: string;
+  ticker?: string;
+  nome?: string;
+  cotacaoAtual?: number;
+  valorAtualizado: number;
+  movido?: boolean;
+  movidoEm?: string;
+  movidoViaConsultor?: boolean;
+  naoMovivelMotivo?: string;
+  planejado?: boolean;
+};
+type Secao = { ativos: Linha[] } & Record<string, unknown>;
+const linhas = (data: { secoes: Secao[] }) => data.secoes.flatMap((s) => s.ativos);
 
 const createGetRequest = () =>
   new NextRequest('http://localhost/api/carteira/etf', { method: 'GET' });
@@ -95,6 +127,62 @@ describe('/api/carteira/etf', () => {
       expect(res.status).toBe(200);
       expect(data.secoes.length).toBeGreaterThan(0);
       expect(data.secoes[0].ativos[0].ticker).toBe('BOVA11');
+    });
+  });
+
+  describe('mover na Carteira (out/2026)', () => {
+    const posicao = (over: Record<string, unknown>) => ({
+      userId: 'user-1',
+      quantity: 10,
+      totalInvested: 1000,
+      avgPrice: 100,
+      objetivo: 0,
+      regiaoEtf: null,
+      categoriaOverride: null,
+      lastUpdate: new Date(),
+      ...over,
+    });
+
+    it('FII movido para ETFs aparece na região escolhida, com cotação live e selo', async () => {
+      const { getAssetPrices } = await import('@/services/pricing/assetPriceService');
+      vi.mocked(getAssetPrices).mockResolvedValueOnce(new Map([['XPLG11', 110]]));
+      mockPrisma.portfolio.findMany.mockResolvedValue([
+        posicao({
+          id: 'p-xplg',
+          categoriaOverride: 'etfs',
+          regiaoEtf: 'estados_unidos',
+          asset: { symbol: 'XPLG11', name: 'XP Log', type: 'fii', currency: 'BRL' },
+        }),
+      ]);
+      mockPrisma.userChangeLog.findMany.mockResolvedValueOnce([
+        eventoMover('p-xplg', { categoriaOverride: 'etfs', regiaoEtf: 'estados_unidos' }),
+      ]);
+      const data = await (await GET(createGetRequest())).json();
+      const eua = data.secoes.find((s: Secao) => s.regiao === 'estados_unidos');
+      expect(eua.ativos).toHaveLength(1);
+      expect(eua.ativos[0]).toMatchObject({
+        ticker: 'XPLG11',
+        valorAtualizado: 1100,
+        movido: true,
+      });
+    });
+
+    it('ETF movido para Ações some de ETFs; sem override nada muda', async () => {
+      mockPrisma.portfolio.findMany.mockResolvedValue([
+        posicao({
+          id: 'p-bova',
+          categoriaOverride: 'acoes',
+          asset: { symbol: 'BOVA11', name: 'iShares Ibovespa', type: 'etf', currency: 'BRL' },
+        }),
+        posicao({
+          id: 'p-ivvb',
+          asset: { symbol: 'IVVB11', name: 'iShares S&P', type: 'etf', currency: 'BRL' },
+        }),
+      ]);
+      const data = await (await GET(createGetRequest())).json();
+      expect(linhas(data).map((l) => l.ticker)).toEqual(['IVVB11']);
+      expect(linhas(data)[0]).not.toHaveProperty('movido');
+      expect(mockPrisma.userChangeLog.findMany).not.toHaveBeenCalled();
     });
   });
 

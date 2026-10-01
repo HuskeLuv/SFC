@@ -1,9 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import {
-  listarPlanejados,
-  linhaPlanejadaBase,
-  TIPOS_ATIVO_PLANEJAVEIS,
-} from '@/services/portfolio/ativosPlanejados';
+import { listarPlanejados, linhaPlanejadaBase } from '@/services/portfolio/ativosPlanejados';
+import { filtrarDaCategoria, wherePortfolioDaCategoria } from '@/services/portfolio/categoriaAba';
+import { aplicarCamposMovido, camposMovidoPorLinha } from '@/app/api/carteira/_lib/linhaMovida';
 import { requireAuthWithActing } from '@/utils/auth';
 import { prisma } from '@/lib/prisma';
 
@@ -12,10 +10,7 @@ import { handleCaixaAbaPost } from '@/app/api/carteira/_lib/caixaParaInvestirPos
 import { round2, distributeRoundedPercents } from '@/utils/alocacaoPercents';
 import { getAssetPrices } from '@/services/pricing/assetPriceService';
 import { getIndicator } from '@/services/market/marketIndicatorService';
-import {
-  valuatePortfolioItem,
-  CATEGORIA_ASSET_TYPE_FILTERS,
-} from '@/services/portfolio/itemValuation';
+import { valuatePortfolioItem } from '@/services/portfolio/itemValuation';
 import { rentabilidadeAgregada } from '@/utils/rentabilidadeAgregada';
 import {
   aplicarProventosNosAtivos,
@@ -58,17 +53,17 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
   const caixaParaInvestir = caixaParaInvestirData?.value || 0;
 
   // Buscar portfolio do usuário com ativos do tipo correspondente
-  const portfolio = await prisma.portfolio.findMany({
-    where: {
-      userId: user.id,
-      asset: {
-        type: { in: [...CATEGORIA_ASSET_TYPE_FILTERS.etfs] },
+  // Mover na Carteira (out/2026): + itens movidos para ETF's, − os ETFs
+  // movidos daqui para outra aba. Base = CATEGORIA_ASSET_TYPE_FILTERS.etfs.
+  const portfolio = filtrarDaCategoria(
+    await prisma.portfolio.findMany({
+      where: wherePortfolioDaCategoria(user.id, 'etfs'),
+      include: {
+        asset: true,
       },
-    },
-    include: {
-      asset: true,
-    },
-  });
+    }),
+    'etfs',
+  );
 
   // Cotações live + dólar: a aba exibia valorAtualizado = totalInvested
   // (congelado no valor de compra) enquanto o resumo usava cotação — o mesmo
@@ -76,7 +71,7 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
   // Ativos PLANEJADOS (sem posição) da aba — linha zerada com objetivo (16/09/2026).
   const planejados = await listarPlanejados(
     targetUserId,
-    TIPOS_ATIVO_PLANEJAVEIS.etf,
+    { categoria: 'etfs' },
     portfolio.map((p) => p.assetId),
   );
   const symbols = [
@@ -151,6 +146,11 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
       categoria: '',
     });
   }
+
+  aplicarCamposMovido(
+    etfAtivos,
+    await camposMovidoPorLinha(targetUserId, 'etfs', [...portfolio, ...planejados]),
+  );
 
   // Calcular totais gerais
   const totalQuantidade = etfAtivos.reduce((sum, ativo) => sum + ativo.quantidade, 0);
