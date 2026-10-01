@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { handleCaixaAbaPost } from '@/app/api/carteira/_lib/caixaParaInvestirPost';
-import {
-  listarPlanejados,
-  linhaPlanejadaFundoBase,
-  TIPOS_ATIVO_PLANEJAVEIS,
-} from '@/services/portfolio/ativosPlanejados';
+import { listarPlanejados, linhaPlanejadaFundoBase } from '@/services/portfolio/ativosPlanejados';
+import { filtrarDaCategoria, wherePortfolioDaCategoria } from '@/services/portfolio/categoriaAba';
+import { modeloDePreco, type AssetMovivelLike } from '@/lib/carteiraMover';
+import { getAssetPrices } from '@/services/pricing/assetPriceService';
+import { aplicarCamposMovido, camposMovidoPorLinha } from '@/app/api/carteira/_lib/linhaMovida';
 import { requireAuthWithActing } from '@/utils/auth';
 import { prisma } from '@/lib/prisma';
 import { logSensitiveEndpointAccess } from '@/services/impersonationLogger';
@@ -20,7 +20,6 @@ import {
 } from '@/services/changeHistory';
 import { round2, distributeRoundedPercents } from '@/utils/alocacaoPercents';
 import {
-  FUNDO_TYPES_AGRUPADOS,
   FUNDO_SUBTIPO_ORDER,
   FUNDO_SUBTIPO_LABEL,
   fundoSubtipoFromAssetType,
@@ -37,6 +36,13 @@ const parseNotes = (notes?: string | null) => {
     return null;
   }
 };
+
+/**
+ * Ticker de bolsa em reais sem curva de renda fixa (modelo 'b3-brl' do mover):
+ * FII/ação movidos para Fundos ou 'fund' legado cotado (HGLG11).
+ */
+const isCotadoEmBolsa = (asset: AssetMovivelLike | null, temRendaFixa: boolean): boolean =>
+  Boolean(asset?.symbol) && modeloDePreco(asset, { temRendaFixa }) === 'b3-brl';
 
 export const GET = withErrorHandler(async (request: NextRequest) => {
   const { payload, targetUserId, actingClient } = await requireAuthWithActing(request);
@@ -67,13 +73,15 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
   });
   const caixaParaInvestir = caixaParaInvestirData?.value || 0;
 
-  const portfolio = await prisma.portfolio.findMany({
-    where: {
-      userId: user.id,
-      asset: { type: { in: [...FUNDO_TYPES_AGRUPADOS] } },
-    },
-    include: { asset: true },
-  });
+  // Mover na Carteira (out/2026): + itens movidos para Fundos (FII, ação, ETF
+  // cotado), − os fundos movidos daqui para outra aba.
+  const portfolio = filtrarDaCategoria(
+    await prisma.portfolio.findMany({
+      where: wherePortfolioDaCategoria(user.id, 'fimFia'),
+      include: { asset: true },
+    }),
+    'fimFia',
+  );
 
   // Pricer compartilhado: aplica a mesma marcação na curva (CDI/IPCA/Tesouro PU) usada
   // pela aba Renda Fixa, para que ativos com fixedIncomeAsset adicionados nesta aba
@@ -83,9 +91,24 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
   // Ativos PLANEJADOS (sem posição) da aba — linha zerada com objetivo (16/09/2026).
   const planejados = await listarPlanejados(
     targetUserId,
-    TIPOS_ATIVO_PLANEJAVEIS['fim-fia'],
+    { categoria: 'fimFia' },
     portfolio.map((p) => p.assetId),
   );
+
+  // Cotados em bolsa valem qtd × cotação, igual ao resumo.
+  const temRendaFixa = (assetId: string | null) =>
+    Boolean(assetId && pricer.fixedIncomeByAssetId.get(assetId));
+  const cotadosEmBolsa = portfolio.filter((item) =>
+    isCotadoEmBolsa(item.asset, temRendaFixa(item.assetId)),
+  );
+  const quotes =
+    cotadosEmBolsa.length > 0
+      ? await getAssetPrices(
+          cotadosEmBolsa.map((item) => item.asset!.symbol),
+          { useBrapiFallback: true },
+        )
+      : new Map<string, number>();
+  const idsCotados = new Set(cotadosEmBolsa.map((item) => item.id));
 
   const assetIds = portfolio.map((p) => p.assetId).filter((id): id is string => id !== null);
   const transactions =
@@ -174,28 +197,41 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     // Antes a curva vencia, fazendo um fundo de verdade ser marcado como CDB.
     const cvmCurrentPrice = item.asset?.currentPrice?.toNumber() ?? null;
     const hasCvmCota = Boolean(cvmCurrentPrice && cvmCurrentPrice > 0 && item.quantity > 0);
-    const isAutoUpdated = Boolean(hasCvmCota || fiHasCurve);
-    const valorAtualizado = hasCvmCota
-      ? cvmCurrentPrice! * item.quantity
-      : fiHasCurve
-        ? fiCurveValue
-        : item.avgPrice && item.avgPrice > 0 && item.quantity > 0
-          ? item.avgPrice * item.quantity
-          : valorCalculado;
+    // Cotação de bolsa (modelo 'b3-brl') vence a cota/curva: é a mesma que o
+    // resumo usa (valuatePortfolioItem). Sem cotação, cai na cascata de sempre.
+    const cotacaoBolsa = idsCotados.has(item.id) ? (quotes.get(item.asset!.symbol) ?? 0) : 0;
+    const hasCotacaoBolsa = cotacaoBolsa > 0 && item.quantity > 0;
+    const isAutoUpdated = Boolean(hasCotacaoBolsa || hasCvmCota || fiHasCurve);
+    const valorAtualizado = hasCotacaoBolsa
+      ? cotacaoBolsa * item.quantity
+      : hasCvmCota
+        ? cvmCurrentPrice! * item.quantity
+        : fiHasCurve
+          ? fiCurveValue
+          : item.avgPrice && item.avgPrice > 0 && item.quantity > 0
+            ? item.avgPrice * item.quantity
+            : valorCalculado;
     const notes = assetId ? latestCompraNotes.get(assetId) : null;
     const liquidez = assetId ? liquidezByAsset.get(assetId) : undefined;
 
-    // Subtipo: prioridade pro Asset.type classificado (CVM/RCVM 175), fallback
-    // pro notes.tipoFundo (input do wizard), default 'fim'. Pra Asset.type
-    // catch-all ('fund'/'funds' = fundo manual ou CVM sem classificação) o
-    // wizard vence — senão um fundo manual marcado como FIA caía sempre em FIM.
+    // Subtipo: a seção escolhida pelo usuário (Portfolio.tipoFundo, gravada
+    // pelo mover) vence; depois o Asset.type classificado (CVM/RCVM 175),
+    // fallback pro notes.tipoFundo (input do wizard), default 'fim'. Pra
+    // Asset.type catch-all ('fund'/'funds' = fundo manual ou CVM sem
+    // classificação) o wizard vence — senão um fundo manual marcado como FIA
+    // caía sempre em FIM.
     const assetType = item.asset?.type;
+    const subtipoEscolhido = isFundoSubtipo(item.tipoFundo) ? item.tipoFundo : null;
     const subtipoFromAsset = isFundoCatchAllType(assetType)
       ? null
       : fundoSubtipoFromAssetType(assetType);
     const subtipoFromNotes = isFundoSubtipo(notes?.tipoFundo) ? notes.tipoFundo : null;
     const tipoFundo: FundoSubtipo =
-      subtipoFromAsset ?? subtipoFromNotes ?? fundoSubtipoFromAssetType(assetType) ?? 'fim';
+      subtipoEscolhido ??
+      subtipoFromAsset ??
+      subtipoFromNotes ??
+      fundoSubtipoFromAssetType(assetType) ??
+      'fim';
 
     return {
       id: item.id,
@@ -224,6 +260,14 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
   });
 
   for (const r of planejados) ativos.push(linhaPlanejadaFundoBase(r));
+
+  aplicarCamposMovido(
+    ativos,
+    await camposMovidoPorLinha(targetUserId, 'fimFia', [
+      ...portfolio.map((item) => ({ ...item, temRendaFixa: temRendaFixa(item.assetId) })),
+      ...planejados,
+    ]),
+  );
 
   const totalCarteira = ativos.reduce((sum, ativo) => sum + ativo.valorAtualizado, 0);
   const ativosComPercentuais = ativos.map((ativo) => ({
@@ -407,6 +451,25 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
           },
           { status: 400 },
         );
+      }
+      // Ticker de bolsa (FII/ação movidos para Fundos, 'fund' legado cotado):
+      // o GET valoriza pela cotação; regravar o avgPrice corromperia o preço
+      // médio e o IR.
+      if (isCotadoEmBolsa(portfolio.asset, false)) {
+        const fi = portfolio.assetId
+          ? await prisma.fixedIncomeAsset.findUnique({
+              where: { assetId: portfolio.assetId },
+              select: { id: true },
+            })
+          : null;
+        if (!fi) {
+          return NextResponse.json(
+            {
+              error: 'Este ativo tem cotação em bolsa; o valor é atualizado automaticamente',
+            },
+            { status: 400 },
+          );
+        }
       }
       const numValor = typeof valor === 'number' ? valor : parseFloat(valor as string);
       if (!Number.isFinite(numValor) || numValor < 0) {
