@@ -120,8 +120,11 @@ test.describe('mover grava e desfaz', () => {
       await page.mouse.move(sb.x + sb.width / 2, sb.y + sb.height / 2, { steps: 6 });
       await page.waitForTimeout(300);
       await page.mouse.up();
+      // O aviso visível (toast do CarteiraDnd); a região ao vivo do dnd-kit repete o texto.
       await expect(
-        page.getByRole('status').filter({ hasText: `Stocks não aceita ${TICKER}` }),
+        page
+          .locator('[role="status"]:not([id^="DndLiveRegion"])')
+          .filter({ hasText: `Stocks não aceita ${TICKER}` }),
       ).toBeVisible();
       await page.waitForTimeout(500);
       page.off('response', conta);
