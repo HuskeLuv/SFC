@@ -16,6 +16,7 @@ import {
   familiaProvento,
   listarLinhasEditaveis,
   montarContexto,
+  planejadoParaContexto,
   resumirAno,
   resumirMes,
   slim,
@@ -729,5 +730,31 @@ describe('lote 2 (16/09/2026) — agenda, aposentadoria, alocação alvo, FGC', 
     expect(r.totalEfetivamenteCoberto).toBe(100);
     expect(r.instituicoes).toEqual([{ nome: 'Banco X', total: 100, coberto: true }]);
     expect(compactFgc({ resumo: { totalValorRendaFixa: 0 } })).toBeNull();
+  });
+});
+
+describe('planejadoParaContexto — mover na Carteira', () => {
+  const planejado = (categoriaOverride: string | null) =>
+    ({
+      asset: { symbol: 'HGLG11', name: 'CSHG Logística', type: 'fii', currency: 'BRL' },
+      categoriaOverride,
+      objetivo: 5,
+      secao: 'tijolo',
+      notes: null,
+    }) as unknown as Parameters<typeof planejadoParaContexto>[0];
+
+  it('sem override fica na aba do tipo', () => {
+    expect(planejadoParaContexto(planejado(null))).toMatchObject({ aba: "FII's", secao: 'tijolo' });
+  });
+
+  it('planejado movido para Fundos aparece na aba Fundos', () => {
+    expect(planejadoParaContexto(planejado('fimFia'))).toMatchObject({
+      aba: 'Fundos',
+      objetivoPercentualDaAba: 5,
+    });
+  });
+
+  it('override igual à base não muda a aba', () => {
+    expect(planejadoParaContexto(planejado('fiis')).aba).toBe("FII's");
   });
 });
