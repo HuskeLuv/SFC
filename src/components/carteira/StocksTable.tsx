@@ -272,6 +272,7 @@ export default function StocksTable({ totalCarteira = 0 }: StocksTableProps) {
       <td className={`${TABLE_STYLES.compact.td} font-semibold text-right`}>-</td>
       <td className={`${TABLE_STYLES.compact.td} font-semibold text-right`}>-</td>
       <td className={`${TABLE_STYLES.compact.td} font-semibold text-right`}>-</td>
+      <td className={TABLE_STYLES.compact.td} aria-hidden />
     </tr>
   );
 
@@ -314,6 +315,7 @@ export default function StocksTable({ totalCarteira = 0 }: StocksTableProps) {
       extraTotalRows={extraTotalRows}
       extraTotalMobile={extraTotalMobile}
       mobileQuantityUnit="ações"
+      mover={{ categoria: 'stocks' }}
     >
       {/* Charts and aux table */}
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-12">

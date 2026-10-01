@@ -245,6 +245,7 @@ export default function AcoesTable({ totalCarteira = 0 }: AcoesTableProps) {
       formatNumber={formatNumber}
       totalCarteira={totalCarteira}
       mobileQuantityUnit="ações"
+      mover={{ categoria: 'acoes' }}
     />
   );
 }

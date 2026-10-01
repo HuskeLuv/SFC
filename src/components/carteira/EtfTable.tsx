@@ -269,6 +269,7 @@ export default function EtfTable({ totalCarteira = 0 }: EtfTableProps) {
       formatNumber={formatNumber}
       totalCarteira={totalCarteira}
       mobileQuantityUnit="cotas"
+      mover={{ categoria: 'etfs' }}
     >
       {/* Charts and aux table */}
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-12">

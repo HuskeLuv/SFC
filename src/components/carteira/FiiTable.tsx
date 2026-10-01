@@ -12,6 +12,7 @@ import {
   BasicTablePlaceholderRows,
   metricColorBySign,
 } from '@/components/carteira/shared';
+import type { GenericAssetMoverConfig } from '@/components/carteira/shared/GenericAssetTable';
 import AssetNameLink from '@/components/carteira/AssetNameLink';
 import ComponentCard from '@/components/common/ComponentCard';
 import { useIsBelowLg } from '@/hooks/useMediaQuery';
@@ -36,6 +37,23 @@ const SECTION_NAMES: Record<string, string> = {
   infra: 'Infra',
 };
 const MIN_PLACEHOLDER_ROWS = 4;
+
+/**
+ * Mover investimentos (out/2026): seção da tabela → subgrupo de FII (SUBGRUPOS_POR_CATEGORIA).
+ * A tabela agrupa 'fofi'/'fof' em 'fof' e 'ijol'/'tijolo' em 'tijolo'.
+ */
+const SUBGRUPO_FII_DA_SECAO: Record<string, string> = {
+  fof: 'fofi',
+  fofi: 'fofi',
+  tvm: 'tvm',
+  tijolo: 'tijolo',
+  ijol: 'tijolo',
+  infra: 'infra',
+};
+const MOVER: GenericAssetMoverConfig<FiiAtivo> = {
+  categoria: 'fiis',
+  subgrupoDaSecao: (key) => SUBGRUPO_FII_DA_SECAO[key] ?? null,
+};
 
 interface FiiTableProps {
   totalCarteira?: number;
@@ -272,6 +290,7 @@ export default function FiiTable({ totalCarteira = 0 }: FiiTableProps) {
       formatNumber={formatNumber}
       totalCarteira={totalCarteira}
       mobileQuantityUnit="cotas"
+      mover={MOVER}
     >
       {/* Charts */}
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-12">

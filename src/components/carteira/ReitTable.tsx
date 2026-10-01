@@ -231,6 +231,7 @@ export default function ReitTable({ totalCarteira = 0 }: ReitTableProps) {
       <td className={`${TABLE_STYLES.compact.td} font-semibold text-right`}>-</td>
       <td className={`${TABLE_STYLES.compact.td} font-semibold text-right`}>-</td>
       <td className={`${TABLE_STYLES.compact.td} font-semibold text-right`}>-</td>
+      <td className={TABLE_STYLES.compact.td} aria-hidden />
     </tr>
   );
 
@@ -302,6 +303,7 @@ export default function ReitTable({ totalCarteira = 0 }: ReitTableProps) {
       extraTotalMobile={extraTotalMobile}
       mobileTitleFromName
       mobileQuantityUnit="cotas"
+      mover={{ categoria: 'reits' }}
     >
       {/* Charts and aux table */}
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-12">
