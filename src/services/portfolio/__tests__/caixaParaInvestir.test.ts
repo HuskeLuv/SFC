@@ -25,6 +25,8 @@ const { db, mockPrisma, mockDeleteCache } = vi.hoisted(() => {
   };
   const mockPrisma = {
     dashboardData,
+    portfolio: { findFirst: vi.fn(async () => null as unknown) },
+    watchlist: { findFirst: vi.fn(async () => null as unknown) },
     $transaction: vi.fn(async (fn: (tx: unknown) => unknown) => fn({ dashboardData })),
   };
   return { db, mockPrisma, mockDeleteCache: vi.fn() };
@@ -233,6 +235,42 @@ describe('resolverCaixaAba', () => {
 
     mockTesouroDestino.mockResolvedValueOnce(new Map());
     expect(await resolverCaixaAba(USER, tesouro)).toBe('rendaFixa');
+  });
+});
+
+describe('resolverCaixaAba — ativo movido de aba (mover na Carteira)', () => {
+  const etf = { id: 'a-etf', symbol: 'BOVA11', type: 'etf', currency: 'BRL' };
+
+  it('aporte em ETF movido para Ações debita o caixa de Ações', async () => {
+    mockPrisma.portfolio.findFirst.mockResolvedValueOnce({ categoriaOverride: 'acoes' });
+    expect(await resolverCaixaAba(USER, etf)).toBe('acoes');
+    expect(mockPrisma.portfolio.findFirst).toHaveBeenCalledWith({
+      where: { userId: USER, assetId: 'a-etf' },
+      select: { categoriaOverride: true },
+    });
+  });
+
+  it('sem posição, usa a aba do planejado movido (1ª compra)', async () => {
+    mockPrisma.portfolio.findFirst.mockResolvedValueOnce(null);
+    mockPrisma.watchlist.findFirst.mockResolvedValueOnce({ categoriaOverride: 'fimFia' });
+    expect(await resolverCaixaAba(USER, { id: 'a-fii', symbol: 'HGLG11', type: 'fii' })).toBe(
+      'fimFia',
+    );
+  });
+
+  it('override null ou igual à base mantém a aba de sempre', async () => {
+    mockPrisma.portfolio.findFirst.mockResolvedValueOnce({ categoriaOverride: null });
+    expect(await resolverCaixaAba(USER, etf)).toBe('etf');
+    mockPrisma.portfolio.findFirst.mockResolvedValueOnce({ categoriaOverride: 'etfs' });
+    expect(await resolverCaixaAba(USER, etf)).toBe('etf');
+  });
+
+  it('ativo de aba fixa não consulta override', async () => {
+    mockPrisma.portfolio.findFirst.mockClear();
+    expect(await resolverCaixaAba(USER, { id: 'a-cdb', symbol: 'CDB-1', type: 'bond' })).toBe(
+      'rendaFixa',
+    );
+    expect(mockPrisma.portfolio.findFirst).not.toHaveBeenCalled();
   });
 });
 

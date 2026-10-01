@@ -32,7 +32,8 @@ import {
   type CaixaResumo,
   type MovimentoCaixa,
 } from '@/lib/caixaParaInvestirPlano';
-import { categorizarAsset } from '@/services/portfolio/itemValuation';
+import { categoriaBaseDaAba } from '@/lib/carteiraMover';
+import { categoriaEfetiva } from '@/services/portfolio/itemValuation';
 import { getTesouroDestinoByAssetId } from '@/services/portfolio/tesouroDestino';
 
 // Definições e contas puras vivem em lib/caixaParaInvestirPlano (a tela usa as
@@ -200,10 +201,34 @@ type AssetParaCaixa = {
 } | null;
 
 /**
+ * Aba escolhida pelo usuário no "Mover na Carteira" para este ativo: a da
+ * posição e, sem posição (1ª compra de um planejado movido), a do planejado —
+ * a compra absorve o planejado com o mesmo override. Só consulta o banco para
+ * ativo de aba movível; a validade final fica com `categoriaEfetiva`.
+ */
+async function overrideDoAtivo(
+  userId: string,
+  asset: NonNullable<AssetParaCaixa>,
+): Promise<string | null> {
+  if (!asset.id || !categoriaBaseDaAba({ ...asset, symbol: asset.symbol ?? '' })) return null;
+  const posicao = await prisma.portfolio.findFirst({
+    where: { userId, assetId: asset.id },
+    select: { categoriaOverride: true },
+  });
+  if (posicao) return posicao.categoriaOverride ?? null;
+  const planejado = await prisma.watchlist.findFirst({
+    where: { userId, assetId: asset.id },
+    select: { categoriaOverride: true },
+  });
+  return planejado?.categoriaOverride ?? null;
+}
+
+/**
  * Aba do caixa de um ativo JÁ resolvido no servidor (mesma classificação da
- * carteira, `categorizarAsset`). `null` = sem reserva própria (reservas de
- * emergência/oportunidade, conta corrente, imóveis e bens): a operação só usa
- * o caixa livre. Tesouro comprado para uma reserva é reserva.
+ * carteira, `categoriaEfetiva` — respeita o override do mover). `null` = sem
+ * reserva própria (reservas de emergência/oportunidade, conta corrente,
+ * imóveis e bens): a operação só usa o caixa livre. Tesouro comprado para uma
+ * reserva é reserva.
  */
 export async function resolverCaixaAba(
   userId: string,
@@ -221,9 +246,12 @@ export async function resolverCaixaAba(
       : destino === 'reserva-oportunidade'
         ? ('oportunidade' as const)
         : undefined;
-  const categoria = categorizarAsset(
+  const isReserva = tesouroReservaDestino !== undefined;
+  const override = isReserva ? null : await overrideDoAtivo(userId, asset);
+  const categoria = categoriaEfetiva(
     { symbol: asset.symbol ?? '', type: asset.type, currency: asset.currency, name: asset.name },
-    { isReserva: tesouroReservaDestino !== undefined, tesouroReservaDestino },
+    override,
+    { isReserva, tesouroReservaDestino },
   );
   return CATEGORIA_TO_CAIXA_ABA[categoria];
 }
