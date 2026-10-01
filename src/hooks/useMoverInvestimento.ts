@@ -192,6 +192,9 @@ export function useMoverInvestimento(
   );
 
   const mutation = useMutation<MoverResponse, Error, Variaveis, Contexto>({
+    // Offline, o padrão ('online') PAUSA a mutação: o sheet ficava em "Movendo…" sem saída e o
+    // POST saía sozinho quando a conexão voltava. 'always' deixa o fetch falhar (erro de rede).
+    networkMode: 'always',
     mutationFn: (vars) =>
       postMover(
         csrfFetch,

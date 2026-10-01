@@ -2,7 +2,7 @@
 import React from 'react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { act, renderHook, waitFor } from '@testing-library/react';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { QueryClient, QueryClientProvider, onlineManager } from '@tanstack/react-query';
 import { queryKeys } from '@/lib/queryKeys';
 import type { MoverAlvo } from '@/types/carteiraMover';
 
@@ -202,6 +202,29 @@ describe('useMoverInvestimento', () => {
       "Não foi possível mover KDIF11. Ele continua em FII's › FOF (Fundos de Fundos).",
     );
     expect(typeof toast.tentarDeNovo).toBe('function');
+  });
+
+  it('offline: não pausa a mutação — o fetch falha e cai no erro de rede', async () => {
+    onlineManager.setOnline(false);
+    try {
+      fetchMock.mockImplementation(() => Promise.reject(new TypeError('Failed to fetch')));
+      const { queryClient, hook } = setup();
+      const antes = fiiCache(queryClient);
+      let erro: unknown;
+      await act(async () => {
+        await hook.result.current
+          .mover({ alvo: ALVO, categoria: 'fiis', subgrupo: 'tvm' })
+          .catch((e) => {
+            erro = e;
+          });
+      });
+      expect(erro).toBeInstanceOf(MoverErro);
+      expect((erro as MoverErro).status).toBeUndefined();
+      expect(fiiCache(queryClient)).toEqual(antes);
+      expect(hook.result.current.pendingId).toBeUndefined();
+    } finally {
+      onlineManager.setOnline(true);
+    }
   });
 
   it('recusa do servidor (409): mostra o motivo e não oferece "Tentar de novo"', async () => {
