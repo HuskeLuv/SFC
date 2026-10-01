@@ -133,6 +133,18 @@ async function seedDemoUsers() {
   // também recebe dados — serve de fixture para o seletor de anos dinâmico.
   const currentYear = new Date().getFullYear();
   const previousYear = currentYear - 1;
+  const currentMonth = new Date().getMonth();
+  // O mês corrente repete os valores de setembro (mês em que as baselines do
+  // e2e desktop-fase3 foram gravadas): /relatorios abre em "Mês atual" e a
+  // impressão/estrutura não podem mudar conforme o dia ou o mês do CI.
+  const REFERENCE_MONTH = 8;
+  const withReferenceMonth = (entries: Record<string, number[]>) =>
+    Object.fromEntries(
+      Object.entries(entries).map(([name, values]) => [
+        name,
+        values.map((value, month) => (month === currentMonth ? values[REFERENCE_MONTH] : value)),
+      ]),
+    );
 
   const incomes: Record<string, number[]> = {
     Salário: Array(12).fill(9000),
@@ -153,10 +165,10 @@ async function seedDemoUsers() {
     Roupas: [250, 0, 180, 0, 220, 0, 210, 0, 230, 0, 190, 0],
   };
 
-  for (const year of [previousYear, currentYear]) {
-    await seedCashflowValues(demoUser.id, incomes, year);
-    await seedCashflowValues(demoUser.id, expenses, year);
-  }
+  await seedCashflowValues(demoUser.id, incomes, previousYear);
+  await seedCashflowValues(demoUser.id, expenses, previousYear);
+  await seedCashflowValues(demoUser.id, withReferenceMonth(incomes), currentYear);
+  await seedCashflowValues(demoUser.id, withReferenceMonth(expenses), currentYear);
 
   const itsa4 = await prisma.asset.upsert({
     where: { symbol: 'ITSA4' },
@@ -191,7 +203,6 @@ async function seedDemoUsers() {
   // Aportes (compra) e resgates (venda) espalhados pelo ano anterior inteiro e
   // pelo ano corrente até o mês anterior — verde/vermelho no bloco Aporte/Resgate
   // em duas categorias (Ações e FII's).
-  const currentMonth = new Date().getMonth();
   const transactions: Array<{
     userId: string;
     assetId: string;
@@ -244,12 +255,11 @@ async function seedDemoUsers() {
   pushMonthly(previousYear, 11);
   pushMonthly(currentYear, currentMonth - 1);
 
-  // Mês corrente: só uma compra de ITSA4 no dia 1, para o período padrão de
-  // /relatorios ("Mês atual") ter o mesmo conteúdo em qualquer dia do mês —
-  // as baselines do e2e (desktop-fase3) dependem disso.
+  // Mês corrente: só uma compra de ITSA4 no dia 1, com os valores de setembro,
+  // para "Mês atual" de /relatorios ter o mesmo conteúdo em qualquer dia.
   {
-    const quantity = 10 + currentMonth;
-    const price = 10.5 + currentMonth * 0.2;
+    const quantity = 10 + REFERENCE_MONTH;
+    const price = 10.5 + REFERENCE_MONTH * 0.2;
     transactions.push({
       userId: demoUser.id,
       assetId: itsa4.id,
