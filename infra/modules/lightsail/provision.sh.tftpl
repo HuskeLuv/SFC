@@ -196,7 +196,7 @@ EOF
 chmod 755 /usr/local/bin/myfinance-cron.sh
 touch /var/log/myfinance-cron.log
 # jobs PESADOS da Análise de Ativos (scores): processo próprio, fora do next-server, para a memória
-# voltar ao sistema no fim (pico medido ~260 MB). Ver docs/analise-ativos/fase0/RUNBOOK.md §5.
+# voltar ao sistema no fim (pico medido ~255 MB). Ver docs/analise-ativos/fase0/RUNBOOK.md §5.
 cat >/usr/local/bin/myfinance-job.sh <<'EOF'
 #!/bin/bash
 JOB="$1"

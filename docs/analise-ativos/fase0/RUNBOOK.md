@@ -148,15 +148,19 @@ responde **503 sem rodar** se o RSS do servidor já passar de `ANALISE_ATIVOS_RO
 Pico do runner (`/usr/bin/time -v`, dev, 30/09/2026, `MALLOC_ARENA_MAX=2` + heap 256; o processo já
 inclui ~135 MB de base do Node/tsx/Prisma):
 
-| Job                                          |   RSS máx. | Onde roda                   |
-| -------------------------------------------- | ---------: | --------------------------- |
-| scores                                       | 259–263 MB | runner (`myfinance-job.sh`) |
-| cotahist                                     |     217 MB | rota HTTP                   |
-| b3-cadastro, cvm-cias (fca/dfp/itr), cvm-ipe | 179–184 MB | rota HTTP                   |
-| fii-cadastro, fii-mensal, fii-trimestral     | 179–183 MB | rota HTTP                   |
+| Job                                               |        RSS máx. | Onde roda                   |
+| ------------------------------------------------- | --------------: | --------------------------- |
+| scores (dia comum / recálculo de todo o universo) | 255 MB / 246 MB | runner (`myfinance-job.sh`) |
+| cotahist                                          |          217 MB | rota HTTP                   |
+| b3-cadastro, cvm-cias (fca/dfp/itr), cvm-ipe      |      179–184 MB | rota HTTP                   |
+| fii-cadastro, fii-mensal, fii-trimestral          |      179–183 MB | rota HTTP                   |
 
 Os jobs de ingestão pularam por ETag nessa medição; com arquivo novo a QA de operação mediu +64 MB
 (`cvm-cias:itr`) e +61 MB (`fii-mensal`) sobre a base, e o `cotahist` +78 MB — todos abaixo de 250 MB.
+
+O recálculo de todo o universo (dia seguinte a um backfill ou a `--tudo`) chegava a 305 MB com
+lotes de 200 FIIs na etapa `derivados`; com lotes de 50 ficou em 246 MB (medido com
+`recalcular-analise.ts --tudo`, mesmas opções do runner).
 
 Sem `MALLOC_ARENA_MAX=2` o mesmo `scores` chegava a 308–324 MB (memória nativa do Prisma espalhada
 por arenas do malloc); o heap limitado sozinho não resolvia. Se algum outro job passar de ~250 MB no

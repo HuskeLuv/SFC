@@ -443,6 +443,8 @@ export async function recalcularDerivados(
   // Ações — por lotes de empresas (limita memória e o tamanho dos IN)
   const tickersPorCnpj = agrupar(u.acoes, (t) => t.cnpj);
   const LOTE = 40;
+  // FIIs: 48 trimestres de informe por fundo — lote menor (pico de RSS do job scores, achado rodada 2)
+  const LOTE_FII = 50;
   for (let i = 0; i < alvo.cnpjsAcoes.length; i += LOTE) {
     if (ctx.estourouPrazo()) break;
     const cnpjs = alvo.cnpjsAcoes.slice(i, i + LOTE);
@@ -502,9 +504,9 @@ export async function recalcularDerivados(
 
   // FIIs
   const fiisPorCnpj = agrupar(u.fiis, (f) => f.cnpj);
-  for (let i = 0; i < alvo.cnpjsFii.length; i += LOTE * 5) {
+  for (let i = 0; i < alvo.cnpjsFii.length; i += LOTE_FII) {
     if (ctx.estourouPrazo()) break;
-    const cnpjs = alvo.cnpjsFii.slice(i, i + LOTE * 5);
+    const cnpjs = alvo.cnpjsFii.slice(i, i + LOTE_FII);
     const trimestres = await fiiTrimestralUltimos(ctx.prisma, cnpjs, 48);
     const triPorCnpj = agrupar(trimestres, (t) => t.cnpj);
     const pares = cnpjs.flatMap((c) =>
