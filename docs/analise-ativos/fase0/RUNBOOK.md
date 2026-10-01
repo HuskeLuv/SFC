@@ -12,7 +12,7 @@ APP=/opt/myfinance/current
 ENVF=/etc/myfinance/app.env
 # roda um script da fase 0 como o usuário do app, com teto de memória e prioridade baixa
 rodar() { cd "$APP" && sudo -u myfinance env NODE_OPTIONS=--max-old-space-size=512 \
-  nice -n 10 npx --no-install tsx --env-file="$ENVF" "$@"; }
+  nice -n 10 node --env-file="$ENVF" --import tsx "$@"; }
 PSQL='sudo -u postgres psql myfinance'
 ```
 
@@ -92,6 +92,38 @@ produção.
 | 9     | `rodar scripts/analise-ativos/recalcular-analise.ts --etapas=proventos,eventos`                                                                                                                 | `select status, count(*) from asset_proventos_auditados group by 1;`                                                                                   |
 | 10    | `rodar scripts/analise-ativos/recalcular-analise.ts --etapas=derivados,scores`                                                                                                                  | `select "dataRef", count(*) from asset_scores group by 1 order by 1 desc limit 3;`                                                                     |
 | 11    | `rodar scripts/analise-ativos/relatorio-notas-prototipo.ts`                                                                                                                                     | (gera a tabela de notas reais para o Pedro — decisão 1; nada a gravar)                                                                                 |
+
+### Passo 6b — escala declarada errada no PRIMEIRO documento de cada emissor
+
+A correção automática de escala (`escala_corrigida`) compara com o documento vizinho anterior; no
+backfill em ordem crescente o primeiro documento de um emissor só é conferido pelo LPA. Depois do
+passo 6, varrer saltos de ~1000× entre exercícios vizinhos (no dev isso pegou a VAMO3 DFP 2018):
+
+```bash
+$PSQL -c "
+with f as (
+  select \"emissorId\", escopo, \"dtFim\", \"ativoTotal\",
+         lead(\"ativoTotal\") over (partition by \"emissorId\", escopo order by \"dtFim\") prox
+  from asset_fundamentals_period
+  where \"docTipo\" = 'DFP' and \"tipoPeriodo\" = 'FY' and \"ativoTotal\" > 0)
+select \"emissorId\", escopo, \"dtFim\", \"ativoTotal\", prox, round(prox / \"ativoTotal\") razao
+from f where prox / \"ativoTotal\" between 300 and 3000 or \"ativoTotal\" / nullif(prox, 0) between 300 and 3000
+order by 1, 3;"
+```
+
+Leitura do resultado (no dev, 30/09, apareceram os dois tipos):
+
+- **falso positivo**: holding recém-criada que cresce de verdade ~1000× (GRUPO TOKY 2019 → 2020,
+  pré-IPO) — não fazer nada;
+- **escala errada em sequência**: vários exercícios seguidos declarados UNIDADE com valores em
+  milhares e o primeiro exercício correto depois deles (SUDESTE S.A. 2018–2022 × 2023 MIL). A regra
+  automática não pega, porque o vizinho anterior está errado do mesmo jeito.
+
+Para cada caso real: anotar (emissor, exercício), apagar só
+as linhas daquele documento em `asset_fundamentals_period` e `asset_statement_lines` (escrita em
+prod — com OK) e reprocessar os anos em ordem DECRESCENTE (do mais recente errado para o mais antigo) com
+`backfill-cvm-cias.ts --docs=dfp --anos=<ano> --reprocessar`; com o vizinho correto já gravado, a
+regra marca `escala_corrigida`. Se não corrigir, deixar o emissor fora (anotar) e seguir.
 
 Depois de **cada** passo:
 
@@ -177,7 +209,7 @@ code=0
 cd /opt/myfinance/current || code="ERR"
 if [ "$code" = "0" ]; then
   timeout 600 sudo -u myfinance env MALLOC_ARENA_MAX=2 NODE_OPTIONS=--max-old-space-size=256 \
-    nice -n 10 npx --no-install tsx --env-file=/etc/myfinance/app.env \
+    nice -n 10 node --env-file=/etc/myfinance/app.env --import tsx \
     scripts/analise-ativos/rodar-job.ts "$JOB" >>/var/log/myfinance-job.log 2>&1 || code=$?
 fi
 echo "$ts job:$JOB -> exit $code" >> /var/log/myfinance-cron.log

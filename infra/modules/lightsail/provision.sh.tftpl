@@ -205,7 +205,7 @@ code=0
 cd /opt/myfinance/current || code="ERR"
 if [ "$code" = "0" ]; then
   timeout 600 sudo -u myfinance env MALLOC_ARENA_MAX=2 NODE_OPTIONS=--max-old-space-size=256 \
-    nice -n 10 npx --no-install tsx --env-file=/etc/myfinance/app.env \
+    nice -n 10 node --env-file=/etc/myfinance/app.env --import tsx \
     scripts/analise-ativos/rodar-job.ts "$JOB" >>/var/log/myfinance-job.log 2>&1 || code=$?
 fi
 echo "$ts job:$JOB -> exit $code" >> /var/log/myfinance-cron.log
