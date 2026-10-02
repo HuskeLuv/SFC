@@ -4,6 +4,7 @@ import { seedTemplates } from '../src/utils/cashflowTemplates';
 import { seedInstitutions } from './referenceData';
 import { CURSO_ESR_SLUG, MODULOS_TRILHA_ESR } from '../src/constants/educacaoModulos';
 import { AULAS_TRILHA_ESR, buildVturbEmbed } from '../src/constants/educacaoAulas';
+import { seedAnaliseAtivos } from './seedAnaliseAtivos';
 
 const prisma = new PrismaClient();
 
@@ -428,6 +429,16 @@ async function main() {
     // slug; as aulas ficam sem vturbEmbed até o Pedro colar os snippets do
     // painel VTurb (Meus Vídeos → Embed → JS).
     await seedEducacao();
+
+    // Análise de Ativos (Fase 1): fixtures da Fase 0 + linhas do Quadro SÓ em banco sem
+    // asset_scores (CI/e2e); usuário demo no beta da área. Idempotente.
+    const analise = await seedAnaliseAtivos(prisma);
+    console.log(
+      analise.fixtures
+        ? `📈 Análise de Ativos: fixtures carregadas (${analise.fixtures.analiseQuadroLinha} linhas do Quadro)`
+        : '📈 Análise de Ativos: banco já tem dados da Fase 0 — fixtures puladas',
+    );
+    console.log(`📈 Demo no beta da Análise de Ativos: ${analise.demoNoBeta ? 'sim' : 'não'}`);
 
     // Nota: Ações (stocks) e moedas são adicionadas pelo cron de sincronização (brapiSync)
 

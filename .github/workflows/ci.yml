@@ -65,6 +65,9 @@ jobs:
       DATABASE_URL: postgresql://postgres:postgres@localhost:5432/sfc_test?schema=public
       JWT_SECRET: ci-e2e-jwt-secret-not-for-prod
       BRAPI_API_KEY: ${{ secrets.BRAPI_API_KEY }}
+      # Análise de Ativos (Fase 1): área ligada no e2e; o seed carrega as fixtures
+      # (prisma/fixtures/analise-ativos) e põe o usuário demo no beta.
+      ANALISE_ATIVOS_HABILITADA: 'true'
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

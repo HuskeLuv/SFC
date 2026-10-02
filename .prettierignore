@@ -1,2 +1,5 @@
 # Baselines do Playwright (snapshots estruturais .json): o conteúdo é comparado byte a byte.
 e2e/**/*-snapshots/
+
+# Fixtures do seed da Análise de Ativos (uma linha de tabela por linha; o prettier dobraria o tamanho).
+prisma/fixtures/
