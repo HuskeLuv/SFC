@@ -42,6 +42,7 @@ import {
   montarGraficoFii,
   type EventoAjuste,
 } from '@/services/analiseAtivos/leitura/ativo/seriesGrafico';
+import { FLAG_CNPJ_EM_CONFERENCIA } from '@/services/analiseAtivos/quadro/montarLinhasQuadro';
 import { TEXTOS_TELA } from '@/services/analiseAtivos/textosTela';
 import { LINK_EDUCACAO } from '@/constants/analiseAtivosVisual';
 import type {
@@ -137,6 +138,9 @@ export async function montarTopoAtivo(
   const desdeAno = anoAtual - ANOS_HISTORICO;
   const refIndice = row.tickerReferencia ?? ticker;
   const ehAcao = classe === 'acao';
+  // FII com ticker↔CNPJ não conferido: o informe mensal do CNPJ pode ser de outro fundo (nem é
+  // lido): sem VP/cota no gráfico, sem data de informe; cotação e proventos da B3 continuam.
+  const cnpjEmConferencia = !ehAcao && row.flags.includes(FLAG_CNPJ_EM_CONFERENCIA);
 
   const [
     scoreRow,
@@ -218,7 +222,7 @@ export async function montarTopoAtivo(
           select: { anoFiscal: true, trimestreFiscal: true },
         })
       : Promise.resolve(null),
-    ehAcao
+    ehAcao || cnpjEmConferencia
       ? Promise.resolve([])
       : prisma.fiiMonthly.findMany({
           where: { cnpj: row.cnpj, refMonth: { gte: new Date(Date.UTC(desdeAno, 0, 1)) } },
@@ -323,7 +327,7 @@ export async function montarTopoAtivo(
       payoutPct: ehAcao ? p.payoutDmplPct : null,
       flags: p.flags,
     })),
-    mesesPorAno: ehAcao ? undefined : mesesPorAno,
+    mesesPorAno: ehAcao || cnpjEmConferencia ? undefined : mesesPorAno,
     ult12m: ehAcao ? (atuais?.dpa12m ?? null) : (atuais?.rend12m ?? null),
     ult12mData: iso(atuais?.precoData) ?? linha.precoData,
     proventosEmConferencia: linha.proventosEmConferencia,

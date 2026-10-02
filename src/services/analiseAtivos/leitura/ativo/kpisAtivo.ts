@@ -11,6 +11,7 @@
 import { formatarNumeroBR, formatarTexto } from '@/services/analiseAtivos/textos';
 import { TEXTOS_TELA, textoMotivo, textoNaoSeAplica } from '@/services/analiseAtivos/textosTela';
 import { cagrJanela } from '@/services/analiseAtivos/leitura/ativo/series';
+import { FLAG_CNPJ_EM_CONFERENCIA } from '@/services/analiseAtivos/quadro/montarLinhasQuadro';
 import type { Estado, KpiAtivo, LinhaQuadroApi, PontoSerieAnual } from '@/types/analiseAtivosApi';
 
 export const PARES_MINIMOS_REFERENCIA = 3;
@@ -229,9 +230,18 @@ function kpisFii(e: EntradaKpis): KpiAtivo[] {
   const { linha, atuais } = e;
   const conferencia = linha.proventosEmConferencia ? 'proventos_em_conferencia' : null;
   const rend = atuais?.rend12m ?? null;
-  const vpCota = atuais?.vpCota ?? null;
-  const vac: Estado<number> =
-    linha.fiiTipo === 'papel'
+  // ticker↔CNPJ não conferido: nada do informe CVM (VP/cota, patrimônio, cotistas, vacância...)
+  const cnpjConf = linha.flags.includes(FLAG_CNPJ_EM_CONFERENCIA);
+  const emConfCnpj: Estado<number> = {
+    estado: 'ausente',
+    motivo: 'cnpj_em_conferencia',
+    texto: TEXTOS_TELA.ausentesPorCampo.cnpjEmConferencia,
+  };
+  const informe = (v: Estado<number>): Estado<number> => (cnpjConf ? emConfCnpj : v);
+  const vpCota = cnpjConf ? null : (atuais?.vpCota ?? null);
+  const vac: Estado<number> = cnpjConf
+    ? emConfCnpj
+    : linha.fiiTipo === 'papel'
       ? {
           estado: 'nao_se_aplica',
           motivo: 'papel_sem_imoveis',
@@ -253,7 +263,7 @@ function kpisFii(e: EntradaKpis): KpiAtivo[] {
     {
       codigo: 'pvp',
       rotulo: R.rotulos.pvp,
-      valor: linha.pvp,
+      valor: informe(linha.pvp),
       formato: 'numero2',
       sub: typeof vpCota === 'number' ? formatarTexto(R.vpCota, { valor: moeda(vpCota) }) : null,
       selo: null,
@@ -269,19 +279,20 @@ function kpisFii(e: EntradaKpis): KpiAtivo[] {
     {
       codigo: 'patrimonio',
       rotulo: R.rotulos.patrimonio,
-      valor: ok(linha.patrimonio),
+      valor: informe(ok(linha.patrimonio)),
       formato: 'moedaCompacta',
-      sub: e.patrimonioData
-        ? formatarTexto(R.informeCvm, { data: dataCurta(e.patrimonioData) })
-        : null,
+      sub:
+        !cnpjConf && e.patrimonioData
+          ? formatarTexto(R.informeCvm, { data: dataCurta(e.patrimonioData) })
+          : null,
       selo: null,
     },
     {
       codigo: 'cotistas',
       rotulo: R.rotulos.cotistas,
-      valor: ok(linha.cotistas),
+      valor: informe(ok(linha.cotistas)),
       formato: 'inteiro',
-      sub: R.cotistasSub,
+      sub: cnpjConf ? null : R.cotistasSub,
       selo: null,
     },
     {
@@ -295,7 +306,7 @@ function kpisFii(e: EntradaKpis): KpiAtivo[] {
     {
       codigo: 'obrigacoesPl',
       rotulo: R.rotulos.obrigacoesPl,
-      valor: linha.obrigacoesPl,
+      valor: informe(linha.obrigacoesPl),
       formato: 'pct',
       sub: null,
       selo: null,
@@ -305,7 +316,7 @@ function kpisFii(e: EntradaKpis): KpiAtivo[] {
       rotulo: R.rotulos.vacanciaCvm,
       valor: vac,
       formato: 'pct',
-      sub: linha.fiiTipo === 'papel' ? null : TEXTOS_TELA.selos.fonteCvm,
+      sub: cnpjConf || linha.fiiTipo === 'papel' ? null : TEXTOS_TELA.selos.fonteCvm,
       selo: null,
     },
   ];

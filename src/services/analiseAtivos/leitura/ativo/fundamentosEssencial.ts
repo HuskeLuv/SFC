@@ -22,6 +22,7 @@ import { fundamentosVigentes } from '@/services/analiseAtivos/repositorio/acoes'
 import { paraData, paraNumero } from '@/services/analiseAtivos/repositorio/conversao';
 import { lucroParaSequencia } from '@/services/analiseAtivos/regras/calculo/sequencias';
 import { obterLinhaQuadro, versaoQuadro } from '@/services/analiseAtivos/leitura/linhasQuadro';
+import { FLAG_CNPJ_EM_CONFERENCIA } from '@/services/analiseAtivos/quadro/montarLinhasQuadro';
 import {
   anoDe,
   anosFechados,
@@ -367,6 +368,34 @@ export interface EntradaFundamentosFii {
   /** meses com desdobramento de cotas (fii_monthly.fatorDesdobramento) */
   desdobramentos: Array<{ refMonth: string; fator: number }>;
   proventosEmConferencia: boolean;
+  /**
+   * Casamento ticker↔CNPJ não conferido (flag cnpj_em_conferencia): o informe CVM pode ser de
+   * outro fundo ⇒ receita, resultado, VP/cota, P/VP, vacância, imóveis, área e CRIs saem 'em
+   * conferência'. Rendimento/cota e DY (proventos da B3 sobre a cotação) continuam.
+   */
+  cnpjEmConferencia?: boolean;
+}
+
+/** Colunas do FII que vêm do informe CVM do CNPJ. */
+const COLUNAS_INFORME_FII: ReadonlySet<string> = new Set([
+  'receita',
+  'resultado',
+  'vpCota',
+  'pvp',
+  'vacancia',
+  'nImoveis',
+  'area',
+  'nCri',
+  'maiorCri',
+]);
+
+function semInformeConferido(
+  valores: Record<string, Estado<number>>,
+): Record<string, Estado<number>> {
+  const em = ausenteCom('cnpj_em_conferencia', TEXTOS_TELA.ausentesPorCampo.cnpjEmConferencia);
+  return Object.fromEntries(
+    Object.entries(valores).map(([k, v]) => [k, COLUNAS_INFORME_FII.has(k) ? em : v]),
+  );
 }
 
 const COLUNAS_FII_BASE: ColunaFundamentos[] = [
@@ -421,7 +450,11 @@ export function montarFundamentosFii(e: EntradaFundamentosFii): FundamentosRespo
   const papel = e.fiiTipo === 'papel';
   const colunas = papel ? COLUNAS_FII_PAPEL : COLUNAS_FII_TIJOLO;
   const anoAtual = anoDe(e.hoje);
-  const trimestres = [...e.trimestres].sort((a, b) => a.refQuarter.localeCompare(b.refQuarter));
+  const cnpjConf = e.cnpjEmConferencia === true;
+  const desdobramentos = cnpjConf ? [] : e.desdobramentos;
+  const trimestres = (cnpjConf ? [] : [...e.trimestres]).sort((a, b) =>
+    a.refQuarter.localeCompare(b.refQuarter),
+  );
   const trimPorAno = new Map<number, TrimestreFii[]>();
   for (const t of trimestres) {
     const ano = anoDe(t.refQuarter);
@@ -443,7 +476,7 @@ export function montarFundamentosFii(e: EntradaFundamentosFii): FundamentosRespo
     .slice(-MAX_ANOS_ESSENCIAL)
     .map((p) => p.ano);
 
-  const fator = (ano: number) => fatorCotasApos(`${ano}-12-31`, e.desdobramentos);
+  const fator = (ano: number) => fatorCotasApos(`${ano}-12-31`, desdobramentos);
   const serieRend = anosFechados(
     e.perShare.map((p) => ({ ano: p.anoFiscal, valor: dividir(p.rendCota, fator(p.anoFiscal)) })),
     e.hoje,
@@ -479,16 +512,35 @@ export function montarFundamentosFii(e: EntradaFundamentosFii): FundamentosRespo
       rotulo: String(ano),
       ano,
       destaque: i === anos.length - 1,
-      valores,
+      valores: cnpjConf ? semInformeConferido(valores) : valores,
       selos: suspeitos.has(ano) ? [SELO_CONF] : [],
     };
   });
 
   // Últ. 12m: os 4 últimos trimestres, se o mais recente é posterior ao último ano fechado.
+  // Informe em conferência: a linha sai só com os proventos de 12 meses (B3), se houver.
   const ultimos4 = trimestres.slice(-4);
   const ultimo = ultimos4[ultimos4.length - 1];
   const ultimoAnoFechado = anos[anos.length - 1] ?? anoAtual - 1;
-  if (ultimo && anoDe(ultimo.refQuarter) > ultimoAnoFechado) {
+  const ult12mSoProventos =
+    cnpjConf && e.atual !== null && (e.atual.rend12m != null || e.atual.dy12mPct != null);
+  if (ult12mSoProventos) {
+    const a = e.atual;
+    const conf = e.proventosEmConferencia;
+    const textoConf = conf ? TEXTOS_TELA.ausentesPorCampo.dyEmConferencia : undefined;
+    const base: Record<string, Estado<number>> = {
+      rendCota: estadoDe(a?.rend12m, textoConf),
+      dy: estadoDe(a?.dy12mPct, textoConf),
+    };
+    for (const c of colunas) if (!(c.codigo in base)) base[c.codigo] = semDado();
+    linhas.push({
+      rotulo: TEXTOS_TELA.ativo.ult12mTabela,
+      ano: null,
+      destaque: false,
+      valores: semInformeConferido(base),
+      selos: conf ? [SELO_CONF] : [],
+    });
+  } else if (ultimo && anoDe(ultimo.refQuarter) > ultimoAnoFechado) {
     const a = e.atual;
     const conf = e.proventosEmConferencia;
     const valores: Record<string, Estado<number>> = {
@@ -523,7 +575,8 @@ export function montarFundamentosFii(e: EntradaFundamentosFii): FundamentosRespo
   const notas: string[] = [TF.unidadeFii];
   if (algumIncompleto) notas.push(`— ${TEXTOS_TELA.ativo.anoIncompletoFii}`);
   if (linhas.some((l) => l.ano === null)) notas.push(TF.notaUlt12m);
-  if (!papel) notas.push(TF.notaCvmGestor);
+  if (cnpjConf) notas.push(`— ${TEXTOS_TELA.ausentesPorCampo.cnpjEmConferencia}`);
+  else if (!papel) notas.push(TF.notaCvmGestor);
   if (linhas.some((l) => l.ano !== null && l.selos.includes(SELO_CONF))) {
     notas.push(TF.notaProventosConferencia);
   }
@@ -584,23 +637,27 @@ export async function obterFundamentosEssencial(
 
   let dados: FundamentosResposta;
   if (linha.classe === 'fii') {
+    // ticker↔CNPJ não conferido: o informe do CNPJ pode ser de outro fundo (nem é lido)
+    const cnpjEmConferencia = linha.flags.includes(FLAG_CNPJ_EM_CONFERENCIA);
     const [trim, ps, my, mc, desd] = await Promise.all([
-      prisma.fiiQuarterly.findMany({
-        where: { cnpj: linha.cnpj, refQuarter: { gte: new Date(`${desde}T00:00:00Z`) } },
-        orderBy: { refQuarter: 'asc' },
-        select: {
-          refQuarter: true,
-          receitaAluguel: true,
-          resultadoTrimestral: true,
-          vacanciaFisicaCvmPct: true,
-          nImoveisRenda: true,
-          nImoveisOutros: true,
-          areaM2: true,
-          nCri: true,
-          maiorCriPct: true,
-          flags: true,
-        },
-      }),
+      cnpjEmConferencia
+        ? Promise.resolve([])
+        : prisma.fiiQuarterly.findMany({
+            where: { cnpj: linha.cnpj, refQuarter: { gte: new Date(`${desde}T00:00:00Z`) } },
+            orderBy: { refQuarter: 'asc' },
+            select: {
+              refQuarter: true,
+              receitaAluguel: true,
+              resultadoTrimestral: true,
+              vacanciaFisicaCvmPct: true,
+              nImoveisRenda: true,
+              nImoveisOutros: true,
+              areaM2: true,
+              nCri: true,
+              maiorCriPct: true,
+              flags: true,
+            },
+          }),
       prisma.assetPerShareYearly.findMany({
         where: { symbol, anoFiscal: { gte: desdeAno } },
         select: { anoFiscal: true, rendCota: true, vpCotaFim: true },
@@ -619,10 +676,12 @@ export async function obterFundamentosEssencial(
         where: { symbol },
         select: { pvp: true, dy12mPct: true, vpCota: true, rend12m: true },
       }),
-      prisma.fiiMonthly.findMany({
-        where: { cnpj: linha.cnpj, fatorDesdobramento: { not: null } },
-        select: { refMonth: true, fatorDesdobramento: true },
-      }),
+      cnpjEmConferencia
+        ? Promise.resolve([])
+        : prisma.fiiMonthly.findMany({
+            where: { cnpj: linha.cnpj, fatorDesdobramento: { not: null } },
+            select: { refMonth: true, fatorDesdobramento: true },
+          }),
     ]);
     dados = montarFundamentosFii({
       hoje,
@@ -641,6 +700,7 @@ export async function obterFundamentosEssencial(
         fator: d.fatorDesdobramento as number,
       })),
       proventosEmConferencia: conf,
+      cnpjEmConferencia,
     });
   } else {
     const [periodos, ps, my, mc] = await Promise.all([

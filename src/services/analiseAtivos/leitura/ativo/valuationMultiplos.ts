@@ -22,6 +22,7 @@ import { medianaReferencia } from '@/services/analiseAtivos/regras/calculo/pares
 import { lucroParaSequencia } from '@/services/analiseAtivos/regras/calculo/sequencias';
 import { deNumero } from '@/services/analiseAtivos/regras/comum/valor';
 import { barraPosicao } from '@/services/analiseAtivos/regras/valuation/barraPosicao';
+import { FLAG_CNPJ_EM_CONFERENCIA } from '@/services/analiseAtivos/quadro/montarLinhasQuadro';
 import {
   obterLinhaQuadro,
   obterLinhasQuadroApi,
@@ -182,9 +183,26 @@ interface Ctx {
   conf: boolean;
   /** anos com provento > 2× o anterior (fora da barra e do CAGR) */
   suspeitos: Set<number>;
+  /**
+   * FII com ticker↔CNPJ não conferido (flag da linha do Quadro): os números do informe CVM
+   * (VP/cota, P/VP, obrigações, vacância, cotistas, taxa de adm.) podem ser de outro fundo ⇒
+   * 'em conferência', sem barra nem histórico. Cotação e proventos da B3 continuam.
+   */
+  cnpjConf: boolean;
   anuais: AnualValuation[];
   perShare: PerShareValuation[];
+  /** informe mensal do CNPJ (vazio com cnpjConf) */
+  mensal: MensalValuation[];
   fatorCota: (ano: number) => number;
+}
+
+/** FII cujo casamento ticker↔CNPJ não foi conferido (fii_ticker_map.conferido=false). */
+export function fiiCnpjEmConferencia(linha: Pick<LinhaQuadroApi, 'classe' | 'flags'>): boolean {
+  return linha.classe === 'fii' && linha.flags.includes(FLAG_CNPJ_EM_CONFERENCIA);
+}
+
+function ausenteCnpj(): Estado<number> {
+  return ausenteCom('cnpj_em_conferencia', TEXTOS_TELA.ausentesPorCampo.cnpjEmConferencia);
 }
 
 function ultimosFechados<T extends { ano: number }>(pontos: T[], hoje: string, n: number): T[] {
@@ -202,7 +220,9 @@ function criarCtx(d: DadosAtivoValuation, hoje: string): Ctx {
     hoje,
     ANOS_BARRA + 2,
   );
-  const desdobramentos = d.mensal
+  const cnpjConf = fiiCnpjEmConferencia(d.linha);
+  const mensal = cnpjConf ? [] : d.mensal;
+  const desdobramentos = mensal
     .filter((m) => typeof m.fatorDesdobramento === 'number' && m.fatorDesdobramento > 0)
     .map((m) => ({ refMonth: m.refMonth, fator: m.fatorDesdobramento as number }));
   const fatorCota = (ano: number) => fatorCotasApos(`${ano}-12-31`, desdobramentos);
@@ -227,8 +247,10 @@ function criarCtx(d: DadosAtivoValuation, hoje: string): Ctx {
     financeira: d.regua === 'acao_financeira',
     conf: d.linha.proventosEmConferencia,
     suspeitos,
+    cnpjConf,
     anuais,
     perShare,
+    mensal,
     fatorCota,
   };
 }
@@ -244,10 +266,24 @@ const CAMPOS_PROVENTO: ReadonlySet<CampoAtual> = new Set<CampoAtual>([
   'rend12m',
 ]);
 const CAMPOS_LUCRO: ReadonlySet<CampoAtual> = new Set<CampoAtual>(['pl', 'payoutPct']);
+/** FII: campos de 12 meses que vêm do informe CVM do CNPJ. */
+const CAMPOS_INFORME_ATUAL: ReadonlySet<CampoAtual> = new Set<CampoAtual>([
+  'pvp',
+  'vpCota',
+  'obrigacoesPlPct',
+]);
+/** FII: campos anuais que vêm do informe CVM do CNPJ. */
+const CAMPOS_INFORME_ANUAL: ReadonlySet<CampoAnual> = new Set<CampoAnual>([
+  'pvp',
+  'vpCota',
+  'obrigacoesPlPct',
+  'vacanciaFisicaCvmPct',
+]);
 
 /** Valor de 12 meses de um campo de asset_multiples_current, com o motivo quando falta. */
 function estadoAtual(ctx: Ctx, campo: CampoAtual): Estado<number> {
   const a = ctx.d.atual;
+  if (ctx.cnpjConf && CAMPOS_INFORME_ATUAL.has(campo)) return ausenteCnpj();
   if (CAMPOS_LUCRO.has(campo) && a?.lpaTtm != null && a.lpaTtm < 0 && a[campo] == null) {
     return ausenteCom(
       'prejuizo',
@@ -281,6 +317,7 @@ const CAMPOS_FINANCEIRA: ReadonlySet<CampoAtual> = new Set<CampoAtual>([
 type Ponto = { ano: number; valor: number | null };
 
 function historicoAnual(ctx: Ctx, campo: CampoAnual, porCota = false): Ponto[] {
+  if (ctx.cnpjConf && CAMPOS_INFORME_ANUAL.has(campo)) return [];
   return ctx.anuais.map((a) => ({
     ano: a.anoFiscal,
     valor: porCota ? div(a[campo], ctx.fatorCota(a.anoFiscal)) : finito(a[campo]),
@@ -292,6 +329,7 @@ function historicoPerShare(
   campo: 'lpaAjHoje' | 'vpaAjHoje' | 'dpaAjHoje' | 'rendCota' | 'vpCotaFim',
   n: number = ANOS_BARRA,
 ): Ponto[] {
+  if (ctx.cnpjConf && campo === 'vpCotaFim') return [];
   const porCota = campo === 'rendCota' || campo === 'vpCotaFim';
   return ctx.perShare.slice(-n).map((p) => ({
     ano: p.anoFiscal,
@@ -367,12 +405,14 @@ function cagrItem(
   codigo: CodigoItem,
   serie: (ctx: Ctx) => Ponto[] | null,
   usaSuspeitos = false,
+  doInforme = false,
 ): DefItem {
   return {
     codigo,
     formato: 'pctSinal',
     leitura: 'cagr',
     atual: (ctx) => {
+      if (doInforme && ctx.cnpjConf) return ausenteCnpj();
       const s = serie(ctx);
       if (s === null) return naoSeAplicaCom('financeira');
       return cagrDe(s, ctx.hoje, usaSuspeitos ? ctx.suspeitos : undefined);
@@ -393,13 +433,14 @@ function dyMedio5a(ctx: Ctx): Estado<number> {
 }
 
 function cotistasDezembro(ctx: Ctx): Ponto[] {
-  return ctx.d.mensal
+  return ctx.mensal
     .filter((m) => m.refMonth.slice(5, 7) === '12')
     .map((m) => ({ ano: Number(m.refMonth.slice(0, 4)), valor: m.cotistas }));
 }
 
 function ultimaTaxaAdm(ctx: Ctx): Estado<number> {
-  const m = [...ctx.d.mensal]
+  if (ctx.cnpjConf) return ausenteCnpj();
+  const m = [...ctx.mensal]
     .sort((a, b) => a.refMonth.localeCompare(b.refMonth))
     .reverse()
     .find((x) => typeof x.taxaAdmPct === 'number' && Number.isFinite(x.taxaAdmPct));
@@ -512,7 +553,7 @@ const GRUPOS_FII: DefGrupo[] = [
         codigo: 'vacanciaCvm',
         formato: 'pct',
         leitura: 'vacanciaCvm',
-        atual: (ctx) => ctx.d.linha.vacanciaCvm,
+        atual: (ctx) => (ctx.cnpjConf ? ausenteCnpj() : ctx.d.linha.vacanciaCvm),
         historico: (ctx) => historicoAnual(ctx, 'vacanciaFisicaCvmPct'),
         tipoBarra: 'percentual',
       },
@@ -524,8 +565,13 @@ const GRUPOS_FII: DefGrupo[] = [
     semBarra: true,
     itens: [
       cagrItem('cagrRendimento', (ctx) => historicoPerShare(ctx, 'rendCota', ANOS_BARRA + 2), true),
-      cagrItem('cagrVpCota', (ctx) => historicoPerShare(ctx, 'vpCotaFim', ANOS_BARRA + 2)),
-      cagrItem('cagrCotistas', cotistasDezembro),
+      cagrItem(
+        'cagrVpCota',
+        (ctx) => historicoPerShare(ctx, 'vpCotaFim', ANOS_BARRA + 2),
+        false,
+        true,
+      ),
+      cagrItem('cagrCotistas', cotistasDezembro, false, true),
     ],
   },
   {
