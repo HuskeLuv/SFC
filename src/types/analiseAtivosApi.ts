@@ -648,7 +648,7 @@ export interface SeloEstadoProps {
   className?: string;
 }
 
-/** RodapeLegal — texto de TEXTOS_ANALISE.rodapeLegal. */
+/** RodapeLegal — texto fixo RODAPE_LEGAL (textosTela). */
 export interface RodapeLegalProps {
   className?: string;
 }

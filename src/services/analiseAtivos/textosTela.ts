@@ -6,7 +6,8 @@
  * Compliance: o teste (__tests__/textosTela.test.ts) varre TODAS as folhas de TEXTOS_TELA com
  * `encontrarPalavrasProibidas` (regras/comum/linguagem.ts). Nada de "comprar", "recomendação",
  * "barato/caro", "oportunidade"; o indicador é sempre "Índice MF", nunca "nota". O rodapé legal é
- * REEXPORTADO de TEXTOS_ANALISE.rodapeLegal (texto fixo exigido pela spec, fora da varredura).
+ * texto fixo da Fase 1 (sem ranking nem notas, que não existem nesta fase; o teste também o varre);
+ * validar com o jurídico junto com o resto deste módulo.
  *
  * Placeholders `{nome}` são preenchidos com `formatarTexto` (textos.ts). Só os nomes de
  * PLACEHOLDERS_PERMITIDOS são aceitos (o teste confere).
@@ -25,8 +26,13 @@ import type {
 
 export { formatarTexto };
 
-/** Rodapé legal (texto fixo, reexportado da Fase 0). */
-export const RODAPE_LEGAL: string = TEXTOS_ANALISE.rodapeLegal;
+/**
+ * Rodapé legal da Fase 1 (texto fixo). Mesmo texto de TEXTOS_ANALISE.rodapeLegal (Fase 0) sem
+ * 'o ranking, as notas': Ranking está escondido (decisão 7) e não existem notas (o indicador é o
+ * Índice MF).
+ */
+export const RODAPE_LEGAL: string =
+  'O My Finance é uma ferramenta de organização financeira e de dados. O Índice MF é um indicador quantitativo de fórmula pública; as teses são anotações pessoais de cada usuário. Nada nesta área constitui análise, consultoria ou recomendação de investimento (Resolução CVM 20/2021). Rentabilidade passada não garante resultados futuros. Decisões de investimento são de responsabilidade exclusiva do usuário.';
 
 export const PLACEHOLDERS_PERMITIDOS = [
   'ticker',

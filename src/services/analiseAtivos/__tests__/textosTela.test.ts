@@ -51,8 +51,10 @@ describe('textosTela', () => {
     }
   });
 
-  it('rodapé legal é o da Fase 0', () => {
-    expect(RODAPE_LEGAL).toBe(TEXTOS_ANALISE.rodapeLegal);
+  it('rodapé legal da Fase 1: base CVM, sem ranking nem notas, passa na varredura', () => {
+    expect(RODAPE_LEGAL).toContain('Resolução CVM 20/2021');
+    expect(RODAPE_LEGAL).not.toMatch(/ranking|\bnotas?\b/i);
+    expect(encontrarPalavrasProibidas(RODAPE_LEGAL)).toEqual([]);
   });
 
   it('motivos da spec', () => {

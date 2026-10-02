@@ -1,5 +1,5 @@
 /**
- * Rodapé legal da área (fatia 0b): texto fixo de TEXTOS_ANALISE.rodapeLegal (via RODAPE_LEGAL),
+ * Rodapé legal da área (fatia 0b): texto fixo RODAPE_LEGAL (textosTela, versão da Fase 1),
  * no fim de todas as telas da área, inclusive na tela de beta fechado. Linha de cima + texto
  * pequeno em cinza (contraste AA nos dois temas).
  */
