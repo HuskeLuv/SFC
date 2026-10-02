@@ -29,9 +29,19 @@ import {
   type MobileEditValue,
 } from '@/components/ui/sheet/MobileEditSheet';
 import { useIsBelowLg } from '@/hooks/useMediaQuery';
+import {
+  MenuMoverCell,
+  NomeComMover,
+  ProviderSeMover,
+  RodapeCartaoMover,
+  SelosCartaoMover,
+  tabelaTemMover,
+  useEstadoLinhaMover,
+} from '@/components/carteira/mover/LinhaMoverCaixaRf';
 
 const MIN_PLACEHOLDER_ROWS = 4;
 const RENDA_FIXA_COLUMN_COUNT = 13;
+const CATEGORIA = 'rendaFixaFundos' as const;
 const RENDA_FIXA_SECTION_ORDER = ['pos-fixada', 'prefixada', 'hibrida'] as const;
 const RENDA_FIXA_SECTION_NAMES: Record<(typeof RENDA_FIXA_SECTION_ORDER)[number], string> = {
   'pos-fixada': 'Pos-fixada',
@@ -64,6 +74,10 @@ interface RendaFixaTableRowProps {
       | 'observacoes',
     valor: string | number,
   ) => void;
+  /** Mover ligado na tabela (alguma linha movível): coluna final "Ações". */
+  temMover?: boolean;
+  /** Seção da linha (anúncios do arrasto; a faixa não é alvo de soltar). */
+  secaoLabel?: string;
 }
 
 const RendaFixaTableRow: React.FC<RendaFixaTableRowProps> = ({
@@ -71,7 +85,10 @@ const RendaFixaTableRow: React.FC<RendaFixaTableRowProps> = ({
   formatCurrency,
   formatPercentage,
   onUpdateCampo,
+  temMover = false,
+  secaoLabel = '',
 }) => {
+  const mover = useEstadoLinhaMover(CATEGORIA, ativo);
   const [isEditingCotizacao, setIsEditingCotizacao] = useState(false);
   const [isEditingLiquidacao, setIsEditingLiquidacao] = useState(false);
   const [isEditingBenchmark, setIsEditingBenchmark] = useState(false);
@@ -134,13 +151,19 @@ const RendaFixaTableRow: React.FC<RendaFixaTableRowProps> = ({
   };
 
   return (
-    <tr className={`${TABLE_STYLES.row} ${TABLE_STYLES.rowHover}`}>
+    <tr
+      className={`${TABLE_STYLES.row} ${TABLE_STYLES.rowHover}${mover.rowClass}`}
+      data-mover-linha={mover.alvo ? mover.alvo.id : undefined}
+      aria-busy={mover.pendente || undefined}
+    >
       <td className={TABLE_STYLES.compact.td}>
-        <AssetNameLink
-          portfolioId={ativo.id}
-          ticker={formatAssetDisplayTitle({ ticker: ativo.nome, nome: null }, 'Renda Fixa').full}
-          nomeComoPrincipal
-        />
+        <NomeComMover categoria={CATEGORIA} linha={ativo} estado={mover} secaoLabel={secaoLabel}>
+          <AssetNameLink
+            portfolioId={ativo.id}
+            ticker={formatAssetDisplayTitle({ ticker: ativo.nome, nome: null }, 'Renda Fixa').full}
+            nomeComoPrincipal
+          />
+        </NomeComMover>
       </td>
       <td className={`${TABLE_STYLES.compact.td} text-center`}>
         {isEditingCotizacao ? (
@@ -278,6 +301,7 @@ const RendaFixaTableRow: React.FC<RendaFixaTableRowProps> = ({
           </div>
         )}
       </td>
+      {temMover ? <MenuMoverCell linha={ativo} estado={mover} /> : null}
     </tr>
   );
 };
@@ -302,6 +326,7 @@ interface RendaFixaSectionProps {
       | 'observacoes',
     valor: string | number,
   ) => void;
+  temMover?: boolean;
 }
 
 const RendaFixaSection: React.FC<RendaFixaSectionProps> = ({
@@ -311,6 +336,7 @@ const RendaFixaSection: React.FC<RendaFixaSectionProps> = ({
   isExpanded,
   onToggle,
   onUpdateCampo,
+  temMover = false,
 }) => {
   const placeholderCount = Math.max(0, MIN_PLACEHOLDER_ROWS - secao.ativos.length);
 
@@ -355,6 +381,8 @@ const RendaFixaSection: React.FC<RendaFixaSectionProps> = ({
           {formatPercentage(secao.rentabilidadeMedia)}
         </td>
         <td className={`${TABLE_STYLES.compact.td} text-center text-white`}>-</td>
+        {/* Faixa da RF não é alvo de soltar (seção derivada do título, não editável). */}
+        {temMover ? <td className={TABLE_STYLES.compact.td} aria-hidden /> : null}
       </tr>
 
       {isExpanded &&
@@ -365,10 +393,15 @@ const RendaFixaSection: React.FC<RendaFixaSectionProps> = ({
             formatCurrency={formatCurrency}
             formatPercentage={formatPercentage}
             onUpdateCampo={onUpdateCampo}
+            temMover={temMover}
+            secaoLabel={secao.nome}
           />
         ))}
       {isExpanded && (
-        <BasicTablePlaceholderRows count={placeholderCount} colSpan={RENDA_FIXA_COLUMN_COUNT} />
+        <BasicTablePlaceholderRows
+          count={placeholderCount}
+          colSpan={RENDA_FIXA_COLUMN_COUNT + (temMover ? 1 : 0)}
+        />
       )}
     </>
   );
@@ -549,6 +582,7 @@ export function RendaFixaMobileList({
           {vencimentoPill(a)}
           {a.isAutoUpdated && <span className={PILL_SOFT}>PU oficial</span>}
           {a.ir?.isento && <span className={PILL_SOFT}>Isento</span>}
+          <SelosCartaoMover linha={a} />
         </span>
       ),
     },
@@ -692,9 +726,11 @@ export function RendaFixaMobileList({
   };
 
   const renderFooter = (a: RendaFixaAtivo) => (
-    <Link href={`/ativos/${a.id}`} className={TABLE_MOBILE_STYLES.editButton}>
-      Ver detalhes do ativo
-    </Link>
+    <RodapeCartaoMover categoria={CATEGORIA} linha={a}>
+      <Link href={`/ativos/${a.id}`} className={TABLE_MOBILE_STYLES.editButton}>
+        Ver detalhes do ativo
+      </Link>
+    </RodapeCartaoMover>
   );
 
   const meta = editing ? EDIT_META[editing.campo] : null;
@@ -894,6 +930,16 @@ export default function RendaFixaTable({ totalCarteira = 0 }: RendaFixaTableProp
     });
   }, [dataComRisco?.secoes]);
 
+  // Mover (fase 2): só quando a rota libera alguma linha (chave desligada → tabela de sempre).
+  const temMover = useMemo(
+    () =>
+      tabelaTemMover(
+        CATEGORIA,
+        (data?.secoes ?? []).flatMap((s) => s.ativos),
+      ),
+    [data?.secoes],
+  );
+
   if (loading) {
     return <LoadingSpinner text="Carregando dados de renda fixa..." />;
   }
@@ -950,93 +996,106 @@ export default function RendaFixaTable({ totalCarteira = 0 }: RendaFixaTableProp
       </div>
 
       {isBelowLg ? (
-        <RendaFixaMobileList
-          secoes={normalizedSections}
-          expandedSections={expandedSections}
-          onToggleSection={toggleSection}
-          totalGeral={{
-            valorAplicado: dataComRisco?.totalGeral?.valorAplicado || 0,
-            aporte: dataComRisco?.totalGeral?.aporte || 0,
-            resgate: dataComRisco?.totalGeral?.resgate || 0,
-            valorAtualizado: dataComRisco?.totalGeral?.valorAtualizado || 0,
-            rentabilidade: dataComRisco?.totalGeral?.rentabilidade || 0,
-          }}
-          formatCurrency={formatCurrency}
-          formatPercentage={formatPercentage}
-          onUpdateCampo={updateRendaFixaCampo}
-        />
+        <ProviderSeMover categoria={CATEGORIA} ativo={temMover} dnd={false}>
+          <RendaFixaMobileList
+            secoes={normalizedSections}
+            expandedSections={expandedSections}
+            onToggleSection={toggleSection}
+            totalGeral={{
+              valorAplicado: dataComRisco?.totalGeral?.valorAplicado || 0,
+              aporte: dataComRisco?.totalGeral?.aporte || 0,
+              resgate: dataComRisco?.totalGeral?.resgate || 0,
+              valorAtualizado: dataComRisco?.totalGeral?.valorAtualizado || 0,
+              rentabilidade: dataComRisco?.totalGeral?.rentabilidade || 0,
+            }}
+            formatCurrency={formatCurrency}
+            formatPercentage={formatPercentage}
+            onUpdateCampo={updateRendaFixaCampo}
+          />
+        </ProviderSeMover>
       ) : (
         /* Main table */
-        <ComponentCard title="Renda Fixa">
-          <div className={TABLE_STYLES.wrapper}>
-            <table className={TABLE_STYLES.table}>
-              <thead>
-                <tr className={TABLE_STYLES.headRow} style={TABLE_HEADER_STYLE}>
-                  <th className={`${TABLE_STYLES.compact.th} text-left`}>Nome dos Ativos</th>
-                  <th className={`${TABLE_STYLES.compact.th} text-center`}>Cotizacao de resgate</th>
-                  <th className={`${TABLE_STYLES.compact.th} text-center`}>
-                    Liquidacao de resgate
-                  </th>
-                  <th className={`${TABLE_STYLES.compact.th} text-center`}>Vencimento</th>
-                  <th className={`${TABLE_STYLES.compact.th} text-center`}>Benchmark</th>
-                  <th className={`${TABLE_STYLES.compact.th} text-right`}>
-                    Valor inicial aplicado
-                  </th>
-                  <th className={`${TABLE_STYLES.compact.th} text-right`}>Aporte</th>
-                  <th className={`${TABLE_STYLES.compact.th} text-right`}>Resgate</th>
-                  <th className={`${TABLE_STYLES.compact.th} text-right`}>Valor Atualizado</th>
-                  <th className={`${TABLE_STYLES.compact.th} text-right`}>% da Aba</th>
-                  <th className={`${TABLE_STYLES.compact.th} text-right`}>
-                    <span className="block">Risco por ativo</span>
-                    <span className="block">(Carteira Total)</span>
-                  </th>
-                  <th className={`${TABLE_STYLES.compact.th} text-right`}>Rentabilidade</th>
-                  <th className={`${TABLE_STYLES.compact.th} text-left`}>Observações</th>
-                </tr>
-              </thead>
-              <tbody>
-                {/* Grand total row */}
-                <tr className={TABLE_STYLES.totalRow}>
-                  <td className={TABLE_STYLES.compact.td}>TOTAL GERAL</td>
-                  <td className={`${TABLE_STYLES.compact.td} text-center`}>-</td>
-                  <td className={`${TABLE_STYLES.compact.td} text-center`}>-</td>
-                  <td className={`${TABLE_STYLES.compact.td} text-center`}>-</td>
-                  <td className={`${TABLE_STYLES.compact.td} text-center`}>-</td>
-                  <td className={`${TABLE_STYLES.compact.td} text-right`}>
-                    {formatCurrency(dataComRisco?.totalGeral?.valorAplicado || 0)}
-                  </td>
-                  <td className={`${TABLE_STYLES.compact.td} text-right`}>
-                    {formatCurrency(dataComRisco?.totalGeral?.aporte || 0)}
-                  </td>
-                  <td className={`${TABLE_STYLES.compact.td} text-right`}>
-                    {formatCurrency(dataComRisco?.totalGeral?.resgate || 0)}
-                  </td>
-                  <td className={`${TABLE_STYLES.compact.td} text-right`}>
-                    {formatCurrency(dataComRisco?.totalGeral?.valorAtualizado || 0)}
-                  </td>
-                  <td className={`${TABLE_STYLES.compact.td} text-right`}>100.00%</td>
-                  <td className={`${TABLE_STYLES.compact.td} text-center`}>-</td>
-                  <td className={`${TABLE_STYLES.compact.td} text-right`}>
-                    {formatPercentage(dataComRisco?.totalGeral?.rentabilidade || 0)}
-                  </td>
-                  <td className={`${TABLE_STYLES.compact.td} text-center`}>-</td>
-                </tr>
+        <ProviderSeMover categoria={CATEGORIA} ativo={temMover}>
+          <ComponentCard title="Renda Fixa">
+            <div className={TABLE_STYLES.wrapper}>
+              <table className={TABLE_STYLES.table}>
+                <thead>
+                  <tr className={TABLE_STYLES.headRow} style={TABLE_HEADER_STYLE}>
+                    <th className={`${TABLE_STYLES.compact.th} text-left`}>Nome dos Ativos</th>
+                    <th className={`${TABLE_STYLES.compact.th} text-center`}>
+                      Cotizacao de resgate
+                    </th>
+                    <th className={`${TABLE_STYLES.compact.th} text-center`}>
+                      Liquidacao de resgate
+                    </th>
+                    <th className={`${TABLE_STYLES.compact.th} text-center`}>Vencimento</th>
+                    <th className={`${TABLE_STYLES.compact.th} text-center`}>Benchmark</th>
+                    <th className={`${TABLE_STYLES.compact.th} text-right`}>
+                      Valor inicial aplicado
+                    </th>
+                    <th className={`${TABLE_STYLES.compact.th} text-right`}>Aporte</th>
+                    <th className={`${TABLE_STYLES.compact.th} text-right`}>Resgate</th>
+                    <th className={`${TABLE_STYLES.compact.th} text-right`}>Valor Atualizado</th>
+                    <th className={`${TABLE_STYLES.compact.th} text-right`}>% da Aba</th>
+                    <th className={`${TABLE_STYLES.compact.th} text-right`}>
+                      <span className="block">Risco por ativo</span>
+                      <span className="block">(Carteira Total)</span>
+                    </th>
+                    <th className={`${TABLE_STYLES.compact.th} text-right`}>Rentabilidade</th>
+                    <th className={`${TABLE_STYLES.compact.th} text-left`}>Observações</th>
+                    {temMover ? (
+                      <th className={`${TABLE_STYLES.compact.th} relative w-10`}>
+                        <span className="sr-only">Ações</span>
+                      </th>
+                    ) : null}
+                  </tr>
+                </thead>
+                <tbody>
+                  {/* Grand total row */}
+                  <tr className={TABLE_STYLES.totalRow}>
+                    <td className={TABLE_STYLES.compact.td}>TOTAL GERAL</td>
+                    <td className={`${TABLE_STYLES.compact.td} text-center`}>-</td>
+                    <td className={`${TABLE_STYLES.compact.td} text-center`}>-</td>
+                    <td className={`${TABLE_STYLES.compact.td} text-center`}>-</td>
+                    <td className={`${TABLE_STYLES.compact.td} text-center`}>-</td>
+                    <td className={`${TABLE_STYLES.compact.td} text-right`}>
+                      {formatCurrency(dataComRisco?.totalGeral?.valorAplicado || 0)}
+                    </td>
+                    <td className={`${TABLE_STYLES.compact.td} text-right`}>
+                      {formatCurrency(dataComRisco?.totalGeral?.aporte || 0)}
+                    </td>
+                    <td className={`${TABLE_STYLES.compact.td} text-right`}>
+                      {formatCurrency(dataComRisco?.totalGeral?.resgate || 0)}
+                    </td>
+                    <td className={`${TABLE_STYLES.compact.td} text-right`}>
+                      {formatCurrency(dataComRisco?.totalGeral?.valorAtualizado || 0)}
+                    </td>
+                    <td className={`${TABLE_STYLES.compact.td} text-right`}>100.00%</td>
+                    <td className={`${TABLE_STYLES.compact.td} text-center`}>-</td>
+                    <td className={`${TABLE_STYLES.compact.td} text-right`}>
+                      {formatPercentage(dataComRisco?.totalGeral?.rentabilidade || 0)}
+                    </td>
+                    <td className={`${TABLE_STYLES.compact.td} text-center`}>-</td>
+                    {temMover ? <td className={TABLE_STYLES.compact.td} aria-hidden /> : null}
+                  </tr>
 
-                {normalizedSections.map((secao) => (
-                  <RendaFixaSection
-                    key={secao.tipo}
-                    secao={secao}
-                    formatCurrency={formatCurrency}
-                    formatPercentage={formatPercentage}
-                    isExpanded={expandedSections.has(secao.tipo)}
-                    onToggle={() => toggleSection(secao.tipo)}
-                    onUpdateCampo={updateRendaFixaCampo}
-                  />
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </ComponentCard>
+                  {normalizedSections.map((secao) => (
+                    <RendaFixaSection
+                      key={secao.tipo}
+                      secao={secao}
+                      formatCurrency={formatCurrency}
+                      formatPercentage={formatPercentage}
+                      isExpanded={expandedSections.has(secao.tipo)}
+                      onToggle={() => toggleSection(secao.tipo)}
+                      onUpdateCampo={updateRendaFixaCampo}
+                      temMover={temMover}
+                    />
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </ComponentCard>
+        </ProviderSeMover>
       )}
     </div>
   );

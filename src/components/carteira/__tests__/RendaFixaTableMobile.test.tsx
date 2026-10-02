@@ -68,6 +68,8 @@ const ativo = (over: Partial<RendaFixaAtivo>): RendaFixaAtivo => ({
   vencimento: new Date('2030-01-10T00:00:00Z'),
   benchmark: 'CDI',
   tipo: 'pos-fixada',
+  // Chave do mover da fase 2 desligada: a rota marca a linha (sem alça, tabela de sempre).
+  naoMovivelMotivo: 'Indisponível',
   ...over,
 });
 
