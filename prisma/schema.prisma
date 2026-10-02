@@ -145,6 +145,9 @@ model User {
   // Web push (PWA fase 5)
   pushSubscriptions             PushSubscription[]
   pushPreferencia               PushPreferencia?
+  // Análise de Ativos — Fase 1 (tese privada e lista do beta)
+  analiseTeses                  AnaliseTese[]                 @relation("AnaliseTeseUser")
+  featureBetas                  FeatureBetaUser[]             @relation("FeatureBetaUserUser")
 }
 
 /**
@@ -2498,4 +2501,120 @@ model AssetEvento {
   @@index([data])
   @@index([cnpj, data])
   @@map("asset_eventos")
+}
+
+// ===========================================================================
+// Análise de Ativos — Fase 1 (Quadro + Página do ativo). Tudo aditivo.
+// ===========================================================================
+
+/**
+ * Linha pré-calculada do Quadro (uma por ticker de ação/FII do cadastro), gravada pelo job
+ * 'quadro' (fatia A). Os leitores (src/services/analiseAtivos/leitura/linhasQuadro.ts) guardam
+ * as ~800 linhas em memória por versão (= max(geradoEm)). Séries só com anos FECHADOS.
+ */
+model AnaliseQuadroLinha {
+  symbol                String    @id
+  // acao | fii
+  classe                String
+  cnpj                  String
+  dataRef               DateTime  @db.Date
+  // negociadoUltimos30 && !fiagro
+  noQuadro              Boolean
+  // sem_negociacao_30 | fiagro
+  foraDoQuadroMotivo    String?
+  temScore              Boolean
+  // calculado | incompleto | zero_regra | fora_do_indice | sem_score
+  estadoIndice          String
+  nome                  String
+  nomeCurto             String?
+  setor                 String?
+  subsetor              String?
+  segmento              String?
+  segmentoListagem      String?
+  fiiTipo               String?
+  segmentoCvm           String?
+  regua                 String?
+  tickerReferencia      String?
+  preco                 Decimal?  @db.Decimal(18, 6)
+  precoData             DateTime? @db.Date
+  variacaoDiaPct        Float?
+  volumeMedio21         Decimal?  @db.Decimal(20, 2)
+  baixaLiquidez         Boolean   @default(false)
+  valorMercado          Decimal?  @db.Decimal(22, 2)
+  patrimonio            Decimal?  @db.Decimal(20, 2)
+  indiceMf              Float?
+  criteriosAtendidos    Int?
+  criteriosAplicaveis   Int?
+  statusCriterios       String[]
+  motivosIncompleto     String[]
+  // ex.: ['lucro:prejuizo','preco:pl_negativo']
+  componentesZeroRegra  String[]
+  anosLucroConsecutivos Int?
+  mesesComRendimento    Int?
+  anosDividendo         Int?
+  roePct                Float?
+  pl                    Float?
+  pvp                   Float?
+  dy12mPct              Float?
+  margemLiquidaPct      Float?
+  divLiqEbitda          Float?
+  divLiqPl              Float?
+  payoutPct             Float?
+  vacanciaFisicaCvmPct  Float?
+  nImoveisCvm           Int?
+  nCri                  Int?
+  obrigacoesPlPct       Float?
+  cotistas              Int?
+  naoSeAplica           String[]
+  // [{ano, valor|null, suspeito?}] só anos fechados
+  serie10a              Json
+  serieUlt12m           Float?
+  pares                 String[]
+  // sem FK (Asset pode não existir para o ticker)
+  assetId               String?
+  // inclui provento_suspeito, proventos_defasados
+  flags                 String[]
+  paramsVersion         Int?
+  geradoEm              DateTime
+
+  @@index([classe, noQuadro])
+  @@index([geradoEm])
+  @@map("analise_quadro_linhas")
+}
+
+/**
+ * Tese PRIVADA do usuário sobre um ativo (uma por usuário e ticker; ≤ 10.000 caracteres, zod).
+ */
+model AnaliseTese {
+  id           String   @id @default(uuid())
+  userId       String
+  user         User     @relation("AnaliseTeseUser", fields: [userId], references: [id], onDelete: Cascade)
+  symbol       String
+  corpo        String   @db.Text
+  // Fase 1: só 'privada'
+  visibilidade String   @default("privada")
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@unique([userId, symbol])
+  @@index([userId, updatedAt])
+  @@map("analise_teses")
+}
+
+/**
+ * Lista de beta por recurso (ex.: 'analise-ativos'), operada por script. Admins entram sem estar aqui.
+ */
+model FeatureBetaUser {
+  id            String   @id @default(uuid())
+  // 'analise-ativos'
+  recurso       String
+  userId        String
+  user          User     @relation("FeatureBetaUserUser", fields: [userId], references: [id], onDelete: Cascade)
+  adicionadoPor String
+  motivo        String?
+  createdAt     DateTime @default(now())
+
+  @@unique([recurso, userId])
+  @@index([userId])
+  @@map("feature_beta_users")
 }
