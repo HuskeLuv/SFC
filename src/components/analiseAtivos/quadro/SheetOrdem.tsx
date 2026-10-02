@@ -3,10 +3,14 @@
 /**
  * Ordem do Quadro no celular: BottomSheet com rádios de 52px (colunas ordenáveis do modo atual +
  * Índice MF) e a direção (Maior/Menor primeiro). Diz que sem dado vai para o fim.
+ * "Voltar" do sistema fecha o sheet (useMobileHistoryLayer); "Ver resultado" aplica a ordem só
+ * depois de desfazer a entrada do histórico, para a URL nova não cair na entrada do sheet.
  */
 import { useEffect, useState } from 'react';
 import BottomSheet from '@/components/ui/sheet/BottomSheet';
 import { DIRECAO_PADRAO } from '@/constants/analiseAtivosVisual';
+import { useIsBelowLg } from '@/hooks/useMediaQuery';
+import { useMobileHistoryLayer } from '@/hooks/useMobileHistoryLayer';
 import { TEXTOS_TELA, formatarTexto } from '@/services/analiseAtivos/textosTela';
 import type { ClasseQuadro, DirecaoOrdem, OrdemQuadro } from '@/types/analiseAtivosApi';
 
@@ -37,14 +41,15 @@ export default function SheetOrdem({
   onAplicar,
 }: SheetOrdemProps) {
   const [sel, setSel] = useState({ ordem, dir });
+  const { fecharEntao } = useMobileHistoryLayer(aberto, onFechar, useIsBelowLg());
   useEffect(() => {
     if (aberto) setSel({ ordem, dir });
   }, [aberto, ordem, dir]);
 
   const escolher = (o: OrdemQuadro) => setSel({ ordem: o, dir: DIRECAO_PADRAO[o] });
   const confirmar = () => {
-    onAplicar(sel.ordem, sel.dir);
-    onFechar();
+    const { ordem: o, dir: d } = sel;
+    fecharEntao(() => onAplicar(o, d));
   };
 
   return (

@@ -13,6 +13,7 @@
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import BottomSheet from '@/components/ui/sheet/BottomSheet';
+import { useMobileHistoryLayer } from '@/hooks/useMobileHistoryLayer';
 import { useIsBelowLg } from '@/hooks/useMediaQuery';
 import { useIndiceBusca, useOverlayCarteira } from '@/hooks/useAnaliseAtivos';
 import { filtrarBusca, trechoDestacado } from '@/services/analiseAtivos/quadro/indiceBusca';
@@ -256,6 +257,9 @@ export default function BuscaAtivos({
   const [consulta, setConsulta] = useState('');
   const [aberto, setAberto] = useState(false);
   const [sheet, setSheet] = useState(false);
+  const fecharSheet = useCallback(() => setSheet(false), []);
+  // celular: "voltar" do sistema fecha a busca em tela cheia em vez de sair da página
+  const { fecharEntao } = useMobileHistoryLayer(sheet, fecharSheet, celular);
   const [usado, setUsado] = useState(autoFocus);
   const [ativo, setAtivo] = useState(0);
   const [recentes, setRecentes] = useState<string[]>([]);
@@ -298,12 +302,14 @@ export default function BuscaAtivos({
     (ticker: string) => {
       guardarRecente(ticker);
       setAberto(false);
-      setSheet(false);
       setConsulta('');
-      if (onSelecionar) onSelecionar(ticker);
-      else router.push(`/analise-ativos/${encodeURIComponent(ticker)}`);
+      // a navegação só depois de desfazer a entrada da busca no histórico (senão o back a desfaz)
+      fecharEntao(() => {
+        if (onSelecionar) onSelecionar(ticker);
+        else router.push(`/analise-ativos/${encodeURIComponent(ticker)}`);
+      });
     },
-    [onSelecionar, router],
+    [onSelecionar, router, fecharEntao],
   );
 
   const onKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -380,7 +386,7 @@ export default function BuscaAtivos({
         </button>
         <BottomSheet
           isOpen={sheet}
-          onClose={() => setSheet(false)}
+          onClose={fecharSheet}
           ariaLabel={T.rotulo}
           className="h-[calc(100dvh-env(safe-area-inset-top)-12px)]"
         >

@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, within } from '@testing-library/react';
+import { act, render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 
 const nav = vi.hoisted(() => ({ push: vi.fn() }));
 const media = vi.hoisted(() => ({ celular: false }));
@@ -94,15 +94,35 @@ describe('BuscaAtivos', () => {
     expect(document.activeElement).toBe(campo());
   });
 
-  it('celular: botão abre o sheet de tela cheia com campo de 16px e recentes', () => {
+  it('celular: botão abre o sheet de tela cheia com campo de 16px e recentes', async () => {
     media.celular = true;
     window.localStorage.setItem('mf-analise-ativos-buscas-recentes', JSON.stringify(['HGLG11']));
+    const back = vi.spyOn(window.history, 'back').mockImplementation(() => {
+      window.dispatchEvent(new PopStateEvent('popstate'));
+    });
     render(<BuscaAtivos variante="cabecalho" />);
     fireEvent.click(screen.getByRole('button', { name: 'Buscar ativo' }));
     const dialogo = screen.getByRole('dialog', { name: 'Buscar ativo' });
     const input = within(dialogo).getByRole('combobox');
     expect(input.className).toMatch(/text-base/);
     fireEvent.click(within(dialogo).getByRole('button', { name: 'HGLG11' }));
-    expect(nav.push).toHaveBeenCalledWith('/analise-ativos/HGLG11');
+    // desfaz a entrada da busca no histórico ANTES de navegar (senão o back desfaria a navegação)
+    expect(back).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(nav.push).toHaveBeenCalledWith('/analise-ativos/HGLG11'));
+    back.mockRestore();
+  });
+
+  it('celular: "voltar" do sistema fecha a busca em tela cheia', () => {
+    media.celular = true;
+    const inicial = window.history.state;
+    render(<BuscaAtivos variante="cabecalho" />);
+    fireEvent.click(screen.getByRole('button', { name: 'Buscar ativo' }));
+    expect(screen.getByRole('dialog', { name: 'Buscar ativo' })).toBeInTheDocument();
+    act(() => {
+      window.history.replaceState(inicial, '', window.location.href);
+      window.dispatchEvent(new PopStateEvent('popstate'));
+    });
+    expect(screen.queryByRole('dialog', { name: 'Buscar ativo' })).not.toBeInTheDocument();
+    expect(nav.push).not.toHaveBeenCalled();
   });
 });

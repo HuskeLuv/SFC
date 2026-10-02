@@ -5,8 +5,9 @@
  * com os motivos legíveis — popover no computador, BottomSheet no celular (< lg). Sem motivos, é só
  * o chip (sem botão). Área de toque de 44px no chip (pseudo-elemento) sem engordar a linha.
  */
-import { useEffect, useId, useRef, useState } from 'react';
+import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import BottomSheet from '@/components/ui/sheet/BottomSheet';
+import { useMobileHistoryLayer } from '@/hooks/useMobileHistoryLayer';
 import { IconeCriterio } from '@/components/analiseAtivos/comum/BadgeCriterio';
 import { useIsBelowLg } from '@/hooks/useMediaQuery';
 import { TEXTOS_TELA, formatarTexto } from '@/services/analiseAtivos/textosTela';
@@ -43,6 +44,9 @@ function ListaMotivos({ motivos }: { motivos: MotivoTela[] }) {
 export default function SeloIncompleto({ motivos, ticker, className }: SeloIncompletoProps) {
   const [aberto, setAberto] = useState(false);
   const celular = useIsBelowLg();
+  const fechar = useCallback(() => setAberto(false), []);
+  // celular: "voltar" do sistema fecha o sheet em vez de sair da página
+  useMobileHistoryLayer(aberto, fechar, celular);
   const raizRef = useRef<HTMLSpanElement>(null);
   const botaoRef = useRef<HTMLButtonElement>(null);
   const idPainel = useId();
@@ -109,7 +113,7 @@ export default function SeloIncompleto({ motivos, ticker, className }: SeloIncom
         </svg>
       </button>
       {celular ? (
-        <BottomSheet isOpen={aberto} onClose={() => setAberto(false)} title={titulo}>
+        <BottomSheet isOpen={aberto} onClose={fechar} title={titulo}>
           <div className="pt-1 pb-4">
             <ListaMotivos motivos={motivos} />
           </div>

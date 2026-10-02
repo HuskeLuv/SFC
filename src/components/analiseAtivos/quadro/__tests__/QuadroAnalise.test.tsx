@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, within, fireEvent } from '@testing-library/react';
+import { act, render, screen, within, fireEvent } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type { QuadroResposta } from '@/types/analiseAtivosApi';
 
@@ -244,5 +244,37 @@ describe('QuadroAnalise', () => {
       '/analise-ativos/WEGE3',
     );
     expect(screen.getByRole('button', { name: /Ordem: Índice MF/ })).toBeInTheDocument();
+  });
+
+  it('celular: sheet de Ordem fecha no "voltar" do sistema e aplica a ordem só depois do back', () => {
+    media.celular = true;
+    const back = vi.spyOn(window.history, 'back').mockImplementation(() => {});
+    const estadoAntes = window.history.state;
+    renderQuadro();
+    const abrir = () => fireEvent.click(screen.getByRole('button', { name: /Ordem: Índice MF/ }));
+    const sheet = () => screen.queryByRole('dialog', { name: /Ordenar/ });
+    const voltar = () =>
+      act(() => {
+        window.history.replaceState(estadoAntes, '', window.location.href);
+        window.dispatchEvent(new PopStateEvent('popstate'));
+      });
+
+    // voltar do sistema: fecha sem aplicar nada nem chamar back de novo
+    abrir();
+    expect(sheet()).toBeInTheDocument();
+    voltar();
+    expect(sheet()).toBeNull();
+    expect(back).not.toHaveBeenCalled();
+    expect(nav.replace).not.toHaveBeenCalled();
+
+    // Ver resultado: back da entrada do sheet primeiro; a URL nova só depois do popstate
+    abrir();
+    fireEvent.click(within(sheet()!).getByRole('radio', { name: /P\/L/ }));
+    fireEvent.click(within(sheet()!).getByRole('button', { name: 'Ver resultado' }));
+    expect(back).toHaveBeenCalledTimes(1);
+    expect(nav.replace).not.toHaveBeenCalled();
+    voltar();
+    expect(nav.replace).toHaveBeenCalledWith('/analise-ativos?ordem=pl&dir=asc', { scroll: false });
+    back.mockRestore();
   });
 });

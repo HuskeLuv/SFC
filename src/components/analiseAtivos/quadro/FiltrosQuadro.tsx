@@ -4,11 +4,12 @@
  * Chips de filtro do Quadro + Setor (ações) / Segmento (FIIs).
  * - Computador: chips de 36px que quebram linha; o Setor abre um popover com a lista (um por vez).
  * - Celular: trilho próprio com rolagem lateral só dentro dele (min-h-11, sem encolher); o Setor
- *   abre um BottomSheet.
+ *   abre um BottomSheet; o "voltar" do sistema fecha o sheet (useMobileHistoryLayer).
  * Chip ligado: fundo seguranca, texto branco, aria-pressed.
  */
-import { useEffect, useId, useRef, useState } from 'react';
+import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import BottomSheet from '@/components/ui/sheet/BottomSheet';
+import { useMobileHistoryLayer } from '@/hooks/useMobileHistoryLayer';
 import { TABLE_MOBILE_STYLES } from '@/components/ui/table/tableStyles';
 import { FILTROS_RAPIDOS, type FiltroRapido } from '@/constants/analiseAtivosVisual';
 import { TEXTOS_TELA } from '@/services/analiseAtivos/textosTela';
@@ -58,6 +59,8 @@ export default function FiltrosQuadro({
   const rotuloSetor = classe === 'acao' ? T.filtros.setor : T.filtros.segmento;
   const popoverId = useId();
   const caixaRef = useRef<HTMLSpanElement>(null);
+  const fechar = useCallback(() => setAberto(false), []);
+  const { fecharEntao } = useMobileHistoryLayer(aberto, fechar, celular);
 
   useEffect(() => {
     if (!aberto || celular) return;
@@ -75,10 +78,8 @@ export default function FiltrosQuadro({
     };
   }, [aberto, celular]);
 
-  const escolher = (s: string | null) => {
-    onSetor(s);
-    setAberto(false);
-  };
+  // celular: o filtro (router.replace) só depois de desfazer a entrada do sheet no histórico
+  const escolher = (s: string | null) => fecharEntao(() => onSetor(s));
 
   const lista = (
     <div role="radiogroup" aria-label={rotuloSetor} className="flex flex-col gap-0.5">
@@ -167,7 +168,7 @@ export default function FiltrosQuadro({
             </button>
           ) : null}
         </div>
-        <BottomSheet isOpen={aberto} onClose={() => setAberto(false)} title={rotuloSetor}>
+        <BottomSheet isOpen={aberto} onClose={fechar} title={rotuloSetor}>
           <div className="pb-2">{lista}</div>
         </BottomSheet>
       </>
