@@ -40,4 +40,8 @@ export function invalidatePortfolioDerivedQueries(queryClient: QueryClient): voi
   // Saúde Financeira deriva de carteira + fluxo de caixa + dívidas — refaz
   // o diagnóstico após qualquer mutação de portfolio.
   void queryClient.invalidateQueries({ queryKey: queryKeys.saudeFinanceira.all });
+  // Análise de Ativos (fatia D): o overlay "Na carteira"/"Planejado" do Quadro e da página do
+  // ativo deriva de Portfolio/Watchlist. Só a key do overlay — o Quadro e o topo do ativo não
+  // dependem da carteira.
+  void queryClient.invalidateQueries({ queryKey: queryKeys.analiseAtivos.carteira() });
 }
