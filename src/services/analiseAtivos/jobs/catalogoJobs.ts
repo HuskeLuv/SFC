@@ -18,6 +18,7 @@ import { sincronizarFiiCadastro } from '@/services/analiseAtivos/fii/sincronizar
 import { sincronizarFiiMensal } from '@/services/analiseAtivos/fii/sincronizarFiiMensal';
 import { sincronizarFiiTrimestral } from '@/services/analiseAtivos/fii/sincronizarFiiTrimestral';
 import { NOMES_JOBS } from '@/services/analiseAtivos/jobs/nomesJobs';
+import { gerarQuadro } from '@/services/analiseAtivos/quadro/gerarQuadro';
 import type { JobContexto, ResultadoJob } from '@/services/analiseAtivos/tipos';
 
 export type NomeJobCron = (typeof NOMES_JOBS)[number];
@@ -93,6 +94,13 @@ export const CATALOGO_JOBS: Record<NomeJobCron, DefinicaoJob> = {
     prazoMs: 240_000,
     pesado: true,
     executar: (ctx) => executarScores(ctx),
+  },
+  // Fase 1: materializa analise_quadro_linhas depois do scores (medido < 30 s, < 250 MB)
+  quadro: {
+    nome: 'quadro',
+    prazoMs: 120_000,
+    pesado: false,
+    executar: (ctx) => gerarQuadro(ctx),
   },
 };
 

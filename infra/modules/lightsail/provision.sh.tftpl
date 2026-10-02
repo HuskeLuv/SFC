@@ -245,6 +245,8 @@ SHELL=/bin/bash
 55 9 * * 2-6 root /usr/local/bin/myfinance-cron.sh /api/cron/analise-ativos/cotahist
 5 23 * * 1-5 root /usr/local/bin/myfinance-cron.sh /api/cron/analise-ativos/cotahist
 10 10 * * * root /usr/local/bin/myfinance-job.sh scores
+# Análise de Ativos (Fase 1) — linhas do Quadro, depois do scores
+40 10 * * * root /usr/local/bin/myfinance-job.sh quadro
 EOF
 # cron ignora arquivos com ponto no nome em /etc/cron.d — é o "desligado".
 # Cutover: mv /etc/cron.d/myfinance.disabled /etc/cron.d/myfinance
