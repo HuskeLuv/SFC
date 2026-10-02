@@ -9,10 +9,18 @@
  *   somas das duas seções e marca a linha com `_pendente: true` ("Movendo…").
  * - Outra aba: `removerLinha` tira a linha da aba de origem e desconta os totais.
  *
+ * - Reservas (fase 2): lista única `{ ativos }` — `removerLinhaReserva`.
+ *
  * O refetch depois da mutação traz os números exatos do servidor; aqui só
  * importa a linha aparecer no lugar certo com totais coerentes.
  */
-import { CAMPO_SECAO_NA_LINHA, rotuloSubgrupo, type CategoriaMovivel } from '@/lib/carteiraMover';
+import {
+  CAMPO_SECAO_NA_LINHA,
+  CATEGORIA_API_PATH,
+  rotuloSubgrupo,
+  type CategoriaMovivel,
+} from '@/lib/carteiraMover';
+import { queryKeys } from '@/lib/queryKeys';
 
 type Linha = Record<string, unknown> & { id: string };
 type Secao = Record<string, unknown> & { ativos: Linha[] };
@@ -106,6 +114,7 @@ export const secaoDaLinha = (
   const local = encontrarLinha(dados, id);
   if (!local) return null;
   const campo = CAMPO_SECAO_NA_LINHA[categoria];
+  if (!campo) return null;
   const valor = local.linha[campo] ?? dados?.secoes[local.secaoIndex][campo];
   return typeof valor === 'string' ? valor : null;
 };
@@ -121,8 +130,8 @@ export function moverLinhaEntreSecoes<T extends DadosAba>(
   subgrupo: string,
 ): T {
   const local = encontrarLinha(dados, id);
-  if (!local) return dados;
   const campo = CAMPO_SECAO_NA_LINHA[categoria];
+  if (!local || !campo) return dados;
   const linhaMovida: Linha = { ...local.linha, [campo]: subgrupo, [CAMPO_PENDENTE]: true };
 
   let secoes = dados.secoes.map((secao, i) =>
@@ -178,3 +187,45 @@ export function removerLinha<T extends DadosAba>(dados: T, id: string): T {
   }
   return { ...dados, secoes, ...(totalGeral ? { totalGeral } : {}) };
 }
+
+// ── Reservas (fase 2, out/2026): lista única `{ ativos }`, sem seções ─────────────────────────
+
+type Linhas = Record<string, unknown> & { id?: unknown };
+/** JSON das rotas reserva-emergencia / reserva-oportunidade (useReserva*). */
+export type DadosReserva = Record<string, unknown> & { ativos: Linhas[] };
+
+export const isDadosReserva = (dados: unknown): dados is DadosReserva =>
+  !!dados &&
+  typeof dados === 'object' &&
+  !('secoes' in dados) &&
+  Array.isArray((dados as { ativos?: unknown }).ativos);
+
+const numero = (v: unknown): number => (typeof v === 'number' && Number.isFinite(v) ? v : 0);
+
+/**
+ * Tira a linha `id` de uma aba de Reserva (troca de aba) e desconta o saldo inicial e o
+ * rendimento. A rentabilidade fica como está até o refetch.
+ */
+export function removerLinhaReserva<T extends DadosReserva>(dados: T, id: string): T {
+  const linha = dados.ativos.find((a) => a.id === id);
+  if (!linha) return dados;
+  const novo: DadosReserva = { ...dados, ativos: dados.ativos.filter((a) => a.id !== id) };
+  const inicial = numero(linha.valorInicial);
+  const base = inicial + numero(linha.aporte) - numero(linha.resgate);
+  if (typeof dados.saldoInicioMes === 'number')
+    novo.saldoInicioMes = dados.saldoInicioMes - inicial;
+  if (typeof dados.rendimento === 'number') {
+    novo.rendimento = dados.rendimento - (numero(linha.valorAtualizado) - base);
+  }
+  return novo as T;
+}
+
+/**
+ * Cache da aba de uma categoria: as 6 da fase 1 e a Renda Fixa usam
+ * queryKeys.assets.type(<rota>); as Reservas usam queryKeys.reserva.* (useReserva*).
+ */
+export const queryKeyDaAba = (categoria: CategoriaMovivel): readonly unknown[] => {
+  if (categoria === 'reservaEmergencia') return queryKeys.reserva.emergencia();
+  if (categoria === 'reservaOportunidade') return queryKeys.reserva.oportunidade();
+  return queryKeys.assets.type(CATEGORIA_API_PATH[categoria]);
+};

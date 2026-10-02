@@ -37,6 +37,7 @@ import { CATEGORIA_LABELS } from '@/lib/carteiraCategoryColors';
 import type { FixedIncomeAssetWithAsset } from '@/services/portfolio/patrimonioHistoricoBuilder';
 import {
   computeSaudeFinanceira,
+  HORIZONTE_LIQUIDEZ_DIAS,
   type SaudeFinanceiraConfig,
   type SaudeFinanceiraIndicadores,
 } from './indicadores';
@@ -44,8 +45,6 @@ import { getSaudeConfig } from './saudeFinanceiraConfig';
 
 /** Renda fixa com vencimento até este horizonte conta como alta liquidez. */
 const HORIZONTE_LIQUIDEZ_MESES = 12;
-/** Mesmo horizonte em dias, pro prazo de resgate declarado dos fundos (D+N). */
-const HORIZONTE_LIQUIDEZ_DIAS = 360;
 
 export interface ComposicaoLinha {
   chave: string;

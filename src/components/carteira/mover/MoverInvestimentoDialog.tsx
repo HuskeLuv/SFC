@@ -7,6 +7,11 @@ import { lockBodyScroll } from '@/lib/ui/scrollLock';
 import { DestinoAbaList, rotuloAtual } from './DestinoAbaList';
 import type { FluxoMover } from './MoverInvestimento';
 import { TEXTO_IMPACTO } from './MoverInvestimento';
+import { EfeitosMoverList } from './EfeitosMoverList';
+
+/** Rodapé do diálogo da fase 2 antes de escolher uma aba. */
+export const TEXTO_ESCOLHA_ABA_CAIXA_RF =
+  'Escolha uma aba para ver o efeito na Saúde Financeira, na Alocação e no Fluxo.';
 
 const FOCAVEIS =
   'a[href], button:not([disabled]), input:not([disabled]), summary, [tabindex]:not([tabindex="-1"])';
@@ -149,13 +154,35 @@ export default function MoverInvestimentoDialog({
               <b className="font-semibold text-gray-800 dark:text-white/90">
                 {rotuloAtual(opcoes)}
               </b>
-              .{podeMover && ' Escolha a seção desta aba ou de outra aba compatível.'}
+              .
+              {podeMover &&
+                (fluxo.caixaRf
+                  ? ' Muda só onde ele aparece na Carteira.'
+                  : ' Escolha a seção desta aba ou de outra aba compatível.')}
             </p>
           )}
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto px-5 pb-3">{corpo}</div>
         <div className="flex shrink-0 flex-col gap-2.5 border-t border-gray-100 px-5 pt-3 pb-4 dark:border-gray-800">
-          {podeMover && (
+          {podeMover && fluxo.caixaRf && (
+            <div
+              aria-live="polite"
+              data-mf-mover-impacto="caixaRf"
+              className="rounded-[10px] bg-gray-50 px-3 py-2.5 text-[13px] text-gray-600 dark:bg-white/[0.04] dark:text-gray-300"
+            >
+              {fluxo.efeitos.length > 0 ? (
+                <EfeitosMoverList efeitos={fluxo.efeitos} />
+              ) : (
+                <p>{TEXTO_ESCOLHA_ABA_CAIXA_RF}</p>
+              )}
+              {fluxo.avisos.map((aviso) => (
+                <p key={aviso} className="mt-1.5 text-gray-800 dark:text-white/90">
+                  {aviso}
+                </p>
+              ))}
+            </div>
+          )}
+          {podeMover && !fluxo.caixaRf && (
             <div
               aria-live="polite"
               className="rounded-[10px] bg-gray-50 px-3 py-2.5 text-[12.5px] text-gray-500 dark:bg-white/[0.04] dark:text-gray-400"

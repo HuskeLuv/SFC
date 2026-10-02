@@ -23,6 +23,12 @@ interface LinhaMoverMenuProps {
   movidoEm?: string;
   movidoViaConsultor?: boolean;
   disabled?: boolean;
+  /**
+   * Fase 2 (Reservas e Renda Fixa — protótipo D9): no item movido, "Voltar para <aba>" vem
+   * PRIMEIRO, antes de "Mover para…" e "Abrir ativo"; "Mover para…" diz só "Outra aba" (não há
+   * seção para escolher). Padrão false: a fase 1 fica como está.
+   */
+  voltarPrimeiro?: boolean;
 }
 
 const ITEM_CLASS =
@@ -65,6 +71,7 @@ export function LinhaMoverMenu({
   movidoEm,
   movidoViaConsultor,
   disabled,
+  voltarPrimeiro = false,
 }: LinhaMoverMenuProps) {
   const mover = useCarteiraMover();
   const [aberto, setAberto] = useState(false);
@@ -145,6 +152,31 @@ export function LinhaMoverMenu({
     ? `movido ${movidoViaConsultor ? 'pelo consultor' : 'por você'} em ${quando}`
     : null;
 
+  const voltar = (
+    <VoltarItem
+      alvo={alvo}
+      detalhe={detalheMovido}
+      onClick={() => {
+        fechar();
+        mover.restaurar(alvo);
+      }}
+    />
+  );
+  // Só posição: o planejado não tem página.
+  const abrirAtivo =
+    alvo.tipo === 'posicao' ? (
+      <Link
+        role="menuitem"
+        href={`/ativos/${alvo.id}`}
+        className={ITEM_CLASS}
+        onClick={() => fechar(false)}
+      >
+        Abrir ativo
+      </Link>
+    ) : null;
+  const separador = <hr className="my-1 border-gray-200 dark:border-gray-800" />;
+  const comVoltarNoTopo = !!movido && voltarPrimeiro;
+
   return (
     <>
       <button
@@ -171,16 +203,13 @@ export function LinhaMoverMenu({
               className="fixed z-[95] flex min-w-[260px] flex-col rounded-xl border border-gray-200 bg-white p-1.5 shadow-[0_12px_32px_rgba(45,45,45,0.18)] dark:border-gray-800 dark:bg-gray-900 dark:shadow-[0_12px_32px_rgba(0,0,0,0.5)]"
               style={pos}
             >
-              {alvo.tipo === 'posicao' ? (
-                <Link
-                  role="menuitem"
-                  href={`/ativos/${alvo.id}`}
-                  className={ITEM_CLASS}
-                  onClick={() => fechar(false)}
-                >
-                  Abrir ativo
-                </Link>
+              {comVoltarNoTopo ? (
+                <>
+                  {voltar}
+                  {separador}
+                </>
               ) : null}
+              {comVoltarNoTopo ? null : abrirAtivo}
               <button
                 type="button"
                 role="menuitem"
@@ -191,19 +220,15 @@ export function LinhaMoverMenu({
                 }}
               >
                 Mover para…
-                <small className={ITEM_SMALL_CLASS}>Outra seção ou outra aba</small>
+                <small className={ITEM_SMALL_CLASS}>
+                  {voltarPrimeiro ? 'Outra aba' : 'Outra seção ou outra aba'}
+                </small>
               </button>
-              {movido ? (
+              {comVoltarNoTopo ? abrirAtivo : null}
+              {movido && !comVoltarNoTopo ? (
                 <>
-                  <hr className="my-1 border-gray-200 dark:border-gray-800" />
-                  <VoltarItem
-                    alvo={alvo}
-                    detalhe={detalheMovido}
-                    onClick={() => {
-                      fechar();
-                      mover.restaurar(alvo);
-                    }}
-                  />
+                  {separador}
+                  {voltar}
                 </>
               ) : null}
             </div>,

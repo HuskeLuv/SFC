@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 type Row = { id: string; userId: string; metric: string; value: number };
 
@@ -271,6 +271,76 @@ describe('resolverCaixaAba — ativo movido de aba (mover na Carteira)', () => {
       'rendaFixa',
     );
     expect(mockPrisma.portfolio.findFirst).not.toHaveBeenCalled();
+  });
+});
+
+describe('resolverCaixaAba — mover entre Reservas e Renda Fixa (MOVER_CAIXA_RF_HABILITADO)', () => {
+  const cdb = { id: 'a-cdb', symbol: 'CDB-1', type: 'bond' };
+  const reserva = { id: 'a-res', symbol: 'FUNDO-X-RESERVA-EMERG', type: 'emergency' };
+  const tesouro = { id: 'a-td', symbol: 'TESOURO SELIC 2029', type: 'tesouro-direto' };
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  describe('chave ligada', () => {
+    beforeEach(() => {
+      vi.stubEnv('MOVER_CAIXA_RF_HABILITADO', 'true');
+    });
+
+    it('compra/aporte em RF movida para a reserva → sem aba (só o caixa livre)', async () => {
+      mockPrisma.portfolio.findFirst.mockResolvedValueOnce({
+        categoriaOverride: 'reservaEmergencia',
+      });
+      expect(await resolverCaixaAba(USER, cdb)).toBeNull();
+    });
+
+    it('reserva com título movida para a RF → caixa da Renda Fixa', async () => {
+      mockPrisma.portfolio.findFirst.mockResolvedValueOnce({
+        categoriaOverride: 'rendaFixaFundos',
+      });
+      expect(await resolverCaixaAba(USER, reserva)).toBe('rendaFixa');
+    });
+
+    it('Tesouro de reserva movido para a RF → caixa da Renda Fixa (override lido também em reserva)', async () => {
+      mockTesouroDestino.mockResolvedValueOnce(new Map([['a-td', 'reserva-emergencia']]));
+      mockPrisma.portfolio.findFirst.mockResolvedValueOnce({
+        categoriaOverride: 'rendaFixaFundos',
+      });
+      expect(await resolverCaixaAba(USER, tesouro)).toBe('rendaFixa');
+    });
+
+    it('Tesouro de RF movido para a reserva → sem aba', async () => {
+      mockTesouroDestino.mockResolvedValueOnce(new Map());
+      mockPrisma.portfolio.findFirst.mockResolvedValueOnce({
+        categoriaOverride: 'reservaOportunidade',
+      });
+      expect(await resolverCaixaAba(USER, tesouro)).toBeNull();
+    });
+
+    it('sem override: RF segue com o caixa da RF e a reserva sem aba', async () => {
+      mockPrisma.portfolio.findFirst.mockResolvedValue({ categoriaOverride: null });
+      expect(await resolverCaixaAba(USER, cdb)).toBe('rendaFixa');
+      expect(await resolverCaixaAba(USER, reserva)).toBeNull();
+      mockPrisma.portfolio.findFirst.mockResolvedValue(null);
+    });
+  });
+
+  describe('chave desligada', () => {
+    beforeEach(() => {
+      vi.stubEnv('MOVER_CAIXA_RF_HABILITADO', 'false');
+    });
+
+    it('RF e reservas não consultam override e mantêm a aba de sempre', async () => {
+      mockPrisma.portfolio.findFirst.mockClear();
+      mockPrisma.portfolio.findFirst.mockResolvedValue({ categoriaOverride: 'reservaEmergencia' });
+      expect(await resolverCaixaAba(USER, cdb)).toBe('rendaFixa');
+      expect(await resolverCaixaAba(USER, reserva)).toBeNull();
+      mockTesouroDestino.mockResolvedValueOnce(new Map([['a-td', 'reserva-emergencia']]));
+      expect(await resolverCaixaAba(USER, tesouro)).toBeNull();
+      expect(mockPrisma.portfolio.findFirst).not.toHaveBeenCalled();
+      mockPrisma.portfolio.findFirst.mockResolvedValue(null);
+    });
   });
 });
 

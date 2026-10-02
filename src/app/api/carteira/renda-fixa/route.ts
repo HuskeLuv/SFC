@@ -7,7 +7,15 @@ import { createFixedIncomePricer } from '@/services/portfolio/fixedIncomePricing
 import { getFixedIncomeCurrentValue } from '@/services/portfolio/itemValuation';
 import { invalidatePortfolioSnapshots } from '@/services/portfolio/portfolioRecalculation';
 import { calcularIRRendaFixa } from '@/services/ir/fixedIncomeIR';
-import { getTesouroDestinoByAssetId } from '@/services/portfolio/tesouroDestino';
+import {
+  getTesouroDestinoByAssetId,
+  reservaDestinoPorAsset,
+} from '@/services/portfolio/tesouroDestino';
+import { moverCaixaRfHabilitado } from '@/lib/carteiraMoverConfig';
+import { overrideEfetivo, type BaseCtx } from '@/lib/carteiraMover';
+import { secaoRendaFixa, tituloTesouroDoNome } from '@/lib/rendaFixaSecao';
+import { filtrarDaCategoria, wherePortfolioGrupoCaixaRf } from '@/services/portfolio/categoriaAba';
+import { aplicarCamposMovido, camposMovidoPorLinha } from '@/app/api/carteira/_lib/linhaMovida';
 
 import { withErrorHandler } from '@/utils/apiErrorHandler';
 import {
@@ -34,26 +42,51 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
   const { fixedIncomeByAssetId } = pricer;
   type FixedIncomeRecord = (typeof pricer.fixedIncomeAssets)[number];
 
-  const portfolioBruto = await prisma.portfolio.findMany({
-    where: {
-      userId: targetUserId,
-      asset: {
-        type: { in: ['bond', 'cash', 'tesouro-direto'] },
+  // Mover fase 2 (MOVER_CAIXA_RF_HABILITADO): a aba segue o override — o grupo
+  // Reservas + Renda Fixa inteiro, separado pela aba efetiva ("um item, uma
+  // aba"; 'cash' fica só na Reserva de Oportunidade). Chave desligada: a
+  // seleção de antes.
+  const caixaRf = moverCaixaRfHabilitado();
+  let baseCtxDe: (p: { assetId: string | null }) => BaseCtx | undefined = () => undefined;
+  let portfolio;
+  if (caixaRf) {
+    const grupo = await prisma.portfolio.findMany({
+      where: wherePortfolioGrupoCaixaRf(targetUserId),
+      include: { asset: true },
+    });
+    const destinos = await reservaDestinoPorAsset(
+      targetUserId,
+      grupo.map((p) => p.assetId).filter((id): id is string => Boolean(id)),
+    );
+    baseCtxDe = (p) => ({
+      reservaDestino: (p.assetId ? destinos.get(p.assetId) : undefined) ?? null,
+    });
+    portfolio = filtrarDaCategoria(grupo, 'rendaFixaFundos', baseCtxDe);
+  } else {
+    const portfolioBruto = await prisma.portfolio.findMany({
+      where: {
+        userId: targetUserId,
+        asset: {
+          type: { in: ['bond', 'cash', 'tesouro-direto'] },
+        },
       },
-    },
-    include: { asset: true },
-  });
+      include: { asset: true },
+    });
 
-  // Tesouro comprado para uma reserva (notes.tesouroDestino) pertence à aba
-  // da reserva — listá-lo aqui duplicava o título nas duas abas (bug ago/2026:
-  // Selic 2031 da Reserva de Emergência aparecia também em Renda Fixa).
-  const tesouroAssetIds = portfolioBruto
-    .filter((p) => p.asset?.type === 'tesouro-direto' && p.assetId)
-    .map((p) => p.assetId!) as string[];
-  const destinoByAssetId = await getTesouroDestinoByAssetId(targetUserId, tesouroAssetIds);
-  const portfolio = portfolioBruto.filter(
-    (p) => !(p.asset?.type === 'tesouro-direto' && p.assetId && destinoByAssetId.has(p.assetId)),
-  );
+    // Tesouro comprado para uma reserva (notes.tesouroDestino) pertence à aba
+    // da reserva — listá-lo aqui duplicava o título nas duas abas (bug ago/2026:
+    // Selic 2031 da Reserva de Emergência aparecia também em Renda Fixa).
+    const tesouroAssetIds = portfolioBruto
+      .filter((p) => p.asset?.type === 'tesouro-direto' && p.assetId)
+      .map((p) => p.assetId!) as string[];
+    const destinoByAssetId = await getTesouroDestinoByAssetId(targetUserId, tesouroAssetIds);
+    portfolio = portfolioBruto.filter(
+      (p) => !(p.asset?.type === 'tesouro-direto' && p.assetId && destinoByAssetId.has(p.assetId)),
+    );
+  }
+  /** Veio de uma Reserva por override (seção pelo tipo do título — secaoRendaFixa). */
+  const movidoParaRf = (p: (typeof portfolio)[number]) =>
+    caixaRf && overrideEfetivo(p.asset, p.categoriaOverride, baseCtxDe(p)) === 'rendaFixaFundos';
 
   // Buscar transações para obter metadados editados
   const assetIds = portfolio.map((p) => p.assetId).filter((id): id is string => id !== null);
@@ -160,10 +193,14 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
       // Buscar metadados editados das transações
       const metadata = metadataMap.get(assetId) || {};
 
-      // Classificar seção: híbrido (tipo *_HIB), pós-fixada (indexador CDI/IPCA) ou pré-fixada
-      const isHibrido = String(fixedIncome.type).endsWith('_HIB');
-      const isPosFixada = fixedIncome.indexer === 'CDI' || fixedIncome.indexer === 'IPCA';
-      const tipo = isHibrido ? 'hibrida' : isPosFixada ? 'pos-fixada' : 'prefixada';
+      // Seção: híbrido (tipo *_HIB), pós-fixada (indexador CDI/IPCA) ou pré-fixada;
+      // título movido de uma Reserva usa o tipo do Tesouro (fonte única: secaoRendaFixa).
+      const tipo = secaoRendaFixa({
+        fiType: String(fixedIncome.type),
+        indexer: fixedIncome.indexer,
+        tesouroBondType: fixedIncome.tesouroBondType,
+        movidoParaRf: movidoParaRf(item),
+      });
 
       // IR projetado se resgatar hoje. Tesouro identifica-se pelo bondType setado
       // pelo /operacao quando o ativo veio do catálogo Tesouro.
@@ -211,11 +248,12 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
         item.avgPrice && item.avgPrice > 0 && item.quantity > 0
           ? item.avgPrice * item.quantity
           : item.totalInvested;
-      const tipoLegacy =
-        metadata.debentureTipo &&
-        ['prefixada', 'pos-fixada', 'hibrida'].includes(metadata.debentureTipo)
-          ? metadata.debentureTipo
-          : 'prefixada';
+      const tipoLegacy = secaoRendaFixa({
+        debentureTipo: metadata.debentureTipo,
+        benchmark: metadata.benchmark,
+        tesouroBondType: tituloTesouroDoNome(item.asset),
+        movidoParaRf: movidoParaRf(item),
+      });
 
       return {
         id: item.id,
@@ -234,11 +272,29 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
         riscoPorAtivo: 0,
         rentabilidade: 0,
         observacoes: metadata.observacoes,
-        tipo: tipoLegacy as 'prefixada' | 'pos-fixada' | 'hibrida',
+        tipo: tipoLegacy,
       };
     });
 
   const allAtivos = [...ativos, ...legacyAssets];
+
+  // Campos do mover por linha (selo "movido"; chave desligada → naoMovivelMotivo).
+  aplicarCamposMovido(
+    allAtivos,
+    await camposMovidoPorLinha(
+      targetUserId,
+      'rendaFixaFundos',
+      portfolio
+        .filter((p) => p.assetId)
+        .map((p) => ({
+          id: p.id,
+          categoriaOverride: p.categoriaOverride,
+          asset: p.asset,
+          temRendaFixa: fixedIncomeByAssetId.has(p.assetId as string),
+          baseCtx: baseCtxDe(p),
+        })),
+    ),
+  );
 
   const totalCarteira = allAtivos.reduce((sum, ativo) => sum + ativo.valorAtualizado, 0);
 

@@ -81,6 +81,10 @@ const CLASSE_DA_CATEGORIA_MOVIDA: Record<CategoriaMovivel, string> = {
   fimFia: 'FIM/FIA',
   stocks: 'Stocks',
   reits: "REIT's",
+  // Fase 2 do mover (Reservas + Renda Fixa, atrás de MOVER_CAIXA_RF_HABILITADO).
+  reservaEmergencia: 'Reserva de Emergência',
+  reservaOportunidade: 'Reserva de Oportunidade',
+  rendaFixaFundos: 'Renda Fixa & Fundos de Renda Fixa',
 };
 
 const mapAssetTypeToClasse = (entry: PortfolioAssetEntry) => {

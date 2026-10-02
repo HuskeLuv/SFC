@@ -30,7 +30,7 @@
  *
  * 3) POST /api/carteira/mover                                       (Fatia A)
  *    body: `moverInvestimentoSchema` (discriminado por `acao`):
- *      { acao:'mover', tipo, id, categoria, subgrupo } | { acao:'restaurar', tipo, id }
+ *      { acao:'mover', tipo, id, categoria, subgrupo? } | { acao:'restaurar', tipo, id }
  *    Validações, em ordem: zod 400 → posse 404 → origem movível 409
  *    (motivoNaoMovivel) → destino ∈ destinosPermitidos 409 {error: motivo} →
  *    isSubgrupoValido 400 → 'restaurar' sem item movido 409.
@@ -55,6 +55,59 @@
  * queryKeys.carteiraMover.{all, opcoes(tipo,id), categoria(assetId)}; a linha
  * otimista troca `CAMPO_SECAO_NA_LINHA[categoria]`; cache da aba =
  * queryKeys.assets.type(CATEGORIA_API_PATH[categoria]).
+ *
+ * ─── FASE 2 (out/2026): Reservas + Renda Fixa ───────────────────────────────
+ * Decisões: docs/carteira-mover/fase2-decisoes.md. Atrás da chave
+ * MOVER_CAIXA_RF_HABILITADO (`moverCaixaRfHabilitado`, src/lib/carteiraMoverConfig.ts),
+ * DESLIGADA por padrão. Chave desligada = TUDO como na fase 1: as regras abaixo
+ * devolvem o resultado de antes (categoriaBaseDaAba null para RF/Reservas,
+ * destinosPermitidos com as 6, override de caixa/RF ignorado) e nenhuma rota
+ * muda de payload (campos novos só com a chave ligada).
+ *
+ * Fonte de verdade: SÓ Portfolio.categoriaOverride ('reservaEmergencia' |
+ * 'reservaOportunidade' | 'rendaFixaFundos'), gravado só quando ≠ base. NUNCA
+ * muda Asset.type, símbolo, notes, tesouroDestino nem FixedIncomeAsset. "Onde
+ * aparece" segue o override; "como vale" (valor, IR, recalc, liveTotals) segue o
+ * tipo. Aba base do Tesouro de catálogo = 1ª compra marcada por data
+ * (`reservaDestinoPorAsset`, src/services/portfolio/tesouroDestino.ts) → `BaseCtx`.
+ *
+ * 5) GET /api/carteira/mover (mesma rota de 1)                     (Fatia A)
+ *    Chave ligada: `destinos` com as 9 (CATEGORIAS_MOVIVEIS_TODAS) via
+ *    destinosPermitidos(asset, {temRendaFixa, atual, tipo, baseCtx}); modelo
+ *    'curva' para o trio; DestinoOpcao.subgrupoEditavel (SUBGRUPO_EDITAVEL) e
+ *    secaoAutomatica (secaoRendaFixa, só RF); avisos AVISO_LIQUIDEZ_RESERVA
+ *    (precisaAvisoLiquidez), AVISO_SAUDE_RESERVA (envolveReservaEmergencia) e
+ *    AVISO_OBJETIVO_ZERA; item.valorAtualBRL (valuatePortfolioItem) e grupo.
+ *    `original` via originalPorEntidade(..., { baseCtx }). Chave desligada:
+ *    resposta idêntica à fase 1 (sem os campos opcionais).
+ *
+ * 6) POST /api/carteira/mover (mesma rota de 3)                    (Fatia A)
+ *    zod: categoria z.enum(CATEGORIAS_MOVIVEIS_TODAS), subgrupo opcional. Chave desligada + destino do
+ *    trio → 409 MOTIVO_ABA_FORA_DA_FASE. Subgrupo exigido só se
+ *    SUBGRUPO_EDITAVEL[destino] (400 'Escolha a seção'); no trio é ignorado.
+ *    Mesma aba e seção não editável → noop. Grava { categoriaOverride:
+ *    destino===base(ctx) ? null : destino, ...(trocouAba ? {objetivo:0} : {}) }
+ *    SEM coluna de subgrupo (CAMPO_SUBGRUPO_PORTFOLIO null). MoverResponse
+ *    .destino.subgrupo = seção derivada (RF) ou null (Reservas). Mesmos
+ *    MOVER_ACTIONS e MoverChangeSnapshot v1; Desfazer e "Voltar ao original"
+ *    sem lógica nova. Compra de Tesouro com override (operacao/route.ts): grava
+ *    o marcador da base vigente, não o destino recebido (base não muda).
+ *
+ * 7) GETs de reserva-emergencia, reserva-oportunidade e renda-fixa  (Fatia B)
+ *    Mesmo formato de hoje + `LinhaMovidaCampos` por linha. Chave ligada:
+ *    findMany(wherePortfolioGrupoCaixaRf) + reservaDestinoPorAsset +
+ *    filtrarDaCategoria(rows, cat, ctxDe) — "um item, uma aba" ('cash' só na
+ *    Oportunidade); valor com FI = getFixedIncomeCurrentValue (= pizza);
+ *    metadados do FI (vencimento, liquidez, benchmark) sem defaults falsos;
+ *    seção RF = secaoRendaFixa. Chave desligada: código de hoje + linhas com
+ *    `naoMovivelMotivo` (sem alça).
+ *
+ * 8) Consumidores (Fatia C) e UI (Fatias D/E)
+ *    categoriaEfetiva/valuatePortfolioItem já seguem o override (pizza, Saúde);
+ *    Fluxo, caixa, histórico por classe e planejamento passam o BaseCtx. UI:
+ *    bandeja só com as outras abas do trio (sem chip travado; FII/Ações iguais à
+ *    fase 1), confirmação com calcularEfeitosMover (src/lib/moverEfeitos.ts),
+ *    alvoDaLinha com seção null e secaoDropIdSintetico (CarteiraDnd.tsx).
  * ─────────────────────────────────────────────────────────────────────────────
  */
 import { z } from 'zod';
@@ -68,18 +121,69 @@ import {
   isFundoSubtipo,
   isFundoType,
 } from '@/lib/fundoTypes';
+import { moverCaixaRfHabilitado } from '@/lib/carteiraMoverConfig';
+import { ROTULO_SECAO_RENDA_FIXA, SECOES_RENDA_FIXA } from '@/lib/rendaFixaSecao';
+import { HORIZONTE_LIQUIDEZ_DIAS } from '@/services/saudeFinanceira/indicadores';
 import type { CategoriaCarteira } from '@/services/portfolio/itemValuation';
 import type { AbaPlanejavel } from '@/services/portfolio/ativosPlanejados';
+import type { TipoRendaFixa } from '@/types/rendaFixa';
 
 // ── Categorias movíveis ──────────────────────────────────────────────────────
 
-/** Abas que entram na fase 1 do mover, na ordem da barra de abas. */
+/**
+ * Abas da FASE 1 do mover (renda variável e fundos), na ordem da barra de abas.
+ * Continua com as 6 e o mesmo nome: a UI da fase 1 (bandeja, DestinoAbaList)
+ * percorre esta lista e NÃO pode mudar com a chave da fase 2 desligada.
+ */
 export const CATEGORIAS_MOVIVEIS = ['fimFia', 'fiis', 'acoes', 'stocks', 'reits', 'etfs'] as const;
 
-export type CategoriaMovivel = (typeof CATEGORIAS_MOVIVEIS)[number];
+export type CategoriaRendaVariavel = (typeof CATEGORIAS_MOVIVEIS)[number];
 
-export const isCategoriaMovivel = (value: unknown): value is CategoriaMovivel =>
+/**
+ * Abas da FASE 2 (out/2026), atrás de MOVER_CAIXA_RF_HABILITADO
+ * (`moverCaixaRfHabilitado`). Trocam só entre si (decisão 1 da fase 2).
+ */
+export const CATEGORIAS_CAIXA_RF = [
+  'reservaEmergencia',
+  'reservaOportunidade',
+  'rendaFixaFundos',
+] as const;
+
+export type CategoriaCaixaRf = (typeof CATEGORIAS_CAIXA_RF)[number];
+
+/** As 9 abas movíveis, na ordem da barra de abas (reservas, RF, fundos, FIIs, ações…). */
+export const CATEGORIAS_MOVIVEIS_TODAS = [...CATEGORIAS_CAIXA_RF, ...CATEGORIAS_MOVIVEIS] as const;
+
+/** União das 9 (os Records abaixo são completos). */
+export type CategoriaMovivel = CategoriaRendaVariavel | CategoriaCaixaRf;
+
+/** Uma das 6 abas da FASE 1 (comportamento de antes; não depende da chave). */
+export const isCategoriaMovivel = (value: unknown): value is CategoriaRendaVariavel =>
   typeof value === 'string' && (CATEGORIAS_MOVIVEIS as readonly string[]).includes(value);
+
+export const isCategoriaCaixaRf = (value: unknown): value is CategoriaCaixaRf =>
+  typeof value === 'string' && (CATEGORIAS_CAIXA_RF as readonly string[]).includes(value);
+
+/** Uma das 9 abas (sem olhar a chave). */
+export const isCategoriaMovivelTodas = (value: unknown): value is CategoriaMovivel =>
+  isCategoriaMovivel(value) || isCategoriaCaixaRf(value);
+
+/** Grupo de troca: 'rv' (as 6 da fase 1) e 'caixaRf' (as 3 da fase 2) nunca se misturam. */
+export type GrupoMover = 'rv' | 'caixaRf';
+
+export const grupoDaCategoria = (c: CategoriaMovivel): GrupoMover =>
+  isCategoriaCaixaRf(c) ? 'caixaRf' : 'rv';
+
+export const categoriasDoGrupo = (c: CategoriaMovivel): readonly CategoriaMovivel[] =>
+  isCategoriaCaixaRf(c) ? CATEGORIAS_CAIXA_RF : CATEGORIAS_MOVIVEIS;
+
+/**
+ * Valores de categoriaOverride que valem AGORA: as 6 com a chave desligada, as
+ * 9 com ela ligada. Override de caixa/RF gravado com a chave ligada é ignorado
+ * quando ela desliga (o item volta à aba de origem sem perder o dado).
+ */
+export const categoriasComOverrideValido = (): readonly CategoriaMovivel[] =>
+  moverCaixaRfHabilitado() ? CATEGORIAS_MOVIVEIS_TODAS : CATEGORIAS_MOVIVEIS;
 
 // ── Regex únicas de ticker (rotas, categorizarAsset e as regras abaixo) ─────
 
@@ -136,6 +240,27 @@ export const SUBGRUPOS_POR_CATEGORIA: Record<CategoriaMovivel, readonly Subgrupo
     { id: 'estados_unidos', label: 'EUA' },
   ],
   fimFia: FUNDO_SUBTIPO_ORDER.map((id) => ({ id, label: FUNDO_SUBTIPO_LABEL[id] })),
+  // Fase 2: as Reservas não têm seções; a RF tem as 3 seções DERIVADAS do título
+  // (secaoRendaFixa em src/lib/rendaFixaSecao.ts) — não editáveis.
+  reservaEmergencia: [],
+  reservaOportunidade: [],
+  rendaFixaFundos: SECOES_RENDA_FIXA.map((id) => ({ id, label: ROTULO_SECAO_RENDA_FIXA[id] })),
+};
+
+/**
+ * O usuário escolhe a seção ao mover? false nas 3 da fase 2: Reservas não têm
+ * seção e a da RF vem do título (o serviço ignora o `subgrupo` recebido).
+ */
+export const SUBGRUPO_EDITAVEL: Record<CategoriaMovivel, boolean> = {
+  acoes: true,
+  stocks: true,
+  reits: true,
+  fiis: true,
+  etfs: true,
+  fimFia: true,
+  reservaEmergencia: false,
+  reservaOportunidade: false,
+  rendaFixaFundos: false,
 };
 
 export const isSubgrupoValido = (categoria: CategoriaMovivel, subgrupo: unknown): boolean =>
@@ -147,7 +272,10 @@ export const rotuloSubgrupo = (
 ): string | null =>
   SUBGRUPOS_POR_CATEGORIA[categoria].find((s) => s.id === subgrupo)?.label ?? null;
 
-/** Coluna do Portfolio que guarda o subgrupo de cada aba. */
+/**
+ * Coluna do Portfolio que guarda o subgrupo de cada aba. null nas 3 da fase 2:
+ * nada é gravado (Reservas sem seção; seção da RF derivada do título).
+ */
 export const CAMPO_SUBGRUPO_PORTFOLIO = {
   acoes: 'estrategia',
   stocks: 'estrategia',
@@ -155,11 +283,20 @@ export const CAMPO_SUBGRUPO_PORTFOLIO = {
   fiis: 'tipoFii',
   etfs: 'regiaoEtf',
   fimFia: 'tipoFundo',
-} as const satisfies Record<CategoriaMovivel, string>;
+  reservaEmergencia: null,
+  reservaOportunidade: null,
+  rendaFixaFundos: null,
+} as const satisfies Record<CategoriaMovivel, string | null>;
 
-export type CampoSubgrupoPortfolio = (typeof CAMPO_SUBGRUPO_PORTFOLIO)[CategoriaMovivel];
+export type CampoSubgrupoPortfolio = NonNullable<
+  (typeof CAMPO_SUBGRUPO_PORTFOLIO)[CategoriaMovivel]
+>;
 
-/** Campo da linha (JSON da rota da aba) que diz em que seção ela está. */
+/**
+ * Campo da linha (JSON da rota da aba) que diz em que seção ela está. RF: 'tipo'
+ * (pos-fixada/prefixada/hibrida); Reservas: null (sem seção — `alvoDaLinha`
+ * devolve secaoAtual '').
+ */
 export const CAMPO_SECAO_NA_LINHA = {
   acoes: 'estrategia',
   stocks: 'estrategia',
@@ -167,11 +304,18 @@ export const CAMPO_SECAO_NA_LINHA = {
   fiis: 'tipo',
   etfs: 'regiao',
   fimFia: 'tipo',
-} as const satisfies Record<CategoriaMovivel, string>;
+  reservaEmergencia: null,
+  reservaOportunidade: null,
+  rendaFixaFundos: 'tipo',
+} as const satisfies Record<CategoriaMovivel, string | null>;
 
 // ── Mapas de categoria → aba/rota ────────────────────────────────────────────
 
-/** Segmento da rota `/api/carteira/<path>` — também a chave de queryKeys.assets.type. */
+/**
+ * Segmento da rota `/api/carteira/<path>`. Nas 6 da fase 1 é também a chave de
+ * queryKeys.assets.type; RF usa queryKeys.assets.type('renda-fixa') e as
+ * Reservas usam queryKeys.reserva.* (a fatia D escolhe a chave por categoria).
+ */
 export const CATEGORIA_API_PATH = {
   acoes: 'acoes',
   stocks: 'stocks',
@@ -179,17 +323,25 @@ export const CATEGORIA_API_PATH = {
   etfs: 'etf',
   reits: 'reit',
   fimFia: 'fim-fia',
+  reservaEmergencia: 'reserva-emergencia',
+  reservaOportunidade: 'reserva-oportunidade',
+  rendaFixaFundos: 'renda-fixa',
 } as const satisfies Record<CategoriaMovivel, string>;
 
-/** Categoria → aba de planejados (`TIPOS_ATIVO_PLANEJAVEIS`). */
-export const CATEGORIA_TO_ABA_PLANEJAVEL = {
+/**
+ * Categoria → aba de planejados (`TIPOS_ATIVO_PLANEJAVEIS`). Parcial: planejados
+ * (Watchlist) não entram nas 3 abas da fase 2 (decisão 2).
+ */
+export const CATEGORIA_TO_ABA_PLANEJAVEL: Readonly<
+  Partial<Record<CategoriaMovivel, AbaPlanejavel>>
+> = {
   acoes: 'acoes',
   stocks: 'stocks',
   fiis: 'fii',
   etfs: 'etf',
   reits: 'reits',
   fimFia: 'fim-fia',
-} as const satisfies Record<CategoriaMovivel, AbaPlanejavel>;
+};
 
 const TAB_POR_CATEGORIA = new Map(
   CARTEIRA_CLASS_TABS.filter((t) => t.categoria).map((t) => [t.categoria as string, t]),
@@ -212,14 +364,38 @@ export type AssetMovivelLike = {
   name?: string | null;
 };
 
+/** Reserva onde um Tesouro de CATÁLOGO foi comprado (1ª compra marcada por data). */
+export type ReservaDestino = 'emergencia' | 'oportunidade';
+
 /**
- * Em que aba a rota lista o ativo HOJE (sem override) — espelha os `where` das
- * rotas de aba. null = fora das abas movíveis (Renda Fixa, Reservas, Imóveis,
- * Moedas/Cripto, Previdência, Opções e units B3 enquanto fora de escopo).
+ * Contexto da aba base que o Asset sozinho não diz: o Tesouro de catálogo é
+ * compartilhado e a reserva fica em `notes.tesouroDestino` da compra —
+ * `reservaDestinoPorAsset` (src/services/portfolio/tesouroDestino.ts).
  */
-export const categoriaBaseDaAba = (
+export type BaseCtx = { reservaDestino?: ReservaDestino | null };
+
+/** Aceita 'reserva-emergencia' | 'emergencia' | 'emergency' (e o equivalente de oportunidade). */
+export const normalizarReservaDestino = (v: unknown): ReservaDestino | null => {
+  if (v === 'reserva-emergencia' || v === 'emergencia' || v === 'emergency') return 'emergencia';
+  if (v === 'reserva-oportunidade' || v === 'oportunidade' || v === 'opportunity') {
+    return 'oportunidade';
+  }
+  return null;
+};
+
+const RE_SIMBOLO_EMERG = /^(RESERVA-EMERG|CONTA-CORRENTE-EMERG|POUPANCA-EMERG)|-RESERVA-EMERG/;
+const RE_SIMBOLO_OPORT = /^(RESERVA-OPORT|CONTA-CORRENTE-OPORT|POUPANCA-OPORT)|-RESERVA-OPORT/;
+/** Saldo em conta (sem título): conta corrente, poupança e a reserva manual sem FI. */
+const RE_SIMBOLO_SALDO = /^(RESERVA-(EMERG|OPORT)|CONTA-CORRENTE-|POUPANCA-)/;
+
+/** Tesouro de catálogo ou Tesouro manual (TESOURO-*, inclusive o comprado como reserva). */
+export const isTesouroAsset = (asset: AssetMovivelLike | null | undefined): boolean =>
+  asset?.type === 'tesouro-direto' || (asset?.symbol ?? '').toUpperCase().startsWith('TESOURO-');
+
+/** Regra da FASE 1 (renda variável e fundos) — não depende da chave. */
+const categoriaBaseRendaVariavel = (
   asset: AssetMovivelLike | null | undefined,
-): CategoriaMovivel | null => {
+): CategoriaRendaVariavel | null => {
   if (!asset) return null;
   const tipo = asset.type ?? '';
   switch (tipo) {
@@ -242,41 +418,106 @@ export const categoriaBaseDaAba = (
 };
 
 /**
- * O override vale só se o item é movível, o valor é uma categoria movível e é
- * DIFERENTE da aba base. Override igual à base (catálogo mudou) ou inválido →
- * null: o item segue a regra de sempre.
+ * Regra da FASE 2 — espelha a pizza (categorizarAsset com isReserva):
+ *   1. Tesouro de catálogo com reserva marcada (ctx.reservaDestino) → a reserva;
+ *   2. type 'emergency' ou símbolo RESERVA-EMERG*, CONTA-CORRENTE-EMERG*,
+ *      POUPANCA-EMERG*, *-RESERVA-EMERG* → Reserva de Emergência;
+ *   3. 'opportunity', 'cash' ou o equivalente OPORT → Reserva de Oportunidade
+ *      ('cash' fica SÓ na Oportunidade com a chave ligada — decisão 6);
+ *   4. 'bond' | 'tesouro-direto' → Renda Fixa.
+ */
+const categoriaBaseCaixaRf = (
+  asset: AssetMovivelLike,
+  ctx: BaseCtx = {},
+): CategoriaCaixaRf | null => {
+  const tipo = (asset.type ?? '').toLowerCase();
+  const symbol = (asset.symbol ?? '').toUpperCase();
+  const destino = normalizarReservaDestino(ctx.reservaDestino);
+  if (destino === 'emergencia') return 'reservaEmergencia';
+  if (destino === 'oportunidade') return 'reservaOportunidade';
+  if (tipo === 'emergency') return 'reservaEmergencia';
+  if (tipo === 'opportunity' || tipo === 'cash') return 'reservaOportunidade';
+  if (tipo === 'bond' || tipo === 'tesouro-direto') return 'rendaFixaFundos';
+  // Símbolo de reserva com type fora do padrão (defensivo; o /operacao grava type).
+  if (!categoriaBaseRendaVariavel(asset)) {
+    if (RE_SIMBOLO_EMERG.test(symbol)) return 'reservaEmergencia';
+    if (RE_SIMBOLO_OPORT.test(symbol)) return 'reservaOportunidade';
+  }
+  return null;
+};
+
+const baseDaAba = (
+  asset: AssetMovivelLike | null | undefined,
+  ctx: BaseCtx | undefined,
+  caixaRfLiberado: boolean,
+): CategoriaMovivel | null => {
+  if (!asset) return null;
+  if (caixaRfLiberado) {
+    const caixaRf = categoriaBaseCaixaRf(asset, ctx);
+    if (caixaRf) return caixaRf;
+  }
+  return categoriaBaseRendaVariavel(asset);
+};
+
+/**
+ * Em que aba a rota lista o ativo HOJE (sem override) — espelha os `where` das
+ * rotas de aba. null = fora das abas movíveis (Imóveis, Moedas/Cripto,
+ * Previdência, Opções, units B3 enquanto fora de escopo e — com a chave
+ * MOVER_CAIXA_RF_HABILITADO desligada — Renda Fixa e Reservas, como na fase 1).
+ */
+export const categoriaBaseDaAba = (
+  asset: AssetMovivelLike | null | undefined,
+  ctx?: BaseCtx,
+): CategoriaMovivel | null => baseDaAba(asset, ctx, moverCaixaRfHabilitado());
+
+/**
+ * O override vale só se o item é movível, o valor é uma categoria com override
+ * válido AGORA (`categoriasComOverrideValido`), do MESMO grupo da aba base e
+ * DIFERENTE dela. Override igual à base (catálogo mudou), de outro grupo ou
+ * inválido → null: o item segue a regra de sempre.
  */
 export const overrideEfetivo = (
   asset: AssetMovivelLike | null | undefined,
   override: string | null | undefined,
+  ctx?: BaseCtx,
 ): CategoriaMovivel | null => {
-  if (!isCategoriaMovivel(override)) return null;
-  const base = categoriaBaseDaAba(asset);
-  if (!base || base === override) return null;
-  return override;
+  if (!override || !(categoriasComOverrideValido() as readonly string[]).includes(override)) {
+    return null;
+  }
+  const destino = override as CategoriaMovivel;
+  const base = categoriaBaseDaAba(asset, ctx);
+  if (!base || base === destino) return null;
+  if (grupoDaCategoria(base) !== grupoDaCategoria(destino)) return null;
+  return destino;
 };
 
 /** Aba onde o item aparece: override efetivo ?? aba base. */
 export const categoriaDaAba = (
   asset: AssetMovivelLike | null | undefined,
   override: string | null | undefined,
-): CategoriaMovivel | null => overrideEfetivo(asset, override) ?? categoriaBaseDaAba(asset);
+  ctx?: BaseCtx,
+): CategoriaMovivel | null =>
+  overrideEfetivo(asset, override, ctx) ?? categoriaBaseDaAba(asset, ctx);
 
 /**
  * Como o valor do item é calculado — decide para onde ele pode ir:
  * - 'b3-brl': cotação de bolsa em reais → Ações, FII's, ETF's, Fundos;
  * - 'usd': cotação em dólar → Stocks, REIT's, ETF's;
  * - 'fundo': cota CVM/curva (sem cotação em bolsa) → só subgrupo na aba base;
- * - 'fixo': aba fora da fase (Renda Fixa, Reservas, Imóveis…) → nada.
+ * - 'curva' (fase 2, chave ligada): curva do título, PU do Tesouro ou valor
+ *   informado → Reservas e Renda Fixa trocam entre si;
+ * - 'fixo': aba fora do mover (Imóveis, Moedas, Previdência, Opções; e RF e
+ *   Reservas com a chave desligada) → nada.
  */
-export type ModeloPreco = 'b3-brl' | 'usd' | 'fundo' | 'fixo';
+export type ModeloPreco = 'b3-brl' | 'usd' | 'fundo' | 'curva' | 'fixo';
 
-export const modeloDePreco = (
+const modeloDaBase = (
   asset: AssetMovivelLike | null | undefined,
-  ctx: { temRendaFixa?: boolean } = {},
+  base: CategoriaMovivel | null,
+  ctx: { temRendaFixa?: boolean },
 ): ModeloPreco => {
-  const base = categoriaBaseDaAba(asset);
   if (!asset || !base) return 'fixo';
+  if (isCategoriaCaixaRf(base)) return 'curva';
   const tipo = asset.type ?? '';
   const fundo = isFundoType(tipo);
   if (!fundo && (asset.currency === 'USD' || base === 'reits')) return 'usd';
@@ -292,6 +533,32 @@ export const modeloDePreco = (
   return 'fundo';
 };
 
+export const modeloDePreco = (
+  asset: AssetMovivelLike | null | undefined,
+  ctx: { temRendaFixa?: boolean; baseCtx?: BaseCtx } = {},
+): ModeloPreco => modeloDaBase(asset, categoriaBaseDaAba(asset, ctx.baseCtx), ctx);
+
+/**
+ * Saldo em conta (decisão 1 da fase 2): reserva SEM FixedIncomeAsset e que não
+ * é Tesouro — RESERVA-*, CONTA-CORRENTE-*, POUPANCA-*, 'cash' sem FI. Só troca
+ * entre as duas Reservas (não é um título de renda fixa).
+ */
+export const isSaldoSemTitulo = (
+  asset: AssetMovivelLike | null | undefined,
+  ctx: { temRendaFixa?: boolean; baseCtx?: BaseCtx } = {},
+): boolean => {
+  if (!asset || ctx.temRendaFixa || isTesouroAsset(asset)) return false;
+  const base = baseDaAba(asset, ctx.baseCtx, true);
+  if (base !== 'reservaEmergencia' && base !== 'reservaOportunidade') return false;
+  const tipo = (asset.type ?? '').toLowerCase();
+  return (
+    tipo === 'emergency' ||
+    tipo === 'opportunity' ||
+    tipo === 'cash' ||
+    RE_SIMBOLO_SALDO.test((asset.symbol ?? '').toUpperCase())
+  );
+};
+
 // ── Matriz de compatibilidade ────────────────────────────────────────────────
 
 export const MOTIVO_EM_DOLAR = 'Em dólar — esta aba é em reais';
@@ -300,11 +567,24 @@ export const MOTIVO_SEM_COTACAO = 'Sem cotação em bolsa: o valor vem da cota/c
 export const MOTIVO_EM_VALIDACAO =
   "Em validação — ETF em dólar ainda não troca com Stocks e REIT's";
 
+// Fase 2 (chave ligada) — textos do protótipo (docs/carteira-mover/fase2-prototipo.html).
+/** Título de Reserva/RF → abas de bolsa e fundos (decisão 2: bloqueado nos dois sentidos). */
+export const MOTIVO_SEM_COTACAO_BOLSA = 'Sem cotação em bolsa: o valor vem da curva do título';
+/** Saldo em conta/poupança → abas de bolsa e fundos. */
+export const MOTIVO_SALDO_SEM_COTACAO_BOLSA = 'Sem cotação em bolsa: o valor é o saldo informado';
+/** Item de bolsa/fundo → Reservas e RF (decisão 2). */
+export const MOTIVO_COM_COTACAO =
+  'Tem cotação de mercado — Reservas e Renda Fixa usam curva ou valor informado';
+/** Saldo em conta/poupança → Renda Fixa (decisão 1). */
+export const MOTIVO_SALDO_SEM_TITULO = 'Saldo em conta não é um título. Ele fica entre as Reservas';
+/** Planejado (Watchlist) → Reservas/RF (decisão 2: planejados não entram nas 3 abas). */
+export const MOTIVO_PLANEJADO_RV = 'Ativos planejados ficam nas abas de bolsa e fundos';
+
 /** Frase para item de aba fora da fase (sem ponto final; a UI decide). */
 export const motivoNaoMovivel = (categoria: CategoriaCarteira | null | undefined): string =>
   `${categoria ? rotuloCategoria(categoria) : 'Esta aba'} ainda não pode ser movida para outra aba`;
 
-const DESTINOS_POR_MODELO: Record<Exclude<ModeloPreco, 'fixo' | 'fundo'>, CategoriaMovivel[]> = {
+const DESTINOS_POR_MODELO: Record<'b3-brl' | 'usd', CategoriaMovivel[]> = {
   'b3-brl': ['acoes', 'fiis', 'etfs', 'fimFia'],
   usd: ['stocks', 'reits', 'etfs'],
 };
@@ -321,6 +601,15 @@ export interface DestinosCtx {
   atual?: CategoriaMovivel | null;
   /** Categoria de categorizarAsset, só para o texto do item fixo. */
   categoriaFixa?: CategoriaCarteira | null;
+  /** Posição ou planejado (planejado nunca vai para as 3 da fase 2). Default: posição. */
+  tipo?: TipoItemMover;
+  /** Reserva do Tesouro de catálogo (aba base). */
+  baseCtx?: BaseCtx;
+  /**
+   * Fase 2 liberada? Default: `moverCaixaRfHabilitado()`. false → as 6 entradas
+   * da fase 1, idênticas às de antes (a regra ignora RF/Reservas).
+   */
+  caixaRfLiberado?: boolean;
 }
 
 const ACOES_EUA: readonly CategoriaMovivel[] = ['stocks', 'reits'];
@@ -330,41 +619,98 @@ const emValidacao = (origem: CategoriaMovivel, destino: CategoriaMovivel): boole
   ((origem === 'etfs' && ACOES_EUA.includes(destino)) ||
     (ACOES_EUA.includes(origem) && destino === 'etfs'));
 
+/** Regra da fase 1 para um destino de renda variável (origem e base também RV). */
+const destinoRendaVariavel = (
+  categoria: CategoriaRendaVariavel,
+  modelo: ModeloPreco,
+  base: CategoriaMovivel,
+  origem: CategoriaMovivel,
+): DestinoPermitido => {
+  if (categoria === origem) return { categoria, permitido: true };
+  if (modelo === 'fundo') {
+    return categoria === base
+      ? { categoria, permitido: true }
+      : { categoria, permitido: false, motivo: MOTIVO_SEM_COTACAO };
+  }
+  if (modelo !== 'b3-brl' && modelo !== 'usd') {
+    return { categoria, permitido: false, motivo: MOTIVO_SEM_COTACAO };
+  }
+  if (!DESTINOS_POR_MODELO[modelo].includes(categoria)) {
+    return {
+      categoria,
+      permitido: false,
+      motivo: modelo === 'usd' ? MOTIVO_EM_DOLAR : MOTIVO_EM_REAIS,
+    };
+  }
+  // Voltar à aba base nunca fica preso na validação.
+  if (categoria !== base && emValidacao(origem, categoria)) {
+    return { categoria, permitido: false, motivo: MOTIVO_EM_VALIDACAO };
+  }
+  return { categoria, permitido: true };
+};
+
 /**
- * As 6 abas movíveis com `permitido` e o `motivo` da recusa. A aba atual é
- * sempre permitida (troca só de subgrupo). Dentro de ETF's as duas regiões
+ * As abas movíveis com `permitido` e o `motivo` da recusa. A aba atual é sempre
+ * permitida (= fica / troca só de subgrupo). Dentro de ETF's as duas regiões
  * ficam livres: a moeda bloqueia só a troca de ABA.
+ *
+ * - Fase 2 desligada (`caixaRfLiberado` false): as 6 entradas da fase 1, byte a byte.
+ * - Fase 2 ligada: as 9 (CATEGORIAS_MOVIVEIS_TODAS). Item de Reserva/RF ('curva')
+ *   troca só no trio (saldo sem título só entre as Reservas); as 6 de bolsa
+ *   ficam com MOTIVO_SEM_COTACAO_BOLSA. Item de bolsa/fundo: fase 1 nas 6 e as 3
+ *   com MOTIVO_COM_COTACAO. Planejado: as 3 com MOTIVO_PLANEJADO_RV.
  */
 export const destinosPermitidos = (
   asset: AssetMovivelLike | null | undefined,
   ctx: DestinosCtx = {},
 ): DestinoPermitido[] => {
-  const modelo = modeloDePreco(asset, ctx);
-  const base = categoriaBaseDaAba(asset);
+  const liberado = ctx.caixaRfLiberado ?? moverCaixaRfHabilitado();
+  const planejado = ctx.tipo === 'planejado';
+  // Planejado só existe nas abas de bolsa e fundos: a base dele é a da fase 1.
+  const base = baseDaAba(asset, ctx.baseCtx, liberado && !planejado);
+  const modelo = modeloDaBase(asset, base, ctx);
+  const lista: readonly CategoriaMovivel[] = liberado
+    ? CATEGORIAS_MOVIVEIS_TODAS
+    : CATEGORIAS_MOVIVEIS;
+
   if (modelo === 'fixo' || !base) {
     const motivo = motivoNaoMovivel(ctx.categoriaFixa);
-    return CATEGORIAS_MOVIVEIS.map((categoria) => ({ categoria, permitido: false, motivo }));
+    return lista.map((categoria) => ({
+      categoria,
+      permitido: false,
+      motivo: planejado && isCategoriaCaixaRf(categoria) ? MOTIVO_PLANEJADO_RV : motivo,
+    }));
   }
+
   const origem = ctx.atual ?? base;
-  return CATEGORIAS_MOVIVEIS.map((categoria): DestinoPermitido => {
-    if (categoria === origem) return { categoria, permitido: true };
-    if (modelo === 'fundo') {
-      return categoria === base
-        ? { categoria, permitido: true }
-        : { categoria, permitido: false, motivo: MOTIVO_SEM_COTACAO };
-    }
-    if (!DESTINOS_POR_MODELO[modelo].includes(categoria)) {
+
+  if (modelo === 'curva') {
+    const semTitulo = isSaldoSemTitulo(asset, ctx);
+    return lista.map((categoria): DestinoPermitido => {
+      if (categoria === origem) return { categoria, permitido: true };
+      if (!isCategoriaCaixaRf(categoria)) {
+        return {
+          categoria,
+          permitido: false,
+          motivo: semTitulo ? MOTIVO_SALDO_SEM_COTACAO_BOLSA : MOTIVO_SEM_COTACAO_BOLSA,
+        };
+      }
+      if (categoria === 'rendaFixaFundos' && semTitulo) {
+        return { categoria, permitido: false, motivo: MOTIVO_SALDO_SEM_TITULO };
+      }
+      return { categoria, permitido: true };
+    });
+  }
+
+  return lista.map((categoria): DestinoPermitido => {
+    if (isCategoriaCaixaRf(categoria)) {
       return {
         categoria,
         permitido: false,
-        motivo: modelo === 'usd' ? MOTIVO_EM_DOLAR : MOTIVO_EM_REAIS,
+        motivo: planejado ? MOTIVO_PLANEJADO_RV : MOTIVO_COM_COTACAO,
       };
     }
-    // Voltar à aba base nunca fica preso na validação.
-    if (categoria !== base && emValidacao(origem, categoria)) {
-      return { categoria, permitido: false, motivo: MOTIVO_EM_VALIDACAO };
-    }
-    return { categoria, permitido: true };
+    return destinoRendaVariavel(categoria, modelo, base, origem);
   });
 };
 
@@ -378,6 +724,58 @@ export const destinoPermitido = (
     permitido: false,
   };
 
+// ── Avisos da fase 2 (texto; os números ficam em src/lib/moverEfeitos.ts) ──────
+
+export const LIQUIDEZ_CONTA_INTEIRO =
+  'Mesmo assim conta inteiro como Reserva de Emergência na Saúde Financeira';
+
+export const AVISO_LIQUIDEZ_RESERVA = `Sem liquidez diária. ${LIQUIDEZ_CONTA_INTEIRO}`;
+
+/** Frase fixa da Saúde (também o fallback da prévia numérica quando a Saúde não carrega). */
+export const AVISO_SAUDE_RESERVA =
+  'A Saúde Financeira recalcula a reserva de emergência com esta mudança';
+
+export interface FiLiquidezLike {
+  liquidityType?: string | null;
+  maturityDate?: Date | string | null;
+}
+
+/**
+ * Aviso de liquidez (decisão 3 da fase 2; aviso, não bloqueio): destino Reserva
+ * de Emergência, liquidityType ≠ 'DAILY' (inclusive vazio) e vencimento a mais
+ * de HORIZONTE_LIQUIDEZ_DIAS (360) de `hoje`. Sem FI ou sem vencimento → sem aviso.
+ */
+export const precisaAvisoLiquidez = (
+  destino: CategoriaMovivel,
+  fi: FiLiquidezLike | null | undefined,
+  hoje: Date = new Date(),
+): boolean => {
+  if (destino !== 'reservaEmergencia' || !fi) return false;
+  if (fi.liquidityType === 'DAILY') return false;
+  if (!fi.maturityDate) return false;
+  const venc = new Date(fi.maturityDate).getTime();
+  if (Number.isNaN(venc)) return false;
+  const dias = (venc - hoje.getTime()) / 86_400_000;
+  return dias > HORIZONTE_LIQUIDEZ_DIAS;
+};
+
+/** A troca entra ou sai da Reserva de Emergência (a Saúde muda)? */
+export const envolveReservaEmergencia = (
+  origem: CategoriaMovivel | null | undefined,
+  destino: CategoriaMovivel,
+): boolean =>
+  origem !== destino && (origem === 'reservaEmergencia' || destino === 'reservaEmergencia');
+
+/** Seção automática do destino (RF), para o selo "Pós-fixada · pelo indexador". */
+export const secaoAutomaticaDe = (
+  destino: CategoriaMovivel,
+  secao: TipoRendaFixa | null | undefined,
+  via: 'indexador' | 'titulo' = 'indexador',
+): (SubgrupoDef & { via: 'indexador' | 'titulo' }) | null => {
+  if (destino !== 'rendaFixaFundos' || !secao) return null;
+  return { id: secao, label: ROTULO_SECAO_RENDA_FIXA[secao], via };
+};
+
 // ── Subgrupo padrão e sugerido ───────────────────────────────────────────────
 
 export interface SubgrupoCtx {
@@ -388,6 +786,8 @@ export interface SubgrupoCtx {
   tipoFundo?: string | null;
   /** notes (JSON) da última compra: estrategiaReit, tipoFundo. */
   notes?: { estrategiaReit?: unknown; tipoFundo?: unknown } | null;
+  /** Seção derivada do título (secaoRendaFixa) — destino Renda Fixa. */
+  secaoRendaFixa?: TipoRendaFixa | null;
 }
 
 /**
@@ -417,6 +817,13 @@ export const subgrupoPadrao = (destino: CategoriaMovivel, ctx: SubgrupoCtx = {})
       if (isFundoSubtipo(ctx.notes?.tipoFundo)) return ctx.notes!.tipoFundo as string;
       return fundoSubtipoFromAssetType(tipo) ?? 'fim';
     }
+    // Fase 2: seção não editável. RF = a derivada do título (mesmo padrão
+    // 'prefixada' da rota sem dado); Reservas não têm seção ('').
+    case 'rendaFixaFundos':
+      return ctx.secaoRendaFixa ?? 'prefixada';
+    case 'reservaEmergencia':
+    case 'reservaOportunidade':
+      return '';
   }
 };
 
@@ -447,8 +854,9 @@ export const subgrupoSugerido = (
 
 // ── IR ───────────────────────────────────────────────────────────────────────
 
-type RegraIR = 'acoes' | 'fii' | 'etf' | 'fundo' | 'exterior';
+type RegraIR = 'acoes' | 'fii' | 'etf' | 'fundo' | 'exterior' | 'rendaFixa';
 
+// As 3 da fase 2 têm a mesma regra: trocar entre elas nunca avisa de IR.
 const REGRA_IR: Record<CategoriaMovivel, RegraIR> = {
   acoes: 'acoes',
   fiis: 'fii',
@@ -456,6 +864,9 @@ const REGRA_IR: Record<CategoriaMovivel, RegraIR> = {
   fimFia: 'fundo',
   stocks: 'exterior',
   reits: 'exterior',
+  reservaEmergencia: 'rendaFixa',
+  reservaOportunidade: 'rendaFixa',
+  rendaFixaFundos: 'rendaFixa',
 };
 
 /** Rótulo do tipo do ativo no aviso de IR (o IR segue Asset.type — decisão 3). */
@@ -466,6 +877,9 @@ export const ROTULO_TIPO_IR: Record<CategoriaMovivel, string> = {
   fimFia: 'fundo',
   stocks: 'stock',
   reits: 'REIT',
+  reservaEmergencia: 'renda fixa',
+  reservaOportunidade: 'renda fixa',
+  rendaFixaFundos: 'renda fixa',
 };
 
 /**
@@ -538,8 +952,10 @@ export const moverInvestimentoSchema = z.discriminatedUnion('acao', [
     acao: z.literal('mover'),
     tipo: tipoItemSchema,
     id: idSchema,
-    categoria: z.enum(CATEGORIAS_MOVIVEIS),
-    subgrupo: z.string().trim().min(1).max(32),
+    // As 9: o serviço decide pela chave (desligada + destino do trio → 409).
+    categoria: z.enum(CATEGORIAS_MOVIVEIS_TODAS),
+    // Exigido só quando SUBGRUPO_EDITAVEL[categoria] (400 'Escolha a seção'); no trio é ignorado.
+    subgrupo: z.string().trim().min(1).max(32).optional(),
   }),
   z.object({
     acao: z.literal('restaurar'),
@@ -549,6 +965,12 @@ export const moverInvestimentoSchema = z.discriminatedUnion('acao', [
 ]);
 
 export type MoverInvestimentoInput = z.infer<typeof moverInvestimentoSchema>;
+
+/**
+ * Corpo do POST no cliente: aceita as 9 categorias (o servidor decide pela
+ * chave — com ela desligada, destino do trio é recusado).
+ */
+export type MoverInvestimentoBody = MoverInvestimentoInput;
 
 export const moverOpcoesQuerySchema = z.object({ tipo: tipoItemSchema, id: idSchema });
 export const categoriaAtivoQuerySchema = z.object({ assetId: idSchema });
@@ -565,8 +987,15 @@ export interface DestinoOpcao {
   motivo?: string;
   subgrupos: SubgrupoOpcao[];
   subgrupoSugerido: string;
-  /** Avisos se o item for para esta aba (IR, objetivo zera). */
+  /** Avisos se o item for para esta aba (IR, objetivo zera, liquidez, Saúde). */
   avisos: string[];
+  /**
+   * Fase 2: o usuário escolhe a seção? (SUBGRUPO_EDITAVEL). Ausente = true
+   * (fase 1 — o payload com a chave desligada não muda).
+   */
+  subgrupoEditavel?: boolean;
+  /** Fase 2: seção derivada (RF) que o item terá no destino — selo "· pelo indexador". */
+  secaoAutomatica?: SubgrupoDef & { via: 'indexador' | 'titulo' };
 }
 
 /** GET /api/carteira/mover */
@@ -578,6 +1007,11 @@ export interface MoverOpcoesResponse {
     ticker: string;
     nome: string;
     moeda: string | null;
+    /**
+     * Fase 2: valor atual em BRL (valuatePortfolioItem — o mesmo da pizza/Saúde)
+     * para a prévia numérica da Saúde (moverEfeitos). Só vem com a chave ligada.
+     */
+    valorAtualBRL?: number;
   };
   atual: {
     categoria: CategoriaCarteira;
@@ -589,11 +1023,21 @@ export interface MoverOpcoesResponse {
   movido: { em: string; viaConsultant: boolean } | null;
   original: { categoria: CategoriaMovivel; subgrupo: string | null; label: string } | null;
   modelo: ModeloPreco;
+  /** Fase 2: grupo de troca do item ('rv' | 'caixaRf'). Só vem com a chave ligada. */
+  grupo?: GrupoMover;
   movivel: boolean;
   motivo?: string;
   destinos: DestinoOpcao[];
   /** Avisos gerais do item (os específicos de destino ficam em destinos[].avisos). */
   avisos: string[];
+  /**
+   * Fase 2: números da Saúde Financeira para a prévia antes → depois (moverEfeitos
+   * `SaudePrevia`). Só vem com a chave ligada, com `?saude=1` (é pesada) e quando
+   * a Reserva de Emergência está envolvida (origem ou destino permitido); null = a
+   * Saúde não carregou (a confirmação cai na frase fixa AVISO_SAUDE_RESERVA). Sem
+   * ela, a confirmação usa a Saúde Financeira em cache (useSaudePrevia).
+   */
+  saudePrevia?: { reservaAtual: number; necessario: number | null } | null;
 }
 
 /** GET /api/carteira/mover/categoria */

@@ -729,6 +729,10 @@ const CLASSE_CONSOLIDADA_DA_CATEGORIA: Record<CategoriaMovivel, string> = {
   fimFia: 'FIM/FIA',
   etfs: "ETF's",
   reits: "REIT's",
+  // Fase 2 do mover (Reservas + Renda Fixa, atrás de MOVER_CAIXA_RF_HABILITADO).
+  reservaEmergencia: 'Reserva de Emergência',
+  reservaOportunidade: 'Reserva de Oportunidade',
+  rendaFixaFundos: 'Renda Fixa & Fundos de Renda Fixa',
 };
 
 export const getConsolidatedAssetDistribution = async (

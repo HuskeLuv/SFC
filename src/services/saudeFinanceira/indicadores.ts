@@ -24,6 +24,12 @@ export const FATOR_PATRIMONIO_IDEAL = 0.1;
 export const COBERTURA_MINIMA_MESES = 6;
 /** Passivo total / ativo total acima disso ⇒ status Endividado. */
 export const LIMITE_PASSIVO_SOBRE_ATIVO = 0.5;
+/**
+ * Horizonte de alta liquidez em dias: renda fixa que vence até aqui e o prazo de
+ * resgate declarado dos fundos (D+N). Também é o limite do aviso de liquidez do
+ * mover na Carteira (título levado para a Reserva de Emergência).
+ */
+export const HORIZONTE_LIQUIDEZ_DIAS = 360;
 
 /**
  * Parâmetros personalizáveis da metodologia (F4). Os defaults são os valores

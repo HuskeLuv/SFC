@@ -1,5 +1,6 @@
 import { test, expect, type Locator, type Page, type Response } from '@playwright/test';
 import { apiPost, writesAllowed } from './helpers/api';
+import { moverCaixaRfLigado } from './helpers/moverRf';
 import {
   expectFitsWithoutClip,
   expectMinTarget,
@@ -77,6 +78,9 @@ test('leitura: "Mover" de 44px no cartão aberto; Renda Fixa sem "Mover"', async
   await expectMinTarget(mover, 44);
   await expectFitsWithoutClip(page, "FII's com o cartão aberto");
 
+  // Fase 2: com MOVER_CAIXA_RF_HABILITADO ligada a Renda Fixa também tem "Mover"
+  // (e2e/mobile-carteira-mover-rf.escrita.spec.ts).
+  if (moverCaixaRfLigado()) return;
   await openCarteiraTab(page, 'Renda Fixa');
   await expect(page.locator('[data-mover-card]')).toHaveCount(0);
   const rf = page.locator('li[data-mf-card]').first();

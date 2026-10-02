@@ -80,6 +80,11 @@ export type DropData = SecaoDropData | AbaDropData;
 
 export const secaoDropId = (categoria: CategoriaMovivel, sectionKey: string) =>
   `secao:${categoria}:${sectionKey}`;
+/**
+ * Aba sem seções (Reservas — fase 2): a linha não está numa SecaoDropRow, então o
+ * `LinhaDragData.secaoDropId` usa este id sintético (nunca é um alvo de soltar).
+ */
+export const secaoDropIdSintetico = (categoria: CategoriaMovivel) => secaoDropId(categoria, '_');
 export const abaDropId = (categoria: CategoriaMovivel) => `aba:${categoria}`;
 export const linhaDragId = (alvo: Pick<MoverAlvo, 'tipo' | 'id'>) =>
   `linha:${alvo.tipo}:${alvo.id}`;
@@ -95,7 +100,8 @@ const isDrop = (d: unknown): d is DropData => {
 /**
  * Linha da rota da aba → alvo do mover. null = linha sem id ou marcada como não movível pela
  * rota (`naoMovivelMotivo`). `secaoParaSubgrupo` traduz o valor da linha para o id do subgrupo
- * (FII's: 'fof' → 'fofi').
+ * (FII's: 'fof' → 'fofi'). Aba sem campo de seção (Reservas, CAMPO_SECAO_NA_LINHA null):
+ * secaoAtual ''.
  */
 export function alvoDaLinha(
   categoria: CategoriaMovivel,
@@ -106,7 +112,8 @@ export function alvoDaLinha(
   if (r.naoMovivelMotivo) return null;
   const id = typeof r.id === 'string' ? r.id : null;
   if (!id) return null;
-  const bruto = r[CAMPO_SECAO_NA_LINHA[categoria]];
+  const campo = CAMPO_SECAO_NA_LINHA[categoria];
+  const bruto = campo ? r[campo] : null;
   const secao = typeof bruto === 'string' ? (secaoParaSubgrupo?.(bruto) ?? bruto) : '';
   return {
     tipo: r.planejado ? 'planejado' : 'posicao',

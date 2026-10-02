@@ -12,6 +12,7 @@
  */
 import { FUNDO_TYPES_AGRUPADOS, isFundoType } from '@/lib/fundoTypes';
 import { isTickerAcaoB3, overrideEfetivo } from '@/lib/carteiraMover';
+import { moverCaixaRfHabilitado } from '@/lib/carteiraMoverConfig';
 import type { FixedIncomeAssetWithAsset } from './patrimonioHistoricoBuilder';
 
 export type CategoriaCarteira =
@@ -231,16 +232,24 @@ type CategorizarCtx = Parameters<typeof categorizarAsset>[1];
 
 /**
  * Categoria considerando o override do mover (Portfolio/Watchlist
- * .categoriaOverride). Reserva, item de aba fixa e override inválido ou igual
- * à aba base são ignorados: valem as regras de `categorizarAsset`.
+ * .categoriaOverride). Item de aba fixa e override inválido, de outro grupo ou
+ * igual à aba base são ignorados: valem as regras de `categorizarAsset`.
+ *
+ * Fase 2 (MOVER_CAIXA_RF_HABILITADO ligada): sem o curto-circuito da reserva —
+ * um título movido entre Reservas e Renda Fixa conta na aba escolhida (pizza,
+ * Saúde). O VALOR continua pela reserva (isReservaItem em valuatePortfolioItem).
+ * Chave desligada: reserva ignora o override, como na fase 1.
  */
 export const categoriaEfetiva = (
   asset: AssetLike | null,
   override: string | null | undefined,
   ctx: CategorizarCtx = {},
 ): CategoriaCarteira => {
-  if (ctx?.isReserva) return categorizarAsset(asset, ctx);
-  return overrideEfetivo(asset, override) ?? categorizarAsset(asset, ctx);
+  if (ctx?.isReserva && !moverCaixaRfHabilitado()) return categorizarAsset(asset, ctx);
+  const movido = overrideEfetivo(asset, override, {
+    reservaDestino: ctx?.tesouroReservaDestino ?? null,
+  });
+  return movido ?? categorizarAsset(asset, ctx);
 };
 
 /**

@@ -25,6 +25,7 @@ export interface RendaFixaAtivo extends BaseFundAtivo {
   /** Posição antiga sem FixedIncomeAsset: `vencimento` é só um preenchimento (hoje), não um prazo. */
   semVencimento?: boolean;
   benchmark: string; // Ex: "CDI", "IPCA + Spread"
+  /** Seção — fonte única: secaoRendaFixa (src/lib/rendaFixaSecao.ts). */
   tipo: TipoRendaFixa;
   isAutoUpdated?: boolean; // true para Tesouro Direto sincronizado (PU oficial)
   /** IR projetado se resgatar hoje. Calculado pelo serviço fixedIncomeIR. */

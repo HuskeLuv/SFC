@@ -32,7 +32,7 @@ import {
   type CaixaResumo,
   type MovimentoCaixa,
 } from '@/lib/caixaParaInvestirPlano';
-import { categoriaBaseDaAba } from '@/lib/carteiraMover';
+import { categoriaBaseDaAba, type BaseCtx } from '@/lib/carteiraMover';
 import { categoriaEfetiva } from '@/services/portfolio/itemValuation';
 import { getTesouroDestinoByAssetId } from '@/services/portfolio/tesouroDestino';
 
@@ -209,8 +209,11 @@ type AssetParaCaixa = {
 async function overrideDoAtivo(
   userId: string,
   asset: NonNullable<AssetParaCaixa>,
+  ctx?: BaseCtx,
 ): Promise<string | null> {
-  if (!asset.id || !categoriaBaseDaAba({ ...asset, symbol: asset.symbol ?? '' })) return null;
+  // Com a chave MOVER_CAIXA_RF_HABILITADO desligada, Reservas e Renda Fixa não
+  // têm aba base movível → sem consulta, como na fase 1.
+  if (!asset.id || !categoriaBaseDaAba({ ...asset, symbol: asset.symbol ?? '' }, ctx)) return null;
   const posicao = await prisma.portfolio.findFirst({
     where: { userId, assetId: asset.id },
     select: { categoriaOverride: true },
@@ -228,7 +231,8 @@ async function overrideDoAtivo(
  * carteira, `categoriaEfetiva` — respeita o override do mover). `null` = sem
  * reserva própria (reservas de emergência/oportunidade, conta corrente,
  * imóveis e bens): a operação só usa o caixa livre. Tesouro comprado para uma
- * reserva é reserva.
+ * reserva é reserva — salvo se o usuário o moveu de aba (mover fase 2, atrás de
+ * MOVER_CAIXA_RF_HABILITADO): aí vale a aba efetiva, como na Carteira.
  */
 export async function resolverCaixaAba(
   userId: string,
@@ -247,7 +251,12 @@ export async function resolverCaixaAba(
         ? ('oportunidade' as const)
         : undefined;
   const isReserva = tesouroReservaDestino !== undefined;
-  const override = isReserva ? null : await overrideDoAtivo(userId, asset);
+  // Mover fase 2: o override vale também para o Tesouro de reserva (movido para
+  // a Renda Fixa ou para a outra reserva). Só aportes futuros seguem a aba nova;
+  // o saldo já separado no caixa não migra (decisão 10).
+  const override = await overrideDoAtivo(userId, asset, {
+    reservaDestino: tesouroReservaDestino ?? null,
+  });
   const categoria = categoriaEfetiva(
     { symbol: asset.symbol ?? '', type: asset.type, currency: asset.currency, name: asset.name },
     override,

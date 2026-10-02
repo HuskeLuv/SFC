@@ -4,6 +4,8 @@ import { prisma } from '@/lib/prisma';
 import { getAssetPrices } from '@/services/pricing/assetPriceService';
 import { SECOES_ORDEM } from '@/lib/carteiraCategoryColors';
 import { getCategoriaFromPortfolio } from '@/lib/portfolioCategoria';
+import { moverCaixaRfHabilitado } from '@/lib/carteiraMoverConfig';
+import { reservaDestinoPorAsset } from '@/services/portfolio/tesouroDestino';
 
 import { withErrorHandler } from '@/utils/apiErrorHandler';
 export const GET = withErrorHandler(async (request: NextRequest) => {
@@ -19,6 +21,19 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     where: { userId: targetUserId },
     include: { asset: true },
   });
+
+  // Mover fase 2 (Reservas ↔ Renda Fixa): o Tesouro de catálogo movido precisa da
+  // aba base (reserva da 1ª compra marcada) para o override valer. Só com a chave
+  // ligada e só para os Tesouros movidos — sem consulta nova no caso comum.
+  const tesourosMovidos = moverCaixaRfHabilitado()
+    ? portfolio
+        .filter((p) => p.categoriaOverride && p.assetId && p.asset?.type === 'tesouro-direto')
+        .map((p) => p.assetId as string)
+    : [];
+  const reservaDestino =
+    tesourosMovidos.length > 0
+      ? await reservaDestinoPorAsset(targetUserId, tesourosMovidos)
+      : new Map<string, 'emergencia' | 'oportunidade'>();
 
   const symbols = portfolio
     .map((item) => item.asset?.symbol)
@@ -72,7 +87,9 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
   > = {};
 
   for (const item of portfolio) {
-    const categoria = getCategoriaFromPortfolio(item, fixedIncomeAssetIds);
+    const categoria = getCategoriaFromPortfolio(item, fixedIncomeAssetIds, {
+      reservaDestino: item.assetId ? (reservaDestino.get(item.assetId) ?? null) : null,
+    });
     if (!categoria) continue;
 
     const symbol = item.asset?.symbol || '';

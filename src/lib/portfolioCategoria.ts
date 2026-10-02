@@ -1,5 +1,5 @@
 import { SECOES_ORDEM } from '@/lib/carteiraCategoryColors';
-import { overrideEfetivo } from '@/lib/carteiraMover';
+import { overrideEfetivo, type BaseCtx } from '@/lib/carteiraMover';
 
 export type CategoriaKey = (typeof SECOES_ORDEM)[number];
 
@@ -11,12 +11,29 @@ export type PortfolioCategoriaInput = {
   categoriaOverride?: string | null;
 };
 
+/**
+ * Classe do item no histórico por classe. `ctx.reservaDestino` (Tesouro de
+ * catálogo comprado como reserva, `reservaDestinoPorAsset`) só serve para ler o
+ * override do mover contra a aba base certa — sem override, a heurística de
+ * sempre (o Tesouro de catálogo continua em Renda Fixa aqui, como antes).
+ */
 export const getCategoriaFromPortfolio = (
   item: PortfolioCategoriaInput,
   _fixedIncomeAssetIds: Set<string>,
+  ctx?: BaseCtx,
 ): CategoriaKey | null => {
   const symbol = item.asset?.symbol || item.stock?.ticker;
   if (!symbol) return null;
+
+  // Item movido de aba: agrupa na aba escolhida. Vem ANTES do bloco das
+  // reservas (mover fase 2: Reservas ↔ Renda Fixa, atrás de
+  // MOVER_CAIXA_RF_HABILITADO; chave desligada → override do trio ignorado).
+  // Override inválido, igual à aba base ou em item fora das abas movíveis →
+  // null → heurística de sempre.
+  const movido = item.asset
+    ? overrideEfetivo({ ...item.asset, symbol }, item.categoriaOverride, ctx)
+    : null;
+  if (movido) return movido;
 
   const assetType = item.asset?.type?.toLowerCase() || '';
   const isReserva =
@@ -34,13 +51,6 @@ export const getCategoriaFromPortfolio = (
   if (assetType === 'imovel' || assetType === 'personalizado') {
     return 'imoveisBens';
   }
-
-  // Item movido de aba: agrupa na aba escolhida. Override inválido, igual à
-  // aba base ou em item fora das abas movíveis → null → heurística de sempre.
-  const movido = item.asset
-    ? overrideEfetivo({ ...item.asset, symbol }, item.categoriaOverride)
-    : null;
-  if (movido) return movido;
 
   if (assetType) {
     switch (assetType) {

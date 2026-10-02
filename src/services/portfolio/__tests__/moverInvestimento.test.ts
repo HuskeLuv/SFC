@@ -1,5 +1,14 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { MOTIVO_EM_VALIDACAO, MOTIVO_SEM_COTACAO } from '@/lib/carteiraMover';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import {
+  AVISO_LIQUIDEZ_RESERVA,
+  AVISO_SAUDE_RESERVA,
+  MOTIVO_COM_COTACAO,
+  MOTIVO_EM_VALIDACAO,
+  MOTIVO_PLANEJADO_RV,
+  MOTIVO_SALDO_SEM_TITULO,
+  MOTIVO_SEM_COTACAO,
+  MOTIVO_SEM_COTACAO_BOLSA,
+} from '@/lib/carteiraMover';
 
 const mockPrisma = vi.hoisted(() => ({
   portfolio: { findFirst: vi.fn(), update: vi.fn() },
@@ -10,6 +19,14 @@ const mockPrisma = vi.hoisted(() => ({
   userChangeLog: { findMany: vi.fn() },
 }));
 vi.mock('@/lib/prisma', () => ({ prisma: mockPrisma, default: mockPrisma }));
+const mockPricer = vi.hoisted(() => vi.fn());
+const mockBuildSaude = vi.hoisted(() => vi.fn());
+vi.mock('@/services/portfolio/fixedIncomePricing', () => ({
+  createFixedIncomePricer: mockPricer,
+}));
+vi.mock('@/services/saudeFinanceira/saudeFinanceiraServer', () => ({
+  buildSaudeFinanceira: mockBuildSaude,
+}));
 
 import {
   carregarItemMover,
@@ -19,9 +36,14 @@ import {
   obterCategoriaAtivo,
   obterOpcoesMover,
   restaurarOriginal,
+  secaoRendaFixaDoItem,
+  tesouroDestinoDaCompra,
+  MSG_ABA_FORA_DA_FASE,
+  MSG_ESCOLHA_SECAO,
   MSG_SECAO_SEGUE_CVM,
   type ItemMover,
 } from '../moverInvestimento';
+import { secaoRendaFixa, tituloTesouroDoNome } from '@/lib/rendaFixaSecao';
 
 const asset = (over: Record<string, unknown>) => ({
   id: 'a-1',
@@ -95,6 +117,33 @@ describe('carregarItemMover', () => {
 
     mockPrisma.portfolio.findFirst.mockResolvedValue({ ...posicao(O), asset: null, assetId: null });
     expect(await carregarItemMover('user-1', 'posicao', 'p-1')).toBeNull();
+  });
+});
+
+describe('secaoRendaFixaDoItem — paridade com a rota renda-fixa (linha sem FI)', () => {
+  it.each([
+    ['Tesouro IPCA+ 2029', 'CDI', 'hibrida'],
+    ['Tesouro IPCA+ 2029', null, 'hibrida'],
+    ['Tesouro Prefixado 2027', 'CDI', 'prefixada'],
+    ['Tesouro Selic 2029', null, 'pos-fixada'],
+  ] as const)('%s (benchmark %s) → %s, igual à rota', (nome, benchmark, esperado) => {
+    const a = asset({ type: 'tesouro-direto', name: nome, symbol: 'TD', source: 'tesouro' });
+    const item = {
+      tipo: 'posicao',
+      asset: a,
+      fi: null,
+      baseCtx: { reservaDestino: 'emergencia' },
+      notesRf: { benchmark },
+    } as unknown as ItemMover;
+    const mover = secaoRendaFixaDoItem(item, true);
+    // Como a rota renda-fixa monta a linha legacy movida para a RF.
+    const rota = secaoRendaFixa({
+      benchmark,
+      tesouroBondType: tituloTesouroDoNome(a),
+      movidoParaRf: true,
+    });
+    expect(mover).toEqual({ secao: esperado, via: 'titulo' });
+    expect(mover.secao).toBe(rota);
   });
 });
 
@@ -309,6 +358,483 @@ describe('obterOpcoesMover / obterCategoriaAtivo', () => {
     expect(await obterCategoriaAtivo('user-1', 'a-aapl')).toEqual({
       categoria: 'reits',
       override: true,
+    });
+  });
+});
+
+// ── FASE 2 (Reservas + Renda Fixa), atrás de MOVER_CAIXA_RF_HABILITADO ─────────
+
+describe('fase 2 — Reservas + Renda Fixa', () => {
+  const CDB = asset({
+    id: 'a-cdb',
+    symbol: 'RENDA-FIXA-CDB-BANCO-X',
+    name: 'CDB Banco X 110% CDI',
+    type: 'bond',
+    source: 'manual',
+  });
+  const CONTA = asset({
+    id: 'a-cc',
+    symbol: 'CONTA-CORRENTE-OPORT-1',
+    name: 'Conta corrente',
+    type: 'opportunity',
+    source: 'manual',
+  });
+  const TESOURO_PRE = asset({
+    id: 'a-tpre',
+    symbol: 'TESOURO-PREFIXADO-2029',
+    name: 'Tesouro Prefixado 2029',
+    type: 'tesouro-direto',
+    source: 'tesouro',
+  });
+  const KDIF11 = asset({ id: 'a-kdif', symbol: 'KDIF11', name: 'Kinea Infra', type: 'fii' });
+  const VALE3 = asset({ id: 'a-vale', symbol: 'VALE3', name: 'Vale', type: 'stock' });
+
+  const fi = (over: Record<string, unknown> = {}) => ({
+    id: 'fi-1',
+    userId: 'user-1',
+    assetId: 'a-cdb',
+    type: 'CDB_PRE',
+    description: 'CDB',
+    startDate: new Date('2026-01-02T00:00:00Z'),
+    maturityDate: new Date('2030-01-02T00:00:00Z'),
+    investedAmount: 10_000,
+    annualRate: 0,
+    indexer: 'CDI',
+    indexerPercent: 110,
+    liquidityType: null,
+    taxExempt: false,
+    tesouroBondType: null,
+    tesouroMaturity: null,
+    asset: null,
+    ...over,
+  });
+
+  type FindManyArgs = { select?: { assetId?: boolean } } | undefined;
+
+  /** stockTransaction.findMany: compras (notes da posição) × marcador de reserva do Tesouro. */
+  const comTransacoes = (
+    compras: { notes: string | null }[],
+    marcadas: { assetId: string; notes: string }[] = [],
+  ) =>
+    mockPrisma.stockTransaction.findMany.mockImplementation(async (args: FindManyArgs) =>
+      args?.select?.assetId ? marcadas : compras,
+    );
+
+  const update = () => mockPrisma.portfolio.update.mock.calls[0][0].data;
+
+  const resetarMocks = () => {
+    vi.clearAllMocks();
+    mockPrisma.fixedIncomeAsset.findFirst.mockResolvedValue(fi());
+    mockPrisma.stockTransaction.findMany.mockResolvedValue([]);
+    mockPrisma.userChangeLog.findMany.mockResolvedValue([]);
+    mockPrisma.portfolio.update.mockImplementation(async ({ data }) => ({
+      ...posicao(CDB),
+      ...data,
+    }));
+  };
+
+  beforeEach(() => {
+    vi.stubEnv('MOVER_CAIXA_RF_HABILITADO', 'true');
+    mockPricer.mockResolvedValue({ getCurrentValue: () => 11_500 });
+    mockBuildSaude.mockResolvedValue({
+      indicadores: { benchmarks: { reservaEmergencia: { atual: 18_400, necessario: 30_000 } } },
+    });
+    mockPrisma.portfolio.update.mockImplementation(async ({ data }) => ({
+      ...posicao(CDB),
+      ...data,
+    }));
+  });
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it('CDB da RF → Emergência → Oportunidade → volta à RF (override, seção, objetivo)', async () => {
+    mockPrisma.fixedIncomeAsset.findFirst.mockResolvedValue(fi());
+    mockPrisma.portfolio.findFirst.mockResolvedValue(posicao(CDB, { objetivo: 4 }));
+    const r1 = await moverInvestimento('user-1', {
+      tipo: 'posicao',
+      id: 'p-1',
+      categoria: 'reservaEmergencia',
+    });
+    if (r1.noop) throw new Error('noop');
+    expect(update()).toMatchObject({ categoriaOverride: 'reservaEmergencia', objetivo: 0 });
+    // Sem coluna de subgrupo nas 3 abas.
+    for (const c of ['estrategia', 'tipoFii', 'regiaoEtf', 'tipoFundo']) {
+      expect(update()).not.toHaveProperty(c);
+    }
+    expect(r1.origem).toEqual({ categoria: 'rendaFixaFundos', subgrupo: 'pos-fixada' });
+    expect(r1.destino).toEqual({ categoria: 'reservaEmergencia', subgrupo: null });
+    expect(r1.objetivoZerado).toBe(true);
+
+    resetarMocks();
+    mockPrisma.portfolio.findFirst.mockResolvedValue(
+      posicao(CDB, { categoriaOverride: 'reservaEmergencia' }),
+    );
+    // O subgrupo enviado é ignorado no trio (seção não editável).
+    const r2 = await moverInvestimento('user-1', {
+      tipo: 'posicao',
+      id: 'p-1',
+      categoria: 'reservaOportunidade',
+      subgrupo: 'qualquer',
+    });
+    expect(r2.noop).toBe(false);
+    expect(update()).toEqual({
+      categoriaOverride: 'reservaOportunidade',
+      lastUpdate: expect.any(Date),
+    });
+
+    resetarMocks();
+    mockPrisma.portfolio.findFirst.mockResolvedValue(
+      posicao(CDB, { categoriaOverride: 'reservaOportunidade' }),
+    );
+    const r3 = await moverInvestimento('user-1', {
+      tipo: 'posicao',
+      id: 'p-1',
+      categoria: 'rendaFixaFundos',
+    });
+    if (r3.noop) throw new Error('noop');
+    expect(update().categoriaOverride).toBeNull();
+    expect(update()).not.toHaveProperty('objetivo'); // já era 0
+    expect(r3.destino).toEqual({ categoria: 'rendaFixaFundos', subgrupo: 'pos-fixada' });
+  });
+
+  it('mesma aba no trio = noop (sem gravar)', async () => {
+    mockPrisma.fixedIncomeAsset.findFirst.mockResolvedValue(fi());
+    mockPrisma.portfolio.findFirst.mockResolvedValue(posicao(CDB));
+    const r = await moverInvestimento('user-1', {
+      tipo: 'posicao',
+      id: 'p-1',
+      categoria: 'rendaFixaFundos',
+      subgrupo: 'prefixada',
+    });
+    expect(r).toEqual({ noop: true });
+    expect(mockPrisma.portfolio.update).not.toHaveBeenCalled();
+  });
+
+  it('conta corrente (saldo sem título) → RF 409; → Emergência OK', async () => {
+    mockPrisma.portfolio.findFirst.mockResolvedValue(posicao(CONTA));
+    await expect(
+      moverInvestimento('user-1', { tipo: 'posicao', id: 'p-1', categoria: 'rendaFixaFundos' }),
+    ).rejects.toMatchObject({ statusCode: 409, message: MOTIVO_SALDO_SEM_TITULO });
+    expect(mockPrisma.portfolio.update).not.toHaveBeenCalled();
+
+    const r = await moverInvestimento('user-1', {
+      tipo: 'posicao',
+      id: 'p-1',
+      categoria: 'reservaEmergencia',
+    });
+    expect(r.noop).toBe(false);
+    expect(update().categoriaOverride).toBe('reservaEmergencia');
+  });
+
+  it('Tesouro de catálogo de reserva → RF (seção pelo título) e restaurar volta à reserva', async () => {
+    mockPrisma.fixedIncomeAsset.findFirst.mockResolvedValue(
+      fi({
+        assetId: TESOURO_PRE.id,
+        indexer: 'CDI', // o FI de reserva nasce com o indexador padrão
+        tesouroBondType: 'Tesouro Prefixado',
+        liquidityType: 'DAILY',
+      }),
+    );
+    comTransacoes(
+      [{ notes: JSON.stringify({ tesouroDestino: 'reserva-emergencia', benchmark: 'CDI' }) }],
+      [
+        {
+          assetId: TESOURO_PRE.id,
+          notes: JSON.stringify({ tesouroDestino: 'reserva-emergencia' }),
+        },
+      ],
+    );
+    mockPrisma.portfolio.findFirst.mockResolvedValue(posicao(TESOURO_PRE));
+    const r = await moverInvestimento('user-1', {
+      tipo: 'posicao',
+      id: 'p-1',
+      categoria: 'rendaFixaFundos',
+    });
+    if (r.noop) throw new Error('noop');
+    expect(update().categoriaOverride).toBe('rendaFixaFundos');
+    expect(r.origem).toEqual({ categoria: 'reservaEmergencia', subgrupo: null });
+    // Pré-fixada pelo tipo do título, não "Pós" pelo CDI padrão do FI de reserva.
+    expect(r.destino).toEqual({ categoria: 'rendaFixaFundos', subgrupo: 'prefixada' });
+
+    // A base vem da 1ª compra marcada (reservaDestinoPorAsset, ordem determinística).
+    const consulta = mockPrisma.stockTransaction.findMany.mock.calls.find(
+      ([a]) => (a as FindManyArgs)?.select?.assetId,
+    )![0];
+    expect(consulta.orderBy).toEqual([{ date: 'asc' }, { createdAt: 'asc' }, { id: 'asc' }]);
+
+    mockPrisma.portfolio.update.mockClear();
+    mockPrisma.portfolio.findFirst.mockResolvedValue(
+      posicao(TESOURO_PRE, { categoriaOverride: 'rendaFixaFundos' }),
+    );
+    const v = await restaurarOriginal('user-1', 'posicao', 'p-1');
+    expect(update().categoriaOverride).toBeNull();
+    expect(v.origem).toEqual({ categoria: 'rendaFixaFundos', subgrupo: 'prefixada' });
+    expect(v.destino).toEqual({ categoria: 'reservaEmergencia', subgrupo: null });
+  });
+
+  it('bloqueios: RF → Ações, FII → Reserva, planejado → RF (409 com motivo)', async () => {
+    mockPrisma.fixedIncomeAsset.findFirst.mockResolvedValue(fi());
+    mockPrisma.portfolio.findFirst.mockResolvedValue(posicao(CDB));
+    await expect(
+      moverInvestimento('user-1', {
+        tipo: 'posicao',
+        id: 'p-1',
+        categoria: 'acoes',
+        subgrupo: 'value',
+      }),
+    ).rejects.toMatchObject({ statusCode: 409, message: MOTIVO_SEM_COTACAO_BOLSA });
+
+    mockPrisma.fixedIncomeAsset.findFirst.mockResolvedValue(null);
+    mockPrisma.portfolio.findFirst.mockResolvedValue(posicao(KDIF11));
+    await expect(
+      moverInvestimento('user-1', { tipo: 'posicao', id: 'p-1', categoria: 'reservaEmergencia' }),
+    ).rejects.toMatchObject({ statusCode: 409, message: MOTIVO_COM_COTACAO });
+
+    mockPrisma.watchlist.findFirst.mockResolvedValue({
+      id: 'w-1',
+      userId: 'user-1',
+      assetId: VALE3.id,
+      addedAt: new Date(),
+      notes: null,
+      objetivo: 0,
+      secao: 'value',
+      categoriaOverride: null,
+      asset: VALE3,
+    });
+    await expect(
+      moverInvestimento('user-1', { tipo: 'planejado', id: 'w-1', categoria: 'rendaFixaFundos' }),
+    ).rejects.toMatchObject({ statusCode: 409, message: MOTIVO_PLANEJADO_RV });
+    expect(mockPrisma.portfolio.update).not.toHaveBeenCalled();
+    expect(mockPrisma.watchlist.update).not.toHaveBeenCalled();
+  });
+
+  it('aba com seção editável sem subgrupo → 400 "Escolha a seção"', async () => {
+    mockPrisma.portfolio.findFirst.mockResolvedValue(posicao(KDIF11));
+    await expect(
+      moverInvestimento('user-1', { tipo: 'posicao', id: 'p-1', categoria: 'acoes' }),
+    ).rejects.toMatchObject({ statusCode: 400, message: MSG_ESCOLHA_SECAO });
+  });
+
+  it('GET: CDB sem liquidez diária e vencimento distante → aviso de liquidez, Saúde e valor', async () => {
+    mockPrisma.fixedIncomeAsset.findFirst.mockResolvedValue(fi({ liquidityType: null }));
+    mockPrisma.portfolio.findFirst.mockResolvedValue(posicao(CDB));
+    const r = (await obterOpcoesMover('user-1', 'posicao', 'p-1', { comSaude: true }))!;
+    expect(r.movivel).toBe(true);
+    expect(r.modelo).toBe('curva');
+    expect(r.grupo).toBe('caixaRf');
+    expect(r.atual).toMatchObject({
+      categoria: 'rendaFixaFundos',
+      subgrupo: 'pos-fixada',
+      subgrupoLabel: 'Pós-fixada',
+    });
+    expect(r.item.valorAtualBRL).toBe(11_500);
+    // Nome das abas do trio: descrição do FI (não o Asset.name com valor e data).
+    expect(r.item.nome).toBe('CDB');
+    expect(r.saudePrevia).toEqual({ reservaAtual: 18_400, necessario: 30_000 });
+    expect(r.destinos.map((d) => d.categoria)).toEqual([
+      'reservaEmergencia',
+      'reservaOportunidade',
+      'rendaFixaFundos',
+      'fimFia',
+      'fiis',
+      'acoes',
+      'stocks',
+      'reits',
+      'etfs',
+    ]);
+    const porCat = Object.fromEntries(r.destinos.map((d) => [d.categoria, d]));
+    expect(porCat.reservaEmergencia).toMatchObject({
+      permitido: true,
+      subgrupos: [],
+      subgrupoEditavel: false,
+      avisos: [AVISO_LIQUIDEZ_RESERVA, AVISO_SAUDE_RESERVA],
+    });
+    expect(porCat.reservaOportunidade.avisos).toEqual([]);
+    expect(porCat.rendaFixaFundos).toMatchObject({
+      permitido: true,
+      subgrupoEditavel: false,
+      secaoAutomatica: { id: 'pos-fixada', label: 'Pós-fixada', via: 'indexador' },
+    });
+    expect(porCat.acoes).toMatchObject({ permitido: false, motivo: MOTIVO_SEM_COTACAO_BOLSA });
+
+    // Com liquidez diária: só o aviso da Saúde.
+    mockPrisma.fixedIncomeAsset.findFirst.mockResolvedValue(fi({ liquidityType: 'DAILY' }));
+    const r2 = (await obterOpcoesMover('user-1', 'posicao', 'p-1'))!;
+    expect(r2.destinos[0].avisos).toEqual([AVISO_SAUDE_RESERVA]);
+  });
+
+  it('GET sem `saude`: não monta a Saúde (as opções não esperam por ela)', async () => {
+    mockPrisma.fixedIncomeAsset.findFirst.mockResolvedValue(fi());
+    mockPrisma.portfolio.findFirst.mockResolvedValue(posicao(CDB));
+    const r = (await obterOpcoesMover('user-1', 'posicao', 'p-1'))!;
+    expect(r.movivel).toBe(true);
+    expect(r.item.valorAtualBRL).toBe(11_500);
+    expect(r).not.toHaveProperty('saudePrevia');
+    expect(mockBuildSaude).not.toHaveBeenCalled();
+  });
+
+  it('GET: Saúde e pricer com erro → saudePrevia null e sem valor (frase fixa)', async () => {
+    mockBuildSaude.mockRejectedValue(new Error('boom'));
+    mockPricer.mockRejectedValue(new Error('sem CDI'));
+    mockPrisma.fixedIncomeAsset.findFirst.mockResolvedValue(fi());
+    mockPrisma.portfolio.findFirst.mockResolvedValue(posicao(CDB));
+    const r = (await obterOpcoesMover('user-1', 'posicao', 'p-1', { comSaude: true }))!;
+    expect(r.saudePrevia).toBeNull();
+    expect(r.item).not.toHaveProperty('valorAtualBRL');
+  });
+
+  it('GET: movido para a Emergência traz o original "Renda Fixa › Pós-fixada"', async () => {
+    mockPrisma.fixedIncomeAsset.findFirst.mockResolvedValue(fi());
+    mockPrisma.portfolio.findFirst.mockResolvedValue(
+      posicao(CDB, { categoriaOverride: 'reservaEmergencia' }),
+    );
+    const r = (await obterOpcoesMover('user-1', 'posicao', 'p-1'))!;
+    expect(r.atual).toMatchObject({
+      categoria: 'reservaEmergencia',
+      subgrupo: null,
+      subgrupoLabel: null,
+      override: true,
+    });
+    expect(r.original).toEqual({
+      categoria: 'rendaFixaFundos',
+      subgrupo: 'pos-fixada',
+      label: 'Renda Fixa › Pós-fixada',
+    });
+  });
+
+  it('obterCategoriaAtivo: Tesouro de catálogo usa a reserva da 1ª compra como base', async () => {
+    mockPrisma.asset.findUnique.mockResolvedValue(TESOURO_PRE);
+    comTransacoes(
+      [],
+      [
+        {
+          assetId: TESOURO_PRE.id,
+          notes: JSON.stringify({ tesouroDestino: 'reserva-oportunidade' }),
+        },
+      ],
+    );
+    mockPrisma.portfolio.findFirst.mockResolvedValue({ categoriaOverride: 'rendaFixaFundos' });
+    expect(await obterCategoriaAtivo('user-1', TESOURO_PRE.id)).toEqual({
+      categoria: 'rendaFixaFundos',
+      override: true,
+    });
+    mockPrisma.portfolio.findFirst.mockResolvedValue({ categoriaOverride: null });
+    expect(await obterCategoriaAtivo('user-1', TESOURO_PRE.id)).toEqual({
+      categoria: 'reservaOportunidade',
+      override: false,
+    });
+  });
+
+  describe('tesouroDestinoDaCompra (compra nova de Tesouro movido não troca a base)', () => {
+    it('base Emergência + movido para RF: grava o marcador da base, não o recebido', async () => {
+      comTransacoes(
+        [],
+        [
+          {
+            assetId: TESOURO_PRE.id,
+            notes: JSON.stringify({ tesouroDestino: 'reserva-emergencia' }),
+          },
+        ],
+      );
+      mockPrisma.portfolio.findFirst.mockResolvedValue({ categoriaOverride: 'rendaFixaFundos' });
+      expect(await tesouroDestinoDaCompra('user-1', TESOURO_PRE, 'renda-fixa-posfixada')).toBe(
+        'reserva-emergencia',
+      );
+      expect(await tesouroDestinoDaCompra('user-1', TESOURO_PRE, 'reserva-oportunidade')).toBe(
+        'reserva-emergencia',
+      );
+    });
+
+    it('base RF + movido para a Oportunidade: o marcador de reserva recebido é omitido', async () => {
+      comTransacoes([], []);
+      mockPrisma.portfolio.findFirst.mockResolvedValue({
+        categoriaOverride: 'reservaOportunidade',
+      });
+      expect(
+        await tesouroDestinoDaCompra('user-1', TESOURO_PRE, 'reserva-oportunidade'),
+      ).toBeUndefined();
+      expect(await tesouroDestinoDaCompra('user-1', TESOURO_PRE, 'renda-fixa-prefixada')).toBe(
+        'renda-fixa-prefixada',
+      );
+    });
+
+    it('sem posição movida, outro tipo ou chave desligada: o recebido, como hoje', async () => {
+      mockPrisma.portfolio.findFirst.mockResolvedValue({ categoriaOverride: null });
+      expect(await tesouroDestinoDaCompra('user-1', TESOURO_PRE, 'reserva-oportunidade')).toBe(
+        'reserva-oportunidade',
+      );
+      expect(await tesouroDestinoDaCompra('user-1', CDB, 'reserva-oportunidade')).toBe(
+        'reserva-oportunidade',
+      );
+      vi.stubEnv('MOVER_CAIXA_RF_HABILITADO', 'false');
+      mockPrisma.portfolio.findFirst.mockClear();
+      mockPrisma.portfolio.findFirst.mockResolvedValue({ categoriaOverride: 'rendaFixaFundos' });
+      expect(await tesouroDestinoDaCompra('user-1', TESOURO_PRE, 'reserva-oportunidade')).toBe(
+        'reserva-oportunidade',
+      );
+      expect(mockPrisma.portfolio.findFirst).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('chave desligada = fase 1', () => {
+    beforeEach(() => {
+      vi.stubEnv('MOVER_CAIXA_RF_HABILITADO', 'false');
+    });
+
+    it('CDB: não movível com a frase de hoje e sem campos da fase 2', async () => {
+      mockPrisma.fixedIncomeAsset.findFirst.mockResolvedValue(fi());
+      mockPrisma.portfolio.findFirst.mockResolvedValue(posicao(CDB));
+      const r = (await obterOpcoesMover('user-1', 'posicao', 'p-1'))!;
+      expect(r.movivel).toBe(false);
+      expect(r.modelo).toBe('fixo');
+      expect(r.motivo).toBe('Renda Fixa ainda não pode ser movida para outra aba');
+      expect(r.item.nome).toBe('CDB Banco X 110% CDI');
+      expect(r).not.toHaveProperty('grupo');
+      expect(r).not.toHaveProperty('saudePrevia');
+      expect(mockBuildSaude).not.toHaveBeenCalled();
+      await expect(
+        moverInvestimento('user-1', {
+          tipo: 'posicao',
+          id: 'p-1',
+          categoria: 'reservaEmergencia',
+        }),
+      ).rejects.toMatchObject({ statusCode: 409 });
+    });
+
+    it('FII → Reserva: 409 "ainda não dá"; destinos só com as 6, sem campos novos', async () => {
+      mockPrisma.portfolio.findFirst.mockResolvedValue(posicao(KDIF11));
+      await expect(
+        moverInvestimento('user-1', {
+          tipo: 'posicao',
+          id: 'p-1',
+          categoria: 'reservaEmergencia',
+        }),
+      ).rejects.toMatchObject({ statusCode: 409, message: MSG_ABA_FORA_DA_FASE });
+      const r = (await obterOpcoesMover('user-1', 'posicao', 'p-1'))!;
+      expect(r.destinos.map((d) => d.categoria)).toEqual([
+        'fimFia',
+        'fiis',
+        'acoes',
+        'stocks',
+        'reits',
+        'etfs',
+      ]);
+      for (const d of r.destinos) {
+        expect(d).not.toHaveProperty('subgrupoEditavel');
+        expect(d).not.toHaveProperty('secaoAutomatica');
+      }
+      expect(r).not.toHaveProperty('grupo');
+      expect(r.item).not.toHaveProperty('valorAtualBRL');
+    });
+
+    it('Tesouro: não consulta a reserva da compra (nenhuma query nova)', async () => {
+      mockPrisma.portfolio.findFirst.mockResolvedValue(posicao(TESOURO_PRE));
+      await obterOpcoesMover('user-1', 'posicao', 'p-1');
+      const consultas = mockPrisma.stockTransaction.findMany.mock.calls.map(
+        ([a]) => a as FindManyArgs,
+      );
+      expect(consultas.every((a) => !a?.select?.assetId)).toBe(true);
     });
   });
 });

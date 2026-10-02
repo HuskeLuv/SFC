@@ -13,11 +13,23 @@ import {
   TABLE_HEADER_STYLE,
   TABLE_MOBILE_STYLES,
 } from '@/components/ui/table/tableStyles';
+import {
+  MenuMoverCell,
+  NomeComMover,
+  ProviderSeMover,
+  RodapeCartaoMover,
+  SelosCartaoMover,
+  tabelaTemMover,
+  useEstadoLinhaMover,
+  type LinhaCaixaRfMover,
+} from '@/components/carteira/mover/LinhaMoverCaixaRf';
 
 const MIN_PLACEHOLDER_ROWS = 4;
 const RESERVA_EMERGENCIA_COLUMN_COUNT = 12;
+const CATEGORIA = 'reservaEmergencia' as const;
+const ROTULO_ABA = 'Reserva de Emergência';
 
-interface ReservaEmergenciaAtivo {
+interface ReservaEmergenciaAtivo extends LinhaCaixaRfMover {
   id: string;
   nome: string;
   cotizacaoResgate: string;
@@ -72,6 +84,8 @@ interface ReservaEmergenciaTableRowProps {
   formatCurrency: (value: number) => string;
   formatPercentage: (value: number) => string;
   formatDate: (date: Date) => string;
+  /** Mover ligado na tabela (alguma linha movível): coluna final "Ações". */
+  temMover: boolean;
 }
 
 const ReservaEmergenciaTableRow: React.FC<ReservaEmergenciaTableRowProps> = ({
@@ -79,11 +93,15 @@ const ReservaEmergenciaTableRow: React.FC<ReservaEmergenciaTableRowProps> = ({
   formatCurrency,
   formatPercentage,
   formatDate,
+  temMover,
 }) => {
-  return (
-    <TableRow className={`${TABLE_STYLES.row} ${TABLE_STYLES.rowHover}`}>
+  const mover = useEstadoLinhaMover(CATEGORIA, ativo);
+  const celulas = (
+    <>
       <TableCell className={TABLE_STYLES.compact.td}>
-        <AssetNameLink portfolioId={ativo.id} ticker={ativo.nome} nomeComoPrincipal />
+        <NomeComMover categoria={CATEGORIA} linha={ativo} estado={mover} secaoLabel={ROTULO_ABA}>
+          <AssetNameLink portfolioId={ativo.id} ticker={ativo.nome} nomeComoPrincipal />
+        </NomeComMover>
       </TableCell>
       <TableCell className={`${TABLE_STYLES.compact.td} text-center`}>
         {ativo.cotizacaoResgate}
@@ -116,7 +134,23 @@ const ReservaEmergenciaTableRow: React.FC<ReservaEmergenciaTableRowProps> = ({
       <TableCell className={`${TABLE_STYLES.compact.td} text-center font-medium`}>
         {formatPercentage(ativo.rentabilidade)}
       </TableCell>
-    </TableRow>
+    </>
+  );
+  if (!temMover) {
+    return (
+      <TableRow className={`${TABLE_STYLES.row} ${TABLE_STYLES.rowHover}`}>{celulas}</TableRow>
+    );
+  }
+  // Mover ligado: <tr> direto (o TableRow não repassa data-*); coluna final com o menu ⋯.
+  return (
+    <tr
+      className={`${TABLE_STYLES.row} ${TABLE_STYLES.rowHover}${mover.rowClass}`}
+      data-mover-linha={mover.alvo ? mover.alvo.id : undefined}
+      aria-busy={mover.pendente || undefined}
+    >
+      {celulas}
+      <MenuMoverCell linha={ativo} estado={mover} />
+    </tr>
   );
 };
 
@@ -167,7 +201,18 @@ function ReservaEmergenciaMobileList({
       cell: (a) => a.nome,
       mobileCell: (a) => <span className="block truncate">{a.nome}</span>,
     },
-    { id: 'benchmark', header: 'Benchmark', mobile: 'subtitle', cell: (a) => a.benchmark },
+    {
+      id: 'benchmark',
+      header: 'Benchmark',
+      mobile: 'subtitle',
+      cell: (a) => a.benchmark,
+      mobileCell: (a) => (
+        <>
+          {a.benchmark}
+          <SelosCartaoMover linha={a} />
+        </>
+      ),
+    },
     {
       id: 'valor',
       header: 'Valor Atual',
@@ -228,9 +273,11 @@ function ReservaEmergenciaMobileList({
           </div>
         )}
         renderCardFooter={(a) => (
-          <Link href={`/ativos/${a.id}`} className={TABLE_MOBILE_STYLES.editButton}>
-            Ver detalhes do ativo
-          </Link>
+          <RodapeCartaoMover categoria={CATEGORIA} linha={a}>
+            <Link href={`/ativos/${a.id}`} className={TABLE_MOBILE_STYLES.editButton}>
+              Ver detalhes do ativo
+            </Link>
+          </RodapeCartaoMover>
         )}
       />
       <section
@@ -319,6 +366,8 @@ export default function ReservaEmergenciaTable({
   };
 
   const sortedAtivos = ativosComRisco;
+  // Mover (fase 2): só quando a rota libera alguma linha (chave desligada → tabela de sempre).
+  const temMover = useMemo(() => tabelaTemMover(CATEGORIA, ativos), [ativos]);
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-5">
@@ -339,104 +388,115 @@ export default function ReservaEmergenciaTable({
       </div>
 
       {isBelowLg ? (
-        <ReservaEmergenciaMobileList
-          ativos={sortedAtivos}
-          total={{ ...totais, rentabilidade }}
-          formatCurrency={formatCurrency}
-          formatPercentage={formatPercentage}
-        />
+        <ProviderSeMover categoria={CATEGORIA} ativo={temMover} dnd={false}>
+          <ReservaEmergenciaMobileList
+            ativos={sortedAtivos}
+            total={{ ...totais, rentabilidade }}
+            formatCurrency={formatCurrency}
+            formatPercentage={formatPercentage}
+          />
+        </ProviderSeMover>
       ) : (
-        <ComponentCard title="Reserva de Emergência - Detalhamento">
-          <div className={TABLE_STYLES.wrapper}>
-            <Table className={TABLE_STYLES.table}>
-              <TableHeader>
-                <TableRow className={TABLE_STYLES.headRow} style={TABLE_HEADER_STYLE}>
-                  <TableCell isHeader className={`${TABLE_STYLES.compact.th} text-left`}>
-                    Nome dos Ativos
-                  </TableCell>
-                  <TableCell isHeader className={`${TABLE_STYLES.compact.th} text-center`}>
-                    Cot. Resgate
-                  </TableCell>
-                  <TableCell isHeader className={`${TABLE_STYLES.compact.th} text-center`}>
-                    Liq. Resgate
-                  </TableCell>
-                  <TableCell isHeader className={`${TABLE_STYLES.compact.th} text-center`}>
-                    Vencimento
-                  </TableCell>
-                  <TableCell isHeader className={`${TABLE_STYLES.compact.th} text-center`}>
-                    Benchmark
-                  </TableCell>
-                  <TableCell isHeader className={`${TABLE_STYLES.compact.th} text-right`}>
-                    Valor Inicial
-                  </TableCell>
-                  <TableCell isHeader className={`${TABLE_STYLES.compact.th} text-right`}>
-                    Aporte
-                  </TableCell>
-                  <TableCell isHeader className={`${TABLE_STYLES.compact.th} text-right`}>
-                    Resgate
-                  </TableCell>
-                  <TableCell isHeader className={`${TABLE_STYLES.compact.th} text-right`}>
-                    Valor Atual
-                  </TableCell>
-                  <TableCell isHeader className={`${TABLE_STYLES.compact.th} text-center`}>
-                    % da Aba
-                  </TableCell>
-                  <TableCell isHeader className={`${TABLE_STYLES.compact.th} text-center`}>
-                    <span className="block">Risco Por Ativo</span>
-                    <span className="block">(Carteira Total)</span>
-                  </TableCell>
-                  <TableCell isHeader className={`${TABLE_STYLES.compact.th} text-center`}>
-                    Rentab.
-                  </TableCell>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                <TableRow className={TABLE_STYLES.totalRow}>
-                  <TableCell className={TABLE_STYLES.compact.td}>TOTAL GERAL</TableCell>
-                  <TableCell className={TABLE_STYLES.compact.td}></TableCell>
-                  <TableCell className={TABLE_STYLES.compact.td}></TableCell>
-                  <TableCell className={TABLE_STYLES.compact.td}></TableCell>
-                  <TableCell className={TABLE_STYLES.compact.td}></TableCell>
-                  <TableCell className={`${TABLE_STYLES.compact.td} text-right font-mono`}>
-                    {formatCurrency(totais.valorInicial)}
-                  </TableCell>
-                  <TableCell className={`${TABLE_STYLES.compact.td} text-right font-mono`}>
-                    {formatCurrency(totais.aporte)}
-                  </TableCell>
-                  <TableCell className={`${TABLE_STYLES.compact.td} text-right font-mono`}>
-                    {formatCurrency(totais.resgate)}
-                  </TableCell>
-                  <TableCell className={`${TABLE_STYLES.compact.td} text-right font-mono`}>
-                    {formatCurrency(totais.valorAtualizado)}
-                  </TableCell>
-                  <TableCell className={`${TABLE_STYLES.compact.td} text-center`}>
-                    {sortedAtivos.length > 0 ? formatPct(100) : '—'}
-                  </TableCell>
-                  <TableCell className={`${TABLE_STYLES.compact.td} text-center`}>
-                    {formatPercentage(totais.risco)}
-                  </TableCell>
-                  <TableCell className={`${TABLE_STYLES.compact.td} text-center`}>
-                    {formatPercentage(rentabilidade)}
-                  </TableCell>
-                </TableRow>
+        <ProviderSeMover categoria={CATEGORIA} ativo={temMover}>
+          <ComponentCard title="Reserva de Emergência - Detalhamento">
+            <div className={TABLE_STYLES.wrapper}>
+              <Table className={TABLE_STYLES.table}>
+                <TableHeader>
+                  <TableRow className={TABLE_STYLES.headRow} style={TABLE_HEADER_STYLE}>
+                    <TableCell isHeader className={`${TABLE_STYLES.compact.th} text-left`}>
+                      Nome dos Ativos
+                    </TableCell>
+                    <TableCell isHeader className={`${TABLE_STYLES.compact.th} text-center`}>
+                      Cot. Resgate
+                    </TableCell>
+                    <TableCell isHeader className={`${TABLE_STYLES.compact.th} text-center`}>
+                      Liq. Resgate
+                    </TableCell>
+                    <TableCell isHeader className={`${TABLE_STYLES.compact.th} text-center`}>
+                      Vencimento
+                    </TableCell>
+                    <TableCell isHeader className={`${TABLE_STYLES.compact.th} text-center`}>
+                      Benchmark
+                    </TableCell>
+                    <TableCell isHeader className={`${TABLE_STYLES.compact.th} text-right`}>
+                      Valor Inicial
+                    </TableCell>
+                    <TableCell isHeader className={`${TABLE_STYLES.compact.th} text-right`}>
+                      Aporte
+                    </TableCell>
+                    <TableCell isHeader className={`${TABLE_STYLES.compact.th} text-right`}>
+                      Resgate
+                    </TableCell>
+                    <TableCell isHeader className={`${TABLE_STYLES.compact.th} text-right`}>
+                      Valor Atual
+                    </TableCell>
+                    <TableCell isHeader className={`${TABLE_STYLES.compact.th} text-center`}>
+                      % da Aba
+                    </TableCell>
+                    <TableCell isHeader className={`${TABLE_STYLES.compact.th} text-center`}>
+                      <span className="block">Risco Por Ativo</span>
+                      <span className="block">(Carteira Total)</span>
+                    </TableCell>
+                    <TableCell isHeader className={`${TABLE_STYLES.compact.th} text-center`}>
+                      Rentab.
+                    </TableCell>
+                    {temMover ? (
+                      <TableCell isHeader className={`${TABLE_STYLES.compact.th} relative w-10`}>
+                        <span className="sr-only">Ações</span>
+                      </TableCell>
+                    ) : null}
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  <TableRow className={TABLE_STYLES.totalRow}>
+                    <TableCell className={TABLE_STYLES.compact.td}>TOTAL GERAL</TableCell>
+                    <TableCell className={TABLE_STYLES.compact.td}></TableCell>
+                    <TableCell className={TABLE_STYLES.compact.td}></TableCell>
+                    <TableCell className={TABLE_STYLES.compact.td}></TableCell>
+                    <TableCell className={TABLE_STYLES.compact.td}></TableCell>
+                    <TableCell className={`${TABLE_STYLES.compact.td} text-right font-mono`}>
+                      {formatCurrency(totais.valorInicial)}
+                    </TableCell>
+                    <TableCell className={`${TABLE_STYLES.compact.td} text-right font-mono`}>
+                      {formatCurrency(totais.aporte)}
+                    </TableCell>
+                    <TableCell className={`${TABLE_STYLES.compact.td} text-right font-mono`}>
+                      {formatCurrency(totais.resgate)}
+                    </TableCell>
+                    <TableCell className={`${TABLE_STYLES.compact.td} text-right font-mono`}>
+                      {formatCurrency(totais.valorAtualizado)}
+                    </TableCell>
+                    <TableCell className={`${TABLE_STYLES.compact.td} text-center`}>
+                      {sortedAtivos.length > 0 ? formatPct(100) : '—'}
+                    </TableCell>
+                    <TableCell className={`${TABLE_STYLES.compact.td} text-center`}>
+                      {formatPercentage(totais.risco)}
+                    </TableCell>
+                    <TableCell className={`${TABLE_STYLES.compact.td} text-center`}>
+                      {formatPercentage(rentabilidade)}
+                    </TableCell>
+                    {temMover ? <TableCell className={TABLE_STYLES.compact.td} /> : null}
+                  </TableRow>
 
-                {sortedAtivos.map((ativo) => (
-                  <ReservaEmergenciaTableRow
-                    key={ativo.id}
-                    ativo={ativo}
-                    formatCurrency={formatCurrency}
-                    formatPercentage={formatPercentage}
-                    formatDate={formatDate}
+                  {sortedAtivos.map((ativo) => (
+                    <ReservaEmergenciaTableRow
+                      key={ativo.id}
+                      ativo={ativo}
+                      formatCurrency={formatCurrency}
+                      formatPercentage={formatPercentage}
+                      formatDate={formatDate}
+                      temMover={temMover}
+                    />
+                  ))}
+                  <UiTablePlaceholderRows
+                    count={Math.max(0, MIN_PLACEHOLDER_ROWS - sortedAtivos.length)}
+                    colSpan={RESERVA_EMERGENCIA_COLUMN_COUNT + (temMover ? 1 : 0)}
                   />
-                ))}
-                <UiTablePlaceholderRows
-                  count={Math.max(0, MIN_PLACEHOLDER_ROWS - sortedAtivos.length)}
-                  colSpan={RESERVA_EMERGENCIA_COLUMN_COUNT}
-                />
-              </TableBody>
-            </Table>
-          </div>
-        </ComponentCard>
+                </TableBody>
+              </Table>
+            </div>
+          </ComponentCard>
+        </ProviderSeMover>
       )}
     </div>
   );

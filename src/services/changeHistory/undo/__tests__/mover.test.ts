@@ -213,6 +213,95 @@ describe('restaurar e planejado — desfazer', () => {
   });
 });
 
+describe('fase 2 (Reservas + Renda Fixa) — desfazer sem lógica nova', () => {
+  const antesRf = {
+    categoriaOverride: null,
+    estrategia: null,
+    tipoFii: null,
+    regiaoEtf: null,
+    tipoFundo: null,
+    objetivo: 5,
+  };
+  const depoisEmergencia = { ...antesRf, categoriaOverride: 'reservaEmergencia', objetivo: 0 };
+  const entryRf = makeEntry({
+    entityLabel: 'CDB Banco X',
+    changes: [
+      { field: 'aba', label: 'Aba', before: 'Renda Fixa', after: 'Reserva Emergência' },
+      { field: 'subgrupo', label: 'Subgrupo', before: 'Pós-fixada', after: null },
+    ] as unknown as UserChangeLog['changes'],
+    snapshot: { v: 1, kind: 'mover', data: antesRf, meta: { after: depoisEmergencia } },
+  });
+  const def = CARTEIRA_UNDO_HANDLERS['investimento.mover'];
+
+  it('CDB RF → Emergência: desfazer volta à RF com o objetivo de antes', async () => {
+    mockPrisma.portfolio.findFirst.mockResolvedValue({ id: 'p-1', ...depoisEmergencia });
+    const outcome = await def.execute(ctx(entryRf));
+    const { data } = mockPrisma.portfolio.update.mock.calls[0][0];
+    expect(data).toMatchObject({ categoriaOverride: null, objetivo: 5 });
+    expect(outcome.changes).toEqual([
+      { field: 'aba', label: 'Aba', before: 'Reserva Emergência', after: 'Renda Fixa' },
+      { field: 'subgrupo', label: 'Subgrupo', before: null, after: 'Pós-fixada' },
+    ]);
+    expect(mockInvalidateCaixa).toHaveBeenCalledWith('user-1');
+  });
+
+  it('2º desfazer da mesma entrada: 409 amigável e nada gravado', async () => {
+    // A linha já voltou ao estado de antes: não bate com meta.after.
+    mockPrisma.portfolio.findFirst.mockResolvedValue({ id: 'p-1', ...antesRf });
+    await expect(def.execute(ctx(entryRf))).rejects.toMatchObject({
+      status: 409,
+      message: MSG_MOVIDO_DE_NOVO,
+    });
+    expect(mockPrisma.portfolio.update).not.toHaveBeenCalled();
+  });
+
+  it('Emergência → Oportunidade desfeito volta à Emergência; LIFO bloqueia o mais antigo', async () => {
+    const depoisOport = { ...depoisEmergencia, categoriaOverride: 'reservaOportunidade' };
+    const entryOport = makeEntry({
+      id: 'log-2',
+      createdAt: new Date('2026-10-02T12:00:00Z'),
+      changes: [
+        { field: 'aba', label: 'Aba', before: 'Reserva Emergência', after: 'Reserva Oportunidade' },
+      ] as unknown as UserChangeLog['changes'],
+      snapshot: { v: 1, kind: 'mover', data: depoisEmergencia, meta: { after: depoisOport } },
+    });
+    mockPrisma.portfolio.findFirst.mockResolvedValue({ id: 'p-1', ...depoisOport });
+    await def.execute(ctx(entryOport));
+    expect(mockPrisma.portfolio.update.mock.calls[0][0].data.categoriaOverride).toBe(
+      'reservaEmergencia',
+    );
+
+    mockPrisma.userChangeLog.findFirst.mockResolvedValue({ id: 'log-2' });
+    await expect(assertUndoable(entryRf, 'user-1')).rejects.toMatchObject({ status: 409 });
+  });
+
+  it('investimento.restaurar de um Tesouro movido para a RF: desfazer devolve o override', async () => {
+    const restaurar = CARTEIRA_UNDO_HANDLERS['investimento.restaurar'];
+    const movido = { ...antesRf, categoriaOverride: 'rendaFixaFundos', objetivo: 0 };
+    mockPrisma.portfolio.findFirst.mockResolvedValue({
+      id: 'p-1',
+      ...movido,
+      categoriaOverride: null,
+    });
+    await restaurar.execute(
+      ctx(
+        makeEntry({
+          action: 'investimento.restaurar',
+          snapshot: {
+            v: 1,
+            kind: 'mover',
+            data: movido,
+            meta: { after: { ...movido, categoriaOverride: null } },
+          },
+        }),
+      ),
+    );
+    expect(mockPrisma.portfolio.update.mock.calls[0][0].data.categoriaOverride).toBe(
+      'rendaFixaFundos',
+    );
+  });
+});
+
 describe('snapshots carregam o override', () => {
   it('ativo.remover recria a posição com categoriaOverride e tipoFundo', async () => {
     const portfolio = {

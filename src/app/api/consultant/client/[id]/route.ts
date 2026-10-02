@@ -48,6 +48,10 @@ const TIPO_DA_CATEGORIA_MOVIDA: Record<CategoriaMovivel, string> = {
   etfs: 'etf',
   reits: 'reit',
   fimFia: 'fund',
+  // Fase 2 do mover (Reservas + Renda Fixa, atrás de MOVER_CAIXA_RF_HABILITADO).
+  reservaEmergencia: 'emergency',
+  reservaOportunidade: 'opportunity',
+  rendaFixaFundos: 'bond',
 };
 
 const getClientPortfolio = async (clientId: string) => {

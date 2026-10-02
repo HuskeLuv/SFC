@@ -6,6 +6,8 @@ import { Step4FieldsProps } from './step4Types';
 import Step4TesouroReservaFields from './Step4TesouroReservaFields';
 import Step4TesouroRendaFixaFields from './Step4TesouroRendaFixaFields';
 import ReinvestimentoToggle from './shared/ReinvestimentoToggle';
+import { useCategoriaEfetivaAtivo } from '@/hooks/useCategoriaEfetivaAtivo';
+import { isCategoriaCaixaRf, rotuloCategoria, type CategoriaMovivel } from '@/lib/carteiraMover';
 
 const TESOURO_DESTINO_OPTIONS = [
   { value: 'reserva-emergencia', label: 'Reserva de Emergência' },
@@ -14,6 +16,30 @@ const TESOURO_DESTINO_OPTIONS = [
   { value: 'renda-fixa-posfixada', label: 'Renda Fixa (Pós-fixada)' },
   { value: 'renda-fixa-hibrida', label: 'Renda Fixa (Híbrida)' },
 ];
+
+/**
+ * Mover fase 2 (out/2026): título já MOVIDO pelo usuário para outra aba do trio Reservas +
+ * Renda Fixa. A compra entra onde ele está (o servidor grava a aba base, que não muda), então o
+ * select some e o destino do formulário segue a aba efetiva — na RF, a seção do tipo do título
+ * (Selic → pós; Prefixado → pré; IPCA+/Renda+/Educa+ → híbrida, como secaoRendaFixa).
+ * null = não dá para inferir (o select continua visível).
+ */
+export function destinoTesouroDaAba(
+  categoria: CategoriaMovivel | null,
+  tipoTitulo: string | null | undefined,
+): string | null {
+  if (categoria === 'reservaEmergencia') return 'reserva-emergencia';
+  if (categoria === 'reservaOportunidade') return 'reserva-oportunidade';
+  if (categoria !== 'rendaFixaFundos') return null;
+  const t = (tipoTitulo ?? '').toLowerCase();
+  if (/selic/.test(t)) return 'renda-fixa-posfixada';
+  if (/prefixad/.test(t)) return 'renda-fixa-prefixada';
+  if (/ipca|renda\+|educa\+|igp/.test(t)) return 'renda-fixa-hibrida';
+  return null;
+}
+
+export const textoTesouroMovido = (categoria: CategoriaMovivel) =>
+  `Este título está em ${rotuloCategoria(categoria)} (movido). A compra entra lá; para trocar, use Mover.`;
 
 interface TesouroPriceData {
   baseDate: string;
@@ -81,6 +107,22 @@ export default function Step4TesouroDiretoFields(props: Step4FieldsProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [formData.assetId]);
 
+  // Título movido no trio Reservas + RF (só com a fase 2 ligada: senão a categoria vem null).
+  const { categoria: abaEfetiva, override } = useCategoriaEfetivaAtivo(
+    isDbBacked ? formData.assetId : null,
+  );
+  const abaMovida = override && isCategoriaCaixaRf(abaEfetiva) ? abaEfetiva : null;
+  const destinoMovido = abaMovida
+    ? destinoTesouroDaAba(abaMovida, tesouroDetails?.asset?.bondType ?? tesouroDetails?.asset?.name)
+    : null;
+
+  useEffect(() => {
+    if (destinoMovido && destinoMovido !== formData.tesouroDestino) {
+      handleInputChange('tesouroDestino', destinoMovido);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [destinoMovido]);
+
   const tesouroDestino = formData.tesouroDestino;
   const tesouroEmReserva =
     tesouroDestino === 'reserva-emergencia' || tesouroDestino === 'reserva-oportunidade';
@@ -91,24 +133,33 @@ export default function Step4TesouroDiretoFields(props: Step4FieldsProps) {
 
   return (
     <>
-      <div>
-        <Label htmlFor="tesouroDestino">Onde este título deve aparecer *</Label>
-        <Select
-          id="tesouroDestino"
-          options={TESOURO_DESTINO_OPTIONS}
-          placeholder="Selecione onde exibir"
-          value={formData.tesouroDestino ?? ''}
-          onChange={(value) => handleInputChange('tesouroDestino', value)}
-          className={errors.tesouroDestino ? 'border-red-500' : ''}
-        />
-        <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-          O título será exibido na aba correspondente: Reserva de Emergência, Reserva de
-          Oportunidade ou Renda Fixa.
+      {abaMovida && destinoMovido ? (
+        <p
+          data-mf-tesouro-movido=""
+          className="rounded-lg bg-gray-50 px-3 py-2.5 text-sm text-gray-700 dark:bg-white/[0.04] dark:text-gray-200"
+        >
+          {textoTesouroMovido(abaMovida)}
         </p>
-        {errors.tesouroDestino && (
-          <p className="mt-1 text-sm text-red-500">{errors.tesouroDestino}</p>
-        )}
-      </div>
+      ) : (
+        <div>
+          <Label htmlFor="tesouroDestino">Onde este título deve aparecer *</Label>
+          <Select
+            id="tesouroDestino"
+            options={TESOURO_DESTINO_OPTIONS}
+            placeholder="Selecione onde exibir"
+            value={formData.tesouroDestino ?? ''}
+            onChange={(value) => handleInputChange('tesouroDestino', value)}
+            className={errors.tesouroDestino ? 'border-red-500' : ''}
+          />
+          <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+            O título será exibido na aba correspondente: Reserva de Emergência, Reserva de
+            Oportunidade ou Renda Fixa.
+          </p>
+          {errors.tesouroDestino && (
+            <p className="mt-1 text-sm text-red-500">{errors.tesouroDestino}</p>
+          )}
+        </div>
+      )}
 
       {isDbBacked && tesouroDetails?.price && (
         <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
