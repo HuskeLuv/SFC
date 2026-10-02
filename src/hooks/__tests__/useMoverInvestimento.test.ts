@@ -278,6 +278,48 @@ describe('useMoverInvestimento', () => {
     });
   });
 
+  it('referência no trio (página do ativo): o aviso usa o nome, não o símbolo sintético', async () => {
+    const { queryClient, hook } = setup();
+    queryClient.setQueryData(queryKeys.carteiraMover.opcoes('posicao', 'pf-cdb'), {
+      item: { tipo: 'posicao', id: 'pf-cdb', ticker: 'RENDA-FIXA-123-abc', nome: 'CDB Banco X' },
+      atual: { categoria: 'rendaFixaFundos', subgrupo: 'pos-fixada' },
+    });
+    queryClient.setQueryData(queryKeys.carteiraMover.opcoes('posicao', 'pf-kdif'), {
+      item: { tipo: 'posicao', id: 'pf-kdif', ticker: 'KDIF11', nome: 'Kinea Infra' },
+      atual: { categoria: 'fiis', subgrupo: 'fofi' },
+    });
+    for (const [id, origem, destino] of [
+      ['pf-cdb', 'rendaFixaFundos', 'reservaOportunidade'],
+      ['pf-kdif', 'fiis', 'fimFia'],
+    ] as const) {
+      let promessa!: Promise<unknown>;
+      resolverPost = null;
+      act(() => {
+        promessa = hook.result.current.mover({
+          alvo: { tipo: 'posicao', id },
+          categoria: destino,
+          subgrupo: null,
+        });
+      });
+      await waitFor(() => expect(resolverPost).not.toBeNull());
+      await act(async () => {
+        resolverPost!(
+          jsonResponse({
+            ok: true,
+            origem: { categoria: origem, subgrupo: null },
+            destino: { categoria: destino, subgrupo: null },
+            objetivoZerado: false,
+          }),
+        );
+        await promessa;
+      });
+    }
+    expect(mostrarToastMover.mock.calls[0][0].mensagem).toBe(
+      'CDB Banco X movido para Reserva Oportunidade.',
+    );
+    expect(mostrarToastMover.mock.calls[1][0].mensagem).toMatch(/^KDIF11 movido para Fundos/);
+  });
+
   it('noop: nenhum aviso', async () => {
     const { hook } = setup();
     let promessa!: Promise<unknown>;

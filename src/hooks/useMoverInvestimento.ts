@@ -8,6 +8,7 @@ import { invalidatePortfolioDerivedQueries } from '@/lib/invalidatePortfolio';
 import {
   SUBGRUPO_EDITAVEL,
   abaIdDaCategoria,
+  isCategoriaCaixaRf,
   isCategoriaMovivelTodas,
   rotuloCategoria,
   rotuloSubgrupo,
@@ -94,9 +95,18 @@ const onde = (categoria: string, subgrupo: string | null | undefined): string =>
 const opcoesNoCache = (queryClient: QueryClient, alvo: MoverAlvo | MoverAlvoRef) =>
   queryClient.getQueryData<MoverOpcoesResponse>(queryKeys.carteiraMover.opcoes(alvo.tipo, alvo.id));
 
-const rotuloDoAlvo = (queryClient: QueryClient, alvo: MoverAlvo | MoverAlvoRef): string =>
-  (isMoverAlvoCompleto(alvo) ? alvo.label : opcoesNoCache(queryClient, alvo)?.item.ticker) ||
-  'O ativo';
+/**
+ * Nome do item nos toasts. Só referência (página do ativo): vem do GET /mover em cache — no trio
+ * Reservas + Renda Fixa o símbolo é sintético (RENDA-FIXA-…, CONTA-CORRENTE-…), então vale o
+ * nome, como no título do diálogo (MoverInvestimento); bolsa e fundos seguem pelo ticker.
+ */
+const rotuloDoAlvo = (queryClient: QueryClient, alvo: MoverAlvo | MoverAlvoRef): string => {
+  if (isMoverAlvoCompleto(alvo)) return alvo.label || 'O ativo';
+  const opcoes = opcoesNoCache(queryClient, alvo);
+  if (!opcoes) return 'O ativo';
+  const nomeCaixaRf = isCategoriaCaixaRf(opcoes.atual.categoria) ? opcoes.item.nome : '';
+  return nomeCaixaRf || opcoes.item.ticker || 'O ativo';
+};
 
 /** Onde o item está antes da mutação (texto do erro: "Ele continua em …"). */
 const ondeEstava = (queryClient: QueryClient, alvo: MoverAlvo | MoverAlvoRef): string | null => {
