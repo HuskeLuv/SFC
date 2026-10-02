@@ -206,19 +206,11 @@ export const categorizarAsset = (
       return 'opcoes';
     default:
       if ((FUNDO_TYPES_AGRUPADOS as readonly string[]).includes(tipo)) {
-        // fia/multimercado/fund-rf/fund-cambial/fip/fip-infra/fidc/fiagro —
-        // aparecem na aba Fundos, então a pizza soma em fimFia.
-        // 'fund'/'funds' legados: heurística FII preservada.
-        if (tipo === 'fund' || tipo === 'funds') {
-          const nameLower = (asset?.name ?? '').toLowerCase();
-          if (
-            symbolUpper.endsWith('11') ||
-            nameLower.includes('fii') ||
-            nameLower.includes('imobili')
-          ) {
-            return 'fiis';
-          }
-        }
+        // fund/funds/fia/multimercado/fund-rf/fund-cambial/fip/fip-infra/fidc/
+        // fiagro — aparecem na aba Fundos, então a pizza soma em fimFia. Os
+        // 'fund'/'funds' legados com cara de FII (HGLG11, "imobiliário") também:
+        // a heurística antiga os mandava para FII's na pizza enquanto a aba os
+        // lista em Fundos. Quem quiser em FII's usa o mover (override).
         return 'fimFia';
       }
       if (symbol.startsWith('RESERVA-OPORT')) return 'reservaOportunidade';

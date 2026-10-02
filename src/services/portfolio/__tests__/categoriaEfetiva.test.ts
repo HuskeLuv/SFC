@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, describe, it, expect, vi } from 'vitest';
+import { categoriaBaseDaAba } from '@/lib/carteiraMover';
 import { categoriaEfetiva, categorizarAsset, valuatePortfolioItem } from '../itemValuation';
 
 // Contrato da fase 1: chave da fase 2 desligada (ligada: categoriaEfetiva.caixaRf.test.ts).
@@ -60,8 +61,31 @@ describe('categoriaEfetiva', () => {
 
   it("'fund' legado HGLG11: base da aba é Fundos; override para FII's vale", () => {
     const legado = { symbol: 'HGLG11', type: 'fund', currency: 'BRL', name: 'CSHG Log' };
+    expect(categoriaEfetiva(legado, null)).toBe('fimFia');
     expect(categoriaEfetiva(legado, 'fiis')).toBe('fiis');
     expect(categoriaEfetiva(legado, 'acoes')).toBe('acoes');
+  });
+});
+
+describe('pizza = aba (categorizarAsset × categoriaBaseDaAba)', () => {
+  // Todo ativo listado numa aba movível soma na pizza na MESMA categoria.
+  it.each([
+    { symbol: 'PETR4', type: 'stock', currency: 'BRL' },
+    { symbol: 'TAEE11', type: 'stock', currency: 'BRL' },
+    { symbol: 'AAPL', type: 'stock', currency: 'USD' },
+    { symbol: 'AAPL34', type: 'bdr', currency: 'BRL' },
+    { symbol: 'HGLG11', type: 'fii', currency: 'BRL' },
+    { symbol: 'BOVA11', type: 'etf', currency: 'BRL' },
+    { symbol: 'CVM-1', type: 'etf-cvm', currency: 'BRL' },
+    { symbol: 'O', type: 'reit', currency: 'USD' },
+    { symbol: 'HGLG11', type: 'fund', currency: 'BRL', name: 'CSHG Logística FII' },
+    { symbol: 'FUNDO-X', type: 'fund', currency: 'BRL', name: 'Fundo Imobiliário Y' },
+    { symbol: 'PLUGGY-FUNDO-1', type: 'fund', currency: 'BRL', name: 'Fondo Premium' },
+    { symbol: 'XPTO11', type: 'funds', currency: 'BRL' },
+    { symbol: 'CVM-2', type: 'multimercado', currency: 'BRL' },
+    { symbol: 'CVM-3', type: 'fiagro', currency: 'BRL' },
+  ])('$symbol/$type', (asset) => {
+    expect(categorizarAsset(asset)).toBe(categoriaBaseDaAba(asset));
   });
 });
 

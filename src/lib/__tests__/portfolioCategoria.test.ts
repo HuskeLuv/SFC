@@ -70,3 +70,27 @@ describe('getCategoriaFromPortfolio — override do mover', () => {
     ).toBe('reservaEmergencia');
   });
 });
+
+describe('getCategoriaFromPortfolio — fundo legado', () => {
+  it("'fund'/'funds' com cara de FII agrupam em Fundos, como a aba e a pizza", () => {
+    for (const asset of [
+      { symbol: 'HGLG11', type: 'fund', currency: 'BRL', name: 'CSHG Log' },
+      { symbol: 'FUNDO-X', type: 'funds', currency: 'BRL', name: 'Fundo Imobiliário' },
+      { symbol: 'PLUGGY-FUNDO-1', type: 'fund', currency: 'BRL', name: 'Fondo Premium' },
+    ]) {
+      expect(getCategoriaFromPortfolio({ asset }, vazio)).toBe('fimFia');
+    }
+  });
+
+  it("override para FII's continua valendo", () => {
+    expect(
+      getCategoriaFromPortfolio(
+        {
+          asset: { symbol: 'HGLG11', type: 'fund', currency: 'BRL', name: 'CSHG Log' },
+          categoriaOverride: 'fiis',
+        },
+        vazio,
+      ),
+    ).toBe('fiis');
+  });
+});

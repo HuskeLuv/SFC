@@ -164,7 +164,10 @@ describe('categorizarAsset — tabela única', () => {
     [{ symbol: 'CVM-2', type: 'fia', currency: 'BRL' }, 'fimFia'],
     [{ symbol: 'CVM-3', type: 'multimercado', currency: 'BRL' }, 'fimFia'],
     [{ symbol: 'CVM-4', type: 'fidc', currency: 'BRL' }, 'fimFia'],
-    [{ symbol: 'FUNDO-X', type: 'fund', currency: 'BRL', name: 'FII Imobiliário Y' }, 'fiis'],
+    // 'fund' legado com cara de FII: soma onde a aba lista (Fundos), não em FII's
+    [{ symbol: 'FUNDO-X', type: 'fund', currency: 'BRL', name: 'FII Imobiliário Y' }, 'fimFia'],
+    [{ symbol: 'HGLG11', type: 'fund', currency: 'BRL', name: 'CSHG Log' }, 'fimFia'],
+    [{ symbol: 'HGLG11', type: 'funds', currency: 'BRL' }, 'fimFia'],
     [{ symbol: 'FUNDO-Z', type: 'fund', currency: 'BRL', name: 'Fundo Multi' }, 'fimFia'],
     [{ symbol: 'RF-1', type: 'bond', currency: 'BRL' }, 'rendaFixaFundos'],
     [{ symbol: 'TD-1', type: 'tesouro-direto', currency: 'BRL' }, 'rendaFixaFundos'],
