@@ -3,12 +3,15 @@ import React from 'react';
 import { createPortal } from 'react-dom';
 import { useDroppable } from '@dnd-kit/core';
 import {
+  CATEGORIAS_CAIXA_RF,
   CATEGORIAS_MOVIVEIS,
   MOTIVO_EM_DOLAR,
   MOTIVO_EM_REAIS,
   MOTIVO_EM_VALIDACAO,
+  MOTIVO_SALDO_SEM_TITULO,
   MOTIVO_SEM_COTACAO,
   SUBGRUPOS_POR_CATEGORIA,
+  isCategoriaCaixaRf,
   rotuloCategoria,
   type CategoriaMovivel,
   type MoverOpcoesResponse,
@@ -26,6 +29,12 @@ import { abaDropId, type AbaDropData } from './CarteiraDnd';
  * ponteiro, contorno sólido + tinta 16%; recusado com cadeado e o motivo curto (e o motivo
  * inteiro para o leitor de tela). A compatibilidade vem do `useMoverOpcoes` (Fatia D), que o
  * início do arrasto já dispara; até chegar, os chips aceitam o soltar e o servidor valida.
+ *
+ * Fase 2 (decisão 4 do Wellington, 02/10/2026): item de Reserva ou Renda Fixa mostra SÓ as
+ * outras abas do trio (sem chip travado de bolsa/fundos — o motivo delas fica no diálogo). Só a
+ * Renda Fixa de um saldo em conta aparece travada, com o motivo próprio. O detalhe do chip diz
+ * "entra em <seção>"/"seção automática" (RF) ou "sem seções" (Reservas). Itens de bolsa e fundos
+ * continuam IDÊNTICOS à fase 1.
  */
 
 const MOTIVO_CURTO: Record<string, string> = {
@@ -33,6 +42,7 @@ const MOTIVO_CURTO: Record<string, string> = {
   [MOTIVO_EM_REAIS]: 'em reais',
   [MOTIVO_SEM_COTACAO]: 'sem cotação',
   [MOTIVO_EM_VALIDACAO]: 'em validação',
+  [MOTIVO_SALDO_SEM_TITULO]: 'saldo não é título',
 };
 
 export const motivoCurto = (motivo: string | undefined): string =>
@@ -43,22 +53,39 @@ export interface ChipAba {
   label: string;
   permitido: boolean | null;
   motivo?: string;
+  /** Fase 2: texto fixo do detalhe ("entra em Pós-fixada", "sem seções"). Ausente = fase 1. */
+  detalhe?: string;
 }
+
+/** Detalhe do chip do trio: nunca "0 seções". */
+const detalheCaixaRf = (
+  categoria: CategoriaMovivel,
+  opcoes: Pick<MoverOpcoesResponse, 'destinos'> | undefined,
+): string => {
+  if (categoria !== 'rendaFixaFundos') return 'sem seções';
+  const secao = opcoes?.destinos.find((d) => d.categoria === categoria)?.secaoAutomatica;
+  return secao ? `entra em ${secao.label}` : 'seção automática';
+};
 
 /** Chips da bandeja: abas aceitas (ou ainda sem resposta) primeiro, recusadas no fim. */
 export function chipsDaBandeja(
   atual: CategoriaMovivel,
   opcoes: Pick<MoverOpcoesResponse, 'destinos'> | undefined,
 ): ChipAba[] {
-  const chips = CATEGORIAS_MOVIVEIS.filter((c) => c !== atual).map((categoria): ChipAba => {
-    const d = opcoes?.destinos.find((x) => x.categoria === categoria);
-    return {
-      categoria,
-      label: rotuloCategoria(categoria),
-      permitido: d ? d.permitido : null,
-      motivo: d && !d.permitido ? d.motivo : undefined,
-    };
-  });
+  const caixaRf = isCategoriaCaixaRf(atual);
+  const lista: readonly CategoriaMovivel[] = caixaRf ? CATEGORIAS_CAIXA_RF : CATEGORIAS_MOVIVEIS;
+  const chips = lista
+    .filter((c) => c !== atual)
+    .map((categoria): ChipAba => {
+      const d = opcoes?.destinos.find((x) => x.categoria === categoria);
+      return {
+        categoria,
+        label: rotuloCategoria(categoria),
+        permitido: d ? d.permitido : null,
+        motivo: d && !d.permitido ? d.motivo : undefined,
+        ...(caixaRf ? { detalhe: detalheCaixaRf(categoria, opcoes) } : {}),
+      };
+    });
   return [
     ...chips.filter((c) => c.permitido !== false),
     ...chips.filter((c) => c.permitido === false),
@@ -95,7 +122,7 @@ export function AbaDropTarget({ chip, carregando }: { chip: ChipAba; carregando:
     ? motivoCurto(chip.motivo)
     : chip.permitido === null && carregando
       ? 'verificando…'
-      : `${SUBGRUPOS_POR_CATEGORIA[chip.categoria].length} seções`;
+      : (chip.detalhe ?? `${SUBGRUPOS_POR_CATEGORIA[chip.categoria].length} seções`);
   return (
     <div
       ref={setNodeRef}
@@ -111,7 +138,10 @@ export function AbaDropTarget({ chip, carregando }: { chip: ChipAba; carregando:
           <span className="sr-only">, indisponível: {chip.motivo ?? 'não aceita este ativo'}</span>
         ) : null}
       </span>
-      <small className="text-[11.5px] font-normal text-gray-500 dark:text-gray-400" aria-hidden>
+      <small
+        className={`text-[11.5px] font-normal ${chip.detalhe !== undefined ? 'text-gray-600 dark:text-gray-300' : 'text-gray-500 dark:text-gray-400'}`}
+        aria-hidden
+      >
         {detalhe}
       </small>
     </div>
@@ -129,6 +159,10 @@ interface BandejaOutraAbaProps {
 export function BandejaOutraAba({ alvo, centroX, arrastando }: BandejaOutraAbaProps) {
   const { data, isLoading } = useMoverOpcoes(alvo.tipo, alvo.id);
   const chips = chipsDaBandeja(alvo.categoria, data);
+  // Fase 2: RF e Reservas não têm seção como alvo — solta-se só nas abas.
+  const dica = isCategoriaCaixaRf(alvo.categoria)
+    ? `${alvo.categoria === 'rendaFixaFundos' ? 'A seção vem do título. ' : ''}Solte numa aba. Esc cancela.`
+    : 'Solte numa seção da tabela ou numa aba abaixo. Esc cancela.';
   if (typeof document === 'undefined') return null;
   // Faixa simétrica em volta de centroX (até a borda mais próxima): a bandeja centraliza na área
   // de conteúdo sem ser espremida pela borda direita.
@@ -149,7 +183,13 @@ export function BandejaOutraAba({ alvo, centroX, arrastando }: BandejaOutraAbaPr
         <div className="flex justify-between gap-3 text-xs text-gray-500 dark:text-gray-400">
           <b className="text-[12.5px] font-semibold text-gray-800 dark:text-gray-100">Outra aba</b>
           {arrastando ? (
-            <span>Solte numa seção da tabela ou numa aba abaixo. Esc cancela.</span>
+            <span
+              className={
+                isCategoriaCaixaRf(alvo.categoria) ? 'text-gray-600 dark:text-gray-300' : undefined
+              }
+            >
+              {dica}
+            </span>
           ) : null}
         </div>
         <div className="flex flex-wrap gap-2">

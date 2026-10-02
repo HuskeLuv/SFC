@@ -7,10 +7,12 @@ import { useMoverOpcoes } from '@/hooks/useMoverOpcoes';
 import {
   AVISO_OBJETIVO_ZERA,
   SUBGRUPOS_POR_CATEGORIA,
+  SUBGRUPO_EDITAVEL,
   rotuloCategoria,
   subgrupoPadrao,
 } from '@/lib/carteiraMover';
 import type { EscolherSecaoPopoverProps } from '@/types/carteiraMover';
+import { CONFIRMAR_LARGURA, ConfirmarMoverCard } from './ConfirmarMoverCard';
 
 export const POPOVER_LARGURA = 320;
 const MARGEM = 8;
@@ -22,9 +24,9 @@ interface Posicao {
   seta: number;
 }
 
-const calcularPosicao = (anchor: HTMLElement): Posicao => {
+const calcularPosicao = (anchor: HTMLElement, larguraMax = POPOVER_LARGURA): Posicao => {
   const rect = anchor.getBoundingClientRect();
-  const largura = Math.min(POPOVER_LARGURA, window.innerWidth - MARGEM * 2);
+  const largura = Math.min(larguraMax, window.innerWidth - MARGEM * 2);
   const centro = rect.left + rect.width / 2;
   const left = Math.min(
     Math.max(centro - largura / 2, MARGEM),
@@ -42,6 +44,10 @@ const calcularPosicao = (anchor: HTMLElement): Posicao => {
  * abre ACIMA do chip da bandeja, chips-rádio de 34px (44px no celular) com a seção sugerida
  * já marcada, a linha do objetivo antes de confirmar e o primário "Mover para <seção>".
  * Esc, Cancelar e clique fora chamam `onCancel` e devolvem o foco a quem o tinha (a alça).
+ *
+ * Fase 2 (Reservas + Renda Fixa): aba destino sem seção para escolher (`subgrupoEditavel`
+ * false) → sem chips; o corpo vira o `ConfirmarMoverCard` (380px, efeitos S/!/A/F/§/=) e
+ * "Mover" confirma sem subgrupo.
  */
 export function EscolherSecaoPopover({
   alvo,
@@ -60,6 +66,9 @@ export function EscolherSecaoPopover({
   const { data: opcoes, isPending: verificando } = useMoverOpcoes(alvo.tipo, alvo.id);
   const opcaoDestino = opcoes?.destinos.find((d) => d.categoria === destino);
   const recusado = opcaoDestino?.permitido === false;
+  // Sem o dado do servidor, a regra local (as 6 da fase 1 são editáveis; o trio não).
+  const editavel = opcaoDestino?.subgrupoEditavel ?? SUBGRUPO_EDITAVEL[destino];
+  const largura = editavel ? POPOVER_LARGURA : CONFIRMAR_LARGURA;
   const secoes =
     opcaoDestino?.subgrupos ??
     SUBGRUPOS_POR_CATEGORIA[destino].map((s) => ({ ...s, atual: false }));
@@ -86,7 +95,7 @@ export function EscolherSecaoPopover({
   }, [devolverFoco, onCancel]);
 
   useLayoutEffect(() => {
-    const atualizar = () => setPosicao(calcularPosicao(anchorEl));
+    const atualizar = () => setPosicao(calcularPosicao(anchorEl, largura));
     atualizar();
     window.addEventListener('resize', atualizar);
     window.addEventListener('scroll', atualizar, true);
@@ -94,7 +103,7 @@ export function EscolherSecaoPopover({
       window.removeEventListener('resize', atualizar);
       window.removeEventListener('scroll', atualizar, true);
     };
-  }, [anchorEl]);
+  }, [anchorEl, largura]);
 
   // Soltou no chip enquanto as opções ainda chegavam e a aba é recusada: fecha e avisa,
   // sem POST (o servidor recusaria do mesmo jeito).
@@ -104,10 +113,13 @@ export function EscolherSecaoPopover({
     onRecusado?.(motivoRecusa ?? undefined);
   }, [motivoRecusa, onRecusado]);
 
-  // Foco na seção marcada ao abrir.
+  // Foco na seção marcada ao abrir (na confirmação, o ConfirmarMoverCard foca "Mover").
   useEffect(() => {
+    if (!editavel) return;
     const marcado = painelRef.current?.querySelector<HTMLInputElement>('input:checked');
     (marcado ?? painelRef.current)?.focus();
+    // Só ao abrir.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -145,67 +157,85 @@ export function EscolherSecaoPopover({
         bottom: posicao?.bottom ?? 0,
         visibility: posicao ? 'visible' : 'hidden',
       }}
-      className="fixed z-[99993] flex w-[min(320px,calc(100vw-16px))] flex-col gap-2.5 rounded-[14px] border border-gray-200 bg-white p-3.5 font-outfit shadow-xl outline-none dark:border-gray-700 dark:bg-gray-900"
+      className={`fixed z-[99993] flex ${editavel ? 'w-[min(320px,calc(100vw-16px))]' : 'w-[min(380px,calc(100vw-16px))]'} flex-col gap-2.5 rounded-[14px] border border-gray-200 bg-white p-3.5 font-outfit shadow-xl outline-none dark:border-gray-700 dark:bg-gray-900`}
     >
       <span
         aria-hidden="true"
         style={{ left: (posicao?.seta ?? 28) - 6 }}
         className="absolute -bottom-[7px] h-3 w-3 rotate-45 border-r border-b border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900"
       />
-      <h4 id={tituloId} className="text-[15px] font-semibold text-gray-900 dark:text-white">
-        Mover {alvo.label} para {aba}
-      </h4>
-      <fieldset aria-label={`Seção em ${aba}`} className="m-0 flex flex-wrap gap-1.5 border-0 p-0">
-        {secoes.map((s) => {
-          const ehAtual = !trocaAba && s.id === alvo.secaoAtual;
-          return (
-            <label key={s.id} className="relative">
-              <input
-                type="radio"
-                name={`${baseId}-secao`}
-                value={s.id}
-                checked={secao === s.id}
-                disabled={ehAtual}
-                onChange={() => setEscolhido(s.id)}
-                className="peer absolute inset-0 m-0 cursor-pointer opacity-0 disabled:cursor-not-allowed"
-              />
-              <span className="inline-flex min-h-[34px] cursor-pointer items-center gap-1.5 rounded-full border border-gray-300 bg-white px-3 text-[13.5px] text-gray-700 peer-checked:border-mf-seguranca peer-checked:bg-mf-seguranca peer-checked:text-white peer-focus-visible:ring-[3px] peer-focus-visible:ring-mf-outside peer-disabled:cursor-not-allowed peer-disabled:border-dashed peer-disabled:opacity-60 max-lg:min-h-11 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-200 dark:peer-checked:border-mf-patrimonio dark:peer-checked:bg-mf-patrimonio dark:peer-focus-visible:ring-mf-tranquilidade">
-                {s.label}
-                {s.id === sugerido && !ehAtual && (
-                  <em className="text-[10.5px] font-semibold tracking-[.04em] uppercase not-italic opacity-80">
-                    sugerida
-                  </em>
-                )}
-              </span>
-            </label>
-          );
-        })}
-      </fieldset>
-      {avisos.map((aviso) => (
-        <p
-          key={aviso}
-          className="rounded-lg bg-gray-50 px-2 py-1.5 text-[12.5px] text-gray-800 dark:bg-white/[0.04] dark:text-white/90"
-        >
-          {/[.!?]$/.test(aviso) ? aviso : `${aviso}.`}
-          {/objetivo/i.test(aviso) && ' Ajuste depois na aba.'}
-        </p>
-      ))}
-      <p className="text-[12.5px] text-gray-500 dark:text-gray-400">
-        Valores e rentabilidade não mudam. Alocação e relatórios passam a contar {alvo.label} em{' '}
-        {aba}.
-      </p>
-      <div className="flex justify-end gap-2">
-        <Button variant="outline" size="sm" onClick={cancelar}>
-          Cancelar
-        </Button>
-        <Button
-          size="sm"
-          onClick={() => onConfirm(secao)}
-          disabled={verificando || recusado || (!trocaAba && secao === alvo.secaoAtual)}
-        >
-          {verificando ? 'Verificando…' : `Mover para ${rotuloSecao}`}
-        </Button>
-      </div>
+      {editavel ? (
+        <>
+          <h4 id={tituloId} className="text-[15px] font-semibold text-gray-900 dark:text-white">
+            Mover {alvo.label} para {aba}
+          </h4>
+          <fieldset
+            aria-label={`Seção em ${aba}`}
+            className="m-0 flex flex-wrap gap-1.5 border-0 p-0"
+          >
+            {secoes.map((s) => {
+              const ehAtual = !trocaAba && s.id === alvo.secaoAtual;
+              return (
+                <label key={s.id} className="relative">
+                  <input
+                    type="radio"
+                    name={`${baseId}-secao`}
+                    value={s.id}
+                    checked={secao === s.id}
+                    disabled={ehAtual}
+                    onChange={() => setEscolhido(s.id)}
+                    className="peer absolute inset-0 m-0 cursor-pointer opacity-0 disabled:cursor-not-allowed"
+                  />
+                  <span className="inline-flex min-h-[34px] cursor-pointer items-center gap-1.5 rounded-full border border-gray-300 bg-white px-3 text-[13.5px] text-gray-700 peer-checked:border-mf-seguranca peer-checked:bg-mf-seguranca peer-checked:text-white peer-focus-visible:ring-[3px] peer-focus-visible:ring-mf-outside peer-disabled:cursor-not-allowed peer-disabled:border-dashed peer-disabled:opacity-60 max-lg:min-h-11 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-200 dark:peer-checked:border-mf-patrimonio dark:peer-checked:bg-mf-patrimonio dark:peer-focus-visible:ring-mf-tranquilidade">
+                    {s.label}
+                    {s.id === sugerido && !ehAtual && (
+                      <em className="text-[10.5px] font-semibold tracking-[.04em] uppercase not-italic opacity-80">
+                        sugerida
+                      </em>
+                    )}
+                  </span>
+                </label>
+              );
+            })}
+          </fieldset>
+          {avisos.map((aviso) => (
+            <p
+              key={aviso}
+              className="rounded-lg bg-gray-50 px-2 py-1.5 text-[12.5px] text-gray-800 dark:bg-white/[0.04] dark:text-white/90"
+            >
+              {/[.!?]$/.test(aviso) ? aviso : `${aviso}.`}
+              {/objetivo/i.test(aviso) && ' Ajuste depois na aba.'}
+            </p>
+          ))}
+          <p className="text-[12.5px] text-gray-500 dark:text-gray-400">
+            Valores e rentabilidade não mudam. Alocação e relatórios passam a contar {alvo.label} em{' '}
+            {aba}.
+          </p>
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" size="sm" onClick={cancelar}>
+              Cancelar
+            </Button>
+            <Button
+              size="sm"
+              onClick={() => onConfirm(secao)}
+              disabled={verificando || recusado || (!trocaAba && secao === alvo.secaoAtual)}
+            >
+              {verificando ? 'Verificando…' : `Mover para ${rotuloSecao}`}
+            </Button>
+          </div>
+        </>
+      ) : (
+        <ConfirmarMoverCard
+          alvo={alvo}
+          destino={destino}
+          opcoes={opcoes}
+          tituloId={tituloId}
+          verificando={verificando}
+          recusado={recusado}
+          onConfirm={() => onConfirm('')}
+          onCancel={cancelar}
+        />
+      )}
     </div>,
     document.body,
   );
