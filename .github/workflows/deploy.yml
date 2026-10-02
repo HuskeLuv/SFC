@@ -128,8 +128,17 @@ jobs:
              echo '--- health:'; curl -s -o /dev/null -w '%{http_code}\n' http://localhost:3000/api/health; \
              curl -sf http://localhost:3000/api/health >/dev/null"
 
+      # A rede do runner até o Lightsail falha de vez em quando (curl travava ~2 min e saía com 28 ou
+      # 60 com o site no ar): timeout curto + 5 tentativas; o diagnóstico só aparece se todas falharem.
       - name: Verificar site público
         run: |
-          CODE=$(curl -s -o /dev/null -w '%{http_code}' https://appmyfinance.com.br/api/health)
-          echo "https://appmyfinance.com.br/api/health → $CODE"
-          test "$CODE" = "200"
+          URL=https://appmyfinance.com.br/api/health
+          for i in 1 2 3 4 5; do
+            CODE=$(curl -s -o /dev/null -w '%{http_code}' --connect-timeout 10 --max-time 20 "$URL" || true)
+            echo "tentativa $i: $URL → $CODE"
+            if [ "$CODE" = "200" ]; then exit 0; fi
+            sleep 15
+          done
+          echo '--- diagnóstico'
+          curl -sv -o /dev/null --connect-timeout 10 --max-time 20 "$URL" 2>&1 | tail -25 || true
+          exit 1
