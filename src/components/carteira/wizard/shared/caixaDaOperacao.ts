@@ -88,6 +88,11 @@ export function abaDaCompra(form: CompraForm): CaixaAbaKey | null {
  * Aba do caixa de uma COMPRA de ativo que o usuário já moveu de aba (mover na Carteira,
  * out/2026): com override, o servidor debita o caixa da aba efetiva (categorizarAsset segue o
  * override), então a prévia também. Sem override, a regra de sempre por tipo.
+ *
+ * Fase 2 (Reservas + Renda Fixa): a aba efetiva vence também o `tesouroDestino` do formulário —
+ * Tesouro de reserva movido para a RF usa o caixa da RF; título de RF movido para uma reserva
+ * usa só o livre. Quem decide se há override é o servidor (GET /api/carteira/mover/categoria),
+ * então com MOVER_CAIXA_RF_HABILITADO desligada nada muda aqui.
  */
 export function abaDaCompraEfetiva(
   form: CompraForm,
