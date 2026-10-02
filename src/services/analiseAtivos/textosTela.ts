@@ -211,6 +211,37 @@ export const TEXTOS_TELA = {
     precoMedio: 'Preço médio',
     resultado: 'Resultado',
     resultadoNota: 'sem proventos, igual à Carteira',
+    // --- fatia D (acrescentados) ---
+    rentabilidade: 'Rentabilidade',
+    rentabilidadeNota: 'com os proventos recebidos, igual à Carteira',
+    objetivoNaAba: '{objetivo}% da aba {aba}',
+    semObjetivo: 'sem objetivo definido',
+    faltamParaObjetivo: 'faltam {valor} p.p. para o objetivo',
+    acimaDoObjetivo: '{valor} p.p. acima do objetivo',
+    noObjetivo: 'no objetivo',
+    acimaDoAlvo: '{valor} p.p. acima do alvo',
+    abaixoDoAlvo: '{valor} p.p. abaixo do alvo',
+    noAlvo: 'no alvo',
+    semAlvo: 'sem alvo definido no Planejamento',
+    rotuloBarraObjetivo: 'objetivo do ativo: {valor}%',
+    rotuloBarraAlvo: 'alvo da classe: {valor}%',
+    ariaBarra: '{aba}: {valor}%, {objetivo}',
+    notaAba:
+      'Está na aba {aba} da sua Carteira: se você mover o ativo de aba, o peso e o alvo seguem a aba nova. Para mudar o objetivo ou o alvo, use a Carteira.',
+    cotacaoDiferente:
+      'Valor e % calculados pela Carteira com a cotação de {valor}; o cabeçalho mostra o fechamento de {data}.',
+    semPosicao: 'Você ainda não tem posição.',
+    faltaPlanejado: 'Na aba {aba}, faltam {valor} para esse objetivo.',
+    abaSemDetalhe: 'O ativo está na aba {aba} da sua Carteira. Os números ficam lá.',
+    abrirNaCarteira: 'Abrir na Carteira',
+    objetivoRotulo: 'Objetivo do ativo na aba (%)',
+    salvar: 'Salvar',
+    cancelar: 'Cancelar',
+    erroObjetivo: 'Não foi possível salvar o objetivo. Tente de novo.',
+    erro: 'Não foi possível carregar sua posição agora.',
+    tentarNovamente: 'Tentar de novo',
+    agindo:
+      'Você está agindo pela carteira de um cliente. Posição e alvo são dele; a tese não aparece neste modo.',
   },
   tese: {
     privada: 'Privada: só você vê',
@@ -231,6 +262,15 @@ export const TEXTOS_TELA = {
     tentarNovamente: 'Tentar de novo',
     contador: '{n} de {max} caracteres',
     limite: 'Limite de {max} caracteres',
+    // --- fatia D (acrescentados) ---
+    placeholder:
+      'Ex.: o que me fez olhar este ativo, o que vou acompanhar a cada resultado, o que me faria rever.',
+    concluir: 'Concluir',
+    apagarConfirmar: 'Apagar a sua tese sobre {ticker}? Não dá para desfazer.',
+    carregando: 'Carregando sua tese…',
+    erroCarregar: 'Não foi possível carregar sua tese agora.',
+    salvoAutomatico: 'Salvo automaticamente às {hora}',
+    apagada: 'Tese apagada',
   },
   quadro: {
     rotulo: 'Quadro',
