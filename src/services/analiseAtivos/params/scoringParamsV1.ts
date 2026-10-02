@@ -392,6 +392,9 @@ export const SCORING_PARAMS_V1: ScoringParams = {
         maxDias: { acao: 200, fii: 45 },
         recorrenteMinMeses: { acao: 2, fii: 6 },
       },
+      // diagnóstico 02/10/2026 (docs/analise-ativos/fase1/diagnostico-dy-absurdo.md)
+      duplicataSemPagamento: { tolPct: 2, premioPreferencialPct: 10, premioTolPct: 0.5 },
+      copiaRestituicao: { janelaDias: 3, tolPct: 0.5 },
     },
   },
   universo: {

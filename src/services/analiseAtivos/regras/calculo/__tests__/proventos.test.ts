@@ -8,6 +8,7 @@ import { menosMeses } from '@/services/analiseAtivos/regras/calculo/proventos';
 import {
   auditarProventos,
   dataComReal,
+  especieDoTicker,
   dpaNoAno,
   motivoProventosDefasados,
   normalizarTipo,
@@ -481,5 +482,158 @@ describe('frescor da base de proventos (achado qa-dados 30/09)', () => {
         '2026-09-29',
       ),
     ).toBe('2026-08-31');
+  });
+});
+
+describe('repetições da fonte com a mesma data-com (diagnóstico DY absurdo 02/10/2026)', () => {
+  // BRAPI: dataExGravada vem de dataCom; "sem pagamento" = data de pagamento = data gravada
+  const linha = (
+    id: string,
+    symbol: string,
+    valor: number,
+    pag: string,
+    ex: string,
+    tipo = 'DIVIDENDO',
+  ) => bruto({ id, symbol, tipo, valor, dataPagamento: pag, dataExGravada: ex });
+
+  it('KEPL3: parcela repetida sem pagamento, mesmo valor ⇒ duplicata; DY 12m conta uma vez', () => {
+    const aud = auditarProventos(
+      [
+        linha('a', 'KEPL3', 0.144232, '2025-12-15', '2025-12-15'),
+        linha('b', 'KEPL3', 0.144232, '2025-12-26', '2025-12-15'),
+      ],
+      [],
+      P,
+      { classe: 'acao' },
+    );
+    const a = aud.find((x) => x.origemId === 'a')!;
+    expect(a.status).toBe('duplicata');
+    expect(a.duplicataDe).toBe('b');
+    expect(a.flags).toContain('duplicata_sem_pagamento');
+    expect(aud.find((x) => x.origemId === 'b')!.status).toBe('valido');
+    expect(rendimento12m(aud, '2026-09-29', 'acao', [], P)).toEqual({
+      estado: 'ok',
+      valor: 0.144232,
+    });
+  });
+
+  it('linha sem pagamento gravada 1 dia antes (legado com fuso) também é sem pagamento', () => {
+    const aud = auditarProventos(
+      [
+        linha('a', 'ABEV3', 0.13, '2014-04-02', '2014-04-02'),
+        linha('b', 'ABEV3', 0.13, '2014-04-25', '2014-04-02'),
+        linha('c', 'XPTO3', 0.5, '2012-04-28', '2012-04-29'),
+        linha('d', 'XPTO3', 0.5, '2012-05-20', '2012-04-29'),
+      ],
+      [],
+      P,
+      { classe: 'acao' },
+    );
+    expect(aud.filter((x) => x.status === 'duplicata').map((x) => x.origemId)).toEqual(['a', 'c']);
+  });
+
+  it('CEBR5 (PN): valor da ON (÷1,1) misturado no ticker ⇒ fica o maior; ON fica o menor', () => {
+    const pn = auditarProventos(
+      [
+        linha('s', 'CEBR5', 1.832319, '2025-09-09', '2025-09-09'),
+        linha('p', 'CEBR5', 1.6657445, '2025-09-17', '2025-09-09'),
+      ],
+      [],
+      P,
+      { classe: 'acao' },
+    );
+    const sai = pn.find((x) => x.origemId === 'p')!;
+    expect(sai).toMatchObject({ status: 'duplicata', duplicataDe: 's' });
+    expect(sai.flags).toContain('duplicata_classe_irma');
+    expect(pn.find((x) => x.origemId === 's')!.status).toBe('valido');
+
+    const on = auditarProventos(
+      [
+        linha('s', 'CEBR3', 1.832319, '2025-09-09', '2025-09-09'),
+        linha('p', 'CEBR3', 1.6657445, '2025-09-17', '2025-09-09'),
+      ],
+      [],
+      P,
+      { classe: 'acao' },
+    );
+    expect(on.find((x) => x.origemId === 's')!.status).toBe('duplicata');
+    expect(on.find((x) => x.origemId === 'p')!.status).toBe('valido');
+  });
+
+  it('FII não usa o prêmio das PN; valores diferentes e parcelas pagas não são tocados', () => {
+    const fii = auditarProventos(
+      [
+        linha('s', 'XPTO11', 1.1, '2025-09-09', '2025-09-09', 'RENDIMENTO'),
+        linha('p', 'XPTO11', 1.0, '2025-09-17', '2025-09-09', 'RENDIMENTO'),
+      ],
+      [],
+      P,
+      { classe: 'fii' },
+    );
+    expect(fii.every((x) => x.status === 'valido')).toBe(true);
+    // HBRE3 dez/2025: 1,165 sem pagamento + 0,486 pago (complemento real: o preço caiu ~1,16 no ex)
+    const hbre = auditarProventos(
+      [
+        linha('s', 'HBRE3', 1.16542866, '2025-12-30', '2025-12-30'),
+        linha('p', 'HBRE3', 0.485595, '2026-04-10', '2025-12-30'),
+      ],
+      [],
+      P,
+      { classe: 'acao' },
+    );
+    expect(hbre.every((x) => x.status === 'valido')).toBe(true);
+    // duas linhas COM pagamento e mesmo valor (parcelas declaradas em dez/2025) seguem válidas
+    const parcelas = auditarProventos(
+      [
+        linha('a', 'WEGE3', 0.412832, '2026-08-12', '2025-12-22'),
+        linha('b', 'WEGE3', 0.412832, '2027-08-11', '2025-12-22'),
+      ],
+      [],
+      P,
+      { classe: 'acao' },
+    );
+    expect(parcelas.every((x) => x.status === 'valido')).toBe(true);
+  });
+
+  it('MELK3: DIVIDENDO que repete uma REST CAP DIN ⇒ tipo_excluido, fora do DY', () => {
+    const aud = auditarProventos(
+      [
+        linha('r', 'MELK3', 0.7343145, '2025-03-18', '2025-03-18', 'REST CAP DIN'),
+        linha('d', 'MELK3', 0.734315, '2025-03-28', '2025-03-18'),
+        linha('o', 'MELK3', 0.2, '2025-08-28', '2025-08-18'),
+      ],
+      [],
+      P,
+      { classe: 'acao' },
+    );
+    const copia = aud.find((x) => x.origemId === 'd')!;
+    expect(copia).toMatchObject({ status: 'tipo_excluido', duplicataDe: 'r' });
+    expect(copia.flags).toContain('copia_de_restituicao');
+    expect(aud.find((x) => x.origemId === 'o')!.status).toBe('valido');
+    expect(rendimento12m(aud, '2025-12-31', 'acao', [], P)).toEqual({ estado: 'ok', valor: 0.2 });
+  });
+
+  it('amortização de FII sai do rendimento, e a cópia dela como RENDIMENTO também', () => {
+    const aud = auditarProventos(
+      [
+        linha('a', 'RBIR11', 0.458, '2023-09-15', '2023-08-31', 'AMORTIZAÇÃO'),
+        linha('r', 'RBIR11', 0.458, '2023-09-15', '2023-08-31', 'RENDIMENTO'),
+        linha('x', 'RBIR11', 0.9, '2023-10-15', '2023-09-29', 'RENDIMENTO'),
+      ],
+      [],
+      P,
+      { classe: 'fii' },
+    );
+    expect(aud.find((x) => x.origemId === 'a')!.status).toBe('tipo_excluido');
+    expect(aud.find((x) => x.origemId === 'r')!.status).toBe('tipo_excluido');
+    expect(rendimento12m(aud, '2023-12-31', 'fii', [], P)).toEqual({ estado: 'ok', valor: 0.9 });
+  });
+
+  it('especieDoTicker: 3 = ON, 4–8 = PN, units e o resto = outra', () => {
+    expect(especieDoTicker('CEBR3')).toBe('ON');
+    expect(especieDoTicker('CEBR5')).toBe('PN');
+    expect(especieDoTicker('ITUB4')).toBe('PN');
+    expect(especieDoTicker('TAEE11')).toBe('outra');
+    expect(especieDoTicker('XYZ')).toBe('outra');
   });
 });

@@ -7,7 +7,11 @@
  *    pela convenção de params.sanidade.proventos.camposPorFonte);
  *  - repetição da BRAPI com outra data-com (PETR4 set/2024 2×) e, com o MESMO pagamento, a unique
  *    (symbol, date, tipo) + a soma do dividendService fazem 1 linha com valor em dobro (irreversível:
- *    só sinalizamos `possivel_soma_duplicada`).
+ *    só sinalizamos `possivel_soma_duplicada`);
+ *  - repetição com a MESMA data-com, uma linha sem pagamento e outra paga, de valor igual ou na razão
+ *    do prêmio de 10% das PN (ON e PN misturadas: CEBR5) ⇒ duplicata (marcarRepeticoesSemPagamento);
+ *  - DIVIDENDO/JCP/RENDIMENTO que repete uma REST CAP DIN/AMORTIZAÇÃO ⇒ tipo_excluido
+ *    (marcarCopiasDeRestituicao). Diagnóstico: docs/analise-ativos/fase1/diagnostico-dy-absurdo.md.
  * Data-com real = pregão B3 anterior à data ex. Nunca usa o pagamento como fallback de data-com.
  * Ajuste a hoje POR EVENTO: valor ÷ Π eventos confirmados com data > data-com (MGLU3 2020 teve
  * proventos antes e depois do 4:1 no mesmo ano). Funções puras.
@@ -102,6 +106,124 @@ function fatorApos(eventos: EventoParaAjuste[], data: string | null): number {
     .reduce((acc, e) => acc * e.fator, 1);
 }
 
+/** Espécie pelo sufixo do ticker B3: 3 = ON; 4 a 8 = PN; o resto (units 11, recibos) = outra. */
+export function especieDoTicker(symbol: string): 'ON' | 'PN' | 'outra' {
+  const m = /^[A-Z0-9]{4}(\d{1,2})$/.exec(symbol.toUpperCase());
+  if (!m) return 'outra';
+  const n = Number(m[1]);
+  if (n === 3) return 'ON';
+  if (n >= 4 && n <= 8) return 'PN';
+  return 'outra';
+}
+
+/**
+ * Linha "sem pagamento": a BRAPI não informou paymentDate e o app gravou a data ex/data-com também
+ * no campo de pagamento (4.752 linhas no dev com as datas iguais; 767 a −1 dia, legado 2009–2014
+ * gravado com fuso). Pagamento a ≤ 1 dia da data-com não existe na B3 (liquidação D+2), então
+ * |pagamento − data gravada| ≤ 1 dia = sem pagamento. Só vale para a fonte cuja data ex vem do campo
+ * dataCom (BRAPI).
+ */
+export function semPagamento(
+  i: Pick<ProventoAuditadoCompleto, 'dataExOrigem' | 'dataPagamento' | 'dataExGravada'>,
+): boolean {
+  return (
+    i.dataExOrigem === 'dataCom' &&
+    i.dataPagamento !== null &&
+    i.dataExGravada !== null &&
+    diasEntre(i.dataPagamento, i.dataExGravada) <= 1
+  );
+}
+
+const TIPOS_RESTITUICAO: readonly TipoNormalizado[] = ['REST_CAP', 'AMORTIZACAO'];
+
+/**
+ * Cópia de restituição de capital (diagnóstico 02/10/2026): a fonte publica o MESMO evento como
+ * REST CAP DIN/AMORTIZAÇÃO e de novo como DIVIDENDO/JCP/RENDIMENTO — mesmo símbolo, data-com a
+ * ≤ janelaDias e valor igual (±tolPct). A fonte distingue o tipo, então a cópia sai do provento
+ * (status tipo_excluido, flag 'copia_de_restituicao', duplicataDe = a linha de restituição).
+ * MELK3 18/03/2025 (0,7343 REST CAP DIN × 0,7343 DIVIDENDO), RBIR11 31/08/2023.
+ */
+function marcarCopiasDeRestituicao(itens: ProventoAuditadoCompleto[], p: ScoringParams): void {
+  const cfg = p.sanidade.proventos.copiaRestituicao;
+  const restituicoes = itens.filter(
+    (i) => TIPOS_RESTITUICAO.includes(i.tipoNormalizado) && i.dataComReal && i.valor > 0,
+  );
+  if (restituicoes.length === 0) return;
+  for (const i of itens) {
+    if (i.status !== 'valido' || !i.dataComReal) continue;
+    const r = restituicoes.find(
+      (x) =>
+        x.symbol === i.symbol &&
+        diasEntre(x.dataComReal!, i.dataComReal!) <= cfg.janelaDias &&
+        Math.abs(i.valor / x.valor - 1) <= cfg.tolPct / 100,
+    );
+    if (!r) continue;
+    i.status = 'tipo_excluido';
+    i.duplicataDe = r.origemId;
+    i.flags.push('copia_de_restituicao');
+  }
+}
+
+/**
+ * Repetição sem pagamento (diagnóstico 02/10/2026): mesmo símbolo, tipo e data-com; uma linha SEM
+ * pagamento (semPagamento) e outra COM pagamento. A unique (symbol, date, tipo) do app deixa as duas
+ * entrarem porque a "data de pagamento" difere. Critério conservador, só com a MESMA data-com:
+ *  - valor igual (±duplicataSemPagamento.tolPct, 2%): a linha sem pagamento é a duplicata
+ *    (KEPL3 15/12/2025 0,1442 × 2; NATU3 mar/2024; LUXM4 abr/2026) — flag 'duplicata_sem_pagamento';
+ *  - ações, razão = 1 + premioPreferencialPct (10%, art. 17 §1º da Lei 6.404) ±premioTolPct: a fonte
+ *    mistura o valor da ON e o da PN no mesmo ticker (CEBR5/CEBR6/CEEB5/BRSR6). Fica o valor da
+ *    espécie do ticker (PN = o maior, ON = o menor; units e outras: a linha com pagamento) — flag
+ *    'duplicata_classe_irma'.
+ * Valores diferentes fora dessas razões (tranches, complementos) NÃO são tocados.
+ */
+function marcarRepeticoesSemPagamento(
+  itens: ProventoAuditadoCompleto[],
+  p: ScoringParams,
+  classe: 'acao' | 'fii' | undefined,
+): void {
+  const cfg = p.sanidade.proventos.duplicataSemPagamento;
+  const tol = cfg.tolPct / 100;
+  const premio = 1 + cfg.premioPreferencialPct / 100;
+  const tolPremio = cfg.premioTolPct / 100;
+  const grupos = new Map<string, ProventoAuditadoCompleto[]>();
+  for (const i of itens) {
+    if (i.status !== 'valido' || !i.dataComReal) continue;
+    const k = `${i.symbol}|${i.tipoNormalizado}|${i.dataComReal}`;
+    const g = grupos.get(k);
+    if (g) g.push(i);
+    else grupos.set(k, [i]);
+  }
+  for (const g of grupos.values()) {
+    if (g.length < 2) continue;
+    for (const x of g.filter(semPagamento)) {
+      if (x.status !== 'valido') continue;
+      for (const y of g) {
+        if (y === x || y.status !== 'valido' || semPagamento(y) || !(y.valor > 0)) continue;
+        const razao = x.valor / y.valor;
+        if (Math.abs(razao - 1) <= tol) {
+          x.status = 'duplicata';
+          x.duplicataDe = y.origemId;
+          x.flags.push('duplicata_sem_pagamento');
+          break;
+        }
+        const ehPremio =
+          classe !== 'fii' &&
+          (Math.abs(razao / premio - 1) <= tolPremio || Math.abs(razao * premio - 1) <= tolPremio);
+        if (!ehPremio) continue;
+        const especie = especieDoTicker(x.symbol);
+        const xMaior = x.valor > y.valor;
+        // PN fica com o maior; ON com o menor; outra espécie: a linha com pagamento
+        const fica = especie === 'PN' ? (xMaior ? x : y) : especie === 'ON' ? (xMaior ? y : x) : y;
+        const sai = fica === x ? y : x;
+        sai.status = 'duplicata';
+        sai.duplicataDe = fica.origemId;
+        sai.flags.push('duplicata_classe_irma');
+        break;
+      }
+    }
+  }
+}
+
 export function auditarProventos(
   brutos: ProventoBruto[],
   eventos: EventoParaAjuste[],
@@ -162,6 +284,9 @@ export function auditarProventos(
       }
     }
   }
+
+  marcarCopiasDeRestituicao(itens, p);
+  marcarRepeticoesSemPagamento(itens, p, opts?.classe);
 
   // Duplicatas: mesmo símbolo+tipo+valor, data-com diferente e pagamentos a ≤ N dias
   const validos = itens
