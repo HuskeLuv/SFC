@@ -345,9 +345,12 @@ export function montarLinhasQuadro(e: EntradaQuadro): ResultadoMontagem {
     }
     if (valorMercado !== null) valorMercado = Math.round(valorMercado * 100) / 100;
 
+    // Asset.name de vários FIIs do catálogo é o próprio ticker: aí vale o nome do cadastro
+    const nomeAsset =
+      asset?.name && asset.name.trim().toUpperCase() !== u.symbol ? asset.name.trim() : null;
     const nome = ehAcao
-      ? (asset?.name ?? ciaPor.get(u.cnpj) ?? setor?.nomePregao ?? u.symbol)
-      : (asset?.name ?? nomeB3 ?? u.symbol);
+      ? (nomeAsset ?? ciaPor.get(u.cnpj) ?? setor?.nomePregao ?? u.symbol)
+      : (nomeAsset ?? nomeB3 ?? u.symbol);
 
     return {
       symbol: u.symbol,

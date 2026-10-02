@@ -161,7 +161,10 @@ function entrada(over: Partial<EntradaQuadro> = {}): EntradaQuadro {
       { ticker: 'HGLG11', nomeB3: 'FII CSHG LOG' },
       { ticker: 'AGRO11', nomeB3: 'FIAGRO XYZ' },
     ],
-    assets: [{ id: 'asset-wege3', symbol: 'WEGE3', name: 'WEG' }],
+    assets: [
+      { id: 'asset-wege3', symbol: 'WEGE3', name: 'WEG' },
+      { id: 'asset-hglg11', symbol: 'HGLG11', name: 'HGLG11' },
+    ],
     fiiMensal: [
       {
         cnpj: 'F-HGL',
@@ -304,6 +307,10 @@ describe('montarLinhasQuadro', () => {
     expect(ehFiagro('FIAGRO XYZ')).toBe(true);
     expect(ehFiagro('FI-AGRO ABC')).toBe(true);
     expect(ehFiagro('FII CSHG LOG')).toBe(false);
+  });
+
+  it('nome do FII: Asset.name igual ao ticker cede ao nome do cadastro B3', () => {
+    expect(linha(r, 'HGLG11')).toMatchObject({ nome: 'FII CSHG LOG', assetId: 'asset-hglg11' });
   });
 
   it('FoF sem score fica fora do Índice', () => {
