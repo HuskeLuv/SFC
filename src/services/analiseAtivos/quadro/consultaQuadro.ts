@@ -132,13 +132,16 @@ export function facetasDe(
   return { setores, tipos: classe === 'fii' ? ORDEM_TIPOS.filter((t) => presentes.has(t)) : [] };
 }
 
-/** Frescor da cotação do Quadro: última data de preço contra hoje, em pregões. */
+/**
+ * Frescor da cotação do Quadro: pregões depois da última data de preço e ANTES de hoje (o
+ * fechamento de hoje só chega à noite) — mais de PREGOES_ATRASO_COTACAO = 'atrasado'.
+ */
 export function frescorCotacao(linhas: readonly LinhaQuadroApi[], hoje: string): FrescorCotacao {
   const datas = linhas.map((l) => l.precoData).filter((d): d is string => !!d);
   if (datas.length === 0) return { data: null, status: 'sem_dado' };
   const data = datas.reduce((a, b) => (a > b ? a : b));
   const atraso =
-    data >= hoje ? 0 : pregoesEntre(data, hoje).filter((d) => d > data && d <= hoje).length;
+    data >= hoje ? 0 : pregoesEntre(data, hoje).filter((d) => d > data && d < hoje).length;
   return { data, status: atraso > PREGOES_ATRASO_COTACAO ? 'atrasado' : 'em_dia' };
 }
 

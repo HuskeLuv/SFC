@@ -175,6 +175,9 @@ describe('consultaQuadro · página, facetas e frescor', () => {
 
   it('frescor da cotação em pregões', () => {
     expect(frescorCotacao(API, '2026-09-30')).toEqual({ data: '2026-09-29', status: 'em_dia' });
+    // 02/10 de manhã: 30/09 e 01/10 saíram depois de 29/09; o de hoje ainda não fechou
+    expect(frescorCotacao(API, '2026-10-02').status).toBe('em_dia');
+    expect(frescorCotacao(API, '2026-10-05').status).toBe('atrasado');
     expect(frescorCotacao(API, '2026-10-08').status).toBe('atrasado');
     expect(frescorCotacao([], '2026-10-08')).toEqual({ data: null, status: 'sem_dado' });
   });
