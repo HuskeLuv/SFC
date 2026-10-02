@@ -30,7 +30,7 @@
  *
  * 3) POST /api/carteira/mover                                       (Fatia A)
  *    body: `moverInvestimentoSchema` (discriminado por `acao`):
- *      { acao:'mover', tipo, id, categoria, subgrupo } | { acao:'restaurar', tipo, id }
+ *      { acao:'mover', tipo, id, categoria, subgrupo? } | { acao:'restaurar', tipo, id }
  *    Validações, em ordem: zod 400 → posse 404 → origem movível 409
  *    (motivoNaoMovivel) → destino ∈ destinosPermitidos 409 {error: motivo} →
  *    isSubgrupoValido 400 → 'restaurar' sem item movido 409.
@@ -82,8 +82,7 @@
  *    resposta idêntica à fase 1 (sem os campos opcionais).
  *
  * 6) POST /api/carteira/mover (mesma rota de 3)                    (Fatia A)
- *    zod: categoria z.enum(CATEGORIAS_MOVIVEIS_TODAS), subgrupo opcional (hoje
- *    o schema segue com as 6; a Fatia A troca). Chave desligada + destino do
+ *    zod: categoria z.enum(CATEGORIAS_MOVIVEIS_TODAS), subgrupo opcional. Chave desligada + destino do
  *    trio → 409 MOTIVO_ABA_FORA_DA_FASE. Subgrupo exigido só se
  *    SUBGRUPO_EDITAVEL[destino] (400 'Escolha a seção'); no trio é ignorado.
  *    Mesma aba e seção não editável → noop. Grava { categoriaOverride:
@@ -953,8 +952,10 @@ export const moverInvestimentoSchema = z.discriminatedUnion('acao', [
     acao: z.literal('mover'),
     tipo: tipoItemSchema,
     id: idSchema,
-    categoria: z.enum(CATEGORIAS_MOVIVEIS),
-    subgrupo: z.string().trim().min(1).max(32),
+    // As 9: o serviço decide pela chave (desligada + destino do trio → 409).
+    categoria: z.enum(CATEGORIAS_MOVIVEIS_TODAS),
+    // Exigido só quando SUBGRUPO_EDITAVEL[categoria] (400 'Escolha a seção'); no trio é ignorado.
+    subgrupo: z.string().trim().min(1).max(32).optional(),
   }),
   z.object({
     acao: z.literal('restaurar'),
@@ -969,11 +970,7 @@ export type MoverInvestimentoInput = z.infer<typeof moverInvestimentoSchema>;
  * Corpo do POST no cliente: aceita as 9 categorias (o servidor decide pela
  * chave — com ela desligada, destino do trio é recusado).
  */
-export type MoverInvestimentoBody =
-  | (Omit<Extract<MoverInvestimentoInput, { acao: 'mover' }>, 'categoria'> & {
-      categoria: CategoriaMovivel;
-    })
-  | Extract<MoverInvestimentoInput, { acao: 'restaurar' }>;
+export type MoverInvestimentoBody = MoverInvestimentoInput;
 
 export const moverOpcoesQuerySchema = z.object({ tipo: tipoItemSchema, id: idSchema });
 export const categoriaAtivoQuerySchema = z.object({ assetId: idSchema });
@@ -1033,6 +1030,13 @@ export interface MoverOpcoesResponse {
   destinos: DestinoOpcao[];
   /** Avisos gerais do item (os específicos de destino ficam em destinos[].avisos). */
   avisos: string[];
+  /**
+   * Fase 2: números da Saúde Financeira para a prévia antes → depois (moverEfeitos
+   * `SaudePrevia`). Só vem com a chave ligada e quando a Reserva de Emergência
+   * está envolvida (origem ou destino permitido); null = a Saúde não carregou
+   * (a confirmação cai na frase fixa AVISO_SAUDE_RESERVA).
+   */
+  saudePrevia?: { reservaAtual: number; necessario: number | null } | null;
 }
 
 /** GET /api/carteira/mover/categoria */

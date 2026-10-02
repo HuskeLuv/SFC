@@ -494,18 +494,19 @@ describe('moverInvestimentoSchema', () => {
     ).toBe(true);
   });
 
-  it('recusa categoria fixa, tipo desconhecido e mover sem subgrupo', () => {
+  it('recusa categoria fixa e tipo desconhecido; subgrupo é opcional (o serviço exige)', () => {
     const base = { acao: 'mover', tipo: 'posicao', id, subgrupo: 'value' };
-    expect(
-      moverInvestimentoSchema.safeParse({ ...base, categoria: 'rendaFixaFundos' }).success,
-    ).toBe(false);
+    expect(moverInvestimentoSchema.safeParse({ ...base, categoria: 'imoveisBens' }).success).toBe(
+      false,
+    );
     expect(
       moverInvestimentoSchema.safeParse({ ...base, categoria: 'acoes', tipo: 'outro' }).success,
     ).toBe(false);
+    // Fase 2: 'Escolha a seção' (400) sai do serviço só quando a aba deixa escolher.
     expect(
       moverInvestimentoSchema.safeParse({ acao: 'mover', tipo: 'posicao', id, categoria: 'acoes' })
         .success,
-    ).toBe(false);
+    ).toBe(true);
     expect(moverInvestimentoSchema.safeParse({ acao: 'apagar', tipo: 'posicao', id }).success).toBe(
       false,
     );

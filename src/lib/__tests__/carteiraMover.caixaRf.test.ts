@@ -272,14 +272,19 @@ describe('categorias e grupos', () => {
     expect(mudaRegraIR('reservaOportunidade', 'reservaEmergencia')).toBe(false);
   });
 
-  it('zod do POST continua com as 6 (a fatia A troca para TODAS)', () => {
+  it('zod do POST aceita as 9 e subgrupo opcional (o serviço decide pela chave)', () => {
+    for (const categoria of ['reservaEmergencia', 'reservaOportunidade', 'rendaFixaFundos']) {
+      expect(
+        moverInvestimentoSchema.safeParse({ acao: 'mover', tipo: 'posicao', id: 'p1', categoria })
+          .success,
+      ).toBe(true);
+    }
     expect(
       moverInvestimentoSchema.safeParse({
         acao: 'mover',
         tipo: 'posicao',
         id: 'p1',
-        categoria: 'reservaEmergencia',
-        subgrupo: 'x',
+        categoria: 'moedasCriptos',
       }).success,
     ).toBe(false);
   });
