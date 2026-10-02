@@ -55,6 +55,15 @@ export const secaoDoTituloTesouro = (bondType: string | null | undefined): TipoR
   return null;
 };
 
+/**
+ * Tipo do título de um Tesouro de catálogo SEM FI, pelo nome do Asset ("Tesouro IPCA+ 2029" →
+ * "Tesouro IPCA+"). Fonte única da rota renda-fixa (linhas legacy) e do mover.
+ */
+export const tituloTesouroDoNome = (
+  asset: { type?: string | null; name?: string | null } | null | undefined,
+): string | null =>
+  asset?.type === 'tesouro-direto' ? (asset.name?.match(/^(.+)\s\d{4}$/)?.[1] ?? null) : null;
+
 /** Regra da rota renda-fixa da main para item com FI. */
 const secaoPeloFi = (fiType: string, indexer: string | null | undefined): TipoRendaFixa => {
   if (String(fiType).endsWith('_HIB')) return 'hibrida';

@@ -36,12 +36,14 @@ import {
   obterCategoriaAtivo,
   obterOpcoesMover,
   restaurarOriginal,
+  secaoRendaFixaDoItem,
   tesouroDestinoDaCompra,
   MSG_ABA_FORA_DA_FASE,
   MSG_ESCOLHA_SECAO,
   MSG_SECAO_SEGUE_CVM,
   type ItemMover,
 } from '../moverInvestimento';
+import { secaoRendaFixa, tituloTesouroDoNome } from '@/lib/rendaFixaSecao';
 
 const asset = (over: Record<string, unknown>) => ({
   id: 'a-1',
@@ -115,6 +117,33 @@ describe('carregarItemMover', () => {
 
     mockPrisma.portfolio.findFirst.mockResolvedValue({ ...posicao(O), asset: null, assetId: null });
     expect(await carregarItemMover('user-1', 'posicao', 'p-1')).toBeNull();
+  });
+});
+
+describe('secaoRendaFixaDoItem — paridade com a rota renda-fixa (linha sem FI)', () => {
+  it.each([
+    ['Tesouro IPCA+ 2029', 'CDI', 'hibrida'],
+    ['Tesouro IPCA+ 2029', null, 'hibrida'],
+    ['Tesouro Prefixado 2027', 'CDI', 'prefixada'],
+    ['Tesouro Selic 2029', null, 'pos-fixada'],
+  ] as const)('%s (benchmark %s) → %s, igual à rota', (nome, benchmark, esperado) => {
+    const a = asset({ type: 'tesouro-direto', name: nome, symbol: 'TD', source: 'tesouro' });
+    const item = {
+      tipo: 'posicao',
+      asset: a,
+      fi: null,
+      baseCtx: { reservaDestino: 'emergencia' },
+      notesRf: { benchmark },
+    } as unknown as ItemMover;
+    const mover = secaoRendaFixaDoItem(item, true);
+    // Como a rota renda-fixa monta a linha legacy movida para a RF.
+    const rota = secaoRendaFixa({
+      benchmark,
+      tesouroBondType: tituloTesouroDoNome(a),
+      movidoParaRf: true,
+    });
+    expect(mover).toEqual({ secao: esperado, via: 'titulo' });
+    expect(mover.secao).toBe(rota);
   });
 });
 

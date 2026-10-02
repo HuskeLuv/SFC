@@ -70,7 +70,7 @@ import {
   type TipoItemMover,
 } from '@/lib/carteiraMover';
 import { moverCaixaRfHabilitado } from '@/lib/carteiraMoverConfig';
-import { secaoDoTituloTesouro, secaoRendaFixa } from '@/lib/rendaFixaSecao';
+import { secaoDoTituloTesouro, secaoRendaFixa, tituloTesouroDoNome } from '@/lib/rendaFixaSecao';
 import { fundoSubtipoFromAssetType, isFundoCatchAllType, isFundoSubtipo } from '@/lib/fundoTypes';
 import {
   categorizarAsset,
@@ -249,15 +249,19 @@ export const secaoRendaFixaDoItem = (
   item: ItemMover,
   movidoParaRf: boolean = categoriaBaseDaAba(item.asset, item.baseCtx) !== 'rendaFixaFundos',
 ): { secao: TipoRendaFixa; via: 'indexador' | 'titulo' } => {
+  // Sem FI (Tesouro legacy): o tipo vem do nome do Asset, como a rota renda-fixa.
+  const tesouroBondType = item.fi
+    ? (item.fi.tesouroBondType ?? null)
+    : tituloTesouroDoNome(item.asset);
   const secao = secaoRendaFixa({
     fiType: item.fi?.type ?? null,
     indexer: item.fi?.indexer ?? null,
-    tesouroBondType: item.fi?.tesouroBondType ?? null,
+    tesouroBondType,
     debentureTipo: item.notesRf?.debentureTipo ?? null,
     benchmark: item.notesRf?.benchmark ?? null,
     movidoParaRf,
   });
-  const peloTitulo = movidoParaRf && secaoDoTituloTesouro(item.fi?.tesouroBondType) === secao;
+  const peloTitulo = movidoParaRf && secaoDoTituloTesouro(tesouroBondType) === secao;
   return { secao, via: peloTitulo ? 'titulo' : 'indexador' };
 };
 

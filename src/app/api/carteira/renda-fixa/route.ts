@@ -13,7 +13,7 @@ import {
 } from '@/services/portfolio/tesouroDestino';
 import { moverCaixaRfHabilitado } from '@/lib/carteiraMoverConfig';
 import { overrideEfetivo, type BaseCtx } from '@/lib/carteiraMover';
-import { secaoRendaFixa } from '@/lib/rendaFixaSecao';
+import { secaoRendaFixa, tituloTesouroDoNome } from '@/lib/rendaFixaSecao';
 import { filtrarDaCategoria, wherePortfolioGrupoCaixaRf } from '@/services/portfolio/categoriaAba';
 import { aplicarCamposMovido, camposMovidoPorLinha } from '@/app/api/carteira/_lib/linhaMovida';
 
@@ -87,9 +87,6 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
   /** Veio de uma Reserva por override (seção pelo tipo do título — secaoRendaFixa). */
   const movidoParaRf = (p: (typeof portfolio)[number]) =>
     caixaRf && overrideEfetivo(p.asset, p.categoriaOverride, baseCtxDe(p)) === 'rendaFixaFundos';
-  /** Tipo do título do Tesouro de catálogo pelo nome ("Tesouro Prefixado 2029"). */
-  const bondTypeDoNome = (p: (typeof portfolio)[number]) =>
-    p.asset?.type === 'tesouro-direto' ? (p.asset.name?.match(/^(.+)\s\d{4}$/)?.[1] ?? null) : null;
 
   // Buscar transações para obter metadados editados
   const assetIds = portfolio.map((p) => p.assetId).filter((id): id is string => id !== null);
@@ -254,7 +251,7 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
       const tipoLegacy = secaoRendaFixa({
         debentureTipo: metadata.debentureTipo,
         benchmark: metadata.benchmark,
-        tesouroBondType: bondTypeDoNome(item),
+        tesouroBondType: tituloTesouroDoNome(item.asset),
         movidoParaRf: movidoParaRf(item),
       });
 
