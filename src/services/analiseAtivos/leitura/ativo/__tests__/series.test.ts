@@ -120,6 +120,19 @@ describe('detectarSaltoProvento', () => {
   });
 });
 
+describe('detectarSaltoProvento com payout não positivo', () => {
+  it('salto > 2× em ano de prejuízo (payout negativo) fica em conferência (AURE3 2023)', () => {
+    const r = detectarSaltoProvento(
+      [
+        { ano: 2022, valor: 0.186 },
+        { ano: 2023, valor: 3 },
+      ],
+      { payoutPorAno: { 2022: 40, 2023: -120 } },
+    );
+    expect(r.anosSuspeitos).toEqual([2023]);
+  });
+});
+
 describe('cagrJanela', () => {
   it('extremo suspeito fica fora (WEGE3 2025)', () => {
     const { serie } = detectarSaltoProvento(WEGE3_DPA, { payoutPorAno: WEGE3_PAYOUT });

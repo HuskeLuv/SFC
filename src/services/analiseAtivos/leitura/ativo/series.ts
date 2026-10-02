@@ -75,7 +75,7 @@ export interface OpcoesSaltoProvento {
   /**
    * Payout (%) por ano. Quando o ano tem payout informado, o salto só marca se o payout também
    * passar de `payoutMax` (um salto acompanhado de lucro é real: WEGE3 2021 dobrou com payout de
-   * ~51%). Sem payout do ano (FIIs, ano sem lucro), vale só o salto.
+   * ~51%). Sem payout do ano (FIIs, ano sem lucro) ou com payout ≤ 0 (prejuízo), vale só o salto.
    */
   payoutPorAno?: Record<number, number | null | undefined>;
   /** padrão PAYOUT_MAX_PADRAO (150) */
@@ -108,8 +108,11 @@ export function detectarSaltoProvento(
     if (typeof v === 'number' && Number.isFinite(v)) {
       if (anterior !== null && v > fator * anterior) {
         const payout = opts.payoutPorAno?.[p.ano];
+        // payout ≤ 0 = prejuízo no ano: o salto não veio acompanhado de lucro (AURE3 2023, 16×)
         suspeito =
-          typeof payout === 'number' && Number.isFinite(payout) ? payout > payoutMax : true;
+          typeof payout === 'number' && Number.isFinite(payout) && payout > 0
+            ? payout > payoutMax
+            : true;
       }
       if (v > 0) anterior = v;
     }
