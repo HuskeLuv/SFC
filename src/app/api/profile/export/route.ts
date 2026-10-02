@@ -14,6 +14,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireAuthWithActing } from '@/utils/auth';
 import prisma from '@/lib/prisma';
 import { withErrorHandler } from '@/utils/apiErrorHandler';
+import { tesesParaExportacao } from '@/services/analiseAtivos/tese/teseService';
 
 export const GET = withErrorHandler(async (req: NextRequest) => {
   const { payload } = await requireAuthWithActing(req);
@@ -40,6 +41,7 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
     communityComments,
     communityLikes,
     communityReports,
+    analiseTeses,
   ] = await Promise.all([
     prisma.user.findUnique({
       where: { id: userId },
@@ -64,6 +66,8 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
     prisma.communityComment.findMany({ where: { authorId: userId } }),
     prisma.communityLike.findMany({ where: { userId } }),
     prisma.communityReport.findMany({ where: { reporterId: userId } }),
+    // Análise de Ativos: teses privadas (texto livre do usuário).
+    tesesParaExportacao(userId),
   ]);
 
   if (!user) {
@@ -99,6 +103,9 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
       comentarios: communityComments,
       curtidas: communityLikes,
       denuncias: communityReports,
+    },
+    analiseAtivos: {
+      teses: analiseTeses,
     },
   };
 
