@@ -61,7 +61,9 @@ export function moverChanges(
   const trocouAba = r.origem.categoria !== r.destino.categoria;
   const changes: FieldChange[] = [];
   if (trocouAba) changes.push({ field: 'aba', label: 'Aba', before: de.aba, after: para.aba });
-  if (trocouAba || de.subgrupo !== para.subgrupo) {
+  // Reservas não têm seção (fase 2): sem linha "Subgrupo: — → —" no Histórico.
+  const algumSubgrupo = de.subgrupo != null || para.subgrupo != null;
+  if (algumSubgrupo && (trocouAba || de.subgrupo !== para.subgrupo)) {
     changes.push({
       field: 'subgrupo',
       label: 'Subgrupo',
