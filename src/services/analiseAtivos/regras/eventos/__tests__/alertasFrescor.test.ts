@@ -70,6 +70,7 @@ function entradaTudoEmDia() {
     cadastro_fii: '2026-09-27',
     eventos: '2026-09-25',
     scores: '2026-09-29',
+    quadro: '2026-09-29',
   };
   return { ultimaOkPorJob, dadoMaisRecente };
 }

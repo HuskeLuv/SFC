@@ -275,6 +275,7 @@ export type NomeJob =
   | 'fii-trimestral'
   | 'cotahist'
   | 'scores'
+  | 'quadro'
   | `backfill:${string}`;
 export interface AlertaJob {
   codigo: string;
@@ -321,4 +322,5 @@ export type Camada =
   | 'cadastro_b3'
   | 'cadastro_fii'
   | 'eventos'
-  | 'scores';
+  | 'scores'
+  | 'quadro';

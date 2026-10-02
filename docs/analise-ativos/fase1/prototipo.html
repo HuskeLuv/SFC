@@ -1,0 +1,1601 @@
+<title>Análise de Ativos Fase 1</title>
+<meta name="description" content="Protótipo navegável da Fase 1 da Análise de Ativos do My Finance: Quadro de Ações e FIIs, busca, página do ativo, tese privada, beta e estados.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: bancada de protótipo (cenários e controles à esquerda, tela do app à direita) + especificação embaixo.
+   Mesma bancada de docs/carteira-mover e docs/pwa. Cores: só brandColors.ts + cinzas do app + negativos #D92D20/#F97066. */
+:root{
+  --mf-potencia:#2D2D2D; --mf-seguranca:#314666; --mf-patrimonio:#396CAA; --mf-outside:#0079F2;
+  --mf-tranquilidade:#6E9DC4; --mf-transparencia:#CCCCCC; --mf-escolha:#EAEAEA;
+  --pg-bg:#F3F5F8; --pg-surface:#FFFFFF; --pg-ink:#2D2D2D; --pg-muted:#5B6576; --pg-line:#DCE2EA; --pg-soft:#E8F1FC;
+  --app-bg:#F9FAFB; --app-surface:#FFFFFF; --app-line:#E4E7EC; --app-line-soft:#F2F4F7; --app-ink:#344054; --app-strong:#1D2939; --app-muted:#667085;
+  --head-bg:#314666; --band-bg:#6E9DC4; --band-soft:#EDF2F8; --band-soft-ink:#314666;
+  --accent:#0079F2; --link:#396CAA; --focus:#0079F2; --hl:rgba(0,121,242,.06);
+  --pos:#396CAA; --neg:#D92D20; --danger-bg:rgba(217,45,32,.08);
+  --primary:#396CAA; --primary-fg:#FFFFFF;
+  --nav-active-bg:#EDF2F8; --nav-active-fg:#396CAA; --badge-bg:#DCE6F2; --badge-fg:#396CAA;
+  /* semáforo: forma + texto; cor reforça (azul cheio / azul meio / vermelho / cinza tracejado / cinza traço) */
+  --st-ok:#396CAA; --st-ok-bg:#EDF2F8; --st-part:#396CAA; --st-part-bg:#F2F4F7; --st-no:#D92D20; --st-no-bg:rgba(217,45,32,.08); --st-na:#98A2B3;
+  /* séries de gráfico: LPA/VP = outside; cotação = potencia (escuro: escolha) */
+  --s1:#0079F2; --s2:#2D2D2D; --grid:#EEF0F3; --axis:#98A2B3; --bar:#396CAA; --bar-soft:#DCE6F2;
+  --skel:#EEF0F3; --overlay:rgba(45,45,45,.45); --shadow:0 12px 32px rgba(45,45,45,.16);
+  --font:'Outfit',ui-sans-serif,system-ui,-apple-system,'Segoe UI',sans-serif;
+  --mono:'IBM Plex Mono',ui-monospace,'SFMono-Regular',Menlo,monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    color-scheme:dark;
+    --pg-bg:#111113; --pg-surface:#1F1F22; --pg-ink:#EAEAEA; --pg-muted:#98A2B3; --pg-line:#2E3440; --pg-soft:rgba(110,157,196,.10);
+    --app-bg:#18181B; --app-surface:#1F1F22; --app-line:#2E3440; --app-line-soft:#26262A; --app-ink:#D0D5DD; --app-strong:#F2F4F7; --app-muted:#98A2B3;
+    --band-soft:rgba(57,108,170,.16); --band-soft-ink:#EAEAEA;
+    --accent:#6E9DC4; --link:#6E9DC4; --focus:#6E9DC4; --hl:rgba(0,121,242,.16);
+    --pos:#6E9DC4; --neg:#F97066; --danger-bg:rgba(249,112,102,.10);
+    --nav-active-bg:rgba(57,108,170,.12); --nav-active-fg:#6E9DC4; --badge-bg:rgba(57,108,170,.20); --badge-fg:#6E9DC4;
+    --st-ok:#6E9DC4; --st-ok-bg:rgba(57,108,170,.18); --st-part:#6E9DC4; --st-part-bg:#26262A; --st-no:#F97066; --st-no-bg:rgba(249,112,102,.10); --st-na:#667085;
+    --s1:#6E9DC4; --s2:#EAEAEA; --grid:#2A2E36; --axis:#667085; --bar:#6E9DC4; --bar-soft:rgba(110,157,196,.25);
+    --skel:#26262A; --overlay:rgba(0,0,0,.6); --shadow:0 12px 32px rgba(0,0,0,.5);
+  }
+}
+:root[data-theme="dark"]{
+  color-scheme:dark;
+  --pg-bg:#111113; --pg-surface:#1F1F22; --pg-ink:#EAEAEA; --pg-muted:#98A2B3; --pg-line:#2E3440; --pg-soft:rgba(110,157,196,.10);
+  --app-bg:#18181B; --app-surface:#1F1F22; --app-line:#2E3440; --app-line-soft:#26262A; --app-ink:#D0D5DD; --app-strong:#F2F4F7; --app-muted:#98A2B3;
+  --band-soft:rgba(57,108,170,.16); --band-soft-ink:#EAEAEA;
+  --accent:#6E9DC4; --link:#6E9DC4; --focus:#6E9DC4; --hl:rgba(0,121,242,.16);
+  --pos:#6E9DC4; --neg:#F97066; --danger-bg:rgba(249,112,102,.10);
+  --nav-active-bg:rgba(57,108,170,.12); --nav-active-fg:#6E9DC4; --badge-bg:rgba(57,108,170,.20); --badge-fg:#6E9DC4;
+  --st-ok:#6E9DC4; --st-ok-bg:rgba(57,108,170,.18); --st-part:#6E9DC4; --st-part-bg:#26262A; --st-no:#F97066; --st-no-bg:rgba(249,112,102,.10); --st-na:#667085;
+  --s1:#6E9DC4; --s2:#EAEAEA; --grid:#2A2E36; --axis:#667085; --bar:#6E9DC4; --bar-soft:rgba(110,157,196,.25);
+  --skel:#26262A; --overlay:rgba(0,0,0,.6); --shadow:0 12px 32px rgba(0,0,0,.5);
+}
+*{box-sizing:border-box}
+body{background:var(--pg-bg);color:var(--pg-ink);font-family:var(--font);font-size:15px;line-height:1.5;padding-inline:16px;padding-block:28px 64px;margin:0}
+.wrap{max-width:1440px;margin:0 auto;display:flex;flex-direction:column;gap:28px}
+h1,h2,h3,h4{text-wrap:balance;margin:0;line-height:1.25}
+p{margin:0}
+code,.mono{font-family:var(--mono);font-size:.86em}
+button,input,textarea,select{font:inherit;color:inherit}
+.wordmark{font-weight:700;color:var(--mf-outside);letter-spacing:-.01em;font-size:20px}
+.pg-h1{font-size:30px;font-weight:600;letter-spacing:-.01em;margin-top:10px}
+.lede{color:var(--pg-muted);max-width:80ch;margin-top:6px}
+.eyebrow{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--pg-muted);font-weight:600}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+
+/* ===== bancada ===== */
+.stage{display:grid;grid-template-columns:250px minmax(0,1fr);gap:24px;align-items:start}
+.side{display:flex;flex-direction:column;gap:14px;min-width:0;position:sticky;top:env(safe-area-inset-top,0px);max-height:100vh;overflow:auto;padding-bottom:12px}
+.controls{display:flex;flex-wrap:wrap;gap:8px}
+.pg-btn{font-size:13px;border:1px solid var(--pg-line);background:var(--pg-surface);color:var(--pg-ink);padding:6px 12px;border-radius:10px;cursor:pointer;min-height:36px;display:inline-flex;gap:6px;align-items:center}
+.pg-btn[aria-pressed="true"]{background:var(--mf-seguranca);border-color:var(--mf-seguranca);color:#fff}
+.pg-btn:disabled{opacity:.45;cursor:not-allowed}
+.seg{display:inline-flex;border:1px solid var(--pg-line);border-radius:10px;overflow:hidden;background:var(--pg-surface)}
+.seg button{border:0;background:transparent;padding:6px 12px;font-size:13px;min-height:36px;cursor:pointer;color:var(--pg-ink)}
+.seg button[aria-pressed="true"]{background:var(--mf-seguranca);color:#fff}
+.scen-group{display:flex;flex-direction:column;gap:6px}
+.scen-group .gl{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--pg-muted);font-weight:600;margin-top:6px}
+.scen{text-align:left;font-size:13px;border:1px solid var(--pg-line);background:var(--pg-surface);color:var(--pg-ink);padding:6px 10px;border-radius:10px;cursor:pointer;min-height:36px;display:flex;align-items:center;gap:8px}
+.scen b{font-family:var(--mono);font-weight:500;font-size:11px;color:var(--pg-muted);min-width:24px}
+.scen[aria-pressed="true"]{background:var(--mf-seguranca);border-color:var(--mf-seguranca);color:#fff}
+.scen[aria-pressed="true"] b{color:var(--mf-escolha)}
+.scen:focus-visible,.pg-btn:focus-visible,.seg button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.main-col{display:flex;flex-direction:column;gap:16px;min-width:0}
+.notes{background:var(--pg-surface);border:1px solid var(--pg-line);border-radius:16px;padding:18px 20px;display:flex;flex-direction:column;gap:10px;min-width:0}
+.notes h2{font-size:17px;font-weight:600}
+.notes h3{font-size:15px;font-weight:600}
+.notes ul,.notes ol{margin:0;padding-left:18px;display:flex;flex-direction:column;gap:5px}
+.notes li{max-width:95ch}
+.tag-ex{display:inline-block;font-size:11px;padding:2px 8px;border-radius:999px;background:var(--pg-soft);color:var(--pg-muted);font-weight:500}
+
+/* ===== moldura do app (computador) ===== */
+.desk{background:var(--app-bg);border:1px solid var(--pg-line);border-radius:16px;overflow:clip;color:var(--app-ink);display:grid;grid-template-columns:210px minmax(0,1fr);min-height:720px;position:relative}
+.sb{background:var(--app-surface);border-right:1px solid var(--app-line);padding:18px 12px;display:flex;flex-direction:column;gap:4px}
+.sb .logo{font-weight:700;color:var(--mf-outside);font-size:19px;padding:2px 12px 14px}
+.sb .grp{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--app-muted);padding:8px 12px 4px}
+.nav{display:flex;align-items:center;gap:10px;padding:8px 12px;border-radius:8px;font-size:14px;font-weight:500;color:var(--app-ink);text-decoration:none;min-height:40px}
+.nav svg{width:20px;height:20px;flex:none;color:var(--app-muted)}
+.nav:hover{background:var(--app-line-soft)}
+.nav.on{background:var(--nav-active-bg);color:var(--nav-active-fg)}
+.nav.on svg{color:var(--nav-active-fg)}
+.nbadge{margin-left:auto;font-size:10.5px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;padding:2px 8px;border-radius:999px;background:var(--badge-bg);color:var(--badge-fg)}
+.content{min-width:0;display:flex;flex-direction:column}
+.topbar{height:64px;border-bottom:1px solid var(--app-line);background:var(--app-surface);display:flex;align-items:center;justify-content:space-between;padding:0 24px;gap:16px}
+.topbar .who{font-size:13px;color:var(--app-muted);display:flex;align-items:center;gap:10px}
+.avatar{width:32px;height:32px;border-radius:50%;background:var(--mf-seguranca);color:#fff;display:grid;place-items:center;font-size:13px;font-weight:600}
+.page{padding:24px;display:flex;flex-direction:column;gap:16px;min-width:0;container-type:inline-size}
+
+/* ===== peças do app ===== */
+.ph-title{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;flex-wrap:wrap}
+.ph-title h1{font-size:22px;font-weight:600;color:var(--app-strong)}
+.ph-title p{font-size:14px;color:var(--app-muted);margin-top:2px}
+.card{background:var(--app-surface);border:1px solid var(--app-line);border-radius:16px;padding:20px;display:flex;flex-direction:column;gap:14px;min-width:0}
+.card-h{display:flex;justify-content:space-between;align-items:baseline;gap:12px;flex-wrap:wrap}
+.card-h h2{font-size:17px;font-weight:600;color:var(--app-strong)}
+.card-h .sub{font-size:13px;color:var(--app-muted)}
+.muted{color:var(--app-muted)}
+.small{font-size:12.5px}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:40px;padding:0 14px;border-radius:10px;font-size:14px;font-weight:500;cursor:pointer;border:1px solid var(--app-line);background:var(--app-surface);color:var(--app-strong);white-space:nowrap;text-decoration:none}
+.btn.primary{background:var(--primary);border-color:var(--primary);color:var(--primary-fg)}
+.btn.ghost{border-color:transparent;background:transparent;color:var(--link)}
+.btn:focus-visible,.lnk:focus-visible,.chip:focus-visible,.tab:focus-visible,.pill:focus-visible,.srch input:focus-visible,.th-btn:focus-visible,.rowlink:focus-visible,textarea:focus-visible,.mcard:focus-visible,.icon-btn:focus-visible{outline:none;box-shadow:0 0 0 3px var(--focus)}
+.lnk{color:var(--link);text-decoration:none;font-weight:500;background:none;border:0;padding:0;cursor:pointer;border-radius:4px}
+.lnk:hover{text-decoration:underline}
+.icon-btn{width:44px;height:44px;display:inline-grid;place-items:center;border:0;background:transparent;border-radius:10px;color:var(--app-ink);cursor:pointer}
+.banner{display:flex;gap:12px;align-items:center;flex-wrap:wrap;border:1px solid var(--app-line);background:var(--band-soft);color:var(--band-soft-ink);border-radius:14px;padding:12px 16px;font-size:14px}
+.banner b{font-weight:600}
+.banner .sp{flex:1;min-width:200px}
+.beta-pill{font-size:11px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;padding:2px 8px;border-radius:999px;background:var(--mf-seguranca);color:#fff}
+
+/* busca */
+.srch{position:relative;width:min(420px,100%)}
+.srch input{width:100%;height:44px;border:1px solid var(--app-line);background:var(--app-surface);border-radius:12px;padding:0 44px 0 40px;font-size:15px;color:var(--app-strong)}
+.srch .mag{position:absolute;left:12px;top:12px;width:20px;height:20px;color:var(--app-muted)}
+.srch kbd{position:absolute;right:10px;top:11px;font-family:var(--mono);font-size:11.5px;border:1px solid var(--app-line);border-radius:6px;padding:1px 7px;color:var(--app-muted);background:var(--app-bg)}
+.ac{position:absolute;left:0;right:0;top:50px;z-index:40;background:var(--app-surface);border:1px solid var(--app-line);border-radius:14px;box-shadow:var(--shadow);padding:6px;display:flex;flex-direction:column;max-height:440px;overflow:auto}
+.ac .gh{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--app-muted);font-weight:600;padding:8px 10px 4px}
+.opt{display:grid;grid-template-columns:44px minmax(0,1fr) auto;gap:10px;align-items:center;padding:6px 10px;border-radius:10px;min-height:52px;cursor:pointer}
+.opt[aria-selected="true"]{background:var(--app-line-soft);box-shadow:inset 0 0 0 2px var(--focus)}
+.opt .tk{font-weight:600;color:var(--app-strong)}
+.opt .tk mark{background:transparent;color:var(--link);font-weight:700}
+.opt .nm{display:block;font-size:12.5px;color:var(--app-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.opt .r{text-align:right;font-size:13px;font-variant-numeric:tabular-nums;color:var(--app-strong)}
+.opt .r small{display:block;font-size:11.5px;color:var(--app-muted)}
+.ac .foot{font-size:12px;color:var(--app-muted);padding:8px 10px;border-top:1px solid var(--app-line-soft);margin-top:4px}
+.ac .empty{padding:14px 10px;font-size:14px;color:var(--app-ink)}
+.ac.acm{position:static;box-shadow:none;border:0;max-height:none;padding:0;background:transparent}
+.logo-sq{width:40px;height:40px;border-radius:10px;background:var(--band-soft);color:var(--band-soft-ink);display:grid;place-items:center;font-size:11px;font-weight:700;letter-spacing:.02em;flex:none}
+.logo-sq.lg{width:56px;height:56px;font-size:14px;border-radius:14px}
+
+/* tabs de classe + chips */
+.tabs{display:flex;gap:4px;border-bottom:1px solid var(--app-line);overflow-x:auto;scrollbar-width:thin}
+.tab{border:0;border-bottom:2px solid transparent;background:transparent;padding:10px 14px;font-size:15px;font-weight:500;color:var(--app-muted);cursor:pointer;white-space:nowrap;display:inline-flex;gap:8px;align-items:center;min-height:44px}
+.tab .cnt{font-size:12px;font-weight:600;padding:1px 8px;border-radius:999px;background:var(--app-line-soft);color:var(--app-muted);font-variant-numeric:tabular-nums}
+.tab[aria-selected="true"]{color:var(--link);border-bottom-color:var(--link)}
+.tab[aria-selected="true"] .cnt{background:var(--badge-bg);color:var(--badge-fg)}
+.toolbar{display:flex;gap:10px 16px;align-items:center;justify-content:space-between;flex-wrap:wrap}
+.chips{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.chip{display:inline-flex;align-items:center;gap:6px;min-height:36px;padding:0 12px;border-radius:999px;border:1px solid var(--app-line);font-size:13.5px;color:var(--app-ink);background:var(--app-surface);cursor:pointer;white-space:nowrap}
+.chip[aria-pressed="true"]{background:var(--mf-seguranca);border-color:var(--mf-seguranca);color:#fff}
+.chip .x{font-size:12px;opacity:.85}
+.pills{display:inline-flex;background:var(--app-line-soft);border-radius:10px;padding:3px;gap:2px}
+.pill{border:0;background:transparent;border-radius:8px;padding:0 12px;min-height:34px;font-size:13.5px;font-weight:500;color:var(--app-muted);cursor:pointer;white-space:nowrap}
+.pill[aria-pressed="true"]{background:var(--app-surface);color:var(--app-strong);box-shadow:0 1px 2px rgba(16,24,40,.08)}
+.count-line{font-size:13px;color:var(--app-muted);font-variant-numeric:tabular-nums}
+
+/* tabela padrão TABLE_STYLES */
+.tbl-wrap{overflow:auto;border:1px solid var(--app-line);border-radius:12px;background:var(--app-surface);max-height:none}
+table.t{width:100%;border-collapse:collapse;text-align:left;font-variant-numeric:tabular-nums;color:var(--app-ink)}
+.t thead tr{background:var(--head-bg);color:#fff;font-size:12px;text-transform:uppercase;letter-spacing:.04em}
+.t thead th{position:sticky;top:0;background:var(--head-bg);z-index:2}
+.t th{padding:0;font-weight:500;white-space:nowrap}
+.t th .th-in{display:block;padding:12px 16px}
+.th-btn{display:inline-flex;align-items:center;gap:4px;width:100%;padding:12px 16px;border:0;background:transparent;color:#fff;font:inherit;text-transform:uppercase;letter-spacing:.04em;cursor:pointer;justify-content:inherit}
+.th-btn .ar{font-size:10px;opacity:.55;width:10px}
+.th-btn[data-on="1"] .ar{opacity:1}
+.t th.r .th-btn,.t th.r .th-in{justify-content:flex-end;text-align:right}
+.t th.hl{background:var(--mf-outside)}
+.t td{padding:10px 16px;font-size:14px;border-bottom:1px solid var(--app-line-soft);white-space:nowrap;vertical-align:middle}
+.t td.r{text-align:right}
+.t td.hl{background:var(--hl)}
+.t tbody tr.row{cursor:pointer}
+.t tbody tr.row:hover td{background:var(--app-line-soft)}
+.t tbody tr.row:hover td.hl{background:var(--hl)}
+.t tbody tr:last-child td{border-bottom:0}
+.t .tk{font-weight:600;color:var(--link)}
+.t .nm{display:block;font-size:12px;color:var(--app-muted);max-width:200px;overflow:hidden;text-overflow:ellipsis}
+.rowlink{color:inherit;text-decoration:none;display:flex;align-items:center;gap:10px;border-radius:6px}
+.t td.sticky,.t th.sticky{position:sticky;left:0;z-index:1;background:var(--app-surface)}
+.t thead th.sticky{z-index:3;background:var(--head-bg)}
+.t tr.last td{background:var(--hl);font-weight:500;color:var(--app-strong)}
+.t tr.last th.sticky{background:var(--app-surface);box-shadow:inset 0 0 0 999px var(--hl)}
+.t tr.last td.sticky{background:var(--app-surface);box-shadow:inset 0 0 0 999px var(--hl)}
+.t .nd{color:var(--app-muted)}
+.t .negv{color:var(--neg)}
+.t.compact td{padding:8px 12px;font-size:13.5px}
+.t.compact th .th-in{padding:10px 12px}
+.badge{display:inline-flex;align-items:center;gap:4px;font-size:11.5px;font-weight:500;padding:1px 8px;border-radius:999px;border:1px solid var(--app-line);color:var(--app-muted);background:var(--app-surface);white-space:nowrap}
+.badge.plan{border-style:dashed}
+.badge.hold{border-color:transparent;background:var(--band-soft);color:var(--band-soft-ink)}
+.badge.inc{border-style:dashed;border-color:var(--app-muted)}
+.badge.prov{border-color:transparent;background:var(--app-line-soft);color:var(--app-ink)}
+.tblfoot{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
+.formula{font-size:12.5px;color:var(--app-muted);max-width:110ch}
+.formula code{color:var(--app-ink)}
+
+/* anel do Índice MF */
+.ring{display:inline-flex;align-items:center;gap:8px}
+.ring svg{flex:none}
+.ring .rv{font-weight:600;color:var(--app-strong);font-variant-numeric:tabular-nums;font-size:14px}
+.ring .rs{font-size:11.5px;color:var(--app-muted);display:block;line-height:1.1}
+.ring-track{stroke:var(--app-line)}
+.ring-fill{stroke:var(--mf-outside)}
+.ring-dash{stroke:var(--app-muted)}
+
+/* barrinhas */
+.bars{display:inline-flex;align-items:center;gap:8px}
+.bars svg{flex:none;overflow:visible}
+.bar-pos{fill:var(--bar)} .bar-neg{fill:var(--neg)} .bar-nd{fill:none;stroke:var(--st-na);stroke-dasharray:2 2} .bar-flag{fill:var(--app-line-soft);stroke:var(--app-muted);stroke-width:1.2;stroke-dasharray:3 2}
+.bar-off{fill:var(--bar-soft)} .zero{stroke:var(--axis)}
+.bars .bl{font-size:12.5px;color:var(--app-ink);min-width:52px}
+
+/* semáforo */
+.st{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;font-weight:600;padding:3px 10px 3px 6px;border-radius:999px;white-space:nowrap}
+.st svg{width:16px;height:16px;flex:none}
+.st.ok{background:var(--st-ok-bg);color:var(--app-strong)} .st.ok svg{color:var(--st-ok)}
+.st.part{background:var(--st-part-bg);color:var(--app-strong)} .st.part svg{color:var(--st-part)}
+.st.no{background:var(--st-no-bg);color:var(--app-strong)} .st.no svg{color:var(--st-no)}
+.st.nd{background:transparent;border:1px dashed var(--st-na);color:var(--app-ink)} .st.nd svg{color:var(--st-na)}
+.st.na{background:transparent;color:var(--app-muted);font-weight:500} .st.na svg{color:var(--st-na)}
+.dots{display:inline-flex;gap:3px;vertical-align:middle}
+.dots svg{width:12px;height:12px}
+
+/* página do ativo */
+.crumb{font-size:13.5px}
+.ahead{display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap;justify-content:space-between}
+.ahead .id{display:flex;gap:14px;align-items:center;min-width:0}
+.ahead h1{font-size:24px;font-weight:600;color:var(--app-strong);display:flex;gap:10px;align-items:baseline;flex-wrap:wrap}
+.ahead h1 small{font-size:15px;font-weight:400;color:var(--app-muted)}
+.tags{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
+.price{text-align:right}
+.price .v{font-size:26px;font-weight:600;color:var(--app-strong);font-variant-numeric:tabular-nums}
+.price .d{font-size:13px;font-variant-numeric:tabular-nums}
+.price .when{font-size:12px;color:var(--app-muted)}
+.acts{display:flex;gap:8px;flex-wrap:wrap}
+.score-grid{display:grid;grid-template-columns:260px minmax(0,1fr);gap:20px;align-items:start}
+.bigscore{display:flex;flex-direction:column;gap:10px;align-items:flex-start;border-right:1px solid var(--app-line-soft);padding-right:20px}
+.bigscore .num{font-size:15px;color:var(--app-ink)}
+.comp{width:100%;display:flex;flex-direction:column;gap:6px;margin-top:4px}
+.comp-row{display:grid;grid-template-columns:minmax(0,1fr) 72px 38px;gap:8px;align-items:center;font-size:12.5px}
+.comp-row .cb{height:6px;border-radius:3px;background:var(--app-line-soft);overflow:hidden}
+.comp-row .cb i{display:block;height:100%;background:var(--mf-outside);border-radius:3px}
+.comp-row .cv{text-align:right;font-variant-numeric:tabular-nums;color:var(--app-strong)}
+.crit{display:flex;flex-direction:column}
+.crit-row{display:grid;grid-template-columns:132px minmax(0,1fr);gap:14px;padding:11px 0;border-bottom:1px solid var(--app-line-soft);align-items:start}
+.crit-row:last-child{border-bottom:0}
+.crit-row h4{font-size:14px;font-weight:600;color:var(--app-strong)}
+.crit-row p{font-size:13.5px;color:var(--app-ink);margin-top:1px}
+.crit-row .why{font-size:12.5px;color:var(--app-muted)}
+.crit-row.off h4{color:var(--app-muted);font-weight:500}
+.incbox{border:1px dashed var(--app-muted);border-radius:12px;padding:10px 12px;font-size:13.5px;color:var(--app-ink);background:var(--app-bg)}
+.incbox b{color:var(--app-strong)}
+.rulebox{border:1px solid var(--app-line);border-radius:12px;padding:10px 12px;font-size:13.5px;color:var(--app-ink);background:var(--app-bg)}
+.rulebox b{color:var(--app-strong)}
+.dyconf{display:block;font-size:11px;color:var(--app-muted);font-weight:400}
+.badge.semneg{border-style:dashed}
+.pos-card{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px}
+.kv dt{font-size:12px;color:var(--app-muted)}
+.kv dd{margin:2px 0 0;font-size:17px;font-weight:600;color:var(--app-strong);font-variant-numeric:tabular-nums}
+.target{display:flex;flex-direction:column;gap:6px}
+.target .lbl{display:flex;justify-content:space-between;gap:8px;font-size:13px;flex-wrap:wrap}
+.tbar{position:relative;height:10px;border-radius:5px;background:var(--app-line-soft)}
+.tbar i{position:absolute;left:0;top:0;bottom:0;border-radius:5px;background:var(--mf-patrimonio)}
+.tbar b{position:absolute;top:-4px;bottom:-4px;width:2px;background:var(--app-strong);border-radius:1px}
+.two{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+.kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+.kpi{background:var(--app-bg);border:1px solid var(--app-line-soft);border-radius:12px;padding:12px 14px;display:flex;flex-direction:column;gap:2px;min-width:0}
+.kpi .l{font-size:12px;color:var(--app-muted);font-weight:500}
+.kpi .v{font-size:19px;font-weight:600;color:var(--app-strong);font-variant-numeric:tabular-nums}
+.kpi .s{font-size:12px;color:var(--app-muted)}
+.kpi.conf{border:1px dashed var(--app-muted)}
+.vcard.conf{border-style:dashed;border-color:var(--app-muted)}
+.tese-off{display:flex;gap:10px;align-items:flex-start;font-size:14px;color:var(--app-ink)}
+.tese-off svg{width:18px;height:18px;flex:none;margin-top:2px;color:var(--app-muted)}
+.notheld{display:flex;gap:16px;align-items:center;justify-content:space-between;flex-wrap:wrap;border:1px dashed var(--app-line);border-radius:12px;padding:14px 16px}
+.notheld p{font-size:14px;max-width:62ch}
+.charts{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(0,1fr);gap:16px}
+figure{margin:0;display:flex;flex-direction:column;gap:8px;min-width:0}
+figcaption{font-size:13px;color:var(--app-muted)}
+.fig-h{display:flex;justify-content:space-between;gap:10px;align-items:center;flex-wrap:wrap}
+.fig-h h3{font-size:15px;font-weight:600;color:var(--app-strong)}
+.legend{display:flex;gap:14px;font-size:12.5px;color:var(--app-ink);flex-wrap:wrap}
+.legend i{display:inline-block;width:14px;height:3px;border-radius:2px;vertical-align:middle;margin-right:6px}
+.chart svg{width:100%;height:auto;display:block;max-height:280px}
+.chart.mini svg{max-height:170px}
+.chart text{fill:var(--app-muted);font-family:var(--font);font-size:11px}
+.chart .gl{stroke:var(--grid)}
+.chart .ax{stroke:var(--axis)}
+.chart .l1{stroke:var(--s1);fill:none;stroke-width:2.2}
+.chart .l2{stroke:var(--s2);fill:none;stroke-width:2.2}
+.chart .p1{fill:var(--s1)} .chart .p2{fill:var(--s2)}
+.chart .lbl1{fill:var(--s1);font-weight:600} .chart .lbl2{fill:var(--app-strong);font-weight:600}
+.chart .avg{stroke:var(--app-muted);stroke-dasharray:4 3}
+.chart .hit{fill:transparent;cursor:crosshair}
+.chart .cross{stroke:var(--app-muted);stroke-dasharray:3 3}
+.tip{position:absolute;pointer-events:none;background:var(--app-surface);border:1px solid var(--app-line);border-radius:10px;padding:6px 10px;font-size:12.5px;box-shadow:var(--shadow);color:var(--app-strong);white-space:nowrap;z-index:20}
+.chart{position:relative}
+.alt-tbl{font-size:13px}
+.note{font-size:12.5px;color:var(--app-muted)}
+.fresh{display:inline-flex;gap:6px;align-items:center;font-size:12.5px;color:var(--app-muted)}
+.fresh svg{width:14px;height:14px}
+.vgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:12px}
+.vcard{border:1px solid var(--app-line);border-radius:12px;padding:12px 14px;display:flex;flex-direction:column;gap:6px;min-width:0}
+.vcard .h{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+.vcard .h b{font-size:13.5px;color:var(--app-strong);font-weight:600}
+.vcard .h span{font-size:19px;font-weight:600;color:var(--app-strong);font-variant-numeric:tabular-nums}
+.vcard .rd{font-size:12.5px;color:var(--app-ink)}
+.vcard .ref{font-size:12px;color:var(--app-muted)}
+.vcard .stt{font-size:12.5px;font-weight:600;color:var(--app-strong)}
+.rbar{position:relative;height:22px;margin-top:2px}
+.rbar .trk{position:absolute;left:0;right:0;top:9px;height:4px;border-radius:2px;background:var(--app-line)}
+.rbar .avgm{position:absolute;top:4px;width:2px;height:14px;background:var(--app-muted)}
+.rbar .cur{position:absolute;top:3px;width:16px;height:16px;margin-left:-8px;border-radius:50%;background:var(--mf-outside);border:2px solid var(--app-surface);box-shadow:0 0 0 1px var(--mf-outside)}
+.rbar-l{display:flex;justify-content:space-between;font-size:11.5px;color:var(--app-muted);font-variant-numeric:tabular-nums}
+.vsum{font-size:13.5px;color:var(--app-ink);background:var(--app-bg);border-radius:10px;padding:8px 12px}
+.ev{display:flex;flex-direction:column}
+.ev-row{display:grid;grid-template-columns:56px minmax(0,1fr);gap:12px;padding:10px 0;border-bottom:1px solid var(--app-line-soft);align-items:start}
+.ev-row:last-child{border-bottom:0}
+.ev-d{border:1px solid var(--app-line);border-radius:10px;text-align:center;padding:4px 0;line-height:1.1}
+.ev-d b{display:block;font-size:18px;color:var(--app-strong)}
+.ev-d small{font-size:11px;color:var(--app-muted);text-transform:uppercase;letter-spacing:.04em}
+.ev-row h4{font-size:14px;font-weight:600;color:var(--app-strong)}
+.ev-row p{font-size:13px;color:var(--app-muted)}
+.edu{display:flex;gap:14px;align-items:flex-start}
+.edu .play{width:44px;height:44px;border-radius:12px;background:var(--mf-seguranca);color:#fff;display:grid;place-items:center;flex:none}
+.tese textarea{width:100%;min-height:140px;border:1px solid var(--app-line);border-radius:12px;padding:12px 14px;font-size:15px;line-height:1.55;background:var(--app-surface);color:var(--app-strong);resize:vertical}
+.tese .meta{display:flex;justify-content:space-between;gap:10px;font-size:12.5px;color:var(--app-muted);flex-wrap:wrap;align-items:center}
+.tese .saved-txt{white-space:pre-wrap;font-size:15px;line-height:1.6;color:var(--app-strong);border-left:3px solid var(--app-line);padding-left:12px}
+.lock{display:inline-flex;gap:6px;align-items:center;font-size:12.5px;color:var(--app-muted)}
+.lock svg{width:14px;height:14px}
+.err{display:flex;gap:8px;align-items:flex-start;font-size:13.5px;color:var(--neg);background:var(--danger-bg);border-radius:10px;padding:8px 12px}
+.legal{font-size:12px;color:var(--app-muted);border-top:1px solid var(--app-line);padding-top:14px;line-height:1.55}
+.skel{background:var(--skel);border-radius:6px;height:14px}
+.skel-row{display:grid;grid-template-columns:2fr repeat(6,1fr);gap:16px;padding:14px 16px;border-bottom:1px solid var(--app-line-soft)}
+.empty-st{display:flex;flex-direction:column;gap:10px;align-items:center;text-align:center;padding:40px 16px}
+.empty-st h3{font-size:16px;font-weight:600;color:var(--app-strong)}
+.empty-st p{font-size:14px;color:var(--app-muted);max-width:52ch}
+.gate{max-width:620px;margin:40px auto;text-align:left}
+.gate ul{margin:0;padding-left:18px;font-size:14px;color:var(--app-ink);display:flex;flex-direction:column;gap:4px}
+.popover{position:absolute;z-index:30;background:var(--app-surface);border:1px solid var(--app-line);border-radius:12px;box-shadow:var(--shadow);padding:12px;width:280px;display:flex;flex-direction:column;gap:8px}
+.popover label{display:flex;gap:8px;align-items:center;font-size:14px;min-height:36px}
+.toast{position:absolute;left:50%;transform:translateX(-50%);bottom:18px;background:var(--mf-seguranca);color:#fff;border-radius:12px;padding:10px 16px;font-size:14px;box-shadow:var(--shadow);z-index:60;display:flex;gap:12px;align-items:center}
+.toast button{border:0;background:transparent;color:#EAEAEA;font-weight:600;text-decoration:underline;cursor:pointer;min-height:32px}
+
+/* container: página do ativo e quadro se adaptam ao espaço (celular = 390/320) */
+@container (max-width: 760px){
+  .kpis{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .charts,.two{grid-template-columns:minmax(0,1fr)}
+  .score-grid{grid-template-columns:minmax(0,1fr)}
+  .bigscore{border-right:0;padding-right:0;border-bottom:1px solid var(--app-line-soft);padding-bottom:14px}
+  .pos-card{grid-template-columns:repeat(3,minmax(0,1fr))}
+}
+@container (max-width: 560px){
+  .card{padding:14px;border-radius:14px}
+  .crit-row{grid-template-columns:minmax(0,1fr);gap:6px}
+  .pos-card{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .ahead{flex-direction:column}
+  .price{text-align:left}
+  .ahead h1{font-size:20px}
+  .vgrid{grid-template-columns:minmax(0,1fr)}
+  .acts .btn{flex:1}
+  .kpi .v{font-size:17px}
+}
+@container (max-width: 340px){
+  .kpis{grid-template-columns:minmax(0,1fr)}
+  .pos-card{grid-template-columns:minmax(0,1fr)}
+}
+
+/* ===== celular ===== */
+.phone-stage{display:flex;justify-content:center}
+.phone{position:relative;width:410px;max-width:100%;height:864px;background:var(--app-bg);border:10px solid var(--mf-potencia);border-radius:44px;overflow:hidden;display:flex;flex-direction:column;color:var(--app-ink)}
+.phone.narrow{width:340px}
+.ph-status{height:34px;flex:none;display:flex;justify-content:space-between;align-items:center;padding:0 22px;font-size:13px;font-weight:600;color:var(--app-strong)}
+.ph-head{flex:none;display:flex;align-items:center;gap:4px;padding:2px 8px 6px 16px;border-bottom:1px solid var(--app-line);background:var(--app-surface);min-height:56px}
+.ph-head h2{font-size:18px;font-weight:600;color:var(--app-strong);flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ph-back{margin-left:-12px;color:var(--link)}
+.ph-body{flex:1;overflow:auto;padding:12px 16px 92px;display:flex;flex-direction:column;gap:12px;container-type:inline-size}
+.ph-body>*{flex-shrink:0}
+.rail{display:flex;gap:8px;overflow-x:auto;overflow-y:hidden;margin:0 -16px;padding:2px 16px 4px;scrollbar-width:none;flex:none;min-height:50px}
+.rail .chip{flex:none;min-height:44px}
+.mtools .pills .pill,.ph-body .vchips .chip,.ph-body .fig-h .pill{min-height:44px}
+.seg-m{display:grid;grid-template-columns:1fr 1fr;background:var(--app-line-soft);border-radius:12px;padding:3px}
+.seg-m button{min-height:44px;border:0;border-radius:10px;background:transparent;font-size:15px;font-weight:500;color:var(--app-muted);display:inline-flex;gap:6px;justify-content:center;align-items:center}
+.seg-m button[aria-pressed="true"]{background:var(--app-surface);color:var(--app-strong);box-shadow:0 1px 2px rgba(16,24,40,.08)}
+.seg-m .cnt{font-size:12px;color:var(--app-muted);font-variant-numeric:tabular-nums}
+.mtools{display:flex;gap:8px;align-items:center;justify-content:space-between;flex-wrap:wrap}
+.btn svg,.icon-btn svg{width:20px;height:20px;flex:none}
+.mlist{display:flex;flex-direction:column;gap:10px;list-style:none;margin:0;padding:0}
+.mcard{background:var(--app-surface);border:1px solid var(--app-line);border-radius:16px;padding:12px 14px;display:flex;flex-direction:column;gap:10px;text-decoration:none;color:inherit;cursor:pointer}
+.mcard .top{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;align-items:start}
+.mcard .t{font-weight:600;color:var(--app-strong);font-size:15.5px;display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.mcard .n{font-size:12.5px;color:var(--app-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mcard .pr{font-size:13px;color:var(--app-ink);font-variant-numeric:tabular-nums}
+.mgrid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px 10px;margin:0}
+.mgrid dt{font-size:11.5px;color:var(--app-muted)}
+.mgrid dd{margin:0;font-size:14px;font-weight:500;color:var(--app-strong);font-variant-numeric:tabular-nums}
+.mfoot{display:flex;justify-content:space-between;align-items:center;gap:8px;border-top:1px solid var(--app-line-soft);padding-top:8px;font-size:12.5px}
+.mbtn{min-height:48px;border-radius:12px;border:1px solid var(--app-line);background:var(--app-surface);color:var(--link);font-weight:600;font-size:15px;display:inline-flex;align-items:center;justify-content:center;gap:6px;cursor:pointer;width:100%}
+.mbtn.primary{background:var(--primary);border-color:var(--primary);color:var(--primary-fg)}
+.ph-tabbar{position:absolute;left:0;right:0;bottom:0;height:68px;background:var(--app-surface);border-top:1px solid var(--app-line);display:grid;grid-template-columns:repeat(5,1fr);align-items:center;font-size:11px;color:var(--app-muted);padding-bottom:8px;text-align:center;z-index:5}
+.ph-tabbar span{display:flex;flex-direction:column;align-items:center;gap:2px;min-height:48px;justify-content:center}
+.ph-tabbar svg{width:22px;height:22px}
+.ph-tabbar span.on{color:var(--accent);font-weight:600}
+.ph-tabbar .launch{width:46px;height:46px;border-radius:50%;background:var(--primary);color:#fff;display:grid;place-items:center;margin:0 auto}
+.sheet-ov{position:absolute;inset:0;background:var(--overlay);z-index:70;display:flex;flex-direction:column;justify-content:flex-end}
+.sheet{background:var(--app-surface);border-radius:22px 22px 0 0;max-height:90%;display:flex;flex-direction:column;box-shadow:var(--shadow)}
+.sheet.full{max-height:100%;height:100%;border-radius:0}
+.sheet .grab{width:40px;height:5px;border-radius:3px;background:var(--mf-transparencia);margin:8px auto 4px}
+.sheet-h{padding:4px 8px 8px 16px;display:flex;align-items:center;justify-content:space-between;gap:8px}
+.sheet-h h3{font-size:17px;font-weight:600;color:var(--app-strong)}
+.sheet-b{overflow:auto;padding:0 16px 16px;display:flex;flex-direction:column;gap:10px}
+.sheet-f{padding:10px 16px 18px;border-top:1px solid var(--app-line);display:flex;gap:8px}
+.mopt{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:10px;min-height:52px;width:100%;padding:8px 12px;border-radius:12px;border:0;background:transparent;text-align:left;cursor:pointer;font-size:15px;color:var(--app-strong)}
+.mopt small{display:block;font-size:12.5px;color:var(--app-muted)}
+.mopt[aria-checked="true"]{background:var(--band-soft)}
+.mopt .rd{width:22px;height:22px;border-radius:50%;border:2px solid var(--mf-transparencia)}
+.mopt[aria-checked="true"] .rd{border:7px solid var(--mf-patrimonio)}
+.more-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.more-it{position:relative;display:flex;flex-direction:column;align-items:center;gap:6px;padding:12px 4px;border-radius:14px;border:1px solid var(--app-line);font-size:12.5px;text-align:center;color:var(--app-strong);min-height:84px;justify-content:center}
+.more-it svg{width:22px;height:22px;color:var(--link)}
+.more-it .nbadge{position:absolute;top:6px;right:6px;margin:0;font-size:9.5px;padding:1px 6px}
+.more-it.on{border-color:var(--mf-patrimonio);box-shadow:inset 0 0 0 1px var(--mf-patrimonio)}
+.msearch{display:flex;gap:6px;align-items:center;padding:6px 8px 6px 16px;border-bottom:1px solid var(--app-line)}
+.msearch input{flex:1;height:48px;border:1px solid var(--app-line);border-radius:12px;padding:0 12px;font-size:16px;background:var(--app-surface);color:var(--app-strong);min-width:0}
+
+/* ===== especificação ===== */
+.spec{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+.spec .wide{grid-column:1/-1}
+.spec table{border-collapse:collapse;font-size:13.5px;width:100%;font-variant-numeric:tabular-nums}
+.spec th,.spec td{border-bottom:1px solid var(--pg-line);padding:7px 8px;text-align:left;vertical-align:top}
+.spec th{font-weight:600;font-size:12px;letter-spacing:.04em;text-transform:uppercase;color:var(--pg-muted)}
+.scroll-x{overflow-x:auto}
+.sw{display:inline-block;width:14px;height:14px;border-radius:4px;vertical-align:-2px;margin-right:6px;border:1px solid var(--pg-line)}
+.q{display:flex;flex-direction:column;gap:4px;padding:10px 0;border-bottom:1px solid var(--pg-line)}
+.q:last-child{border-bottom:0}
+.q b{font-weight:600}
+.q .rec{color:var(--pg-muted);font-size:14px}
+
+@media (max-width: 1100px){
+  .stage{grid-template-columns:minmax(0,1fr)}
+  .side{position:static;max-height:none}
+  .scen-groups{display:flex;flex-direction:column;gap:8px}
+  .scen-group{flex-direction:row;flex-wrap:wrap}
+  .scen-group .gl{width:100%}
+  .spec{grid-template-columns:minmax(0,1fr)}
+  .desk{grid-template-columns:minmax(0,1fr)}
+  .desk .sb-wrap{display:none}
+}
+@media (max-width: 440px){
+  .phone{border-width:0;border-radius:16px;height:780px}
+  .page{padding:14px}
+  .topbar{padding:0 14px}
+}
+@media (prefers-reduced-motion: reduce){ *{transition:none!important;animation:none!important} }
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.55}}
+.skel,.skel-row .skel{animation:pulse 1.4s ease-in-out infinite}
+</style>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-ok" viewBox="0 0 16 16"><circle cx="8" cy="8" r="7" fill="currentColor"/><path d="M4.8 8.2l2.1 2.1 4.3-4.5" fill="none" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="i-part" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6.2" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M8 1.8a6.2 6.2 0 0 1 0 12.4z" fill="currentColor"/></symbol>
+  <symbol id="i-no" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6.2" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M5.6 5.6l4.8 4.8M10.4 5.6l-4.8 4.8" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></symbol>
+  <symbol id="i-nd" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6.2" fill="none" stroke="currentColor" stroke-width="1.5" stroke-dasharray="2.4 2"/><path d="M6.4 6.4a1.7 1.7 0 1 1 2.3 1.6c-.5.2-.7.5-.7 1v.3" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/><circle cx="8" cy="11.4" r=".8" fill="currentColor"/></symbol>
+  <symbol id="i-na" viewBox="0 0 16 16"><path d="M4 8h8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></symbol>
+  <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7" fill="none" stroke="currentColor" stroke-width="2"/><path d="M20 20l-3.5-3.5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+  <symbol id="i-lock" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3" fill="none" stroke="currentColor" stroke-width="2"/></symbol>
+  <symbol id="i-back" viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="i-x" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+  <symbol id="i-sort" viewBox="0 0 24 24"><path d="M7 4v16M3 16l4 4 4-4M17 20V4M13 8l4-4 4 4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="i-filter" viewBox="0 0 24 24"><path d="M4 6h16M7 12h10M10 18h4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+  <symbol id="i-cal" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><path d="M3 10h18M8 3v4M16 3v4" stroke="currentColor" stroke-width="2"/></symbol>
+  <symbol id="i-play" viewBox="0 0 24 24"><path d="M8 5v14l11-7z" fill="currentColor"/></symbol>
+  <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 7v5l3 2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+  <symbol id="n-dash" viewBox="0 0 24 24"><path d="M4 13h6V4H4zM14 20h6v-9h-6zM4 20h6v-3H4zM14 8h6V4h-6z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></symbol>
+  <symbol id="n-wallet" viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="14" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><path d="M16 13h2M3 10h18" stroke="currentColor" stroke-width="2"/></symbol>
+  <symbol id="n-anal" viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M7.5 12.5l2-2.5 2 1.5 2.5-3.5M15.5 15.5L21 21" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="n-flow" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><path d="M3 10h18M9 10v10" stroke="currentColor" stroke-width="2"/></symbol>
+  <symbol id="n-plan" viewBox="0 0 24 24"><path d="M4 20l4-1 11-11-3-3L5 16z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></symbol>
+  <symbol id="n-heart" viewBox="0 0 24 24"><path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></symbol>
+  <symbol id="n-debt" viewBox="0 0 24 24"><path d="M4 7h16v12H4zM8 7V5h8v2M4 12h16" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></symbol>
+  <symbol id="n-doc" viewBox="0 0 24 24"><path d="M6 3h9l4 4v14H6z M14 3v5h5M9 13h7M9 17h7" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></symbol>
+  <symbol id="n-edu" viewBox="0 0 24 24"><path d="M3 9l9-5 9 5-9 5zM7 11.5V16c3 2.5 7 2.5 10 0v-4.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></symbol>
+  <symbol id="n-more" viewBox="0 0 24 24"><circle cx="5" cy="12" r="2" fill="currentColor"/><circle cx="12" cy="12" r="2" fill="currentColor"/><circle cx="19" cy="12" r="2" fill="currentColor"/></symbol>
+  <symbol id="n-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></symbol>
+</svg>
+
+<div class="wrap">
+  <header>
+    <div class="wordmark">My Finance</div>
+    <h1 class="pg-h1">Análise de Ativos · Fase 1: Quadro e página do ativo</h1>
+    <p class="lede">Primeira fase com tela. Ações e FIIs da B3, com dados da CVM e do COTAHIST que os jobs da Fase 0 já gravam. Quadro com filtros, ordenação, Resumo e Detalhado; busca; página do ativo com Índice MF, semáforo, posição na Carteira e alvo do Planejamento, Lucro × Cotação, proventos, Fundamentos Essencial, Valuation por Múltiplos, pares, eventos, Educação e a tese privada. Beta fechado por usuário. <span class="tag-ex">valores ilustrativos, montados a partir do banco dev de 29/09/2026</span></p>
+  </header>
+
+  <section class="stage" aria-label="Protótipo navegável">
+    <aside class="side">
+      <div class="controls">
+        <div class="seg" role="group" aria-label="Aparelho">
+          <button type="button" data-dev="desk" aria-pressed="true">Computador</button>
+          <button type="button" data-dev="phone" aria-pressed="false">Celular</button>
+        </div>
+      </div>
+      <div class="controls">
+        <button class="pg-btn" type="button" id="themeBtn">Tema: sistema</button>
+        <button class="pg-btn" type="button" id="narrowBtn" aria-pressed="false" disabled>Ver a 320px</button>
+      </div>
+      <div class="scen-groups" id="scenarios" role="group" aria-label="Cenários do protótipo"></div>
+    </aside>
+    <div class="main-col">
+      <div id="screen"></div>
+      <div class="notes" id="notes" aria-live="polite"></div>
+    </div>
+  </section>
+
+  <section class="spec" aria-labelledby="spec-h">
+    <div class="notes wide">
+      <p class="eyebrow">Especificação</p>
+      <h2 id="spec-h" style="font-size:22px">Medidas, estados, acessibilidade e tema</h2>
+      <p style="color:var(--pg-muted);max-width:90ch">O que o desenvolvimento precisa respeitar. Componentes citados já existem no app: <code>TABLE_STYLES</code> e <code>TABLE_MOBILE_STYLES</code> (<code>src/components/ui/table/tableStyles.ts</code>), <code>ResponsiveTable</code>, <code>BottomSheet</code>, <code>MobileTabRail</code>, <code>ApexChartWrapper</code>, <code>MobileHeader</code>, o wizard de operação (inclui “Planejar”) e os textos de <code>services/analiseAtivos/textos.ts</code>.</p>
+    </div>
+
+    <div class="notes wide">
+      <h2>Rotas, flag e beta</h2>
+      <ul>
+        <li><b>Páginas:</b> <code>/analise-ativos</code> (Quadro, <code>?classe=acoes|fiis</code>, filtros e ordem na URL) e <code>/analise-ativos/[ticker]</code> (página própria, não dentro do card do Quadro: o link vem da busca, da Agenda e da Carteira, e o Voltar do navegador funciona). <code>/api/analises/*</code> continua sendo o analytics da carteira.</li>
+        <li><b>API (contratos do arquiteto, leitura só do banco próprio):</b> <code>GET /api/analise-ativos/quadro</code> (classe, ordem, direção, filtros, página de 25), <code>GET /api/analise-ativos/busca</code> (índice completo, filtrado no cliente), <code>GET /api/analise-ativos/ativos/[ticker]</code> + <code>/fundamentos</code> e <code>/valuation</code> (carregados quando o bloco aparece), <code>GET /api/analise-ativos/carteira</code>, <code>GET|PUT|DELETE /api/analise-ativos/teses/[ticker]</code> (até 10.000 caracteres). Nenhuma chamada a BRAPI, CVM ou B3 no caminho da requisição.</li>
+        <li><b>Flag:</b> <code>ANALISE_ATIVOS_HABILITADA</code> em <code>src/lib/analiseAtivosConfig.ts</code> (edge-safe, mesmo molde de <code>comunidadeConfig.ts</code>). Desligada: o item some da sidebar e do painel Mais, página e API respondem 404.</li>
+        <li><b>Beta por usuário:</b> flag ligada e usuário fora do beta = item escondido; o <code>layout.tsx</code> da área renderiza a tela “Área em beta fechado” (cenário F1) em vez de chamar <code>notFound()</code>; a API responde 404. Um <code>notFound()</code> lançado no próprio layout não usa o <code>not-found.tsx</code> do segmento: o fallback é o do pai. Consultor agindo por cliente vê a área se <b>ele</b> está no beta; posição e alvo são os do cliente (<code>requireAuthWithActing</code>).</li>
+        <li><b>Agenda:</b> o link do evento de resultado vai para <code>/analise-ativos/[1º símbolo]</code> (o evento junta “PETR3/PETR4”); o beta conferido é o do usuário logado.</li>
+        <li><b>Sidebar:</b> item “Análise de Ativos” logo abaixo de Carteira, selo <code>NOVO</code> com as classes <code>menu-dropdown-badge</code> (texto <code>patrimonio</code> sobre <code>brand-100</code>). No celular o item entra no painel Mais, com o mesmo selo; a barra inferior não muda.</li>
+      </ul>
+    </div>
+
+    <div class="notes">
+      <h2>Quadro: medidas e regras</h2>
+      <ul>
+        <li>Card principal raio 16px, padding 20px. Abas de classe 44px de altura com contador em pílula (Ações 385 · FIIs 362). A aba escolhida persiste na URL.</li>
+        <li>Chips de filtro 36px (44px no celular), raio total; ativo = fundo <code>seguranca</code>, texto branco (10,9:1). “Setor” e “Segmento” abrem popover com caixas de seleção.</li>
+        <li>Resumo | Detalhado: segmento de pílulas 34px (44px no celular). Detalhado acrescenta colunas; não muda a ordem nem os filtros.</li>
+        <li>Tabela no padrão <code>TABLE_STYLES</code>: cabeçalho <code>seguranca</code> com texto branco em caixa alta 12px, <b>fixo ao rolar</b> (<code>sticky top-0</code>), coluna Ativo fixa à esquerda. Coluna da ordenação atual em destaque (<code>TABLE_HIGHLIGHT_HEADER_STYLE</code> + <code>highlightTd</code>).</li>
+        <li>Ordenação: cabeçalho é um <code>button</code> dentro do <code>th</code>, com seta ▼/▲. 1º clique usa a direção padrão da coluna (desc: Índice MF, DY, ROE, lucros seguidos; asc: P/L, P/VP, payout, Obrigações/PL, dívida). 2º clique inverte. Sem dado e “não se aplica” vão <b>sempre para o fim</b>, nas duas direções.</li>
+        <li>Paginação no servidor: 25 linhas, botão “Mostrar mais 25” e a linha “25 de 385”. Sem virtualização (o universo é de centenas, não milhares).</li>
+        <li>Células: “Lucros seguidos” = 10 traços (cheios até n) + “12 anos” (“10+” não: número real); “Lucro 10 anos” = 10 barras de 6×24px, para cima no lucro (<code>patrimonio</code>), para baixo no prejuízo (vermelho), contorno tracejado sem dado; anel do Índice 32px com o número ao lado e “4/5” embaixo.</li>
+        <li>Na carteira: “120 ações · 3,8%” (peso na carteira toda) ou selo tracejado “Planejado · 5%” (objetivo do ativo planejado) ou “—”. Classificação pela aba efetiva da Carteira (respeita “mover entre abas”).</li>
+        <li>Índice sem número: “fora do Índice” (FoF, decisão 8) ou “sem Índice · dados insuficientes” (tem múltiplos, não tem score). DY ausente diz o motivo embaixo (“proventos em conferência”, “rendimento parado”).</li>
+        <li>Linha inteira clicável (abre a página do ativo), mas o link real fica no ticker, para o teclado e o leitor de tela.</li>
+      </ul>
+    </div>
+
+    <div class="notes">
+      <h2>Celular (abaixo de lg)</h2>
+      <ul>
+        <li>Quadro vira lista de cartões (<code>ResponsiveTable</code> + <code>TABLE_MOBILE_STYLES</code>): ticker, nome, preço; anel do Índice à direita; grade de 3 números da classe; Lucro 10 anos e “Na carteira” no rodapé do cartão. Detalhado acrescenta uma 2ª linha de 3 números.</li>
+        <li>Classe em segmento de 44px; filtros num trilho próprio (altura fixa, rolagem lateral só dentro dele, sem encolher), chips de 44px; abaixo, “Ordem” e Resumo|Detalhado com 44px. “Ordem” abre sheet com rádios (ordem + direção). Validar com <code>expectMinTarget</code> no e2e mobile.</li>
+        <li>Busca: ícone no cabeçalho (44×44) abre sheet de tela cheia com o campo focado (16px, sem zoom do iOS).</li>
+        <li>Página do ativo: blocos empilhados na mesma ordem do computador; KPIs em 2 colunas (1 coluna a 320px); semáforo em lista; gráficos a 100% da largura; Fundamentos Essencial rola para o lado <b>dentro do card</b> com a coluna Ano fixa (exceção justificada: 10 anos × 9 indicadores não cabem em cartões legíveis).</li>
+        <li>Ações do ativo (Registrar operação, Planejar) em botões de 48px, largura total. Nenhuma rolagem horizontal da página a 390 e a 320.</li>
+      </ul>
+    </div>
+
+    <div class="notes">
+      <h2>Página do ativo: ordem dos blocos</h2>
+      <ol>
+        <li>“Voltar ao Quadro de Ações” + cabeçalho (sigla, ticker, nome, tags de setor/segmento/listagem, preço de fechamento do último pregão e variação, data “fechamento de 29/09”).</li>
+        <li>Índice MF + semáforo (selo “dados incompletos” e caixa explicativa quando for o caso).</li>
+        <li>Na sua carteira (ou “Você não tem este ativo”) + 8 KPIs.</li>
+        <li>Lucro por ação × Cotação (base 100) e Proventos por ano.</li>
+        <li>Fundamentos · Essencial (10 anos, último ano destacado) + selo de frescor.</li>
+        <li>Valuation · Múltiplos (grupos, cartões com barra de 10 anos) + Múltiplos históricos (P/L e P/VP).</li>
+        <li>Pares do segmento (5 linhas clicáveis).</li>
+        <li>Próximos eventos + Aprenda a analisar (Educação).</li>
+        <li>Minha tese (privada).</li>
+        <li>“Dados: fonte · data” e rodapé legal.</li>
+      </ol>
+      <p class="note">Ficam fora da Fase 1, sem “em breve” na tela: Comparar, Salvar, Raio-X, Meus cenários, comunidade (voto, ranking, teses públicas).</p>
+    </div>
+
+    <div class="notes">
+      <h2>Estados</h2>
+      <table>
+        <thead><tr><th>Onde</th><th>Estado</th><th>O que aparece</th></tr></thead>
+        <tbody>
+          <tr><td>Quadro</td><td>Carregando</td><td>Cabeçalho real + 8 linhas esqueleto; abas e chips já clicáveis. Sem spinner de página.</td></tr>
+          <tr><td>Quadro</td><td>Vazio por filtro</td><td>“Nenhuma ação com esses filtros” + “Limpar filtros”.</td></tr>
+          <tr><td>Quadro</td><td>“Na minha carteira” sem posição</td><td>“Você ainda não tem ações na Carteira” + “Registrar operação” (wizard).</td></tr>
+          <tr><td>Quadro</td><td>Erro</td><td>Card com o motivo em linguagem simples + “Tentar de novo”. Mantém filtros.</td></tr>
+          <tr><td>Ativo</td><td>Dados incompletos</td><td>Índice com anel tracejado e selo; caixa “o que falta” com o motivo legível (ex.: “proventos em conferência”); critério “Sem dado” com motivo.</td></tr>
+          <tr><td>Ativo</td><td>Zero pela regra</td><td>Prejuízo ou PL negativo: anel normal, sem selo, caixa neutra “Índice baixo pela regra, não por falta de dado”; componentes “0 · regra”.</td></tr>
+          <tr><td>Ativo</td><td>Dado em conferência</td><td>Valor presente mas suspeito (ex.: DPA do ano &gt; 2× o anterior): cartão com borda tracejada, aviso “em conferência”, barra de 10 anos oculta e o ano fora do crescimento anual.</td></tr>
+          <tr><td>Ativo</td><td>Histórico curto</td><td>Menos de 5 anos: barras de 10 anos ocultas com “histórico com menos de 5 anos”; gráfico desde o 1º ano; menos de 3 pontos = sem gráfico.</td></tr>
+          <tr><td>Ativo</td><td>Ano corrente</td><td>Séries anuais só com anos fechados; últimos 12 meses ficam nos indicadores (DY 12m), rotulados.</td></tr>
+          <tr><td>Ativo</td><td>Sem eventos</td><td>“Sem eventos programados nos próximos meses.” FIIs: só datas-com já anunciadas.</td></tr>
+          <tr><td>Ativo</td><td>Ticker fora do universo</td><td>FII sem negócio em 30 pregões: página abre, selo “baixa liquidez”, não aparece no Quadro (decisão 14).</td></tr>
+          <tr><td>Ativo</td><td>Ticker inexistente</td><td>404 da área com busca.</td></tr>
+          <tr><td>Tese</td><td>Vazia · editando · salvando · salva · erro</td><td>Salvamento automático 1,5s depois da última tecla e ao sair do campo; “Salvo às 14:32”; erro mantém o texto e oferece “Tentar de novo”. Limite 10.000 caracteres.</td></tr>
+          <tr><td>Tese</td><td>Consultor agindo pelo cliente</td><td>Card “A tese é pessoal de cada usuário”; nada é lido nem gravado (API 403).</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="notes">
+      <h2>Semáforo e Índice na paleta</h2>
+      <p>O status nunca depende só de cor: cada um tem forma própria e texto.</p>
+      <table>
+        <thead><tr><th>Status</th><th>Ícone</th><th>Claro</th><th>Escuro</th></tr></thead>
+        <tbody>
+          <tr><td>Atende</td><td>círculo cheio com ✓</td><td><span class="sw" style="background:#396CAA"></span>#396CAA em fundo #EDF2F8</td><td><span class="sw" style="background:#6E9DC4"></span>#6E9DC4</td></tr>
+          <tr><td>Parcial</td><td>círculo meio cheio</td><td><span class="sw" style="background:#396CAA"></span>#396CAA em fundo #F2F4F7</td><td><span class="sw" style="background:#6E9DC4"></span>#6E9DC4</td></tr>
+          <tr><td>Não atende</td><td>círculo com ✕</td><td><span class="sw" style="background:#D92D20"></span>#D92D20</td><td><span class="sw" style="background:#F97066"></span>#F97066</td></tr>
+          <tr><td>Sem dado</td><td>círculo tracejado com ?</td><td><span class="sw" style="background:#98A2B3"></span>borda tracejada</td><td><span class="sw" style="background:#667085"></span></td></tr>
+          <tr><td>Não se aplica</td><td>traço</td><td>texto <code>app-muted</code>, fora da conta</td><td>idem</td></tr>
+        </tbody>
+      </table>
+      <p class="note">Este é o contrato visual (substitui o <code>CORES_STATUS</code>/<code>FAIXA_INDICE</code> com verde/âmbar da proposta do arquiteto; faixa vira só dado, se for necessária). Sem verde nem âmbar: a paleta não tem e verde lê como “compre”. Índice MF: anel único <code>outside</code> #0079F2 proporcional ao valor (0 a 10), sem cor por faixa; incompleto = trilho tracejado. Lucro 10 anos e séries: <code>patrimonio</code>/<code>outside</code> no claro, <code>tranquilidade</code> no escuro; cotação em <code>potencia</code> (claro) e <code>escolha</code> (escuro).</p>
+    </div>
+
+    <div class="notes">
+      <h2>Acessibilidade</h2>
+      <ul>
+        <li>Tabela do Quadro: <code>&lt;table&gt;</code> real, <code>th scope="col"</code>, <code>aria-sort="descending|ascending|none"</code> no <code>th</code> e o botão de ordenação com nome “Ordenar por P/L”. Mudança de ordem anunciada numa região <code>aria-live="polite"</code> (“Ordenado por DY 12m, maior primeiro. 25 de 385.”).</li>
+        <li>Coluna Ativo é <code>th scope="row"</code>; o ticker é o link. A linha clicável não substitui o link.</li>
+        <li>Mini-barras e anéis têm <code>role="img"</code> e <code>aria-label</code> completo (“Lucro em 10 de 10 anos; menor R$ 1,1 bi em 2016, maior R$ 6,2 bi em 2025”; “Índice MF 8,6 de 10, 4 de 5 critérios atendidos”).</li>
+        <li>Gráficos: <code>&lt;figure&gt;</code> com <code>figcaption</code> que diz a leitura em uma frase + botão “Ver dados em tabela” que troca o SVG por uma tabela com os mesmos números. Tooltip também abre com foco do teclado (setas percorrem os anos).</li>
+        <li>Semáforo: lista com título do critério como <code>h4</code>, status como texto visível; o ícone é <code>aria-hidden</code>.</li>
+        <li>Busca: padrão combobox (<code>role="combobox"</code>, <code>aria-expanded</code>, <code>aria-activedescendant</code>, <code>role="listbox"</code>/<code>option</code>); setas, Enter abre, Esc fecha, “/” foca de qualquer lugar da área (ignorado dentro de campos de texto).</li>
+        <li>Tese: <code>label</code> visível, contador de caracteres com <code>aria-describedby</code>, “Salvo” anunciado em <code>aria-live</code>.</li>
+        <li>Alvos de 44px no celular (48px nos botões principais); foco visível de 3px <code>outside</code> (claro) / <code>tranquilidade</code> (escuro). Contraste de texto ≥ 4,5:1 nos dois temas (texto de link #396CAA no claro = 5,4:1; #6E9DC4 no escuro = 6,1:1).</li>
+        <li><code>prefers-reduced-motion</code>: sem pulsar do esqueleto, sem transição de barras.</li>
+      </ul>
+    </div>
+
+    <div class="notes">
+      <h2>Tema escuro</h2>
+      <ul>
+        <li>Fundo da página #18181B, cards #1F1F22, bordas #2E3440 (os cinzas do app em <code>.dark</code>).</li>
+        <li>Cabeçalho da tabela continua <code>seguranca</code> #314666 com texto branco; destaque de coluna = <code>outside</code> a 16%.</li>
+        <li>Link e azul de status sobem para <code>tranquilidade</code> #6E9DC4; negativo #F97066; cotação no gráfico em #EAEAEA.</li>
+        <li>KPIs e caixa “incompleto” usam o fundo da página (#18181B) dentro do card, sem sombra.</li>
+        <li>Nenhuma cor definida só num tema; tokens em <code>:root</code> e <code>.dark</code>.</li>
+      </ul>
+    </div>
+
+    <div class="notes">
+      <h2>Desempenho</h2>
+      <ul>
+        <li>Quadro: lê a tabela pré-calculada <code>analise_quadro_linhas</code> (job “quadro” depois do “scores”), em memória por versão; filtro, ordem e página em memória. Meta p95 &lt; 300 ms frio. Com <code>naCarteira=1</code> a resposta é <code>no-store</code>, para o ativo recém-registrado aparecer logo depois de “Registrar operação”.</li>
+        <li>Página do ativo: topo numa chamada; Fundamentos e Valuation quando o bloco entra na tela; esqueleto com a altura do bloco. Parte do usuário (posição, alvo, planejado, tese) sem cache HTTP.</li>
+        <li>Busca: o índice inteiro (~750 itens, ~8 KB gzip) vem uma vez e a filtragem roda no cliente; nenhuma requisição por tecla.</li>
+      </ul>
+    </div>
+
+    <div class="notes wide">
+      <h2>Linguagem (checklist da §9)</h2>
+      <ul>
+        <li>“Índice MF”, nunca “nota”. Leitura sempre “4 de 5 critérios atendidos” (ou “de 4”, “de 3” quando há critério fora da conta).</li>
+        <li>Frases do semáforo e dos múltiplos vêm de <code>TEXTOS_ANALISE</code>; nenhuma frase nova escrita no componente. A varredura <code>encontrarPalavrasProibidas</code> roda num teste sobre o HTML renderizado das duas páginas.</li>
+        <li>Botões: “Registrar operação” (abre o wizard), “Planejar na Carteira” (ativo planejado). Nunca “Comprar”.</li>
+        <li>Rodapé legal (<code>TEXTOS_ANALISE.rodapeLegal</code>) no fim de todas as telas da área, inclusive na tela de beta.</li>
+      </ul>
+    </div>
+
+    <div class="notes wide" id="perguntas">
+      <h2>Perguntas para o Wellington (com a minha recomendação)</h2>
+      <div id="qlist"></div>
+    </div>
+  </section>
+</div>
+
+<script>
+'use strict';
+const $ = (s, r=document) => r.querySelector(s);
+const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const nf = (v, d=1) => v==null ? '—' : v.toLocaleString('pt-BR',{minimumFractionDigits:d,maximumFractionDigits:d});
+const pct = (v, d=1) => v==null ? '—' : nf(v,d)+'%';
+const brl = (v, d=2) => v==null ? '—' : 'R$ '+nf(v,d);
+const sgn = (v, d=1) => (v>0?'+':v<0?'−':'')+nf(Math.abs(v),d);
+const icon = (id, cls='') => `<svg class="${cls}" aria-hidden="true"><use href="#${id}"/></svg>`;
+const YEARS = [2016,2017,2018,2019,2020,2021,2022,2023,2024,2025];
+
+/* ================= DADOS (ilustrativos) ================= */
+const ACOES = [
+  {t:'ITUB4',n:'Itaú Unibanco',setor:'Financeiro',seg:'Bancos',preco:42.30,var:0.50,streak:12,roe:22.4,mg:null,dl:'na',pl:10.0,pvp:2.25,dy:7.3,pay:73,liq:'R$ 1,1 bi',mf:9.3,at:4,ap:4,l10:[21.6,23.9,24.9,26.6,18.5,26.9,29.2,33.1,38.4,41.2],plan:{obj:5}},
+  {t:'PETR4',n:'Petrobras',setor:'Petróleo, gás e biocombustíveis',seg:'Exploração e refino',preco:49.10,var:-1.21,streak:8,roe:27.7,mg:24.4,dl:1.1,pl:4.7,pvp:1.32,dy:9.8,pay:46,liq:'R$ 1,6 bi',mf:8.9,at:5,ap:5,l10:[-14.8,-0.4,25.8,40.1,7.1,106.7,188.3,124.6,36.6,77.8]},
+  {t:'WEGE3',n:'WEG',setor:'Bens industriais',seg:'Máquinas e equipamentos',preco:50.29,var:1.25,streak:12,roe:33.2,mg:16.6,dl:-0.4,pl:33.7,pvp:11.2,dy:4.0,dyConf:true,pay:134,liq:'R$ 412 mi',mf:9.0,at:4,ap:5,l10:[1.1,1.1,1.3,1.6,2.3,3.6,4.2,5.7,5.7,6.2],port:{q:120,p:3.8}},
+  {t:'VALE3',n:'Vale',setor:'Materiais básicos',seg:'Minerais metálicos',preco:54.20,var:0.37,streak:9,roe:17.8,mg:20.1,dl:0.8,pl:7.6,pvp:1.35,dy:8.7,pay:66,liq:'R$ 1,4 bi',mf:8.5,at:4,ap:5,l10:[13.3,17.6,25.7,-6.7,26.7,121.2,95.9,39.9,31.6,33.4],port:{q:80,p:1.9}},
+  {t:'BBAS3',n:'Banco do Brasil',setor:'Financeiro',seg:'Bancos',preco:21.60,var:-0.28,streak:10,roe:15.1,mg:null,dl:'na',pl:5.9,pvp:0.75,dy:9.1,pay:40,liq:'R$ 610 mi',mf:8.4,at:4,ap:4,l10:[8.0,11.1,12.9,18.2,13.9,21.0,31.8,35.6,37.9,21.4],port:{q:300,p:2.5}},
+  {t:'SAPR11',n:'Sanepar',setor:'Utilidade pública',seg:'Água e saneamento',preco:30.40,var:0.66,streak:10,roe:14.2,mg:22.1,dl:1.9,pl:6.3,pvp:0.95,dy:5.8,pay:36,liq:'R$ 61 mi',mf:8.1,at:4,ap:5,l10:[0.7,0.9,0.9,1.1,1.0,1.1,1.1,1.6,1.9,2.0]},
+  {t:'EGIE3',n:'Engie Brasil',setor:'Utilidade pública',seg:'Energia elétrica',preco:38.10,var:-0.42,streak:10,roe:24.3,mg:22.0,dl:2.6,pl:10.9,pvp:2.6,dy:6.9,pay:75,liq:'R$ 98 mi',mf:7.6,at:4,ap:5,l10:[1.5,2.0,2.3,2.4,2.8,1.6,2.4,4.5,3.5,2.9]},
+  {t:'TAEE11',n:'Taesa',setor:'Utilidade pública',seg:'Energia elétrica',preco:35.80,var:0.11,streak:10,roe:18.9,mg:41.2,dl:3.6,pl:10.4,pvp:1.9,dy:9.6,pay:95,liq:'R$ 74 mi',mf:7.1,at:3,ap:5,l10:[0.9,1.1,1.0,1.2,2.2,2.7,1.1,1.4,1.3,1.3]},
+  {t:'RADL3',n:'Raia Drogasil',setor:'Consumo não cíclico',seg:'Comércio e distribuição',preco:24.90,var:-0.80,streak:10,roe:17.6,mg:3.1,dl:1.4,pl:36.2,pvp:6.1,dy:1.1,pay:38,liq:'R$ 160 mi',mf:6.3,at:3,ap:5,l10:[0.6,0.7,0.6,0.7,0.8,1.0,0.9,1.2,1.2,1.1]},
+  {t:'MGLU3',n:'Magazine Luiza',setor:'Consumo cíclico',seg:'Comércio',preco:6.63,var:2.15,streak:2,roe:0.8,mg:0.2,dl:1.0,pl:58.1,pvp:0.46,dy:1.2,pay:71,liq:'R$ 140 mi',mf:3.7,at:2,ap:5,l10:[0.1,0.4,0.6,0.9,0.4,0.6,-0.4,-1.0,0.3,0.1]},
+  {t:'TGMA3',n:'Tegma',setor:'Bens industriais',seg:'Transporte rodoviário',preco:36.58,var:0.47,streak:11,roe:25.6,mg:10.1,dl:0.06,pl:9.5,pvp:2.43,dy:null,dyWhy:'proventos em conferência',pay:null,liq:'R$ 14 mi',mf:8.5,at:4,ap:5,inc:true,l10:[0.05,0.10,0.15,0.13,0.07,0.11,0.16,0.20,0.24,0.25]},
+  {t:'AURE3',n:'Auren Energia',setor:'Utilidade pública',seg:'Energia elétrica',preco:12.69,var:-0.86,streak:0,roe:-9.5,mg:-7.6,dl:5.8,pl:'prej',pvp:1.15,dy:0,pay:null,liq:'R$ 38 mi',mf:0.1,at:0,ap:5,l10:[null,null,null,null,null,null,1.4,-0.3,0.6,-1.1]},
+  {t:'AZUL4',n:'Azul',setor:'Bens industriais',seg:'Transporte aéreo',preco:1.32,var:-3.65,streak:0,roe:'pln',mg:-40.2,dl:7.8,pl:'prej',pvp:'pln',dy:0,pay:null,liq:'R$ 22 mi',mf:0.6,at:0,ap:5,l10:[-0.1,0.1,0.4,-2.4,-10.8,-4.2,-0.7,-2.4,-9.1,-3.6]},
+];
+const FIIS = [
+  {t:'KNCR11',n:'Kinea Rendimentos Imobiliários',tipo:'Papel',seg:'Recebíveis (CRI)',preco:106.03,var:0.08,dy:12.4,pvp:1.03,obr:0.1,meses:120,pat:'R$ 8,9 bi',cot:'412 mil',liq:'R$ 14,2 mi',vac:null,nim:'96 CRIs',mf:9.0,at:4,ap:4,r10:[9.8,8.1,6.9,5.9,3.0,7.6,13.0,13.6,11.4,13.1],port:{q:90,p:3.6}},
+  {t:'MXRF11',n:'Maxi Renda',tipo:'Papel',seg:'Recebíveis (CRI)',preco:9.10,var:-0.11,dy:12.9,pvp:0.98,obr:1.4,meses:120,pat:'R$ 4,2 bi',cot:'1,2 mi',liq:'R$ 11,0 mi',vac:null,nim:'77 CRIs',mf:8.9,at:4,ap:4,r10:[1.1,1.0,0.9,0.8,0.7,1.1,1.3,1.3,1.2,1.2]},
+  {t:'KNIP11',n:'Kinea Índices de Preços',tipo:'Papel',seg:'Recebíveis (CRI)',preco:89.50,var:0.22,dy:11.6,pvp:0.95,obr:0.4,meses:110,pat:'R$ 7,6 bi',cot:'301 mil',liq:'R$ 9,8 mi',vac:null,nim:'71 CRIs',mf:8.7,at:4,ap:4,r10:[null,10.4,9.6,10.2,9.8,14.6,15.1,12.0,10.1,10.4]},
+  {t:'KNRI11',n:'Kinea Renda Imobiliária',tipo:'Tijolo',seg:'Híbrido',preco:151.20,var:0.13,dy:8.1,pvp:0.93,obr:4.1,meses:120,pat:'R$ 4,3 bi',cot:'291 mil',liq:'R$ 6,1 mi',vac:5.4,nim:'21 imóveis',mf:8.6,at:3,ap:3,r10:[11.0,10.6,10.4,10.6,8.6,8.6,9.2,11.0,12.0,12.3]},
+  {t:'BTLG11',n:'BTG Pactual Logística',tipo:'Tijolo',seg:'Logística',preco:98.40,var:-0.20,dy:9.4,pvp:0.96,obr:11.0,meses:120,pat:'R$ 4,1 bi',cot:'402 mil',liq:'R$ 7,3 mi',vac:2.8,nim:'31 imóveis',mf:8.4,at:2,ap:3,r10:[6.2,6.7,7.2,7.7,8.0,8.4,8.6,9.2,9.3,9.2],port:{q:60,p:2.1}},
+  {t:'HGLG11',n:'CSHG Logística',tipo:'Tijolo',seg:'Logística',preco:147.93,var:-0.32,dy:8.9,pvp:0.89,obr:16.2,meses:120,pat:'R$ 5,6 bi',cot:'498 mil',liq:'R$ 9,4 mi',vac:4.6,nim:'23 imóveis',mf:8.2,at:2,ap:3,r10:[8.4,8.6,8.9,9.2,9.4,10.1,11.2,12.3,12.9,13.2],port:{q:40,p:2.9}},
+  {t:'XPLG11',n:'XP Log',tipo:'Tijolo',seg:'Logística',preco:92.39,var:0.41,dy:9.6,pvp:0.88,obr:14.6,meses:120,pat:'R$ 3,3 bi',cot:'351 mil',liq:'R$ 5,0 mi',vac:8.1,nim:'18 imóveis',mf:8.1,at:2,ap:3,r10:[6.4,7.1,7.4,7.8,8.0,7.7,7.6,8.4,8.6,8.9]},
+  {t:'VISC11',n:'Vinci Shopping Centers',tipo:'Tijolo',seg:'Shoppings',preco:104.80,var:0.10,dy:9.1,pvp:0.84,obr:6.2,meses:118,pat:'R$ 3,1 bi',cot:'246 mil',liq:'R$ 4,4 mi',vac:4.9,nim:'24 imóveis',mf:7.9,at:2,ap:3,r10:[7.2,7.4,7.6,8.0,4.2,5.9,8.1,8.8,9.1,9.5]},
+  {t:'HCTR11',n:'Hectare CE',tipo:'Papel',seg:'Recebíveis (CRI)',preco:21.40,var:-2.71,dy:null,dyWhy:'rendimento parado',pvp:0.52,obr:9.8,meses:72,pat:'R$ 1,1 bi',cot:'86 mil',liq:'R$ 1,9 mi',vac:null,nim:'41 CRIs',mf:null,semScore:true,at:null,ap:null,r10:[null,null,null,13.8,14.1,15.0,14.6,11.8,4.2,0]},
+  {t:'BCFF11',n:'BTG Pactual Fundo de Fundos',tipo:'FoF',seg:'Fundo de fundos',preco:64.10,var:0.31,dy:9.8,pvp:0.88,obr:2.1,meses:120,pat:'R$ 2,0 bi',cot:'132 mil',liq:'R$ 2,2 mi',vac:null,nim:'—',mf:null,fof:true,at:null,ap:null,r10:[6.2,6.0,6.1,6.4,5.6,6.0,6.2,6.4,6.3,6.3]},
+];
+const COUNT = {acoes:385, fiis:362};
+const SEARCH_EXTRA = [
+  {t:'ITSA4',n:'Itaúsa',cls:'Ação',preco:10.94},{t:'ITUB3',n:'Itaú Unibanco ON',cls:'Ação',preco:37.80},
+  {t:'IRDM11',n:'Iridium Recebíveis',cls:'FII',preco:68.10},{t:'HGRU11',n:'CSHG Renda Urbana',cls:'FII',preco:124.50},
+  {t:'HGBS11',n:'Hedge Brasil Shopping',cls:'FII',preco:18.90},{t:'HGPO11',n:'CSHG Prime Offices',cls:'FII',preco:212.00,fora:true},
+  {t:'CEDO4',n:'Cedro Têxtil',cls:'Ação',preco:9.80,fora:true,foraTxt:'fora do Quadro · sem negócio recente'},
+];
+
+/* ---------- detalhes ---------- */
+const DET = {};
+DET.WEGE3 = {
+  cls:'acoes', t:'WEGE3', n:'WEG S.A.', sig:'WEGE', tags:['Bens industriais','Máquinas e equipamentos','Novo Mercado'],
+  preco:50.29, chg:0.62, chgPct:1.25, quando:'fechamento de 29/09',
+  mf:9.0, at:4, ap:5, inc:false,
+  comps:[['Consistência do lucro',10,35],['Endividamento',10,20],['Rentabilidade',10,20],['Proventos',5.0,15],['Preço',7.6,10]],
+  checks:[
+    {s:'ok',b:'Lucros consecutivos',p:'12 anos seguidos de lucro; referência do critério: 5 anos'},
+    {s:'ok',b:'Endividamento',p:'Caixa líquido (dívida líquida menor ou igual a zero)'},
+    {s:'ok',b:'Rentabilidade (ROE)',p:'ROE de 33,2%; referência do critério: 15%'},
+    {s:'ok',b:'P/L vs. média de 10 anos',p:'P/L −9% em relação à média de 10 anos; referência do critério: até 0%'},
+    {s:'part',b:'Dividendos',p:'Dividend yield de 12 meses de 3,98%; referência do critério: 4%',why:'proventos de 2025 em conferência: a fonte repetiu parcelas e o DY pode estar acima do real',whyLbl:'Atenção'},
+  ],
+  pos:{q:120,unit:'ações',pm:38.60,valor:6034.80,pct:3.8,res:30.3,abaNome:'Ações',abaPeso:17.2,abaObj:20,classePct:21.9,classeAlvo:20,obj:20},
+  kpis:[['P/L','33,7','média 10a: 36,9'],['P/VP','11,2','média 10a: 9,0'],['DY 12m','4,0%','R$ 2,00 por ação · em conferência','conf'],['ROE','33,2%','mediana dos pares: 19,6%'],['Margem líquida','16,6%','mediana dos pares: 9,1%'],['Dív. líq./EBITDA','−0,4×','caixa líquido'],['Payout','134%','em conferência: parcelas repetidas na fonte','conf'],['CAGR lucro 5a','+21,3%','receita: +18,9%']],
+  chart:{title:'Lucro por ação × Cotação (base 100 em 2016)',a:'Lucro por ação',b:'Cotação (fech. do ano)',va:[100,96,115,144,207,315,370,511,541,552],vb:[100,113,124,186,410,377,392,405,478,531],
+    cap:'Em 10 anos o lucro por ação foi a 552 e a cotação a 531, na base 100 de 2016: as duas linhas andaram juntas.'},
+  divs:{title:'Dividendos + JCP por ação (R$)',v:[0.14,0.16,0.21,0.25,0.31,0.44,0.55,0.66,0.76,2.45],flag:[9],cagr:'+23,6% a.a. de 2016 a 2024',foot:'2025 em conferência: R$ 2,45 é mais que o triplo de 2024, sinal de parcelas repetidas na fonte. Fica fora do crescimento anual até a conferência.'},
+  ess:{cols:['Ano','Receita (R$ bi)','Lucro líq. (R$ bi)','Marg. líq.','ROE','LPA (R$)','Div./ação (R$)','Payout','P/L','P/VP','DY'],
+    rows:[[2016,'9,4','1,1','11,9%','18,2%','0,27','0,14','52%','29,8','5,1','1,7%'],[2017,'9,5','1,1','11,5%','17,9%','0,26','0,16','58%','33,5','5,6','1,6%'],[2018,'11,9','1,3','10,9%','18,7%','0,31','0,21','54%','35,9','6,4','1,6%'],[2019,'13,3','1,6','12,1%','20,1%','0,39','0,25','51%','43,0','8,9','1,2%'],[2020,'17,5','2,3','13,3%','24,7%','0,56','0,31','48%','61,2','15,8','0,9%'],[2021,'23,6','3,6','15,1%','30,2%','0,85','0,44','50%','44,8','12,0','1,5%'],[2022,'29,9','4,2','14,0%','29,8%','1,00','0,55','53%','33,9','9,6','1,5%'],[2023,'32,5','5,7','17,7%','32,1%','1,38','0,66','48%','31,4','8,7','1,8%'],[2024,'36,2','5,7','16,9%','30,3%','1,36','0,76','52%','30,7','9,9','1,5%'],[2025,'40,8','6,2','16,6%','33,2%','1,49','2,45*','161%*','25,0','8,6','6,6%*']],essNote:'* Proventos de 2025 em conferência (parcelas repetidas na fonte).'},
+  fresh:'Fundamentos: DFP 2025 e ITR 2T26 · fonte CVM · atualizado em 14/08/2026 · Cotação: COTAHIST B3 de 29/09/2026',
+  val:{
+    preco:{l:'Preço',items:[
+      {l:'P/L',v:33.7,f:'x1',rd:'Preço ÷ lucro por ação dos últimos 12 meses.',ref:'mediana dos pares: 9,8',h:[29.8,33.5,35.9,43.0,61.2,44.8,33.9,31.4,30.7,25.0]},
+      {l:'P/VP',v:11.2,f:'x2',rd:'Preço ÷ patrimônio por ação.',ref:'mediana dos pares: 1,8',h:[5.1,5.6,6.4,8.9,15.8,12.0,9.6,8.7,9.9,8.6]},
+      {l:'P/Receita',v:5.6,f:'x2',rd:'Valor de mercado ÷ receita de 12 meses.',ref:'mediana dos pares: 0,9',h:[3.0,3.4,3.7,5.2,8.1,6.6,4.9,5.4,5.1,4.7]},
+      {l:'EV/EBITDA',v:24.1,f:'x1',rd:'Valor da firma ÷ EBITDA de 12 meses.',ref:'mediana dos pares: 6,4',h:[17,19,21,28,41,31,23,21,22,19]},
+      {l:'P/FCL',v:41.0,f:'x1',rd:'Valor de mercado ÷ fluxo de caixa livre de 12 meses.',ref:'mediana dos pares: 12,7',h:[24,30,33,40,52,60,48,34,30,36]},
+      {l:'LPA',v:1.49,f:'brl',rd:'Lucro por ação, últimos 12 meses.',ref:'em R$',h:[0.27,0.26,0.31,0.39,0.56,0.85,1.00,1.38,1.36,1.49]},
+    ]},
+    prov:{l:'Proventos',items:[
+      {l:'DPA',v:2.00,f:'brl',rd:'Dividendos + JCP por ação em 12 meses.',ref:'em conferência: parcelas repetidas na fonte',conf:true,h:[0.14,0.16,0.21,0.25,0.31,0.44,0.55,0.66,0.76,2.45]},
+      {l:'DY 12m',v:4.0,f:'pct',rd:'DPA ÷ cotação.',ref:'mediana dos pares: 4,4% · em conferência',conf:true,h:[1.7,1.6,1.6,1.2,0.9,1.5,1.5,1.8,1.5,6.6]},
+      {l:'DY médio 5a',v:1.7,f:'pct',rd:'Média do DY dos últimos 5 anos.',ref:'mediana dos pares: 5,1%',h:null},
+      {l:'Payout',v:134,f:'pct0',rd:'Proventos declarados no ano ÷ lucro do ano.',ref:'em conferência: parcelas repetidas na fonte',conf:true,h:[52,58,54,51,48,50,53,48,52,161]},
+    ]},
+    lucr:{l:'Lucratividade',items:[
+      {l:'Margem líquida',v:16.6,f:'pct',rd:'Lucro ÷ receita.',ref:'mediana dos pares: 9,1%',h:[11.9,11.5,10.9,12.1,13.3,15.1,14.0,17.7,16.9,16.6]},
+      {l:'ROE',v:33.2,f:'pct',rd:'Lucro ÷ patrimônio líquido médio.',ref:'mediana dos pares: 19,6%',h:[18.2,17.9,18.7,20.1,24.7,30.2,29.8,32.1,30.3,29.4]},
+      {l:'ROIC',v:27.5,f:'pct',rd:'Lucro operacional após impostos ÷ capital investido.',ref:'mediana dos pares: 14,0%',h:[16.0,15.4,16.2,17.9,22.1,27.0,26.4,29.1,27.9,27.5]},
+    ]},
+    cresc:{l:'Crescimento',items:[
+      {l:'CAGR receita 5a',v:18.9,f:'pctS',rd:'Crescimento anual composto da receita.',ref:'mediana dos pares: +9,2%',h:null},
+      {l:'CAGR lucro 5a',v:21.3,f:'pctS',rd:'Crescimento anual composto do lucro.',ref:'mediana dos pares: +7,7%',h:null},
+      {l:'CAGR dividendo 5a',v:26.6,f:'pctS',rd:'Crescimento anual composto do DPA.',ref:'mediana dos pares: +6,1%',h:null},
+    ]},
+    alav:{l:'Alavancagem',items:[
+      {l:'Dív. líq./EBITDA',v:-0.42,f:'x2',rd:'Negativo = caixa líquido.',ref:'referência usual: até 3×',h:[-0.3,-0.2,-0.4,-0.5,-0.3,-0.1,0.1,-0.4,-0.5,-0.5]},
+      {l:'Liquidez corrente',v:2.1,f:'x2',rd:'Ativo circulante ÷ passivo circulante.',ref:'mediana dos pares: 1,7',h:[2.6,2.5,2.2,2.0,1.9,1.8,1.9,2.0,2.1,2.1]},
+    ]},
+  },
+  mult:[{name:'P/L',h:[29.8,33.5,35.9,43.0,61.2,44.8,33.9,31.4,30.7,25.0],cur:33.7},{name:'P/VP',h:[5.1,5.6,6.4,8.9,15.8,12.0,9.6,8.7,9.9,8.6],cur:11.2}],
+  peers:{seg:'Máquinas e equipamentos',cols:['P/L','P/VP','ROE','Marg. líq.','DY 12m','Lucros seguidos','Índice MF'],rows:[['WEGE3','WEG','33,7','11,2','33,2%','16,6%','4,0%*','12','9,0'],['ROMI3','Indústrias Romi','9,8','0,9','9,1%','8,0%','6,3%','8','6,8'],['KEPL3','Kepler Weber','7,9','1,8','23,5%','11,4%','9,1%','7','7,4'],['TUPY3','Tupy','8,4','0,8','8,8%','3,9%','3,9%','6','5,4'],['FRAS3','Fras-le','12,1','2,3','19,6%','10,3%','4,4%','9','7,8']]},
+  events:[{d:'22',m:'OUT',t:'Resultado do 3º trimestre de 2026',s:'Data informada pela companhia no calendário de eventos (CVM)',est:false},{d:'24',m:'FEV',t:'Resultado anual de 2026 (DFP)',s:'Pelo histórico de divulgação da companhia',est:true}],
+  edu:{t:'Aprenda a analisar ações',s:'Módulo “Lucro, ROE e dívida: o que olhar no balanço” · trilha Investimentos · 18 min'},
+};
+DET.HGLG11 = {
+  cls:'fiis', t:'HGLG11', n:'CSHG Logística FII', sig:'HGLG', tags:['FII de tijolo','Logística','Gestão ativa','Público geral'],
+  preco:147.93, chg:-0.48, chgPct:-0.32, quando:'fechamento de 29/09',
+  mf:8.2, at:2, ap:3, inc:false, provisorio:true,
+  comps:[['Meses com rendimento',10,44],['Obrigações/PL',4.6,25],['Vacância',null,0],['Proventos',8.2,19],['Preço vs. VP',9.1,12]],
+  compNote:'Vacância fora da conta até a validação da fonte; o peso dela foi redistribuído entre os outros 4 componentes.',
+  checks:[
+    {s:'ok',b:'Renda recorrente',p:'Dividend yield de 12 meses de 8,9%; referência do critério: 8%'},
+    {s:'na',b:'Vacância física',p:'Critério desligado até a validação da fonte. Dado da CVM (4,6%) aparece nos Fundamentos.'},
+    {s:'na',b:'Nº de imóveis',p:'Critério desligado até a validação da fonte. Dado da CVM (23 imóveis) aparece nos Fundamentos.'},
+    {s:'part',b:'Obrigações/PL',p:'Obrigações/PL de 16,2%; referência do critério: até 10%',prov:true},
+    {s:'ok',b:'Preço vs. VP',p:'P/VP de 0,89; referência do critério: 1,05'},
+  ],
+  pos:{q:40,unit:'cotas',pm:151.40,valor:5917.20,pct:2.9,res:-2.3,abaNome:"FII's",abaPeso:22.0,abaObj:25,classePct:13.1,classeAlvo:15,obj:25},
+  kpis:[['DY 12m','8,9%','R$ 13,20 por cota em 12m'],['P/VP','0,89','VP/cota: R$ 165,95'],['Rendimento/cota','R$ 1,10','último: agosto/2026'],['Patrimônio','R$ 5,6 bi','informe mensal CVM de ago/26'],['Cotistas','498 mil','+4% em 12 meses'],['Liquidez média','R$ 9,4 mi','por dia, últimos 21 pregões'],['Obrigações/PL','16,2%','média 10a: 13,0%'],['Vacância física','4,6%','fonte CVM · pode diferir do relatório do gestor']],
+  chart:{title:'Valor patrimonial × Cota (base 100 em 2016)',a:'VP por cota',b:'Cota (fech. do ano)',va:[100,103,108,116,128,135,141,149,158,169],vb:[100,118,127,168,161,149,152,163,150,150],
+    cap:'O VP por cota subiu todos os anos e chegou a 169; a cota fechou 2025 em 150, abaixo do VP desde 2024.'},
+  divs:{title:'Rendimento por cota no ano (R$)',v:[8.4,8.6,8.9,9.2,9.4,10.1,11.2,12.3,12.9,13.2],cagr:'+5,2% a.a. de 2016 a 2025',foot:'Só anos fechados. 2026 (jan a ago, R$ 8,80) entra quando o ano terminar, para não parecer queda. Últimos 12 meses: R$ 13,20 por cota.'},
+  ess:{cols:['Ano','Rend./cota (R$)','DY','VP/cota (R$)','P/VP','Patrimônio (R$ bi)','Cotistas (mil)','Obrig./PL','Vacância (CVM)'],
+    rows:[[2016,'8,40','8,3%','98,4','1,03','1,1','18','9,0%','9,1%'],[2017,'8,60','7,4%','101,7','1,15','1,3','26','10,0%','7,8%'],[2018,'8,90','7,1%','106,2','1,18','1,6','39','12,0%','6,4%'],[2019,'9,20','5,6%','114,0','1,45','2,4','84','15,0%','4,9%'],[2020,'9,40','5,9%','126,3','1,26','3,3','196','14,0%','5,3%'],[2021,'10,10','6,8%','132,8','1,11','3,8','304','13,0%','6,9%'],[2022,'11,20','7,4%','138,9','1,09','4,2','371','12,0%','5,1%'],[2023,'12,30','7,6%','146,5','1,10','4,7','428','14,0%','4,6%'],[2024,'12,90','8,6%','155,2','0,96','5,2','471','15,0%','4,3%'],[2025,'13,20','8,9%','165,9','0,89','5,6','498','16,2%','4,6%']]},
+  fresh:'Fundamentos: Informe Mensal de agosto/2026 e Trimestral 2T26 · fonte CVM · atualizado em 16/09/2026 · Cotação: COTAHIST B3 de 29/09/2026',
+  val:{
+    preco:{l:'Preço',items:[
+      {l:'P/VP',v:0.89,f:'x2',rd:'Cota ÷ valor patrimonial por cota.',ref:'mediana dos pares: 0,92',h:[1.03,1.15,1.18,1.45,1.26,1.11,1.09,1.10,0.96,0.89]},
+      {l:'VP/cota',v:165.95,f:'brl',rd:'Patrimônio líquido ÷ nº de cotas (informe mensal).',ref:'em R$',h:[98.4,101.7,106.2,114.0,126.3,132.8,138.9,146.5,155.2,165.9]},
+    ]},
+    prov:{l:'Proventos',items:[
+      {l:'Rendimento 12m',v:13.20,f:'brl',rd:'Soma dos rendimentos por cota em 12 meses.',ref:'em R$',h:[8.4,8.6,8.9,9.2,9.4,10.1,11.2,12.3,12.9,13.2]},
+      {l:'DY 12m',v:8.9,f:'pct',rd:'Rendimento 12m ÷ cota.',ref:'mediana dos pares: 9,4%',h:[8.3,7.4,7.1,5.6,5.9,6.8,7.4,7.6,8.6,8.9]},
+      {l:'DY médio 5a',v:7.9,f:'pct',rd:'Média do DY dos últimos 5 anos.',ref:'mediana dos pares: 8,4%',h:null},
+    ]},
+    lucr:{l:'Qualidade da renda',items:[
+      {l:'Meses com rendimento',v:120,f:'int',rd:'Meses seguidos com distribuição, até 120.',ref:'referência do Índice: 120 meses',h:null},
+      {l:'Vacância física (CVM)',v:4.6,f:'pct',rd:'Fonte CVM · pode diferir do relatório do gestor.',ref:'mediana dos pares: 3,2%',h:[9.1,7.8,6.4,4.9,5.3,6.9,5.1,4.6,4.3,4.6]},
+    ]},
+    cresc:{l:'Crescimento',items:[
+      {l:'CAGR rendimento 5a',v:7.0,f:'pctS',rd:'Crescimento anual composto do rendimento por cota.',ref:'mediana dos pares: +4,1%',h:null},
+      {l:'CAGR VP/cota 5a',v:5.7,f:'pctS',rd:'Crescimento anual composto do VP por cota.',ref:'mediana dos pares: +3,0%',h:null},
+      {l:'CAGR cotistas 5a',v:20.4,f:'pctS',rd:'Crescimento anual composto do nº de cotistas.',ref:'mediana dos pares: +14,8%',h:null},
+    ]},
+    alav:{l:'Alavancagem',items:[
+      {l:'Obrigações/PL',v:16.2,f:'pct',rd:'Obrigações do fundo ÷ patrimônio líquido.',ref:'mediana dos pares: 11,0%',h:[9,10,12,15,14,13,12,14,15,16.2]},
+    ]},
+  },
+  mult:[{name:'P/VP',h:[1.03,1.15,1.18,1.45,1.26,1.11,1.09,1.10,0.96,0.89],cur:0.89},{name:'DY (%)',h:[8.3,7.4,7.1,5.6,5.9,6.8,7.4,7.6,8.6,8.9],cur:8.9}],
+  peers:{seg:'Logística',cols:['DY 12m','P/VP','Obrig./PL','Imóveis (CVM)','Patrimônio','Liq. média','Índice MF'],rows:[['HGLG11','CSHG Logística','8,9%','0,89','16,2%','23','R$ 5,6 bi','R$ 9,4 mi','8,2'],['BTLG11','BTG Pactual Logística','9,4%','0,96','11,0%','31','R$ 4,1 bi','R$ 7,3 mi','8,4'],['XPLG11','XP Log','9,6%','0,88','14,6%','18','R$ 3,3 bi','R$ 5,0 mi','8,1'],['BRCO11','Bresco Logística','8,7%','0,93','2,1%','12','R$ 2,0 bi','R$ 2,7 mi','8,3'],['VILG11','Vinci Logística','9,4%','0,84','5,8%','17','R$ 1,9 bi','R$ 2,4 mi','7,7']]},
+  events:[],evEmpty:'Sem eventos programados nos próximos meses. Para FIIs, aparecem aqui as datas-com já anunciadas pelo fundo.',
+  edu:{t:'Aprenda a analisar FIIs',s:'Módulo “Tijolo e papel: P/VP, rendimento e vacância” · trilha Investimentos · 14 min'},
+};
+DET.ITUB4 = {
+  cls:'acoes', t:'ITUB4', n:'Itaú Unibanco Holding', sig:'ITUB', tags:['Financeiro','Bancos','Nível 1'], extraBadge:'padrão contábil: individual BR GAAP',
+  preco:42.30, chg:0.21, chgPct:0.50, quando:'fechamento de 29/09',
+  mf:9.3, at:4, ap:4, inc:false,
+  comps:[['Consistência do lucro',10,44],['Endividamento',null,0],['Rentabilidade',9.0,25],['Proventos',9.2,19],['Preço',8.0,12]],
+  compNote:'Endividamento não se aplica a bancos; o peso foi redistribuído entre os outros 4 componentes.',
+  checks:[
+    {s:'ok',b:'Lucros consecutivos',p:'12 anos seguidos de lucro; referência do critério: 5 anos'},
+    {s:'na',b:'Endividamento',p:'Não se aplica a bancos, seguradoras e holdings financeiras.'},
+    {s:'ok',b:'Rentabilidade (ROE)',p:'ROE de 22,4%; referência do critério: 15%'},
+    {s:'ok',b:'P/L vs. média de 10 anos',p:'P/L −12% em relação à média de 10 anos; referência do critério: até 0%'},
+    {s:'ok',b:'Dividendos',p:'Dividend yield de 12 meses de 7,3%; referência do critério: 4%'},
+  ],
+  pos:null,
+  kpis:[['P/L','10,0','média 10a: 11,4'],['P/VP','2,25','média 10a: 2,1'],['DY 12m','7,3%','R$ 3,10 por ação'],['ROE','22,4%','mediana dos pares: 15,1%'],['Payout','73%','média 5a: 61%'],['Lucro 12m','R$ 41,2 bi','individual BR GAAP'],['LPA','R$ 4,23','12 meses'],['CAGR lucro 5a','+17,4%','LPA: +16,9%']],
+  chart:{title:'Lucro por ação × Cotação (base 100 em 2016)',a:'Lucro por ação',b:'Cotação (fech. do ano)',va:[100,110,115,122,85,124,134,152,176,190],vb:[100,118,142,156,140,108,128,148,160,190],
+    cap:'Lucro por ação e cotação terminaram 2025 em 190 na base 100 de 2016; em 2020 o lucro caiu a 85.'},
+  divs:{title:'Dividendos + JCP por ação (R$)',v:[1.20,1.35,1.80,1.95,0.81,1.20,1.43,2.10,2.85,3.10],cagr:'+11,1% a.a. em 10 anos'},
+  ess:{cols:['Ano','Lucro líq. (R$ bi)','ROE','LPA (R$)','Div./ação (R$)','Payout','P/L','P/VP','DY'],
+    rows:[[2016,'21,6','19,8%','2,22','1,20','54%','11,2','2,1','4,8%'],[2017,'23,9','20,9%','2,44','1,35','55%','11,8','2,4','4,7%'],[2018,'24,9','21,8%','2,55','1,80','71%','13,0','2,7','5,4%'],[2019,'26,6','23,7%','2,72','1,95','72%','12,6','2,9','5,7%'],[2020,'18,5','14,4%','1,89','0,81','43%','16,2','2,2','2,6%'],[2021,'26,9','18,1%','2,75','1,20','44%','8,6','1,5','5,1%'],[2022,'29,2','19,3%','2,98','1,43','48%','9,4','1,7','5,1%'],[2023,'33,1','20,4%','3,38','2,10','62%','9,6','1,9','6,5%'],[2024,'38,4','21,7%','3,92','2,85','73%','9,0','1,9','8,1%'],[2025,'41,2','22,4%','4,23','3,10','73%','10,0','2,25','7,3%']]},
+  fresh:'Fundamentos: DFP 2025 e ITR 2T26 (individual BR GAAP) · fonte CVM · atualizado em 12/08/2026 · Cotação: COTAHIST B3 de 29/09/2026',
+  val:{
+    preco:{l:'Preço',items:[
+      {l:'P/L',v:10.0,f:'x1',rd:'Preço ÷ lucro por ação dos últimos 12 meses.',ref:'mediana dos pares: 7,4',h:[11.2,11.8,13.0,12.6,16.2,8.6,9.4,9.6,9.0,10.0]},
+      {l:'P/VP',v:2.25,f:'x2',rd:'Preço ÷ patrimônio por ação.',ref:'mediana dos pares: 1,1',h:[2.1,2.4,2.7,2.9,2.2,1.5,1.7,1.9,1.9,2.25]},
+      {l:'LPA',v:4.23,f:'brl',rd:'Lucro por ação, últimos 12 meses.',ref:'em R$',h:[2.22,2.44,2.55,2.72,1.89,2.75,2.98,3.38,3.92,4.23]},
+    ]},
+    prov:{l:'Proventos',items:[
+      {l:'DY 12m',v:7.3,f:'pct',rd:'DPA ÷ cotação.',ref:'mediana dos pares: 8,8%',h:[4.8,4.7,5.4,5.7,2.6,5.1,5.1,6.5,8.1,7.3]},
+      {l:'Payout',v:73,f:'pct0',rd:'Proventos declarados no ano ÷ lucro do ano.',ref:'referência usual: 25% a 75%',h:[54,55,71,72,43,44,48,62,73,73]},
+    ]},
+    lucr:{l:'Lucratividade',items:[
+      {l:'ROE',v:22.4,f:'pct',rd:'Lucro ÷ patrimônio líquido médio.',ref:'mediana dos pares: 15,1%',h:[19.8,20.9,21.8,23.7,14.4,18.1,19.3,20.4,21.7,22.4]},
+    ]},
+    cresc:{l:'Crescimento',items:[
+      {l:'CAGR lucro 5a',v:17.4,f:'pctS',rd:'Crescimento anual composto do lucro.',ref:'mediana dos pares: +6,0%',h:null},
+    ]},
+    alav:{l:'Alavancagem',items:[],na:'Indicadores de dívida não se aplicam a bancos. Indicadores próprios de banco ficam para uma próxima fase (decisão 2).'},
+  },
+  mult:[{name:'P/L',h:[11.2,11.8,13.0,12.6,16.2,8.6,9.4,9.6,9.0,10.0],cur:10.0},{name:'P/VP',h:[2.1,2.4,2.7,2.9,2.2,1.5,1.7,1.9,1.9,2.25],cur:2.25}],
+  peers:{seg:'Bancos',cols:['P/L','P/VP','ROE','DY 12m','Lucros seguidos','Índice MF'],rows:[['ITUB4','Itaú Unibanco','10,0','2,25','22,4%','7,3%','12','9,3'],['BBAS3','Banco do Brasil','5,9','0,75','15,1%','9,1%','10','8,4'],['BBDC4','Bradesco','8,1','0,92','11,9%','7,4%','12','7,2'],['SANB11','Santander Brasil','9,2','1,03','13,8%','6,1%','12','7,6'],['BPAC11','BTG Pactual','12,4','2,6','23,1%','2,9%','10','8,1']]},
+  events:[{d:'03',m:'NOV',t:'Data-com de JCP mensal',s:'Já anunciada pela companhia; R$ 0,02 por ação',est:false},{d:'04',m:'NOV',t:'Resultado do 3º trimestre de 2026',s:'Data informada pela companhia no calendário de eventos (CVM)',est:false}],
+  edu:{t:'Aprenda a analisar ações',s:'Módulo “Bancos: por que dívida não se aplica” · trilha Investimentos · 11 min'},
+};
+DET.TGMA3 = {
+  cls:'acoes', t:'TGMA3', n:'Tegma Gestão Logística S.A.', sig:'TGMA', tags:['Bens industriais','Transporte rodoviário','Novo Mercado'],
+  preco:36.58, chg:0.17, chgPct:0.47, quando:'fechamento de 29/09',
+  mf:8.5, at:4, ap:5, inc:true,
+  comps:[['Consistência do lucro',10,35],['Endividamento',9.9,20],['Rentabilidade',10,20],['Proventos',null,15,'sem dado'],['Preço',10,10]],
+  incTxt:'<b>Proventos em conferência: 1 componente sem dado conta zero no Índice.</b> A empresa paga proventos todo ano, mas a nossa base parou no 1º semestre de 2026 e o dividend yield de 12 meses ficaria baixo demais. Até a conferência terminar, Proventos conta zero e os outros 4 critérios seguem completos. Quando o dado chegar, o Índice é recalculado sozinho; a fórmula não muda.',
+  checks:[
+    {s:'ok',b:'Lucros consecutivos',p:'11 anos seguidos de lucro; referência do critério: 5 anos'},
+    {s:'ok',b:'Endividamento',p:'Dívida líquida/EBITDA de 0,06×; referência do critério: até 3×'},
+    {s:'ok',b:'Rentabilidade (ROE)',p:'ROE de 25,6%; referência do critério: 15%'},
+    {s:'ok',b:'P/L vs. média de 10 anos',p:'P/L −36% em relação à média de 10 anos; referência do critério: até 0%'},
+    {s:'nd',b:'Dividendos',p:'Sem dado estruturado disponível para este critério',why:'proventos em conferência (base parou em jun/2026; pagador recorrente)'},
+  ],
+  pos:null,
+  kpis:[['P/L','9,5','média 10a: 14,8'],['P/VP','2,43','média 10a: 2,6'],['DY 12m','—','proventos em conferência','conf'],['ROE','25,6%','mediana dos pares: 12,4%'],['Margem líquida','10,1%','mediana dos pares: 6,0%'],['Dív. líq./EBITDA','0,06×','referência usual: até 3×'],['Payout','—','proventos em conferência','conf'],['CAGR lucro 5a','+29,0%','receita: +12,4%']],
+  chart:{title:'Lucro por ação × Cotação (base 100 em 2016)',a:'Lucro por ação',b:'Cotação (fech. do ano)',va:[100,195,290,252,140,214,310,385,462,481],vb:[100,190,210,232,148,124,136,232,262,280],
+    cap:'Em 10 anos o lucro por ação foi a 481 e a cotação a 280, na base 100 de 2016; o lucro cresceu mais que o preço desde 2021.'},
+  divs:{title:'Dividendos + JCP por ação (R$)',v:[0.30,0.61,0.94,0.85,0.38,0.92,1.24,1.92,2.30,null],cagr:'+29,0% a.a. de 2016 a 2024',foot:'2025 em conferência: a base de proventos parou no 1º semestre de 2026. Barra tracejada: ano sem dado conferido.'},
+  ess:{cols:['Ano','Receita (R$ bi)','Lucro líq. (R$ bi)','Marg. líq.','ROE','LPA (R$)','Div./ação (R$)','Payout','P/L','P/VP','DY'],
+    rows:[[2016,'1,2','0,05','4,2%','6,1%','0,80','0,30','38%','16,4','1,0','2,3%'],[2017,'1,5','0,10','6,7%','11,8%','1,56','0,61','39%','15,7','1,9','2,5%'],[2018,'1,6','0,15','9,4%','17,0%','2,32','0,94','41%','13,1','2,2','3,1%'],[2019,'1,6','0,13','8,1%','14,6%','2,01','0,85','42%','16,7','2,4','2,5%'],[2020,'1,2','0,07','5,8%','7,6%','1,12','0,38','34%','19,0','1,4','1,8%'],[2021,'1,5','0,11','7,3%','11,0%','1,71','0,92','54%','10,4','1,1','5,2%'],[2022,'2,0','0,16','8,0%','15,2%','2,48','1,24','50%','7,9','1,2','6,3%'],[2023,'2,1','0,20','9,5%','20,7%','3,08','1,92','62%','10,9','2,3','5,7%'],[2024,'2,3','0,24','10,4%','24,1%','3,70','2,30','62%','10,2','2,4','6,1%'],[2025,'2,5','0,25','10,1%','25,6%','3,85','—','—','10,3','2,5','—']],essNote:'Proventos de 2025 em conferência.'},
+  fresh:'Fundamentos: DFP 2025 e ITR 2T26 · fonte CVM · atualizado em 14/08/2026 · Proventos: base conferida até jun/2026 · Cotação: COTAHIST B3 de 29/09/2026',
+  val:{
+    preco:{l:'Preço',items:[
+      {l:'P/L',v:9.5,f:'x1',rd:'Preço ÷ lucro por ação dos últimos 12 meses.',ref:'mediana dos pares: 11,2',h:[16.4,15.7,13.1,16.7,19.0,10.4,7.9,10.9,10.2,10.3]},
+      {l:'P/VP',v:2.43,f:'x2',rd:'Preço ÷ patrimônio por ação.',ref:'mediana dos pares: 1,6',h:[1.0,1.9,2.2,2.4,1.4,1.1,1.2,2.3,2.4,2.5]},
+      {l:'LPA',v:3.85,f:'brl',rd:'Lucro por ação, últimos 12 meses.',ref:'em R$',h:[0.80,1.56,2.32,2.01,1.12,1.71,2.48,3.08,3.70,3.85]},
+    ]},
+    prov:{l:'Proventos',items:[
+      {l:'DY 12m',v:null,f:'pct',rd:'DPA ÷ cotação.',ref:'mediana dos pares: 4,1%',h:null,nd:'proventos em conferência'},
+      {l:'Payout',v:null,f:'pct0',rd:'Proventos declarados no ano ÷ lucro do ano.',ref:'',h:null,nd:'proventos em conferência'},
+    ]},
+    lucr:{l:'Lucratividade',items:[
+      {l:'Margem líquida',v:10.1,f:'pct',rd:'Lucro ÷ receita.',ref:'mediana dos pares: 6,0%',h:[4.2,6.7,9.4,8.1,5.8,7.3,8.0,9.5,10.4,10.1]},
+      {l:'ROE',v:25.6,f:'pct',rd:'Lucro ÷ patrimônio líquido médio.',ref:'mediana dos pares: 12,4%',h:[6.1,11.8,17.0,14.6,7.6,11.0,15.2,20.7,24.1,25.6]},
+    ]},
+    cresc:{l:'Crescimento',items:[
+      {l:'CAGR receita 5a',v:12.4,f:'pctS',rd:'Crescimento anual composto da receita.',ref:'mediana dos pares: +9,0%',h:null},
+      {l:'CAGR lucro 5a',v:29.0,f:'pctS',rd:'Crescimento anual composto do lucro.',ref:'mediana dos pares: +5,5%',h:null},
+    ]},
+    alav:{l:'Alavancagem',items:[
+      {l:'Dív. líq./EBITDA',v:0.06,f:'x2',rd:'Dívida líquida ÷ EBITDA de 12 meses.',ref:'referência usual: até 3×',h:[0.4,0.2,-0.1,0.3,0.5,0.2,0.1,0.0,0.1,0.06]},
+    ]},
+  },
+  mult:[{name:'P/L',h:[16.4,15.7,13.1,16.7,19.0,10.4,7.9,10.9,10.2,10.3],cur:9.5},{name:'P/VP',h:[1.0,1.9,2.2,2.4,1.4,1.1,1.2,2.3,2.4,2.5],cur:2.43}],
+  peers:{seg:'Transporte rodoviário',cols:['P/L','P/VP','ROE','Marg. líq.','DY 12m','Lucros seguidos','Índice MF'],rows:[['TGMA3','Tegma','9,5','2,43','25,6%','10,1%','—','11','8,5*'],['JSLG3','JSL','7,1','0,9','12,4%','2,1%','3,2%','6','6,1'],['SIMH3','Simpar','—','0,6','−1,8%','−0,6%','0,0%','0','0,4'],['VAMO3','Vamos','14,2','1,6','11,0%','6,0%','2,4%','6','5,6'],['LOGG3','Log Commercial','11,2','1,2','10,8%','52,0%','4,1%','8','7,0']]},
+  events:[{d:'05',m:'NOV',t:'Resultado do 3º trimestre de 2026',s:'Pelo histórico de divulgação da companhia',est:true}],
+  edu:{t:'Aprenda a analisar ações',s:'Módulo “Lucro, ROE e dívida: o que olhar no balanço” · trilha Investimentos · 18 min'},
+};
+DET.AURE3 = {
+  cls:'acoes', t:'AURE3', n:'Auren Energia S.A.', sig:'AURE', tags:['Utilidade pública','Energia elétrica','Novo Mercado'],
+  preco:12.69, chg:-0.11, chgPct:-0.86, quando:'fechamento de 29/09',
+  mf:0.1, at:0, ap:5, inc:false, short:true, zeroRegra:true,
+  comps:[['Consistência do lucro',0,35,'regra'],['Endividamento',0.4,20],['Rentabilidade',0,20,'regra'],['Proventos',0,15],['Preço',0,10,'regra']],
+  ruleTxt:'<b>Índice baixo pela regra, não por falta de dado.</b> Com prejuízo nos últimos 12 meses, consistência do lucro, rentabilidade e preço contam zero (o P/L não existe com lucro negativo). Todos os dados desta ação estão na base.',
+  checks:[
+    {s:'no',b:'Lucros consecutivos',p:'Nenhum ano seguido de lucro (prejuízo nos últimos 12 meses); referência do critério: 5 anos'},
+    {s:'part',b:'Endividamento',p:'Dívida líquida/EBITDA de 5,8×; referência do critério: até 3×'},
+    {s:'no',b:'Rentabilidade (ROE)',p:'ROE de −9,5%; referência do critério: 15%'},
+    {s:'no',b:'P/L vs. média de 10 anos',p:'P/L não calculado: prejuízo nos últimos 12 meses'},
+    {s:'no',b:'Dividendos',p:'Dividend yield de 12 meses de 0,0%; referência do critério: 4%'},
+  ],
+  pos:null,
+  kpis:[['P/L','—','prejuízo nos últimos 12 meses'],['P/VP','1,15','histórico de 4 anos'],['DY 12m','0,0%','sem proventos em 12 meses'],['ROE','−9,5%','mediana dos pares: 18,9%'],['Margem líquida','−7,6%','mediana dos pares: 22,0%'],['Dív. líq./EBITDA','5,8×','referência usual: até 3×'],['LPA','−R$ 1,04','últimos 12 meses'],['CAGR lucro 5a','—','histórico de 4 anos']],
+  chart:{title:'Lucro por ação × Cotação (base 100 em 2022)',a:'Lucro por ação',b:'Cotação (fech. do ano)',va:[null,null,null,null,null,null,100,-21,43,-74],vb:[null,null,null,null,null,null,100,74,66,88],
+    cap:'Histórico de 4 anos, desde a listagem em 2022. Prejuízo em 2023 e em 2025 (abaixo de zero na base 100); cotação em 88 no fim de 2025.'},
+  divs:{title:'Dividendos + JCP por ação (R$)',v:[null,null,null,null,null,null,0.20,0.35,0.22,0],cagr:'sem crescimento anual: histórico curto'},
+  ess:{cols:['Ano','Receita (R$ bi)','Lucro líq. (R$ bi)','Marg. líq.','ROE','LPA (R$)','Div./ação (R$)','Payout','P/L','P/VP','DY'],
+    rows:[[2022,'6,9','1,4','20,3%','9,8%','1,40','0,20','14%','9,1','0,9','1,6%'],[2023,'6,4','−0,3','−4,7%','−2,2%','−0,30','0,35','—','—','1,1','2,7%'],[2024,'8,2','0,6','7,3%','4,4%','0,60','0,22','37%','17,0','1,0','2,2%'],[2025,'14,6','−1,1','−7,6%','−9,5%','−1,04','0,00','—','—','1,15','0,0%']]},
+  fresh:'Fundamentos: DFP 2025 e ITR 2T26 · fonte CVM · atualizado em 14/08/2026 · Cotação: COTAHIST B3 de 29/09/2026',
+  val:{
+    preco:{l:'Preço',items:[
+      {l:'P/L',v:null,f:'x1',rd:'Preço ÷ lucro por ação dos últimos 12 meses.',ref:'mediana dos pares: 10,4',h:null,nd:'prejuízo nos últimos 12 meses'},
+      {l:'P/VP',v:1.15,f:'x2',rd:'Preço ÷ patrimônio por ação.',ref:'mediana dos pares: 1,9',h:[0.9,1.1,1.0,1.15],short:true},
+    ]},
+    prov:{l:'Proventos',items:[
+      {l:'DY 12m',v:0,f:'pct',rd:'DPA ÷ cotação.',ref:'mediana dos pares: 6,9%',h:[1.6,2.7,2.2,0],short:true},
+    ]},
+    lucr:{l:'Lucratividade',items:[
+      {l:'ROE',v:-9.5,f:'pct',rd:'Lucro ÷ patrimônio líquido médio.',ref:'mediana dos pares: 18,9%',h:[9.8,-2.2,4.4,-9.5],short:true},
+    ]},
+    cresc:{l:'Crescimento',items:[
+      {l:'CAGR receita 5a',v:null,f:'pctS',rd:'Crescimento anual composto da receita.',ref:'',h:null,nd:'histórico de 4 anos'},
+    ]},
+    alav:{l:'Alavancagem',items:[
+      {l:'Dív. líq./EBITDA',v:5.8,f:'x2',rd:'Dívida líquida ÷ EBITDA de 12 meses.',ref:'referência usual: até 3×',h:[2.1,4.6,4.2,5.8],short:true},
+    ]},
+  },
+  mult:[{name:'P/VP',h:[null,null,null,null,null,null,0.9,1.1,1.0,1.15],cur:1.15},{name:'ROE (%)',h:[null,null,null,null,null,null,9.8,-2.2,4.4,-9.5],cur:-9.5}],
+  peers:{seg:'Energia elétrica',cols:['P/L','P/VP','ROE','Marg. líq.','DY 12m','Lucros seguidos','Índice MF'],rows:[['AURE3','Auren Energia','—','1,15','−9,5%','−7,6%','0,0%','0','0,1'],['EGIE3','Engie Brasil','10,9','2,6','24,3%','22,0%','6,9%','10','7,6'],['TAEE11','Taesa','10,4','1,9','18,9%','41,2%','9,6%','10','7,1'],['CPFE3','CPFL Energia','8,2','1,8','21,0%','12,4%','8,0%','10','8,0'],['EQTL3','Equatorial','14,9','2,0','12,9%','8,9%','3,1%','9','6,9']]},
+  events:[{d:'06',m:'NOV',t:'Resultado do 3º trimestre de 2026',s:'Pelo histórico de divulgação da companhia',est:true}],
+  edu:{t:'Aprenda a analisar ações',s:'Módulo “Prejuízo, dívida e pouco histórico: como ler” · trilha Investimentos · 9 min'},
+};
+
+/* ================= ESTADO ================= */
+const S = {
+  dev:'desk', narrow:false, scen:'Q1',
+  route:'quadro', cls:'acoes', mode:'resumo', sort:{k:'mf',dir:'desc'}, filters:new Set(), setorOpen:false,
+  load:'ok', asset:'WEGE3', held:true, planned:false, valGroup:'preco', chartTab:{}, altTable:{},
+  tese:{st:'empty', txt:''}, search:{open:false,q:'',idx:0}, sheet:null, banner:true, toast:null, acting:false,
+};
+const TESE_TXT = 'Comprei pela consistência: 12 anos de lucro e caixa líquido. Sigo aportando aos poucos porque o P/L está perto da média de 10 anos.\n\nO que me faria rever: ROE abaixo de 20% por dois anos seguidos ou dívida líquida passando de 1× o EBITDA.';
+
+const SCEN = [
+  {k:'Q1',g:'Quadro',label:'Ações · Resumo (padrão)',set:{route:'quadro',cls:'acoes',mode:'resumo',sort:{k:'mf',dir:'desc'},filters:[]},
+   note:['Ordem padrão: Índice MF, maior primeiro. Coluna da ordem em destaque (padrão “Objetivo” da Carteira).','Três casos diferentes, com três formas: TGMA3 = dados incompletos (selo e anel tracejado; DY “proventos em conferência”); WEGE3 = dado presente mas em conferência (DY 4,0% com aviso); AURE3 = Índice 0,1 pela regra do prejuízo, anel normal e sem selo.','ITUB4 aparece “Planejado · 5%”. Números de WEGE3, TGMA3 e AURE3 são os do banco dev em 29/09.']},
+  {k:'Q2',g:'Quadro',label:'Ações · Detalhado',set:{route:'quadro',cls:'acoes',mode:'detalhado',sort:{k:'mf',dir:'desc'},filters:[]},
+   note:['Detalhado acrescenta Setor, Margem líquida, Dívida líquida/EBITDA, Payout e Liquidez média. A tabela rola para o lado dentro do card, com a coluna Ativo fixa.']},
+  {k:'Q3',g:'Quadro',label:'Na minha carteira + ordem por DY',set:{route:'quadro',cls:'acoes',mode:'resumo',sort:{k:'dy',dir:'desc'},filters:['carteira']},
+   note:['Filtro “Na minha carteira” inclui ativos planejados. Ordenado por DY 12m (direção padrão desc).']},
+  {k:'Q4',g:'Quadro',label:'FIIs · Resumo',set:{route:'quadro',cls:'fiis',mode:'resumo',sort:{k:'mf',dir:'desc'},filters:[]},
+   note:['Universo: FIIs negociados nos últimos 30 pregões (decisão 14), montado a partir do cadastro de FIIs, com Índice opcional. Tipo pela composição.','“Rendimento 10 anos”: só anos fechados (2016 a 2025); 2026 entra quando o ano terminar.','BCFF11 (fundo de fundos): “fora do Índice” (decisão 8). HCTR11 tem múltiplos mas não tem Índice: “sem Índice · dados insuficientes”, e o DY diz “rendimento parado”. Com o universo saindo só de AssetScore ele sumiria do Quadro.']},
+  {k:'Q5',g:'Quadro',label:'FIIs · Detalhado',set:{route:'quadro',cls:'fiis',mode:'detalhado',sort:{k:'mf',dir:'desc'},filters:[]},
+   note:['Vacância e nº de imóveis aparecem só no Detalhado, com “(CVM)” no cabeçalho: ficam fora dos critérios até a validação (decisão 6).']},
+  {k:'Q6',g:'Quadro',label:'Carregando',set:{route:'quadro',cls:'acoes',load:'loading'},note:['Cabeçalho real + linhas esqueleto. Abas e chips continuam clicáveis.']},
+  {k:'Q7',g:'Quadro',label:'Filtros sem resultado',set:{route:'quadro',cls:'fiis',filters:['papel','dy8','carteira2'],load:'empty'},note:['Estado vazio com “Limpar filtros”.']},
+  {k:'Q8',g:'Quadro',label:'Erro ao carregar',set:{route:'quadro',cls:'acoes',load:'error'},note:['Erro em linguagem simples, “Tentar de novo” mantém filtros e ordem.']},
+  {k:'B1',g:'Busca',label:'Autocomplete “ITU”',set:{route:'quadro',search:{open:true,q:'ITU',idx:0}},note:['Combobox: setas mudam a opção, Enter abre, Esc fecha. Selo “Na carteira”/“Planejado” na opção.','Atalho “/” foca a busca em qualquer tela da área.']},
+  {k:'B2',g:'Busca',label:'Autocomplete “HG” (FII fora do Quadro)',set:{route:'quadro',search:{open:true,q:'HG',idx:0}},note:['HGPO11 aparece na busca com “fora do Quadro · baixa liquidez”: não teve negócio nos últimos 30 pregões.']},
+  {k:'B4',g:'Busca',label:'Autocomplete “CED” (ação sem negócio)',set:{route:'quadro',search:{open:true,q:'CED',idx:0}},note:['Ação com Índice mas sem negócio nos últimos 30 pregões fica fora do Quadro (mesma regra dos FIIs) e aparece só na busca, com “fora do Quadro · sem negócio recente”. Evita preço velho no Quadro (ver pergunta 4).']},
+  {k:'B3',g:'Busca',label:'Sem resultado (“AAPL”)',set:{route:'quadro',search:{open:true,q:'AAPL',idx:0}},note:['Sem “em breve”: diz o que a busca cobre.']},
+  {k:'A1',g:'Página do ativo',label:'WEGE3 · na carteira',set:{route:'ativo',asset:'WEGE3',held:true,planned:false,tese:{st:'saved',txt:TESE_TXT}},
+   note:['Números do banco dev: Índice 9,0; Dividendos “Parcial” com 3,98% (2 casas porque arredondado empataria com a referência de 4%).','Proventos de 2025 em conferência (parcelas repetidas na fonte): DY, DPA e payout com borda tracejada e aviso; barra de 2025 tracejada e fora do crescimento anual; barra de 10 anos oculta nesses cartões.','Na sua carteira: posição, objetivo do ativo, peso na aba e classe vs. alvo do Planejamento. Tese salva: só o dono vê.']},
+  {k:'A2',g:'Página do ativo',label:'HGLG11 · FII na carteira',set:{route:'ativo',asset:'HGLG11',held:true,planned:false,tese:{st:'empty',txt:''}},
+   note:['Tijolo: “2 de 3 critérios atendidos”. Vacância e nº de imóveis aparecem como “Não se aplica · critério desligado”, sem sumir.','Rendimento por ano só com anos fechados; o ano corrente parcial fica fora para não parecer queda. Sem eventos: estado vazio (FII não tem calendário na CVM; só datas-com anunciadas).','Números de prod (Índice 8,2). No dev o HGLG11 sai 2,3 e incompleto porque a base de proventos do dev parou em jun/26.']},
+  {k:'A3',g:'Página do ativo',label:'ITUB4 · não detido',set:{route:'ativo',asset:'ITUB4',held:false,planned:false,tese:{st:'empty',txt:''}},
+   note:['Sem posição: “Planejar na Carteira” cria ativo planejado (reusa /api/carteira/planejados) e “Registrar operação” abre o wizard existente com o ticker preenchido.','Banco: “4 de 4”, Endividamento “não se aplica”; selo do padrão contábil.']},
+  {k:'A4',g:'Página do ativo',label:'ITUB4 · planejado',set:{route:'ativo',asset:'ITUB4',held:false,planned:true,tese:{st:'editing',txt:'Quero 5% da aba Ações em banco. Comparar com BBAS3 antes do próximo aporte.'}},
+   note:['Planejado: mostra objetivo e o “quanto falta” da aba. Tese em edição com salvamento automático.']},
+  {k:'A5',g:'Página do ativo',label:'TGMA3 · dados incompletos',set:{route:'ativo',asset:'TGMA3',held:false,planned:false,tese:{st:'empty',txt:''}},
+   note:['O caso mais comum (div:fonte_defasada, 312 no dev): Índice alto (8,5) com 1 componente sem dado. Selo “dados incompletos”, anel tracejado, caixa explicando o que falta, critério Dividendos “Sem dado” com motivo.','DY 12m e payout “—” com “proventos em conferência”; barra de 2025 tracejada.']},
+  {k:'A7',g:'Página do ativo',label:'AURE3 · zero pela regra (prejuízo)',set:{route:'ativo',asset:'AURE3',held:false,planned:false,tese:{st:'empty',txt:''}},
+   note:['Não é dado faltante: incompleto = falso no banco. Índice 0,1 porque o prejuízo zera lucro, rentabilidade e preço. Anel normal (sem tracejado), sem selo; caixa “Índice baixo pela regra” e componentes “0 · regra”.','P/L “—” com “prejuízo nos últimos 12 meses”. Histórico de 4 anos (listada em 2022): barras de 10 anos ocultas.']},
+  {k:'A6',g:'Página do ativo',label:'Carregando',set:{route:'ativo',asset:'WEGE3',load:'loading'},note:['Esqueleto com a mesma altura dos blocos, para a página não pular.']},
+  {k:'T1',g:'Tese privada',label:'Erro ao salvar',set:{route:'ativo',asset:'WEGE3',held:true,tese:{st:'error',txt:TESE_TXT}},note:['O texto fica no campo; “Tentar de novo”. Nada se perde.']},
+  {k:'T2',g:'Tese privada',label:'Consultor agindo pelo cliente',set:{route:'ativo',asset:'WEGE3',held:true,acting:true,tese:{st:'saved',txt:TESE_TXT}},note:['A tese é pessoal: com consultor agindo pelo cliente a API responde 403 e o card diz por quê. Posição e alvo continuam sendo os do cliente (requireAuthWithActing).']},
+  {k:'F1',g:'Acesso',label:'Fora do beta (link direto)',set:{route:'beta'},note:['Flag ligada e usuário fora do beta: sem item no menu; o layout da área renderiza esta tela (sem notFound) e a API responde 404. Flag desligada: 404 do app.']},
+  {k:'M1',g:'Celular',label:'Menu Mais com item NOVO',set:{dev:'phone',route:'quadro',sheet:'mais'},note:['A barra inferior não muda (Carteira, Fluxo, +, Planejar, Mais). A área entra no painel Mais com o selo NOVO.']},
+  {k:'M3',g:'Celular',label:'Quadro (chips e ordem)',set:{dev:'phone',route:'quadro',cls:'acoes'},note:['Trilho de chips numa linha própria, com rolagem lateral dentro dele; “Ordem” e Resumo|Detalhado na linha de baixo. Chips, pílulas e botões com 44px.']},
+  {k:'M2',g:'Celular',label:'Ordenar (sheet)',set:{dev:'phone',route:'quadro',cls:'acoes',sheet:'ordenar'},note:['Sheet com rádios de 52px: ordem e direção. “Sem dado vai para o fim” está escrito.']},
+];
+
+/* ================= PEÇAS ================= */
+function ring(v, opts={}){
+  const size = opts.size||32, r = size/2-3.5, c = 2*Math.PI*r, sw = opts.sw||4;
+  if (v==null && opts.semScore) return `<span class="ring" role="img" aria-label="Índice MF não calculado: dados insuficientes"><svg width="${size}" height="${size}" aria-hidden="true"><circle cx="${size/2}" cy="${size/2}" r="${r}" fill="none" class="ring-dash" stroke-width="1.5" stroke-dasharray="3 3"/></svg><span><span class="rv" style="font-weight:500;color:var(--app-muted);font-size:13px">sem Índice</span><span class="rs">dados insuf.</span></span></span>`;
+  if (v==null) return `<span class="ring" role="img" aria-label="Fora do Índice MF nesta fase"><svg width="${size}" height="${size}" aria-hidden="true"><circle cx="${size/2}" cy="${size/2}" r="${r}" fill="none" class="ring-dash" stroke-width="1.5" stroke-dasharray="3 3"/></svg><span><span class="rv" style="font-weight:500;color:var(--app-muted);font-size:13px">fora do Índice</span></span></span>`;
+  const len = c*Math.max(0,Math.min(10,v))/10;
+  const track = opts.inc ? `<circle cx="${size/2}" cy="${size/2}" r="${r}" fill="none" class="ring-dash" stroke-width="1.5" stroke-dasharray="3 3"/>` : `<circle cx="${size/2}" cy="${size/2}" r="${r}" fill="none" class="ring-track" stroke-width="${sw}"/>`;
+  const label = `Índice MF ${nf(v)} de 10${opts.at!=null?`, ${opts.at} de ${opts.ap} critérios atendidos`:''}${opts.inc?', dados incompletos':''}`;
+  const inner = opts.big ? `<text x="50%" y="50%" text-anchor="middle" dominant-baseline="central" style="font:600 ${size*0.3}px var(--font);fill:var(--app-strong)">${nf(v)}</text>` : '';
+  return `<span class="ring" role="img" aria-label="${label}"><svg width="${size}" height="${size}" aria-hidden="true">${track}<circle cx="${size/2}" cy="${size/2}" r="${r}" fill="none" class="ring-fill" stroke-width="${sw}" stroke-linecap="round" stroke-dasharray="${len} ${c}" transform="rotate(-90 ${size/2} ${size/2})"/>${inner}</svg>${opts.big?'':`<span><span class="rv">${nf(v)}</span>${opts.at!=null?`<span class="rs">${opts.inc?'incompleto':`${opts.at}/${opts.ap}`}</span>`:''}</span>`}</span>`;
+}
+function streak(n){
+  const k = Math.min(n,10); let s='';
+  for(let i=0;i<10;i++) s+=`<rect x="${i*5}" y="2" width="3.5" height="12" rx="1" class="${i<k?'bar-pos':'bar-off'}"/>`;
+  return `<span class="bars" role="img" aria-label="${n} ${n===1?'ano':'anos'} seguidos de lucro"><svg width="50" height="16" aria-hidden="true">${s}</svg><span class="bl">${n===0?'nenhum':n+(n===1?' ano':' anos')}</span></span>`;
+}
+function tenBars(vals, kind){
+  const w=7, gap=2, H=26, real=vals.filter(v=>v!=null), max=Math.max(...real.map(Math.abs),0.0001);
+  const hasNeg = real.some(v=>v<0); const zero = hasNeg ? H/2 : H;
+  let s='';
+  vals.forEach((v,i)=>{
+    const x=i*(w+gap);
+    if(v==null){ s+=`<rect x="${x+.5}" y="${zero-5.5}" width="${w-1}" height="5" rx="1.5" class="bar-nd"/>`; return; }
+    const h=Math.max(2,Math.abs(v)/max*(hasNeg?H/2-1:H-1));
+    s+= v>=0 ? `<rect x="${x}" y="${zero-h}" width="${w}" height="${h}" rx="1.5" class="bar-pos"><title>${YEARS[i]}: ${kind==='rend'?'R$ '+nf(v,2)+' por cota':'R$ '+nf(v,1)+' bi'}</title></rect>`
+             : `<rect x="${x}" y="${zero}" width="${w}" height="${h}" rx="1.5" class="bar-neg"><title>${YEARS[i]}: prejuízo de R$ ${nf(Math.abs(v),1)} bi</title></rect>`;
+  });
+  if(hasNeg) s+=`<line x1="-1" x2="${10*(w+gap)-1}" y1="${zero}" y2="${zero}" class="zero" stroke-width="1"/>`;
+  const pos = vals.filter(v=>v!=null&&v>0).length, neg = vals.filter(v=>v!=null&&v<0).length, nd = vals.filter(v=>v==null).length;
+  const lab = kind==='rend' ? `Rendimento por cota em 10 anos: ${pos} anos com rendimento${nd?`, ${nd} sem dado`:''}; último R$ ${nf(real[real.length-1]??0,2)}`
+    : `Lucro em ${pos} de ${10-nd} anos com dado${neg?`, prejuízo em ${neg}`:''}${nd?`, ${nd} anos sem dado`:''}`;
+  return `<span class="bars" role="img" aria-label="${lab}"><svg width="${10*(w+gap)}" height="${H}" aria-hidden="true">${s}</svg></span>`;
+}
+function st(s){
+  const m={ok:['i-ok','Atende'],part:['i-part','Parcial'],no:['i-no','Não atende'],nd:['i-nd','Sem dado'],na:['i-na','Não se aplica']}[s];
+  return `<span class="st ${s}">${icon(m[0])}${m[1]}</span>`;
+}
+function dots(at, ap, n){ // 5 pontinhos (mini semáforo) — não usado na tabela, só na busca
+  return '';
+}
+function badgePort(r){
+  if(r.port) return `<span class="badge hold">${r.port.q} ${S.cls==='fiis'?'cotas':'ações'} · ${nf(r.port.p)}%</span>`;
+  if(r.plan) return `<span class="badge plan">Planejado · ${r.plan.obj}%</span>`;
+  return '<span class="nd" aria-label="Não tem">—</span>';
+}
+function dyCell(r){
+  if(r.dy==null && r.dyWhy) return `<span class="nd" title="${r.dyWhy}">—</span><span class="dyconf">${r.dyWhy}</span>`;
+  if(r.dyConf) return `${fmtVal(r.dy,'pct')}<span class="dyconf" title="Proventos repetidos na fonte; valor em conferência">em conferência</span>`;
+  return fmtVal(r.dy,'pct');
+}
+const fmtVal = (v, kind) => {
+  if(v==='na') return '<span class="nd" title="Não se aplica a bancos">n/a</span>';
+  if(v==='prej') return '<span class="nd" title="Prejuízo nos últimos 12 meses">prejuízo</span>';
+  if(v==='pln') return '<span class="nd" title="Patrimônio líquido negativo">PL neg.</span>';
+  if(v==null) return '<span class="nd" title="Sem dado">—</span>';
+  if(kind==='pct') return v<0?`<span class="negv">−${nf(-v)}%</span>`:pct(v);
+  if(kind==='x') return v<0?`<span>−${nf(-v)}×</span>`:nf(v)+'×';
+  if(kind==='num2') return nf(v,2);
+  if(kind==='money') return nf(v,2);
+  if(kind==='int') return v;
+  return nf(v);
+};
+
+/* ---------- colunas ---------- */
+function cols(){
+  if(S.cls==='acoes'){
+    const base=[
+      {k:'ativo',l:'Ativo'},
+      {k:'preco',l:'Preço (R$)',r:1,dir:'desc',f:r=>fmtVal(r.preco,'money')},
+      {k:'streak',l:'Lucros seguidos',dir:'desc',f:r=>streak(r.streak)},
+      {k:'roe',l:'ROE',r:1,dir:'desc',f:r=>fmtVal(r.roe,'pct')},
+      {k:'pl',l:'P/L',r:1,dir:'asc',f:r=>fmtVal(r.pl)},
+      {k:'pvp',l:'P/VP',r:1,dir:'asc',f:r=>fmtVal(r.pvp,'num2')},
+      {k:'dy',l:'DY 12m',r:1,dir:'desc',f:r=>dyCell(r)},
+      {k:'l10',l:'Lucro 10 anos',f:r=>tenBars(r.l10,'lucro'),nosort:1},
+      {k:'mf',l:'Índice MF',dir:'desc',f:r=>ring(r.mf,{at:r.at,ap:r.ap,inc:r.inc,semScore:r.semScore})},
+      {k:'port',l:'Na carteira',f:r=>badgePort(r),nosort:1},
+    ];
+    if(S.mode==='detalhado') base.splice(1,0,{k:'setor',l:'Setor',f:r=>`<span title="${esc(r.seg)}">${esc(r.setor)}</span>`,nosort:1});
+    if(S.mode==='detalhado') base.splice(7,0,
+      {k:'mg',l:'Marg. líq.',r:1,dir:'desc',f:r=>fmtVal(r.mg,'pct')},
+      {k:'dl',l:'Dív.líq./EBITDA',r:1,dir:'asc',f:r=>fmtVal(r.dl,'x')},
+      {k:'pay',l:'Payout',r:1,dir:'asc',f:r=>r.pay==null?fmtVal(null):r.pay+'%'},
+      {k:'liq',l:'Liq. média 21d',r:1,f:r=>r.liq,nosort:1});
+    return base;
+  }
+  const base=[
+    {k:'ativo',l:'Fundo'},
+    {k:'tipo',l:'Tipo',f:r=>r.tipo,nosort:1},
+    {k:'preco',l:'Cota (R$)',r:1,dir:'desc',f:r=>fmtVal(r.preco,'money')},
+    {k:'dy',l:'DY 12m',r:1,dir:'desc',f:r=>fmtVal(r.dy,'pct')},
+    {k:'pvp',l:'P/VP',r:1,dir:'asc',f:r=>fmtVal(r.pvp,'num2')},
+    {k:'obr',l:'Obrig./PL',r:1,dir:'asc',f:r=>fmtVal(r.obr,'pct')},
+    {k:'r10',l:'Rendimento 10 anos',f:r=>tenBars(r.r10,'rend'),nosort:1},
+    {k:'mf',l:'Índice MF',dir:'desc',f:r=>ring(r.mf,{at:r.at,ap:r.ap,inc:r.inc,semScore:r.semScore})},
+    {k:'port',l:'Na carteira',f:r=>badgePort(r),nosort:1},
+  ];
+  if(S.mode==='detalhado') base.splice(2,0,{k:'seg',l:'Segmento',f:r=>r.seg,nosort:1});
+  if(S.mode==='detalhado') base.splice(7,0,
+    {k:'pat',l:'Patrimônio',r:1,f:r=>r.pat,nosort:1},
+    {k:'cot',l:'Cotistas',r:1,f:r=>r.cot,nosort:1},
+    {k:'liq',l:'Liq. média 21d',r:1,f:r=>r.liq,nosort:1},
+    {k:'vac',l:'Vacância (CVM)',r:1,dir:'asc',f:r=>r.tipo==='Tijolo'?fmtVal(r.vac,'pct'):'<span class="nd">n/a</span>'},
+    {k:'nim',l:'Imóveis / CRIs (CVM)',r:1,f:r=>r.nim,nosort:1});
+  return base;
+}
+function filterDefs(){
+  return S.cls==='acoes'
+    ? [['lucro5','Lucro 5+ anos seguidos'],['dy4','DY 12m ≥ 4%'],['carteira','Na minha carteira'],['completo','Só dados completos']]
+    : [['tijolo','Tijolo'],['papel','Papel'],['dy8','DY 12m ≥ 8%'],['pvp1','P/VP ≤ 1'],['carteira2','Na minha carteira'],['completo','Só dados completos']];
+}
+function rowsData(){
+  let rows = (S.cls==='acoes'?ACOES:FIIS).slice();
+  const F=S.filters;
+  if(F.has('lucro5')) rows=rows.filter(r=>r.streak>=5);
+  if(F.has('dy4')) rows=rows.filter(r=>r.dy!=null&&r.dy>=4);
+  if(F.has('dy8')) rows=rows.filter(r=>r.dy!=null&&r.dy>=8);
+  if(F.has('pvp1')) rows=rows.filter(r=>typeof r.pvp==='number'&&r.pvp<=1);
+  if(F.has('tijolo')&&!F.has('papel')) rows=rows.filter(r=>r.tipo==='Tijolo');
+  if(F.has('papel')&&!F.has('tijolo')) rows=rows.filter(r=>r.tipo==='Papel');
+  if(F.has('carteira')||F.has('carteira2')) rows=rows.filter(r=>r.port||r.plan);
+  if(F.has('completo')) rows=rows.filter(r=>!r.inc&&!r.fof&&!r.semScore);
+  const {k,dir}=S.sort, m=dir==='desc'?-1:1;
+  rows.sort((a,b)=>{
+    const va=typeof a[k]==='number'?a[k]:null, vb=typeof b[k]==='number'?b[k]:null;
+    if(va==null&&vb==null) return 0; if(va==null) return 1; if(vb==null) return -1;
+    return (va-vb)*m;
+  });
+  return rows;
+}
+const total = () => S.filters.size ? null : COUNT[S.cls];
+function sortLabel(){ const c=cols().find(c=>c.k===S.sort.k); return `${c?c.l:'Índice MF'}, ${S.sort.dir==='desc'?'maior primeiro':'menor primeiro'}`; }
+
+/* ---------- busca ---------- */
+function searchResults(q){
+  q=q.trim().toUpperCase(); if(!q) return [];
+  const all=[...ACOES.map(r=>({t:r.t,n:r.n,cls:'Ação',preco:r.preco,port:r.port,plan:r.plan,mf:r.mf})),...FIIS.map(r=>({t:r.t,n:r.n,cls:'FII',preco:r.preco,port:r.port,mf:r.mf})),...SEARCH_EXTRA];
+  return all.filter(a=>a.t.startsWith(q)||a.n.toUpperCase().includes(q)).slice(0,8);
+}
+function hl(t,q){ q=q.trim().toUpperCase(); return t.startsWith(q)?`<mark>${esc(t.slice(0,q.length))}</mark>${esc(t.slice(q.length))}`:esc(t); }
+function renderAC(mobile){
+  const q=S.search.q, res=searchResults(q);
+  if(!res.length) return `<div class="ac${mobile?' acm':''}" id="ac-list" role="listbox" aria-label="Sugestões"><div class="empty"><b>Nenhum ativo encontrado para “${esc(q)}”.</b><br><span class="muted small">A busca cobre ações e FIIs da B3, por ticker ou nome.</span></div></div>`;
+  const groups=[['Ação','Ações'],['FII','FIIs']];
+  let html='', i=0;
+  groups.forEach(([c,lab])=>{
+    const g=res.filter(r=>r.cls===c); if(!g.length) return;
+    html+=`<div class="gh" role="presentation">${lab}</div>`;
+    g.forEach(r=>{
+      const sel=i===S.search.idx;
+      const tag = r.port?'<span class="badge hold">Na carteira</span>':r.plan?'<span class="badge plan">Planejado</span>':r.fora?`<span class="badge">${r.foraTxt||'fora do Quadro · baixa liquidez'}</span>`:'';
+      html+=`<div class="opt" role="option" id="opt-${i}" aria-selected="${sel}" data-open="${r.t}"><span class="logo-sq" aria-hidden="true">${r.t.slice(0,4)}</span><span style="min-width:0"><span class="tk">${hl(r.t,q)}</span> ${tag}<span class="nm">${esc(r.n)}</span></span><span class="r">R$ ${nf(r.preco,2)}${r.mf!=null&&r.mf!==undefined?`<small>Índice ${nf(r.mf)}</small>`:''}</span></div>`;
+      i++;
+    });
+  });
+  return `<div class="ac${mobile?' acm':''}" id="ac-list" role="listbox" aria-label="Sugestões">${html}<div class="foot">↑ ↓ para escolher · Enter abre · Esc fecha</div></div>`;
+}
+function searchBox(){
+  return `<div class="srch">${icon('i-search','mag')}<input id="srch" type="search" role="combobox" aria-expanded="${S.search.open}" aria-controls="ac-list" aria-autocomplete="list" ${S.search.open&&searchResults(S.search.q).length?`aria-activedescendant="opt-${S.search.idx}"`:''} placeholder="Buscar ação ou FII (ex.: WEGE3, HGLG11)" value="${esc(S.search.q)}" aria-label="Buscar ativo"><kbd aria-hidden="true">/</kbd>${S.search.open&&S.search.q?renderAC(false):''}</div>`;
+}
+
+/* ================= COMPUTADOR ================= */
+const NAV=[['n-dash','Dashboard'],['n-wallet','Carteira'],['n-anal','Análise de Ativos','novo'],['n-flow','Fluxo de Caixa'],['n-plan','Planejamento'],['n-heart','Saúde Financeira'],['n-debt','Dívidas'],['i-cal','Agenda'],['n-doc','Relatórios'],['n-edu','Educação']];
+function sidebar(){
+  const inBeta = S.route!=='beta';
+  return `<nav class="sb" aria-label="Menu principal"><div class="logo">My Finance</div><div class="grp">Menu</div>${NAV.filter(n=>inBeta||n[1]!=='Análise de Ativos').map(n=>`<a class="nav ${n[1]==='Análise de Ativos'&&inBeta?'on':''}" href="#" ${n[1]==='Análise de Ativos'&&inBeta?'aria-current="page"':''} data-nav="${n[1]}">${icon(n[0])}<span>${n[1]}</span>${n[2]?'<span class="nbadge">Novo</span>':''}</a>`).join('')}</nav>`;
+}
+function legal(){ return `<p class="legal">O My Finance é uma ferramenta de organização financeira e de dados. O Índice MF é um indicador quantitativo de fórmula pública; o ranking, as notas e as teses são opiniões pessoais de usuários. Nada nesta área constitui análise, consultoria ou recomendação de investimento (Resolução CVM 20/2021). Rentabilidade passada não garante resultados futuros. Decisões de investimento são de responsabilidade exclusiva do usuário.</p>`; }
+
+function quadroHeader(){
+  return `<div class="ph-title"><div><h1>Análise de Ativos <span class="beta-pill" style="vertical-align:4px;margin-left:6px">Beta</span></h1><p>Fundamentos de 10 anos, Índice MF e o que você tem na Carteira, lado a lado. Ações e FIIs da B3.</p></div>${searchBox()}</div>
+  ${S.banner?`<div class="banner" role="region" aria-label="Aviso do beta"><span class="sp"><b>Você está no beta fechado.</b> Dados da CVM e da B3, atualizados todo dia útil depois do fechamento. Se um número parecer errado, conte pra gente pelo Suporte.</span><button class="btn ghost" type="button" data-act="dismissBanner">Entendi</button></div>`:''}`;
+}
+function renderQuadro(){
+  const C=cols(), rows=rowsData(), tot=total();
+  const chips = filterDefs().map(([k,l])=>`<button type="button" class="chip" aria-pressed="${S.filters.has(k)}" data-filter="${k}">${l}${S.filters.has(k)?' <span class="x" aria-hidden="true">✕</span>':''}</button>`).join('')
+    + `<span style="position:relative"><button type="button" class="chip" aria-expanded="${S.setorOpen}" data-act="setor">${S.cls==='acoes'?'Setor':'Segmento'} ▾</button>${S.setorOpen?setorPop():''}</span>`;
+  let body;
+  if(S.load==='loading') body = `<div class="tbl-wrap" aria-busy="true"><table class="t"><caption class="sr">Carregando o Quadro</caption><thead><tr>${C.map(c=>`<th scope="col" class="${c.r?'r':''}"><span class="th-in">${c.l}</span></th>`).join('')}</tr></thead></table>${Array.from({length:8},()=>`<div class="skel-row"><div class="skel" style="width:70%"></div>${'<div class="skel"></div>'.repeat(6)}</div>`).join('')}</div>`;
+  else if(S.load==='error') body = `<div class="empty-st" role="alert"><h3>Não conseguimos carregar o Quadro agora</h3><p>O servidor não respondeu a tempo. Seus filtros e a ordem continuam como estavam.</p><button class="btn primary" type="button" data-act="retry">Tentar de novo</button></div>`;
+  else if(S.load==='empty' || !rows.length){
+    const cart = (S.filters.has('carteira')||S.filters.has('carteira2')) && S.filters.size===1;
+    body = cart ? `<div class="empty-st"><h3>Você ainda não tem ${S.cls==='acoes'?'ações':'FIIs'} na Carteira</h3><p>Registre uma operação ou planeje um ativo para ele aparecer aqui com a sua posição.</p><button class="btn primary" type="button" data-act="wizard">Registrar operação</button></div>`
+      : `<div class="empty-st"><h3>Nenhum ${S.cls==='acoes'?'ação':'FII'} com esses filtros</h3><p>Tire um filtro para ver mais ${S.cls==='acoes'?'ações':'fundos'}.</p><button class="btn" type="button" data-act="clear">Limpar filtros</button></div>`;
+  } else {
+    const head = C.map(c=>{
+      const on=S.sort.k===c.k, aria = c.nosort||c.k==='ativo' ? '' : `aria-sort="${on?(S.sort.dir==='desc'?'descending':'ascending'):'none'}"`;
+      const inner = (c.nosort||c.k==='ativo') ? `<span class="th-in">${c.l}</span>` : `<button type="button" class="th-btn" data-sort="${c.k}" data-on="${on?1:0}" aria-label="Ordenar por ${c.l}">${c.l}<span class="ar" aria-hidden="true">${on?(S.sort.dir==='desc'?'▼':'▲'):'▼'}</span></button>`;
+      return `<th scope="col" ${aria} class="${c.r?'r':''} ${on?'hl':''} ${c.k==='ativo'?'sticky':''}">${inner}</th>`;
+    }).join('');
+    const trs = rows.map(r=>`<tr class="row" data-open="${r.t}">${C.map(c=>{
+      if(c.k==='ativo') return `<th scope="row" class="sticky" style="font-weight:400;text-align:left;padding:10px 16px;border-bottom:1px solid var(--app-line-soft)"><a class="rowlink" href="#" data-open="${r.t}"><span class="logo-sq" aria-hidden="true" style="width:34px;height:34px;font-size:10px">${r.t.slice(0,4)}</span><span><span class="tk">${r.t}</span>${r.inc?' <span class="badge inc">dados incompletos</span>':''}${r.semNeg?` <span class="badge semneg" title="${r.semNeg}">sem negócio recente</span>`:''}<span class="nm">${esc(r.n)}</span></span></a></th>`;
+      return `<td class="${c.r?'r':''} ${S.sort.k===c.k?'hl':''}">${c.f(r)}</td>`;
+    }).join('')}</tr>`).join('');
+    body = `<div class="tbl-wrap" style="max-height:620px"><table class="t" style="min-width:${S.mode==='detalhado'?1480:900}px"><caption class="sr">Quadro de ${S.cls==='acoes'?'ações':'FIIs'}, ordenado por ${sortLabel()}</caption><thead><tr>${head}</tr></thead><tbody>${trs}</tbody></table></div>
+    <div class="tblfoot"><span class="count-line" aria-live="polite">${rows.length} de ${tot??rows.length} · ordenado por ${sortLabel()}${tot?' · exemplo com 12 linhas':''}</span>${tot?`<button class="btn" type="button" data-act="more">Mostrar mais 25</button>`:''}</div>`;
+  }
+  return `${quadroHeader()}
+  <section class="card" aria-label="Quadro">
+    <div class="tabs" role="tablist" aria-label="Classe de ativo">
+      <button class="tab" role="tab" aria-selected="${S.cls==='acoes'}" data-cls="acoes">Ações <span class="cnt">385</span></button>
+      <button class="tab" role="tab" aria-selected="${S.cls==='fiis'}" data-cls="fiis">FIIs <span class="cnt">362</span></button>
+    </div>
+    <div class="toolbar"><div class="chips" role="group" aria-label="Filtros">${chips}${S.filters.size?`<button class="lnk small" type="button" data-act="clear" style="margin-left:4px">Limpar filtros</button>`:''}</div>
+      <div class="pills" role="group" aria-label="Colunas"><button class="pill" type="button" aria-pressed="${S.mode==='resumo'}" data-mode="resumo">Resumo</button><button class="pill" type="button" aria-pressed="${S.mode==='detalhado'}" data-mode="detalhado">Detalhado</button></div></div>
+    ${body}
+    <p class="formula"><b>Índice MF</b> (0 a 10), indicador quantitativo de fórmula pública: <code>0,35 × lucro + 0,20 × dívida + 0,20 × rentabilidade + 0,15 × proventos + 0,10 × preço</code>. Critério que não se aplica sai da conta e o peso dele é redistribuído. Dado ausente conta zero e o ativo ganha o selo “dados incompletos”. <button class="lnk" type="button" data-act="formula">Como cada parte é calculada</button></p>
+    <p class="fresh">${icon('i-clock')}Cotações: COTAHIST B3 de 29/09/2026 · Índice recalculado em 30/09/2026 às 06:20</p>
+  </section>
+  ${legal()}`;
+}
+function setorPop(){
+  const list = S.cls==='acoes' ? ['Bens industriais','Consumo cíclico','Consumo não cíclico','Financeiro','Materiais básicos','Petróleo, gás e biocombustíveis','Saúde','Tecnologia da informação','Utilidade pública'] : ['Logística','Shoppings','Lajes corporativas','Híbrido','Recebíveis (CRI)','Fundo de fundos','Renda urbana'];
+  return `<div class="popover" role="dialog" aria-label="${S.cls==='acoes'?'Setor':'Segmento'}" style="top:44px;left:0">${list.map((s,i)=>`<label><input type="checkbox" id="set-${i}"> ${s}</label>`).join('')}<div style="display:flex;gap:8px;justify-content:flex-end"><button class="btn ghost" type="button" data-act="setor">Fechar</button><button class="btn primary" type="button" data-act="setor">Aplicar</button></div></div>`;
+}
+
+/* ---------- gráficos ---------- */
+function lineChart(d, id){
+  const W=560,H=240,pl=40,pr=56,pt=16,pb=28;
+  const all=[...d.va,...d.vb].filter(v=>v!=null);
+  let lo=Math.min(0,...all), hi=Math.max(...all);
+  const step = hi-lo>400?100:hi-lo>150?50:25; lo=Math.floor(lo/step)*step; hi=Math.ceil(hi/step)*step;
+  const x=i=>pl+i*(W-pl-pr)/9, y=v=>pt+(hi-v)/(hi-lo)*(H-pt-pb);
+  let g=''; for(let v=lo; v<=hi; v+=step){ g+=`<line x1="${pl}" x2="${W-pr}" y1="${y(v)}" y2="${y(v)}" class="gl"/><text x="${pl-6}" y="${y(v)+4}" text-anchor="end">${v}</text>`; }
+  YEARS.forEach((yr,i)=>{ if(i%3===0||i===9) g+=`<text x="${x(i)}" y="${H-8}" text-anchor="middle">${yr}</text>`; });
+  const path=vals=>{ let p='',on=false; vals.forEach((v,i)=>{ if(v==null){on=false;return;} p+=(on?'L':'M')+x(i)+','+y(v); on=true; }); return p; };
+  const last=(vals)=>{ for(let i=9;i>=0;i--) if(vals[i]!=null) return i; return 0; };
+  const la=last(d.va), lb=last(d.vb);
+  const ya=y(d.va[la]), yb=y(d.vb[lb]); const sep = Math.abs(ya-yb)<14 ? (ya<yb?-7:7) : 0;
+  let hits=''; YEARS.forEach((yr,i)=>{ if(d.va[i]==null&&d.vb[i]==null) return; hits+=`<rect class="hit" x="${x(i)-(W-pl-pr)/18}" y="${pt}" width="${(W-pl-pr)/9}" height="${H-pt-pb}" data-i="${i}" tabindex="-1"/>`; });
+  const zero = lo<0 ? `<line x1="${pl}" x2="${W-pr}" y1="${y(0)}" y2="${y(0)}" class="ax"/>` : '';
+  return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-labelledby="${id}-t ${id}-d" data-chart="${id}"><title id="${id}-t">${esc(d.title)}</title><desc id="${id}-d">${esc(d.cap)}</desc>${g}${zero}
+    <path d="${path(d.vb)}" class="l2"/><path d="${path(d.va)}" class="l1"/>
+    <circle cx="${x(la)}" cy="${ya}" r="4" class="p1"/><circle cx="${x(lb)}" cy="${yb}" r="4" class="p2"/>
+    <text x="${x(la)+8}" y="${ya+4-sep}" class="lbl1">${d.va[la]}</text><text x="${x(lb)+8}" y="${yb+4+sep}" class="lbl2">${d.vb[lb]}</text>
+    <line class="cross" x1="0" x2="0" y1="${pt}" y2="${H-pb}" visibility="hidden"/>${hits}</svg>`;
+}
+function barChart(d, id, money){
+  const W=320,H=240,pl=8,pr=8,pt=24,pb=28; const real=d.v.filter(v=>v!=null); const max=Math.max(...real)*1.1;
+  const bw=(W-pl-pr)/10*0.62, x=i=>pl+i*(W-pl-pr)/10+((W-pl-pr)/10-bw)/2, y=v=>pt+(1-v/max)*(H-pt-pb);
+  let s=''; const first=d.v.findIndex(v=>v!=null), last=d.v.length-1-[...d.v].reverse().findIndex(v=>v!=null);
+  d.v.forEach((v,i)=>{
+    if(v==null){ s+=`<rect x="${x(i)}" y="${H-pb-10}" width="${bw}" height="10" rx="3" class="bar-nd"/>`; return; }
+    const fl=(d.flag||[]).includes(i);
+    s+=`<rect x="${x(i)}" y="${y(v)}" width="${bw}" height="${Math.max(1,H-pb-y(v))}" rx="4" class="${fl?'bar-flag':'bar-pos'}"><title>${YEARS[i]}: R$ ${nf(v,2)}${fl?' (em conferência)':''}</title></rect>`;
+    if(i===first||i===last) s+=`<text x="${x(i)+bw/2}" y="${y(v)-6}" text-anchor="middle" style="fill:var(--app-strong);font-weight:600">${nf(v,2)}${fl?'*':''}</text>`;
+  });
+  YEARS.forEach((yr,i)=>{ if(i===0||i===9||i===5) s+=`<text x="${x(i)+bw/2}" y="${H-8}" text-anchor="middle">${yr}</text>`; });
+  s+=`<line x1="${pl}" x2="${W-pr}" y1="${H-pb}" y2="${H-pb}" class="ax"/>`;
+  return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(d.title)}: de R$ ${nf(real[0],2)} em ${YEARS[first]} a R$ ${nf(real[real.length-1],2)}; ${esc(d.cagr)}">${s}</svg>`;
+}
+function miniChart(m, id){
+  const W=320,H=130,pl=34,pr=64,pt=12,pb=22; const real=m.h.filter(v=>v!=null);
+  const avg=real.reduce((a,b)=>a+b,0)/real.length; let lo=Math.min(...real), hi=Math.max(...real); const pad=(hi-lo)*0.15||1; lo-=pad; hi+=pad;
+  const x=i=>pl+i*(W-pl-pr)/9, y=v=>pt+(hi-v)/(hi-lo)*(H-pt-pb);
+  let p='',on=false; m.h.forEach((v,i)=>{ if(v==null){on=false;return;} p+=(on?'L':'M')+x(i)+','+y(v); on=true; });
+  const li=m.h.length-1-[...m.h].reverse().findIndex(v=>v!=null);
+  const dec = hi<5?2:1;
+  return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${m.name} em 10 anos: média ${nf(avg,dec)}, mínimo ${nf(Math.min(...real),dec)}, máximo ${nf(Math.max(...real),dec)}, atual ${nf(m.cur,dec)}">
+    <line x1="${pl}" x2="${W-pr}" y1="${y(avg)}" y2="${y(avg)}" class="avg"/><text x="${W-pr+4}" y="${y(avg)+4}">média ${nf(avg,dec)}</text>
+    <path d="${p}" class="l1"/><circle cx="${x(li)}" cy="${y(m.h[li])}" r="3.5" class="p1"/>
+    <text x="${pl-4}" y="${y(Math.max(...real))+4}" text-anchor="end">${nf(Math.max(...real),dec)}</text><text x="${pl-4}" y="${y(Math.min(...real))+4}" text-anchor="end">${nf(Math.min(...real),dec)}</text>
+    <text x="${x(0)}" y="${H-6}" text-anchor="middle">2016</text><text x="${x(9)}" y="${H-6}" text-anchor="middle">2025</text></svg>`;
+}
+
+/* ---------- barra de posição (regras §4.5) ---------- */
+function fmtF(v,f){ if(v==null) return '—'; if(f==='pct') return pct(v); if(f==='pct0') return nf(v,0)+'%'; if(f==='pctS') return sgn(v)+'%'; if(f==='x1') return nf(v,1); if(f==='x2') return nf(v,2); if(f==='brl') return 'R$ '+nf(v,2); if(f==='int') return String(v); return nf(v); }
+function barStatus(it){
+  const h=it.h, avg=h.reduce((a,b)=>a+b,0)/h.length, mn=Math.min(...h), mx=Math.max(...h), v=it.v, isPct=it.f.startsWith('pct');
+  let txt;
+  if(avg>-0.5&&avg<0.5&&!isPct) txt = Math.abs(v-avg)<0.05 ? 'na média de 10 anos' : (v>avg?'acima da média 10a':'abaixo da média 10a');
+  else if(isPct){ const d=v-avg; txt = Math.abs(d)<0.15?'na média de 10 anos':`${sgn(d)} p.p. vs. média 10a`; }
+  else { const d=(v-avg)/Math.abs(avg)*100; txt = Math.abs(d)<3?'na média de 10 anos':`${sgn(d,0)}% vs. média 10a`; }
+  if(v>=mx) txt+=' · maior em 10 anos'; else if(v<=mn) txt+=' · menor em 10 anos';
+  return {txt,avg,mn,mx,below:v<avg};
+}
+function rangeBar(it){
+  if(it.v==null) return `<p class="stt">${esc(it.nd||'sem dado')}</p>`;
+  if(it.conf) return `<p class="stt" style="font-weight:500;color:var(--app-muted)">valor em conferência · barra oculta</p>`;
+  if(!it.h) return `<p class="ref">sem série de 10 anos para comparar</p>`;
+  if(it.short||it.h.length<5) return `<p class="stt" style="font-weight:500;color:var(--app-muted)">histórico com menos de 5 anos · barra oculta</p>`;
+  const b=barStatus(it); const lo=Math.min(b.mn,it.v), hi=Math.max(b.mx,it.v); const pos=v=>((v-lo)/((hi-lo)||1)*100);
+  const dec = it.f==='pct0'?0:it.f==='x2'||it.f==='brl'?2:1;
+  return `<div class="rbar" role="img" aria-label="Posição em 10 anos: mínimo ${nf(b.mn,dec)}, média ${nf(b.avg,dec)}, máximo ${nf(b.mx,dec)}, atual ${nf(it.v,dec)}"><span class="trk"></span><span class="avgm" style="left:${pos(b.avg)}%"></span><span class="cur" style="left:${pos(it.v)}%"></span></div>
+    <div class="rbar-l"><span>mín ${nf(b.mn,dec)}</span><span>média ${nf(b.avg,dec)}</span><span>máx ${nf(b.mx,dec)}</span></div>
+    <p class="stt">${b.txt}</p>`;
+}
+
+/* ---------- página do ativo ---------- */
+function assetPage(mobile){
+  const d=DET[S.asset]; const isF=d.cls==='fiis';
+  if(S.load==='loading') return `<a class="lnk crumb" href="#" data-act="back">← Voltar ao Quadro</a><div aria-busy="true" style="display:flex;flex-direction:column;gap:16px">${[120,260,200,320,280].map(h=>`<div class="card" style="height:${h}px"><div class="skel" style="width:30%"></div><div class="skel" style="width:60%"></div><div class="skel" style="width:45%"></div></div>`).join('')}</div><p class="sr" aria-live="polite">Carregando ${d.t}</p>`;
+  const crumb = mobile ? '' : `<a class="lnk crumb" href="#" data-act="back">← Voltar ao Quadro de ${isF?'FIIs':'Ações'}</a>`;
+  const head = `<section class="card" aria-labelledby="a-h"><div class="ahead"><div class="id"><span class="logo-sq lg" aria-hidden="true">${d.sig}</span><div style="min-width:0"><h1 id="a-h">${d.t} <small>${esc(d.n)}</small></h1><div class="tags">${d.tags.map(t=>`<span class="badge">${t}</span>`).join('')}${d.extraBadge?`<span class="badge prov">${d.extraBadge}</span>`:''}${d.inc?'<span class="badge inc">dados incompletos</span>':''}${(S.held&&d.pos)?'<span class="badge hold">Na carteira</span>':S.planned?'<span class="badge plan">Planejado</span>':''}</div></div></div>
+    <div class="price"><div class="v">R$ ${nf(d.preco,2)}</div><div class="d ${d.chg<0?'negv':''}" style="color:${d.chg<0?'var(--neg)':'var(--pos)'}">${sgn(d.chg,2)} (${sgn(d.chgPct,2)}%)</div><div class="when">${d.quando} · fonte B3</div></div></div>
+    ${actButtons(d)}</section>`;
+  return `${crumb}${head}${scoreBlock(d)}${posBlock(d)}${chartBlock(d)}${essBlock(d)}${valBlock(d)}${peersBlock(d)}
+    <div class="two">${eventsBlock(d)}${eduBlock(d)}</div>${teseBlock(d)}
+    <p class="fresh">${icon('i-clock')}${d.fresh}</p>${legal()}`;
+}
+function actButtons(d){
+  if(S.acting) return `<div class="banner" style="background:var(--app-bg);color:var(--app-ink)"><span class="sp">Você está agindo pela carteira de <b>Marina Costa</b>. Posição e alvo são dela; a tese não aparece neste modo.</span></div>`;
+  if(S.held&&d.pos) return `<div class="acts"><button class="btn" type="button" data-act="wizard">Registrar operação</button><a class="btn ghost" href="#" data-act="toCarteira">Ver na Carteira</a></div>`;
+  if(S.planned) return `<div class="acts"><button class="btn primary" type="button" data-act="wizard">Registrar operação</button><button class="btn" type="button" data-act="toast:Objetivo editado na Carteira">Editar objetivo</button></div>`;
+  return `<div class="acts"><button class="btn primary" type="button" data-act="plan">Planejar na Carteira</button><button class="btn" type="button" data-act="wizard">Registrar operação</button></div>`;
+}
+function scoreBlock(d){
+  const comp=d.comps.map(([l,v,w,why])=>`<div class="comp-row"><span>${l} <span class="muted">· ${w?w+'%':'fora'}</span></span><span class="cb">${v!=null?`<i style="width:${v*10}%"></i>`:''}</span><span class="cv">${v==null?(why?'<span class="muted" style="font-size:11px">0 · sem dado</span>':'<span class="muted">—</span>'):why==='regra'?'<span class="muted" style="font-size:11px">0 · regra</span>':nf(v)}</span></div>`).join('');
+  const crit=d.checks.map(c=>`<div class="crit-row ${c.s==='na'?'off':''}"><div>${st(c.s)}</div><div><h4>${c.b}${c.prov?' <span class="badge prov">critérios provisórios</span>':''}</h4><p>${c.p}</p>${c.why?`<p class="why">${c.whyLbl||'Motivo'}: ${c.why}</p>`:''}</div></div>`).join('');
+  return `<section class="card" aria-labelledby="s-h"><div class="card-h"><h2 id="s-h">Índice MF e semáforo</h2><span class="sub">Dados de ${d.cls==='fiis'?'ago/2026':'2T26'} · cotação de 29/09</span></div>
+  <div class="score-grid"><div class="bigscore">${ring(d.mf,{size:96,sw:8,big:true,inc:d.inc,at:d.at,ap:d.ap})}<p class="num"><b style="color:var(--app-strong)">${d.at} de ${d.ap} critérios atendidos</b><br><span class="muted small">indicador quantitativo de fórmula pública</span></p>
+    <details style="width:100%"><summary class="lnk small" style="cursor:pointer;min-height:32px;display:flex;align-items:center">Componentes do Índice</summary><div class="comp">${comp}</div>${d.compNote?`<p class="note" style="margin-top:6px">${d.compNote}</p>`:''}</details></div>
+  <div class="crit">${d.inc?`<div class="incbox" style="margin-bottom:6px">${d.incTxt}</div>`:''}${d.ruleTxt?`<div class="rulebox" style="margin-bottom:6px">${d.ruleTxt}</div>`:''}${crit}</div></div></section>`;
+}
+function posBlock(d){
+  let top;
+  const p=d.pos;
+  if(S.held&&p){
+    top = `<div class="card-h"><h2>Na sua carteira</h2><a class="lnk small" href="#" data-act="toCarteira">Abrir na Carteira</a></div>
+    <dl class="pos-card kv" style="margin:0"><div><dt>Quantidade</dt><dd>${p.q} ${p.unit}</dd></div><div><dt>Valor atual</dt><dd>${brl(p.valor)}</dd></div><div><dt>% da carteira</dt><dd>${nf(p.pct)}%</dd></div><div><dt>Preço médio</dt><dd>${brl(p.pm)}</dd></div><div><dt>Resultado</dt><dd style="color:${p.res<0?'var(--neg)':'var(--pos)'}">${sgn(p.res)}%</dd></div><div><dt>Objetivo do ativo</dt><dd>${nf(p.obj,0)}% da aba ${p.abaNome}</dd></div></dl>
+    <div class="two">${targetBar(`Peso dentro de ${p.abaNome}`,p.abaPeso,p.abaObj,`objetivo do ativo: ${nf(p.abaObj,0)}%`, p.abaObj>p.abaPeso?`faltam ${nf(p.abaObj-p.abaPeso)} p.p. para o objetivo`:'acima do objetivo')}${targetBar(`${d.cls==='fiis'?"FII's":'Ações'} no Planejamento`,p.classePct,p.classeAlvo,`alvo da classe: ${nf(p.classeAlvo,0)}%`, p.classePct>p.classeAlvo?`${nf(p.classePct-p.classeAlvo)} p.p. acima do alvo`:`${nf(p.classeAlvo-p.classePct)} p.p. abaixo do alvo`)}</div>
+    <p class="note">Está na aba ${p.abaNome} da sua Carteira (se você mover o ativo de aba, o peso e o alvo seguem a aba nova). Valor e % calculados pela Carteira com o mesmo fechamento de 29/09 do cabeçalho. Resultado sem proventos, como na Carteira. Para mudar objetivo ou alvo, use a Carteira.</p>`;
+  } else if(S.planned){
+    top = `<div class="card-h"><h2>Na sua carteira</h2></div><div class="notheld"><p><b>Planejado em Ações, com objetivo de 5% da aba.</b> Você ainda não tem posição. Na aba Ações, o “quanto falta” para esse objetivo é <b>R$ 1.740,00</b>.</p><a class="lnk" href="#" data-act="toCarteira">Ver na Carteira</a></div>
+    ${targetBar('Ações no Planejamento',21.9,20,'alvo da classe: 20%','1,9 p.p. acima do alvo')}`;
+  } else {
+    top = `<div class="card-h"><h2>Na sua carteira</h2></div><div class="notheld"><p>Você não tem ${d.t}. Planeje o ativo para ver na Carteira quanto falta para um objetivo, ou registre uma operação que já fez.</p><div class="acts"><button class="btn" type="button" data-act="plan">Planejar na Carteira</button></div></div>`;
+  }
+  return `<section class="card" aria-label="Sua posição e indicadores">${top}<h3 class="sr">Indicadores</h3><div class="kpis">${d.kpis.map(k=>`<div class="kpi${k[3]?' conf':''}"><span class="l">${k[0]}</span><span class="v">${k[1]}</span><span class="s">${k[2]}</span></div>`).join('')}</div></section>`;
+}
+function targetBar(label,v,obj,objTxt,status){
+  const max=Math.max(v,obj)*1.25;
+  return `<div class="target"><div class="lbl"><span><b style="color:var(--app-strong)">${label}: ${nf(v)}%</b></span><span class="muted">${objTxt}</span></div><div class="tbar" role="img" aria-label="${label}: ${nf(v)}%, ${objTxt}"><i style="width:${v/max*100}%"></i><b style="left:${obj/max*100}%"></b></div><span class="small muted">${status}</span></div>`;
+}
+function chartBlock(d){
+  const id='c-'+d.t, alt=S.altTable[d.t];
+  const tbl = `<div class="tbl-wrap"><table class="t compact alt-tbl"><caption class="sr">${esc(d.chart.title)}</caption><thead><tr><th scope="col"><span class="th-in">Ano</span></th><th scope="col" class="r"><span class="th-in">${d.chart.a}</span></th><th scope="col" class="r"><span class="th-in">${d.chart.b}</span></th><th scope="col" class="r"><span class="th-in">${d.divs.title.replace(/ \(R\$\)/,'')}</span></th></tr></thead><tbody>${YEARS.map((y,i)=>d.chart.va[i]==null&&d.chart.vb[i]==null?'':`<tr><td>${y}</td><td class="r">${d.chart.va[i]??'—'}</td><td class="r">${d.chart.vb[i]??'—'}</td><td class="r">${d.divs.v[i]==null?'—':nf(d.divs.v[i],2)}</td></tr>`).join('')}</tbody></table></div>`;
+  return `<section class="card" aria-label="Gráficos"><div class="charts">
+    <figure><div class="fig-h"><h3>${d.chart.title}</h3><div class="pills" role="group" aria-label="Período"><button class="pill" type="button" aria-pressed="false" data-act="toast:5 anos">5A</button><button class="pill" type="button" aria-pressed="true">10A</button></div></div>
+      <div class="legend"><span><i style="background:var(--s1)"></i>${d.chart.a}</span><span><i style="background:var(--s2)"></i>${d.chart.b}</span></div>
+      ${alt?tbl:`<div class="chart" data-c="${id}">${lineChart(d.chart,id)}</div>`}
+      <figcaption>${d.chart.cap} <button class="lnk" type="button" data-alt="${d.t}">${alt?'Ver gráfico':'Ver dados em tabela'}</button></figcaption></figure>
+    <figure><div class="fig-h"><h3>${d.divs.title}</h3><span class="small muted">${d.divs.cagr}</span></div>${alt?'':`<div class="chart">${barChart(d.divs,'b-'+d.t)}</div>`}<figcaption>${d.cls==='fiis'?'Soma dos rendimentos pagos por cota em cada ano.':'Proventos por data-com, ajustados por desdobramentos.'}${d.divs.v.includes(null)&&!d.divs.foot?' Barra tracejada: ano sem dado.':''}${d.divs.foot?` ${d.divs.foot}`:''}</figcaption></figure>
+  </div></section>`;
+}
+function essBlock(d){
+  const rows=d.ess.rows, n=rows.length;
+  return `<section class="card" aria-labelledby="e-h"><div class="card-h"><h2 id="e-h">Fundamentos · Essencial</h2><span class="sub">${n<10?`${n} anos de histórico`:'10 anos'} · ano fiscal · fonte CVM</span></div>
+  <div class="tbl-wrap"><table class="t compact" style="min-width:${d.ess.cols.length*96}px"><caption class="sr">Fundamentos anuais de ${d.t}</caption><thead><tr>${d.ess.cols.map((c,i)=>`<th scope="col" class="${i?'r':'sticky'}"><span class="th-in">${c}</span></th>`).join('')}</tr></thead>
+  <tbody>${rows.map((r,ri)=>`<tr class="${ri===n-1?'last':''}">${r.map((c,i)=>i?`<td class="r ${String(c).startsWith('−')?'negv':''}">${c}</td>`:`<th scope="row" class="sticky" style="text-align:left;padding:8px 12px;font-weight:600;border-bottom:1px solid var(--app-line-soft)">${c}</th>`).join('')}</tr>`).join('')}</tbody></table></div>
+  <p class="note">Essencial: o que basta para ver se ${d.cls==='fiis'?'rendimento, valor patrimonial e alavancagem':'lucro, rentabilidade e proventos'} crescem ano a ano.${d.cls==='fiis'?' Vacância da CVM pode diferir do relatório do gestor.':''}${d.ess.essNote?' '+d.ess.essNote:''}</p></section>`;
+}
+function valBlock(d){
+  const G=d.val, keys=Object.keys(G); const g=G[S.valGroup]||G.preco;
+  const withBar=g.items.filter(i=>i.v!=null&&i.h&&!i.short&&!i.conf&&i.h.length>=5);
+  const below=withBar.filter(i=>barStatus(i).below).length;
+  const summary = g.na ? g.na : withBar.length ? `${below} de ${withBar.length} indicadores de ${g.l} estão abaixo da própria média de 10 anos.` : `Nenhum indicador de ${g.l} tem 5 anos ou mais de histórico para comparar.`;
+  return `<section class="card" aria-labelledby="v-h"><div class="card-h"><h2 id="v-h">Valuation · Múltiplos</h2><span class="sub">onde cada múltiplo está em relação ao próprio histórico</span></div>
+  <div class="chips" role="group" aria-label="Grupo de indicadores">${keys.map(k=>`<button class="chip" type="button" aria-pressed="${G[k]===g}" data-vg="${k}">${G[k].l}</button>`).join('')}</div>
+  <p class="vsum">${summary}</p>
+  ${g.items.length?`<div class="vgrid">${g.items.map(it=>`<div class="vcard${it.conf?' conf':''}"><div class="h"><b>${it.l}</b><span>${fmtF(it.v,it.f)}</span></div><p class="rd">${it.rd}</p>${it.ref?`<p class="ref">${it.ref}</p>`:''}${rangeBar(it)}</div>`).join('')}</div>`:''}
+  <p class="note">Barra: mín, média (traço) e máx dos últimos 10 anos fiscais; ponto azul = valor atual (12 meses). Descreve a posição do número, não diz se o preço está adequado.</p>
+  <div class="two" style="margin-top:4px">${d.mult.map(m=>`<figure><h3 style="font-size:14px;font-weight:600;color:var(--app-strong)">${m.name} histórico</h3><div class="chart mini">${miniChart(m)}</div></figure>`).join('')}</div></section>`;
+}
+function peersBlock(d){
+  const P=d.peers;
+  return `<section class="card" aria-labelledby="p-h"><div class="card-h"><h2 id="p-h">Pares do segmento</h2><span class="sub">${P.seg} · segmento B3, completado pelo subsetor até 5</span></div>
+  <div class="tbl-wrap"><table class="t compact" style="min-width:760px"><caption class="sr">Pares de ${d.t}</caption><thead><tr><th scope="col" class="sticky"><span class="th-in">Ativo</span></th>${P.cols.map(c=>`<th scope="col" class="r"><span class="th-in">${c}</span></th>`).join('')}</tr></thead>
+  <tbody>${P.rows.map((r,i)=>`<tr class="${i===0?'last':'row'}" ${i?`data-open="${DET[r[0]]?r[0]:''}"`:''}><th scope="row" class="sticky" style="text-align:left;padding:8px 12px;font-weight:400;border-bottom:1px solid var(--app-line-soft)">${i?`<a class="lnk" href="#" data-open="${r[0]}">${r[0]}</a>`:`<b>${r[0]}</b>`} <span class="muted small">${r[1]}</span></th>${r.slice(2).map(c=>`<td class="r">${c}</td>`).join('')}</tr>`).join('')}</tbody></table></div>
+  ${d.inc?'<p class="note">* Índice com dados incompletos.</p>':''}</section>`;
+}
+function eventsBlock(d){
+  return `<section class="card" aria-labelledby="ev-h"><div class="card-h"><h2 id="ev-h">Próximos eventos</h2></div>${d.events.length?'':`<p class="small muted">${d.evEmpty||'Sem eventos programados nos próximos meses.'}</p>`}<div class="ev">${d.events.map(e=>`<div class="ev-row"><div class="ev-d"><b>${e.d}</b><small>${e.m}</small></div><div><h4>${e.t} ${e.est?'<span class="badge">data estimada</span>':''}</h4><p>${e.s}</p></div></div>`).join('')}</div>
+  ${d.events.length?`<p class="note">${(S.held&&d.pos)||S.planned?'Estes eventos já aparecem na sua Agenda.':'Quando você tiver o ativo na Carteira, estes eventos aparecem na sua Agenda.'}</p>`:''}</section>`;
+}
+function eduBlock(d){
+  return `<section class="card" aria-labelledby="ed-h"><div class="card-h"><h2 id="ed-h">${d.edu.t}</h2></div><div class="edu"><span class="play" aria-hidden="true"><svg width="18" height="18"><use href="#i-play"/></svg></span><div><p style="font-size:14px;color:var(--app-strong)">${d.edu.s}</p><p class="note" style="margin-top:4px">Na área Educação. Se o módulo não estiver no seu plano, o link abre a página do curso.</p><a class="btn" href="#" data-act="toast:Abre /educacao no módulo" style="margin-top:10px">Abrir na Educação</a></div></div></section>`;
+}
+function teseBlock(d){
+  const T=S.tese; let inner;
+  const counter = n => `<span id="tese-c">${n.toLocaleString('pt-BR')} de 10.000 caracteres</span>`;
+  if(S.acting) return `<section class="card tese" aria-labelledby="t-h"><div class="card-h"><h2 id="t-h">Minha tese</h2><span class="lock">${icon('i-lock')}Pessoal de cada usuário</span></div><div class="tese-off">${icon('i-lock')}<p>A tese é pessoal de cada usuário. Enquanto você age pela carteira de Marina Costa, a tese dela não aparece e você não pode escrever por ela. Para anotar a sua, saia do modo consultor.</p></div></section>`;
+  else if(T.st==='empty') inner = `<p class="small muted">Por que você tem (ou não) este ativo? O que acompanharia? O que faria você mudar de ideia? Escrever ajuda a decidir com calma.</p><button class="btn" type="button" data-act="teseEdit">Escrever minha tese</button>`;
+  else if(T.st==='saved') inner = `<div class="saved-txt">${esc(T.txt)}</div><div class="meta"><span>Salvo em 28/09/2026 às 14:32</span><button class="btn ghost" type="button" data-act="teseEdit">Editar</button></div>`;
+  else inner = `<label for="tese-in" class="sr">Minha tese sobre ${d.t}</label><textarea id="tese-in" aria-describedby="tese-c tese-s" maxlength="10000" placeholder="Ex.: o que me fez olhar este ativo, o que vou acompanhar a cada resultado, o que me faria rever.">${esc(T.txt)}</textarea>
+    ${T.st==='error'?`<div class="err" role="alert">Não salvou: sem conexão com o servidor. Seu texto continua aqui. <button class="lnk" type="button" data-act="teseRetry" style="color:inherit;text-decoration:underline">Tentar de novo</button></div>`:''}
+    <div class="meta">${counter(T.txt.length)}<span id="tese-s" aria-live="polite">${T.st==='saving'?'Salvando…':T.st==='error'?'':'Salvo automaticamente às 14:32'}</span><button class="btn primary" type="button" data-act="teseDone">Concluir</button></div>`;
+  return `<section class="card tese" aria-labelledby="t-h"><div class="card-h"><h2 id="t-h">Minha tese</h2><span class="lock">${icon('i-lock')}Privada: só você vê</span></div>${inner}</section>`;
+}
+function betaPage(){
+  return `<div class="card gate"><span class="beta-pill" style="align-self:flex-start">Beta fechado</span><h1 style="font-size:22px;color:var(--app-strong)">A Análise de Ativos ainda está em teste com um grupo pequeno</h1>
+  <p style="font-size:15px">Quando abrir para todos, ela aparece no menu, logo abaixo de Carteira. Enquanto isso, o que você já tem continua no mesmo lugar:</p>
+  <ul><li>sua posição e o objetivo de cada ativo, na Carteira;</li><li>datas de resultado e de proventos das suas ações, na Agenda;</li><li>a trilha de investimentos, na Educação.</li></ul>
+  <div class="acts"><a class="btn primary" href="#" data-act="toCarteira">Ir para a Carteira</a></div></div>${legal()}`;
+}
+function renderDesk(){
+  let page;
+  if(S.route==='beta') page=betaPage();
+  else if(S.route==='ativo') page=assetPage(false);
+  else page=renderQuadro();
+  return `<div class="desk" role="region" aria-label="Simulação do app no computador"><div class="sb-wrap">${sidebar()}</div><div class="content"><div class="topbar"><span class="small muted">${S.route==='ativo'?'Análise de Ativos / '+S.asset:'Análise de Ativos'}</span><span class="who">${S.acting?'<span class="badge hold">Agindo por Marina Costa</span>':''}<span class="avatar" aria-hidden="true">PD</span>Pedro</span></div><main class="page">${page}</main></div>${S.toast?`<div class="toast" role="status">${esc(S.toast)}<button type="button" data-act="toastClose">Fechar</button></div>`:''}</div>`;
+}
+
+/* ================= CELULAR ================= */
+function mCard(r){
+  const isF=S.cls==='fiis';
+  const grid = isF ? [['DY 12m',dyCell(r)],['P/VP',fmtVal(r.pvp,'num2')],['Obrig./PL',fmtVal(r.obr,'pct')]]
+    : [['P/L',fmtVal(r.pl)],['DY 12m',dyCell(r)],['ROE',fmtVal(r.roe,'pct')]];
+  const grid2 = isF ? [['Tipo',r.tipo],['Patrimônio',r.pat],['Liq. 21d',r.liq]] : [['P/VP',fmtVal(r.pvp,'num2')],['Marg. líq.',fmtVal(r.mg,'pct')],['Dív./EBITDA',fmtVal(r.dl,'x')]];
+  const dl = g => `<dl class="mgrid">${g.map(([a,b])=>`<div><dt>${a}</dt><dd>${b}</dd></div>`).join('')}</dl>`;
+  return `<li><a class="mcard" href="#" data-open="${r.t}"><div class="top"><div style="min-width:0"><div class="t">${r.t}${r.inc?' <span class="badge inc">incompleto</span>':''}${r.semNeg?' <span class="badge semneg">sem negócio recente</span>':''}</div><div class="n">${esc(r.n)}</div><div class="pr">R$ ${nf(r.preco,2)} <span style="color:${r.var<0?'var(--neg)':'var(--pos)'}">${sgn(r.var,2)}%</span></div></div>${ring(r.mf,{at:r.at,ap:r.ap,inc:r.inc,semScore:r.semScore,size:40})}</div>
+    ${dl(grid)}${S.mode==='detalhado'?dl(grid2):''}<div class="mfoot">${isF?tenBars(r.r10,'rend'):tenBars(r.l10,'lucro')}<span>${badgePort(r)}</span></div></a></li>`;
+}
+function phoneQuadro(){
+  const rows=rowsData(), tot=total();
+  let body;
+  if(S.load==='loading') body = `<ul class="mlist" aria-busy="true">${Array.from({length:4},()=>`<li class="mcard"><div class="skel" style="width:40%"></div><div class="skel" style="width:70%"></div><div class="skel"></div></li>`).join('')}</ul>`;
+  else if(S.load==='error') body = `<div class="empty-st" role="alert"><h3>Não conseguimos carregar o Quadro agora</h3><p>Seus filtros continuam como estavam.</p><button class="mbtn primary" type="button" data-act="retry">Tentar de novo</button></div>`;
+  else if(S.load==='empty'||!rows.length) body = `<div class="empty-st"><h3>Nenhum ${S.cls==='acoes'?'ação':'FII'} com esses filtros</h3><button class="mbtn" type="button" data-act="clear">Limpar filtros</button></div>`;
+  else body = `<ul class="mlist">${rows.map(mCard).join('')}</ul><span class="count-line">${rows.length} de ${tot??rows.length}${tot?' · exemplo':''}</span>${tot?'<button class="mbtn" type="button" data-act="more">Mostrar mais 25</button>':''}`;
+  return `<div class="seg-m" role="group" aria-label="Classe"><button type="button" aria-pressed="${S.cls==='acoes'}" data-cls="acoes">Ações <span class="cnt">385</span></button><button type="button" aria-pressed="${S.cls==='fiis'}" data-cls="fiis">FIIs <span class="cnt">362</span></button></div>
+  <div class="rail" role="group" aria-label="Filtros">${filterDefs().map(([k,l])=>`<button type="button" class="chip" aria-pressed="${S.filters.has(k)}" data-filter="${k}">${l}</button>`).join('')}<button type="button" class="chip">${S.cls==='acoes'?'Setor':'Segmento'} ▾</button></div>
+  <div class="mtools"><button class="btn" type="button" data-act="sheet:ordenar" style="min-height:44px">${icon('i-sort','')}<span style="display:inline-flex;gap:4px">Ordem: <b>${(cols().find(c=>c.k===S.sort.k)||{l:'Índice MF'}).l}</b> ${S.sort.dir==='desc'?'↓':'↑'}</span></button>
+  <div class="pills" role="group" aria-label="Colunas"><button class="pill" type="button" aria-pressed="${S.mode==='resumo'}" data-mode="resumo">Resumo</button><button class="pill" type="button" aria-pressed="${S.mode==='detalhado'}" data-mode="detalhado">Detalhado</button></div></div>
+  ${body}${legal()}`;
+}
+function phoneSheet(){
+  if(S.sheet==='mais'){
+    const items=[['n-anal','Análise de Ativos',1,1],['n-heart','Saúde Financeira'],['n-debt','Dívidas'],['i-cal','Agenda'],['n-doc','Relatórios'],['n-edu','Educação'],['n-dash','Dashboard'],['n-doc','Histórico'],['n-wallet','Conexões']];
+    return `<div class="sheet-ov"><div class="sheet" role="dialog" aria-label="Mais"><div class="grab"></div><div class="sheet-h"><h3>Mais</h3><button class="icon-btn" type="button" data-act="sheetClose" aria-label="Fechar">${icon('i-x','')}</button></div><div class="sheet-b"><div class="more-grid">${items.map(i=>`<a href="#" class="more-it ${i[3]?'on':''}" data-act="${i[3]?'sheetClose':'noop'}">${icon(i[0])}${i[1]}${i[2]?'<span class="nbadge">Novo</span>':''}</a>`).join('')}</div></div></div></div>`;
+  }
+  if(S.sheet==='ordenar'){
+    const C=cols().filter(c=>!c.nosort&&c.k!=='ativo');
+    return `<div class="sheet-ov"><div class="sheet" role="dialog" aria-label="Ordenar"><div class="grab"></div><div class="sheet-h"><h3>Ordenar ${S.cls==='acoes'?'ações':'FIIs'}</h3><button class="icon-btn" type="button" data-act="sheetClose" aria-label="Fechar">${icon('i-x','')}</button></div>
+    <div class="sheet-b" role="radiogroup" aria-label="Ordem">${C.map(c=>`<button type="button" class="mopt" role="radio" aria-checked="${S.sort.k===c.k}" data-msort="${c.k}"><span>${c.l}<small>${c.dir==='asc'?'menor primeiro por padrão':'maior primeiro por padrão'}</small></span><span class="rd"></span></button>`).join('')}
+    <div class="seg-m" role="group" aria-label="Direção" style="margin-top:6px"><button type="button" aria-pressed="${S.sort.dir==='desc'}" data-mdir="desc">Maior primeiro</button><button type="button" aria-pressed="${S.sort.dir==='asc'}" data-mdir="asc">Menor primeiro</button></div>
+    <p class="note">Ativos sem dado para a ordem escolhida ficam no fim da lista.</p></div><div class="sheet-f"><button class="mbtn primary" type="button" data-act="sheetClose">Ver resultado</button></div></div></div>`;
+  }
+  if(S.sheet==='busca'){
+    return `<div class="sheet-ov"><div class="sheet full" role="dialog" aria-label="Buscar ativo"><div class="msearch"><input id="msrch" type="search" role="combobox" aria-expanded="true" aria-controls="ac-list" placeholder="Ticker ou nome" value="${esc(S.search.q)}" aria-label="Buscar ativo"><button class="icon-btn" type="button" data-act="sheetClose" aria-label="Fechar busca">${icon('i-x','')}</button></div><div class="sheet-b" style="padding-top:8px">${S.search.q?renderAC(true):'<p class="small muted">Busque por ticker (WEGE3) ou nome (WEG). Recentes: <a href="#" class="lnk" data-open="HGLG11">HGLG11</a>, <a href="#" class="lnk" data-open="WEGE3">WEGE3</a></p>'}</div></div></div>`;
+  }
+  return '';
+}
+function renderPhone(){
+  const isA=S.route==='ativo', title = S.route==='beta'?'Análise de Ativos':isA?S.asset:'Análise de Ativos';
+  let body = S.route==='beta'?betaPage():isA?assetPage(true):phoneQuadro();
+  return `<div class="phone-stage"><div class="phone ${S.narrow?'narrow':''}" role="region" aria-label="Simulação de celular, ${S.narrow?320:390} pontos de largura"><div class="ph-status"><span>9:41</span><span>5G ▮▮▮</span></div>
+  <div class="ph-head">${isA?`<button class="icon-btn ph-back" type="button" data-act="back" aria-label="Voltar ao Quadro">${icon('i-back','')}</button>`:''}<h2>${title}${S.route==='quadro'?' <span class="beta-pill" style="font-size:9.5px;vertical-align:3px">Beta</span>':''}</h2>${S.route!=='beta'?`<button class="icon-btn" type="button" data-act="sheet:busca" aria-label="Buscar ativo">${icon('i-search','')}</button>`:''}</div>
+  <div class="ph-body">${body}</div>
+  <nav class="ph-tabbar" aria-label="Navegação principal"><span>${icon('n-wallet')}Carteira</span><span>${icon('n-flow')}Fluxo</span><span><span class="launch">${icon('n-plus')}</span></span><span>${icon('n-plan')}Planejar</span><span class="on">${icon('n-more')}Mais</span></nav>
+  ${phoneSheet()}${S.toast?`<div class="toast" role="status" style="bottom:80px;width:calc(100% - 24px)">${esc(S.toast)}<button type="button" data-act="toastClose">Fechar</button></div>`:''}</div></div>`;
+}
+
+/* ================= RENDER + EVENTOS ================= */
+function render(){
+  $('#screen').innerHTML = S.dev==='desk' ? renderDesk() : renderPhone();
+  const sc=SCEN.find(s=>s.k===S.scen);
+  $('#notes').innerHTML = `<h2>${sc?esc(sc.k+' · '+sc.label):'Navegação livre'}</h2><ul>${(sc?sc.note:['Você saiu do cenário: siga navegando.']).map(n=>`<li>${n}</li>`).join('')}</ul>`;
+  document.querySelectorAll('[data-dev]').forEach(b=>b.setAttribute('aria-pressed',b.dataset.dev===S.dev));
+  $('#narrowBtn').disabled = S.dev!=='phone';
+  document.querySelectorAll('.scen').forEach(b=>b.setAttribute('aria-pressed',b.dataset.k===S.scen));
+  wireCharts();
+}
+function applyScen(k){
+  const sc=SCEN.find(s=>s.k===k); S.scen=k;
+  Object.assign(S,{route:'quadro',cls:'acoes',mode:'resumo',sort:{k:'mf',dir:'desc'},filters:new Set(),load:'ok',search:{open:false,q:'',idx:0},sheet:null,held:true,planned:false,acting:false,toast:null,setorOpen:false,valGroup:'preco',altTable:{},tese:{st:'empty',txt:''}});
+  const s=sc.set;
+  for(const key in s){ if(key==='filters') S.filters=new Set(s.filters); else if(key==='dev') S.dev=s.dev; else S[key]=JSON.parse(JSON.stringify(s[key])); }
+  if(S.dev==='phone' && S.search.open){ S.sheet='busca'; }
+  render();
+}
+function openAsset(t){
+  if(!DET[t]){ S.toast=`Protótipo: a página de ${t} segue o mesmo molde de WEGE3.`; render(); return; }
+  const r=[...ACOES,...FIIS].find(x=>x.t===t);
+  S.route='ativo'; S.asset=t; S.held=!!(r&&r.port); S.planned=!!(r&&r.plan); S.load='ok'; S.search={open:false,q:'',idx:0}; S.sheet=null; S.valGroup='preco';
+  S.tese = t==='WEGE3'?{st:'saved',txt:TESE_TXT}:{st:'empty',txt:''}; S.scen=null; render();
+  const sc=$('.ph-body'); if(sc) sc.scrollTop=0;
+}
+document.addEventListener('click', e=>{
+  const t=e.target.closest('[data-dev],[data-cls],[data-filter],[data-mode],[data-sort],[data-open],[data-act],[data-vg],[data-alt],[data-msort],[data-mdir],.scen');
+  if(!t) { if(S.search.open && !e.target.closest('.srch')){ S.search.open=false; render(); } return; }
+  if(t.matches('a')) e.preventDefault();
+  if(t.classList.contains('scen')) return applyScen(t.dataset.k);
+  if(t.dataset.dev){ S.dev=t.dataset.dev; if(S.dev==='desk'){S.narrow=false; $('#narrowBtn').setAttribute('aria-pressed','false'); $('#narrowBtn').textContent='Ver a 320px'; if(S.sheet==='busca'){S.sheet=null;S.search.open=true;}} else if(S.search.open){S.sheet='busca';} return render(); }
+  if(t.dataset.cls){ S.cls=t.dataset.cls; S.filters=new Set(); S.sort={k:'mf',dir:'desc'}; S.load='ok'; S.route='quadro'; S.scen=null; return render(); }
+  if(t.dataset.filter){ const f=t.dataset.filter; S.filters.has(f)?S.filters.delete(f):S.filters.add(f); if(S.load==='empty')S.load='ok'; S.scen=null; return render(); }
+  if(t.dataset.mode){ S.mode=t.dataset.mode; return render(); }
+  if(t.dataset.sort){ const k=t.dataset.sort, c=cols().find(c=>c.k===k); S.sort = S.sort.k===k ? {k,dir:S.sort.dir==='desc'?'asc':'desc'} : {k,dir:c.dir||'desc'}; S.scen=null; render(); const b=document.querySelector(`[data-sort="${k}"]`); if(b) b.focus(); return; }
+  if(t.dataset.msort){ const c=cols().find(c=>c.k===t.dataset.msort); S.sort={k:c.k,dir:c.dir||'desc'}; return render(); }
+  if(t.dataset.mdir){ S.sort.dir=t.dataset.mdir; return render(); }
+  if(t.dataset.vg){ S.valGroup=t.dataset.vg; return render(); }
+  if(t.dataset.alt){ S.altTable[t.dataset.alt]=!S.altTable[t.dataset.alt]; return render(); }
+  if(t.dataset.open!==undefined && !t.dataset.act){ if(t.dataset.open) openAsset(t.dataset.open); return; }
+  const a=t.dataset.act;
+  if(!a) return;
+  if(a.startsWith('toast:')){ S.toast=a.slice(6); return render(); }
+  if(a.startsWith('sheet:')){ S.sheet=a.slice(6); if(S.sheet==='busca'){S.search={open:true,q:'',idx:0};} render(); const m=$('#msrch'); if(m) m.focus(); return; }
+  switch(a){
+    case 'dismissBanner': S.banner=false; break;
+    case 'setor': S.setorOpen=!S.setorOpen; break;
+    case 'clear': S.filters=new Set(); S.load='ok'; break;
+    case 'retry': S.load='ok'; break;
+    case 'more': S.toast='Protótipo: mais 25 linhas entrariam aqui (página 2 no servidor).'; break;
+    case 'formula': S.toast='Abre o painel “Como o Índice MF é calculado” com os pisos e tetos de cada componente.'; break;
+    case 'wizard': S.toast=`Abre o wizard de operação da Carteira com ${S.route==='ativo'?S.asset:'o ativo'} preenchido.`; break;
+    case 'plan': S.planned=true; S.toast=`${S.asset} planejado em ${DET[S.asset].cls==='fiis'?"FII's":'Ações'}. Defina o objetivo na Carteira.`; break;
+    case 'toCarteira': S.toast='Vai para /carteira na aba do ativo, com a linha destacada.'; break;
+    case 'back': S.route='quadro'; S.cls=DET[S.asset]?DET[S.asset].cls:S.cls; S.load='ok'; S.scen=null; S.acting=false; break;
+    case 'teseEdit': S.tese.st='editing'; render(); { const ta=$('#tese-in'); if(ta){ta.focus(); ta.setSelectionRange(ta.value.length,ta.value.length);} } return;
+    case 'teseDone': S.tese.st = S.tese.txt.trim()?'saved':'empty'; break;
+    case 'teseRetry': S.tese.st='saving'; render(); setTimeout(()=>{S.tese.st='editing'; render();},900); return;
+    case 'sheetClose': S.sheet=null; S.search.open=false; break;
+    case 'toastClose': S.toast=null; break;
+    case 'noop': S.toast='Protótipo: item do painel Mais.'; break;
+  }
+  render();
+});
+let saveT;
+document.addEventListener('input', e=>{
+  if(e.target.id==='srch'||e.target.id==='msrch'){
+    S.search.q=e.target.value; S.search.open=true; S.search.idx=0; const pos=e.target.selectionStart, id=e.target.id; render(); const el=document.getElementById(id); if(el){el.focus(); el.setSelectionRange(pos,pos);} return;
+  }
+  if(e.target.id==='tese-in'){
+    S.tese.txt=e.target.value; $('#tese-c').textContent=`${S.tese.txt.length.toLocaleString('pt-BR')} de 10.000 caracteres`; $('#tese-s').textContent='Salvando…';
+    clearTimeout(saveT); saveT=setTimeout(()=>{ const s=$('#tese-s'); if(s){ const d=new Date(); s.textContent=`Salvo automaticamente às ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`; } },1500);
+  }
+});
+document.addEventListener('keydown', e=>{
+  const inField = e.target.matches('input,textarea');
+  if(e.key==='/' && !inField && S.route!=='beta'){ e.preventDefault(); if(S.dev==='desk'){ const s=$('#srch'); if(s) s.focus(); } else { S.sheet='busca'; S.search={open:true,q:'',idx:0}; render(); const m=$('#msrch'); if(m)m.focus(); } return; }
+  if(e.target.id==='srch'||e.target.id==='msrch'){
+    const n=searchResults(S.search.q).length;
+    if(e.key==='ArrowDown'&&n){ e.preventDefault(); S.search.idx=(S.search.idx+1)%n; }
+    else if(e.key==='ArrowUp'&&n){ e.preventDefault(); S.search.idx=(S.search.idx-1+n)%n; }
+    else if(e.key==='Enter'&&n){ e.preventDefault(); const o=document.getElementById('opt-'+S.search.idx); if(o) openAsset(o.dataset.open); return; }
+    else if(e.key==='Escape'){ S.search.open=false; if(S.sheet==='busca')S.sheet=null; }
+    else return;
+    const id=e.target.id; render(); const el=document.getElementById(id); if(el){el.focus();}
+  }
+});
+document.addEventListener('focusin', e=>{ if(e.target.id==='srch' && S.search.q && !S.search.open){ S.search.open=true; render(); $('#srch').focus(); } });
+function wireCharts(){
+  document.querySelectorAll('.chart[data-c]').forEach(box=>{
+    const svg=box.querySelector('svg'); const d=DET[S.asset].chart; const cross=svg.querySelector('.cross');
+    svg.querySelectorAll('.hit').forEach(h=>{
+      h.addEventListener('mouseenter',()=>{
+        const i=+h.dataset.i; const cx=+h.getAttribute('x')+(+h.getAttribute('width'))/2;
+        cross.setAttribute('x1',cx); cross.setAttribute('x2',cx); cross.setAttribute('visibility','visible');
+        let tip=box.querySelector('.tip'); if(!tip){tip=document.createElement('div'); tip.className='tip'; box.appendChild(tip);}
+        tip.innerHTML=`<b>${YEARS[i]}</b> · ${d.a}: ${d.va[i]??'—'} · ${d.b}: ${d.vb[i]??'—'}`;
+        const r=svg.getBoundingClientRect(), scale=r.width/560; tip.style.left=Math.min(Math.max(0,cx*scale-90),r.width-200)+'px'; tip.style.top='0px';
+      });
+    });
+    svg.addEventListener('mouseleave',()=>{ cross.setAttribute('visibility','hidden'); const t=box.querySelector('.tip'); if(t) t.remove(); });
+  });
+}
+
+/* bancada */
+(function bench(){
+  const groups=[...new Set(SCEN.map(s=>s.g))];
+  $('#scenarios').innerHTML = groups.map(g=>`<div class="scen-group"><span class="gl">${g}</span>${SCEN.filter(s=>s.g===g).map(s=>`<button type="button" class="scen" data-k="${s.k}" aria-pressed="false"><b>${s.k}</b>${s.label}</button>`).join('')}</div>`).join('');
+  const modes=['sistema','claro','escuro']; let mi=0;
+  try{ const saved=localStorage.getItem('af1-theme'); if(saved){ mi=modes.indexOf(saved); if(mi<0)mi=0; } }catch(_){}
+  const applyTheme=()=>{ const m=modes[mi]; if(m==='sistema') document.documentElement.removeAttribute('data-theme'); else document.documentElement.setAttribute('data-theme',m==='claro'?'light':'dark'); $('#themeBtn').textContent='Tema: '+m; try{localStorage.setItem('af1-theme',m);}catch(_){} };
+  $('#themeBtn').onclick=()=>{ mi=(mi+1)%3; applyTheme(); };
+  $('#narrowBtn').onclick=()=>{ S.narrow=!S.narrow; $('#narrowBtn').setAttribute('aria-pressed',S.narrow); $('#narrowBtn').textContent=S.narrow?'Voltar a 390px':'Ver a 320px'; render(); };
+  applyTheme();
+  const Q=[
+    ['1. Cores do semáforo e do anel do Índice (divergência com o arquiteto).','O arquiteto propôs verde/âmbar/vermelho no semáforo e anel colorido por faixa (≥8 verde, ≥6 azul, ≥4 laranja, <4 vermelho). Recomendo a minha linha: anel numa cor só (outside) e o tracejado só como forma do “incompleto”; Atende e Parcial em azul com ícones diferentes (cheio e meio); vermelho só em “Não atende”. Verde e âmbar não estão na paleta My Finance, e cor por faixa vira julgamento, o que a §9 proíbe. Alternativa, se o Pedro fizer questão do clássico: âmbar #B54708 só no Parcial.'],
+    ['2. Tese privada com consultor agindo pelo cliente (alinhado com o arquiteto).','Mudei para o que o arquiteto propõe: a tese é pessoal, a API responde 403 e o card diz “A tese é pessoal de cada usuário”. Na v1 eu deixava o consultor ler, o que contradizia o “só você vê” e exigiria mudar a política de privacidade. Preciso só do seu OK antes da fatia D.'],
+    ['3. Ativos com dado incompleto (179 de 385 ações em prod) na ordem padrão.','Recomendo ordenar pelo número da fórmula (com os zeros), com selo e anel tracejado, mais o chip “Só dados completos”. Mandar 46% para o fim ou esconder some com metade do Quadro. Separei três casos com formas diferentes: incompleto (TGMA3), em conferência (WEGE3) e zero pela regra (AURE3), que não é dado faltante.'],
+    ['4. Universo do Quadro (divergência com o arquiteto).','O arquiteto parte de AssetScore. No dev isso tira do Quadro os 21 FIIs que têm múltiplos e não têm score (HCTR11), deixa a busca sem nenhum “FII fora do Quadro” e põe 16 ações sem negócio em 30 pregões no Quadro, com preço velho. Recomendo montar a partir do cadastro (FIIs vigentes + ações), score opcional (“sem Índice · dados insuficientes”), e aplicar às ações a mesma regra dos FIIs: sem negócio em 30 pregões = só na busca, com “fora do Quadro · sem negócio recente”.'],
+    ['5. Nos FIIs, “Lucro 10 anos” vira “Rendimento 10 anos”, só com anos fechados.','Recomendo. FII não tem “lucro” no informe; o rendimento por cota é o que o cotista acompanha. O ano corrente parcial (HGLG11 2026 = R$ 5,50 contra R$ 13,20 em 2025) parecia queda: fica fora até o ano fechar, e os 12 meses ficam no DY 12m. O mesmo vale para o bloco de dividendos das ações. Precisa entrar no contrato serie10a do arquiteto.'],
+    ['6. Proventos suspeitos (“em conferência”).','Recomendo mostrar o valor real com aviso, em vez de esconder ou trocar: WEGE3 2025 tem DPA 2,45 contra 0,76 em 2024 (parcelas repetidas na fonte), DY 3,98% e payout 134%. Regra proposta para o arquiteto: DPA do ano acima de 2× o ano anterior marca “em conferência”, oculta a barra de 10 anos e tira o ano do crescimento anual. E corrigir a fonte antes de abrir o beta. A frase do critério usa 2 casas quando o arredondamento empataria com a referência (“3,98%; referência 4%”).'],
+    ['7. Bloco “Na sua carteira”: uma fonte só para preço e aba.','Recomendo que valor e % venham do mesmo cálculo da Carteira (resumo ou item já avaliado), com a aba efetiva (respeita “mover entre abas”) e o objetivo do ativo na resposta. Hoje a proposta mistura preço só do banco com o denominador do resumo (que pode usar BRAPI) e classifica por tipo do ativo. Se o preço da posição diferir do cabeçalho, mostrar a data dele.'],
+    ['8. Quem está fora do beta (divergência entre nós dois na v1).','Recomendo: flag desligada = 404; flag ligada e usuário fora do beta = o layout mostra a tela informativa (sem notFound) e a API responde 404. Só informativa, sem “Quero participar”.'],
+    ['9. Página do ativo em URL própria (/analise-ativos/WEGE3), não dentro do card do Quadro (spec §3.1).','Recomendo URL própria: Agenda, Carteira e busca linkam direto, o Voltar funciona e filtros e ordem do Quadro ficam na URL. O arquiteto já seguiu assim.'],
+    ['10. Conteúdo sem fonte sai da tela.','Tirei a tag IBOV, a referência “Ibovespa/IFIX” nos múltiplos e os eventos estimados de JCP e de rendimento de FII: nenhuma tabela da Fase 0 tem isso. Datas-com só aparecem quando existirem em proventos auditados (válido, futura), como o JCP mensal do ITUB4. Recomendo manter assim; voltam quando houver fonte.'],
+    ['11. Coluna Comunidade, “reportar dado incorreto” e períodos 1A/3A/Máx.','Recomendo fora da Fase 1, sem “em breve”: Comunidade é Fase 3; o reporte vai pelo Suporte (banner do beta); o gráfico anual fica com 5A e 10A porque 1A e 3A dariam 1 e 3 pontos.'],
+    ['12. “Planejar na Carteira” abre o wizard na etapa Planejar com o ticker preenchido, ou cria o planejado com 0%?','Recomendo o wizard na etapa Planejar (reusa Step4PlanejarFields). Criar com 0% gera linha que não ajuda em Objetivo e Quanto falta.'],
+    ['13. Nome da flag e contrato da tese.','Recomendo ANALISE_ATIVOS_HABILITADA (o plano dizia ANALISE_HABILITADA; confunde com /api/analises). Tese: alinhei com o arquiteto em /api/analise-ativos/teses/[ticker] e 10.000 caracteres (eu tinha /tese/ e 5.000).'],
+    ['14. Fatia 0 grande demais (crítica ao plano do arquiteto, não à tela).','Concordo com a revisão: dividir em 0a (schema, contratos, gate, hooks, fixtures) e 0b (componentes comuns, em paralelo com A a D), e pôr crescimento anual e série anual num utilitário único consumido por B e C, para a mesma tela não mostrar dois CAGR diferentes.'],
+  ];
+  $('#qlist').innerHTML = Q.map(q=>`<div class="q"><b>${q[0]}</b><span class="rec">${q[1]}</span></div>`).join('');
+})();
+applyScen('Q1');
+</script>

@@ -8,6 +8,8 @@ import { ChevronDownIcon, HorizontaLDots } from '../icons/index';
 import SidebarFooter from './SidebarFooter';
 import CashflowYearSelect from './CashflowYearSelect';
 import { useMainNavItems, type NavItem } from './navigation';
+import { SELO_NOVO } from '@/constants/analiseAtivosVisual';
+import { TEXTOS_TELA } from '@/services/analiseAtivos/textosTela';
 
 const othersItems: NavItem[] = [];
 
@@ -74,6 +76,15 @@ const AppSidebar: React.FC = () => {
                 </span>
                 {(isExpanded || isHovered || isMobileOpen) && (
                   <span className={`menu-item-text`}>{nav.name}</span>
+                )}
+                {/* Selo NOVO no canto do ícone: cabe na sidebar de 200px (o nome quebra em
+                    2 linhas como os demais) e aparece também com a sidebar recolhida. */}
+                {nav.novo && (
+                  <span
+                    className={`pointer-events-none absolute -top-1 left-1 rounded-full px-1 text-[9px] leading-[14px] font-semibold tracking-[0.04em] ${SELO_NOVO}`}
+                  >
+                    {TEXTOS_TELA.menu.novo}
+                  </span>
                 )}
               </Link>
             )

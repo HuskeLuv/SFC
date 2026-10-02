@@ -39,7 +39,11 @@ describe('encontrarPalavrasProibidas', () => {
     ]);
   });
 
-  it('lista tem as 15 expressões da spec', () => {
-    expect(PALAVRAS_PROIBIDAS).toHaveLength(15);
+  it('lista tem as 15 expressões da spec + o plural "notas"', () => {
+    expect(PALAVRAS_PROIBIDAS).toHaveLength(16);
+  });
+
+  it("'notas' (plural) também casa", () => {
+    expect(encontrarPalavrasProibidas('o ranking, as notas e as teses')).toEqual(['notas']);
   });
 });

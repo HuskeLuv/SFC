@@ -4,6 +4,7 @@ import React, { useMemo } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { usePluggyConfig } from '@/hooks/useConexoesBancarias';
 import { useComunidadeConfig } from '@/hooks/useComunidade';
+import { useAnaliseAtivosConfig } from '@/hooks/useAnaliseAtivos';
 import {
   CalenderIcon,
   CreditCardIcon,
@@ -31,7 +32,25 @@ export type NavItem = {
   icon: React.ReactNode;
   path?: string;
   subItems?: { name: string; path: string; pro?: boolean; new?: boolean }[];
+  /** Selo NOVO ao lado do nome (sidebar e painel Mais). */
+  novo?: boolean;
 };
+
+/** Lupa sobre barras (Análise de Ativos): traço em currentColor, 24px como os demais ícones. */
+function AnaliseAtivosIcon() {
+  return (
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path
+        d="M4 20V13M8.5 20V9M13 20v-3.5"
+        stroke="currentColor"
+        strokeWidth="1.6"
+        strokeLinecap="round"
+      />
+      <circle cx="16.5" cy="8.5" r="4" stroke="currentColor" strokeWidth="1.6" />
+      <path d="m19.5 11.5 2 2" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+    </svg>
+  );
+}
 
 export const MAIN_NAV_ITEMS: NavItem[] = [
   {
@@ -98,6 +117,25 @@ const PLUGGY_ITEM: NavItem = {
 };
 const COMUNIDADE_ITEM: NavItem = { icon: <GroupIcon />, name: 'Comunidade', path: '/comunidade' };
 const ADMIN_ITEM: NavItem = { icon: <LockIcon />, name: 'Administração', path: '/admin' };
+/** Análise de Ativos (Fase 1): só para quem tem acesso (config.habilitada); fora do modo consultor. */
+export const ANALISE_ATIVOS_NOME = 'Análise de Ativos';
+const ANALISE_ATIVOS_ITEM: NavItem = {
+  icon: <AnaliseAtivosIcon />,
+  name: ANALISE_ATIVOS_NOME,
+  path: '/analise-ativos',
+};
+
+/** Selo NOVO até `novoAte` (AAAA-MM-DD, inclusive), pela data civil de hoje. */
+export function seloNovoAtivo(
+  novoAte: string | null | undefined,
+  hoje: Date = new Date(),
+): boolean {
+  if (!novoAte) return false;
+  const dia = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}-${String(
+    hoje.getDate(),
+  ).padStart(2, '0')}`;
+  return dia <= novoAte;
+}
 
 /** Itens que o consultor vê quando está personificando um cliente. */
 export const ACTING_ALLOWED_ITEMS = [
@@ -119,6 +157,10 @@ export interface BuildNavOptions {
   isActing: boolean;
   pluggyHabilitado: boolean;
   comunidadeHabilitada: boolean;
+  /** Análise de Ativos liberada para o usuário logado (GET /api/analise-ativos/config). */
+  analiseAtivosHabilitada?: boolean;
+  /** Mostrar o selo NOVO no item da Análise de Ativos. */
+  analiseAtivosNovo?: boolean;
 }
 
 /** Versão pura do filtro do menu (a lógica que antes vivia no useMemo da AppSidebar). */
@@ -127,6 +169,8 @@ export function buildMainNavItems({
   isActing,
   pluggyHabilitado,
   comunidadeHabilitada,
+  analiseAtivosHabilitada = false,
+  analiseAtivosNovo = false,
 }: BuildNavOptions): NavItem[] {
   const dashboardPath = role === 'consultant' && !isActing ? '/dashboard/consultor' : '/carteira';
 
@@ -141,6 +185,19 @@ export function buildMainNavItems({
 
   if (role !== 'consultant') {
     items = items.filter((item) => item.name !== 'Dashboard');
+  }
+
+  // Análise de Ativos (Fase 1): logo abaixo de Carteira, só para quem tem acesso. Fora da lista
+  // do consultor personificado de propósito (ACTING_ALLOWED_ITEMS não muda).
+  if (analiseAtivosHabilitada) {
+    const analise = analiseAtivosNovo
+      ? { ...ANALISE_ATIVOS_ITEM, novo: true }
+      : ANALISE_ATIVOS_ITEM;
+    const idx = items.findIndex((item) => item.name === 'Carteira');
+    items =
+      idx >= 0
+        ? [...items.slice(0, idx + 1), analise, ...items.slice(idx + 1)]
+        : [analise, ...items];
   }
 
   // Integração bancária (14/09/2026): entra logo após Dívidas; fora da lista
@@ -177,12 +234,30 @@ export function useMainNavItems(): NavItem[] {
   // Conexões bancárias (Pluggy): item só aparece com a integração ligada no servidor.
   const pluggyHabilitado = usePluggyConfig().data?.habilitado === true;
   const comunidadeHabilitada = useComunidadeConfig().data?.habilitada === true;
+  const analiseConfig = useAnaliseAtivosConfig().data;
+  const analiseAtivosHabilitada = analiseConfig?.habilitada === true;
+  const analiseAtivosNovo = analiseAtivosHabilitada && seloNovoAtivo(analiseConfig?.novoAte);
   const role = user?.role ?? null;
   const isActing = Boolean(actingClient);
 
   return useMemo(
-    () => buildMainNavItems({ role, isActing, pluggyHabilitado, comunidadeHabilitada }),
-    [role, isActing, pluggyHabilitado, comunidadeHabilitada],
+    () =>
+      buildMainNavItems({
+        role,
+        isActing,
+        pluggyHabilitado,
+        comunidadeHabilitada,
+        analiseAtivosHabilitada,
+        analiseAtivosNovo,
+      }),
+    [
+      role,
+      isActing,
+      pluggyHabilitado,
+      comunidadeHabilitada,
+      analiseAtivosHabilitada,
+      analiseAtivosNovo,
+    ],
   );
 }
 
@@ -199,7 +274,10 @@ export const ACCOUNT_ITEM_NAMES = ['Perfil'];
 export type MoreGroupLabel = 'Finanças' | 'Organização' | 'Aprender e conversar';
 
 export const MORE_GROUPS: { label: MoreGroupLabel; names: string[] }[] = [
-  { label: 'Finanças', names: ['Saúde Financeira', 'Dívidas', 'Conexões bancárias'] },
+  {
+    label: 'Finanças',
+    names: [ANALISE_ATIVOS_NOME, 'Saúde Financeira', 'Dívidas', 'Conexões bancárias'],
+  },
   { label: 'Organização', names: ['Agenda', 'Relatórios', 'Histórico'] },
   { label: 'Aprender e conversar', names: ['Educação', 'Comunidade', 'Administração'] },
 ];
@@ -246,7 +324,7 @@ const matchesPrefix = (pathname: string, prefix: string) =>
 export function getMobilePageTitle(pathname: string | null | undefined): string {
   if (!pathname) return 'My Finance';
   const candidates: { prefix: string; title: string }[] = [
-    ...[...MAIN_NAV_ITEMS, PLUGGY_ITEM, COMUNIDADE_ITEM, ADMIN_ITEM]
+    ...[...MAIN_NAV_ITEMS, ANALISE_ATIVOS_ITEM, PLUGGY_ITEM, COMUNIDADE_ITEM, ADMIN_ITEM]
       .filter((item) => item.name !== 'Dashboard' && item.path)
       .map((item) => ({ prefix: item.path as string, title: item.name })),
     ...EXTRA_TITLES,

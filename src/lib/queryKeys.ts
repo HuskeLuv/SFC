@@ -109,6 +109,22 @@ export const queryKeys = {
       [...queryKeys.carteiraMover.all, 'opcoes', tipo, id] as const,
     categoria: (assetId: string) => [...queryKeys.carteiraMover.all, 'categoria', assetId] as const,
   },
+  // Análise de Ativos — Fase 1 (dono: 0a). quadro(params) inclui os filtros/ordem na key.
+  analiseAtivos: {
+    all: ['analiseAtivos'] as const,
+    config: () => [...queryKeys.analiseAtivos.all, 'config'] as const,
+    quadros: () => [...queryKeys.analiseAtivos.all, 'quadro'] as const,
+    quadro: (params: Record<string, string | number | boolean | undefined>) =>
+      [...queryKeys.analiseAtivos.quadros(), params] as const,
+    busca: () => [...queryKeys.analiseAtivos.all, 'busca'] as const,
+    carteira: () => [...queryKeys.analiseAtivos.all, 'carteira'] as const,
+    ativo: (ticker: string) => [...queryKeys.analiseAtivos.all, 'ativo', ticker] as const,
+    fundamentos: (ticker: string) =>
+      [...queryKeys.analiseAtivos.all, 'ativo', ticker, 'fundamentos'] as const,
+    valuation: (ticker: string) =>
+      [...queryKeys.analiseAtivos.all, 'ativo', ticker, 'valuation'] as const,
+    tese: (ticker: string) => [...queryKeys.analiseAtivos.all, 'tese', ticker] as const,
+  },
   comunidade: {
     all: ['comunidade'] as const,
     config: () => [...queryKeys.comunidade.all, 'config'] as const,

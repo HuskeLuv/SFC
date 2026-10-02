@@ -197,12 +197,14 @@ describe('obterPainelFrescor', () => {
       fiiTickerMap: { aggregate: vi.fn(async () => max(null)) },
       assetEvento: { aggregate: vi.fn(async () => max(d('2026-09-25'))) },
       assetScore: { aggregate: vi.fn(async () => max(null)) },
+      analiseQuadroLinha: { aggregate: vi.fn(async () => max(null)) },
     };
     const p = await obterPainelFrescor(prisma as unknown as PrismaClient, agora);
     expect(p.camadas.cotacoes).toMatchObject({ status: 'em_dia', dadoMaisRecente: '2026-09-29' });
     // IPE OK há 50 h (> 26 h) ⇒ atrasado mesmo com dado recente
     expect(p.camadas.eventos.status).toBe('atrasado');
     expect(p.camadas.scores.status).toBe('sem_dado');
+    expect(p.camadas.quadro.status).toBe('sem_dado');
     expect(p.atrasadas).toEqual(['eventos']);
   });
 });

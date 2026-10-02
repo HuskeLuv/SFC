@@ -86,6 +86,7 @@ export const JOB_POR_CAMADA: Record<Camada, NomeJob> = {
   cadastro_fii: 'fii-cadastro',
   eventos: 'cvm-ipe',
   scores: 'scores',
+  quadro: 'quadro',
 };
 
 /**
@@ -104,6 +105,8 @@ export const LIMITES_FRESCOR_PADRAO: Record<Camada, LimiteFrescor> = {
   cadastro_fii: { maxHorasJob: 8 * 24, maxDiasDado: 8 },
   eventos: { maxHorasJob: 26, maxDiasDado: 120 },
   scores: { maxHorasJob: 26, maxDiasDado: 2, emPregoes: true },
+  // Fase 1: linhas do Quadro (dataRef = a do score); diário depois do scores
+  quadro: { maxHorasJob: 26, maxDiasDado: 2, emPregoes: true },
 };
 
 const HORA_MS = 60 * 60 * 1000;

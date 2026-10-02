@@ -23,6 +23,7 @@ export const PALAVRAS_PROIBIDAS: readonly string[] = [
   'venda',
   'aproveite',
   'nota',
+  'notas',
 ] as const;
 
 function normalizar(texto: string): string {

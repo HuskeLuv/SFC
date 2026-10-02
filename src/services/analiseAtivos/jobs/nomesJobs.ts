@@ -15,6 +15,7 @@ export const NOMES_JOBS = [
   'fii-trimestral',
   'cotahist',
   'scores',
+  'quadro',
 ] as const satisfies readonly NomeJob[];
 
 export type DocCvmCias = 'fca' | 'dfp' | 'itr';

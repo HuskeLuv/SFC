@@ -4,11 +4,14 @@
  * das AÇÕES que o usuário tem em carteira. Dados gravados pelo job cvm-ipe em asset_eventos.
  *
  * Flag desligada ⇒ devolve [] sem nenhuma consulta (o comportamento da Agenda não muda).
+ * Fase 1 (fatia D, decisão 10): só quem TEM ACESSO à área vê estas datas — vale o acesso do DONO
+ * da agenda (o conteúdo é a carteira dele; a role é buscada por podeAcessarAnaliseAtivos).
  * Estimado já substituído pela data real não aparece (o real aparece no lugar).
- * Link '/carteira': a página do ativo é da Fase 1.
+ * Link: página do ativo '/analise-ativos/<1º símbolo em ordem>' (o título mantém 'PETR3/PETR4').
  */
 import prisma from '@/lib/prisma';
 import { analiseAtivosHabilitada } from '@/lib/analiseAtivosConfig';
+import { podeAcessarAnaliseAtivos } from '@/services/analiseAtivos/acesso/acessoAnalise';
 import {
   descricaoAssembleia,
   descricaoResultado,
@@ -41,7 +44,8 @@ export function assetEventosComoAgenda(
     const symbols = symbolsPorCnpj.get(e.cnpj);
     if (!symbols || symbols.length === 0) continue;
     // PETR3 e PETR4 na carteira ⇒ um evento só ('PETR3/PETR4'): a assembleia é do emissor
-    const symbol = [...symbols].sort().join('/');
+    const ordenados = [...symbols].sort();
+    const symbol = ordenados.join('/');
     const ehAssembleia = e.tipo === 'assembleia';
     const ref = e.periodoRef ?? '';
     out.push({
@@ -57,7 +61,7 @@ export function assetEventosComoAgenda(
       descricao: ehAssembleia
         ? descricaoAssembleia(e.subtipo)
         : descricaoResultado(e.estimado, ref),
-      link: '/carteira',
+      link: `/analise-ativos/${encodeURIComponent(ordenados[0])}`,
       detalhe: {
         evento: ehAssembleia ? 'assembleia' : 'resultado',
         symbol,
@@ -76,6 +80,7 @@ export async function eventosResultadosAnaliseAtivos(
   periodo: Periodo,
 ): Promise<EventoAgenda[]> {
   if (!analiseAtivosHabilitada()) return [];
+  if (!(await podeAcessarAnaliseAtivos(userId))) return [];
 
   const posicoes = await prisma.portfolio.findMany({
     where: { userId, quantity: { gt: 0 }, asset: { symbol: { not: '' } } },
