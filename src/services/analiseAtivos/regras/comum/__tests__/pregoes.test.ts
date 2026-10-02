@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  distanciaEmPregoes,
   ehPregaoB3,
   pregaoAnterior,
   pregoesEntre,
@@ -49,6 +50,16 @@ describe('calendário de pregões B3', () => {
     ]);
     expect(pregoesEntre('2024-11-23', '2024-11-24')).toEqual([]);
     expect(pregoesEntre('2024-11-22', '2024-11-18')).toEqual([]);
+  });
+
+  it('distanciaEmPregoes: 0 na mesma data, 1 entre pregões consecutivos (sex × seg, feriado)', () => {
+    expect(distanciaEmPregoes('2026-04-28', '2026-04-28')).toBe(0);
+    expect(distanciaEmPregoes('2026-04-28', '2026-04-29')).toBe(1);
+    expect(distanciaEmPregoes('2026-04-29', '2026-04-28')).toBe(1);
+    expect(distanciaEmPregoes('2025-09-26', '2025-09-29')).toBe(1);
+    expect(distanciaEmPregoes('2024-11-19', '2024-11-21')).toBe(1); // 20/11 sem pregão
+    expect(distanciaEmPregoes('2025-09-30', '2025-10-02')).toBe(2);
+    expect(distanciaEmPregoes('2025-09-27', '2025-09-29')).toBe(1); // sábado → segunda
   });
 
   it('data inválida lança', () => {

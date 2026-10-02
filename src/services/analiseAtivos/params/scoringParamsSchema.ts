@@ -206,16 +206,19 @@ const baseSchema = z.strictObject({
           maxDias: { acao: 200, fii: 45 },
           recorrenteMinMeses: { acao: 2, fii: 6 },
         }),
-      // repetição da fonte com MESMA data-com: linha sem pagamento (data de pagamento = data ex
-      // gravada, fallback da BRAPI) + linha com pagamento de valor igual (±tolPct) ou na razão do
-      // prêmio legal das preferenciais (CEBR5/CEBR6/CEEB5: ON e PN misturadas no mesmo ticker)
+      // repetição da fonte com a mesma data-com (ou a até `pregoesDataCom` pregões: a BRAPI repete a
+      // parcela com a data-com deslocada 1 dia — CPFE3/CEEB5, prod 02/10/2026): linha sem pagamento
+      // (data de pagamento = data ex gravada, fallback da BRAPI) + linha com pagamento de valor igual
+      // (±tolPct) ou na razão do prêmio legal das preferenciais (CEBR5/CEBR6/CEEB5: ON e PN
+      // misturadas no mesmo ticker)
       duplicataSemPagamento: z
         .strictObject({
           tolPct: z.number().nonnegative(),
           premioPreferencialPct: z.number().nonnegative(),
           premioTolPct: z.number().nonnegative(),
+          pregoesDataCom: z.number().int().nonnegative().default(1),
         })
-        .default({ tolPct: 2, premioPreferencialPct: 10, premioTolPct: 0.5 }),
+        .default({ tolPct: 2, premioPreferencialPct: 10, premioTolPct: 0.5, pregoesDataCom: 1 }),
       // DIVIDENDO/JCP/RENDIMENTO que repete uma REST CAP DIN/AMORTIZAÇÃO (MELK3 mar/2025)
       copiaRestituicao: z
         .strictObject({

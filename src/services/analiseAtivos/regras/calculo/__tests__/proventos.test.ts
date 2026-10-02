@@ -629,6 +629,106 @@ describe('repetições da fonte com a mesma data-com (diagnóstico DY absurdo 02
     expect(rendimento12m(aud, '2023-12-31', 'fii', [], P)).toEqual({ estado: 'ok', valor: 0.9 });
   });
 
+  describe('data-com deslocada 1 pregão (conferência em prod 02/10/2026)', () => {
+    it('CPFE3: 3,7315 pago (data-com 28/04) × 3,7315 sem pagamento (data-com 29/04) ⇒ só a sem pagamento sai; o cronograma real de 29/04 fica', () => {
+      const aud = auditarProventos(
+        [
+          linha('pago', 'CPFE3', 3.7315361, '2026-12-31', '2026-04-29'),
+          linha('rep', 'CPFE3', 3.7315361, '2026-04-29', '2026-04-30'),
+          // mesma declaração, parcelas com pagamentos distintos (cronograma real): não mexer
+          linha('p1', 'CPFE3', 1.128223, '2026-05-18', '2026-04-30'),
+          linha('p2', 'CPFE3', 0.130179, '2026-06-18', '2026-04-30'),
+          linha('p3', 'CPFE3', 0.217, '2026-08-18', '2026-04-30'),
+          linha('p4', 'CPFE3', 0.6075, '2026-10-19', '2026-04-30'),
+        ],
+        [],
+        P,
+        { classe: 'acao' },
+      );
+      const rep = aud.find((x) => x.origemId === 'rep')!;
+      expect(rep.dataComReal).toBe('2026-04-29');
+      expect(rep).toMatchObject({ status: 'duplicata', duplicataDe: 'pago' });
+      expect(rep.flags).toContain('duplicata_sem_pagamento');
+      expect(aud.filter((x) => x.status === 'valido').map((x) => x.origemId)).toEqual([
+        'pago',
+        'p1',
+        'p2',
+        'p3',
+        'p4',
+      ]);
+    });
+
+    it('CEEB5: DIVIDENDO 4,2018 pago (28/10) × 4,2554 sem pagamento (29/10, +1,3%) ⇒ duplicata', () => {
+      const aud = auditarProventos(
+        [
+          linha('pago', 'CEEB5', 4.20177845, '2025-12-05', '2025-10-29'),
+          linha('rep', 'CEEB5', 4.25543, '2025-10-29', '2025-10-30'),
+        ],
+        [],
+        P,
+        { classe: 'acao' },
+      );
+      const rep = aud.find((x) => x.origemId === 'rep')!;
+      expect(rep).toMatchObject({ status: 'duplicata', duplicataDe: 'pago' });
+      expect(rep.flags).toContain('duplicata_sem_pagamento');
+      expect(aud.find((x) => x.origemId === 'pago')!.status).toBe('valido');
+    });
+
+    it('CEEB5 (PN): JCP 0,5737 sem pagamento × 0,5215 pago 1 pregão depois (razão 1,10) ⇒ fica o da PN', () => {
+      const aud = auditarProventos(
+        [
+          linha('sp', 'CEEB5', 0.57366943, '2025-10-02', '2025-10-02', 'JCP'),
+          linha('pg', 'CEEB5', 0.5215177, '2025-12-31', '2025-10-03', 'JCP'),
+        ],
+        [],
+        P,
+        { classe: 'acao' },
+      );
+      const sai = aud.find((x) => x.origemId === 'pg')!;
+      expect(sai).toMatchObject({ status: 'duplicata', duplicataDe: 'sp' });
+      expect(sai.flags).toContain('duplicata_classe_irma');
+      expect(aud.find((x) => x.origemId === 'sp')!.status).toBe('valido');
+    });
+
+    it('sexta × segunda é 1 pregão; 2 pregões de distância NÃO é repetição', () => {
+      const fimDeSemana = auditarProventos(
+        [
+          linha('pago', 'XPTO3', 1, '2025-12-10', '2025-09-29'), // data-com sex 26/09
+          linha('rep', 'XPTO3', 1, '2025-09-30', '2025-09-30'), // data-com seg 29/09
+        ],
+        [],
+        P,
+        { classe: 'acao' },
+      );
+      expect(fimDeSemana.find((x) => x.origemId === 'rep')!.status).toBe('duplicata');
+      const longe = auditarProventos(
+        [
+          linha('pago', 'XPTO3', 1, '2025-12-10', '2025-10-01'), // data-com 30/09
+          linha('rep', 'XPTO3', 1, '2025-10-03', '2025-10-03'), // data-com 02/10
+        ],
+        [],
+        P,
+        { classe: 'acao' },
+      );
+      expect(longe.every((x) => x.status === 'valido')).toBe(true);
+    });
+
+    it('pregoesDataCom = 0 volta a exigir a mesma data-com', () => {
+      const p0 = structuredClone(P);
+      p0.sanidade.proventos.duplicataSemPagamento.pregoesDataCom = 0;
+      const aud = auditarProventos(
+        [
+          linha('pago', 'CPFE3', 3.7315361, '2026-12-31', '2026-04-29'),
+          linha('rep', 'CPFE3', 3.7315361, '2026-04-29', '2026-04-30'),
+        ],
+        [],
+        p0,
+        { classe: 'acao' },
+      );
+      expect(aud.every((x) => x.status === 'valido')).toBe(true);
+    });
+  });
+
   it('especieDoTicker: 3 = ON, 4–8 = PN, units e o resto = outra', () => {
     expect(especieDoTicker('CEBR3')).toBe('ON');
     expect(especieDoTicker('CEBR5')).toBe('PN');

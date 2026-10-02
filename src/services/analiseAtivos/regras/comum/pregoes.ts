@@ -61,3 +61,14 @@ export function pregoesEntre(de: string, ate: string): string[] {
   }
   return out;
 }
+
+/**
+ * Distância em pregões entre duas datas: nº de pregões em (min, max]. Mesma data ⇒ 0; dois pregões
+ * consecutivos ⇒ 1 (sexta × segunda também). Simétrica.
+ */
+export function distanciaEmPregoes(a: string, b: string): number {
+  const [de, ate] = a <= b ? [a, b] : [b, a];
+  if (de === ate) return 0;
+  const n = pregoesEntre(de, ate).length;
+  return ehPregaoMs(paraMs(de)) ? n - 1 : n;
+}
