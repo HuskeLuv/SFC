@@ -48,6 +48,21 @@ function DefaultErrorFallback({ error, onRetry }: DefaultErrorFallbackProps) {
   );
 }
 
+/**
+ * notFound()/redirect()/forbidden() do Next lançam erros internos (digest NEXT_HTTP_ERROR_FALLBACK;…
+ * ou NEXT_REDIRECT;…) que precisam subir até as fronteiras do próprio Next (ex.: o not-found.tsx
+ * da raiz). Este boundary fica em volta das páginas do (admin) e não pode engoli-los.
+ */
+export function ehErroDeNavegacaoNext(error: unknown): boolean {
+  const digest = (error as { digest?: unknown } | null)?.digest;
+  return (
+    typeof digest === 'string' &&
+    (digest.startsWith('NEXT_HTTP_ERROR_FALLBACK;') ||
+      digest.startsWith('NEXT_REDIRECT;') ||
+      digest === 'NEXT_NOT_FOUND')
+  );
+}
+
 interface ErrorBoundaryProps {
   children: React.ReactNode;
   fallback?: React.ReactNode;
@@ -69,10 +84,13 @@ export default class ErrorBoundary extends React.Component<ErrorBoundaryProps, E
   }
 
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
+    if (ehErroDeNavegacaoNext(error)) return;
     logger.error('ErrorBoundary caught:', error, errorInfo);
   }
 
   render() {
+    // Erro de navegação do Next: relança para a fronteira do Next tratar (404 da raiz, redirect).
+    if (this.state.hasError && ehErroDeNavegacaoNext(this.state.error)) throw this.state.error;
     if (this.state.hasError) {
       return (
         this.props.fallback || (

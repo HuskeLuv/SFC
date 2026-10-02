@@ -77,6 +77,32 @@ describe('ErrorBoundary', () => {
     expect(screen.queryByText('Algo deu errado')).not.toBeInTheDocument();
   });
 
+  it('relança erros de navegação do Next (notFound/redirect) para a fronteira de fora', () => {
+    const NotFound = () => {
+      throw Object.assign(new Error('NEXT_HTTP_ERROR_FALLBACK;404'), {
+        digest: 'NEXT_HTTP_ERROR_FALLBACK;404',
+      });
+    };
+    class Fora extends React.Component<{ children: React.ReactNode }, { pegou: boolean }> {
+      state = { pegou: false };
+      static getDerivedStateFromError() {
+        return { pegou: true };
+      }
+      render() {
+        return this.state.pegou ? <div>fronteira do Next</div> : this.props.children;
+      }
+    }
+    render(
+      <Fora>
+        <ErrorBoundary>
+          <NotFound />
+        </ErrorBoundary>
+      </Fora>,
+    );
+    expect(screen.getByText('fronteira do Next')).toBeInTheDocument();
+    expect(screen.queryByText('Algo deu errado')).not.toBeInTheDocument();
+  });
+
   it('logs error to console via componentDidCatch', () => {
     render(
       <ErrorBoundary>
