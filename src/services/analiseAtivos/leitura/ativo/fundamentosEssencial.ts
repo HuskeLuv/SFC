@@ -491,7 +491,9 @@ export function montarFundamentosFii(e: EntradaFundamentosFii): FundamentosRespo
     const m = mPorAno.get(ano);
     const f = fator(ano);
     const receita = somaTrimestres(ts, 'receitaAluguel');
-    if (receita.estado === 'ausente' && receita.motivo === 'ano_incompleto') algumIncompleto = true;
+    if (!cnpjConf && receita.estado === 'ausente' && receita.motivo === 'ano_incompleto') {
+      algumIncompleto = true;
+    }
     const valores: Record<string, Estado<number>> = {
       receita: papel ? receitaPapel(ts, receita) : receita,
       resultado: somaTrimestres(ts, 'resultadoTrimestral'),

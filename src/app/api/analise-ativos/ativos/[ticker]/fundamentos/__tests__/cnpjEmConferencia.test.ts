@@ -132,6 +132,7 @@ describe('GET /fundamentos — FII com ticker↔CNPJ não conferido', () => {
 
     expect(JSON.stringify(r)).not.toContain('0.0039');
     expect(r.notas).not.toContain(TEXTOS_TELA.analise.fundamentos.notaCvmGestor);
+    expect(r.notas.join(' ')).not.toContain(TEXTOS_TELA.ativo.anoIncompletoFii);
   });
 
   it('o mesmo FII conferido mostra o informe (controle)', async () => {
