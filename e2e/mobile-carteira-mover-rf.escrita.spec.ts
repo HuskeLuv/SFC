@@ -72,7 +72,7 @@ test.describe('cartão da Oportunidade → Renda Fixa', () => {
       await gotoAba(page, 'Renda Fixa');
       await expect(cartaoDe(page, CDB)).toHaveCount(1);
       await abrirCartao(cartaoDe(page, CDB));
-      portfolioId = await portfolioIdNaAba(page, CDB);
+      portfolioId = await portfolioIdNaAba(page, CDB, cartaoDe(page, CDB));
       expect(portfolioId).not.toBeNull();
       await apiPost(page, '/api/carteira/mover', {
         acao: 'mover',
@@ -109,7 +109,8 @@ test.describe('cartão da Oportunidade → Renda Fixa', () => {
       expect((await post).status()).toBe(200);
       await expect(sheet).toBeHidden();
 
-      const desfazer = page.locator('[data-mf-mover-toast]').getByRole('button', {
+      // No celular o aviso de sucesso é o MobileSaveToast (data-mf-save-toast), não o do desktop.
+      const desfazer = page.locator('[data-mf-save-toast]').getByRole('button', {
         name: 'Desfazer',
       });
       await expect(desfazer).toBeVisible();

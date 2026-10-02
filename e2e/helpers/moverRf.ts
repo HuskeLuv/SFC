@@ -1,4 +1,4 @@
-import { expect, type Page, type Response } from '@playwright/test';
+import { expect, type Locator, type Page, type Response } from '@playwright/test';
 import { apiDelete, apiPost } from './api';
 
 /**
@@ -74,8 +74,15 @@ export async function criarContaCorrenteEmergencia(page: Page, nome: string): Pr
 }
 
 /** id do Portfolio pela linha de uma aba (`data-mover-linha` ou o link do nome). */
-export async function portfolioIdNaAba(page: Page, nome: string): Promise<string | null> {
-  const link = page.locator(`a[href^="/ativos/"]`).filter({ hasText: nome }).first();
+export async function portfolioIdNaAba(
+  page: Page,
+  nome: string,
+  escopo?: Locator,
+): Promise<string | null> {
+  // No cartão do celular o link é "Ver detalhes do ativo" (sem o nome): procura dentro dele.
+  const link = escopo
+    ? escopo.locator(`a[href^="/ativos/"]`).first()
+    : page.locator(`a[href^="/ativos/"]`).filter({ hasText: nome }).first();
   if ((await link.count()) === 0) return null;
   const href = await link.getAttribute('href');
   return href?.replace(/^\/ativos\//, '').split(/[/?#]/)[0] ?? null;
