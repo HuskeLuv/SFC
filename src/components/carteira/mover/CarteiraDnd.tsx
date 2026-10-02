@@ -247,7 +247,10 @@ export const CarteiraDndProvider: React.FC<CarteiraDndProviderProps> = ({
   const [ativo, setAtivo] = useState<LinhaDragData | null>(null);
   const [over, setOver] = useState<DropData | null>(null);
   const [pop, setPop] = useState<PopState | null>(null);
-  const [dialogo, setDialogo] = useState<MoverAlvo | null>(null);
+  // O "Mover para…" fica montado depois de aberto (aberto=false ao fechar): o painel do celular
+  // precisa ver o `open` virar false para desfazer a entrada do histórico (useMobileHistoryLayer).
+  const [dialogo, setDialogo] = useState<{ alvo: MoverAlvo; aberto: boolean } | null>(null);
+  const abrirMover = useCallback((alvo: MoverAlvo) => setDialogo({ alvo, aberto: true }), []);
   const [aviso, setAviso] = useState<string | null>(null);
   const [centroX, setCentroX] = useState<number | null>(null);
 
@@ -390,10 +393,10 @@ export const CarteiraDndProvider: React.FC<CarteiraDndProviderProps> = ({
       ativo,
       pendingId,
       realceId,
-      abrirMover: setDialogo,
+      abrirMover,
       restaurar: restaurarAlvo,
     }),
-    [categoria, dnd, ativo, pendingId, realceId, restaurarAlvo],
+    [categoria, dnd, ativo, pendingId, realceId, abrirMover, restaurarAlvo],
   );
 
   const fecharPop = useCallback(() => {
@@ -422,11 +425,11 @@ export const CarteiraDndProvider: React.FC<CarteiraDndProviderProps> = ({
     <>
       {dialogo ? (
         <MoverInvestimento
-          alvo={dialogo}
-          open
+          alvo={dialogo.alvo}
+          open={dialogo.aberto}
           onClose={() => {
-            focarAlca(dialogo.id);
-            setDialogo(null);
+            focarAlca(dialogo.alvo.id);
+            setDialogo((d) => (d ? { ...d, aberto: false } : d));
           }}
         />
       ) : null}

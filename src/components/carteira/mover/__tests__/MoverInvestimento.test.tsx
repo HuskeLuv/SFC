@@ -227,6 +227,71 @@ describe('MoverInvestimento — painel do celular', () => {
   });
 });
 
+describe('MoverInvestimento — "voltar" do sistema (useMobileHistoryLayer)', () => {
+  /** Como a Carteira e a página do ativo: montado, só o `open` vira false ao fechar. */
+  function Pai({ opcoes }: { opcoes: MoverOpcoesResponse }) {
+    const [aberto, setAberto] = React.useState(true);
+    return (
+      <MoverInvestimento
+        alvo={{ tipo: 'posicao', id: opcoes.item.id }}
+        open={aberto}
+        onClose={() => setAberto(false)}
+      />
+    );
+  }
+
+  const montarPai = (opcoes: MoverOpcoesResponse) => {
+    fetchMock.mockImplementation(() => Promise.resolve(jsonResponse(opcoes)));
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={queryClient}>
+        <Pai opcoes={opcoes} />
+      </QueryClientProvider>,
+    );
+  };
+
+  const camada = () => (window.history.state as Record<string, unknown> | null)?.__mfCamada ?? null;
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('celular: abrir empilha uma entrada e o voltar do sistema fecha o painel', async () => {
+    belowLg.value = true;
+    const tamanho = window.history.length;
+    const antes = camada();
+    montarPai(opcoesKdif());
+    await screen.findByRole('dialog', { name: 'Mover KDIF11' });
+    expect(window.history.length).toBe(tamanho + 1);
+    const empilhada = camada();
+    expect(empilhada).not.toBeNull();
+    expect(empilhada).not.toBe(antes);
+
+    window.history.back();
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    // voltou para a entrada de antes (a do painel saiu)
+    expect(camada()).toBe(antes);
+  });
+
+  it('celular: fechar pelo app desfaz a entrada empilhada (history.back)', async () => {
+    belowLg.value = true;
+    montarPai(opcoesKdif());
+    const dialog = await screen.findByRole('dialog', { name: 'Mover KDIF11' });
+    const back = vi.spyOn(window.history, 'back');
+    fireEvent.click(within(dialog).getAllByRole('button', { name: 'Voltar' })[0]);
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    expect(back).toHaveBeenCalledTimes(1);
+  });
+
+  it('computador: o diálogo não mexe no histórico', async () => {
+    belowLg.value = false;
+    const push = vi.spyOn(window.history, 'pushState');
+    montarPai(opcoesKdif());
+    await screen.findByRole('dialog', { name: 'Mover KDIF11' });
+    expect(push).not.toHaveBeenCalled();
+  });
+});
+
 describe('Página do ativo — Na Carteira', () => {
   it('linha do computador: aba › seção clicável para a aba', () => {
     render(<NaCarteiraLinha opcoes={opcoesKdif()} onRestaurar={vi.fn()} />);
