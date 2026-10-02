@@ -3,7 +3,8 @@
  *
  * 1. Fixtures (só em banco SEM dados da Fase 0, i.e. asset_scores vazio — o banco efêmero do CI/e2e):
  *    carrega prisma/fixtures/analise-ativos/fase0-amostra.json (tabelas da Fase 0 dos ~20 símbolos
- *    da amostra) e quadro-linhas.json (analise_quadro_linhas). Num banco com dados reais (Neon dev,
+ *    da amostra) e quadro-linhas.json (analise_quadro_linhas), mais as linhas do catálogo (assets)
+ *    dos símbolos da amostra que faltarem. Num banco com dados reais (Neon dev,
  *    produção) NÃO toca nas tabelas de dados.
  * 2. Beta: põe o usuário demo (usuario.demo@finapp.local) em feature_beta_users
  *    (recurso 'analise-ativos'), para a área abrir com ANALISE_ATIVOS_HABILITADA=true.
@@ -76,6 +77,21 @@ async function carregarFixtures(prisma: PrismaClient): Promise<Record<string, nu
   }
 
   const quadro = lerJson<Linha[]>('quadro-linhas.json');
+  // Catálogo (assets) dos símbolos da amostra: no banco efêmero só existem os ativos do demo. Sem
+  // a linha do catálogo a página do ativo vem com assetId null e o "Planejar na Carteira" abre o
+  // wizard na busca (que também lê o catálogo), sem achar o ativo. skipDuplicates preserva o que
+  // o seed já criou (ITSA4, MXRF11).
+  const catalogo = await prisma.asset.createMany({
+    data: quadro.map((l) => ({
+      symbol: String(l.symbol),
+      name: String(l.nome ?? l.symbol),
+      type: l.classe === 'fii' ? 'fii' : 'stock',
+      currency: 'BRL',
+      currentPrice: l.preco == null ? null : String(l.preco),
+    })),
+    skipDuplicates: true,
+  });
+  contagem.asset = catalogo.count;
   const assets = await prisma.asset.findMany({
     where: { symbol: { in: quadro.map((l) => String(l.symbol)) } },
     select: { id: true, symbol: true },

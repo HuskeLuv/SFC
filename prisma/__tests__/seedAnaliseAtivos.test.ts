@@ -31,7 +31,10 @@ function prismaFalso(scores: number) {
     assetScore: { count: vi.fn().mockResolvedValue(scores), createMany },
     user: { findUnique: vi.fn().mockResolvedValue({ id: 'demo-1' }) },
     featureBetaUser: { upsert: vi.fn().mockResolvedValue({}) },
-    asset: { findMany: vi.fn().mockResolvedValue([{ id: 'asset-wege', symbol: 'WEGE3' }]) },
+    asset: {
+      findMany: vi.fn().mockResolvedValue([{ id: 'asset-wege', symbol: 'WEGE3' }]),
+      createMany: vi.fn(async ({ data }: { data: unknown[] }) => ({ count: data.length })),
+    },
     analiseQuadroLinha: { createMany },
   };
   for (const m of MODELOS_FASE0) if (!p[m]) p[m] = { createMany };
@@ -59,7 +62,7 @@ describe('seedAnaliseAtivos', () => {
   });
 
   it('banco vazio: carrega todas as tabelas com skipDuplicates (idempotente) e o Quadro', async () => {
-    const { prisma, createMany } = prismaFalso(0);
+    const { prisma, createMany, p } = prismaFalso(0);
     const r = await seedAnaliseAtivos(prisma);
     expect(r.fixtures).not.toBeNull();
     for (const m of MODELOS_FASE0) expect(r.fixtures?.[m], m).toBeGreaterThan(0);
@@ -76,6 +79,16 @@ describe('seedAnaliseAtivos', () => {
     >;
     expect(quadro.find((l) => l.symbol === 'WEGE3')?.assetId).toBe('asset-wege');
     expect(quadro.find((l) => l.symbol === 'HGLG11')?.assetId).toBeNull();
+    // catálogo dos símbolos da amostra (ação = stock, FII = fii), antes de ligar o assetId
+    const catalogo = (p.asset as { createMany: ReturnType<typeof vi.fn> }).createMany.mock
+      .calls[0][0] as { data: Array<Record<string, unknown>>; skipDuplicates: boolean };
+    expect(catalogo.skipDuplicates).toBe(true);
+    expect(catalogo.data.find((a) => a.symbol === 'ITUB4')).toMatchObject({
+      type: 'stock',
+      currency: 'BRL',
+    });
+    expect(catalogo.data.find((a) => a.symbol === 'HGLG11')?.type).toBe('fii');
+    expect(r.fixtures?.asset).toBe(catalogo.data.length);
   });
 
   it('sem usuário demo não quebra', async () => {
