@@ -8,8 +8,9 @@
  *  - repetição da BRAPI com outra data-com (PETR4 set/2024 2×) e, com o MESMO pagamento, a unique
  *    (symbol, date, tipo) + a soma do dividendService fazem 1 linha com valor em dobro (irreversível:
  *    só sinalizamos `possivel_soma_duplicada`);
- *  - repetição com a MESMA data-com, uma linha sem pagamento e outra paga, de valor igual ou na razão
- *    do prêmio de 10% das PN (ON e PN misturadas: CEBR5) ⇒ duplicata (marcarRepeticoesSemPagamento);
+ *  - repetição com a mesma data-com (ou deslocada 1 pregão), uma linha sem pagamento e outra paga, de
+ *    valor igual ou na razão do prêmio de 10% das PN (ON e PN misturadas: CEBR5) ⇒ duplicata
+ *    (marcarRepeticoesSemPagamento);
  *  - DIVIDENDO/JCP/RENDIMENTO que repete uma REST CAP DIN/AMORTIZAÇÃO ⇒ tipo_excluido
  *    (marcarCopiasDeRestituicao). Diagnóstico: docs/analise-ativos/fase1/diagnostico-dy-absurdo.md.
  * Data-com real = pregão B3 anterior à data ex. Nunca usa o pagamento como fallback de data-com.
@@ -17,7 +18,7 @@
  * proventos antes e depois do 4:1 no mesmo ano). Funções puras.
  */
 import { eventoAjustaSerie } from '@/services/analiseAtivos/regras/calculo/eventosCorporativos';
-import { pregaoAnterior } from '@/services/analiseAtivos/regras/comum/pregoes';
+import { distanciaEmPregoes, pregaoAnterior } from '@/services/analiseAtivos/regras/comum/pregoes';
 import { ausente, ok } from '@/services/analiseAtivos/regras/comum/valor';
 import type {
   CoberturaProventos,
@@ -165,16 +166,21 @@ function marcarCopiasDeRestituicao(itens: ProventoAuditadoCompleto[], p: Scoring
 }
 
 /**
- * Repetição sem pagamento (diagnóstico 02/10/2026): mesmo símbolo, tipo e data-com; uma linha SEM
- * pagamento (semPagamento) e outra COM pagamento. A unique (symbol, date, tipo) do app deixa as duas
- * entrarem porque a "data de pagamento" difere. Critério conservador, só com a MESMA data-com:
+ * Repetição sem pagamento (diagnóstico 02/10/2026): mesmo símbolo e tipo, data-com igual ou a até
+ * `duplicataSemPagamento.pregoesDataCom` pregões (1); uma linha SEM pagamento (semPagamento) e outra
+ * COM pagamento. A unique (symbol, date, tipo) do app deixa as duas entrarem porque a "data de
+ * pagamento" difere. Critério conservador:
  *  - valor igual (±duplicataSemPagamento.tolPct, 2%): a linha sem pagamento é a duplicata
  *    (KEPL3 15/12/2025 0,1442 × 2; NATU3 mar/2024; LUXM4 abr/2026) — flag 'duplicata_sem_pagamento';
  *  - ações, razão = 1 + premioPreferencialPct (10%, art. 17 §1º da Lei 6.404) ±premioTolPct: a fonte
  *    mistura o valor da ON e o da PN no mesmo ticker (CEBR5/CEBR6/CEEB5/BRSR6). Fica o valor da
  *    espécie do ticker (PN = o maior, ON = o menor; units e outras: a linha com pagamento) — flag
  *    'duplicata_classe_irma'.
- * Valores diferentes fora dessas razões (tranches, complementos) NÃO são tocados.
+ * Data-com deslocada (prod 02/10/2026): a BRAPI repete a parcela com a data-com 1 pregão depois e o
+ * "pagamento" = data gravada (CPFE3 3,7315 com data-com 28/04 paga em 31/12 × 29/04 sem pagamento;
+ * CEEB5 4,2018 × 4,2554 em 28–29/10/2025). O par mais próximo (mesma data-com primeiro) decide.
+ * Valores diferentes fora dessas razões (tranches, complementos) e linhas que TÊM pagamento (cronograma
+ * real: CPFE3 1,1282/0,1302/0,2170/0,6075 em 29/04/2026) NÃO são tocados.
  */
 function marcarRepeticoesSemPagamento(
   itens: ProventoAuditadoCompleto[],
@@ -185,20 +191,36 @@ function marcarRepeticoesSemPagamento(
   const tol = cfg.tolPct / 100;
   const premio = 1 + cfg.premioPreferencialPct / 100;
   const tolPremio = cfg.premioTolPct / 100;
+  const maxPregoes = cfg.pregoesDataCom;
   const grupos = new Map<string, ProventoAuditadoCompleto[]>();
   for (const i of itens) {
     if (i.status !== 'valido' || !i.dataComReal) continue;
-    const k = `${i.symbol}|${i.tipoNormalizado}|${i.dataComReal}`;
+    const k = `${i.symbol}|${i.tipoNormalizado}`;
     const g = grupos.get(k);
     if (g) g.push(i);
     else grupos.set(k, [i]);
   }
   for (const g of grupos.values()) {
     if (g.length < 2) continue;
+    g.sort(
+      (a, b) =>
+        a.dataComReal!.localeCompare(b.dataComReal!) || a.origemId.localeCompare(b.origemId),
+    );
     for (const x of g.filter(semPagamento)) {
       if (x.status !== 'valido') continue;
-      for (const y of g) {
-        if (y === x || y.status !== 'valido' || semPagamento(y) || !(y.valor > 0)) continue;
+      const candidatos = g
+        .filter(
+          (y) =>
+            y !== x &&
+            Math.abs(ms(y.dataComReal!) - ms(x.dataComReal!)) <= 15 * DIA_MS &&
+            y.status === 'valido' &&
+            !semPagamento(y) &&
+            y.valor > 0,
+        )
+        .map((y) => ({ y, d: distanciaEmPregoes(x.dataComReal!, y.dataComReal!) }))
+        .filter((c) => c.d <= maxPregoes)
+        .sort((a, b) => a.d - b.d);
+      for (const { y } of candidatos) {
         const razao = x.valor / y.valor;
         if (Math.abs(razao - 1) <= tol) {
           x.status = 'duplicata';

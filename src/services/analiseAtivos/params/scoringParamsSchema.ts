@@ -206,16 +206,19 @@ const baseSchema = z.strictObject({
           maxDias: { acao: 200, fii: 45 },
           recorrenteMinMeses: { acao: 2, fii: 6 },
         }),
-      // repetição da fonte com MESMA data-com: linha sem pagamento (data de pagamento = data ex
-      // gravada, fallback da BRAPI) + linha com pagamento de valor igual (±tolPct) ou na razão do
-      // prêmio legal das preferenciais (CEBR5/CEBR6/CEEB5: ON e PN misturadas no mesmo ticker)
+      // repetição da fonte com a mesma data-com (ou a até `pregoesDataCom` pregões: a BRAPI repete a
+      // parcela com a data-com deslocada 1 dia — CPFE3/CEEB5, prod 02/10/2026): linha sem pagamento
+      // (data de pagamento = data ex gravada, fallback da BRAPI) + linha com pagamento de valor igual
+      // (±tolPct) ou na razão do prêmio legal das preferenciais (CEBR5/CEBR6/CEEB5: ON e PN
+      // misturadas no mesmo ticker)
       duplicataSemPagamento: z
         .strictObject({
           tolPct: z.number().nonnegative(),
           premioPreferencialPct: z.number().nonnegative(),
           premioTolPct: z.number().nonnegative(),
+          pregoesDataCom: z.number().int().nonnegative().default(1),
         })
-        .default({ tolPct: 2, premioPreferencialPct: 10, premioTolPct: 0.5 }),
+        .default({ tolPct: 2, premioPreferencialPct: 10, premioTolPct: 0.5, pregoesDataCom: 1 }),
       // DIVIDENDO/JCP/RENDIMENTO que repete uma REST CAP DIN/AMORTIZAÇÃO (MELK3 mar/2025)
       copiaRestituicao: z
         .strictObject({
@@ -224,7 +227,10 @@ const baseSchema = z.strictObject({
         })
         .default({ janelaDias: 3, tolPct: 0.5 }),
       // trava de plausibilidade do DY 12m (Índice MF e semáforo): acima do teto ou com salto de
-      // provento recente ⇒ "proventos em conferência" (ausente no Índice, DY exibido em conferência)
+      // provento recente ⇒ "proventos em conferência" (ausente no Índice, DY exibido em conferência).
+      // Teto de ações 18% (era 25% no #277): p95 do Quadro de ações = 20,5% e o que fica entre 18% e
+      // 25% são antecipações de dez/2025 à tributação de 2026 (POMO3/POMO4 22–23%, SOND5/6) ou
+      // parcela repetida (CPFE3 20,5%) — renda não recorrente. FIIs seguem em 20%.
       plausibilidade: z
         .strictObject({
           dyMaxPct: z.strictObject({ acao: z.number().positive(), fii: z.number().positive() }),
@@ -233,7 +239,7 @@ const baseSchema = z.strictObject({
           anosSaltoRecente: z.number().int().nonnegative(),
         })
         .default({
-          dyMaxPct: { acao: 25, fii: 20 },
+          dyMaxPct: { acao: 18, fii: 20 },
           saltoFator: 2,
           saltoPayoutMaxPct: 150,
           anosSaltoRecente: 1,

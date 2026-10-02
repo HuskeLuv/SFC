@@ -17,13 +17,26 @@ import { P } from './helpers';
 const HOJE = '2026-09-29';
 
 describe('teto do DY 12m', () => {
-  it('ações: acima de 25% ⇒ dy_acima_teto (BMKS3 34%, HBTS5 795%); 25% ou menos passa', () => {
+  it('ações: acima de 18% ⇒ dy_acima_teto (BMKS3 34%, HBTS5 795%, POMO3 22,6%); 18% ou menos passa', () => {
     const m = (dy: number) =>
       motivoProventosEmConferencia({ classe: 'acao', dyPct: ok(dy), saltoRecente: false }, P);
     expect(m(34.2)).toBe('dy_acima_teto');
     expect(m(795.4)).toBe('dy_acima_teto');
-    expect(m(25)).toBeNull();
+    expect(m(22.6)).toBe('dy_acima_teto');
+    expect(m(20.5)).toBe('dy_acima_teto');
+    expect(m(18)).toBeNull();
     expect(m(8.4)).toBeNull();
+  });
+
+  it('params gravados sem `plausibilidade` (v1 de prod) recebem o teto de 18% do schema', async () => {
+    const { scoringParamsSchema } =
+      await import('@/services/analiseAtivos/params/scoringParamsSchema');
+    const bruto = structuredClone(P) as unknown as {
+      sanidade: { proventos: Record<string, unknown> };
+    };
+    delete bruto.sanidade.proventos.plausibilidade;
+    const lido = scoringParamsSchema.parse(bruto);
+    expect(lido.sanidade.proventos.plausibilidade.dyMaxPct).toEqual({ acao: 18, fii: 20 });
   });
 
   it('FIIs: acima de 20% ⇒ dy_acima_teto (LRDI11 42%); 14% passa', () => {

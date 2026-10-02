@@ -59,6 +59,7 @@ import {
   dyParaIndice,
   flagEmConferencia,
   motivoProventosEmConferencia,
+  PREFIXO_FLAG_EM_CONFERENCIA,
   saltoProventoRecente,
   type DpaAnual,
 } from '@/services/analiseAtivos/regras/calculo/plausibilidadeProventos';
@@ -384,6 +385,33 @@ export function calcularAtualAcao(e: EntradaAtualAcao, p: ScoringParams): Calcul
     dyIndice: dyParaIndice(m.dyPct, motivoConf),
     flags: [...flags, ...m.flags],
   };
+}
+
+/**
+ * Trava de plausibilidade POR EMPRESA (conferência de prod 02/10/2026, CEEB5): o Índice é da empresa
+ * (calculado no ticker de referência, decisão 13) e replicado a todos os tickers, mas o DY em
+ * conferência é por ticker (preço e proventos próprios). CEEB5 tinha `dy_acima_teto` e o Índice da
+ * COELBA, calculado no CEEB3, ficava 'calculado' — o Quadro mostrava o DY em conferência numa linha
+ * com Índice completo. Regra: se QUALQUER ticker da empresa tem o DY em conferência, o DY da
+ * referência entra no Índice/semáforo como ausente('em_conferencia') (motivo do primeiro ticker
+ * marcado). DY da referência já ausente (fonte defasada, sem dado) fica como está. Função pura.
+ */
+export function comConferenciaDaEmpresa(
+  ref: CalculoAtualAcao,
+  todos: Iterable<CalculoAtualAcao>,
+): CalculoAtualAcao {
+  const dyRef = ref.dyIndice ?? dyParaIndice(ref.m.dyPct, null);
+  if (dyRef.estado !== 'ok') return ref;
+  for (const c of todos) {
+    const flag = c.flags.find((f) => f.startsWith(PREFIXO_FLAG_EM_CONFERENCIA));
+    if (flag) {
+      return {
+        ...ref,
+        dyIndice: ausente('em_conferencia', flag.slice(PREFIXO_FLAG_EM_CONFERENCIA.length)),
+      };
+    }
+  }
+  return ref;
 }
 
 export interface ScoreCalculado {
@@ -895,7 +923,12 @@ export async function recalcularScores(
           resumoPor.get(b.symbol)!.volumeMedio21 - resumoPor.get(a.symbol)!.volumeMedio21 ||
           a.symbol.localeCompare(b.symbol),
       )[0];
-      const s = scoreAcao(calculos.get(ref.symbol)!, emissor?.ehFinanceira ?? false, p);
+      // DY em conferência em qualquer ticker ⇒ fora do Índice da empresa (Quadro e Índice concordam)
+      const s = scoreAcao(
+        comConferenciaDaEmpresa(calculos.get(ref.symbol)!, calculos.values()),
+        emissor?.ehFinanceira ?? false,
+        p,
+      );
       for (const t of comPreco) {
         scores.push(
           linhaScore(
