@@ -33,6 +33,20 @@ const CONTA = `E2E mover RF conta ${SUFIXO}`;
 
 test.describe.configure({ mode: 'serial' });
 
+// O aviso de cookies (LGPD) fica fixo no rodapé e cobre o menu ⋯ das linhas mais baixas.
+test.beforeEach(async ({ page }) => {
+  await page.addInitScript(() => {
+    try {
+      localStorage.setItem(
+        'lgpd-cookie-consent',
+        JSON.stringify({ version: '1', acceptedAt: new Date().toISOString() }),
+      );
+    } catch {
+      // sem storage: o aviso aparece
+    }
+  });
+});
+
 async function gotoAba(page: Page, aba: string) {
   await page.setViewportSize({ width: 1280, height: 800 });
   await page.mouse.move(900, 500);
