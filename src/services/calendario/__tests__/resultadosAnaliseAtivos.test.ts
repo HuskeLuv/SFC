@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
   prisma: {
+    user: { findUnique: vi.fn() },
     portfolio: { findMany: vi.fn() },
     cvmCompanyTicker: { findMany: vi.fn() },
     assetEvento: { findMany: vi.fn() },
@@ -12,6 +13,7 @@ vi.mock('@/lib/prisma', () => ({ default: mocks.prisma, prisma: mocks.prisma }))
 import { amostraTextosFixos } from '@/services/analiseAtivos/eventos/textosEventos';
 import { encontrarPalavrasProibidas } from '@/services/analiseAtivos/regras/comum/linguagem';
 import { eventosResultadosAnaliseAtivos } from '../fontes/resultadosAnaliseAtivos';
+import { limparCacheAcessoAnalise } from '@/services/analiseAtivos/acesso/acessoAnalise';
 
 const WEG = '84429695000111';
 const PETRO = '33000167000101';
@@ -21,6 +23,9 @@ const d = (s: string) => new Date(`${s}T00:00:00Z`);
 
 beforeEach(() => {
   vi.clearAllMocks();
+  limparCacheAcessoAnalise('u1');
+  // u1 no beta (o acesso é do dono da agenda)
+  mocks.prisma.user.findUnique.mockResolvedValue({ role: 'user', featureBetas: [{ id: 'b1' }] });
   mocks.prisma.portfolio.findMany.mockResolvedValue([
     { asset: { symbol: 'WEGE3' } },
     { asset: { symbol: 'PETR3' } },
@@ -100,11 +105,36 @@ describe('eventosResultadosAnaliseAtivos', () => {
     expect(eventos[0]).toMatchObject({
       id: 'mercado:analise-ativos:e1',
       tipo: 'mercado',
-      link: '/carteira',
+      link: '/analise-ativos/WEGE3',
       valor: null,
       detalhe: { evento: 'resultado', estimado: true, periodoRef: '2026-3T', fonte: 'CVM' },
     });
     expect(eventos[0].descricao).toContain('Data estimada');
+  });
+
+  it('link do evento de PETR3/PETR4 vai para a página do 1º símbolo', async () => {
+    vi.stubEnv('ANALISE_ATIVOS_HABILITADA', 'true');
+    const eventos = await eventosResultadosAnaliseAtivos('u1', periodo);
+    const petro = eventos.filter((e) => e.titulo.startsWith('PETR3/PETR4'));
+    expect(petro).toHaveLength(2);
+    for (const e of petro) expect(e.link).toBe('/analise-ativos/PETR3');
+  });
+
+  it('dono da agenda fora do beta ⇒ [] sem consultar a carteira', async () => {
+    vi.stubEnv('ANALISE_ATIVOS_HABILITADA', 'true');
+    vi.stubEnv('ANALISE_ATIVOS_ACESSO', 'beta');
+    mocks.prisma.user.findUnique.mockResolvedValue({ role: 'user', featureBetas: [] });
+    expect(await eventosResultadosAnaliseAtivos('u1', periodo)).toEqual([]);
+    expect(mocks.prisma.user.findUnique.mock.calls[0][0].where).toEqual({ id: 'u1' });
+    expect(mocks.prisma.portfolio.findMany).not.toHaveBeenCalled();
+    expect(mocks.prisma.assetEvento.findMany).not.toHaveBeenCalled();
+  });
+
+  it('admin fora da lista do beta continua vendo', async () => {
+    vi.stubEnv('ANALISE_ATIVOS_HABILITADA', 'true');
+    vi.stubEnv('ANALISE_ATIVOS_ACESSO', 'beta');
+    mocks.prisma.user.findUnique.mockResolvedValue({ role: 'admin', featureBetas: [] });
+    expect((await eventosResultadosAnaliseAtivos('u1', periodo)).length).toBe(3);
   });
 
   it('carteira sem ações do cadastro da análise ⇒ [] sem consultar asset_eventos', async () => {
