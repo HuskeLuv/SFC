@@ -519,6 +519,7 @@ export const TEXTOS_TELA = {
       semDados: 'Sem proventos registrados nos anos fechados',
       emConferenciaTitulo: '{ano}: {valor} (em conferência)',
       barraTitulo: '{ano}: {valor}',
+      notaSemDado: 'Barra tracejada curta: ano sem dado.',
     },
     frescor: {
       cotacao: 'cotação B3 de {data}',
