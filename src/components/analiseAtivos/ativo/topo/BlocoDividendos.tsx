@@ -44,12 +44,12 @@ export default function BlocoDividendos({ classe, dividendos }: BlocoDividendosP
   const temSuspeito = anos.some((a) => a.suspeito);
   const temSemDado = anos.some((a) => a.valor === null);
 
-  const fim = anos.length ? anos[anos.length - 1].ano : null;
+  const { cagrAnoInicio: ini, cagrAnoFim: fim } = dividendos;
   const cagr =
-    dividendos.cagr5aPct !== null && fim !== null
+    dividendos.cagr5aPct !== null && ini !== null && fim !== null
       ? formatarTexto(d.cagr, {
           valor: formatarAnalise(dividendos.cagr5aPct, 'pctSinal'),
-          ano: `${fim - 5} a ${fim}`,
+          ano: `${ini} a ${fim}`,
         })
       : null;
 

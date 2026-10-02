@@ -243,6 +243,8 @@ export const ATIVO_WEGE3: AtivoTopoResposta = {
     ],
     ult12m: { valor: 1.64, dataRef: '2026-09-29' },
     cagr5aPct: null,
+    cagrAnoInicio: null,
+    cagrAnoFim: null,
     cagrMotivo: 'anos em conferência ficam fora do crescimento anual',
     selo: 'proventos_em_conferencia',
     unidade: 'dpa',

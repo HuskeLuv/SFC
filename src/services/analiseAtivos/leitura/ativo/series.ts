@@ -129,12 +129,30 @@ export interface ResultadoCagrJanela {
   anoFim: number | null;
 }
 
+export interface OpcoesCagrJanela {
+  /**
+   * Último ano suspeito ('em conferência'): a janela recua até o último ano NÃO suspeito (WEGE3
+   * 2025 suspeito ⇒ 2019 a 2024), em vez de devolver null. Quem usa mostra 'de anoInicio a anoFim'.
+   */
+  recuarFimEmConferencia?: boolean;
+}
+
 /**
  * CAGR de `anos` anos sobre uma série JÁ de anos fechados: do último ano até `anos` antes.
- * Extremo suspeito ('em conferência') ⇒ null com motivo (fica fora do CAGR).
+ * Extremo suspeito ('em conferência') ⇒ null com motivo (fica fora do CAGR); com
+ * `recuarFimEmConferencia`, o fim recua até o último ano não suspeito.
  */
-export function cagrJanela(serie: readonly PontoSerieAnual[], anos: number): ResultadoCagrJanela {
-  const ordenada = serie.slice().sort((a, b) => a.ano - b.ano);
+export function cagrJanela(
+  serie: readonly PontoSerieAnual[],
+  anos: number,
+  opts: OpcoesCagrJanela = {},
+): ResultadoCagrJanela {
+  let ordenada = serie.slice().sort((a, b) => a.ano - b.ano);
+  if (opts.recuarFimEmConferencia) {
+    let i = ordenada.length - 1;
+    while (i >= 0 && ordenada[i].suspeito) i--;
+    if (i >= 0) ordenada = ordenada.slice(0, i + 1);
+  }
   const fim = ordenada[ordenada.length - 1];
   if (!fim) return { pct: null, motivo: 'historico_curto', anoInicio: null, anoFim: null };
   const ini = ordenada.find((p) => p.ano === fim.ano - anos);

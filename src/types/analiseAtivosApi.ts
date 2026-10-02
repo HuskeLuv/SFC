@@ -409,6 +409,9 @@ export interface DividendosAtivo {
   anos: PontoSerieAnual[];
   ult12m: PontoUlt12m | null;
   cagr5aPct: number | null;
+  /** janela do CAGR (recua se o último ano estiver em conferência); null sem CAGR */
+  cagrAnoInicio: number | null;
+  cagrAnoFim: number | null;
   cagrMotivo: string | null;
   selo: TipoSeloEstado | null;
   /** ações: 'dpa'; FIIs: 'rendimento' */

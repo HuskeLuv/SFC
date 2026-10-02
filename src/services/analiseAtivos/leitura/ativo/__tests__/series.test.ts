@@ -127,6 +127,12 @@ describe('cagrJanela', () => {
     expect(r.pct).toBeNull();
     expect(r.motivo).toBe('extremo_em_conferencia');
   });
+  it('recuarFimEmConferencia: último ano suspeito ⇒ janela de 2019 a 2024', () => {
+    const { serie } = detectarSaltoProvento(WEGE3_DPA, { payoutPorAno: WEGE3_PAYOUT });
+    const r = cagrJanela(serie, 5, { recuarFimEmConferencia: true });
+    expect([r.anoInicio, r.anoFim]).toEqual([2019, 2024]);
+    expect(r.pct).toBeCloseTo(cagr(0.1702, 0.7558, 5)!, 6);
+  });
   it('sem o ano suspeito calcula de 2019 a 2024', () => {
     const r = cagrJanela(
       WEGE3_DPA.filter((p) => p.ano < 2025),

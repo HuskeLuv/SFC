@@ -18,7 +18,7 @@ const WEGE3 = [
 ].map(([ano, valor, payoutPct]) => ({ ano, valor, payoutPct }));
 
 describe('montarDividendos', () => {
-  it('WEGE3: 2025 (2,45 contra 0,76) em conferência e fora do CAGR; 2021 (dobrou com lucro) não', () => {
+  it('WEGE3: 2025 (2,45 contra 0,76) em conferência e fora do CAGR (recua para 2019–2024); 2021 não', () => {
     const d = montarDividendos({
       classe: 'acao',
       hoje: HOJE,
@@ -28,8 +28,11 @@ describe('montarDividendos', () => {
     });
     expect(d.anos.find((a) => a.ano === 2025)?.suspeito).toBe(true);
     expect(d.anos.find((a) => a.ano === 2021)?.suspeito).toBeUndefined();
-    expect(d.cagr5aPct).toBeNull();
-    expect(d.cagrMotivo).toBe('anos em conferência ficam fora do crescimento anual');
+    const v2019 = WEGE3.find((a) => a.ano === 2019)!.valor;
+    expect(d.cagr5aPct).toBeCloseTo((Math.pow(0.7558 / v2019, 1 / 5) - 1) * 100, 6);
+    expect(d.cagrAnoInicio).toBe(2019);
+    expect(d.cagrAnoFim).toBe(2024);
+    expect(d.cagrMotivo).toBeNull();
     expect(d.selo).toBe('proventos_em_conferencia');
     expect(d.ult12m).toEqual({ valor: 2.0032, dataRef: '2026-09-29' });
     expect(d.unidade).toBe('dpa');
@@ -53,6 +56,7 @@ describe('montarDividendos', () => {
     expect(d.anos.at(-1)).toEqual({ ano: 2025, valor: 13.2 });
     expect(d.cagr5aPct).toBeCloseTo((Math.pow(13.2 / 11.03, 1 / 5) - 1) * 100, 6);
     expect(d.cagrMotivo).toBeNull();
+    expect([d.cagrAnoInicio, d.cagrAnoFim]).toEqual([2020, 2025]);
     expect(d.selo).toBeNull();
     expect(d.unidade).toBe('rendimento');
   });

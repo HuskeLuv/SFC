@@ -61,7 +61,8 @@ export function montarDividendos(e: EntradaDividendos): DividendosAtivo {
     porFlag.has(p.ano) && p.valor !== null && !p.suspeito ? { ...p, suspeito: true } : p,
   );
 
-  const janela = cagrJanela(anos, 5);
+  // decisão 5: ano final em conferência fica fora ⇒ a janela recua até o último ano sem suspeita
+  const janela = cagrJanela(anos, 5, { recuarFimEmConferencia: true });
   let cagrMotivo: string | null = null;
   if (janela.pct === null) {
     if (janela.motivo === 'extremo_em_conferencia')
@@ -76,6 +77,8 @@ export function montarDividendos(e: EntradaDividendos): DividendosAtivo {
     anos,
     ult12m: pontoUlt12m(e.ult12m, e.ult12mData),
     cagr5aPct: janela.pct,
+    cagrAnoInicio: janela.pct === null ? null : janela.anoInicio,
+    cagrAnoFim: janela.pct === null ? null : janela.anoFim,
     cagrMotivo,
     selo: temSuspeito || e.proventosEmConferencia ? 'proventos_em_conferencia' : null,
     unidade: e.classe === 'fii' ? 'rendimento' : 'dpa',
