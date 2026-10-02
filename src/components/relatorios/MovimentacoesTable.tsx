@@ -2,6 +2,7 @@
 
 import { TABLE_STYLES, TABLE_HEADER_STYLE } from '@/components/ui/table/tableStyles';
 import { useIsBelowLg } from '@/hooks/useMediaQuery';
+import type { CategoriaCarteira } from '@/services/portfolio/itemValuation';
 import MovimentacoesCards from './mobile/MovimentacoesCards';
 
 /**
@@ -16,6 +17,8 @@ export interface Movimentacao {
   operacao: string; // compra | venda
   ativo: string;
   tipoAtivo: string | null;
+  /** Categoria efetiva (a da pizza/aba, com o mover) — use esta para classificar por classe. */
+  categoria: CategoriaCarteira | null;
   quantidade: number;
   total: number;
   jaInvestido: boolean;

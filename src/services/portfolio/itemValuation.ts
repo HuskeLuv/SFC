@@ -85,17 +85,24 @@ const toNumber = (v: { toNumber(): number } | number | null | undefined): number
   return typeof v === 'number' ? v : v.toNumber();
 };
 
-const isReservaItem = (input: ItemValuationInput): boolean => {
-  const type = input.asset?.type;
-  const symbol = input.asset?.symbol;
+/** Item de reserva: type/símbolo de reserva ou Tesouro de catálogo comprado para a reserva. */
+export const isReservaAsset = (
+  asset: AssetLike | null,
+  tesouroReservaDestino?: 'emergencia' | 'oportunidade',
+): boolean => {
+  const type = asset?.type;
+  const symbol = asset?.symbol;
   return (
     type === 'emergency' ||
     type === 'opportunity' ||
     Boolean(symbol?.startsWith('RESERVA-EMERG')) ||
     Boolean(symbol?.startsWith('RESERVA-OPORT')) ||
-    input.tesouroReservaDestino !== undefined
+    tesouroReservaDestino !== undefined
   );
 };
+
+const isReservaItem = (input: ItemValuationInput): boolean =>
+  isReservaAsset(input.asset, input.tesouroReservaDestino);
 
 const isImovelBemItem = (asset: AssetLike | null): boolean =>
   asset?.type === 'imovel' ||
