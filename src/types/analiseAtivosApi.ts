@@ -76,7 +76,7 @@ export type EstadoIndice =
 export type StatusCriterioTela = 'atende' | 'parcial' | 'nao_atende' | 'nao_se_aplica' | 'sem_dado';
 
 /** Por que uma linha está fora do Quadro (aparece só na busca). */
-export type ForaDoQuadroMotivo = 'sem_negociacao_30' | 'fiagro';
+export type ForaDoQuadroMotivo = 'sem_negociacao_30' | 'fiagro' | 'deslistada';
 
 /** Ponto de série anual. Só anos fechados; `suspeito` = 'em conferência' (DPA > 2× ano anterior). */
 export interface PontoSerieAnual {

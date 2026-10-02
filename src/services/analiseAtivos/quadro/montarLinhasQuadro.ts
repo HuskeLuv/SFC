@@ -5,7 +5,12 @@
  * Regras (spec fatia A + decisões 3, 4 e 5 do Wellington):
  * - UNIVERSO = cadastro: ações (CvmCompanyTicker vigente) ∪ FIIs (FiiTickerMap vigente). O
  *   AssetScore da dataRef é OPCIONAL (FII com múltiplos e sem score — HCTR11 — entra).
- * - noQuadro = negociado nos últimos 30 pregões E não é Fiagro. Fora do Quadro = só na busca.
+ * - noQuadro = negociado nos últimos 30 pregões E não é Fiagro E não está deslistada. Fora do
+ *   Quadro = só na busca. Deslistada (ação): a raiz não está na ClassifSetorial VIGENTE da B3 (sem
+ *   linha em AssetSetorB3 ou presenteUltimoArquivo = false) e o último negócio tem mais de
+ *   DESLISTADA_SEM_PREGOES pregões — SHOW3 (T4F) teve o registro cancelado pela CVM em 01/09/2026
+ *   depois da OPA, saiu da lista da B3 e ficava ~30 pregões no Quadro sem setor (o cadastro CVM/FCA
+ *   ainda a dava como vigente). Ação nova (IPO) sem setor continua no Quadro com o alerta.
  * - estadoIndice: fora_do_indice (FoF), sem_score, incompleto, zero_regra (componente zerado pela
  *   regra com incompleto=false — AURE3), calculado.
  * - Unit sem score próprio usa o Índice da empresa (score do ticker de referência do mesmo CNPJ).
@@ -25,9 +30,12 @@ import { anosFechados, detectarSaltoProvento } from '@/services/analiseAtivos/le
 import { selecionarPares, type ItemPar } from '@/services/analiseAtivos/regras/calculo/pares';
 import { valorMercadoEmpresa } from '@/services/analiseAtivos/calculo/recalcularDerivados';
 import type { AlertaJob, ContagemAcoes, TickerAcao } from '@/services/analiseAtivos/tipos';
+import { distanciaEmPregoes } from '@/services/analiseAtivos/regras/comum/pregoes';
 import type { EstadoIndice, ForaDoQuadroMotivo, PontoSerieAnual } from '@/types/analiseAtivosApi';
 
 export const N_PARES = 5;
+/** Ação fora da ClassifSetorial vigente sem negócio há mais de N pregões ⇒ deslistada. */
+export const DESLISTADA_SEM_PREGOES = 5;
 export const ANOS_SERIE = 10;
 /** Salto de provento nos N últimos anos fechados contamina o DY 12m (flag 'provento_suspeito'). */
 export const ANOS_SALTO_RECENTE = 2;
@@ -93,6 +101,8 @@ export interface SetorQuadro {
   subsetor: string;
   segmento: string;
   segmentoListagem: string | null;
+  /** false = a raiz saiu da ClassifSetorial (deslistada?); ausente = presente */
+  presenteUltimoArquivo?: boolean;
 }
 
 export interface FiiMensalQuadro {
@@ -165,6 +175,7 @@ export interface ResultadoMontagem {
 // ---------------------------------------------------------------------------
 
 const raiz = (s: string) => s.slice(0, 4);
+const diaIso = (d: Date) => d.toISOString().slice(0, 10);
 
 /** Fiagro não entra no Quadro nesta fase (o cadastro de FIIs já exclui; dupla checagem pelo nome). */
 export function ehFiagro(nome: string | null | undefined): boolean {
@@ -303,12 +314,21 @@ export function montarLinhasQuadro(e: EntradaQuadro): ResultadoMontagem {
     // universo e estado do Índice
     const fiagro = !ehAcao && ehFiagro(nomeB3);
     const negociado = r?.negociadoUltimos30 ?? false;
-    const noQuadro = negociado && !fiagro;
+    const naListaB3 = setor !== undefined && setor.presenteUltimoArquivo !== false;
+    const deslistada =
+      ehAcao &&
+      !naListaB3 &&
+      r !== undefined &&
+      negociado &&
+      distanciaEmPregoes(diaIso(r.ultimoPregao), diaIso(e.dataRef)) > DESLISTADA_SEM_PREGOES;
+    const noQuadro = negociado && !fiagro && !deslistada;
     const foraDoQuadroMotivo: ForaDoQuadroMotivo | null = noQuadro
       ? null
       : fiagro
         ? 'fiagro'
-        : 'sem_negociacao_30';
+        : deslistada
+          ? 'deslistada'
+          : 'sem_negociacao_30';
     const zeroRegra = componentesZeroRegra(score?.componentes);
     const estadoIndice = estadoIndiceDe(score, zeroRegra, fiiTipo);
     if (ehAcao && noQuadro && !setor) semSetor.push(u.symbol);

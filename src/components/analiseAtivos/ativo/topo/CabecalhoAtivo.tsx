@@ -71,7 +71,8 @@ export default function CabecalhoAtivo({ ativo, seloCarteira, slotAcoes }: Cabec
                 </span>
               ))}
               {seloCarteira}
-              {ativo.foraDoQuadroMotivo === 'sem_negociacao_30' ? (
+              {ativo.foraDoQuadroMotivo === 'sem_negociacao_30' ||
+              ativo.foraDoQuadroMotivo === 'deslistada' ? (
                 <SeloEstado tipo="sem_negociacao_recente" />
               ) : null}
               {cotacao.baixaLiquidez ? <SeloEstado tipo="baixa_liquidez" /> : null}

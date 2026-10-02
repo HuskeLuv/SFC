@@ -324,6 +324,32 @@ describe('montarLinhasQuadro', () => {
     expect(linha(r, 'SHOW3').setor).toBeNull();
   });
 
+  it('SHOW3 (registro cancelado em 01/09/2026): fora da ClassifSetorial e sem negócio há 19 pregões ⇒ deslistada, sem alerta', () => {
+    const base = entrada();
+    const show = { ...resumo('SHOW3'), ultimoPregao: new Date('2026-09-01T00:00:00.000Z') };
+    const rs = montarLinhasQuadro({
+      ...base,
+      resumos: [...base.resumos.filter((x) => x.symbol !== 'SHOW3'), show],
+    });
+    expect(linha(rs, 'SHOW3')).toMatchObject({ noQuadro: false, foraDoQuadroMotivo: 'deslistada' });
+    expect(rs.alertas.find((x) => x.codigo === 'quadro_sem_setor')).toBeUndefined();
+    // raiz que saiu da lista (presenteUltimoArquivo = false) também; a 5 pregões ainda fica
+    const saiu = montarLinhasQuadro({
+      ...base,
+      setores: [
+        ...base.setores.filter((x) => x.raiz !== 'TGMA'),
+        { ...setor('TGMA'), presenteUltimoArquivo: false },
+      ],
+      resumos: [
+        ...base.resumos.filter((x) => !['SHOW3', 'TGMA3'].includes(x.symbol)),
+        { ...resumo('TGMA3'), ultimoPregao: new Date('2026-09-15T00:00:00.000Z') },
+        { ...resumo('SHOW3'), ultimoPregao: new Date('2026-09-22T00:00:00.000Z') },
+      ],
+    });
+    expect(linha(saiu, 'TGMA3').foraDoQuadroMotivo).toBe('deslistada');
+    expect(linha(saiu, 'SHOW3')).toMatchObject({ noQuadro: true, foraDoQuadroMotivo: null });
+  });
+
   it('unit sem score próprio usa o Índice da empresa', () => {
     expect(linha(r, 'KLBN11')).toMatchObject({
       temScore: true,

@@ -179,6 +179,7 @@ export const TEXTOS_TELA = {
     rotulo: 'fora do Quadro',
     sem_negociacao_30: 'sem negociação nos últimos 30 pregões',
     fiagro: 'Fiagro fica fora do Quadro nesta fase',
+    deslistada: 'fora da listagem da B3, sem negociação recente',
     comMotivo: 'fora do Quadro · {motivo}',
   },
   selosEstado: {
