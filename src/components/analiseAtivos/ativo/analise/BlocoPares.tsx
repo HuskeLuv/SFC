@@ -185,7 +185,12 @@ export default function BlocoPares({ ticker, classe }: BlocoParesProps) {
                             {l.ticker}
                           </Link>
                         )}{' '}
-                        <span className="text-gray-500 dark:text-gray-400">{l.nome}</span>
+                        <span
+                          title={l.nome}
+                          className="inline-block max-w-[11rem] truncate align-bottom text-gray-500 dark:text-gray-400"
+                        >
+                          {l.nome}
+                        </span>
                       </th>
                       {colunas.map((c) => {
                         const v = c.valor(l);

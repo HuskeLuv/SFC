@@ -117,7 +117,8 @@ export default function PaginaAtivo({ ticker }: PaginaAtivoProps) {
         <BlocoValuationMultiplos {...base} />
       </SecaoPreguicosa>
       <SecaoPreguicosa rotulo={TEXTOS_TELA.blocos.historicos}>
-        <div className="grid min-w-0 gap-4 md:gap-6 xl:grid-cols-2">
+        {/* Pares em largura total: as 8 colunas não cabem em meia linha (1440 cortava 4) */}
+        <div className="grid min-w-0 gap-4 md:gap-6">
           <BlocoMultiplosHistoricos {...base} />
           <BlocoPares {...base} />
         </div>
