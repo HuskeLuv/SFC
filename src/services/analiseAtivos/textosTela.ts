@@ -467,6 +467,35 @@ export const TEXTOS_TELA = {
     semDado: '—',
     naoSeAplica: 'n/a',
   },
+  /** Componentes visuais comuns (fatia 0b): barras, selos e banner. */
+  comum: {
+    barras: {
+      resumoLucro: 'Lucro em {n} de {total} anos com dado',
+      resumoRendimento: 'Rendimento por cota em {n} de {total} anos com dado',
+      prejuizoEm: 'prejuízo em {n}',
+      semDadoEm: 'sem dado em {n}',
+      emConferenciaEm: 'em conferência em {n}',
+      semSerie: 'Sem histórico anual',
+      anoValor: '{ano}: {valor}',
+      anoPrejuizo: '{ano}: prejuízo de {valor}',
+      anoSemDado: '{ano}: sem dado',
+      anoEmConferencia: '{ano}: {valor}, em conferência',
+      seguidosAria: '{n} anos seguidos de lucro',
+      seguidosUmAria: '1 ano seguido de lucro',
+      seguidosNenhumAria: 'Nenhum ano seguido de lucro',
+      seguidosSemDadoAria: 'Anos seguidos de lucro: sem dado',
+      umAno: '1 ano',
+      nenhum: 'nenhum',
+    },
+    seloIncompleto: {
+      abrir: 'Ver o que falta',
+      tituloComTicker: 'O que falta em {ticker}',
+    },
+    banner: {
+      /** palavra do texto do banner que vira link (TEXTOS_TELA.banner.texto) */
+      suporte: 'Suporte',
+    },
+  },
 } as const;
 
 /** Texto legível de um código de motivo ('div:fonte_defasada', 'sem_dado_fonte', 'prejuizo'...). */
