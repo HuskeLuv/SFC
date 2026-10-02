@@ -295,10 +295,21 @@ export const valuatePortfolioItem = (input: ItemValuationInput): ItemValuation =
 
   const base = { categoria, valorAplicadoBRL, contaNoSaldoBruto: !isImovelBem };
 
+  // Fundo da aba Fundos sem cotação recente (getAssetPrices só devolve preço
+  // de até 7 dias): vale a última cota gravada no Asset (CVM ou Pluggy), de
+  // qualquer idade — a MESMA cascata da aba Fundos (cotação → cota → curva →
+  // preço médio). Sem isso a pizza caía no preço médio e divergia da aba.
+  const cotaGravada =
+    (quote == null || quote <= 0) &&
+    (FUNDO_TYPES_AGRUPADOS as readonly string[]).includes(asset?.type ?? '')
+      ? toNumber(asset?.currentPrice)
+      : null;
+  const cotacao = quote != null && quote > 0 ? quote : cotaGravada;
+
   // Fundo com cota CVM publicada vale qtd × cota (como ação) — a marcação na
   // curva do FI é só fallback pra fundo sem cota. Mesma prioridade da aba
   // Fundos; sem isso um fundo de verdade era marcado como CDB no resumo.
-  const fundoComCota = isFundoType(asset?.type) && quote != null && quote > 0;
+  const fundoComCota = isFundoType(asset?.type) && cotacao != null && cotacao > 0;
 
   if (fixedIncome && fiGetCurrentValue && !fundoComCota) {
     const { valor, fonte } = getFixedIncomeCurrentValue(
@@ -325,8 +336,8 @@ export const valuatePortfolioItem = (input: ItemValuationInput): ItemValuation =
     return { ...base, valorAtualBRL: valor, fonte: 'manual' };
   }
 
-  if (quote != null && quote > 0) {
-    let valor = item.quantity * quote;
+  if (cotacao != null && cotacao > 0) {
+    let valor = item.quantity * cotacao;
     const jaEmBRL = TIPOS_PRECO_EM_BRL.includes(asset?.type ?? '');
     if (!jaEmBRL && asset?.currency === 'USD' && cotacaoDolar != null && cotacaoDolar > 0) {
       valor *= cotacaoDolar;

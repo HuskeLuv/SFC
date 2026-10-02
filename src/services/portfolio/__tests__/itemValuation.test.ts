@@ -108,6 +108,56 @@ describe('valuatePortfolioItem — fontes de valor', () => {
     });
     expect(v.categoria).toBe('reservaOportunidade');
   });
+
+  describe('fundo da aba Fundos sem cotação recente: última cota gravada (= aba)', () => {
+    // demo: PLUGGY-FUNDO-A3F86963, 3 cotas a 333,33, cota Pluggy 453,13 de > 7 dias
+    const pluggy = {
+      symbol: 'PLUGGY-FUNDO-1',
+      type: 'fund',
+      currency: 'BRL',
+      currentPrice: 453.13,
+    };
+    const tres = item({ quantity: 3, avgPrice: 333.333333, totalInvested: 1000 });
+
+    it("'fund' legado: qty × Asset.currentPrice, não o preço médio", () => {
+      const v = valuatePortfolioItem({ item: tres, asset: pluggy, quote: null });
+      expect(v.valorAtualBRL).toBeCloseTo(1359.39);
+      expect(v.fonte).toBe('quote');
+      expect(v.categoria).toBe('fimFia');
+    });
+
+    it('cotação recente vence a cota gravada', () => {
+      const v = valuatePortfolioItem({ item: tres, asset: pluggy, quote: 460 });
+      expect(v.valorAtualBRL).toBeCloseTo(1380);
+    });
+
+    it('cota gravada vence a curva do FI (mesma ordem da aba)', () => {
+      const v = valuatePortfolioItem({
+        item: tres,
+        asset: { ...pluggy, type: 'multimercado' },
+        fixedIncome: fi(),
+        fiGetCurrentValue: () => 99999,
+      });
+      expect(v.valorAtualBRL).toBeCloseTo(1359.39);
+    });
+
+    it('sem cota gravada: preço médio, como antes', () => {
+      const v = valuatePortfolioItem({ item: tres, asset: { ...pluggy, currentPrice: null } });
+      expect(v.valorAtualBRL).toBeCloseTo(1000);
+      expect(v.fonte).toBe('fallback');
+    });
+
+    it('fora da aba Fundos (ação, previdência) a cota gravada não entra', () => {
+      for (const type of ['stock', 'previdencia', 'etf-cvm']) {
+        const v = valuatePortfolioItem({
+          item: tres,
+          asset: { ...pluggy, symbol: 'PETR4', type },
+          quote: null,
+        });
+        expect(v.fonte).toBe('fallback');
+      }
+    });
+  });
 });
 
 describe('getFixedIncomeCurrentValue — prioridade única', () => {
