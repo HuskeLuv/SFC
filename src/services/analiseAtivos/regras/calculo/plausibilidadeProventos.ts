@@ -8,9 +8,11 @@
  * de dez/2025 (antecipação à tributação de dividendos) que não se repetem. O DY 12m fica
  * "em conferência" quando:
  *  - dy_acima_teto: DY 12m > params.sanidade.proventos.plausibilidade.dyMaxPct[classe]
- *    (ações 25%, FIIs 20%: no dev, p95 das ações do Quadro = 20,5% e p98 = 30,9%; FII de tijolo/papel
+ *    (ações 18%, FIIs 20%: no dev, p95 das ações do Quadro = 20,5% e p98 = 30,9%; FII de tijolo/papel
  *    paga 8–16% com Selic de 15%; acima disso, todos os casos conferidos eram erro de base ou evento
- *    não recorrente), ou
+ *    não recorrente. O teto de ações era 25% no #277; baixou para 18% na conferência de prod de
+ *    02/10/2026: entre 18% e 25% só havia antecipação de dez/2025 à tributação de 2026 — POMO3/4
+ *    22–23% — ou parcela repetida — CPFE3 20,5%), ou
  *  - salto_recente: salto de provento (detectarSaltoProvento: DPA > saltoFator × o do ano anterior,
  *    filtrado pelo payout > saltoPayoutMaxPct quando há payout) num dos `anosSaltoRecente` últimos
  *    anos FECHADOS, ou DPA dos últimos 12 meses > saltoFator × DPA do último ano fechado (mesmo filtro,

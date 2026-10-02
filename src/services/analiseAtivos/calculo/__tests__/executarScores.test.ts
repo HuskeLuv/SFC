@@ -822,7 +822,7 @@ describe('trava de plausibilidade do DY 12m (diagnóstico DY absurdo 02/10/2026)
     );
   }
 
-  it('DY 12m acima de 25% (BMKS3 34%) ⇒ DY gravado com flag, fora do Índice e do semáforo', async () => {
+  it('DY 12m acima do teto (BMKS3 34%) ⇒ DY gravado com flag, fora do Índice e do semáforo', async () => {
     const { scoreAcao } = await import('@/services/analiseAtivos/calculo/recalcularScores');
     const c = await acao('BMKS3', 13.6); // 13,6 ÷ 40 = 34%
     expect(c.m.dyPct).toEqual({ estado: 'ok', valor: 34 });
