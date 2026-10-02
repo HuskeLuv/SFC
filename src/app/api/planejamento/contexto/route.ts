@@ -25,11 +25,73 @@ import {
   getCdiAnualizado,
   getInflacao12m,
 } from '@/services/market/economicRates';
+import { overrideEfetivo } from '@/lib/carteiraMover';
+import { createFixedIncomePricer } from '@/services/portfolio/fixedIncomePricing';
+import { valuatePortfolioItem } from '@/services/portfolio/itemValuation';
 
 const round2 = (v: number) => Math.round(v * 100) / 100;
 
 const isReservaEmergenciaItem = (asset: { type: string; symbol: string } | null): boolean =>
   asset?.type === 'emergency' || asset?.symbol?.startsWith('RESERVA-EMERG') === true;
+
+type ItemReserva = {
+  totalInvested: number;
+  quantity: number;
+  avgPrice: number;
+  assetId: string | null;
+  categoriaOverride: string | null;
+  asset: {
+    type: string;
+    symbol: string;
+    currency: string | null;
+    name: string;
+    currentPrice: { toNumber(): number } | number | null;
+  } | null;
+};
+
+/**
+ * Aba do mover que vale para o item (null = não movido ou override inválido).
+ * Sem o BaseCtx do Tesouro de catálogo, de propósito: o Planejamento continua
+ * ignorando o Tesouro comprado como reserva (bug pré-existente, pergunta 8 da
+ * fase 2 — correção geral num PR à parte). Chave MOVER_CAIXA_RF_HABILITADO
+ * desligada → o override do trio é ignorado e tudo fica como antes.
+ */
+const abaMovida = (p: ItemReserva) =>
+  p.asset ? overrideEfetivo(p.asset, p.categoriaOverride) : null;
+
+/**
+ * Reserva de emergência atual. Item não movido: a regra de sempre (type/símbolo
+ * e max(custo, qtd×PM)). Item movido (mover fase 2): conta se a aba escolhida é
+ * a Reserva de Emergência, avaliado como na Saúde (valuatePortfolioItem — curva
+ * do título / PU do Tesouro), para os dois números baterem.
+ */
+async function calcularReservaEmergencia(userId: string, itens: ItemReserva[]): Promise<number> {
+  let total = 0;
+  const movidosParaReserva: ItemReserva[] = [];
+  for (const p of itens) {
+    const movido = abaMovida(p);
+    if (movido) {
+      if (movido === 'reservaEmergencia') movidosParaReserva.push(p);
+      continue;
+    }
+    if (isReservaEmergenciaItem(p.asset)) {
+      total += Math.max(p.totalInvested, p.quantity * p.avgPrice);
+    }
+  }
+  if (movidosParaReserva.length === 0) return total;
+
+  const fiPricer = await createFixedIncomePricer(userId);
+  for (const p of movidosParaReserva) {
+    const { valorAtualBRL } = valuatePortfolioItem({
+      item: p,
+      asset: p.asset,
+      fixedIncome: p.assetId ? fiPricer.fixedIncomeByAssetId.get(p.assetId) : null,
+      fiGetCurrentValue: fiPricer.getCurrentValue,
+    });
+    total += valorAtualBRL;
+  }
+  return total;
+}
 
 export const GET = withErrorHandler(async (request: NextRequest) => {
   const { targetUserId } = await requireAuthWithActing(request);
@@ -54,7 +116,10 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
           assetId: true,
           planejamentoObjetivoId: true,
           vinculoAposentadoria: true,
-          asset: { select: { type: true, symbol: true } },
+          categoriaOverride: true,
+          asset: {
+            select: { type: true, symbol: true, currency: true, name: true, currentPrice: true },
+          },
         },
       }),
       prisma.stockTransaction.findMany({
@@ -80,9 +145,7 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
   const patrimonio = round2(Number(portfolioAgg._sum.totalInvested ?? 0));
 
   const reservaEmergenciaAtual = round2(
-    reservaItems
-      .filter((p) => isReservaEmergenciaItem(p.asset))
-      .reduce((sum, p) => sum + Math.max(p.totalInvested, p.quantity * p.avgPrice), 0),
+    await calcularReservaEmergencia(targetUserId, reservaItems),
   );
 
   // Vínculos de planejamento: assets de sonho saem da média geral (esse
