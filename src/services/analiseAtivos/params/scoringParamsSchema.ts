@@ -200,11 +200,24 @@ const baseSchema = z.strictObject({
             acao: z.number().int().positive(),
             fii: z.number().int().positive(),
           }),
+          // pagador_recorrente_parado pela cadência do próprio pagador (rodada 3, 02/10/2026):
+          // prazo = max(maxDias, maior intervalo entre data-coms nos últimos janelaHistoricoMeses ×
+          // fatorIntervalo); parcela com pagamento ≥ hoje − maxDias (até pagamentoMaxAnos após a
+          // data-com) = fonte viva
+          janelaHistoricoMeses: z.number().int().positive().default(36),
+          fatorIntervalo: z.number().min(1).default(1.25),
+          pagamentoMaxAnos: z.number().int().positive().default(3),
+          // sem data-com há mais disso (com a cobertura verificada) = parou de pagar, não defasagem
+          maxDiasParado: z.number().int().positive().default(730),
         })
         .default({
           maxDiasBase: 20,
           maxDias: { acao: 200, fii: 45 },
           recorrenteMinMeses: { acao: 2, fii: 6 },
+          janelaHistoricoMeses: 36,
+          fatorIntervalo: 1.25,
+          pagamentoMaxAnos: 3,
+          maxDiasParado: 730,
         }),
       // repetição da fonte com a mesma data-com (ou a até `pregoesDataCom` pregões: a BRAPI repete a
       // parcela com a data-com deslocada 1 dia — CPFE3/CEEB5, prod 02/10/2026): linha sem pagamento

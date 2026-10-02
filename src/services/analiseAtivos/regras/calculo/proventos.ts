@@ -451,13 +451,26 @@ export type MotivoDefasagemProventos =
  *  - base_parada: a data-com mais recente da CLASSE inteira é mais velha que maxDiasBase;
  *  - cobertura_antiga: lastCheckedAt do símbolo mais velho que maxDias[classe] (ou sem data);
  *  - pagador_recorrente_parado: pagou em ≥ recorrenteMinMeses[classe] meses distintos nos 12 meses
- *    anteriores ao último provento e o último tem data-com mais velha que maxDias[classe].
+ *    anteriores ao último provento e a última data-com está mais velha que o PRAZO ESPERADO do
+ *    pagador: max(maxDias[classe], maior intervalo entre data-coms nos `janelaHistoricoMeses` antes
+ *    da última × `fatorIntervalo`). Não é parado quem tem parcela de declaração já feita com
+ *    pagamento a partir de hoje − maxDias[classe] (inclusive futuro, até `pagamentoMaxAnos` após a
+ *    data-com: o "9999-12-31 a definir" não conta). Parado há mais de `maxDiasParado` (2 anos) com
+ *    a cobertura verificada = interrupção real dos proventos (DY 0 conta), não fonte defasada.
+ *    Rodada 3 (02/10/2026, docs/analise-ativos/fase1/diagnostico-proventos-parados.md): a regra
+ *    antiga (só maxDias) marcava 93 ações em prod com a fonte em dia — KLBN11 declarou em 15/12/2025
+ *    o dividendo de 2026 inteiro em 4 parcelas (fev, mai, ago, nov/2026); semestrais/anuais que
+ *    anteciparam em dez/2025 a distribuição de 2026 (CYRE3, SLCE3, DIRR3…) passaram de 200 dias sem
+ *    nova data-com sem que nada estivesse faltando na fonte.
  * Sem nenhum provento e sem cobertura ⇒ null (os três estados de valorProventosComCobertura valem).
  */
 export function motivoProventosDefasados(
   e: {
     classe: 'acao' | 'fii';
-    proventos: Array<Pick<ProventoAuditado, 'status' | 'tipoNormalizado' | 'dataComReal'>>;
+    proventos: Array<
+      Pick<ProventoAuditado, 'status' | 'tipoNormalizado' | 'dataComReal'> &
+        Partial<Pick<ProventoAuditado, 'dataPagamento'>>
+    >;
     verificadoEm: string | null | undefined;
     ultimaDataComDaClasse: string | null;
     hoje: string;
@@ -476,16 +489,44 @@ export function motivoProventosDefasados(
   }
   const tipos =
     e.classe === 'acao' ? p.sanidade.proventos.tiposAcao : p.sanidade.proventos.tiposFii;
-  const datas = e.proventos
-    .filter((x) => x.status === 'valido' && x.dataComReal && tipos.includes(x.tipoNormalizado))
-    .map((x) => x.dataComReal!)
-    .filter((d) => d <= e.hoje)
-    .sort();
+  const validos = e.proventos.filter(
+    (x) => x.status === 'valido' && x.dataComReal && tipos.includes(x.tipoNormalizado),
+  );
+  const datas = [...new Set(validos.map((x) => x.dataComReal!))].filter((d) => d <= e.hoje).sort();
   const ultima = datas[datas.length - 1];
   if (!ultima || diasEntre(ultima, e.hoje) <= maxDias) return null;
+  // parou há anos com a fonte verificada: interrupção real (DASA3 sem provento desde dez/2022), DY 0
+  if (diasEntre(ultima, e.hoje) > cfg.maxDiasParado) return null;
   const desde = menosMeses(ultima, 12);
   const meses = new Set(datas.filter((d) => d > desde).map((d) => d.slice(0, 7)));
-  return meses.size >= cfg.recorrenteMinMeses[e.classe] ? 'pagador_recorrente_parado' : null;
+  if (meses.size < cfg.recorrenteMinMeses[e.classe]) return null;
+  // declaração com parcela paga recentemente ou agendada (inclusive com data-com depois de hoje)
+  // ⇒ a fonte está viva (KLBN11)
+  const pagamentoDesde = menosDias(e.hoje, maxDias);
+  const pagamentoVivo = validos.some(
+    (x) =>
+      x.dataPagamento != null &&
+      x.dataPagamento >= pagamentoDesde &&
+      x.dataPagamento <= maisMeses(x.dataComReal!, 12 * cfg.pagamentoMaxAnos),
+  );
+  if (pagamentoVivo) return null;
+  // prazo esperado pela cadência do próprio pagador (semestral/anual não é "parado" aos 200 dias)
+  const inicioHistorico = menosMeses(ultima, cfg.janelaHistoricoMeses);
+  const historico = datas.filter((d) => d >= inicioHistorico);
+  let maiorIntervalo = 0;
+  for (let i = 1; i < historico.length; i++) {
+    maiorIntervalo = Math.max(maiorIntervalo, diasEntre(historico[i - 1], historico[i]));
+  }
+  const prazo = Math.max(maxDias, maiorIntervalo * cfg.fatorIntervalo);
+  return diasEntre(ultima, e.hoje) > prazo ? 'pagador_recorrente_parado' : null;
+}
+
+function menosDias(data: string, dias: number): string {
+  return new Date(ms(data) - dias * DIA_MS).toISOString().slice(0, 10);
+}
+
+function maisMeses(data: string, meses: number): string {
+  return menosMeses(data, -meses);
 }
 
 /** Maior data-com válida (≤ hoje) entre os proventos dados (para ultimaDataComDaClasse). */

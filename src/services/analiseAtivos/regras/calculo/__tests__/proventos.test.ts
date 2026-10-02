@@ -462,6 +462,105 @@ describe('frescor da base de proventos (achado qa-dados 30/09)', () => {
     expect(motivoProventosDefasados({ ...base, classe: 'acao', proventos: anual }, P)).toBeNull();
   });
 
+  describe('rodada 3 (02/10/2026): prazo pela cadência do pagador e parcela agendada', () => {
+    const base = {
+      classe: 'acao' as const,
+      verificadoEm: '2026-09-28',
+      ultimaDataComDaClasse: '2026-10-01',
+      hoje: '2026-09-29',
+    };
+    const prPag = (dataComReal: string, dataPagamento: string) => ({
+      ...pr(dataComReal, 'DIVIDENDO'),
+      dataPagamento,
+    });
+
+    it('KLBN11: dividendo de 2026 declarado em 15/12/2025 em 4 parcelas (fev–nov/2026) ⇒ não parado', () => {
+      const klbn = [
+        prPag('2025-03-05', '2025-03-14'),
+        prPag('2025-05-13', '2025-05-22'),
+        prPag('2025-08-08', '2025-08-19'),
+        prPag('2025-11-07', '2025-11-19'),
+        prPag('2025-12-15', '2026-02-27'),
+        prPag('2025-12-15', '2026-05-20'),
+        prPag('2025-12-15', '2026-08-19'),
+        prPag('2025-12-15', '2026-11-12'),
+      ];
+      expect(motivoProventosDefasados({ ...base, proventos: klbn }, P)).toBeNull();
+      // só com as parcelas já pagas antes de hoje − 200 dias (fonte sem as de mai/ago/nov) ⇒ parado
+      expect(motivoProventosDefasados({ ...base, proventos: klbn.slice(0, 5) }, P)).toBe(
+        'pagador_recorrente_parado',
+      );
+    });
+
+    it('pagamento "a definir" (9999-12-31) ou 3+ anos após a data-com não conta como fonte viva', () => {
+      const trimestral = [
+        prPag('2025-03-05', '2025-03-14'),
+        prPag('2025-06-05', '2025-06-14'),
+        prPag('2025-09-05', '2025-09-14'),
+        prPag('2025-12-05', '9999-12-31'),
+      ];
+      expect(motivoProventosDefasados({ ...base, proventos: trimestral }, P)).toBe(
+        'pagador_recorrente_parado',
+      );
+    });
+
+    it('CYRE3: anual/semestral que antecipou em dez/2025 ⇒ prazo = maior intervalo × 1,25', () => {
+      // intervalos de até 365 dias nos 36 meses anteriores ⇒ prazo 456 dias; 294 dias sem data-com
+      const cyre = ['2023-05-02', '2023-12-11', '2024-04-25', '2025-04-25', '2025-12-09'].map((d) =>
+        prPag(d, d.slice(0, 8) + '28'),
+      );
+      expect(motivoProventosDefasados({ ...base, proventos: cyre }, P)).toBeNull();
+      // a regra antiga (só maxDias = 200) marcava; no prazo esperado vencido volta a marcar
+      expect(
+        motivoProventosDefasados(
+          {
+            ...base,
+            hoje: '2027-03-15',
+            verificadoEm: '2027-03-14',
+            ultimaDataComDaClasse: '2027-03-12',
+            proventos: cyre,
+          },
+          P,
+        ),
+      ).toBe('pagador_recorrente_parado');
+    });
+
+    it('DASA3: anual sem provento desde dez/2022 ⇒ parou de pagar (DY 0), não defasada', () => {
+      const dasa = ['2019-12-30', '2021-01-12', '2021-12-27', '2022-12-26'].map((d) =>
+        prPag(d, d.slice(0, 4) + '-12-31'),
+      );
+      expect(motivoProventosDefasados({ ...base, proventos: dasa }, P)).toBeNull();
+    });
+
+    it('GSFI11: rendimento declarado com data-com depois de hoje e pagamento em out/2026 ⇒ fonte viva', () => {
+      const gsfi = [
+        ...['2025-06-01', '2025-07-01', '2025-08-01', '2025-09-01', '2025-10-01', '2025-11-03'].map(
+          (d) => ({ ...pr(d), dataPagamento: d.slice(0, 8) + '15' }),
+        ),
+        { ...pr('2026-09-30'), dataPagamento: '2026-10-15' },
+      ];
+      const fii = { ...base, classe: 'fii' as const };
+      expect(motivoProventosDefasados({ ...fii, proventos: gsfi }, P)).toBeNull();
+      expect(motivoProventosDefasados({ ...fii, proventos: gsfi.slice(0, 6) }, P)).toBe(
+        'pagador_recorrente_parado',
+      );
+    });
+
+    it('TGMA3 com a base sem a data-com de ago/2026: trimestral parado há 301 dias ⇒ parado', () => {
+      const tgma = [
+        '2024-08-08',
+        '2024-11-07',
+        '2025-04-09',
+        '2025-08-07',
+        '2025-11-06',
+        '2025-12-02',
+      ].map((d) => prPag(d, d.slice(0, 8) + '21'));
+      expect(motivoProventosDefasados({ ...base, proventos: tgma }, P)).toBe(
+        'pagador_recorrente_parado',
+      );
+    });
+  });
+
   it('base fresca e pagador em dia ⇒ null; ultimaDataCom ignora data futura e inválidos', () => {
     const emDia = [...hglg, pr('2026-06-30'), pr('2026-07-31'), pr('2026-08-31')];
     expect(
