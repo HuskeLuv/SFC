@@ -1,5 +1,13 @@
-import { describe, it, expect } from 'vitest';
+import { afterAll, beforeAll, describe, it, expect, vi } from 'vitest';
 import { categoriaEfetiva, categorizarAsset, valuatePortfolioItem } from '../itemValuation';
+
+// Contrato da fase 1: chave da fase 2 desligada (ligada: categoriaEfetiva.caixaRf.test.ts).
+beforeAll(() => {
+  vi.stubEnv('MOVER_CAIXA_RF_HABILITADO', 'false');
+});
+afterAll(() => {
+  vi.unstubAllEnvs();
+});
 
 const fii = { symbol: 'KDIF11', type: 'fii', currency: 'BRL', name: 'Kinea Infra' };
 const item = { assetId: 'a-1', quantity: 10, avgPrice: 100, totalInvested: 1000 };
