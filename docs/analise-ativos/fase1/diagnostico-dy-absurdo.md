@@ -156,3 +156,50 @@ origem.
 - **HBTS5**: o valor do provento na BRAPI está em outra unidade; a trava cobre, mas o dado bruto
   continua errado.
 - **CACR11**: desdobramento de cotas sem evento na base e sem reflexo no informe do CNPJ mapeado.
+
+## Rodada 2 (prod 02/10)
+
+Conferência em produção depois do #277 (`asset_proventos_auditados` e `analise_quadro_linhas`):
+
+- **CPFE3** (DY 20,5%): DIVIDENDO 3,7315 com data-com 28/04/2026 paga em 31/12 **e** 3,7315 com
+  data-com 29/04 "paga" em 29/04 (sem pagamento). **CEEB5**: DIVIDENDO 4,2018 (28/10/2025, pago
+  05/12) × 4,2554 (29/10, sem pagamento, +1,3%); JCP 0,5737 (01/10, sem pagamento) × 0,5215 (pago
+  31/12, razão 1,10). A BRAPI repete a parcela com a data-com **deslocada 1 pregão**; as regras do
+  #277 exigiam a mesma data-com.
+- **CEEB5** com `proventos_em_conferencia_dy_acima_teto` e `estadoIndice = 'calculado'`: o Índice é
+  da empresa (ticker de referência CEEB3, decisão 13) e a trava era só por ticker.
+- **POMO3/POMO4**: DPA 2025 = 1,1455 × 0,5015 em 2024 (2,28×), DY 12m 22–23% (0,69 em nov/2025,
+  antecipação à tributação de 2026); o gate de payout (> 150%) barrou o salto e o DY ficou abaixo
+  do teto de 25%.
+
+Correções:
+
+1. **Dedupe com data-com deslocada** (`regras/calculo/proventos.ts`): as regras de repetição sem
+   pagamento e de classe irmã aceitam data-com a até `duplicataSemPagamento.pregoesDataCom` pregões
+   (default 1, calendário B3 de `regras/comum/pregoes.ts`), preferindo o par mais próximo. Demais
+   critérios iguais (±2% ou razão 1,10; linha sem pagamento = pagamento a ≤ 1 dia da data gravada);
+   linhas com pagamento (cronograma real: CPFE3 1,1282/0,1302/0,2170/0,6075 em 29/04/2026) não são
+   tocadas. Na classe irmã continua valendo a espécie do ticker (PN fica com o maior: no CEEB5 sai o
+   JCP 0,5215 pago e fica o 0,5737, como já acontecia com a mesma data-com).
+2. **Teto de DY de ações 25% → 18%** (`plausibilidade.dyMaxPct.acao`, default no schema; FIIs seguem
+   20%): p95 do Quadro de ações = 20,5% e o que fica entre 18% e 25% é antecipação de dez/2025
+   (POMO3/4, SOND5/6) ou parcela repetida (CPFE3).
+3. **Trava por empresa** (`recalcularScores.comConferenciaDaEmpresa`): se qualquer ticker da empresa
+   tem o DY em conferência, o C_div da empresa entra como `ausente('em_conferencia')` — o Quadro e o
+   Índice concordam.
+
+Efeito no dev (recálculo `--tudo --apply` + job quadro, dataRef 29/09/2026; o dev não tem as linhas
+de prod de CPFE3/CEEB5 — CEEB5 está com base parada —, os casos estão nos testes):
+
+- `duplicata_sem_pagamento`: 25 → 48 (23 pares com data-com a 1 pregão; todos com o mesmo valor e
+  uma linha paga: MOTV3 2009–2013, ITSA3, TAEE3/4, RCRI11 jan–fev/2026, ITUB4 dez/2021, AUAU3…).
+- DY 12m > 18% no Quadro de ações: 12 gravados; contando no Índice **4 → 0** (POMO3 20,5%, POMO4
+  19,2%, SOND5, SOND6). Empresas incompletas por outro ticker em conferência: BRSR3/BRSR5, DOHL3,
+  SOND3. Linhas com flag de conferência e Índice 'calculado': 0.
+- Top 10 de ações por Índice — antes: LEVE3 9,66, POMO3 9,59, POMO4 9,59, CPFE3 9,34, SHUL4 9,30,
+  CAMB3 9,19, LREN3 9,15, CXSE3 9,00, WIZC3 9,00, ITSA3 8,80; depois: LEVE3 9,66, CPFE3 9,34,
+  SHUL4 9,30, CAMB3 9,19, LREN3 9,15, CXSE3 9,00, WIZC3 9,00 (incompleto: histórico curto), ITSA3
+  8,80, ITSA4 8,80, BEES3 8,79 (POMO3/4 → 8,09, em conferência).
+
+Produção: mesmos comandos do #277 (recalcular `--tudo` dry-run → `--apply` → job quadro); a v1
+gravada não tem `plausibilidade`/`pregoesDataCom`, então valem os defaults novos sem seed.
