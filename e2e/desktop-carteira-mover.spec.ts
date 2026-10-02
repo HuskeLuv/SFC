@@ -1,5 +1,6 @@
 import { test, expect, type Page } from '@playwright/test';
 import { openCarteiraTab, waitCarteiraReady } from './helpers/mobileFit';
+import { moverCaixaRfLigado } from './helpers/moverRf';
 
 /**
  * Mover investimentos (out/2026, Fatia E) — só LEITURA (projeto `chromium`, 1280px).
@@ -11,10 +12,11 @@ import { openCarteiraTab, waitCarteiraReady } from './helpers/mobileFit';
  */
 
 const MOVIVEIS = ['Ações', "FII's", "ETF's", 'Stocks', "REIT's", 'Fundos'] as const;
+const CAIXA_RF = ['Renda Fixa', 'Reserva Emergência', 'Reserva Oportunidade'] as const;
+// Fase 2: com MOVER_CAIXA_RF_HABILITADO ligada, Renda Fixa e Reservas ganham o mover
+// (e2e/desktop-carteira-mover-rf.spec.ts); desligada, continuam aqui, sem alça nem menu.
 const FIXAS = [
-  'Renda Fixa',
-  'Reserva Emergência',
-  'Reserva Oportunidade',
+  ...(moverCaixaRfLigado() ? [] : CAIXA_RF),
   'Moedas, Criptomoedas & outros',
   'Previdência e Seguros',
   'Opções',
