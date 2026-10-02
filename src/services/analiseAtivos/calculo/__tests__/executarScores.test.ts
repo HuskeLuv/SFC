@@ -735,3 +735,169 @@ describe('calcularAtualFii — base de proventos parada (achado qa-dados 30/09)'
     expect(antes.rend12m.estado).toBe('ok');
   });
 });
+
+describe('trava de plausibilidade do DY 12m (diagnóstico DY absurdo 02/10/2026)', () => {
+  const prov = (symbol: string, valor: number, data: string, tipo = 'DIVIDENDO') => ({
+    origemId: `${symbol}-${data}-${valor}`,
+    symbol,
+    source: 'BRAPI',
+    tipoOriginal: tipo,
+    tipoNormalizado: tipo as 'DIVIDENDO' | 'RENDIMENTO',
+    valor,
+    dataPagamento: data,
+    dataExGravada: data,
+    dataComReal: data,
+    status: 'valido' as const,
+    duplicataDe: null,
+    fatorAjusteHoje: 1,
+    valorAjustadoHoje: valor,
+    flags: [] as string[],
+  });
+  const fund = {
+    receita: 1e9,
+    lucroLiquido: 2e8,
+    lucroAtribuivel: 2e8,
+    ebit: 3e8,
+    depreciacaoAmortizacao: 5e7,
+    ativoTotal: 3e9,
+    ativoCirculante: 1e9,
+    passivoCirculante: 5e8,
+    caixa: 4e8,
+    aplicacoesFinanceiras: 0,
+    dividaBrutaCp: 1e8,
+    dividaBrutaLp: 2e8,
+    pl: 1e9,
+    plControladora: 1e9,
+    fco: 2.5e8,
+    capex: 5e7,
+    naoSeAplica: [],
+    flags: [],
+  };
+  async function acao(symbol: string, dpa: number, dpaAnual?: unknown[]) {
+    const { calcularAtualAcao } = await import('@/services/analiseAtivos/calculo/recalcularScores');
+    const ticker: TickerAcao = {
+      symbol,
+      cnpj: symbol,
+      classeTitulo: 'ON',
+      unitQtdOn: null,
+      unitQtdPn: null,
+    };
+    return calcularAtualAcao(
+      {
+        ticker,
+        resumo: {
+          symbol,
+          ultimoPregao: '2026-09-29',
+          closeRaw: 40,
+          volumeMedio21: 1e8,
+          pregoesComNegocio21: 21,
+          baixaLiquidez: false,
+          negociadoUltimos30: true,
+        },
+        tickersEmpresa: [ticker],
+        resumosEmpresa: new Map([[symbol, 40]]),
+        fundAtual: fund as never,
+        fys: [],
+        contagens: [
+          {
+            cnpj: symbol,
+            data: '2025-12-31',
+            on: 1e8,
+            pn: 0,
+            total: 1e8,
+            fonte: 'dfp',
+            razaoLpa: 1,
+            status: 'ok',
+          },
+        ],
+        emissor: undefined,
+        proventos: [prov(symbol, dpa, '2025-12-15')] as never,
+        eventos: [],
+        cobertura: 'OK',
+        historicoPl: [],
+        dataRef: '2026-09-29',
+        dpaAnual: dpaAnual as never,
+      },
+      SCORING_PARAMS_V1,
+    );
+  }
+
+  it('DY 12m acima de 25% (BMKS3 34%) ⇒ DY gravado com flag, fora do Índice e do semáforo', async () => {
+    const { scoreAcao } = await import('@/services/analiseAtivos/calculo/recalcularScores');
+    const c = await acao('BMKS3', 13.6); // 13,6 ÷ 40 = 34%
+    expect(c.m.dyPct).toEqual({ estado: 'ok', valor: 34 });
+    expect(c.flags).toContain('proventos_em_conferencia_dy_acima_teto');
+    expect(c.dyIndice).toMatchObject({ estado: 'ausente', motivo: 'em_conferencia' });
+    const s = scoreAcao(c, false, SCORING_PARAMS_V1);
+    expect(s.indice.componentes.div).toMatchObject({ estado: 'ausente', nota: 0 });
+    expect(s.indice.incompleto).toBe(true);
+    expect(s.indice.motivosIncompleto).toContain('div:em_conferencia');
+    expect(s.semaforo.checks.find((k) => k.codigo === 'dividendos')?.status).toBe('sem_dado');
+  });
+
+  it('o topo não é sustentado por DY suspeito: mesma empresa com DY 34% fica ABAIXO da de DY 8%', async () => {
+    const { scoreAcao } = await import('@/services/analiseAtivos/calculo/recalcularScores');
+    const suspeito = scoreAcao(await acao('AAAA3', 13.6), false, SCORING_PARAMS_V1);
+    const normal = scoreAcao(await acao('BBBB3', 3.2), false, SCORING_PARAMS_V1); // 8%
+    expect(normal.indice.componentes.div).toMatchObject({ estado: 'calculado', nota: 10 });
+    const v = (r: typeof normal) => (r.indice.indice.estado === 'ok' ? r.indice.indice.valor : -1);
+    expect(v(suspeito)).toBeLessThan(v(normal));
+  });
+
+  it('provento_suspeito no último ano fechado (DPA 2025 = 3× 2024, payout 245%) ⇒ fora do Índice', async () => {
+    const { scoreAcao } = await import('@/services/analiseAtivos/calculo/recalcularScores');
+    const c = await acao('BALM4', 3.2, [
+      { anoFiscal: 2023, dpaAjHoje: 0.33, payoutDmplPct: null },
+      { anoFiscal: 2024, dpaAjHoje: 0.36, payoutDmplPct: null },
+      { anoFiscal: 2025, dpaAjHoje: 5.07, payoutDmplPct: 245 },
+    ]);
+    expect(c.m.dyPct).toEqual({ estado: 'ok', valor: 8 });
+    expect(c.flags).toContain('proventos_em_conferencia_salto_recente');
+    const s = scoreAcao(c, false, SCORING_PARAMS_V1);
+    expect(s.indice.motivosIncompleto).toContain('div:em_conferencia');
+    // sem a série anual (memória antiga) só o teto vale
+    const semSerie = await acao('BALM4', 3.2);
+    expect(semSerie.flags.some((f) => f.startsWith('proventos_em_conferencia'))).toBe(false);
+  });
+
+  it('FII com DY 12m acima de 20% ⇒ flag e DY fora do Índice; 12% passa', async () => {
+    const { calcularAtualFii } = await import('@/services/analiseAtivos/calculo/recalcularScores');
+    const meses = ['2025-10', '2025-11', '2025-12', '2026-01', '2026-02', '2026-03'];
+    const entrada = (valor: number) => ({
+      resumo: {
+        symbol: 'LRDI11',
+        ultimoPregao: '2026-09-29',
+        closeRaw: 100,
+        volumeMedio21: 1e5,
+        pregoesComNegocio21: 16,
+        baixaLiquidez: false,
+        negociadoUltimos30: true,
+      },
+      mesAtual: null,
+      trimestre: null,
+      proventos: meses.map((m) => prov('LRDI11', valor, `${m}-15`, 'RENDIMENTO')) as never,
+      eventos: [],
+      cobertura: 'OK' as const,
+      dataRef: '2026-09-29',
+    });
+    const alto = calcularAtualFii(entrada(7), SCORING_PARAMS_V1); // 42%
+    expect(alto.flags).toContain('proventos_em_conferencia_dy_acima_teto');
+    expect(alto.dyIndice).toMatchObject({ estado: 'ausente', motivo: 'em_conferencia' });
+    const normal = calcularAtualFii(entrada(2), SCORING_PARAMS_V1); // 12%
+    expect(normal.flags.some((f) => f.startsWith('proventos_em_conferencia'))).toBe(false);
+    expect(normal.dyIndice).toEqual({ estado: 'ok', valor: 12 });
+  });
+
+  it('mesesInformePorAno conta meses distintos por ano', async () => {
+    const { mesesInformePorAno } =
+      await import('@/services/analiseAtivos/calculo/recalcularScores');
+    expect(
+      mesesInformePorAno([
+        { refMonth: '2024-11-01' },
+        { refMonth: '2024-12-01' },
+        { refMonth: '2024-12-01' },
+        { refMonth: '2025-01-01' },
+      ]),
+    ).toEqual({ 2024: 2, 2025: 1 });
+  });
+});

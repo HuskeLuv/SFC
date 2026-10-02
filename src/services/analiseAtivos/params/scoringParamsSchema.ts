@@ -206,6 +206,38 @@ const baseSchema = z.strictObject({
           maxDias: { acao: 200, fii: 45 },
           recorrenteMinMeses: { acao: 2, fii: 6 },
         }),
+      // repetição da fonte com MESMA data-com: linha sem pagamento (data de pagamento = data ex
+      // gravada, fallback da BRAPI) + linha com pagamento de valor igual (±tolPct) ou na razão do
+      // prêmio legal das preferenciais (CEBR5/CEBR6/CEEB5: ON e PN misturadas no mesmo ticker)
+      duplicataSemPagamento: z
+        .strictObject({
+          tolPct: z.number().nonnegative(),
+          premioPreferencialPct: z.number().nonnegative(),
+          premioTolPct: z.number().nonnegative(),
+        })
+        .default({ tolPct: 2, premioPreferencialPct: 10, premioTolPct: 0.5 }),
+      // DIVIDENDO/JCP/RENDIMENTO que repete uma REST CAP DIN/AMORTIZAÇÃO (MELK3 mar/2025)
+      copiaRestituicao: z
+        .strictObject({
+          janelaDias: z.number().int().nonnegative(),
+          tolPct: z.number().nonnegative(),
+        })
+        .default({ janelaDias: 3, tolPct: 0.5 }),
+      // trava de plausibilidade do DY 12m (Índice MF e semáforo): acima do teto ou com salto de
+      // provento recente ⇒ "proventos em conferência" (ausente no Índice, DY exibido em conferência)
+      plausibilidade: z
+        .strictObject({
+          dyMaxPct: z.strictObject({ acao: z.number().positive(), fii: z.number().positive() }),
+          saltoFator: z.number().positive(),
+          saltoPayoutMaxPct: z.number().positive(),
+          anosSaltoRecente: z.number().int().nonnegative(),
+        })
+        .default({
+          dyMaxPct: { acao: 25, fii: 20 },
+          saltoFator: 2,
+          saltoPayoutMaxPct: 150,
+          anosSaltoRecente: 1,
+        }),
     }),
   }),
   universo: z.strictObject({

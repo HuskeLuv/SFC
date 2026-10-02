@@ -7,7 +7,10 @@
  * - Ações: C_lucro anos de lucro (0→0, 10→10); C_dívida DL/EBITDA (6→0, 0→10; financeira n/a; EBITDA ≤ 0
  *   com DL > 0 ⇒ 0, com caixa líquido ⇒ 10 — nunca interpolar a razão negativa que vem de EBITDA
  *   negativo); C_rent ROE (0→0, 25→10; PL ≤ 0 ⇒ 0, nunca ROE positivo de prejuízo ÷ PL negativo);
- *   C_div DY 12m (0→0, 8→10); C_preço P/L vs. média 10a (+60%→0, −30%→10; prejuízo ⇒ 0).
+ *   C_div DY 12m (0→0, 8→10; DY "em conferência" pela trava de plausibilidade — acima do teto da
+ *   classe ou com salto de provento recente, regras/calculo/plausibilidadeProventos — chega aqui
+ *   como ausente('em_conferencia'): vale 0 e liga o selo com o motivo 'div:em_conferencia');
+ *   C_preço P/L vs. média 10a (+60%→0, −30%→10; prejuízo ⇒ 0).
  * - FII tijolo: meses com rendimento, Obrigações/PL, vacância (desligada, decisão 6), DY, P/VP.
  * - FII papel (decisão 4, provisório): meses, maior CRI (% dos CRIs), nº de CRIs, DY, |P/VP − 1|.
  * - FoF e PL ≤ 0: fora do Índice (decisão 8, regra 22).

@@ -15,6 +15,7 @@ import {
   detectarSaltoProvento,
   pontoUlt12m,
 } from '@/services/analiseAtivos/leitura/ativo/series';
+import { ehFlagProventosEmConferencia } from '@/services/analiseAtivos/regras/calculo/plausibilidadeProventos';
 import { TEXTOS_TELA, textoMotivo, textoNaoSeAplica } from '@/services/analiseAtivos/textosTela';
 import type { ClasseQuadro, DividendosAtivo, PontoSerieAnual } from '@/types/analiseAtivosApi';
 
@@ -41,7 +42,7 @@ export interface EntradaDividendos {
 }
 
 function flagConferencia(flags: readonly string[] | undefined): boolean {
-  return !!flags?.some((f) => f === 'provento_suspeito' || f.startsWith('proventos_defasados'));
+  return !!flags?.some(ehFlagProventosEmConferencia);
 }
 
 export function montarDividendos(e: EntradaDividendos): DividendosAtivo {
