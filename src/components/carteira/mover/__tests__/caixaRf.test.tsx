@@ -417,7 +417,7 @@ function montarDialogo(opcoes: MoverOpcoesResponse) {
 describe('MoverInvestimento — fase 2 (computador)', () => {
   it('grupo "Abas de renda fixa" com rádios-chip de 44px, sem passo de seção', async () => {
     montarDialogo(opcoesCdbRf());
-    const dialog = await screen.findByRole('dialog', { name: 'Mover CDB-INTER' });
+    const dialog = await screen.findByRole('dialog', { name: 'Mover CDB Inter' });
     const grupo = await within(dialog).findByRole('group', { name: /Abas de renda fixa/ });
     const radios = within(grupo).getAllByRole('radio');
     expect(radios.map((r) => (r as HTMLInputElement).value)).toEqual([
@@ -441,7 +441,7 @@ describe('MoverInvestimento — fase 2 (computador)', () => {
 
   it('escolher a Reserva mostra os efeitos no rodapé e o POST vai sem subgrupo', async () => {
     montarDialogo(opcoesCdbRf());
-    const dialog = await screen.findByRole('dialog', { name: 'Mover CDB-INTER' });
+    const dialog = await screen.findByRole('dialog', { name: 'Mover CDB Inter' });
     fireEvent.click(await within(dialog).findByRole('radio', { name: 'Reserva Emergência' }));
     const efeitos = dialog.querySelector('[data-mf-mover-impacto="caixaRf"]')!;
     await waitFor(() => expect(efeitos).toHaveTextContent('R$ 18.400,00 → R$ 33.400,00'));
@@ -470,7 +470,7 @@ describe('MoverInvestimento — fase 2 (computador)', () => {
       override: true,
     };
     montarDialogo(opcoes);
-    const dialog = await screen.findByRole('dialog', { name: 'Mover CDB-INTER' });
+    const dialog = await screen.findByRole('dialog', { name: 'Mover CDB Inter' });
     fireEvent.click(await within(dialog).findByRole('radio', { name: 'Renda Fixa' }));
     expect(within(dialog).getByText('Pós-fixada · pelo indexador')).toBeInTheDocument();
     await waitFor(() =>
@@ -482,7 +482,7 @@ describe('MoverInvestimento — fase 2 (computador)', () => {
 
   it('saldo em conta: só a outra Reserva; Renda Fixa entre os bloqueados ("este saldo")', async () => {
     montarDialogo(opcoesSaldoEmergencia());
-    const dialog = await screen.findByRole('dialog', { name: 'Mover CONTA-CORRENTE-EMERG' });
+    const dialog = await screen.findByRole('dialog', { name: 'Mover Conta corrente' });
     const grupo = await within(dialog).findByRole('group', { name: /Abas de renda fixa/ });
     expect(within(grupo).getAllByRole('radio')).toHaveLength(2);
     const lista = within(dialog).getByText('11 abas não aceitam este saldo').closest('details')!;

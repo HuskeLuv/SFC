@@ -75,8 +75,14 @@ function useFluxoMover({ alvo, open, onClose, onMoved }: MoverInvestimentoProps)
   }, [open]);
 
   const opcoes = consulta.data;
+  // Trio Reservas + RF: o símbolo é sintético (CDB-…, RESERVA-…, DEBENTURE-…), então o nome vale
+  // mais; bolsa e fundos seguem pelo ticker, como na fase 1.
+  const nomeCaixaRf = isOpcoesCaixaRf(opcoes) ? opcoes?.item.nome : undefined;
   const rotulo =
-    opcoes?.item.ticker || (isMoverAlvoCompleto(alvo) ? alvo.label : '') || 'investimento';
+    nomeCaixaRf ||
+    opcoes?.item.ticker ||
+    (isMoverAlvoCompleto(alvo) ? alvo.label : '') ||
+    'investimento';
   const mudou =
     !!escolha &&
     !!opcoes &&
