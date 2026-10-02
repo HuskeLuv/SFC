@@ -61,9 +61,11 @@ describe('BlocoIndiceSemaforo', () => {
     expect(itens).toHaveLength(2);
     // badge: símbolo (aria-hidden) + texto visível
     expect(within(itens[0]).getByText('Atende')).toBeInTheDocument();
-    expect(within(itens[0]).getByText('✓')).toHaveAttribute('aria-hidden', 'true');
+    const iconeAtende = itens[0].querySelector('[data-icone]');
+    expect(iconeAtende).toHaveAttribute('data-icone', 'circulo_check');
+    expect(iconeAtende).toHaveAttribute('aria-hidden', 'true');
     expect(within(itens[1]).getByText('Parcial')).toBeInTheDocument();
-    expect(within(itens[1]).getByText('◐')).toBeInTheDocument();
+    expect(itens[1].querySelector('[data-icone]')).toHaveAttribute('data-icone', 'meio_circulo');
   });
 
   it('componentes num <details> com peso e fórmula pública', () => {
