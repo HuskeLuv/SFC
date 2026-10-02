@@ -34,6 +34,7 @@ export interface CartoesQuadroProps {
   linhas: LinhaQuadroApi[];
   naCarteira: (ticker: string) => InfoNaCarteira;
   carregando?: boolean;
+  atualizando?: boolean;
 }
 
 export default function CartoesQuadro({
@@ -42,6 +43,7 @@ export default function CartoesQuadro({
   linhas,
   naCarteira,
   carregando = false,
+  atualizando = false,
 }: CartoesQuadroProps) {
   const prefetch = usePrefetchHover();
   if (carregando) {
@@ -70,7 +72,11 @@ export default function CartoesQuadro({
   );
 
   return (
-    <ul className={TABLE_MOBILE_STYLES.list} data-quadro-cartoes={classe}>
+    <ul
+      className={`${TABLE_MOBILE_STYLES.list} ${atualizando ? 'opacity-70' : ''}`}
+      data-quadro-cartoes={classe}
+      aria-busy={atualizando || undefined}
+    >
       {linhas.map((l) => {
         const v = l.variacaoDiaPct;
         return (

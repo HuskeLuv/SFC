@@ -217,6 +217,8 @@ export interface TabelaQuadroProps {
   naCarteira: (ticker: string) => InfoNaCarteira;
   /** linhas de esqueleto no lugar dos dados (carregando) */
   carregando?: boolean;
+  /** mostrando a página anterior enquanto a nova ordem/filtro chega (placeholderData) */
+  atualizando?: boolean;
   legenda: string;
 }
 
@@ -229,17 +231,22 @@ export default function TabelaQuadro({
   onOrdenar,
   naCarteira,
   carregando = false,
+  atualizando = false,
   legenda,
 }: TabelaQuadroProps) {
   const router = useRouter();
   const prefetch = usePrefetchHover();
   const colunas = COLUNAS[classe][modo];
-  const fixoTd = 'sticky left-0 z-10 bg-white dark:bg-gray-900';
+  // fundo opaco (a coluna fixa passa por cima das outras ao rolar); mesmo tom do card escuro
+  const fixoTd =
+    'sticky left-0 z-10 bg-white group-hover:bg-gray-50 dark:bg-[#1F1F22] dark:group-hover:bg-[#26262A]';
 
   return (
     <div
-      className={`${TABLE_STYLES.wrapper} max-h-[70vh] overflow-y-auto`}
-      aria-busy={carregando || undefined}
+      className={`${TABLE_STYLES.wrapper} max-h-[70vh] overflow-y-auto bg-white dark:bg-[#1F1F22] ${
+        atualizando ? 'opacity-70 motion-safe:transition-opacity' : ''
+      }`}
+      aria-busy={carregando || atualizando || undefined}
       data-quadro-tabela={classe}
     >
       <table

@@ -216,6 +216,7 @@ function QuadroConteudo({ className = '' }: QuadroAnaliseProps) {
         linhas={itens}
         naCarteira={na.info}
         carregando={carregando}
+        atualizando={!carregando && q.isPlaceholderData}
       />
     );
   } else {
@@ -229,6 +230,7 @@ function QuadroConteudo({ className = '' }: QuadroAnaliseProps) {
         onOrdenar={url.ordenarPor}
         naCarteira={na.info}
         carregando={carregando}
+        atualizando={!carregando && q.isPlaceholderData}
         legenda={legenda}
       />
     );
