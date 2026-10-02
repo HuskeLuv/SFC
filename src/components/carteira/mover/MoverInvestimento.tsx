@@ -4,9 +4,21 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { useIsBelowLg } from '@/hooks/useMediaQuery';
 import { useMoverOpcoes } from '@/hooks/useMoverOpcoes';
 import { MoverErro, useMoverInvestimento } from '@/hooks/useMoverInvestimento';
-import type { MoverOpcoesResponse, MoverResponse } from '@/lib/carteiraMover';
+import {
+  SUBGRUPO_EDITAVEL,
+  type MoverOpcoesResponse,
+  type MoverResponse,
+} from '@/lib/carteiraMover';
+import type { Efeito } from '@/lib/moverEfeitos';
 import { isMoverAlvoCompleto, type MoverInvestimentoProps } from '@/types/carteiraMover';
-import { avisosDoDestino, rotuloAtual, rotuloDestino, type EscolhaDestino } from './DestinoAbaList';
+import {
+  avisosDoDestino,
+  isOpcoesCaixaRf,
+  rotuloAtual,
+  rotuloDestino,
+  type EscolhaDestino,
+} from './DestinoAbaList';
+import { useEfeitosMover } from './EfeitosMoverList';
 import MoverInvestimentoDialog from './MoverInvestimentoDialog';
 import MoverInvestimentoSheet from './MoverInvestimentoSheet';
 
@@ -28,6 +40,13 @@ export interface FluxoMover {
   /** "Mover para Infra" / "Mover para Fundos › Fiagro" / "Mover". */
   rotuloPrimario: string;
   avisos: string[];
+  /**
+   * Fase 2: o item está numa Reserva ou na Renda Fixa (troca só no trio, sem seção para
+   * escolher). O diálogo e o painel mostram "O que muda" (`efeitos`) no lugar do impacto da fase 1.
+   */
+  caixaRf: boolean;
+  /** Lista "O que muda" (S, !, A, F, §, =) da escolha atual; [] fora do trio ou sem escolha. */
+  efeitos: Efeito[];
   fechar: () => void;
 }
 
@@ -61,7 +80,11 @@ function useFluxoMover({ alvo, open, onClose, onMoved }: MoverInvestimentoProps)
   const mudou =
     !!escolha &&
     !!opcoes &&
-    !(escolha.categoria === opcoes.atual.categoria && escolha.subgrupo === opcoes.atual.subgrupo);
+    (escolha.categoria !== opcoes.atual.categoria ||
+      // Aba sem seção para escolher (fase 2): mesma aba = nada muda.
+      (SUBGRUPO_EDITAVEL[escolha.categoria] && escolha.subgrupo !== opcoes.atual.subgrupo));
+  const caixaRf = isOpcoesCaixaRf(opcoes);
+  const efeitos = useEfeitosMover(caixaRf ? opcoes : undefined, mudou ? escolha?.categoria : null);
 
   const fechar = useCallback(() => {
     if (!salvando) onClose();
@@ -108,6 +131,8 @@ function useFluxoMover({ alvo, open, onClose, onMoved }: MoverInvestimentoProps)
         ? `Mover para ${rotuloDestino(opcoes.atual.categoria, escolha)}`
         : 'Mover',
     avisos: opcoes ? avisosDoDestino(opcoes, mudou ? escolha : null) : [],
+    caixaRf,
+    efeitos,
     fechar,
   };
 }

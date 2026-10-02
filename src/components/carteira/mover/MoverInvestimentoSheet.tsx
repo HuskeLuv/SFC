@@ -6,6 +6,7 @@ import { PrimaryButton, SecondaryButton } from '@/components/cashflow/mobile/edi
 import { DestinoAbaList, rotuloAtual } from './DestinoAbaList';
 import type { FluxoMover } from './MoverInvestimento';
 import { SPINNER } from './MoverInvestimentoDialog';
+import { EfeitosMoverList } from './EfeitosMoverList';
 
 /**
  * Painel "Mover <ativo>" do celular (M2-M6), no padrão do MovePanel do Fluxo: opções de 56px,
@@ -59,9 +60,17 @@ export default function MoverInvestimentoSheet({
           onEscolher={fluxo.escolher}
           disabled={fluxo.salvando}
         />
-        <p className="px-1 text-xs text-gray-500 dark:text-gray-400">
-          Valores e rentabilidade não mudam. O IR segue o tipo do ativo. Dá para desfazer.
-        </p>
+        {fluxo.caixaRf ? (
+          // Fase 2: os efeitos ficam no fim da área rolável (o "=" diz o que não muda).
+          <EfeitosMoverList
+            efeitos={fluxo.efeitos}
+            className="rounded-[10px] bg-gray-50 px-3 py-2.5 dark:bg-white/[0.04]"
+          />
+        ) : (
+          <p className="px-1 text-xs text-gray-500 dark:text-gray-400">
+            Valores e rentabilidade não mudam. O IR segue o tipo do ativo. Dá para desfazer.
+          </p>
+        )}
       </div>
     );
   }
