@@ -844,6 +844,26 @@ describe('trava de plausibilidade do DY 12m (diagnóstico DY absurdo 02/10/2026)
     expect(v(suspeito)).toBeLessThan(v(normal));
   });
 
+  it('CEEB5 com DY acima do teto e referência CEEB3 normal ⇒ Índice da empresa incompleto (Quadro e Índice concordam)', async () => {
+    const { comConferenciaDaEmpresa, scoreAcao } =
+      await import('@/services/analiseAtivos/calculo/recalcularScores');
+    const ref = await acao('CEEB3', 3.2); // 8%
+    const pn = await acao('CEEB5', 12); // 30%
+    expect(ref.flags.some((f) => f.startsWith('proventos_em_conferencia'))).toBe(false);
+    expect(pn.flags).toContain('proventos_em_conferencia_dy_acima_teto');
+    const empresa = comConferenciaDaEmpresa(ref, [ref, pn]);
+    expect(empresa.dyIndice).toMatchObject({
+      estado: 'ausente',
+      motivo: 'em_conferencia',
+      detalhe: 'dy_acima_teto',
+    });
+    const s = scoreAcao(empresa, false, SCORING_PARAMS_V1);
+    expect(s.indice.incompleto).toBe(true);
+    expect(s.indice.motivosIncompleto).toContain('div:em_conferencia');
+    // sem ticker em conferência nada muda
+    expect(comConferenciaDaEmpresa(ref, [ref, await acao('CEEB5', 3.5)])).toBe(ref);
+  });
+
   it('provento_suspeito no último ano fechado (DPA 2025 = 3× 2024, payout 245%) ⇒ fora do Índice', async () => {
     const { scoreAcao } = await import('@/services/analiseAtivos/calculo/recalcularScores');
     const c = await acao('BALM4', 3.2, [
