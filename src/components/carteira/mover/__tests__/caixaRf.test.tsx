@@ -347,6 +347,16 @@ describe('ConfirmarMoverCard (soltar numa aba do trio)', () => {
     expect(onConfirm).toHaveBeenCalledWith('');
   });
 
+  it('usa a saudePrevia do GET /mover e não busca a Saúde Financeira', async () => {
+    montarPopover('reservaEmergencia', {
+      ...opcoesCdbRf(),
+      saudePrevia: { reservaAtual: 10000, necessario: 30000 },
+    });
+    const dialog = await screen.findByRole('dialog', { name: 'Mover para Reserva Emergência?' });
+    await waitFor(() => expect(dialog).toHaveTextContent('R$ 10.000,00 → R$ 25.000,00'));
+    expect(fetchMock.mock.calls.some((c) => c[0] === '/api/saude-financeira')).toBe(false);
+  });
+
   it('sem a Saúde (erro): a linha S cai na frase fixa', async () => {
     montarPopover('reservaEmergencia', opcoesCdbRf(), 500);
     const dialog = await screen.findByRole('dialog', { name: 'Mover para Reserva Emergência?' });

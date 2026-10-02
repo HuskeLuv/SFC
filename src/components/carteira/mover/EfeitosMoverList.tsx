@@ -98,9 +98,13 @@ export function useEfeitosMover(
   destino: CategoriaMovivel | null | undefined,
 ): Efeito[] {
   const entrada = entradaDosEfeitos(opcoes, destino);
-  const saude = useSaudePrevia(!!entrada && envolveReservaEmergencia(entrada.origem, destino!));
+  // Os números vêm do GET /mover (saudePrevia, fatia A); a Saúde Financeira só é buscada
+  // quando ele não os trouxe (falha/tempo esgotado → null; frase fixa se ambos faltarem).
+  const doGet = opcoes?.saudePrevia ?? null;
+  const envolve = !!entrada && envolveReservaEmergencia(entrada.origem, destino!);
+  const daSaude = useSaudePrevia(envolve && !doGet);
   if (!entrada) return [];
-  return calcularEfeitosMover({ ...entrada, saude });
+  return calcularEfeitosMover({ ...entrada, saude: envolve ? (doGet ?? daSaude) : null });
 }
 
 /** "Saúde Financeira: reserva…" → rótulo em negrito + resto. */
