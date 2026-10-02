@@ -600,6 +600,8 @@ describe('fase 2 — Reservas + Renda Fixa', () => {
       subgrupoLabel: 'Pós-fixada',
     });
     expect(r.item.valorAtualBRL).toBe(11_500);
+    // Nome das abas do trio: descrição do FI (não o Asset.name com valor e data).
+    expect(r.item.nome).toBe('CDB');
     expect(r.saudePrevia).toEqual({ reservaAtual: 18_400, necessario: 30_000 });
     expect(r.destinos.map((d) => d.categoria)).toEqual([
       'reservaEmergencia',
@@ -748,6 +750,7 @@ describe('fase 2 — Reservas + Renda Fixa', () => {
       expect(r.movivel).toBe(false);
       expect(r.modelo).toBe('fixo');
       expect(r.motivo).toBe('Renda Fixa ainda não pode ser movida para outra aba');
+      expect(r.item.nome).toBe('CDB Banco X 110% CDI');
       expect(r).not.toHaveProperty('grupo');
       expect(r).not.toHaveProperty('saudePrevia');
       expect(mockBuildSaude).not.toHaveBeenCalled();

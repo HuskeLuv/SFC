@@ -243,6 +243,8 @@ interface LinhaCtx {
   valorAtualizado: number;
   saldoBrutoTotal: number;
   nomePadrao: string;
+  /** Fase 2: descrição do FI (o mesmo nome da Renda Fixa), antes do Asset.name. */
+  nomeTitulo?: string | null;
   meta: {
     cotizacaoResgate: string;
     liquidacaoResgate: string;
@@ -260,7 +262,7 @@ const montarLinha = (c: LinhaCtx): ReservaLinha => {
   const rentabilidade = baseComFluxos > 0 ? (c.valorAtualizado / baseComFluxos - 1) * 100 : 0;
   return {
     id: c.item.id,
-    nome: c.item.asset?.name || c.nomePadrao,
+    nome: c.nomeTitulo || c.item.asset?.name || c.nomePadrao,
     cotizacaoResgate: c.meta.cotizacaoResgate,
     liquidacaoResgate: c.meta.liquidacaoResgate,
     vencimento: c.meta.vencimento,
@@ -438,6 +440,9 @@ async function listarFase2(userId: string, cat: CategoriaReserva): Promise<Reser
       valorAtualizado,
       saldoBrutoTotal,
       nomePadrao: cfg.nomePadrao,
+      // Mesmo nome da Renda Fixa (renda-fixa/route: description || asset.name): o título não
+      // muda de nome ao trocar de aba. Sem FI, igual a antes.
+      nomeTitulo: fixedIncome?.description,
       meta,
     });
     if (

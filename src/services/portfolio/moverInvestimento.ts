@@ -446,7 +446,10 @@ export async function obterOpcoesMover(
       id: row.id,
       assetId: asset.id,
       ticker: asset.symbol,
-      nome: asset.name,
+      // Trio (chave ligada): o nome que as abas mostram — descrição do FI, como a Renda Fixa.
+      nome:
+        (caixaRfLiberado && isCategoriaCaixaRf(categoriaExibida) && item.fi?.description) ||
+        asset.name,
       moeda: asset.currency ?? null,
     },
     atual: {

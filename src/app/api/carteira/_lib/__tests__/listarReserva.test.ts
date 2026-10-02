@@ -110,6 +110,8 @@ describe('listarReserva — chave ligada (mover fase 2)', () => {
     expect(cdb?.cotizacaoResgate).not.toBe('D+0');
     expect(cdb?.liquidacaoResgate).not.toBe('Imediata');
     expect(cdb?.vencimento).not.toEqual(HOJE);
+    // Mesmo nome da Renda Fixa (descrição do FI), não o Asset.name com valor e data.
+    expect(cdb?.nome).toBe('FI fi-cdb');
     // E não aparece na Oportunidade.
     expect(ids(await listarReserva('user-1', 'reservaOportunidade'))).not.toContain('p-cdb');
   });
