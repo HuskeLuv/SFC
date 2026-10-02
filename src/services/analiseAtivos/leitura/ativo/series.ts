@@ -9,7 +9,7 @@
  *   'proventos em conferência' e FORA do CAGR (WEGE3 2025: 2,45 contra 0,76 — parcelas repetidas
  *   na fonte). O fator é 2 (decisões.md prevalece sobre o 2,5 da spec); com payout do ano
  *   informado, o salto só marca se o payout passar de 150% (WEGE3 2021 dobrou com lucro).
- * - CAGR: null se algum extremo ≤ 0 (ou ausente).
+ * - CAGR: null se algum extremo ≤ 0 ('base_nao_positiva') ou sem dado ('historico_curto').
  *
  * Funções puras; datas 'AAAA-MM-DD'; percentuais em pontos percentuais.
  */
@@ -162,6 +162,11 @@ export function cagrJanela(
   if (!ini) return { pct: null, motivo: 'historico_curto', anoInicio: null, anoFim: fim.ano };
   if (ini.suspeito || fim.suspeito) {
     return { pct: null, motivo: 'extremo_em_conferencia', anoInicio: ini.ano, anoFim: fim.ano };
+  }
+  // ano-base ou final sem dado (null) = histórico curto; 'base_nao_positiva' só para valor ≤ 0
+  const temDado = (v: number | null | undefined) => typeof v === 'number' && Number.isFinite(v);
+  if (!temDado(ini.valor) || !temDado(fim.valor)) {
+    return { pct: null, motivo: 'historico_curto', anoInicio: ini.ano, anoFim: fim.ano };
   }
   const pct = cagr(ini.valor, fim.valor, anos);
   return {

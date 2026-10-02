@@ -167,6 +167,40 @@ describe('cagrJanela', () => {
       ).motivo,
     ).toBe('base_nao_positiva');
   });
+  it('ano-base ou final sem dado (null) = histórico curto, não base ≤ 0 (HFOF11)', () => {
+    const semBase = cagrJanela(
+      [
+        { ano: 2019, valor: null },
+        { ano: 2020, valor: 1 },
+        { ano: 2024, valor: 1.2 },
+      ],
+      5,
+    );
+    expect(semBase).toEqual({
+      pct: null,
+      motivo: 'historico_curto',
+      anoInicio: 2019,
+      anoFim: 2024,
+    });
+    expect(
+      cagrJanela(
+        [
+          { ano: 2019, valor: 1 },
+          { ano: 2024, valor: null },
+        ],
+        5,
+      ).motivo,
+    ).toBe('historico_curto');
+    expect(
+      cagrJanela(
+        [
+          { ano: 2019, valor: 0 },
+          { ano: 2024, valor: 1 },
+        ],
+        5,
+      ).motivo,
+    ).toBe('base_nao_positiva');
+  });
 });
 
 describe('baseCem', () => {
