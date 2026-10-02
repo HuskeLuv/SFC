@@ -235,7 +235,7 @@ export default function GraficoLucroCotacao({ ticker, classe, grafico }: Grafico
                   setPeriodo(p);
                   setAtivo(null);
                 }}
-                className={`min-h-11 rounded-lg px-3 text-sm font-medium sm:min-h-[34px] ${
+                className={`min-h-11 min-w-11 rounded-lg px-3 text-sm font-medium sm:min-h-[34px] ${
                   periodo === p
                     ? 'bg-white text-gray-800 shadow-sm dark:bg-gray-900 dark:text-white'
                     : 'text-gray-500 dark:text-gray-400'
