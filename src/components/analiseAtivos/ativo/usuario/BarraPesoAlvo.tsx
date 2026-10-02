@@ -30,7 +30,8 @@ export default function BarraPesoAlvo({
   ariaLabel,
 }: BarraPesoAlvoProps) {
   const ref = referencia ?? 0;
-  const max = Math.max(valor, ref, 0.0001) * 1.25;
+  // Com referência: escala folgada em torno de valor e referência. Sem referência: 0–100%.
+  const max = referencia === null ? 100 : Math.max(valor, ref, 0.0001) * 1.25;
   const largura = Math.min(100, Math.max(0, (valor / max) * 100));
   const posRef = Math.min(100, Math.max(0, (ref / max) * 100));
   const valorTxt = formatPct(valor);

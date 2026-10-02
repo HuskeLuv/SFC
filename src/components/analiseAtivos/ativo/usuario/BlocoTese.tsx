@@ -74,10 +74,7 @@ export default function BlocoTese({ ticker }: BlocoTeseProps) {
           <span className="mt-0.5 text-gray-500 dark:text-gray-400">
             <CadeadoIcon />
           </span>
-          <p>
-            <strong className="font-semibold text-gray-800 dark:text-white/90">{t.pessoal}.</strong>{' '}
-            {t.pessoalConsultor}
-          </p>
+          <p>{t.pessoalConsultor}</p>
         </div>
       </section>
     );
