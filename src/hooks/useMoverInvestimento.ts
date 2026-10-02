@@ -12,7 +12,7 @@ import {
   rotuloCategoria,
   rotuloSubgrupo,
   type CategoriaMovivel,
-  type MoverInvestimentoInput,
+  type MoverInvestimentoBody,
   type MoverOpcoesResponse,
   type MoverPosicaoAba,
   type MoverResponse,
@@ -109,7 +109,7 @@ const ondeEstava = (queryClient: QueryClient, alvo: MoverAlvo | MoverAlvoRef): s
 
 async function postMover(
   csrfFetch: (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>,
-  body: MoverInvestimentoInput,
+  body: MoverInvestimentoBody,
 ): Promise<MoverResponse> {
   let response: Response;
   try {

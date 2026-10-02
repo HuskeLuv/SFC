@@ -14,6 +14,7 @@ import {
   alvoDaLinha,
   avisoAbaRecusada,
   destinoDoFantasma,
+  secaoDropIdSintetico,
   type LinhaDragData,
 } from '../CarteiraDnd';
 import { chipsDaBandeja, motivoCurto } from '../AbaDropTarget';
@@ -364,6 +365,25 @@ describe('helpers', () => {
     });
     expect(alvoDaLinha('acoes', { id: 'p', ticker: 'X', naoMovivelMotivo: 'x' })).toBeNull();
     expect(alvoDaLinha('acoes', { ticker: 'X' })).toBeNull();
+  });
+
+  it('alvoDaLinha: aba sem seção (Reservas, fase 2) → secaoAtual vazio; RF pelo tipo', () => {
+    expect(
+      alvoDaLinha('reservaEmergencia', { id: 'p9', nome: 'CDB Inter', tipo: 'pos-fixada' }),
+    ).toEqual({
+      tipo: 'posicao',
+      id: 'p9',
+      categoria: 'reservaEmergencia',
+      secaoAtual: '',
+      label: 'CDB Inter',
+    });
+    expect(
+      alvoDaLinha('rendaFixaFundos', { id: 'p8', nome: 'LCI', tipo: 'hibrida' }),
+    ).toMatchObject({ categoria: 'rendaFixaFundos', secaoAtual: 'hibrida' });
+    expect(
+      alvoDaLinha('reservaOportunidade', { id: 'p7', nome: 'Conta', naoMovivelMotivo: 'x' }),
+    ).toBeNull();
+    expect(secaoDropIdSintetico('reservaEmergencia')).toBe('secao:reservaEmergencia:_');
   });
 
   it('fantasma: seção, aba aceita e aba recusada', () => {

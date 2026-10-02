@@ -85,8 +85,8 @@ export function useCategoriaEfetivaAtivo(
   });
 
   let secaoAtual: SecaoNaCarteira | null = null;
-  if (categoria && tickerNorm && abaQ.data?.secoes) {
-    const campo = CAMPO_SECAO_NA_LINHA[categoria];
+  const campo = categoria ? CAMPO_SECAO_NA_LINHA[categoria] : null;
+  if (categoria && campo && tickerNorm && abaQ.data?.secoes) {
     for (const secao of abaQ.data.secoes) {
       const linha = secao.ativos?.find((a) => (a.ticker ?? '').toUpperCase() === tickerNorm);
       if (!linha) continue;

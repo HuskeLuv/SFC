@@ -24,7 +24,10 @@ export interface MoverAlvo {
   id: string;
   /** Aba onde a linha está agora. */
   categoria: CategoriaMovivel;
-  /** Subgrupo (seção) atual — valor de CAMPO_SECAO_NA_LINHA[categoria] da linha. */
+  /**
+   * Subgrupo (seção) atual — valor de CAMPO_SECAO_NA_LINHA[categoria] da linha.
+   * '' nas abas sem seção (Reservas — fase 2). Na RF é a seção derivada (não editável).
+   */
   secaoAtual: string;
   /** Ticker ou nome exibido (toasts, anúncios, aria-label). */
   label: string;
@@ -67,6 +70,7 @@ export interface MovidoBadgeProps {
 export interface MoverParams {
   alvo: MoverAlvo | MoverAlvoRef;
   categoria: CategoriaMovivel;
+  /** Nas abas com SUBGRUPO_EDITAVEL false (fase 2) o servidor ignora o valor (use ''). */
   subgrupo: string;
 }
 

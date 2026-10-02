@@ -26,6 +26,7 @@ import {
   isAcaoRestaurar,
   overrideEfetivo,
   type AssetMovivelLike,
+  type BaseCtx,
   type CategoriaMovivel,
   type MoverSnapshotEstado,
   type TipoItemMover,
@@ -53,6 +54,17 @@ export interface OriginalInfo {
   subgrupo: string | null;
   /** Estado allowlisted antes do 1º mover da sequência (para o restaurar). */
   antes: MoverSnapshotEstado;
+}
+
+/**
+ * Opções dos resumos. `baseCtx` (fase 2): reserva do Tesouro de catálogo
+ * (`reservaDestinoPorAsset`) — sem ele a base de um Tesouro de reserva seria a
+ * Renda Fixa e o "original" sairia errado.
+ */
+export interface ResumoOpts {
+  asset?: AssetMovivelLike | null;
+  tipo?: TipoItemMover;
+  baseCtx?: BaseCtx;
 }
 
 const NAO_MOVIDO: MovidoInfo = { movido: false, em: null, viaConsultant: false };
@@ -89,8 +101,15 @@ export function sequenciaForaDaBase(eventosAsc: readonly EventoMover[]): EventoM
   return eventosAsc.slice(inicio);
 }
 
-/** Puro: resumo de um item a partir dos seus eventos em ordem cronológica. */
-export function resumirMovido(eventosAsc: readonly EventoMover[]): MovidoInfo {
+/**
+ * Puro: resumo de um item a partir dos seus eventos em ordem cronológica.
+ * `_opts` existe para o contrato da fase 2 (o selo depende só dos eventos; quem
+ * chama confere o override efetivo da linha com o mesmo baseCtx).
+ */
+export function resumirMovido(
+  eventosAsc: readonly EventoMover[],
+  _opts: ResumoOpts = {},
+): MovidoInfo {
   const seq = sequenciaForaDaBase(eventosAsc);
   if (seq.length === 0) return NAO_MOVIDO;
   const marco = [...seq].reverse().find(trocouAba) ?? seq[0];
@@ -100,7 +119,7 @@ export function resumirMovido(eventosAsc: readonly EventoMover[]): MovidoInfo {
 /** Puro: estado antes de sair da base (null quando o item não está movido). */
 export function resumirOriginal(
   eventosAsc: readonly EventoMover[],
-  opts: { asset?: AssetMovivelLike | null; tipo?: TipoItemMover } = {},
+  opts: ResumoOpts = {},
 ): OriginalInfo | null {
   const seq = sequenciaForaDaBase(eventosAsc);
   if (seq.length === 0) return null;
@@ -109,7 +128,8 @@ export function resumirOriginal(
   // evento registrado já começou fora da base (planejado movido e depois comprado, ou começo
   // da sequência expurgado), o original é a aba base — não a aba de onde aquele evento saiu.
   // A secao do planejado era de outra aba: não vale na base (fica o padrão da rota).
-  const comecouForaDaBase = overrideEfetivo(opts.asset, antesDoEvento.categoriaOverride) !== null;
+  const comecouForaDaBase =
+    overrideEfetivo(opts.asset, antesDoEvento.categoriaOverride, opts.baseCtx) !== null;
   const antes: MoverSnapshotEstado = comecouForaDaBase
     ? {
         ...antesDoEvento,
@@ -117,10 +137,14 @@ export function resumirOriginal(
         ...(opts.tipo === 'planejado' ? { secao: null } : {}),
       }
     : antesDoEvento;
-  const categoria = categoriaDaAba(opts.asset, antes.categoriaOverride);
+  const categoria = categoriaDaAba(opts.asset, antes.categoriaOverride, opts.baseCtx);
   let subgrupo: string | null = null;
   if (opts.tipo === 'planejado') subgrupo = antes.secao ?? null;
-  else if (categoria) subgrupo = antes[CAMPO_SUBGRUPO_PORTFOLIO[categoria]] ?? null;
+  else if (categoria) {
+    // Fase 2: Reservas/RF não têm coluna de subgrupo → null (a seção da RF é derivada).
+    const campo = CAMPO_SUBGRUPO_PORTFOLIO[categoria];
+    subgrupo = campo ? (antes[campo] ?? null) : null;
+  }
   return { categoria, subgrupo, antes };
 }
 
@@ -157,10 +181,11 @@ async function eventosPorEntidade(
 export async function movidoInfoPorEntidade(
   userId: string,
   entityIds: readonly string[],
+  optsDe?: (entityId: string) => ResumoOpts,
 ): Promise<Map<string, MovidoInfo>> {
   const eventos = await eventosPorEntidade(userId, entityIds);
   const out = new Map<string, MovidoInfo>();
-  for (const [id, lista] of eventos) out.set(id, resumirMovido(lista));
+  for (const [id, lista] of eventos) out.set(id, resumirMovido(lista, optsDe?.(id)));
   return out;
 }
 
@@ -168,7 +193,7 @@ export async function movidoInfoPorEntidade(
 export async function originalPorEntidade(
   userId: string,
   entityId: string,
-  opts: { asset?: AssetMovivelLike | null; tipo?: TipoItemMover } = {},
+  opts: ResumoOpts = {},
 ): Promise<OriginalInfo | null> {
   const eventos = await eventosPorEntidade(userId, [entityId]);
   return resumirOriginal(eventos.get(entityId) ?? [], opts);

@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { afterAll, beforeAll, describe, it, expect, vi } from 'vitest';
 import {
   AVISO_OBJETIVO_ZERA,
   B3_ACAO_RE,
@@ -39,6 +39,15 @@ import {
   type ModeloPreco,
 } from '../carteiraMover';
 import { SECOES_POR_ABA } from '@/services/portfolio/ativosPlanejados';
+
+// Este arquivo é o contrato da FASE 1 e roda com a chave da fase 2 DESLIGADA
+// (a matriz com ela ligada fica em carteiraMover.caixaRf.test.ts).
+beforeAll(() => {
+  vi.stubEnv('MOVER_CAIXA_RF_HABILITADO', 'false');
+});
+afterAll(() => {
+  vi.unstubAllEnvs();
+});
 
 const a = (
   symbol: string,
@@ -372,6 +381,10 @@ describe('subgrupos', () => {
       fiis: 'tipoFii',
       etfs: 'regiaoEtf',
       fimFia: 'tipoFundo',
+      // Fase 2: o trio não tem coluna de subgrupo.
+      reservaEmergencia: null,
+      reservaOportunidade: null,
+      rendaFixaFundos: null,
     });
     expect(CAMPO_SECAO_NA_LINHA.etfs).toBe('regiao');
     expect(CAMPO_SECAO_NA_LINHA.fiis).toBe('tipo');

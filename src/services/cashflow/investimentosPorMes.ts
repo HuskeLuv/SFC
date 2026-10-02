@@ -73,6 +73,11 @@ export const TIPO_FLUXO_DA_CATEGORIA: Record<CategoriaMovivel, string> = {
   etfs: 'etf',
   reits: 'reit',
   fimFia: 'fund',
+  // Fase 2 do mover (Reservas + Renda Fixa, atrás de MOVER_CAIXA_RF_HABILITADO). Só a
+  // entrada: a precedência override × tesouroDestino no loop é da Fatia C.
+  reservaEmergencia: 'emergency',
+  reservaOportunidade: 'opportunity',
+  rendaFixaFundos: 'bond',
 };
 
 /**

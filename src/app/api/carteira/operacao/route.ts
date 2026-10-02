@@ -2421,8 +2421,9 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
               ...(overridePlanejado
                 ? {
                     categoriaOverride: overridePlanejado,
-                    ...(isSubgrupoValido(overridePlanejado, secaoPlanejada)
-                      ? { [CAMPO_SUBGRUPO_PORTFOLIO[overridePlanejado]]: secaoPlanejada }
+                    ...(CAMPO_SUBGRUPO_PORTFOLIO[overridePlanejado] &&
+                    isSubgrupoValido(overridePlanejado, secaoPlanejada)
+                      ? { [CAMPO_SUBGRUPO_PORTFOLIO[overridePlanejado]!]: secaoPlanejada }
                       : {}),
                   }
                 : {}),

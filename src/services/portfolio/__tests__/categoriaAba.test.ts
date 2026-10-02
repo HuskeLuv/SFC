@@ -1,10 +1,18 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { afterAll, beforeAll, describe, it, expect, vi, beforeEach } from 'vitest';
 import type { Prisma } from '@prisma/client';
 
 const mockPrisma = vi.hoisted(() => ({
   watchlist: { findMany: vi.fn(), findFirst: vi.fn(), delete: vi.fn() },
 }));
 vi.mock('@/lib/prisma', () => ({ prisma: mockPrisma, default: mockPrisma }));
+
+// Contrato da fase 1: chave da fase 2 desligada (ligada: categoriaAba.caixaRf.test.ts).
+beforeAll(() => {
+  vi.stubEnv('MOVER_CAIXA_RF_HABILITADO', 'false');
+});
+afterAll(() => {
+  vi.unstubAllEnvs();
+});
 
 import {
   ASSET_WHERE_BASE_POR_CATEGORIA,

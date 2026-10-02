@@ -157,8 +157,9 @@ const subgrupoCtxDe = (item: ItemMover, categoria: CategoriaMovivel): SubgrupoCt
   }
   // Planejado: a secao só vale para a aba em que ele está.
   const atual = categoriaDaAba(item.asset, item.row.categoriaOverride);
-  if (atual !== categoria || !item.row.secao) return { asset: item.asset };
-  return { asset: item.asset, [CAMPO_SUBGRUPO_PORTFOLIO[categoria]]: item.row.secao };
+  const campo = CAMPO_SUBGRUPO_PORTFOLIO[categoria];
+  if (atual !== categoria || !item.row.secao || !campo) return { asset: item.asset };
+  return { asset: item.asset, [campo]: item.row.secao };
 };
 
 /** Subgrupo em que a linha aparece hoje na aba (o mesmo fallback da rota). */
@@ -447,7 +448,10 @@ export async function moverInvestimento(
   const antes = estadoSnapshotDe(item.tipo, item.row);
   const depois = await gravar(item, {
     categoriaOverride: destino === atual.base ? null : destino,
-    subgrupos: { [CAMPO_SUBGRUPO_PORTFOLIO[destino]]: input.subgrupo },
+    // Fase 2: o trio não tem coluna de subgrupo (CAMPO_SUBGRUPO_PORTFOLIO null).
+    subgrupos: CAMPO_SUBGRUPO_PORTFOLIO[destino]
+      ? { [CAMPO_SUBGRUPO_PORTFOLIO[destino]!]: input.subgrupo }
+      : {},
     secao: input.subgrupo,
     zerarObjetivo: objetivoZerado,
   });

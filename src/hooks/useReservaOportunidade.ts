@@ -3,8 +3,10 @@
 import { useCallback } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { queryKeys } from '@/lib/queryKeys';
+import type { LinhaMovidaCampos } from '@/lib/carteiraMover';
 
-export interface ReservaOportunidadeAtivo {
+/** Linha da aba (+ campos opcionais do mover — fase 2, só com a chave ligada). */
+export interface ReservaOportunidadeAtivo extends LinhaMovidaCampos {
   id: string;
   nome: string;
   cotizacaoResgate: string;

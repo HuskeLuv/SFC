@@ -106,6 +106,7 @@ export const secaoDaLinha = (
   const local = encontrarLinha(dados, id);
   if (!local) return null;
   const campo = CAMPO_SECAO_NA_LINHA[categoria];
+  if (!campo) return null;
   const valor = local.linha[campo] ?? dados?.secoes[local.secaoIndex][campo];
   return typeof valor === 'string' ? valor : null;
 };
@@ -121,8 +122,8 @@ export function moverLinhaEntreSecoes<T extends DadosAba>(
   subgrupo: string,
 ): T {
   const local = encontrarLinha(dados, id);
-  if (!local) return dados;
   const campo = CAMPO_SECAO_NA_LINHA[categoria];
+  if (!local || !campo) return dados;
   const linhaMovida: Linha = { ...local.linha, [campo]: subgrupo, [CAMPO_PENDENTE]: true };
 
   let secoes = dados.secoes.map((secao, i) =>

@@ -258,7 +258,7 @@ export function abaDoAssetPlanejado(
   categoriaOverride?: string | null,
 ): AbaPlanejavel | null {
   const override = overrideEfetivo(asset, categoriaOverride);
-  if (override) return CATEGORIA_TO_ABA_PLANEJAVEL[override];
+  if (override) return CATEGORIA_TO_ABA_PLANEJAVEL[override] ?? null;
   if (asset.type === 'stock') {
     return asset.currency === 'USD' ? 'stocks' : 'acoes';
   }
