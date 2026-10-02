@@ -619,7 +619,7 @@ describe('fase 2 — Reservas + Renda Fixa', () => {
   it('GET: CDB sem liquidez diária e vencimento distante → aviso de liquidez, Saúde e valor', async () => {
     mockPrisma.fixedIncomeAsset.findFirst.mockResolvedValue(fi({ liquidityType: null }));
     mockPrisma.portfolio.findFirst.mockResolvedValue(posicao(CDB));
-    const r = (await obterOpcoesMover('user-1', 'posicao', 'p-1'))!;
+    const r = (await obterOpcoesMover('user-1', 'posicao', 'p-1', { comSaude: true }))!;
     expect(r.movivel).toBe(true);
     expect(r.modelo).toBe('curva');
     expect(r.grupo).toBe('caixaRf');
@@ -664,12 +664,22 @@ describe('fase 2 — Reservas + Renda Fixa', () => {
     expect(r2.destinos[0].avisos).toEqual([AVISO_SAUDE_RESERVA]);
   });
 
+  it('GET sem `saude`: não monta a Saúde (as opções não esperam por ela)', async () => {
+    mockPrisma.fixedIncomeAsset.findFirst.mockResolvedValue(fi());
+    mockPrisma.portfolio.findFirst.mockResolvedValue(posicao(CDB));
+    const r = (await obterOpcoesMover('user-1', 'posicao', 'p-1'))!;
+    expect(r.movivel).toBe(true);
+    expect(r.item.valorAtualBRL).toBe(11_500);
+    expect(r).not.toHaveProperty('saudePrevia');
+    expect(mockBuildSaude).not.toHaveBeenCalled();
+  });
+
   it('GET: Saúde e pricer com erro → saudePrevia null e sem valor (frase fixa)', async () => {
     mockBuildSaude.mockRejectedValue(new Error('boom'));
     mockPricer.mockRejectedValue(new Error('sem CDI'));
     mockPrisma.fixedIncomeAsset.findFirst.mockResolvedValue(fi());
     mockPrisma.portfolio.findFirst.mockResolvedValue(posicao(CDB));
-    const r = (await obterOpcoesMover('user-1', 'posicao', 'p-1'))!;
+    const r = (await obterOpcoesMover('user-1', 'posicao', 'p-1', { comSaude: true }))!;
     expect(r.saudePrevia).toBeNull();
     expect(r.item).not.toHaveProperty('valorAtualBRL');
   });

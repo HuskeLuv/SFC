@@ -1032,9 +1032,10 @@ export interface MoverOpcoesResponse {
   avisos: string[];
   /**
    * Fase 2: números da Saúde Financeira para a prévia antes → depois (moverEfeitos
-   * `SaudePrevia`). Só vem com a chave ligada e quando a Reserva de Emergência
-   * está envolvida (origem ou destino permitido); null = a Saúde não carregou
-   * (a confirmação cai na frase fixa AVISO_SAUDE_RESERVA).
+   * `SaudePrevia`). Só vem com a chave ligada, com `?saude=1` (é pesada) e quando
+   * a Reserva de Emergência está envolvida (origem ou destino permitido); null = a
+   * Saúde não carregou (a confirmação cai na frase fixa AVISO_SAUDE_RESERVA). Sem
+   * ela, a confirmação usa a Saúde Financeira em cache (useSaudePrevia).
    */
   saudePrevia?: { reservaAtual: number; necessario: number | null } | null;
 }

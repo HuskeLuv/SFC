@@ -25,7 +25,7 @@ import { invalidateCaixaCaches } from '@/services/portfolio/caixaParaInvestir';
  * Mover investimentos entre abas e seções da Carteira (out/2026). Contrato em
  * src/lib/carteiraMover.ts; regras em services/portfolio/moverInvestimento.ts.
  *
- * GET  /api/carteira/mover?tipo=posicao|planejado&id= → MoverOpcoesResponse
+ * GET  /api/carteira/mover?tipo=posicao|planejado&id=[&saude=1] → MoverOpcoesResponse
  * POST /api/carteira/mover  { acao:'mover', tipo, id, categoria, subgrupo }
  *                         | { acao:'restaurar', tipo, id }        → MoverResponse
  *
@@ -41,7 +41,10 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
   });
   if (!parsed.success) return validationError(parsed);
 
-  const opcoes = await obterOpcoesMover(targetUserId, parsed.data.tipo, parsed.data.id);
+  // `saude=1`: inclui a prévia da Saúde Financeira (pesada; opcional — ver obterOpcoesMover).
+  const opcoes = await obterOpcoesMover(targetUserId, parsed.data.tipo, parsed.data.id, {
+    comSaude: searchParams.get('saude') === '1',
+  });
   if (!opcoes) throw new ApiError(404, MSG_NAO_ENCONTRADO);
   return NextResponse.json(opcoes);
 });

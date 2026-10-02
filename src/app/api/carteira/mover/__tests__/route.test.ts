@@ -800,13 +800,19 @@ describe('/api/carteira/mover — fase 2 (Reservas + Renda Fixa)', () => {
     it('GET: destinos do trio com prévia da Saúde e valor do item', async () => {
       mockPrisma.fixedIncomeAsset.findFirst.mockResolvedValue(fiCdb);
       mockPrisma.portfolio.findFirst.mockResolvedValue(posicao(CDB as typeof KDIF11));
-      const body = await (await GET(get('tipo=posicao&id=p-1'))).json();
+      const body = await (await GET(get('tipo=posicao&id=p-1&saude=1'))).json();
       expect(body).toMatchObject({
         movivel: true,
         modelo: 'curva',
         grupo: 'caixaRf',
         saudePrevia: { reservaAtual: 1_000, necessario: 9_000 },
       });
+      // Sem `saude=1` a Saúde (pesada) não entra: as opções voltam sem esperar por ela.
+      mockBuildSaude.mockClear();
+      const leve = await (await GET(get('tipo=posicao&id=p-1'))).json();
+      expect(leve).not.toHaveProperty('saudePrevia');
+      expect(leve.item.valorAtualBRL).toBe(5_250);
+      expect(mockBuildSaude).not.toHaveBeenCalled();
       expect(body.item.valorAtualBRL).toBe(5_250);
       const permitidos = body.destinos
         .filter((d: { permitido: boolean }) => d.permitido)

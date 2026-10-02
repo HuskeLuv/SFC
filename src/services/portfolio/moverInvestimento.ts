@@ -427,10 +427,21 @@ async function saudePreviaDe(userId: string): Promise<MoverOpcoesResponse['saude
   }
 }
 
+export interface ObterOpcoesMoverOpts {
+  /**
+   * Inclui a prévia da Saúde Financeira (saudePrevia). Pesada (monta a Saúde inteira: fluxo,
+   * TWR, cotações) — por isso é opcional (`?saude=1` no GET): as opções da bandeja, do popover
+   * e do diálogo não esperam por ela; a confirmação busca a Saúde à parte, só quando o destino
+   * escolhido envolve a Reserva de Emergência (useEfeitosMover).
+   */
+  comSaude?: boolean;
+}
+
 export async function obterOpcoesMover(
   userId: string,
   tipo: TipoItemMover,
   id: string,
+  { comSaude = false }: ObterOpcoesMoverOpts = {},
 ): Promise<MoverOpcoesResponse | null> {
   const item = await carregarItemMover(userId, tipo, id);
   if (!item) return null;
@@ -538,7 +549,7 @@ export async function obterOpcoesMover(
       const envolveEmergencia =
         origem === 'reservaEmergencia' ||
         permitidos.some((d) => d.permitido && d.categoria === 'reservaEmergencia');
-      if (envolveEmergencia) {
+      if (comSaude && envolveEmergencia) {
         extras.push(
           saudePreviaDe(userId).then((s) => {
             response.saudePrevia = s;

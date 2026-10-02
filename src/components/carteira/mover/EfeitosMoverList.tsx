@@ -98,8 +98,9 @@ export function useEfeitosMover(
   destino: CategoriaMovivel | null | undefined,
 ): Efeito[] {
   const entrada = entradaDosEfeitos(opcoes, destino);
-  // Os números vêm do GET /mover (saudePrevia, fatia A); a Saúde Financeira só é buscada
-  // quando ele não os trouxe (falha/tempo esgotado → null; frase fixa se ambos faltarem).
+  // Os números vêm do GET /mover quando ele os trouxe (saudePrevia, só com `?saude=1`); senão
+  // da Saúde Financeira (mesma cache da página), buscada só quando o destino envolve a
+  // Emergência — as opções não esperam a Saúde. Frase fixa enquanto/se ambos faltarem.
   const doGet = opcoes?.saudePrevia ?? null;
   const envolve = !!entrada && envolveReservaEmergencia(entrada.origem, destino!);
   const daSaude = useSaudePrevia(envolve && !doGet);
