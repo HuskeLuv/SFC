@@ -1,5 +1,6 @@
 import prisma from '@/lib/prisma';
-import { overrideEfetivo, type CategoriaMovivel } from '@/lib/carteiraMover';
+import { overrideEfetivo, type BaseCtx, type CategoriaMovivel } from '@/lib/carteiraMover';
+import { primeiroDestinoPorAsset, type TesouroDestino } from '@/services/portfolio/tesouroDestino';
 
 /**
  * Fonte única dos aportes/resgates mensais derivados das transações reais da
@@ -73,8 +74,8 @@ export const TIPO_FLUXO_DA_CATEGORIA: Record<CategoriaMovivel, string> = {
   etfs: 'etf',
   reits: 'reit',
   fimFia: 'fund',
-  // Fase 2 do mover (Reservas + Renda Fixa, atrás de MOVER_CAIXA_RF_HABILITADO). Só a
-  // entrada: a precedência override × tesouroDestino no loop é da Fatia C.
+  // Fase 2 do mover (Reservas + Renda Fixa, atrás de MOVER_CAIXA_RF_HABILITADO). No
+  // loop, o override vence o tesouroDestino da compra (decisão 5).
   reservaEmergencia: 'emergency',
   reservaOportunidade: 'opportunity',
   rendaFixaFundos: 'bond',
@@ -85,14 +86,38 @@ export const TIPO_FLUXO_DA_CATEGORIA: Record<CategoriaMovivel, string> = {
  * não vale (nulo, igual à aba base, inválido ou ativo fora das abas movíveis):
  * aí vale `mapTransactionToTipo` — inclusive a troca só de seção, BDR e
  * fia/multimercado sem override.
+ *
+ * `ctx.reservaDestino`: reserva do Tesouro de CATÁLOGO pela regra da aba base
+ * (1ª compra marcada por data — `reservaDestinoPorAsset`). Sem ele, um Tesouro
+ * de reserva movido para a Renda Fixa teria base = RF e o override seria lido
+ * como "igual à base".
  */
 export const tipoFluxoDoOverride = (
   asset: { symbol?: string | null; type?: string | null; currency?: string | null } | null,
   categoriaOverride: string | null | undefined,
+  ctx?: BaseCtx,
 ): string | null => {
   if (!FLUXO_SEGUE_ABA || !asset) return null;
-  const movido = overrideEfetivo({ ...asset, symbol: asset.symbol ?? '' }, categoriaOverride);
+  const movido = overrideEfetivo({ ...asset, symbol: asset.symbol ?? '' }, categoriaOverride, ctx);
   return movido ? TIPO_FLUXO_DA_CATEGORIA[movido] : null;
+};
+
+/** Mesma ordem de `ORDEM_COMPRAS_TESOURO_DESTINO` (data, createdAt, id), em JS. */
+const ts = (d: Date | null | undefined): number => (d ? d.getTime() : 0);
+const porOrdemDeCompra = <T extends { date?: Date | null; createdAt?: Date | null; id?: string }>(
+  a: T,
+  b: T,
+): number =>
+  ts(a.date) - ts(b.date) ||
+  ts(a.createdAt) - ts(b.createdAt) ||
+  ((a.id ?? '') < (b.id ?? '') ? -1 : (a.id ?? '') > (b.id ?? '') ? 1 : 0);
+
+const RESERVA_DESTINO_DO_MARCADOR: Record<
+  TesouroDestino,
+  NonNullable<BaseCtx['reservaDestino']>
+> = {
+  'reserva-emergencia': 'emergencia',
+  'reserva-oportunidade': 'oportunidade',
 };
 
 /**
@@ -270,7 +295,7 @@ export async function computeInvestimentosPorMes(
     // (reserva × renda fixa) vive nas notes da compra, não no Asset.
     prisma.stockTransaction.findMany({
       where: { userId, type: 'compra', notes: { not: null }, asset: { type: 'tesouro-direto' } },
-      select: { assetId: true, notes: true },
+      select: { id: true, assetId: true, notes: true, date: true, createdAt: true },
     }),
     // Posições movidas de aba (mover na Carteira): a linha segue a aba nova.
     FLUXO_SEGUE_ABA
@@ -313,6 +338,20 @@ export async function computeInvestimentosPorMes(
     }
   }
 
+  // Aba BASE do Tesouro de catálogo para o override (mover fase 2): regra "1ª
+  // compra marcada vence" (a mesma de `reservaDestinoPorAsset`), sobre as mesmas
+  // compras, sem consulta extra. O `tipoReservaTesouro` acima (sem override)
+  // segue com a regra de antes — divergência pré-existente, fora deste pedido.
+  const reservaDestinoBase = new Map<string, NonNullable<BaseCtx['reservaDestino']>>();
+  if (overridePorAsset.size > 0) {
+    const comprasMovidas = comprasTesouro
+      .filter((c) => c.assetId && overridePorAsset.has(c.assetId))
+      .sort(porOrdemDeCompra);
+    for (const [assetId, marcador] of primeiroDestinoPorAsset(comprasMovidas)) {
+      reservaDestinoBase.set(assetId, RESERVA_DESTINO_DO_MARCADOR[marcador]);
+    }
+  }
+
   const porTipo: Record<string, Record<number, number>> = {};
   const tipos = new Set<string>();
   const lastRateByAsset = new Map<string, number>();
@@ -326,14 +365,18 @@ export async function computeInvestimentosPorMes(
     const tipoReservaTesouro = transacao.assetId
       ? reservaTesouroPorAsset.get(transacao.assetId)
       : undefined;
+    // Ordem: reinvestimento → sonho → aba do mover (vence o tesouroDestino da
+    // compra) → Tesouro de reserva → tipo do Asset.
     const tipoAtivo = isReinvestimentoTransaction(transacao.notes)
       ? 'reinvestimento'
       : transacao.assetId && assetsDeSonho.has(transacao.assetId)
         ? 'planejamento'
-        : (tipoReservaTesouro ??
-          (transacao.assetId
-            ? tipoFluxoDoOverride(transacao.asset, overridePorAsset.get(transacao.assetId))
+        : ((transacao.assetId
+            ? tipoFluxoDoOverride(transacao.asset, overridePorAsset.get(transacao.assetId), {
+                reservaDestino: reservaDestinoBase.get(transacao.assetId) ?? null,
+              })
             : null) ??
+          tipoReservaTesouro ??
           mapTransactionToTipo(transacao));
 
     tipos.add(tipoAtivo);
