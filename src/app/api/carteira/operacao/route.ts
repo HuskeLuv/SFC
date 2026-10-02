@@ -36,6 +36,7 @@ import {
 import { CAMPO_SUBGRUPO_PORTFOLIO, isSubgrupoValido, overrideEfetivo } from '@/lib/carteiraMover';
 import { runCvmFundSync } from '@/services/pricing/cvmFundSync';
 import { applyCorporateActionsToUserPositions } from '@/services/portfolio/applyCorporateActions';
+import { tesouroDestinoDaCompra } from '@/services/portfolio/moverInvestimento';
 import {
   recordChange,
   diffFields,
@@ -1905,7 +1906,10 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
     metadata.dataVencimento = dataVencimento || null;
   }
   if (tipoAtivo === 'tesouro-direto' && tesouroDestino) {
-    metadata.tesouroDestino = tesouroDestino;
+    // Mover fase 2: Tesouro com a posição movida grava o marcador da aba BASE
+    // vigente (a compra nova não troca a base); sem posição movida = o recebido.
+    const marcadorDestino = await tesouroDestinoDaCompra(targetUserId, asset, tesouroDestino);
+    if (marcadorDestino) metadata.tesouroDestino = marcadorDestino;
     const tesouroEmReserva =
       tesouroDestino === 'reserva-emergencia' || tesouroDestino === 'reserva-oportunidade';
     if (tesouroEmReserva) {
