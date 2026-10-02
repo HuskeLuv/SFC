@@ -6,9 +6,9 @@ import { useCsrf } from '@/hooks/useCsrf';
 import { queryKeys } from '@/lib/queryKeys';
 import { invalidatePortfolioDerivedQueries } from '@/lib/invalidatePortfolio';
 import {
-  CATEGORIA_API_PATH,
+  SUBGRUPO_EDITAVEL,
   abaIdDaCategoria,
-  isCategoriaMovivel,
+  isCategoriaMovivelTodas,
   rotuloCategoria,
   rotuloSubgrupo,
   type CategoriaMovivel,
@@ -25,8 +25,11 @@ import {
   type UseMoverInvestimento,
 } from '@/types/carteiraMover';
 import {
+  isDadosReserva,
   moverLinhaEntreSecoes,
+  queryKeyDaAba,
   removerLinha,
+  removerLinhaReserva,
   type DadosAba,
 } from '@/components/carteira/mover/moverOptimistic';
 import { mostrarToastMover } from '@/components/carteira/mover/moverToast';
@@ -84,7 +87,7 @@ export interface UseMoverInvestimentoResult extends UseMoverInvestimento {
 
 const onde = (categoria: string, subgrupo: string | null | undefined): string => {
   const aba = rotuloCategoria(categoria as CategoriaMovivel);
-  const secao = isCategoriaMovivel(categoria) ? rotuloSubgrupo(categoria, subgrupo) : null;
+  const secao = isCategoriaMovivelTodas(categoria) ? rotuloSubgrupo(categoria, subgrupo) : null;
   return secao ? `${aba} › ${secao}` : aba;
 };
 
@@ -98,6 +101,8 @@ const rotuloDoAlvo = (queryClient: QueryClient, alvo: MoverAlvo | MoverAlvoRef):
 /** Onde o item está antes da mutação (texto do erro: "Ele continua em …"). */
 const ondeEstava = (queryClient: QueryClient, alvo: MoverAlvo | MoverAlvoRef): string | null => {
   if (isMoverAlvoCompleto(alvo)) {
+    // Reservas (sem seção, secaoAtual ''): só a aba.
+    if (!alvo.secaoAtual) return rotuloCategoria(alvo.categoria);
     return `${rotuloCategoria(alvo.categoria)} › ${rotuloSubgrupo(alvo.categoria, alvo.secaoAtual) ?? alvo.secaoAtual}`;
   }
   const atual = opcoesNoCache(queryClient, alvo)?.atual;
@@ -199,13 +204,17 @@ export function useMoverInvestimento(
       postMover(
         csrfFetch,
         vars.acao === 'mover'
-          ? {
+          ? ({
               acao: 'mover',
               tipo: vars.alvo.tipo,
               id: vars.alvo.id,
               categoria: vars.categoria,
-              subgrupo: vars.subgrupo,
-            }
+              // Fase 2: Reservas e Renda Fixa não têm seção para escolher — o subgrupo não vai
+              // no corpo (o servidor deriva a seção da RF e ignora o resto).
+              ...(SUBGRUPO_EDITAVEL[vars.categoria] || vars.subgrupo
+                ? { subgrupo: vars.subgrupo }
+                : {}),
+            } as MoverInvestimentoBody)
           : { acao: 'restaurar', tipo: vars.alvo.tipo, id: vars.alvo.id },
       ),
     onMutate: async (vars) => {
@@ -221,10 +230,15 @@ export function useMoverInvestimento(
       }
       if (!destino) return {};
 
-      const chave = queryKeys.assets.type(CATEGORIA_API_PATH[alvo.categoria]);
+      const chave = queryKeyDaAba(alvo.categoria);
       await queryClient.cancelQueries({ queryKey: chave });
       const anterior = queryClient.getQueryData(chave);
-      if (anterior && typeof anterior === 'object' && 'secoes' in anterior) {
+      if (isDadosReserva(anterior)) {
+        // Reservas: lista única — só sai da origem (a troca é sempre de aba).
+        if (destino.categoria !== alvo.categoria) {
+          queryClient.setQueryData(chave, removerLinhaReserva(anterior, alvo.id));
+        }
+      } else if (anterior && typeof anterior === 'object' && 'secoes' in anterior) {
         const dados = anterior as DadosAba;
         const novo =
           destino.categoria === alvo.categoria && destino.subgrupo

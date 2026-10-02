@@ -10,6 +10,7 @@ import {
   type CategoriaAtivoResponse,
   type CategoriaMovivel,
 } from '@/lib/carteiraMover';
+import { queryKeyDaAba } from '@/components/carteira/mover/moverOptimistic';
 
 /** assetId de catálogo (os do assistente como 'PERSONALIZADO', 'REIT-MANUAL'… não têm aba). */
 const ID_DE_CATALOGO = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -71,10 +72,13 @@ export function useCategoriaEfetivaAtivo(
   });
 
   const categoria = categoriaQ.data?.categoria ?? null;
-  const path = categoria ? CATEGORIA_API_PATH[categoria] : null;
+  // Reservas (fase 2) não têm seção: não há o que ler na aba.
+  const campo = categoria ? CAMPO_SECAO_NA_LINHA[categoria] : null;
+  const path = categoria && campo ? CATEGORIA_API_PATH[categoria] : null;
   const tickerNorm = (ticker ?? '').trim().toUpperCase();
   const abaQ = useQuery<DadosAba>({
-    queryKey: queryKeys.assets.type(path ?? ''),
+    // Mesma cache da tabela da aba (RF: assets.type('renda-fixa')).
+    queryKey: categoria && path ? queryKeyDaAba(categoria) : queryKeys.assets.type(''),
     queryFn: async ({ signal }) => {
       const response = await fetch(`/api/carteira/${path}`, { credentials: 'include', signal });
       if (!response.ok) throw new Error('Erro ao carregar a aba');
@@ -85,7 +89,6 @@ export function useCategoriaEfetivaAtivo(
   });
 
   let secaoAtual: SecaoNaCarteira | null = null;
-  const campo = categoria ? CAMPO_SECAO_NA_LINHA[categoria] : null;
   if (categoria && campo && tickerNorm && abaQ.data?.secoes) {
     for (const secao of abaQ.data.secoes) {
       const linha = secao.ativos?.find((a) => (a.ticker ?? '').toUpperCase() === tickerNorm);
