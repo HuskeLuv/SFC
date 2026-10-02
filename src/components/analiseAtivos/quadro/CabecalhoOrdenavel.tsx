@@ -60,7 +60,7 @@ export default function CabecalhoOrdenavel({
     <th
       scope="col"
       aria-sort={ariaSort}
-      className={`${TABLE_STYLES.th} ${ALINHAMENTO[coluna.alinhamento]} sticky top-0 ${
+      className={`${TABLE_STYLES.th.replace('px-4', 'px-3')} ${ALINHAMENTO[coluna.alinhamento]} sticky top-0 ${
         fixa ? 'left-0 z-30' : 'z-20'
       } ${className}`}
       style={estilo}

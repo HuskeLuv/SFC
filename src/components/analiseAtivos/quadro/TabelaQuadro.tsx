@@ -33,6 +33,8 @@ import type {
 
 const T = TEXTOS_TELA.quadro;
 const SEM = TEXTOS_TELA.formato.semDado;
+/** td do padrão com px-3: o Resumo (Índice MF e Na carteira inclusive) cabe sem rolar a 1440. */
+export const TD_QUADRO = TABLE_STYLES.td.replace('px-4', 'px-3');
 
 export const ESPERA_PREFETCH_MS = 300;
 export const INTERVALO_PREFETCH_MS = 2_000;
@@ -80,7 +82,7 @@ export function CelulaIndice({
     <span className="inline-flex items-center gap-2" data-estado-indice={linha.indice.estado}>
       <AnelIndice valor={linha.indice.valor} estado={linha.indice.estado} tamanho={tamanho} />
       {apoio ? (
-        <span className="max-w-[7.5rem] text-left text-[11px] leading-tight text-gray-500 dark:text-gray-400">
+        <span className="max-w-[5rem] text-left text-[11px] leading-tight whitespace-normal text-gray-500 dark:text-gray-400">
           {apoio}
         </span>
       ) : null}
@@ -273,7 +275,7 @@ export default function TabelaQuadro({
             ? Array.from({ length: 8 }, (_, i) => (
                 <tr key={`sk-${i}`} className={TABLE_STYLES.row} aria-hidden="true">
                   {colunas.map((c) => (
-                    <td key={c.codigo} className={TABLE_STYLES.td}>
+                    <td key={c.codigo} className={TD_QUADRO}>
                       <span className="block h-3 w-full max-w-[6rem] rounded bg-gray-200 motion-safe:animate-pulse dark:bg-white/[0.08]" />
                     </td>
                   ))}
@@ -301,7 +303,7 @@ export default function TabelaQuadro({
                         <th
                           key={c.codigo}
                           scope="row"
-                          className={`${TABLE_STYLES.td} ${fixoTd} text-left font-normal ${
+                          className={`${TD_QUADRO} ${fixoTd} text-left font-normal ${
                             destaque ? TABLE_STYLES.highlightTd : ''
                           }`}
                         >
@@ -312,7 +314,7 @@ export default function TabelaQuadro({
                     return (
                       <td
                         key={c.codigo}
-                        className={`${TABLE_STYLES.td} ${alinhar} whitespace-nowrap tabular-nums ${
+                        className={`${TD_QUADRO} ${alinhar} whitespace-nowrap tabular-nums ${
                           destaque ? TABLE_STYLES.highlightTd : ''
                         }`}
                         data-coluna={c.codigo}
@@ -335,7 +337,7 @@ export default function TabelaQuadro({
 
 function CelulaAtivo({ linha }: { linha: LinhaQuadroApi }) {
   return (
-    <span className="flex min-w-[12rem] items-center gap-3">
+    <span className="flex min-w-[9rem] items-center gap-3">
       <LogoTicker ticker={linha.ticker} />
       <span className="min-w-0">
         <span className="flex flex-wrap items-center gap-1.5">
@@ -350,7 +352,7 @@ function CelulaAtivo({ linha }: { linha: LinhaQuadroApi }) {
             <SeloIncompleto motivos={linha.indice.motivos} ticker={linha.ticker} />
           ) : null}
         </span>
-        <span className="block max-w-[14rem] truncate text-xs text-gray-500 dark:text-gray-400">
+        <span className="block max-w-[9rem] truncate text-xs text-gray-500 dark:text-gray-400">
           {linha.nome}
         </span>
       </span>
