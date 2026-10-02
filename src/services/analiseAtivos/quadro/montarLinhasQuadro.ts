@@ -32,6 +32,8 @@ export const ANOS_SERIE = 10;
 /** Salto de provento nos N últimos anos fechados contamina o DY 12m (flag 'provento_suspeito'). */
 export const ANOS_SALTO_RECENTE = 2;
 export const FLAG_PROVENTO_SUSPEITO = 'provento_suspeito';
+/** FII cujo casamento ticker↔CNPJ não foi conferido: números do informe 'em conferência', não é par. */
+export const FLAG_CNPJ_EM_CONFERENCIA = 'cnpj_em_conferencia';
 
 // ---------------------------------------------------------------------------
 // Entrada (números já convertidos; datas civis como Date UTC)
@@ -123,7 +125,12 @@ export interface EntradaQuadro {
   dataRef: Date;
   geradoEm: Date;
   acoes: TickerAcao[];
-  fiis: Array<{ symbol: string; cnpj: string }>;
+  /**
+   * conferido = casamento ticker↔CNPJ aprovado (FiiTickerMap). Não conferido: os números do informe
+   * (P/VP, patrimônio, valor de mercado, vacância...) podem ser de outro CNPJ ⇒ ficam 'em conferência'
+   * e o fundo não serve de par. Ausente = conferido.
+   */
+  fiis: Array<{ symbol: string; cnpj: string; conferido?: boolean }>;
   scores: ScoreQuadro[];
   multiplos: MultiplosQuadro[];
   resumos: ResumoCotacaoQuadro[];
@@ -229,8 +236,18 @@ export function montarLinhasQuadro(e: EntradaQuadro): ResultadoMontagem {
   const anoAtual = Number(e.hoje.slice(0, 4));
 
   const universo = [
-    ...e.acoes.map((a) => ({ symbol: a.symbol, cnpj: a.cnpj, classe: 'acao' as const })),
-    ...e.fiis.map((f) => ({ symbol: f.symbol, cnpj: f.cnpj, classe: 'fii' as const })),
+    ...e.acoes.map((a) => ({
+      symbol: a.symbol,
+      cnpj: a.cnpj,
+      classe: 'acao' as const,
+      cnpjEmConferencia: false,
+    })),
+    ...e.fiis.map((f) => ({
+      symbol: f.symbol,
+      cnpj: f.cnpj,
+      classe: 'fii' as const,
+      cnpjEmConferencia: f.conferido === false,
+    })),
   ];
 
   const scorePor = new Map(e.scores.map((s) => [s.symbol, s]));
@@ -276,8 +293,9 @@ export function montarLinhasQuadro(e: EntradaQuadro): ResultadoMontagem {
     const m = multPor.get(u.symbol);
     const r = resumoPor.get(u.symbol);
     const setor = ehAcao ? setorPor.get(raiz(u.symbol)) : undefined;
-    const mensal = ehAcao ? undefined : mensalPor.get(u.cnpj);
-    const trim = ehAcao ? undefined : trimPor.get(u.cnpj);
+    // FII com ticker↔CNPJ não conferido: nada do informe (pode ser de outro fundo)
+    const mensal = ehAcao || u.cnpjEmConferencia ? undefined : mensalPor.get(u.cnpj);
+    const trim = ehAcao || u.cnpjEmConferencia ? undefined : trimPor.get(u.cnpj);
     const asset = assetPor.get(u.symbol);
     const nomeB3 = ehAcao ? null : (nomeB3Por.get(u.symbol) ?? null);
     const fiiTipo = ehAcao ? null : (score?.fiiTipo ?? mensal?.tipoVigente ?? null);
@@ -328,6 +346,7 @@ export function montarLinhasQuadro(e: EntradaQuadro): ResultadoMontagem {
     }
 
     const flags = [...(m?.flags ?? [])];
+    if (u.cnpjEmConferencia) flags.push(FLAG_CNPJ_EM_CONFERENCIA);
     if (saltoRecente && !flags.includes(FLAG_PROVENTO_SUSPEITO)) flags.push(FLAG_PROVENTO_SUSPEITO);
 
     // valor de mercado
@@ -389,7 +408,7 @@ export function montarLinhasQuadro(e: EntradaQuadro): ResultadoMontagem {
       anosDividendo: ehAcao ? anosSeguidosComProvento(dpa) : null,
       roePct: m?.roePct ?? null,
       pl: m?.pl ?? null,
-      pvp: m?.pvp ?? null,
+      pvp: u.cnpjEmConferencia ? null : (m?.pvp ?? null),
       dy12mPct: m?.dy12mPct ?? null,
       margemLiquidaPct: m?.margemLiquidaPct ?? null,
       divLiqEbitda: m?.divLiqEbitda ?? null,
@@ -398,7 +417,7 @@ export function montarLinhasQuadro(e: EntradaQuadro): ResultadoMontagem {
       vacanciaFisicaCvmPct: trim?.vacanciaFisicaCvmPct ?? null,
       nImoveisCvm: trim?.nImoveisRenda ?? null,
       nCri: trim?.nCri ?? null,
-      obrigacoesPlPct: m?.obrigacoesPlPct ?? null,
+      obrigacoesPlPct: u.cnpjEmConferencia ? null : (m?.obrigacoesPlPct ?? null),
       cotistas: mensal?.cotistas ?? null,
       naoSeAplica: m?.naoSeAplica ?? [],
       serie10a: serie10a as unknown as Prisma.InputJsonValue,
@@ -439,9 +458,10 @@ function preencherPares(linhas: LinhaQuadroGravar[]): void {
   const num = (v: unknown): number | null => (typeof v === 'number' ? v : null);
   for (const classe of ['acao', 'fii'] as const) {
     const daClasse = noQuadro.filter((l) => l.classe === classe);
-    // uma linha por empresa: a de maior liquidez
+    // uma linha por empresa: a de maior liquidez; FII não conferido não serve de par
     const porCnpj = new Map<string, LinhaQuadroGravar>();
     for (const l of daClasse) {
+      if (Array.isArray(l.flags) && l.flags.includes(FLAG_CNPJ_EM_CONFERENCIA)) continue;
       const atual = porCnpj.get(l.cnpj);
       if (!atual || (num(l.volumeMedio21) ?? 0) > (num(atual.volumeMedio21) ?? 0)) {
         porCnpj.set(l.cnpj, l);

@@ -9,6 +9,7 @@
  *   tela diz 'sem pares no mesmo segmento'.
  */
 import { obterLinhasQuadroApi } from '@/services/analiseAtivos/leitura/linhasQuadro';
+import { FLAG_CNPJ_EM_CONFERENCIA } from '@/services/analiseAtivos/quadro/montarLinhasQuadro';
 import { selecionarPares } from '@/services/analiseAtivos/regras/calculo/pares';
 import { TEXTOS_TELA } from '@/services/analiseAtivos/textosTela';
 import type { LinhaQuadroApi } from '@/types/analiseAtivosApi';
@@ -34,7 +35,11 @@ export function selecionarParesAtivo(
   n: number = N_PARES,
 ): string[] {
   const universo = linhas.filter(
-    (l) => l.classe === alvo.classe && l.noQuadro && l.ticker !== alvo.ticker,
+    (l) =>
+      l.classe === alvo.classe &&
+      l.noQuadro &&
+      l.ticker !== alvo.ticker &&
+      !l.flags.includes(FLAG_CNPJ_EM_CONFERENCIA),
   );
   const disponiveis = new Set(universo.map((l) => l.ticker));
   const gravados = alvo.pares.filter((p) => disponiveis.has(p));

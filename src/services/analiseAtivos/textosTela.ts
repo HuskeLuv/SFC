@@ -159,6 +159,7 @@ export const TEXTOS_TELA = {
   ausentesPorCampo: {
     plPrejuizo: 'P/L não calculado: prejuízo no último exercício',
     dyEmConferencia: 'proventos em conferência',
+    cnpjEmConferencia: 'em conferência: cadastro do fundo ainda não confirmado',
     dyRendimentoParado: 'rendimento parado',
     semDado: 'sem dado',
   },

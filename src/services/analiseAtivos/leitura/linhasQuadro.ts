@@ -17,6 +17,7 @@
  */
 import type { AnaliseQuadroLinha } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
+import { FLAG_CNPJ_EM_CONFERENCIA } from '@/services/analiseAtivos/quadro/montarLinhasQuadro';
 import {
   TEXTOS_TELA,
   motivoTela,
@@ -177,6 +178,12 @@ const APLICAVEIS: Record<ClasseQuadro, ReadonlySet<CampoApi>> = {
 };
 
 const CAMPOS_PROVENTO: ReadonlySet<CampoApi> = new Set<CampoApi>(['dy12m', 'payout']);
+/** Campos do FII que vêm do informe do CNPJ (ficam 'em conferência' se o ticker↔CNPJ não conferiu). */
+const CAMPOS_CNPJ_FII: ReadonlySet<CampoApi> = new Set<CampoApi>([
+  'pvp',
+  'vacanciaCvm',
+  'obrigacoesPl',
+]);
 
 function mapaNaoSeAplica(row: AnaliseQuadroLinha): Map<string, string> {
   const padrao =
@@ -234,6 +241,9 @@ function estadoCampo(
   const v = row[coluna];
   if (typeof v === 'number' && Number.isFinite(v)) return { estado: 'ok', valor: v };
   const t = TEXTOS_TELA.ausentesPorCampo;
+  if (CAMPOS_CNPJ_FII.has(campo) && row.flags.includes(FLAG_CNPJ_EM_CONFERENCIA)) {
+    return ausente('cnpj_em_conferencia', t.cnpjEmConferencia);
+  }
   if (campo === 'pl' && temPrejuizo(row)) return ausente('prejuizo', t.plPrejuizo);
   if (CAMPOS_PROVENTO.has(campo) && emConferencia) {
     return ausente('fonte_defasada', t.dyEmConferencia);

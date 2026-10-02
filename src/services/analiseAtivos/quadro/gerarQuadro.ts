@@ -144,7 +144,7 @@ export async function carregarEntradaQuadro(
     dataRef,
     geradoEm,
     acoes,
-    fiis: fiis.map((f) => ({ symbol: f.symbol, cnpj: f.cnpj })),
+    fiis: fiis.map((f) => ({ symbol: f.symbol, cnpj: f.cnpj, conferido: f.conferido })),
     scores: scores.map((s) => ({
       symbol: s.symbol,
       cnpj: s.cnpj,

@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
+  FLAG_CNPJ_EM_CONFERENCIA,
   anosSeguidosComProvento,
   ehFiagro,
   montarLinhasQuadro,
@@ -382,6 +383,36 @@ describe('montarLinhasQuadro', () => {
       { ano: 2025, valor: 13, suspeito: true },
     ]);
     expect(s.flags).toContain('provento_suspeito');
+  });
+
+  it('FII com ticker↔CNPJ não conferido: números do informe em conferência e não vira par', () => {
+    const base = entrada();
+    const r2 = montarLinhasQuadro(
+      entrada({
+        fiis: [...base.fiis, { symbol: 'PLTB11', cnpj: 'F-PLT', conferido: false }],
+        multiplos: [...base.multiplos, mult('PLTB11', { pvp: 3.78 })],
+        resumos: [...base.resumos, resumo('PLTB11')],
+        fiiMensal: [
+          ...base.fiiMensal,
+          {
+            cnpj: 'F-PLT',
+            segmentoCvm: 'Logística',
+            tipoVigente: 'tijolo',
+            cotistas: 10,
+            pl: 1e6,
+            cotas: 1e6,
+          },
+        ],
+      }),
+    );
+    const p = linha(r2, 'PLTB11');
+    expect(p.noQuadro).toBe(true);
+    expect(p.pvp).toBeNull();
+    expect(p.patrimonio).toBeNull();
+    expect(p.valorMercado).toBeNull();
+    expect(p.segmentoCvm).toBeNull();
+    expect(p.flags).toContain(FLAG_CNPJ_EM_CONFERENCIA);
+    expect(linha(r2, 'HGLG11').pares).not.toContain('PLTB11');
   });
 
   it('valor de mercado do FII = cota × cotas', () => {

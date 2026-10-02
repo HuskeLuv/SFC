@@ -141,6 +141,15 @@ describe('linhasQuadro', () => {
       expect(tgma.proventosEmConferencia).toBe(true);
     });
 
+    it('FII com ticker↔CNPJ não conferido: P/VP em conferência', () => {
+      const api = paraLinhaQuadroApi({
+        ...LINHA_HGLG11,
+        pvp: null,
+        flags: ['cnpj_em_conferencia'],
+      });
+      expect(api.pvp).toMatchObject({ estado: 'ausente', motivo: 'cnpj_em_conferencia' });
+    });
+
     it('não se aplica: financeira, papel sem imóveis e campo de outra classe', () => {
       const itub = paraLinhaQuadroApi(LINHA_ITUB4);
       expect(itub.divLiqEbitda).toMatchObject({ estado: 'nao_se_aplica', motivo: 'financeira' });
