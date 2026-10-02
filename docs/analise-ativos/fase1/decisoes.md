@@ -1,0 +1,29 @@
+# Análise de Ativos — Fase 1 · decisões pedidas (02/10/2026)
+
+Desenho: workflow wf_b85efcf5-9e8 (arquiteto + designer → revisor crítico, 13 críticas → revisão final).
+Protótipo: `prototipo.html` (publicado em https://claude.ai/artifact/7yu8y8B3JuVRnz3EHznt9g).
+Especificação técnica completa: `spec-desenho.json` (fatias 0a, 0b, A–D; APIs; schema; plano de produção).
+
+Cada item traz a recomendação. Arquiteto e designer convergiram na versão final; onde a recomendação
+diverge da spec do Pedro, está marcado.
+
+| #   | Decisão                             | Recomendação                                                                                                                                                                                                                                                                                                               |
+| --- | ----------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | Cores do semáforo e do Índice       | Só paleta My Finance: anel do Índice numa cor (azul), Atende/Parcial em azul com ícones diferentes, só "Não atende" em vermelho, "Sem dado" tracejado. **Diverge da spec** (verde/âmbar/vermelho): verde lê como "compre" e não está na paleta. Lucro 10 anos: azul para cima, prejuízo vermelho para baixo                |
+| 2   | Tese × consultor                    | Tese 100% privada: consultor agindo pelo cliente não lê nem escreve (403 + card explicando). Área fora do menu do modo consultor; pela URL ele vê a posição do cliente                                                                                                                                                     |
+| 3   | Universo do Quadro                  | Montado do cadastro (ações + FIIs vigentes), Índice opcional. Ações e FIIs sem negócio em 30 pregões ficam só na busca. FIIs negociados sem Índice (ex.: HCTR11) entram com "sem Índice · dados insuficientes"                                                                                                             |
+| 4   | Incompletos (46% das ações em prod) | Aparecem na ordem normal com selo + anel tracejado + "o que falta"; chip "Só dados completos" desligado por padrão. Três estados distintos: incompleto (TGMA3), em conferência (WEGE3), zero pela regra (AURE3)                                                                                                            |
+| 5   | Séries anuais e proventos suspeitos | Só anos fechados + "últ. 12m" separado. DPA > 2× o ano anterior = "em conferência" (tracejado, fora do CAGR). Corrigir as parcelas repetidas da fonte antes de abrir o beta                                                                                                                                                |
+| 6   | Conteúdo sem fonte                  | Sai: tag IBOV, referência Ibovespa/IFIX, JCP/rendimento estimado. Volta quando houver fonte                                                                                                                                                                                                                                |
+| 7   | Escopo visível                      | Comparar, Salvar, Comparador/Ranking/Salvos, Stocks/REITs, coluna Comunidade e "reportar dado" ficam **escondidos, sem "em breve"**. Gráfico anual só 5A/10A (**diverge da spec**: 1A/3A dariam 1–3 pontos)                                                                                                                |
+| 8   | Página do ativo                     | URL própria `/analise-ativos/WEGE3` (**diverge da spec** §3.1, "dentro do card") — Agenda, busca e Carteira linkam direto, Voltar funciona                                                                                                                                                                                 |
+| 9   | Botões e "Na sua carteira"          | "Planejar na Carteira" abre o wizard na etapa Planejar com o ticker; "Registrar operação" abre o wizard. Números do bloco = os mesmos da aba da Carteira (respeita "mover entre abas")                                                                                                                                     |
+| 10  | Acesso e beta                       | Flag `ANALISE_ATIVOS_HABILITADA` desligada = 404. Ligada e fora do beta = tela "Área em beta fechado" (só informativa); API sempre 404. Lista do beta em tabela, operada por script; admins sempre entram. Começar com ~10 internos por 2–3 dias, depois ampliar. Agenda mostra datas de resultado só para quem tem acesso |
+| 11  | Tese                                | Um texto por usuário e ativo, salvamento automático, até 10.000 caracteres, sem histórico ("diário de decisões" fica para depois)                                                                                                                                                                                          |
+| 12  | Detalhes                            | Paginação 25 + "Mostrar mais"; selo NOVO até 31/12/2026 (ou 60 dias após abrir para todos); banner só dentro da área; card Educação aponta para a página do curso até existirem módulos específicos; vacância/imóveis com "fonte CVM · pode diferir do gestor"                                                             |
+
+**Fora da decisão técnica (pendências do Wellington/Pedro, não bloqueiam a construção):**
+
+- Quem entra no beta além dos internos.
+- Validar os textos de compliance (`textosTela`) com o jurídico antes de abrir o beta.
+- Quais aulas da Educação usar para Ações e FIIs.

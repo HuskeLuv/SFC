@@ -1,0 +1,621 @@
+{
+  "arquitetura": {
+    "resumo": "Especificação técnica FINAL (v2) da Fase 1 da Análise de Ativos: Quadro e Página do ativo, só Ações e FIIs. A base é o main (HEAD e1bb8634, que já tem a Fase 0 de 63bcee42 e o 'mover entre abas' #275).\n\nAs 13 críticas foram incorporadas. Principais mudanças em relação à v1:\n\n(1) Paleta. Adotada a linha do designer, só com cores do brandColors.ts.\n- Anel do Índice numa cor só (outside #0079F2, que não é texto); o número no centro vai em gray-800/branco. Não há cor por faixa: FAIXA_INDICE vira só dado.\n- Semáforo: Atende e Parcial em patrimonio #396CAA (escuro: tranquilidade #6E9DC4), diferenciados por ícone (círculo cheio com ✓ / meio cheio). Só 'Não atende' usa #D92D20/#F97066, com ✕. 'Sem dado' fica tracejado cinza com '?'; 'Não se aplica' é um traço.\n- As barras de Lucro 10 anos ficam em patrimonio, com o prejuízo em vermelho para baixo.\n\n(2) Tese PRIVADA. Consultor agindo pelo cliente recebe 403. O cenário 'tese da cliente em leitura' sai e entra o card 'A tese é pessoal de cada usuário'. Rota /api/analise-ativos/teses/[ticker], limite de 10.000 caracteres (o designer tinha 5.000; alinhado).\n\n(3) Universo do job 'quadro'.\n- Parte de listarTickersAcoes + listarFiisListados (FiiTickerMap vigente), com o score OPCIONAL.\n- noQuadro = negociadoUltimos30 E não Fiagro.\n- Ações sem negociação ficam só na busca, com 'sem negociação recente'.\n- FIIs com múltiplos e sem score (HCTR11 e outros 20) entram com 'Índice MF não calculado'.\n- FIIs não negociados aparecem só na busca.\n\n(4) Dois estados distintos: 'dados incompletos' (anel tracejado, ex.: TGMA3 com 'proventos em conferência') e 'zero pela regra' (prejuízo, anel sólido, ex.: AURE3).\n\n(5) Saem do produto e do protótipo, por não terem fonte: tag IBOV, referência 'Ibovespa' e 'JCP estimado'. Os cenários usam números reais do dev.\n\n(6) Celular: os chips ficam numa linha própria com rolagem interna. Chips e pílulas têm min-h-11 (44px).\n\n(7) Séries anuais (Rendimento 10 anos, dividendos, CAGR): só anos FECHADOS, mais um ponto separado 'últ. 12m'. Detector de salto de provento (WEGE3 2025) gera o selo 'proventos em conferência'.\n\n(8) 'Na sua carteira' REUSA os endpoints da própria aba, /api/carteira/acoes e /api/carteira/fii (hooks useAcoes/useFii). Eles já tratam categoriaOverride, planejados e objetivo, então os números ficam IGUAIS aos da Carteira. Classe × alvo vem de /api/carteira/resumo + /api/carteira/configuracao. O endpoint /api/analise-ativos/carteira fica só como overlay DB-only para o filtro 'Na minha carteira' do Quadro.\n\n(9) A fatia 0 foi dividida em 0a (bloqueante: schema, contratos, gate, hooks, leitores, séries/CAGR únicos, fixtures, stubs) e 0b (componentes visuais comuns, em paralelo com A–D).\n\n(10) Gate:\n- Flag desligada: 404 pelo notFound() do layout, que sobe para o src/app/not-found.tsx da raiz; o segmento NÃO tem not-found próprio.\n- Flag ligada e usuário fora do beta: o layout renderiza a tela informativa 'Área em beta fechado'.\n- API: sempre 404.\n\n(11) Agenda: o link usa o primeiro símbolo que o dono da agenda tem, e o acesso é decidido pelo dono da agenda.\n\n(12) Quadro com Cache-Control no-store; o cache fica na memória do servidor.\n\nPRINCÍPIOS MANTIDOS\n- Nenhuma API /api/analise-ativos/* chama provedor externo.\n- Tabela pré-calculada analise_quadro_linhas e cache em memória chaveado pela versão (instância única no Lightsail).\n- Estado<T> com motivo em vez de null solto.\n- Todos os textos saem de textosTela/TEXTOS_ANALISE, com varredura de palavras proibidas.\n- Integração REUSANDO o AddAssetWizard (preset opcional), os planejados e os endpoints da Carteira.\n\nROTAS DE PÁGINA\n- /analise-ativos (Quadro; estado na URL ?classe=acao|fii&ordem=&dir=&modo=&f=)\n- /analise-ativos/[ticker]\nFicam em src/app/(admin)/(others-pages)/analise-ativos/.\n\nA referência visual é o protótipo do designer, revisado com as críticas. A fatia 0a o versiona em docs/analise-ativos/fase1/prototipo.html, e ele prevalece sobre o prototipo-pedro.html em leiaute. As divergências com o designer e com a spec estão em perguntas_para_wellington.",
+    "fatias": [
+      {
+        "id": "0a",
+        "titulo": "Fundação bloqueante: schema aditivo, contratos, gate flag+beta, casca, leitores, séries/CAGR únicos, hooks, textos, fixtures e stubs",
+        "objetivo": "Entregar em ~3–4 dias tudo de que A, B, C e D dependem para trabalhar em worktrees separados sem arquivo em comum. Os componentes visuais comuns saem como stubs com as props finais, para a 0b preencher.",
+        "arquivos_novos": [
+          "prisma/migrations/20261005000000_analise_ativos_fase1/migration.sql",
+          "docs/analise-ativos/fase1/prototipo.html (protótipo revisado do designer, referência de leiaute)",
+          "src/types/analiseAtivosApi.ts",
+          "src/services/analiseAtivos/acesso/acessoAnalise.ts",
+          "src/services/analiseAtivos/acesso/__tests__/acessoAnalise.test.ts",
+          "src/services/analiseAtivos/leitura/linhasQuadro.ts",
+          "src/services/analiseAtivos/leitura/__tests__/linhasQuadro.test.ts",
+          "src/services/analiseAtivos/leitura/ativo/series.ts",
+          "src/services/analiseAtivos/leitura/ativo/__tests__/series.test.ts",
+          "src/services/analiseAtivos/textosTela.ts",
+          "src/services/analiseAtivos/__tests__/textosTela.test.ts",
+          "src/constants/analiseAtivosVisual.ts",
+          "src/app/api/analise-ativos/config/route.ts",
+          "src/app/api/analise-ativos/config/__tests__/route.test.ts",
+          "src/hooks/useAnaliseAtivos.ts",
+          "src/hooks/__tests__/useAnaliseAtivos.test.ts",
+          "src/app/(admin)/(others-pages)/analise-ativos/layout.tsx",
+          "src/app/(admin)/(others-pages)/analise-ativos/page.tsx",
+          "src/app/(admin)/(others-pages)/analise-ativos/[ticker]/page.tsx",
+          "src/components/analiseAtivos/shell/AnaliseAtivosShell.tsx",
+          "src/components/analiseAtivos/shell/TelaForaDoBeta.tsx",
+          "src/components/analiseAtivos/shell/SecaoPreguicosa.tsx",
+          "src/components/analiseAtivos/pagina/PaginaAtivo.tsx",
+          "STUBS de props finais (dono 0b): src/components/analiseAtivos/shell/{RodapeLegal,BannerNovidade}.tsx; src/components/analiseAtivos/comum/{AnelIndice,BadgeCriterio,BarrasDezAnos,ValorAnalise,SeloIncompleto,SeloFonteCvm,SeloEstado}.tsx; src/components/analiseAtivos/comum/formatarAnalise.ts",
+          "STUBS (dono A): src/components/analiseAtivos/quadro/QuadroAnalise.tsx, src/components/analiseAtivos/busca/BuscaAtivos.tsx",
+          "STUBS (dono B): src/components/analiseAtivos/ativo/topo/{CabecalhoAtivo,BlocoIndiceSemaforo,BlocoKpis,GraficoLucroCotacao,BlocoDividendos,BlocoEventos,CardEducacao,SeloFrescor}.tsx",
+          "STUBS (dono C): src/components/analiseAtivos/ativo/analise/{BlocoFundamentosEssencial,BlocoValuationMultiplos,BlocoMultiplosHistoricos,BlocoPares}.tsx",
+          "STUBS (dono D): src/components/analiseAtivos/ativo/usuario/{BlocoNaCarteira,AcoesCarteiraAtivo,BlocoTese}.tsx",
+          "src/test/fixtures/analiseAtivos/respostas.ts",
+          "prisma/fixtures/analise-ativos/fase0-amostra.json",
+          "prisma/fixtures/analise-ativos/quadro-linhas.json",
+          "prisma/seedAnaliseAtivos.ts",
+          "scripts/analise-ativos/exportar-fixtures-fase1.ts",
+          "scripts/analise-ativos/semear-quadro-dev.ts (temporário; a fatia A remove)"
+        ],
+        "arquivos_alterados": [
+          "prisma/schema.prisma (3 models novos + back-relations em User)",
+          "src/lib/analiseAtivosConfig.ts (analiseAtivosAcesso(): 'beta'|'todos', padrão 'beta'; ANALISE_ATIVOS_NOVO_ATE opcional)",
+          "src/lib/queryKeys.ts (bloco analiseAtivos)",
+          "prisma/seed.ts (chama seedAnaliseAtivos só com asset_scores vazio; usuário demo no beta)",
+          ".env.example (ANALISE_ATIVOS_ACESSO)",
+          ".github/workflows/ci.yml (ANALISE_ATIVOS_HABILITADA='true' no job e2e)"
+        ],
+        "detalhes": "SCHEMA: ver schema_prisma. A migration é só CREATE TABLE/INDEX. Aplicar no Neon dev (prisma migrate deploy) no dia 1, para que A–D usem.\n\nCONTRATOS (src/types/analiseAtivosApi.ts): todos os tipos de 'apis'.\n- Estado<T> = {estado:'ok',valor:T} | {estado:'ausente',motivo,texto} | {estado:'nao_se_aplica',motivo,texto} — espelha Valor<T> da Fase 0.\n- EstadoIndice = 'calculado' | 'incompleto' | 'zero_regra' | 'fora_do_indice' (FoF) | 'sem_score'.\n- LinhaQuadroApi, QuadroResposta, BuscaIndiceResposta, OverlayCarteiraResposta, AtivoTopoResposta, FundamentosResposta, ValuationResposta, TeseResposta, ConfigResposta.\n- Props públicas de todos os componentes stub (interfaces exportadas, para A–D programarem contra elas).\n\nACESSO (acessoAnalise.ts):\n- podeAcessarAnaliseAtivos(userId): Promise<boolean> = flag && (acesso==='todos' || user.role==='admin' || existe feature_beta_users{recurso:'analise-ativos',userId}).\n  - Lê role e beta numa query. Cache TTL de 60 s por userId (getTtlCache 'analiseAcesso').\n- estadoAcessoAnalise(userId): 'desligada' | 'fora_do_beta' | 'liberada'.\n- exigirAcessoAnalise(request): requireAuthWithActing, com o acesso decidido pelo usuário LOGADO (payload.id). Sem acesso → ApiError(404,'Recurso não disponível'). Devolve {payload,targetUserId,actingClient}.\n- RECURSO_BETA='analise-ativos'.\n\nconfig/route.ts: GET → {habilitada (para o usuário logado), estado, acesso, novoAte}. no-store. Nunca dá 404.\n\nlinhasQuadro.ts (leitor único de analise_quadro_linhas):\n- versaoQuadro(): max(geradoEm), sondado no máximo 1×/60 s.\n- obterLinhasQuadro(classe?, {incluirForaDoQuadro}).\n- obterLinhaQuadro(symbol).\n- paraLinhaQuadroApi(row).\n- Array em memória por versão (~750 linhas).\n\nseries.ts (ÚNICA implementação, usada por A, B e C):\n- cagr(vIni,vFim,anos): null se algum ≤0.\n- anosFechados(pontos, hoje): descarta o ano corrente. Para FIIs, também o ano com menos de 12 meses de informe.\n- pontoUlt12m(valorTtm, dataRef).\n- detectarSaltoProvento(serie, {fator:2.5, payoutMax:150}): devolve os anos suspeitos e alimenta o selo 'proventos em conferência'.\n- baseCem(serie, inicio).\n- fatorAjusteAte(data, eventosConfirmados), pela regra de regras/calculo/eventosCorporativos.\n\ntextosTela.ts: todas as strings novas, com varredura.\n- Títulos de bloco, leituras dos múltiplos (definição + 'referência usual'), mapa motivo→texto.\n- Motivos: div:fonte_defasada → 'proventos em conferência'; lucro:fonte_defasada → 'lucro do último exercício em conferência'; preco:historico_curto → 'histórico de preço com menos de 5 anos'; lucro:sem_dado_fonte → 'lucro sem dado estruturado na CVM'; acoes:salto_sem_evento → 'nº de ações em conferência'; tipo:indefinido → 'tipo do fundo indefinido pela composição'; preco:sem_acoes → 'nº de ações indisponível'.\n- Textos de zero_regra: 'Componente zerado pela regra: prejuízo no último exercício' e 'patrimônio líquido negativo'.\n- 'Índice MF não calculado para este fundo nesta data'; 'fora do Índice MF nesta fase' (FoF); 'sem negociação nos últimos 30 pregões'.\n- 'Registrar operação' e 'Planejar na Carteira'; 'Privada: só você vê'; 'A tese é pessoal de cada usuário'.\n- 'fonte CVM · pode diferir do relatório do gestor'; 'data estimada'.\n- Textos da tela fora do beta.\n- O rodapé legal é REEXPORTADO de TEXTOS_ANALISE.rodapeLegal.\n\nanaliseAtivosVisual.ts (só cores de brandColors + cinzas e negativos do app):\n- STATUS_CRITERIO:\n  - atende: ícone círculo cheio com ✓, texto e ícone em patrimonio #396CAA (escuro #6E9DC4), fundo #EDF2F8 (escuro tranquilidade/15);\n  - parcial: ícone meio círculo, patrimonio sobre gray-100 (escuro gray-800);\n  - nao_atende: ✕, #D92D20 (escuro #F97066) sobre error-50 (escuro error-500/10);\n  - sem_dado: círculo tracejado com '?', gray-500 e borda tracejada #98A2B3;\n  - nao_se_aplica: '—', gray-500.\n- ANEL: trilho #E4E7EC (escuro #2E3440), preenchimento outside #0079F2, número em gray-800/branco; incompleto = trilho tracejado, sem cor nova.\n- FAIXA_INDICE: só dado (faixaIndice), sem mapa de cor.\n- BARRAS_LUCRO: lucro patrimonio para cima; prejuízo #D92D20/#F97066 para baixo; sem dado tracejado.\n- SERIES_GRAFICO:\n  - claro: A outside #0079F2, B potencia #2D2D2D;\n  - escuro: A tranquilidade #6E9DC4, B escolha #EAEAEA.\n- COLUNAS por classe×modo, FILTROS_RAPIDOS, DIRECAO_PADRAO e LINK_EDUCACAO.\n\nCASCA:\n- layout.tsx (SERVER, filho do AdminLayoutClient via children):\n  - lê o cookie 'token' com cookies() e o verifica com jose, como em src/app/page.tsx;\n  - flag off → notFound() (cai no src/app/not-found.tsx da raiz; o segmento NÃO tem not-found.tsx);\n  - 'fora_do_beta' → <TelaForaDoBeta/> (links Carteira/Agenda/Educação + rodapé);\n  - 'liberada' → children.\n  - Validar no dia 1. Se o layout server dentro do client falhar, cair no gate client via config + 404 da API.\n- page.tsx e [ticker]/page.tsx: client. O [ticker] valida /^[A-Z0-9]{4}\\d{1,2}$/.\n- AnaliseAtivosShell: título 'Análise de Ativos' + pílula Beta, subtítulo neutro, slot BuscaAtivos, BannerNovidade e RodapeLegal.\n- PaginaAtivo: ordem do protótipo revisado.\n  1. CabecalhoAtivo (slot AcoesCarteiraAtivo)\n  2. BlocoIndiceSemaforo\n  3. BlocoNaCarteira + BlocoKpis\n  4. GraficoLucroCotacao + BlocoDividendos\n  5. BlocoFundamentosEssencial (preguiçoso)\n  6. BlocoValuationMultiplos (preguiçoso)\n  7. BlocoMultiplosHistoricos + BlocoPares\n  8. BlocoEventos + CardEducacao\n  9. BlocoTese\n  10. SeloFrescor\n  11. RodapeLegal\n- SecaoPreguicosa: IntersectionObserver com rootMargin 400px.\n\nHOOKS (useAnaliseAtivos.ts):\n- useAnaliseAtivosConfig (10 min; falha = desligado)\n- useQuadroAnalise (useInfiniteQuery, placeholderData, 5 min)\n- useIndiceBusca (60 min)\n- useOverlayCarteira (60 s)\n- useAtivoTopo (10 min)\n- useFundamentosAtivo / useValuationAtivo ({enabled}, 30 min)\n- useTese (staleTime 0, sem refetchOnWindowFocus)\n- useSalvarTese (csrfFetch PUT/DELETE)\n- prefetchAtivoTopo\nOs dados da carteira NÃO têm hook novo: D usa useAcoes, useFii, o resumo existente e a configuração.\n\nFIXTURES:\n- exportar-fixtures-fase1.ts, read-only no dev. Símbolos: WEGE3, ROMI3, KEPL3, TUPY3, FRAS3, PETR4, ITUB4, BBAS3, KLBN11, TGMA3 (incompleto), AURE3 (zero_regra), SOJA3, HGLG11, XPLG11, BTLG11, KNCR11, MXRF11, HFOF11 e HCTR11 (sem score).\n- seedAnaliseAtivos é idempotente e põe o demo no beta.\n- semear-quadro-dev.ts: dry-run, --apply.",
+        "testes": "Vitest:\n- acessoAnalise:\n  - flag off;\n  - acesso 'todos';\n  - admin;\n  - beta;\n  - não-beta;\n  - TTL;\n  - consultor decidido pelo payload.id.\n- config route: shape, no-store e estado.\n- linhasQuadro: versão e cache; Decimal; três estados.\n- series:\n  - cagr com base ≤0 → null;\n  - anosFechados descarta HGLG11 2026 (5,5 vs 13,2);\n  - detectarSaltoProvento marca WEGE3 2025 (2,45 vs 0,76);\n  - baseCem;\n  - fator de desdobramento.\n- textosTela: varredura vazia e placeholders preenchidos.\n- hooks: keys e enabled.\n- seed: idempotente.",
+        "criterios_aceite": [
+          "type-check, lint, test e build verdes com os stubs",
+          "migration só aditiva, limpa em banco vazio e no Neon dev",
+          "flag off: /analise-ativos e /analise-ativos/WEGE3 dão 404 (página da raiz); API dá 404; config com habilitada=false; app sem mudança visível",
+          "flag on e usuário fora do beta: página mostra 'Área em beta fechado'; API dá 404",
+          "flag on e demo no beta: casca abre com stubs",
+          "nenhuma cor fora de brandColors, cinzas e negativos em analiseAtivosVisual (teste lista os hex)",
+          "contratos e props dos stubs revisados pelos devs de A–D antes do merge"
+        ]
+      },
+      {
+        "id": "0b",
+        "titulo": "Componentes visuais comuns (em paralelo com A–D)",
+        "objetivo": "Implementar os stubs comuns criados pela 0a, sem mudar as props, no visual do protótipo revisado e na paleta My Finance.",
+        "arquivos_novos": [
+          "src/components/analiseAtivos/comum/__tests__/comum.test.tsx",
+          "src/components/analiseAtivos/shell/__tests__/shell.test.tsx"
+        ],
+        "arquivos_alterados": [
+          "src/components/analiseAtivos/comum/AnelIndice.tsx",
+          "src/components/analiseAtivos/comum/BadgeCriterio.tsx",
+          "src/components/analiseAtivos/comum/BarrasDezAnos.tsx",
+          "src/components/analiseAtivos/comum/ValorAnalise.tsx",
+          "src/components/analiseAtivos/comum/SeloIncompleto.tsx",
+          "src/components/analiseAtivos/comum/SeloFonteCvm.tsx",
+          "src/components/analiseAtivos/comum/SeloEstado.tsx",
+          "src/components/analiseAtivos/comum/formatarAnalise.ts",
+          "src/components/analiseAtivos/shell/RodapeLegal.tsx",
+          "src/components/analiseAtivos/shell/BannerNovidade.tsx"
+        ],
+        "detalhes": "AnelIndice({valor, estado, tamanho:32|40|96}):\n- conic-gradient outside proporcional a 0–10 e número no centro;\n- 'incompleto' = trilho tracejado; 'zero_regra' = anel sólido normal;\n- 'fora_do_indice' e 'sem_score' = '—' com trilho vazio;\n- aria-label 'Índice MF 9,01 de 10' / 'Índice MF incompleto: 8,48 de 10'.\n\nBadgeCriterio: ícone + texto sempre (STATUS_CRITERIO), nunca só cor.\n\nBarrasDezAnos:\n- modo 'lucro': 10 barras de 7×26 com linha do zero; title por ano;\n- modo 'seguidos': 10 traços de 3,5×12.\n\nValorAnalise: Estado<number>. Ausente = '—' com title do motivo; n/a = 'n/a'.\n\nSeloIncompleto: chip tracejado + popover (no celular, BottomSheet) com os motivos.\n\nSeloEstado: 'critérios provisórios', 'data estimada', 'proventos em conferência', 'sem negociação recente', 'Planejado' (tracejado), 'Na carteira'.\n\nformatarAnalise: pt-BR, tabular-nums, ×, %, p.p., R$ mi/bi e o sinal '−'.\n\nRodapeLegal: texto de TEXTOS_ANALISE.rodapeLegal.\n\nBannerNovidade: dispensável, com localStorage por 30 dias; aponta para o Suporte.\n\nTodos os componentes:\n- dark mode;\n- alvos ≥ 44px quando são interativos.",
+        "testes": "comum.test (jsdom):\n- AnelIndice: aria-label nos 5 estados; tracejado só em incompleto.\n- BadgeCriterio: sempre com texto e ícone.\n- ValorAnalise: '—' com title e 'n/a'.\n- formatarAnalise: '−0,4×', '3,98%', '+4,3 p.p.', 'R$ 1,2 bi'.\n\nshell.test:\n- banner dispensado não volta antes de 30 dias;\n- rodapé presente.",
+        "criterios_aceite": [
+          "props idênticas às dos stubs (type-check das fatias A–D verde após merge)",
+          "nenhuma cor fora da paleta; contraste AA para texto",
+          "estados incompleto e zero_regra visualmente distintos (forma e texto)"
+        ]
+      },
+      {
+        "id": "A",
+        "titulo": "Quadro: job 'quadro' (materialização), API do Quadro, índice de busca, UI do Quadro e autocomplete",
+        "objetivo": "Quadro de Ações e FIIs com:\n- filtros e ordenação por coluna (nulos sempre no fim);\n- modos Resumo e Detalhado;\n- Lucro 10 anos (Rendimento 10 anos nos FIIs);\n- coluna e filtro 'Na carteira';\n- paginação de 25 em 25;\n- busca com autocomplete.\nTudo lê analise_quadro_linhas.",
+        "arquivos_novos": [
+          "src/services/analiseAtivos/quadro/montarLinhasQuadro.ts",
+          "src/services/analiseAtivos/quadro/gerarQuadro.ts",
+          "src/services/analiseAtivos/quadro/consultaQuadro.ts",
+          "src/services/analiseAtivos/quadro/indiceBusca.ts",
+          "src/services/analiseAtivos/quadro/__tests__/montarLinhasQuadro.test.ts",
+          "src/services/analiseAtivos/quadro/__tests__/gerarQuadro.test.ts",
+          "src/services/analiseAtivos/quadro/__tests__/consultaQuadro.test.ts",
+          "src/services/analiseAtivos/quadro/__tests__/indiceBusca.test.ts",
+          "src/app/api/analise-ativos/quadro/route.ts",
+          "src/app/api/analise-ativos/quadro/__tests__/route.test.ts",
+          "src/app/api/analise-ativos/busca/route.ts",
+          "src/app/api/analise-ativos/busca/__tests__/route.test.ts",
+          "src/app/api/cron/analise-ativos/quadro/route.ts",
+          "src/components/analiseAtivos/quadro/FiltrosQuadro.tsx",
+          "src/components/analiseAtivos/quadro/TabelaQuadro.tsx",
+          "src/components/analiseAtivos/quadro/CartoesQuadro.tsx",
+          "src/components/analiseAtivos/quadro/CabecalhoOrdenavel.tsx",
+          "src/components/analiseAtivos/quadro/CelulaNaCarteira.tsx",
+          "src/components/analiseAtivos/quadro/SheetOrdem.tsx",
+          "src/components/analiseAtivos/quadro/RodapeFormula.tsx",
+          "src/components/analiseAtivos/quadro/useEstadoQuadroUrl.ts",
+          "src/components/analiseAtivos/quadro/__tests__/QuadroAnalise.test.tsx",
+          "src/components/analiseAtivos/busca/__tests__/BuscaAtivos.test.tsx",
+          "e2e/analise-ativos-quadro.spec.ts",
+          "e2e/mobile-analise-ativos-quadro.spec.ts"
+        ],
+        "arquivos_alterados": [
+          "src/components/analiseAtivos/quadro/QuadroAnalise.tsx",
+          "src/components/analiseAtivos/busca/BuscaAtivos.tsx",
+          "src/services/analiseAtivos/tipos.ts (NomeJob e Camada += 'quadro')",
+          "src/services/analiseAtivos/jobs/nomesJobs.ts",
+          "src/services/analiseAtivos/jobs/catalogoJobs.ts (quadro: prazo 120 s, pesado=false)",
+          "src/services/analiseAtivos/regras/eventos/alertasFrescor.ts (JOB_POR_CAMADA.quadro; LIMITES quadro {maxHorasJob:26, maxDiasDado:2, emPregoes:true})",
+          "src/services/analiseAtivos/repositorio/jobs.ts (dadoMaisRecentePorCamada.quadro = max(analise_quadro_linhas.dataRef))",
+          "infra/modules/lightsail/provision.sh.tftpl ('40 10 * * * root /usr/local/bin/myfinance-job.sh quadro')",
+          "prisma/fixtures/analise-ativos/quadro-linhas.json (regerado pelo gerador real)",
+          "scripts/analise-ativos/semear-quadro-dev.ts (REMOVIDO)"
+        ],
+        "detalhes": "JOB QUADRO (gerarQuadro.ts, via executarJobAnalise)\n\n1. dataRef = max(asset_scores.dataRef).\n\n2. UNIVERSO (crítica 3): listarTickersAcoes(prisma) ∪ listarFiisListados(prisma) (FiiTickerMap vigente). O AssetScore da dataRef é OPCIONAL.\n- noQuadro = asset_quote_resumo.negociadoUltimos30 && !fiagro.\n- foraDoQuadroMotivo = 'sem_negociacao_30' | 'fiagro' | null.\n- estadoIndice:\n  - 'sem_score' quando não há score (ex.: HCTR11);\n  - 'fora_do_indice' para FoF;\n  - 'zero_regra' quando há componente com estado zero_regra e incompleto=false (ex.: AURE3);\n  - 'incompleto' quando incompleto=true;\n  - senão 'calculado'.\n- Teste de contagem contra o dev:\n  - ações com score, menos as 16 sem negociação, ficam noQuadro;\n  - os 21 FIIs com múltiplos e sem score entram.\n\n3. Carrega, uma vez cada:\n- AssetMultiplesCurrent;\n- AssetSetorB3 (raiz);\n- CvmCompanyTicker vigente;\n- CvmCompany.nome;\n- FiiTickerMap.nomeB3 + Asset.name, se existir;\n- último FiiMonthly e FiiQuarterly por cnpj;\n- AssetQuoteResumo;\n- 2 últimos pregões (row_number over partition by symbol, date >= dataRef-10d);\n- Asset.id por symbol.\n\n4. serie10a pelos utilitários de leitura/ativo/series.ts (0a):\n- ações: lucro FY (lucroParaSequencia sobre fundamentosVigentes) SÓ de anos fechados;\n- FIIs: AssetPerShareYearly.rendCota via anosFechados.\n- serieUlt12m separada.\n\n5. anosDividendo; pares via selecionarPares (5); flags (inclui 'provento_suspeito' do detectarSaltoProvento).\n\n6. $transaction com deleteMany + createMany (MVCC). Relatório com linhasGravadas, noQuadro por classe e alertas.\n\nCRON\n- Rota com requireCronSecret.\n- Template às 10:40 UTC, aplicado à mão no /etc/cron.d.\n\nCONSULTA (pura, sobre noQuadro=true)\nFiltros:\n- lucroConsistente;\n- dyMin;\n- pvpMax (FIIs);\n- tipo;\n- naCarteira (Set do overlay);\n- setor/segmento;\n- somenteCompletos.\nOrdem:\n- whitelist; nulos e n/a no fim; desempate por ticker.\n- estados sem_score e fora_do_indice ordenam como nulos.\nRetorna também facetas e contagens.\n\nAPI\n- quadro: exigirAcessoAnalise → zod → linhasQuadro → consulta.\n  - naCarteira=1 → chama o overlay de D? NÃO: para não haver arquivo em comum, a rota lê direto portfolios+watchlists com select asset.symbol (função local simbolosDoUsuario, ~10 linhas, targetUserId).\n  - Cache-Control: no-store (crítica 12). Server-Timing.\n- busca: índice compacto [{t,n,c,q,i,e,f,m}] de TODAS as linhas (inclui noQuadro=false com motivo m). ETag = versão → 304; private, max-age=3600.\n\nUI (fiel ao protótipo revisado)\nQuadroAnalise:\n- abas 'Ações 385 | FIIs 362' (ResponsiveTabNav underline, 44px);\n- chips — ações: 'Lucro 5+ anos seguidos', 'DY 12m ≥ 4%', 'Na minha carteira', 'Só dados completos', 'Setor ▾'; FIIs: 'Tijolo', 'Papel', 'DY 12m ≥ 8%', 'P/VP ≤ 1', 'Na minha carteira', 'Só dados completos', 'Segmento ▾';\n- chip ativo: fundo seguranca, texto branco, aria-pressed;\n- pílulas Resumo|Detalhado.\n\nCELULAR (crítica 6):\n- linha 1: segmento Ações|FIIs;\n- linha 2: trilho de chips com overflow-x interno e min-h-11;\n- linha 3: 'Ordem: Índice MF ↓' (abre SheetOrdem com rádios de 52px) + Resumo|Detalhado com min-h-11;\n- nenhuma sobreposição: flex-col com gap; validado por expectMinTarget e por boundingBox sem interseção.\n\nTabelaQuadro:\n- TABLE_STYLES;\n- cabeçalho seguranca sticky;\n- coluna Ativo fixa;\n- coluna da ordem destacada (th outside, td outside a 6%/16%);\n- CabecalhoOrdenavel com aria-sort; primeiro clique na direção padrão.\n- Colunas:\n  - Resumo Ações: Ativo, Preço, Lucros seguidos, ROE, P/L, P/VP, DY 12m, Lucro 10 anos, Índice MF, Na carteira;\n  - Detalhado Ações: + Setor, Margem líquida, Dív.líq./EBITDA, Payout, Liquidez média 21d;\n  - Resumo FIIs: Fundo, Tipo, Cota, DY 12m, P/VP, Obrigações/PL, Rendimento 10 anos, Índice MF, Na carteira;\n  - Detalhado FIIs: + Segmento, Patrimônio, Cotistas, Liquidez 21d, Vacância (CVM), Imóveis/CRIs (CVM).\n- Linha clicável; prefetch no hover com espera de 300 ms e no máximo 1 a cada 2 s.\n- 'Mostrando 25 de 385' + 'Mostrar mais 25'; content-visibility:auto.\n\nCartoesQuadro (<lg):\n- ticker, nome, preço+variação, anel 40px, 3 números da classe (2ª linha no Detalhado), barras de 10 anos, Na carteira;\n- alvos ≥ 44.\n\nCelulaNaCarteira:\n- overlay (quantidade/planejado) + useAcoes|useFii da classe ativa (percentualCarteira da aba, o MESMO da Carteira);\n- formatos: '120 ações · 3,8%', 'Planejado · 5%' tracejado ou '—';\n- o hook da aba só é chamado quando a coluna está visível.\n\nEstados:\n- carregando: cabeçalho real + 8 linhas skeleton, chips clicáveis;\n- vazio por filtro: 'Nenhum ativo com esses filtros' + Limpar;\n- 'Na minha carteira' sem posição: convite 'Registrar operação' (link /carteira);\n- erro: mantém filtros (URL) + Tentar de novo;\n- frescor atrasado: faixa com ícone + texto.\n\nBuscaAtivos:\n- combobox ARIA, '/', 44px, filtro no cliente;\n- grupos Ações/FIIs com trecho destacado e no máximo 8 itens;\n- selos Na carteira/Planejado (overlay);\n- não negociado: 'fora do Quadro · sem negociação nos últimos 30 pregões';\n- sem resultado: 'A busca cobre ações e FIIs da B3, por ticker ou nome';\n- celular: sheet de tela cheia, input de 16px, recentes em localStorage.",
+        "testes": "Vitest:\n- montarLinhasQuadro:\n  - WEGE3 completo;\n  - TGMA3 incompleto;\n  - AURE3 zero_regra;\n  - HCTR11 sem_score com noQuadro=true;\n  - FII não negociado com noQuadro=false;\n  - ação com score e sem negociação com noQuadro=false;\n  - FoF fora_do_indice;\n  - sem setor → alerta;\n  - unit usa o índice da empresa;\n  - serie10a sem o ano corrente.\n- gerarQuadro: transação e idempotência.\n- consultaQuadro: cada filtro; nulos e sem_score no fim nas duas direções; paginação estável; facetas.\n- indiceBusca: 'weg', 'itau', 'hglg', 'petr'.\n- Rotas: 404 sem acesso; 400; naCarteira com targetUserId; no-store; 304.\n- QuadroAnalise.test: modo muda colunas; aria-sort; Mostrar mais.\n\nE2E:\n- analise-ativos-quadro: ordenar P/L com '—' no fim; Detalhado; DY ≥ 4%; Mostrar mais; aba FIIs; busca 'weg' → WEGE3; varredura de linguagem.\n- mobile-analise-ativos-quadro (390/320):\n  - sem overflow;\n  - expectMinTarget nos chips e pílulas;\n  - chips sem interseção com a linha Ordem;\n  - sheet de ordem.",
+        "criterios_aceite": [
+          "job grava todas as linhas (score opcional) em < 30 s e < 250 MB RSS; aparece no painel de frescor",
+          "contagens: ações noQuadro = com negociação nos últimos 30 pregões; os 21 FIIs sem score aparecem com 'Índice MF não calculado'",
+          "quadro p95 < 60 ms quente e < 300 ms frio; no-store",
+          "nulos no fim; filtros combinam (AND); abas com contagem correta",
+          "% na coluna Na carteira igual ao da aba Ações/FIIs da Carteira",
+          "celular sem sobreposição, alvos ≥ 44, sem rolagem horizontal a 390 e 320"
+        ]
+      },
+      {
+        "id": "B",
+        "titulo": "Página do ativo — topo: cabeçalho, Índice + semáforo, KPIs, gráfico, dividendos, eventos, Educação e frescor",
+        "objetivo": "API GET /api/analise-ativos/ativos/[ticker] e os blocos de cima, com estados incompleto, zero_regra, sem_score e defasado, e frases de TEXTOS_ANALISE.",
+        "arquivos_novos": [
+          "src/services/analiseAtivos/leitura/ativo/montarTopoAtivo.ts",
+          "src/services/analiseAtivos/leitura/ativo/semaforoTela.ts",
+          "src/services/analiseAtivos/leitura/ativo/kpisAtivo.ts",
+          "src/services/analiseAtivos/leitura/ativo/seriesGrafico.ts",
+          "src/services/analiseAtivos/leitura/ativo/dividendosAnuais.ts",
+          "src/services/analiseAtivos/leitura/ativo/eventosAtivo.ts",
+          "src/services/analiseAtivos/leitura/ativo/frescorAtivo.ts",
+          "src/services/analiseAtivos/leitura/ativo/__tests__/{semaforoTela,kpisAtivo,seriesGrafico,dividendosAnuais,eventosAtivo,montarTopoAtivo}.test.ts",
+          "src/app/api/analise-ativos/ativos/[ticker]/route.ts",
+          "src/app/api/analise-ativos/ativos/[ticker]/__tests__/route.test.ts",
+          "src/components/analiseAtivos/ativo/topo/__tests__/topo.test.tsx",
+          "e2e/analise-ativos-ativo.spec.ts",
+          "e2e/mobile-analise-ativos-ativo.spec.ts"
+        ],
+        "arquivos_alterados": [
+          "src/components/analiseAtivos/ativo/topo/CabecalhoAtivo.tsx",
+          "src/components/analiseAtivos/ativo/topo/BlocoIndiceSemaforo.tsx",
+          "src/components/analiseAtivos/ativo/topo/BlocoKpis.tsx",
+          "src/components/analiseAtivos/ativo/topo/GraficoLucroCotacao.tsx",
+          "src/components/analiseAtivos/ativo/topo/BlocoDividendos.tsx",
+          "src/components/analiseAtivos/ativo/topo/BlocoEventos.tsx",
+          "src/components/analiseAtivos/ativo/topo/CardEducacao.tsx",
+          "src/components/analiseAtivos/ativo/topo/SeloFrescor.tsx"
+        ],
+        "detalhes": "QUERIES (Promise.all, índices existentes)\n- obterLinhaQuadro: se não houver linha → 404.\n- AssetScore mais recente.\n- multiplesCurrent, perShareYearly e multiplesYearly (anoAtual-11).\n- Ações: fundamentosVigentes FY.\n- FIIs: fiiMonthly 10a + último fiiQuarterly.\n- Cotação mensal: DISTINCT ON (date_trunc('month',date)) em asset_quotes_daily.\n- assetCorporateActionCheck confirmados, aplicados por fatorAjusteAte (series.ts).\n- assetEvento futuros (substituidoEm null, take 3).\n- assetProventoAuditado com status valido e dataComReal ≥ hoje E ≤ hoje+2 anos (descarta 9999-12-31).\n- obterPainelFrescor em cache de 10 min.\n\nCABEÇALHO\n- Ticker e nome (Asset.name ou nomePregao/nomeB3).\n- Tags: setor · segmento · listagem (ações) | tipo · segmento CVM (FIIs). SEM tag de índice (IBOV): não tem fonte (crítica 5).\n- Selo 'Na carteira' (D injeta pelo slot).\n- Preço: fechamento COTAHIST, variação e 'fechamento de 29/09 · fonte B3'.\n- Selos 'sem negociação recente' e 'dados incompletos'.\n\nÍNDICE\nAnelIndice 96px conforme estadoIndice:\n- incompleto: caixa 'o que falta' com os motivos legíveis e 'o número é recalculado quando o dado chegar';\n- zero_regra: caixa 'Componente zerado pela regra' (ex.: prejuízo no último exercício; patrimônio líquido negativo), anel sólido, sem selo incompleto;\n- sem_score: 'Índice MF não calculado para este fundo nesta data';\n- FoF: 'fora do Índice MF nesta fase'.\nAlém disso:\n- 'n de m critérios atendidos';\n- componentes recolhíveis (nota, peso efetivo, estado);\n- fórmula pública em popover.\n\nSEMÁFORO (semaforoTela)\n- Título = TEXTOS_ANALISE.criterios; frase = formatarTexto(frases, {valor, referencia}).\n- Variantes: caixa líquido, preço_historico prejuízo/pl_negativo (status nao_atende, frase própria, NÃO 'sem dado').\n- Critérios desligados continuam visíveis como 'Não se aplica · critério desligado até a validação da fonte'.\n- Selo 'critérios provisórios' quando provisorio.\n\nKPIs: 8 por classe, como na v1.\n- Ações:\n  - P/L (média 10a se ≥ 5 pontos);\n  - P/VP;\n  - DY 12m;\n  - ROE e margem (mediana dos pares, mín. 3);\n  - Dív.líq/EBITDA (n/a em financeira; 'caixa líquido');\n  - Payout (selo acima de 150%);\n  - CAGR lucro 5a, por series.cagr sobre anos FECHADOS.\n- FIIs:\n  - DY 12m;\n  - P/VP;\n  - rendimento/cota 12m;\n  - patrimônio;\n  - cotistas;\n  - liquidez 21d;\n  - Obrigações/PL;\n  - vacância (CVM, só tijolo, SeloFonteCvm). Papel = n/a.\n- Sem cap rate.\n\nGRÁFICO (seriesGrafico)\n- Ações: anual; lpaAjHoje × preço de fim de ano ajustado; ponto 'últ. 12m' separado e rotulado; base 100 por janela no cliente; prejuízo = lacuna com nota; pills 5A/10A/Máx.\n- FIIs: mensal, VP/cota ajustado × cota; pills 1A/3A/5A/10A/Máx.\n- Menos de 3 pontos → 'histórico insuficiente para o gráfico'.\n- ApexChartWrapper:\n  - linhas de 2,2px; SERIES_GRAFICO;\n  - figcaption de 1 frase neutra;\n  - 'Ver dados em tabela' (tabela real, alternável) + reduced-motion.\n\nDIVIDENDOS (dividendosAnuais)\n- Só anos FECHADOS + ponto 'últ. 12m' à parte.\n- Ações: dpaAjHoje. FIIs: rendCota.\n- CAGR 5a via series.cagr.\n- Anos marcados por detectarSaltoProvento ou flag proventos_defasados: barra tracejada + selo 'proventos em conferência'; esses anos ficam FORA do CAGR (CAGR null com motivo, se o extremo for suspeito).\n- Barras em patrimonio; rótulo só no primeiro e no último ano.\n\nEVENTOS\nNo máximo 3, apenas:\n- resultado (real ou estimado, com selo 'data estimada');\n- assembleia;\n- data-com REAL de asset_proventos_auditados.\nNÃO existe 'JCP estimado' (crítica 5). Sem eventos: 'Sem eventos programados nos próximos meses'. Nota: 'Eventos de ativos da sua carteira aparecem na Agenda'.\n\nEDUCAÇÃO: LINK_EDUCACAO[classe].\n\nFRESCOR: 'Dados: cotação B3 de dd/mm · CVM DFP 2025 / ITR 2T26 · informe FII ago/26'. Camada atrasada: ícone + texto 'atualização em atraso'.\n\nCACHE: memória ticker:versão, TTL 30 min, LRU 800. private, max-age=300. Server-Timing. Payload < 25 KB.",
+        "testes": "Vitest:\n- semaforoTela:\n  - WEGE3;\n  - HGLG11 (desligados como n/a, provisório);\n  - ITUB4 (n/a financeira);\n  - AURE3 (nao_atende pl_negativo, não 'sem dado');\n  - varredura de linguagem e nenhum '{'.\n- kpisAtivo: pares < 3; payout > 150%; papel n/a.\n- seriesGrafico: base 100; WEGE3 sem degrau de desdobramento; lacuna de prejuízo; ponto últ. 12m separado.\n- dividendosAnuais:\n  - HGLG11 sem 2026;\n  - WEGE3 2025 marcado e fora do CAGR.\n- eventosAtivo: estimado substituído some; 9999-12-31 descartado; FII só data-com.\n- montarTopoAtivo: TGMA3 incompleto; AURE3 zero_regra; HCTR11 sem_score.\n- route: 404 e cache.\n- topo.test: badge com ícone e texto; anel tracejado só no incompleto.\n\nE2E:\n- analise-ativos-ativo: WEGE3, HGLG11, ITUB4, TGMA3 e AURE3 com os blocos e estados certos; XXXX3 → 404; sem tag IBOV; varredura.\n- mobile-analise-ativos-ativo: 390/320 sem overflow; KPIs em 2 colunas (1 abaixo de 340px do contêiner); alvos ≥ 44.",
+        "criterios_aceite": [
+          "< 300 ms frio e < 30 ms quente; payload < 25 KB; LCP < 1,5 s em Slow 4G (WEGE3, HGLG11)",
+          "incompleto, zero_regra, sem_score e FoF com textos e formas distintos",
+          "nenhum ano corrente parcial em séries anuais; WEGE3 2025 com 'proventos em conferência'",
+          "nenhuma informação sem fonte (IBOV, JCP estimado)",
+          "semáforo só com cores da paleta e sempre ícone + texto"
+        ]
+      },
+      {
+        "id": "C",
+        "titulo": "Página do ativo — análise: Fundamentos Essencial, Valuation Múltiplos (barra de 10 anos), múltiplos históricos e pares",
+        "objetivo": "APIs preguiçosas de fundamentos e valuation e os blocos de baixo, reaproveitando barraPosicao, textoStatusBarra, medianaReferencia (Fase 0) e series.ts (0a).",
+        "arquivos_novos": [
+          "src/services/analiseAtivos/leitura/ativo/fundamentosEssencial.ts",
+          "src/services/analiseAtivos/leitura/ativo/valuationMultiplos.ts",
+          "src/services/analiseAtivos/leitura/ativo/paresAtivo.ts",
+          "src/services/analiseAtivos/leitura/ativo/__tests__/{fundamentosEssencial,valuationMultiplos,paresAtivo}.test.ts",
+          "src/app/api/analise-ativos/ativos/[ticker]/fundamentos/route.ts",
+          "src/app/api/analise-ativos/ativos/[ticker]/fundamentos/__tests__/route.test.ts",
+          "src/app/api/analise-ativos/ativos/[ticker]/valuation/route.ts",
+          "src/app/api/analise-ativos/ativos/[ticker]/valuation/__tests__/route.test.ts",
+          "src/components/analiseAtivos/ativo/analise/CardMultiplo.tsx",
+          "src/components/analiseAtivos/ativo/analise/BarraPosicao10a.tsx",
+          "src/components/analiseAtivos/ativo/analise/ChipsGrupo.tsx",
+          "src/components/analiseAtivos/ativo/analise/MiniGraficoMultiplo.tsx",
+          "src/components/analiseAtivos/ativo/analise/__tests__/analise.test.tsx",
+          "e2e/analise-ativos-fundamentos-valuation.spec.ts"
+        ],
+        "arquivos_alterados": [
+          "src/components/analiseAtivos/ativo/analise/BlocoFundamentosEssencial.tsx",
+          "src/components/analiseAtivos/ativo/analise/BlocoValuationMultiplos.tsx",
+          "src/components/analiseAtivos/ativo/analise/BlocoMultiplosHistoricos.tsx",
+          "src/components/analiseAtivos/ativo/analise/BlocoPares.tsx"
+        ],
+        "detalhes": "FUNDAMENTOS ESSENCIAL\nAté 10 anos FECHADOS em linhas, último destacado (tinta outside), mais a linha 'Últ. 12m' se houver TTM.\n- Ações: Ano | Receita | Lucro líquido | Margem | ROE | LPA | Div./ação | Payout | P/L | P/VP | DY.\n  - Lucro = lucroAtribuivel ?? lucroLiquido, com a regra controladora_zero.\n  - Anos marcados por detectarSaltoProvento: Div./ação com selo.\n  - Bancos: receita n/a, nota 'padrão contábil: individual BR GAAP'.\n- FIIs tijolo/híbrido: Ano | Receita | Resultado | Rend./cota | DY | VP/cota | P/VP | Vacância (CVM) | Nº imóveis (CVM) | Área informada (CVM).\n  - Soma de 4 trimestres; ano com menos de 4 trimestres = '—' com nota.\n- FIIs papel: Nº CRIs | Maior CRI no lugar das 3 últimas colunas.\n- Formato: 'Valores em R$ mi · ano fiscal · fonte: CVM'. Coluna Ano sticky, rolagem dentro do card, negativos #D92D20/#F97066.\n- Campos que só existem em PDF ficam escondidos.\n\nVALUATION MÚLTIPLOS\nChips por grupo; cada card mostra:\n- valor TTM;\n- leitura (textosTela);\n- referência = mediana dos pares (mín. 3; senão 'sem referência de pares'). SEM referência 'Ibovespa' (crítica 5);\n- barra = barraPosicao + textoStatusBarra; menos de 5 pontos → oculta.\nO resumo do grupo conta só as barras visíveis.\nGrupos:\n- Ações: Preço (P/L, P/VP, P/Receita, EV/EBITDA, P/FCO, P/FCL, LPA, VPA) · Proventos (DPA 12m, DY 12m, DY médio 5a, Payout) · Lucratividade (margem, ROE, ROA, ROIC) · Crescimento (CAGR 5a de receita, lucro, LPA e dividendo — via series.cagr, sem barra) · Alavancagem (dív.líq/EBITDA, dív.líq/PL, liquidez corrente).\n- Banco: o grupo Alavancagem traz a explicação no lugar dos cards.\n- FIIs: Preço (P/VP, VP/cota) · Proventos (rend./cota 12m, DY 12m, DY médio 5a) · Qualidade da renda (vacância CVM, tijolo) · Crescimento (CAGR rend./cota, VP/cota, cotistas) · Alavancagem (Obrigações/PL, taxa adm., liquidez 21d).\nVisual:\n- Status sem verde/vermelho.\n- Marcador outside de 16px, traço da média, mín/máx rotulados.\n- aria-valuetext.\n- Rodapé neutro.\n\nHISTÓRICOS: 2 mini-gráficos com a média tracejada em cinza — ações P/L e P/VP; FIIs P/VP e DY.\n\nPARES\n- Linhas do Quadro em memória, com o próprio ativo primeiro (highlight).\n- Linhas clicáveis; incompleto com selo; sem_score com '—'.\n- Critério exibido: 'mesmo segmento B3 (completado pelo subsetor)' / 'mesmo segmento CVM e tipo'.\n- Sem pares: 'sem pares no mesmo segmento'.\n\nCACHE: memória ticker:versão, TTL 30 min; private, max-age=300; carregamento preguiçoso via SecaoPreguicosa.",
+        "testes": "Vitest:\n- fundamentosEssencial:\n  - WEGE3 ≥ 10 anos sem o ano corrente;\n  - ITUB4 BR GAAP;\n  - HGLG11 ano parcial;\n  - KNCR11 papel;\n  - controladora_zero.\n- valuationMultiplos:\n  - casos 17–21 da §4.6;\n  - resumo do grupo;\n  - pares < 3;\n  - nenhuma referência 'Ibovespa';\n  - varredura.\n- paresAtivo: ordem e próprio ativo primeiro.\n- rotas: 404, cache e Server-Timing.\n- analise.test: chips, aria-valuetext e th scope.\n\nE2E:\n- WEGE3 com Fundamentos ≥ 5 anos, chips e pares navegando;\n- HGLG11 com colunas de FII e fonte CVM;\n- AURE3 com barras ocultas ('histórico com menos de 5 anos · barra oculta').",
+        "criterios_aceite": [
+          "buscados só ao entrar no viewport; < 300 ms frio; < 20 KB",
+          "casos 17–21 corretos",
+          "sem verde/vermelho semântico; sem referência sem fonte",
+          "tabela rola dentro do card a 390 e 320, com coluna Ano fixa"
+        ]
+      },
+      {
+        "id": "D",
+        "titulo": "Usuário e ativação: overlay, 'Na sua carteira' reusando a Carteira, Registrar/Planejar pelo wizard, tese privada, menu NOVO, Agenda, beta e runbook",
+        "objetivo": "Ligar a área à Carteira e ao Planejamento com os MESMOS números da Carteira, criar a tese privada, pôr o item no menu e entregar o operacional de beta e ativação.",
+        "arquivos_novos": [
+          "src/services/analiseAtivos/leitura/overlayCarteira.ts",
+          "src/services/analiseAtivos/leitura/__tests__/overlayCarteira.test.ts",
+          "src/app/api/analise-ativos/carteira/route.ts",
+          "src/app/api/analise-ativos/carteira/__tests__/route.test.ts",
+          "src/services/analiseAtivos/tese/teseService.ts",
+          "src/services/analiseAtivos/tese/__tests__/teseService.test.ts",
+          "src/app/api/analise-ativos/teses/[ticker]/route.ts",
+          "src/app/api/analise-ativos/teses/[ticker]/__tests__/route.test.ts",
+          "src/components/analiseAtivos/ativo/usuario/BarraPesoAlvo.tsx",
+          "src/components/analiseAtivos/ativo/usuario/StatusSalvamento.tsx",
+          "src/components/analiseAtivos/ativo/usuario/useNaCarteiraAtivo.ts",
+          "src/components/analiseAtivos/ativo/usuario/__tests__/usuario.test.tsx",
+          "scripts/analise-ativos/beta.ts",
+          "docs/analise-ativos/fase1/ATIVACAO.md",
+          "e2e/analise-ativos-acesso.spec.ts",
+          "e2e/analise-ativos-carteira.escrita.spec.ts"
+        ],
+        "arquivos_alterados": [
+          "src/components/analiseAtivos/ativo/usuario/BlocoNaCarteira.tsx",
+          "src/components/analiseAtivos/ativo/usuario/AcoesCarteiraAtivo.tsx",
+          "src/components/analiseAtivos/ativo/usuario/BlocoTese.tsx",
+          "src/layout/navigation.tsx (NavItem.novo; item logo abaixo de Carteira; grupo Finanças do Mais; título mobile)",
+          "src/layout/AppSidebar.tsx (selo NOVO)",
+          "src/layout/mobile/MoreSheet.tsx (selo NOVO)",
+          "src/layout/__tests__/* e src/layout/mobile/__tests__/* afetados",
+          "src/components/carteira/AddAssetWizard.tsx (prop opcional preset)",
+          "src/components/carteira/__tests__/AddAssetWizard*.test.tsx",
+          "src/lib/invalidatePortfolio.ts (invalida queryKeys.analiseAtivos.carteira)",
+          "src/services/calendario/fontes/resultadosAnaliseAtivos.ts",
+          "src/services/calendario/fontes/__tests__/* afetados",
+          "src/app/api/profile/export/route.ts (inclui analise_teses)",
+          "e2e/desktop-layout.spec.ts-snapshots/* e snapshots do shell mobile"
+        ],
+        "detalhes": "OVERLAY (overlayCarteira.ts + GET /api/analise-ativos/carteira, DB-only)\n- exigirAcessoAnalise + targetUserId; logSensitiveEndpointAccess quando actingClient.\n- Portfolio com quantity > 0, select asset.symbol/type e categoriaOverride.\n- categoria = categoriaEfetiva(asset, categoriaOverride) de itemValuation (crítica 8).\n- Watchlist com asset.symbol, categoria efetiva e objetivo.\n- Resposta: {posicoes: Record<ticker,{portfolioId, quantidade, categoria}>, planejados: Record<ticker,{watchlistId, categoria, objetivoPct}>}.\n- SEM preço e SEM valor: só alimenta o filtro, o selo e a busca. no-store; TTL de 60 s.\n\nNA SUA CARTEIRA (useNaCarteiraAtivo, crítica 8)\nCombina hooks EXISTENTES:\n- overlay → em qual aba está o ticker (categoria efetiva);\n- useAcoes() ou useFii() dessa aba (GET /api/carteira/acoes|fii, o MESMO endpoint da aba da Carteira) → item com quantidade, precoAquisicao, valorAtualizado, cotacaoAtual, percentualCarteira (peso dentro da aba), objetivo, quantoFalta, rentabilidade, e linhas planejadas;\n- useResumo existente (/api/carteira/resumo) → distribuicao[aba].percentual e totais.dinheiro → '% da carteira' = valorAtualizado ÷ totais.dinheiro;\n- /api/carteira/configuracao → AlocacaoConfig da aba (mínimo/alvo/máximo).\nSe o item foi MOVIDO para outra aba (ex.: stocks/etfs), mostra 'Na aba ‹X›' e usa o hook daquela aba quando for acoes|fii; senão mostra só quantidade + link.\nSe cotacaoAtual da Carteira ≠ preço do cabeçalho, nota 'valor pela cotação da Carteira de dd/mm'. Não recalcular nada.\n\nBlocoNaCarteira\n- Com posição: quantidade · valor · % da carteira · PM · resultado (sem proventos, igual à Carteira).\n- BarraPesoAlvo, duas barras:\n  - 'Peso dentro de Ações 17,2% · objetivo do ativo 20%';\n  - 'Ações no Planejamento 21,9% · alvo 20%'.\n- Links 'Ver na Carteira' (/ativos/{portfolioId}) e 'Ajustar alvo' (/carteira?aba=resumo).\n- Planejado: 'Planejado em Ações, com objetivo de 5% da aba' + quanto falta + 'Editar objetivo' (usa o updateObjetivo do hook da aba).\n- Sem nada: 'Você não tem ‹TICKER›' + 'Planejar na Carteira'.\n- Skeleton só nos números enquanto os hooks carregam.\n\nAcoesCarteiraAtivo\n- Sem posição: 'Planejar na Carteira' (primário) + 'Registrar operação'.\n- Com posição: 'Registrar operação' + 'Ver na Carteira'.\n- Os dois abrem o AddAssetWizard com preset: {operacao:'compra'|'planejar', tipoAtivo, ativo, assetId}. Sem assetId, abre no passo Ativo com a busca preenchida.\n- onSuccess: invalidatePortfolioDerivedQueries (já cobre carteira/acoes/fii) + analiseAtivos.carteira.\n- 48px no celular, em largura total. Nunca 'Comprar'.\n\nAddAssetWizard: preset opcional. Sem preset = comportamento idêntico.\n\nTESE PRIVADA (crítica 2)\n- Rota /api/analise-ativos/teses/[ticker]:\n  - GET/PUT/DELETE;\n  - sempre payload.id; actingClient → 403 'A tese é pessoal';\n  - ticker validado pelas linhas;\n  - CSRF pelo middleware;\n  - prefixo próprio de rate limit, já que a chave usa os 4 primeiros segmentos → '/api/analise-ativos/teses'.\n- Corpo trim, ≤ 10.000; vazio = apaga.\n- BlocoTese:\n  - cadeado 'Privada: só você vê';\n  - vazia: perguntas-guia + 'Escrever minha tese';\n  - editando: contador /10.000, autosave com debounce de 1,5 s e no blur, StatusSalvamento em aria-live;\n  - salva: texto + data + Editar;\n  - erro: texto preservado + Tentar de novo;\n  - beforeunload quando há pendência.\n- Consultor agindo: card 'A tese é pessoal de cada usuário', SEM leitura da tese do cliente.\n\nMENU\n- Item 'Análise de Ativos' logo abaixo de Carteira, só com config.habilitada.\n- Selo NOVO: texto #396CAA sobre #DCE6F2 (escuro: #6E9DC4 sobre tranquilidade/15), até config.novoAte.\n- No celular: painel Mais, grupo Finanças; a barra inferior não muda.\n- ACTING_ALLOWED_ITEMS sem mudança.\n\nAGENDA (crítica 11)\n- eventosResultadosAnaliseAtivos(userId) passa a exigir podeAcessarAnaliseAtivos(userId). Vale o acesso do DONO da agenda, porque o conteúdo é a carteira dele; a função busca a role internamente.\n- link = '/analise-ativos/' + symbols.sort()[0] (o primeiro ticker que o usuário tem). O título continua mostrando 'PETR3/PETR4'.\n\nLGPD: exportação inclui as teses; o Cascade cobre a exclusão.\n\nbeta.ts: --listar | --adicionar | --remover | --arquivo; dry-run, depois --apply.\n\nATIVACAO.md: plano_producao com SQL de verificação e rollback.",
+        "testes": "Vitest:\n- overlayCarteira:\n  - categoria efetiva com override (WEGE3 movida);\n  - quantity 0 ignorado;\n  - planejados;\n  - nenhuma chamada a getAssetPrices/BRAPI (spy).\n- useNaCarteiraAtivo (jsdom, fetch mockado): valores IGUAIS ao item de /api/carteira/acoes; '% da carteira' = valorAtualizado ÷ totais.dinheiro; item movido.\n- teses: GET vazio; PUT cria e atualiza; vazio apaga; > 10.000 → 400; acting → 403; ticker inválido → 404; sem acesso → 404.\n- navigation: item só com habilitada; posição; NOVO até a data; ausente no acting.\n- AddAssetWizard: preset de compra e de planejar; regressão zero.\n- resultadosAnaliseAtivos: fora do beta → []; link com o primeiro símbolo.\n- usuario.test: BarraPesoAlvo com aria; StatusSalvamento.\n\nE2E:\n- analise-ativos-acesso: NOVO no sidebar e no Mais; sem cookie → 401.\n- carteira.escrita:\n  - tese em WEGE3: salva, recarrega, apaga;\n  - Planejar ITUB4 → bloco 'Planejado'; remove no fim;\n  - % no bloco = % na aba Ações da Carteira.",
+        "criterios_aceite": [
+          "peso na aba, objetivo, % da carteira e classe × alvo idênticos aos da Carteira para o demo (QA compara)",
+          "nenhuma rota /api/analise-ativos/* chama BRAPI",
+          "tese invisível a outros usuários e bloqueada para consultor; entra na exportação LGPD",
+          "wizard sem preset inalterado; mobile-carteira-wizard verde",
+          "menu e Agenda só para quem tem acesso; link da Agenda válido"
+        ]
+      }
+    ],
+    "apis": [
+      {
+        "rota": "/api/analise-ativos/config",
+        "metodo": "GET",
+        "contrato": "200 {habilitada:boolean, estado:'desligada'|'fora_do_beta'|'liberada', acesso:'beta'|'todos', novoAte:'YYYY-MM-DD'}.\n- Sem sessão → 401.\n- Nunca 404.\n- Decisão pelo usuário logado.\nDono: 0a.",
+        "cache_e_performance": "no-store. TTL de 60 s por userId na memória. React Query 10 min. Menos de 10 ms."
+      },
+      {
+        "rota": "/api/analise-ativos/quadro",
+        "metodo": "GET",
+        "contrato": "Query (zod):\n- classe=acao|fii (obrigatório)\n- ordem=indiceMf|ticker|preco|anosLucro|mesesRendimento|roe|pl|pvp|dy|margem|divLiqEbitda|payout|vacancia|valorMercado|patrimonio|liquidez|obrigacoesPl|cotistas\n- dir=asc|desc\n- lucroConsistente=1\n- dyMin\n- pvpMax\n- tipo=tijolo|papel|hibrido|fof|indefinido\n- naCarteira=1\n- setor\n- segmento\n- somenteCompletos=1\n- offset\n- limite (25; máximo 100)\nSó linhas com noQuadro=true.\n\nResposta {classe, dataRef, versao, total, offset, limite, contagens:{acao,fii}, facetas:{setores[], tipos[]}, frescorCotacao:{data,status}, itens: LinhaQuadroApi[]}.\n\nLinhaQuadroApi:\n- {ticker, classe, nome, setor, subsetor, segmento, listagem, fiiTipo, segmentoCvm}\n- preco: Estado<number>, precoData, variacaoDiaPct, liquidezMedia21, baixaLiquidez\n- indice:{valor|null, estado:'calculado'|'incompleto'|'zero_regra'|'fora_do_indice'|'sem_score', motivos:[{codigo,texto}], criteriosAtendidos|null, criteriosAplicaveis|null, statusCriterios[]}\n- anosLucroConsecutivos, mesesComRendimento, anosDividendo\n- roe, pl, pvp, dy12m, margemLiquida, divLiqEbitda, payout, vacanciaCvm, obrigacoesPl: Estado<number>\n- nImoveisCvm, nCri, valorMercado, patrimonio, cotistas\n- serie10a:[{ano, valor|null, suspeito?:boolean}] (só anos fechados), tipoSerie\n- assetId\n\nErros: 400 (zod); 404 sem acesso.\nDono: A.",
+        "cache_e_performance": "Linhas em memória por versão; filtro e página < 5 ms. naCarteira = 1 query em portfolios/watchlists. Cache-Control: no-store (o cache fica no servidor). Server-Timing. p95 < 60 ms quente, < 300 ms frio. React Query: useInfiniteQuery com 5 min e placeholderData."
+      },
+      {
+        "rota": "/api/analise-ativos/busca",
+        "metodo": "GET",
+        "contrato": "{versao, itens:[{t:ticker, n:nome, c:'acao'|'fii', q:noQuadro, i:indiceMf|null, e:estadoIndice, f:fiiTipo|null, m:'sem_negociacao_30'|'fiagro'|null}]}.\n- Inclui as linhas fora do Quadro.\n- Filtro no cliente: NFD sem acento; prefixo do ticker > prefixo de palavra > substring; no máximo 8.\nDono: A.",
+        "cache_e_performance": "~800 itens ≈ 45 KB (≈ 9 KB gzip). ETag = versão → 304. private, max-age=3600. React Query 60 min. Sem requisição por tecla."
+      },
+      {
+        "rota": "/api/analise-ativos/carteira",
+        "metodo": "GET",
+        "contrato": "{posicoes: Record<ticker,{portfolioId, quantidade, categoria}>, planejados: Record<ticker,{watchlistId, categoria, objetivoPct}>}.\n- categoria = categoriaEfetiva (respeita o 'mover entre abas').\n- Sem valores monetários.\n- targetUserId (consultor vê o cliente).\nDono: D.",
+        "cache_e_performance": "DB-only: portfolios idx userId + watchlists idx userId. Menos de 40 ms. no-store; TTL de 60 s por usuário; React Query 60 s, invalidado por invalidatePortfolioDerivedQueries."
+      },
+      {
+        "rota": "/api/analise-ativos/ativos/[ticker]",
+        "metodo": "GET",
+        "contrato": "AtivoTopoResposta:\n- {ticker, classe, nome, tags[] (sem índice de mercado), noQuadro, foraDoQuadroMotivo, tickerReferenciaIndice, assetId}\n- cotacao:{preco, data, variacao, variacaoPct, baixaLiquidez}\n- indice:{valor, estado, regua, motivos[], caixaExplicativa:{titulo, itens[]}|null, leitura, componentes:[{nome, rotulo, nota, estado:'calculado'|'zero_regra'|'ausente'|'nao_se_aplica', peso, texto}], formula}\n- semaforo:[{codigo, titulo, status:'atende'|'parcial'|'nao_atende'|'nao_se_aplica'|'sem_dado', frase, provisorio, desligado}]\n- kpis[8]:[{codigo, rotulo, valor:Estado<number>, formato, sub, selo}]\n- grafico:{titulo, figcaption, granularidade, periodos[], serieA, serieB, ult12m:{a,b}|null, lacunas[]}\n- dividendos:{anos:[{ano, valor, suspeito}], ult12m, cagr5aPct|null, cagrMotivo|null, selo}\n- eventos:[{data, tipo:'resultado'|'resultado_estimado'|'assembleia'|'data_com', titulo, descricao, estimado}]\n- educacao:{titulo, href}\n- frescor:{cotacao, fundamentos, fii, painelAtrasado}\n- versao\n\nErros: 400 formato; 404 inexistente ou sem acesso.\nDono: B.",
+        "cache_e_performance": "~10 queries em Promise.all, só por índices existentes (PK/unique da Fase 0). Memória ticker:versão, TTL 30 min, LRU 800. private, max-age=300. < 300 ms frio, < 30 ms quente, < 25 KB. Prefetch no hover do Quadro."
+      },
+      {
+        "rota": "/api/analise-ativos/ativos/[ticker]/fundamentos",
+        "metodo": "GET",
+        "contrato": "{nivel:'essencial', unidade:'R$ mi', fonte:'CVM', padraoContabil, escopo, variante:'acao'|'fii_tijolo'|'fii_papel', colunas:[{codigo, rotulo, formato, fonteCvmAviso}], linhas:[{rotulo, ano, destaque, valores: Record<codigo, Estado<number>>, selos[]}], notas[]}.\nSó anos fechados + 'Últ. 12m'.\nDono: C.",
+        "cache_e_performance": "≤ 12 linhas por tabela; soma anual de FII via SQL. Memória com TTL 30 min; private, max-age=300; preguiçoso. < 150 ms frio."
+      },
+      {
+        "rota": "/api/analise-ativos/ativos/[ticker]/valuation",
+        "metodo": "GET",
+        "contrato": "{grupos:[{codigo, rotulo, resumo, explicacao|null, itens:[{codigo, rotulo, atual:Estado<number>, formato, leitura, referencia:{valor, rotulo:'mediana de n pares'|'sem referência de pares'}, barra:{visivel, min, media, max, nPontos, statusTexto, extremo}, historico[]}]}], historicos[2], pares:{criterio, itens: LinhaQuadroApi[]}, nota}.\nDono: C.",
+        "cache_e_performance": "Fase 0 + linhas em memória. TTL 30 min; private, max-age=300; preguiçoso; ~15 KB."
+      },
+      {
+        "rota": "/api/analise-ativos/teses/[ticker]",
+        "metodo": "GET, PUT, DELETE",
+        "contrato": "GET → {corpo, atualizadoEm|null, visibilidade:'privada'}.\nPUT (CSRF) {corpo ≤ 10.000} → {atualizadoEm}; corpo vazio apaga.\nDELETE → {ok:true}.\n- Sempre o usuário logado; acting → 403 'A tese é pessoal'.\n- 404 para ticker fora da área ou sem acesso.\nDono: D.",
+        "cache_e_performance": "unique(userId,symbol); < 20 ms; no-store; prefixo de rate limit '/api/analise-ativos/teses', separado dos GETs."
+      },
+      {
+        "rota": "/api/cron/analise-ativos/quadro",
+        "metodo": "GET",
+        "contrato": "requireCronSecret → respostaCron(RelatorioJob{linhasGravadas, noQuadroPorClasse, alertas}); grava AnaliseJobRun job='quadro'.\nDono: A.",
+        "cache_e_performance": "< 30 s, < 250 MB, numa transação; os leitores trocam de versão em até 60 s."
+      },
+      {
+        "rota": "(reuso) GET /api/carteira/acoes · GET /api/carteira/fii · PUT /api/carteira/{acoes|fii}/objetivo · GET /api/carteira/resumo · GET /api/carteira/configuracao · POST /api/carteira/operacao · POST/DELETE /api/carteira/planejados",
+        "metodo": "existentes",
+        "contrato": "Sem mudança.\n- acoes/fii fornecem valorAtualizado, percentualCarteira (aba), objetivo, quantoFalta, planejados e override.\n- resumo fornece distribuicao e totais.dinheiro.\n- configuracao fornece o AlocacaoConfig.\n- O wizard grava operacao e planejados.",
+        "cache_e_performance": "Mesmo cache e as mesmas keys da Carteira (useAcoes/useFii/resumo). Chamados só quando o bloco ou a coluna está visível e sem bloquear a página. Podem usar o fallback BRAPI, como na Carteira, por isso ficam fora de /api/analise-ativos/*."
+      }
+    ],
+    "schema_prisma": "Tudo aditivo: 3 tabelas novas e back-relations em User. Migration 20261005000000_analise_ativos_fase1.\n\nmodel AnaliseQuadroLinha {\n  symbol                String    @id\n  classe                String                 // acao | fii\n  cnpj                  String\n  dataRef               DateTime  @db.Date\n  noQuadro              Boolean                // negociadoUltimos30 && !fiagro\n  foraDoQuadroMotivo    String?                // sem_negociacao_30 | fiagro\n  temScore              Boolean\n  estadoIndice          String                 // calculado|incompleto|zero_regra|fora_do_indice|sem_score\n  nome                  String\n  nomeCurto             String?\n  setor                 String?\n  subsetor              String?\n  segmento              String?\n  segmentoListagem      String?\n  fiiTipo               String?\n  segmentoCvm           String?\n  regua                 String?\n  tickerReferencia      String?\n  preco                 Decimal?  @db.Decimal(18, 6)\n  precoData             DateTime? @db.Date\n  variacaoDiaPct        Float?\n  volumeMedio21         Decimal?  @db.Decimal(20, 2)\n  baixaLiquidez         Boolean   @default(false)\n  valorMercado          Decimal?  @db.Decimal(22, 2)\n  patrimonio            Decimal?  @db.Decimal(20, 2)\n  indiceMf              Float?\n  criteriosAtendidos    Int?\n  criteriosAplicaveis   Int?\n  statusCriterios       String[]\n  motivosIncompleto     String[]\n  componentesZeroRegra  String[]               // ex.: ['lucro:prejuizo','preco:pl_negativo']\n  anosLucroConsecutivos Int?\n  mesesComRendimento    Int?\n  anosDividendo         Int?\n  roePct                Float?\n  pl                    Float?\n  pvp                   Float?\n  dy12mPct              Float?\n  margemLiquidaPct      Float?\n  divLiqEbitda          Float?\n  divLiqPl              Float?\n  payoutPct             Float?\n  vacanciaFisicaCvmPct  Float?\n  nImoveisCvm           Int?\n  nCri                  Int?\n  obrigacoesPlPct       Float?\n  cotistas              Int?\n  naoSeAplica           String[]\n  serie10a              Json                   // [{ano, valor|null, suspeito?}] só anos fechados\n  serieUlt12m           Float?\n  pares                 String[]\n  assetId               String?                // sem FK\n  flags                 String[]               // inclui provento_suspeito, proventos_defasados\n  paramsVersion         Int?\n  geradoEm              DateTime\n  @@index([classe, noQuadro])\n  @@index([geradoEm])\n  @@map(\"analise_quadro_linhas\")\n}\n\nmodel AnaliseTese {\n  id           String   @id @default(uuid())\n  userId       String\n  user         User     @relation(\"AnaliseTeseUser\", fields: [userId], references: [id], onDelete: Cascade)\n  symbol       String\n  corpo        String   @db.Text               // ≤ 10.000 (zod)\n  visibilidade String   @default(\"privada\")    // Fase 1: só privada\n  createdAt    DateTime @default(now())\n  updatedAt    DateTime @updatedAt\n  @@unique([userId, symbol])\n  @@index([userId, updatedAt])\n  @@map(\"analise_teses\")\n}\n\nmodel FeatureBetaUser {\n  id            String   @id @default(uuid())\n  recurso       String                         // 'analise-ativos'\n  userId        String\n  user          User     @relation(\"FeatureBetaUserUser\", fields: [userId], references: [id], onDelete: Cascade)\n  adicionadoPor String\n  motivo        String?\n  createdAt     DateTime @default(now())\n  @@unique([recurso, userId])\n  @@index([userId])\n  @@map(\"feature_beta_users\")\n}\n\nEm User: analiseTeses AnaliseTese[] @relation(\"AnaliseTeseUser\") e featureBetas FeatureBetaUser[] @relation(\"FeatureBetaUserUser\").\n\nNenhum índice novo nas tabelas da Fase 0 nem nas da carteira (portfolios e watchlists já têm idx userId). analise_quadro_linhas fica com ~800 linhas (< 2 MB).",
+    "mapa_dados_por_bloco": "Fonte: Neon DEV, só leitura, dataRef 2026-09-29, medido na v1 e confirmado pelas críticas. Números de PROD entre colchetes.\n\n== QUADRO ==\n\nUniverso (corrigido)\n- Ações: listarTickersAcoes, com score opcional.\n  - noQuadro = negociadoUltimos30. No dev, 16 ações com score não negociaram: ficam só na busca, com 'sem negociação recente'.\n  - DEV: 347 ações com score [PROD 385].\n- FIIs: FiiTickerMap vigente.\n  - noQuadro = negociadoUltimos30 && !fiagro.\n  - Os 334 com score [PROD 362] mais os 21 com múltiplos e sem score (HCTR11, BLUE11, CACR11, DEVA11...), que entram com 'Índice MF não calculado para este fundo nesta data' e ordenam como nulos.\n  - FIIs não negociados: só na busca.\n  - FoF (57 no dev): 'fora do Índice MF nesta fase'.\n\nNome\n- Ações: Asset.name, com fallback em nomePregao e depois em cvm_companies.nome.\n- FIIs: Asset.name, com fallback em nomeB3.\n\nSetor\n- 340 de 347 ações. As outras 7 (BRML3, CELP3/5, CRDE3, IGTA3, SHOW3, TKNO4) aparecem com '—' e ficam fora do filtro.\n\nPreço\n- Cobertura de 100%, sempre com a data. Sem pregão anterior: variação '—'.\n\nLucros seguidos\n- 347 de 347.\n\nIndicadores de ações\n- ROE: 89%.\n- P/L: 73%. Os 74 com prejuízo ficam '—', com title 'P/L não calculado: prejuízo no último exercício'.\n- P/VP: 84%.\n- Margem: 325.\n- Dív.líq/EBITDA: 265. Em financeira é 'n/a'.\n- Payout: 47%.\n\nDY 12m\n- Ações: 61%. FIIs no DEV: quase zero, porque a base de proventos parou em jun/26.\n- [PROD: ausente em 95 ações e 34 FIIs com 'pagador_recorrente_parado'.]\n- Vazio: '—' com o selo 'proventos em conferência'.\n\nIndicadores de FIIs\n- P/VP e Obrigações/PL: ~99%.\n- Vacância CVM: ~43%, só tijolo; em papel é n/a.\n- Nº de imóveis: 52%. Nº de CRIs: 91%.\n\nÍndice MF, cinco estados\n1. calculado.\n2. incompleto (anel tracejado + selo + motivos).\n   - DEV: 180 ações e 276 FIIs [PROD: 179 e 46].\n   - Motivo dominante: div:fonte_defasada (312).\n   - Exemplos reais: TGMA3 8,48 e ABCB4 6,74 com 'proventos em conferência'; SOJA3 com 3 motivos.\n3. zero_regra (anel sólido + 'Componente zerado pela regra').\n   - Ex.: AURE3, 0,08, 0 de 5, lucro e preço com prejuízo/pl_negativo, incompleto=false.\n4. fora_do_indice (FoF).\n5. sem_score.\n\nLucro 10 anos\n- FY só de anos FECHADOS: 231 companhias com 10 ou mais anos; 298 com 5 ou mais.\n- Ano sem dado: barra tracejada.\n- FIIs: rendCota de anos fechados. HGLG11 2026 (5,5 parcial) fica fora.\n\nNa carteira\n- Overlay (categoria efetiva) mais o percentualCarteira de /api/carteira/acoes|fii.\n- Formatos: '—', 'Planejado · x%' e 'Na aba ‹X›' quando foi movido.\n\n== PÁGINA DO ATIVO ==\n\nCabeçalho\n- Linha do Quadro, sem tag de índice de mercado (sem fonte).\n\nÍndice e semáforo\n- Fonte: asset_scores.\n  - WEGE3: 9,01, 4 de 5.\n  - HGLG11: vacância e imóveis 'não se aplica · critério desligado'; obrigações/PL provisório.\n  - ITUB4: dívida n/a.\n  - AURE3: zero_regra e preço histórico 'não atende (patrimônio líquido negativo)'.\n  - TGMA3: incompleto.\n\nKPIs\n- P/L com média 10a: 64% das ações.\n- Mediana de pares: mínimo de 3.\n- CAGR: por series.cagr, sem o ano corrente.\n- FIIs: não há cap rate nem vacância financeira.\n\nGráfico\n- Ações: 88 com 10 ou mais anos de P/L; 138 com 5 a 9; 110 com menos de 5 (com menos de 3 pontos, 'histórico insuficiente').\n- Ponto 'últ. 12m' separado.\n- FIIs: fii_monthly desde 2016. No DEV, o diário de cotação só existe desde 2025 [PROD completo].\n\nDividendos\n- Só anos fechados.\n- WEGE3 2025 (2,45 contra 0,76) é marcado como 'suspeito': barra tracejada, selo e fora do CAGR.\n- asset_dividend_history com data 9999-12-31 é descartado (data > hoje+2 anos).\n\nFundamentos\n- Ações: 572 emissores com FY de 2014 a 2026 (o ano corrente fica fora).\n- FIIs: fii_quarterly; ano com menos de 4 trimestres dá '—'.\n- PDF-only fica escondido.\n\nValuation\n- Barra com 5 ou mais pontos: ~64% no P/L.\n- Referência só a mediana dos pares; NÃO existe referência 'Ibovespa'.\n- Cobertura de juros, cap rate, preço/m² etc. ficam escondidos.\n\nPares\n- Só 17 segmentos têm 5 ou mais empresas, então muitos pares vêm do subsetor, e o texto diz isso.\n- Sem pares: 'sem pares no mesmo segmento'.\n\nEventos\n- DEV: 632 resultados estimados + 32 assembleias, em 318 emissores.\n- Datas-com reais de proventos_auditados.\n- NÃO existe previsão de JCP.\n- FIIs: só data-com. Sem eventos: texto próprio.\n\nNa sua carteira\n- Hooks da Carteira (acoes/fii, resumo, configuracao).\n- Ativo fora do catálogo Asset (7 ações e 22 FIIs no dev): o wizard abre no passo Ativo.\n\nTese\n- analise_teses. Consultor agindo: card 'pessoal'.\n\nFrescor\n- Painel da Fase 0 mais a camada 'quadro'.",
+    "plano_producao": "ORDEM DE MERGE\n1. 0a.\n2. 0b, A, B, C e D em paralelo, em PRs separados com a flag desligada.\n3. QA integrado.\nO deploy é o pipeline existente (deploy.sh roda prisma migrate deploy).\n\nPASSO 1 — Deploy com a flag desligada\n- A migration aditiva cria as 3 tabelas.\n- Esperado: nada visível. Menu sem o item, /analise-ativos com 404 (página da raiz), API com 404, Agenda sem mudança.\n- Verificar a linha correspondente em _prisma_migrations.\n\nPASSO 2 — Job quadro\n- Acrescentar '40 10 * * * root /usr/local/bin/myfinance-job.sh quadro' em /etc/cron.d/myfinance. É manual porque o user_data tem ignore_changes.\n- Rodar uma vez à mão.\n- Conferir:\n  - select classe, \"noQuadro\", \"estadoIndice\", count(*) from analise_quadro_linhas group by 1,2,3;\n  - analise_job_runs com status ok;\n  - RSS < 250 MB.\n\nPASSO 3 — Conferência de dados em PROD, antes de qualquer usuário\nCom SQL do ATIVACAO.md, para WEGE3, PETR4, ITUB4, BBAS3, KLBN11, TGMA3, AURE3, HGLG11, XPLG11, KNCR11, MXRF11, HFOF11 e HCTR11:\n- DPA de 2025 e flags de provento suspeito;\n- datas absurdas;\n- contagens noQuadro.\n\nPASSO 4 — Admins\n- beta.ts --adicionar (dry-run, depois --apply). Admins já entram sem estar na lista.\n- Gravar ANALISE_ATIVOS_HABILITADA=true e ANALISE_ATIVOS_ACESSO=beta em /etc/myfinance/app.env (lightsail-push-env.sh) e reiniciar.\n- Quem está fora do beta vê a tela 'Área em beta fechado' só no link direto; não vê menu nem Agenda.\n- Smoke:\n  - Server-Timing;\n  - Lighthouse em Slow 4G;\n  - varredura de linguagem;\n  - % da carteira igual ao da Carteira.\n\nPASSO 5 — Beta interno\n- 10 usuários internos por 2–3 dias.\n\nPASSO 6 — Beta fechado\n- Lista do Wellington (100 usuários) via beta.ts --arquivo, por 2 semanas.\n- Monitorar:\n  - analise_job_runs e frescor;\n  - 5xx e 429 em /api/analise-ativos/*;\n  - RSS;\n  - feedback.\n\nPASSO 7 — Público\n- Só após o parecer jurídico: ANALISE_ATIVOS_ACESSO=todos e reiniciar.\n- O selo NOVO some em novoAte. A tese continua privada.\n\nROLLBACK\n- ANALISE_ATIVOS_HABILITADA=false e reiniciar: imediato, sem perda de dados.\n- Comentar a linha do cron.\n- As tabelas ficam (aditivas). Remoção total: DROP das 3 tabelas + linha em _prisma_migrations.\n\nONDE FICA CADA COISA\n- Env: ANALISE_ATIVOS_HABILITADA (área + Agenda) e ANALISE_ATIVOS_ACESSO.\n- Lista: tabela feature_beta_users, operada por scripts/analise-ativos/beta.ts.\n- Bloqueio:\n  - página: layout server (404 ou tela de beta);\n  - API: exigirAcessoAnalise com 404;\n  - menu: config;\n  - Agenda: acesso do dono.\n- Na área, o acesso é decidido pelo usuário LOGADO.\n- REGRA: não ligar a flag em prod antes do merge da fatia D (Agenda restrita).",
+    "plano_qa": "REFERÊNCIAS\n- Leiaute e conteúdo: o protótipo revisado do designer (docs/analise-ativos/fase1/prototipo.html, 22 cenários). Ordem de blocos e conteúdo da spec: prototipo-pedro.html.\n- Cor e fonte: My Finance.\n- Cenários corrigidos antes do QA:\n  - A5 incompleto = TGMA3;\n  - novo cenário 'zero pela regra' = AURE3;\n  - T2 de leitura removido (card 'pessoal');\n  - sem tag IBOV, sem 'Ibovespa', sem JCP estimado;\n  - números do dev.\n\n1) QA DESKTOP (1440 e 1080, claro e escuro)\nComparar com o protótipo revisado:\n- abas e contadores;\n- chips e popover de setor;\n- colunas Resumo e Detalhado por classe;\n- coluna da ordem destacada;\n- anel numa cor só;\n- semáforo azul cheio, azul meio e vermelho, sempre com ícone + texto;\n- caixa 'o que falta' (incompleto) contra a caixa 'zerado pela regra';\n- KPIs em 4 colunas;\n- gráfico base 100 com ponto 'últ. 12m';\n- proventos com o ano suspeito tracejado;\n- Essencial com o último ano FECHADO destacado;\n- Valuation com barras;\n- pares;\n- eventos;\n- Educação;\n- tese (vazia, editando, salva, erro);\n- frescor;\n- rodapé.\nPaleta:\n- só hex de brandColors, cinzas, #D92D20 e #F97066;\n- Outfit;\n- cabeçalho #314666;\n- links #396CAA (claro) / #6E9DC4 (escuro).\n\n2) QA MOBILE (390 e 320, claro e escuro, casca PWA)\n- Sem rolagem horizontal da página.\n- Chips numa linha própria, SEM sobrepor a linha Ordem/Resumo|Detalhado (boundingBox).\n- Chips e pílulas ≥ 44px; botões ≥ 48px.\n- Sheet de ordem.\n- Cartões do Quadro.\n- Busca em tela cheia.\n- KPIs em 2 colunas (1 abaixo de 340px).\n- Essencial rolando dentro do card.\n- Item NOVO no Mais; barra inferior inalterada.\n- Teclado não cobre a tese.\n\n3) QA DE DADOS\nConferir cada número contra SQL para WEGE3, PETR4, ITUB4, BBAS3, KLBN11, TGMA3, AURE3, SOJA3, HGLG11, XPLG11, KNCR11, MXRF11, HFOF11 e HCTR11. Estados:\n- incompleto;\n- zero_regra;\n- sem_score;\n- FoF;\n- financeira;\n- histórico curto;\n- papel provisório;\n- proventos em conferência;\n- ano parcial ausente;\n- 404;\n- frescor atrasado;\n- nulos no fim;\n- ação sem negociação só na busca.\nCasos 17–21. Peso na aba, objetivo, % da carteira e classe × alvo IDÊNTICOS aos da Carteira (inclusive com item movido entre abas). Consultor: vê a posição do cliente e a tese fica bloqueada.\n\n4) COMPLIANCE, SEGURANÇA E PERFORMANCE\n- Varredura de palavras proibidas no DOM, exceto o rodapé.\n- 'Registrar operação', nunca 'Comprar'.\n- 'Índice MF'.\n- Gate: flag off → 404; fora do beta → tela de beta e API 404; sem cookie → 401.\n- Tese de outro usuário inacessível; CSRF.\n- Zero chamadas BRAPI em /api/analise-ativos/*.\n- Quadro p95 < 60 ms quente; ativo < 300 ms frio; LCP < 1,5 s em Slow 4G; RSS estável.\n\nE2E\n- analise-ativos-quadro e mobile-analise-ativos-quadro (A)\n- analise-ativos-ativo e mobile-analise-ativos-ativo (B)\n- analise-ativos-fundamentos-valuation (C)\n- analise-ativos-acesso e analise-ativos-carteira.escrita (D)\nCada spec pula se config.habilitada=false. No CI: flag ligada + seedAnaliseAtivos com o demo no beta.\n\nRegressões obrigatórias:\n- desktop-layout (baselines regerados por D);\n- mobile-shell;\n- mobile-carteira-wizard;\n- desktop-carteira-mover;\n- smoke-routes;\n- mobile-agenda.\n\nUnitários de cada fatia.",
+    "riscos": [
+      "Dados de PROD diferentes do DEV (proventos parados no dev, WEGE3 2025 com DPA repetido, data 9999-12-31). Mitigação: detectarSaltoProvento, filtro de datas absurdas e o Passo 3 de conferência em prod antes de qualquer usuário.",
+      "Rate limit de 60/min por prefixo de 4 segmentos. Mitigação: GETs da página em /api/analise-ativos/ativos, tese em prefixo próprio, busca no cliente e prefetch limitado. Monitorar 429 no beta.",
+      "Os hooks useAcoes/useFii/resumo trazem a carteira inteira da aba, que é mais pesada que um overlay. Aceito porque garante números IDÊNTICOS aos da Carteira e o cache é compartilhado com ela. São chamados só quando o bloco ou a coluna está visível e não bloqueiam a página.",
+      "AddAssetWizard (1.059 linhas) é central. O preset precisa ser estritamente opcional e o mobile-carteira-wizard é obrigatório.",
+      "Snapshots de layout quebram com o item novo. D regera os baselines no mesmo PR.",
+      "Layout server com notFound()/cookies() dentro do AdminLayoutClient: validar no dia 1 da 0a. Se falhar, o fallback é o gate client pela config + 404 da API.",
+      "Memória do Lightsail (2 GB): caches com TTL e LRU (≤ 800 entradas por API, ≈ 45 MB no pior caso). O job roda em processo separado.",
+      "O job quadro depende do scores. Se o scores falhar, a dataRef fica antiga; a camada 'quadro' no frescor e o alerta de 2 falhas seguidas cobrem isso.",
+      "Neon DEV compartilhado: a migration é aplicada uma vez pela 0a e o semeador grava só na tabela nova.",
+      "0b em paralelo com A–D: se mudar alguma prop, quebra A–D. Por isso as props ficam congeladas nos stubs da 0a; qualquer mudança passa por PR na 0a.",
+      "Tickers renomeados (EMBR3→EMBJ3 etc.) dão 404 nas URLs antigas. O mapa de redirecionamento fica para depois.",
+      "Agenda: ligar a flag antes do merge de D mostraria eventos para todos. Regra: flag em prod só depois de D.",
+      "CRÍTICA REJEITADA EM PARTE (gate): o designer propôs que a API responda 403 para quem está fora do beta. Mantido 404 nas APIs: não revela a existência do recurso e é o padrão da Comunidade. A tela informativa do beta foi ACEITA para a página.",
+      "CRÍTICA ACEITA COM AJUSTE (Agenda): a crítica sugeria decidir pelo usuário logado ou pelo dono. Escolhido o DONO da agenda, porque o conteúdo é a carteira dele e a fonte não recebe role/payload. Um consultor que clique no link pode cair na tela de beta; isso está documentado.",
+      "CRÍTICA ACEITA COM AJUSTE (carteira): em vez de criar 'item já avaliado' num endpoint novo, a página reusa os endpoints de aba existentes (/api/carteira/acoes|fii), que já trazem objetivo, override e planejados. O /api/analise-ativos/carteira ficou só com o overlay, sem preço."
+    ],
+    "perguntas_para_wellington": [
+      "PALETA DO SEMÁFORO E DO ÍNDICE (pergunta única). Recomendo a linha do designer, toda dentro da paleta My Finance:\n- anel do Índice numa cor só (azul outside #0079F2), sem cor por faixa; o incompleto aparece tracejado;\n- Atende = círculo cheio com ✓ e Parcial = meio círculo, ambos em azul patrimonio #396CAA;\n- só 'Não atende' em vermelho #D92D20 (escuro #F97066), com ✕;\n- 'Sem dado' tracejado com '?'.\nDIVERGE da spec do Pedro (verde/âmbar/vermelho #16a34a/#d97706/#dc2626) e da v1 do arquiteto. Vantagens: cumpre a regra da paleta e evita que verde seja lido como 'sinal de compra'. Ok?",
+      "Barras do 'Lucro 10 anos': recomendo lucro em azul patrimonio para cima e prejuízo em vermelho para baixo, com o ano sem dado tracejado. DIVERGE da spec (verde/vermelho). Ok?",
+      "TESE x CONSULTOR. Recomendo que a tese seja 100% privada na Fase 1: o consultor agindo pelo cliente NÃO lê a tese da cliente (403) e vê o card 'A tese é pessoal de cada usuário'. DIVERGE do protótipo do designer (cenário T2, 'Tese da cliente' em leitura). Liberar a leitura exigiria mudar a promessa 'Privada: só você vê' e a política de privacidade (LGPD). Confirma?",
+      "UNIVERSO DAS AÇÕES. Recomendo tirar do Quadro as ações sem negociação nos últimos 30 pregões, que continuam achadas na busca com 'sem negociação recente' (16 no dev). É a mesma regra da decisão 14 dos FIIs. A alternativa é mantê-las no Quadro com o selo. Ok tirar?",
+      "FIIs negociados sem Índice MF (HCTR11 e outros 20 no dev). Recomendo mostrá-los no Quadro com 'Índice MF não calculado para este fundo nesta data', ordenados no fim. A alternativa é escondê-los. Ok mostrar?",
+      "'Zero pela regra' contra 'dados incompletos'. Recomendo exibir os dois de forma distinta:\n- AURE3, com Índice baixo porque a regra zera componente com prejuízo ou PL negativo: anel sólido e caixa 'Componente zerado pela regra';\n- TGMA3, com proventos em conferência: anel tracejado e 'o que falta'.\nO protótipo misturava os dois e foi corrigido. Ok?",
+      "Conteúdo sem fonte REMOVIDO do protótipo: tag 'IBOV' no cabeçalho, referência 'Ibovespa' nos cards de Valuation e o evento 'JCP · data estimada pelo histórico'. Só voltam quando houver fonte (composição de índices B3 / previsão de proventos). Ok?",
+      "Séries anuais (Lucro/Rendimento 10 anos, proventos e CAGR): recomendo mostrar só anos FECHADOS, mais um ponto separado 'últ. 12m'. Proventos com salto suspeito (ex.: WEGE3 2025) aparecem tracejados com 'proventos em conferência' e ficam fora do CAGR. Ok?",
+      "Gráfico Lucro × Cotação das ações: recomendo série anual com pills 5A/10A/Máx (sem 1A/3A, porque o lucro trimestral é recente). Nos FIIs ficam todas as pills. DIVERGE da spec. Ok?",
+      "Botões do cabeçalho: recomendo 'Planejar na Carteira' e 'Registrar operação', que usam o wizard existente; com posição, 'Registrar operação' e 'Ver na Carteira'. 'Comparar' e 'Salvar' ficam ESCONDIDOS, assim como as pills Comparador/Ranking/Salvos, as abas Stocks/REITs e a coluna Comunidade, sem 'em breve'. DIVERGE da spec e do protótipo do Pedro. Ok?",
+      "Tela para quem está fora do beta: recomendo, com a flag ligada, que o link direto mostre 'Área em beta fechado' com atalhos para Carteira, Agenda e Educação; com a flag desligada, 404. A API sempre responde 404 (o designer propôs 403). Ok? Aprova o texto da tela?",
+      "Beta: chave mestra + ANALISE_ATIVOS_ACESSO=beta|todos e lista em tabela operada por script (admins sempre entram). Recomendo começar com 10 usuários internos por 2–3 dias e depois os 100. Quem são os 100 e quem opera o script?",
+      "Agenda: recomendo mostrar as datas de resultado só para quem tem acesso à área (pelo beta do dono da agenda), com link para a página do ativo. Ok?",
+      "Consultor: recomendo manter a área FORA do menu do modo consultor. Pela URL, ele vê a posição do cliente, mas não a tese. Ok?",
+      "'Na sua carteira': recomendo mostrar exatamente os números da aba da Carteira (peso na aba, objetivo do ativo, % da carteira, classe × alvo do Planejamento) e, quando a cotação da Carteira for de outra data, uma nota 'valor pela cotação da Carteira de dd/mm'. Ok?",
+      "Tese: um texto por usuário e ativo, com salvamento automático, limite de 10.000 caracteres (o designer previa 5.000) e sem histórico de versões. Quer um 'diário de decisões' com entradas datadas já na Fase 1? Recomendo deixar para depois.",
+      "Card Educação: qual aula ou módulo usar para Ações e para FIIs? Recomendo a página do curso atual até existirem módulos específicos.",
+      "Incompletos (46% das ações em prod): recomendo mostrá-los com selo e motivos, com o filtro 'Só dados completos' desligado por padrão. Ok?",
+      "Vacância e nº de imóveis da CVM com 'fonte CVM · pode diferir do relatório do gestor'; 'Área informada (CVM)' no lugar de ABL; campos que só existem em PDF ficam escondidos. Ok?",
+      "Textos com problema de compliance ('desconto', 'a leitura mais importante', 'alta liquidez', 'caixa líquido saudável') foram reescritos de forma neutra. Pode validar o textosTela com o jurídico antes do beta?",
+      "Paginação: 25 com 'Mostrar mais', sem virtualização. A spec diz 25 na §3.1 e 50 na §8. Ok com 25?",
+      "Selo NOVO até 31/12/2026 ou até 60 dias após a abertura pública, o que vier depois. O banner fica só dentro da área, dispensável por 30 dias. Quer também um banner na Carteira para os usuários do beta?"
+    ]
+  },
+  "design": {
+    "resumo": "Atualizei o protótipo da Fase 1 no mesmo arquivo; a v1 ficou em prototipo.v1.html, na mesma pasta. Corrigi todas as críticas de design que eram válidas e as que tocam a tela (incluindo a 3, a 6, a 7, a 8, a 10 e a 13).\n\nMudanças principais:\n- **Anel e semáforo:** mantive o anel numa cor só e o semáforo azul cheio, azul meio e vermelho. A especificação agora diz que isso substitui o CORES_STATUS e o FAIXA_INDICE do arquiteto. Para o Wellington vai uma pergunta só.\n- **Tese com consultor agindo pelo cliente:** passa a ser fechada, como propõe o arquiteto. A API responde 403 e o card diz \"A tese é pessoal de cada usuário\". O contrato fica /api/analise-ativos/teses/[ticker] com até 10.000 caracteres.\n- **Ativo com dado incompleto:** o cenário agora é real. TGMA3 tem Índice 8,5 com proventos em conferência (div:fonte_defasada, o motivo mais comum no dev).\n- **AURE3:** virou um cenário próprio, \"zero pela regra\" (prejuízo). Índice 0,1, anel normal, sem selo e com a caixa \"Índice baixo pela regra, não por falta de dado\".\n- **WEGE3 com os números do dev:** Índice 9,0, DY 3,98% e payout 134%. Os proventos de 2025 aparecem \"em conferência\": borda tracejada, barra tracejada, barra de 10 anos oculta e o ano fora do crescimento anual.\n- **Conteúdo sem fonte saiu da tela:** tag IBOV, referências Ibovespa e IFIX nos múltiplos, JCP estimado e eventos estimados de FII. O HGLG11 mostra o estado vazio de eventos. O ITUB4 mostra uma data-com já anunciada, que só aparece se existir nos proventos auditados.\n- **Ano corrente:** as séries anuais usam só anos fechados. A janela de 12 meses fica no DY 12m.\n- **Na sua carteira:** mostra o objetivo do ativo e a aba efetiva da Carteira. O texto avisa que valor e % usam o mesmo fechamento do cabeçalho.\n- **Universo do Quadro:**\n  - HCTR11 aparece \"sem Índice · dados insuficientes\" (tem múltiplos, não tem score).\n  - Ações sem negócio em 30 pregões ficam só na busca, com \"fora do Quadro · sem negócio recente\" (CEDO4, cenário B4).\n- **Celular:** o trilho de chips não sobrepõe mais a linha de ordem. Chips, pílulas Resumo/Detalhado e o botão de ordem têm 44px (cenário M3).\n- **Acesso fora do beta:** com a flag desligada, 404. Com a flag ligada e o usuário fora do beta, o layout mostra a tela informativa e a API responde 404. A especificação explica por que o notFound() lançado no layout não usa o not-found.tsx do próprio segmento.\n- **Especificação:** inclui o link da Agenda pelo primeiro símbolo e no-store quando o filtro Na minha carteira está ligado. As APIs da especificação agora usam os nomes do arquiteto (/ativos, /fundamentos, /valuation, /carteira, /teses).\n- **Gráficos:** o rótulo da média nos mini-gráficos não é mais cortado.\n\nVerificação no Playwright: os 25 cenários rodam em computador, celular a 390 e a 320. Nenhum erro de console e nenhuma rolagem horizontal. O script passa no node --check.",
+    "prototipo_path": "/tmp/claude-1000/-home-huske-dev-front/21651a6f-0ca8-46db-80d2-fc94d2309271/scratchpad/analise-fase1/prototipo.html",
+    "telas": [
+      {
+        "nome": "Casca e acesso (sidebar NOVO, banner beta, tela fora do beta)",
+        "descricao": "Sidebar com 'Análise de Ativos' logo abaixo de Carteira e o selo NOVO. Título com pílula Beta e banner do beta que pode ser dispensado. Para quem está fora do beta, com a flag ligada, o layout da área mostra a tela informativa 'Área em beta fechado'. A API responde 404. Com a flag desligada, 404 do app.",
+        "decisoes": [
+          "Gate unificado com o arquiteto:\n- flag desligada: 404 na página e na API;\n- flag ligada e usuário fora do beta: tela informativa renderizada pelo layout, sem notFound(), e API em 404.",
+          "Documentado que um notFound() lançado no próprio layout.tsx usa o not-found do segmento pai",
+          "No celular, o item fica no painel Mais com o selo NOVO; a barra inferior não muda",
+          "Sem 'Quero participar' nesta fase"
+        ]
+      },
+      {
+        "nome": "Quadro · Ações",
+        "descricao": "Abas com contador (385 e 362), chips de filtro, Resumo e Detalhado, tabela TABLE_STYLES ordenável, Lucro 10 anos, Índice MF e coluna Na carteira. Três estados distintos aparecem lado a lado:\n- TGMA3: dados incompletos, com selo, anel tracejado e DY '—' com 'proventos em conferência';\n- WEGE3: DY 4,0% com 'em conferência' embaixo;\n- AURE3: Índice 0,1 pela regra do prejuízo, anel normal e sem selo.",
+        "decisoes": [
+          "WEGE3, TGMA3 e AURE3 com os números do banco dev em 29/09: WEGE3 9,0; TGMA3 8,5 incompleto; AURE3 0,1 com incompleto=false",
+          "DY ausente ou suspeito diz o motivo embaixo do valor, para não depender de title",
+          "'Só dados completos' também tira os ativos sem Índice",
+          "Ações sem negócio nos últimos 30 pregões ficam fora do Quadro e aparecem só na busca, a mesma regra dos FIIs. Isso evita preço velho na tabela."
+        ]
+      },
+      {
+        "nome": "Quadro · FIIs",
+        "descricao": "Universo montado a partir do cadastro de FIIs vigentes, com o score opcional. HCTR11 tem múltiplos e não tem score: aparece 'sem Índice · dados insuficientes' e o DY diz 'rendimento parado'. BCFF11 aparece 'fora do Índice' (FoF). 'Rendimento 10 anos' usa só anos fechados.",
+        "decisoes": [
+          "Novo estado do anel 'sem Índice' (tracejado, sem número), separado de 'fora do Índice'",
+          "Crítica 3 aceita: com o universo saindo só de AssetScore, HCTR11 sumiria do Quadro; a divergência vai explícita para o Wellington",
+          "Vacância e imóveis da CVM só no Detalhado (decisão 6)"
+        ]
+      },
+      {
+        "nome": "Quadro · estados",
+        "descricao": "Carregando com esqueleto, vazio por filtro, 'Na minha carteira' sem posição, e erro que mantém filtros e ordem. No celular, os mesmos estados em cartões.",
+        "decisoes": [
+          "Com o filtro 'Na minha carteira' ligado, a resposta da API é no-store. Assim o ativo recém-registrado aparece logo, sem esperar o cache HTTP de 60 s."
+        ]
+      },
+      {
+        "nome": "Busca com autocomplete",
+        "descricao": "Combobox com atalho '/'. Mostra os selos Na carteira e Planejado. O FII fora do Quadro (HGPO11) aparece com 'baixa liquidez'; a ação fora do Quadro (CEDO4, cenário B4) aparece com 'sem negócio recente'. Sem resultado (AAPL): diz o que a busca cobre.",
+        "decisoes": [
+          "O índice inteiro chega uma vez e a filtragem roda no cliente (contrato do arquiteto), sem requisição por tecla",
+          "Rótulo 'fora do Quadro' com o motivo"
+        ]
+      },
+      {
+        "nome": "Página do ativo · WEGE3 (na carteira, proventos em conferência)",
+        "descricao": "Índice 9,0 e 4 de 5. O critério Dividendos fica 'Parcial' com '3,98%; referência 4%' e a nota 'Atenção: proventos de 2025 em conferência'.\n- **Indicadores:** DY e payout com borda tracejada e aviso.\n- **Dividendos por ano:** a barra de 2025 (R$ 2,45) é tracejada, com asterisco, e fica fora do crescimento anual, que passa a ser de 2016 a 2024.\n- **Essencial:** 2025 com asterisco.\n- **Valuation:** DPA, DY e payout com a barra de 10 anos oculta.\n- **Na sua carteira:** acrescenta o objetivo do ativo e a aba efetiva.\n- **Cabeçalho e Valuation:** sem a tag IBOV e sem a referência Ibovespa.\n- **Eventos:** só o resultado informado e o estimado pelo histórico da companhia; sem JCP estimado.",
+        "decisoes": [
+          "Valor real com aviso, em vez de esconder ou trocar (na v1 eu tinha inventado DY 2,0%)",
+          "Regra proposta: DPA do ano acima de 2× o ano anterior marca 'em conferência'",
+          "Duas casas na frase do critério quando o arredondamento empataria com a referência",
+          "'Valor e % calculados pela Carteira com o mesmo fechamento de 29/09' (crítica 8)"
+        ]
+      },
+      {
+        "nome": "Página do ativo · HGLG11 (FII de tijolo na carteira)",
+        "descricao": "Índice 8,2 e 2 de 3 (perfil de prod). Rendimento por cota de 2016 a 2025, só anos fechados. O texto explica que 2026 (jan–ago) entra quando o ano terminar e que os 12 meses estão no DY. Sem a referência IFIX. O bloco de eventos mostra o estado vazio próprio de FII ('aparecem as datas-com já anunciadas').",
+        "decisoes": [
+          "Os eventos estimados de rendimento e de informe mensal saíram por falta de fonte (FII não tem IPE)",
+          "A nota do cenário registra que no dev o HGLG11 sai 2,3 e incompleto, porque a base de proventos do dev parou em jun/26"
+        ]
+      },
+      {
+        "nome": "Página do ativo · ITUB4 (não detido / planejado)",
+        "descricao": "Igual à v1, sem IBOV e sem a referência Ibovespa. O evento passa a ser uma data-com de JCP mensal já anunciada pela companhia, que vem de proventos auditados, mais o resultado do 3T26.",
+        "decisoes": [
+          "'Planejar na Carteira' abre o wizard na etapa Planejar, reaproveitando o fluxo dos ativos planejados",
+          "Data-com só quando existir em asset_proventos_auditados (status valido e data futura)"
+        ]
+      },
+      {
+        "nome": "Página do ativo · TGMA3 (dados incompletos)",
+        "descricao": "Substitui o AURE3 da v1. Índice 8,5, 4 de 5, anel tracejado e selo 'dados incompletos'.\n- **Caixa 'Proventos em conferência':** 1 componente sem dado conta zero; a base parou no 1º semestre de 2026; o Índice é recalculado sozinho quando o dado chegar.\n- **Critério Dividendos:** 'Sem dado', com o motivo.\n- **Indicadores:** DY e payout '—', com borda tracejada.\n- **Dividendos e pares:** barra de 2025 tracejada; nos pares, o Índice com asterisco.",
+        "decisoes": [
+          "Escolhido por representar o motivo dominante, div:fonte_defasada (312 no dev), num ativo de Índice alto",
+          "Números do dev: P/L 9,5, P/VP 2,43, ROE 25,6%, Dív.líq./EBITDA 0,06, 11 anos de lucro, P/L −36% contra a média de 10 anos"
+        ]
+      },
+      {
+        "nome": "Página do ativo · AURE3 (zero pela regra)",
+        "descricao": "Cenário novo (A7). Índice 0,1, 0 de 5, anel normal, sem selo. Caixa neutra: 'Índice baixo pela regra, não por falta de dado'. Componentes com '0 · regra'. Critérios: quatro 'Não atende' e Endividamento 'Parcial' com 5,8×. P/L '—' com 'prejuízo nos últimos 12 meses'. Histórico de 4 anos, com as barras de 10 anos ocultas.",
+        "decisoes": [
+          "Separar 'zero por regra' de 'incompleto' na forma e no texto: um não é dado faltante",
+          "Números do dev: preço 12,69, P/VP 1,15, ROE −9,5%, margem −7,6%, LPA −1,04"
+        ]
+      },
+      {
+        "nome": "Minha tese (privada)",
+        "descricao": "Estados: vazia, editando (contador de 10.000), salva e erro ao salvar. Com o consultor agindo pelo cliente, o card diz 'A tese é pessoal de cada usuário' e não lê nem grava nada.",
+        "decisoes": [
+          "Crítica 2 aceita: a API responde 403 com o consultor personificando, mantendo verdadeira a promessa 'só você vê'",
+          "Contrato alinhado com o arquiteto: /api/analise-ativos/teses/[ticker], até 10.000 caracteres",
+          "O banner do modo consultor diz 'a tese não aparece neste modo'"
+        ]
+      },
+      {
+        "nome": "Celular (390 e 320)",
+        "descricao": "O trilho de chips fica numa linha própria, com altura fixa e rolagem lateral só dentro dele. Embaixo, 'Ordem' e Resumo/Detalhado. Chips, pílulas e botões com 44px (cenário M3). Cartões com DY e motivo, e com o anel 'sem Índice'.",
+        "decisoes": [
+          "Causa da sobreposição da v1: um item flex com overflow tem min-height 0 e encolhia dentro do .ph-body. A correção foi .ph-body>*{flex-shrink:0}.",
+          "Medido no Playwright: o chip termina antes de a linha de ordem começar; chips e pílulas têm 44px",
+          "Nenhuma rolagem horizontal a 390 nem a 320 nos 25 cenários"
+        ]
+      }
+    ],
+    "especificacao_visual": "**Paleta:** só brandColors.ts.\n- potencia #2D2D2D, seguranca #314666, patrimonio #396CAA, outside #0079F2, tranquilidade #6E9DC4, transparencia #CCCCCC, escolha #EAEAEA.\n- Cinzas do app e negativos #D92D20 (claro) / #F97066 (escuro).\n- Fonte Outfit.\n\n**Contrato visual de status (substitui CORES_STATUS e FAIXA_INDICE do arquiteto):**\n- **Anel do Índice:** numa cor só, outside, proporcional a 0–10.\n  - Incompleto: trilho tracejado.\n  - Sem Índice (tem múltiplos, sem score) e fora do Índice (FoF): só o anel tracejado, sem número, com o texto.\n  - Zero pela regra: anel normal.\n- **Semáforo:** Atende e Parcial em patrimonio, com ícone cheio e meio; Não atende em #D92D20 com ✕; Sem dado com círculo tracejado e '?'; Não se aplica com traço.\n\n**Formas novas desta versão:**\n- **Em conferência:** borda tracejada app-muted no cartão de indicador e no de Valuation. Barra de proventos com fill app-line-soft, contorno tracejado 3/2 e asterisco no rótulo.\n- **Caixa de regra (rulebox):** borda contínua app-line sobre app-bg, para diferenciar da caixa de incompleto (incbox), que é tracejada.\n- **Motivo do DY:** 11px app-muted embaixo do valor (dyconf).\n\n**Medidas (celular, corrigidas):** chips 44px; trilho com min-height 50px e flex none; pílulas Resumo/Detalhado e de período com 44px; botões principais 48px.\n\n**Desktop:**\n- Chips 36px, pílulas 34px.\n- Tabela TABLE_STYLES:\n  - cabeçalho seguranca fixo ao rolar;\n  - coluna Ativo fixa;\n  - coluna da ordem em outside.\n- Mini-gráficos com viewBox de 320 e margem direita de 64, para o rótulo da média não ser cortado.\n\n**Escuro:** fundo #18181B, cards #1F1F22, bordas #2E3440, azuis em tranquilidade #6E9DC4, negativo #F97066. Os tracejados usam app-muted do tema. Todos os tokens ficam em :root, em prefers-color-scheme e em [data-theme].",
+    "acessibilidade": [
+      "Tabela com <table> real: th scope=col; aria-sort no th; o botão 'Ordenar por X' fica dentro do th; ordem anunciada em aria-live; ticker como link dentro do th scope=row",
+      "Status nunca só por cor: semáforo com forma e texto. Incompleto, sem Índice, em conferência e zero pela regra têm forma própria (tracejado do anel, borda tracejada do cartão, caixa contínua) e texto visível",
+      "Anéis com aria-label completo, incluindo 'Índice MF não calculado: dados insuficientes'. Mini-barras com aria-label do lucro ou rendimento por ano.",
+      "Barra de proventos em conferência com <title> '(em conferência)' e o motivo na legenda do gráfico, não só no visual",
+      "Gráficos em <figure> com figcaption de uma frase e 'Ver dados em tabela'; barra de posição com aria-label (mín, média, máx, atual), ou o texto 'barra oculta' com o motivo",
+      "Motivo do DY ausente em texto visível embaixo do valor (não só em title)",
+      "Busca no padrão combobox (aria-activedescendant, listbox/option; setas, Enter, Esc; '/' foca a busca)",
+      "Tese: label associado, contador por aria-describedby, 'Salvo' em aria-live, erro com role=alert; com consultor, texto explicativo no lugar do campo",
+      "Alvos de 44px no celular (chips, pílulas e ordem corrigidos e medidos), 48px nos botões principais, campo de busca de 16px; validar com expectMinTarget no e2e mobile",
+      "Foco visível de 3px (outside no claro, tranquilidade no escuro); contraste de texto ≥ 4,5:1 nos dois temas",
+      "prefers-reduced-motion: sem pulsar do esqueleto e sem transições"
+    ],
+    "perguntas_para_wellington": [
+      "1. Cores do semáforo e do anel (DIVERGÊNCIA com o arquiteto). Ele propôs verde/âmbar/vermelho e anel colorido por faixa (≥8 verde … <4 vermelho). RECOMENDO a minha linha: anel numa cor só (outside), com o tracejado só como forma do incompleto; Atende e Parcial em azul com ícones diferentes; vermelho só em 'Não atende'. Verde e âmbar não existem na paleta My Finance, e cor por faixa vira julgamento (§9). Alternativa: âmbar #B54708 só no Parcial, se o Pedro fizer questão.",
+      "2. Tese com consultor agindo pelo cliente. Mudei para a posição do ARQUITETO: a tese é pessoal, a API responde 403 e o card explica. RECOMENDO fechar assim na Fase 1. Na v1 eu deixava o consultor ler, o que contradizia o 'só você vê' e exigiria mexer na política de privacidade. Preciso do seu OK antes da fatia D.",
+      "3. Ativos incompletos (179 de 385 ações em prod) na ordem padrão: RECOMENDO ordenar pelo número da fórmula, com selo, anel tracejado e o chip 'Só dados completos'. Separei três formas diferentes: incompleto (TGMA3), em conferência (WEGE3) e zero pela regra (AURE3, que não é dado faltante).",
+      "4. Universo do Quadro (DIVERGÊNCIA com o arquiteto). Ele parte de AssetScore. No dev, isso tira os 21 FIIs com múltiplos e sem score (ex.: HCTR11), deixa a busca sem 'FII fora do Quadro' e põe no Quadro 16 ações sem negócio em 30 pregões, com preço velho. RECOMENDO montar o universo a partir do cadastro, com score opcional ('sem Índice · dados insuficientes'). Ações sem negócio em 30 pregões ficariam só na busca, a mesma regra dos FIIs (decisão 14).",
+      "5. Séries anuais só com anos fechados (DIVERGÊNCIA com o arquiteto: o contrato serie10a e o de dividendos de FII incluem o ano corrente). RECOMENDO tirar o ano parcial: HGLG11 2026 = R$ 5,50 contra R$ 13,20 em 2025 parece queda. Os 12 meses ficam no DY 12m.",
+      "6. Proventos suspeitos. RECOMENDO mostrar o valor real com 'em conferência': WEGE3 2025 tem DPA 2,45 contra 0,76 em 2024, payout 134% e DY 3,98%. Regra: DPA acima de 2× o ano anterior oculta a barra de 10 anos e tira o ano do crescimento anual. A frase do critério usa 2 casas quando arredondar empataria com a referência. Também RECOMENDO corrigir as parcelas repetidas da fonte antes de abrir o beta.",
+      "7. Bloco 'Na sua carteira' (DIVERGÊNCIA com o arquiteto). Ele mistura preço só do banco com o denominador do resumo, que pode usar BRAPI, e classifica pelo tipo do ativo. RECOMENDO tirar valor e % do mesmo cálculo da Carteira e usar a aba efetiva, que respeita o 'mover entre abas' (#275). O objetivo do ativo também precisa estar na resposta, porque a tela o mostra.",
+      "8. Fora do beta: RECOMENDO flag desligada = 404; flag ligada e usuário fora do beta = o layout mostra a tela informativa (sem notFound) e a API responde 404. Na v1 eu tinha API 403 e o arquiteto tinha notFound() no layout, que nem usa o not-found.tsx do próprio segmento. A tela é só informativa, sem 'Quero participar'.",
+      "9. Conteúdo sem fonte sai da tela: tag IBOV, referência Ibovespa/IFIX nos múltiplos, JCP estimado e eventos estimados de FII. RECOMENDO manter assim até haver fonte. A data-com só aparece quando estiver em proventos auditados (válida e futura).",
+      "10. Página do ativo em URL própria (/analise-ativos/WEGE3) e não dentro do card do Quadro, como diz a spec §3.1? RECOMENDO URL própria; o arquiteto concorda.",
+      "11. Fora da Fase 1, sem 'em breve': coluna Comunidade (Fase 3); 'reportar dado incorreto' (o banner do beta aponta o Suporte); períodos 1A, 3A e Máx do gráfico anual (ficam só 5A e 10A). RECOMENDO assim.",
+      "12. 'Planejar na Carteira': RECOMENDO abrir o wizard na etapa Planejar com o ticker preenchido, em vez de criar o planejado com 0%.",
+      "13. Nome da flag: RECOMENDO ANALISE_ATIVOS_HABILITADA. Diverge do plano de set/2026, que diz ANALISE_HABILITADA e confunde com /api/analises. O contrato da tese já está alinhado com o arquiteto: /teses/[ticker], até 10.000 caracteres.",
+      "14. Plano do arquiteto, sem impacto na tela: concordo em dividir a fatia 0 em 0a (contratos, schema, gate, hooks) e 0b (componentes comuns, em paralelo com A a D), e em pôr o crescimento anual e a série anual num utilitário único consumido por B e C. Assim a mesma página não mostra dois números de crescimento diferentes."
+    ]
+  },
+  "revisao": {
+    "problemas": [
+      {
+        "alvo": "arquitetura",
+        "gravidade": "alta",
+        "descricao": "A paleta do semáforo e do anel do Índice proposta pelo arquiteto descumpre a regra permanente da paleta My Finance e a §9 de compliance. Usa verde/âmbar/vermelho (success/warning/error) e cor por faixa no anel.",
+        "evidencia": "Em analiseAtivosVisual.ts, CORES_STATUS usa #027A48/#32D583 e #B54708/#FEC84B, e FAIXA_INDICE usa ≥8 #12B76A · ≥6 #0079F2 · ≥4 #F79009 · <4 #F04438. Nenhuma dessas cores está em src/constants/brandColors.ts nem na lista de derivados aceitos (memória feedback_paleta_myfinance_obrigatoria: 'nunca inventar cor... matiz nova'). O designer propõe outra coisa: anel numa cor só e semáforo azul cheio, azul meio e vermelho. As duas propostas conflitam.",
+        "sugestao": "Adotar a linha do designer: anel com outside único e o tracejado só como forma do estado incompleto; Atende/Parcial em patrimonio com ícone diferente; só 'Não atende' em #D92D20/#F97066. Faixa por cor sai do contrato visual (FAIXA_INDICE vira só dado, se for necessária). Levar a escolha ao Wellington como uma pergunta só, não duas divergentes."
+      },
+      {
+        "alvo": "ambos",
+        "gravidade": "alta",
+        "descricao": "A tese privada tem comportamento oposto para o consultor que age pelo cliente. O designer mostra a tese da cliente em modo leitura. O arquiteto responde 403 e grava sempre no payload.id. O rótulo 'Somente você vê esta tese' é falso no desenho do designer.",
+        "evidencia": "Designer, cenário T2 ('Tese da cliente', somente leitura) e pergunta 7. Arquiteto, teses/[ticker]: 'Sempre o usuário LOGADO (payload.id)... com actingClient → 403'. Pela regra do arquiteto, o consultor nunca leria a tese do cliente. Pelo protótipo, leria, o que muda a promessa de privacidade e exige ajuste na política de privacidade (LGPD).",
+        "sugestao": "Fechar em 403 na Fase 1, como o arquiteto propõe: a tese é PRIVADA nesta fase. Remover o cenário T2 de leitura e trocar por um card 'A tese é pessoal de cada usuário'. Decisão explícita do Wellington antes da fatia D."
+      },
+      {
+        "alvo": "arquitetura",
+        "gravidade": "media",
+        "descricao": "O universo de analise_quadro_linhas parte de AssetScore. Com isso, a busca não terá nenhum 'FII fora do Quadro' (decisão 14), FIIs com múltiplos e sem score somem de vez, e ações sem negociação entram no Quadro com preço velho.",
+        "evidencia": "Neon DEV, dataRef 2026-09-29: os 334 scores de FII têm negociadoUltimos30=true, ou seja, o job scores já filtra o universo, e 'FIIs fora do Quadro só na busca' fica vazio. 21 FIIs têm asset_multiples_current sem score (HCTR11, BLUE11, CACR11, DEVA11...), e HCTR11 é exatamente o exemplo do protótipo no Quadro de FIIs. 16 ações com score têm negociadoUltimos30=false, mas a regra do arquiteto é 'ações noQuadro = tem score'.",
+        "sugestao": "Montar o universo do job quadro a partir de FiiTickerMap vigente + listarTickersAcoes, com o score opcional. noQuadro de ações = tem score E negociadoUltimos30, ou mostrar um selo 'sem negociação recente'. Os FIIs não negociados entram com uma linha mínima (nome/tipo) só para a busca. Teste de contagem contra o dev."
+      },
+      {
+        "alvo": "design",
+        "gravidade": "media",
+        "descricao": "O cenário de 'dados incompletos' do protótipo representa errado o estado real. AURE3 não é incompleto: o Índice é baixo pela regra de prejuízo. O incompleto típico tem outro motivo (proventos defasados).",
+        "evidencia": "No dev, AURE3: incompleto=false, indiceMf 0,08, 0/5, componentes lucro e preço 'zero_regra' com motivo 'prejuizo', preco_historico com status nao_atende e motivo pl_negativo (não 'sem_dado'). O protótipo mostra AURE3 1,9, anel tracejado, 'P/L com 3 anos de histórico; sem DY 12m' e critérios 'Sem dado'. Incompletos reais: TGMA3 8,48 [div:fonte_defasada], ABCB4 6,74 [div:fonte_defasada], SOJA3 [div:fonte_defasada, preco:sem_acoes, acoes:salto_sem_evento]. 'div:fonte_defasada' é o motivo dominante (312 no dev).",
+        "sugestao": "Refazer o cenário A5 com um incompleto real e de Índice alto (ex.: TGMA3, 'proventos em conferência'). Criar um cenário separado para 'zero por regra' (prejuízo), com texto próprio e sem anel tracejado, porque não é dado faltante."
+      },
+      {
+        "alvo": "design",
+        "gravidade": "media",
+        "descricao": "O protótipo mostra conteúdo sem origem nas tabelas da Fase 0.",
+        "evidencia": "Na tela A1 (WEGE3): tag 'IBOV' no cabeçalho (o próprio arquiteto registra 'A tag índice (IBOV) da spec não tem fonte'); 'Ibovespa: 8,9 / 1,6 / 0,9' como referência nos cards de Valuation (não há mediana de múltiplos do índice em nenhuma tabela); evento 'Declaração de JCP · data estimada · pelo histórico de anos anteriores' (AssetEvento.tipo só aceita resultado_estimado|resultado|assembleia e não há previsão de provento). Quadro com WEGE3 8,6 contra 9,01 real no dev, e DY 2,0% inventado contra 3,98% real.",
+        "sugestao": "Tirar a tag IBOV, a referência 'Ibovespa' e o evento de JCP estimado. Data-com de provento só quando existir em asset_proventos_auditados (status valido, futura). Usar os números reais do dev nos cenários, com uma nota onde o dado do dev é anômalo."
+      },
+      {
+        "alvo": "design",
+        "gravidade": "media",
+        "descricao": "No celular, o trilho de chips do Quadro fica sobreposto pela linha 'Ordem/Resumo|Detalhado'. Chips e pílulas também estão abaixo de 44px.",
+        "evidencia": "Medição com Playwright na cena Q1, celular, escuro: os chips ficam em top=406 com altura 40 (até 446) e o botão 'Ordem: Índice MF' começa em top=422, sobreposto (no revisao-Q1-390-dark.png os chips aparecem como pílulas vazias e cortadas). Resumo e Detalhado têm 34px de altura, e os chips 40px, contra a meta de ≥44px declarada na própria proposta.",
+        "sugestao": "Corrigir o empilhamento: o trilho de chips vira uma linha própria, com rolagem horizontal interna. Chips e pílulas com min-h-11 (44px) no celular. Validar com expectMinTarget no e2e mobile."
+      },
+      {
+        "alvo": "arquitetura",
+        "gravidade": "media",
+        "descricao": "A série anual de FIIs (Rendimento 10 anos e o bloco de dividendos) inclui o ano corrente parcial, que aparece como queda falsa. A anomalia de DPA da WEGE3 também entra direto no bloco de dividendos e no CAGR.",
+        "evidencia": "No dev, asset_per_share_yearly HGLG11 2026 tem rendCota 5,5 contra 13,2 em 2025 (ano incompleto). WEGE3 2025 tem dpaAjHoje 2,45 contra 0,76 em 2024, por proventos repetidos. O arquiteto usa 'rendCota por ano' e 'dpaAjHoje dos últimos 10 anos fiscais completos' só para ações, sem regra de ano parcial para FIIs.",
+        "sugestao": "Para serie10a e dividendos, considerar só anos fechados, ou um ponto 'últ. 12m' separado e rotulado. Aplicar flag e selo quando o dpa do ano passar de N× o ano anterior. Teste com HGLG11 2026 e WEGE3 2025."
+      },
+      {
+        "alvo": "arquitetura",
+        "gravidade": "media",
+        "descricao": "O bloco 'Na sua carteira' mistura fontes de preço e de categoria, e não traz o objetivo do ativo que o protótipo exibe.",
+        "evidencia": "carteiraAnalise calcula valorAtual com getAssetPrices({useBrapiFallback:false}), mas o denominador vem de /api/carteira/resumo, que usa useBrapiFallback:true (route.ts:227). O preço do cabeçalho é o COTAHIST. Na mesma página, quantidade × preço exibido ≠ valor atual. posicoesUsuario filtra por asset.type ('stock'|'fii'), mas Portfolio e Watchlist têm categoriaOverride (mover entre abas, #275), enquanto o '% da classe' do resumo usa a categoria efetiva. A resposta de /carteira não traz Portfolio.objetivo, mas o protótipo mostra 'objetivo do ativo 20%'.",
+        "sugestao": "Pegar valorAtual e o peso do mesmo resumo, ou expor o item já avaliado. Classificar pela categoria efetiva (overrideEfetivo/categorizarAsset de itemValuation). Incluir objetivo e categoriaEfetiva na resposta. Mostrar a data/fonte do preço da posição se ela diferir do preço do cabeçalho."
+      },
+      {
+        "alvo": "arquitetura",
+        "gravidade": "media",
+        "descricao": "A fatia 0 concentra cerca de 50 arquivos (schema, gate, casca, 4 leitores, hooks, todos os componentes comuns, fixtures, seed, exportador, semeador e stubs) com 1 dev. Ela vira gargalo antes de A–D começarem, e B e C duplicam cálculos.",
+        "evidencia": "Lista de arquivos_novos da fatia 0. Criterio: 'contratos revisados pelos 4 devs antes do merge'. B (kpisAtivo: CAGR lucro 5a; dividendosAnuais: CAGR) e C (Crescimento: CAGR 5a receita/lucro/LPA/dividendo) implementam CAGR em arquivos diferentes, e a mesma tela pode mostrar números divergentes.",
+        "sugestao": "Dividir a fatia 0 em 0a (schema, contratos, gate, hooks, fixtures) e 0b (componentes comuns), esta em paralelo com o início de A–D. Pôr cagr e a série anual num utilitário único da fatia 0 (leitura/ativo/series.ts), consumido por B e C."
+      },
+      {
+        "alvo": "ambos",
+        "gravidade": "media",
+        "descricao": "O gate de quem está fora do beta diverge entre as propostas.",
+        "evidencia": "O designer prevê uma tela 'Área em beta fechado' no link direto (F1) e API 403. O arquiteto usa notFound() no layout server e API 404. Além disso, notFound() lançado no próprio layout.tsx não é tratado pelo not-found.tsx do mesmo segmento (sobe para o pai), então o not-found.tsx da área nunca aparece nesse caminho.",
+        "sugestao": "Escolher um comportamento só. Recomendação: 404 com a flag desligada; com a flag ligada e o usuário fora do beta, renderizar a tela informativa pelo layout (sem notFound) e a API em 404. Remover o not-found.tsx do segmento ou documentar que o fallback é o do pai."
+      },
+      {
+        "alvo": "arquitetura",
+        "gravidade": "baixa",
+        "descricao": "Problemas na mudança da Agenda: o link do evento quebra e o acesso é decidido pelo usuário errado.",
+        "evidencia": "Em resultadosAnaliseAtivos.ts, o symbol do evento é '[...symbols].sort().join(\"/\")' ('PETR3/PETR4'), e o link proposto '/analise-ativos/{symbol}' gera URL inválida. eventosResultadosAnaliseAtivos recebe o userId do alvo, mas podeAcessarAnaliseAtivos foi desenhado por 'usuário LOGADO' e precisa de role.",
+        "sugestao": "Usar o primeiro símbolo (ou o tickerReferencia) no link e passar o usuário logado e a role à fonte da Agenda, ou documentar que, nela, vale o beta do dono da agenda."
+      },
+      {
+        "alvo": "arquitetura",
+        "gravidade": "baixa",
+        "descricao": "O Cache-Control HTTP 'private, max-age=60' do Quadro com naCarteira=1 serve resultado antigo depois de registrar operação, mesmo com invalidação do React Query.",
+        "evidencia": "No contrato da API do quadro, o React Query refaz o fetch após invalidatePortfolioDerivedQueries, mas o navegador responde do cache HTTP por até 60 s, e o filtro 'Na minha carteira' não mostra o ativo recém-registrado.",
+        "sugestao": "no-store quando naCarteira=1 (ou sempre, já que há o cache em memória no servidor)."
+      },
+      {
+        "alvo": "ambos",
+        "gravidade": "baixa",
+        "descricao": "Os contratos de tese divergem entre arquiteto e designer.",
+        "evidencia": "Designer: GET|PUT /api/analise-ativos/tese/[ticker] e contador de 5.000. Arquiteto: /api/analise-ativos/teses/[ticker] e ≤10.000. O prefixo de rate limit depende do 3º segmento (middleware: pathname.split('/').slice(0,4)).",
+        "sugestao": "Fixar /teses/ e 10.000 (ou 5.000) nos dois artefatos antes da fatia D."
+      }
+    ],
+    "pontos_fortes": [
+      "Princípio DB-only bem aplicado: nenhuma API da área chama provedor; o % da carteira, que pode usar o BRAPI, fica fora de /api/analise-ativos/*. Os 3 GETs da página caem num bucket próprio de rate limit, e a tese tem prefixo separado, coerente com o middleware (split slice(0,4)).",
+      "Todos os utilitários da Fase 0 citados existem (fundamentosVigentes, selecionarPares, medianaReferencia, barraPosicao, textoStatusBarra, faixaIndice, encontrarPalavrasProibidas, obterPainelFrescor, getTtlCache, valuatePortfolioItem, requireCronSecret, respostaCron, highlightTd, TABLE_HEADER_STYLE, MobilePageState, ResponsiveCardList, expectFitsWithoutClip/expectMinTarget, Step4PlanejarFields).",
+      "Os estados das checks no banco (sem_dado/fonte_defasada, nao_se_aplica/criterio_desligado e financeira, provisorio) batem com o desenho de semaforoTela e com os cenários HGLG11 e ITUB4 (ITUB4 4/4 com endividamento n/a; HGLG11 com vacância e imóveis desligados e obrigações/PL provisório).",
+      "Reuso correto dos fluxos existentes: AddAssetWizard com preset opcional, /api/carteira/planejados, AlocacaoConfig com as categorias 'acoes' e 'fiis' (que existem no dev), denominador totais.dinheiro do resumo e ACTING_ALLOWED_ITEMS inalterado.",
+      "Migration só aditiva, plano de produção com rollback por flag, Agenda restrita ao beta e escopo respeitado (sem Comparador, ranking, voto, Stocks/REITs, Comunidade, 'em breve').",
+      "O protótipo do designer usa só a paleta da marca, tem tabela ordenável acessível (aria-sort, th scope), gráfico com tabela alternativa e não tem rolagem horizontal da página nos 22 cenários."
+    ]
+  }
+}
