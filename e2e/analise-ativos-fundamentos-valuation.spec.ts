@@ -28,11 +28,11 @@ test.describe('APIs de fundamentos e valuation', () => {
     const anoAtual = new Date().getFullYear();
     const f = await page.request.get('/api/analise-ativos/ativos/WEGE3/fundamentos');
     expect(f.status()).toBe(200);
-    // o `next dev` reescreve o Cache-Control das rotas dinâmicas; no build de produção (CI) vale
-    // o da rota (private, max-age=300)
-    expect(f.headers()['cache-control']).toMatch(
-      process.env.CI ? /^private, max-age=300$/ : /^private/,
-    );
+    // A rota pede 'private, max-age=300', mas o middleware do app (src/middleware.ts) grava
+    // 'private, no-cache, no-store, must-revalidate' em toda resposta, no dev e no build de
+    // produção. O cache que vale é o do React Query; aqui só se garante que nunca é público.
+    expect(f.headers()['cache-control']).toMatch(/^private/);
+    expect(f.headers()['cache-control']).not.toMatch(/public/);
     expect(f.headers()['server-timing']).toMatch(/fundamentos;desc="(banco|cache)"/);
     const fund = await f.json();
     const anos = fund.linhas.filter((l: { ano: number | null }) => l.ano !== null);
