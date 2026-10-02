@@ -8,6 +8,7 @@ import { menosMeses } from '@/services/analiseAtivos/regras/calculo/proventos';
 import {
   auditarProventos,
   dataComReal,
+  semPagamento,
   especieDoTicker,
   dpaNoAno,
   motivoProventosDefasados,
@@ -18,7 +19,7 @@ import {
   valorProventosComCobertura,
 } from '@/services/analiseAtivos/regras/calculo/proventos';
 import type { EventoCorporativoVerificado } from '@/services/analiseAtivos/tipos';
-import { P, bruto, proventosBrutos } from './helpers';
+import { P, P_LEGADO, bruto, proventosBrutos } from './helpers';
 
 const evento = (
   dataEvento: string,
@@ -38,6 +39,46 @@ const evento = (
 describe('data-com real', () => {
   it('PETR4: data ex gravada 03/05/2024 ⇒ data-com real 02/05/2024 (01/05 é feriado)', () => {
     expect(dataComReal('2024-05-03', 'BRAPI', P)).toBe('2024-05-02');
+    expect(dataComReal('2024-05-03', 'BRAPI', P, { dataExOrigem: 'date' })).toBe('2024-05-02');
+  });
+
+  describe('rodada 3 (02/10/2026): campo dataCom da BRAPI já é a data-com real (#270)', () => {
+    const brapi = (id: string, valor: number, pag: string, gravada: string, tipo = 'DIVIDENDO') =>
+      bruto({ id, symbol: 'LOGG3', tipo, valor, dataPagamento: pag, dataExGravada: gravada });
+
+    it('LOGG3: data-com 17/12/2025 gravada ⇒ dataComReal 17/12 (antes recuava para 16/12)', () => {
+      expect(dataComReal('2025-12-17', 'BRAPI', P, { dataExOrigem: 'dataCom' })).toBe('2025-12-17');
+      const [a] = auditarProventos([brapi('a', 3.1876037, '2025-12-29', '2025-12-17')], [], P, {
+        classe: 'acao',
+      });
+      expect(a.dataComReal).toBe('2025-12-17');
+      // fixture exportada antes do #270 (data ex no campo dataCom): convenção antiga
+      const [l] = auditarProventos(
+        [brapi('a', 3.1876037, '2025-12-29', '2025-12-18')],
+        [],
+        P_LEGADO,
+        {
+          classe: 'acao',
+        },
+      );
+      expect(l.dataComReal).toBe('2025-12-17');
+    });
+
+    it('sem pagamento no formato atual: data-com sexta, "pagamento" = data ex segunda ⇒ duplicata', () => {
+      // BMKS3-like: data-com sex 21/11/2025, ex seg 24/11 gravada como pagamento (sem paymentDate)
+      const sp = brapi('sp', 100, '2025-11-24', '2025-11-21');
+      expect(semPagamento({ ...sp, dataExOrigem: 'dataCom' })).toBe(true);
+      // pagamento 2 pregões depois da data-com já é pagamento de verdade
+      expect(semPagamento({ ...brapi('x', 1, '2025-11-25', '2025-11-21') })).toBe(false);
+      const aud = auditarProventos([sp, brapi('pg', 100, '2025-12-05', '2025-11-21')], [], P, {
+        classe: 'acao',
+      });
+      expect(aud.find((x) => x.origemId === 'sp')).toMatchObject({
+        status: 'duplicata',
+        duplicataDe: 'pg',
+      });
+      expect(rendimento12m(aud, '2026-09-29', 'acao', [], P)).toEqual({ estado: 'ok', valor: 100 });
+    });
   });
 
   it('YAHOO (dataCom null, date = ex 03/05/2024) ⇒ data-com 02/05/2024, sem pagamento, nunca sem_data_com', () => {
@@ -105,11 +146,11 @@ describe('tipos', () => {
   });
 
   it('RENDIMENTO só em FII: PETR4 (Selic sobre dividendo) sai; em FII entra', () => {
-    const petr = auditarProventos(proventosBrutos('PETR4'), [], P, { classe: 'acao' });
+    const petr = auditarProventos(proventosBrutos('PETR4'), [], P_LEGADO, { classe: 'acao' });
     const rend = petr.filter((a) => a.tipoOriginal === 'RENDIMENTO');
     expect(rend.length).toBeGreaterThan(0);
     expect(rend.every((a) => a.status === 'tipo_excluido')).toBe(true);
-    const xpml = auditarProventos(proventosBrutos('XPML11'), [], P, { classe: 'fii' });
+    const xpml = auditarProventos(proventosBrutos('XPML11'), [], P_LEGADO, { classe: 'fii' });
     expect(xpml.every((a) => a.status === 'valido')).toBe(true);
   });
 });
@@ -222,7 +263,7 @@ describe('ajuste por evento (MGLU3 2020: proventos antes e depois do 4:1)', () =
   const eventos = [evento('2020-10-13', 4, 2020), evento('2024-05-24', 0.1, 2024)];
 
   it('fatorAjusteHoje por evento posterior à data-com', () => {
-    const aud = auditarProventos(proventosBrutos('MGLU3'), eventos, P, { classe: 'acao' });
+    const aud = auditarProventos(proventosBrutos('MGLU3'), eventos, P_LEGADO, { classe: 'acao' });
     const julho = aud.find((a) => a.dataComReal === '2020-07-30')!;
     const dezembro = aud.find((a) => a.dataComReal === '2020-12-29')!;
     expect(julho.fatorAjusteHoje).toBeCloseTo(0.4, 10);
@@ -235,7 +276,7 @@ describe('ajuste por evento (MGLU3 2020: proventos antes e depois do 4:1)', () =
   });
 
   it('DPA 2020 na base do fim do ano e na base de hoje', () => {
-    const aud = auditarProventos(proventosBrutos('MGLU3'), eventos, P, { classe: 'acao' });
+    const aud = auditarProventos(proventosBrutos('MGLU3'), eventos, P_LEGADO, { classe: 'acao' });
     const fim = dpaNoAno(aud, 2020, 'fim_do_ano', eventos);
     const hoje = dpaNoAno(aud, 2020, 'hoje', eventos);
     expect(fim.estado).toBe('ok');
@@ -251,7 +292,7 @@ describe('rendimento 12 meses e cobertura', () => {
   it('janela de calendário por data-com (hoje − 12 meses, hoje]', () => {
     expect(menosMeses('2026-06-30', 12)).toBe('2025-06-30');
     expect(menosMeses('2024-02-29', 12)).toBe('2023-02-28');
-    const aud = auditarProventos(proventosBrutos('VISC11'), [], P, { classe: 'fii' });
+    const aud = auditarProventos(proventosBrutos('VISC11'), [], P_LEGADO, { classe: 'fii' });
     const r = rendimento12m(aud, '2026-06-30', 'fii', [], P);
     // data-com real (pregão anterior à data ex gravada) de jul/25 a mai/26: 0,81×6 + 0,84×5
     expect((r as { valor: number }).valor).toBeCloseTo(0.81 * 6 + 0.84 * 5, 9);
@@ -299,7 +340,7 @@ describe('reescrita por símbolo (auditoria completa, sem órfão)', () => {
       P,
       { classe: 'fii' },
     );
-    const outro = auditarProventos(proventosBrutos('VISC11'), [], P, { classe: 'fii' });
+    const outro = auditarProventos(proventosBrutos('VISC11'), [], P_LEGADO, { classe: 'fii' });
     const sumiu = { ...antigo[0], symbol: 'OLD11', origemId: 'z' };
     const plano = planejarReescritaProventos(
       [...novo, ...outro],
@@ -311,8 +352,8 @@ describe('reescrita por símbolo (auditoria completa, sem órfão)', () => {
   });
 
   it('nada mudou ⇒ nada a reescrever (2ª execução idempotente)', () => {
-    const a = auditarProventos(proventosBrutos('XPML11'), [], P, { classe: 'fii' });
-    const b = auditarProventos(proventosBrutos('XPML11'), [], P, { classe: 'fii' });
+    const a = auditarProventos(proventosBrutos('XPML11'), [], P_LEGADO, { classe: 'fii' });
+    const b = auditarProventos(proventosBrutos('XPML11'), [], P_LEGADO, { classe: 'fii' });
     expect(planejarReescritaProventos(a, b, ['XPML11'])).toEqual({ reescrever: [], orfaos: [] });
   });
 });
@@ -371,7 +412,8 @@ describe('provento com data-com = data-com do evento (achado qa-codigo 30/09)', 
           tipo: 'DIVIDENDO',
           valor: 0.76344892045,
           dataPagamento: '2025-12-19',
-          dataExGravada: '2025-11-26',
+          // pós-#270: o campo dataCom guarda a data-com real (antes: a data ex 26/11)
+          dataExGravada: '2025-11-25',
           dataExOrigem: 'dataCom',
         },
       ],
@@ -745,7 +787,8 @@ describe('repetições da fonte com a mesma data-com (diagnóstico DY absurdo 02
         { classe: 'acao' },
       );
       const rep = aud.find((x) => x.origemId === 'rep')!;
-      expect(rep.dataComReal).toBe('2026-04-29');
+      // rodada 3: dataCom da BRAPI = data-com real ⇒ a linha repetida fica 1 pregão depois (30/04)
+      expect(rep.dataComReal).toBe('2026-04-30');
       expect(rep).toMatchObject({ status: 'duplicata', duplicataDe: 'pago' });
       expect(rep.flags).toContain('duplicata_sem_pagamento');
       expect(aud.filter((x) => x.status === 'valido').map((x) => x.origemId)).toEqual([

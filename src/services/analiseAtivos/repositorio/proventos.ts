@@ -3,7 +3,8 @@
  * market_data_coverage, asset_corporate_actions) — SÓ LEITURA, nunca escrita.
  *
  * Convenção de datas por fonte (params.sanidade.proventos.camposPorFonte):
- *  - BRAPI: date = pagamento; dataCom = data EX (bug conhecido: o app grava a ex no campo dataCom)
+ *  - BRAPI: date = pagamento; dataCom = data-com real desde 30/09/2026 (#270; antes, a data EX —
+ *    a convenção por linha está em regras/calculo/proventos.dataComReal)
  *  - YAHOO: date = data EX; dataCom null; sem pagamento
  */
 import { createHash } from 'crypto';

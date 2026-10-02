@@ -368,6 +368,7 @@ export const SCORING_PARAMS_V1: ScoringParams = {
         BRAPI: 'ex',
         YAHOO: 'ex',
       },
+      convencaoDataComAtual: { BRAPI: 'com' },
       duplicataJanelaPagamentoDias: 5,
       trancheMinDiasEntrePagamentos: 20,
       fontePreferida: 'BRAPI',

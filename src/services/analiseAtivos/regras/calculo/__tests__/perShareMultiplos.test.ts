@@ -21,7 +21,15 @@ import {
 } from '@/services/analiseAtivos/regras/calculo/sequencias';
 import { ausente, naoSeAplica, ok } from '@/services/analiseAtivos/regras/comum/valor';
 import type { CotacaoDia, Valor } from '@/services/analiseAtivos/tipos';
-import { P, contagensDe, empresa, eventosBrutos, fiiInforme, proventosBrutos } from './helpers';
+import {
+  P,
+  P_LEGADO,
+  contagensDe,
+  empresa,
+  eventosBrutos,
+  fiiInforme,
+  proventosBrutos,
+} from './helpers';
 
 const MI = 1e6;
 const val = (x: Valor<number> | undefined) => (x && x.estado === 'ok' ? x.valor : NaN);
@@ -569,7 +577,7 @@ describe('sequências', () => {
   });
 
   it('mês corrente sem pagamento é tolerado; mês faltando no meio corta a sequência', () => {
-    const aud = auditarProventos(proventosBrutos('VISC11'), [], P, { classe: 'fii' });
+    const aud = auditarProventos(proventosBrutos('VISC11'), [], P_LEGADO, { classe: 'fii' });
     expect(mesesComRendimentoConsecutivos(aud, '2026-07-10', P)).toBe(30);
     // dois meses seguidos sem pagamento (jul e ago) ⇒ 0
     expect(mesesComRendimentoConsecutivos(aud, '2026-08-10', P)).toBe(0);
@@ -578,7 +586,7 @@ describe('sequências', () => {
   });
 
   it('YAHOO sem pagamento: mês = data-com + 1, com mesEstimado', () => {
-    const aud = auditarProventos(proventosBrutos('TGAR11'), [], P, { classe: 'fii' });
+    const aud = auditarProventos(proventosBrutos('TGAR11'), [], P_LEGADO, { classe: 'fii' });
     const r = mesesComRendimentoDetalhado(aud, '2026-06-30', P);
     expect(r.meses).toBeGreaterThanOrEqual(17);
     expect(r.mesEstimado).toBe(true);

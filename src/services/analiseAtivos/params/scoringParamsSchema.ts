@@ -173,7 +173,11 @@ const baseSchema = z.strictObject({
       tiposFii: z.array(z.string()).min(1),
       tiposExcluidos: z.array(z.string()),
       mapaTipos: z.record(z.string(), z.string()),
+      // convenção das linhas legadas/por fonte (BRAPI antes de 30/09/2026 e YAHOO: data EX)
       convencaoDataCom: z.record(z.string(), z.enum(['ex', 'com'])),
+      // convenção do campo dataCom gravado pelo sync atual (#270, 30/09/2026: BRAPI = data-com
+      // real; ver regras/calculo/proventos.dataComReal)
+      convencaoDataComAtual: z.record(z.string(), z.enum(['ex', 'com'])).default({ BRAPI: 'com' }),
       duplicataJanelaPagamentoDias: z.number().int().nonnegative(),
       trancheMinDiasEntrePagamentos: z.number().int().nonnegative(),
       fontePreferida: z.string(),
