@@ -415,6 +415,29 @@ describe('montarLinhasQuadro', () => {
     expect(linha(r2, 'HGLG11').pares).not.toContain('PLTB11');
   });
 
+  it('pares de FII: mesmo segmento CVM e tipo, sem completar com outro tipo', () => {
+    const base = entrada();
+    const r2 = montarLinhasQuadro(
+      entrada({
+        fiis: [...base.fiis, { symbol: 'MXRF11', cnpj: 'F-MXR' }],
+        resumos: [...base.resumos, resumo('MXRF11')],
+        fiiMensal: [
+          ...base.fiiMensal,
+          {
+            cnpj: 'F-MXR',
+            segmentoCvm: 'Logística',
+            tipoVigente: 'papel',
+            cotistas: 10,
+            pl: 1e9,
+            cotas: 1e8,
+          },
+        ],
+      }),
+    );
+    expect(linha(r2, 'MXRF11').pares).toEqual([]);
+    expect(linha(r2, 'HGLG11').pares).not.toContain('MXRF11');
+  });
+
   it('valor de mercado do FII = cota × cotas', () => {
     expect(linha(r, 'HGLG11').valorMercado).toBe(10 * 4e7);
   });

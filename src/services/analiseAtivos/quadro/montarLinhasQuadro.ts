@@ -471,8 +471,10 @@ function preencherPares(linhas: LinhaQuadroGravar[]): void {
       classe === 'acao'
         ? { segmento: l.segmento ?? null, subsetor: l.subsetor ?? null }
         : {
-            segmento: l.segmentoCvm ? `${l.segmentoCvm}|${l.fiiTipo ?? ''}` : null,
-            subsetor: l.segmentoCvm ?? null,
+            // FII: só mesmo segmento CVM E mesmo tipo (sem completar por segmento: um fundo de papel
+            // não recebe tijolos); sem tipo, sem pares
+            segmento: l.segmentoCvm && l.fiiTipo ? `${l.segmentoCvm}|${l.fiiTipo}` : null,
+            subsetor: null,
           };
     const universo: Array<ItemPar & { cnpj: string }> = [...porCnpj.values()].map((l) => ({
       symbol: l.symbol,
