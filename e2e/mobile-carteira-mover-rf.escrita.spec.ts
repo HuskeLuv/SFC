@@ -79,7 +79,6 @@ test.describe('cartão da Oportunidade → Renda Fixa', () => {
         tipo: 'posicao',
         id: portfolioId,
         categoria: 'reservaOportunidade',
-        subgrupo: '',
       });
 
       await gotoAba(page, 'Reserva Oportunidade');

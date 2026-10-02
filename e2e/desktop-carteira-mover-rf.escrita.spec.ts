@@ -174,7 +174,6 @@ test.describe('mover RF ↔ Reservas grava e desfaz', () => {
         tipo: 'posicao',
         id: portfolioId,
         categoria: 'reservaEmergencia',
-        subgrupo: '',
       });
       await gotoAba(page, 'Reserva Emergência');
       await linhaDe(page, CDB).locator('[data-mover-menu]').click();
