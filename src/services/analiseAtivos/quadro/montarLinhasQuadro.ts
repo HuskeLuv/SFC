@@ -112,8 +112,8 @@ export interface FiiTrimestralQuadro {
 export interface PorAcaoAnoQuadro {
   symbol: string;
   anoFiscal: number;
+  /** ações: DPA na base de hoje; FIIs: rendimento por cota na base de hoje */
   dpaAjHoje: number | null;
-  rendCota: number | null;
   payoutDmplPct: number | null;
 }
 
@@ -305,7 +305,7 @@ export function montarLinhasQuadro(e: EntradaQuadro): ResultadoMontagem {
     );
     const dpa: PontoSerieAnual[] = fechadosPorAcao.map((p) => ({
       ano: p.ano,
-      valor: ehAcao ? p.dpaAjHoje : p.rendCota,
+      valor: p.dpaAjHoje,
     }));
     const salto = detectarSaltoProvento(dpa, {
       payoutPorAno: ehAcao

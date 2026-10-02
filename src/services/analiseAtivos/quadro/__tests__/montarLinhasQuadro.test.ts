@@ -198,15 +198,15 @@ function entrada(over: Partial<EntradaQuadro> = {}): EntradaQuadro {
     ],
     porAcaoAno: [
       // WEGE3: 2025 = 3,2× 2024 sem payout ⇒ provento suspeito recente
-      { symbol: 'WEGE3', anoFiscal: 2023, dpaAjHoje: 0.7, rendCota: null, payoutDmplPct: null },
-      { symbol: 'WEGE3', anoFiscal: 2024, dpaAjHoje: 0.76, rendCota: null, payoutDmplPct: null },
-      { symbol: 'WEGE3', anoFiscal: 2025, dpaAjHoje: 2.45, rendCota: null, payoutDmplPct: null },
-      { symbol: 'WEGE3', anoFiscal: 2026, dpaAjHoje: 1, rendCota: null, payoutDmplPct: null },
+      { symbol: 'WEGE3', anoFiscal: 2023, dpaAjHoje: 0.7, payoutDmplPct: null },
+      { symbol: 'WEGE3', anoFiscal: 2024, dpaAjHoje: 0.76, payoutDmplPct: null },
+      { symbol: 'WEGE3', anoFiscal: 2025, dpaAjHoje: 2.45, payoutDmplPct: null },
+      { symbol: 'WEGE3', anoFiscal: 2026, dpaAjHoje: 1, payoutDmplPct: null },
       // HGLG11: 2016 com 6 meses de informe sai; 2026 (corrente) sai
-      { symbol: 'HGLG11', anoFiscal: 2016, dpaAjHoje: null, rendCota: 3, payoutDmplPct: null },
-      { symbol: 'HGLG11', anoFiscal: 2024, dpaAjHoje: null, rendCota: 13.2, payoutDmplPct: null },
-      { symbol: 'HGLG11', anoFiscal: 2025, dpaAjHoje: null, rendCota: 13.2, payoutDmplPct: null },
-      { symbol: 'HGLG11', anoFiscal: 2026, dpaAjHoje: null, rendCota: 5.5, payoutDmplPct: null },
+      { symbol: 'HGLG11', anoFiscal: 2016, dpaAjHoje: 3, payoutDmplPct: null },
+      { symbol: 'HGLG11', anoFiscal: 2024, dpaAjHoje: 13.2, payoutDmplPct: null },
+      { symbol: 'HGLG11', anoFiscal: 2025, dpaAjHoje: 13.2, payoutDmplPct: null },
+      { symbol: 'HGLG11', anoFiscal: 2026, dpaAjHoje: 5.5, payoutDmplPct: null },
     ],
     lucrosFy: [
       { cnpj: 'C-WEG', anoFiscal: 2024, lucro: 6.0e9 },
@@ -358,9 +358,9 @@ describe('montarLinhasQuadro', () => {
     const r2 = montarLinhasQuadro(
       entrada({
         porAcaoAno: [
-          { symbol: 'WEGE3', anoFiscal: 2018, dpaAjHoje: 0.1, rendCota: null, payoutDmplPct: null },
-          { symbol: 'WEGE3', anoFiscal: 2019, dpaAjHoje: 0.9, rendCota: null, payoutDmplPct: null },
-          { symbol: 'WEGE3', anoFiscal: 2020, dpaAjHoje: 0.9, rendCota: null, payoutDmplPct: null },
+          { symbol: 'WEGE3', anoFiscal: 2018, dpaAjHoje: 0.1, payoutDmplPct: null },
+          { symbol: 'WEGE3', anoFiscal: 2019, dpaAjHoje: 0.9, payoutDmplPct: null },
+          { symbol: 'WEGE3', anoFiscal: 2020, dpaAjHoje: 0.9, payoutDmplPct: null },
         ],
       }),
     );
@@ -371,8 +371,8 @@ describe('montarLinhasQuadro', () => {
     const r2 = montarLinhasQuadro(
       entrada({
         porAcaoAno: [
-          { symbol: 'HGLG11', anoFiscal: 2024, dpaAjHoje: null, rendCota: 5, payoutDmplPct: null },
-          { symbol: 'HGLG11', anoFiscal: 2025, dpaAjHoje: null, rendCota: 13, payoutDmplPct: null },
+          { symbol: 'HGLG11', anoFiscal: 2024, dpaAjHoje: 5, payoutDmplPct: null },
+          { symbol: 'HGLG11', anoFiscal: 2025, dpaAjHoje: 13, payoutDmplPct: null },
         ],
       }),
     );

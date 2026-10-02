@@ -80,7 +80,6 @@ export async function carregarEntradaQuadro(
         symbol: true,
         anoFiscal: true,
         dpaAjHoje: true,
-        rendCota: true,
         payoutDmplPct: true,
       },
     }),

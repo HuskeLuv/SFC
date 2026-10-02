@@ -164,7 +164,6 @@ export async function montarTopoAtivo(
         anoFiscal: true,
         lpaAjHoje: true,
         dpaAjHoje: true,
-        rendCota: true,
         payoutDmplPct: true,
         flags: true,
       },
@@ -319,7 +318,8 @@ export async function montarTopoAtivo(
     hoje,
     anos: perShare.map((p) => ({
       ano: p.anoFiscal,
-      valor: ehAcao ? p.dpaAjHoje : p.rendCota,
+      // FII: rendimento por cota na base de hoje (÷ desdobramentos/grupamentos), como Fundamentos
+      valor: p.dpaAjHoje,
       payoutPct: ehAcao ? p.payoutDmplPct : null,
       flags: p.flags,
     })),

@@ -1,6 +1,6 @@
 /**
  * Bloco de proventos por ano (fatia B). Ações: DPA ajustado à base de hoje (dpaAjHoje); FIIs:
- * rendimento por cota no ano (rendCota).
+ * rendimento por cota na base de hoje (dpaAjHoje = rendCota ÷ desdobramentos).
  *
  * - Só anos FECHADOS (series.anosFechados; em FII, também o ano com menos de 12 informes): HGLG11
  *   2026 (5,5 de jan–ago) fica fora. O 'últ. 12m' é um ponto separado.
