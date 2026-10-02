@@ -13,11 +13,13 @@
  *   papel_sem_imoveis'). Sem motivo explícito, vale o da régua (acao_financeira → financeira).
  * - motivosIncompleto: 'componente:motivo' do AssetScore ('div:fonte_defasada').
  * - componentesZeroRegra: 'componente:motivo' ('lucro:prejuizo', 'preco:pl_negativo').
- * - flags: inclui 'provento_suspeito' e 'proventos_defasados*' (⇒ proventosEmConferencia).
+ * - flags: inclui 'provento_suspeito', 'proventos_defasados*' e 'proventos_em_conferencia_*' (trava
+ *   de plausibilidade do DY) (⇒ proventosEmConferencia).
  */
 import type { AnaliseQuadroLinha } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { FLAG_CNPJ_EM_CONFERENCIA } from '@/services/analiseAtivos/quadro/montarLinhasQuadro';
+import { proventosEmConferencia } from '@/services/analiseAtivos/regras/calculo/plausibilidadeProventos';
 import {
   TEXTOS_TELA,
   motivoTela,
@@ -201,10 +203,7 @@ function mapaNaoSeAplica(row: AnaliseQuadroLinha): Map<string, string> {
 }
 
 function temProventosEmConferencia(row: AnaliseQuadroLinha): boolean {
-  return (
-    row.flags.some((f) => f === 'provento_suspeito' || f.startsWith('proventos_defasados')) ||
-    row.motivosIncompleto.includes('div:fonte_defasada')
-  );
+  return proventosEmConferencia(row.flags, row.motivosIncompleto);
 }
 
 function temPrejuizo(row: AnaliseQuadroLinha): boolean {

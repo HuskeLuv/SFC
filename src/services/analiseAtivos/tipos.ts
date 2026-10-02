@@ -30,6 +30,8 @@ export type MotivoAusente =
   | 'sem_preco'
   | 'sem_acoes'
   | 'sem_data_com'
+  /** valor calculado mas implausível (trava de plausibilidade): fora do Índice até conferir */
+  | 'em_conferencia'
   | 'outro';
 export type MotivoNaoSeAplica =
   | 'financeira'

@@ -15,6 +15,7 @@ import {
   aplicarRetencaoScores,
   gravarMultiplosAtuais,
   gravarScores,
+  lerDpaAnualGravado,
   lerPlAnualGravado,
 } from '@/services/analiseAtivos/calculo/gravarDerivados';
 import {
@@ -54,6 +55,13 @@ import {
   fatorEventosEntre,
   saltoAcoesSemEvento,
 } from '@/services/analiseAtivos/regras/calculo/eventosCorporativos';
+import {
+  dyParaIndice,
+  flagEmConferencia,
+  motivoProventosEmConferencia,
+  saltoProventoRecente,
+  type DpaAnual,
+} from '@/services/analiseAtivos/regras/calculo/plausibilidadeProventos';
 import { semaforo, type ResultadoSemaforo } from '@/services/analiseAtivos/regras/calculo/semaforo';
 import {
   anosLucroConsecutivosDetalhado,
@@ -138,6 +146,20 @@ function comCobertura(
   return valorProventosComCobertura(v, provs.length > 0, cob ?? null);
 }
 
+/** Meses distintos com informe mensal por ano (mesma regra do Quadro para anos fechados de FII). */
+export function mesesInformePorAno(
+  meses: Array<Pick<FiiMesEnxuto, 'refMonth'>>,
+): Record<number, number> {
+  const porAno = new Map<number, Set<string>>();
+  for (const m of meses) {
+    const ano = Number(m.refMonth.slice(0, 4));
+    const s = porAno.get(ano) ?? new Set<string>();
+    s.add(m.refMonth.slice(0, 7));
+    porAno.set(ano, s);
+  }
+  return Object.fromEntries([...porAno].map(([a, s]) => [a, s.size]));
+}
+
 function componentesJson(c: ComponentesIndice): Prisma.InputJsonValue {
   const out: Record<string, Record<string, unknown>> = {};
   for (const nome of NOMES_COMPONENTES) out[nome] = { ...c[nome] };
@@ -168,6 +190,8 @@ export interface EntradaAtualAcao {
   dataRef: string;
   /** frescor da base de proventos (motivoProventosDefasados); sem ele, não confere */
   frescor?: FrescorProventos;
+  /** DPA anual gravado (AssetPerShareYearly) para a trava de salto; sem ele, só o teto vale */
+  dpaAnual?: DpaAnual[];
 }
 
 export interface FrescorProventos {
@@ -206,6 +230,8 @@ export interface CalculoAtualAcao {
   dpa12m: Valor<number>;
   payoutPct: Valor<number>;
   plControladora: Valor<number>;
+  /** DY 12m que entra no Índice/semáforo (trava de plausibilidade aplicada) */
+  dyIndice?: Valor<number>;
   flags: string[];
 }
 
@@ -325,6 +351,26 @@ export function calcularAtualAcao(e: EntradaAtualAcao, p: ScoringParams): Calcul
   else if (!(lpa.valor > 0)) payoutPct = naoSeAplica('base_nao_positiva');
   else payoutPct = ok((dpa12m.valor / lpa.valor) * 100);
   m.payoutPct = payoutPct;
+  // trava de plausibilidade (regras/calculo/plausibilidadeProventos): DY acima do teto ou salto de
+  // provento recente ⇒ DY "em conferência", fora do Índice e do semáforo
+  const motivoConf = motivoProventosEmConferencia(
+    {
+      classe: 'acao',
+      dyPct: m.dyPct,
+      saltoRecente: saltoProventoRecente(
+        {
+          classe: 'acao',
+          porAno: e.dpaAnual ?? [],
+          hoje: e.dataRef,
+          dpa12m: dpa12m.estado === 'ok' ? dpa12m.valor : null,
+          payoutTtmPct: payoutPct.estado === 'ok' ? payoutPct.valor : null,
+        },
+        p,
+      ),
+    },
+    p,
+  );
+  if (motivoConf) flags.push(flagEmConferencia(motivoConf));
   return {
     m,
     anos,
@@ -335,6 +381,7 @@ export function calcularAtualAcao(e: EntradaAtualAcao, p: ScoringParams): Calcul
     dpa12m,
     payoutPct,
     plControladora: deNumero(fund?.plControladora ?? fund?.pl ?? null),
+    dyIndice: dyParaIndice(m.dyPct, motivoConf),
     flags: [...flags, ...m.flags],
   };
 }
@@ -364,7 +411,7 @@ export function scoreAcao(
       ebitda: m.ebitda ?? ausente('sem_dado_fonte'),
       roePct: m.roePct ?? ausente('sem_dado_fonte'),
       plControladora: c.plControladora,
-      dy12mPct: m.dyPct ?? ausente('sem_dado_fonte'),
+      dy12mPct: c.dyIndice ?? dyParaIndice(m.dyPct, null),
       plVsMedia10aPct: m.plVsMedia10aPct ?? ausente('historico_curto'),
     },
     p,
@@ -399,7 +446,7 @@ export function scoreAcao(
         divLiqEbitda: m.divLiqEbitda ?? ausente('sem_dado_fonte'),
         roePct: m.roePct ?? ausente('sem_dado_fonte'),
         plVsMedia10aPct: m.plVsMedia10aPct ?? ausente('historico_curto'),
-        dy12mPct: m.dyPct ?? ausente('sem_dado_fonte'),
+        dy12mPct: c.dyIndice ?? dyParaIndice(m.dyPct, null),
       },
       ehFinanceira,
       dividaLiquida: m.dividaLiquida,
@@ -422,12 +469,18 @@ export interface EntradaAtualFii {
   cobertura: CoberturaProventos | undefined;
   dataRef: string;
   frescor?: FrescorProventos;
+  /** rendimento por cota anual gravado (AssetPerShareYearly) para a trava de salto */
+  dpaAnual?: DpaAnual[];
+  /** meses com informe mensal por ano (ano com < 12 sai da série, como no Quadro) */
+  mesesInformePorAno?: Record<number, number>;
 }
 
 export interface CalculoAtualFii {
   m: MultiplosCalculados;
   rend12m: Valor<number>;
   meses: Valor<number>;
+  /** DY 12m que entra no Índice/semáforo (trava de plausibilidade aplicada) */
+  dyIndice?: Valor<number>;
   flags: string[];
 }
 
@@ -463,7 +516,25 @@ export function calcularAtualFii(e: EntradaAtualFii, p: ScoringParams): CalculoA
   if (defasagem) flags.push(`proventos_defasados_${defasagem}`);
   if (det.mesEstimado) flags.push('mes_estimado');
   if (!e.mesAtual) flags.push('sem_informe_mensal');
-  return { m, rend12m, meses, flags };
+  const motivoConf = motivoProventosEmConferencia(
+    {
+      classe: 'fii',
+      dyPct: m.dyPct,
+      saltoRecente: saltoProventoRecente(
+        {
+          classe: 'fii',
+          porAno: e.dpaAnual ?? [],
+          hoje: e.dataRef,
+          mesesPorAno: e.mesesInformePorAno,
+          dpa12m: rend12m.estado === 'ok' ? rend12m.valor : null,
+        },
+        p,
+      ),
+    },
+    p,
+  );
+  if (motivoConf) flags.push(flagEmConferencia(motivoConf));
+  return { m, rend12m, meses, dyIndice: dyParaIndice(m.dyPct, motivoConf), flags };
 }
 
 /** Régua do FII: reguaVigente da B; PL ≤ 0 ⇒ fora (regra 22); sem régua ⇒ tijolo + incompleto. */
@@ -499,7 +570,7 @@ export function scoreFii(c: CalculoAtualFii, e: EntradaAtualFii, p: ScoringParam
       mesesComRendimento: c.meses,
       obrigacoesPlPct: c.m.obrigacoesPlPct ?? ausente('sem_dado_fonte'),
       vacanciaFisicaCvmPct: c.m.vacanciaFisicaCvmPct ?? ausente('sem_dado_fonte'),
-      dy12mPct: c.m.dyPct ?? ausente('sem_dado_fonte'),
+      dy12mPct: c.dyIndice ?? dyParaIndice(c.m.dyPct, null),
       pvp: c.m.pvp ?? ausente('sem_dado_fonte'),
       maiorCriPct: maiorCri,
       nCri,
@@ -516,7 +587,7 @@ export function scoreFii(c: CalculoAtualFii, e: EntradaAtualFii, p: ScoringParam
   const sem = semaforo(
     {
       metricas: {
-        dy12mPct: c.m.dyPct ?? ausente('sem_dado_fonte'),
+        dy12mPct: c.dyIndice ?? dyParaIndice(c.m.dyPct, null),
         vacanciaFisicaCvmPct: c.m.vacanciaFisicaCvmPct ?? ausente('sem_dado_fonte'),
         nImoveisCvm: c.m.nImoveisCvm ?? ausente('sem_dado_fonte'),
         obrigacoesPlPct: c.m.obrigacoesPlPct ?? ausente('sem_dado_fonte'),
@@ -751,16 +822,21 @@ export async function recalcularScores(
       escopo: 'preferido',
       emissores: em,
     });
+    const dpaAnual = await lerDpaAnualGravado(
+      ctx.prisma,
+      loteEmpresas.flatMap(([, ts]) => ts.map((t) => t.symbol)),
+    );
     ctx.contar('linhasLidas', fys.length + recentes.length);
     const fysPor = agrupar(fys, (f) => f.emissorId);
     const fundAtualPor = fundamentosAtuais(recentes);
-    processarLoteAcoes(loteEmpresas, fysPor, fundAtualPor);
+    processarLoteAcoes(loteEmpresas, fysPor, fundAtualPor, dpaAnual);
   }
 
   function processarLoteAcoes(
     loteEmpresas: Array<[string, TickerAcao[]]>,
     fysPor: Map<string, FundamentosPeriodo[]>,
     fundAtualPor: Map<string, FundamentosPeriodo | null>,
+    dpaAnual: Map<string, DpaAnual[]>,
   ): void {
     for (const [cnpj, tickers] of loteEmpresas) {
       const comPreco = tickers.filter((t) => resumoPor.has(t.symbol));
@@ -791,6 +867,7 @@ export async function recalcularScores(
             historicoPl: plGravado.get(t.symbol) ?? [],
             dataRef,
             frescor: frescorDe(t.symbol, ultimaDataComAcoes),
+            dpaAnual: dpaAnual.get(t.symbol) ?? [],
           },
           p,
         );
@@ -847,6 +924,10 @@ export async function recalcularScores(
   const cnpjsFii = [...new Set(u.fiis.map((f) => f.cnpj))];
   const trimestres = await fiiTrimestralUltimos(ctx.prisma, cnpjsFii, 1);
   const triPor = new Map(trimestres.map((t) => [t.cnpj, t]));
+  const rendAnualFii = await lerDpaAnualGravado(
+    ctx.prisma,
+    u.fiis.map((f) => f.symbol),
+  );
   for (const f of u.fiis) {
     const resumo = resumoPor.get(f.symbol);
     const meses = dados.fiiMensalPorCnpj.get(f.cnpj) ?? [];
@@ -861,6 +942,8 @@ export async function recalcularScores(
           cobertura: memoria.cobertura.get(f.symbol),
           dataRef,
           frescor: frescorDe(f.symbol, ultimaDataComFiis),
+          dpaAnual: rendAnualFii.get(f.symbol) ?? [],
+          mesesInformePorAno: mesesInformePorAno(meses),
         }
       : null;
     let calc: CalculoAtualFii | null = null;

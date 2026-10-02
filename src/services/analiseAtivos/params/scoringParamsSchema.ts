@@ -223,6 +223,21 @@ const baseSchema = z.strictObject({
           tolPct: z.number().nonnegative(),
         })
         .default({ janelaDias: 3, tolPct: 0.5 }),
+      // trava de plausibilidade do DY 12m (Índice MF e semáforo): acima do teto ou com salto de
+      // provento recente ⇒ "proventos em conferência" (ausente no Índice, DY exibido em conferência)
+      plausibilidade: z
+        .strictObject({
+          dyMaxPct: z.strictObject({ acao: z.number().positive(), fii: z.number().positive() }),
+          saltoFator: z.number().positive(),
+          saltoPayoutMaxPct: z.number().positive(),
+          anosSaltoRecente: z.number().int().nonnegative(),
+        })
+        .default({
+          dyMaxPct: { acao: 25, fii: 20 },
+          saltoFator: 2,
+          saltoPayoutMaxPct: 150,
+          anosSaltoRecente: 1,
+        }),
     }),
   }),
   universo: z.strictObject({

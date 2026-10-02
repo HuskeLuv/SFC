@@ -21,6 +21,7 @@ import { getTtlCache } from '@/lib/simpleTtlCache';
 import { fundamentosVigentes } from '@/services/analiseAtivos/repositorio/acoes';
 import { paraData, paraNumero } from '@/services/analiseAtivos/repositorio/conversao';
 import { lucroParaSequencia } from '@/services/analiseAtivos/regras/calculo/sequencias';
+import { proventosEmConferencia } from '@/services/analiseAtivos/regras/calculo/plausibilidadeProventos';
 import { obterLinhaQuadro, versaoQuadro } from '@/services/analiseAtivos/leitura/linhasQuadro';
 import { FLAG_CNPJ_EM_CONFERENCIA } from '@/services/analiseAtivos/quadro/montarLinhasQuadro';
 import {
@@ -633,9 +634,7 @@ export async function obterFundamentosEssencial(
 
   const desdeAno = anoInicioLeitura(hoje);
   const desde = `${desdeAno}-01-01`;
-  const conf =
-    linha.flags.some((f) => f === 'provento_suspeito' || f.startsWith('proventos_defasados')) ||
-    linha.motivosIncompleto.includes('div:fonte_defasada');
+  const conf = proventosEmConferencia(linha.flags, linha.motivosIncompleto);
 
   let dados: FundamentosResposta;
   if (linha.classe === 'fii') {

@@ -279,6 +279,34 @@ export async function lerPlAnualGravado(
   return out;
 }
 
+/**
+ * DPA/rendimento por cota anual (base de hoje) + payout DMPL gravados em AssetPerShareYearly — a
+ * mesma série do Quadro (porAcaoAno), para a trava de salto de provento do Índice.
+ */
+export async function lerDpaAnualGravado(
+  prisma: PrismaClient,
+  simbolos: string[],
+): Promise<
+  Map<string, Array<{ anoFiscal: number; dpaAjHoje: number | null; payoutDmplPct: number | null }>>
+> {
+  const out = new Map<
+    string,
+    Array<{ anoFiscal: number; dpaAjHoje: number | null; payoutDmplPct: number | null }>
+  >();
+  if (simbolos.length === 0) return out;
+  const linhas = await prisma.assetPerShareYearly.findMany({
+    where: { symbol: { in: simbolos } },
+    select: { symbol: true, anoFiscal: true, dpaAjHoje: true, payoutDmplPct: true },
+    orderBy: [{ symbol: 'asc' }, { anoFiscal: 'asc' }],
+  });
+  for (const l of linhas) {
+    const lista = out.get(l.symbol) ?? [];
+    lista.push({ anoFiscal: l.anoFiscal, dpaAjHoje: l.dpaAjHoje, payoutDmplPct: l.payoutDmplPct });
+    out.set(l.symbol, lista);
+  }
+  return out;
+}
+
 // ---------------------------------------------------------------------------------------------
 // Múltiplos atuais e scores
 // ---------------------------------------------------------------------------------------------

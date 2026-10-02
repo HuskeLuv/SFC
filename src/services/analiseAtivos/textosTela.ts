@@ -139,6 +139,7 @@ export const TEXTOS_TELA = {
    */
   motivos: {
     'div:fonte_defasada': 'proventos em conferência',
+    'div:em_conferencia': 'proventos em conferência',
     'lucro:fonte_defasada': 'lucro do último exercício em conferência',
     'preco:historico_curto': 'histórico de preço com menos de 5 anos',
     'lucro:sem_dado_fonte': 'lucro sem dado estruturado na CVM',
@@ -148,6 +149,7 @@ export const TEXTOS_TELA = {
   } as Record<string, string>,
   motivosPorSufixo: {
     fonte_defasada: 'dado em conferência',
+    em_conferencia: 'dado em conferência',
     fonte_falhou: 'fonte indisponível no último processamento',
     sem_dado_fonte: 'sem dado estruturado na fonte',
     historico_curto: 'histórico com menos de 5 anos',

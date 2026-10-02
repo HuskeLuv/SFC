@@ -212,5 +212,21 @@ describe('linhasQuadro', () => {
       expect(paraLinhaQuadroApi(LINHA_HGLG11).tipoSerie).toBe('rendimento');
       expect(paraLinhaQuadroApi(LINHA_WEGE3).proventosEmConferencia).toBe(true);
     });
+
+    it('trava de plausibilidade: DY acima do teto fica com valor e em conferência; motivo legível', () => {
+      const api = paraLinhaQuadroApi({
+        ...LINHA_ITUB4,
+        flags: ['proventos_em_conferencia_dy_acima_teto'],
+        estadoIndice: 'incompleto',
+        motivosIncompleto: ['div:em_conferencia'],
+      });
+      expect(api.proventosEmConferencia).toBe(true);
+      expect(api.dy12m).toMatchObject({ estado: 'ok' });
+      expect(api.indice.motivos).toEqual([
+        { codigo: 'div:em_conferencia', texto: 'proventos em conferência' },
+      ]);
+      const sem = paraLinhaQuadroApi({ ...LINHA_ITUB4, flags: [], motivosIncompleto: [] });
+      expect(sem.proventosEmConferencia).toBe(false);
+    });
   });
 });

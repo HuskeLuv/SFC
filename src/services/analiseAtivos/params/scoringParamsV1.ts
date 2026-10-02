@@ -395,6 +395,12 @@ export const SCORING_PARAMS_V1: ScoringParams = {
       // diagnóstico 02/10/2026 (docs/analise-ativos/fase1/diagnostico-dy-absurdo.md)
       duplicataSemPagamento: { tolPct: 2, premioPreferencialPct: 10, premioTolPct: 0.5 },
       copiaRestituicao: { janelaDias: 3, tolPct: 0.5 },
+      plausibilidade: {
+        dyMaxPct: { acao: 25, fii: 20 },
+        saltoFator: 2,
+        saltoPayoutMaxPct: 150,
+        anosSaltoRecente: 1,
+      },
     },
   },
   universo: {
