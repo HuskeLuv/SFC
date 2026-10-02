@@ -77,9 +77,11 @@ const AppSidebar: React.FC = () => {
                 {(isExpanded || isHovered || isMobileOpen) && (
                   <span className={`menu-item-text`}>{nav.name}</span>
                 )}
-                {nav.novo && (isExpanded || isHovered || isMobileOpen) && (
+                {/* Selo NOVO no canto do ícone: cabe na sidebar de 200px (o nome quebra em
+                    2 linhas como os demais) e aparece também com a sidebar recolhida. */}
+                {nav.novo && (
                   <span
-                    className={`ml-auto shrink-0 rounded-full px-2 py-0.5 text-[11px] leading-4 font-semibold tracking-[0.04em] ${SELO_NOVO}`}
+                    className={`pointer-events-none absolute -top-1 left-1 rounded-full px-1 text-[9px] leading-[14px] font-semibold tracking-[0.04em] ${SELO_NOVO}`}
                   >
                     {TEXTOS_TELA.menu.novo}
                   </span>
