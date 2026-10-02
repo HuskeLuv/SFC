@@ -200,6 +200,30 @@ describe('/api/carteira/acoes', () => {
       expect(tickers).toContain('VALE3');
       expect(tickers).not.toContain('KNRI11');
     });
+
+    it('unit B3 cadastrada como ação (TAEE11) aparece na tabela; fracionário não', async () => {
+      const item = (id: string, symbol: string) => ({
+        id,
+        userId: 'user-1',
+        quantity: 10,
+        totalInvested: 350,
+        avgPrice: 35,
+        objetivo: 0,
+        estrategia: 'value',
+        categoriaOverride: null,
+        asset: { symbol, name: symbol, type: 'stock', currency: 'BRL' },
+        lastUpdate: new Date(),
+      });
+      mockPrisma.portfolio.findMany.mockResolvedValue([
+        item('p-unit', 'TAEE11'),
+        item('p-frac', 'TAEE11F'),
+      ]);
+      const res = await GET(createGetRequest());
+      const data = await res.json();
+      const tickers = linhas(data).map((l) => l.ticker);
+      expect(tickers).toContain('TAEE11');
+      expect(tickers).not.toContain('TAEE11F');
+    });
   });
 
   describe('mover na Carteira (out/2026)', () => {

@@ -194,12 +194,12 @@ const CASOS: Caso[] = [
     motivos: { etfs: MOTIVO_EM_VALIDACAO, acoes: MOTIVO_EM_DOLAR },
   },
   {
-    nome: 'unit B3 (TAEE11) fora de escopo',
+    nome: 'unit B3 (TAEE11) cadastrada como ação',
     asset: a('TAEE11', 'stock'),
-    base: null,
-    modelo: 'fixo',
-    permitidos: [],
-    motivos: {},
+    base: 'acoes',
+    modelo: 'b3-brl',
+    permitidos: BRL_BOLSA,
+    motivos: { stocks: MOTIVO_EM_REAIS, reits: MOTIVO_EM_REAIS },
   },
   {
     nome: 'Tesouro Direto',
@@ -247,10 +247,14 @@ describe('regex de ticker', () => {
     }
   });
 
-  it('units ficam fora de Ações enquanto INCLUIR_UNITS_EM_ACOES = false (decisão 11)', () => {
-    expect(INCLUIR_UNITS_EM_ACOES).toBe(false);
-    expect(isTickerAcaoB3('TAEE11')).toBe(false);
-    expect(isTickerAcaoB3('petr4')).toBe(true);
+  it('units B3 contam como ação (INCLUIR_UNITS_EM_ACOES); fracionário e BDR não', () => {
+    expect(INCLUIR_UNITS_EM_ACOES).toBe(true);
+    for (const t of ['TAEE11', 'KLBN11', 'SANB11', 'BPAC11', 'petr4']) {
+      expect(isTickerAcaoB3(t)).toBe(true);
+    }
+    for (const t of ['PETR4F', 'AAPL34', 'TAEE11F', 'AAPL', '']) {
+      expect(isTickerAcaoB3(t)).toBe(false);
+    }
   });
 });
 
@@ -314,6 +318,8 @@ describe('categoriaBaseDaAba espelha os where das rotas', () => {
   it.each([
     ['PETR4', 'stock', 'BRL', 'acoes'],
     ['PETR4', 'stock', null, 'acoes'],
+    ['TAEE11', 'stock', 'BRL', 'acoes'],
+    ['KLBN11', 'stock', null, 'acoes'],
     ['AAPL', 'stock', 'USD', 'stocks'],
     ['AAPL34', 'brd', 'BRL', 'acoes'],
     ['XPML11', 'fii', 'BRL', 'fiis'],

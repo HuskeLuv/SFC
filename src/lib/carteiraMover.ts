@@ -195,10 +195,13 @@ export const B3_UNIT_RE = /^[A-Z][A-Z0-9]{3}11$/;
 export const B3_COTADO_RE = /^[A-Z][A-Z0-9]{3}\d{1,2}[A-Z]?$/;
 
 /**
- * Units B3 cadastradas como 'stock' (TAEE11…) contam como ação? Decisão 11 do
- * Wellington (01/10/2026): FORA desta feature — continuam fora das abas.
+ * Units B3 cadastradas como 'stock' (TAEE11, KLBN11, SANB11, BPAC11…) entram na
+ * aba Ações (pendência do #275, out/2026). Antes ficavam em NENHUMA aba e a pizza
+ * as somava em Renda Fixa. O IR não muda: segue Asset.type (rendaVariavelLoader
+ * tem regra própria). Unit que na verdade é FII/ETF cadastrado como 'stock' cai
+ * em Ações também (é o que o catálogo diz) e o usuário pode movê-la de aba.
  */
-export const INCLUIR_UNITS_EM_ACOES = false;
+export const INCLUIR_UNITS_EM_ACOES = true;
 
 /**
  * ETF em dólar ↔ Stocks/REIT's (decisão 8): bloqueado "em validação" até
@@ -462,7 +465,7 @@ const baseDaAba = (
 /**
  * Em que aba a rota lista o ativo HOJE (sem override) — espelha os `where` das
  * rotas de aba. null = fora das abas movíveis (Imóveis, Moedas/Cripto,
- * Previdência, Opções, units B3 enquanto fora de escopo e — com a chave
+ * Previdência, Opções e — com a chave
  * MOVER_CAIXA_RF_HABILITADO desligada — Renda Fixa e Reservas, como na fase 1).
  */
 export const categoriaBaseDaAba = (

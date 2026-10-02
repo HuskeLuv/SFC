@@ -59,9 +59,9 @@ async function calculateAcoesData(userId: string): Promise<AcaoData> {
     'acoes',
   );
 
-  // B3_ACAO_RE: aceita dígito no meio (ex.: B3SA3, o ticker da própria B3);
-  // exclui units (AAAA11, fora desta fase — decisão 11), fracionários
-  // (AAAA3F) e BDRs (6+ chars).
+  // isTickerAcaoB3: aceita dígito no meio (ex.: B3SA3, o ticker da própria B3)
+  // e units (AAAA11 cadastradas como 'stock'); exclui fracionários (AAAA3F) e
+  // BDRs (6+ chars).
   const movido = (item: (typeof portfolio)[number]) =>
     overrideEfetivo(item.asset, item.categoriaOverride) !== null;
   const acoesStockPortfolio = portfolio.filter(

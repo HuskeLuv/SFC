@@ -160,7 +160,7 @@ export const categorizarAsset = (
     return 'reservaOportunidade';
   }
 
-  // B3_ACAO_RE (+ units se INCLUIR_UNITS_EM_ACOES) — a mesma regra da aba Ações.
+  // B3_ACAO_RE + units (INCLUIR_UNITS_EM_ACOES) — a mesma regra da aba Ações.
   const isB3StockTicker = isTickerAcaoB3(symbolUpper);
 
   switch (tipo) {

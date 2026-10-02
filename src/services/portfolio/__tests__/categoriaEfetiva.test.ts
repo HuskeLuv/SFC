@@ -45,8 +45,15 @@ describe('categoriaEfetiva', () => {
   it("item de aba fixa ('fixo') ignora override", () => {
     expect(categoriaEfetiva({ symbol: 'CDB-1', type: 'bond' }, 'acoes')).toBe('rendaFixaFundos');
     expect(categoriaEfetiva({ symbol: 'BTC', type: 'crypto' }, 'fiis')).toBe('moedasCriptos');
-    // unit B3 fora de escopo (decisão 11): continua onde está
-    expect(categoriaEfetiva({ symbol: 'TAEE11', type: 'stock', currency: 'BRL' }, 'acoes')).toBe(
+  });
+
+  it('unit B3 cadastrada como ação: Ações na pizza (mesma aba da rota) e movível', () => {
+    const unit = { symbol: 'TAEE11', type: 'stock', currency: 'BRL' };
+    expect(categoriaEfetiva(unit, null)).toBe('acoes');
+    expect(categoriaEfetiva(unit, 'acoes')).toBe('acoes');
+    expect(categoriaEfetiva(unit, 'fiis')).toBe('fiis');
+    // fracionário segue fora das abas (conservador)
+    expect(categoriaEfetiva({ symbol: 'TAEE11F', type: 'stock', currency: 'BRL' }, null)).toBe(
       'rendaFixaFundos',
     );
   });
