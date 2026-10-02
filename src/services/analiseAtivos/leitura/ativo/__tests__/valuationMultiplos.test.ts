@@ -340,7 +340,7 @@ describe('montarValuation (ações)', () => {
       (i) => i.atual.estado === 'ok' && i.atual.valor < (i.barra.media as number),
     ).length;
     expect(preco.resumo).toBe(
-      `${abaixo} de ${visiveis.length} indicadores de preço estão abaixo da própria média de 10 anos.`,
+      `${abaixo} de ${visiveis.length} indicadores de preço estão abaixo da própria média histórica (até 10 anos).`,
     );
   });
 

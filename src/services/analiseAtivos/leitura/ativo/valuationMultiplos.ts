@@ -671,7 +671,7 @@ function montarHistoricos(alvo: Ctx): HistoricoMultiplo[] {
     const pontos = historicoAnual(alvo, d.campo);
     return {
       codigo: d.codigo,
-      rotulo: TV.itens[d.codigo],
+      rotulo: d.campo === 'dyPct' ? TEXTOS_TELA.analise.fundamentos.colunas.dy : TV.itens[d.codigo],
       formato: d.formato,
       media: enxugarOuNull(mediaPontos(pontos, d.campo !== 'dyPct')),
       pontos: enxugarPontos(pontos),

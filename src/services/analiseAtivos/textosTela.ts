@@ -768,7 +768,7 @@ export const TEXTOS_TELA = {
         liquidez21: 'Liquidez média 21d',
       },
       resumoAbaixo:
-        '{n} de {total} indicadores de {valor} estão abaixo da própria média de 10 anos.',
+        '{n} de {total} indicadores de {valor} estão abaixo da própria média histórica (até 10 anos).',
       resumoSemBarra: 'Nenhum indicador de {valor} tem 5 anos ou mais de histórico para comparar.',
       resumoConferencia:
         'Indicadores de {valor} em conferência: as barras ficam ocultas até a conferência terminar.',
