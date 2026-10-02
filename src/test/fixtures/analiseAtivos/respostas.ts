@@ -97,7 +97,7 @@ export const BUSCA: BuscaIndiceResposta = {
 export const OVERLAY_CARTEIRA: OverlayCarteiraResposta = {
   posicoes: {
     WEGE3: { portfolioId: 'pf-wege3', quantidade: 120, categoria: 'acoes' },
-    HGLG11: { portfolioId: 'pf-hglg11', quantidade: 40, categoria: 'fii' },
+    HGLG11: { portfolioId: 'pf-hglg11', quantidade: 40, categoria: 'fiis' },
   },
   planejados: {
     ITUB4: { watchlistId: 'wl-itub4', categoria: 'acoes', objetivoPct: 5 },
