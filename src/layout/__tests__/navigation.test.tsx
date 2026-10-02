@@ -9,6 +9,7 @@ const mocks = vi.hoisted(() => ({
   },
   pluggy: false,
   comunidade: false,
+  analise: undefined as undefined | { habilitada: boolean; novoAte: string },
 }));
 
 vi.mock('@/hooks/useAuth', () => ({ useAuth: () => mocks.auth }));
@@ -17,6 +18,9 @@ vi.mock('@/hooks/useConexoesBancarias', () => ({
 }));
 vi.mock('@/hooks/useComunidade', () => ({
   useComunidadeConfig: () => ({ data: { habilitada: mocks.comunidade } }),
+}));
+vi.mock('@/hooks/useAnaliseAtivos', () => ({
+  useAnaliseAtivosConfig: () => ({ data: mocks.analise }),
 }));
 vi.mock('../../icons/index', () => {
   const Icon = () => null;
@@ -47,6 +51,7 @@ import {
   groupMoreItems,
   isNestedRoute,
   MORE_GROUPS,
+  seloNovoAtivo,
   useMainNavItems,
 } from '../navigation';
 
@@ -57,6 +62,7 @@ beforeEach(() => {
   mocks.auth.actingClient = null;
   mocks.pluggy = false;
   mocks.comunidade = false;
+  mocks.analise = undefined;
 });
 
 describe('useMainNavItems', () => {
@@ -87,6 +93,43 @@ describe('useMainNavItems', () => {
     expect(names(renderHook(() => useMainNavItems()).result.current)).not.toContain('Comunidade');
     mocks.comunidade = true;
     expect(names(renderHook(() => useMainNavItems()).result.current)).toContain('Comunidade');
+  });
+
+  it('Análise de Ativos: só com config.habilitada, logo abaixo de Carteira, com selo NOVO', () => {
+    expect(names(renderHook(() => useMainNavItems()).result.current)).not.toContain(
+      'Análise de Ativos',
+    );
+    mocks.analise = { habilitada: false, novoAte: '2099-12-31' };
+    expect(names(renderHook(() => useMainNavItems()).result.current)).not.toContain(
+      'Análise de Ativos',
+    );
+    mocks.analise = { habilitada: true, novoAte: '2099-12-31' };
+    const { result } = renderHook(() => useMainNavItems());
+    const list = names(result.current);
+    expect(list.slice(0, 3)).toEqual(['Carteira', 'Análise de Ativos', 'Fluxo de Caixa']);
+    const item = result.current.find((i) => i.name === 'Análise de Ativos');
+    expect(item).toMatchObject({ path: '/analise-ativos', novo: true });
+  });
+
+  it('Análise de Ativos: selo NOVO some depois de novoAte', () => {
+    mocks.analise = { habilitada: true, novoAte: '2020-01-01' };
+    const { result } = renderHook(() => useMainNavItems());
+    expect(result.current.find((i) => i.name === 'Análise de Ativos')?.novo).toBeFalsy();
+  });
+
+  it('Análise de Ativos: ausente com o consultor agindo pelo cliente', () => {
+    mocks.auth.user = { id: 'c1', role: 'consultant' };
+    mocks.auth.actingClient = { id: 'x', name: 'Maria', email: 'm@x' };
+    mocks.analise = { habilitada: true, novoAte: '2099-12-31' };
+    expect(names(renderHook(() => useMainNavItems()).result.current)).not.toContain(
+      'Análise de Ativos',
+    );
+  });
+
+  it('seloNovoAtivo: inclusive no dia de novoAte, pela data civil local', () => {
+    expect(seloNovoAtivo('2026-12-31', new Date(2026, 11, 31, 23, 59))).toBe(true);
+    expect(seloNovoAtivo('2026-12-31', new Date(2027, 0, 1, 0, 1))).toBe(false);
+    expect(seloNovoAtivo(null)).toBe(false);
   });
 
   it('admin vê Administração', () => {
@@ -130,7 +173,10 @@ describe('painel Mais', () => {
       isActing: false,
       pluggyHabilitado: true,
       comunidadeHabilitada: true,
+      analiseAtivosHabilitada: true,
+      analiseAtivosNovo: true,
     });
+    expect(names(groupMoreItems(items)[0].items)[0]).toBe('Análise de Ativos');
     const grouped = new Set(MORE_GROUPS.flatMap((group) => group.names));
     for (const item of getMoreItems(items)) {
       expect(grouped.has(item.name)).toBe(true);
@@ -169,6 +215,8 @@ describe('getMobilePageTitle', () => {
     ['/profile', 'Perfil'],
     ['/conexoes-bancarias', 'Conexões bancárias'],
     ['/educacao/curso', 'Educação'],
+    ['/analise-ativos', 'Análise de Ativos'],
+    ['/analise-ativos/WEGE3', 'Análise de Ativos'],
     ['/nao-existe', 'My Finance'],
   ])('%s → %s', (pathname, title) => {
     expect(getMobilePageTitle(pathname)).toBe(title);
@@ -186,6 +234,8 @@ describe('isNestedRoute', () => {
     ['/ativos/abc', true],
     ['/comunidade/moderacao', true],
     ['/educacao/curso', true],
+    ['/analise-ativos', false],
+    ['/analise-ativos/WEGE3', true],
   ])('%s → %s', (pathname, nested) => {
     expect(isNestedRoute(pathname)).toBe(nested);
   });
@@ -197,10 +247,12 @@ describe('getActiveTab', () => {
     isActing: false,
     pluggyHabilitado: true,
     comunidadeHabilitada: false,
+    analiseAtivosHabilitada: true,
   });
 
   it.each([
     ['/carteira', 'carteira'],
+    ['/analise-ativos/WEGE3', 'mais'],
     ['/ativos/abc', 'carteira'],
     ['/fluxodecaixa', 'fluxo'],
     ['/planejamento-financeiro', 'planejamento'],

@@ -8,6 +8,8 @@ import { ThemeToggleButton } from '@/components/common/ThemeToggleButton';
 import InstallAppCard from '@/components/pwa/InstallAppCard';
 import { useAuth } from '@/hooks/useAuth';
 import { groupMoreItems, useMainNavItems } from '@/layout/navigation';
+import { SELO_NOVO } from '@/constants/analiseAtivosVisual';
+import { TEXTOS_TELA } from '@/services/analiseAtivos/textosTela';
 
 /**
  * Estado do painel Mais compartilhado entre a aba Mais (MobileTabBar) e o avatar do cabeçalho
@@ -177,7 +179,7 @@ export default function MoreSheet() {
                     href={item.path ?? '/'}
                     onClick={closeMoreSheet}
                     aria-current={active ? 'page' : undefined}
-                    className={`flex min-h-[76px] flex-col items-center justify-center gap-1 rounded-2xl border border-gray-100 bg-gray-50 px-1 py-2 text-center text-xs leading-tight font-medium active:bg-gray-100 dark:border-gray-800 dark:bg-white/[0.03] dark:active:bg-white/5 ${
+                    className={`relative flex min-h-[76px] flex-col items-center justify-center gap-1 rounded-2xl border border-gray-100 bg-gray-50 px-1 py-2 text-center text-xs leading-tight font-medium active:bg-gray-100 dark:border-gray-800 dark:bg-white/[0.03] dark:active:bg-white/5 ${
                       active
                         ? 'text-mf-patrimonio dark:text-mf-tranquilidade'
                         : 'text-gray-700 dark:text-gray-200'
@@ -190,6 +192,13 @@ export default function MoreSheet() {
                       {item.icon}
                     </span>
                     {item.name}
+                    {item.novo ? (
+                      <span
+                        className={`absolute top-1.5 right-1.5 rounded-full px-1.5 py-px text-[10px] leading-4 font-semibold tracking-[0.04em] ${SELO_NOVO}`}
+                      >
+                        {TEXTOS_TELA.menu.novo}
+                      </span>
+                    ) : null}
                   </Link>
                 </li>
               );
