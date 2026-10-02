@@ -32,10 +32,30 @@ import WizardFooter from './wizard/WizardFooter';
 import { useIsBelowLg } from '@/hooks/useMediaQuery';
 import { useWizardStepFocus } from './wizard/useWizardStepFocus';
 
+/**
+ * Abertura já com o ativo escolhido (Análise de Ativos: "Registrar operação" / "Planejar na
+ * Carteira"). OPCIONAL: sem preset o wizard se comporta exatamente como antes.
+ * - Com assetId: compra abre em Instituição; planejar abre direto na etapa do objetivo.
+ * - Sem assetId: abre no passo Ativo com a busca preenchida pelo ticker.
+ * O usuário pode voltar e trocar tudo; nada é gravado sem a confirmação.
+ */
+export interface AddAssetWizardPreset {
+  operacao: 'compra' | 'planejar';
+  tipoAtivo: 'acoes-brasil' | 'fii';
+  /** texto do ativo (ex.: 'WEGE3 - WEG S.A.'); o ticker basta */
+  ativo: string;
+  assetId?: string | null;
+  /** só ações: 'acao' (padrão) ou 'bdr' */
+  acoesBrasilTipo?: 'acao' | 'bdr';
+  /** cotação de referência para o aviso de divergência de preço */
+  precoAtual?: number | null;
+}
+
 interface AddAssetWizardProps {
   isOpen: boolean;
   onClose: () => void;
   onSuccess: () => void;
+  preset?: AddAssetWizardPreset | null;
 }
 
 const INITIAL_FORM_DATA: WizardFormData = {
@@ -137,6 +157,27 @@ const STEPS: WizardStep[] = [
  * sempre os 5 passos (o tipo vem de /api/carteira/aporte/tipos e o passo
  * "Ativo" é a escolha da posição existente).
  */
+/** Estado inicial do formulário e etapa de partida para um preset. */
+export function aplicarPreset(preset: AddAssetWizardPreset): {
+  formData: WizardFormData;
+  stepId: string;
+} {
+  const assetId = preset.assetId ?? '';
+  const formData: WizardFormData = {
+    ...INITIAL_FORM_DATA,
+    operacao: preset.operacao,
+    tipoAtivo: preset.tipoAtivo,
+    ativo: preset.ativo,
+    assetId,
+    assetCurrentPrice: preset.precoAtual ?? null,
+    ...(preset.tipoAtivo === 'acoes-brasil' && assetId
+      ? { acoesBrasilTipo: preset.acoesBrasilTipo ?? 'acao' }
+      : {}),
+  };
+  const stepId = !assetId ? 'asset' : preset.operacao === 'planejar' ? 'info' : 'institution';
+  return { formData, stepId };
+}
+
 function getVisibleStepIds(formData: WizardFormData): string[] {
   if (formData.operacao === 'aporte') {
     return STEPS.map((step) => step.id);
@@ -186,7 +227,12 @@ function getPriceCheckParams(
   }
 }
 
-export default function AddAssetWizard({ isOpen, onClose, onSuccess }: AddAssetWizardProps) {
+export default function AddAssetWizard({
+  isOpen,
+  onClose,
+  onSuccess,
+  preset = null,
+}: AddAssetWizardProps) {
   const { csrfFetch } = useCsrf();
   const queryClient = useQueryClient();
   const isBelowLg = useIsBelowLg();
@@ -208,6 +254,21 @@ export default function AddAssetWizard({ isOpen, onClose, onSuccess }: AddAssetW
   // Assinatura do preço já confirmado no popup. Se o usuário mudar
   // preço/data/ativo depois, a assinatura muda e o popup reaparece.
   const [confirmedPriceSig, setConfirmedPriceSig] = useState<string | null>(null);
+
+  // Preset (opcional): aplicado a cada abertura; ao fechar, a próxima abertura reaplica.
+  const presetAplicadoRef = useRef(false);
+  useEffect(() => {
+    if (!isOpen) {
+      presetAplicadoRef.current = false;
+      return;
+    }
+    if (!preset || presetAplicadoRef.current) return;
+    presetAplicadoRef.current = true;
+    const inicial = aplicarPreset(preset);
+    setFormData(inicial.formData);
+    setErrors({});
+    setCurrentStep(Math.max(getVisibleStepIds(inicial.formData).indexOf(inicial.stepId), 0));
+  }, [isOpen, preset]);
 
   // Divergência entre a cotação digitada e o fechamento da data de compra.
   // Só vale para tipos com cotação de mercado (ações/FII/ETF/cripto/moeda).
