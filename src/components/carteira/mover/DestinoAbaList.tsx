@@ -121,8 +121,12 @@ export function avisosDoDestino(
     }
   }
   if (trocaAba && opcoes.original && escolha.categoria === opcoes.original.categoria) {
+    const aba = rotuloCategoria(escolha.categoria);
     avisos.push(
-      `Voltando para ${rotuloCategoria(escolha.categoria)}, ${opcoes.item.ticker} deixa de ter escolha manual e segue o tipo do catálogo.`,
+      // Trio: símbolo sintético e sem "catálogo" (CDB, saldo) — vale o nome e a aba de origem.
+      isOpcoesCaixaRf(opcoes)
+        ? `${aba} é a aba de origem: ${opcoes.item.nome || 'o título'} deixa de ter escolha manual.`
+        : `Voltando para ${aba}, ${opcoes.item.ticker} deixa de ter escolha manual e segue o tipo do catálogo.`,
     );
   }
   return avisos;

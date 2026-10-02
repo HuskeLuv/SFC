@@ -68,6 +68,7 @@ import { chipsDaBandeja } from '../AbaDropTarget';
 import { EscolherSecaoPopover } from '../EscolherSecaoPopover';
 import MoverInvestimento from '../MoverInvestimento';
 import { entradaDosEfeitos } from '../EfeitosMoverList';
+import { avisosDoDestino } from '../DestinoAbaList';
 import { queryKeyDaAba, removerLinhaReserva } from '../moverOptimistic';
 import { useMoverInvestimento } from '@/hooks/useMoverInvestimento';
 import Step4TesouroDiretoFields, {
@@ -690,6 +691,27 @@ describe('entradaDosEfeitos', () => {
       semTitulo: true,
       liquidez: null,
     });
+  });
+});
+
+describe('avisosDoDestino — trio', () => {
+  it('voltar à aba de origem usa o nome do título (não o símbolo nem "catálogo")', () => {
+    const base = opcoesCdbRf();
+    const movido: MoverOpcoesResponse = {
+      ...base,
+      item: { ...base.item, ticker: 'RENDA-FIXA-123-abc' },
+      atual: {
+        categoria: 'reservaOportunidade',
+        abaId: 'reserva-oportunidade',
+        subgrupo: null,
+        subgrupoLabel: null,
+        override: true,
+      },
+      original: { categoria: 'rendaFixaFundos', subgrupo: 'pos-fixada', label: 'Renda Fixa' },
+    };
+    expect(
+      avisosDoDestino(movido, { categoria: 'rendaFixaFundos', subgrupo: 'pos-fixada' }),
+    ).toEqual(['Renda Fixa é a aba de origem: CDB Inter deixa de ter escolha manual.']);
   });
 });
 
