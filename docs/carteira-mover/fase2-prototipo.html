@@ -1,0 +1,1140 @@
+<title>Mover Renda Fixa e Reservas</title>
+<meta name="description" content="Protótipo navegável da fase 2 do mover investimentos: Renda Fixa, Reserva de Emergência e Reserva de Oportunidade no computador, no celular e na página do ativo.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: bancada de protótipo (cenários à esquerda, tela do app à direita) + especificação embaixo.
+   Cores só da paleta My Finance (brandColors.ts) + cinzas do Tailwind usados no app. */
+:root{
+  --mf-potencia:#2D2D2D; --mf-seguranca:#314666; --mf-patrimonio:#396CAA; --mf-outside:#0079F2;
+  --mf-tranquilidade:#6E9DC4; --mf-transparencia:#CCCCCC; --mf-escolha:#EAEAEA;
+  --pg-bg:#F3F5F8; --pg-surface:#FFFFFF; --pg-ink:#2D2D2D; --pg-muted:#5B6576; --pg-line:#DCE2EA; --pg-soft:#E8F1FC;
+  --app-bg:#F9FAFB; --app-surface:#FFFFFF; --app-line:#E5E7EB; --app-line-soft:#F2F4F7; --app-ink:#374151; --app-strong:#1F2937; --app-muted:#4B5563;
+  --head-bg:#314666; --band-bg:#6E9DC4; --band-soft:rgba(110,157,196,.18); --band-soft-ink:#314666;
+  --accent:#0079F2; --link:#396CAA; --drop:rgba(0,121,242,.09); --drop-strong:rgba(0,121,242,.16); --focus:#0079F2;
+  --hl:rgba(0,121,242,.06); --pos:#396CAA; --neg:#B42318; --danger-bg:rgba(217,45,32,.08);
+  --primary:#396CAA; --primary-fg:#FFFFFF;
+  --toast-bg:#314666; --toast-fg:#FFFFFF; --toast-link:#EAEAEA;
+  --toast-err-bg:#D92D20; --toast-err-fg:#FFFFFF; --toast-err-btn:#FFFFFF;
+  --overlay:rgba(45,45,45,.45); --shadow:0 12px 32px rgba(45,45,45,.18);
+  --font:'Outfit',ui-sans-serif,system-ui,-apple-system,'Segoe UI',sans-serif;
+  --mono:'IBM Plex Mono',ui-monospace,'SFMono-Regular',Menlo,monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    color-scheme:dark;
+    --pg-bg:#111113; --pg-surface:#1F1F22; --pg-ink:#EAEAEA; --pg-muted:#98A2B3; --pg-line:#2E3440; --pg-soft:rgba(110,157,196,.10);
+    --app-bg:#18181B; --app-surface:#1F1F22; --app-line:#2E3440; --app-line-soft:#26262A; --app-ink:#E5E7EB; --app-strong:#F3F4F6; --app-muted:#9CA3AF;
+    --band-soft:rgba(110,157,196,.14); --band-soft-ink:#EAEAEA;
+    --accent:#6E9DC4; --link:#6E9DC4; --drop:rgba(0,121,242,.16); --drop-strong:rgba(0,121,242,.26); --focus:#6E9DC4;
+    --hl:rgba(0,121,242,.16); --pos:#6E9DC4; --neg:#F97066; --danger-bg:rgba(249,112,102,.10);
+    --toast-bg:#26262A; --toast-fg:#EAEAEA; --toast-link:#6E9DC4;
+    --toast-err-bg:#26262A; --toast-err-fg:#F97066; --toast-err-btn:#EAEAEA;
+    --overlay:rgba(0,0,0,.6); --shadow:0 12px 32px rgba(0,0,0,.5);
+  }
+}
+:root[data-theme="dark"]{
+  color-scheme:dark;
+  --pg-bg:#111113; --pg-surface:#1F1F22; --pg-ink:#EAEAEA; --pg-muted:#98A2B3; --pg-line:#2E3440; --pg-soft:rgba(110,157,196,.10);
+  --app-bg:#18181B; --app-surface:#1F1F22; --app-line:#2E3440; --app-line-soft:#26262A; --app-ink:#E5E7EB; --app-strong:#F3F4F6; --app-muted:#9CA3AF;
+  --band-soft:rgba(110,157,196,.14); --band-soft-ink:#EAEAEA;
+  --accent:#6E9DC4; --link:#6E9DC4; --drop:rgba(0,121,242,.16); --drop-strong:rgba(0,121,242,.26); --focus:#6E9DC4;
+  --hl:rgba(0,121,242,.16); --pos:#6E9DC4; --neg:#F97066; --danger-bg:rgba(249,112,102,.10);
+  --toast-bg:#26262A; --toast-fg:#EAEAEA; --toast-link:#6E9DC4;
+    --toast-err-bg:#26262A; --toast-err-fg:#F97066; --toast-err-btn:#EAEAEA;
+  --overlay:rgba(0,0,0,.6); --shadow:0 12px 32px rgba(0,0,0,.5);
+}
+*{box-sizing:border-box}
+body{background:var(--pg-bg);color:var(--pg-ink);font-family:var(--font);font-size:15px;line-height:1.5;padding-inline:16px;padding-block:28px 64px;margin:0}
+.wrap{max-width:1280px;margin:0 auto;display:flex;flex-direction:column;gap:28px}
+h1,h2,h3{text-wrap:balance;margin:0;line-height:1.2}
+p{margin:0}
+code,.mono{font-family:var(--mono);font-size:.86em}
+button{font:inherit;color:inherit}
+.wordmark{font-weight:700;color:var(--mf-outside);letter-spacing:-.01em;font-size:20px}
+.pg-h1{font-size:30px;font-weight:600;letter-spacing:-.01em;margin-top:10px}
+.lede{color:var(--pg-muted);max-width:75ch;margin-top:6px}
+.eyebrow{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--pg-muted);font-weight:600}
+
+.stage{display:grid;grid-template-columns:260px minmax(0,1fr);gap:24px;align-items:start}
+.side{display:flex;flex-direction:column;gap:16px;min-width:0;position:sticky;top:env(safe-area-inset-top,0px)}
+.scen-group{display:flex;flex-direction:column;gap:6px}
+.scen-group .gl{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--pg-muted);font-weight:600;margin-top:4px}
+.scen{text-align:left;font-size:13px;border:1px solid var(--pg-line);background:var(--pg-surface);color:var(--pg-ink);padding:6px 10px;border-radius:10px;cursor:pointer;min-height:36px;display:flex;align-items:center;gap:8px}
+.scen b{font-family:var(--mono);font-weight:500;font-size:11px;color:var(--pg-muted);min-width:22px}
+.scen[aria-pressed="true"]{background:var(--mf-seguranca);border-color:var(--mf-seguranca);color:#fff}
+.scen[aria-pressed="true"] b{color:var(--mf-escolha)}
+.scen:focus-visible,.pg-btn:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.controls{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.pg-btn{font-size:13px;border:1px solid var(--pg-line);background:var(--pg-surface);color:var(--pg-ink);padding:6px 12px;border-radius:10px;cursor:pointer;min-height:36px;display:inline-flex;gap:6px;align-items:center}
+.pg-check{display:flex;gap:8px;align-items:center;font-size:13px;color:var(--pg-muted)}
+.main-col{display:flex;flex-direction:column;gap:16px;min-width:0}
+.notes{background:var(--pg-surface);border:1px solid var(--pg-line);border-radius:16px;padding:18px 20px;display:flex;flex-direction:column;gap:10px}
+.notes h2{font-size:17px;font-weight:600}
+.notes ul{margin:0;padding-left:18px;display:flex;flex-direction:column;gap:5px;color:var(--pg-ink)}
+.notes li{max-width:90ch}
+.tag-ex{display:inline-block;font-size:11px;padding:2px 8px;border-radius:999px;background:var(--pg-soft);color:var(--pg-muted);font-weight:500}
+
+/* ===================== Moldura do app (computador) ===================== */
+.desk{position:relative;background:var(--app-bg);border:1px solid var(--pg-line);border-radius:16px;padding:20px;min-height:560px;overflow:clip;color:var(--app-ink)}
+.desk-top{display:flex;justify-content:space-between;align-items:baseline;gap:12px;flex-wrap:wrap}
+.desk-top h2{font-size:18px;font-weight:600;color:var(--app-strong)}
+.desk-top .crumb{font-size:13px;color:var(--app-muted)}
+.tabs{display:flex;gap:4px;overflow-x:auto;border-bottom:1px solid var(--app-line);margin-top:10px;padding-top:6px;scrollbar-width:thin}
+.tab{position:relative;display:inline-flex;align-items:center;gap:6px;border:0;border-bottom:2px solid transparent;background:transparent;padding:10px 12px;font-size:14px;font-weight:500;color:var(--app-muted);white-space:nowrap;cursor:pointer;border-radius:8px 8px 0 0}
+.tab:hover{color:var(--app-strong)}
+.tab[aria-selected="true"]{color:var(--link);border-bottom-color:var(--link)}
+.tab:focus-visible{outline:none;box-shadow:0 0 0 3px var(--focus)}
+.tab:focus-visible{box-shadow:inset 0 0 0 2px var(--focus)}
+/* bandeja "Outra aba": só existe durante o arrasto. No app: portal fixed no rodapé da viewport,
+   renderizado pelo próprio CarteiraDnd (não depende da barra de abas, que rola e pode estar fora da tela). */
+.tray-dock{position:sticky;bottom:14px;height:0;display:flex;justify-content:center;align-items:flex-end;z-index:58;pointer-events:none}
+.tray{pointer-events:auto;display:flex;flex-direction:column;gap:8px;max-width:calc(100% - 24px);background:var(--app-surface);border:1px solid var(--app-line);border-radius:14px;box-shadow:var(--shadow);padding:10px 12px 12px}
+.tray-h{display:flex;justify-content:space-between;gap:12px;font-size:12px;color:var(--app-muted)}
+.tray-h b{color:var(--app-strong);font-weight:600;font-size:12.5px}
+.tray-row{display:flex;flex-wrap:wrap;gap:8px}
+.tchip{display:inline-flex;flex-direction:column;justify-content:center;min-height:48px;min-width:104px;padding:4px 14px;border-radius:10px;border:1.5px dashed var(--accent);background:var(--app-surface);color:var(--app-strong);font-size:14px;font-weight:600;line-height:1.2;text-align:left}
+.tchip small{font-size:11.5px;font-weight:400;color:var(--app-muted)}
+.tchip.drop-on{border-style:solid;border-width:2px;background:var(--drop-strong)}
+.tchip.locked{border:1px solid var(--app-line);background:var(--app-bg);color:var(--app-muted);cursor:not-allowed;font-weight:500}
+.tchip.locked span{display:inline-flex;gap:5px;align-items:center}
+.tchip .lock{width:12px;height:12px}
+.tchip.drop-bad{border:2px solid var(--neg);background:var(--danger-bg);color:var(--app-strong)}
+
+.tbl-title{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:18px 0 10px;flex-wrap:wrap}
+.tbl-title h3{font-size:16px;font-weight:600;color:var(--app-strong)}
+.tbl-wrap{overflow-x:auto;border:1px solid var(--app-line);border-radius:12px;background:var(--app-surface)}
+table.at{width:100%;border-collapse:collapse;text-align:left;font-variant-numeric:tabular-nums;min-width:900px}
+.at thead tr{background:var(--head-bg);color:#fff;font-size:12px;text-transform:uppercase;letter-spacing:.04em}
+.at th{padding:11px 14px;font-weight:500;white-space:nowrap}
+.at th.hl{background:var(--mf-outside)}
+.at td{padding:9px 14px;font-size:14px;border-bottom:1px solid var(--app-line-soft);white-space:nowrap}
+.at td.r,.at th.r{text-align:right}
+.at td.hl{background:var(--hl)}
+.at tr.band td{background:var(--band-bg);color:#fff;font-weight:600;font-size:14px;border-bottom:1px solid var(--app-line)}
+.at tr.band .drop-label{display:none;font-weight:600;font-size:12px;margin-left:10px;background:var(--mf-seguranca);color:#fff;padding:2px 9px;border-radius:999px}
+.at tr.total td{background:var(--app-line-soft);font-weight:500;color:var(--app-strong)}
+.at tr.ph td{color:var(--app-muted);font-size:13px;font-style:normal;background:var(--app-bg)}
+.at tr.item:hover td{background:var(--app-line-soft)}
+.at tr.item:hover td.hl{background:var(--hl)}
+/* realce da seção de destino */
+.at tbody.drop-on tr.band td{box-shadow:inset 0 -3px 0 var(--mf-outside)}
+.at tbody.drop-on tr.band .drop-label{display:inline-block}
+.at tbody.drop-on tr.item td,.at tbody.drop-on tr.ph td{background:var(--drop)}
+.at tbody.drop-on tr.ph td{color:var(--app-strong)}
+.at tr.drag-src td{opacity:.35}
+.at tr.saving td{opacity:.6}
+.at tr.flash td{animation:flash 1.6s ease-out}
+@keyframes flash{0%{background:var(--drop-strong)}100%{background:transparent}}
+
+.namecell{display:flex;align-items:center;gap:8px}
+.handle{display:inline-grid;place-items:center;width:24px;height:28px;border:0;border-radius:6px;background:transparent;color:var(--app-muted);cursor:grab;opacity:.45;touch-action:none;font-size:14px;line-height:1;flex:none}
+.at tr.item:hover .handle,.handle:focus-visible{opacity:1}
+.handle:hover{background:var(--app-line-soft);color:var(--app-strong)}
+.handle:focus-visible{outline:none;box-shadow:0 0 0 3px var(--focus)}
+.handle.grabbed{opacity:1;background:var(--drop-strong);color:var(--app-strong)}
+.tk{font-weight:600;color:var(--link);text-decoration:none}
+.tk:hover{text-decoration:underline}
+.nm{display:block;font-size:12.5px;color:var(--app-muted);max-width:240px;overflow:hidden;text-overflow:ellipsis}
+.badge{display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:500;padding:1px 7px;border-radius:999px;border:1px solid var(--app-line);color:var(--app-muted);background:var(--app-surface);white-space:nowrap}
+.badge.moved{border-color:transparent;background:var(--band-soft);color:var(--band-soft-ink)}
+.badge.plan{border-style:dashed}
+.badge .ic{width:11px;height:11px}
+.kebab{width:32px;height:32px;border:0;border-radius:8px;background:transparent;color:var(--app-muted);cursor:pointer;display:inline-grid;place-items:center}
+.kebab:hover{background:var(--app-line-soft);color:var(--app-strong)}
+.kebab:focus-visible{outline:none;box-shadow:0 0 0 3px var(--focus)}
+.pos{color:var(--pos)} .neg{color:var(--neg)}
+.spin{display:inline-block;width:14px;height:14px;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;animation:sp .8s linear infinite;vertical-align:-2px}
+@keyframes sp{to{transform:rotate(360deg)}}
+.saving-label{font-size:12px;color:var(--app-muted);display:inline-flex;gap:6px;align-items:center}
+
+/* fantasma do arrasto (igual ao do Fluxo de Caixa) */
+.ghost{position:absolute;z-index:60;pointer-events:none;display:inline-flex;align-items:center;gap:8px;max-width:420px;padding:6px 12px;border-radius:8px;border:1px solid var(--app-line);background:var(--app-surface);color:var(--app-strong);font-size:12.5px;font-weight:500;box-shadow:var(--shadow);white-space:nowrap}
+.ghost .to{color:var(--pos)}
+.ghost .no{color:var(--neg)}
+.ghost[hidden]{display:none}
+
+/* menu da linha */
+.menu{position:absolute;z-index:50;min-width:260px;background:var(--app-surface);border:1px solid var(--app-line);border-radius:12px;box-shadow:var(--shadow);padding:6px;display:flex;flex-direction:column}
+.menu button{display:flex;flex-direction:column;align-items:flex-start;gap:1px;text-align:left;border:0;background:transparent;border-radius:8px;padding:8px 10px;cursor:pointer;min-height:40px;color:var(--app-strong);font-size:14px}
+.menu button small{font-size:12px;color:var(--app-muted)}
+.menu button:hover,.menu button:focus-visible{background:var(--app-line-soft);outline:none}
+.menu hr{border:0;border-top:1px solid var(--app-line);margin:4px 0}
+
+/* popover "em qual seção?" ao soltar numa aba */
+.pop{position:absolute;z-index:55;width:320px;background:var(--app-surface);border:1px solid var(--app-line);border-radius:14px;box-shadow:var(--shadow);padding:14px;display:flex;flex-direction:column;gap:10px}
+.pop::before{content:"";position:absolute;top:-7px;left:28px;width:12px;height:12px;background:var(--app-surface);border-left:1px solid var(--app-line);border-top:1px solid var(--app-line);transform:rotate(45deg)}
+.pop.up::before{top:auto;bottom:-7px;border-left:0;border-top:0;border-right:1px solid var(--app-line);border-bottom:1px solid var(--app-line)}
+.pop .warn{font-size:12.5px;color:var(--app-strong);background:var(--app-bg);border-radius:8px;padding:6px 8px}
+.pop h4{margin:0;font-size:15px;font-weight:600;color:var(--app-strong)}
+.pop p{font-size:12.5px;color:var(--app-muted)}
+
+/* chips-rádio de seção (computador) */
+.chips{display:flex;flex-wrap:wrap;gap:6px;border:0;padding:0;margin:0}
+.chip{position:relative}
+.chip input{position:absolute;opacity:0;inset:0;margin:0;cursor:pointer}
+.chip span{display:inline-flex;align-items:center;gap:6px;min-height:44px;padding:0 12px;border-radius:999px;border:1px solid var(--app-line);font-size:13.5px;color:var(--app-ink);background:var(--app-surface);cursor:pointer}
+.chip input:checked + span{background:var(--mf-seguranca);border-color:var(--mf-seguranca);color:#fff}
+.chip input:focus-visible + span{box-shadow:0 0 0 3px var(--focus)}
+.chip input:disabled + span{opacity:.5;cursor:not-allowed;border-style:dashed}
+.chip .sug{font-size:10.5px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;opacity:.8}
+
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:44px;padding:0 14px;border-radius:10px;font-size:14px;font-weight:500;cursor:pointer;border:1px solid var(--app-line);background:var(--app-surface);color:var(--app-strong)}
+.btn.primary{background:var(--primary);border-color:var(--primary);color:var(--primary-fg)}
+.btn.primary:disabled{opacity:.45;cursor:not-allowed}
+.btn:focus-visible{outline:none;box-shadow:0 0 0 3px var(--focus)}
+.btn.link{border:0;background:transparent;color:var(--link);padding:0 6px;min-height:32px}
+.row-end{display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap}
+.err{display:flex;gap:8px;align-items:flex-start;font-size:13px;color:var(--neg);background:var(--danger-bg);border-radius:10px;padding:8px 10px}
+
+/* diálogo "Mover para…" (computador) */
+.overlay{position:absolute;inset:0;background:var(--overlay);z-index:70;display:grid;place-items:center;padding:16px}
+.dialog{width:min(600px,100%);max-height:calc(100% - 16px);overflow:auto;background:var(--app-surface);border-radius:18px;box-shadow:var(--shadow);display:flex;flex-direction:column}
+.dlg-h{padding:18px 20px 6px}
+.dlg-h h3{font-size:18px;font-weight:600;color:var(--app-strong)}
+.dlg-h p{font-size:13.5px;color:var(--app-muted);margin-top:4px}
+.dlg-b{padding:8px 20px 4px;display:flex;flex-direction:column;gap:14px}
+.dlg-f{padding:14px 20px 18px;display:flex;flex-direction:column;gap:10px;border-top:1px solid var(--app-line);margin-top:10px;position:sticky;bottom:0;background:var(--app-surface)}
+.dest{border:1px solid var(--app-line);border-radius:12px;padding:10px 12px;display:flex;flex-direction:column;gap:8px;margin:0}
+.dest legend{padding:0 4px;font-size:13px;font-weight:600;color:var(--app-strong)}
+.dest legend small{font-weight:400;color:var(--app-muted);margin-left:6px}
+.dest.cur{background:var(--app-bg)}
+.unavail{border:1px dashed var(--app-line);border-radius:12px;padding:10px 12px;font-size:13px;color:var(--app-muted)}
+.unavail summary{cursor:pointer;color:var(--app-strong);font-weight:500;min-height:44px;display:flex;align-items:center}
+.unavail summary:focus-visible{outline:none;box-shadow:0 0 0 3px var(--focus);border-radius:6px}
+.unavail ul{margin:6px 0 0;padding-left:18px;display:flex;flex-direction:column;gap:3px}
+.impact{font-size:12.5px;color:var(--app-muted);background:var(--app-bg);border-radius:10px;padding:10px 12px}
+.impact b{color:var(--app-strong);font-weight:600}
+
+/* toast */
+.toast{position:absolute;left:50%;bottom:18px;transform:translateX(-50%);z-index:80;display:flex;align-items:center;gap:14px;max-width:calc(100% - 32px);background:var(--toast-bg);color:var(--toast-fg);padding:10px 12px 10px 16px;border-radius:12px;box-shadow:var(--shadow);font-size:14px}
+.toast.err{background:var(--toast-err-bg);color:var(--toast-err-fg);border:1px solid var(--neg)}
+.toast button{border:0;background:transparent;color:var(--toast-link);font-weight:600;text-decoration:underline;text-underline-offset:3px;cursor:pointer;min-height:32px;padding:0 6px;border-radius:6px;white-space:nowrap}
+.toast.err button{color:var(--toast-err-btn)}
+.toast button:focus-visible{outline:2px solid currentColor;outline-offset:1px}
+.toast .x{text-decoration:none;opacity:.8;font-weight:400}
+
+/* ===================== Página do ativo (computador) ===================== */
+.ap-head{display:flex;justify-content:space-between;gap:16px;align-items:flex-start;flex-wrap:wrap}
+.ap-head h2{font-size:24px;font-weight:700;color:var(--app-strong)}
+.ap-head .sub{color:var(--app-muted);font-size:14px}
+.ap-actions{display:flex;gap:8px;flex-wrap:wrap}
+.classline{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:10px;font-size:13.5px;color:var(--app-muted)}
+.crumbchip{display:inline-flex;align-items:center;gap:6px;padding:3px 10px;border-radius:999px;background:var(--band-soft);color:var(--band-soft-ink);font-weight:500;text-decoration:none}
+.metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-top:18px}
+.metric{background:var(--app-surface);border:1px solid var(--app-line);border-radius:14px;padding:12px 14px}
+.metric dt{font-size:12px;color:var(--app-muted)}
+.metric dd{margin:2px 0 0;font-size:17px;font-weight:600;color:var(--app-strong);font-variant-numeric:tabular-nums}
+.ap-section{margin-top:18px;background:var(--app-surface);border:1px solid var(--app-line);border-radius:14px;padding:14px 16px;font-size:14px;color:var(--app-muted)}
+
+/* ===================== Celular ===================== */
+.phone-stage{display:flex;justify-content:center}
+.phone{position:relative;width:390px;max-width:100%;height:780px;background:var(--app-bg);border:10px solid var(--mf-potencia);border-radius:44px;overflow:hidden;display:flex;flex-direction:column;color:var(--app-ink)}
+.ph-status{height:34px;flex:none;display:flex;justify-content:space-between;align-items:center;padding:0 22px;font-size:13px;font-weight:600;color:var(--app-strong)}
+.ph-head{flex:none;display:flex;align-items:center;gap:10px;padding:6px 16px 10px;border-bottom:1px solid var(--app-line);background:var(--app-surface)}
+.ph-head h2{font-size:18px;font-weight:600;color:var(--app-strong)}
+.ph-back{width:44px;height:44px;display:grid;place-items:center;border:0;background:transparent;color:var(--link);margin-left:-10px;font-size:20px}
+.ph-body{flex:1;overflow:auto;padding:12px 16px 90px;display:flex;flex-direction:column;gap:10px}
+.rail{display:flex;gap:8px;overflow-x:auto;margin:0 -16px;padding:2px 16px 4px;scrollbar-width:none}
+.mchip{flex:none;display:inline-flex;align-items:center;height:44px;padding:0 12px;border-radius:999px;border:1px solid var(--app-line);font-size:14px;color:var(--app-ink);background:transparent;white-space:nowrap}
+.mchip.on{background:var(--mf-seguranca);border-color:var(--mf-seguranca);color:#fff}
+.mband{display:flex;align-items:center;gap:8px;min-height:44px;padding:0 12px;border-radius:12px;background:var(--band-soft);color:var(--band-soft-ink);font-weight:600;font-size:14px}
+.mband .cnt{margin-left:auto;font-weight:500;font-size:12.5px;opacity:.85;font-variant-numeric:tabular-nums}
+.mcard{background:var(--app-surface);border:1px solid var(--app-line);border-radius:16px;padding:12px 14px;display:flex;flex-direction:column;gap:8px}
+.mcard .top{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}
+.mcard .t{font-weight:600;color:var(--app-strong);font-size:15px;display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.mcard .n{font-size:12px;color:var(--app-muted)}
+.mcard .v{font-weight:600;color:var(--app-strong);font-variant-numeric:tabular-nums;text-align:right;font-size:14.5px}
+.mcard .v small{display:block;font-weight:500;font-size:12px}
+.mgrid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px 12px}
+.mgrid dt{font-size:11px;color:var(--app-muted)}
+.mgrid dd{margin:0;font-size:13.5px;font-weight:500;color:var(--app-strong);font-variant-numeric:tabular-nums}
+.mactions{display:flex;gap:8px;border-top:1px solid var(--app-line-soft);padding-top:8px}
+.mbtn{flex:1;min-height:44px;border-radius:12px;border:1px solid var(--app-line);background:var(--app-surface);color:var(--link);font-weight:600;font-size:14.5px;display:inline-flex;align-items:center;justify-content:center;gap:6px;cursor:pointer}
+.mbtn.primary{background:var(--primary);border-color:var(--primary);color:var(--primary-fg)}
+.mbtn:disabled{opacity:.45}
+.mbtn:focus-visible{outline:none;box-shadow:0 0 0 3px var(--focus)}
+.ph-tabbar{position:absolute;left:0;right:0;bottom:0;height:64px;background:var(--app-surface);border-top:1px solid var(--app-line);display:flex;justify-content:space-around;align-items:center;font-size:11px;color:var(--app-muted);padding-bottom:6px}
+.ph-tabbar span.on{color:var(--link);font-weight:600}
+
+.sheet-ov{position:absolute;inset:0;background:var(--overlay);z-index:70;display:flex;flex-direction:column;justify-content:flex-end}
+.sheet{background:var(--app-surface);border-radius:22px 22px 0 0;max-height:88%;display:flex;flex-direction:column;box-shadow:var(--shadow)}
+.sheet .grab{width:40px;height:5px;border-radius:3px;background:var(--mf-transparencia);margin:8px auto 4px}
+.sheet-h{padding:4px 16px 10px;display:flex;align-items:flex-start;justify-content:space-between;gap:8px}
+.sheet-h h3{font-size:17px;font-weight:600;color:var(--app-strong)}
+.sheet-h p{font-size:13px;color:var(--app-muted)}
+.sheet-x{width:44px;height:44px;border:0;background:transparent;color:var(--app-muted);font-size:20px;margin:-6px -10px 0 0;border-radius:10px}
+.sheet-b{overflow:auto;padding:0 16px 8px;display:flex;flex-direction:column;gap:12px}
+.sheet-f{padding:10px 16px 18px;border-top:1px solid var(--app-line);display:flex;flex-direction:column;gap:8px}
+.sheet-f .row{display:flex;gap:8px}
+.mgl{font-size:11.5px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--app-muted);padding:0 4px 4px}
+.mopt{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:10px;min-height:56px;width:100%;padding:8px 12px;border-radius:12px;border:0;background:transparent;text-align:left;cursor:pointer}
+.mopt .l{font-size:15px;font-weight:600;color:var(--app-strong)}
+.mopt .d{display:block;font-size:12.5px;color:var(--app-muted)}
+.mopt .rd{width:22px;height:22px;border-radius:50%;border:2px solid var(--mf-transparencia)}
+.mopt[aria-checked="true"]{background:var(--band-soft)}
+.mopt[aria-checked="true"] .rd{border:7px solid var(--mf-patrimonio)}
+.mopt[aria-disabled="true"]{cursor:default}
+.mopt[aria-disabled="true"] .l{color:var(--app-muted);font-weight:500}
+.mopt:focus-visible{outline:none;box-shadow:0 0 0 3px var(--focus)}
+.mtoast{position:absolute;left:12px;right:12px;bottom:76px;z-index:80;display:flex;align-items:center;gap:10px;background:var(--toast-bg);color:var(--toast-fg);border-radius:14px;padding:10px 10px 10px 14px;font-size:14px;box-shadow:var(--shadow)}
+.mtoast.err{background:var(--toast-err-bg);color:var(--toast-err-fg);border:1px solid var(--neg)}
+.mtoast span{flex:1;min-width:0}
+.mtoast button{min-height:44px;padding:0 10px;border:0;background:transparent;color:var(--toast-link);font-weight:600;border-radius:10px}
+.mtoast.err button{color:var(--toast-err-btn);text-decoration:underline}
+.mrow{display:flex;align-items:center;gap:10px;min-height:56px;background:var(--app-surface);border:1px solid var(--app-line);border-radius:16px;padding:6px 8px 6px 14px}
+.mrow .lbl{font-size:12px;color:var(--app-muted)}
+.mrow .val{font-size:14.5px;font-weight:600;color:var(--app-strong)}
+.mrow .grow{flex:1;min-width:0}
+.mrow .mbtn{flex:none;padding:0 14px}
+.skel{height:14px;border-radius:6px;background:var(--app-line-soft)}
+
+/* ===================== Especificação ===================== */
+.spec{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+.spec .notes{min-width:0}
+.spec .wide{grid-column:1/-1}
+.spec table{border-collapse:collapse;font-size:13.5px;width:100%;font-variant-numeric:tabular-nums}
+.spec th,.spec td{border-bottom:1px solid var(--pg-line);padding:7px 8px;text-align:left;vertical-align:top}
+.spec th{font-weight:600;font-size:12px;letter-spacing:.04em;text-transform:uppercase;color:var(--pg-muted)}
+.spec .ok{color:var(--mf-patrimonio);font-weight:600}
+.spec .no{color:var(--pg-muted)}
+.scroll-x{overflow-x:auto}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+
+@media (max-width: 900px){
+  .stage{grid-template-columns:minmax(0,1fr)}
+  .side{position:static}
+  .scen-groups{display:flex;flex-direction:column;gap:8px}
+  .scen-group{flex-direction:row;flex-wrap:wrap}
+  .scen-group .gl{width:100%}
+  .spec{grid-template-columns:minmax(0,1fr)}
+  .desk{padding:14px}
+}
+@media (max-width: 440px){
+  .phone{border-width:0;border-radius:16px;height:720px}
+}
+@media (prefers-reduced-motion: reduce){
+  .spin{animation-duration:2.4s}
+  .at tr.flash td{animation:none}
+}
+
+/* ===================== Fase 2: Renda Fixa e Reservas ===================== */
+.tab.fora{opacity:.55}
+.tab .dot{width:6px;height:6px;border-radius:50%;background:var(--mf-outside)}
+.badge.sint{border-style:dashed}
+.badge.derived{background:var(--app-bg)}
+.at tr.band.nodrop td{opacity:.85}
+.tchip.group{min-width:150px}
+.pop.confirm{width:380px;left:50%;transform:translateX(-50%);bottom:110px}
+.pop.confirm::before{display:none}
+.fx{display:flex;flex-direction:column;gap:6px;margin:0;padding:0;list-style:none}
+.fx li{display:grid;grid-template-columns:18px minmax(0,1fr);gap:8px;font-size:12.5px;color:var(--app-ink);line-height:1.45}
+.fx li .k{width:18px;height:18px;border-radius:6px;display:grid;place-items:center;font-size:11px;font-weight:700;background:var(--band-soft);color:var(--band-soft-ink)}
+.fx li.same .k{background:var(--app-line-soft);color:var(--app-strong)}
+.fx li.warn .k{background:var(--danger-bg);color:var(--neg)}
+.fx li b{font-weight:600;color:var(--app-strong)}
+.fx-h{font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--app-muted)}
+.arrow{color:var(--app-muted);padding:0 3px}
+.goal{display:inline-flex;align-items:center;gap:4px;font-size:12.5px;font-weight:600;padding:1px 8px;border-radius:999px;background:var(--band-soft);color:var(--band-soft-ink)}
+.goal.low{background:var(--danger-bg);color:var(--neg)}
+.kv{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin-top:14px}
+.card{background:var(--app-surface);border:1px solid var(--app-line);border-radius:14px;padding:14px 16px;display:flex;flex-direction:column;gap:8px;min-width:0}
+.card h4{margin:0;font-size:14px;font-weight:600;color:var(--app-strong)}
+.card .ba{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;font-variant-numeric:tabular-nums}
+.card .ba .was{color:var(--app-muted);text-decoration:line-through;font-size:13px}
+.card .ba .now{font-size:20px;font-weight:600;color:var(--app-strong)}
+.card p{font-size:12.5px;color:var(--app-muted)}
+.meter{height:8px;border-radius:999px;background:var(--app-line-soft);overflow:hidden;position:relative}
+.meter i{position:absolute;inset:0 auto 0 0;background:var(--mf-patrimonio);border-radius:999px}
+.meter i.prev{background:var(--mf-transparencia)}
+.hist{display:flex;flex-direction:column;border:1px solid var(--app-line);border-radius:14px;background:var(--app-surface);margin-top:14px;overflow:hidden}
+.hist-row{display:grid;grid-template-columns:120px minmax(0,1fr) auto;gap:14px;align-items:center;padding:12px 16px;border-bottom:1px solid var(--app-line-soft);font-size:14px}
+.hist-row:last-child{border-bottom:0}
+.hist-row time{font-size:12.5px;color:var(--app-muted);font-variant-numeric:tabular-nums}
+.hist-row .what b{color:var(--app-strong);font-weight:600}
+.hist-row .what small{display:block;font-size:12px;color:var(--app-muted)}
+.hist-row.undone{opacity:.6}
+.note-line{font-size:13px;color:var(--app-muted);background:var(--app-surface);border:1px dashed var(--app-line);border-radius:12px;padding:10px 12px}
+.mfx{background:var(--app-bg);border-radius:12px;padding:10px 12px;display:flex;flex-direction:column;gap:6px}
+@media (max-width: 600px){
+  .pop.confirm{width:calc(100% - 24px)}
+  .hist-row{grid-template-columns:minmax(0,1fr);gap:4px}
+}
+</style>
+
+<div class="wrap">
+  <header>
+    <div class="wordmark">My Finance</div>
+    <h1 class="pg-h1">Mover entre Renda Fixa, Reserva de Emergência e Reserva de Oportunidade</h1>
+    <p class="lede">Fase 2 do mover investimentos (a fase 1 está em produção desde 01/10, PR #275). Mesmo gesto, mesma bandeja “Outra aba”, mesmo painel no celular e o mesmo diálogo na página do ativo. O que muda: as três abas de renda fixa trocam entre si, não há seção para escolher (a Renda Fixa separa por indexador e as Reservas não têm seções) e o aviso antes de confirmar mostra o efeito na Saúde Financeira, na Alocação e no Fluxo. Saldo em conta e poupança só trocam entre as duas Reservas. Revisão 2: bandeja sem chip de outras abas, aviso de liquidez, seção do Tesouro pelo tipo do título, colunas da Reserva vindas do título e contraste e alvos corrigidos. Os dados são de exemplo.</p>
+  </header>
+
+  <section class="stage" aria-label="Protótipo navegável">
+    <aside class="side">
+      <div class="controls">
+        <button class="pg-btn" type="button" id="themeBtn" aria-label="Alternar tema claro e escuro">Tema: sistema</button>
+        <button class="pg-btn" type="button" id="resetBtn">Recomeçar cenário</button>
+      </div>
+      <label class="pg-check"><input type="checkbox" id="failChk"> Simular falha ao salvar</label>
+      <div class="scen-groups" id="scenarios" role="group" aria-label="Cenários do protótipo"></div>
+    </aside>
+    <div class="main-col">
+      <div id="screen"></div>
+      <div class="notes" id="notes" aria-live="polite"></div>
+    </div>
+  </section>
+
+  <section class="spec" aria-labelledby="spec-h">
+    <div class="notes wide">
+      <p class="eyebrow">Especificação</p>
+      <h2 id="spec-h" style="font-size:22px">Regras, modelo, medidas e estados</h2>
+      <p style="color:var(--pg-muted);max-width:80ch">Tudo o que a fase 1 definiu continua valendo (<code>docs/carteira-mover/decisoes.md</code>). Aqui está só o que a fase 2 acrescenta ou muda. Nomes de código citados existem na <code>main</code>.</p>
+    </div>
+
+    <div class="notes wide">
+      <h2>Para onde cada item pode ir</h2>
+      <p style="color:var(--pg-muted)">Regra: as três abas valorizam pelo mesmo caminho (curva do título, PU do Tesouro ou valor informado), então trocar de aba não muda o valor. Abas de bolsa e fundos calculam por cota ou cotação e continuam fechadas nos dois sentidos.</p>
+      <div class="scroll-x">
+      <table>
+        <thead><tr><th>Origem ↓ / Destino →</th><th>Renda Fixa</th><th>Reserva Emergência</th><th>Reserva Oportunidade</th><th>Abas de bolsa e Fundos</th></tr></thead>
+        <tbody>
+          <tr><td>Título com curva (CDB, LCI, LCA, LCD, debênture, CRI, CRA), cadastrado ou da Pluggy</td><td class="ok">sim</td><td class="ok">sim</td><td class="ok">sim</td><td class="no">não, sem cotação em bolsa</td></tr>
+          <tr><td>Tesouro Direto (do catálogo, PU oficial)</td><td class="ok">sim</td><td class="ok">sim</td><td class="ok">sim</td><td class="no">não</td></tr>
+          <tr><td>Renda fixa ou fundo cadastrado à mão sem curva (valor informado)</td><td class="ok">sim</td><td class="ok">sim</td><td class="ok">sim</td><td class="no">não</td></tr>
+          <tr><td>Saldo em caixa, conta corrente e poupança das Reservas (sem título por trás)</td><td class="no">não, saldo não é título</td><td class="ok">sim</td><td class="ok">sim</td><td class="no">não</td></tr>
+          <tr><td>Fundos, ETFs, ações, FIIs (inclusive fundo DI e ETF de renda fixa)</td><td class="no">não nesta fase</td><td class="no">não nesta fase</td><td class="no">não nesta fase</td><td class="no">regras da fase 1</td></tr>
+          <tr><td>Moedas/Cripto, Previdência/Seguros, Opções, Imóveis &amp; Bens</td><td class="no">não</td><td class="no">não</td><td class="no">não</td><td class="no">não</td></tr>
+        </tbody>
+      </table>
+      </div>
+      <p style="font-size:13px;color:var(--pg-muted)">Fundo DI e ETF de renda fixa na Reserva de Oportunidade (pergunta 1): as rotas das Reservas e da Renda Fixa calculam itens sem curva por preço médio × quantidade, sem cota nem cotação. Mover um fundo para lá congelaria o valor. Fica para uma fase 3, depois que as três rotas usarem a cascata inteira do <code>itemValuation</code>. Hoje o caminho continua sendo cadastrar o fundo com destino Reserva no assistente.</p>
+    </div>
+
+    <div class="notes wide">
+      <h2>Modelo: onde fica a escolha</h2>
+      <ul>
+        <li><b>Recomendado: o mesmo <code>Portfolio.categoriaOverride</code> da fase 1</b>, aceitando três valores novos: <code>rendaFixaFundos</code>, <code>reservaEmergencia</code>, <code>reservaOportunidade</code>. Gravado só quando o destino difere da aba base; voltar grava <code>null</code>. Sem migration nova. O Histórico e o Desfazer da fase 1 servem sem mudança.</li>
+        <li><b>Aba base</b> = o que <code>categorizarAsset</code> devolve hoje, com o destino de Tesouro das notas da compra (<code>notes.tesouroDestino</code>, lido por <code>getTesouroDestinoByAssetId</code>). Precedência única: override efetivo → <code>tesouroDestino</code> → <code>Asset.type</code>/símbolo.</li>
+        <li><b>Por que não a flag de reserva:</b> <code>tesouroDestino</code> mora no JSON das notas da transação de compra e existe só para Tesouro. Reescrever notas mexe no histórico de operações e duplica a fonte de verdade. Trocar <code>Asset.type</code> (bond ↔ emergency) também está fora: o tipo decide como o item é valorizado (<code>portfolioRecalculation</code> trata reserva por valor líquido com quantidade 1; <code>patrimonioHistoricoBuilder</code> aplica 100% do CDI implícito; <code>portfolioLiveTotals</code> tira reserva das cotações). Mudar o tipo mudaria o valor do título.</li>
+        <li><b>Separar duas perguntas no código.</b> “Em que aba aparece?” passa a ser sempre <code>categoriaEfetiva()</code>. “Como é valorizado?” continua no tipo (<code>isReservaItem</code>, <code>isReservaValueBased</code>, CDI implícito). Hoje os consumidores misturam as duas com <code>type === 'emergency' || symbol.startsWith('RESERVA-EMERG')</code>.</li>
+        <li><b>Consumidores que mudam para <code>categoriaEfetiva</code></b>: rotas <code>reserva-emergencia</code>, <code>reserva-oportunidade</code> e <code>renda-fixa</code> (filtro via <code>wherePortfolioDaCategoria</code>), <code>carteira/resumo</code>, <code>saudeFinanceiraServer</code>, <code>planejamento/contexto</code> (<code>isReservaEmergenciaItem</code>), <code>caixaParaInvestir</code>, <code>portfolioCategoria.getCategoriaFromPortfolio</code> (hoje devolve reserva antes de olhar o override: a ordem precisa inverter), <code>investimentosPorMes</code> (baldes emergency/opportunity/bond do Fluxo) e o histórico por classe do <code>patrimonioHistoricoBuilder</code>. Ficam como estão: <code>portfolioRecalculation</code>, <code>portfolioLiveTotals</code>, o CDI implícito e <code>cashflowFilters</code> (este compara pelo nome da linha do Fluxo).</li>
+        <li>Divergência que já existe e vai para PR separado: <code>categorizarAsset</code> põe <code>type 'cash'</code> em Reserva Oportunidade e <code>portfolioCategoria</code> e a rota <code>renda-fixa</code> põem em Renda Fixa. A Reserva também prioriza a curva antes do PU do Tesouro, e a Renda Fixa faz o contrário. Antes de liberar, a Reserva precisa usar <code>getFixedIncomeCurrentValue</code>, senão um Tesouro com curva muda de valor ao trocar de aba.</li>
+      </ul>
+    </div>
+
+    <div class="notes">
+      <h2>Efeitos de mover (o aviso mostra)</h2>
+      <ul>
+        <li><b>Prévia na confirmação:</b> os números de antes e depois vêm do <code>GET /api/carteira/mover</code>, que passa a devolver <code>reservaEmergenciaAtual</code>, <code>reservaEmergenciaDepois</code> e <code>necessario</code> (de <code>saudeFinanceiraServer</code>) quando o destino ou a origem é a Reserva Emergência. Sem prévia, a linha cai no texto fixo da spec: “Muda os meses de cobertura da Reserva de Emergência na Saúde Financeira.” Diverge da spec atual, que só traz texto (pergunta 6).</li>
+        <li><b>Saúde Financeira:</b> a reserva de emergência é a soma da aba. Entrar ou sair da Reserva Emergência muda o benchmark (gasto mensal × multiplicador, 6 no exemplo) e pode ligar ou desligar o motivo “Reserva de emergência abaixo do necessário”. O aviso mostra antes e depois. Ativos de alta liquidez não mudam, porque a renda fixa de liquidez diária já entrava nessa soma. Retratos mensais já gravados não mudam.</li>
+        <li><b>Alocação:</b> a meta da Reserva Emergência é em reais e as outras em %. O aviso diz em qual meta o valor passa a contar. O objetivo (%) por posição não existe nessas abas (a rota <code>renda-fixa</code> ignora o campo), então a linha “objetivo volta a 0%” da fase 1 só aparece se houver valor gravado.</li>
+        <li><b>Fluxo de Caixa:</b> aportes e resgates do título passam para a linha da aba nova em todos os meses (decisão 5): “Renda Fixa &amp; Fundos Renda Fixa”, “Reserva Emergência” ou “Reserva Oportunidade”.</li>
+        <li><b>Análises de rentabilidade:</b> não mudam. <code>filterInvestmentsExclReservas</code> filtra pelo nome os itens manuais dos grupos de investimento do Fluxo, não as linhas automáticas que o mover redireciona (<code>investimentosPorMes</code>). A TWR segue a valoração do título, que não muda. (Correção da v1, que levantava essa dúvida.)</li>
+        <li><b>Caixa para Investir:</b> o saldo já guardado no caixa de uma aba fica nela; mover não move dinheiro. Aportes e resgates futuros do item movido usam o caixa da aba nova. A Renda Fixa tem caixa próprio, as Reservas não.</li>
+        <li><b>Liquidez:</b> entrar na Reserva Emergência com título sem liquidez diária (liquidityType diferente de DAILY, inclusive vazio, e vencimento além do horizonte de liquidez) mostra a linha vermelha “Liquidez” na confirmação. Aviso, não bloqueio.</li>
+        <li><b>Planejamento:</b> a reserva atual do Planejamento passa a seguir a aba e deve valorizar o item como a Saúde (pela curva), não por <code>max(totalInvested, qty × avgPrice)</code>, senão o mesmo CDB vale um número em cada tela (pergunta 9).</li>
+        <li><b>Não muda:</b> valor, curva, vencimento, IR (segue o tipo do título, decisão 3), rentabilidade do título, análises de rentabilidade e a seção da Renda Fixa (vem do título). Planejados não existem nessas três abas, então a Watchlist não entra.</li>
+        <li><b>Histórico por classe:</b> segue a aba nova também para trás (decisão 4).</li>
+      </ul>
+    </div>
+
+    <div class="notes">
+      <h2>Seções</h2>
+      <ul>
+        <li><b>Renda Fixa:</b> Pós-fixada, Pré-fixada e Híbrida vêm do título (indexador CDI/IPCA, tipo <code>*_HIB</code>, ou <code>debentureTipo</code> nos itens sem curva). Não são editáveis e não viram alvo do arrasto. Ao entrar na Renda Fixa, o título cai na seção derivada e o aviso diz qual e por quê.</li>
+        <li><b>Tesouro:</b> a seção vem do tipo do título antes do indexador (Tesouro Selic → Pós-fixada; Prefixado → Pré-fixada; IPCA+ → Híbrida). Um Tesouro comprado como reserva nasce com indexer CDI e cairia errado em Pós-fixada. O selo diz “pelo tipo do título” (cenário D12).</li>
+        <li><b>Reservas:</b> lista única, sem seções.</li>
+        <li>Por isso soltar numa aba da bandeja abre uma <b>confirmação curta</b> no lugar dos chips de seção da fase 1. Confirmar é necessário porque o efeito na Saúde Financeira é visível. Arrastar dentro da própria aba não faz nada: as faixas não acendem e o cabeçalho da bandeja diz “A seção vem do título”. A dica não fica mais dentro da faixa colorida, onde o contraste era 2,9:1.</li>
+      </ul>
+    </div>
+
+    <div class="notes">
+      <h2>Computador: medidas</h2>
+      <ul>
+        <li>Alça, fantasma, menu ⋯, toast e diálogo iguais aos da fase 1 (<code>DragHandleCell</code>, <code>CarteiraDnd</code>, <code>LinhaMoverMenu</code>, <code>MoverInvestimentoDialog</code>). Linha da tabela segue <code>TABLE_STYLES.compact</code>.</li>
+        <li>Bandeja: só as duas outras abas de renda fixa, alvos de 48px de altura e 104px de largura mínima, contorno tracejado 1.5px <code>outside</code>. As abas de bolsa e Fundos não entram na bandeja (como na spec do arquiteto); o motivo delas fica no diálogo. Para saldo em caixa, a Renda Fixa aparece travada com o motivo próprio.</li>
+        <li>Com a chave da fase 2 desligada, a bandeja e o diálogo de um FII, ETF ou ação ficam idênticos aos da fase 1: nada de Renda Fixa ou Reservas, nem “0 seções”. Ligada, o diálogo desses itens lista as três abas entre os bloqueados com “Tem cotação de mercado”.</li>
+        <li>Confirmação ao soltar: 380px, raio 14px, acima da bandeja, lista de efeitos com marcador 18px (S, !, A, F, §, =), botões de 44px. Esc ou clique fora cancela e devolve o foco à alça.</li>
+        <li>Tabela da Reserva com item movido: Cot. resgate, Liq. resgate, Vencimento e Benchmark vêm do título (<code>FixedIncomeAsset</code>), nunca dos padrões D+0, Imediata, hoje e CDI.</li>
+        <li>Diálogo da página do ativo: rádios-chip, botões e o “details” dos bloqueados com 44px de altura.</li>
+        <li>Selo “movido” (fundo <code>tranquilidade</code> 18%) só na troca de aba. Selo “saldo em conta” tracejado para itens sintéticos. Selo “Pós-fixada · pelo indexador” ou “Pré-fixada · pelo tipo do título” no aviso, fundo neutro.</li>
+      </ul>
+    </div>
+
+    <div class="notes">
+      <h2>Celular: medidas</h2>
+      <ul>
+        <li>Cartão aberto: “Abrir” e “Mover”, 44px. Painel até 88% da altura; grupo “Abas de renda fixa”; opções 56px com rádio de 22px; aba atual com “Atual”, não selecionável.</li>
+        <li>Ao escolher um destino, o bloco de efeitos aparece no fim da área rolável, logo acima do rodapé fixo (fundo <code>app-bg</code>, raio 12px, texto 12.5px) com os mesmos itens do computador.</li>
+        <li>Abas fechadas num item recolhido no fim (“10 abas não aceitam este título”, 44px de altura), que abre a lista com o motivo de cada uma.</li>
+        <li>Rodapé: Voltar + “Mover para Reserva Emergência”; “Movendo…” com spinner; erro em vermelho acima dos botões e painel aberto. Sucesso: painel fecha, toast com Desfazer de 44px acima da barra de abas.</li>
+      </ul>
+    </div>
+
+    <div class="notes">
+      <h2>Estados</h2>
+      <ul>
+        <li><b>Repouso:</b> alça discreta em todas as linhas das três abas; selo “movido” só no que trocou de aba.</li>
+        <li><b>Arrastando:</b> linha de origem a 35%; bandeja no rodapé com a dica “Solte numa aba. Esc cancela.”; faixas de seção da própria aba não acendem.</li>
+        <li><b>Confirmando:</b> confirmação com efeitos; nada é gravado até “Mover”.</li>
+        <li><b>Carregando:</b> otimista. A linha some da origem e o toast mostra “Movendo…”. Na aba de destino ela aparece a 60%.</li>
+        <li><b>Sucesso:</b> toast “CDB Inter Liquidez Diária movido para Reserva Emergência” com “Ver na aba” e “Desfazer” (8s). O Histórico de alterações também desfaz.</li>
+        <li><b>Erro:</b> a linha volta; toast vermelho “Não foi possível mover. Ele continua em Renda Fixa.” e “Tentar de novo”.</li>
+        <li><b>Bloqueado:</b> nunca um botão quebrado. Chip travado com motivo na bandeja; na página do ativo, uma frase no lugar do botão (decisão 7).</li>
+      </ul>
+    </div>
+
+    <div class="notes">
+      <h2>Acessibilidade e escuro</h2>
+      <ul>
+        <li>Alça: <code>button</code> “Mover CDB Inter Liquidez Diária. Espaço para pegar”. Espaço pega; setas percorrem os alvos da bandeja (inclusive a Renda Fixa travada de um saldo, lida com o motivo); Espaço solta e abre a confirmação; Esc cancela. Anúncios em <code>aria-live="assertive"</code>.</li>
+        <li>Confirmação: <code>role="dialog"</code> com nome, foco no botão “Mover”, efeitos numa lista (<code>ul</code>) lida em ordem. Diálogo da página do ativo: rádios nativos com o mesmo <code>name</code>, <code>legend</code> “Abas de renda fixa”, motivos dos bloqueados num <code>details</code>.</li>
+        <li>Toast em <code>role="status"</code>, erro em <code>role="alert"</code>. Foco depois de mover: na alça da próxima linha da origem (a linha saiu da aba). Depois de desfazer: na alça da linha de volta.</li>
+        <li>Contraste: branco só sobre <code>seguranca</code> (10:1) e <code>patrimonio</code> (5,4:1); <code>outside</code> só em contornos e foco. Antes/depois usa riscado + cor, nunca só cor. Texto secundário em cinza 600 (7,5:1 no claro); vermelho de texto #B42318 no claro (5,9:1 sobre o fundo de erro) e #F97066 no escuro. Alvos ≥ 44px no celular e nos diálogos. A faixa de seção (branco sobre <code>tranquilidade</code>) é a do app e só leva o nome da seção em 14px semibold; nenhuma dica nova entra nela.</li>
+        <li>Escuro: tokens da fase 1 (tinta de alvo 16–26%, foco <code>tranquilidade</code>, vermelho #F97066 como texto). Marcador de efeito usa <code>band-soft</code> que se ajusta ao tema.</li>
+      </ul>
+    </div>
+  </section>
+</div>
+
+<div class="sr" id="live" aria-live="assertive" aria-atomic="true"></div>
+
+<script>
+(function(){
+'use strict';
+const $ = (s, r=document) => r.querySelector(s);
+const $$ = (s, r=document) => Array.from(r.querySelectorAll(s));
+const brl = v => new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(v);
+const pct = v => (v>=0?'+':'') + v.toFixed(2).replace('.',',') + '%';
+const pct1 = v => v.toFixed(1).replace('.',',') + '%';
+const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const live = msg => { const l=$('#live'); l.textContent=''; setTimeout(()=>{ l.textContent=msg; },30); };
+
+const ICON_LOCK = '<svg class="lock" viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" d="M5 7V5a3 3 0 1 1 6 0v2h.5A1.5 1.5 0 0 1 13 8.5v5A1.5 1.5 0 0 1 11.5 15h-7A1.5 1.5 0 0 1 3 13.5v-5A1.5 1.5 0 0 1 4.5 7H5Zm1.5 0h3V5a1.5 1.5 0 1 0-3 0v2Z"/></svg>';
+const ICON_MOVED = '<svg class="ic" viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" d="M9.5 2.5 13 6l-3.5 3.5-1-1L10.3 6.7H6a2.5 2.5 0 0 0 0 5h1V13H6a3.75 3.75 0 0 1 0-7.5h4.3L8.5 3.5l1-1Z"/></svg>';
+
+/* ---------------- Abas ---------------- */
+const TABS = [
+  {id:'consolidada',label:'Carteira Consolidada'},
+  {id:'reserva-emergencia',label:'Reserva Emergência'},
+  {id:'reserva-oportunidade',label:'Reserva Oportunidade'},
+  {id:'renda-fixa',label:'Renda Fixa'},
+  {id:'fim-fia',label:'Fundos'},
+  {id:'fiis',label:"FII's"},
+  {id:'acoes',label:'Ações'},
+  {id:'stocks',label:'Stocks'},
+  {id:'reit',label:"REIT's"},
+  {id:'etf',label:"ETF's"},
+  {id:'moedas-criptos',label:'Moedas, Criptomoedas & outros'},
+  {id:'previdencia',label:'Previdência e Seguros'},
+  {id:'opcoes',label:'Opções'},
+  {id:'imoveis',label:'Imóveis & Bens'},
+];
+const TRIO = ['reserva-emergencia','reserva-oportunidade','renda-fixa'];
+const BOLSA = ['fim-fia','fiis','acoes','stocks','reit','etf'];
+const FORA = ['moedas-criptos','previdencia','opcoes','imoveis'];
+const tabLabel = id => (TABS.find(t=>t.id===id)||{}).label || id;
+const FLUXO = {'renda-fixa':'Renda Fixa & Fundos Renda Fixa','reserva-emergencia':'Reserva Emergência','reserva-oportunidade':'Reserva Oportunidade'};
+const META = {'renda-fixa':'meta de 30% da carteira','reserva-emergencia':'meta de R$ 30.000,00 (em reais)','reserva-oportunidade':'meta de 8% da carteira'};
+const RF_SECS = [['pos','Pós-fixada'],['pre','Pré-fixada'],['hib','Híbrida']];
+const secLabel = s => (RF_SECS.find(x=>x[0]===s)||[0,''])[1];
+/* Seção derivada: Tesouro pelo tipo do título (LFT, LTN/NTN-F, NTN-B), o resto pelo indexador. */
+const secVia = r => r.tes ? `pelo tipo do título (${r.tes})` : 'pelo indexador';
+const GASTO = 5000, MULT = 6, NECESSARIO = GASTO*MULT;
+const HOJE = '02/10/2026';
+
+/* ---------------- Dados de exemplo ---------------- */
+const BASE = [
+  {id:'cdbinter',nome:'CDB Inter Liquidez Diária',sub:'100% do CDI · Banco Inter',tab:'renda-fixa',sec:'pos',idx:'CDI',cot:'D+0',liq:'Imediata',venc:'15/03/2028',bench:'CDI',diaria:true,vi:15000,va:15612.40},
+  {id:'lciitau',nome:'LCI Itaú 92% CDI',sub:'carência até 10/02/2027 · Itaú (Open Finance)',tab:'renda-fixa',sec:'pos',idx:'CDI',cot:'No vencimento',liq:'D+0',venc:'10/08/2027',bench:'CDI',diaria:false,vi:20000,va:21180.55},
+  {id:'selic29',nome:'Tesouro Selic 2029',sub:'Tesouro Direto · XP Investimentos',tab:'renda-fixa',sec:'pos',tes:'Tesouro Selic',diaria:true,idx:'Selic',cot:'D+0',liq:'D+1',venc:'01/03/2029',bench:'Selic',vi:12000,va:12540.10},
+  {id:'cdbc6',nome:'CDB C6 Prefixado 13,10%',sub:'13,10% a.a. · C6 Bank',tab:'renda-fixa',sec:'pre',idx:'Pré',cot:'No vencimento',liq:'D+0',venc:'05/01/2028',bench:'Pré',diaria:false,vi:10000,va:10905.30},
+  {id:'ipca35',nome:'Tesouro IPCA+ 2035',sub:'Tesouro Direto · XP Investimentos',tab:'renda-fixa',sec:'hib',tes:'Tesouro IPCA+',diaria:true,idx:'IPCA',cot:'D+0',liq:'D+1',venc:'15/05/2035',bench:'IPCA',vi:8000,va:8320.75},
+  {id:'saldoemerg',nome:'Reserva de Emergência',sub:'saldo informado por você',tab:'reserva-emergencia',sec:null,cot:'D+0',liq:'Imediata',venc:'—',bench:'CDI',vi:8400,va:8400,sint:true},
+  {id:'ccnubank',nome:'Conta Corrente (Reserva Emergência) - Nubank',sub:'conta corrente',tab:'reserva-emergencia',sec:null,cot:'D+0',liq:'Imediata',venc:'—',bench:'CDI',vi:10000,va:10000,sint:true},
+  {id:'poupcx',nome:'Poupança (Reserva Oportunidade) - Caixa',sub:'poupança',tab:'reserva-oportunidade',sec:null,cot:'D+0',liq:'Imediata',venc:'—',bench:'Poupança',vi:6200,va:6318.42,sint:true},
+  {id:'selic27',nome:'Tesouro Selic 2027',sub:'Tesouro Direto · comprado para a reserva',tab:'reserva-oportunidade',sec:'pos',tes:'Tesouro Selic',diaria:true,idx:'Selic',cot:'D+0',liq:'D+1',venc:'01/03/2027',bench:'Selic',vi:9800,va:10112.66},
+  {id:'pre29',nome:'Tesouro Prefixado 2029',sub:'Tesouro Direto · comprado para a reserva',tab:'reserva-oportunidade',sec:'pre',tes:'Tesouro Prefixado',diaria:true,idx:'Pré',cot:'D+0',liq:'D+1',venc:'01/01/2029',bench:'Pré',vi:5000,va:5388.20},
+];
+const clone = () => BASE.map(r => Object.assign({}, r, {base:r.tab, movedAt:null}));
+
+let S = {};
+const reset = () => {
+  S = {rows:clone(), tab:'renda-fixa', drag:null, confirm:null, menu:null, dialog:null, toast:null, saving:null, flash:null,
+       sheet:null, expanded:'cdbinter', kbd:null, hist:[], assetId:'cdbinter', mtab:'renda-fixa'};
+};
+const row = id => S.rows.find(x=>x.id===id);
+const totalTab = tab => S.rows.filter(r=>r.tab===tab).reduce((s,r)=>s+r.va,0);
+
+/* ---------------- Regras (espelham carteiraMover.ts fase 2) ---------------- */
+function compat(r, tab){
+  if (tab===r.tab) return {cur:true, ok:false, reason:'Onde está agora'};
+  if (tab==='consolidada') return {ok:false, reason:'Visão geral, não recebe ativos', hide:true};
+  if (tab==='renda-fixa' && r.sint) return {ok:false, reason:'Saldo em conta não é um título. Ele fica entre as Reservas'};
+  if (TRIO.includes(tab)) return {ok:true};
+  if (BOLSA.includes(tab)) return {ok:false, reason: r.sint ? 'Sem cotação em bolsa: o valor é o saldo informado' : 'Sem cotação em bolsa: o valor vem da curva do título'};
+  return {ok:false, reason:'Esta aba ainda não recebe investimentos movidos'};
+}
+function effects(r, dest){
+  const out = [];
+  const from = r.tab;
+  if (dest==='reserva-emergencia' || from==='reserva-emergencia'){
+    const antes = totalTab('reserva-emergencia');
+    const depois = dest==='reserva-emergencia' ? antes + r.va : antes - r.va;
+    let extra = '';
+    if (antes < NECESSARIO && depois >= NECESSARIO) extra = ' O alerta “Reserva de emergência abaixo do necessário” deixa de aparecer.';
+    if (antes >= NECESSARIO && depois < NECESSARIO) extra = ' Volta o alerta “Reserva de emergência abaixo do necessário”.';
+    out.push({k:'S', html:`<b>Saúde Financeira:</b> reserva de emergência ${brl(antes)}<span class="arrow">→</span><b>${brl(depois)}</b> (necessário ${brl(NECESSARIO)}, 6 meses de gasto).${extra}`});
+  }
+  if (dest==='reserva-emergencia' && !r.sint && !r.diaria)
+    out.push({k:'!', warn:true, html:`<b>Liquidez:</b> ${r.cot==='No vencimento'?'resgate só no vencimento':'sem liquidez diária'} (${esc(r.venc)}). Mesmo assim conta inteiro como Reserva de Emergência na Saúde Financeira.`});
+  out.push({k:'A', html:`<b>Alocação:</b> o valor sai da ${META[from]} de ${tabLabel(from)} e passa a contar na ${META[dest]} de ${tabLabel(dest)}.`});
+  out.push({k:'F', html:`<b>Fluxo de Caixa:</b> aportes e resgates passam da linha “${FLUXO[from]}” para “${FLUXO[dest]}”, em todos os meses.`});
+  if (dest==='renda-fixa') out.push({k:'§', html:`<b>Seção:</b> entra em <b>${secLabel(r.sec||'pos')}</b>, ${secVia(r)}. Na Renda Fixa a seção não é escolhida à mão.`});
+  out.push({k:'=', same:true, html:'<b>Não muda:</b> valor, curva, vencimento, liquidez, IR e rentabilidade do título.'});
+  return out;
+}
+const fxList = list => `<ul class="fx">${list.map(e=>`<li class="${e.same?'same':''}${e.warn?' warn':''}"><span class="k" aria-hidden="true">${e.k}</span><span>${e.html}</span></li>`).join('')}</ul>`;
+
+function move(r, dest){
+  const prev = {tab:r.tab, movedAt:r.movedAt};
+  r.tab = dest;
+  r.movedAt = dest===r.base ? null : HOJE;
+  if (dest==='renda-fixa' && !r.sec) r.sec = 'pos';
+  return prev;
+}
+function restore(r, prev){ r.tab = prev.tab; r.movedAt = prev.movedAt; }
+
+/* ---------------- Cenários ---------------- */
+const SC = [
+  {k:'D1',g:'Carteira · computador',label:'Renda Fixa em repouso (arraste de verdade)',view:'desk'},
+  {k:'D2',g:'Carteira · computador',label:'Arrastando: bandeja “Outra aba”',view:'desk'},
+  {k:'D3',g:'Carteira · computador',label:'LCI com carência: aviso de liquidez',view:'desk'},
+  {k:'D4',g:'Carteira · computador',label:'Soltou na Reserva: confirmar efeitos',view:'desk'},
+  {k:'D5',g:'Carteira · computador',label:'Movendo… (otimista)',view:'desk'},
+  {k:'D6',g:'Carteira · computador',label:'Sucesso + Desfazer',view:'desk'},
+  {k:'D7',g:'Carteira · computador',label:'Erro: volta ao lugar',view:'desk'},
+  {k:'D8',g:'Carteira · computador',label:'Reserva Emergência com o CDB movido',view:'desk'},
+  {k:'D9',g:'Carteira · computador',label:'Menu ⋯: Voltar para Renda Fixa',view:'desk'},
+  {k:'D10',g:'Carteira · computador',label:'Saldo em caixa: só entre Reservas',view:'desk'},
+  {k:'D11',g:'Carteira · computador',label:'Diálogo “Mover para…” sem arrastar',view:'desk'},
+  {k:'D12',g:'Carteira · computador',label:'Tesouro Prefixado da reserva → Renda Fixa',view:'desk'},
+  {k:'M1',g:'Carteira · celular',label:'Cartão aberto com “Mover”',view:'phone'},
+  {k:'M2',g:'Carteira · celular',label:'Painel “Mover para”',view:'phone'},
+  {k:'M3',g:'Carteira · celular',label:'Destino escolhido: efeitos',view:'phone'},
+  {k:'M4',g:'Carteira · celular',label:'Movendo… / erro',view:'phone'},
+  {k:'M5',g:'Carteira · celular',label:'Sucesso + Desfazer',view:'phone'},
+  {k:'M6',g:'Carteira · celular',label:'Saldo em caixa no painel',view:'phone'},
+  {k:'A1',g:'Página do ativo',label:'CDB: ação no cabeçalho',view:'asset'},
+  {k:'A2',g:'Página do ativo',label:'Diálogo: destinos e bloqueios',view:'asset'},
+  {k:'A3',g:'Página do ativo',label:'Movido: “Voltar para Renda Fixa”',view:'asset'},
+  {k:'A4',g:'Página do ativo',label:'Saldo em caixa',view:'asset'},
+  {k:'A5',g:'Página do ativo',label:'Continua fora (Bitcoin)',view:'asset'},
+  {k:'E1',g:'Depois de mover',label:'Efeitos: Saúde, Alocação, Fluxo',view:'effects'},
+  {k:'H1',g:'Depois de mover',label:'Histórico de alterações: Desfazer',view:'hist'},
+];
+
+const NOTES = {
+  D1:['Renda Fixa com as três seções do indexador. Experimente: pegue a alça ⠿ do CDB Inter Liquidez Diária e leve até “Reserva Emergência” na bandeja que sobe no rodapé. Funciona com teclado (Tab até a alça, Espaço, setas, Espaço).',
+      'As faixas Pós-fixada, Pré-fixada e Híbrida não são alvo: a seção vem do indexador. Soltar dentro da própria aba cancela.',
+      'Toda linha das três abas ganha alça e menu ⋯, inclusive Tesouro do catálogo e títulos da Pluggy.'],
+  D2:['Bandeja só com as outras duas abas de renda fixa, como na spec do arquiteto (AbaDropTarget.chipsDaBandeja). As abas de bolsa e Fundos não aparecem na bandeja; o motivo delas fica no diálogo “Mover para…” (pergunta 8).',
+      'As faixas Pós-fixada, Pré-fixada e Híbrida não acendem. A dica “a seção vem do título” fica no cabeçalho da bandeja, sobre fundo neutro, e não mais dentro da faixa colorida.',
+      'Fantasma igual ao da fase 1: “⠿ nome → destino”.'],
+  D3:['LCI Itaú (carência até 10/02/2027, resgate no vencimento) solta na Reserva Emergência: a confirmação ganha a linha “Liquidez”, com marcador vermelho.',
+      'Regra do aviso: liquidityType diferente de DAILY e vencimento além do horizonte de liquidez (o mesmo critério de isRendaFixaAltaLiquidez). Assim um CDB longo com liquidityType vazio também avisa, o que a regra só com MATURITY não pegava.',
+      'É aviso, não bloqueio: a escolha é do usuário.'],
+  D4:['Soltar numa aba abre a confirmação. Ela substitui os chips de seção da fase 1, porque aqui não há seção para escolher.',
+      'O efeito mais visível vem primeiro: a reserva de emergência passa de R$ 18.400,00 para R$ 34.012,40 e supera o necessário de R$ 30.000,00 (gasto mensal de R$ 5.000,00 × 6). O alerta da Saúde Financeira some.',
+      'Os números de antes e depois dependem de o GET /mover devolver reservaEmergenciaAtual, a nova e o necessário (calculados por saudeFinanceiraServer). É a recomendação da pergunta 6. Se a prévia não vier ou falhar, a linha S cai na frase fixa da spec: “Muda os meses de cobertura da Reserva de Emergência na Saúde Financeira.”',
+      'Sem a linha do objetivo (%) da fase 1: nessas abas a posição não tem objetivo próprio.'],
+  D5:['Atualização otimista: a linha sai da Renda Fixa na hora; o toast diz “Movendo…”. Menu e alça ficam bloqueados até a resposta.'],
+  D6:['Toast com “Ver na aba” e “Desfazer” (8s, pausa no foco). Desfazer devolve à Renda Fixa e reabre a linha no mesmo lugar.'],
+  D7:['A linha volta para a Renda Fixa com realce, toast vermelho com “Tentar de novo”. Use a caixa “Simular falha ao salvar” para ver isso no arraste de verdade.'],
+  D8:['Na Reserva Emergência, o CDB aparece com o selo “movido” (data e autor vêm do Histórico). Total da aba passa a R$ 34.012,40.',
+      'Cot. resgate, Liq. resgate, Vencimento e Benchmark do CDB continuam os do título (D+0, Imediata, 15/03/2028, CDI), lidos do FixedIncomeAsset como na Renda Fixa. A rota da Reserva hoje preencheria vencimento = hoje, D+0, Imediata e CDI para qualquer item sem essas chaves nas notas, o que seria falso para uma LCI com carência.',
+      'Os dois itens sem título por trás (saldo informado e conta corrente) têm o selo tracejado “saldo em conta”.'],
+  D9:['Menu ⋯ de item movido: “Voltar para Renda Fixa” primeiro, depois “Mover para…” e “Abrir ativo”. Voltar grava null no categoriaOverride e o título volta para Pós-fixada pelo indexador.',
+      'O destino do “Voltar” é a aba base, que precisa ser estável: para Tesouro, a regra da 1ª compra marcada (por data) e a mesma regra no Fluxo. Uma compra nova de título movido não troca a base.'],
+  D10:['Pergunta 4: o saldo informado (RESERVA-EMERG) e a conta corrente só trocam entre as duas Reservas. Na bandeja, “Renda Fixa” aparece travada com o motivo.',
+       'Para tirar dinheiro da reserva de verdade, o caminho continua sendo Resgate. Mover só muda onde o saldo aparece.'],
+  D11:['Caminho sem arrastar (teclado e leitor de tela): menu ⋯ → “Mover para…”. Diálogo da fase 1 com um único grupo “Abas de renda fixa” e os efeitos no rodapé.'],
+  D12:['Tesouro Prefixado 2029 comprado como reserva. Na criação o título de reserva ganha indexer CDI por padrão; se a seção viesse do indexador, ele cairia em Pós-fixada.',
+       'A seção vem do tipo do título para Tesouro (Tesouro Selic → Pós-fixada, Prefixado → Pré-fixada, IPCA+ → Híbrida), antes de olhar o indexador. O selo diz “Pré-fixada · pelo tipo do título”.'],
+  M1:['Celular sem arrasto, como na fase 1. O cartão aberto ganha “Mover” ao lado de “Abrir”.'],
+  M2:['Painel com as três abas; a atual aparece marcada como “Atual”. As 10 abas fechadas ficam num item recolhido, com o motivo de cada uma.'],
+  M3:['Escolhido o destino, os efeitos aparecem acima do rodapé, com o mesmo texto do computador. O botão diz o destino.'],
+  M4:['“Movendo…” com spinner. Marque “Simular falha ao salvar” e toque em Mover para ver o erro: o painel continua aberto com a mensagem acima dos botões.'],
+  M5:['Painel fecha, toast com Desfazer de 44px acima da barra de abas.'],
+  M6:['Saldo em caixa no painel: só a Reserva Oportunidade fica disponível. A Renda Fixa aparece nos bloqueados com “Saldo em conta não é um título”.'],
+  A1:['Página do CDB: a linha de classificação mostra onde ele está (Renda Fixa › Pós-fixada) e o botão “Mover na Carteira” passa a aparecer para títulos.'],
+  A2:['Diálogo com os três destinos e os bloqueados num “details” com o motivo. O efeito na Saúde Financeira aparece ao escolher Reserva Emergência.',
+      'Rádios, botões e o “details” com 44px de altura.'],
+  A3:['Depois de mover: “movido de Renda Fixa em 02/10/2026 por você” e o botão “Voltar para Renda Fixa”.'],
+  A4:['Saldo informado da Reserva de Emergência: o diálogo só oferece Reserva Oportunidade.'],
+  A5:['Moedas/Cripto, Previdência, Opções e Imóveis continuam fora: uma frase no lugar do botão, como na decisão 7.'],
+  E1:['Antes e depois fora da Carteira, para o Wellington validar o impacto. Nada aqui é tela nova: são os números que já existem nas telas de Saúde Financeira, Alocação e Fluxo.'],
+  H1:['O Histórico de alterações registra o movimento como na fase 1 (ação do registry de desfazer). Desfazer pelo histórico tem o mesmo efeito do toast.'],
+};
+
+/* ---------------- Montagem do cenário ---------------- */
+let cur = 'D1';
+function setup(k){
+  reset(); cur = k;
+  const c = row('cdbinter');
+  switch(k){
+    case 'D2': S.drag = {id:'cdbinter', over:null, x:330, y:250}; break;
+    case 'D3': S.confirm = {id:'lciitau', dest:'reserva-emergencia'}; break;
+    case 'D4': S.confirm = {id:'cdbinter', dest:'reserva-emergencia'}; break;
+    case 'D5': move(c,'reserva-emergencia'); S.saving='cdbinter'; S.toast={kind:'saving', text:'Movendo CDB Inter Liquidez Diária para Reserva Emergência…'}; break;
+    case 'D6': { const p=move(c,'reserva-emergencia'); S.toast={kind:'ok', id:'cdbinter', prev:p, dest:'reserva-emergencia'}; pushHist(c,'renda-fixa','reserva-emergencia'); break; }
+    case 'D7': S.flash='cdbinter'; S.toast={kind:'err', id:'cdbinter', dest:'reserva-emergencia'}; break;
+    case 'D8': move(c,'reserva-emergencia'); pushHist(c,'renda-fixa','reserva-emergencia'); S.tab='reserva-emergencia'; S.flash='cdbinter'; break;
+    case 'D9': move(c,'reserva-emergencia'); pushHist(c,'renda-fixa','reserva-emergencia'); S.tab='reserva-emergencia'; S.menu={id:'cdbinter'}; break;
+    case 'D10': S.tab='reserva-emergencia'; S.drag={id:'saldoemerg', over:null, x:300, y:220}; break;
+    case 'D11': S.dialog={id:'cdbinter', sel:'reserva-emergencia'}; break;
+    case 'D12': S.tab='reserva-oportunidade'; S.dialog={id:'pre29', sel:'renda-fixa'}; break;
+    case 'M2': S.sheet={id:'cdbinter', sel:null}; break;
+    case 'M3': S.sheet={id:'cdbinter', sel:'reserva-emergencia'}; break;
+    case 'M4': S.sheet={id:'cdbinter', sel:'reserva-emergencia', saving:true}; break;
+    case 'M5': { const p=move(c,'reserva-emergencia'); pushHist(c,'renda-fixa','reserva-emergencia'); S.toast={kind:'ok', id:'cdbinter', prev:p, dest:'reserva-emergencia'}; break; }
+    case 'M6': S.mtab='reserva-emergencia'; S.expanded='saldoemerg'; S.sheet={id:'saldoemerg', sel:null, openUnavail:true}; break;
+    case 'A2': S.dialog={id:'cdbinter', sel:'reserva-emergencia'}; break;
+    case 'A3': move(c,'reserva-emergencia'); pushHist(c,'renda-fixa','reserva-emergencia'); break;
+    case 'A4': S.assetId='saldoemerg'; break;
+    case 'A5': S.assetId='btc'; break;
+    case 'E1': move(c,'reserva-emergencia'); break;
+    case 'H1': move(c,'reserva-emergencia'); pushHist(c,'renda-fixa','reserva-emergencia'); S.hist.push({when:'30/09/2026 18:42', text:'<b>Aporte</b> de R$ 1.000,00 em Conta Corrente (Reserva Emergência) - Nubank', small:'Operação', undone:false}); break;
+  }
+  render();
+}
+function pushHist(r, from, to){
+  S.hist.unshift({when:HOJE+' 10:14', id:r.id, from, to, text:`<b>Moveu</b> ${esc(r.nome)} de ${tabLabel(from)} para ${tabLabel(to)}`, small:'Carteira › Mover investimento · por você', undone:false, mover:true});
+}
+
+/* ---------------- Render ---------------- */
+function render(){
+  const sc = SC.find(s=>s.k===cur);
+  const scr = $('#screen');
+  if (sc.view==='desk') scr.innerHTML = deskHTML();
+  else if (sc.view==='phone') scr.innerHTML = `<div class="phone-stage">${phoneHTML()}</div>`;
+  else if (sc.view==='asset') scr.innerHTML = assetHTML();
+  else if (sc.view==='effects') scr.innerHTML = effectsHTML();
+  else scr.innerHTML = histHTML();
+  $('#notes').innerHTML = `<h2>${esc(sc.label)}</h2><ul>${(NOTES[cur]||[]).map(n=>`<li>${n}</li>`).join('')}</ul>`;
+  $$('.scen').forEach(b=>b.setAttribute('aria-pressed', String(b.dataset.k===cur)));
+  bindScreen();
+}
+
+function tabsHTML(active){
+  return `<div class="tabs" role="tablist" aria-label="Abas da Carteira">${TABS.map(t=>{
+    const inTrio = TRIO.includes(t.id);
+    return `<button class="tab ${inTrio?'':'fora'}" role="tab" type="button" data-tab="${t.id}" aria-selected="${t.id===active}" ${inTrio?'':'tabindex="-1"'}>${esc(t.label)}</button>`;
+  }).join('')}</div>`;
+}
+
+function badgeFor(r){
+  let b = '';
+  if (r.movedAt) b += ` <span class="badge moved" title="Movido de ${tabLabel(r.base)} em ${r.movedAt}">${ICON_MOVED}movido</span>`;
+  if (r.sint) b += ` <span class="badge sint">saldo em conta</span>`;
+  return b;
+}
+
+function rowHTML(r, totalAba){
+  const rent = (r.va/r.vi - 1)*100;
+  const cls = ['item'];
+  if (S.drag && S.drag.id===r.id) cls.push('drag-src');
+  if (S.saving===r.id) cls.push('saving');
+  if (S.flash===r.id) cls.push('flash');
+  const blocked = S.saving===r.id;
+  return `<tr class="${cls.join(' ')}" data-id="${r.id}">
+    <td><div class="namecell">
+      <button class="handle" type="button" data-handle="${r.id}" aria-label="Mover ${esc(r.nome)}. Espaço para pegar" ${blocked?'disabled':''}>⠿</button>
+      <div style="min-width:0"><a class="tk" href="#" data-open="${r.id}">${esc(r.nome)}</a>${badgeFor(r)}<span class="nm">${esc(r.sub)}</span></div>
+    </div></td>
+    <td>${esc(r.cot)}</td><td>${esc(r.liq)}</td><td>${esc(r.venc)}</td><td>${esc(r.bench)}</td>
+    <td class="r">${brl(r.vi)}</td>
+    <td class="r">${S.saving===r.id?'<span class="saving-label"><span class="spin" aria-hidden="true"></span>Movendo…</span>':brl(r.va)}</td>
+    <td class="r">${pct1(totalAba? r.va/totalAba*100 : 0)}</td>
+    <td class="r ${rent>=0?'pos':'neg'}">${pct(rent)}</td>
+    <td class="r"><button class="kebab" type="button" data-menu="${r.id}" aria-label="Ações de ${esc(r.nome)}" aria-haspopup="menu" aria-expanded="${S.menu&&S.menu.id===r.id}" ${blocked?'disabled':''}>⋯</button></td>
+  </tr>`;
+}
+
+function deskHTML(){
+  const tab = S.tab;
+  const rows = S.rows.filter(r=>r.tab===tab);
+  const total = rows.reduce((s,r)=>s+r.va,0);
+  const vi = rows.reduce((s,r)=>s+r.vi,0);
+  const head = `<thead><tr><th>Nome dos ativos</th><th>Cot. resgate</th><th>Liq. resgate</th><th>Vencimento</th><th>Benchmark</th><th class="r">Valor inicial</th><th class="r">Valor atual</th><th class="r">% da aba</th><th class="r">Rentab.</th><th class="r"><span class="sr">Ações</span></th></tr></thead>`;
+  const totalRow = `<tr class="total"><td>TOTAL GERAL</td><td></td><td></td><td></td><td></td><td class="r">${brl(vi)}</td><td class="r">${brl(total)}</td><td class="r">100,0%</td><td class="r">${pct((total/vi-1)*100)}</td><td></td></tr>`;
+  let body;
+  if (tab==='renda-fixa'){
+    body = `<tbody>${totalRow}</tbody>` + RF_SECS.map(([id,lab])=>{
+      const rs = rows.filter(r=>r.sec===id);
+      return `<tbody><tr class="band ${S.drag?'nodrop':''}"><td colspan="10">${lab}</td></tr>${rs.length? rs.map(r=>rowHTML(r,total)).join('') : `<tr class="ph"><td colspan="10">Nenhum título ${lab.toLowerCase()}.</td></tr>`}</tbody>`;
+    }).join('');
+  } else {
+    body = `<tbody>${totalRow}${rows.map(r=>rowHTML(r,total)).join('') || '<tr class="ph"><td colspan="10">Nada nesta reserva ainda.</td></tr>'}</tbody>`;
+  }
+  const extra = tab==='reserva-emergencia'
+    ? `<span class="goal ${total<NECESSARIO?'low':''}">${total<NECESSARIO?'Abaixo do necessário':'Meta atingida'} · ${brl(total)} de ${brl(NECESSARIO)}</span>` : '';
+  return `<div class="desk" id="desk">
+    <div class="desk-top"><h2>Carteira</h2><span class="crumb">Investimentos › Carteira › ${esc(tabLabel(tab))}</span></div>
+    ${tabsHTML(tab)}
+    <div class="tbl-title"><h3>${esc(tabLabel(tab))}</h3>${extra}</div>
+    <div class="tbl-wrap"><table class="at">${head}${body}</table></div>
+    ${S.drag? trayHTML() : ''}
+    ${S.drag? ghostHTML() : ''}
+    ${S.confirm? confirmHTML() : ''}
+    ${S.menu? menuHTML() : ''}
+    ${S.dialog? `<div class="overlay" data-close="dialog">${dialogHTML()}</div>` : ''}
+    ${S.toast? toastHTML(false) : ''}
+  </div>`;
+}
+
+function trayTargets(r){
+  const t = TRIO.filter(x=>x!==r.tab).map(id=>({id, label:tabLabel(id), c:compat(r,id)}));
+  return t;
+}
+function trayHTML(){
+  const r = row(S.drag.id);
+  const t = trayTargets(r);
+  return `<div class="tray-dock"><div class="tray" role="group" aria-label="Mover para outra aba">
+    <div class="tray-h"><b>Outra aba</b><span>${S.tab==='renda-fixa'?'A seção vem do título. ':''}Solte numa aba. Esc cancela.</span></div>
+    <div class="tray-row">${t.map(x=>{
+      const on = S.drag.over===x.id;
+      if (x.c.ok) return `<div class="tchip ${on?'drop-on':''}" data-drop="${x.id}" aria-label="${esc(x.label)}">${esc(x.label)}<small>${x.id==='renda-fixa'?'entra em '+secLabel(r.sec||'pos'):'lista única'}</small></div>`;
+      return `<div class="tchip locked ${x.group?'group':''} ${on?'drop-bad':''}" data-drop="${x.id}" aria-disabled="true" aria-label="${esc(x.label)}, indisponível: ${esc(x.c.reason)}"><span>${ICON_LOCK}${esc(x.label)}</span><small>${esc(x.c.reason.split(':')[0])}</small></div>`;
+    }).join('')}</div></div></div>`;
+}
+function ghostHTML(){
+  const r = row(S.drag.id); const o = S.drag.over;
+  let tail = '';
+  if (o){ const t = trayTargets(r).find(x=>x.id===o); tail = t.c.ok ? ` <span class="to">→ ${esc(t.label)}</span>` : ` <span class="no">✕ ${esc(t.c.reason)}</span>`; }
+  return `<div class="ghost" style="left:${S.drag.x}px;top:${S.drag.y}px">⠿ ${esc(r.nome)}${tail}</div>`;
+}
+function confirmHTML(){
+  const r = row(S.confirm.id); const d = S.confirm.dest;
+  return `<div class="pop confirm" role="dialog" aria-modal="false" aria-labelledby="cf-h">
+    <h4 id="cf-h">Mover para ${esc(tabLabel(d))}?</h4>
+    <p>${esc(r.nome)} sai de ${esc(tabLabel(r.tab))}${r.tab==='renda-fixa'?' › '+secLabel(r.sec):''}. ${d==='renda-fixa'?'':'A Reserva não tem seções.'}</p>
+    <span class="fx-h">O que muda</span>
+    ${fxList(effects(r,d))}
+    <div class="row-end"><button class="btn" type="button" data-act="cf-cancel">Cancelar</button><button class="btn primary" type="button" data-act="cf-ok" id="cfOk">Mover</button></div>
+  </div>`;
+}
+function menuHTML(){
+  const r = row(S.menu.id);
+  const tr = $('#desk') ? null : null;
+  return `<div class="menu" role="menu" aria-label="Ações de ${esc(r.nome)}" style="right:28px;top:${210 + S.rows.filter(x=>x.tab===r.tab).indexOf(r)*52}px">
+    ${r.movedAt?`<button role="menuitem" type="button" data-act="back" data-id="${r.id}">Voltar para ${esc(tabLabel(r.base))}<small>Onde ele estava antes de ${r.movedAt}</small></button><hr>`:''}
+    <button role="menuitem" type="button" data-act="open-dialog" data-id="${r.id}">Mover para…<small>${r.sint?'Só entre as Reservas':'Renda Fixa e Reservas'}</small></button>
+    <button role="menuitem" type="button" data-act="noop">Abrir ativo<small>Página com histórico e operações</small></button>
+  </div>`;
+}
+function dialogHTML(){
+  const r = row(S.dialog.id); const sel = S.dialog.sel;
+  const blocked = TABS.filter(t=>!TRIO.includes(t.id) && t.id!=='consolidada').map(t=>({t, c:compat(r,t.id)}));
+  if (r.sint) blocked.unshift({t:{id:'renda-fixa',label:'Renda Fixa'}, c:compat(r,'renda-fixa')});
+  const opts = TRIO.filter(id=>!(r.sint && id==='renda-fixa'));
+  const fx = sel && sel!==r.tab ? effects(r, sel) : null;
+  return `<div class="dialog" role="dialog" aria-modal="true" aria-labelledby="dlg-h">
+    <div class="dlg-h"><h3 id="dlg-h">Mover ${esc(r.nome)}</h3><p>Hoje em ${esc(tabLabel(r.tab))}${r.tab==='renda-fixa'?' › '+secLabel(r.sec):''}. Muda só onde ele aparece na Carteira.</p></div>
+    <div class="dlg-b">
+      <fieldset class="dest"><legend>Abas de renda fixa <small>sem seção para escolher</small></legend>
+        <div class="chips" role="radiogroup">${opts.map(id=>{
+          const isCur = id===r.tab;
+          return `<label class="chip"><input type="radio" name="dlgdest" value="${id}" ${isCur?'disabled':''} ${sel===id?'checked':''}><span>${esc(tabLabel(id))}${isCur?' <span class="sug">atual</span>':''}</span></label>`;
+        }).join('')}</div>
+        ${sel==='renda-fixa'?`<p style="font-size:13px;color:var(--app-muted)">Entra em <span class="badge derived">${secLabel(r.sec||'pos')} · ${secVia(r)}</span></p>`:''}
+      </fieldset>
+      <details class="unavail"><summary>${blocked.length} abas não aceitam este ${r.sint?'saldo':'título'}</summary><ul>${blocked.map(b=>`<li><b>${esc(b.t.label)}</b>: ${esc(b.c.reason)}</li>`).join('')}</ul></details>
+    </div>
+    <div class="dlg-f">
+      ${fx? `<div class="impact"><span class="fx-h">O que muda</span>${fxList(fx)}</div>` : `<div class="impact">Escolha uma aba para ver o efeito na Saúde Financeira, na Alocação e no Fluxo.</div>`}
+      ${S.dialog.err?`<div class="err" role="alert">Não foi possível mover. Ele continua em ${esc(tabLabel(r.tab))}. Tente de novo.</div>`:''}
+      <div class="row-end"><button class="btn" type="button" data-act="dlg-cancel">Cancelar</button>
+      <button class="btn primary" type="button" data-act="dlg-ok" ${(!sel||sel===r.tab||S.dialog.saving)?'disabled':''}>${S.dialog.saving?'<span class="spin" aria-hidden="true"></span> Movendo…':sel&&sel!==r.tab?'Mover para '+esc(tabLabel(sel)):'Mover'}</button></div>
+    </div>
+  </div>`;
+}
+function toastHTML(mobile){
+  const t = S.toast; const c = mobile?'mtoast':'toast';
+  if (t.kind==='saving') return `<div class="${c}" role="status"><span><span class="spin" aria-hidden="true"></span> ${esc(t.text)}</span></div>`;
+  if (t.kind==='err') { const r=row(t.id); return `<div class="${c} err" role="alert"><span>Não foi possível mover ${esc(r.nome)}. Ele continua em ${esc(tabLabel(r.tab))}.</span><button type="button" data-act="retry">Tentar de novo</button><button type="button" class="x" data-act="toast-x" aria-label="Fechar">✕</button></div>`; }
+  if (t.kind==='undone') return `<div class="${c}" role="status"><span>${esc(t.text)}</span><button type="button" class="x" data-act="toast-x" aria-label="Fechar">✕</button></div>`;
+  const r = row(t.id);
+  return `<div class="${c}" role="status"><span>${esc(r.nome)} movido para ${esc(tabLabel(t.dest))}.</span>${mobile?'':`<button type="button" data-act="see">Ver na aba</button>`}<button type="button" data-act="undo">Desfazer</button>${mobile?'':'<button type="button" class="x" data-act="toast-x" aria-label="Fechar">✕</button>'}</div>`;
+}
+
+/* ---------------- Celular ---------------- */
+function phoneHTML(){
+  const tab = S.mtab;
+  const rows = S.rows.filter(r=>r.tab===tab);
+  const total = rows.reduce((s,r)=>s+r.va,0);
+  const cards = (list) => list.map(r=>{
+    const open = S.expanded===r.id; const rent=(r.va/r.vi-1)*100;
+    return `<div class="mcard">
+      <button type="button" class="top" data-exp="${r.id}" aria-expanded="${open}" style="border:0;background:transparent;padding:0;text-align:left;cursor:pointer;width:100%;min-height:44px">
+        <div style="min-width:0"><div class="t">${esc(r.nome)}${badgeFor(r)}</div><div class="n">${esc(r.sub)}</div></div>
+        <div class="v">${brl(r.va)}<small class="${rent>=0?'pos':'neg'}">${pct(rent)}</small></div>
+      </button>
+      ${open?`<dl class="mgrid"><div><dt>Cot. resgate</dt><dd>${esc(r.cot)}</dd></div><div><dt>Liq. resgate</dt><dd>${esc(r.liq)}</dd></div><div><dt>Vencimento</dt><dd>${esc(r.venc)}</dd></div></dl>
+      <div class="mactions"><button class="mbtn" type="button">Abrir</button><button class="mbtn" type="button" data-msheet="${r.id}">Mover</button></div>`:''}
+    </div>`;
+  }).join('');
+  let list;
+  if (tab==='renda-fixa') list = RF_SECS.map(([id,lab])=>{ const rs=rows.filter(r=>r.sec===id); return rs.length?`<div class="mband">${lab}<span class="cnt">${rs.length} · ${brl(rs.reduce((s,r)=>s+r.va,0))}</span></div>${cards(rs)}`:''; }).join('');
+  else list = cards(rows);
+  return `<div class="phone" aria-label="Celular 390px">
+    <div class="ph-status"><span>10:14</span><span>5G</span></div>
+    <div class="ph-head"><button class="ph-back" type="button" aria-label="Voltar">‹</button><h2>Carteira</h2></div>
+    <div class="ph-body">
+      <div class="rail" role="tablist" aria-label="Abas">${TRIO.slice().reverse().map(id=>`<button type="button" role="tab" class="mchip ${id===tab?'on':''}" aria-selected="${id===tab}" data-mtab="${id}">${esc(tabLabel(id))}</button>`).join('')}<span class="mchip" aria-hidden="true">Fundos</span></div>
+      <div class="mrow"><div class="grow"><div class="lbl">${esc(tabLabel(tab))}</div><div class="val">${brl(total)}</div></div>${tab==='reserva-emergencia'?`<span class="goal ${total<NECESSARIO?'low':''}">${total<NECESSARIO?'Abaixo':'Meta'} · ${brl(NECESSARIO)}</span>`:''}</div>
+      ${list}
+    </div>
+    <div class="ph-tabbar"><span>Início</span><span class="on">Carteira</span><span>Fluxo</span><span>Mais</span></div>
+    ${S.sheet? sheetHTML() : ''}
+    ${S.toast? toastHTML(true) : ''}
+  </div>`;
+}
+function sheetHTML(){
+  const r = row(S.sheet.id); const sel = S.sheet.sel;
+  const opts = TRIO;
+  const blocked = TABS.filter(t=>!TRIO.includes(t.id) && t.id!=='consolidada').map(t=>({t,c:compat(r,t.id)}));
+  const fx = sel && sel!==r.tab ? effects(r, sel) : null;
+  return `<div class="sheet-ov" data-close="sheet"><div class="sheet" role="dialog" aria-modal="true" aria-labelledby="sh-h">
+    <div class="grab" aria-hidden="true"></div>
+    <div class="sheet-h"><div><h3 id="sh-h">Mover ${esc(r.nome)}</h3><p>Hoje em ${esc(tabLabel(r.tab))}</p></div><button class="sheet-x" type="button" data-act="sheet-x" aria-label="Fechar">✕</button></div>
+    <div class="sheet-b">
+      <div><div class="mgl">Abas de renda fixa</div>
+      <div role="radiogroup" aria-label="Destino">${opts.map(id=>{
+        const c = compat(r,id); const isCur = id===r.tab; const dis = isCur || !c.ok;
+        if (!isCur && !c.ok) return '';
+        return `<button type="button" class="mopt" role="radio" aria-checked="${sel===id}" ${dis?'aria-disabled="true"':''} data-msel="${id}"><span><span class="l">${esc(tabLabel(id))}</span><span class="d">${isCur?'Atual':id==='renda-fixa'?'Entra em '+secLabel(r.sec||'pos')+', '+secVia(r):'Lista única, sem seções'}</span></span><span class="rd" aria-hidden="true"></span></button>`;
+      }).join('')}</div></div>
+      <details class="unavail" ${S.sheet.openUnavail?'open':''}><summary>${blocked.length + (r.sint?1:0)} abas não aceitam este ${r.sint?'saldo':'título'}</summary><ul>${r.sint?`<li><b>Renda Fixa</b>: ${esc(compat(r,'renda-fixa').reason)}</li>`:''}${blocked.map(b=>`<li><b>${esc(b.t.label)}</b>: ${esc(b.c.reason)}</li>`).join('')}</ul></details>
+      ${fx?`<div class="mfx"><span class="fx-h">O que muda</span>${fxList(fx)}</div>`:''}
+    </div>
+    <div class="sheet-f">
+      ${S.sheet.err?`<div class="err" role="alert">Não foi possível mover. Ele continua em ${esc(tabLabel(r.tab))}. Tente de novo.</div>`:''}
+      <div class="row"><button class="mbtn" type="button" data-act="sheet-x">Voltar</button><button class="mbtn primary" type="button" data-act="sheet-ok" ${(!sel||S.sheet.saving)?'disabled':''}>${S.sheet.saving?'<span class="spin" aria-hidden="true"></span> Movendo…':sel?'Mover para '+esc(tabLabel(sel)):'Escolha uma aba'}</button></div>
+    </div>
+  </div></div>`;
+}
+
+/* ---------------- Página do ativo ---------------- */
+function assetHTML(){
+  if (S.assetId==='btc'){
+    return `<div class="desk"><div class="ap-head"><div><h2>Bitcoin</h2><div class="sub">BTC · Binance</div></div><div class="ap-actions"><button class="btn" type="button">Aportar</button><button class="btn" type="button">Resgatar</button></div></div>
+    <div class="classline"><span>Na Carteira:</span><span class="crumbchip">Moedas, Criptomoedas &amp; outros</span><span>Moedas, Criptomoedas &amp; outros ainda não pode ser movida para outra aba.</span></div>
+    <dl class="metrics"><div class="metric"><dt>Valor atual</dt><dd>${brl(4820.33)}</dd></div><div class="metric"><dt>Investido</dt><dd>${brl(4000)}</dd></div><div class="metric"><dt>Rentabilidade</dt><dd class="pos">+20,51%</dd></div></dl></div>`;
+  }
+  const r = row(S.assetId);
+  const where = r.tab==='renda-fixa' ? `<span class="crumbchip">Renda Fixa › ${secLabel(r.sec)}</span>` : `<span class="crumbchip">${esc(tabLabel(r.tab))}</span>`;
+  const moved = r.movedAt ? `<span class="badge moved">${ICON_MOVED}movido de ${esc(tabLabel(r.base))} em ${r.movedAt} por você</span><button class="btn link" type="button" data-act="back" data-id="${r.id}">Voltar para ${esc(tabLabel(r.base))}</button>` : '';
+  const rent = (r.va/r.vi-1)*100;
+  return `<div class="desk" id="desk">
+    <div class="ap-head"><div><h2>${esc(r.nome)}</h2><div class="sub">${esc(r.sub)}</div></div>
+      <div class="ap-actions"><button class="btn" type="button">Aportar</button><button class="btn" type="button">Resgatar</button><button class="btn" type="button" data-act="open-dialog" data-id="${r.id}">Mover na Carteira</button></div></div>
+    <div class="classline"><span>Na Carteira:</span>${where}${moved}</div>
+    <dl class="metrics">
+      <div class="metric"><dt>Valor atual</dt><dd>${brl(r.va)}</dd></div>
+      <div class="metric"><dt>Valor inicial</dt><dd>${brl(r.vi)}</dd></div>
+      <div class="metric"><dt>Rentabilidade</dt><dd class="${rent>=0?'pos':'neg'}">${pct(rent)}</dd></div>
+      <div class="metric"><dt>Vencimento</dt><dd>${esc(r.venc)}</dd></div>
+      <div class="metric"><dt>Liquidez</dt><dd>${esc(r.cot)} / ${esc(r.liq)}</dd></div>
+    </dl>
+    <div class="ap-section">${r.sint?'Saldo informado por você. Aportes e resgates mudam o valor; mover só muda a aba onde ele aparece.':'Marcação na curva (100% do CDI). Histórico de operações, IR e rendimento seguem o título, onde quer que ele apareça.'}</div>
+    ${S.dialog? `<div class="overlay" data-close="dialog">${dialogHTML()}</div>` : ''}
+    ${S.toast? toastHTML(false) : ''}
+  </div>`;
+}
+
+/* ---------------- Efeitos ---------------- */
+function effectsHTML(){
+  const c = row('cdbinter');
+  const reAntes = 18400, reDepois = totalTab('reserva-emergencia');
+  const rfAntes = 68559.10, rfDepois = totalTab('renda-fixa');
+  const w = v => Math.min(100, v/NECESSARIO*100).toFixed(1);
+  return `<div class="desk">
+    <div class="desk-top"><h2>Depois de mover o CDB Inter para a Reserva Emergência</h2><span class="crumb">valores de exemplo</span></div>
+    <div class="kv">
+      <div class="card"><h4>Saúde Financeira · Reserva de emergência</h4>
+        <div class="ba"><span class="was">${brl(reAntes)}</span><span class="now">${brl(reDepois)}</span></div>
+        <div class="meter" role="img" aria-label="Antes ${pct1(reAntes/NECESSARIO*100)} do necessário, agora ${pct1(reDepois/NECESSARIO*100)}"><i style="width:${w(reDepois)}%"></i><i class="prev" style="width:${w(reAntes)}%"></i></div>
+        <p>Necessário ${brl(NECESSARIO)} (gasto mensal ${brl(GASTO)} × 6). O motivo “Reserva de emergência abaixo do necessário” some do status. Ativos de alta liquidez: sem mudança, porque este CDB tem liquidez diária e já contava ali. Uma LCI com carência passaria de baixa para alta liquidez.</p>
+        <p>Planejamento: a meta de reserva passa a contar o CDB pelo mesmo valor da Saúde (${brl(c.va)}, pela curva), não pelo custo (pergunta 9).</p></div>
+      <div class="card"><h4>Alocação de ativos</h4>
+        <div class="ba"><span>Reserva Emergência</span><span class="now">${brl(reDepois)}</span></div>
+        <p>Meta em reais (${brl(NECESSARIO)}): de ${pct1(reAntes/NECESSARIO*100)} para ${pct1(Math.min(reDepois/NECESSARIO*100,999))} atingida.</p>
+        <div class="ba"><span>Renda Fixa</span><span class="was">${brl(rfAntes)}</span><span class="now">${brl(rfDepois)}</span></div>
+        <p>Meta de 30% da carteira: a Renda Fixa fica mais longe dela.</p></div>
+      <div class="card"><h4>Fluxo de Caixa · Investimentos</h4>
+        <p>O aporte de ${brl(c.vi)} de mar/2026 sai da linha “Renda Fixa &amp; Fundos Renda Fixa” e aparece em “Reserva Emergência”, no mesmo mês. O total investido do mês não muda.</p></div>
+      <div class="card"><h4>Não muda</h4>
+        <p>IR (segue o tipo do título), curva e valor (${brl(c.va)}), vencimento, liquidez, análises de rentabilidade e TWR (a valoração não muda), retratos mensais já gravados da Saúde Financeira.</p>
+        <p>Caixa para Investir: o saldo já guardado no caixa da Renda Fixa fica lá. Aportes e resgates futuros deste CDB usam o caixa da aba nova; as Reservas não têm caixa próprio.</p></div>
+    </div></div>`;
+}
+function histHTML(){
+  return `<div class="desk">
+    <div class="desk-top"><h2>Histórico de alterações</h2><span class="crumb">Configurações › Histórico</span></div>
+    <div class="hist">${S.hist.map((h,i)=>`<div class="hist-row ${h.undone?'undone':''}"><time>${h.when}</time><div class="what">${h.text}<small>${h.small}${h.undone?' · desfeito':''}</small></div>${h.mover&&!h.undone?`<button class="btn" type="button" data-hundo="${i}">Desfazer</button>`:'<span></span>'}</div>`).join('')}</div>
+    ${S.toast? toastHTML(false):''}
+  </div>`;
+}
+
+/* ---------------- Ações ---------------- */
+function doMove(id, dest, from){
+  const r = row(id);
+  if ($('#failChk').checked){
+    S.confirm=null; S.dialog=null; S.drag=null; S.flash=id;
+    S.toast={kind:'err', id, dest}; render(); live(`Não foi possível mover ${r.nome}. Ele continua em ${tabLabel(r.tab)}.`); return;
+  }
+  const prev = move(r, dest);
+  pushHist(r, prev.tab, dest);
+  S.confirm=null; S.dialog=null; S.drag=null; S.menu=null; S.saving=null;
+  S.toast={kind:'ok', id, prev, dest};
+  live(`${r.nome} movido para ${tabLabel(dest)}.`);
+  render();
+}
+function undo(){
+  const t = S.toast; if (!t || !t.prev) return;
+  const r = row(t.id); restore(r, t.prev);
+  if (S.hist[0] && S.hist[0].id===t.id) S.hist[0].undone = true;
+  S.flash = t.id; S.tab = r.tab; S.mtab = r.tab;
+  S.toast = {kind:'undone', text:`${r.nome} voltou para ${tabLabel(r.tab)}.`};
+  live(S.toast.text); render();
+}
+
+function bindScreen(){
+  const scr = $('#screen');
+  scr.onclick = e => {
+    const t = e.target.closest('[data-act],[data-tab],[data-menu],[data-open],[data-mtab],[data-exp],[data-msheet],[data-msel],[data-hundo],[data-close]');
+    if (!t) { if (S.menu){ S.menu=null; render(); } return; }
+    if (t.dataset.close && e.target!==t) return;
+    if (t.dataset.close==='dialog'){ S.dialog=null; render(); return; }
+    if (t.dataset.close==='sheet'){ S.sheet=null; render(); return; }
+    if (t.dataset.tab){ if (TRIO.includes(t.dataset.tab)){ S.tab=t.dataset.tab; S.menu=null; render(); } else live(`${tabLabel(t.dataset.tab)} está fora deste protótipo.`); return; }
+    if (t.dataset.menu){ S.menu = S.menu&&S.menu.id===t.dataset.menu ? null : {id:t.dataset.menu}; render(); const f=$('.menu button'); f&&f.focus(); return; }
+    if (t.dataset.open){ e.preventDefault(); return; }
+    if (t.dataset.mtab){ S.mtab=t.dataset.mtab; render(); return; }
+    if (t.dataset.exp){ S.expanded = S.expanded===t.dataset.exp?null:t.dataset.exp; render(); return; }
+    if (t.dataset.msheet){ S.sheet={id:t.dataset.msheet, sel:null}; S.toast=null; render(); return; }
+    if (t.dataset.msel){ if (t.getAttribute('aria-disabled')==='true') return; S.sheet.sel=t.dataset.msel; S.sheet.err=false; render(); return; }
+    if (t.dataset.hundo){ const h=S.hist[+t.dataset.hundo]; const r=row(h.id); r.tab=h.from; r.movedAt = h.from===r.base?null:r.movedAt; h.undone=true; S.toast={kind:'undone', text:`${r.nome} voltou para ${tabLabel(h.from)}.`}; live(S.toast.text); render(); return; }
+    const a = t.dataset.act;
+    if (a==='cf-cancel'){ S.confirm=null; render(); const h=$('[data-handle="cdbinter"]'); h&&h.focus(); return; }
+    if (a==='cf-ok'){ const {id,dest}=S.confirm; doMove(id,dest); return; }
+    if (a==='undo') return undo();
+    if (a==='toast-x'){ S.toast=null; render(); return; }
+    if (a==='retry'){ const {id,dest}=S.toast; S.toast=null; S.confirm={id,dest}; render(); return; }
+    if (a==='see'){ S.tab=S.toast.dest; S.flash=S.toast.id; render(); return; }
+    if (a==='back'){ const r=row(t.dataset.id); const prev=move(r, r.base); S.menu=null; S.toast={kind:'ok', id:r.id, prev, dest:r.base}; S.tab = cur.startsWith('D')? S.tab : S.tab; render(); live(`${r.nome} voltou para ${tabLabel(r.base)}.`); return; }
+    if (a==='open-dialog'){ S.menu=null; S.dialog={id:t.dataset.id, sel:null}; render(); const f=$('.dialog input:not(:disabled)'); f&&f.focus(); return; }
+    if (a==='dlg-cancel'){ S.dialog=null; render(); return; }
+    if (a==='dlg-ok'){
+      const {id,sel}=S.dialog;
+      if ($('#failChk').checked){ S.dialog.err=true; render(); return; }
+      S.dialog.saving=true; render();
+      setTimeout(()=>{ doMove(id, sel); }, 700); return;
+    }
+    if (a==='sheet-x'){ S.sheet=null; render(); return; }
+    if (a==='sheet-ok'){
+      const {id,sel}=S.sheet;
+      S.sheet.saving=true; S.sheet.err=false; render();
+      setTimeout(()=>{
+        if ($('#failChk').checked){ S.sheet.saving=false; S.sheet.err=true; render(); return; }
+        const r=row(id); const prev=move(r, sel); pushHist(r, prev.tab, sel);
+        S.sheet=null; S.toast={kind:'ok', id, prev, dest:sel}; render(); live(`${r.nome} movido para ${tabLabel(sel)}.`);
+      }, 800); return;
+    }
+  };
+  scr.onchange = e => { if (e.target.name==='dlgdest'){ S.dialog.sel=e.target.value; S.dialog.err=false; render(); const i=$(`.dialog input[value="${S.dialog.sel}"]`); i&&i.focus(); } };
+  $$('[data-handle]', scr).forEach(h=>{
+    h.addEventListener('pointerdown', startDrag);
+    h.addEventListener('keydown', kbdDrag);
+  });
+  const ok = $('#cfOk'); if (ok) ok.focus();
+}
+
+/* arrasto com ponteiro */
+function startDrag(e){
+  if (e.button!==0) return;
+  const id = e.currentTarget.dataset.handle;
+  const desk = $('#desk'); const rect = desk.getBoundingClientRect();
+  const sx = e.clientX, sy = e.clientY; let started = false;
+  const mv = ev => {
+    if (!started && Math.hypot(ev.clientX-sx, ev.clientY-sy) < 4) return;
+    if (!started){ started = true; S.drag = {id, over:null, x:0, y:0}; S.toast=null; S.confirm=null; S.menu=null; render(); live('Arrastando. Solte numa aba da bandeja. Esc cancela.'); }
+    S.drag.x = ev.clientX - rect.left + 14; S.drag.y = ev.clientY - rect.top + 10;
+    const el = document.elementFromPoint(ev.clientX, ev.clientY);
+    const chip = el && el.closest('[data-drop]');
+    const over = chip ? chip.dataset.drop : null;
+    if (over!==S.drag.over){ S.drag.over = over; render(); }
+    else { const g=$('.ghost'); if (g){ g.style.left=S.drag.x+'px'; g.style.top=S.drag.y+'px'; } }
+  };
+  const up = () => {
+    window.removeEventListener('pointermove', mv); window.removeEventListener('pointerup', up); window.removeEventListener('keydown', escK);
+    if (!started) return;
+    const r = row(id); const o = S.drag.over;
+    if (o){ const t = trayTargets(r).find(x=>x.id===o); if (t.c.ok){ S.drag=null; S.confirm={id, dest:o}; render(); return; } live(`${t.label} indisponível: ${t.c.reason}.`); }
+    S.drag=null; render();
+  };
+  const escK = ev => { if (ev.key==='Escape'){ window.removeEventListener('pointermove', mv); window.removeEventListener('pointerup', up); S.drag=null; render(); live('Arrasto cancelado.'); } };
+  window.addEventListener('pointermove', mv); window.addEventListener('pointerup', up); window.addEventListener('keydown', escK);
+}
+/* arrasto por teclado */
+function kbdDrag(e){
+  const id = e.currentTarget.dataset.handle; const r = row(id);
+  if (!S.drag && (e.key===' ' || e.key==='Enter')){
+    e.preventDefault(); S.drag={id, over:null, x:60, y:200, kbd:0}; S.confirm=null; render();
+    $(`[data-handle="${id}"]`).focus(); $(`[data-handle="${id}"]`).classList.add('grabbed');
+    live(`${r.nome} pego. Setas escolhem a aba, Espaço solta, Esc cancela.`); return;
+  }
+  if (!S.drag) return;
+  const ts = trayTargets(r);
+  if (e.key==='ArrowRight' || e.key==='ArrowDown' || e.key==='ArrowLeft' || e.key==='ArrowUp'){
+    e.preventDefault();
+    const i = ts.findIndex(x=>x.id===S.drag.over);
+    const n = (e.key==='ArrowRight'||e.key==='ArrowDown') ? (i+1)%ts.length : (i<=0?ts.length-1:i-1);
+    S.drag.over = ts[n].id; render(); const h=$(`[data-handle="${id}"]`); h.focus(); h.classList.add('grabbed');
+    live(ts[n].c.ok ? `${ts[n].label}. Espaço para soltar.` : `${ts[n].label}, indisponível: ${ts[n].c.reason}.`); return;
+  }
+  if (e.key===' ' || e.key==='Enter'){
+    e.preventDefault(); const t = ts.find(x=>x.id===S.drag.over);
+    if (t && t.c.ok){ S.drag=null; S.confirm={id, dest:t.id}; render(); return; }
+    live(t ? `${t.label} indisponível: ${t.c.reason}.` : 'Escolha uma aba com as setas.'); return;
+  }
+  if (e.key==='Escape'){ S.drag=null; render(); const h=$(`[data-handle="${id}"]`); h&&h.focus(); live('Arrasto cancelado.'); }
+}
+
+document.addEventListener('keydown', e => {
+  if (e.key==='Escape'){
+    if (S.confirm){ S.confirm=null; render(); const h=$('[data-handle="cdbinter"]'); h&&h.focus(); }
+    else if (S.dialog){ S.dialog=null; render(); }
+    else if (S.sheet){ S.sheet=null; render(); }
+    else if (S.menu){ S.menu=null; render(); }
+  }
+  if ((e.ctrlKey||e.metaKey) && e.key==='z' && S.toast && S.toast.prev && !/input|textarea/i.test(e.target.tagName)){ e.preventDefault(); undo(); }
+});
+
+/* ---------------- Bancada ---------------- */
+const groups = [...new Set(SC.map(s=>s.g))];
+$('#scenarios').innerHTML = groups.map(g=>`<div class="scen-group"><span class="gl">${esc(g)}</span>${SC.filter(s=>s.g===g).map(s=>`<button class="scen" type="button" data-k="${s.k}" aria-pressed="false"><b>${s.k}</b>${esc(s.label)}</button>`).join('')}</div>`).join('');
+$('#scenarios').addEventListener('click', e => { const b=e.target.closest('.scen'); if (b) setup(b.dataset.k); });
+$('#resetBtn').addEventListener('click', ()=>setup(cur));
+const themes = ['sistema','claro','escuro'];
+let th = 0;
+$('#themeBtn').addEventListener('click', ()=>{
+  th = (th+1)%3; const root = document.documentElement;
+  if (th===0) root.removeAttribute('data-theme'); else root.setAttribute('data-theme', th===1?'light':'dark');
+  $('#themeBtn').textContent = 'Tema: '+themes[th];
+});
+setup('D1');
+})();
+</script>
