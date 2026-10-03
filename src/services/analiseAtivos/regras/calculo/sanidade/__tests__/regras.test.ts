@@ -136,6 +136,36 @@ describe('R2 historico (fixture DEV)', () => {
     expect(anos(s)).toEqual([]);
   });
 
+  it('maioria dos anos na escala errada (CBAV3): a régua são os anos com P/VP plausível', () => {
+    // VM de 2021/2024/2025 em milhões (nº de ações errado), 2022/2023 em bilhões
+    const pontos: PontoHistorico[] = [
+      { anoFiscal: 2021, pl: 0.02, pvp: 0.0027, pReceita: 0.004 },
+      { anoFiscal: 2022, pl: 11, pvp: 1.35, pReceita: 1.9 },
+      { anoFiscal: 2023, pl: 9, pvp: 0.74, pReceita: 1.1 },
+      { anoFiscal: 2024, pl: 0.006, pvp: 0.0008, pReceita: 0.001 },
+      { anoFiscal: 2025, pl: 0.009, pvp: 0.0011, pReceita: 0.0015 },
+    ];
+    expect(detectarHistoricoEscala(pontos, cfg).map((d) => d.chave)).toEqual([
+      '2021',
+      '2024',
+      '2025',
+    ]);
+    // LAND3: só 2021 certo — um ano plausível basta de âncora
+    const land: PontoHistorico[] = [
+      { anoFiscal: 2021, pl: 56.9, pvp: 3.1, pReceita: 8 },
+      { anoFiscal: 2022, pl: 0.03, pvp: 0.001, pReceita: 0.004 },
+      { anoFiscal: 2023, pl: 0.05, pvp: 0.002, pReceita: 0.006 },
+      { anoFiscal: 2024, pl: 0.09, pvp: 0.0035, pReceita: 0.01 },
+      { anoFiscal: 2025, pl: 0.07, pvp: 0.003, pReceita: 0.008 },
+    ];
+    expect(detectarHistoricoEscala(land, cfg).map((d) => d.chave)).toEqual([
+      '2022',
+      '2023',
+      '2024',
+      '2025',
+    ]);
+  });
+
   it('um múltiplo sozinho fora da escala não marca', () => {
     const pontos: PontoHistorico[] = [
       { anoFiscal: 2020, pl: 10, pvp: 1, pReceita: 1 },

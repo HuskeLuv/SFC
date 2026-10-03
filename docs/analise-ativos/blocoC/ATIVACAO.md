@@ -78,6 +78,10 @@ Comparar o relatório por regra com `regras_sanidade` da spec (medição do dev)
 bloqueante passar de 3% do Quadro de uma classe, **recalibrar** (nova versão do código da v2) antes
 de seguir.
 
+R2 (`historico:escala_ano`) usa como régua os anos com P/VP ≥ `pvpMin` quando a série mistura anos
+plausíveis e anos com P/VP ∈ (0; `pvpMin`): no dev (03/10) isso muda só CBAV3 (marca 2021/2024/2025,
+não mais 2022/2023) e LAND3 (marca 2022–2025, não mais 2021) — 28 → 32 linhas anuais marcadas.
+
 ## Passo 3 — Gravar a v2 **[OK]**
 
 ```bash
