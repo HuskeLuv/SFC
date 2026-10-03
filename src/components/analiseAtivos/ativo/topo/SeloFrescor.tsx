@@ -8,9 +8,11 @@
  * Bloco C (fatia B): `SeloFrescorBloco` = selo POR BLOCO no rodapé de cada card (12px, app-muted,
  * linha fina acima, relógio 14px): 'Fonte · referência'; atrasado = triângulo + 'atualização em
  * atraso' (app-strong 600) + o documento esperado. `RodapeFrescorBloco` lê o frescor do bloco do
- * contexto da página (só existe com params v2).
+ * contexto da página (só existe com params v2) e, com o relato ligado, as linhas "Você reportou"
+ * do bloco (LinhasVoceReportou, fatia D; uma só consulta por ticker, dividida entre os blocos).
  */
 import { useConferenciaPagina } from '@/components/analiseAtivos/comum/PorQueConferencia';
+import { LinhasVoceReportou } from '@/components/analiseAtivos/reporte/MeusRelatos';
 import type { BlocoReporte } from '@/services/analiseAtivos/curadoria/contrato';
 import { TEXTOS_TELA, formatarTexto } from '@/services/analiseAtivos/textosTela';
 import type { FrescorBloco, SeloFrescorProps } from '@/types/analiseAtivosApi';
@@ -136,5 +138,14 @@ export function SeloFrescorBloco({ frescor }: { frescor: FrescorBloco }) {
 export function RodapeFrescorBloco({ bloco }: { bloco: BlocoReporte }) {
   const ctx = useConferenciaPagina();
   const frescor = ctx?.frescorBlocos?.[bloco];
-  return frescor ? <SeloFrescorBloco frescor={frescor} /> : null;
+  const relatos = ctx?.reporteHabilitado ? (
+    <LinhasVoceReportou ticker={ctx.ticker} bloco={bloco} habilitado />
+  ) : null;
+  if (!frescor) return relatos;
+  return (
+    <>
+      {relatos}
+      <SeloFrescorBloco frescor={frescor} />
+    </>
+  );
 }
