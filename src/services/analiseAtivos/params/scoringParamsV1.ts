@@ -7,7 +7,10 @@
  * o banco não tem versão ativa. Versões são imutáveis: recalibrar = nova versão (v2), nunca editar v1.
  * Percentuais em pontos percentuais.
  */
-import type { ScoringParams } from '@/services/analiseAtivos/params/scoringParamsSchema';
+import {
+  CONFERENCIA_PADRAO,
+  type ScoringParams,
+} from '@/services/analiseAtivos/params/scoringParamsSchema';
 
 export const SCORING_PARAMS_V1: ScoringParams = {
   versao: 1,
@@ -412,6 +415,9 @@ export const SCORING_PARAMS_V1: ScoringParams = {
         anosSaltoRecente: 1,
       },
     },
+    // bloco C (03/10/2026): DESLIGADA na v1 — é o default do schema, que a v1 gravada no banco (sem
+    // esta chave) também lê. Com ligada=false nenhuma regra nova grava flag: tela e números iguais.
+    conferencia: structuredClone(CONFERENCIA_PADRAO),
   },
   universo: {
     fiiQuadroPregoes: 30,

@@ -70,6 +70,111 @@ const premissas = z.strictObject({
   pvpAlvo: z.number().optional(),
 });
 
+/**
+ * Bloco C: regras de sanidade "em conferência" por grupo (regras/comum/conferencia.ts). Limiares de
+ * docs/analise-ativos/blocoC/spec-desenho.json (regras_sanidade) + decisoes.md. `ligada=false` (o
+ * DEFAULT, que é o que a v1 lê) = comportamento idêntico ao de antes do bloco C: nenhuma flag
+ * 'conf:'/'rev:'/'info:' é gravada. A v2 liga. Frações em 0–1 (0,40 = 40%) salvo onde diz Pct.
+ */
+export const CONFERENCIA_PADRAO = {
+  ligada: false,
+  // R1 acoes_escala: P/VP ∈ (0; pvpMin) OU P/L ∈ (0; plMin) OU VM/VM do último FY ∉ [1/vmRazao; vmRazao]
+  pvpMin: 0.08,
+  plMin: 0.5,
+  vmRazao: 10,
+  // R2 historico: ≥ historicoMinMultiplos de {P/L, P/VP, P/Receita} a ≥ historicoRazao× (ou ≤ 1/×)
+  // da mediana do ativo
+  historicoRazao: 20,
+  historicoMinMultiplos: 2,
+  // R3 preco_base
+  precoBase: {
+    salto: 0.4,
+    tolFator: 0.08,
+    persistir: 5,
+    tolPersist: 0.15,
+    negociosMin: 20,
+    janelaDias: 365,
+    eventoDias: 3,
+    fatores: [2, 3, 4, 5, 8, 10, 20, 50, 100],
+  },
+  // R4 preco_esporadico: < pregoesMin pregões com negócio em janelaPregoes E (P/VP fora da faixa OU,
+  // só FII, |fechamento/mediana de medianaPregoes pregões com negócio − 1| > desvioMediana60)
+  esporadico: {
+    pregoesMin: 5,
+    janelaPregoes: 21,
+    faixaPvpFii: [0.25, 1.6] as [number, number],
+    faixaPvpAcao: [0.1, 15] as [number, number],
+    desvioMediana60: 0.3,
+    medianaPregoes: 60,
+  },
+  // R5 fii_vp: |VP/cota último/anterior − 1| > fiiVpSalto sem fatorDesdobramento
+  fiiVpSalto: 0.4,
+  // R6 fii_obrigacoes: obrigacoesPlPct > fiiObrigacoesMaxPct
+  fiiObrigacoesMaxPct: 100,
+  // R7 fundamentos_escala: receita, ativo ou PL ≥ fundamentosRazao× contra o FY anterior
+  fundamentosRazao: 10,
+  // alerta 'aviso' do job scores se uma regra bloqueante marcar mais que isto do Quadro de uma classe
+  alertaPctQuadro: 3,
+  // R8/R9/R12: só caso de revisão (rev:), sem efeito na tela nem no Índice (decisões 1 e 2)
+  rev: {
+    variacaoNivel: 0.4,
+    variacaoNivelBaseMin: 100_000_000,
+    variacaoLucroFator: 5,
+    variacaoLucroBaseMin: 50_000_000,
+    fiiCotistas: 0.4,
+    fiiCotistasBaseMin: 100,
+    fiiPl: 0.4,
+    dpaDmplFator: 3,
+    rendFiiCvmFator: 2,
+    precoBrapiPct: 5,
+  },
+};
+
+const fracao = z.number().positive();
+
+const conferencia = z.strictObject({
+  ligada: z.boolean(),
+  pvpMin: fracao,
+  plMin: fracao,
+  vmRazao: z.number().gt(1),
+  historicoRazao: z.number().gt(1),
+  historicoMinMultiplos: z.number().int().min(1).max(3),
+  precoBase: z.strictObject({
+    salto: fracao,
+    tolFator: fracao,
+    persistir: z.number().int().positive(),
+    tolPersist: fracao,
+    negociosMin: z.number().int().nonnegative(),
+    janelaDias: z.number().int().positive(),
+    eventoDias: z.number().int().nonnegative(),
+    fatores: z.array(z.number().gt(1)).min(1),
+  }),
+  esporadico: z.strictObject({
+    pregoesMin: z.number().int().positive(),
+    janelaPregoes: z.number().int().positive(),
+    faixaPvpFii: faixaNum,
+    faixaPvpAcao: faixaNum,
+    desvioMediana60: fracao,
+    medianaPregoes: z.number().int().positive(),
+  }),
+  fiiVpSalto: fracao,
+  fiiObrigacoesMaxPct: z.number().positive(),
+  fundamentosRazao: z.number().gt(1),
+  alertaPctQuadro: z.number().positive(),
+  rev: z.strictObject({
+    variacaoNivel: fracao,
+    variacaoNivelBaseMin: z.number().nonnegative(),
+    variacaoLucroFator: z.number().gt(1),
+    variacaoLucroBaseMin: z.number().nonnegative(),
+    fiiCotistas: fracao,
+    fiiCotistasBaseMin: z.number().int().nonnegative(),
+    fiiPl: fracao,
+    dpaDmplFator: z.number().gt(1),
+    rendFiiCvmFator: z.number().gt(1),
+    precoBrapiPct: z.number().positive(),
+  }),
+});
+
 const baseSchema = z.strictObject({
   versao: z.number().int().positive(),
   descricao: z.string(),
@@ -262,6 +367,8 @@ const baseSchema = z.strictObject({
           anosSaltoRecente: 1,
         }),
     }),
+    // bloco C: ausente no JSON (v1 gravada antes) = CONFERENCIA_PADRAO (ligada:false)
+    conferencia: conferencia.default(() => structuredClone(CONFERENCIA_PADRAO)),
   }),
   universo: z.strictObject({
     fiiQuadroPregoes: z.number().int().positive(),

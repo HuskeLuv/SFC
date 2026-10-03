@@ -1,11 +1,19 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { PrismaClient } from '@prisma/client';
 import {
+  CONFERENCIA_PADRAO,
   problemasCriterio,
   scoringParamsSchema,
   type ScoringParams,
 } from '@/services/analiseAtivos/params/scoringParamsSchema';
 import { SCORING_PARAMS_V1 } from '@/services/analiseAtivos/params/scoringParamsV1';
+import { SCORING_PARAMS_V2 } from '@/services/analiseAtivos/params/scoringParamsV2';
+import {
+  calcularIndiceComParams,
+  componentesIndiceAcao,
+  type EntradaIndiceAcao,
+} from '@/services/analiseAtivos/regras/calculo/indiceMf';
+import { ok } from '@/services/analiseAtivos/regras/comum/valor';
 import { ErroParams, obterScoringParams } from '@/services/analiseAtivos/params/obterScoringParams';
 
 const clonar = (): ScoringParams => structuredClone(SCORING_PARAMS_V1);
@@ -129,5 +137,111 @@ describe('obterScoringParams', () => {
     const erro = await obterScoringParams(prisma).catch((e: unknown) => e);
     expect(erro).toBeInstanceOf(ErroParams);
     expect((erro as ErroParams).codigo).toBe('json_invalido');
+  });
+});
+
+describe('bloco C — sanidade.conferencia (v1 idêntica, v2 liga)', () => {
+  /** JSON da v1 como gravado no banco ANTES do bloco C (sem sanidade.conferencia). */
+  const v1SemConferencia = (): unknown => {
+    const p = structuredClone(SCORING_PARAMS_V1) as unknown as {
+      sanidade: Record<string, unknown>;
+    };
+    delete p.sanidade.conferencia;
+    return p;
+  };
+
+  it('v1 válida com conferencia.ligada=false', () => {
+    expect(SCORING_PARAMS_V1.sanidade.conferencia.ligada).toBe(false);
+    expect(scoringParamsSchema.safeParse(SCORING_PARAMS_V1).success).toBe(true);
+  });
+
+  it('v1 do banco (sem a chave) lê EXATAMENTE a v1 do código (default ligada=false)', () => {
+    const lido = scoringParamsSchema.parse(v1SemConferencia());
+    expect(lido).toEqual(SCORING_PARAMS_V1);
+    expect(lido.sanidade.conferencia).toEqual(CONFERENCIA_PADRAO);
+  });
+
+  it('v1 do banco gera os mesmos scores da fixture da Fase 1 (WEGE3 8,02)', () => {
+    const lido = scoringParamsSchema.parse(v1SemConferencia());
+    const WEGE3: EntradaIndiceAcao = {
+      anosLucroConsecutivos: ok(10),
+      lucroUltimoFy: ok(6376.2e6),
+      ehFinanceira: false,
+      dividaLiquida: ok(-1500e6),
+      ebitda: ok(8900e6),
+      roePct: ok(29.4),
+      plControladora: ok(17417.2e6),
+      dy12mPct: ok(1.6),
+      plVsMedia10aPct: ok(40),
+    };
+    const comCodigo = calcularIndiceComParams(
+      componentesIndiceAcao(WEGE3, SCORING_PARAMS_V1),
+      'acao',
+      SCORING_PARAMS_V1,
+    );
+    const comBanco = calcularIndiceComParams(componentesIndiceAcao(WEGE3, lido), 'acao', lido);
+    expect(comBanco).toEqual(comCodigo);
+    expect(comBanco.indice).toEqual(ok(8.02));
+  });
+
+  it('o default não é compartilhado (mutar o lido não muda CONFERENCIA_PADRAO)', () => {
+    const lido = scoringParamsSchema.parse(v1SemConferencia());
+    lido.sanidade.conferencia.ligada = true;
+    lido.sanidade.conferencia.precoBase.fatores.push(999);
+    expect(CONFERENCIA_PADRAO.ligada).toBe(false);
+    expect(CONFERENCIA_PADRAO.precoBase.fatores).not.toContain(999);
+  });
+
+  it('v2 válida: igual à v1 exceto versão, descrição e ligada=true', () => {
+    const r = scoringParamsSchema.safeParse(SCORING_PARAMS_V2);
+    expect(r.success, JSON.stringify(r.error?.issues)).toBe(true);
+    expect(SCORING_PARAMS_V2.versao).toBe(2);
+    expect(SCORING_PARAMS_V2.sanidade.conferencia.ligada).toBe(true);
+    const semDiferencas = {
+      ...structuredClone(SCORING_PARAMS_V2),
+      versao: 1,
+      descricao: SCORING_PARAMS_V1.descricao,
+    };
+    semDiferencas.sanidade.conferencia.ligada = false;
+    expect(semDiferencas).toEqual(SCORING_PARAMS_V1);
+    // construir a v2 não muda a v1
+    expect(SCORING_PARAMS_V1.sanidade.conferencia.ligada).toBe(false);
+  });
+
+  it('limiares da spec (regras_sanidade + decisões)', () => {
+    const c = SCORING_PARAMS_V2.sanidade.conferencia;
+    expect(c).toMatchObject({
+      pvpMin: 0.08,
+      plMin: 0.5,
+      vmRazao: 10,
+      historicoRazao: 20,
+      historicoMinMultiplos: 2,
+      fiiVpSalto: 0.4,
+      fiiObrigacoesMaxPct: 100,
+      fundamentosRazao: 10,
+    });
+    expect(c.precoBase).toMatchObject({
+      salto: 0.4,
+      tolFator: 0.08,
+      persistir: 5,
+      negociosMin: 20,
+    });
+    expect(c.precoBase.fatores).toEqual([2, 3, 4, 5, 8, 10, 20, 50, 100]);
+    expect(c.esporadico.faixaPvpFii).toEqual([0.25, 1.6]);
+    expect(c.esporadico.faixaPvpAcao).toEqual([0.1, 15]);
+    expect(c.rev).toMatchObject({ variacaoLucroFator: 5, variacaoLucroBaseMin: 50e6 });
+  });
+
+  it('chave extra em sanidade.conferencia = erro (schema estrito)', () => {
+    const p = structuredClone(SCORING_PARAMS_V2) as unknown as {
+      sanidade: { conferencia: Record<string, unknown> };
+    };
+    p.sanidade.conferencia.manual = true;
+    expect(scoringParamsSchema.safeParse(p).success).toBe(false);
+    const q = structuredClone(SCORING_PARAMS_V2) as unknown as {
+      sanidade: { conferencia: { rev: Record<string, unknown> } };
+    };
+    q.sanidade.conferencia.rev.variacaoQualquer = 1;
+    expect(scoringParamsSchema.safeParse(q).success).toBe(false);
   });
 });
