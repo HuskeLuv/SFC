@@ -365,14 +365,21 @@ const num = (x: unknown): number | null => {
   return Number.isFinite(n) ? n : null;
 };
 
-async function carregarDeteccoes(prisma: PrismaClient): Promise<Deteccao[]> {
+/**
+ * `comAnuais=false` (params ativos sem sanidade.conferencia.ligada — v1 ou rollback v3): as flags
+ * 'conf:historico' que sobraram em asset_multiples_yearly (gravadas por um run v2) não abrem nem
+ * mantêm caso; as linhas do Quadro já saem sem 'conf:' do run de scores com a conferência desligada.
+ */
+async function carregarDeteccoes(prisma: PrismaClient, comAnuais: boolean): Promise<Deteccao[]> {
   const [linhas, anuais] = await Promise.all([
     prisma.$queryRaw<LinhaComFlags[]>(Prisma.sql`
       SELECT symbol, classe, cnpj, flags FROM analise_quadro_linhas
       WHERE EXISTS (SELECT 1 FROM unnest(flags) f WHERE f LIKE 'conf:%' OR f LIKE 'rev:%')`),
-    prisma.$queryRaw<LinhaComFlags[]>(Prisma.sql`
+    comAnuais
+      ? prisma.$queryRaw<LinhaComFlags[]>(Prisma.sql`
       SELECT symbol, classe, cnpj, flags FROM asset_multiples_yearly
-      WHERE EXISTS (SELECT 1 FROM unnest(flags) f WHERE f LIKE 'conf:%' OR f LIKE 'rev:%')`),
+      WHERE EXISTS (SELECT 1 FROM unnest(flags) f WHERE f LIKE 'conf:%' OR f LIKE 'rev:%')`)
+      : Promise.resolve([] as LinhaComFlags[]),
   ]);
   return extrairDeteccoes([...linhas, ...anuais]);
 }
@@ -482,7 +489,7 @@ export async function executarCuradoria(ctx: JobContexto): Promise<ResultadoJob>
   const relatorio: RelatorioCuradoria = { ...RELATORIO_CURADORIA_VAZIO };
 
   const [deteccoes, abertos, fechados, linhasDeHoje] = await Promise.all([
-    carregarDeteccoes(prisma),
+    carregarDeteccoes(prisma, ctx.params?.sanidade?.conferencia?.ligada === true),
     prisma.analiseCasoDado.findMany({
       where: { status: { in: ['aberto', 'em_analise'] } },
       select: SELECT_ABERTO,

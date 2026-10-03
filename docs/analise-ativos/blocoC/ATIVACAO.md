@@ -124,8 +124,13 @@ jurídico **[OK]**.
 
 ## Rollback
 
-- Regras: v3 = v2 com `ligada=false`, depois `recalcular-analise --etapas=scores --tudo --apply` +
-  `myfinance-job.sh quadro`.
+- Regras: v3 = v2 com `ligada=false`, depois
+  `recalcular-analise --etapas=derivados,scores --tudo --apply` + `myfinance-job.sh quadro`. A etapa
+  **derivados** é obrigatória: as flags `conf:historico:escala_ano@<ano>` moram em
+  `asset_multiples_yearly` e só são regravadas (sem `conf:`) por ela — só com `scores` os chips dos
+  anos históricos continuariam na página. Conferir depois:
+  `select count(*) from asset_multiples_yearly where exists (select 1 from unnest(flags) f where f like 'conf:%')`
+  = 0. O job `curadoria` já ignora as flags anuais com a conferência desligada.
 - Botão: remover `ANALISE_ATIVOS_REPORTE_HABILITADO` do `$ENVF` + restart.
 - Tabelas ficam (aditivas).
 

@@ -374,6 +374,18 @@ describe('executarCuradoria', () => {
     expect(p.analiseCasoEvento.create).not.toHaveBeenCalled();
   });
 
+  it('conferência desligada (v1/rollback): não lê as flags anuais; ligada: lê', async () => {
+    const p = prismaFake({ linhasFlag: [] });
+    await executarCuradoria(ctxFake(p, false));
+    expect(p.$queryRaw).toHaveBeenCalledTimes(1);
+    const p2 = prismaFake({ linhasFlag: [] });
+    await executarCuradoria({
+      ...ctxFake(p2, false),
+      params: { sanidade: { conferencia: { ligada: true } } } as unknown as JobContexto['params'],
+    });
+    expect(p2.$queryRaw).toHaveBeenCalledTimes(2);
+  });
+
   it('aplicar abre o caso de regra sem prazo, com evento', async () => {
     const p = prismaFake({
       linhasFlag: [{ ...linhaWege, flags: ['conf:fii_obrigacoes:obrigacoes_acima@2026-08'] }],
