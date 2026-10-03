@@ -6,6 +6,11 @@ const mockPrisma = vi.hoisted(() => ({
   consultantImpersonationLog: { deleteMany: vi.fn().mockResolvedValue({ count: 2 }) },
   loginEvent: { deleteMany: vi.fn().mockResolvedValue({ count: 3 }) },
   userChangeLog: { deleteMany: vi.fn().mockResolvedValue({ count: 4 }) },
+  analiseDataReport: {
+    findMany: vi.fn().mockResolvedValue([]),
+    updateMany: vi.fn().mockResolvedValue({ count: 0 }),
+  },
+  analiseCasoEvento: { createMany: vi.fn().mockResolvedValue({ count: 0 }) },
 }));
 
 vi.mock('@/lib/prisma', () => ({ default: mockPrisma }));
@@ -46,6 +51,32 @@ describe('GET /api/cron/lgpd-retention', () => {
     const body = await response.json();
     expect(body.changeLogsPurged).toBe(4);
     expect(body.cutoffs.changeLogs).toBeDefined();
+  });
+
+  it('anonimiza relatos da Análise de Ativos de casos fechados há mais de 12 meses', async () => {
+    mockPrisma.analiseDataReport.findMany.mockResolvedValueOnce([
+      { id: 'r1', casoId: 'c1' },
+      { id: 'r2', casoId: 'c1' },
+    ]);
+    mockPrisma.analiseDataReport.updateMany.mockResolvedValueOnce({ count: 2 });
+    const response = await GET(createRequest('test-secret'));
+    const where = mockPrisma.analiseDataReport.findMany.mock.calls[0][0].where;
+    expect(where.anonimizadoEm).toBeNull();
+    expect(where.caso.status.in).toEqual(['corrigido', 'rejeitado']);
+    const corte: Date = where.caso.resolvidoEm.lt;
+    expect(Math.abs(corte.getTime() - (Date.now() - 365 * DAYS))).toBeLessThan(2 * DAYS);
+    expect(mockPrisma.analiseDataReport.updateMany.mock.calls[0][0].data).toMatchObject({
+      mensagem: '[removido]',
+      valorEsperado: null,
+      fonteEsperada: null,
+    });
+    // um evento 'anonimizado' por caso (sem texto do usuário)
+    expect(mockPrisma.analiseCasoEvento.createMany.mock.calls[0][0].data).toEqual([
+      { casoId: 'c1', autorId: null, tipo: 'anonimizado', texto: 'retenção de 12 meses' },
+    ]);
+    const body = await response.json();
+    expect(body.analiseRelatosAnonimizados).toBe(2);
+    expect(body.cutoffs.analiseRelatos).toBeDefined();
   });
 
   it('mantém as purgas pré-existentes (invites, impersonation, login)', async () => {

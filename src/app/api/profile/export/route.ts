@@ -15,6 +15,7 @@ import { requireAuthWithActing } from '@/utils/auth';
 import prisma from '@/lib/prisma';
 import { withErrorHandler } from '@/utils/apiErrorHandler';
 import { tesesParaExportacao } from '@/services/analiseAtivos/tese/teseService';
+import { relatosParaExportacao } from '@/services/analiseAtivos/curadoria/privacidadeReportes';
 
 export const GET = withErrorHandler(async (req: NextRequest) => {
   const { payload } = await requireAuthWithActing(req);
@@ -42,6 +43,7 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
     communityLikes,
     communityReports,
     analiseTeses,
+    analiseRelatos,
   ] = await Promise.all([
     prisma.user.findUnique({
       where: { id: userId },
@@ -68,6 +70,8 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
     prisma.communityReport.findMany({ where: { reporterId: userId } }),
     // Análise de Ativos: teses privadas (texto livre do usuário).
     tesesParaExportacao(userId),
+    // Análise de Ativos (bloco C): relatos de dado incorreto do usuário + status do caso.
+    relatosParaExportacao(prisma, userId),
   ]);
 
   if (!user) {
@@ -106,6 +110,7 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
     },
     analiseAtivos: {
       teses: analiseTeses,
+      relatos: analiseRelatos,
     },
   };
 
