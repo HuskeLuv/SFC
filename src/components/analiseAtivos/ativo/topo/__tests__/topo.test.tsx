@@ -11,6 +11,7 @@ import CabecalhoAtivo from '../CabecalhoAtivo';
 import CardEducacao from '../CardEducacao';
 import GraficoLucroCotacao from '../GraficoLucroCotacao';
 import SeloFrescor from '../SeloFrescor';
+import { ConferenciaPaginaProvider } from '@/components/analiseAtivos/comum/PorQueConferencia';
 import { ATIVO_WEGE3 } from '@/test/fixtures/analiseAtivos/respostas';
 import { encontrarPalavrasProibidas } from '@/services/analiseAtivos/textos';
 import type { AtivoTopoResposta, IndiceTopo } from '@/types/analiseAtivosApi';
@@ -258,6 +259,39 @@ describe('GraficoLucroCotacao', () => {
     expect(container.querySelector('svg[role="img"]')).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'Ver gráfico' }));
     expect(container.querySelector('svg[role="img"]')).not.toBeNull();
+  });
+
+  it('cotação em conferência desde depois do último ano fechado: últ. 12m tracejado + nota', () => {
+    const { container } = render(
+      <ConferenciaPaginaProvider
+        valor={{
+          ticker: 'WEGE3',
+          classe: 'acao',
+          versao: 'v2',
+          reporteHabilitado: false,
+          frescorBlocos: null,
+          conferencias: [
+            {
+              grupo: 'preco_base',
+              campos: ['preco'],
+              exibicao: 'ocultar',
+              motivo: 'base da cotação em conferência',
+              desde: '2026-04-29',
+              efeitoIndice: null,
+              origem: 'regra',
+              caso: null,
+            },
+          ],
+        }}
+      >
+        <GraficoLucroCotacao ticker="WEGE3" classe="acao" grafico={grafico} />
+      </ConferenciaPaginaProvider>,
+    );
+    expect(container.querySelector('[data-trecho-conferencia]')).toBeNull();
+    expect(container.querySelector('circle[data-ponto-conferencia]')).not.toBeNull();
+    expect(container.querySelector('figcaption')!.textContent).toContain(
+      'Trecho tracejado: cotação em conferência desde 29/04/2026.',
+    );
   });
 
   it('menos de 3 pontos: "histórico insuficiente para o gráfico"', () => {

@@ -254,13 +254,16 @@ export default function GraficoLucroCotacao({ ticker, classe, grafico }: Grafico
       (c) => (c.grupo === 'preco_base' || c.grupo === 'preco_esporadico') && c.desde,
     ) ?? null;
   const idxConf = confCotacao?.desde ? indiceDesde(pontos, confCotacao.desde) : -1;
+  // o 'últ. 12m' é sempre o ponto mais recente: com a cotação em conferência ele também está, mesmo
+  // quando a data da detecção cai depois do último ano fechado (idxConf = -1)
+  const ultConf = !!confCotacao?.desde && temUlt && janela.ult12m?.b100 != null;
   const confLpa = ctx?.conferencias.find((c) => c.grupo === 'fundamentos_escala') ?? null;
   const anoLpa = confLpa?.desde ? anoDaChave(confLpa.desde) : null;
   const idxLpa =
     anoLpa !== null && !mensal ? pontos.findIndex((p) => p.chave === String(anoLpa)) : -1;
   const confGrafico = confCotacao ?? confLpa;
   const notaConf = [
-    confCotacao?.desde && idxConf >= 0
+    confCotacao?.desde && (idxConf >= 0 || ultConf)
       ? formatarTexto(TEXTOS_TELA.telaConferencia.cotacaoTracejada, {
           data: dataBr(confCotacao.desde),
         })
@@ -557,10 +560,12 @@ export default function GraficoLucroCotacao({ ticker, classe, grafico }: Grafico
                     <>
                       {janela.ult12m.b100 !== null ? (
                         <circle
+                          data-ponto-conferencia={ultConf ? '' : undefined}
                           cx={x(ultIdx)}
                           cy={y(janela.ult12m.b100)}
-                          r={4}
-                          strokeWidth={2}
+                          r={ultConf ? 5 : 4}
+                          strokeWidth={ultConf ? 1.6 : 2}
+                          strokeDasharray={ultConf ? '2 2' : undefined}
                           className={`fill-white dark:fill-gray-900 ${COR_B.stroke}`}
                         />
                       ) : null}
