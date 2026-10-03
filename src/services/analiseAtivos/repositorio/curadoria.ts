@@ -62,6 +62,28 @@ export async function liberacoes(prisma: PrismaClient): Promise<LiberacaoConfere
   return out;
 }
 
+/**
+ * Símbolos com liberação decidida desde `desde` (último scores OK). O run diário recalcula os
+ * derivados desses emissores: a flag 'conf:historico:escala_ano@<ano>' mora em
+ * asset_multiples_yearly e só é refeita na etapa derivados (incremental), então sem isso o ano
+ * liberado seguiria fora da média até o emissor publicar um documento novo (decisão 15: vale no
+ * PRÓXIMO cálculo diário). Somente leitura, 1 query.
+ */
+export async function simbolosLiberadosDesde(prisma: PrismaClient, desde: Date): Promise<string[]> {
+  const casos = await prisma.analiseCasoDado.findMany({
+    where: {
+      status: 'rejeitado',
+      resolucao: 'dado_confirmado',
+      efeitoTela: 'liberar_valor',
+      regraCodigo: { not: null },
+      chaveDeteccao: { not: null },
+      resolvidoEm: { gte: desde },
+    },
+    select: { symbol: true },
+  });
+  return [...new Set(casos.map((c) => c.symbol.trim().toUpperCase()))];
+}
+
 /** Códigos das regras dos grupos de escopo 'empresa' (a detecção vale para todos os tickers). */
 export const REGRAS_ESCOPO_EMPRESA: ReadonlySet<string> = new Set(
   Object.values(DEF_GRUPO)

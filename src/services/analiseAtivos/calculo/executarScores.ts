@@ -5,7 +5,8 @@
  *  1. eventos corporativos: verificação de todo o universo (a auditoria de proventos usa os eventos
  *     confirmados para o ajuste a hoje, por isso roda antes da gravação dos proventos);
  *  2. auditoria COMPLETA de proventos com reescrita por impressão digital (sem incremental);
- *  3. per-share e múltiplos anuais dos emissores/FIIs alterados desde o último run OK (ou de todos);
+ *  3. per-share e múltiplos anuais dos emissores/FIIs alterados desde o último run OK (ou de todos),
+ *     mais os emissores com liberação nova da curadoria (v2: refaz conf:historico do ano liberado);
  *  4. múltiplos atuais do universo inteiro (preço de AssetQuoteResumo; TTM da fatia A);
  *  5. Índice MF + semáforo (ScoringParams ativo), dataRef = último pregão;
  *  6. retenção de asset_scores.
@@ -23,7 +24,10 @@ import { recalcularScores } from '@/services/analiseAtivos/calculo/recalcularSco
 import { carregarDadosBase } from '@/services/analiseAtivos/calculo/universo';
 import { emissoresAlteradosDesde } from '@/services/analiseAtivos/repositorio/acoes';
 import { fiisAlteradosDesde } from '@/services/analiseAtivos/repositorio/fii';
-import { conjuntoLiberacoes } from '@/services/analiseAtivos/repositorio/curadoria';
+import {
+  conjuntoLiberacoes,
+  simbolosLiberadosDesde,
+} from '@/services/analiseAtivos/repositorio/curadoria';
 import { ultimaExecucaoOkPorJob } from '@/services/analiseAtivos/repositorio/jobs';
 import type { JobContexto, ResultadoJob } from '@/services/analiseAtivos/tipos';
 
@@ -143,12 +147,14 @@ export async function executarScores(
       ? undefined
       : (await ultimaExecucaoOkPorJob(ctx.prisma)).get('scores');
     if (ultimoOk) {
-      const [emAlt, fiiAlt] = await Promise.all([
+      const [emAlt, fiiAlt, liberadosNovos] = await Promise.all([
         emissoresAlteradosDesde(ctx.prisma, ultimoOk),
         fiisAlteradosDesde(ctx.prisma, ultimoOk),
+        // bloco C: liberação nova do curador (ano histórico) refaz as flags anuais do emissor
+        liberacoes ? simbolosLiberadosDesde(ctx.prisma, ultimoOk) : Promise.resolve([]),
       ]);
       // proventos/eventos regravados mudam DPA e ajustes: recalcula também esses emissores
-      const simbolosMudaram = new Set([...pv.reescritos, ...ev.alterados]);
+      const simbolosMudaram = new Set([...pv.reescritos, ...ev.alterados, ...liberadosNovos]);
       const cnpjsMudaram = new Set(
         [...simbolosMudaram].map((s) => u.cnpjDoSimbolo.get(s)).filter((c): c is string => !!c),
       );

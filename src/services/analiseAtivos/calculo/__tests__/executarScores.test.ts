@@ -32,6 +32,7 @@ const dados = vi.hoisted(() => ({
   // bloco C: série recente de cotações, pré-filtro de salto e liberações da curadoria
   series: new Map<string, Array<{ date: string; closeRaw: number; negocios: number }>>(),
   liberacoes: new Set<string>(),
+  liberadosDesde: [] as string[],
 }));
 
 vi.mock('@/services/analiseAtivos/repositorio/universo', () => ({
@@ -95,12 +96,17 @@ vi.mock('@/services/analiseAtivos/repositorio/jobs', () => ({
 }));
 vi.mock('@/services/analiseAtivos/repositorio/curadoria', () => ({
   conjuntoLiberacoes: vi.fn(async () => dados.liberacoes),
+  simbolosLiberadosDesde: vi.fn(async () => dados.liberadosDesde),
 }));
 
 import { executarScores } from '@/services/analiseAtivos/calculo/executarScores';
 import { dataRefScores } from '@/services/analiseAtivos/calculo/recalcularScores';
 import { SCORING_PARAMS_V2 } from '@/services/analiseAtivos/params/scoringParamsV2';
-import { conjuntoLiberacoes } from '@/services/analiseAtivos/repositorio/curadoria';
+import {
+  conjuntoLiberacoes,
+  simbolosLiberadosDesde,
+} from '@/services/analiseAtivos/repositorio/curadoria';
+import { ultimaExecucaoOkPorJob } from '@/services/analiseAtivos/repositorio/jobs';
 import {
   serieRecenteCotacoes,
   simbolosComSaltoDePreco,
@@ -285,6 +291,7 @@ function emissor(cnpj: string, ehFinanceira: boolean): EmissorInfo {
 beforeEach(() => {
   dados.series = new Map();
   dados.liberacoes = new Set();
+  dados.liberadosDesde = [];
   vi.mocked(serieRecenteCotacoes).mockClear();
   vi.mocked(simbolosComSaltoDePreco).mockClear();
   vi.mocked(conjuntoLiberacoes).mockClear();
@@ -1024,5 +1031,34 @@ describe('bloco C — motor de sanidade no job scores', () => {
     await executarScores(ctx, { tudo: true });
     const x4 = tabelas.assetMultiplesCurrent.find((l) => l.symbol === 'XPTO4')!;
     expect((x4.flags as string[]).filter((f) => f.startsWith('conf:'))).toEqual([]);
+  });
+
+  it('v2 incremental: emissor com liberação nova desde o último OK entra nos derivados', async () => {
+    vi.mocked(ultimaExecucaoOkPorJob).mockResolvedValueOnce(
+      new Map([['scores', new Date('2026-09-26T10:10:00Z')]]),
+    );
+    const empresas = (r: Awaited<ReturnType<typeof executarScores>>) =>
+      (r.detalhes as { derivados: { empresas: number } }).derivados.empresas;
+    const ctxV2 = () => ({
+      ...ctxDe(fakePrisma().prisma, '2026-09-27'),
+      params: SCORING_PARAMS_V2,
+      paramsVersion: 2,
+    });
+    const sem = empresas(await executarScores(ctxV2()));
+    vi.mocked(ultimaExecucaoOkPorJob).mockResolvedValueOnce(
+      new Map([['scores', new Date('2026-09-26T10:10:00Z')]]),
+    );
+    dados.liberadosDesde = ['XPTO4'];
+    const com = empresas(await executarScores(ctxV2()));
+    expect(simbolosLiberadosDesde).toHaveBeenCalled();
+    expect(com).toBe(sem + 1);
+
+    // v1 (sem conferência): nem consulta
+    vi.mocked(simbolosLiberadosDesde).mockClear();
+    vi.mocked(ultimaExecucaoOkPorJob).mockResolvedValueOnce(
+      new Map([['scores', new Date('2026-09-26T10:10:00Z')]]),
+    );
+    expect(empresas(await executarScores(ctxDe(fakePrisma().prisma, '2026-09-27')))).toBe(sem);
+    expect(simbolosLiberadosDesde).not.toHaveBeenCalled();
   });
 });
