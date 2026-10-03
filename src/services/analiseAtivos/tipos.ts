@@ -279,6 +279,8 @@ export type NomeJob =
   | 'cotahist'
   | 'scores'
   | 'quadro'
+  // bloco C: fila de curadoria (casos de regra + digest de prazo)
+  | 'curadoria'
   | `backfill:${string}`;
 export interface AlertaJob {
   codigo: string;

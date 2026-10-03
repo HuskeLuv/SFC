@@ -13,6 +13,7 @@ import { sincronizarCvmCias } from '@/services/analiseAtivos/acoes/sincronizarCv
 import { sincronizarB3Cadastro } from '@/services/analiseAtivos/b3/sincronizarB3Cadastro';
 import { sincronizarCotahist } from '@/services/analiseAtivos/b3/sincronizarCotahist';
 import { executarScores } from '@/services/analiseAtivos/calculo/executarScores';
+import { executarCuradoria } from '@/services/analiseAtivos/curadoria/sincronizarCasos';
 import { sincronizarIpe } from '@/services/analiseAtivos/eventos/sincronizarIpe';
 import { sincronizarFiiCadastro } from '@/services/analiseAtivos/fii/sincronizarFiiCadastro';
 import { sincronizarFiiMensal } from '@/services/analiseAtivos/fii/sincronizarFiiMensal';
@@ -101,6 +102,14 @@ export const CATALOGO_JOBS: Record<NomeJobCron, DefinicaoJob> = {
     prazoMs: 120_000,
     pesado: false,
     executar: (ctx) => gerarQuadro(ctx),
+  },
+  // Bloco C: abre/atualiza casos de regra a partir das flags conf:/rev: e manda o resumo de prazos
+  // aos admins (10:55 UTC, depois do quadro). Só banco.
+  curadoria: {
+    nome: 'curadoria',
+    prazoMs: 120_000,
+    pesado: false,
+    executar: (ctx) => executarCuradoria(ctx),
   },
 };
 
