@@ -4,11 +4,13 @@
  * Selo "dados incompletos" (fatia 0b; decisão 4): chip com borda TRACEJADA que abre "O que falta"
  * com os motivos legíveis — popover no computador, BottomSheet no celular (< lg). Sem motivos, é só
  * o chip (sem botão). Área de toque de 44px no chip (pseudo-elemento) sem engordar a linha.
+ * Bloco C: motivo '<componente>:em_conferencia' leva a lupa tracejada do chip "em conferência".
  */
 import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import BottomSheet from '@/components/ui/sheet/BottomSheet';
 import { useMobileHistoryLayer } from '@/hooks/useMobileHistoryLayer';
 import { IconeCriterio } from '@/components/analiseAtivos/comum/BadgeCriterio';
+import { IconeLupaTracejada } from '@/components/analiseAtivos/comum/ChipConferencia';
 import { useIsBelowLg } from '@/hooks/useMediaQuery';
 import { TEXTOS_TELA, formatarTexto } from '@/services/analiseAtivos/textosTela';
 import type { MotivoTela, SeloIncompletoProps } from '@/types/analiseAtivosApi';
@@ -28,7 +30,13 @@ function ListaMotivos({ motivos }: { motivos: MotivoTela[] }) {
             className="flex items-start gap-2 text-sm text-gray-700 dark:text-gray-300"
           >
             <span className="mt-0.5 inline-flex text-gray-500 dark:text-gray-400">
-              <IconeCriterio icone="circulo_tracejado_interrogacao" />
+              {m.codigo.endsWith(':em_conferencia') ? (
+                <span data-motivo-conferencia="" className="inline-flex h-4 w-4 items-center">
+                  <IconeLupaTracejada className="h-4 w-4" />
+                </span>
+              ) : (
+                <IconeCriterio icone="circulo_tracejado_interrogacao" />
+              )}
             </span>
             <span>{m.texto}</span>
           </li>
