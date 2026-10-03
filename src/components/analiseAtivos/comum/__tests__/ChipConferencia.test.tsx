@@ -22,6 +22,10 @@ const botaoReportar = vi.hoisted(() => vi.fn((_props: unknown) => null));
 vi.mock('@/components/analiseAtivos/reporte/BotaoReportarDado', () => ({
   default: (props: unknown) => botaoReportar(props),
 }));
+// "Você reportou" (fatia D) no rodapé do bloco: busca com React Query; fora do escopo deste teste
+vi.mock('@/components/analiseAtivos/reporte/MeusRelatos', () => ({
+  LinhasVoceReportou: () => null,
+}));
 vi.mock('next/navigation', () => ({ useRouter: () => ({ push: vi.fn() }) }));
 vi.mock('@tanstack/react-query', async (orig) => ({
   ...(await orig<typeof import('@tanstack/react-query')>()),
