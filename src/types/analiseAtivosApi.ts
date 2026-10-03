@@ -26,6 +26,12 @@
  *   PUT  /api/analise-ativos/teses/[ticker]  TesePutBody → TesePutResposta (CSRF)      (D)
  *   DEL  /api/analise-ativos/teses/[ticker]              → TeseDeleteResposta (CSRF)   (D)
  *   GET  /api/cron/analise-ativos/quadro                 → RelatorioJob (cron secret)  (A)
+ *
+ * Bloco C (docs/analise-ativos/blocoC/spec-desenho.json + decisoes.md) — acréscimos SÓ ADITIVOS e
+ * opcionais (as fixtures da Fase 1 compilam sem mudança): selos 'em_conferencia' e
+ * 'cotacao_esporadica'; Estado ausente com exibicao/valorNaoPublicado; ConferenciaTela;
+ * LinhaQuadroApi.conferencias; AtivoTopoResposta.conferencias/frescorBlocos; FrescorBloco;
+ * ConfigResposta.reporteHabilitado. Tipos do relato e da curadoria: src/types/analiseAtivosCuradoria.ts.
  */
 import type { ReactNode } from 'react';
 
@@ -54,8 +60,64 @@ export interface MotivoTela {
  */
 export type Estado<T> =
   | { estado: 'ok'; valor: T }
-  | { estado: 'ausente'; motivo: string; texto: string }
+  | {
+      estado: 'ausente';
+      motivo: string;
+      texto: string;
+      /**
+       * Bloco C: campo em conferência (motivo 'em_conferencia:<grupo>'). 'ocultar' = '—' + chip;
+       * 'selo' não chega aqui (o campo fica ok com valor + chip). Ausente sem isto = como hoje.
+       */
+      exibicao?: ExibicaoConferenciaTela;
+      /**
+       * Bloco C: valor bruto NÃO publicado, só para o "Por quê?" da PÁGINA do ativo (o Quadro nunca
+       * envia).
+       */
+      valorNaoPublicado?: number;
+    }
   | { estado: 'nao_se_aplica'; motivo: string; texto: string };
+
+/** Política de exibição de um campo em conferência (regras/comum/conferencia.ts). */
+export type ExibicaoConferenciaTela = 'ocultar' | 'selo';
+
+/**
+ * Bloco C: um grupo em conferência na página do ativo (o "Por quê?"). Montado pela fatia B
+ * (leitura/ativo/conferenciasAtivo.ts) a partir das flags 'conf:' + legado de proventos e da
+ * leitura SOMENTE LEITURA do caso aberto do symbol (sem dado de autor).
+ */
+export interface ConferenciaTela {
+  /** GrupoConferencia (regras/comum/conferencia.ts) */
+  grupo: string;
+  /** CampoTela afetados (DEF_GRUPO[grupo].campos) */
+  campos: string[];
+  exibicao: ExibicaoConferenciaTela;
+  /** texto pronto (textosTela.conferencia.motivos) */
+  motivo: string;
+  /** AAAA-MM-DD da detecção (chave da flag quando é data), ou null */
+  desde: string | null;
+  /** "Índice MF fica incompleto: Preço e Dividendos"; null = só exibição */
+  efeitoIndice: string | null;
+  /**
+   * Sempre 'regra' nesta fase (decisão 16: sem conferência manual pelo curador; "relato confirmado"
+   * não existe como origem).
+   */
+  origem: 'regra';
+  /** situação do caso de curadoria aberto do symbol para o grupo, se houver */
+  caso: { status: 'aberto' | 'em_analise'; atualizadoEm: string } | null;
+}
+
+/** Bloco C: frescor por bloco (selo no rodapé de cada card; fatia B, leitura/ativo/frescorBlocos). */
+export interface FrescorBloco {
+  /** 'CVM DFP/ITR', 'B3 COTAHIST', 'informe mensal CVM'... */
+  fonte: string;
+  /** referência do dado ('2T26', 'ago/26', '29/09/2026') */
+  referencia: string | null;
+  /** ISO da última atualização gravada */
+  atualizadoEm: string | null;
+  status: 'em_dia' | 'atrasado' | 'sem_dado';
+  /** atrasado: documento esperado ('ITR 3T26') */
+  documentoEsperado?: string;
+}
 
 /**
  * Estado do Índice MF de uma linha/ativo (decisão 4: três estados visualmente distintos + 2):
@@ -119,7 +181,11 @@ export type TipoSeloEstado =
   | 'sem_negociacao_recente'
   | 'baixa_liquidez'
   | 'planejado'
-  | 'na_carteira';
+  | 'na_carteira'
+  /** bloco C: campo em conferência por regra de sanidade (chip tracejado com lupa) */
+  | 'em_conferencia'
+  /** bloco C: cotação de negócio esporádico (só informativo, sem efeito no Índice) */
+  | 'cotacao_esporadica';
 
 // ===========================================================================
 // /api/analise-ativos/config (0a)
@@ -138,6 +204,11 @@ export interface ConfigResposta {
   acesso: 'beta' | 'todos';
   /** selo NOVO no menu até esta data (AAAA-MM-DD, inclusive) */
   novoAte: string;
+  /**
+   * Bloco C: botão/APIs de "Reportar dado incorreto" ligados para este usuário
+   * (ANALISE_ATIVOS_REPORTE_HABILITADO && área liberada). Ausente = false.
+   */
+  reporteHabilitado?: boolean;
 }
 
 // ===========================================================================
@@ -239,6 +310,10 @@ export interface LinhaQuadroApi {
   serieUlt12m: number | null;
   /** DY/payout com valor mas com proventos em conferência (provento_suspeito/proventos_defasados) */
   proventosEmConferencia: boolean;
+  /**
+   * Bloco C: grupos em conferência da linha (flags 'conf:' + 'proventos' se legado). Ausente = [].
+   */
+  conferencias?: string[];
   flags: string[];
   pares: string[];
   /** Asset.id do catálogo (null = fora do catálogo: o wizard abre no passo Ativo) */
@@ -470,6 +545,10 @@ export interface AtivoTopoResposta {
   educacao: EducacaoAtivo;
   frescor: FrescorAtivo;
   versao: string;
+  /** Bloco C: grupos em conferência (o "Por quê?"). Ausente = nenhum. */
+  conferencias?: ConferenciaTela[];
+  /** Bloco C: frescor por bloco (chave = BlocoReporte). Ausente = selo único de hoje. */
+  frescorBlocos?: Partial<Record<string, FrescorBloco>>;
 }
 
 // ===========================================================================

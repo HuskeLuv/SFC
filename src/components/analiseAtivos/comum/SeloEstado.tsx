@@ -4,6 +4,8 @@
  * - na_carteira: fundo azul suave (patrimonio a 10%) com texto seguranca;
  * - proventos_em_conferencia: fundo cinza com borda tracejada;
  * - criterios_provisorios, baixa_liquidez: contorno cinza.
+ * - bloco C: em_conferencia = mesmo visual de proventos_em_conferencia (fatia B pode trocar pelo
+ *   ChipConferencia com lupa); cotacao_esporadica = contorno cinza (só informativo).
  * Texto padrão em textosTela.selosEstado; `texto` substitui (ex.: 'Planejado · 5%').
  */
 import { textoSeloEstado } from '@/services/analiseAtivos/textosTela';
@@ -25,6 +27,8 @@ const ESTILO: Record<TipoSeloEstado, string> = {
   proventos_em_conferencia: `${TRACEJADO} bg-gray-100 dark:bg-white/5`,
   criterios_provisorios: CONTORNO,
   baixa_liquidez: CONTORNO,
+  em_conferencia: `${TRACEJADO} bg-gray-100 dark:bg-white/5`,
+  cotacao_esporadica: CONTORNO,
 };
 
 export default function SeloEstado({ tipo, texto, className }: SeloEstadoProps) {

@@ -11,6 +11,7 @@ import {
   textoZeroRegra,
 } from '@/services/analiseAtivos/textosTela';
 import { TEXTOS_ANALISE, encontrarPalavrasProibidas } from '@/services/analiseAtivos/textos';
+import { DEF_GRUPO, GRUPOS_CONFERENCIA } from '@/services/analiseAtivos/regras/comum/conferencia';
 
 function folhas(obj: unknown, caminho = ''): Array<[string, string]> {
   if (typeof obj === 'string') return [[caminho, obj]];
@@ -98,5 +99,45 @@ describe('textosTela', () => {
       'sem negociação nos últimos 30 pregões',
     );
     expect(TEXTOS_TELA.foraDoBeta.titulo).toMatch(/teste com um grupo pequeno/);
+  });
+});
+
+describe('textosTela — bloco C (conferência, relatos e curadoria)', () => {
+  const FOLHAS_C = [
+    ...folhas(TEXTOS_TELA.conferencia, 'conferencia'),
+    ...folhas(TEXTOS_TELA.relatos, 'relatos'),
+    ...folhas(TEXTOS_TELA.curadoria, 'curadoria'),
+  ];
+
+  it('varredura de compliance nas folhas novas (e nunca "nota")', () => {
+    expect(FOLHAS_C.length).toBeGreaterThan(150);
+    const achados = FOLHAS_C.map(([k, v]) => [k, encontrarPalavrasProibidas(v)] as const).filter(
+      ([, p]) => p.length > 0,
+    );
+    expect(achados).toEqual([]);
+    expect(FOLHAS_C.filter(([, v]) => /\bnotas?\b/i.test(v))).toEqual([]);
+  });
+
+  it('todo grupo × regra de DEF_GRUPO tem motivo próprio', () => {
+    for (const g of GRUPOS_CONFERENCIA) {
+      for (const r of DEF_GRUPO[g].regras) {
+        expect(TEXTOS_TELA.conferencia.motivos[`${g}:${r}`], `${g}:${r}`).toBeTruthy();
+      }
+    }
+  });
+
+  it('nomes aprovados: "Reportar dado incorreto", "relato", "Conferido, sem alteração"', () => {
+    expect(TEXTOS_TELA.relatos.menu.reportar).toBe('Reportar dado incorreto');
+    expect(TEXTOS_TELA.relatos.nome).toBe('relato');
+    expect(TEXTOS_TELA.relatos.meus.status.conferido_sem_alteracao).toBe(
+      'Conferido, sem alteração',
+    );
+  });
+
+  it('motivos do Índice para componentes em conferência', () => {
+    expect(textoMotivo('preco:em_conferencia')).toBe('preço e múltiplos em conferência');
+    expect(textoMotivo('divida:em_conferencia')).toBe('dívida em conferência');
+    // o legado de proventos não muda
+    expect(textoMotivo('div:em_conferencia')).toBe('proventos em conferência');
   });
 });
