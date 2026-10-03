@@ -13,6 +13,10 @@ import { getBuildId } from '@/lib/buildId';
 import { assistenteHabilitado, inicioDoMes, limiteMensal } from '@/services/assistente/limite';
 import { MODELO_ASSISTENTE } from '@/services/assistente/prompt';
 import { CHANGE_SECTIONS } from '@/services/changeHistory/types';
+import {
+  resumoCuradoriaAdmin,
+  type ResumoCuradoriaAdmin,
+} from '@/services/analiseAtivos/curadoria/filaCuradoria';
 
 const DIA_MS = 24 * 60 * 60 * 1000;
 
@@ -103,6 +107,11 @@ export interface AdminOverview {
     cobertura: { status: string; total: number }[];
     banco: { tamanho: string | null; tabelas: { nome: string; linhas: number }[] };
   };
+  /**
+   * Análise de Ativos, bloco C: pendências da fila de curadoria (sem casos de revisão). null se a
+   * leitura falhar (o painel continua de pé).
+   */
+  curadoria: ResumoCuradoriaAdmin | null;
 }
 
 interface SerieDiaRow {
@@ -553,12 +562,13 @@ export async function getAdminOverview(agora = new Date()): Promise<AdminOvervie
   const d7 = new Date(agora.getTime() - 7 * DIA_MS);
   const d30 = new Date(agora.getTime() - 30 * DIA_MS);
 
-  const [usuarios, uso, assistente, sistema] = await Promise.all([
+  const [usuarios, uso, assistente, sistema, curadoria] = await Promise.all([
     blocoUsuarios(agora, d7, d30),
     blocoUso(agora, d7, d30),
     blocoAssistente(agora, d30),
     blocoSistema(),
+    resumoCuradoriaAdmin(prisma, agora).catch(() => null),
   ]);
 
-  return { geradoEm: agora.toISOString(), usuarios, uso, assistente, sistema };
+  return { geradoEm: agora.toISOString(), usuarios, uso, assistente, sistema, curadoria };
 }
