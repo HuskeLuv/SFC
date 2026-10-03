@@ -70,6 +70,9 @@ jobs:
       ANALISE_ATIVOS_HABILITADA: 'true'
       # Bloco C (curadoria): o seed cria o admin de CI admin.demo@finapp.local (prisma/seedAdminDev.ts)
       SEED_ADMIN_DEV: '1'
+      # Bloco C (relato): liga o "Reportar dado incorreto" para o e2e de escrita
+      # (analise-ativos-relato.escrita.spec.ts); sem ela o teste pula.
+      ANALISE_ATIVOS_REPORTE_HABILITADO: 'true'
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
