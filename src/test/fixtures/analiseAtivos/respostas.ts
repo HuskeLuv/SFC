@@ -268,6 +268,61 @@ export const ATIVO_WEGE3: AtivoTopoResposta = {
   versao: VERSAO_FIXTURE,
 };
 
+/** Bloco C: /config com o relato ligado (ANALISE_ATIVOS_REPORTE_HABILITADO). */
+export const CONFIG_RELATO_LIGADO: ConfigResposta = { ...CONFIG_LIBERADA, reporteHabilitado: true };
+
+/**
+ * Bloco C (params v2): WEGE3 com o grupo proventos em conferência pela regra (chip com valor) e o
+ * frescor por bloco (fundamentos com o ITR 3T26 esperado). Com a v1 a resposta é ATIVO_WEGE3.
+ */
+export const ATIVO_WEGE3_V2: AtivoTopoResposta = {
+  ...ATIVO_WEGE3,
+  kpis: ATIVO_WEGE3.kpis.map((k) =>
+    k.codigo === 'dy12m' || k.codigo === 'payout' ? { ...k, selo: 'em_conferencia' } : k,
+  ),
+  dividendos: { ...ATIVO_WEGE3.dividendos, selo: 'em_conferencia' },
+  conferencias: [
+    {
+      grupo: 'proventos',
+      campos: [
+        'dy12m',
+        'payout',
+        'rendCota12m',
+        'dpa12m',
+        'dyMedio5a',
+        'proventosAno',
+        'historicoDy',
+      ],
+      exibicao: 'selo',
+      motivo: 'Provento recente mais que o dobro do ano anterior.',
+      desde: '2026-09-29',
+      efeitoIndice: 'O Índice MF fica incompleto: proventos fora da conta.',
+      origem: 'regra',
+      caso: null,
+    },
+  ],
+  frescorBlocos: {
+    kpis: {
+      fonte: 'B3 · cotação · CVM · DFP/ITR',
+      referencia: '29/09/2026 · ITR 2T26',
+      atualizadoEm: '2026-09-29T12:00:00.000Z',
+      status: 'em_dia',
+    },
+    fundamentos: {
+      fonte: 'CVM · DFP/ITR',
+      referencia: 'ITR 2T26',
+      atualizadoEm: null,
+      status: 'em_dia',
+    },
+    dividendos: {
+      fonte: 'B3 · proventos',
+      referencia: '29/09/2026',
+      atualizadoEm: '2026-09-29T12:00:00.000Z',
+      status: 'em_dia',
+    },
+  },
+};
+
 export const FUNDAMENTOS_WEGE3: FundamentosResposta = {
   nivel: 'essencial',
   unidade: 'R$ mi',
