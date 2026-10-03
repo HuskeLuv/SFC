@@ -5,6 +5,7 @@ import { seedInstitutions } from './referenceData';
 import { CURSO_ESR_SLUG, MODULOS_TRILHA_ESR } from '../src/constants/educacaoModulos';
 import { AULAS_TRILHA_ESR, buildVturbEmbed } from '../src/constants/educacaoAulas';
 import { seedAnaliseAtivos } from './seedAnaliseAtivos';
+import { EMAIL_ADMIN_DEV, garantirAdminDev } from './seedAdminDev';
 
 const prisma = new PrismaClient();
 
@@ -439,6 +440,13 @@ async function main() {
         : '📈 Análise de Ativos: banco já tem dados da Fase 0 — fixtures puladas',
     );
     console.log(`📈 Demo no beta da Análise de Ativos: ${analise.demoNoBeta ? 'sim' : 'não'}`);
+
+    // Bloco C (curadoria): admin de dev/CI só com SEED_ADMIN_DEV=1 (job de e2e do CI) e só em
+    // banco de dev/CI (guarda em seedAdminDev.ts).
+    if (process.env.SEED_ADMIN_DEV === '1') {
+      await garantirAdminDev(prisma);
+      console.log(`🛡️  Admin de dev: ${EMAIL_ADMIN_DEV}`);
+    }
 
     // Nota: Ações (stocks) e moedas são adicionadas pelo cron de sincronização (brapiSync)
 
