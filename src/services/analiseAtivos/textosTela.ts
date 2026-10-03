@@ -1282,6 +1282,39 @@ export const TEXTOS_TELA = {
       abrir: 'Abrir a fila',
     },
   },
+  // ===========================================================================
+  // Bloco C, fatia B — tela consistente ("em conferência" em Quadro e página, frescor por bloco).
+  // Seção própria da fatia (acréscimo; as chaves de conferencia/relatos são da fatia 0).
+  // ===========================================================================
+  telaConferencia: {
+    /** semáforo: 'Sem dado: nº de ações em conferência' (= semDadoComMotivo + grupo) */
+    criterioGrupo: '{valor} em conferência',
+    /** Índice: componente com trilho tracejado */
+    componenteEmConferencia: '0 · em conferência',
+    /** ponto anual fora da média (histórico) */
+    anoEmConferencia: '{ano} em conferência: fora da média',
+    anoRotulo: 'Ano',
+    /** gráfico: cotação em conferência a partir de uma data */
+    cotacaoTracejada: 'Trecho tracejado: cotação em conferência desde {data}.',
+    lpaTracejado: 'Ano {ano} em conferência: fora do crescimento.',
+    /** fontes do selo de frescor por bloco */
+    fontes: {
+      cotacao: 'B3 · cotação',
+      fundamentos: 'CVM · DFP/ITR',
+      fii: 'CVM · informe mensal',
+      proventos: 'B3 · proventos',
+      indice: 'Índice MF',
+    },
+    documentos: {
+      itr: 'ITR {valor}',
+      dfp: 'DFP {ano}',
+      informe: 'informe de {data}',
+      pregao: 'pregão de {data}',
+      proventos: 'proventos atualizados',
+    },
+    /** rodapé do bloco: 'B3 · cotação · 29/09/2026' */
+    rodapeAria: 'Fonte e atualização do bloco',
+  },
 } as const;
 
 /** Texto legível de um código de motivo ('div:fonte_defasada', 'sem_dado_fonte', 'prejuizo'...). */
