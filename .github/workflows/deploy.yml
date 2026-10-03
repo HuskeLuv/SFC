@@ -128,17 +128,29 @@ jobs:
              echo '--- health:'; curl -s -o /dev/null -w '%{http_code}\n' http://localhost:3000/api/health; \
              curl -sf http://localhost:3000/api/health >/dev/null"
 
-      # A rede do runner até o Lightsail falha de vez em quando (curl travava ~2 min e saía com 28 ou
-      # 60 com o site no ar): timeout curto + 5 tentativas; o diagnóstico só aparece se todas falharem.
+      # O resolvedor DNS do runner às vezes ainda devolve 15.229.240.19 (Elastic IP da EC2 destruída
+      # em 10/09) e o curl falhava com o site no ar. O IP vem do DNS público (Google DoH, que segue o
+      # autoritativo do GoDaddy) e entra no curl via --resolve, mantendo o hostname para o TLS. Se o
+      # resolvedor do runner divergir, fica só um aviso no log.
       - name: Verificar site público
         run: |
-          URL=https://appmyfinance.com.br/api/health
+          DOMINIO=appmyfinance.com.br
+          URL="https://${DOMINIO}/api/health"
+          IP=$(curl -s --max-time 10 "https://dns.google/resolve?name=${DOMINIO}&type=A" \
+            | python3 -c 'import json,sys; print(next((a["data"] for a in json.load(sys.stdin).get("Answer",[]) if a.get("type")==1),""))' || true)
+          LOCAL=$(getent ahostsv4 "$DOMINIO" | awk 'NR==1{print $1}' || true)
+          echo "DNS público: ${IP:-?} · resolvedor do runner: ${LOCAL:-?}"
+          if [ -n "$IP" ] && [ -n "$LOCAL" ] && [ "$IP" != "$LOCAL" ]; then
+            echo "::warning::resolvedor do runner devolve $LOCAL para $DOMINIO; o DNS público devolve $IP"
+          fi
+          RESOLVE=()
+          if [ -n "$IP" ]; then RESOLVE=(--resolve "${DOMINIO}:443:${IP}"); fi
           for i in 1 2 3 4 5; do
-            CODE=$(curl -s -o /dev/null -w '%{http_code}' --connect-timeout 10 --max-time 20 "$URL" || true)
+            CODE=$(curl -s -o /dev/null -w '%{http_code}' --connect-timeout 10 --max-time 20 "${RESOLVE[@]}" "$URL" || true)
             echo "tentativa $i: $URL → $CODE"
             if [ "$CODE" = "200" ]; then exit 0; fi
             sleep 15
           done
           echo '--- diagnóstico'
-          curl -sv -o /dev/null --connect-timeout 10 --max-time 20 "$URL" 2>&1 | tail -25 || true
+          curl -sv -o /dev/null --connect-timeout 10 --max-time 20 "${RESOLVE[@]}" "$URL" 2>&1 | tail -25 || true
           exit 1
