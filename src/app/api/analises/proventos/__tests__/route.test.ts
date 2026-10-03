@@ -597,6 +597,78 @@ describe('GET /api/analises/proventos', () => {
     expect(grouped.dividendYield).toBeCloseTo(5, 1);
   });
 
+  describe('número mágico pelo tipo real do ativo', () => {
+    const cenario = (
+      symbol: string,
+      name: string,
+      type: string,
+      categoriaOverride: string | null = null,
+    ) => {
+      const now = new Date();
+      mockPrisma.portfolio.findMany.mockResolvedValue([
+        {
+          id: 'p1',
+          userId: 'user-123',
+          quantity: 100,
+          totalInvested: 1000,
+          avgPrice: 10,
+          lastUpdate: new Date(now.getTime() - 400 * 86400000),
+          stockId: null,
+          assetId: 'asset-1',
+          categoriaOverride,
+          asset: { id: 'asset-1', symbol, name, type },
+        },
+      ]);
+      mockPrisma.stockTransaction.findMany.mockResolvedValue([
+        {
+          id: 'tx-1',
+          userId: 'user-123',
+          type: 'compra',
+          quantity: 100,
+          price: 10,
+          total: 1000,
+          date: new Date(now.getTime() - 400 * 86400000),
+          stockId: null,
+          assetId: 'asset-1',
+          asset: { symbol, name, type },
+        },
+      ]);
+      // 12 meses de R$ 0,10/cota → média mensal 0,10; cotação 10 → nº mágico 100.
+      mockGetDividends.mockResolvedValue(
+        Array.from({ length: 12 }, (_, i) => ({
+          date: new Date(now.getTime() - (15 + i * 30) * 86400000),
+          tipo: 'Rendimento',
+          valorUnitario: 0.1,
+        })),
+      );
+      mockGetAssetPrices.mockResolvedValue(new Map([[symbol, 10]]));
+    };
+
+    it('FII movido para a aba de Ações mantém o número mágico; rótulo segue a aba', async () => {
+      cenario('HGLG11', 'CSHG Logística', 'fii', 'acoes');
+      const data = await (await GET(createRequest())).json();
+      const grupo = data.grouped['CSHG Logística'];
+      expect(grupo.classe).toBe('Ações');
+      expect(grupo.magicNumber).toBe(100);
+    });
+
+    it('unit terminada em 11 (stock) é Ações e não tem número mágico', async () => {
+      cenario('KLBN11', 'Klabin', 'stock');
+      const data = await (await GET(createRequest())).json();
+      const grupo = data.grouped.Klabin;
+      expect(grupo.classe).toBe('Ações');
+      expect(grupo.magicNumber).toBeUndefined();
+    });
+
+    it('ação movida para a aba de FIIs não ganha número mágico', async () => {
+      cenario('ITSA4', 'Itaúsa', 'stock', 'fiis');
+      const data = await (await GET(createRequest())).json();
+      const grupo = data.grouped['Itaúsa'];
+      expect(grupo.classe).toBe("FII's");
+      expect(grupo.magicNumber).toBeUndefined();
+    });
+  });
+
   it('retorna 401 quando nao autenticado', async () => {
     mockRequireAuthWithActing.mockRejectedValueOnce(new Error('Não autorizado'));
 

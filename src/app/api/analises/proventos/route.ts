@@ -87,21 +87,18 @@ const CLASSE_DA_CATEGORIA_MOVIDA: Record<CategoriaMovivel, string> = {
   rendaFixaFundos: 'Renda Fixa & Fundos de Renda Fixa',
 };
 
-const mapAssetTypeToClasse = (entry: PortfolioAssetEntry) => {
-  // Item movido de aba (mover na Carteira): a classe segue a aba escolhida.
-  // Override null, igual à base ou em item fora das abas movíveis → regra antiga.
-  const movido = overrideEfetivo(
-    { symbol: entry.symbol, type: entry.assetType, currency: entry.currency, name: entry.name },
-    entry.categoriaOverride,
-  );
-  if (movido) return CLASSE_DA_CATEGORIA_MOVIDA[movido];
-
+/**
+ * Classe pelo tipo real do ativo, ignorando a aba escolhida no mover. Decide o que depende da
+ * natureza do papel (número mágico só para FII de verdade).
+ */
+const classeBaseDoAtivo = (entry: PortfolioAssetEntry) => {
   const assetType = (entry.assetType || '').toLowerCase();
   const symbolUpper = entry.symbol.toUpperCase();
   const nameLower = entry.name.toLowerCase();
 
+  // 'stock' terminado em 11 é unit (KLBN11, TAEE11, SANB11): FII é cadastrado como 'fii'.
   if (assetType === 'stock') {
-    return symbolUpper.endsWith('11') ? "FII's" : 'Ações';
+    return 'Ações';
   }
 
   if (assetType === 'bdr') {
@@ -156,6 +153,17 @@ const mapAssetTypeToClasse = (entry: PortfolioAssetEntry) => {
   }
 
   return 'Outros';
+};
+
+/** Classe exibida: a aba escolhida no mover, se houver; senão a classe pelo tipo real. */
+const mapAssetTypeToClasse = (entry: PortfolioAssetEntry) => {
+  // Override null, igual à base ou em item fora das abas movíveis → classe pelo tipo.
+  const movido = overrideEfetivo(
+    { symbol: entry.symbol, type: entry.assetType, currency: entry.currency, name: entry.name },
+    entry.categoriaOverride,
+  );
+  if (movido) return CLASSE_DA_CATEGORIA_MOVIDA[movido];
+  return classeBaseDoAtivo(entry);
 };
 
 // Bug #01 (relatório Maio/2026, 2º passe): proventos manuais armazenam o
@@ -700,8 +708,9 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
       data.ultimoProvento = ultimoProvento;
       data.ultimoProventoTotal = Math.round(ultimoProventoTotal * 100) / 100;
 
-      // Magic number: apenas FIIs — ceil(cotação / provento_médio_mensal_por_cota)
-      if (classe === "FII's" && asset.quantity > 0 && quote > 0) {
+      // Magic number: apenas FIIs pelo tipo real (vale em qualquer aba do mover) —
+      // ceil(cotação / provento_médio_mensal_por_cota)
+      if (classeBaseDoAtivo(asset) === "FII's" && asset.quantity > 0 && quote > 0) {
         // Calcula média mensal por cota usando últimos 12m deste ativo
         const doze_m_ms = Date.now() - 365 * 24 * 60 * 60 * 1000;
         const ult12mTotalAtivo = data.items
