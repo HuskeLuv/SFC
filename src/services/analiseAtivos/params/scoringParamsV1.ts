@@ -368,6 +368,7 @@ export const SCORING_PARAMS_V1: ScoringParams = {
         BRAPI: 'ex',
         YAHOO: 'ex',
       },
+      convencaoDataComAtual: { BRAPI: 'com' },
       duplicataJanelaPagamentoDias: 5,
       trancheMinDiasEntrePagamentos: 20,
       fontePreferida: 'BRAPI',
@@ -391,6 +392,10 @@ export const SCORING_PARAMS_V1: ScoringParams = {
         maxDiasBase: 20,
         maxDias: { acao: 200, fii: 45 },
         recorrenteMinMeses: { acao: 2, fii: 6 },
+        janelaHistoricoMeses: 36,
+        fatorIntervalo: 1.25,
+        pagamentoMaxAnos: 3,
+        maxDiasParado: 730,
       },
       // diagnóstico 02/10/2026 (docs/analise-ativos/fase1/diagnostico-dy-absurdo.md)
       duplicataSemPagamento: {

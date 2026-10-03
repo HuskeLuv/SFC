@@ -15,6 +15,17 @@ import fiiInforme from './fixtures/fii-informe-mensal.json';
 import proventosDev from './fixtures/proventos-dev.json';
 
 export const P = SCORING_PARAMS_V1;
+/**
+ * Params para a fixture proventos-dev.json, exportada ANTES do #270 (30/09/2026): nela o campo
+ * dataCom da BRAPI ainda é a data EX (o sync atual grava a data-com real ⇒ convenção 'com').
+ */
+export const P_LEGADO = {
+  ...SCORING_PARAMS_V1,
+  sanidade: {
+    ...SCORING_PARAMS_V1.sanidade,
+    proventos: { ...SCORING_PARAMS_V1.sanidade.proventos, convencaoDataComAtual: { BRAPI: 'ex' } },
+  },
+} as typeof SCORING_PARAMS_V1;
 export { acoesFaseA, fiiInforme };
 
 type Empresa = {

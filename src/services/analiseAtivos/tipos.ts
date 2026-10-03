@@ -212,9 +212,10 @@ export interface FiiTrimestre {
   flags: string[];
 }
 /**
- * BRAPI: pagamento=date, ex=dataCom · YAHOO: date É a data EX (dataCom null em 2.863/2.863 linhas do
- * dev), pagamento=null — conversão feita em repositorio.proventos pela convenção de
- * params.sanidade.proventos.camposPorFonte.
+ * BRAPI: pagamento=date, data gravada=dataCom (data-com real desde o #270, 30/09/2026; antes a data
+ * ex) · YAHOO: date É a data EX (dataCom null em 2.863/2.863 linhas do dev), pagamento=null —
+ * conversão feita em repositorio.proventos pela convenção de params.sanidade.proventos.camposPorFonte;
+ * a data-com real sai de regras/calculo/proventos.dataComReal.
  */
 export interface ProventoBruto {
   id: string;

@@ -203,3 +203,9 @@ de prod de CPFE3/CEEB5 — CEEB5 está com base parada —, os casos estão nos 
 
 Produção: mesmos comandos do #277 (recalcular `--tudo` dry-run → `--apply` → job quadro); a v1
 gravada não tem `plausibilidade`/`pregoesDataCom`, então valem os defaults novos sem seed.
+
+## Rodada 3 (02/10)
+
+Proventos "parados" (`pagador_recorrente_parado`: 93 ações + 33 FIIs em prod), a data-com da
+auditoria um pregão cedo (achado lateral acima) e SHOW3 sem setor: ver
+[diagnostico-proventos-parados.md](diagnostico-proventos-parados.md).
