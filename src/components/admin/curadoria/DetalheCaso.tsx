@@ -138,13 +138,11 @@ export function ConteudoDetalhe({
             </Link>
           </p>
         </div>
-        <div className="flex flex-col items-end gap-1.5">
-          <MarcaStatus status={caso.status} />
-          <MarcaPrazo caso={caso} />
-        </div>
       </header>
 
-      <div className="mb-3 flex flex-wrap items-center gap-3">
+      <div className="mb-3 flex flex-wrap items-center gap-x-4 gap-y-2">
+        <MarcaStatus status={caso.status} />
+        <MarcaPrazo caso={caso} />
         <MarcaOrigem origem={caso.origem} />
         <MarcaEfeito caso={caso} />
         {caso.resolvidoEm && (

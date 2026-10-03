@@ -236,8 +236,8 @@ export default function FilaCuradoria() {
                     key={c.id}
                     data-caso={c.id}
                     data-selecionado={sel ? '' : undefined}
-                    className={`${TABLE_STYLES.row} ${TABLE_STYLES.rowHover} ${
-                      sel ? 'bg-[#6E9DC4]/[0.14] dark:bg-[#6E9DC4]/[0.12]' : ''
+                    className={`${TABLE_STYLES.row} ${
+                      sel ? 'bg-[#6E9DC4]/[0.14] dark:bg-[#6E9DC4]/[0.12]' : TABLE_STYLES.rowHover
                     }`}
                   >
                     <th scope="row" className="px-4 py-1.5 text-left font-normal">
