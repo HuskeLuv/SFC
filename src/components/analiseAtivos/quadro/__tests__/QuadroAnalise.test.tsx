@@ -15,6 +15,11 @@ const quadro = vi.hoisted(() => ({
 }));
 const media = vi.hoisted(() => ({ celular: false }));
 const overlayVazio = vi.hoisted(() => ({ data: undefined }));
+// bloco C: link "Meus relatos" (config.reporteHabilitado) e o selo de resposta nova
+const relatos = vi.hoisted(() => ({
+  config: { data: undefined as unknown },
+  meus: { data: undefined as unknown },
+}));
 
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ replace: nav.replace, push: nav.push, prefetch: vi.fn() }),
@@ -47,7 +52,11 @@ vi.mock('@/hooks/useAnaliseAtivos', () => ({
     return quadro.estado;
   },
   useOverlayCarteira: () => overlayVazio,
+  useAnaliseAtivosConfig: () => relatos.config,
   prefetchAtivoTopo: vi.fn(async () => undefined),
+}));
+vi.mock('@/components/analiseAtivos/reporte/useMeusReportes', () => ({
+  useMeusReportes: () => relatos.meus,
 }));
 
 import QuadroAnalise from '../QuadroAnalise';
@@ -102,7 +111,24 @@ describe('QuadroAnalise', () => {
     nav.replace.mockReset();
     nav.push.mockReset();
     media.celular = false;
+    relatos.config = { data: undefined };
+    relatos.meus = { data: undefined };
     estadoQuadro();
+  });
+
+  it('bloco C: link "Meus relatos" só com reporteHabilitado; selo quando há resposta nova', () => {
+    const { unmount } = renderQuadro();
+    expect(screen.queryByRole('link', { name: /Meus relatos/ })).toBeNull();
+    unmount();
+
+    relatos.config = { data: { habilitada: true, reporteHabilitado: true } };
+    relatos.meus = {
+      data: { pages: [{ itens: [{ id: 'r1', caso: { novo: true } }], proximoCursor: null }] },
+    };
+    renderQuadro();
+    const link = screen.getByRole('link', { name: /Meus relatos/ });
+    expect(link.getAttribute('href')).toBe('/analise-ativos/meus-relatos');
+    expect(link.textContent).toContain('Resposta nova');
   });
 
   it('Resumo × Detalhado mudam as colunas; o clique troca o modo na URL', () => {

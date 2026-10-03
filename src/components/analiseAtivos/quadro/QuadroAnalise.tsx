@@ -24,7 +24,10 @@ import { useNaCarteira } from '@/components/analiseAtivos/quadro/CelulaNaCarteir
 import { useEstadoQuadroUrl } from '@/components/analiseAtivos/quadro/useEstadoQuadroUrl';
 import { COLUNAS, ORDEM_PADRAO } from '@/constants/analiseAtivosVisual';
 import { useIsBelowLg } from '@/hooks/useMediaQuery';
-import { useQuadroAnalise } from '@/hooks/useAnaliseAtivos';
+import { useAnaliseAtivosConfig, useQuadroAnalise } from '@/hooks/useAnaliseAtivos';
+import { useMeusReportes } from '@/components/analiseAtivos/reporte/useMeusReportes';
+import { ROTAS_CURADORIA } from '@/services/analiseAtivos/curadoria/contrato';
+import { COR_LINK } from '@/constants/analiseAtivosVisual';
 import { TEXTOS_TELA, formatarTexto } from '@/services/analiseAtivos/textosTela';
 import type {
   ClasseQuadro,
@@ -132,6 +135,32 @@ function CaixaEstado({
       {texto ? <p className="max-w-md text-sm text-gray-500 dark:text-gray-400">{texto}</p> : null}
       {acao}
     </div>
+  );
+}
+
+/**
+ * Bloco C (fatia D): link "Meus relatos" no topo do Quadro, só com config.reporteHabilitado, com o
+ * selo "Resposta nova" quando há resposta ainda não vista. Flag desligada → nada (Quadro igual).
+ */
+function LinkMeusRelatos() {
+  const config = useAnaliseAtivosConfig();
+  const habilitado = config.data?.reporteHabilitado === true;
+  const q = useMeusReportes({ enabled: habilitado });
+  if (!habilitado) return null;
+  const temNova = (q.data?.pages[0]?.itens ?? []).some((r) => r.caso.novo);
+  return (
+    <Link
+      href={ROTAS_CURADORIA.meusRelatos}
+      data-link-meus-relatos=""
+      className={`inline-flex min-h-11 shrink-0 items-center gap-2 rounded-xl px-2 text-sm font-semibold ${COR_LINK.classes} ${FOCO}`}
+    >
+      {TEXTOS_TELA.relatos.meus.link}
+      {temNova ? (
+        <span className="rounded-full bg-[#396CAA] px-2 py-0.5 text-[11.5px] font-semibold text-white">
+          {TEXTOS_TELA.relatos.meus.respostaNova}
+        </span>
+      ) : null}
+    </Link>
   );
 }
 
@@ -257,14 +286,17 @@ function QuadroConteudo({ className = '' }: QuadroAnaliseProps) {
       className={`flex min-w-0 flex-col gap-4 lg:rounded-2xl lg:border lg:border-gray-200 lg:bg-white lg:p-5 dark:lg:border-gray-800 dark:lg:bg-white/[0.03] ${className}`}
     >
       {na.fonte}
-      <ResponsiveTabNav
-        tabs={abas}
-        activeId={estado.classe}
-        onChange={(id) => url.setClasse(id as ClasseQuadro)}
-        ariaLabel={T.abasRotulo}
-        variant="segmented-sub"
-        className="shrink-0"
-      />
+      <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between [&>*]:shrink-0">
+        <ResponsiveTabNav
+          tabs={abas}
+          activeId={estado.classe}
+          onChange={(id) => url.setClasse(id as ClasseQuadro)}
+          ariaLabel={T.abasRotulo}
+          variant="segmented-sub"
+          className="shrink-0"
+        />
+        <LinkMeusRelatos />
+      </div>
 
       {celular ? (
         <div className="flex flex-col gap-3 [&>*]:shrink-0">
