@@ -22,6 +22,7 @@ import { conferenciaDoCampo } from '@/services/analiseAtivos/leitura/ativo/confe
 import { formatarAnalise } from '@/components/analiseAtivos/comum/formatarAnalise';
 import { TEXTOS_TELA, formatarTexto } from '@/services/analiseAtivos/textosTela';
 import type { BlocoDividendosProps } from '@/types/analiseAtivosApi';
+import type { DadoBlocoReporte } from '@/types/analiseAtivosCuradoria';
 
 export type { BlocoDividendosProps };
 
@@ -68,6 +69,32 @@ export default function BlocoDividendos({ classe, dividendos }: BlocoDividendosP
   const rotuloBarra = (ano: number, valor: number, suspeito?: boolean) =>
     formatarTexto(suspeito ? d.emConferenciaTitulo : d.barraTitulo, { ano, valor: moeda(valor) });
 
+  // "Qual dado?" do relato com os números da tela: último ano com valor e os últimos 12 meses
+  const rotulosRelato = TEXTOS_TELA.relatos.campos;
+  const anoRelato = ultimo >= 0 && ultimo < anos.length ? anos[ultimo] : null;
+  const dadosRelato: DadoBlocoReporte[] = [
+    ...(anoRelato && anoRelato.valor !== null
+      ? [
+          {
+            campo: 'proventosAno' as const,
+            rotulo: rotulosRelato.proventosAno,
+            valorExibido: moeda(anoRelato.valor),
+            periodo: String(anoRelato.ano),
+          },
+        ]
+      : []),
+    ...(dividendos.ult12m
+      ? [
+          {
+            campo: classe === 'fii' ? ('rendCota12m' as const) : ('dpa12m' as const),
+            rotulo: classe === 'fii' ? rotulosRelato.rendCota12m : rotulosRelato.dpa12m,
+            valorExibido: moeda(dividendos.ult12m.valor),
+            periodo: t.ult12m,
+          },
+        ]
+      : []),
+  ];
+
   const resumo = reais.length
     ? `${titulo}: ${anos
         .filter((a) => a.valor !== null)
@@ -90,7 +117,7 @@ export default function BlocoDividendos({ classe, dividendos }: BlocoDividendosP
             <span className="text-xs text-gray-500 dark:text-gray-400" data-cagr>
               {cagr ?? `${t.cagr5a}: ${dividendos.cagrMotivo ?? TEXTOS_TELA.formato.semDado}`}
             </span>
-            <MenuBlocoPagina bloco="dividendos" />
+            <MenuBlocoPagina bloco="dividendos" dados={dadosRelato} />
           </span>
         </div>
         {dividendos.selo === 'em_conferencia' ? (

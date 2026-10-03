@@ -175,7 +175,19 @@ export default function BlocoIndiceSemaforo({
         </h2>
         <span className="inline-flex items-center gap-2">
           {provisorio ? <SeloEstado tipo="criterios_provisorios" /> : null}
-          <MenuBlocoPagina bloco="indice" />
+          <MenuBlocoPagina
+            bloco="indice"
+            dados={[
+              {
+                campo: 'indiceMf',
+                rotulo: TEXTOS_TELA.relatos.campos.indiceMf,
+                valorExibido: semNumero
+                  ? TEXTOS_TELA.formato.semDado
+                  : formatarAnalise(indice.valor as number, 'numero'),
+                periodo: null,
+              },
+            ]}
+          />
         </span>
       </div>
 

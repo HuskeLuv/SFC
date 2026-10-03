@@ -99,10 +99,12 @@ function rotuloCampo(campo: CampoReporte): string {
 /** Opções do "Qual dado?" (dados do bloco + 'outro'). */
 export function opcoesDado(contexto: ContextoBlocoReporte) {
   const opcoes = contexto.dados.map((d) => {
-    const base = formatarTexto(T.form.opcaoDado, {
-      campo: d.rotulo || rotuloCampo(d.campo),
-      valor: d.valorExibido ?? '—',
-    });
+    const campo = d.rotulo || rotuloCampo(d.campo);
+    // sem o valor exibido, só o rótulo: '—' afirmaria que a tela mostra '—'
+    const base =
+      d.valorExibido === null
+        ? campo
+        : formatarTexto(T.form.opcaoDado, { campo, valor: d.valorExibido });
     return {
       campo: d.campo as CampoReporte,
       rotulo: d.periodo ? `${base} · ${d.periodo}` : base,
@@ -402,19 +404,24 @@ export default function FormReportarDado({
           [
             [T.form.ativo, ticker],
             [T.form.bloco, rotuloBloco],
-            [T.form.valor, dado.valorExibido ?? '—'],
+            [T.form.valor, dado.valorExibido],
             [T.form.periodo, dado.periodo ?? '—'],
             [T.form.fonte, contexto.fonteExibida ?? '—'],
             [T.form.atualizacao, contexto.frescorExibido ?? '—'],
           ] as const
-        ).map(([rotulo, valor]) => (
-          <div key={rotulo} className="contents">
-            <dt className="mt-1.5 text-gray-500 first:mt-0 sm:mt-0 dark:text-gray-400">{rotulo}</dt>
-            <dd className="min-w-0 break-words text-gray-900 tabular-nums dark:text-white/90">
-              {valor}
-            </dd>
-          </div>
-        ))}
+        )
+          // valor desconhecido (bloco sem o número no contexto): a linha some em vez de '—'
+          .filter(([, valor]) => valor !== null)
+          .map(([rotulo, valor]) => (
+            <div key={rotulo} className="contents">
+              <dt className="mt-1.5 text-gray-500 first:mt-0 sm:mt-0 dark:text-gray-400">
+                {rotulo}
+              </dt>
+              <dd className="min-w-0 break-words text-gray-900 tabular-nums dark:text-white/90">
+                {valor}
+              </dd>
+            </div>
+          ))}
       </dl>
     </div>
   );

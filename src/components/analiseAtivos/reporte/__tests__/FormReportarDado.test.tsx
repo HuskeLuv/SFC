@@ -88,6 +88,19 @@ describe('funções puras', () => {
     ]);
   });
 
+  it('opcoesDado: sem valor exibido, só o rótulo (nunca "· —")', () => {
+    const semValor = {
+      ...CONTEXTO,
+      dados: [
+        { campo: 'indiceMf' as const, rotulo: 'Índice MF', valorExibido: null, periodo: null },
+      ],
+    };
+    expect(opcoesDado(semValor).map((o) => o.rotulo)).toEqual([
+      'Índice MF',
+      'Outro dado deste bloco',
+    ]);
+  });
+
   it('validarForm: curta, HTML, valor esperado longo', () => {
     expect(validarForm({ mensagem: 'curta', valorEsperado: '', fonteEsperada: '' })).toEqual({
       mensagem: 'Escreva pelo menos 10 caracteres.',

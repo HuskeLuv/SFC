@@ -42,7 +42,8 @@ import {
   type PontoJanela,
 } from '@/services/analiseAtivos/leitura/ativo/seriesGrafico';
 import { TEXTOS_TELA, formatarTexto } from '@/services/analiseAtivos/textosTela';
-import type { GraficoLucroCotacaoProps } from '@/types/analiseAtivosApi';
+import type { GraficoAtivo, GraficoLucroCotacaoProps } from '@/types/analiseAtivosApi';
+import type { DadoBlocoReporte } from '@/types/analiseAtivosCuradoria';
 
 export type { GraficoLucroCotacaoProps };
 
@@ -273,6 +274,25 @@ export default function GraficoLucroCotacao({ ticker, classe, grafico }: Grafico
       : null,
   ].filter((n): n is string => !!n);
 
+  // "Qual dado?" do relato: o ponto mais recente de cada série como na tela ('últ. 12m' ou o
+  // último ano/mês com valor)
+  const dadoSerie = (
+    serie: GraficoAtivo['serieA'],
+    ult: number | null | undefined,
+    campo: DadoBlocoReporte['campo'],
+  ): DadoBlocoReporte | null => {
+    if (ult !== null && ult !== undefined)
+      return { campo, rotulo: serie.rotulo, valorExibido: moeda(ult), periodo: t.ult12m };
+    const p = [...serie.pontos].reverse().find((q) => q.valor !== null);
+    return p
+      ? { campo, rotulo: serie.rotulo, valorExibido: moeda(p.valor), periodo: rotuloChave(p.chave) }
+      : null;
+  };
+  const dadosRelato = [
+    dadoSerie(grafico.serieA, grafico.ult12m?.a, classe === 'fii' ? 'vpCota' : 'lpa'),
+    dadoSerie(grafico.serieB, grafico.ult12m?.b, 'preco'),
+  ].filter((d): d is DadoBlocoReporte => d !== null);
+
   const titulo = grafico.titulo;
   const insuficiente = grafico.insuficiente || janela.insuficiente;
   const baseTexto = janela.base
@@ -318,7 +338,7 @@ export default function GraficoLucroCotacao({ ticker, classe, grafico }: Grafico
                 </button>
               ))}
             </div>
-            <MenuBlocoPagina bloco="grafico" />
+            <MenuBlocoPagina bloco="grafico" dados={dadosRelato} />
           </span>
         </div>
         {confGrafico ? (
