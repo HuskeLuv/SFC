@@ -14,6 +14,18 @@ import React, {
 import { useRouter } from 'next/navigation';
 import { clearAppCaches, postClearCachesMessage } from '@/lib/pwa/swClient';
 
+/** Tempo máximo de cada etapa do logout antes de seguir para o /signin mesmo assim. */
+const LOGOUT_ETAPA_TIMEOUT_MS = 3000;
+
+/** Espera a promessa ou `ms`, o que vier primeiro. Nunca lança por causa do tempo. */
+function ateNoMaximo<T>(promise: Promise<T>, ms: number): Promise<T | undefined> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const limite = new Promise<undefined>((resolve) => {
+    timer = setTimeout(() => resolve(undefined), ms);
+  });
+  return Promise.race([promise, limite]).finally(() => clearTimeout(timer));
+}
+
 interface User {
   id: string;
   email: string;
@@ -170,11 +182,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // Fazer logout
   const logout = useCallback(async () => {
     try {
-      // Chamar API de logout para limpar o cookie no servidor
-      await fetch('/api/auth/logout', {
-        method: 'POST',
-        credentials: 'include',
-      });
+      // Chamar API de logout para limpar o cookie no servidor. Com teto: no app instalado
+      // (Android) a resposta já ficou presa sem nunca resolver e o "Sair" não fazia nada.
+      await ateNoMaximo(
+        fetch('/api/auth/logout', {
+          method: 'POST',
+          credentials: 'include',
+        }),
+        LOGOUT_ETAPA_TIMEOUT_MS,
+      );
     } catch (err) {
       logger.error('Erro ao fazer logout:', err);
       // Mesmo em caso de erro, limpar o estado local, os caches e redirecionar
@@ -184,9 +200,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setUser(null);
     setActingClient(null);
 
-    // PWA: nada do app fica no aparelho depois do logout (a página offline fica).
-    await clearAppCaches();
+    // PWA: nada do app fica no aparelho depois do logout (a página offline fica). Também com
+    // teto: a limpeza do CacheStorage nunca pode segurar a saída para o /signin.
     postClearCachesMessage();
+    await ateNoMaximo(clearAppCaches(), LOGOUT_ETAPA_TIMEOUT_MS);
 
     // replace (e não router.push): recarga completa, sem estado em memória nem
     // voltar para a tela autenticada pelo histórico.

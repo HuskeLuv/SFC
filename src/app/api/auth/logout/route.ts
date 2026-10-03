@@ -14,9 +14,10 @@ export const POST = withErrorHandler(async (_req: NextRequest) => {
   const response = NextResponse.json({ message: 'Sessão encerrada com sucesso' });
 
   clearSessionCookie(response);
-  // Limpa o cache HTTP do navegador (respostas com dados do usuário). NÃO usar
-  // "storage": apagaria o tema, as dispensas e o service worker.
-  response.headers.set('Clear-Site-Data', '"cache"');
+  // SEM Clear-Site-Data: o Chrome segura a resposta até terminar a limpeza, e no app instalado
+  // (Android) ela não terminava — o cookie não era apagado e o "Sair" não fazia nada (ticket
+  // 03/10/2026). Não faz falta: o middleware já manda `no-store` em tudo que não é estático, e
+  // o CacheStorage do PWA é limpo pelo cliente (clearAppCaches + CLEAR_CACHES no SW).
 
   return response;
 });

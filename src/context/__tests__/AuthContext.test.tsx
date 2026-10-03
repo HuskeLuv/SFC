@@ -78,6 +78,33 @@ describe('AuthContext — logout', () => {
     expect(swClient.clearAppCaches).toHaveBeenCalledTimes(1);
     expect(replace).toHaveBeenCalledWith('/signin');
   });
+
+  it('com a API e a limpeza de cache travadas, redireciona mesmo assim após o teto', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((url: string) => {
+        if (url === '/api/auth/logout') return new Promise(() => {});
+        return Promise.resolve(mockFetchResponse(USER));
+      }),
+    );
+    swClient.clearAppCaches.mockImplementationOnce(() => new Promise(() => {}));
+    const { result } = renderHook(() => useAuth(), { wrapper });
+    await waitFor(() => expect(result.current.user?.id).toBe('u1'));
+
+    vi.useFakeTimers();
+    let saida: Promise<void> | undefined;
+    act(() => {
+      saida = result.current.logout();
+    });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(6000);
+      await saida;
+    });
+
+    expect(swClient.postClearCachesMessage).toHaveBeenCalledTimes(1);
+    expect(replace).toHaveBeenCalledWith('/signin');
+    expect(result.current.user).toBeNull();
+  });
 });
 
 describe('AuthContext — revalidação ao voltar do segundo plano', () => {
