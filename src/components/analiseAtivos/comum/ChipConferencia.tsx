@@ -7,6 +7,11 @@
  * no celular (BottomSheet + useMobileHistoryLayer: "voltar" fecha). O desenho fica compacto e a
  * área de toque tem 44px (pseudo-elemento), sem engordar a linha.
  *
+ * "Reportar" no fim do "Por quê?": fecha antes o popover/sheet (no celular, depois que a camada
+ * de histórico do sheet saiu — fecharEntao) e só então abre o formulário, montado aqui fora do
+ * invólucro (BotaoReportarDado 'controlado'). Assim navegar do formulário para Meus relatos não
+ * deixa a entrada do sheet órfã no histórico (o 1º "voltar" não ficaria parado na página).
+ *
  * Sem contexto da página (Quadro, cartões, que já são links) ou com `estatico`: só o texto, sem
  * botão. `HACHURA` = fundo da célula com valor em conferência ('—' + chip) nas tabelas.
  */
@@ -14,8 +19,10 @@ import { useCallback, useEffect, useId, useRef, useState, type CSSProperties } f
 import { createPortal } from 'react-dom';
 import BottomSheet from '@/components/ui/sheet/BottomSheet';
 import PorQueConferencia, {
+  relatoDoCampo,
   useConferenciaPagina,
 } from '@/components/analiseAtivos/comum/PorQueConferencia';
+import BotaoReportarDado from '@/components/analiseAtivos/reporte/BotaoReportarDado';
 import { useIsBelowLg } from '@/hooks/useMediaQuery';
 import { useMobileHistoryLayer } from '@/hooks/useMobileHistoryLayer';
 import type { BlocoReporte } from '@/services/analiseAtivos/curadoria/contrato';
@@ -91,8 +98,9 @@ export default function ChipConferencia({
   const [aberto, setAberto] = useState(false);
   const [pos, setPos] = useState<CSSProperties | null>(null);
   const celular = useIsBelowLg();
+  const [formAberto, setFormAberto] = useState(false);
   const fechar = useCallback(() => setAberto(false), []);
-  useMobileHistoryLayer(aberto, fechar, celular);
+  const { fecharEntao } = useMobileHistoryLayer(aberto, fechar, celular);
   const botaoRef = useRef<HTMLButtonElement>(null);
   const painelRef = useRef<HTMLDivElement>(null);
   const idPainel = useId();
@@ -173,6 +181,7 @@ export default function ChipConferencia({
       bloco={bloco}
       idTitulo={idTitulo}
       comTitulo={comTitulo}
+      onReportar={() => fecharEntao(() => setFormAberto(true))}
     />
   );
 
@@ -245,6 +254,20 @@ export default function ChipConferencia({
           </div>,
           document.body,
         )
+      ) : null}
+      {ctx.reporteHabilitado ? (
+        <BotaoReportarDado
+          ticker={ctx.ticker}
+          classe={ctx.classe}
+          bloco={bloco}
+          {...relatoDoCampo(ctx, conferencia, campo, rotuloCampo, bloco)}
+          variante="controlado"
+          aberto={formAberto}
+          onFechar={() => {
+            setFormAberto(false);
+            botaoRef.current?.focus();
+          }}
+        />
       ) : null}
     </>
   );

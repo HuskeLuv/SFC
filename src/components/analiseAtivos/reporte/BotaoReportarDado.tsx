@@ -17,14 +17,10 @@
  */
 import { useRef, useState } from 'react';
 import FormReportarDado from '@/components/analiseAtivos/reporte/FormReportarDado';
-import { COR_LINK } from '@/constants/analiseAtivosVisual';
-import { TEXTOS_TELA } from '@/services/analiseAtivos/textosTela';
+import GatilhoReportar from '@/components/analiseAtivos/reporte/GatilhoReportar';
 import type { BotaoReportarDadoProps } from '@/types/analiseAtivosCuradoria';
 
 export type { BotaoReportarDadoProps };
-
-const FOCO =
-  'outline-none focus-visible:ring-[3px] focus-visible:ring-[#0079F2] dark:focus-visible:ring-[#6E9DC4]';
 
 export default function BotaoReportarDado({
   ticker,
@@ -60,23 +56,15 @@ export default function BotaoReportarDado({
     gatilhoRef.current?.focus();
   };
 
-  const t = TEXTOS_TELA.conferencia.porQue;
   return (
     <>
       {controlado ? null : (
-        <span className={`text-sm text-gray-600 dark:text-gray-300 ${className ?? ''}`}>
-          {t.reportarPergunta}{' '}
-          <button
-            ref={gatilhoRef}
-            type="button"
-            aria-haspopup="dialog"
-            data-relato-gatilho={bloco}
-            onClick={() => setAbertoLocal(true)}
-            className={`inline-flex min-h-11 items-center font-semibold underline-offset-2 hover:underline ${COR_LINK.classes} ${FOCO}`}
-          >
-            {t.reportarLink}
-          </button>
-        </span>
+        <GatilhoReportar
+          ref={gatilhoRef}
+          bloco={bloco}
+          onClick={() => setAbertoLocal(true)}
+          className={className}
+        />
       )}
       {montado ? (
         <FormReportarDado

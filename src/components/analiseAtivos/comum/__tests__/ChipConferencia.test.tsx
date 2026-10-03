@@ -138,19 +138,26 @@ describe('ChipConferencia — computador (popover)', () => {
     expect(screen.queryByRole('dialog')).toBeNull();
   });
 
-  it('termina no atalho "Reportar" (BotaoReportarDado, variante link, campo escolhido) só com o relato ligado', () => {
+  it('termina no atalho "Reportar" só com o relato ligado; o atalho fecha o "Por quê?" e abre o formulário (controlado, campo escolhido)', () => {
     comContexto(chipPvp);
     fireEvent.click(screen.getByRole('button', { name: /por quê/ }));
+    expect(screen.queryByRole('button', { name: 'Reportar' })).toBeNull();
     expect(botaoReportar).not.toHaveBeenCalled();
     cleanup();
     comContexto(chipPvp, { reporteHabilitado: true });
     fireEvent.click(screen.getByRole('button', { name: /por quê/ }));
-    expect(botaoReportar).toHaveBeenCalled();
     expect(botaoReportar.mock.calls.at(-1)?.[0]).toMatchObject({
-      variante: 'link',
+      variante: 'controlado',
+      aberto: false,
       campo: 'pvp',
       bloco: 'kpis',
       ticker: 'CBAV3',
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Reportar' }));
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(botaoReportar.mock.calls.at(-1)?.[0]).toMatchObject({
+      variante: 'controlado',
+      aberto: true,
     });
   });
 });
@@ -172,6 +179,21 @@ describe('ChipConferencia — celular (sheet)', () => {
     expect(fechar).toBeDefined();
     expect(window.history.length).toBe(antes + 1);
     act(() => window.history.back());
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+  });
+
+  it('"Reportar" tira o sheet do histórico ANTES de abrir o formulário (sem entrada órfã)', async () => {
+    comContexto(chipPvp, { reporteHabilitado: true });
+    const antes = window.history.state as Record<string, unknown> | null;
+    fireEvent.click(screen.getByRole('button', { name: /por quê/ }));
+    const sheet = await screen.findByRole('dialog');
+    expect(window.history.state).not.toEqual(antes);
+    fireEvent.click(within(sheet).getByRole('button', { name: 'Reportar' }));
+    // o formulário só abre depois do "voltar" do sheet (popstate)
+    await waitFor(() =>
+      expect(botaoReportar.mock.calls.at(-1)?.[0]).toMatchObject({ aberto: true }),
+    );
+    expect(window.history.state).toEqual(antes);
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
   });
 });

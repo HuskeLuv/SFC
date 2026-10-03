@@ -8,8 +8,10 @@
  *   (AtivoTopoResposta.conferencias), frescor por bloco e config.reporteHabilitado. Fora da página
  *   do ativo (Quadro) não há contexto: o chip vira texto e o menu não aparece.
  * - `PorQueConferencia`: conteúdo do "Por quê?" (motivo, desde, na tela, valor não publicado, no
- *   Índice MF, origem, situação) e o atalho final "Tem uma informação sobre isso? Reportar"
- *   (BotaoReportarDado, variante 'link', com o campo escolhido) — só com reporteHabilitado.
+ *   Índice MF, origem, situação) e o atalho final "Tem uma informação sobre isso? Reportar" — só
+ *   com reporteHabilitado. Com `onReportar` (ChipConferencia) o atalho só avisa: o chip fecha o
+ *   "Por quê?" (e a camada de histórico dele no celular) e abre o formulário, montado fora do
+ *   invólucro, com `relatoDoCampo`; sem ele, BotaoReportarDado 'link' com o campo escolhido.
  *   O invólucro (popover de 380px no computador / BottomSheet no celular) é do ChipConferencia.
  * - `MenuBlocoPagina`: MenuBlocoAtivo (fatia 0) com o contexto do bloco; não renderiza sem itens
  *   (flag desligada e params v1 ⇒ página idêntica).
@@ -18,6 +20,7 @@
  */
 import { createContext, useContext, type ReactNode } from 'react';
 import BotaoReportarDado from '@/components/analiseAtivos/reporte/BotaoReportarDado';
+import GatilhoReportar from '@/components/analiseAtivos/reporte/GatilhoReportar';
 import MenuBlocoAtivo from '@/components/analiseAtivos/reporte/MenuBlocoAtivo';
 import { anoDaConferencia } from '@/services/analiseAtivos/leitura/ativo/conferenciasAtivo';
 import {
@@ -91,6 +94,35 @@ export interface PorQueConferenciaProps {
   idTitulo?: string;
   /** mostra o título dentro do conteúdo (o BottomSheet já tem título próprio) */
   comTitulo?: boolean;
+  /**
+   * Atalho "Reportar" controlado por quem envolve o "Por quê?" (o formulário abre fora dele, depois
+   * que o invólucro fechou); sem ele, o BotaoReportarDado 'link' abre o próprio formulário.
+   */
+  onReportar?: () => void;
+}
+
+/** Campo pré-escolhido e contexto do relato aberto a partir do "Por quê?" de um campo. */
+export function relatoDoCampo(
+  ctx: ContextoConferenciaPagina,
+  c: ConferenciaTela,
+  campo: string,
+  rotuloCampo: string,
+  bloco: BlocoReporte,
+) {
+  const campoReporte = (
+    (CAMPOS_REPORTAVEIS[bloco] as readonly string[]).includes(campo) ? campo : 'outro'
+  ) as CampoReporte;
+  return {
+    campo: campoReporte,
+    contexto: contextoDoBloco(ctx, bloco, [
+      {
+        campo: campo as DadoBlocoReporte['campo'],
+        rotulo: rotuloCampo,
+        valorExibido: c.exibicao === 'ocultar' ? TEXTOS_TELA.formato.semDado : null,
+        periodo: null,
+      },
+    ]),
+  };
 }
 
 export default function PorQueConferencia({
@@ -101,6 +133,7 @@ export default function PorQueConferencia({
   bloco,
   idTitulo,
   comTitulo = true,
+  onReportar,
 }: PorQueConferenciaProps) {
   const ctx = useConferenciaPagina();
   const t = TEXTOS_TELA.conferencia.porQue;
@@ -112,9 +145,6 @@ export default function PorQueConferencia({
       ? formatarTexto(t.equipeConferindo, { data: dataBr(c.caso.atualizadoEm) ?? '' })
       : t.aguardandoFonte
     : null;
-  const campoReporte = (
-    (CAMPOS_REPORTAVEIS[bloco] as readonly string[]).includes(campo) ? campo : 'outro'
-  ) as CampoReporte;
 
   const linha = (rotulo: string, valor: ReactNode, chave: string) => (
     <div key={chave} className="grid grid-cols-[minmax(0,7.5rem)_minmax(0,1fr)] gap-x-3">
@@ -157,21 +187,17 @@ export default function PorQueConferencia({
         {situacao ? linha(t.situacao, situacao, 'situacao') : null}
       </dl>
       {ctx?.reporteHabilitado ? (
-        <BotaoReportarDado
-          ticker={ctx.ticker}
-          classe={ctx.classe}
-          bloco={bloco}
-          campo={campoReporte}
-          contexto={contextoDoBloco(ctx, bloco, [
-            {
-              campo: campo as DadoBlocoReporte['campo'],
-              rotulo: rotuloCampo,
-              valorExibido: oculto ? TEXTOS_TELA.formato.semDado : null,
-              periodo: null,
-            },
-          ])}
-          variante="link"
-        />
+        onReportar ? (
+          <GatilhoReportar bloco={bloco} onClick={onReportar} />
+        ) : (
+          <BotaoReportarDado
+            ticker={ctx.ticker}
+            classe={ctx.classe}
+            bloco={bloco}
+            {...relatoDoCampo(ctx, c, campo, rotuloCampo, bloco)}
+            variante="link"
+          />
+        )
       ) : null}
     </div>
   );
