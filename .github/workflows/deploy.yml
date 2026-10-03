@@ -133,21 +133,34 @@ jobs:
       # autoritativo do GoDaddy) e entra no curl via --resolve, mantendo o hostname para o TLS. Se o
       # resolvedor do runner divergir, fica só um aviso no log.
       - name: Verificar site público
+        # O que decide é o servidor certo responder pelo domínio: curl --resolve no IP do
+        # secret HOST (testa app + Caddy + certificado do domínio). O DNS público só AVISA:
+        # em 03/10/2026 uma cópia anycast do DNS da GoDaddy ainda servia o IP da EC2
+        # destruída (hoje de terceiro) para o runner nos EUA e derrubava deploys bons.
         run: |
           DOMINIO=appmyfinance.com.br
           URL="https://${DOMINIO}/api/health"
-          IP=$(curl -s --max-time 10 "https://dns.google/resolve?name=${DOMINIO}&type=A" \
-            | python3 -c 'import json,sys; print(next((a["data"] for a in json.load(sys.stdin).get("Answer",[]) if a.get("type")==1),""))' || true)
+          ALVO=$(getent ahostsv4 "$HOST" | awk 'NR==1{print $1}' || true)
+          ALVO=${ALVO:-$HOST}
+          doh() {
+            curl -s --max-time 10 -H 'accept: application/dns-json' "$1?name=${DOMINIO}&type=A" \
+              | python3 -c 'import json,sys; print(next((a["data"] for a in json.load(sys.stdin).get("Answer",[]) if a.get("type")==1),""))' \
+              || true
+          }
+          for RESOLVEDOR in https://dns.google/resolve https://cloudflare-dns.com/dns-query; do
+            IP=$(doh "$RESOLVEDOR")
+            if [ -n "$IP" ] && [ "$IP" != "$ALVO" ]; then
+              echo "::warning::DNS público (${RESOLVEDOR}) devolve $IP para $DOMINIO, não o IP do servidor"
+            fi
+          done
           LOCAL=$(getent ahostsv4 "$DOMINIO" | awk 'NR==1{print $1}' || true)
-          echo "DNS público: ${IP:-?} · resolvedor do runner: ${LOCAL:-?}"
-          if [ -n "$IP" ] && [ -n "$LOCAL" ] && [ "$IP" != "$LOCAL" ]; then
-            echo "::warning::resolvedor do runner devolve $LOCAL para $DOMINIO; o DNS público devolve $IP"
+          if [ -n "$LOCAL" ] && [ "$LOCAL" != "$ALVO" ]; then
+            echo "::warning::resolvedor do runner devolve $LOCAL para $DOMINIO, não o IP do servidor"
           fi
-          RESOLVE=()
-          if [ -n "$IP" ]; then RESOLVE=(--resolve "${DOMINIO}:443:${IP}"); fi
+          RESOLVE=(--resolve "${DOMINIO}:443:${ALVO}")
           for i in 1 2 3 4 5; do
             CODE=$(curl -s -o /dev/null -w '%{http_code}' --connect-timeout 10 --max-time 20 "${RESOLVE[@]}" "$URL" || true)
-            echo "tentativa $i: $URL → $CODE"
+            echo "tentativa $i: $URL (IP do servidor) → $CODE"
             if [ "$CODE" = "200" ]; then exit 0; fi
             sleep 15
           done
