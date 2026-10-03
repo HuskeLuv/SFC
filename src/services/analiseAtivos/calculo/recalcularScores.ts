@@ -763,6 +763,7 @@ export function deteccoesFii(
         ultimoPregao: e.resumo.ultimoPregao,
         pvp: m.pvp,
         serie,
+        vps: meses,
       },
       cfg.esporadico,
     ),

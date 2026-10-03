@@ -248,6 +248,50 @@ describe('R4 preco_esporadico (fixture DEV)', () => {
     expect(d && 'chave' in d ? d.chave : null).toBe('2026-09-25');
   });
 
+  it('RBLG11: queda de preço que acompanhou o VP/cota (66 → 33) não dispara desvio_mediana', () => {
+    // 20 pregões com negócio a 48 (mediana do dev; VP 66) até mar/26 e 6 a ~19 (VP 33 → 31) depois
+    const serie = [
+      ...Array.from({ length: 20 }, (_, i) => ({
+        date: `2025-${String(10 + Math.floor(i / 10)).padStart(2, '0')}-${String(1 + (i % 10) * 2).padStart(2, '0')}`,
+        closeRaw: 48,
+        negocios: 3,
+      })),
+      { date: '2026-04-20', closeRaw: 20.81, negocios: 2 },
+      { date: '2026-05-12', closeRaw: 19.5, negocios: 1 },
+      { date: '2026-06-09', closeRaw: 18.9, negocios: 1 },
+      { date: '2026-07-14', closeRaw: 18.2, negocios: 1 },
+      { date: '2026-08-04', closeRaw: 18.0, negocios: 1 },
+      { date: '2026-08-25', closeRaw: 17.69, negocios: 1 },
+    ];
+    const vps = [
+      { refMonth: '2025-09-01', vpCota: 66.5 },
+      { refMonth: '2026-03-01', vpCota: 66.02 },
+      { refMonth: '2026-04-01', vpCota: 33.31 },
+      { refMonth: '2026-08-01', vpCota: 30.96 },
+    ];
+    const base = {
+      classe: 'fii' as const,
+      pregoesComNegocio21: 1,
+      ultimoPregao: '2026-08-25',
+      pvp: deNumero(0.57),
+      serie,
+    };
+    // só pelo preço cru (sem informes) o desvio de −63% dispara
+    expect(detectarPrecoEsporadico(base, cfg.esporadico)).toMatchObject({
+      regra: 'desvio_mediana',
+    });
+    // com o VP/cota, o P/VP está coerente: só o selo informativo
+    expect(detectarPrecoEsporadico({ ...base, vps }, cfg.esporadico)).toEqual({
+      tipo: 'info',
+      codigo: 'cotacao_esporadica',
+    });
+    // preço que cai sem o VP cair continua disparando
+    const vpsParados = vps.map((v) => ({ ...v, vpCota: 66 }));
+    expect(detectarPrecoEsporadico({ ...base, vps: vpsParados }, cfg.esporadico)).toMatchObject({
+      regra: 'desvio_mediana',
+    });
+  });
+
   it('P/VP de FII abaixo do piso 0,25 com cotação esporádica ⇒ faixa_pvp', () => {
     const d = detectarPrecoEsporadico(
       {

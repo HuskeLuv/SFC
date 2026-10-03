@@ -82,6 +82,11 @@ R2 (`historico:escala_ano`) usa como régua os anos com P/VP ≥ `pvpMin` quando
 plausíveis e anos com P/VP ∈ (0; `pvpMin`): no dev (03/10) isso muda só CBAV3 (marca 2021/2024/2025,
 não mais 2022/2023) e LAND3 (marca 2022–2025, não mais 2021) — 28 → 32 linhas anuais marcadas.
 
+R4 `desvio_mediana` (FII) exige que o desvio passe do limite também em P/VP (fechamento ÷ VP/cota do
+informe do mês): queda de preço que acompanhou o VP não é cotação errada. No dev (03/10), entre os
+FIIs esporádicos, 11 → 5 marcados (saem RBLG11, BICE11, GCOI11, HCST11, ICNE11, PNDL11; ficam
+BLUE11, MMVE11, NMKS11, RBRI11, REIT11) — o "216 → 210 calculados" da medição anterior sobe.
+
 ## Passo 3 — Gravar a v2 **[OK]**
 
 ```bash
