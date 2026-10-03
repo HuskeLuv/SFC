@@ -69,7 +69,7 @@ export interface ReportePostBody {
   versao: string;
   /** "O que está errado?" (10..1000) */
   mensagem: string;
-  /** "Valor que você esperava" (opcional, ≤ 64; decisão 8) */
+  /** "Valor que você esperava" (opcional, ≤ 40; decisão 8) */
   valorEsperado?: string;
   /** "Onde você viu?" (opcional, ≤ 300; guardado como texto, nunca link automático) */
   fonteEsperada?: string;
@@ -118,6 +118,15 @@ export interface ItemMeuReporte {
   periodo: string | null;
   /** ISO */
   criadoEm: string;
+  /**
+   * Fatia D (aditivo): o que o PRÓPRIO autor escreveu e o valor que ele viu, para a lista "Meus
+   * relatos" (protótipo U1). Texto livre: renderizar como TEXTO. Depois da anonimização (LGPD), a
+   * mensagem vem '[removido]' e os opcionais null.
+   */
+  mensagem?: string;
+  valorExibido?: string | null;
+  valorEsperado?: string | null;
+  fonteEsperada?: string | null;
   caso: {
     /** como o usuário vê (rejeitado = 'conferido_sem_alteracao') */
     status: StatusParaUsuario;

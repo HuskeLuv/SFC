@@ -280,7 +280,8 @@ export function chaveCaso(c: { symbol: string; campo: string; periodo?: string |
 export const LIMITES = {
   mensagemMin: 10,
   mensagemMax: 1000,
-  valorEsperado: 64,
+  /** decisão 8: "Valor que você esperava" até 40 caracteres (a coluna é VarChar(64)) */
+  valorEsperado: 40,
   fonteEsperada: 300,
   valorExibido: 64,
   periodo: 32,
