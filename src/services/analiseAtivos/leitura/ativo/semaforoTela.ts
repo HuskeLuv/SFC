@@ -9,8 +9,12 @@
  * - Variantes com frase própria: caixa líquido, EBITDA ≤ 0, PL ≤ 0 e P/L ≤ 0 (prejuízo) — status
  *   'nao_atende' ou 'atende' com frase factual, NUNCA 'sem dado'.
  * - Sem dado: 'Sem dado: <motivo legível>'.
+ * - Bloco C (só flags 'conf:', params v2): critérios de um grupo em conferência
+ *   (DEF_GRUPO[g].criteriosSemaforo, via conferenciasAtivo) viram 'Sem dado: <grupo> em
+ *   conferência' — o mesmo estado que o Quadro, os KPIs e os blocos da análise mostram.
  */
 import { TEXTOS_ANALISE, formatarNumeroBR, formatarTexto } from '@/services/analiseAtivos/textos';
+import { criteriosEmConferencia } from '@/services/analiseAtivos/leitura/ativo/conferenciasAtivo';
 import {
   TEXTOS_TELA,
   motivoTela,
@@ -200,9 +204,31 @@ function fraseCriterio(c: CheckGravado): { frase: string; desligado: boolean } {
   };
 }
 
-/** Semáforo da tela, na ordem gravada (= ordem dos params). */
-export function montarSemaforoTela(checks: readonly CheckGravado[]): CriterioSemaforoTela[] {
+/**
+ * Semáforo da tela, na ordem gravada (= ordem dos params). `gruposConferencia` = grupos das flags
+ * 'conf:' da linha (vazio na v1 ⇒ saída idêntica).
+ */
+export function montarSemaforoTela(
+  checks: readonly CheckGravado[],
+  gruposConferencia: readonly string[] = [],
+): CriterioSemaforoTela[] {
+  // defensivo: usada também como callback de map (o 2º argumento vira o índice)
+  const emConf = criteriosEmConferencia(Array.isArray(gruposConferencia) ? gruposConferencia : []);
   return checks.map((c) => {
+    const grupo = c.status === 'nao_se_aplica' ? undefined : emConf.get(c.codigo);
+    if (grupo) {
+      const motivo = formatarTexto(TEXTOS_TELA.telaConferencia.criterioGrupo, {
+        valor: TEXTOS_TELA.conferencia.grupos[grupo],
+      });
+      return {
+        codigo: c.codigo,
+        titulo: tituloCriterio(c.codigo),
+        status: 'sem_dado',
+        frase: formatarTexto(TEXTOS_TELA.ativo.semDadoComMotivo, { motivo }),
+        provisorio: c.provisorio === true,
+        desligado: false,
+      };
+    }
     const { frase, desligado } = fraseCriterio(c);
     return {
       codigo: c.codigo,

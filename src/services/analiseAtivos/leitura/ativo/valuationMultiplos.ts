@@ -10,7 +10,13 @@
  * em conferência ficam fora. Bancos: o grupo Alavancagem traz a explicação no lugar dos cartões.
  *
  * Também monta os 2 mini-gráficos de múltiplos históricos (ações P/L e P/VP; FIIs P/VP e DY) e os
- * pares (paresAtivo). `montarValuation` é pura; `obterValuation` lê o banco com cache em memória
+ * pares (paresAtivo).
+ *
+ * Bloco C (fatia B, só flags 'conf:' = params v2): cartão cujo código é um campo em conferência
+ * (conferenciasAtivo) fica com a barra oculta ('valor em conferência · barra oculta'); 'ocultar'
+ * = '—' (número só em valorNaoPublicado, para o "Por quê?"), 'selo' = valor. O par em conferência
+ * sai da mediana de referência. Ano do histórico em conferência sai da barra e da média dos
+ * mini-gráficos. `montarValuation` é pura; `obterValuation` lê o banco com cache em memória
  * por ticker:versão do Quadro (TTL 30 min).
  */
 import { prisma } from '@/lib/prisma';
@@ -52,6 +58,13 @@ import {
   type ParesAtivo,
 } from '@/services/analiseAtivos/leitura/ativo/paresAtivo';
 import { textoStatusBarra } from '@/services/analiseAtivos/textos';
+import {
+  CAMPO_HISTORICO,
+  aplicarConferenciaCampo,
+  anosEmConferencia,
+  flagsAnuaisConf,
+} from '@/services/analiseAtivos/leitura/ativo/conferenciasAtivo';
+import { ehCampoTela } from '@/services/analiseAtivos/regras/comum/conferencia';
 import { TEXTOS_TELA, formatarTexto, textoNaoSeAplica } from '@/services/analiseAtivos/textosTela';
 import type { ScoringParams } from '@/services/analiseAtivos/tipos';
 import type {
@@ -120,6 +133,8 @@ export interface AnualValuation {
   rendCota12m: number | null;
   obrigacoesPlPct: number | null;
   vacanciaFisicaCvmPct: number | null;
+  /** bloco C: flags do ano (conf:historico:...@<ano>) */
+  flags?: string[];
 }
 
 export interface PerShareValuation {
@@ -173,7 +188,7 @@ export interface EntradaValuation {
 // ---------------------------------------------------------------------------
 
 type CampoAtual = Exclude<keyof AtualValuation, 'naoSeAplica'>;
-type CampoAnual = Exclude<keyof AnualValuation, 'anoFiscal'>;
+type CampoAnual = Exclude<keyof AnualValuation, 'anoFiscal' | 'flags'>;
 
 interface Ctx {
   d: DadosAtivoValuation;
@@ -194,6 +209,11 @@ interface Ctx {
   /** informe mensal do CNPJ (vazio com cnpjConf) */
   mensal: MensalValuation[];
   fatorCota: (ano: number) => number;
+  /** bloco C: flags 'conf:' da linha + das linhas anuais */
+  flagsConf: string[];
+  motivos: string[];
+  /** bloco C: anos do histórico em conferência (fora da barra e da média) */
+  anosHistoricoConf: Set<number>;
 }
 
 /** FII cujo casamento ticker↔CNPJ não foi conferido (fii_ticker_map.conferido=false). */
@@ -241,7 +261,11 @@ function criarCtx(d: DadosAtivoValuation, hoje: string): Ctx {
           })),
           hoje,
         );
+  const flagsConf = [...d.linha.flags, ...flagsAnuaisConf(d.anuais)];
   return {
+    flagsConf,
+    motivos: d.linha.indice.motivos.map((m) => m.codigo),
+    anosHistoricoConf: anosEmConferencia(flagsConf, 'historico'),
     d,
     hoje,
     financeira: d.regua === 'acao_financeira',
@@ -318,9 +342,16 @@ type Ponto = { ano: number; valor: number | null };
 
 function historicoAnual(ctx: Ctx, campo: CampoAnual, porCota = false): Ponto[] {
   if (ctx.cnpjConf && CAMPOS_INFORME_ANUAL.has(campo)) return [];
+  // bloco C: ano do histórico em conferência = ponto fora (barra e média)
+  const conf = campo in CAMPO_HISTORICO ? ctx.anosHistoricoConf : null;
   return ctx.anuais.map((a) => ({
     ano: a.anoFiscal,
-    valor: porCota ? div(a[campo], ctx.fatorCota(a.anoFiscal)) : finito(a[campo]),
+    valor:
+      conf?.has(a.anoFiscal) === true
+        ? null
+        : porCota
+          ? div(a[campo], ctx.fatorCota(a.anoFiscal))
+          : finito(a[campo]),
   }));
 }
 
@@ -649,8 +680,29 @@ export function montarBarra(
   };
 }
 
+/** Estado do cartão com a política de conferência (bloco C) do ativo do contexto. */
+function atualComConferencia(
+  def: DefItem,
+  ctx: Ctx,
+  pagina: boolean,
+): { estado: Estado<number>; emConferencia: boolean } {
+  const estado = def.atual(ctx);
+  if (!ehCampoTela(def.codigo) || ctx.flagsConf.length === 0) {
+    return { estado, emConferencia: false };
+  }
+  const r = aplicarConferenciaCampo(
+    estado,
+    ctx.flagsConf,
+    ctx.motivos,
+    def.codigo,
+    ctx.d.linha.classe,
+    { pagina },
+  );
+  return { estado: r.estado, emConferencia: r.conf !== null };
+}
+
 function referencia(def: DefItem, pares: Ctx[]): ItemValuation['referencia'] {
-  const valores = pares.map((p) => def.atual(p));
+  const valores = pares.map((p) => atualComConferencia(def, p, false).estado);
   const okCount = valores.filter((v) => v.estado === 'ok').length;
   const med = medianaReferencia(
     valores.map((v) => (v.estado === 'ok' ? deNumero(v.valor) : deNumero(null))),
@@ -664,8 +716,9 @@ function referencia(def: DefItem, pares: Ctx[]): ItemValuation['referencia'] {
 }
 
 function montarItem(def: DefItem, alvo: Ctx, pares: Ctx[], params: ScoringParams): ItemValuation {
-  const atual = def.atual(alvo);
+  const { estado: atual, emConferencia } = atualComConferencia(def, alvo, true);
   const historico = def.historico ? def.historico(alvo) : null;
+  const nPontos = (historico ?? []).filter((p) => p.valor !== null).length;
   return {
     codigo: def.codigo,
     rotulo: TV.itens[def.codigo],
@@ -673,7 +726,10 @@ function montarItem(def: DefItem, alvo: Ctx, pares: Ctx[], params: ScoringParams
     formato: def.formato,
     leitura: TEXTOS_TELA.leituras[def.leitura].definicao,
     referencia: referencia(def, pares),
-    barra: montarBarra(atual, historico, def, alvo, params),
+    barra:
+      emConferencia && def.tipoBarra
+        ? barraOculta(nPontos, TV.barraConferencia)
+        : montarBarra(atual, historico, def, alvo, params),
     historico: def.tipoBarra && historico ? enxugarPontos(historico) : [],
   };
 }
@@ -841,6 +897,7 @@ const SELECT_ANUAL = {
   rendCota12m: true,
   obrigacoesPlPct: true,
   vacanciaFisicaCvmPct: true,
+  flags: true,
 } as const;
 
 const SELECT_PER_SHARE = {
