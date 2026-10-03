@@ -45,7 +45,10 @@ async function reporteLigado(page: Page): Promise<boolean> {
   );
 }
 
-/** Apaga o relato criado pelo teste e o caso dele (se é de usuário e ficou sem relatos). */
+/**
+ * Apaga o relato criado pelo teste e o caso dele (se é de usuário e ficou sem relatos; os
+ * eventos vão em cascata), com o aviso aos admins.
+ */
 async function desfazer(ids: string[]): Promise<void> {
   if (ids.length === 0) return;
   const prisma = new PrismaClient();
@@ -55,6 +58,16 @@ async function desfazer(ids: string[]): Promise<void> {
       select: { casoId: true },
     });
     await prisma.analiseDataReport.deleteMany({ where: { id: { in: ids } } });
+    // aviso aos admins do caso novo (sai com NODE_ENV=production, como no `next start` do e2e)
+    for (const casoId of new Set(reps.map((r) => r.casoId))) {
+      const vazio = await prisma.analiseCasoDado.count({
+        where: { id: casoId, origem: 'usuario', reportes: { none: {} } },
+      });
+      if (vazio === 0) continue;
+      await prisma.notification.deleteMany({
+        where: { type: 'analise_ativos_reporte', metadata: { path: ['casoId'], equals: casoId } },
+      });
+    }
     await prisma.analiseCasoDado.deleteMany({
       where: {
         id: { in: reps.map((r) => r.casoId) },
