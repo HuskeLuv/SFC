@@ -107,6 +107,34 @@ describe('getTierForPath', () => {
     expect(getTierForPath('/api/push/preferencias').limit).toBe(60);
   });
 
+  it('tier do relato da Análise de Ativos: 10/min só em /api/analise-ativos/reportes', () => {
+    expect(getTierForPath('/api/analise-ativos/reportes')).toEqual({ limit: 10, windowMs: 60_000 });
+    expect(getTierForPath('/api/analise-ativos/reportes/x').limit).toBe(10);
+    // Meus relatos e o resto da área ficam no tier genérico
+    expect(getTierForPath('/api/analise-ativos/meus-reportes').limit).toBe(60);
+    expect(getTierForPath('/api/analise-ativos/ativos/WEGE3').limit).toBe(60);
+    expect(getTierForPath('/api/analise-ativos/reportesx').limit).toBe(60);
+  });
+
+  it('11 GETs em meus-reportes NÃO tomam 429 (outro balde e tier genérico)', () => {
+    const store = new Map<string, { timestamps: number[] }>();
+    const ip = '1.2.3.4';
+    const balde = (p: string) => `${ip}:${p.split('/').slice(0, 4).join('/')}`;
+    // o IP já gastou o teto do POST de relato
+    for (let i = 0; i < 10; i += 1) {
+      const p = '/api/analise-ativos/reportes';
+      checkRateLimit(store, balde(p), getTierForPath(p));
+    }
+    const p = '/api/analise-ativos/meus-reportes';
+    const resultados = Array.from({ length: 11 }, () =>
+      checkRateLimit(store, balde(p), getTierForPath(p)),
+    );
+    expect(resultados.every((r) => r.allowed)).toBe(true);
+    // e o 11º POST de relato toma 429
+    const post = '/api/analise-ativos/reportes';
+    expect(checkRateLimit(store, balde(post), getTierForPath(post)).allowed).toBe(false);
+  });
+
   it('should return general API config for other /api/ paths', () => {
     const config = getTierForPath('/api/carteira/operacao');
     expect(config.limit).toBe(60);

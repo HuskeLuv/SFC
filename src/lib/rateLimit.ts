@@ -164,6 +164,14 @@ export const RATE_LIMIT_TIERS: RateLimitTier[] = [
     config: { limit: 5, windowMs: 60_000 },
   },
   {
+    // Análise de Ativos — "Reportar dado incorreto" (bloco C): teto por IP SÓ no POST de relato.
+    // Os limites por usuário (5/dia, 3/h por ativo, 300/dia global) ficam no banco, na rota.
+    // '/api/analise-ativos/meus-reportes' NÃO casa aqui (fica no tier genérico, outro balde).
+    match: (p) =>
+      p === '/api/analise-ativos/reportes' || p.startsWith('/api/analise-ativos/reportes/'),
+    config: { limit: 10, windowMs: 60_000 },
+  },
+  {
     // General API
     match: (p) => p.startsWith('/api/'),
     config: { limit: 60, windowMs: 60_000 },
