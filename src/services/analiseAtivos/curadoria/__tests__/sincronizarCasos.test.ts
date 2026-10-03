@@ -206,6 +206,52 @@ describe('planejarCuradoria', () => {
     expect(p.criar).toEqual([]);
   });
 
+  it('escopo empresa: UM caso por CNPJ (o 1º ticker), nada novo com irmão aberto ou rejeitado', () => {
+    const linhas = ['CELP7', 'CELP5', 'CELP3'].map((symbol) => ({
+      symbol,
+      classe: 'acao',
+      cnpj: 'C',
+      flags: [
+        'conf:acoes_escala:pl_minimo@2026-06-30',
+        'conf:preco_base:base_sem_evento@2026-04-29',
+      ],
+    }));
+    const dets = extrairDeteccoes(linhas);
+    const p = planejar({ deteccoes: dets });
+    const acoes = p.criar.filter((c) => c.deteccao.grupo === 'acoes_escala');
+    expect(acoes.map((c) => c.deteccao.symbol)).toEqual(['CELP3']);
+    // escopo ticker continua um caso por símbolo
+    expect(p.criar.filter((c) => c.deteccao.grupo === 'preco_base')).toHaveLength(3);
+
+    const aberto = caso({
+      id: 'c5',
+      symbol: 'CELP5',
+      grupo: 'acoes_escala',
+      campo: dets.find((d) => d.symbol === 'CELP5' && d.grupo === 'acoes_escala')!.campo,
+      regraCodigo: 'pl_minimo',
+      chaveDeteccao: '2026-06-30',
+      chaveAberta: dets.find((d) => d.symbol === 'CELP5' && d.grupo === 'acoes_escala')!.chaveCaso,
+    });
+    const p2 = planejar({ deteccoes: dets, abertos: [aberto] });
+    expect(p2.criar.filter((c) => c.deteccao.grupo === 'acoes_escala')).toEqual([]);
+    expect(p2.cessar).toEqual([]);
+    expect(p2.autorresolver).toEqual([]);
+
+    const p3 = planejar({
+      deteccoes: dets,
+      fechados: [
+        {
+          id: 'f7',
+          symbol: 'CELP7',
+          regraCodigo: 'pl_minimo',
+          chaveDeteccao: '2026-06-30',
+          status: 'rejeitado',
+        },
+      ],
+    });
+    expect(p3.criar.filter((c) => c.deteccao.grupo === 'acoes_escala')).toEqual([]);
+  });
+
   it('reabre detecção corrigida que voltou, com casoAnteriorId', () => {
     const p = planejar({
       deteccoes: [conf],

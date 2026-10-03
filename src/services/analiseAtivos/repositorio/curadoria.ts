@@ -7,9 +7,14 @@
  *    'liberar_valor' (curadoria/contrato.ehLiberacao). Vale no PRÓXIMO cálculo diário (decisão 15);
  *  - a regra NÃO marca de novo o mesmo (symbol, regraCodigo, chaveDeteccao); chave nova (outra data,
  *    outro ano) marca de novo;
+ *  - grupo de escopo 'empresa' (acoes_escala, fundamentos_escala, historico, proventos): a detecção é
+ *    da EMPRESA e se repete em cada ticker dela; liberar o caso de um ticker libera a mesma
+ *    (regra, chave) em todos os tickers do CNPJ (expandirLiberacoesEmpresa) — senão a flag de um
+ *    irmão continuaria pondo o Índice da empresa em conferência;
  *  - decisão 16: NÃO há "conferência manual" (sem conferenciasManuais(); a coluna fica false).
  */
 import type { PrismaClient } from '@prisma/client';
+import { DEF_GRUPO } from '@/services/analiseAtivos/regras/comum/conferencia';
 
 export interface LiberacaoConferencia {
   symbol: string;
@@ -57,7 +62,56 @@ export async function liberacoes(prisma: PrismaClient): Promise<LiberacaoConfere
   return out;
 }
 
-/** Conjunto 'SYMBOL|regra|chave' para o filtro do motor (aplicarConferencia.deteccaoLiberada). */
-export async function conjuntoLiberacoes(prisma: PrismaClient): Promise<Set<string>> {
-  return new Set((await liberacoes(prisma)).map(chaveLiberacao));
+/** Códigos das regras dos grupos de escopo 'empresa' (a detecção vale para todos os tickers). */
+export const REGRAS_ESCOPO_EMPRESA: ReadonlySet<string> = new Set(
+  Object.values(DEF_GRUPO)
+    .filter((g) => g.escopo === 'empresa')
+    .flatMap((g) => g.regras),
+);
+
+/**
+ * Liberações de regras de escopo 'empresa' repetidas para os tickers irmãos (mesmo CNPJ). Puro; as
+ * demais (escopo 'ticker', revisão) ficam como estão. Símbolo sem CNPJ conhecido não expande.
+ */
+export function expandirLiberacoesEmpresa(
+  libs: readonly LiberacaoConferencia[],
+  cnpjDoSimbolo: ReadonlyMap<string, string>,
+): LiberacaoConferencia[] {
+  const simbolosPorCnpj = new Map<string, string[]>();
+  for (const [symbol, cnpj] of cnpjDoSimbolo) {
+    const lista = simbolosPorCnpj.get(cnpj) ?? [];
+    lista.push(symbol.trim().toUpperCase());
+    simbolosPorCnpj.set(cnpj, lista);
+  }
+  const out: LiberacaoConferencia[] = [];
+  const vistos = new Set<string>();
+  const add = (l: LiberacaoConferencia) => {
+    const k = chaveLiberacao(l);
+    if (vistos.has(k)) return;
+    vistos.add(k);
+    out.push(l);
+  };
+  for (const l of libs) {
+    add(l);
+    if (!REGRAS_ESCOPO_EMPRESA.has(l.regraCodigo)) continue;
+    const cnpj = cnpjDoSimbolo.get(l.symbol);
+    for (const irmao of cnpj ? (simbolosPorCnpj.get(cnpj) ?? []) : []) {
+      add({ ...l, symbol: irmao });
+    }
+  }
+  return out;
+}
+
+/**
+ * Conjunto 'SYMBOL|regra|chave' para o filtro do motor (aplicarConferencia.deteccaoLiberada). Com
+ * `cnpjDoSimbolo`, as liberações de escopo 'empresa' valem para os tickers irmãos.
+ */
+export async function conjuntoLiberacoes(
+  prisma: PrismaClient,
+  cnpjDoSimbolo?: ReadonlyMap<string, string>,
+): Promise<Set<string>> {
+  const libs = await liberacoes(prisma);
+  return new Set(
+    (cnpjDoSimbolo ? expandirLiberacoesEmpresa(libs, cnpjDoSimbolo) : libs).map(chaveLiberacao),
+  );
 }

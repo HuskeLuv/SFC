@@ -117,9 +117,10 @@ export async function executarScores(
   };
   if (ctx.estourouPrazo()) return { parcial: true, detalhes };
 
-  // bloco C (só com sanidade.conferencia.ligada, v2): liberações da curadoria — 1 query por run
+  // bloco C (só com sanidade.conferencia.ligada, v2): liberações da curadoria — 1 query por run;
+  // as de escopo 'empresa' valem para todos os tickers do mesmo CNPJ
   const liberacoes = ctx.params.sanidade.conferencia.ligada
-    ? await conjuntoLiberacoes(ctx.prisma)
+    ? await conjuntoLiberacoes(ctx.prisma, dados.universo.cnpjDoSimbolo)
     : undefined;
   const memoria = {
     eventos: ev.porSimbolo,

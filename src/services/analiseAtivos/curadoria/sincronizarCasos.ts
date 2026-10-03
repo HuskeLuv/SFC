@@ -12,6 +12,11 @@
  *    a não ser que o curador já tenha decidido aquela (symbol, regra, chave) como 'rejeitado' (dado
  *    confirmado/sem procedência/duplicado): aí não reabre. Caso anterior 'corrigido' com a mesma
  *    detecção → o novo leva casoAnteriorId.
+ *    Grupo de escopo 'empresa' (acoes_escala, fundamentos_escala, historico, proventos): a mesma
+ *    detecção (grupo, regra, chave) se repete em cada ticker do CNPJ, mas é UM problema — abre UM
+ *    caso por empresa (o 1º ticker em ordem alfabética, a ON na prática), atualiza o(s) caso(s) já
+ *    aberto(s) de qualquer irmão sem abrir outros, e a decisão 'rejeitado' de um irmão vale para
+ *    todos (a liberação também: repositorio/curadoria.expandirLiberacoesEmpresa).
  * 3) Regra que parou (caso aberto com regraAtiva=true e sem detecção hoje):
  *    - regra PURA (origem 'regra', nReportes=0) cujo campo principal está 'ok' (valor finito) numa
  *      linha gerada HOJE → fecha como corrigido/fonte_corrigiu (sem efeito na tela);
@@ -169,6 +174,16 @@ export interface PlanoCuradoria {
 const chaveRegra = (symbol: string, regra: string | null, chave: string | null) =>
   `${symbol.toUpperCase()}|${regra ?? ''}|${chave ?? ''}`;
 
+/**
+ * Chave da detecção no nível da EMPRESA ('cnpj|grupo|regra|chave') para grupo de escopo 'empresa'
+ * com CNPJ conhecido; null = detecção do ticker (um caso por símbolo).
+ */
+export function chaveEmpresaDeteccao(d: Deteccao): string | null {
+  if (d.tipo !== 'conf' || !d.cnpj || !ehGrupoConferencia(d.grupo)) return null;
+  if (DEF_GRUPO[d.grupo].escopo !== 'empresa') return null;
+  return `${d.cnpj}|${d.grupo}|${d.regra}|${d.chave}`;
+}
+
 /** Valor 'ok' = número finito (null, NaN e ±∞ contam como dado ausente). */
 export function campoOk(v: ValorCampo | null): boolean {
   return !!v && v.deHoje && typeof v.valor === 'number' && Number.isFinite(v.valor);
@@ -198,6 +213,27 @@ export function planejarCuradoria(entrada: {
     else if (f.status === 'corrigido') corrigidos.set(k, f.id);
   }
 
+  // escopo 'empresa': um caso por empresa. Grupo com caso aberto em algum irmão → só atualiza esses;
+  // irmão rejeitado → não abre; senão abre só no representante (1º símbolo em ordem alfabética).
+  const porEmpresa = new Map<string, Deteccao[]>();
+  for (const d of entrada.deteccoes) {
+    const ke = chaveEmpresaDeteccao(d);
+    if (!ke) continue;
+    const lista = porEmpresa.get(ke) ?? [];
+    lista.push(d);
+    porEmpresa.set(ke, lista);
+  }
+  const podeCriar = (d: Deteccao): boolean => {
+    const ke = chaveEmpresaDeteccao(d);
+    const irmaos = ke ? porEmpresa.get(ke) : undefined;
+    if (!irmaos || irmaos.length < 2)
+      return !rejeitados.has(chaveRegra(d.symbol, d.regra, d.chave));
+    if (irmaos.some((i) => abertosPorChave.has(i.chaveCaso))) return false;
+    if (irmaos.some((i) => rejeitados.has(chaveRegra(i.symbol, i.regra, i.chave)))) return false;
+    const representante = [...irmaos].sort((a, b) => a.symbol.localeCompare(b.symbol))[0];
+    return representante.chaveCaso === d.chaveCaso;
+  };
+
   const detectadas = new Set<string>();
   for (const d of entrada.deteccoes) {
     detectadas.add(d.chaveCaso);
@@ -213,8 +249,8 @@ export function planejarCuradoria(entrada: {
       if (mudou) plano.atualizar.push({ caso, deteccao: d, reativou: !caso.regraAtiva });
       continue;
     }
+    if (!podeCriar(d)) continue;
     const kr = chaveRegra(d.symbol, d.regra, d.chave);
-    if (rejeitados.has(kr)) continue;
     plano.criar.push({ deteccao: d, casoAnteriorId: corrigidos.get(kr) ?? null });
   }
 
