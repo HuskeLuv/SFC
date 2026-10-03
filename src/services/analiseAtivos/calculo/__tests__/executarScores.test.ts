@@ -29,6 +29,9 @@ const dados = vi.hoisted(() => ({
   fund: [] as FundamentosPeriodo[],
   resumos: [] as ResumoCotacao[],
   proventos: [] as ProventoBruto[],
+  // bloco C: série recente de cotações, pré-filtro de salto e liberações da curadoria
+  series: new Map<string, Array<{ date: string; closeRaw: number; negocios: number }>>(),
+  liberacoes: new Set<string>(),
 }));
 
 vi.mock('@/services/analiseAtivos/repositorio/universo', () => ({
@@ -56,6 +59,11 @@ vi.mock('@/services/analiseAtivos/repositorio/fii', () => ({
 }));
 vi.mock('@/services/analiseAtivos/repositorio/cotacoes', () => ({
   resumoCotacoes: vi.fn(async () => dados.resumos),
+  serieRecenteCotacoes: vi.fn(
+    async (_p: unknown, symbols: string[]) =>
+      new Map(symbols.filter((s) => dados.series.has(s)).map((s) => [s, dados.series.get(s)!])),
+  ),
+  simbolosComSaltoDePreco: vi.fn(async () => new Set(dados.series.keys())),
   cotacaoFimDePeriodo: vi.fn(
     async (_p: unknown, pares: Array<{ symbol: string; dtFim: string }>) => {
       const m = new Map();
@@ -85,9 +93,18 @@ vi.mock('@/services/analiseAtivos/repositorio/proventos', () => ({
 vi.mock('@/services/analiseAtivos/repositorio/jobs', () => ({
   ultimaExecucaoOkPorJob: vi.fn(async () => new Map()),
 }));
+vi.mock('@/services/analiseAtivos/repositorio/curadoria', () => ({
+  conjuntoLiberacoes: vi.fn(async () => dados.liberacoes),
+}));
 
 import { executarScores } from '@/services/analiseAtivos/calculo/executarScores';
 import { dataRefScores } from '@/services/analiseAtivos/calculo/recalcularScores';
+import { SCORING_PARAMS_V2 } from '@/services/analiseAtivos/params/scoringParamsV2';
+import { conjuntoLiberacoes } from '@/services/analiseAtivos/repositorio/curadoria';
+import {
+  serieRecenteCotacoes,
+  simbolosComSaltoDePreco,
+} from '@/services/analiseAtivos/repositorio/cotacoes';
 
 type Linha = Record<string, unknown>;
 
@@ -266,6 +283,11 @@ function emissor(cnpj: string, ehFinanceira: boolean): EmissorInfo {
 }
 
 beforeEach(() => {
+  dados.series = new Map();
+  dados.liberacoes = new Set();
+  vi.mocked(serieRecenteCotacoes).mockClear();
+  vi.mocked(simbolosComSaltoDePreco).mockClear();
+  vi.mocked(conjuntoLiberacoes).mockClear();
   dados.acoes = [
     { symbol: 'WEGE3', cnpj: 'W', classeTitulo: 'ON', unitQtdOn: null, unitQtdPn: null },
     { symbol: 'XPTO3', cnpj: 'X', classeTitulo: 'ON', unitQtdOn: null, unitQtdPn: null },
@@ -919,5 +941,88 @@ describe('trava de plausibilidade do DY 12m (diagnóstico DY absurdo 02/10/2026)
         { refMonth: '2025-01-01' },
       ]),
     ).toEqual({ 2024: 2, 2025: 1 });
+  });
+});
+
+describe('bloco C — motor de sanidade no job scores', () => {
+  /** XPTO4 (referência da empresa X) com a base de cotação ×0,20 sem evento (o caso SBSP3). */
+  function serieComSalto() {
+    const dias = ['2026-04-24', '2026-04-27', '2026-04-28', '2026-04-29', '2026-04-30'];
+    const depois = ['2026-05-04', '2026-05-05', '2026-05-06', '2026-05-07', '2026-05-08'];
+    return [
+      ...dias.slice(0, 3).map((date) => ({ date, closeRaw: 45, negocios: 900 })),
+      ...[dias[3], dias[4], ...depois].map((date) => ({ date, closeRaw: 9, negocios: 900 })),
+    ];
+  }
+  const semTempo = (linhas: Record<string, unknown>[]) =>
+    JSON.stringify(
+      linhas.map(({ calculadoEm: _c, computedAt: _t, ...resto }) => resto),
+      (_k, v) => (v instanceof Date ? v.toISOString() : v),
+    );
+
+  it('REGRESSÃO v1: nada do motor é lido e as tabelas saem idênticas com dados que disparariam as regras', async () => {
+    const a = fakePrisma();
+    await executarScores(ctxDe(a.prisma, '2026-09-27'), { tudo: true });
+    dados.series = new Map([['XPTO4', serieComSalto()]]);
+    dados.liberacoes = new Set(['XPTO4|base_sem_evento|2026-04-29']);
+    const b = fakePrisma();
+    const r = await executarScores(ctxDe(b.prisma, '2026-09-27'), { tudo: true });
+    expect(serieRecenteCotacoes).not.toHaveBeenCalled();
+    expect(simbolosComSaltoDePreco).not.toHaveBeenCalled();
+    expect(conjuntoLiberacoes).not.toHaveBeenCalled();
+    for (const t of ['assetMultiplesCurrent', 'assetScore', 'assetMultiplesYearly']) {
+      expect(semTempo(b.tabelas[t])).toBe(semTempo(a.tabelas[t]));
+    }
+    expect(JSON.stringify(b.tabelas.assetMultiplesCurrent)).not.toMatch(/"(conf|rev|info):/);
+    expect((r.detalhes as { scores: { sanidade?: unknown } }).scores.sanidade).toBeUndefined();
+  });
+
+  it('v2: preco_base na referência ⇒ flag no ticker, Índice da empresa em conferência, relatório e alerta', async () => {
+    dados.series = new Map([['XPTO4', serieComSalto()]]);
+    const { prisma, tabelas } = fakePrisma();
+    const alertas: AlertaJob[] = [];
+    const ctx = {
+      ...ctxDe(prisma, '2026-09-27', alertas),
+      params: SCORING_PARAMS_V2,
+      paramsVersion: 2,
+    };
+    const r = await executarScores(ctx, { tudo: true });
+    expect(conjuntoLiberacoes).toHaveBeenCalledTimes(1);
+    const x4 = tabelas.assetMultiplesCurrent.find((l) => l.symbol === 'XPTO4')!;
+    expect(x4.flags).toContain('conf:preco_base:base_sem_evento@2026-04-29');
+    // escopo ticker: só a XPTO4 tem a flag, mas ela é a referência ⇒ a empresa toda fica incompleta
+    expect(tabelas.assetMultiplesCurrent.find((l) => l.symbol === 'XPTO3')!.flags).not.toContain(
+      'conf:preco_base:base_sem_evento@2026-04-29',
+    );
+    for (const s of ['XPTO3', 'XPTO4']) {
+      const sc = tabelas.assetScore.find((l) => l.symbol === s)!;
+      expect(sc.incompleto).toBe(true);
+      expect(sc.motivosIncompleto).toEqual(
+        expect.arrayContaining(['div:em_conferencia', 'preco:em_conferencia']),
+      );
+    }
+    // a WEGE3 (outra empresa) não ganha conferência
+    expect(
+      (tabelas.assetScore.find((l) => l.symbol === 'WEGE3')!.motivosIncompleto as string[]).filter(
+        (m) => m.endsWith(':em_conferencia'),
+      ),
+    ).toEqual([]);
+    const san = (
+      r.detalhes as {
+        scores: { sanidade: { regras: Array<{ regra: string; acao: number }>; totais: unknown } };
+      }
+    ).scores.sanidade;
+    expect(san.regras.find((x) => x.regra === 'conf:preco_base:base_sem_evento')?.acao).toBe(1);
+    expect(alertas.map((a) => a.codigo)).toContain('sanidade_regra_acima_limite');
+  });
+
+  it('v2 com a liberação da curadoria para a mesma chave ⇒ não marca', async () => {
+    dados.series = new Map([['XPTO4', serieComSalto()]]);
+    dados.liberacoes = new Set(['XPTO4|base_sem_evento|2026-04-29']);
+    const { prisma, tabelas } = fakePrisma();
+    const ctx = { ...ctxDe(prisma, '2026-09-27'), params: SCORING_PARAMS_V2, paramsVersion: 2 };
+    await executarScores(ctx, { tudo: true });
+    const x4 = tabelas.assetMultiplesCurrent.find((l) => l.symbol === 'XPTO4')!;
+    expect((x4.flags as string[]).filter((f) => f.startsWith('conf:'))).toEqual([]);
   });
 });

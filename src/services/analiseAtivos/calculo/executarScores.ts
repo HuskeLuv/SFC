@@ -9,8 +9,13 @@
  *  4. múltiplos atuais do universo inteiro (preço de AssetQuoteResumo; TTM da fatia A);
  *  5. Índice MF + semáforo (ScoringParams ativo), dataRef = último pregão;
  *  6. retenção de asset_scores.
+ * Bloco C (só com ScoringParams.sanidade.conferencia.ligada — v2): o motor de sanidade
+ * (regras/calculo/sanidade) roda dentro de 3 (ponto histórico fora de escala) e de 4–5 (demais grupos),
+ * com as liberações da curadoria lidas UMA vez aqui; o relatório por regra sai em
+ * detalhes.scores.sanidade e regra bloqueante acima de alertaPctQuadro% do Quadro gera alerta 'aviso'.
  * Eventos e proventos são sempre recalculados em memória (baratos); a etapa só decide se GRAVA.
  */
+import type { PlAnualPonto } from '@/services/analiseAtivos/calculo/gravarDerivados';
 import { recalcularDerivados } from '@/services/analiseAtivos/calculo/recalcularDerivados';
 import { recalcularEventos } from '@/services/analiseAtivos/calculo/recalcularEventos';
 import { recalcularProventos } from '@/services/analiseAtivos/calculo/recalcularProventos';
@@ -18,6 +23,7 @@ import { recalcularScores } from '@/services/analiseAtivos/calculo/recalcularSco
 import { carregarDadosBase } from '@/services/analiseAtivos/calculo/universo';
 import { emissoresAlteradosDesde } from '@/services/analiseAtivos/repositorio/acoes';
 import { fiisAlteradosDesde } from '@/services/analiseAtivos/repositorio/fii';
+import { conjuntoLiberacoes } from '@/services/analiseAtivos/repositorio/curadoria';
 import { ultimaExecucaoOkPorJob } from '@/services/analiseAtivos/repositorio/jobs';
 import type { JobContexto, ResultadoJob } from '@/services/analiseAtivos/tipos';
 
@@ -111,18 +117,20 @@ export async function executarScores(
   };
   if (ctx.estourouPrazo()) return { parcial: true, detalhes };
 
+  // bloco C (só com sanidade.conferencia.ligada, v2): liberações da curadoria — 1 query por run
+  const liberacoes = ctx.params.sanidade.conferencia.ligada
+    ? await conjuntoLiberacoes(ctx.prisma)
+    : undefined;
   const memoria = {
     eventos: ev.porSimbolo,
     proventos: pv.porSimbolo,
     cobertura: pv.cobertura,
     verificadoEm: pv.verificadoEm,
+    ...(liberacoes ? { liberacoes } : {}),
   };
 
   // 3. derivados anuais
-  let plAnual = new Map<
-    string,
-    Array<{ anoFiscal: number; pl: number | null; plNaoSeAplica: boolean }>
-  >();
+  let plAnual = new Map<string, PlAnualPonto[]>();
   if (etapas.has('derivados')) {
     t = Date.now();
     const u = dados.universo;
