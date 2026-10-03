@@ -58,6 +58,15 @@ export const CONSULTANT_INVITE_TYPE = 'consultant_invite';
 export const CONSULTANT_INVITE_RESPONSE_TYPE = 'consultant_invite_response';
 
 /**
+ * Types da curadoria da Análise de Ativos (bloco C; os mesmos de
+ * curadoria/contrato.TIPOS_NOTIFICACAO, repetidos como literais para este módulo
+ * não importar o serviço): resposta ao autor do relato e resumo de prazos aos
+ * admins. O push leva só o título (sem texto livre do usuário nem da equipe).
+ */
+export const ANALISE_RELATO_RESPOSTA_TYPE = 'analise_ativos_reporte_resposta';
+export const ANALISE_CURADORIA_SLA_TYPE = 'analise_ativos_curadoria_sla';
+
+/**
  * Categoria de push por `Notification.type`, usando as constantes exportadas
  * pelos serviços reais. Type fora deste mapa NÃO envia push.
  */
@@ -68,6 +77,8 @@ export const CATEGORIA_POR_TYPE: Readonly<Record<string, CategoriaPush>> = {
   [COMUNIDADE_MODERACAO_TYPE]: 'comunidade',
   [CONSULTANT_INVITE_TYPE]: 'conta',
   [CONSULTANT_INVITE_RESPONSE_TYPE]: 'conta',
+  [ANALISE_RELATO_RESPOSTA_TYPE]: 'conta',
+  [ANALISE_CURADORIA_SLA_TYPE]: 'conta',
 };
 
 /** null = type desconhecido: não envia push. */
