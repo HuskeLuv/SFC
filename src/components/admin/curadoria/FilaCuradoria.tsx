@@ -5,12 +5,15 @@
  *
  * Computador (lg+): contadores que filtram, abas/filtros, tabela TABLE_STYLES (Caso, Origem,
  * Efeito, Status com responsável, Prazo — o cabeçalho da ordem em #396CAA com "ordem crescente"
- * oculto) e o detalhe ao lado. Celular: cartões; o caso abre em página própria
- * (/admin/curadoria/[id], voltar do navegador). Estados: carregando (esqueleto), vazia, erro,
+ * oculto). Detalhe ao lado só com a área de conteúdo >= 1120px (consulta de contêiner: vale com
+ * a barra lateral aberta ou recolhida), fixo no topo (sticky, rolagem própria) para o caso escolhido
+ * mais abaixo na fila continuar visível; abaixo disso a tabela ocupa a largura toda (Status e Prazo
+ * sem rolagem lateral) e o caso abre em página própria, como no celular.
+ * Celular: cartões; o caso abre em página própria (/admin/curadoria/[id], voltar do navegador). Estados: carregando (esqueleto), vazia, erro,
  * salvo (aviso role=status).
  */
 import Link from 'next/link';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   TABLE_HEADER_STYLE,
   TABLE_MOBILE_STYLES,
@@ -43,27 +46,36 @@ import {
   textoRelatos,
 } from './marcasCaso';
 
-const LG = '(min-width: 1024px)';
+/**
+ * Largura mínima da área de conteúdo para o detalhe ficar ao lado da fila (a tabela precisa de
+ * ~550px). Mesmo valor das classes @min-[1120px]/@max-[1120px] abaixo.
+ */
+const LARGURA_LADO_A_LADO = 1120;
 
-function ehComputador(): boolean {
-  return typeof window !== 'undefined' && window.matchMedia?.(LG).matches === true;
+function ehLadoALado(el: HTMLElement | null): boolean {
+  if (!el || typeof window === 'undefined') return false;
+  // fora da faixa lg (celular/tablet) nunca: lá a tabela nem aparece
+  if (window.matchMedia?.('(min-width: 1024px)').matches !== true) return false;
+  return el.getBoundingClientRect().width >= LARGURA_LADO_A_LADO;
 }
 
 function CelulaCaso({
   caso,
   selecionado,
   onSelecionar,
+  ladoALado,
 }: {
   caso: CasoListaItem;
   selecionado: boolean;
   onSelecionar: (id: string) => void;
+  ladoALado: () => boolean;
 }) {
   return (
     <Link
       href={ROTAS_CURADORIA.caso(caso.id)}
       aria-current={selecionado ? 'true' : undefined}
       onClick={(e) => {
-        if (ehComputador()) {
+        if (ladoALado()) {
           e.preventDefault();
           onSelecionar(caso.id);
         }
@@ -130,6 +142,9 @@ export default function FilaCuradoria() {
   const [itens, setItens] = useState<CasoListaItem[]>([]);
   const [selecionado, setSelecionado] = useState<string | null>(null);
   const [aviso, setAviso] = useState<string | null>(null);
+  const painelRef = useRef<HTMLDivElement | null>(null);
+  const raizRef = useRef<HTMLDivElement | null>(null);
+  const ladoALado = useCallback(() => ehLadoALado(raizRef.current), []);
   const consulta = useMemo(() => ({ ...filtros, cursor }), [filtros, cursor]);
   const q = useFilaCuradoria(consulta);
 
@@ -138,12 +153,17 @@ export default function FilaCuradoria() {
     setItens((atual) => (cursor ? [...atual, ...q.data.itens] : q.data.itens));
   }, [q.data, q.isPlaceholderData, cursor]);
 
-  // computador: seleciona o primeiro caso quando o selecionado sai da lista
+  // detalhe ao lado: seleciona o primeiro caso quando o selecionado sai da lista
   useEffect(() => {
-    if (!ehComputador()) return;
+    if (!ehLadoALado(raizRef.current)) return;
     if (itens.length === 0) return;
     if (!selecionado || !itens.some((i) => i.id === selecionado)) setSelecionado(itens[0].id);
   }, [itens, selecionado]);
+
+  // caso novo no painel: começa do topo do detalhe
+  useEffect(() => {
+    painelRef.current?.scrollTo?.({ top: 0 });
+  }, [selecionado]);
 
   const mudarFiltros = useCallback((f: CasosListaFiltro) => {
     setCursor(undefined);
@@ -241,7 +261,12 @@ export default function FilaCuradoria() {
                     }`}
                   >
                     <th scope="row" className="px-4 py-1.5 text-left font-normal">
-                      <CelulaCaso caso={c} selecionado={sel} onSelecionar={setSelecionado} />
+                      <CelulaCaso
+                        caso={c}
+                        selecionado={sel}
+                        onSelecionar={setSelecionado}
+                        ladoALado={ladoALado}
+                      />
                     </th>
                     <td className={TABLE_STYLES.td}>
                       <MarcaOrigem origem={c.origem} />
@@ -331,7 +356,7 @@ export default function FilaCuradoria() {
   }
 
   return (
-    <div className="@container flex flex-col gap-4" data-fila={fila}>
+    <div ref={raizRef} className="@container flex flex-col gap-4" data-fila={fila}>
       <p className="text-sm text-gray-600 dark:text-gray-300">{T_CUR.sub}</p>
       <ContadoresFila
         contagens={contagens}
@@ -339,9 +364,13 @@ export default function FilaCuradoria() {
         onFiltrar={(f) => mudarFiltros({ ...filtros, fila: f })}
       />
       <FiltrosFila filtros={filtros} contagens={contagens} onMudar={mudarFiltros} />
-      <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,1fr)]">
+      <div className="grid grid-cols-1 items-start gap-4 @min-[1120px]:grid-cols-[minmax(0,1.05fr)_minmax(0,1fr)]">
         <div className="flex min-w-0 flex-col gap-2">{lista}</div>
-        <div className="min-w-0 max-lg:hidden">
+        <div
+          ref={painelRef}
+          data-painel-detalhe
+          className="min-w-0 max-lg:hidden @max-[1120px]:hidden @min-[1120px]:sticky @min-[1120px]:top-4 @min-[1120px]:max-h-[calc(100vh-2rem)] @min-[1120px]:overflow-y-auto"
+        >
           {selecionado && itens.length > 0 && !q.error ? (
             <DetalheCaso key={selecionado} id={selecionado} onSalvo={setAviso} />
           ) : (
