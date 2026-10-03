@@ -13,7 +13,8 @@ import { MYFINANCE_BRAND, TABLE_HEADER_BG } from '@/constants/brandColors';
  * - cabeçalho no azul `seguranca` da paleta + texto branco em caixa alta;
  * - linhas separadas só por uma borda horizontal sutil — sem bordas verticais;
  * - totais em cinza-claro com fonte média; seções (grupos colapsáveis) no
- *   azul `tranquilidade` com texto branco;
+ *   azul `patrimonio` com texto branco (5,39:1, AA — out/2026; era o
+ *   `tranquilidade` #6E9DC4, 2,88:1, abaixo de AA nos dois temas);
  * - cores sempre de `src/constants/brandColors.ts` (regra permanente da paleta).
  */
 export const TABLE_STYLES = {
@@ -66,8 +67,11 @@ export const TABLE_HEADER_STYLE = { backgroundColor: TABLE_HEADER_BG } as const;
 /** Estilo inline do <th> de uma coluna em destaque (azul `outside`, sólido). Par de `TABLE_STYLES.highlightTd`. */
 export const TABLE_HIGHLIGHT_HEADER_STYLE = { backgroundColor: MYFINANCE_BRAND.outside } as const;
 
-/** Estilo inline do fundo das linhas de seção (azul `tranquilidade`). */
-export const TABLE_SECTION_STYLE = { backgroundColor: MYFINANCE_BRAND.tranquilidade } as const;
+/**
+ * Estilo inline do fundo das linhas de seção (azul `patrimonio`). Texto branco por cima: 5,39:1
+ * (AA) em claro e escuro — o fundo é sólido nos dois temas. Distinto do cabeçalho (`seguranca`).
+ */
+export const TABLE_SECTION_STYLE = { backgroundColor: MYFINANCE_BRAND.patrimonio } as const;
 
 /**
  * Tabela → cartões abaixo de lg (PWA fase 0). NÃO altera `TABLE_STYLES`: é o par mobile usado
@@ -92,9 +96,9 @@ export const TABLE_MOBILE_STYLES = {
   valuePrimary: 'text-sm font-semibold tabular-nums text-right text-gray-800 dark:text-white/90',
   positive: 'text-mf-patrimonio dark:text-mf-tranquilidade',
   negative: 'text-[#D92D20] dark:text-[#F97066]',
-  /** Faixa de grupo (par da `sectionRow`, azul `tranquilidade`). */
+  /** Faixa de grupo (par da `sectionRow`, azul `patrimonio`; branco por cima 5,39:1, AA). */
   groupBand:
-    'flex items-center justify-between rounded-lg bg-mf-tranquilidade px-3 py-2 text-sm font-semibold text-white',
+    'flex items-center justify-between rounded-lg bg-mf-patrimonio px-3 py-2 text-sm font-semibold text-white',
   /** Cartão de total (par da `totalRow`). */
   totalCard:
     'rounded-2xl bg-gray-50 px-4 py-3.5 font-medium text-gray-800 dark:bg-white/[0.02] dark:text-gray-100',
@@ -116,8 +120,8 @@ export const TABLE_MOBILE_STYLES = {
   cardDetailValue: 'text-[13.5px] font-medium tabular-nums text-gray-800 dark:text-gray-100',
   /**
    * Faixa de seção recolhível (`CardSectionBand`): tint `tranquilidade` + texto `seguranca`
-   * (claro) / `escolha` (escuro) — AA. Substitui a `groupBand` (branco sobre #6E9DC4, 2,88:1),
-   * que continua exportada para a fase 0.
+   * (claro) / `escolha` (escuro) — AA. Substitui a `groupBand` (que era branco sobre #6E9DC4,
+   * 2,88:1; hoje `patrimonio`), que continua exportada para a fase 0.
    */
   sectionBandButton:
     'flex w-full min-h-11 items-center gap-2 rounded-xl px-3 text-left text-sm bg-mf-tranquilidade/[0.18] text-mf-seguranca dark:bg-mf-tranquilidade/[0.14] dark:text-mf-escolha font-semibold',

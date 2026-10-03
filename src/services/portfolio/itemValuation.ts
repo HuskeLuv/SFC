@@ -85,17 +85,24 @@ const toNumber = (v: { toNumber(): number } | number | null | undefined): number
   return typeof v === 'number' ? v : v.toNumber();
 };
 
-const isReservaItem = (input: ItemValuationInput): boolean => {
-  const type = input.asset?.type;
-  const symbol = input.asset?.symbol;
+/** Item de reserva: type/símbolo de reserva ou Tesouro de catálogo comprado para a reserva. */
+export const isReservaAsset = (
+  asset: AssetLike | null,
+  tesouroReservaDestino?: 'emergencia' | 'oportunidade',
+): boolean => {
+  const type = asset?.type;
+  const symbol = asset?.symbol;
   return (
     type === 'emergency' ||
     type === 'opportunity' ||
     Boolean(symbol?.startsWith('RESERVA-EMERG')) ||
     Boolean(symbol?.startsWith('RESERVA-OPORT')) ||
-    input.tesouroReservaDestino !== undefined
+    tesouroReservaDestino !== undefined
   );
 };
+
+const isReservaItem = (input: ItemValuationInput): boolean =>
+  isReservaAsset(input.asset, input.tesouroReservaDestino);
 
 const isImovelBemItem = (asset: AssetLike | null): boolean =>
   asset?.type === 'imovel' ||
@@ -160,7 +167,7 @@ export const categorizarAsset = (
     return 'reservaOportunidade';
   }
 
-  // B3_ACAO_RE (+ units se INCLUIR_UNITS_EM_ACOES) — a mesma regra da aba Ações.
+  // B3_ACAO_RE + units (INCLUIR_UNITS_EM_ACOES) — a mesma regra da aba Ações.
   const isB3StockTicker = isTickerAcaoB3(symbolUpper);
 
   switch (tipo) {
@@ -206,19 +213,11 @@ export const categorizarAsset = (
       return 'opcoes';
     default:
       if ((FUNDO_TYPES_AGRUPADOS as readonly string[]).includes(tipo)) {
-        // fia/multimercado/fund-rf/fund-cambial/fip/fip-infra/fidc/fiagro —
-        // aparecem na aba Fundos, então a pizza soma em fimFia.
-        // 'fund'/'funds' legados: heurística FII preservada.
-        if (tipo === 'fund' || tipo === 'funds') {
-          const nameLower = (asset?.name ?? '').toLowerCase();
-          if (
-            symbolUpper.endsWith('11') ||
-            nameLower.includes('fii') ||
-            nameLower.includes('imobili')
-          ) {
-            return 'fiis';
-          }
-        }
+        // fund/funds/fia/multimercado/fund-rf/fund-cambial/fip/fip-infra/fidc/
+        // fiagro — aparecem na aba Fundos, então a pizza soma em fimFia. Os
+        // 'fund'/'funds' legados com cara de FII (HGLG11, "imobiliário") também:
+        // a heurística antiga os mandava para FII's na pizza enquanto a aba os
+        // lista em Fundos. Quem quiser em FII's usa o mover (override).
         return 'fimFia';
       }
       if (symbol.startsWith('RESERVA-OPORT')) return 'reservaOportunidade';
@@ -296,10 +295,21 @@ export const valuatePortfolioItem = (input: ItemValuationInput): ItemValuation =
 
   const base = { categoria, valorAplicadoBRL, contaNoSaldoBruto: !isImovelBem };
 
+  // Fundo da aba Fundos sem cotação recente (getAssetPrices só devolve preço
+  // de até 7 dias): vale a última cota gravada no Asset (CVM ou Pluggy), de
+  // qualquer idade — a MESMA cascata da aba Fundos (cotação → cota → curva →
+  // preço médio). Sem isso a pizza caía no preço médio e divergia da aba.
+  const cotaGravada =
+    (quote == null || quote <= 0) &&
+    (FUNDO_TYPES_AGRUPADOS as readonly string[]).includes(asset?.type ?? '')
+      ? toNumber(asset?.currentPrice)
+      : null;
+  const cotacao = quote != null && quote > 0 ? quote : cotaGravada;
+
   // Fundo com cota CVM publicada vale qtd × cota (como ação) — a marcação na
   // curva do FI é só fallback pra fundo sem cota. Mesma prioridade da aba
   // Fundos; sem isso um fundo de verdade era marcado como CDB no resumo.
-  const fundoComCota = isFundoType(asset?.type) && quote != null && quote > 0;
+  const fundoComCota = isFundoType(asset?.type) && cotacao != null && cotacao > 0;
 
   if (fixedIncome && fiGetCurrentValue && !fundoComCota) {
     const { valor, fonte } = getFixedIncomeCurrentValue(
@@ -326,8 +336,8 @@ export const valuatePortfolioItem = (input: ItemValuationInput): ItemValuation =
     return { ...base, valorAtualBRL: valor, fonte: 'manual' };
   }
 
-  if (quote != null && quote > 0) {
-    let valor = item.quantity * quote;
+  if (cotacao != null && cotacao > 0) {
+    let valor = item.quantity * cotacao;
     const jaEmBRL = TIPOS_PRECO_EM_BRL.includes(asset?.type ?? '');
     if (!jaEmBRL && asset?.currency === 'USD' && cotacaoDolar != null && cotacaoDolar > 0) {
       valor *= cotacaoDolar;

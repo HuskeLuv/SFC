@@ -375,6 +375,9 @@ export default function RelatoriosPage() {
     const aportesLiquidosPeriodo = movs
       ? Math.round(
           movs.reduce((sum, mov) => {
+            // Asset.type cru DE PROPÓSITO (não `mov.categoria`): a série de
+            // patrimônio (patrimonioHistoricoBuilder.isImovelAssetType) exclui só
+            // 'imovel'; imóvel não é movível, então o override não muda nada aqui.
             if (mov.jaInvestido || mov.tipoAtivo === 'imovel') return sum;
             return sum + (mov.operacao === 'compra' ? mov.total : -mov.total);
           }, 0) * 100,

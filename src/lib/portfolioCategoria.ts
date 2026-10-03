@@ -64,15 +64,10 @@ export const getCategoriaFromPortfolio = (
       case 'fii':
         return 'fiis';
       case 'fund':
-      case 'funds': {
-        const symbolUpper = symbol.toUpperCase();
-        const nameLower = (item.asset?.name || '').toLowerCase();
-        return symbolUpper.endsWith('11') ||
-          nameLower.includes('fii') ||
-          nameLower.includes('imobili')
-          ? 'fiis'
-          : 'fimFia';
-      }
+      case 'funds':
+        // Fundo legado: a aba Fundos o lista (FUNDO_TYPES_AGRUPADOS) e a pizza
+        // soma em fimFia — sem a heurística antiga de FII por ticker/nome.
+        return 'fimFia';
       case 'etf':
         return 'etfs';
       case 'reit':

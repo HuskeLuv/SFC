@@ -2,6 +2,7 @@
 
 import React, { useCallback, useEffect, useState } from 'react';
 import { useIsBelowLg } from '@/hooks/useMediaQuery';
+import { useMobileHistoryLayer } from '@/hooks/useMobileHistoryLayer';
 import { useMoverOpcoes } from '@/hooks/useMoverOpcoes';
 import { MoverErro, useMoverInvestimento } from '@/hooks/useMoverInvestimento';
 import {
@@ -151,6 +152,10 @@ function useFluxoMover({ alvo, open, onClose, onMoved }: MoverInvestimentoProps)
 export function MoverInvestimento(props: MoverInvestimentoProps) {
   const isBelowLg = useIsBelowLg();
   const fluxo = useFluxoMover(props);
+  // "Voltar" do sistema fecha o painel do celular (entrada própria no histórico, sem parâmetro
+  // na URL). Quem renderiza deve manter este componente montado e só virar `open` para false ao
+  // fechar — desmontado com o painel aberto, a entrada do histórico fica órfã.
+  useMobileHistoryLayer(props.open, fluxo.fechar, isBelowLg);
   if (!props.open) return null;
   return isBelowLg ? (
     <MoverInvestimentoSheet open={props.open} fluxo={fluxo} />

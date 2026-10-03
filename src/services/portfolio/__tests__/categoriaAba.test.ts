@@ -145,7 +145,7 @@ describe('wherePortfolioDaCategoria / whereWatchlistDaCategoria', () => {
       'VOO/etf': 'etfs',
       'AAPL/stock': 'stocks',
       'O/reit': 'reits',
-      'TAEE11/stock': null,
+      'TAEE11/stock': 'acoes',
       'TESOURO-1/tesouro-direto': null,
       'BTC/crypto': null,
     };
@@ -198,7 +198,7 @@ describe('listarPlanejados com { categoria }', () => {
   it('usa o where com override e aplica a regra completa em JS', async () => {
     const rows = [
       planejado('1', asset('PETR4', 'stock')),
-      planejado('2', asset('TAEE11', 'stock')), // unit: fora de Ações
+      planejado('2', asset('TAEE11', 'stock')), // unit: entra em Ações
       planejado('3', asset('AAPL', 'stock', 'USD')), // Stock: fora de Ações
       planejado('4', asset('HGLG11', 'fii'), { categoriaOverride: 'acoes', secao: 'growth' }),
       planejado('5', asset('VALE3', 'stock')), // já tem posição
@@ -212,7 +212,7 @@ describe('listarPlanejados com { categoria }', () => {
       include: { asset: true },
       orderBy: { addedAt: 'asc' },
     });
-    expect(out.map((r) => r.id)).toEqual(['1', '4']);
+    expect(out.map((r) => r.id)).toEqual(['1', '2', '4']);
   });
 
   it('assinatura antiga continua igual', async () => {

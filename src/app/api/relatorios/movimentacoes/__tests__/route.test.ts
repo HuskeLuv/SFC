@@ -10,10 +10,15 @@ const mockRequireAuthWithActing = vi.hoisted(() =>
 );
 const mockPrisma = vi.hoisted(() => ({
   stockTransaction: { findMany: vi.fn(), count: vi.fn() },
+  portfolio: { findMany: vi.fn() },
 }));
+const mockReservaDestinoPorAsset = vi.hoisted(() => vi.fn());
 
 vi.mock('@/utils/auth', () => ({ requireAuthWithActing: mockRequireAuthWithActing }));
 vi.mock('@/lib/prisma', () => ({ default: mockPrisma, prisma: mockPrisma }));
+vi.mock('@/services/portfolio/tesouroDestino', () => ({
+  reservaDestinoPorAsset: mockReservaDestinoPorAsset,
+}));
 
 import { GET } from '../route';
 
@@ -26,7 +31,8 @@ const tx = (overrides: Record<string, unknown> = {}) => ({
   total: 500,
   fees: 2,
   notes: null,
-  asset: { symbol: 'PETR4', name: 'Petrobras', type: 'stock' },
+  assetId: 'a-petr4',
+  asset: { symbol: 'PETR4', name: 'Petrobras', type: 'stock', currency: 'BRL' },
   ...overrides,
 });
 
@@ -34,6 +40,8 @@ beforeEach(() => {
   vi.clearAllMocks();
   mockPrisma.stockTransaction.findMany.mockResolvedValue([]);
   mockPrisma.stockTransaction.count.mockResolvedValue(0);
+  mockPrisma.portfolio.findMany.mockResolvedValue([]);
+  mockReservaDestinoPorAsset.mockResolvedValue(new Map());
 });
 
 describe('GET /api/relatorios/movimentacoes', () => {
@@ -84,5 +92,60 @@ describe('GET /api/relatorios/movimentacoes', () => {
       new NextRequest('http://localhost/api/relatorios/movimentacoes?start=banana'),
     );
     expect(res.status).toBe(200);
+  });
+
+  it('categoria efetiva: segue o mover, a reserva do Tesouro e Imóveis & Bens', async () => {
+    mockPrisma.stockTransaction.findMany.mockResolvedValue([
+      tx(),
+      tx({
+        id: 'tx-fii',
+        assetId: 'a-kdif',
+        asset: { symbol: 'KDIF11', name: 'Kinea Infra', type: 'fii', currency: 'BRL' },
+      }),
+      tx({
+        id: 'tx-td',
+        assetId: 'a-td',
+        asset: { symbol: 'TESOURO-SELIC-2029', name: 'Selic 2029', type: 'tesouro-direto' },
+      }),
+      tx({
+        id: 'tx-casa',
+        assetId: 'a-casa',
+        asset: { symbol: 'IMOVEL-1', name: 'Casa', type: 'imovel' },
+      }),
+      tx({ id: 'tx-sem', assetId: null, asset: null }),
+    ]);
+    mockPrisma.portfolio.findMany.mockResolvedValue([
+      { assetId: 'a-kdif', categoriaOverride: 'fimFia' },
+      { assetId: 'a-petr4', categoriaOverride: null },
+    ]);
+    mockReservaDestinoPorAsset.mockResolvedValue(new Map([['a-td', 'emergencia']]));
+
+    const res = await GET(new NextRequest('http://localhost/api/relatorios/movimentacoes'));
+    const body = await res.json();
+    const porId = Object.fromEntries(
+      body.movimentacoes.map((m: { id: string; categoria: string | null }) => [m.id, m.categoria]),
+    );
+
+    expect(porId).toEqual({
+      'tx-1': 'acoes',
+      'tx-fii': 'fimFia', // movido para Fundos
+      'tx-td': 'reservaEmergencia', // Tesouro comprado para a reserva
+      'tx-casa': 'imoveisBens',
+      'tx-sem': null,
+    });
+    // tipo cru segue no payload (compatibilidade)
+    expect(body.movimentacoes[1].tipoAtivo).toBe('fii');
+    // overrides só dos ativos da página; reserva só dos Tesouros
+    expect(mockPrisma.portfolio.findMany.mock.calls[0][0].where).toEqual({
+      userId: 'user-1',
+      assetId: { in: ['a-petr4', 'a-kdif', 'a-td', 'a-casa'] },
+    });
+    expect(mockReservaDestinoPorAsset).toHaveBeenCalledWith('user-1', ['a-td']);
+  });
+
+  it('sem transações não consulta posições nem reservas', async () => {
+    await GET(new NextRequest('http://localhost/api/relatorios/movimentacoes'));
+    expect(mockPrisma.portfolio.findMany).not.toHaveBeenCalled();
+    expect(mockReservaDestinoPorAsset).not.toHaveBeenCalled();
   });
 });
