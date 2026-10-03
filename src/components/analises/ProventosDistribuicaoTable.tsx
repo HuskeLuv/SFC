@@ -216,7 +216,6 @@ export default function ProventosDistribuicaoTable({
         <tbody>
           {entries.map(([name, data]) => {
             const symbol = data.items[0]?.symbol ?? '';
-            const isFii = data.classe === "FII's";
 
             return (
               <tr key={name} className={`${TABLE_STYLES.row} ${TABLE_STYLES.rowHover}`}>
@@ -260,7 +259,8 @@ export default function ProventosDistribuicaoTable({
                   {formatCurrency(data.total)}
                 </td>
                 <td className={`${TABLE_STYLES.compact.td} text-right`}>
-                  {isFii && data.magicNumber ? formatNumber(data.magicNumber) : '—'}
+                  {/* A API só manda o nº mágico para FII pelo tipo real, em qualquer aba. */}
+                  {data.magicNumber ? formatNumber(data.magicNumber) : '—'}
                 </td>
               </tr>
             );
