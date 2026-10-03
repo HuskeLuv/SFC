@@ -247,6 +247,8 @@ SHELL=/bin/bash
 10 10 * * * root /usr/local/bin/myfinance-job.sh scores
 # Análise de Ativos (Fase 1) — linhas do Quadro, depois do scores
 40 10 * * * root /usr/local/bin/myfinance-job.sh quadro
+# Análise de Ativos (bloco C) — fila de curadoria (casos de regra + resumo de prazos), depois do quadro
+55 10 * * * root /usr/local/bin/myfinance-job.sh curadoria
 EOF
 # cron ignora arquivos com ponto no nome em /etc/cron.d — é o "desligado".
 # Cutover: mv /etc/cron.d/myfinance.disabled /etc/cron.d/myfinance
