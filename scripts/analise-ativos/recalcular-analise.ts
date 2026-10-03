@@ -218,7 +218,7 @@ async function main() {
   if (detalhes?.scores) {
     const texto = relatorioTexto(
       sanidade,
-      `=== motor de sanidade (bloco C) — relatório por regra — ScoringParams v${args.versaoParams ?? 'ativa'} — ${args.aplicar ? 'APPLY' : 'dry-run'} ===`,
+      `=== motor de sanidade (bloco C) — relatório por regra — ScoringParams ${args.versaoParams ? `v${args.versaoParams}` : 'ativa'} — ${args.aplicar ? 'APPLY' : 'dry-run'} ===`,
     );
     console.log(texto);
     if (args.relatorio) writeFileSync(args.relatorio, texto);
