@@ -82,3 +82,68 @@ export async function resumoCotacoes(
     negociadoUltimos30: l.negociadoUltimos30,
   }));
 }
+
+/** Pregão enxuto da série recente (motor de sanidade do bloco C: precoBase e precoEsporadico). */
+export interface PregaoRecente {
+  date: string;
+  closeRaw: number;
+  negocios: number;
+}
+
+const LOTE_SERIE = 50;
+
+/**
+ * Símbolos com ao menos um salto de fechamento > `salto` entre pregões COM negócio consecutivos desde
+ * `desde`, com ≥ `negociosMin` negócios no pregão do salto — o pré-filtro de R3 (precoBase) feito no
+ * banco (uma query, janela LAG), para só esses símbolos lerem a série inteira. Mesmo critério de
+ * entrada de regras/calculo/sanidade/precoBase (o resto da regra roda em memória).
+ */
+export async function simbolosComSaltoDePreco(
+  prisma: PrismaClient,
+  desde: string,
+  salto: number,
+  negociosMin: number,
+): Promise<Set<string>> {
+  const linhas = await prisma.$queryRaw<Array<{ symbol: string }>>`
+    SELECT DISTINCT symbol FROM (
+      SELECT symbol, negocios, "closeRaw",
+             LAG("closeRaw") OVER (PARTITION BY symbol ORDER BY date) AS anterior
+        FROM asset_quotes_daily
+       WHERE date >= ${deData(desde)} AND negocios > 0 AND "closeRaw" > 0
+    ) t
+    WHERE anterior > 0 AND negocios >= ${negociosMin}
+      AND ABS("closeRaw" / anterior - 1) > ${salto}`;
+  return new Set(linhas.map((l) => l.symbol));
+}
+
+/**
+ * Série recente de cotações (date, closeRaw, negocios) de `desde` em diante, por símbolo, em lotes de
+ * LOTE_SERIE símbolos e só com as 3 colunas (≈ 250 pregões por símbolo). Só banco.
+ */
+export async function serieRecenteCotacoes(
+  prisma: PrismaClient,
+  symbols: string[],
+  desde: string,
+): Promise<Map<string, PregaoRecente[]>> {
+  const out = new Map<string, PregaoRecente[]>();
+  const unicos = [...new Set(symbols)];
+  for (let i = 0; i < unicos.length; i += LOTE_SERIE) {
+    const lote = unicos.slice(i, i + LOTE_SERIE);
+    const linhas = await prisma.assetQuoteDaily.findMany({
+      where: { symbol: { in: lote }, date: { gte: deData(desde) } },
+      select: { symbol: true, date: true, closeRaw: true, negocios: true },
+      orderBy: [{ symbol: 'asc' }, { date: 'asc' }],
+    });
+    for (const l of linhas) {
+      const p: PregaoRecente = {
+        date: paraData(l.date),
+        closeRaw: paraNumero(l.closeRaw) ?? 0,
+        negocios: l.negocios,
+      };
+      const lista = out.get(l.symbol);
+      if (lista) lista.push(p);
+      else out.set(l.symbol, [p]);
+    }
+  }
+  return out;
+}
