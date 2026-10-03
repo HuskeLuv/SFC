@@ -24,6 +24,10 @@
  *   tipo), só entre linhas do Quadro, uma por empresa, por valor de mercado.
  *
  * Convenções de colunas de array: ver src/services/analiseAtivos/leitura/linhasQuadro.ts.
+ *
+ * Bloco C: as flags 'conf:'/'rev:'/'info:' de asset_multiples_current vão para a linha junto com
+ * as demais; grupo 'conf:' de escopo EMPRESA gravado num ticker vale para todos os tickers do
+ * emissor (ON/PN/unit); escopo 'ticker' (cotação) fica só no próprio ticker.
  */
 import type { Prisma } from '@prisma/client';
 import { anosFechados, detectarSaltoProvento } from '@/services/analiseAtivos/leitura/ativo/series';
@@ -31,6 +35,7 @@ import { selecionarPares, type ItemPar } from '@/services/analiseAtivos/regras/c
 import { valorMercadoEmpresa } from '@/services/analiseAtivos/calculo/recalcularDerivados';
 import type { AlertaJob, ContagemAcoes, TickerAcao } from '@/services/analiseAtivos/tipos';
 import { distanciaEmPregoes } from '@/services/analiseAtivos/regras/comum/pregoes';
+import { DEF_GRUPO, parseFlagConf } from '@/services/analiseAtivos/regras/comum/conferencia';
 import type { EstadoIndice, ForaDoQuadroMotivo, PontoSerieAnual } from '@/types/analiseAtivosApi';
 
 export const N_PARES = 5;
@@ -278,6 +283,20 @@ export function montarLinhasQuadro(e: EntradaQuadro): ResultadoMontagem {
   const mensalPor = new Map(e.fiiMensal.map((m) => [m.cnpj, m]));
   const trimPor = new Map(e.fiiTrimestral.map((t) => [t.cnpj, t]));
   const porAcaoAno = agrupar(e.porAcaoAno, (p) => p.symbol);
+  // bloco C: flags 'conf:' de escopo empresa por emissor (ações), com o ticker que as gravou
+  const cnpjPorSymbolAcao = new Map(e.acoes.map((a) => [a.symbol, a.cnpj]));
+  const confEmpresaPor = new Map<string, Array<{ symbol: string; flag: string }>>();
+  for (const mult of e.multiplos) {
+    const cnpj = cnpjPorSymbolAcao.get(mult.symbol);
+    if (!cnpj) continue;
+    for (const flag of mult.flags) {
+      const c = parseFlagConf(flag);
+      if (!c || DEF_GRUPO[c.grupo].escopo !== 'empresa') continue;
+      const lista = confEmpresaPor.get(cnpj) ?? [];
+      lista.push({ symbol: mult.symbol, flag });
+      confEmpresaPor.set(cnpj, lista);
+    }
+  }
   const lucrosPor = agrupar(e.lucrosFy, (l) => l.cnpj);
   const contagemPor = new Map(e.contagens.map((c) => [c.cnpj, c]));
   const tickersPorCnpj = agrupar(e.acoes, (a) => a.cnpj);
@@ -366,6 +385,13 @@ export function montarLinhasQuadro(e: EntradaQuadro): ResultadoMontagem {
     }
 
     const flags = [...(m?.flags ?? [])];
+    // bloco C: grupo 'conf:' de escopo EMPRESA marcado em outro ticker do emissor vale também
+    // para este (deveContaminarEmpresa); escopo 'ticker' fica só no próprio ticker.
+    if (ehAcao) {
+      for (const f of confEmpresaPor.get(u.cnpj) ?? []) {
+        if (f.symbol !== u.symbol && !flags.includes(f.flag)) flags.push(f.flag);
+      }
+    }
     if (u.cnpjEmConferencia) flags.push(FLAG_CNPJ_EM_CONFERENCIA);
     if (saltoRecente && !flags.includes(FLAG_PROVENTO_SUSPEITO)) flags.push(FLAG_PROVENTO_SUSPEITO);
 

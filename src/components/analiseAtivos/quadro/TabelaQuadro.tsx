@@ -5,6 +5,11 @@
  * coluna Ativo/Fundo fixa, coluna da ordem destacada (outside no th, highlightTd nos td), aria-sort
  * nos th e o ticker como link dentro do th scope=row. A linha inteira abre a página do ativo; o
  * hover pré-carrega o topo (espera 300 ms, no máximo 1 a cada 2 s).
+ *
+ * Bloco C: campo em conferência (flags 'conf:', lidas por conferenciasAtivo — o mesmo helper da
+ * página) = célula hachurada + "em conferência" em 11px; 'ocultar' mostra '—' (a API não manda o
+ * número e a ordenação o põe no fim), 'selo' mostra o valor. A linha é um link: aqui o chip é só
+ * texto (o "Por quê?" fica na página do ativo).
  */
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -23,6 +28,9 @@ import { TABLE_STYLES } from '@/components/ui/table/tableStyles';
 import { COLUNAS, COR_LINK, type ColunaQuadro } from '@/constants/analiseAtivosVisual';
 import { prefetchAtivoTopo } from '@/hooks/useAnaliseAtivos';
 import { TEXTOS_TELA, formatarTexto } from '@/services/analiseAtivos/textosTela';
+import { HACHURA } from '@/components/analiseAtivos/comum/ChipConferencia';
+import { conferenciaDaLinha } from '@/services/analiseAtivos/leitura/ativo/conferenciasAtivo';
+import { ehCampoTela } from '@/services/analiseAtivos/regras/comum/conferencia';
 import type {
   ClasseQuadro,
   DirecaoOrdem,
@@ -90,6 +98,23 @@ export function CelulaIndice({
   );
 }
 
+/** Campo da coluna em conferência pelas flags 'conf:' (bloco C); null = como hoje. */
+export function conferenciaDaCelula(codigo: string, l: LinhaQuadroApi) {
+  return ehCampoTela(codigo) ? conferenciaDaLinha(l, codigo) : null;
+}
+
+/** Valor (ou '—') + "em conferência" em 11px, para célula/cartão do Quadro (bloco C). */
+function ComConferencia({ grupo, children }: { grupo: string; children: ReactNode }) {
+  return (
+    <span className="inline-flex flex-col items-end" data-conferencia={grupo}>
+      {children}
+      <span className="text-[11px] leading-tight font-normal text-gray-700 dark:text-gray-300">
+        {TEXTOS_TELA.conferencia.chip}
+      </span>
+    </span>
+  );
+}
+
 /** DY com o motivo visível embaixo (ausente) ou "em conferência" (valor com proventos suspeitos). */
 export function CelulaDy({ linha }: { linha: LinhaQuadroApi }) {
   const dy = linha.dy12m;
@@ -123,6 +148,16 @@ function numeroOuTraco(v: number | null, formato: 'inteiro' | 'moedaCompacta'): 
 
 /** Conteúdo de uma célula (exceto Ativo e Na carteira), compartilhado com os cartões. */
 export function conteudoCelula(codigo: string, l: LinhaQuadroApi): ReactNode {
+  const conf = conferenciaDaCelula(codigo, l);
+  if (conf) {
+    const base =
+      codigo === 'dy12m' ? <ValorAnalise valor={l.dy12m} formato="pct" /> : conteudoBase(codigo, l);
+    return <ComConferencia grupo={conf.grupo}>{base}</ComConferencia>;
+  }
+  return conteudoBase(codigo, l);
+}
+
+function conteudoBase(codigo: string, l: LinhaQuadroApi): ReactNode {
   switch (codigo) {
     case 'setor':
       return l.setor ?? <span className="text-gray-400">{SEM}</span>;
@@ -316,7 +351,7 @@ export default function TabelaQuadro({
                         key={c.codigo}
                         className={`${TD_QUADRO} ${alinhar} whitespace-nowrap tabular-nums ${
                           destaque ? TABLE_STYLES.highlightTd : ''
-                        }`}
+                        } ${conferenciaDaCelula(c.codigo, l) ? HACHURA : ''}`}
                         data-coluna={c.codigo}
                       >
                         {c.codigo === 'naCarteira' ? (

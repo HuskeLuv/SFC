@@ -3,15 +3,18 @@
 /**
  * Quadro em cartões (< lg): ticker, nome, preço + variação do dia, anel de 40px, 3 números da
  * classe (2ª linha no Detalhado), barras de 10 anos e "Na carteira". O cartão inteiro é um link
- * (alvo ≥ 72px). Mesmo conteúdo de célula da tabela (conteudoCelula).
+ * (alvo ≥ 72px). Mesmo conteúdo de célula da tabela (conteudoCelula). Bloco C: número em
+ * conferência com o mesmo texto e a mesma hachura da tabela (conferenciaDaCelula).
  */
 import Link from 'next/link';
 import { formatarAnalise } from '@/components/analiseAtivos/comum/formatarAnalise';
 import CelulaNaCarteira, {
   type InfoNaCarteira,
 } from '@/components/analiseAtivos/quadro/CelulaNaCarteira';
+import { HACHURA } from '@/components/analiseAtivos/comum/ChipConferencia';
 import {
   CelulaIndice,
+  conferenciaDaCelula,
   conteudoCelula,
   hrefAtivo,
   usePrefetchHover,
@@ -63,7 +66,10 @@ export default function CartoesQuadro({
   const grade = (codigos: string[], l: LinhaQuadroApi) => (
     <dl className={TABLE_MOBILE_STYLES.cardGrid}>
       {codigos.map((c) => (
-        <div key={c} className="min-w-0">
+        <div
+          key={c}
+          className={`min-w-0 ${conferenciaDaCelula(c, l) ? `${HACHURA} -mx-1 rounded-md px-1` : ''}`}
+        >
           <dt className={TABLE_MOBILE_STYLES.dt}>{(C as Record<string, string>)[c] ?? c}</dt>
           <dd className={TABLE_MOBILE_STYLES.dd}>{conteudoCelula(c, l)}</dd>
         </div>

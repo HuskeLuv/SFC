@@ -15,11 +15,20 @@
  * - componentesZeroRegra: 'componente:motivo' ('lucro:prejuizo', 'preco:pl_negativo').
  * - flags: inclui 'provento_suspeito', 'proventos_defasados*' e 'proventos_em_conferencia_*' (trava
  *   de plausibilidade do DY) (⇒ proventosEmConferencia).
+ * - bloco C (só params v2): flags 'conf:<grupo>:<regra>@<chave>' (conferencia.ts). Campo com
+ *   exibição 'ocultar' vira ausente('em_conferencia:<grupo>') SEM valor (vai para o fim da
+ *   ordenação); 'selo' fica ok com o valor (a tela põe o chip lendo as mesmas flags). A v1 nunca
+ *   grava 'conf:' ⇒ a resposta não muda.
  */
 import type { AnaliseQuadroLinha } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { FLAG_CNPJ_EM_CONFERENCIA } from '@/services/analiseAtivos/quadro/montarLinhasQuadro';
 import { proventosEmConferencia } from '@/services/analiseAtivos/regras/calculo/plausibilidadeProventos';
+import { gruposConf } from '@/services/analiseAtivos/regras/comum/conferencia';
+import {
+  aplicarConferenciaCampo,
+  conferenciaConf,
+} from '@/services/analiseAtivos/leitura/ativo/conferenciasAtivo';
 import {
   TEXTOS_TELA,
   motivoTela,
@@ -238,7 +247,22 @@ function estadoCampo(
     return { estado: 'nao_se_aplica', motivo: motivoNa, texto: textoNaoSeAplica(motivoNa) };
   }
   const v = row[coluna];
-  if (typeof v === 'number' && Number.isFinite(v)) return { estado: 'ok', valor: v };
+  const valor: Estado<number> | null =
+    typeof v === 'number' && Number.isFinite(v) ? { estado: 'ok', valor: v } : null;
+  // (b) bloco C: grupo 'conf:' que marca o campo. 'ocultar' → '—' sem valor (fim da ordenação);
+  // 'selo' → segue com o valor (o chip vem das mesmas flags). Legado de proventos: caminho (c).
+  const conf = conferenciaConf(row.flags, row.motivosIncompleto, campo, classe);
+  if (conf?.exibicao === 'ocultar') {
+    return aplicarConferenciaCampo(
+      valor ?? ausente('sem_dado_fonte', TEXTOS_TELA.ausentesPorCampo.semDado),
+      row.flags,
+      row.motivosIncompleto,
+      campo,
+      classe,
+    ).estado;
+  }
+  // (c) caminho de hoje
+  if (valor) return valor;
   const t = TEXTOS_TELA.ausentesPorCampo;
   if (CAMPOS_CNPJ_FII.has(campo) && row.flags.includes(FLAG_CNPJ_EM_CONFERENCIA)) {
     return ausente('cnpj_em_conferencia', t.cnpjEmConferencia);
@@ -291,6 +315,17 @@ export function paraLinhaQuadroApi(row: AnaliseQuadroLinha): LinhaQuadroApi {
   const emConferencia = temProventosEmConferencia(row);
   const est = (campo: CampoApi) => estadoCampo(row, campo, naoSeAplica, emConferencia);
   const preco = decimalParaNumero(row.preco);
+  // bloco C: valor de mercado depende do nº de ações/cotação (acoes_escala, preco_base...)
+  const vmOculto =
+    conferenciaConf(row.flags, row.motivosIncompleto, 'valorMercado', classe)?.exibicao ===
+    'ocultar';
+  const grupos = gruposConf(row.flags);
+  const extras: Pick<LinhaQuadroApi, 'conferencias'> = {};
+  // só com flag 'conf:' (v2): com a v1 a resposta fica idêntica à da Fase 1
+  if (grupos.length > 0) {
+    extras.conferencias =
+      emConferencia && !grupos.includes('proventos') ? [...grupos, 'proventos'] : [...grupos];
+  }
   return {
     ticker: row.symbol,
     classe,
@@ -326,7 +361,7 @@ export function paraLinhaQuadroApi(row: AnaliseQuadroLinha): LinhaQuadroApi {
     obrigacoesPl: est('obrigacoesPl'),
     nImoveisCvm: row.nImoveisCvm,
     nCri: row.nCri,
-    valorMercado: decimalParaNumero(row.valorMercado),
+    valorMercado: vmOculto ? null : decimalParaNumero(row.valorMercado),
     patrimonio: decimalParaNumero(row.patrimonio),
     cotistas: row.cotistas,
     serie10a: serieDaLinha(row.serie10a),
@@ -336,5 +371,6 @@ export function paraLinhaQuadroApi(row: AnaliseQuadroLinha): LinhaQuadroApi {
     flags: row.flags,
     pares: row.pares,
     assetId: row.assetId,
+    ...extras,
   };
 }
