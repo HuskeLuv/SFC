@@ -1,3 +1,5 @@
+'use client';
+
 /**
  * Índice MF + semáforo (fatia B). Anel de 96px nos 5 estados (AnelIndice, da 0b), leitura "n de m
  * critérios atendidos", componentes do Índice num <details> (nota técnica 0–10, peso efetivo,
@@ -9,13 +11,37 @@
  * - sem_score / fora_do_indice: texto próprio, sem número.
  * Critérios: lista com título (h3), status com ícone + texto (BadgeCriterio, nunca só cor) e a
  * frase factual; critério desligado aparece como "Não se aplica · critério desligado…".
+ *
+ * Bloco C (params v2): componente de um grupo em conferência = trilho TRACEJADO, '0 · em
+ * conferência' e o chip que abre o "Por quê?"; critério do grupo = 'Sem dado' (frase do topo) com o
+ * mesmo chip. Componentes e critérios saem do mesmo helper (conferenciasAtivo). Menu ⋯ no
+ * cabeçalho e selo de frescor no rodapé.
  */
 import AnelIndice from '@/components/analiseAtivos/comum/AnelIndice';
 import BadgeCriterio from '@/components/analiseAtivos/comum/BadgeCriterio';
 import SeloEstado from '@/components/analiseAtivos/comum/SeloEstado';
 import { formatarAnalise } from '@/components/analiseAtivos/comum/formatarAnalise';
+import ChipConferencia from '@/components/analiseAtivos/comum/ChipConferencia';
+import {
+  MenuBlocoPagina,
+  useConferenciaPagina,
+} from '@/components/analiseAtivos/comum/PorQueConferencia';
+import { RodapeFrescorBloco } from '@/components/analiseAtivos/ativo/topo/SeloFrescor';
+import {
+  componentesEmConferencia,
+  criteriosEmConferencia,
+  gruposDasConferencias,
+} from '@/services/analiseAtivos/leitura/ativo/conferenciasAtivo';
+import {
+  componentesDoGrupo,
+  ehGrupoConferencia,
+} from '@/services/analiseAtivos/regras/comum/conferencia';
 import { TEXTOS_TELA, formatarTexto } from '@/services/analiseAtivos/textosTela';
-import type { BlocoIndiceSemaforoProps, ComponenteIndiceTela } from '@/types/analiseAtivosApi';
+import type {
+  BlocoIndiceSemaforoProps,
+  ComponenteIndiceTela,
+  ConferenciaTela,
+} from '@/types/analiseAtivosApi';
 
 export type { BlocoIndiceSemaforoProps };
 
@@ -32,10 +58,51 @@ function valorComponente(c: ComponenteIndiceTela): string {
   return formatarAnalise(c.nota, 'numero');
 }
 
-function LinhaComponente({ c }: { c: ComponenteIndiceTela }) {
+function LinhaComponente({
+  c,
+  conferencia,
+}: {
+  c: ComponenteIndiceTela;
+  /** bloco C: conferência que zera o componente (trilho tracejado + chip) */
+  conferencia?: ConferenciaTela | null;
+}) {
   const t = TEXTOS_TELA.ativo;
   const fora = c.estado === 'nao_se_aplica';
   const largura = !fora && c.nota !== null ? Math.max(0, Math.min(10, c.nota)) * 10 : 0;
+  if (conferencia && c.estado === 'ausente') {
+    return (
+      <li
+        data-componente-conferencia={c.nome}
+        className="grid grid-cols-[minmax(0,1fr)_64px_auto] items-center gap-x-2 gap-y-0.5 text-xs"
+      >
+        <span className="min-w-0 text-gray-700 dark:text-gray-200">
+          {c.rotulo}{' '}
+          <span className="text-gray-500 dark:text-gray-400">
+            ·{' '}
+            {c.peso === null
+              ? t.foraDaConta
+              : formatarTexto(t.pesoComponente, { valor: Math.round(c.peso * 100) })}
+          </span>
+        </span>
+        <span
+          aria-hidden="true"
+          className="h-1.5 rounded-full border border-dashed border-[#667085] dark:border-[#98A2B3]"
+        />
+        <span className="text-right font-medium whitespace-nowrap text-gray-700 tabular-nums dark:text-gray-300">
+          {TEXTOS_TELA.telaConferencia.componenteEmConferencia}
+        </span>
+        <span className="col-span-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-gray-500 dark:text-gray-400">
+          {c.texto ? <span>{c.texto}</span> : null}
+          <ChipConferencia
+            conferencia={conferencia}
+            campo="indiceMf"
+            rotuloCampo={c.rotulo}
+            bloco="indice"
+          />
+        </span>
+      </li>
+    );
+  }
   return (
     <li className="grid grid-cols-[minmax(0,1fr)_64px_auto] items-center gap-x-2 gap-y-0.5 text-xs">
       <span className="min-w-0 text-gray-700 dark:text-gray-200">
@@ -74,6 +141,23 @@ export default function BlocoIndiceSemaforo({
     indice.componentes.some((c) => c.estado === 'nao_se_aplica');
   const semNumero = indice.estado === 'sem_score' || indice.estado === 'fora_do_indice';
   const provisorio = semaforo.some((c) => c.provisorio);
+  // bloco C: o mesmo helper decide componentes e critérios em conferência
+  const ctx = useConferenciaPagina();
+  const conferencias = ctx?.conferencias ?? [];
+  const classe = ctx?.classe ?? 'acao';
+  const compsConf = componentesEmConferencia(conferencias, classe);
+  const critConf = criteriosEmConferencia(gruposDasConferencias(conferencias));
+  const conferenciaDoGrupo = (grupo: string | undefined) =>
+    grupo ? (conferencias.find((x) => x.grupo === grupo) ?? null) : null;
+  const conferenciaDoComponente = (nome: string) =>
+    compsConf.has(nome)
+      ? (conferencias.find(
+          (x) =>
+            x.grupo !== 'historico' &&
+            ehGrupoConferencia(x.grupo) &&
+            (componentesDoGrupo(x.grupo, classe) as readonly string[]).includes(nome),
+        ) ?? null)
+      : null;
 
   return (
     <section
@@ -89,7 +173,10 @@ export default function BlocoIndiceSemaforo({
         >
           {t.ativo.indiceTitulo}
         </h2>
-        {provisorio ? <SeloEstado tipo="criterios_provisorios" /> : null}
+        <span className="inline-flex items-center gap-2">
+          {provisorio ? <SeloEstado tipo="criterios_provisorios" /> : null}
+          <MenuBlocoPagina bloco="indice" />
+        </span>
       </div>
 
       <div className="grid min-w-0 gap-5 lg:grid-cols-[260px_minmax(0,1fr)]">
@@ -109,7 +196,11 @@ export default function BlocoIndiceSemaforo({
               <summary className={RESUMO}>{t.indice.componentesRotulo}</summary>
               <ul className="mt-2 flex flex-col gap-2.5">
                 {indice.componentes.map((c) => (
-                  <LinhaComponente key={c.nome} c={c} />
+                  <LinhaComponente
+                    key={c.nome}
+                    c={c}
+                    conferencia={conferenciaDoComponente(c.nome)}
+                  />
                 ))}
               </ul>
               {indice.componentes.some((c) => c.estado === 'nao_se_aplica') ? (
@@ -203,6 +294,16 @@ export default function BlocoIndiceSemaforo({
                         {c.provisorio ? <SeloEstado tipo="criterios_provisorios" /> : null}
                       </h4>
                       <p className="text-sm text-gray-700 dark:text-gray-300">{c.frase}</p>
+                      {c.status === 'sem_dado' && conferenciaDoGrupo(critConf.get(c.codigo)) ? (
+                        <span className="mt-1 inline-flex" data-criterio-conferencia="">
+                          <ChipConferencia
+                            conferencia={conferenciaDoGrupo(critConf.get(c.codigo))}
+                            campo="criterioSemaforo"
+                            rotuloCampo={c.titulo}
+                            bloco="criterios"
+                          />
+                        </span>
+                      ) : null}
                     </div>
                   </li>
                 ))}
@@ -216,6 +317,7 @@ export default function BlocoIndiceSemaforo({
           ) : null}
         </div>
       </div>
+      <RodapeFrescorBloco bloco="indice" />
     </section>
   );
 }

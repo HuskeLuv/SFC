@@ -8,6 +8,10 @@
  *  7. BlocoMultiplosHistoricos + BlocoPares (preguiçosos)
  *  8. BlocoEventos + CardEducacao                9. BlocoTese   10. SeloFrescor
  * O rodapé legal (11) vem da AnaliseAtivosShell.
+ *
+ * Bloco C (fatia B): ConferenciaPaginaProvider leva aos blocos as conferências do topo (chip "em
+ * conferência" + "Por quê?"), o frescor por bloco (selo no rodapé de cada card) e
+ * config.reporteHabilitado (menu ⋯). Com params v1 e a flag desligada nada disso aparece.
  */
 import Link from 'next/link';
 import BlocoFundamentosEssencial from '@/components/analiseAtivos/ativo/analise/BlocoFundamentosEssencial';
@@ -26,9 +30,15 @@ import AcoesCarteiraAtivo from '@/components/analiseAtivos/ativo/usuario/AcoesCa
 import BlocoNaCarteira from '@/components/analiseAtivos/ativo/usuario/BlocoNaCarteira';
 import BlocoTese from '@/components/analiseAtivos/ativo/usuario/BlocoTese';
 import SeloEstado from '@/components/analiseAtivos/comum/SeloEstado';
+import { ConferenciaPaginaProvider } from '@/components/analiseAtivos/comum/PorQueConferencia';
 import SecaoPreguicosa from '@/components/analiseAtivos/shell/SecaoPreguicosa';
 import { COR_LINK } from '@/constants/analiseAtivosVisual';
-import { ErroAnalise, useAtivoTopo, useOverlayCarteira } from '@/hooks/useAnaliseAtivos';
+import {
+  ErroAnalise,
+  useAnaliseAtivosConfig,
+  useAtivoTopo,
+  useOverlayCarteira,
+} from '@/hooks/useAnaliseAtivos';
 import { TEXTOS_TELA } from '@/services/analiseAtivos/textosTela';
 import type { PaginaAtivoProps } from '@/types/analiseAtivosApi';
 
@@ -38,6 +48,7 @@ const CARD =
 export default function PaginaAtivo({ ticker }: PaginaAtivoProps) {
   const topo = useAtivoTopo(ticker);
   const overlay = useOverlayCarteira();
+  const config = useAnaliseAtivosConfig();
   const t = TEXTOS_TELA.ativo;
 
   if (topo.isPending) {
@@ -87,48 +98,58 @@ export default function PaginaAtivo({ ticker }: PaginaAtivoProps) {
     <SeloEstado tipo="planejado" />
   ) : null;
   const base = { ticker, classe };
+  const contexto = {
+    ticker,
+    classe,
+    versao: ativo.versao,
+    reporteHabilitado: config.data?.reporteHabilitado === true,
+    conferencias: ativo.conferencias ?? [],
+    frescorBlocos: ativo.frescorBlocos ?? null,
+  };
 
   return (
-    <div className="flex min-w-0 flex-col gap-4 md:gap-6" data-pagina-ativo={ticker}>
-      <CabecalhoAtivo
-        ativo={ativo}
-        seloCarteira={seloCarteira}
-        slotAcoes={<AcoesCarteiraAtivo {...base} nome={ativo.nome} assetId={ativo.assetId} />}
-      />
-      <BlocoIndiceSemaforo {...base} indice={ativo.indice} semaforo={ativo.semaforo} />
-      <div className="grid min-w-0 gap-4 md:gap-6 xl:grid-cols-2">
-        <BlocoNaCarteira
-          {...base}
-          nome={ativo.nome}
-          assetId={ativo.assetId}
-          precoCabecalho={ativo.cotacao.preco}
-          precoData={ativo.cotacao.data}
+    <ConferenciaPaginaProvider valor={contexto}>
+      <div className="flex min-w-0 flex-col gap-4 md:gap-6" data-pagina-ativo={ticker}>
+        <CabecalhoAtivo
+          ativo={ativo}
+          seloCarteira={seloCarteira}
+          slotAcoes={<AcoesCarteiraAtivo {...base} nome={ativo.nome} assetId={ativo.assetId} />}
         />
-        <BlocoKpis classe={classe} kpis={ativo.kpis} />
-      </div>
-      <div className="grid min-w-0 gap-4 md:gap-6 xl:grid-cols-2">
-        <GraficoLucroCotacao {...base} grafico={ativo.grafico} />
-        <BlocoDividendos classe={classe} dividendos={ativo.dividendos} />
-      </div>
-      <SecaoPreguicosa rotulo={TEXTOS_TELA.blocos.fundamentos}>
-        <BlocoFundamentosEssencial {...base} />
-      </SecaoPreguicosa>
-      <SecaoPreguicosa rotulo={TEXTOS_TELA.blocos.valuation}>
-        <BlocoValuationMultiplos {...base} />
-      </SecaoPreguicosa>
-      <SecaoPreguicosa rotulo={TEXTOS_TELA.blocos.historicos}>
-        {/* Pares em largura total: as 8 colunas não cabem em meia linha (1440 cortava 4) */}
-        <div className="grid min-w-0 gap-4 md:gap-6">
-          <BlocoMultiplosHistoricos {...base} />
-          <BlocoPares {...base} />
+        <BlocoIndiceSemaforo {...base} indice={ativo.indice} semaforo={ativo.semaforo} />
+        <div className="grid min-w-0 gap-4 md:gap-6 xl:grid-cols-2">
+          <BlocoNaCarteira
+            {...base}
+            nome={ativo.nome}
+            assetId={ativo.assetId}
+            precoCabecalho={ativo.cotacao.preco}
+            precoData={ativo.cotacao.data}
+          />
+          <BlocoKpis classe={classe} kpis={ativo.kpis} />
         </div>
-      </SecaoPreguicosa>
-      <div className="grid min-w-0 gap-4 md:gap-6 xl:grid-cols-2">
-        <BlocoEventos classe={classe} eventos={ativo.eventos} />
-        <CardEducacao educacao={ativo.educacao} />
+        <div className="grid min-w-0 gap-4 md:gap-6 xl:grid-cols-2">
+          <GraficoLucroCotacao {...base} grafico={ativo.grafico} />
+          <BlocoDividendos classe={classe} dividendos={ativo.dividendos} />
+        </div>
+        <SecaoPreguicosa rotulo={TEXTOS_TELA.blocos.fundamentos}>
+          <BlocoFundamentosEssencial {...base} />
+        </SecaoPreguicosa>
+        <SecaoPreguicosa rotulo={TEXTOS_TELA.blocos.valuation}>
+          <BlocoValuationMultiplos {...base} />
+        </SecaoPreguicosa>
+        <SecaoPreguicosa rotulo={TEXTOS_TELA.blocos.historicos}>
+          {/* Pares em largura total: as 8 colunas não cabem em meia linha (1440 cortava 4) */}
+          <div className="grid min-w-0 gap-4 md:gap-6">
+            <BlocoMultiplosHistoricos {...base} />
+            <BlocoPares {...base} />
+          </div>
+        </SecaoPreguicosa>
+        <div className="grid min-w-0 gap-4 md:gap-6 xl:grid-cols-2">
+          <BlocoEventos classe={classe} eventos={ativo.eventos} />
+          <CardEducacao educacao={ativo.educacao} />
+        </div>
+        <BlocoTese ticker={ticker} />
+        <SeloFrescor frescor={ativo.frescor} />
       </div>
-      <BlocoTese ticker={ticker} />
-      <SeloFrescor frescor={ativo.frescor} />
-    </div>
+    </ConferenciaPaginaProvider>
   );
 }

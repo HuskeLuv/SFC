@@ -3,6 +3,8 @@
  * marcador do valor atual (16px, outside — elemento não textual) e mín/média/máx rotulados.
  * Sem verde/vermelho: a barra só descreve a posição. role="meter" com aria-valuetext completo
  * (mín, média, máx, atual e a frase de status). Barra oculta = só o texto do motivo.
+ * Bloco C: ano do histórico em conferência (já fora dos números da API) aparece como um traço
+ * tracejado + '<ano> em conferência: fora da média'.
  */
 import { formatarAnalise } from '@/components/analiseAtivos/comum/formatarAnalise';
 import { TEXTOS_TELA, formatarTexto } from '@/services/analiseAtivos/textosTela';
@@ -16,6 +18,26 @@ export interface BarraPosicao10aProps {
   atual: number | null;
   formato: FormatoAnalise;
   rotulo: string;
+  /** bloco C: anos do histórico em conferência (fora da média e da barra) */
+  anosForaDaMedia?: readonly number[];
+}
+
+function AnosFora({ anos }: { anos: readonly number[] }) {
+  if (anos.length === 0) return null;
+  return (
+    <p
+      data-anos-fora=""
+      className="flex flex-wrap items-center gap-1.5 text-[11.5px] text-gray-600 dark:text-gray-300"
+    >
+      <span
+        aria-hidden="true"
+        className="inline-block h-0 w-4 border-t-2 border-dashed border-[#667085] dark:border-[#98A2B3]"
+      />
+      {anos
+        .map((ano) => formatarTexto(TEXTOS_TELA.telaConferencia.anoEmConferencia, { ano }))
+        .join(' · ')}
+    </p>
+  );
 }
 
 /** Formato dos rótulos da barra: percentuais sem o '%' repetido não ajudam; mantém o do cartão. */
@@ -38,13 +60,27 @@ export function textoAriaBarra(
   return `${partes.join('; ')}${barra.statusTexto ? ` · ${barra.statusTexto}` : ''}`;
 }
 
-export default function BarraPosicao10a({ barra, atual, formato, rotulo }: BarraPosicao10aProps) {
+export default function BarraPosicao10a({
+  barra,
+  atual,
+  formato,
+  rotulo,
+  anosForaDaMedia = [],
+}: BarraPosicao10aProps) {
   if (!barra.visivel || barra.min === null || barra.max === null || barra.media === null) {
     return barra.statusTexto ? (
-      <p className="text-[12.5px] font-medium text-gray-500 dark:text-gray-400" data-barra="oculta">
-        {barra.statusTexto}
-      </p>
-    ) : null;
+      <>
+        <p
+          className="text-[12.5px] font-medium text-gray-500 dark:text-gray-400"
+          data-barra="oculta"
+        >
+          {barra.statusTexto}
+        </p>
+        <AnosFora anos={anosForaDaMedia} />
+      </>
+    ) : (
+      <AnosFora anos={anosForaDaMedia} />
+    );
   }
   const lo = Math.min(barra.min, atual ?? barra.min);
   const hi = Math.max(barra.max, atual ?? barra.max);
@@ -96,6 +132,7 @@ export default function BarraPosicao10a({ barra, atual, formato, rotulo }: Barra
       <p className="text-[12.5px] font-semibold text-gray-800 dark:text-white/90">
         {barra.statusTexto}
       </p>
+      <AnosFora anos={anosForaDaMedia} />
     </div>
   );
 }

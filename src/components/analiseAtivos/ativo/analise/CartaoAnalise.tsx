@@ -4,8 +4,17 @@
  * Casca comum dos blocos da fatia C (Fundamentos, Valuation, Históricos, Pares): card com título,
  * subtítulo, esqueleto enquanto carrega (sem pulsar com prefers-reduced-motion) e erro com
  * "Tentar de novo". Cada bloco busca o próprio dado (preguiçoso, dentro da SecaoPreguicosa).
+ *
+ * Bloco C (fatia B): no slot `acao` do cabeçalho entra o menu ⋯ do bloco (MenuBlocoPagina) e no
+ * rodapé o selo de frescor do bloco (RodapeFrescorBloco). O bloco vem de `bloco` ou do prefixo do
+ * `id` ('fundamentos-', 'valuation-', 'historicos-', 'pares-'). Fora da página, com a flag de
+ * relato desligada e params v1, os dois não renderizam (card idêntico).
  */
 import type { ReactNode } from 'react';
+import { MenuBlocoPagina } from '@/components/analiseAtivos/comum/PorQueConferencia';
+import { RodapeFrescorBloco } from '@/components/analiseAtivos/ativo/topo/SeloFrescor';
+import { ehBlocoReporte, type BlocoReporte } from '@/services/analiseAtivos/curadoria/contrato';
+import type { DadoBlocoReporte } from '@/types/analiseAtivosCuradoria';
 import { TEXTOS_TELA } from '@/services/analiseAtivos/textosTela';
 
 export const CARD_ANALISE =
@@ -28,6 +37,16 @@ interface Props {
   alturaEsqueleto?: number;
   children?: ReactNode;
   acao?: ReactNode;
+  /** bloco do menu ⋯ e do frescor (padrão: prefixo do id) */
+  bloco?: BlocoReporte;
+  /** dados do bloco para o "Qual dado?" do relato */
+  dadosReporte?: DadoBlocoReporte[];
+}
+
+/** 'valuation-WEGE3' → 'valuation' (só blocos com menu). */
+export function blocoDoId(id: string): BlocoReporte | null {
+  const prefixo = id.slice(0, id.indexOf('-') > 0 ? id.indexOf('-') : id.length);
+  return ehBlocoReporte(prefixo) ? prefixo : null;
 }
 
 export default function CartaoAnalise({
@@ -40,8 +59,11 @@ export default function CartaoAnalise({
   alturaEsqueleto = 200,
   children,
   acao,
+  bloco,
+  dadosReporte,
 }: Props) {
   const t = TEXTOS_TELA.analise;
+  const blocoMenu = bloco ?? blocoDoId(id);
   return (
     <section
       aria-labelledby={id}
@@ -54,6 +76,9 @@ export default function CartaoAnalise({
         </h2>
         {sub ? <span className="text-xs text-gray-500 dark:text-gray-400">{sub}</span> : null}
         {acao}
+        {blocoMenu ? (
+          <MenuBlocoPagina bloco={blocoMenu} dados={dadosReporte} className="ml-auto self-center" />
+        ) : null}
       </div>
       {carregando ? (
         <div
@@ -86,6 +111,7 @@ export default function CartaoAnalise({
       ) : (
         children
       )}
+      {blocoMenu && !carregando ? <RodapeFrescorBloco bloco={blocoMenu} /> : null}
     </section>
   );
 }
