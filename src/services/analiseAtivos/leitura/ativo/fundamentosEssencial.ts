@@ -13,6 +13,12 @@
  *   = soma dos 4 trimestres do informe; ano com menos de 4 trimestres = '—' com nota. Valores por
  *   cota anteriores a um desdobramento são levados à base de cotas de hoje.
  *
+ * Bloco C (fatia B, só flags 'conf:' = params v2): a política de conferenciasAtivo vale célula a
+ * célula — 'ocultar' = ausente('em_conferencia:<grupo>') com o número só em valorNaoPublicado
+ * (célula hachurada na tela); 'selo' = valor + selo 'em_conferencia' na linha. Linha 'Últ. 12m'
+ * pelas flags da linha do Quadro; anos pelas flags do ano (histórico e escala dos demonstrativos,
+ * com o ano na chave — AssetMultiplesYearly.flags e a própria linha).
+ *
  * As funções `montar*` são puras (testadas com os casos da spec); `obterFundamentosEssencial` lê o
  * banco e guarda o resultado em memória por ticker:versão do Quadro (TTL 30 min).
  */
@@ -23,6 +29,13 @@ import { paraData, paraNumero } from '@/services/analiseAtivos/repositorio/conve
 import { lucroParaSequencia } from '@/services/analiseAtivos/regras/calculo/sequencias';
 import { proventosEmConferencia } from '@/services/analiseAtivos/regras/calculo/plausibilidadeProventos';
 import { obterLinhaQuadro, versaoQuadro } from '@/services/analiseAtivos/leitura/linhasQuadro';
+import {
+  CAMPO_COLUNA_FUNDAMENTOS,
+  CAMPO_HISTORICO,
+  aplicarConferenciaValores,
+  flagsAnuaisConf,
+  flagsConfDoAno,
+} from '@/services/analiseAtivos/leitura/ativo/conferenciasAtivo';
 import { FLAG_CNPJ_EM_CONFERENCIA } from '@/services/analiseAtivos/quadro/montarLinhasQuadro';
 import {
   anoDe,
@@ -52,6 +65,57 @@ export const MAX_ANOS_ESSENCIAL = 10;
 
 const TF = TEXTOS_TELA.analise.fundamentos;
 const SELO_CONF: TipoSeloEstado = 'proventos_em_conferencia';
+const SELO_CONF_BLOCO_C: TipoSeloEstado = 'em_conferencia';
+
+/** Flags e motivos da linha do Quadro (bloco C). Ausente = sem conferência (como hoje). */
+export interface ConferenciaEntrada {
+  flags: readonly string[];
+  motivos: readonly string[];
+}
+
+/**
+ * Bloco C: aplica a conferência a uma linha da tabela. Ano: só os grupos de ponto anual cuja chave
+ * é o ano (histórico → P/L e P/VP do ano; escala dos demonstrativos → colunas do grupo). 'Últ. 12m':
+ * todas as flags da linha.
+ */
+function conferirLinha(
+  linha: LinhaFundamentos,
+  classe: 'acao' | 'fii',
+  conf: ConferenciaEntrada | undefined,
+): LinhaFundamentos {
+  if (!conf || conf.flags.length === 0) return linha;
+  let valores = linha.valores;
+  let selo = false;
+  let algum = false;
+  const aplicar = (mapa: Readonly<Record<string, string>>, flags: readonly string[]) => {
+    if (flags.length === 0) return;
+    const r = aplicarConferenciaValores(
+      valores,
+      mapa as Parameters<typeof aplicarConferenciaValores>[1],
+      flags,
+      conf.motivos,
+      classe,
+    );
+    valores = r.valores;
+    selo ||= r.selo;
+    algum ||= r.algum;
+  };
+  if (linha.ano !== null) {
+    aplicar(CAMPO_HISTORICO, flagsConfDoAno(conf.flags, linha.ano, ['historico']));
+    aplicar(
+      CAMPO_COLUNA_FUNDAMENTOS[classe],
+      flagsConfDoAno(conf.flags, linha.ano, ['fundamentos_escala']),
+    );
+  } else {
+    aplicar(CAMPO_COLUNA_FUNDAMENTOS[classe], conf.flags);
+  }
+  if (!algum) return linha;
+  const selos =
+    selo && !linha.selos.includes(SELO_CONF_BLOCO_C)
+      ? [...linha.selos, SELO_CONF_BLOCO_C]
+      : linha.selos;
+  return { ...linha, valores, selos };
+}
 
 // ---------------------------------------------------------------------------
 // Utilitários comuns (também usados pelo valuation)
@@ -172,6 +236,8 @@ export interface EntradaFundamentosAcao {
   atual: MultiplosAtuaisAcao | null;
   /** DY/payout de 12 meses com proventos em conferência (linha do Quadro) */
   proventosEmConferencia: boolean;
+  /** bloco C: flags 'conf:' (linha + anos) e motivos; ausente = como hoje */
+  conferencia?: ConferenciaEntrada;
 }
 
 /** Lucro do período em Estado (regra 12: controladora_zero ⇒ individual; senão motivo). */
@@ -307,6 +373,7 @@ export function montarFundamentosAcao(e: EntradaFundamentosAcao): FundamentosRes
     notas.push(TF.notaProventosConferencia);
   }
 
+  const linhasConf = linhas.map((l) => conferirLinha(l, 'acao', e.conferencia));
   return {
     nivel: 'essencial',
     unidade: 'R$ mi',
@@ -314,8 +381,8 @@ export function montarFundamentosAcao(e: EntradaFundamentosAcao): FundamentosRes
     padraoContabil,
     escopo,
     variante: 'acao',
-    colunas: semColunasNaoAplicaveis(COLUNAS_ACAO, linhas),
-    linhas,
+    colunas: semColunasNaoAplicaveis(COLUNAS_ACAO, linhasConf),
+    linhas: linhasConf,
     notas,
   };
 }
@@ -375,6 +442,8 @@ export interface EntradaFundamentosFii {
    * conferência'. Rendimento/cota e DY (proventos da B3 sobre a cotação) continuam.
    */
   cnpjEmConferencia?: boolean;
+  /** bloco C: flags 'conf:' e motivos da linha; ausente = como hoje */
+  conferencia?: ConferenciaEntrada;
 }
 
 /** Colunas do FII que vêm do informe CVM do CNPJ. */
@@ -584,6 +653,7 @@ export function montarFundamentosFii(e: EntradaFundamentosFii): FundamentosRespo
     notas.push(TF.notaProventosConferencia);
   }
 
+  const linhasConf = linhas.map((l) => conferirLinha(l, 'fii', e.conferencia));
   return {
     nivel: 'essencial',
     unidade: 'R$ mi',
@@ -591,8 +661,8 @@ export function montarFundamentosFii(e: EntradaFundamentosFii): FundamentosRespo
     padraoContabil: null,
     escopo: null,
     variante: papel ? 'fii_papel' : 'fii_tijolo',
-    colunas: semColunasNaoAplicaveis(colunas, linhas),
-    linhas,
+    colunas: semColunasNaoAplicaveis(colunas, linhasConf),
+    linhas: linhasConf,
     notas,
   };
 }
@@ -702,6 +772,7 @@ export async function obterFundamentosEssencial(
       })),
       proventosEmConferencia: conf,
       cnpjEmConferencia,
+      conferencia: { flags: linha.flags, motivos: linha.motivosIncompleto },
     });
   } else {
     const [periodos, ps, my, mc] = await Promise.all([
@@ -720,6 +791,7 @@ export async function obterFundamentosEssencial(
           roePct: true,
           margemLiquidaPct: true,
           payoutPct: true,
+          flags: true,
         },
       }),
       prisma.assetMultiplesCurrent.findUnique({
@@ -748,6 +820,10 @@ export async function obterFundamentosEssencial(
       multiplos: my,
       atual: mc,
       proventosEmConferencia: conf,
+      conferencia: {
+        flags: [...linha.flags, ...flagsAnuaisConf(my)],
+        motivos: linha.motivosIncompleto,
+      },
     });
   }
   cache.set(chave, dados, TTL_ANALISE_MS);

@@ -51,4 +51,41 @@ describe('GET /api/profile/export (LGPD)', () => {
     ]);
     expect(mocks.teses.mock.calls[0][0].where).toEqual({ userId: 'u1' });
   });
+
+  it('inclui os relatos de dado incorreto do usuário logado, com o status como ele vê', async () => {
+    mocks.prisma.analiseDataReport.findMany.mockResolvedValueOnce([
+      {
+        protocolo: 'ABCD2345',
+        symbol: 'WEGE3',
+        bloco: 'valuation',
+        campo: 'payout',
+        periodo: '2025',
+        mensagem: 'payout do release é 52%',
+        clienteId: null,
+        caso: {
+          status: 'rejeitado',
+          resolucao: 'dado_confirmado',
+          respostaPublica: 'Conferimos com a CVM.',
+          resolvidoEm: new Date('2026-10-05T12:00:00Z'),
+        },
+      },
+    ]);
+    const res = await GET(new NextRequest('http://localhost/api/profile/export'));
+    const corpo = JSON.parse(await res.text());
+    expect(mocks.prisma.analiseDataReport.findMany.mock.calls[0][0].where).toEqual({
+      userId: 'u1',
+    });
+    expect(corpo.analiseAtivos.relatos).toEqual([
+      expect.objectContaining({
+        protocolo: 'ABCD2345',
+        mensagem: 'payout do release é 52%',
+        agindoPeloCliente: false,
+        caso: expect.objectContaining({
+          status: 'conferido_sem_alteracao',
+          resolucao: 'dado_confirmado',
+          respostaPublica: 'Conferimos com a CVM.',
+        }),
+      }),
+    ]);
+  });
 });

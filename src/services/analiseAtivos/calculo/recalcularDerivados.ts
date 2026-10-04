@@ -5,8 +5,10 @@
  */
 import type { Prisma } from '@prisma/client';
 import {
+  anoEmConferencia,
   gravarMultiplosAnuais,
   gravarPerShareAnual,
+  type PlAnualPonto,
 } from '@/services/analiseAtivos/calculo/gravarDerivados';
 import type { EventoComCnpj } from '@/services/analiseAtivos/calculo/recalcularEventos';
 import {
@@ -20,6 +22,8 @@ import {
   type MultiplosCalculados,
 } from '@/services/analiseAtivos/regras/calculo/multiplos';
 import { perShareAnual, perShareAnualFii } from '@/services/analiseAtivos/regras/calculo/perShare';
+import { flagsDasDeteccoes } from '@/services/analiseAtivos/regras/calculo/sanidade/aplicarConferencia';
+import { detectarHistoricoEscala } from '@/services/analiseAtivos/regras/calculo/sanidade/historicoEscala';
 import {
   dpaNoAno,
   valorProventosComCobertura,
@@ -48,6 +52,11 @@ export interface MemoriaCalculo {
   cobertura: Map<string, CoberturaProventos>;
   /** lastCheckedAt da cobertura por símbolo (frescor; ausente em memórias montadas sem ele) */
   verificadoEm?: Map<string, string | null>;
+  /**
+   * Bloco C: liberações da curadoria ('SYMBOL|regra|chave', repositorio/curadoria) — só lidas com
+   * sanidade.conferencia.ligada; a mesma chave liberada não marca de novo.
+   */
+  liberacoes?: ReadonlySet<string>;
 }
 
 /** Fator de equivalência do ticker (units = ON + PN da composição do FCA). null = unit sem composição. */
@@ -313,7 +322,43 @@ export function linhasDerivadasAcao(
       multiplos.push(linhaMultiplos(base, m, preco, {}, meta));
     }
   }
+  if (p.sanidade.conferencia.ligada)
+    marcarHistoricoForaDeEscala(multiplos, p, e.memoria.liberacoes);
   return { perShare, multiplos, flags: flagsEmpresa };
+}
+
+const numOuNull = (x: unknown): number | null =>
+  typeof x === 'number' && Number.isFinite(x) ? x : null;
+
+/**
+ * Bloco C, R2 (regras/calculo/sanidade/historicoEscala): por ticker, o ano com ≥ 2 de {P/L, P/VP,
+ * P/Receita} a ≥ 20× (ou ≤ 1/20) da mediana do ativo ganha a flag 'conf:historico:escala_ano@<ano>'
+ * (salvo liberação). O ponto sai da média de 10 anos no job scores. Muta as linhas recebidas.
+ */
+export function marcarHistoricoForaDeEscala(
+  multiplos: LinhaMultiplos[],
+  p: ScoringParams,
+  liberacoes?: ReadonlySet<string>,
+): void {
+  for (const [symbol, linhas] of agrupar(multiplos, (l) => l.symbol)) {
+    const deteccoes = detectarHistoricoEscala(
+      linhas.map((l) => ({
+        anoFiscal: l.anoFiscal,
+        pl: numOuNull(l.pl),
+        pvp: numOuNull(l.pvp),
+        pReceita: numOuNull(l.pReceita),
+      })),
+      p.sanidade.conferencia,
+    );
+    for (const d of deteccoes) {
+      const [flag] = flagsDasDeteccoes(symbol, [d], liberacoes);
+      if (!flag) continue;
+      const linha = linhas.find((l) => String(l.anoFiscal) === d.chave);
+      if (!linha) continue;
+      const flags = (linha.flags as string[] | undefined) ?? [];
+      if (!flags.includes(flag)) linha.flags = [...flags, flag];
+    }
+  }
 }
 
 export interface EntradaDerivadosFii {
@@ -405,7 +450,7 @@ export interface ResultadoDerivados {
   gravadas: number;
   flags: Record<string, number>;
   /** P/L anual recém-calculado por símbolo (para os múltiplos atuais sem reler o banco) */
-  plAnual: Map<string, Array<{ anoFiscal: number; pl: number | null; plNaoSeAplica: boolean }>>;
+  plAnual: Map<string, PlAnualPonto[]>;
 }
 
 const JANELA_PRECO_FIM = (p: ScoringParams) => p.sanidade.acoes.precoFimAnoMaxDias;
@@ -431,10 +476,13 @@ export async function recalcularDerivados(
   const guardarPl = (linhas: LinhaMultiplos[]) => {
     for (const l of linhas) {
       const lista = plAnual.get(l.symbol) ?? [];
+      const vm = l.valorMercadoEmpresa;
       lista.push({
         anoFiscal: l.anoFiscal,
         pl: typeof l.pl === 'number' ? l.pl : null,
         plNaoSeAplica: (l.naoSeAplica as string[]).includes('pl'),
+        emConferencia: anoEmConferencia((l.flags as string[] | undefined) ?? []),
+        valorMercadoEmpresa: vm === null || vm === undefined ? null : Number(vm.toString()),
       });
       plAnual.set(l.symbol, lista);
     }

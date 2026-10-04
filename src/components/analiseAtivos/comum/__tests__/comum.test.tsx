@@ -306,6 +306,8 @@ describe('Selos', () => {
       'baixa_liquidez',
       'planejado',
       'na_carteira',
+      'em_conferencia',
+      'cotacao_esporadica',
     ];
     for (const tipo of tipos) {
       const { container } = render(<SeloEstado tipo={tipo} />);

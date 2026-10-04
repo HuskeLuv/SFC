@@ -2,8 +2,11 @@
 
 /**
  * <th> do Quadro: aria-sort no th, botão "Ordenar por X" dentro dele (primeiro clique = direção
- * padrão da coluna, DIRECAO_PADRAO). A coluna da ordem fica destacada (azul outside sólido, par do
- * TABLE_STYLES.highlightTd). Colunas sem ordem viram th simples.
+ * padrão da coluna, DIRECAO_PADRAO). A coluna da ordem fica destacada (fundo patrimonio #396CAA,
+ * par do TABLE_STYLES.highlightTd). Colunas sem ordem viram th simples.
+ *
+ * Contraste (bloco C, fatia B item 7): texto branco sobre outside (#0079F2) dá ~4,2:1 e reprova o
+ * AA; sobre patrimonio (#396CAA) dá ≥ 5:1. Outside fica só em elemento não textual.
  */
 import type { CSSProperties } from 'react';
 import { TABLE_STYLES } from '@/components/ui/table/tableStyles';
@@ -54,7 +57,7 @@ export default function CabecalhoOrdenavel({
         : 'descending'
       : 'none';
   const estilo: CSSProperties = {
-    backgroundColor: ativa ? MYFINANCE_BRAND.outside : MYFINANCE_BRAND.seguranca,
+    backgroundColor: ativa ? MYFINANCE_BRAND.patrimonio : MYFINANCE_BRAND.seguranca,
   };
   return (
     <th

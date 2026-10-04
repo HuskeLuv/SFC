@@ -8,9 +8,19 @@
  *                                        feature_beta_users + admins; 'todos' abre para todo mundo)
  *  - ANALISE_ATIVOS_NOVO_ATE=AAAA-MM-DD  até quando o menu mostra o selo NOVO (padrão 2026-12-31)
  *  - ANALISE_ATIVOS_ALERTA_ADMIN="true"  alertas dos jobs viram Notification para admins (só em prod)
+ *  - ANALISE_ATIVOS_REPORTE_HABILITADO="true"  bloco C: botão "Reportar dado incorreto", Meus
+ *                                        relatos e as APIs de relato (sem ela: item escondido e
+ *                                        APIs 404). Só vale com a área liberada para o usuário. A
+ *                                        fila do curador (/admin/curadoria) e os avisos aos admins
+ *                                        também dependem dela (não de ALERTA_ADMIN; decisão 14).
  */
 export function analiseAtivosHabilitada(): boolean {
   return process.env.ANALISE_ATIVOS_HABILITADA === 'true';
+}
+
+/** Bloco C: relatos de dado incorreto (desligado por padrão; decisão 20). */
+export function analiseAtivosReporteHabilitado(): boolean {
+  return process.env.ANALISE_ATIVOS_REPORTE_HABILITADO === 'true';
 }
 
 export function analiseAtivosAlertaAdmin(): boolean {

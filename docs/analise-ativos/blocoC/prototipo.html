@@ -1,0 +1,1621 @@
+<title>Análise de Ativos Bloco C</title>
+<meta name="description" content="Protótipo navegável do bloco C da Análise de Ativos: reportar dado incorreto, indicadores em conferência pelas regras de sanidade, frescor por bloco, Meus relatos e fila do curador.">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: bancada de protótipo (cenários e controles à esquerda, tela do app à direita) + especificação embaixo.
+   Mesma bancada de docs/carteira-mover e docs/pwa. Cores: só brandColors.ts + cinzas do app + negativos #D92D20/#F97066. */
+:root{
+  --mf-potencia:#2D2D2D; --mf-seguranca:#314666; --mf-patrimonio:#396CAA; --mf-outside:#0079F2;
+  --mf-tranquilidade:#6E9DC4; --mf-transparencia:#CCCCCC; --mf-escolha:#EAEAEA;
+  --pg-bg:#F3F5F8; --pg-surface:#FFFFFF; --pg-ink:#2D2D2D; --pg-muted:#5B6576; --pg-line:#DCE2EA; --pg-soft:#E8F1FC;
+  --app-bg:#F9FAFB; --app-surface:#FFFFFF; --app-line:#E4E7EC; --app-line-soft:#F2F4F7; --app-ink:#344054; --app-strong:#1D2939; --app-muted:#667085;
+  --head-bg:#314666; --band-bg:#6E9DC4; --band-soft:#EDF2F8; --band-soft-ink:#314666;
+  --accent:#0079F2; --link:#396CAA; --focus:#0079F2; --hl:rgba(0,121,242,.06);
+  --pos:#396CAA; --neg:#D92D20; --danger-bg:rgba(217,45,32,.08);
+  --primary:#396CAA; --primary-fg:#FFFFFF;
+  --nav-active-bg:#EDF2F8; --nav-active-fg:#396CAA; --badge-bg:#DCE6F2; --badge-fg:#396CAA;
+  /* semáforo: forma + texto; cor reforça (azul cheio / azul meio / vermelho / cinza tracejado / cinza traço) */
+  --st-ok:#396CAA; --st-ok-bg:#EDF2F8; --st-part:#396CAA; --st-part-bg:#F2F4F7; --st-no:#D92D20; --st-no-bg:rgba(217,45,32,.08); --st-na:#98A2B3;
+  /* séries de gráfico: LPA/VP = outside; cotação = potencia (escuro: escolha) */
+  --s1:#0079F2; --s2:#2D2D2D; --grid:#EEF0F3; --axis:#98A2B3; --bar:#396CAA; --bar-soft:#DCE6F2;
+  --skel:#EEF0F3; --overlay:rgba(45,45,45,.45); --shadow:0 12px 32px rgba(45,45,45,.16);
+  --font:'Outfit',ui-sans-serif,system-ui,-apple-system,'Segoe UI',sans-serif;
+  --mono:'IBM Plex Mono',ui-monospace,'SFMono-Regular',Menlo,monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    color-scheme:dark;
+    --pg-bg:#111113; --pg-surface:#1F1F22; --pg-ink:#EAEAEA; --pg-muted:#98A2B3; --pg-line:#2E3440; --pg-soft:rgba(110,157,196,.10);
+    --app-bg:#18181B; --app-surface:#1F1F22; --app-line:#2E3440; --app-line-soft:#26262A; --app-ink:#D0D5DD; --app-strong:#F2F4F7; --app-muted:#98A2B3;
+    --band-soft:rgba(57,108,170,.16); --band-soft-ink:#EAEAEA;
+    --accent:#6E9DC4; --link:#6E9DC4; --focus:#6E9DC4; --hl:rgba(0,121,242,.16);
+    --pos:#6E9DC4; --neg:#F97066; --danger-bg:rgba(249,112,102,.10);
+    --nav-active-bg:rgba(57,108,170,.12); --nav-active-fg:#6E9DC4; --badge-bg:rgba(57,108,170,.20); --badge-fg:#6E9DC4;
+    --st-ok:#6E9DC4; --st-ok-bg:rgba(57,108,170,.18); --st-part:#6E9DC4; --st-part-bg:#26262A; --st-no:#F97066; --st-no-bg:rgba(249,112,102,.10); --st-na:#667085;
+    --s1:#6E9DC4; --s2:#EAEAEA; --grid:#2A2E36; --axis:#667085; --bar:#6E9DC4; --bar-soft:rgba(110,157,196,.25);
+    --skel:#26262A; --overlay:rgba(0,0,0,.6); --shadow:0 12px 32px rgba(0,0,0,.5);
+  }
+}
+:root[data-theme="dark"]{
+  color-scheme:dark;
+  --pg-bg:#111113; --pg-surface:#1F1F22; --pg-ink:#EAEAEA; --pg-muted:#98A2B3; --pg-line:#2E3440; --pg-soft:rgba(110,157,196,.10);
+  --app-bg:#18181B; --app-surface:#1F1F22; --app-line:#2E3440; --app-line-soft:#26262A; --app-ink:#D0D5DD; --app-strong:#F2F4F7; --app-muted:#98A2B3;
+  --band-soft:rgba(57,108,170,.16); --band-soft-ink:#EAEAEA;
+  --accent:#6E9DC4; --link:#6E9DC4; --focus:#6E9DC4; --hl:rgba(0,121,242,.16);
+  --pos:#6E9DC4; --neg:#F97066; --danger-bg:rgba(249,112,102,.10);
+  --nav-active-bg:rgba(57,108,170,.12); --nav-active-fg:#6E9DC4; --badge-bg:rgba(57,108,170,.20); --badge-fg:#6E9DC4;
+  --st-ok:#6E9DC4; --st-ok-bg:rgba(57,108,170,.18); --st-part:#6E9DC4; --st-part-bg:#26262A; --st-no:#F97066; --st-no-bg:rgba(249,112,102,.10); --st-na:#667085;
+  --s1:#6E9DC4; --s2:#EAEAEA; --grid:#2A2E36; --axis:#667085; --bar:#6E9DC4; --bar-soft:rgba(110,157,196,.25);
+  --skel:#26262A; --overlay:rgba(0,0,0,.6); --shadow:0 12px 32px rgba(0,0,0,.5);
+}
+*{box-sizing:border-box}
+body{background:var(--pg-bg);color:var(--pg-ink);font-family:var(--font);font-size:15px;line-height:1.5;padding-inline:16px;padding-block:28px 64px;margin:0}
+.wrap{max-width:1440px;margin:0 auto;display:flex;flex-direction:column;gap:28px}
+h1,h2,h3,h4{text-wrap:balance;margin:0;line-height:1.25}
+p{margin:0}
+code,.mono{font-family:var(--mono);font-size:.86em}
+button,input,textarea,select{font:inherit;color:inherit}
+.wordmark{font-weight:700;color:var(--mf-outside);letter-spacing:-.01em;font-size:20px}
+.pg-h1{font-size:30px;font-weight:600;letter-spacing:-.01em;margin-top:10px}
+.lede{color:var(--pg-muted);max-width:80ch;margin-top:6px}
+.eyebrow{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--pg-muted);font-weight:600}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+
+/* ===== bancada ===== */
+.stage{display:grid;grid-template-columns:250px minmax(0,1fr);gap:24px;align-items:start}
+.side{display:flex;flex-direction:column;gap:14px;min-width:0;position:sticky;top:env(safe-area-inset-top,0px);max-height:100vh;overflow:auto;padding-bottom:12px}
+.controls{display:flex;flex-wrap:wrap;gap:8px}
+.pg-btn{font-size:13px;border:1px solid var(--pg-line);background:var(--pg-surface);color:var(--pg-ink);padding:6px 12px;border-radius:10px;cursor:pointer;min-height:36px;display:inline-flex;gap:6px;align-items:center}
+.pg-btn[aria-pressed="true"]{background:var(--mf-seguranca);border-color:var(--mf-seguranca);color:#fff}
+.pg-btn:disabled{opacity:.45;cursor:not-allowed}
+.seg{display:inline-flex;border:1px solid var(--pg-line);border-radius:10px;overflow:hidden;background:var(--pg-surface)}
+.seg button{border:0;background:transparent;padding:6px 12px;font-size:13px;min-height:36px;cursor:pointer;color:var(--pg-ink)}
+.seg button[aria-pressed="true"]{background:var(--mf-seguranca);color:#fff}
+.scen-group{display:flex;flex-direction:column;gap:6px}
+.scen-group .gl{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--pg-muted);font-weight:600;margin-top:6px}
+.scen{text-align:left;font-size:13px;border:1px solid var(--pg-line);background:var(--pg-surface);color:var(--pg-ink);padding:6px 10px;border-radius:10px;cursor:pointer;min-height:36px;display:flex;align-items:center;gap:8px}
+.scen b{font-family:var(--mono);font-weight:500;font-size:11px;color:var(--pg-muted);min-width:24px}
+.scen[aria-pressed="true"]{background:var(--mf-seguranca);border-color:var(--mf-seguranca);color:#fff}
+.scen[aria-pressed="true"] b{color:var(--mf-escolha)}
+.scen:focus-visible,.pg-btn:focus-visible,.seg button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.main-col{display:flex;flex-direction:column;gap:16px;min-width:0}
+.notes{background:var(--pg-surface);border:1px solid var(--pg-line);border-radius:16px;padding:18px 20px;display:flex;flex-direction:column;gap:10px;min-width:0}
+.notes h2{font-size:17px;font-weight:600}
+.notes h3{font-size:15px;font-weight:600}
+.notes ul,.notes ol{margin:0;padding-left:18px;display:flex;flex-direction:column;gap:5px}
+.notes li{max-width:95ch}
+.tag-ex{display:inline-block;font-size:11px;padding:2px 8px;border-radius:999px;background:var(--pg-soft);color:var(--pg-muted);font-weight:500}
+
+/* ===== moldura do app (computador) ===== */
+.desk{background:var(--app-bg);border:1px solid var(--pg-line);border-radius:16px;overflow:clip;color:var(--app-ink);display:grid;grid-template-columns:210px minmax(0,1fr);min-height:720px;position:relative}
+.sb{background:var(--app-surface);border-right:1px solid var(--app-line);padding:18px 12px;display:flex;flex-direction:column;gap:4px}
+.sb .logo{font-weight:700;color:var(--mf-outside);font-size:19px;padding:2px 12px 14px}
+.sb .grp{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--app-muted);padding:8px 12px 4px}
+.nav{display:flex;align-items:center;gap:10px;padding:8px 12px;border-radius:8px;font-size:14px;font-weight:500;color:var(--app-ink);text-decoration:none;min-height:40px}
+.nav svg{width:20px;height:20px;flex:none;color:var(--app-muted)}
+.nav:hover{background:var(--app-line-soft)}
+.nav.on{background:var(--nav-active-bg);color:var(--nav-active-fg)}
+.nav.on svg{color:var(--nav-active-fg)}
+.nbadge{margin-left:auto;font-size:10.5px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;padding:2px 8px;border-radius:999px;background:var(--badge-bg);color:var(--badge-fg)}
+.content{min-width:0;display:flex;flex-direction:column}
+.topbar{height:64px;border-bottom:1px solid var(--app-line);background:var(--app-surface);display:flex;align-items:center;justify-content:space-between;padding:0 24px;gap:16px}
+.topbar .who{font-size:13px;color:var(--app-muted);display:flex;align-items:center;gap:10px}
+.avatar{width:32px;height:32px;border-radius:50%;background:var(--mf-seguranca);color:#fff;display:grid;place-items:center;font-size:13px;font-weight:600}
+.page{padding:24px;display:flex;flex-direction:column;gap:16px;min-width:0;container-type:inline-size}
+
+/* ===== peças do app ===== */
+.ph-title{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;flex-wrap:wrap}
+.ph-title h1{font-size:22px;font-weight:600;color:var(--app-strong)}
+.ph-title p{font-size:14px;color:var(--app-muted);margin-top:2px}
+.card{background:var(--app-surface);border:1px solid var(--app-line);border-radius:16px;padding:20px;display:flex;flex-direction:column;gap:14px;min-width:0}
+.card-h{display:flex;justify-content:space-between;align-items:baseline;gap:12px;flex-wrap:wrap}
+.card-h h2{font-size:17px;font-weight:600;color:var(--app-strong)}
+.card-h .sub{font-size:13px;color:var(--app-muted)}
+.muted{color:var(--app-muted)}
+.small{font-size:12.5px}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:40px;padding:0 14px;border-radius:10px;font-size:14px;font-weight:500;cursor:pointer;border:1px solid var(--app-line);background:var(--app-surface);color:var(--app-strong);white-space:nowrap;text-decoration:none}
+.btn.primary{background:var(--primary);border-color:var(--primary);color:var(--primary-fg)}
+.btn.ghost{border-color:transparent;background:transparent;color:var(--link)}
+.btn:focus-visible,.lnk:focus-visible,.chip:focus-visible,.tab:focus-visible,.pill:focus-visible,.srch input:focus-visible,.th-btn:focus-visible,.rowlink:focus-visible,textarea:focus-visible,.mcard:focus-visible,.icon-btn:focus-visible{outline:none;box-shadow:0 0 0 3px var(--focus)}
+.lnk{color:var(--link);text-decoration:none;font-weight:500;background:none;border:0;padding:0;cursor:pointer;border-radius:4px}
+.lnk:hover{text-decoration:underline}
+.icon-btn{width:44px;height:44px;display:inline-grid;place-items:center;border:0;background:transparent;border-radius:10px;color:var(--app-ink);cursor:pointer}
+.banner{display:flex;gap:12px;align-items:center;flex-wrap:wrap;border:1px solid var(--app-line);background:var(--band-soft);color:var(--band-soft-ink);border-radius:14px;padding:12px 16px;font-size:14px}
+.banner b{font-weight:600}
+.banner .sp{flex:1;min-width:200px}
+.beta-pill{font-size:11px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;padding:2px 8px;border-radius:999px;background:var(--mf-seguranca);color:#fff}
+
+/* busca */
+.srch{position:relative;width:min(420px,100%)}
+.srch input{width:100%;height:44px;border:1px solid var(--app-line);background:var(--app-surface);border-radius:12px;padding:0 44px 0 40px;font-size:15px;color:var(--app-strong)}
+.srch .mag{position:absolute;left:12px;top:12px;width:20px;height:20px;color:var(--app-muted)}
+.srch kbd{position:absolute;right:10px;top:11px;font-family:var(--mono);font-size:11.5px;border:1px solid var(--app-line);border-radius:6px;padding:1px 7px;color:var(--app-muted);background:var(--app-bg)}
+.ac{position:absolute;left:0;right:0;top:50px;z-index:40;background:var(--app-surface);border:1px solid var(--app-line);border-radius:14px;box-shadow:var(--shadow);padding:6px;display:flex;flex-direction:column;max-height:440px;overflow:auto}
+.ac .gh{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--app-muted);font-weight:600;padding:8px 10px 4px}
+.opt{display:grid;grid-template-columns:44px minmax(0,1fr) auto;gap:10px;align-items:center;padding:6px 10px;border-radius:10px;min-height:52px;cursor:pointer}
+.opt[aria-selected="true"]{background:var(--app-line-soft);box-shadow:inset 0 0 0 2px var(--focus)}
+.opt .tk{font-weight:600;color:var(--app-strong)}
+.opt .tk mark{background:transparent;color:var(--link);font-weight:700}
+.opt .nm{display:block;font-size:12.5px;color:var(--app-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.opt .r{text-align:right;font-size:13px;font-variant-numeric:tabular-nums;color:var(--app-strong)}
+.opt .r small{display:block;font-size:11.5px;color:var(--app-muted)}
+.ac .foot{font-size:12px;color:var(--app-muted);padding:8px 10px;border-top:1px solid var(--app-line-soft);margin-top:4px}
+.ac .empty{padding:14px 10px;font-size:14px;color:var(--app-ink)}
+.ac.acm{position:static;box-shadow:none;border:0;max-height:none;padding:0;background:transparent}
+.logo-sq{width:40px;height:40px;border-radius:10px;background:var(--band-soft);color:var(--band-soft-ink);display:grid;place-items:center;font-size:11px;font-weight:700;letter-spacing:.02em;flex:none}
+.logo-sq.lg{width:56px;height:56px;font-size:14px;border-radius:14px}
+
+/* tabs de classe + chips */
+.tabs{display:flex;gap:4px;border-bottom:1px solid var(--app-line);overflow-x:auto;scrollbar-width:thin}
+.tab{border:0;border-bottom:2px solid transparent;background:transparent;padding:10px 14px;font-size:15px;font-weight:500;color:var(--app-muted);cursor:pointer;white-space:nowrap;display:inline-flex;gap:8px;align-items:center;min-height:44px}
+.tab .cnt{font-size:12px;font-weight:600;padding:1px 8px;border-radius:999px;background:var(--app-line-soft);color:var(--app-muted);font-variant-numeric:tabular-nums}
+.tab[aria-selected="true"]{color:var(--link);border-bottom-color:var(--link)}
+.tab[aria-selected="true"] .cnt{background:var(--badge-bg);color:var(--badge-fg)}
+.toolbar{display:flex;gap:10px 16px;align-items:center;justify-content:space-between;flex-wrap:wrap}
+.chips{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.chip{display:inline-flex;align-items:center;gap:6px;min-height:36px;padding:0 12px;border-radius:999px;border:1px solid var(--app-line);font-size:13.5px;color:var(--app-ink);background:var(--app-surface);cursor:pointer;white-space:nowrap}
+.chip[aria-pressed="true"]{background:var(--mf-seguranca);border-color:var(--mf-seguranca);color:#fff}
+.chip .x{font-size:12px;opacity:.85}
+.pills{display:inline-flex;background:var(--app-line-soft);border-radius:10px;padding:3px;gap:2px}
+.pill{border:0;background:transparent;border-radius:8px;padding:0 12px;min-height:34px;font-size:13.5px;font-weight:500;color:var(--app-muted);cursor:pointer;white-space:nowrap}
+.pill[aria-pressed="true"]{background:var(--app-surface);color:var(--app-strong);box-shadow:0 1px 2px rgba(16,24,40,.08)}
+.count-line{font-size:13px;color:var(--app-muted);font-variant-numeric:tabular-nums}
+
+/* tabela padrão TABLE_STYLES */
+.tbl-wrap{overflow:auto;border:1px solid var(--app-line);border-radius:12px;background:var(--app-surface);max-height:none}
+table.t{width:100%;border-collapse:collapse;text-align:left;font-variant-numeric:tabular-nums;color:var(--app-ink)}
+.t thead tr{background:var(--head-bg);color:#fff;font-size:12px;text-transform:uppercase;letter-spacing:.04em}
+.t thead th{position:sticky;top:0;background:var(--head-bg);z-index:2}
+.t th{padding:0;font-weight:500;white-space:nowrap}
+.t th .th-in{display:block;padding:12px 16px}
+.th-btn{display:inline-flex;align-items:center;gap:4px;width:100%;padding:12px 16px;border:0;background:transparent;color:#fff;font:inherit;text-transform:uppercase;letter-spacing:.04em;cursor:pointer;justify-content:inherit}
+.th-btn .ar{font-size:10px;opacity:.55;width:10px}
+.th-btn[data-on="1"] .ar{opacity:1}
+.t th.r .th-btn,.t th.r .th-in{justify-content:flex-end;text-align:right}
+.t th.hl{background:var(--mf-outside)}
+.t td{padding:10px 16px;font-size:14px;border-bottom:1px solid var(--app-line-soft);white-space:nowrap;vertical-align:middle}
+.t td.r{text-align:right}
+.t td.hl{background:var(--hl)}
+.t tbody tr.row{cursor:pointer}
+.t tbody tr.row:hover td{background:var(--app-line-soft)}
+.t tbody tr.row:hover td.hl{background:var(--hl)}
+.t tbody tr:last-child td{border-bottom:0}
+.t .tk{font-weight:600;color:var(--link)}
+.t .nm{display:block;font-size:12px;color:var(--app-muted);max-width:200px;overflow:hidden;text-overflow:ellipsis}
+.rowlink{color:inherit;text-decoration:none;display:flex;align-items:center;gap:10px;border-radius:6px}
+.t td.sticky,.t th.sticky{position:sticky;left:0;z-index:1;background:var(--app-surface)}
+.t thead th.sticky{z-index:3;background:var(--head-bg)}
+.t tr.last td{background:var(--hl);font-weight:500;color:var(--app-strong)}
+.t tr.last th.sticky{background:var(--app-surface);box-shadow:inset 0 0 0 999px var(--hl)}
+.t tr.last td.sticky{background:var(--app-surface);box-shadow:inset 0 0 0 999px var(--hl)}
+.t .nd{color:var(--app-muted)}
+.t .negv{color:var(--neg)}
+.t.compact td{padding:8px 12px;font-size:13.5px}
+.t.compact th .th-in{padding:10px 12px}
+.badge{display:inline-flex;align-items:center;gap:4px;font-size:11.5px;font-weight:500;padding:1px 8px;border-radius:999px;border:1px solid var(--app-line);color:var(--app-muted);background:var(--app-surface);white-space:nowrap}
+.badge.plan{border-style:dashed}
+.badge.hold{border-color:transparent;background:var(--band-soft);color:var(--band-soft-ink)}
+.badge.inc{border-style:dashed;border-color:var(--app-muted)}
+.badge.prov{border-color:transparent;background:var(--app-line-soft);color:var(--app-ink)}
+.tblfoot{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
+.formula{font-size:12.5px;color:var(--app-muted);max-width:110ch}
+.formula code{color:var(--app-ink)}
+
+/* anel do Índice MF */
+.ring{display:inline-flex;align-items:center;gap:8px}
+.ring svg{flex:none}
+.ring .rv{font-weight:600;color:var(--app-strong);font-variant-numeric:tabular-nums;font-size:14px}
+.ring .rs{font-size:11.5px;color:var(--app-muted);display:block;line-height:1.1}
+.ring-track{stroke:var(--app-line)}
+.ring-fill{stroke:var(--mf-outside)}
+.ring-dash{stroke:var(--app-muted)}
+
+/* barrinhas */
+.bars{display:inline-flex;align-items:center;gap:8px}
+.bars svg{flex:none;overflow:visible}
+.bar-pos{fill:var(--bar)} .bar-neg{fill:var(--neg)} .bar-nd{fill:none;stroke:var(--st-na);stroke-dasharray:2 2} .bar-flag{fill:var(--app-line-soft);stroke:var(--app-muted);stroke-width:1.2;stroke-dasharray:3 2}
+.bar-off{fill:var(--bar-soft)} .zero{stroke:var(--axis)}
+.bars .bl{font-size:12.5px;color:var(--app-ink);min-width:52px}
+
+/* semáforo */
+.st{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;font-weight:600;padding:3px 10px 3px 6px;border-radius:999px;white-space:nowrap}
+.st svg{width:16px;height:16px;flex:none}
+.st.ok{background:var(--st-ok-bg);color:var(--app-strong)} .st.ok svg{color:var(--st-ok)}
+.st.part{background:var(--st-part-bg);color:var(--app-strong)} .st.part svg{color:var(--st-part)}
+.st.no{background:var(--st-no-bg);color:var(--app-strong)} .st.no svg{color:var(--st-no)}
+.st.nd{background:transparent;border:1px dashed var(--st-na);color:var(--app-ink)} .st.nd svg{color:var(--st-na)}
+.st.na{background:transparent;color:var(--app-muted);font-weight:500} .st.na svg{color:var(--st-na)}
+.dots{display:inline-flex;gap:3px;vertical-align:middle}
+.dots svg{width:12px;height:12px}
+
+/* página do ativo */
+.crumb{font-size:13.5px}
+.ahead{display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap;justify-content:space-between}
+.ahead .id{display:flex;gap:14px;align-items:center;min-width:0}
+.ahead h1{font-size:24px;font-weight:600;color:var(--app-strong);display:flex;gap:10px;align-items:baseline;flex-wrap:wrap}
+.ahead h1 small{font-size:15px;font-weight:400;color:var(--app-muted)}
+.tags{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
+.price{text-align:right}
+.price .v{font-size:26px;font-weight:600;color:var(--app-strong);font-variant-numeric:tabular-nums}
+.price .d{font-size:13px;font-variant-numeric:tabular-nums}
+.price .when{font-size:12px;color:var(--app-muted)}
+.acts{display:flex;gap:8px;flex-wrap:wrap}
+.score-grid{display:grid;grid-template-columns:260px minmax(0,1fr);gap:20px;align-items:start}
+.bigscore{display:flex;flex-direction:column;gap:10px;align-items:flex-start;border-right:1px solid var(--app-line-soft);padding-right:20px}
+.bigscore .num{font-size:15px;color:var(--app-ink)}
+.comp{width:100%;display:flex;flex-direction:column;gap:6px;margin-top:4px}
+.comp-row{display:grid;grid-template-columns:minmax(0,1fr) 72px 38px;gap:8px;align-items:center;font-size:12.5px}
+.comp-row .cb{height:6px;border-radius:3px;background:var(--app-line-soft);overflow:hidden}
+.comp-row .cb i{display:block;height:100%;background:var(--mf-outside);border-radius:3px}
+.comp-row .cv{text-align:right;font-variant-numeric:tabular-nums;color:var(--app-strong)}
+.crit{display:flex;flex-direction:column}
+.crit-row{display:grid;grid-template-columns:132px minmax(0,1fr);gap:14px;padding:11px 0;border-bottom:1px solid var(--app-line-soft);align-items:start}
+.crit-row:last-child{border-bottom:0}
+.crit-row h4{font-size:14px;font-weight:600;color:var(--app-strong)}
+.crit-row p{font-size:13.5px;color:var(--app-ink);margin-top:1px}
+.crit-row .why{font-size:12.5px;color:var(--app-muted)}
+.crit-row.off h4{color:var(--app-muted);font-weight:500}
+.incbox{border:1px dashed var(--app-muted);border-radius:12px;padding:10px 12px;font-size:13.5px;color:var(--app-ink);background:var(--app-bg)}
+.incbox b{color:var(--app-strong)}
+.rulebox{border:1px solid var(--app-line);border-radius:12px;padding:10px 12px;font-size:13.5px;color:var(--app-ink);background:var(--app-bg)}
+.rulebox b{color:var(--app-strong)}
+.dyconf{display:block;font-size:11px;color:var(--app-muted);font-weight:400}
+.badge.semneg{border-style:dashed}
+.pos-card{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px}
+.kv dt{font-size:12px;color:var(--app-muted)}
+.kv dd{margin:2px 0 0;font-size:17px;font-weight:600;color:var(--app-strong);font-variant-numeric:tabular-nums}
+.target{display:flex;flex-direction:column;gap:6px}
+.target .lbl{display:flex;justify-content:space-between;gap:8px;font-size:13px;flex-wrap:wrap}
+.tbar{position:relative;height:10px;border-radius:5px;background:var(--app-line-soft)}
+.tbar i{position:absolute;left:0;top:0;bottom:0;border-radius:5px;background:var(--mf-patrimonio)}
+.tbar b{position:absolute;top:-4px;bottom:-4px;width:2px;background:var(--app-strong);border-radius:1px}
+.two{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+.kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+.kpi{background:var(--app-bg);border:1px solid var(--app-line-soft);border-radius:12px;padding:12px 14px;display:flex;flex-direction:column;gap:2px;min-width:0}
+.kpi .l{font-size:12px;color:var(--app-muted);font-weight:500}
+.kpi .v{font-size:19px;font-weight:600;color:var(--app-strong);font-variant-numeric:tabular-nums}
+.kpi .s{font-size:12px;color:var(--app-muted)}
+.kpi.conf{border:1px dashed var(--app-muted)}
+.vcard.conf{border-style:dashed;border-color:var(--app-muted)}
+.tese-off{display:flex;gap:10px;align-items:flex-start;font-size:14px;color:var(--app-ink)}
+.tese-off svg{width:18px;height:18px;flex:none;margin-top:2px;color:var(--app-muted)}
+.notheld{display:flex;gap:16px;align-items:center;justify-content:space-between;flex-wrap:wrap;border:1px dashed var(--app-line);border-radius:12px;padding:14px 16px}
+.notheld p{font-size:14px;max-width:62ch}
+.charts{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(0,1fr);gap:16px}
+figure{margin:0;display:flex;flex-direction:column;gap:8px;min-width:0}
+figcaption{font-size:13px;color:var(--app-muted)}
+.fig-h{display:flex;justify-content:space-between;gap:10px;align-items:center;flex-wrap:wrap}
+.fig-h h3{font-size:15px;font-weight:600;color:var(--app-strong)}
+.legend{display:flex;gap:14px;font-size:12.5px;color:var(--app-ink);flex-wrap:wrap}
+.legend i{display:inline-block;width:14px;height:3px;border-radius:2px;vertical-align:middle;margin-right:6px}
+.chart svg{width:100%;height:auto;display:block;max-height:280px}
+.chart.mini svg{max-height:170px}
+.chart text{fill:var(--app-muted);font-family:var(--font);font-size:11px}
+.chart .gl{stroke:var(--grid)}
+.chart .ax{stroke:var(--axis)}
+.chart .l1{stroke:var(--s1);fill:none;stroke-width:2.2}
+.chart .l2{stroke:var(--s2);fill:none;stroke-width:2.2}
+.chart .p1{fill:var(--s1)} .chart .p2{fill:var(--s2)}
+.chart .lbl1{fill:var(--s1);font-weight:600} .chart .lbl2{fill:var(--app-strong);font-weight:600}
+.chart .avg{stroke:var(--app-muted);stroke-dasharray:4 3}
+.chart .hit{fill:transparent;cursor:crosshair}
+.chart .cross{stroke:var(--app-muted);stroke-dasharray:3 3}
+.tip{position:absolute;pointer-events:none;background:var(--app-surface);border:1px solid var(--app-line);border-radius:10px;padding:6px 10px;font-size:12.5px;box-shadow:var(--shadow);color:var(--app-strong);white-space:nowrap;z-index:20}
+.chart{position:relative}
+.alt-tbl{font-size:13px}
+.note{font-size:12.5px;color:var(--app-muted)}
+.fresh{display:inline-flex;gap:6px;align-items:center;font-size:12.5px;color:var(--app-muted)}
+.fresh svg{width:14px;height:14px}
+.vgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:12px}
+.vcard{border:1px solid var(--app-line);border-radius:12px;padding:12px 14px;display:flex;flex-direction:column;gap:6px;min-width:0}
+.vcard .h{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+.vcard .h b{font-size:13.5px;color:var(--app-strong);font-weight:600}
+.vcard .h span{font-size:19px;font-weight:600;color:var(--app-strong);font-variant-numeric:tabular-nums}
+.vcard .rd{font-size:12.5px;color:var(--app-ink)}
+.vcard .ref{font-size:12px;color:var(--app-muted)}
+.vcard .stt{font-size:12.5px;font-weight:600;color:var(--app-strong)}
+.rbar{position:relative;height:22px;margin-top:2px}
+.rbar .trk{position:absolute;left:0;right:0;top:9px;height:4px;border-radius:2px;background:var(--app-line)}
+.rbar .avgm{position:absolute;top:4px;width:2px;height:14px;background:var(--app-muted)}
+.rbar .cur{position:absolute;top:3px;width:16px;height:16px;margin-left:-8px;border-radius:50%;background:var(--mf-outside);border:2px solid var(--app-surface);box-shadow:0 0 0 1px var(--mf-outside)}
+.rbar-l{display:flex;justify-content:space-between;font-size:11.5px;color:var(--app-muted);font-variant-numeric:tabular-nums}
+.vsum{font-size:13.5px;color:var(--app-ink);background:var(--app-bg);border-radius:10px;padding:8px 12px}
+.ev{display:flex;flex-direction:column}
+.ev-row{display:grid;grid-template-columns:56px minmax(0,1fr);gap:12px;padding:10px 0;border-bottom:1px solid var(--app-line-soft);align-items:start}
+.ev-row:last-child{border-bottom:0}
+.ev-d{border:1px solid var(--app-line);border-radius:10px;text-align:center;padding:4px 0;line-height:1.1}
+.ev-d b{display:block;font-size:18px;color:var(--app-strong)}
+.ev-d small{font-size:11px;color:var(--app-muted);text-transform:uppercase;letter-spacing:.04em}
+.ev-row h4{font-size:14px;font-weight:600;color:var(--app-strong)}
+.ev-row p{font-size:13px;color:var(--app-muted)}
+.edu{display:flex;gap:14px;align-items:flex-start}
+.edu .play{width:44px;height:44px;border-radius:12px;background:var(--mf-seguranca);color:#fff;display:grid;place-items:center;flex:none}
+.tese textarea{width:100%;min-height:140px;border:1px solid var(--app-line);border-radius:12px;padding:12px 14px;font-size:15px;line-height:1.55;background:var(--app-surface);color:var(--app-strong);resize:vertical}
+.tese .meta{display:flex;justify-content:space-between;gap:10px;font-size:12.5px;color:var(--app-muted);flex-wrap:wrap;align-items:center}
+.tese .saved-txt{white-space:pre-wrap;font-size:15px;line-height:1.6;color:var(--app-strong);border-left:3px solid var(--app-line);padding-left:12px}
+.lock{display:inline-flex;gap:6px;align-items:center;font-size:12.5px;color:var(--app-muted)}
+.lock svg{width:14px;height:14px}
+.err{display:flex;gap:8px;align-items:flex-start;font-size:13.5px;color:var(--neg);background:var(--danger-bg);border-radius:10px;padding:8px 12px}
+.legal{font-size:12px;color:var(--app-muted);border-top:1px solid var(--app-line);padding-top:14px;line-height:1.55}
+.skel{background:var(--skel);border-radius:6px;height:14px}
+.skel-row{display:grid;grid-template-columns:2fr repeat(6,1fr);gap:16px;padding:14px 16px;border-bottom:1px solid var(--app-line-soft)}
+.empty-st{display:flex;flex-direction:column;gap:10px;align-items:center;text-align:center;padding:40px 16px}
+.empty-st h3{font-size:16px;font-weight:600;color:var(--app-strong)}
+.empty-st p{font-size:14px;color:var(--app-muted);max-width:52ch}
+.gate{max-width:620px;margin:40px auto;text-align:left}
+.gate ul{margin:0;padding-left:18px;font-size:14px;color:var(--app-ink);display:flex;flex-direction:column;gap:4px}
+.popover{position:absolute;z-index:30;background:var(--app-surface);border:1px solid var(--app-line);border-radius:12px;box-shadow:var(--shadow);padding:12px;width:280px;display:flex;flex-direction:column;gap:8px}
+.popover label{display:flex;gap:8px;align-items:center;font-size:14px;min-height:36px}
+.toast{position:absolute;left:50%;transform:translateX(-50%);bottom:18px;background:var(--mf-seguranca);color:#fff;border-radius:12px;padding:10px 16px;font-size:14px;box-shadow:var(--shadow);z-index:60;display:flex;gap:12px;align-items:center}
+.toast button{border:0;background:transparent;color:#EAEAEA;font-weight:600;text-decoration:underline;cursor:pointer;min-height:32px}
+
+/* container: página do ativo e quadro se adaptam ao espaço (celular = 390/320) */
+@container (max-width: 760px){
+  .kpis{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .charts,.two{grid-template-columns:minmax(0,1fr)}
+  .score-grid{grid-template-columns:minmax(0,1fr)}
+  .bigscore{border-right:0;padding-right:0;border-bottom:1px solid var(--app-line-soft);padding-bottom:14px}
+  .pos-card{grid-template-columns:repeat(3,minmax(0,1fr))}
+}
+@container (max-width: 560px){
+  .card{padding:14px;border-radius:14px}
+  .crit-row{grid-template-columns:minmax(0,1fr);gap:6px}
+  .pos-card{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .ahead{flex-direction:column}
+  .price{text-align:left}
+  .ahead h1{font-size:20px}
+  .vgrid{grid-template-columns:minmax(0,1fr)}
+  .acts .btn{flex:1}
+  .kpi .v{font-size:17px}
+}
+@container (max-width: 340px){
+  .kpis{grid-template-columns:minmax(0,1fr)}
+  .pos-card{grid-template-columns:minmax(0,1fr)}
+}
+
+/* ===== celular ===== */
+.phone-stage{display:flex;justify-content:center}
+.phone{position:relative;width:410px;max-width:100%;height:864px;background:var(--app-bg);border:10px solid var(--mf-potencia);border-radius:44px;overflow:hidden;display:flex;flex-direction:column;color:var(--app-ink)}
+.phone.narrow{width:340px}
+.ph-status{height:34px;flex:none;display:flex;justify-content:space-between;align-items:center;padding:0 22px;font-size:13px;font-weight:600;color:var(--app-strong)}
+.ph-head{flex:none;display:flex;align-items:center;gap:4px;padding:2px 8px 6px 16px;border-bottom:1px solid var(--app-line);background:var(--app-surface);min-height:56px}
+.ph-head h2{font-size:18px;font-weight:600;color:var(--app-strong);flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ph-back{margin-left:-12px;color:var(--link)}
+.ph-body{flex:1;overflow:auto;padding:12px 16px 92px;display:flex;flex-direction:column;gap:12px;container-type:inline-size}
+.ph-body>*{flex-shrink:0}
+.rail{display:flex;gap:8px;overflow-x:auto;overflow-y:hidden;margin:0 -16px;padding:2px 16px 4px;scrollbar-width:none;flex:none;min-height:50px}
+.rail .chip{flex:none;min-height:44px}
+.mtools .pills .pill,.ph-body .vchips .chip,.ph-body .fig-h .pill{min-height:44px}
+.seg-m{display:grid;grid-template-columns:1fr 1fr;background:var(--app-line-soft);border-radius:12px;padding:3px}
+.seg-m button{min-height:44px;border:0;border-radius:10px;background:transparent;font-size:15px;font-weight:500;color:var(--app-muted);display:inline-flex;gap:6px;justify-content:center;align-items:center}
+.seg-m button[aria-pressed="true"]{background:var(--app-surface);color:var(--app-strong);box-shadow:0 1px 2px rgba(16,24,40,.08)}
+.seg-m .cnt{font-size:12px;color:var(--app-muted);font-variant-numeric:tabular-nums}
+.mtools{display:flex;gap:8px;align-items:center;justify-content:space-between;flex-wrap:wrap}
+.btn svg,.icon-btn svg{width:20px;height:20px;flex:none}
+.mlist{display:flex;flex-direction:column;gap:10px;list-style:none;margin:0;padding:0}
+.mcard{background:var(--app-surface);border:1px solid var(--app-line);border-radius:16px;padding:12px 14px;display:flex;flex-direction:column;gap:10px;text-decoration:none;color:inherit;cursor:pointer}
+.mcard .top{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;align-items:start}
+.mcard .t{font-weight:600;color:var(--app-strong);font-size:15.5px;display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.mcard .n{font-size:12.5px;color:var(--app-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mcard .pr{font-size:13px;color:var(--app-ink);font-variant-numeric:tabular-nums}
+.mgrid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px 10px;margin:0}
+.mgrid dt{font-size:11.5px;color:var(--app-muted)}
+.mgrid dd{margin:0;font-size:14px;font-weight:500;color:var(--app-strong);font-variant-numeric:tabular-nums}
+.mfoot{display:flex;justify-content:space-between;align-items:center;gap:8px;border-top:1px solid var(--app-line-soft);padding-top:8px;font-size:12.5px}
+.mbtn{min-height:48px;border-radius:12px;border:1px solid var(--app-line);background:var(--app-surface);color:var(--link);font-weight:600;font-size:15px;display:inline-flex;align-items:center;justify-content:center;gap:6px;cursor:pointer;width:100%}
+.mbtn.primary{background:var(--primary);border-color:var(--primary);color:var(--primary-fg)}
+.ph-tabbar{position:absolute;left:0;right:0;bottom:0;height:68px;background:var(--app-surface);border-top:1px solid var(--app-line);display:grid;grid-template-columns:repeat(5,1fr);align-items:center;font-size:11px;color:var(--app-muted);padding-bottom:8px;text-align:center;z-index:5}
+.ph-tabbar span{display:flex;flex-direction:column;align-items:center;gap:2px;min-height:48px;justify-content:center}
+.ph-tabbar svg{width:22px;height:22px}
+.ph-tabbar span.on{color:var(--accent);font-weight:600}
+.ph-tabbar .launch{width:46px;height:46px;border-radius:50%;background:var(--primary);color:#fff;display:grid;place-items:center;margin:0 auto}
+.sheet-ov{position:absolute;inset:0;background:var(--overlay);z-index:70;display:flex;flex-direction:column;justify-content:flex-end}
+.sheet{background:var(--app-surface);border-radius:22px 22px 0 0;max-height:90%;display:flex;flex-direction:column;box-shadow:var(--shadow)}
+.sheet.full{max-height:100%;height:100%;border-radius:0}
+.sheet .grab{width:40px;height:5px;border-radius:3px;background:var(--mf-transparencia);margin:8px auto 4px}
+.sheet-h{padding:4px 8px 8px 16px;display:flex;align-items:center;justify-content:space-between;gap:8px}
+.sheet-h h3{font-size:17px;font-weight:600;color:var(--app-strong)}
+.sheet-b{overflow:auto;padding:0 16px 16px;display:flex;flex-direction:column;gap:10px}
+.sheet-f{padding:10px 16px 18px;border-top:1px solid var(--app-line);display:flex;gap:8px}
+.mopt{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:10px;min-height:52px;width:100%;padding:8px 12px;border-radius:12px;border:0;background:transparent;text-align:left;cursor:pointer;font-size:15px;color:var(--app-strong)}
+.mopt small{display:block;font-size:12.5px;color:var(--app-muted)}
+.mopt[aria-checked="true"]{background:var(--band-soft)}
+.mopt .rd{width:22px;height:22px;border-radius:50%;border:2px solid var(--mf-transparencia)}
+.mopt[aria-checked="true"] .rd{border:7px solid var(--mf-patrimonio)}
+.more-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.more-it{position:relative;display:flex;flex-direction:column;align-items:center;gap:6px;padding:12px 4px;border-radius:14px;border:1px solid var(--app-line);font-size:12.5px;text-align:center;color:var(--app-strong);min-height:84px;justify-content:center}
+.more-it svg{width:22px;height:22px;color:var(--link)}
+.more-it .nbadge{position:absolute;top:6px;right:6px;margin:0;font-size:9.5px;padding:1px 6px}
+.more-it.on{border-color:var(--mf-patrimonio);box-shadow:inset 0 0 0 1px var(--mf-patrimonio)}
+.msearch{display:flex;gap:6px;align-items:center;padding:6px 8px 6px 16px;border-bottom:1px solid var(--app-line)}
+.msearch input{flex:1;height:48px;border:1px solid var(--app-line);border-radius:12px;padding:0 12px;font-size:16px;background:var(--app-surface);color:var(--app-strong);min-width:0}
+
+/* ===== especificação ===== */
+.spec{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+.spec .wide{grid-column:1/-1}
+.spec table{border-collapse:collapse;font-size:13.5px;width:100%;font-variant-numeric:tabular-nums}
+.spec th,.spec td{border-bottom:1px solid var(--pg-line);padding:7px 8px;text-align:left;vertical-align:top}
+.spec th{font-weight:600;font-size:12px;letter-spacing:.04em;text-transform:uppercase;color:var(--pg-muted)}
+.scroll-x{overflow-x:auto}
+.sw{display:inline-block;width:14px;height:14px;border-radius:4px;vertical-align:-2px;margin-right:6px;border:1px solid var(--pg-line)}
+.q{display:flex;flex-direction:column;gap:4px;padding:10px 0;border-bottom:1px solid var(--pg-line)}
+.q:last-child{border-bottom:0}
+.q b{font-weight:600}
+.q .rec{color:var(--pg-muted);font-size:14px}
+
+@media (max-width: 1100px){
+  .stage{grid-template-columns:minmax(0,1fr)}
+  .side{position:static;max-height:none}
+  .scen-groups{display:flex;flex-direction:column;gap:8px}
+  .scen-group{flex-direction:row;flex-wrap:wrap}
+  .scen-group .gl{width:100%}
+  .spec{grid-template-columns:minmax(0,1fr)}
+  .desk{grid-template-columns:minmax(0,1fr)}
+  .desk .sb-wrap{display:none}
+}
+@media (max-width: 440px){
+  .phone{border-width:0;border-radius:16px;height:780px}
+  .page{padding:14px}
+  .topbar{padding:0 14px}
+}
+@media (prefers-reduced-motion: reduce){ *{transition:none!important;animation:none!important} }
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.55}}
+.skel,.skel-row .skel{animation:pulse 1.4s ease-in-out infinite}
+
+/* ===== Bloco C: relatos, em conferência, frescor por bloco, curadoria ===== */
+:root{
+  --conf-line:#667085; --conf-bg:#F2F4F7;
+  --sla-late:#D92D20; --sla-late-bg:rgba(217,45,32,.08);
+  --menu-hover:#F2F4F7; --field-bg:#FFFFFF; --field-line:#D0D5DD; --ok-bg:#EDF2F8;
+  --th-sort-bg:#396CAA; --cnt-on-fg:#314666; --count-bg:#396CAA; --warn-box:#F2F4F7;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --conf-line:#98A2B3; --conf-bg:#26262A;
+    --sla-late:#F97066; --sla-late-bg:rgba(249,112,102,.10);
+    --menu-hover:#26262A; --field-bg:#18181B; --field-line:#3A404B; --ok-bg:rgba(57,108,170,.18);
+    --th-sort-bg:#396CAA; --cnt-on-fg:#6E9DC4; --count-bg:#396CAA; --warn-box:#26262A;
+  }
+}
+:root[data-theme="dark"]{
+  --conf-line:#98A2B3; --conf-bg:#26262A;
+  --sla-late:#F97066; --sla-late-bg:rgba(249,112,102,.10);
+  --menu-hover:#26262A; --field-bg:#18181B; --field-line:#3A404B; --ok-bg:rgba(57,108,170,.18);
+  --th-sort-bg:#396CAA; --cnt-on-fg:#6E9DC4; --count-bg:#396CAA; --warn-box:#26262A;
+}
+/* contraste (revisão): #0079F2 nunca sob texto */
+.t th.hl{background:var(--th-sort-bg)}
+.tab[aria-selected="true"] .cnt{color:var(--cnt-on-fg)}
+.ph-tabbar span.on{color:var(--link)}
+
+/* cabeçalho de bloco com menu discreto */
+.blk-h{display:flex;align-items:flex-start;justify-content:space-between;gap:8px}
+.blk-h .tt{display:flex;flex-direction:column;gap:2px;min-width:0}
+.blk-h h2{font-size:17px;font-weight:600;color:var(--app-strong)}
+.blk-h .sub{font-size:13px;color:var(--app-muted)}
+.kebab{width:44px;height:44px;margin:-10px -10px -6px 0;display:inline-grid;place-items:center;border:0;background:transparent;border-radius:10px;color:var(--app-muted);cursor:pointer;flex:none;position:relative}
+.kebab:hover{background:var(--menu-hover);color:var(--app-strong)}
+.kebab[aria-expanded="true"]{background:var(--menu-hover);color:var(--app-strong)}
+.kebab svg{width:20px;height:20px}
+.kebab:focus-visible,.confchip:focus-visible,.menu button:focus-visible,.fld input:focus-visible,.fld select:focus-visible,.fld textarea:focus-visible,.radio-c:focus-within,.case-row:focus-visible,.bell:focus-visible{outline:none;box-shadow:0 0 0 3px var(--focus)}
+.ph-body .kebab{width:44px;height:44px;margin:-10px -10px 0 0}
+.mwrap{position:relative}
+.menu{position:absolute;right:0;top:38px;z-index:35;min-width:248px;background:var(--app-surface);border:1px solid var(--app-line);border-radius:12px;box-shadow:var(--shadow);padding:6px;display:flex;flex-direction:column}
+.menu button{display:flex;gap:10px;align-items:center;text-align:left;min-height:44px;padding:6px 10px;border:0;background:transparent;border-radius:8px;font-size:14px;color:var(--app-strong);cursor:pointer}
+.menu button small{display:block;font-size:12px;color:var(--app-muted)}
+.menu button:hover{background:var(--menu-hover)}
+.menu button svg{width:18px;height:18px;flex:none;color:var(--app-muted)}
+.menu hr{border:0;border-top:1px solid var(--app-line-soft);margin:4px 0}
+
+/* selo de frescor por bloco */
+.bfresh{display:flex;flex-wrap:wrap;gap:4px 10px;align-items:center;font-size:12px;color:var(--app-muted);border-top:1px solid var(--app-line-soft);padding-top:10px;margin-top:2px}
+.bfresh svg{width:14px;height:14px;flex:none}
+.bfresh .it{display:inline-flex;gap:5px;align-items:center}
+.bfresh .late{color:var(--app-strong);font-weight:600}
+
+/* valor em conferência */
+.confchip{display:inline-flex;align-items:center;min-height:44px;margin-block:-11px;padding:0;border:0;background:transparent;cursor:pointer;font-family:inherit;border-radius:999px;vertical-align:middle}
+.confchip .cc-in{display:inline-flex;align-items:center;gap:4px;font-size:11.5px;font-weight:500;line-height:20px;padding:0 8px;border-radius:999px;border:1px dashed var(--conf-line);background:var(--conf-bg);color:var(--app-ink);white-space:nowrap}
+.confchip svg{width:12px;height:12px}
+.confchip:hover .cc-in{color:var(--app-strong);border-style:solid}
+.confchip:focus-visible{box-shadow:none}.confchip:focus-visible .cc-in{box-shadow:0 0 0 3px var(--focus)}
+.ph-body .confchip{margin-block:-8px}.ph-body .confchip .cc-in{line-height:28px;padding:0 10px;font-size:12.5px}
+.tap{min-height:44px;display:inline-flex;align-items:center;align-self:flex-start}
+.toast button{min-height:44px;padding:0 4px}
+.kpi .v.hid,.vcard .h span.hid{color:var(--app-muted);font-weight:500}
+.cv-conf{display:inline-flex;flex-direction:column;align-items:flex-end;gap:2px}
+.t td .conf-mini{display:block;font-size:11px;color:var(--app-muted)}
+.t td.confcell{background:repeating-linear-gradient(135deg,transparent 0 6px,var(--conf-bg) 6px 8px)}
+.comp-row.conf .cb{background:transparent;border:1px dashed var(--conf-line)}
+.comp-row.conf .cv{color:var(--app-muted);font-weight:500}
+.comp-row .cl{display:flex;gap:6px;align-items:center;min-width:0}
+.why-box{border:1px dashed var(--conf-line);border-radius:12px;padding:10px 12px;font-size:13.5px;color:var(--app-ink);background:var(--app-bg);display:flex;flex-direction:column;gap:6px}
+.why-box b{color:var(--app-strong)}
+.why-box ul{margin:0;padding-left:18px;display:flex;flex-direction:column;gap:3px}
+.bar-conf{fill:var(--conf-bg);stroke:var(--conf-line);stroke-width:1.3;stroke-dasharray:3 2}
+.yr-chart{width:100%;height:auto;display:block;max-height:190px}
+.yr-chart text{fill:var(--app-muted);font-family:var(--font);font-size:11px}
+.yr-chart .vl{fill:var(--app-strong);font-weight:600}
+.price .v.conf{color:var(--app-muted)}
+
+/* popover de motivo (computador) */
+.pop{position:absolute;z-index:45;width:min(380px,calc(100% - 32px));background:var(--app-surface);border:1px solid var(--app-line);border-radius:14px;box-shadow:var(--shadow);padding:14px 16px;display:flex;flex-direction:column;gap:10px}
+.pop h3{font-size:15px;font-weight:600;color:var(--app-strong)}
+.pop dl{display:grid;grid-template-columns:auto minmax(0,1fr);gap:4px 12px;margin:0;font-size:13px}
+.pop dt{color:var(--app-muted)}
+.pop dd{margin:0;color:var(--app-ink)}
+.pop .close{position:absolute;right:6px;top:6px}
+.origin{display:inline-flex;gap:6px;align-items:center;font-size:12px;font-weight:500;color:var(--app-ink);padding:1px 8px;border-radius:999px;background:var(--app-line-soft)}
+.origin svg{width:13px;height:13px}
+
+/* modal / formulário */
+.modal-ov{position:absolute;inset:0;background:var(--overlay);z-index:80;display:flex;align-items:flex-start;justify-content:center;padding:56px 16px 16px}
+.modal{width:min(560px,100%);background:var(--app-surface);border-radius:16px;box-shadow:var(--shadow);display:flex;flex-direction:column}
+.modal-h{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;padding:18px 12px 6px 20px}
+.modal-h h3{font-size:18px;font-weight:600;color:var(--app-strong)}
+.modal-h p{font-size:13px;color:var(--app-muted);margin-top:2px}
+.modal-b{padding:6px 20px 16px;display:flex;flex-direction:column;gap:14px}
+.modal-f{padding:12px 20px 18px;border-top:1px solid var(--app-line);display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap;align-items:center}
+.modal-f .sp{flex:1;font-size:12.5px;color:var(--app-muted);min-width:160px}
+.ctx{display:grid;grid-template-columns:auto minmax(0,1fr);gap:4px 14px;margin:0;font-size:13.5px;background:var(--app-bg);border:1px solid var(--app-line-soft);border-radius:12px;padding:10px 12px}
+.ctx dt{color:var(--app-muted)}
+.ctx dd{margin:0;color:var(--app-strong);font-variant-numeric:tabular-nums;min-width:0}
+.fld{display:flex;flex-direction:column;gap:6px}
+.fld label,.fld .lbl{font-size:14px;font-weight:500;color:var(--app-strong)}
+.fld .optl{font-weight:400;color:var(--app-muted);font-size:13px}
+.fld input,.fld select,.fld textarea{width:100%;border:1px solid var(--field-line);background:var(--field-bg);border-radius:10px;padding:0 12px;min-height:44px;font-size:15px;color:var(--app-strong)}
+.fld textarea{padding:10px 12px;min-height:110px;resize:vertical;line-height:1.5}
+.fld .hint{font-size:12.5px;color:var(--app-muted);display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap}
+.fld[data-invalid="1"] input,.fld[data-invalid="1"] textarea,.fld[data-invalid="1"] select{border-color:var(--neg);box-shadow:inset 0 0 0 1px var(--neg)}
+.ferr{display:flex;gap:6px;align-items:flex-start;font-size:13px;color:var(--neg)}
+.ferr svg{width:16px;height:16px;flex:none;margin-top:2px}
+.ph-body .fld input,.ph-body .fld select,.ph-body .fld textarea,.sheet .fld input,.sheet .fld select,.sheet .fld textarea{font-size:16px;min-height:48px}
+.done{display:flex;flex-direction:column;gap:10px;align-items:flex-start;padding:6px 0}
+.done .ic{width:44px;height:44px;border-radius:50%;background:var(--ok-bg);color:var(--link);display:grid;place-items:center}
+.done .ic svg{width:24px;height:24px}
+.done h4{font-size:17px;font-weight:600;color:var(--app-strong)}
+.done p{font-size:14px;color:var(--app-ink);max-width:56ch}
+.info{display:flex;gap:8px;align-items:flex-start;font-size:13.5px;color:var(--app-ink);background:var(--band-soft);border-radius:10px;padding:10px 12px}
+.info svg{width:18px;height:18px;flex:none;color:var(--link);margin-top:1px}
+.btn[disabled]{opacity:.6;cursor:progress}
+.spin{width:16px;height:16px;border-radius:50%;border:2px solid currentColor;border-right-color:transparent;animation:spin .8s linear infinite;display:inline-block}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* status de relato (forma + texto) */
+.rst{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;font-weight:600;padding:2px 10px 2px 6px;border-radius:999px;white-space:nowrap;color:var(--app-strong)}
+.rst svg{width:16px;height:16px;flex:none}
+.rst.aberto{border:1px solid var(--app-line);background:var(--app-surface)} .rst.aberto svg{color:var(--app-muted)}
+.rst.analise{background:var(--st-part-bg)} .rst.analise svg{color:var(--st-part)}
+.rst.corrigido{background:var(--st-ok-bg)} .rst.corrigido svg{color:var(--st-ok)}
+.rst.rejeitado{background:transparent;border:1px dashed var(--st-na);color:var(--app-ink)} .rst.rejeitado svg{color:var(--st-na)}
+.sla{display:inline-flex;gap:5px;align-items:center;font-size:12.5px;font-weight:500;white-space:nowrap;color:var(--app-ink)}
+.sla svg{width:14px;height:14px;flex:none;color:var(--app-muted)}
+.sla.hoje{font-weight:700;color:var(--app-strong)} .sla.hoje svg{color:var(--app-strong)}
+.sla.venc{color:var(--sla-late);font-weight:700;background:var(--sla-late-bg);padding:1px 8px;border-radius:999px} .sla.venc svg{color:var(--sla-late)}
+.sla.na{color:var(--app-muted)}
+.sla.perto{font-weight:700;color:var(--app-strong)} .sla.perto svg{color:var(--app-strong)}
+.sla.velho{color:var(--app-ink)} .sla.velho svg{color:var(--app-muted)}
+.eff{display:inline-flex;gap:5px;align-items:center;font-size:12px;font-weight:500;white-space:nowrap;padding:1px 8px;border-radius:999px;color:var(--app-ink)}
+.eff svg{width:13px;height:13px;flex:none}
+.eff.conf{border:1px dashed var(--conf-line);background:var(--conf-bg)}
+.eff.rev{border:1px solid var(--app-line)}
+.cessou{display:flex;gap:5px;align-items:center;font-size:12px;color:var(--app-strong);font-weight:500;margin-top:2px}
+.cessou svg{width:13px;height:13px;color:var(--link)}
+.warnbox{background:var(--warn-box);border:1px solid var(--app-line)}
+.fs{border:0;padding:0;margin:0;display:flex;flex-direction:column;gap:6px}
+.fs legend{margin-bottom:6px}
+.mine{display:flex;flex-wrap:wrap;gap:4px 10px;align-items:center;font-size:13px;color:var(--app-ink);background:var(--app-bg);border:1px solid var(--app-line-soft);border-radius:10px;padding:2px 12px}
+.infoline{display:flex;gap:5px;align-items:flex-start;margin-top:2px}
+.infoline svg{width:13px;height:13px;flex:none;margin-top:2px;color:var(--link)}
+
+/* meus relatos */
+.rlist{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:12px}
+.rcard{border:1px solid var(--app-line);border-radius:14px;padding:14px 16px;display:flex;flex-direction:column;gap:8px;background:var(--app-surface)}
+.rcard .top{display:flex;justify-content:space-between;gap:10px;align-items:flex-start;flex-wrap:wrap}
+.rcard h3{font-size:15px;font-weight:600;color:var(--app-strong)}
+.rcard .meta{font-size:12.5px;color:var(--app-muted);font-variant-numeric:tabular-nums}
+.rcard blockquote{margin:0;font-size:14px;color:var(--app-ink);border-left:3px solid var(--app-line);padding-left:10px}
+.reply{background:var(--app-bg);border-radius:10px;padding:10px 12px;font-size:14px;color:var(--app-ink);display:flex;flex-direction:column;gap:4px}
+.reply b{font-size:12.5px;color:var(--app-muted);font-weight:600}
+.reply.new{box-shadow:inset 0 0 0 2px var(--mf-outside)}
+
+/* sino de notificações */
+.bell{position:relative;width:44px;height:44px;display:inline-grid;place-items:center;border:1px solid var(--app-line);border-radius:50%;background:var(--app-surface);color:var(--app-ink);cursor:pointer}
+.bell svg{width:20px;height:20px}
+.bell .dot{position:absolute;top:-3px;right:-3px;min-width:18px;height:18px;border-radius:9px;background:var(--count-bg);color:#fff;font-size:11px;font-weight:600;display:grid;place-items:center;padding:0 4px}
+.ndrop{position:absolute;right:16px;top:58px;z-index:50;width:360px;max-width:calc(100% - 32px);background:var(--app-surface);border:1px solid var(--app-line);border-radius:14px;box-shadow:var(--shadow);display:flex;flex-direction:column}
+.ndrop h3{font-size:15px;font-weight:600;color:var(--app-strong);padding:12px 16px 8px}
+.nit{display:flex;gap:10px;padding:10px 16px;border-top:1px solid var(--app-line-soft);text-decoration:none;color:inherit}
+.nit.unread{background:var(--hl)}
+.nit .ic{width:32px;height:32px;border-radius:50%;background:var(--band-soft);color:var(--link);display:grid;place-items:center;flex:none}
+.nit .ic svg{width:18px;height:18px}
+.nit p{font-size:13.5px;color:var(--app-strong)}
+.nit small{font-size:12px;color:var(--app-muted)}
+
+/* curadoria (admin) */
+.cur-grid{display:grid;grid-template-columns:minmax(0,1.05fr) minmax(0,1fr);gap:16px;align-items:start}
+.tiles{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px}
+.tile{border:1px solid var(--app-line);border-radius:12px;background:var(--app-surface);padding:10px 14px;display:flex;flex-direction:column;gap:2px;text-align:left;cursor:pointer;color:inherit;min-height:44px}
+.tile .n{font-size:22px;font-weight:600;color:var(--app-strong);font-variant-numeric:tabular-nums}
+.tile .l{font-size:12.5px;color:var(--app-muted);display:flex;gap:5px;align-items:center}
+.tile .l svg{width:14px;height:14px}
+.tile[aria-pressed="true"]{border-color:var(--mf-patrimonio);box-shadow:inset 0 0 0 1px var(--mf-patrimonio)}
+.tile.late .n{color:var(--sla-late)}
+.case-row{cursor:pointer}
+.case-row[aria-selected="true"] td,.case-row[aria-selected="true"] th{background:var(--hl)!important}
+.t th.rowh{font-weight:400;text-align:left;padding:10px 16px;border-bottom:1px solid var(--app-line-soft);white-space:nowrap}
+.t .fld-n{display:block;font-size:12.5px;color:var(--app-ink);font-weight:500}
+.dsec{display:flex;flex-direction:column;gap:8px;padding:14px 0;border-top:1px solid var(--app-line-soft)}
+.dsec:first-of-type{border-top:0;padding-top:0}
+.dsec h3{font-size:14px;font-weight:600;color:var(--app-strong);display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.rep{border:1px solid var(--app-line-soft);border-radius:10px;padding:10px 12px;display:flex;flex-direction:column;gap:4px;font-size:13.5px}
+.rep .who{font-size:12.5px;color:var(--app-muted);display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.rep .who b{color:var(--app-strong);font-weight:600}
+.radios{display:flex;flex-wrap:wrap;gap:8px}
+.radio-c{display:inline-flex;gap:8px;align-items:center;min-height:44px;padding:0 12px;border:1px solid var(--app-line);border-radius:10px;font-size:13.5px;cursor:pointer;color:var(--app-strong);background:var(--app-surface)}
+.radio-c input{accent-color:var(--mf-patrimonio);width:16px;height:16px;margin:0}
+.radio-c:has(input:checked){border-color:var(--mf-patrimonio);box-shadow:inset 0 0 0 1px var(--mf-patrimonio);background:var(--band-soft)}
+.tl{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:8px;font-size:13px}
+.tl li{display:grid;grid-template-columns:92px minmax(0,1fr);gap:10px}
+.tl time{color:var(--app-muted);font-variant-numeric:tabular-nums}
+.lint{font-size:12.5px;color:var(--app-muted);display:flex;gap:6px;align-items:center}
+.lint svg{width:14px;height:14px;color:var(--link)}
+.kv-row{display:flex;gap:10px;flex-wrap:wrap;align-items:center;font-size:13px;color:var(--app-muted)}
+
+@container (max-width: 1000px){
+  .cur-grid{grid-template-columns:minmax(0,1fr)}
+}
+@container (max-width: 1100px){ .tiles{grid-template-columns:repeat(3,minmax(0,1fr))} }
+@container (max-width: 560px){
+  .tiles{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .ctx{grid-template-columns:minmax(0,1fr)}
+  .ctx dt{margin-top:4px}
+  .tl li{grid-template-columns:minmax(0,1fr);gap:0}
+}
+.sheet .ctx{grid-template-columns:minmax(0,1fr);gap:2px 0}
+.sheet .ctx dt{margin-top:6px}
+.sheet .ctx dt:first-child{margin-top:0}
+.sheet-f .mbtn{flex:1}
+@media (prefers-reduced-motion: reduce){ .spin{animation:none;border-right-color:currentColor;opacity:.6} }
+</style>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-ok" viewBox="0 0 16 16"><circle cx="8" cy="8" r="7" fill="currentColor"/><path d="M4.8 8.2l2.1 2.1 4.3-4.5" fill="none" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="i-part" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6.2" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M8 1.8a6.2 6.2 0 0 1 0 12.4z" fill="currentColor"/></symbol>
+  <symbol id="i-no" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6.2" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M5.6 5.6l4.8 4.8M10.4 5.6l-4.8 4.8" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></symbol>
+  <symbol id="i-nd" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6.2" fill="none" stroke="currentColor" stroke-width="1.5" stroke-dasharray="2.4 2"/><path d="M6.4 6.4a1.7 1.7 0 1 1 2.3 1.6c-.5.2-.7.5-.7 1v.3" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/><circle cx="8" cy="11.4" r=".8" fill="currentColor"/></symbol>
+  <symbol id="i-na" viewBox="0 0 16 16"><path d="M4 8h8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></symbol>
+  <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7" fill="none" stroke="currentColor" stroke-width="2"/><path d="M20 20l-3.5-3.5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+  <symbol id="i-lock" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3" fill="none" stroke="currentColor" stroke-width="2"/></symbol>
+  <symbol id="i-back" viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="i-x" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+  <symbol id="i-sort" viewBox="0 0 24 24"><path d="M7 4v16M3 16l4 4 4-4M17 20V4M13 8l4-4 4 4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="i-filter" viewBox="0 0 24 24"><path d="M4 6h16M7 12h10M10 18h4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+  <symbol id="i-cal" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><path d="M3 10h18M8 3v4M16 3v4" stroke="currentColor" stroke-width="2"/></symbol>
+  <symbol id="i-play" viewBox="0 0 24 24"><path d="M8 5v14l11-7z" fill="currentColor"/></symbol>
+  <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 7v5l3 2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+  <symbol id="n-dash" viewBox="0 0 24 24"><path d="M4 13h6V4H4zM14 20h6v-9h-6zM4 20h6v-3H4zM14 8h6V4h-6z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></symbol>
+  <symbol id="n-wallet" viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="14" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><path d="M16 13h2M3 10h18" stroke="currentColor" stroke-width="2"/></symbol>
+  <symbol id="n-anal" viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M7.5 12.5l2-2.5 2 1.5 2.5-3.5M15.5 15.5L21 21" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="n-flow" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><path d="M3 10h18M9 10v10" stroke="currentColor" stroke-width="2"/></symbol>
+  <symbol id="n-plan" viewBox="0 0 24 24"><path d="M4 20l4-1 11-11-3-3L5 16z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></symbol>
+  <symbol id="n-heart" viewBox="0 0 24 24"><path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></symbol>
+  <symbol id="n-debt" viewBox="0 0 24 24"><path d="M4 7h16v12H4zM8 7V5h8v2M4 12h16" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></symbol>
+  <symbol id="n-doc" viewBox="0 0 24 24"><path d="M6 3h9l4 4v14H6z M14 3v5h5M9 13h7M9 17h7" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></symbol>
+  <symbol id="n-edu" viewBox="0 0 24 24"><path d="M3 9l9-5 9 5-9 5zM7 11.5V16c3 2.5 7 2.5 10 0v-4.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></symbol>
+  <symbol id="n-more" viewBox="0 0 24 24"><circle cx="5" cy="12" r="2" fill="currentColor"/><circle cx="12" cy="12" r="2" fill="currentColor"/><circle cx="19" cy="12" r="2" fill="currentColor"/></symbol>
+  <symbol id="n-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></symbol>
+  <symbol id="i-dots" viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.9" fill="currentColor"/><circle cx="12" cy="12" r="1.9" fill="currentColor"/><circle cx="12" cy="19" r="1.9" fill="currentColor"/></symbol>
+  <symbol id="i-flag" viewBox="0 0 24 24"><path d="M5 21V4M5 4h11l-2 4 2 4H5" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/></symbol>
+  <symbol id="i-conf" viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5" fill="none" stroke="currentColor" stroke-width="2" stroke-dasharray="3.2 2.4"/><path d="M15.5 15.5L20 20" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></symbol>
+  <symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 11v6M12 7.5h.01" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></symbol>
+  <symbol id="i-bell" viewBox="0 0 24 24"><path d="M6 16V11a6 6 0 0 1 12 0v5l1.5 2h-15zM10 21h4" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/></symbol>
+  <symbol id="i-warn" viewBox="0 0 24 24"><path d="M12 3 2 21h20L12 3z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M12 10v5M12 18h.01" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="i-user" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4" fill="none" stroke="currentColor" stroke-width="2"/><path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+  <symbol id="i-rule" viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="3" fill="none" stroke="currentColor" stroke-width="2"/><path d="M8 9h8M8 13h5M8 17h3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+  <symbol id="i-doc" viewBox="0 0 24 24"><path d="M6 3h9l4 4v14H6z M14 3v5h5" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></symbol>
+  <symbol id="r-aberto" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6.2" fill="none" stroke="currentColor" stroke-width="1.6"/></symbol>
+  <symbol id="r-analise" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6.2" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M8 4.5V8l2.4 1.6" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></symbol>
+  <symbol id="r-rej" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6.2" fill="none" stroke="currentColor" stroke-width="1.5" stroke-dasharray="2.4 2"/><path d="M5 8h6" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></symbol>
+  <symbol id="n-admin" viewBox="0 0 24 24"><path d="M12 3l8 3v6c0 4.5-3.4 8-8 9-4.6-1-8-4.5-8-9V6z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></symbol>
+</svg>
+<div class="wrap">
+  <header>
+    <div class="wordmark">My Finance</div>
+    <h1 class="pg-h1">Análise de Ativos · Bloco C: dado incorreto e regras de sanidade</h1>
+    <p class="lede">Duas peças que se encontram na mesma fila. O usuário relata um dado errado a partir do bloco onde ele aparece, com o contexto já preenchido. As regras automáticas põem indicadores “em conferência” com o motivo escrito. O curador trata relatos e regras num caso só, no /admin, com prazo de 5 dias úteis, e a resposta volta ao usuário por notificação e em “Meus relatos”. <span class="tag-ex">valores ilustrativos; hoje no protótipo = sexta, 02/10/2026; contagens do banco dev de 03/10</span></p>
+  </header>
+
+  <section class="stage" aria-label="Protótipo navegável">
+    <aside class="side">
+      <div class="controls">
+        <div class="seg" role="group" aria-label="Aparelho">
+          <button type="button" data-dev="desk" aria-pressed="true">Computador</button>
+          <button type="button" data-dev="phone" aria-pressed="false">Celular</button>
+        </div>
+      </div>
+      <div class="controls">
+        <button class="pg-btn" type="button" id="themeBtn">Tema: sistema</button>
+        <button class="pg-btn" type="button" id="narrowBtn" aria-pressed="false" disabled>Ver a 320px</button>
+      </div>
+      <div class="scen-groups" id="scenarios" role="group" aria-label="Cenários do protótipo"></div>
+    </aside>
+    <div class="main-col">
+      <div id="screen"></div>
+      <div class="notes" id="notes" aria-live="polite"></div>
+    </div>
+  </section>
+
+  <section class="spec" aria-labelledby="spec-h">
+    <div class="notes wide">
+      <p class="eyebrow">Especificação · revisão 2</p>
+      <h2 id="spec-h" style="font-size:22px">Medidas, estados, acessibilidade e tema</h2>
+      <p style="color:var(--pg-muted);max-width:92ch">Tudo reaproveita a Fase 1: <code>CartaoAnalise</code> ganha a prop <code>acao</code> para o menu do bloco; <code>SeloFrescor</code> vira por bloco; <code>SeloEstado</code> ganha o tipo <code>em_conferencia</code>; <code>BottomSheet</code> + <code>useMobileHistoryLayer</code> no celular; <code>TABLE_STYLES</code> na fila; <code>csrfFetch</code> nos envios. A tela lê o estado de conferência de um helper só (<code>regras/comum/conferencia.ts</code>), o mesmo do Índice e do Quadro. Esta revisão segue a arquitetura em rotas, limites, estados do caso e regras; as divergências que sobraram estão nas perguntas.</p>
+    </div>
+
+    <div class="notes">
+      <h2>Ponto de entrada “Reportar dado incorreto”</h2>
+      <ul>
+        <li><b>Computador e celular:</b> botão de menu (três pontos verticais) no canto do cabeçalho de cada bloco, 44×44px, ícone 20px em <code>app-muted</code>, fundo só no hover e no foco; margem negativa para não aumentar o cabeçalho. Nome acessível: “Opções do bloco Fundamentos”.</li>
+        <li><b>Computador:</b> menu de 248px com itens de 44px: “Reportar dado incorreto” e “Fonte e atualização”. <b>Celular:</b> <code>BottomSheet</code> com as duas opções em linhas de 52px; Voltar do Android fecha.</li>
+        <li><b>Atalho contextual:</b> o “Por quê?” termina com “Tem uma informação sobre isso? Reportar” (44px), que abre o formulário com o campo já escolhido.</li>
+        <li><b>“Você reportou”:</b> linha no rodapé do bloco com status (forma + texto), data e prazo. Vem dentro do GET <code>/ativos/[ticker]</code>, sem chamada extra.</li>
+        <li>Enum <code>bloco</code> da API: cabeçalho → <code>cabecalho</code>, Índice → <code>indice</code>, Indicadores → <code>kpis</code>, Lucro/Cotação → <code>grafico</code>, Dividendos → <code>dividendos</code>, Fundamentos → <code>fundamentos</code>, Valuation → <code>valuation</code>. Ficam sem menu: Na sua carteira, Minha tese e Educação.</li>
+        <li>Nasce atrás de <code>ANALISE_ATIVOS_REPORTE_HABILITADO</code> (desligada); <code>/config</code> devolve <code>reporteHabilitado</code> e a tela esconde o item de menu quando for false.</li>
+      </ul>
+    </div>
+
+    <div class="notes">
+      <h2>Formulário de relato</h2>
+      <ul>
+        <li><b>Computador:</b> diálogo modal de 560px, raio 16px, foco no campo de mensagem; Esc e “Cancelar” fecham; o foco volta ao botão de origem. <b>Celular:</b> sheet de tela cheia com “Enviar relato” fixo no rodapé (48px).</li>
+        <li><b>Contexto (só leitura, enviado junto):</b> ativo, bloco, dado, valor exibido, período, fonte e frescor exibidos, versão do Quadro. O servidor adiciona o retrato da linha (valor, flags, motivos, dataRef, paramsVersion).</li>
+        <li><b>Campos:</b> “Qual dado?” (select já escolhido: rótulo · valor · período); “O que está errado?” (obrigatório, 10 a 1.000, contador); “Valor que você esperava” (opcional, até 40, pede <code>valorEsperado</code> no schema); “Onde você viu?” (opcional, até 300, <code>fonteEsperada</code>).</li>
+        <li><b>Validação</b> no envio: erro abaixo do campo com ícone e texto, <code>aria-invalid</code> + <code>aria-describedby</code>, resumo em <code>role="alert"</code>, foco no 1º campo com erro.</li>
+        <li><b>Respostas da API:</b> 201 enviado (protocolo e prazo em data); 200 <code>jaExistia:true</code> (informação, leva ao relato existente); 429 limite (10 em 24 h, 3 por hora no mesmo ativo; diz quando volta); erro de rede (texto fica, “Tentar de novo”); 404 sem acesso (o item de menu nem aparece).</li>
+        <li><b>Consultor agindo pelo cliente:</b> autor = consultor, cliente registrado em <code>clienteId</code>, aviso visível no formulário.</li>
+      </ul>
+    </div>
+
+    <div class="notes wide">
+      <h2>“Em conferência”: política de exibição por grupo (contrato 0)</h2>
+      <p class="note">A política mora em <code>CAMPOS_POR_GRUPO</code> e vale igual na página, no Quadro, nos pares e na busca. A matriz de consistência da fatia B confere também “valor visível ou não”.</p>
+      <div class="scroll-x"><table>
+        <thead><tr><th>Grupo</th><th>Campos de tela</th><th>Na tela</th><th>Índice</th><th>Exemplo</th></tr></thead>
+        <tbody>
+          <tr><td><code>proventos</code></td><td>DY 12m, DPA, payout, rendimento 12m</td><td>Mostra o valor + chip (comportamento de hoje, sem mudança com params v1)</td><td>Proventos = 0</td><td>WEGE3 (C4)</td></tr>
+          <tr><td><code>acoes_escala</code></td><td>P/L, P/VP, LPA, VPA, valor de mercado, EV/EBITDA, P/Receita, P/FCO, P/FCL, nº de ações</td><td>“—” + chip; calculado só no “Por quê?”</td><td>Preço = 0</td><td>CBAV3 (C2)</td></tr>
+          <tr><td><code>historico</code></td><td>ponto anual de P/L, P/VP, P/Receita</td><td>“—” + chip na célula do ano; barra tracejada; fora da média de 10 anos</td><td>Preço recalculado sem o ponto</td><td>CBAV3 2022</td></tr>
+          <tr><td><code>preco_base</code></td><td>DY 12m, P/L, P/VP, EV/EBITDA, valor de mercado</td><td>“—” + chip. A cotação negociada aparece com o chip; série tracejada no gráfico</td><td>Proventos e Preço = 0</td><td>SBSP3 (C1), CACR11 (C3)</td></tr>
+          <tr><td><code>preco_esporadico</code>, <code>fii_vp</code></td><td>P/VP, DY (FII: VP/cota)</td><td>“—” + chip</td><td>Preço (e Proventos no esporádico) = 0</td><td>MMVE11, GSRF11 no dev</td></tr>
+          <tr><td><code>fii_obrigacoes</code></td><td>Obrigações/PL</td><td>Mostra o valor + chip</td><td>Obrigações = 0 (já era pelo piso)</td><td>PMRL11 (C7)</td></tr>
+          <tr><td><code>rev:*</code> (revisão)</td><td>lucro, receita, PL, ativo, divergências de fonte</td><td>Nada muda</td><td>Nada muda</td><td>SYNE3 (K3)</td></tr>
+        </tbody>
+      </table></div>
+      <p class="note">Formas: cartão com borda tracejada + chip “em conferência” (lupa tracejada) que é o botão “Por quê?”; célula hachurada com “em conferência” em 11px no Quadro e nas tabelas; componente do Índice com trilho tracejado e “0”; anel tracejado + “incompleto”; critério do semáforo “Sem dado” com o motivo. Na ordenação, “—” vai para o fim.</p>
+    </div>
+
+    <div class="notes">
+      <h2>“Por quê?”</h2>
+      <ul>
+        <li>Popover de 380px no computador (<code>role="dialog"</code> não modal, Esc fecha), sheet modal no celular.</li>
+        <li>Conteúdo fixo: motivo em uma frase com os números; Desde; No Índice; Na tela (o que fica oculto ou visível); Valor calculado “(não publicado)” quando oculto; Origem (regra automática); Situação (“A equipe está conferindo desde 01/10” quando há caso em análise, sem número de relatos nem dados de outros usuários).</li>
+        <li>Termina com o atalho “Tem uma informação sobre isso? Reportar”.</li>
+      </ul>
+    </div>
+
+    <div class="notes">
+      <h2>Selo de frescor por bloco</h2>
+      <ul>
+        <li>Rodapé do bloco, 12px, <code>app-muted</code>, linha fina acima, relógio 14px: “Fonte · documento · data de recebimento”.</li>
+        <li>Atrasado (regra R12): triângulo + “atualização em atraso” em <code>app-strong</code> 600 com o documento esperado. Cotação: último pregão do ativo 3 ou mais pregões atrás do mercado; ITR: fim do trimestre + 75 dias; FII: informe com mais de 2 meses.</li>
+        <li>O mesmo texto vai no contexto do relato.</li>
+      </ul>
+    </div>
+
+    <div class="notes">
+      <h2>Fila do curador (/admin/analise-ativos)</h2>
+      <ul>
+        <li><b>Caso</b> = ativo × grupo × campo × período. Relato anexa a caso de regra aberto só se o campo estiver em <code>CAMPOS_POR_GRUPO</code> do grupo do caso. Origem: Usuário, Regra, Regra + usuário.</li>
+        <li><b>Contadores</b> (44px, também filtram): Com usuário esperando, Em análise, Vencem em até 2 dias úteis, Vencidos, Só regra (sem prazo). Casos só de regra ficam fora dos quatro primeiros e do card do /admin.</li>
+        <li><b>Coluna Efeito:</b> “Em conferência” (tracejado) ou “Revisão” (sem efeito na tela). Chips filtram por efeito; “Fechados” mostra o histórico.</li>
+        <li><b>Prazo:</b> 5 dias úteis desde o 1º relato (<code>feriadosB3</code>; 12/10 não conta). “Vence em” a até 2 dias úteis; “Vencido” em vermelho com ícone e palavra. Só regra: “sem prazo · há N dias úteis”, com triângulo depois de 10.</li>
+        <li><b>Regra parou de marcar:</b> caso com relatos não fecha sozinho; aparece “regra parou de marcar” na linha e um aviso no detalhe. Só caso sem relato fecha automático (<code>fonte_corrigiu</code>), e só se o campo voltou com valor.</li>
+        <li><b>Decisão:</b> status (Aberto, Em análise, Corrigido, Rejeitado) + resolução obrigatória ao fechar + resposta pública até 500 (varredura de linguagem) + nota interna até 2.000. “Fechar e avisar N usuários”. 409 mostra quem alterou.</li>
+      </ul>
+    </div>
+
+    <div class="notes">
+      <h2>Estados</h2>
+      <table>
+        <thead><tr><th>Onde</th><th>Estado</th><th>Cenário</th></tr></thead>
+        <tbody>
+          <tr><td>Formulário</td><td>Preenchido · inválido · enviando · enviado · erro · limite · já reportado · consultor</td><td>R2 a R9</td></tr>
+          <tr><td>Meus relatos</td><td>Lista · vazio · carregando · erro</td><td>U1, U3</td></tr>
+          <tr><td>Notificação</td><td>Resposta nova (só ao fechar)</td><td>U2</td></tr>
+          <tr><td>Ativo</td><td>Em conferência oculto · com valor · série · frescor atrasado · nota de fonte · “você reportou”</td><td>C1 a C5</td></tr>
+          <tr><td>Quadro</td><td>Ações · FIIs</td><td>C6, C7</td></tr>
+          <tr><td>Fila</td><td>Lista · revisão · sem resolução · fechado · termo proibido · 409 · carregando · vazia · erro</td><td>K1 a K10</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="notes">
+      <h2>Acessibilidade</h2>
+      <ul>
+        <li>Menu do bloco: <code>button</code> com <code>aria-haspopup="menu"</code> e <code>aria-expanded</code>; itens <code>role="menuitem"</code>; setas percorrem, Esc fecha e devolve o foco.</li>
+        <li>Diálogo: <code>role="dialog"</code>, <code>aria-modal</code>, <code>aria-labelledby</code>, foco preso, fundo <code>inert</code>. Sheet: mesmo contrato.</li>
+        <li>Campos com <code>label</code> visível e “(opcional)” escrito; contador ligado por <code>aria-describedby</code>; erro em texto + ícone, nunca só borda.</li>
+        <li>Chip “em conferência”: <code>button</code> de 44px de altura (o desenho fica compacto dentro) com nome “Payout em conferência: por quê?”.</li>
+        <li>Status, prazo, efeito e frescor sempre com ícone + texto.</li>
+        <li>Fila: <code>table</code> com <code>th scope="row"</code>; o caso é link real para <code>/admin/analise-ativos/[id]</code>; cabeçalho ordenado com texto oculto “ordem crescente”.</li>
+        <li>Alvos de 44px em computador e celular (menu, chip, links de linha, “Fechar” do aviso, radios); 48px nos botões principais do celular.</li>
+        <li>Contraste ≥ 4,5:1 nos dois temas: cabeçalho ordenado e contador do sino em #396CAA com texto branco (5,1:1); item ativo da barra inferior em #396CAA / #6E9DC4; contagem da aba selecionada em #314666 no claro.</li>
+      </ul>
+    </div>
+
+    <div class="notes">
+      <h2>Tema escuro</h2>
+      <ul>
+        <li>Mesmos tokens da Fase 1. Novos: <code>--conf-line</code> #667085 → #98A2B3, <code>--conf-bg</code> #F2F4F7 → #26262A, <code>--sla-late</code> #D92D20 → #F97066 com fundo a 8–10%, <code>--th-sort-bg</code> #396CAA nos dois.</li>
+        <li>Links e texto azul: #396CAA no claro, #6E9DC4 no escuro. #0079F2 só em elementos sem texto: anel, barras do Índice, borda da resposta nova e o logotipo.</li>
+      </ul>
+    </div>
+
+    <div class="notes wide">
+      <h2>Regras de sanidade (arquitetura + medições do designer, banco dev)</h2>
+      <p class="note">Bloqueante = “em conferência”. Revisão = caso na fila, nada muda na tela. Limiares em <code>ScoringParams.sanidade.conferencia</code>, ligada só na v2.</p>
+      <div class="scroll-x"><table>
+        <thead><tr><th>Dado</th><th>Regra literal da spec</th><th>Regra adotada</th><th>Tipo</th></tr></thead>
+        <tbody>
+          <tr><td>Lucro</td><td>|Δ| &gt; 40%: 57% das empresas (arquiteto) / 50% dos emissores (designer)</td><td>≥ 5× com base ≥ R$ 50 mi e mesmo sinal: 7 empresas (SEQL3, LIGT3, RIAA3, SYNE3, FHER3, IFCM3, ALPA3/4). A regra ×/÷3 da v1 do designer marcava PRIO3 (queda real) e foi retirada.</td><td>Revisão</td></tr>
+          <tr><td>Receita, PL, ativo</td><td>|Δ| &gt; 40%</td><td>|Δ| &gt; 40% com base ≥ R$ 100 mi: 34 empresas (13%). Escala ≥ 10× sem flag de ingestão (R7): bloqueante, 0 hoje.</td><td>Revisão / bloqueante</td></tr>
+          <tr><td>Nº de ações</td><td>|Δ| &gt; 40%: 67% dos emissores</td><td>P/VP &lt; 0,08 ou P/L &lt; 0,5 ou valor de mercado fora de [1/10, 10] sem evento: 10 tickers (CBAV3, LAND3, GFSA3…)</td><td>Bloqueante</td></tr>
+          <tr><td>Ano histórico</td><td>—</td><td>2 de 3 múltiplos a 20× da mediana: 24 pontos em 11 ativos</td><td>Bloqueante (ponto)</td></tr>
+          <tr><td>Cotação</td><td>salto &gt; 40%</td><td>razão de desdobramento ±8%, 5 pregões no novo nível, ≥ 20 negócios: SBSP3, PDGR3, CARE11, HCST11, SJAU11</td><td>Bloqueante</td></tr>
+          <tr><td>Cotação esporádica</td><td>—</td><td>&lt; 5 pregões em 21 e P/VP fora da faixa; na faixa, só selo “cotação esporádica”</td><td>Bloqueante / informativo</td></tr>
+          <tr><td>FII VP/cota</td><td>|Δ| &gt; 40%</td><td>|Δ| &gt; 40% sem desdobramento no mês: GSRF11</td><td>Bloqueante</td></tr>
+          <tr><td>FII obrigações</td><td>—</td><td>&gt; 100% do PL: 5 FIIs</td><td>Bloqueante (mostra com selo)</td></tr>
+          <tr><td>FII cotistas, vacância</td><td>divergência &gt; 5%</td><td>Vacância CVM × gerencial: nota na tela, relato vira revisão. Cotistas: sem regra.</td><td>Só nota / revisão</td></tr>
+          <tr><td>Provedor × CVM</td><td>&gt; 5%</td><td>Cotação &gt; 5% (D-1), DPA × DMPL ≥ 3×, rendimento FII ≥ 2×</td><td>Revisão</td></tr>
+        </tbody>
+      </table></div>
+    </div>
+
+    <div class="notes wide">
+      <h2>Perguntas para o Wellington</h2>
+      <div id="qlist"></div>
+    </div>
+  </section>
+</div>
+<script>
+window.__Q=[
+ ['1. Lucro com salto bloqueia ou só vira caso? (resolvido com o arquiteto)','Recomendo a regra do arquiteto: lucro 5× ou mais, com base acima de R$ 50 mi e mesmo sinal, abre caso de revisão e não muda nada na tela. No dev pega 7 empresas. A regra ×/÷3 da minha v1 marcava PRIO3, que é queda real, e derrubava o Índice. Retirei do protótipo; o exemplo de bloqueio agora é SBSP3 (base da cotação).'],
+ ['2. Política de exibição do valor em conferência.','Recomendo duas políticas por grupo, no contrato 0: “ocultar” (“—” + chip) para escala de ações, ano histórico, base da cotação, cotação esporádica e VP/cota de FII; “mostrar com selo” para proventos e obrigações de FII. Assim o DY em conferência continua visível como hoje e nada muda com parâmetros v1. A cotação negociada aparece sempre, com o chip.'],
+ ['3. “Variação &gt; 40%” e “divergência &gt; 5%” da spec. DIVERGE DA SPEC (eu e o arquiteto concordamos).','Recomendo não aplicar as regras literais: marcariam 57% das empresas e de 40% a 97% dos FIIs. Ficam como revisão com base mínima (receita, PL e ativo &gt; 40% com base acima de R$ 100 mi) e só bloqueiam os padrões que foram erro de dado no dev.'],
+ ['4. “Meus relatos” para todos os ativos. DIVERGE DO ARQUITETO.','A arquitetura só tem GET por ticker. Recomendo uma rota GET /api/analise-ativos/meus-reportes (lista paginada do usuário logado), fora do tier de 10/min do POST. O “Você reportou” na página vem dentro do GET /ativos/[ticker]. Sem a lista, o usuário só acha a resposta pela notificação.'],
+ ['5. Campo “Valor que você esperava”. DIVERGE DO ARQUITETO.','Recomendo acrescentar valorEsperado (opcional, até 40 caracteres) ao AnaliseDataReport. É o dado que o curador mais usa para conferir (“o release diz 52%”). Alternativa: tirar o campo e pedir isso na mensagem.'],
+ ['6. Conferência manual pelo curador.','Recomendo deixar fora desta fase, como na arquitetura: o curador libera (“dado confirmado”) mas não põe dado em conferência à mão. A vacância do HGLG11 virou nota “a tela segue a CVM” + caso de revisão.'],
+ ['7. Nome da ação para o usuário. DIVERGE DO ARQUITETO (só texto).','Recomendo “Reportar dado incorreto” (palavra da spec) e “relato” para o envio. A arquitetura usa “Avisar dado incorreto” e “aviso”. Qualquer um serve; o que importa é usar o mesmo no menu, na notificação e em Meus relatos.'],
+ ['8. Como chamar “rejeitado” para o usuário?','Recomendo “Conferido, sem alteração”, sempre com o motivo. “Rejeitado” e a resolução (dado_confirmado, sem_procedencia, duplicado) ficam só na fila e no banco.'],
+ ['9. Quando avisar o usuário?','Recomendo só quando o caso fecha (Notification + push se ativado), como na arquitetura. Caso com relato nunca fecha sozinho quando a regra para de marcar: o curador confere e responde.'],
+ ['10. Consultor agindo pelo cliente.','Recomendo autor = consultor e clienteId = cliente, sem notificação ao cliente (igual à arquitetura).'],
+ ['11. Limites anti-abuso.','Recomendo os da arquitetura: 10 relatos por usuário em 24 h, 3 por hora no mesmo ativo, 1 aberto por usuário × ativo × campo (200 jaExistia), 300 por dia no total. A tela diz quando o envio volta.'],
+ ['12. Dados pessoais (LGPD).','Recomendo a correção do revisor: a exclusão de conta anonimiza o usuário em vez de apagar, então ela precisa limpar a mensagem e a fonte dos relatos; os relatos entram no /api/profile/export; a retenção de 24 meses roda no cron lgpd-retention que já existe. O formulário avisa “não inclua dados pessoais”.'],
+ ['13. Quem recebe o aviso de novo relato e o resumo diário?','Recomendo que o aviso de novo relato dependa só de ANALISE_ATIVOS_REPORTE_HABILITADO (não do ALERTA_ADMIN), e que o resumo diário inclua “vence em até 2 dias úteis”. Casos só de regra ficam fora da contagem de pendências.'],
+ ['14. Quando liberar o botão (decisão 7 da Fase 1)?','Recomendo junto com a primeira ampliação do beta. Até lá a fila roda só com os casos de regra, o que testa o curador sem usuário externo.'],
+];
+const $ = (s, r=document) => r.querySelector(s);
+const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const nf = (v, d=1) => v==null ? '—' : v.toLocaleString('pt-BR',{minimumFractionDigits:d,maximumFractionDigits:d});
+const sgn = (v, d=1) => (v>0?'+':v<0?'−':'')+nf(Math.abs(v),d);
+const icon = (id, cls='') => `<svg class="${cls}" aria-hidden="true"><use href="#${id}"/></svg>`;
+const YEARS = [2016,2017,2018,2019,2020,2021,2022,2023,2024,2025];
+
+/* ================= MOTIVOS "EM CONFERÊNCIA" (só regra automática; contrato CAMPOS_POR_GRUPO) =================
+   politica: 'selo' = valor aparece com o chip (proventos, fii_obrigacoes);
+             'ocultar' = vira "—" com o chip; o número calculado só no "Por quê?" (acoes_escala, historico, preco_base, preco_esporadico, fii_vp) */
+const GRUPOS = {
+  proventos:{nome:'proventos', politica:'selo', comps:'Proventos'},
+  acoes_escala:{nome:'nº de ações', politica:'ocultar', comps:'Preço'},
+  historico:{nome:'ano histórico', politica:'ocultar', comps:'Preço (média de 10 anos)'},
+  preco_base:{nome:'base da cotação', politica:'ocultar', comps:'Proventos e Preço'},
+  fii_obrigacoes:{nome:'obrigações do FII', politica:'selo', comps:'Obrigações/PL'},
+};
+const CONF = {
+  'WEGE3:prov': {grupo:'proventos', campo:'Proventos 2025 (DY 12m, DPA, payout)', motivo:'O DPA de 2025 (R$ 2,45) é 3,2 vezes o de 2024 (R$ 0,76) e o payout passaria de 150%. Sinal de parcelas repetidas na fonte de proventos.', desde:'30/09/2026', efeito:'Proventos conta 0 no Índice (peso 15%).', regra:'proventos · salto_recente', caso:'A equipe está conferindo desde 01/10.'},
+  'CBAV3:acoes': {grupo:'acoes_escala', campo:'Nº de ações (ITR 2T26)', motivo:'O ITR 2T26 traz 651.073 ações. No ano anterior eram 651 milhões, mil vezes mais, e não há desdobramento ou grupamento registrado. Padrão de escala trocada no documento.', desde:'15/08/2026', efeito:'Preço conta 0 no Índice (peso 10%). P/L, P/VP, LPA, VPA, EV/EBITDA, P/Receita e valor de mercado ficam sem valor até a conferência.', regra:'acoes_escala · pvp_abaixo_0,08', calc:'P/VP 0,0014 · valor de mercado R$ 7 mi', caso:'A equipe está conferindo desde 18/08.'},
+  'CBAV3:hist': {grupo:'historico', campo:'Múltiplos de 2022', motivo:'Em 2022, P/L e P/VP ficaram mais de 20 vezes acima da mediana do próprio ativo ao mesmo tempo. Sinal de ano em escala errada.', desde:'02/10/2026', efeito:'O ponto de 2022 sai da média de 10 anos e da barra do histórico. O Preço do Índice usa os outros 9 anos.', regra:'historico · dois_multiplos_20x', calc:'P/L 2022: 412 · P/VP 2022: 38,0'},
+  'SBSP3:base': {grupo:'preco_base', campo:'Base da cotação', motivo:'A cotação foi de R$ 126,40 (28/04) para R$ 25,30 (29/04), um quinto do valor, e ficou nesse patamar. Não há desdobramento registrado na base do app. Enquanto o evento não for conferido, DY, P/L e P/VP misturam a cotação nova com valores por ação antigos.', desde:'05/05/2026', efeito:'Proventos e Preço contam 0 no Índice (pesos 15% e 10%).', regra:'preco_base · razao_1:5_sem_evento', calc:'DY 12m 12,85% · P/L 3,1 · P/VP 0,64', caso:'A equipe está conferindo desde 06/05.'},
+  'CACR11:cot': {grupo:'preco_base', campo:'Base da cotação', motivo:'A cota foi de R$ 98,10 (11/09) para R$ 9,75 (12/09), um décimo do valor, e ficou nesse patamar por 14 pregões. Não há desdobramento registrado na B3 nem na CVM.', desde:'19/09/2026', efeito:'Proventos e Preço vs. VP contam 0 no Índice (pesos 15% e 10%).', regra:'preco_base · razao_1:10_sem_evento', calc:'P/VP 0,10 · DY 12m 147%'},
+  'PMRL11:obr': {grupo:'fii_obrigacoes', campo:'Obrigações/PL', motivo:'O informe de ago/2026 traz obrigações de 324% do patrimônio. Acima de 100% o dado vai para conferência.', desde:'17/09/2026', efeito:'Obrigações/PL conta 0 no Índice (já contava 0 pelo piso; muda só o estado para incompleto).', regra:'fii_obrigacoes · acima_100'},
+};
+
+/* ================= ATIVOS ================= */
+const A = {};
+A.WEGE3 = { cls:'acoes', t:'WEGE3', n:'WEG S.A.', sig:'WEGE', tags:['Bens industriais','Máquinas e equipamentos','Novo Mercado'], preco:50.29, chg:0.62, chgPct:1.25, quando:'fechamento de 01/10' };
+A.SBSP3 = { cls:'acoes', t:'SBSP3', n:'Cia. de Saneamento Básico do Estado de São Paulo', sig:'SBSP', tags:['Utilidade pública','Água e saneamento','Novo Mercado'], preco:25.84, chg:0.18, chgPct:0.70, quando:'fechamento de 01/10', precoConf:'SBSP3:base' };
+A.CBAV3 = { cls:'acoes', t:'CBAV3', n:'Companhia Brasileira de Alumínio', sig:'CBAV', tags:['Materiais básicos','Alumínio','Novo Mercado'], preco:7.12, chg:-0.09, chgPct:-1.25, quando:'fechamento de 01/10' };
+A.CACR11 = { cls:'fiis', t:'CACR11', n:'Cartesia Recebíveis Imobiliários FII', sig:'CACR', tags:['FII de papel','Recebíveis (CRI)','Público geral'], preco:9.82, chg:0.04, chgPct:0.41, quando:'fechamento de 01/10', precoConf:'CACR11:cot' };
+A.HGLG11 = { cls:'fiis', t:'HGLG11', n:'CSHG Logística FII', sig:'HGLG', tags:['FII de tijolo','Logística','Gestão ativa'], preco:147.93, chg:-0.48, chgPct:-0.32, quando:'fechamento de 01/10' };
+
+/* blocos por ativo; cada bloco: id, bloco (enum da API), titulo, sub, corpo, frescor, campos (para o relato), mine (relato do usuário logado) */
+function blocksFor(t){
+  if(t==='WEGE3'){
+    const comps = [['Consistência do lucro',10,35],['Endividamento',10,20],['Rentabilidade',10,20],['Proventos',null,15,'WEGE3:prov'],['Preço',7.6,10]];
+    return [
+      {id:'indice', titulo:'Índice MF', sub:'fórmula pública · 5 critérios', corpo: indexBody({mf:8.3, inc:true, at:3, ap:5, comps,
+        incTxt: '<b>Proventos em conferência: o componente conta zero.</b> O DPA de 2025 é 3,2 vezes o de 2024, sinal de parcelas repetidas na fonte. Quando a conferência terminar, o Índice é recalculado sozinho.',
+        checks:[
+          {s:'ok',b:'Lucros consecutivos',p:'12 anos seguidos de lucro (anos fechados); referência do critério: 5 anos'},
+          {s:'ok',b:'Endividamento',p:'Caixa líquido (dívida líquida menor ou igual a zero)'},
+          {s:'ok',b:'Rentabilidade (ROE)',p:'ROE de 33,2%; referência do critério: 15%'},
+          {s:'ok',b:'P/L vs. média de 10 anos',p:'P/L −9% em relação à média de 10 anos; referência do critério: até 0%'},
+          {s:'nd',b:'Dividendos',p:'Proventos de 2025 em conferência',conf:'WEGE3:prov'},
+        ]}),
+        fresh:[{txt:'Índice calculado em 02/10/2026 às 06:10 · parâmetros v2'}],
+        campos:[['indice','Índice MF','8,3 · dados incompletos','calculado em 02/10'],['crit-div','Critério Dividendos','Sem dado','12 meses'],['crit-roe','Critério Rentabilidade (ROE)','Atende · 33,2%','12 meses']]},
+      {id:'kpis', titulo:'Indicadores', sub:'últimos 12 meses', corpo: kpiBody([
+          ['P/L','33,7','média 10a: 36,9'],['P/VP','11,2','média 10a: 9,0'],['DY 12m','4,0%','R$ 2,00 por ação','WEGE3:prov'],['ROE','33,2%','mediana dos pares: 19,6%'],
+          ['Margem líquida','16,6%','mediana dos pares: 9,1%'],['Dív. líq./EBITDA','−0,4×','caixa líquido'],['Payout','134%','proventos ÷ lucro do ano','WEGE3:prov'],['CAGR lucro 5a','+21,3%','anos fechados'],
+        ]),
+        fresh:[{txt:'Cotação: COTAHIST B3 de 01/10/2026'},{txt:'Fundamentos: ITR 2T26 · CVM · recebido em 14/08/2026'},{txt:'Proventos: BRAPI · conferidos até 01/10/2026'}],
+        campos:[['pl','P/L','33,7','12 meses'],['pvp','P/VP','11,2','12 meses'],['dy','DY 12m','4,0%','12 meses'],['roe','ROE','33,2%','12 meses'],['mg','Margem líquida','16,6%','12 meses'],['payout','Payout','134%','2025'],['div','Dív. líq./EBITDA','−0,4×','12 meses']]},
+      {id:'lucro', titulo:'Lucro líquido por ano', sub:'R$ bilhões · anos fechados + últimos 12 meses', corpo: yearBars([1.1,1.1,1.3,1.6,2.3,3.6,4.2,5.7,5.7,6.2], {v:6.6}, 'bi'),
+        fresh:[{txt:'CVM · DFP 2025 e ITR 2T26 · recebido em 14/08/2026'}],
+        campos:[['l2025','Lucro líquido 2025','R$ 6,2 bi','2025 (DFP)'],['l12m','Lucro líquido 12m','R$ 6,6 bi','3T25 a 2T26'],['l2024','Lucro líquido 2024','R$ 5,7 bi','2024 (DFP)']]},
+      {id:'prov', titulo:'Dividendos + JCP por ação', sub:'R$ por ação · anos fechados', corpo: yearBars([0.14,0.16,0.21,0.25,0.31,0.44,0.55,0.66,0.76,2.45], null, 'dpa', [9], 'WEGE3:prov') + `<p class="note">2025 em conferência: fica fora do crescimento anual (+23,6% a.a. de 2016 a 2024).</p>`,
+        fresh:[{txt:'BRAPI · proventos conferidos até 01/10/2026 · data-com pela CVM'}],
+        campos:[['dpa2025','DPA 2025','R$ 2,45','2025'],['dpa2024','DPA 2024','R$ 0,76','2024'],['cagrdpa','Crescimento anual do DPA','+23,6% a.a.','2016 a 2024']]},
+      {id:'ess', titulo:'Fundamentos · Essencial', sub:'5 anos aqui; 10 no app', corpo: essTable(['Ano','Receita (R$ bi)','Lucro líq. (R$ bi)','Marg. líq.','ROE','LPA (R$)','Div./ação (R$)','Payout'],
+          [[2021,'23,6','3,6','15,1%','30,2%','0,85','0,44','50%'],[2022,'29,9','4,2','14,0%','29,8%','1,00','0,55','53%'],[2023,'32,5','5,7','17,7%','32,1%','1,38','0,66','48%'],[2024,'36,2','5,7','16,9%','30,3%','1,36','0,76','52%'],[2025,'40,8','6,2','16,6%','33,2%','1,49','2,45|c','161%|c'],
+           ['12m','42,9','6,6','15,4%','32,0%','1,58','2,00|c','—']], 'WEGE3:prov'),
+        fresh:[{txt:'CVM · DFP 2025 e ITR 2T26 · recebido em 14/08/2026'}],
+        campos:[['r2025','Receita 2025','R$ 40,8 bi','2025 (DFP)'],['l2025','Lucro líquido 2025','R$ 6,2 bi','2025 (DFP)'],['payout2025','Payout 2025','161%','2025 (DFP)'],['roe2025','ROE 2025','33,2%','2025 (DFP)'],['lpa2025','LPA 2025','R$ 1,49','2025 (DFP)']]},
+      {id:'val', titulo:'Valuation · Múltiplos', sub:'Proventos', corpo: valCards([
+          ['DPA','R$ 2,00','Dividendos + JCP por ação em 12 meses.','mediana dos pares: R$ 0,62','WEGE3:prov'],
+          ['DY 12m','4,0%','DPA ÷ cotação.','mediana dos pares: 4,4%','WEGE3:prov'],
+          ['DY médio 5a','1,7%','Média do DY dos últimos 5 anos.','mediana dos pares: 5,1%'],
+          ['Payout','134%','Proventos declarados no ano ÷ lucro do ano.','referência usual: 25% a 75%','WEGE3:prov'],
+        ]),
+        fresh:[{txt:'Proventos: BRAPI · conferidos até 01/10/2026'},{txt:'Lucro: CVM · DFP 2025'}],
+        mine:{txt:'Você reportou o Payout em 01/10', st:'analise', extra:'resposta até 08/10'},
+        campos:[['dpa','DPA 12m','R$ 2,00','12 meses'],['dy','DY 12m','4,0%','12 meses'],['dy5','DY médio 5a','1,7%','2021 a 2025'],['payout','Payout','134%','2025']]},
+    ];
+  }
+  if(t==='SBSP3'){
+    const comps=[['Consistência do lucro',10,35],['Endividamento',6.5,20],['Rentabilidade',7.8,20],['Proventos',null,15,'SBSP3:base'],['Preço',null,10,'SBSP3:base']];
+    return [
+      {id:'indice', titulo:'Índice MF', sub:'fórmula pública · 5 critérios', corpo:indexBody({mf:6.4,inc:true,at:2,ap:5,comps,
+        incTxt:'<b>Base da cotação em conferência: Proventos e Preço contam zero.</b> A cotação caiu para um quinto em 29/04 sem desdobramento registrado. Até a conferência, DY, P/L e P/VP comparariam a cotação nova com valores por ação antigos.',
+        checks:[{s:'ok',b:'Lucros consecutivos',p:'10 anos seguidos de lucro; referência do critério: 5 anos'},{s:'ok',b:'Endividamento',p:'Dívida líquida/EBITDA de 2,4×; referência do critério: até 3×'},{s:'part',b:'Rentabilidade (ROE)',p:'ROE de 13,1%; referência do critério: 15%'},{s:'nd',b:'P/L vs. média de 10 anos',p:'P/L em conferência: base da cotação',conf:'SBSP3:base'},{s:'nd',b:'Dividendos',p:'DY em conferência: base da cotação',conf:'SBSP3:base'}]}),
+        fresh:[{txt:'Índice calculado em 02/10/2026 às 06:10 · parâmetros v2'}],
+        campos:[['indice','Índice MF','6,4 · dados incompletos','calculado em 02/10']]},
+      {id:'kpis', titulo:'Indicadores', sub:'últimos 12 meses', corpo:kpiBody([
+          ['P/L','—','em conferência','SBSP3:base',true],['P/VP','—','em conferência','SBSP3:base',true],['DY 12m','—','em conferência','SBSP3:base',true],['ROE','13,1%','mediana dos pares: 11,8%'],
+          ['Margem líquida','19,4%','mediana dos pares: 14,2%'],['Dív. líq./EBITDA','2,4×','referência usual: até 3×'],['DPA 12m','R$ 3,24','declarado; não depende da cotação'],['Valor de mercado','—','em conferência','SBSP3:base',true],
+        ]),
+        fresh:[{txt:'Cotação: COTAHIST B3 de 01/10/2026'},{txt:'Fundamentos: ITR 2T26 · CVM · recebido em 13/08/2026'},{txt:'Eventos: B3 e CVM conferidos em 01/10'}],
+        campos:[['pl','P/L','—','12 meses'],['pvp','P/VP','—','12 meses'],['dy','DY 12m','—','12 meses'],['dpa','DPA 12m','R$ 3,24','12 meses'],['roe','ROE','13,1%','12 meses']]},
+      {id:'cota', titulo:'Cotação desde março', sub:'R$ · fechamento', corpo:quoteChart('sbsp'),
+        fresh:[{txt:'COTAHIST B3 até 01/10/2026 · eventos: B3 e CVM conferidos em 01/10'}],
+        campos:[['cot29','Cotação de 29/04','R$ 25,30','29/04/2026'],['cot28','Cotação de 28/04','R$ 126,40','28/04/2026']]},
+    ];
+  }
+  if(t==='CBAV3'){
+    const comps=[['Consistência do lucro',4.0,35],['Endividamento',3.1,20],['Rentabilidade',2.2,20],['Proventos',0.0,15],['Preço',null,10,'CBAV3:acoes']];
+    return [
+      {id:'indice', titulo:'Índice MF', sub:'fórmula pública · 5 critérios', corpo:indexBody({mf:2.5,inc:true,at:0,ap:5,comps,
+        incTxt:'<b>Nº de ações em conferência: Preço conta zero.</b> O ITR 2T26 trouxe o nº de ações mil vezes menor que o do ano anterior, sem evento que explique. Os múltiplos que dependem dele ficam sem valor até a conferência.',
+        checks:[{s:'no',b:'Lucros consecutivos',p:'Prejuízo em 2023; referência do critério: 5 anos seguidos de lucro'},{s:'no',b:'Endividamento',p:'Dívida líquida/EBITDA de 3,6×; referência do critério: até 3×'},{s:'no',b:'Rentabilidade (ROE)',p:'ROE de 3,3%; referência do critério: 15%'},{s:'nd',b:'P/L vs. média de 10 anos',p:'P/L em conferência: nº de ações do ITR 2T26',conf:'CBAV3:acoes'},{s:'no',b:'Dividendos',p:'Sem proventos em 12 meses'}]}),
+        fresh:[{txt:'Índice calculado em 02/10/2026 às 06:10 · parâmetros v2'}],
+        campos:[['indice','Índice MF','2,5 · dados incompletos','calculado em 02/10'],['crit-pl','Critério P/L vs. média','Sem dado','12 meses']]},
+      {id:'kpis', titulo:'Indicadores', sub:'últimos 12 meses', corpo:kpiBody([
+          ['P/L','—','em conferência','CBAV3:acoes',true],['P/VP','—','em conferência','CBAV3:acoes',true],['EV/EBITDA','—','em conferência','CBAV3:acoes',true],['ROE','3,3%','mediana dos pares: 8,9%'],
+          ['Margem líquida','1,9%','mediana dos pares: 4,1%'],['Dív. líq./EBITDA','3,6×','referência usual: até 3×'],['Nº de ações','—','em conferência','CBAV3:acoes',true],['DY 12m','0,0%','sem proventos em 12 meses'],
+        ]),
+        fresh:[{txt:'Cotação: COTAHIST B3 de 01/10/2026'},{txt:'Fundamentos: ITR 2T26 · CVM · recebido em 14/08/2026'}],
+        campos:[['pl','P/L','—','12 meses'],['pvp','P/VP','—','12 meses'],['acoes','Nº de ações','—','ITR 2T26'],['roe','ROE','3,3%','12 meses']]},
+      {id:'ess', titulo:'Fundamentos · Essencial', sub:'5 anos aqui; 10 no app', corpo:essTable(['Ano','Receita (R$ bi)','Lucro líq. (R$ bi)','ROE','Nº de ações','P/L','P/VP'],
+          [[2021,'8,7','0,36','4,8%','595 mi','17,9','0,9'],[2022,'11,3','0,41','5,1%','651 mi','—|c','—|c'],[2023,'9,0','−0,7','—','651 mi','—','0,6'],[2024,'8,9','0,12','1,7%','651 mi','38,2','0,6'],[2025,'9,6','0,24','3,3%','651 mi','19,0','0,6'],['12m','9,8','0,18','3,3%','—|c','—|c','—|c']],'CBAV3:acoes','CBAV3:hist'),
+        fresh:[{txt:'CVM · DFP 2025 e ITR 2T26 · recebido em 14/08/2026'}],
+        campos:[['acoes12','Nº de ações (ITR 2T26)','—','2T26'],['acoes25','Nº de ações 2025','651 mi','2025 (DFP)'],['pl2022','P/L 2022','—','2022 (DFP)'],['l2025','Lucro líquido 2025','R$ 0,24 bi','2025 (DFP)']]},
+      {id:'val', titulo:'Valuation · Múltiplos', sub:'Preço', corpo:valCards([
+          ['P/L','—','Preço ÷ lucro por ação dos últimos 12 meses.','mediana dos pares: 11,2','CBAV3:acoes',true],
+          ['P/VP','—','Preço ÷ patrimônio por ação.','mediana dos pares: 1,1','CBAV3:acoes',true],
+          ['EV/EBITDA','—','Valor da firma ÷ EBITDA de 12 meses.','mediana dos pares: 5,1','CBAV3:acoes',true],
+          ['P/Receita','—','Valor de mercado ÷ receita de 12 meses.','mediana dos pares: 0,6','CBAV3:acoes',true],
+        ]),
+        fresh:[{txt:'Cotação: COTAHIST B3 de 01/10/2026'},{txt:'Fundamentos: ITR 2T26 · CVM'}],
+        campos:[['pl','P/L','—','12 meses'],['pvp','P/VP','—','12 meses'],['ev','EV/EBITDA','—','12 meses']]},
+    ];
+  }
+  if(t==='CACR11'){
+    const comps=[['Meses com rendimento',9.2,40],['Obrigações/PL',8.0,20],['Concentração do maior CRI',7.1,15],['Proventos',null,15,'CACR11:cot'],['Preço vs. VP',null,10,'CACR11:cot']];
+    return [
+      {id:'indice', titulo:'Índice MF', sub:'critérios provisórios de FII de papel', corpo:indexBody({mf:6.3,inc:true,at:2,ap:4,comps,
+        incTxt:'<b>Base da cotação em conferência: 2 componentes contam zero.</b> A cota caiu para um décimo num pregão sem desdobramento registrado. Até a conferência, P/VP e DY comparariam a cota nova com valores por cota antigos.',
+        checks:[{s:'ok',b:'Renda recorrente',p:'110 meses seguidos com rendimento'},{s:'nd',b:'Preço vs. VP',p:'P/VP em conferência: base da cotação',conf:'CACR11:cot'},{s:'ok',b:'Obrigações/PL',p:'Obrigações/PL de 3,1%; referência do critério: até 10%'},{s:'part',b:'Concentração do maior CRI',p:'Maior CRI = 14% do patrimônio; referência do critério: até 10%'}]}),
+        fresh:[{txt:'Índice calculado em 02/10/2026 às 06:10 · parâmetros v2'}],
+        campos:[['indice','Índice MF','6,3 · dados incompletos','calculado em 02/10']]},
+      {id:'kpis', titulo:'Indicadores', sub:'últimos 12 meses', corpo:kpiBody([
+          ['DY 12m','—','em conferência','CACR11:cot',true],['P/VP','—','em conferência','CACR11:cot',true],['Rendimento/cota','R$ 1,20','último: julho/2026'],['VP/cota','R$ 101,20','informe de jul/2026'],
+          ['Patrimônio','R$ 412 mi','informe de jul/2026'],['Cotistas','61 mil','informe de jul/2026'],['Liquidez média','R$ 1,3 mi','por dia, 21 pregões'],['Obrigações/PL','3,1%','média 10a: 2,4%'],
+        ]),
+        fresh:[{txt:'Cotação: COTAHIST B3 de 01/10/2026'},{txt:'Informe mensal CVM de jul/2026', late:'o de ago/2026 era esperado até 15/09'}],
+        campos:[['cot','Cotação','R$ 9,82','01/10/2026'],['dy','DY 12m','—','12 meses'],['pvp','P/VP','—','12 meses'],['vp','VP/cota','R$ 101,20','jul/2026'],['rend','Rendimento/cota','R$ 1,20','jul/2026']]},
+      {id:'cota', titulo:'Cota nos últimos 30 pregões', sub:'R$ · fechamento', corpo:quoteChart('cacr'),
+        fresh:[{txt:'COTAHIST B3 até 01/10/2026 · eventos: B3 e CVM conferidos em 01/10'}],
+        campos:[['cot12','Cotação de 12/09','R$ 9,75','12/09/2026'],['cot11','Cotação de 11/09','R$ 98,10','11/09/2026']]},
+    ];
+  }
+  if(t==='HGLG11'){
+    const comps=[['Meses com rendimento',10,44],['Obrigações/PL',4.6,25],['Vacância',null,0,'na'],['Proventos',8.2,19],['Preço vs. VP',9.1,12]];
+    return [
+      {id:'indice', titulo:'Índice MF', sub:'fórmula pública · tijolo', corpo:indexBody({mf:8.2,inc:false,at:2,ap:3,comps,
+        compNote:'Vacância fora da conta até a validação da fonte (decisão 6); o peso foi redistribuído entre os outros 4 componentes.',
+        checks:[{s:'ok',b:'Renda recorrente',p:'Dividend yield de 12 meses de 8,9%; referência do critério: 8%'},{s:'na',b:'Vacância física',p:'Critério desligado até a validação da fonte.'},{s:'part',b:'Obrigações/PL',p:'Obrigações/PL de 16,2%; referência do critério: até 10%'},{s:'ok',b:'Preço vs. VP',p:'P/VP de 0,89; referência do critério: 1,05'}]}),
+        fresh:[{txt:'Índice calculado em 02/10/2026 às 06:10 · parâmetros v2'}],
+        campos:[['indice','Índice MF','8,2','calculado em 02/10']]},
+      {id:'kpis', titulo:'Indicadores', sub:'últimos 12 meses', corpo:kpiBody([
+          ['DY 12m','8,9%','R$ 13,20 por cota em 12m'],['P/VP','0,89','VP/cota: R$ 165,95'],['Rendimento/cota','R$ 1,10','último: agosto/2026'],['Patrimônio','R$ 5,6 bi','informe mensal de ago/26'],
+          ['Cotistas','498 mil','+4% em 12 meses'],['Liquidez média','R$ 9,4 mi','por dia, 21 pregões'],['Obrigações/PL','16,2%','média 10a: 13,0%'],['Vacância física','4,6%','informe trimestral CVM (2T26)',null,false,'vac'],
+        ]),
+        fresh:[{txt:'Cotação: COTAHIST B3 de 01/10/2026'},{txt:'Informe mensal CVM de ago/2026 · recebido em 16/09'},{txt:'Informe trimestral 2T26 · recebido em 14/08'}],
+        mine:{txt:'Você reportou a Vacância física em 29/09', st:'analise', extra:'resposta até 06/10'},
+        campos:[['dy','DY 12m','8,9%','12 meses'],['pvp','P/VP','0,89','01/10/2026'],['vac','Vacância física','4,6%','2T26 (informe trimestral)'],['cotistas','Cotistas','498 mil','ago/2026'],['imoveis','Nº de imóveis','23','2T26']]},
+      {id:'prov', titulo:'Rendimento por cota no ano', sub:'R$ por cota · anos fechados', corpo:yearBars([8.4,8.6,8.9,9.2,9.4,10.1,11.2,12.3,12.9,13.2],null,'rend'),
+        fresh:[{txt:'Informe mensal CVM de ago/2026 · BRAPI · conferidos até 01/10/2026'}],
+        campos:[['r2025','Rendimento 2025','R$ 13,20','2025'],['r12','Rendimento 12m','R$ 13,20','set/25 a ago/26']]},
+    ];
+  }
+  return [];
+}
+
+/* ================= DADOS: QUADRO, RELATOS, FILA ================= */
+const QA = [
+  {t:'ITUB4',n:'Itaú Unibanco',mf:9.3,at:4,ap:4,pl:'10,0',pvp:'2,25',dy:'7,3%',roe:'22,4%',l10:[21.6,23.9,24.9,26.6,18.5,26.9,29.2,33.1,38.4,41.2]},
+  {t:'PETR4',n:'Petrobras',mf:8.9,at:5,ap:5,pl:'4,7',pvp:'1,32',dy:'9,8%',roe:'27,7%',l10:[-14.8,-0.4,25.8,40.1,7.1,106.7,188.3,124.6,36.6,77.8]},
+  {t:'WEGE3',n:'WEG',mf:8.3,at:3,ap:5,inc:true,pl:'33,7',pvp:'11,2',dy:'4,0%',dyConf:true,roe:'33,2%',l10:[1.1,1.1,1.3,1.6,2.3,3.6,4.2,5.7,5.7,6.2]},
+  {t:'SBSP3',n:'Sabesp',mf:6.4,at:2,ap:5,inc:true,pl:null,plConf:true,pvp:null,pvpConf:true,dy:null,dyConf:true,roe:'13,1%',l10:[2.9,2.5,2.8,3.4,1.0,2.3,3.1,3.5,9.6,6.2]},
+  {t:'CBAV3',n:'CBA',mf:2.5,at:0,ap:5,inc:true,pl:null,plConf:true,pvp:null,pvpConf:true,dy:'0,0%',roe:'3,3%',l10:[null,null,null,null,-0.6,0.36,0.41,-0.7,0.12,0.24]},
+  {t:'AURE3',n:'Auren Energia',mf:0.1,at:0,ap:5,pl:null,plWhy:'prejuízo',pvp:'1,15',dy:'0,0%',roe:'−9,5%',l10:[null,null,null,null,null,null,1.4,-0.3,0.6,-1.1]},
+];
+const QF = [
+  {t:'KNCR11',n:'Kinea Rendimentos',mf:9.0,at:4,ap:4,dy:'12,4%',pvp:'1,03',obr:'0,1%',vac:'—',r10:[9.8,8.1,6.9,5.9,3.0,7.6,13.0,13.6,11.4,13.1]},
+  {t:'MXRF11',n:'Maxi Renda',mf:8.9,at:4,ap:4,dy:'12,9%',pvp:'0,98',obr:'1,4%',vac:'—',r10:[1.1,1.0,0.9,0.8,0.7,1.1,1.3,1.3,1.2,1.2]},
+  {t:'HGLG11',n:'CSHG Logística',mf:8.2,at:2,ap:3,dy:'8,9%',pvp:'0,89',obr:'16,2%',vac:'4,6%',r10:[8.4,8.6,8.9,9.2,9.4,10.1,11.2,12.3,12.9,13.2]},
+  {t:'CACR11',n:'Cartesia Recebíveis',mf:6.3,at:2,ap:4,inc:true,dy:null,dyConf:true,pvp:null,pvpConf:true,obr:'3,1%',vac:'—',r10:[null,null,null,10.8,11.9,13.1,14.0,13.6,13.9,14.4]},
+  {t:'PMRL11',n:'Pátria Malls',mf:4.1,at:1,ap:3,inc:true,dy:'9,6%',pvp:'0,71',obr:'324%',obrConf:true,vac:'7,8%',r10:[null,null,null,null,null,6.1,8.4,9.0,9.2,9.6]},
+];
+const MEUS = [
+  {id:'R-0142',a:'WEGE3',campo:'Payout',per:'2025',val:'134%',env:'01/10/2026',st:'analise',prazo:'08/10',msg:'O payout de 2025 aparece como 134%. No release do 4T25 a WEG informa payout de 52%.',src:'Release de resultados 4T25 (site de RI)'},
+  {id:'R-0128',a:'PETR4',campo:'DY 12m',per:'12 meses',val:'18,9%',env:'15/09/2026',st:'corrigido',resp:'19/09/2026',novo:true,msg:'DY de 18,9% parece o dobro do que a Petrobras pagou em 12 meses.',src:'',reply:'Obrigado pelo relato. A fonte de proventos repetiu a parcela de 22/08. Removemos a repetição: o DY 12m passou de 18,9% para 9,8% e o Índice MF foi recalculado em 19/09.'},
+  {id:'R-0117',a:'KNCR11',campo:'Cotistas',per:'ago/2026',val:'412 mil',env:'10/09/2026',st:'rejeitado',resp:'12/09/2026',msg:'O site do gestor fala em 431 mil cotistas.',src:'Site da Kinea',reply:'Conferimos o informe mensal de agosto/2026 na CVM: 412 mil cotistas, o mesmo número da tela. A diferença vem da data: o site do gestor usa a posição de setembro, que entra quando o informe de setembro for entregue.'},
+];
+/* origem: 'usuario' | 'regra' | 'misto' (arquitetura). efeito: 'conf' (bloqueia: em conferência) | 'rev' (revisão: sem efeito na tela) */
+const CASOS = [
+  {id:'C-0127',a:'CACR11',cls:'FII',campo:'Base da cotação (12/09)',origem:'misto',efeito:'conf',rel:1,st:'aberto',resp:null,sla:{k:'venc',t:'há 1 dia útil'},upd:'01/10 18:40'},
+  {id:'C-0131',a:'HGLG11',cls:'FII',campo:'Vacância física (2T26)',origem:'usuario',efeito:'rev',rel:1,st:'analise',resp:'Wellington',sla:{k:'perto',t:'2 dias úteis · até 06/10'},upd:'30/09 11:02'},
+  {id:'C-0135',a:'WEGE3',cls:'Ação',campo:'Proventos 2025 (Payout, DY)',origem:'misto',efeito:'conf',rel:2,st:'analise',resp:'Wellington',sla:{k:'perto',t:'1 dia útil · até 05/10'},upd:'02/10 06:10',cessou:true},
+  {id:'C-0138',a:'ITUB4',cls:'Ação',campo:'ROE 2025',origem:'usuario',efeito:'rev',rel:1,st:'aberto',resp:null,sla:{k:'ok',t:'4 dias úteis · até 08/10'},upd:'01/10 09:12'},
+  {id:'C-0122',a:'CBAV3',cls:'Ação',campo:'Nº de ações (ITR 2T26)',origem:'regra',efeito:'conf',rel:0,st:'analise',resp:'Wellington',sla:{k:'velho',t:'sem prazo · há 34 dias úteis'},upd:'20/09 14:55'},
+  {id:'C-0109',a:'SBSP3',cls:'Ação',campo:'Base da cotação (29/04)',origem:'regra',efeito:'conf',rel:0,st:'aberto',resp:null,sla:{k:'velho',t:'sem prazo · há 104 dias úteis'},upd:'02/10 06:10'},
+  {id:'C-0140',a:'SYNE3',cls:'Ação',campo:'Lucro 2025 (6,8× 2024)',origem:'regra',efeito:'rev',rel:0,st:'aberto',resp:null,sla:{k:'na',t:'sem prazo · há 0 dia útil'},upd:'02/10 10:55'},
+  {id:'C-0128',a:'PETR4',cls:'Ação',campo:'DY 12m',origem:'usuario',efeito:'conf',rel:1,st:'corrigido',resp:'Wellington',sla:{k:'na',t:'respondido em 19/09'},upd:'19/09 10:31',fechado:true},
+  {id:'C-0117',a:'KNCR11',cls:'FII',campo:'Cotistas (ago/2026)',origem:'usuario',efeito:'rev',rel:1,st:'rejeitado',resp:'Wellington',sla:{k:'na',t:'respondido em 12/09'},upd:'12/09 15:47',fechado:true},
+];
+
+/* ================= ESTADO ================= */
+const S = {
+  dev:'desk', narrow:false, scen:null, route:'ativo', asset:'WEGE3', cls:'acoes',
+  menu:null, pop:null, sheet:null, form:null, notif:false, toast:null, acting:false,
+  meus:'ok', admin:{st:'ok', filter:'pend', efeito:'todos', sel:'C-0135', status:'analise', resol:'', reply:null, lint:false, saved:false, conflict:false},
+  scrollTo:null,
+};
+const FORM0 = () => ({blk:'val', field:'payout', st:'idle', msg:'', exp:'', src:'', errs:{}});
+const REPLY0 = 'Obrigado pelo relato. A fonte de proventos repetiu 3 parcelas de 2025. Removemos as repetições: o DPA de 2025 passou de R$ 2,45 para R$ 0,98 e o payout de 134% para 54%. O Índice MF foi recalculado em 02/10.';
+const REPLY_SYNE = '';
+
+/* ================= PEÇAS ================= */
+function ring(v, opts={}){
+  const size = opts.size||32, r = size/2-3.5, c = 2*Math.PI*r, sw = opts.sw||4;
+  const len = c*Math.max(0,Math.min(10,v))/10;
+  const track = opts.inc ? `<circle cx="${size/2}" cy="${size/2}" r="${r}" fill="none" class="ring-dash" stroke-width="1.5" stroke-dasharray="3 3"/>` : `<circle cx="${size/2}" cy="${size/2}" r="${r}" fill="none" class="ring-track" stroke-width="${sw}"/>`;
+  const label = `Índice MF ${nf(v)} de 10${opts.at!=null?`, ${opts.at} de ${opts.ap} critérios atendidos`:''}${opts.inc?', dados incompletos':''}`;
+  const inner = opts.big ? `<text x="50%" y="50%" text-anchor="middle" dominant-baseline="central" style="font:600 ${size*0.3}px var(--font);fill:var(--app-strong)">${nf(v)}</text>` : '';
+  return `<span class="ring" role="img" aria-label="${label}"><svg width="${size}" height="${size}" aria-hidden="true">${track}<circle cx="${size/2}" cy="${size/2}" r="${r}" fill="none" class="ring-fill" stroke-width="${sw}" stroke-linecap="round" stroke-dasharray="${len} ${c}" transform="rotate(-90 ${size/2} ${size/2})"/>${inner}</svg>${opts.big?'':`<span><span class="rv">${nf(v)}</span>${opts.at!=null?`<span class="rs">${opts.inc?'incompleto':`${opts.at}/${opts.ap}`}</span>`:''}</span>`}</span>`;
+}
+function tenBars(vals){
+  const w=7, gap=2, H=26, real=vals.filter(v=>v!=null), max=Math.max(...real.map(Math.abs),0.0001);
+  const hasNeg = real.some(v=>v<0); const zero = hasNeg ? H/2 : H; let s='';
+  vals.forEach((v,i)=>{ const x=i*(w+gap);
+    if(v==null){ s+=`<rect x="${x+.5}" y="${zero-5.5}" width="${w-1}" height="5" rx="1.5" class="bar-nd"/>`; return; }
+    const h=Math.max(2,Math.abs(v)/max*(hasNeg?H/2-1:H-1));
+    s+= v>=0 ? `<rect x="${x}" y="${zero-h}" width="${w}" height="${h}" rx="1.5" class="bar-pos"/>` : `<rect x="${x}" y="${zero}" width="${w}" height="${h}" rx="1.5" class="bar-neg"/>`; });
+  if(hasNeg) s+=`<line x1="-1" x2="${10*(w+gap)-1}" y1="${zero}" y2="${zero}" class="zero" stroke-width="1"/>`;
+  const pos = vals.filter(v=>v!=null&&v>0).length, nd=vals.filter(v=>v==null).length;
+  return `<span class="bars" role="img" aria-label="Positivo em ${pos} de ${10-nd} anos com dado"><svg width="${10*(w+gap)}" height="${H}" aria-hidden="true">${s}</svg></span>`;
+}
+function st(s){
+  const m={ok:['i-ok','Atende'],part:['i-part','Parcial'],no:['i-no','Não atende'],nd:['i-nd','Sem dado'],na:['i-na','Não se aplica']}[s];
+  return `<span class="st ${s}">${icon(m[0])}${m[1]}</span>`;
+}
+function rst(s, user){
+  const m={aberto:['r-aberto','Aberto'],analise:['r-analise','Em análise'],corrigido:['i-ok','Corrigido'],rejeitado:['r-rej',user?'Conferido, sem alteração':'Rejeitado']}[s];
+  return `<span class="rst ${s}">${icon(m[0])}${m[1]}</span>`;
+}
+function sla(o){ const ic={venc:'i-warn',perto:'i-clock',ok:'i-clock',na:'i-clock',velho:'i-warn'}[o.k]; return `<span class="sla ${o.k}">${icon(ic)}${o.k==='venc'?'Vencido · ':o.k==='perto'?'Vence em ':''}${o.t}</span>`; }
+function confChip(key, label){
+  const c=CONF[key]; const exp = S.pop===key;
+  return `<button type="button" class="confchip" data-conf="${key}" aria-expanded="${exp}" aria-label="${esc(label||c.campo)} em conferência: por quê?"><span class="cc-in">${icon('i-conf')}em conferência</span></button>`;
+}
+function popHtml(key){
+  const c=CONF[key];
+  const g=GRUPOS[c.grupo];
+  const naTela = g.politica==='ocultar' ? 'Os valores que dependem deste dado aparecem como “—” até a conferência.' : 'O valor continua visível, com este aviso, até a conferência.';
+  return `<h3 id="pop-h">${esc(c.campo)} em conferência</h3>
+    <p style="font-size:13.5px;color:var(--app-ink)">${c.motivo}</p>
+    <dl><dt>Desde</dt><dd>${c.desde}</dd><dt>No Índice</dt><dd>${c.efeito}</dd><dt>Na tela</dt><dd>${naTela}</dd>${c.calc?`<dt>Valor calculado</dt><dd>${c.calc} <span class="muted">(não publicado)</span></dd>`:''}<dt>Origem</dt><dd><span class="origin">${icon('i-rule')}Regra automática de conferência</span></dd><dt>Situação</dt><dd>${c.caso||'Na fila da equipe.'}</dd></dl>
+    <p class="small muted">Quando a fonte for corrigida ou o dado for confirmado, o valor volta à tela e o Índice é recalculado no processamento seguinte.</p>
+    <button type="button" class="lnk tap" data-act="reportFromConf" data-key="${key}">Tem uma informação sobre isso? Reportar</button>`;
+}
+function popover(pk){
+  if(S.pop!==pk || S.dev!=='desk') return ''; const key=pk.split(/[|@#~]/)[0];
+  return `<div class="pop" role="dialog" aria-labelledby="pop-h" style="left:0;top:calc(100% + 6px)"><button class="icon-btn close" type="button" data-act="popClose" aria-label="Fechar">${icon('i-x','')}</button>${popHtml(key)}</div>`;
+}
+
+function indexBody(o){
+  const comps = o.comps.map(([l,v,w,k])=>{
+    if(k==='na') return `<div class="comp-row"><span class="cl muted">${l}</span><span class="small muted">fora da conta</span><span class="cv muted">—</span></div>`;
+    if(k) return `<div class="comp-row conf"><span class="cl">${l}</span><span class="cb"></span><span class="cv" title="em conferência">0</span></div>`;
+    return `<div class="comp-row"><span class="cl">${l}</span><span class="cb"><i style="width:${v*10}%"></i></span><span class="cv">${nf(v)}</span></div>`;
+  }).join('');
+  const confKeys=[...new Set(o.comps.map(c=>c[3]).filter(k=>k&&k!=='na'))];
+  return `<div class="score-grid"><div class="bigscore">${ring(o.mf,{big:true,size:96,sw:7,inc:o.inc,at:o.at,ap:o.ap})}
+    <div class="num"><b style="color:var(--app-strong)">${o.at} de ${o.ap}</b> critérios atendidos${o.inc?' · <span class="badge inc">dados incompletos</span>':''}</div>
+    <div class="comp" role="list" aria-label="Componentes do Índice">${comps}</div>
+    ${confKeys.length?`<p class="small muted">Linha tracejada: componente em conferência, conta 0.</p>`:''}${o.compNote?`<p class="small muted">${o.compNote}</p>`:''}</div>
+    <div style="display:flex;flex-direction:column;gap:10px;min-width:0">${o.incTxt?`<div class="why-box"><span>${o.incTxt}</span><span style="display:flex;gap:8px;flex-wrap:wrap">${confKeys.map(k=>`<span class="mwrap" style="display:inline-block">${confChip(k)}${popover(k)}</span>`).join('')}</span></div>`:''}
+    <div class="crit">${o.checks.map(c=>`<div class="crit-row"><div>${st(c.s)}</div><div><h4>${c.b}</h4><p>${c.p}</p>${c.conf?`<p class="why">motivo: ${esc(CONF[c.conf].campo.toLowerCase())} em conferência</p>`:''}</div></div>`).join('')}</div></div></div>`;
+}
+function kpiBody(list){
+  return `<div class="kpis">${list.map(([l,v,s,k,hid,nt])=>`<div class="kpi ${k?'conf':''}" style="position:relative"><span class="l">${l}</span><span class="v ${hid?'hid':''}">${v}</span>${k?`<span>${confChip(k,l)}</span>`:`<span class="s">${s}</span>`}${k&&!hid?`<span class="s">${s}</span>`:''}${nt==='vac'?`<span class="s infoline">${icon('i-info')}O relatório gerencial pode trazer outro número: a tela segue a CVM.</span>`:''}${k?popover(k+'|'+l)||'':''}</div>`).join('')}</div>`;
+}
+function yearBars(vals, ttm, kind, confIdx=[], confKey){
+  const W=640,H=190,pl=8,pr=8,pt=22,pb=26; const n=vals.length+(ttm?1:0); const all=[...vals,ttm?ttm.v:null].filter(v=>v!=null);
+  const max=Math.max(...all)*1.08; const bw=(W-pl-pr)/n; let s='';
+  const fmt=v=> kind==='bi'?nf(v,1):nf(v,2);
+  [...vals, ...(ttm?[ttm.v]:[])].forEach((v,i)=>{
+    const x=pl+i*bw+bw*0.18, w=bw*0.64, h=(v/max)*(H-pt-pb), y=H-pb-h;
+    const isT = ttm && i===vals.length; const isC = confIdx.includes(i) || (isT && ttm.conf);
+    s+=`<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="3" class="${isC?'bar-conf':'bar-pos'}"${isT&&!isC?' style="opacity:.55"':''}/>`;
+    if(i>=vals.length-2||isT) s+=`<text x="${x+w/2}" y="${y-6}" text-anchor="middle" class="vl">${fmt(v)}${isC?'*':''}</text>`;
+    s+=`<text x="${x+w/2}" y="${H-8}" text-anchor="middle">${isT?'12m':String(YEARS[i]).slice(2)}</text>`;
+  });
+  const ck = (ttm&&ttm.conf)?ttm.conf:confKey;
+  const lab = kind==='bi'?`Lucro líquido de 2016 a 2025, de R$ 1,1 bi a R$ 6,2 bi${ttm?`; últimos 12 meses R$ ${nf(ttm.v,1)} bi${ttm.conf?', em conferência':''}`:''}`:kind==='rend'?'Rendimento por cota de 2016 a 2025, de R$ 8,40 a R$ 13,20':'DPA de 2016 a 2025, de R$ 0,14 a R$ 2,45; 2025 em conferência';
+  return `<figure><svg class="yr-chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="${lab}">${s}</svg>${ck?`<figcaption style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><span>* barra tracejada: valor em conferência, fora do crescimento anual.</span><span class="mwrap" style="display:inline-block">${confChip(ck)}${popover(ck+'~y')}</span></figcaption>`:''}</figure>`;
+}
+function quoteChart(kind){
+  const cacr = kind==='cacr';
+  const v = cacr ? [97.2,97.6,98.0,97.8,98.4,98.1,98.3,98.0,98.2,98.1,9.75,9.70,9.78,9.81,9.74,9.69,9.77,9.80,9.84,9.79,9.76,9.81,9.83,9.80,9.78,9.82,9.85,9.80,9.79,9.82]
+    : [118.2,121.0,119.6,122.4,124.8,126.4,25.30,25.10,24.62,24.90,25.40,25.12,24.80,25.36,25.70,25.52,25.84];
+  const cut = cacr?10:6, max = cacr?105:140, ticks = cacr?[0,50,100]:[0,50,100];
+  const W=640,H=180,pl=34,pr=10,pt=14,pb=24; const pts=v.map((y,i)=>`${pl+i*(W-pl-pr)/(v.length-1)},${pt+(1-y/max)*(H-pt-pb)}`);
+  const xc=pl+cut*(W-pl-pr)/(v.length-1);
+  const lab = cacr ? 'Cota de R$ 98,10 em 11/09 para R$ 9,75 em 12/09, e entre R$ 9,69 e R$ 9,85 desde então; sem evento registrado; trecho em conferência'
+    : 'Cotação de R$ 126,40 em 28/04 para R$ 25,30 em 29/04, e entre R$ 24,62 e R$ 25,84 desde então; sem evento registrado; trecho em conferência';
+  const k = cacr?'CACR11:cot':'SBSP3:base';
+  return `<figure><svg class="yr-chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="${lab}">
+    ${ticks.map(g=>`<line x1="${pl}" x2="${W-pr}" y1="${pt+(1-g/max)*(H-pt-pb)}" y2="${pt+(1-g/max)*(H-pt-pb)}" stroke="var(--grid)"/><text x="${pl-6}" y="${pt+(1-g/max)*(H-pt-pb)+4}" text-anchor="end">${g}</text>`).join('')}
+    <polyline points="${pts.slice(0,cut+1).join(' ')}" fill="none" stroke="var(--s1)" stroke-width="2.2"/>
+    <polyline points="${pts.slice(cut).join(' ')}" fill="none" stroke="var(--conf-line)" stroke-width="2.2" stroke-dasharray="5 4"/>
+    <line x1="${xc}" x2="${xc}" y1="${pt}" y2="${H-pb}" stroke="var(--conf-line)" stroke-dasharray="3 3"/>
+    <text x="${xc+6}" y="${pt+12}">${cacr?'12/09: um décimo, sem evento':'29/04: um quinto, sem evento'}</text>
+    <text x="${pl}" y="${H-6}">${cacr?'02/09':'20/04'}</text><text x="${W-pr}" y="${H-6}" text-anchor="end">${cacr?'01/10':'01/10 (eixo resumido)'}</text></svg>
+    <figcaption style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><span>Trecho tracejado: série em conferência. A cotação negociada aparece; os indicadores que dependem dela, não.</span><span class="mwrap" style="display:inline-block">${confChip(k,'Base da cotação')}${popover(k+'~y')}</span></figcaption></figure>`;
+}
+function essTable(cols, rows, k1, k2){
+  const cell=(c,j)=>{ const [v,f]=String(c).split('|'); if(f==='c') return `<td class="r confcell"><span class="cv-conf">${v}<span class="conf-mini">em conferência</span></span></td>`; return `<td class="${j?'r':''}">${v}</td>`; };
+  return `<div class="tbl-wrap"><table class="t compact"><thead><tr>${cols.map((c,j)=>`<th scope="col" class="${j?'r':''} ${j?'':'sticky'}"><span class="th-in">${c}</span></th>`).join('')}</tr></thead>
+    <tbody>${rows.map(r=>`<tr class="${r[0]==='12m'?'last':''}">${`<th scope="row" class="sticky" style="padding:8px 12px;text-align:left;font-weight:600;color:var(--app-strong)">${r[0]==='12m'?'Últ. 12m':r[0]}</th>`}${r.slice(1).map((c,j)=>cell(c,j+1)).join('')}</tr>`).join('')}</tbody></table></div>
+    <p class="note" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">Célula hachurada: em conferência. ${[k1,k2].filter(Boolean).map(k=>`<span class="mwrap" style="display:inline-block">${confChip(k)}${popover(k+'#t')}</span>`).join('')}</p>`;
+}
+function valCards(list){
+  return `<div class="vgrid">${list.map(([l,v,rd,ref,k,hid])=>`<div class="vcard ${k?'conf':''}" style="position:relative"><div class="h"><b>${l}</b><span class="${hid?'hid':''}">${v}</span></div><p class="rd">${rd}</p><p class="ref">${ref}</p>${k?`<span>${confChip(k,l)}</span><p class="note">${hid?'sem valor até a conferência':'barra de 10 anos oculta até a conferência'}</p>`:''}${k?popover(k+'|v'+l):''}</div>`).join('')}</div>`;
+}
+
+/* bloco = card com cabeçalho + menu + frescor */
+function block(b, mobile){
+  const open = S.menu===b.id && !mobile;
+  const menu = open ? `<div class="menu" role="menu" aria-label="Opções do bloco ${esc(b.titulo)}"><button type="button" role="menuitem" data-act="report" data-blk="${b.id}">${icon('i-flag')}<span>Reportar dado incorreto<small>a equipe responde em até 5 dias úteis</small></span></button><hr><button type="button" role="menuitem" data-act="fonte" data-blk="${b.id}">${icon('i-doc')}<span>Fonte e atualização<small>documentos e datas deste bloco</small></span></button></div>` : '';
+  const mine = b.mine ? `<div class="mine">${rst(b.mine.st,true)}<span>${b.mine.txt} · ${b.mine.extra}</span><a href="#" class="lnk tap" data-act="toMeus">Ver relato</a></div>` : '';
+  const fresh = `<div class="bfresh">${b.fresh.map(f=>`<span class="it">${icon(f.late?'i-warn':'i-clock')}${f.txt}${f.late?` · <span class="late">atualização em atraso</span> <span>(${f.late})</span>`:''}</span>`).join('')}</div>`;
+  return `<section class="card" id="blk-${b.id}" aria-labelledby="h-${b.id}"><div class="blk-h"><div class="tt"><h2 id="h-${b.id}">${b.titulo}</h2>${b.sub?`<span class="sub">${b.sub}</span>`:''}</div>
+    <div class="mwrap"><button type="button" class="kebab" data-act="menu" data-blk="${b.id}" aria-haspopup="menu" aria-expanded="${S.menu===b.id}" aria-label="Opções do bloco ${esc(b.titulo)}">${icon('i-dots')}</button>${menu}</div></div>
+    ${b.corpo}${mine}${fresh}</section>`;
+}
+function assetHead(d, mobile){
+  const pc = d.precoConf;
+  const b = {id:'cab', titulo:'', fresh:[{txt:'Cotação: COTAHIST B3 de 01/10/2026'}]};
+  const open = S.menu==='cab' && !mobile;
+  return `<section class="card" aria-labelledby="a-h"><div class="ahead"><div class="id"><span class="logo-sq lg" aria-hidden="true">${d.sig}</span><div style="min-width:0"><h1 id="a-h">${d.t} <small>${esc(d.n)}</small></h1><div class="tags">${d.tags.map(t=>`<span class="badge">${t}</span>`).join('')}</div></div></div>
+    <div style="display:flex;gap:8px;align-items:flex-start"><div class="price"><div class="v ${pc?'conf':''}">R$ ${nf(d.preco,2)}</div><div class="d" style="color:${d.chg<0?'var(--neg)':'var(--pos)'}">${sgn(d.chg,2)} (${sgn(d.chgPct,2)}%)</div><div class="when">${d.quando} · fonte B3</div>${pc?`<div class="mwrap" style="display:inline-block;margin-top:4px">${confChip(pc,'Cotação')}${popover(pc+'@h')}</div>`:''}</div>
+    <div class="mwrap"><button type="button" class="kebab" data-act="menu" data-blk="cab" aria-haspopup="menu" aria-expanded="${S.menu==='cab'}" aria-label="Opções do cabeçalho (cotação)">${icon('i-dots')}</button>${open?`<div class="menu" role="menu"><button type="button" role="menuitem" data-act="report" data-blk="cab">${icon('i-flag')}<span>Reportar dado incorreto<small>cotação, variação, nome ou setor</small></span></button></div>`:''}</div></div></div></section>`;
+}
+function headCampos(d){ return [['cot','Cotação','R$ '+nf(d.preco,2),d.quando.replace('fechamento de ','')+'/2026'],['var','Variação no dia',sgn(d.chgPct,2)+'%',d.quando.replace('fechamento de ','')+'/2026'],['setor','Setor e segmento',d.tags.slice(0,2).join(' · '),'cadastro B3']]; }
+
+function legal(){ return `<p class="legal">O My Finance é uma ferramenta de organização financeira e de dados. O Índice MF é um indicador quantitativo de fórmula pública. Nada nesta área constitui análise, consultoria ou recomendação de investimento (Resolução CVM 20/2021). Decisões de investimento são de responsabilidade exclusiva do usuário.</p>`; }
+
+function assetPage(mobile){
+  const d=A[S.asset]; const isF=d.cls==='fiis';
+  const crumb = mobile ? '' : `<a class="lnk crumb tap" href="#" data-act="toQuadro">← Voltar ao Quadro de ${isF?'FIIs':'Ações'}</a>`;
+  const blocks = blocksFor(S.asset);
+  return `${crumb}${assetHead(d,mobile)}${blocks.map(b=>block(b,mobile)).join('')}
+    <p class="note">A página completa da Fase 1 segue igual (carteira, pares, eventos, Educação, tese). Aqui aparecem só os blocos que mudam no bloco C. Valores de ${S.asset==='WEGE3'||S.asset==='HGLG11'?'mercado':'fundamentos'} ilustrativos; o padrão de erro é o medido no banco dev.</p>${legal()}`;
+}
+
+/* ---------- formulário ---------- */
+function formCampos(){
+  const f=S.form; if(f.blk==='cab') return headCampos(A[S.asset]);
+  const b=blocksFor(S.asset).find(x=>x.id===f.blk); return b?b.campos:[];
+}
+function blockTitle(id){ if(id==='cab') return 'Cabeçalho (cotação)'; const b=blocksFor(S.asset).find(x=>x.id===id); return b?b.titulo:''; }
+function blockFresh(id){ if(id==='cab') return 'Cotação: COTAHIST B3 de 01/10/2026'; const b=blocksFor(S.asset).find(x=>x.id===id); return b?b.fresh.map(x=>x.txt+(x.late?' · atualização em atraso':'')).join(' · '):''; }
+function formBody(mobile){
+  const f=S.form, campos=formCampos(); const cur=campos.find(c=>c[0]===f.field)||campos[0];
+  if(f.st==='ok') return `<div class="done" role="status" aria-live="polite"><span class="ic">${icon('i-check')}</span><h4 id="frm-h2">Relato enviado</h4><p>Protocolo <b>R-0143</b>. A equipe do My Finance responde até <b>09/10/2026</b> (5 dias úteis). Você recebe uma notificação quando houver resposta.</p><button type="button" class="lnk tap" data-act="toMeus">Ver meus relatos</button></div>`;
+  if(f.st==='limite') return `<div class="err" role="alert">${icon('i-warn')}<span><b>Você enviou 10 relatos nas últimas 24 horas, o limite.</b> O que você escreveu ficou salvo neste aparelho. O envio volta a funcionar às 14:02 de amanhã (03/10).</span></div>${ctxDl(cur)}`;
+  if(f.st==='dup') return `<div class="info">${icon('i-info')}<span><b>Você já reportou este dado em 01/10/2026</b> (protocolo R-0142, em análise, resposta até 08/10). Nada novo foi criado. Acompanhe a resposta em Meus relatos.</span></div>${ctxDl(cur)}`;
+  const e=f.errs, busy=f.st==='sending';
+  const errSum = Object.keys(e).length ? `<div class="err" role="alert">${icon('i-warn')}<span>Revise ${Object.keys(e).length===1?'o campo marcado':'os campos marcados'} para enviar.</span></div>` : '';
+  const net = f.st==='erro' ? `<div class="err" role="alert">${icon('i-warn')}<span><b>Não conseguimos enviar agora.</b> O texto continua aqui. Confira a conexão e tente de novo.</span></div>` : '';
+  return `${S.acting?`<div class="info">${icon('i-info')}<span>Você está agindo por <b>Marina Costa</b>. O relato vai no seu nome (consultor) e a resposta chega para você. O cliente fica registrado só como contexto.</span></div>`:''}
+    ${errSum}${net}
+    <div class="fld"><label for="f-field">Qual dado?</label><select id="f-field" ${busy?'disabled':''}>${campos.map(c=>`<option value="${c[0]}" ${c[0]===cur[0]?'selected':''}>${c[1]} · ${c[2]} · ${c[3]}</option>`).join('')}</select></div>
+    ${ctxDl(cur)}
+    <div class="fld" ${e.msg?'data-invalid="1"':''}><label for="f-msg">O que está errado?</label><textarea id="f-msg" maxlength="1000" ${busy?'disabled':''} aria-invalid="${!!e.msg}" aria-describedby="f-msg-h${e.msg?' f-msg-e':''}" placeholder="Ex.: o release do 4T25 informa payout de 52% em 2025.">${esc(f.msg)}</textarea>
+      ${e.msg?`<span class="ferr" id="f-msg-e">${icon('i-warn')}${e.msg}</span>`:''}<span class="hint" id="f-msg-h"><span>Mínimo de 10 caracteres. Não inclua dados pessoais.</span><span>${f.msg.length}/1.000</span></span></div>
+    <div class="fld"><label for="f-exp">Valor que você esperava <span class="optl">(opcional)</span></label><input id="f-exp" maxlength="40" ${busy?'disabled':''} value="${esc(f.exp)}" placeholder="Ex.: 52%"></div>
+    <div class="fld"><label for="f-src">Onde você viu? <span class="optl">(opcional)</span></label><input id="f-src" maxlength="200" ${busy?'disabled':''} value="${esc(f.src)}" placeholder="Ex.: release de resultados 4T25, site de RI"></div>`;
+}
+function ctxDl(cur){
+  const d=A[S.asset];
+  return `<dl class="ctx" aria-label="Contexto enviado com o relato"><dt>Ativo</dt><dd>${d.t} · ${esc(d.n)}</dd><dt>Bloco</dt><dd>${blockTitle(S.form.blk)}</dd><dt>Valor exibido</dt><dd>${cur?cur[2]:''}</dd><dt>Período</dt><dd>${cur?cur[3]:''}</dd><dt>Fonte e data</dt><dd>${blockFresh(S.form.blk)}</dd></dl><p class="small muted" style="margin-top:-6px">Esses dados vão junto, para a equipe ver o que você viu.</p>`;
+}
+function formFooter(mobile){
+  const f=S.form;
+  if(f.st==='ok') return mobile?`<button class="mbtn primary" type="button" data-act="formClose">Fechar</button>`:`<button class="btn primary" type="button" data-act="formClose">Fechar</button>`;
+  if(f.st==='limite'||f.st==='dup') return mobile?`<button class="mbtn" type="button" data-act="formClose">Fechar</button>${f.st==='dup'?'<button class="mbtn primary" type="button" data-act="toMeus">Ver o relato</button>':''}`:`<button class="btn" type="button" data-act="formClose">Fechar</button>${f.st==='dup'?'<button class="btn primary" type="button" data-act="toMeus">Ver o relato</button>':''}`;
+  const busy=f.st==='sending'; const lbl = busy?'<span class="spin" aria-hidden="true"></span>Enviando…':f.st==='erro'?'Tentar de novo':'Enviar relato';
+  return mobile?`<button class="mbtn" type="button" data-act="formClose" ${busy?'disabled':''}>Cancelar</button><button class="mbtn primary" type="button" data-act="formSend" ${busy?'disabled aria-busy="true"':''}>${lbl}</button>`
+    :`<span class="sp">Resposta em até 5 dias úteis, em Meus relatos.</span><button class="btn" type="button" data-act="formClose" ${busy?'disabled':''}>Cancelar</button><button class="btn primary" type="button" data-act="formSend" ${busy?'disabled aria-busy="true"':''}>${lbl}</button>`;
+}
+function formModal(){
+  if(!S.form || S.dev!=='desk') return '';
+  return `<div class="modal-ov"><div class="modal" role="dialog" aria-modal="true" aria-labelledby="frm-h" style="position:sticky;top:24px"><div class="modal-h"><div><h3 id="frm-h">Reportar dado incorreto</h3><p>${A[S.asset].t} · ${blockTitle(S.form.blk)}</p></div><button class="icon-btn" type="button" data-act="formClose" aria-label="Fechar">${icon('i-x','')}</button></div>
+    <form class="modal-b" novalidate onsubmit="return false">${formBody(false)}</form><div class="modal-f">${formFooter(false)}</div></div></div>`;
+}
+
+/* ---------- quadro ---------- */
+function confCell(v, conf, why){
+  if(conf) return `<td class="r confcell">${v??'—'}<span class="conf-mini">em conferência</span></td>`;
+  if(v==null) return `<td class="r nd">—<span class="conf-mini">${why||'sem dado'}</span></td>`;
+  return `<td class="r">${v}</td>`;
+}
+function renderQuadro(){
+  const isF=S.cls==='fiis';
+  const head = isF?['Ativo','Índice MF','DY 12m','P/VP','Obrig./PL','Vacância (CVM)','Rendimento 10 anos']:['Ativo','Índice MF','P/L','P/VP','DY 12m','ROE','Lucro 10 anos'];
+  const rows = (isF?QF:QA).map(r=>`<tr class="row"><th scope="row" class="sticky" style="text-align:left;padding:10px 16px;font-weight:400;border-bottom:1px solid var(--app-line-soft)"><a class="rowlink" href="#" data-open="${r.t}"><span class="logo-sq" aria-hidden="true">${r.t.slice(0,4)}</span><span><span class="tk">${r.t}</span>${r.inc?' <span class="badge inc">incompleto</span>':''}<span class="nm">${r.n}</span></span></a></th>
+    <td class="hl">${ring(r.mf,{at:r.at,ap:r.ap,inc:r.inc})}</td>
+    ${isF?`${confCell(r.dy,r.dyConf)}${confCell(r.pvp,r.pvpConf)}${confCell(r.obr,r.obrConf)}${confCell(r.vac==='—'?null:r.vac,false,'papel: n/a')}<td>${tenBars(r.r10)}</td>`
+         :`${confCell(r.pl,r.plConf,r.plWhy)}${confCell(r.pvp,r.pvpConf)}${confCell(r.dy,r.dyConf,r.dyWhy)}<td class="r">${r.roe}</td><td>${tenBars(r.l10)}</td>`}</tr>`).join('');
+  return `<div class="ph-title"><div><h1>Análise de Ativos <span class="beta-pill" style="vertical-align:4px">Beta</span></h1><p>Quadro de ${isF?'FIIs':'Ações'} · ordem: Índice MF, maior primeiro</p></div><button class="btn ghost" type="button" data-act="toMeus">Meus relatos <span class="badge hold">1 resposta nova</span></button></div>
+  <section class="card"><div class="tabs" role="tablist"><button class="tab" role="tab" type="button" aria-selected="${!isF}" data-cls="acoes">Ações <span class="cnt">385</span></button><button class="tab" role="tab" type="button" aria-selected="${isF}" data-cls="fiis">FIIs <span class="cnt">362</span></button></div>
+  <div class="chips"><button class="chip" type="button" aria-pressed="false">Na minha carteira</button><button class="chip" type="button" aria-pressed="false">Só dados completos</button></div>
+  <div class="tbl-wrap"><table class="t"><thead><tr>${head.map((h,i)=>`<th scope="col" class="${i>1&&i<6?'r':''} ${i===0?'sticky':''} ${i===1?'hl':''}"><span class="th-in">${h}${i===1?' ▼':''}</span></th>`).join('')}</tr></thead><tbody>${rows}</tbody></table></div>
+  <p class="formula">“em conferência”: o componente do Índice que depende do dado conta 0 (anel tracejado + “incompleto”). Dado de escala ou de base de cotação aparece como “—”; proventos e obrigações aparecem com o valor. Na ordenação por esse indicador, “—” vai para o fim, como “sem dado”. No banco dev: ${isF?'34 FIIs por proventos, 3 por base de cotação, 1 por VP/cota, 5 por obrigações acima de 100% do PL':'43 ações por proventos, 10 por nº de ações, 2 por base de cotação'}.</p></section>${legal()}`;
+}
+
+/* ---------- meus relatos ---------- */
+function meusPage(mobile){
+  const crumb = mobile?'':`<a class="lnk crumb tap" href="#" data-act="toQuadro">← Voltar ao Quadro</a>`;
+  let body;
+  if(S.meus==='empty') body = `<div class="card"><div class="empty-st"><h3>Você ainda não relatou nenhum dado</h3><p>Viu um número estranho? Use o menu de três pontos no canto de qualquer bloco da página do ativo e escolha “Reportar dado incorreto”. Respostas também chegam pelo sino de notificações.</p></div></div>`;
+  else body = `<ul class="rlist">${MEUS.map(r=>`<li class="rcard"><div class="top"><div><h3>${r.a} · ${r.campo} <span class="muted" style="font-weight:400">(${r.per})</span></h3><p class="meta">${r.id} · enviado em ${r.env} · valor exibido ${r.val}</p></div>${rst(r.st,true)}</div>
+    <blockquote>${esc(r.msg)}${r.src?`<br><span class="small muted">Fonte indicada: ${esc(r.src)}</span>`:''}</blockquote>
+    ${r.reply?`<div class="reply ${r.novo?'new':''}"><b>Resposta da equipe · ${r.resp}${r.novo?' · nova':''}</b>${esc(r.reply)}</div>`:`<p class="small muted" style="display:flex;gap:6px;align-items:center">${icon('i-clock')}<span>Resposta até ${r.prazo}/2026 (5 dias úteis)</span></p>`}
+    <a class="lnk small tap" href="#" data-open="${r.a}">Abrir ${r.a}</a></li>`).join('')}</ul>`;
+  return `${crumb}<div class="ph-title"><div><h1>Meus relatos</h1><p>Dados que você reportou na Análise de Ativos e as respostas da equipe.</p></div></div>${body}${legal()}`;
+}
+
+/* ---------- curadoria (/admin/analise-ativos) ---------- */
+const ORIG = {usuario:['i-user','Usuário'],regra:['i-rule','Regra'],misto:['i-rule','Regra + usuário']};
+function origemTag(o){ const m=ORIG[o]; return `<span class="origin">${icon(m[0])}${m[1]}</span>`; }
+function efeitoTag(e){ return e==='conf' ? `<span class="eff conf">${icon('i-conf')}Em conferência</span>` : `<span class="eff rev">${icon('i-doc')}Revisão</span>`; }
+function filtrarCasos(){
+  const ad=S.admin; let l=CASOS;
+  if(ad.filter==='pend') l=l.filter(c=>!c.fechado && c.origem!=='regra');
+  else if(ad.filter==='analise') l=l.filter(c=>c.st==='analise');
+  else if(ad.filter==='perto') l=l.filter(c=>c.sla.k==='perto');
+  else if(ad.filter==='venc') l=l.filter(c=>c.sla.k==='venc');
+  else if(ad.filter==='regra') l=l.filter(c=>!c.fechado && c.origem==='regra');
+  else if(ad.filter==='fech') l=l.filter(c=>c.fechado);
+  if(ad.efeito!=='todos') l=l.filter(c=>c.efeito===ad.efeito);
+  return l;
+}
+const TILES = [['pend','Com usuário esperando','4','i-user'],['analise','Em análise','3','r-analise'],['perto','Vencem em até 2 dias úteis','2','i-clock'],['venc','Vencidos','1','i-warn'],['regra','Só regra (sem prazo)','3','i-rule']];
+function adminPage(){
+  const ad=S.admin;
+  const tilesH = `<div class="tiles" role="group" aria-label="Filtrar casos">${TILES.map(([k,l,n,ic])=>`<button type="button" class="tile ${k==='venc'?'late':''}" aria-pressed="${ad.filter===k}" data-af="${k}"><span class="n">${n}</span><span class="l">${icon(ic)}${l}</span></button>`).join('')}</div>`;
+  const list = filtrarCasos();
+  let table;
+  if(ad.st==='loading') table = `<div class="tbl-wrap" aria-busy="true">${Array.from({length:6},()=>`<div class="skel-row" style="grid-template-columns:2fr 1fr 1fr 1fr"><div class="skel"></div><div class="skel"></div><div class="skel"></div><div class="skel"></div></div>`).join('')}</div><p class="sr" aria-live="polite">Carregando casos</p>`;
+  else if(ad.st==='error') table = `<div class="card"><div class="empty-st" role="alert"><h3>Não conseguimos carregar a fila agora</h3><p>Os casos continuam salvos. Os filtros ficam como estavam.</p><button class="btn primary" type="button" data-act="adminRetry">Tentar de novo</button></div></div>`;
+  else if(ad.st==='empty') table = `<div class="card"><div class="empty-st"><h3>Nenhum caso aberto</h3><p>Relatos dos usuários e casos abertos pelas regras automáticas aparecem aqui. Os relatos têm prazo de resposta de 5 dias úteis; os casos só de regra, não.</p></div></div>`;
+  else if(!list.length) table = `<div class="card"><div class="empty-st"><h3>Nenhum caso com esse filtro</h3><p>Troque o filtro acima ou volte para “Com usuário esperando”.</p></div></div>`;
+  else table = `<div class="tbl-wrap"><table class="t compact"><thead><tr><th scope="col" class="sticky"><span class="th-in">Caso</span></th><th scope="col"><span class="th-in">Origem</span></th><th scope="col"><span class="th-in">Efeito</span></th><th scope="col"><span class="th-in">Status</span></th><th scope="col" class="hl"><span class="th-in">Prazo <span aria-hidden="true">▲</span><span class="sr">, ordem crescente</span></span></th></tr></thead><tbody>
+    ${list.map(c=>`<tr class="case-row" aria-selected="${ad.sel===c.id}" data-case="${c.id}"><th scope="row" class="sticky rowh"><a href="#" class="rowlink" data-case="${c.id}" style="display:block"><span class="tk">${c.a}</span> <span class="small muted">${c.id}${c.rel?` · ${c.rel} relato${c.rel>1?'s':''}`:''}</span><span class="fld-n">${c.campo}</span>${c.cessou?`<span class="cessou">${icon('i-info')}regra parou de marcar</span>`:''}</a></th>
+    <td>${origemTag(c.origem)}</td><td>${efeitoTag(c.efeito)}</td><td>${rst(c.id===ad.sel&&ad.saved?ad.status:c.st)}${c.resp?`<span class="small muted" style="display:block">${c.resp}</span>`:''}</td><td class="hl">${sla(c.sla)}</td></tr>`).join('')}</tbody></table></div>`;
+  const detail = (ad.st==='ok' && list.length) ? caseDetail() : '';
+  return `<div class="ph-title"><div><h1>Análise de Ativos · Curadoria</h1><p>Relatos de usuários e regras automáticas num caso só · prazo de resposta: 5 dias úteis a partir do 1º relato</p></div><span class="small muted">Atualizado às 10:58 de 02/10/2026</span></div>
+    ${tilesH}<div class="chips" role="group" aria-label="Efeito na tela">${[['todos','Todos os efeitos'],['conf','Em conferência (tira do Índice)'],['rev','Revisão (sem efeito na tela)']].map(([k,l])=>`<button class="chip" type="button" aria-pressed="${ad.efeito===k}" data-aef="${k}">${l}</button>`).join('')}<button class="chip" type="button" aria-pressed="${ad.filter==='fech'}" data-af="fech">Fechados</button></div>
+    <div class="cur-grid"><div style="min-width:0;display:flex;flex-direction:column;gap:8px">${table}${ad.st==='ok'&&list.length?`<span class="count-line">${list.length} caso${list.length>1?'s':''} · vencidos primeiro, depois o prazo mais próximo; casos só de regra por idade</span>`:''}</div>${detail}</div>`;
+}
+const RESOL = {
+  corrigido:[['corrigido_fonte','Corrigido na fonte (ressincronizado ou ajustado)'],['corrigido_reprocessado','Corrigido ao recalcular']],
+  rejeitado:[['dado_confirmado','Dado confirmado: libera a conferência deste valor'],['sem_procedencia','Sem procedência'],['duplicado','Duplicado de outro caso']],
+};
+function decisao(n, nomeUsu){
+  const ad=S.admin; const fech = ad.status==='corrigido'||ad.status==='rejeitado';
+  const reply = ad.reply==null?(ad.sel==='C-0140'?REPLY_SYNE:REPLY0):ad.reply; const lintErr=ad.lint;
+  const resolErr = ad.resolErr;
+  return `<div class="dsec"><h3>Decisão</h3>
+      ${ad.conflict?`<div class="err" role="alert">${icon('i-warn')}<span><b>Outra pessoa alterou este caso às 10:57</b> (status: Em análise, por Ana Curadora). Sua edição não foi salva. Recarregue o caso para ver a versão atual; o texto da resposta fica aqui.</span></div><button class="btn" type="button" data-act="caseReload" style="align-self:flex-start">Recarregar o caso</button>`:''}
+      <fieldset class="fs"><legend class="small muted">Status do caso</legend><div class="radios">${[['aberto','Aberto'],['analise','Em análise'],['corrigido','Corrigido'],['rejeitado','Rejeitado']].map(([k,l])=>`<label class="radio-c"><input type="radio" name="cst" value="${k}" ${ad.status===k?'checked':''} data-cst="${k}">${l}</label>`).join('')}</div></fieldset>
+      ${fech?`<div class="fld" ${resolErr?'data-invalid="1"':''}><label for="c-resol">Resolução</label><select id="c-resol" aria-invalid="${!!resolErr}" aria-describedby="c-resol-h${resolErr?' c-resol-e':''}"><option value="">Escolha a resolução</option>${RESOL[ad.status].map(([k,l])=>`<option value="${k}" ${ad.resol===k?'selected':''}>${l}</option>`).join('')}</select>${resolErr?`<span class="ferr" id="c-resol-e">${icon('i-warn')}Escolha a resolução para fechar o caso.</span>`:''}<span class="hint" id="c-resol-h"><span>“Dado confirmado” tira o “em conferência” deste valor no próximo processamento; se o valor mudar, a regra pode marcar de novo.</span></span></div>`:''}
+    </div>
+    ${n?`<div class="dsec"><div class="fld" ${lintErr?'data-invalid="1"':''}><label for="c-reply">Resposta para ${n===1?nomeUsu:`os ${n} usuários`} ${fech?'':'<span class="optl">(enviada só ao fechar)</span>'}</label><textarea id="c-reply" maxlength="500" aria-invalid="${lintErr}" aria-describedby="c-reply-h${lintErr?' c-reply-e':''}">${esc(reply)}</textarea>
+      ${lintErr?`<span class="ferr" id="c-reply-e" role="alert">${icon('i-warn')}A resposta usa “barato”, termo que a Análise de Ativos não usa. Descreva o número sem adjetivo.</span>`:''}
+      <span class="hint" id="c-reply-h"><span class="lint">${icon('i-check')}Varredura de linguagem ao salvar</span><span>${reply.length}/500 · vai como notificação e em Meus relatos</span></span></div></div>`:''}
+    <div class="dsec"><div class="fld"><label for="c-note">Nota interna <span class="optl">(só curadoria, até 2.000)</span></label><textarea id="c-note" maxlength="2000" style="min-height:64px">${ad.sel==='C-0140'?'':'Pedido à BRAPI aberto em 30/09; 3 parcelas removidas em asset_proventos_auditados em 01/10.'}</textarea></div>
+      <div class="acts" style="justify-content:flex-end">${fech&&n?`<button class="btn" type="button" data-act="caseSave">Salvar sem fechar</button><button class="btn primary" type="button" data-act="caseSend">Fechar e avisar ${n===1?'o usuário':`${n} usuários`}</button>`:`<button class="btn primary" type="button" data-act="caseSave">${fech?'Fechar o caso':'Salvar'}</button>`}</div></div>`;
+}
+function caseDetail(){
+  const ad=S.admin;
+  if(ad.sel==='C-0140') return `<section class="card" aria-labelledby="cd-h" style="gap:0"><div class="blk-h" style="margin-bottom:12px"><div class="tt"><h2 id="cd-h">SYNE3 · Lucro 2025</h2><span class="sub">C-0140 · aberto pela regra em 02/10 · <a class="lnk tap" href="#" data-open="SYNE3" style="display:inline-flex">abrir a página</a></span></div>${rst(ad.saved?ad.status:'aberto')}</div>
+    <div class="dsec"><div class="info">${icon('i-info')}<span><b>Revisão: nada mudou na tela.</b> O lucro segue publicado e o Índice não foi alterado. A regra só pede um olhar: variações grandes de lucro costumam ser reais (venda de ativos, cíclicas, base pequena).</span></div></div>
+    <div class="dsec"><h3>${origemTag('regra')} rev:variacao_lucro@2025</h3><dl class="ctx"><dt>Lucro 2025</dt><dd>R$ 412 mi (DFP 2025)</dd><dt>Lucro 2024</dt><dd>R$ 61 mi (DFP 2024)</dd><dt>Razão</dt><dd>6,8× · mesmo sinal · base acima de R$ 50 mi</dd><dt>Receita</dt><dd>R$ 1,9 bi → R$ 1,4 bi (−26%)</dd><dt>Nota explicativa</dt><dd>“Ganho na alienação de participações” · R$ 338 mi</dd></dl>
+      <div class="kv-row"><a class="lnk tap" href="#">DFP 2025 na CVM</a><span aria-hidden="true">·</span><a class="lnk tap" href="#">Retrato da linha (JSON)</a></div></div>
+    ${decisao(0)}
+    <div class="dsec"><h3>Histórico</h3><ol class="tl"><li><time>02/10 10:55</time><span>Regra abriu o caso (job curadoria)</span></li></ol></div></section>`;
+  const n=2;
+  return `<section class="card" aria-labelledby="cd-h" style="gap:0"><div class="blk-h" style="margin-bottom:12px"><div class="tt"><h2 id="cd-h">WEGE3 · Proventos 2025</h2><span class="sub">C-0135 · aberto em 28/09 · responsável: Wellington · <a class="lnk tap" href="#" data-open="WEGE3" style="display:inline-flex">abrir a página</a></span></div>${rst(ad.saved?ad.status:'analise')}</div>
+    <div class="dsec"><div class="info warnbox">${icon('i-info')}<span><b>A regra parou de marcar em 02/10 às 06:10</b> (DPA de 2025 voltou a R$ 0,98 depois da correção da fonte). Como há relatos, o caso não fecha sozinho: confira o valor na tela e responda.</span></div></div>
+    <div class="dsec"><h3>O que os usuários viram</h3><dl class="ctx"><dt>Bloco</dt><dd>Valuation · Múltiplos · Proventos</dd><dt>Dado</dt><dd>Payout · 134% · 2025</dd><dt>Estado na tela</dt><dd>em conferência desde 30/09 (regra)</dd><dt>Fonte e data</dt><dd>Proventos: BRAPI · conferidos até 01/10/2026 · Lucro: CVM · DFP 2025</dd><dt>Parâmetros</dt><dd>ScoringParams v2</dd></dl>
+      <div class="kv-row"><a class="lnk tap" href="#">Retrato do bloco (JSON)</a><span aria-hidden="true">·</span><a class="lnk tap" href="#">DFP 2025 na CVM</a><span aria-hidden="true">·</span><a class="lnk tap" href="#">Proventos auditados de WEGE3</a></div></div>
+    <div class="dsec"><h3>${origemTag('regra')} conf:proventos:salto_recente@2025</h3><p class="small">DPA 2025 R$ 2,45 contra R$ 0,76 em 2024 (3,2×); payout DMPL 161%. 3 parcelas de 2025 com o mesmo valor e datas-com a 1 dia de distância.</p></div>
+    <div class="dsec"><h3>${origemTag('usuario')} 2 relatos do grupo proventos</h3>
+      <div class="rep"><span class="who"><b>Pedro D.</b> 01/10 14:02 · R-0142 · Payout</span><span>O payout de 2025 aparece como 134%. No release do 4T25 a WEG informa payout de 52%.</span><span class="small muted">Esperava: 52% · Fonte: Release de resultados 4T25 (site de RI)</span></div>
+      <div class="rep"><span class="who"><b>Ana L.</b> 28/09 20:47 · R-0133 · DY 12m <span class="badge">consultor agindo por cliente</span></span><span>DY de 4% para a WEG não fecha com o histórico de 1,5% a 1,8%.</span><span class="small muted">Esperava: — · Fonte: —</span></div></div>
+    ${decisao(n)}
+    <div class="dsec"><h3>Histórico</h3><ol class="tl"><li><time>02/10 06:10</time><span>Regra parou de marcar (evento regra_cessou)</span></li><li><time>01/10 16:20</time><span>Wellington assumiu · Em análise</span></li><li><time>01/10 14:02</time><span>Relato R-0142 de Pedro D. anexado (mesmo grupo)</span></li><li><time>30/09 06:10</time><span>Regra pôs Proventos em conferência; caso vira “Regra + usuário”</span></li><li><time>28/09 20:47</time><span>Relato R-0133 de Ana L. abriu o caso; prazo 05/10</span></li></ol></div></section>`;
+}
+function adminPhone(){
+  return `<div class="tiles" role="group" aria-label="Filtrar casos">${TILES.slice(0,4).map(([k,l,n,ic],i)=>`<button type="button" class="tile ${k==='venc'?'late':''}" aria-pressed="${i===0}"><span class="n">${n}</span><span class="l">${icon(ic)}${l}</span></button>`).join('')}</div>
+  <ul class="rlist">${CASOS.filter(c=>!c.fechado).slice(0,5).map(c=>`<li><a href="#" class="rcard" style="text-decoration:none;color:inherit" data-case="${c.id}"><div class="top"><div style="min-width:0"><h3>${c.a} · ${c.campo}</h3><p class="meta">${c.id} · ${c.rel?c.rel+' relato'+(c.rel>1?'s':''):'só regra'}</p></div>${rst(c.st)}</div><div class="kv-row">${origemTag(c.origem)}${efeitoTag(c.efeito)}${sla(c.sla)}</div></a></li>`).join('')}</ul>`;
+}
+
+function phoneQuadro(){
+  const isF=S.cls==='fiis'; const rows=isF?QF:QA;
+  const v=(x,c,why)=> c?`${x??'—'}<span class="conf-mini" style="display:block;font-size:11px;color:var(--app-muted);font-weight:400">em conferência</span>`:x==null?`—<span style="display:block;font-size:11px;color:var(--app-muted);font-weight:400">${why||'sem dado'}</span>`:x;
+  return `<div class="seg-m" role="group" aria-label="Classe"><button type="button" aria-pressed="${!isF}" data-cls="acoes">Ações <span class="cnt">385</span></button><button type="button" aria-pressed="${isF}" data-cls="fiis">FIIs <span class="cnt">362</span></button></div>
+  <button class="mbtn" type="button" data-act="toMeus">Meus relatos · 1 resposta nova</button>
+  <ul class="mlist">${rows.map(r=>`<li><a class="mcard" href="#" data-open="${r.t}"><div class="top"><div style="min-width:0"><div class="t">${r.t}${r.inc?' <span class="badge inc">incompleto</span>':''}</div><div class="n">${r.n}</div></div>${ring(r.mf,{at:r.at,ap:r.ap,inc:r.inc,size:40})}</div>
+    <dl class="mgrid">${(isF?[['DY 12m',v(r.dy,r.dyConf)],['P/VP',v(r.pvp,r.pvpConf)],['Obrig./PL',v(r.obr,r.obrConf)]]:[['P/L',v(r.pl,r.plConf,r.plWhy)],['DY 12m',v(r.dy,r.dyConf,r.dyWhy)],['ROE',r.roe]]).map(([a,b])=>`<div><dt>${a}</dt><dd>${b}</dd></div>`).join('')}</dl></a></li>`).join('')}</ul>${legal()}`;
+}
+
+
+/* ================= MOLDURAS ================= */
+const NAV=[['n-dash','Dashboard'],['n-wallet','Carteira'],['n-anal','Análise de Ativos'],['n-flow','Fluxo de Caixa'],['n-plan','Planejamento'],['i-cal','Agenda'],['n-edu','Educação'],['n-admin','Administração']];
+function sidebar(){
+  const on = S.route==='admin'?'Administração':'Análise de Ativos';
+  return `<nav class="sb" aria-label="Menu"><div class="logo">My Finance</div>${NAV.map(([i,l])=>`<a href="#" class="nav ${l===on?'on':''}" data-act="noop">${icon(i)}${l}</a>`).join('')}</nav>`;
+}
+function notifDrop(){
+  if(!S.notif) return '';
+  return `<div class="ndrop" role="dialog" aria-label="Notificações"><h3>Notificações</h3>
+    <a href="#" class="nit unread" data-act="toMeus"><span class="ic">${icon('i-flag')}</span><span><p>Seu relato sobre <b>PETR4 · DY 12m</b> foi respondido: Corrigido.</p><small>19/09 · Análise de Ativos</small></span></a>
+    <a href="#" class="nit" data-act="noop"><span class="ic">${icon('i-cal')}</span><span><p>WEGE3 divulga o resultado do 3º trimestre em 22/10.</p><small>18/09 · Agenda</small></span></a>
+    <a href="#" class="nit" data-act="toMeus"><span class="ic">${icon('i-flag')}</span><span><p>Seu relato sobre <b>KNCR11 · Cotistas</b> foi respondido: Conferido, sem alteração.</p><small>12/09 · Análise de Ativos</small></span></a></div>`;
+}
+function renderDesk(){
+  let page;
+  if(S.route==='admin') page=adminPage(); else if(S.route==='meus') page=meusPage(false); else if(S.route==='quadro') page=renderQuadro(); else page=assetPage(false);
+  const crumbTxt = S.route==='admin'?'Administração / Análise de Ativos (/admin/analise-ativos)':S.route==='meus'?'Análise de Ativos / Meus relatos':S.route==='quadro'?'Análise de Ativos':'Análise de Ativos / '+S.asset;
+  return `<div class="desk" role="region" aria-label="Simulação do app no computador"><div class="sb-wrap">${sidebar()}</div><div class="content"><div class="topbar"><span class="small muted">${crumbTxt}</span><span class="who">${S.acting?'<span class="badge hold">Agindo por Marina Costa</span>':''}<button type="button" class="bell" data-act="bell" aria-expanded="${S.notif}" aria-label="Notificações, 1 nova">${icon('i-bell')}<span class="dot" aria-hidden="true">1</span></button><span class="avatar" aria-hidden="true">${S.route==='admin'?'WL':'PD'}</span>${S.route==='admin'?'Wellington':'Pedro'}</span></div><main class="page">${page}</main></div>${notifDrop()}${formModal()}${S.toast?`<div class="toast" role="status" style="position:fixed;bottom:24px">${esc(S.toast)}<button type="button" data-act="toastClose">Fechar</button></div>`:''}</div>`;
+}
+function phoneSheet(){
+  if(!S.sheet) return '';
+  if(S.sheet.startsWith('blk:')){
+    const id=S.sheet.slice(4);
+    return `<div class="sheet-ov" data-act="sheetClose"><div class="sheet" role="dialog" aria-modal="true" aria-labelledby="sh-h" data-stop="1"><div class="grab" aria-hidden="true"></div><div class="sheet-h"><h3 id="sh-h">${blockTitle(id)}</h3><button class="icon-btn" type="button" data-act="sheetClose" aria-label="Fechar">${icon('i-x','')}</button></div>
+      <div class="sheet-b"><button type="button" class="mopt" data-act="report" data-blk="${id}"><span style="display:flex;gap:12px;align-items:center">${icon('i-flag','')}<span>Reportar dado incorreto<small>a equipe responde em até 5 dias úteis</small></span></span></button><button type="button" class="mopt" data-act="noop"><span style="display:flex;gap:12px;align-items:center">${icon('i-doc','')}<span>Fonte e atualização<small>documentos e datas deste bloco</small></span></span></button></div></div></div>`;
+  }
+  if(S.sheet==='form'){
+    return `<div class="sheet-ov"><div class="sheet full" role="dialog" aria-modal="true" aria-labelledby="frm-h"><div class="sheet-h" style="padding-top:12px"><div><h3 id="frm-h">Reportar dado incorreto</h3><p class="small muted">${A[S.asset].t} · ${blockTitle(S.form.blk)}</p></div><button class="icon-btn" type="button" data-act="formClose" aria-label="Fechar">${icon('i-x','')}</button></div>
+      <form class="sheet-b" novalidate onsubmit="return false" style="gap:14px">${formBody(true)}</form><div class="sheet-f">${formFooter(true)}</div></div></div>`;
+  }
+  if(S.sheet.startsWith('conf:')){
+    const k=S.sheet.slice(5);
+    return `<div class="sheet-ov"><div class="sheet" role="dialog" aria-modal="true" aria-labelledby="pop-h"><div class="grab" aria-hidden="true"></div><div class="sheet-h"><span></span><button class="icon-btn" type="button" data-act="sheetClose" aria-label="Fechar">${icon('i-x','')}</button></div><div class="sheet-b pop" style="position:static;width:auto;box-shadow:none;border:0;padding:0 16px 20px">${popHtml(k)}</div></div></div>`;
+  }
+  return '';
+}
+function renderPhone(){
+  const r=S.route; const title = r==='admin'?'Curadoria':r==='meus'?'Meus relatos':r==='quadro'?'Análise de Ativos':S.asset;
+  const back = r!=='quadro';
+  const body = r==='admin'?adminPhone():r==='meus'?meusPage(true):r==='quadro'?phoneQuadro():assetPage(true);
+  return `<div class="phone-stage"><div class="phone ${S.narrow?'narrow':''}" role="region" aria-label="Simulação de celular, ${S.narrow?320:390} pontos de largura"><div class="ph-status"><span>9:41</span><span>5G ▮▮▮</span></div>
+  <div class="ph-head">${back?`<button class="icon-btn ph-back" type="button" data-act="toQuadro" aria-label="Voltar">${icon('i-back','')}</button>`:''}<h2>${title}</h2></div>
+  <div class="ph-body">${body}</div>
+  <nav class="ph-tabbar" aria-label="Navegação principal"><span>${icon('n-wallet')}Carteira</span><span>${icon('n-flow')}Fluxo</span><span><span class="launch">${icon('n-plus')}</span></span><span>${icon('n-plan')}Planejar</span><span class="on">${icon('n-more')}Mais</span></nav>
+  ${phoneSheet()}${S.toast?`<div class="toast" role="status" style="bottom:80px;width:calc(100% - 24px)">${esc(S.toast)}<button type="button" data-act="toastClose">Fechar</button></div>`:''}</div></div>`;
+}
+
+/* ================= CENÁRIOS ================= */
+const F = (o)=>Object.assign(FORM0(),o);
+const SCEN = [
+  {k:'R1',g:'Reportar dado',label:'WEGE3 · menu do bloco aberto',set:{route:'ativo',asset:'WEGE3',menu:'val',scrollTo:'blk-val'},note:['Cada bloco tem um botão de três pontos no canto do cabeçalho (44px). Sem ícone de bandeira em cada número: com ~40 números na página, poluiria.','O menu tem “Reportar dado incorreto” e “Fonte e atualização”. Teclado: setas, Enter, Esc devolve o foco ao botão.','Rodapé do bloco: “Você reportou o Payout em 01/10 · Em análise”. Vem do GET da página do ativo (só os relatos do usuário logado), sem chamada extra.','Frescor por bloco no rodapé de cada card. O Índice mostra quando foi calculado e a versão dos parâmetros.']},
+  {k:'R2',g:'Reportar dado',label:'Formulário preenchido',set:{route:'ativo',asset:'WEGE3',form:F({msg:'O payout de 2025 aparece como 134%. No release do 4T25 a WEG informa payout de 52%.',exp:'52%',src:'Release de resultados 4T25 (site de RI)'})},note:['“Qual dado?” já vem escolhido com o dado do bloco (rótulo · valor · período). Dá para trocar por outro dado do mesmo bloco.','O contexto que vai junto aparece para o usuário: valor exibido, período, fonte e data. O servidor grava também o retrato da linha (flags, motivos, dataRef, paramsVersion).','“Valor que você esperava” pede o campo valorEsperado no schema (pergunta 5). “Onde você viu?” = fonteEsperada.']},
+  {k:'R3',g:'Reportar dado',label:'Erro de validação',set:{route:'ativo',asset:'WEGE3',form:F({msg:'errado',errs:{msg:'Escreva pelo menos 10 caracteres explicando o que está errado.'}})},note:['Validação só no envio. Resumo em role="alert", foco vai para o campo, erro com ícone + texto ligado por aria-describedby. Borda vermelha não é o único sinal.']},
+  {k:'R4',g:'Reportar dado',label:'Enviando',set:{route:'ativo',asset:'WEGE3',form:F({st:'sending',msg:'O payout de 2025 aparece como 134%. No release do 4T25 a WEG informa payout de 52%.',exp:'52%'})},note:['Botão desabilitado com “Enviando…”; campos desabilitados mas visíveis. POST /api/analise-ativos/reportes com csrfFetch.']},
+  {k:'R5',g:'Reportar dado',label:'Enviado',set:{route:'ativo',asset:'WEGE3',form:F({st:'ok'})},note:['Protocolo e prazo em data (5 dias úteis a partir de sexta 02/10: 05, 06, 07, 08 e 09/10). Link para Meus relatos.','O relato entra no caso aberto do mesmo grupo de dados (aqui, proventos); se não houver, abre caso novo.']},
+  {k:'R6',g:'Reportar dado',label:'Erro ao enviar',set:{route:'ativo',asset:'WEGE3',form:F({st:'erro',msg:'O payout de 2025 aparece como 134%. No release do 4T25 a WEG informa payout de 52%.',exp:'52%'})},note:['O texto fica nos campos. “Tentar de novo” no lugar de “Enviar relato”.']},
+  {k:'R7',g:'Reportar dado',label:'Limite atingido',set:{route:'ativo',asset:'WEGE3',form:F({st:'limite'})},note:['10 relatos por usuário em 24 horas e 3 por hora no mesmo ativo (429, limites da arquitetura). Diz quando volta a funcionar. O rascunho fica no aparelho (localStorage é conveniência, não estado).']},
+  {k:'R8',g:'Reportar dado',label:'Já reportado',set:{route:'ativo',asset:'WEGE3',form:F({st:'dup'})},note:['A API responde 200 com jaExistia:true (não é erro). A tela informa e leva ao relato existente; nada novo é criado.']},
+  {k:'R9',g:'Reportar dado',label:'Consultor agindo pelo cliente',set:{route:'ativo',asset:'WEGE3',acting:true,form:F({msg:''})},note:['Dado de mercado não é do cliente: o relato vai no nome do consultor (autor = payload.id) e o cliente fica registrado (clienteId), sem notificação ao cliente.']},
+  {k:'U1',g:'Retorno ao usuário',label:'Meus relatos',set:{route:'meus'},note:['Lista com status (forma + texto). “Rejeitado” aparece para o usuário como “Conferido, sem alteração”, com o motivo.','Resposta nova destacada até ser vista.','Pede a rota GET /api/analise-ativos/meus-reportes, separada do tier de 10/min do POST (pergunta 4).']},
+  {k:'U2',g:'Retorno ao usuário',label:'Notificação de resposta',set:{route:'quadro',notif:true},note:['Notification in-app quando o caso fecha (Corrigido ou Rejeitado), com push se ativado. “Em análise” não notifica.']},
+  {k:'U3',g:'Retorno ao usuário',label:'Meus relatos vazio',set:{route:'meus',meus:'empty'},note:['Diz onde fica o caminho para relatar.']},
+  {k:'C1',g:'Em conferência (regra)',label:'SBSP3 · base da cotação sem evento',set:{route:'ativo',asset:'SBSP3'},note:['Caso real do banco dev: cotação ÷5 em 29/04/2026 sem desdobramento registrado; DY 12m de 12,85% inflado, que hoje escapa da trava de proventos.','Grupo preco_base, política “ocultar”: DY, P/L, P/VP e valor de mercado viram “—”. A cotação negociada aparece com o chip. O número calculado só aparece no “Por quê?”, como “não publicado”.','Proventos e Preço contam 0; anel tracejado + “dados incompletos”. O DPA declarado aparece porque não depende da cotação.']},
+  {k:'C2',g:'Em conferência (regra)',label:'CBAV3 · nº de ações em escala',set:{route:'ativo',asset:'CBAV3'},note:['Caso real do banco dev: 651.073 ações em vez de ~651 milhões (P/VP 0,0014). Grupo acoes_escala, política “ocultar”: P/L, P/VP, EV/EBITDA, P/Receita, LPA, VPA, nº de ações e valor de mercado ficam “—”, na página e no Quadro.','Fundamentos: 2022 também está em conferência pela regra de ano histórico (P/L e P/VP 20 vezes acima da mediana). O ponto sai da média de 10 anos.','Valores de fundamentos ilustrativos.']},
+  {k:'C3',g:'Em conferência (regra)',label:'CACR11 · desdobramento sem evento',set:{route:'ativo',asset:'CACR11',scrollTo:'blk-cota'},note:['Mesma regra de SBSP3 (preco_base): salto com razão de desdobramento (1:10), novo patamar por 5 pregões, sem evento na B3 nem na CVM.','Selo de frescor atrasado no bloco Indicadores: o informe mensal de ago/2026 não chegou.']},
+  {k:'C4',g:'Em conferência (regra)',label:'WEGE3 · proventos (com valor)',set:{route:'ativo',asset:'WEGE3',pop:'WEGE3:prov|Payout',scrollTo:'blk-kpis'},note:['Grupo proventos, política “mostrar com selo”: DY 12m e Payout aparecem com o chip. É o comportamento de hoje (kpisAtivo mostra o valor com selo) e continua igual com parâmetros v1 e v2.','O “Por quê?” diz o motivo, desde quando, o efeito no Índice, o que acontece na tela e a situação (“a equipe está conferindo”).']},
+  {k:'C5',g:'Em conferência (regra)',label:'HGLG11 · vacância divergente',set:{route:'ativo',asset:'HGLG11',scrollTo:'blk-kpis'},note:['Vacância CVM × relatório gerencial não é “em conferência”: os conceitos diferem e a vacância está fora do Índice (decisão 6). A tela mostra a nota “a tela segue a CVM”.','Quem discorda reporta: o relato vira caso de revisão (C-0131), sem efeito na tela. Rodapé: “Você reportou a Vacância física em 29/09”.']},
+  {k:'C6',g:'Em conferência (regra)',label:'Quadro · Ações',set:{route:'quadro',cls:'acoes'},note:['SBSP3 e CBAV3: “—” + “em conferência”. WEGE3: DY com o valor + “em conferência”. Mesma política da página, lida do mesmo helper (conferencia.ts).','Célula hachurada leve + texto; anel tracejado + “incompleto”.']},
+  {k:'C7',g:'Em conferência (regra)',label:'Quadro · FIIs',set:{route:'quadro',cls:'fiis'},note:['CACR11: DY e P/VP “—” (base da cotação). PMRL11: Obrigações/PL 324% aparece com o chip (fii_obrigacoes mostra com selo).','HGLG11: vacância sem marca.']},
+  {k:'K1',g:'Curadoria (/admin)',label:'Fila + caso com usuário',set:{route:'admin'},note:['Caso = ativo × grupo × campo. WEGE3 · Proventos junta a regra e 2 relatos do mesmo grupo (Payout e DY).','A regra parou de marcar, mas o caso tem relatos: não fecha sozinho. O curador confere e fecha; só então os usuários são avisados.','Ordem: vencidos primeiro, depois prazo. Contadores do topo não contam casos só de regra (ficam no último contador).']},
+  {k:'K2',g:'Curadoria (/admin)',label:'Filtro: vencidos',set:{route:'admin',admin:{filter:'venc',sel:'C-0127'}},note:['Vencido = vermelho + ícone + palavra “Vencido”. “Vence em” para os casos a até 2 dias úteis do prazo.']},
+  {k:'K3',g:'Curadoria (/admin)',label:'Revisão: lucro com salto',set:{route:'admin',admin:{filter:'regra',sel:'C-0140',status:'aberto'}},note:['Regra de revisão (rev:variacao_lucro): lucro 5× ou mais com base acima de R$ 50 mi e mesmo sinal. No dev: 7 empresas. Não tira nada do Índice nem da tela.','O curador só registra a decisão; sem usuário, não há resposta para enviar.']},
+  {k:'K4',g:'Curadoria (/admin)',label:'Fechar sem resolução',set:{route:'admin',admin:{status:'corrigido',resolErr:true}},note:['Fechar exige a resolução (corrigido_fonte, corrigido_reprocessado; dado_confirmado, sem_procedencia, duplicado).']},
+  {k:'K5',g:'Curadoria (/admin)',label:'Corrigido e avisado',set:{route:'admin',admin:{status:'corrigido',resol:'corrigido_fonte',saved:true},toast:'Caso fechado. 2 usuários avisados.'},note:['“Fechar e avisar” cria uma Notification para cada autor e grava o evento no histórico.']},
+  {k:'K6',g:'Curadoria (/admin)',label:'Resposta com termo proibido',set:{route:'admin',admin:{status:'corrigido',resol:'corrigido_fonte',reply:'Conferimos: o payout real é 54%, o que deixa a ação mais barata pelo critério de proventos.',lint:true}},note:['A resposta passa por contemUsoProibido (regras/comum/linguagem.ts) antes de salvar. Bloqueia e diz qual termo.']},
+  {k:'K7',g:'Curadoria (/admin)',label:'Outra pessoa alterou (409)',set:{route:'admin',admin:{conflict:true}},note:['Concorrência otimista: atualizadoEmEsperado ≠ updatedAt. Mostra quem alterou e quando; a resposta digitada fica no campo.']},
+  {k:'K8',g:'Curadoria (/admin)',label:'Carregando',set:{route:'admin',admin:{st:'loading'}},note:['Esqueleto de 6 linhas; contadores e filtros já clicáveis.']},
+  {k:'K9',g:'Curadoria (/admin)',label:'Fila vazia',set:{route:'admin',admin:{st:'empty'}},note:['Diz o que entra na fila.']},
+  {k:'K10',g:'Curadoria (/admin)',label:'Erro',set:{route:'admin',admin:{st:'error'}},note:['Motivo simples + “Tentar de novo”.']},
+  {k:'M1',g:'Celular',label:'Menu do bloco (sheet)',set:{dev:'phone',route:'ativo',asset:'WEGE3',sheet:'blk:val',scrollTo:'blk-val'},note:['Botão de 44px no canto do bloco abre BottomSheet com opções de 52px. Voltar do Android fecha (useMobileHistoryLayer).']},
+  {k:'M2',g:'Celular',label:'Formulário (sheet tela cheia)',set:{dev:'phone',route:'ativo',asset:'WEGE3',sheet:'form',form:F({msg:'O payout de 2025 aparece como 134%. No release do 4T25 a WEG informa payout de 52%.'})},note:['Campos de 48px com fonte 16px (sem zoom do iOS). Contexto em lista de uma coluna. Enviar fixo no rodapé.']},
+  {k:'M3',g:'Celular',label:'Enviado',set:{dev:'phone',route:'ativo',asset:'WEGE3',sheet:'form',form:F({st:'ok'})},note:['Mesmo conteúdo do computador.']},
+  {k:'M4',g:'Celular',label:'Por quê? (CBAV3)',set:{dev:'phone',route:'ativo',asset:'CBAV3',sheet:'conf:CBAV3:acoes',scrollTo:'blk-kpis'},note:['No celular o “Por quê?” abre sheet em vez de popover. Termina no atalho para reportar.']},
+  {k:'M5',g:'Celular',label:'Página SBSP3',set:{dev:'phone',route:'ativo',asset:'SBSP3',scrollTo:'blk-kpis'},note:['Chip “em conferência” com área de toque de 44px (o desenho do chip continua compacto).']},
+  {k:'M6',g:'Celular',label:'Meus relatos',set:{dev:'phone',route:'meus'},note:['Cartões empilhados; links com 44px de altura.']},
+  {k:'M7',g:'Celular',label:'Curadoria (lista)',set:{dev:'phone',route:'admin'},note:['O curador trabalha no computador, mas a fila abre no celular em cartões (status, origem, efeito, prazo). O detalhe abre em página própria.']},
+];
+
+/* ================= RENDER + EVENTOS ================= */
+function render(){
+  $('#screen').innerHTML = S.dev==='desk' ? renderDesk() : renderPhone();
+  const sc=SCEN.find(s=>s.k===S.scen);
+  $('#notes').innerHTML = `<h2>${sc?esc(sc.k+' · '+sc.label):'Navegação livre'}</h2><ul>${(sc?sc.note:['Você saiu do cenário: siga navegando.']).map(n=>`<li>${n}</li>`).join('')}</ul>`;
+  document.querySelectorAll('[data-dev]').forEach(b=>b.setAttribute('aria-pressed',b.dataset.dev===S.dev));
+  $('#narrowBtn').disabled = S.dev!=='phone';
+  document.querySelectorAll('.scen').forEach(b=>b.setAttribute('aria-pressed',b.dataset.k===S.scen));
+  if(S.scrollTo){ const el=document.getElementById(S.scrollTo); const body=$('.ph-body');
+    if(el){ if(S.dev==='phone'&&body){ body.scrollTop = el.offsetTop - body.offsetTop - 8; } } S.scrollTo=null; }
+}
+function reset(){
+  Object.assign(S,{route:'ativo',asset:'WEGE3',cls:'acoes',menu:null,pop:null,sheet:null,form:null,notif:false,toast:null,acting:false,meus:'ok',scrollTo:null,
+    admin:{st:'ok',filter:'pend',efeito:'todos',sel:'C-0135',status:'analise',resol:'',reply:null,lint:false,saved:false,conflict:false,resolErr:false}});
+}
+function applyScen(k){
+  const sc=SCEN.find(s=>s.k===k); S.scen=k; reset();
+  const s=sc.set;
+  for(const key in s){ if(key==='admin') Object.assign(S.admin,s.admin); else if(key==='dev') S.dev=s.dev; else S[key]=JSON.parse(JSON.stringify(s[key])); }
+  if(S.dev==='phone'){ if(S.form&&!S.sheet) S.sheet='form'; if(S.pop&&!S.sheet){ S.sheet='conf:'+S.pop.split(/[|@#~]/)[0]; S.pop=null; } if(S.menu&&!S.sheet){ S.sheet='blk:'+S.menu; S.menu=null; } }
+  render();
+}
+function openForm(blk, field){
+  const campos = blk==='cab'?headCampos(A[S.asset]):(blocksFor(S.asset).find(b=>b.id===blk)||{campos:[]}).campos;
+  S.form = F({blk, field: field||(campos[0]&&campos[0][0])});
+  S.menu=null; S.pop=null;
+  if(S.dev==='phone') S.sheet='form'; else S.sheet=null;
+  S.scen=null; render();
+  setTimeout(()=>{ const el=$('#f-msg'); if(el) el.focus({preventScroll:S.dev==='desk'}); },0);
+}
+function confToField(key){
+  const map={'WEGE3:prov':['val','payout'],'CBAV3:acoes':['kpis','acoes'],'CBAV3:hist':['ess','pl2022'],'SBSP3:base':['cota','cot29'],'CACR11:cot':['kpis','cot']};
+  return map[key]||['kpis',null];
+}
+document.addEventListener('click', e=>{
+  const t=e.target.closest('[data-dev],[data-cls],[data-open],[data-act],[data-conf],[data-case],[data-af],[data-aef],[data-cst],.scen');
+  if(!t){ if(S.menu||S.pop||S.notif){ if(!e.target.closest('.menu,.pop,.ndrop')){ S.menu=null; S.pop=null; S.notif=false; render(); } } return; }
+  if(t.matches('a')) e.preventDefault();
+  if(t.classList.contains('scen')) return applyScen(t.dataset.k);
+  if(t.dataset.dev){ S.dev=t.dataset.dev; if(S.dev==='desk'){ S.narrow=false; $('#narrowBtn').setAttribute('aria-pressed','false'); $('#narrowBtn').textContent='Ver a 320px'; if(S.sheet==='form'){S.sheet=null;} else if(S.sheet&&S.sheet.startsWith('conf:')){S.pop=null;S.sheet=null;} else S.sheet=null; } else { if(S.form&&S.form) S.sheet='form'; S.menu=null; S.pop=null; } return render(); }
+  if(t.dataset.cls){ S.cls=t.dataset.cls; S.route='quadro'; S.scen=null; return render(); }
+  if(t.dataset.open){ if(!A[t.dataset.open]){ S.toast=`Protótipo: a página de ${t.dataset.open} segue o molde de WEGE3.`; return render(); } S.route='ativo'; S.asset=t.dataset.open; S.scen=null; S.menu=null; S.pop=null; S.sheet=null; S.form=null; S.notif=false; render(); const b=$('.ph-body'); if(b) b.scrollTop=0; return; }
+  if(t.dataset.af){ S.admin.filter=t.dataset.af; const l=filtrarCasos(); if(l.length && !l.find(c=>c.id===S.admin.sel)) S.admin.sel=l[0].id; S.scen=null; return render(); }
+  if(t.dataset.aef){ S.admin.efeito=t.dataset.aef; const l=filtrarCasos(); if(l.length && !l.find(c=>c.id===S.admin.sel)) S.admin.sel=l[0].id; S.scen=null; return render(); }
+  if(t.dataset.cst){ const r=$('#c-reply'); if(r) S.admin.reply=r.value; S.admin.status=t.dataset.cst; S.admin.resol=''; S.admin.resolErr=false; return render(); }
+  if(t.dataset.case){ S.admin.sel=t.dataset.case; S.admin.saved=false; S.admin.lint=false; S.admin.resolErr=false; S.admin.reply=null; S.admin.status=t.dataset.case==='C-0140'?'aberto':'analise'; S.scen=null; if(!['C-0135','C-0140'].includes(t.dataset.case)){ S.toast='Protótipo: o detalhe aberto segue o molde de WEGE3 · Proventos.'; } return render(); }
+  if(t.dataset.conf){
+    const key=t.dataset.conf;
+    if(S.dev==='phone'){ S.sheet='conf:'+key; return render(); }
+    const host = t.closest('.kpi,.vcard'); let pk=key;
+    if(host){ const lbl=host.querySelector('.l,.h b'); pk = key+'|'+(host.classList.contains('vcard')?'v':'')+(lbl?lbl.textContent:''); }
+    else if(t.closest('.price')) pk=key+'@h';
+    else if(t.closest('figure')) pk=key+'~y';
+    else if(t.closest('.note') && t.closest('.card') && t.closest('.card').querySelector('table')) pk=key+'#t';
+    S.pop = S.pop===pk?null:pk; S.menu=null; S.scen=null; render();
+    setTimeout(()=>{ const p=$('.pop .close'); if(p) p.focus({preventScroll:true}); },0); return;
+  }
+  const a=t.dataset.act;
+  if(a==='menu'){ const id=t.dataset.blk; if(S.dev==='phone'){ S.sheet='blk:'+id; } else { S.menu = S.menu===id?null:id; } S.pop=null; S.scen=null; render(); setTimeout(()=>{ const m=$('.menu [role=menuitem]'); if(m) m.focus({preventScroll:true}); },0); return; }
+  if(a==='report') return openForm(t.dataset.blk);
+  if(a==='reportFromConf'){ const [b,f]=confToField(t.dataset.key); return openForm(b,f); }
+  if(a==='fonte'){ S.menu=null; S.toast='Fonte e atualização: abre a lista de documentos do bloco (protótipo).'; return render(); }
+  if(a==='popClose'){ S.pop=null; return render(); }
+  if(a==='sheetClose'){ if(e.target.closest('[data-stop]') && t.classList.contains('sheet-ov')) return; S.sheet=null; return render(); }
+  if(a==='formClose'){ S.form=null; S.sheet=null; return render(); }
+  if(a==='formSend'){
+    const f=S.form; const msg=($('#f-msg')||{}).value??f.msg; f.msg=msg; f.exp=($('#f-exp')||{}).value??f.exp; f.src=($('#f-src')||{}).value??f.src; const fs=$('#f-field'); if(fs) f.field=fs.value;
+    if(msg.trim().length<10){ f.errs={msg:'Escreva pelo menos 10 caracteres explicando o que está errado.'}; f.st='idle'; render(); const el=$('#f-msg'); if(el) el.focus(); return; }
+    f.errs={}; f.st='sending'; render(); setTimeout(()=>{ if(S.form){ S.form.st='ok'; render(); } },1100); return;
+  }
+  if(a==='toMeus'){ S.route='meus'; S.form=null; S.sheet=null; S.notif=false; S.scen=null; return render(); }
+  if(a==='toQuadro'){ S.route='quadro'; S.form=null; S.sheet=null; S.scen=null; return render(); }
+  if(a==='bell'){ S.notif=!S.notif; S.scen=null; return render(); }
+  if(a==='toastClose'){ S.toast=null; return render(); }
+  if(a==='adminRetry'){ S.admin.st='ok'; return render(); }
+  if(a==='caseReload'){ S.admin.conflict=false; S.toast='Caso recarregado.'; return render(); }
+  if(a==='caseSave'||a==='caseSend'){
+    const r=$('#c-reply'); const txt=r?r.value:''; if(r) S.admin.reply=txt;
+    const rs=$('#c-resol'); if(rs) S.admin.resol=rs.value;
+    const fech=S.admin.status==='corrigido'||S.admin.status==='rejeitado';
+    if(fech && !S.admin.resol){ S.admin.resolErr=true; render(); const el=$('#c-resol'); if(el) el.focus(); return; }
+    S.admin.resolErr=false;
+    if(/\b(barat[oa]s?|car[oa]s?|oportunidade|compre|desconto)\b/i.test(txt)){ S.admin.lint=true; render(); const el=$('#c-reply'); if(el) el.focus(); return; }
+    S.admin.lint=false; S.admin.saved=true; S.toast = a==='caseSend'?'Caso fechado. 2 usuários avisados.':fech?'Caso fechado.':'Caso atualizado.'; return render();
+  }
+});
+document.addEventListener('input', e=>{
+  if(e.target.id==='f-msg' && S.form){ S.form.msg=e.target.value; const h=e.target.closest('.fld').querySelector('.hint span:last-child'); if(h) h.textContent=e.target.value.length+'/1.000'; }
+  if(e.target.id==='f-exp' && S.form) S.form.exp=e.target.value;
+  if(e.target.id==='f-src' && S.form) S.form.src=e.target.value;
+  if(e.target.id==='f-field' && S.form) S.form.field=e.target.value;
+});
+document.addEventListener('change', e=>{ if(e.target.id==='f-field' && S.form){ S.form.field=e.target.value; render(); } if(e.target.id==='c-resol'){ S.admin.resol=e.target.value; S.admin.resolErr=false; } });
+document.addEventListener('keydown', e=>{
+  if(e.key==='Escape'){ if(S.form&&S.form.st!=='sending'){ S.form=null; S.sheet=null; render(); return; } if(S.menu||S.pop||S.sheet||S.notif){ const k=S.menu; S.menu=null; S.pop=null; S.sheet=null; S.notif=false; render(); if(k){ const b=document.querySelector(`[data-act=menu][data-blk="${k}"]`); if(b) b.focus(); } } }
+  if((e.key==='ArrowDown'||e.key==='ArrowUp') && e.target.matches('.menu [role=menuitem]')){ e.preventDefault(); const items=[...document.querySelectorAll('.menu [role=menuitem]')]; const i=items.indexOf(e.target); const n=items[(i+(e.key==='ArrowDown'?1:-1)+items.length)%items.length]; n.focus(); }
+});
+
+/* bancada */
+(function bench(){
+  const groups=[...new Set(SCEN.map(s=>s.g))];
+  $('#scenarios').innerHTML = groups.map(g=>`<div class="scen-group"><span class="gl">${g}</span>${SCEN.filter(s=>s.g===g).map(s=>`<button type="button" class="scen" data-k="${s.k}" aria-pressed="false"><b>${s.k}</b>${s.label}</button>`).join('')}</div>`).join('');
+  const modes=['sistema','claro','escuro']; let mi=0;
+  try{ const saved=localStorage.getItem('abc-theme'); if(saved){ mi=Math.max(0,modes.indexOf(saved)); } }catch(_){}
+  const applyTheme=()=>{ const m=modes[mi]; if(m==='sistema') document.documentElement.removeAttribute('data-theme'); else document.documentElement.setAttribute('data-theme',m==='claro'?'light':'dark'); $('#themeBtn').textContent='Tema: '+m; try{localStorage.setItem('abc-theme',m);}catch(_){} };
+  $('#themeBtn').onclick=()=>{ mi=(mi+1)%3; applyTheme(); };
+  $('#narrowBtn').onclick=()=>{ S.narrow=!S.narrow; $('#narrowBtn').setAttribute('aria-pressed',S.narrow); $('#narrowBtn').textContent=S.narrow?'Voltar a 390px':'Ver a 320px'; render(); };
+  applyTheme();
+  const Q = window.__Q || [];
+  $('#qlist').innerHTML = Q.map(q=>`<div class="q"><b>${q[0]}</b><span class="rec">${q[1]}</span></div>`).join('');
+})();
+applyScen('R1');
+</script>

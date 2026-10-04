@@ -39,6 +39,11 @@ export interface EntradaDividendos {
   ult12mData: string | null;
   /** linha com proventos em conferência (flags da linha do Quadro) */
   proventosEmConferencia?: boolean;
+  /**
+   * Bloco C: grupo 'proventos' em conferência pelas flags 'conf:' (params v2). O selo vira
+   * 'em_conferencia' (chip com "Por quê?"); os anos suspeitos seguem a mesma marcação.
+   */
+  conferenciaProventos?: boolean;
 }
 
 function flagConferencia(flags: readonly string[] | undefined): boolean {
@@ -81,7 +86,11 @@ export function montarDividendos(e: EntradaDividendos): DividendosAtivo {
     cagrAnoInicio: janela.pct === null ? null : janela.anoInicio,
     cagrAnoFim: janela.pct === null ? null : janela.anoFim,
     cagrMotivo,
-    selo: temSuspeito || e.proventosEmConferencia ? 'proventos_em_conferencia' : null,
+    selo: e.conferenciaProventos
+      ? 'em_conferencia'
+      : temSuspeito || e.proventosEmConferencia
+        ? 'proventos_em_conferencia'
+        : null,
     unidade: e.classe === 'fii' ? 'rendimento' : 'dpa',
   };
 }

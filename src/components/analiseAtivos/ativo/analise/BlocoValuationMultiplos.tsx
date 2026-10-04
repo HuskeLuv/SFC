@@ -5,18 +5,39 @@
  * grupo, frase-resumo neutra (conta só as barras visíveis), cartões com a barra de 10 anos e a
  * nota de rodapé. Banco/papel: a explicação no lugar dos cartões. Sem referência a índice de
  * mercado (sem fonte) e sem cor semântica.
+ *
+ * Bloco C: cartões em conferência pelo CardMultiplo (mesma política do topo); o menu ⋯ e o frescor
+ * do bloco vêm do CartaoAnalise, com os múltiplos reportáveis no "Qual dado?".
  */
 import { useState } from 'react';
 import CardMultiplo from '@/components/analiseAtivos/ativo/analise/CardMultiplo';
 import CartaoAnalise from '@/components/analiseAtivos/ativo/analise/CartaoAnalise';
 import ChipsGrupo from '@/components/analiseAtivos/ativo/analise/ChipsGrupo';
+import { formatarEstado } from '@/components/analiseAtivos/comum/formatarAnalise';
 import { useValuationAtivo } from '@/hooks/useAnaliseAtivos';
+import { CAMPOS_REPORTAVEIS } from '@/services/analiseAtivos/curadoria/contrato';
 import { TEXTOS_TELA } from '@/services/analiseAtivos/textosTela';
-import type { BlocoValuationMultiplosProps } from '@/types/analiseAtivosApi';
+import type { BlocoValuationMultiplosProps, GrupoValuation } from '@/types/analiseAtivosApi';
+import type { DadoBlocoReporte } from '@/types/analiseAtivosCuradoria';
 
 export type { BlocoValuationMultiplosProps };
 
 const TV = TEXTOS_TELA.analise.valuation;
+
+/** "Qual dado?" do relato: múltiplos reportáveis de todos os grupos (rótulo · valor 12m). */
+function dadosReporte(grupos: GrupoValuation[]): DadoBlocoReporte[] | undefined {
+  if (grupos.length === 0) return undefined;
+  const reportaveis = CAMPOS_REPORTAVEIS.valuation as readonly string[];
+  return grupos
+    .flatMap((g) => g.itens)
+    .filter((i) => reportaveis.includes(i.codigo))
+    .map((i) => ({
+      campo: i.codigo as DadoBlocoReporte['campo'],
+      rotulo: i.rotulo,
+      valorExibido: formatarEstado(i.atual, i.formato),
+      periodo: TEXTOS_TELA.ativo.ult12m,
+    }));
+}
 
 export default function BlocoValuationMultiplos({ ticker }: BlocoValuationMultiplosProps) {
   const q = useValuationAtivo(ticker);
@@ -33,6 +54,7 @@ export default function BlocoValuationMultiplos({ ticker }: BlocoValuationMultip
       erro={q.isError}
       onTentarNovamente={() => void q.refetch()}
       alturaEsqueleto={360}
+      dadosReporte={dadosReporte(grupos)}
     >
       {grupo ? (
         <>

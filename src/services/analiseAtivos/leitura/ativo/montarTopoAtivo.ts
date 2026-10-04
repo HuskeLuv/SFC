@@ -12,7 +12,12 @@
  *  - FIIs: fii_monthly de 11 anos (unique cnpj+refMonth) e a cotação de fim de mês
  *    (DISTINCT ON month em asset_quotes_daily, PK symbol+date);
  *  - asset_proventos_auditados válidos com data-com entre hoje e hoje + 2 anos (idx symbol+data);
- *  - painel de frescor em cache de 10 min.
+ *  - painel de frescor em cache de 10 min;
+ *  - bloco C: casos de curadoria ABERTOS do ticker (somente leitura, sem dado de autor).
+ *
+ * Bloco C (fatia B): "em conferência" e frescor por bloco. Com params v2 (row.paramsVersion ≥ 2)
+ * vão `conferencias` (flags 'conf:' da linha + das linhas anuais) e `frescorBlocos`; com a v1 os
+ * dois ficam AUSENTES e a resposta é a mesma da Fase 1.
  *
  * Cache em memória por ticker:versão do Quadro (TTL 30 min, LRU 800): a versão muda quando o job
  * 'quadro' grava, e o topo é refeito na próxima leitura.
@@ -32,6 +37,13 @@ import {
   painelFrescorEmCache,
 } from '@/services/analiseAtivos/leitura/ativo/frescorAtivo';
 import { montarKpis } from '@/services/analiseAtivos/leitura/ativo/kpisAtivo';
+import {
+  flagsAnuaisConf,
+  lerCasosAbertos,
+  montarConferenciasTela,
+} from '@/services/analiseAtivos/leitura/ativo/conferenciasAtivo';
+import { montarFrescorBlocos } from '@/services/analiseAtivos/leitura/ativo/frescorBlocos';
+import { gruposConf } from '@/services/analiseAtivos/regras/comum/conferencia';
 import {
   lerScoreGravado,
   montarIndiceTopo,
@@ -156,6 +168,7 @@ export async function montarTopoAtivo(
     cotacaoMensal,
     pares,
     painel,
+    casos,
   ] = await Promise.all([
     prisma.assetScore.findFirst({
       where: { symbol: refIndice },
@@ -176,7 +189,7 @@ export async function montarTopoAtivo(
     ehAcao
       ? prisma.assetMultiplesYearly.findMany({
           where: { symbol: ticker, anoFiscal: { gte: desdeAno } },
-          select: { anoFiscal: true, precoFimAno: true, precoFimAnoData: true },
+          select: { anoFiscal: true, precoFimAno: true, precoFimAnoData: true, flags: true },
           orderBy: { anoFiscal: 'asc' },
         })
       : Promise.resolve([]),
@@ -238,7 +251,11 @@ export async function montarTopoAtivo(
           ORDER BY date_trunc('month', date), date DESC`),
     Promise.all(row.pares.map((p) => obterLinhaQuadro(p))),
     painelFrescorEmCache(prisma),
+    // bloco C: só com flag 'conf:' na linha (v1 nunca grava ⇒ nenhuma consulta a mais)
+    gruposConf(row.flags).length > 0 ? lerCasosAbertos(prisma, ticker) : Promise.resolve([]),
   ]);
+  const v2 = (row.paramsVersion ?? 1) >= 2;
+  const gruposConferencia = gruposConf(row.flags);
 
   const eventosAjuste: EventoAjuste[] = checks.map((c) => ({
     dataEvento: iso(c.dataEvento) as string,
@@ -265,7 +282,7 @@ export async function montarTopoAtivo(
   );
   const semaforo =
     score && estado !== 'sem_score' && estado !== 'fora_do_indice'
-      ? montarSemaforoTela(score.checks)
+      ? montarSemaforoTela(score.checks, gruposConferencia)
       : [];
 
   const lpaAnual = anosFechados(
@@ -293,6 +310,18 @@ export async function montarTopoAtivo(
     pares: linhasPares,
     lpaAnual,
     patrimonioData: ultimoMensal,
+    motivosIncompleto: row.motivosIncompleto,
+    brutos: {
+      pl: row.pl,
+      pvp: row.pvp,
+      dy12m: row.dy12mPct,
+      roe: row.roePct,
+      margemLiquida: row.margemLiquidaPct,
+      divLiqEbitda: row.divLiqEbitda,
+      payout: row.payoutPct,
+      obrigacoesPl: row.obrigacoesPlPct,
+      vacanciaCvm: row.vacanciaFisicaCvmPct,
+    },
   });
 
   const grafico = ehAcao
@@ -331,6 +360,7 @@ export async function montarTopoAtivo(
     ult12m: ehAcao ? (atuais?.dpa12m ?? null) : (atuais?.rend12m ?? null),
     ult12mData: iso(atuais?.precoData) ?? linha.precoData,
     proventosEmConferencia: linha.proventosEmConferencia,
+    conferenciaProventos: gruposConferencia.includes('proventos'),
   });
 
   const listaEventos = montarEventos({
@@ -399,6 +429,31 @@ export async function montarTopoAtivo(
     frescor,
     versao,
   };
+  const conferencias = montarConferenciasTela({
+    flags: [...row.flags, ...flagsAnuaisConf(multAnuais)],
+    classe,
+    regua: row.regua,
+    casos,
+  });
+  if (conferencias.length > 0) resposta.conferencias = conferencias;
+  if (v2) {
+    resposta.frescorBlocos = montarFrescorBlocos({
+      classe,
+      hoje,
+      precoData: linha.precoData,
+      dfpAno: ultimaDfp?.anoFiscal ?? null,
+      itr:
+        ultimoItr && ultimoItr.trimestreFiscal
+          ? { ano: ultimoItr.anoFiscal, trimestre: ultimoItr.trimestreFiscal }
+          : null,
+      fiiMes: ultimoMensal,
+      proventosDefasados:
+        row.flags.some((f) => f.startsWith('proventos_defasados')) ||
+        row.motivosIncompleto.includes('div:fonte_defasada'),
+      versao,
+      dataRef: iso(row.dataRef),
+    });
+  }
   gravarCache(chave, resposta, agora.getTime());
   return resposta;
 }

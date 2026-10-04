@@ -1,3 +1,5 @@
+'use client';
+
 /**
  * Proventos por ano (ações: DPA ajustado; FIIs: rendimento por cota) — fatia B.
  * - Só anos FECHADOS; o 'últ. 12m' aparece à parte, em texto.
@@ -6,11 +8,21 @@
  * - Ano sem dado: toco tracejado. Rótulo de valor só no primeiro e no último ano.
  * - Tabela oculta (sr-only) com os mesmos números para leitor de tela.
  * Barras em patrimonio (#396CAA; escuro tranquilidade #6E9DC4).
+ * Bloco C: selo 'em_conferencia' (grupo proventos pelas flags 'conf:') = chip que abre o "Por
+ * quê?"; menu ⋯ no cabeçalho e selo de frescor no rodapé (só com relato ligado / params v2).
  */
+import ChipConferencia from '@/components/analiseAtivos/comum/ChipConferencia';
+import {
+  MenuBlocoPagina,
+  useConferenciaPagina,
+} from '@/components/analiseAtivos/comum/PorQueConferencia';
 import SeloEstado from '@/components/analiseAtivos/comum/SeloEstado';
+import { RodapeFrescorBloco } from '@/components/analiseAtivos/ativo/topo/SeloFrescor';
+import { conferenciaDoCampo } from '@/services/analiseAtivos/leitura/ativo/conferenciasAtivo';
 import { formatarAnalise } from '@/components/analiseAtivos/comum/formatarAnalise';
 import { TEXTOS_TELA, formatarTexto } from '@/services/analiseAtivos/textosTela';
 import type { BlocoDividendosProps } from '@/types/analiseAtivosApi';
+import type { DadoBlocoReporte } from '@/types/analiseAtivosCuradoria';
 
 export type { BlocoDividendosProps };
 
@@ -27,6 +39,7 @@ function moeda(v: number): string {
 }
 
 export default function BlocoDividendos({ classe, dividendos }: BlocoDividendosProps) {
+  const ctx = useConferenciaPagina();
   const t = TEXTOS_TELA.ativo;
   const d = t.dividendos;
   const titulo =
@@ -56,6 +69,32 @@ export default function BlocoDividendos({ classe, dividendos }: BlocoDividendosP
   const rotuloBarra = (ano: number, valor: number, suspeito?: boolean) =>
     formatarTexto(suspeito ? d.emConferenciaTitulo : d.barraTitulo, { ano, valor: moeda(valor) });
 
+  // "Qual dado?" do relato com os números da tela: último ano com valor e os últimos 12 meses
+  const rotulosRelato = TEXTOS_TELA.relatos.campos;
+  const anoRelato = ultimo >= 0 && ultimo < anos.length ? anos[ultimo] : null;
+  const dadosRelato: DadoBlocoReporte[] = [
+    ...(anoRelato && anoRelato.valor !== null
+      ? [
+          {
+            campo: 'proventosAno' as const,
+            rotulo: rotulosRelato.proventosAno,
+            valorExibido: moeda(anoRelato.valor),
+            periodo: String(anoRelato.ano),
+          },
+        ]
+      : []),
+    ...(dividendos.ult12m
+      ? [
+          {
+            campo: classe === 'fii' ? ('rendCota12m' as const) : ('dpa12m' as const),
+            rotulo: classe === 'fii' ? rotulosRelato.rendCota12m : rotulosRelato.dpa12m,
+            valorExibido: moeda(dividendos.ult12m.valor),
+            periodo: t.ult12m,
+          },
+        ]
+      : []),
+  ];
+
   const resumo = reais.length
     ? `${titulo}: ${anos
         .filter((a) => a.valor !== null)
@@ -74,11 +113,25 @@ export default function BlocoDividendos({ classe, dividendos }: BlocoDividendosP
           <h2 id="bloco-div-h" className="text-base font-semibold text-gray-800 dark:text-white/90">
             {titulo}
           </h2>
-          <span className="text-xs text-gray-500 dark:text-gray-400" data-cagr>
-            {cagr ?? `${t.cagr5a}: ${dividendos.cagrMotivo ?? TEXTOS_TELA.formato.semDado}`}
+          <span className="inline-flex items-center gap-2">
+            <span className="text-xs text-gray-500 dark:text-gray-400" data-cagr>
+              {cagr ?? `${t.cagr5a}: ${dividendos.cagrMotivo ?? TEXTOS_TELA.formato.semDado}`}
+            </span>
+            <MenuBlocoPagina bloco="dividendos" dados={dadosRelato} />
           </span>
         </div>
-        {dividendos.selo ? <SeloEstado tipo={dividendos.selo} className="self-start" /> : null}
+        {dividendos.selo === 'em_conferencia' ? (
+          <span className="self-start">
+            <ChipConferencia
+              conferencia={conferenciaDoCampo(ctx?.conferencias, 'proventosAno')}
+              campo="proventosAno"
+              rotuloCampo={titulo}
+              bloco="dividendos"
+            />
+          </span>
+        ) : dividendos.selo ? (
+          <SeloEstado tipo={dividendos.selo} className="self-start" />
+        ) : null}
 
         {reais.length === 0 ? (
           <p className="rounded-xl border border-dashed border-gray-300 px-3 py-6 text-center text-sm text-gray-500 dark:border-gray-700 dark:text-gray-400">
@@ -197,6 +250,7 @@ export default function BlocoDividendos({ classe, dividendos }: BlocoDividendosP
           {temSemDado ? ` ${d.notaSemDado}` : ''}
         </figcaption>
       </figure>
+      <RodapeFrescorBloco bloco="dividendos" />
     </section>
   );
 }

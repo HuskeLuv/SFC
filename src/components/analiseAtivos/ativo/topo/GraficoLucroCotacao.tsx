@@ -11,6 +11,11 @@
  * - Prejuízo = lacuna (a linha quebra) com nota; outras faltas (mês sem pregão) não quebram a linha.
  * - Menos de 3 pontos na janela → 'histórico insuficiente para o gráfico'.
  * Cores: SERIES_GRAFICO (outside/potencia no claro; tranquilidade/escolha no escuro).
+ *
+ * Bloco C (params v2): cotação em conferência (base da cotação / poucos negócios) = trecho
+ * TRACEJADO da série de cotação a partir da data da detecção, com o chip "em conferência" e uma
+ * nota; ano dos demonstrativos em conferência = ponto tracejado fora do crescimento. Menu ⋯ no
+ * cabeçalho e selo de frescor no rodapé. Tudo a partir das conferências do topo (mesmo helper).
  */
 import {
   useEffect,
@@ -22,6 +27,13 @@ import {
   type MouseEvent,
 } from 'react';
 import { TABLE_HEADER_STYLE, TABLE_STYLES } from '@/components/ui/table/tableStyles';
+import ChipConferencia from '@/components/analiseAtivos/comum/ChipConferencia';
+import {
+  MenuBlocoPagina,
+  useConferenciaPagina,
+} from '@/components/analiseAtivos/comum/PorQueConferencia';
+import { RodapeFrescorBloco } from '@/components/analiseAtivos/ativo/topo/SeloFrescor';
+import { anoDaChave } from '@/services/analiseAtivos/leitura/ativo/conferenciasAtivo';
 import { formatarAnalise } from '@/components/analiseAtivos/comum/formatarAnalise';
 import {
   PERIODOS_GRAFICO,
@@ -30,7 +42,8 @@ import {
   type PontoJanela,
 } from '@/services/analiseAtivos/leitura/ativo/seriesGrafico';
 import { TEXTOS_TELA, formatarTexto } from '@/services/analiseAtivos/textosTela';
-import type { GraficoLucroCotacaoProps } from '@/types/analiseAtivosApi';
+import type { GraficoAtivo, GraficoLucroCotacaoProps } from '@/types/analiseAtivosApi';
+import type { DadoBlocoReporte } from '@/types/analiseAtivosCuradoria';
 
 export type { GraficoLucroCotacaoProps };
 
@@ -90,6 +103,40 @@ function caminho(
     aberto = true;
   });
   return d;
+}
+
+/** Trecho [de, ate] da série (inclusive), para desenhar a parte em conferência tracejada. */
+function trecho(
+  pontos: PontoJanela[],
+  campo: 'b100',
+  x: (i: number) => number,
+  y: (v: number) => number,
+  de: number,
+  ate: number,
+): string {
+  let d = '';
+  let aberto = false;
+  pontos.forEach((p, i) => {
+    if (i < de || i > ate) return;
+    const v = p[campo];
+    if (v === null) return;
+    d += `${aberto ? 'L' : 'M'}${x(i).toFixed(1)},${y(v).toFixed(1)}`;
+    aberto = true;
+  });
+  return d;
+}
+
+/** Índice do 1º ponto da janela na data `desde` ou depois (chave 'AAAA' ou 'AAAA-MM'). */
+export function indiceDesde(pontos: readonly { chave: string }[], desde: string): number {
+  return pontos.findIndex((p) =>
+    p.chave.length === 4
+      ? Number(p.chave) >= Number(desde.slice(0, 4))
+      : p.chave >= desde.slice(0, 7),
+  );
+}
+
+function dataBr(iso: string): string {
+  return `${iso.slice(8, 10)}/${iso.slice(5, 7)}/${iso.slice(0, 4)}`;
 }
 
 function passo(lo: number, hi: number): number {
@@ -201,6 +248,51 @@ export default function GraficoLucroCotacao({ ticker, classe, grafico }: Grafico
     setAtivo(Math.max(0, Math.min(slots - 1, i)));
   };
 
+  // bloco C: cotação em conferência desde a detecção; ano dos demonstrativos em conferência
+  const ctx = useConferenciaPagina();
+  const confCotacao =
+    ctx?.conferencias.find(
+      (c) => (c.grupo === 'preco_base' || c.grupo === 'preco_esporadico') && c.desde,
+    ) ?? null;
+  const idxConf = confCotacao?.desde ? indiceDesde(pontos, confCotacao.desde) : -1;
+  // o 'últ. 12m' é sempre o ponto mais recente: com a cotação em conferência ele também está, mesmo
+  // quando a data da detecção cai depois do último ano fechado (idxConf = -1)
+  const ultConf = !!confCotacao?.desde && temUlt && janela.ult12m?.b100 != null;
+  const confLpa = ctx?.conferencias.find((c) => c.grupo === 'fundamentos_escala') ?? null;
+  const anoLpa = confLpa?.desde ? anoDaChave(confLpa.desde) : null;
+  const idxLpa =
+    anoLpa !== null && !mensal ? pontos.findIndex((p) => p.chave === String(anoLpa)) : -1;
+  const confGrafico = confCotacao ?? confLpa;
+  const notaConf = [
+    confCotacao?.desde && (idxConf >= 0 || ultConf)
+      ? formatarTexto(TEXTOS_TELA.telaConferencia.cotacaoTracejada, {
+          data: dataBr(confCotacao.desde),
+        })
+      : null,
+    anoLpa !== null && idxLpa >= 0
+      ? formatarTexto(TEXTOS_TELA.telaConferencia.lpaTracejado, { ano: anoLpa })
+      : null,
+  ].filter((n): n is string => !!n);
+
+  // "Qual dado?" do relato: o ponto mais recente de cada série como na tela ('últ. 12m' ou o
+  // último ano/mês com valor)
+  const dadoSerie = (
+    serie: GraficoAtivo['serieA'],
+    ult: number | null | undefined,
+    campo: DadoBlocoReporte['campo'],
+  ): DadoBlocoReporte | null => {
+    if (ult !== null && ult !== undefined)
+      return { campo, rotulo: serie.rotulo, valorExibido: moeda(ult), periodo: t.ult12m };
+    const p = [...serie.pontos].reverse().find((q) => q.valor !== null);
+    return p
+      ? { campo, rotulo: serie.rotulo, valorExibido: moeda(p.valor), periodo: rotuloChave(p.chave) }
+      : null;
+  };
+  const dadosRelato = [
+    dadoSerie(grafico.serieA, grafico.ult12m?.a, classe === 'fii' ? 'vpCota' : 'lpa'),
+    dadoSerie(grafico.serieB, grafico.ult12m?.b, 'preco'),
+  ].filter((d): d is DadoBlocoReporte => d !== null);
+
   const titulo = grafico.titulo;
   const insuficiente = grafico.insuficiente || janela.insuficiente;
   const baseTexto = janela.base
@@ -220,32 +312,45 @@ export default function GraficoLucroCotacao({ ticker, classe, grafico }: Grafico
           <h2 id={`${id}-h`} className="text-base font-semibold text-gray-800 dark:text-white/90">
             {titulo}
           </h2>
-          <div
-            role="group"
-            aria-label={g.periodoGrupo}
-            className="inline-flex gap-0.5 rounded-xl bg-gray-100 p-[3px] dark:bg-gray-800"
-          >
-            {periodos.map((p) => (
-              <button
-                key={p}
-                type="button"
-                aria-pressed={periodo === p}
-                aria-label={formatarTexto(g.periodoAria, { n: p.replace('A', '') })}
-                onClick={() => {
-                  setPeriodo(p);
-                  setAtivo(null);
-                }}
-                className={`min-h-11 min-w-11 rounded-lg px-3 text-sm font-medium sm:min-h-[34px] ${
-                  periodo === p
-                    ? 'bg-white text-gray-800 shadow-sm dark:bg-gray-900 dark:text-white'
-                    : 'text-gray-500 dark:text-gray-400'
-                }`}
-              >
-                {p}
-              </button>
-            ))}
-          </div>
+          <span className="inline-flex items-center gap-2">
+            <div
+              role="group"
+              aria-label={g.periodoGrupo}
+              className="inline-flex gap-0.5 rounded-xl bg-gray-100 p-[3px] dark:bg-gray-800"
+            >
+              {periodos.map((p) => (
+                <button
+                  key={p}
+                  type="button"
+                  aria-pressed={periodo === p}
+                  aria-label={formatarTexto(g.periodoAria, { n: p.replace('A', '') })}
+                  onClick={() => {
+                    setPeriodo(p);
+                    setAtivo(null);
+                  }}
+                  className={`min-h-11 min-w-11 rounded-lg px-3 text-sm font-medium sm:min-h-[34px] ${
+                    periodo === p
+                      ? 'bg-white text-gray-800 shadow-sm dark:bg-gray-900 dark:text-white'
+                      : 'text-gray-500 dark:text-gray-400'
+                  }`}
+                >
+                  {p}
+                </button>
+              ))}
+            </div>
+            <MenuBlocoPagina bloco="grafico" dados={dadosRelato} />
+          </span>
         </div>
+        {confGrafico ? (
+          <span className="self-start" data-grafico-conferencia={confGrafico.grupo}>
+            <ChipConferencia
+              conferencia={confGrafico}
+              campo={confCotacao ? 'preco' : 'lucroLiquido'}
+              rotuloCampo={confCotacao ? grafico.serieB.rotulo : grafico.serieA.rotulo}
+              bloco="grafico"
+            />
+          </span>
+        ) : null}
 
         {insuficiente ? (
           <p className="rounded-xl border border-dashed border-gray-300 px-3 py-6 text-center text-sm text-gray-500 dark:border-gray-700 dark:text-gray-400">
@@ -408,18 +513,55 @@ export default function GraficoLucroCotacao({ ticker, classe, grafico }: Grafico
                       {t.ult12m}
                     </text>
                   ) : null}
-                  <path
-                    d={caminho(pontos, 'b100', x, y)}
-                    fill="none"
-                    strokeWidth={2.2}
-                    className={COR_B.stroke}
-                  />
+                  {idxConf >= 0 ? (
+                    <>
+                      <path
+                        d={trecho(pontos, 'b100', x, y, 0, Math.max(0, idxConf - 1))}
+                        fill="none"
+                        strokeWidth={2.2}
+                        className={COR_B.stroke}
+                      />
+                      <path
+                        data-trecho-conferencia=""
+                        d={trecho(
+                          pontos,
+                          'b100',
+                          x,
+                          y,
+                          Math.max(0, idxConf - 1),
+                          pontos.length - 1,
+                        )}
+                        fill="none"
+                        strokeWidth={2.2}
+                        strokeDasharray="5 4"
+                        className={COR_B.stroke}
+                      />
+                    </>
+                  ) : (
+                    <path
+                      d={caminho(pontos, 'b100', x, y)}
+                      fill="none"
+                      strokeWidth={2.2}
+                      className={COR_B.stroke}
+                    />
+                  )}
                   <path
                     d={caminho(pontos, 'a100', x, y)}
                     fill="none"
                     strokeWidth={2.2}
                     className={COR_A.stroke}
                   />
+                  {idxLpa >= 0 && pontos[idxLpa]?.a100 != null ? (
+                    <circle
+                      data-ponto-conferencia=""
+                      cx={x(idxLpa)}
+                      cy={y(pontos[idxLpa].a100 as number)}
+                      r={5}
+                      strokeWidth={1.6}
+                      strokeDasharray="2 2"
+                      className={`fill-white dark:fill-gray-900 ${COR_A.stroke}`}
+                    />
+                  ) : null}
                   {pontos.map((p, i) =>
                     p.lacuna ? (
                       <circle
@@ -438,10 +580,12 @@ export default function GraficoLucroCotacao({ ticker, classe, grafico }: Grafico
                     <>
                       {janela.ult12m.b100 !== null ? (
                         <circle
+                          data-ponto-conferencia={ultConf ? '' : undefined}
                           cx={x(ultIdx)}
                           cy={y(janela.ult12m.b100)}
-                          r={4}
-                          strokeWidth={2}
+                          r={ultConf ? 5 : 4}
+                          strokeWidth={ultConf ? 1.6 : 2}
+                          strokeDasharray={ultConf ? '2 2' : undefined}
                           className={`fill-white dark:fill-gray-900 ${COR_B.stroke}`}
                         />
                       ) : null}
@@ -491,6 +635,7 @@ export default function GraficoLucroCotacao({ ticker, classe, grafico }: Grafico
 
         <figcaption className="text-xs text-gray-500 dark:text-gray-400">
           {grafico.figcaption} {grafico.lacunas.length > 0 ? `${t.lacunaPrejuizo}. ` : null}
+          {notaConf.length > 0 ? `${notaConf.join(' ')} ` : null}
           {!insuficiente ? (
             <button
               type="button"
@@ -503,6 +648,7 @@ export default function GraficoLucroCotacao({ ticker, classe, grafico }: Grafico
           ) : null}
         </figcaption>
       </figure>
+      <RodapeFrescorBloco bloco="grafico" />
     </section>
   );
 }

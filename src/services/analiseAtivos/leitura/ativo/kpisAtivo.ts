@@ -7,11 +7,21 @@
  * CAGR do lucro por ação em 5 anos FECHADOS (series.cagrJanela).
  * FIIs: DY 12m, P/VP, rendimento/cota 12m, patrimônio, cotistas, liquidez 21d, Obrigações/PL e
  * vacância (fonte CVM; papel = n/a). Sem cap rate.
+ *
+ * Bloco C (só flags 'conf:', params v2): a política de conferenciasAtivo.aplicarConferenciaCampo
+ * vale para cada KPI cujo código é um campo de tela — 'ocultar' vira '—' (número calculado só em
+ * valorNaoPublicado, para o "Por quê?") e sem a linha de apoio; 'selo' mantém o valor. Nos dois,
+ * selo 'em_conferencia'. O legado de proventos continua com 'proventos_em_conferencia'.
  */
 import { formatarNumeroBR, formatarTexto } from '@/services/analiseAtivos/textos';
 import { TEXTOS_TELA, textoMotivo, textoNaoSeAplica } from '@/services/analiseAtivos/textosTela';
 import { cagrJanela } from '@/services/analiseAtivos/leitura/ativo/series';
 import { FLAG_CNPJ_EM_CONFERENCIA } from '@/services/analiseAtivos/quadro/montarLinhasQuadro';
+import {
+  aplicarConferenciaCampo,
+  estadoOcultoConferencia,
+} from '@/services/analiseAtivos/leitura/ativo/conferenciasAtivo';
+import { ehCampoTela } from '@/services/analiseAtivos/regras/comum/conferencia';
 import type { Estado, KpiAtivo, LinhaQuadroApi, PontoSerieAnual } from '@/types/analiseAtivosApi';
 
 export const PARES_MINIMOS_REFERENCIA = 3;
@@ -35,6 +45,13 @@ export interface EntradaKpis {
   lpaAnual?: readonly PontoSerieAnual[];
   /** FIIs: data (AAAA-MM-DD) do informe mensal do patrimônio */
   patrimonioData?: string | null;
+  /** motivos do Índice da linha (AnaliseQuadroLinha.motivosIncompleto), para o legado */
+  motivosIncompleto?: readonly string[];
+  /**
+   * Números brutos da linha do Quadro por código de KPI (a linha da API já esconde os campos
+   * 'ocultar'): só para o "não publicado" do "Por quê?" da página.
+   */
+  brutos?: Partial<Record<string, number | null>>;
 }
 
 const R = TEXTOS_TELA.ativo.kpis;
@@ -322,6 +339,26 @@ function kpisFii(e: EntradaKpis): KpiAtivo[] {
   ];
 }
 
+/** Política de conferência (bloco C) sobre os KPIs já montados. Sem 'conf:' ⇒ lista igual. */
+function comConferencia(e: EntradaKpis, kpis: KpiAtivo[]): KpiAtivo[] {
+  const { linha } = e;
+  const motivos = e.motivosIncompleto ?? linha.indice.motivos.map((m) => m.codigo);
+  return kpis.map((k) => {
+    if (!ehCampoTela(k.codigo)) return k;
+    const r = aplicarConferenciaCampo(k.valor, linha.flags, motivos, k.codigo, linha.classe, {
+      pagina: true,
+    });
+    if (!r.conf) return k;
+    const oculto = r.conf.exibicao === 'ocultar';
+    const bruto = e.brutos?.[k.codigo];
+    const valor =
+      oculto && r.estado.estado === 'ausente' && r.estado.valorNaoPublicado === undefined
+        ? estadoOcultoConferencia(r.conf.grupo, bruto)
+        : r.estado;
+    return { ...k, valor, sub: oculto ? null : k.sub, selo: 'em_conferencia' };
+  });
+}
+
 export function montarKpis(e: EntradaKpis): KpiAtivo[] {
-  return e.linha.classe === 'fii' ? kpisFii(e) : kpisAcao(e);
+  return comConferencia(e, e.linha.classe === 'fii' ? kpisFii(e) : kpisAcao(e));
 }

@@ -148,6 +148,9 @@ model User {
   // Análise de Ativos — Fase 1 (tese privada e lista do beta)
   analiseTeses                  AnaliseTese[]                 @relation("AnaliseTeseUser")
   featureBetas                  FeatureBetaUser[]             @relation("FeatureBetaUserUser")
+  analiseCasosResponsavel       AnaliseCasoDado[]             @relation("AnaliseCasoResponsavel")
+  analiseReportes               AnaliseDataReport[]           @relation("AnaliseReporteAutor")
+  analiseReportesCliente        AnaliseDataReport[]           @relation("AnaliseReporteCliente")
 }
 
 /**
@@ -2617,4 +2620,122 @@ model FeatureBetaUser {
   @@unique([recurso, userId])
   @@index([userId])
   @@map("feature_beta_users")
+}
+
+// ---------------------------------------------------------------------------------------------
+// Análise de Ativos — bloco C (relatar dado incorreto + curadoria). Migration aditiva
+// 20261010000000_analise_ativos_bloco_c. Contratos: src/services/analiseAtivos/curadoria/contrato.ts
+// e src/services/analiseAtivos/regras/comum/conferencia.ts.
+// ---------------------------------------------------------------------------------------------
+
+/**
+ * Caso de curadoria = ativo × dado (symbol, campo, período). Junta relatos de usuários e detecções
+ * das regras de sanidade numa fila só (/admin/curadoria).
+ */
+model AnaliseCasoDado {
+  id                String              @id @default(uuid())
+  symbol            String
+  cnpj              String?
+  // acao | fii
+  classe            String
+  // GrupoConferencia | 'outro'
+  grupo             String
+  campo             String
+  periodo           String?
+  // usuario | regra | misto
+  origem            String
+  regraCodigo       String?
+  chaveDeteccao     String?
+  // chaveCaso(); null ao fechar (permite novo caso para o mesmo dado depois)
+  chaveAberta       String?             @unique
+  // aberto | em_analise | corrigido | rejeitado
+  status            String              @default("aberto")
+  resolucao         String?
+  // manter_conferencia | liberar_valor | sem_efeito
+  efeitoTela        String?
+  // regra bloqueante ativa no último run
+  emConferencia     Boolean             @default(false)
+  regraAtiva        Boolean             @default(false)
+  // reservado (decisão 16: sem conferência manual nesta fase; fica sempre false)
+  conferenciaManual Boolean             @default(false)
+  // 5 dias úteis (calendário B3) desde o 1º relato; null = caso só de regra (sem prazo)
+  slaAte            DateTime?           @db.Date
+  responsavelId     String?
+  responsavel       User?               @relation("AnaliseCasoResponsavel", fields: [responsavelId], references: [id], onDelete: SetNull)
+  notaCurador       String?             @db.Text
+  respostaPublica   String?             @db.VarChar(500)
+  contexto          Json
+  nReportes         Int                 @default(0)
+  casoAnteriorId    String?
+  abertoEm          DateTime            @default(now())
+  ultimaDeteccaoEm  DateTime?
+  resolvidoEm       DateTime?
+  resolvidoPorId    String?
+  updatedAt         DateTime            @updatedAt
+  reportes          AnaliseDataReport[]
+  eventos           AnaliseCasoEvento[]
+
+  @@index([status, slaAte])
+  @@index([symbol, status])
+  @@index([origem, status])
+  @@index([regraCodigo, chaveDeteccao])
+  @@index([conferenciaManual, status])
+  @@map("analise_casos_dado")
+}
+
+/**
+ * Relato de dado incorreto feito por um usuário, com o contexto exibido na tela e o snapshot do
+ * servidor. Texto livre (mensagem, valorEsperado, fonteEsperada) é anonimizado na exclusão de conta
+ * e 12 meses após o fechamento do caso (anonimizadoEm).
+ */
+model AnaliseDataReport {
+  id               String          @id @default(uuid())
+  protocolo        String          @unique @db.VarChar(12)
+  casoId           String
+  caso             AnaliseCasoDado @relation(fields: [casoId], references: [id], onDelete: Cascade)
+  // autor logado (o consultor, quando age pelo cliente)
+  userId           String
+  user             User            @relation("AnaliseReporteAutor", fields: [userId], references: [id], onDelete: Cascade)
+  clienteId        String?
+  cliente          User?           @relation("AnaliseReporteCliente", fields: [clienteId], references: [id], onDelete: SetNull)
+  symbol           String
+  bloco            String
+  campo            String
+  periodo          String?         @db.VarChar(32)
+  valorExibido     String?         @db.VarChar(64)
+  valorEsperado    String?         @db.VarChar(64)
+  fonteExibida     String?         @db.VarChar(160)
+  frescorExibido   String?         @db.VarChar(160)
+  versaoQuadro     String          @db.VarChar(40)
+  mensagem         String          @db.VarChar(1000)
+  fonteEsperada    String?         @db.VarChar(300)
+  contextoServidor Json
+  respondidoEm     DateTime?
+  anonimizadoEm    DateTime?
+  createdAt        DateTime        @default(now())
+
+  @@index([userId, createdAt])
+  @@index([symbol, createdAt])
+  @@index([casoId])
+  @@index([createdAt])
+  @@map("analise_data_reports")
+}
+
+/**
+ * Auditoria do caso (toda ação do curador, do job e de relato). autorId null = sistema.
+ */
+model AnaliseCasoEvento {
+  id        String          @id @default(uuid())
+  casoId    String
+  caso      AnaliseCasoDado @relation(fields: [casoId], references: [id], onDelete: Cascade)
+  autorId   String?
+  // aberto|reporte|regra_disparou|regra_cessou|assumido|solto|decisao|nota|notificado
+  tipo      String
+  de        String?
+  para      String?
+  texto     String?         @db.VarChar(2000)
+  createdAt DateTime        @default(now())
+
+  @@index([casoId, createdAt])
+  @@map("analise_casos_eventos")
 }

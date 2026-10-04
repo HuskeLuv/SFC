@@ -1,0 +1,610 @@
+{
+  "arquitetura": {
+    "resumo": "Versão final do bloco C da Análise de Ativos. Ela incorpora as 13 críticas e segue o protótipo (docs/analise-ativos/fase1/prototipo.html + protótipo do bloco C). Conferi no código as críticas de evidência verificável: estadoCampo em linhasQuadro.ts:219-251 devolve 'ok' antes de checar conferência; a exclusão de conta em profile/route.ts:197-216 anonimiza e não apaga; normalizarTexto em comunidade/permissoes.ts:49-53 só trata CRLF; a chave de rate limit em middleware.ts:208-215 não considera o método; comConferenciaDaEmpresa em recalcularScores.ts:399-414 hoje só contamina o DY. As 13 procedem.\n\nO bloco tem duas partes que se encontram numa fila só de curadoria.\n\n(1) MOTOR DE CONFERÊNCIA\n- A trava do DY 12m vira um padrão por GRUPO de indicadores. As regras puras rodam nos jobs derivados/scores e no recalcular-analise, e gravam flags novas 'conf:<grupo>:<regra>@<chave>' (bloqueante), 'rev:<regra>@<chave>' (só abre caso) e 'info:<codigo>' (só selo).\n- O grupo bloqueado entra no Índice MF e no semáforo como ausente('em_conferencia'), que já existe para o DY: motivo '<comp>:em_conferencia', nota 0, Índice incompleto.\n- O contrato central (regras/comum/conferencia.ts) define, por grupo:\n  - os campos de tela;\n  - os componentes do Índice;\n  - o ESCOPO de contaminação: 'empresa' ou 'ticker'. Problema de preço de um ticker secundário não contamina a ON de referência.\n  - a POLÍTICA DE EXIBIÇÃO: 'ocultar' (valor fora de escala vira '—'; o número só aparece no 'Por quê?' como 'não publicado') ou 'selo' (valor plausível com o chip 'em conferência').\n- O legado de proventos continua no caminho de hoje (valor + selo). Só as flags 'conf:' usam o caminho novo. Como a v1 nunca grava 'conf:', com a v1 a tela fica idêntica.\n- Os parâmetros ficam em ScoringParams.sanidade.conferencia: default ligada:false na v1 (comportamento igual) e ligada na v2.\n\n(2) RELATAR DADO INCORRETO\n- Três tabelas aditivas: analise_casos_dado (caso = ativo × dado), analise_data_reports (relato com o contexto exibido, valor esperado e snapshot do servidor) e analise_casos_eventos (auditoria).\n- Envio: POST /api/analise-ativos/reportes com zod strict, CSRF, saneador próprio contra controle/bidi/zero-width, HTML rejeitado, tier de IP só nessa rota e limites no banco (5/dia por usuário, 3/h por ativo, 300/dia global). Relato duplicado responde 409 e leva ao relato existente. O consultor que age pelo cliente fica registrado.\n- 'Meus relatos': GET separado em /api/analise-ativos/meus-reportes, num bucket de rate limit próprio.\n- Fila do curador em /admin/curadoria e /admin/curadoria/[id]. É a primeira tela de escrita do admin; o /admin continua só leitura e ganha um card.\n- A decisão do curador separa o status do caso do efeito na tela ('manter em conferência' / 'liberar o valor'). Conferência manual por relato confirmado (ex.: vacância do HGLG11) é exibição apenas.\n- Caso 'misto' (regra + relato) nunca fecha sozinho. O relato só anexa a um caso de regra se o campo pertence ao grupo. 'fonte_corrigiu' automático só vale com o campo de volta a 'ok' na linha de hoje.\n- Notificações:\n  - Admins: no sino a cada caso novo de usuário, dependendo só de REPORTE_HABILITADO.\n  - Digest de SLA: '≤ 2 dias úteis' e vencidos, com push.\n  - Autor: sino + push ao fechar.\n- LGPD: a exclusão de conta anonimiza o texto livre; os relatos entram no export; retenção de 12 meses após o fechamento dentro do lgpd-retention existente.\n\nMedição no DEV (Quadro DEV: ações 165 calc / 120 incompl / 45 zero; FIIs 216 / 61 / 57 FoF):\n- A regra literal de 40% marca 57% das empresas (149/260; o lucro sozinho, 134). Medição independente: 148/128.\n- A de 5% provedor×CVM marca 40-97% dos FIIs.\n- Bloqueios calibrados: 0 ação calculada muda de estado e 4-5 FIIs passam de calculado a incompleto. Com o piso de P/VP de FII baixado para 0,25, o MMVE11 sai e passa a depender do 2º sinal.\n- A regra de lucro do designer (×/÷3) marcaria PRIO3, que está calculado e é queda real. Por isso o lucro é só caso; essa divergência está explícita nas perguntas.\n\nCinco fatias sem arquivos em comum: 0 contratos → A motor, B tela consistente, C curadoria admin, D relato do usuário + LGPD.",
+    "fatias": [
+      {
+        "id": "0",
+        "titulo": "Contratos: schema, params v2, contrato de conferência (grupos, escopo, exibição), contrato de curadoria, tipos, textos, stubs, decisões",
+        "objetivo": "Congelar tudo o que A, B, C e D compartilham. Faz merge PRIMEIRO. Fecha a tabela de decisões arquiteto×designer antes de qualquer outra fatia.",
+        "arquivos_novos": [
+          "prisma/migrations/20261010000000_analise_ativos_bloco_c/migration.sql",
+          "scripts/analise-ativos/apply-migration-bloco-c.ts",
+          "src/services/analiseAtivos/regras/comum/conferencia.ts",
+          "src/services/analiseAtivos/regras/comum/__tests__/conferencia.test.ts",
+          "src/services/analiseAtivos/params/scoringParamsV2.ts",
+          "src/services/analiseAtivos/curadoria/contrato.ts",
+          "src/services/analiseAtivos/curadoria/__tests__/contrato.test.ts",
+          "src/services/analiseAtivos/curadoria/sincronizarCasos.ts",
+          "src/types/analiseAtivosCuradoria.ts",
+          "src/components/analiseAtivos/reporte/MenuBlocoAtivo.tsx",
+          "src/components/analiseAtivos/reporte/BotaoReportarDado.tsx",
+          "docs/analise-ativos/bloco-c/decisoes.md",
+          "docs/analise-ativos/bloco-c/ATIVACAO.md"
+        ],
+        "arquivos_alterados": [
+          "prisma/schema.prisma",
+          "src/services/analiseAtivos/params/scoringParamsSchema.ts",
+          "src/services/analiseAtivos/params/__tests__/scoringParams.test.ts",
+          "scripts/analise-ativos/seed-scoring-params.ts",
+          "src/types/analiseAtivosApi.ts",
+          "src/services/analiseAtivos/textosTela.ts",
+          "src/services/analiseAtivos/__tests__/textosTela.test.ts",
+          "src/lib/analiseAtivosConfig.ts",
+          "src/app/api/analise-ativos/config/route.ts",
+          "src/services/analiseAtivos/jobs/nomesJobs.ts",
+          "src/services/analiseAtivos/jobs/catalogoJobs.ts"
+        ],
+        "detalhes": "1) decisoes.md: tabela fechada das divergências, com a decisão aplicada até o Wellington dizer o contrário. É a mesma das perguntas.\n- Rota da fila: /admin/curadoria e /admin/curadoria/[id] (protótipo).\n- Duplicado: 409 {casoId, reporteId} (protótipo).\n- Limite: 5/dia (protótipo).\n- Retenção: 12 meses após o fechamento + export (protótipo).\n- valorEsperado: entra no schema (protótipo).\n- Lucro: só caso (arquitetura; o protótipo troca o C1 por SBSP3 preco_base).\n- VAMO3: todos os campos de acoes_escala viram '—' (regra do próprio designer, aplicada também ao Nº de ações, EV/EBITDA e P/Receita).\n- Conferência manual pelo curador: incluída, só de exibição.\n- Meus relatos: incluída como lista global.\n\n2) Prisma: AnaliseCasoDado, AnaliseDataReport e AnaliseCasoEvento (schema_prisma) + relações em User. Migration idempotente (CREATE TABLE/INDEX IF NOT EXISTS) no padrão de apply-migration-fase1.ts: reaproveita dividirStatements e recusa statement não aditivo.\n\n3) conferencia.ts (puro):\n- GrupoConferencia = 'proventos'|'acoes_escala'|'preco_base'|'preco_esporadico'|'fundamentos_escala'|'historico'|'fii_vp'|'fii_obrigacoes'|'manual'.\n- DEF_GRUPO: Record<Grupo, {escopo:'empresa'|'ticker', componentes:{acao?:Comp[], fii?:Comp[]}, campos: Record<CampoTela, 'ocultar'|'selo'>, criteriosSemaforo: string[]}>. Valores:\n  - proventos: empresa · div · dy12m/payout/rend12m = selo (o comportamento de hoje).\n  - acoes_escala: empresa · acao[preco] · pl/pvp/valorMercado/evEbitda/pReceita/pFco/pFcl/lpa/vpa/nAcoes = ocultar.\n  - preco_base: ticker · [div, preco] · dy12m/pl/pvp/evEbitda/valorMercado = ocultar; preco = selo.\n  - preco_esporadico: ticker · [div, preco] · preco/pvp/dy12m = selo.\n  - fundamentos_escala: empresa · acao[divida, rent, preco] · receita/lucro/pl/ativo e derivados = ocultar.\n  - historico: empresa · ponto anual = ocultar (sai da média e da barra).\n  - fii_vp: ticker (o FII é o próprio ticker) · fii[preco] · vpCota/pvp = ocultar.\n  - fii_obrigacoes: ticker · fii[divida] · obrigacoesPl = selo.\n  - manual: ticker · nenhum componente · campo do caso = selo (ex.: vacância HGLG11).\n- Flags: formatarFlagConf/parseFlagConf ('conf:<grupo>:<regra>@<chave>'; 'manual' usa regra=<campo>, chave=<casoId 8 chars>), formatarFlagRev/parseFlagRev, 'info:cotacao_esporadica'. A chave não leva ':' nem '@'.\n- gruposConf(flags) lê SÓ as flags 'conf:'. gruposLegados(flags, motivos) mapeia 'proventos_em_conferencia_*', 'provento_suspeito' e 'proventos_defasados_*' para proventos, e 'cnpj_em_conferencia' para exibição. As duas funções são separadas para a leitura nova não mudar o legado.\n- campoEmConferencia(flags, motivos, campo) → {grupo, regra, chave, exibicao, origem:'conf'|'legado'} | null. O legado sempre devolve exibicao 'selo' e origem 'legado'.\n- deveContaminarEmpresa(grupo, symbolMarcado, tickerReferencia): empresa → true; ticker → symbolMarcado === tickerReferencia.\n\n4) curadoria/contrato.ts:\n- STATUS_CASO; TRANSICOES (aberto→em_analise|corrigido|rejeitado; em_analise→aberto|corrigido|rejeitado; fechado é final).\n- RESOLUCOES (corrigido: corrigido_fonte|corrigido_reprocessado|fonte_corrigiu; rejeitado: dado_confirmado|sem_procedencia|duplicado).\n- EFEITO_TELA = 'manter_conferencia'|'liberar_valor'|'sem_efeito'.\n- chaveCaso({symbol, campo, periodo?}) (caso = ativo × dado); campoPertenceAoGrupo(campo, grupo).\n- BLOCOS_REPORTE e CAMPOS_REPORTAVEIS (+ 'outro'); blocos sem menu: carteira, tese, educação.\n- LIMITES: mensagem 10..1000, valorEsperado 64, fonteEsperada 300, valorExibido 64, periodo 32, fonte/frescor 160, porDia 5, porHoraAtivo 3, globalDia 300, respostaPublica 500, notaCurador 2000.\n- slaAte(data, 5) e diasUteisRestantes com o calendário de regras/comum/pregoes.\n- sanearTextoLivre(s): NFC; remove \\p{Cc} exceto \\n e \\t; remove U+200B–U+200F, U+202A–U+202E, U+2066–U+2069, U+FEFF e U+00AD; CRLF→LF; colapsa espaços e ≥3 quebras; trim. contemHtml(s): /<[a-zA-Z\\/!?]/.\n- TIPOS_NOTIFICACAO = {novoCaso:'analise_ativos_reporte', resposta:'analise_ativos_reporte_resposta', sla:'analise_ativos_curadoria_sla'}.\n\n5) scoringParamsSchema: sanidade.conferencia strictObject .default({ligada:false, ...}), com os limiares de regras_sanidade (pvpMin 0,08, plMin 0,5, vmRazao 10, historicoRazao 20/min 2 múltiplos, precoBase {salto 0,40, tolFator 0,08, persistir 5, tolPersist 0,15, negociosMin 20, janelaDias 365, fatores[]}, esporadico {pregoesMin 5 em 21, faixaPvpFii [0,25;1,6], faixaPvpAcao [0,1;15], desvioMediana60 0,30}, fiiVpSalto 0,40, fiiObrigacoesMax 100, fundamentosRazao 10, rev {...}). scoringParamsV2 = v1 + versao 2 + ligada true. seed --versao=1|2, que nunca altera versão existente.\n\n6) Tipos aditivos:\n- analiseAtivosApi.ts:\n  - TipoSeloEstado += 'em_conferencia' | 'cotacao_esporadica'.\n  - Estado ausente ganha o opcional exibicao?:'ocultar'|'selo' e valorNaoPublicado?:number (só para o 'Por quê?' na página; o Quadro nunca envia).\n  - ConferenciaTela {grupo, campos, exibicao, motivo, desde, efeitoIndice:string|null, origem:'regra'|'relato_confirmado', caso:{status, atualizadoEm}|null}.\n  - LinhaQuadroApi.conferencias: string[].\n  - AtivoTopoResposta.conferencias.\n  - FrescorBloco {fonte, referencia, atualizadoEm, status:'em_dia'|'atrasado'|'sem_dado', documentoEsperado?}.\n  - ConfigResposta.reporteHabilitado.\n- analiseAtivosCuradoria.ts: ReportePostBody/Resposta, ReporteConflito409, MeusReportesResposta, CasoListaItem, CasosListaResposta, CasoDetalheResposta, CasoPatchBody, MenuBlocoProps e BotaoReportarDadoProps.\n\n7) textosTela.relatos e textosTela.conferencia: motivos por regra, 'Por quê?', selos, formulário, estados (inválido, enviando, enviado com protocolo, rede, 429, 409), Meus relatos ('Conferido, sem alteração' para rejeitado), notificações, fila e SLA. Todos varridos por contemUsoProibido. Nunca 'nota' na UI pública.\n\n8) analiseAtivosConfig.analiseAtivosReporteHabilitado(); /config devolve o campo.\n\n9) Job 'curadoria' em NOMES_JOBS/CATALOGO_JOBS (120 s). sincronizarCasos.ts nasce STUB com a assinatura final e passa à fatia C.\n\n10) MenuBlocoAtivo.tsx: botão ⋯ de 44×44 em TODAS as larguras (o protótipo dizia 36px no computador; corrigido), com aria-label 'Opções do bloco <X>'. Itens de 44px no computador e 52px no sheet: 'Reportar dado incorreto' e 'Fonte e atualização'. Desktop = menu de 248px; celular = BottomSheet + useMobileHistoryLayer. É o componente final, não stub, porque B o encaixa nos blocos. O item 'Reportar' renderiza o slot BotaoReportarDado.\n\n11) BotaoReportarDado.tsx: STUB (devolve null) com as props finais; passa à fatia D.",
+        "testes": "Vitest:\n- conferencia:\n  - round-trip de flags;\n  - legado separado de 'conf:';\n  - campoEmConferencia por grupo×classe×exibição;\n  - deveContaminarEmpresa com ON/PN;\n  - chave inválida rejeitada.\n- contrato:\n  - transições;\n  - slaAte com feriado de 12/10 e fim de semana;\n  - sanearTextoLivre removendo U+202E, U+200B, U+FEFF e \\u0007 e mantendo acentos e emoji;\n  - contemHtml.\n- scoringParams: v1 válida com ligada=false; v2 válida; chave extra = erro.\n- textosTela: varredura de compliance.\n- MenuBlocoAtivo: alvo de 44px, teclado/ARIA, voltar fecha o sheet.\n- Migration: recusa não aditivo.",
+        "criterios_aceite": [
+          "prisma validate e tsc ok; migration 2× no DEV sem erro",
+          "v1 lida do banco gera os mesmos scores da fixture da Fase 1",
+          "decisoes.md fechado e linkado nas fatias",
+          "Tipos só aditivos; fixtures da Fase 1 compilam sem mudança"
+        ]
+      },
+      {
+        "id": "A",
+        "titulo": "Motor de sanidade (regras puras + integração em derivados/scores + leitura de liberações e conferências manuais)",
+        "objetivo": "Detectar dado implausível por grupo, gravar as flags conf:/rev:/info: e aplicar ausente('em_conferencia') com o escopo certo (empresa × ticker), na mesma forma da trava do DY.",
+        "arquivos_novos": [
+          "src/services/analiseAtivos/regras/calculo/sanidade/escalaAcoes.ts",
+          "src/services/analiseAtivos/regras/calculo/sanidade/historicoEscala.ts",
+          "src/services/analiseAtivos/regras/calculo/sanidade/precoBase.ts",
+          "src/services/analiseAtivos/regras/calculo/sanidade/precoEsporadico.ts",
+          "src/services/analiseAtivos/regras/calculo/sanidade/fii.ts",
+          "src/services/analiseAtivos/regras/calculo/sanidade/fundamentosRevisao.ts",
+          "src/services/analiseAtivos/regras/calculo/sanidade/divergenciaFonte.ts",
+          "src/services/analiseAtivos/regras/calculo/sanidade/aplicarConferencia.ts",
+          "src/services/analiseAtivos/regras/calculo/sanidade/__tests__/regras.test.ts",
+          "src/services/analiseAtivos/regras/calculo/sanidade/__tests__/aplicarConferencia.test.ts",
+          "src/services/analiseAtivos/repositorio/curadoria.ts"
+        ],
+        "arquivos_alterados": [
+          "src/services/analiseAtivos/calculo/recalcularScores.ts",
+          "src/services/analiseAtivos/calculo/recalcularDerivados.ts",
+          "src/services/analiseAtivos/calculo/gravarDerivados.ts",
+          "src/services/analiseAtivos/calculo/executarScores.ts",
+          "src/services/analiseAtivos/regras/calculo/multiplos.ts",
+          "src/services/analiseAtivos/regras/calculo/plausibilidadeProventos.ts",
+          "src/services/analiseAtivos/repositorio/cotacoes.ts",
+          "src/services/analiseAtivos/calculo/__tests__/executarScores.test.ts",
+          "scripts/analise-ativos/recalcular-analise.ts"
+        ],
+        "detalhes": "Só roda com p.sanidade.conferencia.ligada (v2). Com a v1 a saída é idêntica.\n\n1) aplicarConferencia(metricas, grupos, classe) troca as métricas dos componentes de DEF_GRUPO por ausente('em_conferencia', '<grupo>:<regra>').\n- comConferenciaDaEmpresa vira comConferenciasDaEmpresa(ref, todos). Para cada ticker da empresa com flag conf:, aplica o grupo à referência SÓ se deveContaminarEmpresa(grupo, c.symbol, ref.symbol). Assim, preco_base e preco_esporadico de uma PN ilíquida NÃO tiram o C_preço da ON (70 linhas do DEV têm tickerReferencia ≠ symbol).\n- Proventos seguem pelo caminho atual (dyIndice + PREFIXO_FLAG_EM_CONFERENCIA), sem mudança.\n- O valor bruto continua gravado na coluna.\n\n2) Regras bloqueantes (puras, com chave determinística):\n- escalaAcoes: P/VP ∈ (0; 0,08) OU P/L ∈ (0; 0,5) OU VM/VM do último FY ∉ [1/10; 10] sem evento confirmado. Chave = data da contagem.\n- historicoEscala, em recalcularDerivados: no ano, ≥ 2 de {P/L, P/VP, P/Receita} a ≥ 20× ou ≤ 1/20 da mediana do ativo. Grava a flag em AssetMultiplesYearly.flags. lerPlAnualGravado e multiplos.historicoPl excluem o ponto; se sobrarem < min, cai em historico_curto.\n- precoBase: serieRecenteCotacoes (closeRaw, negocios, date; 365d; lotes de 50). Marca o salto > 40% sem evento em ±3d, com razão a ±8% de um fator {2,3,4,5,8,10,20,50,100} ou do inverso, persistência de 5 pregões (±15%) e ≥ 20 negócios. Chave = data.\n- precoEsporadico: < 5 pregões com negócio em 21 E (P/VP fora da faixa — FII [0,25; 1,6], ação [0,1; 15] — OU, só para FII, |fechamento/mediana de 60 pregões com negócio − 1| > 30%). Sem isso, grava só 'info:cotacao_esporadica'.\n- fii: |VP/cota último/anterior − 1| > 40% sem fatorDesdobramento → fii_vp; obrigacoesPlPct > 100 → fii_obrigacoes (chave refMonth).\n- fundamentosRevisao (parte bloqueante): receita, ativo ou PL ≥ 10× contra o FY anterior sem flag de escala corrigida.\n\n3) Revisão (rev:, sem efeito):\n- variacao_nivel: > 40%, base ≥ R$ 100 mi.\n- variacao_lucro: ≥ 5×, base ≥ R$ 50 mi, mesmo sinal.\n- fii_cotistas e fii_pl: > 40%.\n- dpa_dmpl: ≥ 3×.\n- rend_fii_cvm: ≥ 2×.\n- preco_brapi: > 5% após deslocar D-1.\n\n4) repositorio/curadoria.ts (somente leitura, 1 query por run):\n- liberacoes(): casos com efeitoTela 'liberar_valor' (resolução dado_confirmado) e (regraCodigo, chaveDeteccao). A regra não marca aquela chave; chave nova marca de novo.\n- conferenciasManuais(): casos ABERTOS com conferenciaManual=true, que geram 'conf:manual:<campo>@<casoId8>' na linha do symbol. Sem componente: só exibição.\n\n5) executarScores: contagens por regra e classe (conferencia/revisao/info) + amostra de 10 símbolos. Alerta 'aviso' se uma regra bloqueante passar de 3% do Quadro de uma classe.\n\n6) recalcular-analise.ts: --versao-params=N (dry-run com a v2 antes de gravá-la) + relatório por regra.\n\n7) plausibilidadeProventos: comportamento igual; só reexporta os helpers do legado via conferencia.ts, sem renomear exports.",
+        "testes": "Fixtures REAIS do DEV:\n- Devem marcar: CBAV3; LAND3; HAPV3 (0,062); SBSP3 em 29/04/26 (DY sai do Índice); GSRF11; APXU11; POMO3 2015–19 (ponto sai da média).\n- Não devem marcar: INHF11 (2 negócios); CGAS3 (P/VP 10,4); FII calculado com P/VP 0,30–0,49 e negociação diária (KNRE11, RECT11); SYNE3 (só rev).\n- MMVE11: só marca se o 2º sinal (mediana 60) disparar; o teste fixa o resultado medido no dry-run.\n- Falsos positivos documentados (AZEV3, LWSA3 2020, SJAU11): 'marca e é liberável'.\n- Escopo: PN esporádica com ON líquida → o C_preço da ON fica ok; acoes_escala na PN → a ON fica incompleta.\n- Liberação: mesma chave não marca; chave nova marca.\n- Manual: caso aberto com conferenciaManual gera a flag sem mudar o Índice.\n- Regressão v1 byte a byte.\n- Consistência: Índice incompleto ⇔ motivo ⇔ flag conf: com componente.",
+        "criterios_aceite": [
+          "Dry-run --versao-params=2 no DEV reproduz regras_sanidade.medicao_dev (±2 por regra) e imprime o relatório",
+          "Ações calculadas no DEV caem ≤ 2%; FIIs ≤ 3%",
+          "v1 ativa ⇒ diferença zero em asset_scores e asset_multiples_current",
+          "Nenhuma regra lê fonte externa; prazo do job scores cresce ≤ 20%"
+        ]
+      },
+      {
+        "id": "B",
+        "titulo": "Tela consistente: 'em conferência' em Quadro, página, semáforo, gráficos e frescor por bloco",
+        "objetivo": "Mesmo estado e mesma política de exibição em todo lugar, a partir das flags e motivos gravados, seguindo o protótipo (chip tracejado = botão 'Por quê?', célula hachurada, anel tracejado, selo de frescor no rodapé de cada card) e o menu ⋯ em cada bloco.",
+        "arquivos_novos": [
+          "src/services/analiseAtivos/leitura/ativo/conferenciasAtivo.ts",
+          "src/services/analiseAtivos/leitura/ativo/frescorBlocos.ts",
+          "src/components/analiseAtivos/comum/ChipConferencia.tsx",
+          "src/components/analiseAtivos/comum/PorQueConferencia.tsx",
+          "src/services/analiseAtivos/leitura/__tests__/matrizConsistencia.test.ts"
+        ],
+        "arquivos_alterados": [
+          "src/services/analiseAtivos/leitura/linhasQuadro.ts",
+          "src/services/analiseAtivos/leitura/ativo/kpisAtivo.ts",
+          "src/services/analiseAtivos/leitura/ativo/montarTopoAtivo.ts",
+          "src/services/analiseAtivos/leitura/ativo/fundamentosEssencial.ts",
+          "src/services/analiseAtivos/leitura/ativo/valuationMultiplos.ts",
+          "src/services/analiseAtivos/leitura/ativo/semaforoTela.ts",
+          "src/services/analiseAtivos/leitura/ativo/frescorAtivo.ts",
+          "src/services/analiseAtivos/leitura/ativo/dividendosAnuais.ts",
+          "src/services/analiseAtivos/quadro/montarLinhasQuadro.ts",
+          "src/components/analiseAtivos/comum/ValorAnalise.tsx",
+          "src/components/analiseAtivos/comum/SeloEstado.tsx",
+          "src/components/analiseAtivos/comum/SeloIncompleto.tsx",
+          "src/components/analiseAtivos/quadro/TabelaQuadro.tsx",
+          "src/components/analiseAtivos/quadro/CartoesQuadro.tsx",
+          "src/components/analiseAtivos/quadro/CabecalhoOrdenavel.tsx",
+          "src/components/analiseAtivos/ativo/topo/BlocoKpis.tsx",
+          "src/components/analiseAtivos/ativo/topo/BlocoIndiceSemaforo.tsx",
+          "src/components/analiseAtivos/ativo/topo/BlocoDividendos.tsx",
+          "src/components/analiseAtivos/ativo/topo/GraficoLucroCotacao.tsx",
+          "src/components/analiseAtivos/ativo/topo/SeloFrescor.tsx",
+          "src/components/analiseAtivos/ativo/analise/CartaoAnalise.tsx",
+          "src/components/analiseAtivos/ativo/analise/CardMultiplo.tsx",
+          "src/components/analiseAtivos/ativo/analise/BlocoFundamentosEssencial.tsx",
+          "src/components/analiseAtivos/ativo/analise/BlocoValuationMultiplos.tsx",
+          "src/components/analiseAtivos/ativo/analise/BlocoMultiplosHistoricos.tsx",
+          "src/components/analiseAtivos/ativo/analise/BarraPosicao10a.tsx",
+          "src/components/analiseAtivos/pagina/PaginaAtivo.tsx",
+          "src/test/fixtures/analiseAtivos/respostas.ts"
+        ],
+        "detalhes": "1) linhasQuadro.estadoCampo (ordem):\n- (a) aplicável e não-se-aplica, como hoje;\n- (b) NOVO: c = campoEmConferencia(...) com origem 'conf'. Se exibicao 'ocultar' → ausente('em_conferencia:<grupo>', texto) SEM valor, no fim da ordenação. Se 'selo' → ok com valor + marca de conferência;\n- (c) caminho de hoje sem mudança: valor finito → ok; legado de proventos → ok com selo via proventosEmConferencia; sem valor → fonte_defasada/sem_dado.\nResultado: como a v1 nunca grava 'conf:', a tela não muda com a v1. O legado de proventos continua 'valor + selo'.\nLinhaQuadroApi.conferencias = grupos conf: + 'proventos' se legado. proventosEmConferencia fica.\n\n2) Página:\n- conferenciasAtivo.ts monta ConferenciaTela[] (flags + leitura SOMENTE LEITURA do caso aberto do symbol: status, atualizadoEm e se é relato confirmado; nada do autor) e valorNaoPublicado para os campos 'ocultar'.\n- KPIs, fundamentos (célula hachurada + 'em conferência'), valuation (card com '—' ou valor+chip), barra de 10 anos (ponto tracejado fora da média), gráficos (barra tracejada fora do crescimento), semáforo ('Sem dado' + motivo) e dividendos usam o mesmo helper.\n- A caixa 'o que falta' do Índice lista '<comp>:em_conferencia' com linha tracejada e nota 0.\n\n3) ChipConferencia: chip 'em conferência' com lupa tracejada; é o botão do 'Por quê?'. Visual de 32px no celular com área de toque ≥ 44px (padding/pseudo-elemento); vale também para links de linha e 'Fechar'.\nPorQueConferencia: popover de 380px no computador, sheet no celular com useMobileHistoryLayer. Mostra motivo, desde, efeito no Índice, origem (regra automática / relato confirmado), 'não publicado: <valor>' quando ocultar, e termina em 'Tem uma informação sobre isso? Reportar' (BotaoReportarDado com o campo escolhido).\n\n4) Frescor por bloco (frescorBlocos.ts → SeloFrescor no rodapé de cada CartaoAnalise, 12px app-muted, linha fina acima). Atrasado = ícone de triângulo + 'atualização em atraso' + documento esperado. Regras:\n- cotação: < último pregão do mercado − 3;\n- fundamentos: fim do trimestre + 75 dias sem ITR;\n- proventos: regra de defasagem existente;\n- FII: informe > 2 meses.\n\n5) MenuBlocoAtivo (da 0) no slot `acao` de CartaoAnalise e no cabeçalho de BlocoKpis, BlocoIndiceSemaforo, BlocoDividendos e GraficoLucroCotacao, com o contexto do bloco (valor formatado, período, fonte, frescor e versão do Quadro). Não aparece em carteira, tese e educação. O item 'Reportar' só aparece com config.reporteHabilitado; 'Fonte e atualização' aparece sempre que a v2 estiver ativa. Com flag desligada e v1, o menu NÃO renderiza (página idêntica).\n\n6) montarLinhasQuadro: copia as flags conf:/rev:/info: (ação e FII) para AnaliseQuadroLinha.flags.\n\n7) Contraste (correção do protótipo):\n- cabeçalho ordenado e badges com fundo #396CAA (texto branco ≥ 4,5:1), nunca #0079F2 sob texto;\n- item ativo de navegação com texto #396CAA/#6E9DC4;\n- texto sobre --conf-bg e hachura em app-ink; hachura clareada até ≥ 4,5:1.\n#0079F2 só no anel, no ponto de notificação e na borda. Sem verde; #D92D20/#F97066 só para negativos/vencido. TABLE_STYLES, Outfit, dark mode.",
+        "testes": "matrizConsistencia.test.ts: para cada grupo × classe × exibição, a mesma fixture marca os MESMOS campos em conferência em Quadro, KPIs, fundamentos, valuation/barra, semáforo, dividendos e gráficos, com o mesmo texto, e verifica:\n- 'valor visível ou não' conforme DEF_GRUPO;\n- Índice incompleto quando o grupo tem componente;\n- regressão: linha com 'proventos_em_conferencia_*' e DY finito continua ok+selo (valor visível, sem ir para o fim);\n- linha só com flags v1 = resposta idêntica à fixture da Fase 1.\nRTL:\n- Chip/PorQue (teclado, aria, voltar fecha);\n- ordenação com o campo ocultar no fim;\n- alvos ≥ 44px a 390px (chip, links, Fechar, ⋯ no computador);\n- contraste automatizado (axe) nos temas claro e escuro.",
+        "criterios_aceite": [
+          "Para SBSP3, CBAV3, HAPV3, GSRF11 e APXU11 no DEV (v2), o mesmo campo aparece igual no Quadro, KPIs, fundamentos/valuation, semáforo e gráficos",
+          "Com flag desligada e v1, Quadro e página idênticos (diff de screenshot no Playwright)",
+          "Nenhum alvo < 44px a 390px; nenhum texto < 4,5:1 (axe)"
+        ]
+      },
+      {
+        "id": "C",
+        "titulo": "Curadoria: /admin/curadoria, job 'curadoria', SLA, notificações de resolução",
+        "objetivo": "Fila única (relatos + regras) para ler, assumir, decidir status e efeito na tela, responder com compliance e auditar, com SLA de 5 dias úteis.",
+        "arquivos_novos": [
+          "src/services/analiseAtivos/curadoria/filaCuradoria.ts",
+          "src/services/analiseAtivos/curadoria/acoesCuradoria.ts",
+          "src/services/analiseAtivos/curadoria/notificacoesCaso.ts",
+          "src/services/analiseAtivos/curadoria/__tests__/sincronizarCasos.test.ts",
+          "src/services/analiseAtivos/curadoria/__tests__/acoesCuradoria.test.ts",
+          "src/app/api/admin/analise-ativos/casos/route.ts",
+          "src/app/api/admin/analise-ativos/casos/[id]/route.ts",
+          "src/app/api/admin/analise-ativos/casos/__tests__/route.test.ts",
+          "src/app/api/cron/analise-ativos/curadoria/route.ts",
+          "src/app/(admin)/(others-pages)/admin/curadoria/page.tsx",
+          "src/app/(admin)/(others-pages)/admin/curadoria/[id]/page.tsx",
+          "src/components/admin/curadoria/FilaCuradoria.tsx",
+          "src/components/admin/curadoria/ContadoresFila.tsx",
+          "src/components/admin/curadoria/FiltrosFila.tsx",
+          "src/components/admin/curadoria/DetalheCaso.tsx",
+          "src/components/admin/curadoria/DecisaoCaso.tsx",
+          "src/hooks/useCuradoriaAnalise.ts"
+        ],
+        "arquivos_alterados": [
+          "src/services/analiseAtivos/curadoria/sincronizarCasos.ts",
+          "src/components/admin/AdminOverviewPage.tsx",
+          "src/services/admin/overview.ts",
+          "infra/modules/lightsail/provision.sh.tftpl"
+        ],
+        "detalhes": "1) executarCuradoria (job 10:55 UTC, depois do quadro; idempotente; dry-run conta):\n- Lê as linhas com conf:/rev:. Upsert por chaveCaso(symbol, campo principal do grupo/regra, chave), com origem 'regra', regraAtiva=true, emConferencia (só conf:) e contexto.\n- Caso de REGRA PURA (nReportes=0) cuja regra não disparou: fecha como corrigido/fonte_corrigiu SÓ se a linha é de hoje E o campo principal do grupo está 'ok' (valor finito, sem ausente). Se a regra parou porque o dado sumiu (null, fora do Quadro, sem_dado): regraAtiva=false + evento 'regra_cessou', e o caso fica aberto.\n- Caso 'misto' ou de usuário NUNCA fecha sozinho: regraAtiva=false + evento 'regra_cessou', com destaque 'regra deixou de disparar' na fila.\n- Digest (1×/dia por admin): SLA vencido OU vencendo em ≤ 2 dias úteis → Notification 'analise_ativos_curadoria_sla' + push (enviarPushDaNotificacao). Gate = analiseAtivosReporteHabilitado() + produção (NÃO depende de ALERTA_ADMIN). Casos 'rev' não entram.\n\n2) API admin (requireAdmin; CSRF no middleware; withErrorHandler; no-store):\n- GET lista: filtros e contadores (abertos, em_analise, venceHoje, vencidos). Ordem padrão: vencidos, depois prazo mais próximo, depois idade. Aba padrão = usuário/misto + bloqueantes; 'rev' em aba própria.\n- GET detalhe: o que o usuário viu, regra automática, relatos (autor nome/e-mail, consultor/cliente, valorEsperado), linha atual, fontes CVM, eventos.\n- PATCH (união discriminada):\n  - 'assumir';\n  - 'soltar';\n  - 'decidir' {status, resolucao (obrigatória se fechado), efeitoTela ('manter_conferencia'|'liberar_valor'|'sem_efeito'), conferenciaManual?:boolean, respostaPublica≤500, notaCurador≤2000};\n  - 'nota'.\n  - Todos levam atualizadoEmEsperado (409 se diverge). Transição inválida → 409. Compliance da resposta → 400 com details.termos (o termo indicado).\n  - conferenciaManual=true só com o caso aberto ou em análise e status 'em_analise' (relato confirmado, pendente de fonte). A fatia A passa a gravar 'conf:manual'.\n  - 'rejeitado/dado_confirmado' + 'liberar_valor' = liberação; a UI informa 'vale a partir do próximo cálculo diário'.\n  - Fechar: resolvidoEm, chaveAberta=null, conferenciaManual=false, reportes.respondidoEm e notifica cada autor 1 vez ('Salvar e avisar N usuários').\n\n3) notificacoesCaso: Notification 'analise_ativos_reporte_resposta', título 'Seu relato sobre <TICKER> foi respondido', mensagem neutra por resolução + resposta da equipe, href /analise-ativos/<TICKER>?relatos=1, push best-effort. Destinatário = autor (o consultor, se agia pelo cliente).\n\n4) UI (protótipo K1–K7, M6):\n- /admin/curadoria: contadores que filtram (44px, número de 22px), chips de origem/classe, tabela TABLE_STYLES (ativo, dado, origem com ícone, nº de relatos, status com forma, prazo em dias úteis; 'regra · sem prazo' + idade; vencido = #D92D20/#F97066 + ícone + 'Vencido', responsável) e detalhe ao lado.\n- Celular: cartões; /admin/curadoria/[id] em página própria (voltar do navegador).\n- Estados: carregando, vazia, erro, salvo (toast).\n- Cabeçalho ordenado com fundo #396CAA.\n- React Query: chaves ['admin','analise-ativos','casos',filtros] e ['admin','analise-ativos','caso',id]. O PATCH invalida as duas + ['admin','overview']. Usa csrfFetch.\n- /admin continua só leitura: ganha o card 'Curadoria de dados' (abertos de usuário/misto, vencendo, em conferência; sem 'rev') com link.\n\n5) infra: '55 10 * * * root /usr/local/bin/myfinance-job.sh curadoria'.",
+        "testes": "sincronizarCasos:\n- abre e atualiza;\n- autorresolve só regra pura com o campo 'ok';\n- regra que cessou por dado sumido NÃO fecha;\n- misto nunca fecha;\n- idempotência;\n- digest 1×/dia sem 'rev', com push.\nacoesCuradoria: transições, 409, compliance com termo, conferenciaManual, notificação 1× por autor.\nRotas: 403 para não admin, 400 de zod, 409.\nPlaywright (verify): assumir → decidir → sino do autor; 390px; dark; contraste.",
+        "criterios_aceite": [
+          "Job no DEV após v2 cria ~1 caso por (ativo, regra) e é idempotente",
+          "Nenhum caso com nReportes>0 é fechado pelo job (teste + SQL)",
+          "Fechar gera exatamente 1 Notification por autor e o evento",
+          "403 para não admin em /api/admin/analise-ativos/*"
+        ]
+      },
+      {
+        "id": "D",
+        "titulo": "Relatar dado incorreto (usuário): API, formulário, Meus relatos, anti-spam, LGPD",
+        "objetivo": "Permitir o relato com o contexto exibido, com proteção contra abuso, a lista 'Meus relatos' e o tratamento LGPD correto (anonimização, export e retenção).",
+        "arquivos_novos": [
+          "src/app/api/analise-ativos/reportes/route.ts",
+          "src/app/api/analise-ativos/meus-reportes/route.ts",
+          "src/app/api/analise-ativos/reportes/__tests__/route.test.ts",
+          "src/services/analiseAtivos/curadoria/registrarReporte.ts",
+          "src/services/analiseAtivos/curadoria/notificacoesReporte.ts",
+          "src/services/analiseAtivos/curadoria/privacidadeReportes.ts",
+          "src/services/analiseAtivos/curadoria/__tests__/registrarReporte.test.ts",
+          "src/services/analiseAtivos/curadoria/__tests__/privacidadeReportes.test.ts",
+          "src/components/analiseAtivos/reporte/FormReportarDado.tsx",
+          "src/components/analiseAtivos/reporte/SheetReportarDado.tsx",
+          "src/components/analiseAtivos/reporte/MeusRelatos.tsx",
+          "src/components/analiseAtivos/reporte/useReportarDado.ts",
+          "src/components/analiseAtivos/reporte/useMeusReportes.ts",
+          "src/components/analiseAtivos/reporte/__tests__/FormReportarDado.test.tsx",
+          "src/app/(admin)/(others-pages)/analise-ativos/meus-relatos/page.tsx"
+        ],
+        "arquivos_alterados": [
+          "src/components/analiseAtivos/reporte/BotaoReportarDado.tsx",
+          "src/components/analiseAtivos/quadro/QuadroAnalise.tsx",
+          "src/lib/rateLimit.ts",
+          "src/lib/__tests__/rateLimit.test.ts",
+          "src/app/api/profile/route.ts",
+          "src/app/api/profile/export/route.ts",
+          "src/app/api/cron/lgpd-retention/route.ts"
+        ],
+        "detalhes": "1) POST /api/analise-ativos/reportes:\n- Guardas: exigirAcessoAnalise e reporteHabilitado (404). Consultor agindo permitido (autor = payload.id, clienteId = targetUserId).\n- zod strict (ReportePostBody).\n- Textos via sanearTextoLivre ANTES da validação de tamanho; contemHtml → 400.\n- fonteEsperada guardada como texto, nunca renderizada como link automático nem HTML.\n- Transação:\n  - relato aberto do mesmo usuário para (symbol, campo, periodo) → 409 {error, casoId, reporteId} (a UI leva ao existente);\n  - > 5 em 24h por usuário → 429;\n  - > 3/h por usuário+ativo → 429;\n  - > 300/24h global → 429 + logger.error.\n- registrarReporte faz upsert do caso por chaveCaso(symbol, campo, periodo). Anexa a um caso de regra aberto SÓ se campoPertenceAoGrupo(campo, grupo do caso); então origem = 'misto'. Grava o contextoServidor (valores da linha, flags, motivos, estadoIndice, dataRef, paramsVersion), nReportes++, slaAte no 1º relato e o evento.\n- 201 {id, casoId, protocolo (8 chars), status, slaAte}.\n- notificarAdminsNovoCaso: caso novo ou 1º relato de usuário; Notification 'analise_ativos_reporte' para cada admin, href /admin/curadoria/<id>. Gate = reporteHabilitado + produção (independe de ALERTA_ADMIN); sem empilhar se já há uma não lida do caso.\n\n2) GET /api/analise-ativos/meus-reportes?ticker=opcional: rota SEPARADA (outro bucket; o tier de 10/min por IP é só para '/api/analise-ativos/reportes'). Lista os relatos do payload.id, com status, prazo e respostaPublica quando fechado; cursor; no-store.\n\n3) rateLimit.ts: tier 'reporteDado' {10/min} para p.startsWith('/api/analise-ativos/reportes'), antes do tier genérico. Teste: 11 GETs em meus-reportes NÃO tomam 429.\n\n4) UI (protótipo R2–R9, M2, M3, U1–U3, M5):\n- Modal de 560px no computador; sheet de tela cheia no celular com 'Enviar relato' fixo (48px) e useMobileHistoryLayer.\n- 'Qual dado?' = select pré-escolhido (rótulo · valor · período).\n- Contexto só leitura (ativo, bloco, valor, período, fonte, data).\n- Campos: 'O que está errado?' (10–1000, contador), 'Valor que você esperava' (opcional) e 'Onde você viu?' (opcional).\n- Estados: inválido (role=alert), enviando, enviado (protocolo + prazo em data), rede ('Tentar de novo' mantendo o texto), 429 e 409 (link para o relato).\n- Consultor agindo: aviso de que vai no nome do consultor.\n- Meus relatos (MeusRelatos + página /analise-ativos/meus-relatos): status com forma e texto ('Conferido, sem alteração' para rejeitado), destaque da resposta nova e estado vazio.\n- Entradas: link no topo do Quadro (QuadroAnalise.tsx), notificação e tela de sucesso.\n- useReportarDado: csrfFetch; invalida ['analise-ativos','meus-reportes'].\n\n5) LGPD:\n- privacidadeReportes.anonimizarReportesDoUsuario(userId): mensagem='[removido]', valorEsperado/fonteEsperada=null, contextoServidor sem campos pessoais (não há) e clienteId=null onde o usuário era cliente. Chamada em profile/route.ts no fluxo de exclusão (que ANONIMIZA o User; o cascade nunca roda).\n- export: inclui analiseAtivos.relatos (os próprios relatos, com o status do caso).\n- lgpd-retention: aplica a mesma anonimização a relatos de casos fechados há > 12 meses (contagem no log).",
+        "testes": "Rota:\n- 401, 404 (sem acesso, flag, ticker) e 400 por campo (HTML, U+202E removido e contado, campo fora da allowlist);\n- 403 sem CSRF;\n- 409 duplicado;\n- 429 (dia, hora/ativo, global, IP);\n- consultor agindo grava clienteId;\n- anexa a caso de regra só com o campo do grupo, senão caso novo;\n- notificação a admin 1× por caso, mesmo com ALERTA_ADMIN=false.\nmeus-reportes: só os do logado; 11 GETs sem 429.\nLGPD: exclusão de conta anonimiza; export contém os relatos; retenção de 12 meses.\nComponentes: estados, contador, voltar fecha o sheet, alvos de 44px.",
+        "criterios_aceite": [
+          "Relato do WEGE3 aparece em /admin/curadoria com o contexto exibido, valor esperado e snapshot",
+          "Nenhum caminho renderiza HTML do usuário; bidi/zero-width removidos",
+          "Excluir conta anonimiza o texto livre dos relatos; export inclui os relatos",
+          "Com a flag desligada: 404 e nenhum item 'Reportar' no menu"
+        ]
+      }
+    ],
+    "apis": [
+      {
+        "rota": "/api/analise-ativos/reportes",
+        "metodo": "POST",
+        "contrato": "Body {ticker, bloco ∈ BLOCOS_REPORTE, campo ∈ CAMPOS_REPORTAVEIS[bloco]∪'outro', valorExibido?≤64, periodo?≤32, fonteExibida?≤160, frescorExibido?≤160, versao≤40, mensagem 10..1000, valorEsperado?≤64, fonteEsperada?≤300}. 201 {id, casoId, protocolo, status, slaAte:'AAAA-MM-DD'}. 409 {error, casoId, reporteId} se já há relato aberto do usuário para (ticker, campo, periodo). Erros {error, details?}: 400, 401, 404, 429.",
+        "seguranca": "exigirAcessoAnalise + ANALISE_ATIVOS_REPORTE_HABILITADO (404); CSRF no middleware (csrfFetch); zod strict; sanearTextoLivre (controle/bidi/zero-width) + rejeição de HTML; tier IP 10/min só neste prefixo; 5/24h por usuário, 3/h por usuário+ativo, 300/24h global; consultor agindo: autor=payload.id, clienteId=targetUserId; withErrorHandler; no-store"
+      },
+      {
+        "rota": "/api/analise-ativos/meus-reportes?ticker=&cursor=",
+        "metodo": "GET",
+        "contrato": "MeusReportesResposta {itens:[{id, protocolo, ticker, bloco, campo, periodo, criadoEm, caso:{status, slaAte, atualizadoEm, resolucao|null, respostaPublica|null (só fechado), novo:boolean}}], proximoCursor}",
+        "seguranca": "exigirAcessoAnalise + flag; sempre payload.id (nunca o cliente personificado, nunca userId da query); bucket de rate limit separado (tier geral); no-store"
+      },
+      {
+        "rota": "/api/analise-ativos/ativos/[ticker]",
+        "metodo": "GET (aditiva)",
+        "contrato": "AtivoTopoResposta + conferencias: ConferenciaTela[]; Estado ausente pode trazer exibicao e valorNaoPublicado (só na página); blocos com frescor: FrescorBloco. LinhaQuadroApi + conferencias: string[] (o Quadro nunca envia valorNaoPublicado)",
+        "seguranca": "Sem mudança; status do caso sem dado de autor"
+      },
+      {
+        "rota": "/api/analise-ativos/config",
+        "metodo": "GET (aditiva)",
+        "contrato": "ConfigResposta + reporteHabilitado:boolean",
+        "seguranca": "Sem mudança"
+      },
+      {
+        "rota": "/api/admin/analise-ativos/casos",
+        "metodo": "GET",
+        "contrato": "Query {status?, origem?:'usuario'|'regra'|'misto', tipo?:'bloqueante'|'revisao', classe?, grupo?, q?, prazo?:'vence_hoje'|'vencido', responsavel?:'eu'|'ninguem', cursor?, limite≤50}. 200 {itens:[{id, symbol, classe, grupo, campo, periodo, origem, regraCodigo, regraAtiva, status, emConferencia, conferenciaManual, nReportes, slaAte, diasUteisRestantes, idadeDiasUteis, responsavel|null, abertoEm, atualizadoEm}], contagens:{aberto, em_analise, venceHoje, vencido}, proximoCursor}",
+        "seguranca": "requireAdmin (403); no-store; withErrorHandler"
+      },
+      {
+        "rota": "/api/admin/analise-ativos/casos/[id]",
+        "metodo": "GET",
+        "contrato": "CasoDetalheResposta {caso, oQueUsuarioViu, regra:{codigo, chave, ativa, desde}|null, reportes:[{id, protocolo, autor:{id,nome,email}, cliente|null, bloco, campo, periodo, valorExibido, valorEsperado, fonteExibida, frescorExibido, versaoQuadro, mensagem, fonteEsperada, contextoServidor, criadoEm}], linhaAtual, fontes:[{rotulo,url}], eventos}",
+        "seguranca": "requireAdmin; id uuid; tudo renderizado como texto"
+      },
+      {
+        "rota": "/api/admin/analise-ativos/casos/[id]",
+        "metodo": "PATCH",
+        "contrato": "{acao:'assumir'|'soltar', atualizadoEmEsperado} | {acao:'decidir', status, resolucao?, efeitoTela:'manter_conferencia'|'liberar_valor'|'sem_efeito', conferenciaManual?:boolean, respostaPublica?≤500, notaCurador?≤2000, atualizadoEmEsperado} | {acao:'nota', notaCurador, atualizadoEmEsperado}. 200 CasoDetalheResposta + {notificados:n}. 409 em transição inválida/concorrência; 400 com details.termos em compliance",
+        "seguranca": "requireAdmin; CSRF; zod strict; sanearTextoLivre + contemUsoProibido; auditoria em AnaliseCasoEvento; notificação só ao fechar"
+      },
+      {
+        "rota": "/api/cron/analise-ativos/curadoria",
+        "metodo": "GET",
+        "contrato": "RelatorioJob {abertos, atualizados, autorresolvidos, regraCessou, digestEnviados}",
+        "seguranca": "requireCronSecret; Lightsail 10:55 UTC; só banco"
+      }
+    ],
+    "schema_prisma": "// Migration 20261010000000_analise_ativos_bloco_c — só CREATE TABLE/INDEX IF NOT EXISTS.\n\nmodel AnaliseCasoDado {\n  id                String    @id @default(uuid())\n  symbol            String\n  cnpj              String?\n  classe            String              // acao | fii\n  grupo             String              // GrupoConferencia | 'outro'\n  campo             String\n  periodo           String?\n  origem            String              // usuario | regra | misto\n  regraCodigo       String?\n  chaveDeteccao     String?\n  chaveAberta       String?   @unique   // chaveCaso(); null ao fechar\n  status            String    @default(\"aberto\") // aberto|em_analise|corrigido|rejeitado\n  resolucao         String?\n  efeitoTela        String?             // manter_conferencia|liberar_valor|sem_efeito\n  emConferencia     Boolean   @default(false) // regra bloqueante ativa no último run\n  regraAtiva        Boolean   @default(false)\n  conferenciaManual Boolean   @default(false) // relato confirmado; exibição apenas\n  slaAte            DateTime? @db.Date  // 5 dias úteis desde o 1º relato\n  responsavelId     String?\n  responsavel       User?     @relation(\"AnaliseCasoResponsavel\", fields: [responsavelId], references: [id], onDelete: SetNull)\n  notaCurador       String?   @db.Text\n  respostaPublica   String?   @db.VarChar(500)\n  contexto          Json\n  nReportes         Int       @default(0)\n  casoAnteriorId    String?\n  abertoEm          DateTime  @default(now())\n  ultimaDeteccaoEm  DateTime?\n  resolvidoEm       DateTime?\n  resolvidoPorId    String?\n  updatedAt         DateTime  @updatedAt\n  reportes          AnaliseDataReport[]\n  eventos           AnaliseCasoEvento[]\n  @@index([status, slaAte])\n  @@index([symbol, status])\n  @@index([origem, status])\n  @@index([regraCodigo, chaveDeteccao])\n  @@index([conferenciaManual, status])\n  @@map(\"analise_casos_dado\")\n}\n\nmodel AnaliseDataReport {\n  id               String          @id @default(uuid())\n  protocolo        String          @unique @db.VarChar(12)\n  casoId           String\n  caso             AnaliseCasoDado @relation(fields: [casoId], references: [id], onDelete: Cascade)\n  userId           String          // autor logado (consultor quando age)\n  user             User            @relation(\"AnaliseReporteAutor\", fields: [userId], references: [id], onDelete: Cascade)\n  clienteId        String?\n  cliente          User?           @relation(\"AnaliseReporteCliente\", fields: [clienteId], references: [id], onDelete: SetNull)\n  symbol           String\n  bloco            String\n  campo            String\n  periodo          String?         @db.VarChar(32)\n  valorExibido     String?         @db.VarChar(64)\n  valorEsperado    String?         @db.VarChar(64)\n  fonteExibida     String?         @db.VarChar(160)\n  frescorExibido   String?         @db.VarChar(160)\n  versaoQuadro     String          @db.VarChar(40)\n  mensagem         String          @db.VarChar(1000)\n  fonteEsperada    String?         @db.VarChar(300) // expected_source\n  contextoServidor Json\n  respondidoEm     DateTime?\n  anonimizadoEm    DateTime?       // LGPD: exclusão de conta ou retenção de 12 meses\n  createdAt        DateTime        @default(now())\n  @@index([userId, createdAt])\n  @@index([symbol, createdAt])\n  @@index([casoId])\n  @@index([createdAt])\n  @@map(\"analise_data_reports\")\n}\n\nmodel AnaliseCasoEvento {\n  id        String          @id @default(uuid())\n  casoId    String\n  caso      AnaliseCasoDado @relation(fields: [casoId], references: [id], onDelete: Cascade)\n  autorId   String?         // null = sistema\n  tipo      String          // aberto|reporte|regra_disparou|regra_cessou|assumido|solto|decisao|nota|notificado\n  de        String?\n  para      String?\n  texto     String?         @db.VarChar(2000)\n  createdAt DateTime        @default(now())\n  @@index([casoId, createdAt])\n  @@map(\"analise_casos_eventos\")\n}\n\n// User: analiseCasosResponsavel AnaliseCasoDado[] @relation(\"AnaliseCasoResponsavel\"); analiseReportes AnaliseDataReport[] @relation(\"AnaliseReporteAutor\"); analiseReportesCliente AnaliseDataReport[] @relation(\"AnaliseReporteCliente\").\n// Nada muda em tabelas existentes. Flags conf:/rev:/info: em AssetMultiplesCurrent.flags, AssetMultiplesYearly.flags e AnaliseQuadroLinha.flags; motivos '<comp>:em_conferencia' em AssetScore.motivosIncompleto; ScoringParams version=2 (linha nova).",
+    "regras_sanidade": [
+      {
+        "regra": "R0 — Proventos em conferência (EXISTENTE; vira o grupo 'proventos', escopo empresa, exibição 'selo')",
+        "indicadores": "DY 12m, payout, rendimento 12m",
+        "criterio": "dyMaxPct (ações 18%, FIIs 20%) ou salto recente (DPA > 2× o ano anterior com payout > 150%)",
+        "excecoes": "Já implementadas",
+        "efeito_no_indice_e_tela": "C_div ausente('em_conferencia'). O valor CONTINUA visível com selo (caminho legado preservado; a crítica de regressão foi incorporada)",
+        "medicao_dev": "43 ações (27 dy_acima_teto + 16 salto; 48 linhas com div:em_conferencia por contaminação) e 34 FIIs. WEGE3 e ITUB4 por salto. Sem mudança"
+      },
+      {
+        "regra": "R1 — Escala de nº de ações / VM (acoes_escala; empresa; ocultar)",
+        "indicadores": "P/L, P/VP, VM, EV/EBITDA, P/Receita, P/FCO, P/FCL, LPA, VPA, nº de ações (C_preço)",
+        "criterio": "P/VP ∈ (0; 0,08) OU P/L ∈ (0; 0,5) OU VM/VM do último FY ∉ [1/10; 10] sem evento confirmado",
+        "excecoes": "Evento confirmado; liberação por data da contagem",
+        "efeito_no_indice_e_tela": "C_preço em conferência; TODOS os campos do grupo viram '—', inclusive o nº de ações (o protótipo VAMO3 é corrigido); o número só aparece no 'Por quê?' como 'não publicado'",
+        "medicao_dev": "10 tickers / 9 empresas: CBAV3 (651.073 ações, P/VP 0,0014), LAND3, GFSA3, PDGR3, SEQL3, SOJA3, CSUD3, HAPV3 (0,062). Falso positivo provável: AZEV3/4 (VM ×14, real). 0 mudança de estado (todos já incompletos/zero_regra). Medição do designer (÷1000 em algum período do histórico: 88 emissores) cobre o histórico, que é tratado na R2"
+      },
+      {
+        "regra": "R2 — Ponto histórico em escala errada (historico; empresa; ocultar o ponto)",
+        "indicadores": "Série anual P/L, P/VP, P/Receita (barra e média de 10 anos, C_preço)",
+        "criterio": "≥ 2 de 3 múltiplos a ≥ 20× ou ≤ 1/20 da mediana do ativo",
+        "excecoes": "1 só múltiplo fora não marca; liberação por ano",
+        "efeito_no_indice_e_tela": "Ponto tracejado, fora da média e da barra; C_preço recalculado; < 5 pontos → historico_curto",
+        "medicao_dev": "24 pontos / 11 ativos (POMO3/4 e EALT3/4 2015–19, SMTO3 2015–17, GOAU3/4 2019, VLID3 2018, CBAV3 2022, LAND3 2021). Falso positivo: LWSA3 2020. Com 1 múltiplo: 36/20 (MGEL4, GSHP3, FHER3, ECOR3 de PL minúsculo). EALT4, GOAU4, SMTO3 e VLID3 mudam de valor sem mudar de estado"
+      },
+      {
+        "regra": "R3 — Base de preço mudada sem evento (preco_base; TICKER; ocultar múltiplos, selo na cotação)",
+        "indicadores": "Cotação → DY, P/L, P/VP, EV/EBITDA, VM (C_div, C_preço)",
+        "criterio": "Salto > 40% sem evento em ±3d; razão a ±8% de {2,3,4,5,8,10,20,50,100}^±1; persiste 5 pregões (±15%); ≥ 20 negócios; últimos 365 dias",
+        "excecoes": "Evento bruto; liberação por data. Só contamina a empresa se o ticker marcado é o tickerReferencia",
+        "efeito_no_indice_e_tela": "C_div e C_preço em conferência. Cotação com chip; múltiplos '—'",
+        "medicao_dev": "Ingênuo: 16 ações / 25 FIIs. Final: SBSP3 (×0,20 em 29/04/26, 24.324 negócios, DY 12,85% que hoje escapa) e PDGR3; FIIs CARE11, HCST11 e SJAU11 (provável falso positivo). Sem o mínimo de negócios entrariam INHF11, LPLP11, PRSN11 e DAMT11. CACR11 não reproduz no DEV. Substitui o exemplo C1 do protótipo (lucro WEGE3)"
+      },
+      {
+        "regra": "R4 — Preço esporádico (preco_esporadico; TICKER; selo)",
+        "indicadores": "Cotação, P/VP, DY",
+        "criterio": "< 5 pregões com negócio em 21 E (P/VP fora da faixa — FII [0,25; 1,6], ação [0,1; 15] — OU, só para FII, fechamento a > 30% da mediana de 60 pregões com negócio)",
+        "excecoes": "Sem a faixa e sem o 2º sinal: só 'info:cotacao_esporadica' (selo, sem efeito). Escopo ticker: uma PN esporádica não contamina a ON",
+        "efeito_no_indice_e_tela": "Bloqueante: C_div e C_preço em conferência, valor com chip",
+        "medicao_dev": "Esporádicos: 29 ações / 50 FIIs. Com a faixa antiga [0,5;1,6]: 8 FIIs (MMVE11 calc→incompleto). A crítica mostrou 17 FIIs calculados e LÍQUIDOS com P/VP 0,30–0,49 (ALMI11, CTXT11, EDGA11, KNRE11, RECT11, CBOP11): o piso baixa para 0,25 e o 2º sinal (mediana 60) cobre o resto. MMVE11 (0,46) só marca se o 2º sinal disparar; o número final sai do dry-run da fatia A (esperado ≤ 8 FIIs, 0 ações). CGAS3 (10,4, real) não marca"
+      },
+      {
+        "regra": "R5 — VP/cota de FII com salto (fii_vp; ticker; ocultar)",
+        "indicadores": "VP/cota, P/VP (C_preço do FII)",
+        "criterio": "|VP último/anterior − 1| > 40% sem fatorDesdobramento",
+        "excecoes": "Desdobramento identificado; liberação por mês",
+        "efeito_no_indice_e_tela": "C_preço em conferência; VP/cota e P/VP '—'",
+        "medicao_dev": "1/334: GSRF11 (×6,23; cotistas 2.817→2), calc→incompleto. O designer mediu 112 fundos > 40% em todo o histórico (72 com cotas estáveis); a regra só olha o último par de informes"
+      },
+      {
+        "regra": "R6 — Obrigações/PL > 100% (fii_obrigacoes; ticker; selo)",
+        "indicadores": "Obrigações/PL (C_dívida FII; semáforo)",
+        "criterio": "obrigacoesPlPct > 100 (Fase A §6 item 24)",
+        "excecoes": "Liberação por mês (FII de desenvolvimento)",
+        "efeito_no_indice_e_tela": "C_dívida em conferência (a nota já era 0), Índice incompleto; valor com chip",
+        "medicao_dev": "APXU11 125%, AURB11 104%, BLCA11 137%, HJCT11 119% e PMRL11 324%. Calc→incompleto: APXU11, BLCA11, PMRL11"
+      },
+      {
+        "regra": "R7 — Salto de escala em fundamentos (fundamentos_escala; empresa; ocultar)",
+        "indicadores": "Receita, ativo, PL, lucro (ROE, margens, dívida, P/L)",
+        "criterio": "Razão ≥ 10× contra o FY anterior sem flag de escala corrigida",
+        "excecoes": "Liberação por ano",
+        "efeito_no_indice_e_tela": "C_dívida, C_rent e C_preço em conferência",
+        "medicao_dev": "0 no último par; 3 na história (AZTE3 2024, PASS3 2020, WEST3 2020). A ingestão já corrige 147 períodos de 58 emissores. Fica como rede de proteção"
+      },
+      {
+        "regra": "R8 — Variação > 40% (spec) → só caso (rev:variacao_nivel / rev:variacao_lucro)",
+        "indicadores": "Receita, PL, ativo; lucro",
+        "criterio": "Nível > 40% com base ≥ R$ 100 mi; lucro ≥ 5×, base ≥ R$ 50 mi, mesmo sinal",
+        "excecoes": "Troca de sinal, base pequena, cíclicas",
+        "efeito_no_indice_e_tela": "Nenhum; caso na aba 'revisão' (sem SLA, fora do card do /admin). DIVERGE da spec e do protótipo (C1/U1 do lucro WEGE3)",
+        "medicao_dev": "Literal: 149/260 (57%); lucro 134. Medição independente: 148/128; designer: 270/536 emissores (50%). Proposta: nível 34 empresas (13%), lucro 7 (SEQL3, LIGT3 calc., RIAA3, SYNE3, FHER3, IFCM3, ALPA3/4 calc.). A regra do designer (×/÷3) marcaria PRIO3 (calculado; 10,3 bi → 2,25 bi, queda real) e BMKS3, por isso não é bloqueante"
+      },
+      {
+        "regra": "R9 — Divergência provedor × CVM → só caso",
+        "indicadores": "Cotação BRAPI×COTAHIST; DPA BRAPI×DMPL; rendimento FII BRAPI×informe",
+        "criterio": "Cotação > 5% após D-1; DPA ≥ 3×; rendimento ≥ 2×",
+        "excecoes": "Conceitos diferentes; COTAHIST/CVM já prevalecem no cálculo",
+        "efeito_no_indice_e_tela": "Nenhum; caso de revisão",
+        "medicao_dev": "Cotação: 9/216 ações > 5% (≤ 11%, ruído D-1), 1/10 FIIs. DPA ≥ 3×: 15 (HBTS5 já em R0; CSUD3/LAND3 BRAPI vazio; TASA3/4; ISAE3/4; EQTL3; PLPL3). Rendimento FII > 5%: 87/219 (40%); ≥ 2×: 24/12. Literal 5% esvaziaria os FIIs"
+      },
+      {
+        "regra": "R10 — Campo obrigatório ausente (spec) — já existe",
+        "indicadores": "Todos os componentes e critérios",
+        "criterio": "Ausente → nota 0, incompleto, semáforo 'sem dado'",
+        "excecoes": "Não se aplica redistribui o peso; zero é zero",
+        "efeito_no_indice_e_tela": "Já existe; o bloco C só unifica o texto",
+        "medicao_dev": "Incompletos DEV: 120 ações (historico_curto 44, salto_sem_evento 16, fonte_defasada 11, ...), 61 FIIs"
+      },
+      {
+        "regra": "R11 — ROE/margem extremos — descartada",
+        "indicadores": "ROE, margem",
+        "criterio": "Nenhum",
+        "excecoes": "-",
+        "efeito_no_indice_e_tela": "Nenhum; o relato do usuário cobre",
+        "medicao_dev": "ROE > 60%: 11 (BBSE3, CGAS3, CURY3, SOND5/6, todos reais); < −60%: 8; margem < −100%: 12 (reais)"
+      },
+      {
+        "regra": "R12 — Cotistas/cotas de FII (designer) → nota na tela, fora do Índice",
+        "indicadores": "Nº de cotistas, nº de cotas",
+        "criterio": "> 40% entre informes → rev:fii_cotistas (caso) + nota de tela 'variação relevante no informe'",
+        "excecoes": "Base < 100 cotistas",
+        "efeito_no_indice_e_tela": "Nenhum no Índice",
+        "medicao_dev": "Designer (histórico): cotistas 210, cotas 150 fundos. Último par: casos de revisão apenas"
+      },
+      {
+        "regra": "R13 — Conferência manual por relato confirmado (protótipo HGLG11 vacância)",
+        "indicadores": "Qualquer campo reportável (ex.: vacância CVM × gestor)",
+        "criterio": "Curador marca conferenciaManual no caso aberto",
+        "excecoes": "Some ao fechar o caso",
+        "efeito_no_indice_e_tela": "Flag 'conf:manual:<campo>@<caso>', chip 'em conferência' com origem 'relato confirmado'; sem efeito no Índice",
+        "medicao_dev": "Não automática (0 no DEV). Vacância CVM não bate com o gerencial por construção (RELATORIO-FASE-A), por isso nunca vira regra automática"
+      },
+      {
+        "regra": "R14 — Selo de frescor por bloco",
+        "indicadores": "Cotação, DFP/ITR, proventos, informe FII",
+        "criterio": "Cotação < último pregão − 3; fundamentos > fim do trimestre + 75d; proventos = regra existente; informe > 2 meses",
+        "excecoes": "Ativo fora do Quadro tem selo próprio",
+        "efeito_no_indice_e_tela": "Só exibição (rodapé de cada card; atrasado com triângulo + documento esperado)",
+        "medicao_dev": "18 ações e 36 FIIs com pregão > 10 dias atrás; defasagem de proventos: 11 ações e 7 FIIs"
+      }
+    ],
+    "fluxo_curadoria": "ENTRADAS (uma fila só, caso = ativo × dado):\n\n(a) Relato de usuário\n- Menu ⋯ (44px) do bloco → 'Reportar dado incorreto', ou 'Tem uma informação sobre isso? Reportar' no fim do 'Por quê?' de um campo em conferência.\n- O formulário leva o contexto exibido + 'o que está errado' + valor esperado + 'onde você viu'. O servidor acrescenta o snapshot gravado.\n- O caso é chaveado por (symbol, campo, período). O relato só se junta a um caso de REGRA se o campo pertence ao grupo da regra (origem 'misto'); senão abre caso próprio.\n- O 1º relato define o prazo: +5 dias úteis (calendário B3; 12/10 não conta).\n- Relato duplicado do mesmo usuário → 409, com link para o relato existente.\n- Admins recebem sino 'Novo relato de dado: WEGE3 · Payout', 1 por caso enquanto não lido, só com REPORTE_HABILITADO (não depende de ALERTA_ADMIN).\n\n(b) Regra automática\n- O job scores grava conf:/rev:. O job curadoria (10:55 UTC) abre ou atualiza um caso por (symbol, regra, chave).\n- Caso só de regra mostra 'regra · sem prazo' + idade.\n- Os 'rev' ficam numa aba própria, fora dos contadores principais e do card do /admin.\n\nESTADOS: aberto → em_analise (assumir = responsável; soltar volta a aberto) → corrigido | rejeitado. O fechamento é final; relato novo abre caso com casoAnteriorId.\n- Resoluções:\n  - corrigido: corrigido_fonte, corrigido_reprocessado ou fonte_corrigiu;\n  - rejeitado (para o usuário: 'Conferido, sem alteração'): dado_confirmado, sem_procedencia ou duplicado.\n- A decisão separa o status do EFEITO NA TELA:\n  - 'manter em conferência';\n  - 'liberar o valor' (dado_confirmado: a regra não marca mais aquela chave a partir do próximo cálculo diário, e a UI diz isso);\n  - 'sem efeito'.\n- Conferência manual: com o caso em análise, o curador pode pôr o campo 'em conferência' (relato confirmado; só exibição). Some quando o caso fecha.\n- A correção do dado é feita na fonte (resync/reprocessar), nunca no caso.\n- Toda ação gera um AnaliseCasoEvento. Concorrência otimista (409).\n\nAUTOMÁTICOS\n- Caso de regra PURA (sem relato) fecha como fonte_corrigiu só se a regra parou E o campo voltou a 'ok' na linha de hoje.\n- Se a regra parou porque o dado sumiu, ou se o caso tem relato ('misto'/usuário), o job só registra 'regra deixou de disparar' e o curador decide. Usuário nunca recebe 'corrigido' sem decisão humana.\n- Digest diário a admins: vencidos e vencendo em ≤ 2 dias úteis, com sino + push.\n\nRETORNO AO USUÁRIO\n- Só ao fechar ('Em análise' não notifica): sino + push 'Seu relato sobre WEGE3 foi respondido', com mensagem neutra por resolução + 'Resposta da equipe' (≤ 500, varrida por linguagem.ts; termo proibido bloqueia o envio e é indicado).\n- 'Meus relatos' (link no topo do Quadro, na notificação e na tela de sucesso) mostra status com forma + texto, prazo e resposta, com destaque para a nova.\n\nQUEM VÊ O QUÊ\n- Todo usuário com acesso vê o chip 'em conferência' e o 'Por quê?' (motivo, desde, efeito no Índice, origem regra/relato confirmado). Não vê nº de relatos nem dados de outros.\n- O autor vê só os próprios relatos.\n- O consultor agindo é o autor e quem recebe a resposta; o cliente fica registrado e não é notificado. O formulário avisa.\n- O admin vê tudo em /admin/curadoria (autor nome/e-mail, mensagens, valor esperado, snapshot, fontes, histórico).\n- O /admin segue só leitura, com o card de contagens.\n\nLGPD: a exclusão de conta anonimiza o texto livre dos relatos; o export inclui os relatos; retenção de 12 meses após o fechamento via lgpd-retention.",
+    "plano_producao": "[OK] = exige OK explícito do Wellington. Produção só via SSH, no padrão do ATIVACAO.md da Fase 1.\n\n1) Merge da 0 e depois A, B, C e D (flags desligadas, v1 ativa). Com a v1 nada muda: B preserva o caminho legado, e a v1 não grava 'conf:'.\n\n2) Deploy: prisma migrate deploy (3 tabelas vazias). Conferir \\dt analise_casos* e _prisma_migrations.\n\n3) Dry-run em prod sem gravar a v2: recalcular-analise.ts --etapas=derivados,scores --tudo --versao-params=2. Comparar o relatório por regra com regras_sanidade. Atenção especial a:\n- R4 com o novo piso (0,25) e o 2º sinal;\n- CACR11, que só existe em prod.\nSe uma regra passar de 3% do Quadro de uma classe, recalibrar a v2 antes de seguir. [OK]\n\n4) seed-scoring-params.ts --versao=2 --apply. [OK]\n\n5) recalcular-analise --etapas=derivados,scores --tudo --apply (NODE_OPTIONS=--max-old-space-size=384), depois myfinance-job.sh quadro e myfinance-job.sh curadoria.\n- Conferir: SQL de contagem por estadoIndice/classe.\n- Telas (admin): SBSP3, CBAV3, HAPV3, VAMO3, GSRF11, APXU11, WEGE3, PETR4, ITUB4, HGLG11, XPLG11, KNCR11 e MXRF11.\n- Conferir que o DY em conferência por proventos CONTINUA visível com selo.\n\n6) Cron 10:55 da curadoria (template + crontab). lgpd-retention já roda semanalmente.\n\n7) ANALISE_ATIVOS_REPORTE_HABILITADO=true em /etc/myfinance/app.env + restart. Com o beta vazio, só admins veem. Teste ponta a ponta com 2 admins: relato → sino → assumir → decidir → sino/push do autor → Meus relatos. [OK]\n\n8) Abertura ao beta junto com a revisão da decisão 7 e dos textos pelo jurídico. [OK]\n\nIMPACTO PREVISTO (prod 03/10: ações 162 calc / 123 incompl / 44 zero; FIIs 233 / 57 FoF / 46 / 23):\n- Ações: 0 a 4 calculadas → incompletas (SBSP3, se ainda calculada; escopo ticker evita contaminação por PN ilíquida). C_preço muda de valor em cerca de 4–6 empresas (pontos históricos).\n- FIIs: 3 a 8 de 233 → incompletos (APXU11, BLCA11, PMRL11, GSRF11 + esporádicos que passarem no 2º sinal).\n- DY legado: sem mudança visual.\n- 1ª noite: ~20–35 casos bloqueantes + 60–90 de revisão (aba separada, fora do card e do digest).\n\nROLLBACK\n- Params: v3 = v2 com ligada=false, depois recalcular scores --apply + quadro.\n- Botão: remover a env + restart.\n- Tabelas ficam (aditivas).",
+    "plano_qa": "1) Unitários por fatia:\n- regras com fixtures reais (incluindo os falsos positivos 'marca e é liberável' e os FIIs líquidos com P/VP 0,30–0,49 que NÃO podem marcar);\n- escopo ON/PN;\n- regressão v1 byte a byte;\n- contrato de flags (legado separado), transições e sanearTextoLivre (U+202E, U+200B, U+FEFF, controle);\n- compliance de textos e da resposta.\n\n2) Matriz de consistência (B): grupo × classe × exibição, com a mesma visibilidade e o mesmo texto em Quadro, KPIs, fundamentos, valuation/barra, semáforo, dividendos e gráficos. Inclui a regressão do legado de proventos (DY visível com selo, ordenação normal).\n\n3) API:\n- POST: 401/404/400/403 CSRF/409/429 (dia, hora/ativo, global, IP);\n- meus-reportes: só o logado e 11 GETs sem 429;\n- anexo só com campo do grupo;\n- admin: 403, 409, 400 de compliance;\n- cron: idempotente, não fecha misto, não fecha por dado sumido.\n\n4) Integração no DEV (sem dev server longo): apply-migration-bloco-c → seed v2 → recalcular --versao-params=2 (dry-run, ±2 por regra) → --apply → quadro → curadoria. SQL antes/depois (esperado: ações 165→165; FIIs 216→212–213).\n\n5) E2E Playwright (skill verify), em computador 1440 e celular 390/320, claro e escuro:\n- menu ⋯ → formulário → enviado (protocolo) → Meus relatos;\n- outra sessão admin → /admin/curadoria → assumir → decidir com termo proibido (bloqueia) → corrigir → sino/push do autor;\n- SBSP3 com chip e '—' iguais no Quadro e na página;\n- HGLG11 com conferência manual sem mexer no anel;\n- voltar fecha os sheets.\n\n6) Acessibilidade: auditoria de alvos ≥ 44px em todos os cenários (chip, links de linha, Fechar, Ver meus relatos, ⋯ no computador) e axe de contraste ≥ 4,5:1 (badge e cabeçalho ordenado em #396CAA; texto sobre hachura em app-ink).\n\n7) Revisão visual contra o protótipo do bloco C e docs/analise-ativos/fase1/prototipo.html.\n\n8) Segurança/LGPD:\n- XSS (<script>, javascript:, bidi) renderizado como texto na fila;\n- enumeração;\n- excluir conta anonimiza os relatos;\n- export contém os relatos;\n- retenção de 12 meses (teste do cron).\n\n9) Produção: dry-run v2 comparado antes do OK.",
+    "riscos": [
+      "A letra da spec (40% e 5% bloqueando) esvaziaria o Quadro: 57% das empresas e 40–97% dos FIIs. A divergência depende do OK do Wellington",
+      "O DEV tem histórico reduzido: CACR11, ICNE11 e RDLI11 não reproduzem. Por isso o dry-run em prod é obrigatório",
+      "A R4 recalibrada (piso 0,25 + 2º sinal) ainda não tem número final no DEV. O critério de aceite da fatia A fixa a recontagem antes do merge",
+      "Falsos positivos (AZEV3/4, LWSA3 2020, SJAU11) ficam em conferência até a liberação. A fila depende de 1–2 admins; o digest com push e o prazo de ≤ 2 dias mitigam",
+      "Não há override manual de evento ou nº de ações: SBSP3 1:5 fica em conferência até a fonte trazer o evento ou até a liberação",
+      "O rate limit do middleware é em memória e por IP; a proteção real são os limites por usuário no banco + o limite global",
+      "Conflito de merge da fatia B (~28 arquivos de leitura/UI) com hotfixes da Fase 1: congelar a área ou fazer rebase diário",
+      "Compliance da resposta livre: a varredura reduz o risco, e o jurídico deve validar os modelos",
+      "Conferência manual pelo curador amplia o escopo (protótipo HGLG11). Mitigação: só exibição, some ao fechar o caso",
+      "CRÍTICAS INCORPORADAS (todas válidas e conferidas no código):\n- regressão do DY legado: caminho separado + teste;\n- misto nunca fecha sozinho + anexo só por campo do grupo + fonte_corrigiu só com campo 'ok';\n- LGPD por anonimização, export e lgpd-retention, em vez de cascade;\n- saneador próprio em vez de normalizarTexto;\n- GET em rota separada;\n- escopo empresa × ticker;\n- lucro só caso;\n- política de exibição no contrato;\n- alvos de 44px;\n- contraste;\n- contratos unificados (rota, 409, 5/dia, 12 meses, valorEsperado, Meus relatos, conferência manual);\n- piso de P/VP de FII;\n- alertas independentes de ALERTA_ADMIN.\nNenhuma foi rejeitada"
+    ],
+    "perguntas_para_wellington": [
+      "1. Variação > 40% (spec: 'não publica'). No DEV tiraria 57% das empresas, e os maiores saltos eram reais. RECOMENDO publicar e abrir caso de revisão, bloqueando só saltos ≥ 10× (escala). Diverge da spec.",
+      "2. LUCRO — divergência ARQUITETO × DESIGNER. O protótipo (C1/U1) põe o lucro 12m do WEGE3 'em conferência', derrubando o Índice de 8,3 para 5,5 pela regra ×/÷3. No DEV essa regra marca PRIO3 (calculado, queda real de 10,3 bi para 2,25 bi). RECOMENDO a do arquiteto: lucro só abre caso (≥ 5×, base ≥ R$ 50 mi, mesmo sinal: 7 empresas). O exemplo C1 do protótipo passa a ser o SBSP3 (cotação mudou de base sem evento).",
+      "3. Divergência > 5% provedor×CVM: conceitos diferentes, marcaria 40–97% dos FIIs. RECOMENDO só caso, com razão ≥ 3× (DPA) e ≥ 2× (rendimento de FII); COTAHIST e CVM continuam prevalecendo. Diverge da spec.",
+      "4. Bloqueios automáticos (escala de ações, ano histórico, base de preço, preço esporádico com P/VP fora da faixa, VP/cota, Obrigações/PL > 100%): 0 ações e 3–8 FIIs calculados viram incompletos. RECOMENDO aprovar e recalibrar após o dry-run de prod.",
+      "5. Valor em conferência: RECOMENDO a regra do designer aplicada em todo lugar. Fora de escala vira '—' (inclusive o nº de ações e EV/EBITDA do VAMO3, que no protótipo aparecem com número); plausível aparece com chip; DY de proventos continua como hoje (valor + selo). O protótipo C2 muda.",
+      "6. Rota da fila: /admin/curadoria (protótipo) em vez de /admin/analise-ativos. RECOMENDO /admin/curadoria.",
+      "7. Relato duplicado: 409 levando ao relato existente (protótipo). Limite de 5/dia por usuário (protótipo; o arquiteto propunha 10). RECOMENDO 5/dia + 3/h por ativo.",
+      "8. Botão: menu ⋯ por bloco (designer e arquiteto concordam). O designer previa 36px no computador; RECOMENDO 44px em todas as larguras, pela regra do app. Ligar primeiro só para admins.",
+      "9. Consultor agindo pode relatar? RECOMENDO sim (dado de mercado): o consultor é o autor e quem recebe a resposta; o cliente é registrado e não notificado.",
+      "10. Retorno: notificar só ao fechar (sino + push), com 'Conferido, sem alteração' para rejeitado. RECOMENDO assim.",
+      "11. SLA: 5 dias úteis desde o 1º relato. Casos só de regra ficam sem prazo. Curadores = admins (ou um papel 'curador' separado?). RECOMENDO admins por ora; alerta de caso novo e digest independem de ALERTA_ADMIN.",
+      "12. 'Liberar o valor' vale a partir do próximo cálculo diário (até 24h). RECOMENDO sem recálculo imediato.",
+      "13. Conferência manual pelo curador (protótipo HGLG11 vacância): RECOMENDO incluir, só de exibição (nunca mexe no Índice), sumindo ao fechar o caso.",
+      "14. Correção manual de dado (override de evento/nº de ações, ex.: SBSP3 1:5): RECOMENDO bloco seguinte, com tabela auditada.",
+      "15. Mostrar quantos relataram o mesmo dado? RECOMENDO não.",
+      "16. Retenção: o designer propõe 12 meses + export; o arquiteto, 24. RECOMENDO 12 meses após o fechamento (anonimiza o texto livre, mantém o caso e a auditoria), mais o export e a anonimização na exclusão de conta.",
+      "17. Preço esporádico dentro da faixa (29 ações / 50 FIIs): RECOMENDO só o selo informativo, sem tirar do Índice."
+    ]
+  },
+  "design": {
+    "resumo": "Revisão 2 do protótipo do bloco C, no mesmo arquivo e no mesmo artifact privado (https://claude.ai/artifact/S1dHWnBVYKz4HZkP3F38t1, versão 2; outras pessoas só abrem depois que você compartilhar). A bancada continua igual: computador, celular 390/320, claro/escuro/sistema. São 38 cenários em 6 grupos.\n\nO protótipo agora segue a arquitetura em rotas, limites, estados do caso e regras de sanidade. Sobram 4 divergências explícitas com o arquiteto: Meus relatos global, valorEsperado, o nome \"relato\" × \"aviso\" e a regra do aviso ao admin.\n\n**Críticas aceitas:**\n- **Lucro com salto não bloqueia mais.** Vale a regra do arquiteto: 5× ou mais, base de R$ 50 mi e mesmo sinal, só abre caso de revisão (SYNE3 em K3). A minha regra ×/÷3 marcava PRIO3, que é queda real. O exemplo de bloqueio agora é SBSP3 (base da cotação ÷5 sem evento, caso real do dev).\n- **Política de exibição por grupo, no contrato 0.** \"Ocultar\" (— e chip) para acoes_escala, historico, preco_base, preco_esporadico e fii_vp. \"Mostrar com selo\" para proventos e fii_obrigacoes. O DY da WEGE3 continua visível como hoje, então nada muda com params v1. VAMO3 virou CBAV3, caso real do dev: nº de ações, EV/EBITDA e P/Receita aparecem como \"—\", também no Quadro.\n- **Caso \"regra + usuário\" não fecha sozinho.** Ganhou o aviso \"regra parou de marcar\" na linha e no detalhe. Um relato só entra num caso de regra quando é do mesmo grupo.\n- **Conferência manual saiu.** A vacância do HGLG11 virou uma nota \"a tela segue a CVM\" e um caso de revisão.\n- **Alvos de toque:** chip, menu ⋯, itens do menu, links de linha, \"Fechar\" do aviso, radios e sino agora têm 44px no computador e no celular.\n- **Contraste:** cabeçalho ordenado e contador do sino em #396CAA; aba ativa da barra inferior na cor de link; contagem da aba em #314666.\n- **Contrato alinhado ao arquiteto:** /admin/analise-ativos, 200 jaExistia, 10 relatos em 24 h e 3 por hora no mesmo ativo, retenção de 24 meses, resolução obrigatória ao fechar, 409, assumir e o job de curadoria.\n\n**Cenários novos:** C1 SBSP3, C2 CBAV3 (com o ano de 2022 em conferência), C4 WEGE3 com valor, C5 HGLG11 nota, C7 PMRL11 obrigações, K3 revisão de lucro, K4 fechar sem resolução, K7 conflito 409.\n\n**Testes:** passei por todos os cenários no Playwright, nos dois temas: sem erro de console e sem rolagem horizontal. No celular, nenhum alvo ficou abaixo de 44px. Conferi 4 telas por captura (SBSP3 no computador, fila no computador, SBSP3 e Quadro de FIIs no celular).\n\nOs botões padrão herdados da Fase 1 no computador continuam com 40px (justificativa em decisões).\n\n**Arquivos em /tmp/claude-1000/-home-huske-dev-front/72cb6319-9694-4880-8874-2f2fe3f709ee/scratchpad/analise-blocoC/:**\n- Peças do protótipo: build.sh (monta o HTML a partir de base.css, extra.css, sprites, body.html, q.js e app.js)\n- Auditoria: v2/audit.mjs",
+    "prototipo_path": "/tmp/claude-1000/-home-huske-dev-front/72cb6319-9694-4880-8874-2f2fe3f709ee/scratchpad/analise-blocoC/prototipo.html",
+    "telas": [
+      {
+        "nome": "Página do ativo: ponto de entrada (R1, M1)",
+        "descricao": "WEGE3 com o menu do bloco Valuation aberto. No celular, o menu abre como BottomSheet. O rodapé do bloco mostra \"Você reportou o Payout em 01/10 · Em análise · resposta até 08/10\".",
+        "decisoes": [
+          "Menu ⋯ com 44×44px também no computador; a margem negativa evita que o cabeçalho cresça. Itens do menu com 44px.",
+          "\"Você reportou\" vem dentro do GET /ativos/[ticker], só com os relatos do usuário logado. Assim não há GET por ticker no tier de 10/min do POST, que é a crítica de rate limit.",
+          "Mapeamento para o enum bloco da API está na especificação (lucro e cota → grafico; prov → dividendos; ess → fundamentos).",
+          "Item de menu escondido quando /config devolve reporteHabilitado=false."
+        ]
+      },
+      {
+        "nome": "Formulário de relato (R2 a R9, M2, M3)",
+        "descricao": "Modal de 560px no computador; sheet de tela cheia no celular. Mesmos campos e contexto da v1.",
+        "decisoes": [
+          "Limite (R7) com os números do arquiteto: 10 em 24 h e 3 por hora no mesmo ativo. A tela diz quando o envio volta.",
+          "\"Já reportado\" (R8) é informação, não erro: 200 com jaExistia:true. Nada novo é criado e a tela leva ao relato existente.",
+          "Mantive \"Valor que você esperava\" e pedi valorEsperado no schema. É divergência explícita (pergunta 5).",
+          "Consultor: autor = consultor, cliente registrado em clienteId, sem notificação ao cliente."
+        ]
+      },
+      {
+        "nome": "Meus relatos e notificação (U1 a U3, M6)",
+        "descricao": "Lista dos relatos do usuário com status (forma + texto), prazo e resposta. Notificação só quando o caso fecha.",
+        "decisoes": [
+          "Exige GET /api/analise-ativos/meus-reportes, que a arquitetura não tem. É divergência explícita (pergunta 4).",
+          "\"Rejeitado\" aparece para o usuário como \"Conferido, sem alteração\", com o motivo.",
+          "Links \"Abrir X\" e \"Ver meus relatos\" com 44px."
+        ]
+      },
+      {
+        "nome": "Em conferência pela regra (C1 a C7, M4, M5)",
+        "descricao": "C1 SBSP3: base da cotação ÷5 sem evento; DY, P/L, P/VP e valor de mercado aparecem como \"—\", a cotação com chip e a série tracejada. C2 CBAV3: nº de ações em escala ×1000, com P/L, P/VP, EV/EBITDA, P/Receita e nº de ações como \"—\", e o ano de 2022 em conferência pelo grupo historico. C3 CACR11: base 1:10 e frescor atrasado. C4 WEGE3: proventos com valor e chip. C5 HGLG11: vacância com nota \"a tela segue a CVM\". C6 e C7: Quadro de ações e de FIIs (PMRL11 com obrigações de 324% e chip).",
+        "decisoes": [
+          "Uma política por grupo, lida do mesmo helper (conferencia.ts) na página, no Quadro, nos pares e na busca. Resolve a crítica do DY que sumiria com a v1 e a de valores publicados com escala errada.",
+          "O \"Por quê?\" ganhou \"Na tela\" (o que fica oculto ou visível) e \"Situação\" (\"a equipe está conferindo desde…\"). Saiu \"relato confirmado\" como origem.",
+          "O chip passou a ser um botão de 44px com o desenho compacto por dentro (.cc-in); a margem negativa mantém a altura dos cartões.",
+          "Rejeitada (justificativa): a cotação negociada continua visível com chip mesmo em preco_base. É o preço real da B3; o que fica distorcido são os indicadores que dependem dele, e esses ficam ocultos.",
+          "Lucro com salto não aparece na página: na arquitetura é só caso de revisão (K3)."
+        ]
+      },
+      {
+        "nome": "Fila do curador /admin/analise-ativos (K1 a K10, M7)",
+        "descricao": "Cinco contadores que filtram: Com usuário esperando, Em análise, Vencem em até 2 dias úteis, Vencidos, Só regra (sem prazo). Chips de efeito (Em conferência / Revisão) e Fechados. Tabela com Caso, Origem (Usuário / Regra / Regra + usuário), Efeito, Status com responsável e Prazo. O detalhe tem duas variantes: WEGE3 \"regra + usuário\" em que a regra parou de marcar, e SYNE3 revisão de lucro.",
+        "decisoes": [
+          "Rota alinhada ao arquiteto (/admin/analise-ativos), em vez de /admin/curadoria.",
+          "Casos só de regra ficam fora dos quatro primeiros contadores e do card do /admin (crítica do SLA). Mostram \"sem prazo · há N dias úteis\", com triângulo depois de 10.",
+          "Decisão = status + resolução obrigatória ao fechar (corrigido_fonte, corrigido_reprocessado, dado_confirmado, sem_procedencia, duplicado) + resposta pública até 500 com contador + nota até 2.000. Saiu o par \"manter / liberar\": \"dado confirmado\" libera a conferência.",
+          "A resposta só é enviada ao fechar (\"Fechar e avisar N usuários\").",
+          "Conflito 409 (K7) mostra quem alterou e quando, mantém o texto digitado e oferece \"Recarregar o caso\".",
+          "Rejeitadas (justificativa): os botões padrão .btn de 40px e a navegação lateral no computador vêm da Fase 1 e do app real; ajustá-los é mudança global do design system, fora do bloco C. Todos os elementos novos do bloco C têm 44px."
+        ]
+      }
+    ],
+    "especificacao_visual": "Tokens da Fase 1 sem mudança. Tokens do bloco C (claro → escuro):\n- --conf-line #667085 → #98A2B3; --conf-bg #F2F4F7 → #26262A\n- --sla-late #D92D20 → #F97066, com fundo a 8–10%\n- --field-bg #FFFFFF → #18181B; --field-line #D0D5DD → #3A404B\n- Novos: --th-sort-bg #396CAA nos dois temas (cabeçalho ordenado); --count-bg #396CAA (contador do sino); --cnt-on-fg #314666 → #6E9DC4 (contagem da aba ativa); --warn-box #F2F4F7 → #26262A\n- #0079F2 só em elementos sem texto: anel, barras do Índice, borda da resposta nova e o logotipo\n\n**Medidas:**\n- Menu ⋯: 44px (computador e celular), ícone de 20px; menu de 248px com itens de 44px; sheet com itens de 52px.\n- Chip \"em conferência\": botão de 44px com o desenho interno de 20px no computador e 28px no celular, texto de 11,5/12,5px, borda tracejada.\n- Popover: 380px. Modal: 560px.\n- Campos: 44px (48px com fonte de 16px no celular). Radios: 44px.\n- Contadores da fila: 44px, em 5 colunas (3 abaixo de 1.100px e 2 abaixo de 560px).\n- Linha \"Você reportou\": 13px, fundo app-bg, raio 10.\n\n**Formas de status e efeito:**\n- Status: Aberto = círculo vazio; Em análise = relógio; Corrigido = ✓ cheio; Rejeitado = tracejado.\n- Efeito: Em conferência = pílula tracejada com lupa; Revisão = pílula sólida com documento.\n- Prazo: \"Vencido\" em vermelho com ícone; \"Vence em\" em app-strong 700; \"sem prazo · há N dias úteis\".\n\n**Política por grupo:** a tabela fica na especificação do protótipo e deve ir para CAMPOS_POR_GRUPO no contrato 0.",
+    "acessibilidade": [
+      "Menu do bloco: button com aria-haspopup='menu' e aria-expanded; itens com role='menuitem'; setas percorrem os itens; Esc fecha e devolve o foco ao botão.",
+      "Formulário: role='dialog', aria-modal e aria-labelledby; foco preso dentro e fundo inert; ao fechar, o foco volta ao botão de origem.",
+      "Todo campo tem label visível e '(opcional)' escrito. Erros só no envio: resumo em role='alert', aria-invalid + aria-describedby, mensagem com ícone e texto.",
+      "Chip 'em conferência': button de 44px com nome completo ('Payout em conferência: por quê?'); foco visível desenhado no chip interno.",
+      "Popover: role='dialog' não modal, fecha com Esc; no celular vira sheet modal.",
+      "Curadoria: a resolução obrigatória tem erro anunciado e recebe o foco quando falta. O conflito 409 é anunciado em role='alert'.",
+      "Cabeçalho ordenado da fila tem o texto oculto 'ordem crescente'.",
+      "Status, prazo, efeito, origem e frescor sempre com ícone e texto, nunca só cor.",
+      "Contraste ≥ 4,5:1 medido por script nos dois temas. Únicas exceções: os selects desabilitados durante o envio, que a WCAG dispensa.",
+      "Alvos de 44px em todos os elementos novos, nos dois aparelhos; botões principais do celular com 48px.",
+      "Gráficos com role='img' e aria-label dizendo qual trecho está em conferência."
+    ],
+    "perguntas_para_wellington": [
+      "1. Lucro com salto bloqueia ou só vira caso? Resolvido com o arquiteto e o revisor. Recomendação: a regra do arquiteto (5× ou mais, base de R$ 50 mi, mesmo sinal), que só abre caso de revisão e pega 7 empresas no dev. Retirei a minha regra ×/÷3 da v1, que derrubava o Índice da PRIO3 por uma queda real.",
+      "2. Como o valor em conferência aparece na tela? Recomendação: duas políticas por grupo no contrato 0. 'Ocultar' (— e chip) para escala de ações, ano histórico, base da cotação, cotação esporádica e VP/cota de FII. 'Mostrar com selo' para proventos e obrigações de FII. Assim o DY em conferência continua visível como hoje, e a cotação negociada aparece sempre, com o chip.",
+      "3. 'Variação > 40%' e 'divergência > 5%' da spec. DIVERGE DA SPEC; eu e o arquiteto concordamos. Recomendação: não aplicar as regras literais, que marcariam 57% das empresas e de 40% a 97% dos FIIs. Elas viram revisão com base mínima, e só bloqueiam os padrões que foram erro de dado no dev.",
+      "4. Meus relatos com todos os ativos do usuário. DIVERGE DO ARQUITETO, que só prevê GET por ticker. Recomendação: rota GET /api/analise-ativos/meus-reportes (paginada, só do usuário logado, fora do tier de 10/min do POST); o 'Você reportou' da página vem dentro do GET /ativos/[ticker]. Sem a lista, o usuário só acha a resposta pela notificação.",
+      "5. Campo 'Valor que você esperava'. DIVERGE DO ARQUITETO. Recomendação: acrescentar valorEsperado (opcional, até 40 caracteres) ao AnaliseDataReport, porque é o que o curador mais usa para conferir. Alternativa: tirar o campo e pedir o valor na mensagem.",
+      "6. O curador pode pôr um dado em conferência à mão? Recomendação: não nesta fase, alinhado ao arquiteto. O curador só libera ('dado confirmado'). A vacância do HGLG11 virou nota na tela + caso de revisão.",
+      "7. Nome da ação para o usuário. DIVERGE DO ARQUITETO, só no texto. Recomendação: 'Reportar dado incorreto' (palavra da spec) e 'relato'; a arquitetura usa 'Avisar' e 'aviso'. Qualquer um serve, desde que seja o mesmo no menu, na notificação e em Meus relatos.",
+      "8. Como chamar 'rejeitado' para o usuário? Recomendação: 'Conferido, sem alteração', sempre com o motivo. A resolução técnica fica só na fila.",
+      "9. Quando avisar o usuário? Recomendação: só quando o caso fecha (Notification e push). Caso com relato nunca fecha sozinho quando a regra para de marcar; a crítica do revisor foi aceita.",
+      "10. Consultor agindo pelo cliente. Recomendação: autor = consultor e clienteId = cliente, sem notificação ao cliente, igual à arquitetura.",
+      "11. Limites anti-abuso. Recomendação: os do arquiteto: 10 em 24 h, 3 por hora no mesmo ativo, 1 aberto por usuário × ativo × campo, 300 por dia no total. Abandonei os meus 5 por dia.",
+      "12. LGPD. Recomendação, aceitando a correção do revisor: a exclusão de conta anonimiza o usuário em vez de apagar, então ela precisa limpar a mensagem e a fonte dos relatos. Os relatos entram no /api/profile/export, e a retenção de 24 meses roda no cron lgpd-retention que já existe.",
+      "13. Aviso de novo relato ao admin. DIVERGE DO ARQUITETO, a partir da crítica do revisor. Recomendação: depender só de ANALISE_ATIVOS_REPORTE_HABILITADO, e não de ALERTA_ADMIN. O resumo diário inclui 'vence em até 2 dias úteis', e os casos só de regra ficam fora das pendências.",
+      "14. Quando liberar o botão (decisão 7 da Fase 1)? Recomendação: junto com a primeira ampliação do beta. Até lá a fila roda só com os casos de regra."
+    ]
+  },
+  "revisao": {
+    "problemas": [
+      {
+        "alvo": "arquitetura",
+        "gravidade": "alta",
+        "descricao": "A fatia B troca a regra do DY no Quadro sem que a v1 mude nada. Isso quebra o critério 'com v1 a tela fica idêntica' e o 'grupo proventos sem mudança de comportamento'.",
+        "evidencia": "Hoje, em src/services/analiseAtivos/leitura/linhasQuadro.ts (estadoCampo, linhas 219-251), quando há valor finito o retorno é {estado:'ok', valor} antes de qualquer checagem de conferência. CAMPOS_PROVENTO só vira ausente('fonte_defasada') quando não há valor, e kpisAtivo.ts:274 faz ok(rend, proventosEmConferencia), ou seja, mostra o valor com selo. A spec B diz que 'campo em conferência com valor vira ausente ... valor bruto NÃO é exibido no Quadro' usando campoEmConferencia(), e o contrato 0 mapeia o legado 'proventos_em_conferencia_*' para o grupo 'proventos'. No DEV há 50+27 linhas com essas flags. O DY dessas linhas, hoje visível, sumiria e iria para o fim da ordenação já com a v1, porque a leitura não depende da versão de params.",
+        "sugestao": "Separar a política de exibição por grupo: 'ocultar' só para os grupos de escala (acoes_escala, historico, preco_base) e 'mostrar com selo' para proventos, fii_obrigacoes e similares. Também condicionar a nova leitura a paramsVersion da linha ou a conferencia.ligada. Incluir no teste de regressão da B uma linha com proventos_em_conferencia_* e valor."
+      },
+      {
+        "alvo": "arquitetura",
+        "gravidade": "alta",
+        "descricao": "Há contradição no fechamento automático: a spec diz que 'casos de usuário nunca fecham sozinhos', mas o aviso de usuário é anexado ao caso de regra (origem 'misto') e o job fecha casos de regra como fonte_corrigiu e avisa os autores. O usuário pode receber 'O dado foi corrigido' sobre algo que ninguém olhou.",
+        "evidencia": "Em registrarReporte, o aviso 'ANEXA' a qualquer caso de regra aberto do MESMO GRUPO, mesmo que o campo seja outro (ex.: aviso sobre P/L em valuation anexado ao caso preco_base). sincronizarCasos fecha 'casos de regra abertos cuja regra NÃO disparou ... Se o caso tem reportes, o autor é avisado'. Além disso, a regra pode deixar de disparar porque o dado sumiu (preço null, ticker fora do Quadro, componente virou sem_dado), e não porque a fonte corrigiu.",
+        "sugestao": "Caso 'misto' nunca fecha sozinho: o job só marca regraAtiva=false e cria um evento 'regra_cessou' para o curador decidir. Anexar só quando o campo do aviso estiver em CAMPOS_POR_GRUPO do grupo do caso. Fechar com fonte_corrigiu só se o campo voltou com valor 'ok' (não ausente) e a linha é de hoje."
+      },
+      {
+        "alvo": "arquitetura",
+        "gravidade": "alta",
+        "descricao": "A suposição de LGPD está errada. A exclusão de conta no app ANONIMIZA o usuário (prisma.user.update) e não apaga o registro, então o onDelete: Cascade de AnaliseDataReport.userId nunca roda. O texto livre do usuário fica para sempre, ligado a um id que continua existindo. Os avisos também não entram no export de dados.",
+        "evidencia": "src/app/api/profile/route.ts:197-216 troca o nome para 'Usuário removido', o e-mail para deleted-<id>@anonimo.local e apaga só userChangeLog. O plano_qa item 7 diz 'exclusão de usuário apaga os avisos por cascade'. src/app/api/profile/export/route.ts exporta as teses da Análise de Ativos (tesesParaExportacao), mas a spec não inclui os avisos. Já existe o cron /api/cron/lgpd-retention (provision.sh.tftpl), que a spec ignora ao propor a retenção de 24 meses.",
+        "sugestao": "No fluxo de exclusão de conta, apagar ou anonimizar AnaliseDataReport.mensagem e fonteEsperada do usuário. Incluir os avisos no /api/profile/export. Implementar a retenção dentro do lgpd-retention existente. Corrigir o teste de LGPD do plano."
+      },
+      {
+        "alvo": "arquitetura",
+        "gravidade": "media",
+        "descricao": "A spec diz que normalizarTexto da comunidade 'remove caracteres de controle e zero-width e colapsa espaços', mas a função não faz isso. Bidi/zero-width (ex.: U+202E) chegariam à fila do admin e à resposta, e o teste de XSS/bidi do plano_qa iria falhar.",
+        "evidencia": "src/services/comunidade/permissoes.ts:49-53 só faz .replace(/\\r\\n?/g,'\\n').replace(/\\n{3,}/g,'\\n\\n').trim().",
+        "sugestao": "Criar um saneador próprio (remover \\p{Cc} exceto \\n, U+200B-U+200F, U+202A-U+202E, U+2066-U+2069 e U+FEFF) em curadoria/contrato.ts, com teste. Não reaproveitar o da comunidade com uma promessa falsa."
+      },
+      {
+        "alvo": "arquitetura",
+        "gravidade": "media",
+        "descricao": "O tier de rate limit de 10/min por IP em '/api/analise-ativos/reportes' vale para TODOS os métodos e o bucket é por prefixo de 4 segmentos. O GET ?ticker=X, chamado a cada página de ativo aberta para mostrar 'Você avisou', consome o mesmo balde do POST. Um usuário navegando por 10 ativos em 1 minuto leva 429.",
+        "evidencia": "src/middleware.ts:208-215 calcula key = ip + pathname.split('/').slice(0,4) e não olha o método. getTierForPath só recebe o pathname (src/lib/rateLimit.ts:139-190). A spec D usa a mesma rota para o GET por ticker.",
+        "sugestao": "Pôr o GET numa rota separada (/api/analise-ativos/meus-reportes) ou devolver os avisos do usuário dentro do GET /ativos/[ticker]. Outra saída é o tier receber o método. Testar 11 GETs seguidos."
+      },
+      {
+        "alvo": "arquitetura",
+        "gravidade": "media",
+        "descricao": "Generalizar comConferenciaDaEmpresa para 'qualquer grupo' faz um problema de PREÇO de um ticker secundário (preco_esporadico, preco_base, acoes_escala) contaminar o Índice da empresa inteira, ainda que o Índice use a cotação do ticker de referência.",
+        "evidencia": "recalcularScores.ts:399-414 hoje contamina só o DY, que é por empresa (proventos). No DEV, 70 linhas de ações no Quadro têm tickerReferencia diferente do symbol (PN ou units, muitas ilíquidas). Uma R4 numa PN esporádica tiraria o C_preço da ON líquida.",
+        "sugestao": "Contaminar por empresa só os grupos de empresa (proventos, fundamentos_escala, historico, acoes_escala). Os grupos de preço (preco_base, preco_esporadico) contam só quando o ticker marcado é o tickerReferencia. Incluir um teste com ON e PN."
+      },
+      {
+        "alvo": "ambos",
+        "gravidade": "media",
+        "descricao": "Arquiteto e designer divergem sobre o lucro: no protótipo, o lucro 12m 'em conferência' derruba o Índice (WEGE3 8,3 → 5,5, regra ×/÷3). Para o arquiteto, lucro é só 'rev' e não tem efeito na tela. Medi a regra do designer no DEV e ela marca PRIO3, que está calculado e é queda real.",
+        "evidencia": "Medição feita por mim (DEV, último FY × anterior, 260 emissores do Quadro): a regra literal de 40% pega 148 (57%) e o lucro sozinho 128, o que confirma o arquiteto (149/134). A regra do arquiteto (≥5×, base ≥ R$50 mi, mesmo sinal) pega 7: SEQL3, LIGT3 (calculado), RIAA3, SYNE3, FHER3, IFCM3, ALPA3/4 (calculado). A do designer (×/÷3, ambos positivos, receita ±20%, margem >5%) pega PRIO3 (calculado, 10,3 bi → 2,25 bi) e BMKS3. Os cenários C1 e U1 do protótipo mostram um bloqueio que a arquitetura não tem.",
+        "sugestao": "Decidir uma regra só antes da fatia B. Recomendo a do arquiteto (lucro = só caso). Trocar o C1 do protótipo por um exemplo bloqueante real (SBSP3 preco_base) e tirar a pergunta 1 do designer ou reescrevê-la."
+      },
+      {
+        "alvo": "ambos",
+        "gravidade": "media",
+        "descricao": "O valor em conferência não segue a mesma política nos dois lados. O protótipo publica o próprio número errado (VAMO3 'Nº de ações 1,07 mi' com chip; EV/EBITDA 5,8 e P/Receita 0,7 com chip, que também dependem do nº de ações). A arquitetura põe evEbitda e pReceita em acoes_escala e os oculta no Quadro. A página e o Quadro mostrariam coisas diferentes para o mesmo campo.",
+        "evidencia": "Captura revisao-C2-desk-light.png: 'Nº de ações 1,07 mi · em conferência' e o card EV/EBITDA '5,8'. A regra do próprio designer diz 'Valor fora de escala vira — '. CAMPOS_POR_GRUPO.acoes_escala da spec 0 inclui evEbitda e pReceita.",
+        "sugestao": "Pôr a política de exibição (ocultar ou mostrar com selo) dentro de CAMPOS_POR_GRUPO no contrato 0 e fazer o protótipo seguir esse contrato. A matriz de consistência da B deve verificar também o 'valor visível ou não'."
+      },
+      {
+        "alvo": "design",
+        "gravidade": "media",
+        "descricao": "No celular, alvos ficam abaixo de 44px, contra a regra do app e contra o próprio texto de acessibilidade do designer. No computador, o menu ⋯ tem 36px e os itens do menu 40px.",
+        "evidencia": "Auditoria Playwright a 390px, em todos os 31 cenários: o chip 'X em conferência: por quê?' tem 124×32 (aparece em R1, C1-C4 e mais 50 cenários); 'Abrir WEGE3/PETR4/KNCR11' tem 324×32 (U1); 'Fechar' 57×32 (K3); 'Ver meus relatos' 111×40 (R5); 'Tem uma informação sobre isso? Reportar' 281×32 (C4). A especificação visual fixa o chip em 32px no celular e o botão do menu em 36px no computador.",
+        "sugestao": "Chip, links de linha e 'Fechar' com área de toque de no mínimo 44px no celular (padding ou pseudo-elemento). Menu ⋯ com 44px também no computador, como pede a regra do app."
+      },
+      {
+        "alvo": "design",
+        "gravidade": "media",
+        "descricao": "O contraste falha AA, e #0079F2 aparece como cor de texto e como fundo de texto branco, contra a paleta (#0079F2 só não-textual).",
+        "evidencia": "Medição do contraste calculado no protótipo, tema claro, computador: branco sobre #0079F2 dá 4,19:1 no badge '1' do sino (50 cenários), nos cabeçalhos ordenados 'Índice MF ▼' (U2) e 'Prazo ▲' (K1). 'Mais' em rgb(0,121,242) dá 4,19:1 (M1, 37 cenários). '385' e '362' em #396CAA sobre fundo de conferência ou hachura dão 4,27:1 (U2, C6).",
+        "sugestao": "Fundo do cabeçalho ordenado e do badge em #396CAA (ou texto escuro), item ativo da barra inferior com texto #396CAA/#6E9DC4. Sobre --conf-bg e a hachura, usar texto app-ink ou escurecer a hachura até chegar a ≥4,5:1."
+      },
+      {
+        "alvo": "ambos",
+        "gravidade": "media",
+        "descricao": "Os dois contratos de produto não fecham entre si, e as fatias acabariam implementando coisas diferentes.",
+        "evidencia": "(1) Rota da fila: /admin/analise-ativos (arquiteto) × /admin/curadoria e /admin/curadoria/[id] (designer). (2) Aviso duplicado: 200 {jaExistia:true} (arquiteto) × 409 levando ao existente (designer). (3) Limite: 10/dia (arquiteto) × 5/dia (designer). (4) Retenção: 24 meses (arquiteto) × 12 meses + export (designer). (5) O campo 'Valor que você esperava' do formulário do designer não existe no schema AnaliseDataReport. (6) O designer prevê conferência MANUAL pelo curador (HGLG11 vacância, 'relato confirmado') e a tela 'Meus relatos' para todos os ativos; a arquitetura não tem nem ação PATCH nem GET sem ticker para isso.",
+        "sugestao": "Fechar uma tabela de decisões em docs/analise-ativos/bloco-c/decisoes.md antes da fatia 0. Adicionar valorEsperado ao schema ou tirar o campo do formulário. Tirar do escopo do protótipo a conferência manual e a lista global, ou incluir as duas no contrato."
+      },
+      {
+        "alvo": "arquitetura",
+        "gravidade": "baixa",
+        "descricao": "A faixa de P/VP da R4 para FII ([0,5; 1,6]) não distingue erro de dado de FII descontado de verdade. Hoje a regra só funciona por causa do filtro de liquidez.",
+        "evidencia": "No DEV há 31 FIIs no Quadro com P/VP fora de [0,5; 1,6]: 17 deles 'calculado' com P/VP entre 0,30 e 0,49 (ALMI11, CTXT11, EDGA11, KNRE11, RECT11, CBOP11...). Esses valores são reais e comuns em FIIs com problema. O MMVE11 (0,46), que a regra marca, está na mesma faixa desses casos reais.",
+        "sugestao": "Baixar o piso do FII para cerca de 0,25 ou exigir um segundo sinal (salto do preço contra a mediana de 60 pregões). Rodar de novo o dry-run de prod medindo quantos esporádicos passam."
+      },
+      {
+        "alvo": "arquitetura",
+        "gravidade": "baixa",
+        "descricao": "O SLA de 5 dias úteis com 1 curador depende de alertas que só existem com ALERTA_ADMIN ligado e em produção. Além disso, o digest só sai no job das 10:55 e não há escalonamento.",
+        "evidencia": "O gate analiseAtivosAlertaAdmin() (src/lib/analiseAtivosConfig.ts:17) é usado tanto para o aviso de novo caso quanto para o digest. A previsão é de 60 a 120 casos 'rev' na primeira noite, numa fila com 1 a 2 admins.",
+        "sugestao": "Fazer o aviso de novo caso de USUÁRIO depender só de ANALISE_ATIVOS_REPORTE_HABILITADO, não do ALERTA_ADMIN. No digest, incluir também 'vence em 2 dias úteis' e mandar push. Deixar os 'rev' fora da contagem de pendências do card do /admin."
+      }
+    ],
+    "pontos_fortes": [
+      "A medição do arquiteto se reproduz no DEV. A regra literal de 40% pega 148 de 260 emissores (57%) contra 149 na spec, e o lucro sozinho 128 contra 134. Os estados do Quadro DEV batem: ações 165/120/45, FIIs 216/61/57/21.",
+      "A R6 (Obrigações/PL > 100%) foi conferida: são exatamente PMRL11, BLCA11, APXU11 (calculado → incompleto) e HJCT11, AURB11 (já incompletos). A R1 também, pelo lado P/VP e P/L: CBAV3, GFSA3, HAPV3, LAND3, todos já incompletos ou zero_regra, sem perda de linha calculada.",
+      "Transformar 'variação > 40%' e 'divergência > 5%' em CASO, e não em bloqueio, está bem justificado com números. A divergência em relação à spec ficou explícita para o Wellington.",
+      "Params v2 com conferencia.ligada=false por default na v1, dry-run com --versao-params e rollback por v3 seguem a imutabilidade de versões e permitem medir em prod antes de ligar.",
+      "O schema é aditivo e a auditoria é feita em AnaliseCasoEvento. A concorrência otimista usa 409, o compliance da resposta pública reaproveita contemUsoProibido, e a rota admin usa requireAdmin, que já existe (src/utils/auth.ts:86) junto com o bloqueio de página /admin/* no middleware.",
+      "O snapshot do servidor ao lado do contexto exibido dá ao curador como reproduzir o caso. Não mostrar ao usuário quantos avisaram evita efeito manada.",
+      "O protótipo roda sem erro de console nos 31 cenários, nos dois temas e nos dois tamanhos. O status sempre aparece com ícone e texto e o semáforo mostra 'Sem dado' com o motivo."
+    ]
+  }
+}

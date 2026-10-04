@@ -13,6 +13,9 @@
  *    cobrem investigação de incidente sem reter PII indefinidamente).
  *  - UserChangeLog > 12 meses: deleta (histórico de alterações do usuário
  *    contém IP + UA e valores antes/depois; 1 ano de trilha é suficiente).
+ *  - Relatos de dado incorreto da Análise de Ativos (bloco C, decisão 19):
+ *    caso FECHADO há > 12 meses → anonimiza o texto livre do relato
+ *    (mensagem/valor esperado/fonte); o caso e a auditoria ficam.
  *
  * Agendado em vercel.json: domingo 05:00 UTC (sem conflito com os crons
  * de mercado que rodam 06-08 UTC).
@@ -24,6 +27,7 @@ import { logger } from '@/lib/logger';
 import prisma from '@/lib/prisma';
 import { withErrorHandler } from '@/utils/apiErrorHandler';
 import { requireCronSecret } from '@/utils/cronAuth';
+import { anonimizarReportesRetencao } from '@/services/analiseAtivos/curadoria/privacidadeReportes';
 
 const DAYS = 24 * 60 * 60 * 1000;
 const INVITE_TTL_DAYS = 30;
@@ -40,7 +44,7 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
   const loginEventCutoff = new Date(now - LOGIN_EVENT_TTL_DAYS * DAYS);
   const changeLogCutoff = new Date(now - USER_CHANGE_LOG_TTL_DAYS * DAYS);
 
-  const [invites, logs, loginEvents, changeLogs] = await Promise.all([
+  const [invites, logs, loginEvents, changeLogs, relatos] = await Promise.all([
     prisma.consultantInvite.deleteMany({
       where: { status: 'pending', createdAt: { lt: inviteCutoff } },
     }),
@@ -53,10 +57,11 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     prisma.userChangeLog.deleteMany({
       where: { createdAt: { lt: changeLogCutoff } },
     }),
+    anonimizarReportesRetencao(prisma, new Date(now)),
   ]);
 
   logger.info(
-    `[lgpd-retention] convites pendentes purgados: ${invites.count}, logs de impersonation purgados: ${logs.count}, eventos de login purgados: ${loginEvents.count}, histórico de alterações purgado: ${changeLogs.count}`,
+    `[lgpd-retention] convites pendentes purgados: ${invites.count}, logs de impersonation purgados: ${logs.count}, eventos de login purgados: ${loginEvents.count}, histórico de alterações purgado: ${changeLogs.count}, relatos da Análise de Ativos anonimizados: ${relatos.anonimizados}`,
   );
 
   return NextResponse.json({
@@ -64,11 +69,13 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     impersonationLogsPurged: logs.count,
     loginEventsPurged: loginEvents.count,
     changeLogsPurged: changeLogs.count,
+    analiseRelatosAnonimizados: relatos.anonimizados,
     cutoffs: {
       pendingInvites: inviteCutoff.toISOString(),
       impersonationLogs: logCutoff.toISOString(),
       loginEvents: loginEventCutoff.toISOString(),
       changeLogs: changeLogCutoff.toISOString(),
+      analiseRelatos: relatos.corte.toISOString(),
     },
   });
 });

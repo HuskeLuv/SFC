@@ -7,6 +7,11 @@ const mockPrisma = vi.hoisted(() => ({
   user: { findUnique: vi.fn(), update: vi.fn() },
   userConsent: { updateMany: vi.fn() },
   userChangeLog: { create: vi.fn(), deleteMany: vi.fn() },
+  analiseDataReport: {
+    findMany: vi.fn().mockResolvedValue([]),
+    updateMany: vi.fn().mockResolvedValue({ count: 0 }),
+  },
+  analiseCasoEvento: { createMany: vi.fn().mockResolvedValue({ count: 0 }) },
 }));
 
 const mockRequireAuthWithActing = vi.hoisted(() =>
@@ -217,6 +222,20 @@ describe('DELETE /api/profile', () => {
     // Histórico de alterações (contém PII) é eliminado na anonimização
     expect(mockPrisma.userChangeLog.deleteMany).toHaveBeenCalledWith({
       where: { userId: 'user-1' },
+    });
+    // Relatos da Análise de Ativos: texto livre anonimizado e vínculo de cliente removido
+    expect(mockPrisma.analiseDataReport.updateMany).toHaveBeenCalledWith({
+      where: { userId: 'user-1', anonimizadoEm: null },
+      data: expect.objectContaining({
+        mensagem: '[removido]',
+        valorEsperado: null,
+        fonteEsperada: null,
+        anonimizadoEm: expect.any(Date),
+      }),
+    });
+    expect(mockPrisma.analiseDataReport.updateMany).toHaveBeenCalledWith({
+      where: { clienteId: 'user-1' },
+      data: { clienteId: null },
     });
     // Derruba todas as sessões e limpa o cookie
     expect(mockBumpSessionVersion).toHaveBeenCalledWith('user-1');

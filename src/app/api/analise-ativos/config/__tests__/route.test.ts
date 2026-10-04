@@ -31,8 +31,20 @@ describe('GET /api/analise-ativos/config', () => {
       estado: 'liberada',
       acesso: 'beta',
       novoAte: '2026-12-31',
+      reporteHabilitado: false,
     });
     expect(mockEstado).toHaveBeenCalledWith('u1');
+  });
+
+  it('reporteHabilitado: só com a flag E a área liberada para o usuário', async () => {
+    vi.stubEnv('ANALISE_ATIVOS_REPORTE_HABILITADO', 'true');
+    mockEstado.mockResolvedValue('liberada');
+    expect((await (await GET(req())).json()).reporteHabilitado).toBe(true);
+    mockEstado.mockResolvedValue('fora_do_beta');
+    expect((await (await GET(req())).json()).reporteHabilitado).toBe(false);
+    vi.stubEnv('ANALISE_ATIVOS_REPORTE_HABILITADO', 'false');
+    mockEstado.mockResolvedValue('liberada');
+    expect((await (await GET(req())).json()).reporteHabilitado).toBe(false);
   });
 
   it('desligada: 200 com habilitada=false (nunca 404)', async () => {

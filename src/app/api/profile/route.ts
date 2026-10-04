@@ -10,6 +10,7 @@ import { recordChange, diffFields, PERFIL_FIELD_LABELS } from '@/services/change
 import type { JWTPayload } from '@/utils/auth';
 import { bumpSessionVersion } from '@/lib/auth/sessionVersion';
 import { clearSessionCookie, issueSession, normalizeClaims } from '@/lib/auth/session';
+import { anonimizarReportesDoUsuario } from '@/services/analiseAtivos/curadoria/privacidadeReportes';
 
 // Perfil é sempre self-edit (ignora impersonation) — o histórico registra
 // payload.id como dono e ator.
@@ -214,6 +215,11 @@ export const DELETE = withErrorHandler(async (req: NextRequest) => {
   // Histórico de alterações guarda PII (nome/e-mail antigos em `changes`) —
   // eliminado junto com a anonimização (Art. 18, IV).
   await prisma.userChangeLog.deleteMany({ where: { userId: me.id } });
+
+  // Análise de Ativos (bloco C): relatos de dado incorreto — texto livre (mensagem, valor
+  // esperado, fonte) anonimizado e vínculo de cliente removido. O User é anonimizado, não
+  // apagado, então o cascade nunca roda (decisão 19).
+  await anonimizarReportesDoUsuario(prisma, me.id);
 
   // Derruba todas as sessões e limpa o cookie de auth da resposta.
   await bumpSessionVersion(me.id);

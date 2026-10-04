@@ -256,27 +256,64 @@ export async function gravarMultiplosAnuais(
   ]);
 }
 
+/**
+ * Ponto anual do P/L (histórico da média de 10 anos). `emConferencia` = o ano tem a flag
+ * 'conf:historico:*' (bloco C, R2: o ponto sai da média); `valorMercadoEmpresa` = VM da empresa no fim
+ * do FY (R1 acoes_escala, razão de VM). Os dois só são usados com sanidade.conferencia.ligada.
+ */
+export interface PlAnualPonto {
+  anoFiscal: number;
+  pl: number | null;
+  plNaoSeAplica: boolean;
+  emConferencia?: boolean;
+  valorMercadoEmpresa?: number | null;
+}
+
+/** O ano está fora de escala (flag 'conf:historico:' gravada em AssetMultiplesYearly.flags). */
+export function anoEmConferencia(flags: readonly string[]): boolean {
+  return flags.some((f) => f.startsWith('conf:historico:'));
+}
+
 /** P/L anual gravado por símbolo (histórico para a média de 10 anos), com os três estados. */
 export async function lerPlAnualGravado(
   prisma: PrismaClient,
   simbolos: string[],
-): Promise<Map<string, Array<{ anoFiscal: number; pl: number | null; plNaoSeAplica: boolean }>>> {
-  const out = new Map<
-    string,
-    Array<{ anoFiscal: number; pl: number | null; plNaoSeAplica: boolean }>
-  >();
+): Promise<Map<string, PlAnualPonto[]>> {
+  const out = new Map<string, PlAnualPonto[]>();
   if (simbolos.length === 0) return out;
   const linhas = await prisma.assetMultiplesYearly.findMany({
     where: { symbol: { in: simbolos } },
-    select: { symbol: true, anoFiscal: true, pl: true, naoSeAplica: true },
+    select: {
+      symbol: true,
+      anoFiscal: true,
+      pl: true,
+      naoSeAplica: true,
+      flags: true,
+      valorMercadoEmpresa: true,
+    },
     orderBy: [{ symbol: 'asc' }, { anoFiscal: 'asc' }],
   });
   for (const l of linhas) {
     const lista = out.get(l.symbol) ?? [];
-    lista.push({ anoFiscal: l.anoFiscal, pl: l.pl, plNaoSeAplica: l.naoSeAplica.includes('pl') });
+    lista.push({
+      anoFiscal: l.anoFiscal,
+      pl: l.pl,
+      plNaoSeAplica: l.naoSeAplica.includes('pl'),
+      emConferencia: anoEmConferencia(l.flags),
+      valorMercadoEmpresa:
+        l.valorMercadoEmpresa === null ? null : Number(l.valorMercadoEmpresa.toString()),
+    });
     out.set(l.symbol, lista);
   }
   return out;
+}
+
+export interface DpaAnualGravado {
+  anoFiscal: number;
+  dpaAjHoje: number | null;
+  payoutDmplPct: number | null;
+  /** payout por ação (DPA × ações ÷ lucro): bloco C, rev:dpa_dmpl */
+  payoutPorAcaoPct?: number | null;
 }
 
 /**
@@ -286,22 +323,28 @@ export async function lerPlAnualGravado(
 export async function lerDpaAnualGravado(
   prisma: PrismaClient,
   simbolos: string[],
-): Promise<
-  Map<string, Array<{ anoFiscal: number; dpaAjHoje: number | null; payoutDmplPct: number | null }>>
-> {
-  const out = new Map<
-    string,
-    Array<{ anoFiscal: number; dpaAjHoje: number | null; payoutDmplPct: number | null }>
-  >();
+): Promise<Map<string, DpaAnualGravado[]>> {
+  const out = new Map<string, DpaAnualGravado[]>();
   if (simbolos.length === 0) return out;
   const linhas = await prisma.assetPerShareYearly.findMany({
     where: { symbol: { in: simbolos } },
-    select: { symbol: true, anoFiscal: true, dpaAjHoje: true, payoutDmplPct: true },
+    select: {
+      symbol: true,
+      anoFiscal: true,
+      dpaAjHoje: true,
+      payoutDmplPct: true,
+      payoutPorAcaoPct: true,
+    },
     orderBy: [{ symbol: 'asc' }, { anoFiscal: 'asc' }],
   });
   for (const l of linhas) {
     const lista = out.get(l.symbol) ?? [];
-    lista.push({ anoFiscal: l.anoFiscal, dpaAjHoje: l.dpaAjHoje, payoutDmplPct: l.payoutDmplPct });
+    lista.push({
+      anoFiscal: l.anoFiscal,
+      dpaAjHoje: l.dpaAjHoje,
+      payoutDmplPct: l.payoutDmplPct,
+      payoutPorAcaoPct: l.payoutPorAcaoPct,
+    });
     out.set(l.symbol, lista);
   }
   return out;

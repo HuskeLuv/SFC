@@ -4,6 +4,9 @@
  * - na_carteira: fundo azul suave (patrimonio a 10%) com texto seguranca;
  * - proventos_em_conferencia: fundo cinza com borda tracejada;
  * - criterios_provisorios, baixa_liquidez: contorno cinza.
+ * - bloco C: em_conferencia = o visual do ChipConferencia (lupa tracejada + texto, fundo cinza) —
+ *   versão estática; na página o chip interativo abre o "Por quê?"; cotacao_esporadica = contorno
+ *   cinza (só informativo).
  * Texto padrão em textosTela.selosEstado; `texto` substitui (ex.: 'Planejado · 5%').
  */
 import { textoSeloEstado } from '@/services/analiseAtivos/textosTela';
@@ -25,14 +28,34 @@ const ESTILO: Record<TipoSeloEstado, string> = {
   proventos_em_conferencia: `${TRACEJADO} bg-gray-100 dark:bg-white/5`,
   criterios_provisorios: CONTORNO,
   baixa_liquidez: CONTORNO,
+  em_conferencia: `${TRACEJADO} bg-gray-100 dark:bg-white/5`,
+  cotacao_esporadica: CONTORNO,
 };
+
+function Lupa() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" className="h-3 w-3 shrink-0">
+      <circle
+        cx="10.5"
+        cy="10.5"
+        r="6.5"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeDasharray="3.2 2.4"
+      />
+      <path d="M15.5 15.5L20 20" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
+    </svg>
+  );
+}
 
 export default function SeloEstado({ tipo, texto, className }: SeloEstadoProps) {
   return (
     <span
       data-selo={tipo}
-      className={`inline-flex items-center rounded-full border px-2 py-px text-[11.5px] leading-[18px] font-medium whitespace-nowrap ${ESTILO[tipo]} ${className ?? ''}`}
+      className={`inline-flex items-center gap-1 rounded-full border px-2 py-px text-[11.5px] leading-[18px] font-medium whitespace-nowrap ${ESTILO[tipo]} ${className ?? ''}`}
     >
+      {tipo === 'em_conferencia' ? <Lupa /> : null}
       {texto ?? textoSeloEstado(tipo)}
     </span>
   );
