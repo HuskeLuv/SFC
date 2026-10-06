@@ -24,6 +24,11 @@ import {
  * - Item casa por nome normalizado dentro do grupo; sem match → criação de
  *   item custom (leva significado/rank); com match → só grava valores, sem
  *   sobrescrever significado/rank pré-existentes.
+ * - Linha MOVIDA pelo usuário (ticket 06/10/2026): sem match no grupo, mas com
+ *   UMA ÚNICA linha criada pelo usuário (sem template) de mesmo nome em outro
+ *   grupo → os valores vão para ela, com aviso. Antes a reimportação recriava
+ *   a linha no grupo da planilha e o total dobrava. Não vale se a própria
+ *   planilha também traz esse nome na seção do grupo onde a linha está.
  * - Célula a célula: sem valor no app → escrita; igual (2 casas) → nada a
  *   fazer; diferente → conflito (política escolhida no commit).
  * - Linha-espelho de sonho (objetivoId) é somente-leitura → ignorada.
@@ -299,6 +304,25 @@ interface GrupoIndexado {
   norm: string;
 }
 
+/**
+ * Linhas criadas pelo usuário (sem template, fora de Sonhos/Dívidas), por nome normalizado, em
+ * qualquer grupo visível — candidatas a "linha movida" na reimportação.
+ */
+const indexarLinhasDoUsuario = (
+  index: GrupoIndexado[],
+): Map<string, Array<{ item: CashflowItem; group: CashflowGroup }>> => {
+  const porNome = new Map<string, Array<{ item: CashflowItem; group: CashflowGroup }>>();
+  for (const { group } of index) {
+    for (const item of group.items ?? []) {
+      if (item.hidden || item.templateId || !item.userId) continue;
+      if (item.objetivoId || item.dividaId) continue;
+      const norm = normalizeLabel(item.name);
+      porNome.set(norm, [...(porNome.get(norm) ?? []), { item, group }]);
+    }
+  }
+  return porNome;
+};
+
 const flattenGroups = (groups: CashflowGroup[], out: GrupoIndexado[] = []): GrupoIndexado[] => {
   for (const g of groups) {
     if (!g.hidden) {
@@ -450,6 +474,19 @@ export const mapFlcToCashflow = (
 
   const index = flattenGroups(arvore);
   const chavesVistas = new Set<FlcSecaoChave>();
+  const linhasDoUsuario = indexarLinhasDoUsuario(index);
+  const movidasUsadas = new Set<string>();
+  // Nomes que a planilha traz em cada grupo de destino (a "linha movida" não pode roubar a linha
+  // que a própria planilha preenche no grupo onde ela está).
+  const nomesPlanilhaPorGrupo = new Map<string, Set<string>>();
+  for (const secao of parse.secoes) {
+    const nome = DESTINOS[secao.chave];
+    const g = nome ? findGroup(index, nome) : null;
+    if (!g) continue;
+    const set = nomesPlanilhaPorGrupo.get(g.id) ?? new Set<string>();
+    for (const item of secao.itens) set.add(normalizeLabel(item.label));
+    nomesPlanilhaPorGrupo.set(g.id, set);
+  }
 
   for (const secao of parse.secoes) {
     if (chavesVistas.has(secao.chave)) {
@@ -512,10 +549,28 @@ export const mapFlcToCashflow = (
         const cor = snapParaLegenda(c);
         return cor !== null && cor !== corPadrao;
       });
-      const itemApp =
+      let itemApp =
         grupoApp.items.find(
           (i) => !i.hidden && normalizeLabel(i.name) === normalizeLabel(item.label),
         ) ?? null;
+      if (!itemApp) {
+        const norm = normalizeLabel(item.label);
+        const candidatas = (linhasDoUsuario.get(norm) ?? []).filter(
+          (c) => c.group.id !== grupoApp.id,
+        );
+        const movida = candidatas.length === 1 ? candidatas[0] : null;
+        if (
+          movida &&
+          !movidasUsadas.has(movida.item.id) &&
+          !nomesPlanilhaPorGrupo.get(movida.group.id)?.has(norm)
+        ) {
+          movidasUsadas.add(movida.item.id);
+          itemApp = movida.item;
+          avisos.push(
+            `linha ${item.linha} ("${item.label}"): já existe em "${movida.group.name}" — os valores vão para essa linha (em vez de criar outra em "${grupoApp.name}")`,
+          );
+        }
+      }
 
       if (itemApp?.objetivoId) {
         ignorados.push({
