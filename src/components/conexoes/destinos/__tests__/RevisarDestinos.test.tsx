@@ -432,4 +432,17 @@ describe('RevisarDestinos — celular (abaixo de lg)', () => {
     fireEvent.click(within(sheet).getByRole('button', { name: 'Usar para os 2' }));
     await waitFor(() => expect(primario()).toHaveTextContent('Salvar 2 mudanças'));
   });
+
+  it('"voltar" do sistema fecha o sheet e depois a revisão (não sai da página)', async () => {
+    const { onFechar } = montar();
+    fireEvent.click(await screen.findByRole('button', { name: 'Trocar destino de KNCA11' }));
+    await screen.findByRole('dialog', { name: 'Onde KNCA11 vai entrar' });
+    act(() => window.history.back());
+    await waitFor(() =>
+      expect(screen.queryByRole('dialog', { name: 'Onde KNCA11 vai entrar' })).toBeNull(),
+    );
+    expect(onFechar).not.toHaveBeenCalled();
+    act(() => window.history.back());
+    await waitFor(() => expect(onFechar).toHaveBeenCalledTimes(1));
+  });
 });

@@ -4,6 +4,7 @@ import React, { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { useIsBelowLg } from '@/hooks/useMediaQuery';
+import { useMobileHistoryLayer } from '@/hooks/useMobileHistoryLayer';
 import { useCsrf } from '@/hooks/useCsrf';
 import {
   desfazerEAtualizar,
@@ -81,8 +82,14 @@ export const SUBTITULO_REVISAO =
 export const TEXTO_409 = 'Nenhum investimento mudou de lugar; eles continuam onde entraram.';
 
 export default function RevisarDestinos(props: RevisarDestinosProps) {
+  // "Voltar" do sistema (celular/PWA) fecha a tela cheia como o "Conferir depois", em vez de
+  // sair de Conexões. A camada mora aqui (sempre montado) porque a revisão desmonta ao fechar e
+  // o hook precisa ver `aberto` virar false para desfazer a entrada do histórico.
+  const fecharRef = useRef(props.onFechar);
+  const aoVoltar = useCallback(() => fecharRef.current(), []);
+  useMobileHistoryLayer(props.aberto, aoVoltar, useIsBelowLg());
   if (!props.aberto) return null;
-  return <RevisaoAberta {...props} />;
+  return <RevisaoAberta {...props} fecharRef={fecharRef} />;
 }
 
 type Aviso =
@@ -148,7 +155,8 @@ function RevisaoAberta({
   somenteNovos,
   onFechar,
   onConcluido,
-}: RevisarDestinosProps) {
+  fecharRef,
+}: RevisarDestinosProps & { fecharRef: React.MutableRefObject<() => void> }) {
   const abaixoLg = useIsBelowLg();
   const tituloId = useId();
   const descId = useId();
@@ -205,6 +213,9 @@ function RevisaoAberta({
     if (r.aplicados + r.confirmados + r.semMudanca > 0) concluir(r);
     else onFechar();
   }, [salvando, concluir, onFechar]);
+  useEffect(() => {
+    fecharRef.current = fechar;
+  }, [fecharRef, fechar]);
 
   const salvar = () => {
     if (!itens || salvando) return;

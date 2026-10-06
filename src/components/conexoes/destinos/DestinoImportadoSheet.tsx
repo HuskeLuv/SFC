@@ -3,6 +3,8 @@
 import React, { useState } from 'react';
 import { twMerge } from 'tailwind-merge';
 import BottomSheet from '@/components/ui/sheet/BottomSheet';
+import { useIsBelowLg } from '@/hooks/useMediaQuery';
+import { useMobileHistoryLayer } from '@/hooks/useMobileHistoryLayer';
 import { PrimaryButton, SecondaryButton } from '@/components/cashflow/mobile/edit/sheetUi';
 import { DestinoAbaList } from '@/components/carteira/mover/DestinoAbaList';
 import { EfeitosMoverList } from '@/components/carteira/mover/EfeitosMoverList';
@@ -39,6 +41,8 @@ interface Props {
  */
 export default function DestinoImportadoSheet(props: Props) {
   const { alvo } = props;
+  // "Voltar" do sistema fecha o sheet (e só ele: a revisão por baixo tem a própria camada).
+  useMobileHistoryLayer(alvo !== null, props.onFechar, useIsBelowLg());
   if (!alvo) return null;
   // Remonta por alvo: a escolha em andamento não vaza de um item para outro.
   const chave =
