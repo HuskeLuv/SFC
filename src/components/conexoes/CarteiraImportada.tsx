@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import Badge from '@/components/ui/badge/Badge';
 import Button from '@/components/ui/button/Button';
 import { Table, TableBody, TableCell, TableHeader, TableRow } from '@/components/ui/table';
@@ -87,6 +88,35 @@ function detalheEmprestimo(l: EmprestimoImportadoDTO): string {
     .join(' · ');
 }
 
+/** Selo dos investimentos ainda não conferidos (sólido em seguranca; nunca só cor). */
+function SeloConferir() {
+  return (
+    <span
+      data-destino-novo=""
+      className="inline-flex items-center whitespace-nowrap rounded-full bg-mf-seguranca px-2.5 py-0.5 text-xs font-medium text-white dark:ring-1 dark:ring-mf-tranquilidade"
+    >
+      Novo · conferir
+    </span>
+  );
+}
+
+/** "Na Carteira em": o lugar atual + link "Ver" para a aba (alvo de 44px). */
+function NaCarteiraEm({ i }: { i: InvestimentoImportadoDTO }) {
+  if (!i.destino) return <span className="text-gray-400 dark:text-gray-500">—</span>;
+  return (
+    <span className="inline-flex flex-wrap items-center gap-x-1">
+      <span className="text-gray-800 dark:text-white/90">{i.destino.rotulo}</span>
+      <Link
+        href={`/carteira?aba=${encodeURIComponent(i.destino.abaId)}`}
+        aria-label={`Ver ${i.destino.rotulo} na Carteira`}
+        className="-my-2 inline-flex min-h-11 items-center rounded-lg px-2 text-sm font-semibold text-mf-patrimonio underline-offset-2 hover:underline focus-visible:outline-2 focus-visible:outline-mf-outside dark:text-mf-tranquilidade"
+      >
+        Ver
+      </Link>
+    </span>
+  );
+}
+
 const th = TABLE_STYLES.th;
 const td = TABLE_STYLES.td;
 
@@ -95,7 +125,14 @@ const td = TABLE_STYLES.td;
  * MyFinance (Carteira / Dívidas). A importação é automática a cada sync;
  * aqui o usuário vê o resultado, reimporta pendências e ignora o que não quer.
  */
-export default function CarteiraImportada({ onAviso }: { onAviso: (msg: string) => void }) {
+export default function CarteiraImportada({
+  onAviso,
+  onConferirDestinos,
+}: {
+  onAviso: (msg: string) => void;
+  /** Abre a revisão só com os investimentos para conferir (escolher o destino na importação). */
+  onConferirDestinos?: () => void;
+}) {
   const { data, isLoading, isError, error } = useCarteiraImportada();
   const importar = useImportarCarteira();
   const ignorar = useIgnorarInvestimento();
@@ -113,6 +150,12 @@ export default function CarteiraImportada({ onAviso }: { onAviso: (msg: string) 
     data.investimentos.filter((i) => i.importStatus === 'pendente').length +
     data.emprestimos.filter((l) => l.importStatus === 'pendente').length;
 
+  // Escolher o destino na importação: os campos só vêm com a chave PLUGGY_DESTINOS_HABILITADO
+  // ligada. Sem eles, a tela é a de hoje (sem coluna, aviso nem selo).
+  const comDestinos = typeof data.paraRevisar === 'number';
+  const paraRevisar = data.paraRevisar ?? 0;
+  const paraConferir = (i: InvestimentoImportadoDTO) => i.situacaoDestino === 'para-revisar';
+
   const podeIgnorar = (i: InvestimentoImportadoDTO) =>
     ['pendente', 'sem-suporte', 'erro'].includes(i.importStatus);
 
@@ -125,6 +168,22 @@ export default function CarteiraImportada({ onAviso }: { onAviso: (msg: string) 
     },
     { id: 'detalhe', header: '', mobile: 'subtitle', cell: detalheInvestimento },
     { id: 'saldo', header: 'Saldo no banco', mobile: 'value', cell: (i) => formatBRL(i.balance) },
+    ...(comDestinos
+      ? [
+          {
+            id: 'naCarteira',
+            header: 'Na Carteira em',
+            mobile: 'subtitle' as const,
+            cell: (i: InvestimentoImportadoDTO) =>
+              i.destino ? (
+                <span className="inline-flex flex-wrap items-center gap-x-1">
+                  <span>Na Carteira em</span>
+                  <NaCarteiraEm i={i} />
+                </span>
+              ) : null,
+          },
+        ]
+      : []),
     {
       id: 'tipo',
       header: 'Tipo',
@@ -137,7 +196,11 @@ export default function CarteiraImportada({ onAviso }: { onAviso: (msg: string) 
         const st = STATUS[i.importStatus] ?? { rotulo: i.importStatus, cor: 'light' as const };
         return (
           <>
-            <MobileStatusPill tone={TOM_MOBILE[st.cor]}>{st.rotulo}</MobileStatusPill>
+            {paraConferir(i) ? (
+              <SeloConferir />
+            ) : (
+              <MobileStatusPill tone={TOM_MOBILE[st.cor]}>{st.rotulo}</MobileStatusPill>
+            )}
             {i.importError && i.importStatus !== 'importado' ? (
               <span className="mt-1 block text-xs font-normal text-gray-500 dark:text-gray-400">
                 {i.importError}
@@ -206,7 +269,7 @@ export default function CarteiraImportada({ onAviso }: { onAviso: (msg: string) 
     try {
       const r = await importar.mutateAsync();
       onAviso(
-        `Importação: ${r.importados} na Carteira/Dívidas, ${r.vinculados} já existiam, ${r.semSuporte} para cadastrar à mão, ${r.ignorados} ignorados${r.erros ? `, ${r.erros} com erro` : ''}.`,
+        `Importação: ${r.importados} na Carteira/Dívidas, ${r.vinculados} já existiam, ${r.semSuporte} para cadastrar à mão, ${r.ignorados} ignorados${r.erros ? `, ${r.erros} com erro` : ''}.${r.paraRevisar ? ` ${r.paraRevisar} para conferir onde ${r.paraRevisar === 1 ? 'fica' : 'ficam'}.` : ''}`,
       );
     } catch (e) {
       onAviso(e instanceof Error ? e.message : 'Não foi possível importar');
@@ -237,6 +300,26 @@ export default function CarteiraImportada({ onAviso }: { onAviso: (msg: string) 
         ) : null}
       </div>
 
+      {comDestinos && paraRevisar > 0 && onConferirDestinos ? (
+        <div
+          data-destinos-aviso=""
+          className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl bg-mf-tranquilidade/[0.18] px-4 py-3 text-mf-seguranca dark:bg-mf-tranquilidade/[0.14] dark:text-mf-escolha max-lg:flex-col max-lg:items-stretch max-lg:rounded-2xl"
+        >
+          <p className="max-w-[70ch] text-sm">
+            <span className="font-semibold">
+              {paraRevisar === 1
+                ? '1 investimento novo chegou'
+                : `${paraRevisar} investimentos novos chegaram`}
+            </span>{' '}
+            na sincronização e já {paraRevisar === 1 ? 'está' : 'estão'} na Carteira, no lugar que
+            sugerimos. Confira onde {paraRevisar === 1 ? 'entrou' : 'entraram'}.
+          </p>
+          <Button size="sm" onClick={onConferirDestinos} className="min-h-11 max-lg:w-full">
+            Conferir destinos ({paraRevisar})
+          </Button>
+        </div>
+      ) : null}
+
       {isBelowLg && data.investimentos.length > 0 ? (
         <ResponsiveCardList
           columns={colunasInvestimentos}
@@ -262,7 +345,14 @@ export default function CarteiraImportada({ onAviso }: { onAviso: (msg: string) 
           <Table className={TABLE_STYLES.table} aria-label="Investimentos importados">
             <TableHeader>
               <TableRow className={TABLE_STYLES.headRow} style={TABLE_HEADER_STYLE}>
-                {['Investimento', 'Tipo', 'Saldo no banco', 'Situação', ''].map((h, i) => (
+                {[
+                  'Investimento',
+                  'Tipo',
+                  'Saldo no banco',
+                  ...(comDestinos ? ['Na Carteira em'] : []),
+                  'Situação',
+                  '',
+                ].map((h, i) => (
                   <TableCell
                     key={i}
                     isHeader
@@ -300,8 +390,17 @@ export default function CarteiraImportada({ onAviso }: { onAviso: (msg: string) 
                   >
                     {formatBRL(i.balance)}
                   </TableCell>
+                  {comDestinos ? (
+                    <TableCell className={td}>
+                      <NaCarteiraEm i={i} />
+                    </TableCell>
+                  ) : null}
                   <TableCell className={td}>
-                    <StatusChip status={i.importStatus} erro={i.importError} />
+                    {paraConferir(i) ? (
+                      <SeloConferir />
+                    ) : (
+                      <StatusChip status={i.importStatus} erro={i.importError} />
+                    )}
                     {i.importError && i.importStatus !== 'importado' ? (
                       <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">
                         {i.importError}
