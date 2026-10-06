@@ -338,6 +338,8 @@ describe('RevisarDestinos — computador', () => {
     const toast = await screen.findByRole('status');
     expect(toast).toHaveTextContent('3 investimentos mudaram de lugar');
     expect(within(toast).getByRole('button', { name: 'Fechar aviso' }).className).toContain('h-11');
+    // Acima do Modal (z-99999): salvando pela "Conexão realizada", o resumo reabre por baixo.
+    expect(toast.closest('[data-mf-destinos-toast-camada]')?.className).toContain('z-[100000]');
     fireEvent.click(within(toast).getByRole('button', { name: 'Desfazer' }));
     await waitFor(() =>
       expect(screen.getByRole('status')).toHaveTextContent(

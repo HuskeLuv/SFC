@@ -13,6 +13,9 @@ import { plural } from './destinosEstado';
  *
  * Estado global (uma mensagem por vez), como o aviso do mover: a revisão fecha ao salvar e o
  * aviso continua; o primeiro aviso monta o host sozinho no body.
+ *
+ * Camada acima do Modal (z-99999): ao salvar pela "Conexão realizada", o resumo reabre na mesma
+ * hora e o aviso com Desfazer precisa ficar visível e clicável por cima dele (decisão 6).
  */
 
 export const DESTINOS_TOAST_MS = 8000;
@@ -134,7 +137,8 @@ export function DestinosToastHost() {
 
   return createPortal(
     <div
-      className="pointer-events-none fixed inset-x-0 z-[99992] flex justify-center px-4 font-outfit max-lg:bottom-[calc(var(--mf-bottom-nav-h,0px)+8px)] lg:bottom-[18px]"
+      data-mf-destinos-toast-camada=""
+      className="pointer-events-none fixed inset-x-0 z-[100000] flex justify-center px-4 font-outfit max-lg:bottom-[calc(var(--mf-bottom-nav-h,0px)+8px)] lg:bottom-[18px]"
       onMouseEnter={() => setPausado(true)}
       onMouseLeave={() => setPausado(false)}
       onFocus={() => setPausado(true)}
