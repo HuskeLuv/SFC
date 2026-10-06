@@ -109,7 +109,7 @@ function NaCarteiraEm({ i }: { i: InvestimentoImportadoDTO }) {
       <Link
         href={`/carteira?aba=${encodeURIComponent(i.destino.abaId)}`}
         aria-label={`Ver ${i.destino.rotulo} na Carteira`}
-        className="-my-2 inline-flex min-h-11 items-center rounded-lg px-2 text-sm font-semibold text-mf-patrimonio underline-offset-2 hover:underline focus-visible:outline-2 focus-visible:outline-mf-outside dark:text-mf-tranquilidade"
+        className="-my-2 inline-flex min-h-11 min-w-11 items-center justify-center rounded-lg px-2 text-sm font-semibold text-mf-patrimonio underline-offset-2 hover:underline focus-visible:outline-2 focus-visible:outline-mf-outside dark:text-mf-tranquilidade"
       >
         Ver
       </Link>
