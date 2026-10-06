@@ -103,7 +103,11 @@ const GROUPS: CashflowGroup[] = [
           }),
         ],
       }),
-      group({ id: 'lazer', name: 'Lazer', items: [item('cinema', 'lazer')] }),
+      group({
+        id: 'lazer',
+        name: 'Lazer',
+        items: [item('cinema', 'lazer'), item('clube', 'lazer', { isTemplate: true })],
+      }),
       group({
         id: 'dividas',
         name: 'Dívidas',
@@ -334,6 +338,18 @@ describe('CashflowEditSheets', () => {
   it('pedido de painel proibido cai no valor (dívida com view excluir)', () => {
     render(<Harness initial={cell('financiamento', 'dividas', 'excluir')} />);
     expect(screen.getByRole('dialog', { name: 'Financiamento' })).toBeInTheDocument();
+  });
+
+  it('linha padrão: excluir explica que sai só da planilha e volta pelo Histórico', async () => {
+    render(<Harness initial={cell('clube', 'lazer')} />);
+    fireEvent.click(screen.getByRole('button', { name: /Excluir linha/ }));
+    const dialog = screen.getByRole('dialog', { name: 'Excluir linha' });
+    expect(dialog).toHaveTextContent('É uma linha padrão: sai só da sua planilha');
+    expect(dialog).toHaveTextContent('Desfazer no Histórico de alterações');
+    expect(dialog).not.toHaveTextContent('Não dá para desfazer');
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Excluir linha' }));
+    await waitFor(() => expect(onSaved).toHaveBeenCalledWith('Linha excluída'));
+    expect(mocks.saveItemChanges).toHaveBeenCalledWith({ groupId: 'lazer', deletes: ['clube'] });
   });
 
   it('sonho: excluir avisa que o objetivo sai do Planejamento e manda deletes', async () => {
