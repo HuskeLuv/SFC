@@ -14,8 +14,12 @@ const mockPrisma = vi.hoisted(() => ({
   bankTransaction: { findMany: vi.fn(), createMany: vi.fn(), update: vi.fn(), updateMany: vi.fn() },
   pluggyWebhookEvent: { findMany: vi.fn(), updateMany: vi.fn(), update: vi.fn() },
   openFinanceConsentimento: { updateMany: vi.fn() },
-  cashflowValue: { upsert: vi.fn(), deleteMany: vi.fn() },
+  cashflowValue: { findUnique: vi.fn(), create: vi.fn(), update: vi.fn(), delete: vi.fn() },
 }));
+// recomputarCelula usa transação interativa: o tx é o próprio mock.
+Object.assign(mockPrisma, {
+  $transaction: vi.fn(async (fn: (tx: typeof mockPrisma) => unknown) => fn(mockPrisma)),
+});
 vi.mock('@/lib/prisma', () => ({ prisma: mockPrisma, default: mockPrisma }));
 
 const mockClient = vi.hoisted(() => ({
@@ -442,7 +446,11 @@ describe('atualizarManualmente / excluirConexao', () => {
     });
   });
 
-  it('recomputa (apaga) a célula do fluxo que só tinha transações desta conexão', async () => {
+  const celulaA = {
+    itemId_userId_year_month: { itemId: 'cf-item-a', userId: 'user-1', year: 2026, month: 8 },
+  };
+
+  it('tira da célula só a parte do banco desta conexão (o digitado fica)', async () => {
     mockPrisma.bankConnection.findFirst.mockResolvedValue({
       id: 'conn-1',
       providerItemId: 'item-1',
@@ -456,15 +464,23 @@ describe('atualizarManualmente / excluirConexao', () => {
       ])
       // recompute pós-cascade: nada restou no mês
       .mockResolvedValueOnce([]);
+    // Célula: 500 digitados + 200 do banco.
+    mockPrisma.cashflowValue.findUnique.mockResolvedValue({
+      value: 700,
+      valorBanco: 200,
+      color: null,
+      comment: null,
+    });
     await excluirConexao('conn-1', 'user-1');
     expect(mockPrisma.bankConnection.delete).toHaveBeenCalledWith({ where: { id: 'conn-1' } });
-    expect(mockPrisma.cashflowValue.deleteMany).toHaveBeenCalledWith({
-      where: { itemId: 'cf-item-a', userId: 'user-1', year: 2026, month: 8 },
+    expect(mockPrisma.cashflowValue.update).toHaveBeenCalledWith({
+      where: celulaA,
+      data: { value: 500, valorBanco: 0, formula: null },
     });
-    expect(mockPrisma.cashflowValue.upsert).not.toHaveBeenCalled();
+    expect(mockPrisma.cashflowValue.delete).not.toHaveBeenCalled();
   });
 
-  it('célula com transação restante de outra conexão mantém a soma', async () => {
+  it('célula com transação restante de outra conexão mantém essa parte do banco', async () => {
     mockPrisma.bankConnection.findFirst.mockResolvedValue({
       id: 'conn-1',
       providerItemId: 'item-1',
@@ -475,15 +491,18 @@ describe('atualizarManualmente / excluirConexao', () => {
         { cashflowItemId: 'cf-item-a', date: new Date('2026-09-25T00:00:00Z') },
       ])
       .mockResolvedValueOnce([{ amount: 123.45 }]);
-    await excluirConexao('conn-1', 'user-1');
-    expect(mockPrisma.cashflowValue.upsert).toHaveBeenCalledWith({
-      where: {
-        itemId_userId_year_month: { itemId: 'cf-item-a', userId: 'user-1', year: 2026, month: 8 },
-      },
-      update: { value: 123.45, formula: null },
-      create: { itemId: 'cf-item-a', userId: 'user-1', year: 2026, month: 8, value: 123.45 },
+    mockPrisma.cashflowValue.findUnique.mockResolvedValue({
+      value: 223.45,
+      valorBanco: 223.45,
+      color: null,
+      comment: null,
     });
-    expect(mockPrisma.cashflowValue.deleteMany).not.toHaveBeenCalled();
+    await excluirConexao('conn-1', 'user-1');
+    expect(mockPrisma.cashflowValue.update).toHaveBeenCalledWith({
+      where: celulaA,
+      data: { value: 123.45, valorBanco: 123.45, formula: null },
+    });
+    expect(mockPrisma.cashflowValue.delete).not.toHaveBeenCalled();
   });
 });
 

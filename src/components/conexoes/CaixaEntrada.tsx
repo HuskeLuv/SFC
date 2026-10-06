@@ -178,8 +178,8 @@ export default function CaixaEntrada({ onAviso }: { onAviso: (msg: string) => vo
             revisar
           </h3>
           <p className="text-xs text-gray-500 dark:text-gray-400">
-            Confirme a linha do fluxo de caixa de cada transação. A célula do mês passa a ser a soma
-            do que você lançar aqui.
+            Confirme a linha do fluxo de caixa de cada transação. O valor lançado soma ao que já
+            está na célula do mês (o que você digitou é mantido).
           </p>
         </div>
         {!isBelowLg ? (

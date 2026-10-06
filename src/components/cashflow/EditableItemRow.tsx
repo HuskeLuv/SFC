@@ -6,6 +6,7 @@ import { CurrencyInput } from './CurrencyInput';
 import { DeleteItemButton } from './DeleteItemButton';
 import { EditableItemData } from '@/hooks/useGroupEditMode';
 import { CommentIndicator } from './CommentIndicator';
+import { BancoIndicator } from './BancoIndicator';
 import { FixedCell, MonthCell, AnnualCell } from './GridCells';
 import { GRID, currentMonthIndex } from './cashflowGridStyles';
 import { isInvestment, READONLY_REASON_TEXT } from '@/lib/cashflow/itemCapabilities';
@@ -86,8 +87,11 @@ export const EditableItemRow: React.FC<EditableItemRowProps> = ({
   const originalColors = Array(12).fill(null) as (string | null)[];
   const originalFormulas = Array(12).fill(null) as (string | null)[];
   const commentsByMonth = Array(12).fill(null) as (string | null)[];
+  // Parte lançada pelo banco (Conexões bancárias) — marcada na célula em edição.
+  const bancoByMonth = Array(12).fill(0) as number[];
   for (const value of item.values ?? []) {
     if (value.month < 0 || value.month >= 12) continue;
+    if (value.year === currentYear) bancoByMonth[value.month] = value.valorBanco ?? 0;
     originalColors[value.month] = value.color || null;
     originalFormulas[value.month] = value.formula || null;
     if (value.year === currentYear) commentsByMonth[value.month] = value.comment || null;
@@ -243,6 +247,7 @@ export const EditableItemRow: React.FC<EditableItemRowProps> = ({
                   style={{ position: 'relative', overflow: 'visible' }}
                 >
                   {renderComment(index)}
+                  <BancoIndicator valorBanco={bancoByMonth[index]} />
                   <CurrencyInput
                     value={value}
                     onChange={(newValue) => onUpdateField(item.id, 'monthlyValue', newValue, index)}

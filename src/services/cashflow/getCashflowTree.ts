@@ -70,7 +70,7 @@ export async function getMergedCashflowGroups(
 }
 
 /**
- * `CashflowValue.value` é Decimal no banco; o contrato do tree (e do JSON que
+ * `CashflowValue.value`/`valorBanco` são Decimal no banco; o contrato do tree (e do JSON que
  * chega ao client) é number. Converte na fronteira única de leitura.
  */
 function normalizeDecimalValues(groups: CashflowGroup[]): CashflowGroup[] {
@@ -78,7 +78,11 @@ function normalizeDecimalValues(groups: CashflowGroup[]): CashflowGroup[] {
     ...group,
     items: group.items?.map((item) => ({
       ...item,
-      values: item.values?.map((value) => ({ ...value, value: Number(value.value) })),
+      values: item.values?.map((value) => ({
+        ...value,
+        value: Number(value.value),
+        valorBanco: Number(value.valorBanco ?? 0),
+      })),
     })),
     children: group.children ? normalizeDecimalValues(group.children) : group.children,
   }));
