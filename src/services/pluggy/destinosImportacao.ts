@@ -46,7 +46,7 @@ import {
   carregarItemMover,
   exigirEstadoMovivel,
   moverInvestimento,
-  obterOpcoesMover,
+  opcoesMoverDoItem,
   planejarMover,
   resumoDestinos,
   secaoRendaFixaDoItem,
@@ -62,7 +62,7 @@ export const MSG_SITUACAO_DESTINO =
   'Este investimento já foi conferido ou não está mais na Carteira';
 export const MSG_DESTINOS_INDISPONIVEL = 'Recurso indisponível';
 
-/** Concorrência das leituras por item (carregarItemMover / obterOpcoesMover). */
+/** Concorrência das leituras por item (carregarItemMover / opcoesMoverDoItem). */
 const CONCORRENCIA = 5;
 
 async function mapaComLimite<T, R>(lista: readonly T[], fn: (x: T) => Promise<R>): Promise<R[]> {
@@ -321,7 +321,7 @@ export async function listarDestinosImportados(
       let via: ViaSugestao | null = null;
       if (situacao === 'para-revisar' && item && resumo) {
         [opcoes, via] = await Promise.all([
-          obterOpcoesMover(userId, 'posicao', item.row.id),
+          opcoesMoverDoItem(userId, item),
           viaDaSugestao(item, resumo).catch(() => null),
         ]);
       }

@@ -520,7 +520,16 @@ export async function obterOpcoesMover(
 ): Promise<MoverOpcoesResponse | null> {
   const item = await carregarItemMover(userId, tipo, id);
   if (!item) return null;
+  return opcoesMoverDoItem(userId, item, { comSaude });
+}
 
+/** obterOpcoesMover para um item já carregado (evita recarregar quem já tem o ItemMover). */
+export async function opcoesMoverDoItem(
+  userId: string,
+  item: ItemMover,
+  { comSaude = false }: ObterOpcoesMoverOpts = {},
+): Promise<MoverOpcoesResponse> {
+  const { tipo } = item;
   const { atual, modelo, categoriaExibida, permitidos, caixaRfLiberado, ...analise } =
     analisarDestinos(item);
   const { asset, row } = item;
