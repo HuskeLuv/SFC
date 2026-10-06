@@ -25,6 +25,7 @@ import { syncSonhoRealizadoBestEffort } from '@/services/planejamento/carteiraTo
 import { invalidarContextoUsuario } from '@/services/assistente/contexto';
 import { MOVER_ACTIONS, type MoverSnapshotEstado } from '@/lib/carteiraMover';
 import { MOVER_SNAPSHOT_KIND } from '../../moverHelpers';
+import { ACAO_DESTINO_IMPORTACAO } from '@/lib/pluggyDestinos';
 import { overrideDaVenda } from '@/services/cashflow/investimentosPorMes';
 import { UndoError, type UndoContext, type UndoDefinition, type UndoOutcome } from '../types';
 import {
@@ -761,51 +762,79 @@ function camposMover(
   return out;
 }
 
+/** Corpo do desfazer do mover — compartilhado com o da escolha na importação. */
+async function desfazerMover({ auth, entry }: UndoContext): Promise<UndoOutcome> {
+  const { targetUserId } = auth;
+  const snap = getSnapshot(entry)!;
+  const after = (snap.meta as { after?: MoverSnapshotEstado } | undefined)?.after;
+  if (snap.kind !== MOVER_SNAPSHOT_KIND || !after) {
+    throw new UndoError(400, 'Snapshot incompatível', 'UNDO_MISSING_DATA');
+  }
+  const antes = snap.data as unknown as MoverSnapshotEstado;
+  const planejado = entry.action.startsWith('planejado.');
+  const campos = planejado ? CAMPOS_MOVER_PLANEJADO : CAMPOS_MOVER_POSICAO;
+
+  const row = planejado
+    ? await prisma.watchlist.findFirst({ where: { id: entry.entityId!, userId: targetUserId } })
+    : await prisma.portfolio.findFirst({ where: { id: entry.entityId!, userId: targetUserId } });
+  if (!row) {
+    throw new UndoError(
+      409,
+      planejado
+        ? 'O ativo planejado não existe mais (foi removido ou virou posição)'
+        : 'O investimento não existe mais na carteira',
+    );
+  }
+
+  const atual = row as unknown as Record<string, unknown>;
+  for (const [campo, valor] of Object.entries(camposMover(after, campos))) {
+    if (!valuesMatch(atual[campo], valor)) throw new UndoError(409, MSG_MOVIDO_DE_NOVO);
+  }
+
+  const data = camposMover(antes, campos);
+  if (planejado) {
+    await prisma.watchlist.update({ where: { id: row.id }, data });
+  } else {
+    await prisma.portfolio.update({
+      where: { id: row.id },
+      data: { ...data, lastUpdate: new Date() },
+    });
+  }
+
+  // Pizza/alocação (resumo cacheado) e o contexto do assistente mudam de aba.
+  invalidateCaixaCaches(targetUserId);
+  invalidarContextoUsuario(targetUserId);
+  return { changes: invertChanges(getChanges(entry)) };
+}
+
 const moverDesfazer: UndoDefinition = {
   strategy: 'custom',
   requires: { entityId: true, snapshot: true },
-  async execute({ auth, entry }: UndoContext): Promise<UndoOutcome> {
-    const { targetUserId } = auth;
-    const snap = getSnapshot(entry)!;
-    const after = (snap.meta as { after?: MoverSnapshotEstado } | undefined)?.after;
-    if (snap.kind !== MOVER_SNAPSHOT_KIND || !after) {
-      throw new UndoError(400, 'Snapshot incompatível', 'UNDO_MISSING_DATA');
-    }
-    const antes = snap.data as unknown as MoverSnapshotEstado;
-    const planejado = entry.action.startsWith('planejado.');
-    const campos = planejado ? CAMPOS_MOVER_PLANEJADO : CAMPOS_MOVER_POSICAO;
+  execute: desfazerMover,
+};
 
-    const row = planejado
-      ? await prisma.watchlist.findFirst({ where: { id: entry.entityId!, userId: targetUserId } })
-      : await prisma.portfolio.findFirst({ where: { id: entry.entityId!, userId: targetUserId } });
-    if (!row) {
-      throw new UndoError(
-        409,
-        planejado
-          ? 'O ativo planejado não existe mais (foi removido ou virou posição)'
-          : 'O investimento não existe mais na carteira',
-      );
-    }
+// ---------------------------------------------------------------------------
+// Escolha do destino na importação Open Finance (out/2026) —
+// 'investimento.destinoImportacao' (src/lib/pluggyDestinos.ts). Mesmo snapshot
+// do mover; desfazer = desfazerMover + zerar BankInvestment.destinoConfirmadoEm
+// da posição: o item volta à sugestão E à fila "para conferir". Movido de novo
+// depois → 409 MSG_MOVIDO_DE_NOVO sem zerar a coluna (desfazerMover lança antes).
+// ---------------------------------------------------------------------------
 
-    const atual = row as unknown as Record<string, unknown>;
-    for (const [campo, valor] of Object.entries(camposMover(after, campos))) {
-      if (!valuesMatch(atual[campo], valor)) throw new UndoError(409, MSG_MOVIDO_DE_NOVO);
-    }
-
-    const data = camposMover(antes, campos);
-    if (planejado) {
-      await prisma.watchlist.update({ where: { id: row.id }, data });
-    } else {
-      await prisma.portfolio.update({
-        where: { id: row.id },
-        data: { ...data, lastUpdate: new Date() },
-      });
-    }
-
-    // Pizza/alocação (resumo cacheado) e o contexto do assistente mudam de aba.
-    invalidateCaixaCaches(targetUserId);
-    invalidarContextoUsuario(targetUserId);
-    return { changes: invertChanges(getChanges(entry)) };
+const destinoImportacaoDesfazer: UndoDefinition = {
+  strategy: 'custom',
+  requires: { entityId: true, snapshot: true },
+  async execute(ctx: UndoContext): Promise<UndoOutcome> {
+    const r = await desfazerMover(ctx);
+    await prisma.bankInvestment.updateMany({
+      where: {
+        userId: ctx.auth.targetUserId,
+        portfolioId: ctx.entry.entityId!,
+        importStatus: 'importado',
+      },
+      data: { destinoConfirmadoEm: null },
+    });
+    return r;
   },
 };
 
@@ -834,4 +863,5 @@ export const CARTEIRA_UNDO_HANDLERS: Record<string, UndoDefinition> = {
   [MOVER_ACTIONS.planejadoMover]: moverDesfazer,
   [MOVER_ACTIONS.investimentoRestaurar]: moverDesfazer,
   [MOVER_ACTIONS.planejadoRestaurar]: moverDesfazer,
+  [ACAO_DESTINO_IMPORTACAO]: destinoImportacaoDesfazer,
 };
