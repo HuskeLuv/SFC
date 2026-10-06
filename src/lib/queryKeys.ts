@@ -40,6 +40,9 @@ export const queryKeys = {
     consentimentos: () => [...queryKeys.pluggy.all, 'consentimentos'] as const,
     caixaEntrada: () => [...queryKeys.pluggy.all, 'caixa-entrada'] as const,
     carteira: () => [...queryKeys.pluggy.all, 'carteira'] as const,
+    /** Escolher o destino na importação (src/lib/pluggyDestinos.ts). */
+    destinos: (connectionId?: string) =>
+      [...queryKeys.pluggy.all, 'destinos', connectionId ?? 'todas'] as const,
     extrato: (accountId: string, page: number) =>
       [...queryKeys.pluggy.all, 'extrato', accountId, page] as const,
   },
