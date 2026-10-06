@@ -32,6 +32,8 @@ import ConectarBancoModal from './ConectarBancoModal';
 import CaixaEntrada, { ehIgnoravel, temSugestaoDeLinha } from './CaixaEntrada';
 import CaixaEntradaResumo from './mobile/CaixaEntradaResumo';
 import CarteiraImportada from './CarteiraImportada';
+import RevisarDestinos from './destinos/RevisarDestinos';
+import type { AplicarDestinosResponse } from '@/lib/pluggyDestinos';
 import ConexaoCard from './ConexaoCard';
 import ExtratoConta from './ExtratoConta';
 import PluggyConnectWidget from './PluggyConnectWidget';
@@ -65,6 +67,12 @@ type NaoConcluida = {
   reconexaoDe: BankConnectionDTO | null;
 } | null;
 
+/**
+ * Revisão dos destinos (escolher onde ficam os investimentos importados). `daConexao` = aberta
+ * pela "Conexão realizada": fechar ou salvar volta a ela (a tela jurídica é sempre a última vista).
+ */
+type Revisao = { connectionId?: string; somenteNovos?: boolean; daConexao: boolean };
+
 /** Jornada antes do widget: aviso → consentimento → redirecionamento. */
 type Jornada = { reconexaoDe: BankConnectionDTO | null; consentimentoId: string | null } | null;
 
@@ -89,6 +97,12 @@ export default function ConexoesBancariasRoot() {
   const chegouAoBancoRef = useRef(false);
   const [naoConcluida, setNaoConcluida] = useState<NaoConcluida>(null);
   const [realizada, setRealizada] = useState<RegistroResposta | null>(null);
+  // Revisão dos destinos: a configuração fica montada depois da 1ª abertura (o toast com
+  // Desfazer da revisão continua vivo depois que ela fecha); `revisaoAberta` mostra/esconde.
+  const [revisao, setRevisao] = useState<Revisao | null>(null);
+  const [revisaoAberta, setRevisaoAberta] = useState(false);
+  // Definido = voltou à "Conexão realizada" depois de salvar a revisão (quantos mudaram).
+  const [destinosAplicados, setDestinosAplicados] = useState<number | undefined>(undefined);
   const connectToken = useConnectToken();
   const registrar = useRegistrarConexao();
   const atualizar = useAtualizarConexao();
@@ -203,6 +217,7 @@ export default function ConexoesBancariasRoot() {
           consentimentoId: widget.consentimentoId,
         });
         // Tela de retorno: "Conexão realizada. Os seguintes dados serão importados".
+        setDestinosAplicados(undefined);
         setRealizada(r);
       } catch (e) {
         avisar(e instanceof Error ? e.message : 'A conexão foi criada, mas o registro falhou');
@@ -243,6 +258,29 @@ export default function ConexoesBancariasRoot() {
       }
     },
     [excluir, contaExtrato, confirm, avisar],
+  );
+
+  const abrirRevisao = useCallback((r: Revisao) => {
+    setRevisao(r);
+    setRevisaoAberta(true);
+  }, []);
+
+  const fecharRevisao = useCallback(() => setRevisaoAberta(false), []);
+
+  const onRevisaoConcluida = useCallback(
+    (r: AplicarDestinosResponse) => {
+      setRevisaoAberta(false);
+      if (revisao?.daConexao) {
+        setDestinosAplicados((n) => (n ?? 0) + r.aplicados);
+        return;
+      }
+      setAviso(
+        r.aplicados > 0
+          ? `${r.aplicados === 1 ? '1 investimento' : `${r.aplicados} investimentos`} no lugar que você escolheu.`
+          : 'Destinos conferidos.',
+      );
+    },
+    [revisao],
   );
 
   // Vindo do card da Carteira/Fluxo (?conectar=1): abre a jornada uma vez e limpa a URL.
@@ -346,7 +384,12 @@ export default function ConexoesBancariasRoot() {
           <CaixaEntrada onAviso={avisar} />
         )
       ) : null}
-      {lista.length > 0 ? <CarteiraImportada onAviso={avisar} /> : null}
+      {lista.length > 0 ? (
+        <CarteiraImportada
+          onAviso={avisar}
+          onConferirDestinos={() => abrirRevisao({ somenteNovos: true, daConexao: false })}
+        />
+      ) : null}
 
       {lista.length === 0 && !registrar.isPending ? (
         <div className="rounded-xl border border-dashed border-gray-300 p-8 text-center text-sm text-gray-500 dark:border-gray-700 dark:text-gray-400">
@@ -432,12 +475,26 @@ export default function ConexoesBancariasRoot() {
         />
       ) : null}
 
-      {realizada ? (
+      {realizada && !(revisaoAberta && revisao?.daConexao) ? (
         <ConexaoRealizadaModal
           conexao={realizada.connection}
           importados={realizada.importados}
           aviso={realizada.aviso}
           onFechar={() => setRealizada(null)}
+          onConferirDestinos={() =>
+            abrirRevisao({ connectionId: realizada.connection.id, daConexao: true })
+          }
+          destinosAplicados={destinosAplicados}
+        />
+      ) : null}
+
+      {revisao ? (
+        <RevisarDestinos
+          aberto={revisaoAberta}
+          connectionId={revisao.connectionId}
+          somenteNovos={revisao.somenteNovos}
+          onFechar={fecharRevisao}
+          onConcluido={onRevisaoConcluida}
         />
       ) : null}
 
