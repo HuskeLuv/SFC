@@ -1,0 +1,1031 @@
+<title>Destino na Importação</title>
+<meta name="description" content="Protótipo navegável: escolher a aba e a seção da Carteira de cada investimento trazido pelo Open Finance, logo após conectar o banco e quando chegam itens novos por sincronização.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: bancada de protótipo (cenários à esquerda, tela do app à direita) + especificação embaixo.
+   Mesma bancada do protótipo do Mover (docs/carteira-mover/prototipo.html).
+   Cores só da paleta My Finance (brandColors.ts) + cinzas do Tailwind usados no app + vermelho de erro do app. */
+:root{
+  --mf-potencia:#2D2D2D; --mf-seguranca:#314666; --mf-patrimonio:#396CAA; --mf-outside:#0079F2;
+  --mf-tranquilidade:#6E9DC4; --mf-transparencia:#CCCCCC; --mf-escolha:#EAEAEA;
+  --pg-bg:#F3F5F8; --pg-surface:#FFFFFF; --pg-ink:#2D2D2D; --pg-muted:#5B6576; --pg-line:#DCE2EA; --pg-soft:#E8F1FC;
+  --app-bg:#F9FAFB; --app-surface:#FFFFFF; --app-line:#E5E7EB; --app-line-soft:#F2F4F7; --app-ink:#374151; --app-strong:#1F2937; --app-muted:#6B7280;
+  --head-bg:#314666; --band-bg:#396CAA; --band-soft:rgba(110,157,196,.18); --band-soft-ink:#314666;
+  --accent:#0079F2; --link:#396CAA; --sel:rgba(0,121,242,.07); --sel-strong:rgba(0,121,242,.14); --focus:#0079F2;
+  --hl:rgba(0,121,242,.06); --pos:#396CAA; --neg:#D92D20; --neg-text:#B42318; --danger-bg:rgba(217,45,32,.08); --app-muted-strong:#4B5563;
+  --primary:#396CAA; --primary-fg:#FFFFFF;
+  --toast-bg:#314666; --toast-fg:#FFFFFF; --toast-link:#EAEAEA;
+  --overlay:rgba(45,45,45,.45); --shadow:0 12px 32px rgba(45,45,45,.18);
+  --font:'Outfit',ui-sans-serif,system-ui,-apple-system,'Segoe UI',sans-serif;
+  --mono:'IBM Plex Mono',ui-monospace,'SFMono-Regular',Menlo,monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    color-scheme:dark;
+    --pg-bg:#111113; --pg-surface:#1F1F22; --pg-ink:#EAEAEA; --pg-muted:#98A2B3; --pg-line:#2E3440; --pg-soft:rgba(110,157,196,.10);
+    --app-bg:#18181B; --app-surface:#1F1F22; --app-line:#2E3440; --app-line-soft:#26262A; --app-ink:#E5E7EB; --app-strong:#F3F4F6; --app-muted:#9CA3AF;
+    --band-soft:rgba(110,157,196,.14); --band-soft-ink:#EAEAEA;
+    --accent:#6E9DC4; --link:#6E9DC4; --sel:rgba(0,121,242,.14); --sel-strong:rgba(0,121,242,.24); --focus:#6E9DC4;
+    --hl:rgba(0,121,242,.16); --pos:#6E9DC4; --neg:#F97066; --neg-text:#F97066; --danger-bg:rgba(249,112,102,.10); --app-muted-strong:#D1D5DB;
+    --toast-bg:#26262A; --toast-fg:#EAEAEA; --toast-link:#6E9DC4;
+    --overlay:rgba(0,0,0,.6); --shadow:0 12px 32px rgba(0,0,0,.5);
+  }
+}
+:root[data-theme="dark"]{
+  color-scheme:dark;
+  --pg-bg:#111113; --pg-surface:#1F1F22; --pg-ink:#EAEAEA; --pg-muted:#98A2B3; --pg-line:#2E3440; --pg-soft:rgba(110,157,196,.10);
+  --app-bg:#18181B; --app-surface:#1F1F22; --app-line:#2E3440; --app-line-soft:#26262A; --app-ink:#E5E7EB; --app-strong:#F3F4F6; --app-muted:#9CA3AF;
+  --band-soft:rgba(110,157,196,.14); --band-soft-ink:#EAEAEA;
+  --accent:#6E9DC4; --link:#6E9DC4; --sel:rgba(0,121,242,.14); --sel-strong:rgba(0,121,242,.24); --focus:#6E9DC4;
+  --hl:rgba(0,121,242,.16); --pos:#6E9DC4; --neg:#F97066; --neg-text:#F97066; --danger-bg:rgba(249,112,102,.10); --app-muted-strong:#D1D5DB;
+  --toast-bg:#26262A; --toast-fg:#EAEAEA; --toast-link:#6E9DC4;
+  --overlay:rgba(0,0,0,.6); --shadow:0 12px 32px rgba(0,0,0,.5);
+}
+*{box-sizing:border-box}
+body{background:var(--pg-bg);color:var(--pg-ink);font-family:var(--font);font-size:15px;line-height:1.5;padding-inline:16px;padding-block:28px 64px;margin:0}
+.wrap{max-width:1320px;margin:0 auto;display:flex;flex-direction:column;gap:28px}
+h1,h2,h3,h4{text-wrap:balance;margin:0;line-height:1.2}
+p{margin:0}
+code,.mono{font-family:var(--mono);font-size:.86em;overflow-wrap:anywhere}
+button,select{font:inherit;color:inherit}
+.wordmark{font-weight:700;color:var(--mf-outside);letter-spacing:-.01em;font-size:20px}
+.pg-h1{font-size:30px;font-weight:600;letter-spacing:-.01em;margin-top:10px}
+.lede{color:var(--pg-muted);max-width:80ch;margin-top:6px}
+.eyebrow{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--pg-muted);font-weight:600}
+
+.stage{display:grid;grid-template-columns:270px minmax(0,1fr);gap:24px;align-items:start}
+.side{display:flex;flex-direction:column;gap:16px;min-width:0;position:sticky;top:env(safe-area-inset-top,0px)}
+.scen-groups{display:flex;flex-direction:column;gap:12px}
+.scen-group{display:flex;flex-direction:column;gap:6px}
+.scen-group .gl{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--pg-muted);font-weight:600;margin-top:4px}
+.scen{text-align:left;font-size:13px;border:1px solid var(--pg-line);background:var(--pg-surface);color:var(--pg-ink);padding:6px 10px;border-radius:10px;cursor:pointer;min-height:36px;display:flex;align-items:center;gap:8px}
+.scen b{font-family:var(--mono);font-weight:500;font-size:11px;color:var(--pg-muted);min-width:22px}
+.scen[aria-pressed="true"]{background:var(--mf-seguranca);border-color:var(--mf-seguranca);color:#fff}
+.scen[aria-pressed="true"] b{color:var(--mf-escolha)}
+.scen:focus-visible,.pg-btn:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.controls{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.pg-btn{font-size:13px;border:1px solid var(--pg-line);background:var(--pg-surface);color:var(--pg-ink);padding:6px 12px;border-radius:10px;cursor:pointer;min-height:36px;display:inline-flex;gap:6px;align-items:center}
+.pg-check{display:flex;gap:8px;align-items:center;font-size:13px;color:var(--pg-muted)}
+.main-col{display:flex;flex-direction:column;gap:16px;min-width:0}
+.notes{background:var(--pg-surface);border:1px solid var(--pg-line);border-radius:16px;padding:18px 20px;display:flex;flex-direction:column;gap:10px}
+.notes h2{font-size:17px;font-weight:600}
+.notes ul,.notes ol{margin:0;padding-left:18px;display:flex;flex-direction:column;gap:5px;color:var(--pg-ink)}
+.notes li{max-width:92ch}
+.rec{display:inline-block;font-size:11px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;padding:2px 8px;border-radius:999px;background:var(--mf-seguranca);color:#fff;margin-right:6px}
+
+/* ===================== Moldura do app (computador) ===================== */
+.desk{position:relative;background:var(--app-bg);border:1px solid var(--pg-line);border-radius:16px;padding:20px;min-height:860px;overflow:clip;color:var(--app-ink)}
+.desk-top{display:flex;justify-content:space-between;align-items:baseline;gap:12px;flex-wrap:wrap}
+.desk-top h2{font-size:20px;font-weight:600;color:var(--app-strong)}
+.desk-top .crumb{font-size:13px;color:var(--app-muted)}
+.card{background:var(--app-surface);border:1px solid var(--app-line);border-radius:12px;padding:18px 20px;display:flex;flex-direction:column;gap:12px;min-width:0}
+.card h3{font-size:16px;font-weight:600;color:var(--app-strong)}
+.card .sub{font-size:12.5px;color:var(--app-muted)}
+.conns{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px;margin-top:14px}
+.conn{display:flex;gap:12px;align-items:center}
+.conn .logo{width:40px;height:40px;border-radius:10px;display:grid;place-items:center;font-weight:700;font-size:13px;color:#fff;background:var(--mf-seguranca);flex:none}
+.conn .logo.b{background:var(--mf-patrimonio)}
+.conn b{display:block;color:var(--app-strong);font-weight:600}
+.conn small{color:var(--app-muted);font-size:12.5px}
+.ghost-page{display:flex;flex-direction:column;gap:14px;opacity:.55}
+.skel{height:12px;border-radius:6px;background:var(--app-line)}
+
+/* banner de "para conferir" */
+.banner{display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap;background:var(--band-soft);color:var(--band-soft-ink);border-radius:12px;padding:12px 14px}
+.banner p{font-size:14px;max-width:70ch}
+.banner b{font-weight:600}
+
+/* tabela padrão (TABLE_STYLES) */
+.tbl-wrap{overflow-x:auto;border:1px solid var(--app-line);border-radius:12px;background:var(--app-surface)}
+table.at{width:100%;border-collapse:collapse;text-align:left;font-variant-numeric:tabular-nums}
+.at thead tr{background:var(--head-bg);color:#fff;font-size:12px;text-transform:uppercase;letter-spacing:.04em}
+.at th{padding:11px 14px;font-weight:500;white-space:nowrap}
+.at th.hl{background:var(--mf-outside)}
+.at td{padding:10px 14px;font-size:14px;border-bottom:1px solid var(--app-line-soft);vertical-align:middle}
+.at td.r,.at th.r{text-align:right}
+.at td.hl{background:var(--hl)}
+.at tr.band td{background:var(--band-bg);color:#fff;font-weight:600;font-size:13.5px;padding-block:8px;border-bottom:1px solid var(--app-line)}
+.at tr.band .cnt{font-weight:500;opacity:.9;margin-left:6px}
+.at tr.band .bnote{font-weight:400;font-size:12.5px;opacity:.95;margin-left:10px}
+.at tr.total td{background:var(--app-line-soft);font-weight:500;color:var(--app-strong)}
+.at tr.item.selected td{background:var(--sel)}
+.at tr.item.selected .det,.at tr.item.selected .via{color:var(--app-muted-strong)}
+.at tr.item.failed td:first-child,.at tr.item.failed.changed td:first-child{box-shadow:inset 3px 0 0 var(--neg)}
+.at tr.item.changed td:first-child{box-shadow:inset 3px 0 0 var(--mf-outside)}
+.at tr.item.dim td{color:var(--app-muted)}
+.at tr.panel-row td{background:var(--app-bg);padding:0;border-bottom:1px solid var(--app-line)}
+.at tr.flash td{animation:flash 1.6s ease-out}
+@keyframes flash{0%{background:var(--sel-strong)}100%{background:transparent}}
+.nm{font-weight:600;color:var(--app-strong);display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.det{display:block;font-size:12px;color:var(--app-muted)}
+.cb{width:44px;text-align:center}
+.cbx{width:20px;height:20px;accent-color:var(--mf-patrimonio);cursor:pointer;margin:0}
+.cbx-hit{display:inline-grid;place-items:center;width:44px;height:44px;cursor:pointer;margin:-10px -6px}
+
+.badge{display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:500;padding:1px 8px;border-radius:999px;border:1px solid var(--app-line);color:var(--app-muted);background:var(--app-surface);white-space:nowrap;line-height:1.6}
+.badge.soft{border-color:transparent;background:var(--band-soft);color:var(--band-soft-ink)}
+.badge.strong{border-color:var(--mf-seguranca);background:var(--mf-seguranca);color:#fff}
+.badge.dash{border-style:dashed;color:var(--app-ink)}
+.badge.fail{border-color:transparent;background:var(--danger-bg);color:var(--neg-text)}
+.dot{width:7px;height:7px;border-radius:50%;background:currentColor;display:inline-block}
+
+/* botão de destino */
+.dest-btn{display:inline-flex;align-items:center;gap:8px;min-height:44px;max-width:100%;padding:4px 12px;border-radius:10px;border:1px solid var(--app-line);background:var(--app-surface);color:var(--app-strong);font-size:14px;font-weight:500;cursor:pointer;text-align:left}
+.dest-btn:hover{border-color:var(--mf-tranquilidade)}
+.dest-btn[aria-expanded="true"]{border-color:var(--mf-patrimonio);box-shadow:0 0 0 1px var(--mf-patrimonio)}
+.dest-btn .chev{color:var(--app-muted);flex:none}
+.dest-btn .sep{color:var(--app-muted);font-weight:400}
+.dest-btn:focus-visible,.btn:focus-visible,.link-btn:focus-visible{outline:none;box-shadow:0 0 0 3px var(--focus)}
+.via{display:block;font-size:12px;color:var(--app-muted);margin-top:3px}
+.via.weak{color:var(--app-ink)}
+.fixed-dest{display:flex;flex-direction:column;gap:2px;font-size:14px;color:var(--app-strong)}
+.fixed-dest small{font-size:12px;color:var(--app-muted)}
+.lock{width:12px;height:12px;vertical-align:-1px}
+
+/* painel de destino (linha expandida) */
+.dpanel{padding:14px 16px 16px 58px;display:flex;flex-direction:column;gap:12px}
+.dpanel h4{font-size:14px;font-weight:600;color:var(--app-strong)}
+.dgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:10px}
+.dest{border:1px solid var(--app-line);border-radius:12px;padding:10px 12px;display:flex;flex-direction:column;gap:8px;margin:0;background:var(--app-surface);min-width:0}
+.dest legend{padding:0 4px;font-size:13px;font-weight:600;color:var(--app-strong)}
+.dest legend small{font-weight:400;color:var(--app-muted);margin-left:4px}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{position:relative}
+.chip input{position:absolute;opacity:0;inset:0;margin:0;cursor:pointer}
+.chip span{display:inline-flex;align-items:center;gap:6px;min-height:44px;padding:0 14px;border-radius:999px;border:1px solid var(--app-line);font-size:14px;color:var(--app-ink);background:var(--app-surface);cursor:pointer}
+.chip input:checked + span{background:var(--mf-seguranca);border-color:var(--mf-seguranca);color:#fff}
+.chip input:focus-visible + span{box-shadow:0 0 0 3px var(--focus)}
+.chip .sug{font-size:10.5px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;opacity:.85}
+.unavail{border:1px dashed var(--app-line);border-radius:12px;padding:8px 12px;font-size:13px;color:var(--app-muted)}
+.unavail summary{cursor:pointer;color:var(--app-strong);font-weight:500;min-height:44px;display:flex;align-items:center}
+.unavail summary:focus-visible{outline:none;box-shadow:0 0 0 3px var(--focus);border-radius:6px}
+.unavail ul{margin:6px 0 0;padding-left:18px;display:flex;flex-direction:column;gap:3px}
+.impact{font-size:13px;color:var(--app-muted);background:var(--app-surface);border:1px solid var(--app-line);border-radius:10px;padding:10px 12px;display:flex;flex-direction:column;gap:3px}
+.impact b{color:var(--app-strong);font-weight:600}
+.impact .warn{color:var(--app-strong)}
+.row-end{display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap;align-items:center}
+
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:44px;padding:0 16px;border-radius:10px;font-size:14px;font-weight:500;cursor:pointer;border:1px solid var(--app-line);background:var(--app-surface);color:var(--app-strong);white-space:nowrap}
+.btn.primary{background:var(--primary);border-color:var(--primary);color:var(--primary-fg)}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+.link-btn{border:0;background:transparent;color:var(--link);font-weight:500;cursor:pointer;min-height:44px;padding:0 8px;border-radius:8px;font-size:14px}
+.err{display:flex;flex-direction:column;gap:4px;align-items:flex-start;font-size:13px;color:var(--neg-text);background:var(--danger-bg);border-radius:10px;padding:8px 10px}
+.spin{display:inline-block;width:14px;height:14px;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;animation:sp .8s linear infinite;vertical-align:-2px}
+@keyframes sp{to{transform:rotate(360deg)}}
+
+/* barra de lote */
+.bulk{display:flex;flex-wrap:wrap;gap:10px;align-items:center;background:var(--mf-seguranca);color:#fff;border-radius:12px;padding:8px 10px 8px 14px}
+.bulk b{font-weight:600}
+.bulk label{font-size:13px;opacity:.9}
+.bulk select{min-height:44px;border-radius:10px;border:1px solid rgba(255,255,255,.4);background:var(--app-surface);color:var(--app-strong);padding:0 10px;font-size:14px;max-width:100%}
+.bulk .btn{border-color:#fff}
+.bulk .btn.ghost{background:transparent;color:#fff;border-color:rgba(255,255,255,.5)}
+.bulk select:focus-visible,.bulk .btn:focus-visible{outline:2px solid #fff;outline-offset:2px;box-shadow:none}
+
+/* modal grande */
+.overlay{position:absolute;inset:0;background:var(--overlay);z-index:70;display:flex;justify-content:center;align-items:flex-start;padding:24px 16px}
+.modal{width:min(980px,100%);max-height:calc(100% - 8px);overflow:auto;background:var(--app-surface);border-radius:18px;box-shadow:var(--shadow);display:flex;flex-direction:column}
+.modal.sm{width:min(520px,100%)}
+.md-h{padding:22px 24px 8px;display:flex;flex-direction:column;gap:6px}
+.md-h h3{font-size:19px;font-weight:600;color:var(--app-strong)}
+.md-h p{font-size:14px;color:var(--app-muted);max-width:80ch}
+.steps{display:flex;gap:6px;align-items:center;font-size:12px;color:var(--app-muted);font-weight:500}
+.steps i{width:22px;height:4px;border-radius:2px;background:var(--app-line)}
+.steps i.on{background:var(--mf-patrimonio)}
+.md-b{padding:8px 24px 8px;display:flex;flex-direction:column;gap:12px}
+.md-f{padding:14px 24px 18px;display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between;border-top:1px solid var(--app-line);position:sticky;bottom:0;background:var(--app-surface)}
+.md-f .sum{font-size:13.5px;color:var(--app-muted);min-width:0;flex:1 1 260px}
+.md-f .sum b{color:var(--app-strong)}
+.md-f .err{flex-basis:100%}
+.xbtn{position:absolute;right:14px;top:14px;width:44px;height:44px;border:0;background:transparent;border-radius:10px;color:var(--app-muted);font-size:20px;cursor:pointer}
+.modal{position:relative}
+.list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:8px}
+.list li{border-radius:10px;background:var(--app-bg);padding:8px 12px;font-size:14px}
+.list li b{font-weight:500;color:var(--app-strong)}
+.list li small{display:block;font-size:12px;color:var(--app-muted)}
+
+/* resumo da conexão com ação de revisão */
+.review-cta{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between;border:1px solid var(--app-line);border-radius:12px;padding:12px 14px;background:var(--app-surface)}
+.review-cta p{font-size:13.5px;color:var(--app-ink);flex:1 1 220px;min-width:0}
+.review-cta p b{color:var(--app-strong);font-weight:600}
+.aviso-conn{font-size:12.5px;border:1px solid var(--mf-tranquilidade);background:var(--band-soft);color:var(--band-soft-ink);border-radius:10px;padding:8px 12px}
+.legal{font-size:12px;color:var(--app-muted)}
+.back-btn{display:inline-flex;align-items:center;gap:4px;align-self:flex-start;margin-left:-8px}
+.err ul{margin:0;padding-left:18px;display:flex;flex-direction:column;gap:2px}
+.err b{font-weight:600}
+.band-all{display:inline-grid;place-items:center;width:44px;height:44px;margin:-12px 2px -12px -14px;cursor:pointer;vertical-align:middle}
+.band-all input{width:18px;height:18px;accent-color:var(--mf-escolha);margin:0;cursor:pointer}
+.band-all input:focus-visible{outline:2px solid #fff;outline-offset:2px}
+.loading-line{display:inline-flex;gap:8px;align-items:center;color:var(--app-muted)}
+.mband .mall{margin-left:auto;min-height:44px;border:0;background:transparent;color:var(--link);font-weight:600;font-size:13.5px;padding:0 4px;border-radius:10px;cursor:pointer}
+.mband .mall:focus-visible{outline:none;box-shadow:0 0 0 3px var(--focus)}
+.mover-mock{display:flex;flex-direction:column;gap:10px;border:1px solid var(--app-line);border-radius:12px;padding:14px 16px;background:var(--app-surface);margin-top:14px}
+.mover-mock .na{display:flex;flex-wrap:wrap;gap:8px;align-items:center;font-size:13.5px;color:var(--app-muted)}
+.mover-mock .chipl{display:inline-flex;align-items:center;min-height:32px;padding:0 10px;border-radius:999px;background:var(--band-soft);color:var(--band-soft-ink);font-weight:500}
+
+/* toast */
+.toast{position:absolute;left:50%;bottom:18px;transform:translateX(-50%);z-index:80;display:flex;align-items:center;gap:14px;max-width:calc(100% - 32px);background:var(--toast-bg);color:var(--toast-fg);padding:10px 12px 10px 16px;border-radius:12px;box-shadow:var(--shadow);font-size:14px}
+.toast button{min-width:44px;border:0;background:transparent;color:var(--toast-link);font-weight:600;text-decoration:underline;text-underline-offset:3px;cursor:pointer;min-height:44px;padding:0 6px;border-radius:6px;white-space:nowrap}
+.toast button:focus-visible{outline:2px solid currentColor;outline-offset:1px}
+
+/* carteira */
+.tabs{display:flex;gap:4px;overflow-x:auto;border-bottom:1px solid var(--app-line);margin-top:10px;padding-top:6px;scrollbar-width:thin}
+.tab{display:inline-flex;align-items:center;gap:6px;border:0;border-bottom:2px solid transparent;background:transparent;padding:10px 12px;min-height:44px;font-size:14px;font-weight:500;color:var(--app-muted);white-space:nowrap;cursor:pointer;border-radius:8px 8px 0 0}
+.tab[aria-selected="true"]{color:var(--link);border-bottom-color:var(--link)}
+.tab:focus-visible{outline:none;box-shadow:inset 0 0 0 2px var(--focus)}
+.tbl-title{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:18px 0 10px;flex-wrap:wrap}
+.tbl-title h3{font-size:16px;font-weight:600;color:var(--app-strong)}
+.tk{font-weight:600;color:var(--link)}
+a.tk{display:inline-flex;align-items:center;min-height:44px;padding:0 4px;margin:0 -4px;border-radius:8px;text-underline-offset:3px}
+a.tk:focus-visible{outline:none;box-shadow:0 0 0 3px var(--focus)}
+
+/* ===================== Celular ===================== */
+.phone-stage{display:flex;justify-content:center}
+.phone{position:relative;width:390px;max-width:100%;height:800px;background:var(--app-bg);border:10px solid var(--mf-potencia);border-radius:44px;overflow:hidden;display:flex;flex-direction:column;color:var(--app-ink)}
+.ph-status{height:34px;flex:none;display:flex;justify-content:space-between;align-items:center;padding:0 22px;font-size:13px;font-weight:600;color:var(--app-strong)}
+.ph-head{flex:none;display:flex;align-items:center;gap:10px;padding:6px 16px 10px;border-bottom:1px solid var(--app-line);background:var(--app-surface)}
+.ph-head h2{font-size:17px;font-weight:600;color:var(--app-strong)}
+.ph-head .x{margin-left:auto;width:44px;height:44px;border:0;background:transparent;color:var(--app-muted);font-size:20px;border-radius:10px}
+.ph-body{flex:1;overflow:auto;padding:12px 16px 24px;display:flex;flex-direction:column;gap:10px}
+.ph-body p.intro{font-size:13.5px;color:var(--app-muted)}
+.ph-foot{flex:none;padding:10px 16px calc(14px + env(safe-area-inset-bottom,0px));border-top:1px solid var(--app-line);background:var(--app-surface);display:flex;flex-direction:column;gap:8px}
+.ph-foot .row{display:flex;gap:8px}
+.ph-foot .sum{font-size:12.5px;color:var(--app-muted);text-align:center}
+.mband{display:flex;align-items:center;gap:8px;min-height:40px;padding:0 12px;border-radius:12px;background:var(--band-soft);color:var(--band-soft-ink);font-weight:600;font-size:13.5px;margin-top:4px}
+.mband .cnt{margin-left:auto;font-weight:500;font-size:12.5px;opacity:.85}
+.mcard{background:var(--app-surface);border:1px solid var(--app-line);border-radius:16px;padding:12px 14px;display:flex;flex-direction:column;gap:8px}
+.mcard.changed{box-shadow:inset 3px 0 0 var(--mf-outside)}
+.mcard .top{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}
+.mcard .t{font-weight:600;color:var(--app-strong);font-size:15px;display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.mcard .n{font-size:12px;color:var(--app-muted)}
+.mcard .v{font-weight:600;color:var(--app-strong);font-variant-numeric:tabular-nums;text-align:right;font-size:14.5px;white-space:nowrap}
+.mdest{display:flex;align-items:center;gap:10px;border-top:1px solid var(--app-line-soft);padding-top:8px}
+.mdest .grow{flex:1;min-width:0}
+.mdest .lbl{font-size:11.5px;color:var(--app-muted)}
+.mdest .val{font-size:14.5px;font-weight:600;color:var(--app-strong)}
+.mbtn{min-height:44px;border-radius:12px;border:1px solid var(--app-line);background:var(--app-surface);color:var(--link);font-weight:600;font-size:14.5px;display:inline-flex;align-items:center;justify-content:center;gap:6px;cursor:pointer;padding:0 14px}
+.mbtn.primary{background:var(--primary);border-color:var(--primary);color:var(--primary-fg)}
+.mbtn.grow{flex:1}
+.mbtn:disabled{opacity:.5}
+.mbtn:focus-visible,.mopt:focus-visible{outline:none;box-shadow:0 0 0 3px var(--focus)}
+.sheet-ov{position:absolute;inset:0;background:var(--overlay);z-index:70;display:flex;flex-direction:column;justify-content:flex-end}
+.sheet{background:var(--app-surface);border-radius:22px 22px 0 0;max-height:90%;display:flex;flex-direction:column;box-shadow:var(--shadow)}
+.sheet .grab{width:40px;height:5px;border-radius:3px;background:var(--mf-transparencia);margin:8px auto 4px}
+.sheet-h{padding:4px 16px 10px;display:flex;align-items:flex-start;justify-content:space-between;gap:8px}
+.sheet-h h3{font-size:17px;font-weight:600;color:var(--app-strong)}
+.sheet-h p{font-size:13px;color:var(--app-muted)}
+.sheet-x{width:44px;height:44px;border:0;background:transparent;color:var(--app-muted);font-size:20px;margin:-6px -10px 0 0;border-radius:10px}
+.sheet-b{overflow:auto;padding:0 16px 8px;display:flex;flex-direction:column;gap:10px}
+.sheet-f{padding:10px 16px calc(16px + env(safe-area-inset-bottom,0px));border-top:1px solid var(--app-line);display:flex;flex-direction:column;gap:8px}
+.sheet-f .row{display:flex;gap:8px}
+.mgl{font-size:11.5px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--app-muted);padding:6px 4px 2px}
+.mopt{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:10px;min-height:56px;width:100%;padding:8px 12px;border-radius:12px;border:0;background:transparent;text-align:left;cursor:pointer}
+.mopt .l{font-size:15px;font-weight:600;color:var(--app-strong)}
+.mopt .d{display:block;font-size:12.5px;color:var(--app-muted)}
+.mopt .rd{width:22px;height:22px;border-radius:50%;border:2px solid var(--mf-transparencia)}
+.mopt[aria-checked="true"]{background:var(--band-soft)}
+.mopt[aria-checked="true"] .rd{border:7px solid var(--mf-patrimonio)}
+.mtoast{position:absolute;left:12px;right:12px;bottom:92px;z-index:80;display:flex;align-items:center;gap:10px;background:var(--toast-bg);color:var(--toast-fg);border-radius:14px;padding:6px 6px 6px 14px;font-size:14px;box-shadow:var(--shadow)}
+.mtoast span{flex:1;min-width:0}
+.mtoast button{min-height:44px;padding:0 10px;border:0;background:transparent;color:var(--toast-link);font-weight:600;border-radius:10px}
+
+/* ===================== Especificação ===================== */
+.spec{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+.spec .notes{min-width:0}
+.spec .wide{grid-column:1/-1}
+.spec table{border-collapse:collapse;font-size:13.5px;width:100%;font-variant-numeric:tabular-nums}
+.spec th,.spec td{border-bottom:1px solid var(--pg-line);padding:7px 8px;text-align:left;vertical-align:top}
+.spec th{font-weight:600;font-size:12px;letter-spacing:.04em;text-transform:uppercase;color:var(--pg-muted)}
+.scroll-x{overflow-x:auto}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+
+@media (max-width: 960px){
+  .stage{grid-template-columns:minmax(0,1fr)}
+  .side{position:static}
+  .scen-group{flex-direction:row;flex-wrap:wrap}
+  .scen-group .gl{width:100%}
+  .spec{grid-template-columns:minmax(0,1fr)}
+  .desk{padding:12px}
+  .dpanel{padding-left:16px}
+}
+@media (max-width: 440px){
+  .phone{border-width:0;border-radius:16px;height:760px}
+}
+@media (prefers-reduced-motion: reduce){
+  .spin{animation-duration:2.4s}
+  .at tr.flash td{animation:none}
+}
+</style>
+
+<div class="wrap">
+  <header>
+    <div class="wordmark">My Finance</div>
+    <h1 class="pg-h1">Escolher o destino na importação do Open Finance</h1>
+    <p class="lede">Os investimentos entram na Carteira no lugar sugerido, como hoje. Na tela “Conexão realizada”, o botão “Escolher onde ficam” abre a revisão: o usuário confere a aba e a seção de cada um e troca o que quiser, um a um ou em lote. Itens que chegam depois, nas sincronizações automáticas, ficam marcados “para conferir” em Conexões bancárias. Dados de exemplo (XP Investimentos e Itaú fictícios, 06/10/2026). Experimente: abra a revisão, troque um destino, marque a faixa FII's, salve.</p>
+  </header>
+
+  <section class="stage" aria-label="Protótipo navegável">
+    <aside class="side">
+      <div class="controls">
+        <button class="pg-btn" type="button" id="themeBtn" aria-label="Alternar tema claro e escuro">Tema: sistema</button>
+        <button class="pg-btn" type="button" id="resetBtn">Recomeçar cenário</button>
+      </div>
+      <label class="pg-check"><input type="checkbox" id="failChk"> Simular falha em 1 item ao salvar</label>
+      <div class="scen-groups" id="scenarios" role="group" aria-label="Cenários do protótipo"></div>
+    </aside>
+    <div class="main-col">
+      <div id="screen"></div>
+      <div class="notes" id="notes" aria-live="polite"></div>
+    </div>
+  </section>
+
+  <section class="spec" aria-labelledby="spec-h">
+    <div class="notes wide">
+      <p class="eyebrow">Especificação</p>
+      <h2 id="spec-h" style="font-size:22px">Recomendações, regras, medidas e estados</h2>
+      <p style="color:var(--pg-muted);max-width:85ch">Componentes citados já existem no app: <code>Modal</code>, <code>TABLE_STYLES</code>, <code>ResponsiveCardList</code>, <code>MobileStatusPill</code>, <code>BottomSheet</code>/<code>MovePanel</code>, as regras de <code>src/lib/carteiraMover.ts</code> e o toast do mover.</p>
+    </div>
+
+    <div class="notes wide">
+      <h2>Respostas de produto</h2>
+      <ol>
+        <li><span class="rec">a · Momento</span><b>Híbrido: entra no lugar sugerido e o usuário confere logo em seguida.</b> A importação continua automática e não ganha status novo, então nada fica fora da Carteira, da Saúde Financeira nem do Caixa para Investir. “Conexão realizada” continua sendo a primeira tela (texto da autorização e aviso da conexão) e ganha o botão “Escolher onde ficam (N)”. Voltar da revisão sempre cai de novo nesse resumo. Itens de sincronizações futuras (webhook e cron) ficam “para conferir” em Conexões bancárias, sem bloquear nada.</li>
+        <li><span class="rec">b · Granularidade</span><b>Item a item mais lote.</b> No computador, caixas de seleção por item e uma caixa “marcar todos” em cada faixa (grupos pela aba sugerida: Ações, FII's, ETF's…). A barra lista só os destinos aceitos por todos os marcados. No celular, “Trocar todos” na faixa abre o mesmo painel para o grupo. <b>Regras lembradas por tipo ficam fora</b> desta fase.</li>
+        <li><span class="rec">c · Sugestão</span>Cada linha mostra o destino sugerido e de onde ele veio (campo novo <code>viaSugestao</code>, calculado no servidor). FII fora do catálogo que caiu na seção padrão ganha o selo tracejado “confira”. Destinos, motivos e avisos vêm de <code>obterOpcoesMover</code>; os bloqueados ficam recolhidos com o motivo. Previdência mostra a aba com cadeado. “Já estava na Carteira” mostra onde está. “Cadastrar à mão” mantém Cadastrar e Ignorar.</li>
+        <li><span class="rec">d · Histórico</span>A escolha na revisão é o <b>lugar que o usuário escolheu</b>: sem selo “movido” e sem link “Voltar para…”. Ela fica no Histórico de alterações como “Destino escolhido na importação” e pode ser desfeita, voltando o item para a fila “para conferir”. Se o usuário abrir o Mover depois, a aba do catálogo aparece com “· antes” e o aviso que já existe (K2). Desfazer a importação inteira fica fora.</li>
+        <li><span class="rec">e · Consultor</span>O 403 de <code>/api/pluggy/*</code> para consultor continua. A revisão e a fila “para conferir” são do cliente; o consultor usa o Mover na Carteira, que já registra o autor.</li>
+      </ol>
+    </div>
+
+    <div class="notes wide">
+      <h2>Para onde cada investimento importado pode ir</h2>
+      <p style="color:var(--pg-muted);font-size:13.5px">Exemplo para o protótipo. No app, a lista e os motivos vêm do servidor (<code>destinos[].permitido/motivo/avisos</code>), com os textos de <code>carteiraMover.ts</code>.</p>
+      <div class="scroll-x">
+      <table>
+        <thead><tr><th>Tipo do banco</th><th>Sugestão inicial</th><th>Pode escolher</th><th>Não pode (motivo exibido)</th></tr></thead>
+        <tbody>
+          <tr><td>Ação / BDR / unit em real</td><td>Ações › Value (seção padrão da aba)</td><td>Ações, FII's, ETF's, Fundos e qualquer seção deles</td><td>Stocks, REIT's: “Em reais — esta aba é em dólar”. Reservas e Renda Fixa: “Tem cotação de mercado — Reservas e Renda Fixa usam curva ou valor informado”</td></tr>
+          <tr><td>FII listado</td><td>FII's › seção do catálogo da CVM; pelo nome; sem pista: seção padrão, com selo “confira”</td><td>Igual a ações</td><td>Igual a ações</td></tr>
+          <tr><td>ETF em real</td><td>ETF's › Brasil (seção padrão)</td><td>Igual a ações; Brasil e EUA livres</td><td>Igual a ações</td></tr>
+          <tr><td>CDB, LCI, LCA, RDB, LC</td><td>Renda Fixa (seção pelo indexador)</td><td>Renda Fixa, Reserva Emergência, Reserva Oportunidade</td><td>Abas de bolsa e Fundos: “Sem cotação em bolsa: o valor vem da curva do título”</td></tr>
+          <tr><td>Fundo (CVM pelo CNPJ ou sintético)</td><td>Fundos › seção pelo tipo do fundo</td><td>Só a seção dentro de Fundos</td><td>Abas de bolsa: “Sem cotação em bolsa: o valor vem da cota/curva”. Reservas e Renda Fixa: “Tem cotação de mercado…”</td></tr>
+          <tr><td>Previdência</td><td>Previdência e Seguros</td><td>Nada</td><td>Cadeado: “Previdência e Seguros ainda não pode ser movida para outra aba”</td></tr>
+          <tr><td>Já tinha posição (vinculado)</td><td>Onde já está</td><td>Nada na importação</td><td>“Continua onde já estava. Para mudar, use Mover na Carteira”</td></tr>
+          <tr><td>COE, Tesouro, outros (sem suporte)</td><td>Sem destino</td><td>Cadastrar à mão ou Ignorar</td><td>Sem destino até cadastrar</td></tr>
+        </tbody>
+      </table>
+      </div>
+    </div>
+
+    <div class="notes">
+      <h2>Computador: medidas</h2>
+      <ul>
+        <li>“Conexão realizada”: o modal de hoje (até 520px). O quadro “Escolher onde ficam (N)” fica entre a lista e o texto da autorização: borda de 1px, raio 12px, botão secundário de 44px. Depois de salvar, vira a linha “Destinos conferidos”.</li>
+        <li>Revisão: o mesmo modal cresce até 980px, raio 18px, corpo com rolagem e rodapé fixo. “Voltar ao resumo” (44px) no topo à esquerda; o X também volta ao resumo.</li>
+        <li>Tabela no <code>TABLE_STYLES</code>: cabeçalho <code>seguranca</code>, faixas <code>patrimonio</code> com texto branco (5,4:1). Faixa com 2 ou mais itens trocáveis tem a caixa “marcar todos” com área de 44×44px. Colunas: seleção 44px, Investimento, Saldo no banco, Fica na Carteira em.</li>
+        <li>Botão de destino com 44px de altura, raio 10px, “Aba › Seção” e seta. Abaixo, em 12px, a origem da sugestão.</li>
+        <li>Painel de destino na própria linha, blocos por aba em grade de 250px ou mais, chips-rádio de 44px; “N abas não aceitam” recolhido com 44px de altura.</li>
+        <li>Linha alterada: traço interno de 3px em <code>outside</code>. Linha que falhou: traço de 3px em vermelho e selo “não salvou”.</li>
+        <li>Rodapé: resumo à esquerda (“3 mudanças: … 6 outros ficam como sugerido.”), “Conferir depois” e o primário, que diz o que faz: “Salvar 3 mudanças”, “Está tudo certo” ou “Tentar de novo (1)”.</li>
+      </ul>
+    </div>
+
+    <div class="notes">
+      <h2>Celular (390px): medidas</h2>
+      <ul>
+        <li>“Conexão realizada” em tela cheia, como hoje, com o quadro e o botão “Escolher onde ficam” em largura total (44px).</li>
+        <li>Revisão em tela cheia: cabeçalho com Voltar de 44px, faixas suaves e um cartão por investimento. Faixa com 2 ou mais itens trocáveis: “Trocar todos” (44px).</li>
+        <li>Cartão: nome 15px, detalhe 12px, saldo à direita; linha “Fica em” com valor 14,5px e “Trocar” de 44px.</li>
+        <li>Painel: <code>BottomSheet</code> até 90% da altura, opções de 56px com rádio de 22px, como no <code>MovePanel</code>. Abas recusadas recolhidas no fim (44px).</li>
+        <li>Rodapé fixo com resumo de 12,5px e dois botões de 44px, respeitando <code>safe-area-inset-bottom</code>.</li>
+      </ul>
+    </div>
+
+    <div class="notes">
+      <h2>Estados</h2>
+      <ul>
+        <li><b>Para conferir:</b> importado, com mais de um lugar possível e ainda não conferido. Conta no botão “Escolher onde ficam (N)” e no aviso de Conexões bancárias.</li>
+        <li><b>Sugerido:</b> destino com a origem. Baixa confiança: selo tracejado “confira”.</li>
+        <li><b>Alterado:</b> traço azul, selo “alterado”, “Voltar à sugestão” no painel.</li>
+        <li><b>Sem escolha:</b> previdência, já estava, cadastrar à mão. Sem caixa de seleção.</li>
+        <li><b>Prévia da Saúde:</b> carregando (“Calculando…”), com valor, ou a frase fixa se a chamada falhar. Pedida só ao escolher Reserva Emergência.</li>
+        <li><b>Salvando:</b> spinner no primário, tabela e X bloqueados.</li>
+        <li><b>Salvou em parte:</b> alerta com quantos foram e, por item, o motivo do que falhou. As escolhas que falharam continuam na linha; primário “Tentar de novo (N)”.</li>
+        <li><b>Salvo:</b> volta ao resumo com “Destinos conferidos” e toast com Desfazer por 8s, que devolve à fila “para conferir”.</li>
+        <li><b>Conferir depois:</b> volta ao resumo; os itens ficam “para conferir”.</li>
+        <li><b>Novos por sincronização:</b> aviso no topo de “Investimentos e empréstimos do banco” e selo “Novo · conferir”. Sem contador no menu nesta entrega.</li>
+      </ul>
+    </div>
+
+    <div class="notes">
+      <h2>Acessibilidade e escuro</h2>
+      <ul>
+        <li>Modal com <code>role="dialog"</code>, <code>aria-modal</code>, título por <code>aria-labelledby</code> e foco preso. Ao trocar entre resumo e revisão, o foco vai para o título da tela nova.</li>
+        <li>Botão de destino com <code>aria-expanded</code> e <code>aria-controls</code>; nome “Destino de KNCA11: FII's, Tijolo. Trocar”. Esc fecha o painel e devolve o foco.</li>
+        <li>Painel com <code>fieldset</code>/<code>legend</code> por aba e rádios nativos de nome único. Efeitos em <code>aria-live="polite"</code> (a prévia da Saúde é anunciada quando chega).</li>
+        <li>Caixas nativas com rótulo (“Selecionar KNCA11”, “Selecionar todos de FII's”, esta com estado misto), área de 44×44px; contagem em <code>aria-live</code>.</li>
+        <li>Toast em <code>role="status"</code> com X de 44×44px; erro de salvamento em <code>role="alert"</code>.</li>
+        <li>Alvos de 44px em tudo: “N abas não aceitam”, links de destino em Conexões, X do toast.</li>
+        <li>Contraste: texto secundário em linha selecionada usa #4B5563 (6,9:1 sobre a tinta); texto de erro em #B42318 (o <code>error-700</code> do app) sobre o fundo do alerta (5,8:1); no escuro, #F97066 (5,1:1).</li>
+        <li>Estado nunca só por cor: alterado, confira, não salvou, Novo · conferir e cadeado sempre têm texto.</li>
+        <li>Spinner e realce respeitam <code>prefers-reduced-motion</code>.</li>
+      </ul>
+    </div>
+
+    <div class="notes wide">
+      <h2>Para o desenvolvimento</h2>
+      <ul>
+        <li>Mutação com <code>csrfFetch</code>: <code>{ itens: [{ bankInvestmentId, categoria, subgrupo? }], confirmarIds: [...] }</code>. No servidor, <b>moverInvestimento por item</b>, sem regra duplicada. Falha parcial é aceita e volta em <code>erros[]</code>; a UI mostra quem falhou e por quê.</li>
+        <li><code>confirmarIds</code> são os itens que o usuário viu na tela. Só eles ganham <code>destinoConfirmadoEm</code>. Um item importado por webhook ou cron enquanto a revisão está aberta continua na fila.</li>
+        <li>Depois do POST: <code>invalidatePortfolioDerivedQueries(queryClient)</code> e a query de Conexões.</li>
+        <li>Prévia da Saúde sob demanda: ao escolher Reserva Emergência, <code>GET /api/carteira/mover?tipo=posicao&amp;id=…&amp;saude=1</code>, que já existe. A listagem da revisão não pede a Saúde.</li>
+        <li>DTO da revisão ganha <code>viaSugestao</code> ('catalogo' | 'nome' | 'padrao' | 'indexador' | 'tipoFundo'), calculado no servidor só para itens para conferir (uma variante de <code>tipoFiiImportado</code> que devolva o ramo usado). Sem esse campo, a linha da origem e o selo “confira” somem e o resto não muda.</li>
+        <li>“Revisável” vem de um helper leve extraído de <code>obterOpcoesMover</code> (movível e com mais de um destino ou seção). O cliente nunca recalcula.</li>
+        <li>Desfazer: handler próprio de <code>investimento.destinoImportacao</code> que chama <code>moverDesfazer</code> e zera <code>destinoConfirmadoEm</code>. O Desfazer do toast percorre os historicoIds do lote; se algum der 409 (alterado depois), avisa: “2 voltaram; 1 não pôde voltar porque mudou depois”.</li>
+      </ul>
+    </div>
+  </section>
+</div>
+
+<div class="sr" id="live" aria-live="polite" aria-atomic="true"></div>
+
+<script>
+(function(){
+'use strict';
+const $ = (s, r=document) => r.querySelector(s);
+const brl = new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'});
+const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const live = msg => { const l=$('#live'); l.textContent=''; setTimeout(()=>{ l.textContent=msg; },30); };
+const ICON_LOCK = '<svg class="lock" viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" d="M5 7V5a3 3 0 1 1 6 0v2h.5A1.5 1.5 0 0 1 13 8.5v5A1.5 1.5 0 0 1 11.5 15h-7A1.5 1.5 0 0 1 3 13.5v-5A1.5 1.5 0 0 1 4.5 7H5Zm1.5 0h3V5a1.5 1.5 0 1 0-3 0v2Z"/></svg>';
+const CHEV = '<svg class="chev" width="14" height="14" viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" d="M4 6l4 4 4-4H4Z"/></svg>';
+const BACK = '<svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" d="M10 3 5 8l5 5 1-1-4-4 4-4-1-1Z"/></svg>';
+const plural = (n, um, varios) => n + ' ' + (n===1 ? um : varios);
+
+/* ---------------- Abas e seções (espelho de carteiraMover.ts) ----------------
+   No app, a lista de destinos, os motivos e os avisos vêm do servidor
+   (obterOpcoesMover → destinos[].permitido/motivo/avisos). Aqui eles só
+   reproduzem os textos reais das constantes MOTIVO_* para o protótipo. */
+const CAT = {acoes:'Ações', fiis:"FII's", etfs:"ETF's", fimFia:'Fundos', rendaFixaFundos:'Renda Fixa', reservaEmergencia:'Reserva Emergência', reservaOportunidade:'Reserva Oportunidade', previdencia:'Previdência e Seguros', stocks:'Stocks', reits:"REIT's"};
+const SUBS = {
+  acoes:[['value','Value'],['growth','Growth'],['risk','Risk']],
+  fiis:[['fofi','FOF'],['tvm','TVM'],['tijolo','Tijolo'],['infra','Infra']],
+  etfs:[['brasil','Brasil'],['estados_unidos','EUA']],
+  fimFia:[['fim','FIM'],['fia','FIA'],['rf','Renda Fixa'],['cambial','Cambial'],['fip','FIP'],['fip-infra','FIP Infraestrutura'],['fidc','FIDC'],['fiagro','Fiagro']],
+};
+const subLabel = (cat, sub) => ((SUBS[cat]||[]).find(s=>s[0]===sub)||[0,''])[1];
+const where = (cat, sub, auto) => CAT[cat] + (sub && SUBS[cat] ? ' › ' + subLabel(cat, sub) : (cat==='rendaFixaFundos' && auto ? ' › ' + auto : ''));
+const keyOf = d => d.cat + '|' + (d.sub||'');
+const MOTIVO_EM_REAIS = 'Em reais — esta aba é em dólar';
+const MOTIVO_COM_COTACAO = 'Tem cotação de mercado — Reservas e Renda Fixa usam curva ou valor informado';
+const MOTIVO_SEM_COTACAO_BOLSA = 'Sem cotação em bolsa: o valor vem da curva do título';
+const MOTIVO_SEM_COTACAO = 'Sem cotação em bolsa: o valor vem da cota/curva';
+const AVISO_LIQUIDEZ_RESERVA = 'Sem liquidez diária. Mesmo assim conta inteiro como Reserva de Emergência na Saúde Financeira';
+const AVISO_SAUDE_RESERVA = 'A Saúde Financeira recalcula a reserva de emergência com esta mudança';
+
+function dests(it){
+  if (it.modelo==='b3') return {
+    ok:['acoes','fiis','etfs','fimFia'].map(c=>({cat:c, subs:SUBS[c]})),
+    no:[['stocks',MOTIVO_EM_REAIS],['reits',MOTIVO_EM_REAIS],['rendaFixaFundos',MOTIVO_COM_COTACAO],['reservaEmergencia',MOTIVO_COM_COTACAO],['reservaOportunidade',MOTIVO_COM_COTACAO]]};
+  if (it.modelo==='curva') return {
+    ok:[{cat:'rendaFixaFundos', subs:null, auto:it.auto},{cat:'reservaEmergencia', subs:null},{cat:'reservaOportunidade', subs:null}],
+    no:['acoes','fiis','etfs','fimFia','stocks','reits'].map(c=>[c,MOTIVO_SEM_COTACAO_BOLSA])};
+  if (it.modelo==='fundo') return {
+    ok:[{cat:'fimFia', subs:SUBS.fimFia}],
+    no:[['acoes',MOTIVO_SEM_COTACAO],['fiis',MOTIVO_SEM_COTACAO],['etfs',MOTIVO_SEM_COTACAO],['stocks',MOTIVO_SEM_COTACAO],['reits',MOTIVO_SEM_COTACAO],['rendaFixaFundos',MOTIVO_COM_COTACAO],['reservaEmergencia',MOTIVO_COM_COTACAO],['reservaOportunidade',MOTIVO_COM_COTACAO]]};
+  return {ok:[], no:[]};
+}
+function optionList(it){
+  const out=[];
+  dests(it).ok.forEach(d=>{
+    if (d.subs) d.subs.forEach(s=>out.push({cat:d.cat, sub:s[0]}));
+    else out.push({cat:d.cat, sub:null, auto:d.auto});
+  });
+  return out;
+}
+const movable = it => it.st==='importado' && it.modelo!=='fixo';
+
+/* viaSugestao (campo novo do DTO, calculado no servidor) → texto da linha */
+const VIA = {catalogo:'catálogo da CVM', catalogoCnpj:'catálogo da CVM, pelo CNPJ', nome:'pelo nome do fundo', padrao:'seção padrão da aba', padraoFii:'não está no catálogo: ficou na seção padrão', indexador:'seção pelo indexador (CDI)'};
+
+/* ---------------- Dados de exemplo ---------------- */
+const XP = [
+  {id:'petr', tk:'PETR4', nome:'Petrobras PN', det:'300 ações · XP Investimentos', saldo:11235.00, modelo:'b3', st:'importado', grp:'acoes', sug:{cat:'acoes',sub:'value'}, via:'padrao'},
+  {id:'wege', tk:'WEGE3', nome:'WEG ON', det:'120 ações · XP Investimentos', saldo:6420.00, modelo:'b3', st:'importado', grp:'acoes', sug:{cat:'acoes',sub:'value'}, via:'padrao'},
+  {id:'hglg', tk:'HGLG11', nome:'CSHG Logística', det:'40 cotas · XP Investimentos', saldo:6452.00, modelo:'b3', st:'importado', grp:'fiis', sug:{cat:'fiis',sub:'tijolo'}, via:'catalogo'},
+  {id:'knca', tk:'KNCA11', nome:'Kinea Crédito Agro Fiagro', det:'100 cotas · XP Investimentos', saldo:9580.00, modelo:'b3', st:'importado', grp:'fiis', sug:{cat:'fiis',sub:'tijolo'}, via:'padraoFii', weak:true},
+  {id:'kdif', tk:'KDIF11', nome:'Kinea Infra FIC FI-Infra', det:'70 cotas · XP Investimentos', saldo:8687.00, modelo:'b3', st:'importado', grp:'fiis', sug:{cat:'fiis',sub:'infra'}, via:'nome'},
+  {id:'bova', tk:'BOVA11', nome:'iShares Ibovespa', det:'50 cotas · XP Investimentos', saldo:6810.00, modelo:'b3', st:'importado', grp:'etfs', sug:{cat:'etfs',sub:'brasil'}, via:'padrao'},
+  {id:'ivvb', tk:'IVVB11', nome:'iShares S&P 500', det:'20 cotas · XP Investimentos', saldo:7140.00, modelo:'b3', st:'importado', grp:'etfs', sug:{cat:'etfs',sub:'brasil'}, via:'padrao'},
+  {id:'cdb', tk:null, nome:'CDB XP 102% CDI', det:'Liquidez diária · vence 15/03/2028', saldo:15000.00, modelo:'curva', st:'importado', grp:'rf', sug:{cat:'rendaFixaFundos',sub:null}, auto:'Pós-fixada', via:'indexador', daily:true, hint:'Liquidez diária: pode servir de reserva'},
+  {id:'kapi', tk:null, nome:'Kapitalo Zeta FIC FIM', det:'CNPJ 12.105.992/0001-09', saldo:8300.00, modelo:'fundo', st:'importado', grp:'fundo', sug:{cat:'fimFia',sub:'fim'}, via:'catalogoCnpj'},
+  {id:'prev', tk:null, nome:'XP Prev Multimercado PGBL', det:'Previdência · XP Seguros', saldo:22400.00, modelo:'fixo', st:'importado', grp:'prev', sug:{cat:'previdencia',sub:null}},
+  {id:'itsa', tk:'ITSA4', nome:'Itaúsa PN', det:'800 ações · XP Investimentos', saldo:7896.00, modelo:'b3', st:'vinculado', grp:'vinc', sug:{cat:'acoes',sub:'growth'}},
+  {id:'tes', tk:null, nome:'Tesouro IPCA+ 2035', det:'Tesouro Direto · XP Investimentos', saldo:4870.00, modelo:'fixo', st:'sem-suporte', grp:'manual'},
+  {id:'coe', tk:null, nome:'COE Autocallable Bancos BR', det:'Vence 22/08/2028 · XP Investimentos', saldo:5000.00, modelo:'fixo', st:'sem-suporte', grp:'manual'},
+];
+const ITAU = [
+  {id:'lca', tk:null, nome:'LCA Itaú 94% CDI', det:'Carência até 10/04/2027 · vence 10/10/2028', saldo:3000.00, modelo:'curva', st:'importado', grp:'rf', sug:{cat:'rendaFixaFundos',sub:null}, auto:'Pós-fixada', via:'indexador', daily:false, novo:true, bank:'Itaú'},
+  {id:'itdv', tk:null, nome:'Itaú Ações Dividendos FIC FIA', det:'CNPJ 08.817.414/0001-10', saldo:4210.00, modelo:'fundo', st:'importado', grp:'fundo', sug:{cat:'fimFia',sub:'fia'}, via:'catalogoCnpj', novo:true, bank:'Itaú'},
+];
+const NOTE_RV = "pode ir para Ações, FII's, ETF's ou Fundos";
+const GROUPS = [
+  ['acoes','Ações',NOTE_RV],
+  ['fiis',"FII's",NOTE_RV],
+  ['etfs',"ETF's",NOTE_RV],
+  ['rf','Renda fixa','Renda Fixa ou uma das Reservas'],
+  ['fundo','Fundos','só a seção dentro de Fundos'],
+  ['prev','Previdência','fica em Previdência e Seguros'],
+  ['vinc','Já estavam na Carteira','a posição do banco atualiza a que você já tinha'],
+  ['manual','Para cadastrar à mão','o sistema ainda não reconhece este tipo'],
+];
+
+let S = {};
+const cloneItems = arr => arr.map(x => Object.assign({}, x, {cur:Object.assign({}, x.sug)}));
+function reset(){
+  S = {items:cloneItems(XP), newItems:cloneItems(ITAU), sel:new Set(), open:null, step:'sum', status:'idle', toast:null, sheet:null, bulkPick:'', ctab:'fimFia', reviewed:false, scope:'xp', saude:{}, failed:{}, saved:new Set(), modal:false, closed:false, phoneStep:'sum'};
+}
+const pool = () => S.scope==='itau' ? S.newItems : S.items;
+const item = id => S.items.concat(S.newItems).find(x=>x.id===id);
+const changed = it => movable(it) && keyOf(it.cur)!==keyOf(it.sug);
+const changes = () => pool().filter(changed);
+const paraRevisar = () => S.items.filter(movable).length;
+
+/* ---------------- Cenários ---------------- */
+const G1='Logo após conectar · computador', G2='Depois · computador', G3='Celular (390px)';
+const SC = [
+  {k:'D1',g:G1,label:'Conexão realizada + “Escolher onde ficam”',view:'desk'},
+  {k:'D2',g:G1,label:'Revisão com as sugestões',view:'desk'},
+  {k:'D3',g:G1,label:'Trocar: Fiagro para Fundos',view:'desk'},
+  {k:'D4',g:G1,label:'CDB para a Reserva de Emergência',view:'desk'},
+  {k:'D5',g:G1,label:"Em lote: os 3 FII's",view:'desk'},
+  {k:'D6',g:G1,label:'Salvando',view:'desk'},
+  {k:'D7',g:G1,label:'Salvou em parte (1 não deu)',view:'desk'},
+  {k:'D8',g:G1,label:'Salvo: volta ao resumo + Desfazer',view:'desk'},
+  {k:'C1',g:G2,label:'Conexões: novos para conferir',view:'conn'},
+  {k:'C2',g:G2,label:'Conferir os novos do Itaú',view:'conn'},
+  {k:'K1',g:G2,label:'Como fica na Carteira',view:'cart'},
+  {k:'K2',g:G2,label:'Mover depois da importação',view:'mover'},
+  {k:'M1',g:G3,label:'Conexão realizada',view:'phone'},
+  {k:'M2',g:G3,label:'Revisão em cartões',view:'phone'},
+  {k:'M3',g:G3,label:'Painel “Onde vai entrar”',view:'phone'},
+  {k:'M4',g:G3,label:'CDB: Reservas e Saúde sob demanda',view:'phone'},
+  {k:'M5',g:G3,label:"Trocar todos os FII's",view:'phone'},
+  {k:'M6',g:G3,label:'Conexões: novos para conferir',view:'phone-conn'},
+];
+const NOTES = {
+  D1:['A primeira tela continua sendo “Conexão realizada”, com o texto da autorização e o aviso da conexão (quando houver, como o do BTG). É a tela de retorno da adequação jurídica e não pode ser pulada.',
+      'Os investimentos <b>já estão na Carteira</b> no lugar sugerido. O resumo ganha um quadro com “Escolher onde ficam (9)”. O número conta só os que têm mais de um lugar possível: previdência, o que já estava e o que é para cadastrar à mão ficam de fora.',
+      '“Entendi” fecha como hoje. Os 9 ficam “para conferir” em Conexões bancárias, sem bloquear nada.'],
+  D2:['A revisão substitui o conteúdo do mesmo modal. “Voltar ao resumo”, o X e “Conferir depois” voltam para “Conexão realizada”, nunca fecham tudo.',
+      'Os grupos seguem a aba sugerida (Ações, FII\'s, ETF\'s, Renda fixa, Fundos), para que o lote “todos os FII\'s em…” seja um clique na faixa.',
+      'Cada destino mostra de onde veio a sugestão (campo <code>viaSugestao</code>, calculado no servidor). KNCA11 não está no catálogo de FIIs e ficou na seção padrão, por isso ganhou o selo tracejado “confira”.'],
+  D3:['O painel abre na própria linha, com um bloco por aba aceita e chips-rádio de 44px. Lista, motivos e avisos vêm do servidor (<code>obterOpcoesMover</code>); o cliente não recalcula regra.',
+      'KNCA11 vai para Fundos › Fiagro. O IR continua seguindo o tipo do ativo (FII).',
+      'Stocks e REIT\'s ficam no item recolhido com o motivo real: “Em reais — esta aba é em dólar”.'],
+  D4:['O CDB tem liquidez diária, mas a sugestão continua Renda Fixa. A linha só dá a dica “pode servir de reserva”.',
+      'Ao escolher Reserva Emergência, a prévia da Saúde Financeira é pedida <b>só para esse item, nessa hora</b> (a rota do mover com <code>saude=1</code>). Enquanto carrega aparece “Calculando…”. Se falhar, fica a frase fixa: “A Saúde Financeira recalcula a reserva de emergência com esta mudança”.',
+      'Renda Fixa não tem seção editável: a seção vem do indexador.'],
+  D5:['A faixa de cada grupo tem uma caixa “marcar todos”. Marque a faixa FII\'s e escolha FII\'s › Tijolo, ou Fundos › Fiagro: a barra lista só os destinos aceitos por todos os marcados.',
+      'Também dá para marcar itens soltos de grupos diferentes. CDB junto com ações não tem destino em comum, e a barra explica isso.',
+      'A interseção sai de <code>opcoes.destinos</code> de cada item marcado, sem regra nova no cliente.'],
+  D6:['Os itens são salvos um a um no servidor. Tabela e X ficam bloqueados enquanto isso, e o primário mostra o spinner.'],
+  D7:['O salvamento pode dar certo em parte. Os que deram certo ficam no lugar escolhido e já estão gravados no histórico. O que falhou fica marcado em vermelho, com o motivo, e a escolha continua na linha.',
+      'O primário vira “Tentar de novo (1)”. Ligue “Simular falha em 1 item” na bancada e salve para ver ao vivo.'],
+  D8:['Depois de salvar, o modal volta para “Conexão realizada”, com a linha de investimentos atualizada. O texto da autorização continua ali e “Entendi” fecha.',
+      'O toast oferece Desfazer por 8s. Ele desfaz cada troca e devolve os itens à fila “para conferir”.',
+      'Os escolhidos <b>não</b> ganham selo “movido” nem o link “Voltar para…”. Veja K2 para o que acontece se o usuário usar o Mover depois.'],
+  C1:['O Itaú sincronizou ao meio-dia e trouxe 2 investimentos novos. Eles já estão na Carteira no lugar sugerido, com o selo “Novo · conferir” e um aviso no topo do bloco.',
+      'Nova coluna “Na Carteira em”. Os já conferidos mostram só o lugar, com link para a aba; para trocar, o Mover na Carteira de sempre.',
+      'Sem contador no menu nesta entrega: o aviso fica dentro da tela de Conexões bancárias.'],
+  C2:['“Conferir destinos (2)” abre a mesma revisão, só com os novos. A LCA tem carência: ao escolher Reserva Emergência aparece o aviso de liquidez, que não bloqueia.',
+      '“Está tudo certo” confirma só os itens que o usuário viu nesta tela. Um item que chegar por outra sincronização enquanto ela estiver aberta continua na fila.'],
+  K1:['Na Carteira os investimentos aparecem no lugar escolhido, como qualquer posição, sem selo “movido”. Não há selo de origem do banco nas abas (seria escopo novo).',
+      'Troque de aba: KNCA11 está em Fundos › Fiagro, o CDB está na Reserva Emergência e WEGE3 em Ações › Growth. Objetivo 0%, como todo item novo.'],
+  K2:['Se depois o usuário abrir o Mover em KNCA11: “Na Carteira: Fundos › Fiagro”, sem selo e sem link “Voltar para…”, porque não houve um Mover.',
+      'Dentro do Mover, a aba FII\'s aparece com “· antes”. É verdade: o ativo entrou ali pela sugestão antes da escolha. Escolhendo FII\'s, vale o aviso que já existe: “Voltando para FII\'s, KNCA11 deixa de ter escolha manual e segue o tipo do catálogo.”',
+      'Por isso o texto da importação fala em “lugar que você escolheu”, e não em “destino original”. Não precisa mexer em <code>movidoInfo.ts</code>.'],
+  M1:['No celular, “Conexão realizada” continua sendo a primeira tela, com o texto da autorização. O quadro “Escolher onde ficam (9)” abre a revisão em tela cheia.'],
+  M2:['Um cartão por investimento, com “Trocar” de 44px. A faixa de grupo com 2 ou mais itens tem “Trocar todos”.',
+      'O rodapé fixo tem o resumo e os dois botões dividindo a largura. “Voltar” no cabeçalho retorna ao resumo.'],
+  M3:['O painel segue o MovePanel do mover: grupos por aba, opções de 56px e um primário que diz o destino.'],
+  M4:['CDB: três opções, sem seção. Ao tocar em Reserva Emergência, a prévia da Saúde é pedida na hora e aparece acima dos botões.'],
+  M5:['“Trocar todos” na faixa FII\'s abre o mesmo painel para os 3 itens, com os destinos aceitos por todos. É o lote do celular, sem modo de seleção múltipla.'],
+  M6:['Conexões no celular: o aviso “para conferir” vira um cartão no topo. Os novos têm a linha “Na Carteira em” com Trocar.'],
+};
+
+function applyScenario(k){
+  reset();
+  S.k=k; S.view=SC.find(s=>s.k===k).view;
+  const set=(id,cat,sub)=>{ const it=item(id); it.cur={cat,sub}; };
+  const trio=()=>{ set('knca','fimFia','fiagro'); set('cdb','reservaEmergencia',null); set('wege','acoes','growth'); S.saude.cdb='ok'; };
+  if (k!=='D1' && k.startsWith('D')) S.step='review';
+  if (k==='D3'){ S.open='knca'; set('knca','fimFia','fiagro'); }
+  if (k==='D4'){ S.open='cdb'; set('cdb','reservaEmergencia',null); S.saude.cdb='ok'; set('knca','fimFia','fiagro'); }
+  if (k==='D5'){ S.sel=new Set(['hglg','knca','kdif']); S.bulkPick='fiis|tijolo'; }
+  if (k==='D6'){ trio(); S.status='saving'; }
+  if (k==='D7'){ trio(); saveResult(['wege']); }
+  if (k==='D8'){ trio(); saveResult([]); }
+  if (k==='C1' || k==='K1' || k==='K2'){ preConfirmXP(); }
+  if (k==='C2'){ preConfirmXP(); S.scope='itau'; S.modal=true; S.step='review'; S.open='lca'; set('lca','reservaEmergencia',null); S.saude.lca='ok'; }
+  if (k==='M2'){ S.phoneStep='review'; }
+  if (k==='M3'){ S.phoneStep='review'; S.sheet={id:'knca', pick:'fimFia|fiagro'}; }
+  if (k==='M4'){ S.phoneStep='review'; S.sheet={id:'cdb', pick:'reservaEmergencia|'}; S.saude.cdb='ok'; set('knca','fimFia','fiagro'); }
+  if (k==='M5'){ S.phoneStep='review'; S.sheet={grp:'fiis', pick:'fimFia|fiagro'}; }
+  if (k==='M6'){ preConfirmXP(); S.scope='itau'; }
+  if (k==='K1') S.ctab='fimFia';
+  render(); renderNotes();
+}
+function preConfirmXP(){
+  const set=(id,cat,sub)=>{ const it=item(id); it.cur={cat,sub}; it.sug={cat,sub}; };
+  set('knca','fimFia','fiagro'); set('cdb','reservaEmergencia',null); set('wege','acoes','growth');
+  S.reviewed=true;
+}
+/* Salvamento item a item (moverInvestimento por item). failIds simula erros parciais. */
+function saveResult(failIds){
+  const ch = changes();
+  const ok = ch.filter(it=>!failIds.includes(it.id));
+  const bad = ch.filter(it=>failIds.includes(it.id));
+  S.lastChanges = (S.lastChanges||[]).concat(ok.map(it=>({id:it.id, from:Object.assign({}, it.sug)})));
+  ok.forEach(it=>{ it.sug=Object.assign({}, it.cur); S.saved.add(it.id); delete S.failed[it.id]; });
+  bad.forEach(it=>{ S.failed[it.id]='Ele foi alterado em outra tela enquanto você revisava. Confira o destino e tente de novo.'; });
+  S.status='idle'; S.open=null; S.sel.clear();
+  if (bad.length){ S.status='partial'; S.partialOk=ok.length; return; }
+  const n=(S.lastChanges||[]).length;
+  S.toast = n ? {msg: plural(n,'investimento mudou','investimentos mudaram') + ' de lugar.', undo:true} : {msg:'Destinos conferidos.'};
+  if (S.scope==='itau'){ S.newItems.forEach(it=>{ it.novo=false; }); S.modal=false; S.step='sum'; }
+  else { S.reviewed=true; S.step='sum'; }
+}
+function undo(){
+  const n=(S.lastChanges||[]).length;
+  (S.lastChanges||[]).forEach(c=>{ const it=item(c.id); it.cur=Object.assign({}, c.from); it.sug=Object.assign({}, c.from); });
+  S.reviewed=false; S.saved.clear();
+  S.toast={msg: n===1 ? 'Pronto. Ele voltou ao lugar sugerido e fica para conferir.' : `Pronto. Os ${n} voltaram ao lugar sugerido e ficam para conferir.`};
+  S.lastChanges=null;
+  live(S.toast.msg); render();
+}
+function pickSaude(id, cat){
+  if (cat!=='reservaEmergencia'){ return; }
+  if (S.saude[id]==='ok') return;
+  S.saude[id]='loading';
+  setTimeout(()=>{ S.saude[id]='ok'; render(); }, 900);
+}
+
+/* ---------------- Peças ---------------- */
+function viaText(it){ return VIA[it.via] || ''; }
+function destCell(it){
+  if (it.st==='vinculado') return `<div class="fixed-dest">${esc(where(it.sug.cat,it.sug.sub))}<small>Continua onde já estava. Para mudar, use Mover na Carteira.</small></div>`;
+  if (it.st==='sem-suporte') return `<div class="row-end" style="justify-content:flex-start"><button class="btn" type="button">Cadastrar</button><button class="link-btn" type="button" aria-label="Ignorar ${esc(it.nome)}">Ignorar</button></div>`;
+  if (it.modelo==='fixo') return `<div class="fixed-dest"><span>${ICON_LOCK} ${esc(CAT[it.sug.cat])}</span><small>Previdência e Seguros ainda não pode ser movida para outra aba.</small></div>`;
+  const label = where(it.cur.cat, it.cur.sub, it.auto);
+  const parts = label.split(' › ');
+  const disabled = S.status==='saving' ? 'disabled' : '';
+  const ch = changed(it);
+  return `<button class="dest-btn" type="button" data-act="toggle" data-id="${it.id}" aria-expanded="${S.open===it.id}" aria-controls="p-${it.id}" aria-label="Destino de ${esc(it.tk||it.nome)}: ${esc(parts.join(', '))}. Trocar" ${disabled}>
+      <span>${esc(parts[0])}${parts[1]?` <span class="sep">›</span> ${esc(parts[1])}`:''}</span>${CHEV}</button>
+    <span class="via ${it.weak&&!ch?'weak':''}">${ch ? 'Escolhido por você · sugestão era ' + esc(where(it.sug.cat,it.sug.sub,it.auto)) : (S.saved.has(it.id) ? 'No lugar que você escolheu' : 'Sugestão: ' + esc(viaText(it)))}</span>
+    ${it.hint && !ch ? `<span class="via">${esc(it.hint)}</span>`:''}`;
+}
+function badges(it){
+  let b='';
+  if (it.novo) b+=' <span class="badge strong">Novo · conferir</span>';
+  if (S.failed[it.id]) b+=' <span class="badge fail">não salvou</span>';
+  else if (changed(it)) b+=' <span class="badge soft">alterado</span>';
+  else if (S.saved.has(it.id)) b+=' <span class="badge soft">salvo</span>';
+  else if (it.weak && movable(it)) b+=' <span class="badge dash">confira</span>';
+  return b;
+}
+function impactLines(it, cur){
+  const L=[];
+  if (cur.cat==='reservaEmergencia' && cur.cat!==it.sug.cat){
+    const st=S.saude[it.id];
+    if (st==='ok') L.push(`<span class="warn">Na Saúde Financeira, a reserva de emergência vai de <b>${brl.format(4200)}</b> para <b>${brl.format(4200+it.saldo)}</b>.</span>`);
+    else if (st==='loading') L.push('<span class="loading-line"><span class="spin" aria-hidden="true"></span> Calculando o efeito na Saúde Financeira…</span>');
+    else L.push(`<span class="warn">${AVISO_SAUDE_RESERVA}.</span>`);
+    if (!it.daily) L.push(`<span class="warn"><b>Sem liquidez diária.</b> Mesmo assim conta inteiro como Reserva de Emergência na Saúde Financeira.</span>`);
+  }
+  if (it.modelo==='b3' && cur.cat!==it.sug.cat && it.sug.cat==='fiis') L.push('O IR continua seguindo o tipo do ativo (FII).');
+  L.push('Saldo e rentabilidade não mudam. Só o lugar onde ele aparece na Carteira.');
+  return L;
+}
+function noList(d){
+  return d.no.length ? `<details class="unavail"><summary>${d.no.length} abas não aceitam este investimento</summary><ul>${d.no.map(n=>`<li><b>${esc(CAT[n[0]])}:</b> ${esc(n[1])}</li>`).join('')}</ul></details>` : '';
+}
+function panel(it){
+  const d = dests(it);
+  const blocks = d.ok.map(x=>{
+    if (x.subs){
+      return `<fieldset class="dest"><legend>${esc(CAT[x.cat])}${x.cat===it.sug.cat?' <small>sugerida</small>':''}</legend><div class="chips">${
+        x.subs.map(s=>{ const k=x.cat+'|'+s[0]; const chk=keyOf(it.cur)===k; const sg=keyOf(it.sug)===k;
+          return `<label class="chip"><input type="radio" name="d-${it.id}" value="${k}" ${chk?'checked':''} data-act="pick" data-id="${it.id}"><span>${esc(s[1])}${sg?' <span class="sug">sugerida</span>':''}</span></label>`; }).join('')
+      }</div></fieldset>`;
+    }
+    const k=x.cat+'|'; const chk=keyOf(it.cur)===k; const sg=keyOf(it.sug)===k;
+    return `<fieldset class="dest"><legend>${esc(CAT[x.cat])}${x.auto?` <small>seção ${esc(x.auto)}, pelo indexador</small>`:' <small>sem seções</small>'}</legend><div class="chips"><label class="chip"><input type="radio" name="d-${it.id}" value="${k}" ${chk?'checked':''} data-act="pick" data-id="${it.id}"><span>${esc(CAT[x.cat])}${sg?' <span class="sug">sugerida</span>':''}</span></label></div></fieldset>`;
+  }).join('');
+  return `<div class="dpanel" id="p-${it.id}" role="group" aria-label="Onde ${esc(it.tk||it.nome)} vai entrar">
+    <h4>Onde ${esc(it.tk||it.nome)} vai entrar na Carteira</h4>
+    <div class="dgrid">${blocks}</div>${noList(d)}
+    <div class="impact" aria-live="polite">${impactLines(it,it.cur).map(x=>`<span>${x}</span>`).join('')}</div>
+    <div class="row-end">${changed(it)?`<button class="link-btn" type="button" data-act="revert" data-id="${it.id}">Voltar à sugestão</button>`:''}<button class="btn" type="button" data-act="toggle" data-id="${it.id}">Pronto</button></div>
+  </div>`;
+}
+function intersect(list){
+  if (!list.length) return [];
+  let base = optionList(list[0]).map(keyOf);
+  list.slice(1).forEach(it=>{ const ks=optionList(it).map(keyOf); base=base.filter(k=>ks.includes(k)); });
+  const ref = optionList(list[0]);
+  return base.map(k=>ref.find(o=>keyOf(o)===k));
+}
+function bulkBar(){
+  if (!S.sel.size) return '';
+  const opts=intersect([...S.sel].map(item));
+  const n=S.sel.size;
+  if (!opts.length) return `<div class="bulk" role="region" aria-label="Ações em lote"><b>${plural(n,'selecionado','selecionados')}</b><span style="font-size:13px">Estes investimentos não têm destino em comum. Troque um a um.</span><button class="btn ghost" type="button" data-act="clearSel">Limpar seleção</button></div>`;
+  return `<div class="bulk" role="region" aria-label="Ações em lote"><b>${plural(n,'selecionado','selecionados')}</b>
+    <label for="bulkSel">Mover para</label>
+    <select id="bulkSel" data-act="bulkPick"><option value="">Escolha…</option>${opts.map(o=>`<option value="${keyOf(o)}" ${S.bulkPick===keyOf(o)?'selected':''}>${esc(where(o.cat,o.sub,o.auto))}</option>`).join('')}</select>
+    <button class="btn primary" type="button" data-act="bulkApply" ${S.bulkPick?'':'disabled'}>Aplicar</button>
+    <button class="btn ghost" type="button" data-act="clearSel">Limpar seleção</button></div>`;
+}
+function reviewTable(items){
+  const saving=S.status==='saving';
+  const rows = GROUPS.map(g=>{
+    const its = items.filter(i=>i.grp===g[0]);
+    if (!its.length) return '';
+    const mv = its.filter(movable);
+    const allOn = mv.length>1 && mv.every(i=>S.sel.has(i.id));
+    const someOn = mv.some(i=>S.sel.has(i.id));
+    const all = mv.length>1 ? `<label class="band-all"><input type="checkbox" data-act="selGrp" data-id="${g[0]}" ${allOn?'checked':''} ${someOn&&!allOn?'data-mixed="1"':''} aria-label="Selecionar todos de ${esc(g[1])}" ${saving?'disabled':''}></label>` : '';
+    return `<tbody><tr class="band"><td colspan="4">${all}${esc(g[1])}<span class="cnt">(${its.length})</span><span class="bnote">${esc(g[2])}</span></td></tr>${
+      its.map(it=>{
+        const cls=['item']; if (S.sel.has(it.id)) cls.push('selected'); if (changed(it)) cls.push('changed'); if (!movable(it)) cls.push('dim'); if (S.failed[it.id]) cls.push('failed');
+        const cb = movable(it) ? `<label class="cbx-hit"><input class="cbx" type="checkbox" data-act="sel" data-id="${it.id}" ${S.sel.has(it.id)?'checked':''} aria-label="Selecionar ${esc(it.tk||it.nome)}" ${saving?'disabled':''}></label>` : '';
+        return `<tr class="${cls.join(' ')}"><td class="cb">${cb}</td>
+          <td><span class="nm">${esc(it.tk?it.tk+' · '+it.nome:it.nome)}${badges(it)}</span><span class="det">${esc(it.det)}</span></td>
+          <td class="r">${brl.format(it.saldo)}</td>
+          <td>${destCell(it)}</td></tr>${S.open===it.id?`<tr class="panel-row"><td colspan="4">${panel(it)}</td></tr>`:''}`;
+      }).join('')}</tbody>`;
+  }).join('');
+  return `<div class="tbl-wrap"><table class="at" aria-label="Investimentos trazidos do banco" style="min-width:760px"><thead><tr><th class="cb"><span class="sr">Selecionar</span></th><th>Investimento</th><th class="r">Saldo no banco</th><th>Fica na Carteira em</th></tr></thead>${rows}</table></div>`;
+}
+function footer(){
+  const ch=changes();
+  const saving=S.status==='saving';
+  const nMov=pool().filter(movable).length;
+  const rest=nMov-ch.length;
+  const sum = ch.length ? `<b>${plural(ch.length,'mudança','mudanças')}:</b> ${ch.map(c=>esc(c.tk||c.nome)).join(', ')}. ${rest>0?`${plural(rest,'outro fica','outros ficam')} como sugerido.`:''}` : 'Nenhuma mudança. Tudo fica no lugar sugerido.';
+  let err='';
+  if (S.status==='partial'){
+    const bad=pool().filter(i=>S.failed[i.id]);
+    err = `<div class="err" role="alert"><b>${S.partialOk ? plural(S.partialOk,'investimento foi','investimentos foram')+' para o lugar escolhido. ' : ''}${plural(bad.length,'não deu','não deram')} certo:</b><ul>${bad.map(i=>`<li><b>${esc(i.tk||i.nome)}</b>: ${esc(S.failed[i.id])}</li>`).join('')}</ul></div>`;
+  }
+  const nFail = Object.keys(S.failed).length;
+  const prim = saving ? '<span class="spin" aria-hidden="true"></span> Salvando…' : (S.status==='partial' && nFail ? `Tentar de novo (${nFail})` : (ch.length ? `Salvar ${plural(ch.length,'mudança','mudanças')}` : 'Está tudo certo'));
+  return `<div class="md-f">${err}<p class="sum">${sum}</p><div class="row-end"><button class="btn" type="button" data-act="later" ${saving?'disabled':''}>Conferir depois</button><button class="btn primary" type="button" data-act="save" ${saving?'disabled':''}>${prim}</button></div></div>`;
+}
+function reviewModal(){
+  const itau = S.scope==='itau';
+  const items = pool();
+  const nMov = items.filter(movable).length;
+  const head = itau
+    ? `<div class="md-h"><span class="eyebrow" style="color:var(--app-muted)">Itaú · sincronização de hoje, 12:04</span><h3 id="mdt" tabindex="-1">Confira onde os investimentos novos ficam</h3><p>Os 2 já estão na Carteira, no lugar que sugerimos. Troque o que quiser.</p></div>`
+    : `<div class="md-h"><button class="link-btn back-btn" type="button" data-act="later" ${S.status==='saving'?'disabled':''}>${BACK} Voltar ao resumo</button><h3 id="mdt" tabindex="-1">Escolha onde seus investimentos ficam</h3><p>XP Investimentos trouxe ${items.length} investimentos. ${nMov} podem ficar em mais de um lugar e já estão na Carteira, no lugar que sugerimos. Troque o que quiser; depois também dá para mudar em Conexões bancárias.</p></div>`;
+  return `<div class="overlay"><div class="modal" role="dialog" aria-modal="true" aria-labelledby="mdt">
+    <button class="xbtn" type="button" aria-label="${itau?'Fechar e conferir depois':'Voltar ao resumo da conexão'}" data-act="later" ${S.status==='saving'?'disabled':''}>✕</button>
+    ${head}<div class="md-b">${bulkBar()}<div class="sr" aria-live="polite">${S.sel.size?plural(S.sel.size,'selecionado','selecionados'):''}</div>${reviewTable(items)}</div>${footer()}</div></div>`;
+}
+function summaryModal(){
+  const items=S.items;
+  const nCart=items.filter(i=>i.st==='importado').length;
+  const nRev=paraRevisar();
+  const lc=(S.lastChanges||[]).length;
+  const invLine = S.reviewed
+    ? `<li><b>${nCart} investimentos</b><small>já estão na Carteira${lc?`, ${lc} no lugar que você escolheu`:', no lugar sugerido'}</small></li>`
+    : `<li><b>${nCart} investimentos</b><small>já estão na Carteira, no lugar que sugerimos</small></li>`;
+  const cta = S.reviewed
+    ? `<div class="review-cta"><p><b>Destinos conferidos.</b> Para trocar algum depois, use Mover na Carteira.</p></div>`
+    : `<div class="review-cta"><p><b>${nRev} investimentos podem ficar em mais de um lugar.</b> Confira a aba e a seção de cada um agora ou depois, em Conexões bancárias.</p><button class="btn" type="button" data-act="openReview">Escolher onde ficam (${nRev})</button></div>`;
+  return `<div class="overlay"><div class="modal sm" role="dialog" aria-modal="true" aria-labelledby="mdt2">
+    <button class="xbtn" type="button" aria-label="Fechar" data-act="close2">✕</button>
+    <div class="md-h"><h3 id="mdt2" tabindex="-1">Conexão realizada</h3><p>XP Investimentos está conectado ao My Finance, em modo leitura. Os seguintes dados serão importados:</p></div>
+    <div class="md-b"><ul class="list">
+      <li><b>1 conta com saldo</b><small>nesta tela, em Conexões bancárias</small></li>
+      <li><b>214 transações dos últimos 12 meses</b><small>na Caixa de entrada, para você revisar e levar ao Fluxo de Caixa</small></li>
+      ${invLine}
+      <li><b>1 investimento já estava na Carteira</b><small>a posição do banco atualiza a que você tinha</small></li>
+      <li><b>2 itens que não conseguimos trazer sozinhos</b><small>em “Investimentos e empréstimos do banco”, para você cadastrar</small></li>
+    </ul>${cta}<p class="legal">A autorização vale até 06/10/2027. Os dados novos chegam automaticamente enquanto a autorização valer. Você pode desconectar a qualquer momento nesta tela.</p></div>
+    <div class="md-f" style="justify-content:flex-end"><button class="btn primary" type="button" data-act="close2">Entendi</button></div></div></div>`;
+}
+function toastHtml(mobile){
+  if (!S.toast) return '';
+  const t=S.toast;
+  const cls = mobile ? 'mtoast' : 'toast';
+  return `<div class="${cls}" role="status"><span>${esc(t.msg)}</span>${t.undo?'<button type="button" data-act="undo">Desfazer</button>':''}<button type="button" data-act="xtoast" aria-label="Fechar aviso" style="text-decoration:none;min-width:44px">✕</button></div>`;
+}
+function connBehind(){
+  return `<div class="desk-top"><h2>Conexões bancárias</h2><span class="crumb">Open Finance · modo leitura</span></div>
+  <div class="conns"><div class="card conn"><span class="logo">XP</span><div><b>XP Investimentos</b><small>Conectado agora · 1 conta · 13 investimentos</small></div></div>
+  <div class="card conn"><span class="logo b">IT</span><div><b>Itaú</b><small>Sincronizado hoje, 12:04 · 2 contas · 1 cartão</small></div></div></div>`;
+}
+
+/* ---------------- Telas ---------------- */
+function renderDesk(){
+  let modal = S.step==='review' ? reviewModal() : summaryModal();
+  if (S.closed) modal='';
+  return `<div class="desk">${connBehind()}<div class="ghost-page" style="margin-top:16px"><div class="card"><div class="skel" style="width:40%"></div><div class="skel"></div><div class="skel" style="width:70%"></div></div></div>${modal}${toastHtml()}</div>`;
+}
+function connTable(){
+  const all = S.newItems.concat(S.items.filter(i=>!['tes','coe'].includes(i.id)).slice(0,6));
+  const rows = all.map(it=>{
+    const pend = it.novo;
+    const place = it.st==='vinculado' ? where(it.sug.cat,it.sug.sub) : where(it.cur.cat,it.cur.sub,it.auto);
+    const st = it.st==='vinculado' ? '<span class="badge"><span class="dot"></span>Já estava na Carteira</span>' : (pend ? '<span class="badge strong">Novo · conferir</span>' : '<span class="badge soft"><span class="dot"></span>Na Carteira</span>');
+    const placeCell = pend ? destCell(it) : `<a class="tk" href="#" onclick="return false" aria-label="Abrir ${esc(place)} na Carteira">${esc(place)}</a>`;
+    return `<tr class="item ${pend?'selected':''}"><td><span class="nm">${esc(it.tk?it.tk+' · '+it.nome:it.nome)}</span><span class="det">${esc((it.bank||'XP Investimentos')+' · '+it.det)}</span></td><td class="r">${brl.format(it.saldo)}</td><td>${placeCell}</td><td>${st}</td></tr>${S.open===it.id&&!S.modal?`<tr class="panel-row"><td colspan="4">${panel(it)}</td></tr>`:''}`;
+  }).join('');
+  return `<div class="tbl-wrap"><table class="at" aria-label="Investimentos importados" style="min-width:820px"><thead><tr><th>Investimento</th><th class="r">Saldo no banco</th><th>Na Carteira em</th><th>Situação</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+}
+function renderConn(){
+  const nNovos = S.newItems.filter(i=>i.novo).length;
+  const banner = nNovos ? `<div class="banner"><p><b>${nNovos} investimentos novos do Itaú</b> chegaram na sincronização de hoje, às 12:04. Já estão na Carteira, no lugar que sugerimos. Confira se é ali mesmo.</p><button class="btn primary" type="button" data-act="openItau">Conferir destinos (${nNovos})</button></div>` : '';
+  const modal = S.modal ? reviewModal() : '';
+  return `<div class="desk">${connBehind()}
+    <div class="card" style="margin-top:14px"><div><h3>Investimentos e empréstimos do banco</h3><p class="sub">Entram sozinhos na Carteira e em Dívidas a cada sincronização, no lugar que sugerimos. Os novos ficam marcados para você conferir. O que já existia é só vinculado.</p></div>
+    ${banner}${connTable()}</div>${modal}${toastHtml()}</div>`;
+}
+const CART = {
+  fimFia:[['FIM',[['Kapitalo Zeta FIC FIM',null,8300,'+1,82%']]],['FIA',[]],['Fiagro',[['KNCA11','Kinea Crédito Agro Fiagro',9580,'−0,41%']]]],
+  reservaEmergencia:[['',[['CDB XP 102% CDI','Liquidez diária · vence 15/03/2028',15000,'+0,94%'],['Conta remunerada Nubank','Saldo informado',4200,'+0,88%']]]],
+  acoes:[['Value',[['PETR4','Petrobras PN',11235,'+2,10%'],['ITSA4','Itaúsa PN',7896,'+0,62%']]],['Growth',[['WEGE3','WEG ON',6420,'−1,15%']]],['Risk',[]]],
+};
+function renderCart(){
+  const tabs=[['reservaEmergencia','Reserva Emergência'],['rendaFixaFundos','Renda Fixa'],['fimFia','Fundos'],['fiis',"FII's"],['acoes','Ações'],['etfs',"ETF's"],['previdencia','Previdência e Seguros']];
+  const secs = CART[S.ctab] || [];
+  const body = secs.map(([sec,its])=>{
+    const band = sec ? `<tr class="band"><td colspan="4">${esc(sec)}<span class="cnt">(${its.length})</span></td></tr>` : '';
+    const rows = its.length ? its.map(r=>`<tr class="item"><td><span class="nm">${r[1]?`<span class="tk">${esc(r[0])}</span>`:esc(r[0])}</span>${r[1]?`<span class="det">${esc(r[1])}</span>`:''}</td><td class="r">${brl.format(r[2])}</td><td class="r">${r[3]}</td><td class="r hl">0,0%</td></tr>`).join('')
+      : `<tr><td colspan="4" style="color:var(--app-muted);font-size:13px">Nenhum investimento nesta seção</td></tr>`;
+    return `<tbody>${band}${rows}</tbody>`;
+  }).join('') || `<tbody><tr><td colspan="4" style="color:var(--app-muted)">Escolha Fundos, Reserva Emergência ou Ações para ver o exemplo.</td></tr></tbody>`;
+  return `<div class="desk"><div class="desk-top"><h2>Carteira</h2><span class="crumb">Patrimônio R$ 312.480,55</span></div>
+    <div class="tabs" role="tablist" aria-label="Abas da Carteira">${tabs.map(t=>`<button class="tab" role="tab" type="button" aria-selected="${S.ctab===t[0]}" data-act="ctab" data-id="${t[0]}">${esc(t[1])}</button>`).join('')}</div>
+    <div class="tbl-title"><h3>${esc(tabs.find(t=>t[0]===S.ctab)[1])}</h3></div>
+    <div class="tbl-wrap"><table class="at" style="min-width:640px"><thead><tr><th>Ativo</th><th class="r">Valor atualizado</th><th class="r">Rentab. no mês</th><th class="r hl">Objetivo</th></tr></thead>${body}</table></div></div>`;
+}
+function renderMover(){
+  return `<div class="desk"><div class="desk-top"><h2>KNCA11 · Kinea Crédito Agro Fiagro</h2><span class="crumb">Carteira › Fundos › Fiagro</span></div>
+    <div class="mover-mock"><div class="na"><span>Na Carteira:</span><span class="chipl">Fundos › Fiagro</span><span>· sem selo “movido”, sem “Voltar para…”</span></div></div>
+    <div class="mover-mock" role="group" aria-label="Exemplo do Mover aberto">
+      <h3 style="font-size:16px;font-weight:600;color:var(--app-strong)">Mover KNCA11</h3>
+      <div class="dgrid">
+        <fieldset class="dest"><legend>FII's <small>· antes</small></legend><div class="chips">${SUBS.fiis.map(s=>`<label class="chip"><input type="radio" name="mv" value="${s[0]}" ${s[0]==='tijolo'?'checked':''}><span>${esc(s[1])}</span></label>`).join('')}</div></fieldset>
+        <fieldset class="dest"><legend>Fundos <small>atual</small></legend><div class="chips"><label class="chip"><input type="radio" name="mv" value="fiagro"><span>Fiagro</span></label><label class="chip"><input type="radio" name="mv" value="fidc"><span>FIDC</span></label></div></fieldset>
+      </div>
+      <div class="impact"><span class="warn">Voltando para FII's, KNCA11 deixa de ter escolha manual e segue o tipo do catálogo.</span><span>Este aviso e o “· antes” já existem no Mover. Não mudam nesta entrega.</span></div>
+    </div></div>`;
+}
+/* ---- celular ---- */
+function mCard(it){
+  let dest;
+  if (it.st==='vinculado') dest=`<div class="mdest"><div class="grow"><div class="lbl">Continua em</div><div class="val">${esc(where(it.sug.cat,it.sug.sub))}</div></div></div>`;
+  else if (it.st==='sem-suporte') dest=`<div class="mdest"><button class="mbtn grow" type="button">Cadastrar</button><button class="mbtn" type="button" aria-label="Ignorar ${esc(it.nome)}">Ignorar</button></div>`;
+  else if (it.modelo==='fixo') dest=`<div class="mdest"><div class="grow"><div class="lbl">Fica em</div><div class="val">${ICON_LOCK} ${esc(CAT[it.sug.cat])}</div></div></div>`;
+  else dest=`<div class="mdest"><div class="grow"><div class="lbl">${changed(it)?'Você escolheu':'Fica em'}</div><div class="val">${esc(where(it.cur.cat,it.cur.sub,it.auto))}</div><div class="lbl">${changed(it)?'sugestão era '+esc(where(it.sug.cat,it.sug.sub,it.auto)):'Sugestão: '+esc(viaText(it))}</div></div><button class="mbtn" type="button" data-act="msheet" data-id="${it.id}" aria-label="Trocar destino de ${esc(it.tk||it.nome)}">Trocar</button></div>`;
+  return `<div class="mcard ${changed(it)?'changed':''}"><div class="top"><div><div class="t">${esc(it.tk||it.nome)}${badges(it)}</div><div class="n">${esc(it.tk?it.nome:it.det)}</div></div><div class="v">${brl.format(it.saldo)}</div></div>${dest}</div>`;
+}
+function mSheet(){
+  if (!S.sheet) return '';
+  const grpMode = !!S.sheet.grp;
+  const its = grpMode ? S.items.filter(i=>i.grp===S.sheet.grp && movable(i)) : [item(S.sheet.id)];
+  const it = its[0];
+  const opts = intersect(its);
+  const opt=(k,l,desc)=>{ const on=S.sheet.pick===k; const sg=!grpMode && keyOf(it.sug)===k; return `<button class="mopt" type="button" role="radio" aria-checked="${on}" data-act="mpick" data-k="${k}"><span><span class="l">${esc(l)}${sg?' <span class="badge soft">sugerido</span>':''}</span>${desc?`<span class="d">${esc(desc)}</span>`:''}</span><span class="rd" aria-hidden="true"></span></button>`; };
+  const cats=[...new Set(opts.map(o=>o.cat))];
+  const groups = cats.map(c=>{ const os=opts.filter(o=>o.cat===c);
+    return os[0].sub ? `<div role="radiogroup" aria-label="${esc(CAT[c])}"><div class="mgl">${esc(CAT[c])}</div>${os.map(o=>opt(keyOf(o), subLabel(c,o.sub), null)).join('')}</div>`
+      : `<div role="radiogroup" aria-label="${esc(CAT[c])}">${opt(keyOf(os[0]), CAT[c], os[0].auto?'Seção '+os[0].auto+', pelo indexador':'Sem seções')}</div>`; }).join('');
+  const pick = S.sheet.pick.split('|');
+  const cur = {cat:pick[0], sub:pick[1]||null};
+  const imp = grpMode ? (cur.cat!=='fiis' ? ['O IR continua seguindo o tipo do ativo (FII).'] : []) : impactLines(it,cur).filter((_,i,a)=>i<a.length-1);
+  const label = S.sheet.pick ? where(cur.cat,cur.sub,it.auto) : '';
+  const grpName = grpMode ? GROUPS.find(g=>g[0]===S.sheet.grp)[1] : '';
+  const title = grpMode ? `Onde os ${its.length} ${esc(grpName)} vão ficar` : `Onde ${esc(it.tk||it.nome)} vai ficar`;
+  const sub = grpMode ? esc(its.map(i=>i.tk).join(', ')) : `${esc(it.tk?it.nome:it.det)} · ${brl.format(it.saldo)}`;
+  return `<div class="sheet-ov"><div class="sheet" role="dialog" aria-modal="true" aria-labelledby="sh-t"><div class="grab" aria-hidden="true"></div>
+    <div class="sheet-h"><div><h3 id="sh-t">${title}</h3><p>${sub}</p></div><button class="sheet-x" type="button" data-act="mclose" aria-label="Fechar">✕</button></div>
+    <div class="sheet-b">${groups}${grpMode?'':noList(dests(it))}</div>
+    <div class="sheet-f">${imp.length?`<div class="impact" aria-live="polite">${imp.map(x=>`<span>${x}</span>`).join('')}</div>`:''}<div class="row"><button class="mbtn grow" type="button" data-act="mclose">Voltar</button><button class="mbtn primary grow" type="button" data-act="mapply" ${S.sheet.pick?'':'disabled'}>${grpMode?'Usar para os '+its.length:'Usar '+esc(label)}</button></div></div></div></div>`;
+}
+function renderPhone(){
+  const items=S.items;
+  const ch=changes();
+  if (S.phoneStep==='sum'){
+    const nRev=paraRevisar();
+    return `<div class="phone-stage"><div class="phone"><div class="ph-status"><span>12:30</span><span>5G</span></div>
+      <div class="ph-head"><h2>Conexão realizada</h2><button class="x" type="button" aria-label="Fechar">✕</button></div>
+      <div class="ph-body"><p class="intro">XP Investimentos está conectado ao My Finance, em modo leitura. Os seguintes dados serão importados:</p>
+        <ul class="list"><li><b>1 conta com saldo</b><small>em Conexões bancárias</small></li><li><b>214 transações dos últimos 12 meses</b><small>na Caixa de entrada</small></li><li><b>10 investimentos</b><small>já estão na Carteira, no lugar que sugerimos</small></li><li><b>2 itens para cadastrar</b><small>em “Investimentos e empréstimos do banco”</small></li></ul>
+        <div class="review-cta"><p><b>${nRev} investimentos podem ficar em mais de um lugar.</b> Confira agora ou depois.</p><button class="mbtn grow" type="button" data-act="mreview" style="width:100%">Escolher onde ficam (${nRev})</button></div>
+        <p class="legal">A autorização vale até 06/10/2027. Os dados novos chegam automaticamente enquanto a autorização valer. Você pode desconectar a qualquer momento em Conexões bancárias.</p></div>
+      <div class="ph-foot"><div class="row"><button class="mbtn primary grow" type="button">Entendi</button></div></div>${toastHtml(true)}</div></div>`;
+  }
+  const body = GROUPS.map(g=>{ const its=items.filter(i=>i.grp===g[0]); if(!its.length) return ''; const mv=its.filter(movable);
+    return `<div class="mband">${esc(g[1])}<span class="cnt">${its.length}</span>${mv.length>1?`<button class="mall" type="button" data-act="mgrp" data-id="${g[0]}" aria-label="Trocar todos de ${esc(g[1])}">Trocar todos</button>`:''}</div>${its.map(mCard).join('')}`; }).join('');
+  return `<div class="phone-stage"><div class="phone"><div class="ph-status"><span>12:30</span><span>5G</span></div>
+    <div class="ph-head"><button class="x" type="button" data-act="mback" aria-label="Voltar ao resumo da conexão" style="margin-left:-12px">${BACK}</button><h2 id="mt">Onde seus investimentos ficam</h2></div>
+    <div class="ph-body"><p class="intro">Eles já estão na Carteira, no lugar que sugerimos. Troque o que quiser.</p>${body}</div>
+    <div class="ph-foot"><div class="sum">${ch.length?plural(ch.length,'mudança','mudanças')+': '+ch.map(c=>esc(c.tk||c.nome)).join(', '):'Nenhuma mudança'}</div><div class="row"><button class="mbtn grow" type="button" data-act="mback">Conferir depois</button><button class="mbtn primary grow" type="button" data-act="msave">${ch.length?'Salvar '+plural(ch.length,'mudança','mudanças'):'Está tudo certo'}</button></div></div>
+    ${mSheet()}${toastHtml(true)}</div></div>`;
+}
+function renderPhoneConn(){
+  const its=S.newItems; const n=its.filter(i=>i.novo).length;
+  return `<div class="phone-stage"><div class="phone"><div class="ph-status"><span>12:30</span><span>5G</span></div>
+    <div class="ph-head"><h2>Conexões bancárias</h2></div>
+    <div class="ph-body">${n?`<div class="mcard" style="background:var(--band-soft);border-color:transparent"><div class="t" style="color:var(--band-soft-ink)">${n} investimentos novos do Itaú</div><p style="font-size:13.5px;color:var(--band-soft-ink)">Chegaram hoje às 12:04 e já estão na Carteira, no lugar sugerido. Confira se é ali mesmo.</p><button class="mbtn primary" type="button" data-act="msaveItau">Está tudo certo</button></div>`:''}
+    <div class="mband">Investimentos do banco<span class="cnt">${its.length+11}</span></div>${its.map(mCard).join('')}
+    ${S.items.filter(i=>['petr','knca'].includes(i.id)).map(it=>`<div class="mcard"><div class="top"><div><div class="t">${esc(it.tk)}</div><div class="n">${esc(it.nome)}</div></div><div class="v">${brl.format(it.saldo)}</div></div><div class="mdest"><div class="grow"><div class="lbl">Na Carteira em</div><div class="val">${esc(where(it.cur.cat,it.cur.sub))}</div></div><span class="badge soft"><span class="dot"></span>Na Carteira</span></div></div>`).join('')}
+    </div>${mSheet()}${toastHtml(true)}</div></div>`;
+}
+
+function render(){
+  const v=S.view; let h='';
+  if (v==='desk') h=renderDesk();
+  else if (v==='conn') h=renderConn();
+  else if (v==='cart') h=renderCart();
+  else if (v==='mover') h=renderMover();
+  else if (v==='phone') h=renderPhone();
+  else h=renderPhoneConn();
+  $('#screen').innerHTML=h;
+  document.querySelectorAll('[data-mixed="1"]').forEach(c=>{ c.indeterminate=true; });
+  if (S.open){ const pn=document.getElementById('p-'+S.open); const md=pn&&pn.closest('.modal'); if(md){ const r=pn.closest('tr').previousElementSibling.getBoundingClientRect(); md.scrollTop += r.top - md.getBoundingClientRect().top - 150; } }
+}
+function renderNotes(){
+  const sc=SC.find(s=>s.k===S.k);
+  $('#notes').innerHTML = `<h2>${esc(sc.k)} · ${esc(sc.label)}</h2><ul>${(NOTES[S.k]||[]).map(n=>`<li>${n}</li>`).join('')}</ul>`;
+}
+function renderScenarios(){
+  const groups=[...new Set(SC.map(s=>s.g))];
+  $('#scenarios').innerHTML = groups.map(g=>`<div class="scen-group"><span class="gl">${esc(g)}</span>${SC.filter(s=>s.g===g).map(s=>`<button class="scen" type="button" data-k="${s.k}" aria-pressed="${S.k===s.k}"><b>${s.k}</b>${esc(s.label)}</button>`).join('')}</div>`).join('');
+}
+
+/* ---------------- Eventos ---------------- */
+function save(){
+  const fail = $('#failChk').checked && S.status!=='partial';
+  const ch = changes();
+  const failIds = fail && ch.length ? [ch[0].id] : [];
+  S.status='saving'; render();
+  setTimeout(()=>{ saveResult(failIds); render(); live(S.toast ? S.toast.msg : 'Salvou em parte. ' + plural(failIds.length,'item não deu','itens não deram') + ' certo.'); },900);
+}
+$('#screen').addEventListener('click', e=>{
+  const t=e.target.closest('[data-act]'); if(!t) return;
+  const a=t.dataset.act, id=t.dataset.id;
+  if (a==='pick'||a==='sel'||a==='bulkPick'||a==='selGrp') return;
+  if (a==='toggle'){ S.open = S.open===id ? null : id; render(); const b=document.querySelector(`[data-act="toggle"][data-id="${id}"].dest-btn`); if(b) b.focus(); return; }
+  if (a==='revert'){ const it=item(id); it.cur=Object.assign({}, it.sug); render(); return; }
+  if (a==='clearSel'){ S.sel.clear(); S.bulkPick=''; render(); return; }
+  if (a==='bulkApply'){ const [cat,sub]=S.bulkPick.split('|'); const n=S.sel.size; S.sel.forEach(i=>{ item(i).cur={cat, sub:sub||null}; }); S.sel.clear(); S.bulkPick=''; render(); live(n+' investimentos vão para '+where(cat,sub||null)); return; }
+  if (a==='save'){ save(); return; }
+  if (a==='openReview'){ S.step='review'; render(); const h=$('#mdt'); if(h) h.focus(); return; }
+  if (a==='later'){ if(S.scope==='itau'){ S.modal=false; S.open=null; render(); return; } S.step='sum'; S.open=null; S.status=S.status==='partial'?'idle':S.status; render(); const h=$('#mdt2'); if(h) h.focus(); return; }
+  if (a==='close2'){ S.closed=true; render(); return; }
+  if (a==='undo'){ undo(); return; }
+  if (a==='xtoast'){ S.toast=null; render(); return; }
+  if (a==='openItau'){ S.scope='itau'; S.modal=true; S.step='review'; render(); const h=$('#mdt'); if(h) h.focus(); return; }
+  if (a==='ctab'){ S.ctab=id; render(); return; }
+  if (a==='mreview'){ S.phoneStep='review'; render(); return; }
+  if (a==='mback'){ S.phoneStep='sum'; S.sheet=null; render(); return; }
+  if (a==='msheet'){ const it=item(id); S.sheet={id, pick:keyOf(it.cur)}; render(); return; }
+  if (a==='mgrp'){ S.sheet={grp:id, pick:''}; render(); return; }
+  if (a==='mpick'){ S.sheet.pick=t.dataset.k; if (S.sheet.id) pickSaude(S.sheet.id, t.dataset.k.split('|')[0]); render(); return; }
+  if (a==='mclose'){ S.sheet=null; render(); return; }
+  if (a==='mapply'){ const [cat,sub]=S.sheet.pick.split('|'); const its = S.sheet.grp ? S.items.filter(i=>i.grp===S.sheet.grp && movable(i)) : [item(S.sheet.id)]; its.forEach(it=>{ it.cur={cat, sub:sub||null}; }); S.sheet=null; render(); return; }
+  if (a==='msave'){ const ch=changes(); ch.forEach(it=>{ it.sug=Object.assign({}, it.cur); }); S.lastChanges=null; S.phoneStep='sum'; S.reviewed=true; S.toast={msg: ch.length? plural(ch.length,'investimento mudou','investimentos mudaram')+' de lugar.':'Destinos conferidos.'}; render(); return; }
+  if (a==='msaveItau'){ S.newItems.forEach(i=>{ i.novo=false; i.sug=Object.assign({}, i.cur); }); S.toast={msg:'Destinos conferidos.'}; render(); return; }
+});
+$('#screen').addEventListener('change', e=>{
+  const t=e.target; const a=t.dataset.act;
+  if (a==='pick'){ const [cat,sub]=t.value.split('|'); const id=t.dataset.id; item(id).cur={cat, sub:sub||null}; pickSaude(id, cat); render(); const r=document.querySelector(`input[name="d-${id}"][value="${t.value}"]`); if(r) r.focus(); }
+  if (a==='sel'){ if (t.checked) S.sel.add(t.dataset.id); else S.sel.delete(t.dataset.id); S.bulkPick=''; const id=t.dataset.id; render(); const c=document.querySelector(`input[data-act="sel"][data-id="${id}"]`); if(c) c.focus(); }
+  if (a==='selGrp'){ const g=t.dataset.id; const mv=pool().filter(i=>i.grp===g && movable(i)); if (t.checked) mv.forEach(i=>S.sel.add(i.id)); else mv.forEach(i=>S.sel.delete(i.id)); S.bulkPick=''; render(); const c=document.querySelector(`input[data-act="selGrp"][data-id="${g}"]`); if(c) c.focus(); }
+  if (a==='bulkPick'){ S.bulkPick=t.value; render(); const s=$('#bulkSel'); if(s) s.focus(); }
+});
+$('#scenarios').addEventListener('click', e=>{ const b=e.target.closest('.scen'); if(!b) return; applyScenario(b.dataset.k); renderScenarios(); });
+$('#resetBtn').addEventListener('click', ()=>{ applyScenario(S.k); });
+const themes=['sistema','claro','escuro'];
+let ti=0;
+$('#themeBtn').addEventListener('click', ()=>{
+  ti=(ti+1)%3; const r=document.documentElement;
+  if (themes[ti]==='sistema') r.removeAttribute('data-theme'); else r.setAttribute('data-theme', themes[ti]==='claro'?'light':'dark');
+  $('#themeBtn').textContent='Tema: '+themes[ti];
+});
+document.addEventListener('keydown', e=>{
+  if (e.key==='Escape'){ if (S.sheet){ S.sheet=null; render(); } else if (S.open){ const id=S.open; S.open=null; render(); const b=document.querySelector(`.dest-btn[data-id="${id}"]`); if(b) b.focus(); } }
+});
+
+applyScenario('D1');
+renderScenarios();
+})();
+</script>
