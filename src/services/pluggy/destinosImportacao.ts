@@ -17,6 +17,7 @@
  */
 import type { BankInvestment } from '@prisma/client';
 import prisma from '@/lib/prisma';
+import { logger } from '@/lib/logger';
 import { ApiError } from '@/utils/apiErrorHandler';
 import {
   abaIdDaCategoria,
@@ -61,6 +62,9 @@ import { origemTipoFiiImportado } from './secaoImportada';
 export const MSG_SITUACAO_DESTINO =
   'Este investimento já foi conferido ou não está mais na Carteira';
 export const MSG_DESTINOS_INDISPONIVEL = 'Recurso indisponível';
+/** Falha inesperada (banco) ao gravar um item na fase 2: vira falha do item, não 500. */
+export const MSG_FALHA_GRAVAR_DESTINO =
+  'Não foi possível mudar este investimento agora. Tente de novo.';
 
 /** Concorrência das leituras por item (carregarItemMover / opcoesMoverDoItem). */
 const CONCORRENCIA = 5;
@@ -392,7 +396,8 @@ const mensagemDe = (error: unknown): string | null =>
  * Aplica as escolhas da revisão. Fase 1 valida TODOS os itens (posse, situação
  * 'para-revisar' e planejarMover) — qualquer falha → 'invalido' sem gravar
  * nada. Fase 2 grava item a item com moverInvestimento (que revalida); falha
- * aqui só por concorrência → parcial. Depois confirma `confirmarIds` (só os do
+ * aqui (concorrência ou erro inesperado de banco) → parcial, por item, para os
+ * já gravados chegarem à rota (Histórico/Desfazer). Depois confirma `confirmarIds` (só os do
  * usuário, importados e ainda sem confirmação, fora dos itens com erro).
  *
  * `historicoIds` sai vazio: a rota grava o Histórico a partir de `registros`.
@@ -489,8 +494,16 @@ export async function aplicarDestinos(
         bankInvestmentId: v.bankInvestmentId,
       });
     } catch (error: unknown) {
-      const motivo = mensagemDe(error);
-      if (motivo === null) throw error;
+      // Erro inesperado (Prisma/rede) também vira falha DO ITEM: os anteriores já foram movidos
+      // e precisam voltar à rota para ganhar Histórico (Desfazer) e sair da fila.
+      let motivo = mensagemDe(error);
+      if (motivo === null) {
+        logger.error('[pluggy destinos] falha ao gravar destino', {
+          id: v.bankInvestmentId,
+          msg: error instanceof Error ? error.message : String(error),
+        });
+        motivo = MSG_FALHA_GRAVAR_DESTINO;
+      }
       erros.push({ id: v.bankInvestmentId, nome: v.nome, motivo });
     }
   }
@@ -499,7 +512,16 @@ export async function aplicarDestinos(
   const confirmar = [
     ...new Set([...conferidos, ...body.confirmarIds.filter((id) => !comErro.has(id))]),
   ];
-  const confirmados = await marcarConfirmados(userId, confirmar);
+  let confirmados = 0;
+  try {
+    confirmados = await marcarConfirmados(userId, confirmar);
+  } catch (error: unknown) {
+    // Sem nada movido, o 500 não perde nada; com itens movidos, o Histórico ainda precisa sair.
+    if (registros.length === 0) throw error;
+    logger.error('[pluggy destinos] falha ao confirmar destinos', {
+      msg: error instanceof Error ? error.message : String(error),
+    });
+  }
 
   return {
     tipo: 'ok',

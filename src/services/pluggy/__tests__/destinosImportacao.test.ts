@@ -27,6 +27,7 @@ vi.mock('@/services/saudeFinanceira/saudeFinanceiraServer', () => ({
 
 import {
   MSG_DESTINOS_INDISPONIVEL,
+  MSG_FALHA_GRAVAR_DESTINO,
   MSG_SITUACAO_DESTINO,
   aplicarDestinos,
   classificarDestinos,
@@ -583,6 +584,35 @@ describe('aplicarDestinos', () => {
         erros: [{ id: INV_CDB.id, nome: INV_CDB.name, motivo: MSG_NAO_ENCONTRADO }],
       },
     });
+    expect(idsMarcados()).toEqual([INV_FII.id]);
+  });
+
+  it('erro inesperado na gravação (fase 2) → parcial: os já movidos voltam com registro', async () => {
+    let leituras = 0;
+    const base = mockPrisma.portfolio.findFirst.getMockImplementation()!;
+    mockPrisma.portfolio.findFirst.mockImplementation(async (args: Where) => {
+      if (args.where.id === 'p-cdb' && ++leituras > 1) throw new Error('timeout do banco');
+      return base(args);
+    });
+    const r = await aplicarDestinos(
+      USER,
+      corpo({
+        itens: [
+          { id: INV_FII.id, categoria: 'fimFia', subgrupo: 'fiagro' },
+          { id: INV_CDB.id, categoria: 'reservaEmergencia' },
+        ],
+        confirmarIds: [INV_FII.id, INV_CDB.id],
+      }),
+    );
+    expect(r).toMatchObject({
+      tipo: 'ok',
+      resposta: {
+        aplicados: 1,
+        parcial: true,
+        erros: [{ id: INV_CDB.id, nome: INV_CDB.name, motivo: MSG_FALHA_GRAVAR_DESTINO }],
+      },
+    });
+    expect(r.tipo === 'ok' && r.registros.map((x) => x.bankInvestmentId)).toEqual([INV_FII.id]);
     expect(idsMarcados()).toEqual([INV_FII.id]);
   });
 
