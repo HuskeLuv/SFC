@@ -1670,6 +1670,8 @@ model BankInvestment {
   importStatus         String         @default("pendente")
   importError          String?
   importedAt           DateTime?
+  /// confirmado pelo usuário ou sem escolha; null + importado = para conferir
+  destinoConfirmadoEm  DateTime?
   createdAt            DateTime       @default(now())
   updatedAt            DateTime       @updatedAt
 
