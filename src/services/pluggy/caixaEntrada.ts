@@ -3,9 +3,11 @@
  *
  * Regras (docs/analise-pluggy-set2026.md §4, decisão 14/09/2026):
  *  - a transação fica PENDENTE até o usuário aplicar (numa linha) ou ignorar;
- *  - a célula (item, ano, mês) de uma linha que recebeu transações passa a ser
- *    a SOMA dos valores absolutos das transações aplicadas naquele mês
- *    ("uma conta = um canal": a conta conectada é a dona da célula);
+ *  - o banco SOMA ao que já está na célula (item, ano, mês): a parte do banco
+ *    (CashflowValue.valorBanco) = soma dos valores absolutos das transações
+ *    aplicadas naquele mês, e lançar/desfazer ajusta o total pela diferença —
+ *    o que o usuário digitou é preservado (06/10/2026; antes a célula virava
+ *    só a soma do banco e apagava o valor digitado);
  *  - o sentido (receita/despesa) vem do GRUPO da linha, não do sinal da
  *    transação (cartão manda compra com sinal trocado em alguns conectores);
  *  - linhas do grupo Investimentos não aceitam transação (a Carteira é a fonte);
@@ -141,9 +143,12 @@ function celulaDe(itemId: string, date: Date): Celula {
 }
 
 /**
- * Célula = Σ |amount| das transações aplicadas no item naquele mês. Zero
- * (nada aplicado) apaga a célula — a linha volta a ser digitável no mês.
- * Cor e comentário da célula são preservados.
+ * Recalcula a parte do banco da célula (Σ |amount| das transações aplicadas no item naquele mês)
+ * e ajusta o total pela diferença: value = value atual − parte do banco anterior + parte nova.
+ * O que o usuário digitou (inclusive um total editado depois do lançamento) é preservado.
+ * A fórmula é descartada quando o total muda (deixa de corresponder ao valor). A linha só é
+ * apagada quando fica sem valor, sem parte do banco, sem cor e sem comentário.
+ * Devolve o novo total da célula.
  */
 export async function recomputarCelula(userId: string, c: Celula): Promise<number> {
   const inicio = new Date(Date.UTC(c.year, c.month, 1));
@@ -158,23 +163,45 @@ export async function recomputarCelula(userId: string, c: Celula): Promise<numbe
     },
     select: { amount: true },
   });
-  const soma = Math.round(rows.reduce((acc, r) => acc + Math.abs(Number(r.amount)), 0) * 100) / 100;
+  const banco = centavos(rows.reduce((acc, r) => acc + Math.abs(Number(r.amount)), 0));
   const where = {
     itemId_userId_year_month: { itemId: c.itemId, userId, year: c.year, month: c.month },
   };
-  if (soma > 0) {
-    await prisma.cashflowValue.upsert({
+
+  return prisma.$transaction(async (tx) => {
+    const atual = await tx.cashflowValue.findUnique({ where });
+    const bancoAnterior = atual ? Number(atual.valorBanco) : 0;
+    const totalAnterior = atual ? Number(atual.value) : 0;
+    if (atual && centavos(bancoAnterior - banco) === 0) return totalAnterior;
+
+    const total = centavos(totalAnterior - bancoAnterior + banco);
+    if (!atual) {
+      if (banco === 0) return 0;
+      await tx.cashflowValue.create({
+        data: {
+          itemId: c.itemId,
+          userId,
+          year: c.year,
+          month: c.month,
+          value: total,
+          valorBanco: banco,
+        },
+      });
+      return total;
+    }
+    if (total === 0 && banco === 0 && !atual.color && !atual.comment) {
+      await tx.cashflowValue.delete({ where });
+      return 0;
+    }
+    await tx.cashflowValue.update({
       where,
-      update: { value: soma, formula: null },
-      create: { itemId: c.itemId, userId, year: c.year, month: c.month, value: soma },
+      data: { value: total, valorBanco: banco, formula: null },
     });
-  } else {
-    await prisma.cashflowValue.deleteMany({
-      where: { itemId: c.itemId, userId, year: c.year, month: c.month },
-    });
-  }
-  return soma;
+    return total;
+  });
 }
+
+const centavos = (v: number) => Math.round(v * 100) / 100;
 
 async function recomputarCelulas(userId: string, celulas: Map<string, Celula>) {
   const resultado: Array<Celula & { value: number }> = [];

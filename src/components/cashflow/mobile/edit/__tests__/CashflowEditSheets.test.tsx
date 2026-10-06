@@ -99,7 +99,7 @@ const GROUPS: CashflowGroup[] = [
             values: [value('internet', 6, { value: 100, comment: 'Plano novo' })],
           }),
           item('mercado', 'moradia', {
-            values: [value('mercado', 6, { value: 30, formula: '=10+20' })],
+            values: [value('mercado', 6, { value: 30, formula: '=10+20', valorBanco: 12.5 })],
           }),
         ],
       }),
@@ -227,6 +227,20 @@ describe('CashflowEditSheets', () => {
     expect(mocks.saveItemChanges.mock.calls[0][0].updates[0].values).toEqual([
       { month: 6, value: 50, formula: '=100-50' },
     ]);
+  });
+
+  it('célula com parte do banco: mostra quanto do total veio do banco', () => {
+    render(<Harness initial={cell('mercado', 'moradia')} />);
+    expect(
+      screen.getByText(
+        'Inclui R$ 12,50 lançados pelo banco (Conexões bancárias). Novos lançamentos do banco somam a este valor.',
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it('célula sem parte do banco: sem o aviso', () => {
+    render(<Harness initial={cell('internet', 'moradia')} />);
+    expect(screen.queryByText(/lançados pelo banco/)).not.toBeInTheDocument();
   });
 
   it('fórmula inválida trava o Salvar (nada vai ao servidor)', () => {

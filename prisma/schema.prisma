@@ -445,6 +445,9 @@ model CashflowValue {
   month     Int // 0 = Jan, 11 = Dez
   value     Decimal      @db.Decimal(15, 2)
   formula   String? // Fórmula estilo Excel que gerou o valor (ex.: '=200+30+50') — ticket 31/08/2026
+  // Parte de `value` que veio de transações do banco (Caixa de entrada, Pluggy). O banco SOMA ao
+  // que o usuário digitou: lançar/desfazer ajusta `value` pela diferença (06/10/2026).
+  valorBanco Decimal     @default(0) @db.Decimal(15, 2)
   color     String? // Cor do texto (formato CSS: #000000, green, red, etc.)
   comment   String? // Comentário da célula
   createdAt DateTime     @default(now())

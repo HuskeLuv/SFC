@@ -11,6 +11,7 @@ import { formatBRL } from '@/utils/format';
 import { cashflowColorCss, type CashflowColorValue } from '@/utils/cashflowColorLegend';
 import { cellColorLabel, normalizeCellColor } from '@/lib/cashflow/cellColor';
 import { READONLY_REASON_TEXT } from '@/lib/cashflow/itemCapabilities';
+import { textoParteBanco } from '@/components/cashflow/BancoIndicator';
 import { MONTH_NAMES } from '@/components/cashflow/mobile/MonthStepper';
 import { FormulaKeyBar } from './FormulaKeyBar';
 import { SituacaoPicker } from './SituacaoPicker';
@@ -133,6 +134,7 @@ export function CellValuePanel({
   const formulaMode = isFormula(draft.text);
   const colorValue = draft.color === undefined ? normalizeCellColor(original?.color) : draft.color;
   const comment = original?.comment?.trim() || null;
+  const valorBanco = original?.valorBanco ?? 0;
 
   const setText = (text: string) => {
     setDraft((d) => ({ ...d, text }));
@@ -367,6 +369,11 @@ export function CellValuePanel({
         >
           {preview}
         </div>
+        {valorBanco > 0 ? (
+          <div data-mf-parte-banco="">
+            <InfoNote>{textoParteBanco(valorBanco)}</InfoNote>
+          </div>
+        ) : null}
         <FormulaKeyBar
           inputRef={inputRef}
           value={draft.text}

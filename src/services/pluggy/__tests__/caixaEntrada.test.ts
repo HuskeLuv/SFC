@@ -3,9 +3,16 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const mockPrisma = vi.hoisted(() => ({
   bankTransaction: { count: vi.fn(), findMany: vi.fn(), update: vi.fn(), updateMany: vi.fn() },
   cashflowGroup: { findUnique: vi.fn() },
-  cashflowValue: { upsert: vi.fn(), deleteMany: vi.fn() },
-  $transaction: vi.fn(async (ops: Promise<unknown>[]) => Promise.all(ops)),
+  cashflowValue: { findUnique: vi.fn(), create: vi.fn(), update: vi.fn(), delete: vi.fn() },
 }));
+// $transaction em lote (aplicar) e interativo (recomputarCelula — o tx é o próprio mock).
+Object.assign(mockPrisma, {
+  $transaction: vi.fn(async (arg: unknown) =>
+    typeof arg === 'function'
+      ? (arg as (tx: typeof mockPrisma) => unknown)(mockPrisma)
+      : Promise.all(arg as Promise<unknown>[]),
+  ),
+});
 vi.mock('@/lib/prisma', () => ({ prisma: mockPrisma, default: mockPrisma }));
 
 const mockEnsure = vi.hoisted(() => vi.fn());
@@ -67,8 +74,10 @@ const estrutura = [
 
 beforeEach(() => {
   vi.clearAllMocks();
-  mockPrisma.cashflowValue.upsert.mockResolvedValue({});
-  mockPrisma.cashflowValue.deleteMany.mockResolvedValue({ count: 0 });
+  mockPrisma.cashflowValue.findUnique.mockResolvedValue(null);
+  mockPrisma.cashflowValue.create.mockResolvedValue({});
+  mockPrisma.cashflowValue.update.mockResolvedValue({});
+  mockPrisma.cashflowValue.delete.mockResolvedValue({});
   mockPrisma.bankTransaction.update.mockResolvedValue({});
   mockPrisma.bankTransaction.updateMany.mockResolvedValue({ count: 1 });
   mockPrisma.cashflowGroup.findUnique.mockResolvedValue({ type: 'despesa' });
@@ -131,10 +140,21 @@ describe('sugestão sobre a árvore do usuário', () => {
 });
 
 describe('recomputarCelula', () => {
-  it('soma valores absolutos do mês (UTC) e grava a célula', async () => {
+  const where = {
+    itemId_userId_year_month: { itemId: 'it-energia', userId: 'u1', year: 2026, month: 7 },
+  };
+  const celula = { itemId: 'it-energia', year: 2026, month: 7 };
+  const linha = (value: number, valorBanco: number, extra: Record<string, unknown> = {}) => ({
+    value,
+    valorBanco,
+    color: null,
+    comment: null,
+    ...extra,
+  });
+
+  it('célula vazia: cria com a soma dos valores absolutos do mês (UTC) como parte do banco', async () => {
     mockPrisma.bankTransaction.findMany.mockResolvedValue([{ amount: -185 }, { amount: -120.5 }]);
-    const v = await recomputarCelula('u1', { itemId: 'it-energia', year: 2026, month: 7 });
-    expect(v).toBe(305.5);
+    expect(await recomputarCelula('u1', celula)).toBe(305.5);
     expect(mockPrisma.bankTransaction.findMany).toHaveBeenCalledWith({
       where: {
         userId: 'u1',
@@ -145,22 +165,67 @@ describe('recomputarCelula', () => {
       },
       select: { amount: true },
     });
-    expect(mockPrisma.cashflowValue.upsert).toHaveBeenCalledWith({
-      where: {
-        itemId_userId_year_month: { itemId: 'it-energia', userId: 'u1', year: 2026, month: 7 },
-      },
-      update: { value: 305.5, formula: null },
-      create: { itemId: 'it-energia', userId: 'u1', year: 2026, month: 7, value: 305.5 },
+    expect(mockPrisma.cashflowValue.create).toHaveBeenCalledWith({
+      data: { ...celula, userId: 'u1', value: 305.5, valorBanco: 305.5 },
     });
   });
 
-  it('sem transações apaga a célula', async () => {
-    mockPrisma.bankTransaction.findMany.mockResolvedValue([]);
-    await recomputarCelula('u1', { itemId: 'it-energia', year: 2026, month: 7 });
-    expect(mockPrisma.cashflowValue.deleteMany).toHaveBeenCalledWith({
-      where: { itemId: 'it-energia', userId: 'u1', year: 2026, month: 7 },
+  it('SOMA ao valor digitado: 874,75 digitados + 30 do banco = 904,75', async () => {
+    mockPrisma.bankTransaction.findMany.mockResolvedValue([{ amount: -30 }]);
+    mockPrisma.cashflowValue.findUnique.mockResolvedValue(
+      linha(874.75, 0, { formula: '=800+74,75' }),
+    );
+    expect(await recomputarCelula('u1', celula)).toBe(904.75);
+    expect(mockPrisma.cashflowValue.update).toHaveBeenCalledWith({
+      where,
+      data: { value: 904.75, valorBanco: 30, formula: null },
     });
-    expect(mockPrisma.cashflowValue.upsert).not.toHaveBeenCalled();
+  });
+
+  it('total editado depois do lançamento: aplica só a diferença da parte do banco', async () => {
+    // Banco tinha 10,88; o usuário editou o total para 874,75; entra mais 20 do banco.
+    mockPrisma.bankTransaction.findMany.mockResolvedValue([{ amount: -10.88 }, { amount: -20 }]);
+    mockPrisma.cashflowValue.findUnique.mockResolvedValue(linha(874.75, 10.88));
+    expect(await recomputarCelula('u1', celula)).toBe(894.75);
+    expect(mockPrisma.cashflowValue.update).toHaveBeenCalledWith({
+      where,
+      data: { value: 894.75, valorBanco: 30.88, formula: null },
+    });
+  });
+
+  it('desfazer o lançamento devolve o valor digitado (não apaga a célula)', async () => {
+    mockPrisma.bankTransaction.findMany.mockResolvedValue([]);
+    mockPrisma.cashflowValue.findUnique.mockResolvedValue(linha(904.75, 30));
+    expect(await recomputarCelula('u1', celula)).toBe(874.75);
+    expect(mockPrisma.cashflowValue.update).toHaveBeenCalledWith({
+      where,
+      data: { value: 874.75, valorBanco: 0, formula: null },
+    });
+    expect(mockPrisma.cashflowValue.delete).not.toHaveBeenCalled();
+  });
+
+  it('célula só do banco: desfazer apaga a linha; com comentário, mantém zerada', async () => {
+    mockPrisma.bankTransaction.findMany.mockResolvedValue([]);
+    mockPrisma.cashflowValue.findUnique.mockResolvedValueOnce(linha(305.5, 305.5));
+    expect(await recomputarCelula('u1', celula)).toBe(0);
+    expect(mockPrisma.cashflowValue.delete).toHaveBeenCalledWith({ where });
+
+    mockPrisma.cashflowValue.findUnique.mockResolvedValueOnce(
+      linha(305.5, 305.5, { comment: 'conferir' }),
+    );
+    await recomputarCelula('u1', celula);
+    expect(mockPrisma.cashflowValue.update).toHaveBeenCalledWith({
+      where,
+      data: { value: 0, valorBanco: 0, formula: null },
+    });
+  });
+
+  it('parte do banco igual: não mexe na célula (nem na fórmula)', async () => {
+    mockPrisma.bankTransaction.findMany.mockResolvedValue([{ amount: -30 }]);
+    mockPrisma.cashflowValue.findUnique.mockResolvedValue(linha(904.75, 30));
+    expect(await recomputarCelula('u1', celula)).toBe(904.75);
+    expect(mockPrisma.cashflowValue.update).not.toHaveBeenCalled();
+    expect(mockPrisma.cashflowValue.create).not.toHaveBeenCalled();
   });
 });
 
@@ -214,7 +279,6 @@ describe('aplicar / desaplicar / ignorar', () => {
       data: { cashflowItemId: null, appliedAt: null },
     });
     expect(r.celulas).toEqual([{ itemId: 'it-x', year: 2026, month: 7, value: 0 }]);
-    expect(mockPrisma.cashflowValue.deleteMany).toHaveBeenCalled();
   });
 
   it('ignorar só toca pendentes do usuário e devolve os ids afetados', async () => {
