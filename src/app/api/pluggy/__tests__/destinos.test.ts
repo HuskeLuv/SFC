@@ -373,6 +373,22 @@ describe('rotas /api/pluggy/carteira (destino na importação)', () => {
       expect(mockInvalidarContexto).toHaveBeenCalledWith('user-1');
     });
 
+    it('ativo sintético da importação aparece no Histórico pelo nome do banco', async () => {
+      const r = registro('p-9', BI1, 'PLUGGY-RF-2E9B9F9D');
+      mockServico.aplicarDestinos.mockResolvedValue({
+        ...okAplicados(1),
+        registros: [
+          { ...r, asset: { symbol: 'PLUGGY-RF-2E9B9F9D', name: 'CDB Banco X', source: 'pluggy' } },
+        ],
+      });
+      await salvarDestinos(
+        req('/api/pluggy/carteira/destinos', 'POST', {
+          itens: [{ id: BI1, categoria: 'reservaEmergencia' }],
+        }),
+      );
+      expect(mockRecordChange.mock.calls[0][0].entityLabel).toBe('CDB Banco X');
+    });
+
     it('só confirmação (Está tudo certo) → sem registro nem invalidação', async () => {
       mockServico.aplicarDestinos.mockResolvedValue({
         ...okAplicados(0),

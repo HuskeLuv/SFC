@@ -20,6 +20,13 @@ import { buildMoverSnapshot, moverChanges, type MoverRegistro } from './moverHel
 
 type Auth = RecordChangeParams['auth'];
 
+/**
+ * Ativo sintético da importação (source 'pluggy': "PLUGGY-RF-…", "PLUGGY-FUNDO-…")
+ * aparece pelo nome do banco ("CDB Banco X"), não pelo código interno.
+ */
+const rotuloDoAtivo = (asset: MoverRegistro['asset']): string | undefined =>
+  asset?.source === 'pluggy' && asset.name ? asset.name : assetEntityLabel(asset);
+
 /** Grava a escolha de uma posição importada. Devolve o id do log (null se falhou). */
 export async function recordDestinoImportacao(
   request: NextRequest,
@@ -33,7 +40,7 @@ export async function recordDestinoImportacao(
     action: ACAO_DESTINO_IMPORTACAO,
     entity: 'portfolio',
     entityId: r.id,
-    entityLabel: assetEntityLabel(r.asset),
+    entityLabel: rotuloDoAtivo(r.asset),
     changes: moverChanges(r),
     snapshot: buildMoverSnapshot(r.antes, r.depois),
   });
