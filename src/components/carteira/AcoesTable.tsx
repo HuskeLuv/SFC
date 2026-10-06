@@ -61,7 +61,7 @@ export default function AcoesTable({ totalCarteira = 0 }: AcoesTableProps) {
       align: 'center',
       render: (a) => (
         <span className="inline-flex items-center px-2 py-1 rounded-full text-xs">
-          {a.setor.charAt(0).toUpperCase() + a.setor.slice(1)}
+          {a.setor || '—'}
         </span>
       ),
       renderSectionTotal: () => '-',
@@ -71,7 +71,7 @@ export default function AcoesTable({ totalCarteira = 0 }: AcoesTableProps) {
       key: 'subsetor',
       header: 'Subsetor',
       align: 'center',
-      render: (a) => a.subsetor,
+      render: (a) => a.subsetor || '—',
       renderSectionTotal: () => '-',
       renderGrandTotal: () => '-',
     },

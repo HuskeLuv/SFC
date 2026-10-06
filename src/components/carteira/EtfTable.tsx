@@ -85,10 +85,7 @@ export default function EtfTable({ totalCarteira = 0 }: EtfTableProps) {
       key: 'precoAquisicao',
       header: 'Preço Médio',
       align: 'right',
-      render: (a, f) => {
-        const currency = a.regiao === 'estados_unidos' ? 'USD' : 'BRL';
-        return f.formatCurrency(a.precoAquisicao, currency);
-      },
+      render: (a, f) => f.formatCurrency(a.precoAquisicao),
       renderSectionTotal: () => '-',
       renderGrandTotal: () => '-',
     },
@@ -96,28 +93,17 @@ export default function EtfTable({ totalCarteira = 0 }: EtfTableProps) {
       key: 'valorTotal',
       header: 'Valor Total',
       align: 'right',
-      render: (a, f) => {
-        const currency = a.regiao === 'estados_unidos' ? 'USD' : 'BRL';
-        return f.formatCurrency(a.valorTotal, currency);
-      },
-      renderSectionTotal: (s, f) => {
-        const currency = s.regiao === 'estados_unidos' ? 'USD' : 'BRL';
-        return f.formatCurrency(s.totalValorAplicado, currency);
-      },
+      render: (a, f) => f.formatCurrency(a.valorTotal),
+      renderSectionTotal: (s, f) => f.formatCurrency(s.totalValorAplicado),
       renderGrandTotal: (t, f) => f.formatCurrency((t?.valorAplicado as number) || 0),
     },
     {
       key: 'cotacaoAtual',
       header: 'Cotação Atual',
       align: 'right',
-      render: (a, f) => {
-        const currency = a.regiao === 'estados_unidos' ? 'USD' : 'BRL';
-        return (
-          <span className="text-gray-900 dark:text-white">
-            {f.formatCurrency(a.cotacaoAtual, currency)}
-          </span>
-        );
-      },
+      render: (a, f) => (
+        <span className="text-gray-900 dark:text-white">{f.formatCurrency(a.cotacaoAtual)}</span>
+      ),
       renderSectionTotal: () => '-',
       renderGrandTotal: () => '-',
     },
@@ -125,14 +111,8 @@ export default function EtfTable({ totalCarteira = 0 }: EtfTableProps) {
       key: 'valorAtualizado',
       header: 'Valor Atualizado',
       align: 'right',
-      render: (a, f) => {
-        const currency = a.regiao === 'estados_unidos' ? 'USD' : 'BRL';
-        return f.formatCurrency(a.valorAtualizado, currency);
-      },
-      renderSectionTotal: (s, f) => {
-        const currency = s.regiao === 'estados_unidos' ? 'USD' : 'BRL';
-        return f.formatCurrency(s.totalValorAtualizado, currency);
-      },
+      render: (a, f) => f.formatCurrency(a.valorAtualizado),
+      renderSectionTotal: (s, f) => f.formatCurrency(s.totalValorAtualizado),
       renderGrandTotal: (t, f) => f.formatCurrency((t?.valorAtualizado as number) || 0),
     },
     {
@@ -190,14 +170,8 @@ export default function EtfTable({ totalCarteira = 0 }: EtfTableProps) {
       key: 'necessidadeAporte',
       header: 'Nec. Aporte $',
       align: 'right',
-      render: (a, f) => {
-        const currency = a.regiao === 'estados_unidos' ? 'USD' : 'BRL';
-        return f.formatCurrency(a.necessidadeAporte, currency);
-      },
-      renderSectionTotal: (s, f) => {
-        const currency = s.regiao === 'estados_unidos' ? 'USD' : 'BRL';
-        return f.formatCurrency(s.totalNecessidadeAporte, currency);
-      },
+      render: (a, f) => f.formatCurrency(a.necessidadeAporte),
+      renderSectionTotal: (s, f) => f.formatCurrency(s.totalNecessidadeAporte),
       renderGrandTotal: (t, f) => f.formatCurrency((t?.necessidadeAporte as number) || 0),
     },
     {

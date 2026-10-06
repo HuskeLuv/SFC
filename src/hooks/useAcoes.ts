@@ -35,7 +35,7 @@ export const useAcoes = () => {
       id: ativo.id || '',
       ticker: ativo.ticker || '',
       nome: ativo.nome || '',
-      setor: ativo.setor || 'outros',
+      setor: ativo.setor || '',
       subsetor: ativo.subsetor || '',
       quantidade,
       precoAquisicao,

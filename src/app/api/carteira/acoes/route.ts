@@ -6,7 +6,7 @@ import { isTickerAcaoB3, overrideEfetivo } from '@/lib/carteiraMover';
 import { aplicarCamposMovido, camposMovidoPorLinha } from '@/app/api/carteira/_lib/linhaMovida';
 import { requireAuthWithActing } from '@/utils/auth';
 import { prisma } from '@/lib/prisma';
-import { AcaoData, AcaoAtivo, AcaoSecao, SetorAcao } from '@/types/acoes';
+import { AcaoData, AcaoAtivo, AcaoSecao } from '@/types/acoes';
 import { getAssetPrices } from '@/services/pricing/assetPriceService';
 
 import { withErrorHandler } from '@/utils/apiErrorHandler';
@@ -17,23 +17,26 @@ import {
   aplicarProventosNosAtivos,
   proventosRecebidosPorSymbol,
 } from '@/services/portfolio/proventosPorSymbol';
-// Função helper para validar e converter setor para SetorAcao
-function parseSetorAcao(setor: string | null | undefined): SetorAcao {
-  const setoresValidos: SetorAcao[] = [
-    'financeiro',
-    'energia',
-    'consumo',
-    'saude',
-    'tecnologia',
-    'industria',
-    'materiais',
-    'utilidades',
-    'outros',
-  ];
-  if (setor && setoresValidos.includes(setor as SetorAcao)) {
-    return setor as SetorAcao;
+/**
+ * Setor/subsetor pela classificação setorial oficial da B3 (asset_setores_b3, mantida pelo cron
+ * da Análise de Ativos), pela raiz de 4 letras do ticker (WEGE3 → WEGE, INBR32 → INBR). Ticker
+ * fora da classificação (BDR de empresa estrangeira, FII movido…) fica sem setor.
+ */
+async function aplicarSetoresB3(ativos: AcaoAtivo[]): Promise<void> {
+  const raizDe = (ticker: string) => ticker.slice(0, 4).toUpperCase();
+  const raizes = [...new Set(ativos.map((a) => raizDe(a.ticker)).filter((r) => r.length === 4))];
+  if (raizes.length === 0) return;
+  const setores = new Map(
+    (await prisma.assetSetorB3.findMany({ where: { raiz: { in: raizes } } })).map(
+      (s) => [s.raiz, s] as const,
+    ),
+  );
+  for (const ativo of ativos) {
+    const s = setores.get(raizDe(ativo.ticker));
+    if (!s) continue;
+    ativo.setor = s.setor;
+    ativo.subsetor = s.subsetor;
   }
-  return 'outros';
 }
 
 async function calculateAcoesData(userId: string): Promise<AcaoData> {
@@ -118,9 +121,8 @@ async function calculateAcoesData(userId: string): Promise<AcaoData> {
       id: item.id,
       ticker,
       nome: item.asset!.name,
-      // setor/subsetor não estão no Asset (eram do Stock). Mantidos vazios
-      // até o cron BRAPI popular um campo análogo em Asset.
-      setor: parseSetorAcao(''),
+      // setor/subsetor: preenchidos por aplicarSetoresB3.
+      setor: '',
       subsetor: '',
       quantidade: item.quantity,
       precoAquisicao: item.avgPrice,
@@ -161,7 +163,7 @@ async function calculateAcoesData(userId: string): Promise<AcaoData> {
       id: item.id,
       ticker,
       nome: item.asset!.name,
-      setor: 'outros',
+      setor: '',
       subsetor: '',
       quantidade: item.quantity,
       precoAquisicao: item.avgPrice,
@@ -187,7 +189,7 @@ async function calculateAcoesData(userId: string): Promise<AcaoData> {
     ...planejados.map(
       (r): AcaoAtivo => ({
         ...linhaPlanejadaBase(r, quotes.get(r.asset.symbol) ?? 0),
-        setor: 'outros',
+        setor: '',
         subsetor: '',
         estrategia: (['value', 'growth', 'risk'].includes(r.secao ?? '')
           ? r.secao
@@ -200,6 +202,7 @@ async function calculateAcoesData(userId: string): Promise<AcaoData> {
     acoesAtivos,
     await camposMovidoPorLinha(userId, 'acoes', [...portfolio, ...planejados]),
   );
+  await aplicarSetoresB3(acoesAtivos);
 
   // Calcular totais gerais
   const totalQuantidade = acoesAtivos.reduce((sum, ativo) => sum + ativo.quantidade, 0);

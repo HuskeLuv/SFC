@@ -16,6 +16,8 @@ const mockPrisma = vi.hoisted(() => ({
   $transaction: vi.fn(),
   // Ativos planejados (sem posição): nenhum nos cenários destes testes.
   watchlist: { findMany: vi.fn().mockResolvedValue([]) },
+  // Classificação setorial B3 (setor/subsetor da linha).
+  assetSetorB3: { findMany: vi.fn().mockResolvedValue([]) },
 }));
 
 vi.mock('@/utils/auth', () => ({
@@ -97,6 +99,47 @@ describe('/api/carteira/acoes', () => {
       expect(data).toHaveProperty('totalGeral');
       expect(data.secoes).toEqual([]);
       expect(data.totalGeral.valorAplicado).toBe(0);
+    });
+
+    it('preenche setor/subsetor pela classificação B3 (raiz do ticker); fora dela fica vazio', async () => {
+      const item = (id: string, symbol: string, type = 'stock') => ({
+        id,
+        userId: 'user-1',
+        quantity: 10,
+        totalInvested: 500,
+        avgPrice: 50,
+        objetivo: 0,
+        estrategia: 'value',
+        asset: { symbol, name: symbol, type },
+        lastUpdate: new Date(),
+      });
+      mockPrisma.portfolio.findMany.mockResolvedValue([
+        item('p1', 'WEGE3'),
+        item('p2', 'INBR32', 'bdr'),
+        item('p3', 'AAPL34', 'bdr'),
+      ]);
+      mockPrisma.assetSetorB3.findMany.mockResolvedValue([
+        { raiz: 'WEGE', setor: 'Bens Industriais', subsetor: 'Máquinas e Equipamentos' },
+        { raiz: 'INBR', setor: 'Financeiro', subsetor: 'Intermediários Financeiros' },
+      ]);
+      const data = await (await GET(createGetRequest())).json();
+      const porTicker = Object.fromEntries(
+        data.secoes
+          .flatMap((s: { ativos: Array<{ ticker: string }> }) => s.ativos)
+          .map((a: { ticker: string; setor: string; subsetor: string }) => [a.ticker, a]),
+      );
+      expect(mockPrisma.assetSetorB3.findMany).toHaveBeenCalledWith({
+        where: { raiz: { in: ['WEGE', 'INBR', 'AAPL'] } },
+      });
+      expect(porTicker.WEGE3).toMatchObject({
+        setor: 'Bens Industriais',
+        subsetor: 'Máquinas e Equipamentos',
+      });
+      expect(porTicker.INBR32).toMatchObject({
+        setor: 'Financeiro',
+        subsetor: 'Intermediários Financeiros',
+      });
+      expect(porTicker.AAPL34).toMatchObject({ setor: '', subsetor: '' });
     });
 
     it('returns sections with portfolio data', async () => {

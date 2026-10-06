@@ -48,6 +48,20 @@ export function SecaoAtualNaCarteira({
     if (!valorCampo) handleInputChange(campo, secaoAtual.subgrupo);
   }, [campo, formData.assetId, handleInputChange, mesmaAba, secaoAtual, valorCampo]);
 
+  // Ticket 06/10: o usuário escolheu outra seção para um ativo que já tem — a compra soma à
+  // posição atual e a escolha não vale. Aviso visível (antes era só a ajuda cinza).
+  if (mesmaAba && secaoAtual && valorCampo && valorCampo !== secaoAtual.subgrupo) {
+    return (
+      <p
+        data-mf-secao-atual=""
+        role="alert"
+        className="mt-2 rounded-lg border border-amber-200 bg-amber-50 p-2 text-xs text-amber-900 dark:border-amber-800/40 dark:bg-amber-900/20 dark:text-amber-100"
+      >
+        {`${ticker} já está em ${secaoAtual.rotuloSecao} na sua Carteira. Esta compra será somada à posição em ${secaoAtual.rotuloSecao}; a seção escolhida aqui não será aplicada. Para trocar, use Mover na Carteira.`}
+      </p>
+    );
+  }
+
   let texto = AJUDA_SUBGRUPO;
   if (secaoAtual && mesmaAba) {
     texto = `${secaoAtual.rotuloSecao} · definida por você. Comprar mais não muda a seção; para trocar, use Mover na Carteira.`;
