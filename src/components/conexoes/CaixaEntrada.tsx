@@ -32,6 +32,40 @@ function rotuloSugestao(p: PendenteDTO): string {
   }
 }
 
+const MESES = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
+
+/**
+ * Aviso depois de lançar: quantas foram, em que mês do fluxo entraram (o mês da data da compra,
+ * não o da fatura — ticket 06/10/2026: a usuária procurou em outubro o que entrou em setembro) e
+ * quantas marcadas ficaram de fora por falta de linha.
+ */
+export function mensagemLancamento(
+  aplicadas: number,
+  lancadas: Array<Pick<PendenteDTO, 'date'>>,
+  semLinha = 0,
+): string {
+  const porMes = new Map<string, { ordem: number; qtd: number }>();
+  for (const p of lancadas) {
+    const d = new Date(p.date);
+    const chave = `${MESES[d.getUTCMonth()]}/${d.getUTCFullYear()}`;
+    const atual = porMes.get(chave) ?? { ordem: d.getUTCFullYear() * 12 + d.getUTCMonth(), qtd: 0 };
+    porMes.set(chave, { ...atual, qtd: atual.qtd + 1 });
+  }
+  const meses = [...porMes.entries()]
+    .sort((a, b) => a[1].ordem - b[1].ordem)
+    .map(([mes, { qtd }]) => (porMes.size > 1 ? `${mes} (${qtd})` : mes));
+  let msg = `${aplicadas} ${aplicadas === 1 ? 'transação lançada' : 'transações lançadas'} no fluxo de caixa`;
+  if (meses.length > 0) {
+    msg += ` em ${meses.join(', ')}. O valor entra no mês da data da compra.`;
+  } else {
+    msg += '.';
+  }
+  if (semLinha > 0) {
+    msg += ` ${semLinha} ${semLinha === 1 ? 'marcada ficou' : 'marcadas ficaram'} sem lançar porque não ${semLinha === 1 ? 'tem' : 'têm'} linha escolhida: escolha a linha e lance de novo.`;
+  }
+  return msg;
+}
+
 /** Tem linha do fluxo sugerida ("Lançar sugeridas"). */
 export const temSugestaoDeLinha = (p: PendenteDTO): boolean =>
   p.sugestao.tipo === 'linha' && !!p.sugestao.itemId;
@@ -86,15 +120,23 @@ export default function CaixaEntrada({ onAviso }: { onAviso: (msg: string) => vo
     const aplicacoes = ids
       .map((id) => ({ id, itemId: escolhas[id] ?? SEM_LINHA }))
       .filter((a) => a.itemId !== SEM_LINHA);
+    // Ticket 06/10/2026: as marcadas sem linha eram descartadas em silêncio (e desmarcadas) —
+    // a usuária via parte sumir e parte ficar sem saber por quê. Agora ficam marcadas e avisadas.
+    const semLinha = ids.length - aplicacoes.length;
     if (aplicacoes.length === 0) {
       onAviso('Escolha uma linha do fluxo para cada transação marcada.');
       return;
     }
     try {
       const r = await aplicar.mutateAsync({ aplicacoes });
-      setMarcadas(new Set());
+      const lancadas = new Set(aplicacoes.map((a) => a.id));
+      setMarcadas((s) => new Set([...s].filter((id) => !lancadas.has(id))));
       onAviso(
-        `${r.aplicadas} ${r.aplicadas === 1 ? 'transação lançada' : 'transações lançadas'} no fluxo de caixa (${r.celulas.length} ${r.celulas.length === 1 ? 'célula atualizada' : 'células atualizadas'}).`,
+        mensagemLancamento(
+          r.aplicadas,
+          pendentes.filter((p) => lancadas.has(p.id)),
+          semLinha,
+        ),
       );
     } catch (e) {
       onAviso(e instanceof Error ? e.message : 'Não foi possível lançar');
