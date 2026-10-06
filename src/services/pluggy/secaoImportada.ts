@@ -41,6 +41,9 @@ export function tipoFiiPeloNome(nome: string | null | undefined): TipoFiiCarteir
   return null;
 }
 
+/** De que ramo veio a seção do FII importado (linha de origem da revisão de destinos). */
+export type ViaTipoFii = 'catalogo' | 'nome' | 'padrao';
+
 /**
  * Seção de um FII: catálogo da CVM (ticker → CNPJ → tipo vigente mais recente),
  * depois o nome, e por fim "tijolo" (o tipo mais comum).
@@ -50,8 +53,21 @@ export async function tipoFiiImportado(
   nome: string | null | undefined,
   prisma: PrismaClient = prismaPadrao,
 ): Promise<TipoFiiCarteira> {
+  return (await origemTipoFiiImportado(ticker, nome, prisma)).tipoFii;
+}
+
+/**
+ * tipoFiiImportado com o ramo usado: 'catalogo' (CVM), 'nome' (Infra pelo nome
+ * vence o catálogo, como sempre; ou o nome quando o catálogo não classifica) ou
+ * 'padrao' (caiu em "tijolo" sem pista — baixa confiança, selo "confira").
+ */
+export async function origemTipoFiiImportado(
+  ticker: string,
+  nome: string | null | undefined,
+  prisma: PrismaClient = prismaPadrao,
+): Promise<{ tipoFii: TipoFiiCarteira; via: ViaTipoFii }> {
   const peloNome = tipoFiiPeloNome(nome);
-  if (peloNome === 'infra') return peloNome;
+  if (peloNome === 'infra') return { tipoFii: peloNome, via: 'nome' };
   const mapa = await prisma.fiiTickerMap.findFirst({
     where: { ticker, validTo: null },
     orderBy: { validFrom: 'desc' },
@@ -64,9 +80,9 @@ export async function tipoFiiImportado(
       select: { tipoVigente: true },
     });
     const doCatalogo = tipoFiiDoTipoVigente(mensal?.tipoVigente);
-    if (doCatalogo) return doCatalogo;
+    if (doCatalogo) return { tipoFii: doCatalogo, via: 'catalogo' };
   }
-  return peloNome ?? 'tijolo';
+  return peloNome ? { tipoFii: peloNome, via: 'nome' } : { tipoFii: 'tijolo', via: 'padrao' };
 }
 
 /**
