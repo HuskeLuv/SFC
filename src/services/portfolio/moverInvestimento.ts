@@ -63,6 +63,8 @@ import {
   type CategoriaAtivoResponse,
   type CategoriaMovivel,
   type DestinoOpcao,
+  type DestinoPermitido,
+  type ModeloPreco,
   type MoverOpcoesResponse,
   type MoverPosicaoAba,
   type MoverSnapshotEstado,
@@ -84,6 +86,7 @@ import { createFixedIncomePricer } from '@/services/portfolio/fixedIncomePricing
 import type { FixedIncomeAssetWithAsset } from '@/services/portfolio/patrimonioHistoricoBuilder';
 import { buildSaudeFinanceira } from '@/services/saudeFinanceira/saudeFinanceiraServer';
 import type { TipoRendaFixa } from '@/types/rendaFixa';
+import type { ResumoDestinos } from '@/lib/pluggyDestinos';
 
 // ── Carregamento ─────────────────────────────────────────────────────────────
 
@@ -437,6 +440,78 @@ export interface ObterOpcoesMoverOpts {
   comSaude?: boolean;
 }
 
+// ── Regra de destinos (pura) ─────────────────────────────────────────────────
+
+/** Miolo da regra de destinos de um item (sem I/O), compartilhado pelo GET e pelo resumo. */
+interface AnaliseDestinos {
+  atual: EstadoAtual;
+  modelo: ModeloPreco;
+  /** Aba exibida: a atual ou, para item fixo, a de categorizarAsset. */
+  categoriaExibida: CategoriaCarteira;
+  movivel: boolean;
+  /** Preenchido quando o item não tem destinos (não movível). */
+  motivo?: string;
+  /** destinosPermitidos ([] quando não movível). */
+  permitidos: DestinoPermitido[];
+  caixaRfLiberado: boolean;
+}
+
+const analisarDestinos = (item: ItemMover): AnaliseDestinos => {
+  const caixaRfLiberado = moverCaixaRfHabilitado();
+  const atual = estadoAtualDe(item);
+  const modelo: ModeloPreco = atual.categoria
+    ? modeloDePreco(item.asset, { temRendaFixa: item.temRendaFixa, baseCtx: item.baseCtx })
+    : 'fixo';
+  const categoriaExibida: CategoriaCarteira = atual.categoria ?? categoriaFixaDe(item);
+  const movivel = modelo !== 'fixo' && atual.categoria !== null;
+  const analise: AnaliseDestinos = {
+    atual,
+    modelo,
+    categoriaExibida,
+    movivel,
+    permitidos: [],
+    caixaRfLiberado,
+  };
+  if (!movivel || !atual.categoria || !atual.base) {
+    analise.motivo = motivoNaoMovivelDe(item);
+    return analise;
+  }
+  analise.permitidos = destinosPermitidos(item.asset, {
+    temRendaFixa: item.temRendaFixa,
+    atual: atual.categoria,
+    tipo: item.tipo,
+    baseCtx: item.baseCtx,
+    caixaRfLiberado,
+  });
+  return analise;
+};
+
+/**
+ * Resumo da regra do mover para um item já carregado: aba atual, se é movível e
+ * os destinos com permitido/motivo — o miolo de obterOpcoesMover, sem I/O e sem
+ * valor/Saúde/original. Base de `revisavelDoResumo` (destino na importação).
+ */
+export function resumoDestinos(item: ItemMover): ResumoDestinos {
+  const a = analisarDestinos(item);
+  return {
+    movivel: a.movivel,
+    ...(a.motivo ? { motivo: a.motivo } : {}),
+    atual: {
+      categoria: a.categoriaExibida,
+      base: a.atual.base,
+      subgrupo: a.atual.subgrupo,
+      override: a.atual.override,
+    },
+    destinos: a.permitidos.map((d) => ({
+      categoria: d.categoria,
+      permitido: d.permitido,
+      ...(d.motivo ? { motivo: d.motivo } : {}),
+      subgrupoEditavel: SUBGRUPO_EDITAVEL[d.categoria],
+      qtdSubgrupos: SUBGRUPOS_POR_CATEGORIA[d.categoria].length,
+    })),
+  };
+}
+
 export async function obterOpcoesMover(
   userId: string,
   tipo: TipoItemMover,
@@ -446,14 +521,9 @@ export async function obterOpcoesMover(
   const item = await carregarItemMover(userId, tipo, id);
   if (!item) return null;
 
-  const caixaRfLiberado = moverCaixaRfHabilitado();
+  const { atual, modelo, categoriaExibida, permitidos, caixaRfLiberado, ...analise } =
+    analisarDestinos(item);
   const { asset, row } = item;
-  const atual = estadoAtualDe(item);
-  const modelo = atual.categoria
-    ? modeloDePreco(asset, { temRendaFixa: item.temRendaFixa, baseCtx: item.baseCtx })
-    : 'fixo';
-  const categoriaFixa = categoriaFixaDe(item);
-  const categoriaExibida: CategoriaCarteira = atual.categoria ?? categoriaFixa;
 
   const response: MoverOpcoesResponse = {
     item: {
@@ -477,13 +547,13 @@ export async function obterOpcoesMover(
     movido: null,
     original: null,
     modelo,
-    movivel: modelo !== 'fixo' && atual.categoria !== null,
+    movivel: analise.movivel,
     destinos: [],
     avisos: [],
   };
 
   if (!response.movivel || !atual.categoria || !atual.base) {
-    response.motivo = motivoNaoMovivelDe(item);
+    response.motivo = analise.motivo;
     return response;
   }
 
@@ -491,13 +561,6 @@ export async function obterOpcoesMover(
   const base = atual.base;
   const grupoCaixaRf = isCategoriaCaixaRf(origem);
   const objetivo = item.tipo === 'posicao' ? item.row.objetivo : 0;
-  const permitidos = destinosPermitidos(asset, {
-    temRendaFixa: item.temRendaFixa,
-    atual: origem,
-    tipo,
-    baseCtx: item.baseCtx,
-    caixaRfLiberado,
-  });
   response.destinos = permitidos.map((d): DestinoOpcao => {
     const mesmaAba = d.categoria === origem;
     const sugerido = mesmaAba
@@ -652,9 +715,11 @@ const secaoSegueCvm = (item: ItemMover, atual: EstadoAtual): boolean =>
   !isFundoCatchAllType(item.asset.type) &&
   fundoSubtipoFromAssetType(item.asset.type) !== null;
 
-async function exigirItemMovivel(userId: string, tipo: TipoItemMover, id: string) {
-  const item = await carregarItemMover(userId, tipo, id);
-  if (!item) throw new ApiError(404, MSG_NAO_ENCONTRADO);
+/** Estado de um item movível (aba atual e base definidas). */
+export type EstadoMovivel = EstadoAtual & { categoria: CategoriaMovivel; base: CategoriaMovivel };
+
+/** Estado atual do item; não movível → 409 com o motivo (o mesmo do GET). */
+export function exigirEstadoMovivel(item: ItemMover): EstadoMovivel {
   const atual = estadoAtualDe(item);
   const modelo = atual.categoria
     ? modeloDePreco(item.asset, { temRendaFixa: item.temRendaFixa, baseCtx: item.baseCtx })
@@ -662,10 +727,13 @@ async function exigirItemMovivel(userId: string, tipo: TipoItemMover, id: string
   if (modelo === 'fixo' || !atual.categoria || !atual.base) {
     throw new ApiError(409, motivoNaoMovivelDe(item));
   }
-  return {
-    item,
-    atual: atual as EstadoAtual & { categoria: CategoriaMovivel; base: CategoriaMovivel },
-  };
+  return atual as EstadoMovivel;
+}
+
+async function exigirItemMovivel(userId: string, tipo: TipoItemMover, id: string) {
+  const item = await carregarItemMover(userId, tipo, id);
+  if (!item) throw new ApiError(404, MSG_NAO_ENCONTRADO);
+  return { item, atual: exigirEstadoMovivel(item) };
 }
 
 /** Grava a linha e devolve o estado depois (allowlisted). */
@@ -700,17 +768,27 @@ async function gravar(
   return estadoSnapshotDe('planejado', atualizado);
 }
 
+export type PlanoMover =
+  | { noop: true }
+  | {
+      noop: false;
+      destino: CategoriaMovivel;
+      /** Seção no destino (null = Reservas). */
+      subgrupo: string | null;
+      editavel: boolean;
+      trocouAba: boolean;
+    };
+
 /**
- * Move uma posição ou planejado para `categoria` › `subgrupo`. Validações em
- * ordem: posse 404 → origem movível 409 → chave da fase 2 409 → destino
- * permitido 409 (motivo) → subgrupo (só se a aba deixa escolher) 400.
- * Nada muda → `{ noop: true }`.
+ * Validação e cálculo do mover SEM gravar (o que moverInvestimento faz antes do
+ * update): chave da fase 2 409 → destino permitido 409 (motivo) → subgrupo (só
+ * se a aba deixa escolher) 400 → noop → seção que segue a CVM 409.
  */
-export async function moverInvestimento(
-  userId: string,
-  input: { tipo: TipoItemMover; id: string; categoria: CategoriaMovivel; subgrupo?: string },
-): Promise<MoverOuNoop> {
-  const { item, atual } = await exigirItemMovivel(userId, input.tipo, input.id);
+export function planejarMover(
+  item: ItemMover,
+  atual: EstadoMovivel,
+  input: { categoria: CategoriaMovivel; subgrupo?: string },
+): PlanoMover {
   const destino = input.categoria;
 
   if (isCategoriaCaixaRf(destino) && !moverCaixaRfHabilitado()) {
@@ -742,6 +820,22 @@ export async function moverInvestimento(
   const trocouAba = destino !== atual.categoria;
   if (!trocouAba && (!editavel || subgrupo === atual.subgrupo)) return { noop: true };
   if (!trocouAba && secaoSegueCvm(item, atual)) throw new ApiError(409, MSG_SECAO_SEGUE_CVM);
+  return { noop: false, destino, subgrupo, editavel, trocouAba };
+}
+
+/**
+ * Move uma posição ou planejado para `categoria` › `subgrupo`. Validações em
+ * ordem: posse 404 → origem movível 409 → planejarMover (chave da fase 2 409 →
+ * destino permitido 409 → subgrupo 400). Nada muda → `{ noop: true }`.
+ */
+export async function moverInvestimento(
+  userId: string,
+  input: { tipo: TipoItemMover; id: string; categoria: CategoriaMovivel; subgrupo?: string },
+): Promise<MoverOuNoop> {
+  const { item, atual } = await exigirItemMovivel(userId, input.tipo, input.id);
+  const plano = planejarMover(item, atual, input);
+  if (plano.noop) return { noop: true };
+  const { destino, subgrupo, editavel, trocouAba } = plano;
 
   const campo = CAMPO_SUBGRUPO_PORTFOLIO[destino];
   const objetivoZerado = trocouAba && item.tipo === 'posicao' && item.row.objetivo !== 0;

@@ -25,7 +25,17 @@ vi.mock('@/services/saudeFinanceira/saudeFinanceiraServer', () => ({
   buildSaudeFinanceira: vi.fn(),
 }));
 
-import { obterOpcoesMover } from '../moverInvestimento';
+import {
+  carregarItemMover,
+  estadoAtualDe,
+  exigirEstadoMovivel,
+  moverInvestimento,
+  obterOpcoesMover,
+  planejarMover,
+  resumoDestinos,
+  MSG_ABA_FORA_DA_FASE,
+  MSG_ESCOLHA_SECAO,
+} from '../moverInvestimento';
 
 const asset = (over: Record<string, unknown>) => ({
   id: 'a-1',
@@ -156,4 +166,160 @@ describe('obterOpcoesMover — payload idêntico (snapshot anterior à extraçã
       }
     });
   }
+});
+
+describe('resumoDestinos — miolo de obterOpcoesMover (sem I/O)', () => {
+  for (const chave of ['true', 'false'] as const) {
+    it(`concorda com obterOpcoesMover em todos os casos (chave ${chave})`, async () => {
+      vi.stubEnv('MOVER_CAIXA_RF_HABILITADO', chave);
+      for (const c of CASOS) {
+        preparar(c);
+        const item = (await carregarItemMover('user-1', 'posicao', 'p-1'))!;
+        const resumo = resumoDestinos(item);
+        const opcoes = (await obterOpcoesMover('user-1', 'posicao', 'p-1'))!;
+        expect(resumo.movivel, c.nome).toBe(opcoes.movivel);
+        expect(resumo.motivo, c.nome).toBe(opcoes.motivo);
+        expect(resumo.atual, c.nome).toEqual({
+          categoria: opcoes.atual.categoria,
+          base: estadoAtualDe(item).base,
+          subgrupo: opcoes.atual.subgrupo,
+          override: opcoes.atual.override,
+        });
+        expect(
+          resumo.destinos.map((d) => [d.categoria, d.permitido, d.motivo]),
+          c.nome,
+        ).toEqual(opcoes.destinos.map((d) => [d.categoria, d.permitido, d.motivo]));
+      }
+    });
+  }
+
+  it('subgrupoEditavel/qtdSubgrupos independem da chave da fase 2', async () => {
+    vi.stubEnv('MOVER_CAIXA_RF_HABILITADO', 'false');
+    preparar(CASOS[0]);
+    const r = resumoDestinos((await carregarItemMover('user-1', 'posicao', 'p-1'))!);
+    expect(r.destinos.find((d) => d.categoria === 'fiis')).toMatchObject({
+      permitido: true,
+      subgrupoEditavel: true,
+      qtdSubgrupos: 4,
+    });
+  });
+
+  it('CDB com a chave ligada: trio com seções não editáveis; previdência sem destinos', async () => {
+    vi.stubEnv('MOVER_CAIXA_RF_HABILITADO', 'true');
+    preparar(CASOS.find((c) => c.nome === 'CDB (trio)')!);
+    const cdb = resumoDestinos((await carregarItemMover('user-1', 'posicao', 'p-1'))!);
+    expect(cdb.atual).toMatchObject({ categoria: 'rendaFixaFundos', base: 'rendaFixaFundos' });
+    expect(cdb.destinos.filter((d) => d.permitido).map((d) => d.categoria)).toEqual([
+      'reservaEmergencia',
+      'reservaOportunidade',
+      'rendaFixaFundos',
+    ]);
+    expect(cdb.destinos.find((d) => d.categoria === 'rendaFixaFundos')).toMatchObject({
+      subgrupoEditavel: false,
+      qtdSubgrupos: 3,
+    });
+
+    preparar(CASOS.find((c) => c.nome === 'previdência')!);
+    const prev = resumoDestinos((await carregarItemMover('user-1', 'posicao', 'p-1'))!);
+    expect(prev).toEqual({
+      movivel: false,
+      motivo: expect.any(String),
+      atual: { categoria: 'previdenciaSeguros', base: null, subgrupo: null, override: false },
+      destinos: [],
+    });
+  });
+});
+
+describe('planejarMover — as mesmas checagens do POST, sem gravar', () => {
+  const carregar = async (c: Caso) => {
+    preparar(c);
+    const item = (await carregarItemMover('user-1', 'posicao', 'p-1'))!;
+    return { item, atual: exigirEstadoMovivel(item) };
+  };
+  const FII = CASOS[0];
+
+  it('troca de aba: destino, seção e trocouAba; nada é gravado', async () => {
+    const { item, atual } = await carregar(FII);
+    expect(planejarMover(item, atual, { categoria: 'fimFia', subgrupo: 'fiagro' })).toEqual({
+      noop: false,
+      destino: 'fimFia',
+      subgrupo: 'fiagro',
+      editavel: true,
+      trocouAba: true,
+    });
+    expect(mockPrisma.portfolio.update).not.toHaveBeenCalled();
+  });
+
+  it('mesma aba e seção → noop; só a seção → plano sem troca de aba', async () => {
+    const { item, atual } = await carregar(FII);
+    expect(planejarMover(item, atual, { categoria: 'fiis', subgrupo: 'tijolo' })).toEqual({
+      noop: true,
+    });
+    expect(planejarMover(item, atual, { categoria: 'fiis', subgrupo: 'tvm' })).toMatchObject({
+      noop: false,
+      trocouAba: false,
+      subgrupo: 'tvm',
+    });
+  });
+
+  it('erros: destino bloqueado 409 com o motivo, sem seção 400, seção inválida 400', async () => {
+    const { item, atual } = await carregar(FII);
+    expect(() => planejarMover(item, atual, { categoria: 'stocks', subgrupo: 'value' })).toThrow(
+      expect.objectContaining({ statusCode: 409, message: 'Em reais — esta aba é em dólar' }),
+    );
+    expect(() => planejarMover(item, atual, { categoria: 'acoes' })).toThrow(
+      expect.objectContaining({ statusCode: 400, message: MSG_ESCOLHA_SECAO }),
+    );
+    expect(() => planejarMover(item, atual, { categoria: 'acoes', subgrupo: 'xx' })).toThrow(
+      expect.objectContaining({ statusCode: 400 }),
+    );
+  });
+
+  it('chave da fase 2 desligada e destino do trio → 409', async () => {
+    vi.stubEnv('MOVER_CAIXA_RF_HABILITADO', 'false');
+    const { item, atual } = await carregar(FII);
+    expect(() => planejarMover(item, atual, { categoria: 'reservaEmergencia' })).toThrow(
+      expect.objectContaining({ statusCode: 409, message: MSG_ABA_FORA_DA_FASE }),
+    );
+  });
+
+  it('CDB para a Reserva: seção ignorada (null); exigirEstadoMovivel recusa previdência', async () => {
+    vi.stubEnv('MOVER_CAIXA_RF_HABILITADO', 'true');
+    const { item, atual } = await carregar(CASOS.find((c) => c.nome === 'CDB (trio)')!);
+    expect(planejarMover(item, atual, { categoria: 'reservaEmergencia', subgrupo: 'x' })).toEqual({
+      noop: false,
+      destino: 'reservaEmergencia',
+      subgrupo: null,
+      editavel: false,
+      trocouAba: true,
+    });
+    expect(planejarMover(item, atual, { categoria: 'rendaFixaFundos' })).toEqual({ noop: true });
+
+    preparar(CASOS.find((c) => c.nome === 'previdência')!);
+    const prev = (await carregarItemMover('user-1', 'posicao', 'p-1'))!;
+    expect(() => exigirEstadoMovivel(prev)).toThrow(expect.objectContaining({ statusCode: 409 }));
+  });
+
+  it('moverInvestimento grava exatamente o plano', async () => {
+    mockPrisma.portfolio.update.mockImplementation(async ({ data }) => ({
+      ...posicao(KNCA11),
+      ...data,
+    }));
+    preparar(FII);
+    const r = await moverInvestimento('user-1', {
+      tipo: 'posicao',
+      id: 'p-1',
+      categoria: 'fimFia',
+      subgrupo: 'fiagro',
+    });
+    expect(r).toMatchObject({
+      noop: false,
+      destino: { categoria: 'fimFia', subgrupo: 'fiagro' },
+      origem: { categoria: 'fiis', subgrupo: 'tijolo' },
+    });
+    expect(mockPrisma.portfolio.update.mock.calls[0][0].data).toMatchObject({
+      categoriaOverride: 'fimFia',
+      tipoFundo: 'fiagro',
+    });
+  });
 });
