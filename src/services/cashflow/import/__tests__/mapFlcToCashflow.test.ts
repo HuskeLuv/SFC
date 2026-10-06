@@ -679,3 +679,90 @@ describe('mapFlcToCashflow', () => {
     expect(plan.avisos.some((a) => a.includes('mais de uma vez'))).toBe(true);
   });
 });
+
+// ---------------------------------------------------------------------------
+// linha movida pelo usuário (ticket 06/10/2026 — reimportação duplicava)
+// ---------------------------------------------------------------------------
+
+describe('linha movida pelo usuário para outro grupo', () => {
+  const emprestimo = () => flcItem('Emprestimo bradesco', meses({ 4: 2186.27, 5: 2186.27 }));
+
+  it('reimportação usa a linha que o usuário moveu (não cria outra) e avisa', () => {
+    const a = arvorePadrao();
+    // 1ª importação criou em Dependentes; o usuário moveu para Despesas Financeiras.
+    const movida = item('Emprestimo bradesco', {
+      values: [valor(4, 2186.27), valor(5, 2186.27)],
+    });
+    a.despesasFinanceiras.items = [...(a.despesasFinanceiras.items ?? []), movida];
+
+    const plano = mapFlcToCashflow(
+      parseResult([secao('despesas-dependentes', 'Despesas com dependentes', [emprestimo()])]),
+      a.tree,
+    );
+
+    expect(plano.resumo.itensNovos).toBe(0);
+    const it = plano.grupos[0].itens[0];
+    expect(it.destino).toMatchObject({ tipo: 'existente', itemId: movida.id });
+    expect(it.escritas).toEqual([]);
+    expect(it.jaIguais).toEqual([4, 5]);
+    expect(plano.avisos).toContain(
+      'linha 10 ("Emprestimo bradesco"): já existe em "Despesas Financeiras" — os valores vão para essa linha (em vez de criar outra em "Despesas com Dependentes")',
+    );
+  });
+
+  it('linha padrão do sistema (template) com o mesmo nome em outro grupo não conta', () => {
+    const a = arvorePadrao();
+    a.despesasFinanceiras.items = [
+      ...(a.despesasFinanceiras.items ?? []),
+      item('Emprestimo bradesco', { templateId: 'tpl-1' }),
+    ];
+    const plano = mapFlcToCashflow(
+      parseResult([secao('despesas-dependentes', 'Despesas com dependentes', [emprestimo()])]),
+      a.tree,
+    );
+    expect(plano.grupos[0].itens[0].destino.tipo).toBe('criar');
+  });
+
+  it('mais de uma linha do usuário com o nome (ambíguo): cria como antes', () => {
+    const a = arvorePadrao();
+    a.despesasFinanceiras.items = [
+      ...(a.despesasFinanceiras.items ?? []),
+      item('Emprestimo bradesco'),
+    ];
+    a.habitacao.items = [...(a.habitacao.items ?? []), item('Emprestimo bradesco')];
+    const plano = mapFlcToCashflow(
+      parseResult([secao('despesas-dependentes', 'Despesas com dependentes', [emprestimo()])]),
+      a.tree,
+    );
+    expect(plano.grupos[0].itens[0].destino.tipo).toBe('criar');
+  });
+
+  it('a planilha também traz o nome na seção onde a linha está: não rouba a linha', () => {
+    const a = arvorePadrao();
+    const existente = item('Emprestimo bradesco');
+    a.despesasFinanceiras.items = [...(a.despesasFinanceiras.items ?? []), existente];
+    const plano = mapFlcToCashflow(
+      parseResult([
+        secao('despesas-dependentes', 'Despesas com dependentes', [emprestimo()]),
+        secao('despesas-financeiras', 'Despesas Financeiras', [emprestimo()]),
+      ]),
+      a.tree,
+    );
+    const [dependentes, financeiras] = plano.grupos;
+    expect(dependentes.itens[0].destino.tipo).toBe('criar');
+    expect(financeiras.itens[0].destino).toMatchObject({ tipo: 'existente', itemId: existente.id });
+  });
+
+  it('linha de Dívida com o mesmo nome em outro grupo não é usada', () => {
+    const a = arvorePadrao();
+    a.despesasFinanceiras.items = [
+      ...(a.despesasFinanceiras.items ?? []),
+      item('Emprestimo bradesco', { dividaId: 'div-1' }),
+    ];
+    const plano = mapFlcToCashflow(
+      parseResult([secao('despesas-dependentes', 'Despesas com dependentes', [emprestimo()])]),
+      a.tree,
+    );
+    expect(plano.grupos[0].itens[0].destino.tipo).toBe('criar');
+  });
+});
