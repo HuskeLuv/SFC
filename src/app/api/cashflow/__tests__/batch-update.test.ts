@@ -48,6 +48,7 @@ const mockPrisma = vi.hoisted(() => ({
 const mockGetItemForUser = vi.hoisted(() => vi.fn());
 const mockPersonalizeItem = vi.hoisted(() => vi.fn());
 const mockEnsurePersonalizedItem = vi.hoisted(() => vi.fn());
+const mockHideTemplateItem = vi.hoisted(() => vi.fn());
 
 const mockRequireAuthWithActing = vi.hoisted(() => vi.fn());
 
@@ -68,6 +69,7 @@ vi.mock('@/utils/cashflowPersonalization', () => ({
   personalizeItem: mockPersonalizeItem,
   getItemForUser: mockGetItemForUser,
   ensurePersonalizedItem: mockEnsurePersonalizedItem,
+  hideTemplateItem: mockHideTemplateItem,
 }));
 
 // A rota devolve a árvore mesclada pós-mutação; aqui basta uma árvore vazia.
@@ -235,8 +237,10 @@ describe('PUT /api/cashflow/batch-update', () => {
   });
 
   it('marca itens não pertencentes ao usuário como não encontrados', async () => {
-    // findMany only returns the one the user actually owns
-    mockPrisma.cashflowItem.findMany.mockResolvedValue([{ id: 'item-1' }]);
+    // findMany only returns the one the user actually owns; nenhum template com esse id
+    mockPrisma.cashflowItem.findMany
+      .mockResolvedValueOnce([{ id: 'item-1' }])
+      .mockResolvedValueOnce([]);
     mockPrisma.cashflowValue.deleteMany.mockResolvedValue({ count: 0 });
     mockPrisma.cashflowItem.deleteMany.mockResolvedValue({ count: 1 });
 
@@ -255,6 +259,134 @@ describe('PUT /api/cashflow/batch-update', () => {
       itemId: 'item-foreign',
       success: false,
       error: 'Item não encontrado',
+    });
+  });
+
+  describe('linhas padrão (ticket 06/10/2026: excluir = ocultar só para o usuário)', () => {
+    const tombstoneSnapshot = (tombstoneId: string) => ({
+      v: 1,
+      kind: 'cashflow-item-tombstone',
+      data: {},
+      meta: { tombstoneId },
+    });
+
+    it('linha padrão nunca personalizada: oculta (tombstone) e registra item.excluir', async () => {
+      mockPrisma.cashflowItem.findMany
+        .mockResolvedValueOnce([]) // não é do usuário
+        .mockResolvedValueOnce([
+          {
+            id: 'tpl-cota',
+            name: 'Cota do Clube',
+            significado: null,
+            rank: null,
+            group: { type: 'despesa' },
+          },
+        ]);
+      mockHideTemplateItem.mockResolvedValue('tomb-1');
+
+      const data = await (
+        await PUT(createRequest({ groupId: 'g1', deletes: ['tpl-cota'] }))
+      ).json();
+
+      expect(data.results).toContainEqual({ itemId: 'tpl-cota', success: true });
+      expect(mockHideTemplateItem).toHaveBeenCalledWith('tpl-cota', 'user-123');
+      expect(mockPrisma.cashflowItem.deleteMany).not.toHaveBeenCalled();
+      expect(mockPrisma.userChangeLog.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          action: 'item.excluir',
+          entityId: 'tpl-cota',
+          entityLabel: 'Cota do Clube',
+          snapshot: tombstoneSnapshot('tomb-1'),
+        }),
+      });
+    });
+
+    it('linha padrão já personalizada (templateId): apaga os valores e vira oculta — não volta', async () => {
+      mockPrisma.cashflowItem.findMany.mockResolvedValueOnce([
+        {
+          id: 'ovr-pensao',
+          name: 'Pensão',
+          significado: null,
+          rank: null,
+          templateId: 'tpl-pensao',
+          objetivoId: null,
+          dividaId: null,
+          group: { type: 'despesa', templateId: 'tpl-grp' },
+        },
+      ]);
+      mockHideTemplateItem.mockResolvedValue('ovr-pensao');
+
+      const data = await (
+        await PUT(createRequest({ groupId: 'g1', deletes: ['ovr-pensao'] }))
+      ).json();
+
+      expect(data.results).toContainEqual({ itemId: 'ovr-pensao', success: true });
+      expect(mockPrisma.cashflowValue.deleteMany).toHaveBeenCalledWith({
+        where: { itemId: 'ovr-pensao' },
+      });
+      expect(mockHideTemplateItem).toHaveBeenCalledWith('tpl-pensao', 'user-123');
+      expect(mockPrisma.cashflowItem.deleteMany).not.toHaveBeenCalled();
+    });
+
+    it('override LEGADO (sem templateId, mesmo nome no grupo-template): também vira oculta', async () => {
+      mockPrisma.cashflowItem.findMany
+        .mockResolvedValueOnce([
+          {
+            id: 'leg-alarme',
+            name: 'Alarme',
+            significado: null,
+            rank: null,
+            templateId: null,
+            objetivoId: null,
+            dividaId: null,
+            group: { type: 'despesa', templateId: 'tpl-grp-hab' },
+          },
+        ])
+        .mockResolvedValueOnce([{ id: 'tpl-alarme', groupId: 'tpl-grp-hab', name: 'Alarme' }]);
+      mockHideTemplateItem.mockResolvedValue('leg-alarme');
+
+      const data = await (
+        await PUT(createRequest({ groupId: 'g1', deletes: ['leg-alarme'] }))
+      ).json();
+
+      expect(data.results).toContainEqual({ itemId: 'leg-alarme', success: true });
+      expect(mockHideTemplateItem).toHaveBeenCalledWith('tpl-alarme', 'user-123');
+      expect(mockPrisma.cashflowItem.deleteMany).not.toHaveBeenCalled();
+    });
+
+    it('linha de Investimentos (padrão ou própria) é recusada', async () => {
+      mockPrisma.cashflowItem.findMany
+        .mockResolvedValueOnce([
+          {
+            id: 'inv-propria',
+            name: 'Ações',
+            significado: null,
+            rank: null,
+            templateId: null,
+            objetivoId: null,
+            dividaId: null,
+            group: { type: 'investimento', templateId: null },
+          },
+        ])
+        .mockResolvedValueOnce([
+          {
+            id: 'tpl-inv',
+            name: 'FIIs',
+            significado: null,
+            rank: null,
+            group: { type: 'investimento' },
+          },
+        ]);
+
+      const data = await (
+        await PUT(createRequest({ groupId: 'g-inv', deletes: ['inv-propria', 'tpl-inv'] }))
+      ).json();
+
+      const erro = 'Linha de Investimentos é calculada pela Carteira e não pode ser excluída';
+      expect(data.results).toContainEqual({ itemId: 'inv-propria', success: false, error: erro });
+      expect(data.results).toContainEqual({ itemId: 'tpl-inv', success: false, error: erro });
+      expect(mockHideTemplateItem).not.toHaveBeenCalled();
+      expect(mockPrisma.cashflowItem.deleteMany).not.toHaveBeenCalled();
     });
   });
 

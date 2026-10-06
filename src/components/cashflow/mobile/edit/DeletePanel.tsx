@@ -64,6 +64,7 @@ export function DeletePanel({
     onSaved('Linha excluída');
   };
 
+  const linhaPadrao = !!item.isTemplate || !!item.templateId;
   return (
     <>
       <div className="flex flex-col gap-3 pb-3">
@@ -81,7 +82,18 @@ export function DeletePanel({
             {filled > 0
               ? ` (${filled} ${filled === 1 ? 'mês' : 'meses'} de ${year}, ${formatBRL(total)})`
               : ''}
-            . <b>Não dá para desfazer</b>: para voltar, será preciso criar a linha de novo.
+            .{' '}
+            {linhaPadrao ? (
+              // Ticket 06/10/2026: linha padrão sai só da planilha do usuário (oculta).
+              <>
+                É uma <b>linha padrão</b>: sai só da sua planilha. Para trazer de volta, use{' '}
+                <b>Desfazer</b> no Histórico de alterações.
+              </>
+            ) : (
+              <>
+                <b>Não dá para desfazer</b>: para voltar, será preciso criar a linha de novo.
+              </>
+            )}
           </p>
         </InfoNote>
       </div>

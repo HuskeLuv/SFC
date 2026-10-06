@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { requireAuthWithActing } from '@/utils/auth';
 import { logSensitiveEndpointAccess } from '@/services/impersonationLogger';
-import { ensurePersonalizedItem } from '@/utils/cashflowPersonalization';
+import { ensurePersonalizedItem, hideTemplateItem } from '@/utils/cashflowPersonalization';
 import { cashflowBatchUpdateSchema, validationError } from '@/utils/validation-schemas';
 import { syncCashflowToObjetivo } from '@/services/planejamento/cashflowToSonhoSync';
 import { removeObjetivoCashflow } from '@/services/planejamento/sonhoCashflowSync';
@@ -11,7 +11,7 @@ import { getMergedCashflowGroups } from '@/services/cashflow/getCashflowTree';
 import { checkOrcamentoAlertasSafe } from '@/services/cashflow/orcamentoAlertas';
 import { recomputeEvolucaoSnapshotsSafe } from '@/services/cashflow/evolucaoPatrimonioServer';
 import { invalidatePortfolioSnapshots } from '@/services/portfolio/portfolioRecalculation';
-import { recordChange } from '@/services/changeHistory';
+import { recordChange, finalStateChanges, CASHFLOW_FIELD_LABELS } from '@/services/changeHistory';
 import { evaluateFormula } from '@/utils/formulaParser';
 
 import { withErrorHandler } from '@/utils/apiErrorHandler';
@@ -75,10 +75,47 @@ export const PUT = withErrorHandler(async (request: NextRequest) => {
   if (deletes && Array.isArray(deletes) && deletes.length > 0) {
     const owned = await prisma.cashflowItem.findMany({
       where: { id: { in: deletes }, userId: targetUserId },
-      select: { id: true, objetivoId: true, dividaId: true, group: { select: { type: true } } },
+      select: {
+        id: true,
+        name: true,
+        significado: true,
+        rank: true,
+        templateId: true,
+        objetivoId: true,
+        dividaId: true,
+        group: { select: { type: true, templateId: true } },
+      },
     });
     if (owned.some((i) => i.group?.type === 'investimento')) touchedInvestimento = true;
-    const ownedFree = owned.filter((i) => !i.objetivoId && !i.dividaId).map((i) => i.id);
+    // Override LEGADO de linha padrão: sem templateId gravado, mas a árvore o casa com a linha
+    // padrão de mesmo nome no grupo-template (getCashflowTree.findOverrideItem). Resolve aqui
+    // o template correspondente para tratá-lo como linha padrão.
+    const legados = owned.filter((i) => !i.templateId && i.group?.templateId);
+    const templateLegadoPorChave = new Map<string, string>();
+    if (legados.length > 0) {
+      const tpls = await prisma.cashflowItem.findMany({
+        where: {
+          userId: null,
+          groupId: { in: [...new Set(legados.map((i) => i.group!.templateId!))] },
+          name: { in: [...new Set(legados.map((i) => i.name))] },
+        },
+        select: { id: true, groupId: true, name: true },
+      });
+      for (const t of tpls) templateLegadoPorChave.set(`${t.groupId}|${t.name}`, t.id);
+    }
+    const templateDe = (i: (typeof owned)[number]): string | null =>
+      i.templateId ??
+      (i.group?.templateId
+        ? (templateLegadoPorChave.get(`${i.group.templateId}|${i.name}`) ?? null)
+        : null);
+    // Override de linha padrão NÃO é apagado: apagar faria a linha padrão reaparecer. Vira
+    // linha oculta no passo 2c (ticket 06/10/2026). Linha de Investimentos (calculada pela
+    // Carteira) nunca é excluída por aqui.
+    const ownedFree = owned
+      .filter(
+        (i) => !i.objetivoId && !i.dividaId && !templateDe(i) && i.group?.type !== 'investimento',
+      )
+      .map((i) => i.id);
     const ownedLinked = owned.filter(
       (i): i is (typeof owned)[number] & { objetivoId: string } => i.objetivoId != null,
     );
@@ -140,6 +177,101 @@ export const PUT = withErrorHandler(async (request: NextRequest) => {
         itemId,
         success: false,
         error: 'Linha vinculada a uma dívida: exclua na página Dívidas',
+      });
+    }
+
+    // 2c) Linhas PADRÃO (template ou override de template), ticket 06/10/2026: excluir =
+    //     ocultar só para este usuário (tombstone), para enxugar a planilha. Antes o template
+    //     dava "Item não encontrado" e o override era apagado (e a linha padrão voltava).
+    //     Linhas de Investimentos (calculadas pela Carteira) não são ocultáveis; seções
+    //     inteiras não passam por aqui.
+    const padroes: Array<{
+      id: string;
+      templateId: string;
+      deleteValuesOf: string | null;
+      linha: { name: string; significado: string | null; rank: string | null };
+      groupType: string | null;
+    }> = [];
+    for (const i of owned) {
+      const templateId = templateDe(i);
+      if (templateId && !i.objetivoId && !i.dividaId) {
+        padroes.push({
+          id: i.id,
+          templateId,
+          deleteValuesOf: i.id,
+          linha: i,
+          groupType: i.group?.type ?? null,
+        });
+      }
+    }
+    const restantes = deletes.filter(
+      (id: string) => !handled.has(id) && !owned.some((o) => o.id === id),
+    );
+    if (restantes.length > 0) {
+      const templates = await prisma.cashflowItem.findMany({
+        where: { id: { in: restantes }, userId: null },
+        select: {
+          id: true,
+          name: true,
+          significado: true,
+          rank: true,
+          group: { select: { type: true } },
+        },
+      });
+      for (const t of templates) {
+        padroes.push({
+          id: t.id,
+          templateId: t.id,
+          deleteValuesOf: null,
+          linha: t,
+          groupType: t.group?.type ?? null,
+        });
+      }
+    }
+    for (const p of padroes) {
+      handled.add(p.id);
+      if (p.groupType === 'investimento') {
+        results.push({
+          itemId: p.id,
+          success: false,
+          error: 'Linha de Investimentos é calculada pela Carteira e não pode ser excluída',
+        });
+        continue;
+      }
+      try {
+        // Valores do override somem com a linha (como na exclusão de linha própria).
+        if (p.deleteValuesOf) {
+          await prisma.cashflowValue.deleteMany({ where: { itemId: p.deleteValuesOf } });
+        }
+        const tombstoneId = await hideTemplateItem(p.templateId, targetUserId);
+        results.push({ itemId: p.id, success: true });
+        markRecompute(new Date(0));
+        await recordChange({
+          request,
+          auth,
+          section: 'fluxo-caixa',
+          action: 'item.excluir',
+          entity: 'item',
+          entityId: p.templateId,
+          entityLabel: p.linha.name,
+          changes: finalStateChanges(p.linha, CASHFLOW_FIELD_LABELS),
+          // Desfazer = apagar a linha oculta (a linha padrão volta, vazia).
+          snapshot: { v: 1, kind: 'cashflow-item-tombstone', data: {}, meta: { tombstoneId } },
+        });
+      } catch (error) {
+        logger.error(`Erro ao ocultar linha padrão ${p.id}:`, error);
+        results.push({ itemId: p.id, success: false, error: 'Erro ao excluir' });
+      }
+    }
+
+    // Linha própria de Investimentos (sem template): calculada pela Carteira, não se exclui.
+    for (const i of owned) {
+      if (handled.has(i.id) || i.group?.type !== 'investimento' || templateDe(i)) continue;
+      handled.add(i.id);
+      results.push({
+        itemId: i.id,
+        success: false,
+        error: 'Linha de Investimentos é calculada pela Carteira e não pode ser excluída',
       });
     }
 
