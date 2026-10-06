@@ -383,6 +383,59 @@ describe('sincronizarConexao', () => {
     });
   });
 
+  it('transação já lançada que mudou ou sumiu no banco: recalcula a célula do Fluxo', async () => {
+    // l1 (lançada em cf-x, set/2026) mudou de valor; l9 (lançada em cf-y) sumiu da janela.
+    mockClient.fetchAllTransactions.mockResolvedValue([tx('t1', { amount: 9000 })]);
+    type Where = Record<string, unknown>;
+    mockPrisma.bankTransaction.findMany.mockImplementation(
+      async ({ where, select }: { where: Where; select?: Where }) => {
+        if (where.providerTxId && (where.providerTxId as Where).in) {
+          return [
+            {
+              id: 'l1',
+              providerTxId: 't1',
+              dedupHash: 'antigo',
+              globalHash: null,
+              status: 'POSTED',
+              providerCategory: 'Salary',
+              amount: 8500,
+              deletedAt: null,
+              cashflowItemId: 'cf-x',
+              date: new Date('2026-09-10T00:00:00Z'),
+            },
+          ];
+        }
+        if ((where.cashflowItemId as Where | undefined)?.not === null) {
+          return [{ cashflowItemId: 'cf-y', date: new Date('2026-09-12T00:00:00Z') }];
+        }
+        // recomputarCelula: soma das transações que restam na célula
+        if (select?.amount) return where.cashflowItemId === 'cf-x' ? [{ amount: 9000 }] : [];
+        return [];
+      },
+    );
+    mockPrisma.cashflowValue.findUnique.mockImplementation(
+      async ({ where }: { where: { itemId_userId_year_month: { itemId: string } } }) =>
+        where.itemId_userId_year_month.itemId === 'cf-x'
+          ? { value: 8600, valorBanco: 8500, color: null, comment: null }
+          : { value: 250, valorBanco: 50, color: null, comment: null },
+    );
+
+    await sincronizarConexao('conn-1');
+
+    expect(mockPrisma.cashflowValue.update).toHaveBeenCalledWith({
+      where: {
+        itemId_userId_year_month: { itemId: 'cf-x', userId: 'user-1', year: 2026, month: 8 },
+      },
+      data: { value: 9100, valorBanco: 9000, formula: null },
+    });
+    expect(mockPrisma.cashflowValue.update).toHaveBeenCalledWith({
+      where: {
+        itemId_userId_year_month: { itemId: 'cf-y', userId: 'user-1', year: 2026, month: 8 },
+      },
+      data: { value: 200, valorBanco: 0, formula: null },
+    });
+  });
+
   it('grava lastSyncError e propaga quando o provedor falha', async () => {
     mockClient.fetchAccounts.mockRejectedValue(new Error('Response code 429'));
     await expect(sincronizarConexao('conn-1')).rejects.toThrow('429');

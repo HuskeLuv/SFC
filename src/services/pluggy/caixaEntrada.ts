@@ -33,9 +33,19 @@ interface GrupoEstrutura {
   id: string;
   name: string;
   type: string;
-  items?: { id: string; name: string; hidden?: boolean }[];
+  items?: {
+    id: string;
+    name: string;
+    hidden?: boolean;
+    objetivoId?: string | null;
+    dividaId?: string | null;
+  }[];
   children?: GrupoEstrutura[];
 }
+
+/** Linha espelho de Sonho/Dívida: regenerada pelo Planejamento/Dívidas — não recebe banco. */
+export const isLinhaEspelho = (it: { objetivoId?: string | null; dividaId?: string | null }) =>
+  !!it.objetivoId || !!it.dividaId;
 
 const norm = (s: string) => s.trim().toLowerCase();
 
@@ -45,7 +55,7 @@ export function indexarEstrutura(grupos: GrupoEstrutura[]): Map<string, string> 
   const walk = (g: GrupoEstrutura, caminho: string[]) => {
     const atual = [...caminho, norm(g.name)];
     for (const it of g.items ?? []) {
-      if (it.hidden) continue;
+      if (it.hidden || isLinhaEspelho(it)) continue;
       idx.set([...atual, norm(it.name)].join('|'), it.id);
     }
     for (const c of g.children ?? []) walk(c, atual);
@@ -257,6 +267,14 @@ export async function aplicar(userId: string, aplicacoes: Aplicacao[]): Promise<
       throw new ApiError(
         400,
         'Linhas de Investimentos não recebem transações do banco: a Carteira é a fonte',
+      );
+    }
+    // A regeneração da linha espelho (Planejamento de Sonhos / Dívidas) reescreve as células e
+    // apagaria o lançamento do banco.
+    if (isLinhaEspelho(item)) {
+      throw new ApiError(
+        400,
+        'Linhas de Sonhos e Dívidas não recebem transações do banco: são geridas no Planejamento e em Dívidas',
       );
     }
     itemFinal.set(itemId, finalId);
