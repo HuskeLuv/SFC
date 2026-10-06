@@ -108,7 +108,7 @@ test('revisão no celular: tela cheia sem corte, rodapé fixo, Trocar abre o she
   await expectInViewport(primario);
   await expectMinTarget(primario);
 
-  const trocar = dialog.getByRole('button', { name: /Trocar/ }).first();
+  const trocar = dialog.getByRole('button', { name: /^Trocar destino de / }).first();
   await expectMinTarget(trocar);
   await trocar.click();
   const sheet = page.getByRole('dialog').filter({ hasText: /Onde .+ vai entrar/ });
