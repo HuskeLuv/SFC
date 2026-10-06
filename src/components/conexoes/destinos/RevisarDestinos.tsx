@@ -164,8 +164,10 @@ function RevisaoAberta({
     enabled: true,
   });
   const [itens, setItens] = useState<DestinoImportadoItem[] | null>(null);
-  // Foto da lista na abertura (o refetch depois de salvar não troca as linhas da revisão).
-  if (itens === null && consulta.data) setItens(consulta.data.itens);
+  // Foto da lista na abertura (o refetch depois de salvar não troca as linhas da revisão). Só
+  // com dado FRESCO: o cache de uma abertura anterior (gcTime) traria itens já conferidos e
+  // esconderia os novos — espera o refetch da montagem terminar.
+  if (itens === null && consulta.isSuccess && !consulta.isFetching) setItens(consulta.data.itens);
 
   const [estado, setEstado] = useState<EstadoDestinos>(estadoInicial);
   const [painel, setPainel] = useState<string | null>(null);

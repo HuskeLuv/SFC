@@ -364,6 +364,27 @@ describe('RevisarDestinos — computador', () => {
     );
   });
 
+  it('reaberta com cache de antes: espera a lista fresca (não mostra itens já conferidos)', async () => {
+    const resposta = (itens: DestinoImportadoItem[]) => () => ({
+      status: 200,
+      body: { habilitado: true, itens, paraRevisar: itens.length },
+    });
+    respostaGet = resposta(lista.itens);
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const arvore = (aberto: boolean) => (
+      <QueryClientProvider client={client}>
+        <RevisarDestinos aberto={aberto} onFechar={vi.fn()} onConcluido={vi.fn()} />
+      </QueryClientProvider>
+    );
+    const { rerender } = render(arvore(true));
+    await screen.findByRole('checkbox', { name: 'Selecionar PETR4' });
+    rerender(arvore(false));
+    respostaGet = resposta([lista.knca11]);
+    rerender(arvore(true));
+    await screen.findByRole('checkbox', { name: 'Selecionar KNCA11' });
+    expect(screen.queryByRole('checkbox', { name: 'Selecionar PETR4' })).toBeNull();
+  });
+
   it('alvos de 44px: botão do destino e caixas de seleção', async () => {
     montar();
     const botao = await screen.findByRole('button', { name: /^Destino de PETR4/ });
