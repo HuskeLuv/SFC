@@ -10,20 +10,12 @@ import {
 
 export type EstrategiaAcao = 'value' | 'growth' | 'risk';
 
-export type SetorAcao =
-  | 'financeiro'
-  | 'energia'
-  | 'consumo'
-  | 'saude'
-  | 'tecnologia'
-  | 'industria'
-  | 'materiais'
-  | 'utilidades'
-  | 'outros';
+/** Setor da classificação setorial da B3 ("Financeiro", "Bens Industriais"…); '' = sem classificação. */
+export type SetorAcao = string;
 
 export interface AcaoAtivo extends BaseQuantityAtivo {
   setor: SetorAcao;
-  subsetor: string; // Ex: "Bancos", "Comércio", "Seguros", "Serviços Médicos"
+  subsetor: string; // Subsetor B3, ex.: "Intermediários Financeiros", "Comércio Varejista"
   estrategia: EstrategiaAcao;
 }
 

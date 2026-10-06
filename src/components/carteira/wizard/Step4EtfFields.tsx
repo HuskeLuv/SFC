@@ -78,6 +78,12 @@ export default function Step4EtfFields({
           min="0"
           step="0.01"
         />
+        {/* Ticket 06/10: ETF da seção EUA também é lançado e exibido em reais. */}
+        {formData.regiaoEtf === 'estados_unidos' && !errors.cotacaoUnitaria && (
+          <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+            Informe o preço em reais, mesmo para ETF dos EUA. A Carteira exibe o ETF em reais.
+          </p>
+        )}
       </div>
       <div>
         <Label htmlFor="taxaCorretagem">Taxa de Corretagem (R$)</Label>

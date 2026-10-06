@@ -75,13 +75,24 @@ describe('SecaoAtualNaCarteira (assistente de compra)', () => {
     await waitFor(() => expect(handleInputChange).toHaveBeenCalledWith('tipoFii', 'infra'));
   });
 
-  it('não sobrescreve uma escolha que já está no campo', async () => {
+  it('não sobrescreve uma escolha que já está no campo e avisa que ela não vale', async () => {
     const { handleInputChange } = montar(
       { tipoFii: 'tvm' },
       { categoria: { categoria: 'fiis', override: false }, aba: abaFii },
     );
-    await screen.findByText(/definida por você/);
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'KDIF11 já está em Infra na sua Carteira. Esta compra será somada à posição em Infra; a seção escolhida aqui não será aplicada. Para trocar, use Mover na Carteira.',
+    );
     expect(handleInputChange).not.toHaveBeenCalled();
+  });
+
+  it('mesma seção do campo: sem aviso', async () => {
+    montar(
+      { tipoFii: 'infra' },
+      { categoria: { categoria: 'fiis', override: false }, aba: abaFii },
+    );
+    await screen.findByText(/definida por você/);
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
   });
 
   it('movido para outra aba: diz onde ele está', async () => {
