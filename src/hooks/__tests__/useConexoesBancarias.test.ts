@@ -13,6 +13,7 @@ vi.mock('@/hooks/useCsrf', () => ({
 }));
 
 import {
+  achatarEstrutura,
   ConexaoApiError,
   useConexoes,
   usePluggyConfig,
@@ -80,5 +81,40 @@ describe('useConexoesBancarias', () => {
     });
     expect((init.headers as Record<string, string>)['x-csrf-token']).toBe('t');
     expect(spy).toHaveBeenCalledWith({ queryKey: ['pluggy', 'conexoes'] });
+  });
+});
+
+describe('achatarEstrutura (linhas do fluxo para lançar transações do banco)', () => {
+  it('fora: ocultas, Investimentos e linhas espelho de Sonhos/Dívidas', () => {
+    const opcoes = achatarEstrutura([
+      {
+        id: 'g-desp',
+        name: 'Despesas',
+        type: 'despesa',
+        items: [],
+        children: [
+          {
+            id: 'g-hab',
+            name: 'Habitação',
+            type: 'despesa',
+            items: [
+              { id: 'it-mercado', name: 'Supermercado' },
+              { id: 'it-oculto', name: 'Gás', hidden: true },
+              { id: 'it-divida', name: 'Financiamento', dividaId: 'div-1' },
+              { id: 'it-sonho', name: 'Viagem', objetivoId: 'obj-1' },
+            ],
+          },
+        ],
+      },
+      {
+        id: 'g-inv',
+        name: 'Investimentos',
+        type: 'investimento',
+        items: [{ id: 'it-aporte', name: 'Aporte' }],
+      },
+    ]);
+    expect(opcoes).toEqual([
+      { itemId: 'it-mercado', rotulo: 'Habitação › Supermercado', tipo: 'despesa' },
+    ]);
   });
 });

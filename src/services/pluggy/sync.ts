@@ -63,6 +63,9 @@ const SELECT_LOCAL = {
   providerCategory: true,
   amount: true,
   deletedAt: true,
+  // Transação já lançada no Fluxo: mudança/remoção recalcula a célula (06/10/2026).
+  cashflowItemId: true,
+  date: true,
 } as const;
 
 // ---------------------------------------------------------------------------
@@ -333,6 +336,14 @@ export async function sincronizarConexao(
     let atualizadas = 0;
     let removidas = 0;
     let duplicadas = 0;
+    // Células do Fluxo de transações JÁ LANÇADAS que o banco alterou/removeu nesta rodada:
+    // recalculadas no fim (antes a célula ficava com o valor antigo até o próximo lançamento).
+    const celulasTocadas = new Map<string, Celula>();
+    const tocarCelula = (itemId: string | null, date: Date) => {
+      if (!itemId) return;
+      const c = { itemId, year: date.getUTCFullYear(), month: date.getUTCMonth() };
+      celulasTocadas.set(`${c.itemId}|${c.year}|${c.month}`, c);
+    };
 
     for (const conta of contas) {
       const chave = chaveConta(item.connector.id, conta);
@@ -375,6 +386,8 @@ export async function sincronizarConexao(
           const e = mapaHash.get(t.dedupHash);
           if (!e) continue;
           mapaHash.delete(t.dedupHash);
+          tocarCelula(e.cashflowItemId, e.date);
+          tocarCelula(e.cashflowItemId, t.date);
           await prisma.bankTransaction.update({
             where: { id: e.id },
             data: { ...t, deletedAt: null },
@@ -416,6 +429,8 @@ export async function sincronizarConexao(
         const e = porProviderId.get(t.providerTxId);
         if (!e) continue;
         if (e.deletedAt || transacaoMudou(e, t)) {
+          tocarCelula(e.cashflowItemId, e.date);
+          tocarCelula(e.cashflowItemId, t.date);
           await prisma.bankTransaction.update({
             where: { id: e.id },
             data: { ...t, deletedAt: null },
@@ -426,17 +441,24 @@ export async function sincronizarConexao(
 
       // Reconciliação da janela: o que existe localmente na janela e não veio
       // do provedor foi removido lá → marca deletedAt.
+      const whereRemovidas = {
+        accountId: local.id,
+        date: { gte: new Date(`${dateFrom}T00:00:00.000Z`) },
+        deletedAt: null,
+        providerTxId: { notIn: [...idsRemotos] },
+      };
+      const removidasLancadas = await prisma.bankTransaction.findMany({
+        where: { ...whereRemovidas, cashflowItemId: { not: null } },
+        select: { cashflowItemId: true, date: true },
+      });
+      for (const t of removidasLancadas) tocarCelula(t.cashflowItemId, t.date);
       const r = await prisma.bankTransaction.updateMany({
-        where: {
-          accountId: local.id,
-          date: { gte: new Date(`${dateFrom}T00:00:00.000Z`) },
-          deletedAt: null,
-          providerTxId: { notIn: [...idsRemotos] },
-        },
+        where: whereRemovidas,
         data: { deletedAt: new Date() },
       });
       removidas += r.count;
     }
+    for (const c of celulasTocadas.values()) await recomputarCelula(conexao.userId, c);
 
     // Investimentos e empréstimos (Fase 3): espelho + importação automática.
     // Best-effort: consentimento sem esses produtos não pode derrubar o sync de contas.

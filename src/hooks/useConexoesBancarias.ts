@@ -272,7 +272,13 @@ interface GrupoEstrutura {
   id: string;
   name: string;
   type: string;
-  items?: { id: string; name: string; hidden?: boolean }[];
+  items?: {
+    id: string;
+    name: string;
+    hidden?: boolean;
+    objetivoId?: string | null;
+    dividaId?: string | null;
+  }[];
   children?: GrupoEstrutura[];
 }
 
@@ -283,7 +289,8 @@ export function achatarEstrutura(grupos: GrupoEstrutura[]): OpcaoLinha[] {
     // grupo de Investimentos não recebe transações do banco (a Carteira é a fonte)
     if (g.type === 'investimento' || g.type === 'saldo') return;
     for (const it of g.items ?? []) {
-      if (it.hidden) continue;
+      // Linhas espelho de Sonhos/Dívidas são regeneradas por lá (o servidor recusa o lançamento).
+      if (it.hidden || it.objetivoId || it.dividaId) continue;
       out.push({ itemId: it.id, rotulo: [...atual.slice(1), it.name].join(' › '), tipo: g.type });
     }
     for (const c of g.children ?? []) walk(c, atual);

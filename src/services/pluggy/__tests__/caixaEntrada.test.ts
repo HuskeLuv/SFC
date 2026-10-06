@@ -50,6 +50,7 @@ const estrutura = [
             items: [
               { id: 'it-energia', name: 'Conta de energia' },
               { id: 'it-oculto', name: 'Gás', hidden: true },
+              { id: 'it-divida', name: 'Financiamento', dividaId: 'div-1' },
             ],
           },
         ],
@@ -93,6 +94,8 @@ describe('sugestão sobre a árvore do usuário', () => {
     });
     expect(resolverSugestao('Gas', idx)).toMatchObject({ tipo: 'linha', itemId: null });
     expect(resolverSugestao('Salary', idx)).toMatchObject({ itemId: 'it-sal' });
+    // linha espelho de Dívida nunca é sugerida
+    expect([...idx.values()]).not.toContain('it-divida');
     expect(resolverSugestao('Credit card payment', idx)).toEqual({
       tipo: 'transferencia',
       itemId: null,
@@ -265,6 +268,20 @@ describe('aplicar / desaplicar / ignorar', () => {
     await expect(aplicar('u1', [{ id: 't1', itemId: 'it-inv' }])).rejects.toMatchObject({
       statusCode: 400,
     });
+  });
+
+  it('400 para linha espelho de Sonho ou Dívida (a regeneração apagaria o lançamento)', async () => {
+    for (const espelho of [{ objetivoId: 'obj-1' }, { dividaId: 'div-1' }]) {
+      mockPrisma.bankTransaction.findMany.mockResolvedValueOnce([{ id: 't1', date: new Date() }]);
+      mockEnsure.mockResolvedValueOnce({
+        itemId: 'it-espelho',
+        item: { groupId: 'g-hab', ...espelho },
+      });
+      await expect(aplicar('u1', [{ id: 't1', itemId: 'it-espelho' }])).rejects.toMatchObject({
+        statusCode: 400,
+      });
+    }
+    expect(mockPrisma.bankTransaction.update).not.toHaveBeenCalled();
   });
 
   it('desaplicar volta a pendente e recomputa a célula antiga', async () => {
