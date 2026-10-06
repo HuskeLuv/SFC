@@ -1,0 +1,3329 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`obterOpcoesMover — payload idêntico (snapshot anterior à extração) > MOVER_CAIXA_RF_HABILITADO=false > CDB (trio) 1`] = `
+{
+  "atual": {
+    "abaId": "renda-fixa",
+    "categoria": "rendaFixaFundos",
+    "override": false,
+    "subgrupo": null,
+    "subgrupoLabel": null,
+  },
+  "avisos": [],
+  "destinos": [],
+  "item": {
+    "assetId": "a-cdb",
+    "id": "p-1",
+    "moeda": "BRL",
+    "nome": "CDB Banco X 110% CDI",
+    "ticker": "RENDA-FIXA-CDB-BANCO-X",
+    "tipo": "posicao",
+  },
+  "modelo": "fixo",
+  "motivo": "Renda Fixa ainda não pode ser movida para outra aba",
+  "movido": null,
+  "movivel": false,
+  "original": null,
+}
+`;
+
+exports[`obterOpcoesMover — payload idêntico (snapshot anterior à extração) > MOVER_CAIXA_RF_HABILITADO=false > CDB liquidez diária 1`] = `
+{
+  "atual": {
+    "abaId": "renda-fixa",
+    "categoria": "rendaFixaFundos",
+    "override": false,
+    "subgrupo": null,
+    "subgrupoLabel": null,
+  },
+  "avisos": [],
+  "destinos": [],
+  "item": {
+    "assetId": "a-cdb",
+    "id": "p-1",
+    "moeda": "BRL",
+    "nome": "CDB Banco X 110% CDI",
+    "ticker": "RENDA-FIXA-CDB-BANCO-X",
+    "tipo": "posicao",
+  },
+  "modelo": "fixo",
+  "motivo": "Renda Fixa ainda não pode ser movida para outra aba",
+  "movido": null,
+  "movivel": false,
+  "original": null,
+}
+`;
+
+exports[`obterOpcoesMover — payload idêntico (snapshot anterior à extração) > MOVER_CAIXA_RF_HABILITADO=false > CDB movido para a Emergência 1`] = `
+{
+  "atual": {
+    "abaId": "renda-fixa",
+    "categoria": "rendaFixaFundos",
+    "override": false,
+    "subgrupo": null,
+    "subgrupoLabel": null,
+  },
+  "avisos": [],
+  "destinos": [],
+  "item": {
+    "assetId": "a-cdb",
+    "id": "p-1",
+    "moeda": "BRL",
+    "nome": "CDB Banco X 110% CDI",
+    "ticker": "RENDA-FIXA-CDB-BANCO-X",
+    "tipo": "posicao",
+  },
+  "modelo": "fixo",
+  "motivo": "Renda Fixa ainda não pode ser movida para outra aba",
+  "movido": null,
+  "movivel": false,
+  "original": null,
+}
+`;
+
+exports[`obterOpcoesMover — payload idêntico (snapshot anterior à extração) > MOVER_CAIXA_RF_HABILITADO=false > ETF em dólar 1`] = `
+{
+  "atual": {
+    "abaId": "etf",
+    "categoria": "etfs",
+    "override": false,
+    "subgrupo": "estados_unidos",
+    "subgrupoLabel": "EUA",
+  },
+  "avisos": [],
+  "destinos": [
+    {
+      "abaId": "fim-fia",
+      "avisos": [],
+      "categoria": "fimFia",
+      "label": "Fundos",
+      "motivo": "Em dólar — esta aba é em reais",
+      "permitido": false,
+      "subgrupoSugerido": "fim",
+      "subgrupos": [
+        {
+          "atual": false,
+          "id": "fim",
+          "label": "FIM",
+        },
+        {
+          "atual": false,
+          "id": "fia",
+          "label": "FIA",
+        },
+        {
+          "atual": false,
+          "id": "rf",
+          "label": "Renda Fixa",
+        },
+        {
+          "atual": false,
+          "id": "cambial",
+          "label": "Cambial",
+        },
+        {
+          "atual": false,
+          "id": "fip",
+          "label": "FIP",
+        },
+        {
+          "atual": false,
+          "id": "fip-infra",
+          "label": "FIP Infraestrutura",
+        },
+        {
+          "atual": false,
+          "id": "fidc",
+          "label": "FIDC",
+        },
+        {
+          "atual": false,
+          "id": "fiagro",
+          "label": "Fiagro",
+        },
+      ],
+    },
+    {
+      "abaId": "fiis",
+      "avisos": [],
+      "categoria": "fiis",
+      "label": "FII's",
+      "motivo": "Em dólar — esta aba é em reais",
+      "permitido": false,
+      "subgrupoSugerido": "fofi",
+      "subgrupos": [
+        {
+          "atual": false,
+          "id": "fofi",
+          "label": "FOF (Fundos de Fundos)",
+        },
+        {
+          "atual": false,
+          "id": "tvm",
+          "label": "TVM",
+        },
+        {
+          "atual": false,
+          "id": "tijolo",
+          "label": "Tijolo",
+        },
+        {
+          "atual": false,
+          "id": "infra",
+          "label": "Infra",
+        },
+      ],
+    },
+    {
+      "abaId": "acoes",
+      "avisos": [],
+      "categoria": "acoes",
+      "label": "Ações",
+      "motivo": "Em dólar — esta aba é em reais",
+      "permitido": false,
+      "subgrupoSugerido": "value",
+      "subgrupos": [
+        {
+          "atual": false,
+          "id": "value",
+          "label": "Value",
+        },
+        {
+          "atual": false,
+          "id": "growth",
+          "label": "Growth",
+        },
+        {
+          "atual": false,
+          "id": "risk",
+          "label": "Risk",
+        },
+      ],
+    },
+    {
+      "abaId": "stocks",
+      "avisos": [],
+      "categoria": "stocks",
+      "label": "Stocks",
+      "motivo": "Em validação — ETF em dólar ainda não troca com Stocks e REIT's",
+      "permitido": false,
+      "subgrupoSugerido": "value",
+      "subgrupos": [
+        {
+          "atual": false,
+          "id": "value",
+          "label": "Value",
+        },
+        {
+          "atual": false,
+          "id": "growth",
+          "label": "Growth",
+        },
+        {
+          "atual": false,
+          "id": "risk",
+          "label": "Risk",
+        },
+      ],
+    },
+    {
+      "abaId": "reit",
+      "avisos": [],
+      "categoria": "reits",
+      "label": "REIT's",
+      "motivo": "Em validação — ETF em dólar ainda não troca com Stocks e REIT's",
+      "permitido": false,
+      "subgrupoSugerido": "value",
+      "subgrupos": [
+        {
+          "atual": false,
+          "id": "value",
+          "label": "Value",
+        },
+        {
+          "atual": false,
+          "id": "growth",
+          "label": "Growth",
+        },
+        {
+          "atual": false,
+          "id": "risk",
+          "label": "Risk",
+        },
+      ],
+    },
+    {
+      "abaId": "etf",
+      "avisos": [],
+      "categoria": "etfs",
+      "label": "ETF's",
+      "permitido": true,
+      "subgrupoSugerido": "estados_unidos",
+      "subgrupos": [
+        {
+          "atual": false,
+          "id": "brasil",
+          "label": "Brasil",
+        },
+        {
+          "atual": true,
+          "id": "estados_unidos",
+          "label": "EUA",
+        },
+      ],
+    },
+  ],
+  "item": {
+    "assetId": "a-voo",
+    "id": "p-1",
+    "moeda": "USD",
+    "nome": "Vanguard",
+    "ticker": "VOO",
+    "tipo": "posicao",
+  },
+  "modelo": "usd",
+  "movido": null,
+  "movivel": true,
+  "original": null,
+}
+`;
+
+exports[`obterOpcoesMover — payload idêntico (snapshot anterior à extração) > MOVER_CAIXA_RF_HABILITADO=false > FII em Tijolo 1`] = `
+{
+  "atual": {
+    "abaId": "fiis",
+    "categoria": "fiis",
+    "override": false,
+    "subgrupo": "tijolo",
+    "subgrupoLabel": "Tijolo",
+  },
+  "avisos": [],
+  "destinos": [
+    {
+      "abaId": "fim-fia",
+      "avisos": [
+        "A aba é só organização: o IR continua pelo tipo do ativo (FII)",
+      ],
+      "categoria": "fimFia",
+      "label": "Fundos",
+      "permitido": true,
+      "subgrupoSugerido": "fiagro",
+      "subgrupos": [
+        {
+          "atual": false,
+          "id": "fim",
+          "label": "FIM",
+        },
+        {
+          "atual": false,
+          "id": "fia",
+          "label": "FIA",
+        },
+        {
+          "atual": false,
+          "id": "rf",
+          "label": "Renda Fixa",
+        },
+        {
+          "atual": false,
+          "id": "cambial",
+          "label": "Cambial",
+        },
+        {
+          "atual": false,
+          "id": "fip",
+          "label": "FIP",
+        },
+        {
+          "atual": false,
+          "id": "fip-infra",
+          "label": "FIP Infraestrutura",
+        },
+        {
+          "atual": false,
+          "id": "fidc",
+          "label": "FIDC",
+        },
+        {
+          "atual": false,
+          "id": "fiagro",
+          "label": "Fiagro",
+        },
+      ],
+    },
+    {
+      "abaId": "fiis",
+      "avisos": [],
+      "categoria": "fiis",
+      "label": "FII's",
+      "permitido": true,
+      "subgrupoSugerido": "tijolo",
+      "subgrupos": [
+        {
+          "atual": false,
+          "id": "fofi",
+          "label": "FOF (Fundos de Fundos)",
+        },
+        {
+          "atual": false,
+          "id": "tvm",
+          "label": "TVM",
+        },
+        {
+          "atual": true,
+          "id": "tijolo",
+          "label": "Tijolo",
+        },
+        {
+          "atual": false,
+          "id": "infra",
+          "label": "Infra",
+        },
+      ],
+    },
+    {
+      "abaId": "acoes",
+      "avisos": [
+        "A aba é só organização: o IR continua pelo tipo do ativo (FII)",
+      ],
+      "categoria": "acoes",
+      "label": "Ações",
+      "permitido": true,
+      "subgrupoSugerido": "value",
+      "subgrupos": [
+        {
+          "atual": false,
+          "id": "value",
+          "label": "Value",
+        },
+        {
+          "atual": false,
+          "id": "growth",
+          "label": "Growth",
+        },
+        {
+          "atual": false,
+          "id": "risk",
+          "label": "Risk",
+        },
+      ],
+    },
+    {
+      "abaId": "stocks",
+      "avisos": [],
+      "categoria": "stocks",
+      "label": "Stocks",
+      "motivo": "Em reais — esta aba é em dólar",
+      "permitido": false,
+      "subgrupoSugerido": "value",
+      "subgrupos": [
+        {
+          "atual": false,
+          "id": "value",
+          "label": "Value",
+        },
+        {
+          "atual": false,
+          "id": "growth",
+          "label": "Growth",
+        },
+        {
+          "atual": false,
+          "id": "risk",
+          "label": "Risk",
+        },
+      ],
+    },
+    {
+      "abaId": "reit",
+      "avisos": [],
+      "categoria": "reits",
+      "label": "REIT's",
+      "motivo": "Em reais — esta aba é em dólar",
+      "permitido": false,
+      "subgrupoSugerido": "value",
+      "subgrupos": [
+        {
+          "atual": false,
+          "id": "value",
+          "label": "Value",
+        },
+        {
+          "atual": false,
+          "id": "growth",
+          "label": "Growth",
+        },
+        {
+          "atual": false,
+          "id": "risk",
+          "label": "Risk",
+        },
+      ],
+    },
+    {
+      "abaId": "etf",
+      "avisos": [
+        "A aba é só organização: o IR continua pelo tipo do ativo (FII)",
+      ],
+      "categoria": "etfs",
+      "label": "ETF's",
+      "permitido": true,
+      "subgrupoSugerido": "brasil",
+      "subgrupos": [
+        {
+          "atual": false,
+          "id": "brasil",
+          "label": "Brasil",
+        },
+        {
+          "atual": false,
+          "id": "estados_unidos",
+          "label": "EUA",
+        },
+      ],
+    },
+  ],
+  "item": {
+    "assetId": "a-knca",
+    "id": "p-1",
+    "moeda": "BRL",
+    "nome": "Kinea Agro",
+    "ticker": "KNCA11",
+    "tipo": "posicao",
+  },
+  "modelo": "b3-brl",
+  "movido": null,
+  "movivel": true,
+  "original": null,
+}
+`;
+
+exports[`obterOpcoesMover — payload idêntico (snapshot anterior à extração) > MOVER_CAIXA_RF_HABILITADO=false > FII movido para Fundos 1`] = `
+{
+  "atual": {
+    "abaId": "fim-fia",
+    "categoria": "fimFia",
+    "override": true,
+    "subgrupo": "fiagro",
+    "subgrupoLabel": "Fiagro",
+  },
+  "avisos": [],
+  "destinos": [
+    {
+      "abaId": "fim-fia",
+      "avisos": [],
+      "categoria": "fimFia",
+      "label": "Fundos",
+      "permitido": true,
+      "subgrupoSugerido": "fiagro",
+      "subgrupos": [
+        {
+          "atual": false,
+          "id": "fim",
+          "label": "FIM",
+        },
+        {
+          "atual": false,
+          "id": "fia",
+          "label": "FIA",
+        },
+        {
+          "atual": false,
+          "id": "rf",
+          "label": "Renda Fixa",
+        },
+        {
+          "atual": false,
+          "id": "cambial",
+          "label": "Cambial",
+        },
+        {
+          "atual": false,
+          "id": "fip",
+          "label": "FIP",
+        },
+        {
+          "atual": false,
+          "id": "fip-infra",
+          "label": "FIP Infraestrutura",
+        },
+        {
+          "atual": false,
+          "id": "fidc",
+          "label": "FIDC",
+        },
+        {
+          "atual": true,
+          "id": "fiagro",
+          "label": "Fiagro",
+        },
+      ],
+    },
+    {
+      "abaId": "fiis",
+      "avisos": [],
+      "categoria": "fiis",
+      "label": "FII's",
+      "permitido": true,
+      "subgrupoSugerido": "fofi",
+      "subgrupos": [
+        {
+          "atual": false,
+          "id": "fofi",
+          "label": "FOF (Fundos de Fundos)",
+        },
+        {
+          "atual": false,
+          "id": "tvm",
+          "label": "TVM",
+        },
+        {
+          "atual": false,
+          "id": "tijolo",
+          "label": "Tijolo",
+        },
+        {
+          "atual": false,
+          "id": "infra",
+          "label": "Infra",
+        },
+      ],
+    },
+    {
+      "abaId": "acoes",
+      "avisos": [
+        "A aba é só organização: o IR continua pelo tipo do ativo (FII)",
+      ],
+      "categoria": "acoes",
+      "label": "Ações",
+      "permitido": true,
+      "subgrupoSugerido": "value",
+      "subgrupos": [
+        {
+          "atual": false,
+          "id": "value",
+          "label": "Value",
+        },
+        {
+          "atual": false,
+          "id": "growth",
+          "label": "Growth",
+        },
+        {
+          "atual": false,
+          "id": "risk",
+          "label": "Risk",
+        },
+      ],
+    },
+    {
+      "abaId": "stocks",
+      "avisos": [],
+      "categoria": "stocks",
+      "label": "Stocks",
+      "motivo": "Em reais — esta aba é em dólar",
+      "permitido": false,
+      "subgrupoSugerido": "value",
+      "subgrupos": [
+        {
+          "atual": false,
+          "id": "value",
+          "label": "Value",
+        },
+        {
+          "atual": false,
+          "id": "growth",
+          "label": "Growth",
+        },
+        {
+          "atual": false,
+          "id": "risk",
+          "label": "Risk",
+        },
+      ],
+    },
+    {
+      "abaId": "reit",
+      "avisos": [],
+      "categoria": "reits",
+      "label": "REIT's",
+      "motivo": "Em reais — esta aba é em dólar",
+      "permitido": false,
+      "subgrupoSugerido": "value",
+      "subgrupos": [
+        {
+          "atual": false,
+          "id": "value",
+          "label": "Value",
+        },
+        {
+          "atual": false,
+          "id": "growth",
+          "label": "Growth",
+        },
+        {
+          "atual": false,
+          "id": "risk",
+          "label": "Risk",
+        },
+      ],
+    },
+    {
+      "abaId": "etf",
+      "avisos": [
+        "A aba é só organização: o IR continua pelo tipo do ativo (FII)",
+      ],
+      "categoria": "etfs",
+      "label": "ETF's",
+      "permitido": true,
+      "subgrupoSugerido": "brasil",
+      "subgrupos": [
+        {
+          "atual": false,
+          "id": "brasil",
+          "label": "Brasil",
+        },
+        {
+          "atual": false,
+          "id": "estados_unidos",
+          "label": "EUA",
+        },
+      ],
+    },
+  ],
+  "item": {
+    "assetId": "a-knca",
+    "id": "p-1",
+    "moeda": "BRL",
+    "nome": "Kinea Agro",
+    "ticker": "KNCA11",
+    "tipo": "posicao",
+  },
+  "modelo": "b3-brl",
+  "movido": null,
+  "movivel": true,
+  "original": {
+    "categoria": "fiis",
+    "label": "FII's › FOF (Fundos de Fundos)",
+    "subgrupo": null,
+  },
+}
+`;
+
+exports[`obterOpcoesMover — payload idêntico (snapshot anterior à extração) > MOVER_CAIXA_RF_HABILITADO=false > ação 1`] = `
+{
+  "atual": {
+    "abaId": "acoes",
+    "categoria": "acoes",
+    "override": false,
+    "subgrupo": "value",
+    "subgrupoLabel": "Value",
+  },
+  "avisos": [],
+  "destinos": [
+    {
+      "abaId": "fim-fia",
+      "avisos": [
+        "A aba é só organização: o IR continua pelo tipo do ativo (ação)",
+        "O objetivo (%) volta para 0 na aba nova",
+      ],
+      "categoria": "fimFia",
+      "label": "Fundos",
+      "permitido": true,
+      "subgrupoSugerido": "fim",
+      "subgrupos": [
+        {
+          "atual": false,
+          "id": "fim",
+          "label": "FIM",
+        },
+        {
+          "atual": false,
+          "id": "fia",
+          "label": "FIA",
+        },
+        {
+          "atual": false,
+          "id": "rf",
+          "label": "Renda Fixa",
+        },
+        {
+          "atual": false,
+          "id": "cambial",
+          "label": "Cambial",
+        },
+        {
+          "atual": false,
+          "id": "fip",
+          "label": "FIP",
+        },
+        {
+          "atual": false,
+          "id": "fip-infra",
+          "label": "FIP Infraestrutura",
+        },
+        {
+          "atual": false,
+          "id": "fidc",
+          "label": "FIDC",
+        },
+        {
+          "atual": false,
+          "id": "fiagro",
+          "label": "Fiagro",
+        },
+      ],
+    },
+    {
+      "abaId": "fiis",
+      "avisos": [
+        "A aba é só organização: o IR continua pelo tipo do ativo (ação)",
+        "O objetivo (%) volta para 0 na aba nova",
+      ],
+      "categoria": "fiis",
+      "label": "FII's",
+      "permitido": true,
+      "subgrupoSugerido": "fofi",
+      "subgrupos": [
+        {
+          "atual": false,
+          "id": "fofi",
+          "label": "FOF (Fundos de Fundos)",
+        },
+        {
+          "atual": false,
+          "id": "tvm",
+          "label": "TVM",
+        },
+        {
+          "atual": false,
+          "id": "tijolo",
+          "label": "Tijolo",
+        },
+        {
+          "atual": false,
+          "id": "infra",
+          "label": "Infra",
+        },
+      ],
+    },
+    {
+      "abaId": "acoes",
+      "avisos": [],
+      "categoria": "acoes",
+      "label": "Ações",
+      "permitido": true,
+      "subgrupoSugerido": "value",
+      "subgrupos": [
+        {
+          "atual": true,
+          "id": "value",
+          "label": "Value",
+        },
+        {
+          "atual": false,
+          "id": "growth",
+          "label": "Growth",
+        },
+        {
+          "atual": false,
+          "id": "risk",
+          "label": "Risk",
+        },
+      ],
+    },
+    {
+      "abaId": "stocks",
+      "avisos": [],
+      "categoria": "stocks",
+      "label": "Stocks",
+      "motivo": "Em reais — esta aba é em dólar",
+      "permitido": false,
+      "subgrupoSugerido": "value",
+      "subgrupos": [
+        {
+          "atual": false,
+          "id": "value",
+          "label": "Value",
+        },
+        {
+          "atual": false,
+          "id": "growth",
+          "label": "Growth",
+        },
+        {
+          "atual": false,
+          "id": "risk",
+          "label": "Risk",
+        },
+      ],
+    },
+    {
+      "abaId": "reit",
+      "avisos": [],
+      "categoria": "reits",
+      "label": "REIT's",
+      "motivo": "Em reais — esta aba é em dólar",
+      "permitido": false,
+      "subgrupoSugerido": "value",
+      "subgrupos": [
+        {
+          "atual": false,
+          "id": "value",
+          "label": "Value",
+        },
+        {
+          "atual": false,
+          "id": "growth",
+          "label": "Growth",
+        },
+        {
+          "atual": false,
+          "id": "risk",
+          "label": "Risk",
+        },
+      ],
+    },
+    {
+      "abaId": "etf",
+      "avisos": [
+        "A aba é só organização: o IR continua pelo tipo do ativo (ação)",
+        "O objetivo (%) volta para 0 na aba nova",
+      ],
+      "categoria": "etfs",
+      "label": "ETF's",
+      "permitido": true,
+      "subgrupoSugerido": "brasil",
+      "subgrupos": [
+        {
+          "atual": false,
+          "id": "brasil",
+          "label": "Brasil",
+        },
+        {
+          "atual": false,
+          "id": "estados_unidos",
+          "label": "EUA",
+        },
+      ],
+    },
+  ],
+  "item": {
+    "assetId": "a-vale",
+    "id": "p-1",
+    "moeda": "BRL",
+    "nome": "Vale",
+    "ticker": "VALE3",
+    "tipo": "posicao",
+  },
+  "modelo": "b3-brl",
+  "movido": null,
+  "movivel": true,
+  "original": null,
+}
+`;
+
+exports[`obterOpcoesMover — payload idêntico (snapshot anterior à extração) > MOVER_CAIXA_RF_HABILITADO=false > fundo CVM 1`] = `
+{
+  "atual": {
+    "abaId": "fim-fia",
+    "categoria": "fimFia",
+    "override": false,
+    "subgrupo": "fia",
+    "subgrupoLabel": "FIA",
+  },
+  "avisos": [],
+  "destinos": [
+    {
+      "abaId": "fim-fia",
+      "avisos": [],
+      "categoria": "fimFia",
+      "label": "Fundos",
+      "permitido": true,
+      "subgrupoSugerido": "fia",
+      "subgrupos": [
+        {
+          "atual": false,
+          "id": "fim",
+          "label": "FIM",
+        },
+        {
+          "atual": true,
+          "id": "fia",
+          "label": "FIA",
+        },
+        {
+          "atual": false,
+          "id": "rf",
+          "label": "Renda Fixa",
+        },
+        {
+          "atual": false,
+          "id": "cambial",
+          "label": "Cambial",
+        },
+        {
+          "atual": false,
+          "id": "fip",
+          "label": "FIP",
+        },
+        {
+          "atual": false,
+          "id": "fip-infra",
+          "label": "FIP Infraestrutura",
+        },
+        {
+          "atual": false,
+          "id": "fidc",
+          "label": "FIDC",
+        },
+        {
+          "atual": false,
+          "id": "fiagro",
+          "label": "Fiagro",
+        },
+      ],
+    },
+    {
+      "abaId": "fiis",
+      "avisos": [],
+      "categoria": "fiis",
+      "label": "FII's",
+      "motivo": "Sem cotação em bolsa: o valor vem da cota/curva",
+      "permitido": false,
+      "subgrupoSugerido": "fofi",
+      "subgrupos": [
+        {
+          "atual": false,
+          "id": "fofi",
+          "label": "FOF (Fundos de Fundos)",
+        },
+        {
+          "atual": false,
+          "id": "tvm",
+          "label": "TVM",
+        },
+        {
+          "atual": false,
+          "id": "tijolo",
+          "label": "Tijolo",
+        },
+        {
+          "atual": false,
+          "id": "infra",
+          "label": "Infra",
+        },
+      ],
+    },
+    {
+      "abaId": "acoes",
+      "avisos": [],
+      "categoria": "acoes",
+      "label": "Ações",
+      "motivo": "Sem cotação em bolsa: o valor vem da cota/curva",
+      "permitido": false,
+      "subgrupoSugerido": "value",
+      "subgrupos": [
+        {
+          "atual": false,
+          "id": "value",
+          "label": "Value",
+        },
+        {
+          "atual": false,
+          "id": "growth",
+          "label": "Growth",
+        },
+        {
+          "atual": false,
+          "id": "risk",
+          "label": "Risk",
+        },
+      ],
+    },
+    {
+      "abaId": "stocks",
+      "avisos": [],
+      "categoria": "stocks",
+      "label": "Stocks",
+      "motivo": "Sem cotação em bolsa: o valor vem da cota/curva",
+      "permitido": false,
+      "subgrupoSugerido": "value",
+      "subgrupos": [
+        {
+          "atual": false,
+          "id": "value",
+          "label": "Value",
+        },
+        {
+          "atual": false,
+          "id": "growth",
+          "label": "Growth",
+        },
+        {
+          "atual": false,
+          "id": "risk",
+          "label": "Risk",
+        },
+      ],
+    },
+    {
+      "abaId": "reit",
+      "avisos": [],
+      "categoria": "reits",
+      "label": "REIT's",
+      "motivo": "Sem cotação em bolsa: o valor vem da cota/curva",
+      "permitido": false,
+      "subgrupoSugerido": "value",
+      "subgrupos": [
+        {
+          "atual": false,
+          "id": "value",
+          "label": "Value",
+        },
+        {
+          "atual": false,
+          "id": "growth",
+          "label": "Growth",
+        },
+        {
+          "atual": false,
+          "id": "risk",
+          "label": "Risk",
+        },
+      ],
+    },
+    {
+      "abaId": "etf",
+      "avisos": [],
+      "categoria": "etfs",
+      "label": "ETF's",
+      "motivo": "Sem cotação em bolsa: o valor vem da cota/curva",
+      "permitido": false,
+      "subgrupoSugerido": "brasil",
+      "subgrupos": [
+        {
+          "atual": false,
+          "id": "brasil",
+          "label": "Brasil",
+        },
+        {
+          "atual": false,
+          "id": "estados_unidos",
+          "label": "EUA",
+        },
+      ],
+    },
+  ],
+  "item": {
+    "assetId": "a-fia",
+    "id": "p-1",
+    "moeda": "BRL",
+    "nome": "Fundo Ações X",
+    "ticker": "FUNDO-12345678000199",
+    "tipo": "posicao",
+  },
+  "modelo": "fundo",
+  "movido": null,
+  "movivel": true,
+  "original": null,
+}
+`;
+
+exports[`obterOpcoesMover — payload idêntico (snapshot anterior à extração) > MOVER_CAIXA_RF_HABILITADO=false > previdência 1`] = `
+{
+  "atual": {
+    "abaId": "previdencia",
+    "categoria": "previdenciaSeguros",
+    "override": false,
+    "subgrupo": null,
+    "subgrupoLabel": null,
+  },
+  "avisos": [],
+  "destinos": [],
+  "item": {
+    "assetId": "a-prev",
+    "id": "p-1",
+    "moeda": "BRL",
+    "nome": "PGBL Banco X",
+    "ticker": "PREVIDENCIA-PGBL-1",
+    "tipo": "posicao",
+  },
+  "modelo": "fixo",
+  "motivo": "Previdência e Seguros ainda não pode ser movida para outra aba",
+  "movido": null,
+  "movivel": false,
+  "original": null,
+}
+`;
+
+exports[`obterOpcoesMover — payload idêntico (snapshot anterior à extração) > MOVER_CAIXA_RF_HABILITADO=true > CDB (trio) 1`] = `
+{
+  "atual": {
+    "abaId": "renda-fixa",
+    "categoria": "rendaFixaFundos",
+    "override": false,
+    "subgrupo": "pos-fixada",
+    "subgrupoLabel": "Pós-fixada",
+  },
+  "avisos": [],
+  "destinos": [
+    {
+      "abaId": "reserva-emergencia",
+      "avisos": [
+        "Sem liquidez diária. Mesmo assim conta inteiro como Reserva de Emergência na Saúde Financeira",
+        "A Saúde Financeira recalcula a reserva de emergência com esta mudança",
+      ],
+      "categoria": "reservaEmergencia",
+      "label": "Reserva Emergência",
+      "permitido": true,
+      "subgrupoEditavel": false,
+      "subgrupoSugerido": "",
+      "subgrupos": [],
+    },
+    {
+      "abaId": "reserva-oportunidade",
+      "avisos": [],
+      "categoria": "reservaOportunidade",
+      "label": "Reserva Oportunidade",
+      "permitido": true,
+      "subgrupoEditavel": false,
+      "subgrupoSugerido": "",
+      "subgrupos": [],
+    },
+    {
+      "abaId": "renda-fixa",
+      "avisos": [],
+      "categoria": "rendaFixaFundos",
+      "label": "Renda Fixa",
+      "permitido": true,
+      "secaoAutomatica": {
+        "id": "pos-fixada",
+        "label": "Pós-fixada",
+        "via": "indexador",
+      },
+      "subgrupoEditavel": false,
+      "subgrupoSugerido": "pos-fixada",
+      "subgrupos": [
+        {
+          "atual": true,
+          "id": "pos-fixada",
+          "label": "Pós-fixada",
+        },
+        {
+          "atual": false,
+          "id": "prefixada",
+          "label": "Pré-fixada",
+        },
+        {
+          "atual": false,
+          "id": "hibrida",
+          "label": "Híbrida",
+        },
+      ],
+    },
+    {
+      "abaId": "fim-fia",
+      "avisos": [],
+      "categoria": "fimFia",
+      "label": "Fundos",
+      "motivo": "Sem cotação em bolsa: o valor vem da curva do título",
+      "permitido": false,
+      "subgrupoEditavel": true,
+      "subgrupoSugerido": "fim",
+      "subgrupos": [
+        {
+          "atual": false,
+          "id": "fim",
+          "label": "FIM",
+        },
+        {
+          "atual": false,
+          "id": "fia",
+          "label": "FIA",
+        },
+        {
+          "atual": false,
+          "id": "rf",
+          "label": "Renda Fixa",
+        },
+        {
+          "atual": false,
+          "id": "cambial",
+          "label": "Cambial",
+        },
+        {
+          "atual": false,
+          "id": "fip",
+          "label": "FIP",
+        },
+        {
+          "atual": false,
+          "id": "fip-infra",
+          "label": "FIP Infraestrutura",
+        },
+        {
+          "atual": false,
+          "id": "fidc",
+          "label": "FIDC",
+        },
+        {
+          "atual": false,
+          "id": "fiagro",
+          "label": "Fiagro",
+        },
+      ],
+    },
+    {
+      "abaId": "fiis",
+      "avisos": [],
+      "categoria": "fiis",
+      "label": "FII's",
+      "motivo": "Sem cotação em bolsa: o valor vem da curva do título",
+      "permitido": false,
+      "subgrupoEditavel": true,
+      "subgrupoSugerido": "fofi",
+      "subgrupos": [
+        {
+          "atual": false,
+          "id": "fofi",
+          "label": "FOF (Fundos de Fundos)",
+        },
+        {
+          "atual": false,
+          "id": "tvm",
+          "label": "TVM",
+        },
+        {
+          "atual": false,
+          "id": "tijolo",
+          "label": "Tijolo",
+        },
+        {
+          "atual": false,
+          "id": "infra",
+          "label": "Infra",
+        },
+      ],
+    },
+    {
+      "abaId": "acoes",
+      "avisos": [],
+      "categoria": "acoes",
+      "label": "Ações",
+      "motivo": "Sem cotação em bolsa: o valor vem da curva do título",
+      "permitido": false,
+      "subgrupoEditavel": true,
+      "subgrupoSugerido": "value",
+      "subgrupos": [
+        {
+          "atual": false,
+          "id": "value",
+          "label": "Value",
+        },
+        {
+          "atual": false,
+          "id": "growth",
+          "label": "Growth",
+        },
+        {
+          "atual": false,
+          "id": "risk",
+          "label": "Risk",
+        },
+      ],
+    },
+    {
+      "abaId": "stocks",
+      "avisos": [],
+      "categoria": "stocks",
+      "label": "Stocks",
+      "motivo": "Sem cotação em bolsa: o valor vem da curva do título",
+      "permitido": false,
+      "subgrupoEditavel": true,
+      "subgrupoSugerido": "value",
+      "subgrupos": [
+        {
+          "atual": false,
+          "id": "value",
+          "label": "Value",
+        },
+        {
+          "atual": false,
+          "id": "growth",
+          "label": "Growth",
+        },
+        {
+          "atual": false,
+          "id": "risk",
+          "label": "Risk",
+        },
+      ],
+    },
+    {
+      "abaId": "reit",
+      "avisos": [],
+      "categoria": "reits",
+      "label": "REIT's",
+      "motivo": "Sem cotação em bolsa: o valor vem da curva do título",
+      "permitido": false,
+      "subgrupoEditavel": true,
+      "subgrupoSugerido": "value",
+      "subgrupos": [
+        {
+          "atual": false,
+          "id": "value",
+          "label": "Value",
+        },
+        {
+          "atual": false,
+          "id": "growth",
+          "label": "Growth",
+        },
+        {
+          "atual": false,
+          "id": "risk",
+          "label": "Risk",
+        },
+      ],
+    },
+    {
+      "abaId": "etf",
+      "avisos": [],
+      "categoria": "etfs",
+      "label": "ETF's",
+      "motivo": "Sem cotação em bolsa: o valor vem da curva do título",
+      "permitido": false,
+      "subgrupoEditavel": true,
+      "subgrupoSugerido": "brasil",
+      "subgrupos": [
+        {
+          "atual": false,
+          "id": "brasil",
+          "label": "Brasil",
+        },
+        {
+          "atual": false,
+          "id": "estados_unidos",
+          "label": "EUA",
+        },
+      ],
+    },
+  ],
+  "grupo": "caixaRf",
+  "item": {
+    "assetId": "a-cdb",
+    "id": "p-1",
+    "moeda": "BRL",
+    "nome": "CDB Banco X",
+    "ticker": "RENDA-FIXA-CDB-BANCO-X",
+    "tipo": "posicao",
+    "valorAtualBRL": 11500,
+  },
+  "modelo": "curva",
+  "movido": null,
+  "movivel": true,
+  "original": null,
+}
+`;
+
+exports[`obterOpcoesMover — payload idêntico (snapshot anterior à extração) > MOVER_CAIXA_RF_HABILITADO=true > CDB liquidez diária 1`] = `
+{
+  "atual": {
+    "abaId": "renda-fixa",
+    "categoria": "rendaFixaFundos",
+    "override": false,
+    "subgrupo": "pos-fixada",
+    "subgrupoLabel": "Pós-fixada",
+  },
+  "avisos": [],
+  "destinos": [
+    {
+      "abaId": "reserva-emergencia",
+      "avisos": [
+        "Sem liquidez diária. Mesmo assim conta inteiro como Reserva de Emergência na Saúde Financeira",
+        "A Saúde Financeira recalcula a reserva de emergência com esta mudança",
+      ],
+      "categoria": "reservaEmergencia",
+      "label": "Reserva Emergência",
+      "permitido": true,
+      "subgrupoEditavel": false,
+      "subgrupoSugerido": "",
+      "subgrupos": [],
+    },
+    {
+      "abaId": "reserva-oportunidade",
+      "avisos": [],
+      "categoria": "reservaOportunidade",
+      "label": "Reserva Oportunidade",
+      "permitido": true,
+      "subgrupoEditavel": false,
+      "subgrupoSugerido": "",
+      "subgrupos": [],
+    },
+    {
+      "abaId": "renda-fixa",
+      "avisos": [],
+      "categoria": "rendaFixaFundos",
+      "label": "Renda Fixa",
+      "permitido": true,
+      "secaoAutomatica": {
+        "id": "pos-fixada",
+        "label": "Pós-fixada",
+        "via": "indexador",
+      },
+      "subgrupoEditavel": false,
+      "subgrupoSugerido": "pos-fixada",
+      "subgrupos": [
+        {
+          "atual": true,
+          "id": "pos-fixada",
+          "label": "Pós-fixada",
+        },
+        {
+          "atual": false,
+          "id": "prefixada",
+          "label": "Pré-fixada",
+        },
+        {
+          "atual": false,
+          "id": "hibrida",
+          "label": "Híbrida",
+        },
+      ],
+    },
+    {
+      "abaId": "fim-fia",
+      "avisos": [],
+      "categoria": "fimFia",
+      "label": "Fundos",
+      "motivo": "Sem cotação em bolsa: o valor vem da curva do título",
+      "permitido": false,
+      "subgrupoEditavel": true,
+      "subgrupoSugerido": "fim",
+      "subgrupos": [
+        {
+          "atual": false,
+          "id": "fim",
+          "label": "FIM",
+        },
+        {
+          "atual": false,
+          "id": "fia",
+          "label": "FIA",
+        },
+        {
+          "atual": false,
+          "id": "rf",
+          "label": "Renda Fixa",
+        },
+        {
+          "atual": false,
+          "id": "cambial",
+          "label": "Cambial",
+        },
+        {
+          "atual": false,
+          "id": "fip",
+          "label": "FIP",
+        },
+        {
+          "atual": false,
+          "id": "fip-infra",
+          "label": "FIP Infraestrutura",
+        },
+        {
+          "atual": false,
+          "id": "fidc",
+          "label": "FIDC",
+        },
+        {
+          "atual": false,
+          "id": "fiagro",
+          "label": "Fiagro",
+        },
+      ],
+    },
+    {
+      "abaId": "fiis",
+      "avisos": [],
+      "categoria": "fiis",
+      "label": "FII's",
+      "motivo": "Sem cotação em bolsa: o valor vem da curva do título",
+      "permitido": false,
+      "subgrupoEditavel": true,
+      "subgrupoSugerido": "fofi",
+      "subgrupos": [
+        {
+          "atual": false,
+          "id": "fofi",
+          "label": "FOF (Fundos de Fundos)",
+        },
+        {
+          "atual": false,
+          "id": "tvm",
+          "label": "TVM",
+        },
+        {
+          "atual": false,
+          "id": "tijolo",
+          "label": "Tijolo",
+        },
+        {
+          "atual": false,
+          "id": "infra",
+          "label": "Infra",
+        },
+      ],
+    },
+    {
+      "abaId": "acoes",
+      "avisos": [],
+      "categoria": "acoes",
+      "label": "Ações",
+      "motivo": "Sem cotação em bolsa: o valor vem da curva do título",
+      "permitido": false,
+      "subgrupoEditavel": true,
+      "subgrupoSugerido": "value",
+      "subgrupos": [
+        {
+          "atual": false,
+          "id": "value",
+          "label": "Value",
+        },
+        {
+          "atual": false,
+          "id": "growth",
+          "label": "Growth",
+        },
+        {
+          "atual": false,
+          "id": "risk",
+          "label": "Risk",
+        },
+      ],
+    },
+    {
+      "abaId": "stocks",
+      "avisos": [],
+      "categoria": "stocks",
+      "label": "Stocks",
+      "motivo": "Sem cotação em bolsa: o valor vem da curva do título",
+      "permitido": false,
+      "subgrupoEditavel": true,
+      "subgrupoSugerido": "value",
+      "subgrupos": [
+        {
+          "atual": false,
+          "id": "value",
+          "label": "Value",
+        },
+        {
+          "atual": false,
+          "id": "growth",
+          "label": "Growth",
+        },
+        {
+          "atual": false,
+          "id": "risk",
+          "label": "Risk",
+        },
+      ],
+    },
+    {
+      "abaId": "reit",
+      "avisos": [],
+      "categoria": "reits",
+      "label": "REIT's",
+      "motivo": "Sem cotação em bolsa: o valor vem da curva do título",
+      "permitido": false,
+      "subgrupoEditavel": true,
+      "subgrupoSugerido": "value",
+      "subgrupos": [
+        {
+          "atual": false,
+          "id": "value",
+          "label": "Value",
+        },
+        {
+          "atual": false,
+          "id": "growth",
+          "label": "Growth",
+        },
+        {
+          "atual": false,
+          "id": "risk",
+          "label": "Risk",
+        },
+      ],
+    },
+    {
+      "abaId": "etf",
+      "avisos": [],
+      "categoria": "etfs",
+      "label": "ETF's",
+      "motivo": "Sem cotação em bolsa: o valor vem da curva do título",
+      "permitido": false,
+      "subgrupoEditavel": true,
+      "subgrupoSugerido": "brasil",
+      "subgrupos": [
+        {
+          "atual": false,
+          "id": "brasil",
+          "label": "Brasil",
+        },
+        {
+          "atual": false,
+          "id": "estados_unidos",
+          "label": "EUA",
+        },
+      ],
+    },
+  ],
+  "grupo": "caixaRf",
+  "item": {
+    "assetId": "a-cdb",
+    "id": "p-1",
+    "moeda": "BRL",
+    "nome": "CDB Banco X",
+    "ticker": "RENDA-FIXA-CDB-BANCO-X",
+    "tipo": "posicao",
+    "valorAtualBRL": 11500,
+  },
+  "modelo": "curva",
+  "movido": null,
+  "movivel": true,
+  "original": null,
+}
+`;
+
+exports[`obterOpcoesMover — payload idêntico (snapshot anterior à extração) > MOVER_CAIXA_RF_HABILITADO=true > CDB movido para a Emergência 1`] = `
+{
+  "atual": {
+    "abaId": "reserva-emergencia",
+    "categoria": "reservaEmergencia",
+    "override": true,
+    "subgrupo": null,
+    "subgrupoLabel": null,
+  },
+  "avisos": [],
+  "destinos": [
+    {
+      "abaId": "reserva-emergencia",
+      "avisos": [],
+      "categoria": "reservaEmergencia",
+      "label": "Reserva Emergência",
+      "permitido": true,
+      "subgrupoEditavel": false,
+      "subgrupoSugerido": "",
+      "subgrupos": [],
+    },
+    {
+      "abaId": "reserva-oportunidade",
+      "avisos": [
+        "A Saúde Financeira recalcula a reserva de emergência com esta mudança",
+      ],
+      "categoria": "reservaOportunidade",
+      "label": "Reserva Oportunidade",
+      "permitido": true,
+      "subgrupoEditavel": false,
+      "subgrupoSugerido": "",
+      "subgrupos": [],
+    },
+    {
+      "abaId": "renda-fixa",
+      "avisos": [
+        "A Saúde Financeira recalcula a reserva de emergência com esta mudança",
+      ],
+      "categoria": "rendaFixaFundos",
+      "label": "Renda Fixa",
+      "permitido": true,
+      "secaoAutomatica": {
+        "id": "pos-fixada",
+        "label": "Pós-fixada",
+        "via": "indexador",
+      },
+      "subgrupoEditavel": false,
+      "subgrupoSugerido": "pos-fixada",
+      "subgrupos": [
+        {
+          "atual": false,
+          "id": "pos-fixada",
+          "label": "Pós-fixada",
+        },
+        {
+          "atual": false,
+          "id": "prefixada",
+          "label": "Pré-fixada",
+        },
+        {
+          "atual": false,
+          "id": "hibrida",
+          "label": "Híbrida",
+        },
+      ],
+    },
+    {
+      "abaId": "fim-fia",
+      "avisos": [],
+      "categoria": "fimFia",
+      "label": "Fundos",
+      "motivo": "Sem cotação em bolsa: o valor vem da curva do título",
+      "permitido": false,
+      "subgrupoEditavel": true,
+      "subgrupoSugerido": "fim",
+      "subgrupos": [
+        {
+          "atual": false,
+          "id": "fim",
+          "label": "FIM",
+        },
+        {
+          "atual": false,
+          "id": "fia",
+          "label": "FIA",
+        },
+        {
+          "atual": false,
+          "id": "rf",
+          "label": "Renda Fixa",
+        },
+        {
+          "atual": false,
+          "id": "cambial",
+          "label": "Cambial",
+        },
+        {
+          "atual": false,
+          "id": "fip",
+          "label": "FIP",
+        },
+        {
+          "atual": false,
+          "id": "fip-infra",
+          "label": "FIP Infraestrutura",
+        },
+        {
+          "atual": false,
+          "id": "fidc",
+          "label": "FIDC",
+        },
+        {
+          "atual": false,
+          "id": "fiagro",
+          "label": "Fiagro",
+        },
+      ],
+    },
+    {
+      "abaId": "fiis",
+      "avisos": [],
+      "categoria": "fiis",
+      "label": "FII's",
+      "motivo": "Sem cotação em bolsa: o valor vem da curva do título",
+      "permitido": false,
+      "subgrupoEditavel": true,
+      "subgrupoSugerido": "fofi",
+      "subgrupos": [
+        {
+          "atual": false,
+          "id": "fofi",
+          "label": "FOF (Fundos de Fundos)",
+        },
+        {
+          "atual": false,
+          "id": "tvm",
+          "label": "TVM",
+        },
+        {
+          "atual": false,
+          "id": "tijolo",
+          "label": "Tijolo",
+        },
+        {
+          "atual": false,
+          "id": "infra",
+          "label": "Infra",
+        },
+      ],
+    },
+    {
+      "abaId": "acoes",
+      "avisos": [],
+      "categoria": "acoes",
+      "label": "Ações",
+      "motivo": "Sem cotação em bolsa: o valor vem da curva do título",
+      "permitido": false,
+      "subgrupoEditavel": true,
+      "subgrupoSugerido": "value",
+      "subgrupos": [
+        {
+          "atual": false,
+          "id": "value",
+          "label": "Value",
+        },
+        {
+          "atual": false,
+          "id": "growth",
+          "label": "Growth",
+        },
+        {
+          "atual": false,
+          "id": "risk",
+          "label": "Risk",
+        },
+      ],
+    },
+    {
+      "abaId": "stocks",
+      "avisos": [],
+      "categoria": "stocks",
+      "label": "Stocks",
+      "motivo": "Sem cotação em bolsa: o valor vem da curva do título",
+      "permitido": false,
+      "subgrupoEditavel": true,
+      "subgrupoSugerido": "value",
+      "subgrupos": [
+        {
+          "atual": false,
+          "id": "value",
+          "label": "Value",
+        },
+        {
+          "atual": false,
+          "id": "growth",
+          "label": "Growth",
+        },
+        {
+          "atual": false,
+          "id": "risk",
+          "label": "Risk",
+        },
+      ],
+    },
+    {
+      "abaId": "reit",
+      "avisos": [],
+      "categoria": "reits",
+      "label": "REIT's",
+      "motivo": "Sem cotação em bolsa: o valor vem da curva do título",
+      "permitido": false,
+      "subgrupoEditavel": true,
+      "subgrupoSugerido": "value",
+      "subgrupos": [
+        {
+          "atual": false,
+          "id": "value",
+          "label": "Value",
+        },
+        {
+          "atual": false,
+          "id": "growth",
+          "label": "Growth",
+        },
+        {
+          "atual": false,
+          "id": "risk",
+          "label": "Risk",
+        },
+      ],
+    },
+    {
+      "abaId": "etf",
+      "avisos": [],
+      "categoria": "etfs",
+      "label": "ETF's",
+      "motivo": "Sem cotação em bolsa: o valor vem da curva do título",
+      "permitido": false,
+      "subgrupoEditavel": true,
+      "subgrupoSugerido": "brasil",
+      "subgrupos": [
+        {
+          "atual": false,
+          "id": "brasil",
+          "label": "Brasil",
+        },
+        {
+          "atual": false,
+          "id": "estados_unidos",
+          "label": "EUA",
+        },
+      ],
+    },
+  ],
+  "grupo": "caixaRf",
+  "item": {
+    "assetId": "a-cdb",
+    "id": "p-1",
+    "moeda": "BRL",
+    "nome": "CDB Banco X",
+    "ticker": "RENDA-FIXA-CDB-BANCO-X",
+    "tipo": "posicao",
+    "valorAtualBRL": 11500,
+  },
+  "modelo": "curva",
+  "movido": null,
+  "movivel": true,
+  "original": {
+    "categoria": "rendaFixaFundos",
+    "label": "Renda Fixa › Pós-fixada",
+    "subgrupo": "pos-fixada",
+  },
+}
+`;
+
+exports[`obterOpcoesMover — payload idêntico (snapshot anterior à extração) > MOVER_CAIXA_RF_HABILITADO=true > ETF em dólar 1`] = `
+{
+  "atual": {
+    "abaId": "etf",
+    "categoria": "etfs",
+    "override": false,
+    "subgrupo": "estados_unidos",
+    "subgrupoLabel": "EUA",
+  },
+  "avisos": [],
+  "destinos": [
+    {
+      "abaId": "reserva-emergencia",
+      "avisos": [],
+      "categoria": "reservaEmergencia",
+      "label": "Reserva Emergência",
+      "motivo": "Tem cotação de mercado — Reservas e Renda Fixa usam curva ou valor informado",
+      "permitido": false,
+      "subgrupoEditavel": false,
+      "subgrupoSugerido": "",
+      "subgrupos": [],
+    },
+    {
+      "abaId": "reserva-oportunidade",
+      "avisos": [],
+      "categoria": "reservaOportunidade",
+      "label": "Reserva Oportunidade",
+      "motivo": "Tem cotação de mercado — Reservas e Renda Fixa usam curva ou valor informado",
+      "permitido": false,
+      "subgrupoEditavel": false,
+      "subgrupoSugerido": "",
+      "subgrupos": [],
+    },
+    {
+      "abaId": "renda-fixa",
+      "avisos": [],
+      "categoria": "rendaFixaFundos",
+      "label": "Renda Fixa",
+      "motivo": "Tem cotação de mercado — Reservas e Renda Fixa usam curva ou valor informado",
+      "permitido": false,
+      "subgrupoEditavel": false,
+      "subgrupoSugerido": "prefixada",
+      "subgrupos": [
+        {
+          "atual": false,
+          "id": "pos-fixada",
+          "label": "Pós-fixada",
+        },
+        {
+          "atual": false,
+          "id": "prefixada",
+          "label": "Pré-fixada",
+        },
+        {
+          "atual": false,
+          "id": "hibrida",
+          "label": "Híbrida",
+        },
+      ],
+    },
+    {
+      "abaId": "fim-fia",
+      "avisos": [],
+      "categoria": "fimFia",
+      "label": "Fundos",
+      "motivo": "Em dólar — esta aba é em reais",
+      "permitido": false,
+      "subgrupoEditavel": true,
+      "subgrupoSugerido": "fim",
+      "subgrupos": [
+        {
+          "atual": false,
+          "id": "fim",
+          "label": "FIM",
+        },
+        {
+          "atual": false,
+          "id": "fia",
+          "label": "FIA",
+        },
+        {
+          "atual": false,
+          "id": "rf",
+          "label": "Renda Fixa",
+        },
+        {
+          "atual": false,
+          "id": "cambial",
+          "label": "Cambial",
+        },
+        {
+          "atual": false,
+          "id": "fip",
+          "label": "FIP",
+        },
+        {
+          "atual": false,
+          "id": "fip-infra",
+          "label": "FIP Infraestrutura",
+        },
+        {
+          "atual": false,
+          "id": "fidc",
+          "label": "FIDC",
+        },
+        {
+          "atual": false,
+          "id": "fiagro",
+          "label": "Fiagro",
+        },
+      ],
+    },
+    {
+      "abaId": "fiis",
+      "avisos": [],
+      "categoria": "fiis",
+      "label": "FII's",
+      "motivo": "Em dólar — esta aba é em reais",
+      "permitido": false,
+      "subgrupoEditavel": true,
+      "subgrupoSugerido": "fofi",
+      "subgrupos": [
+        {
+          "atual": false,
+          "id": "fofi",
+          "label": "FOF (Fundos de Fundos)",
+        },
+        {
+          "atual": false,
+          "id": "tvm",
+          "label": "TVM",
+        },
+        {
+          "atual": false,
+          "id": "tijolo",
+          "label": "Tijolo",
+        },
+        {
+          "atual": false,
+          "id": "infra",
+          "label": "Infra",
+        },
+      ],
+    },
+    {
+      "abaId": "acoes",
+      "avisos": [],
+      "categoria": "acoes",
+      "label": "Ações",
+      "motivo": "Em dólar — esta aba é em reais",
+      "permitido": false,
+      "subgrupoEditavel": true,
+      "subgrupoSugerido": "value",
+      "subgrupos": [
+        {
+          "atual": false,
+          "id": "value",
+          "label": "Value",
+        },
+        {
+          "atual": false,
+          "id": "growth",
+          "label": "Growth",
+        },
+        {
+          "atual": false,
+          "id": "risk",
+          "label": "Risk",
+        },
+      ],
+    },
+    {
+      "abaId": "stocks",
+      "avisos": [],
+      "categoria": "stocks",
+      "label": "Stocks",
+      "motivo": "Em validação — ETF em dólar ainda não troca com Stocks e REIT's",
+      "permitido": false,
+      "subgrupoEditavel": true,
+      "subgrupoSugerido": "value",
+      "subgrupos": [
+        {
+          "atual": false,
+          "id": "value",
+          "label": "Value",
+        },
+        {
+          "atual": false,
+          "id": "growth",
+          "label": "Growth",
+        },
+        {
+          "atual": false,
+          "id": "risk",
+          "label": "Risk",
+        },
+      ],
+    },
+    {
+      "abaId": "reit",
+      "avisos": [],
+      "categoria": "reits",
+      "label": "REIT's",
+      "motivo": "Em validação — ETF em dólar ainda não troca com Stocks e REIT's",
+      "permitido": false,
+      "subgrupoEditavel": true,
+      "subgrupoSugerido": "value",
+      "subgrupos": [
+        {
+          "atual": false,
+          "id": "value",
+          "label": "Value",
+        },
+        {
+          "atual": false,
+          "id": "growth",
+          "label": "Growth",
+        },
+        {
+          "atual": false,
+          "id": "risk",
+          "label": "Risk",
+        },
+      ],
+    },
+    {
+      "abaId": "etf",
+      "avisos": [],
+      "categoria": "etfs",
+      "label": "ETF's",
+      "permitido": true,
+      "subgrupoEditavel": true,
+      "subgrupoSugerido": "estados_unidos",
+      "subgrupos": [
+        {
+          "atual": false,
+          "id": "brasil",
+          "label": "Brasil",
+        },
+        {
+          "atual": true,
+          "id": "estados_unidos",
+          "label": "EUA",
+        },
+      ],
+    },
+  ],
+  "grupo": "rv",
+  "item": {
+    "assetId": "a-voo",
+    "id": "p-1",
+    "moeda": "USD",
+    "nome": "Vanguard",
+    "ticker": "VOO",
+    "tipo": "posicao",
+  },
+  "modelo": "usd",
+  "movido": null,
+  "movivel": true,
+  "original": null,
+}
+`;
+
+exports[`obterOpcoesMover — payload idêntico (snapshot anterior à extração) > MOVER_CAIXA_RF_HABILITADO=true > FII em Tijolo 1`] = `
+{
+  "atual": {
+    "abaId": "fiis",
+    "categoria": "fiis",
+    "override": false,
+    "subgrupo": "tijolo",
+    "subgrupoLabel": "Tijolo",
+  },
+  "avisos": [],
+  "destinos": [
+    {
+      "abaId": "reserva-emergencia",
+      "avisos": [],
+      "categoria": "reservaEmergencia",
+      "label": "Reserva Emergência",
+      "motivo": "Tem cotação de mercado — Reservas e Renda Fixa usam curva ou valor informado",
+      "permitido": false,
+      "subgrupoEditavel": false,
+      "subgrupoSugerido": "",
+      "subgrupos": [],
+    },
+    {
+      "abaId": "reserva-oportunidade",
+      "avisos": [],
+      "categoria": "reservaOportunidade",
+      "label": "Reserva Oportunidade",
+      "motivo": "Tem cotação de mercado — Reservas e Renda Fixa usam curva ou valor informado",
+      "permitido": false,
+      "subgrupoEditavel": false,
+      "subgrupoSugerido": "",
+      "subgrupos": [],
+    },
+    {
+      "abaId": "renda-fixa",
+      "avisos": [],
+      "categoria": "rendaFixaFundos",
+      "label": "Renda Fixa",
+      "motivo": "Tem cotação de mercado — Reservas e Renda Fixa usam curva ou valor informado",
+      "permitido": false,
+      "subgrupoEditavel": false,
+      "subgrupoSugerido": "prefixada",
+      "subgrupos": [
+        {
+          "atual": false,
+          "id": "pos-fixada",
+          "label": "Pós-fixada",
+        },
+        {
+          "atual": false,
+          "id": "prefixada",
+          "label": "Pré-fixada",
+        },
+        {
+          "atual": false,
+          "id": "hibrida",
+          "label": "Híbrida",
+        },
+      ],
+    },
+    {
+      "abaId": "fim-fia",
+      "avisos": [
+        "A aba é só organização: o IR continua pelo tipo do ativo (FII)",
+      ],
+      "categoria": "fimFia",
+      "label": "Fundos",
+      "permitido": true,
+      "subgrupoEditavel": true,
+      "subgrupoSugerido": "fiagro",
+      "subgrupos": [
+        {
+          "atual": false,
+          "id": "fim",
+          "label": "FIM",
+        },
+        {
+          "atual": false,
+          "id": "fia",
+          "label": "FIA",
+        },
+        {
+          "atual": false,
+          "id": "rf",
+          "label": "Renda Fixa",
+        },
+        {
+          "atual": false,
+          "id": "cambial",
+          "label": "Cambial",
+        },
+        {
+          "atual": false,
+          "id": "fip",
+          "label": "FIP",
+        },
+        {
+          "atual": false,
+          "id": "fip-infra",
+          "label": "FIP Infraestrutura",
+        },
+        {
+          "atual": false,
+          "id": "fidc",
+          "label": "FIDC",
+        },
+        {
+          "atual": false,
+          "id": "fiagro",
+          "label": "Fiagro",
+        },
+      ],
+    },
+    {
+      "abaId": "fiis",
+      "avisos": [],
+      "categoria": "fiis",
+      "label": "FII's",
+      "permitido": true,
+      "subgrupoEditavel": true,
+      "subgrupoSugerido": "tijolo",
+      "subgrupos": [
+        {
+          "atual": false,
+          "id": "fofi",
+          "label": "FOF (Fundos de Fundos)",
+        },
+        {
+          "atual": false,
+          "id": "tvm",
+          "label": "TVM",
+        },
+        {
+          "atual": true,
+          "id": "tijolo",
+          "label": "Tijolo",
+        },
+        {
+          "atual": false,
+          "id": "infra",
+          "label": "Infra",
+        },
+      ],
+    },
+    {
+      "abaId": "acoes",
+      "avisos": [
+        "A aba é só organização: o IR continua pelo tipo do ativo (FII)",
+      ],
+      "categoria": "acoes",
+      "label": "Ações",
+      "permitido": true,
+      "subgrupoEditavel": true,
+      "subgrupoSugerido": "value",
+      "subgrupos": [
+        {
+          "atual": false,
+          "id": "value",
+          "label": "Value",
+        },
+        {
+          "atual": false,
+          "id": "growth",
+          "label": "Growth",
+        },
+        {
+          "atual": false,
+          "id": "risk",
+          "label": "Risk",
+        },
+      ],
+    },
+    {
+      "abaId": "stocks",
+      "avisos": [],
+      "categoria": "stocks",
+      "label": "Stocks",
+      "motivo": "Em reais — esta aba é em dólar",
+      "permitido": false,
+      "subgrupoEditavel": true,
+      "subgrupoSugerido": "value",
+      "subgrupos": [
+        {
+          "atual": false,
+          "id": "value",
+          "label": "Value",
+        },
+        {
+          "atual": false,
+          "id": "growth",
+          "label": "Growth",
+        },
+        {
+          "atual": false,
+          "id": "risk",
+          "label": "Risk",
+        },
+      ],
+    },
+    {
+      "abaId": "reit",
+      "avisos": [],
+      "categoria": "reits",
+      "label": "REIT's",
+      "motivo": "Em reais — esta aba é em dólar",
+      "permitido": false,
+      "subgrupoEditavel": true,
+      "subgrupoSugerido": "value",
+      "subgrupos": [
+        {
+          "atual": false,
+          "id": "value",
+          "label": "Value",
+        },
+        {
+          "atual": false,
+          "id": "growth",
+          "label": "Growth",
+        },
+        {
+          "atual": false,
+          "id": "risk",
+          "label": "Risk",
+        },
+      ],
+    },
+    {
+      "abaId": "etf",
+      "avisos": [
+        "A aba é só organização: o IR continua pelo tipo do ativo (FII)",
+      ],
+      "categoria": "etfs",
+      "label": "ETF's",
+      "permitido": true,
+      "subgrupoEditavel": true,
+      "subgrupoSugerido": "brasil",
+      "subgrupos": [
+        {
+          "atual": false,
+          "id": "brasil",
+          "label": "Brasil",
+        },
+        {
+          "atual": false,
+          "id": "estados_unidos",
+          "label": "EUA",
+        },
+      ],
+    },
+  ],
+  "grupo": "rv",
+  "item": {
+    "assetId": "a-knca",
+    "id": "p-1",
+    "moeda": "BRL",
+    "nome": "Kinea Agro",
+    "ticker": "KNCA11",
+    "tipo": "posicao",
+  },
+  "modelo": "b3-brl",
+  "movido": null,
+  "movivel": true,
+  "original": null,
+}
+`;
+
+exports[`obterOpcoesMover — payload idêntico (snapshot anterior à extração) > MOVER_CAIXA_RF_HABILITADO=true > FII movido para Fundos 1`] = `
+{
+  "atual": {
+    "abaId": "fim-fia",
+    "categoria": "fimFia",
+    "override": true,
+    "subgrupo": "fiagro",
+    "subgrupoLabel": "Fiagro",
+  },
+  "avisos": [],
+  "destinos": [
+    {
+      "abaId": "reserva-emergencia",
+      "avisos": [],
+      "categoria": "reservaEmergencia",
+      "label": "Reserva Emergência",
+      "motivo": "Tem cotação de mercado — Reservas e Renda Fixa usam curva ou valor informado",
+      "permitido": false,
+      "subgrupoEditavel": false,
+      "subgrupoSugerido": "",
+      "subgrupos": [],
+    },
+    {
+      "abaId": "reserva-oportunidade",
+      "avisos": [],
+      "categoria": "reservaOportunidade",
+      "label": "Reserva Oportunidade",
+      "motivo": "Tem cotação de mercado — Reservas e Renda Fixa usam curva ou valor informado",
+      "permitido": false,
+      "subgrupoEditavel": false,
+      "subgrupoSugerido": "",
+      "subgrupos": [],
+    },
+    {
+      "abaId": "renda-fixa",
+      "avisos": [],
+      "categoria": "rendaFixaFundos",
+      "label": "Renda Fixa",
+      "motivo": "Tem cotação de mercado — Reservas e Renda Fixa usam curva ou valor informado",
+      "permitido": false,
+      "subgrupoEditavel": false,
+      "subgrupoSugerido": "prefixada",
+      "subgrupos": [
+        {
+          "atual": false,
+          "id": "pos-fixada",
+          "label": "Pós-fixada",
+        },
+        {
+          "atual": false,
+          "id": "prefixada",
+          "label": "Pré-fixada",
+        },
+        {
+          "atual": false,
+          "id": "hibrida",
+          "label": "Híbrida",
+        },
+      ],
+    },
+    {
+      "abaId": "fim-fia",
+      "avisos": [],
+      "categoria": "fimFia",
+      "label": "Fundos",
+      "permitido": true,
+      "subgrupoEditavel": true,
+      "subgrupoSugerido": "fiagro",
+      "subgrupos": [
+        {
+          "atual": false,
+          "id": "fim",
+          "label": "FIM",
+        },
+        {
+          "atual": false,
+          "id": "fia",
+          "label": "FIA",
+        },
+        {
+          "atual": false,
+          "id": "rf",
+          "label": "Renda Fixa",
+        },
+        {
+          "atual": false,
+          "id": "cambial",
+          "label": "Cambial",
+        },
+        {
+          "atual": false,
+          "id": "fip",
+          "label": "FIP",
+        },
+        {
+          "atual": false,
+          "id": "fip-infra",
+          "label": "FIP Infraestrutura",
+        },
+        {
+          "atual": false,
+          "id": "fidc",
+          "label": "FIDC",
+        },
+        {
+          "atual": true,
+          "id": "fiagro",
+          "label": "Fiagro",
+        },
+      ],
+    },
+    {
+      "abaId": "fiis",
+      "avisos": [],
+      "categoria": "fiis",
+      "label": "FII's",
+      "permitido": true,
+      "subgrupoEditavel": true,
+      "subgrupoSugerido": "fofi",
+      "subgrupos": [
+        {
+          "atual": false,
+          "id": "fofi",
+          "label": "FOF (Fundos de Fundos)",
+        },
+        {
+          "atual": false,
+          "id": "tvm",
+          "label": "TVM",
+        },
+        {
+          "atual": false,
+          "id": "tijolo",
+          "label": "Tijolo",
+        },
+        {
+          "atual": false,
+          "id": "infra",
+          "label": "Infra",
+        },
+      ],
+    },
+    {
+      "abaId": "acoes",
+      "avisos": [
+        "A aba é só organização: o IR continua pelo tipo do ativo (FII)",
+      ],
+      "categoria": "acoes",
+      "label": "Ações",
+      "permitido": true,
+      "subgrupoEditavel": true,
+      "subgrupoSugerido": "value",
+      "subgrupos": [
+        {
+          "atual": false,
+          "id": "value",
+          "label": "Value",
+        },
+        {
+          "atual": false,
+          "id": "growth",
+          "label": "Growth",
+        },
+        {
+          "atual": false,
+          "id": "risk",
+          "label": "Risk",
+        },
+      ],
+    },
+    {
+      "abaId": "stocks",
+      "avisos": [],
+      "categoria": "stocks",
+      "label": "Stocks",
+      "motivo": "Em reais — esta aba é em dólar",
+      "permitido": false,
+      "subgrupoEditavel": true,
+      "subgrupoSugerido": "value",
+      "subgrupos": [
+        {
+          "atual": false,
+          "id": "value",
+          "label": "Value",
+        },
+        {
+          "atual": false,
+          "id": "growth",
+          "label": "Growth",
+        },
+        {
+          "atual": false,
+          "id": "risk",
+          "label": "Risk",
+        },
+      ],
+    },
+    {
+      "abaId": "reit",
+      "avisos": [],
+      "categoria": "reits",
+      "label": "REIT's",
+      "motivo": "Em reais — esta aba é em dólar",
+      "permitido": false,
+      "subgrupoEditavel": true,
+      "subgrupoSugerido": "value",
+      "subgrupos": [
+        {
+          "atual": false,
+          "id": "value",
+          "label": "Value",
+        },
+        {
+          "atual": false,
+          "id": "growth",
+          "label": "Growth",
+        },
+        {
+          "atual": false,
+          "id": "risk",
+          "label": "Risk",
+        },
+      ],
+    },
+    {
+      "abaId": "etf",
+      "avisos": [
+        "A aba é só organização: o IR continua pelo tipo do ativo (FII)",
+      ],
+      "categoria": "etfs",
+      "label": "ETF's",
+      "permitido": true,
+      "subgrupoEditavel": true,
+      "subgrupoSugerido": "brasil",
+      "subgrupos": [
+        {
+          "atual": false,
+          "id": "brasil",
+          "label": "Brasil",
+        },
+        {
+          "atual": false,
+          "id": "estados_unidos",
+          "label": "EUA",
+        },
+      ],
+    },
+  ],
+  "grupo": "rv",
+  "item": {
+    "assetId": "a-knca",
+    "id": "p-1",
+    "moeda": "BRL",
+    "nome": "Kinea Agro",
+    "ticker": "KNCA11",
+    "tipo": "posicao",
+  },
+  "modelo": "b3-brl",
+  "movido": null,
+  "movivel": true,
+  "original": {
+    "categoria": "fiis",
+    "label": "FII's › FOF (Fundos de Fundos)",
+    "subgrupo": null,
+  },
+}
+`;
+
+exports[`obterOpcoesMover — payload idêntico (snapshot anterior à extração) > MOVER_CAIXA_RF_HABILITADO=true > ação 1`] = `
+{
+  "atual": {
+    "abaId": "acoes",
+    "categoria": "acoes",
+    "override": false,
+    "subgrupo": "value",
+    "subgrupoLabel": "Value",
+  },
+  "avisos": [],
+  "destinos": [
+    {
+      "abaId": "reserva-emergencia",
+      "avisos": [],
+      "categoria": "reservaEmergencia",
+      "label": "Reserva Emergência",
+      "motivo": "Tem cotação de mercado — Reservas e Renda Fixa usam curva ou valor informado",
+      "permitido": false,
+      "subgrupoEditavel": false,
+      "subgrupoSugerido": "",
+      "subgrupos": [],
+    },
+    {
+      "abaId": "reserva-oportunidade",
+      "avisos": [],
+      "categoria": "reservaOportunidade",
+      "label": "Reserva Oportunidade",
+      "motivo": "Tem cotação de mercado — Reservas e Renda Fixa usam curva ou valor informado",
+      "permitido": false,
+      "subgrupoEditavel": false,
+      "subgrupoSugerido": "",
+      "subgrupos": [],
+    },
+    {
+      "abaId": "renda-fixa",
+      "avisos": [],
+      "categoria": "rendaFixaFundos",
+      "label": "Renda Fixa",
+      "motivo": "Tem cotação de mercado — Reservas e Renda Fixa usam curva ou valor informado",
+      "permitido": false,
+      "subgrupoEditavel": false,
+      "subgrupoSugerido": "prefixada",
+      "subgrupos": [
+        {
+          "atual": false,
+          "id": "pos-fixada",
+          "label": "Pós-fixada",
+        },
+        {
+          "atual": false,
+          "id": "prefixada",
+          "label": "Pré-fixada",
+        },
+        {
+          "atual": false,
+          "id": "hibrida",
+          "label": "Híbrida",
+        },
+      ],
+    },
+    {
+      "abaId": "fim-fia",
+      "avisos": [
+        "A aba é só organização: o IR continua pelo tipo do ativo (ação)",
+        "O objetivo (%) volta para 0 na aba nova",
+      ],
+      "categoria": "fimFia",
+      "label": "Fundos",
+      "permitido": true,
+      "subgrupoEditavel": true,
+      "subgrupoSugerido": "fim",
+      "subgrupos": [
+        {
+          "atual": false,
+          "id": "fim",
+          "label": "FIM",
+        },
+        {
+          "atual": false,
+          "id": "fia",
+          "label": "FIA",
+        },
+        {
+          "atual": false,
+          "id": "rf",
+          "label": "Renda Fixa",
+        },
+        {
+          "atual": false,
+          "id": "cambial",
+          "label": "Cambial",
+        },
+        {
+          "atual": false,
+          "id": "fip",
+          "label": "FIP",
+        },
+        {
+          "atual": false,
+          "id": "fip-infra",
+          "label": "FIP Infraestrutura",
+        },
+        {
+          "atual": false,
+          "id": "fidc",
+          "label": "FIDC",
+        },
+        {
+          "atual": false,
+          "id": "fiagro",
+          "label": "Fiagro",
+        },
+      ],
+    },
+    {
+      "abaId": "fiis",
+      "avisos": [
+        "A aba é só organização: o IR continua pelo tipo do ativo (ação)",
+        "O objetivo (%) volta para 0 na aba nova",
+      ],
+      "categoria": "fiis",
+      "label": "FII's",
+      "permitido": true,
+      "subgrupoEditavel": true,
+      "subgrupoSugerido": "fofi",
+      "subgrupos": [
+        {
+          "atual": false,
+          "id": "fofi",
+          "label": "FOF (Fundos de Fundos)",
+        },
+        {
+          "atual": false,
+          "id": "tvm",
+          "label": "TVM",
+        },
+        {
+          "atual": false,
+          "id": "tijolo",
+          "label": "Tijolo",
+        },
+        {
+          "atual": false,
+          "id": "infra",
+          "label": "Infra",
+        },
+      ],
+    },
+    {
+      "abaId": "acoes",
+      "avisos": [],
+      "categoria": "acoes",
+      "label": "Ações",
+      "permitido": true,
+      "subgrupoEditavel": true,
+      "subgrupoSugerido": "value",
+      "subgrupos": [
+        {
+          "atual": true,
+          "id": "value",
+          "label": "Value",
+        },
+        {
+          "atual": false,
+          "id": "growth",
+          "label": "Growth",
+        },
+        {
+          "atual": false,
+          "id": "risk",
+          "label": "Risk",
+        },
+      ],
+    },
+    {
+      "abaId": "stocks",
+      "avisos": [],
+      "categoria": "stocks",
+      "label": "Stocks",
+      "motivo": "Em reais — esta aba é em dólar",
+      "permitido": false,
+      "subgrupoEditavel": true,
+      "subgrupoSugerido": "value",
+      "subgrupos": [
+        {
+          "atual": false,
+          "id": "value",
+          "label": "Value",
+        },
+        {
+          "atual": false,
+          "id": "growth",
+          "label": "Growth",
+        },
+        {
+          "atual": false,
+          "id": "risk",
+          "label": "Risk",
+        },
+      ],
+    },
+    {
+      "abaId": "reit",
+      "avisos": [],
+      "categoria": "reits",
+      "label": "REIT's",
+      "motivo": "Em reais — esta aba é em dólar",
+      "permitido": false,
+      "subgrupoEditavel": true,
+      "subgrupoSugerido": "value",
+      "subgrupos": [
+        {
+          "atual": false,
+          "id": "value",
+          "label": "Value",
+        },
+        {
+          "atual": false,
+          "id": "growth",
+          "label": "Growth",
+        },
+        {
+          "atual": false,
+          "id": "risk",
+          "label": "Risk",
+        },
+      ],
+    },
+    {
+      "abaId": "etf",
+      "avisos": [
+        "A aba é só organização: o IR continua pelo tipo do ativo (ação)",
+        "O objetivo (%) volta para 0 na aba nova",
+      ],
+      "categoria": "etfs",
+      "label": "ETF's",
+      "permitido": true,
+      "subgrupoEditavel": true,
+      "subgrupoSugerido": "brasil",
+      "subgrupos": [
+        {
+          "atual": false,
+          "id": "brasil",
+          "label": "Brasil",
+        },
+        {
+          "atual": false,
+          "id": "estados_unidos",
+          "label": "EUA",
+        },
+      ],
+    },
+  ],
+  "grupo": "rv",
+  "item": {
+    "assetId": "a-vale",
+    "id": "p-1",
+    "moeda": "BRL",
+    "nome": "Vale",
+    "ticker": "VALE3",
+    "tipo": "posicao",
+  },
+  "modelo": "b3-brl",
+  "movido": null,
+  "movivel": true,
+  "original": null,
+}
+`;
+
+exports[`obterOpcoesMover — payload idêntico (snapshot anterior à extração) > MOVER_CAIXA_RF_HABILITADO=true > fundo CVM 1`] = `
+{
+  "atual": {
+    "abaId": "fim-fia",
+    "categoria": "fimFia",
+    "override": false,
+    "subgrupo": "fia",
+    "subgrupoLabel": "FIA",
+  },
+  "avisos": [],
+  "destinos": [
+    {
+      "abaId": "reserva-emergencia",
+      "avisos": [],
+      "categoria": "reservaEmergencia",
+      "label": "Reserva Emergência",
+      "motivo": "Tem cotação de mercado — Reservas e Renda Fixa usam curva ou valor informado",
+      "permitido": false,
+      "subgrupoEditavel": false,
+      "subgrupoSugerido": "",
+      "subgrupos": [],
+    },
+    {
+      "abaId": "reserva-oportunidade",
+      "avisos": [],
+      "categoria": "reservaOportunidade",
+      "label": "Reserva Oportunidade",
+      "motivo": "Tem cotação de mercado — Reservas e Renda Fixa usam curva ou valor informado",
+      "permitido": false,
+      "subgrupoEditavel": false,
+      "subgrupoSugerido": "",
+      "subgrupos": [],
+    },
+    {
+      "abaId": "renda-fixa",
+      "avisos": [],
+      "categoria": "rendaFixaFundos",
+      "label": "Renda Fixa",
+      "motivo": "Tem cotação de mercado — Reservas e Renda Fixa usam curva ou valor informado",
+      "permitido": false,
+      "subgrupoEditavel": false,
+      "subgrupoSugerido": "prefixada",
+      "subgrupos": [
+        {
+          "atual": false,
+          "id": "pos-fixada",
+          "label": "Pós-fixada",
+        },
+        {
+          "atual": false,
+          "id": "prefixada",
+          "label": "Pré-fixada",
+        },
+        {
+          "atual": false,
+          "id": "hibrida",
+          "label": "Híbrida",
+        },
+      ],
+    },
+    {
+      "abaId": "fim-fia",
+      "avisos": [],
+      "categoria": "fimFia",
+      "label": "Fundos",
+      "permitido": true,
+      "subgrupoEditavel": true,
+      "subgrupoSugerido": "fia",
+      "subgrupos": [
+        {
+          "atual": false,
+          "id": "fim",
+          "label": "FIM",
+        },
+        {
+          "atual": true,
+          "id": "fia",
+          "label": "FIA",
+        },
+        {
+          "atual": false,
+          "id": "rf",
+          "label": "Renda Fixa",
+        },
+        {
+          "atual": false,
+          "id": "cambial",
+          "label": "Cambial",
+        },
+        {
+          "atual": false,
+          "id": "fip",
+          "label": "FIP",
+        },
+        {
+          "atual": false,
+          "id": "fip-infra",
+          "label": "FIP Infraestrutura",
+        },
+        {
+          "atual": false,
+          "id": "fidc",
+          "label": "FIDC",
+        },
+        {
+          "atual": false,
+          "id": "fiagro",
+          "label": "Fiagro",
+        },
+      ],
+    },
+    {
+      "abaId": "fiis",
+      "avisos": [],
+      "categoria": "fiis",
+      "label": "FII's",
+      "motivo": "Sem cotação em bolsa: o valor vem da cota/curva",
+      "permitido": false,
+      "subgrupoEditavel": true,
+      "subgrupoSugerido": "fofi",
+      "subgrupos": [
+        {
+          "atual": false,
+          "id": "fofi",
+          "label": "FOF (Fundos de Fundos)",
+        },
+        {
+          "atual": false,
+          "id": "tvm",
+          "label": "TVM",
+        },
+        {
+          "atual": false,
+          "id": "tijolo",
+          "label": "Tijolo",
+        },
+        {
+          "atual": false,
+          "id": "infra",
+          "label": "Infra",
+        },
+      ],
+    },
+    {
+      "abaId": "acoes",
+      "avisos": [],
+      "categoria": "acoes",
+      "label": "Ações",
+      "motivo": "Sem cotação em bolsa: o valor vem da cota/curva",
+      "permitido": false,
+      "subgrupoEditavel": true,
+      "subgrupoSugerido": "value",
+      "subgrupos": [
+        {
+          "atual": false,
+          "id": "value",
+          "label": "Value",
+        },
+        {
+          "atual": false,
+          "id": "growth",
+          "label": "Growth",
+        },
+        {
+          "atual": false,
+          "id": "risk",
+          "label": "Risk",
+        },
+      ],
+    },
+    {
+      "abaId": "stocks",
+      "avisos": [],
+      "categoria": "stocks",
+      "label": "Stocks",
+      "motivo": "Sem cotação em bolsa: o valor vem da cota/curva",
+      "permitido": false,
+      "subgrupoEditavel": true,
+      "subgrupoSugerido": "value",
+      "subgrupos": [
+        {
+          "atual": false,
+          "id": "value",
+          "label": "Value",
+        },
+        {
+          "atual": false,
+          "id": "growth",
+          "label": "Growth",
+        },
+        {
+          "atual": false,
+          "id": "risk",
+          "label": "Risk",
+        },
+      ],
+    },
+    {
+      "abaId": "reit",
+      "avisos": [],
+      "categoria": "reits",
+      "label": "REIT's",
+      "motivo": "Sem cotação em bolsa: o valor vem da cota/curva",
+      "permitido": false,
+      "subgrupoEditavel": true,
+      "subgrupoSugerido": "value",
+      "subgrupos": [
+        {
+          "atual": false,
+          "id": "value",
+          "label": "Value",
+        },
+        {
+          "atual": false,
+          "id": "growth",
+          "label": "Growth",
+        },
+        {
+          "atual": false,
+          "id": "risk",
+          "label": "Risk",
+        },
+      ],
+    },
+    {
+      "abaId": "etf",
+      "avisos": [],
+      "categoria": "etfs",
+      "label": "ETF's",
+      "motivo": "Sem cotação em bolsa: o valor vem da cota/curva",
+      "permitido": false,
+      "subgrupoEditavel": true,
+      "subgrupoSugerido": "brasil",
+      "subgrupos": [
+        {
+          "atual": false,
+          "id": "brasil",
+          "label": "Brasil",
+        },
+        {
+          "atual": false,
+          "id": "estados_unidos",
+          "label": "EUA",
+        },
+      ],
+    },
+  ],
+  "grupo": "rv",
+  "item": {
+    "assetId": "a-fia",
+    "id": "p-1",
+    "moeda": "BRL",
+    "nome": "Fundo Ações X",
+    "ticker": "FUNDO-12345678000199",
+    "tipo": "posicao",
+  },
+  "modelo": "fundo",
+  "movido": null,
+  "movivel": true,
+  "original": null,
+}
+`;
+
+exports[`obterOpcoesMover — payload idêntico (snapshot anterior à extração) > MOVER_CAIXA_RF_HABILITADO=true > previdência 1`] = `
+{
+  "atual": {
+    "abaId": "previdencia",
+    "categoria": "previdenciaSeguros",
+    "override": false,
+    "subgrupo": null,
+    "subgrupoLabel": null,
+  },
+  "avisos": [],
+  "destinos": [],
+  "item": {
+    "assetId": "a-prev",
+    "id": "p-1",
+    "moeda": "BRL",
+    "nome": "PGBL Banco X",
+    "ticker": "PREVIDENCIA-PGBL-1",
+    "tipo": "posicao",
+  },
+  "modelo": "fixo",
+  "motivo": "Previdência e Seguros ainda não pode ser movida para outra aba",
+  "movido": null,
+  "movivel": false,
+  "original": null,
+}
+`;
