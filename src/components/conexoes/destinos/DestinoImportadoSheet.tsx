@@ -85,25 +85,11 @@ function SheetItem({
       title={`Onde ${rotulo} vai entrar`}
       className="font-outfit"
       footer={
-        <div className="flex flex-col gap-1">
-          <div aria-live="polite" className={CAIXA_IMPACTO}>
-            {caixaRf && efeitos.length > 0 ? (
-              <EfeitosMoverList efeitos={efeitos} titulo={false} />
-            ) : (
-              <p>{TEXTO_NAO_MUDA}</p>
-            )}
-            {avisos.map((aviso) => (
-              <p key={aviso} className="mt-1 text-gray-800 dark:text-white/90">
-                {aviso}
-              </p>
-            ))}
-          </div>
-          <div className="flex gap-2">
-            <SecondaryButton onClick={onFechar}>Voltar</SecondaryButton>
-            <PrimaryButton disabled={!mudaria} onClick={() => pick && onUsar(pick)}>
-              {pick && mudaria ? `Usar ${rotuloEscolha(item.opcoes, pick)}` : 'Usar'}
-            </PrimaryButton>
-          </div>
+        <div className="flex gap-2">
+          <SecondaryButton onClick={onFechar}>Voltar</SecondaryButton>
+          <PrimaryButton disabled={!mudaria} onClick={() => pick && onUsar(pick)}>
+            {pick && mudaria ? `Usar ${rotuloEscolha(item.opcoes, pick)}` : 'Usar'}
+          </PrimaryButton>
         </div>
       }
     >
@@ -126,6 +112,20 @@ function SheetItem({
           escolha={paraEscolhaDoMover(pick)}
           onEscolher={(e) => setPick({ categoria: e.categoria, subgrupo: e.subgrupo || null })}
         />
+      </div>
+      {/* No corpo rolável (não no rodapé fixo): em telas baixas (320×568) a caixa de impacto
+          no rodapé espremia a lista e escondia a opção marcada. */}
+      <div aria-live="polite" className={CAIXA_IMPACTO}>
+        {caixaRf && efeitos.length > 0 ? (
+          <EfeitosMoverList efeitos={efeitos} titulo={false} />
+        ) : (
+          <p>{TEXTO_NAO_MUDA}</p>
+        )}
+        {avisos.map((aviso) => (
+          <p key={aviso} className="mt-1 text-gray-800 dark:text-white/90">
+            {aviso}
+          </p>
+        ))}
       </div>
     </BottomSheet>
   );
