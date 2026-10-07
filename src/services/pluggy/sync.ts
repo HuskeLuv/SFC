@@ -32,6 +32,8 @@ import {
   type ImportacaoResultado,
 } from './importarCarteira';
 import { revogarConsentimentosDaConexao } from './consentimento';
+import { classificarDestinos, contarParaRevisar } from './destinosImportacao';
+import { pluggyDestinosHabilitado } from '@/lib/pluggyDestinos';
 import { recomputarCelula, type Celula } from './caixaEntrada';
 
 export const JANELA_RESYNC_DIAS = 7;
@@ -479,6 +481,16 @@ export async function sincronizarConexao(
           msg: error instanceof Error ? error.message : 'erro',
         });
       }
+      // Destino na importação: marca os importados sem escolha (o resto fica
+      // "para conferir"). Best-effort, roda mesmo com PLUGGY_DESTINOS_HABILITADO off.
+      try {
+        await classificarDestinos(conexao.userId);
+      } catch (error: unknown) {
+        logger.error('[pluggy sync] classificação de destinos falhou', {
+          connectionId,
+          msg: error instanceof Error ? error.message : 'erro',
+        });
+      }
     }
 
     await prisma.bankConnection.update({
@@ -640,6 +652,11 @@ export interface ResumoImportado {
   /** Já em Dívidas. */
   emprestimos: number;
   emprestimosParaCadastrar: number;
+  /**
+   * Importados no lugar sugerido que ainda dá para trocar ("Escolher onde ficam (N)").
+   * 0 com PLUGGY_DESTINOS_HABILITADO desligada.
+   */
+  investimentosParaRevisar: number;
 }
 
 const NA_CARTEIRA = { in: ['importado', 'vinculado'] };
@@ -653,6 +670,7 @@ export async function resumoImportado(connectionId: string): Promise<ResumoImpor
     investimentosParaCadastrar,
     emprestimos,
     emprestimosParaCadastrar,
+    investimentosParaRevisar,
   ] = await Promise.all([
     prisma.bankAccount.count({ where: { connectionId, type: 'BANK', ativa: true } }),
     prisma.bankAccount.count({ where: { connectionId, type: 'CREDIT', ativa: true } }),
@@ -663,6 +681,7 @@ export async function resumoImportado(connectionId: string): Promise<ResumoImpor
     prisma.bankInvestment.count({ where: { connectionId, importStatus: 'sem-suporte' } }),
     prisma.bankLoan.count({ where: { connectionId, importStatus: NA_CARTEIRA } }),
     prisma.bankLoan.count({ where: { connectionId, importStatus: 'sem-suporte' } }),
+    paraRevisarDaConexao(connectionId),
   ]);
   return {
     contas,
@@ -672,7 +691,17 @@ export async function resumoImportado(connectionId: string): Promise<ResumoImpor
     investimentosParaCadastrar,
     emprestimos,
     emprestimosParaCadastrar,
+    investimentosParaRevisar,
   };
+}
+
+async function paraRevisarDaConexao(connectionId: string): Promise<number> {
+  if (!pluggyDestinosHabilitado()) return 0;
+  const conexao = await prisma.bankConnection.findUnique({
+    where: { id: connectionId },
+    select: { userId: true },
+  });
+  return conexao ? contarParaRevisar(conexao.userId, { connectionId }) : 0;
 }
 
 // ---------------------------------------------------------------------------

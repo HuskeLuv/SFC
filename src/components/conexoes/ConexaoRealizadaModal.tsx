@@ -11,18 +11,34 @@ const plural = (n: number, um: string, varios: string) => `${n} ${n === 1 ? um :
  * Tela de retorno (adequação jurídica, etapa 4): "Conexão realizada. Os
  * seguintes dados serão importados: [lista]" — com quantidades reais do que
  * chegou, onde cada coisa aparece, a validade e como desconectar.
+ *
+ * Escolher o destino na importação (chave PLUGGY_DESTINOS_HABILITADO): continua
+ * sendo a 1ª tela, com o texto intacto. Com investimentos "para conferir" e
+ * `onConferirDestinos`, ganha o quadro "Escolher onde ficam (N)" entre a lista e
+ * a autorização; na volta da revisão salva (`destinosAplicados` definido), o
+ * quadro vira "Destinos conferidos". Sem esses dados (chave desligada), a tela
+ * é a de hoje.
  */
 export default function ConexaoRealizadaModal({
   conexao,
   importados,
   aviso,
   onFechar,
+  onConferirDestinos,
+  destinosAplicados,
 }: {
   conexao: BankConnectionDTO;
   importados: ResumoImportado;
   aviso: string | null;
   onFechar: () => void;
+  /** Abre a revisão dos destinos (só aparece com investimentos para conferir). */
+  onConferirDestinos?: () => void;
+  /** Definido = voltou da revisão depois de salvar; quantos mudaram de lugar. */
+  destinosAplicados?: number;
 }) {
+  const paraRevisar = importados.investimentosParaRevisar ?? 0;
+  const conferidos = destinosAplicados !== undefined;
+  const mostraEscolher = !conferidos && paraRevisar > 0 && !!onConferirDestinos;
   const linhas: Array<{ dado: string; onde: string }> = [];
   if (importados.contas > 0) {
     linhas.push({
@@ -88,6 +104,44 @@ export default function ConexaoRealizadaModal({
             </li>
           ))}
         </ul>
+        {mostraEscolher ? (
+          <div
+            data-destinos-quadro=""
+            className="mt-4 rounded-xl border border-gray-200 p-4 text-sm dark:border-gray-800"
+          >
+            <p className="text-gray-700 dark:text-gray-300">
+              <span className="font-semibold text-gray-800 dark:text-white/90">
+                {paraRevisar === 1
+                  ? '1 investimento pode ficar em mais de um lugar.'
+                  : `${paraRevisar} investimentos podem ficar em mais de um lugar.`}
+              </span>{' '}
+              Confira a aba e a seção {paraRevisar === 1 ? 'dele' : 'de cada um'} agora ou depois,
+              em Conexões bancárias.
+            </p>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={onConferirDestinos}
+              className="mt-3 min-h-11 max-lg:w-full"
+            >
+              Escolher onde ficam ({paraRevisar})
+            </Button>
+          </div>
+        ) : null}
+        {conferidos ? (
+          <p
+            data-destinos-quadro=""
+            className="mt-4 rounded-xl border border-gray-200 p-4 text-sm text-gray-700 dark:border-gray-800 dark:text-gray-300"
+          >
+            <span className="font-semibold text-gray-800 dark:text-white/90">
+              Destinos conferidos.
+            </span>{' '}
+            {destinosAplicados > 0
+              ? `${plural(destinosAplicados, 'investimento', 'investimentos')} no lugar que você escolheu. `
+              : ''}
+            Para trocar algum depois, use Mover na Carteira.
+          </p>
+        ) : null}
         <p className="mt-4 text-xs text-gray-500 dark:text-gray-400">
           {conexao.consentExpiresAt
             ? `A autorização vale até ${new Date(conexao.consentExpiresAt).toLocaleDateString('pt-BR', { timeZone: 'UTC' })}. `

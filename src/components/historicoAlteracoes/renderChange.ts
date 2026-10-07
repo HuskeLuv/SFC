@@ -71,6 +71,11 @@ const ACTION_RENDERERS: Record<string, Renderer> = {
     'Voltou um ativo planejado à classificação original',
     (l) => `Voltou ${l} à classificação original`,
   ),
+  // Escolha do destino na importação Open Finance (sem selo "movido").
+  'investimento.destinoImportacao': withLabel(
+    'Escolheu onde fica um investimento do banco',
+    (l) => `Escolheu onde fica ${l}, importado do banco`,
+  ),
   'renda-fixa.editar': withLabel(
     'Editou um ativo de renda fixa',
     (l) => `Editou o ativo de renda fixa ${l}`,

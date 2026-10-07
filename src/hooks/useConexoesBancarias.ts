@@ -15,9 +15,17 @@ import type {
   EventoConsentimento,
   EventoWidget,
 } from '@/services/pluggy/consentimento';
-import type { ResumoImportado } from '@/services/pluggy/sync';
+import type { ResumoImportado as ResumoImportadoServidor } from '@/services/pluggy/sync';
+import type { DestinoAtualResumo, SituacaoDestino } from '@/lib/pluggyDestinos';
 
-export type { ConsentimentoDTO, EventoConsentimento, ResumoImportado };
+export type { ConsentimentoDTO, EventoConsentimento };
+
+/**
+ * Resumo da 1ª carga ("Conexão realizada"). `investimentosParaRevisar` (escolher o destino na
+ * importação, chave PLUGGY_DESTINOS_HABILITADO): quantos podem ficar em mais de um lugar e ainda
+ * não foram conferidos; ausente ou 0 com a chave desligada.
+ */
+export type ResumoImportado = ResumoImportadoServidor & { investimentosParaRevisar?: number };
 
 export type { BankAccountDTO, BankConnectionDTO, BankTransactionDTO };
 
@@ -394,6 +402,10 @@ export interface InvestimentoImportadoDTO {
   importStatus: string;
   importError: string | null;
   importedAt: string | null;
+  /** Onde está na Carteira (só com a chave PLUGGY_DESTINOS_HABILITADO ligada). */
+  destino?: DestinoAtualResumo | null;
+  /** Situação do destino (só com a chave ligada); 'para-revisar' = "Novo · conferir". */
+  situacaoDestino?: SituacaoDestino;
 }
 
 export interface EmprestimoImportadoDTO {
@@ -419,6 +431,8 @@ export interface EmprestimoImportadoDTO {
 export interface CarteiraImportadaResposta {
   investimentos: InvestimentoImportadoDTO[];
   emprestimos: EmprestimoImportadoDTO[];
+  /** Investimentos "para conferir" (só com a chave ligada; ausente = tela de hoje). */
+  paraRevisar?: number;
 }
 
 export interface ImportacaoResultadoDTO {
@@ -427,6 +441,8 @@ export interface ImportacaoResultadoDTO {
   semSuporte: number;
   ignorados: number;
   erros: number;
+  /** Para conferir depois desta importação (0 ou ausente com a chave desligada). */
+  paraRevisar?: number;
 }
 
 function invalidarCarteira(queryClient: ReturnType<typeof useQueryClient>): void {

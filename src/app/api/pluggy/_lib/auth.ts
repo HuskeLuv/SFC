@@ -1,5 +1,5 @@
 import type { NextRequest } from 'next/server';
-import { requireAuthWithActing, type JWTPayload } from '@/utils/auth';
+import { requireAuthWithActing, type AuthWithActingResult, type JWTPayload } from '@/utils/auth';
 import { ApiError } from '@/utils/apiErrorHandler';
 import { pluggyHabilitado } from '@/lib/pluggyConfig';
 
@@ -16,4 +16,21 @@ export async function requireProprioUsuarioPluggy(request: NextRequest): Promise
     throw new ApiError(403, 'Conexões bancárias só podem ser acessadas pelo próprio cliente');
   }
   return auth.payload;
+}
+
+/**
+ * Mesmas checagens de requireProprioUsuarioPluggy (503 com a integração
+ * desligada, 403 para consultor agindo por cliente), mas devolve o auth
+ * completo — necessário para o recordChange do Histórico (destino na
+ * importação, out/2026). Sem actingClient, targetUserId === payload.id.
+ */
+export async function requireProprioUsuarioPluggyAuth(
+  request: NextRequest,
+): Promise<AuthWithActingResult> {
+  if (!pluggyHabilitado()) throw new ApiError(503, 'Integração bancária desabilitada');
+  const auth = await requireAuthWithActing(request);
+  if (auth.actingClient) {
+    throw new ApiError(403, 'Conexões bancárias só podem ser acessadas pelo próprio cliente');
+  }
+  return auth;
 }
