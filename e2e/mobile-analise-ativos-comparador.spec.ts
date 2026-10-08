@@ -39,6 +39,41 @@ for (const width of [390, 320]) {
   });
 }
 
+// Nada nos cartões passa da própria coluna (chip "Na carteira", chip "em conferência", números
+// longos): o demo do seed tem posição em MXRF11 — no último slot, o chip ficaria cortado pelo card.
+const invasoes = (page: Page) =>
+  page.evaluate(() => {
+    const out: string[] = [];
+    for (const grid of document.querySelectorAll('[data-cartoes-comparador] .grid')) {
+      for (const col of Array.from(grid.children)) {
+        const c = col.getBoundingClientRect();
+        for (const d of Array.from(col.querySelectorAll('*'))) {
+          const b = d.getBoundingClientRect();
+          if (b.width > 0 && (b.right > c.right + 0.5 || b.left < c.left - 0.5)) {
+            out.push(`${(col.textContent ?? '').slice(0, 30)}: ${Math.round(b.right - c.right)}px`);
+            break;
+          }
+        }
+      }
+    }
+    return out;
+  });
+
+for (const width of [390, 320]) {
+  test(`FIIs a ${width} com posição no último slot: nada invade a coluna vizinha`, async ({
+    page,
+  }) => {
+    for (const t of [
+      [T.fiiTijolo, T.fiiPapel, T.fiiPapel2, T.fiiTijolo2],
+      [T.fiiTijolo, T.fiiPapel, T.fiiTijolo2, T.fiiPapel2],
+    ]) {
+      await abrir(page, t, width);
+      await page.waitForTimeout(3_000);
+      expect(await invasoes(page)).toEqual([]);
+    }
+  });
+}
+
 test('Adicionar abre o BottomSheet com a busca da classe; voltar fecha', async ({ page }) => {
   await abrir(page, [T.fiiTijolo, T.fiiTijolo2]);
   const botao = page.getByRole('button', { name: /Adicionar FII/ });
