@@ -131,7 +131,7 @@ export const TEXTOS_RAIO_X = {
     titulo: 'Sobre os dados',
     naoSeAplicamBancos: 'Não se aplicam a bancos (linhas ocultas): {valor}.',
     capexBanco:
-      'CAPEX e fluxo de caixa livre: o demonstrativo do banco não separa o investimento em imobilizado e intangível, por isso esses anos ficam “—”.',
+      'CAPEX e fluxo de caixa livre: o demonstrativo do banco não separa o investimento em imobilizado e intangível (linhas ocultas).',
     receitaPapel: 'Receita de aluguéis não se aplica a FII de papel (linha oculta).',
     payoutSemProventos:
       'Payout “—”: o documento usado não traz proventos declarados no ano. A equipe confere o escopo do DMPL.',
