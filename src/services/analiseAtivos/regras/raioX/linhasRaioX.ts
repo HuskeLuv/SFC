@@ -468,7 +468,7 @@ export interface EntradaRaioXAcao {
   essencial: FundamentosResposta;
   /** FY no escopo preferido (fundamentosVigentes) */
   fys: FundamentosPeriodo[];
-  perShare: ReadonlyArray<PerShareFlagsAno>;
+  perShare: ReadonlyArray<PerShareFlagsAno & { fatorEquivalencia?: number | null }>;
   multiplos: ReadonlyArray<MultiplosAnoRaioXAcao>;
   conferencia?: ConferenciaEntrada;
 }
@@ -575,6 +575,13 @@ export function montarRaioXAcao(e: EntradaRaioXAcao): Parcial {
     e.multiplos.some((m) => m.flags?.includes('dmpl_zero_com_proventos'));
   if (!temPayout && dmplZero) obs.push(so.payoutSemProventos);
   obs.push(so.lpaBaseHoje);
+  // unit: LPA por unit, nº de ações = total da companhia (lucro ÷ nº de ações × fator = LPA)
+  const fatorUnit = [...e.perShare]
+    .sort((a, b) => b.anoFiscal - a.anoFiscal)
+    .find((p) => num(p.fatorEquivalencia))?.fatorEquivalencia;
+  if (num(fatorUnit) && fatorUnit > 1) {
+    obs.push(formatarTexto(so.unit, { n: String(fatorUnit).replace('.', ',') }));
+  }
   if (r.perShareEmConferencia) obs.push(so.perShareConferencia);
   if (r.proventosEmConferencia) obs.push(TF.notaProventosConferencia);
   if (r.blocos.some((b) => b.linhas.some((l) => l.codigo === 'caixaFinanciamento'))) {

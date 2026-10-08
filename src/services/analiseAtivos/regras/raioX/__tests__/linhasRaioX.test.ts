@@ -180,6 +180,18 @@ describe('ações (DEV)', () => {
       expect(r.linhasNaoAplicaveis).toEqual([]);
     }
   });
+
+  it('unit (TAEE11, fator 3): "Sobre os dados" explica LPA por unit × nº de ações total', () => {
+    const d = dadosAcaoDev('TAEE11');
+    const comFator = montarAcao(HOJE_DEV, {
+      ...d,
+      perShare: d.perShare.map((p) => ({ ...p, fatorEquivalencia: 3 })),
+    }).raioX;
+    const texto = T.sobreOsDados.unit.replace('{n}', '3');
+    expect(comFator.observacoes).toContain(texto);
+    expect(acao('TAEE11').observacoes).not.toContain(texto);
+    expect(acao('WEGE3').observacoes.some((o) => o.includes('unit'))).toBe(false);
+  });
 });
 
 describe('FIIs (DEV)', () => {

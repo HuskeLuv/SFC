@@ -70,7 +70,12 @@ export interface DadosBancoAcao {
   financeira: boolean;
   periodos: EntradaFundamentosAcao['fys'];
   perShare: Array<
-    EntradaFundamentosAcao['perShare'][number] & { acoesFim: number | null; flags: string[] }
+    EntradaFundamentosAcao['perShare'][number] & {
+      acoesFim: number | null;
+      flags: string[];
+      /** ações por unit (TAEE11 = 3); ausente = 1 */
+      fatorEquivalencia?: number | null;
+    }
   >;
   multiplos: Array<
     EntradaFundamentosAcao['multiplos'][number] & Omit<MultiplosAnoRaioXAcao, 'anoFiscal'>
@@ -178,6 +183,7 @@ async function lerAcao(
         dpaAjHoje: true,
         payoutDmplPct: true,
         acoesFim: true,
+        fatorEquivalencia: true,
         flags: true,
       },
     }),

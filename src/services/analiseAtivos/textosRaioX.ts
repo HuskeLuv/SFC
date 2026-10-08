@@ -140,6 +140,7 @@ export const TEXTOS_RAIO_X = {
     baseCotasHoje:
       'Anos anteriores a {data} na base de cotas de hoje: o fundo desdobrou as cotas (VP, rendimento e nº de cotas ajustados).',
     lpaBaseHoje: 'LPA na base de ações de hoje (ajustado por desdobramentos e bonificações).',
+    unit: 'Ativo negociado em unit (1 unit = {n} ações): o LPA é por unit e o nº de ações é o total de ações da companhia, por isso lucro ÷ nº de ações não bate com o LPA.',
     perShareConferencia:
       'LPA e nº de ações em conferência nos anos em que a base de ações muda sem evento societário.',
     semAnosAntes: 'Antes de {ano} a companhia não publicava DFP.',
