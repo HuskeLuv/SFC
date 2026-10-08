@@ -57,7 +57,7 @@ export default function BandejaComparar({ classe, tickers, onLimpar }: BandejaCo
       {/* celular: o botão flutuante do assistente cobriria o "Comparar" e some enquanto a bandeja
           existe; o conteúdo ganha espaço no fim para nada ficar embaixo dela. Computador: com o botão
           do assistente na tela, a bandeja para acima dele */}
-      <style>{`@media (width < 64rem) { :root:has([data-bandeja-comparar]) [data-mf-fab] { display: none; } :root:has([data-bandeja-comparar]) [data-mf-content] { padding-bottom: 7.5rem; } } @media (width >= 64rem) { :root:has([data-mf-fab]) [data-bandeja-comparar] { bottom: 5.5rem; } }`}</style>
+      <style>{`@media (width < 64rem) { :root:has([data-bandeja-comparar]) [data-mf-fab] { display: none; } :root:has([data-bandeja-comparar]) [data-mf-content] { padding-bottom: 8rem; } } @media (width >= 64rem) { :root:has([data-mf-fab]) [data-bandeja-comparar] { bottom: 5.5rem; } }`}</style>
       <p aria-live="polite" className="min-w-0 text-sm font-medium" data-bandeja-texto="">
         {formatarTexto(T.contagem, { n, max })}
         <small className="block truncate text-xs font-normal text-[#EAEAEA]">{detalhe}</small>
