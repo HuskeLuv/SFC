@@ -74,7 +74,7 @@ async function getJson<T>(url: string, padrao: string, signal?: AbortSignal): Pr
 }
 
 /** Não repete 4xx (404 de ticker/sem acesso, 403 da tese); repete até 2× o resto. */
-function retryAnalise(falhas: number, erro: Error): boolean {
+export function retryAnalise(falhas: number, erro: Error): boolean {
   if (erro instanceof ErroAnalise && erro.status >= 400 && erro.status < 500) return false;
   return falhas < 2;
 }

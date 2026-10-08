@@ -485,8 +485,9 @@ export interface ResumoComparador {
  * TICKER_RE; nenhum válido ⇒ 400). private, max-age=300. Sem dado do usuário ("Na minha carteira"
  * vem do overlay no cliente). A classe é a do 1º ticker válido; os de outra classe saem em
  * `ignorados`. ORDEM: `tickers`, `ativos`, `resumo.*` e `graficos.series` seguem a ordem pedida
- * (slots). O cache do servidor e o do cliente usam o conjunto ORDENADO como chave; quem lê do
- * cache reordena pelos slots (ordenarComparadorPelosSlots no hook).
+ * (slots). O cache do servidor e o do cliente usam o conjunto ORDENADO + a classe decidida (o 1º
+ * slot, no cliente) como chave; quem lê do cache reordena pelos slots (no cliente,
+ * ordenarComparadorPelosSlots; no servidor, montarComparador antes de responder).
  */
 export interface ComparadorResposta {
   classe: ClasseQuadro;
