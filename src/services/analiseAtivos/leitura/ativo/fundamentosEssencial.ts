@@ -31,11 +31,14 @@ import { proventosEmConferencia } from '@/services/analiseAtivos/regras/calculo/
 import { obterLinhaQuadro, versaoQuadro } from '@/services/analiseAtivos/leitura/linhasQuadro';
 import {
   CAMPO_COLUNA_FUNDAMENTOS,
-  CAMPO_HISTORICO,
-  aplicarConferenciaValores,
   flagsAnuaisConf,
-  flagsConfDoAno,
 } from '@/services/analiseAtivos/leitura/ativo/conferenciasAtivo';
+import {
+  anosPerShareEmConferencia,
+  aplicarPerShareNosCodigos,
+  conferirValoresDoAno,
+  type ConferenciaEntrada,
+} from '@/services/analiseAtivos/regras/conferencia/conferenciaAnual';
 import { FLAG_CNPJ_EM_CONFERENCIA } from '@/services/analiseAtivos/quadro/montarLinhasQuadro';
 import {
   anoDe,
@@ -67,15 +70,11 @@ const TF = TEXTOS_TELA.analise.fundamentos;
 const SELO_CONF: TipoSeloEstado = 'proventos_em_conferencia';
 const SELO_CONF_BLOCO_C: TipoSeloEstado = 'em_conferencia';
 
-/** Flags e motivos da linha do Quadro (bloco C). Ausente = sem conferência (como hoje). */
-export interface ConferenciaEntrada {
-  flags: readonly string[];
-  motivos: readonly string[];
-}
+export type { ConferenciaEntrada };
 
 /**
- * Bloco C: aplica a conferência a uma linha da tabela. Ano: só os grupos de ponto anual cuja chave
- * é o ano (histórico → P/L e P/VP do ano; escala dos demonstrativos → colunas do grupo). 'Últ. 12m':
+ * Bloco C: aplica a conferência a uma linha da tabela — conferirValoresDoAno (módulo compartilhado
+ * com o Raio-X): ano fechado só com os grupos de ponto anual cuja chave é o ano; 'Últ. 12m' com
  * todas as flags da linha.
  */
 function conferirLinha(
@@ -83,39 +82,40 @@ function conferirLinha(
   classe: 'acao' | 'fii',
   conf: ConferenciaEntrada | undefined,
 ): LinhaFundamentos {
-  if (!conf || conf.flags.length === 0) return linha;
-  let valores = linha.valores;
-  let selo = false;
-  let algum = false;
-  const aplicar = (mapa: Readonly<Record<string, string>>, flags: readonly string[]) => {
-    if (flags.length === 0) return;
-    const r = aplicarConferenciaValores(
-      valores,
-      mapa as Parameters<typeof aplicarConferenciaValores>[1],
-      flags,
-      conf.motivos,
-      classe,
-    );
-    valores = r.valores;
-    selo ||= r.selo;
-    algum ||= r.algum;
-  };
-  if (linha.ano !== null) {
-    aplicar(CAMPO_HISTORICO, flagsConfDoAno(conf.flags, linha.ano, ['historico']));
-    aplicar(
-      CAMPO_COLUNA_FUNDAMENTOS[classe],
-      flagsConfDoAno(conf.flags, linha.ano, ['fundamentos_escala']),
-    );
-  } else {
-    aplicar(CAMPO_COLUNA_FUNDAMENTOS[classe], conf.flags);
-  }
-  if (!algum) return linha;
+  const r = conferirValoresDoAno(
+    linha.valores,
+    CAMPO_COLUNA_FUNDAMENTOS[classe],
+    conf,
+    linha.ano,
+    classe,
+  );
+  if (!r.algum) return linha;
   const selos =
-    selo && !linha.selos.includes(SELO_CONF_BLOCO_C)
+    r.selo && !linha.selos.includes(SELO_CONF_BLOCO_C)
       ? [...linha.selos, SELO_CONF_BLOCO_C]
       : linha.selos;
-  return { ...linha, valores, selos };
+  return { ...linha, valores: r.valores, selos };
 }
+
+/**
+ * Decisão 1 do Bloco D: ano com a base por ação quebrada ⇒ os códigos por ação da linha ficam
+ * 'em conferência' (ocultar). Roda DEPOIS do Bloco C (uma célula já oculta por grupo fica como está).
+ */
+function conferirPerShare(
+  linha: LinhaFundamentos,
+  codigos: readonly string[],
+  porAno: ReadonlyMap<number, string>,
+): LinhaFundamentos {
+  const motivo = linha.ano === null ? undefined : porAno.get(linha.ano);
+  if (!motivo) return linha;
+  return { ...linha, valores: aplicarPerShareNosCodigos(linha.valores, codigos, motivo) };
+}
+
+/** Colunas por ação do Essencial (decisão 1). */
+export const COLUNAS_PER_SHARE = {
+  acao: ['lpa', 'pl', 'pvp'],
+  fii: ['rendCota', 'vpCota'],
+} as const;
 
 // ---------------------------------------------------------------------------
 // Utilitários comuns (também usados pelo valuation)
@@ -200,6 +200,10 @@ export interface PerShareAnoAcao {
   lpaAjHoje: number | null;
   dpaAjHoje: number | null;
   payoutDmplPct: number | null;
+  /** nº de ações no fim do ano (decisão 1: 1/10 da mediana) */
+  acoesFim?: number | null;
+  /** decisão 1: salto_acoes_sem_evento / dados_incompletos */
+  flags?: string[] | null;
 }
 
 export interface MultiplosAnoAcao {
@@ -210,6 +214,7 @@ export interface MultiplosAnoAcao {
   roePct: number | null;
   margemLiquidaPct: number | null;
   payoutPct: number | null;
+  flags?: string[] | null;
 }
 
 export interface MultiplosAtuaisAcao {
@@ -273,7 +278,7 @@ const COLUNAS_ACAO: ColunaFundamentos[] = [
   coluna('dy', 'pct'),
 ];
 
-function textoPadrao(escopo: string | null, padrao: string | null): string | null {
+export function textoPadrao(escopo: string | null, padrao: string | null): string | null {
   if (!escopo || !padrao) return null;
   const e = (TF.escopo as Record<string, string>)[escopo] ?? escopo;
   const p = (TF.padrao as Record<string, string>)[padrao] ?? padrao;
@@ -373,7 +378,10 @@ export function montarFundamentosAcao(e: EntradaFundamentosAcao): FundamentosRes
     notas.push(TF.notaProventosConferencia);
   }
 
-  const linhasConf = linhas.map((l) => conferirLinha(l, 'acao', e.conferencia));
+  const perShareConf = anosPerShareEmConferencia(e.perShare, e.multiplos, { mediana: true });
+  const linhasConf = linhas.map((l) =>
+    conferirPerShare(conferirLinha(l, 'acao', e.conferencia), COLUNAS_PER_SHARE.acao, perShareConf),
+  );
   return {
     nivel: 'essencial',
     unidade: 'R$ mi',
@@ -409,6 +417,8 @@ export interface PerShareAnoFii {
   anoFiscal: number;
   rendCota: number | null;
   vpCotaFim: number | null;
+  /** decisão 1: salto_acoes_sem_evento / dados_incompletos */
+  flags?: string[] | null;
 }
 
 export interface MultiplosAnoFii {
@@ -417,6 +427,7 @@ export interface MultiplosAnoFii {
   dyPct: number | null;
   vacanciaFisicaCvmPct: number | null;
   nImoveisCvm: number | null;
+  flags?: string[] | null;
 }
 
 export interface MultiplosAtuaisFii {
@@ -488,7 +499,7 @@ const COLUNAS_FII_PAPEL: ColunaFundamentos[] = [
   coluna('maiorCri', 'pct', true),
 ];
 
-function somaTrimestres(
+export function somaTrimestres(
   trimestres: TrimestreFii[],
   campo: 'receitaAluguel' | 'resultadoTrimestral',
 ): Estado<number> {
@@ -653,7 +664,11 @@ export function montarFundamentosFii(e: EntradaFundamentosFii): FundamentosRespo
     notas.push(TF.notaProventosConferencia);
   }
 
-  const linhasConf = linhas.map((l) => conferirLinha(l, 'fii', e.conferencia));
+  // decisão 1 (só as flags do ano: emissões de cotas mudam o nº de cotas sem erro de base)
+  const perShareConf = anosPerShareEmConferencia(e.perShare, e.multiplos, { mediana: false });
+  const linhasConf = linhas.map((l) =>
+    conferirPerShare(conferirLinha(l, 'fii', e.conferencia), COLUNAS_PER_SHARE.fii, perShareConf),
+  );
   return {
     nivel: 'essencial',
     unidade: 'R$ mi',
@@ -731,7 +746,7 @@ export async function obterFundamentosEssencial(
           }),
       prisma.assetPerShareYearly.findMany({
         where: { symbol, anoFiscal: { gte: desdeAno } },
-        select: { anoFiscal: true, rendCota: true, vpCotaFim: true },
+        select: { anoFiscal: true, rendCota: true, vpCotaFim: true, flags: true },
       }),
       prisma.assetMultiplesYearly.findMany({
         where: { symbol, anoFiscal: { gte: desdeAno } },
@@ -741,6 +756,7 @@ export async function obterFundamentosEssencial(
           dyPct: true,
           vacanciaFisicaCvmPct: true,
           nImoveisCvm: true,
+          flags: true,
         },
       }),
       prisma.assetMultiplesCurrent.findUnique({
@@ -779,7 +795,14 @@ export async function obterFundamentosEssencial(
       fundamentosVigentes(prisma, [linha.cnpj], { tipos: ['FY', 'TTM'], desde }),
       prisma.assetPerShareYearly.findMany({
         where: { symbol, anoFiscal: { gte: desdeAno } },
-        select: { anoFiscal: true, lpaAjHoje: true, dpaAjHoje: true, payoutDmplPct: true },
+        select: {
+          anoFiscal: true,
+          lpaAjHoje: true,
+          dpaAjHoje: true,
+          payoutDmplPct: true,
+          acoesFim: true,
+          flags: true,
+        },
       }),
       prisma.assetMultiplesYearly.findMany({
         where: { symbol, anoFiscal: { gte: desdeAno } },
@@ -816,7 +839,7 @@ export async function obterFundamentosEssencial(
       financeira: linha.regua === 'acao_financeira',
       fys: periodos.filter((p) => p.tipoPeriodo === 'FY'),
       ttm: ttms[ttms.length - 1] ?? null,
-      perShare: ps,
+      perShare: ps.map((p) => ({ ...p, acoesFim: paraNumero(p.acoesFim) })),
       multiplos: my,
       atual: mc,
       proventosEmConferencia: conf,

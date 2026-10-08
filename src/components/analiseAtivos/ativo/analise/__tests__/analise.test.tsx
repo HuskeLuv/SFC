@@ -18,6 +18,8 @@ import BarraPosicao10a from '../BarraPosicao10a';
 import CardMultiplo from '../CardMultiplo';
 import ChipsGrupo from '../ChipsGrupo';
 import { TEXTOS_TELA } from '@/services/analiseAtivos/textosTela';
+import { TEXTOS_RAIO_X } from '@/services/analiseAtivos/textosRaioX';
+import { MOTIVO_PER_SHARE } from '@/services/analiseAtivos/regras/conferencia/conferenciaAnual';
 import {
   API_HGLG11,
   API_ITUB4,
@@ -146,6 +148,44 @@ describe('BlocoFundamentosEssencial', () => {
     rerender(<BlocoFundamentosEssencial ticker="WEGE3" classe="acao" />);
     fireEvent.click(screen.getByRole('button', { name: TEXTOS_TELA.analise.tentarNovamente }));
     expect(refetch).toHaveBeenCalled();
+  });
+});
+
+describe('BlocoFundamentosEssencial — decisão 1 do Bloco D (base por ação quebrada)', () => {
+  it('LPA oculto: hachura + "—" + chip "em conferência" (sem o número na célula)', () => {
+    const fund: FundamentosResposta = {
+      ...FUNDAMENTOS_WEGE3,
+      colunas: [
+        { codigo: 'receita', rotulo: 'Receita', formato: 'moedaMi', fonteCvmAviso: false },
+        { codigo: 'lpa', rotulo: 'LPA', formato: 'numero2', fonteCvmAviso: false },
+      ],
+      linhas: [
+        {
+          rotulo: '2024',
+          ano: 2024,
+          destaque: true,
+          valores: {
+            receita: { estado: 'ok', valor: 8173.6 },
+            lpa: {
+              estado: 'ausente',
+              motivo: MOTIVO_PER_SHARE,
+              texto: TEXTOS_RAIO_X.conferencia.saltoAcoes,
+              exibicao: 'ocultar',
+              valorNaoPublicado: -277.5,
+            },
+          },
+          selos: [],
+        },
+      ],
+    };
+    mockHooks.useFundamentosAtivo.mockReturnValue(consulta(fund));
+    render(<BlocoFundamentosEssencial ticker="CBAV3" classe="acao" />);
+    const celula = screen.getByTitle(TEXTOS_RAIO_X.conferencia.saltoAcoes);
+    expect(celula.getAttribute('data-conferencia')).toBe('acoes_escala');
+    expect(celula.className).toMatch(/repeating-linear-gradient/);
+    expect(celula.textContent).toContain('—');
+    expect(celula.textContent).toContain(TEXTOS_TELA.conferencia.chip);
+    expect(celula.textContent).not.toContain('277');
   });
 });
 

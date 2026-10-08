@@ -10,6 +10,10 @@
  * Bloco C (params v2): célula em conferência = HACHURA + '—' ('ocultar') ou o valor ('selo') + chip
  * "em conferência" que abre o "Por quê?" (ano do histórico: o próprio ano). As células saem da
  * mesma política (conferenciasAtivo) do Quadro e do topo. Menu ⋯ e frescor do bloco pelo card.
+ *
+ * Bloco D (decisão 1, vale sempre): LPA, P/L e P/VP (FII: VP/cota e rendimento/cota) de um ano com a
+ * base por ação quebrada saem 'em conferência' — hachura + '—' + chip com o motivo, montado aqui
+ * (conferenciaTelaPerShare), igual ao Raio-X.
  */
 import CartaoAnalise, {
   FUNDO_STICKY,
@@ -28,6 +32,10 @@ import {
   conferenciaDoCampo,
   grupoDoEstado,
 } from '@/services/analiseAtivos/leitura/ativo/conferenciasAtivo';
+import {
+  conferenciaTelaPerShare,
+  ehEstadoPerShareEmConferencia,
+} from '@/services/analiseAtivos/regras/conferencia/conferenciaAnual';
 import { CAMPOS_REPORTAVEIS } from '@/services/analiseAtivos/curadoria/contrato';
 import { TABLE_HEADER_STYLE, TABLE_STYLES } from '@/components/ui/table/tableStyles';
 import { useFundamentosAtivo } from '@/hooks/useAnaliseAtivos';
@@ -70,6 +78,10 @@ function conferenciaDaCelula(
   c: ColunaFundamentos,
   v: Estado<number>,
 ): ConferenciaTela | null {
+  // decisão 1 do Bloco D: base por ação quebrada no ano (sem grupo do Bloco C)
+  if (ehEstadoPerShareEmConferencia(v) && v.estado === 'ausente') {
+    return conferenciaTelaPerShare(v.texto, [campoDaColuna(variante, c.codigo)]);
+  }
   const grupo = grupoDoEstado(v);
   if (grupo) {
     return (

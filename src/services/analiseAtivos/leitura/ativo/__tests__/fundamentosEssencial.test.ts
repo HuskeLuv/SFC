@@ -27,6 +27,9 @@ import {
 import { TEXTOS_TELA } from '@/services/analiseAtivos/textosTela';
 import { linhaQuadroDb } from '@/test/fixtures/analiseAtivos/linhasDb';
 import type { FundamentosPeriodo } from '@/services/analiseAtivos/tipos';
+import { MOTIVO_PER_SHARE } from '@/services/analiseAtivos/regras/conferencia/conferenciaAnual';
+import { TEXTOS_RAIO_X } from '@/services/analiseAtivos/textosRaioX';
+import fixtures from '@/test/fixtures/analiseAtivos/raio-x-dev.json';
 import type { Estado, FundamentosResposta } from '@/types/analiseAtivosApi';
 
 const HOJE = '2026-10-02';
@@ -379,6 +382,80 @@ describe('montarFundamentosFii', () => {
       }),
     );
     expect(linha(r, '2022').selos).toEqual(['proventos_em_conferencia']);
+  });
+});
+
+describe('decisão 1 — base por ação quebrada (CBAV3, dados do DEV)', () => {
+  const cbav = fixtures.CBAV3;
+  const entradaCbav = (): EntradaFundamentosAcao => ({
+    hoje: HOJE,
+    financeira: false,
+    fys: cbav.periodos.filter((p) => p.tipoPeriodo === 'FY') as unknown as FundamentosPeriodo[],
+    ttm: null,
+    perShare: cbav.perShare,
+    multiplos: cbav.multiplos,
+    atual: null,
+    proventosEmConferencia: false,
+    conferencia: { flags: cbav.linha.flags, motivos: cbav.linha.motivosIncompleto },
+  });
+
+  it('LPA, P/L e P/VP de 2021, 2022, 2024 e 2025 ficam "em conferência" (ocultar)', () => {
+    const r = montarFundamentosAcao(entradaCbav());
+    for (const ano of [2021, 2022, 2024, 2025]) {
+      const l = linha(r, String(ano));
+      expect(l.valores.lpa).toMatchObject({
+        estado: 'ausente',
+        motivo: MOTIVO_PER_SHARE,
+        exibicao: 'ocultar',
+      });
+      for (const c of ['pl', 'pvp']) {
+        if (l.valores[c].estado !== 'ausente') throw new Error(`${ano} ${c} visível`);
+      }
+    }
+    expect(linha(r, '2025').valores.lpa).toMatchObject({
+      texto: TEXTOS_RAIO_X.conferencia.acoesAbaixoMediana,
+    });
+    expect(linha(r, '2021').valores.lpa).toMatchObject({
+      texto: TEXTOS_RAIO_X.conferencia.saltoAcoes,
+      valorNaoPublicado: 837.1804,
+    });
+  });
+
+  it('o resto da linha fica igual (receita, lucro, ROE, DY) e 2023 continua visível', () => {
+    const r = montarFundamentosAcao(entradaCbav());
+    const l2024 = linha(r, '2024');
+    expect(valor(l2024.valores.receita)).toBeCloseTo(8173.649, 3);
+    expect(valor(l2024.valores.lucro)).toBeCloseTo(-180.671, 3);
+    expect(valor(linha(r, '2023').valores.lpa)).toBeCloseTo(-1.4061, 4);
+  });
+
+  it('WEGE3 (sem base quebrada): nada muda', () => {
+    const w = fixtures.WEGE3;
+    const r = montarFundamentosAcao({
+      ...entradaCbav(),
+      fys: w.periodos.filter((p) => p.tipoPeriodo === 'FY') as unknown as FundamentosPeriodo[],
+      perShare: w.perShare,
+      multiplos: w.multiplos,
+      conferencia: { flags: w.linha.flags, motivos: w.linha.motivosIncompleto },
+    });
+    expect(r.linhas.every((l) => l.valores.lpa.estado === 'ok')).toBe(true);
+  });
+
+  it('FII: só as flags do ano (sem mediana — emissões não são erro de base)', () => {
+    const r = montarFundamentosFii(
+      entradaHglg({
+        perShare: [2021, 2022, 2023, 2024, 2025].map((a) => ({
+          anoFiscal: a,
+          rendCota: 13,
+          vpCotaFim: 160,
+          flags: a === 2023 ? ['salto_acoes_sem_evento', 'dados_incompletos'] : [],
+        })),
+      }),
+    );
+    expect(linha(r, '2023').valores.vpCota).toMatchObject({ motivo: MOTIVO_PER_SHARE });
+    expect(linha(r, '2023').valores.rendCota).toMatchObject({ motivo: MOTIVO_PER_SHARE });
+    expect(valor(linha(r, '2023').valores.pvp)).toBe(1);
+    expect(valor(linha(r, '2024').valores.vpCota)).toBe(160);
   });
 });
 
