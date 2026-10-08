@@ -638,6 +638,38 @@ export async function excluirConexao(connectionId: string, userId: string, ip?: 
 }
 
 /**
+ * Exclusão da conta (DELETE /api/profile): apaga no Pluggy todas as conexões do usuário. Anonimizar
+ * o usuário não encerra o consentimento lá — o item segue ativo e a reconciliação diária continuaria
+ * buscando os dados. Tenta todas; se alguma falhar (fora o 404), lança 503 ANTES da anonimização
+ * para o usuário tentar de novo (as que já saíram não voltam; a próxima tentativa pega o resto).
+ */
+export async function excluirConexoesDoUsuario(userId: string, ip?: string): Promise<number> {
+  const conexoes = await prisma.bankConnection.findMany({
+    where: { userId },
+    select: { id: true },
+  });
+  let falhas = 0;
+  for (const c of conexoes) {
+    try {
+      await excluirConexao(c.id, userId, ip);
+    } catch (error: unknown) {
+      falhas++;
+      logger.error('[pluggy sync] exclusão da conta: não apagou a conexão', {
+        connectionId: c.id,
+        msg: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+  if (falhas > 0) {
+    throw new ApiError(
+      503,
+      'Não conseguimos desconectar seus bancos agora. Tente excluir a conta de novo em alguns minutos.',
+    );
+  }
+  return conexoes.length;
+}
+
+/**
  * O que a conexão trouxe (tela "Conexão realizada"): quantidades por tipo de
  * dado. Investimentos e empréstimos entram sozinhos na Carteira e em Dívidas
  * (importarCarteira.ts); o que o importador não mapeia fica "para cadastrar".
