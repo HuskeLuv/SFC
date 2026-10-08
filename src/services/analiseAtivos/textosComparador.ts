@@ -57,6 +57,8 @@ export const TEXTOS_COMPARADOR = {
     inexistente: '{ticker} não foi encontrado e ficou de fora.',
     excesso: '{ticker} ficou de fora: o limite é de {max} ativos.',
     formato: '“{valor}” não é um ticker válido e ficou de fora.',
+    // acréscimo da fatia C: {classe} do texto de outra_classe
+    classes: { acao: 'ações', fii: 'FIIs' },
   },
   misto:
     'Você está comparando FIIs de tijolo com FIIs de papel. Os critérios de qualidade são diferentes: o que não se aplica a um tipo aparece como “n/a”.',
@@ -65,6 +67,8 @@ export const TEXTOS_COMPARADOR = {
     srOnly: 'destaque: valor numericamente mais favorável',
     legenda:
       '★ marca o valor numericamente mais favorável em cada critério, entre os ativos com dado. Não indica qual ativo escolher.',
+    // acréscimo da fatia C: legenda curta do celular
+    legendaCurta: '★ = valor numericamente mais favorável no critério.',
     regras: '★ só com 2 ou mais valores e sem empate; valores em conferência ficam fora do ★.',
     regrasFii:
       'Dados de imóveis da CVM não recebem ★ até a validação com os relatórios dos gestores.',
@@ -147,6 +151,9 @@ export const TEXTOS_COMPARADOR = {
     srSerie: '{ticker}: de 100 para {valor}',
     srSemSerie: '{ticker}: sem série',
     insuficiente: 'histórico insuficiente',
+    // acréscimos da fatia C
+    rotuloLinha: 'Base 100',
+    subLinha: 'mesma escala em todos',
   },
   resumo: {
     titulo: 'Resumo numérico',
