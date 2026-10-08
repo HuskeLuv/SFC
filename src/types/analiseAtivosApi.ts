@@ -35,7 +35,8 @@
  *
  * Bloco D (docs/analise-ativos/blocoD/spec-desenho.json + decisoes.md) — acréscimos SÓ ADITIVOS e
  * opcionais: ConfigResposta.recursos; AnaliseAtivosShellProps.variante 'comparador';
- * BuscaAtivosProps.classe/desabilitarOutraClasse. Tipos do Raio-X, dos Cenários e do Comparador:
+ * BuscaAtivosProps.classe/desabilitarOutraClasse; cabecalhoExtra em BlocoFundamentosEssencialProps
+ * e BlocoValuationMultiplosProps. Tipos do Raio-X, dos Cenários e do Comparador:
  * src/types/analiseAtivosBlocoD.ts.
  */
 import type { ReactNode } from 'react';
@@ -858,11 +859,21 @@ export interface SeloFrescorProps {
 export interface BlocoFundamentosEssencialProps {
   ticker: string;
   classe: ClasseQuadro;
+  /**
+   * Bloco D (fatia A implementa): conteúdo extra no cabeçalho do card (slot `acao` do
+   * CartaoAnalise, antes do menu ⋯) — o SeletorNivel. Ausente = cabeçalho de hoje.
+   */
+  cabecalhoExtra?: ReactNode;
 }
 
 export interface BlocoValuationMultiplosProps {
   ticker: string;
   classe: ClasseQuadro;
+  /**
+   * Bloco D (fatia B implementa): conteúdo extra no cabeçalho do card (slot `acao` do
+   * CartaoAnalise, antes do menu ⋯) — o SeletorNivel. Ausente = cabeçalho de hoje.
+   */
+  cabecalhoExtra?: ReactNode;
 }
 
 export interface BlocoMultiplosHistoricosProps {
