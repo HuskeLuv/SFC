@@ -17,7 +17,14 @@ import type {
   BankConnectionDTO,
   ConsentimentoDTO,
 } from '@/hooks/useConexoesBancarias';
-import { rotuloConta, statusConexao, tempoRelativo } from './statusConexao';
+import {
+  STATUS_DESCONECTADA,
+  TEXTO_DESCONECTADA,
+  rotuloConta,
+  statusConexao,
+  tempoRelativo,
+  textoAvisos,
+} from './statusConexao';
 
 interface ConexaoCardProps {
   conexao: BankConnectionDTO;
@@ -129,6 +136,16 @@ function ConexaoCardDesktop({
             {conexao.errorMessage && st.precisaReconectar ? (
               <p className="mt-1 text-xs text-amber-700 dark:text-amber-400">
                 {conexao.errorMessage}
+              </p>
+            ) : null}
+            {conexao.status === STATUS_DESCONECTADA ? (
+              <p className="mt-1 text-xs text-amber-700 dark:text-amber-400">
+                {TEXTO_DESCONECTADA}
+              </p>
+            ) : null}
+            {textoAvisos(conexao.avisos) ? (
+              <p className="mt-1 text-xs text-amber-700 dark:text-amber-400">
+                {textoAvisos(conexao.avisos)}
               </p>
             ) : null}
           </div>
@@ -338,6 +355,14 @@ function ConexaoCardMobile({
       ) : null}
       {conexao.errorMessage && st.precisaReconectar ? (
         <p className="mt-1 text-xs text-[#B45309] dark:text-[#FBBF24]">{conexao.errorMessage}</p>
+      ) : null}
+      {conexao.status === STATUS_DESCONECTADA ? (
+        <p className="mt-1 text-xs text-[#B45309] dark:text-[#FBBF24]">{TEXTO_DESCONECTADA}</p>
+      ) : null}
+      {textoAvisos(conexao.avisos) ? (
+        <p className="mt-1 text-xs text-[#B45309] dark:text-[#FBBF24]">
+          {textoAvisos(conexao.avisos)}
+        </p>
       ) : null}
 
       {conexao.accounts.length > 0 ? (

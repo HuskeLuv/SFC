@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { rotuloConta, statusConexao, tempoRelativo } from '../statusConexao';
+import { rotuloConta, statusConexao, tempoRelativo, textoAvisos } from '../statusConexao';
 
 describe('statusConexao', () => {
   it('mapeia os status do item para rótulo/ação', () => {
@@ -18,6 +18,38 @@ describe('statusConexao', () => {
     ).toBe(true);
     expect(statusConexao({ status: 'OUTDATED', lastSyncError: null }).cor).toBe('error');
     expect(statusConexao({ status: 'X', lastSyncError: null }).rotulo).toBe('X');
+  });
+
+  it('desconectada pelo banco pede reconexão; sucesso parcial vira aviso', () => {
+    expect(statusConexao({ status: 'DELETED', lastSyncError: null })).toMatchObject({
+      rotulo: 'Desconectada pelo banco',
+      precisaReconectar: true,
+    });
+    expect(
+      statusConexao({
+        status: 'UPDATED',
+        lastSyncError: null,
+        avisos: [{ produto: 'investments', ultimaColeta: null }],
+      }),
+    ).toMatchObject({
+      rotulo: 'Sincronizada, com avisos',
+      cor: 'warning',
+      precisaReconectar: false,
+    });
+  });
+
+  it('texto dos avisos lista os produtos que não vieram', () => {
+    expect(textoAvisos([])).toBeNull();
+    expect(textoAvisos([{ produto: 'investments', ultimaColeta: null }])).toMatch(
+      /^Investimentos não vieram na última atualização/,
+    );
+    expect(
+      textoAvisos([
+        { produto: 'investments', ultimaColeta: null },
+        { produto: 'loans', ultimaColeta: null },
+        { produto: 'identity', ultimaColeta: null },
+      ]),
+    ).toMatch(/^Investimentos, empréstimos e dados cadastrais não vieram/);
   });
 
   it('rotula contas e cartões', () => {

@@ -35,6 +35,7 @@ import CarteiraImportada from './CarteiraImportada';
 import RevisarDestinos from './destinos/RevisarDestinos';
 import type { AplicarDestinosResponse } from '@/lib/pluggyDestinos';
 import ConexaoCard from './ConexaoCard';
+import { STATUS_DESCONECTADA } from './statusConexao';
 import ExtratoConta from './ExtratoConta';
 import PluggyConnectWidget from './PluggyConnectWidget';
 
@@ -44,7 +45,13 @@ const DESCONECTAR_TEXTO =
   'O extrato importado é apagado; o que você já aplicou no Fluxo de Caixa, na Carteira ' +
   'ou em Dívidas continua. O registro desta autorização fica no seu histórico.';
 
-type Widget = { token: ConnectTokenResposta; updateItem?: string; consentimentoId: string } | null;
+type Widget = {
+  token: ConnectTokenResposta;
+  updateItem?: string;
+  /** Reconectar conexão desconectada pelo banco: abre direto no mesmo banco (item novo). */
+  selectedConnectorId?: number;
+  consentimentoId: string;
+} | null;
 
 /** Item do Pluggy como chega nos eventos do widget (tipos do pluggy-js não instalados). */
 type ItemDoWidget = {
@@ -188,7 +195,11 @@ export default function ConexoesBancariasRoot() {
   const onContinuar = useCallback(async () => {
     if (!jornada?.consentimentoId) return;
     setErroJornada(null);
-    const updateItem = jornada.reconexaoDe?.providerItemId;
+    // Conexão desconectada pelo banco: o item não existe mais no Pluggy — não dá para atualizá-lo;
+    // abre uma conexão nova já no mesmo banco (registrarConexao reaproveita a conexão antiga).
+    const desconectada = jornada.reconexaoDe?.status === STATUS_DESCONECTADA;
+    const updateItem = desconectada ? undefined : jornada.reconexaoDe?.providerItemId;
+    const selectedConnectorId = desconectada ? jornada.reconexaoDe?.connectorId : undefined;
     try {
       const token = await connectToken.mutateAsync({
         consentimentoId: jornada.consentimentoId,
@@ -198,7 +209,12 @@ export default function ConexoesBancariasRoot() {
       marcosEnviadosRef.current = new Map();
       instituicaoRef.current = null;
       chegouAoBancoRef.current = false;
-      setWidget({ token, updateItem, consentimentoId: jornada.consentimentoId });
+      setWidget({
+        token,
+        updateItem,
+        selectedConnectorId,
+        consentimentoId: jornada.consentimentoId,
+      });
       setJornada(null);
     } catch (e) {
       setErroJornada(e instanceof Error ? e.message : 'Não foi possível abrir a conexão');
@@ -520,6 +536,8 @@ export default function ConexoesBancariasRoot() {
           includeSandbox={widget.token.includeSandbox}
           products={widget.token.products as PluggyConnectWidgetProducts}
           updateItem={widget.updateItem}
+          connectorIds={widget.updateItem ? undefined : (widget.token.connectorIds ?? undefined)}
+          selectedConnectorId={widget.selectedConnectorId}
           onSuccess={onSuccess}
           onOpen={() => registrarEvento(widget.consentimentoId, { evento: 'WIDGET_ABERTO' })}
           // Marcos da etapa Pluggy/instituição (o My Finance não vê as telas, só isto).

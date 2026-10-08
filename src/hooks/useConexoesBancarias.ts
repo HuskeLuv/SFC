@@ -40,6 +40,8 @@ export interface ConnectTokenResposta {
   accessToken: string;
   includeSandbox: boolean;
   products: string[];
+  /** Conexão nova: só bancos do Open Finance (null = sem filtro). */
+  connectorIds?: number[] | null;
 }
 
 export interface RegistroResposta {

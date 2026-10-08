@@ -35,6 +35,7 @@ import { revogarConsentimentosDaConexao } from './consentimento';
 import { classificarDestinos, contarParaRevisar } from './destinosImportacao';
 import { pluggyDestinosHabilitado } from '@/lib/pluggyDestinos';
 import { recomputarCelula, type Celula } from './caixaEntrada';
+import { conectorPermitido } from './conectoresPermitidos';
 
 export const JANELA_RESYNC_DIAS = 7;
 export const HISTORICO_INICIAL_MESES = 12;
@@ -119,7 +120,50 @@ export function globalHash(
     .digest('hex');
 }
 
+/** Produtos do item que podem vir sem atualização numa execução PARTIAL_SUCCESS. */
+export const PRODUTOS_ITEM = [
+  'accounts',
+  'creditCards',
+  'transactions',
+  'investments',
+  'investmentTransactions',
+  'loans',
+  'paymentData',
+  'identity',
+] as const;
+export type ProdutoItem = (typeof PRODUTOS_ITEM)[number];
+
+export interface AvisoProduto {
+  produto: ProdutoItem;
+  /** Última coleta bem-sucedida do produto (ISO), null se nunca veio. */
+  ultimaColeta: string | null;
+  /** Mensagem do Pluggy/instituição — só diagnóstico (inglês); a tela usa texto próprio. */
+  mensagem: string | null;
+}
+
+/**
+ * Sucesso parcial (executionStatus PARTIAL_SUCCESS): a conexão funcionou, mas algum produto não
+ * veio nesta execução (ex.: limite mensal do Open Finance). Não é erro — os dados que vieram são
+ * consumidos normalmente; o card avisa o que ficou de fora.
+ */
+export function avisosDoItem(item: Item): AvisoProduto[] {
+  if (String(item.executionStatus) !== 'PARTIAL_SUCCESS' || !item.statusDetail) return [];
+  const avisos: AvisoProduto[] = [];
+  for (const produto of PRODUTOS_ITEM) {
+    const estado = item.statusDetail[produto];
+    if (!estado || estado.isUpdated) continue;
+    const w = estado.warnings?.[0];
+    avisos.push({
+      produto,
+      ultimaColeta: estado.lastUpdatedAt ? new Date(estado.lastUpdatedAt).toISOString() : null,
+      mensagem: w ? (w.providerMessage ?? w.message).slice(0, 300) : null,
+    });
+  }
+  return avisos;
+}
+
 export function mapItem(item: Item) {
+  const avisos = avisosDoItem(item);
   return {
     connectorId: item.connector.id,
     connectorName: item.connector.name,
@@ -131,7 +175,57 @@ export function mapItem(item: Item) {
     errorMessage: item.error?.message ?? null,
     consentExpiresAt: item.consentExpiresAt ? new Date(item.consentExpiresAt) : null,
     providerUpdatedAt: item.lastUpdatedAt ? new Date(item.lastUpdatedAt) : null,
+    avisos: avisos.length > 0 ? (avisos as unknown as Prisma.InputJsonValue) : Prisma.DbNull,
   };
+}
+
+/** Status próprio (não é do Pluggy): o item foi apagado lá — revogado no banco, vencido ou removido. */
+export const STATUS_DESCONECTADA = 'DELETED';
+
+/** Item à espera do usuário: não há dado novo para buscar até ele agir (reconectar/MFA). */
+const STATUS_AGUARDANDO_USUARIO = new Set([
+  'LOGIN_ERROR',
+  'WAITING_USER_INPUT',
+  'WAITING_USER_ACTION',
+]);
+
+function ehNaoEncontrado(error: unknown): boolean {
+  if (error instanceof Error && /404|not found/i.test(error.message)) return true;
+  const e = error as { code?: unknown; codeDescription?: unknown } | null;
+  return e?.code === 404 || e?.codeDescription === 'ITEM_NOT_FOUND';
+}
+
+/**
+ * O item sumiu do Pluggy (webhook item/deleted ou 404 ao buscar): a conexão fica DESCONECTADA —
+ * contas, transações e o que foi para Carteira/Dívidas/Fluxo continuam (histórico do usuário);
+ * a sincronização para e o consentimento é registrado como revogado pela instituição. Reconectar
+ * o mesmo banco reaproveita a conexão (registrarConexao).
+ */
+export async function marcarDesconectada(connectionId: string): Promise<void> {
+  await prisma.bankConnection.update({
+    where: { id: connectionId },
+    data: {
+      status: STATUS_DESCONECTADA,
+      avisos: Prisma.DbNull,
+      lastSyncError: null,
+      errorMessage: null,
+    },
+  });
+  await revogarConsentimentosDaConexao(connectionId, 'instituicao');
+  logger.info('[pluggy sync] conexão desconectada pelo provedor', { connectionId });
+}
+
+/** Só relê o status do item (eventos de erro/login/MFA): sem buscar contas e transações. */
+export async function atualizarStatusConexao(connectionId: string): Promise<void> {
+  const conexao = await prisma.bankConnection.findUniqueOrThrow({ where: { id: connectionId } });
+  if (conexao.status === STATUS_DESCONECTADA) return;
+  try {
+    const item = await getPluggyClient().fetchItem(conexao.providerItemId);
+    await prisma.bankConnection.update({ where: { id: connectionId }, data: mapItem(item) });
+  } catch (error: unknown) {
+    if (ehNaoEncontrado(error)) return marcarDesconectada(connectionId);
+    throw error;
+  }
 }
 
 export function mapAccount(a: Account, connectionId: string, userId: string) {
@@ -243,6 +337,22 @@ export async function registrarConexao(
     throw new ApiError(403, 'Este item pertence a outro usuário');
   }
 
+  // Conexão nova só pelo Open Finance (ou sandbox) — o widget já filtra; isto cobre item criado
+  // por fora dele. Conexões diretas antigas seguem atualizando (caminho `existente`).
+  if (!existente && !conectorPermitido(item.connector)) {
+    try {
+      await client.deleteItem(providerItemId);
+    } catch (error: unknown) {
+      logger.warn('[pluggy sync] não apagou item de conector direto recusado', {
+        msg: error instanceof Error ? error.message : String(error),
+      });
+    }
+    throw new ApiError(
+      422,
+      'Por enquanto, conectamos bancos só pelo Open Finance. Escolha o seu banco na lista do Open Finance.',
+    );
+  }
+
   const dados = mapItem(item);
   if (existente) {
     const conexao = await prisma.bankConnection.update({
@@ -321,9 +431,31 @@ export async function sincronizarConexao(
   const conexao = await prisma.bankConnection.findUniqueOrThrow({ where: { id: connectionId } });
   const client = getPluggyClient();
 
+  const vazio = (status: string): SyncResultado => ({
+    connectionId,
+    status,
+    contas: 0,
+    transacoesNovas: 0,
+    transacoesAtualizadas: 0,
+    transacoesRemovidas: 0,
+    transacoesDuplicadas: 0,
+    investimentos: 0,
+    emprestimos: 0,
+    importacao: null,
+  });
+  if (conexao.status === STATUS_DESCONECTADA) return vazio(STATUS_DESCONECTADA);
+
   try {
-    const item = opts.item ?? (await client.fetchItem(conexao.providerItemId));
+    let item: Item;
+    try {
+      item = opts.item ?? (await client.fetchItem(conexao.providerItemId));
+    } catch (error: unknown) {
+      if (!ehNaoEncontrado(error)) throw error;
+      await marcarDesconectada(connectionId);
+      return vazio(STATUS_DESCONECTADA);
+    }
     await prisma.bankConnection.update({ where: { id: connectionId }, data: mapItem(item) });
+    if (STATUS_AGUARDANDO_USUARIO.has(String(item.status))) return vazio(String(item.status));
 
     const contas = (await client.fetchAccounts(conexao.providerItemId)).results;
     const inicio = new Date();
@@ -590,6 +722,12 @@ async function sincronizarPosicoes(
 export async function atualizarManualmente(connectionId: string, userId: string) {
   const conexao = await prisma.bankConnection.findFirst({ where: { id: connectionId, userId } });
   if (!conexao) throw new ApiError(404, 'Conexão não encontrada');
+  if (conexao.status === STATUS_DESCONECTADA) {
+    throw new ApiError(
+      409,
+      'Esta conexão foi encerrada pelo banco. Use "Reconectar" para conectar de novo.',
+    );
+  }
 
   const ultima = conexao.lastManualUpdateAt?.getTime() ?? 0;
   const restante = ultima + COOLDOWN_ATUALIZACAO_MANUAL_MS - Date.now();
@@ -709,10 +847,14 @@ export async function resumoImportado(connectionId: string): Promise<ResumoImpor
     prisma.bankTransaction.count({
       where: { account: { connectionId }, deletedAt: null, duplicadaDe: null },
     }),
-    prisma.bankInvestment.count({ where: { connectionId, importStatus: NA_CARTEIRA } }),
-    prisma.bankInvestment.count({ where: { connectionId, importStatus: 'sem-suporte' } }),
-    prisma.bankLoan.count({ where: { connectionId, importStatus: NA_CARTEIRA } }),
-    prisma.bankLoan.count({ where: { connectionId, importStatus: 'sem-suporte' } }),
+    prisma.bankInvestment.count({
+      where: { connectionId, ativo: true, importStatus: NA_CARTEIRA },
+    }),
+    prisma.bankInvestment.count({
+      where: { connectionId, ativo: true, importStatus: 'sem-suporte' },
+    }),
+    prisma.bankLoan.count({ where: { connectionId, ativo: true, importStatus: NA_CARTEIRA } }),
+    prisma.bankLoan.count({ where: { connectionId, ativo: true, importStatus: 'sem-suporte' } }),
     paraRevisarDaConexao(connectionId),
   ]);
   return {
@@ -748,10 +890,30 @@ export interface ProcessamentoResultado {
 }
 
 /**
+ * O que cada evento do webhook pede:
+ * - sync: dado novo para buscar (item criado/atualizado, transações criadas/alteradas/apagadas);
+ * - status: só o estado do item mudou (erro, login, MFA) — relê o item, sem contas/transações;
+ * - desconectar: o item foi apagado no Pluggy.
+ * Evento desconhecido com itemId cai em `status` (barato e seguro).
+ */
+export function acaoDoEvento(evento: string): 'sync' | 'status' | 'desconectar' {
+  if (evento === 'item/deleted') return 'desconectar';
+  if (
+    evento === 'item/created' ||
+    evento === 'item/updated' ||
+    evento.startsWith('transactions/')
+  ) {
+    return 'sync';
+  }
+  return 'status';
+}
+
+/**
  * Processa eventos pendentes da fila (chamado pelo cron a cada 5 min).
- * Cada evento vira um sync da conexão correspondente. Evento de item ainda
- * não registrado (o widget acabou de criar e o POST /connections está a
- * caminho) é adiado até MAX_TENTATIVAS_EVENTO e então ignorado.
+ * Cada evento vira a ação do seu tipo (acaoDoEvento); vários eventos do mesmo
+ * item na mesma rodada fazem um sync só (o 1º sync já traz tudo). Evento de
+ * item ainda não registrado (o widget acabou de criar e o POST /connections
+ * está a caminho) é adiado até MAX_TENTATIVAS_EVENTO e então ignorado.
  */
 export async function processarEventosPendentes(limite = 20): Promise<ProcessamentoResultado> {
   const eventos = await prisma.pluggyWebhookEvent.findMany({
@@ -760,6 +922,8 @@ export async function processarEventosPendentes(limite = 20): Promise<Processame
     take: limite,
   });
   const r: ProcessamentoResultado = { processados: 0, erros: 0, ignorados: 0, adiados: 0 };
+  // Itens já sincronizados nesta rodada: eventos seguintes do mesmo item não repetem o sync.
+  const sincronizados = new Set<string>();
 
   for (const ev of eventos) {
     const lock = await prisma.pluggyWebhookEvent.updateMany({
@@ -796,7 +960,17 @@ export async function processarEventosPendentes(limite = 20): Promise<Processame
       continue;
     }
     try {
-      await sincronizarConexao(conexao.id);
+      const acao = acaoDoEvento(ev.event);
+      if (acao === 'desconectar') {
+        await marcarDesconectada(conexao.id);
+      } else if (sincronizados.has(conexao.id)) {
+        // coberto pelo sync que este item já teve nesta rodada
+      } else if (acao === 'sync') {
+        await sincronizarConexao(conexao.id);
+        sincronizados.add(conexao.id);
+      } else {
+        await atualizarStatusConexao(conexao.id);
+      }
       await finalizar('done');
       r.processados += 1;
     } catch (error: unknown) {
@@ -826,7 +1000,10 @@ export async function reconciliarConexoes(
 ): Promise<{ sincronizadas: number; falhas: number }> {
   const limite = new Date(Date.now() - maxIdadeHoras * 3_600_000);
   const conexoes = await prisma.bankConnection.findMany({
-    where: { OR: [{ lastSyncAt: null }, { lastSyncAt: { lt: limite } }] },
+    where: {
+      status: { not: STATUS_DESCONECTADA },
+      OR: [{ lastSyncAt: null }, { lastSyncAt: { lt: limite } }],
+    },
     select: { id: true },
   });
   let sincronizadas = 0;

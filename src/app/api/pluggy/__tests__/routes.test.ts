@@ -10,7 +10,7 @@ const mockPrisma = vi.hoisted(() => ({
 }));
 vi.mock('@/lib/prisma', () => ({ prisma: mockPrisma, default: mockPrisma }));
 
-const mockClient = vi.hoisted(() => ({ createConnectToken: vi.fn() }));
+const mockClient = vi.hoisted(() => ({ createConnectToken: vi.fn(), fetchConnectors: vi.fn() }));
 vi.mock('@/lib/pluggy', () => ({ getPluggyClient: () => mockClient }));
 
 const mockSync = vi.hoisted(() => ({
@@ -37,6 +37,7 @@ vi.mock('@/services/pluggy/consentimento', () => mockConsent);
 const CONSENT = '7d3c1e2a-0b1c-4d5e-8f90-123456789abc';
 
 import { ApiError } from '@/utils/apiErrorHandler';
+import { limparCacheConectores } from '@/services/pluggy/conectoresPermitidos';
 import { GET as listar, POST as registrar } from '../connections/route';
 import { DELETE as excluir } from '../connections/[id]/route';
 import { POST as atualizar } from '../connections/[id]/sync/route';
@@ -217,7 +218,16 @@ describe('rotas /api/pluggy', () => {
   });
 
   it('connect-token amarra o token ao usuário e valida itemId de reconexão', async () => {
+    limparCacheConectores();
     mockClient.createConnectToken.mockResolvedValue({ accessToken: 'tok' });
+    // Só Open Finance no widget (sem sandbox ligado): o direto e o de teste ficam de fora.
+    mockClient.fetchConnectors.mockResolvedValue({
+      results: [
+        { id: 601, isOpenFinance: true },
+        { id: 201, isOpenFinance: false },
+        { id: 2, isOpenFinance: false, isSandbox: true },
+      ],
+    });
     const res = await connectToken(
       json('/api/pluggy/connect-token', 'POST', { consentimentoId: CONSENT }),
     );
@@ -234,6 +244,7 @@ describe('rotas /api/pluggy', () => {
         'INVESTMENTS_TRANSACTIONS',
         'LOANS',
       ],
+      connectorIds: [601],
     });
     expect(mockClient.createConnectToken).toHaveBeenCalledWith(undefined, {
       clientUserId: 'user-1',
@@ -259,10 +270,12 @@ describe('rotas /api/pluggy', () => {
     expect(nf.status).toBe(404);
 
     mockPrisma.bankConnection.findFirst.mockResolvedValue({ providerItemId: ITEM });
-    await connectToken(
+    const rec = await connectToken(
       json('/api/pluggy/connect-token', 'POST', { itemId: ITEM, consentimentoId: CONSENT }),
     );
     expect(mockClient.createConnectToken).toHaveBeenLastCalledWith(ITEM, expect.any(Object));
+    // Reconexão abre direto no banco do item: sem filtro de conectores.
+    expect((await rec.json()).connectorIds).toBeNull();
 
     // Sem consentimento válido, o serviço recusa e o widget não abre.
     mockConsent.exigirConsentimentoPendente.mockRejectedValueOnce(

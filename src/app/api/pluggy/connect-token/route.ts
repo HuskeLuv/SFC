@@ -7,6 +7,7 @@ import { pluggyIncluiSandbox, pluggyOauthRedirectUrl } from '@/lib/pluggyConfig'
 import { requireProprioUsuarioPluggy } from '../_lib/auth';
 import { PRODUTOS_OPEN_FINANCE } from '@/lib/openFinanceConsentimento';
 import { exigirConsentimentoPendente } from '@/services/pluggy/consentimento';
+import { conectoresPermitidos } from '@/services/pluggy/conectoresPermitidos';
 
 /**
  * POST /api/pluggy/connect-token — token de 30 min para abrir o Pluggy Connect.
@@ -49,9 +50,17 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
     avoidDuplicates: true,
     ...(oauthRedirectUri ? { oauthRedirectUri } : {}),
   });
+  // Conexão nova: o widget lista só bancos do Open Finance (null = sem filtro, ver conectoresPermitidos).
+  // Reconexão (itemId) abre direto no banco do item — o filtro não se aplica.
+  const connectorIds = itemId ? null : await conectoresPermitidos(pluggyIncluiSandbox());
   // Consentimento só do que usamos (contas, cartões, transações, investimentos, empréstimos).
   return NextResponse.json(
-    { accessToken, includeSandbox: pluggyIncluiSandbox(), products: PRODUTOS_OPEN_FINANCE },
+    {
+      accessToken,
+      includeSandbox: pluggyIncluiSandbox(),
+      products: PRODUTOS_OPEN_FINANCE,
+      connectorIds,
+    },
     { headers: { 'Cache-Control': 'no-store' } },
   );
 });

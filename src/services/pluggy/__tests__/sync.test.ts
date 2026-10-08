@@ -10,7 +10,9 @@ const mockPrisma = vi.hoisted(() => ({
     update: vi.fn(),
     delete: vi.fn(),
   },
-  bankAccount: { upsert: vi.fn(), findMany: vi.fn(), update: vi.fn() },
+  bankAccount: { upsert: vi.fn(), findMany: vi.fn(), update: vi.fn(), count: vi.fn() },
+  bankInvestment: { count: vi.fn() },
+  bankLoan: { count: vi.fn() },
   bankTransaction: { findMany: vi.fn(), createMany: vi.fn(), update: vi.fn(), updateMany: vi.fn() },
   pluggyWebhookEvent: { findMany: vi.fn(), updateMany: vi.fn(), update: vi.fn() },
   openFinanceConsentimento: { updateMany: vi.fn() },
@@ -38,8 +40,12 @@ import {
   excluirConexao,
   excluirConexoesDoUsuario,
   mapTransaction,
+  acaoDoEvento,
+  avisosDoItem,
   processarEventosPendentes,
+  reconciliarConexoes,
   registrarConexao,
+  resumoImportado,
   sincronizarConexao,
 } from '../sync';
 
@@ -185,6 +191,40 @@ describe('registrarConexao', () => {
       ],
       skipDuplicates: true,
     });
+  });
+});
+
+describe('registrarConexao — só Open Finance', () => {
+  it('recusa conexão nova de conector direto e apaga o item no Pluggy', async () => {
+    mockPrisma.bankConnection.findUnique.mockResolvedValue(null);
+    mockClient.fetchItem.mockResolvedValue(
+      item({
+        connector: { id: 201, name: 'Mercado Pago', isOpenFinance: false, isSandbox: false },
+      }),
+    );
+    mockClient.deleteItem.mockResolvedValue(undefined);
+    await expect(registrarConexao('user-1', 'item-1')).rejects.toMatchObject({ statusCode: 422 });
+    expect(mockClient.deleteItem).toHaveBeenCalledWith('item-1');
+    expect(mockPrisma.bankConnection.create).not.toHaveBeenCalled();
+  });
+
+  it('conexão direta já existente continua atualizando (reconexão do mesmo item)', async () => {
+    mockPrisma.bankConnection.findUnique.mockResolvedValue({ id: 'conn-1', userId: 'user-1' });
+    mockClient.fetchItem.mockResolvedValue(
+      item({
+        connector: { id: 201, name: 'Mercado Pago', isOpenFinance: false, isSandbox: false },
+      }),
+    );
+    mockPrisma.bankConnection.findUniqueOrThrow.mockResolvedValue({
+      id: 'conn-1',
+      userId: 'user-1',
+      providerItemId: 'item-1',
+      lastSyncAt: null,
+      accounts: [],
+    });
+    await registrarConexao('user-1', 'item-1');
+    expect(mockClient.deleteItem).not.toHaveBeenCalled();
+    expect(mockClient.fetchAccounts).toHaveBeenCalledWith('item-1');
   });
 });
 
@@ -447,7 +487,123 @@ describe('sincronizarConexao', () => {
   });
 });
 
+describe('sincronizarConexao — estado do item', () => {
+  it('sucesso parcial: grava os avisos por produto e consome o que veio', async () => {
+    mockClient.fetchItem.mockResolvedValue(
+      item({
+        executionStatus: 'PARTIAL_SUCCESS',
+        statusDetail: {
+          accounts: { isUpdated: true, lastUpdatedAt: new Date('2026-10-08T10:00:00Z') },
+          transactions: { isUpdated: true, lastUpdatedAt: new Date('2026-10-08T10:00:00Z') },
+          investments: {
+            isUpdated: false,
+            lastUpdatedAt: new Date('2026-10-01T10:00:00Z'),
+            warnings: [{ code: '001', message: 'Monthly limit reached' }],
+          },
+          loans: null,
+        },
+      }),
+    );
+    await sincronizarConexao('conn-1');
+    expect(mockPrisma.bankConnection.update).toHaveBeenCalledWith({
+      where: { id: 'conn-1' },
+      data: expect.objectContaining({
+        executionStatus: 'PARTIAL_SUCCESS',
+        avisos: [
+          {
+            produto: 'investments',
+            ultimaColeta: '2026-10-01T10:00:00.000Z',
+            mensagem: 'Monthly limit reached',
+          },
+        ],
+      }),
+    });
+    expect(mockClient.fetchAccounts).toHaveBeenCalledWith('item-1');
+  });
+
+  it('sem sucesso parcial não há aviso', () => {
+    expect(avisosDoItem(item() as never)).toEqual([]);
+  });
+
+  it('item esperando o usuário (LOGIN_ERROR): só atualiza o status, sem buscar dados', async () => {
+    mockClient.fetchItem.mockResolvedValue(item({ status: 'LOGIN_ERROR' }));
+    const r = await sincronizarConexao('conn-1');
+    expect(r.status).toBe('LOGIN_ERROR');
+    expect(mockPrisma.bankConnection.update).toHaveBeenCalledWith({
+      where: { id: 'conn-1' },
+      data: expect.objectContaining({ status: 'LOGIN_ERROR' }),
+    });
+    expect(mockClient.fetchAccounts).not.toHaveBeenCalled();
+  });
+
+  it('item apagado no Pluggy (404): conexão desconectada, histórico mantido', async () => {
+    mockClient.fetchItem.mockRejectedValue(new Error('Response code 404 (Not Found)'));
+    const r = await sincronizarConexao('conn-1');
+    expect(r.status).toBe('DELETED');
+    expect(mockPrisma.bankConnection.update).toHaveBeenCalledWith({
+      where: { id: 'conn-1' },
+      data: expect.objectContaining({ status: 'DELETED', lastSyncError: null }),
+    });
+    expect(mockPrisma.openFinanceConsentimento.updateMany).toHaveBeenCalledWith({
+      where: { connectionId: 'conn-1', status: 'ativo' },
+      data: expect.objectContaining({ status: 'revogado', motivoRevogacao: 'instituicao' }),
+    });
+    expect(mockPrisma.bankConnection.delete).not.toHaveBeenCalled();
+    expect(mockClient.fetchAccounts).not.toHaveBeenCalled();
+  });
+
+  it('conexão já desconectada não chama o Pluggy', async () => {
+    mockPrisma.bankConnection.findUniqueOrThrow.mockResolvedValue({
+      id: 'conn-1',
+      userId: 'user-1',
+      providerItemId: 'item-1',
+      status: 'DELETED',
+      lastSyncAt: null,
+    });
+    expect((await sincronizarConexao('conn-1')).status).toBe('DELETED');
+    expect(mockClient.fetchItem).not.toHaveBeenCalled();
+  });
+
+  it('reconciliação diária pula as desconectadas', async () => {
+    mockPrisma.bankConnection.findMany.mockResolvedValue([]);
+    await reconciliarConexoes();
+    expect(mockPrisma.bankConnection.findMany).toHaveBeenCalledWith({
+      where: expect.objectContaining({ status: { not: 'DELETED' } }),
+      select: { id: true },
+    });
+  });
+});
+
+describe('resumoImportado', () => {
+  it('reconexão: conta só as posições ativas (as do item antigo ficam inativas)', async () => {
+    mockPrisma.bankAccount.count.mockResolvedValue(1);
+    mockPrisma.bankInvestment.count.mockResolvedValue(7);
+    mockPrisma.bankLoan.count.mockResolvedValue(1);
+    Object.assign(mockPrisma.bankTransaction, { count: vi.fn().mockResolvedValue(38) });
+    await resumoImportado('conn-1');
+    for (const call of [
+      ...mockPrisma.bankInvestment.count.mock.calls,
+      ...mockPrisma.bankLoan.count.mock.calls,
+    ]) {
+      expect(call[0].where).toMatchObject({ connectionId: 'conn-1', ativo: true });
+    }
+  });
+});
+
 describe('atualizarManualmente / excluirConexao', () => {
+  it('conexão desconectada pelo banco não pede atualização (409)', async () => {
+    mockPrisma.bankConnection.findFirst.mockResolvedValue({
+      id: 'conn-1',
+      providerItemId: 'item-1',
+      status: 'DELETED',
+      lastManualUpdateAt: null,
+    });
+    await expect(atualizarManualmente('conn-1', 'user-1')).rejects.toMatchObject({
+      statusCode: 409,
+    });
+    expect(mockClient.updateItem).not.toHaveBeenCalled();
+  });
+
   it('respeita o cooldown de 6 h', async () => {
     mockPrisma.bankConnection.findFirst.mockResolvedValue({
       id: 'conn-1',
@@ -615,6 +771,48 @@ describe('processarEventosPendentes', () => {
     expect(mockPrisma.pluggyWebhookEvent.update).toHaveBeenLastCalledWith({
       where: { id: 'ev-1' },
       data: { status: 'done', error: null, processedAt: expect.any(Date) },
+    });
+  });
+
+  it('classifica o evento: sync, só status ou desconectar', () => {
+    expect(acaoDoEvento('item/updated')).toBe('sync');
+    expect(acaoDoEvento('item/created')).toBe('sync');
+    expect(acaoDoEvento('transactions/deleted')).toBe('sync');
+    expect(acaoDoEvento('item/error')).toBe('status');
+    expect(acaoDoEvento('item/waiting_user_input')).toBe('status');
+    expect(acaoDoEvento('item/login_succeeded')).toBe('status');
+    expect(acaoDoEvento('item/deleted')).toBe('desconectar');
+  });
+
+  it('vários eventos do mesmo item na rodada fazem um sync só', async () => {
+    mockPrisma.pluggyWebhookEvent.findMany.mockResolvedValue([
+      evento({ id: 'ev-1', event: 'transactions/created' }),
+      evento({ id: 'ev-2', event: 'transactions/updated' }),
+      evento({ id: 'ev-3', event: 'item/updated' }),
+    ]);
+    mockPrisma.bankConnection.findUnique.mockResolvedValue({ id: 'conn-1' });
+    const r = await processarEventosPendentes();
+    expect(r.processados).toBe(3);
+    expect(mockClient.fetchAccounts).toHaveBeenCalledTimes(1);
+  });
+
+  it('item/error só relê o status do item, sem buscar contas', async () => {
+    mockPrisma.pluggyWebhookEvent.findMany.mockResolvedValue([evento({ event: 'item/error' })]);
+    mockPrisma.bankConnection.findUnique.mockResolvedValue({ id: 'conn-1' });
+    mockClient.fetchItem.mockResolvedValue(item({ status: 'LOGIN_ERROR' }));
+    expect((await processarEventosPendentes()).processados).toBe(1);
+    expect(mockClient.fetchItem).toHaveBeenCalledWith('item-1');
+    expect(mockClient.fetchAccounts).not.toHaveBeenCalled();
+  });
+
+  it('item/deleted marca a conexão como desconectada', async () => {
+    mockPrisma.pluggyWebhookEvent.findMany.mockResolvedValue([evento({ event: 'item/deleted' })]);
+    mockPrisma.bankConnection.findUnique.mockResolvedValue({ id: 'conn-1' });
+    expect((await processarEventosPendentes()).processados).toBe(1);
+    expect(mockClient.fetchItem).not.toHaveBeenCalled();
+    expect(mockPrisma.bankConnection.update).toHaveBeenCalledWith({
+      where: { id: 'conn-1' },
+      data: expect.objectContaining({ status: 'DELETED' }),
     });
   });
 

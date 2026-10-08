@@ -9,16 +9,38 @@ export type StatusVisual = {
   sincronizando: boolean;
 };
 
+/**
+ * Status nosso (não é do Pluggy): o item foi apagado lá — autorização revogada no banco, vencida
+ * ou removida. O histórico importado fica; "Reconectar" abre uma conexão nova com o mesmo banco.
+ */
+export const STATUS_DESCONECTADA = 'DELETED';
+
 /** Traduz o status do item do Pluggy para o que o usuário precisa saber/fazer. */
 export function statusConexao(
-  c: Pick<BankConnectionDTO, 'status' | 'lastSyncError'>,
+  c: Pick<BankConnectionDTO, 'status' | 'lastSyncError'> &
+    Partial<Pick<BankConnectionDTO, 'avisos'>>,
 ): StatusVisual {
   switch (c.status) {
+    case STATUS_DESCONECTADA:
+      return {
+        rotulo: 'Desconectada pelo banco',
+        cor: 'error',
+        precisaReconectar: true,
+        sincronizando: false,
+      };
     case 'UPDATED':
-      return c.lastSyncError
+      if (c.lastSyncError) {
+        return {
+          rotulo: 'Erro ao importar',
+          cor: 'error',
+          precisaReconectar: false,
+          sincronizando: false,
+        };
+      }
+      return (c.avisos?.length ?? 0) > 0
         ? {
-            rotulo: 'Erro ao importar',
-            cor: 'error',
+            rotulo: 'Sincronizada, com avisos',
+            cor: 'warning',
             precisaReconectar: false,
             sincronizando: false,
           }
@@ -60,6 +82,34 @@ export function statusConexao(
       return { rotulo: c.status, cor: 'light', precisaReconectar: false, sincronizando: false };
   }
 }
+
+const NOME_PRODUTO: Record<string, string> = {
+  accounts: 'contas',
+  creditCards: 'cartões',
+  transactions: 'transações',
+  investments: 'investimentos',
+  investmentTransactions: 'movimentações dos investimentos',
+  loans: 'empréstimos',
+  paymentData: 'detalhes de pagamento',
+  identity: 'dados cadastrais',
+};
+
+/**
+ * Explica o que ficou de fora numa sincronização parcial ("Investimentos e empréstimos não vieram
+ * na última atualização…"). null = nada a avisar. Causa mais comum: limite mensal do Open Finance.
+ */
+export function textoAvisos(avisos: BankConnectionDTO['avisos'] | undefined): string | null {
+  const nomes = [...new Set((avisos ?? []).map((a) => NOME_PRODUTO[a.produto] ?? a.produto))];
+  if (nomes.length === 0) return null;
+  const lista =
+    nomes.length === 1 ? nomes[0] : `${nomes.slice(0, -1).join(', ')} e ${nomes[nomes.length - 1]}`;
+  const verbo = nomes.length === 1 && !nomes[0].endsWith('s') ? 'não veio' : 'não vieram';
+  return `${lista.charAt(0).toUpperCase()}${lista.slice(1)} ${verbo} na última atualização do banco. Os dados anteriores continuam valendo e o banco tenta de novo na próxima atualização automática.`;
+}
+
+/** Texto do card quando o banco encerrou a autorização. */
+export const TEXTO_DESCONECTADA =
+  'O banco encerrou esta autorização (revogada, vencida ou removida). O que já foi importado continua aqui; reconecte para voltar a receber dados novos.';
 
 export function rotuloConta(a: { type: string; subtype: string | null }): string {
   if (a.type === 'CREDIT') return 'Cartão de crédito';

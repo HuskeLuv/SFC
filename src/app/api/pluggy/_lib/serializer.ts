@@ -37,7 +37,14 @@ export interface BankConnectionDTO {
   lastSyncError: string | null;
   lastManualUpdateAt: string | null;
   createdAt: string;
+  /** Sucesso parcial: produtos que não vieram na última execução (vazio = sem aviso). */
+  avisos: AvisoConexaoDTO[];
   accounts: BankAccountDTO[];
+}
+
+export interface AvisoConexaoDTO {
+  produto: string;
+  ultimaColeta: string | null;
 }
 
 export interface BankTransactionDTO {
@@ -85,6 +92,18 @@ export function serializeAccount(a: BankAccount): BankAccountDTO {
   };
 }
 
+/** `avisos` (Json) → lista enxuta para a tela; a mensagem crua do provedor fica só no banco. */
+function serializeAvisos(raw: unknown): AvisoConexaoDTO[] {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .filter((a): a is { produto: string; ultimaColeta?: string | null } =>
+      Boolean(
+        a && typeof a === 'object' && typeof (a as { produto?: unknown }).produto === 'string',
+      ),
+    )
+    .map((a) => ({ produto: a.produto, ultimaColeta: a.ultimaColeta ?? null }));
+}
+
 export function serializeConnection(
   c: BankConnection & { accounts?: BankAccount[] },
 ): BankConnectionDTO {
@@ -106,6 +125,7 @@ export function serializeConnection(
     lastSyncError: c.lastSyncError,
     lastManualUpdateAt: iso(c.lastManualUpdateAt),
     createdAt: c.createdAt.toISOString(),
+    avisos: serializeAvisos(c.avisos),
     accounts: (c.accounts ?? []).map(serializeAccount),
   };
 }
