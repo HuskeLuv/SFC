@@ -226,7 +226,7 @@ export default function SlotAdicionar({
     <div
       role="dialog"
       aria-label={rotulo}
-      className="absolute top-[calc(100%+6px)] left-0 z-40 flex w-[340px] max-w-[calc(100vw-48px)] flex-col rounded-[14px] border border-gray-200 bg-white p-2 shadow-lg dark:border-gray-700 dark:bg-[#1F1F22]"
+      className={`absolute top-[calc(100%+6px)] ${variante === 'slot' ? 'right-0' : 'left-0'} z-40 flex w-[340px] max-w-[calc(100vw-48px)] flex-col rounded-[14px] border border-gray-200 bg-white p-2 shadow-lg dark:border-gray-700 dark:bg-[#1F1F22]`}
     >
       {busca}
     </div>
