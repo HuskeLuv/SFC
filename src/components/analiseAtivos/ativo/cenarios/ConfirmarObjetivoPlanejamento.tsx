@@ -11,7 +11,7 @@
  * também vira uma linha no Fluxo de Caixa — com o consultor agindo, no Planejamento e no Fluxo de
  * Caixa DO CLIENTE (a rota grava no targetUserId).
  */
-import { useId, useState, type FormEvent } from 'react';
+import { useEffect, useId, useState, type FormEvent } from 'react';
 import { Modal } from '@/components/ui/modal';
 import BottomSheet from '@/components/ui/sheet/BottomSheet';
 import { useIsBelowLg } from '@/hooks/useMediaQuery';
@@ -95,6 +95,19 @@ export default function ConfirmarObjetivoPlanejamento({
   const [prioridade, setPrioridade] = useState<PlanejamentoPriority>('Moderado');
   const [situacao, setSituacao] = useState<PlanejamentoStatus>('Em espera');
   const [tentou, setTentou] = useState(false);
+  const { reset: limparEnvio } = criar;
+
+  // o diálogo fica montado (camada do histórico no celular): cada abertura começa do padrão,
+  // com o nome da renda que está no campo agora
+  useEffect(() => {
+    if (!aberto) return;
+    setNome(nomePadrao);
+    setPrazo(String(PRAZO_PADRAO_MESES));
+    setPrioridade('Moderado');
+    setSituacao('Em espera');
+    setTentou(false);
+    limparEnvio();
+  }, [aberto, nomePadrao, limparEnvio]);
 
   const meses = /^\d{1,3}$/.test(prazo.trim()) ? Number(prazo.trim()) : NaN;
   const prazoOk = Number.isInteger(meses) && meses >= 1 && meses <= 480;
