@@ -12,12 +12,16 @@
  * Bloco C (fatia B): ConferenciaPaginaProvider leva aos blocos as conferências do topo (chip "em
  * conferência" + "Por quê?"), o frescor por bloco (selo no rodapé de cada card) e
  * config.reporteHabilitado (menu ⋯). Com params v1 e a flag desligada nada disso aparece.
+ *
+ * Bloco D (fatia 0): os cards 5 e 6 passam por BlocoFundamentos (fatia A: Essencial | Raio-X) e
+ * BlocoValuation (fatia B: Múltiplos | Meus cenários). Sem os recursos, renderizam exatamente o
+ * Essencial e os Múltiplos de hoje. A e B não mexem nesta página.
  */
 import Link from 'next/link';
-import BlocoFundamentosEssencial from '@/components/analiseAtivos/ativo/analise/BlocoFundamentosEssencial';
+import BlocoFundamentos from '@/components/analiseAtivos/ativo/analise/BlocoFundamentos';
 import BlocoMultiplosHistoricos from '@/components/analiseAtivos/ativo/analise/BlocoMultiplosHistoricos';
 import BlocoPares from '@/components/analiseAtivos/ativo/analise/BlocoPares';
-import BlocoValuationMultiplos from '@/components/analiseAtivos/ativo/analise/BlocoValuationMultiplos';
+import BlocoValuation from '@/components/analiseAtivos/ativo/analise/BlocoValuation';
 import BlocoDividendos from '@/components/analiseAtivos/ativo/topo/BlocoDividendos';
 import BlocoEventos from '@/components/analiseAtivos/ativo/topo/BlocoEventos';
 import BlocoIndiceSemaforo from '@/components/analiseAtivos/ativo/topo/BlocoIndiceSemaforo';
@@ -131,10 +135,10 @@ export default function PaginaAtivo({ ticker }: PaginaAtivoProps) {
           <BlocoDividendos classe={classe} dividendos={ativo.dividendos} />
         </div>
         <SecaoPreguicosa rotulo={TEXTOS_TELA.blocos.fundamentos}>
-          <BlocoFundamentosEssencial {...base} />
+          <BlocoFundamentos {...base} />
         </SecaoPreguicosa>
         <SecaoPreguicosa rotulo={TEXTOS_TELA.blocos.valuation}>
-          <BlocoValuationMultiplos {...base} />
+          <BlocoValuation {...base} nome={ativo.nome} />
         </SecaoPreguicosa>
         <SecaoPreguicosa rotulo={TEXTOS_TELA.blocos.historicos}>
           {/* Pares em largura total: as 8 colunas não cabem em meia linha (1440 cortava 4) */}
