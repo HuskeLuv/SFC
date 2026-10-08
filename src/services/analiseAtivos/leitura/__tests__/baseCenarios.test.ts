@@ -128,6 +128,36 @@ describe('montarBaseCenarios — ação', () => {
     expect(r.base.conferencias[0].motivo).toMatch(/P\/VP abaixo de 0,08/);
   });
 
+  it('cotação em conferência: vs. cotação segue o DY 12m do grupo (preco_base oculta; esporádico, selo)', () => {
+    const base = montarBaseCenarios({
+      linha: paraLinhaQuadroApi(
+        linhaQuadroDb({ symbol: 'SBSP3', flags: ['conf:preco_base:base_sem_evento@2026-04-29'] }),
+      ),
+      atual: atual(),
+      versao: 'v1',
+    });
+    expect(base.cotacao.conferencia).toMatchObject({
+      campo: 'cotacao',
+      exibicao: 'selo',
+      vsCotacao: 'ocultar',
+    });
+    expect(base.cotacao.valor.estado).toBe('ok');
+    const esp = montarBaseCenarios({
+      linha: paraLinhaQuadroApi(
+        linhaQuadroDb({ symbol: 'SBSP3', flags: ['conf:preco_esporadico:faixa_pvp@2026-04-29'] }),
+      ),
+      atual: atual(),
+      versao: 'v1',
+    });
+    expect(esp.cotacao.conferencia).toMatchObject({ exibicao: 'selo', vsCotacao: 'selo' });
+    const sem = montarBaseCenarios({
+      linha: paraLinhaQuadroApi(LINHA_WEGE3),
+      atual: atual(),
+      versao: 'v1',
+    });
+    expect(sem.cotacao.conferencia).toBeNull();
+  });
+
   it('sem asset_multiples_current: tudo "sem dado", sem quebrar', () => {
     const r = montarBaseCenarios({
       linha: paraLinhaQuadroApi(LINHA_WEGE3),

@@ -282,6 +282,12 @@ export interface ConferenciaCampoCenario {
   campo: CampoDadoCenarioAcao | CampoDadoCenarioFii | 'cotacao';
   exibicao: ExibicaoConferenciaTela;
   motivo: string;
+  /**
+   * Só na cotação: política do "vs. cotação" (resultado ÷ cotação), a mesma do DY 12m no grupo que
+   * marcou a cotação — preco_base ⇒ 'ocultar' ("—" e sem a linha da cotação nas barras);
+   * preco_esporadico ⇒ 'selo' ("usa cotação em conferência"). Ausente = 'selo'.
+   */
+  vsCotacao?: ExibicaoConferenciaTela;
 }
 
 export interface BaseCenarioAcao {

@@ -26,6 +26,7 @@ import {
   versaoQuadro,
 } from '@/services/analiseAtivos/leitura/linhasQuadro';
 import { aplicarConferenciaCampo } from '@/services/analiseAtivos/leitura/ativo/conferenciasAtivo';
+import { DEF_GRUPO } from '@/services/analiseAtivos/regras/comum/conferencia';
 import {
   TTL_ANALISE_MS,
   ausenteCom,
@@ -121,6 +122,11 @@ function comConferencia(
       campo,
       exibicao: r.conf.exibicao,
       motivo: motivoConf(r.conf.grupo, r.conf.regra),
+      // "vs. cotação" = resultado ÷ cotação (Bazin ÷ cotação − 1 = DY 12m ÷ yield − 1): segue a
+      // política do DY 12m do grupo (preco_base oculta o DY no Quadro/Comparador ⇒ oculta aqui)
+      ...(campo === 'cotacao'
+        ? { vsCotacao: DEF_GRUPO[r.conf.grupo].campos.dy12m ?? r.conf.exibicao }
+        : {}),
     });
     return r.estado;
   }

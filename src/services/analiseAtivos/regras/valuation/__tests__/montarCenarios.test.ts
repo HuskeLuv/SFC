@@ -198,6 +198,31 @@ describe('WEGE3 do DEV (cotação 50,29 · LPA 1,49 · VPA 4,50 · DPA 2,00 com 
   });
 });
 
+describe('cotação em conferência (SBSP3: base da cotação em conferência)', () => {
+  it("'ocultar' (preco_base): vs. cotação '—' com o motivo e barras sem a cotação", () => {
+    const s = montarCenarios(acao({ cotacaoConferencia: 'ocultar' }));
+    for (const l of s.linhas) {
+      expect(l.vsCotacaoPct).toBeNull();
+      if (l.resultado !== null) expect(l.usaDadoEmConferencia).toContain(M.vsCotacaoConferencia);
+    }
+    expect(linha(s.linhas, 'bazin').usaDadoEmConferencia).toBe(
+      `usa DPA em conferência · ${M.vsCotacaoConferencia}`,
+    );
+    expect(linha(s.linhas, 'bazin').resultado).not.toBeNull();
+    expect(s.barras.cotacao).toBeNull();
+    const maior = Math.max(...s.linhas.map((l) => l.resultado ?? 0));
+    expect(s.barras.escalaMax).toBeCloseTo(maior * 1.08, 6);
+  });
+
+  it("'selo' (preco_esporadico): vs. cotação fica e o método diz 'usa cotação em conferência'", () => {
+    const s = montarCenarios(acao({ cotacaoConferencia: 'selo' }));
+    const g = linha(s.linhas, 'graham');
+    expect(g.vsCotacaoPct).not.toBeNull();
+    expect(g.usaDadoEmConferencia).toBe('usa cotação em conferência');
+    expect(s.barras.cotacao).toBe(50.29);
+  });
+});
+
 describe('casos-limite: "—" com motivo, nunca exceção', () => {
   it('AURE3: LPA −1,04, DPA 0, P/L alvo vazio ⇒ os 4 "—" e nenhum resultado', () => {
     const s = montarCenarios(

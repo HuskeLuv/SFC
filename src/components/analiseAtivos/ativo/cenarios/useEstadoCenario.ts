@@ -249,6 +249,9 @@ export function calcular(
     dadosEditados,
     margemPct: s.margemPct,
     cotacao: valorEstado(r.cotacao.valor),
+    cotacaoConferencia: r.cotacao.conferencia
+      ? (r.cotacao.conferencia.vsCotacao ?? r.cotacao.conferencia.exibicao)
+      : null,
     posicao,
   });
 }

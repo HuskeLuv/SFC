@@ -14,7 +14,9 @@
  *   conferência" enquanto o usuário não digitar outro; 'ocultar' ⇒ o campo vem vazio e o método é
  *   "—" até o usuário digitar.
  * - "vs. cotação" inteiro com sinal; "Com sua margem" = resultado × (1 − margem). Sem cotação, os
- *   dois ficam "—" e as barras sem a linha da cotação.
+ *   dois ficam "—" e as barras sem a linha da cotação. Cotação em conferência com política
+ *   'ocultar' no "vs. cotação" (preco_base) ⇒ "vs. cotação" "—" com o motivo e barras sem a cotação;
+ *   'selo' ⇒ o método diz "usa cotação em conferência".
  */
 import {
   arredondar,
@@ -97,6 +99,12 @@ export interface EntradaMontarCenarios {
   dadosEditados: Partial<Record<CampoDadoCenario, number | null>>;
   margemPct: number;
   cotacao: number | null;
+  /**
+   * Cotação em conferência: política do "vs. cotação" (ConferenciaCampoCenario.vsCotacao).
+   * 'ocultar' ⇒ "vs. cotação" "—" com o motivo e barras sem a linha da cotação; 'selo' ⇒ o valor
+   * fica e o método diz "usa cotação em conferência". Ausente/null = cotação sem conferência.
+   */
+  cotacaoConferencia?: ExibicaoConferenciaTela | null;
   /** posição do usuário (ou do cliente, com o consultor); null = não tem o ativo */
   posicao: { pm: number | null; quantidade: number } | null;
 }
@@ -412,6 +420,14 @@ function metaDe(
 /** Monta as linhas, as barras, "Sua posição" e a Meta de renda. Nunca lança. */
 export function montarCenarios(e: EntradaMontarCenarios): SaidaCenarios {
   const cotacao = finito(e.cotacao) && e.cotacao > 0 ? arredondar(e.cotacao, 2) : null;
+  const confCot = cotacao !== null ? (e.cotacaoConferencia ?? null) : null;
+  const cotacaoVs = confCot === 'ocultar' ? null : cotacao;
+  const notaCotacao =
+    confCot === 'ocultar'
+      ? T.motivos.vsCotacaoConferencia
+      : confCot === 'selo'
+        ? formatarTexto(T.motivos.usaConferencia, { campo: rotuloCurto('cotacao') })
+        : null;
   const margemOk = validarPremissa('margemPct', e.margemPct) !== null;
   const calculos = e.classe === 'fii' ? calcularFii(e) : calcularAcao(e);
 
@@ -419,7 +435,8 @@ export function montarCenarios(e: EntradaMontarCenarios): SaidaCenarios {
     const bruto = finito(c.bruto) ? c.bruto : null;
     const motivo = bruto === null ? (c.motivo ?? T.motivos.semResultado) : null;
     const resultado = bruto === null ? null : arredondar(bruto, 2);
-    const vs = bruto !== null && cotacao !== null ? vsCotacaoPct(bruto, cotacao) : null;
+    const vs = bruto !== null && cotacaoVs !== null ? vsCotacaoPct(bruto, cotacaoVs) : null;
+    const notas = [c.usaDadoEmConferencia, notaCotacao].filter((n): n is string => !!n);
     const margem = bruto !== null && margemOk ? comMargem(bruto, e.margemPct) : null;
     return {
       metodo: c.metodo,
@@ -429,7 +446,7 @@ export function montarCenarios(e: EntradaMontarCenarios): SaidaCenarios {
       vsCotacaoPct: finito(vs) ? arredondar(vs, 0) : null,
       comMargem: finito(margem) ? arredondar(margem, 2) : null,
       motivoSemResultado: motivo,
-      usaDadoEmConferencia: bruto === null ? null : c.usaDadoEmConferencia,
+      usaDadoEmConferencia: bruto === null || notas.length === 0 ? null : notas.join(' · '),
     };
   });
 
@@ -437,13 +454,13 @@ export function montarCenarios(e: EntradaMontarCenarios): SaidaCenarios {
   for (const campo of CAMPOS_DADO[e.classe]) efetivos[campo] = lerDado(e, campo).valor;
 
   const resultados = linhas.map((l) => l.resultado).filter(finito);
-  const escalaMax = resultados.length === 0 ? 0 : Math.max(cotacao ?? 0, ...resultados) * 1.08;
+  const escalaMax = resultados.length === 0 ? 0 : Math.max(cotacaoVs ?? 0, ...resultados) * 1.08;
 
   return {
     linhas,
     barras: {
       escalaMax,
-      cotacao,
+      cotacao: cotacaoVs,
       itens: linhas.map((l) => ({
         metodo: l.metodo,
         rotulo: l.rotulo,

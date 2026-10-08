@@ -117,6 +117,7 @@ export const TEXTOS_CENARIOS = {
     vpConferencia: 'VP/cota em conferência',
     faltaDado: 'falta {campo}',
     usaConferencia: 'usa {campo} em conferência',
+    vsCotacaoConferencia: 'vs. cotação “—”: cotação em conferência',
     semCotacao: 'sem cotação',
     // fatia B
     emConferencia: '{campo} em conferência: digite um valor para fazer a conta',
