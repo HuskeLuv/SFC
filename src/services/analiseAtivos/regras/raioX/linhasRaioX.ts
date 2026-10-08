@@ -489,6 +489,7 @@ export function montarRaioXAcao(e: EntradaRaioXAcao): Parcial {
   const fin = e.financeira;
   const naFin = naoSeAplica('financeira');
   const perShare = anosPerShareEmConferencia(e.perShare, e.multiplos, { mediana: true });
+  let capexNaoIdentificado = false;
 
   const proprias = (ano: number, le: LinhaFundamentos): CelulasAno => {
     const f = fyPorAno.get(ano);
@@ -501,7 +502,11 @@ export function montarRaioXAcao(e: EntradaRaioXAcao): Parcial {
     const ebitdaMi = eb.estado === 'ok' ? eb.valor / 1e6 : null;
     const lucro = valorOk(le.valores.lucro);
     const fco = num(f.fco) ? f.fco / 1e6 : null;
-    const capex = num(f.capex) ? f.capex / 1e6 : null;
+    // banco: no plano COSIF (BR GAAP) a DFC não separa imobilizado/intangível e o capex sai 0 (ou
+    // migalhas) — conta não mapeada, não ausência de investimento ⇒ CAPEX, FCL e FCL/lucro '—'
+    const capexNaoId = fin && (f.padraoContabil === 'BRGAAP' || f.capex === 0);
+    if (capexNaoId) capexNaoIdentificado = true;
+    const capex = !capexNaoId && num(f.capex) ? f.capex / 1e6 : null;
     const fcl = fco !== null && capex !== null ? fco - capex : null;
     const caixa = soma(f.caixa, f.aplicacoesFinanceiras);
     const divida = soma(f.dividaBrutaCp, f.dividaBrutaLp);
@@ -524,7 +529,7 @@ export function montarRaioXAcao(e: EntradaRaioXAcao): Parcial {
       fco: estadoDe(f.fco, 1e6),
       fci: estadoDe(f.fci, 1e6),
       caixaFinanciamento: estadoDe(f.fcf, 1e6),
-      capex: estadoDe(f.capex, 1e6),
+      capex: capexNaoId ? semDado() : estadoDe(f.capex, 1e6),
       fcl: fcl === null ? semDado() : ok(fcl),
       fclLucroPct:
         fcl === null
@@ -563,6 +568,7 @@ export function montarRaioXAcao(e: EntradaRaioXAcao): Parcial {
   if (fin && r.linhasNaoAplicaveis.length > 0) {
     obs.push(formatarTexto(so.naoSeAplicamBancos, { valor: r.linhasNaoAplicaveis.join(', ') }));
   }
+  if (capexNaoIdentificado) obs.push(so.capexBanco);
   const temPayout = r.blocos.some((b) => b.linhas.some((l) => l.codigo === 'payoutPct'));
   const dmplZero =
     e.perShare.some((p) => p.flags?.includes('dmpl_zero_com_proventos')) ||

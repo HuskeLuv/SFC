@@ -163,6 +163,10 @@ describe('ações (DEV)', () => {
     expect(r.observacoes).toContain(T.sobreOsDados.payoutSemProventos);
     expect(r.observacoes[0]).toBe('Padrão contábil: individual BR GAAP.');
     expect(r.observacoes.some((o) => o.startsWith('Não se aplicam a bancos'))).toBe(true);
+    // capex 0 no BR GAAP individual = conta não mapeada: CAPEX/FCL/FCL÷lucro nunca saem 0,0 nem = FCO
+    for (const c of ['capex', 'fcl', 'fclLucroPct'] as const) expect(linhaDe(r, c)).toBeUndefined();
+    expect(r.observacoes).toContain(T.sobreOsDados.capexBanco);
+    expect(linhaDe(r, 'fco')).toBeDefined();
     expect(linhaDe(r, 'lucroLiquido')).toBeTruthy();
     expect(r.escopo).toBe('ind');
     expect(r.padraoContabil).toBe('BRGAAP');
