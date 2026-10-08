@@ -71,8 +71,8 @@ export function calcularDestaque(
     destaque: null,
     motivoSemDestaque: motivo,
   });
-  if (direcao === 'neutro') return sem('neutro');
   if (opts.semValidacaoCvm) return sem('sem_validacao_cvm');
+  if (direcao === 'neutro') return sem('neutro');
   if (opts.tiposDiferentes) return sem('tipos_diferentes');
 
   const validos: Array<{ ticker: string; k: number }> = [];
