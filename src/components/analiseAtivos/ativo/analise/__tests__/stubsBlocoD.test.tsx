@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
 /**
  * Bloco D, fatia 0: os stubs de fronteira não mudam a tela. BlocoFundamentos = Essencial,
- * BlocoValuation = Múltiplos (mesmas props); Comparador, PilulasArea, BotaoComparar e
- * BandejaComparar ainda não renderizam nada.
+ * BlocoValuation = Múltiplos (mesmas props); PilulasArea, BotaoComparar e BandejaComparar ainda
+ * não renderizam nada (o Comparador é da fatia C, já implementado).
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render } from '@testing-library/react';
@@ -29,7 +29,6 @@ vi.mock('@/hooks/useAnaliseAtivos', async (original) => ({
 
 import BlocoFundamentos from '@/components/analiseAtivos/ativo/analise/BlocoFundamentos';
 import BlocoValuation from '@/components/analiseAtivos/ativo/analise/BlocoValuation';
-import Comparador from '@/components/analiseAtivos/comparador/Comparador';
 import PilulasArea from '@/components/analiseAtivos/shell/PilulasArea';
 import BotaoComparar from '@/components/analiseAtivos/ativo/topo/BotaoComparar';
 import BandejaComparar from '@/components/analiseAtivos/quadro/BandejaComparar';
@@ -47,10 +46,10 @@ describe('stubs do bloco D', () => {
     expect(getByTestId('multiplos').textContent).toBe('HGLG11:fii:2');
   });
 
-  it('stubs das fatias C e D não renderizam nada', () => {
+  // o Comparador (fatia C) deixou de ser stub: tem testes e e2e próprios
+  it('stubs da fatia D não renderizam nada', () => {
     const { container } = render(
       <>
-        <Comparador />
         <PilulasArea ativa="quadro" />
         <BotaoComparar ticker="WEGE3" classe="acao" />
         <BandejaComparar classe="acao" tickers={['WEGE3']} onLimpar={() => {}} />
