@@ -1,0 +1,741 @@
+{
+  "resumo": "VERSÃO FINAL da especificação técnica do Bloco D (Fase 2 do plano: Raio-X, Meus cenários e Comparador), só para Ações e FIIs. Parte do main de 08/10/2026 e das medições read-only no Neon DEV. Esta versão incorpora as 18 críticas da revisão; as que não foram aceitas estão em riscos, com o motivo. Conferi no código: conferirLinha em fundamentosEssencial.ts:81-118, getTtlCache sem limite de tamanho, rateLimit.ts sem tier da área, FK para \"User\", taxaAdmPct sob o comentário 'regra 21', target positivo e syncObjetivoToCashflow no POST /api/planejamento-sonhos, 403 da tese em teses/[ticker]/route.ts:32, e divLiqPl/pReceita existentes só em AssetMultiplesCurrent.\n\nO QUE JÁ EXISTE E SERÁ REAPROVEITADO\n- As fórmulas dos cenários estão em regras/valuation/metodos.ts, metaRenda.ts e cenario.ts, e os casos 1–23 da §4.6 passam. O Bloco D não reescreve nenhuma fórmula: só compõe as linhas da tela num módulo puro novo (montarCenarios.ts).\n- A seção 'Múltiplos' do Valuation já existe desde a Fase 1 e NÃO entra aqui. Este bloco só acrescenta o seletor 'Múltiplos | Meus cenários'.\n- O rodapé TEXTOS_ANALISE.rodapeValuation já tem o texto literal da spec e está em EXCECOES_TEXTO_FIXO, com testes que o fixam. Fica literal: a reescrita do designer foi rejeitada.\n- Não há pílula Comparador, botão Comparar nem modo de seleção no Quadro (decisão 7). O 'POST /planejamento/objetivos' da spec é, na prática, POST /api/planejamento-sonhos.\n\nMUDANÇAS DESTA VERSÃO\n1) Conferência no Raio-X = regra do Essencial.\n   - Por ano, só entram as flags de histórico e de escala dos demonstrativos cuja chave é o ano.\n   - As flags da linha do Quadro NUNCA vão para colunas anuais.\n   - conferirLinha vira uma função compartilhada (conferenciaAnual.ts) usada pelos dois.\n2) Regra nova para dados por ação. Os anos de asset_per_share_yearly e de asset_multiples_yearly que têm salto de ações sem evento ou dados incompletos ficam ocultos, 'em conferência', no LPA, no nº de ações e nas linhas por ação.\n   - Vale no Raio-X e também no Essencial, para os dois continuarem iguais.\n   - Caso real: CBAV3 2021–2024.\n3) Valores de FII por cota sempre na base de cotas de hoje (fatorCotasApos): VP/cota, rendimento/cota, resultado/cota e nº de cotas.\n   - Resultado/cota = Σ resultado ÷ MÉDIA das 12 cotas mensais (corrige o HGLG11 2025: 10,72 vira ≈12,9).\n   - Caso de teste: HGLG11 2017.\n4) Saem do Raio-X:\n   - inadimplência e prazo médio (aproximação, decisão 6);\n   - taxa de administração: o schema diz 'SÓ checagem, nunca exibido (regra 21)' e a linha teria um sentido diferente do card Múltiplos (pergunta).\n5) Cenários com consultor agindo pelo cliente: GET 200 sem o cenário salvo; PUT e DELETE dão 403.\n6) Meta de renda → objetivo no Planejamento:\n   - target = cotas × cotação e available = min(posição, cotas) × cotação;\n   - o botão some quando não faltam cotas;\n   - o sheet avisa que o objetivo também entra no Fluxo de Caixa (e no do cliente, quando é o consultor).\n7) Resumo numérico sem placar:\n   - não conta ★;\n   - não tem a frase 'X tem o maior Índice';\n   - mostra o Índice na ordem dos slots, com o incompleto marcado, os critérios atendidos e a frase de responsabilidade. Diverge da spec (pergunta).\n8) Cache e limite de requisições:\n   - cache novo com limite de chaves (boundedTtlCache, LRU) para o Raio-X e o Comparador;\n   - tier novo no rateLimit para comparador e raio-x (30/min por IP).\n9) Correções pontuais:\n   - FK aponta para \"User\";\n   - 'Notas' vira 'Observações' (a palavra está em PALAVRAS_PROIBIDAS);\n   - Sua posição WEGE3 = 25,9× e 5,2%;\n   - data da cotação vem do precoData (29/09 no DEV);\n   - motivo do AURE3 = 'histórico com menos de 5 anos';\n   - texto para leitor de tela por coluna;\n   - divLiqPl e pReceita vêm do AssetMultiplesCurrent;\n   - fundamentosEssencial.ts entra na lista de arquivos da fatia A.\n10) Alvos de toque: 44px em todo controle (inclusive os seletores no computador, que o designer deixou com 34px). No celular, campos com 48px e fonte de 16px. Links de ticker com área de 44px.\n11) Divergências de detalhe fechadas a favor do PROTÓTIPO (implementar exatamente o protótipo). Cada uma fica registrada em docs/analise-ativos/blocoD/decisoes.md na fatia 0:\n   - CSV com o nome WEGE3_raio-x_2016-2025.csv, spinner e toast;\n   - nível Essencial/Raio-X lembrado no localStorage;\n   - bandeja do Quadro desabilitada com menos de 2 ativos;\n   - Restaurar com confirmação na tela;\n   - tabela de métodos com rolagem no celular;\n   - abas Ações|FIIs e 'Copiar link' no Comparador;\n   - rendimento/cota com 3 casas nos cenários.\n\nMEDIÇÃO NO DEV (resumo; o detalhe está em cobertura_raio_x)\n- Ações: AssetFundamentalsPeriod FY 2014–2025, AssetMultiplesYearly e AssetPerShareYearly cobrem a lista da §3.2. No universo do Quadro, 181 de 260 emissores têm 10 anos e 243 têm 5 anos ou mais.\n- AssetStatementLine tem só 72 emissores no DEV. O Raio-X usa as linhas curadas.\n- FIIs: o informe mensal e o trimestral cobrem o Raio-X. Tijolo: 135 de 184 com 5 anos ou mais; papel: 48 de 69.\n- Rendimentos_Declarados vem acumulado no semestre: o ano = 2T + 4T.\n- BCFF11 não existe no DEV; o QA usa HFOF11.\n\nARQUITETURA\n- Flags por recurso, desligadas por padrão e válidas só com a área liberada: ANALISE_ATIVOS_RAIOX_HABILITADO, ANALISE_ATIVOS_COMPARADOR_HABILITADO e ANALISE_ATIVOS_CENARIOS_HABILITADO.\n- O servidor confere com exigirRecursoAnalise (404). O cliente recebe as flags em ConfigResposta.recursos.\n- Raio-X: leitor puro no servidor; o CSV também sai do servidor.\n- Cenários: cálculo puro no cliente e tabela aditiva analise_cenarios, privada.\n- Comparador: leitura em lote, com o ★ calculado num módulo puro no servidor.\n\nFATIAS\n- 0 · Contratos: faz merge primeiro.\n- A · Raio-X + CSV + conferência anual compartilhada.\n- B · Meus cenários.\n- C · Comparador.\n- D · Entradas.\nA, B, C e D rodam em paralelo, sem arquivos em comum.",
+  "fatias": [
+    {
+      "id": "0",
+      "titulo": "Contratos do Bloco D (schema, tipos, flags, acesso, cache limitado, rate limit, hooks, textos-esqueleto, stubs, decisões)",
+      "objetivo": "Congelar tudo o que A, B, C e D compartilham, para que trabalhem em worktrees separados sem nenhum arquivo em comum. Faz merge PRIMEIRO. Com as 3 flags desligadas, nada muda na tela.",
+      "arquivos_novos": [
+        "prisma/migrations/20261014000000_analise_ativos_bloco_d/migration.sql",
+        "scripts/analise-ativos/apply-migration-bloco-d.ts",
+        "docs/analise-ativos/blocoD/decisoes.md",
+        "src/types/analiseAtivosBlocoD.ts",
+        "src/hooks/useAnaliseAtivosBlocoD.ts",
+        "src/lib/boundedTtlCache.ts",
+        "src/lib/__tests__/boundedTtlCache.test.ts",
+        "src/services/analiseAtivos/cenarios/contrato.ts",
+        "src/services/analiseAtivos/cenarios/__tests__/contrato.test.ts",
+        "src/services/analiseAtivos/regras/comum/varreduraTextos.ts",
+        "src/services/analiseAtivos/textosRaioX.ts",
+        "src/services/analiseAtivos/textosCenarios.ts",
+        "src/services/analiseAtivos/textosComparador.ts",
+        "src/services/analiseAtivos/textosEntradasComparador.ts",
+        "src/services/analiseAtivos/__tests__/textosBlocoD.test.ts",
+        "src/components/analiseAtivos/comum/SeletorNivel.tsx",
+        "src/components/analiseAtivos/ativo/analise/BlocoFundamentos.tsx",
+        "src/components/analiseAtivos/ativo/analise/BlocoValuation.tsx",
+        "e2e/fixtures/analise-bloco-d.ts"
+      ],
+      "arquivos_alterados": [
+        "prisma/schema.prisma",
+        "src/lib/analiseAtivosConfig.ts",
+        "src/lib/rateLimit.ts",
+        "src/types/analiseAtivosApi.ts",
+        "src/app/api/analise-ativos/config/route.ts",
+        "src/services/analiseAtivos/acesso/acessoAnalise.ts",
+        "src/lib/queryKeys.ts",
+        "src/components/analiseAtivos/pagina/PaginaAtivo.tsx",
+        "docs/analise-ativos/plano-execucao-set2026.md"
+      ],
+      "detalhes": "1) Prisma (aditivo): model AnaliseCenario + relação User.analiseCenarios (ver schema_prisma).\n- A migration usa SÓ CREATE TABLE/INDEX IF NOT EXISTS. O FK fica num bloco DO $$ … EXCEPTION WHEN duplicate_object e usa REFERENCES \"User\"(\"id\"): o model User não tem @@map, como em analise_teses_userId_fkey.\n- apply-migration-bloco-d.ts aplica no Neon DEV compartilhado UMA vez e é idempotente (padrão do bloco C).\n\n2) Flags em analiseAtivosConfig.ts: analiseAtivosRaioXHabilitado(), analiseAtivosCenariosHabilitado() e analiseAtivosComparadorHabilitado(), cada uma === 'true'.\n\n3) acessoAnalise.ts:\n- RecursoBlocoD = 'raioX' | 'cenarios' | 'comparador';\n- recursosLiberados(userId) = flag && estado === 'liberada';\n- exigirRecursoAnalise(request, recurso) = exigirAcessoAnalise + 404 MENSAGEM_SEM_ACESSO com a flag desligada. Devolve o mesmo AuthWithActingResult.\n\n4) ConfigResposta ganha, como acréscimo opcional, recursos?: {raioX, cenarios, comparador}.\n- AnaliseAtivosShellProps.variante aceita 'comparador': cai no ramo 'ativo' até a D implementar.\n- BuscaAtivosProps ganha classe?: ClasseQuadro e desabilitarOutraClasse?: boolean, implementados pela C.\n\n5) boundedTtlCache.ts: getBoundedTtlCache<T>(namespace, {maxKeys}). É um Map com ordem de inserção (LRU: get reinsere), apaga a mais antiga ao passar de maxKeys e expira no get. Usos:\n- 'analiseAtivosRaioX': maxKeys 400;\n- 'analiseComparador': maxKeys 300;\n- 'analiseCenariosBase': maxKeys 400.\nO teste cobre o tamanho máximo, a expiração e a ordem LRU.\n\n6) rateLimit.ts: tier novo ANTES do genérico.\n- match: p.startsWith('/api/analise-ativos/comparador') || /^\\/api\\/analise-ativos\\/ativos\\/[^/]+\\/raio-x/.test(p);\n- limite 30 por 60 s.\n- O PUT/DELETE dos cenários fica no genérico (60/min); o limite de 300 cenários fica no banco.\n\n7) src/types/analiseAtivosBlocoD.ts: todos os tipos da seção apis (RaioXResposta, LinhaRaioX, BlocoRaioX, CenariosResposta, BaseCenarioAcao/Fii, CenarioSalvo, CenarioPutBody, ComparadorResposta, AtivoComparador, LinhaComparador, GrupoComparador, GraficosComparador, DirecaoDestaque) e as props:\n- BlocoFundamentosProps {ticker, classe};\n- BlocoValuationProps {ticker, classe, nome}.\n\n8) cenarios/contrato.ts (zod, compartilhado pela rota B e pelos hooks):\n- CenarioPutSchema = discriminatedUnion('classe') com objetos .strict();\n- LIMITES_CENARIO lidos de SCORING_PARAMS (yield 0,1–30; g 0–20; k 1–30; margem 0–50 em passo 5; plAlvo 0,1–200; pvpAlvo 0,1–5; rendaMensal 1–1.000.000; dados do ativo finitos com |x| ≤ 1e6);\n- MAX_CENARIOS_POR_USUARIO = 300; MAX_ATIVOS_COMPARADOR = 4; TICKER_RE;\n- ROTAS_BLOCO_D: comparador = '/analise-ativos/comparador'; comparar(tickers) = '/analise-ativos/comparador?t=' + tickers.join(',').\n\n9) Hooks:\n- useRaioX(ticker, {enabled}): 30 min, retryAnalise.\n- baixarCsvRaioX(ticker): fetch credentials same-origin → blob. O nome vem do Content-Disposition. Se navigator.canShare({files}) e o app estiver em modo standalone no iOS, usa navigator.share({files}); senão, um <a download> com object URL. Devolve uma Promise para o spinner e o toast.\n- useCenarios(ticker): staleTime 0, sem refetchOnWindowFocus.\n- useSalvarCenario e useApagarCenario: csrfFetch + setQueryData.\n- useComparador(tickers): chave com os tickers ordenados, 10 min, placeholderData keepPrevious.\nQuery keys: raioX(ticker), cenario(ticker), comparador(ordenados).\n\n10) Textos-esqueleto (um objeto as const por fatia, com TODOS os textos desta spec):\n- varreduraTextos.ts: folhasTexto(obj) e PALAVRAS_PROIBIDAS_BLOCO_D = PALAVRAS_PROIBIDAS (que já tem 'nota'/'notas') + ['melhor','pior','vencedor','teto','preço-teto','valor intrínseco','potencial','upside','subvalorizada','subvalorizado','sobrevalorizada','sobrevalorizado','margem de segurança','comprar','compra','recomendação','recomendamos','sugerimos','indicamos','ranking','placar'].\n- Rótulos de observação usam 'Observações' / 'Sobre os dados', nunca 'Notas'.\n- O teste varre os 4 objetos e confere os placeholders contra PLACEHOLDERS_PERMITIDOS + 'metodo','premissa','cotas','renda','data','anos'.\n\n11) SeletorNivel.tsx: controle segmentado (role=group, aria-pressed) com botões de altura mínima 44px em TODOS os tamanhos. Abaixo de 560px de container, ocupa a largura toda. Estilo do protótipo (.lvl: grupo gray100, raio 10). Props {opcoes, ativo, onTrocar, rotuloGrupo}.\n\n12) Stubs:\n- BlocoFundamentos = <BlocoFundamentosEssencial/>;\n- BlocoValuation = <BlocoValuationMultiplos/>.\nA PaginaAtivo importa os stubs (render idêntico) e passa nome. A e B nunca tocam a PaginaAtivo.\n\n13) decisoes.md do Bloco D: as decisões D1–D20 deste documento, incluindo as divergências fechadas a favor do protótipo e as críticas rejeitadas.\n\n14) Fixture e2e: liga as 3 flags no CI e semeia o demo no beta (seedAnaliseAtivos).",
+      "testes": "- contrato.test.ts: limites, passo da margem, classe errada, campo extra, NaN/Infinity, string com vírgula rejeitada.\n- boundedTtlCache.test.ts: tamanho máximo, LRU, expiração.\n- textosBlocoD.test.ts: varredura e placeholders.\n- acessoAnalise.test.ts: matriz flag × área × admin/beta e o 404 de exigirRecursoAnalise.\n- Teste da rota de config: campo recursos.\n- rateLimit.test: tier novo casa com raio-x e comparador e não casa com /cenarios.\n- tsc + lint.\n- Regressão com as flags desligadas: analise-ativos-ativo e mobile-analise-ativos-ativo sem diferença.",
+      "criterios_aceite": [
+        "migrate diff mostra só a tabela analise_cenarios, os índices e o FK para \"User\"; apply-migration idempotente",
+        "Com as 3 flags desligadas: /config sem recursos ligados e página do ativo idêntica ao baseline",
+        "Cache limitado testado (nunca passa de maxKeys)",
+        "Teste de varredura dos 4 arquivos de texto passa (inclusive sem 'nota'/'notas')",
+        "decisoes.md do Bloco D com D1–D20 registradas antes de A–D começarem"
+      ]
+    },
+    {
+      "id": "A",
+      "titulo": "Fundamentos · Raio-X + Exportar CSV + conferência anual compartilhada",
+      "objetivo": "Seletor 'Essencial | Raio-X' no card Fundamentos. O Raio-X traz demonstrativos por ano fiscal com:\n- anos em colunas, o mais recente à esquerda, e a 1ª coluna fixa;\n- chips por bloco;\n- razões em itálico com fundo cinza e negativos em vermelho da paleta;\n- 'Valores em R$ mi · ano fiscal · fonte: CVM';\n- CSV gerado no servidor.\nNo mesmo pacote: a política de conferência anual sai do Essencial para um módulo compartilhado e ganha a regra das flags por ação.",
+      "arquivos_novos": [
+        "src/services/analiseAtivos/regras/conferencia/conferenciaAnual.ts",
+        "src/services/analiseAtivos/regras/conferencia/__tests__/conferenciaAnual.test.ts",
+        "src/services/analiseAtivos/regras/raioX/linhasRaioX.ts",
+        "src/services/analiseAtivos/regras/raioX/csvRaioX.ts",
+        "src/services/analiseAtivos/leitura/ativo/raioX.ts",
+        "src/app/api/analise-ativos/ativos/[ticker]/raio-x/route.ts",
+        "src/components/analiseAtivos/ativo/analise/TabelaRaioX.tsx",
+        "src/components/analiseAtivos/ativo/analise/BotaoExportarCsv.tsx",
+        "src/services/analiseAtivos/regras/raioX/__tests__/linhasRaioX.test.ts",
+        "src/services/analiseAtivos/regras/raioX/__tests__/csvRaioX.test.ts",
+        "src/services/analiseAtivos/leitura/__tests__/raioX.test.ts",
+        "src/app/api/analise-ativos/ativos/[ticker]/raio-x/__tests__/route.test.ts",
+        "e2e/analise-ativos-raio-x.spec.ts",
+        "e2e/mobile-analise-ativos-raio-x.spec.ts"
+      ],
+      "arquivos_alterados": [
+        "src/services/analiseAtivos/leitura/ativo/fundamentosEssencial.ts",
+        "src/services/analiseAtivos/leitura/__tests__/fundamentosEssencial.test.ts",
+        "src/components/analiseAtivos/ativo/analise/BlocoFundamentos.tsx",
+        "src/components/analiseAtivos/ativo/analise/BlocoFundamentosEssencial.tsx",
+        "src/services/analiseAtivos/textosRaioX.ts"
+      ],
+      "detalhes": "1) conferenciaAnual.ts (puro). Duas funções, ambas usadas pelo Essencial (refatorado para elas) e pelo Raio-X.\n\nconferirValoresDoAno(valores, mapaCampos, conf, ano, classe):\n- Para um ano fechado: aplica SÓ flagsConfDoAno(conf.flags, ano, ['historico']) sobre CAMPO_HISTORICO e flagsConfDoAno(conf.flags, ano, ['fundamentos_escala']) sobre as colunas.\n- Para ano === null ('Últ. 12m'): aplica todas as flags da linha.\n- É a conferirLinha de hoje, extraída sem mudar o comportamento.\n- As flags da linha do Quadro (acoes_escala, fii_vp, fii_obrigacoes, preco_*) NUNCA entram numa coluna anual.\n\nconferirPerShareDoAno(flagsPerShare, flagsMultiplosAno) → 'ocultar' | null:\n- 'salto_acoes_sem_evento' ou 'dados_incompletos' em asset_per_share_yearly.flags (ou em asset_multiples_yearly.flags do ano) ⇒ ausente('em_conferencia') com o motivo textosTela.conferencia.saltoAcoes.\n- Vale para: LPA, Nº de ações, P/L e P/VP do ano, e no FII para VP/cota, rendimento/cota e nº de cotas.\n- O Essencial passa a usá-la nas mesmas colunas. É uma MUDANÇA VISÍVEL no Essencial em produção (ex.: CBAV3 2021–2024 com LPA oculto), por correção de dado. Ver a pergunta 1.\n\n2) linhasRaioX.ts (puro). Catálogo por variante: 'acao', 'acao_financeira', 'fii_tijolo', 'fii_papel', 'fii_outro'.\n- Campos de cada linha: codigo, rotulo, tipo 'valor'|'razao', formato, fonteCvmAviso, campoConferencia (CAMPO_LINHA_RAIOX) e calc(ano).\n- Reusa ebitda() e dividaLiquida() de regras/calculo/multiplos.ts, além de lucroEstado(), somaTrimestres() e fatorCotasApos() do Essencial (exportar somaTrimestres sem mudar o comportamento).\n- Linhas: só as 'mostra' de cobertura_raio_x.\n- Regras:\n  - Financeira: as linhas de dívida, EBITDA, margens, caixa e liquidez saem, com a observação do padrão contábil.\n  - Linha 'n/a' em TODOS os anos sai e vai para 'Observações' (ITUB4: 9 linhas).\n  - Linha sem nenhum valor ok/conferência sai.\n  - Célula sem dado = '—' com title.\n- FII:\n  - Rendimento distribuído = rendimentosDeclarados do 2T + 4T. Faltando um dos dois ⇒ '—' ('semestre incompleto').\n  - Payout do resultado = distribuído ÷ resultado × 100. Resultado ≤ 0 ⇒ '—'.\n  - Resultado/cota = Σ resultadoTrimestral do ano ÷ média das cotas mensais do ano, com cada mês × fatorCotasApos(mês) (base de hoje). Menos de 12 meses de cotas ⇒ '—'.\n  - VP/cota = vpCotaFim ÷ fatorCotasApos(31/12) e rendimento/cota = rendCota ÷ fator, iguais ao Essencial. Caso de teste: HGLG11 2017, vpCotaFim 1.127,27 ÷ 10 = 112,73.\n  - Nº de cotas = cotas de dezembro × fatorCotasApos(31/12), com a observação 'na base de cotas de hoje'.\n  - Cotistas sem ajuste.\n- SEM taxa de administração, inadimplência e prazo médio (perguntas 2 e 3).\n- Unidades: R$ mi (÷1e6); por ação/cota em R$; nº de ações e de cotas em milhões com 1 casa.\n\n3) leitura/ativo/raioX.ts: obterRaioX(ticker, hoje).\n- obterLinhaQuadro: null ⇒ 404.\n- Cache getBoundedTtlCache('analiseAtivosRaioX') por symbol:versaoQuadro, TTL_ANALISE_MS.\n- Ações: fundamentosVigentes FY + assetPerShareYearly (com flags) + assetMultiplesYearly (com flags).\n- FII: fiiQuarterly + fiiMonthly (todos os meses da janela) + perShare + multiplesYearly.\n- Só anos fechados, até 10, em ordem decrescente. O cnpj_em_conferencia do FII vale como no Essencial.\n- Conferência por célula: conferirValoresDoAno + conferirPerShareDoAno + selo de proventos legados (detectarSaltoProvento/anosProventoSuspeito), exatamente como no Essencial.\n- REGRA DE OURO, testada: toda célula comum com o Essencial tem o MESMO Estado no mesmo ano. Campos comuns: receita, lucro, margem, ROE, LPA, payout, DY, VP/cota, P/VP, vacância, nº de imóveis, área, nº de CRIs, maior CRI.\n\n4) Rota GET /api/analise-ativos/ativos/[ticker]/raio-x\n- exigirRecursoAnalise('raioX'); TICKER_RE; ?formato=json|csv em zod (outro valor ⇒ 400).\n- JSON: Cache-Control private, max-age=300 + Server-Timing.\n- CSV:\n  - text/csv; charset=utf-8;\n  - Content-Disposition attachment; filename=\"WEGE3_raio-x_2016-2025.csv\" (formato do protótipo: <TICKER>_raio-x_<anoMaisAntigo>-<anoMaisRecente>.csv);\n  - nosniff;\n  - private, max-age=300.\n- Sem dado de usuário.\n\n5) csvRaioX.ts (puro): gerarCsvRaioX(resposta, {nome, hoje, versaoParams}).\n- Formato: BOM, ';', CRLF, vírgula decimal sem separador de milhar, '-' ASCII.\n- Ordem igual à da tela. A unidade vai no rótulo de cada linha ('Receita líquida (R$ mi)').\n- Cabeçalho 'Linha;2025;2024;…' e uma linha de título por bloco.\n- Casas: R$ mi 2; % 2; por ação 4; multiplicadores 2; inteiros 0.\n- Células: ausente = vazio; n/a = 'n/a'; 'ocultar' = vazio; 'selo' = valor.\n- No fim:\n  - 'Em conferência' com '2022 · Lucro líquido: <motivo>';\n  - 'Observações';\n  - 'Fonte;CVM (DFP/ITR, informes de FII) · B3 · cálculos do My Finance';\n  - 'Gerado em;08/10/2026';\n  - 'Parâmetros;v2';\n  - RODAPE_LEGAL entre aspas.\n- Escape RFC 4180 + prefixo ' em célula de texto que comece com = + - @ \\t \\r.\n- Nunca usar a palavra 'Notas'.\n\n6) UI\n- BlocoFundamentos: nível 'essencial'|'raioX' lembrado em localStorage('analise-fundamentos-nivel'), como no protótipo. Só com config.recursos.raioX; sem a flag, o Essencial fica como hoje.\n- BlocoFundamentosEssencial ganha a prop opcional cabecalhoExtra (slot acao do CartaoAnalise). O título do card continua 'Fundamentos'.\n- TabelaRaioX:\n  - mesmo CartaoAnalise (id fundamentos-ticker, menu ⋯ do Bloco C) e TABLE_STYLES compacto;\n  - cabeçalho #314666 com texto branco; faixas de grupo TABLE_SECTION_STYLE;\n  - 1ª coluna sticky com FUNDO_STICKY: 220–260px no computador e 150–170px no celular;\n  - colunas de ano com 84px no mínimo; ano mais recente em peso 600;\n  - razões em itálico com fundo #F2F4F7 / #26262A e aria-label '(razão)';\n  - negativos em #D92D20 / #F97066, com sinal '−';\n  - em conferência: hachura + ChipConferencia (alvo de 44px).\n  - Chips por bloco: no computador com 'Todos'; no celular abre no 1º bloco, sem 'Todos', com chips de 44px.\n  - Topo: 'Valores em R$ mi · ano fiscal · fonte: CVM' e BotaoExportarCsv ('Gerando CSV…' com spinner e desabilitado; toast com o nome do arquivo; erro em toast com 'Tentar de novo'; alvo de 44px).\n  - Estados: carregando com esqueleto e erro com 'Tentar de novo'.\n  - 'Sem demonstrativos' só no caso real de zero linhas.\n- Relato: usa CAMPOS_REPORTAVEIS.fundamentos; o resto vai como 'outro' com periodo = ano.",
+      "testes": "conferenciaAnual.test.ts:\n- paridade com o comportamento atual da conferirLinha (snapshot dos casos existentes);\n- flags da linha nunca aplicadas a um ano;\n- per-share: salto/dados_incompletos ⇒ ocultar.\n\nfundamentosEssencial.test.ts (alterado):\n- CBAV3 2021–2024 com LPA/nº de ações ocultos;\n- o resto inalterado.\n\nlinhasRaioX.test.ts com fixtures do DEV (WEGE3, PETR4, ITUB4, VALE3, TAEE11, CBAV3, HGLG11, XPLG11, KNCR11, MXRF11, GSRF11):\n- EBITDA, DL e FCL;\n- FCL/lucro com prejuízo;\n- HGLG11 2025: rendimento 223 + 236 = 459;\n- 2T faltando ⇒ '—';\n- resultado/cota HGLG11 2025 ≈ 12,9 (média das cotas);\n- HGLG11 2017 VP/cota = 112,73;\n- payout do ITUB4 removido;\n- ITUB4 com as 9 linhas n/a em Observações.\n\nraioX.test.ts:\n- consistência Essencial × Raio-X célula a célula, em todas as fixtures;\n- CBAV3: nenhum ano com acoesFim variando mais de 10× sem evento fica visível;\n- WEGE3 com selo de proventos;\n- cnpj_em_conferencia.\n\ncsvRaioX.test.ts: snapshot byte a byte (BOM, ';', vírgula, CRLF, escape, injeção '=1+1', nome com '-', ausência da palavra 'Notas').\n\nRota: 401; 404 (flag desligada, sem acesso, ticker fora); 400 de formato; headers do CSV (nome do arquivo).\n\nE2E:\n- seletor e persistência;\n- 1ª coluna fixa e rolagem interna;\n- download do CSV (suggestedFilename = WEGE3_raio-x_2016-2025.csv);\n- 390/320 sem rolagem da página;\n- alvos ≥ 44px;\n- claro e escuro.",
+      "criterios_aceite": [
+        "Raio-X de WEGE3, PETR4, ITUB4, VALE3, TAEE11, HGLG11, XPLG11, KNCR11 e MXRF11 confere com SQL do DEV em todas as células",
+        "Células comuns idênticas às do Essencial (teste automatizado), incluindo as regras novas de per-share",
+        "Nenhuma linha sem fonte ou aproximada (inadimplência, prazo, taxa de adm.) aparece",
+        "FII por cota sempre na base de cotas de hoje; resultado/cota pela média das cotas",
+        "CSV abre no Excel pt-BR com números como números; sem PII",
+        "Flag desligada: card idêntico e rota 404"
+      ]
+    },
+    {
+      "id": "B",
+      "titulo": "Valuation · Meus cenários (calculadora, salvar/restaurar, Sua posição, Meta de renda)",
+      "objetivo": "Seletor 'Múltiplos | Meus cenários' no card Valuation e calculadora conforme o protótipo:\n- dados do ativo pré-preenchidos e editáveis; a cotação é só leitura;\n- premissas, slider de margem, tabela e barras;\n- Sua posição e Meta de renda (FII);\n- salvar e restaurar com confirmação;\n- rodapé literal fixo.",
+      "arquivos_novos": [
+        "src/services/analiseAtivos/regras/valuation/montarCenarios.ts",
+        "src/services/analiseAtivos/regras/valuation/__tests__/montarCenarios.test.ts",
+        "src/services/analiseAtivos/leitura/ativo/baseCenarios.ts",
+        "src/services/analiseAtivos/leitura/__tests__/baseCenarios.test.ts",
+        "src/services/analiseAtivos/cenarios/cenarioService.ts",
+        "src/services/analiseAtivos/cenarios/__tests__/cenarioService.test.ts",
+        "src/app/api/analise-ativos/cenarios/[ticker]/route.ts",
+        "src/app/api/analise-ativos/cenarios/[ticker]/__tests__/route.test.ts",
+        "src/components/analiseAtivos/ativo/cenarios/MeusCenarios.tsx",
+        "src/components/analiseAtivos/ativo/cenarios/FormPremissas.tsx",
+        "src/components/analiseAtivos/ativo/cenarios/TabelaMetodos.tsx",
+        "src/components/analiseAtivos/ativo/cenarios/BarrasResultados.tsx",
+        "src/components/analiseAtivos/ativo/cenarios/LinhaSuaPosicao.tsx",
+        "src/components/analiseAtivos/ativo/cenarios/BlocoMetaRenda.tsx",
+        "src/components/analiseAtivos/ativo/cenarios/ConfirmarObjetivoPlanejamento.tsx",
+        "src/components/analiseAtivos/ativo/cenarios/BarraSalvamento.tsx",
+        "src/components/analiseAtivos/ativo/cenarios/useEstadoCenario.ts",
+        "src/components/analiseAtivos/ativo/cenarios/__tests__/useEstadoCenario.test.ts",
+        "e2e/analise-ativos-cenarios.escrita.spec.ts",
+        "e2e/mobile-analise-ativos-cenarios.spec.ts"
+      ],
+      "arquivos_alterados": [
+        "src/components/analiseAtivos/ativo/analise/BlocoValuation.tsx",
+        "src/components/analiseAtivos/ativo/analise/BlocoValuationMultiplos.tsx",
+        "src/services/analiseAtivos/regras/valuation/cenario.ts",
+        "src/services/analiseAtivos/textosCenarios.ts",
+        "src/app/api/profile/export/route.ts"
+      ],
+      "detalhes": "1) montarCenarios.ts (puro). Chama SÓ metodos.ts e metaRenda.ts.\n- Entrada: {classe, base, premissas, dadosEditados, margemPct, cotacao, posicao: {pm, quantidade} | null}.\n- Saída:\n  - linhas: {metodo, rotulo, premissasTexto, resultado, vsCotacaoPct, comMargem, motivoSemResultado, usaDadoEmConferencia};\n  - barras;\n  - suaPosicao;\n  - metaRenda: {cotas, custo, faltam, target, available} | null;\n  - nenhumResultado: boolean.\n- A conta usa o valor VISÍVEL no campo (arredondado): R$ com 2 casas e rendimento/cota de FII com 3 (1,195), como no protótipo.\n- cenario.ts ganha PremissasFii, plAlvo explícito, validarPremissa para plAlvo/pvpAlvo/rendaMensal e diffDadosEditados.\n\n2) baseCenarios.ts: cache getBoundedTtlCache('analiseCenariosBase') por ticker:versão, 30 min.\n- Lê a linha do Quadro + AssetMultiplesCurrent: preco, precoData, lpaTtm, vpa, dpa12m, plMedia10a, plPontosHistorico, rend12m, vpCota, pvp e flags.\n- Conferência com aplicarConferenciaCampo (pagina: false):\n  - 'ocultar' ⇒ ausente(em_conferencia) e não pré-preenche;\n  - 'selo' ⇒ ok + 'selo';\n  - proventos legados ⇒ selo em DPA/rend12m.\n- plAlvoPadrao: só com plPontosHistorico ≥ 5. Senão, ausente('historico_curto') com o texto 'histórico com menos de 5 anos: informe o P/L alvo' (AURE3 tem 2 pontos).\n- Premissas padrão vêm de ScoringParams.valuation.premissasPadrao.\n\n3) cenarioService.ts:\n- lerCenario e salvarCenario (upsert; na criação, se o usuário já tem 300 ou mais ⇒ 409, dentro de $transaction);\n- apagarCenario (deleteMany preso ao userId, idempotente);\n- cenariosParaExportacao (LGPD).\n\n4) Rota /api/analise-ativos/cenarios/[ticker]:\n- exigirRecursoAnalise('cenarios'); ticker válido e no Quadro (senão 404); userId = payload.id, NUNCA targetUserId.\n- GET 200, no-store. Com actingClient: salvo = null, podeSalvar = false, motivoSemSalvar = 'consultor', e a base completa (a calculadora funciona).\n- PUT: zod; classe ≠ classe do ativo ⇒ 400; actingClient ⇒ 403 'Os cenários salvos são pessoais'. Responde {atualizadoEm}.\n- DELETE: {ok:true}; actingClient ⇒ 403.\n- CSRF no middleware; erros via withErrorHandler.\n\n5) UI, exatamente como o protótipo:\n- BlocoValuation: SeletorNivel 'Múltiplos | Meus cenários' (com config.recursos.cenarios). BlocoValuationMultiplos ganha a prop opcional cabecalhoExtra.\n- MeusCenarios: grade de 300px + resto. Abaixo de 900px de container, entradas em 2 colunas; abaixo de 560px, 1 coluna.\n- FormPremissas:\n  - rótulo 14/500 e caixa com a unidade dentro;\n  - computador: 108×44px; celular: 48px e fonte de 16px; inputMode decimal, aceita vírgula ou ponto;\n  - cotação só leitura com borda tracejada e 'fechamento de dd/mm' vindo do precoData (29/09 no DEV);\n  - campo editado: ponto azul + 'editado' + 'voltar ao valor do ativo';\n  - valor do ativo mudou depois do salvamento: aviso + 'Usar o valor atual';\n  - chip de conferência no campo.\n- Slider 'Margem que você exige': 0–50, passo 5, aria-valuetext, área de 44px, ← → em passos de 5.\n- TabelaMetodos (TABLE_STYLES):\n  - colunas Método · Suas premissas · Resultado · vs. cotação · Com sua margem;\n  - vs. cotação em cinza neutro com sinal;\n  - '—' com o motivo na célula;\n  - no celular, a mesma tabela com rolagem interna (protótipo).\n- BarrasResultados:\n  - mesma escala para todas, barras de 18px com raio 4, em patrimonio/tranquilidade;\n  - parte clara de 'com sua margem' até o resultado;\n  - linha tracejada da cotação com rótulo;\n  - tabela alternativa sr-only;\n  - sem nenhum resultado: um aviso único no lugar das barras.\n- LinhaSuaPosicao: useNaCarteiraAtivo, só com posição; o consultor vê a do cliente.\n- BlocoMetaRenda (FII): 'X cotas · custo hoje R$ Z · faltam N'.\n  - Botão 'Criar objetivo no Planejamento' SÓ se faltam > 0.\n  - Abre ConfirmarObjetivoPlanejamento (modal no computador; BottomSheet com useMobileHistoryLayer no celular).\n  - Campos: nome ('Renda de R$ 1.000/mês com MXRF11'), target = cotas × cotação, available = min(quantidade, cotas) × cotação, prazo em meses (padrão 60), priority e status com os enums do schema.\n  - Aviso fixo: 'O objetivo também aparece no seu Fluxo de Caixa.' Com consultor agindo: 'O objetivo será criado no Planejamento e no Fluxo de Caixa do cliente.'\n  - POST /api/planejamento-sonhos via csrfFetch; invalida as queries do Planejamento e do Fluxo de Caixa; toast com link.\n- BarraSalvamento:\n  - status: valores do ativo · alterações não salvas · salvando · salvo em dd/mm às hh:mm · erro (mantém o digitado);\n  - 'Salvar cenário' (navy #314666; 44px, 48px e largura total no celular);\n  - 'Restaurar valores do ativo' com confirmação na própria tela ('Restaurar? Seu cenário salvo será apagado.' Confirmar/Cancelar) ⇒ DELETE + padrão (caso 22).\n- Consultor: modo rascunho, sem Salvar, com a caixa 'Os cenários salvos são pessoais de cada usuário. Você pode fazer as contas, mas não salvar.'\n- Rodapé = TEXTOS_ANALISE.rodapeValuation literal, numa caixa gray50 de 12,5px, sempre visível.",
+      "testes": "montarCenarios.test.ts:\n- casos 1–13 da §4.6;\n- WEGE3 (cotação 50,29 · LPA 1,49 · VPA 4,50 · DPA 2,00 com selo · P/L 36,9):\n  - Bazin 6% = 33,33 (−34%; com margem de 20% = 26,67; usaDadoEmConferencia);\n  - Graham = 12,28; múltiplo = 54,98; Gordon = 43,20;\n- Sua posição com PM 38,60: P/L sobre custo 25,9× e yield sobre custo 5,2%;\n- AURE3: Graham e múltiplo '—', P/L alvo ausente por histórico curto;\n- DPA 0; k = g e k < g; yield 0; nenhum resultado;\n- CBAV3 com 'ocultar' não pré-preenche;\n- diffDadosEditados;\n- HGLG11: renda desejada 166,75; P/VP alvo 165,95; meta de R$ 1.000 = 900 cotas · R$ 133.137,00;\n- meta com posição ≥ cotas ⇒ faltam 0 e target/available válidos (target > 0);\n- rendimento com 3 casas: MXRF11 10.042 cotas.\n\nRota:\n- 401; 404 (flag/área/ticker); 403 do consultor em PUT/DELETE; GET do consultor 200 com salvo = null e base presente;\n- 400 do zod; 403 sem CSRF; 409 no 301º;\n- isolamento entre usuários; DELETE idempotente.\n\nLGPD: export com analiseCenarios; cascade.\n\nE2E (escrita):\n- yield 4% → salvar → recarregar ⇒ 4% → restaurar com confirmação ⇒ 6% e registro apagado;\n- slider por teclado;\n- MXRF11 criar objetivo ⇒ aparece no Planejamento;\n- 390/320 sem rolagem; campos com 48px e 16px;\n- DOM sem palavras proibidas fora do rodapé;\n- cor computada neutra em vs. cotação.",
+      "criterios_aceite": [
+        "Casos 1–13 e 22 da §4.6 passam pelo módulo e pela tela",
+        "Nenhum inválido lança exceção: '—' com motivo",
+        "Consultor: calcula com a base, nunca lê nem grava cenário",
+        "Objetivo no Planejamento nunca recebe target 0; aviso do Fluxo de Caixa visível",
+        "Rodapé literal da spec visível sempre que Meus cenários está aberto",
+        "Flag desligada: card idêntico e rota 404"
+      ]
+    },
+    {
+      "id": "C",
+      "titulo": "Comparador (página, API em lote, ★, mini-gráficos, Resumo numérico)",
+      "objetivo": "Página /analise-ativos/comparador?t=... conforme o protótipo:\n- abas Ações | FIIs e até 4 slots;\n- grupos por classe e tipo de FII, com ★ por critério;\n- mini-gráficos base 100 na mesma escala;\n- Resumo numérico sem placar;\n- 'Copiar link';\n- alerta de tijolo + papel;\n- celular com slots empilhados;\n- sem CTA de compra.",
+      "arquivos_novos": [
+        "src/services/analiseAtivos/regras/comparador/indicadores.ts",
+        "src/services/analiseAtivos/regras/comparador/destaque.ts",
+        "src/services/analiseAtivos/regras/comparador/escala.ts",
+        "src/services/analiseAtivos/regras/comparador/resumo.ts",
+        "src/services/analiseAtivos/regras/comparador/__tests__/destaque.test.ts",
+        "src/services/analiseAtivos/regras/comparador/__tests__/indicadores.test.ts",
+        "src/services/analiseAtivos/regras/comparador/__tests__/escala.test.ts",
+        "src/services/analiseAtivos/regras/comparador/__tests__/resumo.test.ts",
+        "src/services/analiseAtivos/leitura/comparador/montarComparador.ts",
+        "src/services/analiseAtivos/leitura/__tests__/montarComparador.test.ts",
+        "src/app/api/analise-ativos/comparador/route.ts",
+        "src/app/api/analise-ativos/comparador/__tests__/route.test.ts",
+        "src/app/(admin)/(others-pages)/analise-ativos/comparador/page.tsx",
+        "src/components/analiseAtivos/comparador/Comparador.tsx",
+        "src/components/analiseAtivos/comparador/useEstadoComparadorUrl.ts",
+        "src/components/analiseAtivos/comparador/SlotsComparador.tsx",
+        "src/components/analiseAtivos/comparador/SlotAdicionar.tsx",
+        "src/components/analiseAtivos/comparador/TabelaComparador.tsx",
+        "src/components/analiseAtivos/comparador/CartoesComparador.tsx",
+        "src/components/analiseAtivos/comparador/CelulaComparador.tsx",
+        "src/components/analiseAtivos/comparador/MiniGraficosComparador.tsx",
+        "src/components/analiseAtivos/comparador/ResumoNumerico.tsx",
+        "src/components/analiseAtivos/comparador/AlertaMisto.tsx",
+        "src/components/analiseAtivos/comparador/BotaoCopiarLink.tsx",
+        "src/components/analiseAtivos/comparador/__tests__/useEstadoComparadorUrl.test.ts",
+        "e2e/analise-ativos-comparador.spec.ts",
+        "e2e/mobile-analise-ativos-comparador.spec.ts"
+      ],
+      "arquivos_alterados": [
+        "src/services/analiseAtivos/textosComparador.ts",
+        "src/components/analiseAtivos/busca/BuscaAtivos.tsx"
+      ],
+      "detalhes": "1) indicadores.ts (puro): catálogo por classe e tipo, conforme regras_comparador.\n- Campos de cada linha: codigo, rotulo, formato, direcao, aplicavel, fonteCvmAviso, campoTela, extrator.\n- Dív. líq./PL e P/Receita vêm do AssetMultiplesCurrent (divLiqPl, pReceita), com aplicarConferenciaCampo('divLiqPl'/'pReceita', pagina: false). LinhaQuadroApi não tem esses campos.\n\n2) destaque.ts (puro).\n- Candidatos: estado ok, finitos, sem conferência ('selo' também fica fora) e aplicáveis.\n- Compara o valor arredondado como exibido.\n- Sem ★: menos de 2 candidatos; empate; direção neutra.\n- 'perto_de_1' = menor |v − 1|.\n\n3) escala.ts (puro): base 100 nos 10 anos fechados.\n- Ações: lucro (serie10a).\n- FII: VP/cota ÷ fatorCotasApos (importado do Essencial, sem alterá-lo). Anos com salto/dados_incompletos viram null.\n- min = min(mínimo global, 100); max = máximo global.\n- Base = 1º ano > 0; prejuízo fica abaixo de zero.\n- Menos de 3 pontos ⇒ insuficiente.\n\n4) resumo.ts (puro). Lista sem ordenação por valor:\n- (a) 'Índice MF: WEGE3 8,3 · ITUB4 7,6* · TAEE11 8,0', na ORDEM DOS SLOTS, com '*' no incompleto e a legenda '* Índice incompleto: faltam dados';\n- (b) 'Critérios atendidos: WEGE3 4 de 5 · …';\n- (c) 'Em conferência: WEGE3 (DY), ITUB4 (DY)';\n- (d) 'Os destaques indicam o valor numericamente mais favorável em cada critério. Não indicam qual ativo escolher.'\nNÃO conta ★ e NÃO tem 'X tem o maior'.\n\n5) montarComparador.ts\n- Normaliza: maiúsculas, dedupe, até 4.\n- Ignorados: inexistente, outra_classe, excesso, formato.\n- Cache getBoundedTtlCache('analiseComparador', {maxKeys: 300}) por conjunto ordenado + versão, 30 min.\n- Leitura em paralelo:\n  - obterLinhasQuadroApi (memória);\n  - assetMultiplesCurrent.findMany(symbol in: pReceita, divLiqPl, flags);\n  - FII: fiiQuarterly do último trimestre por cnpj (refQuarter ≥ hoje − 9 meses) para nº de imóveis, vacância, área, nCri e maiorCri;\n  - FII: assetPerShareYearly (vpCotaFim + flags) e fiiMonthly com fatorDesdobramento.\n- misto = tijolo e papel no mesmo conjunto.\n\n6) Rota GET /api/analise-ativos/comparador?t=\n- exigirRecursoAnalise('comparador');\n- zod: t ≤ 80 caracteres e TICKER_RE; nenhum válido ⇒ 400;\n- private, max-age=300 + Server-Timing;\n- sem dado pessoal; tier de rate limit próprio (fatia 0).\n\n7) UI, exatamente como o protótipo:\n- page.tsx: notFound() com a flag desligada; casca variante 'comparador'.\n- useEstadoComparadorUrl: ?t= é a fonte da verdade; a aba Ações|FIIs vem da classe do 1º ticker (vazio ⇒ Ações); trocar de aba limpa a seleção.\n- BotaoCopiarLink: clipboard com a URL absoluta e toast 'Link copiado'.\n- Slots:\n  - grade de 4 (2 abaixo de 1100px de container), raio 14, remover com 44×44;\n  - slot vazio tracejado com 'Adicionar' + 3 sugestões de pares do mesmo segmento/tipo;\n  - busca em popover de 340px (computador) ou BottomSheet a 86% (celular, useMobileHistoryLayer), resultados de 52px;\n  - outra classe desabilitada com o motivo (BuscaAtivos: classe + desabilitarOutraClasse);\n  - no 4º: 'Você já escolheu 4 ativos'.\n- TabelaComparador:\n  - table-layout fixed, 1ª coluna com 230px sticky, cabeçalho #314666;\n  - links de ticker com área de toque de 44px (padding ou ::after);\n  - ★ = fundo #EDF2F8 (escuro: patrimonio a 22%) + filete de 3px + ícone de 14px + 'destaque' em texto + aria-label;\n  - conferência: chip + '—' ou valor, sem ★; n/a no misto.\n- CartoesComparador (celular): slots empilhados de 60px; um cartão por critério com uma grade de N colunas (cabe 4 a 320px); ★ com filete no topo.\n- MiniGraficosComparador: 86px de altura, linha de 2px, base 100 tracejada, mín./máx. globais, cor única. O sr-only de cada coluna traz SÓ a série daquele ativo.\n- AlertaMisto: fundo #EDF2F8 com borda #396CAA, ícone + texto.\n- ResumoNumerico: caixa neutra. SEM compra, SEM Salvar comparação, SEM PDF.\n- Estados: vazio, 1 ativo, carregando (esqueleto sem pulsar com reduced-motion) e erro com 'Tentar de novo'.",
+      "testes": "destaque.test.ts:\n- maior/menor; empate exato e por arredondamento;\n- 1 valor; n/a; selo e ocultar fora;\n- perto_de_1 (0,98 / 1,03 / 1,10 ⇒ 0,98);\n- neutro; DL negativa.\n\nresumo.test.ts:\n- ordem dos slots preservada mesmo com valores fora de ordem;\n- incompleto marcado com '*';\n- nenhuma frase com 'maior' nem contagem de ★;\n- varredura de linguagem.\n\nindicadores.test.ts: todo codigo tem rótulo e direção; nenhum sem fonte.\n\nescala.test.ts: base, prejuízo, min/max, HGLG11 sem salto de desdobramento em 2018.\n\nmontarComparador.test.ts:\n- WEGE3/PETR4/ITUB4 (financeira n/a);\n- HGLG11/XPLG11;\n- KNCR11/MXRF11;\n- misto;\n- SBSP3 (preço em conferência);\n- GSRF11 (VP oculto);\n- divLiqPl presente.\n\nRota: 401/404/400; dedupe; excesso; classe; cache.\n\nE2E:\n- URL compartilhável e 'Copiar link';\n- adicionar por sugestão e pela busca; outra classe desabilitada; remover;\n- 390/320; alvos ≥ 44px (incluindo os links de ticker);\n- varredura do DOM; nenhum botão de compra.",
+      "criterios_aceite": [
+        "★ só com direção definida, sem empate, com 2 ou mais valores e sem conferência",
+        "Resumo numérico sem ranking nem contagem de ★, com o Índice na ordem dos slots",
+        "Ações × FIIs nunca juntos; misto com alerta e n/a",
+        "Mini-gráficos com a mesma escala e por cota ajustada a desdobramento",
+        "Cache limitado a 300 chaves; API < 300 ms fria e < 60 ms quente",
+        "Flag desligada: página e API 404"
+      ]
+    },
+    {
+      "id": "D",
+      "titulo": "Entradas do Comparador (pílulas, modo Comparar do Quadro, botão no cabeçalho)",
+      "objetivo": "Mostrar as entradas do Comparador só com a flag ligada, exatamente como no protótipo: pílulas 'Quadro | Comparador', modo 'Comparar' no Quadro com barra de seleção e botão 'Comparar' na página do ativo.",
+      "arquivos_novos": [
+        "src/components/analiseAtivos/shell/PilulasArea.tsx",
+        "src/components/analiseAtivos/quadro/BandejaComparar.tsx",
+        "src/components/analiseAtivos/quadro/useSelecaoComparar.ts",
+        "src/components/analiseAtivos/quadro/__tests__/useSelecaoComparar.test.ts",
+        "src/components/analiseAtivos/ativo/topo/BotaoComparar.tsx",
+        "e2e/analise-ativos-entradas-comparador.spec.ts"
+      ],
+      "arquivos_alterados": [
+        "src/components/analiseAtivos/shell/AnaliseAtivosShell.tsx",
+        "src/components/analiseAtivos/quadro/QuadroAnalise.tsx",
+        "src/components/analiseAtivos/quadro/TabelaQuadro.tsx",
+        "src/components/analiseAtivos/quadro/CartoesQuadro.tsx",
+        "src/components/analiseAtivos/ativo/topo/CabecalhoAtivo.tsx",
+        "src/services/analiseAtivos/textosEntradasComparador.ts",
+        "e2e/desktop-layout.spec.ts"
+      ],
+      "detalhes": "1) PilulasArea:\n- links 'Quadro' e 'Comparador' com aria-current e altura mínima de 44px em todos os tamanhos;\n- ficam nas variantes 'quadro' e 'comparador' e só aparecem com config.recursos.comparador;\n- variante 'comparador': título, subtítulo neutro, busca compacta e rodapé legal.\n\n2) useSelecaoComparar:\n- {classe, tickers} em sessionStorage;\n- trocar de aba limpa;\n- máximo de 4: as demais caixas ficam desabilitadas e o motivo é anunciado (aria-live).\n\n3) QuadroAnalise: botão 'Comparar' na barra de ferramentas (aria-pressed, 44px). Com o modo ligado:\n- TabelaQuadro ganha uma coluna de caixas de 56px (caixa de 18px, área de 44×44, nome 'Comparar WEGE3', stopPropagation);\n- CartoesQuadro ganha uma caixa de 44px por cartão;\n- BandejaComparar:\n  - sticky no rodapé do card, no computador; fixa acima da tabbar com safe-area, no celular;\n  - fundo #314666, texto branco;\n  - '3 de 4 selecionadas · Comparar 3' + Limpar;\n  - 'Comparar' DESABILITADO com menos de 2 (protótipo).\nSem a flag, nada muda.\n\n4) BotaoComparar no CabecalhoAtivo, junto de 'Planejar na Carteira' e 'Registrar operação', sem mudar a ordem destes:\n- botão branco com borda, 44px;\n- link para ROTAS_BLOCO_D.comparar([ticker]);\n- só com a flag e para ação ou FII.\nOs botões Planejar e Registrar continuam como estão; a regra dos 44px desses dois fica numa pendência à parte (ver riscos).",
+      "testes": "useSelecaoComparar.test.ts: limite, troca de classe, sessão, botão desabilitado com menos de 2.\n\nE2E:\n- Quadro → Comparar → marcar 3 → ?t= com os 3;\n- ativo → Comparar → ?t=TICKER;\n- pílulas com aria-current;\n- 390/320: a bandeja não cobre o conteúdo e todos os alvos têm 44px ou mais;\n- flag desligada igual ao baseline.\n\nRegressões: desktop-layout (baselines com a flag desligada e ligada), mobile-analise-ativos-quadro, mobile-shell, smoke-routes.",
+      "criterios_aceite": [
+        "Flag desligada: Quadro, casca e cabeçalho idênticos",
+        "Seleção limitada a 4 e à classe; Comparar habilitado com 2 ou mais",
+        "Alvos ≥ 44px nas pílulas, caixas, bandeja e botão Comparar",
+        "Nenhum texto com palavra proibida"
+      ]
+    }
+  ],
+  "apis": [
+    {
+      "rota": "/api/analise-ativos/config",
+      "metodo": "GET",
+      "contrato": "Acréscimo opcional: recursos?: {raioX, cenarios, comparador}. Cada um = flag && estado 'liberada' do usuário logado.",
+      "seguranca": "Como hoje: 401 sem sessão, no-store, decidido por payload.id."
+    },
+    {
+      "rota": "/api/analise-ativos/ativos/[ticker]/raio-x",
+      "metodo": "GET",
+      "contrato": "Query: formato=json (padrão) | csv.\n\nJSON → RaioXResposta:\n{\n  ticker, classe, nome,\n  variante: 'acao'|'acao_financeira'|'fii_tijolo'|'fii_papel'|'fii_outro',\n  unidade: 'R$ mi', base: 'ano fiscal', fonte: 'CVM',\n  padraoContabil, escopo,\n  anos: number[]  (decrescente, até 10, só anos fechados),\n  blocos: [{\n    codigo, rotulo,\n    linhas: [{\n      codigo, rotulo,\n      tipo: 'valor'|'razao',\n      formato,\n      fonteCvmAviso,\n      campoConferencia,\n      valores: Record<ano, Estado<number>>,\n      selos: Record<ano, TipoSeloEstado[]>,\n      observacao: string|null\n    }]\n  }],\n  observacoes: string[],\n  linhasNaoAplicaveis: string[],\n  versao\n}\n\nCSV: arquivo <TICKER>_raio-x_<ano1>-<ano2>.csv, no formato da fatia A.",
+      "seguranca": "exigirRecursoAnalise('raioX'): 404 com flag desligada ou sem acesso; 401 sem sessão. 400 de formato; 404 para ticker fora. Só leitura do banco. Cache limitado (400 chaves, 30 min) + private, max-age=300. Tier de rate limit de 30/min por IP. Sem PII; CSV com anti-injeção e nosniff."
+    },
+    {
+      "rota": "/api/analise-ativos/cenarios/[ticker]",
+      "metodo": "GET",
+      "contrato": "→ CenariosResposta:\n{\n  ticker, classe, nome,\n  cotacao: { valor: Estado, data, conferencia },\n  base:\n    acao → { lpa, vpa, dpa, plAlvoPadrao, conferencias }\n    fii  → { rend12m, vpCota, pvpAtual, conferencias },\n  premissasPadrao,\n  limites,\n  salvo: { premissas, dadosEditados, atualizadoEm } | null,\n  podeSalvar,\n  motivoSemSalvar: 'consultor'|null,\n  versao\n}",
+      "seguranca": "exigirRecursoAnalise('cenarios'); ticker válido e no Quadro. O salvo é sempre do payload.id. Com actingClient: 200 com salvo = null e podeSalvar = false; a base vem completa, sem nenhum dado de usuário. no-store."
+    },
+    {
+      "rota": "/api/analise-ativos/cenarios/[ticker]",
+      "metodo": "PUT",
+      "contrato": "Body (CenarioPutSchema, strict):\n- { classe: 'acao', premissas: { yieldPct, gPct, kPct, margemPct, plAlvo? }, dados?: { lpa?, vpa?, dpa? } }\n- { classe: 'fii', premissas: { yieldPct, margemPct, rendaMensal, pvpAlvo }, dados?: { rend12m?, vpCota? } }\n→ { atualizadoEm }",
+      "seguranca": "CSRF. actingClient ⇒ 403. zod com limites (margem em passo 5); classe ≠ classe do ativo ⇒ 400. Upsert preso a (payload.id, symbol). Criação acima de 300 por usuário ⇒ 409, contado dentro da transação. Erros via withErrorHandler."
+    },
+    {
+      "rota": "/api/analise-ativos/cenarios/[ticker]",
+      "metodo": "DELETE",
+      "contrato": "→ { ok: true } (idempotente). Usado pelo 'Restaurar valores do ativo', após a confirmação na tela.",
+      "seguranca": "CSRF. actingClient ⇒ 403. deleteMany({ where: { userId: payload.id, symbol } })."
+    },
+    {
+      "rota": "/api/analise-ativos/comparador",
+      "metodo": "GET",
+      "contrato": "Query: t=WEGE3,ITUB4 (1 a 4).\n\n→ ComparadorResposta:\n{\n  classe, tickers,\n  ignorados: [{ ticker, motivo }],\n  misto,\n  ativos: [{\n    ticker, nome, preco, precoData,\n    fiiTipo, regua,\n    indice, statusCriterios,\n    noQuadro, foraDoQuadroMotivo,\n    conferencias, pares\n  }],\n  grupos: [{\n    codigo, rotulo, aplicavelA,\n    linhas: [{\n      codigo, rotulo, formato, direcao, fonteCvmAviso,\n      valores, conferencia,\n      destaque, motivoSemDestaque\n    }]\n  }],\n  graficos: { tipo, titulo, anos, escala: { min, max }, series },\n  resumo: {\n    indices: [{ ticker, valor, incompleto }]  (ordem dos slots),\n    criteriosAtendidos: [{ ticker, atende, total }],\n    emConferencia: [{ ticker, rotulos }],\n    responsabilidade: string\n  },\n  versao\n}",
+      "seguranca": "exigirRecursoAnalise('comparador'). zod: t ≤ 80 caracteres e TICKER_RE. Só banco, em lote. Cache limitado (300 chaves, 30 min) + private, max-age=300. Tier de rate limit de 30/min. Sem dado do usuário."
+    },
+    {
+      "rota": "/api/planejamento-sonhos",
+      "metodo": "POST",
+      "contrato": "EXISTENTE, sem mudança. A Meta de renda envia:\n{ name, target: cotas × cotação (> 0), months, available: min(posição, cotas) × cotação, priority, status }\nstartDate é omitido. O botão não aparece com faltam = 0.",
+      "seguranca": "Como hoje: requireAuthWithActing (com consultor agindo, grava no Planejamento e no Fluxo de Caixa do cliente via syncObjetivoToCashflow), CSRF e zod. O sheet de confirmação avisa os dois efeitos."
+    },
+    {
+      "rota": "/api/profile/export",
+      "metodo": "GET",
+      "contrato": "EXISTENTE. Ganha a chave analiseCenarios: [{ symbol, classe, premissas, dadosEditados, createdAt, updatedAt }].",
+      "seguranca": "Como hoje (só o próprio usuário)."
+    }
+  ],
+  "schema_prisma": "Só aditivo. Migration 20261014000000_analise_ativos_bloco_d.\n\n// Em model User, acrescentar a relação (sem mudar colunas):\n//   analiseCenarios  AnaliseCenario[]  @relation(\"AnaliseCenarioUser\")\n\n/** Meus cenários (Valuation): PRIVADO, um por usuário e ticker. O consultor agindo não lê nem grava. */\nmodel AnaliseCenario {\n  id            String   @id @default(uuid())\n  userId        String\n  user          User     @relation(\"AnaliseCenarioUser\", fields: [userId], references: [id], onDelete: Cascade)\n  symbol        String\n  classe        String   // acao | fii\n  premissas     Json\n  dadosEditados Json?\n  versaoSchema  Int      @default(1)\n  createdAt     DateTime @default(now())\n  updatedAt     DateTime @updatedAt\n\n  @@unique([userId, symbol])\n  @@index([userId, updatedAt])\n  @@map(\"analise_cenarios\")\n}\n\nSQL:\n- CREATE TABLE IF NOT EXISTS \"analise_cenarios\" (\n    \"id\" TEXT PRIMARY KEY,\n    \"userId\" TEXT NOT NULL,\n    \"symbol\" TEXT NOT NULL,\n    \"classe\" TEXT NOT NULL,\n    \"premissas\" JSONB NOT NULL,\n    \"dadosEditados\" JSONB,\n    \"versaoSchema\" INTEGER NOT NULL DEFAULT 1,\n    \"createdAt\" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,\n    \"updatedAt\" TIMESTAMP(3) NOT NULL\n  );\n- CREATE UNIQUE INDEX IF NOT EXISTS \"analise_cenarios_userId_symbol_key\" ON \"analise_cenarios\"(\"userId\",\"symbol\");\n- CREATE INDEX IF NOT EXISTS \"analise_cenarios_userId_updatedAt_idx\" ON \"analise_cenarios\"(\"userId\",\"updatedAt\");\n- DO $$ BEGIN\n    ALTER TABLE \"analise_cenarios\" ADD CONSTRAINT \"analise_cenarios_userId_fkey\"\n      FOREIGN KEY (\"userId\") REFERENCES \"User\"(\"id\") ON DELETE CASCADE ON UPDATE CASCADE;\n  EXCEPTION WHEN duplicate_object THEN NULL; END $$;\n\nNenhuma outra tabela muda. Raio-X e Comparador só leem tabelas que já existem. Não há tabela de comparações salvas.",
+  "cobertura_raio_x": [
+    {
+      "classe": "acao",
+      "bloco": "Lucro e geração de caixa",
+      "linha": "Receita líquida",
+      "fonte_no_banco": "asset_fundamentals_period.receita (FY vigente)",
+      "cobertura_dev": "WEGE3/PETR4/VALE3/TAEE11 12a; ITUB4 n/a; universo 181/260 (10a), 243 (≥5a)",
+      "decisao": "mostra (financeira: linha sai)"
+    },
+    {
+      "classe": "acao",
+      "bloco": "Lucro e geração de caixa",
+      "linha": "Lucro bruto",
+      "fonte_no_banco": "asset_fundamentals_period.lucroBruto",
+      "cobertura_dev": "4/5 12a; universo 181/243",
+      "decisao": "mostra (financeira não)"
+    },
+    {
+      "classe": "acao",
+      "bloco": "Lucro e geração de caixa",
+      "linha": "Margem bruta (razão)",
+      "fonte_no_banco": "derivada lucroBruto ÷ receita",
+      "cobertura_dev": "igual ao lucro bruto",
+      "decisao": "mostra"
+    },
+    {
+      "classe": "acao",
+      "bloco": "Lucro e geração de caixa",
+      "linha": "EBITDA (EBIT + D&A da DFC)",
+      "fonte_no_banco": "derivada multiplos.ebitda()",
+      "cobertura_dev": "4/5 12a; universo 161/220",
+      "decisao": "mostra com o rótulo explicativo (financeira n/a)"
+    },
+    {
+      "classe": "acao",
+      "bloco": "Lucro e geração de caixa",
+      "linha": "Margem EBITDA (razão)",
+      "fonte_no_banco": "derivada",
+      "cobertura_dev": "igual ao EBITDA",
+      "decisao": "mostra"
+    },
+    {
+      "classe": "acao",
+      "bloco": "Lucro e geração de caixa",
+      "linha": "EBIT",
+      "fonte_no_banco": "asset_fundamentals_period.ebit",
+      "cobertura_dev": "4/5 12a; universo 167/228",
+      "decisao": "mostra"
+    },
+    {
+      "classe": "acao",
+      "bloco": "Lucro e geração de caixa",
+      "linha": "Lucro líquido (controladora)",
+      "fonte_no_banco": "lucroAtribuivel via lucroEstado()",
+      "cobertura_dev": "5/5 12a; universo 179/243",
+      "decisao": "mostra (fundamentos_escala@ano ⇒ conferência, igual ao Essencial)"
+    },
+    {
+      "classe": "acao",
+      "bloco": "Lucro e geração de caixa",
+      "linha": "Margem líquida (razão)",
+      "fonte_no_banco": "asset_multiples_yearly.margemLiquidaPct",
+      "cobertura_dev": "4/5 10a; universo 227/310",
+      "decisao": "mostra"
+    },
+    {
+      "classe": "acao",
+      "bloco": "Lucro e geração de caixa",
+      "linha": "LPA (R$, base de ações de hoje)",
+      "fonte_no_banco": "asset_per_share_yearly.lpaAjHoje + flags",
+      "cobertura_dev": "5/5 10a; universo 240/324. CBAV3 2021–2024 com salto_acoes_sem_evento (208 anos-ativo no DEV)",
+      "decisao": "mostra com ressalva (ano com salto ou dados incompletos ⇒ oculto, em conferência; vale também no Essencial)"
+    },
+    {
+      "classe": "acao",
+      "bloco": "Lucro e geração de caixa",
+      "linha": "ROE (razão)",
+      "fonte_no_banco": "asset_multiples_yearly.roePct",
+      "cobertura_dev": "5/5 10a; universo 218/305",
+      "decisao": "mostra"
+    },
+    {
+      "classe": "acao",
+      "bloco": "Lucro e geração de caixa",
+      "linha": "ROIC (razão)",
+      "fonte_no_banco": "asset_multiples_yearly.roicPct",
+      "cobertura_dev": "4/5 10a; universo 206/277",
+      "decisao": "mostra com ressalva (observação 'aproximado: IR/CSLL de 34%')"
+    },
+    {
+      "classe": "acao",
+      "bloco": "Lucro e geração de caixa",
+      "linha": "Payout (razão)",
+      "fonte_no_banco": "asset_multiples_yearly.payoutPct",
+      "cobertura_dev": "4/5 10a; ITUB4 0/10 (dmpl_zero_com_proventos, embora o DMPL consolidado tenha R$ 49,2 bi); universo 169/294",
+      "decisao": "mostra (ITUB4: linha some; achado enviado à curadoria)"
+    },
+    {
+      "classe": "acao",
+      "bloco": "Caixa e dívida",
+      "linha": "Patrimônio líquido (controladora)",
+      "fonte_no_banco": "plControladora (fallback pl)",
+      "cobertura_dev": "5/5 12a; universo 181/243",
+      "decisao": "mostra"
+    },
+    {
+      "classe": "acao",
+      "bloco": "Caixa e dívida",
+      "linha": "Caixa e aplicações",
+      "fonte_no_banco": "caixa + aplicacoesFinanceiras",
+      "cobertura_dev": "4/5 12a; universo 177/241",
+      "decisao": "mostra (financeira n/a)"
+    },
+    {
+      "classe": "acao",
+      "bloco": "Caixa e dívida",
+      "linha": "Dívida bruta",
+      "fonte_no_banco": "dividaBrutaCp + dividaBrutaLp",
+      "cobertura_dev": "4/5 12a; universo 167/226",
+      "decisao": "mostra (financeira n/a)"
+    },
+    {
+      "classe": "acao",
+      "bloco": "Caixa e dívida",
+      "linha": "Dívida líquida",
+      "fonte_no_banco": "derivada multiplos.dividaLiquida()",
+      "cobertura_dev": "igual à dívida bruta",
+      "decisao": "mostra"
+    },
+    {
+      "classe": "acao",
+      "bloco": "Caixa e dívida",
+      "linha": "Dív. líq./EBITDA (razão)",
+      "fonte_no_banco": "asset_multiples_yearly.divLiqEbitda",
+      "cobertura_dev": "4/5 10a; universo 163/266",
+      "decisao": "mostra"
+    },
+    {
+      "classe": "acao",
+      "bloco": "Caixa e dívida",
+      "linha": "Dív. líq./PL (razão)",
+      "fonte_no_banco": "asset_multiples_yearly.divLiqPl",
+      "cobertura_dev": "4/5 10a; universo 190/268",
+      "decisao": "mostra"
+    },
+    {
+      "classe": "acao",
+      "bloco": "Caixa e dívida",
+      "linha": "Liquidez corrente (razão)",
+      "fonte_no_banco": "asset_multiples_yearly.liquidezCorrente",
+      "cobertura_dev": "4/5 10a; universo 229/287",
+      "decisao": "mostra"
+    },
+    {
+      "classe": "acao",
+      "bloco": "Caixa e dívida",
+      "linha": "Nº de ações (milhões, ex-tesouraria)",
+      "fonte_no_banco": "asset_per_share_yearly.acoesFim + flags",
+      "cobertura_dev": "5/5 10a; universo 242/324; CBAV3 com escala quebrada em 2021–2024 (887 mil → 596 mi → 645 mi → 651 mil)",
+      "decisao": "mostra com ressalva (anos com salto ou dados incompletos ⇒ oculto, em conferência)"
+    },
+    {
+      "classe": "acao",
+      "bloco": "Fluxo de caixa",
+      "linha": "Caixa operacional (FCO)",
+      "fonte_no_banco": "asset_fundamentals_period.fco",
+      "cobertura_dev": "5/5 12a; universo 175/240",
+      "decisao": "mostra"
+    },
+    {
+      "classe": "acao",
+      "bloco": "Fluxo de caixa",
+      "linha": "Caixa de investimento",
+      "fonte_no_banco": "asset_fundamentals_period.fci",
+      "cobertura_dev": "5/5 12a; universo 174/240",
+      "decisao": "mostra"
+    },
+    {
+      "classe": "acao",
+      "bloco": "Fluxo de caixa",
+      "linha": "Caixa de financiamento (campo fcf)",
+      "fonte_no_banco": "asset_fundamentals_period.fcf (DFC 6.03)",
+      "cobertura_dev": "5/5 12a; universo 175/240",
+      "decisao": "mostra com o rótulo 'Caixa de financiamento', nunca 'FCF'"
+    },
+    {
+      "classe": "acao",
+      "bloco": "Fluxo de caixa",
+      "linha": "CAPEX",
+      "fonte_no_banco": "asset_fundamentals_period.capex",
+      "cobertura_dev": "5/5 12a; universo 175/240",
+      "decisao": "mostra"
+    },
+    {
+      "classe": "acao",
+      "bloco": "Fluxo de caixa",
+      "linha": "Fluxo de caixa livre (FCO − CAPEX)",
+      "fonte_no_banco": "derivada",
+      "cobertura_dev": "igual ao FCO/CAPEX",
+      "decisao": "mostra"
+    },
+    {
+      "classe": "acao",
+      "bloco": "Fluxo de caixa",
+      "linha": "FCL / lucro (razão)",
+      "fonte_no_banco": "derivada (lucro ≤ 0 ⇒ '—')",
+      "cobertura_dev": "igual ao FCL",
+      "decisao": "mostra"
+    },
+    {
+      "classe": "acao",
+      "bloco": "Fluxo de caixa",
+      "linha": "Dividendos e JCP pagos",
+      "fonte_no_banco": "asset_fundamentals_period.dividendosJcpPagos",
+      "cobertura_dev": "5/5 12a; universo 175/240",
+      "decisao": "mostra"
+    },
+    {
+      "classe": "acao",
+      "bloco": "Fluxo de caixa",
+      "linha": "Recompras",
+      "fonte_no_banco": "sem fonte",
+      "cobertura_dev": "—",
+      "decisao": "não mostra"
+    },
+    {
+      "classe": "acao",
+      "bloco": "(base)",
+      "linha": "Demonstrativo CVM conta a conta",
+      "fonte_no_banco": "asset_statement_lines",
+      "cobertura_dev": "72 emissores no DEV (perfil dev)",
+      "decisao": "não mostra no Bloco D (pergunta)"
+    },
+    {
+      "classe": "fii",
+      "bloco": "Resultado e distribuição",
+      "linha": "Receita (aluguel + financeira)",
+      "fonte_no_banco": "Σ 4 trimestres fii_quarterly.receitaAluguel (somaTrimestres)",
+      "cobertura_dev": "HGLG11 11a, XPLG11 9a; papel n/a; tijolo 125/184",
+      "decisao": "mostra (papel sem aluguel: linha sai)"
+    },
+    {
+      "classe": "fii",
+      "bloco": "Resultado e distribuição",
+      "linha": "Resultado líquido",
+      "fonte_no_banco": "Σ 4 trimestres fii_quarterly.resultadoTrimestral",
+      "cobertura_dev": "4/4 FIIs 9–11a; tijolo 135/184, papel 48/69",
+      "decisao": "mostra"
+    },
+    {
+      "classe": "fii",
+      "bloco": "Resultado e distribuição",
+      "linha": "Rendimento distribuído (R$ mi)",
+      "fonte_no_banco": "rendimentosDeclarados 2T + 4T (acumulado no semestre)",
+      "cobertura_dev": "4/4; HGLG11 2025 = 223 + 236 = 459",
+      "decisao": "mostra com ressalva (falta 2T ou 4T ⇒ '—'; QA em prod antes de ligar)"
+    },
+    {
+      "classe": "fii",
+      "bloco": "Resultado e distribuição",
+      "linha": "Rendimento por cota (R$)",
+      "fonte_no_banco": "asset_per_share_yearly.rendCota ÷ fatorCotasApos",
+      "cobertura_dev": "HGLG11/KNCR11 10a; XPLG11 sem 2018; MXRF11 sem 2017",
+      "decisao": "mostra (base de cotas de hoje; proventos em conferência ⇒ selo)"
+    },
+    {
+      "classe": "fii",
+      "bloco": "Resultado e distribuição",
+      "linha": "DY (razão)",
+      "fonte_no_banco": "asset_multiples_yearly.dyPct",
+      "cobertura_dev": "4/4 com 8–9 anos fechados",
+      "decisao": "mostra"
+    },
+    {
+      "classe": "fii",
+      "bloco": "Resultado e distribuição",
+      "linha": "Payout do resultado (razão)",
+      "fonte_no_banco": "derivada distribuído ÷ resultado",
+      "cobertura_dev": "HGLG11 2025 ≈ 101%, MXRF11 ≈ 100%, KNCR11 ≈ 103%",
+      "decisao": "mostra com ressalva (resultado ≤ 0 ⇒ '—')"
+    },
+    {
+      "classe": "fii",
+      "bloco": "Resultado e distribuição",
+      "linha": "Resultado por cota (R$)",
+      "fonte_no_banco": "Σ resultado ÷ média das 12 fii_monthly.cotas × fatorCotasApos",
+      "cobertura_dev": "4/4 (cotas 9–10a); HGLG11 2025 ≈ 12,9 (pelas cotas de dezembro daria 10,72, por causa da emissão)",
+      "decisao": "mostra (menos de 12 meses de cotas ⇒ '—')"
+    },
+    {
+      "classe": "fii",
+      "bloco": "Patrimônio e cota",
+      "linha": "Patrimônio líquido",
+      "fonte_no_banco": "fii_monthly.pl de dezembro",
+      "cobertura_dev": "HGLG11/KNCR11/MXRF11 10a, XPLG11 9a; tijolo 135/184, papel 48/69",
+      "decisao": "mostra"
+    },
+    {
+      "classe": "fii",
+      "bloco": "Patrimônio e cota",
+      "linha": "VP por cota (R$)",
+      "fonte_no_banco": "asset_per_share_yearly.vpCotaFim ÷ fatorCotasApos (o valor gravado NÃO vem ajustado: HGLG11 2017 = 1.127,27 → 112,73)",
+      "cobertura_dev": "4/4 9–10a",
+      "decisao": "mostra (fii_vp só no 'Últ. 12m' do Essencial; per-share com salto ⇒ oculto)"
+    },
+    {
+      "classe": "fii",
+      "bloco": "Patrimônio e cota",
+      "linha": "P/VP (razão)",
+      "fonte_no_banco": "asset_multiples_yearly.pvp",
+      "cobertura_dev": "4/4 9–10a",
+      "decisao": "mostra"
+    },
+    {
+      "classe": "fii",
+      "bloco": "Patrimônio e cota",
+      "linha": "Nº de cotas (milhões, base de hoje)",
+      "fonte_no_banco": "fii_monthly.cotas de dezembro × fatorCotasApos",
+      "cobertura_dev": "4/4 9–10a; HGLG11 desdobramento ×10 em 2018-04",
+      "decisao": "mostra com a observação 'na base de cotas de hoje'"
+    },
+    {
+      "classe": "fii",
+      "bloco": "Patrimônio e cota",
+      "linha": "Cotistas",
+      "fonte_no_banco": "fii_monthly.cotistas de dezembro",
+      "cobertura_dev": "4/4 9–10a; tijolo 135/184",
+      "decisao": "mostra"
+    },
+    {
+      "classe": "fii",
+      "bloco": "Patrimônio e cota",
+      "linha": "Liquidez média diária (série anual)",
+      "fonte_no_banco": "sem série anual",
+      "cobertura_dev": "—",
+      "decisao": "não mostra"
+    },
+    {
+      "classe": "fii",
+      "bloco": "Carteira de imóveis (tijolo)",
+      "linha": "Nº de imóveis (CVM)",
+      "fonte_no_banco": "fii_quarterly.nImoveisRenda + nImoveisOutros (4T)",
+      "cobertura_dev": "HGLG11 11a, XPLG11 9a; tijolo 127/184",
+      "decisao": "mostra com o selo 'fonte CVM · pode diferir do relatório do gestor'"
+    },
+    {
+      "classe": "fii",
+      "bloco": "Carteira de imóveis (tijolo)",
+      "linha": "Área informada (não é ABL)",
+      "fonte_no_banco": "fii_quarterly.areaM2",
+      "cobertura_dev": "HGLG11 11a, XPLG11 9a; tijolo 121/184",
+      "decisao": "mostra com o selo CVM"
+    },
+    {
+      "classe": "fii",
+      "bloco": "Carteira de imóveis (tijolo)",
+      "linha": "Vacância física (CVM)",
+      "fonte_no_banco": "fii_quarterly.vacanciaFisicaCvmPct (4T)",
+      "cobertura_dev": "HGLG11 11a, XPLG11 9a; tijolo 120/184",
+      "decisao": "mostra com o selo CVM"
+    },
+    {
+      "classe": "fii",
+      "bloco": "Carteira de imóveis (tijolo)",
+      "linha": "Vacância financeira, inquilinos, atípicos, padrão AAA, ABL",
+      "fonte_no_banco": "sem fonte",
+      "cobertura_dev": "—",
+      "decisao": "não mostra"
+    },
+    {
+      "classe": "fii",
+      "bloco": "Carteira de imóveis (tijolo)",
+      "linha": "Prazo médio dos contratos",
+      "fonte_no_banco": "fii_quarterly.prazoMedioAnosAprox (balde '> 36 meses' = 5 anos)",
+      "cobertura_dev": "HGLG11 11a, XPLG11 7a; tijolo 109/184",
+      "decisao": "não mostra (aproximação; sai também do protótipo; pergunta)"
+    },
+    {
+      "classe": "fii",
+      "bloco": "Carteira de imóveis (tijolo)",
+      "linha": "Inadimplência de aluguel (CVM)",
+      "fonte_no_banco": "fii_quarterly.inadimplenciaCvmPct",
+      "cobertura_dev": "HGLG11 11a, XPLG11 4a; tijolo 103/184",
+      "decisao": "não mostra (não validado; sai também do protótipo; pergunta)"
+    },
+    {
+      "classe": "fii",
+      "bloco": "Carteira (papel)",
+      "linha": "Nº de CRIs",
+      "fonte_no_banco": "fii_quarterly.nCri (4T)",
+      "cobertura_dev": "KNCR11/MXRF11 11a; papel 48/69",
+      "decisao": "mostra com o selo CVM"
+    },
+    {
+      "classe": "fii",
+      "bloco": "Carteira (papel)",
+      "linha": "Maior CRI (% dos CRIs)",
+      "fonte_no_banco": "fii_quarterly.maiorCriPct",
+      "cobertura_dev": "KNCR11/MXRF11 11a; papel 48/69",
+      "decisao": "mostra com o selo CVM"
+    },
+    {
+      "classe": "fii",
+      "bloco": "Carteira (papel)",
+      "linha": "LTV, inadimplência, duration, indexador, taxa média dos CRIs",
+      "fonte_no_banco": "sem fonte",
+      "cobertura_dev": "—",
+      "decisao": "não mostra"
+    },
+    {
+      "classe": "fii",
+      "bloco": "Alavancagem e custos",
+      "linha": "Obrigações/PL",
+      "fonte_no_banco": "asset_multiples_yearly.obrigacoesPlPct",
+      "cobertura_dev": "4/4 9–10a; tijolo 135/184, papel 48/69",
+      "decisao": "mostra (nunca com o nome 'LTV')"
+    },
+    {
+      "classe": "fii",
+      "bloco": "Alavancagem e custos",
+      "linha": "Taxa de administração",
+      "fonte_no_banco": "fii_monthly.taxaAdmPct (o schema diz 'SÓ checagem, nunca exibido (regra 21)')",
+      "cobertura_dev": "4/4 9–10a",
+      "decisao": "não mostra (regra 21; o card Múltiplos já a exibe como 'último mês', o que é uma inconsistência à parte; pergunta)"
+    },
+    {
+      "classe": "fii",
+      "bloco": "Alavancagem e custos",
+      "linha": "Taxa de performance (R$ mi)",
+      "fonte_no_banco": "Σ fii_quarterly.taxaPerformance",
+      "cobertura_dev": "HGLG11 9a, XPLG11 7a, MXRF11 7a, KNCR11 0; tijolo 81/184, papel 28/69",
+      "decisao": "mostra (a linha sai se não houver nenhum ano)"
+    },
+    {
+      "classe": "fii",
+      "bloco": "(amostra)",
+      "linha": "BCFF11",
+      "fonte_no_banco": "ausente no DEV (fundo incorporado)",
+      "cobertura_dev": "0",
+      "decisao": "fora; HFOF11 no QA"
+    }
+  ],
+  "metodos_cenarios": "FONTE ÚNICA: regras/valuation/metodos.ts e metaRenda.ts. montarCenarios.ts só compõe as linhas.\n- Percentuais em pontos (6 = 6%).\n- Resultado em R$ com 2 casas; vs. cotação inteiro com sinal.\n- A conta usa o valor visível no campo: R$ com 2 casas; rendimento/cota de FII com 3 casas (sem isso, a Meta erra cerca de 40 cotas).\n\nDADOS DO ATIVO (pré-preenchidos e editáveis; a cotação é só leitura)\n- Ações: LPA = lpaTtm; VPA = vpa; DPA = dpa12m.\n- P/L alvo padrão = plMedia10a, só com plPontosHistorico ≥ 5. Senão, o campo fica vazio com 'histórico com menos de 5 anos: informe o P/L alvo' (ex.: AURE3, 2 pontos).\n- FIIs: rend12m, vpCota; P/VP alvo padrão 1,00.\n- Cotação: preco + 'fechamento de dd/mm' a partir do precoData. No DEV é 29/09; o 07/10 do protótipo está errado.\n- DEV:\n  - WEGE3: 50,29 · LPA 1,49 · VPA 4,50 · DPA 2,00 (selo) · P/L 36,9.\n  - PETR4: 49,10 · 10,35 · 37,32 · 3,62 · 12,3.\n  - HGLG11: 147,93 · rend. 13,34 · VP 165,95.\n  - KNCR11: 106,03 · 14,14 · 102,64.\n\nPREMISSAS PADRÃO (ScoringParams)\n- Ações: yield 6 · g 8 · k 13 · margem 20.\n- FIIs: yield 8 · margem 10 · renda R$ 1.000 · P/VP alvo 1,00.\n- Limites:\n  - yield 0,1–30; g 0–20; k 1–30; margem 0–50 em passo 5;\n  - P/L 0,1–200; P/VP 0,1–5; renda 1–1.000.000.\n- Valor fora do limite: borda #D92D20/#F97066 + 'Use um valor entre X e Y', e o método fica '—'.\n\nAÇÕES\n1) Preço pelo dividendo (Bazin) = DPA ÷ yield.\n   - DPA ≤ 0 ⇒ '— DPA zero: sem proventos nos últimos 12 meses'.\n2) Fórmula de Graham = √(22,5 × LPA × VPA).\n   - LPA ≤ 0 ⇒ '— LPA ≤ 0: a fórmula não se aplica'.\n   - VPA ≤ 0 ⇒ '— VPA ≤ 0'.\n3) Múltiplo alvo = P/L alvo × LPA.\n   - LPA ≤ 0 ou P/L vazio ⇒ '—'.\n4) Dividendos crescentes (Gordon) = DPA × (1+g) ÷ (k − g).\n   - k ≤ g ⇒ '— k ≤ g: o modelo não tem resultado'.\n- WEGE3: Bazin 33,33 (−34%; com 20% = 26,67) · Graham 12,28 · Múltiplo 54,98 · Gordon 43,20 (−14%; 34,56).\n- Bazin e Gordon da WEGE3 mostram 'usa DPA em conferência'.\n\nFIIs\n1) Preço pela renda desejada = rend12m ÷ yield. HGLG11 a 8% = 166,75 (+13%).\n2) P/VP alvo × VP/cota. HGLG11 com 1,00 = 165,95 (+12%). VP oculto ⇒ '— VP/cota em conferência'.\n3) Meta de renda (bloco próprio):\n   - cotas = ⌈arredondar(renda × 12 ÷ rend12m, 9)⌉;\n   - custo = cotas × cotação;\n   - faltam = max(0, cotas − quantidade).\n   - HGLG11, R$ 1.000: 900 cotas · R$ 133.137,00. MXRF11: 10.042 cotas · R$ 91.382,20 · faltam 8.792 (posição ilustrativa).\n   - Objetivo no Planejamento:\n     - só com faltam > 0;\n     - target = cotas × cotação; available = min(quantidade, cotas) × cotação; months padrão 60;\n     - avisos do Fluxo de Caixa (e do cliente, com consultor).\n\nCOLUNAS\n- Resultado.\n- vs. cotação = (resultado ÷ cotação − 1) × 100, cinza neutro, sem seta e sem cor semântica.\n- Com sua margem = resultado × (1 − margem/100).\n- Barras na mesma escala, ordem fixa dos métodos (sem ranking), com a linha tracejada da cotação. Sem nenhum resultado, um aviso único no lugar das barras.\n\nSUA POSIÇÃO (só com posição)\n- Ação: PM ÷ LPA e DPA ÷ PM. Exemplo PM 38,60: 'P/L sobre custo 25,9× · yield sobre custo 5,2%'. LPA ≤ 0 ⇒ só o yield.\n- FII: PM ÷ VP/cota e rend12m ÷ PM.\n- O consultor vê a posição do cliente.\n\nDADO EM CONFERÊNCIA\n- 'ocultar' não pré-preenche: campo vazio + chip; o usuário pode digitar.\n- 'selo' pré-preenche + chip; os métodos que usam o dado mostram 'usa <dado> em conferência'.\n- Cotação com selo: chip na linha da cotação.\n\nSALVAR E RESTAURAR (caso 22)\n- Salvar grava as premissas + dadosEditados (só o que difere: diffDadosEditados).\n- Estados: valores do ativo · alterações não salvas · salvando · salvo em dd/mm às hh:mm · erro (mantém o digitado).\n- Ao reabrir: aplicarCenarioSalvo. Se o valor do ativo mudou, aviso + 'Usar o valor atual'.\n- Restaurar: confirmação na tela, depois DELETE + padrão.\n- Sem salvamento automático.\n\nCASOS-LIMITE: todos viram '—' com o motivo, nunca exceção.\n- LPA/VPA ≤ 0; DPA 0; k ≤ g; yield fora do limite ou 0.\n- P/L vazio; rendimento ≤ 0.\n- Cotação ausente: vs. cotação e com margem '—', barras sem a linha.\n- Financeira: os quatro métodos valem.\n\nTEXTOS (textosCenarios, passam no linter)\n- 'Como é calculado': Graham (22,5 = P/L 15 × P/VP 1,5), Bazin (os 6% eram a referência de juros da época), Gordon (1959), e 'Nenhum método é previsão de preço.'\n- Consultor: 'Os cenários salvos são pessoais de cada usuário. Você pode fazer as contas, mas não salvar.'\n- Rodapé = TEXTOS_ANALISE.rodapeValuation LITERAL (já em EXCECOES_TEXTO_FIXO, fixado por textos.test.ts e casos46.test.ts).",
+  "regras_comparador": "PRINCÍPIOS\n★ = 'valor numericamente mais favorável' no critério, nunca 'melhor'.\n- Calculado no servidor, sobre o valor arredondado como exibido.\n- Sem ★ quando: menos de 2 valores aplicáveis; empate; indicador neutro; valor em conferência ('ocultar' ou 'selo'); ausente; n/a.\n- Uma classe por comparação, até 4 ativos, abas Ações | FIIs.\n- Linhas sem ★: Cotação, Índice MF (anel; incompleto tracejado), Semáforo (5 badges + 'n de m'), Na minha carteira (overlay do cliente).\n\nAÇÕES\n- Qualidade: Lucros seguidos (maior) · ROE (maior) · Margem líquida (maior; financeira n/a).\n- Endividamento: Dív. líq./EBITDA (menor; caixa líquido negativo conta como menor; financeira n/a) · Dív. líq./PL (menor; vem de AssetMultiplesCurrent.divLiqPl; financeira n/a).\n- Preço: P/L (menor; P/L ≤ 0 fica fora e mostra '—' com o motivo) · P/VP (menor) · P/Receita (menor; AssetMultiplesCurrent.pReceita; financeira n/a).\n- Dividendos: DY 12m (maior) · Payout (NEUTRO; diverge da spec, pergunta).\n- Tamanho e liquidez: valor de mercado e liquidez 21 pregões (neutros).\n- Mini-gráfico: lucro 10a base 100.\n\nFIIs (comuns)\n- DY 12m: maior.\n- Rendimento/cota: neutro.\n- Meses seguidos com rendimento: maior.\n- P/VP: tijolo = menor; papel = perto de 1; misto = sem ★ ('tipos diferentes: sem destaque').\n- Obrigações/PL: menor.\n- Patrimônio, cotistas, liquidez, VP/cota: neutros.\n- Tijolo: Nº de imóveis, Vacância física e Área informada (CVM) mostram com o selo, SEM ★ (diverge da spec; pergunta). Sem fonte (não aparecem): ABL, inquilinos, atípicos, padrão e prazo.\n- Papel: Nº de CRIs (maior) e Maior CRI (menor), com o selo 'critérios provisórios · fonte CVM'. Sem fonte (não aparecem): LTV, inadimplência, duration, indexador e taxa.\n- Mini-gráfico FII: VP/cota ÷ fatorCotasApos, base 100. Anos com salto per-share = null.\n\nMISTO (tijolo + papel)\n- Alerta neutro azul (ícone + texto).\n- Células do outro tipo = n/a; ★ só entre os aplicáveis.\n- FoF e indefinido: grupos de qualidade = n/a.\n- Ação com FII: na busca, a outra classe aparece desabilitada com o motivo; num link, os tickers da outra classe são ignorados com aviso.\n\nEM CONFERÊNCIA E INCOMPLETOS\n- 'ocultar' = '—' + chip; 'selo' = valor + chip. Os dois ficam fora do ★.\n- Ex.: DY de WEGE3 e ITUB4 em conferência, sobra TAEE11 sozinha ⇒ sem ★.\n- Índice incompleto: os indicadores com valor válido disputam normalmente.\n- Fora do Quadro: entra, com o selo 'sem negociação recente'.\n\nMINI-GRÁFICOS\n- Mesma escala para todos: min = min(mínimo global, 100), max = máximo global.\n- Base = 1º ano > 0; prejuízo abaixo de zero; ano em conferência tracejado.\n- Menos de 3 pontos ⇒ 'histórico insuficiente'.\n- Cor única; o sr-only de cada coluna só com a série daquele ativo.\n\nRESUMO NUMÉRICO (sem placar)\n- 'Índice MF: <na ordem dos slots, incompleto com *>'.\n- 'Critérios atendidos: …'.\n- 'Em conferência: …'.\n- 'Os destaques indicam o valor numericamente mais favorável em cada critério. Não indicam qual ativo escolher.'\n- NÃO conta ★, NÃO tem 'X tem o maior' e NÃO ordena por valor.\n- Sem CTA de compra, sem Salvar comparação, sem PDF.\n\nLIMITES\n- 1 a 4 tickers; dedupe; maiúsculas.\n- Excesso, outra classe, inexistente e formato inválido: ignorados com aviso.\n- ?t= é o estado; 'Copiar link' copia a URL.",
+  "plano_producao": "[OK] = OK explícito do Wellington. Tudo via SSH, no padrão do blocoC/ATIVACAO.md. A integração cria docs/analise-ativos/blocoD/ATIVACAO.md.\n\n1) Merge com as flags desligadas, nesta ordem: 0 → A, B, C e D (em qualquer ordem entre si).\n- Com as flags desligadas, tudo fica idêntico e as rotas novas respondem 404.\n- EXCEÇÃO: a fatia A muda o Essencial já em produção (regra per-share: anos com salto de ações ficam ocultos e 'em conferência'). Só faz merge depois do [OK] da pergunta 1.\n\n2) Deploy (prisma migrate deploy):\n- cria analise_cenarios vazia; conferir \\d analise_cenarios e a FK para \"User\";\n- sem backfill e sem job;\n- o rateLimit novo vale no deploy (comparador e raio-x, 30/min por IP).\n\n3) Dry-run read-only em prod (scripts/qa-prod-analise.ts --bloco-d):\n- Raio-X da amostra (9 ativos + HFOF11) + CBAV3, SBSP3, GSRF11 e PMRL11 contra SQL;\n- regra 2T+4T: rendimento distribuído ≈ rendCota × cotas da B3, ±15%;\n- resultado/cota pela média das cotas;\n- desdobramento do HGLG11;\n- 4 comparações;\n- tempos frio e quente.\n[OK]\n\n4) ANALISE_ATIVOS_RAIOX_HABILITADO=true + restart. Conferir com 2 admins no computador e no celular, incluindo o CSV no PWA iOS (share) e no Android. [OK]\n\n5) ANALISE_ATIVOS_COMPARADOR_HABILITADO=true + restart. Conferir as entradas e as comparações. [OK]\n\n6) ANALISE_ATIVOS_CENARIOS_HABILITADO=true + restart. Depende do OK do jurídico ao rodapé literal, aos textosCenarios e aos textosComparador.\n- Ponta a ponta com admin: salvar, reabrir, restaurar, LGPD, objetivo no Planejamento (aparece no Fluxo de Caixa) em conta de teste.\n- Consultor: calcula e recebe 403 ao salvar.\n[OK]\n\n7) Beta: segue a abertura da área, sem beta próprio. [OK]\n\nROLLBACK\n- Por recurso: remover a env + restart.\n- A tabela fica; os cenários salvos são preservados.\n- A regra per-share do Essencial não tem flag. Se precisar voltar, é revert do commit da fatia A, na parte de conferenciaAnual.",
+  "plano_qa": "1) UNITÁRIOS\n- 0: zod, cache limitado, acesso × flags, rate limit, varredura dos textos (inclui 'nota/notas').\n- A:\n  - conferenciaAnual: paridade com a conferirLinha atual; flags da linha nunca vão para um ano; regra per-share;\n  - Essencial (CBAV3 2021–2024 oculto);\n  - linhas do Raio-X com fixtures do DEV: 2T+4T, resultado/cota pela média, HGLG11 2017 = 112,73, ITUB4 com as 9 n/a;\n  - consistência Essencial × Raio-X célula a célula;\n  - CSV byte a byte.\n- B:\n  - casos 1–13 e 22;\n  - números do DEV (Sua posição 25,9× / 5,2%);\n  - casos-limite;\n  - Meta com faltam = 0 (target > 0, botão oculto);\n  - 3 casas do rendimento;\n  - diff.\n- C:\n  - ★ (empate por arredondamento, perto de 1, conferência, n/a, DL negativa);\n  - Resumo sem placar (ordem dos slots);\n  - escala com desdobramento;\n  - montarComparador com divLiqPl/pReceita.\n- D: seleção (limite, classe, menos de 2).\n\n2) API\n- 401, 404 (flag, beta, recurso, ticker) e 400 em todas as rotas.\n- Cenários:\n  - 403 sem CSRF; consultor 403 em PUT/DELETE;\n  - GET do consultor 200 com base e salvo = null;\n  - 409 no 301º; isolamento; DELETE idempotente.\n- CSV: headers e nome do arquivo.\n- Comparador: dedupe, ignorados, cache.\n- LGPD e cascade.\n- Rate limit: 31ª chamada em 60 s ⇒ 429.\n\n3) DADOS (SQL no DEV, depois read-only em prod)\n- Raio-X: WEGE3, PETR4, ITUB4, VALE3, TAEE11, HGLG11, XPLG11, KNCR11, MXRF11 e HFOF11.\n- Conferência:\n  - CBAV3: per-share de 2021–2024 oculto; o Essencial e o Raio-X batem;\n  - SBSP3 (preco_base no Comparador e nos cenários);\n  - GSRF11 (fii_vp no 'Últ. 12m' e nos cenários);\n  - PMRL11;\n  - WEGE3 com selo de proventos;\n  - fundamentos_escala@ano real: escolher um caso no DEV com SQL. Se não houver, gerar pelo job do Bloco C no DEV.\n- Comparações: WEGE3 × PETR4 × ITUB4 × VALE3; HGLG11 × XPLG11; KNCR11 × MXRF11; HGLG11 × KNCR11; SBSP3 × SAPR11.\n\n4) E2E (skill verify; 1440/1080 e 390/320; claro, escuro e sistema)\n- raio-x, cenarios.escrita, comparador e entradas, com as versões mobile.\n- Pulam com recursos = false; no CI, as flags ficam ligadas.\n- Regressões com as flags desligadas e ligadas:\n  - desktop-layout, analise-ativos-ativo, fundamentos-valuation, quadro;\n  - mobile-analise-ativos-*, relato.escrita, mobile-shell, smoke-routes.\n\n5) COMPLIANCE\n- Varredura do DOM com PALAVRAS_PROIBIDAS_BLOCO_D, exceto o RODAPE_LEGAL e o rodapeValuation.\n- Resumo sem 'maior' nem contagem de ★.\n- vs. cotação e barras com cor neutra.\n- ★ sempre com texto.\n- Nenhum CTA de compra.\n- Pacote para o jurídico: textosCenarios + textosComparador + rodapeValuation.\n\n6) ACESSIBILIDADE E VISUAL\n- Alvos ≥ 44px: seletores no computador e no celular, pílulas, Comparar, caixas, ×, slider, CSV, chips, links de ticker.\n- Inputs do celular com 48px e 16px.\n- axe com contraste ≥ 4,5:1.\n- th/scope; aria-valuetext; sr-only por coluna; reduced-motion.\n- Revisão contra o protótipo do Bloco D (31 cenários) e os da Fase 1 e do Bloco C. Corrigir no protótipo: inadimplência e prazo médio, rodapé, data da cotação, motivo do AURE3, sr-only dos mini-gráficos.\n\n7) PERFORMANCE\n- raio-x < 300 ms frio e < 30 ms quente; comparador < 300 ms e < 60 ms; cenarios GET < 150 ms.\n- Cache nunca passa de maxKeys (teste de carga com 1.000 URLs distintas).\n- Nenhuma chamada externa.",
+  "riscos": [
+    "Regra 2T+4T dos rendimentos de FII: se algum administrador informar diferente, o payout sai da faixa. Mitigação: QA em prod com ±15% contra a B3 antes de ligar.",
+    "Mudança visível no Essencial em produção pela regra per-share (salto de ações sem evento / dados incompletos ⇒ em conferência). É correção de dado, mas não tem flag. Mitigação: o [OK] da pergunta 1 vem antes do merge da A e o revert é isolado.",
+    "Payout do ITUB4 nulo (dmpl_zero_com_proventos, embora o DMPL consolidado tenha R$ 49,2 bi): pode valer para outros bancos. Vai para a curadoria (fora do bloco).",
+    "CSV no PWA iOS: usa navigator.share({files}) em modo standalone. Testar no aparelho no passo 4.",
+    "Cenários com dado 'selo' (DPA da WEGE3) dão resultados altos. A tela marca 'usa dado em conferência' (pergunta 4).",
+    "Compliance: os números ficam ao lado da cotação. O jurídico precisa aprovar os textos antes de ligar os cenários.",
+    "Modo Comparar mexe em TabelaQuadro e CartoesQuadro. Mitigação: flag + baselines com a flag desligada e ligada.",
+    "Neon DEV compartilhado: a migration é aplicada só pela fatia 0; nenhuma fatia roda migrate dev.",
+    "Botões existentes 'Planejar na Carteira' e 'Registrar operação' com 40px no celular (medido no protótipo): estão fora das fatias do bloco D para não causar conflito no CabecalhoAtivo além do BotaoComparar. A fatia D pode ajustá-los, já que é dona do CabecalhoAtivo. Recomendo incluir (pergunta 13).",
+    "CRÍTICA REJEITADA EM PARTE: 'manter o card Múltiplos com taxaAdm e alinhar o rótulo para no mês'. Não altero o card Múltiplos neste bloco: a regra 21 do schema diz que taxaAdmPct nunca é exibido. Corrigir o card (rótulo ou remoção) é decisão do Wellington (pergunta 3), fora das fatias.",
+    "CRÍTICA REJEITADA: o rodapé reescrito pelo designer. O texto literal da spec já é exceção do linter e é fixado por testes (textos.test.ts:87-89, casos46.test.ts:191). Trocar quebraria a spec e os testes. A alternativa vai só como pergunta ao jurídico.",
+    "CRÍTICA ACEITA COM AJUSTE: o designer propunha 403 no GET de cenários para o consultor. Mantenho GET 200 sem o salvo, porque a calculadora do consultor (tela V10 do designer) precisa da base. A tese faz 403 em tudo porque não tem parte pública; o cenário tem.",
+    "CRÍTICA ACEITA COM AJUSTE: a sugestão de criar um caso de fundamentos_escala no DEV pelo job do Bloco C. Primeiro procurar um caso real com SQL; o job só roda se não houver, e nunca em prod.",
+    "Seletores com 34px no computador (protótipo) contrariam a regra do app de alvos ≥ 44px: a implementação usa 44px (divergência registrada na pergunta 13)."
+  ],
+  "perguntas_para_wellington": [
+    "1. Regra per-share. Anos com 'salto de ações sem evento' ou 'dados incompletos' em asset_per_share_yearly ficam OCULTOS e 'em conferência' no LPA, no nº de ações e nos valores por cota. Exemplo: CBAV3 2021–2024 com nº de ações de 887 mil → 596 mi → 651 mil. A regra vale também no Essencial, que já está em produção, para que os dois mostrem o mesmo. Recomendo SIM: hoje o Essencial publica esses valores. Ok mudar o Essencial junto?",
+    "2. Raio-X de ações: linhas curadas das tabelas estruturadas (lista da §3.2) ou o demonstrativo CVM conta a conta? Recomendo as curadas agora; o conta a conta pode vir depois como 'Ver demonstrativo CVM completo'.",
+    "3. Taxa de administração do FII. O schema diz 'SÓ checagem, nunca exibido (regra 21)', mas o card Múltiplos (Fase 1) já mostra o último mês. Recomendo NÃO pôr no Raio-X e decidir o card: tirar (cumprir a regra 21) ou manter com o rótulo 'no último mês'. Qual prefere?",
+    "4. Prazo médio dos contratos e inadimplência (CVM): recomendo NÃO mostrar (aproximados ou não validados, decisão 6). DIVERGE do protótipo, que mostra os dois no HGLG11; o protótipo será corrigido. Ok?",
+    "5. Rendimento distribuído e payout do resultado do FII dependem da regra 2T+4T. Recomendo mostrar, com conferência em prod antes de ligar; se não bater, as duas linhas saem. Ok?",
+    "6. Cenários com dado em conferência: 'ocultar' não pré-preenche; 'selo' pré-preenche com chip e o aviso 'usa dado em conferência' (protótipo e arquiteto concordam). Alternativa mais conservadora: não pré-preencher nada em conferência. Recomendo a primeira.",
+    "7. Consultor agindo: usa a calculadora com a posição do cliente, sem ler nem salvar cenários (GET sem o salvo; PUT/DELETE 403). Confirma que a regra da tese vale para os cenários?",
+    "8. Meta de renda → objetivo no Planejamento: valor total = cotas × cotação; 'já tenho' = posição × cotação; botão escondido quando não faltam cotas. O objetivo também cria uma linha no Fluxo de Caixa (e no do cliente, se for o consultor), com aviso no sheet. Ok, ou prefere deixar o botão para depois do beta?",
+    "9. Resumo numérico. DIVERGE da spec (que tem 'X tem o maior Índice MF') e do protótipo (que ordena os Índices do maior para o menor). Recomendo: Índice na ordem dos slots, incompleto marcado, critérios atendidos, itens em conferência e a frase de responsabilidade, sem contar ★ nem ordenar por valor. Ok? (Também vai ao jurídico.)",
+    "10. ★ em vacância, nº de imóveis e área da CVM: DIVERGE da spec (que dá ★). Recomendo mostrar com o selo e sem ★ até a validação (protótipo e arquiteto concordam). Ok?",
+    "11. ★ do payout: a spec diz 'menor'. Recomendo NEUTRO (sem ★). Ok?",
+    "12. Comparador: até 4 ativos (spec); o pedido falou em 4–5. Recomendo 4 (constante). Salvar comparação e Exportar PDF escondidos até a Fase 5. Ok?",
+    "13. Divergências com o designer, fechadas a favor do protótipo salvo indicação:\n(a) CSV com o nome WEGE3_raio-x_2016-2025.csv, spinner e toast; gerado no servidor via ?formato=csv;\n(b) Essencial/Raio-X lembrado no aparelho (localStorage), não na URL;\n(c) 'Comparar' do Quadro desabilitado com menos de 2;\n(d) 'Restaurar' com confirmação na tela, não 'Desfazer';\n(e) tabela de métodos com rolagem no celular, não cartões.\nUma exceção contra o protótipo: seletores, pílulas e botões com 44px também no computador (o protótipo tem 34px e 40px), porque alvos ≥ 44px são regra do app. Aproveitar a fatia D para levar 'Planejar' e 'Registrar' a 44px no celular? Recomendo sim.",
+    "14. Rodapé dos cenários: manter o texto LITERAL da spec (já é exceção do linter e fixado por testes). A proposta do designer ('…não constitui recomendação de investimento') vai ao jurídico como alternativa. Recomendo o literal até o jurídico decidir. Ok?",
+    "15. Flags separadas, ligadas na ordem RAIOX → COMPARADOR → CENARIOS, com OK a cada passo, e CENARIOS dependendo do jurídico. Ok?"
+  ]
+}

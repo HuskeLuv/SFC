@@ -52,6 +52,33 @@ describe('GET /api/profile/export (LGPD)', () => {
     expect(mocks.teses.mock.calls[0][0].where).toEqual({ userId: 'u1' });
   });
 
+  it('inclui os cenários salvos (Meus cenários) do usuário logado, sem o valor interno do ativo', async () => {
+    const em = new Date('2026-10-08T12:00:00Z');
+    mocks.prisma.analiseCenario.findMany.mockResolvedValueOnce([
+      {
+        symbol: 'WEGE3',
+        classe: 'acao',
+        premissas: { yieldPct: 4, gPct: 8, kPct: 13, margemPct: 20, plAlvo: 36.9 },
+        dadosEditados: { valores: { lpa: 1.44 }, valoresDoAtivoNoSalvamento: { lpa: 1.4 } },
+        createdAt: em,
+        updatedAt: em,
+      },
+    ]);
+    const res = await GET(new NextRequest('http://localhost/api/profile/export'));
+    const corpo = JSON.parse(await res.text());
+    expect(mocks.prisma.analiseCenario.findMany.mock.calls[0][0].where).toEqual({ userId: 'u1' });
+    expect(corpo.analiseAtivos.analiseCenarios).toEqual([
+      {
+        symbol: 'WEGE3',
+        classe: 'acao',
+        premissas: { yieldPct: 4, gPct: 8, kPct: 13, margemPct: 20, plAlvo: 36.9 },
+        dadosEditados: { lpa: 1.44 },
+        createdAt: em.toISOString(),
+        updatedAt: em.toISOString(),
+      },
+    ]);
+  });
+
   it('inclui os relatos de dado incorreto do usuário logado, com o status como ele vê', async () => {
     mocks.prisma.analiseDataReport.findMany.mockResolvedValueOnce([
       {

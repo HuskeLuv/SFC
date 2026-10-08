@@ -143,3 +143,57 @@ test.describe('Desktop inalterado (≥ lg)', () => {
     });
   }
 });
+
+/**
+ * Bloco D (fatia D): a Análise de Ativos com as entradas do Comparador (pílulas + modo Comparar com
+ * a bandeja) não pode mexer na casca do desktop nem transbordar o documento. Só estrutural (sem
+ * baseline nova); com o recurso desligado, o teste confere que nada do Bloco D aparece.
+ */
+test.describe('Desktop inalterado — Análise de Ativos (Bloco D, entradas do Comparador)', () => {
+  test.describe.configure({ timeout: 120_000 });
+
+  for (const vp of VIEWPORTS) {
+    test(`/analise-ativos @ ${vp.width}x${vp.height}`, async ({ page }) => {
+      const cfg = await page.request.get('/api/analise-ativos/config');
+      const corpo = cfg.ok()
+        ? ((await cfg.json()) as { habilitada?: boolean; recursos?: { comparador?: boolean } })
+        : {};
+      test.skip(corpo.habilitada !== true, 'Análise de Ativos desligada ou fora do beta');
+      await page.setViewportSize(vp);
+      await page.addInitScript(() => {
+        try {
+          sessionStorage.clear();
+        } catch {
+          /* sem storage */
+        }
+      });
+      await gotoDesktop(
+        page,
+        '/analise-ativos',
+        'section[aria-label="Quadro"] tbody tr[data-ticker]',
+      );
+
+      const aside = page.locator('aside').first();
+      const asideBox = (await aside.boundingBox())!;
+      expect(asideBox.width).toBe(200);
+      expect(Math.abs((await contentColumnX(page))! - asideBox.width)).toBeLessThanOrEqual(1);
+
+      const pilulas = page.getByRole('navigation', { name: 'Páginas da Análise de Ativos' });
+      const botao = page.getByRole('button', { name: 'Comparar', exact: true });
+      if (corpo.recursos?.comparador !== true) {
+        await expect(pilulas).toHaveCount(0);
+        await expect(botao).toHaveCount(0);
+      } else {
+        await expect(pilulas).toBeVisible();
+        await botao.click();
+        await expect(page.getByRole('region', { name: 'Seleção para comparar' })).toBeVisible();
+      }
+
+      const m = await page.evaluate(() => ({
+        sw: document.documentElement.scrollWidth,
+        cw: document.documentElement.clientWidth,
+      }));
+      expect(m.sw - m.cw, `scrollWidth ${m.sw} × clientWidth ${m.cw}`).toBeLessThanOrEqual(0);
+    });
+  }
+});

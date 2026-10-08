@@ -5,9 +5,12 @@ const mockRequireSession = vi.hoisted(() => vi.fn());
 const mockEstado = vi.hoisted(() => vi.fn());
 
 vi.mock('@/utils/auth', () => ({ requireSession: mockRequireSession }));
-vi.mock('@/services/analiseAtivos/acesso/acessoAnalise', () => ({
-  estadoAcessoAnalise: mockEstado,
-}));
+vi.mock('@/services/analiseAtivos/acesso/acessoAnalise', async (importOriginal) => {
+  const original =
+    await importOriginal<typeof import('@/services/analiseAtivos/acesso/acessoAnalise')>();
+  return { ...original, estadoAcessoAnalise: mockEstado };
+});
+vi.mock('@/lib/prisma', () => ({ prisma: {}, default: {} }));
 
 import { GET } from '../route';
 
@@ -32,6 +35,7 @@ describe('GET /api/analise-ativos/config', () => {
       acesso: 'beta',
       novoAte: '2026-12-31',
       reporteHabilitado: false,
+      recursos: { raioX: false, cenarios: false, comparador: false },
     });
     expect(mockEstado).toHaveBeenCalledWith('u1');
   });
@@ -45,6 +49,26 @@ describe('GET /api/analise-ativos/config', () => {
     vi.stubEnv('ANALISE_ATIVOS_REPORTE_HABILITADO', 'false');
     mockEstado.mockResolvedValue('liberada');
     expect((await (await GET(req())).json()).reporteHabilitado).toBe(false);
+  });
+
+  it('recursos do bloco D: cada flag só vale com a área liberada para o usuário', async () => {
+    vi.stubEnv('ANALISE_ATIVOS_RAIOX_HABILITADO', 'true');
+    vi.stubEnv('ANALISE_ATIVOS_COMPARADOR_HABILITADO', 'true');
+    mockEstado.mockResolvedValue('liberada');
+    expect((await (await GET(req())).json()).recursos).toEqual({
+      raioX: true,
+      cenarios: false,
+      comparador: true,
+    });
+    vi.stubEnv('ANALISE_ATIVOS_CENARIOS_HABILITADO', 'true');
+    mockEstado.mockResolvedValue('fora_do_beta');
+    expect((await (await GET(req())).json()).recursos).toEqual({
+      raioX: false,
+      cenarios: false,
+      comparador: false,
+    });
+    // a rota passa o estado já calculado: uma consulta só
+    expect(mockEstado).toHaveBeenCalledTimes(2);
   });
 
   it('desligada: 200 com habilitada=false (nunca 404)', async () => {

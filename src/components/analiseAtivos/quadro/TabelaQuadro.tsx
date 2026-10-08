@@ -10,6 +10,11 @@
  * página) = célula hachurada + "em conferência" em 11px; 'ocultar' mostra '—' (a API não manda o
  * número e a ordenação o põe no fim), 'selo' mostra o valor. A linha é um link: aqui o chip é só
  * texto (o "Por quê?" fica na página do ativo).
+ *
+ * Bloco D (fatia D): com `comparar` (modo Comparar do Quadro), uma coluna de caixas de 56px fixa à
+ * esquerda (a coluna Ativo/Fundo passa a ficar fixa logo depois dela): caixa de 18px numa área de
+ * 44×44, nome "Comparar WEGE3", clique sem abrir o ativo; no limite, as não marcadas ficam
+ * desabilitadas com o motivo no title (o anúncio fica na bandeja). Sem `comparar`, nada muda.
  */
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -25,12 +30,16 @@ import CelulaNaCarteira, {
   type InfoNaCarteira,
 } from '@/components/analiseAtivos/quadro/CelulaNaCarteira';
 import { TABLE_STYLES } from '@/components/ui/table/tableStyles';
+import { MYFINANCE_BRAND } from '@/constants/brandColors';
 import { COLUNAS, COR_LINK, type ColunaQuadro } from '@/constants/analiseAtivosVisual';
 import { prefetchAtivoTopo } from '@/hooks/useAnaliseAtivos';
 import { TEXTOS_TELA, formatarTexto } from '@/services/analiseAtivos/textosTela';
 import { HACHURA } from '@/components/analiseAtivos/comum/ChipConferencia';
 import { conferenciaDaLinha } from '@/services/analiseAtivos/leitura/ativo/conferenciasAtivo';
 import { ehCampoTela } from '@/services/analiseAtivos/regras/comum/conferencia';
+import { TEXTOS_ENTRADAS_COMPARADOR } from '@/services/analiseAtivos/textosEntradasComparador';
+import { MAX_ATIVOS_COMPARADOR } from '@/services/analiseAtivos/cenarios/contrato';
+import type { SelecaoComparar } from '@/components/analiseAtivos/quadro/useSelecaoComparar';
 import type {
   ClasseQuadro,
   DirecaoOrdem,
@@ -257,6 +266,45 @@ export interface TabelaQuadroProps {
   /** mostrando a página anterior enquanto a nova ordem/filtro chega (placeholderData) */
   atualizando?: boolean;
   legenda: string;
+  /** Bloco D: modo Comparar ligado (coluna de caixas); ausente = Quadro de sempre */
+  comparar?: ControleComparar;
+}
+
+/** O que as caixas do modo Comparar usam da seleção (tabela e cartões). */
+export type ControleComparar = Pick<SelecaoComparar, 'marcado' | 'desabilitado' | 'alternar'>;
+
+const TC = TEXTOS_ENTRADAS_COMPARADOR.quadro;
+
+/** Caixa do modo Comparar: input nativo de 18px numa área de 44×44 (tabela). */
+export function CaixaComparar({
+  ticker,
+  controle,
+}: {
+  ticker: string;
+  controle: ControleComparar;
+}) {
+  const desabilitada = controle.desabilitado(ticker);
+  return (
+    <label
+      className="-my-2 inline-grid h-11 w-11 cursor-pointer place-items-center rounded-lg has-[:disabled]:cursor-not-allowed has-[:focus-visible]:ring-[3px] has-[:focus-visible]:ring-[#0079F2] dark:has-[:focus-visible]:ring-[#6E9DC4]"
+      title={
+        desabilitada
+          ? formatarTexto(TC.caixaDesabilitada, { max: MAX_ATIVOS_COMPARADOR })
+          : undefined
+      }
+      onClick={(e) => e.stopPropagation()}
+    >
+      <input
+        type="checkbox"
+        aria-label={formatarTexto(TC.caixa, { ticker })}
+        checked={controle.marcado(ticker)}
+        disabled={desabilitada}
+        onChange={() => controle.alternar(ticker)}
+        data-comparar-caixa={ticker}
+        className="h-[18px] w-[18px] cursor-pointer accent-[#396CAA] outline-none dark:[color-scheme:dark] disabled:cursor-not-allowed"
+      />
+    </label>
+  );
 }
 
 export default function TabelaQuadro({
@@ -270,13 +318,16 @@ export default function TabelaQuadro({
   carregando = false,
   atualizando = false,
   legenda,
+  comparar,
 }: TabelaQuadroProps) {
   const router = useRouter();
   const prefetch = usePrefetchHover();
   const colunas = COLUNAS[classe][modo];
   // fundo opaco (a coluna fixa passa por cima das outras ao rolar); mesmo tom do card escuro
-  const fixoTd =
-    'sticky left-0 z-10 bg-white group-hover:bg-gray-50 dark:bg-[#1F1F22] dark:group-hover:bg-[#26262A]';
+  const fundoFixo =
+    'z-10 bg-white group-hover:bg-gray-50 dark:bg-[#1F1F22] dark:group-hover:bg-[#26262A]';
+  // modo Comparar: a coluna de caixas (56px) fica em left-0 e a Ativo/Fundo logo depois
+  const fixoTd = `sticky ${comparar ? 'left-14' : 'left-0'} ${fundoFixo}`;
 
   return (
     <div
@@ -292,6 +343,16 @@ export default function TabelaQuadro({
         <caption className="sr-only">{legenda}</caption>
         <thead>
           <tr className={TABLE_STYLES.headRow}>
+            {comparar ? (
+              <th
+                scope="col"
+                className="sticky top-0 left-0 z-30 w-14 min-w-14 px-1.5"
+                style={{ backgroundColor: MYFINANCE_BRAND.seguranca }}
+                data-coluna="comparar"
+              >
+                <span className="sr-only">{TC.colunaCaixa}</span>
+              </th>
+            ) : null}
             {colunas.map((c, i) => (
               <CabecalhoOrdenavel
                 key={c.codigo}
@@ -300,7 +361,8 @@ export default function TabelaQuadro({
                 ordemAtual={ordem}
                 dir={dir}
                 onOrdenar={onOrdenar}
-                fixa={i === 0}
+                fixa={i === 0 && !comparar}
+                className={i === 0 && comparar ? 'left-14 z-30!' : ''}
               />
             ))}
           </tr>
@@ -309,6 +371,7 @@ export default function TabelaQuadro({
           {carregando
             ? Array.from({ length: 8 }, (_, i) => (
                 <tr key={`sk-${i}`} className={TABLE_STYLES.row} aria-hidden="true">
+                  {comparar ? <td className="w-14 px-1.5" /> : null}
                   {colunas.map((c) => (
                     <td key={c.codigo} className={TD_QUADRO}>
                       <span className="block h-3 w-full max-w-[6rem] rounded bg-gray-200 motion-safe:animate-pulse dark:bg-white/[0.08]" />
@@ -325,6 +388,14 @@ export default function TabelaQuadro({
                   onMouseEnter={() => prefetch.iniciar(l.ticker)}
                   onMouseLeave={prefetch.cancelar}
                 >
+                  {comparar ? (
+                    <td
+                      className={`sticky left-0 w-14 min-w-14 px-1.5 text-center ${fundoFixo}`}
+                      data-coluna="comparar"
+                    >
+                      <CaixaComparar ticker={l.ticker} controle={comparar} />
+                    </td>
+                  ) : null}
                   {colunas.map((c, i) => {
                     const destaque = c.ordem !== null && c.ordem === ordem;
                     const alinhar =

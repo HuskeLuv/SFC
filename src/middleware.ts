@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import { jwtVerify } from 'jose';
 import { generateCsrfToken, validateCsrfToken, CSRF_COOKIE_NAME } from '@/utils/csrf';
-import { checkRateLimit, getClientIp, getTierForPath } from '@/lib/rateLimit';
+import { chaveBaldeRateLimit, checkRateLimit, getClientIp, getTierForPath } from '@/lib/rateLimit';
 import { PLUGGY_API_HOSTS, PLUGGY_CONNECT_HOSTS, pluggyHabilitado } from '@/lib/pluggyConfig';
 
 // ---------------------------------------------------------------------------
@@ -210,8 +210,8 @@ export async function middleware(request: NextRequest) {
     const clientIp = getClientIp(request);
     const tierConfig = getTierForPath(pathname);
     // Group by route prefix (up to 4 segments) so /api/auth/login and
-    // /api/auth/register each get their own bucket.
-    const key = `${clientIp}:${pathname.split('/').slice(0, 4).join('/')}`;
+    // /api/auth/register each get their own bucket (exceção: Raio-X, ver chaveBaldeRateLimit).
+    const key = `${clientIp}:${chaveBaldeRateLimit(pathname)}`;
     const result = checkRateLimit(rateLimitStore, key, tierConfig);
 
     if (!result.allowed) {

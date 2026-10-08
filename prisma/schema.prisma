@@ -151,6 +151,8 @@ model User {
   analiseCasosResponsavel       AnaliseCasoDado[]             @relation("AnaliseCasoResponsavel")
   analiseReportes               AnaliseDataReport[]           @relation("AnaliseReporteAutor")
   analiseReportesCliente        AnaliseDataReport[]           @relation("AnaliseReporteCliente")
+  // Análise de Ativos — Bloco D (Meus cenários, privado)
+  analiseCenarios               AnaliseCenario[]              @relation("AnaliseCenarioUser")
 }
 
 /**
@@ -2613,6 +2615,30 @@ model AnaliseTese {
   @@unique([userId, symbol])
   @@index([userId, updatedAt])
   @@map("analise_teses")
+}
+
+/**
+ * Bloco D — "Meus cenários" (Valuation): PRIVADO, um por usuário e ticker. O consultor agindo pelo
+ * cliente não lê nem grava (decisão 7). premissas/dadosEditados validados por CenarioPutSchema
+ * (src/services/analiseAtivos/cenarios/contrato.ts); dadosEditados guarda só o que difere do ativo.
+ * Limite de 300 por usuário, conferido na rota (409).
+ */
+model AnaliseCenario {
+  id            String   @id @default(uuid())
+  userId        String
+  user          User     @relation("AnaliseCenarioUser", fields: [userId], references: [id], onDelete: Cascade)
+  symbol        String
+  // 'acao' | 'fii'
+  classe        String
+  premissas     Json
+  dadosEditados Json?
+  versaoSchema  Int      @default(1)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@unique([userId, symbol])
+  @@index([userId, updatedAt])
+  @@map("analise_cenarios")
 }
 
 /**

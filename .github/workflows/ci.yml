@@ -73,6 +73,11 @@ jobs:
       # Bloco C (relato): liga o "Reportar dado incorreto" para o e2e de escrita
       # (analise-ativos-relato.escrita.spec.ts); sem ela o teste pula.
       ANALISE_ATIVOS_REPORTE_HABILITADO: 'true'
+      # Bloco D (Raio-X, Comparador, Meus cenários): as 3 flags ligadas no e2e; os testes leem
+      # config.recursos (e2e/fixtures/analise-bloco-d.ts) e pulam sem elas.
+      ANALISE_ATIVOS_RAIOX_HABILITADO: 'true'
+      ANALISE_ATIVOS_COMPARADOR_HABILITADO: 'true'
+      ANALISE_ATIVOS_CENARIOS_HABILITADO: 'true'
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

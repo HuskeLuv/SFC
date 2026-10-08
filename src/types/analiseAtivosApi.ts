@@ -32,6 +32,12 @@
  * 'cotacao_esporadica'; Estado ausente com exibicao/valorNaoPublicado; ConferenciaTela;
  * LinhaQuadroApi.conferencias; AtivoTopoResposta.conferencias/frescorBlocos; FrescorBloco;
  * ConfigResposta.reporteHabilitado. Tipos do relato e da curadoria: src/types/analiseAtivosCuradoria.ts.
+ *
+ * Bloco D (docs/analise-ativos/blocoD/spec-desenho.json + decisoes.md) — acréscimos SÓ ADITIVOS e
+ * opcionais: ConfigResposta.recursos; AnaliseAtivosShellProps.variante 'comparador';
+ * BuscaAtivosProps.classe/desabilitarOutraClasse; cabecalhoExtra em BlocoFundamentosEssencialProps
+ * e BlocoValuationMultiplosProps. Tipos do Raio-X, dos Cenários e do Comparador:
+ * src/types/analiseAtivosBlocoD.ts.
  */
 import type { ReactNode } from 'react';
 
@@ -209,6 +215,19 @@ export interface ConfigResposta {
    * (ANALISE_ATIVOS_REPORTE_HABILITADO && área liberada). Ausente = false.
    */
   reporteHabilitado?: boolean;
+  /**
+   * Bloco D: recursos ligados PARA ESTE USUÁRIO (flag do recurso && área liberada; decisão 15).
+   * Ausente = tudo desligado (cliente antigo ou CONFIG_DESLIGADA). Com as 3 flags desligadas a tela
+   * fica idêntica à de hoje.
+   */
+  recursos?: RecursosBlocoD;
+}
+
+/** Bloco D: um booleano por recurso (RecursoBlocoD em acessoAnalise.ts). */
+export interface RecursosBlocoD {
+  raioX: boolean;
+  cenarios: boolean;
+  comparador: boolean;
 }
 
 // ===========================================================================
@@ -741,8 +760,12 @@ export interface BannerNovidadeProps {
 
 export interface AnaliseAtivosShellProps {
   children: ReactNode;
-  /** 'quadro' mostra título + subtítulo + busca + banner; 'ativo' mostra só a busca compacta */
-  variante: 'quadro' | 'ativo';
+  /**
+   * 'quadro' mostra título + subtítulo + busca + banner; 'ativo' mostra só a busca compacta.
+   * Bloco D: 'comparador' (página /analise-ativos/comparador, fatia C) cai no ramo 'ativo' até a
+   * fatia D implementar o ramo próprio (título, subtítulo neutro, PilulasArea, busca compacta).
+   */
+  variante: 'quadro' | 'ativo' | 'comparador';
 }
 
 export interface SecaoPreguicosaProps {
@@ -773,6 +796,16 @@ export interface BuscaAtivosProps {
   autoFocus?: boolean;
   onSelecionar?: (ticker: string) => void;
   className?: string;
+  /**
+   * Bloco D (fatia C implementa): restringe a busca a uma classe (slots do Comparador). Sem a
+   * prop, a busca é a de hoje (todas as classes).
+   */
+  classe?: ClasseQuadro;
+  /**
+   * Bloco D (fatia C): com `classe`, os itens da outra classe aparecem DESABILITADOS com o motivo
+   * (textosComparador.busca.outraClasse) em vez de sumirem. Sem efeito sem `classe`.
+   */
+  desabilitarOutraClasse?: boolean;
 }
 
 // ---- B (topo da página do ativo) ------------------------------------------
@@ -826,11 +859,21 @@ export interface SeloFrescorProps {
 export interface BlocoFundamentosEssencialProps {
   ticker: string;
   classe: ClasseQuadro;
+  /**
+   * Bloco D (fatia A implementa): conteúdo extra no cabeçalho do card (slot `acao` do
+   * CartaoAnalise, antes do menu ⋯) — o SeletorNivel. Ausente = cabeçalho de hoje.
+   */
+  cabecalhoExtra?: ReactNode;
 }
 
 export interface BlocoValuationMultiplosProps {
   ticker: string;
   classe: ClasseQuadro;
+  /**
+   * Bloco D (fatia B implementa): conteúdo extra no cabeçalho do card (slot `acao` do
+   * CartaoAnalise, antes do menu ⋯) — o SeletorNivel. Ausente = cabeçalho de hoje.
+   */
+  cabecalhoExtra?: ReactNode;
 }
 
 export interface BlocoMultiplosHistoricosProps {

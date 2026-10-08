@@ -125,4 +125,47 @@ describe('BuscaAtivos', () => {
     expect(screen.queryByRole('dialog', { name: 'Buscar ativo' })).not.toBeInTheDocument();
     expect(nav.push).not.toHaveBeenCalled();
   });
+
+  describe('Bloco D: classe e desabilitados (Comparador)', () => {
+    it('outra classe some sem desabilitarOutraClasse', () => {
+      render(<BuscaAtivos variante="compacta" classe="acao" onSelecionar={vi.fn()} />);
+      digitar('hglg');
+      expect(screen.queryByRole('option', { name: /HGLG11/ })).not.toBeInTheDocument();
+    });
+
+    it('outra classe e já incluído aparecem desabilitados com o motivo e não selecionam', () => {
+      const escolher = vi.fn();
+      render(
+        <BuscaAtivos
+          variante="compacta"
+          classe="acao"
+          desabilitarOutraClasse
+          embutida
+          indisponiveis={{ WEGE3: 'já está na comparação' }}
+          onSelecionar={escolher}
+        />,
+      );
+      digitar('hglg');
+      const fii = screen.getByRole('option', { name: /HGLG11/ });
+      expect(fii).toHaveAttribute('aria-disabled', 'true');
+      expect(within(fii).getByText('FII: outra classe')).toBeInTheDocument();
+      fireEvent.click(fii);
+      fireEvent.keyDown(campo(), { key: 'Enter' });
+      digitar('weg');
+      const weg = screen.getByRole('option', { name: /WEGE3/ });
+      expect(within(weg).getByText('já está na comparação')).toBeInTheDocument();
+      fireEvent.click(weg);
+      expect(escolher).not.toHaveBeenCalled();
+      digitar('itub');
+      fireEvent.click(screen.getByRole('option', { name: /ITUB4/ }));
+      expect(escolher).toHaveBeenCalledWith('ITUB4');
+    });
+
+    it('embutida no celular: campo direto, sem o botão do sheet', () => {
+      media.celular = true;
+      render(<BuscaAtivos variante="compacta" embutida classe="fii" onSelecionar={vi.fn()} />);
+      expect(campo()).toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: /buscar/i })).not.toBeInTheDocument();
+    });
+  });
 });

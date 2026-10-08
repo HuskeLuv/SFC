@@ -9,6 +9,11 @@
  *
  * Estados: carregando (cabeçalho real + esqueleto; chips continuam clicáveis), vazio por filtro,
  * "Na minha carteira" sem posição, erro (mantém filtros, Tentar de novo) e cotação atrasada.
+ *
+ * Bloco D (fatia D), só com config.recursos.comparador: botão "Comparar" (aria-pressed, 44px) ao
+ * lado de Resumo|Detalhado no computador e na linha das abas no celular. Ligado, a tabela ganha a
+ * coluna de caixas, os cartões a caixa de 44px e aparece a BandejaComparar (useSelecaoComparar:
+ * sessionStorage, limite de 4, trocar de aba limpa). Sem o recurso, o Quadro é o de sempre.
  */
 import Link from 'next/link';
 import { Suspense, useMemo, useState } from 'react';
@@ -19,7 +24,13 @@ import RodapeFormula, {
   FaixaFrescorAtrasado,
 } from '@/components/analiseAtivos/quadro/RodapeFormula';
 import SheetOrdem, { type OpcaoOrdem } from '@/components/analiseAtivos/quadro/SheetOrdem';
-import TabelaQuadro, { rotuloColuna } from '@/components/analiseAtivos/quadro/TabelaQuadro';
+import TabelaQuadro, {
+  rotuloColuna,
+  type ControleComparar,
+} from '@/components/analiseAtivos/quadro/TabelaQuadro';
+import BandejaComparar, { IconeComparar } from '@/components/analiseAtivos/quadro/BandejaComparar';
+import { useSelecaoComparar } from '@/components/analiseAtivos/quadro/useSelecaoComparar';
+import { TEXTOS_ENTRADAS_COMPARADOR } from '@/services/analiseAtivos/textosEntradasComparador';
 import { useNaCarteira } from '@/components/analiseAtivos/quadro/CelulaNaCarteira';
 import { useEstadoQuadroUrl } from '@/components/analiseAtivos/quadro/useEstadoQuadroUrl';
 import { COLUNAS, ORDEM_PADRAO } from '@/constants/analiseAtivosVisual';
@@ -164,6 +175,27 @@ function LinkMeusRelatos() {
   );
 }
 
+/** Bloco D: liga/desliga o modo Comparar (aria-pressed; 44px em todos os tamanhos). */
+function BotaoModoComparar({ ativo, onAlternar }: { ativo: boolean; onAlternar: () => void }) {
+  const t = TEXTOS_ENTRADAS_COMPARADOR.quadro;
+  return (
+    <button
+      type="button"
+      aria-pressed={ativo}
+      onClick={onAlternar}
+      data-quadro-comparar=""
+      className={`inline-flex min-h-11 shrink-0 items-center justify-center gap-1.5 rounded-xl border px-4 text-sm font-semibold ${FOCO} ${
+        ativo
+          ? 'border-[#314666] bg-[#314666] text-white dark:border-[#396CAA] dark:bg-[#396CAA]'
+          : 'border-gray-200 text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-white/[0.04]'
+      }`}
+    >
+      <IconeComparar />
+      {ativo ? t.botaoSair : t.botao}
+    </button>
+  );
+}
+
 const BOTAO_SEC = `inline-flex min-h-11 items-center justify-center rounded-xl border border-gray-200 px-4 text-sm font-medium text-gray-700 hover:bg-gray-50 lg:min-h-10 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-white/[0.04] ${FOCO}`;
 const BOTAO_PRI = `inline-flex min-h-12 items-center justify-center rounded-xl bg-[#314666] px-4 text-sm font-semibold text-white lg:min-h-10 ${FOCO}`;
 
@@ -172,6 +204,16 @@ function QuadroConteudo({ className = '' }: QuadroAnaliseProps) {
   const { estado, filtros, temFiltro } = url;
   const celular = useIsBelowLg();
   const [sheetOrdem, setSheetOrdem] = useState(false);
+  const config = useAnaliseAtivosConfig();
+  const comparadorLigado = config.data?.recursos?.comparador === true;
+  const selecao = useSelecaoComparar(estado.classe, comparadorLigado);
+  const modoComparar = comparadorLigado && selecao.ativo;
+  const controleComparar: ControleComparar | undefined = modoComparar
+    ? { marcado: selecao.marcado, desabilitado: selecao.desabilitado, alternar: selecao.alternar }
+    : undefined;
+  const botaoComparar = comparadorLigado ? (
+    <BotaoModoComparar ativo={modoComparar} onAlternar={() => selecao.setAtivo(!selecao.ativo)} />
+  ) : null;
 
   const q = useQuadroAnalise(filtros);
   const paginas = q.data?.pages;
@@ -246,6 +288,7 @@ function QuadroConteudo({ className = '' }: QuadroAnaliseProps) {
         naCarteira={na.info}
         carregando={carregando}
         atualizando={!carregando && q.isPlaceholderData}
+        comparar={controleComparar}
       />
     );
   } else {
@@ -261,6 +304,7 @@ function QuadroConteudo({ className = '' }: QuadroAnaliseProps) {
         carregando={carregando}
         atualizando={!carregando && q.isPlaceholderData}
         legenda={legenda}
+        comparar={controleComparar}
       />
     );
   }
@@ -295,7 +339,14 @@ function QuadroConteudo({ className = '' }: QuadroAnaliseProps) {
           variant="segmented-sub"
           className="shrink-0"
         />
-        <LinkMeusRelatos />
+        {celular && botaoComparar ? (
+          <div className="flex items-center justify-between gap-2">
+            <LinkMeusRelatos />
+            <span className="ml-auto">{botaoComparar}</span>
+          </div>
+        ) : (
+          <LinkMeusRelatos />
+        )}
       </div>
 
       {celular ? (
@@ -330,7 +381,14 @@ function QuadroConteudo({ className = '' }: QuadroAnaliseProps) {
       ) : (
         <div className="flex flex-wrap items-start justify-between gap-3">
           {filtrosEl}
-          <Pilulas modo={estado.modo} onModo={url.setModo} celular={false} />
+          {botaoComparar ? (
+            <div className="flex shrink-0 items-center gap-2">
+              {botaoComparar}
+              <Pilulas modo={estado.modo} onModo={url.setModo} celular={false} />
+            </div>
+          ) : (
+            <Pilulas modo={estado.modo} onModo={url.setModo} celular={false} />
+          )}
         </div>
       )}
 
@@ -368,6 +426,14 @@ function QuadroConteudo({ className = '' }: QuadroAnaliseProps) {
             </button>
           ) : null}
         </div>
+      ) : null}
+
+      {modoComparar ? (
+        <BandejaComparar
+          classe={estado.classe}
+          tickers={selecao.tickers}
+          onLimpar={selecao.limpar}
+        />
       ) : null}
 
       <RodapeFormula frescor={daClasse ? primeira?.frescorCotacao : undefined} />

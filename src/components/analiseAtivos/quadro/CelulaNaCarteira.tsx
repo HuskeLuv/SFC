@@ -149,9 +149,19 @@ export interface CelulaNaCarteiraProps {
   info: InfoNaCarteira;
   classe: ClasseQuadro;
   className?: string;
+  /**
+   * Cartões do celular (colunas de ~63px a 320): o chip quebra dentro da coluna (bloco com
+   * max-w-full, sem nowrap) em vez de invadir a coluna vizinha.
+   */
+  quebrar?: boolean;
 }
 
-export default function CelulaNaCarteira({ info, classe, className = '' }: CelulaNaCarteiraProps) {
+export default function CelulaNaCarteira({
+  info,
+  classe,
+  className = '',
+  quebrar = false,
+}: CelulaNaCarteiraProps) {
   const texto = textoNaCarteira(info, classe);
   if (info.tipo === 'nenhum') {
     return (
@@ -167,7 +177,11 @@ export default function CelulaNaCarteira({ info, classe, className = '' }: Celul
   return (
     <span
       data-na-carteira={info.tipo}
-      className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium whitespace-nowrap tabular-nums ${
+      className={`${
+        quebrar
+          ? 'inline-block max-w-full rounded-lg [overflow-wrap:anywhere]'
+          : 'inline-flex items-center rounded-full whitespace-nowrap'
+      } px-2 py-0.5 text-xs font-medium tabular-nums ${
         planejado
           ? 'border border-dashed border-[#98A2B3] text-gray-600 dark:text-gray-300'
           : 'bg-[#EDF2F8] text-[#396CAA] dark:bg-[#6E9DC4]/15 dark:text-[#6E9DC4]'

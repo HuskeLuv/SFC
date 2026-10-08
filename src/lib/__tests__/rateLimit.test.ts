@@ -1,5 +1,12 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { checkRateLimit, getTierForPath, getClientIp, RateLimitConfig } from '../rateLimit';
+import {
+  checkRateLimit,
+  chaveBaldeRateLimit,
+  ehRotaPesadaBlocoD,
+  getTierForPath,
+  getClientIp,
+  RateLimitConfig,
+} from '../rateLimit';
 
 describe('checkRateLimit', () => {
   let store: Map<string, { timestamps: number[] }>;
@@ -133,6 +140,48 @@ describe('getTierForPath', () => {
     // e o 11º POST de relato toma 429
     const post = '/api/analise-ativos/reportes';
     expect(checkRateLimit(store, balde(post), getTierForPath(post)).allowed).toBe(false);
+  });
+
+  it('tier do bloco D: 30/min no Raio-X e no Comparador; cenários no genérico', () => {
+    const t30 = { limit: 30, windowMs: 60_000 };
+    expect(getTierForPath('/api/analise-ativos/comparador')).toEqual(t30);
+    expect(getTierForPath('/api/analise-ativos/comparador/x')).toEqual(t30);
+    expect(getTierForPath('/api/analise-ativos/ativos/WEGE3/raio-x')).toEqual(t30);
+    expect(ehRotaPesadaBlocoD('/api/analise-ativos/ativos/HGLG11/raio-x')).toBe(true);
+    // não casa
+    expect(getTierForPath('/api/analise-ativos/cenarios/WEGE3').limit).toBe(60);
+    expect(getTierForPath('/api/analise-ativos/ativos/WEGE3').limit).toBe(60);
+    expect(getTierForPath('/api/analise-ativos/ativos/WEGE3/fundamentos').limit).toBe(60);
+    expect(getTierForPath('/api/analise-ativos/ativos/WEGE3/raio-xx').limit).toBe(60);
+    expect(getTierForPath('/api/analise-ativos/comparadores').limit).toBe(60);
+  });
+
+  it('balde do Raio-X separado das outras rotas do ativo; 31ª chamada em 60 s → 429', () => {
+    expect(chaveBaldeRateLimit('/api/analise-ativos/ativos/WEGE3/raio-x')).toBe(
+      '/api/analise-ativos/raio-x',
+    );
+    expect(chaveBaldeRateLimit('/api/analise-ativos/ativos/PETR4/raio-x')).toBe(
+      '/api/analise-ativos/raio-x',
+    );
+    expect(chaveBaldeRateLimit('/api/analise-ativos/ativos/WEGE3')).toBe(
+      '/api/analise-ativos/ativos',
+    );
+    expect(chaveBaldeRateLimit('/api/analise-ativos/comparador')).toBe(
+      '/api/analise-ativos/comparador',
+    );
+    expect(chaveBaldeRateLimit('/api/auth/login')).toBe('/api/auth/login');
+
+    const store = new Map<string, { timestamps: number[] }>();
+    const ip = '9.9.9.9';
+    const chamar = (p: string) =>
+      checkRateLimit(store, `${ip}:${chaveBaldeRateLimit(p)}`, getTierForPath(p));
+    // 50 leituras da página do ativo NÃO consomem o teto do Raio-X
+    for (let i = 0; i < 50; i += 1) chamar('/api/analise-ativos/ativos/WEGE3/fundamentos');
+    const raioX = Array.from({ length: 31 }, (_, i) =>
+      chamar(`/api/analise-ativos/ativos/${i % 2 ? 'WEGE3' : 'PETR4'}/raio-x`),
+    );
+    expect(raioX.slice(0, 30).every((r) => r.allowed)).toBe(true);
+    expect(raioX[30].allowed).toBe(false);
   });
 
   it('should return general API config for other /api/ paths', () => {

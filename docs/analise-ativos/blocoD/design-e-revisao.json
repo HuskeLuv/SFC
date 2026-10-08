@@ -1,0 +1,234 @@
+{
+  "design": {
+    "resumo": "Revisei o protótipo do Bloco D (v2) no mesmo arquivo. A página publicada foi atualizada no mesmo link, que continua privado: https://claude.ai/artifact/1EuZ1yUf24rUTPYyHgZnuK. Antes de publicar, conferi que a versão no ar era idêntica à v1 local, então ninguém tinha mexido nela. A cópia da v1 está em rev/prototipo.v1.html.\n\nCorrigi todas as críticas de design válidas. Nas de arquitetura que mexem com a tela (contrato do consultor, Meta de renda, rodapé, CSV), alinhei a tela ao contrato. Os números novos saíram de consultas read-only ao banco DEV de 08/10: média mensal de cotas, soma da taxa de administração e o caso CBAV3.\n\n**Raio-X**\n- **Conferência por ano:** agora segue a mesma regra do Essencial. Numa coluna de ano só entram as flags daquele ano. Por isso o payout de 2025 da WEGE3 e o rendimento de 2022 do KNCR11 perderam o selo.\n- **CBAV3 (cenário novo F2b, caso real):** o nº de ações salta sem evento societário, e LPA e nº de ações ficam \"—\" com o chip em 2021, 2022 e 2024. Em 2025 o selo vem de uma regra proposta, que precisa de OK (pergunta 2).\n- **HGLG11:** o resultado por cota agora divide pela média mensal de cotas do ano. Em 2025 dá R$ 12,90, contra R$ 10,72 com as cotas de dezembro. O ano de 2017 passou para a base de cotas de hoje: VP por cota de R$ 112,73, não R$ 1.127,27.\n- **Linhas retiradas:** tijolo perdeu inadimplência, prazo médio, vencimentos e indexadores. Papel perdeu valor em CRIs, CRIs ÷ patrimônio e a receita de aluguéis.\n- **Taxa de administração:** passou a ser a soma do ano, com rótulo explícito. Ainda depende de saber se a regra 21 cobre esse campo (pergunta 9).\n- **Rótulos:** \"Notas\" virou \"Sobre os dados\".\n\n**Meus cenários**\n- O rodapé voltou ao texto literal de `rodapeValuation`.\n- A cotação mostra a data real do último pregão na base (29/09).\n- Corrigi o motivo do P/L alvo vazio da AURE3: o histórico tem menos de 5 anos.\n- No celular, os métodos viram cartões.\n- \"Restaurar valores do ativo\" não pede mais confirmação. Mostra \"Desfazer\" por 5 segundos.\n- Meta de renda: o objetivo vale cotas × cotação, e o \"já disponível\" vale posição × cotação. O botão some quando a posição já cobre a meta (cenário V12). O aviso diz que o objetivo também vira linha no Fluxo de Caixa. Com o consultor agindo, vai para o Planejamento e o Fluxo da cliente (cenário V13).\n- Consultor agindo pelo cliente: o GET responde 200 com `salvo = null`; PUT e DELETE dão 403.\n\n**Comparador**\n- O resumo numérico não ordena mais: o Índice aparece na ordem dos ativos escolhidos e não conta estrelas.\n- Payout ficou sem ★ e entrou a linha P/Receita.\n- O texto para leitor de tela dos mini-gráficos descreve só o ativo da própria coluna.\n- O link compartilhável agora é /analise-ativos/comparador.\n\n**Celular e Quadro**\n- Campos com 48px e fonte de 16px. Seletores, pílulas, botões e tickers com 44px.\n- A bandeja do Quadro abre o Comparador a partir de 1 ativo.\n\n**Teste:** rodei o Playwright nos 35 cenários, no computador e no celular. Nenhum erro de script, nenhuma rolagem lateral e nenhum alvo abaixo de 44px no celular.",
+    "prototipo_path": "/tmp/claude-1000/-home-huske-dev-front/90b05dca-4be2-4479-82ee-742ef7f94cf0/scratchpad/analise-blocoD/prototipo.html",
+    "telas": [
+      {
+        "nome": "Fundamentos · Raio-X (página do ativo)",
+        "descricao": "Card 'Fundamentos' com o seletor 'Essencial | Raio-X'. O nível escolhido vai na URL (?fund=raiox). Os anos ficam em colunas, do mais recente à esquerda. A 1ª coluna é fixa, as linhas de razão ficam em itálico com fundo cinza e os negativos têm sinal '−' em vermelho. No fim do card há um bloco 'Sobre os dados'. Cenários:\n- WEGE3 (sem células em conferência);\n- CBAV3 (novo, com anos em conferência);\n- ITUB4 (banco);\n- HGLG11 (tijolo);\n- KNCR11 (papel);\n- exportação do CSV, carregando, erro e sem demonstrativos.",
+        "decisoes": [
+          "CRÍTICA ACEITA (conferência por ano): o Raio-X usa a mesma regra do Essencial (conferirLinha, que a construção deve extrair como função compartilhada). Numa coluna de ano só entram as flags daquele ano. Flag da linha inteira, como os proventos da WEGE3, aparece só no 'Últ. 12m' do Essencial e no DPA 12m dos cenários. O payout de 2025 da WEGE3 e o rendimento de 2022 do KNCR11 perderam o selo.",
+          "CRÍTICA ACEITA (base de ações quebrada): nas linhas por ação e de nº de ações, as flags do próprio ano (salto_acoes_sem_evento, dados_incompletos) ocultam o valor e mostram o chip, no Raio-X e no Essencial. O caso real é a CBAV3 em 2021, 2022 e 2024. Em 2025 a CBAV3 usa a regra proposta 'nº de ações abaixo de 1/10 da mediana'; sem ela, o LPA de 2025 apareceria como R$ 185,91.",
+          "CRÍTICA ACEITA (resultado por cota do FII): o resultado do ano é dividido pela média mensal de cotas. HGLG11 2025: R$ 12,90 (com as cotas de dezembro daria R$ 10,72).",
+          "CRÍTICA ACEITA (desdobramento): VP por cota, rendimento por cota e nº de cotas passam pelo fator de cotas e aparecem na base de cotas de hoje. HGLG11 2017: VP R$ 112,73 e rendimento R$ 10,44; o caso está descrito no bloco 'Sobre os dados'.",
+          "CRÍTICA ACEITA: saíram inadimplência e prazo médio. Por coerência com a lista da arquitetura, também saíram vencimentos em 12 meses e indexadores IPCA/IGP-M no tijolo, e valor em CRIs e CRIs ÷ patrimônio no papel. Em FII de papel, a linha de receita de aluguéis sai em vez de mostrar 'n/a'.",
+          "CRÍTICA ACEITA (taxa de administração): o rótulo passou a 'Taxa de adm. (% do PL no ano)', com 'soma dos 12 meses informados à CVM'. Com menos de 12 meses aparece '—'. O card Múltiplos deve passar a dizer 'no mês'. A linha depende da regra 21 (pergunta 9).",
+          "CRÍTICA ACEITA ('Notas' é palavra proibida): o rodapé do card virou 'Sobre os dados', também no CSV.",
+          "A linha 'Proventos declarados no ano (DMPL)' saiu para bater com a lista da arquitetura. O payout continua sendo calculado sobre o DMPL.",
+          "A ação mostra só os anos com DFP (CBAV3: 2025 a 2020), sem colunas vazias antes da abertura de capital."
+        ]
+      },
+      {
+        "nome": "Exportar CSV",
+        "descricao": "O botão 'Exportar CSV' do Raio-X vira 'Gerando CSV…' com spinner. Ao terminar, um toast mostra o nome do arquivo. A bancada mostra uma prévia do conteúdo.",
+        "decisoes": [
+          "CRÍTICA ACEITA (alinhado à arquitetura): o arquivo vem de GET …/raio-x?formato=csv e se chama raio-x_WEGE3_2026-10-08.csv. Sai em UTF-8 com BOM, separador ';', vírgula decimal e quebra de linha CRLF. Células que começam com = + − @ ganham apóstrofo, para o Excel não as executar como fórmula. Não leva nenhum dado pessoal.",
+          "O bloco final do arquivo se chama 'Sobre os dados' e lista os valores em conferência, a fonte, a data de geração, a versão dos parâmetros e o aviso legal."
+        ]
+      },
+      {
+        "nome": "Valuation · Meus cenários",
+        "descricao": "Card 'Valuation' com o seletor 'Múltiplos | Meus cenários'. Tem os dados do ativo editáveis, as premissas, o slider 'Margem que você exige', a tabela de métodos (cartões no celular), as barras com a linha da cotação, a Meta de renda, a linha 'Sua posição', a barra de salvamento e o rodapé fixo. Cenários:\n- V1 a V11;\n- V12: MXRF11 com a meta já coberta pela posição;\n- V13: consultor criando o objetivo no Planejamento da cliente.",
+        "decisoes": [
+          "CRÍTICA ACEITA: o rodapé usa TEXTOS_ANALISE.rodapeValuation, o texto literal da spec, que já é exceção da varredura e coberto por teste. Na v1 eu disse que o linguagem.ts proibia esse texto; estava errado.",
+          "CRÍTICA ACEITA (consultor): o GET responde 200 com a base do ativo, salvo = null e podeSalvar = false; PUT e DELETE dão 403. A calculadora funciona em rascunho. Texto na tela: 'Os cenários salvos são pessoais de cada usuário. Você pode fazer as contas, mas não salvar.'",
+          "CRÍTICA ACEITA (Meta de renda → Planejamento): o objetivo vale cotas × cotação e o 'já disponível' vale posição × cotação. Quando faltam 0 cotas, o botão some e a tela diz que a posição já cobre a meta. O aviso explica que o objetivo também vira linha no Fluxo de Caixa. Com o consultor agindo, o título, o aviso e o toast dizem 'da Marina'.",
+          "CRÍTICA ACEITA (dados da tela): a cotação mostra 'último pregão: 29/09', a data real no banco. O P/L alvo vazio da AURE3 explica 'histórico com menos de 5 anos: informe o P/L alvo' (o motivo real é ter só 2 pontos de histórico).",
+          "DIVERGÊNCIA FECHADA A FAVOR DA ARQUITETURA: no celular, os métodos aparecem em cartões. Cada cartão mostra o resultado, as premissas, 'vs. cotação' e 'Com sua margem', e o último cartão traz a cotação de hoje.",
+          "DIVERGÊNCIA FECHADA A FAVOR DA ARQUITETURA: 'Restaurar valores do ativo' não pede confirmação. Apaga o cenário e mostra o toast com 'Desfazer' por 5 segundos, que regrava o anterior. Foi escolhido por ser reversível e ter menos atrito.",
+          "Mantidas da v1:\n- 'vs. cotação' sem cor;\n- caso inválido vira '—' com o motivo;\n- DPA em conferência com a política 'selo';\n- grava só as premissas e os dados editados;\n- 'Sua posição' WEGE3: P/L 25,9× e yield de 5,2% sobre custo (números corretos)."
+        ]
+      },
+      {
+        "nome": "Comparador",
+        "descricao": "Pill 'Comparador' com abas Ações | FIIs, até 4 slots, tabela critério × ativo com ★, mini-gráficos em base 100 na mesma escala, 'Resumo numérico' e 'Copiar link' (/analise-ativos/comparador?t=…). No celular, os slots ficam empilhados e cada critério vira um cartão.",
+        "decisoes": [
+          "CRÍTICA ACEITA (resumo sem placar): o Índice MF aparece na ordem dos slots, não por valor, com * no incompleto ('o Índice usa só os critérios com dado'). O resumo tem também 'critérios atendidos', os itens em conferência e a frase de responsabilidade. Não conta estrelas e não diz quem tem o maior Índice.",
+          "Alinhado à arquitetura:\n- payout sem ★, porque não tem direção;\n- entrou a linha P/Receita, com ★ para o menor valor e 'n/a' para banco.",
+          "Linhas retiradas por coerência com a arquitetura: prazo médio, CRIs ÷ patrimônio, taxa de administração e 'anos com proventos'. Nº de CRIs e maior CRI levam o rótulo 'critério provisório'.",
+          "CRÍTICA ACEITA (leitor de tela): o texto oculto de cada mini-gráfico descreve só a série da própria coluna ('WEGE3: de 100 para 571'). A escala vai na legenda do grupo.",
+          "CRÍTICA ACEITA (alvo de toque): os tickers dos slots ganharam área de 44px de altura, com margem negativa para não mudar o layout.",
+          "Mantidas da v1:\n- ★ fica fora quando o valor está em conferência, quando há menos de 2 valores ou quando há empate;\n- dados de imóveis da CVM sem ★;\n- P/VP sem ★ quando tijolo e papel se misturam;\n- limite de 4 ativos;\n- ação com FII é recusada."
+        ]
+      },
+      {
+        "nome": "Entradas: Quadro e página do ativo",
+        "descricao": "No Quadro, o modo 'Comparar' liga caixas de seleção de 44×44 e uma bandeja fixa 'Comparar N'. Na página do ativo, o botão 'Comparar' abre o Comparador com o ativo no 1º slot.",
+        "decisoes": [
+          "DIVERGÊNCIA FECHADA A FAVOR DA ARQUITETURA: a bandeja fica habilitada a partir de 1 ativo ('marque de 1 a 4 ações'). Fica coerente com o botão da página do ativo, que já abre o Comparador com 1 slot e sugestões de pares.",
+          "CRÍTICA ACEITA (alvos de toque): no celular, pílulas Quadro/Comparador, seletores de nível e botões de ação têm 44px. No computador, os seletores de nível passaram de 34 para 40px, a mesma altura do .btn do app.",
+          "CRÍTICA REJEITADA EM PARTE: no computador, os seletores não chegaram a 44px. Com mouse, 40px já passa com folga o mínimo do WCAG 2.5.8 (24px) e iguala os botões do app; 44px fica reservado ao toque."
+        ]
+      }
+    ],
+    "especificacao_visual": "Base igual à da v1: mesma bancada, componentes da Fase 1 e do Bloco C, cores só de brandColors.ts mais os cinzas do app e os negativos #D92D20/#F97066, fonte Outfit e números com tabular-nums.\n\n**Mudanças da v2**\n\nAlvos e campos\n- Celular (.ph-body):\n  - campos dos cenários com min-height de 48px e fonte de 16px (sem zoom no iOS);\n  - seletores Essencial|Raio-X e Múltiplos|Meus cenários, pílulas Quadro/Comparador e todos os .btn com min-height de 44px.\n- Tickers dos slots do Comparador: inline-flex, min-height de 44px e margin-block de −12px (área de toque sem mudar o layout).\n- Computador: seletores de nível com 40px.\n\nResultados dos cenários no celular (.mres)\n- Lista de cartões com borda app-line, raio de 12px e padding de 10×12.\n- Grade: nome do método (14,5/600) à esquerda e resultado (17/600, tabular-nums) à direita.\n- Linhas seguintes: premissas (12,5 muted), motivo do '—' quando houver e uma linha dl com 'vs. cotação' e 'Com sua margem' (13px).\n- O último cartão, 'Cotação de hoje', tem borda tracejada e fundo app-bg.\n- No computador continua a tabela TABLE_STYLES.\n\nRaio-X\n- 'Sobre os dados': título em 12,5/600 sobre a lista de 12,5px muted.\n- Célula oculta por conferência: '—' + ChipConferencia + hachura de 135° (sem o title 'sem dado na fonte').\n- Linhas por cota de FII com a legenda 'base de cotas de hoje'.\n- Taxa de adm. com 2 casas ('0,57%').\n\nMeta de renda\n- Com faltam = 0, um parágrafo com ícone de check de 16px substitui o botão.\n- O sheet ou modal de criar objetivo ganha um bloco .info (fundo band-soft, ícone i-info) com o aviso do Fluxo de Caixa.\n\nToast de restauração\n- Botões 'Desfazer' e 'Fechar' com 44px; some sozinho depois de 5 segundos.\n\nRodapé dos cenários\n- Caixa .legal-cen (12,5px, fundo app-bg) com o texto literal de rodapeValuation.\n\n**Escuro**\nSem tokens novos. Os cartões .mres, o bloco 'Sobre os dados' e o aviso do Fluxo de Caixa usam os mesmos tokens (app-line, app-strong, app-muted, band-soft). Conferi a captura de tela no escuro.",
+    "acessibilidade": [
+      "Tabelas largas (Raio-X, Comparador e resultados no computador):\n- contêiner com tabIndex=0, role=region e aria-label;\n- caption sr-only;\n- th scope=col nos anos ou ativos e th scope=row na 1ª coluna fixa;\n- faixas de grupo como th scope=rowgroup.",
+      "No celular, os resultados dos cenários formam uma lista (ul) com aria-label: método, cotação e margem. Cada cartão tem o nome do método, o resultado e um dl com 'vs. cotação' e 'Com sua margem'. O leitor de tela lê sem precisar rolar para o lado.",
+      "Célula em conferência: '—' + chip (button 'LPA 2024 em conferência: por quê?') + hachura. O status nunca depende só da cor. O chip abre popover no computador ou sheet no celular, e o foco volta ao chip quando fecha.",
+      "Mini-gráficos do Comparador: cada célula tem o texto sr-only só da própria série ('WEGE3: de 100 para 571'). A escala compartilhada fica na legenda do grupo. O SVG continua com aria-hidden.",
+      "Toast 'Valores do ativo restaurados' em role=status, com 'Desfazer' e 'Fechar' de 44px. Dura 5 segundos; a mesma ação continua disponível pelo 'Salvar cenário'.",
+      "Meta de renda com a posição cobrindo a meta: o texto explica por que não há botão, em vez de um botão desabilitado sem motivo.",
+      "Celular: campos com 48px e fonte de 16px (sem zoom no iOS no foco). Seletores, pílulas, botões e tickers com 44px. Playwright: nenhum alvo abaixo de 44px nos cenários V1 e C1 do celular.",
+      "Slider da margem: range nativo com label, aria-valuetext em % e passo 5. Resultados anunciados em aria-live=polite. Erros de campo com aria-invalid e mensagem ligada por aria-describedby.",
+      "Contraste acima de 4,5:1 nos dois temas; #0079F2 nunca em texto. Com prefers-reduced-motion, o pulso do esqueleto e o spinner param."
+    ],
+    "perguntas_para_wellington": [
+      "1. Conferência por ano no Raio-X. DIVERGE DO ARQUITETO (segui a crítica). Recomendo usar no Raio-X a mesma regra do Essencial: numa coluna de ano só entram as flags daquele ano (fundamentos_escala@ano, historico@ano). Flag da linha inteira, como a dos proventos da WEGE3, aparece só no 'Últ. 12m' e nos cenários. O arquiteto aplicava as flags da linha ao ano mais recente, e o Raio-X esconderia o que o Essencial mostra.",
+      "2. Anos com base de ações quebrada (CBAV3). NOVO, precisa de OK.\n- Recomendo tratar as flags do próprio ano da base por ação (salto_acoes_sem_evento, dados_incompletos) como 'em conferência / ocultar' nas linhas de LPA e de nº de ações, no Raio-X e no Essencial. Há 208 anos-ativo com essa flag no dev.\n- A regra atual deixa escapar a CBAV3 em 2025 (LPA de R$ 185,91), porque não houve salto em relação a 2024. Proponho somar o critério 'nº de ações abaixo de 1/10 da mediana dos anos' e colocar a CBAV3 no QA de dados.",
+      "3. DPA em conferência nos cenários. Recomendo a política 'selo': campo preenchido com o chip, e Bazin e Gordon marcados com 'usa DPA em conferência'. Se a política do grupo for 'ocultar', o campo abre vazio. É igual à arquitetura.",
+      "4. Rodapé dos cenários. Aceito o texto literal da spec (rodapeValuation), que já está coberto por teste. Na v1 eu disse que o linguagem.ts proibia esse texto; estava errado. Se quiser, levo ao jurídico só como alternativa: 'O resultado é uma conta com os seus parâmetros, feita para estudo. Não é estimativa de valor do ativo e não constitui recomendação de investimento.'",
+      "5. Meta de renda → Planejamento. DIVERGE DO ARQUITETO.\n- Recomendo: objetivo = cotas × cotação e 'já disponível' = posição × cotação. O arquiteto usava 'faltam × cotação', que dá 0 quando a posição cobre a meta, e aí o schema responde 400.\n- Com faltam = 0, o botão some.\n- O sheet avisa que o objetivo também vira linha no Fluxo de Caixa. Com consultor agindo, vai para o Planejamento e o Fluxo de Caixa da cliente.\n- Alternativa: esconder o botão para o consultor.",
+      "6. Resumo numérico do Comparador. DIVERGE DO ARQUITETO. Recomendo o Índice MF na ordem dos ativos escolhidos, com * no incompleto, mais 'critérios atendidos' e a frase de responsabilidade. Sem 'X tem o maior Índice MF' e sem 'X tem ★ em n de m critérios': somar estrelas transforma o destaque por critério num vencedor geral. Levar ao jurídico junto com textosComparador.",
+      "7. ★ nos dados de imóveis da CVM (nº de imóveis, área, vacância). Recomendo mostrar com 'fonte CVM' e sem ★ até validar uns 20 fundos contra os relatórios gerenciais. É igual à arquitetura e diverge da spec. Exemplo: o XPLG11 tem vacância CVM de 18,3% no 2º tri de 2026, contra 3,8% no fim de 2025.",
+      "8. Payout sem ★ no Comparador. DIVERGE DA SPEC, que diz 'menor'. Recomendo payout neutro, porque payout alto não é melhor nem pior. É igual à arquitetura.",
+      "9. Taxa de administração e a regra 21. No schema, taxaAdmPct fica logo abaixo do comentário 'SÓ checagem, nunca exibido (regra 21)', mas o card Múltiplos já mostra o último mês.\n- Se a regra 21 não cobre o campo: recomendo a linha 'Taxa de adm. (% do PL no ano)' no Raio-X, somando os 12 meses ('—' com menos de 12), e o card Múltiplos com 'no mês'.\n- Se cobre: a linha sai do Raio-X e o card Múltiplos precisa ser revisto.\n- Atenção: o XPLG11 soma 10,82% em 2020, por causa de um mês fora da escala.",
+      "10. Limite do Comparador. Recomendo 4 ativos, como a spec e a arquitetura. Com 5, a tabela não cabe a 1280px e, no celular, sobram menos de 60px por ativo a 320px.",
+      "11. Tijolo e papel juntos (DIVERGE DA SPEC só no seletor). Recomendo permitir, com aviso neutro e 'n/a' nas linhas que não se aplicam; P/VP fica sem ★ quando os tipos se misturam. Ação com FII continua recusada. É igual à arquitetura.",
+      "12. Salvar comparação e Exportar PDF (DIVERGE DA SPEC). Recomendo deixar os dois fora, escondidos e sem 'em breve'. 'Copiar link' cobre o salvar; o PDF fica para a Fase 5. É igual à arquitetura.",
+      "13. Detalhes fechados com a arquitetura, para o decisoes.md do bloco D. Aceitei a proposta do arquiteto nos seis; diga se discorda de algum:\n(a) CSV via ?formato=csv, nome raio-x_WEGE3_2026-10-08.csv, com ';', vírgula decimal, BOM e CRLF;\n(b) nível Essencial/Raio-X na URL (?fund=raiox), não guardado no aparelho;\n(c) a bandeja do Quadro abre o Comparador a partir de 1 ativo;\n(d) restaurar sem confirmação, com 'Desfazer' por 5 segundos;\n(e) métodos dos cenários em cartões no celular;\n(f) consultor: GET 200 com salvo = null; PUT e DELETE com 403.",
+      "14. Dados a corrigir antes da construção (aviso, sem decisão de produto):\n(a) rendimentosDeclarados vem acumulado no semestre; o ano é 2º tri + 4º tri;\n(b) o resultado por cota do FII deve usar a média mensal de cotas (HGLG11 2025: R$ 12,90; com as cotas de dezembro daria R$ 10,72);\n(c) VP por cota, rendimento por cota e nº de cotas passam pelo fatorCotasApos (HGLG11 2017: VP de R$ 112,73);\n(d) o payout do ITUB4 sai nulo por dmpl_zero_com_proventos, mas o DMPL consolidado tem R$ 49,2 bi em 2025;\n(e) o campo fcf é o fluxo de financiamento;\n(f) o BCFF11 não existe no dev.\nPontos só de arquitetura, fora do meu escopo, ficam com o arquiteto: cache com limite de chaves, tier de rate limit, FK para \"User\", divLiqPl e pReceita no comparador, e o exemplo de 'Sua posição' (no protótipo os números já estão certos: 25,9× e 5,2%)."
+    ]
+  },
+  "revisao": {
+    "problemas": [
+      {
+        "alvo": "arquitetura",
+        "gravidade": "alta",
+        "descricao": "A política de conferência por ano do Raio-X não é a do Essencial. Com ela, a 'regra de ouro' (mesmo Estado nas células comuns) quebra, e o caso de teste da CBAV3 não existe no DEV.",
+        "evidencia": "No Essencial, conferirLinha (fundamentosEssencial.ts:81-118) aplica nas linhas de ano só flagsConfDoAno(['historico']) sobre CAMPO_HISTORICO e flagsConfDoAno(['fundamentos_escala']). As flags da linha inteira entram SÓ no 'Últ. 12m' (ano === null). O arquiteto aplica 'flagsDaLinha' ao ano mais recente fechado e soma acoes_escala/fii_vp/fii_obrigacoes por ano. Resultado: a CBAV3 de 2025 teria LPA/nº de ações ocultos no Raio-X e visíveis no Essencial. Os campos de 'historico' (historicoPl/Pvp/PReceita) não têm nenhuma linha no Raio-X, então o caso 'CBAV3 2022 oculto' não acontece. Medição no DEV: analise_quadro_linhas da CBAV3 tem só ['conf:acoes_escala:pvp_minimo@2026-06-30'], com chave em 2026, que nunca casa com um ano fechado. As flags conf:historico:escala_ano@2022/@2023 estão em asset_multiples_yearly.",
+        "sugestao": "Usar no Raio-X exatamente a mesma regra do Essencial: por ano, só historico + fundamentos_escala com chave no ano. Flags da linha nunca vão para uma coluna anual. Extrair conferirLinha como função compartilhada e trocar a fixture da CBAV3 por um caso real de fundamentos_escala@ano. Se for preciso, gerar um no DEV pelo job do Bloco C."
+      },
+      {
+        "alvo": "ambos",
+        "gravidade": "alta",
+        "descricao": "O Raio-X vai publicar séries por ação e de nº de ações visivelmente erradas (escala quebrada), porque nenhuma regra de conferência cobre os anos passados.",
+        "evidencia": "asset_per_share_yearly da CBAV3 no DEV: acoesFim 2021 = 887.436, 2022 = 595.833.333, 2023 = 645.477.321, 2024 = 651.073. lpaAjHoje 2021 = 837,18, 2024 = −277,50, 2025 = 185,91. Esses anos têm flags 'salto_acoes_sem_evento,dados_incompletos', e no DEV há 208 anos-ativo com salto_acoes_sem_evento. A linha 'Nº de ações (milhões)' é nova no Raio-X, e o LPA, as derivadas por ação e o mini-gráfico usam esses valores. O mapa CAMPO_LINHA_RAIOX só olha flags 'conf:' (acoes_escala com chave 2026-06-30), que não atingem 2021-2024.",
+        "sugestao": "Tratar as flags de asset_per_share_yearly e asset_multiples_yearly do próprio ano (salto_acoes_sem_evento, dados_incompletos) como 'ocultar/em conferência' nas linhas por ação e de nº de ações. Fazer o mesmo no Essencial para manter a consistência. Pôr a CBAV3 no QA de dados com o critério 'nenhum ano com acoesFim variando >10× sem evento'."
+      },
+      {
+        "alvo": "arquitetura",
+        "gravidade": "media",
+        "descricao": "'Resultado por cota' do FII = Σ resultado do ano ÷ cotas de DEZEMBRO. Em ano com emissão de cotas, o valor fica subestimado.",
+        "evidencia": "fii_monthly do HGLG11 em 2025: 33.787.575 cotas de jan a out e 42.404.675 em nov/dez. Σ resultadoTrimestral 2025 = 106,3 + 110,4 + 111,2 + 126,6 = 454,5 mi. Dividido pelas cotas de dez dá R$ 10,72; pela média mensal (≈35,2 mi) dá ≈ R$ 12,9, cerca de 17% de diferença. Emissões são comuns em FIIs.",
+        "sugestao": "Usar a média das cotas mensais do ano (ajustadas por fatorCotasApos) ou somar resultado trimestral ÷ cotas do trimestre. Documentar na nota da linha. Se não houver 12 meses, mostrar '—'."
+      },
+      {
+        "alvo": "arquitetura",
+        "gravidade": "media",
+        "descricao": "A cobertura diz que VP/cota de asset_per_share_yearly já vem 'ajustado a desdobramento', mas o valor gravado NÃO está ajustado. O mesmo vale para o nº de cotas cru do fii_monthly.",
+        "evidencia": "HGLG11 no DEV: vpCotaFim 2017 = 1.127,27 e rendCota 2017 = 104,4, contra 120,83 / 9,6 em 2018. O fii_monthly tem fatorDesdobramento 10 em 2018-04. O Essencial divide por fatorCotasApos (fundamentosEssencial.ts, vpCota: dividir(ps?.vpCotaFim, f)). Na tabela cobertura_raio_x só o rendimento menciona o fator, o VP/cota não. Nº de cotas e cotistas de dezembro também cruzam o desdobramento.",
+        "sugestao": "Explicitar na fatia A que VP/cota, rendimento/cota e resultado/cota passam por fatorCotasApos, e que o nº de cotas é mostrado na base de hoje ou com nota 'antes do desdobramento de 2018'. Pôr o HGLG11 2017 como caso de teste."
+      },
+      {
+        "alvo": "design",
+        "gravidade": "media",
+        "descricao": "O protótipo mostra no Raio-X do FII de tijolo linhas aproximadas ou não validadas, que a decisão 6 e o arquiteto excluem.",
+        "evidencia": "Raio-X do HGLG11 (cenário F4) renderizado com Playwright: aparecem 'Inadimplência' e 'Prazo médio dos contratos (anos)'. Na especificação do arquiteto, prazoMedioAnosAprox é 'aproximação arbitrária' (o balde '> 36 meses' vale 5 anos) e inadimplenciaCvmPct é 'não validado'. As duas ficam com 'não mostra'.",
+        "sugestao": "Tirar as duas linhas do protótipo (e da lista de linhas da fatia A) até o Wellington responder à pergunta 2."
+      },
+      {
+        "alvo": "ambos",
+        "gravidade": "media",
+        "descricao": "Rodapé legal dos cenários: o designer reescreveu o texto literal da spec sem necessidade, e as duas propostas divergem.",
+        "evidencia": "textos.ts:134 já tem rodapeValuation com o texto da spec, e ele está em EXCECOES_TEXTO_FIXO. textos.test.ts:87-89 exige a exceção e o literal /não calcula .preço justo. nem preço-alvo/, e casos46.test.ts:191 também. O designer afirma que o linguagem.ts proíbe o texto, mas a varredura já o exclui. A versão nova do protótipo ('…não constitui recomendação de investimento') quebra esses testes e muda um texto exigido pela spec.",
+        "sugestao": "Manter TEXTOS_ANALISE.rodapeValuation literal (posição do arquiteto) e só levar a alternativa ao jurídico como pergunta. Corrigir o protótipo para usar o texto vigente."
+      },
+      {
+        "alvo": "ambos",
+        "gravidade": "media",
+        "descricao": "Consultor agindo pelo cliente: o contrato do GET de cenários diverge entre as propostas e em relação ao padrão da tese.",
+        "evidencia": "A rota da tese faz 403 em todos os métodos para actingClient (teses/[ticker]/route.ts:32). O designer propõe '403 em GET/PUT/DELETE'. O arquiteto propõe GET 200 com salvo = null e podeSalvar = false, porque o mesmo GET leva a base de pré-preenchimento. Com 403 no GET, a calculadora do consultor fica sem dados do ativo, o que contradiz a tela V10 do próprio designer.",
+        "sugestao": "Fixar o contrato do arquiteto: GET 200 sem o salvo, PUT/DELETE 403. Ou separar a base (GET /cenarios/[ticker]/base, sem dado de usuário) do salvo. Ajustar a pergunta 3 do designer."
+      },
+      {
+        "alvo": "arquitetura",
+        "gravidade": "media",
+        "descricao": "Meta de renda → objetivo no Planejamento: o valor proposto pode ser inválido e há um efeito colateral não documentado.",
+        "evidencia": "planejamentoObjetivoCreateSchema exige target: zPositiveNumber (validation-schemas.ts:356). O arquiteto usa target = faltam × cotação, que dá 0 quando a posição já cobre as cotas, e o POST responde 400. O POST também chama syncObjetivoToCashflow (planejamento-sonhos/route.ts) e cria uma linha no Fluxo de Caixa. Com consultor agindo, ela é criada no fluxo do cliente. A proposta do designer (target = custo total, available = valor da posição) cabe no schema.",
+        "sugestao": "Usar target = cotas × cotação e available = posição × cotação. Esconder o botão quando faltam = 0. O sheet deve avisar que o objetivo também aparece no Fluxo de Caixa (e no do cliente, se for consultor). Incluir esse caso no teste."
+      },
+      {
+        "alvo": "ambos",
+        "gravidade": "media",
+        "descricao": "O Resumo numérico do Comparador vira placar nas duas propostas.",
+        "evidencia": "O arquiteto propõe 'X tem ★ em n de m critérios' por ativo e 'X tem o maior Índice MF'. Somar estrelas transforma o ★ por critério num vencedor geral. O protótipo (C1) troca isso por 'Índice MF, do maior para o menor: WEGE3 8,3* · TAEE11 8,0 · ITUB4 7,6*', que também é um ranking e ainda ordena Índices incompletos junto com os completos.",
+        "sugestao": "Não contar estrelas. Listar o Índice na ordem dos slots (não por valor) e marcar o incompleto. Manter só os critérios atendidos e a frase de responsabilidade. Levar ao jurídico junto com textosComparador."
+      },
+      {
+        "alvo": "arquitetura",
+        "gravidade": "media",
+        "descricao": "Os limites de cache e de rate limit prometidos não existem na infraestrutura atual.",
+        "evidencia": "getTtlCache (src/lib/simpleTtlCache.ts) não tem tamanho máximo nem varredura: só apaga a entrada vencida no get. 'Até 300 chaves' não é suportado, e o comparador aceita qualquer combinação de até 4 tickers (espaço enorme de chaves), com a memória crescendo por 30 min a cada URL nova. O rate limit (lista de tiers em rateLimit) não tem prefixo /api/analise-ativos/ativos: só o genérico '/api/'.",
+        "sugestao": "Criar um cache limitado (LRU com maxKeys) para analiseComparador e analiseAtivosRaioX, com teste de tamanho. Rever no texto o 'rate limit do prefixo' ou criar um tier próprio para raio-x?formato=csv e para o comparador."
+      },
+      {
+        "alvo": "design",
+        "gravidade": "media",
+        "descricao": "No celular há alvos de toque e campos abaixo do mínimo, contrariando a especificação visual do próprio designer.",
+        "evidencia": "Playwright, moldura de celular, claro e escuro: inputs dos cenários com 40px de altura e fonte de 15px (a spec do designer diz 48px/16px; abaixo de 16px o iOS dá zoom no foco). Seletores Essencial|Raio-X e Múltiplos|Meus cenários com 40px, pílulas Quadro/Comparador com 40px, Planejar/Registrar/Comparar com 40px. Os tickers-link do cabeçalho do comparador têm 53×19, 41×19 e 49×19. No computador, os seletores têm 34px.",
+        "sugestao": "No celular: inputs com min-height 48px e font-size 16px; seletores, pílulas e botões com ≥ 44px; links de ticker com área de 44px (padding ou ::after)."
+      },
+      {
+        "alvo": "arquitetura",
+        "gravidade": "baixa",
+        "descricao": "A taxa de administração aparece com dois significados na mesma página.",
+        "evidencia": "O card Múltiplos atual mostra o último taxaAdmPct mensal (ultimaTaxaAdm em valuationMultiplos.ts:470-478; HGLG11 ≈ 0,05% no mês). O Raio-X proposto soma 12 meses (≈ 0,56% a.a.) com o mesmo rótulo. No schema, taxaAdmPct fica logo abaixo do comentário 'SÓ checagem, nunca exibido (regra 21)'.",
+        "sugestao": "Confirmar se a regra 21 cobre taxaAdmPct. Se a linha ficar, usar o rótulo 'Taxa de adm. (% do PL no ano, soma dos meses)' e alinhar o card Múltiplos ('no mês')."
+      },
+      {
+        "alvo": "arquitetura",
+        "gravidade": "baixa",
+        "descricao": "O CSV e as notas do Raio-X usam a palavra 'Notas', que está em PALAVRAS_PROIBIDAS.",
+        "evidencia": "linguagem.ts lista 'nota' e 'notas'. A fatia A prevê um 'bloco Notas' no CSV e textos de nota em textosRaioX, e textosBlocoD.test.ts varre esses textos.",
+        "sugestao": "Usar 'Observações' ou 'Sobre os dados' nos rótulos visíveis e no CSV."
+      },
+      {
+        "alvo": "arquitetura",
+        "gravidade": "baixa",
+        "descricao": "O FK da migration aponta para uma tabela que não existe.",
+        "evidencia": "O schema_prisma diz FK → \"users\"(\"id\"). O model User não tem @@map, e as migrations anteriores usam REFERENCES \"User\"(\"id\") (analise_teses_userId_fkey e feature_beta_users_userId_fkey na migration fase1).",
+        "sugestao": "Usar REFERENCES \"User\"(\"id\") ON DELETE CASCADE."
+      },
+      {
+        "alvo": "arquitetura",
+        "gravidade": "baixa",
+        "descricao": "O exemplo de 'Sua posição' tem números errados, e um teste escrito a partir dele falharia.",
+        "evidencia": "Com PM 38,60, LPA 1,49 e DPA 2,00 (WEGE3 no DEV: lpaTtm 1,4905, dpa12m 2,0032), P/L sobre custo = 25,9× e yield sobre custo = 5,2%. A spec do arquiteto diz 23,5× e 2,2%. O protótipo (V1) mostra os valores corretos.",
+        "sugestao": "Corrigir o exemplo e a fixture de montarCenarios.test."
+      },
+      {
+        "alvo": "design",
+        "gravidade": "baixa",
+        "descricao": "O protótipo tem rótulos de dado inconsistentes com o DEV e um problema de leitor de tela.",
+        "evidencia": "(a) Mostra 'fechamento de 07/10', mas asset_multiples_current.precoData = 2026-09-29 para WEGE3, HGLG11 e outros. (b) No AURE3, a explicação do P/L alvo diz 'sem média de 10 anos: P/L negativo', mas o motivo real é plPontosHistorico = 2 (histórico curto, regra de 5 pontos). (c) O texto sr-only dos mini-gráficos repete as 3 séries em cada célula ('WEGE3: WEGE3: 100 → 571; ITUB4: …').",
+        "sugestao": "Data da cotação vinda do precoData; motivo 'histórico com menos de 5 anos'; sr-only só com a série do ativo da coluna."
+      },
+      {
+        "alvo": "ambos",
+        "gravidade": "baixa",
+        "descricao": "Há divergências de detalhe entre as propostas que as fatias precisam fechar antes de começar.",
+        "evidencia": "(1) CSV: arquiteto raio-x_WEGE3_2026-10-08.csv via ?formato=csv; designer WEGE3_raio-x_2016-2025.csv via /raio-x.csv. (2) Nível Essencial/Raio-X: arquiteto ?fund=raiox; designer localStorage. (3) Bandeja do Quadro: arquiteto abre com 1 ativo; designer desabilita com menos de 2. (4) Restaurar: arquiteto sem confirmação, com 'Desfazer'; designer com confirmação na tela. (5) Métodos no celular: arquiteto em cartões; o protótipo mantém a tabela com rolagem.",
+        "sugestao": "Registrar uma decisão por item no decisoes.md do bloco D antes da fatia 0 congelar os textos e contratos."
+      },
+      {
+        "alvo": "arquitetura",
+        "gravidade": "baixa",
+        "descricao": "Leitura do comparador incompleta: Dív. líq./PL e P/Receita não estão em LinhaQuadroApi.",
+        "evidencia": "LinhaQuadroApi (analiseAtivosApi.ts:271-320) tem roe, pl, pvp, dy12m, margemLiquida, divLiqEbitda e payout, mas não divLiqPl nem pReceita. O arquiteto só cita pReceita do AssetMultiplesCurrent, e a fatia A altera fundamentosEssencial.ts (export de somaTrimestres) sem listá-lo em arquivos_alterados.",
+        "sugestao": "Incluir divLiqPl do AssetMultiplesCurrent, com aplicarConferenciaCampo('divLiqPl'), e listar fundamentosEssencial.ts nos arquivos da fatia A."
+      }
+    ],
+    "pontos_fortes": [
+      "Conferi as fórmulas contra metodos.ts/metaRenda.ts e os números do DEV (asset_multiples_current): WEGE3 Bazin 33,33/−34%/26,67, Graham 12,28, múltiplo 54,98, Gordon 43,20/−14%/34,56; HGLG11 166,75 (+13%) e 165,95 (+12%); Meta 900 cotas · R$ 133.137,00; MXRF11 10.042 cotas. Todos batem. Os casos-limite (LPA ≤ 0, VPA ≤ 0, k ≤ g, DPA 0, yield fora do limite) já devolvem null sem lançar exceção.",
+      "Refiz a medição dos rendimentos no DEV e o achado do 2T+4T (acumulado no semestre) se confirma: HGLG11 2025 = 223,0 + 235,9 = 458,9; KNCR11 2024 = 341,9 + 413,7 = 755,6 e 2025 = 1.159,4. Os valores coincidem com os do protótipo. resultadoTrimestral é de fato por trimestre.",
+      "Payout do ITUB4 nulo em todos os anos com flag dmpl_zero_com_proventos e naoSeAplica cobrindo dívida/EBITDA/margem/liquidez/ROIC: confirmado no DEV. A regra de esconder a linha toda em n/a está correta.",
+      "Compliance visual: vs. cotação em cinza neutro, sem seta e sem verde/vermelho; barras numa só cor da paleta; ★ sempre com o texto 'destaque'; nenhum CTA de compra nem 'Salvar comparação' ou 'PDF'. As cores do protótipo são só da brandColors, cinzas e #D92D20/#F97066 (#0079F2 aparece só como não textual).",
+      "Regras do ★ bem pensadas: valor em conferência e indicadores neutros fora; P/VP de papel 'perto de 1'; P/L ≤ 0 fora; DL/EBITDA com base ≤ 0 já vira n/a em multiplos.razao, então um EBITDA negativo não ganha ★ por engano.",
+      "Cenários privados reaproveitando a tese: userId = payload.id, nunca targetUserId; PUT/DELETE com CSRF e zod strict; unique (userId, symbol); cascade e entrada no export LGPD.",
+      "As flags por recurso com rollback independente, a fatia 0 com stubs (BlocoFundamentos/BlocoValuation) e as fatias A/B/C/D sem arquivos em comum são realistas. As rotas do bloco só leem o banco.",
+      "Protótipo: Playwright em 1440 e 390, claro e escuro, sem erro de script e sem rolagem horizontal da página. As tabelas largas rolam dentro do card e as checkboxes do Quadro têm 44px.",
+      "Screenshots da revisão em /tmp/claude-1000/-home-huske-dev-front/90b05dca-4be2-4479-82ee-742ef7f94cf0/scratchpad/analise-blocoD/revisao-*.png; scripts de medição read-only em .../analise-blocoD/rev/"
+    ]
+  }
+}

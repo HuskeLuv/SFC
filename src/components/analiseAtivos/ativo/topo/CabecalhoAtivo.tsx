@@ -3,7 +3,11 @@
  * nas ações; tipo · segmento CVM nos FIIs — SEM tag de índice de mercado, que não tem fonte), selo
  * da carteira (slot da D), selos de estado e o preço de fechamento do último pregão com a data e
  * a fonte. As ações da carteira (Registrar/Planejar) entram pelo slot da fatia D.
+ *
+ * Bloco D (fatia D): a linha de ações passa por LinhaAcoesCabecalho, que acrescenta o "Comparar"
+ * depois delas só com config.recursos.comparador (sem o recurso, o mesmo <div> de hoje).
  */
+import { LinhaAcoesCabecalho } from '@/components/analiseAtivos/ativo/topo/BotaoComparar';
 import SeloEstado from '@/components/analiseAtivos/comum/SeloEstado';
 import SeloIncompleto from '@/components/analiseAtivos/comum/SeloIncompleto';
 import { formatarAnalise } from '@/components/analiseAtivos/comum/formatarAnalise';
@@ -103,7 +107,11 @@ export default function CabecalhoAtivo({ ativo, seloCarteira, slotAcoes }: Cabec
           ) : null}
         </div>
       </div>
-      {slotAcoes ? <div className="min-w-0">{slotAcoes}</div> : null}
+      {slotAcoes ? (
+        <LinhaAcoesCabecalho ticker={ativo.ticker} classe={ativo.classe}>
+          {slotAcoes}
+        </LinhaAcoesCabecalho>
+      ) : null}
     </header>
   );
 }

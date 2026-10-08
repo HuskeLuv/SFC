@@ -127,6 +127,13 @@ export const queryKeys = {
     valuation: (ticker: string) =>
       [...queryKeys.analiseAtivos.all, 'ativo', ticker, 'valuation'] as const,
     tese: (ticker: string) => [...queryKeys.analiseAtivos.all, 'tese', ticker] as const,
+    // Bloco D (fatia 0). raioX fica sob 'ativo' (cai junto com o ativo); cenario é do usuário
+    // logado (invalidar só ele ao salvar); comparador usa o conjunto ORDENADO + o 1º slot (que
+    // decide a classe quando o link mistura classes); o hook reordena pelos slots.
+    raioX: (ticker: string) => [...queryKeys.analiseAtivos.all, 'ativo', ticker, 'raioX'] as const,
+    cenario: (ticker: string) => [...queryKeys.analiseAtivos.all, 'cenario', ticker] as const,
+    comparador: (tickersOrdenados: readonly string[], primeiro: string) =>
+      [...queryKeys.analiseAtivos.all, 'comparador', tickersOrdenados.join(','), primeiro] as const,
   },
   comunidade: {
     all: ['comunidade'] as const,
