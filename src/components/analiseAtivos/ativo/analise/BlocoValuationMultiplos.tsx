@@ -8,6 +8,9 @@
  *
  * Bloco C: cartões em conferência pelo CardMultiplo (mesma política do topo); o menu ⋯ e o frescor
  * do bloco vêm do CartaoAnalise, com os múltiplos reportáveis no "Qual dado?".
+ *
+ * Bloco D (fatia B): `cabecalhoExtra` (o SeletorNivel 'Múltiplos | Meus cenários') vai no slot
+ * `acao` do cabeçalho; ausente = cabeçalho de hoje.
  */
 import { useState } from 'react';
 import CardMultiplo from '@/components/analiseAtivos/ativo/analise/CardMultiplo';
@@ -39,7 +42,10 @@ function dadosReporte(grupos: GrupoValuation[]): DadoBlocoReporte[] | undefined 
     }));
 }
 
-export default function BlocoValuationMultiplos({ ticker }: BlocoValuationMultiplosProps) {
+export default function BlocoValuationMultiplos({
+  ticker,
+  cabecalhoExtra,
+}: BlocoValuationMultiplosProps) {
   const q = useValuationAtivo(ticker);
   const [escolhido, setEscolhido] = useState<string | null>(null);
   const grupos = q.data?.grupos ?? [];
@@ -55,6 +61,7 @@ export default function BlocoValuationMultiplos({ ticker }: BlocoValuationMultip
       onTentarNovamente={() => void q.refetch()}
       alturaEsqueleto={360}
       dadosReporte={dadosReporte(grupos)}
+      acao={cabecalhoExtra}
     >
       {grupo ? (
         <>
