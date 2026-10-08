@@ -116,11 +116,7 @@ export default function CartoesComparador({ dados, classe, naCarteira }: Cartoes
         <Criterio rotulo={TC.linhas.naCarteira.rotulo} sub={TC.linhas.naCarteira.sub} n={n}>
           {ativos.map((a) => (
             <Caixa key={a.ticker} ticker={a.ticker}>
-              <CelulaNaCarteira
-                info={naCarteira(a.ticker)}
-                classe={classe}
-                className="whitespace-normal"
-              />
+              <CelulaNaCarteira info={naCarteira(a.ticker)} classe={classe} quebrar />
             </Caixa>
           ))}
         </Criterio>

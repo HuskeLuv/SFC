@@ -53,9 +53,13 @@ export function ValorIndice({ a, compacto = false }: { a: AtivoComparador; compa
       ? TC.celula.semDado
       : `${formatarAnalise(v, 'numero')}${a.indice.estado === 'incompleto' ? '*' : ''}`;
   return (
-    <span className={`inline-flex items-center gap-2 ${compacto ? '' : 'justify-end'}`}>
+    <span
+      className={`inline-flex items-center gap-2 ${compacto ? 'max-w-full min-w-0' : 'justify-end'}`}
+    >
       {compacto ? null : <AnelIndice valor={v} estado={a.indice.estado} tamanho={32} />}
-      <span className={`flex flex-col ${compacto ? 'items-start' : 'items-end'}`}>
+      <span
+        className={`flex flex-col ${compacto ? 'max-w-full min-w-0 items-start [overflow-wrap:anywhere]' : 'items-end'}`}
+      >
         {/* no computador o número já está dentro do anel */}
         {compacto ? (
           <span className="text-[15px] font-semibold text-gray-800 tabular-nums dark:text-white/90">

@@ -69,6 +69,8 @@ export const TEXTOS_COMPARADOR = {
       '★ marca o valor numericamente mais favorável em cada critério, entre os ativos com dado. Não indica qual ativo escolher.',
     // acréscimo da fatia C: legenda curta do celular
     legendaCurta: '★ = valor numericamente mais favorável no critério.',
+    // celular: o chip dos cartões é só a lupa tracejada (colunas estreitas)
+    legendaConferenciaCurta: 'Lupa tracejada = valor em conferência (fora do ★).',
     regras: '★ só com 2 ou mais valores e sem empate; valores em conferência ficam fora do ★.',
     regrasFii:
       'Dados de imóveis da CVM não recebem ★ até a validação com os relatórios dos gestores.',

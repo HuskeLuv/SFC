@@ -8,6 +8,7 @@
  * - n/a (misto, financeira) em cinza; negativo em #D92D20 / #F97066;
  * - selos "fonte CVM" e "critério provisório" sob o valor quando a linha os pede.
  */
+import { Fragment, type ReactNode } from 'react';
 import ChipConferencia, { HACHURA } from '@/components/analiseAtivos/comum/ChipConferencia';
 import { formatarEstado } from '@/components/analiseAtivos/comum/formatarAnalise';
 import { TEXTO_NEGATIVO } from '@/components/analiseAtivos/ativo/analise/CartaoAnalise';
@@ -71,6 +72,27 @@ export function classesCelula(i: InfoCelula, filete: 'esquerda' | 'topo'): strin
   return '';
 }
 
+/** Texto com <wbr> depois de cada '.' de milhar (quebra preferida nos cartões estreitos). */
+function comQuebras(texto: string): ReactNode {
+  // sem lookbehind (Safari < 16.4 não compila a regex e derrubaria o bundle)
+  const partes: string[] = [];
+  let inicio = 0;
+  for (let k = 1; k < texto.length - 1; k++) {
+    if (texto[k] === '.' && /\d/.test(texto[k - 1]) && /\d/.test(texto[k + 1])) {
+      partes.push(texto.slice(inicio, k + 1));
+      inicio = k + 1;
+    }
+  }
+  partes.push(texto.slice(inicio));
+  if (partes.length < 2) return texto;
+  return partes.map((p, k) => (
+    <Fragment key={k}>
+      {k > 0 ? <wbr /> : null}
+      {p}
+    </Fragment>
+  ));
+}
+
 export interface ConteudoCelulaProps {
   linha: LinhaComparador;
   ticker: string;
@@ -86,16 +108,23 @@ export default function ConteudoCelula({
   const i = infoCelula(linha, ticker);
   const itens = alinhamento === 'direita' ? 'items-end' : 'items-start';
   // cartões do celular: até 4 colunas a 320px — o valor pode quebrar
-  const quebra = alinhamento === 'direita' ? 'whitespace-nowrap' : 'flex-wrap break-words';
+  // (overflow-wrap:anywhere: sem isso o inline-flex cresce pelo conteúdo e "1.529.305" invade a
+  // coluna vizinha; <wbr> após o separador de milhar dá a quebra preferida)
+  const cartao = alinhamento === 'esquerda';
+  const quebra = cartao ? 'flex-wrap [overflow-wrap:anywhere]' : 'whitespace-nowrap';
+  const texto = cartao ? comQuebras(i.texto) : i.texto;
   return (
-    <span className={`inline-flex flex-col gap-0.5 ${itens}`} data-celula-ticker={ticker}>
+    <span
+      className={`inline-flex flex-col gap-0.5 ${itens} ${cartao ? 'max-w-full min-w-0' : ''}`}
+      data-celula-ticker={ticker}
+    >
       {i.destaque ? (
         <span
           className={`inline-flex items-center gap-1 font-semibold text-gray-800 tabular-nums dark:text-white/90 ${quebra}`}
           data-destaque=""
         >
           <IconeEstrela />
-          <span className={i.negativo ? TEXTO_NEGATIVO : ''}>{i.texto}</span>
+          <span className={i.negativo ? TEXTO_NEGATIVO : ''}>{texto}</span>
           <span
             aria-hidden="true"
             className="text-[11.5px] font-semibold text-[#314666] dark:text-[#EAEAEA]"
@@ -106,7 +135,7 @@ export default function ConteudoCelula({
         </span>
       ) : (
         <span
-          className={`tabular-nums ${alinhamento === 'direita' ? 'whitespace-nowrap' : 'break-words'} ${
+          className={`tabular-nums ${cartao ? 'max-w-full [overflow-wrap:anywhere]' : 'whitespace-nowrap'} ${
             i.naoSeAplica
               ? 'text-gray-500 dark:text-gray-400'
               : i.negativo
@@ -114,12 +143,17 @@ export default function ConteudoCelula({
                 : 'text-gray-800 dark:text-white/90'
           }`}
         >
-          {i.texto}
+          {texto}
         </span>
       )}
       {i.conferencia ? (
         <span title={i.conferencia.motivo} className="inline-flex">
-          <ChipConferencia campo={linha.codigo} rotuloCampo={linha.rotulo} estatico />
+          <ChipConferencia
+            campo={linha.codigo}
+            rotuloCampo={linha.rotulo}
+            estatico
+            compacto={cartao}
+          />
           <span className="sr-only">{i.conferencia.motivo}</span>
         </span>
       ) : null}

@@ -82,6 +82,11 @@ export interface ChipConferenciaProps {
   bloco?: BlocoReporte;
   /** só texto, sem botão (dentro de um link, Quadro) */
   estatico?: boolean;
+  /**
+   * Só a lupa tracejada (o texto fica em sr-only): colunas estreitas dos cartões do Comparador no
+   * celular, onde o chip de ~114px não cabe (a hachura da célula continua como sinal visual).
+   */
+  compacto?: boolean;
   className?: string;
 }
 
@@ -92,6 +97,7 @@ export default function ChipConferencia({
   valorNaoPublicado,
   bloco = 'kpis',
   estatico = false,
+  compacto = false,
   className = '',
 }: ChipConferenciaProps) {
   const ctx = useConferenciaPagina();
@@ -155,13 +161,17 @@ export default function ChipConferencia({
   const conteudoChip = (
     <>
       <IconeLupaTracejada />
-      {t.chip}
+      {compacto ? <span className="sr-only">{t.chip}</span> : t.chip}
     </>
   );
 
   if (!interativo || !conferencia) {
     return (
-      <span data-chip-conferencia="" className={`${CHIP} ${className}`}>
+      <span
+        data-chip-conferencia=""
+        data-compacto={compacto || undefined}
+        className={`${CHIP} ${compacto ? 'px-1.5' : ''} ${className}`}
+      >
         {conteudoChip}
       </span>
     );

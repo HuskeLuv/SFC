@@ -261,9 +261,17 @@ export default function Comparador({ className = '' }: ComparadorProps) {
     <LinhaInformativa>{formatarTexto(TC.slots.limite, { max: MAX })}</LinhaInformativa>
   ) : null;
   const atualizando = q.isPlaceholderData || q.isFetching ? 'opacity-70' : '';
+  const temConferencia = dados.grupos.some((g) =>
+    g.linhas.some((l) => Object.values(l.conferencia).some(Boolean)),
+  );
   const legenda = (
     <p className="text-[13px] text-gray-700 dark:text-gray-300" data-legenda-destaque="">
       {celular ? TC.destaque.legendaCurta : TC.destaque.legenda}
+      {celular && temConferencia ? (
+        <span className="block" data-legenda-conferencia="">
+          {TC.destaque.legendaConferenciaCurta}
+        </span>
+      ) : null}
     </p>
   );
   const nota = [
