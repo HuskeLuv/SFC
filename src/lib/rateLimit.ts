@@ -172,6 +172,13 @@ export const RATE_LIMIT_TIERS: RateLimitTier[] = [
     config: { limit: 10, windowMs: 60_000 },
   },
   {
+    // Análise de Ativos — Bloco D: Raio-X (JSON e CSV) e Comparador leem muito do banco por
+    // chamada — teto de 30/min por IP. O PUT/DELETE dos cenários fica no genérico (60/min; o
+    // limite de 300 cenários por usuário fica no banco). Balde próprio: chaveBaldeRateLimit.
+    match: (p) => ehRotaPesadaBlocoD(p),
+    config: { limit: 30, windowMs: 60_000 },
+  },
+  {
     // General API
     match: (p) => p.startsWith('/api/'),
     config: { limit: 60, windowMs: 60_000 },
@@ -182,6 +189,29 @@ export const RATE_LIMIT_TIERS: RateLimitTier[] = [
     config: { limit: 120, windowMs: 60_000 },
   },
 ];
+
+const RE_RAIO_X = /^\/api\/analise-ativos\/ativos\/[^/]+\/raio-x(?:\/|$)/;
+
+/** Bloco D: rotas de leitura pesada (Raio-X por ticker e Comparador). */
+export function ehRotaPesadaBlocoD(pathname: string): boolean {
+  return (
+    pathname === '/api/analise-ativos/comparador' ||
+    pathname.startsWith('/api/analise-ativos/comparador/') ||
+    RE_RAIO_X.test(pathname)
+  );
+}
+
+/**
+ * Sufixo da chave do balde (a chave é `${ip}:${sufixo}`). Padrão: prefixo de até 4 segmentos
+ * (/api/auth/login e /api/auth/register com baldes próprios). Exceção do Bloco D: o Raio-X de
+ * QUALQUER ticker divide um balde só ('/api/analise-ativos/raio-x') — com o prefixo padrão ele
+ * cairia no balde '/api/analise-ativos/ativos' das outras rotas do ativo (topo, fundamentos,
+ * valuation), que somariam pedidos contra o teto de 30 do Raio-X.
+ */
+export function chaveBaldeRateLimit(pathname: string): string {
+  if (RE_RAIO_X.test(pathname)) return '/api/analise-ativos/raio-x';
+  return pathname.split('/').slice(0, 4).join('/');
+}
 
 /**
  * Resolve which rate-limit tier applies for a given pathname.
