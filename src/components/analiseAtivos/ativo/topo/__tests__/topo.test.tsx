@@ -3,6 +3,7 @@ import '@testing-library/jest-dom/vitest';
 import { render, screen, fireEvent, within } from '@testing-library/react';
 import { describe, it, expect } from 'vitest';
 import React from 'react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import BlocoDividendos from '../BlocoDividendos';
 import BlocoEventos from '../BlocoEventos';
 import BlocoIndiceSemaforo from '../BlocoIndiceSemaforo';
@@ -20,8 +21,11 @@ const indice = (over: Partial<IndiceTopo>): IndiceTopo => ({ ...ATIVO_WEGE3.indi
 
 describe('CabecalhoAtivo', () => {
   it('ticker, tags sem índice de mercado, preço com data e fonte; slot de ações', () => {
+    // Bloco D: a linha de ações lê config.recursos.comparador (React Query)
     render(
-      <CabecalhoAtivo ativo={ATIVO_WEGE3} slotAcoes={<button type="button">Planejar</button>} />,
+      <QueryClientProvider client={new QueryClient()}>
+        <CabecalhoAtivo ativo={ATIVO_WEGE3} slotAcoes={<button type="button">Planejar</button>} />
+      </QueryClientProvider>,
     );
     expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('WEGE3');
     const header = screen.getByRole('banner');
