@@ -23,10 +23,14 @@ const mockRequireAuthWithActing = vi.hoisted(() =>
 );
 
 const mockBumpSessionVersion = vi.hoisted(() => vi.fn());
+const mockExcluirConexoesDoUsuario = vi.hoisted(() => vi.fn().mockResolvedValue(0));
 
 vi.mock('@/utils/auth', () => ({ requireAuthWithActing: mockRequireAuthWithActing }));
 vi.mock('@/lib/auth/sessionVersion', () => ({ bumpSessionVersion: mockBumpSessionVersion }));
 vi.mock('@/lib/prisma', () => ({ prisma: mockPrisma, default: mockPrisma }));
+vi.mock('@/services/pluggy/sync', () => ({
+  excluirConexoesDoUsuario: mockExcluirConexoesDoUsuario,
+}));
 
 import { GET, PATCH, DELETE } from '../route';
 
@@ -53,6 +57,7 @@ beforeEach(() => {
     targetUserId: 'user-1',
     actingClient: null,
   });
+  mockExcluirConexoesDoUsuario.mockResolvedValue(0);
 });
 
 describe('GET /api/profile', () => {
@@ -237,9 +242,31 @@ describe('DELETE /api/profile', () => {
       where: { clienteId: 'user-1' },
       data: { clienteId: null },
     });
+    // Open Finance: conexões apagadas no Pluggy antes da anonimização
+    expect(mockExcluirConexoesDoUsuario).toHaveBeenCalledWith('user-1', expect.anything());
+    expect(mockExcluirConexoesDoUsuario.mock.invocationCallOrder[0]).toBeLessThan(
+      mockPrisma.user.update.mock.invocationCallOrder[0],
+    );
     // Derruba todas as sessões e limpa o cookie
     expect(mockBumpSessionVersion).toHaveBeenCalledWith('user-1');
     expect(res.headers.get('set-cookie')).toMatch(/token=;.*Max-Age=0/);
+  });
+
+  it('não anonimiza se não conseguiu desconectar os bancos no Pluggy', async () => {
+    mockPrisma.user.findUnique.mockResolvedValue({
+      id: 'user-1',
+      email: 't@t.com',
+      name: 'X',
+      avatarUrl: null,
+      role: 'user',
+      password: await bcrypt.hash('123', 4),
+    });
+    const { ApiError } = await import('@/utils/apiErrorHandler');
+    mockExcluirConexoesDoUsuario.mockRejectedValue(new ApiError(503, 'Tente de novo'));
+    const res = await DELETE(reqDelete({ currentPassword: '123', confirm: true }));
+    expect(res.status).toBe(503);
+    expect(mockPrisma.user.update).not.toHaveBeenCalled();
+    expect(mockBumpSessionVersion).not.toHaveBeenCalled();
   });
 
   it('exige confirmação explícita', async () => {

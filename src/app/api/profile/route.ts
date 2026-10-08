@@ -11,6 +11,8 @@ import type { JWTPayload } from '@/utils/auth';
 import { bumpSessionVersion } from '@/lib/auth/sessionVersion';
 import { clearSessionCookie, issueSession, normalizeClaims } from '@/lib/auth/session';
 import { anonimizarReportesDoUsuario } from '@/services/analiseAtivos/curadoria/privacidadeReportes';
+import { excluirConexoesDoUsuario } from '@/services/pluggy/sync';
+import { getClientIp } from '@/lib/rateLimit';
 
 // Perfil é sempre self-edit (ignora impersonation) — o histórico registra
 // payload.id como dono e ator.
@@ -188,6 +190,10 @@ export const DELETE = withErrorHandler(async (req: NextRequest) => {
   if (!ok) {
     return NextResponse.json({ error: 'Senha incorreta' }, { status: 403 });
   }
+
+  // Open Finance: apaga as conexões no Pluggy (encerra o consentimento lá) ANTES de anonimizar —
+  // se falhar, responde 503 e a conta fica intacta para o usuário tentar de novo.
+  await excluirConexoesDoUsuario(me.id, getClientIp(req));
 
   // Senha aleatória — impede login mesmo se o email anonimizado coincidir
   // com algum outro. bcrypt cost 10 só pra ser consistente.

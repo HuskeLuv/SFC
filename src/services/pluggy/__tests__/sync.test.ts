@@ -36,6 +36,7 @@ import {
   atualizarManualmente,
   dedupHash,
   excluirConexao,
+  excluirConexoesDoUsuario,
   mapTransaction,
   processarEventosPendentes,
   registrarConexao,
@@ -477,6 +478,38 @@ describe('atualizarManualmente / excluirConexao', () => {
   it('404 para conexão de outro usuário', async () => {
     mockPrisma.bankConnection.findFirst.mockResolvedValue(null);
     await expect(excluirConexao('conn-x', 'user-1')).rejects.toMatchObject({ statusCode: 404 });
+  });
+
+  it('exclusão da conta: apaga no Pluggy todas as conexões do usuário', async () => {
+    mockPrisma.bankConnection.findMany.mockResolvedValue([{ id: 'conn-1' }, { id: 'conn-2' }]);
+    mockPrisma.bankConnection.findFirst.mockImplementation(({ where }: { where: { id: string } }) =>
+      Promise.resolve({ id: where.id, providerItemId: `item-${where.id}` }),
+    );
+    mockPrisma.bankTransaction.findMany.mockResolvedValue([]);
+    mockClient.deleteItem.mockResolvedValue(undefined);
+    await expect(excluirConexoesDoUsuario('user-1', '200.1.2.3')).resolves.toBe(2);
+    expect(mockPrisma.bankConnection.findMany).toHaveBeenCalledWith({
+      where: { userId: 'user-1' },
+      select: { id: true },
+    });
+    expect(mockClient.deleteItem).toHaveBeenCalledWith('item-conn-1');
+    expect(mockClient.deleteItem).toHaveBeenCalledWith('item-conn-2');
+    expect(mockPrisma.bankConnection.delete).toHaveBeenCalledTimes(2);
+  });
+
+  it('exclusão da conta: falha no Pluggy tenta as demais e lança 503', async () => {
+    mockPrisma.bankConnection.findMany.mockResolvedValue([{ id: 'conn-1' }, { id: 'conn-2' }]);
+    mockPrisma.bankConnection.findFirst.mockImplementation(({ where }: { where: { id: string } }) =>
+      Promise.resolve({ id: where.id, providerItemId: `item-${where.id}` }),
+    );
+    mockPrisma.bankTransaction.findMany.mockResolvedValue([]);
+    mockClient.deleteItem
+      .mockRejectedValueOnce(new Error('Response code 500'))
+      .mockResolvedValueOnce(undefined);
+    await expect(excluirConexoesDoUsuario('user-1')).rejects.toMatchObject({ statusCode: 503 });
+    // A que falhou fica no ledger (com o itemId) para a próxima tentativa; a outra sai.
+    expect(mockPrisma.bankConnection.delete).toHaveBeenCalledTimes(1);
+    expect(mockPrisma.bankConnection.delete).toHaveBeenCalledWith({ where: { id: 'conn-2' } });
   });
 
   it('exclui no Pluggy (tolerando 404) e no ledger', async () => {
