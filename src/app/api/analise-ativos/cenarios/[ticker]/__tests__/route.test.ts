@@ -11,6 +11,7 @@ const mocks = vi.hoisted(() => ({
       deleteMany: vi.fn(),
     },
     $transaction: vi.fn(),
+    $executeRaw: vi.fn(),
   },
   requireAuthWithActing: vi.fn(),
   obterBaseCenarios: vi.fn(),

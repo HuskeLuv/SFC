@@ -98,7 +98,7 @@ export async function lerCenario(
 /**
  * Grava (cria ou atualiza) o cenário. `valoresDoAtivo` = base do servidor neste momento (os
  * campos editados guardam o valor do ativo para o aviso de "mudou desde que você salvou").
- * Criação acima do limite ⇒ ApiError 409.
+ * Criação acima do limite ⇒ ApiError 409 (limite atômico: pg_advisory_xact_lock por usuário).
  */
 export async function salvarCenario(
   userId: string,
@@ -125,6 +125,9 @@ export async function salvarCenario(
       select: { id: true },
     });
     if (!existe) {
+      // serializa as criações do mesmo usuário até o fim da transação: sem a trava, PUTs
+      // simultâneos (READ COMMITTED) liam o mesmo count = 299 e passavam todos do limite
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`analise_cenario:${userId}`}::text))`;
       const total = await tx.analiseCenario.count({ where: { userId } });
       if (total >= MAX_CENARIOS_POR_USUARIO) throw new ApiError(409, MENSAGEM_LIMITE_CENARIOS);
     }

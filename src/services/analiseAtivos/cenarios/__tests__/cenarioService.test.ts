@@ -10,6 +10,7 @@ const mockPrisma = vi.hoisted(() => ({
     deleteMany: vi.fn(),
   },
   $transaction: vi.fn(),
+  $executeRaw: vi.fn(),
 }));
 vi.mock('@/lib/prisma', () => ({ prisma: mockPrisma, default: mockPrisma }));
 
@@ -123,6 +124,30 @@ describe('salvarCenario', () => {
     await expect(p).rejects.toBeInstanceOf(ApiError);
     await expect(p).rejects.toMatchObject({ statusCode: 409, message: MENSAGEM_LIMITE_CENARIOS });
     expect(mockPrisma.analiseCenario.upsert).not.toHaveBeenCalled();
+  });
+
+  it('criação trava o usuário (advisory lock) ANTES de contar: limite atômico sob PUTs simultâneos', async () => {
+    const ordem: string[] = [];
+    mockPrisma.$executeRaw.mockImplementation(async (strings: TemplateStringsArray, ...vals) => {
+      ordem.push(`lock:${strings.join('?')}:${vals.join(',')}`);
+      return 1;
+    });
+    mockPrisma.analiseCenario.findUnique.mockResolvedValue(null);
+    mockPrisma.analiseCenario.count.mockImplementation(async () => {
+      ordem.push('count');
+      return 3;
+    });
+    await salvarCenario('u1', 'NOVO3', { classe: 'acao', premissas: PREMISSAS });
+    expect(ordem).toHaveLength(2);
+    expect(ordem[0]).toContain('pg_advisory_xact_lock(hashtext(');
+    expect(ordem[0]).toContain('analise_cenario:u1');
+    expect(ordem[1]).toBe('count');
+  });
+
+  it('atualização (cenário já existe) não trava nem conta', async () => {
+    mockPrisma.analiseCenario.findUnique.mockResolvedValue({ id: 'x' });
+    await salvarCenario('u1', 'WEGE3', { classe: 'acao', premissas: PREMISSAS });
+    expect(mockPrisma.$executeRaw).not.toHaveBeenCalled();
   });
 });
 
