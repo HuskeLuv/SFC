@@ -6,7 +6,10 @@ import {
   analiseAtivosNovoAte,
   analiseAtivosReporteHabilitado,
 } from '@/lib/analiseAtivosConfig';
-import { estadoAcessoAnalise } from '@/services/analiseAtivos/acesso/acessoAnalise';
+import {
+  estadoAcessoAnalise,
+  recursosLiberados,
+} from '@/services/analiseAtivos/acesso/acessoAnalise';
 import type { ConfigResposta } from '@/types/analiseAtivosApi';
 
 /**
@@ -14,6 +17,7 @@ import type { ConfigResposta } from '@/types/analiseAtivosApi';
  * USUÁRIO LOGADO (o item do menu só aparece com habilitada=true). Nunca 404 (o menu precisa da
  * resposta mesmo com a flag desligada); sem sessão → 401. Cache-Control: no-store.
  * reporteHabilitado (bloco C) = ANALISE_ATIVOS_REPORTE_HABILITADO e a área liberada para o usuário.
+ * recursos (bloco D) = flag de cada recurso (Raio-X, Cenários, Comparador) e a área liberada.
  */
 export const dynamic = 'force-dynamic';
 
@@ -26,6 +30,7 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     acesso: analiseAtivosAcesso(),
     novoAte: analiseAtivosNovoAte(),
     reporteHabilitado: estado === 'liberada' && analiseAtivosReporteHabilitado(),
+    recursos: await recursosLiberados(payload.id, estado),
   };
   return NextResponse.json(corpo, { headers: { 'Cache-Control': 'no-store' } });
 });
