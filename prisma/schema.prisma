@@ -1463,7 +1463,8 @@ model BankConnection {
   isOpenFinance      Boolean   @default(false)
   isSandbox          Boolean   @default(false)
   /**
-   * Status do item no Pluggy: UPDATING | UPDATED | LOGIN_ERROR | OUTDATED | WAITING_USER_INPUT
+   * Status do item no Pluggy: UPDATING | UPDATED | LOGIN_ERROR | OUTDATED | WAITING_USER_INPUT,
+   * ou DELETED (nosso): o item foi apagado no Pluggy — conexão desconectada, histórico mantido.
    */
   status             String    @default("UPDATING")
   executionStatus    String?
@@ -1475,6 +1476,11 @@ model BankConnection {
    */
   lastSyncAt         DateTime?
   lastSyncError      String?
+  /**
+   * Sucesso parcial do Pluggy (PARTIAL_SUCCESS): produtos que não vieram na última execução
+   * ([{ produto, ultimaColeta, mensagem }], ver avisosDoItem em services/pluggy/sync.ts). null = sem aviso.
+   */
+  avisos             Json?
   /**
    * Última atualização manual (PATCH /items) — cooldown, ver services/pluggy/sync.ts.
    */

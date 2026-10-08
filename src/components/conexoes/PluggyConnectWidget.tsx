@@ -17,6 +17,8 @@ export type PluggyConnectWidgetProps = Pick<
   | 'connectToken'
   | 'includeSandbox'
   | 'updateItem'
+  | 'connectorIds'
+  | 'selectedConnectorId'
   | 'products'
   | 'onSuccess'
   | 'onError'
