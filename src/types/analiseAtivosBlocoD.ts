@@ -319,6 +319,12 @@ export interface CenarioSalvo<P, D> {
   dadosEditados: D | null;
   /** ISO */
   atualizadoEm: string;
+  /**
+   * Fatia B (acréscimo opcional): valor do ATIVO, no momento do salvamento, de cada campo de
+   * dadosEditados (o servidor grava a partir da base). Diferente do valor de hoje ⇒ a tela avisa
+   * "O valor do ativo mudou desde que você salvou" + "Usar o valor atual". Ausente = sem aviso.
+   */
+  valoresDoAtivoNoSalvamento?: D | null;
 }
 
 interface CenariosRespostaComum {
