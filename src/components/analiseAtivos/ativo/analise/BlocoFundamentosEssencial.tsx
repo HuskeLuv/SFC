@@ -15,6 +15,7 @@
  * base por ação quebrada saem 'em conferência' — hachura + '—' + chip com o motivo, montado aqui
  * (conferenciaTelaPerShare), igual ao Raio-X.
  */
+import type { ReactNode } from 'react';
 import CartaoAnalise, {
   FUNDO_STICKY,
   TEXTO_NEGATIVO,
@@ -113,7 +114,18 @@ function dadosReporte(dados: FundamentosResposta | undefined): DadoBlocoReporte[
     }));
 }
 
-export default function BlocoFundamentosEssencial({ ticker }: BlocoFundamentosEssencialProps) {
+export interface BlocoFundamentosEssencialComNivelProps extends BlocoFundamentosEssencialProps {
+  /** Bloco D: título do card com o seletor de nível ('Fundamentos'); sem ele, o de hoje */
+  titulo?: string;
+  /** Bloco D: slot `acao` do card (SeletorNivel 'Essencial | Raio-X') */
+  cabecalhoExtra?: ReactNode;
+}
+
+export default function BlocoFundamentosEssencial({
+  ticker,
+  titulo,
+  cabecalhoExtra,
+}: BlocoFundamentosEssencialComNivelProps) {
   const q = useFundamentosAtivo(ticker);
   const ctx = useConferenciaPagina();
   const conferencias = ctx?.conferencias ?? [];
@@ -126,8 +138,9 @@ export default function BlocoFundamentosEssencial({ ticker }: BlocoFundamentosEs
   return (
     <CartaoAnalise
       id={`fundamentos-${ticker}`}
-      titulo={TEXTOS_TELA.blocos.fundamentos}
+      titulo={titulo ?? TEXTOS_TELA.blocos.fundamentos}
       sub={sub}
+      acao={cabecalhoExtra}
       carregando={q.isPending}
       erro={q.isError}
       onTentarNovamente={() => void q.refetch()}

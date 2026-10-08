@@ -18,6 +18,12 @@ vi.mock('@/components/analiseAtivos/ativo/analise/BlocoValuationMultiplos', () =
   ),
 }));
 
+// fatia A: o BlocoFundamentos lê config.recursos.raioX; sem o recurso fica igual ao stub
+vi.mock('@/hooks/useAnaliseAtivos', async (original) => ({
+  ...(await original<typeof import('@/hooks/useAnaliseAtivos')>()),
+  useAnaliseAtivosConfig: () => ({ data: { habilitada: true, recursos: { raioX: false } } }),
+}));
+
 import BlocoFundamentos from '@/components/analiseAtivos/ativo/analise/BlocoFundamentos';
 import BlocoValuation from '@/components/analiseAtivos/ativo/analise/BlocoValuation';
 import Comparador from '@/components/analiseAtivos/comparador/Comparador';
