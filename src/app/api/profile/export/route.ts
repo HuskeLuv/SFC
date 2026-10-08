@@ -15,6 +15,7 @@ import { requireAuthWithActing } from '@/utils/auth';
 import prisma from '@/lib/prisma';
 import { withErrorHandler } from '@/utils/apiErrorHandler';
 import { tesesParaExportacao } from '@/services/analiseAtivos/tese/teseService';
+import { cenariosParaExportacao } from '@/services/analiseAtivos/cenarios/cenarioService';
 import { relatosParaExportacao } from '@/services/analiseAtivos/curadoria/privacidadeReportes';
 
 export const GET = withErrorHandler(async (req: NextRequest) => {
@@ -44,6 +45,7 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
     communityReports,
     analiseTeses,
     analiseRelatos,
+    analiseCenarios,
   ] = await Promise.all([
     prisma.user.findUnique({
       where: { id: userId },
@@ -72,6 +74,8 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
     tesesParaExportacao(userId),
     // Análise de Ativos (bloco C): relatos de dado incorreto do usuário + status do caso.
     relatosParaExportacao(prisma, userId),
+    // Análise de Ativos (bloco D): cenários salvos do Valuation (premissas e dados editados).
+    cenariosParaExportacao(userId),
   ]);
 
   if (!user) {
@@ -111,6 +115,7 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
     analiseAtivos: {
       teses: analiseTeses,
       relatos: analiseRelatos,
+      analiseCenarios,
     },
   };
 
