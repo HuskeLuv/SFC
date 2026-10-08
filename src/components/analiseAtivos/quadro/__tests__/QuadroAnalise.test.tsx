@@ -304,3 +304,78 @@ describe('QuadroAnalise', () => {
     back.mockRestore();
   });
 });
+
+describe('QuadroAnalise — Bloco D: modo Comparar', () => {
+  beforeEach(() => {
+    nav.qs = '';
+    nav.replace.mockReset();
+    nav.push.mockReset();
+    media.celular = false;
+    relatos.config = { data: { habilitada: true, recursos: { comparador: true } } };
+    relatos.meus = { data: undefined };
+    window.sessionStorage.clear();
+    estadoQuadro();
+  });
+
+  it('recurso desligado: sem botão, sem coluna e sem bandeja (Quadro de sempre)', () => {
+    relatos.config = {
+      data: { habilitada: true, recursos: { comparador: false, raioX: true, cenarios: true } },
+    };
+    renderQuadro();
+    expect(screen.queryByRole('button', { name: 'Comparar' })).toBeNull();
+    expect(cabecalhos()[0]).toBe('Ativo');
+    expect(screen.queryByRole('region', { name: 'Seleção para comparar' })).toBeNull();
+  });
+
+  it('liga o modo (aria-pressed), marca sem abrir o ativo e a bandeja leva ao Comparador', () => {
+    renderQuadro();
+    const botao = screen.getByRole('button', { name: 'Comparar' });
+    expect(botao).toHaveAttribute('aria-pressed', 'false');
+    fireEvent.click(botao);
+    expect(screen.getByRole('button', { name: 'Sair do modo comparar' })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    );
+    expect(cabecalhos()[0]).toBe('Comparar');
+    const bandeja = screen.getByRole('region', { name: 'Seleção para comparar' });
+    expect(bandeja.textContent).toContain('0 de 4 selecionados');
+    expect(within(bandeja).getByRole('button', { name: /Comparar/ })).toBeDisabled();
+
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Comparar WEGE3' }));
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Comparar ITUB4' }));
+    expect(nav.push).not.toHaveBeenCalled();
+    expect(bandeja.textContent).toContain('2 de 4 selecionados');
+    expect(bandeja.textContent).toContain('WEGE3, ITUB4');
+    expect(within(bandeja).getByRole('link', { name: 'Comparar WEGE3, ITUB4' })).toHaveAttribute(
+      'href',
+      '/analise-ativos/comparador?t=WEGE3,ITUB4',
+    );
+
+    fireEvent.click(within(bandeja).getByRole('button', { name: 'Limpar' }));
+    expect(bandeja.textContent).toContain('0 de 4 selecionados');
+  });
+
+  it('bandeja abre o Comparador a partir de 1 ativo (decisão 13)', () => {
+    renderQuadro();
+    fireEvent.click(screen.getByRole('button', { name: 'Comparar' }));
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Comparar AURE3' }));
+    const bandeja = screen.getByRole('region', { name: 'Seleção para comparar' });
+    expect(within(bandeja).getByRole('link', { name: 'Comparar AURE3' })).toHaveAttribute(
+      'href',
+      '/analise-ativos/comparador?t=AURE3',
+    );
+  });
+
+  it('celular: caixa de 44px fora do link do cartão', () => {
+    media.celular = true;
+    renderQuadro();
+    fireEvent.click(screen.getByRole('button', { name: 'Comparar' }));
+    const caixa = screen.getByRole('checkbox', { name: 'Comparar WEGE3' });
+    expect(caixa.closest('a')).toBeNull();
+    expect(caixa.closest('label')?.className).toContain('min-h-11');
+    fireEvent.click(caixa);
+    expect(screen.getByRole('region', { name: 'Seleção para comparar' }).textContent).toContain(
+      '1 de 4 selecionados',
+    );
+  });
+});

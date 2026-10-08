@@ -5,6 +5,11 @@
  * classe (2ª linha no Detalhado), barras de 10 anos e "Na carteira". O cartão inteiro é um link
  * (alvo ≥ 72px). Mesmo conteúdo de célula da tabela (conteudoCelula). Bloco C: número em
  * conferência com o mesmo texto e a mesma hachura da tabela (conferenciaDaCelula).
+ *
+ * Bloco D (fatia D): com `comparar` (modo Comparar), cada cartão ganha embaixo uma linha de 44px
+ * com a caixa "Comparar WEGE3" — FORA do link (nada interativo dentro de <a>); o contorno do
+ * cartão passa para o <li>. No limite, a caixa fica desabilitada com o motivo visível. Sem
+ * `comparar`, o cartão é o de sempre.
  */
 import Link from 'next/link';
 import { formatarAnalise } from '@/components/analiseAtivos/comum/formatarAnalise';
@@ -20,6 +25,10 @@ import {
   usePrefetchHover,
 } from '@/components/analiseAtivos/quadro/TabelaQuadro';
 import { TABLE_MOBILE_STYLES } from '@/components/ui/table/tableStyles';
+import type { ControleComparar } from '@/components/analiseAtivos/quadro/TabelaQuadro';
+import { MAX_ATIVOS_COMPARADOR } from '@/services/analiseAtivos/cenarios/contrato';
+import { TEXTOS_ENTRADAS_COMPARADOR } from '@/services/analiseAtivos/textosEntradasComparador';
+import { formatarTexto } from '@/services/analiseAtivos/textosTela';
 import { TEXTOS_TELA } from '@/services/analiseAtivos/textosTela';
 import type { ClasseQuadro, LinhaQuadroApi, ModoQuadro } from '@/types/analiseAtivosApi';
 
@@ -38,6 +47,41 @@ export interface CartoesQuadroProps {
   naCarteira: (ticker: string) => InfoNaCarteira;
   carregando?: boolean;
   atualizando?: boolean;
+  /** Bloco D: modo Comparar ligado (caixa de 44px por cartão) */
+  comparar?: ControleComparar;
+}
+
+const TC = TEXTOS_ENTRADAS_COMPARADOR.quadro;
+/** Cartão no modo Comparar: o contorno do TABLE_MOBILE_STYLES.card, sem o padding (vai no link). */
+const CARTAO_COMPARAR =
+  'rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03]';
+
+function LinhaCaixa({ ticker, controle }: { ticker: string; controle: ControleComparar }) {
+  const desabilitada = controle.desabilitado(ticker);
+  return (
+    <label
+      className={`flex min-h-11 items-center gap-3 rounded-b-2xl border-t border-gray-100 px-4 text-sm dark:border-gray-800 ${
+        desabilitada
+          ? 'cursor-not-allowed text-gray-500 dark:text-gray-400'
+          : 'cursor-pointer text-gray-800 dark:text-white/90'
+      } has-[:focus-visible]:ring-[3px] has-[:focus-visible]:ring-[#0079F2] has-[:focus-visible]:ring-inset dark:has-[:focus-visible]:ring-[#6E9DC4]`}
+    >
+      <input
+        type="checkbox"
+        aria-label={formatarTexto(TC.caixa, { ticker })}
+        checked={controle.marcado(ticker)}
+        disabled={desabilitada}
+        onChange={() => controle.alternar(ticker)}
+        data-comparar-caixa={ticker}
+        className="h-5 w-5 shrink-0 accent-[#396CAA] outline-none dark:[color-scheme:dark]"
+      />
+      <span aria-hidden="true">
+        {desabilitada
+          ? formatarTexto(TC.caixaLimite, { max: MAX_ATIVOS_COMPARADOR })
+          : formatarTexto(TC.caixa, { ticker })}
+      </span>
+    </label>
+  );
 }
 
 export default function CartoesQuadro({
@@ -47,6 +91,7 @@ export default function CartoesQuadro({
   naCarteira,
   carregando = false,
   atualizando = false,
+  comparar,
 }: CartoesQuadroProps) {
   const prefetch = usePrefetchHover();
   if (carregando) {
@@ -89,14 +134,18 @@ export default function CartoesQuadro({
           <li
             key={l.ticker}
             data-ticker={l.ticker}
-            className="[content-visibility:auto] [contain-intrinsic-size:auto_180px]"
+            className={`[content-visibility:auto] [contain-intrinsic-size:auto_180px] ${
+              comparar ? CARTAO_COMPARAR : ''
+            }`}
           >
             <Link
               href={hrefAtivo(l.ticker)}
               onTouchStart={() => prefetch.iniciar(l.ticker)}
               onMouseEnter={() => prefetch.iniciar(l.ticker)}
               onMouseLeave={prefetch.cancelar}
-              className={`${TABLE_MOBILE_STYLES.card} ${TABLE_MOBILE_STYLES.cardClickable} block outline-none focus-visible:ring-[3px] focus-visible:ring-[#0079F2] dark:focus-visible:ring-[#6E9DC4]`}
+              className={`${
+                comparar ? 'rounded-t-2xl px-4 py-3.5' : TABLE_MOBILE_STYLES.card
+              } ${TABLE_MOBILE_STYLES.cardClickable} block outline-none focus-visible:ring-[3px] focus-visible:ring-[#0079F2] dark:focus-visible:ring-[#6E9DC4]`}
             >
               <div className={TABLE_MOBILE_STYLES.cardHeader}>
                 <div className="min-w-0">
@@ -134,6 +183,7 @@ export default function CartoesQuadro({
                 <CelulaNaCarteira info={naCarteira(l.ticker)} classe={classe} />
               </div>
             </Link>
+            {comparar ? <LinhaCaixa ticker={l.ticker} controle={comparar} /> : null}
           </li>
         );
       })}
