@@ -11,13 +11,14 @@
  * (localStorage, só conveniência).
  */
 import { useRouter } from 'next/navigation';
-import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react';
 import BottomSheet from '@/components/ui/sheet/BottomSheet';
 import { useMobileHistoryLayer } from '@/hooks/useMobileHistoryLayer';
 import { useIsBelowLg } from '@/hooks/useMediaQuery';
 import { useIndiceBusca, useOverlayCarteira } from '@/hooks/useAnaliseAtivos';
 import { filtrarBusca, trechoDestacado } from '@/services/analiseAtivos/quadro/indiceBusca';
 import { TEXTOS_TELA, formatarTexto, textoForaDoQuadro } from '@/services/analiseAtivos/textosTela';
+import { TEXTOS_COMPARADOR } from '@/services/analiseAtivos/textosComparador';
 import type {
   BuscaAtivosProps,
   ItemBusca,
@@ -25,6 +26,48 @@ import type {
 } from '@/types/analiseAtivosApi';
 
 export type { BuscaAtivosProps };
+
+/**
+ * Extras locais do Comparador (Bloco D, fatia C), além do contrato BuscaAtivosProps:
+ * - embutida: campo sempre visível e lista no fluxo (dentro do popover/sheet do slot "Adicionar"),
+ *   sem o botão + sheet próprios do celular; resultados com 52px;
+ * - indisponiveis: ticker → motivo (ex.: 'já está na comparação'); o item aparece desabilitado;
+ * - semConsulta: conteúdo mostrado com o campo vazio (sugestões do mesmo segmento).
+ */
+export interface BuscaAtivosExtras {
+  embutida?: boolean;
+  indisponiveis?: Readonly<Record<string, string>>;
+  semConsulta?: ReactNode;
+  /** rótulo/placeholder do campo (padrão: os da busca da área) */
+  rotulo?: string;
+  placeholder?: string;
+}
+
+/**
+ * Bloco D: com `classe`, os itens da outra classe somem ou, com `desabilitarOutraClasse`, ficam
+ * desabilitados com o motivo. `indisponiveis` desabilita tickers específicos. Devolve os itens e o
+ * motivo de cada desabilitado.
+ */
+export function filtrarPorClasse(
+  itens: ItemBusca[],
+  classe: BuscaAtivosProps['classe'],
+  desabilitarOutraClasse: boolean,
+  indisponiveis: Readonly<Record<string, string>> = {},
+): { itens: ItemBusca[]; motivos: Map<string, string> } {
+  const motivos = new Map<string, string>();
+  const TB = TEXTOS_COMPARADOR.busca;
+  const out: ItemBusca[] = [];
+  for (const item of itens) {
+    if (classe && item.c !== classe) {
+      if (!desabilitarOutraClasse) continue;
+      motivos.set(item.t, item.c === 'fii' ? TB.outraClasseFii : TB.outraClasseAcao);
+    } else if (indisponiveis[item.t]) {
+      motivos.set(item.t, indisponiveis[item.t]);
+    }
+    out.push(item);
+  }
+  return { itens: out, motivos };
+}
 
 const T = TEXTOS_TELA.busca;
 const CHAVE_RECENTES = 'mf-analise-ativos-buscas-recentes';
@@ -124,6 +167,10 @@ interface ListaProps {
   onAtivo: (i: number) => void;
   celular: boolean;
   carregando: boolean;
+  /** Bloco D: lista no fluxo (embutida no slot do Comparador) com linhas de 52px */
+  embutida?: boolean;
+  /** Bloco D: ticker → motivo do item desabilitado */
+  motivos?: ReadonlyMap<string, string>;
 }
 
 function ListaResultados({
@@ -136,6 +183,8 @@ function ListaResultados({
   onAtivo,
   celular,
   carregando,
+  embutida = false,
+  motivos,
 }: ListaProps) {
   const grupos = agruparResultados(resultados);
   let i = -1;
@@ -145,7 +194,7 @@ function ListaResultados({
       role="listbox"
       aria-label={T.sugestoes}
       className={
-        celular
+        celular || embutida
           ? 'flex flex-col'
           : 'absolute top-full right-0 left-0 z-50 mt-1 max-h-[70vh] overflow-y-auto rounded-xl border border-gray-200 bg-white py-1 shadow-lg dark:border-gray-700 dark:bg-gray-900'
       }
@@ -176,17 +225,23 @@ function ListaResultados({
               i += 1;
               const idx = i;
               const sel = idx === ativo;
+              const motivo = motivos?.get(item.t) ?? null;
               return (
                 <div
                   key={item.t}
                   id={`${idBase}-opt-${idx}`}
                   role="option"
                   aria-selected={sel}
+                  aria-disabled={motivo ? true : undefined}
                   data-ticker={item.t}
                   onMouseDown={(e) => e.preventDefault()}
-                  onClick={() => onEscolher(item.t)}
+                  onClick={() => {
+                    if (!motivo) onEscolher(item.t);
+                  }}
                   onMouseMove={() => onAtivo(idx)}
-                  className={`flex min-h-11 cursor-pointer items-center gap-3 px-4 py-2 ${
+                  className={`flex items-center gap-3 px-4 py-2 ${
+                    embutida ? 'min-h-[52px] rounded-[10px] px-2' : 'min-h-11'
+                  } ${motivo ? 'cursor-not-allowed' : 'cursor-pointer'} ${
                     sel ? 'bg-[#EDF2F8] dark:bg-[#6E9DC4]/15' : ''
                   }`}
                 >
@@ -198,7 +253,13 @@ function ListaResultados({
                   </span>
                   <span className="min-w-0 flex-1">
                     <span className="flex flex-wrap items-center gap-1.5">
-                      <span className="text-sm font-semibold text-gray-800 dark:text-white/90">
+                      <span
+                        className={`text-sm font-semibold ${
+                          motivo
+                            ? 'text-gray-500 dark:text-gray-400'
+                            : 'text-gray-800 dark:text-white/90'
+                        }`}
+                      >
                         <Destaque texto={item.t} consulta={consulta} />
                       </span>
                       <SeloItem item={item} overlay={overlay} />
@@ -207,7 +268,11 @@ function ListaResultados({
                       <Destaque texto={item.n} consulta={consulta} />
                     </span>
                   </span>
-                  {item.i !== null ? (
+                  {motivo ? (
+                    <span className="shrink-0 text-right text-xs text-gray-500 dark:text-gray-400">
+                      {motivo}
+                    </span>
+                  ) : item.i !== null ? (
                     <span className="shrink-0 text-xs text-gray-500 tabular-nums dark:text-gray-400">
                       {formatarTexto(T.indiceCurto, {
                         valor: item.i.toLocaleString('pt-BR', {
@@ -223,7 +288,7 @@ function ListaResultados({
           </div>
         ))
       )}
-      {!celular && resultados.length > 0 ? (
+      {!celular && !embutida && resultados.length > 0 ? (
         <div
           role="presentation"
           className="border-t border-gray-100 px-4 py-2 text-[11px] text-gray-500 dark:border-gray-800 dark:text-gray-400"
@@ -249,9 +314,18 @@ export default function BuscaAtivos({
   autoFocus = false,
   onSelecionar,
   className = '',
-}: BuscaAtivosProps) {
+  classe,
+  desabilitarOutraClasse = false,
+  embutida = false,
+  indisponiveis,
+  semConsulta,
+  rotulo,
+  placeholder,
+}: BuscaAtivosProps & BuscaAtivosExtras) {
   const router = useRouter();
-  const celular = useIsBelowLg();
+  const telaEstreita = useIsBelowLg();
+  // embutida: o popover/sheet é do Comparador; aqui só o campo e a lista
+  const celular = telaEstreita && !embutida;
   const idBase = useId().replace(/:/g, '');
   const inputRef = useRef<HTMLInputElement>(null);
   const [consulta, setConsulta] = useState('');
@@ -266,10 +340,17 @@ export default function BuscaAtivos({
 
   const indice = useIndiceBusca({ enabled: usado });
   const overlay = useOverlayCarteira({ enabled: usado });
-  const resultados = useMemo(
-    () => filtrarBusca(indice.data?.itens ?? [], consulta).map((r) => r.item),
-    [indice.data, consulta],
+  const filtrados = useMemo(
+    () =>
+      filtrarPorClasse(
+        filtrarBusca(indice.data?.itens ?? [], consulta).map((r) => r.item),
+        classe,
+        desabilitarOutraClasse,
+        indisponiveis,
+      ),
+    [indice.data, consulta, classe, desabilitarOutraClasse, indisponiveis],
   );
+  const resultados = filtrados.itens;
   // ordem visual (Ações → FIIs) = ordem da navegação por setas
   const ordenados = useMemo(
     () => agruparResultados(resultados).flatMap((g) => g.itens),
@@ -322,7 +403,8 @@ export default function BuscaAtivos({
       setAtivo((a) => (ordenados.length ? (a - 1 + ordenados.length) % ordenados.length : 0));
     } else if (e.key === 'Enter') {
       const item = ordenados[ativo];
-      if (item) {
+      if (item && filtrados.motivos.has(item.t)) e.preventDefault();
+      else if (item) {
         e.preventDefault();
         escolher(item.t);
       }
@@ -334,13 +416,13 @@ export default function BuscaAtivos({
     }
   };
 
-  const mostrarLista = consulta.trim().length > 0 && (aberto || sheet);
+  const mostrarLista = consulta.trim().length > 0 && (aberto || sheet || embutida);
   const campo = (emSheet: boolean) => (
     <input
       ref={emSheet ? undefined : inputRef}
       type="search"
       role="combobox"
-      aria-label={T.rotulo}
+      aria-label={rotulo ?? T.rotulo}
       aria-expanded={mostrarLista}
       aria-controls={`${idBase}-lista`}
       aria-autocomplete="list"
@@ -349,7 +431,7 @@ export default function BuscaAtivos({
       }
       autoComplete="off"
       autoFocus={emSheet || autoFocus}
-      placeholder={T.placeholder}
+      placeholder={placeholder ?? T.placeholder}
       value={consulta}
       onFocus={() => {
         setUsado(true);
@@ -362,10 +444,38 @@ export default function BuscaAtivos({
       }}
       onKeyDown={onKeyDown}
       className={`w-full min-w-0 bg-transparent text-gray-800 placeholder:text-gray-400 focus:outline-none dark:text-white/90 ${
-        emSheet ? 'text-base' : 'text-sm'
+        emSheet || (embutida && telaEstreita) ? 'text-base' : 'text-sm'
       }`}
     />
   );
+
+  if (embutida) {
+    return (
+      <div className={`flex min-w-0 flex-col gap-1 ${className}`} data-busca-variante={variante}>
+        <div className="flex h-11 items-center gap-2 rounded-[10px] border border-gray-200 bg-white px-3 focus-within:ring-[3px] focus-within:ring-[#0079F2]/40 dark:border-gray-700 dark:bg-gray-900">
+          <IconeLupa className="shrink-0 text-gray-400" />
+          {campo(false)}
+        </div>
+        {mostrarLista ? (
+          <ListaResultados
+            idBase={idBase}
+            consulta={consulta}
+            resultados={ordenados}
+            ativo={ativo}
+            overlay={overlay.data}
+            onEscolher={escolher}
+            onAtivo={setAtivo}
+            celular={false}
+            embutida
+            motivos={filtrados.motivos}
+            carregando={indice.isPending}
+          />
+        ) : (
+          semConsulta
+        )}
+      </div>
+    );
+  }
 
   if (celular) {
     return (
@@ -405,6 +515,7 @@ export default function BuscaAtivos({
                 onEscolher={escolher}
                 onAtivo={setAtivo}
                 celular
+                motivos={filtrados.motivos}
                 carregando={indice.isPending}
               />
             ) : (
@@ -464,6 +575,7 @@ export default function BuscaAtivos({
           onEscolher={escolher}
           onAtivo={setAtivo}
           celular={false}
+          motivos={filtrados.motivos}
           carregando={indice.isPending}
         />
       ) : null}
