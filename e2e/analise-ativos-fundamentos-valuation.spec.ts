@@ -14,7 +14,8 @@ const TEXTO_BARRA_OCULTA = 'histórico com menos de 5 anos · barra oculta';
 async function abrirAtivo(page: Page, ticker: string) {
   await page.goto(`/analise-ativos/${ticker}`, { waitUntil: 'load' });
   // blocos preguiçosos: só buscam quando chegam perto da tela
-  const fundamentos = page.getByRole('heading', { name: 'Fundamentos · Essencial' });
+  // Bloco D: com o Raio-X ligado (CI) o título vira 'Fundamentos' + seletor Essencial | Raio-X
+  const fundamentos = page.getByRole('heading', { name: /^Fundamentos( · Essencial)?$/ });
   await expect(page.locator('[data-pagina-ativo]')).toBeVisible({ timeout: 60_000 });
   await page.mouse.wheel(0, 1600);
   await expect(fundamentos).toBeVisible({ timeout: 60_000 });
