@@ -119,7 +119,7 @@ export const TEXTOS_RAIO_X = {
     /** decisão 3 */
     taxaAdmForaDaEscala:
       'taxa de adm. somada no ano acima de {valor}% do PL: algum mês veio fora da escala na fonte',
-    taxaAdmMesesIncompletos: 'menos de 12 meses informados no ano',
+    taxaAdmMesesIncompletos: 'menos de 12 meses com a taxa informada no ano',
     semestreIncompleto: 'semestre incompleto no informe trimestral',
     resultadoNaoPositivo: 'resultado do ano ≤ 0: o payout não se aplica',
     cotasIncompletas: 'menos de 12 meses de cotas no ano',

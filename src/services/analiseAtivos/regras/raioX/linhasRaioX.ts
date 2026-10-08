@@ -5,7 +5,8 @@
  * Variantes: 'acao', 'acao_financeira', 'fii_tijolo', 'fii_papel', 'fii_outro' (híbrido, FoF,
  * indefinido: mesmos blocos do tijolo, como no Essencial). Só as linhas 'mostra' de
  * spec.cobertura_raio_x, com as decisões que prevalecem (decisoes.md):
- *  - D3: 'Taxa de adm. (% do PL no ano)' = Σ dos 12 taxaAdmPct do ano; < 12 meses ⇒ '—'; soma acima
+ *  - D3: 'Taxa de adm. (% do PL no ano)' = Σ dos 12 taxaAdmPct do ano; < 12 meses informados (mês
+ *    com taxa 0 conta como não informado) ⇒ '—'; soma acima
  *    de LIMIAR_TAXA_ADM_ANO_PCT ⇒ 'em conferência' (ocultar).
  *  - D4: sem inadimplência, prazo médio, vencimentos e indexadores.
  *  - D5: rendimento distribuído = rendimentosDeclarados do 2º tri + 4º tri (o informe vem acumulado
@@ -717,7 +718,8 @@ export function montarRaioXFii(e: EntradaRaioXFii): Parcial {
       resultadoCota = ok((resultado * 1e6) / media);
     }
 
-    const taxas = ms.map((m) => m.taxaAdmPct).filter(num);
+    // mês com taxa 0 = não informado na CVM (XPLG11 2019: 6 meses zerados somavam 0,05%)
+    const taxas = ms.map((m) => m.taxaAdmPct).filter((t): t is number => num(t) && t > 0);
     let taxaAdm: Estado<number>;
     if (taxas.length < MESES_TAXA_ADM_ANO) {
       taxaAdm = ausente('meses_incompletos', tc.taxaAdmMesesIncompletos);

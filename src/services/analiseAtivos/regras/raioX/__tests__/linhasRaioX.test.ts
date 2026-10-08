@@ -227,6 +227,11 @@ describe('FIIs (DEV)', () => {
       estado: 'ausente',
       texto: T.conferencia.taxaAdmMesesIncompletos,
     });
+    // 2019: 12 meses, 6 deles com taxa 0 (não informada) ⇒ '—', nunca 0,05% como dado válido
+    expect(estado(x, 'taxaAdmAnoPct', 2019)).toMatchObject({
+      estado: 'ausente',
+      motivo: 'meses_incompletos',
+    });
   });
 
   it('KNCR11 (papel): carteira de recebíveis; receita de aluguéis sai com a observação', () => {
