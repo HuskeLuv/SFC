@@ -110,6 +110,26 @@ export const TEXTOS_CENARIOS = {
     faltaDado: 'falta {campo}',
     usaConferencia: 'usa {campo} em conferência',
     semCotacao: 'sem cotação',
+    // fatia B
+    emConferencia: '{campo} em conferência: digite um valor para fazer a conta',
+    vpNaoPositivo: 'VP/cota ≤ 0',
+    semResultado: 'sem resultado com estes valores',
+  },
+  /** Nomes curtos dos campos nos motivos ('falta {campo}', 'usa {campo} em conferência'). */
+  rotulosCurtos: {
+    lpa: 'LPA',
+    vpa: 'VPA',
+    dpa: 'DPA',
+    rend12m: 'rendimento 12m',
+    vpCota: 'VP/cota',
+    cotacao: 'cotação',
+    yieldPct: 'yield',
+    gPct: 'g',
+    kPct: 'k',
+    plAlvo: 'P/L alvo',
+    pvpAlvo: 'P/VP alvo',
+    rendaMensal: 'renda mensal',
+    margemPct: 'margem',
   },
   resultados: {
     rotuloRegiao: 'Resultados dos métodos',
