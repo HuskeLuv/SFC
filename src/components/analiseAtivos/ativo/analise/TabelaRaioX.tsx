@@ -184,7 +184,7 @@ function Celula({
       title={v.estado === 'ok' || conf ? undefined : v.texto}
       data-conferencia={conf?.grupo}
       data-ano={ano}
-      className={`${TABLE_STYLES.compact.td} min-w-[84px] text-right tabular-nums text-[13px] ${razao ? `italic ${conf ? '' : FUNDO_RAZAO}` : ''} ${recente ? 'font-semibold text-gray-800 dark:text-white/90' : ''} ${negativo ? TEXTO_NEGATIVO : ''} ${conf ? HACHURA : ''}`}
+      className={`${TABLE_STYLES.compact.td} min-w-[84px] text-right tabular-nums text-[13px] ${razao ? `italic ${conf ? '' : FUNDO_RAZAO}` : ''} ${recente ? 'font-semibold' : ''} ${negativo ? TEXTO_NEGATIVO : recente ? 'text-gray-800 dark:text-white/90' : ''} ${conf ? HACHURA : ''}`}
     >
       {conf ? (
         <span className="inline-flex flex-col items-end gap-0.5">
@@ -267,6 +267,7 @@ export default function TabelaRaioX({ ticker, classe, cabecalhoExtra }: TabelaRa
           <div
             role="group"
             aria-label={T.blocos.rotuloChips}
+            data-mf-scroll-x=""
             className="-mx-4 flex gap-1.5 overflow-x-auto px-4 pb-1 [scrollbar-width:none] sm:-mx-5 sm:px-5 lg:mx-0 lg:flex-wrap lg:overflow-visible lg:px-0"
           >
             {opcoesChips.map((o) => {
@@ -293,6 +294,7 @@ export default function TabelaRaioX({ ticker, classe, cabecalhoExtra }: TabelaRa
             tabIndex={0}
             aria-label={formatarTexto(T.tabela.rotuloRegiao, { ticker })}
             data-rolagem-card="raio-x"
+            data-mf-scroll-x=""
             className={`${TABLE_STYLES.wrapper} max-w-full ${FOCO}`}
           >
             <table className={`${TABLE_STYLES.table} min-w-max`}>

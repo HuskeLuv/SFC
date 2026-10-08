@@ -47,14 +47,17 @@ function FundamentosComNivel({ ticker, classe }: BlocoFundamentosProps) {
     [params, pathname, router],
   );
 
+  // celular: o seletor vai para a linha de baixo, largura toda (o menu ⋯ fica ao lado do título);
+  // computador: encostado à direita, antes do menu ⋯ (o invólucro ocupa o espaço livre)
   const seletor = (
-    <SeletorNivel
-      opcoes={OPCOES}
-      ativo={nivel}
-      onTrocar={trocar}
-      rotuloGrupo={TEXTOS_RAIO_X.seletor.rotuloGrupo}
-      className="sm:ml-auto"
-    />
+    <div className="order-last flex w-full sm:order-none sm:w-auto sm:flex-1 sm:justify-end">
+      <SeletorNivel
+        opcoes={OPCOES}
+        ativo={nivel}
+        onTrocar={trocar}
+        rotuloGrupo={TEXTOS_RAIO_X.seletor.rotuloGrupo}
+      />
+    </div>
   );
 
   return nivel === 'raioX' ? (
