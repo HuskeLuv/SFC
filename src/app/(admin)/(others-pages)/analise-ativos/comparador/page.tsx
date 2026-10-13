@@ -14,8 +14,9 @@ export const metadata: Metadata = {
 };
 
 /**
- * Comparador (Bloco D, fatia C): /analise-ativos/comparador?t=WEGE3,ITUB4. O gate da área (flag +
- * beta) fica no layout; aqui, a flag do recurso: desligada ⇒ 404 da raiz. Estado na URL (?t=).
+ * Comparador isonômico (v2.4, fatia D): /analise-ativos/comparador?t=WEGE3,ITUB4&janela=5. O gate
+ * da área (flag + beta) fica no layout; aqui, a flag do recurso: desligada ⇒ 404 da raiz (fica
+ * desligada em produção até o jurídico). Estado na URL (?t= e ?janela=); nada é gravado.
  */
 export default function ComparadorPage() {
   if (!analiseAtivosComparadorHabilitado()) notFound();

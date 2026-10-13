@@ -2,9 +2,10 @@
 
 /**
  * Slots do Comparador. Computador: grade de 4 (2 abaixo de 1100px de container), raio 14, remover
- * com 44×44, ticker com área de toque de 44px, cotação, tipo do FII e o selo "sem negociação
- * recente" fora do Quadro. Celular: slots empilhados de 60px. O slot "Adicionar" entra por
- * `adicionar` (só no computador; no celular o botão fica abaixo da lista).
+ * com 44×44, ticker com área de toque de 44px, nome com data-nome-ativo (vem do banco), cotação,
+ * tipo do FII e o selo "sem negociação recente" fora do Quadro. Celular: slots empilhados de
+ * 60px. O slot "Adicionar" entra por `adicionar` (só no computador; no celular o botão fica abaixo
+ * da lista).
  */
 import Link from 'next/link';
 import type { ReactNode } from 'react';
@@ -13,7 +14,7 @@ import { formatarEstado } from '@/components/analiseAtivos/comum/formatarAnalise
 import { FOCO } from '@/components/analiseAtivos/comparador/SlotAdicionar';
 import { TEXTOS_COMPARADOR } from '@/services/analiseAtivos/textosComparador';
 import { TEXTOS_TELA, formatarTexto } from '@/services/analiseAtivos/textosTela';
-import type { AtivoComparador } from '@/types/analiseAtivosBlocoD';
+import type { AtivoComparadorV2 } from '@/services/analiseAtivos/regras/comparador/indicadores';
 
 const TS = TEXTOS_COMPARADOR.slots;
 
@@ -66,7 +67,7 @@ function BotaoRemover({ ticker, onRemover }: { ticker: string; onRemover: (t: st
 
 export interface SlotsComparadorProps {
   slots: readonly string[];
-  ativos: ReadonlyMap<string, AtivoComparador>;
+  ativos: ReadonlyMap<string, AtivoComparadorV2>;
   onRemover: (ticker: string) => void;
   celular: boolean;
   /** slot "Adicionar" (computador) */
@@ -103,7 +104,10 @@ export default function SlotsComparador({
               <Logo ticker={t} tamanho={36} />
               <span className="min-w-0">
                 <LinkTicker ticker={t} />
-                <span className="block truncate text-xs text-gray-500 dark:text-gray-400">
+                <span
+                  data-nome-ativo=""
+                  className="block truncate text-xs text-gray-500 dark:text-gray-400"
+                >
                   {a?.nome ?? ' '}
                 </span>
               </span>
@@ -140,7 +144,10 @@ export default function SlotsComparador({
                 <Logo ticker={t} tamanho={40} />
                 <span className="min-w-0">
                   <LinkTicker ticker={t} />
-                  <span className="block truncate text-[12.5px] text-gray-500 dark:text-gray-400">
+                  <span
+                    data-nome-ativo=""
+                    className="block truncate text-[12.5px] text-gray-500 dark:text-gray-400"
+                  >
                     {a.nome}
                   </span>
                 </span>

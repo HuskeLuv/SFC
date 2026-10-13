@@ -13,9 +13,10 @@
  *   está sendo digitado) (fatia B).
  * - useSalvarCenario / useApagarCenario: csrfFetch PUT/DELETE + setQueryData no cache do cenário
  *   (não mexe na carteira). O "Desfazer" do restaurar regrava com useSalvarCenario.
- * - useComparador(tickers, {enabled}): chave com os tickers ORDENADOS (+ o 1º slot, que decide a
- *   classe), 10 min, placeholderData = resposta anterior (trocar um slot não pisca); o pedido vai
- *   na ordem dos slots e `select` reordena a resposta (vinda do cache) pelos slots (fatia C).
+ * - useComparador(tickers, {enabled, janela}): chave com os tickers ORDENADOS (+ o 1º slot, que
+ *   decide a classe, + a janela), 10 min, placeholderData = resposta anterior (trocar um slot ou a
+ *   janela não pisca); o pedido vai na ordem dos slots com ?janela= (padrão 5 omitido) e `select`
+ *   reordena a resposta (vinda do cache) pelos slots (v2.4, fatia D: resposta isonômica).
  */
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCsrf } from '@/hooks/useCsrf';
@@ -27,9 +28,10 @@ import type {
   CenarioPutBody,
   CenarioPutResposta,
   CenariosResposta,
-  ComparadorResposta,
   RaioXResposta,
 } from '@/types/analiseAtivosBlocoD';
+import type { ComparadorRespostaV2 } from '@/services/analiseAtivos/regras/comparador/indicadores';
+import { JANELA_PADRAO, type Janela } from '@/types/analiseAtivosCriterios';
 
 export const TEMPOS_BLOCO_D = {
   raioX: TEMPOS_ANALISE.analise,
@@ -196,7 +198,7 @@ export function useApagarCenario(ticker: string) {
 }
 
 // ---------------------------------------------------------------------------
-// Comparador (fatia C)
+// Comparador (v2.4, fatia D — isonômico)
 // ---------------------------------------------------------------------------
 
 /**
@@ -204,9 +206,9 @@ export function useApagarCenario(ticker: string) {
  * estão em `slots` (não deveria acontecer) vão para o fim, na ordem em que vieram.
  */
 export function ordenarComparadorPelosSlots(
-  resp: ComparadorResposta,
+  resp: ComparadorRespostaV2,
   slots: readonly string[],
-): ComparadorResposta {
+): ComparadorRespostaV2 {
   const pos = new Map(slots.map((t, i) => [t, i]));
   const chave = (t: string) => pos.get(t) ?? Number.MAX_SAFE_INTEGER;
   const ordenar = <T>(lista: T[], ticker: (x: T) => string): T[] =>
@@ -221,26 +223,34 @@ export function ordenarComparadorPelosSlots(
     graficos: resp.graficos
       ? { ...resp.graficos, series: ordenar(resp.graficos.series, (s) => s.ticker) }
       : null,
-    resumo: {
-      ...resp.resumo,
-      indices: ordenar(resp.resumo.indices, (x) => x.ticker),
-      criteriosAtendidos: ordenar(resp.resumo.criteriosAtendidos, (x) => x.ticker),
-      emConferencia: ordenar(resp.resumo.emConferencia, (x) => x.ticker),
+    leitura: {
+      ...resp.leitura,
+      contagens: ordenar(resp.leitura.contagens, (c) => c.ticker),
     },
   };
 }
 
-export function useComparador(tickers: readonly string[], opts: { enabled?: boolean } = {}) {
+/** URL da API com a janela (a rota de ROTAS_BLOCO_D não tem a janela; padrão 5 fica de fora). */
+export function urlApiComparador(tickers: readonly string[], janela: Janela): string {
+  const base = ROTAS_BLOCO_D.api.comparador(tickers);
+  return janela === JANELA_PADRAO ? base : `${base}&janela=${janela}`;
+}
+
+export function useComparador(
+  tickers: readonly string[],
+  opts: { enabled?: boolean; janela?: Janela } = {},
+) {
+  const janela = opts.janela ?? JANELA_PADRAO;
   const ordenados = [...tickers].sort();
-  return useQuery<ComparadorResposta, Error>({
-    queryKey: queryKeys.analiseAtivos.comparador(ordenados, tickers[0] ?? ''),
+  return useQuery<ComparadorRespostaV2, Error>({
+    queryKey: queryKeys.analiseAtivos.comparador(ordenados, tickers[0] ?? '', janela),
     staleTime: TEMPOS_BLOCO_D.comparador,
     placeholderData: keepPreviousData,
     retry: retryAnalise,
     enabled: (opts.enabled ?? true) && tickers.length > 0,
     // pede na ordem dos slots: a classe da comparação é a do 1º ticker válido
     queryFn: ({ signal }) =>
-      getJson(ROTAS_BLOCO_D.api.comparador(tickers), 'Erro ao carregar a comparação', signal),
+      getJson(urlApiComparador(tickers, janela), 'Erro ao carregar a comparação', signal),
     select: (resp) => ordenarComparadorPelosSlots(resp, tickers),
   });
 }

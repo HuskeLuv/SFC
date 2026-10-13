@@ -1,30 +1,34 @@
 'use client';
 
 /**
- * Página do Comparador (Bloco D, fatia C). Estado em ?t= (useEstadoComparadorUrl); aba Ações | FIIs
- * pela classe do 1º ticker (a API decide; sem tickers, ?c=); até MAX_ATIVOS_COMPARADOR slots.
+ * Página do Comparador — v2.4, fatia D (Comparador ISONÔMICO, spec §3.3 + protótipo final).
+ * Estado em ?t=&janela= (useEstadoComparadorUrl); aba Ações | FIIs pela classe do 1º ticker (a API
+ * decide; sem tickers, ?c=); até MAX_ATIVOS_COMPARADOR slots.
  *
- * Computador: card com abas, avisos, legenda do ★ + "Copiar link", slots em grade (+ slot
- * "Adicionar" com sugestões do mesmo segmento), aviso de tijolo + papel, tabela critério × ativo
- * com mini-gráficos e a nota de regras; depois o Resumo numérico (sem placar). Celular: slots
- * empilhados, "Adicionar" em BottomSheet, critérios em cartões, mini-gráficos em grade, Resumo e
- * "Copiar link". Estados: vazio, 1 ativo ("adicione mais um"), carregando (esqueleto sem pulsar com
- * reduced-motion) e erro com "Tentar de novo". Sem CTA de compra, sem "Salvar comparação", sem PDF.
- * O título/pílulas da área ficam na casca (fatia D); o rodapé legal também.
+ * Ordem (D1 = protótipo do Pedro, cores My Finance): barra com a instrução literal (sem ranking),
+ * Tijolo | Papel em FIIs, janela 3 | 5 | 10 e "Copiar link"; aviso do misto; slots com sugestões;
+ * a tabela com o bloco "Critérios de fundamentos · N anos" PRIMEIRO, os grupos de indicadores e
+ * "Na minha carteira"; os mini-gráficos base 100; e a "Leitura dos dados" (só contagens + o
+ * literal). No celular, slots empilhados e a tabela em cartões.
+ *
+ * Nada aqui marca um ativo: sem ★, sem fundo/filete por valor, sem placar, sem Índice MF. O
+ * Comparador não grava nada (rec. 7): "Copiar link" leva os tickers e a janela.
+ * Estados: vazio, 1 ativo, carregando (esqueleto sem pulsar com reduced-motion) e erro com
+ * "Tentar de novo". O título/pílulas da área e o aviso legal ficam na casca.
  */
 import { useCallback, useMemo } from 'react';
 import { ResponsiveTabNav } from '@/components/ui/tabs/ResponsiveTabNav';
 import { CARD_ANALISE } from '@/components/analiseAtivos/ativo/analise/CartaoAnalise';
+import PilulasJanela from '@/components/analiseAtivos/comum/PilulasJanela';
 import AlertaMisto, {
   AvisoComparador,
   LinhaInformativa,
 } from '@/components/analiseAtivos/comparador/AlertaMisto';
 import BotaoCopiarLink from '@/components/analiseAtivos/comparador/BotaoCopiarLink';
 import CartoesComparador from '@/components/analiseAtivos/comparador/CartoesComparador';
-import MiniGraficosComparador, {
-  legendaEscala,
-} from '@/components/analiseAtivos/comparador/MiniGraficosComparador';
-import ResumoNumerico from '@/components/analiseAtivos/comparador/ResumoNumerico';
+import LeituraDosDados from '@/components/analiseAtivos/comparador/LeituraDosDados';
+import MiniGraficosComparador from '@/components/analiseAtivos/comparador/MiniGraficosComparador';
+import SeletorTipoFii from '@/components/analiseAtivos/comparador/SeletorTipoFii';
 import SlotAdicionar, { FOCO } from '@/components/analiseAtivos/comparador/SlotAdicionar';
 import SlotsComparador from '@/components/analiseAtivos/comparador/SlotsComparador';
 import TabelaComparador from '@/components/analiseAtivos/comparador/TabelaComparador';
@@ -38,9 +42,14 @@ import { useIsBelowLg } from '@/hooks/useMediaQuery';
 import { useIndiceBusca, useOverlayCarteira } from '@/hooks/useAnaliseAtivos';
 import { useComparador } from '@/hooks/useAnaliseAtivosBlocoD';
 import { MAX_ATIVOS_COMPARADOR } from '@/services/analiseAtivos/cenarios/contrato';
+import type { ComparadorRespostaV2 } from '@/services/analiseAtivos/regras/comparador/indicadores';
 import { TEXTOS_COMPARADOR } from '@/services/analiseAtivos/textosComparador';
-import { formatarTexto } from '@/services/analiseAtivos/textosTela';
-import type { ComparadorProps, ComparadorResposta } from '@/types/analiseAtivosBlocoD';
+import { formatarTexto } from '@/services/analiseAtivos/textosCriterios';
+import {
+  INSTRUCAO_COMPARADOR_ACOES,
+  INSTRUCAO_COMPARADOR_FIIS,
+} from '@/services/analiseAtivos/textosLiterais';
+import type { ComparadorProps } from '@/types/analiseAtivosBlocoD';
 import type { ClasseQuadro } from '@/types/analiseAtivosApi';
 
 const TC = TEXTOS_COMPARADOR;
@@ -49,7 +58,7 @@ const OUTRA: Record<ClasseQuadro, ClasseQuadro> = { acao: 'fii', fii: 'acao' };
 
 /** Texto do aviso de um ticker ignorado do link. */
 export function textoIgnorado(
-  ig: ComparadorResposta['ignorados'][number],
+  ig: ComparadorRespostaV2['ignorados'][number],
   classe: ClasseQuadro,
 ): string {
   if (ig.motivo === 'outra_classe') {
@@ -68,7 +77,7 @@ export function textoIgnorado(
 
 /** Até 3 sugestões: pares dos ativos (na ordem dos slots), fora dos que já estão. */
 export function sugestoesDosPares(
-  dados: ComparadorResposta | undefined,
+  dados: Pick<ComparadorRespostaV2, 'ativos'> | undefined,
   slots: readonly string[],
 ): string[] {
   const out: string[] = [];
@@ -79,6 +88,34 @@ export function sugestoesDosPares(
     }
   }
   return out;
+}
+
+/**
+ * Tijolo | Papel: os slots que ficam ao escolher `tipo` (os de tipo ainda desconhecido — sem
+ * resposta — ficam). Sem nenhum do tipo, a lista sai vazia (a tela volta ao estado vazio de FIIs).
+ */
+export function slotsDoTipo(
+  slots: readonly string[],
+  ativos: ReadonlyMap<string, Pick<ComparadorRespostaV2['ativos'][number], 'tipoComparacao'>>,
+  tipo: 'tijolo' | 'papel',
+): string[] {
+  return slots.filter((t) => {
+    const a = ativos.get(t);
+    return !a || a.tipoComparacao === tipo;
+  });
+}
+
+/** Instrução literal da barra (data-texto-legal: o nó tem exatamente o texto registrado). */
+function Instrucao({ classe }: { classe: ClasseQuadro }) {
+  const lit = classe === 'fii' ? INSTRUCAO_COMPARADOR_FIIS : INSTRUCAO_COMPARADOR_ACOES;
+  return (
+    <p
+      data-texto-legal={lit.id}
+      className="m-0 min-w-0 text-[13px] leading-snug text-gray-600 dark:text-gray-400"
+    >
+      {lit.texto}
+    </p>
+  );
 }
 
 function Esqueleto({ celular }: { celular: boolean }) {
@@ -107,7 +144,7 @@ function Esqueleto({ celular }: { celular: boolean }) {
 export default function Comparador({ className = '' }: ComparadorProps) {
   const url = useEstadoComparadorUrl();
   const celular = useIsBelowLg();
-  const q = useComparador(url.tickers, { enabled: url.tickers.length > 0 });
+  const q = useComparador(url.tickers, { enabled: url.tickers.length > 0, janela: url.janela });
   const dados = url.tickers.length > 0 ? q.data : undefined;
 
   const ignorados = useMemo(() => new Set(dados?.ignorados.map((i) => i.ticker)), [dados]);
@@ -134,6 +171,15 @@ export default function Comparador({ className = '' }: ComparadorProps) {
     (t: string) => url.setTickers(removerTicker(slots, t), classe),
     [url, slots, classe],
   );
+  const trocarTipo = useCallback(
+    (tipo: 'tijolo' | 'papel') => {
+      const ficam = slotsDoTipo(slots, ativosPor, tipo);
+      if (ficam.length === slots.length) return;
+      if (ficam.length === 0) url.trocarClasse('fii');
+      else url.setTickers(ficam, 'fii');
+    },
+    [url, slots, ativosPor],
+  );
 
   const abas = (['acao', 'fii'] as const).map((c) => ({ id: c, label: TC.abas[c] }));
   const nav = (
@@ -145,7 +191,7 @@ export default function Comparador({ className = '' }: ComparadorProps) {
       }}
       ariaLabel={TC.abas.rotulo}
       variant="segmented-sub"
-      // decisão 13: todo controle com 44px (o segmentado do celular tem 38px por padrão)
+      // todo controle com 44px (o segmentado do celular tem 38px por padrão)
       className="shrink-0 [&>button]:min-h-11"
     />
   );
@@ -163,6 +209,7 @@ export default function Comparador({ className = '' }: ComparadorProps) {
       <div className={`flex min-w-0 flex-col gap-4 ${className}`} data-comparador="vazio">
         <section className={card} aria-labelledby="comparador-vazio">
           {nav}
+          <Instrucao classe={classe} />
           <div className="flex flex-col items-start gap-3 py-2">
             <h2
               id="comparador-vazio"
@@ -193,7 +240,7 @@ export default function Comparador({ className = '' }: ComparadorProps) {
                     className={`inline-flex min-h-11 items-center gap-1 rounded-full border border-gray-200 bg-white px-3 text-[13px] text-gray-700 dark:border-gray-700 dark:bg-white/[0.03] dark:text-gray-300 ${FOCO}`}
                   >
                     <b className="font-semibold text-gray-800 dark:text-white/90">{t}</b>
-                    {nomes.get(t)?.n ?? ''}
+                    <span data-nome-ativo="">{nomes.get(t)?.n ?? ''}</span>
                   </button>
                 ))}
               </div>
@@ -261,27 +308,27 @@ export default function Comparador({ className = '' }: ComparadorProps) {
     <LinhaInformativa>{formatarTexto(TC.slots.limite, { max: MAX })}</LinhaInformativa>
   ) : null;
   const atualizando = q.isPlaceholderData || q.isFetching ? 'opacity-70' : '';
-  const temConferencia = dados.grupos.some((g) =>
-    g.linhas.some((l) => Object.values(l.conferencia).some(Boolean)),
+  const tipoAtual = dados.ativos[0]?.tipoComparacao === 'papel' ? 'papel' : 'tijolo';
+  const seletorTipo =
+    classe === 'fii' ? (
+      <SeletorTipoFii valor={tipoAtual} indefinido={dados.misto} onTrocar={trocarTipo} />
+    ) : null;
+  const janela = (
+    <PilulasJanela valor={url.janela} onTrocar={url.setJanela} rotuloGrupo={TC.janela.rotulo} />
   );
-  const legenda = (
-    <p className="text-[13px] text-gray-700 dark:text-gray-300" data-legenda-destaque="">
-      {celular ? TC.destaque.legendaCurta : TC.destaque.legenda}
-      {celular && temConferencia ? (
-        <span className="block" data-legenda-conferencia="">
-          {TC.destaque.legendaConferenciaCurta}
-        </span>
-      ) : null}
-    </p>
+  const leitura = (larguraToda: boolean) => (
+    <LeituraDosDados
+      leitura={dados.leitura}
+      acao={
+        <BotaoCopiarLink
+          slots={slots}
+          janela={url.janela}
+          rotulo={TC.acoes.copiarLinkComparacao}
+          larguraToda={larguraToda}
+        />
+      }
+    />
   );
-  const nota = [
-    dados.graficos ? legendaEscala(dados.graficos) : null,
-    TC.destaque.regras,
-    classe === 'fii' ? TC.destaque.regrasFii : null,
-    classe === 'fii' ? TC.destaque.semDestaqueFii : TC.destaque.semDestaqueAcao,
-  ]
-    .filter(Boolean)
-    .join(' ');
 
   if (celular) {
     return (
@@ -294,6 +341,12 @@ export default function Comparador({ className = '' }: ComparadorProps) {
         {nav}
         {avisos}
         {erroAtualizar}
+        <Instrucao classe={classe} />
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+          {seletorTipo}
+          {janela}
+        </div>
+        {dados.misto ? <AlertaMisto /> : null}
         <SlotsComparador slots={slots} ativos={ativosPor} onRemover={remover} celular />
         {cheio ? (
           limite
@@ -307,15 +360,12 @@ export default function Comparador({ className = '' }: ComparadorProps) {
             celular
           />
         )}
-        {dados.misto ? <AlertaMisto /> : null}
-        {legenda}
         {umAtivo}
         <div className={`flex flex-col gap-3 ${atualizando}`}>
           <CartoesComparador dados={dados} classe={classe} naCarteira={na.info} />
           {dados.graficos ? <MiniGraficosComparador graficos={dados.graficos} /> : null}
         </div>
-        <ResumoNumerico resumo={dados.resumo} />
-        <BotaoCopiarLink slots={slots} larguraToda />
+        {leitura(true)}
       </div>
     );
   }
@@ -331,10 +381,15 @@ export default function Comparador({ className = '' }: ComparadorProps) {
         {nav}
         {avisos}
         {erroAtualizar}
-        <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
-          {legenda}
-          <BotaoCopiarLink slots={slots} />
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1" data-barra-comparador="">
+          <div className="min-w-0 flex-1 basis-[320px]">
+            <Instrucao classe={classe} />
+          </div>
+          {seletorTipo}
+          {janela}
+          <BotaoCopiarLink slots={slots} janela={url.janela} />
         </div>
+        {dados.misto ? <AlertaMisto /> : null}
         <SlotsComparador
           slots={slots}
           ativos={ativosPor}
@@ -354,14 +409,17 @@ export default function Comparador({ className = '' }: ComparadorProps) {
           }
         />
         {limite}
-        {dados.misto ? <AlertaMisto /> : null}
         {umAtivo}
         <div className={atualizando}>
           <TabelaComparador dados={dados} classe={classe} naCarteira={na.info} />
         </div>
-        <p className="text-xs text-gray-500 dark:text-gray-400">{nota}</p>
       </section>
-      <ResumoNumerico resumo={dados.resumo} />
+      {dados.graficos ? (
+        <div className={atualizando}>
+          <MiniGraficosComparador graficos={dados.graficos} />
+        </div>
+      ) : null}
+      {leitura(false)}
     </div>
   );
 }

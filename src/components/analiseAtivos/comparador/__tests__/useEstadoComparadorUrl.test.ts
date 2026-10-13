@@ -14,8 +14,9 @@ describe('estado do Comparador na URL', () => {
     expect(ler('t=wege3,ITUB4,WEGE3,x;y,,TAEE11')).toEqual({
       tickers: ['WEGE3', 'ITUB4', 'TAEE11'],
       classe: null,
+      janela: 5,
     });
-    expect(ler('')).toEqual({ tickers: [], classe: null });
+    expect(ler('')).toEqual({ tickers: [], classe: null, janela: 5 });
   });
 
   it('aba sem tickers em ?c=', () => {
@@ -37,9 +38,24 @@ describe('estado do Comparador na URL', () => {
     expect(removerTicker(cheio, 'BBBB1')).toEqual(['AAAA1', 'CCCC1', 'DDDD1']);
   });
 
-  it('link compartilhável absoluto', () => {
+  it('janela em ?janela= (3 | 5 | 10); inválida ou ausente = 5; o padrão não vai na query', () => {
+    expect(ler('t=WEGE3&janela=10').janela).toBe(10);
+    expect(ler('t=WEGE3&janela=3').janela).toBe(3);
+    expect(ler('t=WEGE3&janela=7').janela).toBe(5);
+    expect(ler('t=WEGE3&janela=abc').janela).toBe(5);
+    expect(queryComparador({ tickers: ['WEGE3'], classe: null, janela: 10 })).toBe(
+      't=WEGE3&janela=10',
+    );
+    expect(queryComparador({ tickers: ['WEGE3'], classe: null, janela: 5 })).toBe('t=WEGE3');
+    expect(queryComparador({ tickers: [], classe: 'fii', janela: 3 })).toBe('c=fii&janela=3');
+  });
+
+  it('link compartilhável absoluto (com a janela fora do padrão)', () => {
     expect(
       urlCompartilhavel('https://app.x', '/analise-ativos/comparador', ['HGLG11', 'XPLG11']),
     ).toBe('https://app.x/analise-ativos/comparador?t=HGLG11,XPLG11');
+    expect(urlCompartilhavel('https://app.x', '/analise-ativos/comparador', ['HGLG11'], 10)).toBe(
+      'https://app.x/analise-ativos/comparador?t=HGLG11&janela=10',
+    );
   });
 });

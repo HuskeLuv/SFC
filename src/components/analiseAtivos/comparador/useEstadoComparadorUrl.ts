@@ -1,9 +1,11 @@
 'use client';
 
 /**
- * Estado do Comparador NA URL (fatia C): `?t=WEGE3,ITUB4` é a fonte da verdade (compartilhável pelo
- * "Copiar link"); a aba vem da classe do 1º ticker (a API decide). Sem tickers, a aba escolhida fica
- * em `?c=fii` (Ações = sem parâmetro). Trocar de aba limpa a seleção.
+ * Estado do Comparador NA URL: `?t=WEGE3,ITUB4&janela=10` é a fonte da verdade (compartilhável pelo
+ * "Copiar link"; o Comparador não grava nada, rec. 7). A aba vem da classe do 1º ticker (a API
+ * decide). Sem tickers, a aba escolhida fica em `?c=fii` (Ações = sem parâmetro). A janela dos
+ * critérios fica em `?janela=` (3 | 5 | 10; o padrão 5 não aparece). Trocar de aba limpa a seleção
+ * e mantém a janela.
  *
  * As funções puras (ler/escrever/adicionar/remover) são testadas sem React.
  */
@@ -11,15 +13,19 @@ import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useCallback, useMemo } from 'react';
 import { MAX_ATIVOS_COMPARADOR, TICKER_RE } from '@/services/analiseAtivos/cenarios/contrato';
 import type { ClasseQuadro } from '@/types/analiseAtivosApi';
+import { JANELA_PADRAO, ehJanela, type Janela } from '@/types/analiseAtivosCriterios';
 
 export const PARAM_TICKERS = 't';
 export const PARAM_CLASSE = 'c';
+export const PARAM_JANELA = 'janela';
 
 export interface EstadoComparadorUrl {
   /** tickers válidos do ?t=, maiúsculos, sem repetição, na ordem dada */
   tickers: string[];
   /** aba escolhida sem tickers (?c=); null = não informada */
   classe: ClasseQuadro | null;
+  /** janela dos critérios (?janela=); inválida ou ausente = 5 */
+  janela: Janela;
 }
 
 interface LeitorParams {
@@ -33,13 +39,26 @@ export function lerEstadoComparador(params: LeitorParams): EstadoComparadorUrl {
     if (TICKER_RE.test(t) && !tickers.includes(t)) tickers.push(t);
   }
   const c = params.get(PARAM_CLASSE);
-  return { tickers, classe: c === 'fii' || c === 'acao' ? c : null };
+  const j = Number(params.get(PARAM_JANELA));
+  return {
+    tickers,
+    classe: c === 'fii' || c === 'acao' ? c : null,
+    janela: ehJanela(j) ? j : JANELA_PADRAO,
+  };
 }
 
-/** Query sem o '?': com tickers, só o t= (vírgulas literais, legível); sem, c=fii ou nada. */
-export function queryComparador(e: EstadoComparadorUrl): string {
-  if (e.tickers.length > 0) return `${PARAM_TICKERS}=${e.tickers.join(',')}`;
-  return e.classe === 'fii' ? `${PARAM_CLASSE}=fii` : '';
+/**
+ * Query sem o '?': com tickers, o t= (vírgulas literais, legível); sem, c=fii ou nada. A janela
+ * entra no fim só fora do padrão.
+ */
+export function queryComparador(e: Omit<EstadoComparadorUrl, 'janela'> & { janela?: Janela }) {
+  const partes: string[] = [];
+  if (e.tickers.length > 0) partes.push(`${PARAM_TICKERS}=${e.tickers.join(',')}`);
+  else if (e.classe === 'fii') partes.push(`${PARAM_CLASSE}=fii`);
+  if (e.janela !== undefined && e.janela !== JANELA_PADRAO) {
+    partes.push(`${PARAM_JANELA}=${e.janela}`);
+  }
+  return partes.join('&');
 }
 
 export function adicionarTicker(
@@ -56,9 +75,14 @@ export function removerTicker(slots: readonly string[], ticker: string): string[
   return slots.filter((t) => t !== ticker);
 }
 
-/** URL absoluta do link de compartilhamento (só os tickers dos slots). */
-export function urlCompartilhavel(origem: string, caminho: string, slots: readonly string[]) {
-  const q = queryComparador({ tickers: [...slots], classe: null });
+/** URL absoluta do link de compartilhamento (os tickers dos slots e a janela). */
+export function urlCompartilhavel(
+  origem: string,
+  caminho: string,
+  slots: readonly string[],
+  janela: Janela = JANELA_PADRAO,
+) {
+  const q = queryComparador({ tickers: [...slots], classe: null, janela });
   return `${origem}${caminho}${q ? `?${q}` : ''}`;
 }
 
@@ -78,10 +102,18 @@ export function useEstadoComparadorUrl() {
   );
 
   const setTickers = useCallback(
-    (tickers: string[], classe: ClasseQuadro | null = null) => ir({ tickers, classe }),
-    [ir],
+    (tickers: string[], classe: ClasseQuadro | null = null) =>
+      ir({ tickers, classe, janela: estado.janela }),
+    [ir, estado.janela],
   );
-  const trocarClasse = useCallback((classe: ClasseQuadro) => ir({ tickers: [], classe }), [ir]);
+  const trocarClasse = useCallback(
+    (classe: ClasseQuadro) => ir({ tickers: [], classe, janela: estado.janela }),
+    [ir, estado.janela],
+  );
+  const setJanela = useCallback(
+    (janela: Janela) => ir({ tickers: estado.tickers, classe: estado.classe, janela }),
+    [ir, estado.tickers, estado.classe],
+  );
 
-  return { ...estado, setTickers, trocarClasse };
+  return { ...estado, setTickers, trocarClasse, setJanela };
 }

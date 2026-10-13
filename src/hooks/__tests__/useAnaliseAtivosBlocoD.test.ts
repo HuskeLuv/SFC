@@ -15,20 +15,24 @@ import {
   ordenarComparadorPelosSlots,
   useApagarCenario,
   useCenarios,
+  urlApiComparador,
   useComparador,
   useRaioX,
   useSalvarCenario,
 } from '@/hooks/useAnaliseAtivosBlocoD';
 import { queryKeys } from '@/lib/queryKeys';
-import type { CenariosResposta, ComparadorResposta } from '@/types/analiseAtivosBlocoD';
+import type { CenariosResposta } from '@/types/analiseAtivosBlocoD';
+import type { ComparadorRespostaV2 } from '@/services/analiseAtivos/regras/comparador/indicadores';
 
-function comparador(ordem: string[]): ComparadorResposta {
+function comparador(ordem: string[]): ComparadorRespostaV2 {
   return {
     classe: 'acao',
+    janela: 5,
     tickers: ordem,
     ignorados: [],
     misto: false,
-    ativos: ordem.map((t) => ({ ticker: t }) as ComparadorResposta['ativos'][number]),
+    ativos: ordem.map((t) => ({ ticker: t }) as ComparadorRespostaV2['ativos'][number]),
+    criterios: { rotulos: {}, equivalencias: {} },
     grupos: [],
     graficos: {
       tipo: 'lucro',
@@ -37,11 +41,10 @@ function comparador(ordem: string[]): ComparadorResposta {
       escala: { min: 0, max: 100 },
       series: ordem.map((t) => ({ ticker: t, pontos: [], emConferencia: [], insuficiente: true })),
     },
-    resumo: {
-      indices: ordem.map((t) => ({ ticker: t, valor: 8, incompleto: false })),
-      criteriosAtendidos: ordem.map((t) => ({ ticker: t, atende: 4, total: 5 })),
-      emConferencia: [],
-      responsabilidade: 'x',
+    leitura: {
+      janela: 5,
+      contagens: ordem.map((t) => ({ ticker: t, n: 4, de: 6 })),
+      texto: 'x',
     },
     versao: 'v',
   };
@@ -77,7 +80,7 @@ describe('useAnaliseAtivosBlocoD', () => {
     expect(nomeDoContentDisposition('inline')).toBeNull();
   });
 
-  it('ordenarComparadorPelosSlots: ativos, séries e resumo na ordem dos slots', () => {
+  it('ordenarComparadorPelosSlots: ativos, séries e contagens da leitura na ordem dos slots', () => {
     const r = ordenarComparadorPelosSlots(comparador(['ITUB4', 'TAEE11', 'WEGE3']), [
       'WEGE3',
       'ITUB4',
@@ -86,8 +89,8 @@ describe('useAnaliseAtivosBlocoD', () => {
     expect(r.tickers).toEqual(['WEGE3', 'ITUB4', 'TAEE11']);
     expect(r.ativos.map((a) => a.ticker)).toEqual(['WEGE3', 'ITUB4', 'TAEE11']);
     expect(r.graficos?.series.map((s) => s.ticker)).toEqual(['WEGE3', 'ITUB4', 'TAEE11']);
-    expect(r.resumo.indices.map((s) => s.ticker)).toEqual(['WEGE3', 'ITUB4', 'TAEE11']);
-    expect(r.resumo.criteriosAtendidos.map((s) => s.ticker)).toEqual(['WEGE3', 'ITUB4', 'TAEE11']);
+    expect(r.leitura.contagens.map((s) => s.ticker)).toEqual(['WEGE3', 'ITUB4', 'TAEE11']);
+    expect(r).not.toHaveProperty('resumo');
   });
 
   it('useRaioX busca a rota do ticker com cookie', async () => {
@@ -114,8 +117,24 @@ describe('useAnaliseAtivosBlocoD', () => {
     expect(fetchMock.mock.calls[0][0]).toBe('/api/analise-ativos/comparador?t=WEGE3,ITUB4');
     expect(result.current.data?.ativos.map((a) => a.ticker)).toEqual(['WEGE3', 'ITUB4']);
     expect(
-      queryClient.getQueryData(queryKeys.analiseAtivos.comparador(['ITUB4', 'WEGE3'], 'WEGE3')),
+      queryClient.getQueryData(queryKeys.analiseAtivos.comparador(['ITUB4', 'WEGE3'], 'WEGE3', 5)),
     ).toBeDefined();
+  });
+
+  it('useComparador: janela fora do padrão vai na URL e na chave', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(mockFetchResponse(comparador(['WEGE3'])));
+    vi.stubGlobal('fetch', fetchMock);
+    const { result, queryClient } = renderHookWithClient(() =>
+      useComparador(['WEGE3'], { janela: 10 }),
+    );
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(fetchMock.mock.calls[0][0]).toBe('/api/analise-ativos/comparador?t=WEGE3&janela=10');
+    expect(
+      queryClient.getQueryData(queryKeys.analiseAtivos.comparador(['WEGE3'], 'WEGE3', 10)),
+    ).toBeDefined();
+    expect(urlApiComparador(['A3', 'B3'], 3)).toBe(
+      '/api/analise-ativos/comparador?t=A3,B3&janela=3',
+    );
   });
 
   it('useSalvarCenario: PUT com CSRF e grava o salvo no cache; erro vira ErroAnalise', async () => {

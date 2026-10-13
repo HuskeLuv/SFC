@@ -144,14 +144,17 @@ export function MiniGrafico({ serie, graficos }: MiniGraficoProps) {
   );
 }
 
-/** Grade de mini-gráficos (celular): 2 por linha, com o ticker em cima. */
+/**
+ * Cartão dos mini-gráficos (v2.4: abaixo da tabela, como no protótipo final): 2 por linha no
+ * celular, até 4 no computador, com o ticker em cima. Mesma escala em todos; linha numa cor só.
+ */
 export default function MiniGraficosComparador({ graficos }: { graficos: GraficosComparador }) {
   return (
     <figure className="m-0 overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03]">
       <div className="bg-[#396CAA] px-3 py-2 text-[13.5px] font-semibold text-white">
-        {graficos.tipo === 'lucro' ? TG.rotuloAcao : TG.rotuloFii}
+        {graficos.titulo} · {graficos.tipo === 'lucro' ? TG.rotuloAcao : TG.rotuloFii}
       </div>
-      <div className="grid grid-cols-2 gap-2 p-2.5">
+      <div className="grid grid-cols-2 gap-2 p-2.5 lg:grid-cols-4 lg:gap-4 lg:p-3.5">
         {graficos.series.map((s) => (
           <div key={s.ticker} className="flex min-w-0 flex-col gap-1">
             <span className="text-xs font-semibold text-gray-800 dark:text-white/90">

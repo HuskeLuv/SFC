@@ -1,72 +1,72 @@
 /**
- * Resumo numérico do Comparador (Bloco D, fatia C) — PURO e isomórfico. Decisão 9: SEM placar.
- *  (a) Índice MF NA ORDEM DOS SLOTS, '*' no incompleto (+ legenda);
- *  (b) critérios atendidos, também na ordem dos slots;
- *  (c) em conferência: ticker (critérios);
- *  (d) frase de responsabilidade.
- * Nada de ordenar por valor, contar ★ ou dizer "X tem o maior".
+ * "Leitura dos dados" do Comparador (v2.4, fatia D) — PURO e isomórfico.
+ *
+ * Só CONTAGENS factuais, na ORDEM DOS SLOTS ("WEGE3: 5 de 6 critérios em 5 anos · BBAS3: 2 de 3
+ * …"), sem ordenar por valor, sem somar, sem dizer quem tem mais, e o texto literal
+ * 'leitura-dos-dados' de TEXTOS_LITERAIS_OBRIGATORIOS (a tela o mostra com data-texto-legal).
+ * Ativo sem avaliação entra com n/de null ("sem avaliação").
  */
+import { LEITURA_DOS_DADOS } from '@/services/analiseAtivos/textosLiterais';
 import { TEXTOS_COMPARADOR } from '@/services/analiseAtivos/textosComparador';
-import { formatarTexto } from '@/services/analiseAtivos/textosTela';
+import { TEXTOS_CRITERIOS, formatarTexto } from '@/services/analiseAtivos/textosCriterios';
 import type { ResumoComparador } from '@/types/analiseAtivosBlocoD';
-import type { IndiceLinha } from '@/types/analiseAtivosApi';
+import type { CriteriosLinhaApi, Janela, LeituraDosDados } from '@/types/analiseAtivosCriterios';
 
-const TR = TEXTOS_COMPARADOR.resumo;
-
-export interface EntradaResumo {
+export interface EntradaLeitura {
   ticker: string;
-  indice: Pick<IndiceLinha, 'valor' | 'estado' | 'criteriosAtendidos' | 'criteriosAplicaveis'>;
-  /** rótulos dos critérios em conferência deste ativo (ordem da tabela) */
-  emConferencia: string[];
+  criterios: Pick<CriteriosLinhaApi, 'n' | 'de'> | null;
 }
 
-/** Monta o resumo na ordem recebida (= ordem dos slots). */
-export function montarResumo(ativos: readonly EntradaResumo[]): ResumoComparador {
+/** Monta a leitura na ordem recebida (= ordem dos slots). */
+export function montarLeitura(janela: Janela, ativos: readonly EntradaLeitura[]): LeituraDosDados {
   return {
-    indices: ativos.map((a) => ({
+    janela,
+    contagens: ativos.map((a) => ({
       ticker: a.ticker,
-      valor:
-        a.indice.estado === 'sem_score' || a.indice.estado === 'fora_do_indice'
-          ? null
-          : a.indice.valor,
-      incompleto: a.indice.estado === 'incompleto',
+      n: a.criterios ? a.criterios.n : null,
+      de: a.criterios ? a.criterios.de : null,
     })),
-    criteriosAtendidos: ativos.map((a) => ({
-      ticker: a.ticker,
-      atende: a.indice.criteriosAtendidos,
-      total: a.indice.criteriosAplicaveis,
-    })),
-    emConferencia: ativos
-      .filter((a) => a.emConferencia.length > 0)
-      .map((a) => ({ ticker: a.ticker, rotulos: [...new Set(a.emConferencia)] })),
-    responsabilidade: TR.responsabilidade,
+    texto: LEITURA_DOS_DADOS.texto,
   };
 }
 
-const umaCasa = (n: number) =>
-  n.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+/** Uma contagem ('WEGE3: 5 de 6 critérios em 5 anos' | 'HGLG11: sem avaliação'). */
+export function textoContagem(c: LeituraDosDados['contagens'][number], janela: Janela): string {
+  if (c.n === null || c.de === null) {
+    return `${c.ticker}: ${TEXTOS_CRITERIOS.contador.semAvaliacao}`;
+  }
+  return formatarTexto(TEXTOS_CRITERIOS.contador.porAtivo, {
+    ticker: c.ticker,
+    n: c.n,
+    total: c.de,
+    anos: janela,
+  });
+}
+
+/** Frase das contagens, na ordem dos slots, separadas por ' · '. */
+export function textoContagens(l: LeituraDosDados): string {
+  return l.contagens
+    .map((c) => textoContagem(c, l.janela))
+    .join(TEXTOS_COMPARADOR.leitura.separador);
+}
+
+// ---------------------------------------------------------------------------
+// Legado: só o ResumoNumerico.tsx (removido na fatia F) ainda chama. A tela não o usa mais.
+// ---------------------------------------------------------------------------
+
+const TR = TEXTOS_COMPARADOR.resumo;
 
 export interface TextosResumo {
+  /** vazio: o Comparador não mostra mais indicador composto */
   indice: string;
-  /** legenda do '*' (só com algum incompleto) */
   legendaIncompleto: string | null;
   criterios: string | null;
   emConferencia: string | null;
   responsabilidade: string;
 }
 
-/** Frases prontas do Resumo (a tela só as exibe). */
+/** @deprecated a tela usa a "Leitura dos dados"; some com o ResumoNumerico na fatia F. */
 export function textosResumo(r: ResumoComparador): TextosResumo {
-  const indices = r.indices
-    .map((i) =>
-      formatarTexto(TR.indiceItem, {
-        ticker: i.ticker,
-        valor: `${i.valor === null ? TEXTOS_COMPARADOR.celula.semDado : umaCasa(i.valor)}${
-          i.incompleto ? '*' : ''
-        }`,
-      }),
-    )
-    .join(' · ');
   const criterios = r.criteriosAtendidos
     .filter((c) => c.atende !== null && c.total !== null)
     .map((c) =>
@@ -83,10 +83,10 @@ export function textosResumo(r: ResumoComparador): TextosResumo {
     )
     .join(' · ');
   return {
-    indice: formatarTexto(TR.indice, { valor: indices }),
-    legendaIncompleto: r.indices.some((i) => i.incompleto) ? TR.legendaIncompleto : null,
+    indice: '',
+    legendaIncompleto: null,
     criterios: criterios ? formatarTexto(TR.criterios, { valor: criterios }) : null,
     emConferencia: conf ? formatarTexto(TR.emConferencia, { valor: conf }) : null,
-    responsabilidade: r.responsabilidade,
+    responsabilidade: TR.responsabilidade,
   };
 }

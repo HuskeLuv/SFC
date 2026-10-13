@@ -2,8 +2,8 @@
 
 /**
  * Aviso neutro do Comparador (fundo #EDF2F8, borda #396CAA, ícone + texto; escuro: patrimonio
- * diluído com borda tranquilidade). Usado no misto tijolo + papel, nos tickers ignorados do link e
- * nas linhas informativas (1 ativo, limite de 4).
+ * diluído com borda tranquilidade). Usado no misto tijolo + papel (v2.4: título + texto do
+ * protótipo final), nos tickers ignorados do link e nas linhas informativas (1 ativo, limite de 4).
  */
 import type { ReactNode } from 'react';
 import { TEXTOS_COMPARADOR } from '@/services/analiseAtivos/textosComparador';
@@ -46,6 +46,17 @@ export function LinhaInformativa({ children }: { children: ReactNode }) {
   );
 }
 
+/**
+ * Aviso do misto (tijolo + papel, detectado pelo perfil de critérios): os grupos de qualidade são
+ * diferentes; Obrigações/PL fica num grupo comum; o outro tipo aparece como 'n/a'.
+ */
 export default function AlertaMisto() {
-  return <AvisoComparador>{TEXTOS_COMPARADOR.misto}</AvisoComparador>;
+  return (
+    <AvisoComparador>
+      <b className="font-semibold text-gray-900 dark:text-white/90">
+        {TEXTOS_COMPARADOR.misto.titulo}
+      </b>{' '}
+      {TEXTOS_COMPARADOR.misto.texto}
+    </AvisoComparador>
+  );
 }

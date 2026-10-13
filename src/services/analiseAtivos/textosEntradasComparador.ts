@@ -1,10 +1,10 @@
 /**
  * Textos das entradas do Comparador (Bloco D, fatia D): pílulas Quadro | Comparador, modo
- * Comparar do Quadro (caixas + bandeja) e botão "Comparar" no cabeçalho do ativo. Esqueleto da
- * fatia 0; a fatia D pode ACRESCENTAR chaves. Passa pela varredura do Bloco D.
+ * Comparar do Quadro (caixas + bandeja) e botão "Comparar" no cabeçalho do ativo. Passa pela
+ * varredura linguagemV2 da v2.4 (textosComparador.test.ts, fatia D).
  *
- * Decisão 13: a bandeja e o botão do cabeçalho abrem o Comparador a partir de 1 ativo (com 1, o
- * Comparador diz "adicione mais um para ver destaques"); todo controle com 44px.
+ * A bandeja e o botão do cabeçalho abrem o Comparador a partir de 1 ativo (com 1, o Comparador diz
+ * "adicione mais um ativo para ver os dados lado a lado"); todo controle com 44px.
  */
 export const TEXTOS_ENTRADAS_COMPARADOR = {
   pilulas: {
