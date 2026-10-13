@@ -180,8 +180,6 @@ export const TEXTOS_TELA = {
     editarObjetivo: 'Editar objetivo',
   },
   naCarteira: {
-    voceNaoTem:
-      'Você não tem {ticker}. Planeje o ativo para ver na Carteira quanto falta para um objetivo, ou registre uma operação que já fez.',
     naAba: 'Na aba {aba}',
     planejadoEm: 'Planejado em {aba}, com objetivo de {objetivo}% da aba',
     valorPelaCarteira: 'Valor e % calculados pela Carteira com o fechamento de {data}',
