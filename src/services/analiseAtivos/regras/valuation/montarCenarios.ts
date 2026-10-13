@@ -187,6 +187,11 @@ function fmt(x: number | null | undefined, casas: number): string {
   return finito(x) ? formatarNumeroBR(x, casas) : '—';
 }
 
+/** Premissa no texto do método: em branco = '…' (v2.4: o usuário ainda não informou). */
+function fmtPremissa(x: number | null | undefined, casas: number): string {
+  return x === null || x === undefined ? '…' : fmt(x, casas);
+}
+
 function rotuloCurto(campo: keyof typeof T.rotulosCurtos): string {
   return T.rotulosCurtos[campo];
 }
@@ -307,7 +312,7 @@ function calcularAcao(e: EntradaMontarCenarios): Calculo[] {
       metodo: 'bazin',
       premissasTexto: formatarTexto(T.premissasTexto.bazin, {
         valor: fmt(dpa.valor, 2),
-        premissa: fmt(y.valor ?? e.premissas.yieldPct, 1),
+        premissa: fmtPremissa(y.valor ?? e.premissas.yieldPct, 1),
       }),
       bruto: mBazin ? null : bazin(dpa.valor, y.valor as number),
       motivo: mBazin,
@@ -329,7 +334,7 @@ function calcularAcao(e: EntradaMontarCenarios): Calculo[] {
     {
       metodo: 'multiplo',
       premissasTexto: formatarTexto(T.premissasTexto.multiplo, {
-        premissa: fmt(pl.valor ?? e.premissas.plAlvo, 1),
+        premissa: fmtPremissa(pl.valor ?? e.premissas.plAlvo, 1),
         valor: fmt(lpa.valor, 2),
       }),
       bruto: mMult ? null : multiploAlvo(pl.valor, lpa.valor),
@@ -340,8 +345,8 @@ function calcularAcao(e: EntradaMontarCenarios): Calculo[] {
       metodo: 'gordon',
       premissasTexto: formatarTexto(T.premissasTexto.gordon, {
         valor: fmt(dpa.valor, 2),
-        premissa: fmt(g.valor ?? e.premissas.gPct, 1),
-        n: fmt(k.valor ?? e.premissas.kPct, 1),
+        premissa: fmtPremissa(g.valor ?? e.premissas.gPct, 1),
+        n: fmtPremissa(k.valor ?? e.premissas.kPct, 1),
       }),
       bruto: mGordon ? null : gordon(dpa.valor, g.valor as number, k.valor as number),
       motivo: mGordon,
@@ -364,7 +369,7 @@ function calcularFii(e: EntradaMontarCenarios): Calculo[] {
       metodo: 'rendaDesejada',
       premissasTexto: formatarTexto(T.premissasTexto.rendaDesejada, {
         valor: fmt(rend.valor, 3),
-        premissa: fmt(y.valor ?? e.premissas.yieldPct, 1),
+        premissa: fmtPremissa(y.valor ?? e.premissas.yieldPct, 1),
       }),
       bruto: mRenda ? null : rendaDesejada(rend.valor, y.valor as number),
       motivo: mRenda,
@@ -373,7 +378,7 @@ function calcularFii(e: EntradaMontarCenarios): Calculo[] {
     {
       metodo: 'pvpAlvo',
       premissasTexto: formatarTexto(T.premissasTexto.pvpAlvo, {
-        premissa: fmt(pvp.valor ?? e.premissas.pvpAlvo, 2),
+        premissa: fmtPremissa(pvp.valor ?? e.premissas.pvpAlvo, 2),
         valor: fmt(vp.valor, 2),
       }),
       bruto: mPvp ? null : pvpAlvo(pvp.valor, vp.valor),

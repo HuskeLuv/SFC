@@ -167,7 +167,7 @@ describe('BlocoFundamentosEssencial', () => {
     expect(container.querySelector('[data-explicacao-coluna="margem"]')).not.toBeNull();
     expect(container.querySelector('[data-explicacao-coluna="receita"]')).toBeNull();
     expect(container.querySelector('[data-nota-coluna="lucro"]')?.textContent).toBe(
-      `ⓘ Lucro líq.: ${TEXTOS_ATIVO.essencial.tooltips.lucro}`,
+      `Lucro líq.: ${TEXTOS_ATIVO.essencial.tooltips.lucro}`,
     );
     expect(screen.getByText(TEXTOS_ATIVO.essencial.notaEssencial)).toBeTruthy();
   });

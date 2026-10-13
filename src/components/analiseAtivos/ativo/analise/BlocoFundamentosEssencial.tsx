@@ -291,7 +291,7 @@ export default function BlocoFundamentosEssencial({
               const explicacao = explicacaoDaColuna(dados.variante, c.codigo);
               return explicacao ? (
                 <li key={`ⓘ-${c.codigo}`} data-nota-coluna={c.codigo}>
-                  ⓘ {rotuloLimpo(c.rotulo)}: {explicacao}
+                  {rotuloLimpo(c.rotulo)}: {explicacao}
                 </li>
               ) : null;
             })}
