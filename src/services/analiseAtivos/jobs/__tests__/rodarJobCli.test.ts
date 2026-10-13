@@ -29,6 +29,8 @@ describe('catálogo de jobs', () => {
     expect(Object.keys(CATALOGO_JOBS).sort()).toEqual([...NOMES_JOBS].sort());
     for (const [k, d] of Object.entries(CATALOGO_JOBS)) expect(d.nome).toBe(k);
     expect(CATALOGO_JOBS.scores.pesado).toBe(true);
+    // v2.4: o job 'criterios' passa de 250 MB no runner (265 MB no DEV)
+    expect(CATALOGO_JOBS.criterios).toMatchObject({ pesado: true, prazoMs: 240_000 });
     expect(() => definicaoJob('xpto')).toThrow(/job desconhecido/);
   });
 
@@ -46,6 +48,18 @@ describe('runner rodar-job', () => {
     expect(() => lerArgsRodarJob([])).toThrow(/uso/);
     expect(() => lerArgsRodarJob(['nada'])).toThrow(/job desconhecido/);
     expect(() => lerArgsRodarJob(['scores', '--prazo-s=0'])).toThrow(/prazo/);
+    expect(lerArgsRodarJob(['criterios']).aplicar).toBe(true);
+    expect(lerArgsRodarJob(['criterios', '--sem-aplicar']).aplicar).toBe(false);
+  });
+
+  it('--sem-aplicar passa aplicar=false ao wrapper (dry-run do job, sem gravar)', async () => {
+    const executar = vi.fn().mockResolvedValue(relatorio('ok'));
+    await rodarJobCli(['criterios', '--sem-aplicar'], executar);
+    expect(executar).toHaveBeenCalledWith('criterios', expect.any(Function), {
+      prazoMs: 240_000,
+      origem: 'cron',
+      aplicar: false,
+    });
   });
 
   it('roda pelo mesmo wrapper do cron (origem cron, parâmetros do catálogo) e mapeia a saída', async () => {
