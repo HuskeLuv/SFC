@@ -588,16 +588,30 @@ describe('ModalPlanejar — caso 33 na base da aba', () => {
     );
   });
 
-  it('ativo sem posição nem plano: POST /api/carteira/planejados com tipoAtivo e objetivo', async () => {
+  it('ativo sem posição nem plano: escolhe a seção e POST /api/carteira/planejados com ela', async () => {
     comCliente(<ModalPlanejar {...props} ticker="PETR4" assetId="a-petr" />);
     await screen.findByText('não está na carteira');
     fireEvent.change(screen.getByLabelText('Peso-alvo dentro de Ações'), {
       target: { value: '5' },
     });
+    // sem seção escolhida não grava (a rota gravaria a 1ª seção da aba, 'value', em silêncio)
+    const secao = screen.getByLabelText('Seção na Carteira') as HTMLSelectElement;
+    expect(secao.value).toBe('');
+    fireEvent.click(screen.getByRole('button', { name: 'Salvar no Planejamento' }));
+    expect(
+      await screen.findByText('Escolha a seção da Carteira em que o ativo vai entrar.'),
+    ).toBeInTheDocument();
+    expect(mocks.csrfFetch).not.toHaveBeenCalled();
+    fireEvent.change(secao, { target: { value: 'growth' } });
     fireEvent.click(screen.getByRole('button', { name: 'Salvar no Planejamento' }));
     await waitFor(() => expect(mocks.csrfFetch).toHaveBeenCalled());
     expect(ultimaUrl()).toBe('/api/carteira/planejados');
-    expect(ultimoCorpo()).toEqual({ assetId: 'a-petr', tipoAtivo: 'acao', objetivo: 5 });
+    expect(ultimoCorpo()).toEqual({
+      assetId: 'a-petr',
+      tipoAtivo: 'acao',
+      objetivo: 5,
+      secao: 'growth',
+    });
   });
 
   it('planejado: PATCH; fora de 0–100 mostra o erro e não grava', async () => {

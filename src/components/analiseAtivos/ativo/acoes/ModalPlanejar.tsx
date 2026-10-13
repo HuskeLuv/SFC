@@ -23,12 +23,14 @@ import { useAtivoTopo } from '@/hooks/useAnaliseAtivos';
 import { useMutacoesCarteiraAnalise, type AlvoPlano } from '@/hooks/useAcoesCarteiraAnalise';
 import { desvioAlvo } from '@/services/analiseAtivos/regras/carteira/desvioAlvo';
 import {
+  SECOES_OPERACAO,
   secaoOperacao,
   tipoCvmDoTopo,
 } from '@/services/analiseAtivos/regras/carteira/secaoOperacao';
 import { formatarTexto } from '@/services/analiseAtivos/textos';
 import {
   CLASSE_CARTEIRA,
+  ROTULOS_SECAO,
   TEXTOS_ACOES_CARTEIRA,
 } from '@/services/analiseAtivos/textosAcoesCarteira';
 import { formatNumber } from '@/utils/format';
@@ -37,6 +39,7 @@ import type { ModalPlanejarProps } from '@/types/analiseAtivosCriterios';
 export type { ModalPlanejarProps };
 
 const T = TEXTOS_ACOES_CARTEIRA.planejar;
+const R = TEXTOS_ACOES_CARTEIRA.registrar;
 const MENOS = '−';
 
 /** '25,0%' (1 casa). */
@@ -77,9 +80,11 @@ export default function ModalPlanejar({
   const topo = useAtivoTopo(t, { enabled: aberto && classe === 'fii' });
   const { salvarPlano } = useMutacoesCarteiraAnalise();
   const campoId = useId();
+  const secaoId = useId();
   const resumoId = useId();
   const [texto, setTexto] = useState('');
   const [erro, setErro] = useState<string | null>(null);
+  const [secaoEscolhida, setSecaoEscolhida] = useState('');
 
   const alvoAtual = dados.objetivoPct;
   const temPlano = alvoAtual !== null;
@@ -115,6 +120,28 @@ export default function ModalPlanejar({
     [dados.valorBaseAba, valorPosicao, valor, cotacao],
   );
 
+  // Ativo novo (sem posição e sem plano): a seção é ESCOLHIDA aqui (sugestão da CVM no FII), nunca
+  // a 1ª seção da aba que a rota de planejados grava quando o corpo vem sem `secao` — senão a 1ª
+  // compra trataria esse padrão como "seção do plano" (rec. 2; QA 13/10).
+  const novo = dados.status === 'nada' && !!assetId;
+  const aguardandoTipo = novo && classe === 'fii' && topo.isLoading;
+  const secaoSugerida = novo
+    ? secaoOperacao({
+        classe,
+        posicao: null,
+        planejado: null,
+        tipoCvm: topo.data ? tipoCvmDoTopo(topo.data) : null,
+      })
+    : null;
+  const secaoEditadaRef = useRef(false);
+  useEffect(() => {
+    if (!aberto) {
+      secaoEditadaRef.current = false;
+      return;
+    }
+    if (!secaoEditadaRef.current) setSecaoEscolhida(secaoSugerida?.valor ?? '');
+  }, [aberto, secaoSugerida?.valor]);
+
   const alvo: AlvoPlano | null =
     dados.status === 'posicao' && dados.portfolioId && dados.categoria
       ? { tipo: 'posicao', portfolioId: dados.portfolioId, categoria: dados.categoria }
@@ -125,12 +152,7 @@ export default function ModalPlanejar({
               tipo: 'novo',
               assetId,
               classe,
-              secao: secaoOperacao({
-                classe,
-                posicao: null,
-                planejado: null,
-                tipoCvm: topo.data ? tipoCvmDoTopo(topo.data) : null,
-              }).valor,
+              secao: secaoEscolhida || null,
             }
           : null;
 
@@ -153,9 +175,15 @@ export default function ModalPlanejar({
   };
 
   const salvar = () => {
+    if (aguardandoTipo) return;
     if (valor === null || valor < 0 || valor > 100) {
       setErro(T.erroFaixa);
       document.getElementById(campoId)?.focus();
+      return;
+    }
+    if (novo && !secaoEscolhida) {
+      setErro(R.erros.sem_secao);
+      document.getElementById(secaoId)?.focus();
       return;
     }
     void gravar(Math.round(valor * 100) / 100);
@@ -203,7 +231,7 @@ export default function ModalPlanejar({
       <button
         type="button"
         className={BOTAO_MODAL_PRIMARIO}
-        disabled={!alvo || salvarPlano.isPending}
+        disabled={!alvo || salvarPlano.isPending || aguardandoTipo}
         onClick={salvar}
         data-salvar-plano=""
       >
@@ -249,6 +277,33 @@ export default function ModalPlanejar({
             <em className="text-[13px] not-italic text-gray-500 dark:text-gray-400">%</em>
           </span>
         </div>
+        {novo && secaoSugerida ? (
+          <div className={LINHA_FORM}>
+            <label htmlFor={secaoId}>
+              {secaoSugerida.origem === 'sugestao_cvm' ? R.secaoCvm : R.secao}
+            </label>
+            <select
+              id={secaoId}
+              value={secaoEscolhida}
+              disabled={aguardandoTipo}
+              onChange={(e) => {
+                secaoEditadaRef.current = true;
+                setSecaoEscolhida(e.target.value);
+                if (erro === R.erros.sem_secao) setErro(null);
+              }}
+              aria-invalid={erro === R.erros.sem_secao}
+              data-secao-plano=""
+              className={`min-h-12 w-[170px] rounded-lg border border-gray-300 bg-gray-50 px-2.5 text-base text-gray-800 lg:min-h-11 lg:text-sm dark:border-gray-700 dark:bg-gray-900 dark:text-white/90 ${FOCO_MODAL}`}
+            >
+              {secaoEscolhida ? null : <option value="">{R.escolha}</option>}
+              {SECOES_OPERACAO[classe].map((o) => (
+                <option key={o} value={o}>
+                  {ROTULOS_SECAO[o] ?? o}
+                </option>
+              ))}
+            </select>
+          </div>
+        ) : null}
         <div className={LINHA_FORM}>
           <span>{T.classe}</span>
           <span className="text-right text-[13px]">{carregando ? '…' : classeLinha}</span>

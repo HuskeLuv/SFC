@@ -146,6 +146,8 @@ test.describe('grava e desfaz', () => {
       const modal = page.getByRole('dialog');
       await expect(modal).toContainText('Planejar na carteira · ITUB4');
       await modal.getByLabel('Peso-alvo dentro de Ações').fill('5');
+      // ativo novo: a seção é escolhida no plano (a 1ª compra a usa como "seção do plano")
+      await modal.getByLabel('Seção na Carteira').selectOption('value');
       const post = page.waitForResponse(
         (r) => r.url().endsWith('/api/carteira/planejados') && r.request().method() === 'POST',
       );
