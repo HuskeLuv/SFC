@@ -281,7 +281,8 @@ export const DIRECAO_PADRAO: Record<OrdemQuadro, DirecaoOrdem> = {
   cotistas: 'desc',
 };
 
-export const ORDEM_PADRAO: OrdemQuadro = 'indiceMf';
+/** v2.4: ordem padrão A–Z (o indicador antigo saiu da superfície; a ordem nunca sugere preferência). */
+export const ORDEM_PADRAO: Exclude<OrdemQuadro, 'indiceMf'> = 'ticker';
 export const PAGINA_QUADRO = 25;
 
 /** Card Educação: aponta para a página do curso até existirem módulos específicos (decisão 12). */

@@ -33,6 +33,9 @@ import {
   aplicarConferenciaCampo,
   conferenciaConf,
 } from '@/services/analiseAtivos/leitura/ativo/conferenciasAtivo';
+import { obterCriteriaParams } from '@/services/analiseAtivos/params/obterCriteriaParams';
+import { CRITERIA_PARAMS_V1 } from '@/services/analiseAtivos/params/criteriaParamsV1';
+import type { CriteriaParams } from '@/services/analiseAtivos/params/criteriaParamsSchema';
 import { projetarCriteriosCompactos } from '@/services/analiseAtivos/leitura/criterios/lerCriterios';
 import { TEXTOS_TELA, motivoTela, textoNaoSeAplica } from '@/services/analiseAtivos/textosTela';
 import type {
@@ -115,6 +118,39 @@ async function carregar(): Promise<CacheLinhas> {
       });
   }
   return cargaEmVoo;
+}
+
+// ---------------------------------------------------------------------------
+// Params dos critérios (chips e equivalências do Quadro)
+// ---------------------------------------------------------------------------
+
+/** Params dos critérios em memória (o seed/admin grava raramente): TTL de 10 min. */
+export const TTL_CRITERIA_PARAMS_MS = 10 * 60 * 1000;
+let paramsMemo: { params: CriteriaParams; lidoEm: number } | null = null;
+
+/** Só para testes. */
+export function _resetarParamsQuadro(): void {
+  paramsMemo = null;
+}
+
+/**
+ * CriteriaParams ativo. Sem versão no banco (seed ainda não rodou) cai no v1 do código, para o
+ * Quadro não quebrar: os chips são os mesmos e o filtro só acha quem o job já avaliou.
+ */
+export async function obterCriteriaParamsQuadro(agora = Date.now()): Promise<CriteriaParams> {
+  if (paramsMemo && agora - paramsMemo.lidoEm < TTL_CRITERIA_PARAMS_MS) return paramsMemo.params;
+  let params: CriteriaParams;
+  try {
+    params = (await obterCriteriaParams(prisma)).params;
+  } catch (error: unknown) {
+    console.warn(
+      '[analise-ativos/linhasQuadro] criteria_params indisponível, usando v1 do código:',
+      error instanceof Error ? error.message : error,
+    );
+    params = CRITERIA_PARAMS_V1;
+  }
+  paramsMemo = { params, lidoEm: agora };
+  return params;
 }
 
 export interface OpcoesLinhasQuadro {

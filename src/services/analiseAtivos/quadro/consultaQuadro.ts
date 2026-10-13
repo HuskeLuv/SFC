@@ -1,22 +1,26 @@
 /**
- * Consulta do Quadro (Fase 1) — PURA, sobre as linhas já convertidas (LinhaQuadroApi) do Quadro
- * (noQuadro=true). Sem banco: a rota passa as linhas do leitor em memória e o conjunto "Na minha
- * carteira".
+ * Consulta do Quadro (v2.4, Filtros de Fundamentos) — PURA, sobre as linhas já convertidas
+ * (LinhaQuadroApi, com os critérios projetados na janela pedida) do Quadro (noQuadro=true). Sem
+ * banco: a rota passa as linhas do leitor em memória, os params dos critérios e o conjunto "Na minha
+ * carteira" (rec. 8: filtro e ordem no servidor).
  *
- * - Filtros combinam (AND): lucroConsistente (5+ anos seguidos), dyMin, pvpMax, tipo (FII), setor
- *   (ação: setor B3) / segmento (FII: segmento CVM), naCarteira, somenteCompletos (tira incompleto,
- *   sem Índice e fora do Índice; zero pela regra é completo).
- * - Ordem por whitelist; nulos, 'n/a', 'sem Índice' e 'fora do Índice' SEMPRE no fim, nas duas
- *   direções; desempate pelo ticker (página estável).
- * - Facetas e contagens das abas saem do universo da classe, antes dos filtros.
+ * - Critérios combinam com E lógico na janela: a linha só passa se ATENDE a cada critério ligado.
+ *   'nao_atende', 'sem_dado' (conta como não atende) e 'nao_se_aplica' nunca passam; linha sem
+ *   avaliação (criterios null) também não. Em FII o chip é o PAR tijolo/papel (equivalências
+ *   vac↔inad, alav↔ltv): vale a marca do id do chip OU a do equivalente.
+ * - Demais filtros (E): naCarteira, setor (ação: setor B3) / segmento (FII: segmento CVM).
+ * - Ordem padrão A–Z (ticker). Ordens por coluna por whitelist; nulos e 'n/a' SEMPRE no fim, nas
+ *   duas direções; desempate pelo ticker (página estável). 'criterios' = contagem atendida na janela.
+ * - Facetas, contagens das abas e totalClasse saem do universo da classe, antes dos filtros.
+ * - definicoes: chips da barra (de criteria_params), na ordem do perfil.
  */
 import { pregoesEntre } from '@/services/analiseAtivos/regras/comum/pregoes';
-import {
-  DIRECAO_PADRAO,
-  LIMIARES_FILTRO,
-  ORDEM_PADRAO,
-  PAGINA_QUADRO,
-} from '@/constants/analiseAtivosVisual';
+import { TEXTOS_CRITERIOS } from '@/services/analiseAtivos/textosCriterios';
+import { DIRECAO_PADRAO, ORDEM_PADRAO, PAGINA_QUADRO } from '@/constants/analiseAtivosVisual';
+import type {
+  CriteriaParams,
+  DefCriterio,
+} from '@/services/analiseAtivos/params/criteriaParamsSchema';
 import type {
   ClasseQuadro,
   DirecaoOrdem,
@@ -28,6 +32,12 @@ import type {
   QuadroParams,
   QuadroResposta,
 } from '@/types/analiseAtivosApi';
+import {
+  JANELA_PADRAO,
+  ehIdCriterio,
+  type DefCriterioChip,
+  type IdCriterio,
+} from '@/types/analiseAtivosCriterios';
 
 export const LIMITE_MAXIMO = 100;
 /** Cotação com mais pregões de atraso que isto = 'atrasado' (mesmo limite do painel de frescor). */
@@ -35,18 +45,17 @@ export const PREGOES_ATRASO_COTACAO = 2;
 
 const valorOk = (e: Estado<number>): number | null => (e.estado === 'ok' ? e.valor : null);
 
+/** Ordens aceitas pela v2.4 (o indicador antigo saiu da superfície). */
+export type OrdemQuadroV2 = Exclude<OrdemQuadro, 'indiceMf'>;
+
 /** Valor de ordenação de cada coluna; null = vai para o fim. */
 export const VALOR_ORDEM: Record<
-  Exclude<OrdemQuadro, 'ticker'>,
+  Exclude<OrdemQuadroV2, 'ticker'>,
   (l: LinhaQuadroApi) => number | null
 > = {
-  indiceMf: (l) =>
-    !l.indice || l.indice.estado === 'sem_score' || l.indice.estado === 'fora_do_indice'
-      ? null
-      : l.indice.valor,
-  // v2.4 (contrato da fatia 0; a fatia B refina): nº de critérios atendidos na janela projetada
+  // contagem de critérios atendidos na janela projetada (fato, não nota); sem avaliação = fim
   criterios: (l) => l.criterios?.n ?? null,
-  // v2.4: Lucro 10 anos = anos com lucro (resultado) positivo na série de 10 anos fechados
+  // Lucro (ou Rendimento) 10 anos = anos com valor positivo na série de 10 anos fechados
   lucro10: (l) =>
     l.serie10a.length === 0 ? null : l.serie10a.filter((p) => (p.valor ?? 0) > 0).length,
   preco: (l) => valorOk(l.preco),
@@ -70,12 +79,14 @@ export const VALOR_ORDEM: Record<
 const finito = (v: number | null | undefined): v is number =>
   typeof v === 'number' && Number.isFinite(v);
 
+const porTicker = (a: LinhaQuadroApi, b: LinhaQuadroApi) => a.ticker.localeCompare(b.ticker);
+
 export function compararLinhas(
   ordem: OrdemQuadro,
   dir: DirecaoOrdem,
 ): (a: LinhaQuadroApi, b: LinhaQuadroApi) => number {
   const m = dir === 'desc' ? -1 : 1;
-  if (ordem === 'ticker') return (a, b) => m * a.ticker.localeCompare(b.ticker);
+  if (ordem === 'ticker' || ordem === 'indiceMf') return (a, b) => m * porTicker(a, b);
   const valor = VALOR_ORDEM[ordem];
   return (a, b) => {
     const va = valor(a);
@@ -84,41 +95,96 @@ export function compararLinhas(
     const tb = finito(vb);
     if (ta && tb && va !== vb) return m * (va - vb);
     if (ta !== tb) return ta ? -1 : 1; // nulos no fim nas duas direções
-    return a.ticker.localeCompare(b.ticker);
+    return porTicker(a, b);
   };
 }
 
-/** Índice completo: calculado ou zero pela regra (o zero não é falta de dado). */
-export function ehCompleta(l: LinhaQuadroApi): boolean {
-  return l.indice?.estado === 'calculado' || l.indice?.estado === 'zero_regra';
+/** Ids da query (?criterios=rec,luc) sem repetição; ids desconhecidos são descartados. */
+export function idsDaQuery(criterios: string | undefined | null): IdCriterio[] {
+  if (!criterios) return [];
+  const ids = criterios
+    .split(',')
+    .map((c) => c.trim())
+    .filter(ehIdCriterio);
+  return [...new Set(ids)];
 }
 
-export type FiltrosConsulta = Omit<QuadroParams, 'classe' | 'ordem' | 'dir' | 'offset' | 'limite'>;
+/** Equivalências tijolo → papel (chip de FII). */
+export type Equivalencias = Partial<Record<IdCriterio, IdCriterio>>;
+
+/**
+ * A linha ATENDE ao critério `id` na janela projetada? Só 'atende' passa. Em FII vale a marca do
+ * id do chip ou a do equivalente de papel (um fundo tem só uma das duas).
+ */
+export function atendeCriterio(
+  l: LinhaQuadroApi,
+  id: IdCriterio,
+  equivalencias: Equivalencias = {},
+): boolean {
+  const marcas = l.criterios?.marcas;
+  if (!marcas) return false;
+  const par = l.classe === 'fii' ? equivalencias[id] : undefined;
+  const m = marcas.find((x) => x.id === id) ?? (par ? marcas.find((x) => x.id === par) : undefined);
+  return m?.estado === 'atende';
+}
+
+export interface FiltrosConsulta {
+  /** ids ligados (E lógico) */
+  criterios?: readonly IdCriterio[];
+  naCarteira?: boolean;
+  setor?: string;
+  segmento?: string;
+}
 
 export function filtrarLinhas(
   linhas: readonly LinhaQuadroApi[],
   f: FiltrosConsulta,
   naCarteira?: ReadonlySet<string>,
+  equivalencias: Equivalencias = {},
 ): LinhaQuadroApi[] {
+  const ids = f.criterios ?? [];
   return linhas.filter((l) => {
-    if (f.lucroConsistente && !((l.anosLucroConsecutivos ?? 0) >= LIMIARES_FILTRO.lucroAnos)) {
-      return false;
-    }
-    if (f.dyMin !== undefined) {
-      const dy = valorOk(l.dy12m);
-      if (dy === null || dy < f.dyMin) return false;
-    }
-    if (f.pvpMax !== undefined) {
-      const pvp = valorOk(l.pvp);
-      if (pvp === null || pvp > f.pvpMax) return false;
-    }
-    if (f.tipo && l.fiiTipo !== f.tipo) return false;
+    for (const id of ids) if (!atendeCriterio(l, id, equivalencias)) return false;
     if (f.setor && l.setor !== f.setor) return false;
     if (f.segmento && l.segmentoCvm !== f.segmento) return false;
     if (f.naCarteira && !(naCarteira?.has(l.ticker) ?? false)) return false;
-    if (f.somenteCompletos && !ehCompleta(l)) return false;
     return true;
   });
+}
+
+// ---------------------------------------------------------------------------
+// Definições dos chips (criteria_params)
+// ---------------------------------------------------------------------------
+
+function chipDe(c: DefCriterio, par: DefCriterio | null): DefCriterioChip {
+  // desabilitado só quando o critério do chip é inativo (D3: vacância/inadimplência); o par
+  // Obrigações/PL ↔ LTV fica habilitado (o tooltip explica que papel fica de fora)
+  const inativo = c.ativo === false;
+  return {
+    id: c.id,
+    rotulo: c.rotulo,
+    definicao: c.definicao,
+    equivalente: par ? { id: par.id, rotulo: par.rotulo, definicao: par.definicao } : null,
+    habilitado: !inativo,
+    motivoDesabilitado: inativo ? TEXTOS_CRITERIOS.chips.tooltipDesabilitado : null,
+    seloSemDado: inativo,
+  };
+}
+
+/** Chips da barra de filtros da classe (FII = pares tijolo/papel pelas equivalências). */
+export function definicoesQuadro(classe: ClasseQuadro, p: CriteriaParams): DefCriterioChip[] {
+  if (classe === 'acao') return p.perfis.acao.map((c) => chipDe(c, null));
+  const eq = p.equivalencias as Equivalencias;
+  return p.perfis.fii_tijolo.map((c) => {
+    const idPar = eq[c.id];
+    const par = idPar ? (p.perfis.fii_papel.find((x) => x.id === idPar) ?? null) : null;
+    return chipDe(c, par);
+  });
+}
+
+/** Ids que a rota aceita em ?criterios= para a classe: só chips habilitados. */
+export function idsFiltraveis(definicoes: readonly DefCriterioChip[]): Set<IdCriterio> {
+  return new Set(definicoes.filter((d) => d.habilitado).map((d) => d.id));
 }
 
 const ordenarPt = (xs: Iterable<string>) =>
@@ -154,22 +220,39 @@ export function frescorCotacao(linhas: readonly LinhaQuadroApi[], hoje: string):
 
 export interface EntradaConsulta {
   params: QuadroParams;
-  /** linhas do Quadro (noQuadro=true) das DUAS classes */
+  /** linhas do Quadro (noQuadro=true) das DUAS classes, com os critérios na janela pedida */
   linhas: readonly LinhaQuadroApi[];
   naCarteira?: ReadonlySet<string>;
   versao: string;
   dataRef: string | null;
   hoje: string;
+  /** params dos critérios (chips e equivalências); sem eles, sem chips e sem filtro de critério */
+  criteriaParams?: CriteriaParams;
 }
 
 export function consultarQuadro(e: EntradaConsulta): QuadroResposta {
   const { params } = e;
   const daClasse = e.linhas.filter((l) => l.classe === params.classe && l.noQuadro);
-  const ordem = params.ordem ?? ORDEM_PADRAO;
+  const ordem = params.ordem && params.ordem !== 'indiceMf' ? params.ordem : ORDEM_PADRAO;
   const dir = params.dir ?? DIRECAO_PADRAO[ordem];
   const limite = Math.min(Math.max(params.limite ?? PAGINA_QUADRO, 1), LIMITE_MAXIMO);
   const offset = Math.max(params.offset ?? 0, 0);
-  const filtradas = filtrarLinhas(daClasse, params, e.naCarteira).sort(compararLinhas(ordem, dir));
+  const janela = params.janela ?? JANELA_PADRAO;
+  const definicoes = e.criteriaParams ? definicoesQuadro(params.classe, e.criteriaParams) : [];
+  const permitidos = idsFiltraveis(definicoes);
+  const criterios = idsDaQuery(params.criterios).filter((id) => permitidos.has(id));
+  const equivalencias = (e.criteriaParams?.equivalencias ?? {}) as Equivalencias;
+  const filtradas = filtrarLinhas(
+    daClasse,
+    {
+      criterios,
+      naCarteira: params.naCarteira,
+      setor: params.setor,
+      segmento: params.segmento,
+    },
+    e.naCarteira,
+    equivalencias,
+  ).sort(compararLinhas(ordem, dir));
   return {
     classe: params.classe,
     dataRef: e.dataRef,
@@ -184,5 +267,8 @@ export function consultarQuadro(e: EntradaConsulta): QuadroResposta {
     facetas: facetasDe(params.classe, daClasse),
     frescorCotacao: frescorCotacao(daClasse, e.hoje),
     itens: filtradas.slice(offset, offset + limite),
+    janela,
+    totalClasse: daClasse.length,
+    definicoes,
   };
 }
