@@ -20,40 +20,42 @@ import type {
 import type { BrutoFii } from '@/services/analiseAtivos/regras/criterios/seriesFii';
 import type { AlertaJob, JobContexto } from '@/services/analiseAtivos/tipos';
 
-/** Prisma fake: só criteria_eval em memória, com $transaction em lote (tudo ou nada). */
+/**
+ * Prisma fake: só criteria_eval em memória, com $transaction INTERATIVA (tudo ou nada: o callback
+ * trabalha numa cópia e ela só vira a tabela se o callback terminar).
+ */
 function prismaFake(falharCreate = false) {
   const tabela = new Map<string, LinhaCriteriaEval>();
   const chave = (l: LinhaCriteriaEval) => `${l.symbol}|${l.janela}`;
-  const criteriaEval = {
-    deleteMany: vi.fn(() => ({ tipo: 'delete' as const })),
-    createMany: vi.fn(({ data }: { data: LinhaCriteriaEval[] }) => ({
-      tipo: 'create' as const,
-      data,
-    })),
-  };
+  const opcoes: unknown[] = [];
   const $transaction = vi.fn(
-    async (lote: Array<{ tipo: 'delete' } | { tipo: 'create'; data: LinhaCriteriaEval[] }>) => {
+    async (fn: (tx: unknown) => Promise<number>, opts?: { timeout?: number; maxWait?: number }) => {
+      opcoes.push(opts);
       const copia = new Map(tabela);
-      const out: Array<{ count: number }> = [];
-      for (const op of lote) {
-        if (op.tipo === 'delete') {
-          out.push({ count: copia.size });
-          copia.clear();
-        } else {
-          if (falharCreate) throw new Error('falha no meio da transação');
-          for (const l of op.data) {
-            if (copia.has(chave(l))) throw new Error(`unique (symbol, janela): ${chave(l)}`);
-            copia.set(chave(l), l);
-          }
-          out.push({ count: op.data.length });
-        }
-      }
+      const tx = {
+        criteriaEval: {
+          deleteMany: vi.fn(async () => {
+            const count = copia.size;
+            copia.clear();
+            return { count };
+          }),
+          createMany: vi.fn(async ({ data }: { data: LinhaCriteriaEval[] }) => {
+            if (falharCreate) throw new Error('falha no meio da transação');
+            for (const l of data) {
+              if (copia.has(chave(l))) throw new Error(`unique (symbol, janela): ${chave(l)}`);
+              copia.set(chave(l), l);
+            }
+            return { count: data.length };
+          }),
+        },
+      };
+      const r = await fn(tx);
       tabela.clear();
       for (const [k, v] of copia) tabela.set(k, v);
-      return out;
+      return r;
     },
   );
-  return { prisma: { criteriaEval, $transaction } as unknown as PrismaClient, tabela };
+  return { prisma: { $transaction } as unknown as PrismaClient, tabela, opcoes };
 }
 
 function ctxCom(prisma: PrismaClient, opts: { aplicar?: boolean; estourou?: boolean } = {}) {
@@ -188,12 +190,14 @@ describe('executarCriterios', () => {
   });
 
   it('idempotente: rodar 2× deixa o mesmo conjunto (deleteMany + createMany na transação)', async () => {
-    const { prisma, tabela } = prismaFake();
+    const { prisma, tabela, opcoes } = prismaFake();
     await executarCriterios(ctxCom(prisma).ctx, deps());
     const primeira = [...tabela.keys()].sort();
     await executarCriterios(ctxCom(prisma).ctx, deps());
     expect([...tabela.keys()].sort()).toEqual(primeira);
     expect(tabela.size).toBe(12);
+    // transação interativa com prazo maior que o padrão de 5 s do Prisma
+    expect(opcoes[0]).toMatchObject({ timeout: 120_000 });
   });
 
   it('falha no meio da gravação não deixa a tabela pela metade', async () => {

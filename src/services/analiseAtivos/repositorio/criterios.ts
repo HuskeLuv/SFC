@@ -21,8 +21,8 @@ import {
   type ResultadoCriterio,
 } from '@/types/analiseAtivosCriterios';
 
-/** Linhas por createMany (a resposta de cada linha tem ~2 KB de JSON). */
-export const LOTE_GRAVACAO = 500;
+/** Linhas por createMany (cada linha leva ~1–2 KB de JSON em `resultados`). */
+export const LOTE_GRAVACAO = 200;
 
 export interface AvaliacaoGravar {
   symbol: string;
@@ -51,20 +51,30 @@ export function linhasCriteriaEval(a: AvaliacaoGravar, computedAt: Date): LinhaC
   }));
 }
 
-/** Troca TODAS as linhas de criteria_eval numa transação. Devolve quantas gravou. */
+/** Prazo da transação de gravação (Neon: ~15 lotes; o padrão de 5 s do Prisma não basta). */
+export const PRAZO_TRANSACAO_MS = 120_000;
+
+/**
+ * Troca TODAS as linhas de criteria_eval numa transação INTERATIVA (deleteMany + createMany em
+ * lotes, um de cada vez): a transação em lote mandava os ~2.900 JSONs de uma vez e o pico de RSS
+ * do processo passava de 380 MB no DEV. Tudo ou nada; devolve quantas gravou.
+ */
 export async function gravarCriteriaEval(
-  prisma: Pick<PrismaClient, '$transaction' | 'criteriaEval'>,
+  prisma: Pick<PrismaClient, '$transaction'>,
   linhas: LinhaCriteriaEval[],
 ): Promise<number> {
-  const lotes: LinhaCriteriaEval[][] = [];
-  for (let i = 0; i < linhas.length; i += LOTE_GRAVACAO) {
-    lotes.push(linhas.slice(i, i + LOTE_GRAVACAO));
-  }
-  const r = await prisma.$transaction([
-    prisma.criteriaEval.deleteMany({}),
-    ...lotes.map((data) => prisma.criteriaEval.createMany({ data })),
-  ]);
-  return (r.slice(1) as Array<{ count: number }>).reduce((s, x) => s + x.count, 0);
+  return prisma.$transaction(
+    async (tx) => {
+      await tx.criteriaEval.deleteMany({});
+      let gravadas = 0;
+      for (let i = 0; i < linhas.length; i += LOTE_GRAVACAO) {
+        const r = await tx.criteriaEval.createMany({ data: linhas.slice(i, i + LOTE_GRAVACAO) });
+        gravadas += r.count;
+      }
+      return gravadas;
+    },
+    { timeout: PRAZO_TRANSACAO_MS, maxWait: 10_000 },
+  );
 }
 
 // ---------------------------------------------------------------------------

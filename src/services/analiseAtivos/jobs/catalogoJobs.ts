@@ -98,11 +98,12 @@ export const CATALOGO_JOBS: Record<NomeJobCron, DefinicaoJob> = {
     executar: (ctx) => executarScores(ctx),
   },
   // v2.4: Filtros de Fundamentos — criteria_eval por símbolo × janela (10:30 UTC, entre o scores e o
-  // quadro; com o scores ainda rodando termina 'pulado'). Lotes de 50, só banco.
+  // quadro; com o scores ainda rodando termina 'pulado'). Lotes de 50, só banco. Pico medido no
+  // runner (DEV, 13/10/2026): 265 MB em 19 s ⇒ pesado (processo separado pelo myfinance-job.sh).
   criterios: {
     nome: 'criterios',
     prazoMs: 240_000,
-    pesado: false,
+    pesado: true,
     executar: (ctx) => executarCriterios(ctx),
   },
   // Fase 1: materializa analise_quadro_linhas depois do scores (medido < 30 s, < 250 MB)
