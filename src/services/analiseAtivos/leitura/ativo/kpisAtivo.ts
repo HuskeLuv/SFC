@@ -20,6 +20,7 @@ import { FLAG_CNPJ_EM_CONFERENCIA } from '@/services/analiseAtivos/quadro/montar
 import {
   aplicarConferenciaCampo,
   estadoOcultoConferencia,
+  motivosDaLinha,
 } from '@/services/analiseAtivos/leitura/ativo/conferenciasAtivo';
 import { ehCampoTela } from '@/services/analiseAtivos/regras/comum/conferencia';
 import type { Estado, KpiAtivo, LinhaQuadroApi, PontoSerieAnual } from '@/types/analiseAtivosApi';
@@ -342,7 +343,7 @@ function kpisFii(e: EntradaKpis): KpiAtivo[] {
 /** Política de conferência (bloco C) sobre os KPIs já montados. Sem 'conf:' ⇒ lista igual. */
 function comConferencia(e: EntradaKpis, kpis: KpiAtivo[]): KpiAtivo[] {
   const { linha } = e;
-  const motivos = e.motivosIncompleto ?? (linha.indice?.motivos ?? []).map((m) => m.codigo);
+  const motivos = e.motivosIncompleto ?? motivosDaLinha(linha);
   return kpis.map((k) => {
     if (!ehCampoTela(k.codigo)) return k;
     const r = aplicarConferenciaCampo(k.valor, linha.flags, motivos, k.codigo, linha.classe, {

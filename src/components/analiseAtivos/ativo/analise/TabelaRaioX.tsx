@@ -102,7 +102,6 @@ function conferenciaDaCelula(
       exibicao: c.exibicao,
       motivo: c.motivo,
       desde: null,
-      efeitoIndice: null,
       origem: 'regra',
       caso: null,
     }

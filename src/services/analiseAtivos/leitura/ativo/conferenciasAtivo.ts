@@ -31,7 +31,7 @@ import {
   type FlagConf,
   type GrupoConferencia,
 } from '@/services/analiseAtivos/regras/comum/conferencia';
-import { TEXTOS_TELA, formatarTexto } from '@/services/analiseAtivos/textosTela';
+import { TEXTOS_TELA } from '@/services/analiseAtivos/textosTela';
 import type {
   ClasseQuadro,
   ConferenciaTela,
@@ -114,14 +114,17 @@ export function aplicarConferenciaCampo(
   return { estado, conf };
 }
 
-/** Motivos do Índice da linha da API (o legado de proventos usa 'div:em_conferencia'). */
-function motivosDaLinha(l: Pick<LinhaQuadroApi, 'indice'>): string[] {
-  return (l.indice?.motivos ?? []).map((m) => m.codigo);
+/**
+ * Motivos de conferência da linha da API (o legado de proventos usa 'div:em_conferencia'). v2.4:
+ * `motivosConferencia` (fatia B); `indice.motivos` só até a F remover o Índice dos tipos.
+ */
+export function motivosDaLinha(l: Pick<LinhaQuadroApi, 'indice' | 'motivosConferencia'>): string[] {
+  return (l.motivosConferencia ?? l.indice?.motivos ?? []).map((m) => m.codigo);
 }
 
 /** Campo em conferência (origem 'conf') de uma linha do Quadro já convertida (front e back). */
 export function conferenciaDaLinha(
-  l: Pick<LinhaQuadroApi, 'flags' | 'classe' | 'indice'>,
+  l: Pick<LinhaQuadroApi, 'flags' | 'classe' | 'indice' | 'motivosConferencia'>,
   campo: CampoTela,
 ): CampoConferencia | null {
   return conferenciaConf(l.flags, motivosDaLinha(l), campo, l.classe as ClasseConferencia);
@@ -212,23 +215,6 @@ function exibicaoDoGrupo(grupo: GrupoConferencia): ExibicaoConferencia {
   return Object.values(DEF_GRUPO[grupo].campos).includes('ocultar') ? 'ocultar' : 'selo';
 }
 
-/** 'O Índice MF fica incompleto: preço e proventos fora da conta.'; null = só exibição. */
-export function efeitoIndiceDoGrupo(
-  grupo: GrupoConferencia,
-  classe: ClasseConferencia,
-  regua?: string | null,
-): string | null {
-  // histórico: o motor recalcula a média de 10 anos SEM o ponto (o Índice não fica incompleto)
-  if (grupo === 'historico') return null;
-  const comps = componentesDoGrupo(grupo, classe);
-  if (comps.length === 0) return null;
-  const chaveRegua = regua === 'fii_papel' ? 'fii_papel' : classe === 'fii' ? 'fii_tijolo' : 'acao';
-  const rotulos: Record<string, string> = TEXTOS_TELA.ativo.rotulosComponentes[chaveRegua];
-  const nomes = comps.map((c) => (rotulos[c] ?? c).toLowerCase());
-  const valor = nomes.length > 1 ? `${nomes.slice(0, -1).join(', ')} e ${nomes.at(-1)}` : nomes[0];
-  return formatarTexto(TC.porQue.efeitoIndice, { valor });
-}
-
 function textoMotivoConf(f: FlagConf): string {
   return TC.motivos[`${f.grupo}:${f.regra}`] ?? TC.motivosPorGrupo[f.grupo];
 }
@@ -249,6 +235,7 @@ export interface EntradaConferenciasTela {
   /** flags da linha do Quadro (+ flagsAnuaisConf das linhas anuais, quando lidas) */
   flags: readonly string[];
   classe: ClasseQuadro;
+  /** v2.4: não é mais usado (o efeito no Índice saiu da tela); aceito por compatibilidade */
   regua?: string | null;
   casos?: readonly CasoAbertoTela[];
 }
@@ -279,7 +266,6 @@ export function montarConferenciasTela(e: EntradaConferenciasTela): ConferenciaT
         exibicao: exibicaoDoGrupo(grupo),
         motivo: textoMotivoConf(f),
         desde,
-        efeitoIndice: efeitoIndiceDoGrupo(grupo, classe, e.regua),
         origem: 'regra',
         caso: caso ? { status: caso.status, atualizadoEm: caso.atualizadoEm } : null,
       });

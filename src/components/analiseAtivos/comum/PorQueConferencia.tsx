@@ -7,8 +7,8 @@
  * - `ConferenciaPaginaProvider`/`useConferenciaPagina`: ticker, classe, versão, conferências
  *   (AtivoTopoResposta.conferencias), frescor por bloco e config.reporteHabilitado. Fora da página
  *   do ativo (Quadro) não há contexto: o chip vira texto e o menu não aparece.
- * - `PorQueConferencia`: conteúdo do "Por quê?" (motivo, desde, na tela, valor não publicado, no
- *   Índice MF, origem, situação) e o atalho final "Tem uma informação sobre isso? Reportar" — só
+ * - `PorQueConferencia`: conteúdo do "Por quê?" (motivo, desde, na tela, valor não publicado,
+ *   origem, situação; v2.4: sem a linha do efeito no indicador descontinuado) e o atalho final "Tem uma informação sobre isso? Reportar" — só
  *   com reporteHabilitado. Com `onReportar` (ChipConferencia) o atalho só avisa: o chip fecha o
  *   "Por quê?" (e a camada de histórico dele no celular) e abre o formulário, montado fora do
  *   invólucro, com `relatoDoCampo`; sem ele, BotaoReportarDado 'link' com o campo escolhido.
@@ -182,7 +182,6 @@ export default function PorQueConferencia({
           </>,
           'tela',
         )}
-        {linha(t.noIndice, c.efeitoIndice ?? t.semEfeitoIndice, 'indice')}
         {linha(t.origem, t.origemRegra, 'origem')}
         {situacao ? linha(t.situacao, situacao, 'situacao') : null}
       </dl>

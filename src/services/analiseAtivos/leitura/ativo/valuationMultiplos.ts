@@ -63,6 +63,7 @@ import {
   aplicarConferenciaCampo,
   anosEmConferencia,
   flagsAnuaisConf,
+  motivosDaLinha,
 } from '@/services/analiseAtivos/leitura/ativo/conferenciasAtivo';
 import { ehCampoTela } from '@/services/analiseAtivos/regras/comum/conferencia';
 import { TEXTOS_TELA, formatarTexto, textoNaoSeAplica } from '@/services/analiseAtivos/textosTela';
@@ -264,7 +265,7 @@ function criarCtx(d: DadosAtivoValuation, hoje: string): Ctx {
   const flagsConf = [...d.linha.flags, ...flagsAnuaisConf(d.anuais)];
   return {
     flagsConf,
-    motivos: (d.linha.indice?.motivos ?? []).map((m) => m.codigo),
+    motivos: motivosDaLinha(d.linha),
     anosHistoricoConf: anosEmConferencia(flagsConf, 'historico'),
     d,
     hoje,

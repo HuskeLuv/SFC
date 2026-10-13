@@ -490,10 +490,11 @@ describe.each(CASOS)('matriz: grupo $g × classe $classe', ({ g, classe }) => {
     const confs = montarConferenciasTela({ flags, classe });
     expect(confs.map((c) => c.grupo)).toEqual([g]);
     const comps = g === 'historico' ? [] : componentesDoGrupo(g, classe);
-    expect(confs[0].efeitoIndice !== null).toBe(comps.length > 0);
+    // v2.4: a conferência não leva mais o efeito no Índice (o campo sai do JSON)
+    expect('efeitoIndice' in confs[0]).toBe(false);
     expect([...componentesEmConferencia(confs, classe)].sort()).toEqual([...comps].sort());
     for (const c of confs) {
-      expect(encontrarPalavrasProibidas(`${c.motivo} ${c.efeitoIndice ?? ''}`)).toEqual([]);
+      expect(encontrarPalavrasProibidas(c.motivo)).toEqual([]);
     }
     // página: o campo principal acha a mesma conferência pelo helper único
     expect(conferenciaDoCampo(confs, def.campoPrincipal)?.grupo).toBe(g);

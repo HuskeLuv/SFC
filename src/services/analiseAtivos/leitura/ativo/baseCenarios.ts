@@ -25,7 +25,10 @@ import {
   paraLinhaQuadroApi,
   versaoQuadro,
 } from '@/services/analiseAtivos/leitura/linhasQuadro';
-import { aplicarConferenciaCampo } from '@/services/analiseAtivos/leitura/ativo/conferenciasAtivo';
+import {
+  aplicarConferenciaCampo,
+  motivosDaLinha,
+} from '@/services/analiseAtivos/leitura/ativo/conferenciasAtivo';
 import { DEF_GRUPO } from '@/services/analiseAtivos/regras/comum/conferencia';
 import {
   TTL_ANALISE_MS,
@@ -149,7 +152,7 @@ export function montarBaseCenarios(e: EntradaBaseCenarios): BaseCenariosResposta
   const ctx: Contexto = {
     linha,
     flags: [...new Set([...linha.flags, ...(atual?.flags ?? [])])],
-    motivos: (linha.indice?.motivos ?? []).map((m) => m.codigo),
+    motivos: motivosDaLinha(linha),
     conferencias: [],
   };
 

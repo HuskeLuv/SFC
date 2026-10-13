@@ -237,7 +237,6 @@ export function conferenciaTelaPerShare(
     exibicao: 'ocultar',
     motivo,
     desde: null,
-    efeitoIndice: null,
     origem: 'regra',
     caso: null,
   };
