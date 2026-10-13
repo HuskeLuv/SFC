@@ -46,15 +46,41 @@ export function anosLucroConsecutivos(
   return anosLucroConsecutivosDetalhado(serie).valor;
 }
 
+/** Diferença relativa máxima entre os módulos para o sinal oposto ser lido como erro de ingestão. */
+const SINAL_DIVERGENTE_TOLERANCIA = 0.1;
+
+/**
+ * Lucro atribuível com o sinal OPOSTO ao do lucro líquido e quase o mesmo módulo (QA 13/10: AZUL3
+ * 2023/2024, AMBP3, PCAR3…): sinal de erro na ingestão da DFP, não de participação de não
+ * controladores. Pura.
+ */
+export function lucroSinalDivergente(
+  lucroLiquido: number | null | undefined,
+  lucroAtribuivel: number | null | undefined,
+): boolean {
+  if (typeof lucroLiquido !== 'number' || typeof lucroAtribuivel !== 'number') return false;
+  if (!Number.isFinite(lucroLiquido) || !Number.isFinite(lucroAtribuivel)) return false;
+  if (lucroLiquido === 0 || lucroAtribuivel === 0) return false;
+  if (Math.sign(lucroLiquido) === Math.sign(lucroAtribuivel)) return false;
+  const a = Math.abs(lucroLiquido);
+  const b = Math.abs(lucroAtribuivel);
+  return Math.abs(a - b) < SINAL_DIVERGENTE_TOLERANCIA * Math.max(a, b);
+}
+
 /**
  * Lucro do ano para a sequência: atribuível; consolidado com controladora_zero ⇒ o do individual
- * quando houver; senão ausente (nunca zero).
+ * quando houver; senão ausente (nunca zero). Atribuível com o sinal oposto ao do lucro líquido
+ * (lucroSinalDivergente) ⇒ ausente 'em_conferencia' (sem dado até a curadoria).
  */
 export function lucroParaSequencia(f: {
   lucroAtribuivel: number | null;
+  lucroLiquido?: number | null;
   lucroAtribuivelIndividual?: number | null;
   flags: string[];
 }): Valor<number> {
+  if (lucroSinalDivergente(f.lucroLiquido, f.lucroAtribuivel)) {
+    return ausente('em_conferencia', 'lucro_sinal_divergente');
+  }
   if (f.lucroAtribuivel !== null) return ok(f.lucroAtribuivel);
   const controladoraZero = f.flags.includes('controladora_zero');
   if (controladoraZero && f.lucroAtribuivelIndividual != null) {

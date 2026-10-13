@@ -247,6 +247,7 @@ export async function lucrosFyVigentes(
       escopo: true,
       versao: true,
       anoFiscal: true,
+      lucroLiquido: true,
       lucroAtribuivel: true,
       flags: true,
     },
@@ -272,6 +273,7 @@ export async function lucrosFyVigentes(
     const ind = grupo.find((g) => g.escopo === 'ind');
     const v = lucroParaSequencia({
       lucroAtribuivel: paraNumero(f.lucroAtribuivel),
+      lucroLiquido: paraNumero(f.lucroLiquido),
       lucroAtribuivelIndividual: f.escopo === 'con' && ind ? paraNumero(ind.lucroAtribuivel) : null,
       flags: f.flags,
     });
