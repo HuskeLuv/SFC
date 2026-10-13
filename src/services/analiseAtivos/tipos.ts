@@ -305,6 +305,11 @@ export interface JobContexto {
 }
 export interface ResultadoJob {
   parcial?: boolean;
+  /**
+   * v2.4: o job decidiu não rodar (ex.: 'criterios' com o 'scores' ainda executando) — o run fecha
+   * com status 'pulado' e este motivo em `erro`. Nada é gravado.
+   */
+  pulado?: string;
   detalhes?: Record<string, unknown>;
 }
 export interface RelatorioJob {

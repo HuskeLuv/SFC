@@ -15,6 +15,7 @@ export const NOMES_JOBS = [
   'fii-trimestral',
   'cotahist',
   'scores',
+  'criterios',
   'quadro',
   'curadoria',
 ] as const satisfies readonly NomeJob[];

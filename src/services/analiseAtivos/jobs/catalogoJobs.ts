@@ -12,6 +12,7 @@
 import { sincronizarCvmCias } from '@/services/analiseAtivos/acoes/sincronizarCvmCias';
 import { sincronizarB3Cadastro } from '@/services/analiseAtivos/b3/sincronizarB3Cadastro';
 import { sincronizarCotahist } from '@/services/analiseAtivos/b3/sincronizarCotahist';
+import { executarCriterios } from '@/services/analiseAtivos/calculo/executarCriterios';
 import { executarScores } from '@/services/analiseAtivos/calculo/executarScores';
 import { executarCuradoria } from '@/services/analiseAtivos/curadoria/sincronizarCasos';
 import { sincronizarIpe } from '@/services/analiseAtivos/eventos/sincronizarIpe';
@@ -95,6 +96,14 @@ export const CATALOGO_JOBS: Record<NomeJobCron, DefinicaoJob> = {
     prazoMs: 240_000,
     pesado: true,
     executar: (ctx) => executarScores(ctx),
+  },
+  // v2.4: Filtros de Fundamentos — criteria_eval por símbolo × janela (10:30 UTC, entre o scores e o
+  // quadro; com o scores ainda rodando termina 'pulado'). Lotes de 50, só banco.
+  criterios: {
+    nome: 'criterios',
+    prazoMs: 240_000,
+    pesado: false,
+    executar: (ctx) => executarCriterios(ctx),
   },
   // Fase 1: materializa analise_quadro_linhas depois do scores (medido < 30 s, < 250 MB)
   quadro: {

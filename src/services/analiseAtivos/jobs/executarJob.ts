@@ -200,7 +200,12 @@ export async function executarJobAnalise(
       aplicar: opts.aplicar ?? true,
     };
     const resultado = await fn(ctx);
-    status = resultado.parcial ? 'parcial' : 'ok';
+    if (resultado.pulado) {
+      status = 'pulado';
+      erro = resultado.pulado;
+    } else {
+      status = resultado.parcial ? 'parcial' : 'ok';
+    }
     detalhes = resultado.detalhes;
   } catch (e: unknown) {
     status = 'falha';

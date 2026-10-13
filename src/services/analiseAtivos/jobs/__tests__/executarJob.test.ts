@@ -109,6 +109,19 @@ describe('executarJobAnalise', () => {
     expect(dadosUpdate().status).toBe('parcial');
   });
 
+  it("o job decide não rodar (v2.4: criterios com o scores executando) ⇒ 'pulado' + motivo", async () => {
+    const r = await executarJobAnalise('criterios', async () => ({
+      pulado: "job 'scores' ainda em execução",
+      detalhes: { pulado: 'scores_em_execucao' },
+    }));
+    expect(r.status).toBe('pulado');
+    expect(r.erro).toBe("job 'scores' ainda em execução");
+    expect(dadosUpdate()).toMatchObject({
+      status: 'pulado',
+      erro: "job 'scores' ainda em execução",
+    });
+  });
+
   it("exceção ⇒ 'falha' + erro, sem lançar", async () => {
     const r = await executarJobAnalise('cotahist', async () => {
       throw new Error('deu ruim');
