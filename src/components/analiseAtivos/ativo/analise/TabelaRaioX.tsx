@@ -294,7 +294,7 @@ export default function TabelaRaioX({ ticker, classe, cabecalhoExtra }: TabelaRa
             aria-label={formatarTexto(T.tabela.rotuloRegiao, { ticker })}
             data-rolagem-card="raio-x"
             data-mf-scroll-x=""
-            className={`${TABLE_STYLES.wrapper} max-w-full ${FOCO}`}
+            className={`${TABLE_STYLES.wrapper} relative max-w-full ${FOCO}`}
           >
             <table className={`${TABLE_STYLES.table} min-w-max`}>
               <caption className="sr-only">

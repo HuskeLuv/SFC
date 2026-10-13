@@ -75,7 +75,7 @@ export default function TabelaComparador({ dados, classe, naCarteira }: TabelaCo
       role="region"
       tabIndex={0}
       aria-label={TC.tabela.rotuloRegiao}
-      className={`${TABLE_STYLES.wrapper} outline-none focus-visible:ring-[3px] focus-visible:ring-[#0079F2] dark:focus-visible:ring-[#6E9DC4]`}
+      className={`${TABLE_STYLES.wrapper} relative outline-none focus-visible:ring-[3px] focus-visible:ring-[#0079F2] dark:focus-visible:ring-[#6E9DC4]`}
     >
       <table
         className={`${TABLE_STYLES.table} table-fixed`}

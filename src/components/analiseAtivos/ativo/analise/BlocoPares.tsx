@@ -151,7 +151,7 @@ export default function BlocoPares({ ticker, classe }: BlocoParesProps) {
         ) : (
           <>
             {/* Computador: tabela */}
-            <div className={`${TABLE_STYLES.wrapper} hidden max-w-full lg:block`}>
+            <div className={`${TABLE_STYLES.wrapper} relative hidden max-w-full lg:block`}>
               <table className={`${TABLE_STYLES.table} min-w-max`}>
                 <caption className="sr-only">{formatarTexto(TP.caption, { ticker })}</caption>
                 <thead>

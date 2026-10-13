@@ -112,7 +112,7 @@ export default function TabelaMetodos({ linhas, cotacao, margemPct, celular }: P
 
   return (
     <div
-      className={TABLE_STYLES.wrapper}
+      className={`${TABLE_STYLES.wrapper} relative`}
       role="region"
       tabIndex={0}
       aria-label={T.resultados.rotuloRegiao}

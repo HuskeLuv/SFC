@@ -186,7 +186,7 @@ export default function ModalVerNaCarteira({
           {ops.length === 0 ? (
             <p className="text-sm text-gray-500 dark:text-gray-400">{T.semOperacoes}</p>
           ) : (
-            <div className={TABLE_STYLES.wrapper}>
+            <div className={`${TABLE_STYLES.wrapper} relative`}>
               <table className={TABLE_STYLES.table}>
                 <thead>
                   <tr className={TABLE_STYLES.headRow} style={TABLE_HEADER_STYLE}>

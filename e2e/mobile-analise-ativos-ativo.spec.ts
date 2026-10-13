@@ -58,3 +58,27 @@ test('WEGE3 a 320: sem overflow e KPIs em 1 coluna', async ({ page }) => {
   expect(await overflow(page)).toBeLessThanOrEqual(0);
   expect(await colunasKpis(page)).toBe(1);
 });
+
+// QA 13/10: os sr-only dos <th> com ⓘ (Fundamentos) escapavam do contêiner overflow-x-auto não
+// posicionado e alargavam o layout viewport do celular (innerWidth 809 a 390) DEPOIS da rolagem.
+for (const [ticker, width] of [
+  ['WEGE3', 390],
+  ['HGLG11', 320],
+] as const) {
+  test(`${ticker} a ${width}: rolar a página toda não alarga o layout viewport`, async ({
+    page,
+  }) => {
+    await abrir(page, ticker, width);
+    const fundamentos = page.locator('[data-rolagem-card="fundamentos"]');
+    if ((await fundamentos.count()) > 0) await fundamentos.first().scrollIntoViewIfNeeded();
+    await page.evaluate(async () => {
+      for (let y = 0; y <= document.documentElement.scrollHeight; y += 400) {
+        window.scrollTo(0, y);
+        await new Promise((r) => setTimeout(r, 30));
+      }
+    });
+    await page.waitForTimeout(500);
+    expect(await page.evaluate(() => window.innerWidth)).toBe(width);
+    expect(await overflow(page)).toBeLessThanOrEqual(0);
+  });
+}

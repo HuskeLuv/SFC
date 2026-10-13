@@ -175,7 +175,7 @@ export default function BlocoFundamentosEssencial({
       ) : dados ? (
         <>
           <div
-            className={`${TABLE_STYLES.wrapper} max-w-full`}
+            className={`${TABLE_STYLES.wrapper} relative max-w-full`}
             data-rolagem-card="fundamentos"
             tabIndex={0}
             aria-label={formatarTexto(TF.caption, { ticker })}

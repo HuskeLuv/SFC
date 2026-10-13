@@ -379,7 +379,7 @@ export default function GraficoLucroCotacao({ ticker, classe, grafico }: Grafico
             </div>
 
             {tabela ? (
-              <div className={TABLE_STYLES.wrapper} data-tabela-grafico>
+              <div className={`${TABLE_STYLES.wrapper} relative`} data-tabela-grafico>
                 <table className={TABLE_STYLES.table}>
                   <caption className="sr-only">
                     {titulo} · {ticker}

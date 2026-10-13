@@ -368,7 +368,7 @@ export default function TabelaQuadro({
 
   return (
     <div
-      className={`${TABLE_STYLES.wrapper} max-h-[70vh] overflow-y-auto bg-white dark:bg-[#1F1F22] ${
+      className={`${TABLE_STYLES.wrapper} relative max-h-[70vh] overflow-y-auto bg-white dark:bg-[#1F1F22] ${
         atualizando ? 'opacity-70 motion-safe:transition-opacity' : ''
       }`}
       aria-busy={carregando || atualizando || undefined}
