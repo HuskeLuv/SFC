@@ -2592,6 +2592,12 @@ model AnaliseQuadroLinha {
   flags                 String[]
   paramsVersion         Int?
   geradoEm              DateTime
+  // v2.4 (Filtros de Fundamentos): cópia compacta de criteria_eval por janela,
+  // {"3":{n,de,m:[[id,estado,fato]]},"5":…,"10":…} (CriteriosCompactos em
+  // src/types/analiseAtivosCriterios.ts). null = job 'criterios' ainda não rodou.
+  criterios             Json?
+  // acao | acao_financeira | fii_tijolo | fii_papel (perfil usado na avaliação)
+  perfilCriterios       String?
 
   @@index([classe, noQuadro])
   @@index([geradoEm])
@@ -2615,6 +2621,58 @@ model AnaliseTese {
   @@unique([userId, symbol])
   @@index([userId, updatedAt])
   @@map("analise_teses")
+}
+
+/**
+ * v2.4 — Filtros de Fundamentos: parâmetros dos 6 critérios por perfil (limites, janelas, regras de
+ * perfil). JSON validado por criteriaParamsSchema (zod strict) na leitura E na escrita. Versões
+ * IMUTÁVEIS: mudar um limite = nova versão (a ativa é a maior com validFrom ≤ agora). Molde:
+ * ScoringParams.
+ */
+model CriteriaParams {
+  id        String   @id @default(uuid())
+  version   Int      @unique
+  // criteriaParamsSchema (zod strict); versões imutáveis
+  params    Json
+  validFrom DateTime
+  // 'seed-v2-filtros' | e-mail do admin
+  createdBy String
+  notas     String?
+  createdAt DateTime @default(now())
+
+  @@index([validFrom])
+  @@map("criteria_params")
+}
+
+/**
+ * v2.4 — avaliação dos critérios de fundamentos: UMA linha por símbolo × janela (3 | 5 | 10),
+ * regravada pelo job noturno 'criterios' (deleteMany + createMany). `atendidos` é contagem
+ * factual ("n de 6"), não é nota. resultados = ResultadoCriterio[] (src/types/analiseAtivosCriterios.ts).
+ */
+model CriteriaEval {
+  id            String   @id @default(uuid())
+  symbol        String
+  cnpj          String
+  // acao | fii
+  classe        String
+  // acao | acao_financeira | fii_tijolo | fii_papel
+  perfil        String
+  // 3 | 5 | 10
+  janela        Int
+  anoInicio     Int
+  anoFim        Int
+  // contagem factual, não é nota
+  atendidos     Int
+  aplicaveis    Int
+  semDado       Boolean
+  // [{id, estado, n, de, fato, motivo?, serie}]
+  resultados    Json
+  paramsVersion Int
+  computedAt    DateTime
+
+  @@unique([symbol, janela])
+  @@index([classe, janela])
+  @@map("criteria_eval")
 }
 
 /**
