@@ -105,6 +105,8 @@ export const CAMPOS_TELA = [
   // blocos agregados
   'indiceMf',
   'criterioSemaforo',
+  // v2.4: um critério dos Filtros de Fundamentos (bloco criterios_fundamentos do reportar dado)
+  'criterioFundamento',
   'dataEvento',
 ] as const;
 

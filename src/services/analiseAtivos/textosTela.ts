@@ -1008,6 +1008,8 @@ export const TEXTOS_TELA = {
       cabecalho: 'Cotação',
       indice: 'Índice MF',
       criterios: 'Critérios',
+      // v2.4 (fatia 0): bloco do card "Critérios de fundamentos"
+      criterios_fundamentos: 'Critérios de fundamentos',
       kpis: 'Indicadores',
       grafico: 'Gráfico',
       dividendos: 'Proventos por ano',
@@ -1060,6 +1062,8 @@ export const TEXTOS_TELA = {
       taxaAdm: 'Taxa de administração',
       indiceMf: 'Índice MF',
       criterioSemaforo: 'Critério',
+      // v2.4 (fatia 0)
+      criterioFundamento: 'Critério de fundamentos',
       dataEvento: 'Data do evento',
       outro: 'Outro dado deste bloco',
     } satisfies Record<CampoReporte, string>,

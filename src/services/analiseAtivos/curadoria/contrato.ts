@@ -143,6 +143,8 @@ export const BLOCOS_REPORTE = [
   'cabecalho',
   'indice',
   'criterios',
+  // v2.4: card "Critérios de fundamentos" (C2); 'indice'/'criterios' saem na F
+  'criterios_fundamentos',
   'kpis',
   'grafico',
   'dividendos',
@@ -169,6 +171,7 @@ export const CAMPOS_REPORTAVEIS: Record<BlocoReporte, readonly CampoTela[]> = {
   cabecalho: ['preco', 'valorMercado'],
   indice: ['indiceMf'],
   criterios: ['criterioSemaforo'],
+  criterios_fundamentos: ['criterioFundamento'],
   kpis: [
     'pl',
     'pvp',
