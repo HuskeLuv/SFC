@@ -163,7 +163,7 @@ export default function ModalComparar({
           onChange={(e) => setBusca(e.target.value)}
           placeholder={T.busca}
           maxLength={40}
-          className={`min-h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-800 placeholder:text-gray-400 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90 ${FOCO_MODAL}`}
+          className={`min-h-12 w-full rounded-lg border border-gray-300 bg-white px-3 text-base text-gray-800 lg:min-h-11 lg:text-sm placeholder:text-gray-400 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90 ${FOCO_MODAL}`}
         />
       </label>
       {sugestoes.isError && !sugestoes.data ? (

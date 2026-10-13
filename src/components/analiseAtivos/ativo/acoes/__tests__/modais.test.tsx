@@ -460,6 +460,22 @@ describe('ModalRegistrarOperacao', () => {
       expect(el.className, el.textContent ?? '').toMatch(/min-h-11|h-11/);
     }
   });
+
+  it('campos com 48 px e fonte de 16 px no celular (sem zoom do iOS), 44/14 no computador', async () => {
+    comCliente(
+      <ModalRegistrarOperacao {...baseRegistrar} ticker="WEGE3" classe="acao" assetId="a-wege" />,
+    );
+    await screen.findByText('Estratégia: Growth (da sua posição)');
+    const campos = dialogo().querySelectorAll<HTMLElement>(
+      'input:not([type="radio"]):not([type="checkbox"]):not([type="hidden"]), select',
+    );
+    expect(campos.length).toBeGreaterThan(0);
+    for (const el of campos) {
+      expect(el.className, el.getAttribute('name') ?? el.id).toMatch(/\bmin-h-12\b/);
+      expect(el.className).toMatch(/\btext-base\b/);
+      expect(el.className).toMatch(/\blg:min-h-11\b/);
+    }
+  });
 });
 
 // ---------------------------------------------------------------------------

@@ -244,7 +244,7 @@ export default function ModalPlanejar({
               onKeyDown={(e) => {
                 if (e.key === 'Enter') salvar();
               }}
-              className={`min-h-11 w-[110px] rounded-lg border border-gray-300 bg-gray-50 px-2.5 text-right text-sm text-gray-800 tabular-nums dark:border-gray-700 dark:bg-gray-900 dark:text-white/90 ${FOCO_MODAL}`}
+              className={`min-h-12 w-[110px] rounded-lg border border-gray-300 bg-gray-50 px-2.5 text-right text-base text-gray-800 lg:min-h-11 lg:text-sm tabular-nums dark:border-gray-700 dark:bg-gray-900 dark:text-white/90 ${FOCO_MODAL}`}
             />
             <em className="text-[13px] not-italic text-gray-500 dark:text-gray-400">%</em>
           </span>

@@ -59,7 +59,7 @@ const T = TEXTOS_ACOES_CARTEIRA.registrar;
 
 const LINHA_FORM =
   'flex items-center justify-between gap-3 border-b border-dashed border-gray-200 py-2 text-[13.5px] text-gray-700 dark:border-gray-800 dark:text-gray-300';
-const CAMPO = `min-h-11 rounded-lg border border-gray-300 bg-gray-50 px-2.5 text-sm text-gray-800 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90 ${FOCO_MODAL}`;
+const CAMPO = `min-h-12 rounded-lg border border-gray-300 bg-gray-50 px-2.5 text-base text-gray-800 lg:min-h-11 lg:text-sm dark:border-gray-700 dark:bg-gray-900 dark:text-white/90 ${FOCO_MODAL}`;
 const ERRO = 'mt-1.5 text-[12.5px] text-[#D92D20] dark:text-[#F97066]';
 
 /** AAAA-MM-DD do dia local. */
