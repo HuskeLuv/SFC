@@ -44,20 +44,20 @@ describe('mesesAteAnoFim (âncora em dez/anoFim, rec. 4)', () => {
       estado: 'atende',
       n: 60,
       de: 60,
-      fato: '60 de 60 meses com rendimento pago',
+      fato: '60 de 60 meses com rendimento pago (jan/2021–dez/2025)',
     });
   });
 
-  it('lacuna em 2024 → não atende na janela 5 (conta só até a lacuna)', () => {
+  it('lacuna em 2024 → não atende na janela 5; o fato conta TODOS os meses pagos da janela', () => {
     const prov = pagamentos('2018-01', '2026-09', ['2024-06']);
     const m = mesesAteAnoFim(prov, 2025, S);
     expect(m.consecutivos).toBe(18);
     const r = avaliarMeses(m, 2025, 5, P);
     expect(r).toEqual({
       estado: 'nao_atende',
-      n: 18,
+      n: 59,
       de: 60,
-      fato: '18 de 60 meses com rendimento pago',
+      fato: '59 de 60 meses com rendimento pago (jan/2021–dez/2025)',
     });
     // a janela 3 (jan/2023–dez/2025) também pega a lacuna
     expect(avaliarMeses(m, 2025, 3, P).estado).toBe('nao_atende');
@@ -66,7 +66,10 @@ describe('mesesAteAnoFim (âncora em dez/anoFim, rec. 4)', () => {
   it('o mês corrente nunca é tolerado (dez/anoFim sem pagamento = 0 meses)', () => {
     const m = mesesAteAnoFim(pagamentos('2018-01', '2025-11'), 2025, S);
     expect(m.consecutivos).toBe(0);
-    expect(avaliarMeses(m, 2025, 3, P).fato).toBe('0 de 36 meses com rendimento pago');
+    expect(avaliarMeses(m, 2025, 3, P)).toMatchObject({
+      estado: 'nao_atende',
+      fato: '35 de 36 meses com rendimento pago (jan/2023–dez/2025)',
+    });
   });
 
   it('sem data de pagamento usa o mês seguinte à data-com; inválidos e outros tipos não contam', () => {
@@ -96,7 +99,11 @@ describe('mesesAteAnoFim (âncora em dez/anoFim, rec. 4)', () => {
         dataComReal: null,
       },
     ];
-    expect(mesesAteAnoFim(prov, 2025, S)).toEqual({ consecutivos: 2, inicioBase: '2025-11' });
+    expect(mesesAteAnoFim(prov, 2025, S)).toEqual({
+      consecutivos: 2,
+      inicioBase: '2025-11',
+      mesesPagos: ['2025-11', '2025-12'],
+    });
   });
 });
 
@@ -105,17 +112,17 @@ describe('avaliarMeses — base de proventos e dado ausente', () => {
     const m = { consecutivos: 48, inicioBase: '2021-01' };
     expect(avaliarMeses(m, 2025, 5, P)).toMatchObject({
       estado: 'nao_atende',
-      fato: '48 de 60 meses com rendimento pago',
+      fato: '48 de 60 meses com rendimento pago (jan/2021–dez/2025)',
     });
     expect(avaliarMeses(m, 2025, 3, P)).toMatchObject({
       estado: 'atende',
-      fato: '36 de 36 meses com rendimento pago',
+      fato: '36 de 36 meses com rendimento pago (jan/2023–dez/2025)',
     });
   });
 
   it('base curta (começa depois de jan/2021) e a sequência chega até ela → sem dado com o fato', () => {
     const m = mesesAteAnoFim(pagamentos('2022-03', '2026-09'), 2025, S);
-    expect(m).toEqual({ consecutivos: 46, inicioBase: '2022-03' });
+    expect(m).toMatchObject({ consecutivos: 46, inicioBase: '2022-03' });
     expect(avaliarMeses(m, 2025, 5, P)).toEqual({
       estado: 'sem_dado',
       n: null,
@@ -129,7 +136,8 @@ describe('avaliarMeses — base de proventos e dado ausente', () => {
 
   it('base curta com lacuna DENTRO dela → não atende (o dado existe)', () => {
     const m = mesesAteAnoFim(pagamentos('2022-03', '2026-09', ['2023-07']), 2025, S);
-    expect(avaliarMeses(m, 2025, 5, P)).toMatchObject({ estado: 'nao_atende', n: 29 });
+    // 46 meses de mar/2022 a dez/2025 menos jul/2023 = 45 pagos dentro da janela
+    expect(avaliarMeses(m, 2025, 5, P)).toMatchObject({ estado: 'nao_atende', n: 45 });
   });
 
   it("params.meses.mesesBaseCurta = 'nao_atende' troca o sem dado pela contagem", () => {
@@ -137,7 +145,7 @@ describe('avaliarMeses — base de proventos e dado ausente', () => {
     const p = { ...P, meses: { ...P.meses, mesesBaseCurta: 'nao_atende' as const } };
     expect(avaliarMeses(m, 2025, 5, p)).toMatchObject({
       estado: 'nao_atende',
-      fato: '46 de 60 meses com rendimento pago',
+      fato: '46 de 60 meses com rendimento pago (jan/2021–dez/2025)',
     });
   });
 
@@ -154,5 +162,18 @@ describe('avaliarMeses — base de proventos e dado ausente', () => {
     const m = mesesAteAnoFim(pagamentos('2026-02', '2026-09'), 2025, S);
     expect(m.consecutivos).toBe(0);
     expect(avaliarMeses(m, 2025, 3, P).motivo).toBe('base_proventos_curta');
+  });
+
+  it('lacuna ANTIGA (jan/2021) com o resto pago: conta 59 de 60, não só a sequência final', () => {
+    const m = mesesAteAnoFim(pagamentos('2019-01', '2025-12', ['2021-01', '2021-05']), 2025, S);
+    expect(m.consecutivos).toBe(55);
+    expect(avaliarMeses(m, 2025, 5, P)).toEqual({
+      estado: 'nao_atende',
+      n: 58,
+      de: 60,
+      fato: '58 de 60 meses com rendimento pago (jan/2021–dez/2025)',
+    });
+    // a janela 3 (jan/2023–dez/2025) não pega as lacunas
+    expect(avaliarMeses(m, 2025, 3, P).estado).toBe('atende');
   });
 });

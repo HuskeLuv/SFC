@@ -123,7 +123,12 @@ export const CASOS_45: CasoCriterio45[] = [
     janela: 5,
     anoFim: 2025,
     meses: { consecutivos: 48, inicioBase: '2021-01' },
-    esperado: { estado: 'nao_atende', fato: '48 de 60 meses com rendimento pago', n: 48, de: 60 },
+    esperado: {
+      estado: 'nao_atende',
+      fato: '48 de 60 meses com rendimento pago (jan/2021–dez/2025)',
+      n: 48,
+      de: 60,
+    },
   },
   {
     caso: 28,
@@ -134,7 +139,12 @@ export const CASOS_45: CasoCriterio45[] = [
     janela: 3,
     anoFim: 2025,
     meses: { consecutivos: 48, inicioBase: '2021-01' },
-    esperado: { estado: 'atende', fato: '36 de 36 meses com rendimento pago', n: 36, de: 36 },
+    esperado: {
+      estado: 'atende',
+      fato: '36 de 36 meses com rendimento pago (jan/2023–dez/2025)',
+      n: 36,
+      de: 36,
+    },
   },
   {
     caso: 29,
@@ -253,7 +263,7 @@ export const CRITERIOS_LINHA_HGLG11: CriteriosLinhaApi = {
       estado: 'nao_atende',
       fato: 'dentro do limite em 4 de 5 anos · máx. 20,2% (limite 20,0%)',
     },
-    { id: 'mes', estado: 'atende', fato: '60 de 60 meses com rendimento pago' },
+    { id: 'mes', estado: 'atende', fato: '60 de 60 meses com rendimento pago (jan/2021–dez/2025)' },
     { id: 'res', estado: 'nao_atende', fato: 'cresceu em 3 de 5 anos · 312 → 498 (R$ mi)' },
   ],
 };
@@ -269,7 +279,7 @@ export const CRITERIOS_LINHA_KNCR11: CriteriosLinhaApi = {
     { id: 'vp', estado: 'nao_atende', fato: 'cresceu em 2 de 5 anos · 101,20 → 102,64 (R$)' },
     { id: 'inad', estado: 'sem_dado', fato: TEXTOS_CRITERIOS.motivos.sem_fonte_confiavel.inad },
     { id: 'ltv', estado: 'sem_dado', fato: TEXTOS_CRITERIOS.motivos.sem_fonte_confiavel.ltv },
-    { id: 'mes', estado: 'atende', fato: '60 de 60 meses com rendimento pago' },
+    { id: 'mes', estado: 'atende', fato: '60 de 60 meses com rendimento pago (jan/2021–dez/2025)' },
     { id: 'res', estado: 'atende', fato: 'cresceu em 5 de 5 anos · 480 → 1.390 (R$ mi)' },
   ],
 };
@@ -439,7 +449,14 @@ function janelaHglg11(j: Janela): JanelaCriteriosApi {
         null,
       ),
       semDado(TIJOLO.alav),
-      itemDe(TIJOLO.mes, 'nao_atende', '84 de 120 meses com rendimento pago', null, 84, 120),
+      itemDe(
+        TIJOLO.mes,
+        'nao_atende',
+        '84 de 120 meses com rendimento pago (jan/2016–dez/2025)',
+        null,
+        84,
+        120,
+      ),
       semDado(TIJOLO.res),
     ]);
   }
@@ -472,7 +489,7 @@ function janelaHglg11(j: Janela): JanelaCriteriosApi {
     itemDe(
       TIJOLO.mes,
       'atende',
-      `${12 * j} de ${12 * j} meses com rendimento pago`,
+      `${12 * j} de ${12 * j} meses com rendimento pago (jan/${2026 - j}–dez/2025)`,
       null,
       12 * j,
       12 * j,

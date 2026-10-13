@@ -7,7 +7,9 @@
  *    (ex.: uma lacuna em mar/2026 com anoFim 2025) não contam. NÃO lê
  *    AssetMultiplesCurrent.mesesComRendimento (que conta a partir de hoje). Também devolve o mês do
  *    1º provento da base (inicioBase).
- * 2. avaliarMeses: atende = consecutivos ≥ 12J; fato 'min(m,12J) de 12J meses com rendimento pago'.
+ * 2. avaliarMeses: atende = consecutivos ≥ 12J; o fato CONTA os meses com rendimento DENTRO da janela
+ *    (jan/(anoFim − J + 1)–dez/anoFim), não só a sequência final — uma lacuna antiga não zera a
+ *    contagem: 'n de 12J meses com rendimento pago (jan/AAAA–dez/AAAA)' (QA 13/10).
  *    Base que começa DEPOIS de jan/(anoFim − J + 1) e cuja sequência chega até o começo da base
  *    (nenhuma lacuna dentro do que existe) = params.meses.mesesBaseCurta ('sem_dado' por padrão,
  *    com o fato 'sem dado nas demonstrações (proventos registrados desde MM/AAAA)').
@@ -29,6 +31,11 @@ export interface MesesRendimento {
   consecutivos: number;
   /** 'AAAA-MM' do 1º mês com rendimento na base (null = nenhum provento válido) */
   inicioBase: string | null;
+  /**
+   * meses ('AAAA-MM', sem repetição) com rendimento pago até dez/anoFim; ausente (fixtures antigas)
+   * = só a sequência final é conhecida e a contagem cai para min(consecutivos, 12J)
+   */
+  mesesPagos?: readonly string[];
 }
 
 /** Só a parte do ScoringParams que a contagem lê. */
@@ -64,12 +71,15 @@ export function mesesAteAnoFim(
   } as ScoringParams;
   const { meses } = mesesComRendimentoDetalhado([...proventos], `${anoFim}-12-31`, semTolerancia);
   let inicioBase: string | null = null;
+  const pagos = new Set<string>();
+  const fim = `${anoFim}-12`;
   for (const p of proventos) {
     if (p.status !== 'valido' || !cfg.tiposFii.includes(p.tipoNormalizado)) continue;
     const mes = mesDoProvento(p);
     if (mes && (inicioBase === null || mes < inicioBase)) inicioBase = mes;
+    if (mes && mes <= fim) pagos.add(mes);
   }
-  return { consecutivos: meses, inicioBase };
+  return { consecutivos: meses, inicioBase, mesesPagos: [...pagos].sort() };
 }
 
 export interface ResultadoMeses {
@@ -102,11 +112,21 @@ export function avaliarMeses(
     };
   }
   const total = 12 * janela;
-  const n = Math.min(Math.max(0, meses.consecutivos), total);
+  const anoInicio = anoInicioJanela(anoFim, janela);
+  const inicioJanela = `${anoInicio}-01`;
+  const fimJanela = `${anoFim}-12`;
+  const n = meses.mesesPagos
+    ? meses.mesesPagos.filter((m) => m >= inicioJanela && m <= fimJanela).length
+    : Math.min(Math.max(0, meses.consecutivos), total);
+  const fato = formatarTexto(t.mesesPeriodo, { n, total, anoInicio, anoFim });
   if (meses.consecutivos >= total) {
-    return { estado: 'atende', n, de: total, fato: formatarTexto(t.meses, { n, total }) };
+    return {
+      estado: 'atende',
+      n: total,
+      de: total,
+      fato: formatarTexto(t.mesesPeriodo, { n: total, total, anoInicio, anoFim }),
+    };
   }
-  const inicioJanela = `${anoInicioJanela(anoFim, janela)}-01`;
   // 1º mês da sequência que termina em dez/anoFim (dez/anoFim + 1 quando a sequência é vazia)
   const inicioSequencia = somarMeses(`${anoFim}-12`, 1 - meses.consecutivos);
   const baseCurta = meses.inicioBase > inicioJanela && inicioSequencia <= meses.inicioBase;
@@ -119,5 +139,5 @@ export function avaliarMeses(
       motivo: 'base_proventos_curta',
     };
   }
-  return { estado: 'nao_atende', n, de: total, fato: formatarTexto(t.meses, { n, total }) };
+  return { estado: 'nao_atende', n, de: total, fato };
 }

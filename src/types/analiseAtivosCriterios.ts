@@ -459,7 +459,11 @@ export interface EntradaAvaliacaoAtivo {
   /** série anual por SerieCriterio; ano ausente = sem dado; anos em conferência já removidos */
   series: Partial<Record<SerieCriterio, Record<number, number | null>>>;
   /** meses com rendimento pago até dez/anoFim e o mês de início da base (meses) */
-  meses: { consecutivos: number; inicioBase: string | null } | null;
+  meses: {
+    consecutivos: number;
+    inicioBase: string | null;
+    mesesPagos?: readonly string[];
+  } | null;
 }
 
 /** Entrada de perfilCriterios (regra única de perfil). */

@@ -247,7 +247,9 @@ describe('seriesFii (informes CVM + proventos auditados)', () => {
   });
 
   it('meses ancorados em dez/2025: HGLG11 60 de 60 na janela 5', () => {
-    expect(fato(avaliarFii('HGLG11'), '5', 'mes')).toBe('60 de 60 meses com rendimento pago');
+    expect(fato(avaliarFii('HGLG11'), '5', 'mes')).toBe(
+      '60 de 60 meses com rendimento pago (jan/2021–dez/2025)',
+    );
   });
 
   it('ticker↔CNPJ não conferido: só o rendimento por cota (proventos B3) continua', () => {
