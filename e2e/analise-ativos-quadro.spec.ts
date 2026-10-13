@@ -1,10 +1,13 @@
 import { test, expect, type Page } from '@playwright/test';
-import { encontrarPalavrasProibidas } from '../src/services/analiseAtivos/regras/comum/linguagem';
+import { encontrarProibidasV2 } from '../src/services/analiseAtivos/regras/comum/linguagemV2';
 
 /**
- * Análise de Ativos — Fase 1, fatia A: Quadro e busca no computador (projeto `chromium`, SÓ
- * LEITURA). No CI o seed traz as fixtures da área (12 ações e 7 FIIs no Quadro) com
- * ANALISE_ATIVOS_HABILITADA=true; no dev, o banco inteiro. Sem a área liberada, pula.
+ * Análise de Ativos — Quadro e busca no computador (projeto `chromium`, SÓ LEITURA). v2.4 (fatia
+ * B): Filtros de fundamentos (janela + critérios com E), ordem A–Z, coluna Critérios, sem o
+ * indicador antigo. No CI o seed traz as fixtures da área (12 ações e 7 FIIs no Quadro) com
+ * ANALISE_ATIVOS_HABILITADA=true; no dev, o banco inteiro. Os testes de critério valem com ou sem
+ * avaliação gravada (job 'criterios'): sem avaliação, a lista filtrada fica vazia com o link
+ * "limpe os filtros". Sem a área liberada, pula.
  */
 
 test.beforeEach(async ({ page }) => {
@@ -104,18 +107,99 @@ test('Detalhado acrescenta colunas e fica na URL', async ({ page }) => {
   await expect(page.getByRole('columnheader', { name: 'Setor' })).toBeVisible();
 });
 
-test('chip DY 12m ≥ 4%: aria-pressed e só DY ≥ 4 na lista', async ({ page }) => {
+test('padrão A–Z; chip de critério (E) na URL e na API; Limpar filtros', async ({ page }) => {
+  test.setTimeout(120_000);
   await abrirQuadro(page);
-  const chip = page.getByRole('button', { name: /DY 12m ≥ 4%/ });
+  await expect(page.locator('th[data-coluna="ativo"]')).toHaveAttribute('aria-sort', 'ascending');
+  const tickers = await linhas(page).evaluateAll((trs) =>
+    trs.map((tr) => tr.getAttribute('data-ticker') ?? ''),
+  );
+  expect([...tickers].sort((a, b) => a.localeCompare(b))).toEqual(tickers);
+
+  const chip = page.getByRole('button', { name: /Receita crescente/ });
   await chip.click();
   await expect(chip).toHaveAttribute('aria-pressed', 'true');
-  await expect(page).toHaveURL(/f=dyMinAcao/);
-  await tabelaPronta(page);
-  const dys = (await valoresColuna(page, 'dy12m')).map(numeroBr);
-  expect(dys.length).toBeGreaterThan(0);
-  for (const v of dys) expect(v ?? -1).toBeGreaterThanOrEqual(4);
+  await expect(page).toHaveURL(/c=rec/);
+  await expect(page.locator('[data-quadro-contador]')).toContainText(
+    'atendem a 1 critério em 5 anos',
+  );
+
+  // API: todo item devolvido ATENDE ao critério na janela (sem dado e n/a nunca passam)
+  const r = await page.request.get(
+    '/api/analise-ativos/quadro?classe=acao&criterios=rec&limite=100',
+  );
+  expect(r.ok()).toBe(true);
+  const corpo = (await r.json()) as {
+    itens: Array<{ criterios: { marcas: Array<{ id: string; estado: string }> } | null }>;
+  };
+  for (const i of corpo.itens) {
+    expect(i.criterios?.marcas.find((m) => m.id === 'rec')?.estado).toBe('atende');
+  }
+
   await page.getByRole('button', { name: 'Limpar filtros' }).first().click();
   await expect(chip).toHaveAttribute('aria-pressed', 'false');
+  await expect(page).not.toHaveURL(/c=rec/);
+});
+
+test('FIIs: janela 10 com critério ligado mostra a nota e o vazio com "limpe os filtros"', async ({
+  page,
+}) => {
+  test.setTimeout(120_000);
+  await page.goto('/analise-ativos?classe=fii&j=10&c=rend,vp,alav,mes,res', {
+    waitUntil: 'domcontentloaded',
+  });
+  await expect(page.locator('[data-nota-janela-fii]')).toBeVisible({ timeout: 60_000 });
+  await expect(page.getByRole('radio', { name: '10 anos' })).toHaveAttribute(
+    'aria-checked',
+    'true',
+  );
+  const vac = page.getByRole('button', { name: /Vacância ≤ 10%/ });
+  await expect(vac).toHaveAttribute('aria-disabled', 'true');
+  const limpe = page.getByRole('button', { name: 'limpe os filtros' });
+  const vazio = await limpe
+    .or(
+      page.locator('[data-quadro-cartoes] li, [data-quadro-tabela] tbody tr[data-ticker]').first(),
+    )
+    .first()
+    .waitFor({ timeout: 60_000 })
+    .then(() => limpe.isVisible());
+  test.skip(!vazio, 'algum FII atende aos 5 critérios em 10 anos neste banco');
+  await limpe.click();
+  await expect(page).toHaveURL(/classe=fii&j=10$/);
+});
+
+test('contrato: JSON do Quadro e da busca sem chave do indicador antigo; ordem antiga = 400', async ({
+  page,
+}) => {
+  const chaves = (v: unknown, out: string[] = []): string[] => {
+    if (Array.isArray(v)) v.forEach((x) => chaves(x, out));
+    else if (v && typeof v === 'object') {
+      for (const [k, x] of Object.entries(v)) {
+        out.push(k);
+        chaves(x, out);
+      }
+    }
+    return out;
+  };
+  for (const url of [
+    '/api/analise-ativos/quadro?classe=acao&limite=100',
+    '/api/analise-ativos/quadro?classe=fii&janela=3&limite=100',
+    '/api/analise-ativos/busca',
+  ]) {
+    const r = await page.request.get(url);
+    expect(r.ok(), url).toBe(true);
+    const corpo = await r.json();
+    expect(
+      chaves(corpo).filter((k) => /indice|semaforo|destaque/i.test(k)),
+      url,
+    ).toEqual([]);
+  }
+  for (const qs of ['ordem=indiceMf', 'dyMin=4', 'somenteCompletos=1', 'janela=4']) {
+    const r = await page.request.get(`/api/analise-ativos/quadro?classe=acao&${qs}`);
+    expect(r.status(), qs).toBe(400);
+  }
+  const t = (await page.request.get('/api/analise-ativos/quadro?classe=acao&limite=5')).headers();
+  expect(t['server-timing']).toMatch(/quadro;dur=/);
 });
 
 test('Mostrar mais traz mais 25', async ({ page }) => {
@@ -130,14 +214,15 @@ test('Mostrar mais traz mais 25', async ({ page }) => {
   await expect(contagem).toContainText(`Mostrando ${Math.min(50, total)} de ${total}`);
 });
 
-test('aba FIIs: colunas de fundo e contador nas abas', async ({ page }) => {
+test('aba FIIs: colunas de fundo, Critérios e contador nas abas', async ({ page }) => {
   await abrirQuadro(page);
   const abaFii = page.getByRole('button', { name: /^FIIs \d+$/ });
   await expect(abaFii).toBeVisible();
   await abaFii.click();
   await expect(page).toHaveURL(/classe=fii/);
   await expect(page.getByRole('button', { name: 'Ordenar por Fundo' })).toBeVisible();
-  await expect(page.getByRole('columnheader', { name: 'Rendimento 10 anos' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Ordenar por Critérios' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Ordenar por Vacância (CVM)' })).toBeVisible();
   await expect(abaFii).toHaveAttribute('aria-current', 'page');
 });
 
@@ -163,11 +248,15 @@ test('busca sem resultado diz o que cobre; textos sem linguagem proibida', async
     timeout: 30_000,
   });
   await campo.fill('');
-  // varredura do Quadro (o rodapé legal fica fora: texto fixo exigido)
+  // varredura do Quadro (caso 32): literais registrados e nomes de ativo (banco) ficam fora
   for (const classe of ['acao', 'fii']) {
     await abrirQuadro(page, classe === 'fii' ? '?classe=fii&modo=detalhado' : '?modo=detalhado');
-    const texto = await quadro(page).innerText();
-    expect(encontrarPalavrasProibidas(texto), classe).toEqual([]);
-    expect(texto).not.toMatch(/\b(comprar?|recomenda\w*|nota)\b/i);
+    const texto = await quadro(page).evaluate((el) => {
+      const copia = el.cloneNode(true) as HTMLElement;
+      copia.querySelectorAll('[data-texto-legal], [data-nome-ativo]').forEach((n) => n.remove());
+      return copia.textContent ?? '';
+    });
+    expect(encontrarProibidasV2(texto), classe).toEqual([]);
+    expect(texto).not.toMatch(/Índice/);
   }
 });
