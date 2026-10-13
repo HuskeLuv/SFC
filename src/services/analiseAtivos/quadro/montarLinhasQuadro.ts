@@ -25,6 +25,10 @@
  *
  * Convenções de colunas de array: ver src/services/analiseAtivos/leitura/linhasQuadro.ts.
  *
+ * v2.4 (Filtros de Fundamentos): criterios = cópia compacta de criteria_eval por janela
+ * ({"3":{n,de,m:[[id,estado,fato]]},…}) e perfilCriterios, quando o job 'criterios' avaliou o
+ * símbolo; sem avaliação, as duas colunas ficam nulas e sai o alerta 'quadro_sem_criterios'.
+ *
  * Bloco C: as flags 'conf:'/'rev:'/'info:' de asset_multiples_current vão para a linha junto com
  * as demais; grupo 'conf:' de escopo EMPRESA gravado num ticker vale para todos os tickers do
  * emissor (ON/PN/unit); escopo 'ticker' (cotação) fica só no próprio ticker.
@@ -37,6 +41,7 @@ import type { AlertaJob, ContagemAcoes, TickerAcao } from '@/services/analiseAti
 import { distanciaEmPregoes } from '@/services/analiseAtivos/regras/comum/pregoes';
 import { DEF_GRUPO, parseFlagConf } from '@/services/analiseAtivos/regras/comum/conferencia';
 import type { EstadoIndice, ForaDoQuadroMotivo, PontoSerieAnual } from '@/types/analiseAtivosApi';
+import type { CriteriosCompactos, PerfilCriterio } from '@/types/analiseAtivosCriterios';
 
 export const N_PARES = 5;
 /** Ação fora da ClassifSetorial vigente sem negócio há mais de N pregões ⇒ deslistada. */
@@ -164,6 +169,11 @@ export interface EntradaQuadro {
   mesesInformeFii: Array<{ cnpj: string; ano: number; meses: number }>;
   /** contagem de ações mais recente por emissor (status ok) */
   contagens: ContagemAcoes[];
+  /**
+   * v2.4: cópia compacta da avaliação dos critérios (criteria_eval, job 'criterios') por símbolo.
+   * Ausente/sem o símbolo = a linha fica com criterios e perfilCriterios nulos.
+   */
+  criterios?: Array<{ symbol: string; perfil: PerfilCriterio; criterios: CriteriosCompactos }>;
 }
 
 export type LinhaQuadroGravar = Prisma.AnaliseQuadroLinhaCreateManyInput;
@@ -307,6 +317,7 @@ export function montarLinhasQuadro(e: EntradaQuadro): ResultadoMontagem {
     mesesPor.set(m.cnpj, r);
   }
   const precosPor = agrupar(e.ultimosPregoes, (q) => q.symbol);
+  const criteriosPor = new Map((e.criterios ?? []).map((c) => [c.symbol, c]));
   const precoResumo = new Map(e.resumos.map((r) => [r.symbol, r.closeRaw]));
 
   const variacaoDia = (symbol: string): number | null => {
@@ -416,6 +427,8 @@ export function montarLinhasQuadro(e: EntradaQuadro): ResultadoMontagem {
     const nome = ehAcao
       ? (nomeAsset ?? ciaPor.get(u.cnpj) ?? setor?.nomePregao ?? u.symbol)
       : (nomeAsset ?? nomeB3 ?? u.symbol);
+    // v2.4: cópia compacta dos critérios (sem avaliação = colunas nulas)
+    const crit = criteriosPor.get(u.symbol);
 
     return {
       symbol: u.symbol,
@@ -473,10 +486,28 @@ export function montarLinhasQuadro(e: EntradaQuadro): ResultadoMontagem {
       flags,
       paramsVersion: score?.paramsVersion ?? null,
       geradoEm: e.geradoEm,
+      ...(crit
+        ? {
+            criterios: crit.criterios as unknown as Prisma.InputJsonValue,
+            perfilCriterios: crit.perfil,
+          }
+        : {}),
     };
   });
 
   preencherPares(linhas);
+
+  const semCriterios = linhas.filter((l) => l.noQuadro && !criteriosPor.has(l.symbol));
+  if (semCriterios.length > 0) {
+    alertas.push({
+      codigo: 'quadro_sem_criterios',
+      nivel: 'aviso',
+      mensagem: `${semCriterios.length} linhas do Quadro sem avaliação dos critérios (job 'criterios' não rodou para elas): ${semCriterios
+        .slice(0, 20)
+        .map((l) => l.symbol)
+        .join(', ')}`,
+    });
+  }
 
   if (semSetor.length > 0) {
     alertas.push({

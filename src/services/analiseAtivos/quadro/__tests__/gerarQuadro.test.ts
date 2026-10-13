@@ -4,6 +4,13 @@ import { gerarQuadro, gravarLinhasQuadro, lucrosFyVigentes } from '../gerarQuadr
 import type { EntradaQuadro, LinhaQuadroGravar } from '../montarLinhasQuadro';
 import type { AlertaJob, JobContexto } from '@/services/analiseAtivos/tipos';
 import { SCORING_PARAMS_V1 } from '@/services/analiseAtivos/params/scoringParamsV1';
+import { CRITERIA_PARAMS_V1 } from '@/services/analiseAtivos/params/criteriaParamsV1';
+import { avaliarAtivo } from '@/services/analiseAtivos/regras/criterios/avaliarAtivo';
+import {
+  compactarAvaliacao,
+  lerCompactosPorSimbolo,
+  linhasCriteriaEval,
+} from '@/services/analiseAtivos/repositorio/criterios';
 
 /** Prisma fake: só analise_quadro_linhas em memória, com $transaction em lote (tudo ou nada). */
 function prismaFake(falharCreate = false) {
@@ -272,5 +279,62 @@ describe('lucrosFyVigentes', () => {
     );
     const mapa = Object.fromEntries(r.map((x) => [`${x.cnpj}${x.anoFiscal}`, x.lucro]));
     expect(mapa).toEqual({ A2024: 12, A2025: 7, B2025: 2, B2023: 4 });
+  });
+});
+
+describe('gerarQuadro — critérios de fundamentos (v2.4)', () => {
+  it('grava a cópia compacta de criteria_eval nas linhas avaliadas e relata', async () => {
+    const { prisma, tabela } = prismaFake();
+    const { ctx, alertas } = ctxCom(prisma);
+    const a = avaliarAtivo(
+      {
+        symbol: 'WEGE3',
+        classe: 'acao',
+        perfil: 'acao',
+        anoFim: 2025,
+        series: { receita: { 2020: 1, 2021: 2, 2022: 3, 2023: 4, 2024: 5, 2025: 6 } },
+        meses: null,
+      },
+      CRITERIA_PARAMS_V1,
+      1,
+    );
+    const compactos = compactarAvaliacao(a);
+    const r = await gerarQuadro(ctx, {
+      carregar: async () => ({
+        ...entradaMinima(new Date('2026-10-13T10:40:00Z')),
+        criterios: [
+          { symbol: 'WEGE3', perfil: 'acao', criterios: compactos },
+          { symbol: 'ITUB4', perfil: 'acao_financeira', criterios: compactos },
+        ],
+      }),
+    });
+    expect(tabela.get('WEGE3')).toMatchObject({ perfilCriterios: 'acao', criterios: compactos });
+    expect(tabela.get('ITUB4')?.perfilCriterios).toBe('acao_financeira');
+    expect(r.detalhes).toMatchObject({ comCriterios: 2 });
+    expect(alertas.map((x) => x.codigo)).not.toContain('quadro_sem_criterios');
+    expect(compactos['5']?.m.map((m) => m[0])).toEqual(['rec', 'luc', 'ebitda', 'mg', 'dl', 'fcl']);
+  });
+
+  it('lerCompactosPorSimbolo agrupa as janelas por símbolo, em páginas', async () => {
+    const a = avaliarAtivo(
+      { symbol: 'WEGE3', classe: 'acao', perfil: 'acao', anoFim: 2025, series: {}, meses: null },
+      CRITERIA_PARAMS_V1,
+      4,
+    );
+    const linhas = linhasCriteriaEval({ symbol: 'WEGE3', cnpj: 'C', avaliacao: a }, new Date()).map(
+      (l, i) => ({ ...l, id: `id-${i}` }),
+    );
+    const findMany = vi.fn(async ({ take, cursor }: { take: number; cursor?: { id: string } }) => {
+      const inicio = cursor ? linhas.findIndex((l) => l.id === cursor.id) + 1 : 0;
+      return linhas.slice(inicio, inicio + take);
+    });
+    const m = await lerCompactosPorSimbolo(
+      { criteriaEval: { findMany } } as unknown as PrismaClient,
+      { pagina: 2 },
+    );
+    expect(findMany).toHaveBeenCalledTimes(2);
+    expect(m.get('WEGE3')).toMatchObject({ perfil: 'acao', paramsVersion: 4 });
+    expect(Object.keys(m.get('WEGE3')!.criterios).sort()).toEqual(['10', '3', '5']);
+    expect(m.get('WEGE3')!.criterios).toEqual(compactarAvaliacao(a));
   });
 });

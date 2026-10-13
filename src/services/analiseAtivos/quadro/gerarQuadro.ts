@@ -3,10 +3,11 @@
  * Roda depois do 'scores' (cron 10:40 UTC, processo separado pelo myfinance-job.sh), via
  * executarJobAnalise (lock, AnaliseJobRun, prazo). Só banco: nenhum provedor externo.
  *
- * 1. dataRef = max(asset_scores.dataRef).
+ * 1. dataRef = max(asset_scores.dataRef) (continua vindo de asset_scores até a D6).
  * 2. carregarEntradaQuadro: UMA leitura por tabela (cadastro, scores da dataRef, múltiplos atuais,
  *    setor B3, nomes, informes de FII, resumo de cotação, 2 últimos pregões, per-share, lucro FY,
- *    contagem de ações, Asset.id).
+ *    contagem de ações, Asset.id) + a cópia compacta dos critérios (criteria_eval, gravado pelo job
+ *    'criterios' das 10:30 UTC) → AnaliseQuadroLinha.criterios/perfilCriterios (v2.4).
  * 3. montarLinhasQuadro (pura).
  * 4. Grava numa transação (deleteMany + createMany): os leitores veem a versão anterior inteira até o
  *    commit (MVCC) e trocam de versão em até 60 s (linhasQuadro.ts).
@@ -15,6 +16,7 @@ import { Prisma, type PrismaClient } from '@prisma/client';
 import { lucroParaSequencia } from '@/services/analiseAtivos/regras/calculo/sequencias';
 import { contagensAcoes } from '@/services/analiseAtivos/repositorio/acoes';
 import { paraNumero } from '@/services/analiseAtivos/repositorio/conversao';
+import { lerCompactosPorSimbolo } from '@/services/analiseAtivos/repositorio/criterios';
 import {
   listarEmissores,
   listarFiisListados,
@@ -87,7 +89,7 @@ export async function carregarEntradaQuadro(
     contagensAcoes(prisma, cnpjsAcao),
   ]);
 
-  const [fiiMensal, fiiTrimestral, mesesInforme, ultimos, fys] = await Promise.all([
+  const [fiiMensal, fiiTrimestral, mesesInforme, ultimos, fys, criterios] = await Promise.all([
     cnpjsFii.length
       ? prisma.$queryRaw<
           Array<{
@@ -128,6 +130,7 @@ export async function carregarEntradaQuadro(
         FROM "asset_quotes_daily" WHERE "date" >= ${desdePregoes} AND "date" <= ${dataRef}
       ) x WHERE rn <= 2`,
     lucrosFyVigentes(prisma, cnpjsAcao, emissores),
+    lerCompactosPorSimbolo(prisma),
   ]);
   const lucrosFy = fys;
 
@@ -211,6 +214,11 @@ export async function carregarEntradaQuadro(
     lucrosFy,
     mesesInformeFii: mesesInforme.map((m) => ({ cnpj: m.cnpj, ano: m.ano, meses: m.meses })),
     contagens: [...contagemPor.values()],
+    criterios: [...criterios.entries()].map(([symbol, c]) => ({
+      symbol,
+      perfil: c.perfil,
+      criterios: c.criterios,
+    })),
   };
 }
 
@@ -315,6 +323,7 @@ export async function gerarQuadro(
       linhas: r.linhas.length,
       linhasGravadas: gravadas,
       noQuadroPorClasse: r.noQuadroPorClasse,
+      comCriterios: r.linhas.filter((l) => l.criterios !== undefined).length,
       foraDoQuadroPorClasse: r.foraDoQuadroPorClasse,
       aplicar: ctx.aplicar,
     },
