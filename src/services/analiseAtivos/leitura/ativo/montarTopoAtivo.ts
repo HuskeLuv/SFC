@@ -1,10 +1,11 @@
 /**
  * Topo da página do ativo numa chamada (fatia B): GET /api/analise-ativos/ativos/[ticker].
  *
- * Só banco (nenhum provedor externo): a linha do Quadro (fonte única do estado do Índice, da
- * cotação e dos Estado<number>) + as tabelas da Fase 0 por ticker/CNPJ, em Promise.all e só por
- * índices existentes (PK/unique da Fase 0):
- *  - AssetScore mais recente do ticker de referência do Índice (unique symbol+dataRef);
+ * Só banco (nenhum provedor externo): a linha do Quadro (fonte única da cotação e dos
+ * Estado<number>) + as tabelas da Fase 0 por ticker/CNPJ, em Promise.all e só por índices
+ * existentes (PK/unique da Fase 0):
+ *  - v2.4 (fatia C2): critérios de fundamentos nas 3 janelas (criteria_eval via obterCriteriosAtivo,
+ *    com cache próprio). SEM Índice nem semáforo: nenhuma chave /indice|semaforo|destaque/ no JSON;
  *  - asset_multiples_current (PK), asset_per_share_yearly e asset_multiples_yearly (unique
  *    symbol+anoFiscal) dos últimos 11 anos;
  *  - asset_corporate_action_checks (idx symbol), aplicados por series.fatorAjusteAte;
@@ -44,11 +45,7 @@ import {
 } from '@/services/analiseAtivos/leitura/ativo/conferenciasAtivo';
 import { montarFrescorBlocos } from '@/services/analiseAtivos/leitura/ativo/frescorBlocos';
 import { gruposConf } from '@/services/analiseAtivos/regras/comum/conferencia';
-import {
-  lerScoreGravado,
-  montarIndiceTopo,
-  montarSemaforoTela,
-} from '@/services/analiseAtivos/leitura/ativo/semaforoTela';
+import { obterCriteriosAtivo } from '@/services/analiseAtivos/leitura/criterios/lerCriterios';
 import {
   montarGraficoAcao,
   montarGraficoFii,
@@ -60,10 +57,10 @@ import { LINK_EDUCACAO } from '@/constants/analiseAtivosVisual';
 import type {
   AtivoTopoResposta,
   ClasseQuadro,
-  EstadoIndice,
   FiiTipoTela,
   LinhaQuadroApi,
 } from '@/types/analiseAtivosApi';
+import type { CriteriosAtivo } from '@/types/analiseAtivosCriterios';
 
 export const TTL_TOPO_MS = 30 * 60_000;
 export const MAX_TOPO_EM_CACHE = 800;
@@ -97,6 +94,18 @@ function gravarCache(chave: string, valor: AtivoTopoResposta, agora: number): vo
     const maisAntiga = cache.keys().next().value;
     if (maisAntiga === undefined) break;
     cache.delete(maisAntiga);
+  }
+}
+
+/**
+ * Critérios das 3 janelas (fatia A grava; < 30 KB no topo). Falha de leitura = null ("sem
+ * avaliação"): o topo nunca quebra por causa dos critérios.
+ */
+async function lerCriteriosTopo(ticker: string): Promise<CriteriosAtivo | null> {
+  try {
+    return await obterCriteriosAtivo(prisma, ticker);
+  } catch {
+    return null;
   }
 }
 
@@ -148,14 +157,13 @@ export async function montarTopoAtivo(
   const hoje = hojeSaoPaulo(agora);
   const anoAtual = Number(hoje.slice(0, 4));
   const desdeAno = anoAtual - ANOS_HISTORICO;
-  const refIndice = row.tickerReferencia ?? ticker;
   const ehAcao = classe === 'acao';
   // FII com ticker↔CNPJ não conferido: o informe mensal do CNPJ pode ser de outro fundo (nem é
   // lido): sem VP/cota no gráfico, sem data de informe; cotação e proventos da B3 continuam.
   const cnpjEmConferencia = !ehAcao && row.flags.includes(FLAG_CNPJ_EM_CONFERENCIA);
 
   const [
-    scoreRow,
+    criterios,
     atuais,
     perShare,
     multAnuais,
@@ -170,10 +178,7 @@ export async function montarTopoAtivo(
     painel,
     casos,
   ] = await Promise.all([
-    prisma.assetScore.findFirst({
-      where: { symbol: refIndice },
-      orderBy: { dataRef: 'desc' },
-    }),
+    lerCriteriosTopo(ticker),
     prisma.assetMultiplesCurrent.findUnique({ where: { symbol: ticker } }),
     prisma.assetPerShareYearly.findMany({
       where: { symbol: ticker, anoFiscal: { gte: desdeAno } },
@@ -265,25 +270,6 @@ export async function montarTopoAtivo(
   const linhasPares = pares
     .filter((p): p is NonNullable<typeof p> => !!p)
     .map((p) => paraLinhaQuadroApi(p));
-
-  const score = scoreRow ? lerScoreGravado(scoreRow) : null;
-  const estado = (linha.indice?.estado ?? row.estadoIndice) as EstadoIndice;
-  const indice = montarIndiceTopo(
-    {
-      estadoIndice: estado,
-      indiceMf: row.indiceMf,
-      regua: row.regua,
-      motivosIncompleto: row.motivosIncompleto,
-      componentesZeroRegra: row.componentesZeroRegra,
-      criteriosAtendidos: row.criteriosAtendidos,
-      criteriosAplicaveis: row.criteriosAplicaveis,
-    },
-    estado === 'sem_score' || estado === 'fora_do_indice' ? null : score,
-  );
-  const semaforo =
-    score && estado !== 'sem_score' && estado !== 'fora_do_indice'
-      ? montarSemaforoTela(score.checks, gruposConferencia)
-      : [];
 
   const lpaAnual = anosFechados(
     perShare.map((p) => ({ ano: p.anoFiscal, valor: p.lpaAjHoje })),
@@ -403,14 +389,14 @@ export async function montarTopoAtivo(
       : null;
   const edu = TEXTOS_TELA.educacao[classe];
 
-  const resposta: AtivoTopoResposta = {
+  // v2.4: tickerReferenciaIndice sai do JSON (chave /indice/); o tipo só perde o campo na F
+  const resposta: Omit<AtivoTopoResposta, 'tickerReferenciaIndice'> = {
     ticker,
     classe,
     nome: linha.nome,
     tags: tagsDe(linha),
     noQuadro: linha.noQuadro,
     foraDoQuadroMotivo: linha.foraDoQuadroMotivo,
-    tickerReferenciaIndice: row.tickerReferencia,
     assetId: linha.assetId,
     cotacao: {
       preco,
@@ -419,8 +405,7 @@ export async function montarTopoAtivo(
       variacaoPct: pct,
       baixaLiquidez: linha.baixaLiquidez,
     },
-    indice,
-    semaforo,
+    criterios,
     kpis,
     grafico,
     dividendos,
@@ -454,6 +439,7 @@ export async function montarTopoAtivo(
       dataRef: iso(row.dataRef),
     });
   }
-  gravarCache(chave, resposta, agora.getTime());
-  return resposta;
+  const topo = resposta as AtivoTopoResposta;
+  gravarCache(chave, topo, agora.getTime());
+  return topo;
 }
