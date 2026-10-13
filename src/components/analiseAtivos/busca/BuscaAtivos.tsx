@@ -272,7 +272,7 @@ function ListaResultados({
                     <span className="shrink-0 text-right text-xs text-gray-500 dark:text-gray-400">
                       {motivo}
                     </span>
-                  ) : item.i !== null ? (
+                  ) : item.i != null ? (
                     <span className="shrink-0 text-xs text-gray-500 tabular-nums dark:text-gray-400">
                       {formatarTexto(T.indiceCurto, {
                         valor: item.i.toLocaleString('pt-BR', {

@@ -78,6 +78,7 @@ export function ariaSerie(l: LinhaQuadroApi): string {
 /** Texto curto embaixo do anel (critérios, incompleto, sem Índice, fora do Índice). */
 export function apoioIndice(l: LinhaQuadroApi): string | null {
   const i = l.indice;
+  if (!i) return null;
   if (i.estado === 'sem_score') return TEXTOS_TELA.indice.semScoreCurto;
   if (i.estado === 'fora_do_indice') return TEXTOS_TELA.indice.foraDoIndice;
   if (i.estado === 'incompleto') return TEXTOS_TELA.selos.dadosIncompletos;
@@ -95,6 +96,8 @@ export function CelulaIndice({
   tamanho?: 32 | 40;
 }) {
   const apoio = apoioIndice(linha);
+  // v2.4: `indice` ficou opcional no contrato (a fatia B deixa de emitir e remove esta célula)
+  if (!linha.indice) return null;
   return (
     <span className="inline-flex items-center gap-2" data-estado-indice={linha.indice.estado}>
       <AnelIndice valor={linha.indice.valor} estado={linha.indice.estado} tamanho={tamanho} />
@@ -454,7 +457,7 @@ function CelulaAtivo({ linha }: { linha: LinhaQuadroApi }) {
           >
             {linha.ticker}
           </Link>
-          {linha.indice.estado === 'incompleto' ? (
+          {linha.indice?.estado === 'incompleto' ? (
             <SeloIncompleto motivos={linha.indice.motivos} ticker={linha.ticker} />
           ) : null}
         </span>

@@ -151,7 +151,7 @@ export default function CartoesQuadro({
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-1.5">
                     <span className={TABLE_MOBILE_STYLES.cardTitle}>{l.ticker}</span>
-                    {l.indice.estado === 'incompleto' ? (
+                    {l.indice?.estado === 'incompleto' ? (
                       // texto simples (o cartão já é um link; o popover de motivos fica na página)
                       <span className="inline-flex items-center rounded-full border border-dashed border-[#98A2B3] px-2 py-0.5 text-[11px] text-gray-600 dark:text-gray-300">
                         {TEXTOS_TELA.selos.dadosIncompletos}

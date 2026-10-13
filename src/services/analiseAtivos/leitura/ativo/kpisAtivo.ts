@@ -342,7 +342,7 @@ function kpisFii(e: EntradaKpis): KpiAtivo[] {
 /** Política de conferência (bloco C) sobre os KPIs já montados. Sem 'conf:' ⇒ lista igual. */
 function comConferencia(e: EntradaKpis, kpis: KpiAtivo[]): KpiAtivo[] {
   const { linha } = e;
-  const motivos = e.motivosIncompleto ?? linha.indice.motivos.map((m) => m.codigo);
+  const motivos = e.motivosIncompleto ?? (linha.indice?.motivos ?? []).map((m) => m.codigo);
   return kpis.map((k) => {
     if (!ehCampoTela(k.codigo)) return k;
     const r = aplicarConferenciaCampo(k.valor, linha.flags, motivos, k.codigo, linha.classe, {

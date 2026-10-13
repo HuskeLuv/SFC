@@ -53,11 +53,12 @@ function deNumero(n: number | null, formato: FormatoAnalise) {
 export function textoIndicePar(l: LinhaQuadroApi): { texto: string; title?: string } {
   const { indice } = l;
   if (
+    !indice ||
     indice.valor === null ||
     indice.estado === 'sem_score' ||
     indice.estado === 'fora_do_indice'
   ) {
-    return { texto: SEM, title: indice.motivos[0]?.texto };
+    return { texto: SEM, title: indice?.motivos[0]?.texto };
   }
   const texto = formatarAnalise(indice.valor, 'numero');
   return indice.estado === 'incompleto'
@@ -115,7 +116,7 @@ export default function BlocoPares({ ticker, classe }: BlocoParesProps) {
   const itens = pares?.itens ?? [];
   const semPares = itens.length <= 1;
   const colunas = COLUNAS[classe];
-  const temIncompleto = itens.some((l) => l.indice.estado === 'incompleto');
+  const temIncompleto = itens.some((l) => l.indice?.estado === 'incompleto');
 
   return (
     <CartaoAnalise

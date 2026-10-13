@@ -119,7 +119,9 @@ export default function PaginaAtivo({ ticker }: PaginaAtivoProps) {
           seloCarteira={seloCarteira}
           slotAcoes={<AcoesCarteiraAtivo {...base} nome={ativo.nome} assetId={ativo.assetId} />}
         />
-        <BlocoIndiceSemaforo {...base} indice={ativo.indice} semaforo={ativo.semaforo} />
+        {ativo.indice && ativo.semaforo ? (
+          <BlocoIndiceSemaforo {...base} indice={ativo.indice} semaforo={ativo.semaforo} />
+        ) : null}
         <div className="grid min-w-0 gap-4 md:gap-6 xl:grid-cols-2">
           <BlocoNaCarteira
             {...base}

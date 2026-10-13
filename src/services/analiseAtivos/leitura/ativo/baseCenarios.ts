@@ -149,7 +149,7 @@ export function montarBaseCenarios(e: EntradaBaseCenarios): BaseCenariosResposta
   const ctx: Contexto = {
     linha,
     flags: [...new Set([...linha.flags, ...(atual?.flags ?? [])])],
-    motivos: linha.indice.motivos.map((m) => m.codigo),
+    motivos: (linha.indice?.motivos ?? []).map((m) => m.codigo),
     conferencias: [],
   };
 

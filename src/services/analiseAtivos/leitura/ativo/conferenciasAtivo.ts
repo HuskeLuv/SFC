@@ -116,7 +116,7 @@ export function aplicarConferenciaCampo(
 
 /** Motivos do Índice da linha da API (o legado de proventos usa 'div:em_conferencia'). */
 function motivosDaLinha(l: Pick<LinhaQuadroApi, 'indice'>): string[] {
-  return l.indice.motivos.map((m) => m.codigo);
+  return (l.indice?.motivos ?? []).map((m) => m.codigo);
 }
 
 /** Campo em conferência (origem 'conf') de uma linha do Quadro já convertida (front e back). */

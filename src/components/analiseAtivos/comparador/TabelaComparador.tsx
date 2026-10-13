@@ -35,6 +35,7 @@ const COL_ATIVO = 160;
 
 /** Texto "4 de 5 critérios · incompleto" do Índice de um ativo. */
 export function textoCriteriosIndice(a: AtivoComparador): string {
+  if (!a.indice) return '';
   const { criteriosAtendidos: at, criteriosAplicaveis: ap, estado } = a.indice;
   const partes: string[] = [];
   if (at !== null && ap !== null) {
@@ -47,6 +48,8 @@ export function textoCriteriosIndice(a: AtivoComparador): string {
 }
 
 export function ValorIndice({ a, compacto = false }: { a: AtivoComparador; compacto?: boolean }) {
+  // v2.4: `indice` ficou opcional no contrato (a fatia D deixa de emitir); sem ele, nada a mostrar
+  if (!a.indice) return null;
   const v = a.indice.valor;
   const numero =
     v === null || a.indice.estado === 'sem_score' || a.indice.estado === 'fora_do_indice'

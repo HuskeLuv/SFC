@@ -267,7 +267,7 @@ export async function montarTopoAtivo(
     .map((p) => paraLinhaQuadroApi(p));
 
   const score = scoreRow ? lerScoreGravado(scoreRow) : null;
-  const estado = linha.indice.estado as EstadoIndice;
+  const estado = (linha.indice?.estado ?? row.estadoIndice) as EstadoIndice;
   const indice = montarIndiceTopo(
     {
       estadoIndice: estado,

@@ -80,7 +80,7 @@ export default function CabecalhoAtivo({ ativo, seloCarteira, slotAcoes }: Cabec
                 <SeloEstado tipo="sem_negociacao_recente" />
               ) : null}
               {cotacao.baixaLiquidez ? <SeloEstado tipo="baixa_liquidez" /> : null}
-              {ativo.indice.estado === 'incompleto' ? (
+              {ativo.indice?.estado === 'incompleto' ? (
                 <SeloIncompleto motivos={ativo.indice.motivos} ticker={ativo.ticker} />
               ) : null}
             </div>

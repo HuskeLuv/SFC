@@ -264,7 +264,7 @@ function criarCtx(d: DadosAtivoValuation, hoje: string): Ctx {
   const flagsConf = [...d.linha.flags, ...flagsAnuaisConf(d.anuais)];
   return {
     flagsConf,
-    motivos: d.linha.indice.motivos.map((m) => m.codigo),
+    motivos: (d.linha.indice?.motivos ?? []).map((m) => m.codigo),
     anosHistoricoConf: anosEmConferencia(flagsConf, 'historico'),
     d,
     hoje,

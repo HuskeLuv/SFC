@@ -41,7 +41,14 @@ export const VALOR_ORDEM: Record<
   (l: LinhaQuadroApi) => number | null
 > = {
   indiceMf: (l) =>
-    l.indice.estado === 'sem_score' || l.indice.estado === 'fora_do_indice' ? null : l.indice.valor,
+    !l.indice || l.indice.estado === 'sem_score' || l.indice.estado === 'fora_do_indice'
+      ? null
+      : l.indice.valor,
+  // v2.4 (contrato da fatia 0; a fatia B refina): nº de critérios atendidos na janela projetada
+  criterios: (l) => l.criterios?.n ?? null,
+  // v2.4: Lucro 10 anos = anos com lucro (resultado) positivo na série de 10 anos fechados
+  lucro10: (l) =>
+    l.serie10a.length === 0 ? null : l.serie10a.filter((p) => (p.valor ?? 0) > 0).length,
   preco: (l) => valorOk(l.preco),
   anosLucro: (l) => l.anosLucroConsecutivos,
   mesesRendimento: (l) => l.mesesComRendimento,
@@ -83,7 +90,7 @@ export function compararLinhas(
 
 /** Índice completo: calculado ou zero pela regra (o zero não é falta de dado). */
 export function ehCompleta(l: LinhaQuadroApi): boolean {
-  return l.indice.estado === 'calculado' || l.indice.estado === 'zero_regra';
+  return l.indice?.estado === 'calculado' || l.indice?.estado === 'zero_regra';
 }
 
 export type FiltrosConsulta = Omit<QuadroParams, 'classe' | 'ordem' | 'dir' | 'offset' | 'limite'>;

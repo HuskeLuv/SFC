@@ -38,8 +38,24 @@
  * BuscaAtivosProps.classe/desabilitarOutraClasse; cabecalhoExtra em BlocoFundamentosEssencialProps
  * e BlocoValuationMultiplosProps. Tipos do Raio-X, dos Cenários e do Comparador:
  * src/types/analiseAtivosBlocoD.ts.
+ *
+ * v2.4 — Filtros de Fundamentos (docs/analise-ativos/v2-filtros/spec-desenho.json, fatia 0) —
+ * acréscimos SÓ OPCIONAIS (nada é removido aqui; a fatia F remove o Índice/semáforo e torna
+ * obrigatórios os campos novos): LinhaQuadroApi.criterios/motivosConferencia,
+ * AtivoTopoResposta.criterios, QuadroParams.janela/criterios, QuadroResposta.definicoes/janela/
+ * totalClasse, OverlayCarteiraResposta.posicoes[].objetivoPct/estrategia/tipoFii e
+ * planejados[].secao/id, LinhaFundamentos.ultimoAno, OrdemQuadro 'criterios' | 'lucro10',
+ * FundamentosResposta.unidade 'R$ bi'. Passam a OPCIONAIS (as fatias param de emitir):
+ * ConferenciaTela.efeitoIndice, LinhaFundamentos.destaque, LinhaQuadroApi.indice,
+ * AtivoTopoResposta.indice/semaforo, ItemBusca.i/e. Tipos novos: src/types/analiseAtivosCriterios.ts.
  */
 import type { ReactNode } from 'react';
+import type {
+  CriteriosAtivo,
+  CriteriosLinhaApi,
+  DefCriterioChip,
+  Janela,
+} from '@/types/analiseAtivosCriterios';
 
 // ===========================================================================
 // Básicos
@@ -101,8 +117,11 @@ export interface ConferenciaTela {
   motivo: string;
   /** AAAA-MM-DD da detecção (chave da flag quando é data), ou null */
   desde: string | null;
-  /** "Índice MF fica incompleto: Preço e Dividendos"; null = só exibição */
-  efeitoIndice: string | null;
+  /**
+   * "Índice MF fica incompleto: Preço e Dividendos"; null = só exibição.
+   * v2.4: OPCIONAL — a fatia C2 deixa de emitir (sai do JSON); a F remove o campo.
+   */
+  efeitoIndice?: string | null;
   /**
    * Sempre 'regra' nesta fase (decisão 16: sem conferência manual pelo curador; "relato confirmado"
    * não existe como origem).
@@ -237,6 +256,10 @@ export interface RecursosBlocoD {
 export type OrdemQuadro =
   | 'indiceMf'
   | 'ticker'
+  /** v2.4: contagem de critérios atendidos na janela (desc), desempate por ticker */
+  | 'criterios'
+  /** v2.4: Lucro 10 anos (desc) */
+  | 'lucro10'
   | 'preco'
   | 'anosLucro'
   | 'mesesRendimento'
@@ -270,6 +293,13 @@ export interface QuadroParams {
   setor?: string;
   segmento?: string;
   somenteCompletos?: boolean;
+  /** v2.4 (B): janela dos critérios (padrão 5) */
+  janela?: Janela;
+  /**
+   * v2.4 (B): ids ligados (IdCriterio) separados por vírgula, como vão na URL (?criterios=rec,luc);
+   * E lógico; em FII aplica as equivalências tijolo↔papel. A rota valida cada id (zod).
+   */
+  criterios?: string;
   offset?: number;
   /** padrão 25, máximo 100 */
   limite?: number;
@@ -305,7 +335,12 @@ export interface LinhaQuadroApi {
   variacaoDiaPct: number | null;
   liquidezMedia21: number | null;
   baixaLiquidez: boolean;
-  indice: IndiceLinha;
+  /** v2.4: OPCIONAL — a fatia B deixa de emitir (nenhuma chave /indice/ no JSON); a F remove. */
+  indice?: IndiceLinha;
+  /** v2.4 (B): critérios da janela pedida; null = sem avaliação ainda */
+  criterios?: CriteriosLinhaApi | null;
+  /** v2.4 (B/C2): motivos de conferência/incompletude (antes em indice.motivos) */
+  motivosConferencia?: MotivoTela[];
   anosLucroConsecutivos: number | null;
   mesesComRendimento: number | null;
   anosDividendo: number | null;
@@ -360,6 +395,12 @@ export interface QuadroResposta {
   facetas: { setores: string[]; tipos: FiiTipoTela[] };
   frescorCotacao: FrescorCotacao;
   itens: LinhaQuadroApi[];
+  /** v2.4 (B): janela aplicada */
+  janela?: Janela;
+  /** v2.4 (B): total da classe sem filtros (contador 'X de N') */
+  totalClasse?: number;
+  /** v2.4 (B): chips da barra de filtros (de criteria_params) */
+  definicoes?: DefCriterioChip[];
 }
 
 // ===========================================================================
@@ -376,10 +417,10 @@ export interface ItemBusca {
   c: ClasseQuadro;
   /** noQuadro */
   q: boolean;
-  /** Índice MF ou null */
-  i: number | null;
-  /** estado do Índice */
-  e: EstadoIndice;
+  /** Índice MF ou null. v2.4: OPCIONAL — a busca deixa de emitir (B); a F remove. */
+  i?: number | null;
+  /** estado do Índice. v2.4: OPCIONAL (idem). */
+  e?: EstadoIndice;
   /** tipo do FII */
   f: FiiTipoTela | null;
   /** motivo de estar fora do Quadro */
@@ -411,11 +452,29 @@ export type CategoriaCarteira = string;
 export interface OverlayCarteiraResposta {
   posicoes: Record<
     string,
-    { portfolioId: string; quantidade: number; categoria: CategoriaCarteira }
+    {
+      portfolioId: string;
+      quantidade: number;
+      categoria: CategoriaCarteira;
+      /** v2.4 (C1): Portfolio.objetivo, % DENTRO da aba (rec. 1); null = sem alvo */
+      objetivoPct?: number | null;
+      /** v2.4 (C1): estratégia da posição (ação: value|growth|risk) — recompra manda a mesma */
+      estrategia?: string | null;
+      /** v2.4 (C1): tipo de FII da posição na Carteira — recompra manda o mesmo */
+      tipoFii?: string | null;
+    }
   >;
   planejados: Record<
     string,
-    { watchlistId: string; categoria: CategoriaCarteira; objetivoPct: number | null }
+    {
+      watchlistId: string;
+      categoria: CategoriaCarteira;
+      objetivoPct: number | null;
+      /** v2.4 (C1): Watchlist.id (PATCH/DELETE de /api/carteira/planejados/[id]) */
+      id?: string;
+      /** v2.4 (C1): Watchlist.secao (1ª compra de planejado usa esta seção) */
+      secao?: string | null;
+    }
   >;
 }
 
@@ -553,8 +612,12 @@ export interface AtivoTopoResposta {
   tickerReferenciaIndice: string | null;
   assetId: string | null;
   cotacao: CotacaoTopo;
-  indice: IndiceTopo;
-  semaforo: CriterioSemaforoTela[];
+  /** v2.4: OPCIONAL — a fatia C2 deixa de emitir; a F remove. */
+  indice?: IndiceTopo;
+  /** v2.4: OPCIONAL — idem. */
+  semaforo?: CriterioSemaforoTela[];
+  /** v2.4 (C2): critérios nas 3 janelas; null = sem avaliação ainda */
+  criterios?: CriteriosAtivo | null;
   /** 8 por classe */
   kpis: KpiAtivo[];
   grafico: GraficoAtivo;
@@ -586,15 +649,18 @@ export interface LinhaFundamentos {
   /** '2025' ou 'Últ. 12m' */
   rotulo: string;
   ano: number | null;
-  /** último ano FECHADO destacado */
-  destaque: boolean;
+  /** último ano FECHADO destacado. v2.4: OPCIONAL — vira `ultimoAno` (C2); a F remove. */
+  destaque?: boolean;
+  /** v2.4 (C2): último ano FECHADO (data-ultimo-ano), no lugar de `destaque` */
+  ultimoAno?: boolean;
   valores: Record<string, Estado<number>>;
   selos: TipoSeloEstado[];
 }
 
 export interface FundamentosResposta {
   nivel: 'essencial';
-  unidade: 'R$ mi';
+  /** v2.4 (C2): o Essencial passa a R$ bi */
+  unidade: 'R$ mi' | 'R$ bi';
   fonte: 'CVM';
   padraoContabil: string | null;
   escopo: string | null;

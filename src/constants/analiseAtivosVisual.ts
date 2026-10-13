@@ -260,6 +260,9 @@ export const LIMIARES_FILTRO = { dyMinAcao: 4, dyMinFii: 8, pvpMax: 1, lucroAnos
 export const DIRECAO_PADRAO: Record<OrdemQuadro, DirecaoOrdem> = {
   indiceMf: 'desc',
   ticker: 'asc',
+  // v2.4 (fatia 0, contrato de OrdemQuadro): contagem de critérios e Lucro 10 anos começam desc
+  criterios: 'desc',
+  lucro10: 'desc',
   preco: 'desc',
   anosLucro: 'desc',
   mesesRendimento: 'desc',

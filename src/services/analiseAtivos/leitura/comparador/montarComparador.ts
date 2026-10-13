@@ -245,7 +245,13 @@ export function montarComparadorPuro(e: EntradaComparador): NucleoComparador {
   const resumo = montarResumo(
     e.ativos.map((a) => ({
       ticker: a.dados.linha.ticker,
-      indice: a.dados.linha.indice,
+      // v2.4: `indice` opcional no contrato (a fatia D remove o Índice do resumo)
+      indice: a.dados.linha.indice ?? {
+        valor: null,
+        estado: 'sem_score',
+        criteriosAtendidos: null,
+        criteriosAplicaveis: null,
+      },
       emConferencia: emConf.get(a.dados.linha.ticker) ?? [],
     })),
   );

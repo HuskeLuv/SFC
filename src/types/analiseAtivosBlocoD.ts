@@ -30,6 +30,11 @@
  *
  * Convenções iguais às da Fase 1 (src/types/analiseAtivosApi.ts): datas 'AAAA-MM-DD', percentuais
  * em pontos (6 = 6%), Estado<T> com motivo e texto prontos, só anos FECHADOS nas séries anuais.
+ *
+ * v2.4 — Filtros de Fundamentos (fatia 0): acréscimos SÓ OPCIONAIS — AtivoComparador.criterios
+ * (D), ComparadorResposta.leitura (D), CenariosResposta.premissasIniciais (C2, premissas em branco
+ * PremissasAcaoV2/PremissasFiiV2). AtivoComparador.indice passa a opcional (D deixa de emitir). A
+ * fatia F remove ★/destaque/ResumoComparador e torna obrigatórios os campos novos.
  */
 import type {
   ClasseQuadro,
@@ -41,6 +46,12 @@ import type {
   IndiceLinha,
   TipoSeloEstado,
 } from '@/types/analiseAtivosApi';
+import type {
+  CriteriosLinhaApi,
+  LeituraDosDados,
+  PremissasAcaoV2,
+  PremissasFiiV2,
+} from '@/types/analiseAtivosCriterios';
 
 // ===========================================================================
 // Níveis dos cards (seletores)
@@ -359,12 +370,16 @@ export type CenariosResposta =
       classe: 'acao';
       base: BaseCenarioAcao;
       premissasPadrao: PremissasCenarioAcao;
+      /** v2.4 (C2): premissas em branco (yield/g/k null, margem 0, plAlvo = média 10a | null) */
+      premissasIniciais?: PremissasAcaoV2;
       salvo: CenarioSalvo<PremissasCenarioAcao, DadosEditadosAcao> | null;
     })
   | (CenariosRespostaComum & {
       classe: 'fii';
       base: BaseCenarioFii;
       premissasPadrao: PremissasCenarioFii;
+      /** v2.4 (C2): premissas em branco (yield/pvpAlvo/rendaMensal null, margem 0) */
+      premissasIniciais?: PremissasFiiV2;
       salvo: CenarioSalvo<PremissasCenarioFii, DadosEditadosFii> | null;
     });
 
@@ -455,8 +470,10 @@ export interface AtivoComparador {
   fiiTipo: FiiTipoTela | null;
   /** régua do Índice (ex.: 'tijolo'), null em ação */
   regua: string | null;
-  /** Índice MF + statusCriterios (anel; incompleto tracejado) */
-  indice: IndiceLinha;
+  /** Índice MF + statusCriterios. v2.4: OPCIONAL — a fatia D deixa de emitir; a F remove. */
+  indice?: IndiceLinha;
+  /** v2.4 (D): critérios na janela pedida (?janela=); null = sem avaliação */
+  criterios?: CriteriosLinhaApi | null;
   noQuadro: boolean;
   /** fora do Quadro entra com o selo 'sem negociação recente' */
   foraDoQuadroMotivo: ForaDoQuadroMotivo | null;
@@ -512,6 +529,8 @@ export interface ComparadorResposta {
   /** null com menos de 1 ativo válido */
   graficos: GraficosComparador | null;
   resumo: ResumoComparador;
+  /** v2.4 (D): "Leitura dos dados" — só contagens + literal */
+  leitura?: LeituraDosDados;
   versao: string;
 }
 
