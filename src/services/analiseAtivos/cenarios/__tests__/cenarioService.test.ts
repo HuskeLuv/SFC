@@ -104,7 +104,8 @@ describe('salvarCenario', () => {
       classe: 'acao',
       premissas: PREMISSAS,
       dadosEditados: { valores: { lpa: 1.44 }, valoresDoAtivoNoSalvamento: { lpa: 1.49 } },
-      versaoSchema: 1,
+      // v2.4: premissas anuláveis gravam versaoSchema 2
+      versaoSchema: 2,
     });
   });
 
