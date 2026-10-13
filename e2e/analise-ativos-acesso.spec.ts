@@ -60,7 +60,15 @@ test.describe('desktop', () => {
     expect(corpo).toHaveProperty('posicoes');
     expect(corpo).toHaveProperty('planejados');
     for (const p of Object.values(corpo.posicoes)) {
-      expect(Object.keys(p).sort()).toEqual(['categoria', 'portfolioId', 'quantidade']);
+      // v2.4 (C1): + objetivoPct, estrategia e tipoFii (Planejar/Registrar); nada de valor em R$
+      expect(Object.keys(p).sort()).toEqual([
+        'categoria',
+        'estrategia',
+        'objetivoPct',
+        'portfolioId',
+        'quantidade',
+        'tipoFii',
+      ]);
     }
     // seed: o demo tem MXRF11 na aba FII's
     if (corpo.posicoes.MXRF11) expect(corpo.posicoes.MXRF11.categoria).toBe('fiis');
