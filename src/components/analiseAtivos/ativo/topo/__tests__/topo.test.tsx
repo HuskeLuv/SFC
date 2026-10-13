@@ -6,7 +6,6 @@ import React from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import BlocoDividendos from '../BlocoDividendos';
 import BlocoEventos from '../BlocoEventos';
-import BlocoIndiceSemaforo from '../BlocoIndiceSemaforo';
 import BlocoKpis from '../BlocoKpis';
 import CabecalhoAtivo from '../CabecalhoAtivo';
 import CardEducacao from '../CardEducacao';
@@ -15,9 +14,6 @@ import SeloFrescor from '../SeloFrescor';
 import { ConferenciaPaginaProvider } from '@/components/analiseAtivos/comum/PorQueConferencia';
 import { ATIVO_WEGE3 } from '@/test/fixtures/analiseAtivos/respostas';
 import { encontrarPalavrasProibidas } from '@/services/analiseAtivos/textos';
-import type { AtivoTopoResposta, IndiceTopo } from '@/types/analiseAtivosApi';
-
-const indice = (over: Partial<IndiceTopo>): IndiceTopo => ({ ...ATIVO_WEGE3.indice, ...over });
 
 describe('CabecalhoAtivo', () => {
   it('ticker, tags sem índice de mercado, preço com data e fonte; slot de ações', () => {
@@ -36,14 +32,11 @@ describe('CabecalhoAtivo', () => {
   });
 
   it('v2.4: sem Índice MF — nem o selo "dados incompletos" do Índice aparece', () => {
-    const inc: AtivoTopoResposta = {
-      ...ATIVO_WEGE3,
-      indice: indice({
-        estado: 'incompleto',
-        motivos: [{ codigo: 'div:fonte_defasada', texto: 'proventos em conferência' }],
-      }),
-    };
-    const { container } = render(<CabecalhoAtivo ativo={inc} />);
+    const { container } = render(
+      <QueryClientProvider client={new QueryClient()}>
+        <CabecalhoAtivo ativo={ATIVO_WEGE3} />
+      </QueryClientProvider>,
+    );
     expect(screen.queryByText('dados incompletos')).not.toBeInTheDocument();
     expect(container.textContent).not.toMatch(/Índice|semáforo|nota/i);
   });
@@ -68,126 +61,6 @@ describe('CabecalhoAtivo', () => {
     expect(await screen.findByText('Planejado')).toBeInTheDocument();
     expect(screen.getByText('Na carteira')).toBeInTheDocument();
     vi.unstubAllGlobals();
-  });
-});
-
-describe('BlocoIndiceSemaforo', () => {
-  it('critérios com ícone + texto (nunca só cor) e leitura n de m', () => {
-    render(
-      <BlocoIndiceSemaforo
-        ticker="WEGE3"
-        classe="acao"
-        indice={ATIVO_WEGE3.indice}
-        semaforo={ATIVO_WEGE3.semaforo}
-      />,
-    );
-    expect(screen.getByText('4 de 5 critérios atendidos')).toBeInTheDocument();
-    const lista = screen.getByRole('list', { name: 'Critérios' });
-    const itens = within(lista).getAllByRole('listitem');
-    expect(itens).toHaveLength(2);
-    // badge: símbolo (aria-hidden) + texto visível
-    expect(within(itens[0]).getByText('Atende')).toBeInTheDocument();
-    const iconeAtende = itens[0].querySelector('[data-icone]');
-    expect(iconeAtende).toHaveAttribute('data-icone', 'circulo_check');
-    expect(iconeAtende).toHaveAttribute('aria-hidden', 'true');
-    expect(within(itens[1]).getByText('Parcial')).toBeInTheDocument();
-    expect(itens[1].querySelector('[data-icone]')).toHaveAttribute('data-icone', 'meio_circulo');
-  });
-
-  it('componentes num <details> com peso e fórmula pública', () => {
-    const { container } = render(
-      <BlocoIndiceSemaforo
-        ticker="WEGE3"
-        classe="acao"
-        indice={ATIVO_WEGE3.indice}
-        semaforo={[]}
-      />,
-    );
-    const det = container.querySelector('[data-componentes]') as HTMLDetailsElement;
-    expect(det.tagName).toBe('DETAILS');
-    expect(within(det).getByText('Componentes do Índice MF')).toBeInTheDocument();
-    expect(within(det).getByText(/peso 35%/)).toBeInTheDocument();
-    expect(screen.getByText('Fórmula pública')).toBeInTheDocument();
-  });
-
-  it('incompleto = caixa TRACEJADA "O que falta"; zero_regra = caixa CONTÍNUA da regra', () => {
-    const { container, rerender } = render(
-      <BlocoIndiceSemaforo
-        ticker="TGMA3"
-        classe="acao"
-        indice={indice({
-          estado: 'incompleto',
-          caixaExplicativa: { titulo: 'O que falta', itens: ['proventos em conferência'] },
-        })}
-        semaforo={[]}
-      />,
-    );
-    const inc = container.querySelector('[data-caixa="incompleto"]')!;
-    expect(inc.className).toMatch(/border-dashed/);
-    expect(inc).toHaveTextContent('O número é recalculado quando o dado chegar.');
-    expect(container.querySelector('[data-caixa="zero_regra"]')).toBeNull();
-
-    rerender(
-      <BlocoIndiceSemaforo
-        ticker="AURE3"
-        classe="acao"
-        indice={indice({
-          estado: 'zero_regra',
-          valor: 0.08,
-          caixaExplicativa: {
-            titulo: 'Componente zerado pela regra',
-            itens: ['Componente zerado pela regra: prejuízo no último exercício'],
-          },
-        })}
-        semaforo={[]}
-      />,
-    );
-    const zr = container.querySelector('[data-caixa="zero_regra"]')!;
-    expect(zr.className).not.toMatch(/border-dashed/);
-    expect(zr).toHaveTextContent('Índice baixo pela regra, não por falta de dado.');
-    expect(container.querySelector('[data-caixa="incompleto"]')).toBeNull();
-  });
-
-  it('sem_score: texto próprio, sem componentes nem fórmula', () => {
-    render(
-      <BlocoIndiceSemaforo
-        ticker="HCTR11"
-        classe="fii"
-        indice={indice({
-          estado: 'sem_score',
-          valor: null,
-          componentes: [],
-          caixaExplicativa: null,
-        })}
-        semaforo={[]}
-      />,
-    );
-    expect(
-      screen.getAllByText('Índice MF não calculado para este fundo nesta data').length,
-    ).toBeGreaterThan(0);
-    expect(screen.queryByText('Fórmula pública')).not.toBeInTheDocument();
-  });
-
-  it('critério desligado aparece como "Não se aplica" e a nota de fora da conta', () => {
-    render(
-      <BlocoIndiceSemaforo
-        ticker="HGLG11"
-        classe="fii"
-        indice={ATIVO_WEGE3.indice}
-        semaforo={[
-          {
-            codigo: 'vacancia',
-            titulo: 'Vacância física',
-            status: 'nao_se_aplica',
-            frase: 'Não se aplica · critério desligado até a validação da fonte',
-            provisorio: false,
-            desligado: true,
-          },
-        ]}
-      />,
-    );
-    expect(screen.getByText('Não se aplica')).toBeInTheDocument();
-    expect(screen.getByText('Critérios “Não se aplica” ficam fora da conta.')).toBeInTheDocument();
   });
 });
 
@@ -302,7 +175,6 @@ describe('GraficoLucroCotacao', () => {
               exibicao: 'ocultar',
               motivo: 'base da cotação em conferência',
               desde: '2026-04-29',
-              efeitoIndice: null,
               origem: 'regra',
               caso: null,
             },
@@ -397,12 +269,6 @@ describe('BlocoEventos, CardEducacao e SeloFrescor', () => {
     const { container } = render(
       <>
         <CabecalhoAtivo ativo={ATIVO_WEGE3} />
-        <BlocoIndiceSemaforo
-          ticker="WEGE3"
-          classe="acao"
-          indice={ATIVO_WEGE3.indice}
-          semaforo={ATIVO_WEGE3.semaforo}
-        />
         <BlocoKpis classe="acao" kpis={ATIVO_WEGE3.kpis} />
         <BlocoDividendos classe="acao" dividendos={ATIVO_WEGE3.dividendos} />
         <BlocoEventos classe="acao" eventos={ATIVO_WEGE3.eventos} />

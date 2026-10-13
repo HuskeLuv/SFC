@@ -2,18 +2,15 @@
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
-import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
-import AnelIndice from '../AnelIndice';
-import BadgeCriterio from '../BadgeCriterio';
+import { cleanup, render, screen, within } from '@testing-library/react';
 import BarrasDezAnos, { dezAnos, resumoBarras, tituloAno } from '../BarrasDezAnos';
 import ValorAnalise from '../ValorAnalise';
-import SeloIncompleto from '../SeloIncompleto';
 import SeloFonteCvm from '../SeloFonteCvm';
 import SeloEstado from '../SeloEstado';
 import { formatarAnalise, formatarEstado } from '../formatarAnalise';
 import { CORES_PERMITIDAS } from '@/constants/analiseAtivosVisual';
 import { encontrarPalavrasProibidas } from '@/services/analiseAtivos/textos';
-import type { EstadoIndice, StatusCriterioTela, TipoSeloEstado } from '@/types/analiseAtivosApi';
+import type { TipoSeloEstado } from '@/types/analiseAtivosApi';
 
 afterEach(cleanup);
 
@@ -45,108 +42,6 @@ describe('formatarAnalise', () => {
     expect(
       formatarEstado({ estado: 'nao_se_aplica', motivo: 'financeira', texto: 'banco' }, 'pct'),
     ).toBe('n/a');
-  });
-});
-
-describe('AnelIndice', () => {
-  const casos: Array<[EstadoIndice, number | null, string, boolean]> = [
-    ['calculado', 9.01, 'Índice MF 9,01 de 10', false],
-    ['incompleto', 8.48, 'Índice MF incompleto: 8,48 de 10', true],
-    ['zero_regra', 0.1, 'Índice MF 0,1 de 10, componente zerado pela regra', false],
-    ['sem_score', null, 'Índice MF não calculado: dados insuficientes', true],
-    ['fora_do_indice', null, 'Fora do Índice MF nesta fase', true],
-  ];
-
-  it.each(casos)('%s: aria-label completo e trilho certo', (estado, valor, aria, tracejado) => {
-    const { container } = render(<AnelIndice valor={valor} estado={estado} tamanho={40} />);
-    const img = screen.getByRole('img');
-    expect(img).toHaveAttribute('aria-label', aria);
-    expect(img).toHaveAttribute('data-tracejado', String(tracejado));
-    expect(container.querySelector('[data-trilho="tracejado"]') !== null).toBe(tracejado);
-  });
-
-  it('tracejado só no incompleto entre os estados com número', () => {
-    const { container: inc } = render(<AnelIndice valor={8.5} estado="incompleto" tamanho={96} />);
-    const { container: zero } = render(<AnelIndice valor={0.1} estado="zero_regra" tamanho={96} />);
-    expect(inc.querySelector('[data-trilho="tracejado"]')).not.toBeNull();
-    expect(zero.querySelector('[data-trilho="tracejado"]')).toBeNull();
-    expect(zero.querySelector('[data-trilho="solido"]')).not.toBeNull();
-    // zero pela regra ainda mostra o arco mínimo e o número
-    expect(zero.querySelector('[data-arco]')).not.toBeNull();
-    expect(zero.textContent).toContain('0,1');
-  });
-
-  it('incompleto: arco em segmentos; calculado e zero pela regra: arco contínuo', () => {
-    const arco = (estado: EstadoIndice) => {
-      const { container } = render(<AnelIndice valor={8.5} estado={estado} tamanho={32} />);
-      const partes = (
-        container.querySelector('[data-arco]')?.getAttribute('stroke-dasharray') ?? ''
-      ).split(' ');
-      cleanup();
-      return partes.length;
-    };
-    expect(arco('incompleto')).toBeGreaterThan(4);
-    expect(arco('calculado')).toBe(2);
-    expect(arco('zero_regra')).toBe(2);
-  });
-
-  it('sem número: "—" e sem arco', () => {
-    const { container } = render(<AnelIndice valor={null} estado="sem_score" tamanho={32} />);
-    expect(container.textContent).toBe('—');
-    expect(container.querySelector('[data-arco]')).toBeNull();
-  });
-
-  it('arco proporcional ao valor', () => {
-    const { container } = render(<AnelIndice valor={5} estado="calculado" tamanho={96} />);
-    const arco = container.querySelector('[data-arco]') as SVGCircleElement;
-    const [len, circ] = (arco.getAttribute('stroke-dasharray') ?? '').split(' ').map(Number);
-    expect(len / circ).toBeCloseTo(0.5, 2);
-  });
-});
-
-describe('BadgeCriterio', () => {
-  const status: StatusCriterioTela[] = [
-    'atende',
-    'parcial',
-    'nao_atende',
-    'sem_dado',
-    'nao_se_aplica',
-  ];
-  const textos: Record<StatusCriterioTela, string> = {
-    atende: 'Atende',
-    parcial: 'Parcial',
-    nao_atende: 'Não atende',
-    sem_dado: 'Sem dado',
-    nao_se_aplica: 'Não se aplica',
-  };
-
-  it.each(status)('%s: sempre com texto e ícone', (s) => {
-    const { container } = render(<BadgeCriterio status={s} />);
-    expect(container.textContent).toBe(textos[s]);
-    expect(container.querySelector('svg[data-icone]')).not.toBeNull();
-  });
-
-  it('formas diferentes por status (nunca só cor)', () => {
-    const icones = status.map((s) => {
-      const { container } = render(<BadgeCriterio status={s} />);
-      return container.querySelector('svg')?.getAttribute('data-icone');
-    });
-    expect(new Set(icones).size).toBe(status.length);
-  });
-
-  it('vermelho só no Não atende; sem dado tracejado', () => {
-    for (const s of status) {
-      const { container } = render(<BadgeCriterio status={s} compacto />);
-      const html = container.innerHTML;
-      expect(html.includes('#D92D20')).toBe(s === 'nao_atende');
-      expect(html.includes('border-dashed')).toBe(s === 'sem_dado');
-      cleanup();
-    }
-  });
-
-  it('rótulo alternativo', () => {
-    render(<BadgeCriterio status="atende" rotulo="Atende · 4 de 4" />);
-    expect(screen.getByText('Atende · 4 de 4')).toBeInTheDocument();
   });
 });
 
@@ -261,30 +156,6 @@ describe('ValorAnalise', () => {
 });
 
 describe('Selos', () => {
-  it('SeloIncompleto: chip tracejado abre "O que falta" com os motivos', () => {
-    render(
-      <SeloIncompleto
-        ticker="TGMA3"
-        motivos={[{ codigo: 'div:fonte_defasada', texto: 'proventos em conferência' }]}
-      />,
-    );
-    const botao = screen.getByRole('button', { name: /dados incompletos/ });
-    expect(botao.className).toContain('border-dashed');
-    expect(botao).toHaveAttribute('aria-expanded', 'false');
-    fireEvent.click(botao);
-    expect(botao).toHaveAttribute('aria-expanded', 'true');
-    const painel = screen.getByRole('dialog', { name: 'O que falta em TGMA3' });
-    expect(within(painel).getByText('proventos em conferência')).toBeInTheDocument();
-    fireEvent.keyDown(document, { key: 'Escape' });
-    expect(screen.queryByRole('dialog')).toBeNull();
-  });
-
-  it('SeloIncompleto sem motivos não é botão', () => {
-    render(<SeloIncompleto motivos={[]} />);
-    expect(screen.queryByRole('button')).toBeNull();
-    expect(screen.getByText('dados incompletos')).toBeInTheDocument();
-  });
-
   it('SeloFonteCvm: completo e compacto', () => {
     render(<SeloFonteCvm />);
     expect(screen.getByText('fonte CVM · pode diferir do relatório do gestor')).toBeInTheDocument();
@@ -324,11 +195,8 @@ describe('Selos', () => {
 describe('paleta', () => {
   it('nenhuma cor fora da paleta nos componentes comuns e na casca da 0b', () => {
     const arquivos = [
-      'AnelIndice.tsx',
-      'BadgeCriterio.tsx',
       'BarrasDezAnos.tsx',
       'ValorAnalise.tsx',
-      'SeloIncompleto.tsx',
       'SeloFonteCvm.tsx',
       'SeloEstado.tsx',
       '../shell/RodapeLegal.tsx',

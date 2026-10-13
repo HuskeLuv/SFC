@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { encontrarProibidasV2 } from '@/services/analiseAtivos/regras/comum/linguagemV2';
 import { LEITURA_DOS_DADOS } from '@/services/analiseAtivos/textosLiterais';
-import { montarLeitura, textoContagens, textosResumo } from '../resumo';
+import { montarLeitura, textoContagens } from '../resumo';
 
 const SLOTS = [
   { ticker: 'WEGE3', criterios: { n: 5, de: 6 } },
@@ -37,20 +37,5 @@ describe('Leitura dos dados (v2.4: só contagens, sem placar)', () => {
     expect(encontrarProibidasV2(t)).toEqual([]);
     expect(t).not.toMatch(/\bmais\b|maior|★|vence/i);
     expect(encontrarProibidasV2(LEITURA_DOS_DADOS.texto, { ignorarLiterais: true })).toEqual([]);
-  });
-
-  it('legado do ResumoNumerico (até a F): sem indicador composto e sem placar', () => {
-    const t = textosResumo({
-      indices: [{ ticker: 'A', valor: 8, incompleto: true }],
-      criteriosAtendidos: [{ ticker: 'A', atende: 4, total: 6 }],
-      emConferencia: [],
-      responsabilidade: 'x',
-    });
-    expect(t.indice).toBe('');
-    expect(t.legendaIncompleto).toBeNull();
-    expect(t.criterios).toBe('Critérios atendidos: A 4 de 6');
-    for (const f of Object.values(t)) {
-      if (typeof f === 'string') expect(encontrarProibidasV2(f)).toEqual([]);
-    }
   });
 });

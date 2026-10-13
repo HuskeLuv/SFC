@@ -9,7 +9,6 @@
 import { LEITURA_DOS_DADOS } from '@/services/analiseAtivos/textosLiterais';
 import { TEXTOS_COMPARADOR } from '@/services/analiseAtivos/textosComparador';
 import { TEXTOS_CRITERIOS, formatarTexto } from '@/services/analiseAtivos/textosCriterios';
-import type { ResumoComparador } from '@/types/analiseAtivosBlocoD';
 import type { CriteriosLinhaApi, Janela, LeituraDosDados } from '@/types/analiseAtivosCriterios';
 
 export interface EntradaLeitura {
@@ -48,45 +47,4 @@ export function textoContagens(l: LeituraDosDados): string {
   return l.contagens
     .map((c) => textoContagem(c, l.janela))
     .join(TEXTOS_COMPARADOR.leitura.separador);
-}
-
-// ---------------------------------------------------------------------------
-// Legado: só o ResumoNumerico.tsx (removido na fatia F) ainda chama. A tela não o usa mais.
-// ---------------------------------------------------------------------------
-
-const TR = TEXTOS_COMPARADOR.resumo;
-
-export interface TextosResumo {
-  /** vazio: o Comparador não mostra mais indicador composto */
-  indice: string;
-  legendaIncompleto: string | null;
-  criterios: string | null;
-  emConferencia: string | null;
-  responsabilidade: string;
-}
-
-/** @deprecated a tela usa a "Leitura dos dados"; some com o ResumoNumerico na fatia F. */
-export function textosResumo(r: ResumoComparador): TextosResumo {
-  const criterios = r.criteriosAtendidos
-    .filter((c) => c.atende !== null && c.total !== null)
-    .map((c) =>
-      formatarTexto(TR.criteriosItem, {
-        ticker: c.ticker,
-        atendidos: String(c.atende),
-        aplicaveis: String(c.total),
-      }),
-    )
-    .join(' · ');
-  const conf = r.emConferencia
-    .map((c) =>
-      formatarTexto(TR.emConferenciaItem, { ticker: c.ticker, campo: c.rotulos.join(', ') }),
-    )
-    .join(' · ');
-  return {
-    indice: '',
-    legendaIncompleto: null,
-    criterios: criterios ? formatarTexto(TR.criterios, { valor: criterios }) : null,
-    emConferencia: conf ? formatarTexto(TR.emConferencia, { valor: conf }) : null,
-    responsabilidade: TR.responsabilidade,
-  };
 }

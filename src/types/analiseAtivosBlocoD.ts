@@ -570,12 +570,6 @@ export interface PilulasAreaProps {
   className?: string;
 }
 
-/** BotaoComparar (dono: D) — no CabecalhoAtivo; link para ROTAS_BLOCO_D.comparar([ticker]). */
-export interface BotaoCompararProps {
-  ticker: string;
-  classe: ClasseQuadro;
-}
-
 /**
  * BandejaComparar (dono: D) — barra do modo Comparar do Quadro. Abre o Comparador a partir de 1
  * ativo (decisão 13; com 1, o Comparador diz "adicione mais um para ver destaques").
