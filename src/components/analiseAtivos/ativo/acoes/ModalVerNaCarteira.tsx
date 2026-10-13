@@ -34,7 +34,7 @@ export type { ModalVerNaCarteiraProps };
 const T = TEXTOS_ACOES_CARTEIRA.ver;
 const N_OPERACOES = 5;
 
-const inteiro = (v: number) => v.toLocaleString('pt-BR', { maximumFractionDigits: 0 });
+const inteiro = (v: number) => v.toLocaleString('pt-BR', { maximumFractionDigits: 2 });
 const dataBr = (iso: string) => {
   const [a, m, d] = iso.slice(0, 10).split('-');
   return a && m && d ? `${d}/${m}/${a}` : iso;

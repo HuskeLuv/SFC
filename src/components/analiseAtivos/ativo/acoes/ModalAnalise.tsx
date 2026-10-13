@@ -32,7 +32,7 @@ export const BOTAO_MODAL_PRIMARIO = `${BASE_BOTAO_MODAL} bg-[#396CAA] text-white
 export const BOTAO_MODAL_SECUNDARIO = `${BASE_BOTAO_MODAL} border border-gray-300 bg-white text-gray-800 hover:bg-gray-50 dark:border-gray-700 dark:bg-transparent dark:text-white/90 dark:hover:bg-white/5`;
 /** Dica à esquerda do rodapé (ocupa a linha inteira no celular). */
 export const DICA_RODAPE =
-  'min-w-0 flex-[1_1_180px] basis-full text-[13px] text-gray-500 lg:basis-auto dark:text-gray-400';
+  'min-w-0 w-full text-[13px] text-gray-500 lg:w-auto lg:flex-[1_1_180px] dark:text-gray-400';
 /** Subtítulo do modal (abaixo do título, dentro do corpo). */
 export const SUBTITULO_MODAL = 'mb-3 text-[13.5px] leading-[1.45] text-gray-500 dark:text-gray-400';
 
@@ -165,7 +165,11 @@ function PainelCelular({ aberto, onFechar, titulo, children, rodape }: ModalAnal
       onClose={onFechar}
       title={titulo}
       footer={
-        rodape ? <div className="flex flex-wrap gap-2 [&>*]:flex-1">{rodape}</div> : undefined
+        rodape ? (
+          <div className="flex flex-wrap items-center gap-2 [&>a]:flex-1 [&>button]:flex-1">
+            {rodape}
+          </div>
+        ) : undefined
       }
     >
       <div data-modal-analise="" className="flex flex-col pt-1 pb-4">

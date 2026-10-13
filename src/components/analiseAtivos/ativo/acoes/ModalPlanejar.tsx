@@ -50,7 +50,7 @@ export function ppComSinal(v: number): string {
 /** R$ sem centavos ('R$ 1.349'). */
 export const reais0 = (v: number) =>
   `R$ ${Math.abs(v).toLocaleString('pt-BR', { maximumFractionDigits: 0 })}`;
-const inteiro = (v: number) => Math.abs(v).toLocaleString('pt-BR', { maximumFractionDigits: 0 });
+const inteiro = (v: number) => Math.abs(v).toLocaleString('pt-BR', { maximumFractionDigits: 2 });
 
 /** '25' / '25,5' / '25.5' → número; vazio ou inválido → null. */
 export function lerPercentual(texto: string): number | null {
