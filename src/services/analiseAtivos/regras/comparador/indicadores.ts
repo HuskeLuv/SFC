@@ -19,103 +19,14 @@
 import type { CampoTela } from '@/services/analiseAtivos/regras/comum/conferencia';
 import { TEXTOS_COMPARADOR } from '@/services/analiseAtivos/textosComparador';
 import { TEXTOS_TELA } from '@/services/analiseAtivos/textosTela';
-import type {
-  ComparadorResposta,
-  ConferenciaCelulaComparador,
-  GraficosComparador,
-} from '@/types/analiseAtivosBlocoD';
+import type { TipoAtivoComparador } from '@/types/analiseAtivosBlocoD';
 import type {
   ClasseQuadro,
   Estado,
-  FiiTipoTela,
-  ForaDoQuadroMotivo,
   FormatoAnalise,
   LinhaQuadroApi,
 } from '@/types/analiseAtivosApi';
-import type {
-  CriteriosLinhaApi,
-  IdCriterio,
-  Janela,
-  LeituraDosDados,
-} from '@/types/analiseAtivosCriterios';
-
-// ===========================================================================
-// Tipos da resposta isonômica (o contrato de analiseAtivosBlocoD.ts ainda carrega os campos do
-// Índice/★ como obrigatórios; a fatia F os remove do tipo. A resposta da D já sai sem eles.)
-// ===========================================================================
-
-/**
- * Tipo do ativo para a aplicabilidade de grupo/linha: 'acao' ou o perfil de critérios do FII
- * (tijolo | papel; FoF, híbrido e indefinido seguem a regra de composição do motor, rec. 3).
- */
-export type TipoAtivoComparador = 'acao' | 'tijolo' | 'papel';
-
-/** Uma linha de indicador (sem direção, sem marca de valor). */
-export interface LinhaComparadorV2 {
-  codigo: string;
-  rotulo: string;
-  sub: string | null;
-  formato: FormatoAnalise;
-  /** selo 'fonte CVM' sob o valor (vacância física da CVM, que pode diferir do gestor) */
-  fonteCvmAviso: boolean;
-  /** chave = ticker; 'n/a' no misto (tijolo × papel) e nas financeiras */
-  valores: Record<string, Estado<number>>;
-  conferencia: Record<string, ConferenciaCelulaComparador | null>;
-}
-
-export interface GrupoComparadorV2 {
-  codigo: string;
-  rotulo: string;
-  aplicavelA: TipoAtivoComparador[];
-  linhas: LinhaComparadorV2[];
-}
-
-/** Ativo do Comparador (sem Índice, sem régua do Índice). */
-export interface AtivoComparadorV2 {
-  ticker: string;
-  nome: string;
-  preco: Estado<number>;
-  precoData: string | null;
-  fiiTipo: FiiTipoTela | null;
-  /** 'acao' | 'tijolo' | 'papel' (perfil de critérios) */
-  tipoComparacao: TipoAtivoComparador;
-  /** critérios na janela pedida; null = sem avaliação */
-  criterios: CriteriosLinhaApi | null;
-  noQuadro: boolean;
-  foraDoQuadroMotivo: ForaDoQuadroMotivo | null;
-  /** grupos de conferência deste ativo */
-  conferencias: string[];
-  /** sugestões do mesmo segmento/tipo para o slot vazio */
-  pares: string[];
-}
-
-/** Rótulos e equivalências do bloco de critérios (linhas na ordem do perfil). */
-export interface CriteriosComparador {
-  /** id da linha → rótulo, na ORDEM das linhas (no misto, 'Obrigações/PL ≤ 20% / LTV ≤ 60%') */
-  rotulos: Partial<Record<IdCriterio, string>>;
-  /** id da linha (tijolo) → id equivalente (papel); só no misto */
-  equivalencias: Partial<Record<IdCriterio, IdCriterio>>;
-}
-
-/**
- * GET /api/analise-ativos/comparador?t=…&janela=5 — resposta isonômica. Nenhuma chave casa
- * /indice|semaforo|destaque/i. ORDEM: `tickers`, `ativos`, `graficos.series` e
- * `leitura.contagens` seguem a ordem dos slots.
- */
-export interface ComparadorRespostaV2 {
-  classe: ClasseQuadro;
-  janela: Janela;
-  tickers: string[];
-  ignorados: ComparadorResposta['ignorados'];
-  /** tijolo + papel no mesmo conjunto (pelo perfil de critérios) */
-  misto: boolean;
-  ativos: AtivoComparadorV2[];
-  criterios: CriteriosComparador;
-  grupos: GrupoComparadorV2[];
-  graficos: GraficosComparador | null;
-  leitura: LeituraDosDados;
-  versao: string;
-}
+import type { CriteriosLinhaApi } from '@/types/analiseAtivosCriterios';
 
 // ===========================================================================
 // Catálogo

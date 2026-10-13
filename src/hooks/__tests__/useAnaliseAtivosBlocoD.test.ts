@@ -21,17 +21,16 @@ import {
   useSalvarCenario,
 } from '@/hooks/useAnaliseAtivosBlocoD';
 import { queryKeys } from '@/lib/queryKeys';
-import type { CenariosResposta } from '@/types/analiseAtivosBlocoD';
-import type { ComparadorRespostaV2 } from '@/services/analiseAtivos/regras/comparador/indicadores';
+import type { CenariosResposta, ComparadorResposta } from '@/types/analiseAtivosBlocoD';
 
-function comparador(ordem: string[]): ComparadorRespostaV2 {
+function comparador(ordem: string[]): ComparadorResposta {
   return {
     classe: 'acao',
     janela: 5,
     tickers: ordem,
     ignorados: [],
     misto: false,
-    ativos: ordem.map((t) => ({ ticker: t }) as ComparadorRespostaV2['ativos'][number]),
+    ativos: ordem.map((t) => ({ ticker: t }) as ComparadorResposta['ativos'][number]),
     criterios: { rotulos: {}, equivalencias: {} },
     grupos: [],
     graficos: {

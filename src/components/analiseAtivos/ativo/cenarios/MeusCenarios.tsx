@@ -40,7 +40,6 @@ import {
   RODAPE_CENARIOS,
   TEXTOS_CENARIOS,
 } from '@/services/analiseAtivos/textosCenarios';
-import type { CenarioPutBodyV2 } from '@/services/analiseAtivos/cenarios/contrato';
 import { formatarTexto } from '@/services/analiseAtivos/textos';
 import type { CenarioPutBody, CenariosResposta } from '@/types/analiseAtivosBlocoD';
 import type { ClasseQuadro } from '@/types/analiseAtivosApi';
@@ -55,17 +54,16 @@ interface Props {
   cabecalhoExtra?: ReactNode;
 }
 
-function corpoDoSalvo(r: CenariosResposta): CenarioPutBodyV2 | null {
-  if (!r.salvo) return null;
-  return {
-    classe: r.classe,
-    premissas: r.salvo.premissas,
-    dados: r.salvo.dadosEditados ?? {},
-  } as CenarioPutBodyV2;
+function corpoDoSalvo(r: CenariosResposta): CenarioPutBody | null {
+  if (r.classe === 'acao') {
+    return r.salvo
+      ? { classe: 'acao', premissas: r.salvo.premissas, dados: r.salvo.dadosEditados ?? {} }
+      : null;
+  }
+  return r.salvo
+    ? { classe: 'fii', premissas: r.salvo.premissas, dados: r.salvo.dadosEditados ?? {} }
+    : null;
 }
-
-/** O hook (fatia D) ainda tipa o corpo como v1; o v2 só acrescenta null nas premissas. */
-const comoCorpoV1 = (c: CenarioPutBodyV2) => c as unknown as CenarioPutBody;
 
 function Calculadora({
   r,
@@ -113,7 +111,7 @@ function Calculadora({
     const c = estado.corpo();
     if (!c.ok) return;
     const snap = estado.snap;
-    salvar.mutate(comoCorpoV1(c.corpo), {
+    salvar.mutate(c.corpo, {
       onSuccess: () => {
         estado.aplicar(snap, true);
         setTentouSalvar(false);
@@ -135,7 +133,7 @@ function Calculadora({
         mensagem: T.salvamento.restaurado,
         desfazer: () => {
           if (corpoAnterior) {
-            salvar.mutate(comoCorpoV1(corpoAnterior), {
+            salvar.mutate(corpoAnterior, {
               onSuccess: () => {
                 estado.aplicar(anteriorRef, true);
                 estado.aplicar(anteriorSnap, false);

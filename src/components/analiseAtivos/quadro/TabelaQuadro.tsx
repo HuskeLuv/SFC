@@ -40,7 +40,10 @@ import { TEXTOS_TELA, formatarTexto } from '@/services/analiseAtivos/textosTela'
 import { TEXTOS_QUADRO } from '@/services/analiseAtivos/textosQuadro';
 import { TEXTOS_CRITERIOS } from '@/services/analiseAtivos/textosCriterios';
 import { HACHURA } from '@/components/analiseAtivos/comum/ChipConferencia';
-import { conferenciaConf } from '@/services/analiseAtivos/leitura/ativo/conferenciasAtivo';
+import {
+  conferenciaConf,
+  motivosDaLinha,
+} from '@/services/analiseAtivos/leitura/ativo/conferenciasAtivo';
 import { ehCampoTela } from '@/services/analiseAtivos/regras/comum/conferencia';
 import { TEXTOS_ENTRADAS_COMPARADOR } from '@/services/analiseAtivos/textosEntradasComparador';
 import { MAX_ATIVOS_COMPARADOR } from '@/services/analiseAtivos/cenarios/contrato';
@@ -56,7 +59,7 @@ import type { DefCriterioChip, IdCriterio } from '@/types/analiseAtivosCriterios
 
 const T = TEXTOS_TELA.quadro;
 const SEM = TEXTOS_TELA.formato.semDado;
-/** td do padrão com px-3: o Resumo (Índice MF e Na carteira inclusive) cabe sem rolar a 1440. */
+/** td do padrão com px-3: o Resumo (Critérios e Na carteira inclusive) cabe sem rolar a 1440. */
 export const TD_QUADRO = TABLE_STYLES.td.replace('px-4', 'px-3');
 
 export const ESPERA_PREFETCH_MS = 300;
@@ -119,13 +122,11 @@ export function ariaSerie(l: LinhaQuadroApi): string {
 
 /**
  * Campo da coluna em conferência pelas flags 'conf:' (bloco C); null = como hoje. Os motivos vêm de
- * motivosConferencia (v2.4; antes dentro do indicador antigo) — o legado de proventos usa
- * 'div:em_conferencia'.
+ * motivosConferencia (v2.4) — o legado de proventos usa 'div:em_conferencia'.
  */
 export function conferenciaDaCelula(codigo: string, l: LinhaQuadroApi) {
   if (!ehCampoTela(codigo)) return null;
-  const motivos = (l.motivosConferencia ?? l.indice?.motivos ?? []).map((m) => m.codigo);
-  return conferenciaConf(l.flags, motivos, codigo, l.classe);
+  return conferenciaConf(l.flags, motivosDaLinha(l), codigo, l.classe);
 }
 
 /** Valor (ou '—') + "em conferência" em 11px, para célula/cartão do Quadro (bloco C). */
@@ -434,7 +435,7 @@ export default function TabelaQuadro({
                     </td>
                   ) : null}
                   {colunas.map((c, i) => {
-                    const destaque = c.ordem !== null && c.ordem === ordem;
+                    const colunaOrdenada = c.ordem !== null && c.ordem === ordem;
                     const alinhar =
                       c.alinhamento === 'direita'
                         ? 'text-right'
@@ -447,7 +448,7 @@ export default function TabelaQuadro({
                           key={c.codigo}
                           scope="row"
                           className={`${TD_QUADRO} ${fixoTd} text-left font-normal ${
-                            destaque ? TABLE_STYLES.highlightTd : ''
+                            colunaOrdenada ? TABLE_STYLES.highlightTd : ''
                           }`}
                         >
                           <CelulaAtivo linha={l} />
@@ -458,7 +459,7 @@ export default function TabelaQuadro({
                       <td
                         key={c.codigo}
                         className={`${TD_QUADRO} ${alinhar} whitespace-nowrap tabular-nums ${
-                          destaque ? TABLE_STYLES.highlightTd : ''
+                          colunaOrdenada ? TABLE_STYLES.highlightTd : ''
                         } ${conferenciaDaCelula(c.codigo, l) ? HACHURA : ''}`}
                         data-coluna={c.codigo}
                       >

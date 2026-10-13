@@ -74,11 +74,6 @@ describe('snapshots', () => {
     });
   });
 
-  it('sem premissasIniciais na resposta: monta o mesmo branco (nunca as do ScoringParams)', () => {
-    const r = { ...wege(), premissasIniciais: undefined } as CenariosResposta;
-    expect(snapshotPadrao(r).textos).toMatchObject({ yieldPct: '', gPct: '', plAlvo: '36,9' });
-  });
-
   it('salvo por cima: premissas, P/L vazio e só os dados editados', () => {
     const s = snapshotInicial(
       wege({
@@ -95,7 +90,7 @@ describe('snapshots', () => {
         premissas: { yieldPct: 4, gPct: null, kPct: null, margemPct: 0, plAlvo: 36.9 },
         dadosEditados: null,
         atualizadoEm: '2026-10-08T12:00:00Z',
-      } as unknown as CenariosResposta['salvo']),
+      }),
     );
     expect(v2.textos).toMatchObject({ yieldPct: '4,0', gPct: '', kPct: '', plAlvo: '36,9' });
   });

@@ -83,20 +83,9 @@ import {
 import type { AtivoTopoResposta } from '@/types/analiseAtivosApi';
 import type { CriteriosAtivo } from '@/types/analiseAtivosCriterios';
 
-/** Topo v2.4: sem indice/semaforo/tickerReferenciaIndice e com os critérios (montarTopoAtivo). */
+/** Topo v2.4 com os critérios da janela (montarTopoAtivo). */
 function topoV24(base: AtivoTopoResposta, criterios: CriteriosAtivo | null): AtivoTopoResposta {
-  const {
-    indice: _i,
-    semaforo: _s,
-    tickerReferenciaIndice: _t,
-    conferencias,
-    ...resto
-  } = base as AtivoTopoResposta & { tickerReferenciaIndice?: string | null };
-  return {
-    ...resto,
-    criterios,
-    ...(conferencias ? { conferencias: conferencias.map(({ efeitoIndice: _e, ...c }) => c) } : {}),
-  } as AtivoTopoResposta;
+  return { ...base, criterios };
 }
 
 function comProvider(ui: ReactNode) {

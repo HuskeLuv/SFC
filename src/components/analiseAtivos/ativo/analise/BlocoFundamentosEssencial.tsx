@@ -284,7 +284,7 @@ export default function BlocoFundamentosEssencial({
                   ? TF.notaEssencialPapel
                   : TF.notaEssencialFii}
             </li>
-            {dados.notas.map((n) => (
+            {dados.observacoes.map((n) => (
               <li key={n}>{n}</li>
             ))}
             {dados.colunas.map((c) => {

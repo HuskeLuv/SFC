@@ -7,7 +7,7 @@
  * acentos, expressões com espaço/hífen flexível. Rótulo de observação é 'Observações' ou 'Sobre os
  * dados', nunca 'Notas'. "Margem que você exige" não casa 'margem de segurança' (expressão inteira).
  *
- * Exceções: o RODAPE_LEGAL e o TEXTOS_ANALISE.rodapeValuation (literais exigidos pela spec, que
+ * Exceções: o RODAPE_LEGAL_V2 e o TEXTOS_ANALISE.rodapeValuation (literais exigidos pela spec, que
  * citam "preço justo"/"recomendação" para negá-los) NÃO entram nos objetos varridos.
  */
 import { PALAVRAS_PROIBIDAS } from '@/services/analiseAtivos/regras/comum/linguagem';

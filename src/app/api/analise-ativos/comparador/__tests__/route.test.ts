@@ -27,11 +27,9 @@ import { _resetarCacheLinhasQuadro } from '@/services/analiseAtivos/leitura/linh
 import { _limparCacheComparador } from '@/services/analiseAtivos/leitura/comparador/montarComparador';
 import { GERADO_EM_FIXTURE, LINHAS_FIXTURE } from '@/test/fixtures/analiseAtivos/linhasDb';
 import { CRITERIA_PARAMS_V1 } from '@/services/analiseAtivos/params/criteriaParamsV1';
-import type { ComparadorRespostaV2 } from '@/services/analiseAtivos/regras/comparador/indicadores';
+import type { ComparadorResposta } from '@/types/analiseAtivosBlocoD';
 import { CRITERIOS_LINHA_WEGE3 } from '@/test/fixtures/analiseAtivos/criterios';
 import type { Janela } from '@/types/analiseAtivosCriterios';
-
-type ComparadorResposta = ComparadorRespostaV2;
 
 /** Todas as chaves (recursivo) de um JSON. */
 function chaves(x: unknown, out: string[] = []): string[] {

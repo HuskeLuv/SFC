@@ -2,8 +2,8 @@
 
 /**
  * Menu ⋯ de um bloco da página do ativo (bloco C, fatia 0 — componente FINAL; a fatia B o encaixa
- * no slot `acao` de CartaoAnalise e nos cabeçalhos de BlocoKpis, BlocoIndiceSemaforo,
- * BlocoDividendos e GraficoLucroCotacao). Props: MenuBlocoAtivoProps
+ * no slot `acao` de CartaoAnalise e nos cabeçalhos de BlocoKpis, BlocoDividendos,
+ * GraficoLucroCotacao e do card de critérios). Props: MenuBlocoAtivoProps
  * (src/types/analiseAtivosCuradoria.ts).
  *
  * - Botão ⋯ de 44×44 em TODAS as larguras (margem negativa para o cabeçalho não crescer), com

@@ -1,7 +1,7 @@
 /**
  * Varredura de linguagem nos textos centrais (regra 9 do relatório da Fase A + caso 23 da §4.6 + §9).
- * Nenhuma palavra proibida em TEXTOS_ANALISE, exceto nas chaves de EXCECOES_TEXTO_FIXO (rodapé legal e
- * do Valuation, exigidos pela spec). O Índice nunca é "nota" (decisão 24).
+ * Nenhuma palavra proibida em TEXTOS_ANALISE, exceto nas chaves de EXCECOES_TEXTO_FIXO (rodapé do
+ * Valuation, exigido pela spec). v2.4: sem os textos do indicador antigo.
  */
 import { describe, expect, it } from 'vitest';
 import {
@@ -10,7 +10,6 @@ import {
   TEXTOS_ANALISE,
   encontrarPalavrasProibidas,
   formatarTexto,
-  textoLeituraSemaforo,
   textoStatusBarra,
 } from '@/services/analiseAtivos/textos';
 
@@ -30,7 +29,7 @@ const varridas = todas.filter((f) => !excecoes.has(f.caminho.split('.')[0]));
 
 describe('textos centrais — linguagem', () => {
   it('há textos para varrer e a lista proibida é a da spec (§4.5, §9, decisão 24)', () => {
-    expect(varridas.length).toBeGreaterThan(60);
+    expect(varridas.length).toBeGreaterThan(25);
     for (const p of [
       'preço justo',
       'preço-alvo',
@@ -83,24 +82,23 @@ describe('textos centrais — linguagem', () => {
     for (const s of status) expect(encontrarPalavrasProibidas(s)).toEqual([]);
   });
 
-  it('as exceções são só o rodapé legal e o do Valuation, e contêm o texto exigido pela spec', () => {
-    expect([...EXCECOES_TEXTO_FIXO].sort()).toEqual(['rodapeLegal', 'rodapeValuation']);
-    expect(TEXTOS_ANALISE.rodapeLegal).toContain('Resolução CVM 20/2021');
+  it('a exceção é só o rodapé do Valuation, com o texto exigido pela spec', () => {
+    expect([...EXCECOES_TEXTO_FIXO]).toEqual(['rodapeValuation']);
     expect(TEXTOS_ANALISE.rodapeValuation).toMatch(/não calcula .preço justo. nem preço-alvo/);
   });
 
-  it('badge "Índice acima da comunidade" (nunca "nota"); leitura "n de m critérios"', () => {
-    expect(TEXTOS_ANALISE.comunidade.indiceAcima).toBe('Índice acima da comunidade');
-    expect(encontrarPalavrasProibidas(TEXTOS_ANALISE.comunidade.comunidadeAcima)).toEqual([]);
-    expect(textoLeituraSemaforo(3, 4)).toBe('3 de 4 critérios atendidos');
-    expect(TEXTOS_ANALISE.indice.nome).toBe('Índice MF');
+  it('v2.4: sem Índice, semáforo, comunidade nem o rodapé legal antigo', () => {
+    const chaves = Object.keys(TEXTOS_ANALISE);
+    for (const k of ['indice', 'status', 'criterios', 'frases', 'comunidade', 'rodapeLegal']) {
+      expect(chaves, k).not.toContain(k);
+    }
+    expect(todas.filter((f) => /Índice|sem[áa]foro/i.test(f.texto))).toEqual([]);
   });
 
-  it('rótulos da decisão 6/4/17: fonte CVM, critérios provisórios, data estimada; "Obrigações/PL" (decisão 7)', () => {
+  it('rótulos da decisão 6/4/17: fonte CVM, critérios provisórios, data estimada', () => {
     expect(TEXTOS_ANALISE.selos.fonteCvm).toBe('fonte CVM · pode diferir do relatório do gestor');
     expect(TEXTOS_ANALISE.selos.criteriosProvisorios).toBe('critérios provisórios');
     expect(TEXTOS_ANALISE.selos.dataEstimada).toBe('data estimada');
-    expect(TEXTOS_ANALISE.criterios.obrigacoes_pl).toBe('Obrigações/PL');
     const juntos = varridas.map((f) => f.texto.toLowerCase()).join(' ');
     expect(juntos).not.toMatch(/\bltv\b|alavancagem/);
   });

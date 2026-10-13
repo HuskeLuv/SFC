@@ -14,8 +14,8 @@
  * Leitura tolerante: JSON fora do schema (versão antiga, classe trocada) = sem cenário salvo.
  *
  * v2.4 (fatia C2): premissas ANULÁVEIS (em branco = null, "informe …"), gravadas com versaoSchema
- * 2; as linhas v1 (só números) continuam válidas. O salvo lido pode trazer null nas premissas: o
- * tipo público (CenarioSalvo<PremissasCenarioAcao…>) só passa a anulável na F.
+ * 2; as linhas v1 (só números) continuam válidas. O salvo lido pode trazer null nas premissas
+ * (PremissasCenarioAcao/Fii são anuláveis desde a fatia F).
  */
 import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
@@ -27,11 +27,11 @@ import {
   PremissasAcaoSchema,
   PremissasFiiSchema,
   VERSAO_SCHEMA_CENARIO,
-  type CenarioPutBodyV2,
 } from '@/services/analiseAtivos/cenarios/contrato';
 import { TEXTOS_CENARIOS } from '@/services/analiseAtivos/textosCenarios';
 import { formatarTexto } from '@/services/analiseAtivos/textos';
 import type {
+  CenarioPutBody,
   CenarioSalvo,
   DadosEditadosAcao,
   DadosEditadosFii,
@@ -77,6 +77,16 @@ function vazioParaNull<T extends object>(o: T | null | undefined): T | null {
 export async function lerCenario(
   userId: string,
   symbol: string,
+  classe: 'acao',
+): Promise<CenarioSalvoAcao | null>;
+export async function lerCenario(
+  userId: string,
+  symbol: string,
+  classe: 'fii',
+): Promise<CenarioSalvoFii | null>;
+export async function lerCenario(
+  userId: string,
+  symbol: string,
   classe: ClasseCenarioSalvo,
 ): Promise<CenarioSalvoAcao | CenarioSalvoFii | null> {
   const row = await prisma.analiseCenario.findUnique({
@@ -85,18 +95,29 @@ export async function lerCenario(
   });
   if (!row || row.classe !== classe) return null;
   const { valores, noSalvamento } = lerDadosGravados(row.dadosEditados);
-  const schemaP = classe === 'acao' ? PremissasAcaoSchema : PremissasFiiSchema;
-  const schemaD = classe === 'acao' ? DadosAcaoSchema : DadosFiiSchema;
-  const p = schemaP.safeParse(row.premissas);
+  const atualizadoEm = row.updatedAt.toISOString();
+  if (classe === 'acao') {
+    const p = PremissasAcaoSchema.safeParse(row.premissas);
+    if (!p.success) return null;
+    const d = DadosAcaoSchema.safeParse(valores ?? {});
+    const base = DadosAcaoSchema.safeParse(noSalvamento ?? {});
+    return {
+      premissas: p.data,
+      dadosEditados: d.success ? vazioParaNull(d.data) : null,
+      atualizadoEm,
+      valoresDoAtivoNoSalvamento: base.success ? vazioParaNull(base.data) : null,
+    };
+  }
+  const p = PremissasFiiSchema.safeParse(row.premissas);
   if (!p.success) return null;
-  const d = schemaD.safeParse(valores ?? {});
-  const base = schemaD.safeParse(noSalvamento ?? {});
+  const d = DadosFiiSchema.safeParse(valores ?? {});
+  const base = DadosFiiSchema.safeParse(noSalvamento ?? {});
   return {
     premissas: p.data,
     dadosEditados: d.success ? vazioParaNull(d.data) : null,
-    atualizadoEm: row.updatedAt.toISOString(),
+    atualizadoEm,
     valoresDoAtivoNoSalvamento: base.success ? vazioParaNull(base.data) : null,
-  } as CenarioSalvoAcao | CenarioSalvoFii;
+  };
 }
 
 /**
@@ -107,7 +128,7 @@ export async function lerCenario(
 export async function salvarCenario(
   userId: string,
   symbol: string,
-  corpo: CenarioPutBodyV2,
+  corpo: CenarioPutBody,
   valoresDoAtivo: ValoresDoAtivo = {},
 ): Promise<{ atualizadoEm: string }> {
   const valores: Record<string, number> = {};

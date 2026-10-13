@@ -45,12 +45,9 @@ export const PREGOES_ATRASO_COTACAO = 2;
 
 const valorOk = (e: Estado<number>): number | null => (e.estado === 'ok' ? e.valor : null);
 
-/** Ordens aceitas pela v2.4 (o indicador antigo saiu da superfície). */
-export type OrdemQuadroV2 = Exclude<OrdemQuadro, 'indiceMf'>;
-
 /** Valor de ordenação de cada coluna; null = vai para o fim. */
 export const VALOR_ORDEM: Record<
-  Exclude<OrdemQuadroV2, 'ticker'>,
+  Exclude<OrdemQuadro, 'ticker'>,
   (l: LinhaQuadroApi) => number | null
 > = {
   // contagem de critérios atendidos na janela projetada (fato, não nota); sem avaliação = fim
@@ -86,7 +83,7 @@ export function compararLinhas(
   dir: DirecaoOrdem,
 ): (a: LinhaQuadroApi, b: LinhaQuadroApi) => number {
   const m = dir === 'desc' ? -1 : 1;
-  if (ordem === 'ticker' || ordem === 'indiceMf') return (a, b) => m * porTicker(a, b);
+  if (ordem === 'ticker') return (a, b) => m * porTicker(a, b);
   const valor = VALOR_ORDEM[ordem];
   return (a, b) => {
     const va = valor(a);
@@ -233,7 +230,7 @@ export interface EntradaConsulta {
 export function consultarQuadro(e: EntradaConsulta): QuadroResposta {
   const { params } = e;
   const daClasse = e.linhas.filter((l) => l.classe === params.classe && l.noQuadro);
-  const ordem = params.ordem && params.ordem !== 'indiceMf' ? params.ordem : ORDEM_PADRAO;
+  const ordem = params.ordem ?? ORDEM_PADRAO;
   const dir = params.dir ?? DIRECAO_PADRAO[ordem];
   const limite = Math.min(Math.max(params.limite ?? PAGINA_QUADRO, 1), LIMITE_MAXIMO);
   const offset = Math.max(params.offset ?? 0, 0);

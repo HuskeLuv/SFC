@@ -11,6 +11,7 @@ import { ehRegraRevisao } from '@/services/analiseAtivos/regras/comum/conferenci
 import type { CasoListaItem, StatusCaso } from '@/types/analiseAtivosCuradoria';
 
 export const T_CUR = TEXTOS_TELA.curadoria;
+const T_REL = TEXTOS_TELA.relatos;
 
 /** Textos só da tela do admin (não aparecem ao usuário). */
 export const TEXTOS_FILA = {
@@ -21,7 +22,7 @@ export const TEXTOS_FILA = {
   regraParouSemValor:
     'O dado não voltou com um valor conferível: o caso continua aberto para a equipe decidir.',
   revisaoAviso:
-    'Revisão: nada muda na tela nem no Índice MF. A regra só pede um olhar; variações grandes costumam ser reais.',
+    'Revisão: nada muda na tela. A regra só pede um olhar; variações grandes costumam ser reais.',
   semRelatos: 'Caso aberto pela regra automática, sem relato de usuário.',
   vaziaAjuda:
     'Relatos dos usuários e casos abertos pelas regras automáticas aparecem aqui. Os relatos têm prazo de resposta de 5 dias úteis; os casos só de regra, não.',
@@ -75,8 +76,9 @@ export const fmtDataHora = (iso: string | null | undefined) =>
       })
     : '—';
 
+/** v2.4 (F): campo do indicador antigo (ou desconhecido) = "indicador descontinuado". */
 export function rotuloCampo(campo: string): string {
-  return (TEXTOS_TELA.relatos.campos as Record<string, string>)[campo] ?? campo;
+  return (TEXTOS_TELA.relatos.campos as Record<string, string>)[campo] ?? T_REL.descontinuado;
 }
 
 export function rotuloGrupo(grupo: string): string | null {

@@ -5,11 +5,11 @@
  * marcas e contadores, de textosCriterios.ts.
  *
  * Compliance (spec v2.4 §3.3/§9, D1): sem ★, sem marca de valor "mais favorável", sem placar, sem
- * ranking e sem Índice MF. Os grupos de indicadores mostram os números lado a lado, todos com o
+ * ranking e sem o indicador antigo. Os grupos de indicadores mostram os números lado a lado, todos com o
  * mesmo peso visual. Toda folha passa pela varredura linguagemV2 (textosComparador.test.ts).
  *
- * `busca.*` também é usado pela BuscaAtivos (chaves estáveis). `resumo.*` só existe para o
- * ResumoNumerico.tsx, que a fatia F remove (a tela não o usa mais).
+ * `busca.*` também é usado pela BuscaAtivos (chaves estáveis). O "Resumo numérico" saiu na fatia F:
+ * a tela usa a "Leitura dos dados".
  */
 export const TEXTOS_COMPARADOR = {
   titulo: 'Comparador',
@@ -153,15 +153,6 @@ export const TEXTOS_COMPARADOR = {
     insuficiente: 'histórico insuficiente',
     rotuloLinha: 'Base 100',
     subLinha: 'mesma escala em todos',
-  },
-  /** só para o ResumoNumerico.tsx (removido na F); a tela usa "Leitura dos dados" */
-  resumo: {
-    titulo: 'Resumo numérico',
-    criterios: 'Critérios atendidos: {valor}',
-    criteriosItem: '{ticker} {atendidos} de {aplicaveis}',
-    emConferencia: 'Em conferência: {valor}',
-    emConferenciaItem: '{ticker} ({campo})',
-    responsabilidade: 'Os dados aparecem lado a lado e não indicam qual ativo escolher.',
   },
   acoes: {
     copiarLink: 'Copiar link',

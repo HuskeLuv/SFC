@@ -30,19 +30,16 @@ import {
   aplicarCenarioSalvo,
   diffDadosEditados,
   lerNumeroDigitado,
-  premissasIniciaisAcao,
-  premissasIniciaisFii,
   validarPremissa,
   type NomePremissa,
 } from '@/services/analiseAtivos/regras/valuation/cenario';
-import type { CenarioPutBodyV2 } from '@/services/analiseAtivos/cenarios/contrato';
 import {
   arredondar,
   formatarNumeroBR,
 } from '@/services/analiseAtivos/regras/valuation/arredondamento';
 import { TEXTOS_CENARIOS } from '@/services/analiseAtivos/textosCenarios';
 import { formatarTexto } from '@/services/analiseAtivos/textos';
-import type { CenariosResposta } from '@/types/analiseAtivosBlocoD';
+import type { CenarioPutBody, CenariosResposta } from '@/types/analiseAtivosBlocoD';
 import type { Estado, ExibicaoConferenciaTela } from '@/types/analiseAtivosApi';
 import type { PremissasAcaoV2, PremissasFiiV2 } from '@/types/analiseAtivosCriterios';
 
@@ -95,13 +92,11 @@ export function conferenciasDoAtivo(
 }
 
 /**
- * Premissas iniciais (v2.4): as da API (`premissasIniciais`) ou, se faltarem, as mesmas montadas
- * aqui — em branco, margem 0 e o P/L alvo = média 10a do ativo. NUNCA as do ScoringParams.
+ * Premissas iniciais (v2.4): as da API (`premissasIniciais`) — em branco, margem 0 e o P/L alvo =
+ * média 10a do ativo. NUNCA as do ScoringParams.
  */
 export function premissasIniciaisDe(r: CenariosResposta): PremissasAcaoV2 | PremissasFiiV2 {
-  if (r.premissasIniciais) return r.premissasIniciais;
-  if (r.classe === 'fii') return premissasIniciaisFii();
-  return premissasIniciaisAcao(valorEstado(r.base.plAlvoPadrao));
+  return r.premissasIniciais;
 }
 
 /** Estado inicial ("Limpar minhas premissas"): valores do ativo + premissas em branco. */
@@ -204,7 +199,7 @@ export function valorMudouDesdeSalvamento(
 export function corpoParaSalvar(
   r: CenariosResposta,
   s: SnapshotCenario,
-): { ok: true; corpo: CenarioPutBodyV2 } | { ok: false; campos: CampoForm[] } {
+): { ok: true; corpo: CenarioPutBody } | { ok: false; campos: CampoForm[] } {
   const campos = [...CAMPOS_DADO[r.classe], ...PREMISSAS_CLASSE[r.classe]] as CampoForm[];
   const comErro = campos.filter((c) => erroDoCampo(r, c, s.textos[c]) !== null);
   if (comErro.length > 0) return { ok: false, campos: comErro };

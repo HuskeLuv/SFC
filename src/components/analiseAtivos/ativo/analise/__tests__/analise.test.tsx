@@ -83,8 +83,8 @@ const VALUATION: ValuationResposta = {
     criterio: 'mesmo segmento B3, depois mesmo subsetor · ordem A–Z · critérios em 5 anos',
     // v2.4: só os pares (sem o próprio ativo), A–Z, com os critérios em 5 anos
     itens: [
-      { ...API_ITUB4, indice: undefined, criterios: CRITERIOS_LINHA_ITUB4 },
-      { ...API_TGMA3, indice: undefined, criterios: null },
+      { ...API_ITUB4, criterios: CRITERIOS_LINHA_ITUB4 },
+      { ...API_TGMA3, criterios: null },
     ],
   },
 };
@@ -145,7 +145,7 @@ describe('BlocoFundamentosEssencial', () => {
     // ausente = '—' com o motivo no title; negativo com a cor de negativo
     expect(screen.getByTitle('lucro da controladora').textContent).toBe('—');
     expect(screen.getByText('−664').className).toMatch(/D92D20/);
-    expect(screen.getByText(FUNDAMENTOS.notas[0])).toBeTruthy();
+    expect(screen.getByText(FUNDAMENTOS.observacoes[0])).toBeTruthy();
   });
 
   it('v2.4: "Lucro líq. ⓘ"/"Margem líq. ⓘ" com a explicação D2 no title, leitor de tela e notas', () => {

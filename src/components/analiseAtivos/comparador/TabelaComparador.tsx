@@ -18,7 +18,7 @@ import CelulaNaCarteira, {
   type InfoNaCarteira,
 } from '@/components/analiseAtivos/quadro/CelulaNaCarteira';
 import { TABLE_HEADER_STYLE, TABLE_STYLES } from '@/components/ui/table/tableStyles';
-import type { ComparadorRespostaV2 } from '@/services/analiseAtivos/regras/comparador/indicadores';
+import type { ComparadorResposta } from '@/types/analiseAtivosBlocoD';
 import { TEXTOS_COMPARADOR } from '@/services/analiseAtivos/textosComparador';
 import { formatarTexto } from '@/services/analiseAtivos/textosCriterios';
 import type { ClasseQuadro } from '@/types/analiseAtivosApi';
@@ -28,7 +28,7 @@ const COL_FIXA = 230;
 const COL_ATIVO = 190;
 
 export interface TabelaComparadorProps {
-  dados: ComparadorRespostaV2;
+  dados: ComparadorResposta;
   classe: ClasseQuadro;
   /** "Na minha carteira" de um ticker (overlay do cliente) */
   naCarteira: (ticker: string) => InfoNaCarteira;

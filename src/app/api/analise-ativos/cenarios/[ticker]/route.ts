@@ -75,13 +75,22 @@ export const GET = withErrorHandler(async (request: NextRequest, ctx: Ctx) => {
   const { payload, actingClient } = await exigirRecursoAnalise(request, 'cenarios');
   const { symbol, base } = await tickerDe(ctx);
   const consultor = !!actingClient;
-  const salvo = consultor ? null : await lerCenario(payload.id, symbol, base.classe);
-  const corpo = {
-    ...base,
-    salvo,
+  const usuario = {
     podeSalvar: !consultor,
-    motivoSemSalvar: consultor ? 'consultor' : null,
-  } as CenariosResposta;
+    motivoSemSalvar: consultor ? ('consultor' as const) : null,
+  };
+  const corpo: CenariosResposta =
+    base.classe === 'acao'
+      ? {
+          ...base,
+          ...usuario,
+          salvo: consultor ? null : await lerCenario(payload.id, symbol, 'acao'),
+        }
+      : {
+          ...base,
+          ...usuario,
+          salvo: consultor ? null : await lerCenario(payload.id, symbol, 'fii'),
+        };
   return NextResponse.json(corpo, { headers: NO_STORE });
 });
 

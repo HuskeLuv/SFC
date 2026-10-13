@@ -116,15 +116,15 @@ export function aplicarConferenciaCampo(
 
 /**
  * Motivos de conferência da linha da API (o legado de proventos usa 'div:em_conferencia'). v2.4:
- * `motivosConferencia` (fatia B); `indice.motivos` só até a F remover o Índice dos tipos.
+ * `motivosConferencia` (fatia B).
  */
-export function motivosDaLinha(l: Pick<LinhaQuadroApi, 'indice' | 'motivosConferencia'>): string[] {
-  return (l.motivosConferencia ?? l.indice?.motivos ?? []).map((m) => m.codigo);
+export function motivosDaLinha(l: Pick<LinhaQuadroApi, 'motivosConferencia'>): string[] {
+  return l.motivosConferencia.map((m) => m.codigo);
 }
 
 /** Campo em conferência (origem 'conf') de uma linha do Quadro já convertida (front e back). */
 export function conferenciaDaLinha(
-  l: Pick<LinhaQuadroApi, 'flags' | 'classe' | 'indice' | 'motivosConferencia'>,
+  l: Pick<LinhaQuadroApi, 'flags' | 'classe' | 'motivosConferencia'>,
   campo: CampoTela,
 ): CampoConferencia | null {
   return conferenciaConf(l.flags, motivosDaLinha(l), campo, l.classe as ClasseConferencia);

@@ -28,9 +28,9 @@ import type {
   CenarioPutBody,
   CenarioPutResposta,
   CenariosResposta,
+  ComparadorResposta,
   RaioXResposta,
 } from '@/types/analiseAtivosBlocoD';
-import type { ComparadorRespostaV2 } from '@/services/analiseAtivos/regras/comparador/indicadores';
 import { JANELA_PADRAO, type Janela } from '@/types/analiseAtivosCriterios';
 
 export const TEMPOS_BLOCO_D = {
@@ -206,9 +206,9 @@ export function useApagarCenario(ticker: string) {
  * estão em `slots` (não deveria acontecer) vão para o fim, na ordem em que vieram.
  */
 export function ordenarComparadorPelosSlots(
-  resp: ComparadorRespostaV2,
+  resp: ComparadorResposta,
   slots: readonly string[],
-): ComparadorRespostaV2 {
+): ComparadorResposta {
   const pos = new Map(slots.map((t, i) => [t, i]));
   const chave = (t: string) => pos.get(t) ?? Number.MAX_SAFE_INTEGER;
   const ordenar = <T>(lista: T[], ticker: (x: T) => string): T[] =>
@@ -242,7 +242,7 @@ export function useComparador(
 ) {
   const janela = opts.janela ?? JANELA_PADRAO;
   const ordenados = [...tickers].sort();
-  return useQuery<ComparadorRespostaV2, Error>({
+  return useQuery<ComparadorResposta, Error>({
     queryKey: queryKeys.analiseAtivos.comparador(ordenados, tickers[0] ?? '', janela),
     staleTime: TEMPOS_BLOCO_D.comparador,
     placeholderData: keepPreviousData,

@@ -1,14 +1,11 @@
 import { describe, it, expect } from 'vitest';
 import {
   PLACEHOLDERS_PERMITIDOS,
-  RODAPE_LEGAL,
   TEXTOS_TELA,
   formatarTexto,
   motivoTela,
-  motivosEstadoIndice,
   textoMotivo,
   textoNaoSeAplica,
-  textoZeroRegra,
 } from '@/services/analiseAtivos/textosTela';
 import { TEXTOS_ANALISE, encontrarPalavrasProibidas } from '@/services/analiseAtivos/textos';
 import { DEF_GRUPO, GRUPOS_CONFERENCIA } from '@/services/analiseAtivos/regras/comum/conferencia';
@@ -36,8 +33,8 @@ describe('textosTela', () => {
     expect(achados).toEqual([]);
   });
 
-  it('nunca "comprar", "recomendação" nem "nota" (fora do rodapé legal)', () => {
-    const proibidas = /\b(comprar?|compre|recomenda\w*|nota)\b/i;
+  it('nunca "comprar", "recomendação", "nota", Índice MF nem semáforo (v2.4)', () => {
+    const proibidas = /\b(comprar?|compre|recomenda\w*|nota)\b|Índice MF|sem[áa]foro/i;
     expect(TODAS.filter(([, v]) => proibidas.test(v))).toEqual([]);
   });
 
@@ -52,10 +49,36 @@ describe('textosTela', () => {
     }
   });
 
-  it('rodapé legal da Fase 1: base CVM, sem ranking nem notas, passa na varredura', () => {
-    expect(RODAPE_LEGAL).toContain('Resolução CVM 20/2021');
-    expect(RODAPE_LEGAL).not.toMatch(/ranking|\bnotas?\b/i);
-    expect(encontrarPalavrasProibidas(RODAPE_LEGAL)).toEqual([]);
+  it('v2.4: sem o rodapé legal antigo nem as chaves do indicador antigo', async () => {
+    const mod: Record<string, unknown> = await import('@/services/analiseAtivos/textosTela');
+    expect(mod.RODAPE_LEGAL).toBeUndefined();
+    expect(mod.motivosEstadoIndice).toBeUndefined();
+    expect(mod.textoZeroRegra).toBeUndefined();
+    const chaves = TODAS.map(([k]) => k);
+    for (const k of [
+      'indice.nome',
+      'area.subtitulo',
+      'blocos.indice',
+      'quadro.colunas.indiceMf',
+      'quadro.formulaRotulo',
+      'busca.indiceCurto',
+      'ativo.indiceTitulo',
+      'analise.pares.notaIncompleto',
+      'conferencia.porQue.noIndice',
+      'conferencia.porQue.efeitoIndice',
+      'conferencia.porQue.semEfeitoIndice',
+      'naCarteira.quantoFalta',
+      'naCarteira.faltamParaObjetivo',
+      'naCarteira.faltaPlanejado',
+    ]) {
+      expect(chaves, k).not.toContain(k);
+    }
+  });
+
+  it('relatos antigos do indicador antigo aparecem como "indicador descontinuado"', () => {
+    expect(TEXTOS_TELA.relatos.campos.indiceMf).toBe('indicador descontinuado');
+    expect(TEXTOS_TELA.relatos.campos.criterioSemaforo).toBe('indicador descontinuado');
+    expect(TEXTOS_TELA.relatos.descontinuado).toBe('indicador descontinuado');
   });
 
   it('motivos da spec', () => {
@@ -75,19 +98,9 @@ describe('textosTela', () => {
     });
   });
 
-  it('zero pela regra, não se aplica e estados sem número', () => {
-    expect(textoZeroRegra('lucro:prejuizo')).toBe(
-      'Componente zerado pela regra: prejuízo no último exercício',
-    );
-    expect(textoZeroRegra('preco:pl_negativo')).toBe(
-      'Componente zerado pela regra: patrimônio líquido negativo',
-    );
+  it('não se aplica', () => {
     expect(textoNaoSeAplica('financeira')).toBe(TEXTOS_ANALISE.motivosNaoSeAplica.financeira);
-    expect(motivosEstadoIndice('sem_score')[0].texto).toBe(
-      'Índice MF não calculado para este fundo nesta data',
-    );
-    expect(motivosEstadoIndice('fora_do_indice')[0].texto).toBe('fora do Índice MF nesta fase');
-    expect(motivosEstadoIndice('calculado')).toEqual([]);
+    expect(textoNaoSeAplica('fof')).toBe('não se aplica a fundo de fundos');
   });
 
   it('textos obrigatórios da decisão (ações, tese, beta)', () => {
@@ -134,7 +147,7 @@ describe('textosTela — bloco C (conferência, relatos e curadoria)', () => {
     );
   });
 
-  it('motivos do Índice para componentes em conferência', () => {
+  it('motivos de componentes em conferência', () => {
     expect(textoMotivo('preco:em_conferencia')).toBe('preço e múltiplos em conferência');
     expect(textoMotivo('divida:em_conferencia')).toBe('dívida em conferência');
     // o legado de proventos não muda

@@ -7,7 +7,7 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
-import type { ComparadorRespostaV2 } from '@/services/analiseAtivos/regras/comparador/indicadores';
+import type { ComparadorResposta } from '@/types/analiseAtivosBlocoD';
 import {
   CRITERIOS_LINHA_HGLG11,
   CRITERIOS_LINHA_ITUB4,
@@ -71,8 +71,8 @@ function ativo(
   ticker: string,
   nome: string,
   tipo: 'acao' | 'tijolo' | 'papel',
-  criterios: ComparadorRespostaV2['ativos'][number]['criterios'],
-): ComparadorRespostaV2['ativos'][number] {
+  criterios: ComparadorResposta['ativos'][number]['criterios'],
+): ComparadorResposta['ativos'][number] {
   return {
     ticker,
     nome,
@@ -88,7 +88,7 @@ function ativo(
   };
 }
 
-const ACOES: ComparadorRespostaV2 = {
+const ACOES: ComparadorResposta = {
   classe: 'acao',
   janela: 5,
   tickers: ['WEGE3', 'ITUB4', 'TAEE11'],
@@ -174,7 +174,7 @@ const ACOES: ComparadorRespostaV2 = {
   versao: 'c2:x',
 };
 
-const FIIS_MISTO: ComparadorRespostaV2 = {
+const FIIS_MISTO: ComparadorResposta = {
   ...ACOES,
   classe: 'fii',
   tickers: ['HGLG11', 'KNCR11'],
@@ -252,7 +252,7 @@ function fundos(el: Element): string {
     .join(' ');
 }
 
-function montar(dados: ComparadorRespostaV2, query: string, celular: boolean) {
+function montar(dados: ComparadorResposta, query: string, celular: boolean) {
   estado.dados = dados;
   estado.query = query;
   estado.celular = celular;

@@ -124,7 +124,7 @@ describe('consultaQuadro · ordem', () => {
     ]);
   });
 
-  it('padrão A–Z (ticker asc); ticker desc inverte; o indicador antigo cai em A–Z', () => {
+  it('padrão A–Z (ticker asc); ticker desc inverte', () => {
     expect(tickers(consultar({ classe: 'fii' }).itens)).toEqual(['HCTR11', 'HFOF11', 'HGLG11']);
     expect(tickers(consultar({ classe: 'acao' }).itens)).toEqual([
       'AURE3',
@@ -133,11 +133,6 @@ describe('consultaQuadro · ordem', () => {
       'WEGE3',
     ]);
     expect(tickers([...linhas].sort(compararLinhas('ticker', 'desc')))[0]).toBe('EEE3');
-    expect(tickers(consultar({ classe: 'fii', ordem: 'indiceMf' }).itens)).toEqual([
-      'HCTR11',
-      'HFOF11',
-      'HGLG11',
-    ]);
   });
 
   it("'criterios' = contagem atendida (desc), sem avaliação no fim; lucro10 = anos positivos", () => {

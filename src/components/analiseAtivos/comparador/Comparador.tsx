@@ -42,14 +42,13 @@ import { useIsBelowLg } from '@/hooks/useMediaQuery';
 import { useIndiceBusca, useOverlayCarteira } from '@/hooks/useAnaliseAtivos';
 import { useComparador } from '@/hooks/useAnaliseAtivosBlocoD';
 import { MAX_ATIVOS_COMPARADOR } from '@/services/analiseAtivos/cenarios/contrato';
-import type { ComparadorRespostaV2 } from '@/services/analiseAtivos/regras/comparador/indicadores';
 import { TEXTOS_COMPARADOR } from '@/services/analiseAtivos/textosComparador';
 import { formatarTexto } from '@/services/analiseAtivos/textosCriterios';
 import {
   INSTRUCAO_COMPARADOR_ACOES,
   INSTRUCAO_COMPARADOR_FIIS,
 } from '@/services/analiseAtivos/textosLiterais';
-import type { ComparadorProps } from '@/types/analiseAtivosBlocoD';
+import type { ComparadorProps, ComparadorResposta } from '@/types/analiseAtivosBlocoD';
 import type { ClasseQuadro } from '@/types/analiseAtivosApi';
 
 const TC = TEXTOS_COMPARADOR;
@@ -58,7 +57,7 @@ const OUTRA: Record<ClasseQuadro, ClasseQuadro> = { acao: 'fii', fii: 'acao' };
 
 /** Texto do aviso de um ticker ignorado do link. */
 export function textoIgnorado(
-  ig: ComparadorRespostaV2['ignorados'][number],
+  ig: ComparadorResposta['ignorados'][number],
   classe: ClasseQuadro,
 ): string {
   if (ig.motivo === 'outra_classe') {
@@ -77,7 +76,7 @@ export function textoIgnorado(
 
 /** Até 3 sugestões: pares dos ativos (na ordem dos slots), fora dos que já estão. */
 export function sugestoesDosPares(
-  dados: Pick<ComparadorRespostaV2, 'ativos'> | undefined,
+  dados: Pick<ComparadorResposta, 'ativos'> | undefined,
   slots: readonly string[],
 ): string[] {
   const out: string[] = [];
@@ -96,7 +95,7 @@ export function sugestoesDosPares(
  */
 export function slotsDoTipo(
   slots: readonly string[],
-  ativos: ReadonlyMap<string, Pick<ComparadorRespostaV2['ativos'][number], 'tipoComparacao'>>,
+  ativos: ReadonlyMap<string, Pick<ComparadorResposta['ativos'][number], 'tipoComparacao'>>,
   tipo: 'tijolo' | 'papel',
 ): string[] {
   return slots.filter((t) => {

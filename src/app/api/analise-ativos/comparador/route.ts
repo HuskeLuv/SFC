@@ -7,7 +7,7 @@ import { montarComparador } from '@/services/analiseAtivos/leitura/comparador/mo
 import { JANELA_PADRAO, ehJanela } from '@/types/analiseAtivosCriterios';
 
 /**
- * GET /api/analise-ativos/comparador?t=WEGE3,ITUB4&janela=5 → ComparadorRespostaV2 (v2.4, fatia D).
+ * GET /api/analise-ativos/comparador?t=WEGE3,ITUB4&janela=5 → ComparadorResposta (v2.4, fatia D).
  * - exigirRecursoAnalise('comparador'): 404 com a flag desligada (antes da sessão), 401 sem sessão,
  *   404 sem acesso à área.
  * - t: até MAX_CARACTERES_PARAM_T caracteres; nenhum ticker de formato válido ⇒ 400. Dedupe,

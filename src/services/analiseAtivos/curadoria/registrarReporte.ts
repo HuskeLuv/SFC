@@ -16,7 +16,7 @@
  *      usuário (upsert pela chaveAberta única, com casoAnteriorId do último fechado do mesmo dado);
  *    - prazo (slaAte) no 1º relato do caso: 5 dias úteis (calendário B3);
  *    - relato com protocolo de 8 caracteres e o RETRATO DO SERVIDOR da linha do Quadro (valores,
- *      flags, motivos, estadoIndice, dataRef, paramsVersion), nReportes++ e evento 'reporte'.
+ *      flags, motivos, dataRef, paramsVersion), nReportes++ e evento 'reporte'.
  * O evento do caso NUNCA leva o texto livre do usuário (só o protocolo): a anonimização LGPD
  * (privacidadeReportes.ts) só precisa limpar analise_data_reports.
  *
@@ -211,8 +211,6 @@ export function retratoServidor(linha: AnaliseQuadroLinha, campo: string, removi
     dataRef: dataCivil(linha.dataRef),
     geradoEm: linha.geradoEm ? linha.geradoEm.toISOString() : null,
     paramsVersion: linha.paramsVersion ?? null,
-    estadoIndice: linha.estadoIndice,
-    indiceMf: num(linha.indiceMf),
     flags: linha.flags ?? [],
     motivosIncompleto: linha.motivosIncompleto ?? [],
     naoSeAplica: linha.naoSeAplica ?? [],

@@ -26,10 +26,7 @@ import {
 } from '../comparador/montarComparador';
 import { CRITERIA_PARAMS_V1 } from '@/services/analiseAtivos/params/criteriaParamsV1';
 import { encontrarProibidasV2 } from '@/services/analiseAtivos/regras/comum/linguagemV2';
-import type {
-  ComparadorRespostaV2,
-  LinhaComparadorV2,
-} from '@/services/analiseAtivos/regras/comparador/indicadores';
+import type { ComparadorResposta, LinhaComparador } from '@/types/analiseAtivosBlocoD';
 import { LEITURA_DOS_DADOS } from '@/services/analiseAtivos/textosLiterais';
 import {
   CRITERIOS_LINHA_HGLG11,
@@ -276,7 +273,7 @@ function chaves(x: unknown, out: string[] = []): string[] {
   return out;
 }
 
-const linhaDe = (r: ComparadorRespostaV2, codigo: string): LinhaComparadorV2 =>
+const linhaDe = (r: ComparadorResposta, codigo: string): LinhaComparador =>
   r.grupos.flatMap((g) => g.linhas).find((l) => l.codigo === codigo)!;
 
 async function montar(t: string[], janela: Janela = 5) {

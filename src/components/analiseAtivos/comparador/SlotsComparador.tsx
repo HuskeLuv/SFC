@@ -14,7 +14,7 @@ import { formatarEstado } from '@/components/analiseAtivos/comum/formatarAnalise
 import { FOCO } from '@/components/analiseAtivos/comparador/SlotAdicionar';
 import { TEXTOS_COMPARADOR } from '@/services/analiseAtivos/textosComparador';
 import { TEXTOS_TELA, formatarTexto } from '@/services/analiseAtivos/textosTela';
-import type { AtivoComparadorV2 } from '@/services/analiseAtivos/regras/comparador/indicadores';
+import type { AtivoComparador } from '@/types/analiseAtivosBlocoD';
 
 const TS = TEXTOS_COMPARADOR.slots;
 
@@ -67,7 +67,7 @@ function BotaoRemover({ ticker, onRemover }: { ticker: string; onRemover: (t: st
 
 export interface SlotsComparadorProps {
   slots: readonly string[];
-  ativos: ReadonlyMap<string, AtivoComparadorV2>;
+  ativos: ReadonlyMap<string, AtivoComparador>;
   onRemover: (ticker: string) => void;
   celular: boolean;
   /** slot "Adicionar" (computador) */

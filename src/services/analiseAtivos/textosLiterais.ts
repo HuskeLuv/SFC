@@ -39,7 +39,7 @@ export const RODAPE_QUADRO = literal(
 
 /**
  * Aviso legal único da área (§9), adaptado à D5: sem ranking, notas, teses públicas e SEC.
- * PROVISÓRIO para o jurídico (rec. 6). Substitui o RODAPE_LEGAL antigo (textosTela, removido na F).
+ * PROVISÓRIO para o jurídico (rec. 6). Substituiu o rodapé legal antigo do textosTela (removido na fatia F).
  */
 export const RODAPE_LEGAL_V2 = literal(
   'aviso-legal-v2',

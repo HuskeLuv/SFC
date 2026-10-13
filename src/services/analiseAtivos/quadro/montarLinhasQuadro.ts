@@ -40,8 +40,19 @@ import { valorMercadoEmpresa } from '@/services/analiseAtivos/calculo/recalcular
 import type { AlertaJob, ContagemAcoes, TickerAcao } from '@/services/analiseAtivos/tipos';
 import { distanciaEmPregoes } from '@/services/analiseAtivos/regras/comum/pregoes';
 import { DEF_GRUPO, parseFlagConf } from '@/services/analiseAtivos/regras/comum/conferencia';
-import type { EstadoIndice, ForaDoQuadroMotivo, PontoSerieAnual } from '@/types/analiseAtivosApi';
+import type { ForaDoQuadroMotivo, PontoSerieAnual } from '@/types/analiseAtivosApi';
 import type { CriteriosCompactos, PerfilCriterio } from '@/types/analiseAtivosCriterios';
+
+/**
+ * Estado gravado na coluna analise_quadro_linhas.estado_indice pelo pipeline do score (interno;
+ * nenhuma API o expõe desde a v2.4 — a coluna sai na D6-b, com o resto do banco do score).
+ */
+export type EstadoIndiceGravado =
+  | 'calculado'
+  | 'incompleto'
+  | 'zero_regra'
+  | 'fora_do_indice'
+  | 'sem_score';
 
 export const N_PARES = 5;
 /** Ação fora da ClassifSetorial vigente sem negócio há mais de N pregões ⇒ deslistada. */
@@ -214,7 +225,7 @@ export function estadoIndiceDe(
   score: Pick<ScoreQuadro, 'regua' | 'incompleto'> | undefined,
   zeroRegra: string[],
   fiiTipo: string | null,
-): EstadoIndice {
+): EstadoIndiceGravado {
   if (!score) return fiiTipo === 'fof' ? 'fora_do_indice' : 'sem_score';
   if (score.regua === 'fora_do_indice') return 'fora_do_indice';
   if (score.incompleto) return 'incompleto';

@@ -389,8 +389,7 @@ export async function montarTopoAtivo(
       : null;
   const edu = TEXTOS_TELA.educacao[classe];
 
-  // v2.4: tickerReferenciaIndice sai do JSON (chave /indice/); o tipo só perde o campo na F
-  const resposta: Omit<AtivoTopoResposta, 'tickerReferenciaIndice'> = {
+  const resposta: AtivoTopoResposta = {
     ticker,
     classe,
     nome: linha.nome,

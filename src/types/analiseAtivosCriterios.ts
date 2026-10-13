@@ -13,11 +13,11 @@
  * - EstadoCriterio tem 4 estados; 'sem_dado' CONTA COMO NÃO ATENDE (nunca atende por falta de dado;
  *   frase "não atende · sem dado nas demonstrações"). 'nao_se_aplica' sai do denominador.
  * - Marcas ✓/— sempre NEUTRAS na tela (nunca verde/vermelho); n/a em pílula tracejada.
- * - Nenhuma chave destes tipos casa /indice|semaforo|destaque|nota|rating|score/i (contratoSemNota).
+ * - Nenhuma chave destes tipos é do indicador antigo, de nota, rating ou score (contratoSemNota).
  *
  * Mapa de donos (cada arquivo tem UM dono; ver tabela de ownership em spec-desenho.json):
  *   0  — este arquivo, params/*, textosCriterios, textosLiterais, linguagemV2, varrerDom,
- *        comum/{CelulaCriterios,MarcaCriterio,PilulasJanela,MiniBarrasAnuais}, lerCriterios (stub).
+ *        comum/{CelulaCriterios,MarcaCriterio,PilulasJanela,MiniBarrasAnuais}, lerCriterios (contrato).
  *   A  — regras/criterios/*, calculo/executarCriterios, repositorio/criterios, lerCriterios (corpo),
  *        job 'criterios', gerarQuadro/montarLinhasQuadro (gravam CriteriosCompactos).
  *   B  — rota/consulta do Quadro (QuadroParams.janela/criterios, QuadroResposta.definicoes/
@@ -26,11 +26,12 @@
  *        overlay (objetivoPct/estrategia/tipoFii/secao/id), sugestoesComparar + rota,
  *        useAcoesCarteiraAnalise, textosAcoesCarteira (TEXTOS_OPERACAO).
  *   C2 — CardCriterios/ItemCriterio, AtivoTopoResposta.criterios, Essencial (ultimoAno, R$ bi),
- *        Valuation, cenários V2 (PremissasAcaoV2/PremissasFiiV2), pares, conferência sem
- *        efeitoIndice, textosAtivo.
+ *        Valuation, cenários V2 (PremissasAcaoV2/PremissasFiiV2), pares, conferência sem efeito
+ *        no indicador antigo, textosAtivo.
  *   D  — Comparador (AtivoComparador.criterios, ComparadorResposta.leitura), BlocoCriteriosComparador,
  *        LeituraDosDados, SeletorTipoFii.
- *   F  — limpeza (textosTela, textos, respostas, constantes), torna obrigatórios os campos novos.
+ *   F  — limpeza (textosTela, textos, respostas, constantes, tipos), torna obrigatórios os campos
+ *        novos, oficializa o Comparador isonômico e liga linguagemV2Global/contratoSemNota.
  */
 import type { ReactNode } from 'react';
 import type { ClasseQuadro, Estado, FiiTipoTela, FormatoAnalise } from '@/types/analiseAtivosApi';
@@ -381,7 +382,7 @@ export interface SecaoOperacao {
 }
 
 // ===========================================================================
-// PROPS dos componentes (fatia 0 = comuns; demais = stubs com props FINAIS)
+// PROPS dos componentes (fatia 0 = comuns; demais com os donos indicados)
 // ===========================================================================
 
 // ---- 0 (comuns, neutros, 44 px) ----------------------------------------------

@@ -145,11 +145,13 @@ describe('registrarReporte', () => {
     });
     // retrato do servidor com a linha do Quadro
     expect(rep.contextoServidor).toMatchObject({
-      estadoIndice: 'calculado',
       paramsVersion: 1,
       dataRef: '2026-10-02',
       valores: expect.objectContaining({ payoutPct: 55, preco: 52.1 }),
     });
+    // v2.4 (F): o retrato não leva mais o indicador antigo
+    expect(Object.keys(rep.contextoServidor as object)).not.toContain('estadoIndice');
+    expect(Object.keys(rep.contextoServidor as object)).not.toContain('indiceMf');
     expect(banco.tabelas.eventos.map((e) => e.tipo)).toEqual(['aberto', 'reporte']);
     // o evento NUNCA leva o texto livre do usuário
     expect(JSON.stringify(banco.tabelas.eventos)).not.toContain('release');

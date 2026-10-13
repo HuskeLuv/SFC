@@ -8,7 +8,7 @@
  * ⇒ em conferência), D4 (sem inadimplência/prazo médio/vencimentos/indexadores), D5 (rendimento
  * distribuído 2º tri + 4º tri e payout do resultado), D1 (per-share com salto de ações ⇒ em
  * conferência, também no Essencial), D13 (CSV raio-x_<TICKER>_<AAAA-MM-DD>.csv; bloco final
- * "Sobre os dados", nunca "Notas"). O rodapé legal do CSV é o RODAPE_LEGAL (fora deste objeto).
+ * "Sobre os dados", nunca "Notas"). O rodapé legal do CSV é o RODAPE_LEGAL_V2 (textosLiterais, fora deste objeto).
  */
 export const TEXTOS_RAIO_X = {
   seletor: {

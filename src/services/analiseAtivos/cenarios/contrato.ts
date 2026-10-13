@@ -107,13 +107,14 @@ export const CenarioPutSchema = z.discriminatedUnion('classe', [
 ]);
 
 /**
- * Corpo do PUT v2 (premissas anuláveis). O tipo público CenarioPutBody (analiseAtivosBlocoD.ts,
- * v1) só ganha os null na fatia F; até lá o v2 é este tipo, e todo corpo v1 continua aceito.
+ * O corpo validado pelo schema É o tipo público CenarioPutBody (analiseAtivosBlocoD.ts; premissas
+ * anuláveis desde a v2.4): a conferência de tipo abaixo falha se um dos dois mudar sozinho.
  */
-export type CenarioPutBodyV2 = z.infer<typeof CenarioPutSchema>;
 type Contem<A, B> = [A] extends [B] ? true : false;
-const _v1CabeNoV2: Contem<CenarioPutBody, CenarioPutBodyV2> = true;
-void _v1CabeNoV2;
+const _schemaCabeNoTipo: Contem<z.infer<typeof CenarioPutSchema>, CenarioPutBody> = true;
+const _tipoCabeNoSchema: Contem<CenarioPutBody, z.infer<typeof CenarioPutSchema>> = true;
+void _schemaCabeNoTipo;
+void _tipoCabeNoSchema;
 // As premissas v2 dos tipos-contrato (analiseAtivosCriterios.ts) cabem no schema.
 const _acaoV2: Contem<PremissasAcaoV2, z.infer<typeof PremissasAcaoSchema>> = true;
 const _fiiV2: Contem<PremissasFiiV2, z.infer<typeof PremissasFiiSchema>> = true;

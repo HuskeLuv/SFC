@@ -8,11 +8,11 @@ import {
 } from '@/services/analiseAtivos/acesso/acessoAnalise';
 import {
   TIPOS_NOTIFICACAO,
+  blocoParaUsuario,
+  campoParaUsuario,
   casoFechado,
   ehStatusCaso,
   statusParaUsuario,
-  type BlocoReporte,
-  type CampoReporte,
   type ResolucaoCaso,
 } from '@/services/analiseAtivos/curadoria/contrato';
 import type { ItemMeuReporte, MeusReportesResposta } from '@/types/analiseAtivosCuradoria';
@@ -29,6 +29,8 @@ import type { ItemMeuReporte, MeusReportesResposta } from '@/types/analiseAtivos
  *   20 por página, mais novos primeiro.
  * - respostaPublica/resolucao só com o caso fechado; `novo` = há aviso de resposta ainda NÃO lido
  *   no sino para o caso (metadata.casoId ou metadata.reporteId).
+ * - v2.4 (F): relato antigo do indicador que saiu da superfície vem com bloco/campo
+ *   'descontinuado' (a tela mostra "indicador descontinuado").
  * - Cache-Control: no-store.
  */
 export const dynamic = 'force-dynamic';
@@ -36,7 +38,7 @@ export const dynamic = 'force-dynamic';
 const NO_STORE = { 'Cache-Control': 'no-store' };
 const POR_PAGINA = 20;
 const RE_TICKER = /^[A-Z0-9]{4,12}$/;
-/** avisos de resposta não lidos considerados para o destaque "Resposta nova" */
+/** avisos de resposta não lidos considerados para o selo "Resposta nova" */
 const MAX_AVISOS = 200;
 
 interface Cursor {
@@ -141,8 +143,8 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
       id: r.id,
       protocolo: r.protocolo,
       ticker: r.symbol,
-      bloco: r.bloco as BlocoReporte,
-      campo: r.campo as CampoReporte,
+      bloco: blocoParaUsuario(r.bloco),
+      campo: campoParaUsuario(r.campo),
       periodo: r.periodo,
       criadoEm: r.createdAt.toISOString(),
       mensagem: r.mensagem,

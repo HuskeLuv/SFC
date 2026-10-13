@@ -159,7 +159,7 @@ describe('montarFundamentosAcao', () => {
     expect(r.colunas.find((c) => c.codigo === 'lucro')?.rotulo).toBe('Lucro líq. ⓘ');
     expect(r.colunas.find((c) => c.codigo === 'margem')?.rotulo).toBe('Margem líq. ⓘ');
     expect(r.unidade).toBe('R$ bi');
-    expect(r.notas[0]).toBe(TE.unidadeAcao);
+    expect(r.observacoes[0]).toBe(TE.unidadeAcao);
   });
 
   it('valores em R$ bi e lucro atribuível', () => {
@@ -245,7 +245,7 @@ describe('montarFundamentosAcao', () => {
     expect(linha(r, '2025').selos).toEqual(['proventos_em_conferencia']);
     // 2021 dobrou (0,22 → 0,44) com payout de 49%: salto real, sem selo
     expect(linha(r, '2021').selos).toEqual([]);
-    expect(r.notas).toContain(TF.notaProventosConferencia);
+    expect(r.observacoes).toContain(TF.notaProventosConferencia);
   });
 
   it('sem período mais recente que o último ano fechado: sem linha Últ. 12m', () => {
@@ -288,8 +288,8 @@ describe('montarFundamentosAcao', () => {
     expect(linha(r, '2025').valores.fclCapex.estado).toBe('nao_se_aplica');
     expect(r.padraoContabil).toBe('BRGAAP');
     expect(r.escopo).toBe('ind');
-    expect(r.notas).toContain('Padrão contábil: individual BR GAAP.');
-    expect(r.notas).toContain(TE.notaFinanceira);
+    expect(r.observacoes).toContain('Padrão contábil: individual BR GAAP.');
+    expect(r.observacoes).toContain(TE.notaFinanceira);
   });
 
   it('controladora_zero: usa o lucro do individual; sem individual, "—" com o motivo', () => {
@@ -363,7 +363,7 @@ describe('montarFundamentosAcao', () => {
     expect(JSON.stringify(r)).not.toMatch(/destaque/i);
     const banco = montarFundamentosAcao(entradaWege({ financeira: true }));
     expect(banco.colunas.map((c) => c.codigo)).not.toContain('receita');
-    expect(banco.notas).toContain(TF.notaFinanceira);
+    expect(banco.observacoes).toContain(TF.notaFinanceira);
   });
 });
 
@@ -432,7 +432,7 @@ describe('montarFundamentosFii', () => {
     });
     expect(valor(linha(r, '2025').valores.receita)).toBe(400);
     expect(valor(linha(r, '2025').valores.resultado)).toBe(440);
-    expect(r.notas.some((n) => n.includes(TEXTOS_TELA.ativo.anoIncompletoFii))).toBe(true);
+    expect(r.observacoes.some((n) => n.includes(TEXTOS_TELA.ativo.anoIncompletoFii))).toBe(true);
     expect(linha(r, '2025').ultimoAno).toBe(true);
   });
 
@@ -469,7 +469,7 @@ describe('montarFundamentosFii', () => {
     expect(ttm.rotulo).toBe(TEXTOS_TELA.ativo.ult12mTabela);
     expect(valor(ttm.valores.receita)).toBe(530); // 100 + 100 + 140 + 190
     expect(valor(ttm.valores.nImoveis)).toBe(37);
-    expect(r.notas).toContain(TF.notaCvmGestor);
+    expect(r.observacoes).toContain(TF.notaCvmGestor);
   });
 
   it('KNCR11 (papel): Nº CRIs e Maior CRI no lugar das 3 últimas; sem aluguel, a receita sai', () => {
@@ -498,7 +498,7 @@ describe('montarFundamentosFii', () => {
       'maiorCri',
     ]);
     expect(valor(linha(r, '2025').valores.nCri)).toBe(63);
-    expect(r.notas).not.toContain(TF.notaCvmGestor);
+    expect(r.observacoes).not.toContain(TF.notaCvmGestor);
   });
 
   it('rendimento > 2× o ano anterior: selo de proventos em conferência', () => {

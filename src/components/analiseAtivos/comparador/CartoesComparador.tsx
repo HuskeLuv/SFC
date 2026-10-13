@@ -15,14 +15,14 @@ import ConteudoCelula from '@/components/analiseAtivos/comparador/CelulaComparad
 import CelulaNaCarteira, {
   type InfoNaCarteira,
 } from '@/components/analiseAtivos/quadro/CelulaNaCarteira';
-import type { ComparadorRespostaV2 } from '@/services/analiseAtivos/regras/comparador/indicadores';
+import type { ComparadorResposta } from '@/types/analiseAtivosBlocoD';
 import { TEXTOS_COMPARADOR } from '@/services/analiseAtivos/textosComparador';
 import type { ClasseQuadro } from '@/types/analiseAtivosApi';
 
 const TC = TEXTOS_COMPARADOR;
 
 export interface CartoesComparadorProps {
-  dados: ComparadorRespostaV2;
+  dados: ComparadorResposta;
   classe: ClasseQuadro;
   naCarteira: (ticker: string) => InfoNaCarteira;
 }

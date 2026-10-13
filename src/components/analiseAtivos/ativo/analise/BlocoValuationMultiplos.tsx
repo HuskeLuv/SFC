@@ -100,7 +100,7 @@ export default function BlocoValuationMultiplos({
           ) : null}
           <ul className="flex flex-col gap-1 text-xs text-gray-500 dark:text-gray-400">
             <li>{TV.nota}</li>
-            {q.data?.nota ? <li>{q.data.nota}</li> : null}
+            {q.data?.observacao ? <li>{q.data.observacao}</li> : null}
           </ul>
         </>
       ) : null}

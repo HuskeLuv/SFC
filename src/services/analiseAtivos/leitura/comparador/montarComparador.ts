@@ -56,20 +56,23 @@ import {
   ehMisto,
   naoSeAplicaComparador,
   tipoDoAtivo,
-  type AtivoComparadorV2,
-  type ComparadorRespostaV2,
-  type CriteriosComparador,
   type DadosAtivoComparador,
   type DefIndicador,
-  type GrupoComparadorV2,
-  type LinhaComparadorV2,
-  type TipoAtivoComparador,
 } from '@/services/analiseAtivos/regras/comparador/indicadores';
+import type {
+  AtivoComparador,
+  ComparadorResposta,
+  ConferenciaCelulaComparador,
+  CriteriosComparador,
+  GrupoComparador,
+  LinhaComparador,
+  MotivoIgnorado,
+  TipoAtivoComparador,
+} from '@/types/analiseAtivosBlocoD';
 import { montarLeitura } from '@/services/analiseAtivos/regras/comparador/resumo';
 import { TEXTOS_COMPARADOR } from '@/services/analiseAtivos/textosComparador';
 import { TEXTOS_CRITERIOS } from '@/services/analiseAtivos/textosCriterios';
 import { TEXTOS_TELA, formatarTexto } from '@/services/analiseAtivos/textosTela';
-import type { ConferenciaCelulaComparador, MotivoIgnorado } from '@/types/analiseAtivosBlocoD';
 import type { ClasseQuadro, Estado } from '@/types/analiseAtivosApi';
 import {
   JANELA_PADRAO,
@@ -183,7 +186,7 @@ export interface EntradaComparador {
 }
 
 export type NucleoComparador = Pick<
-  ComparadorRespostaV2,
+  ComparadorResposta,
   'classe' | 'janela' | 'misto' | 'ativos' | 'criterios' | 'grupos' | 'graficos' | 'leitura'
 >;
 
@@ -232,10 +235,10 @@ export function montarComparadorPuro(e: EntradaComparador): NucleoComparador {
   const tiposPresentes = new Set(tipos);
   const misto = classe === 'fii' && ehMisto(tipos);
 
-  const grupos: GrupoComparadorV2[] = [];
+  const grupos: GrupoComparador[] = [];
   for (const g of catalogoComparador(classe)) {
     if (!g.aplicavelA.some((t) => tiposPresentes.has(t))) continue;
-    const linhas: LinhaComparadorV2[] = g.linhas.map((def) => {
+    const linhas: LinhaComparador[] = g.linhas.map((def) => {
       const valores: Record<string, Estado<number>> = {};
       const conferencia: Record<string, ConferenciaCelulaComparador | null> = {};
       e.ativos.forEach((a, i) => {
@@ -262,7 +265,7 @@ export function montarComparadorPuro(e: EntradaComparador): NucleoComparador {
     });
   }
 
-  const ativos: AtivoComparadorV2[] = e.ativos.map((a, i) => {
+  const ativos: AtivoComparador[] = e.ativos.map((a, i) => {
     const l = a.dados.linha;
     const gruposConf = new Set(l.conferencias ?? []);
     if (l.proventosEmConferencia) gruposConf.add('proventos');
@@ -490,7 +493,7 @@ async function lerNucleo(
 }
 
 export interface ResultadoComparador {
-  dados: ComparadorRespostaV2;
+  dados: ComparadorResposta;
   cache: boolean;
 }
 

@@ -31,14 +31,15 @@ import {
  * (leitura/linhasQuadro.ts) e a consulta é pura (quadro/consultaQuadro.ts) — rec. 8.
  *
  * Query (zod ESTRITO: parâmetro desconhecido ou antigo — lucroConsistente, dyMin, pvpMax, tipo,
- * somenteCompletos, ordem=indiceMf — dá 400): classe; janela 3|5|10 (padrão 5); criterios (ids
+ * somenteCompletos, a ordem do indicador antigo — dá 400): classe; janela 3|5|10 (padrão 5); criterios (ids
  * separados por vírgula, só chips habilitados da classe; em FII o id de tijolo cobre o par de papel);
  * naCarteira; setor; segmento; ordem; dir; offset; limite ≤ 100.
  *
  * - 404 sem acesso (flag/beta, exigirAcessoAnalise); 400 com query inválida.
  * - naCarteira=1: posições e planejados do targetUserId (o cliente, quando o consultor age por ele),
  *   lidos direto de portfolios/watchlists.
- * - Resposta + {janela, totalClasse, definicoes}; nenhuma chave /indice|semaforo|destaque/.
+ * - Resposta + {janela, totalClasse, definicoes}; nenhuma chave do indicador antigo
+ *   (contratoSemNota.test.ts).
  * - Cache-Control: no-store (o cache é o do servidor; um ativo recém-registrado aparece logo no
  *   filtro "Na minha carteira"). Server-Timing com o tempo da consulta.
  */

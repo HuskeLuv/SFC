@@ -52,23 +52,15 @@ import type {
 import { TEXTOS_CENARIOS } from '@/services/analiseAtivos/textosCenarios';
 import { TEXTOS_TELA } from '@/services/analiseAtivos/textosTela';
 import type { CenariosResposta, ConferenciaCampoCenario } from '@/types/analiseAtivosBlocoD';
-import type { PremissasAcaoV2, PremissasFiiV2 } from '@/types/analiseAtivosCriterios';
 import type { Estado, LinhaQuadroApi } from '@/types/analiseAtivosApi';
 
 type OmitirDistributivo<T, K extends PropertyKey> = T extends unknown ? Omit<T, K> : never;
 
-/**
- * A resposta do GET sem a parte do usuário (salvo, podeSalvar, motivoSemSalvar). v2.4: sem
- * `premissasPadrao` e com `premissasIniciais` obrigatório.
- */
+/** A resposta do GET sem a parte do usuário (salvo, podeSalvar, motivoSemSalvar). */
 export type BaseCenariosResposta = OmitirDistributivo<
   CenariosResposta,
-  'salvo' | 'podeSalvar' | 'motivoSemSalvar' | 'premissasPadrao' | 'premissasIniciais'
-> &
-  (
-    | { classe: 'acao'; premissasIniciais: PremissasAcaoV2 }
-    | { classe: 'fii'; premissasIniciais: PremissasFiiV2 }
-  );
+  'salvo' | 'podeSalvar' | 'motivoSemSalvar'
+>;
 
 /** Campos de asset_multiples_current que a base lê. */
 export interface AtualCenarios {

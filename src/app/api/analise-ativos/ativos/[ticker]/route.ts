@@ -7,8 +7,8 @@ import { TEXTOS_TELA } from '@/services/analiseAtivos/textosTela';
 /**
  * GET /api/analise-ativos/ativos/[ticker] — topo da página do ativo numa chamada
  * (AtivoTopoResposta). Só banco: nenhum provedor externo no caminho da requisição.
- * v2.4 (fatia C2): sem Índice nem semáforo (nenhuma chave /indice|semaforo|destaque/ no JSON) e com
- * `criterios` nas 3 janelas (trocar a janela na tela não refaz a requisição).
+ * v2.4 (fatia C2): sem o indicador antigo (nenhuma chave dele no JSON; contratoSemNota.test.ts) e
+ * com `criterios` nas 3 janelas (trocar a janela na tela não refaz a requisição).
  * - 404 sem acesso (flag/beta, exigirAcessoAnalise) ou ticker fora da área;
  * - 400 ticker em formato inválido;
  * - Cache-Control: private, max-age=300 (cache do servidor por ticker:versão, 30 min);

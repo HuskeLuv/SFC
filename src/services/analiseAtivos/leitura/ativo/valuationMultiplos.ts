@@ -802,15 +802,14 @@ function montarHistoricos(alvo: Ctx): HistoricoMultiplo[] {
 /**
  * Linha do Quadro para a tabela de pares: números com 4 casas e sem a série de 10 anos (a tabela
  * não a usa; o Quadro e o topo trazem a série completa). Mantém o contrato LinhaQuadroApi.
- * v2.4: sem o Índice (nenhuma chave /indice/ no JSON) e com a contagem de critérios na janela 5.
+ * v2.4: com a contagem de critérios na janela 5.
  */
 export function linhaParEnxuta(
   l: LinhaQuadroApi,
-  criterios: CriteriosLinhaApi | null = l.criterios ?? null,
+  criterios: CriteriosLinhaApi | null = l.criterios,
 ): LinhaQuadroApi {
-  const { indice: _indice, ...semIndice } = l;
   return {
-    ...semIndice,
+    ...l,
     criterios,
     variacaoDiaPct: enxugarOuNull(l.variacaoDiaPct),
     roe: enxugarEstado(l.roe),
@@ -860,7 +859,7 @@ export function montarValuation(e: EntradaValuation): ValuationResposta {
     grupos,
     historicos: montarHistoricos(alvo),
     pares: { criterio: e.criterioPares, itens: linhasPares },
-    nota: TV.notaReferencia,
+    observacao: TV.notaReferencia,
   };
 }
 

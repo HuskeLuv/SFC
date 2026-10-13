@@ -16,7 +16,7 @@
  *   limpe os filtros"), Na minha carteira sem posição, erro (mantém filtros) e cotação atrasada.
  * - Rodapé fixo: o literal 'rodape-quadro' (RodapeCriterios, data-texto-legal) + data das cotações.
  * - Celular (< lg): cartões (rec. 7), chips num trilho próprio, "Ordem" (sheet) + Resumo|Detalhado.
- * Nenhuma referência ao indicador antigo nem a nota/semáforo/destaque.
+ * Nenhuma referência ao indicador antigo (sem nota, sem semáforo, sem marca de valor).
  *
  * Bloco D (fatia D), só com config.recursos.comparador: botão "Comparar" (aria-pressed, 44px) ao
  * lado de Resumo|Detalhado; ligado, a tabela ganha a coluna de caixas, os cartões a caixa de 44px e

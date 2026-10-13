@@ -11,12 +11,13 @@
  *  - célula: ausente (inclusive 'em conferência' com política ocultar) = vazia; n/a = 'n/a';
  *    política 'selo' = o valor;
  *  - no fim: 'Em conferência' (ano · linha: motivo), 'Sobre os dados' (nunca "Notas"), Fonte,
- *    Gerado em (dd/mm/aaaa), Parâmetros (v<versão>) e o aviso legal (RODAPE_LEGAL) entre aspas.
+ *    Gerado em (dd/mm/aaaa), Parâmetros (v<versão>) e o aviso legal (RODAPE_LEGAL_V2, v2.4) entre aspas.
  *  - Texto: RFC 4180 (aspas quando há ';', aspas ou quebra) + apóstrofo antes de = + - @ TAB CR no
  *    início (o Excel não executa como fórmula). Números nunca levam apóstrofo.
  */
 import { TEXTOS_RAIO_X } from '@/services/analiseAtivos/textosRaioX';
-import { RODAPE_LEGAL, formatarTexto } from '@/services/analiseAtivos/textosTela';
+import { formatarTexto } from '@/services/analiseAtivos/textosTela';
+import { RODAPE_LEGAL_V2 } from '@/services/analiseAtivos/textosLiterais';
 import type { Estado } from '@/types/analiseAtivosApi';
 import type { FormatoRaioX, RaioXResposta } from '@/types/analiseAtivosBlocoD';
 
@@ -116,6 +117,6 @@ export function gerarCsvRaioX(r: RaioXResposta, o: OpcoesCsvRaioX): string {
   linhas.push([textoCsv(TC.fonte), textoCsv(TC.fonteValor)]);
   linhas.push([textoCsv(TC.geradoEm), dataBr(o.hoje)]);
   linhas.push([textoCsv(TC.parametros), `v${o.versaoParams}`]);
-  linhas.push([textoCsv(TC.avisoLegal), textoCsv(RODAPE_LEGAL, { aspas: true })]);
+  linhas.push([textoCsv(TC.avisoLegal), textoCsv(RODAPE_LEGAL_V2.texto, { aspas: true })]);
   return BOM + linhas.map((l) => l.join(SEP)).join(EOL) + EOL;
 }

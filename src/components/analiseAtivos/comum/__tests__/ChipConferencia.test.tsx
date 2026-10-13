@@ -315,8 +315,8 @@ describe('Quadro', () => {
       <TabelaQuadro
         classe="acao"
         modo="detalhado"
-        ordem="indiceMf"
-        dir="desc"
+        ordem="ticker"
+        dir="asc"
         linhas={[sbsp, wege]}
         onOrdenar={() => undefined}
         naCarteira={() => ({ tipo: 'nenhum' })}

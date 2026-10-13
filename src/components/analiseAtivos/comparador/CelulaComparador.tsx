@@ -13,7 +13,7 @@ import { Fragment, type ReactNode } from 'react';
 import ChipConferencia from '@/components/analiseAtivos/comum/ChipConferencia';
 import { formatarEstado } from '@/components/analiseAtivos/comum/formatarAnalise';
 import { TEXTO_NEGATIVO } from '@/components/analiseAtivos/ativo/analise/CartaoAnalise';
-import type { LinhaComparadorV2 } from '@/services/analiseAtivos/regras/comparador/indicadores';
+import type { LinhaComparador } from '@/types/analiseAtivosBlocoD';
 import { TEXTOS_COMPARADOR } from '@/services/analiseAtivos/textosComparador';
 
 const TC = TEXTOS_COMPARADOR;
@@ -22,12 +22,12 @@ export interface InfoCelula {
   texto: string;
   naoSeAplica: boolean;
   negativo: boolean;
-  conferencia: LinhaComparadorV2['conferencia'][string];
+  conferencia: LinhaComparador['conferencia'][string];
   /** selo de fonte sob o valor (só com valor) */
   fonteCvm: boolean;
 }
 
-export function infoCelula(linha: LinhaComparadorV2, ticker: string): InfoCelula {
+export function infoCelula(linha: LinhaComparador, ticker: string): InfoCelula {
   const v = linha.valores[ticker] ?? {
     estado: 'ausente' as const,
     motivo: 'sem_dado_fonte',
@@ -65,7 +65,7 @@ function comQuebras(texto: string): ReactNode {
 }
 
 export interface ConteudoCelulaProps {
-  linha: LinhaComparadorV2;
+  linha: LinhaComparador;
   ticker: string;
   /** alinhamento (tabela: centro; cartão: esquerda) */
   alinhamento?: 'centro' | 'esquerda';

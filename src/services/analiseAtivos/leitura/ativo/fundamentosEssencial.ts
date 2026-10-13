@@ -521,7 +521,7 @@ export function montarFundamentosAcao(
     variante: 'acao',
     colunas: semColunasNaoAplicaveis(v24 ? COLUNAS_ACAO : COLUNAS_ACAO_LEGADO, linhasConf),
     linhas: linhasConf,
-    notas,
+    observacoes: notas,
   };
 }
 
@@ -809,7 +809,7 @@ export function montarFundamentosFii(e: EntradaFundamentosFii): FundamentosRespo
     variante: papel ? 'fii_papel' : 'fii_tijolo',
     colunas: semColunasNaoAplicaveis(colunas, linhasConf),
     linhas: linhasConf,
-    notas,
+    observacoes: notas,
   };
 }
 
