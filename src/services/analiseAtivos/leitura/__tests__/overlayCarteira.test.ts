@@ -30,22 +30,54 @@ const asset = (id: string, symbol: string, type: string, currency: string | null
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.prisma.portfolio.findMany.mockResolvedValue([
-    { id: 'p-wege', quantity: 100, categoriaOverride: null, asset: asset('a1', 'WEGE3', 'stock') },
+    {
+      id: 'p-wege',
+      quantity: 100,
+      categoriaOverride: null,
+      objetivo: 25,
+      estrategia: 'growth',
+      tipoFii: null,
+      asset: asset('a1', 'WEGE3', 'stock'),
+    },
     {
       id: 'p-itsa',
       quantity: 50,
       categoriaOverride: 'etfs',
+      objetivo: 0,
+      estrategia: 'value',
+      tipoFii: null,
       asset: asset('a2', 'ITSA4', 'stock'),
     },
-    { id: 'p-mxrf', quantity: 350, categoriaOverride: null, asset: asset('a3', 'mxrf11', 'fii') },
+    {
+      id: 'p-mxrf',
+      quantity: 350,
+      categoriaOverride: null,
+      objetivo: 0,
+      estrategia: null,
+      tipoFii: 'tvm',
+      asset: asset('a3', 'mxrf11', 'fii'),
+    },
   ]);
   mocks.prisma.watchlist.findMany.mockResolvedValue([
-    { id: 'w-itub', objetivo: 5, categoriaOverride: null, asset: asset('a4', 'ITUB4', 'stock') },
+    {
+      id: 'w-itub',
+      objetivo: 5,
+      secao: 'value',
+      categoriaOverride: null,
+      asset: asset('a4', 'ITUB4', 'stock'),
+    },
     // Planejado que já virou posição: fica só em posicoes.
-    { id: 'w-wege', objetivo: 10, categoriaOverride: null, asset: asset('a1', 'WEGE3', 'stock') },
+    {
+      id: 'w-wege',
+      objetivo: 10,
+      secao: 'growth',
+      categoriaOverride: null,
+      asset: asset('a1', 'WEGE3', 'stock'),
+    },
     {
       id: 'w-hglg',
       objetivo: 7.5,
+      secao: null,
       categoriaOverride: 'fimFia',
       asset: asset('a5', 'HGLG11', 'fii'),
     },
@@ -53,13 +85,37 @@ beforeEach(() => {
 });
 
 describe('overlayCarteira', () => {
-  it('posições com a aba efetiva (override do mover) e ticker normalizado', async () => {
+  it('posições com a aba efetiva (override do mover), ticker normalizado, objetivo e seção', async () => {
     const r = await overlayCarteira('u1');
     expect(r.posicoes).toEqual({
-      WEGE3: { portfolioId: 'p-wege', quantidade: 100, categoria: 'acoes' },
-      ITSA4: { portfolioId: 'p-itsa', quantidade: 50, categoria: 'etfs' },
-      MXRF11: { portfolioId: 'p-mxrf', quantidade: 350, categoria: 'fiis' },
+      WEGE3: {
+        portfolioId: 'p-wege',
+        quantidade: 100,
+        categoria: 'acoes',
+        objetivoPct: 25,
+        estrategia: 'growth',
+        tipoFii: null,
+      },
+      // objetivo 0 (padrão da coluna) = sem alvo
+      ITSA4: {
+        portfolioId: 'p-itsa',
+        quantidade: 50,
+        categoria: 'etfs',
+        objetivoPct: null,
+        estrategia: 'value',
+        tipoFii: null,
+      },
+      MXRF11: {
+        portfolioId: 'p-mxrf',
+        quantidade: 350,
+        categoria: 'fiis',
+        objetivoPct: null,
+        estrategia: null,
+        tipoFii: 'tvm',
+      },
     });
+    const select = mocks.prisma.portfolio.findMany.mock.calls[0][0].select;
+    expect(select).toMatchObject({ objetivo: true, estrategia: true, tipoFii: true });
   });
 
   it('só quantity > 0 e do próprio usuário (where)', async () => {
@@ -74,8 +130,20 @@ describe('overlayCarteira', () => {
   it('planejados com objetivo e categoria efetiva; planejado com posição fica de fora', async () => {
     const r = await overlayCarteira('u1');
     expect(r.planejados).toEqual({
-      ITUB4: { watchlistId: 'w-itub', categoria: 'acoes', objetivoPct: 5 },
-      HGLG11: { watchlistId: 'w-hglg', categoria: 'fimFia', objetivoPct: 7.5 },
+      ITUB4: {
+        watchlistId: 'w-itub',
+        id: 'w-itub',
+        categoria: 'acoes',
+        objetivoPct: 5,
+        secao: 'value',
+      },
+      HGLG11: {
+        watchlistId: 'w-hglg',
+        id: 'w-hglg',
+        categoria: 'fimFia',
+        objetivoPct: 7.5,
+        secao: null,
+      },
     });
   });
 
@@ -86,7 +154,11 @@ describe('overlayCarteira', () => {
     ]);
     mocks.prisma.watchlist.findMany.mockResolvedValue([]);
     const r = await overlayCarteira('u1');
-    expect(r.posicoes.WEGE3).toEqual({ portfolioId: 'p1', quantidade: 15, categoria: 'acoes' });
+    expect(r.posicoes.WEGE3).toMatchObject({
+      portfolioId: 'p1',
+      quantidade: 15,
+      categoria: 'acoes',
+    });
   });
 
   it('sem nenhuma chamada a provedor de preço (DB-only)', async () => {
