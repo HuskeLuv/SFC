@@ -6,6 +6,10 @@
  *    da amostra) e quadro-linhas.json (analise_quadro_linhas), mais as linhas do catálogo (assets)
  *    dos símbolos da amostra que faltarem. Num banco com dados reais (Neon dev,
  *    produção) NÃO toca nas tabelas de dados.
+ *    v2.4 (Filtros de Fundamentos): no mesmo banco efêmero grava criteria_params v1 (o do código),
+ *    roda o MESMO job 'criterios' (executarCriterios) sobre as tabelas da amostra e copia a forma
+ *    compacta para AnaliseQuadroLinha.criterios/perfilCriterios — o e2e vê o Quadro e a página do
+ *    ativo com os critérios reais da amostra.
  * 2. Beta: põe o usuário demo (usuario.demo@finapp.local) em feature_beta_users
  *    (recurso 'analise-ativos'), para a área abrir com ANALISE_ATIVOS_HABILITADA=true.
  *
@@ -15,6 +19,7 @@
 import { readFileSync } from 'fs';
 import path from 'path';
 import { Prisma, PrismaClient } from '@prisma/client';
+import { CRITERIA_PARAMS_V1 } from '../src/services/analiseAtivos/params/criteriaParamsV1';
 
 export const RECURSO_BETA_ANALISE = 'analise-ativos';
 export const EMAIL_DEMO = 'usuario.demo@finapp.local';
@@ -108,6 +113,72 @@ async function carregarFixtures(prisma: PrismaClient): Promise<Record<string, nu
   return contagem;
 }
 
+/** Vigência do criteria_params v1 gravado pelo seed (antes de qualquer data de teste). */
+export const VALIDO_DESDE_CRITERIOS = new Date('2026-10-13T00:00:00.000Z');
+
+/**
+ * v2.4: criteria_params v1 + job 'criterios' sobre as fixtures + cópia compacta nas linhas do
+ * Quadro. Devolve quantas linhas do Quadro ficaram com critérios. Imports dinâmicos: o motor só é
+ * carregado quando há fixtures para avaliar.
+ */
+export async function avaliarCriteriosFixtures(prisma: PrismaClient): Promise<number> {
+  await prisma.criteriaParams.createMany({
+    data: [
+      {
+        version: CRITERIA_PARAMS_V1.versao,
+        params: CRITERIA_PARAMS_V1 as unknown as Prisma.InputJsonValue,
+        validFrom: VALIDO_DESDE_CRITERIOS,
+        createdBy: 'seed',
+        notas: 'seed do banco efêmero (CI/e2e) — o mesmo CRITERIA_PARAMS_V1 do código',
+      },
+    ],
+    skipDuplicates: true,
+  });
+  const [{ executarCriterios }, { obterScoringParams }, { SCORING_PARAMS_V1 }, repo] =
+    await Promise.all([
+      import('../src/services/analiseAtivos/calculo/executarCriterios'),
+      import('../src/services/analiseAtivos/params/obterScoringParams'),
+      import('../src/services/analiseAtivos/params/scoringParamsV1'),
+      import('../src/services/analiseAtivos/repositorio/criterios'),
+    ]);
+  const scoring = await obterScoringParams(prisma).catch(() => ({
+    versao: SCORING_PARAMS_V1.versao,
+    params: SCORING_PARAMS_V1,
+  }));
+  const alertas: string[] = [];
+  await executarCriterios({
+    prisma,
+    prazo: Date.now() + 600_000,
+    restanteMs: () => 600_000,
+    estourouPrazo: () => false,
+    alertar: (a) => alertas.push(`${a.codigo}: ${a.mensagem}`),
+    contar: () => {},
+    params: scoring.params,
+    paramsVersion: scoring.versao,
+    hoje: new Date().toISOString().slice(0, 10),
+    origem: 'script',
+    aplicar: true,
+  });
+  for (const a of alertas) console.log(`📈 critérios (seed): ${a}`);
+  const compactos = await repo.lerCompactosPorSimbolo(prisma);
+  let n = 0;
+  for (const [symbol, c] of compactos) {
+    const r = await prisma.analiseQuadroLinha.updateMany({
+      where: { symbol },
+      data: {
+        criterios: c.criterios as unknown as Prisma.InputJsonValue,
+        perfilCriterios: c.perfil,
+      },
+    });
+    n += r.count;
+  }
+  return n;
+}
+
+export interface DependenciasSeedAnalise {
+  avaliarCriterios: (prisma: PrismaClient) => Promise<number>;
+}
+
 /** Demo no beta (idempotente). Devolve false se o usuário demo não existe. */
 export async function colocarDemoNoBeta(prisma: PrismaClient): Promise<boolean> {
   const demo = await prisma.user.findUnique({ where: { email: EMAIL_DEMO }, select: { id: true } });
@@ -127,9 +198,11 @@ export async function colocarDemoNoBeta(prisma: PrismaClient): Promise<boolean> 
 
 export async function seedAnaliseAtivos(
   prisma: PrismaClient,
+  deps: DependenciasSeedAnalise = { avaliarCriterios: avaliarCriteriosFixtures },
 ): Promise<{ fixtures: Record<string, number> | null; demoNoBeta: boolean }> {
   const temDados = (await prisma.assetScore.count()) > 0;
   const fixtures = temDados ? null : await carregarFixtures(prisma);
+  if (fixtures) fixtures.quadroComCriterios = await deps.avaliarCriterios(prisma);
   const demoNoBeta = await colocarDemoNoBeta(prisma);
   return { fixtures, demoNoBeta };
 }
