@@ -9,14 +9,17 @@
  *    contagem de ações, Asset.id) + a cópia compacta dos critérios (criteria_eval, gravado pelo job
  *    'criterios' das 10:30 UTC) → AnaliseQuadroLinha.criterios/perfilCriterios (v2.4).
  * 3. montarLinhasQuadro (pura).
- * 4. Grava numa transação (deleteMany + createMany): os leitores veem a versão anterior inteira até o
- *    commit (MVCC) e trocam de versão em até 60 s (linhasQuadro.ts).
+ * 4. Grava numa transação interativa (deleteMany + createMany em lotes de 200): os leitores veem a
+ *    versão anterior inteira até o commit (MVCC) e trocam de versão em até 60 s (linhasQuadro.ts).
  */
 import { Prisma, type PrismaClient } from '@prisma/client';
 import { lucroParaSequencia } from '@/services/analiseAtivos/regras/calculo/sequencias';
 import { contagensAcoes } from '@/services/analiseAtivos/repositorio/acoes';
 import { paraNumero } from '@/services/analiseAtivos/repositorio/conversao';
-import { lerCompactosPorSimbolo } from '@/services/analiseAtivos/repositorio/criterios';
+import {
+  lerCompactosPorSimbolo,
+  PRAZO_TRANSACAO_MS,
+} from '@/services/analiseAtivos/repositorio/criterios';
 import {
   listarEmissores,
   listarFiisListados,
@@ -30,6 +33,8 @@ import {
 import type { ContagemAcoes, JobContexto, ResultadoJob } from '@/services/analiseAtivos/tipos';
 
 const DIA_MS = 86_400_000;
+/** Linhas por createMany na gravação do Quadro (v2.4). */
+export const LOTE_LINHAS_QUADRO = 200;
 /** Janela para achar os 2 últimos pregões de cada símbolo. */
 const JANELA_PREGOES_DIAS = 10;
 
@@ -287,11 +292,22 @@ export async function gravarLinhasQuadro(
   prisma: PrismaClient,
   linhas: LinhaQuadroGravar[],
 ): Promise<number> {
-  const [, criadas] = await prisma.$transaction([
-    prisma.analiseQuadroLinha.deleteMany({}),
-    prisma.analiseQuadroLinha.createMany({ data: linhas }),
-  ]);
-  return criadas.count;
+  // v2.4: transação INTERATIVA com createMany em lotes — com a cópia compacta dos critérios
+  // (JSON por linha) o createMany único de ~950 linhas subia o pico do job em ~95 MB no DEV.
+  return prisma.$transaction(
+    async (tx) => {
+      await tx.analiseQuadroLinha.deleteMany({});
+      let criadas = 0;
+      for (let i = 0; i < linhas.length; i += LOTE_LINHAS_QUADRO) {
+        const r = await tx.analiseQuadroLinha.createMany({
+          data: linhas.slice(i, i + LOTE_LINHAS_QUADRO),
+        });
+        criadas += r.count;
+      }
+      return criadas;
+    },
+    { timeout: PRAZO_TRANSACAO_MS, maxWait: 10_000 },
+  );
 }
 
 export interface DependenciasQuadro {

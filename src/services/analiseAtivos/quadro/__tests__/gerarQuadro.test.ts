@@ -12,38 +12,41 @@ import {
   linhasCriteriaEval,
 } from '@/services/analiseAtivos/repositorio/criterios';
 
-/** Prisma fake: só analise_quadro_linhas em memória, com $transaction em lote (tudo ou nada). */
+/**
+ * Prisma fake: só analise_quadro_linhas em memória, com $transaction INTERATIVA (tudo ou nada: o
+ * callback trabalha numa cópia, que só vira a tabela se ele terminar).
+ */
 function prismaFake(falharCreate = false) {
   const tabela = new Map<string, LinhaQuadroGravar>();
   const ops: string[] = [];
-  const analiseQuadroLinha = {
-    deleteMany: vi.fn(() => ({ tipo: 'delete' as const })),
-    createMany: vi.fn(({ data }: { data: LinhaQuadroGravar[] }) => ({
-      tipo: 'create' as const,
-      data,
-    })),
-  };
+  const opcoes: unknown[] = [];
   const $transaction = vi.fn(
-    async (lote: Array<{ tipo: 'delete' } | { tipo: 'create'; data: LinhaQuadroGravar[] }>) => {
+    async (fn: (tx: unknown) => Promise<number>, opts?: { timeout?: number }) => {
+      opcoes.push(opts);
       const copia = new Map(tabela);
-      const resultados: Array<{ count: number }> = [];
-      for (const op of lote) {
-        ops.push(op.tipo);
-        if (op.tipo === 'delete') {
-          resultados.push({ count: copia.size });
-          copia.clear();
-        } else {
-          if (falharCreate) throw new Error('falha no meio da transação');
-          for (const l of op.data) copia.set(l.symbol, l);
-          resultados.push({ count: op.data.length });
-        }
-      }
+      const tx = {
+        analiseQuadroLinha: {
+          deleteMany: vi.fn(async () => {
+            ops.push('delete');
+            const count = copia.size;
+            copia.clear();
+            return { count };
+          }),
+          createMany: vi.fn(async ({ data }: { data: LinhaQuadroGravar[] }) => {
+            ops.push('create');
+            if (falharCreate) throw new Error('falha no meio da transação');
+            for (const l of data) copia.set(l.symbol, l);
+            return { count: data.length };
+          }),
+        },
+      };
+      const r = await fn(tx);
       tabela.clear();
       for (const [k, v] of copia) tabela.set(k, v);
-      return resultados;
+      return r;
     },
   );
-  return { prisma: { analiseQuadroLinha, $transaction } as unknown as PrismaClient, tabela, ops };
+  return { prisma: { $transaction } as unknown as PrismaClient, tabela, ops, opcoes };
 }
 
 function ctxCom(prisma: PrismaClient, aplicar = true) {
@@ -168,6 +171,18 @@ describe('gerarQuadro', () => {
     });
     expect(ops).toEqual([]);
     expect(alertas.map((a) => a.codigo)).toContain('quadro_vazio');
+  });
+
+  it('gravarLinhasQuadro grava em lotes de 200 numa transação interativa com prazo longo', async () => {
+    const { prisma, tabela, ops, opcoes } = prismaFake();
+    const linhas = Array.from(
+      { length: 450 },
+      (_, i) => ({ symbol: `X${i}` }) as unknown as LinhaQuadroGravar,
+    );
+    expect(await gravarLinhasQuadro(prisma, linhas)).toBe(450);
+    expect(ops).toEqual(['delete', 'create', 'create', 'create']);
+    expect(tabela.size).toBe(450);
+    expect(opcoes[0]).toMatchObject({ timeout: 120_000 });
   });
 
   it('gravarLinhasQuadro devolve o count do createMany', async () => {
@@ -315,24 +330,38 @@ describe('gerarQuadro — critérios de fundamentos (v2.4)', () => {
     expect(compactos['5']?.m.map((m) => m[0])).toEqual(['rec', 'luc', 'ebitda', 'mg', 'dl', 'fcl']);
   });
 
-  it('lerCompactosPorSimbolo agrupa as janelas por símbolo, em páginas', async () => {
+  it('lerCompactosPorSimbolo monta o compacto por símbolo a partir do SQL, em páginas', async () => {
     const a = avaliarAtivo(
       { symbol: 'WEGE3', classe: 'acao', perfil: 'acao', anoFim: 2025, series: {}, meses: null },
       CRITERIA_PARAMS_V1,
       4,
     );
-    const linhas = linhasCriteriaEval({ symbol: 'WEGE3', cnpj: 'C', avaliacao: a }, new Date()).map(
-      (l, i) => ({ ...l, id: `id-${i}` }),
-    );
-    const findMany = vi.fn(async ({ take, cursor }: { take: number; cursor?: { id: string } }) => {
-      const inicio = cursor ? linhas.findIndex((l) => l.id === cursor.id) + 1 : 0;
-      return linhas.slice(inicio, inicio + take);
+    // o que o Postgres devolve: (symbol, janela) em ordem, com m = [[id, estado, fato]…]
+    const linhasSql = linhasCriteriaEval({ symbol: 'WEGE3', cnpj: 'C', avaliacao: a }, new Date())
+      .map((l) => ({
+        symbol: l.symbol,
+        perfil: l.perfil,
+        janela: l.janela,
+        atendidos: l.atendidos,
+        aplicaveis: l.aplicaveis,
+        paramsVersion: l.paramsVersion,
+        m: (l.resultados as Array<{ id: string; estado: string; fato: string }>).map((r) => [
+          r.id,
+          r.estado,
+          r.fato,
+        ]),
+      }))
+      .sort((x, y) => x.janela - y.janela);
+    let chamada = 0;
+    const $queryRaw = vi.fn(async () => {
+      const pagina = linhasSql.slice(chamada * 2, chamada * 2 + 2);
+      chamada++;
+      return pagina;
     });
-    const m = await lerCompactosPorSimbolo(
-      { criteriaEval: { findMany } } as unknown as PrismaClient,
-      { pagina: 2 },
-    );
-    expect(findMany).toHaveBeenCalledTimes(2);
+    const m = await lerCompactosPorSimbolo({ $queryRaw } as unknown as PrismaClient, {
+      pagina: 2,
+    });
+    expect($queryRaw).toHaveBeenCalledTimes(2);
     expect(m.get('WEGE3')).toMatchObject({ perfil: 'acao', paramsVersion: 4 });
     expect(Object.keys(m.get('WEGE3')!.criterios).sort()).toEqual(['10', '3', '5']);
     expect(m.get('WEGE3')!.criterios).toEqual(compactarAvaliacao(a));

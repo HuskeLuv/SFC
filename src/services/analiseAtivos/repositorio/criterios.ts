@@ -130,60 +130,60 @@ function ehPerfil(s: string): s is PerfilCriterio {
   return (PERFIS_CRITERIO as readonly string[]).includes(s);
 }
 
+/** Linha de criteria_eval já compactada pelo Postgres (só id/estado/fato de cada critério). */
+export interface LinhaCompactaSql {
+  symbol: string;
+  perfil: string;
+  janela: number;
+  atendidos: number;
+  aplicaveis: number;
+  paramsVersion: number;
+  m: Array<[string, string, string]> | null;
+}
+
 /**
- * Cópias compactas de todos os símbolos avaliados (job 'quadro'). Lê só as colunas usadas, em
- * páginas, para o pico de memória ficar baixo (~2.600 linhas × ~2 KB).
+ * Cópias compactas de todos os símbolos avaliados (job 'quadro'). O Postgres monta o compacto
+ * (jsonb_build_array(id, estado, fato)) e a série de cada critério nem sai do banco: lendo
+ * `resultados` inteiro pelo Prisma o pico do job 'quadro' subia ~100 MB no DEV. Em páginas
+ * (keyset por symbol, janela).
  */
 export async function lerCompactosPorSimbolo(
-  prisma: Pick<PrismaClient, 'criteriaEval'>,
+  prisma: Pick<PrismaClient, '$queryRaw'>,
   opts: { pagina?: number } = {},
 ): Promise<Map<string, CompactoSimbolo>> {
   const pagina = opts.pagina ?? 1000;
-  const porSimbolo = new Map<
-    string,
-    {
-      perfil: string;
-      paramsVersion: number;
-      linhas: Parameters<typeof compactarLinhas>[0][number][];
-    }
-  >();
-  let cursor: string | undefined;
+  const out = new Map<string, CompactoSimbolo>();
+  let depois: { symbol: string; janela: number } | null = null;
   for (;;) {
-    const linhas = await prisma.criteriaEval.findMany({
-      select: {
-        id: true,
-        symbol: true,
-        perfil: true,
-        janela: true,
-        atendidos: true,
-        aplicaveis: true,
-        resultados: true,
-        paramsVersion: true,
-      },
-      orderBy: { id: 'asc' },
-      take: pagina,
-      ...(cursor ? { skip: 1, cursor: { id: cursor } } : {}),
-    });
+    const ultimo: { symbol: string; janela: number } | null = depois;
+    const linhas: LinhaCompactaSql[] = await prisma.$queryRaw<LinhaCompactaSql[]>`
+      SELECT e."symbol", e."perfil", e."janela", e."atendidos", e."aplicaveis", e."paramsVersion",
+             (SELECT jsonb_agg(jsonb_build_array(r->>'id', r->>'estado', r->>'fato') ORDER BY o)
+                FROM jsonb_array_elements(e."resultados") WITH ORDINALITY AS t(r, o)) AS m
+      FROM "criteria_eval" e
+      WHERE ${ultimo === null}
+         OR (e."symbol", e."janela") > (${ultimo?.symbol ?? ''}, ${ultimo?.janela ?? 0})
+      ORDER BY e."symbol", e."janela"
+      LIMIT ${pagina}`;
     for (const l of linhas) {
-      const atual = porSimbolo.get(l.symbol) ?? {
+      if (!ehPerfil(l.perfil)) continue;
+      const atual = out.get(l.symbol) ?? {
         perfil: l.perfil,
         paramsVersion: l.paramsVersion,
-        linhas: [],
+        criterios: {},
       };
-      atual.linhas.push(l);
-      porSimbolo.set(l.symbol, atual);
+      if (ehJanela(l.janela) && Array.isArray(l.m)) {
+        atual.criterios[String(l.janela) as ChaveJanela] = {
+          n: l.atendidos,
+          de: l.aplicaveis,
+          m: l.m.filter(([id]) => ehIdCriterio(id)) as MarcaCompacta[],
+        };
+      }
+      out.set(l.symbol, atual);
     }
     if (linhas.length < pagina) break;
-    cursor = linhas[linhas.length - 1].id;
-  }
-  const out = new Map<string, CompactoSimbolo>();
-  for (const [symbol, v] of porSimbolo) {
-    if (!ehPerfil(v.perfil)) continue;
-    out.set(symbol, {
-      perfil: v.perfil,
-      paramsVersion: v.paramsVersion,
-      criterios: compactarLinhas(v.linhas),
-    });
+    const fim = linhas[linhas.length - 1];
+    depois = { symbol: fim.symbol, janela: fim.janela };
   }
   return out;
 }
