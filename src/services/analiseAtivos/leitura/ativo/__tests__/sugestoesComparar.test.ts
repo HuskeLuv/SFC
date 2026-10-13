@@ -11,7 +11,10 @@ vi.mock('@/services/analiseAtivos/leitura/linhasQuadro', async (importOriginal) 
   ...(await importOriginal<typeof import('@/services/analiseAtivos/leitura/linhasQuadro')>()),
   obterLinhasQuadroApi: mocks.linhas,
 }));
-vi.mock('@/services/analiseAtivos/leitura/criterios/lerCriterios', () => ({
+vi.mock('@/services/analiseAtivos/leitura/criterios/lerCriterios', async (importOriginal) => ({
+  ...(await importOriginal<
+    typeof import('@/services/analiseAtivos/leitura/criterios/lerCriterios')
+  >()),
   obterCriteriosVarios: mocks.criterios,
 }));
 // Nenhum provedor de preço no caminho (spy: se for chamado, o teste falha).

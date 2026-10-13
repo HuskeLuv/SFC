@@ -51,7 +51,10 @@ vi.mock('@/services/analiseAtivos/leitura/linhasQuadro', async (orig) => {
     obterLinhaQuadro: vi.fn(async (s: string) => db.linhas.get(s.toUpperCase()) ?? null),
   };
 });
-vi.mock('@/services/analiseAtivos/leitura/criterios/lerCriterios', () => ({
+vi.mock('@/services/analiseAtivos/leitura/criterios/lerCriterios', async (importOriginal) => ({
+  ...(await importOriginal<
+    typeof import('@/services/analiseAtivos/leitura/criterios/lerCriterios')
+  >()),
   obterCriteriosAtivo: vi.fn(async (_p: unknown, t: string) =>
     t === 'WEGE3' ? CRITERIOS_ATIVO_WEGE3 : t === 'HGLG11' ? CRITERIOS_ATIVO_HGLG11 : null,
   ),

@@ -43,7 +43,10 @@ vi.mock('@/services/analiseAtivos/leitura/linhasQuadro', async (orig) => {
   };
 });
 
-vi.mock('@/services/analiseAtivos/leitura/criterios/lerCriterios', () => ({
+vi.mock('@/services/analiseAtivos/leitura/criterios/lerCriterios', async (importOriginal) => ({
+  ...(await importOriginal<
+    typeof import('@/services/analiseAtivos/leitura/criterios/lerCriterios')
+  >()),
   obterCriteriosAtivo: m.criterios,
 }));
 

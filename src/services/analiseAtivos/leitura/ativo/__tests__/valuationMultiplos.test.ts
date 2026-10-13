@@ -14,7 +14,12 @@ const mockLeitor = vi.hoisted(() => ({
 }));
 const mockAcoes = vi.hoisted(() => ({ fundamentosVigentes: vi.fn() }));
 const mockCriterios = vi.hoisted(() => ({ obterCriteriosVarios: vi.fn() }));
-vi.mock('@/services/analiseAtivos/leitura/criterios/lerCriterios', () => mockCriterios);
+vi.mock('@/services/analiseAtivos/leitura/criterios/lerCriterios', async (importOriginal) => ({
+  ...(await importOriginal<
+    typeof import('@/services/analiseAtivos/leitura/criterios/lerCriterios')
+  >()),
+  ...mockCriterios,
+}));
 vi.mock('@/lib/prisma', () => ({ prisma: mockPrisma, default: mockPrisma }));
 vi.mock('@/services/analiseAtivos/leitura/linhasQuadro', async (orig) => {
   const real = await orig<typeof import('@/services/analiseAtivos/leitura/linhasQuadro')>();
