@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
 import { render, screen, fireEvent, within } from '@testing-library/react';
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import React from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import BlocoDividendos from '../BlocoDividendos';
@@ -35,7 +35,7 @@ describe('CabecalhoAtivo', () => {
     expect(screen.getByRole('button', { name: 'Planejar' })).toBeInTheDocument();
   });
 
-  it('selo de dados incompletos só no incompleto', () => {
+  it('v2.4: sem Índice MF — nem o selo "dados incompletos" do Índice aparece', () => {
     const inc: AtivoTopoResposta = {
       ...ATIVO_WEGE3,
       indice: indice({
@@ -43,10 +43,31 @@ describe('CabecalhoAtivo', () => {
         motivos: [{ codigo: 'div:fonte_defasada', texto: 'proventos em conferência' }],
       }),
     };
-    const { rerender } = render(<CabecalhoAtivo ativo={inc} />);
-    expect(screen.getByText('dados incompletos')).toBeInTheDocument();
-    rerender(<CabecalhoAtivo ativo={ATIVO_WEGE3} />);
+    const { container } = render(<CabecalhoAtivo ativo={inc} />);
     expect(screen.queryByText('dados incompletos')).not.toBeInTheDocument();
+    expect(container.textContent).not.toMatch(/Índice|semáforo|nota/i);
+  });
+
+  it('chips "Na carteira" e "Planejado" juntos quando a posição tem alvo (overlay)', async () => {
+    const fetchMock = vi.fn(async () => ({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        posicoes: {
+          WEGE3: { portfolioId: 'p', quantidade: 120, categoria: 'acoes', objetivoPct: 6 },
+        },
+        planejados: {},
+      }),
+    }));
+    vi.stubGlobal('fetch', fetchMock);
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <CabecalhoAtivo ativo={ATIVO_WEGE3} seloCarteira={null} />
+      </QueryClientProvider>,
+    );
+    expect(await screen.findByText('Planejado')).toBeInTheDocument();
+    expect(screen.getByText('Na carteira')).toBeInTheDocument();
+    vi.unstubAllGlobals();
   });
 });
 

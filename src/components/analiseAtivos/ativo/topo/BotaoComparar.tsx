@@ -5,14 +5,15 @@
  * ROTAS_BLOCO_D.comparar([ticker]) — o Comparador abre com o ativo no 1º slot (decisão 13). Botão
  * branco com borda (o mesmo secundário de "Registrar operação"), 44px ou mais.
  *
- * LinhaAcoesCabecalho é a linha de ações do CabecalhoAtivo: sem config.recursos.comparador ela é
- * exatamente o <div className="min-w-0"> de hoje (regressão da decisão 15); com o recurso, põe o
- * "Comparar" depois de "Planejar na Carteira" / "Registrar operação", sem mudar a ordem deles.
+ * LinhaAcoesCabecalho era a linha de ações do CabecalhoAtivo (Bloco D). v2.4 (fatia C1): o
+ * cabeçalho passa a usar a BarraAcoesAtivo, em que "Comparar" abre o modal de sugestões
+ * (ModalComparar) em vez de ir direto ao Comparador; LinkComparar/LinhaAcoesCabecalho ficam só para
+ * quem ainda os usa (a F remove o que sobrar sem uso).
  */
 import Link from 'next/link';
 import type { ReactNode } from 'react';
 import { IconeComparar } from '@/components/analiseAtivos/quadro/BandejaComparar';
-import { BOTAO_SECUNDARIO } from '@/components/analiseAtivos/ativo/usuario/AcoesCarteiraAtivo';
+import { BOTAO_SECUNDARIO } from '@/components/analiseAtivos/ativo/acoes/BarraAcoesAtivo';
 import { useAnaliseAtivosConfig } from '@/hooks/useAnaliseAtivos';
 import { ROTAS_BLOCO_D } from '@/services/analiseAtivos/cenarios/contrato';
 import { TEXTOS_ENTRADAS_COMPARADOR } from '@/services/analiseAtivos/textosEntradasComparador';

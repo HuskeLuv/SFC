@@ -9,8 +9,36 @@
  *     híbrido/indefinido escolhe entre os tipos da Carteira.
  * Valor fora das seções válidas da aba é ignorado (cai para o passo seguinte). Função pura.
  */
-import type { ClasseQuadro, FiiTipoTela } from '@/types/analiseAtivosApi';
+import { TEXTOS_TELA } from '@/services/analiseAtivos/textosTela';
+import type { AtivoTopoResposta, ClasseQuadro, FiiTipoTela } from '@/types/analiseAtivosApi';
 import type { SecaoOperacao } from '@/types/analiseAtivosCriterios';
+
+/** Rótulo da tag de tipo (TEXTOS_TELA.ativo.tiposFii) → tipo do FII. */
+const TIPO_POR_ROTULO = new Map<string, FiiTipoTela>(
+  (Object.entries(TEXTOS_TELA.ativo.tiposFii) as Array<[FiiTipoTela, string]>).map(([k, v]) => [
+    v,
+    k,
+  ]),
+);
+
+/**
+ * Tipo do FII da página do ativo (sugestão de seção na 1ª compra/plano): o perfil da avaliação de
+ * critérios primeiro (tijolo/papel, já com a regra de composição da rec. 3); sem ela, a tag de tipo
+ * do cabeçalho. Ação ou sem informação ⇒ null.
+ */
+export function tipoCvmDoTopo(
+  ativo: Pick<AtivoTopoResposta, 'classe' | 'tags' | 'criterios'>,
+): FiiTipoTela | null {
+  if (ativo.classe !== 'fii') return null;
+  const perfil = ativo.criterios?.perfil;
+  if (perfil === 'fii_tijolo') return 'tijolo';
+  if (perfil === 'fii_papel') return 'papel';
+  for (const tag of ativo.tags) {
+    const tipo = TIPO_POR_ROTULO.get(tag);
+    if (tipo) return tipo;
+  }
+  return null;
+}
 
 export interface EntradaSecaoOperacao {
   classe: ClasseQuadro;
