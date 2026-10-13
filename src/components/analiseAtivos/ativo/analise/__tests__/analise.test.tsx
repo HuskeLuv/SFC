@@ -19,6 +19,7 @@ import CardMultiplo from '../CardMultiplo';
 import ChipsGrupo from '../ChipsGrupo';
 import { TEXTOS_TELA } from '@/services/analiseAtivos/textosTela';
 import { TEXTOS_RAIO_X } from '@/services/analiseAtivos/textosRaioX';
+import { TEXTOS_ATIVO } from '@/services/analiseAtivos/textosAtivo';
 import { MOTIVO_PER_SHARE } from '@/services/analiseAtivos/regras/conferencia/conferenciaAnual';
 import {
   API_HGLG11,
@@ -89,7 +90,7 @@ const FUNDAMENTOS: FundamentosResposta = {
     {
       rotulo: '2024',
       ano: 2024,
-      destaque: false,
+      ultimoAno: false,
       valores: {
         receita: { estado: 'ok', valor: 37987 },
         lucro: { estado: 'ausente', motivo: 'controladora_zero', texto: 'lucro da controladora' },
@@ -99,14 +100,14 @@ const FUNDAMENTOS: FundamentosResposta = {
     {
       rotulo: '2025',
       ano: 2025,
-      destaque: true,
+      ultimoAno: true,
       valores: { receita: { estado: 'ok', valor: 40804 }, lucro: { estado: 'ok', valor: -664 } },
       selos: ['proventos_em_conferencia'],
     },
     {
       rotulo: 'Últ. 12m',
       ano: null,
-      destaque: false,
+      ultimoAno: false,
       valores: { receita: { estado: 'ok', valor: 40130 }, lucro: { estado: 'ok', valor: 6254 } },
       selos: [],
     },
@@ -120,7 +121,7 @@ beforeEach(() => {
 });
 
 describe('BlocoFundamentosEssencial', () => {
-  it('tabela com th scope=col/row, Ano fixa, último ano destacado e Últ. 12m', () => {
+  it('tabela com th scope=col/row, Ano fixa, último ano marcado (data-ultimo-ano) e Últ. 12m', () => {
     mockHooks.useFundamentosAtivo.mockReturnValue(consulta(FUNDAMENTOS));
     render(<BlocoFundamentosEssencial ticker="WEGE3" classe="acao" />);
     const tabela = screen.getByRole('table');
@@ -128,13 +129,42 @@ describe('BlocoFundamentosEssencial', () => {
     expect(cols.map((c) => c.getAttribute('scope'))).toEqual(['col', 'col', 'col']);
     expect(cols[0].className).toMatch(/sticky/);
     const linhas = within(tabela).getAllByRole('rowheader');
-    expect(linhas.map((l) => l.textContent)).toEqual(['2024', '2025', 'Últ. 12m']);
+    expect(linhas.map((l) => l.textContent)).toEqual([
+      '2024',
+      `2025 (${TEXTOS_ATIVO.essencial.ultimoAnoSr})`,
+      'Últ. 12m',
+    ]);
     expect(linhas.every((l) => l.getAttribute('scope') === 'row')).toBe(true);
-    expect(tabela.querySelector('[data-destaque]')?.textContent).toContain('2025');
+    expect(tabela.querySelector('[data-ultimo-ano]')?.textContent).toContain('2025');
+    expect(tabela.querySelector('[data-destaque]')).toBeNull();
     // ausente = '—' com o motivo no title; negativo com a cor de negativo
     expect(screen.getByTitle('lucro da controladora').textContent).toBe('—');
     expect(screen.getByText('−664').className).toMatch(/D92D20/);
     expect(screen.getByText(FUNDAMENTOS.notas[0])).toBeTruthy();
+  });
+
+  it('v2.4: "Lucro líq. ⓘ"/"Margem líq. ⓘ" com a explicação D2 no title, leitor de tela e notas', () => {
+    const fund: FundamentosResposta = {
+      ...FUNDAMENTOS,
+      unidade: 'R$ bi',
+      colunas: [
+        { codigo: 'receita', rotulo: 'Receita líq.', formato: 'numero', fonteCvmAviso: false },
+        { codigo: 'lucro', rotulo: 'Lucro líq. ⓘ', formato: 'numero', fonteCvmAviso: false },
+        { codigo: 'margem', rotulo: 'Margem líq. ⓘ', formato: 'pct', fonteCvmAviso: false },
+      ],
+    };
+    mockHooks.useFundamentosAtivo.mockReturnValue(consulta(fund));
+    const { container } = render(<BlocoFundamentosEssencial ticker="WEGE3" classe="acao" />);
+    const lucro = container.querySelector('[data-explicacao-coluna="lucro"]')!;
+    expect(lucro.getAttribute('title')).toBe(TEXTOS_ATIVO.essencial.tooltips.lucro);
+    expect(lucro.textContent).toContain('Lucro líq. ⓘ');
+    expect(lucro.querySelector('.sr-only')?.textContent).toContain('A CVM não publica');
+    expect(container.querySelector('[data-explicacao-coluna="margem"]')).not.toBeNull();
+    expect(container.querySelector('[data-explicacao-coluna="receita"]')).toBeNull();
+    expect(container.querySelector('[data-nota-coluna="lucro"]')?.textContent).toBe(
+      `ⓘ Lucro líq.: ${TEXTOS_ATIVO.essencial.tooltips.lucro}`,
+    );
+    expect(screen.getByText(TEXTOS_ATIVO.essencial.notaEssencial)).toBeTruthy();
   });
 
   it('carregando e erro com "Tentar de novo"', () => {
@@ -163,7 +193,7 @@ describe('BlocoFundamentosEssencial — decisão 1 do Bloco D (base por ação q
         {
           rotulo: '2024',
           ano: 2024,
-          destaque: true,
+          ultimoAno: true,
           valores: {
             receita: { estado: 'ok', valor: 8173.6 },
             lpa: {
@@ -196,7 +226,10 @@ describe('BlocoValuationMultiplos', () => {
     const grupo = screen.getByRole('group', { name: TV.gruposRotulo });
     const chips = within(grupo).getAllByRole('button');
     expect(chips.map((c) => c.getAttribute('aria-pressed'))).toEqual(['true', 'false', 'false']);
-    expect(screen.getByText(VALUATION.grupos[0].resumo)).toBeTruthy();
+    const resumo = document.querySelector('[data-resumo-grupo="preco"]')!;
+    expect(resumo.textContent).toBe(
+      `${VALUATION.grupos[0].resumo} · ${TEXTOS_ATIVO.valuation.legenda}`,
+    );
     fireEvent.click(chips[1]);
     expect(chips[1].getAttribute('aria-pressed')).toBe('true');
     expect(screen.getByText(TV.barraConferencia)).toBeTruthy();

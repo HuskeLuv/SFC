@@ -11,6 +11,9 @@
  *
  * Bloco D (fatia B): `cabecalhoExtra` (o SeletorNivel 'Múltiplos | Meus cenários') vai no slot
  * `acao` do cabeçalho; ausente = cabeçalho de hoje.
+ *
+ * v2.4 (fatia C2): resumo literal da spec ('n de m indicadores de ‹grupo› estão abaixo da própria
+ * média de 10 anos', montado no servidor) + a legenda da barra quando o grupo tem barra visível.
  */
 import { useState } from 'react';
 import CardMultiplo from '@/components/analiseAtivos/ativo/analise/CardMultiplo';
@@ -20,6 +23,7 @@ import { formatarEstado } from '@/components/analiseAtivos/comum/formatarAnalise
 import { useValuationAtivo } from '@/hooks/useAnaliseAtivos';
 import { CAMPOS_REPORTAVEIS } from '@/services/analiseAtivos/curadoria/contrato';
 import { TEXTOS_TELA } from '@/services/analiseAtivos/textosTela';
+import { TEXTOS_ATIVO } from '@/services/analiseAtivos/textosAtivo';
 import type { BlocoValuationMultiplosProps, GrupoValuation } from '@/types/analiseAtivosApi';
 import type { DadoBlocoReporte } from '@/types/analiseAtivosCuradoria';
 
@@ -73,9 +77,16 @@ export default function BlocoValuationMultiplos({
           />
           <p
             aria-live="polite"
+            data-resumo-grupo={grupo.codigo}
             className="rounded-lg bg-gray-50 px-3 py-2 text-[13.5px] text-gray-700 dark:bg-white/[0.04] dark:text-gray-200"
           >
             {grupo.explicacao ?? grupo.resumo}
+            {!grupo.explicacao && grupo.itens.some((i) => i.barra.visivel) ? (
+              <span className="text-gray-500 dark:text-gray-400">
+                {' · '}
+                {TEXTOS_ATIVO.valuation.legenda}
+              </span>
+            ) : null}
           </p>
           {grupo.itens.length > 0 ? (
             <div

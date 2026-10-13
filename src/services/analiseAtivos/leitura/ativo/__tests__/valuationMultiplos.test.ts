@@ -339,9 +339,25 @@ describe('montarValuation (ações)', () => {
     const abaixo = visiveis.filter(
       (i) => i.atual.estado === 'ok' && i.atual.valor < (i.barra.media as number),
     ).length;
+    const anos = Math.min(10, Math.max(...visiveis.map((i) => i.barra.nPontos)));
+    // v2.4: texto literal da spec (§3.2 bloco 6) — 'média de N anos'
     expect(preco.resumo).toBe(
-      `${abaixo} de ${visiveis.length} indicadores de preço estão abaixo da própria média histórica (até 10 anos).`,
+      `${abaixo} de ${visiveis.length} indicadores de preço estão abaixo da própria média de ${anos} anos`,
     );
+  });
+
+  it('v2.4: histórico de menos de 10 anos diz a média dos anos que existem', () => {
+    const curto = ativo('WEGE3', {
+      anuais: [2017, 2018, 2019, 2020, 2021, 2022, 2023, 2024, 2025].map((a, i) => anual(a, i)),
+      perShare: [2017, 2018, 2019, 2020, 2021, 2022, 2023, 2024, 2025].map((a, i) =>
+        perShare(i, a),
+      ),
+    });
+    const r = montarValuation({ hoje: HOJE, alvo: curto, pares: [], criterioPares: '' });
+    const preco = grupo(r, 'preco');
+    const n = Math.max(...preco.itens.filter((i) => i.barra.visivel).map((i) => i.barra.nPontos));
+    expect(n).toBeLessThan(10);
+    expect(preco.resumo).toMatch(new RegExp(`abaixo da própria média de ${n} anos$`));
   });
 
   it('proventos em conferência (WEGE3): DPA, DY e payout com barra oculta; resumo diz por quê', () => {

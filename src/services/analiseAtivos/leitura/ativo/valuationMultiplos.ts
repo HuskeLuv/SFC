@@ -67,6 +67,7 @@ import {
 } from '@/services/analiseAtivos/leitura/ativo/conferenciasAtivo';
 import { ehCampoTela } from '@/services/analiseAtivos/regras/comum/conferencia';
 import { TEXTOS_TELA, formatarTexto, textoNaoSeAplica } from '@/services/analiseAtivos/textosTela';
+import { TEXTOS_ATIVO } from '@/services/analiseAtivos/textosAtivo';
 import type { ScoringParams } from '@/services/analiseAtivos/tipos';
 import type {
   BarraValuation,
@@ -80,6 +81,7 @@ import type {
 } from '@/types/analiseAtivosApi';
 
 const TV = TEXTOS_TELA.analise.valuation;
+const TA_VALUATION = TEXTOS_ATIVO.valuation;
 export const ANOS_BARRA = 10;
 export const ANOS_CAGR = 5;
 export const MIN_PARES_REFERENCIA = 3;
@@ -748,7 +750,15 @@ function resumoGrupo(g: DefGrupo, itens: ItemValuation[]): string {
   const abaixo = comBarra.filter(
     (i) => i.atual.estado === 'ok' && i.barra.media !== null && i.atual.valor < i.barra.media,
   ).length;
-  return formatarTexto(TV.resumoAbaixo, { n: abaixo, total: comBarra.length, valor: rotulo });
+  // v2.4 (fatia C2): resumo literal da spec (§3.2 bloco 6); com menos de 10 anos de histórico, a
+  // média é a dos anos que existem ('média de 8 anos')
+  const anos = Math.min(10, Math.max(...comBarra.map((i) => i.barra.nPontos)));
+  return formatarTexto(TA_VALUATION.resumo, {
+    n: abaixo,
+    total: comBarra.length,
+    valor: rotulo,
+    anos,
+  });
 }
 
 function mediaPontos(pontos: Ponto[], soPositivos: boolean): number | null {
