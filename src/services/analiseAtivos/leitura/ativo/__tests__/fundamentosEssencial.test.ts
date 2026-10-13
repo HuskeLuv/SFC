@@ -36,6 +36,8 @@ import type { Estado, FundamentosResposta } from '@/types/analiseAtivosApi';
 const HOJE = '2026-10-02';
 const TF = TEXTOS_TELA.analise.fundamentos;
 const TE = TEXTOS_ATIVO.essencial;
+/** Essencial da página (v2.4); sem a opção = layout legado, base do Raio-X */
+const V24 = { layout: 'v24' } as const;
 
 function periodo(ano: number, over: Partial<FundamentosPeriodo> = {}): FundamentosPeriodo {
   return {
@@ -125,7 +127,7 @@ const linha = (r: FundamentosResposta, rotulo: string) =>
 
 describe('montarFundamentosAcao', () => {
   it('WEGE3: 10 anos FECHADOS (sem o ano corrente), último ano em ultimoAno + Últ. 12m', () => {
-    const r = montarFundamentosAcao(entradaWege());
+    const r = montarFundamentosAcao(entradaWege(), V24);
     const anos = r.linhas.filter((l) => l.ano !== null).map((l) => l.ano);
     expect(anos).toEqual([2016, 2017, 2018, 2019, 2020, 2021, 2022, 2023, 2024, 2025]);
     expect(r.linhas.some((l) => l.rotulo === '2026')).toBe(false);
@@ -161,7 +163,7 @@ describe('montarFundamentosAcao', () => {
   });
 
   it('valores em R$ bi e lucro atribuível', () => {
-    const r = montarFundamentosAcao(entradaWege());
+    const r = montarFundamentosAcao(entradaWege(), V24);
     const l2025 = linha(r, '2025');
     expect(valor(l2025.valores.receita)).toBe(37.5);
     expect(valor(l2025.valores.lucro)).toBe(6.5);
@@ -180,7 +182,7 @@ describe('montarFundamentosAcao', () => {
         capex: 1_500e6,
         fcf: 999e6,
       });
-    const r = montarFundamentosAcao(entradaWege({ fys: ANOS.map(f) }));
+    const r = montarFundamentosAcao(entradaWege({ fys: ANOS.map(f) }), V24);
     const v = linha(r, '2025').valores;
     expect(valor(v.ebitda)).toBe(8);
     // 3,0 − 4,0 − 1,4 = −2,4 bi (caixa líquido)
@@ -206,6 +208,7 @@ describe('montarFundamentosAcao', () => {
             : periodo(a, { ebit: 1_000e6, dividaBrutaLp: 1_000e6, caixa: 100e6 }),
         ),
       }),
+      V24,
     );
     expect(linha(r, '2025').valores.dlEbitda).toEqual({
       estado: 'ausente',
@@ -231,13 +234,14 @@ describe('montarFundamentosAcao', () => {
           payoutPct: 50,
         })),
       }),
+      V24,
     );
     // 2025: 6.500 ÷ 37.500 = 17,33%
     expect(valor(linha(r, '2025').valores.margem)).toBeCloseTo(17.3333, 3);
   });
 
   it('Div./ação > 2× o ano anterior com payout > 150%: selo de proventos em conferência + nota', () => {
-    const r = montarFundamentosAcao(entradaWege());
+    const r = montarFundamentosAcao(entradaWege(), V24);
     expect(linha(r, '2025').selos).toEqual(['proventos_em_conferencia']);
     // 2021 dobrou (0,22 → 0,44) com payout de 49%: salto real, sem selo
     expect(linha(r, '2021').selos).toEqual([]);
@@ -245,7 +249,10 @@ describe('montarFundamentosAcao', () => {
   });
 
   it('sem período mais recente que o último ano fechado: sem linha Últ. 12m', () => {
-    const r = montarFundamentosAcao(entradaWege({ ttm: periodo(2025, { tipoPeriodo: 'TTM' }) }));
+    const r = montarFundamentosAcao(
+      entradaWege({ ttm: periodo(2025, { tipoPeriodo: 'TTM' }) }),
+      V24,
+    );
     expect(r.linhas.every((l) => l.ano !== null)).toBe(true);
   });
 
@@ -262,6 +269,7 @@ describe('montarFundamentosAcao', () => {
         }),
         proventosEmConferencia: false,
       }),
+      V24,
     );
     expect(r.colunas.map((c) => c.codigo)).toEqual([
       'receita',
@@ -293,6 +301,7 @@ describe('montarFundamentosAcao', () => {
     const semInd = periodo(2024, { lucroAtribuivel: null, flags: ['controladora_zero'] });
     const r = montarFundamentosAcao(
       entradaWege({ fys: [...ANOS.slice(0, 10).map((a) => periodo(a)), semInd, comInd] }),
+      V24,
     );
     expect(valor(linha(r, '2025').valores.lucro)).toBe(0.8);
     const l2024 = linha(r, '2024').valores.lucro;
@@ -319,6 +328,7 @@ describe('montarFundamentosAcao', () => {
           payoutPct: -744,
         })),
       }),
+      V24,
     );
     const l = linha(r, '2023');
     expect(l.valores.payout).toMatchObject({ estado: 'ausente', texto: TF.prejuizoNoAno });
@@ -328,8 +338,32 @@ describe('montarFundamentosAcao', () => {
   it('histórico curto: só os anos que existem', () => {
     const r = montarFundamentosAcao(
       entradaWege({ fys: [2022, 2023, 2024, 2025].map((a) => periodo(a)), ttm: null }),
+      V24,
     );
     expect(r.linhas.map((l) => l.ano)).toEqual([2022, 2023, 2024, 2025]);
+  });
+  it('sem a opção: layout LEGADO, base do Raio-X (R$ mi, banco sem receita e margem)', () => {
+    const r = montarFundamentosAcao(entradaWege());
+    expect(r.unidade).toBe('R$ mi');
+    expect(valor(linha(r, '2025').valores.receita)).toBe(37_500);
+    expect(valor(linha(r, '2025').valores.lucro)).toBe(6_500);
+    expect(r.colunas.map((c) => c.codigo)).toEqual([
+      'receita',
+      'lucro',
+      'margem',
+      'roe',
+      'lpa',
+      'dpa',
+      'payout',
+      'pl',
+      'pvp',
+      'dy',
+    ]);
+    expect(linha(r, '2025').ultimoAno).toBe(true);
+    expect(JSON.stringify(r)).not.toMatch(/destaque/i);
+    const banco = montarFundamentosAcao(entradaWege({ financeira: true }));
+    expect(banco.colunas.map((c) => c.codigo)).not.toContain('receita');
+    expect(banco.notas).toContain(TF.notaFinanceira);
   });
 });
 
@@ -520,8 +554,8 @@ describe('decisão 1 — base por ação quebrada (CBAV3, dados do DEV)', () => 
   it('o resto da linha fica igual (receita, lucro, ROE, DY) e 2023 continua visível', () => {
     const r = montarFundamentosAcao(entradaCbav());
     const l2024 = linha(r, '2024');
-    expect(valor(l2024.valores.receita)).toBeCloseTo(8.1736, 4);
-    expect(valor(l2024.valores.lucro)).toBeCloseTo(-0.1807, 4);
+    expect(valor(l2024.valores.receita)).toBeCloseTo(8173.649, 3);
+    expect(valor(l2024.valores.lucro)).toBeCloseTo(-180.671, 3);
     expect(valor(linha(r, '2023').valores.lpa)).toBeCloseTo(-1.4061, 4);
   });
 

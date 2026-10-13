@@ -14,6 +14,9 @@
  *   detectarSaltoProvento (DPA > 2× o ano anterior) leva o selo 'proventos em conferência'.
  *   Bancos/financeiras (D4): receita e margem aparecem; EBITDA, dívida líquida, Dív. líq./EBITDA e
  *   FCL/CAPEX não se aplicam (as colunas saem) e a nota diz o padrão contábil (individual BR GAAP).
+ *   O layout v2.4 sai com `{ layout: 'v24' }` (obterFundamentosEssencial). Sem a opção, o layout
+ *   LEGADO (R$ mi, receita e margem de banco 'não se aplica', colunas de antes) continua: é a base
+ *   que o Raio-X (leitura/ativo/raioX.ts, Bloco D) lê linha a linha — fora desta fatia.
  * - FIIs tijolo/híbrido: Ano | Receita | Resultado | Rend./cota | DY | VP/cota | P/VP | Vacância |
  *   Nº imóveis | Área (CVM). Papel: Nº CRIs | Maior CRI no lugar das 3 últimas. Receita e resultado
  *   = soma dos 4 trimestres do informe; ano com menos de 4 trimestres = '—' com nota. Valores por
@@ -176,6 +179,10 @@ export function fatorCotasApos(
 
 function dividir(n: number | null | undefined, fator: number): number | null {
   return typeof n === 'number' && Number.isFinite(n) ? n / fator : null;
+}
+
+function emMilhoes(n: number | null | undefined): number | null {
+  return typeof n === 'number' && Number.isFinite(n) ? n / 1e6 : null;
 }
 
 function emBilhoes(n: number | null | undefined): number | null {
@@ -363,6 +370,25 @@ const COLUNAS_ACAO: ColunaFundamentos[] = [
   colunaAcao('dy', 'pct'),
 ];
 
+/** Layout legado (base do Raio-X): R$ mi, colunas de antes da v2.4. */
+const COLUNAS_ACAO_LEGADO: ColunaFundamentos[] = [
+  coluna('receita', 'moedaMi'),
+  coluna('lucro', 'moedaMi'),
+  coluna('margem', 'pct'),
+  coluna('roe', 'pct'),
+  coluna('lpa', 'numero2'),
+  coluna('dpa', 'numero2'),
+  coluna('payout', 'pct'),
+  coluna('pl', 'numero'),
+  coluna('pvp', 'numero2'),
+  coluna('dy', 'pct'),
+];
+
+/** 'v24' = Essencial da página (ordem nova, R$ bi); ausente = legado (base do Raio-X). */
+export interface OpcoesFundamentosAcao {
+  layout?: 'v24';
+}
+
 export function textoPadrao(escopo: string | null, padrao: string | null): string | null {
   if (!escopo || !padrao) return null;
   const e = (TF.escopo as Record<string, string>)[escopo] ?? escopo;
@@ -370,7 +396,29 @@ export function textoPadrao(escopo: string | null, padrao: string | null): strin
   return `${e} ${p}`;
 }
 
-export function montarFundamentosAcao(e: EntradaFundamentosAcao): FundamentosResposta {
+export function montarFundamentosAcao(
+  e: EntradaFundamentosAcao,
+  opts: OpcoesFundamentosAcao = {},
+): FundamentosResposta {
+  const v24 = opts.layout === 'v24';
+  const escala = v24 ? 1e9 : 1e6;
+  const naFin = naoSeAplicaCom('financeira');
+  /** receita, margem e (v2.4) as colunas derivadas do período */
+  const colunasDoPeriodo = (
+    f: FundamentosPeriodo,
+    lucro: Estado<number>,
+    margemPct: number | null | undefined,
+  ): Record<string, Estado<number>> =>
+    v24
+      ? {
+          receita: estadoDe(emBilhoes(f.receita)),
+          ...derivadasDoPeriodo(f, e.financeira),
+          margem: margemDe(margemPct, lucro, f.receita),
+        }
+      : {
+          receita: e.financeira ? naFin : estadoDe(emMilhoes(f.receita)),
+          margem: e.financeira ? naFin : estadoDe(margemPct),
+        };
   const prejuizo = ausenteCom('prejuizo', TF.prejuizoNoAno);
   const fyPorAno = new Map<number, FundamentosPeriodo>();
   for (const f of e.fys) {
@@ -394,7 +442,7 @@ export function montarFundamentosAcao(e: EntradaFundamentosAcao): FundamentosRes
     const f = fyPorAno.get(ano)!;
     const ps = psPorAno.get(ano);
     const m = mPorAno.get(ano);
-    const lucro = lucroEstado(f, 1e9);
+    const lucro = lucroEstado(f, escala);
     const emPrejuizo = lucro.estado === 'ok' && lucro.valor < 0;
     const suspeito = suspeitos.has(ano);
     return {
@@ -402,10 +450,8 @@ export function montarFundamentosAcao(e: EntradaFundamentosAcao): FundamentosRes
       ano,
       ultimoAno: i === anos.length - 1,
       valores: {
-        receita: estadoDe(emBilhoes(f.receita)),
-        ...derivadasDoPeriodo(f, e.financeira),
+        ...colunasDoPeriodo(f, lucro, m?.margemLiquidaPct),
         lucro,
-        margem: margemDe(m?.margemLiquidaPct, lucro, f.receita),
         roe: estadoDe(m?.roePct),
         lpa: estadoDe(ps?.lpaAjHoje),
         dpa: estadoDe(ps?.dpaAjHoje),
@@ -422,7 +468,7 @@ export function montarFundamentosAcao(e: EntradaFundamentosAcao): FundamentosRes
   const ttm = e.ttm;
   if (ttm && (!ultimoFy || ttm.dtFim > ultimoFy.dtFim) && anoDe(ttm.dtFim) <= anoDe(e.hoje)) {
     const a = e.atual;
-    const lucro = lucroEstado(ttm, 1e9);
+    const lucro = lucroEstado(ttm, escala);
     const emPrejuizo =
       (lucro.estado === 'ok' && lucro.valor < 0) || (a?.lpaTtm != null && a.lpaTtm < 0);
     const conf = e.proventosEmConferencia;
@@ -433,10 +479,8 @@ export function montarFundamentosAcao(e: EntradaFundamentosAcao): FundamentosRes
       ano: null,
       ultimoAno: false,
       valores: {
-        receita: estadoDe(emBilhoes(ttm.receita)),
-        ...derivadasDoPeriodo(ttm, e.financeira),
+        ...colunasDoPeriodo(ttm, lucro, a?.margemLiquidaPct),
         lucro,
-        margem: margemDe(a?.margemLiquidaPct, lucro, ttm.receita),
         roe: estadoDe(a?.roePct),
         lpa: estadoDe(a?.lpaTtm),
         dpa: prov(a?.dpa12m),
@@ -453,8 +497,8 @@ export function montarFundamentosAcao(e: EntradaFundamentosAcao): FundamentosRes
 
   const padraoContabil = ultimoFy?.padraoContabil ?? null;
   const escopo = ultimoFy?.escopo ?? null;
-  const notas: string[] = [TE.unidadeAcao];
-  if (e.financeira) notas.push(TE.notaFinanceira);
+  const notas: string[] = [v24 ? TE.unidadeAcao : TEXTOS_TELA.ativo.unidadeFundamentos];
+  if (e.financeira) notas.push(v24 ? TE.notaFinanceira : TF.notaFinanceira);
   if (padraoContabil === 'BRGAAP' || escopo === 'ind') {
     const t = textoPadrao(escopo, padraoContabil);
     if (t) notas.push(formatarTexto(TF.notaPadraoContabil, { valor: t }));
@@ -470,12 +514,12 @@ export function montarFundamentosAcao(e: EntradaFundamentosAcao): FundamentosRes
   );
   return {
     nivel: 'essencial',
-    unidade: 'R$ bi',
+    unidade: v24 ? 'R$ bi' : 'R$ mi',
     fonte: 'CVM',
     padraoContabil,
     escopo,
     variante: 'acao',
-    colunas: semColunasNaoAplicaveis(COLUNAS_ACAO, linhasConf),
+    colunas: semColunasNaoAplicaveis(v24 ? COLUNAS_ACAO : COLUNAS_ACAO_LEGADO, linhasConf),
     linhas: linhasConf,
     notas,
   };
@@ -921,20 +965,23 @@ export async function obterFundamentosEssencial(
     const ttms = periodos
       .filter((p) => p.tipoPeriodo === 'TTM')
       .sort((a, b) => a.dtFim.localeCompare(b.dtFim));
-    dados = montarFundamentosAcao({
-      hoje,
-      financeira: linha.regua === 'acao_financeira',
-      fys: periodos.filter((p) => p.tipoPeriodo === 'FY'),
-      ttm: ttms[ttms.length - 1] ?? null,
-      perShare: ps.map((p) => ({ ...p, acoesFim: paraNumero(p.acoesFim) })),
-      multiplos: my,
-      atual: mc,
-      proventosEmConferencia: conf,
-      conferencia: {
-        flags: [...linha.flags, ...flagsAnuaisConf(my)],
-        motivos: linha.motivosIncompleto,
+    dados = montarFundamentosAcao(
+      {
+        hoje,
+        financeira: linha.regua === 'acao_financeira',
+        fys: periodos.filter((p) => p.tipoPeriodo === 'FY'),
+        ttm: ttms[ttms.length - 1] ?? null,
+        perShare: ps.map((p) => ({ ...p, acoesFim: paraNumero(p.acoesFim) })),
+        multiplos: my,
+        atual: mc,
+        proventosEmConferencia: conf,
+        conferencia: {
+          flags: [...linha.flags, ...flagsAnuaisConf(my)],
+          motivos: linha.motivosIncompleto,
+        },
       },
-    });
+      { layout: 'v24' },
+    );
   }
   cache.set(chave, dados, TTL_ANALISE_MS);
   return { dados, cache: false };
