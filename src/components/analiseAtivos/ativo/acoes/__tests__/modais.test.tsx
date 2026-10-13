@@ -56,7 +56,7 @@ vi.mock('@/components/carteira/wizard/shared/InstitutionPicker', () => ({
 }));
 
 import BarraAcoesAtivo, { ChipsCarteira } from '../BarraAcoesAtivo';
-import ModalRegistrarOperacao from '../ModalRegistrarOperacao';
+import ModalRegistrarOperacao, { lerNumero, lerQuantidade } from '../ModalRegistrarOperacao';
 import ModalPlanejar from '../ModalPlanejar';
 import ModalVerNaCarteira from '../ModalVerNaCarteira';
 import ModalComparar from '../ModalComparar';
@@ -321,6 +321,26 @@ describe('ModalRegistrarOperacao', () => {
       ),
     );
     expect(mocks.toast).toHaveBeenCalled();
+  });
+
+  it("quantidade no formato brasileiro: '1.000' grava 1.000 ações, nunca 1", async () => {
+    expect(lerQuantidade('1.000')).toBe(1000);
+    expect(lerQuantidade('2.500')).toBe(2500);
+    expect(lerQuantidade('1.000.000')).toBe(1_000_000);
+    expect(lerQuantidade('1.000,00')).toBe(1000);
+    expect(lerQuantidade('120')).toBe(120);
+    expect(lerQuantidade('1.5')).toBe(1.5); // não inteiro: a validação recusa
+    expect(lerNumero('52.30')).toBe(52.3); // preço segue aceitando ponto decimal
+    comCliente(
+      <ModalRegistrarOperacao {...baseRegistrar} ticker="WEGE3" classe="acao" assetId="a-wege" />,
+    );
+    await waitFor(() =>
+      expect(screen.getByTestId('instituicao')).toHaveTextContent('XP Investimentos'),
+    );
+    await preencher('1.000');
+    fireEvent.click(screen.getByRole('button', { name: 'Registrar' }));
+    await waitFor(() => expect(mocks.csrfFetch).toHaveBeenCalled());
+    expect(ultimoCorpo()).toMatchObject({ quantidade: 1000 });
   });
 
   it('RECOMPRA: não pede seção (manda a estratégia da posição) e já vem com a instituição', async () => {

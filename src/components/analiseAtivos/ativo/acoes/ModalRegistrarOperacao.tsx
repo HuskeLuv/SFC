@@ -78,6 +78,17 @@ export function lerNumero(texto: string): number {
 }
 
 /**
+ * Quantidade (inteira) no formato brasileiro: '1.000' / '2.500' / '1.000.000' = milhar, nunca 1 ou
+ * 2,5 (QA 13/10: '1.000' gravava 1 ação). Fora do padrão de milhar vale lerNumero, e o '1.5' que
+ * sobra cai na validação de inteiro.
+ */
+export function lerQuantidade(texto: string): number {
+  const t = texto.trim();
+  if (/^\d{1,3}(\.\d{3})+(,0*)?$/.test(t)) return Number(t.replace(/\./g, '').replace(/,0*$/, ''));
+  return lerNumero(t);
+}
+
+/**
  * Instituição da última aquisição: a transação mais recente (a rota devolve em ordem decrescente)
  * que não é saída ('Resgate…') e tem notes.operation.instituicaoId — a mesma regra que a rota de
  * resgate usa para validar a instituição.
@@ -163,7 +174,7 @@ export default function ModalRegistrarOperacao({
   }, [aberto, ultima]);
 
   const venda = operacao === 'venda';
-  const quantidade = lerNumero(qtdTexto);
+  const quantidade = lerQuantidade(qtdTexto);
   const cotacao = lerNumero(precoTexto);
   const desvioPreco = usePriceDeviationWarning({
     enteredPrice: Number.isFinite(cotacao) ? cotacao : null,
