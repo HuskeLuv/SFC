@@ -8,6 +8,8 @@
  *   semântica nem seta; "—" com o motivo na própria célula.
  * - Celular (decisão 13): CARTÕES (ul com aria-label) — método e resultado, premissas, motivo do
  *   "—" e um dl com "vs. cotação" e "Com sua margem"; o último cartão é a cotação de hoje.
+ * - v2.4 (fatia C2): explicação curta sob o nome do método (HTML do Pedro); premissa em branco
+ *   mostra "informe …" no lugar do resultado (spec §4.4).
  */
 import { FUNDO_STICKY } from '@/components/analiseAtivos/ativo/analise/CartaoAnalise';
 import { TABLE_HEADER_STYLE, TABLE_STYLES } from '@/components/ui/table/tableStyles';
@@ -57,6 +59,9 @@ export default function TabelaMetodos({ linhas, cotacao, margemPct, celular }: P
           >
             <span className="text-[14.5px] font-semibold text-gray-800 dark:text-white/90">
               {l.rotulo}
+              <small className="block text-xs font-normal text-gray-500 dark:text-gray-400">
+                {T.explicacoes[l.metodo]}
+              </small>
               {l.usaDadoEmConferencia ? (
                 <small className="block text-xs font-normal text-gray-500 dark:text-gray-400">
                   {l.usaDadoEmConferencia}
@@ -146,6 +151,9 @@ export default function TabelaMetodos({ linhas, cotacao, margemPct, celular }: P
                 className={`${TABLE_STYLES.td} sticky left-0 z-[1] min-w-[150px] text-left font-semibold text-gray-800 dark:text-white/90 ${FUNDO_STICKY}`}
               >
                 {l.rotulo}
+                <small className="block max-w-[260px] text-xs font-normal whitespace-normal text-gray-500 dark:text-gray-400">
+                  {T.explicacoes[l.metodo]}
+                </small>
                 {l.usaDadoEmConferencia ? (
                   <small className="block text-xs font-normal text-gray-500 dark:text-gray-400">
                     {l.usaDadoEmConferencia}

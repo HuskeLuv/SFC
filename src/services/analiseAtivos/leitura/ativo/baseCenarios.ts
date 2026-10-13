@@ -12,13 +12,21 @@
  *  - FII com ticker↔CNPJ não conferido ⇒ VP/cota oculto (o informe pode ser de outro fundo).
  *
  * P/L alvo padrão = plMedia10a só com plPontosHistorico ≥ 5; senão ausente('historico_curto') com
- * 'histórico com menos de 5 anos: informe o P/L alvo' (AURE3 tem 2 pontos). Premissas padrão de
- * ScoringParams.valuation.premissasPadrao. Cache limitado por ticker:versão do Quadro, 30 min.
+ * 'histórico com menos de 5 anos: informe o P/L alvo' (AURE3 tem 2 pontos). Cache limitado por
+ * ticker:versão do Quadro, 30 min.
+ *
+ * v2.4 (fatia C2, spec §4.4): SEM premissas padrão do ScoringParams (yield 6, g 8, k 13…). A base
+ * manda `premissasIniciais` EM BRANCO — ação {yield, g, k: null; margem 0; P/L alvo = média 10a
+ * do ativo (fato) | null}; FII {yield, P/VP alvo, renda: null; margem 0}. `premissasPadrao` sai do
+ * JSON (o tipo público só perde o campo na F).
  */
 import { prisma } from '@/lib/prisma';
 import { getBoundedTtlCache, LIMITES_CACHE_BLOCO_D } from '@/lib/boundedTtlCache';
-import { SCORING_PARAMS_V1 } from '@/services/analiseAtivos/params/scoringParamsV1';
 import { LIMITES_CENARIO } from '@/services/analiseAtivos/cenarios/contrato';
+import {
+  premissasIniciaisAcao,
+  premissasIniciaisFii,
+} from '@/services/analiseAtivos/regras/valuation/cenario';
 import { arredondar } from '@/services/analiseAtivos/regras/valuation/arredondamento';
 import {
   obterLinhaQuadro,
@@ -43,17 +51,24 @@ import type {
 } from '@/services/analiseAtivos/regras/comum/conferencia';
 import { TEXTOS_CENARIOS } from '@/services/analiseAtivos/textosCenarios';
 import { TEXTOS_TELA } from '@/services/analiseAtivos/textosTela';
-import type { ScoringParams } from '@/services/analiseAtivos/tipos';
 import type { CenariosResposta, ConferenciaCampoCenario } from '@/types/analiseAtivosBlocoD';
+import type { PremissasAcaoV2, PremissasFiiV2 } from '@/types/analiseAtivosCriterios';
 import type { Estado, LinhaQuadroApi } from '@/types/analiseAtivosApi';
 
 type OmitirDistributivo<T, K extends PropertyKey> = T extends unknown ? Omit<T, K> : never;
 
-/** A resposta do GET sem a parte do usuário (salvo, podeSalvar, motivoSemSalvar). */
+/**
+ * A resposta do GET sem a parte do usuário (salvo, podeSalvar, motivoSemSalvar). v2.4: sem
+ * `premissasPadrao` e com `premissasIniciais` obrigatório.
+ */
 export type BaseCenariosResposta = OmitirDistributivo<
   CenariosResposta,
-  'salvo' | 'podeSalvar' | 'motivoSemSalvar'
->;
+  'salvo' | 'podeSalvar' | 'motivoSemSalvar' | 'premissasPadrao' | 'premissasIniciais'
+> &
+  (
+    | { classe: 'acao'; premissasIniciais: PremissasAcaoV2 }
+    | { classe: 'fii'; premissasIniciais: PremissasFiiV2 }
+  );
 
 /** Campos de asset_multiples_current que a base lê. */
 export interface AtualCenarios {
@@ -72,14 +87,9 @@ export interface EntradaBaseCenarios {
   linha: LinhaQuadroApi;
   atual: AtualCenarios | null;
   versao: string;
-  params?: ScoringParams;
 }
 
 const TC = TEXTOS_TELA.conferencia;
-
-/** Premissas da spec (metodos_cenarios) quando o ScoringParams não traz o campo. */
-const PADRAO_ACAO = { yieldPct: 6, gPct: 8, kPct: 13, margemPct: 20 } as const;
-const PADRAO_FII = { yieldPct: 8, margemPct: 10, rendaMensal: 1000, pvpAlvo: 1 } as const;
 
 /** Campo dos cenários → campo de tela da política de conferência. */
 const CAMPO_TELA: Record<ConferenciaCampoCenario['campo'], CampoTela> = {
@@ -146,8 +156,6 @@ function comConferencia(
 
 /** Monta a base (pura). */
 export function montarBaseCenarios(e: EntradaBaseCenarios): BaseCenariosResposta {
-  const params = e.params ?? SCORING_PARAMS_V1;
-  const padrao = params.valuation.premissasPadrao;
   const { linha, atual } = e;
   const ctx: Contexto = {
     linha,
@@ -189,12 +197,7 @@ export function montarBaseCenarios(e: EntradaBaseCenarios): BaseCenariosResposta
         pvpAtual,
         conferencias: ctx.conferencias.filter((c) => c.campo !== 'cotacao'),
       },
-      premissasPadrao: {
-        yieldPct: padrao.fii.yieldPct ?? PADRAO_FII.yieldPct,
-        margemPct: padrao.fii.margemPct ?? PADRAO_FII.margemPct,
-        rendaMensal: padrao.fii.rendaMensal ?? PADRAO_FII.rendaMensal,
-        pvpAlvo: padrao.fii.pvpAlvo ?? PADRAO_FII.pvpAlvo,
-      },
+      premissasIniciais: premissasIniciaisFii(),
     };
   }
 
@@ -219,13 +222,9 @@ export function montarBaseCenarios(e: EntradaBaseCenarios): BaseCenariosResposta
       plAlvoPadrao,
       conferencias: ctx.conferencias.filter((c) => c.campo !== 'cotacao'),
     },
-    premissasPadrao: {
-      yieldPct: padrao.acao.yieldPct ?? PADRAO_ACAO.yieldPct,
-      gPct: padrao.acao.gPct ?? PADRAO_ACAO.gPct,
-      kPct: padrao.acao.kPct ?? PADRAO_ACAO.kPct,
-      margemPct: padrao.acao.margemPct ?? PADRAO_ACAO.margemPct,
-      plAlvo: plAlvoPadrao.estado === 'ok' ? plAlvoPadrao.valor : null,
-    },
+    premissasIniciais: premissasIniciaisAcao(
+      plAlvoPadrao.estado === 'ok' ? plAlvoPadrao.valor : null,
+    ),
   };
 }
 

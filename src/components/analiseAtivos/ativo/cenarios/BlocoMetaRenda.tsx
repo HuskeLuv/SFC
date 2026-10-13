@@ -2,11 +2,15 @@
 
 /**
  * Meta de renda (FII; Bloco D, fatia B; decisão 8): quantas cotas, ao rendimento dos últimos 12
- * meses, pagam a renda mensal desejada — cotas · custo à cotação de hoje · faltam (posição da
- * Carteira, ou a do cliente com o consultor).
+ * meses, pagam a renda mensal desejada — cotas · custo à cotação de hoje · diferença para a meta
+ * (posição da Carteira, ou a do cliente com o consultor).
  *
- * "Criar objetivo no Planejamento" SÓ quando faltam cotas: com faltam = 0, um texto explica que a
- * posição já cobre a meta (nunca um botão desabilitado sem motivo, e nunca um objetivo de valor 0).
+ * v2.4 (fatia C2, spec §4.4): a renda abre EM BRANCO ("Informe uma renda mensal desejada…"); a
+ * linha de posição diz "Posição atual vs. meta: 40 cotas · diferença para a meta configurada por
+ * você: 870 cotas (R$ 137.634)" — nunca "faltam".
+ *
+ * "Criar objetivo no Planejamento" SÓ com diferença > 0: com a posição cobrindo a meta, um texto
+ * explica (nunca um botão desabilitado sem motivo, e nunca um objetivo de valor 0).
  */
 import { useState } from 'react';
 import ConfirmarObjetivoPlanejamento from '@/components/analiseAtivos/ativo/cenarios/ConfirmarObjetivoPlanejamento';
@@ -21,6 +25,8 @@ const T = TEXTOS_CENARIOS.metaRenda;
 interface Props {
   ticker: string;
   meta: MetaRendaCenario | null;
+  /** v2.4: sem meta porque a renda está em branco ('sem_renda') ou sem rendimento */
+  motivoSemMeta?: 'sem_renda' | 'sem_rendimento' | null;
   /** renda digitada (para o título quando a meta não tem resultado) */
   temPosicao: boolean;
   consultor: boolean;
@@ -30,24 +36,37 @@ interface Props {
 const KPI =
   'flex min-w-0 flex-col gap-0.5 rounded-xl border border-gray-100 bg-gray-50 px-3.5 py-3 dark:border-gray-800 dark:bg-white/[0.03]';
 
-export default function BlocoMetaRenda({ ticker, meta, temPosicao, consultor, onCriado }: Props) {
+export default function BlocoMetaRenda({
+  ticker,
+  meta,
+  motivoSemMeta,
+  temPosicao,
+  consultor,
+  onCriado,
+}: Props) {
   const [aberto, setAberto] = useState(false);
   if (!meta) {
     return (
       <section
         className="flex flex-col gap-1 rounded-xl border border-dashed border-gray-400 bg-gray-50 px-3.5 py-3 text-[13.5px] text-gray-700 dark:border-gray-600 dark:bg-white/[0.03] dark:text-gray-200"
-        data-meta-renda="sem"
+        data-meta-renda={motivoSemMeta === 'sem_renda' ? 'sem_renda' : 'sem'}
       >
         <b className="text-gray-800 dark:text-white/90">{T.titulo}</b>
-        <span>{T.semRendimento}</span>
+        <span>{motivoSemMeta === 'sem_renda' ? T.semRenda : T.semRendimento}</span>
       </section>
     );
   }
   const cot = formatarNumeroBR(meta.cotacao, 2);
+  const diferenca = meta.diferenca;
+  const linhaPosicao = formatarTexto(T.diferencaTexto, {
+    n: formatarNumeroBR(meta.quantidade, 0),
+    cotas: `${diferenca < 0 ? '−' : ''}${formatarNumeroBR(Math.abs(diferenca), 0)}`,
+    valor: `R$ ${formatarNumeroBR(Math.abs(diferenca) * meta.cotacao, 0)}`,
+  });
   const sub = temPosicao
-    ? `${formatarTexto(consultor ? T.clienteTem : T.voceTem, {
+    ? formatarTexto(consultor ? T.clienteTem : T.voceTem, {
         n: formatarNumeroBR(meta.quantidade, 0),
-      })}${meta.faltam > 0 ? ` · R$ ${formatarNumeroBR(meta.faltam * meta.cotacao, 2)}` : ''}`
+      })
     : consultor
       ? T.semFundoCliente
       : T.semFundo;
@@ -88,18 +107,25 @@ export default function BlocoMetaRenda({ ticker, meta, temPosicao, consultor, on
           </span>
         </div>
         <div className={KPI}>
-          <span className="text-xs font-medium text-gray-500 dark:text-gray-400">{T.faltam}</span>
+          <span className="text-xs font-medium text-gray-500 dark:text-gray-400">
+            {T.diferenca}
+          </span>
           <span
             className="text-lg font-semibold text-gray-800 tabular-nums dark:text-white/90"
-            data-meta-faltam={meta.faltam}
+            data-meta-diferenca={diferenca}
           >
-            {formatarTexto(T.cotas, { cotas: formatarNumeroBR(meta.faltam, 0) })}
+            {formatarTexto(T.cotas, {
+              cotas: `${diferenca < 0 ? '−' : ''}${formatarNumeroBR(Math.abs(diferenca), 0)}`,
+            })}
           </span>
           <span className="text-xs text-gray-500 dark:text-gray-400">{sub}</span>
         </div>
       </div>
+      <p className="text-[13px] text-gray-700 tabular-nums dark:text-gray-200" data-meta-posicao="">
+        {linhaPosicao}
+      </p>
       <p className="text-xs text-gray-500 dark:text-gray-400">{T.aviso}</p>
-      {meta.faltam === 0 ? (
+      {diferenca <= 0 ? (
         <p
           className="flex items-start gap-1.5 text-[13px] text-gray-700 dark:text-gray-200"
           data-meta-coberta=""
@@ -134,7 +160,7 @@ export default function BlocoMetaRenda({ ticker, meta, temPosicao, consultor, on
           {consultor ? T.botaoCliente : T.botao}
         </button>
       )}
-      {meta.faltam > 0 ? (
+      {diferenca > 0 ? (
         <ConfirmarObjetivoPlanejamento
           aberto={aberto}
           onFechar={() => setAberto(false)}

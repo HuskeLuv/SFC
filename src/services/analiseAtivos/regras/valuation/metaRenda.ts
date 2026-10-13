@@ -1,17 +1,22 @@
 /**
- * Meta de renda (FII): cotas necessárias para R$ X/mês, custo à cotação de hoje e quantas faltam.
+ * Meta de renda (FII): cotas necessárias para R$ X/mês, custo à cotação de hoje e a DIFERENÇA entre
+ * a meta configurada pelo usuário e a posição atual (v2.4: 'diferenca', com sinal — positiva = a
+ * posição está abaixo da meta, negativa = acima; nunca "faltam", spec §4.4).
  *
  * Regra 8 do relatório da Fase A: ⌈⌉ sobre o valor ARREDONDADO a 9 casas (106 de 8.754 combinações
  * davam 1 cota a mais com Math.ceil direto: 1.700 × 12 ÷ 2,55 = 8.000 exato, e o JS dá 8.000,0000001).
  * Rendimento ≤ 0 ⇒ null ("—"), nunca Infinity.
  */
-import { SCORING_PARAMS_V1 } from '@/services/analiseAtivos/params/scoringParamsV1';
 import { arredondar } from '@/services/analiseAtivos/regras/valuation/arredondamento';
+
+/** Casas antes do teto (⌈⌉) na conta das cotas (regra 8 da Fase A). */
+export const META_RENDA_CASAS_ANTES_DO_TETO = 9;
 
 export interface MetaDeRenda {
   cotas: number;
   custo: number;
-  faltam: number;
+  /** cotas da meta − cotas da posição (com sinal) */
+  diferenca: number;
 }
 
 export function metaDeRenda(
@@ -19,7 +24,7 @@ export function metaDeRenda(
   rend12m: number | null,
   cotacao: number,
   posicao: number,
-  casasAntesDoTeto: number = SCORING_PARAMS_V1.valuation.metaRendaCasasAntesDoTeto,
+  casasAntesDoTeto: number = META_RENDA_CASAS_ANTES_DO_TETO,
 ): MetaDeRenda | null {
   if (typeof rend12m !== 'number' || !Number.isFinite(rend12m) || rend12m <= 0) return null;
   if (!Number.isFinite(rendaMensal) || rendaMensal <= 0) return null;
@@ -29,6 +34,6 @@ export function metaDeRenda(
   return {
     cotas,
     custo: arredondar(cotas * cotacao, 2),
-    faltam: Math.max(0, cotas - pos),
+    diferenca: cotas - pos,
   };
 }

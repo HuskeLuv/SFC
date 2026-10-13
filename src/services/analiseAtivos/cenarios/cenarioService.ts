@@ -12,6 +12,10 @@
  *    transação); atualizar um existente nunca esbarra no limite.
  *
  * Leitura tolerante: JSON fora do schema (versão antiga, classe trocada) = sem cenário salvo.
+ *
+ * v2.4 (fatia C2): premissas ANULÁVEIS (em branco = null, "informe …"), gravadas com versaoSchema
+ * 2; as linhas v1 (só números) continuam válidas. O salvo lido pode trazer null nas premissas: o
+ * tipo público (CenarioSalvo<PremissasCenarioAcao…>) só passa a anulável na F.
  */
 import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
@@ -23,11 +27,11 @@ import {
   PremissasAcaoSchema,
   PremissasFiiSchema,
   VERSAO_SCHEMA_CENARIO,
+  type CenarioPutBodyV2,
 } from '@/services/analiseAtivos/cenarios/contrato';
 import { TEXTOS_CENARIOS } from '@/services/analiseAtivos/textosCenarios';
 import { formatarTexto } from '@/services/analiseAtivos/textos';
 import type {
-  CenarioPutBody,
   CenarioSalvo,
   DadosEditadosAcao,
   DadosEditadosFii,
@@ -103,7 +107,7 @@ export async function lerCenario(
 export async function salvarCenario(
   userId: string,
   symbol: string,
-  corpo: CenarioPutBody,
+  corpo: CenarioPutBodyV2,
   valoresDoAtivo: ValoresDoAtivo = {},
 ): Promise<{ atualizadoEm: string }> {
   const valores: Record<string, number> = {};

@@ -4,9 +4,14 @@
  * isomórfico (roda no servidor e no cliente). Mudança aqui = PR na fatia 0.
  *
  * - CenarioPutSchema (B: rota PUT e useSalvarCenario): discriminatedUnion('classe') com objetos
- *   strict; limites de LIMITES_CENARIO (yield/g/k/margem vêm de ScoringParams.valuation.limites;
- *   P/L alvo, P/VP alvo, renda e dados do ativo são da spec do Bloco D). Número em string ("6,5")
- *   é recusado: o cliente converte antes (validarPremissa aceita vírgula).
+ *   strict; limites de LIMITES_CENARIO (P/L alvo, P/VP alvo, renda e dados do ativo são da spec do
+ *   Bloco D). Número em string ("6,5") é recusado: o cliente converte antes (validarPremissa
+ *   aceita vírgula).
+ * - v2.4 (fatia C2, spec §4.4 / caso 22): as premissas do usuário são ANULÁVEIS — o cenário abre
+ *   em branco e pode ser salvo com campos em branco (o método mostra "informe …"). O PUT v2 aceita
+ *   null em yield/g/k/P/L alvo (ação) e yield/P/VP alvo/renda (FII) e grava versaoSchema 2; as
+ *   linhas v1 (só números) continuam válidas na leitura. LIMITES_CENARIO deixa de ler o
+ *   ScoringParams (mesmos números, literais aqui).
  * - MAX_CENARIOS_POR_USUARIO (B: 409 no 301º), MAX_ATIVOS_COMPARADOR (C e D; decisão 12).
  * - ROTAS_BLOCO_D (C e D): link do Comparador e das APIs.
  * - Decisão 13: nível Essencial/Raio-X na URL (PARAM_NIVEL_FUNDAMENTOS='fund',
@@ -16,8 +21,8 @@
  *   fica "em conferência" (política 'ocultar') no Raio-X (ex.: XPLG11 2020 = 10,8%).
  */
 import { z } from 'zod';
-import { SCORING_PARAMS_V1 } from '@/services/analiseAtivos/params/scoringParamsV1';
 import type { CenarioPutBody, LimitesCenario, NivelFundamentos } from '@/types/analiseAtivosBlocoD';
+import type { PremissasAcaoV2, PremissasFiiV2 } from '@/types/analiseAtivosCriterios';
 
 /** Ticker de ação/FII da B3 (mesmo das rotas da Fase 1: 4 caracteres + 1–2 dígitos). */
 export const TICKER_RE = /^[A-Z0-9]{4}\d{1,2}$/;
@@ -28,8 +33,8 @@ export const MAX_ATIVOS_COMPARADOR = 4;
 export const MAX_CARACTERES_PARAM_T = 80;
 /** Cenários salvos por usuário; o 301º (criação) ⇒ 409, contado dentro da transação. */
 export const MAX_CENARIOS_POR_USUARIO = 300;
-/** Versão do JSON gravado em analise_cenarios.versaoSchema. */
-export const VERSAO_SCHEMA_CENARIO = 1;
+/** Versão do JSON gravado em analise_cenarios.versaoSchema (v2.4: premissas anuláveis). */
+export const VERSAO_SCHEMA_CENARIO = 2;
 
 /**
  * Decisão 3: soma anual de taxaAdmPct (% do PL) acima deste limiar ⇒ ano "em conferência"
@@ -40,15 +45,16 @@ export const LIMIAR_TAXA_ADM_ANO_PCT = 3;
 /** Decisão 3: com menos de 12 meses informados no ano, a taxa anual fica ausente ('—'). */
 export const MESES_TAXA_ADM_ANO = 12;
 
-const limitesParams = SCORING_PARAMS_V1.valuation.limites;
-
-/** Limites de validação dos cenários (tela + zod). Percentuais em pontos. */
+/**
+ * Limites de validação dos cenários (tela + zod). Percentuais em pontos. São só LIMITES de
+ * validação (faixa aceita), nunca valor sugerido: as premissas abrem em branco (v2.4).
+ */
 export const LIMITES_CENARIO: LimitesCenario = {
-  yieldPct: [limitesParams.yieldPct[0], limitesParams.yieldPct[1]],
-  gPct: [limitesParams.gPct[0], limitesParams.gPct[1]],
-  kPct: [limitesParams.kPct[0], limitesParams.kPct[1]],
-  margemPct: [limitesParams.margemPct[0], limitesParams.margemPct[1]],
-  margemPasso: limitesParams.margemPasso,
+  yieldPct: [0.1, 30],
+  gPct: [0, 20],
+  kPct: [1, 30],
+  margemPct: [0, 50],
+  margemPasso: 5,
   plAlvo: [0.1, 200],
   pvpAlvo: [0.1, 5],
   rendaMensal: [1, 1_000_000],
@@ -59,19 +65,20 @@ const faixa = (lim: readonly [number, number]) => z.number().min(lim[0]).max(lim
 const dadoAtivo = z.number().min(-LIMITES_CENARIO.dadoAbsMax).max(LIMITES_CENARIO.dadoAbsMax);
 const margem = faixa(LIMITES_CENARIO.margemPct).multipleOf(LIMITES_CENARIO.margemPasso);
 
+/** v2.4: premissas do usuário anuláveis (null = em branco, "informe …"). */
 export const PremissasAcaoSchema = z.strictObject({
-  yieldPct: faixa(LIMITES_CENARIO.yieldPct),
-  gPct: faixa(LIMITES_CENARIO.gPct),
-  kPct: faixa(LIMITES_CENARIO.kPct),
+  yieldPct: faixa(LIMITES_CENARIO.yieldPct).nullable(),
+  gPct: faixa(LIMITES_CENARIO.gPct).nullable(),
+  kPct: faixa(LIMITES_CENARIO.kPct).nullable(),
   margemPct: margem,
   plAlvo: faixa(LIMITES_CENARIO.plAlvo).nullable().optional(),
 });
 
 export const PremissasFiiSchema = z.strictObject({
-  yieldPct: faixa(LIMITES_CENARIO.yieldPct),
+  yieldPct: faixa(LIMITES_CENARIO.yieldPct).nullable(),
   margemPct: margem,
-  rendaMensal: faixa(LIMITES_CENARIO.rendaMensal),
-  pvpAlvo: faixa(LIMITES_CENARIO.pvpAlvo),
+  rendaMensal: faixa(LIMITES_CENARIO.rendaMensal).nullable(),
+  pvpAlvo: faixa(LIMITES_CENARIO.pvpAlvo).nullable(),
 });
 
 export const DadosAcaoSchema = z.strictObject({
@@ -99,11 +106,19 @@ export const CenarioPutSchema = z.discriminatedUnion('classe', [
   }),
 ]);
 
-// O schema e o tipo público (src/types/analiseAtivosBlocoD.ts) têm de andar juntos.
-type CenarioPutInferido = z.infer<typeof CenarioPutSchema>;
-type Igual<A, B> = [A] extends [B] ? ([B] extends [A] ? true : false) : false;
-const _schemaIgualAoTipo: Igual<CenarioPutInferido, CenarioPutBody> = true;
-void _schemaIgualAoTipo;
+/**
+ * Corpo do PUT v2 (premissas anuláveis). O tipo público CenarioPutBody (analiseAtivosBlocoD.ts,
+ * v1) só ganha os null na fatia F; até lá o v2 é este tipo, e todo corpo v1 continua aceito.
+ */
+export type CenarioPutBodyV2 = z.infer<typeof CenarioPutSchema>;
+type Contem<A, B> = [A] extends [B] ? true : false;
+const _v1CabeNoV2: Contem<CenarioPutBody, CenarioPutBodyV2> = true;
+void _v1CabeNoV2;
+// As premissas v2 dos tipos-contrato (analiseAtivosCriterios.ts) cabem no schema.
+const _acaoV2: Contem<PremissasAcaoV2, z.infer<typeof PremissasAcaoSchema>> = true;
+const _fiiV2: Contem<PremissasFiiV2, z.infer<typeof PremissasFiiSchema>> = true;
+void _acaoV2;
+void _fiiV2;
 
 // ---------------------------------------------------------------------------
 // Rotas

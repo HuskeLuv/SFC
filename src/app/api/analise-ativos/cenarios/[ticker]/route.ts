@@ -22,6 +22,11 @@ import type { Estado } from '@/types/analiseAtivosApi';
 /**
  * /api/analise-ativos/cenarios/[ticker] — Meus cenários (Bloco D, fatia B; decisão 7).
  *
+ * v2.4 (fatia C2, spec §4.4 / caso 22): o GET manda `premissasIniciais` EM BRANCO (yield/g/k ou
+ * yield/P/VP alvo/renda = null, margem 0, P/L alvo = média 10a do ativo) e não manda mais
+ * premissasPadrao; o PUT aceita o schema v2 (premissas anuláveis) e grava versaoSchema 2; o
+ * DELETE é o "Limpar minhas premissas".
+ *
  * - GET → CenariosResposta (no-store): base do ativo (sem dado do usuário) + o cenário salvo do
  *   usuário LOGADO (payload.id). Consultor agindo pelo cliente: 200 com salvo = null, podeSalvar =
  *   false e motivoSemSalvar = 'consultor' — a calculadora funciona com a base (e com a posição do

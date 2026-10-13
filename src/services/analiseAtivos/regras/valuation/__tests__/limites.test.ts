@@ -93,8 +93,9 @@ describe('Meta de renda (regra 8)', () => {
     expect(metaDeRenda(1000, null, 158.2, 0)).toBeNull();
   });
 
-  it('posição maior que a meta ⇒ faltam 0', () => {
-    expect(metaDeRenda(1000, 13.2, 158.2, 2000)?.faltam).toBe(0);
+  it('posição maior que a meta ⇒ diferença negativa (com sinal, nunca "faltam")', () => {
+    expect(metaDeRenda(1000, 13.2, 158.2, 2000)?.diferenca).toBe(-1090);
+    expect(metaDeRenda(1000, 13.2, 158.2, 910)?.diferenca).toBe(0);
   });
 });
 

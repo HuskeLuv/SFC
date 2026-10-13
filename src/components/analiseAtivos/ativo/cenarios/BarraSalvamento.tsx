@@ -3,10 +3,11 @@
 /**
  * Barra de salvamento de "Meus cenários" (Bloco D, fatia B) + o aviso flutuante (toast).
  *
- * Status: valores do ativo · alterações não salvas · salvando · salvo em dd/mm às hh:mm · erro
+ * Status: premissas em branco · alterações não salvas · salvando · salvo em dd/mm às hh:mm · erro
  * (o que foi digitado continua). "Salvar cenário" em navy #314666 (44px; 48px e largura toda no
- * celular). "Restaurar valores do ativo" SEM confirmação (decisão 13): apaga o salvo, volta ao
- * padrão e mostra o aviso com "Desfazer" por 5 s. Consultor agindo: só o texto de rascunho.
+ * celular). "Limpar minhas premissas" (v2.4) SEM confirmação (decisão 13): apaga o salvo, volta às
+ * premissas em branco e mostra o aviso com "Desfazer" por 5 s. Consultor agindo: só o texto de
+ * rascunho.
  */
 import { useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';

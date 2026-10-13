@@ -10,13 +10,21 @@
  *
  * Decisões refletidas: D6 (dado em conferência = selo: "usa {campo} em conferência"), D7
  * (consultor: calculadora sem salvar), D8 (Meta de renda → objetivo no Planejamento, aviso do
- * Fluxo de Caixa, botão some quando a posição cobre), D13 ("Restaurar valores do ativo" SEM
+ * Fluxo de Caixa, botão some quando a posição cobre), D13 ("Limpar minhas premissas" SEM
  * confirmação + "Desfazer" por 5 s; métodos em cartões no celular).
+ *
+ * v2.4 (fatia C2, spec §4.4 — parecer de compliance de 10/10/2026): as premissas abrem EM BRANCO.
+ * Nenhum texto sugere valor de yield, g, k, margem ou renda ('padrão: 6%' saiu); os placeholders
+ * são só exemplo de formato ('ex.: 6'); premissa em branco = "informe …"; a Meta de renda fala em
+ * "diferença para a meta configurada por você" (nunca "faltam"). Varredura: linguagemV2 (caso 23).
+ * O rodapé é o literal 'rodape-cenarios' de TEXTOS_LITERAIS_OBRIGATORIOS (data-texto-legal).
  */
-import { TEXTOS_ANALISE } from '@/services/analiseAtivos/textos';
+import { RODAPE_CENARIOS_V2 } from '@/services/analiseAtivos/textosLiterais';
 
-/** Rodapé fixo e literal dos cenários (decisão 14). */
-export const RODAPE_CENARIOS: string = TEXTOS_ANALISE.rodapeValuation;
+/** Rodapé fixo e literal dos cenários (decisão 14; literal 'rodape-cenarios' da v2.4). */
+export const RODAPE_CENARIOS: string = RODAPE_CENARIOS_V2.texto;
+/** Id do literal (valor de data-texto-legal). */
+export const ID_RODAPE_CENARIOS = RODAPE_CENARIOS_V2.id;
 
 export const TEXTOS_CENARIOS = {
   seletor: {
@@ -31,7 +39,9 @@ export const TEXTOS_CENARIOS = {
   },
   secoes: {
     dadosAtivo: 'Dados do ativo',
+    dadosAtivoSub: 'últimos 12 meses; você pode ajustar',
     premissas: 'Suas premissas',
+    premissasSub: 'em branco até você preencher',
     resultados: 'Resultados',
   },
   campos: {
@@ -43,14 +53,15 @@ export const TEXTOS_CENARIOS = {
       origemSemData: 'do ativo: patrimônio por ação',
     },
     dpa: { rotulo: 'DPA 12m', origem: 'do ativo: proventos por ação em 12 meses' },
-    yieldAcao: { rotulo: 'Yield desejado (Bazin)', origem: 'padrão: {valor}%' },
+    yieldAcao: { rotulo: 'Yield que você deseja', placeholder: 'ex.: 6' },
     plAlvo: {
       rotulo: 'P/L alvo',
-      origem: 'padrão: média de 10 anos ({valor})',
+      origem: 'média 10a do ativo: {valor} (fato; altere se quiser)',
       historicoCurto: 'histórico com menos de 5 anos: informe o P/L alvo',
+      placeholder: 'ex.: 15',
     },
-    gPct: { rotulo: 'Crescimento g (Gordon)', origem: 'padrão: {valor}% ao ano' },
-    kPct: { rotulo: 'Retorno exigido k (Gordon)', origem: 'padrão: {valor}% ao ano' },
+    gPct: { rotulo: 'Crescimento dos dividendos (g)', placeholder: 'ex.: 5', unidade: '% a.a.' },
+    kPct: { rotulo: 'Retorno que você exige (k)', placeholder: 'ex.: 12', unidade: '% a.a.' },
     rend12m: {
       rotulo: 'Rendimento 12m por cota',
       origem: 'do fundo: data-com nos últimos 12 meses',
@@ -60,9 +71,9 @@ export const TEXTOS_CENARIOS = {
       origem: 'do fundo: informe de {data}',
       origemSemData: 'do fundo: último informe mensal',
     },
-    yieldFii: { rotulo: 'Yield desejado', origem: 'padrão: {valor}% para FIIs' },
-    pvpAlvo: { rotulo: 'P/VP alvo', origem: 'padrão: {valor}' },
-    rendaMensal: { rotulo: 'Renda mensal desejada', origem: 'padrão: R$ {valor} por mês' },
+    yieldFii: { rotulo: 'Yield que você deseja', placeholder: 'ex.: 8' },
+    pvpAlvo: { rotulo: 'P/VP alvo', placeholder: 'ex.: 1,00' },
+    rendaMensal: { rotulo: 'Renda mensal desejada', placeholder: 'ex.: 1000', unidade: 'R$/mês' },
     somenteLeitura: 'só leitura',
     editado: 'editado',
     doAtivo: 'do ativo: {valor}',
@@ -91,6 +102,16 @@ export const TEXTOS_CENARIOS = {
     rendaDesejada: 'Preço pela renda desejada',
     pvpAlvo: 'P/VP alvo × VP/cota',
   },
+  /** Explicação curta de cada método (sob o nome, na tabela e nos cartões). */
+  explicacoes: {
+    bazin: 'Preço em que o provento atual entregaria o yield que você informou.',
+    graham: '√(22,5 × LPA × VPA): pesa lucro e patrimônio. Usa só dados do ativo.',
+    multiplo: 'Quanto valeria o ativo ao múltiplo que você escolheu.',
+    gordon:
+      'Valor presente de proventos que crescem a g por ano, trazidos a hoje pela taxa k. Muito sensível às premissas.',
+    rendaDesejada: 'Cotação em que o rendimento de 12 meses entregaria o yield que você informou.',
+    pvpAlvo: 'Cotação equivalente ao P/VP que você escolheu sobre o valor patrimonial.',
+  },
   premissasTexto: {
     bazin: 'DPA {valor} ÷ yield {premissa}%',
     graham: '√(22,5 × LPA {valor} × VPA {premissa})',
@@ -115,7 +136,10 @@ export const TEXTOS_CENARIOS = {
     premissaForaDoLimite: '{campo} fora do limite',
     rendimentoNaoPositivo: 'rendimento 12m ≤ 0',
     vpConferencia: 'VP/cota em conferência',
-    faltaDado: 'falta {campo}',
+    faltaDado: 'sem {campo}',
+    /** v2.4: premissa em branco ("informe yield", "informe g e k", "informe P/VP alvo") */
+    informe: 'informe {campo}',
+    informeDois: 'informe {campo} e {premissa}',
     usaConferencia: 'usa {campo} em conferência',
     vsCotacaoConferencia: 'vs. cotação “—”: cotação em conferência',
     semCotacao: 'sem cotação',
@@ -179,14 +203,19 @@ export const TEXTOS_CENARIOS = {
     tituloComRenda: 'Meta de renda · R$ {valor} por mês',
     formulaCotas: '⌈ renda × 12 ÷ {valor} ⌉',
     formulaCusto: '{cotas} × R$ {valor}',
-    faltamValor: '{cotas} a R$ {valor}',
     aviso:
       'Conta com o rendimento dos últimos 12 meses, que muda mês a mês. Não é projeção de renda.',
     explicacao: 'Quantas cotas, ao rendimento dos últimos 12 meses, pagam a renda mensal desejada.',
     cotasNecessarias: 'Cotas necessárias',
     custoHoje: 'Custo à cotação de hoje',
-    faltam: 'Faltam',
     cotas: '{cotas} cotas',
+    /** v2.4: diferença com sinal entre a meta configurada e a posição (nunca "faltam") */
+    diferenca: 'Diferença para a meta',
+    diferencaTexto:
+      'Posição atual vs. meta: {n} cotas · diferença para a meta configurada por você: {cotas} cotas ({valor})',
+    acimaDaMeta: 'a posição está acima da meta configurada por você',
+    semRenda:
+      'Informe uma renda mensal desejada para ver quantas cotas equivalem a ela com o rendimento atual.',
     voceTem: 'você tem {n}',
     clienteTem: 'o cliente tem {n}',
     semFundo: 'você não tem este fundo na carteira',
@@ -237,7 +266,7 @@ export const TEXTOS_CENARIOS = {
     erro: 'Não foi possível criar o objetivo. Tente de novo.',
   },
   salvamento: {
-    valoresDoAtivo: 'Valores do ativo e premissas padrão',
+    valoresDoAtivo: 'Valores do ativo; suas premissas em branco',
     naoSalvo: 'Alterações não salvas',
     salvando: 'Salvando…',
     salvoEm: 'Salvo em {data} às {hora}',
@@ -246,8 +275,8 @@ export const TEXTOS_CENARIOS = {
     erro: 'Não foi possível salvar. O que você digitou continua aqui.',
     tentarNovamente: 'Tentar de novo',
     salvar: 'Salvar cenário',
-    restaurar: 'Restaurar valores do ativo',
-    restaurado: 'Valores do ativo restaurados. O cenário salvo foi apagado.',
+    restaurar: 'Limpar minhas premissas',
+    restaurado: 'Premissas limpas. O cenário salvo foi apagado.',
     desfazer: 'Desfazer',
     fechar: 'Fechar',
     limiteCenarios:
@@ -257,13 +286,14 @@ export const TEXTOS_CENARIOS = {
     'Os cenários salvos são pessoais de cada usuário. Você pode fazer as contas, mas não salvar.',
   comoCalculado: {
     titulo: 'Como é calculado',
-    bazin:
-      'Preço pelo dividendo (Bazin): DPA ÷ yield desejado. Os 6% eram a referência de juros da época.',
+    bazin: 'Preço pelo dividendo (Bazin): DPA ÷ yield que você informou.',
     graham:
       'Fórmula de Graham: √(22,5 × LPA × VPA). O 22,5 vem de P/L 15 × P/VP 1,5, os limites que Benjamin Graham usava.',
-    multiplo: 'Múltiplo alvo: P/L alvo × LPA. O padrão é a média do P/L nos últimos 10 anos.',
-    gordon: 'Dividendos crescentes (Gordon, 1959): DPA × (1 + g) ÷ (k − g). Só existe com k > g.',
-    rendaDesejada: 'Preço pela renda desejada: rendimento 12m por cota ÷ yield desejado.',
+    multiplo:
+      'Múltiplo alvo: P/L alvo × LPA. O campo abre com a média do P/L do próprio ativo nos últimos 10 anos (fato).',
+    gordon:
+      'Dividendos crescentes (Gordon, 1959): DPA × (1 + g) ÷ (k − g), trazidos a hoje pela taxa k. Só existe com k > g.',
+    rendaDesejada: 'Preço pela renda desejada: rendimento 12m por cota ÷ yield que você informou.',
     pvpAlvo: 'P/VP alvo × VP/cota: o valor patrimonial da cota multiplicado pelo P/VP escolhido.',
     margem: 'Com sua margem: resultado × (1 − margem).',
     vsCotacao: 'vs. cotação: diferença entre o resultado e a cotação de hoje, em %.',
