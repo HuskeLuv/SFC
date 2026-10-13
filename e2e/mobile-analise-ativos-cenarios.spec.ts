@@ -38,7 +38,7 @@ test('WEGE3 a 390: cartões, campos de 48px/16px, alvos de 44px e rodapé', asyn
   await expect(card.locator('[data-cenarios-cartoes] > li')).toHaveCount(5);
   await expect(card.locator('[data-cenarios-tabela]')).toHaveCount(0);
 
-  const campo = card.getByLabel('Yield desejado (Bazin)', { exact: true });
+  const campo = card.getByLabel('Yield que você deseja', { exact: true });
   const medida = await campo.evaluate((el) => ({
     h: el.getBoundingClientRect().height,
     f: parseFloat(getComputedStyle(el).fontSize),
@@ -55,8 +55,10 @@ test('WEGE3 a 390: cartões, campos de 48px/16px, alvos de 44px e rodapé', asyn
     "O My Finance não calcula 'preço justo' nem preço-alvo",
   );
 
-  // caso-limite na tela: k = g ⇒ Gordon "—" com o motivo, sem quebrar
-  await card.getByLabel('Crescimento g (Gordon)', { exact: true }).fill('13');
+  // v2.4: g e k em branco ⇒ "informe g e k"; k = g ⇒ Gordon "—" com o motivo, sem quebrar
+  await expect(card.locator('[data-metodo="gordon"]')).toContainText('informe g e k');
+  await card.getByLabel('Crescimento dos dividendos (g)', { exact: true }).fill('13');
+  await card.getByLabel('Retorno que você exige (k)', { exact: true }).fill('13');
   await expect(card.locator('[data-metodo="gordon"]')).toContainText(
     'k ≤ g: o modelo não tem resultado',
   );

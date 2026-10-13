@@ -46,7 +46,14 @@ test.describe('APIs de fundamentos e valuation', () => {
     expect(corpo).not.toMatch(/ibovespa|ifix/i);
     const val = JSON.parse(corpo);
     expect(val.grupos.map((g: { codigo: string }) => g.codigo)).toContain('preco');
-    expect(val.pares.itens[0].ticker).toBe('WEGE3');
+    // v2.4 (fatia C2): só os pares (sem o próprio ativo), A–Z, sem Índice e com critérios
+    const tickers = val.pares.itens.map((l: { ticker: string }) => l.ticker);
+    expect(tickers).not.toContain('WEGE3');
+    expect(tickers).toEqual([...tickers].sort((a: string, b: string) => a.localeCompare(b)));
+    expect(corpo).not.toMatch(/"[^"]*(indice|semaforo|destaque)[^"]*":/i);
+    // Essencial v2.4 em R$ bi, com o último ano em ultimoAno
+    expect(fund.unidade).toBe('R$ bi');
+    expect(JSON.stringify(fund)).not.toMatch(/destaque/i);
   });
 
   test('formato inválido = 400; fora da área = 404', async ({ page }) => {
@@ -79,9 +86,11 @@ test.describe('Página do ativo — análise', () => {
 
     const pares = page.locator('section[aria-labelledby="pares-WEGE3"]');
     await pares.scrollIntoViewIfNeeded();
-    const primeiro = pares.locator('tbody tr').first();
-    await expect(primeiro).toHaveAttribute('data-proprio', 'true', { timeout: 30_000 });
-    const link = pares.locator('tbody tr').nth(1).getByRole('link');
+    await expect(pares.locator('[data-par="WEGE3"]')).toHaveCount(0);
+    await expect(pares.getByRole('columnheader', { name: 'Critérios' })).toBeVisible({
+      timeout: 30_000,
+    });
+    const link = pares.locator('tbody tr').first().getByRole('link');
     if ((await link.count()) > 0) {
       const alvo = (await link.textContent())?.trim() ?? '';
       await link.click();

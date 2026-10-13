@@ -76,6 +76,7 @@ export default function CardCriterios({
       <section
         aria-labelledby={idTitulo}
         data-card-criterios={ticker}
+        data-bloco="criterios_fundamentos"
         className={`${CARD} flex flex-col gap-3 ${className}`}
       >
         {cabecalho}
@@ -90,6 +91,7 @@ export default function CardCriterios({
     <section
       aria-labelledby={idTitulo}
       data-card-criterios={ticker}
+      data-bloco="criterios_fundamentos"
       data-janela={janela}
       className={`${CARD} flex flex-col gap-4 ${className}`}
     >
