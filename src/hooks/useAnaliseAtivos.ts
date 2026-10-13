@@ -6,7 +6,8 @@
  *
  * - useAnaliseAtivosConfig: 10 min; falha = desligado (o menu some).
  * - useQuadroAnalise: useInfiniteQuery de 25 em 25 ("Mostrar mais"), placeholderData = página
- *   anterior (troca de filtro sem piscar), 5 min.
+ *   anterior (troca de filtro sem piscar), 5 min. v2.4: filtros = janela + critérios (E lógico) +
+ *   Na minha carteira + setor/segmento, ordem A–Z por padrão; filtro e ordem no servidor (rec. 8).
  * - useIndiceBusca: 60 min (o índice inteiro chega uma vez; filtro no cliente).
  * - useOverlayCarteira: 60 s (invalidado por invalidatePortfolioDerivedQueries, fatia D).
  * - useAtivoTopo: 10 min; 404 vira `naoEncontrado` sem retry.
@@ -112,7 +113,14 @@ export function useAnaliseAtivosConfig() {
 // Quadro
 // ---------------------------------------------------------------------------
 
-export type FiltrosQuadro = Omit<QuadroParams, 'offset' | 'limite'>;
+/**
+ * Filtros do Quadro v2.4 (os antigos — lucroConsistente, dyMin, pvpMax, tipo, somenteCompletos —
+ * saíram: a rota responde 400 a eles).
+ */
+export type FiltrosQuadro = Pick<
+  QuadroParams,
+  'classe' | 'ordem' | 'dir' | 'janela' | 'criterios' | 'naCarteira' | 'setor' | 'segmento'
+>;
 
 /** Query string do Quadro (sem offset/limite); booleanos como '1'; ordem estável. */
 export function paramsQuadroParaQuery(params: QuadroParams): URLSearchParams {

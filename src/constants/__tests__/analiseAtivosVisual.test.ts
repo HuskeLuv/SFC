@@ -11,6 +11,7 @@ import {
 } from '@/constants/analiseAtivosVisual';
 import { MYFINANCE_BRAND } from '@/constants/brandColors';
 import { TEXTOS_TELA } from '@/services/analiseAtivos/textosTela';
+import { TEXTOS_QUADRO } from '@/services/analiseAtivos/textosQuadro';
 
 const FONTE = readFileSync(path.join(__dirname, '..', 'analiseAtivosVisual.ts'), 'utf8');
 
@@ -41,13 +42,20 @@ describe('analiseAtivosVisual', () => {
   });
 
   it('colunas e filtros referenciam textos existentes; toda ordem tem direção padrão', () => {
-    const rotulos = TEXTOS_TELA.quadro.colunas as Record<string, string>;
+    // v2.4: colunas novas (Critérios) têm o rótulo em textosQuadro (o textosTela só muda na F)
+    const rotulos = {
+      ...(TEXTOS_TELA.quadro.colunas as Record<string, string>),
+      ...(TEXTOS_QUADRO.colunas as Record<string, string>),
+    };
+    const dicas = TEXTOS_QUADRO.dicas as Record<string, string>;
     const filtros = TEXTOS_TELA.quadro.filtros as Record<string, string>;
     for (const classe of ['acao', 'fii'] as const) {
       for (const modo of ['resumo', 'detalhado'] as const) {
         for (const c of COLUNAS[classe][modo]) {
           expect(rotulos[c.rotulo], c.rotulo).toBeTruthy();
           if (c.ordem) expect(DIRECAO_PADRAO[c.ordem]).toBeTruthy();
+          if (c.dica) expect(dicas[c.dica], c.dica).toBeTruthy();
+          expect(c.codigo).not.toBe('indiceMf');
         }
       }
       for (const f of FILTROS_RAPIDOS[classe]) expect(filtros[f], f).toBeTruthy();

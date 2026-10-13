@@ -14,6 +14,8 @@
  * paleta permitida (CORES_PERMITIDAS).
  */
 import { MYFINANCE_BRAND } from '@/constants/brandColors';
+import { CRITERIA_PARAMS_V1 } from '@/services/analiseAtivos/params/criteriaParamsV1';
+import type { IdCriterio } from '@/types/analiseAtivosCriterios';
 import type {
   ClasseQuadro,
   DirecaoOrdem,
@@ -145,6 +147,19 @@ export const SERIES_GRAFICO = {
   larguraLinha: 2.2,
 } as const;
 
+/**
+ * Chip de critério LIGADO (protótipo final): fundo #EDF2F8, borda #396CAA, texto #314666; no escuro
+ * patrimonio a 20%, borda tranquilidade, texto escolha. Desligado: borda cinza, superfície.
+ */
+export const CHIP_CRITERIO = {
+  ligado:
+    'border-[#396CAA] bg-[#EDF2F8] font-semibold text-[#314666] dark:border-[#6E9DC4] dark:bg-[#396CAA]/20 dark:text-[#EAEAEA]',
+  desligado:
+    'border-gray-200 bg-white text-gray-700 group-hover:bg-gray-50 dark:border-[#2E3440] dark:bg-transparent dark:text-gray-300 dark:group-hover:bg-white/[0.04]',
+  semDado:
+    'border-dashed border-gray-300 bg-transparent text-gray-500 dark:border-gray-600 dark:text-gray-400',
+} as const;
+
 /** Cabeçalho de tabela (TABLE_STYLES) e coluna da ordem destacada. */
 export const QUADRO_VISUAL = {
   cabecalho: MYFINANCE_BRAND.seguranca,
@@ -159,10 +174,12 @@ export const SELO_NOVO = 'bg-[#DCE6F2] text-[#396CAA] dark:bg-[#6E9DC4]/15 dark:
 
 export interface ColunaQuadro {
   codigo: string;
-  /** chave em TEXTOS_TELA.quadro.colunas */
+  /** chave em TEXTOS_QUADRO.colunas (novas da v2.4) ou TEXTOS_TELA.quadro.colunas */
   rotulo: string;
   ordem: OrdemQuadro | null;
   alinhamento: 'esquerda' | 'direita' | 'centro';
+  /** chave em TEXTOS_QUADRO.dicas (title do cabeçalho), opcional */
+  dica?: string;
 }
 
 const col = (
@@ -170,38 +187,44 @@ const col = (
   rotulo: string,
   ordem: OrdemQuadro | null,
   alinhamento: ColunaQuadro['alinhamento'] = 'direita',
-): ColunaQuadro => ({ codigo, rotulo, ordem, alinhamento });
+  dica?: string,
+): ColunaQuadro =>
+  dica ? { codigo, rotulo, ordem, alinhamento, dica } : { codigo, rotulo, ordem, alinhamento };
 
-/** Colunas por classe × modo (protótipo revisado). */
+/** Coluna "Critérios" (CelulaCriterios: 'n de 6'; financeiras 'n de 3'). */
+const CRITERIOS = col('criterios', 'criterios', 'criterios', 'esquerda', 'criterios');
+
+/**
+ * Colunas por classe × modo — v2.4 (protótipo final, D1: estrutura do HTML do Pedro). Sai o
+ * indicador antigo; entra "Critérios"; Lucro/Rendimento 10 anos passa ao Detalhado (ordenável pelos
+ * anos positivos, 'lucro10').
+ */
 export const COLUNAS: Record<ClasseQuadro, Record<ModoQuadro, ColunaQuadro[]>> = {
   acao: {
     resumo: [
       col('ativo', 'ativo', 'ticker', 'esquerda'),
       col('preco', 'preco', 'preco'),
-      col('lucrosSeguidos', 'lucrosSeguidos', 'anosLucro'),
+      col('lucrosSeguidos', 'lucrosSeguidos', 'anosLucro', 'direita', 'lucrosSeguidos'),
       col('roe', 'roe', 'roe'),
       col('pl', 'pl', 'pl'),
       col('pvp', 'pvp', 'pvp'),
       col('dy12m', 'dy12m', 'dy'),
-      col('lucro10a', 'lucro10a', null, 'centro'),
-      col('indiceMf', 'indiceMf', 'indiceMf', 'centro'),
+      CRITERIOS,
       col('naCarteira', 'naCarteira', null),
     ],
     detalhado: [
       col('ativo', 'ativo', 'ticker', 'esquerda'),
       col('setor', 'setor', null, 'esquerda'),
       col('preco', 'preco', 'preco'),
-      col('lucrosSeguidos', 'lucrosSeguidos', 'anosLucro'),
+      col('lucrosSeguidos', 'lucrosSeguidos', 'anosLucro', 'direita', 'lucrosSeguidos'),
+      col('lucro10a', 'lucro10a', 'lucro10', 'centro', 'lucro10a'),
       col('roe', 'roe', 'roe'),
+      col('margemLiquida', 'margemLiquida', 'margem'),
+      col('divLiqEbitda', 'divLiqEbitda', 'divLiqEbitda', 'direita', 'divLiqEbitda'),
       col('pl', 'pl', 'pl'),
       col('pvp', 'pvp', 'pvp'),
       col('dy12m', 'dy12m', 'dy'),
-      col('margemLiquida', 'margemLiquida', 'margem'),
-      col('divLiqEbitda', 'divLiqEbitda', 'divLiqEbitda'),
-      col('payout', 'payout', 'payout'),
-      col('liquidez21', 'liquidez21', 'liquidez'),
-      col('lucro10a', 'lucro10a', null, 'centro'),
-      col('indiceMf', 'indiceMf', 'indiceMf', 'centro'),
+      CRITERIOS,
       col('naCarteira', 'naCarteira', null),
     ],
   },
@@ -212,9 +235,8 @@ export const COLUNAS: Record<ClasseQuadro, Record<ModoQuadro, ColunaQuadro[]>> =
       col('preco', 'cota', 'preco'),
       col('dy12m', 'dy12m', 'dy'),
       col('pvp', 'pvp', 'pvp'),
-      col('obrigacoesPl', 'obrigacoesPl', 'obrigacoesPl'),
-      col('rendimento10a', 'rendimento10a', null, 'centro'),
-      col('indiceMf', 'indiceMf', 'indiceMf', 'centro'),
+      col('vacanciaCvm', 'vacanciaCvm', 'vacancia', 'direita', 'vacanciaCvm'),
+      CRITERIOS,
       col('naCarteira', 'naCarteira', null),
     ],
     detalhado: [
@@ -222,20 +244,32 @@ export const COLUNAS: Record<ClasseQuadro, Record<ModoQuadro, ColunaQuadro[]>> =
       col('tipo', 'tipo', null, 'esquerda'),
       col('segmento', 'segmento', null, 'esquerda'),
       col('preco', 'cota', 'preco'),
+      col('rendimento10a', 'rendimento10a', 'lucro10', 'centro', 'rendimento10a'),
       col('dy12m', 'dy12m', 'dy'),
       col('pvp', 'pvp', 'pvp'),
-      col('obrigacoesPl', 'obrigacoesPl', 'obrigacoesPl'),
-      col('patrimonio', 'patrimonio', 'patrimonio'),
-      col('cotistas', 'cotistas', 'cotistas'),
-      col('liquidez21', 'liquidez21', 'liquidez'),
-      col('vacanciaCvm', 'vacanciaCvm', 'vacancia'),
+      col('vacanciaCvm', 'vacanciaCvm', 'vacancia', 'direita', 'vacanciaCvm'),
       col('imoveisCris', 'imoveisCris', null),
-      col('rendimento10a', 'rendimento10a', null, 'centro'),
-      col('indiceMf', 'indiceMf', 'indiceMf', 'centro'),
+      col('patrimonio', 'patrimonio', 'patrimonio'),
+      col('liquidez21', 'liquidez21', 'liquidez'),
+      CRITERIOS,
       col('naCarteira', 'naCarteira', null),
     ],
   },
 };
+
+/**
+ * Critérios que a URL/barra aceitam por classe: os chips HABILITADOS do params v1 (em FII, os ids
+ * de tijolo — o par de papel vem pelas equivalências; vacância/inadimplência ficam fora, D3). A rota
+ * é a autoridade (400 para o resto); aqui só se limpa a URL.
+ */
+export const CRITERIOS_FILTRAVEIS: Record<ClasseQuadro, readonly IdCriterio[]> = {
+  acao: CRITERIA_PARAMS_V1.perfis.acao.filter((c) => c.ativo !== false).map((c) => c.id),
+  fii: CRITERIA_PARAMS_V1.perfis.fii_tijolo.filter((c) => c.ativo !== false).map((c) => c.id),
+};
+
+/** Critérios de ação que não se aplicam a financeiras (D4: 'n de 3'). */
+export const CRITERIOS_NAO_SE_APLICAM_FINANCEIRA: readonly IdCriterio[] =
+  CRITERIA_PARAMS_V1.perfis.acao_financeira.naoSeAplica;
 
 export type FiltroRapido =
   | 'lucroConsistente'
