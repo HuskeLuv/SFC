@@ -186,6 +186,8 @@ inclui ~135 MB de base do Node/tsx/Prisma):
 | cotahist                                          |          217 MB | rota HTTP                   |
 | b3-cadastro, cvm-cias (fca/dfp/itr), cvm-ipe      |      179–184 MB | rota HTTP                   |
 | fii-cadastro, fii-mensal, fii-trimestral          |      179–183 MB | rota HTTP                   |
+| criterios (v2.4; 13/10/2026: aplicando / dry-run) | 265 MB / 211 MB | runner (`myfinance-job.sh`) |
+| quadro (13/10/2026, com a cópia dos critérios)    |          260 MB | runner (`myfinance-job.sh`) |
 
 Os jobs de ingestão pularam por ETag nessa medição; com arquivo novo a QA de operação mediu +64 MB
 (`cvm-cias:itr`) e +61 MB (`fii-mensal`) sobre a base, e o `cotahist` +78 MB — todos abaixo de 250 MB.
@@ -295,3 +297,58 @@ commit;
 
 Rollback parcial (um passo do backfill saiu errado): as tabelas têm um escritor só; apagar as linhas
 da tabela daquele passo (ex.: `delete from asset_eventos;`) e rodar o passo de novo.
+
+## 8. v2.4 — Filtros de Fundamentos: job `criterios` (R1, invisível)
+
+Spec: `docs/analise-ativos/v2-filtros/spec-desenho.json` → arquitetura.plano_producao (R1 = fatias
+0 + A). Nenhuma tela muda na R1: só a migration aditiva, o `criteria_params`, o job e a cópia
+compacta em `analise_quadro_linhas.criterios`. Os números para o Pedro saem **só** do
+`scripts/analise-ativos/relatorio-criterios.ts`.
+
+1. Migration `20261015000000_analise_ativos_filtros` pelo pipeline (`migrate deploy`; só `CREATE`
+   e `ADD COLUMN` nulo — instantâneo).
+2. `criteria_params` v1: `rodar scripts/analise-ativos/seed-criteria-params.ts` (dry-run) e depois
+   com `--apply`.
+3. Job sem gravar, conferindo RSS e tempo (DEV: 211 MB, 13 s), depois gravando (DEV: 265 MB, 19 s,
+   954 símbolos × 3 janelas = 2.862 linhas), e o `quadro` em seguida:
+
+```bash
+cd /opt/myfinance/current && sudo -u myfinance env MALLOC_ARENA_MAX=2 \
+  NODE_OPTIONS=--max-old-space-size=256 /usr/bin/time -v node --env-file=/etc/myfinance/app.env \
+  --import tsx scripts/analise-ativos/rodar-job.ts criterios --sem-aplicar 2>&1 | tail -25
+sudo /usr/local/bin/myfinance-job.sh criterios && tail -3 /var/log/myfinance-job.log
+sudo /usr/local/bin/myfinance-job.sh quadro && tail -3 /var/log/myfinance-job.log
+```
+
+4. Conferir (só leitura):
+
+```sql
+select janela, count(*), count(distinct symbol), min("paramsVersion"), max("computedAt")
+from criteria_eval group by 1 order by 1;                      -- 3 janelas, mesmo nº de símbolos
+select classe, "noQuadro", count(*), count(criterios) from analise_quadro_linhas group by 1, 2;
+                                                               -- count(criterios) = count(*)
+```
+
+```bash
+rodar scripts/analise-ativos/relatorio-criterios.ts --saida=/tmp/relatorio-criterios-prod.txt
+```
+
+5. Linha do cron (entre o `scores` das 10:10 e o `quadro` das 10:40; já está no template):
+
+```bash
+sudo tee -a /etc/cron.d/myfinance >/dev/null <<'EOF2'
+# Análise de Ativos (v2.4) — Filtros de Fundamentos (criteria_eval), entre o scores e o quadro
+30 10 * * * root /usr/local/bin/myfinance-job.sh criterios
+EOF2
+```
+
+Comportamento: com o `scores` ainda rodando às 10:30, o `criterios` termina `pulado` (alerta
+`criterios_scores_em_execucao`) e o `quadro` usa a avaliação anterior. `criteria_params` ausente =
+`falha` com alerta `criteria_params_ausente` (nada é gravado). Cobertura das ações não financeiras do
+Quadro abaixo de 90% em algum critério (janela 5) = alerta `criterios_cobertura_baixa`. Prazo
+estourado = `parcial` sem gravar. Linhas do Quadro sem avaliação = alerta `quadro_sem_criterios` no
+job `quadro`. É job **pesado** (> 250 MB): a rota `/api/cron/analise-ativos/criterios` fica para
+disparo manual e recusa (503) com o servidor acima de `ANALISE_ATIVOS_ROTA_RSS_MAX_MB`.
+
+Rollback da R1: tirar a linha do cron. As tabelas novas são só da v2.4 (`criteria_eval` pode ser
+esvaziada com `delete from criteria_eval;` e o `quadro` seguinte zera a cópia nas linhas).
