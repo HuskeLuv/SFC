@@ -87,8 +87,7 @@ export const BUSCA: BuscaIndiceResposta = {
     n: l.nome,
     c: l.classe,
     q: l.noQuadro,
-    i: l.indice.valor,
-    e: l.indice.estado,
+    // v2.4 (fatia B): a busca não emite mais i/e e as linhas não trazem o indicador antigo
     f: l.fiiTipo,
     m: l.foraDoQuadroMotivo,
   })),

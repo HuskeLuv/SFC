@@ -5,8 +5,12 @@
  * - versaoQuadro(): max(geradoEm) em ISO ('vazio' sem linhas), sondado no máximo 1×/60 s.
  * - As ~800 linhas ficam num array em memória por versão (instância única no Lightsail); quando o
  *   job 'quadro' grava uma versão nova, os leitores trocam em até 60 s.
- * - paraLinhaQuadroApi(row): converte Decimal/Date, monta Estado<number> com motivo + texto
- *   (textosTela) e o Índice nos 5 estados.
+ * - paraLinhaQuadroApi(row) / paraLinhaQuadroApiNaJanela(row, janela): converte Decimal/Date, monta Estado<number> com motivo + texto
+ *   (textosTela), projeta os critérios da JANELA pedida (cópia compacta gravada pelo job
+ *   'criterios', projetarCriteriosCompactos) e os motivos de conferência (motivosConferencia, os
+ *   códigos que antes vinham dentro do indicador antigo). v2.4: NÃO emite `indice` (nenhuma chave
+ *   /indice|semaforo|destaque/ no JSON do Quadro); a tabela AnaliseQuadroLinha segue intacta (D6).
+ * - A conversão fica memorizada por versão E janela (3 | 5 | 10).
  *
  * CONVENÇÃO das colunas de array gravadas pelo job (fatia A):
  * - naoSeAplica: nome do campo ('divLiqEbitda') ou 'campo:motivo' ('vacanciaFisicaCvmPct:
@@ -29,24 +33,24 @@ import {
   aplicarConferenciaCampo,
   conferenciaConf,
 } from '@/services/analiseAtivos/leitura/ativo/conferenciasAtivo';
-import {
-  TEXTOS_TELA,
-  motivoTela,
-  motivosEstadoIndice,
-  textoNaoSeAplica,
-  textoZeroRegra,
-} from '@/services/analiseAtivos/textosTela';
+import { projetarCriteriosCompactos } from '@/services/analiseAtivos/leitura/criterios/lerCriterios';
+import { TEXTOS_TELA, motivoTela, textoNaoSeAplica } from '@/services/analiseAtivos/textosTela';
 import type {
   ClasseQuadro,
   Estado,
-  EstadoIndice,
   FiiTipoTela,
   ForaDoQuadroMotivo,
-  IndiceLinha,
   LinhaQuadroApi,
+  MotivoTela,
   PontoSerieAnual,
-  StatusCriterioTela,
 } from '@/types/analiseAtivosApi';
+import {
+  JANELA_PADRAO,
+  PERFIS_CRITERIO,
+  type CriteriosLinhaApi,
+  type Janela,
+  type PerfilCriterio,
+} from '@/types/analiseAtivosCriterios';
 
 export const INTERVALO_SONDA_VERSAO_MS = 60_000;
 export const VERSAO_VAZIA = 'vazio';
@@ -116,6 +120,8 @@ async function carregar(): Promise<CacheLinhas> {
 export interface OpcoesLinhasQuadro {
   /** inclui linhas noQuadro=false (busca, página do ativo); padrão false */
   incluirForaDoQuadro?: boolean;
+  /** janela dos critérios projetada em LinhaQuadroApi.criterios; padrão JANELA_PADRAO (5) */
+  janela?: Janela;
 }
 
 export async function obterLinhasQuadro(
@@ -134,18 +140,20 @@ export async function obterLinhaQuadro(symbol: string): Promise<AnaliseQuadroLin
   return porSymbol.get(symbol.toUpperCase()) ?? null;
 }
 
-/** Linhas já convertidas para a API, memorizadas por versão. */
+/** Linhas já convertidas para a API, memorizadas por versão e janela. */
 export async function obterLinhasQuadroApi(
   classe?: ClasseQuadro,
   opts: OpcoesLinhasQuadro = {},
 ): Promise<LinhaQuadroApi[]> {
   const c = await carregar();
   const linhas = await obterLinhasQuadro(classe, opts);
+  const janela = opts.janela ?? JANELA_PADRAO;
   return linhas.map((l) => {
-    let api = c.api.get(l.symbol);
+    const chave = `${janela}:${l.symbol}`;
+    let api = c.api.get(chave);
     if (!api) {
-      api = paraLinhaQuadroApi(l);
-      c.api.set(l.symbol, api);
+      api = paraLinhaQuadroApiNaJanela(l, janela);
+      c.api.set(chave, api);
     }
     return api;
   });
@@ -274,22 +282,26 @@ function estadoCampo(
   return ausente('sem_dado_fonte', t.semDado);
 }
 
-function indiceDaLinha(row: AnaliseQuadroLinha): IndiceLinha {
-  const estado = row.estadoIndice as EstadoIndice;
-  let motivos;
-  if (estado === 'incompleto') motivos = row.motivosIncompleto.map(motivoTela);
-  else if (estado === 'zero_regra') {
-    motivos = row.componentesZeroRegra.map((c) => ({ codigo: c, texto: textoZeroRegra(c) }));
-  } else motivos = motivosEstadoIndice(estado);
-  const semNumero = estado === 'sem_score' || estado === 'fora_do_indice';
-  return {
-    valor: semNumero ? null : row.indiceMf,
-    estado,
-    motivos,
-    criteriosAtendidos: row.criteriosAtendidos,
-    criteriosAplicaveis: row.criteriosAplicaveis,
-    statusCriterios: row.statusCriterios as StatusCriterioTela[],
-  };
+/**
+ * Motivos de conferência/incompletude da linha (os códigos 'componente:motivo' gravados pelo job,
+ * ex.: 'div:fonte_defasada'), com o texto de textosTela. Substituem os motivos que vinham dentro do
+ * indicador antigo; a conferência do bloco C (legado de proventos) e a página do ativo leem daqui.
+ */
+export function motivosConferenciaDaLinha(row: AnaliseQuadroLinha): MotivoTela[] {
+  return row.motivosIncompleto.map(motivoTela);
+}
+
+function ehPerfil(v: unknown): v is PerfilCriterio {
+  return typeof v === 'string' && (PERFIS_CRITERIO as readonly string[]).includes(v);
+}
+
+/** Critérios da janela (cópia compacta da linha); null = job 'criterios' ainda não avaliou. */
+export function criteriosDaLinha(
+  row: AnaliseQuadroLinha,
+  janela: Janela,
+): CriteriosLinhaApi | null {
+  const perfil = ehPerfil(row.perfilCriterios) ? row.perfilCriterios : null;
+  return projetarCriteriosCompactos(row.criterios, janela, perfil);
 }
 
 function serieDaLinha(json: unknown): PontoSerieAnual[] {
@@ -309,7 +321,18 @@ function serieDaLinha(json: unknown): PontoSerieAnual[] {
   return out.sort((a, b) => a.ano - b.ano);
 }
 
+/**
+ * Conversão na janela padrão (5). Um argumento só de propósito: `linhas.map(paraLinhaQuadroApi)`
+ * continua válido (o índice do map nunca vira janela). Outra janela: paraLinhaQuadroApiNaJanela.
+ */
 export function paraLinhaQuadroApi(row: AnaliseQuadroLinha): LinhaQuadroApi {
+  return paraLinhaQuadroApiNaJanela(row, JANELA_PADRAO);
+}
+
+export function paraLinhaQuadroApiNaJanela(
+  row: AnaliseQuadroLinha,
+  janela: Janela,
+): LinhaQuadroApi {
   const classe = row.classe as ClasseQuadro;
   const naoSeAplica = mapaNaoSeAplica(row);
   const emConferencia = temProventosEmConferencia(row);
@@ -346,7 +369,8 @@ export function paraLinhaQuadroApi(row: AnaliseQuadroLinha): LinhaQuadroApi {
     variacaoDiaPct: row.variacaoDiaPct,
     liquidezMedia21: decimalParaNumero(row.volumeMedio21),
     baixaLiquidez: row.baixaLiquidez,
-    indice: indiceDaLinha(row),
+    criterios: criteriosDaLinha(row, janela),
+    motivosConferencia: motivosConferenciaDaLinha(row),
     anosLucroConsecutivos: row.anosLucroConsecutivos,
     mesesComRendimento: row.mesesComRendimento,
     anosDividendo: row.anosDividendo,
