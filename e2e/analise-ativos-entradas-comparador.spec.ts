@@ -5,7 +5,7 @@ import { expectFitsWithoutClip, expectMinTarget, prepareMobilePage } from './hel
 /**
  * Análise de Ativos — Bloco D, fatia D: entradas do Comparador (SÓ LEITURA). Pílulas
  * Quadro | Comparador, modo "Comparar" do Quadro (caixas + bandeja) e o botão "Comparar" do
- * cabeçalho do ativo. Pulam sem o recurso 'comparador' (no CI as 3 flags ficam ligadas). A página do
+ * cabeçalho do ativo (v2.4, fatia C1: abre o modal de sugestões). Pulam sem o recurso 'comparador' (no CI as 3 flags ficam ligadas). A página do
  * Comparador é da fatia C: aqui só conferimos o link (?t=).
  */
 
@@ -118,16 +118,24 @@ test.describe('computador', () => {
     await expect(bandeja(page)).toContainText('marque de 1 a 4 FIIs');
   });
 
-  test('ativo → Comparar → ?t=TICKER (depois de Planejar/Registrar)', async ({ page }) => {
+  test('ativo → Comparar (modal de sugestões, v2.4) → ?t=TICKER,ESCOLHIDO', async ({ page }) => {
     test.setTimeout(90_000);
     const t = TICKERS_BLOCO_D_CI.acao;
     await page.goto(`/analise-ativos/${t}`, { waitUntil: 'domcontentloaded' });
-    const link = page.getByRole('link', { name: `Comparar ${t} com outros ativos` });
-    await link.waitFor({ timeout: 60_000 });
-    await expectMinTarget(link);
-    await expect(link).toHaveAttribute('href', `/analise-ativos/comparador?t=${t}`);
-    await link.click();
-    await expect(page).toHaveURL(new RegExp(`/analise-ativos/comparador\\?t=${t}$`));
+    const botao = page.getByRole('button', { name: `Comparar ${t} com outros ativos` });
+    await botao.waitFor({ timeout: 60_000 });
+    await expectMinTarget(botao);
+    await botao.click();
+    const modal = page.getByRole('dialog');
+    await expect(modal).toContainText(`Comparar ${t} com até 3 ações`);
+    const primeira = modal.locator('[data-sugestao]').first();
+    await primeira.waitFor({ timeout: 30_000 });
+    const escolhido = await primeira.getAttribute('data-sugestao');
+    await primeira.click();
+    const abrir = modal.getByRole('link', { name: 'Abrir comparador' });
+    await expect(abrir).toHaveAttribute('href', `/analise-ativos/comparador?t=${t},${escolhido}`);
+    await abrir.click();
+    await expect(page).toHaveURL(new RegExp(`/analise-ativos/comparador\\?t=${t},${escolhido}$`));
   });
 });
 
@@ -198,8 +206,8 @@ test.describe('celular', () => {
     test.setTimeout(90_000);
     const t = TICKERS_BLOCO_D_CI.acao;
     await page.goto(`/analise-ativos/${t}`, { waitUntil: 'domcontentloaded' });
-    const link = page.getByRole('link', { name: `Comparar ${t} com outros ativos` });
-    await link.waitFor({ timeout: 60_000 });
+    const botao = page.getByRole('button', { name: `Comparar ${t} com outros ativos` });
+    await botao.waitFor({ timeout: 60_000 });
     for (const el of await page
       .locator('[data-bloco="cabecalho"] [data-acoes-cabecalho]')
       .locator('a, button')

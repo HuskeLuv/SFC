@@ -4,10 +4,11 @@ import { apiDelete, writesAllowed } from './helpers/api';
 /**
  * Análise de Ativos — usuário (fatia D) que GRAVA: projeto `escrita`, desktop 1280.
  *
- * - "Na sua carteira" = Carteira: o % da aba e o objetivo do ativo do demo (MXRF11 no seed) no
- *   bloco são os mesmos da aba FII's (GET /api/carteira/fii, o endpoint da tabela).
+ * - "Na sua carteira" = Carteira: a posição em % da aba do demo (MXRF11 no seed) no bloco é a mesma
+ *   da aba FII's (GET /api/carteira/fii, o endpoint da tabela) — v2.4: base da aba, 1 casa.
  * - Tese em WEGE3: escreve, salva sozinha, recarrega, apaga pela tela. O `finally` apaga pela API.
- * - Planejar ITUB4 pelo wizard: bloco vira "Planejado"; o `finally` remove o planejado.
+ * - Planejar ITUB4 pelo modal "Planejar na carteira" (v2.4, fatia C1): bloco mostra o alvo
+ *   planejado; o `finally` remove o planejado.
  *
  * Só com E2E_ALLOW_WRITES=1 (CI: banco efêmero) e com a área ligada para o demo.
  */
@@ -45,29 +46,35 @@ async function abrirAtivo(page: Page, ticker: string) {
   await expect(page.locator(`[data-pagina-ativo="${ticker}"]`)).toBeVisible({ timeout: 60_000 });
 }
 
-const pctBr = (v: number) =>
-  `${v.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}%`;
+const pct1 = (v: number) =>
+  `${v.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%`;
 
 test.describe('Na sua carteira (leitura)', () => {
-  test("MXRF11: % da aba e objetivo iguais aos da aba FII's da Carteira", async ({ page }) => {
+  test("MXRF11: posição em % da aba igual à da aba FII's da Carteira", async ({ page }) => {
     test.skip(!(await areaLigada(page)), 'área desligada ou demo fora do beta');
     const aba = await page.request.get('/api/carteira/fii');
     expect(aba.ok()).toBe(true);
     const dados = (await aba.json()) as {
       secoes: Array<{
-        ativos: Array<{ ticker: string; percentualCarteira: number; objetivo: number }>;
+        ativos: Array<{ ticker: string; valorAtualizado: number; objetivo: number }>;
       }>;
     };
-    const linha = dados.secoes.flatMap((s) => s.ativos).find((a) => a.ticker === 'MXRF11');
+    const ativos = dados.secoes.flatMap((s) => s.ativos);
+    const linha = ativos.find((a) => a.ticker === 'MXRF11');
     test.skip(!linha, "demo sem MXRF11 na aba FII's");
+    // base da aba = Σ valorAtualizado das linhas (o denominador do % da aba na Carteira)
+    const base = ativos.reduce((s, a) => s + (a.valorAtualizado || 0), 0);
 
     await abrirAtivo(page, 'MXRF11');
     const bloco = blocoCarteira(page);
     await expect(bloco).toHaveAttribute('data-na-carteira', 'posicao', { timeout: 30_000 });
-    const barraPeso = bloco.locator('[data-barra-peso^="Peso dentro de"]');
-    await expect(barraPeso).toContainText(pctBr(linha!.percentualCarteira), { timeout: 30_000 });
+    const barraPeso = bloco.locator('[data-barra-peso]');
+    await expect(barraPeso).toContainText(
+      `posição atual ${pct1((linha!.valorAtualizado / base) * 100)} de FII's`,
+      { timeout: 30_000 },
+    );
     if (linha!.objetivo > 0) {
-      await expect(bloco).toContainText(`% da aba FII's`);
+      await expect(bloco).toContainText(`alvo planejado por você: ${pct1(linha!.objetivo)}`);
     }
   });
 });
@@ -118,7 +125,9 @@ test.describe('grava e desfaz', () => {
     }
   });
 
-  test('Planejar ITUB4 pelo wizard: bloco vira "Planejado"; remove no fim', async ({ page }) => {
+  test('Planejar ITUB4 pelo modal: bloco mostra o alvo planejado; remove no fim', async ({
+    page,
+  }) => {
     test.skip(!(await areaLigada(page)), 'área desligada ou demo fora do beta');
     test.setTimeout(180_000);
     const antes = (await (await page.request.get('/api/analise-ativos/carteira')).json()) as {
@@ -133,24 +142,18 @@ test.describe('grava e desfaz', () => {
       await abrirAtivo(page, 'ITUB4');
       const bloco = blocoCarteira(page);
       await expect(bloco).toHaveAttribute('data-na-carteira', 'nada', { timeout: 30_000 });
-      await page
-        .locator('[data-acoes-carteira="nada"]')
-        .getByRole('button', { name: 'Planejar na Carteira' })
-        .click();
-
-      const etapa = page.locator('[data-mf-step="info"]');
-      await expect(etapa).toBeVisible({ timeout: 30_000 });
-      await etapa.locator('select').first().selectOption('value');
-      await etapa.getByLabel('Objetivo (% da aba)').fill('5');
-      await page.getByRole('button', { name: 'Avançar' }).click();
+      await page.locator('[data-acoes-carteira="nada"] [data-botao-planejar]').click();
+      const modal = page.getByRole('dialog');
+      await expect(modal).toContainText('Planejar na carteira · ITUB4');
+      await modal.getByLabel('Peso-alvo dentro de Ações').fill('5');
       const post = page.waitForResponse(
         (r) => r.url().endsWith('/api/carteira/planejados') && r.request().method() === 'POST',
       );
-      await page.getByRole('button', { name: 'Planejar', exact: true }).click();
+      await modal.getByRole('button', { name: 'Salvar no Planejamento' }).click();
       expect((await post).status()).toBeLessThan(300);
 
       await expect(bloco).toHaveAttribute('data-na-carteira', 'planejado', { timeout: 30_000 });
-      await expect(bloco).toContainText('Planejado em Ações, com objetivo de 5% da aba');
+      await expect(bloco).toContainText('alvo planejado por você: 5,0% de Ações');
     } finally {
       const depois = (await (await page.request.get('/api/analise-ativos/carteira')).json()) as {
         planejados: Record<string, { watchlistId: string }>;
