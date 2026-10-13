@@ -54,9 +54,13 @@ import {
   type ResultadoLeitura,
 } from '@/services/analiseAtivos/leitura/ativo/fundamentosEssencial';
 import {
+  JANELA_PARES,
+  criterioParesTela,
   montarParesAtivo,
-  type ParesAtivo,
+  paresParaTela,
 } from '@/services/analiseAtivos/leitura/ativo/paresAtivo';
+import { obterCriteriosVarios } from '@/services/analiseAtivos/leitura/criterios/lerCriterios';
+import type { CriteriosLinhaApi } from '@/types/analiseAtivosCriterios';
 import { textoStatusBarra } from '@/services/analiseAtivos/textos';
 import {
   CAMPO_HISTORICO,
@@ -71,6 +75,7 @@ import { TEXTOS_ATIVO } from '@/services/analiseAtivos/textosAtivo';
 import type { ScoringParams } from '@/services/analiseAtivos/tipos';
 import type {
   BarraValuation,
+  ClasseQuadro,
   Estado,
   FormatoAnalise,
   GrupoValuation,
@@ -183,6 +188,8 @@ export interface EntradaValuation {
   /** pares (sem o alvo), na ordem de exibição */
   pares: DadosAtivoValuation[];
   criterioPares: string;
+  /** v2.4: critérios dos pares na janela 5 (ticker → contagem); ausente = sem avaliação */
+  criteriosPares?: ReadonlyMap<string, CriteriosLinhaApi>;
   params?: ScoringParams;
 }
 
@@ -795,10 +802,16 @@ function montarHistoricos(alvo: Ctx): HistoricoMultiplo[] {
 /**
  * Linha do Quadro para a tabela de pares: números com 4 casas e sem a série de 10 anos (a tabela
  * não a usa; o Quadro e o topo trazem a série completa). Mantém o contrato LinhaQuadroApi.
+ * v2.4: sem o Índice (nenhuma chave /indice/ no JSON) e com a contagem de critérios na janela 5.
  */
-export function linhaParEnxuta(l: LinhaQuadroApi): LinhaQuadroApi {
+export function linhaParEnxuta(
+  l: LinhaQuadroApi,
+  criterios: CriteriosLinhaApi | null = l.criterios ?? null,
+): LinhaQuadroApi {
+  const { indice: _indice, ...semIndice } = l;
   return {
-    ...l,
+    ...semIndice,
+    criterios,
     variacaoDiaPct: enxugarOuNull(l.variacaoDiaPct),
     roe: enxugarEstado(l.roe),
     pl: enxugarEstado(l.pl),
@@ -838,9 +851,11 @@ export function montarValuation(e: EntradaValuation): ValuationResposta {
     });
   }
 
-  const linhasPares: ParesAtivo['itens'] = [e.alvo.linha, ...e.pares.map((p) => p.linha)].map(
-    linhaParEnxuta,
-  );
+  // v2.4: só os pares (sem o próprio ativo), A–Z, com os critérios da janela 5
+  const linhasPares = paresParaTela(
+    e.alvo.linha.ticker,
+    e.pares.map((p) => p.linha),
+  ).map((l) => linhaParEnxuta(l, e.criteriosPares?.get(l.ticker) ?? l.criterios ?? null));
   return {
     grupos,
     historicos: montarHistoricos(alvo),
@@ -926,6 +941,18 @@ function agrupar<T extends { symbol: string }>(linhas: T[]): Map<string, T[]> {
   const m = new Map<string, T[]>();
   for (const l of linhas) m.set(l.symbol, [...(m.get(l.symbol) ?? []), l]);
   return m;
+}
+
+/** Critérios dos pares (janela 5); falha de leitura = sem avaliação (a tela mostra '—'). */
+async function lerCriteriosPares(
+  symbols: readonly string[],
+): Promise<Map<string, CriteriosLinhaApi>> {
+  if (symbols.length === 0) return new Map();
+  try {
+    return await obterCriteriosVarios(prisma, symbols, JANELA_PARES);
+  } catch {
+    return new Map();
+  }
 }
 
 /** null = ticker fora da área (a rota responde 404). */
@@ -1028,11 +1055,13 @@ export async function obterValuation(
     };
   };
 
+  const criteriosPares = await lerCriteriosPares(symbols.slice(1));
   const dados = montarValuation({
     hoje,
     alvo: dadosDe(alvoApi),
     pares: pares.itens.slice(1).map(dadosDe),
-    criterioPares: pares.criterio,
+    criterioPares: criterioParesTela(alvoApi.classe as ClasseQuadro),
+    criteriosPares,
   });
   cache.set(chave, dados, TTL_ANALISE_MS);
   return { dados, cache: false };

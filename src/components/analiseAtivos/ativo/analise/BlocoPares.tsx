@@ -1,11 +1,16 @@
 'use client';
 
 /**
- * Pares do segmento (fatia C): o próprio ativo primeiro (linha destacada, sem link) e até 5 pares
- * clicáveis (abrem /analise-ativos/[ticker]). Mesma consulta do Valuation (useValuationAtivo).
- * Computador: tabela TABLE_STYLES com th scope="row"; celular: cartões (links de 44px+).
- * Índice incompleto com asterisco; sem Índice/fora do Índice = '—' com o motivo no title.
- * Critério exibido em texto; sem pares: 'sem pares no mesmo segmento'.
+ * Pares do segmento (fatia C; v2.4 fatia C2). Mesma consulta do Valuation (useValuationAtivo):
+ * até 5 pares — SEM o próprio ativo — em ordem A–Z, clicáveis (abrem /analise-ativos/[ticker]),
+ * com a coluna "Critérios" (contagem 'n de k' em 5 anos, neutra; sem Índice).
+ *  - Ações: Ativo · P/L · P/VP · ROE · DY 12m · Lucros seguidos · Critérios;
+ *  - FIIs: Fundo · DY 12m · P/VP · Vacância (CVM) (tijolo) ou Nº CRIs (papel) · Patrimônio ·
+ *    Critérios.
+ * Computador: tabela TABLE_STYLES com th scope="row" e CelulaCriterios (botão de 44 px com o
+ * detalhe em tooltip, sem abrir a linha); celular: cartões (links de 44 px+) com 'n de k' em texto.
+ * O nome do ativo vem do banco e leva data-nome-ativo (a varredura de linguagem o ignora). Critério
+ * de seleção em texto; sem pares: texto próprio.
  */
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -13,10 +18,15 @@ import CartaoAnalise, {
   FUNDO_STICKY,
   TEXTO_NEGATIVO,
 } from '@/components/analiseAtivos/ativo/analise/CartaoAnalise';
+import CelulaCriterios from '@/components/analiseAtivos/comum/CelulaCriterios';
 import { formatarAnalise, formatarEstado } from '@/components/analiseAtivos/comum/formatarAnalise';
 import { TABLE_HEADER_STYLE, TABLE_STYLES } from '@/components/ui/table/tableStyles';
 import { COR_LINK } from '@/constants/analiseAtivosVisual';
 import { useValuationAtivo } from '@/hooks/useAnaliseAtivos';
+import { CRITERIA_PARAMS_V1 } from '@/services/analiseAtivos/params/criteriaParamsV1';
+import { JANELA_PARES } from '@/services/analiseAtivos/leitura/ativo/paresAtivo';
+import { TEXTOS_ATIVO } from '@/services/analiseAtivos/textosAtivo';
+import { TEXTOS_CRITERIOS } from '@/services/analiseAtivos/textosCriterios';
 import { TEXTOS_TELA, formatarTexto } from '@/services/analiseAtivos/textosTela';
 import type {
   BlocoParesProps,
@@ -25,11 +35,13 @@ import type {
   FormatoAnalise,
   LinhaQuadroApi,
 } from '@/types/analiseAtivosApi';
+import type { IdCriterio, PerfilCriterio } from '@/types/analiseAtivosCriterios';
 
 export type { BlocoParesProps };
 
 const TP = TEXTOS_TELA.analise.pares;
 const C = TP.colunas;
+const TA = TEXTOS_ATIVO.pares;
 const SEM = TEXTOS_TELA.formato.semDado;
 
 interface ColunaPar {
@@ -50,62 +62,64 @@ function deNumero(n: number | null, formato: FormatoAnalise) {
   return { texto: n === null ? SEM : formatarAnalise(n, formato) };
 }
 
-export function textoIndicePar(l: LinhaQuadroApi): { texto: string; title?: string } {
-  const { indice } = l;
-  if (
-    !indice ||
-    indice.valor === null ||
-    indice.estado === 'sem_score' ||
-    indice.estado === 'fora_do_indice'
-  ) {
-    return { texto: SEM, title: indice?.motivos[0]?.texto };
-  }
-  const texto = formatarAnalise(indice.valor, 'numero');
-  return indice.estado === 'incompleto'
-    ? { texto: `${texto}*`, title: TEXTOS_TELA.selos.dadosIncompletos }
-    : { texto };
+/** 'n de k' dos critérios do par (texto neutro), ou '—' sem avaliação. */
+export function textoCriteriosPar(l: LinhaQuadroApi): { texto: string; title?: string } {
+  if (!l.criterios) return { texto: SEM, title: TA.criteriosSem };
+  return {
+    texto: formatarTexto(TEXTOS_CRITERIOS.contador.curto, {
+      n: l.criterios.n,
+      total: l.criterios.de,
+    }),
+  };
 }
 
-const COLUNAS: Record<ClasseQuadro, ColunaPar[]> = {
-  acao: [
-    { codigo: 'pl', rotulo: C.pl, valor: (l) => deEstado(l.pl, 'numero') },
-    { codigo: 'pvp', rotulo: C.pvp, valor: (l) => deEstado(l.pvp, 'numero2') },
-    { codigo: 'roe', rotulo: C.roe, valor: (l) => deEstado(l.roe, 'pct') },
-    { codigo: 'margem', rotulo: C.margem, valor: (l) => deEstado(l.margemLiquida, 'pct') },
+/** id → rótulo dos critérios do perfil (criteria_params v1), para o tooltip da célula. */
+export function rotulosDoPerfil(perfil: PerfilCriterio): Partial<Record<IdCriterio, string>> {
+  const p = CRITERIA_PARAMS_V1.perfis;
+  const lista =
+    perfil === 'fii_tijolo' ? p.fii_tijolo : perfil === 'fii_papel' ? p.fii_papel : p.acao;
+  return Object.fromEntries(lista.map((c) => [c.id, c.rotulo]));
+}
+
+const CRITERIOS: ColunaPar = {
+  codigo: 'criterios',
+  rotulo: TA.colunas.criterios,
+  valor: textoCriteriosPar,
+};
+
+function colunasDe(classe: ClasseQuadro, papel: boolean): ColunaPar[] {
+  if (classe === 'acao') {
+    return [
+      { codigo: 'pl', rotulo: C.pl, valor: (l) => deEstado(l.pl, 'numero') },
+      { codigo: 'pvp', rotulo: C.pvp, valor: (l) => deEstado(l.pvp, 'numero2') },
+      { codigo: 'roe', rotulo: C.roe, valor: (l) => deEstado(l.roe, 'pct') },
+      { codigo: 'dy12m', rotulo: C.dy12m, valor: (l) => deEstado(l.dy12m, 'pct') },
+      {
+        codigo: 'lucrosSeguidos',
+        rotulo: C.lucrosSeguidos,
+        valor: (l) => deNumero(l.anosLucroConsecutivos, 'inteiro'),
+      },
+      CRITERIOS,
+    ];
+  }
+  return [
     { codigo: 'dy12m', rotulo: C.dy12m, valor: (l) => deEstado(l.dy12m, 'pct') },
-    {
-      codigo: 'lucrosSeguidos',
-      rotulo: C.lucrosSeguidos,
-      valor: (l) => deNumero(l.anosLucroConsecutivos, 'inteiro'),
-    },
-    { codigo: 'indiceMf', rotulo: C.indiceMf, valor: textoIndicePar },
-  ],
-  fii: [
-    { codigo: 'dy12m', rotulo: C.dy12m, valor: (l) => deEstado(l.dy12m, 'pct') },
     { codigo: 'pvp', rotulo: C.pvp, valor: (l) => deEstado(l.pvp, 'numero2') },
-    {
-      codigo: 'obrigacoesPl',
-      rotulo: C.obrigacoesPl,
-      valor: (l) => deEstado(l.obrigacoesPl, 'pct'),
-    },
-    {
-      codigo: 'imoveisCris',
-      rotulo: C.imoveisCris,
-      valor: (l) => deNumero(l.fiiTipo === 'papel' ? l.nCri : l.nImoveisCvm, 'inteiro'),
-    },
+    papel
+      ? { codigo: 'nCri', rotulo: TA.colunas.nCri, valor: (l) => deNumero(l.nCri, 'inteiro') }
+      : {
+          codigo: 'vacancia',
+          rotulo: TA.colunas.vacancia,
+          valor: (l) => deEstado(l.vacanciaCvm, 'pct'),
+        },
     {
       codigo: 'patrimonio',
       rotulo: C.patrimonio,
       valor: (l) => deNumero(l.patrimonio, 'moedaCompacta'),
     },
-    {
-      codigo: 'liquidez',
-      rotulo: C.liquidez,
-      valor: (l) => deNumero(l.liquidezMedia21, 'moedaCompacta'),
-    },
-    { codigo: 'indiceMf', rotulo: C.indiceMf, valor: textoIndicePar },
-  ],
-};
+    CRITERIOS,
+  ];
+}
 
 const href = (ticker: string) => `/analise-ativos/${encodeURIComponent(ticker)}`;
 
@@ -113,10 +127,11 @@ export default function BlocoPares({ ticker, classe }: BlocoParesProps) {
   const q = useValuationAtivo(ticker);
   const router = useRouter();
   const pares = q.data?.pares;
-  const itens = pares?.itens ?? [];
-  const semPares = itens.length <= 1;
-  const colunas = COLUNAS[classe];
-  const temIncompleto = itens.some((l) => l.indice?.estado === 'incompleto');
+  // v2.4: a API manda só os pares; o filtro garante que o próprio ativo nunca aparece
+  const itens = (pares?.itens ?? []).filter((l) => l.ticker !== ticker);
+  const papel = itens.length > 0 && itens.every((l) => l.fiiTipo === 'papel');
+  const colunas = colunasDe(classe, papel);
+  const tituloCriterios = formatarTexto(TA.criteriosTitulo, { anos: JANELA_PARES });
 
   return (
     <CartaoAnalise
@@ -129,154 +144,142 @@ export default function BlocoPares({ ticker, classe }: BlocoParesProps) {
       alturaEsqueleto={220}
     >
       {pares ? (
-        <>
-          {semPares ? (
-            <p className="text-sm text-gray-600 dark:text-gray-300">{TEXTOS_TELA.ativo.semPares}</p>
-          ) : null}
-          {/* Computador: tabela */}
-          <div className={`${TABLE_STYLES.wrapper} hidden max-w-full lg:block`}>
-            <table className={`${TABLE_STYLES.table} min-w-max`}>
-              <caption className="sr-only">{formatarTexto(TP.caption, { ticker })}</caption>
-              <thead>
-                <tr className={TABLE_STYLES.headRow} style={TABLE_HEADER_STYLE}>
-                  <th
-                    scope="col"
-                    className={`${TABLE_STYLES.compact.th} sticky left-0 z-10 text-left`}
-                    style={TABLE_HEADER_STYLE}
-                  >
-                    {C.ativo}
-                  </th>
-                  {colunas.map((c) => (
+        itens.length === 0 ? (
+          <p className="text-sm text-gray-600 dark:text-gray-300">
+            {classe === 'fii' ? TA.vazioFii : TA.vazioAcao}
+          </p>
+        ) : (
+          <>
+            {/* Computador: tabela */}
+            <div className={`${TABLE_STYLES.wrapper} hidden max-w-full lg:block`}>
+              <table className={`${TABLE_STYLES.table} min-w-max`}>
+                <caption className="sr-only">{formatarTexto(TP.caption, { ticker })}</caption>
+                <thead>
+                  <tr className={TABLE_STYLES.headRow} style={TABLE_HEADER_STYLE}>
                     <th
-                      key={c.codigo}
                       scope="col"
-                      className={`${TABLE_STYLES.compact.th} text-right`}
+                      className={`${TABLE_STYLES.compact.th} sticky left-0 z-10 text-left`}
+                      style={TABLE_HEADER_STYLE}
                     >
-                      {c.rotulo}
+                      {classe === 'fii' ? TA.colunas.fundo : C.ativo}
                     </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {itens.map((l, i) => {
-                  const proprio = i === 0;
-                  return (
+                    {colunas.map((c) => (
+                      <th
+                        key={c.codigo}
+                        scope="col"
+                        title={c.codigo === 'criterios' ? tituloCriterios : undefined}
+                        className={`${TABLE_STYLES.compact.th} ${c.codigo === 'criterios' ? 'text-center' : 'text-right'}`}
+                      >
+                        {c.rotulo}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {itens.map((l) => (
                     <tr
                       key={l.ticker}
                       data-par={l.ticker}
-                      data-proprio={proprio || undefined}
-                      onClick={proprio ? undefined : () => router.push(href(l.ticker))}
-                      className={`${TABLE_STYLES.row} ${proprio ? '' : `${TABLE_STYLES.rowHover} cursor-pointer`}`}
+                      onClick={() => router.push(href(l.ticker))}
+                      className={`${TABLE_STYLES.row} ${TABLE_STYLES.rowHover} cursor-pointer`}
                     >
                       <th
                         scope="row"
                         className={`${TABLE_STYLES.compact.td} sticky left-0 z-[1] text-left font-normal ${FUNDO_STICKY}`}
                       >
-                        {proprio ? (
-                          <span className="font-semibold text-gray-800 dark:text-white/90">
-                            {l.ticker}
-                            <span className="sr-only"> ({TP.proprio})</span>
-                          </span>
-                        ) : (
-                          <Link
-                            href={href(l.ticker)}
-                            onClick={(e) => e.stopPropagation()}
-                            className={`font-medium ${COR_LINK.classes}`}
-                          >
-                            {l.ticker}
-                          </Link>
-                        )}{' '}
+                        <Link
+                          href={href(l.ticker)}
+                          onClick={(e) => e.stopPropagation()}
+                          className={`inline-flex min-h-11 items-center font-medium ${COR_LINK.classes}`}
+                        >
+                          {l.ticker}
+                        </Link>{' '}
                         <span
+                          data-nome-ativo=""
                           title={l.nome}
-                          className="inline-block max-w-[11rem] truncate align-bottom text-gray-500 dark:text-gray-400"
+                          className="inline-block max-w-[11rem] truncate align-middle text-gray-500 dark:text-gray-400"
                         >
                           {l.nome}
                         </span>
                       </th>
                       {colunas.map((c) => {
+                        if (c.codigo === 'criterios') {
+                          return (
+                            <td
+                              key={c.codigo}
+                              data-criterios-par={l.ticker}
+                              className={`${TABLE_STYLES.compact.td} text-center`}
+                            >
+                              <CelulaCriterios
+                                criterios={l.criterios ?? null}
+                                ticker={l.ticker}
+                                rotulos={
+                                  l.criterios ? rotulosDoPerfil(l.criterios.perfil) : undefined
+                                }
+                              />
+                            </td>
+                          );
+                        }
                         const v = c.valor(l);
                         return (
                           <td
                             key={c.codigo}
                             title={v.title}
-                            className={`${TABLE_STYLES.compact.td} text-right tabular-nums ${proprio ? `${TABLE_STYLES.highlightTd} font-medium text-gray-800 dark:text-white/90` : ''} ${v.negativo ? TEXTO_NEGATIVO : ''}`}
+                            className={`${TABLE_STYLES.compact.td} text-right tabular-nums ${v.negativo ? TEXTO_NEGATIVO : ''}`}
                           >
                             {v.texto}
                           </td>
                         );
                       })}
                     </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-          {/* Celular: cartões */}
-          <ul
-            className="flex flex-col gap-2 lg:hidden"
-            aria-label={formatarTexto(TP.caption, { ticker })}
-          >
-            {itens.map((l, i) => {
-              const proprio = i === 0;
-              const conteudo = (
-                <>
-                  <div className="flex items-baseline justify-between gap-2">
-                    <span className="min-w-0 truncate">
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            {/* Celular: cartões */}
+            <ul
+              className="flex flex-col gap-2 lg:hidden"
+              aria-label={formatarTexto(TP.caption, { ticker })}
+            >
+              {itens.map((l) => (
+                <li key={l.ticker} data-par={l.ticker}>
+                  <Link
+                    href={href(l.ticker)}
+                    className="block min-h-11 rounded-xl border border-gray-200 px-3.5 py-3 active:bg-gray-100 dark:border-gray-800 dark:active:bg-white/[0.05]"
+                  >
+                    <span className="flex min-w-0 items-baseline gap-1.5">
+                      <span className={`font-semibold ${COR_LINK.classes}`}>{l.ticker}</span>
                       <span
-                        className={`font-semibold ${proprio ? 'text-gray-800 dark:text-white/90' : COR_LINK.classes}`}
+                        data-nome-ativo=""
+                        className="min-w-0 truncate text-xs text-gray-500 dark:text-gray-400"
                       >
-                        {l.ticker}
-                      </span>{' '}
-                      <span className="text-xs text-gray-500 dark:text-gray-400">{l.nome}</span>
-                    </span>
-                    {proprio ? (
-                      <span className="shrink-0 text-xs text-gray-500 dark:text-gray-400">
-                        {TP.proprio}
+                        {l.nome}
                       </span>
-                    ) : null}
-                  </div>
-                  <dl className="mt-2 grid grid-cols-3 gap-x-3 gap-y-1.5 max-[359px]:grid-cols-2">
-                    {colunas.map((c) => {
-                      const v = c.valor(l);
-                      return (
-                        <div key={c.codigo} className="min-w-0">
-                          <dt className="text-[11px] text-gray-500 dark:text-gray-400">
-                            {c.rotulo}
-                          </dt>
-                          <dd
-                            title={v.title}
-                            className={`text-[13.5px] font-medium tabular-nums ${v.negativo ? TEXTO_NEGATIVO : 'text-gray-800 dark:text-gray-100'}`}
-                          >
-                            {v.texto}
-                          </dd>
-                        </div>
-                      );
-                    })}
-                  </dl>
-                </>
-              );
-              return (
-                <li key={l.ticker} data-par={l.ticker} data-proprio={proprio || undefined}>
-                  {proprio ? (
-                    <div className="rounded-xl border border-gray-200 bg-[#0079F2]/[0.06] px-3.5 py-3 dark:border-gray-800 dark:bg-[#0079F2]/[0.16]">
-                      {conteudo}
-                    </div>
-                  ) : (
-                    <Link
-                      href={href(l.ticker)}
-                      className="block min-h-11 rounded-xl border border-gray-200 px-3.5 py-3 active:bg-gray-100 dark:border-gray-800 dark:active:bg-white/[0.05]"
-                    >
-                      {conteudo}
-                    </Link>
-                  )}
+                    </span>
+                    <dl className="mt-2 grid grid-cols-3 gap-x-3 gap-y-1.5 max-[359px]:grid-cols-2">
+                      {colunas.map((c) => {
+                        const v = c.valor(l);
+                        return (
+                          <div key={c.codigo} className="min-w-0">
+                            <dt className="text-[11px] text-gray-500 dark:text-gray-400">
+                              {c.codigo === 'criterios' ? tituloCriterios : c.rotulo}
+                            </dt>
+                            <dd
+                              title={v.title}
+                              className={`text-[13.5px] font-medium tabular-nums ${v.negativo ? TEXTO_NEGATIVO : 'text-gray-800 dark:text-gray-100'}`}
+                            >
+                              {v.texto}
+                            </dd>
+                          </div>
+                        );
+                      })}
+                    </dl>
+                  </Link>
                 </li>
-              );
-            })}
-          </ul>
-          {temIncompleto ? (
-            <p className="text-xs text-gray-500 dark:text-gray-400">{TP.notaIncompleto}</p>
-          ) : null}
-        </>
+              ))}
+            </ul>
+          </>
+        )
       ) : null}
     </CartaoAnalise>
   );

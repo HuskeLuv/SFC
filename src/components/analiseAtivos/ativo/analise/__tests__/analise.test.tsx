@@ -20,12 +20,13 @@ import ChipsGrupo from '../ChipsGrupo';
 import { TEXTOS_TELA } from '@/services/analiseAtivos/textosTela';
 import { TEXTOS_RAIO_X } from '@/services/analiseAtivos/textosRaioX';
 import { TEXTOS_ATIVO } from '@/services/analiseAtivos/textosAtivo';
+import { esperarDomLimpo } from '@/test/utils/varrerDom';
+import { CRITERIOS_LINHA_ITUB4 } from '@/test/fixtures/analiseAtivos/criterios';
 import { MOTIVO_PER_SHARE } from '@/services/analiseAtivos/regras/conferencia/conferenciaAnual';
 import {
   API_HGLG11,
   API_ITUB4,
   API_TGMA3,
-  API_WEGE3,
   FUNDAMENTOS_WEGE3,
   VALUATION_WEGE3,
 } from '@/test/fixtures/analiseAtivos/respostas';
@@ -79,8 +80,12 @@ const VALUATION: ValuationResposta = {
     },
   ],
   pares: {
-    criterio: TEXTOS_TELA.ativo.criterioParesAcao,
-    itens: [API_WEGE3, API_ITUB4, API_TGMA3],
+    criterio: 'mesmo segmento B3, depois mesmo subsetor · ordem A–Z · critérios em 5 anos',
+    // v2.4: só os pares (sem o próprio ativo), A–Z, com os critérios em 5 anos
+    itens: [
+      { ...API_ITUB4, indice: undefined, criterios: CRITERIOS_LINHA_ITUB4 },
+      { ...API_TGMA3, indice: undefined, criterios: null },
+    ],
   },
 };
 
@@ -331,30 +336,60 @@ describe('BlocoMultiplosHistoricos', () => {
 });
 
 describe('BlocoPares', () => {
-  it('próprio ativo primeiro e sem link; pares clicáveis; incompleto com asterisco', () => {
+  it('v2.4: só os pares (sem o próprio ativo), clicáveis, sem Índice e com a coluna Critérios', () => {
     mockHooks.useValuationAtivo.mockReturnValue(consulta(VALUATION));
-    render(<BlocoPares ticker="WEGE3" classe="acao" />);
+    const { container } = render(<BlocoPares ticker="WEGE3" classe="acao" />);
     const tabela = screen.getByRole('table');
+    const cols = within(tabela)
+      .getAllByRole('columnheader')
+      .map((c) => c.textContent);
+    expect(cols).toEqual(['Ativo', 'P/L', 'P/VP', 'ROE', 'DY 12m', 'Lucros seguidos', 'Critérios']);
     const linhas = within(tabela).getAllByRole('rowheader');
-    expect(linhas[0].textContent).toContain('WEGE3');
-    expect(within(linhas[0]).queryByRole('link')).toBeNull();
-    const link = within(linhas[1]).getByRole('link', { name: 'ITUB4' });
+    expect(linhas.map((l) => within(l).getByRole('link').textContent)).toEqual(['ITUB4', 'TGMA3']);
+    expect(container.querySelector('[data-par="WEGE3"]')).toBeNull();
+    expect(container.querySelector('[data-proprio]')).toBeNull();
+    const link = within(linhas[0]).getByRole('link', { name: 'ITUB4' });
     expect(link.getAttribute('href')).toBe('/analise-ativos/ITUB4');
-    fireEvent.click(linhas[2].closest('tr')!);
+    expect(link.className).toContain('min-h-11');
+    fireEvent.click(linhas[1].closest('tr')!);
     expect(mockPush).toHaveBeenCalledWith('/analise-ativos/TGMA3');
-    expect(within(tabela).getByText(/\*$/)).toBeTruthy();
-    expect(screen.getByText(TEXTOS_TELA.analise.pares.notaIncompleto)).toBeTruthy();
-    expect(screen.getByText(TEXTOS_TELA.ativo.criterioParesAcao)).toBeTruthy();
+    // critérios: botão neutro 'n de k' que NÃO abre a linha; sem avaliação = '—'
+    mockPush.mockClear();
+    const celula = within(
+      container.querySelector('[data-criterios-par="ITUB4"]') as HTMLElement,
+    ).getByRole('button');
+    expect(celula.textContent).toContain('de 3');
+    fireEvent.click(celula);
+    expect(mockPush).not.toHaveBeenCalled();
+    expect(container.querySelector('[data-criterios-par="TGMA3"]')?.textContent).toContain('—');
+    // nome vindo do banco fica fora da varredura; o resto do card passa na linguagemV2
+    expect(linhas[0].querySelector('[data-nome-ativo]')?.textContent).toBe(API_ITUB4.nome);
+    expect(container.textContent).not.toMatch(/Índice/);
+    esperarDomLimpo(container);
+    expect(screen.getByText(VALUATION.pares.criterio)).toBeTruthy();
+  });
+
+  it('FII de tijolo: Fundo · DY 12m · P/VP · Vacância (CVM) · Patrimônio · Critérios', () => {
+    mockHooks.useValuationAtivo.mockReturnValue(
+      consulta({
+        ...VALUATION,
+        pares: { criterio: 'x', itens: [{ ...API_HGLG11, ticker: 'BTLG11', indice: undefined }] },
+      }),
+    );
+    render(<BlocoPares ticker="HGLG11" classe="fii" />);
+    expect(
+      within(screen.getByRole('table'))
+        .getAllByRole('columnheader')
+        .map((c) => c.textContent),
+    ).toEqual(['Fundo', 'DY 12m', 'P/VP', 'Vacância (CVM)', 'Patrimônio', 'Critérios']);
   });
 
   it('sem pares: texto próprio', () => {
     mockHooks.useValuationAtivo.mockReturnValue(
-      consulta({
-        ...VALUATION,
-        pares: { criterio: TEXTOS_TELA.ativo.criterioParesFii, itens: [API_HGLG11] },
-      }),
+      consulta({ ...VALUATION, pares: { criterio: 'x', itens: [] } }),
     );
     render(<BlocoPares ticker="HGLG11" classe="fii" />);
-    expect(screen.getByText(TEXTOS_TELA.ativo.semPares)).toBeTruthy();
+    expect(screen.getByText(TEXTOS_ATIVO.pares.vazioFii)).toBeTruthy();
+    expect(screen.queryByRole('table')).toBeNull();
   });
 });

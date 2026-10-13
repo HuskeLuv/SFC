@@ -13,6 +13,8 @@ const mockLeitor = vi.hoisted(() => ({
   versaoQuadro: vi.fn(),
 }));
 const mockAcoes = vi.hoisted(() => ({ fundamentosVigentes: vi.fn() }));
+const mockCriterios = vi.hoisted(() => ({ obterCriteriosVarios: vi.fn() }));
+vi.mock('@/services/analiseAtivos/leitura/criterios/lerCriterios', () => mockCriterios);
 vi.mock('@/lib/prisma', () => ({ prisma: mockPrisma, default: mockPrisma }));
 vi.mock('@/services/analiseAtivos/leitura/linhasQuadro', async (orig) => {
   const real = await orig<typeof import('@/services/analiseAtivos/leitura/linhasQuadro')>();
@@ -34,6 +36,7 @@ import { paraLinhaQuadroApi } from '@/services/analiseAtivos/leitura/linhasQuadr
 import { TEXTOS_TELA } from '@/services/analiseAtivos/textosTela';
 import { encontrarPalavrasProibidas } from '@/services/analiseAtivos/textos';
 import { linhaQuadroDb } from '@/test/fixtures/analiseAtivos/linhasDb';
+import { CRITERIOS_LINHA_WEGE3 } from '@/test/fixtures/analiseAtivos/criterios';
 import type { AnaliseQuadroLinha } from '@prisma/client';
 import type { Estado, ItemValuation, ValuationResposta } from '@/types/analiseAtivosApi';
 
@@ -449,17 +452,21 @@ describe('montarValuation (ações)', () => {
     expect(r.historicos[0].media).toBeCloseTo(33, 5); // 2016–2025: 24..42, passo 2
   });
 
-  it('pares: próprio ativo primeiro; linhas enxutas (sem série) e critério', () => {
+  it('v2.4: pares sem o próprio ativo, em ordem A–Z, enxutos, sem Índice e com critérios', () => {
     const r = montarValuation({
       hoje: HOJE,
       alvo: wege(),
-      pares: [par('A3', 10)],
+      pares: [par('C3', 8), par('A3', 10), par('B3', 12)],
       criterioPares: TEXTOS_TELA.ativo.criterioParesAcao,
+      criteriosPares: new Map([['A3', CRITERIOS_LINHA_WEGE3]]),
     });
-    expect(r.pares.itens.map((l) => l.ticker)).toEqual(['WEGE3', 'A3']);
+    expect(r.pares.itens.map((l) => l.ticker)).toEqual(['A3', 'B3', 'C3']);
     expect(r.pares.itens[0].serie10a).toEqual([]);
+    expect(r.pares.itens[0].criterios).toEqual(CRITERIOS_LINHA_WEGE3);
+    expect(r.pares.itens[1].criterios).toBeNull();
+    for (const l of r.pares.itens) expect(l).not.toHaveProperty('indice');
     expect(r.pares.criterio).toBe(TEXTOS_TELA.ativo.criterioParesAcao);
-    expect(linhaParEnxuta(r.pares.itens[1]).ticker).toBe('A3');
+    expect(linhaParEnxuta(r.pares.itens[1]).ticker).toBe('B3');
   });
 
   it('nenhuma referência a índice de mercado e nenhuma palavra proibida', () => {
@@ -608,9 +615,20 @@ describe('obterValuation', () => {
     );
     mockAcoes.fundamentosVigentes.mockResolvedValue([]);
 
+    mockCriterios.obterCriteriosVarios.mockResolvedValue(
+      new Map([['SHUL4', { ...CRITERIOS_LINHA_WEGE3, n: 2 }]]),
+    );
+
     const r1 = await obterValuation('WEGE3', HOJE);
     expect(r1?.cache).toBe(false);
-    expect(r1?.dados.pares.itens.map((l) => l.ticker)).toEqual(['WEGE3', 'SHUL4']);
+    // v2.4: só os pares (A–Z), com os critérios em 5 anos lidos de criteria_eval
+    expect(r1?.dados.pares.itens.map((l) => l.ticker)).toEqual(['SHUL4']);
+    expect(r1?.dados.pares.itens[0].criterios?.n).toBe(2);
+    expect(mockCriterios.obterCriteriosVarios).toHaveBeenCalledWith(mockPrisma, ['SHUL4'], 5);
+    expect(r1?.dados.pares.criterio).toBe(
+      'mesmo segmento B3, depois mesmo subsetor · ordem A–Z · critérios em 5 anos',
+    );
+    expect(JSON.stringify(r1?.dados)).not.toMatch(/"[^"]*(indice|semaforo|destaque)[^"]*":/i);
     expect(mockPrisma.assetMultiplesCurrent.findMany).toHaveBeenCalledWith(
       expect.objectContaining({ where: { symbol: { in: ['WEGE3', 'SHUL4'] } } }),
     );

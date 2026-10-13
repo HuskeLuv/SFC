@@ -76,13 +76,20 @@ export const TEXTOS_ATIVO = {
 
   /** Pares (§3.2 bloco 7): sem Índice, com a coluna Critérios (janela 5). */
   pares: {
-    criterios: 'Critérios',
+    colunas: {
+      fundo: 'Fundo',
+      criterios: 'Critérios',
+      vacancia: 'Vacância (CVM)',
+      nCri: 'Nº CRIs (CVM)',
+    },
+    /** nome acessível da coluna Critérios ('Critérios de fundamentos em 5 anos') */
     criteriosTitulo: 'Critérios de fundamentos em {anos} anos',
-    subAcao: 'mesmo segmento B3, depois mesmo setor · ordem A–Z · critérios em {anos} anos',
-    subFii: 'mesmo tipo · ordem A–Z · critérios em {anos} anos',
+    /** célula sem avaliação ainda */
+    criteriosSem: 'sem avaliação',
+    subAcao: 'mesmo segmento B3, depois mesmo subsetor · ordem A–Z · critérios em {anos} anos',
+    subFii: 'mesmo segmento CVM e mesmo tipo · ordem A–Z · critérios em {anos} anos',
     vazioAcao: 'Nenhum outro ativo do mesmo segmento no Quadro.',
     vazioFii: 'Nenhum outro fundo do mesmo tipo no Quadro.',
-    semAvaliacao: '—',
   },
 } as const;
 
