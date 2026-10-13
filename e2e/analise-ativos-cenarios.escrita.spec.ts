@@ -116,12 +116,13 @@ test.describe('Meus cenários grava e desfaz', () => {
     const card = await abrirCenarios(page, 'WEGE3');
     const slider = card.locator('[data-slider-margem]');
     await slider.focus();
+    // v2.4: premissas em branco, margem começa em 0 (passo 5)
     await page.keyboard.press('ArrowRight');
-    await expect(slider).toHaveValue('25');
-    await expect(slider).toHaveAttribute('aria-valuetext', '25%');
+    await page.keyboard.press('ArrowRight');
+    await expect(slider).toHaveValue('10');
+    await expect(slider).toHaveAttribute('aria-valuetext', '10%');
     await page.keyboard.press('ArrowLeft');
-    await page.keyboard.press('ArrowLeft');
-    await expect(slider).toHaveValue('15');
+    await expect(slider).toHaveValue('5');
 
     const cor = await card
       .locator('[data-vs-cotacao]')
