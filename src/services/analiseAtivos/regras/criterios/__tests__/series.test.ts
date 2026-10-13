@@ -197,6 +197,35 @@ describe('seriesAcao (DFP/CVM)', () => {
     expect(comCaixa.dlEbitda).toBe(0);
     expect(valoresAnoAcao({ ...base, receita: 0 }).margemLiquida).toBeNull();
   });
+
+  it('receita ≤ 0 = sem dado (BBSE3: não vira "0 → 0"); receita ≤ lucro = margem sem dado (holding)', () => {
+    const base = fysVigentesPorAno(acao('WEGE3').fys, 'con').get(2025)!;
+    const zero = valoresAnoAcao({ ...base, receita: 0 });
+    expect(zero.receita).toBeNull();
+    expect(zero.margemLiquida).toBeNull();
+    expect(valoresAnoAcao({ ...base, receita: 5e9, naoSeAplica: ['receita'] }).receita).toBeNull();
+    // ITUB4 individual 2025: receita 30,68 bi e lucro 45,66 bi → margem de 148,8% não entra
+    const holding = valoresAnoAcao({
+      ...base,
+      receita: 30_680_000_000,
+      lucroLiquido: 45_659_000_000,
+      lucroAtribuivel: 45_659_000_000,
+    });
+    expect(holding.receita).toBeCloseTo(30_680, 6);
+    expect(holding.margemLiquida).toBeNull();
+  });
+
+  it('lucro atribuível com sinal oposto ao líquido (AZUL3 2023) = lucro e margem sem dado', () => {
+    const base = fysVigentesPorAno(acao('WEGE3').fys, 'con').get(2025)!;
+    const v = valoresAnoAcao({
+      ...base,
+      receita: 18_558_000_000,
+      lucroLiquido: -2_380_456_000,
+      lucroAtribuivel: 2_340_930_000,
+    });
+    expect(v.lucroLiquido).toBeNull();
+    expect(v.margemLiquida).toBeNull();
+  });
 });
 
 describe('seriesFii (informes CVM + proventos auditados)', () => {

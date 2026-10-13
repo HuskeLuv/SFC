@@ -240,6 +240,30 @@ describe('montarFundamentosAcao', () => {
     expect(valor(linha(r, '2025').valores.margem)).toBeCloseTo(17.3333, 3);
   });
 
+  it('margem: receita ≤ lucro (holding / banco no individual) = não se aplica, nunca 148,8%', () => {
+    const r = montarFundamentosAcao(
+      entradaWege({
+        fys: ANOS.map((a) =>
+          periodo(a, { receita: 30_680e6, lucroLiquido: 45_659e6, lucroAtribuivel: 45_659e6 }),
+        ),
+        multiplos: ANOS.map((a) => ({
+          anoFiscal: a,
+          pl: 20,
+          pvp: 4,
+          dyPct: 1.5,
+          roePct: 18,
+          margemLiquidaPct: null,
+          payoutPct: 50,
+        })),
+      }),
+      V24,
+    );
+    expect(linha(r, '2025').valores.margem).toMatchObject({
+      estado: 'nao_se_aplica',
+      motivo: 'receita_menor_que_lucro',
+    });
+  });
+
   it('Div./ação > 2× o ano anterior com payout > 150%: selo de proventos em conferência + nota', () => {
     const r = montarFundamentosAcao(entradaWege(), V24);
     expect(linha(r, '2025').selos).toEqual(['proventos_em_conferencia']);

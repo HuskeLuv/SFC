@@ -6,7 +6,8 @@
  *    repositorio/acoes.fundamentosVigentes, lendo SÓ as colunas usadas (lotes de 50 no job);
  *  - receita = FY.receita; lucroLiquido = lucro atribuível aos controladores (lucroParaSequencia,
  *    regra 12: controladora_zero ⇒ o do individual) — D2;
- *  - ebitda = EBIT + D&A (multiplos.ebitda); margemLiquida = lucro ÷ receita (receita ≤ 0 = ausente);
+ *  - receita ≤ 0 = ausente; ebitda = EBIT + D&A (multiplos.ebitda); margemLiquida = lucro ÷ receita
+ *    (receita ≤ lucro = ausente, regra 15 'receita_menor_que_lucro');
  *  - dlEbitda = (dívida bruta − caixa − aplicações) ÷ EBITDA (multiplos.dividaLiquida); EBITDA ≤ 0
  *    com DL ≤ 0 = 0 (caixa líquido, dentro); EBITDA ≤ 0 com DL > 0 = +Infinity (avaliarCriterio:
  *    'EBITDA ≤ 0 em AAAA');
@@ -117,7 +118,11 @@ export function valoresAnoAcao(
 > {
   const lucroV = lucroParaSequencia(f);
   const lucro = lucroV.estado === 'ok' ? lucroV.valor : null;
-  const receita = f.receita;
+  // receita ≤ 0 (ou marcada 'não se aplica' na ingestão) = ausente, como no regraReceita dos múltiplos
+  const receita =
+    typeof f.receita === 'number' && f.receita > 0 && !f.naoSeAplica.includes('receita')
+      ? f.receita
+      : null;
   // colunas que EBITDA e dívida líquida não leem ficam nulas (a leitura do job não as traz)
   const base: BaseFundamentos = {
     ...f,
@@ -138,8 +143,10 @@ export function valoresAnoAcao(
     receita: emMi(receita),
     lucroLiquido: emMi(lucro),
     ebitda: eb.estado === 'ok' ? emMi(eb.valor) : null,
+    // receita ≤ lucro (holding / banco no individual) = ausente: margem acima de 100% não é fato útil
+    // (regra 15, receita_menor_que_lucro, a mesma dos múltiplos e do Essencial)
     margemLiquida:
-      lucro !== null && typeof receita === 'number' && receita > 0 ? (lucro / receita) * 100 : null,
+      lucro !== null && receita !== null && receita > lucro ? (lucro / receita) * 100 : null,
     dlEbitda,
     fcl: f.fco !== null && f.capex !== null ? emMi(f.fco - f.capex) : null,
   };

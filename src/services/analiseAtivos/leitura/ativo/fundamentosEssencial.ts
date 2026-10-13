@@ -321,7 +321,11 @@ function derivadasDoPeriodo(
   };
 }
 
-/** Margem líquida do ano: o múltiplo gravado; sem ele, lucro ÷ receita (receita > 0). */
+/**
+ * Margem líquida do ano: o múltiplo gravado; sem ele, lucro ÷ receita (receita > 0). Receita ≤ lucro
+ * (holding / banco no individual) = 'não se aplica' (regra 15), nunca a conta de lado: o múltiplo
+ * vem nulo justamente por isso e a margem acima de 100% contradizia o card de critérios.
+ */
 function margemDe(
   pct: number | null | undefined,
   lucro: Estado<number>,
@@ -329,7 +333,9 @@ function margemDe(
 ): Estado<number> {
   if (finito(pct)) return ok(pct);
   if (lucro.estado === 'ok' && finito(receita) && receita > 0) {
-    return ok(((lucro.valor * 1e9) / receita) * 100);
+    const lucroReais = lucro.valor * 1e9;
+    if (receita <= lucroReais) return naoSeAplicaCom('receita_menor_que_lucro');
+    return ok((lucroReais / receita) * 100);
   }
   return semDado();
 }
