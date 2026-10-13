@@ -281,6 +281,8 @@ export type NomeJob =
   | 'quadro'
   // bloco C: fila de curadoria (casos de regra + digest de prazo)
   | 'curadoria'
+  // v2.4: Filtros de Fundamentos (criteria_eval + cópia compacta no Quadro; fatia A registra)
+  | 'criterios'
   | `backfill:${string}`;
 export interface AlertaJob {
   codigo: string;
