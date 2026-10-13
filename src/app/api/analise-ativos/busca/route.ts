@@ -7,7 +7,8 @@ import type { BuscaIndiceResposta, ItemBusca } from '@/types/analiseAtivosApi';
 
 /**
  * GET /api/analise-ativos/busca — índice compacto de TODAS as linhas (inclusive fora do Quadro,
- * com o motivo). O filtro roda no cliente (BuscaAtivos). Só banco.
+ * com o motivo): itens {t, n, c, q, f, m}, sem i/e (v2.4). O filtro roda no cliente (BuscaAtivos).
+ * Só banco.
  * ETag = versão das linhas → 304 com If-None-Match; Cache-Control: private, max-age=3600.
  * 404 sem acesso (o acesso é checado antes do 304: quem saiu do beta não reaproveita o cache).
  */
@@ -18,7 +19,8 @@ const CACHE = 'private, max-age=3600';
 /** Índice memorizado por versão (troca quando o job grava uma versão nova). */
 let memo: { versao: string; itens: ItemBusca[] } | null = null;
 
-const etagDe = (versao: string) => `"busca-${versao}"`;
+/** 'v2' no ETag: o formato mudou na v2.4 (sem i/e); quem tinha o índice antigo em cache recarrega. */
+const etagDe = (versao: string) => `"busca-v2-${versao}"`;
 
 export const GET = withErrorHandler(async (request: NextRequest) => {
   await exigirAcessoAnalise(request);

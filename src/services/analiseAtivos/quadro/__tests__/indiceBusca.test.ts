@@ -14,8 +14,6 @@ const extra: LinhaParaBusca[] = [
     nome: 'Petróleo Brasileiro S.A. Petrobras',
     classe: 'acao',
     noQuadro: true,
-    indiceMf: 7.1,
-    estadoIndice: 'calculado',
     fiiTipo: null,
     foraDoQuadroMotivo: null,
   },
@@ -24,8 +22,6 @@ const extra: LinhaParaBusca[] = [
     nome: 'Petróleo Brasileiro S.A. Petrobras',
     classe: 'acao',
     noQuadro: true,
-    indiceMf: 7,
-    estadoIndice: 'calculado',
     fiiTipo: null,
     foraDoQuadroMotivo: null,
   },
@@ -34,8 +30,6 @@ const extra: LinhaParaBusca[] = [
     nome: 'Itaúsa S.A.',
     classe: 'acao',
     noQuadro: true,
-    indiceMf: 8,
-    estadoIndice: 'calculado',
     fiiTipo: null,
     foraDoQuadroMotivo: null,
   },
@@ -44,8 +38,6 @@ const extra: LinhaParaBusca[] = [
     nome: 'CSHG Prime Offices',
     classe: 'fii',
     noQuadro: false,
-    indiceMf: 5,
-    estadoIndice: 'calculado',
     fiiTipo: 'tijolo',
     foraDoQuadroMotivo: 'sem_negociacao_30',
   },
@@ -54,8 +46,6 @@ const extra: LinhaParaBusca[] = [
     nome: 'Outra Weg',
     classe: 'acao',
     noQuadro: true,
-    indiceMf: 1,
-    estadoIndice: 'calculado',
     fiiTipo: null,
     foraDoQuadroMotivo: null,
   },
@@ -69,9 +59,20 @@ describe('indiceBusca', () => {
     const cedo = INDICE.find((i) => i.t === 'CEDO4');
     expect(cedo).toMatchObject({ c: 'acao', q: false, m: 'sem_negociacao_30' });
     const hctr = INDICE.find((i) => i.t === 'HCTR11');
-    expect(hctr).toMatchObject({ c: 'fii', q: true, i: null, e: 'sem_score', f: 'papel', m: null });
-    expect(INDICE.find((i) => i.t === 'HFOF11')?.i).toBeNull();
-    expect(INDICE.find((i) => i.t === 'WEGE3')?.i).toBe(9.01);
+    expect(hctr).toEqual({
+      t: 'HCTR11',
+      n: hctr!.n,
+      c: 'fii',
+      q: true,
+      f: 'papel',
+      m: null,
+    });
+  });
+
+  it('v2.4: nenhum item traz i/e nem chave do indicador antigo', () => {
+    for (const item of INDICE) {
+      expect(Object.keys(item).sort()).toEqual(['c', 'f', 'm', 'n', 'q', 't']);
+    }
   });
 
   it("'weg': prefixo do ticker primeiro", () => {

@@ -21,6 +21,7 @@ vi.mock('@/hooks/useAnaliseAtivos', () => ({
 
 import BuscaAtivos from '../BuscaAtivos';
 import { BUSCA, OVERLAY_CARTEIRA } from '@/test/fixtures/analiseAtivos/respostas';
+import { esperarDomLimpo } from '@/test/utils/varrerDom';
 
 const campo = () => screen.getByRole('combobox', { name: 'Buscar ativo' });
 const digitar = (v: string) => {
@@ -167,5 +168,17 @@ describe('BuscaAtivos', () => {
       expect(campo()).toBeInTheDocument();
       expect(screen.queryByRole('button', { name: /buscar/i })).not.toBeInTheDocument();
     });
+  });
+
+  it('v2.4: sem o indicador antigo nos itens, mesmo com índice em cache que ainda traga i/e', () => {
+    const antigo = {
+      ...BUSCA,
+      itens: BUSCA.itens.map((i) => ({ ...i, i: 9.01, e: 'calculado' })),
+    };
+    dados.indice = { data: antigo, isPending: false };
+    const { container } = render(<BuscaAtivos variante="cabecalho" />);
+    digitar('weg');
+    expect(screen.getByRole('listbox').textContent).not.toMatch(/Índice|9,0/);
+    esperarDomLimpo(container);
   });
 });
