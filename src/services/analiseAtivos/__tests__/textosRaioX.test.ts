@@ -1,9 +1,10 @@
+/**
+ * Textos do Raio-X (Bloco D) + regras comuns da varredura do Bloco D. Dividido de
+ * textosBlocoD.test.ts na fatia 0 da v2.4 (mesmas asserções). Sem dono depois da fatia 0: a F só lê.
+ */
 import { describe, expect, it } from 'vitest';
 import { TEXTOS_RAIO_X } from '@/services/analiseAtivos/textosRaioX';
-import { RODAPE_CENARIOS, TEXTOS_CENARIOS } from '@/services/analiseAtivos/textosCenarios';
-import { TEXTOS_COMPARADOR } from '@/services/analiseAtivos/textosComparador';
-import { TEXTOS_ENTRADAS_COMPARADOR } from '@/services/analiseAtivos/textosEntradasComparador';
-import { TEXTOS_ANALISE, formatarTexto } from '@/services/analiseAtivos/textos';
+import { formatarTexto } from '@/services/analiseAtivos/textos';
 import { PLACEHOLDERS_PERMITIDOS } from '@/services/analiseAtivos/textosTela';
 import {
   PALAVRAS_PROIBIDAS_BLOCO_D,
@@ -12,21 +13,12 @@ import {
   folhasTexto,
 } from '@/services/analiseAtivos/regras/comum/varreduraTextos';
 
-const OBJETOS = {
-  TEXTOS_RAIO_X,
-  TEXTOS_CENARIOS,
-  TEXTOS_COMPARADOR,
-  TEXTOS_ENTRADAS_COMPARADOR,
-} as const;
-
-const TODAS = Object.entries(OBJETOS).flatMap(([nome, obj]) => folhasTexto(obj, nome));
+const TODAS = folhasTexto(TEXTOS_RAIO_X, 'TEXTOS_RAIO_X');
 const PERMITIDOS: readonly string[] = [...PLACEHOLDERS_PERMITIDOS, ...PLACEHOLDERS_BLOCO_D];
 
-describe('textos do bloco D', () => {
-  it('os 4 objetos têm textos (sanidade da varredura)', () => {
-    for (const [nome, obj] of Object.entries(OBJETOS)) {
-      expect(folhasTexto(obj).length, nome).toBeGreaterThan(10);
-    }
+describe('textos do Raio-X (bloco D)', () => {
+  it('o objeto tem textos (sanidade da varredura)', () => {
+    expect(folhasTexto(TEXTOS_RAIO_X).length).toBeGreaterThan(10);
   });
 
   it('lista do bloco D inclui a da Fase 1 (com nota/notas) e o vocabulário de placar', () => {
@@ -56,7 +48,7 @@ describe('textos do bloco D', () => {
     expect(encontrarPalavrasProibidasBlocoD('potencialmente')).toEqual([]);
   });
 
-  it('nenhuma palavra proibida do bloco D em nenhuma folha dos 4 objetos', () => {
+  it('nenhuma palavra proibida do bloco D em nenhuma folha', () => {
     const achados = TODAS.map(([k, v]) => [k, encontrarPalavrasProibidasBlocoD(v)] as const).filter(
       ([, p]) => p.length > 0,
     );
@@ -79,11 +71,6 @@ describe('textos do bloco D', () => {
     }
   });
 
-  it('decisão 14: rodapé dos cenários é o rodapeValuation literal (fora da varredura)', () => {
-    expect(RODAPE_CENARIOS).toBe(TEXTOS_ANALISE.rodapeValuation);
-    expect(TODAS.map(([, v]) => v)).not.toContain(TEXTOS_ANALISE.rodapeValuation);
-  });
-
   it('decisão 3: linha da taxa de adm. do FII no Raio-X com o rótulo "% do PL no ano"', () => {
     expect(TEXTOS_RAIO_X.linhas.taxaAdmAnoPct.rotulo).toBe('Taxa de adm. (% do PL no ano)');
     expect(TEXTOS_RAIO_X.linhas.taxaAdmAnoPct.sub).toContain('12 meses');
@@ -97,16 +84,5 @@ describe('textos do bloco D', () => {
         termo,
       ).toEqual([]);
     }
-  });
-
-  it('decisão 9: Resumo sem placar (sem "maior", sem contagem de ★)', () => {
-    const resumo = folhasTexto(TEXTOS_COMPARADOR.resumo).map(([, v]) => v);
-    expect(resumo.filter((v) => /\bmaior\b|★/i.test(v))).toEqual([]);
-    expect(TEXTOS_COMPARADOR.resumo.responsabilidade).toContain('Não indicam qual ativo escolher');
-  });
-
-  it('★ sempre acompanhado de texto ("destaque")', () => {
-    expect(TEXTOS_COMPARADOR.destaque.rotulo).toBe('destaque');
-    expect(TEXTOS_COMPARADOR.destaque.srOnly).toMatch(/^destaque: /);
   });
 });
