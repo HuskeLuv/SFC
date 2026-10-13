@@ -4,12 +4,14 @@
  * Banner do beta (fatia 0b; decisão 12): só dentro da área, dispensável com "Entendi". Dispensado,
  * não volta por 30 dias (localStorage, por navegador). A palavra "Suporte" do texto vira link para
  * o e-mail do suporte (canal para avisar número errado, no lugar do "reportar dado").
+ * v2.4 (fatia B): embaixo do texto, o aviso curto literal 'aviso-banner' (data-texto-legal, §9).
  * Antes de ler o localStorage (SSR/hidratação) não renderiza nada, para não piscar para quem já
  * dispensou. localStorage indisponível (aba privada, bloqueio) = mostra o banner.
  */
 import { useEffect, useState } from 'react';
 import { COR_LINK } from '@/constants/analiseAtivosVisual';
 import { TEXTOS_TELA } from '@/services/analiseAtivos/textosTela';
+import { AVISO_BANNER } from '@/services/analiseAtivos/textosLiterais';
 import type { BannerNovidadeProps } from '@/types/analiseAtivosApi';
 
 export type { BannerNovidadeProps };
@@ -80,6 +82,12 @@ export default function BannerNovidade({ className }: BannerNovidadeProps) {
     >
       <p className="min-w-[200px] flex-1 py-1">
         <b className="font-semibold">{t.titulo}</b> <TextoComSuporte texto={t.texto} />
+        <small
+          data-texto-legal={AVISO_BANNER.id}
+          className="mt-0.5 block text-xs text-[#314666]/80 dark:text-[#EAEAEA]/80"
+        >
+          {AVISO_BANNER.texto}
+        </small>
       </p>
       <button
         type="button"

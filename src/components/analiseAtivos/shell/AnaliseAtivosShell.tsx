@@ -3,6 +3,7 @@
 /**
  * Casca da área (dono: 0a). 'quadro': título "Análise de Ativos" + pílula Beta, subtítulo neutro,
  * busca, banner do beta; 'ativo': "Voltar ao Quadro" + busca compacta. Rodapé legal nos dois.
+ * v2.4 (fatia B): subtítulo sem o indicador antigo (textosQuadro) e aviso legal único provisório.
  * O gate (flag/beta) fica no layout server; aqui só a apresentação.
  *
  * Bloco D (fatia D): PilulasArea "Quadro | Comparador" embaixo do subtítulo do 'quadro' e no ramo
@@ -17,6 +18,7 @@ import RodapeLegal from '@/components/analiseAtivos/shell/RodapeLegal';
 import { COR_LINK } from '@/constants/analiseAtivosVisual';
 import { TEXTOS_ENTRADAS_COMPARADOR } from '@/services/analiseAtivos/textosEntradasComparador';
 import { TEXTOS_TELA } from '@/services/analiseAtivos/textosTela';
+import { TEXTOS_QUADRO } from '@/services/analiseAtivos/textosQuadro';
 import type { AnaliseAtivosShellProps } from '@/types/analiseAtivosApi';
 
 export default function AnaliseAtivosShell({ children, variante }: AnaliseAtivosShellProps) {
@@ -33,7 +35,9 @@ export default function AnaliseAtivosShell({ children, variante }: AnaliseAtivos
                   {t.pilulaBeta}
                 </span>
               </h1>
-              <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{t.subtitulo}</p>
+              <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                {TEXTOS_QUADRO.subtitulo}
+              </p>
               <PilulasArea ativa="quadro" className="mt-3" />
             </div>
             <BuscaAtivos variante="cabecalho" className="w-full lg:w-[420px]" />
