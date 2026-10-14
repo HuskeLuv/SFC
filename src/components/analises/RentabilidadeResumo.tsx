@@ -5,6 +5,7 @@ import { useCarteiraResumoContext } from '@/context/CarteiraResumoContext';
 import { useIndices } from '@/hooks/useIndices';
 import { useCarteiraHistorico } from '@/hooks/useCarteiraHistorico';
 import { inicioUltimosNMeses } from '@/utils/periodWindow';
+import { isNonBusinessDayB3 } from '@/utils/feriadosB3';
 import dynamic from 'next/dynamic';
 import { ApexOptions } from 'apexcharts';
 import ErrorBoundary from '@/components/common/ErrorBoundary';
@@ -28,6 +29,27 @@ export const dropCurrentDay = <T extends { date: number }>(series: T[]): T[] => 
   const todayUtc = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
   const drop = series.filter((item) => item.date < todayUtc);
   return drop.length > 0 ? drop : series;
+};
+
+const DIA_MS = 24 * 60 * 60 * 1000;
+// Brasil sem horário de verão desde 2019: "hoje" do usuário = UTC-3.
+const OFFSET_BRASILIA_MS = 3 * 60 * 60 * 1000;
+
+/**
+ * Dias úteis B3 já fechados depois do último ponto (`fimTs`, meia-noite UTC)
+ * e antes de hoje em Brasília — dias que já deveriam ter dado. Fim de semana e
+ * feriado não contam, nem o dia de hoje (ainda não fechou): sexta 09/10 vista
+ * na terça 13/10 depois do feriado de 12/10 dá 0, não "4 dias atrás".
+ */
+export const diasUteisDefasados = (fimTs: number, agora: number = Date.now()): number => {
+  const b = new Date(agora - OFFSET_BRASILIA_MS);
+  const hoje = Date.UTC(b.getUTCFullYear(), b.getUTCMonth(), b.getUTCDate());
+  let dias = 0;
+  // Teto de 400 dias corridos: além disso a defasagem já é evidente.
+  for (let d = fimTs + DIA_MS, i = 0; d < hoje && i < 400; d += DIA_MS, i++) {
+    if (!isNonBusinessDayB3(d)) dias++;
+  }
+  return dias;
 };
 
 /** Último valor com date <= ref (mesma semântica do twrAt do backend). */
@@ -179,14 +201,10 @@ export default function RentabilidadeResumo({
     return new Date(fimTs).toLocaleDateString('pt-BR', { timeZone: 'UTC' });
   }, [fimTs]);
 
-  // Dados defasados (> 5 dias sem ponto novo): sinaliza em vez de esconder —
-  // era o sintoma "ACUMULADO EM 03/08" 11 dias depois, sem nenhum aviso.
-  const diasDefasado = useMemo(() => {
-    if (fimTs == null) return 0;
-    const now = new Date();
-    const todayUtc = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
-    return Math.floor((todayUtc - fimTs) / (24 * 60 * 60 * 1000));
-  }, [fimTs]);
+  // Dados defasados (> 3 dias úteis sem ponto novo): sinaliza em vez de esconder —
+  // era o sintoma "ACUMULADO EM 03/08" 11 dias depois, sem nenhum aviso. Conta
+  // dias úteis B3 (feriado prolongado não é atraso).
+  const diasDefasado = useMemo(() => (fimTs == null ? 0 : diasUteisDefasados(fimTs)), [fimTs]);
 
   // Calcular rentabilidades por período (janelas mês-calendário, padrão do app).
   // Bordas em UTC — as datas das séries são meia-noite UTC; bordas locais em
@@ -419,10 +437,10 @@ export default function RentabilidadeResumo({
             {dataReferencia ? ` · em ${dataReferencia}` : ''}
           </div>
         ) : null}
-        {diasDefasado > 5 && !fimPersonalizado ? (
+        {diasDefasado > 3 && !fimPersonalizado ? (
           <div className="rounded-lg border border-yellow-200 bg-yellow-50 p-2 text-center text-xs text-yellow-800 dark:border-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-300">
-            Dados calculados até {dataReferencia} ({diasDefasado} dias atrás) — a atualização diária
-            pode estar pendente.
+            Dados calculados até {dataReferencia} ({diasDefasado} dias úteis sem atualização) — a
+            atualização diária pode estar pendente.
           </div>
         ) : null}
         <div className="grid grid-cols-3 gap-4 max-lg:gap-2">
