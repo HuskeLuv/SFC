@@ -9,6 +9,11 @@
  * Linguagem: todos os valores passam por linguagemV2 (teste textosCriterios.test.ts): sem nota,
  * Índice, semáforo, destaque, vencedor, melhor/pior, falta(m), compre/venda, recomend*. A marca é
  * ✓ / — / n/a em tinta neutra, nunca cor semântica. Placeholders {chave} via formatarTexto.
+ *
+ * v2.5 (fatia 0, CONGELADOS para as fatias A/B/C): sai o texto dos informes de FII "desde 2016"
+ * (janela 10 = só "sem dado nas demonstrações"); desvio na base da carteira TOTAL ('da carteira');
+ * tooltips de lucro/margem descontados e do fallback; pares de chips de FII ativos; selo 'dados
+ * incompletos' (§6) e a nota de fonte montada pelas origens (textoNotaFonte).
  */
 import { formatarTexto } from '@/services/analiseAtivos/textos';
 import type {
@@ -16,8 +21,11 @@ import type {
   FormatoCriterio,
   IdCriterio,
   Janela,
+  ObsCriterio,
   PerfilCriterio,
 } from '@/types/analiseAtivosCriterios';
+import type { ClasseQuadro } from '@/types/analiseAtivosApi';
+import type { IdFonte } from '@/types/analiseAtivosFontes';
 
 export { formatarTexto };
 
@@ -95,13 +103,15 @@ export const TEXTOS_CRITERIOS = {
     meses: '{n} de {total} meses com rendimento pago',
     mesesPeriodo: '{n} de {total} meses com rendimento pago (jan/{anoInicio}–dez/{anoFim})',
     semDado: 'sem dado nas demonstrações',
-    semDadoFii10: 'sem dado nas demonstrações · os informes de FII na CVM começam em 2016',
     /** rec. 4: base de proventos começa depois do início da janela */
     baseProventosCurta: 'sem dado nas demonstrações (proventos registrados desde {mesAno})',
     ebitdaNaoPositivo: 'EBITDA ≤ 0 em {ano}',
   },
 
-  /** Textos dos critérios inativos (D3) e não aplicáveis (D4), por motivo. */
+  /**
+   * Textos dos critérios inativos (D3, só v1) e não aplicáveis (D4; na v2 só quando religados por
+   * params — naoSeAplica / margemSemReceitaComparavel), por motivo.
+   */
   motivos: {
     sem_fonte_confiavel: {
       vac: 'sem dado nas demonstrações · a vacância informada à CVM pode diferir do relatório do gestor e fica fora do critério até a conferência dos fundos',
@@ -116,14 +126,26 @@ export const TEXTOS_CRITERIOS = {
       'não se aplica a instituições financeiras: o caixa operacional de banco e seguradora inclui depósitos, captações e reservas técnicas',
   },
 
-  /** Selo do chip desabilitado (vac/inad) e tooltips dos pares de FII. */
+  /**
+   * Chips da barra de filtros. v2.5: os pares de FII ficam ATIVOS (tijolo / papel, o rótulo de papel
+   * em cinza); FII sem o dado da série fica "não atende · sem dado nas demonstrações" (§4.1).
+   * seloSemDado/tooltipDesabilitado só valem para um critério desligado por params (v1).
+   */
   chips: {
     seloSemDado: 'sem dado',
     tooltipDesabilitado:
       'Sem fonte confiável nas demonstrações: a vacância informada à CVM pode diferir do relatório do gestor, e a inadimplência existe só nos relatórios em PDF. O filtro fica desligado até a conferência.',
     tooltipParAlavancagem:
-      'Em FII de tijolo: Obrigações/PL ≤ 20%. Fundo de papel não tem LTV nas demonstrações e fica de fora deste filtro.',
+      'Em FII de tijolo: alavancagem do fundo (obrigações ÷ PL) até 20% do patrimônio. Em FII de papel: LTV médio dos CRIs até 60%.',
+    tooltipParVacancia:
+      'Em FII de tijolo: vacância física até 10%. Em FII de papel: inadimplência da carteira de crédito até 3%.',
+    /** nome acessível do chip de par ('Vacância ≤ 10% (tijolo) ou Inadimplência ≤ 3% (papel)') */
+    parAria: '{tijolo} (tijolo) ou {papel} (papel)',
+    /** rótulo de papel do par, exibido em cinza depois do separador */
+    parPapel: '{rotulo}',
     parSeparador: ' / ',
+    /** FII sem a série no chip ligado: o fundo conta como não atende (tooltip da linha) */
+    semDadoFii: 'sem dado nas demonstrações: o fundo conta como não atende neste filtro',
   },
 
   /** Perfil (FoF/indefinido/financeira) — nota curta junto da contagem. */
@@ -142,22 +164,58 @@ export const TEXTOS_CRITERIOS = {
     } satisfies Record<PerfilCriterio, string>,
   },
 
-  /** Fonte e aviso do card de critérios (§3.2). */
+  /**
+   * Fonte e aviso do card de critérios (§3.2). v2.5: a frase de fonte é montada pelas origens
+   * (textoNotaFonte): 'Fonte: DFP/ITR (CVM).' ou 'Fonte: ‹provedor› · DFP/ITR (CVM).'
+   */
   fonte: {
     acao: 'Fonte: DFP/ITR (CVM).',
     fii: 'Fonte: informes mensais e trimestrais dos FIIs (CVM).',
     aviso:
       'Dado contábil histórico, não avaliação do My Finance; rentabilidade passada não é garantia de resultados futuros. Para os demonstrativos completos, use o Raio-X.',
-    janela10Fii:
-      'Os informes de FII na CVM começam em 2016. Na janela de 10 anos, os critérios saem "sem dado nas demonstrações" para quase todos os fundos.',
+    /** rótulo da CVM por classe, dentro de textoNotaFonte */
+    cvmAcao: 'DFP/ITR (CVM)',
+    cvmFii: 'informes mensais e trimestrais dos FIIs (CVM)',
+    /** 'Fonte: {fontes}.' — {fontes} = rótulos unidos por separador, provedores antes da CVM */
+    frase: 'Fonte: {fontes}.',
+    separador: ' · ',
   },
 
-  /** Tooltips D2 do Essencial e dos critérios de lucro. */
+  /**
+   * Tooltips do Essencial e dos critérios de lucro. v2.5: 'Lucro descontado' / 'Margem descontada'
+   * (§3.2, net_income_adjusted); sem o descontado na fonte, usa o lucro líquido e sinaliza.
+   * lucroLiquido/margemLiquida = textos da v2.4 (D2), guardados para avaliações v1.
+   */
   tooltips: {
     lucroLiquido:
       'A CVM não publica o lucro sem itens não recorrentes. A coluna usa o lucro líquido dos controladores.',
     margemLiquida:
       'Lucro líquido ÷ receita líquida. A margem sem itens não recorrentes depende de um lucro que a CVM não publica.',
+    lucroDescontado: 'Lucro líquido descontado: o lucro sem itens não recorrentes.',
+    margemDescontada: 'Lucro descontado ÷ receita líquida.',
+    /** célula/critério que usou o lucro líquido no lugar do descontado (ⓘ) */
+    fallbackLucro:
+      'A fonte atual não entrega o lucro sem itens não recorrentes; o valor usa o lucro líquido dos controladores.',
+    fallbackMargem:
+      'A fonte atual não entrega o lucro sem itens não recorrentes; a margem usa o lucro líquido dos controladores ÷ receita líquida.',
+  },
+
+  /**
+   * Observações de um resultado (ResultadoCriterio.obs): complemento do tooltip/definição do
+   * critério (CelulaCriterios, ItemCriterio).
+   */
+  obs: {
+    lucro_sem_descontado:
+      'A fonte atual não entrega o lucro sem itens não recorrentes; o critério usa o lucro líquido dos controladores.',
+    dados_incompletos:
+      'A fonte não entregou um campo obrigatório de algum ano da janela; o critério fica "não atende · sem dado nas demonstrações".',
+  } satisfies Record<ObsCriterio, string>,
+
+  /** Selo 'dados incompletos' (§6) no card de critérios e no Essencial. */
+  incompleto: {
+    selo: 'dados incompletos',
+    tooltip:
+      'A fonte não entregou um campo obrigatório de algum período. Os critérios que dependem dele ficam "não atende · sem dado nas demonstrações".',
   },
 
   /** Mini-barras anuais. */
@@ -170,11 +228,11 @@ export const TEXTOS_CRITERIOS = {
   },
 
   /**
-   * Vocabulário de DESVIO (rec. 1): posição, alvo e desvio na MESMA base (% da aba). Nunca
-   * "faltam", "quanto falta", "aporte necessário" nem chamada à ação.
+   * Vocabulário de DESVIO: posição, alvo e desvio na MESMA base — v2.5: % da carteira TOTAL (spec
+   * §3.2, caso 33). Nunca "faltam", "quanto falta", "aporte necessário" nem chamada à ação.
    */
   desvio: {
-    posicao: 'posição atual {pct} de {aba}',
+    posicao: 'posição atual {pct} da carteira',
     alvo: 'alvo planejado por você: {pct}',
     desvio: 'desvio {pp}',
     desvioComValor: 'desvio {pp} ({valor} · {qtd})',
@@ -224,6 +282,27 @@ export function textoJanela(janela: Janela, compacta = false): string {
   );
 }
 
+/** Rótulo de uma fonte de provedor na frase de fonte (o registro da fatia A informa o nome). */
+export type RotulosFonte = Readonly<Record<string, string>>;
+
+/**
+ * Frase de fonte montada pelas origens (card de critérios e Essencial, v2.5): provedores primeiro
+ * (rótulo do registro; sem rótulo, o próprio id), a CVM por último com o rótulo da classe. Sem
+ * nenhuma origem (v2.4/v1), só a CVM: 'Fonte: DFP/ITR (CVM).'
+ */
+export function textoNotaFonte(
+  classe: ClasseQuadro,
+  fontes: readonly IdFonte[] = [],
+  rotulos: RotulosFonte = {},
+): string {
+  const F = TEXTOS_CRITERIOS.fonte;
+  const cvm = classe === 'fii' ? F.cvmFii : F.cvmAcao;
+  const provedores = [...new Set(fontes.filter((f) => f !== 'cvm'))].map((f) => rotulos[f] ?? f);
+  const temCvm = fontes.length === 0 || fontes.includes('cvm');
+  const partes = [...provedores, ...(temCvm ? [cvm] : [])];
+  return formatarTexto(F.frase, { fontes: partes.join(F.separador) });
+}
+
 /** Placeholders aceitos nos textos deste módulo (o teste confere). */
 export const PLACEHOLDERS_CRITERIOS = [
   'n',
@@ -250,4 +329,7 @@ export const PLACEHOLDERS_CRITERIOS = [
   'aba',
   'pp',
   'qtd',
+  'fontes',
+  'tijolo',
+  'papel',
 ] as const;

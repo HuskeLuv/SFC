@@ -116,12 +116,12 @@ describe("avaliarCriterio — 'up'", () => {
     expect(r.serie).toBeNull();
   });
 
-  it('FII na janela 10 explica que os informes começam em 2016', () => {
+  it('FII na janela 10: só "sem dado nas demonstrações" (v2.5, sem a nota de 2016)', () => {
     const r = avaliarCriterio(
       { def: def('fii_tijolo', 'rend'), janela: 10, anoFim: 2025, classe: 'fii', serie: {} },
       P,
     );
-    expect(r.fato).toBe(TEXTOS_CRITERIOS.fatos.semDadoFii10);
+    expect(r.fato).toBe(TEXTOS_CRITERIOS.fatos.semDado);
   });
 
   it('formato n2 e unidade R$ (rendimento por cota)', () => {

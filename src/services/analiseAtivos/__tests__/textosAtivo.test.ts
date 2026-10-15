@@ -30,12 +30,12 @@ describe('textosAtivo (fatia C2)', () => {
     }
   });
 
-  it('Essencial na ordem nova com "Lucro líq. ⓘ" e "Margem líq. ⓘ" (D2)', () => {
+  it('Essencial na ordem da §3.2 com "Lucro descontado ⓘ" e "Margem descontada ⓘ" (v2.5)', () => {
     expect(Object.values(TEXTOS_ATIVO.essencial.colunas)).toEqual([
       'Receita líq.',
       'EBITDA',
-      'Lucro líq. ⓘ',
-      'Margem líq. ⓘ',
+      'Lucro descontado ⓘ',
+      'Margem descontada ⓘ',
       'Dívida líq. ⓘ',
       'Dív. líq./EBITDA',
       'FCL/CAPEX ⓘ',
@@ -47,8 +47,11 @@ describe('textosAtivo (fatia C2)', () => {
       'P/VP',
       'DY',
     ]);
-    expect(TEXTOS_ATIVO.essencial.tooltips.lucro).toBe(TEXTOS_CRITERIOS.tooltips.lucroLiquido);
-    expect(TEXTOS_ATIVO.essencial.tooltips.margem).toBe(TEXTOS_CRITERIOS.tooltips.margemLiquida);
+    expect(TEXTOS_ATIVO.essencial.tooltips.lucro).toBe(TEXTOS_CRITERIOS.tooltips.lucroDescontado);
+    expect(TEXTOS_ATIVO.essencial.tooltips.fallbackLucro).toBe(
+      TEXTOS_CRITERIOS.tooltips.fallbackLucro,
+    );
+    expect(TEXTOS_ATIVO.essencial.tooltips.margem).toBe(TEXTOS_CRITERIOS.tooltips.margemDescontada);
     expect(TEXTOS_ATIVO.essencial.unidadeAcao).toMatch(/R\$ bi/);
   });
 

@@ -6,6 +6,11 @@
  *
  * Linguagem: tudo passa por linguagemV2 (textosAtivo.test.ts) — sem nota, Índice, semáforo,
  * destaque, melhor/pior, falta(m), recomend*. Placeholders {chave} via formatarTexto.
+ *
+ * v2.5 (fatia 0, CONGELADOS): 'Lucro descontado' / 'Margem descontada' (§3.2) com o tooltip do
+ * fallback; 'Alavancagem (% do PL)' no lugar de 'Obrigações/PL' nas colunas de FII (Raio-X, pares);
+ * a frase de fonte do Essencial passa a ser montada pelas origens (textosCriterios.textoNotaFonte),
+ * e unidadeAcaoSemFonte é a linha de unidade sem o 'fonte: CVM' fixo.
  */
 import { TEXTOS_CRITERIOS } from '@/services/analiseAtivos/textosCriterios';
 
@@ -32,8 +37,8 @@ export const TEXTOS_ATIVO = {
     colunas: {
       receita: 'Receita líq.',
       ebitda: 'EBITDA',
-      lucro: 'Lucro líq. ⓘ',
-      margem: 'Margem líq. ⓘ',
+      lucro: 'Lucro descontado ⓘ',
+      margem: 'Margem descontada ⓘ',
       dl: 'Dívida líq. ⓘ',
       dlEbitda: 'Dív. líq./EBITDA',
       fclCapex: 'FCL/CAPEX ⓘ',
@@ -45,10 +50,17 @@ export const TEXTOS_ATIVO = {
       pvp: 'P/VP',
       dy: 'DY',
     },
-    /** tooltips das colunas com ⓘ (D2: a CVM não publica o lucro sem itens não recorrentes) */
+    /**
+     * tooltips das colunas com ⓘ. v2.5: definição do descontado; a célula que usa o lucro líquido
+     * no lugar dele (MarcaCelulaEssencial.fallback) acrescenta fallbackLucro/fallbackMargem.
+     */
     tooltips: {
-      lucro: TEXTOS_CRITERIOS.tooltips.lucroLiquido,
-      margem: TEXTOS_CRITERIOS.tooltips.margemLiquida,
+      lucro: TEXTOS_CRITERIOS.tooltips.lucroDescontado,
+      margem: TEXTOS_CRITERIOS.tooltips.margemDescontada,
+      fallbackLucro: TEXTOS_CRITERIOS.tooltips.fallbackLucro,
+      fallbackMargem: TEXTOS_CRITERIOS.tooltips.fallbackMargem,
+      /** célula sem dado (financeira com '—', receita ≤ 0): o mesmo texto dos critérios */
+      semDado: TEXTOS_CRITERIOS.fatos.semDado,
       dl: 'Dívida bruta − caixa e aplicações financeiras; negativo = caixa líquido.',
       fclCapex:
         'Fluxo de caixa livre (FCO − CAPEX) ÷ CAPEX: quantas vezes o caixa livre cobre o investimento.',
@@ -57,10 +69,18 @@ export const TEXTOS_ATIVO = {
     areaFii: 'Área (CVM)',
     tooltipAreaFii: 'Área informada à CVM, em m²; não é a ABL do relatório do gestor.',
     unidadeAcao: 'Valores em R$ bi; LPA e Div./ação em R$ por ação · ano fiscal · fonte: CVM',
+    /** v2.5: unidade sem a fonte fixa (a frase de fonte vem de textoNotaFonte, pelas origens) */
+    unidadeAcaoSemFonte: 'Valores em R$ bi; LPA e Div./ação em R$ por ação · ano fiscal',
+    /** v2.5: selo do card quando alguma célula vem de ponto incompleto (§6) */
+    seloIncompleto: TEXTOS_CRITERIOS.incompleto.selo,
+    tooltipIncompleto: TEXTOS_CRITERIOS.incompleto.tooltip,
     notaFinanceira:
       'EBITDA, dívida líquida e FCL/CAPEX não se aplicam a bancos, seguradoras e holdings financeiras.',
     notaEssencial:
       'Essencial: o que basta para ver se receita, lucro, caixa e dividendos crescem ano a ano. Para abrir todos os demonstrativos, use o Raio-X.',
+    /** v2.5: rótulo ABL quando gla_m2 vier de um provedor (até lá, areaFii) */
+    ablFii: 'ABL (m²)',
+    tooltipAblFii: 'Área bruta locável informada pela fonte, em m².',
     /** Dív. líq./EBITDA sem número quando o EBITDA do ano é ≤ 0 */
     ebitdaNaoPositivo: 'não calculado: EBITDA ≤ 0 no ano',
     /** marca da linha do último ano fechado (leitor de tela) */
@@ -74,6 +94,17 @@ export const TEXTOS_ATIVO = {
     semHistorico: 'Indicadores sem histórico anual suficiente: valores dos últimos 12 meses.',
   },
 
+  /**
+   * v2.5: 'Alavancagem (% do PL)' — rótulo das colunas de FII (Raio-X, pares, Essencial) no lugar
+   * de 'Obrigações/PL', coerente com o chip 'Alavancagem ≤ 20% do PL'. Só rótulo: o cálculo é o
+   * mesmo (obrigações ÷ PL).
+   */
+  alavancagem: {
+    rotulo: 'Alavancagem (% do PL)',
+    tooltip:
+      'Obrigações do fundo (passivo menos rendimentos a distribuir) ÷ patrimônio líquido, em %.',
+  },
+
   /** Pares (§3.2 bloco 7): sem Índice, com a coluna Critérios (janela 5). */
   pares: {
     colunas: {
@@ -81,6 +112,7 @@ export const TEXTOS_ATIVO = {
       criterios: 'Critérios',
       vacancia: 'Vacância (CVM)',
       nCri: 'Nº CRIs (CVM)',
+      alavancagem: 'Alavancagem (% do PL)',
     },
     /** nome acessível da coluna Critérios ('Critérios de fundamentos em 5 anos') */
     criteriosTitulo: 'Critérios de fundamentos em {anos} anos',

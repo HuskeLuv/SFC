@@ -250,11 +250,11 @@ describe('BlocoNaCarteira', () => {
     // base da aba = Σ valorAtualizado das linhas (6.252 + 0 do planejado) → 100% de Ações
     const barra = screen.getByRole('img');
     expect(barra.getAttribute('aria-label')).toBe(
-      'Posição atual 100,0% de Ações, alvo planejado 20,0% de Ações',
+      'Posição atual 100,0% da carteira, alvo planejado 20,0% da carteira',
     );
     const card = document.querySelector('[data-na-carteira="posicao"]')!;
-    expect(card.textContent).toContain('posição atual 100,0% de Ações');
-    expect(card.textContent).toContain('alvo planejado por você: 20,0% de Ações');
+    expect(card.textContent).toContain('posição atual 100,0%');
+    expect(card.textContent).toContain('alvo planejado por você: 20,0%');
     expect(card.textContent).toMatch(/desvio \+80,0 p\.p\. \(R\$ 5\.002\)/);
     // informativo em % da carteira: 20% × 6.252 ÷ 100.000
     expect(card.textContent).toContain('equivale hoje a ≈ 1,3% da carteira');
@@ -276,7 +276,7 @@ describe('BlocoNaCarteira', () => {
 
   it('planejado: "Você não tem" + alvo planejado por você (sem "faltam")', async () => {
     comCliente(<BlocoNaCarteira ticker="ITUB4" {...props} />);
-    await screen.findByText(/alvo planejado por você: 5,0% de Ações/);
+    await screen.findByText(/alvo planejado por você: 5,0%/);
     expect(screen.getByText('Você não tem ITUB4')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'ajustar plano' })).toBeInTheDocument();
     const card = document.querySelector('[data-na-carteira="planejado"]')!;

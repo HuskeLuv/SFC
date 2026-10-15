@@ -127,14 +127,6 @@ export default function CardCriterios({
           ))}
         </ul>
       </div>
-      {classe === 'fii' && janela === 10 ? (
-        <p
-          data-nota-janela-10=""
-          className="m-0 rounded-lg bg-gray-50 px-3 py-2 text-xs leading-snug text-gray-600 dark:bg-white/[0.04] dark:text-gray-300"
-        >
-          {TC.fonte.janela10Fii}
-        </p>
-      ) : null}
       <p className="m-0 text-xs leading-relaxed text-gray-500 dark:text-gray-400">
         {fonte} {TA.mesmosCriterios} {TC.fonte.aviso}
       </p>

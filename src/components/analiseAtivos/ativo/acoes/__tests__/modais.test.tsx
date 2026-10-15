@@ -64,7 +64,7 @@ import BlocoNaCarteira from '@/components/analiseAtivos/ativo/usuario/BlocoNaCar
 
 // ---------------------------------------------------------------------------
 // Fixtures: as rotas reais da Carteira (caso 33 da spec: WEGE3, 120 ações a R$ 52,30 = R$ 6.276;
-// aba Ações de R$ 165.158 → posição 3,8% de Ações)
+// aba Ações de R$ 165.158 → posição 3,8% da carteira)
 // ---------------------------------------------------------------------------
 
 const PRECO = 52.3;
@@ -515,14 +515,14 @@ describe('ModalPlanejar — caso 33 na base da aba', () => {
 
   it('resumo ao vivo: alvo R$ 9.909 · 189 ações · −2,2 p.p. de Ações (R$ 3.633 · 69 ações)', async () => {
     comCliente(<ModalPlanejar {...props} />);
-    await screen.findByText(/120 ações · 3,8% de Ações · R\$ 6\.276/);
-    fireEvent.change(screen.getByLabelText('Peso-alvo dentro de Ações'), {
+    await screen.findByText(/120 ações · 3,8% da carteira · R\$ 6\.276/);
+    fireEvent.change(screen.getByLabelText('Peso-alvo na carteira (%)'), {
       target: { value: '6' },
     });
     const resumo = document.querySelector('[data-resumo-plano]')!;
     expect(resumo.textContent).toContain('R$ 9.909');
     expect(resumo.textContent).toContain('189');
-    expect(resumo.textContent).toContain('−2,2 p.p. de Ações (R$ 3.633 · 69 ações)');
+    expect(resumo.textContent).toContain('−2,2 p.p. (R$ 3.633 · 69 ações)');
     // % da carteira só informativo: 9.909,48 ÷ 500.000
     expect(resumo.textContent).toContain('≈ 2,0% da carteira hoje (informativo, não é gravado)');
     expect(dialogo().textContent).toContain('Classe no Planejamento');
@@ -560,9 +560,9 @@ describe('ModalPlanejar — caso 33 na base da aba', () => {
       );
     }
     comCliente(<Tela />);
-    await screen.findByText(/120 ações · 3,8% de Ações/);
+    await screen.findByText(/120 ações · 3,8% da carteira/);
     expect(within(screen.getByTestId('chips')).queryByText('Planejado')).toBeNull();
-    fireEvent.change(screen.getByLabelText('Peso-alvo dentro de Ações'), {
+    fireEvent.change(screen.getByLabelText('Peso-alvo na carteira (%)'), {
       target: { value: '6' },
     });
     fireEvent.click(screen.getByRole('button', { name: 'Salvar no Planejamento' }));
@@ -571,9 +571,7 @@ describe('ModalPlanejar — caso 33 na base da aba', () => {
     expect(ultimoCorpo()).toEqual({ ativoId: 'pf-wege3', objetivo: 6 });
     expect(await within(screen.getByTestId('chips')).findByText('Planejado')).toBeInTheDocument();
     const card = () => document.querySelector('[data-na-carteira="posicao"]')!;
-    await waitFor(() =>
-      expect(card().textContent).toContain('alvo planejado por você: 6,0% de Ações'),
-    );
+    await waitFor(() => expect(card().textContent).toContain('alvo planejado por você: 6,0%'));
     expect(card().textContent).toContain('desvio −2,2 p.p. (R$ 3.633)');
     expect(card().textContent).not.toMatch(/faltam|compre/i);
 
@@ -591,7 +589,7 @@ describe('ModalPlanejar — caso 33 na base da aba', () => {
   it('ativo sem posição nem plano: escolhe a seção e POST /api/carteira/planejados com ela', async () => {
     comCliente(<ModalPlanejar {...props} ticker="PETR4" assetId="a-petr" />);
     await screen.findByText('não está na carteira');
-    fireEvent.change(screen.getByLabelText('Peso-alvo dentro de Ações'), {
+    fireEvent.change(screen.getByLabelText('Peso-alvo na carteira (%)'), {
       target: { value: '5' },
     });
     // sem seção escolhida não grava (a rota gravaria a 1ª seção da aba, 'value', em silêncio)
@@ -618,7 +616,7 @@ describe('ModalPlanejar — caso 33 na base da aba', () => {
     comCliente(
       <ModalPlanejar {...props} ticker="KNCR11" classe="fii" assetId="a-kncr" preco={100} />,
     );
-    const campo = (await screen.findByLabelText(/Peso-alvo dentro de/)) as HTMLInputElement;
+    const campo = (await screen.findByLabelText(/Peso-alvo na carteira/)) as HTMLInputElement;
     await waitFor(() => expect(campo.value).toBe('10'));
     fireEvent.change(campo, { target: { value: '120' } });
     fireEvent.click(screen.getByRole('button', { name: 'Salvar no Planejamento' }));

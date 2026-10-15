@@ -156,8 +156,8 @@ describe('montarFundamentosAcao', () => {
       'pvp',
       'dy',
     ]);
-    expect(r.colunas.find((c) => c.codigo === 'lucro')?.rotulo).toBe('Lucro líq. ⓘ');
-    expect(r.colunas.find((c) => c.codigo === 'margem')?.rotulo).toBe('Margem líq. ⓘ');
+    expect(r.colunas.find((c) => c.codigo === 'lucro')?.rotulo).toBe('Lucro descontado ⓘ');
+    expect(r.colunas.find((c) => c.codigo === 'margem')?.rotulo).toBe('Margem descontada ⓘ');
     expect(r.unidade).toBe('R$ bi');
     expect(r.observacoes[0]).toBe(TE.unidadeAcao);
   });

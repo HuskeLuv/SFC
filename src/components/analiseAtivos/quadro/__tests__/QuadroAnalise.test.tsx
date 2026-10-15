@@ -74,6 +74,7 @@ import {
   definicoesChips,
 } from '@/test/fixtures/analiseAtivos/criterios';
 import { esperarDomLimpo } from '@/test/utils/varrerDom';
+import { TEXTOS_QUADRO } from '@/services/analiseAtivos/textosQuadro';
 
 function pagina(over: Partial<QuadroResposta> = {}): QuadroResposta {
   return {
@@ -285,7 +286,8 @@ describe('QuadroAnalise', () => {
     expect(
       screen.getByText(/Nenhum ativo atende a todos os critérios selecionados em 10 anos/),
     ).toBeInTheDocument();
-    expect(document.querySelector('[data-nota-janela-fii]')).not.toBeNull();
+    // v2.5: sem a nota dos informes de FII de 2016
+    expect(document.querySelector('[data-nota-janela-fii]')).toBeNull();
     expect(screen.getByRole('button', { name: /Vacância ≤ 10%/ })).toHaveAttribute(
       'aria-disabled',
       'true',
@@ -346,7 +348,8 @@ describe('QuadroAnalise', () => {
     const { container } = renderQuadro();
     const det = container.querySelector('details[data-explicacao-criterios]')!;
     expect(det.textContent).toContain('O que cada critério verifica');
-    expect(det.textContent).toContain('Não se aplica a bancos');
+    expect(det.textContent).toContain(TEXTOS_QUADRO.explicacao.financeira);
+    expect(det.textContent).not.toMatch(/n de 3/);
     expect(container.textContent).not.toMatch(/Índice/);
     const r = esperarDomLimpo(container);
     expect(r.literais).toContain('rodape-quadro');

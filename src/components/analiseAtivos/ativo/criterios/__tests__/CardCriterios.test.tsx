@@ -124,19 +124,15 @@ describe('CardCriterios — FII (D3 e nota da janela de 10 anos)', () => {
     expect(screen.getByText(/Fonte: informes mensais e trimestrais dos FIIs \(CVM\)\./));
   });
 
-  it('janela 10: nota dos informes desde 2016 (rec. 5); some nas outras janelas', () => {
+  it('janela 10: só "sem dado nas demonstrações", sem a nota dos informes de 2016 (v2.5)', () => {
     const { container } = render(
       <CardCriterios ticker="HGLG11" classe="fii" criterios={CRITERIOS_ATIVO_HGLG11} />,
     );
-    expect(container.querySelector('[data-nota-janela-10]')).toBeNull();
     fireEvent.click(radio(10));
-    expect(container.querySelector('[data-nota-janela-10]')).toHaveTextContent(
-      TEXTOS_CRITERIOS.fonte.janela10Fii,
-    );
-    const rend = container.querySelector('li[data-criterio="rend"]') as HTMLElement;
-    expect(within(rend).getByText(`não atende · ${TEXTOS_CRITERIOS.fatos.semDadoFii10}`));
-    fireEvent.click(radio(3));
     expect(container.querySelector('[data-nota-janela-10]')).toBeNull();
+    expect(container.textContent).not.toMatch(/começam em 2016/);
+    const rend = container.querySelector('li[data-criterio="rend"]') as HTMLElement;
+    expect(within(rend).getByText(`não atende · ${TEXTOS_CRITERIOS.fatos.semDado}`));
   });
 
   it('ação na janela 10 não leva a nota de FII', () => {

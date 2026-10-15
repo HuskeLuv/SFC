@@ -68,9 +68,9 @@ function textoSemFonte(id: IdCriterio): string {
   return m[id] ?? T.fatos.semDado;
 }
 
-/** Fato de 'sem dado' (FII na janela 10: os informes CVM começam em 2016). */
-function textoSemDado(classe: ClasseQuadro, janela: Janela): string {
-  return classe === 'fii' && janela === 10 ? T.fatos.semDadoFii10 : T.fatos.semDado;
+/** Fato de 'sem dado' (v2.5: sempre o mesmo texto, sem a nota dos informes de FII). */
+function textoSemDado(_classe: ClasseQuadro, _janela: Janela): string {
+  return T.fatos.semDado;
 }
 
 function pontos(anos: number[], valores: Array<number | null>): PontoCriterio[] {

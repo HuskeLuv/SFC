@@ -12,6 +12,12 @@
  * lista própria de linguagemV2 (encontrarProibidasOperacao); TODO o resto passa pela lista padrão —
  * por isso nenhum outro texto daqui usa "compra"/"venda" (ex.: "da última aquisição").
  * Placeholders {nome} preenchidos com formatarTexto.
+ *
+ * v2.5 (fatia 0, CONGELADOS para a C): o alvo do "Planejar na carteira" passa a ser % da carteira
+ * TOTAL, gravado em planning_asset_targets (spec §3.2/§5, caso 33) — sem mexer no Objetivo da
+ * Carteira, que aparece só como linha informativa ('Objetivo na aba ‹Aba› da Carteira: X%', decisão
+ * 1). O Registrar operação escolhe a seção sozinho e mostra 'Na Carteira: Ações · Value (dá para
+ * mover depois)' (decisão 2). Chaves da v2.4 que a C deixa de usar ficam marcadas 'v2.4'.
  */
 import type { ClasseQuadro } from '@/types/analiseAtivosApi';
 
@@ -52,7 +58,7 @@ export const TEXTOS_ACOES_CARTEIRA = {
     chipNaCarteira: 'Na carteira',
     chipPlanejado: 'Planejado',
     chipNaCarteiraTitulo: 'Você tem {qtd} {un} na carteira',
-    chipPlanejadoTitulo: 'Alvo planejado por você: {pct} de {aba}',
+    chipPlanejadoTitulo: 'Alvo planejado por você: {pct} da carteira',
   },
   consultor: {
     aviso: 'Você está alterando a carteira de {cliente}.',
@@ -93,28 +99,31 @@ export const TEXTOS_ACOES_CARTEIRA = {
     tituloNovo: 'Planejar na carteira · {ticker}',
     tituloAjustar: 'Ajustar plano · {ticker}',
     subtitulo:
-      'Defina o peso que {ticker} deve ter dentro de {aba}. O alvo é seu: o My Finance só mostra a diferença entre a posição atual e ele.',
-    campo: 'Peso-alvo dentro de {aba}',
-    placeholder: 'ex.: 25',
+      'Defina o peso que {ticker} deve ter na sua carteira. O alvo é seu: o My Finance só mostra a diferença entre a posição atual e ele.',
+    campo: 'Peso-alvo na carteira (%)',
+    placeholder: 'ex.: 5',
     classe: 'Classe no Planejamento',
     classeValor: '{aba} · {pct} da carteira (alvo da classe: {alvo})',
     classeSemAlvo: '{aba} · {pct} da carteira (sem alvo da classe)',
     posicao: 'Posição atual',
-    posicaoValor: '{qtd} {un} · {pct} de {aba} · {valor}',
+    posicaoValor: '{qtd} {un} · {pct} da carteira · {valor}',
     semPosicao: 'não está na carteira',
     resumoVazio: 'Informe o peso-alvo para ver a diferença em relação à sua posição atual.',
     valorAlvo: 'Valor equivalente ao alvo',
     qtdAlvo: '≈ {un} no alvo',
     desvio: 'Posição atual vs. alvo',
-    desvioValor: '{pp} de {aba} ({valor} · {qtd} {un})',
-    desvioSemQtd: '{pp} de {aba} ({valor})',
+    desvioValor: '{pp} ({valor} · {qtd} {un})',
+    desvioSemQtd: '{pp} ({valor})',
+    /** v2.4 (alvo em % da aba); sem uso com a base total */
     equivalente: '≈ {pct} da carteira hoje (informativo, não é gravado)',
-    nota: 'Fica salvo como o Objetivo de {ticker} na aba {aba} da Carteira (o mesmo número da coluna Objetivo de lá). O equivalente em % da carteira é só informativo e muda com o mercado.',
+    nota: 'Fica salvo no seu Planejamento como o alvo de {ticker} em % da carteira total. O Objetivo da aba {aba} na Carteira não muda.',
+    /** linha informativa quando a posição tem Objetivo > 0 na aba (decisão 1) */
+    objetivoAba: 'Objetivo na aba {aba} da Carteira: {pct}',
     remover: 'Remover do plano',
     salvar: 'Salvar no Planejamento',
     erroFaixa: 'Informe um peso-alvo entre 0 e 100%.',
     erroBase: 'Não foi possível carregar a aba {aba} da sua Carteira agora.',
-    salvo: '{ticker} planejado: alvo de {pct} de {aba}. Já aparece na Carteira (coluna Objetivo).',
+    salvo: '{ticker} planejado: alvo de {pct} da carteira no seu Planejamento.',
     removido: '{ticker} saiu dos alvos do Planejamento.',
   },
   ver: {
@@ -132,7 +141,7 @@ export const TEXTOS_ACOES_CARTEIRA = {
     proventos: 'Proventos recebidos',
     proventosNota: 'desde a 1ª operação',
     alvo: 'Alvo planejado',
-    alvoValor: '{pct} de {aba}',
+    alvoValor: '{pct} da carteira',
     alvoDesvio: 'posição {pos} · desvio {pp}',
     semAlvo: 'sem alvo definido',
     ultimas: 'Últimas operações',
@@ -143,7 +152,8 @@ export const TEXTOS_ACOES_CARTEIRA = {
     colTotal: 'Total',
     semOperacoes: 'Nenhuma operação registrada.',
     vazio: 'Você ainda não tem {ticker} na carteira.',
-    vazioAlvo: 'Há um alvo planejado de {pct} de {aba} no seu Planejamento.',
+    vazioAlvo: 'Há um alvo planejado de {pct} da carteira no seu Planejamento.',
+    objetivoAba: 'Objetivo na aba {aba} da Carteira: {pct}',
     rodape: 'Dados da sua carteira',
     abrirCompleta: 'Abrir Carteira completa',
     erro: 'Não foi possível carregar sua posição agora.',
@@ -157,6 +167,7 @@ export const TEXTOS_ACOES_CARTEIRA = {
     quantidade: 'Quantidade ({un})',
     preco: 'Preço por {unSingular}',
     data: 'Data',
+    /** v2.4: campo Seção (a C tira o campo; a seção é automática) */
     secao: 'Seção na Carteira',
     secaoDoPlano: 'Seção na Carteira (do seu plano)',
     secaoCvm: 'Seção na Carteira (tipo na CVM)',
@@ -173,6 +184,8 @@ export const TEXTOS_ACOES_CARTEIRA = {
     novoPm: 'Novo preço médio',
     pmMantido: 'Preço médio',
     pmMantidoNota: 'não muda nesta operação',
+    /** v2.5: linha discreta do resumo com a seção automática (decisão 2) */
+    secaoAutomatica: 'Na Carteira: {aba} · {secao} (dá para mover depois)',
     formCompletoAntes: 'Taxas, observações e instituições ainda não cadastradas:',
     formCompleto: 'abrir o formulário completo',
     hintPosicao: 'Posição atual: {qtd} {un} · PM {pm}',
@@ -185,6 +198,7 @@ export const TEXTOS_ACOES_CARTEIRA = {
       quantidade_invalida: 'Informe uma quantidade inteira maior que zero.',
       acima_da_posicao: 'Você tem {qtd} {un}; a operação não pode passar disso.',
       data_futura: 'Informe uma data que não seja futura.',
+      /** v2.4: a seção automática da v2.5 nunca fica vazia */
       sem_secao: 'Escolha a seção da Carteira em que o ativo vai entrar.',
       preco_invalido: 'Informe um preço maior que zero.',
       sem_instituicao: 'Escolha a instituição.',
@@ -200,15 +214,17 @@ export const TEXTOS_ACOES_CARTEIRA = {
     semAlvo: 'sem alvo planejado',
     planejar: 'planejar na carteira',
     ajustarPlano: 'ajustar plano',
-    alvoPlanejado: 'alvo planejado por você: {pct} de {aba}',
-    posicaoAtual: 'posição atual {pct} de {aba}',
+    alvoPlanejado: 'alvo planejado por você: {pct}',
+    posicaoAtual: 'posição atual {pct}',
+    /** linha informativa quando a posição tem Objetivo > 0 na aba (decisão 1) */
+    objetivoAba: 'Objetivo na aba {aba} da Carteira: {pct}',
     desvio: 'desvio {pp} ({valor})',
     equivalente: 'equivale hoje a ≈ {pct} da carteira (informativo; muda com o mercado)',
     classe: 'Classe {aba} no Planejamento: {pct} da carteira',
     classeAlvo: '(alvo {alvo})',
     classeSemAlvo: '(sem alvo da classe)',
-    barraAria: 'Posição atual {pos} de {aba}, {alvo}',
-    barraAlvoAria: 'alvo planejado {pct} de {aba}',
+    barraAria: 'Posição atual {pos} da carteira, {alvo}',
+    barraAlvoAria: 'alvo planejado {pct} da carteira',
     barraSemAlvoAria: 'sem alvo planejado',
     quantidade: 'Quantidade',
     valor: 'Valor',
@@ -218,7 +234,7 @@ export const TEXTOS_ACOES_CARTEIRA = {
     rentabilidadeNota: 'com os proventos recebidos, igual à Carteira',
     naAba: 'Na aba {aba}',
     notaAba:
-      'Está na aba {aba} da sua Carteira: se você mover o ativo de aba, o peso e o alvo seguem a aba nova.',
+      'Está na aba {aba} da sua Carteira. O alvo planejado é em % da carteira total e não muda se você mover o ativo de aba.',
     cotacaoDiferente:
       'Valor e % calculados pela Carteira com a cotação de {valor}; o cabeçalho mostra o fechamento de {data}.',
     abaSemDetalhe: 'O ativo está na aba {aba} da sua Carteira. Os números ficam lá.',

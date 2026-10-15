@@ -436,7 +436,7 @@ function janelaHglg11(j: Janela): JanelaCriteriosApi {
   const ini = 2025 - j + 1;
   if (j === 10) {
     const semDado = (def: DefCriterio) =>
-      itemDe(def, 'sem_dado', TEXTOS_CRITERIOS.fatos.semDadoFii10, null, null, null);
+      itemDe(def, 'sem_dado', TEXTOS_CRITERIOS.fatos.semDado, null, null, null);
     return janelaApi(ini, 2025, [
       semDado(TIJOLO.rend),
       semDado(TIJOLO.vp),

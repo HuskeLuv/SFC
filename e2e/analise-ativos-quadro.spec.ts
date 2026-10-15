@@ -141,14 +141,14 @@ test('padrão A–Z; chip de critério (E) na URL e na API; Limpar filtros', asy
   await expect(page).not.toHaveURL(/c=rec/);
 });
 
-test('FIIs: janela 10 com critério ligado mostra a nota e o vazio com "limpe os filtros"', async ({
+test('FIIs: janela 10 com critério ligado mostra o vazio com "limpe os filtros"', async ({
   page,
 }) => {
   test.setTimeout(120_000);
   await page.goto('/analise-ativos?classe=fii&j=10&c=rend,vp,alav,mes,res', {
     waitUntil: 'domcontentloaded',
   });
-  await expect(page.locator('[data-nota-janela-fii]')).toBeVisible({ timeout: 60_000 });
+  // v2.5: sem a nota dos informes de FII de 2016 (só "sem dado nas demonstrações")
   await expect(page.getByRole('radio', { name: '10 anos' })).toHaveAttribute(
     'aria-checked',
     'true',

@@ -586,15 +586,6 @@ function QuadroConteudo({ className = '' }: QuadroAnaliseProps) {
         </div>
       )}
 
-      {estado.classe === 'fii' && estado.janela === 10 ? (
-        <p
-          data-nota-janela-fii=""
-          className="rounded-xl border border-dashed border-gray-300 px-3 py-2 text-sm text-gray-600 dark:border-gray-700 dark:text-gray-300"
-        >
-          {TEXTOS_CRITERIOS.fonte.janela10Fii}
-        </p>
-      ) : null}
-
       <ExplicacaoCriterios classe={estado.classe} definicoes={definicoes} />
 
       <FaixaFrescorAtrasado frescor={daClasse ? primeira?.frescorCotacao : undefined} />

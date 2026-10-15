@@ -148,26 +148,28 @@ describe('BlocoFundamentosEssencial', () => {
     expect(screen.getByText(FUNDAMENTOS.observacoes[0])).toBeTruthy();
   });
 
-  it('v2.4: "Lucro líq. ⓘ"/"Margem líq. ⓘ" com a explicação D2 no title, leitor de tela e notas', () => {
+  it('v2.5: "Lucro descontado ⓘ"/"Margem descontada ⓘ" com a definição no title, leitor de tela e notas', () => {
     const fund: FundamentosResposta = {
       ...FUNDAMENTOS,
       unidade: 'R$ bi',
       colunas: [
         { codigo: 'receita', rotulo: 'Receita líq.', formato: 'numero', fonteCvmAviso: false },
-        { codigo: 'lucro', rotulo: 'Lucro líq. ⓘ', formato: 'numero', fonteCvmAviso: false },
-        { codigo: 'margem', rotulo: 'Margem líq. ⓘ', formato: 'pct', fonteCvmAviso: false },
+        { codigo: 'lucro', rotulo: 'Lucro descontado ⓘ', formato: 'numero', fonteCvmAviso: false },
+        { codigo: 'margem', rotulo: 'Margem descontada ⓘ', formato: 'pct', fonteCvmAviso: false },
       ],
     };
     mockHooks.useFundamentosAtivo.mockReturnValue(consulta(fund));
     const { container } = render(<BlocoFundamentosEssencial ticker="WEGE3" classe="acao" />);
     const lucro = container.querySelector('[data-explicacao-coluna="lucro"]')!;
     expect(lucro.getAttribute('title')).toBe(TEXTOS_ATIVO.essencial.tooltips.lucro);
-    expect(lucro.textContent).toContain('Lucro líq. ⓘ');
-    expect(lucro.querySelector('.sr-only')?.textContent).toContain('A CVM não publica');
+    expect(lucro.textContent).toContain('Lucro descontado ⓘ');
+    expect(lucro.querySelector('.sr-only')?.textContent).toContain(
+      TEXTOS_ATIVO.essencial.tooltips.lucro,
+    );
     expect(container.querySelector('[data-explicacao-coluna="margem"]')).not.toBeNull();
     expect(container.querySelector('[data-explicacao-coluna="receita"]')).toBeNull();
     expect(container.querySelector('[data-nota-coluna="lucro"]')?.textContent).toBe(
-      `Lucro líq.: ${TEXTOS_ATIVO.essencial.tooltips.lucro}`,
+      `Lucro descontado: ${TEXTOS_ATIVO.essencial.tooltips.lucro}`,
     );
     expect(screen.getByText(TEXTOS_ATIVO.essencial.notaEssencial)).toBeTruthy();
   });
