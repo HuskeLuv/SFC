@@ -53,29 +53,36 @@ const pct1 = (v: number) =>
 test.describe('Na sua carteira (leitura)', () => {
   test('MXRF11: posição em % da carteira total, igual à conta da Carteira', async ({ page }) => {
     test.skip(!(await areaLigada(page)), 'área desligada ou demo fora do beta');
-    const aba = await page.request.get('/api/carteira/fii');
-    expect(aba.ok()).toBe(true);
-    const dados = (await aba.json()) as {
-      secoes: Array<{
-        ativos: Array<{ ticker: string; valorAtualizado: number; objetivo: number }>;
-      }>;
-    };
-    const linha = dados.secoes.flatMap((s) => s.ativos).find((a) => a.ticker === 'MXRF11');
-    test.skip(!linha, "demo sem MXRF11 na aba FII's");
-    const resumo = (await (await page.request.get('/api/carteira/resumo')).json()) as {
-      totais?: { dinheiro?: number };
-    };
-    const total = resumo.totais?.dinheiro ?? 0;
-    test.skip(!(total > 0), 'resumo sem totais.dinheiro');
+    test.setTimeout(180_000);
+    // Lê a conta da Carteira e a tela juntas, até baterem: o teste de escrita anterior desfaz
+    // compras e o resumo (cache de 60 s) pode chegar entre a leitura da API e a da tela.
+    let linha: { ticker: string; valorAtualizado: number; objetivo: number } | undefined;
+    await expect(async () => {
+      const aba = await page.request.get('/api/carteira/fii');
+      expect(aba.ok()).toBe(true);
+      const dados = (await aba.json()) as {
+        secoes: Array<{
+          ativos: Array<{ ticker: string; valorAtualizado: number; objetivo: number }>;
+        }>;
+      };
+      linha = dados.secoes.flatMap((s) => s.ativos).find((a) => a.ticker === 'MXRF11');
+      if (!linha) return;
+      const resumo = (await (await page.request.get('/api/carteira/resumo')).json()) as {
+        totais?: { dinheiro?: number };
+      };
+      const total = resumo.totais?.dinheiro ?? 0;
+      expect(total, 'resumo sem totais.dinheiro').toBeGreaterThan(0);
 
-    await abrirAtivo(page, 'MXRF11');
+      await abrirAtivo(page, 'MXRF11');
+      const bloco = blocoCarteira(page);
+      await expect(bloco).toHaveAttribute('data-na-carteira', 'posicao', { timeout: 30_000 });
+      await expect(bloco.locator('[data-barra-peso]')).toContainText(
+        `posição atual ${pct1((linha.valorAtualizado / total) * 100)}`,
+        { timeout: 10_000 },
+      );
+    }).toPass({ timeout: 120_000 });
+    test.skip(!linha, "demo sem MXRF11 na aba FII's");
     const bloco = blocoCarteira(page);
-    await expect(bloco).toHaveAttribute('data-na-carteira', 'posicao', { timeout: 30_000 });
-    const barraPeso = bloco.locator('[data-barra-peso]');
-    await expect(barraPeso).toContainText(
-      `posição atual ${pct1((linha!.valorAtualizado / total) * 100)}`,
-      { timeout: 30_000 },
-    );
     // decisão 1: Objetivo da aba na Carteira só como linha informativa
     if (linha!.objetivo > 0) {
       await expect(bloco.locator('[data-objetivo-aba]')).toContainText('Objetivo na aba');
