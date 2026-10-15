@@ -72,6 +72,13 @@ const ORDEM_GRANULARIDADE: readonly PeriodicidadeSerie[] = ['FY', 'Q', 'M'];
 const finito = (v: number | null | undefined): v is number =>
   typeof v === 'number' && Number.isFinite(v);
 
+/**
+ * Valor de um ponto: número finito ou +Infinity (net_debt_ebitda da CVM com EBITDA ≤ 0 e dívida
+ * líquida positiva: o motor mostra 'EBITDA ≤ 0 em AAAA'); NaN/−Infinity/null = sem dado.
+ */
+const numeroOuInfinito = (v: number | null | undefined): number | null =>
+  typeof v === 'number' && (Number.isFinite(v) || v === Number.POSITIVE_INFINITY) ? v : null;
+
 /** Maior versão por (tipoPeriodo, dtFim) dentro de uma fonte. */
 function vigentesDaFonte(pontos: readonly PontoSerieVigente[]): PontoSerieVigente[] {
   const porChave = new Map<string, PontoSerieVigente>();
@@ -97,7 +104,7 @@ function valorDoAno(
       const ultimo = doTipo[doTipo.length - 1];
       return ultimo.incompleto
         ? { valor: null, incompleto: true }
-        : { valor: finito(ultimo.valor) ? ultimo.valor : null, incompleto: false };
+        : { valor: numeroOuInfinito(ultimo.valor), incompleto: false };
     }
     if (doTipo.some((p) => p.incompleto)) return { valor: null, incompleto: true };
     const valores = doTipo.map((p) => p.valor).filter(finito);

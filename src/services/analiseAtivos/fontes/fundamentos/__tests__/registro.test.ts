@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
+  credenciaisDaFonte,
+  FONTES,
   idsIngestaoHabilitados,
   obterFonte,
   rotulosFontes,
@@ -22,5 +24,26 @@ describe('registro das fontes (contrato da fatia 0)', () => {
 
   it('rótulos para a frase de fonte', () => {
     expect(rotulosFontes()).toMatchObject({ cvm: 'CVM' });
+  });
+
+  it('registro preenchido: CVM (leitura local) e exemplo (ingestão, fora de produção)', () => {
+    expect(Object.keys(FONTES).sort()).toEqual(['cvm', 'exemplo']);
+    expect(obterFonte('cvm', 'production')).toMatchObject({ modo: 'leitura_local' });
+    expect(FONTES.cvm.seriesOferecidas).toContain('vacancy_physical');
+    // a CVM não publica o lucro descontado nem a qualidade da carteira de crédito
+    for (const s of ['net_income_adjusted', 'default_pct', 'ltv_avg'] as const) {
+      expect(FONTES.cvm.seriesOferecidas).not.toContain(s);
+    }
+    expect(obterFonte('exemplo', 'test')).toMatchObject({ modo: 'ingestao' });
+  });
+
+  it('credenciais ANALISE_FONTE_<ID>_* só da fonte pedida', () => {
+    expect(
+      credenciaisDaFonte('provedor_x', {
+        ANALISE_FONTE_PROVEDOR_X_API_KEY: 'k',
+        ANALISE_FONTE_OUTRA_API_KEY: 'n',
+        ANALISE_FONTE_PROVEDOR_X_VAZIA: '',
+      }),
+    ).toEqual({ API_KEY: 'k' });
   });
 });
