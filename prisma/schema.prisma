@@ -153,6 +153,8 @@ model User {
   analiseReportesCliente        AnaliseDataReport[]           @relation("AnaliseReporteCliente")
   // Análise de Ativos — Bloco D (Meus cenários, privado)
   analiseCenarios               AnaliseCenario[]              @relation("AnaliseCenarioUser")
+  // Análise de Ativos v2.5 — alvo por ativo do "Planejar na carteira" (% da carteira TOTAL)
+  planningAssetTargets          PlanningAssetTarget[]         @relation("PlanningAssetTargetUser")
 }
 
 /**
@@ -594,11 +596,13 @@ model Asset {
   updatedAt      DateTime  @updatedAt
 
   // Relacionamentos
-  watchlists       Watchlist[]
-  portfolios       Portfolio[]
-  transactions     StockTransaction[]
-  fixedIncomeAsset FixedIncomeAsset?
-  priceHistory     AssetPriceHistory[]
+  watchlists           Watchlist[]
+  portfolios           Portfolio[]
+  transactions         StockTransaction[]
+  fixedIncomeAsset     FixedIncomeAsset?
+  priceHistory         AssetPriceHistory[]
+  // Análise de Ativos v2.5 — alvos do "Planejar na carteira"
+  planningAssetTargets PlanningAssetTarget[]
 
   @@index([symbol])
   @@index([type])
@@ -2021,6 +2025,9 @@ model AssetFundamentalsPeriod {
   flags                  String[]
   fetchedAt              DateTime
 
+  // v2.5: quem aprovou a linha (curadoria); null nas linhas automáticas da CVM
+  reviewedBy String?
+
   @@unique([emissorId, dtFim, tipoPeriodo, escopo, versao])
   @@index([emissorId, tipoPeriodo, dtFim])
   @@index([fetchedAt])
@@ -2149,6 +2156,9 @@ model FiiMonthly {
   sourceUrl          String
   fetchedAt          DateTime
 
+  // v2.5: quem aprovou a linha (curadoria); null nas linhas automáticas da CVM
+  reviewedBy String?
+
   @@unique([cnpj, refMonth])
   @@index([refMonth])
   @@map("fii_monthly")
@@ -2188,6 +2198,9 @@ model FiiQuarterly {
   flags                 String[]
   sourceUrl             String
   fetchedAt             DateTime
+
+  // v2.5: quem aprovou a linha (curadoria); null nas linhas automáticas da CVM
+  reviewedBy String?
 
   @@unique([cnpj, refQuarter])
   @@index([refQuarter])
@@ -2673,6 +2686,136 @@ model CriteriaEval {
   @@unique([symbol, janela])
   @@index([classe, janela])
   @@map("criteria_eval")
+}
+
+/**
+ * v2.5 — camada de fontes: ponto POINT-IN-TIME de uma série de fundamento (catálogo
+ * SERIES_FUNDAMENTO em src/types/analiseAtivosFontes.ts, validado em código; série nova não exige
+ * migration). Um provedor (conector da fatia A) grava aqui; a CVM continua nas tabelas próprias e é
+ * lida por FonteCvm.lerLocal. NUNCA há UPDATE de valor: valor novo = versao + 1; só os campos de
+ * revisão mudam (aprovação pelo caso de curadoria grupo 'fonte_externa'). Só 'approved' chega à
+ * tela (repositorio/fontesFundamentos.ts). Sem nota/score/rating (contratoSemNota).
+ */
+model AssetFundamentalsSerie {
+  id             String    @id @default(uuid())
+  symbol         String
+  // CNPJ (CVM) | 'CIK:…' | null quando o provedor não informa
+  emissorId      String?
+  // acao | fii (stock | reit no futuro)
+  classe         String
+  // MercadoFonte: br_acoes | br_fii | us_stocks | us_reits
+  mercado        String
+  // SerieFundamento (catálogo em código)
+  serie          String
+  // FY | Q | M
+  tipoPeriodo    String
+  anoFiscal      Int
+  dtFim          DateTime  @db.Date
+  valor          Decimal?  @db.Decimal(24, 6)
+  // BRL | BRL_por_cota | pct | x | contagem
+  unidade        String
+  moeda          String    @default("BRL")
+  // IdFonte ('cvm' | 'exemplo' | id registrado)
+  fonte          String
+  sourceUrl      String?
+  sourceRef      String?
+  fetchedAt      DateTime
+  // +1 só quando o valor muda
+  versao         Int
+  // approved | pending | rejected
+  reviewStatus   String
+  reviewedBy     String?
+  reviewedAt     DateTime?
+  motivosRevisao String[]
+  // campo obrigatório ausente (§6): valor null + selo 'dados incompletos'
+  incompleto     Boolean   @default(false)
+  // api | manual | llm
+  extractedBy    String
+  confianca      Float?
+  sourcePdfUrl   String?
+  sourcePage     Int?
+  criadoEm       DateTime  @default(now())
+
+  @@unique([symbol, serie, tipoPeriodo, dtFim, fonte, versao])
+  @@index([serie, symbol, dtFim])
+  @@index([fonte, fetchedAt])
+  @@index([reviewStatus])
+  @@map("asset_fundamentals_serie")
+}
+
+/**
+ * v2.5 — qualidade da carteira de FII (spec §5 fii_property_quality): tijolo (padrão construtivo,
+ * inquilinos, contratos atípicos, prazo) e papel (CRIs, indexador, taxa, LTV, inadimplência,
+ * high yield, duration). Vem de provedor ou extração de relatório gerencial com revisão humana; só
+ * 'approved' chega à tela. Point-in-time como asset_fundamentals_serie.
+ */
+model FiiPropertyQuality {
+  id            String    @id @default(uuid())
+  symbol        String
+  cnpj          String
+  // último dia do período de referência
+  periodo       DateTime  @db.Date
+  // tijolo (% da ABL)
+  padAaaPct     Float?
+  padAaPct      Float?
+  padAPct       Float?
+  tenantsCount  Int?
+  topTenantPct  Float?
+  atypicalPct   Float?
+  avgLeaseYears Float?
+  // papel
+  criCount      Int?
+  // { ipca: %, cdi: %, igpm: %, pre: %, outros: % }
+  indexMix      Json?
+  avgRate       Float?
+  ltvAvg        Float?
+  defaultPct    Float?
+  highYieldPct  Float?
+  durationYears Float?
+  // extração (§6): PDF + página por campo + confiança por campo
+  sourcePdfUrl  String?
+  sourcePage    Json?
+  // api | manual | llm
+  extractedBy   String
+  confianca     Json?
+  // approved | pending | rejected
+  reviewStatus  String
+  fonte         String
+  sourceUrl     String?
+  fetchedAt     DateTime
+  reviewedBy    String?
+  reviewedAt    DateTime?
+  versao        Int
+  incompleto    Boolean   @default(false)
+  criadoEm      DateTime  @default(now())
+
+  @@unique([cnpj, periodo, fonte, versao])
+  @@index([symbol, periodo])
+  @@map("fii_property_quality")
+}
+
+/**
+ * v2.5 — alvo por ativo do "Planejar na carteira" (spec §3.2/§5 planning_asset_targets), em % da
+ * carteira TOTAL (caso 33). Convive com o Objetivo da Carteira (Portfolio.objetivo, % da aba) sem
+ * ler nem gravar nele. LGPD: entra no export do perfil e é apagado (deleteMany) na exclusão de
+ * conta — a exclusão ANONIMIZA o User, então o Cascade é só higiene.
+ */
+model PlanningAssetTarget {
+  id                  String   @id @default(uuid())
+  userId              String
+  user                User     @relation("PlanningAssetTargetUser", fields: [userId], references: [id], onDelete: Cascade)
+  assetId             String
+  asset               Asset    @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  // 0 < x ≤ 100 (zod na rota)
+  targetPct           Decimal  @db.Decimal(6, 3)
+  // consultor agindo pelo cliente (null = o próprio usuário)
+  atualizadoPorUserId String?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  @@unique([userId, assetId])
+  @@index([userId])
+  @@map("planning_asset_targets")
 }
 
 /**
