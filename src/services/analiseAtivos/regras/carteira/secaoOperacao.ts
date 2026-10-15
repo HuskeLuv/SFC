@@ -3,14 +3,16 @@
  * POST /api/carteira/operacao exige estrategia (ação) ou tipoFii (FII) em TODA compra, então a seção
  * é resolvida nesta ordem e nunca fica vazia:
  *  1. com posição → valor da posição (overlay.posicoes[t].estrategia/tipoFii) ('posicao'); a rota
- *     não regrava a seção de quem já tem o ativo (decisão 6 do mover);
+ *     não regrava a seção de quem já tem o ativo (decisão 6 do mover). Posição SEM seção válida usa
+ *     o mesmo fallback da Carteira (ação → 'value', FII → 'fofi' — SECAO_POSICAO_SEM_SECAO), senão a
+ *     recompra gravaria outra seção na coluna vazia e mudaria a posição de aba sem aviso;
  *  2. planejado antigo sem posição → Watchlist.secao (overlay.planejados[t].secao) ('planejado');
  *  3. FII: tipo CVM 'fof' → 'fofi'; senão pelo perfil — tijolo → 'tijolo', qualquer outro → 'tvm'
  *     ('sugestao_cvm'; sem tipo conhecido, 'tvm' com origem 'padrao');
  *  4. ação → 'value' ('padrao'), o mesmo padrão da rota de operação nas recompras sem estratégia.
  * O modal mostra a linha "Na Carteira: Ações · Value (dá para mover depois)": quem usa growth/risk
- * corrige pelo mover (#274). Valor fora das seções válidas da aba é ignorado (cai para o passo
- * seguinte). 'obrigatoria' (v2.4) não é mais devolvida. Função pura.
+ * corrige pelo mover (#274). Valor fora das seções válidas da aba é ignorado (sem posição, cai para
+ * o passo seguinte). 'obrigatoria' (v2.4) não é mais devolvida. Função pura.
  */
 import { TEXTOS_TELA } from '@/services/analiseAtivos/textosTela';
 import type { AtivoTopoResposta, ClasseQuadro, FiiTipoTela } from '@/types/analiseAtivosApi';
@@ -72,6 +74,12 @@ export const SECAO_POR_TIPO_CVM: Record<FiiTipoTela, string> = {
   indefinido: 'tvm',
 };
 
+/**
+ * Seção em que a Carteira EXIBE uma posição sem seção válida gravada (fallback de
+ * /api/carteira/acoes e /api/carteira/fii). A recompra repete esse valor para não mudar a aba.
+ */
+export const SECAO_POSICAO_SEM_SECAO: Record<ClasseQuadro, string> = { acao: 'value', fii: 'fofi' };
+
 /** Seção padrão quando nada indica outra (ação → 'value'; FII sem tipo → 'tvm'). */
 export const SECAO_PADRAO: Record<ClasseQuadro, string> = { acao: 'value', fii: 'tvm' };
 
@@ -90,6 +98,7 @@ export function secaoOperacao({
     if (secaoValida(classe, daPosicao)) {
       return { valor: daPosicao as string, editavel: false, origem: 'posicao' };
     }
+    return { valor: SECAO_POSICAO_SEM_SECAO[classe], editavel: false, origem: 'posicao' };
   }
   if (planejado && secaoValida(classe, planejado.secao)) {
     return { valor: planejado.secao as string, editavel: false, origem: 'planejado' };

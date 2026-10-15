@@ -64,11 +64,30 @@ describe('secaoOperacao — seção automática da Carteira numa compra (v2.5)',
     expect(
       secaoOperacao({
         classe: 'acao',
-        posicao: { estrategia: null },
+        posicao: null,
         planejado: { secao: 'brasil' },
         tipoCvm: null,
       }),
     ).toEqual({ valor: 'value', editavel: false, origem: 'padrao' });
+  });
+
+  it('posição sem seção válida usa o fallback da Carteira (FII → fofi; ação → value), não a CVM', () => {
+    expect(
+      secaoOperacao({
+        classe: 'fii',
+        posicao: { estrategia: null, tipoFii: null },
+        planejado: { secao: 'tijolo' },
+        tipoCvm: 'papel',
+      }),
+    ).toEqual({ valor: 'fofi', editavel: false, origem: 'posicao' });
+    expect(
+      secaoOperacao({
+        classe: 'acao',
+        posicao: { estrategia: 'brasil' },
+        planejado: { secao: 'risk' },
+        tipoCvm: null,
+      }),
+    ).toEqual({ valor: 'value', editavel: false, origem: 'posicao' });
   });
 });
 
