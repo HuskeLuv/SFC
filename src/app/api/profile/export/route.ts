@@ -17,6 +17,7 @@ import { withErrorHandler } from '@/utils/apiErrorHandler';
 import { tesesParaExportacao } from '@/services/analiseAtivos/tese/teseService';
 import { cenariosParaExportacao } from '@/services/analiseAtivos/cenarios/cenarioService';
 import { relatosParaExportacao } from '@/services/analiseAtivos/curadoria/privacidadeReportes';
+import { alvosParaExportacao } from '@/services/analiseAtivos/carteira/alvosAtivo';
 
 export const GET = withErrorHandler(async (req: NextRequest) => {
   const { payload } = await requireAuthWithActing(req);
@@ -46,6 +47,7 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
     analiseTeses,
     analiseRelatos,
     analiseCenarios,
+    planningAssetTargets,
   ] = await Promise.all([
     prisma.user.findUnique({
       where: { id: userId },
@@ -76,6 +78,8 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
     relatosParaExportacao(prisma, userId),
     // Análise de Ativos (bloco D): cenários salvos do Valuation (premissas e dados editados).
     cenariosParaExportacao(userId),
+    // Análise de Ativos (v2.5): alvos por ativo do "Planejar na carteira" (% da carteira total).
+    alvosParaExportacao(userId),
   ]);
 
   if (!user) {
@@ -116,6 +120,7 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
       teses: analiseTeses,
       relatos: analiseRelatos,
       analiseCenarios,
+      planningAssetTargets,
     },
   };
 

@@ -11,6 +11,7 @@ import type { JWTPayload } from '@/utils/auth';
 import { bumpSessionVersion } from '@/lib/auth/sessionVersion';
 import { clearSessionCookie, issueSession, normalizeClaims } from '@/lib/auth/session';
 import { anonimizarReportesDoUsuario } from '@/services/analiseAtivos/curadoria/privacidadeReportes';
+import { apagarAlvosDoUsuario } from '@/services/analiseAtivos/carteira/alvosAtivo';
 import { excluirConexoesDoUsuario } from '@/services/pluggy/sync';
 import { getClientIp } from '@/lib/rateLimit';
 
@@ -226,6 +227,10 @@ export const DELETE = withErrorHandler(async (req: NextRequest) => {
   // esperado, fonte) anonimizado e vínculo de cliente removido. O User é anonimizado, não
   // apagado, então o cascade nunca roda (decisão 19).
   await anonimizarReportesDoUsuario(prisma, me.id);
+
+  // Análise de Ativos (v2.5): alvos por ativo do "Planejar na carteira" — apagados aqui, porque
+  // o User é anonimizado (o onDelete Cascade da FK nunca roda).
+  await apagarAlvosDoUsuario(me.id);
 
   // Derruba todas as sessões e limpa o cookie de auth da resposta.
   await bumpSessionVersion(me.id);
