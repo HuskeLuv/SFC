@@ -26,13 +26,13 @@ export const TEXTOS_OPERACAO = {
   venda: 'Venda',
 } as const;
 
-/** Unidades e nomes por classe (Ações/FIIs = nome da aba na Carteira). */
+/** Unidades e nomes por classe (Ações/FII's = nome da aba na Carteira). */
 export const CLASSE_CARTEIRA: Record<
   ClasseQuadro,
   { aba: string; plural: string; un: string; unSingular: string }
 > = {
   acao: { aba: 'Ações', plural: 'ações', un: 'ações', unSingular: 'ação' },
-  fii: { aba: 'FIIs', plural: 'FIIs', un: 'cotas', unSingular: 'cota' },
+  fii: { aba: "FII's", plural: 'FIIs', un: 'cotas', unSingular: 'cota' },
 };
 
 /** Rótulos das seções da Carteira (estratégia de ação; tipo de FII). */

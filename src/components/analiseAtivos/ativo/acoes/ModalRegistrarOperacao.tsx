@@ -185,6 +185,7 @@ export default function ModalRegistrarOperacao({
   // v2.5: seção automática (nunca vazia); a aba é a efetiva da posição ou a da classe.
   const secaoFinal = secao.valor ?? '';
   const abaSecao = dados.abaNome ?? cl.aba;
+  const unDe = (q: number) => (q === 1 ? cl.unSingular : cl.un);
   const pendente = registrarCompra.isPending || registrarVenda.isPending;
 
   const registrar = async () => {
@@ -239,7 +240,7 @@ export default function ModalRegistrarOperacao({
         tipo: 'ok',
         mensagem: formatarTexto(T.registrada, {
           qtd: quantidade.toLocaleString('pt-BR'),
-          un: cl.un,
+          un: unDe(quantidade),
           ticker: t,
           preco: formatBRL(cotacao),
           pos: novaQtd.toLocaleString('pt-BR'),
@@ -254,7 +255,7 @@ export default function ModalRegistrarOperacao({
   };
 
   const textoErro = (e: ErroOperacao) =>
-    formatarTexto(T.erros[e], { qtd: posQtd.toLocaleString('pt-BR'), un: cl.un });
+    formatarTexto(T.erros[e], { qtd: posQtd.toLocaleString('pt-BR'), un: unDe(posQtd) });
   const erroDe = (...tipos: ErroOperacao[]) => erros.find((e) => tipos.includes(e)) ?? null;
 
   const semCatalogo = !venda && !assetId;
@@ -265,7 +266,7 @@ export default function ModalRegistrarOperacao({
         {comPosicao
           ? formatarTexto(T.hintPosicao, {
               qtd: posQtd.toLocaleString('pt-BR'),
-              un: cl.un,
+              un: unDe(posQtd),
               pm: pm !== null ? formatBRL(pm) : '—',
             })
           : T.hintSemPosicao}
@@ -439,7 +440,7 @@ export default function ModalRegistrarOperacao({
           <span>
             {T.novaPosicao}
             <b className="block text-[14.5px] text-gray-900 tabular-nums dark:text-white">
-              {novaQtd.toLocaleString('pt-BR')} {cl.un}
+              {novaQtd.toLocaleString('pt-BR')} {unDe(novaQtd)}
             </b>
           </span>
           <span>

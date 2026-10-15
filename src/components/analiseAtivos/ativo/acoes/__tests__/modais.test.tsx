@@ -420,7 +420,7 @@ describe('ModalRegistrarOperacao', () => {
       />,
     );
     expect(
-      await screen.findByText(`Na Carteira: FIIs · ${rotulo} (dá para mover depois)`),
+      await screen.findByText(`Na Carteira: FII's · ${rotulo} (dá para mover depois)`),
     ).toBeInTheDocument();
     expect(document.querySelector('[data-secao-automatica]')).toHaveAttribute(
       'data-secao-automatica',
