@@ -55,9 +55,14 @@ export default function ItemCriterio({ item, janela, className = '' }: ItemCrite
             aria-hidden="true"
             data-obs-ativo=""
             title={obs.join(' ')}
-            className="cursor-help text-xs font-normal text-gray-500 dark:text-gray-400"
+            className="inline-flex cursor-help text-gray-500 dark:text-gray-400"
           >
-            ⓘ
+            {/* ⓘ minúsculo não existe na fonte do app: ícone em SVG */}
+            <svg viewBox="0 0 12 12" className="h-3 w-3">
+              <circle cx="6" cy="6" r="5.25" fill="none" stroke="currentColor" strokeWidth="1" />
+              <circle cx="6" cy="3.6" r="0.75" fill="currentColor" />
+              <rect x="5.4" y="5" width="1.2" height="3.8" fill="currentColor" />
+            </svg>
           </span>
         ) : null}
       </h3>

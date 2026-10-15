@@ -222,7 +222,7 @@ describe('BlocoFundamentosEssencial', () => {
     const fallbacks = container.querySelectorAll('td[data-fallback]');
     expect(fallbacks).toHaveLength(2);
     expect(fallbacks[0].getAttribute('title')).toBe(TE.tooltips.fallbackLucro);
-    expect(fallbacks[0].textContent).toContain('ⓘ');
+    expect(fallbacks[0].querySelector('svg[data-icone-fallback]')).not.toBeNull();
     expect(fallbacks[1].getAttribute('title')).toBe(TE.tooltips.fallbackMargem);
     // 2025 veio do provedor: sem ⓘ
     const linha2025 = container.querySelector('tr[data-ultimo-ano]')!;

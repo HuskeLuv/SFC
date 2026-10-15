@@ -268,12 +268,30 @@ export default function BlocoFundamentosEssencial({
                             {formatarEstado(v, c.formato)}
                             {fallback ? (
                               <>
-                                <span
+                                {/* ⓘ minúsculo não existe na fonte do app: ícone em SVG */}
+                                <svg
                                   aria-hidden="true"
-                                  className="ml-0.5 cursor-help align-super text-[10px] font-normal text-gray-500 dark:text-gray-400"
+                                  data-icone-fallback=""
+                                  viewBox="0 0 12 12"
+                                  className="ml-1 inline-block h-[11px] w-[11px] cursor-help align-[-1px] text-gray-500 dark:text-gray-400"
                                 >
-                                  ⓘ
-                                </span>
+                                  <circle
+                                    cx="6"
+                                    cy="6"
+                                    r="5.25"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    strokeWidth="1"
+                                  />
+                                  <circle cx="6" cy="3.6" r="0.75" fill="currentColor" />
+                                  <rect
+                                    x="5.4"
+                                    y="5"
+                                    width="1.2"
+                                    height="3.8"
+                                    fill="currentColor"
+                                  />
+                                </svg>
                                 <span className="sr-only">: {fallback}</span>
                               </>
                             ) : null}
