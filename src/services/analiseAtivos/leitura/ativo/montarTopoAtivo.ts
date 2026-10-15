@@ -51,6 +51,8 @@ import {
 import { montarFrescorBlocos } from '@/services/analiseAtivos/leitura/ativo/frescorBlocos';
 import { gruposConf } from '@/services/analiseAtivos/regras/comum/conferencia';
 import { obterCriteriosAtivo } from '@/services/analiseAtivos/leitura/criterios/lerCriterios';
+import { obterCriteriaParamsQuadro } from '@/services/analiseAtivos/leitura/linhasQuadro';
+import { CRITERIA_PARAMS_CODIGO } from '@/services/analiseAtivos/params/criteriaParamsCodigo';
 import {
   montarGraficoAcao,
   montarGraficoFii,
@@ -72,7 +74,7 @@ import type {
   FiiTipoTela,
   LinhaQuadroApi,
 } from '@/types/analiseAtivosApi';
-import type { CriteriosAtivo } from '@/types/analiseAtivosCriterios';
+import type { CriteriosAtivo, IdCriterio, PontoCriterio } from '@/types/analiseAtivosCriterios';
 
 export const TTL_TOPO_MS = 30 * 60_000;
 export const MAX_TOPO_EM_CACHE = 800;
@@ -119,6 +121,33 @@ async function lerCriteriosTopo(ticker: string): Promise<CriteriosAtivo | null> 
   } catch {
     return null;
   }
+}
+
+/**
+ * v2.5: dados dos KPIs da AÇÃO FINANCEIRA pelos mesmos params do card (kpisAtivo.kpiFinanceira):
+ * perfis.acao_financeira.naoSeAplica (falha de leitura = os do código) e o último ponto (maior ano,
+ * entre as janelas) das séries de 'mg' e 'dl' da avaliação de critérios.
+ */
+async function dadosKpisFinanceira(criterios: CriteriosAtivo | null): Promise<{
+  naoSeAplica: readonly IdCriterio[];
+  ultimos: Partial<Record<'mg' | 'dl', PontoCriterio | null>>;
+}> {
+  let naoSeAplica: readonly IdCriterio[];
+  try {
+    naoSeAplica = (await obterCriteriaParamsQuadro()).perfis.acao_financeira.naoSeAplica;
+  } catch {
+    naoSeAplica = CRITERIA_PARAMS_CODIGO.perfis.acao_financeira.naoSeAplica;
+  }
+  const ultimos: Partial<Record<'mg' | 'dl', PontoCriterio | null>> = {};
+  for (const id of ['mg', 'dl'] as const) {
+    let ultimo: PontoCriterio | null = null;
+    for (const janela of Object.values(criterios?.janelas ?? {})) {
+      const item = janela?.itens.find((i) => i.id === id);
+      for (const p of item?.serie ?? []) if (!ultimo || p.ano > ultimo.ano) ultimo = p;
+    }
+    ultimos[id] = ultimo;
+  }
+  return { naoSeAplica, ultimos };
 }
 
 /**
@@ -312,8 +341,11 @@ export async function montarTopoAtivo(
   }
   const ultimoMensal = mensal.length ? iso(mensal[mensal.length - 1].refMonth) : null;
 
+  const financeiraKpis =
+    ehAcao && row.regua === 'acao_financeira' ? await dadosKpisFinanceira(criterios) : undefined;
   const kpis = montarKpis({
     linha,
+    financeira: financeiraKpis,
     atuais: atuais
       ? {
           plMedia10a: atuais.plMedia10a,
