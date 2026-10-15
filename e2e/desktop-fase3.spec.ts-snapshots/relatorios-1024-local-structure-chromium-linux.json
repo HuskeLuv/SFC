@@ -29,27 +29,6 @@
   },
   {
    "ths": [
-    "Data",
-    "Operação",
-    "Ativo",
-    "Valor"
-   ],
-   "colCount": 4,
-   "theadClass": "",
-   "thClasses": [
-    "font-medium px-4 py-3 text-left whitespace-nowrap",
-    "font-medium px-4 py-3 text-right whitespace-nowrap"
-   ],
-   "trClasses": [
-    "border-b border-gray-100 dark:border-gray-800 last:border-b-0"
-   ],
-   "tdClasses": [
-    "dark:text-white font-medium px-4 py-2.5 text-gray-900 text-right text-sm",
-    "px-4 py-2.5 text-sm"
-   ]
-  },
-  {
-   "ths": [
     "Categoria",
     "Orçamento"
    ],

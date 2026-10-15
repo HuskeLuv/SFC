@@ -25,7 +25,7 @@
     "dark:text-gray-100 pr-4 py-2.5 text-gray-800 text-sm",
     "dark:text-gray-200 pr-4 py-2.5 text-gray-700 text-right text-sm",
     "dark:text-gray-500 font-medium pr-4 py-2.5 text-gray-400 text-right text-sm",
-    "dark:text-success-500 font-medium pr-4 py-2.5 text-right text-sm text-success-600",
+    "dark:text-mf-tranquilidade font-medium pr-4 py-2.5 text-mf-patrimonio text-right text-sm",
     "dark:text-success-500 pr-4 py-2.5 text-right text-sm text-success-600",
     "pr-4 py-2.5",
     "pr-4 py-2.5 text-right",

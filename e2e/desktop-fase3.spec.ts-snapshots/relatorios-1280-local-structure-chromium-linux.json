@@ -29,27 +29,6 @@
   },
   {
    "ths": [
-    "Data",
-    "Operação",
-    "Ativo",
-    "Valor"
-   ],
-   "colCount": 4,
-   "theadClass": "",
-   "thClasses": [
-    "font-medium px-4 py-3 text-left whitespace-nowrap",
-    "font-medium px-4 py-3 text-right whitespace-nowrap"
-   ],
-   "trClasses": [
-    "border-b border-gray-100 dark:border-gray-800 last:border-b-0"
-   ],
-   "tdClasses": [
-    "dark:text-white font-medium px-4 py-2.5 text-gray-900 text-right text-sm",
-    "px-4 py-2.5 text-sm"
-   ]
-  },
-  {
-   "ths": [
     "Categoria",
     "Orçamento"
    ],
@@ -71,8 +50,6 @@
  "mobileArtifactsVisible": 0,
  "controls": [
   "button|||bg-brand-500 disabled:bg-brand-300 font-medium gap-2 hover:bg-brand-600 inline-flex items-center justify-center print-hidden px-4 py-3 rounded-lg shadow-theme-xs text-sm text-white transition",
-  "button|||bg-brand-500 font-medium px-3 py-1 rounded-md text-white text-xs transition-colors",
-  "button|||bg-gray-100 dark:bg-gray-800 dark:hover:bg-gray-700 dark:text-gray-300 font-medium hover:bg-gray-200 px-3 py-1 rounded-md text-gray-600 text-xs transition-colors",
   "h1|||dark:text-white font-bold jsx-5355db7883af20a6 text-2xl text-gray-900",
   "h2|||dark:text-white font-semibold jsx-5355db7883af20a6 text-gray-900 text-xl",
   "h3|||",
