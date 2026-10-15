@@ -11,8 +11,8 @@
  *    com a âncora global (anoFimGlobal).
  * 4. Grava criteria_eval numa transação (deleteMany + createMany; idempotente) com a paramsVersion.
  *    Estourou o prazo antes do fim ⇒ 'parcial' SEM gravar (a versão anterior fica inteira).
- * Alertas: params ausente; cobertura das ações não financeiras do Quadro na janela 5 abaixo de 90%
- * em algum critério; scores ainda rodando ('pulado').
+ * Alertas: params ausente; cobertura das ações não financeiras do Quadro na janela 5 abaixo do
+ * mínimo em algum critério (90%; margem 85%, coberturaMinima); scores ainda rodando ('pulado').
  */
 import type { PrismaClient } from '@prisma/client';
 import { limparCacheCriterios } from '@/services/analiseAtivos/leitura/criterios/lerCriterios';
@@ -57,6 +57,16 @@ import type {
 export const LOTE_CRITERIOS = 50;
 /** Cobertura mínima (com dado) de cada critério das ações não financeiras na janela 5. */
 export const COBERTURA_MINIMA_ACOES = 0.9;
+/**
+ * Exceções por critério. Margem: receita ≤ lucro num ano (ganho não recorrente, ex.: fusão da
+ * ALOS3 em 2023) fica sem dado por regra, então a cobertura normal é menor (88,4% em prod em
+ * 15/10/2026, com rec/luc acima de 94%). 85% ainda pega uma ingestão quebrada.
+ */
+export const COBERTURA_MINIMA_POR_CRITERIO: Partial<Record<IdCriterio, number>> = { mg: 0.85 };
+
+export function coberturaMinima(id: IdCriterio): number {
+  return COBERTURA_MINIMA_POR_CRITERIO[id] ?? COBERTURA_MINIMA_ACOES;
+}
 export const JANELA_COBERTURA: Janela = 5;
 
 export interface UniversoCriterios {
@@ -285,16 +295,21 @@ export async function executarCriterios(
     .map((a) => a.avaliacao);
   const cobertura = coberturaAcoes(doQuadro, JANELA_COBERTURA);
   const abaixo = Object.entries(cobertura.porCriterio).filter(
-    ([, v]) => (v ?? 0) < COBERTURA_MINIMA_ACOES,
+    ([id, v]) => (v ?? 0) < coberturaMinima(id as IdCriterio),
   );
   if (cobertura.total > 0 && abaixo.length > 0) {
     ctx.alertar({
       codigo: 'criterios_cobertura_baixa',
       nivel: 'aviso',
       mensagem:
-        `cobertura das ações (janela ${JANELA_COBERTURA}) abaixo de ` +
-        `${COBERTURA_MINIMA_ACOES * 100}%: ` +
-        abaixo.map(([id, v]) => `${id} ${Math.round((v ?? 0) * 1000) / 10}%`).join(', '),
+        `cobertura das ações (janela ${JANELA_COBERTURA}) abaixo do mínimo: ` +
+        abaixo
+          .map(
+            ([id, v]) =>
+              `${id} ${Math.round((v ?? 0) * 1000) / 10}% ` +
+              `(mín. ${coberturaMinima(id as IdCriterio) * 100}%)`,
+          )
+          .join(', '),
     });
   }
 
