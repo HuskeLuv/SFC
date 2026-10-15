@@ -6,11 +6,15 @@
  *  - cópia COMPACTA para AnaliseQuadroLinha.criterios ({"3":{n,de,m:[[id,estado,fato]]},…}) e
  *    perfilCriterios, lida pelo job 'quadro' (gerarQuadro) e pelo seed do banco efêmero.
  * `atendidos` é contagem factual, não é nota. Só banco: nenhum provedor externo.
+ * v2.5: cada resultado leva `fonte` (ids das fontes da janela) e `obs` (fallback do lucro
+ * descontado, dados incompletos) no JSON de criteria_eval; a marca compacta ganha o 4º elemento
+ * (obs) só quando há obs — sem migration.
  */
 import type { Prisma, PrismaClient } from '@prisma/client';
 import {
   ehJanela,
   ehIdCriterio,
+  ehObsCriterio,
   PERFIS_CRITERIO,
   type AvaliacaoAtivo,
   type AvaliacaoJanela,
@@ -81,9 +85,12 @@ export async function gravarCriteriaEval(
 // Cópia compacta (AnaliseQuadroLinha.criterios)
 // ---------------------------------------------------------------------------
 
-/** Marcas compactas na ordem do perfil. Pura. */
+/** Marcas compactas na ordem do perfil ([id, estado, fato] ou [..., obs] com obs). Pura. */
 export function marcasCompactas(resultados: readonly ResultadoCriterio[]): MarcaCompacta[] {
-  return resultados.map((r) => [r.id, r.estado, r.fato]);
+  return resultados.map((r): MarcaCompacta => {
+    const obs = (r.obs ?? []).filter(ehObsCriterio);
+    return obs.length > 0 ? [r.id, r.estado, r.fato, obs] : [r.id, r.estado, r.fato];
+  });
 }
 
 /** Compacto de uma lista de linhas (uma por janela) de criteria_eval. Pura. */
@@ -138,7 +145,17 @@ export interface LinhaCompactaSql {
   atendidos: number;
   aplicaveis: number;
   paramsVersion: number;
-  m: Array<[string, string, string]> | null;
+  /** [id, estado, fato] ou [id, estado, fato, obs] (v2.5) */
+  m: Array<[string, string, string] | [string, string, string, unknown]> | null;
+}
+
+/** Marca lida do SQL (o 4º elemento só fica com obs válidas). Pura. */
+export function marcaDoSql(
+  m: [string, string, string] | [string, string, string, unknown],
+): MarcaCompacta {
+  const [id, estado, fato] = m;
+  const obs = Array.isArray(m[3]) ? (m[3] as unknown[]).filter(ehObsCriterio) : [];
+  return (obs.length > 0 ? [id, estado, fato, obs] : [id, estado, fato]) as MarcaCompacta;
 }
 
 /**
@@ -158,7 +175,11 @@ export async function lerCompactosPorSimbolo(
     const ultimo: { symbol: string; janela: number } | null = depois;
     const linhas: LinhaCompactaSql[] = await prisma.$queryRaw<LinhaCompactaSql[]>`
       SELECT e."symbol", e."perfil", e."janela", e."atendidos", e."aplicaveis", e."paramsVersion",
-             (SELECT jsonb_agg(jsonb_build_array(r->>'id', r->>'estado', r->>'fato') ORDER BY o)
+             (SELECT jsonb_agg(
+                       CASE WHEN jsonb_typeof(r->'obs') = 'array' AND jsonb_array_length(r->'obs') > 0
+                            THEN jsonb_build_array(r->>'id', r->>'estado', r->>'fato', r->'obs')
+                            ELSE jsonb_build_array(r->>'id', r->>'estado', r->>'fato') END
+                       ORDER BY o)
                 FROM jsonb_array_elements(e."resultados") WITH ORDINALITY AS t(r, o)) AS m
       FROM "criteria_eval" e
       WHERE ${ultimo === null}
@@ -176,7 +197,7 @@ export async function lerCompactosPorSimbolo(
         atual.criterios[String(l.janela) as ChaveJanela] = {
           n: l.atendidos,
           de: l.aplicaveis,
-          m: l.m.filter(([id]) => ehIdCriterio(id)) as MarcaCompacta[],
+          m: l.m.filter(([id]) => ehIdCriterio(id)).map(marcaDoSql),
         };
       }
       out.set(l.symbol, atual);
