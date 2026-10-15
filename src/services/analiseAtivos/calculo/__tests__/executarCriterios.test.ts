@@ -8,6 +8,12 @@ import {
   type UniversoCriterios,
 } from '@/services/analiseAtivos/calculo/executarCriterios';
 import { CRITERIA_PARAMS_V1 } from '@/services/analiseAtivos/params/criteriaParamsV1';
+import {
+  CRITERIA_PARAMS_V2,
+  CRITERIA_PARAMS_V2_JSON,
+} from '@/services/analiseAtivos/params/criteriaParamsV2';
+import { criteriaParamsSchema } from '@/services/analiseAtivos/params/criteriaParamsSchema';
+import type { ResultadoCriterio } from '@/types/analiseAtivosCriterios';
 import { ErroParams } from '@/services/analiseAtivos/params/obterCriteriaParams';
 import { SCORING_PARAMS_V1 } from '@/services/analiseAtivos/params/scoringParamsV1';
 import {
@@ -289,6 +295,70 @@ describe('executarCriterios', () => {
       deps({ simbolosNoQuadro: vi.fn(async () => new Set(['WEGE3'])) }),
     );
     expect((r.detalhes?.coberturaAcoesJanela5 as { total: number }).total).toBe(1);
+  });
+});
+
+describe('executarCriterios com a v2 (camada de fontes)', () => {
+  const v2 = () => ({ versao: 2, params: CRITERIA_PARAMS_V2 });
+
+  it('financeira "n de 6", lucro com a obs do fallback e fonte cvm; provedor não é lido só com a CVM', async () => {
+    const { prisma, tabela } = prismaFake();
+    const lerPontosProvedores = vi.fn(async () => []);
+    await executarCriterios(
+      ctxCom(prisma).ctx,
+      deps({ obterParams: vi.fn(async () => v2()), lerPontosProvedores }),
+    );
+    expect(tabela.get('ITUB4|5')).toMatchObject({ perfil: 'acao_financeira', aplicaveis: 6 });
+    const resultados = tabela.get('WEGE3|5')!.resultados as unknown as ResultadoCriterio[];
+    expect(resultados.find((r) => r.id === 'luc')).toMatchObject({
+      obs: ['lucro_sem_descontado'],
+      fonte: ['cvm'],
+    });
+    expect(lerPontosProvedores).not.toHaveBeenCalled();
+  });
+
+  it('com provedor na prioridade: lê os pontos aprovados dele e o resultado mostra a fonte', async () => {
+    const { prisma, tabela } = prismaFake();
+    const json = structuredClone(CRITERIA_PARAMS_V2_JSON) as unknown as {
+      fontes: { prioridade: { padrao: string[] } };
+    };
+    json.fontes.prioridade.padrao = ['exemplo', 'cvm'];
+    const params = criteriaParamsSchema.parse(json);
+    const lerPontosProvedores = vi.fn(async (_p: unknown, symbols: readonly string[]) =>
+      symbols.includes('WEGE3')
+        ? Array.from({ length: 11 }, (_, i) => ({
+            symbol: 'WEGE3',
+            serie: 'net_income_adjusted' as const,
+            tipoPeriodo: 'FY' as const,
+            anoFiscal: 2015 + i,
+            dtFim: `${2015 + i}-12-31`,
+            valor: 5e7 * (i + 1),
+            fonte: 'exemplo',
+            versao: 1,
+            incompleto: false,
+          }))
+        : [],
+    );
+    const r = await executarCriterios(
+      ctxCom(prisma).ctx,
+      deps({ obterParams: vi.fn(async () => ({ versao: 4, params })), lerPontosProvedores }),
+    );
+    expect(lerPontosProvedores).toHaveBeenCalled();
+    const luc = (tabela.get('WEGE3|5')!.resultados as unknown as ResultadoCriterio[]).find(
+      (x) => x.id === 'luc',
+    )!;
+    expect(luc).toMatchObject({ estado: 'atende', fonte: ['exemplo'] });
+    expect(luc.obs).toBeUndefined();
+    expect(r.detalhes).toMatchObject({ paramsVersion: 4, fontes: ['exemplo', 'cvm'] });
+  });
+
+  it('opcoes.versaoParams pede a versão ao banco (dry-run de versão não vigente)', async () => {
+    const { prisma } = prismaFake();
+    const obterParams = vi.fn(async () => v2());
+    await executarCriterios(ctxCom(prisma, { aplicar: false }).ctx, deps({ obterParams }), {
+      versaoParams: 2,
+    });
+    expect(obterParams).toHaveBeenCalledWith(prisma, { versao: 2 });
   });
 });
 
