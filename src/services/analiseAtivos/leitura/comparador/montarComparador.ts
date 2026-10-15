@@ -274,7 +274,8 @@ export function montarComparadorPuro(e: EntradaComparador): NucleoComparador {
       nome: l.nome,
       preco: l.preco,
       precoData: l.precoData,
-      fiiTipo: l.fiiTipo,
+      // v2.5: tipo EXIBIDO (Tijolo | Papel, o mesmo da comparação); FoF/Híbrido só no segmento
+      fiiTipo: classe === 'fii' ? (tipos[i] === 'tijolo' ? 'tijolo' : 'papel') : l.fiiTipo,
       tipoComparacao: tipos[i],
       criterios: a.criterios,
       noQuadro: l.noQuadro,

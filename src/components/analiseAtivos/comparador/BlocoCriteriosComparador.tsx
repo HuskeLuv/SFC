@@ -4,8 +4,10 @@
  * BlocoCriteriosComparador (v2.4, fatia D) — "Critérios de fundamentos · N anos", o PRIMEIRO bloco
  * do Comparador. Os critérios aparecem lado a lado, com marcas NEUTRAS (✓ / — / n/a, nunca
  * verde/vermelho), a frase factual de cada ativo e, no fim, "Critérios atendidos: n de k" (k = 6;
- * financeiras 3). Nenhuma célula ganha fundo, filete ou ícone por ter mais critérios atendidos: a
- * diferença de denominador fica visível só pelo texto.
+ * v2.5: financeiras também 6, salvo se os params religarem o D4). Nenhuma célula ganha fundo,
+ * filete ou ícone por ter mais critérios atendidos: a diferença de denominador fica visível só pelo
+ * texto. Rótulos da v2 vêm da resposta ('Alavancagem ≤ 20% do PL', 'Dív. líq./EBITDA < 3×'); a
+ * observação do resultado (lucro sem o descontado na fonte) vai junto da frase.
  *
  * - 'tabela' (computador): devolve as <tr> para o <tbody> da TabelaComparador (faixa de grupo +
  *   uma linha por critério + a linha de contagem com borda de 2 px);
@@ -182,6 +184,17 @@ function ConteudoMarca({ marca, cartao }: { marca: MarcaCriterioLinha | null; ca
       >
         {fraseDaMarca(marca)}
       </small>
+      {marca.obs?.map((o) => (
+        <small
+          key={o}
+          data-obs-criterio={o}
+          className={`block text-[11.5px] leading-[1.35] text-gray-500 italic dark:text-gray-400 ${
+            cartao ? '[overflow-wrap:anywhere]' : 'mx-auto max-w-[240px] whitespace-normal'
+          }`}
+        >
+          {TCR.obs[o]}
+        </small>
+      ))}
     </span>
   );
 }

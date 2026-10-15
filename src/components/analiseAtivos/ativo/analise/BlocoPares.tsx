@@ -5,8 +5,9 @@
  * até 5 pares — SEM o próprio ativo — em ordem A–Z, clicáveis (abrem /analise-ativos/[ticker]),
  * com a coluna "Critérios" (contagem 'n de k' em 5 anos, neutra; sem Índice).
  *  - Ações: Ativo · P/L · P/VP · ROE · DY 12m · Lucros seguidos · Critérios;
- *  - FIIs: Fundo · DY 12m · P/VP · Vacância (CVM) (tijolo) ou Nº CRIs (papel) · Patrimônio ·
- *    Critérios.
+ *  - FIIs: Fundo · DY 12m · P/VP · Vacância (CVM) (tijolo) ou Nº CRIs (papel) · Alavancagem (% do
+ *    PL) (v2.5, rótulo coerente com o chip 'Alavancagem ≤ 20% do PL'; cálculo = obrigações ÷ PL) ·
+ *    Patrimônio · Critérios.
  * Computador: tabela TABLE_STYLES com th scope="row" e CelulaCriterios (botão de 44 px com o
  * detalhe em tooltip, sem abrir a linha); celular: cartões (links de 44 px+) com 'n de k' em texto.
  * O nome do ativo vem do banco e leva data-nome-ativo (a varredura de linguagem o ignora). Critério
@@ -23,7 +24,7 @@ import { formatarAnalise, formatarEstado } from '@/components/analiseAtivos/comu
 import { TABLE_HEADER_STYLE, TABLE_STYLES } from '@/components/ui/table/tableStyles';
 import { COR_LINK } from '@/constants/analiseAtivosVisual';
 import { useValuationAtivo } from '@/hooks/useAnaliseAtivos';
-import { CRITERIA_PARAMS_V1 } from '@/services/analiseAtivos/params/criteriaParamsV1';
+import { CRITERIA_PARAMS_CODIGO } from '@/services/analiseAtivos/params/criteriaParamsCodigo';
 import { JANELA_PARES } from '@/services/analiseAtivos/leitura/ativo/paresAtivo';
 import { TEXTOS_ATIVO } from '@/services/analiseAtivos/textosAtivo';
 import { TEXTOS_CRITERIOS } from '@/services/analiseAtivos/textosCriterios';
@@ -73,9 +74,13 @@ export function textoCriteriosPar(l: LinhaQuadroApi): { texto: string; title?: s
   };
 }
 
-/** id → rótulo dos critérios do perfil (criteria_params v1), para o tooltip da célula. */
+/**
+ * id → rótulo dos critérios do perfil, para o tooltip da célula. v2.5: dos params vigentes do código
+ * (CRITERIA_PARAMS_CODIGO: 'Alavancagem ≤ 20% do PL', 'Dív. líq./EBITDA < 3×'); a financeira usa os
+ * 6 de ação.
+ */
 export function rotulosDoPerfil(perfil: PerfilCriterio): Partial<Record<IdCriterio, string>> {
-  const p = CRITERIA_PARAMS_V1.perfis;
+  const p = CRITERIA_PARAMS_CODIGO.perfis;
   const lista =
     perfil === 'fii_tijolo' ? p.fii_tijolo : perfil === 'fii_papel' ? p.fii_papel : p.acao;
   return Object.fromEntries(lista.map((c) => [c.id, c.rotulo]));
@@ -112,6 +117,14 @@ function colunasDe(classe: ClasseQuadro, papel: boolean): ColunaPar[] {
           rotulo: TA.colunas.vacancia,
           valor: (l) => deEstado(l.vacanciaCvm, 'pct'),
         },
+    {
+      codigo: 'alavancagem',
+      rotulo: TA.colunas.alavancagem,
+      valor: (l) => {
+        const v = deEstado(l.obrigacoesPl, 'pct');
+        return { ...v, title: v.title ?? TEXTOS_ATIVO.alavancagem.tooltip };
+      },
+    },
     {
       codigo: 'patrimonio',
       rotulo: C.patrimonio,

@@ -14,6 +14,7 @@ import type { PrismaClient } from '@prisma/client';
 import { obterLinhasQuadroApi } from '@/services/analiseAtivos/leitura/linhasQuadro';
 import { obterCriteriosVarios } from '@/services/analiseAtivos/leitura/criterios/lerCriterios';
 import { FLAG_CNPJ_EM_CONFERENCIA } from '@/services/analiseAtivos/quadro/montarLinhasQuadro';
+import { tipoFiiExibido } from '@/services/analiseAtivos/quadro/tipoFiiExibido';
 import { TEXTOS_ACOES_CARTEIRA } from '@/services/analiseAtivos/textosAcoesCarteira';
 import type { LinhaQuadroApi } from '@/types/analiseAtivosApi';
 import type {
@@ -35,14 +36,17 @@ function normalizar(s: string): string {
 
 const aZ = (a: LinhaQuadroApi, b: LinhaQuadroApi) => a.ticker.localeCompare(b.ticker);
 
-/** Perfil de critérios do FII (avaliação primeiro; sem ela, tijolo = tijolo e o resto = papel). */
+/**
+ * Perfil de critérios do FII = o do tipo EXIBIDO (v2.5, tipoFiiExibido: avaliação primeiro; sem
+ * ela, tijolo = tijolo e o resto — FoF, híbrido, indefinido — = papel). As sugestões ficam no mesmo
+ * tipo exibido do ativo (Tijolo | Papel), como no seletor do Comparador.
+ */
 export function perfilFii(
   linha: LinhaQuadroApi,
   criterios: ReadonlyMap<string, CriteriosLinhaApi>,
 ): PerfilCriterio {
-  const avaliado = criterios.get(linha.ticker)?.perfil;
-  if (avaliado === 'fii_tijolo' || avaliado === 'fii_papel') return avaliado;
-  return linha.fiiTipo === 'tijolo' ? 'fii_tijolo' : 'fii_papel';
+  const avaliado = criterios.get(linha.ticker)?.perfil ?? linha.criterios?.perfil;
+  return tipoFiiExibido(avaliado, linha.fiiTipo) === 'tijolo' ? 'fii_tijolo' : 'fii_papel';
 }
 
 /** Par do ativo: ação = mesmo segmento B3 ou mesmo setor; FII = mesmo segmento CVM. */

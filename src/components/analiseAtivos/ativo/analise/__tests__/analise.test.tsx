@@ -13,7 +13,7 @@ vi.mock('next/navigation', () => ({ useRouter: () => ({ push: mockPush }) }));
 import BlocoFundamentosEssencial from '../BlocoFundamentosEssencial';
 import BlocoValuationMultiplos from '../BlocoValuationMultiplos';
 import BlocoMultiplosHistoricos from '../BlocoMultiplosHistoricos';
-import BlocoPares from '../BlocoPares';
+import BlocoPares, { rotulosDoPerfil } from '../BlocoPares';
 import BarraPosicao10a from '../BarraPosicao10a';
 import CardMultiplo from '../CardMultiplo';
 import ChipsGrupo from '../ChipsGrupo';
@@ -371,7 +371,7 @@ describe('BlocoPares', () => {
     expect(screen.getByText(VALUATION.pares.criterio)).toBeTruthy();
   });
 
-  it('FII de tijolo: Fundo · DY 12m · P/VP · Vacância (CVM) · Patrimônio · Critérios', () => {
+  it('FII de tijolo: Fundo · DY 12m · P/VP · Vacância (CVM) · Alavancagem · Patrimônio · Critérios', () => {
     mockHooks.useValuationAtivo.mockReturnValue(
       consulta({
         ...VALUATION,
@@ -383,7 +383,23 @@ describe('BlocoPares', () => {
       within(screen.getByRole('table'))
         .getAllByRole('columnheader')
         .map((c) => c.textContent),
-    ).toEqual(['Fundo', 'DY 12m', 'P/VP', 'Vacância (CVM)', 'Patrimônio', 'Critérios']);
+    ).toEqual([
+      'Fundo',
+      'DY 12m',
+      'P/VP',
+      'Vacância (CVM)',
+      'Alavancagem (% do PL)',
+      'Patrimônio',
+      'Critérios',
+    ]);
+  });
+
+  it('v2.5: rótulos dos critérios pelos params do código (Alavancagem e Dív. líq./EBITDA < 3×)', () => {
+    expect(rotulosDoPerfil('fii_tijolo').alav).toBe('Alavancagem ≤ 20% do PL');
+    expect(rotulosDoPerfil('acao').dl).toBe('Dív. líq./EBITDA < 3×');
+    // financeira: os mesmos 6 de ação ("n de 6")
+    expect(Object.keys(rotulosDoPerfil('acao_financeira'))).toHaveLength(6);
+    expect(rotulosDoPerfil('fii_papel').ltv).toBe('LTV ≤ 60%');
   });
 
   it('sem pares: texto próprio', () => {
