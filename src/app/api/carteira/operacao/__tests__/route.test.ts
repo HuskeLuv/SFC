@@ -577,6 +577,23 @@ describe('POST /api/carteira/operacao', () => {
           }),
         }),
       );
+      // Histórico guarda o planejado absorvido: o desfazer da compra o recria.
+      expect(mockPrisma.userChangeLog.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            action: 'operacao.registrar',
+            snapshot: expect.objectContaining({
+              kind: 'planejado',
+              data: expect.objectContaining({
+                id: 'plan-1',
+                assetId: 'asset-petr4',
+                objetivo: 30,
+                secao: 'growth',
+              }),
+            }),
+          }),
+        }),
+      );
     });
 
     it('stock manual: compra do ticker PLANEJADO reaproveita o Asset e herda o objetivo', async () => {

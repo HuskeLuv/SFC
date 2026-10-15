@@ -5,6 +5,7 @@ import type { UserChangeLog } from '@prisma/client';
 const mockPrisma = vi.hoisted(() => ({
   stockTransaction: { findFirst: vi.fn(), delete: vi.fn() },
   portfolio: { findFirst: vi.fn(), updateMany: vi.fn() },
+  watchlist: { create: vi.fn() },
   cashflowItem: { findFirst: vi.fn(), delete: vi.fn() },
   cashflowValue: { deleteMany: vi.fn() },
   $transaction: vi.fn(async (ops: unknown[]) => ops),
@@ -286,5 +287,110 @@ describe('investimento.registrar (delete-created de item+valores do cashflow)', 
     await expect(
       CARTEIRA_UNDO_HANDLERS['investimento.registrar'].execute(ctx(entry())),
     ).rejects.toThrow('O investimento não existe mais');
+  });
+});
+
+describe('operacao.registrar que ABSORVEU um planejado', () => {
+  const planejado = {
+    id: 'plan-1',
+    assetId: 'asset-1',
+    objetivo: 30,
+    secao: 'growth',
+    categoriaOverride: 'fimFia',
+    notes: 'comprar na baixa',
+    addedAt: '2026-07-01T10:00:00.000Z',
+  };
+  const recriado = {
+    data: {
+      id: 'plan-1',
+      userId: 'user-1',
+      assetId: 'asset-1',
+      objetivo: 30,
+      secao: 'growth',
+      categoriaOverride: 'fimFia',
+      notes: 'comprar na baixa',
+      addedAt: new Date('2026-07-01T10:00:00.000Z'),
+    },
+  };
+
+  beforeEach(() => {
+    mockPrisma.stockTransaction.findFirst.mockResolvedValue({
+      id: 'tx-1',
+      assetId: 'asset-1',
+      date: TX_DATE,
+    });
+  });
+
+  it('sem posição restante: recria o planejado com o MESMO id, objetivo, seção e aba', async () => {
+    // antes do delete: a posição criada pela compra; depois do recalc: sumiu
+    mockPrisma.portfolio.findFirst
+      .mockResolvedValueOnce({ id: 'port-1', assetId: 'asset-1' })
+      .mockResolvedValueOnce(null);
+    await CARTEIRA_UNDO_HANDLERS['operacao.registrar'].execute(
+      ctx(makeEntry({ snapshot: { v: 1, kind: 'planejado', data: planejado } })),
+    );
+    expect(mockPrisma.stockTransaction.delete).toHaveBeenCalledWith({ where: { id: 'tx-1' } });
+    expect(mockRecalc).toHaveBeenCalled();
+    expect(mockPrisma.watchlist.create).toHaveBeenCalledWith(recriado);
+    expect(mockReverterCaixa).not.toHaveBeenCalled();
+  });
+
+  it('compra que também mexeu no caixa: planejado vem em meta e o caixa é devolvido', async () => {
+    const movimento = {
+      aba: 'acoes',
+      valorOperacao: 1000,
+      debitoReserva: 0,
+      debitoLivre: 1000,
+      credito: 0,
+      deltaTotal: -1000,
+    };
+    mockPrisma.portfolio.findFirst
+      .mockResolvedValueOnce({ id: 'port-1', assetId: 'asset-1' })
+      .mockResolvedValueOnce(null);
+    await CARTEIRA_UNDO_HANDLERS['operacao.registrar'].execute(
+      ctx(
+        makeEntry({
+          snapshot: {
+            v: 1,
+            kind: 'caixa-movimento',
+            data: movimento,
+            meta: { planejadoAbsorvido: planejado },
+          },
+        }),
+      ),
+    );
+    expect(mockPrisma.watchlist.create).toHaveBeenCalledWith(recriado);
+    expect(mockReverterCaixa).toHaveBeenCalledWith('user-1', movimento);
+  });
+
+  it('ainda há posição (outras compras do ativo): não recria e o desfazer não falha', async () => {
+    mockPrisma.portfolio.findFirst.mockResolvedValue({ id: 'port-1', assetId: 'asset-1' });
+    await CARTEIRA_UNDO_HANDLERS['operacao.registrar'].execute(
+      ctx(makeEntry({ snapshot: { v: 1, kind: 'planejado', data: planejado } })),
+    );
+    expect(mockPrisma.stockTransaction.delete).toHaveBeenCalled();
+    expect(mockPrisma.watchlist.create).not.toHaveBeenCalled();
+  });
+
+  it('ativo já planejado de novo (unique): ignora e conclui o desfazer', async () => {
+    mockPrisma.portfolio.findFirst
+      .mockResolvedValueOnce({ id: 'port-1', assetId: 'asset-1' })
+      .mockResolvedValueOnce(null);
+    mockPrisma.watchlist.create.mockRejectedValueOnce(
+      Object.assign(new Error('unique'), { code: 'P2002' }),
+    );
+    await expect(
+      CARTEIRA_UNDO_HANDLERS['operacao.registrar'].execute(
+        ctx(makeEntry({ snapshot: { v: 1, kind: 'planejado', data: planejado } })),
+      ),
+    ).resolves.toBeDefined();
+    expect(mockSyncSonho).toHaveBeenCalledWith('user-1', { assetId: 'asset-1' });
+  });
+
+  it('entrada antiga (sem snapshot do planejado): comportamento de sempre', async () => {
+    mockPrisma.portfolio.findFirst.mockResolvedValueOnce({ id: 'port-1' }).mockResolvedValue(null);
+    await CARTEIRA_UNDO_HANDLERS['operacao.registrar'].execute(ctx(makeEntry({})));
+    expect(mockPrisma.watchlist.create).not.toHaveBeenCalled();
+    expect(mockPrisma.portfolio.findFirst).toHaveBeenCalledTimes(1);
   });
 });
