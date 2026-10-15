@@ -19,7 +19,8 @@
 import { readFileSync } from 'fs';
 import path from 'path';
 import { Prisma, PrismaClient } from '@prisma/client';
-import { CRITERIA_PARAMS_V1 } from '../src/services/analiseAtivos/params/criteriaParamsV1';
+import { CRITERIA_PARAMS_V1_JSON } from '../src/services/analiseAtivos/params/criteriaParamsV1';
+import { CRITERIA_PARAMS_V2_JSON } from '../src/services/analiseAtivos/params/criteriaParamsV2';
 
 export const RECURSO_BETA_ANALISE = 'analise-ativos';
 export const EMAIL_DEMO = 'usuario.demo@finapp.local';
@@ -117,19 +118,28 @@ async function carregarFixtures(prisma: PrismaClient): Promise<Record<string, nu
 export const VALIDO_DESDE_CRITERIOS = new Date('2026-10-13T00:00:00.000Z');
 
 /**
- * v2.4: criteria_params v1 + job 'criterios' sobre as fixtures + cópia compacta nas linhas do
- * Quadro. Devolve quantas linhas do Quadro ficaram com critérios. Imports dinâmicos: o motor só é
- * carregado quando há fixtures para avaliar.
+ * v2.4/v2.5: criteria_params v1 e v2 + job 'criterios' sobre as fixtures + cópia compacta nas
+ * linhas do Quadro. A v2 (maior versão, mesmo validFrom) é a VIGENTE no banco efêmero, como ficará em
+ * produção depois da ativação; a v1 entra como foi gravada em produção (nomes legados). Devolve
+ * quantas linhas do Quadro ficaram com critérios. Imports dinâmicos: o motor só é carregado quando
+ * há fixtures para avaliar.
  */
 export async function avaliarCriteriosFixtures(prisma: PrismaClient): Promise<number> {
   await prisma.criteriaParams.createMany({
     data: [
       {
-        version: CRITERIA_PARAMS_V1.versao,
-        params: CRITERIA_PARAMS_V1 as unknown as Prisma.InputJsonValue,
+        version: CRITERIA_PARAMS_V1_JSON.versao,
+        params: CRITERIA_PARAMS_V1_JSON as unknown as Prisma.InputJsonValue,
         validFrom: VALIDO_DESDE_CRITERIOS,
         createdBy: 'seed',
         notas: 'seed do banco efêmero (CI/e2e) — o mesmo CRITERIA_PARAMS_V1 do código',
+      },
+      {
+        version: CRITERIA_PARAMS_V2_JSON.versao,
+        params: CRITERIA_PARAMS_V2_JSON as unknown as Prisma.InputJsonValue,
+        validFrom: VALIDO_DESDE_CRITERIOS,
+        createdBy: 'seed',
+        notas: 'seed do banco efêmero (CI/e2e) — o mesmo CRITERIA_PARAMS_V2 do código (vigente)',
       },
     ],
     skipDuplicates: true,
