@@ -245,6 +245,9 @@ SHELL=/bin/bash
 55 9 * * 2-6 root /usr/local/bin/myfinance-cron.sh /api/cron/analise-ativos/cotahist
 5 23 * * 1-5 root /usr/local/bin/myfinance-cron.sh /api/cron/analise-ativos/cotahist
 10 10 * * * root /usr/local/bin/myfinance-job.sh scores
+# Análise de Ativos (v2.5) — ingestão do provedor de fundamentos (antes do criterios). DESLIGADA:
+# descomentar só com conector contratado + ANALISE_FONTES_INGESTAO no app.env (sem conector = pulado)
+#20 10 * * * root /usr/local/bin/myfinance-job.sh fontes-fundamentos
 # Análise de Ativos (v2.4) — Filtros de Fundamentos (criteria_eval), entre o scores e o quadro
 30 10 * * * root /usr/local/bin/myfinance-job.sh criterios
 # Análise de Ativos (Fase 1) — linhas do Quadro, depois do scores

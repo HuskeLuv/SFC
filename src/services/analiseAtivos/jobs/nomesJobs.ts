@@ -18,6 +18,8 @@ export const NOMES_JOBS = [
   'criterios',
   'quadro',
   'curadoria',
+  // v2.5: ingestão dos conectores de fundamentos (ANALISE_FONTES_INGESTAO; sem conector = pulado)
+  'fontes-fundamentos',
 ] as const satisfies readonly NomeJob[];
 
 export type DocCvmCias = 'fca' | 'dfp' | 'itr';
