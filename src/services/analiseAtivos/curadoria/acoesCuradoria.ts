@@ -18,6 +18,10 @@
  * outro caso), conferenciaManual=false, reportes.respondidoEm e UMA Notification por autor distinto
  * (notificacoesCaso), tudo na mesma transação; o push sai depois do commit. Toda ação grava um
  * AnaliseCasoEvento (auditoria).
+ *
+ * v2.5: fechar um caso do grupo 'fonte_externa' (ponto de provedor em revisão pela sanidade da §6)
+ * aprova o ponto ('liberar_valor') ou o rejeita (qualquer outro efeito), na mesma transação
+ * (efeitoFonteExterna.ts) — a curadoria é o único caminho de aprovação.
  */
 import type { Prisma, PrismaClient } from '@prisma/client';
 import { ApiError } from '@/utils/apiErrorHandler';
@@ -33,6 +37,10 @@ import {
   type ResolucaoCaso,
   type StatusCaso,
 } from '@/services/analiseAtivos/curadoria/contrato';
+import {
+  aplicarEfeitoFonteExterna,
+  ehCasoFonteExterna,
+} from '@/services/analiseAtivos/curadoria/efeitoFonteExterna';
 import {
   enviarPushes,
   notificarAutoresDoCaso,
@@ -65,6 +73,9 @@ interface CasoAtual {
   status: string;
   responsavelId: string | null;
   updatedAt: Date;
+  /** v2.5: grupo 'fonte_externa' tem efeito no ponto do provedor */
+  grupo?: string | null;
+  contexto?: unknown;
 }
 
 /** Texto livre do curador: saneado, sem HTML, dentro do limite. '' vira null. */
@@ -171,7 +182,15 @@ export async function aplicarAcaoCaso(
   await prisma.$transaction(async (tx) => {
     const caso = await tx.analiseCasoDado.findUnique({
       where: { id: casoId },
-      select: { id: true, symbol: true, status: true, responsavelId: true, updatedAt: true },
+      select: {
+        id: true,
+        symbol: true,
+        status: true,
+        responsavelId: true,
+        updatedAt: true,
+        grupo: true,
+        contexto: true,
+      },
     });
     if (!caso) throw new ApiError(404, 'Caso não encontrado');
     if (caso.updatedAt.getTime() !== esperado.getTime()) throw await conflito(tx, casoId);
@@ -249,6 +268,9 @@ export async function aplicarAcaoCaso(
     await atualizarCondicional(tx, caso, esperado, data);
     await evento('decisao', { de, para, texto: resolucao ?? efeito });
     if (nota !== undefined && nota) await evento('nota', { texto: nota });
+    if (fechar && ehCasoFonteExterna(caso.grupo)) {
+      await aplicarEfeitoFonteExterna(tx, caso.contexto, efeito, adminId, agora);
+    }
 
     if (fechar && resolucao) {
       const reportes = await tx.analiseDataReport.findMany({
