@@ -1,8 +1,9 @@
 // @vitest-environment jsdom
 /**
  * Barra "Filtros de fundamentos" (BarraFiltrosCriterios) e o estado na URL (useEstadoQuadroUrl) —
- * fatia B da v2.4: chips E, janela 3|5|10, chip vac/inad desabilitado com motivo (D3), alvos de
- * 44 px por classe, marcas neutras e varredura de linguagem (caso 32).
+ * fatia B da v2.4: chips E, janela 3|5|10, chip vac/inad desabilitado com motivo (D3, params v1),
+ * alvos de 44 px por classe, marcas neutras e varredura de linguagem (caso 32). v2.5: com a v2 todos
+ * os chips habilitados, o rótulo de papel em cinza e ?c=vac preservado.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { fireEvent, render, screen, within } from '@testing-library/react';
@@ -19,6 +20,8 @@ import {
   lerEstadoQuadro,
 } from '../useEstadoQuadroUrl';
 import { definicoesChips } from '@/test/fixtures/analiseAtivos/criterios';
+import { definicoesQuadro } from '@/services/analiseAtivos/quadro/consultaQuadro';
+import { CRITERIA_PARAMS_V2 } from '@/services/analiseAtivos/params/criteriaParamsV2';
 import { esperarDomLimpo } from '@/test/utils/varrerDom';
 import { TEXTOS_CRITERIOS } from '@/services/analiseAtivos/textosCriterios';
 import { RODAPE_QUADRO } from '@/services/analiseAtivos/textosLiterais';
@@ -82,7 +85,7 @@ describe('BarraFiltrosCriterios', () => {
     expect(p.onLimpar).toHaveBeenCalled();
   });
 
-  it('FII: pares tijolo/papel; vac/inad desabilitado com selo e motivo (D3); alav/ltv habilitado', () => {
+  it('v1 (D3): vac/inad desabilitado com selo e motivo; alav/ltv habilitado', () => {
     const p = props({ classe: 'fii', definicoes: definicoesChips('fii') });
     render(<BarraFiltrosCriterios {...p} />);
     const vac = chip(/Vacância ≤ 10%/);
@@ -99,10 +102,29 @@ describe('BarraFiltrosCriterios', () => {
     const alav = chip(/Obrigações\/PL ≤ 20%/);
     expect(alav).toHaveAttribute('aria-pressed', 'false');
     expect(alav.textContent).toContain('LTV ≤ 60%');
-    expect(alav.getAttribute('title')).toContain(TEXTOS_CRITERIOS.chips.tooltipParAlavancagem);
+    expect(alav.getAttribute('title')).toContain('em FII de papel: LTV ≤ 60%');
+    expect(alav.getAttribute('title')).toContain(TEXTOS_CRITERIOS.chips.semDadoFii);
     fireEvent.click(alav);
     expect(p.onAlternarCriterio).toHaveBeenCalledWith('alav');
     expect(chip(/Segmento/)).toBeInTheDocument();
+  });
+
+  it('v2.5: todos os pares de FII habilitados, papel em cinza, nome acessível do par', () => {
+    const p = props({ classe: 'fii', definicoes: definicoesQuadro('fii', CRITERIA_PARAMS_V2) });
+    const { container } = render(<BarraFiltrosCriterios {...p} />);
+    expect(container.querySelector('[data-chip-desabilitado]')).toBeNull();
+    // sem o selo 'sem dado' do chip desligado (o tooltip ainda explica o fundo sem a série)
+    expect(container.querySelector('[data-criterio-chip] em')).toBeNull();
+    const vac = chip(/Vacância ≤ 10% \(tijolo\) ou Inadimplência ≤ 3% \(papel\)/);
+    expect(vac).toHaveAttribute('aria-pressed', 'false');
+    expect(vac.getAttribute('title')).toContain(TEXTOS_CRITERIOS.chips.semDadoFii);
+    const papel = vac.querySelector('[data-chip-papel="inad"]')!;
+    expect(papel.className).toContain('text-gray-500');
+    expect(papel.className).not.toMatch(/green|red/);
+    fireEvent.click(vac);
+    expect(p.onAlternarCriterio).toHaveBeenCalledWith('vac');
+    const alav = chip(/Alavancagem ≤ 20% do PL \(tijolo\) ou LTV ≤ 60% \(papel\)/);
+    expect(alav).toHaveAttribute('aria-pressed', 'false');
   });
 
   it('descricaoChip junta definição, par de papel e motivo', () => {
@@ -169,7 +191,7 @@ describe('useEstadoQuadroUrl (funções puras)', () => {
 
   it('lê j, c (só chips habilitados da classe, na ordem da barra), carteira e s', () => {
     const e = lerEstadoQuadro(
-      new URLSearchParams('classe=fii&j=10&c=res,vac,rend,rec,ltv,rend&carteira=1&s=Logística'),
+      new URLSearchParams('classe=fii&j=10&c=res,rend,rec,ltv,rend&carteira=1&s=Logística'),
     );
     expect(e).toMatchObject({
       classe: 'fii',
@@ -201,6 +223,15 @@ describe('useEstadoQuadroUrl (funções puras)', () => {
   it('alternarCriterio liga/desliga mantendo a ordem da barra', () => {
     expect(alternarCriterio('acao', ['mg'], 'rec')).toEqual(['rec', 'mg']);
     expect(alternarCriterio('acao', ['rec', 'mg'], 'rec')).toEqual(['mg']);
-    expect(alternarCriterio('fii', [], 'vac')).toEqual([]);
+    // v2.5: vacância/inadimplência é chip ativo
+    expect(alternarCriterio('fii', [], 'vac')).toEqual(['vac']);
+    expect(alternarCriterio('fii', ['vac'], 'ltv')).toEqual(['vac']);
+  });
+
+  it('v2.5: ?c=vac fica na URL (chip Vacância/Inadimplência ativo)', () => {
+    const e = lerEstadoQuadro(new URLSearchParams('classe=fii&c=res,vac'));
+    expect(e.criterios).toEqual(['vac', 'res']);
+    expect(escreverEstadoQuadro(e).toString()).toBe('classe=fii&c=vac%2Cres');
+    expect(filtrosDoEstado(e).criterios).toBe('vac,res');
   });
 });

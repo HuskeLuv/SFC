@@ -4,9 +4,11 @@
  * Barra "Filtros de fundamentos" do Quadro (v2.4, fatia B): janela 3 | 5 | 10 anos (PilulasJanela),
  * os chips dos critérios da classe (QuadroResposta.definicoes; combinados com E), "Na minha
  * carteira", Setor/Segmento e "Limpar filtros".
- * - Em FII o chip é o PAR tijolo/papel ('Obrigações/PL ≤ 20% / LTV ≤ 60%'); o par
- *   Vacância/Inadimplência fica DESABILITADO (aria-disabled, borda tracejada e selo 'sem dado'),
- *   com o motivo no tooltip e no texto anunciado (D3).
+ * - Em FII o chip é o PAR tijolo/papel ('Alavancagem ≤ 20% do PL / LTV ≤ 60%'), com o rótulo de
+ *   papel em cinza. v2.5: todos os pares ficam ATIVOS (o estado vem das definições da resposta);
+ *   fundo sem o dado da série conta como não atende (tooltip). Um critério desligado por params
+ *   (v1, D3) continua DESABILITADO (aria-disabled, borda tracejada e selo 'sem dado'), com o motivo
+ *   no tooltip e no texto anunciado.
  * - Chip ligado: fundo #EDF2F8, borda #396CAA, texto #314666 + caixinha com ✓ (nunca verde); no
  *   escuro patrimonio a 20%. aria-pressed. Pílula visível de 36 px num alvo de 44 px (min-h-11).
  * - Celular: rótulo + janela numa linha; chips num trilho com rolagem lateral só dentro dele (sem
@@ -21,7 +23,6 @@ import FiltroSetor, {
 } from '@/components/analiseAtivos/quadro/FiltrosQuadro';
 import { TABLE_MOBILE_STYLES } from '@/components/ui/table/tableStyles';
 import { useIsBelowLg } from '@/hooks/useMediaQuery';
-import { CRITERIA_PARAMS_V1 } from '@/services/analiseAtivos/params/criteriaParamsV1';
 import { TEXTOS_CRITERIOS } from '@/services/analiseAtivos/textosCriterios';
 import { TEXTOS_QUADRO, formatarTexto } from '@/services/analiseAtivos/textosQuadro';
 import type {
@@ -36,11 +37,6 @@ const T = TEXTOS_QUADRO.barra;
 const LINK =
   'inline-flex min-h-11 shrink-0 items-center px-1 text-sm font-medium text-[#396CAA] outline-none hover:underline focus-visible:ring-[3px] focus-visible:ring-[#0079F2] dark:text-[#6E9DC4] dark:focus-visible:ring-[#6E9DC4]';
 
-/** Critérios de papel inativos (D3): o par habilitado avisa que papel fica de fora. */
-const PAPEL_INATIVOS: ReadonlySet<IdCriterio> = new Set(
-  CRITERIA_PARAMS_V1.perfis.fii_papel.filter((c) => c.ativo === false).map((c) => c.id),
-);
-
 /** Texto longo do chip (tooltip e aria-describedby). */
 export function descricaoChip(d: DefCriterioChip): string {
   const partes: string[] = [d.definicao];
@@ -53,10 +49,17 @@ export function descricaoChip(d: DefCriterioChip): string {
     );
   }
   if (!d.habilitado && d.motivoDesabilitado) partes.push(d.motivoDesabilitado);
-  else if (d.equivalente && PAPEL_INATIVOS.has(d.equivalente.id)) {
-    partes.push(TEXTOS_CRITERIOS.chips.tooltipParAlavancagem);
-  }
+  else if (d.equivalente) partes.push(TEXTOS_CRITERIOS.chips.semDadoFii);
   return partes.join(' · ');
+}
+
+/** Nome acessível do chip de par: 'Vacância ≤ 10% (tijolo) ou Inadimplência ≤ 3% (papel)'. */
+function ariaChip(d: DefCriterioChip): string | undefined {
+  if (!d.equivalente) return undefined;
+  return formatarTexto(TEXTOS_CRITERIOS.chips.parAria, {
+    tijolo: d.rotulo,
+    papel: d.equivalente.rotulo,
+  });
 }
 
 function CaixaMarca({ ligado }: { ligado: boolean }) {
@@ -85,9 +88,12 @@ function ChipCriterio({
     <>
       {d.rotulo}
       {d.equivalente ? (
-        <small className="text-[12px] font-normal text-gray-500 dark:text-gray-400">
+        <small
+          data-chip-papel={d.equivalente.id}
+          className="text-[12px] font-normal text-gray-500 dark:text-gray-400"
+        >
           {TEXTOS_CRITERIOS.chips.parSeparador.trimStart()}
-          {d.equivalente.rotulo}
+          {formatarTexto(TEXTOS_CRITERIOS.chips.parPapel, { rotulo: d.equivalente.rotulo })}
         </small>
       ) : null}
     </>
@@ -97,6 +103,7 @@ function ChipCriterio({
       <button
         type="button"
         aria-disabled="true"
+        aria-label={ariaChip(d)}
         aria-describedby={idDescricao}
         title={descricao}
         data-criterio-chip={d.id}
@@ -120,6 +127,7 @@ function ChipCriterio({
     <button
       type="button"
       aria-pressed={ligado}
+      aria-label={ariaChip(d)}
       aria-describedby={idDescricao}
       title={descricao}
       data-criterio-chip={d.id}
