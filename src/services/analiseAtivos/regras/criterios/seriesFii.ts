@@ -19,7 +19,7 @@
  */
 import type { PrismaClient } from '@prisma/client';
 import { Prisma } from '@prisma/client';
-import { fatorCotasApos } from '@/services/analiseAtivos/leitura/ativo/fundamentosEssencial';
+import { fatorCotasApos } from '@/services/analiseAtivos/regras/calculo/fatorCotas';
 import { paraData, paraNumero } from '@/services/analiseAtivos/repositorio/conversao';
 import { anosPerShareEmConferencia } from '@/services/analiseAtivos/regras/conferencia/conferenciaAnual';
 import {

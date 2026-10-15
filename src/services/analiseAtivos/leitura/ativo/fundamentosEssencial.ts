@@ -104,6 +104,10 @@ import type {
 } from '@/types/analiseAtivosApi';
 import type { IdCriterio } from '@/types/analiseAtivosCriterios';
 import type { IdFonte, OrigemSerie } from '@/types/analiseAtivosFontes';
+import { fatorCotasApos } from '@/services/analiseAtivos/regras/calculo/fatorCotas';
+
+/** Reexportado para quem já importava daqui (Raio-X, Comparador, Valuation, testes). */
+export { fatorCotasApos };
 
 export const TTL_ANALISE_MS = 30 * 60_000;
 export const MAX_ANOS_ESSENCIAL = 10;
@@ -194,19 +198,6 @@ export function naoSeAplicaCom(motivo: string): Estado<number> {
 /** Número finito ⇒ ok; senão ausente 'sem dado' (ou o texto dado). */
 export function estadoDe(n: number | null | undefined, textoAusente?: string): Estado<number> {
   return typeof n === 'number' && Number.isFinite(n) ? ok(n) : semDado(textoAusente);
-}
-
-/**
- * Fator de desdobramento de cotas de FII depois de `data` (Π dos fatores dos meses posteriores):
- * valor por cota da data ÷ fator = valor na base de cotas de hoje.
- */
-export function fatorCotasApos(
-  data: string,
-  desdobramentos: ReadonlyArray<{ refMonth: string; fator: number }>,
-): number {
-  return desdobramentos
-    .filter((d) => d.refMonth > data && Number.isFinite(d.fator) && d.fator > 0)
-    .reduce((acc, d) => acc * d.fator, 1);
 }
 
 function dividir(n: number | null | undefined, fator: number): number | null {
