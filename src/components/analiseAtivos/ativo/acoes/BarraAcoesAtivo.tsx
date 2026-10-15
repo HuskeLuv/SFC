@@ -2,7 +2,8 @@
 
 /**
  * Linha de ações do cabeçalho do ativo (fatia C1, v2.4): Comparar (só com o recurso Comparador) ·
- * Planejar na carteira (vira "Ajustar plano" quando há alvo) · Ver na Carteira · Registrar operação
+ * Planejar na carteira (vira "Ajustar plano" quando há alvo — v2.5: o de planning_asset_targets) ·
+ * Ver na Carteira · Registrar operação
  * (navy, ÚNICO primário). Cada botão abre o seu modal (ModalAnalise: diálogo no computador,
  * BottomSheet no celular). Sem Índice/semáforo. 44 px; no celular grade 2×2 e "Registrar operação"
  * na largura toda.
@@ -107,7 +108,8 @@ function Icone({ d }: { d: ReactNode }) {
 
 /**
  * Chips de estado do cabeçalho (overlay da Carteira): "Na carteira" (há posição) e "Planejado" (há
- * alvo: Objetivo da posição > 0 ou ativo planejado sem posição). Os dois podem aparecer juntos.
+ * alvo do Planejar na carteira — overlay.alvos, planning_asset_targets; v2.5). O Objetivo da aba na
+ * Carteira não acende o chip. Os dois podem aparecer juntos.
  */
 export function ChipsCarteira({ ticker, classe }: { ticker: string; classe: ClasseQuadro }) {
   const overlay = useOverlayCarteira();
@@ -115,12 +117,7 @@ export function ChipsCarteira({ ticker, classe }: { ticker: string; classe: Clas
   const tx = TEXTOS_ACOES_CARTEIRA.barra;
   const cl = CLASSE_CARTEIRA[classe];
   const posicao = overlay.data?.posicoes[t] ?? null;
-  const planejado = posicao ? null : (overlay.data?.planejados[t] ?? null);
-  const alvo = posicao
-    ? (posicao.objetivoPct ?? null)
-    : planejado
-      ? (planejado.objetivoPct ?? 0)
-      : null;
+  const alvo = overlay.data?.alvos?.[t]?.targetPct ?? null;
   return (
     <>
       {posicao ? (
@@ -137,7 +134,6 @@ export function ChipsCarteira({ ticker, classe }: { ticker: string; classe: Clas
         <span
           title={formatarTexto(tx.chipPlanejadoTitulo, {
             pct: `${formatNumber(alvo, 1)}%`,
-            aba: cl.aba,
           })}
         >
           <SeloEstado tipo="planejado" texto={tx.chipPlanejado} />
@@ -191,9 +187,8 @@ export default function BarraAcoesAtivo({
 
   const posicao = overlay.data?.posicoes[t] ?? null;
   const planejado = posicao ? null : (overlay.data?.planejados[t] ?? null);
-  const temAlvo =
-    (posicao?.objetivoPct ?? null) !== null ||
-    (planejado ? (planejado.objetivoPct ?? 0) > 0 : false);
+  // v2.5: "Ajustar plano" quando há alvo do Planejar na carteira (planning_asset_targets)
+  const temAlvo = !!overlay.data?.alvos?.[t];
 
   const base = { ticker: t, classe, nome, onFechar: fechar };
 
@@ -201,7 +196,7 @@ export default function BarraAcoesAtivo({
     <div
       role="group"
       aria-label={formatarTexto(tx.rotulo, { ticker: t })}
-      data-acoes-carteira={posicao ? 'posicao' : planejado ? 'planejado' : 'nada'}
+      data-acoes-carteira={posicao ? 'posicao' : planejado || temAlvo ? 'planejado' : 'nada'}
       className={`grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:flex-wrap sm:justify-end ${className}`}
     >
       {comparador ? (

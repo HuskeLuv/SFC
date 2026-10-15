@@ -1,7 +1,7 @@
 /**
- * Desvio da posição em relação ao alvo planejado (fatia C1, caso 33), com posição, alvo e desvio na
- * MESMA base (`valorBase`). v2.5: a base passa a ser a carteira TOTAL (caso 33; a fatia C troca os
- * chamadores, que até lá passam o valor da aba).
+ * Desvio da posição em relação ao alvo planejado (caso 33), com posição, alvo e desvio na MESMA
+ * base (`valorBase`). v2.5: a base é a carteira TOTAL (totalDinheiro do resumo da Carteira) e o
+ * alvo é o de planning_asset_targets (% da carteira total).
  *   posicaoPct  = valorPosicao ÷ valorBase × 100
  *   alvoValor   = alvoPct% × valorBase;  alvoQtd = alvoValor ÷ preco (arredondado para baixo)
  *   desvioPp    = posicaoPct − alvoPct (negativo = abaixo do alvo)

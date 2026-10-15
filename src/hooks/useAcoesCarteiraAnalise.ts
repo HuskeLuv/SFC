@@ -5,9 +5,11 @@
  *  - useSugestoesComparar: GET comparar-sugestoes (queryKeys.analiseAtivos.sugestoesComparar);
  *  - usePosicaoCarteira: GET /api/ativos/[portfolioId] (modal "Ver na Carteira"; a mesma rota da
  *    tela /ativos/[id]) — key sob queryKeys.assets.all, que a invalidação da carteira já cobre;
- *  - useMutacoesCarteiraAnalise: planejar (POST /api/carteira/planejados, PATCH/DELETE
- *    /api/carteira/planejados/[id] ou POST /api/carteira/<aba>/objetivo) e registrar (POST
- *    /api/carteira/operacao | /resgate), sempre com csrfFetch e, no sucesso,
+ *  - useMutacoesCarteiraAnalise: v2.5 — salvarAlvo/removerAlvo (PUT/DELETE
+ *    /api/analise-ativos/alvos/[ticker], planning_asset_targets, % da carteira TOTAL; NÃO toca o
+ *    Objetivo da Carteira nem as rotas /objetivo e /planejados) e registrar (POST
+ *    /api/carteira/operacao | /resgate), sempre com csrfFetch. O alvo atualiza o overlay da análise
+ *    na hora (chip 'Planejado') e invalida o overlay; a operação chama
  *    invalidatePortfolioDerivedQueries (abas, resumo, Planejamento e o overlay da análise).
  * Erros das rotas chegam como ErroCarteira com a MENSAGEM REAL da rota (ex.: 'Campos obrigatórios:
  * tipoAtivo, instituicaoId', 'Instituição inválida para este investimento').
@@ -27,7 +29,11 @@ import type {
   CorpoCompraOperacao,
   CorpoResgateVenda,
 } from '@/services/analiseAtivos/regras/carteira/registroOperacao';
-import type { ClasseQuadro } from '@/types/analiseAtivosApi';
+import type {
+  AlvoDeleteResposta,
+  AlvoPutResposta,
+  OverlayCarteiraResposta,
+} from '@/types/analiseAtivosApi';
 import type { Janela, SugestoesCompararResposta } from '@/types/analiseAtivosCriterios';
 
 /** Erro de uma rota da Carteira com a mensagem que ela devolveu. */
@@ -40,31 +46,15 @@ export class ErroCarteira extends Error {
   }
 }
 
-/** Aba da Carteira → segmento da rota (/api/carteira/<segmento>/objetivo). */
-const ROTA_ABA: Record<string, string> = {
-  acoes: 'acoes',
-  fiis: 'fii',
-  stocks: 'stocks',
-  etfs: 'etf',
-  reits: 'reit',
-  fimFia: 'fim-fia',
-};
-
-/** Onde o alvo é gravado (sempre o Objetivo que JÁ existe, % dentro da aba — rec. 1). */
-export type AlvoPlano =
-  | { tipo: 'posicao'; portfolioId: string; categoria: string }
-  | { tipo: 'planejado'; watchlistId: string }
-  | { tipo: 'novo'; assetId: string; classe: ClasseQuadro; secao: string | null };
-
-export interface PlanoAlvoEntrada {
+export interface AlvoAtivoEntrada {
   ticker: string;
-  /** % DENTRO da aba; null/0 = remover do plano */
-  objetivoPct: number | null;
-  alvo: AlvoPlano;
+  /** % da carteira TOTAL (0 < x ≤ 100) */
+  targetPct: number;
 }
 
 export interface MutacoesCarteiraAnalise {
-  salvarPlano: UseMutationResult<void, Error, PlanoAlvoEntrada>;
+  salvarAlvo: UseMutationResult<AlvoPutResposta, Error, AlvoAtivoEntrada>;
+  removerAlvo: UseMutationResult<AlvoDeleteResposta, Error, string>;
   registrarCompra: UseMutationResult<void, Error, CorpoCompraOperacao>;
   registrarVenda: UseMutationResult<void, Error, CorpoResgateVenda>;
 }
@@ -158,73 +148,72 @@ export function usePosicaoCarteira(
   });
 }
 
-/** Requisição de UMA etapa do plano (exportada para teste). */
-export function requisicaoPlano(e: PlanoAlvoEntrada): {
-  url: string;
-  method: 'POST' | 'PATCH' | 'DELETE';
-  body?: unknown;
-} | null {
-  const pct = e.objetivoPct !== null && e.objetivoPct > 0 ? e.objetivoPct : null;
-  const { alvo } = e;
-  if (alvo.tipo === 'posicao') {
-    const aba = ROTA_ABA[alvo.categoria] ?? 'acoes';
-    return {
-      url: `/api/carteira/${aba}/objetivo`,
-      method: 'POST',
-      body: { ativoId: alvo.portfolioId, objetivo: pct ?? 0 },
-    };
-  }
-  if (alvo.tipo === 'planejado') {
-    const url = `/api/carteira/planejados/${encodeURIComponent(alvo.watchlistId)}`;
-    return pct === null
-      ? { url, method: 'DELETE' }
-      : { url, method: 'PATCH', body: { objetivo: pct } };
-  }
-  if (pct === null) return null; // nada planejado e nada a gravar
-  return {
-    url: '/api/carteira/planejados',
-    method: 'POST',
-    body: {
-      assetId: alvo.assetId,
-      tipoAtivo: alvo.classe === 'fii' ? 'fii' : 'acao',
-      ...(alvo.secao ? { secao: alvo.secao } : {}),
-      objetivo: pct,
-    },
-  };
+/** URL da rota do alvo por ativo. */
+export const urlAlvo = (ticker: string) =>
+  `/api/analise-ativos/alvos/${encodeURIComponent(ticker.trim().toUpperCase())}`;
+
+/** Aplica o alvo gravado/removido no overlay em cache (o chip 'Planejado' muda na hora). */
+export function aplicarAlvoNoOverlay(
+  overlay: OverlayCarteiraResposta | undefined,
+  ticker: string,
+  alvo: AlvoPutResposta['alvo'] | null,
+): OverlayCarteiraResposta | undefined {
+  if (!overlay) return overlay;
+  const t = ticker.toUpperCase();
+  const alvos = { ...(overlay.alvos ?? {}) };
+  if (alvo) alvos[t] = alvo;
+  else delete alvos[t];
+  return { ...overlay, alvos };
 }
 
 export function useMutacoesCarteiraAnalise(): MutacoesCarteiraAnalise {
   const qc = useQueryClient();
   const { csrfFetch } = useCsrf();
 
-  const enviar = async (url: string, method: string, body: unknown, padrao: string) => {
+  const enviar = async <T = void>(
+    url: string,
+    method: string,
+    body: unknown,
+    padrao: string,
+  ): Promise<T> => {
     const res = await csrfFetch(url, {
       method,
       headers: body === undefined ? undefined : { 'Content-Type': 'application/json' },
       body: body === undefined ? undefined : JSON.stringify(body),
     });
     if (!res.ok) throw await lerErro(res, padrao);
+    return (await res.json().catch(() => undefined)) as T;
   };
   const aoConcluir = () => invalidatePortfolioDerivedQueries(qc);
+  const aoMudarAlvo = (ticker: string, alvo: AlvoPutResposta['alvo'] | null) => {
+    qc.setQueryData<OverlayCarteiraResposta>(queryKeys.analiseAtivos.carteira(), (o) =>
+      aplicarAlvoNoOverlay(o, ticker, alvo),
+    );
+    void qc.invalidateQueries({ queryKey: queryKeys.analiseAtivos.carteira() });
+  };
 
-  const salvarPlano = useMutation<void, Error, PlanoAlvoEntrada>({
-    mutationFn: async (e) => {
-      const r = requisicaoPlano(e);
-      if (!r) return;
-      await enviar(r.url, r.method, r.body, 'Erro ao salvar o alvo');
+  const salvarAlvo = useMutation<AlvoPutResposta, Error, AlvoAtivoEntrada>({
+    mutationFn: ({ ticker, targetPct }) =>
+      enviar<AlvoPutResposta>(urlAlvo(ticker), 'PUT', { targetPct }, 'Erro ao salvar o alvo'),
+    onSuccess: (r, e) => aoMudarAlvo(e.ticker, r.alvo),
+  });
+  const removerAlvo = useMutation<AlvoDeleteResposta, Error, string>({
+    mutationFn: (ticker) =>
+      enviar<AlvoDeleteResposta>(urlAlvo(ticker), 'DELETE', undefined, 'Erro ao remover o alvo'),
+    onSuccess: (_r, ticker) => aoMudarAlvo(ticker, null),
+  });
+  const registrarCompra = useMutation<void, Error, CorpoCompraOperacao>({
+    mutationFn: async (corpo) => {
+      await enviar('/api/carteira/operacao', 'POST', corpo, 'Erro ao registrar a operação');
     },
     onSuccess: aoConcluir,
   });
-  const registrarCompra = useMutation<void, Error, CorpoCompraOperacao>({
-    mutationFn: (corpo) =>
-      enviar('/api/carteira/operacao', 'POST', corpo, 'Erro ao registrar a operação'),
-    onSuccess: aoConcluir,
-  });
   const registrarVenda = useMutation<void, Error, CorpoResgateVenda>({
-    mutationFn: (corpo) =>
-      enviar('/api/carteira/resgate', 'POST', corpo, 'Erro ao registrar a operação'),
+    mutationFn: async (corpo) => {
+      await enviar('/api/carteira/resgate', 'POST', corpo, 'Erro ao registrar a operação');
+    },
     onSuccess: aoConcluir,
   });
 
-  return { salvarPlano, registrarCompra, registrarVenda };
+  return { salvarAlvo, removerAlvo, registrarCompra, registrarVenda };
 }

@@ -5,14 +5,16 @@
  * (useNaCarteiraAtivo) — valor, % da carteira, preço médio e rentabilidade idênticos aos da
  * Carteira, inclusive com o ativo movido de aba (#275).
  *
- * v2.4 (rec. 1, caso 33): posição × alvo SEMPRE na base da aba e em linguagem de DESVIO —
- * "posição atual 20,4% de Ações · alvo planejado por você: 25,0% de Ações · desvio −4,6 p.p.
- * (R$ 1.349)"; embaixo, "equivale hoje a ≈ 4,7% da carteira (informativo; muda com o mercado)".
- * Nunca "faltam"/"quanto falta". Planejar/Ajustar plano abrem o ModalPlanejar (Objetivo que já
- * existe na Carteira). Consultor agindo: pode planejar (o modal avisa).
+ * v2.5 (caso 33, spec §3.2): posição × alvo na base da carteira TOTAL e em linguagem de DESVIO —
+ * "posição atual 3,8% · alvo planejado por você: 6,0% · desvio −2,2 p.p. (R$ 3.633)" (1 casa).
+ * O alvo é o do Planejar na carteira (planning_asset_targets); quando a aba da Carteira tem
+ * Objetivo > 0, aparece a linha informativa "Objetivo na aba Ações da Carteira: 25%" (decisão 1).
+ * Nunca "faltam"/"quanto falta". Planejar/Ajustar plano abrem o ModalPlanejar. Consultor agindo:
+ * pode planejar (o modal avisa).
  *
- * Estados: com posição · posição numa aba sem detalhe aqui (quantidade + link) · planejado · nada ·
- * carregando (skeleton só nos números) · erro.
+ * Estados: com posição · posição numa aba sem detalhe aqui (quantidade + link) · planejado (alvo
+ * e/ou plano antigo, sem posição: alvo + valor equivalente) · nada · carregando (skeleton só nos
+ * números) · erro.
  */
 import Link from 'next/link';
 import { useState } from 'react';
@@ -38,6 +40,7 @@ const CARD =
 const LINK = `inline-flex min-h-11 items-center text-sm font-medium ${COR_LINK.classes} hover:underline`;
 const LINK_INLINE = `inline-flex min-h-11 items-center font-medium ${COR_LINK.classes} underline-offset-2 hover:underline`;
 const t = TEXTOS_ACOES_CARTEIRA.naCarteira;
+const TP = TEXTOS_ACOES_CARTEIRA.planejar;
 
 /** Quantidade como a tabela da aba (useAssetData.formatNumber: pt-BR, sem casas). */
 const formatarQuantidade = (v: number) =>
@@ -90,6 +93,17 @@ function Dado({
       </dd>
       {nota ? <span className="text-[11px] text-gray-500 dark:text-gray-400">{nota}</span> : null}
     </div>
+  );
+}
+
+/** Linha informativa do Objetivo da aba na Carteira (decisão 1): só com Objetivo > 0. */
+function LinhaObjetivoAba({ dados }: { dados: NaCarteiraAtivo }) {
+  const aba = dados.abaNome ?? dados.abaBaseNome;
+  if (dados.objetivoAbaPct === null || !aba) return null;
+  return (
+    <p className="text-xs text-gray-500 dark:text-gray-400" data-objetivo-aba="">
+      {formatarTexto(t.objetivoAba, { aba, pct: formatPct(dados.objetivoAbaPct, 0) })}
+    </p>
   );
 }
 
@@ -168,15 +182,11 @@ export default function BlocoNaCarteira({
   const abaNome = dados.abaNome ?? '';
   const linha = dados.linha;
   const carregando = dados.carregandoNumeros;
-  const alvo = dados.objetivoPct;
-  const equivalente =
-    alvo !== null && dados.valorBaseAba !== null && dados.totalCarteira
-      ? formatarTexto(t.equivalente, {
-          pct: pct1(((alvo / 100) * dados.valorBaseAba * 100) / dados.totalCarteira),
-        })
-      : null;
+  const alvo = dados.alvoPct;
 
   if (dados.status === 'nada' || dados.status === 'planejado') {
+    const alvoValor =
+      alvo !== null && dados.valorBase !== null ? (alvo / 100) * dados.valorBase : null;
     return (
       <section aria-label={t.titulo} className={CARD} data-na-carteira={dados.status}>
         <Titulo />
@@ -187,7 +197,7 @@ export default function BlocoNaCarteira({
           <p className="flex flex-wrap items-center gap-x-1 text-[13px] text-gray-600 dark:text-gray-300">
             {alvo !== null ? (
               <>
-                {formatarTexto(t.alvoPlanejado, { pct: pct1(alvo), aba: abaNome })}
+                {formatarTexto(t.alvoPlanejado, { pct: pct1(alvo) })}
                 {' · '}
                 {botaoPlanejar(t.ajustarPlano)}
               </>
@@ -199,12 +209,21 @@ export default function BlocoNaCarteira({
               </>
             )}
           </p>
-          {equivalente ? (
-            <p className="text-xs text-gray-500 dark:text-gray-400">{equivalente}</p>
+          {alvo !== null ? (
+            <p className="text-xs text-gray-500 dark:text-gray-400" data-valor-alvo="">
+              {TP.valorAlvo}:{' '}
+              <span className="font-semibold text-gray-700 tabular-nums dark:text-gray-200">
+                <Numero
+                  valor={alvoValor !== null ? reais0(alvoValor) : '—'}
+                  carregando={carregando && alvoValor === null}
+                />
+              </span>
+            </p>
           ) : null}
         </div>
+        <LinhaObjetivoAba dados={dados} />
         <LinhaClasse dados={dados} />
-        {dados.status === 'planejado' ? (
+        {dados.watchlistId ? (
           <div className="flex flex-wrap gap-x-4">
             <Link href="/carteira" className={LINK}>
               {t.verNaCarteira}
@@ -251,10 +270,10 @@ export default function BlocoNaCarteira({
   }
 
   const conta =
-    linha && dados.valorBaseAba !== null
+    linha && dados.valorBase !== null
       ? desvioAlvo({
           valorPosicao: linha.valorAtualizado,
-          valorBase: dados.valorBaseAba,
+          valorBase: dados.valorBase,
           alvoPct: alvo,
           preco: null,
         })
@@ -306,29 +325,31 @@ export default function BlocoNaCarteira({
       </dl>
       {conta ? (
         <BarraPesoAlvo
-          rotulo={formatarTexto(t.posicaoAtual, { pct: pct1(conta.posicaoPct), aba: abaNome })}
+          rotulo={formatarTexto(t.posicaoAtual, { pct: pct1(conta.posicaoPct) })}
           valor={conta.posicaoPct}
           referencia={alvo}
           rotuloReferencia={
             alvo !== null && conta.desvioPp !== null
-              ? `${formatarTexto(t.alvoPlanejado, { pct: pct1(alvo), aba: abaNome })} · ${formatarTexto(
+              ? `${formatarTexto(t.alvoPlanejado, { pct: pct1(alvo) })} · ${formatarTexto(
                   t.desvio,
-                  { pp: ppComSinal(conta.desvioPp), valor: reais0(conta.desvioValor ?? 0) },
+                  {
+                    pp: ppComSinal(conta.desvioPp),
+                    valor: reais0(conta.desvioValor ?? 0),
+                  },
                 )}`
               : t.semAlvo
           }
           acaoReferencia={botaoPlanejar(alvo !== null ? t.ajustarPlano : t.planejar)}
           ariaLabel={formatarTexto(t.barraAria, {
             pos: pct1(conta.posicaoPct),
-            aba: abaNome,
             alvo:
               alvo !== null
-                ? formatarTexto(t.barraAlvoAria, { pct: pct1(alvo), aba: abaNome })
+                ? formatarTexto(t.barraAlvoAria, { pct: pct1(alvo) })
                 : t.barraSemAlvoAria,
           })}
-          status={equivalente ?? undefined}
         />
       ) : null}
+      <LinhaObjetivoAba dados={dados} />
       <LinhaClasse dados={dados} />
       <div className="flex flex-col gap-1 text-xs text-gray-500 dark:text-gray-400">
         <p>{formatarTexto(t.notaAba, { aba: abaNome })}</p>
