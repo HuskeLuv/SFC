@@ -551,9 +551,11 @@ export async function ingerirFontes(
             )
           : () => null;
       const extras = new Map<string, { anterior: number | null; cvm: number | null }>();
-      for (const p of pontos) {
+      // em ordem de dtFim: o anterior pode ser um ponto já aprovado do próprio lote (1ª carga)
+      const avaliados: typeof pontos = [];
+      for (const p of [...pontos].sort((a, b) => a.dtFim.localeCompare(b.dtFim))) {
         if (p.incompleto) continue;
-        const anterior = anteriorAprovado(historico, p);
+        const anterior = anteriorAprovado(historico, p, avaliados);
         const cvm = valorCvm(p);
         extras.set(chaveDoPonto(p), { anterior, cvm });
         const r = avaliarSanidade(
@@ -562,6 +564,7 @@ export async function ingerirFontes(
         );
         p.reviewStatus = r.reviewStatus;
         p.motivosRevisao = r.motivos;
+        avaliados.push(p);
       }
       const { criar, iguais } = planejarVersoes(pontos, historico, gerarId);
       rel.iguais += iguais;

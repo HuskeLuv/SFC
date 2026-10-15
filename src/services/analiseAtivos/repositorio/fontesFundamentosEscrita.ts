@@ -129,21 +129,35 @@ export function ultimasVersoes(historico: readonly PontoGravado[]): Map<string, 
 
 /**
  * Valor APROVADO do período anterior (mesma série e periodicidade, dtFim imediatamente antes, maior
- * versão aprovada) — base da regra de variação. Pura.
+ * versão aprovada) — base da regra de variação (§6). `lote` = pontos da MESMA ingestão já avaliados
+ * (approved, completos): contam como anteriores também, e vencem o histórico no mesmo dtFim — na
+ * primeira carga (backfill, histórico vazio) os saltos entre anos do próprio lote vão para revisão,
+ * como em filtrarCvmPelaSanidade. Pura.
  */
 export function anteriorAprovado(
   historico: readonly PontoGravado[],
   p: { symbol: string; serie: string; tipoPeriodo: string; dtFim: string },
+  lote: ReadonlyArray<
+    Pick<
+      PontoGravado,
+      'symbol' | 'serie' | 'tipoPeriodo' | 'dtFim' | 'valor' | 'reviewStatus' | 'incompleto'
+    >
+  > = [],
 ): number | null {
-  let melhor: PontoGravado | null = null;
-  for (const h of historico) {
+  let melhor: { dtFim: string; versao: number; valor: number } | null = null;
+  const candidatos = [
+    ...historico,
+    ...lote.filter((l) => !l.incompleto).map((l) => ({ ...l, versao: Number.MAX_SAFE_INTEGER })),
+  ];
+  for (const h of candidatos) {
     if (
       h.reviewStatus !== 'approved' ||
       h.symbol !== p.symbol ||
       h.serie !== p.serie ||
       h.tipoPeriodo !== p.tipoPeriodo ||
       h.dtFim >= p.dtFim ||
-      h.valor === null
+      typeof h.valor !== 'number' ||
+      !Number.isFinite(h.valor)
     ) {
       continue;
     }
@@ -152,7 +166,7 @@ export function anteriorAprovado(
       h.dtFim > melhor.dtFim ||
       (h.dtFim === melhor.dtFim && h.versao > melhor.versao)
     ) {
-      melhor = h;
+      melhor = { dtFim: h.dtFim, versao: h.versao, valor: h.valor };
     }
   }
   return melhor?.valor ?? null;

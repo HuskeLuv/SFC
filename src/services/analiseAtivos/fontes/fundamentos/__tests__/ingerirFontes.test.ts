@@ -207,9 +207,12 @@ const CVM_WEGE = pontosCvmAcao(WEGE, ['WEGE3']);
 const cvm = (serie: string, ano: number) =>
   CVM_WEGE.find((p) => p.serie === serie && p.anoFiscal === ano)?.valor as number;
 
-/** Itens "bons": receita/lucro iguais à CVM e o descontado = 95% do lucro, 2019–2025. */
+/**
+ * Itens "bons": receita/lucro iguais à CVM e o descontado = 95% do lucro, 2021–2025 (de 2020 para
+ * 2021 o lucro da WEGE subiu 53%: a variação dentro do próprio lote iria para revisão).
+ */
 function itensBons(): ItemFonteExemplo[] {
-  return [2019, 2020, 2021, 2022, 2023, 2024, 2025].flatMap((ano) => [
+  return [2021, 2022, 2023, 2024, 2025].flatMap((ano) => [
     ponto('revenue', ano, cvm('revenue', ano)),
     ponto('net_income', ano, cvm('net_income', ano)),
     ponto('net_income_adjusted', ano, Math.round(cvm('net_income', ano) * 0.95)),
@@ -244,12 +247,12 @@ describe("job 'fontes-fundamentos'", () => {
   it('point-in-time: valor igual não cria versão; valor diferente cria versao+1', async () => {
     const mem = memoria();
     const r1 = await ingerirFontes(ctxCom().ctx, depsCom(mem, itensBons()));
-    expect(rel(r1)).toMatchObject({ gravados: 21, pendentes: 0, iguais: 0 });
+    expect(rel(r1)).toMatchObject({ gravados: 15, pendentes: 0, iguais: 0 });
     expect(mem.pontos.every((p) => p.versao === 1 && p.reviewStatus === 'approved')).toBe(true);
 
     const r2 = await ingerirFontes(ctxCom().ctx, depsCom(mem, itensBons()));
-    expect(rel(r2)).toMatchObject({ gravados: 0, iguais: 21 });
-    expect(mem.pontos).toHaveLength(21);
+    expect(rel(r2)).toMatchObject({ gravados: 0, iguais: 15 });
+    expect(mem.pontos).toHaveLength(15);
 
     // o provedor revisa o descontado de 2025 em 2% (dentro da sanidade)
     const revisados = itensBons().map((i) =>
@@ -259,7 +262,7 @@ describe("job 'fontes-fundamentos'", () => {
         : i,
     );
     const r3 = await ingerirFontes(ctxCom().ctx, depsCom(mem, revisados));
-    expect(rel(r3)).toMatchObject({ gravados: 1, iguais: 20 });
+    expect(rel(r3)).toMatchObject({ gravados: 1, iguais: 14 });
     const versoes = mem.pontos.filter(
       (p) => p.serie === 'net_income_adjusted' && p.anoFiscal === 2025,
     );
@@ -323,6 +326,24 @@ describe("job 'fontes-fundamentos'", () => {
         motivos: ['variacao'],
       },
     });
+  });
+
+  it('primeira carga (histórico vazio): salto > 40% entre anos do próprio lote → pending', async () => {
+    const mem = memoria();
+    const itens = [
+      ponto('net_income_adjusted', 2022, 100e6),
+      ponto('net_income_adjusted', 2024, 100e6),
+      ponto('net_income_adjusted', 2023, 1000e6),
+    ];
+    const r = await ingerirFontes(ctxCom().ctx, depsCom(mem, itens));
+    expect(rel(r).pendentes).toBe(1);
+    const status = Object.fromEntries(
+      mem.pontos
+        .filter((p) => p.serie === 'net_income_adjusted')
+        .map((p) => [p.anoFiscal, p.reviewStatus]),
+    );
+    // 2024 compara com 2022 (o último APROVADO), não com o 2023 em revisão
+    expect(status).toEqual({ 2022: 'approved', 2023: 'pending', 2024: 'approved' });
   });
 
   it('divergência de 6% contra a CVM → pending, e o resolvedor usa a CVM', async () => {
@@ -424,6 +445,6 @@ describe("job 'fontes-fundamentos'", () => {
     const d = depsCom(mem, itensBons(), { idsHabilitados: () => [] });
     const r = await ingerirFontes(ctxCom().ctx, d, { fonte: 'exemplo', versaoParams: 2 });
     expect(d.obterParams).toHaveBeenCalledWith(expect.anything(), { versao: 2 });
-    expect(rel(r).gravados).toBe(21);
+    expect(rel(r).gravados).toBe(15);
   });
 });
