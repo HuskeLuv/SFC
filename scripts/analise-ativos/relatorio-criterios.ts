@@ -1,6 +1,7 @@
 /**
- * Relatório dos Filtros de Fundamentos (v2.4) — FONTE ÚNICA dos números enviados ao Pedro
- * (cobertura e quantos atendem cada critério, por perfil e janela). SÓ LEITURA.
+ * Relatório dos Filtros de Fundamentos (v2.4; v2.5 com a v2 do criteria_params) — FONTE ÚNICA dos
+ * números enviados ao Pedro (cobertura e quantos atendem cada critério, por perfil e janela).
+ * SÓ LEITURA.
  *
  * Lê criteria_eval (gravado pelo job 'criterios') + analise_quadro_linhas (noQuadro, tipo do FII) e
  * imprime, para os ativos do Quadro:
@@ -8,16 +9,28 @@
  *  2. ações: os limites v1 na janela 5 sobre TODAS as ações do Quadro (inclui financeiras),
  *     distribuição "n de k" e o análogo do caso 30 (Receita + Lucro + Dív.líq/EBITDA);
  *  3. FIIs por tipo (tijolo, papel, híbrido, indefinido, FoF, sem tipo);
- *  4. conferência contra a cobertura medida no desenho (docs/analise-ativos/v2-filtros,
- *     spec-desenho.json → arquitetura.criterios), tolerância ±2 p.p.
+ *  4. v2.5: fontes e observações (lucro descontado em fallback, dados incompletos);
+ *  5. conferência contra a cobertura medida no desenho da v2.4 (docs/analise-ativos/v2-filtros,
+ *     spec-desenho.json → arquitetura.criterios), tolerância ±2 p.p. — só para avaliações v1.
  *
  * Uso:
  *   npx tsx --env-file=.env scripts/analise-ativos/relatorio-criterios.ts [--saida=ARQ] [--todos]
- *   --todos         todo o universo avaliado (padrão: só noQuadro)
- *   --arquivo=ARQ   lê as linhas de criteria_eval de um JSON (dry-run do job) em vez do banco
+ *   --todos            todo o universo avaliado (padrão: só noQuadro)
+ *   --arquivo=ARQ      lê as linhas de criteria_eval de um JSON (dry-run do job) em vez do banco
+ *   --recalcular=N     v2.5: roda o job 'criterios' EM MEMÓRIA com o criteria_params vN (mesma
+ *                      função do cron, nada é gravado) e relata essas linhas
+ *   --comparar=A,B     v2.5: recalcula com vA e vB em memória e acrescenta a comparação por perfil ×
+ *                      critério (janela 5) — ex.: --comparar=1,2 antes de adiantar o validFrom da v2
  */
 import { readFileSync, writeFileSync } from 'node:fs';
 import { PrismaClient } from '@prisma/client';
+import {
+  DEPENDENCIAS_PADRAO,
+  executarCriterios,
+} from '../../src/services/analiseAtivos/calculo/executarCriterios';
+import { obterScoringParams } from '../../src/services/analiseAtivos/params/obterScoringParams';
+import type { LinhaCriteriaEval } from '../../src/services/analiseAtivos/repositorio/criterios';
+import type { JobContexto } from '../../src/services/analiseAtivos/tipos';
 
 export interface LinhaEvalRelatorio {
   symbol: string;
@@ -28,7 +41,7 @@ export interface LinhaEvalRelatorio {
   aplicaveis: number;
   anoFim: number;
   paramsVersion: number;
-  resultados: Array<{ id: string; estado: string }>;
+  resultados: Array<{ id: string; estado: string; obs?: string[]; fonte?: string[] }>;
 }
 
 export interface LinhaQuadroRelatorio {
@@ -322,7 +335,8 @@ export function montarRelatorio(
 
   const versoes = [...new Set(universo.map((l) => l.paramsVersion))].join(', ');
   const anosFim = [...new Set(universo.map((l) => l.anoFim))].join(', ');
-  p('Filtros de Fundamentos (v2.4) — relatório de cobertura e critérios atendidos');
+  const soV1 = universo.length > 0 && universo.every((l) => l.paramsVersion === 1);
+  p('Filtros de Fundamentos — relatório de cobertura e critérios atendidos');
   p(`gerado em ${opts.geradoEm ?? new Date().toISOString()} · criteria_params v${versoes}`);
   p(
     `ano final da janela: ${anosFim} · universo: ${opts.todos ? 'todos os avaliados' : 'ativos do Quadro'}`,
@@ -390,7 +404,7 @@ export function montarRelatorio(
       .map((pf) => `${pf} ${ls5.filter((l) => l.perfil === pf).length}`)
       .join(', ');
     p(`-- ${tipo} (${ls5.length}; ${perfisTipo})`);
-    for (const id of ['rend', 'vp', 'alav', 'ltv', 'mes', 'res']) {
+    for (const id of ['rend', 'vp', 'vac', 'alav', 'inad', 'ltv', 'mes', 'res']) {
       const cols = JANELAS.map((j) => {
         const ls = porJanela(j).filter(
           (l) => l.classe === 'fii' && tipoFii(q.get(l.symbol)) === tipo,
@@ -405,10 +419,42 @@ export function montarRelatorio(
       p(`   ${id.padEnd(5)} ${cols.join('')}`);
     }
   }
-  p('(vacância, inadimplência e LTV: sem dado para todos — D3)');
+  p(
+    soV1
+      ? '(vacância, inadimplência e LTV: sem dado para todos — D3)'
+      : '(v2: vacância da CVM avaliada no tijolo; inadimplência e LTV só com provedor aprovado, senão "não atende · sem dado")',
+  );
   p();
 
-  // 4. conferência com o desenho
+  // 4. v2.5 — fontes e observações
+  p('== fontes e observações (v2.5) ==');
+  for (const j of JANELAS) {
+    const ls = porJanela(j);
+    const res = ls.flatMap((l) => l.resultados);
+    const comObs = (o: string) => res.filter((r) => r.obs?.includes(o)).length;
+    const fontes = new Map<string, number>();
+    for (const r of res) for (const f of r.fonte ?? []) fontes.set(f, (fontes.get(f) ?? 0) + 1);
+    p(
+      `janela ${j}: luc com fallback do lucro descontado ${comObs('lucro_sem_descontado')} · ` +
+        `dados incompletos ${comObs('dados_incompletos')} · fontes ${
+          fontes.size > 0
+            ? [...fontes.entries()].map(([f, n]) => `${f} ${n}`).join(', ')
+            : '— (avaliação sem fonte: v1)'
+        }`,
+    );
+  }
+  const fin5 = porJanela(5).filter(ehFin);
+  if (fin5.length > 0) {
+    const den = [...new Set(fin5.map((l) => l.aplicaveis))].sort((a, b) => a - b).join(', ');
+    p(`financeiras (janela 5): denominador "n de ${den}"`);
+  }
+  p();
+
+  // 5. conferência com o desenho da v2.4 (números medidos com a v1)
+  if (!soV1) {
+    p('== conferência com o desenho da v2.4: pulada (só vale para avaliações com a v1) ==');
+    return { texto: out.join('\n'), fora: 0 };
+  }
   p(`== conferência com o desenho (13/10/2026), tolerância ±${TOLERANCIA_PP} p.p. ==`);
   let fora = 0;
   let explicados = 0;
@@ -431,30 +477,133 @@ export function montarRelatorio(
   return { texto: out.join('\n'), fora };
 }
 
+/**
+ * Comparação de duas avaliações (ex.: v1 × v2) por perfil × critério na janela 5: com dado e atende.
+ * Pura.
+ */
+export function compararVersoes(
+  rotuloA: string,
+  a: LinhaEvalRelatorio[],
+  rotuloB: string,
+  b: LinhaEvalRelatorio[],
+  quadro: LinhaQuadroRelatorio[],
+  opts: { todos?: boolean } = {},
+): string {
+  const q = new Map(quadro.map((l) => [l.symbol, l]));
+  const filtrar = (ls: LinhaEvalRelatorio[]) =>
+    ls.filter((l) => l.janela === 5 && (opts.todos || q.get(l.symbol)?.noQuadro === true));
+  const A = filtrar(a);
+  const B = filtrar(b);
+  const out: string[] = [];
+  out.push(`== comparação ${rotuloA} × ${rotuloB} (janela 5; com dado | atende | n/a) ==`);
+  for (const perfil of ['acao', 'acao_financeira', 'fii_tijolo', 'fii_papel']) {
+    const pa = A.filter((l) => l.perfil === perfil);
+    const pb = B.filter((l) => l.perfil === perfil);
+    if (pa.length + pb.length === 0) continue;
+    out.push(`-- ${perfil} (${rotuloA}: ${pa.length} · ${rotuloB}: ${pb.length})`);
+    const ids = [...new Set([...pa, ...pb].flatMap((l) => l.resultados.map((r) => r.id)))];
+    for (const id of ids) {
+      const col = (ls: LinhaEvalRelatorio[]) =>
+        `${contar(ls, id, comDado)} | ${contar(ls, id, atende)} | ${contar(ls, id, (e) => e === 'nao_se_aplica')}`;
+      out.push(`   ${id.padEnd(7)} ${rotuloA} ${col(pa).padEnd(18)} ${rotuloB} ${col(pb)}`);
+    }
+    const den = (ls: LinhaEvalRelatorio[]) =>
+      [...new Set(ls.map((l) => l.aplicaveis))].sort((x, y) => x - y).join('/') || '—';
+    out.push(`   denominador: ${rotuloA} n de ${den(pa)} · ${rotuloB} n de ${den(pb)}`);
+  }
+  return out.join('\n');
+}
+
+/**
+ * Roda o job 'criterios' em MEMÓRIA com a versão pedida do criteria_params (a mesma função do cron;
+ * a gravação é trocada por uma captura — nada vai ao banco).
+ */
+async function recalcularEmMemoria(
+  prisma: PrismaClient,
+  versao: number,
+): Promise<LinhaEvalRelatorio[]> {
+  const { versao: scoringVersion, params: scoring } = await obterScoringParams(prisma);
+  const capturadas: LinhaCriteriaEval[] = [];
+  const ctx: JobContexto = {
+    prisma,
+    prazo: Date.now() + 30 * 60_000,
+    restanteMs: () => 30 * 60_000,
+    estourouPrazo: () => false,
+    alertar: (a) => console.error(`  [${a.nivel}] ${a.codigo}: ${a.mensagem}`),
+    contar: () => undefined,
+    params: scoring,
+    paramsVersion: scoringVersion,
+    hoje: new Date().toISOString().slice(0, 10),
+    origem: 'script',
+    // aplicar=true só para o job montar as linhas; a gravação abaixo só captura
+    aplicar: true,
+  };
+  await executarCriterios(
+    ctx,
+    {
+      ...DEPENDENCIAS_PADRAO,
+      scoresEmExecucao: async () => false,
+      gravar: async (_p, linhas) => {
+        capturadas.push(...linhas);
+        return linhas.length;
+      },
+    },
+    { versaoParams: versao },
+  );
+  return capturadas as unknown as LinhaEvalRelatorio[];
+}
+
 async function main() {
   const argv = process.argv.slice(2);
   const valor = (nome: string) => argv.find((a) => a.startsWith(`--${nome}=`))?.split('=', 2)[1];
   const prisma = new PrismaClient();
   try {
     const arquivo = valor('arquivo');
-    const evals: LinhaEvalRelatorio[] = arquivo
-      ? (JSON.parse(readFileSync(arquivo, 'utf8')) as LinhaEvalRelatorio[])
-      : ((await prisma.criteriaEval.findMany({
-          select: {
-            symbol: true,
-            classe: true,
-            perfil: true,
-            janela: true,
-            atendidos: true,
-            aplicaveis: true,
-            anoFim: true,
-            paramsVersion: true,
-            resultados: true,
-          },
-        })) as unknown as LinhaEvalRelatorio[]);
+    const recalcular = valor('recalcular');
+    const comparar = valor('comparar')
+      ?.split(',')
+      .map((v) => Number(v.trim()));
+    if (comparar && (comparar.length !== 2 || comparar.some((v) => !Number.isInteger(v)))) {
+      throw new Error('--comparar=A,B (duas versões do criteria_params)');
+    }
     const quadro = await prisma.analiseQuadroLinha.findMany({
       select: { symbol: true, classe: true, noQuadro: true, fiiTipo: true },
     });
+    if (comparar) {
+      const [va, vb] = comparar;
+      const a = await recalcularEmMemoria(prisma, va);
+      const b = await recalcularEmMemoria(prisma, vb);
+      const todos = argv.includes('--todos');
+      const textos = [
+        montarRelatorio(a, quadro, { todos }).texto,
+        '',
+        montarRelatorio(b, quadro, { todos }).texto,
+        '',
+        compararVersoes(`v${va}`, a, `v${vb}`, b, quadro, { todos }),
+      ];
+      const texto = textos.join('\n');
+      console.log(texto);
+      const saida = valor('saida');
+      if (saida) writeFileSync(saida, `${texto}\n`);
+      return;
+    }
+    const evals: LinhaEvalRelatorio[] = arquivo
+      ? (JSON.parse(readFileSync(arquivo, 'utf8')) as LinhaEvalRelatorio[])
+      : recalcular
+        ? await recalcularEmMemoria(prisma, Number(recalcular))
+        : ((await prisma.criteriaEval.findMany({
+            select: {
+              symbol: true,
+              classe: true,
+              perfil: true,
+              janela: true,
+              atendidos: true,
+              aplicaveis: true,
+              anoFim: true,
+              paramsVersion: true,
+              resultados: true,
+            },
+          })) as unknown as LinhaEvalRelatorio[]);
     const r = montarRelatorio(evals, quadro, { todos: argv.includes('--todos') });
     console.log(r.texto);
     const saida = valor('saida');
