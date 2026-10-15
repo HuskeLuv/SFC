@@ -321,6 +321,17 @@ function derivadasDoPeriodo(
   };
 }
 
+/** Receita ≤ 0 ou marcada 'não se aplica' na ingestão (holding sem receita própria, ex.: BBSE3). */
+function receitaNaoPositiva(f: Pick<FundamentosPeriodo, 'receita' | 'naoSeAplica'>): boolean {
+  return finito(f.receita) && (f.receita <= 0 || f.naoSeAplica.includes('receita'));
+}
+
+/** Receita do ano em R$ bi; ≤ 0 = 'não se aplica' (regraReceita dos múltiplos), nunca "R$ 0,0 bi". */
+function receitaDe(f: Pick<FundamentosPeriodo, 'receita' | 'naoSeAplica'>): Estado<number> {
+  if (receitaNaoPositiva(f)) return naoSeAplicaCom('receita_nao_positiva');
+  return estadoDe(emBilhoes(f.receita));
+}
+
 /**
  * Margem líquida do ano: o múltiplo gravado; sem ele, lucro ÷ receita (receita > 0). Receita ≤ lucro
  * (holding / banco no individual) = 'não se aplica' (regra 15), nunca a conta de lado: o múltiplo
@@ -417,9 +428,11 @@ export function montarFundamentosAcao(
   ): Record<string, Estado<number>> =>
     v24
       ? {
-          receita: estadoDe(emBilhoes(f.receita)),
+          receita: receitaDe(f),
           ...derivadasDoPeriodo(f, e.financeira),
-          margem: margemDe(margemPct, lucro, f.receita),
+          margem: receitaNaoPositiva(f)
+            ? naoSeAplicaCom('receita_nao_positiva')
+            : margemDe(margemPct, lucro, f.receita),
         }
       : {
           receita: e.financeira ? naFin : estadoDe(emMilhoes(f.receita)),
