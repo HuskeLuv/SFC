@@ -148,6 +148,13 @@ vi.mock('@/services/analiseAtivos/leitura/ativo/raioX', async (orig) => {
 });
 
 import { CRITERIA_PARAMS_V1 } from '@/services/analiseAtivos/params/criteriaParamsV1';
+import { Prisma } from '@prisma/client';
+import { CATALOGO_SERIES, SERIES_FUNDAMENTO } from '@/types/analiseAtivosFontes';
+import type {
+  AlvoGetResposta,
+  FundamentosResposta,
+  MarcaCelulaEssencial,
+} from '@/types/analiseAtivosApi';
 import { GERADO_EM_FIXTURE, LINHAS_FIXTURE } from '@/test/fixtures/analiseAtivos/linhasDb';
 import { COMPACTOS_WEGE3 } from '@/test/fixtures/analiseAtivos/criterios';
 import { _resetarCacheLinhasQuadro } from '@/services/analiseAtivos/leitura/linhasQuadro';
@@ -439,6 +446,33 @@ describe('contratoSemNota — nenhuma resposta de /api/analise-ativos/* com nota
       ['descontinuado', 'descontinuado'],
       ['kpis', 'payout'],
     ]);
+  });
+
+  it('v2.5: catálogo de séries, chaves de fonte e colunas das 3 tabelas novas sem nota/score', () => {
+    const nomes = [
+      ...SERIES_FUNDAMENTO,
+      ...Object.keys(CATALOGO_SERIES),
+      ...Object.values(Prisma.AssetFundamentalsSerieScalarFieldEnum),
+      ...Object.values(Prisma.FiiPropertyQualityScalarFieldEnum),
+      ...Object.values(Prisma.PlanningAssetTargetScalarFieldEnum),
+    ];
+    expect(nomes.length).toBeGreaterThan(60);
+    expect(nomes.filter((n) => CHAVES_PROIBIDAS_CONTRATO.test(n))).toEqual([]);
+    // contratos de resposta novos (alvos, Essencial): chaves do exemplo tipado
+    const exemplo: AlvoGetResposta & { marcas: MarcaCelulaEssencial } & Pick<
+        FundamentosResposta,
+        'textoFonte' | 'dadosIncompletos'
+      > = {
+      ticker: 'WEGE3',
+      alvo: { targetPct: 6, atualizadoEm: '2026-10-15T00:00:00.000Z' },
+      marcas: { fallback: true, incompleto: false, fonte: 'cvm' },
+      textoFonte: 'Fonte: DFP/ITR (CVM).',
+      dadosIncompletos: false,
+    };
+    const chaves: string[] = [];
+    const valores: string[] = [];
+    varrer(exemplo, '$', chaves, valores);
+    expect(chaves).toEqual([]);
   });
 
   it('a varredura acusa as chaves por substring (sanidade do próprio teste)', () => {

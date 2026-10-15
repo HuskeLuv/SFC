@@ -56,7 +56,7 @@
  * carteira TOTAL, planning_asset_targets); TipoFiiExibido (Tijolo | Papel, protótipo) +
  * LinhaQuadroApi.segmentoTipo; AtivoTopoResposta.fiiTipoCvm (tipo CVM BRUTO para a seção automática
  * da Carteira); célula do Essencial com fallback/incompleto (LinhaFundamentos.marcas) e nota de fonte
- * pelas origens (FundamentosResposta.notaFonte/dadosIncompletos).
+ * pelas origens (FundamentosResposta.textoFonte/dadosIncompletos; nunca "nota" numa chave de resposta).
  *   GET  /api/analise-ativos/alvos/[ticker]               → AlvoGetResposta             (C)
  *   PUT  /api/analise-ativos/alvos/[ticker] AlvoPutBody   → AlvoPutResposta (CSRF)      (C)
  *   DEL  /api/analise-ativos/alvos/[ticker]               → AlvoDeleteResposta (CSRF)   (C)
@@ -678,7 +678,7 @@ export interface FundamentosResposta {
    * v2.5 (B): nota de fonte montada pelas origens (textosCriterios.textoNotaFonte), no lugar do
    * 'fonte: CVM' fixo de textosAtivo.essencial.unidadeAcao.
    */
-  notaFonte?: string;
+  textoFonte?: string;
   /** v2.5 (B): alguma célula com ponto incompleto → selo 'dados incompletos' no card */
   dadosIncompletos?: boolean;
 }
