@@ -7,13 +7,20 @@
  * Contagem (não é nota): 'sem_dado' conta como não atende e não entra em `atendidos`;
  * 'nao_se_aplica' (financeira, D4) sai de `aplicaveis` ("n de 3"). `semDado` = nenhum critério
  * aplicável com dado na janela. Função pura.
+ *
+ * Margem de financeira sem receita comparável (holding de participações, banco no individual): se
+ * NENHUM ano da janela tem margem (receita ausente, ≤ 0 ou ≤ lucro) e algum tem lucro, a margem
+ * 'não se aplica' — a falta é da estrutura do balanço, não do dado. Lucro também ausente = sem dado.
  */
 import {
   criteriosDoPerfil,
   idsNaoSeAplica,
   type CriteriaParams,
 } from '@/services/analiseAtivos/params/criteriaParamsSchema';
-import { anoInicioJanela } from '@/services/analiseAtivos/regras/criterios/ancoraJanela';
+import {
+  anoInicioJanela,
+  anosDaJanela,
+} from '@/services/analiseAtivos/regras/criterios/ancoraJanela';
 import { avaliarCriterio } from '@/services/analiseAtivos/regras/criterios/avaliarCriterio';
 import type {
   AvaliacaoAtivo,
@@ -38,6 +45,18 @@ export function contarResultados(resultados: readonly ResultadoCriterio[]): {
   };
 }
 
+const temValor = (v: number | null | undefined): boolean =>
+  typeof v === 'number' && Number.isFinite(v);
+
+/** Financeira sem nenhuma margem na janela, mas com lucro: a receita não é comparável ao lucro. */
+export function margemNaoComparavel(entrada: EntradaAvaliacaoAtivo, janela: Janela): boolean {
+  if (entrada.perfil !== 'acao_financeira') return false;
+  const anos = anosDaJanela(entrada.anoFim, janela, false);
+  const margem = entrada.series.margemLiquida ?? {};
+  const lucro = entrada.series.lucroLiquido ?? {};
+  return anos.every((a) => !temValor(margem[a])) && anos.some((a) => temValor(lucro[a]));
+}
+
 export function avaliarJanela(
   entrada: EntradaAvaliacaoAtivo,
   janela: Janela,
@@ -45,6 +64,7 @@ export function avaliarJanela(
 ): AvaliacaoJanela {
   const defs = criteriosDoPerfil(params, entrada.perfil);
   const nsa = new Set(idsNaoSeAplica(params, entrada.perfil));
+  const margemNsa = margemNaoComparavel(entrada, janela);
   const resultados = defs.map((def) =>
     avaliarCriterio(
       {
@@ -54,7 +74,7 @@ export function avaliarJanela(
         classe: entrada.classe,
         serie: entrada.series[def.serie],
         meses: entrada.meses,
-        naoSeAplica: nsa.has(def.id),
+        naoSeAplica: nsa.has(def.id) || (margemNsa && def.serie === 'margemLiquida'),
       },
       params,
     ),

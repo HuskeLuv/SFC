@@ -9,6 +9,7 @@ import {
   avaliarAtivo,
   avaliarJanela,
   contarResultados,
+  margemNaoComparavel,
 } from '@/services/analiseAtivos/regras/criterios/avaliarAtivo';
 import {
   anoFimGlobal,
@@ -319,6 +320,51 @@ describe('avaliarJanela / avaliarAtivo — contagem factual', () => {
     expect(j.resultados.map((r) => r.id)).toEqual(['rec', 'luc', 'ebitda', 'mg', 'dl', 'fcl']);
     expect(j.resultados.filter((r) => r.estado === 'nao_se_aplica')).toHaveLength(3);
     expect(j).toMatchObject({ anoInicio: 2021, anoFim: 2025 });
+  });
+
+  it('financeira sem margem na janela mas com lucro (holding/banco no individual): margem não se aplica, n de 2', () => {
+    const holding = {
+      ...entrada,
+      series: {
+        receita: serieDe(2020, [null, null, null, null, null, null]),
+        lucroLiquido: serieDe(2020, [1, 2, 3, 4, 5, 6]),
+        margemLiquida: serieDe(2021, [null, null, null, null, null]),
+      },
+    };
+    expect(margemNaoComparavel(holding, 5)).toBe(true);
+    const j = avaliarJanela(holding, 5, P);
+    const mg = j.resultados.find((r) => r.id === 'mg');
+    expect(mg).toMatchObject({
+      estado: 'nao_se_aplica',
+      motivo: 'instituicao_financeira',
+      fato: TEXTOS_CRITERIOS.motivos.instituicao_financeira_mg,
+    });
+    expect(j.aplicaveis).toBe(2);
+  });
+
+  it('margem segue sem dado quando falta só um ano, quando o lucro também falta, ou em não financeira', () => {
+    const umAno = {
+      ...entrada,
+      series: { ...entrada.series, margemLiquida: serieDe(2021, [10, 11, null, 13, 14]) },
+    };
+    expect(margemNaoComparavel(umAno, 5)).toBe(false);
+    expect(avaliarJanela(umAno, 5, P).resultados.find((r) => r.id === 'mg')?.estado).toBe(
+      'sem_dado',
+    );
+    const semLucro = {
+      ...entrada,
+      series: {
+        lucroLiquido: serieDe(2020, [null, null, null, null, null, null]),
+        margemLiquida: serieDe(2021, [null, null, null, null, null]),
+      },
+    };
+    expect(margemNaoComparavel(semLucro, 5)).toBe(false);
+    const naoFinanceira = {
+      ...entrada,
+      perfil: 'acao' as const,
+      series: { ...entrada.series, margemLiquida: serieDe(2021, [null, null, null, null, null]) },
+    };
+    expect(margemNaoComparavel(naoFinanceira, 5)).toBe(false);
   });
 
   it('as 3 janelas do params, com a paramsVersion', () => {

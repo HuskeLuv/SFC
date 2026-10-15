@@ -8,6 +8,7 @@ import { describe, expect, it } from 'vitest';
 import { CRITERIA_PARAMS_V1 } from '@/services/analiseAtivos/params/criteriaParamsV1';
 import { avaliarAtivo } from '@/services/analiseAtivos/regras/criterios/avaliarAtivo';
 import { perfilCriterios } from '@/services/analiseAtivos/regras/criterios/perfilCriterios';
+import { TEXTOS_CRITERIOS } from '@/services/analiseAtivos/textosCriterios';
 import {
   fysVigentesPorAno,
   seriesAcao,
@@ -143,12 +144,11 @@ describe('seriesAcao (DFP/CVM)', () => {
     );
   });
 
-  it('ITUB4, BBAS3, BBSE3 e ITSA4: acao_financeira, n de 3 (EBITDA, Dív/EBITDA e FCL não se aplicam)', () => {
+  it('ITUB4, BBAS3, BBSE3 e ITSA4: acao_financeira (EBITDA, Dív/EBITDA e FCL não se aplicam)', () => {
     for (const t of ['ITUB4', 'BBAS3', 'BBSE3', 'ITSA4']) {
       const a = avaliarAcao(t);
       expect(a.perfil, t).toBe('acao_financeira');
       for (const j of ['3', '5', '10'] as const) {
-        expect(a.janelas[j].aplicaveis, `${t} j${j}`).toBe(3);
         const e = estados(a, j);
         expect([e.ebitda, e.dl, e.fcl], t).toEqual([
           'nao_se_aplica',
@@ -157,9 +157,24 @@ describe('seriesAcao (DFP/CVM)', () => {
         ]);
       }
     }
+    // banco com receita comparável: margem avaliada, n de 3
+    for (const j of ['3', '5', '10'] as const) {
+      expect(avaliarAcao('BBAS3').janelas[j].aplicaveis, `BBAS3 j${j}`).toBe(3);
+    }
     // bancos no escopo individual (decisão 3)
     expect(acao('ITUB4').escopoPreferido).toBe('ind');
     expect(acao('BBAS3').escopoPreferido).toBe('ind');
+  });
+
+  it('ITUB4, BBSE3 e ITSA4: margem não se aplica (receita não comparável ao lucro), n de 2', () => {
+    for (const t of ['ITUB4', 'BBSE3', 'ITSA4']) {
+      const a = avaliarAcao(t);
+      for (const j of ['3', '5', '10'] as const) {
+        expect(estados(a, j).mg, `${t} j${j}`).toBe('nao_se_aplica');
+        expect(fato(a, j, 'mg'), t).toBe(TEXTOS_CRITERIOS.motivos.instituicao_financeira_mg);
+        expect(a.janelas[j].aplicaveis, `${t} j${j}`).toBe(2);
+      }
+    }
   });
 
   it('ano com fundamentos_escala em conferência = ausente em todas as séries', () => {
