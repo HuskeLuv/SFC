@@ -132,8 +132,18 @@ export const queryKeys = {
     // decide a classe quando o link mistura classes); o hook reordena pelos slots.
     raioX: (ticker: string) => [...queryKeys.analiseAtivos.all, 'ativo', ticker, 'raioX'] as const,
     cenario: (ticker: string) => [...queryKeys.analiseAtivos.all, 'cenario', ticker] as const,
-    comparador: (tickersOrdenados: readonly string[], primeiro: string) =>
-      [...queryKeys.analiseAtivos.all, 'comparador', tickersOrdenados.join(','), primeiro] as const,
+    // v2.4: `janela` opcional no fim da chave do comparador (D passa a enviar ?janela=; sem ela a
+    // chave fica a de hoje) e sugestões do modal Comparar (C1), por ticker, janela e busca.
+    comparador: (tickersOrdenados: readonly string[], primeiro: string, janela?: number) =>
+      [
+        ...queryKeys.analiseAtivos.all,
+        'comparador',
+        tickersOrdenados.join(','),
+        primeiro,
+        ...(janela === undefined ? [] : [janela]),
+      ] as const,
+    sugestoesComparar: (ticker: string, janela: number, q = '') =>
+      [...queryKeys.analiseAtivos.all, 'ativo', ticker, 'sugestoesComparar', janela, q] as const,
   },
   comunidade: {
     all: ['comunidade'] as const,

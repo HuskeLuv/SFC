@@ -5,21 +5,41 @@ import { withErrorHandler } from '@/utils/apiErrorHandler';
 import { validationError } from '@/utils/validation-schemas';
 import { exigirAcessoAnalise } from '@/services/analiseAtivos/acesso/acessoAnalise';
 import {
+  obterCriteriaParamsQuadro,
   obterLinhasQuadro,
   obterLinhasQuadroApi,
   versaoQuadro,
 } from '@/services/analiseAtivos/leitura/linhasQuadro';
-import { consultarQuadro, LIMITE_MAXIMO } from '@/services/analiseAtivos/quadro/consultaQuadro';
+import {
+  consultarQuadro,
+  definicoesQuadro,
+  idsFiltraveis,
+  LIMITE_MAXIMO,
+} from '@/services/analiseAtivos/quadro/consultaQuadro';
 import type { QuadroParams, QuadroResposta } from '@/types/analiseAtivosApi';
+import {
+  JANELAS_CRITERIOS,
+  ehIdCriterio,
+  type IdCriterio,
+  type Janela,
+} from '@/types/analiseAtivosCriterios';
 
 /**
- * GET /api/analise-ativos/quadro — linhas do Quadro (noQuadro=true) de uma classe, filtradas,
- * ordenadas (nulos sempre no fim) e paginadas de 25 em 25. Só banco: as linhas ficam em memória
- * por versão (leitura/linhasQuadro.ts) e a consulta é pura (quadro/consultaQuadro.ts).
+ * GET /api/analise-ativos/quadro — linhas do Quadro (noQuadro=true) de uma classe, filtradas pelos
+ * critérios de fundamentos na janela (E lógico), ordenadas (A–Z por padrão; nulos sempre no fim) e
+ * paginadas de 25 em 25. Só banco: as linhas ficam em memória por versão e janela
+ * (leitura/linhasQuadro.ts) e a consulta é pura (quadro/consultaQuadro.ts) — rec. 8.
  *
- * - 404 sem acesso (flag/beta, exigirAcessoAnalise); 400 com query inválida (zod).
+ * Query (zod ESTRITO: parâmetro desconhecido ou antigo — lucroConsistente, dyMin, pvpMax, tipo,
+ * somenteCompletos, a ordem do indicador antigo — dá 400): classe; janela 3|5|10 (padrão 5); criterios (ids
+ * separados por vírgula, só chips habilitados da classe; em FII o id de tijolo cobre o par de papel);
+ * naCarteira; setor; segmento; ordem; dir; offset; limite ≤ 100.
+ *
+ * - 404 sem acesso (flag/beta, exigirAcessoAnalise); 400 com query inválida.
  * - naCarteira=1: posições e planejados do targetUserId (o cliente, quando o consultor age por ele),
  *   lidos direto de portfolios/watchlists.
+ * - Resposta + {janela, totalClasse, definicoes}; nenhuma chave do indicador antigo
+ *   (contratoSemNota.test.ts).
  * - Cache-Control: no-store (o cache é o do servidor; um ativo recém-registrado aparece logo no
  *   filtro "Na minha carteira"). Server-Timing com o tempo da consulta.
  */
@@ -30,39 +50,49 @@ const booleano = z
   .transform((v) => v === '1' || v === 'true')
   .optional();
 
-const schemaQuadro = z.object({
+const ORDENS = [
+  'ticker',
+  'criterios',
+  'lucro10',
+  'preco',
+  'anosLucro',
+  'mesesRendimento',
+  'roe',
+  'pl',
+  'pvp',
+  'dy',
+  'margem',
+  'divLiqEbitda',
+  'payout',
+  'vacancia',
+  'valorMercado',
+  'patrimonio',
+  'liquidez',
+  'obrigacoesPl',
+  'cotistas',
+] as const;
+
+const schemaQuadro = z.strictObject({
   classe: z.enum(['acao', 'fii']),
-  ordem: z
-    .enum([
-      'indiceMf',
-      'ticker',
-      'preco',
-      'anosLucro',
-      'mesesRendimento',
-      'roe',
-      'pl',
-      'pvp',
-      'dy',
-      'margem',
-      'divLiqEbitda',
-      'payout',
-      'vacancia',
-      'valorMercado',
-      'patrimonio',
-      'liquidez',
-      'obrigacoesPl',
-      'cotistas',
-    ])
+  janela: z.coerce
+    .number()
+    .refine((v) => (JANELAS_CRITERIOS as readonly number[]).includes(v), 'janela: 3, 5 ou 10')
+    .transform((v) => v as Janela)
     .optional(),
-  dir: z.enum(['asc', 'desc']).optional(),
-  lucroConsistente: booleano,
-  dyMin: z.coerce.number().min(0).max(100).optional(),
-  pvpMax: z.coerce.number().positive().max(100).optional(),
-  tipo: z.enum(['tijolo', 'papel', 'hibrido', 'fof', 'indefinido']).optional(),
+  criterios: z
+    .string()
+    .trim()
+    .max(120)
+    .refine(
+      (v) => v === '' || v.split(',').every((id) => ehIdCriterio(id.trim())),
+      'critério desconhecido',
+    )
+    .optional(),
   naCarteira: booleano,
   setor: z.string().trim().min(1).max(120).optional(),
   segmento: z.string().trim().min(1).max(120).optional(),
-  somenteCompletos: booleano,
+  ordem: z.enum(ORDENS).optional(),
+  dir: z.enum(['asc', 'desc']).optional(),
   offset: z.coerce.number().int().min(0).max(10_000).optional(),
   limite: z.coerce.number().int().min(1).max(LIMITE_MAXIMO).optional(),
 });
@@ -95,9 +125,28 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
   if (!parsed.success) return validationError(parsed);
   const params: QuadroParams = parsed.data;
 
+  const criteriaParams = await obterCriteriaParamsQuadro();
+  // ids válidos, mas fora dos chips habilitados da classe (outra classe, vacância/inadimplência
+  // sem dado, id de papel) = 400: a URL nunca filtra por um critério que a tela não oferece
+  const permitidos = idsFiltraveis(definicoesQuadro(params.classe, criteriaParams));
+  const pedidos = (params.criterios ?? '')
+    .split(',')
+    .map((id) => id.trim())
+    .filter(Boolean);
+  const invalidos = pedidos.filter((id) => !permitidos.has(id as IdCriterio));
+  if (invalidos.length > 0) {
+    return NextResponse.json(
+      {
+        error: 'Dados inválidos: criterios',
+        details: { criterios: [`critério indisponível para a classe: ${invalidos.join(', ')}`] },
+      },
+      { status: 400 },
+    );
+  }
+
   const [versao, linhas, linhasDb, naCarteira] = await Promise.all([
     versaoQuadro(),
-    obterLinhasQuadroApi(),
+    obterLinhasQuadroApi(undefined, { janela: params.janela }),
     obterLinhasQuadro(),
     params.naCarteira ? simbolosDoUsuario(targetUserId) : Promise.resolve(undefined),
   ]);
@@ -110,6 +159,7 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     versao,
     dataRef,
     hoje: new Date().toISOString().slice(0, 10),
+    criteriaParams,
   });
   const dur = (performance.now() - inicio).toFixed(1);
   return NextResponse.json(corpo, {

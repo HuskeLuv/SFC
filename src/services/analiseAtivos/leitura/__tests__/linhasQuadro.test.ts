@@ -15,8 +15,15 @@ import {
   obterLinhasQuadro,
   obterLinhasQuadroApi,
   paraLinhaQuadroApi,
+  paraLinhaQuadroApiNaJanela,
   versaoQuadro,
 } from '../linhasQuadro';
+import {
+  COMPACTOS_WEGE3,
+  CRITERIOS_LINHA_HGLG11,
+  CRITERIOS_LINHA_WEGE3,
+} from '@/test/fixtures/analiseAtivos/criterios';
+import type { CriteriosCompactos } from '@/types/analiseAtivosCriterios';
 import {
   GERADO_EM_FIXTURE,
   LINHAS_FIXTURE,
@@ -95,12 +102,16 @@ describe('linhasQuadro', () => {
       expect(await obterLinhaQuadro('XXXX3')).toBeNull();
     });
 
-    it('API memorizada por versão', async () => {
+    it('API memorizada por versão e janela', async () => {
       prepararBanco();
       const a = await obterLinhasQuadroApi('fii');
       const b = await obterLinhasQuadroApi('fii');
       expect(a[0]).toBe(b[0]);
       expect(a.map((l) => l.ticker)).toEqual(['HCTR11', 'HFOF11', 'HGLG11']);
+      const c = await obterLinhasQuadroApi('fii', { janela: 10 });
+      expect(c[0]).not.toBe(a[0]);
+      expect(await obterLinhasQuadroApi('fii', { janela: 10 })).toEqual(c);
+      expect(mockPrisma.analiseQuadroLinha.findMany).toHaveBeenCalledTimes(1);
     });
   });
 
@@ -171,32 +182,66 @@ describe('linhasQuadro', () => {
     });
   });
 
-  describe('Índice nos cinco estados', () => {
-    it('calculado, incompleto, zero_regra, sem_score e fora_do_indice', () => {
-      expect(paraLinhaQuadroApi(LINHA_WEGE3).indice).toMatchObject({
-        valor: 9.01,
-        estado: 'calculado',
-        motivos: [],
-        criteriosAtendidos: 4,
+  describe('v2.4: critérios da janela e motivos de conferência, sem o indicador antigo', () => {
+    const compactosHglg: CriteriosCompactos = {
+      '3': { n: 4, de: 6, m: CRITERIOS_LINHA_HGLG11.marcas.map((m) => [m.id, m.estado, m.fato]) },
+      '5': {
+        n: CRITERIOS_LINHA_HGLG11.n,
+        de: CRITERIOS_LINHA_HGLG11.de,
+        m: CRITERIOS_LINHA_HGLG11.marcas.map((m) => [m.id, m.estado, m.fato]),
+      },
+    };
+
+    it('nenhuma chave /indice|semaforo|destaque/ na linha convertida (varredura recursiva)', () => {
+      const chaves: string[] = [];
+      const visitar = (v: unknown) => {
+        if (Array.isArray(v)) return v.forEach(visitar);
+        if (v && typeof v === 'object') {
+          for (const [k, x] of Object.entries(v)) {
+            chaves.push(k);
+            visitar(x);
+          }
+        }
+      };
+      for (const row of LINHAS_FIXTURE) visitar(paraLinhaQuadroApi(row));
+      expect(chaves.filter((k) => /indice|semaforo|destaque/i.test(k))).toEqual([]);
+    });
+
+    it('projeta a janela pedida da cópia compacta (padrão 5)', () => {
+      const row = { ...LINHA_WEGE3, criterios: COMPACTOS_WEGE3, perfilCriterios: 'acao' };
+      expect(paraLinhaQuadroApi(row).criterios).toEqual(CRITERIOS_LINHA_WEGE3);
+      const hglg = {
+        ...LINHA_HGLG11,
+        criterios: compactosHglg,
+        perfilCriterios: 'fii_tijolo',
+      };
+      expect(paraLinhaQuadroApiNaJanela(hglg, 3).criterios).toMatchObject({
+        janela: 3,
+        n: 4,
+        de: 6,
+        perfil: 'fii_tijolo',
       });
-      expect(paraLinhaQuadroApi(LINHA_TGMA3).indice).toMatchObject({
-        valor: 8.48,
-        estado: 'incompleto',
-        motivos: [{ codigo: 'div:fonte_defasada', texto: 'proventos em conferência' }],
-      });
-      const aure = paraLinhaQuadroApi(LINHA_AURE3).indice;
-      expect(aure.estado).toBe('zero_regra');
-      expect(aure.valor).toBe(0.08);
-      expect(aure.motivos[0].texto).toBe(
-        'Componente zerado pela regra: prejuízo no último exercício',
-      );
-      expect(paraLinhaQuadroApi(LINHA_HCTR11).indice).toMatchObject({
-        valor: null,
-        estado: 'sem_score',
-      });
-      expect(paraLinhaQuadroApi(LINHA_HFOF11).indice.motivos[0].texto).toBe(
-        'fora do Índice MF nesta fase',
-      );
+      expect(paraLinhaQuadroApiNaJanela(hglg, 5).criterios).toEqual(CRITERIOS_LINHA_HGLG11);
+    });
+
+    it('sem avaliação (job não rodou, janela ausente ou perfil inválido) = null', () => {
+      expect(paraLinhaQuadroApi(LINHA_WEGE3).criterios).toBeNull();
+      const row = { ...LINHA_WEGE3, criterios: COMPACTOS_WEGE3, perfilCriterios: 'acao' };
+      expect(paraLinhaQuadroApiNaJanela(row, 10).criterios).toBeNull();
+      expect(paraLinhaQuadroApi({ ...row, perfilCriterios: 'xpto' }).criterios).toBeNull();
+      expect(paraLinhaQuadroApi({ ...row, criterios: 'lixo' }).criterios).toBeNull();
+    });
+
+    it('motivosConferencia = os códigos gravados pelo job, com texto', () => {
+      expect(paraLinhaQuadroApi(LINHA_TGMA3).motivosConferencia).toEqual([
+        { codigo: 'div:fonte_defasada', texto: 'proventos em conferência' },
+      ]);
+      expect(paraLinhaQuadroApi(LINHA_WEGE3).motivosConferencia).toEqual([]);
+      // linhas sem score e fora do Quadro antigo não carregam texto do indicador antigo
+      for (const row of [LINHA_AURE3, LINHA_HCTR11, LINHA_HFOF11]) {
+        const texto = JSON.stringify(paraLinhaQuadroApi(row));
+        expect(texto).not.toMatch(/Índice/);
+      }
     });
 
     it('série só com pontos válidos, ordenada, suspeito preservado; tipo da série por classe', () => {
@@ -222,7 +267,7 @@ describe('linhasQuadro', () => {
       });
       expect(api.proventosEmConferencia).toBe(true);
       expect(api.dy12m).toMatchObject({ estado: 'ok' });
-      expect(api.indice.motivos).toEqual([
+      expect(api.motivosConferencia).toEqual([
         { codigo: 'div:em_conferencia', texto: 'proventos em conferência' },
       ]);
       const sem = paraLinhaQuadroApi({ ...LINHA_ITUB4, flags: [], motivosIncompleto: [] });

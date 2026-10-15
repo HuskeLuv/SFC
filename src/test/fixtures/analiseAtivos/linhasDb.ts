@@ -66,6 +66,9 @@ export function linhaQuadroDb(over: Partial<AnaliseQuadroLinha> = {}): AnaliseQu
     flags: [],
     paramsVersion: 1,
     geradoEm: GERADO_EM_FIXTURE,
+    // v2.4 (fatia 0): nulos até o job 'criterios' (fatia A) gravar a cópia compacta
+    criterios: null,
+    perfilCriterios: null,
     ...over,
   };
 }

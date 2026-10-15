@@ -68,12 +68,11 @@ describe('frescor por bloco (bloco C, fatia B)', () => {
       expect(Object.keys(b).sort()).toEqual(
         [
           'cabecalho',
-          'criterios',
+          'criterios_fundamentos',
           'dividendos',
           'fundamentos',
           'grafico',
           'historicos',
-          'indice',
           'kpis',
           'pares',
           'valuation',

@@ -3,13 +3,13 @@
  * o índice com `montarIndiceBusca` e o componente BuscaAtivos filtra no cliente com `filtrarBusca`
  * (o índice inteiro chega uma vez; nenhuma requisição por tecla).
  *
- * - Índice: TODAS as linhas (inclusive fora do Quadro, com o motivo), chaves curtas (ItemBusca).
+ * - Índice: TODAS as linhas (inclusive fora do Quadro, com o motivo), chaves curtas (ItemBusca)
+ *   {t, n, c, q, f, m}. v2.4: sem i/e (o indicador antigo saiu da superfície).
  * - Filtro: sem acento e sem caixa (NFD); relevância prefixo do ticker > prefixo de palavra do nome
  *   > substring (ticker ou nome); desempate: do Quadro antes, depois ticker; no máximo 8.
  */
 import type {
   ClasseQuadro,
-  EstadoIndice,
   FiiTipoTela,
   ForaDoQuadroMotivo,
   ItemBusca,
@@ -23,28 +23,22 @@ export interface LinhaParaBusca {
   nome: string;
   classe: string;
   noQuadro: boolean;
-  indiceMf: number | null;
-  estadoIndice: string;
   fiiTipo: string | null;
   foraDoQuadroMotivo: string | null;
 }
 
 export function montarIndiceBusca(linhas: readonly LinhaParaBusca[]): ItemBusca[] {
   return linhas
-    .map((l) => {
-      const e = l.estadoIndice as EstadoIndice;
-      const semNumero = e === 'sem_score' || e === 'fora_do_indice';
-      return {
+    .map(
+      (l): ItemBusca => ({
         t: l.symbol,
         n: l.nome,
         c: l.classe as ClasseQuadro,
         q: l.noQuadro,
-        i: semNumero ? null : l.indiceMf,
-        e,
         f: (l.fiiTipo as FiiTipoTela | null) ?? null,
         m: l.noQuadro ? null : ((l.foraDoQuadroMotivo as ForaDoQuadroMotivo | null) ?? null),
-      };
-    })
+      }),
+    )
     .sort((a, b) => a.t.localeCompare(b.t));
 }
 

@@ -3,9 +3,14 @@
 /**
  * Fundamentos · Essencial (fatia C). Busca o próprio dado (useFundamentosAtivo) — a PaginaAtivo
  * só monta o bloco dentro da SecaoPreguicosa. Tabela no padrão TABLE_STYLES (compacta), até 10
- * anos fechados com o último destacado (tinta outside) + 'Últ. 12m'. A coluna Ano fica fixa e a
- * tabela rola para o lado DENTRO do card no celular (exceção justificada no protótipo).
- * Negativos em #D92D20/#F97066; Div./ação em conferência com asterisco e nota.
+ * anos fechados com o último ano fechado marcado (tinta outside, data-ultimo-ano) + 'Últ. 12m'. A
+ * coluna Ano fica fixa e a tabela rola para o lado DENTRO do card no celular (exceção justificada no
+ * protótipo). Negativos em #D92D20/#F97066; Div./ação em conferência com asterisco e nota.
+ *
+ * v2.4 (fatia C2): ações na ordem do HTML do Pedro em R$ bi (Receita líq. · EBITDA · Lucro líq. ⓘ ·
+ * Margem líq. ⓘ · Dívida líq. ⓘ · Dív. líq./EBITDA · FCL/CAPEX ⓘ · ROE · LPA · Div./ação · Payout ·
+ * P/L · P/VP · DY). As colunas com ⓘ levam a explicação no title, para leitor de tela e nas notas
+ * (D2: a CVM não publica o lucro sem itens não recorrentes). FII: 'Área (CVM)' (rec. 7).
  *
  * Bloco C (params v2): célula em conferência = HACHURA + '—' ('ocultar') ou o valor ('selo') + chip
  * "em conferência" que abre o "Por quê?" (ano do histórico: o próprio ano). As células saem da
@@ -41,6 +46,7 @@ import { CAMPOS_REPORTAVEIS } from '@/services/analiseAtivos/curadoria/contrato'
 import { TABLE_HEADER_STYLE, TABLE_STYLES } from '@/components/ui/table/tableStyles';
 import { useFundamentosAtivo } from '@/hooks/useAnaliseAtivos';
 import { TEXTOS_TELA, formatarTexto } from '@/services/analiseAtivos/textosTela';
+import { TEXTOS_ATIVO } from '@/services/analiseAtivos/textosAtivo';
 import type {
   BlocoFundamentosEssencialProps,
   ColunaFundamentos,
@@ -56,8 +62,25 @@ export type { BlocoFundamentosEssencialProps };
 const TF = TEXTOS_TELA.analise.fundamentos;
 /** Colunas que levam o asterisco quando o ano tem proventos em conferência. */
 const COLUNAS_PROVENTO = new Set(['dpa', 'rendCota']);
-const DESTAQUE_STICKY =
+const TE = TEXTOS_ATIVO.essencial;
+const ULTIMO_ANO_STICKY =
   'shadow-[inset_0_0_0_999px_rgba(0,121,242,0.06)] dark:shadow-[inset_0_0_0_999px_rgba(0,121,242,0.16)]';
+
+/** Explicação das colunas com ⓘ (D2 e rec. 7), por variante. */
+export function explicacaoDaColuna(
+  variante: FundamentosResposta['variante'],
+  codigo: string,
+): string | null {
+  if (variante === 'acao') {
+    return (TE.tooltips as Record<string, string>)[codigo] ?? null;
+  }
+  return codigo === 'area' ? TE.tooltipAreaFii : null;
+}
+
+/** Rótulo sem o 'ⓘ' (notas e leitor de tela). */
+function rotuloLimpo(rotulo: string): string {
+  return rotulo.replace(/\s*ⓘ\s*$/u, '');
+}
 
 function emConferencia(l: LinhaFundamentos): boolean {
   return l.selos.includes('proventos_em_conferencia');
@@ -98,7 +121,7 @@ function conferenciaDaCelula(
 
 /** "Qual dado?" do relato: colunas reportáveis da linha destacada (último ano fechado). */
 function dadosReporte(dados: FundamentosResposta | undefined): DadoBlocoReporte[] | undefined {
-  const linha = dados?.linhas.find((l) => l.destaque);
+  const linha = dados?.linhas.find((l) => l.ultimoAno);
   if (!dados || !linha) return undefined;
   const reportaveis = CAMPOS_REPORTAVEIS.fundamentos as readonly string[];
   return dados.colunas
@@ -152,7 +175,7 @@ export default function BlocoFundamentosEssencial({
       ) : dados ? (
         <>
           <div
-            className={`${TABLE_STYLES.wrapper} max-w-full`}
+            className={`${TABLE_STYLES.wrapper} relative max-w-full`}
             data-rolagem-card="fundamentos"
             tabIndex={0}
             aria-label={formatarTexto(TF.caption, { ticker })}
@@ -168,15 +191,29 @@ export default function BlocoFundamentosEssencial({
                   >
                     {TF.ano}
                   </th>
-                  {dados.colunas.map((c) => (
-                    <th
-                      key={c.codigo}
-                      scope="col"
-                      className={`${TABLE_STYLES.compact.th} text-right`}
-                    >
-                      {c.rotulo}
-                    </th>
-                  ))}
+                  {dados.colunas.map((c) => {
+                    const explicacao = explicacaoDaColuna(dados.variante, c.codigo);
+                    return (
+                      <th
+                        key={c.codigo}
+                        scope="col"
+                        className={`${TABLE_STYLES.compact.th} text-right`}
+                      >
+                        {explicacao ? (
+                          <span
+                            title={explicacao}
+                            data-explicacao-coluna={c.codigo}
+                            className="cursor-help"
+                          >
+                            {c.rotulo}
+                            <span className="sr-only">: {explicacao}</span>
+                          </span>
+                        ) : (
+                          c.rotulo
+                        )}
+                      </th>
+                    );
+                  })}
                 </tr>
               </thead>
               <tbody>
@@ -186,13 +223,14 @@ export default function BlocoFundamentosEssencial({
                     <tr
                       key={l.rotulo}
                       className={TABLE_STYLES.row}
-                      data-destaque={l.destaque || undefined}
+                      data-ultimo-ano={l.ultimoAno || undefined}
                     >
                       <th
                         scope="row"
-                        className={`${TABLE_STYLES.compact.td} sticky left-0 z-[1] text-left font-semibold text-gray-800 dark:text-white/90 ${FUNDO_STICKY} ${l.destaque ? DESTAQUE_STICKY : ''}`}
+                        className={`${TABLE_STYLES.compact.td} sticky left-0 z-[1] text-left font-semibold text-gray-800 dark:text-white/90 ${FUNDO_STICKY} ${l.ultimoAno ? ULTIMO_ANO_STICKY : ''}`}
                       >
                         {l.rotulo}
+                        {l.ultimoAno ? <span className="sr-only"> ({TE.ultimoAnoSr})</span> : null}
                       </th>
                       {dados.colunas.map((c) => {
                         const v = l.valores[c.codigo] ?? {
@@ -208,7 +246,7 @@ export default function BlocoFundamentosEssencial({
                             key={c.codigo}
                             title={v.estado === 'ok' ? undefined : v.texto}
                             data-conferencia={confC?.grupo}
-                            className={`${TABLE_STYLES.compact.td} text-right tabular-nums ${l.destaque ? `${TABLE_STYLES.highlightTd} font-medium text-gray-800 dark:text-white/90` : ''} ${negativo ? TEXTO_NEGATIVO : ''} ${confC ? HACHURA : ''}`}
+                            className={`${TABLE_STYLES.compact.td} text-right tabular-nums ${l.ultimoAno ? `${TABLE_STYLES.highlightTd} font-medium text-gray-800 dark:text-white/90` : ''} ${negativo ? TEXTO_NEGATIVO : ''} ${confC ? HACHURA : ''}`}
                           >
                             {formatarEstado(v, c.formato)}
                             {asterisco ? (
@@ -241,14 +279,22 @@ export default function BlocoFundamentosEssencial({
           <ul className="flex flex-col gap-1 text-xs text-gray-500 dark:text-gray-400">
             <li>
               {dados.variante === 'acao'
-                ? TF.notaEssencialAcao
+                ? TE.notaEssencial
                 : dados.variante === 'fii_papel'
                   ? TF.notaEssencialPapel
                   : TF.notaEssencialFii}
             </li>
-            {dados.notas.map((n) => (
+            {dados.observacoes.map((n) => (
               <li key={n}>{n}</li>
             ))}
+            {dados.colunas.map((c) => {
+              const explicacao = explicacaoDaColuna(dados.variante, c.codigo);
+              return explicacao ? (
+                <li key={`ⓘ-${c.codigo}`} data-nota-coluna={c.codigo}>
+                  {rotuloLimpo(c.rotulo)}: {explicacao}
+                </li>
+              ) : null;
+            })}
           </ul>
         </>
       ) : null}

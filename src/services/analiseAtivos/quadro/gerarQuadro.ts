@@ -3,18 +3,23 @@
  * Roda depois do 'scores' (cron 10:40 UTC, processo separado pelo myfinance-job.sh), via
  * executarJobAnalise (lock, AnaliseJobRun, prazo). Só banco: nenhum provedor externo.
  *
- * 1. dataRef = max(asset_scores.dataRef).
+ * 1. dataRef = max(asset_scores.dataRef) (continua vindo de asset_scores até a D6).
  * 2. carregarEntradaQuadro: UMA leitura por tabela (cadastro, scores da dataRef, múltiplos atuais,
  *    setor B3, nomes, informes de FII, resumo de cotação, 2 últimos pregões, per-share, lucro FY,
- *    contagem de ações, Asset.id).
+ *    contagem de ações, Asset.id) + a cópia compacta dos critérios (criteria_eval, gravado pelo job
+ *    'criterios' das 10:30 UTC) → AnaliseQuadroLinha.criterios/perfilCriterios (v2.4).
  * 3. montarLinhasQuadro (pura).
- * 4. Grava numa transação (deleteMany + createMany): os leitores veem a versão anterior inteira até o
- *    commit (MVCC) e trocam de versão em até 60 s (linhasQuadro.ts).
+ * 4. Grava numa transação interativa (deleteMany + createMany em lotes de 200): os leitores veem a
+ *    versão anterior inteira até o commit (MVCC) e trocam de versão em até 60 s (linhasQuadro.ts).
  */
 import { Prisma, type PrismaClient } from '@prisma/client';
 import { lucroParaSequencia } from '@/services/analiseAtivos/regras/calculo/sequencias';
 import { contagensAcoes } from '@/services/analiseAtivos/repositorio/acoes';
 import { paraNumero } from '@/services/analiseAtivos/repositorio/conversao';
+import {
+  lerCompactosPorSimbolo,
+  PRAZO_TRANSACAO_MS,
+} from '@/services/analiseAtivos/repositorio/criterios';
 import {
   listarEmissores,
   listarFiisListados,
@@ -28,6 +33,8 @@ import {
 import type { ContagemAcoes, JobContexto, ResultadoJob } from '@/services/analiseAtivos/tipos';
 
 const DIA_MS = 86_400_000;
+/** Linhas por createMany na gravação do Quadro (v2.4). */
+export const LOTE_LINHAS_QUADRO = 200;
 /** Janela para achar os 2 últimos pregões de cada símbolo. */
 const JANELA_PREGOES_DIAS = 10;
 
@@ -87,7 +94,7 @@ export async function carregarEntradaQuadro(
     contagensAcoes(prisma, cnpjsAcao),
   ]);
 
-  const [fiiMensal, fiiTrimestral, mesesInforme, ultimos, fys] = await Promise.all([
+  const [fiiMensal, fiiTrimestral, mesesInforme, ultimos, fys, criterios] = await Promise.all([
     cnpjsFii.length
       ? prisma.$queryRaw<
           Array<{
@@ -128,6 +135,7 @@ export async function carregarEntradaQuadro(
         FROM "asset_quotes_daily" WHERE "date" >= ${desdePregoes} AND "date" <= ${dataRef}
       ) x WHERE rn <= 2`,
     lucrosFyVigentes(prisma, cnpjsAcao, emissores),
+    lerCompactosPorSimbolo(prisma),
   ]);
   const lucrosFy = fys;
 
@@ -211,6 +219,11 @@ export async function carregarEntradaQuadro(
     lucrosFy,
     mesesInformeFii: mesesInforme.map((m) => ({ cnpj: m.cnpj, ano: m.ano, meses: m.meses })),
     contagens: [...contagemPor.values()],
+    criterios: [...criterios.entries()].map(([symbol, c]) => ({
+      symbol,
+      perfil: c.perfil,
+      criterios: c.criterios,
+    })),
   };
 }
 
@@ -234,6 +247,7 @@ export async function lucrosFyVigentes(
       escopo: true,
       versao: true,
       anoFiscal: true,
+      lucroLiquido: true,
       lucroAtribuivel: true,
       flags: true,
     },
@@ -259,6 +273,7 @@ export async function lucrosFyVigentes(
     const ind = grupo.find((g) => g.escopo === 'ind');
     const v = lucroParaSequencia({
       lucroAtribuivel: paraNumero(f.lucroAtribuivel),
+      lucroLiquido: paraNumero(f.lucroLiquido),
       lucroAtribuivelIndividual: f.escopo === 'con' && ind ? paraNumero(ind.lucroAtribuivel) : null,
       flags: f.flags,
     });
@@ -279,11 +294,22 @@ export async function gravarLinhasQuadro(
   prisma: PrismaClient,
   linhas: LinhaQuadroGravar[],
 ): Promise<number> {
-  const [, criadas] = await prisma.$transaction([
-    prisma.analiseQuadroLinha.deleteMany({}),
-    prisma.analiseQuadroLinha.createMany({ data: linhas }),
-  ]);
-  return criadas.count;
+  // v2.4: transação INTERATIVA com createMany em lotes — com a cópia compacta dos critérios
+  // (JSON por linha) o createMany único de ~950 linhas subia o pico do job em ~95 MB no DEV.
+  return prisma.$transaction(
+    async (tx) => {
+      await tx.analiseQuadroLinha.deleteMany({});
+      let criadas = 0;
+      for (let i = 0; i < linhas.length; i += LOTE_LINHAS_QUADRO) {
+        const r = await tx.analiseQuadroLinha.createMany({
+          data: linhas.slice(i, i + LOTE_LINHAS_QUADRO),
+        });
+        criadas += r.count;
+      }
+      return criadas;
+    },
+    { timeout: PRAZO_TRANSACAO_MS, maxWait: 10_000 },
+  );
 }
 
 export interface DependenciasQuadro {
@@ -315,6 +341,7 @@ export async function gerarQuadro(
       linhas: r.linhas.length,
       linhasGravadas: gravadas,
       noQuadroPorClasse: r.noQuadroPorClasse,
+      comCriterios: r.linhas.filter((l) => l.criterios !== undefined).length,
       foraDoQuadroPorClasse: r.foraDoQuadroPorClasse,
       aplicar: ctx.aplicar,
     },

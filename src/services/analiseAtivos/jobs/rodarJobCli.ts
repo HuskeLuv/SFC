@@ -11,18 +11,22 @@ import type { RelatorioJob } from '@/services/analiseAtivos/tipos';
 export interface ArgsRodarJob {
   def: DefinicaoJob;
   prazoMs: number;
+  /** false com --sem-aplicar (dry-run: o job calcula e relata, sem gravar; ex.: R1 do 'criterios') */
+  aplicar: boolean;
 }
 
 export function lerArgsRodarJob(argv: string[]): ArgsRodarJob {
   const posicionais = argv.filter((a) => !a.startsWith('--'));
   if (posicionais.length !== 1) {
-    throw new Error('uso: rodar-job.ts <job> [--prazo-s=N]   (ex.: scores, cvm-cias:dfp)');
+    throw new Error(
+      'uso: rodar-job.ts <job> [--prazo-s=N] [--sem-aplicar]   (ex.: scores, cvm-cias:dfp)',
+    );
   }
   const def = definicaoJob(posicionais[0]);
   const prazoTxt = argv.find((a) => a.startsWith('--prazo-s='))?.split('=', 2)[1];
   const prazoMs = prazoTxt === undefined ? def.prazoMs : Number(prazoTxt) * 1000;
   if (!Number.isFinite(prazoMs) || prazoMs <= 0) throw new Error('--prazo-s inválido');
-  return { def, prazoMs };
+  return { def, prazoMs, aplicar: !argv.includes('--sem-aplicar') };
 }
 
 /** Código de saída do processo: 0 ok/parcial/pulado, 1 falha (o cron registra no log). */
@@ -34,11 +38,12 @@ export async function rodarJobCli(
   argv: string[],
   executar: typeof executarJobAnalise = executarJobAnalise,
 ): Promise<{ relatorio: RelatorioJob; codigo: number }> {
-  const { def, prazoMs } = lerArgsRodarJob(argv);
+  const { def, prazoMs, aplicar } = lerArgsRodarJob(argv);
   const relatorio = await executar(def.nome, def.executar, {
     prazoMs,
     origem: 'cron',
     ...(def.parametros ? { parametros: def.parametros } : {}),
+    ...(aplicar ? {} : { aplicar: false }),
   });
   return { relatorio, codigo: codigoSaida(relatorio) };
 }

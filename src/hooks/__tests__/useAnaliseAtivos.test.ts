@@ -48,13 +48,12 @@ describe('paramsQuadroParaQuery', () => {
     const qs = paramsQuadroParaQuery({
       classe: 'acao',
       ordem: 'pl',
-      lucroConsistente: true,
-      naCarteira: false,
+      naCarteira: true,
       setor: '',
       offset: 25,
       limite: 25,
     });
-    expect(qs.toString()).toBe('classe=acao&limite=25&lucroConsistente=1&offset=25&ordem=pl');
+    expect(qs.toString()).toBe('classe=acao&limite=25&naCarteira=1&offset=25&ordem=pl');
   });
 });
 

@@ -12,7 +12,7 @@ vi.mock('@/services/analiseAtivos/leitura/ativo/raioX', () => ({ obterRaioX: moc
 
 import { GET } from '../route';
 import { ApiError } from '@/utils/apiErrorHandler';
-import { RODAPE_LEGAL } from '@/services/analiseAtivos/textosTela';
+import { RODAPE_LEGAL_V2 } from '@/services/analiseAtivos/textosLiterais';
 import type { RaioXResposta } from '@/types/analiseAtivosBlocoD';
 
 const RAIO_X: RaioXResposta = {
@@ -104,7 +104,7 @@ describe('GET /api/analise-ativos/ativos/[ticker]/raio-x', () => {
     expect(texto).toContain('Linha;2025;2024\r\n');
     expect(texto).toContain('Receita líquida (R$ mi);40804,11;37986,94\r\n');
     expect(texto).toContain('Parâmetros;v2\r\n');
-    expect(texto).toContain(`Aviso legal;"${RODAPE_LEGAL}"\r\n`);
+    expect(texto).toContain(`Aviso legal;"${RODAPE_LEGAL_V2.texto}"\r\n`);
     // sem nenhum dado do usuário
     expect(texto).not.toContain('u1');
   });

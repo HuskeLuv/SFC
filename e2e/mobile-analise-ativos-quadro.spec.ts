@@ -7,7 +7,8 @@ import {
 } from './helpers/mobileFit';
 
 /**
- * Análise de Ativos — Fase 1, fatia A: Quadro no celular (projeto `mobile`, SÓ LEITURA).
+ * Análise de Ativos — Quadro no celular (projeto `mobile`, SÓ LEITURA). v2.4: barra Filtros de
+ * fundamentos (janela + chips num trilho), cartões com link esticado e ordem A–Z.
  * Crítica 6 do revisor: o trilho de chips numa linha própria, sem sobrepor a linha "Ordem" +
  * Resumo|Detalhado; chips e pílulas com 44px; sem rolagem horizontal a 390 e a 320.
  */
@@ -58,9 +59,15 @@ for (const width of [390, 320]) {
       b!.y + 0.5,
     );
 
-    // cartão abre a página do ativo (alvo grande)
-    const cartao = page.locator('[data-quadro-cartoes] li a').first();
-    await expectMinTarget(cartao, 72);
+    // cartão abre a página do ativo (link esticado: o cartão inteiro é o alvo; o ticker tem 44px)
+    const cartao = page.locator('[data-quadro-cartoes] li').first();
+    if (await cartao.isVisible()) {
+      await expectMinTarget(cartao, 72);
+      await expectMinTarget(cartao.locator('a[data-link-cartao]'));
+    }
+    // pílulas da janela (3 | 5 | 10) com 44px
+    for (const r of await page.locator('[data-pilulas-janela] [role="radio"]').all())
+      await expectMinTarget(r);
   });
 }
 
@@ -73,10 +80,7 @@ test('sheet de ordem: rádios de 52px, direção e "sem dado no fim"', async ({ 
   const radios = sheet.getByRole('radio');
   expect(await radios.count()).toBeGreaterThan(3);
   await expectMinTarget(radios.first(), 52);
-  await expect(sheet.getByRole('radio', { name: /Índice MF/ })).toHaveAttribute(
-    'aria-checked',
-    'true',
-  );
+  await expect(sheet.getByRole('radio', { name: /A–Z/ })).toHaveAttribute('aria-checked', 'true');
   await expect(
     sheet.getByText('Ativos sem dado para a ordem escolhida ficam no fim da lista.'),
   ).toBeVisible();

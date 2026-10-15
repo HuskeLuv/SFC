@@ -8,6 +8,7 @@ import {
   anosLucroConsecutivos,
   anosLucroConsecutivosDetalhado,
   lucroParaSequencia,
+  lucroSinalDivergente,
 } from '@/services/analiseAtivos/regras/calculo/sequencias';
 import { ausente, ok } from '@/services/analiseAtivos/regras/comum/valor';
 
@@ -82,5 +83,25 @@ describe('anosLucroConsecutivos — três estados', () => {
     expect(
       lucroParaSequencia({ lucroAtribuivel: null, lucroAtribuivelIndividual: 7, flags: [] }),
     ).toEqual(ausente('sem_dado_fonte'));
+  });
+
+  it('lucroParaSequencia: atribuível com sinal oposto ao lucro líquido e módulo parecido = em conferência', () => {
+    // AZUL3 2023 (con): lucro líquido −2,38 bi e atribuível +2,34 bi
+    expect(
+      lucroParaSequencia({
+        lucroLiquido: -2_380_456_000,
+        lucroAtribuivel: 2_340_930_000,
+        flags: [],
+      }),
+    ).toEqual(ausente('em_conferencia', 'lucro_sinal_divergente'));
+    // sinal oposto com módulos bem diferentes (minoritários) segue valendo
+    expect(lucroParaSequencia({ lucroLiquido: -100, lucroAtribuivel: 30, flags: [] })).toEqual(
+      ok(30),
+    );
+    expect(lucroParaSequencia({ lucroLiquido: 100, lucroAtribuivel: 98, flags: [] })).toEqual(
+      ok(98),
+    );
+    expect(lucroSinalDivergente(null, 5)).toBe(false);
+    expect(lucroSinalDivergente(-100, 95)).toBe(true);
   });
 });

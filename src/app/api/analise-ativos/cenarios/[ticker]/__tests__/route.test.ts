@@ -165,13 +165,15 @@ describe('GET /api/analise-ativos/cenarios/[ticker]', () => {
     expect(res.status).toBe(200);
     expect(res.headers.get('Cache-Control')).toBe('no-store');
     const r = (await res.json()) as CenariosResposta;
+    // v2.4 (caso 22): premissas em branco; o P/L alvo abre com a média 10a do ativo (fato)
     expect(r).toMatchObject({
       ticker: 'WEGE3',
       classe: 'acao',
       podeSalvar: true,
       motivoSemSalvar: null,
-      premissasPadrao: { yieldPct: 6, plAlvo: 36.9 },
+      premissasIniciais: { yieldPct: null, gPct: null, kPct: null, margemPct: 0, plAlvo: 36.9 },
     });
+    expect(r).not.toHaveProperty('premissasPadrao');
     expect(r.salvo).toEqual({
       premissas: PREMISSAS_ACAO,
       dadosEditados: { lpa: 1.44 },
@@ -180,10 +182,16 @@ describe('GET /api/analise-ativos/cenarios/[ticker]', () => {
     });
   });
 
-  it('sem cenário: salvo = null', async () => {
+  it('sem cenário: salvo = null e premissas do FII em branco', async () => {
     const r = (await (await get('HGLG11')).json()) as CenariosResposta;
     expect(r.classe).toBe('fii');
     expect(r.salvo).toBeNull();
+    expect(r.premissasIniciais).toEqual({
+      yieldPct: null,
+      pvpAlvo: null,
+      rendaMensal: null,
+      margemPct: 0,
+    });
   });
 
   it('isolamento: o u2 nunca lê o cenário do u1 (consulta presa ao payload.id)', async () => {
@@ -257,6 +265,44 @@ describe('PUT / DELETE', () => {
     expect(await d.json()).toEqual({ ok: true });
     expect(cenarios.has(chave('u1', 'WEGE3'))).toBe(false);
     expect(((await (await get()).json()) as CenariosResposta).salvo).toBeNull();
+  });
+
+  it('caso 22 · PUT v2 com premissas em branco (null), versaoSchema 2; reabrir devolve os null; limpar apaga', async () => {
+    const r = await put({
+      classe: 'acao',
+      premissas: { yieldPct: 4, gPct: null, kPct: null, margemPct: 0, plAlvo: 36.9 },
+    });
+    expect(r.status).toBe(200);
+    const upsert = mocks.prisma.analiseCenario.upsert.mock.calls[0][0];
+    expect(upsert.update.versaoSchema).toBe(2);
+    expect(upsert.create.versaoSchema).toBe(2);
+    const g = (await (await get()).json()) as CenariosResposta;
+    expect(g.salvo?.premissas).toEqual({
+      yieldPct: 4,
+      gPct: null,
+      kPct: null,
+      margemPct: 0,
+      plAlvo: 36.9,
+    });
+    // FII também aceita yield/P/VP alvo/renda em branco
+    expect(
+      (
+        await put(
+          {
+            classe: 'fii',
+            premissas: { yieldPct: null, pvpAlvo: null, rendaMensal: null, margemPct: 0 },
+          },
+          'HGLG11',
+        )
+      ).status,
+    ).toBe(200);
+    expect((await del()).status).toBe(200);
+    expect(((await (await get()).json()) as CenariosResposta).salvo).toBeNull();
+  });
+
+  it('linha v1 gravada (só números) continua válida na leitura', async () => {
+    const r = (await (await get()).json()) as CenariosResposta;
+    expect(r.salvo?.premissas).toEqual(PREMISSAS_ACAO);
   });
 
   it('PUT sem dados grava dadosEditados nulo; P/L alvo vazio (null) é aceito', async () => {

@@ -1,30 +1,28 @@
 'use client';
 
 /**
- * Página do ativo (dono: 0a; os blocos são das fatias B, C e D). Ordem do protótipo revisado:
- *  1. CabecalhoAtivo (slot AcoesCarteiraAtivo)   2. BlocoIndiceSemaforo
+ * Página do ativo (dono: 0a; os blocos são das fatias B, C e D). v2.4 (fatia C2) — ordem do HTML
+ * do Pedro (D1), sem Índice MF nem semáforo:
+ *  1. CabecalhoAtivo (slot AcoesCarteiraAtivo)   2. CardCriterios (3 janelas, sem nova requisição)
  *  3. BlocoNaCarteira + BlocoKpis                4. GraficoLucroCotacao + BlocoDividendos
- *  5. BlocoFundamentosEssencial (preguiçoso)     6. BlocoValuationMultiplos (preguiçoso)
+ *  5. BlocoFundamentos (Essencial | Raio-X, preguiçoso)
+ *  6. BlocoValuation (Múltiplos | Meus cenários, preguiçoso)
  *  7. BlocoMultiplosHistoricos + BlocoPares (preguiçosos)
- *  8. BlocoEventos + CardEducacao                9. BlocoTese   10. SeloFrescor
- * O rodapé legal (11) vem da AnaliseAtivosShell.
+ *  8. BlocoTese (privada) ao lado de BlocoEventos + CardEducacao   9. SeloFrescor
+ * O rodapé legal vem da AnaliseAtivosShell. A avaliação dos usuários fica fora (D5).
  *
  * Bloco C (fatia B): ConferenciaPaginaProvider leva aos blocos as conferências do topo (chip "em
  * conferência" + "Por quê?"), o frescor por bloco (selo no rodapé de cada card) e
  * config.reporteHabilitado (menu ⋯). Com params v1 e a flag desligada nada disso aparece.
- *
- * Bloco D (fatia 0): os cards 5 e 6 passam por BlocoFundamentos (fatia A: Essencial | Raio-X) e
- * BlocoValuation (fatia B: Múltiplos | Meus cenários). Sem os recursos, renderizam exatamente o
- * Essencial e os Múltiplos de hoje. A e B não mexem nesta página.
  */
 import Link from 'next/link';
 import BlocoFundamentos from '@/components/analiseAtivos/ativo/analise/BlocoFundamentos';
 import BlocoMultiplosHistoricos from '@/components/analiseAtivos/ativo/analise/BlocoMultiplosHistoricos';
 import BlocoPares from '@/components/analiseAtivos/ativo/analise/BlocoPares';
 import BlocoValuation from '@/components/analiseAtivos/ativo/analise/BlocoValuation';
+import CardCriterios from '@/components/analiseAtivos/ativo/criterios/CardCriterios';
 import BlocoDividendos from '@/components/analiseAtivos/ativo/topo/BlocoDividendos';
 import BlocoEventos from '@/components/analiseAtivos/ativo/topo/BlocoEventos';
-import BlocoIndiceSemaforo from '@/components/analiseAtivos/ativo/topo/BlocoIndiceSemaforo';
 import BlocoKpis from '@/components/analiseAtivos/ativo/topo/BlocoKpis';
 import CabecalhoAtivo from '@/components/analiseAtivos/ativo/topo/CabecalhoAtivo';
 import CardEducacao from '@/components/analiseAtivos/ativo/topo/CardEducacao';
@@ -119,7 +117,7 @@ export default function PaginaAtivo({ ticker }: PaginaAtivoProps) {
           seloCarteira={seloCarteira}
           slotAcoes={<AcoesCarteiraAtivo {...base} nome={ativo.nome} assetId={ativo.assetId} />}
         />
-        <BlocoIndiceSemaforo {...base} indice={ativo.indice} semaforo={ativo.semaforo} />
+        <CardCriterios {...base} criterios={ativo.criterios ?? null} />
         <div className="grid min-w-0 gap-4 md:gap-6 xl:grid-cols-2">
           <BlocoNaCarteira
             {...base}
@@ -147,11 +145,13 @@ export default function PaginaAtivo({ ticker }: PaginaAtivoProps) {
             <BlocoPares {...base} />
           </div>
         </SecaoPreguicosa>
-        <div className="grid min-w-0 gap-4 md:gap-6 xl:grid-cols-2">
-          <BlocoEventos classe={classe} eventos={ativo.eventos} />
-          <CardEducacao educacao={ativo.educacao} />
+        <div className="grid min-w-0 items-start gap-4 md:gap-6 xl:grid-cols-2">
+          <BlocoTese ticker={ticker} />
+          <div className="flex min-w-0 flex-col gap-4 md:gap-6">
+            <BlocoEventos classe={classe} eventos={ativo.eventos} />
+            <CardEducacao educacao={ativo.educacao} />
+          </div>
         </div>
-        <BlocoTese ticker={ticker} />
         <SeloFrescor frescor={ativo.frescor} />
       </div>
     </ConferenciaPaginaProvider>

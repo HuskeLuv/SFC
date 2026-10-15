@@ -1,15 +1,20 @@
 /**
- * Leitura do Comparador (Bloco D, fatia C). Só o banco: nenhum provedor externo.
+ * Leitura do Comparador (v2.4, fatia D — Comparador isonômico). Só o banco: nenhum provedor externo.
  *
  * - normalizarTickers: maiúsculas, dedupe, formato (TICKER_RE). Inválido ⇒ ignorado 'formato'.
  * - A classe é a do 1º ticker existente (ordem dos slots); os de outra classe saem como
  *   'outra_classe', os inexistentes como 'inexistente' e os além do 4º como 'excesso'.
- * - Leitura em lote e em paralelo: linhas do Quadro (memória), AssetMultiplesCurrent (Dív. líq./PL,
- *   P/Receita, rendimento e VP/cota do FII), e no FII o último informe trimestral (≥ hoje − 9 meses),
- *   o VP/cota anual e os desdobramentos (mini-gráfico na base de cotas de hoje).
- * - Cache LIMITADO (getBoundedTtlCache 'analiseComparador', 300 chaves, 30 min) por classe + conjunto
- *   ORDENADO + versão do Quadro + dia; a resposta é reordenada pelos slots antes de sair.
- * - montarComparadorPuro é testável sem banco (★, conferência, n/a, misto, gráfico e resumo).
+ * - Leitura em lote e em paralelo: linhas do Quadro (memória), critérios da janela pedida
+ *   (obterCriteriosVarios, criteria_eval), rótulos dos critérios (criteria_params ativo),
+ *   AssetMultiplesCurrent (Dív. líq./PL, P/Receita, rendimento e VP/cota do FII) e, no FII, o último
+ *   informe trimestral (≥ hoje − 9 meses), o VP/cota anual e os desdobramentos (mini-gráfico).
+ * - A resposta é ISONÔMICA: critérios primeiro (marcas neutras + 'n de k'), grupos de indicadores
+ *   sem direção nem marca de valor, "Leitura dos dados" só com contagens + literal. Sem Índice MF,
+ *   sem ★, sem resumo com placar (nenhuma chave /indice|semaforo|destaque/i).
+ * - Misto (tijolo + papel) decidido pelo PERFIL de critérios (rec. 3), não pelo rótulo.
+ * - Cache LIMITADO (getBoundedTtlCache 'analiseComparador', 300 chaves, 30 min) por classe + janela
+ *   + conjunto ORDENADO + versão do Quadro + dia; a resposta é reordenada pelos slots antes de sair.
+ * - montarComparadorPuro é testável sem banco (critérios, conferência, n/a, misto, gráfico, leitura).
  */
 import { prisma } from '@/lib/prisma';
 import { LIMITES_CACHE_BLOCO_D, getBoundedTtlCache } from '@/lib/boundedTtlCache';
@@ -27,16 +32,19 @@ import {
   TTL_ANALISE_MS,
   hojeSaoPaulo,
 } from '@/services/analiseAtivos/leitura/ativo/fundamentosEssencial';
+import { obterCriteriosVarios } from '@/services/analiseAtivos/leitura/criterios/lerCriterios';
+import {
+  criteriosDoPerfil,
+  type CriteriaParams,
+} from '@/services/analiseAtivos/params/criteriaParamsSchema';
+import { CRITERIA_PARAMS_V1 } from '@/services/analiseAtivos/params/criteriaParamsV1';
+import { obterCriteriaParams } from '@/services/analiseAtivos/params/obterCriteriaParams';
 import { FLAG_CNPJ_EM_CONFERENCIA } from '@/services/analiseAtivos/quadro/montarLinhasQuadro';
 import { paraData } from '@/services/analiseAtivos/repositorio/conversao';
 import {
   campoEmConferencia,
   type ClasseConferencia,
 } from '@/services/analiseAtivos/regras/comum/conferencia';
-import {
-  calcularDestaque,
-  type CandidatoDestaque,
-} from '@/services/analiseAtivos/regras/comparador/destaque';
 import {
   montarEscalaBase100,
   serieLucroAcao,
@@ -45,29 +53,36 @@ import {
 } from '@/services/analiseAtivos/regras/comparador/escala';
 import {
   catalogoComparador,
-  direcaoPvpFii,
   ehMisto,
   naoSeAplicaComparador,
   tipoDoAtivo,
   type DadosAtivoComparador,
   type DefIndicador,
-  type TipoAtivoComparador,
 } from '@/services/analiseAtivos/regras/comparador/indicadores';
-import { montarResumo } from '@/services/analiseAtivos/regras/comparador/resumo';
-import { TEXTOS_COMPARADOR } from '@/services/analiseAtivos/textosComparador';
-import { TEXTOS_TELA, formatarTexto } from '@/services/analiseAtivos/textosTela';
 import type {
   AtivoComparador,
   ComparadorResposta,
   ConferenciaCelulaComparador,
+  CriteriosComparador,
   GrupoComparador,
   LinhaComparador,
   MotivoIgnorado,
+  TipoAtivoComparador,
 } from '@/types/analiseAtivosBlocoD';
+import { montarLeitura } from '@/services/analiseAtivos/regras/comparador/resumo';
+import { TEXTOS_COMPARADOR } from '@/services/analiseAtivos/textosComparador';
+import { TEXTOS_CRITERIOS } from '@/services/analiseAtivos/textosCriterios';
+import { TEXTOS_TELA, formatarTexto } from '@/services/analiseAtivos/textosTela';
 import type { ClasseQuadro, Estado } from '@/types/analiseAtivosApi';
+import {
+  JANELA_PADRAO,
+  type CriteriosLinhaApi,
+  type IdCriterio,
+  type Janela,
+} from '@/types/analiseAtivosCriterios';
 
-/** Versão do formato da resposta (entra na chave do cache). */
-export const VERSAO_COMPARADOR = 'c1';
+/** Versão do formato da resposta (entra na chave do cache). v2.4: 'c2' (isonômico). */
+export const VERSAO_COMPARADOR = 'c2';
 /** Janela do informe trimestral do FII para imóveis/área/CRIs. */
 export const MESES_INFORME_TRIMESTRAL = 9;
 /** Tamanho máximo de um ticker ignorado devolvido (eco do pedido). */
@@ -98,29 +113,81 @@ export function normalizarTickers(brutos: readonly string[]): {
 }
 
 // ---------------------------------------------------------------------------
+// Rótulos do bloco de critérios
+// ---------------------------------------------------------------------------
+
+/**
+ * Linhas do bloco de critérios (id → rótulo, na ordem do perfil):
+ * - ações (e financeiras, que usam a mesma lista com 3 'n/a'): a lista de 'acao';
+ * - FIIs só de papel: a lista de papel; só de tijolo (ou sem tipo): a de tijolo;
+ * - misto: a lista de tijolo, com o par de papel no rótulo ('Obrigações/PL ≤ 20% / LTV ≤ 60%') e
+ *   as equivalências para achar a marca do fundo de papel.
+ */
+export function criteriosDoComparador(
+  params: CriteriaParams,
+  classe: ClasseQuadro,
+  tipos: readonly TipoAtivoComparador[],
+): CriteriosComparador {
+  if (classe === 'acao') {
+    return {
+      rotulos: Object.fromEntries(criteriosDoPerfil(params, 'acao').map((c) => [c.id, c.rotulo])),
+      equivalencias: {},
+    };
+  }
+  const soPapel = tipos.length > 0 && tipos.every((t) => t === 'papel');
+  if (soPapel) {
+    return {
+      rotulos: Object.fromEntries(params.perfis.fii_papel.map((c) => [c.id, c.rotulo])),
+      equivalencias: {},
+    };
+  }
+  const misto = ehMisto(tipos);
+  const rotulos: Partial<Record<IdCriterio, string>> = {};
+  const equivalencias: Partial<Record<IdCriterio, IdCriterio>> = {};
+  for (const c of params.perfis.fii_tijolo) {
+    const idPar = misto ? params.equivalencias[c.id] : undefined;
+    const par = idPar ? params.perfis.fii_papel.find((p) => p.id === idPar) : undefined;
+    rotulos[c.id] = par
+      ? `${c.rotulo}${TEXTOS_CRITERIOS.chips.parSeparador}${par.rotulo}`
+      : c.rotulo;
+    if (par) equivalencias[c.id] = par.id;
+  }
+  return { rotulos, equivalencias };
+}
+
+// ---------------------------------------------------------------------------
 // Montagem pura
 // ---------------------------------------------------------------------------
 
 export interface AtivoEntrada {
-  dados: DadosAtivoComparador;
+  /** linha do Quadro + dados do banco; `tipo` é recalculado aqui a partir dos critérios */
+  dados: Omit<DadosAtivoComparador, 'tipo' | 'financeira'> & {
+    /** régua gravada no Quadro (fallback do perfil sem avaliação de critérios) */
+    regua: string | null;
+  };
   /** flags e motivos da linha do Quadro (conferência) */
   flags: readonly string[];
   motivos: readonly string[];
   /** série bruta do mini-gráfico (lucro ou VP/cota) */
   serie: PontoBruto[];
+  /** critérios na janela pedida; null = sem avaliação */
+  criterios: CriteriosLinhaApi | null;
 }
 
 export interface EntradaComparador {
   classe: ClasseQuadro;
   /** AAAA-MM-DD (São Paulo) */
   hoje: string;
+  janela: Janela;
+  /** criteria_params ativo (rótulos dos critérios) */
+  params: CriteriaParams;
   /** na ordem dos slots */
   ativos: AtivoEntrada[];
 }
 
 export type NucleoComparador = Pick<
   ComparadorResposta,
-  'classe' | 'misto' | 'ativos' | 'grupos' | 'graficos' | 'resumo'
+  'classe' | 'janela' | 'misto' | 'ativos' | 'criterios' | 'grupos' | 'graficos' | 'leitura'
 >;
 
 const TC = TEXTOS_TELA.conferencia;
@@ -137,12 +204,12 @@ function textoConferencia(grupo: string, regra: string, origem: 'conf' | 'legado
 /** Aplica a política de conferência a uma célula (ocultar ⇒ '—' sem número; selo ⇒ valor). */
 function celula(
   def: DefIndicador,
+  d: DadosAtivoComparador,
   a: AtivoEntrada,
   classe: ClasseQuadro,
-  tipo: TipoAtivoComparador,
 ): { estado: Estado<number>; conf: ConferenciaCelulaComparador | null } {
-  if (!def.aplicavel(tipo)) return { estado: naoSeAplicaComparador(), conf: null };
-  const estado = def.extrator(a.dados);
+  if (!def.aplicavel(d.tipo)) return { estado: naoSeAplicaComparador(), conf: null };
+  const estado = def.extrator(d);
   if (!def.campoTela || estado.estado === 'nao_se_aplica') return { estado, conf: null };
   const c = campoEmConferencia(a.flags, a.motivos, def.campoTela, classe as ClasseConferencia);
   if (!c) return { estado, conf: null };
@@ -155,10 +222,18 @@ function celula(
 }
 
 export function montarComparadorPuro(e: EntradaComparador): NucleoComparador {
-  const { classe } = e;
-  const tipos = e.ativos.map((a) => tipoDoAtivo(a.dados.linha));
+  const { classe, janela } = e;
+  const dados: DadosAtivoComparador[] = e.ativos.map((a) => {
+    const tipo = tipoDoAtivo(a.dados.linha, a.criterios, a.dados.regua);
+    const financeira =
+      a.criterios?.perfil === 'acao_financeira' ||
+      (a.criterios === null && a.dados.regua === 'acao_financeira');
+    const { regua: _regua, ...resto } = a.dados;
+    return { ...resto, tipo, financeira };
+  });
+  const tipos = dados.map((d) => d.tipo);
   const tiposPresentes = new Set(tipos);
-  const emConf = new Map<string, string[]>(e.ativos.map((a) => [a.dados.linha.ticker, []]));
+  const misto = classe === 'fii' && ehMisto(tipos);
 
   const grupos: GrupoComparador[] = [];
   for (const g of catalogoComparador(classe)) {
@@ -166,66 +241,51 @@ export function montarComparadorPuro(e: EntradaComparador): NucleoComparador {
     const linhas: LinhaComparador[] = g.linhas.map((def) => {
       const valores: Record<string, Estado<number>> = {};
       const conferencia: Record<string, ConferenciaCelulaComparador | null> = {};
-      const candidatos: CandidatoDestaque[] = [];
-      const tiposDaLinha: TipoAtivoComparador[] = [];
       e.ativos.forEach((a, i) => {
         const ticker = a.dados.linha.ticker;
-        const { estado, conf } = celula(def, a, classe, tipos[i]);
+        const { estado, conf } = celula(def, dados[i], a, classe);
         valores[ticker] = estado;
         conferencia[ticker] = conf;
-        if (conf) emConf.get(ticker)?.push(def.rotulo);
-        if (estado.estado !== 'nao_se_aplica') {
-          candidatos.push({ ticker, valor: estado, conferencia: conf?.exibicao ?? null });
-          tiposDaLinha.push(tipos[i]);
-        }
-      });
-      let direcao = def.direcao;
-      let tiposDiferentes = false;
-      if (def.codigo === 'pvpFii') {
-        ({ direcao, tiposDiferentes } = direcaoPvpFii(tiposDaLinha));
-      }
-      const r = calcularDestaque(candidatos, direcao, def.formato, {
-        semValidacaoCvm: def.semValidacaoCvm,
-        tiposDiferentes,
       });
       return {
         codigo: def.codigo,
         rotulo: def.rotulo,
         sub: def.sub,
         formato: def.formato,
-        direcao,
         fonteCvmAviso: def.fonteCvmAviso,
-        criterioProvisorio: def.criterioProvisorio,
         valores,
         conferencia,
-        destaque: r.destaque,
-        motivoSemDestaque: r.motivoSemDestaque,
       };
     });
-    grupos.push({ codigo: g.codigo, rotulo: g.rotulo, aplicavelA: g.aplicavelA, linhas });
+    grupos.push({
+      codigo: g.codigo,
+      rotulo: misto && g.rotuloMisto ? g.rotuloMisto : g.rotulo,
+      aplicavelA: g.aplicavelA,
+      linhas,
+    });
   }
 
-  const ativos: AtivoComparador[] = e.ativos.map((a) => {
+  const ativos: AtivoComparador[] = e.ativos.map((a, i) => {
     const l = a.dados.linha;
-    const grupos = new Set(l.conferencias ?? []);
-    if (l.proventosEmConferencia) grupos.add('proventos');
+    const gruposConf = new Set(l.conferencias ?? []);
+    if (l.proventosEmConferencia) gruposConf.add('proventos');
     return {
       ticker: l.ticker,
       nome: l.nome,
       preco: l.preco,
       precoData: l.precoData,
       fiiTipo: l.fiiTipo,
-      regua: a.dados.regua,
-      indice: l.indice,
+      tipoComparacao: tipos[i],
+      criterios: a.criterios,
       noQuadro: l.noQuadro,
       foraDoQuadroMotivo: l.foraDoQuadroMotivo,
-      conferencias: [...grupos],
+      conferencias: [...gruposConf],
       pares: l.pares.filter((p) => p !== l.ticker),
     };
   });
 
   const anoAtual = Number(e.hoje.slice(0, 4));
-  let graficos: ComparadorResposta['graficos'] = null;
+  let graficos: NucleoComparador['graficos'] = null;
   if (e.ativos.length > 0) {
     const base = montarEscalaBase100(
       e.ativos.map((a) => ({ ticker: a.dados.linha.ticker, pontos: a.serie })),
@@ -242,15 +302,19 @@ export function montarComparadorPuro(e: EntradaComparador): NucleoComparador {
     };
   }
 
-  const resumo = montarResumo(
-    e.ativos.map((a) => ({
-      ticker: a.dados.linha.ticker,
-      indice: a.dados.linha.indice,
-      emConferencia: emConf.get(a.dados.linha.ticker) ?? [],
-    })),
-  );
-
-  return { classe, misto: classe === 'fii' && ehMisto(tipos), ativos, grupos, graficos, resumo };
+  return {
+    classe,
+    janela,
+    misto,
+    ativos,
+    criterios: criteriosDoComparador(e.params, classe, tipos),
+    grupos,
+    graficos,
+    leitura: montarLeitura(
+      janela,
+      e.ativos.map((a) => ({ ticker: a.dados.linha.ticker, criterios: a.criterios })),
+    ),
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -269,12 +333,7 @@ export function ordenarPelosSlots(n: NucleoComparador, slots: readonly string[])
     graficos: n.graficos
       ? { ...n.graficos, series: ord(n.graficos.series, (s) => s.ticker) }
       : null,
-    resumo: {
-      ...n.resumo,
-      indices: ord(n.resumo.indices, (x) => x.ticker),
-      criteriosAtendidos: ord(n.resumo.criteriosAtendidos, (x) => x.ticker),
-      emConferencia: ord(n.resumo.emConferencia, (x) => x.ticker),
-    },
+    leitura: { ...n.leitura, contagens: ord(n.leitura.contagens, (c) => c.ticker) },
   };
 }
 
@@ -301,12 +360,22 @@ function mesesAtras(hoje: string, meses: number): Date {
   return d;
 }
 
+/** criteria_params ativo; sem versão no banco (ou inválida), o v1 do código (só rótulos). */
+async function paramsCriterios(): Promise<CriteriaParams> {
+  try {
+    return (await obterCriteriaParams(prisma)).params;
+  } catch {
+    return CRITERIA_PARAMS_V1;
+  }
+}
+
 type LinhaDb = NonNullable<Awaited<ReturnType<typeof obterLinhaQuadro>>>;
 
 async function lerNucleo(
   classe: ClasseQuadro,
   linhas: LinhaDb[],
   hoje: string,
+  janela: Janela,
 ): Promise<NucleoComparador> {
   const symbols = linhas.map((l) => l.symbol);
   const fii = classe === 'fii';
@@ -314,7 +383,7 @@ async function lerNucleo(
     ? linhas.filter((l) => !l.flags.includes(FLAG_CNPJ_EM_CONFERENCIA)).map((l) => l.cnpj)
     : [];
   const anoInicio = Number(hoje.slice(0, 4)) - 12;
-  const [atuais, trimestres, perShare, desdobramentos] = await Promise.all([
+  const [atuais, trimestres, perShare, desdobramentos, criterios, params] = await Promise.all([
     prisma.assetMultiplesCurrent.findMany({
       where: { symbol: { in: symbols } },
       select: {
@@ -339,7 +408,6 @@ async function lerNucleo(
             nImoveisOutros: true,
             areaM2: true,
             nCri: true,
-            maiorCriPct: true,
           },
         })
       : Promise.resolve([]),
@@ -355,6 +423,8 @@ async function lerNucleo(
           select: { cnpj: true, refMonth: true, fatorDesdobramento: true },
         })
       : Promise.resolve([]),
+    obterCriteriosVarios(prisma, symbols, janela),
+    paramsCriterios(),
   ]);
 
   const atualPor = new Map(atuais.map((a) => [a.symbol, a]));
@@ -394,6 +464,7 @@ async function lerNucleo(
       flags: raw.flags,
       motivos: raw.motivosIncompleto,
       serie,
+      criterios: criterios.get(raw.symbol) ?? null,
       dados: {
         linha,
         regua: raw.regua,
@@ -412,14 +483,13 @@ async function lerNucleo(
                 tr.nImoveisRenda == null ? null : tr.nImoveisRenda + (tr.nImoveisOutros ?? 0),
               areaM2: tr.areaM2,
               nCri: tr.nCri,
-              maiorCriPct: tr.maiorCriPct,
             }
           : null,
         cnpjEmConferencia: cnpjConf,
       },
     };
   });
-  return montarComparadorPuro({ classe, hoje, ativos });
+  return montarComparadorPuro({ classe, hoje, janela, params, ativos });
 }
 
 export interface ResultadoComparador {
@@ -428,12 +498,13 @@ export interface ResultadoComparador {
 }
 
 /**
- * Monta a resposta para os tickers pedidos (na ordem dos slots). Sem nenhum ticker de formato
- * válido, devolve null (a rota responde 400).
+ * Monta a resposta para os tickers pedidos (na ordem dos slots) na janela pedida. Sem nenhum
+ * ticker de formato válido, devolve null (a rota responde 400).
  */
 export async function montarComparador(
   brutos: readonly string[],
   hoje: string = hojeSaoPaulo(),
+  janela: Janela = JANELA_PADRAO,
 ): Promise<ResultadoComparador | null> {
   const { validos, ignorados } = normalizarTickers(brutos);
   if (validos.length === 0) return null;
@@ -457,12 +528,12 @@ export async function montarComparador(
   const tickers = escolhidas.map((l) => l.symbol);
   const versao = await versaoQuadro();
 
-  const chave = `${VERSAO_COMPARADOR}|${classeFinal}|${[...tickers].sort().join(',')}|${versao}|${hoje}`;
+  const chave = `${VERSAO_COMPARADOR}|${classeFinal}|${janela}|${[...tickers].sort().join(',')}|${versao}|${hoje}`;
   let nucleo = cache.get(chave);
   const doCache = nucleo !== undefined;
   if (!nucleo) {
     const ordenadas = [...escolhidas].sort((a, b) => a.symbol.localeCompare(b.symbol));
-    nucleo = await lerNucleo(classeFinal, ordenadas, hoje);
+    nucleo = await lerNucleo(classeFinal, ordenadas, hoje, janela);
     cache.set(chave, nucleo, TTL_ANALISE_MS);
   }
   const n = ordenarPelosSlots(nucleo, tickers);

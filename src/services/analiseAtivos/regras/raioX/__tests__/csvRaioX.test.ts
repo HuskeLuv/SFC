@@ -4,7 +4,7 @@ vi.mock('@/lib/prisma', () => ({ prisma: {}, default: {} }));
 
 import { gerarCsvRaioX, numeroCsv, textoCsv } from '../csvRaioX';
 import { montarAcao } from '@/services/analiseAtivos/leitura/ativo/raioX';
-import { RODAPE_LEGAL } from '@/services/analiseAtivos/textosTela';
+import { RODAPE_LEGAL_V2 } from '@/services/analiseAtivos/textosLiterais';
 import { nomeArquivoCsvRaioX } from '@/services/analiseAtivos/cenarios/contrato';
 import { HOJE_DEV, dadosAcaoDev } from '@/test/fixtures/analiseAtivos/raioXDev';
 import type { RaioXResposta } from '@/types/analiseAtivosBlocoD';
@@ -109,7 +109,7 @@ describe('gerarCsvRaioX', () => {
         'Fonte;CVM (DFP/ITR, informes de FII) · B3 · cálculos do My Finance',
         'Gerado em;08/10/2026',
         'Parâmetros;v2',
-        `Aviso legal;"${RODAPE_LEGAL}"`,
+        `Aviso legal;"${RODAPE_LEGAL_V2.texto}"`,
       ].join('\r\n') +
       '\r\n';
     expect(csv).toBe(esperado);

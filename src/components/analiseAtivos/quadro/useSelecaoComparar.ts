@@ -7,8 +7,8 @@
  * - só uma classe por vez: trocar de aba (Ações | FIIs) limpa a seleção;
  * - no máximo MAX_ATIVOS_COMPARADOR (decisão 12): com o limite, as demais caixas ficam
  *   desabilitadas e o motivo vai para o texto anunciado (aria-live) da bandeja;
- * - "Comparar" a partir de 1 ativo (decisão 13: o Comparador diz "adicione mais um para ver
- *   destaques").
+ * - "Comparar" a partir de 1 ativo (decisão 13: o Comparador pede mais um ativo para comparar
+ *   lado a lado).
  * O storage pode faltar ou lançar (aba privada, bloqueio): tudo em try/catch, a tela funciona sem.
  */
 import { useCallback, useEffect, useMemo, useState } from 'react';

@@ -36,7 +36,7 @@ describe('GET /api/analise-ativos/busca', () => {
 
   it('404 sem acesso, antes de qualquer leitura (inclusive com If-None-Match)', async () => {
     mocks.exigir.mockRejectedValue(new ApiError(404, 'Recurso não disponível'));
-    const res = await GET(req({ 'if-none-match': `"busca-${V1}"` }));
+    const res = await GET(req({ 'if-none-match': `"busca-v2-${V1}"` }));
     expect(res.status).toBe(404);
     expect(mocks.linhas).not.toHaveBeenCalled();
   });
@@ -44,7 +44,7 @@ describe('GET /api/analise-ativos/busca', () => {
   it('200 com todas as linhas (inclusive fora do Quadro), ETag e cache privado de 1 h', async () => {
     const res = await GET(req());
     expect(res.status).toBe(200);
-    expect(res.headers.get('ETag')).toBe(`"busca-${V1}"`);
+    expect(res.headers.get('ETag')).toBe(`"busca-v2-${V1}"`);
     expect(res.headers.get('Cache-Control')).toBe('private, max-age=3600');
     const corpo = (await res.json()) as BuscaIndiceResposta;
     expect(corpo.versao).toBe(V1);
@@ -56,16 +56,28 @@ describe('GET /api/analise-ativos/busca', () => {
     expect(mocks.linhas).toHaveBeenCalledWith(undefined, { incluirForaDoQuadro: true });
   });
 
+  it('v2.4: itens sem i/e e sem chave /indice|semaforo|destaque/', async () => {
+    const corpo = (await (await GET(req())).json()) as BuscaIndiceResposta;
+    const chaves = new Set(corpo.itens.flatMap((i) => Object.keys(i)));
+    expect([...chaves].sort()).toEqual(['c', 'f', 'm', 'n', 'q', 't']);
+    expect(Object.keys(corpo).filter((k) => /indice|semaforo|destaque/i.test(k))).toEqual([]);
+  });
+
+  it('ETag do formato antigo (sem v2) não serve mais', async () => {
+    const res = await GET(req({ 'if-none-match': `"busca-${V1}"` }));
+    expect(res.status).toBe(200);
+  });
+
   it('304 quando o If-None-Match bate com a versão', async () => {
-    const res = await GET(req({ 'if-none-match': `W/"busca-${V1}"` }));
+    const res = await GET(req({ 'if-none-match': `W/"busca-v2-${V1}"` }));
     expect(res.status).toBe(304);
-    expect(res.headers.get('ETag')).toBe(`"busca-${V1}"`);
+    expect(res.headers.get('ETag')).toBe(`"busca-v2-${V1}"`);
   });
 
   it('versão nova: ETag velho não serve e o índice é remontado', async () => {
     mocks.versao.mockResolvedValue('2026-10-01T10:40:00.000Z');
     mocks.linhas.mockResolvedValue(LINHAS_FIXTURE.slice(0, 2));
-    const res = await GET(req({ 'if-none-match': `"busca-${V1}"` }));
+    const res = await GET(req({ 'if-none-match': `"busca-v2-${V1}"` }));
     expect(res.status).toBe(200);
     expect(((await res.json()) as BuscaIndiceResposta).itens).toHaveLength(2);
   });

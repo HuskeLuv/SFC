@@ -1,13 +1,15 @@
 'use client';
 
 /**
- * "Copiar link" do Comparador: copia a URL ABSOLUTA com os tickers dos slots (?t=) e confirma com
- * "Link copiado" (aria-live) por 3 s. O link cobre o "salvar comparação" (decisão 12).
+ * "Copiar link" do Comparador: copia a URL ABSOLUTA com os tickers dos slots (?t=) e a janela
+ * (?janela=, fora do padrão) e confirma com "Link copiado" (aria-live) por 3 s. O link cobre o
+ * "salvar comparação": o Comparador não grava nada (rec. 7).
  */
 import { useEffect, useRef, useState } from 'react';
 import { usePathname } from 'next/navigation';
 import { urlCompartilhavel } from '@/components/analiseAtivos/comparador/useEstadoComparadorUrl';
 import { TEXTOS_COMPARADOR } from '@/services/analiseAtivos/textosComparador';
+import type { Janela } from '@/types/analiseAtivosCriterios';
 
 const TA = TEXTOS_COMPARADOR.acoes;
 const FOCO =
@@ -54,11 +56,20 @@ export async function copiarTexto(texto: string): Promise<boolean> {
 
 export interface BotaoCopiarLinkProps {
   slots: readonly string[];
+  /** janela dos critérios (vai no link fora do padrão) */
+  janela?: Janela;
+  /** texto do botão (padrão 'Copiar link') */
+  rotulo?: string;
   /** celular: botão de largura toda */
   larguraToda?: boolean;
 }
 
-export default function BotaoCopiarLink({ slots, larguraToda = false }: BotaoCopiarLinkProps) {
+export default function BotaoCopiarLink({
+  slots,
+  janela,
+  rotulo = TA.copiarLink,
+  larguraToda = false,
+}: BotaoCopiarLinkProps) {
   const pathname = usePathname();
   const [aviso, setAviso] = useState<string | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -70,7 +81,9 @@ export default function BotaoCopiarLink({ slots, larguraToda = false }: BotaoCop
   );
 
   const copiar = async () => {
-    const ok = await copiarTexto(urlCompartilhavel(window.location.origin, pathname, slots));
+    const ok = await copiarTexto(
+      urlCompartilhavel(window.location.origin, pathname, slots, janela),
+    );
     setAviso(ok ? TA.linkCopiado : TA.erroCopiar);
     if (timer.current) clearTimeout(timer.current);
     timer.current = setTimeout(() => setAviso(null), 3000);
@@ -87,7 +100,7 @@ export default function BotaoCopiarLink({ slots, larguraToda = false }: BotaoCop
         } ${FOCO}`}
       >
         <IconeLink />
-        {TA.copiarLink}
+        {rotulo}
       </button>
       <span aria-live="polite" className="min-h-0 text-xs text-gray-600 dark:text-gray-300">
         {aviso}

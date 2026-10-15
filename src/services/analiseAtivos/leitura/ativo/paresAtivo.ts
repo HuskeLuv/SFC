@@ -7,12 +7,21 @@
  * - FIIs: mesmo segmento CVM e mesmo tipo (tijolo/papel/híbrido), por patrimônio.
  * - Só linhas do Quadro (noQuadro) entram como par; sem pares, `itens` traz só o próprio ativo e a
  *   tela diz 'sem pares no mesmo segmento'.
+ *
+ * v2.4 (fatia C2): a TELA mostra só os pares (sem o próprio ativo), em ordem A–Z, com a contagem de
+ * critérios em 5 anos (paresParaTela + criterioParesTela). A seleção (quais pares) não muda.
  */
 import { obterLinhasQuadroApi } from '@/services/analiseAtivos/leitura/linhasQuadro';
 import { FLAG_CNPJ_EM_CONFERENCIA } from '@/services/analiseAtivos/quadro/montarLinhasQuadro';
 import { selecionarPares } from '@/services/analiseAtivos/regras/calculo/pares';
 import { TEXTOS_TELA } from '@/services/analiseAtivos/textosTela';
-import type { LinhaQuadroApi } from '@/types/analiseAtivosApi';
+import { TEXTOS_ATIVO } from '@/services/analiseAtivos/textosAtivo';
+import { formatarTexto } from '@/services/analiseAtivos/textosCriterios';
+import type { ClasseQuadro, LinhaQuadroApi } from '@/types/analiseAtivosApi';
+import type { Janela } from '@/types/analiseAtivosCriterios';
+
+/** Janela da coluna Critérios dos pares (§3.2 bloco 7). */
+export const JANELA_PARES: Janela = 5;
 
 export const N_PARES = 5;
 
@@ -69,6 +78,19 @@ export function criterioPares(alvo: Pick<LinhaQuadroApi, 'classe'>): string {
   return alvo.classe === 'fii'
     ? TEXTOS_TELA.ativo.criterioParesFii
     : TEXTOS_TELA.ativo.criterioParesAcao;
+}
+
+/** v2.4: critério de seleção exibido no card dos pares (com a ordem A–Z e a janela). */
+export function criterioParesTela(classe: ClasseQuadro, janela: Janela = JANELA_PARES): string {
+  const t = TEXTOS_ATIVO.pares;
+  return formatarTexto(classe === 'fii' ? t.subFii : t.subAcao, { anos: janela });
+}
+
+/** v2.4: pares da tela — sem o próprio ativo e em ordem A–Z por ticker. Função pura. */
+export function paresParaTela(alvo: string, linhas: readonly LinhaQuadroApi[]): LinhaQuadroApi[] {
+  return linhas
+    .filter((l) => l.ticker !== alvo)
+    .sort((a, b) => a.ticker.localeCompare(b.ticker, 'pt-BR'));
 }
 
 /** Próprio ativo + pares, das linhas já convertidas. Função pura. */

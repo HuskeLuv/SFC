@@ -5,6 +5,8 @@ import {
   LIMITES,
   STATUS_CASO,
   TRANSICOES,
+  blocoParaUsuario,
+  campoParaUsuario,
   campoPertenceAoGrupo,
   campoReportavel,
   camposReportaveisValidos,
@@ -151,6 +153,22 @@ describe('blocos, campos e chave do caso', () => {
     expect(BLOCOS_REPORTE as readonly string[]).not.toContain('tese');
     expect(BLOCOS_REPORTE as readonly string[]).not.toContain('carteira');
     expect(Object.keys(CAMPOS_REPORTAVEIS).sort()).toEqual([...BLOCOS_REPORTE].sort());
+  });
+
+  it('v2.4 (F): o indicador antigo não se reporta; relatos antigos viram "descontinuado"', () => {
+    expect(BLOCOS_REPORTE as readonly string[]).not.toContain('indice');
+    expect(BLOCOS_REPORTE as readonly string[]).not.toContain('criterios');
+    for (const b of BLOCOS_REPORTE) {
+      expect(campoReportavel(b, 'indiceMf')).toBe(false);
+      expect(campoReportavel(b, 'criterioSemaforo')).toBe(false);
+    }
+    expect(blocoParaUsuario('indice')).toBe('descontinuado');
+    expect(blocoParaUsuario('criterios')).toBe('descontinuado');
+    expect(blocoParaUsuario('kpis')).toBe('kpis');
+    expect(campoParaUsuario('indiceMf')).toBe('descontinuado');
+    expect(campoParaUsuario('criterioSemaforo')).toBe('descontinuado');
+    expect(campoParaUsuario('payout')).toBe('payout');
+    expect(campoParaUsuario('outro')).toBe('outro');
   });
 
   it('campoPertenceAoGrupo: só campos do grupo; outro/grupo inválido nunca', () => {

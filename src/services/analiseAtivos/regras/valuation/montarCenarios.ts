@@ -17,6 +17,10 @@
  *   dois ficam "—" e as barras sem a linha da cotação. Cotação em conferência com política
  *   'ocultar' no "vs. cotação" (preco_base) ⇒ "vs. cotação" "—" com o motivo e barras sem a cotação;
  *   'selo' ⇒ o método diz "usa cotação em conferência".
+ * - v2.4 (fatia C2, spec §4.4): as premissas abrem em branco. Premissa necessária em branco ⇒ o
+ *   método mostra "informe yield" / "informe g e k" / "informe o P/L alvo" / "informe P/VP alvo"
+ *   (antes de qualquer outro motivo); a margem começa em 0. Meta de renda: 'diferenca' com sinal
+ *   (meta − posição), e `metaRendaMotivo` diz por que não há meta ('sem_renda' = renda em branco).
  */
 import {
   arredondar,
@@ -152,7 +156,8 @@ export interface MetaRendaCenario {
   rend12m: number;
   cotas: number;
   custo: number;
-  faltam: number;
+  /** cotas da meta − cotas da posição (com sinal; ≤ 0 = a posição cobre a meta) */
+  diferenca: number;
   quantidade: number;
   /** objetivo do Planejamento: cotas × cotação (sempre > 0) */
   target: number;
@@ -167,6 +172,8 @@ export interface SaidaCenarios {
   suaPosicao: SuaPosicaoCenario | null;
   /** só FII; null sem rendimento, sem renda válida ou sem cotação */
   metaRenda: MetaRendaCenario | null;
+  /** v2.4: por que não há Meta de renda (FII): renda em branco ou sem rendimento/cotação */
+  metaRendaMotivo: 'sem_renda' | 'sem_rendimento' | null;
   nenhumResultado: boolean;
   /** valores efetivos usados (para a tela e o salvar) */
   efetivos: Partial<Record<CampoDadoCenario, number | null>>;
@@ -178,6 +185,11 @@ function finito(x: number | null | undefined): x is number {
 
 function fmt(x: number | null | undefined, casas: number): string {
   return finito(x) ? formatarNumeroBR(x, casas) : '—';
+}
+
+/** Premissa no texto do método: em branco = '…' (v2.4: o usuário ainda não informou). */
+function fmtPremissa(x: number | null | undefined, casas: number): string {
+  return x === null || x === undefined ? '…' : fmt(x, casas);
 }
 
 function rotuloCurto(campo: keyof typeof T.rotulosCurtos): string {
@@ -226,23 +238,37 @@ function motivoDado(
 interface Premissa {
   valor: number | null;
   motivo: string | null;
+  /** em branco (o usuário ainda não informou) */
+  vazia: boolean;
 }
 
 function lerPremissa(
   e: EntradaMontarCenarios,
   nome: NomePremissa,
-  vazio: string = formatarTexto(T.motivos.faltaDado, { campo: rotuloCurto(nome) }),
+  vazio: string = formatarTexto(T.motivos.informe, { campo: rotuloCurto(nome) }),
 ): Premissa {
   const bruto = e.premissas[nome];
-  if (bruto === null || bruto === undefined) return { valor: null, motivo: vazio };
+  if (bruto === null || bruto === undefined) return { valor: null, motivo: vazio, vazia: true };
   const v = validarPremissa(nome, bruto);
   if (v === null) {
     return {
       valor: null,
       motivo: formatarTexto(T.motivos.premissaForaDoLimite, { campo: rotuloCurto(nome) }),
+      vazia: false,
     };
   }
-  return { valor: v, motivo: null };
+  return { valor: v, motivo: null, vazia: false };
+}
+
+/** "informe …" das premissas em branco ('informe g e k' com as duas). */
+function informe(...premissas: Array<[NomePremissa, Premissa]>): string | null {
+  const vazias = premissas.filter(([, p]) => p.vazia);
+  if (vazias.length === 0) return null;
+  if (vazias.length === 1) return vazias[0][1].motivo;
+  return formatarTexto(T.motivos.informeDois, {
+    campo: rotuloCurto(vazias[0][0]),
+    premissa: rotuloCurto(vazias[1][0]),
+  });
 }
 
 function usaConferencia(campos: Array<[CampoDadoCenario, Dado]>): string | null {
@@ -276,16 +302,17 @@ function calcularAcao(e: EntradaMontarCenarios): Calculo[] {
   const kg =
     g.valor !== null && k.valor !== null && k.valor <= g.valor ? T.motivos.kMenorOuIgualG : null;
 
-  const mBazin = primeiro(mDpa, y.motivo);
+  // premissa em branco primeiro: o "informe …" é o que o usuário pode fazer
+  const mBazin = primeiro(informe(['yieldPct', y]), mDpa, y.motivo);
   const mGraham = primeiro(mLpa, mVpa);
-  const mMult = primeiro(mLpa, pl.motivo);
-  const mGordon = primeiro(mDpa, g.motivo, k.motivo, kg);
+  const mMult = primeiro(informe(['plAlvo', pl]), mLpa, pl.motivo);
+  const mGordon = primeiro(informe(['gPct', g], ['kPct', k]), mDpa, g.motivo, k.motivo, kg);
   return [
     {
       metodo: 'bazin',
       premissasTexto: formatarTexto(T.premissasTexto.bazin, {
         valor: fmt(dpa.valor, 2),
-        premissa: fmt(y.valor ?? e.premissas.yieldPct, 1),
+        premissa: fmtPremissa(y.valor ?? e.premissas.yieldPct, 1),
       }),
       bruto: mBazin ? null : bazin(dpa.valor, y.valor as number),
       motivo: mBazin,
@@ -307,7 +334,7 @@ function calcularAcao(e: EntradaMontarCenarios): Calculo[] {
     {
       metodo: 'multiplo',
       premissasTexto: formatarTexto(T.premissasTexto.multiplo, {
-        premissa: fmt(pl.valor ?? e.premissas.plAlvo, 1),
+        premissa: fmtPremissa(pl.valor ?? e.premissas.plAlvo, 1),
         valor: fmt(lpa.valor, 2),
       }),
       bruto: mMult ? null : multiploAlvo(pl.valor, lpa.valor),
@@ -318,8 +345,8 @@ function calcularAcao(e: EntradaMontarCenarios): Calculo[] {
       metodo: 'gordon',
       premissasTexto: formatarTexto(T.premissasTexto.gordon, {
         valor: fmt(dpa.valor, 2),
-        premissa: fmt(g.valor ?? e.premissas.gPct, 1),
-        n: fmt(k.valor ?? e.premissas.kPct, 1),
+        premissa: fmtPremissa(g.valor ?? e.premissas.gPct, 1),
+        n: fmtPremissa(k.valor ?? e.premissas.kPct, 1),
       }),
       bruto: mGordon ? null : gordon(dpa.valor, g.valor as number, k.valor as number),
       motivo: mGordon,
@@ -335,14 +362,14 @@ function calcularFii(e: EntradaMontarCenarios): Calculo[] {
   const pvp = lerPremissa(e, 'pvpAlvo');
   const mRend = motivoDado('rend12m', rend, T.motivos.rendimentoNaoPositivo);
   const mVp = motivoDado('vpCota', vp, T.motivos.vpNaoPositivo, T.motivos.vpConferencia);
-  const mRenda = primeiro(mRend, y.motivo);
-  const mPvp = primeiro(mVp, pvp.motivo);
+  const mRenda = primeiro(informe(['yieldPct', y]), mRend, y.motivo);
+  const mPvp = primeiro(informe(['pvpAlvo', pvp]), mVp, pvp.motivo);
   return [
     {
       metodo: 'rendaDesejada',
       premissasTexto: formatarTexto(T.premissasTexto.rendaDesejada, {
         valor: fmt(rend.valor, 3),
-        premissa: fmt(y.valor ?? e.premissas.yieldPct, 1),
+        premissa: fmtPremissa(y.valor ?? e.premissas.yieldPct, 1),
       }),
       bruto: mRenda ? null : rendaDesejada(rend.valor, y.valor as number),
       motivo: mRenda,
@@ -351,7 +378,7 @@ function calcularFii(e: EntradaMontarCenarios): Calculo[] {
     {
       metodo: 'pvpAlvo',
       premissasTexto: formatarTexto(T.premissasTexto.pvpAlvo, {
-        premissa: fmt(pvp.valor ?? e.premissas.pvpAlvo, 2),
+        premissa: fmtPremissa(pvp.valor ?? e.premissas.pvpAlvo, 2),
         valor: fmt(vp.valor, 2),
       }),
       bruto: mPvp ? null : pvpAlvo(pvp.valor, vp.valor),
@@ -409,7 +436,7 @@ function metaDe(
     rend12m,
     cotas: m.cotas,
     custo: m.custo,
-    faltam: m.faltam,
+    diferenca: m.diferenca,
     quantidade,
     target: m.custo,
     available: arredondar(Math.min(quantidade, m.cotas) * cotacao, 2),
@@ -453,6 +480,7 @@ export function montarCenarios(e: EntradaMontarCenarios): SaidaCenarios {
   const efetivos: Partial<Record<CampoDadoCenario, number | null>> = {};
   for (const campo of CAMPOS_DADO[e.classe]) efetivos[campo] = lerDado(e, campo).valor;
 
+  const meta = metaDe(e, efetivos.rend12m ?? null, cotacao);
   const resultados = linhas.map((l) => l.resultado).filter(finito);
   const escalaMax = resultados.length === 0 ? 0 : Math.max(cotacaoVs ?? 0, ...resultados) * 1.08;
 
@@ -470,7 +498,13 @@ export function montarCenarios(e: EntradaMontarCenarios): SaidaCenarios {
       })),
     },
     suaPosicao: posicaoDe(e, efetivos),
-    metaRenda: metaDe(e, efetivos.rend12m ?? null, cotacao),
+    metaRenda: meta,
+    metaRendaMotivo:
+      e.classe !== 'fii' || meta
+        ? null
+        : lerPremissa(e, 'rendaMensal').vazia
+          ? 'sem_renda'
+          : 'sem_rendimento',
     nenhumResultado: resultados.length === 0,
     efetivos,
   };

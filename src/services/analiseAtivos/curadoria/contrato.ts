@@ -141,8 +141,8 @@ export function statusParaUsuario(status: StatusCaso): StatusParaUsuario {
 /** Blocos da página do ativo com menu ⋯ (carteira, tese e educação NÃO têm menu). */
 export const BLOCOS_REPORTE = [
   'cabecalho',
-  'indice',
-  'criterios',
+  // v2.4: card "Critérios de fundamentos" (C2)
+  'criterios_fundamentos',
   'kpis',
   'grafico',
   'dividendos',
@@ -160,6 +160,28 @@ export function ehBlocoReporte(s: string): s is BlocoReporte {
   return (BLOCOS_REPORTE as readonly string[]).includes(s);
 }
 
+/**
+ * v2.4 (F): blocos e campos do indicador antigo, que saiu da superfície. Não se reportam mais;
+ * relatos antigos guardados com eles aparecem como "indicador descontinuado" (DESCONTINUADO).
+ */
+export const BLOCOS_DESCONTINUADOS = ['indice', 'criterios'] as const;
+export const CAMPOS_DESCONTINUADOS = ['indiceMf', 'criterioSemaforo'] as const;
+export const DESCONTINUADO = 'descontinuado';
+export type Descontinuado = typeof DESCONTINUADO;
+
+/** Bloco como o usuário vê: o de hoje ou DESCONTINUADO (bloco do indicador antigo ou desconhecido). */
+export function blocoParaUsuario(bloco: string): BlocoReporte | Descontinuado {
+  return ehBlocoReporte(bloco) ? bloco : DESCONTINUADO;
+}
+
+/** Campo como o usuário vê: DESCONTINUADO para os campos do indicador antigo. */
+export function campoParaUsuario(campo: string): CampoReporte | Descontinuado {
+  if ((CAMPOS_DESCONTINUADOS as readonly string[]).includes(campo)) return DESCONTINUADO;
+  return campo === CAMPO_OUTRO || (CAMPOS_TELA as readonly string[]).includes(campo)
+    ? (campo as CampoReporte)
+    : DESCONTINUADO;
+}
+
 /** Campo genérico ("outro dado deste bloco"), aceito em qualquer bloco. */
 export const CAMPO_OUTRO = 'outro';
 export type CampoReporte = CampoTela | typeof CAMPO_OUTRO;
@@ -167,8 +189,7 @@ export type CampoReporte = CampoTela | typeof CAMPO_OUTRO;
 /** Campos que o "Qual dado?" oferece em cada bloco (+ 'outro' em todos). */
 export const CAMPOS_REPORTAVEIS: Record<BlocoReporte, readonly CampoTela[]> = {
   cabecalho: ['preco', 'valorMercado'],
-  indice: ['indiceMf'],
-  criterios: ['criterioSemaforo'],
+  criterios_fundamentos: ['criterioFundamento'],
   kpis: [
     'pl',
     'pvp',

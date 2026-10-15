@@ -4,39 +4,49 @@ import { gerarQuadro, gravarLinhasQuadro, lucrosFyVigentes } from '../gerarQuadr
 import type { EntradaQuadro, LinhaQuadroGravar } from '../montarLinhasQuadro';
 import type { AlertaJob, JobContexto } from '@/services/analiseAtivos/tipos';
 import { SCORING_PARAMS_V1 } from '@/services/analiseAtivos/params/scoringParamsV1';
+import { CRITERIA_PARAMS_V1 } from '@/services/analiseAtivos/params/criteriaParamsV1';
+import { avaliarAtivo } from '@/services/analiseAtivos/regras/criterios/avaliarAtivo';
+import {
+  compactarAvaliacao,
+  lerCompactosPorSimbolo,
+  linhasCriteriaEval,
+} from '@/services/analiseAtivos/repositorio/criterios';
 
-/** Prisma fake: só analise_quadro_linhas em memória, com $transaction em lote (tudo ou nada). */
+/**
+ * Prisma fake: só analise_quadro_linhas em memória, com $transaction INTERATIVA (tudo ou nada: o
+ * callback trabalha numa cópia, que só vira a tabela se ele terminar).
+ */
 function prismaFake(falharCreate = false) {
   const tabela = new Map<string, LinhaQuadroGravar>();
   const ops: string[] = [];
-  const analiseQuadroLinha = {
-    deleteMany: vi.fn(() => ({ tipo: 'delete' as const })),
-    createMany: vi.fn(({ data }: { data: LinhaQuadroGravar[] }) => ({
-      tipo: 'create' as const,
-      data,
-    })),
-  };
+  const opcoes: unknown[] = [];
   const $transaction = vi.fn(
-    async (lote: Array<{ tipo: 'delete' } | { tipo: 'create'; data: LinhaQuadroGravar[] }>) => {
+    async (fn: (tx: unknown) => Promise<number>, opts?: { timeout?: number }) => {
+      opcoes.push(opts);
       const copia = new Map(tabela);
-      const resultados: Array<{ count: number }> = [];
-      for (const op of lote) {
-        ops.push(op.tipo);
-        if (op.tipo === 'delete') {
-          resultados.push({ count: copia.size });
-          copia.clear();
-        } else {
-          if (falharCreate) throw new Error('falha no meio da transação');
-          for (const l of op.data) copia.set(l.symbol, l);
-          resultados.push({ count: op.data.length });
-        }
-      }
+      const tx = {
+        analiseQuadroLinha: {
+          deleteMany: vi.fn(async () => {
+            ops.push('delete');
+            const count = copia.size;
+            copia.clear();
+            return { count };
+          }),
+          createMany: vi.fn(async ({ data }: { data: LinhaQuadroGravar[] }) => {
+            ops.push('create');
+            if (falharCreate) throw new Error('falha no meio da transação');
+            for (const l of data) copia.set(l.symbol, l);
+            return { count: data.length };
+          }),
+        },
+      };
+      const r = await fn(tx);
       tabela.clear();
       for (const [k, v] of copia) tabela.set(k, v);
-      return resultados;
+      return r;
     },
   );
-  return { prisma: { analiseQuadroLinha, $transaction } as unknown as PrismaClient, tabela, ops };
+  return { prisma: { $transaction } as unknown as PrismaClient, tabela, ops, opcoes };
 }
 
 function ctxCom(prisma: PrismaClient, aplicar = true) {
@@ -163,6 +173,18 @@ describe('gerarQuadro', () => {
     expect(alertas.map((a) => a.codigo)).toContain('quadro_vazio');
   });
 
+  it('gravarLinhasQuadro grava em lotes de 200 numa transação interativa com prazo longo', async () => {
+    const { prisma, tabela, ops, opcoes } = prismaFake();
+    const linhas = Array.from(
+      { length: 450 },
+      (_, i) => ({ symbol: `X${i}` }) as unknown as LinhaQuadroGravar,
+    );
+    expect(await gravarLinhasQuadro(prisma, linhas)).toBe(450);
+    expect(ops).toEqual(['delete', 'create', 'create', 'create']);
+    expect(tabela.size).toBe(450);
+    expect(opcoes[0]).toMatchObject({ timeout: 120_000 });
+  });
+
   it('gravarLinhasQuadro devolve o count do createMany', async () => {
     const { prisma } = prismaFake();
     const n = await gravarLinhasQuadro(prisma, [{ symbol: 'X3' } as unknown as LinhaQuadroGravar]);
@@ -272,5 +294,76 @@ describe('lucrosFyVigentes', () => {
     );
     const mapa = Object.fromEntries(r.map((x) => [`${x.cnpj}${x.anoFiscal}`, x.lucro]));
     expect(mapa).toEqual({ A2024: 12, A2025: 7, B2025: 2, B2023: 4 });
+  });
+});
+
+describe('gerarQuadro — critérios de fundamentos (v2.4)', () => {
+  it('grava a cópia compacta de criteria_eval nas linhas avaliadas e relata', async () => {
+    const { prisma, tabela } = prismaFake();
+    const { ctx, alertas } = ctxCom(prisma);
+    const a = avaliarAtivo(
+      {
+        symbol: 'WEGE3',
+        classe: 'acao',
+        perfil: 'acao',
+        anoFim: 2025,
+        series: { receita: { 2020: 1, 2021: 2, 2022: 3, 2023: 4, 2024: 5, 2025: 6 } },
+        meses: null,
+      },
+      CRITERIA_PARAMS_V1,
+      1,
+    );
+    const compactos = compactarAvaliacao(a);
+    const r = await gerarQuadro(ctx, {
+      carregar: async () => ({
+        ...entradaMinima(new Date('2026-10-13T10:40:00Z')),
+        criterios: [
+          { symbol: 'WEGE3', perfil: 'acao', criterios: compactos },
+          { symbol: 'ITUB4', perfil: 'acao_financeira', criterios: compactos },
+        ],
+      }),
+    });
+    expect(tabela.get('WEGE3')).toMatchObject({ perfilCriterios: 'acao', criterios: compactos });
+    expect(tabela.get('ITUB4')?.perfilCriterios).toBe('acao_financeira');
+    expect(r.detalhes).toMatchObject({ comCriterios: 2 });
+    expect(alertas.map((x) => x.codigo)).not.toContain('quadro_sem_criterios');
+    expect(compactos['5']?.m.map((m) => m[0])).toEqual(['rec', 'luc', 'ebitda', 'mg', 'dl', 'fcl']);
+  });
+
+  it('lerCompactosPorSimbolo monta o compacto por símbolo a partir do SQL, em páginas', async () => {
+    const a = avaliarAtivo(
+      { symbol: 'WEGE3', classe: 'acao', perfil: 'acao', anoFim: 2025, series: {}, meses: null },
+      CRITERIA_PARAMS_V1,
+      4,
+    );
+    // o que o Postgres devolve: (symbol, janela) em ordem, com m = [[id, estado, fato]…]
+    const linhasSql = linhasCriteriaEval({ symbol: 'WEGE3', cnpj: 'C', avaliacao: a }, new Date())
+      .map((l) => ({
+        symbol: l.symbol,
+        perfil: l.perfil,
+        janela: l.janela,
+        atendidos: l.atendidos,
+        aplicaveis: l.aplicaveis,
+        paramsVersion: l.paramsVersion,
+        m: (l.resultados as Array<{ id: string; estado: string; fato: string }>).map((r) => [
+          r.id,
+          r.estado,
+          r.fato,
+        ]),
+      }))
+      .sort((x, y) => x.janela - y.janela);
+    let chamada = 0;
+    const $queryRaw = vi.fn(async () => {
+      const pagina = linhasSql.slice(chamada * 2, chamada * 2 + 2);
+      chamada++;
+      return pagina;
+    });
+    const m = await lerCompactosPorSimbolo({ $queryRaw } as unknown as PrismaClient, {
+      pagina: 2,
+    });
+    expect($queryRaw).toHaveBeenCalledTimes(2);
+    expect(m.get('WEGE3')).toMatchObject({ perfil: 'acao', paramsVersion: 4 });
+    expect(Object.keys(m.get('WEGE3')!.criterios).sort()).toEqual(['10', '3', '5']);
+    expect(m.get('WEGE3')!.criterios).toEqual(compactarAvaliacao(a));
   });
 });

@@ -1,8 +1,9 @@
 'use client';
 
 /**
- * Ordem do Quadro no celular: BottomSheet com rádios de 52px (colunas ordenáveis do modo atual +
- * Índice MF) e a direção (Maior/Menor primeiro). Diz que sem dado vai para o fim.
+ * Ordem do Quadro no celular: BottomSheet com rádios de 52px (A–Z, o padrão, + colunas ordenáveis
+ * do modo atual) e a direção (Maior/Menor primeiro; some na ordem A–Z). Diz que sem dado vai para
+ * o fim.
  * "Voltar" do sistema fecha o sheet (useMobileHistoryLayer); "Ver resultado" aplica a ordem só
  * depois de desfazer a entrada do histórico, para a URL nova não cair na entrada do sheet.
  */
@@ -12,6 +13,7 @@ import { DIRECAO_PADRAO } from '@/constants/analiseAtivosVisual';
 import { useIsBelowLg } from '@/hooks/useMediaQuery';
 import { useMobileHistoryLayer } from '@/hooks/useMobileHistoryLayer';
 import { TEXTOS_TELA, formatarTexto } from '@/services/analiseAtivos/textosTela';
+import { TEXTOS_QUADRO } from '@/services/analiseAtivos/textosQuadro';
 import type { ClasseQuadro, DirecaoOrdem, OrdemQuadro } from '@/types/analiseAtivosApi';
 
 const T = TEXTOS_TELA.quadro;
@@ -86,7 +88,11 @@ export default function SheetOrdem({
                   {o.rotulo}
                 </span>
                 <span className="text-xs text-gray-500 dark:text-gray-400">
-                  {DIRECAO_PADRAO[o.ordem] === 'asc' ? T.padraoMenor : T.padraoMaior}
+                  {o.ordem === 'ticker'
+                    ? TEXTOS_QUADRO.ordem.alfabetica
+                    : DIRECAO_PADRAO[o.ordem] === 'asc'
+                      ? T.padraoMenor
+                      : T.padraoMaior}
                 </span>
               </span>
               <span
@@ -107,7 +113,7 @@ export default function SheetOrdem({
         <div
           role="group"
           aria-label={T.direcao}
-          className="mt-2 flex rounded-xl bg-gray-100 p-[3px] dark:bg-white/[0.06]"
+          className={`mt-2 ${sel.ordem === 'ticker' ? 'hidden' : 'flex'} rounded-xl bg-gray-100 p-[3px] dark:bg-white/[0.06]`}
         >
           {(['desc', 'asc'] as const).map((d) => (
             <button

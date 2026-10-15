@@ -52,7 +52,6 @@ const CONF_ACOES: ConferenciaTela = {
   exibicao: 'ocultar',
   motivo: 'P/VP abaixo de 0,08: o nº de ações informado provavelmente está em outra escala.',
   desde: '2026-04-29',
-  efeitoIndice: 'O Índice MF fica incompleto: preço fora da conta.',
   origem: 'regra',
   caso: { status: 'em_analise', atualizadoEm: '2026-10-01T12:00:00.000Z' },
 };
@@ -108,7 +107,7 @@ describe('ChipConferencia — computador (popover)', () => {
     expect(chip.className).toContain('after:-inset-y-3');
   });
 
-  it('abre o "Por quê?" com motivo, desde, na tela + não publicado, Índice, origem e situação', () => {
+  it('abre o "Por quê?" com motivo, desde, na tela + não publicado, origem e situação (sem Índice)', () => {
     comContexto(chipPvp);
     const chip = screen.getByRole('button', { name: /por quê/ });
     fireEvent.click(chip);
@@ -118,7 +117,9 @@ describe('ChipConferencia — computador (popover)', () => {
     expect(within(d).getByText('29/04/2026')).toBeInTheDocument();
     expect(within(d).getByText(/O valor fica oculto/)).toBeInTheDocument();
     expect(within(d).getByText('Valor calculado, não publicado: 0,00')).toBeInTheDocument();
-    expect(within(d).getByText(CONF_ACOES.efeitoIndice as string)).toBeInTheDocument();
+    // v2.4: a linha do efeito no indicador descontinuado saiu do "Por quê?"
+    expect(within(d).queryByText(/Índice/)).toBeNull();
+    expect(d.querySelector('dl')?.children).toHaveLength(5);
     expect(within(d).getByText('conferência automática dos dados')).toBeInTheDocument();
     expect(within(d).getByText('A equipe está conferindo desde 01/10/2026.')).toBeInTheDocument();
     const fechar = within(d).getByRole('button', { name: 'Fechar' });
@@ -314,8 +315,8 @@ describe('Quadro', () => {
       <TabelaQuadro
         classe="acao"
         modo="detalhado"
-        ordem="indiceMf"
-        dir="desc"
+        ordem="ticker"
+        dir="asc"
         linhas={[sbsp, wege]}
         onOrdenar={() => undefined}
         naCarteira={() => ({ tipo: 'nenhum' })}

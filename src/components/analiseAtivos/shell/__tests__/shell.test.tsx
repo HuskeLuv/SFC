@@ -7,7 +7,12 @@ import BannerNovidade, {
   bannerDispensadoRecente,
 } from '../BannerNovidade';
 import RodapeLegal from '../RodapeLegal';
-import { RODAPE_LEGAL } from '@/services/analiseAtivos/textosTela';
+import {
+  AVISO_BANNER,
+  RODAPE_LEGAL_V2,
+  RODAPE_LEGAL_V2_SELO,
+} from '@/services/analiseAtivos/textosLiterais';
+import { esperarDomLimpo } from '@/test/utils/varrerDom';
 
 const DIA = 24 * 60 * 60 * 1000;
 
@@ -80,11 +85,30 @@ describe('BannerNovidade', () => {
 });
 
 describe('RodapeLegal', () => {
-  it('rodapé presente com o texto da Fase 0', () => {
+  it('v2.4: aviso legal único provisório (literal + selo) com o título fora do literal', () => {
     const { container } = render(<RodapeLegal className="mt-2" />);
-    const p = container.querySelector('[data-rodape-legal]');
-    expect(p).not.toBeNull();
-    expect(p?.textContent).toBe(RODAPE_LEGAL);
-    expect(p?.className).toContain('mt-2');
+    const raiz = container.querySelector('[data-rodape-legal]');
+    expect(raiz).not.toBeNull();
+    expect(raiz?.className).toContain('mt-2');
+    expect(raiz?.textContent).toContain('Aviso importante.');
+    expect(container.querySelector('[data-texto-legal="aviso-legal-v2"]')?.textContent).toBe(
+      RODAPE_LEGAL_V2.texto,
+    );
+    expect(container.querySelector('[data-texto-legal="aviso-legal-v2-selo"]')?.textContent).toBe(
+      RODAPE_LEGAL_V2_SELO.texto,
+    );
+    expect(raiz?.textContent).not.toMatch(/Índice/);
+    const r = esperarDomLimpo(container);
+    expect(r.literais).toEqual(['aviso-legal-v2', 'aviso-legal-v2-selo']);
+  });
+});
+
+describe('BannerNovidade v2.4', () => {
+  it('traz o aviso curto literal (aviso-banner) e passa na varredura', () => {
+    const { container } = render(<BannerNovidade />);
+    expect(container.querySelector('[data-texto-legal="aviso-banner"]')?.textContent).toBe(
+      AVISO_BANNER.texto,
+    );
+    esperarDomLimpo(container);
   });
 });

@@ -1,60 +1,41 @@
 import { describe, expect, it } from 'vitest';
-import { encontrarPalavrasProibidasBlocoD } from '@/services/analiseAtivos/regras/comum/varreduraTextos';
-import { montarResumo, textosResumo, type EntradaResumo } from '../resumo';
-
-const ativo = (
-  ticker: string,
-  valor: number | null,
-  estado: EntradaResumo['indice']['estado'],
-  at: number | null,
-  ap: number | null,
-  conf: string[] = [],
-): EntradaResumo => ({
-  ticker,
-  indice: { valor, estado, criteriosAtendidos: at, criteriosAplicaveis: ap },
-  emConferencia: conf,
-});
+import { encontrarProibidasV2 } from '@/services/analiseAtivos/regras/comum/linguagemV2';
+import { LEITURA_DOS_DADOS } from '@/services/analiseAtivos/textosLiterais';
+import { montarLeitura, textoContagens } from '../resumo';
 
 const SLOTS = [
-  ativo('WEGE3', 8.3, 'incompleto', 4, 5, ['DY 12m', 'Payout']),
-  ativo('ITUB4', 7.6, 'incompleto', 3, 4, ['DY 12m']),
-  ativo('TAEE11', 8.0, 'calculado', 3, 5),
+  { ticker: 'WEGE3', criterios: { n: 5, de: 6 } },
+  { ticker: 'BBAS3', criterios: { n: 2, de: 3 } },
+  { ticker: 'TAEE11', criterios: { n: 1, de: 6 } },
 ];
 
-describe('resumo numérico (decisão 9: sem placar)', () => {
-  it('mantém a ordem dos slots mesmo com valores fora de ordem', () => {
-    const r = montarResumo(SLOTS);
-    expect(r.indices.map((i) => i.ticker)).toEqual(['WEGE3', 'ITUB4', 'TAEE11']);
-    expect(r.criteriosAtendidos.map((i) => i.ticker)).toEqual(['WEGE3', 'ITUB4', 'TAEE11']);
-    const t = textosResumo(r);
-    expect(t.indice).toBe(
-      'Índice MF, na ordem dos ativos acima: WEGE3 8,3* · ITUB4 7,6* · TAEE11 8,0',
+describe('Leitura dos dados (v2.4: só contagens, sem placar)', () => {
+  it('mantém a ordem dos slots, sem ordenar por contagem', () => {
+    const l = montarLeitura(5, SLOTS);
+    expect(l.contagens).toEqual([
+      { ticker: 'WEGE3', n: 5, de: 6 },
+      { ticker: 'BBAS3', n: 2, de: 3 },
+      { ticker: 'TAEE11', n: 1, de: 6 },
+    ]);
+    expect(textoContagens(l)).toBe(
+      'WEGE3: 5 de 6 critérios em 5 anos · BBAS3: 2 de 3 critérios em 5 anos · TAEE11: 1 de 6 critérios em 5 anos',
     );
-    expect(t.criterios).toBe('Critérios atendidos: WEGE3 4 de 5 · ITUB4 3 de 4 · TAEE11 3 de 5');
-    expect(t.emConferencia).toBe('Em conferência: WEGE3 (DY 12m, Payout) · ITUB4 (DY 12m)');
   });
 
-  it('incompleto marcado com * e legenda só quando há incompleto', () => {
-    expect(textosResumo(montarResumo(SLOTS)).legendaIncompleto).toMatch(/^\* /);
-    const sem = textosResumo(montarResumo([ativo('A', 5, 'calculado', 1, 2)]));
-    expect(sem.legendaIncompleto).toBeNull();
-    expect(sem.emConferencia).toBeNull();
-    expect(sem.indice).not.toContain('*');
+  it('o texto é o literal registrado (data-texto-legal na tela)', () => {
+    expect(montarLeitura(3, SLOTS).texto).toBe(LEITURA_DOS_DADOS.texto);
   });
 
-  it('sem Índice (fora do índice / sem score) mostra —', () => {
-    const t = textosResumo(montarResumo([ativo('HFOF11', 6, 'fora_do_indice', null, null)]));
-    expect(t.indice).toContain('HFOF11 —');
-    expect(t.criterios).toBeNull();
+  it('ativo sem avaliação entra com n/de null e "sem avaliação"', () => {
+    const l = montarLeitura(10, [{ ticker: 'HGLG11', criterios: null }, SLOTS[0]]);
+    expect(l.contagens[0]).toEqual({ ticker: 'HGLG11', n: null, de: null });
+    expect(textoContagens(l)).toBe('HGLG11: sem avaliação · WEGE3: 5 de 6 critérios em 10 anos');
   });
 
-  it('nenhuma frase com "maior", contagem de ★ ou palavra proibida', () => {
-    const t = textosResumo(montarResumo(SLOTS));
-    const frases = Object.values(t).filter((x): x is string => typeof x === 'string');
-    for (const f of frases) {
-      expect(f).not.toMatch(/maior|★|estrela|\bvence/i);
-      expect(encontrarPalavrasProibidasBlocoD(f)).toEqual([]);
-    }
-    expect(t.responsabilidade).toContain('Não indicam qual ativo escolher');
+  it('nenhuma frase com palavra proibida, "mais", "maior" ou ★', () => {
+    const t = textoContagens(montarLeitura(5, SLOTS));
+    expect(encontrarProibidasV2(t)).toEqual([]);
+    expect(t).not.toMatch(/\bmais\b|maior|★|vence/i);
+    expect(encontrarProibidasV2(LEITURA_DOS_DADOS.texto, { ignorarLiterais: true })).toEqual([]);
   });
 });

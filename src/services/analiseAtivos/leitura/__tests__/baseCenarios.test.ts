@@ -59,13 +59,15 @@ describe('montarBaseCenarios — ação', () => {
     expect(r.base.lpa).toEqual({ estado: 'ok', valor: 1.4905 });
     expect(r.base.dpa.estado).toBe('ok');
     expect(r.base.plAlvoPadrao).toEqual({ estado: 'ok', valor: 36.9 });
-    expect(r.premissasPadrao).toEqual({
-      yieldPct: 6,
-      gPct: 8,
-      kPct: 13,
-      margemPct: 20,
+    // v2.4 (spec §4.4): premissas em branco; só o P/L alvo abre com a média 10a do ativo (fato)
+    expect(r.premissasIniciais).toEqual({
+      yieldPct: null,
+      gPct: null,
+      kPct: null,
+      margemPct: 0,
       plAlvo: 36.9,
     });
+    expect(r).not.toHaveProperty('premissasPadrao');
     expect(r.base.conferencias).toEqual([
       { campo: 'dpa', exibicao: 'selo', motivo: 'Proventos em conferência.' },
     ]);
@@ -93,7 +95,7 @@ describe('montarBaseCenarios — ação', () => {
       motivo: 'historico_curto',
       texto: TEXTOS_CENARIOS.campos.plAlvo.historicoCurto,
     });
-    expect(r.premissasPadrao.plAlvo).toBeNull();
+    expect(r.premissasIniciais.plAlvo).toBeNull();
     expect(r.base.lpa).toEqual({ estado: 'ok', valor: -1.04 });
   });
 
@@ -103,7 +105,7 @@ describe('montarBaseCenarios — ação', () => {
       atual: atual({ plPontosHistorico: 4 }),
       versao: 'v1',
     });
-    expect(r.classe === 'acao' && r.premissasPadrao.plAlvo).toBeNull();
+    expect(r.classe === 'acao' && r.premissasIniciais.plAlvo).toBeNull();
   });
 
   it('CBAV3 (acoes_escala, "ocultar"): LPA e VPA ausentes e não pré-preenchem', () => {
@@ -166,7 +168,7 @@ describe('montarBaseCenarios — ação', () => {
     });
     if (r.classe !== 'acao') throw new Error('classe');
     expect(r.base.lpa.estado).toBe('ausente');
-    expect(r.premissasPadrao.plAlvo).toBeNull();
+    expect(r.premissasIniciais.plAlvo).toBeNull();
   });
 });
 
@@ -188,12 +190,13 @@ describe('montarBaseCenarios — FII', () => {
     expect(r.base.rend12m).toEqual({ estado: 'ok', valor: 13.34 });
     expect(r.base.vpCota).toEqual({ estado: 'ok', valor: 165.95 });
     expect(r.base.pvpAtual).toEqual({ estado: 'ok', valor: 0.89 });
-    expect(r.premissasPadrao).toEqual({
-      yieldPct: 8,
-      margemPct: 10,
-      rendaMensal: 1000,
-      pvpAlvo: 1,
+    expect(r.premissasIniciais).toEqual({
+      yieldPct: null,
+      margemPct: 0,
+      rendaMensal: null,
+      pvpAlvo: null,
     });
+    expect(r).not.toHaveProperty('premissasPadrao');
   });
 
   it('CNPJ em conferência ⇒ VP/cota oculto com chip', () => {

@@ -66,7 +66,14 @@ import {
   API_TGMA3,
   API_WEGE3,
   QUADRO_ACOES,
+  QUADRO_FIIS,
 } from '@/test/fixtures/analiseAtivos/respostas';
+import {
+  CRITERIOS_LINHA_ITUB4,
+  CRITERIOS_LINHA_WEGE3,
+  definicoesChips,
+} from '@/test/fixtures/analiseAtivos/criterios';
+import { esperarDomLimpo } from '@/test/utils/varrerDom';
 
 function pagina(over: Partial<QuadroResposta> = {}): QuadroResposta {
   return {
@@ -131,7 +138,7 @@ describe('QuadroAnalise', () => {
     expect(link.textContent).toContain('Resposta nova');
   });
 
-  it('Resumo × Detalhado mudam as colunas; o clique troca o modo na URL', () => {
+  it('Resumo: colunas novas da v2.4 (Critérios no lugar do indicador antigo); Detalhado na URL', () => {
     renderQuadro();
     expect(cabecalhos()).toEqual([
       'Ativo',
@@ -141,48 +148,52 @@ describe('QuadroAnalise', () => {
       'P/L',
       'P/VP',
       'DY 12m',
-      'Lucro 10 anos',
-      'Índice MF',
+      'Critérios',
       'Na carteira',
     ]);
     fireEvent.click(screen.getByRole('button', { name: 'Detalhado' }));
     expect(nav.replace).toHaveBeenCalledWith('/analise-ativos?modo=detalhado', { scroll: false });
   });
 
-  it('modo detalhado vindo da URL mostra as colunas extras', () => {
+  it('modo detalhado vindo da URL mostra as colunas extras (Lucro 10 anos ordenável)', () => {
     nav.qs = 'modo=detalhado';
     renderQuadro();
     const c = cabecalhos();
     expect(c).toContain('Setor');
+    expect(c).toContain('Lucro 10 anos');
     expect(c).toContain('Margem líquida');
     expect(c).toContain('Dív.líq./EBITDA');
-    expect(c).toContain('Liquidez média 21d');
+    expect(screen.getByRole('button', { name: 'Ordenar por Lucro 10 anos' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Detalhado' })).toHaveAttribute(
       'aria-pressed',
       'true',
     );
   });
 
-  it('aria-sort: Índice MF descendente por padrão; 1º clique em P/L = crescente', () => {
+  it('ordem padrão A–Z (Ativo ascendente); 1º clique em P/L = crescente; pílula volta a A–Z', () => {
     renderQuadro();
     const th = (nome: string) =>
       screen.getByRole('button', { name: `Ordenar por ${nome}` }).closest('th')!;
-    expect(th('Índice MF')).toHaveAttribute('aria-sort', 'descending');
+    expect(th('Ativo')).toHaveAttribute('aria-sort', 'ascending');
     expect(th('P/L')).toHaveAttribute('aria-sort', 'none');
-    expect(screen.getByRole('columnheader', { name: 'Lucro 10 anos' })).not.toHaveAttribute(
+    expect(screen.getByRole('columnheader', { name: 'Na carteira' })).not.toHaveAttribute(
       'aria-sort',
     );
+    expect(screen.getByRole('button', { name: 'A–Z' })).toHaveAttribute('aria-pressed', 'true');
+    expect(quadro.ultimoFiltro).toMatchObject({ ordem: 'ticker', dir: 'asc', janela: 5 });
     fireEvent.click(screen.getByRole('button', { name: 'Ordenar por P/L' }));
     expect(nav.replace).toHaveBeenCalledWith('/analise-ativos?ordem=pl&dir=asc', { scroll: false });
   });
 
-  it('ordem vinda da URL: aria-sort ascendente e coluna destacada', () => {
+  it('ordem vinda da URL: aria-sort, coluna destacada e pílula que volta para A–Z', () => {
     nav.qs = 'ordem=pl&dir=asc';
     renderQuadro();
     const th = screen.getByRole('button', { name: 'Ordenar por P/L' }).closest('th')!;
     expect(th).toHaveAttribute('aria-sort', 'ascending');
     expect(th).toHaveAttribute('data-ordem-ativa');
     expect(quadro.ultimoFiltro).toMatchObject({ classe: 'acao', ordem: 'pl', dir: 'asc' });
+    fireEvent.click(screen.getByRole('button', { name: /Voltar à ordem alfabética/ }));
+    expect(nav.replace).toHaveBeenCalledWith('/analise-ativos', { scroll: false });
   });
 
   it('Mostrar mais pede a próxima página e a contagem diz quantos de quantos', () => {
@@ -190,10 +201,11 @@ describe('QuadroAnalise', () => {
     estadoQuadro({
       hasNextPage: true,
       fetchNextPage,
-      data: { pages: [pagina({ total: 331 })], pageParams: [0] },
+      data: { pages: [pagina({ total: 331, totalClasse: 331 })], pageParams: [0] },
     });
     renderQuadro();
     expect(screen.getByText(/Mostrando 4 de 331/)).toBeInTheDocument();
+    expect(document.querySelector('[data-quadro-contador]')?.textContent).toBe('331 de 331');
     fireEvent.click(screen.getByRole('button', { name: 'Mostrar mais 25' }));
     expect(fetchNextPage).toHaveBeenCalled();
   });
@@ -210,43 +222,109 @@ describe('QuadroAnalise', () => {
     expect(within(itub).getByText('Planejado · 5,00%')).toBeInTheDocument();
   });
 
-  it('chip liga filtro na URL e Limpar filtros aparece', () => {
-    nav.qs = 'f=dyMinAcao';
+  it('critério ligado na URL vai para a API (E lógico); contador "X de N atendem a k…"', () => {
+    nav.qs = 'c=rec&j=3';
+    estadoQuadro({
+      data: {
+        pages: [pagina({ itens: [API_WEGE3], total: 1, totalClasse: 4, janela: 3 })],
+        pageParams: [0],
+      },
+    });
     renderQuadro();
-    expect(screen.getByRole('button', { name: /DY 12m ≥ 4%/ })).toHaveAttribute(
+    expect(screen.getByRole('button', { name: /Receita crescente/ })).toHaveAttribute(
       'aria-pressed',
       'true',
     );
-    expect(quadro.ultimoFiltro).toMatchObject({ dyMin: 4 });
-    fireEvent.click(screen.getByRole('button', { name: /Lucro 5\+ anos/ }));
-    expect(nav.replace).toHaveBeenCalledWith('/analise-ativos?f=dyMinAcao%2ClucroConsistente', {
+    expect(quadro.ultimoFiltro).toMatchObject({ criterios: 'rec', janela: 3 });
+    expect(document.querySelector('[data-quadro-contador]')?.textContent).toBe(
+      '1 de 4 atendem a 1 critério em 3 anos',
+    );
+    fireEvent.click(screen.getByRole('button', { name: /Lucro crescente/ }));
+    expect(nav.replace).toHaveBeenCalledWith('/analise-ativos?j=3&c=rec%2Cluc', {
       scroll: false,
     });
     expect(screen.getAllByRole('button', { name: 'Limpar filtros' }).length).toBeGreaterThan(0);
   });
 
-  it('vazio por filtro oferece Limpar; Na minha carteira sem posição convida a registrar', () => {
-    nav.qs = 'f=dyMinAcao';
+  it('célula Critérios: "n de 6" (e n de 3 em financeira), 44 px, sem abrir a linha', () => {
+    const wege = { ...API_WEGE3, criterios: CRITERIOS_LINHA_WEGE3 };
+    const itub = { ...API_ITUB4, criterios: CRITERIOS_LINHA_ITUB4 };
+    estadoQuadro({ data: { pages: [pagina({ itens: [wege, itub] })], pageParams: [0] } });
+    renderQuadro();
+    const celula = within(screen.getByRole('row', { name: /WEGE3/ })).getByRole('button', {
+      name: /Critérios em 5 anos: 5 de 6/,
+    });
+    expect(celula.className).toContain('min-h-11');
+    fireEvent.click(celula);
+    expect(nav.push).not.toHaveBeenCalled();
+    expect(
+      within(screen.getByRole('row', { name: /ITUB4/ })).getByRole('button', {
+        name: /2 de 3/,
+      }),
+    ).toBeInTheDocument();
+  });
+
+  it('caso 31: vazio com critérios e janela 10 em FIIs oferece "limpe os filtros"; vac desabilitado', () => {
+    nav.qs = 'classe=fii&j=10&c=rend,alav';
+    estadoQuadro({
+      data: {
+        pages: [
+          pagina({
+            ...QUADRO_FIIS,
+            itens: [],
+            total: 0,
+            totalClasse: 3,
+            janela: 10,
+            definicoes: definicoesChips('fii'),
+          }),
+        ],
+        pageParams: [0],
+      },
+    });
+    renderQuadro();
+    expect(
+      screen.getByText(/Nenhum ativo atende a todos os critérios selecionados em 10 anos/),
+    ).toBeInTheDocument();
+    expect(document.querySelector('[data-nota-janela-fii]')).not.toBeNull();
+    expect(screen.getByRole('button', { name: /Vacância ≤ 10%/ })).toHaveAttribute(
+      'aria-disabled',
+      'true',
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'limpe os filtros' }));
+    expect(nav.replace).toHaveBeenCalledWith('/analise-ativos?classe=fii&j=10', { scroll: false });
+  });
+
+  it('caso 31: trocar de classe zera critérios, carteira e setor (janela e modo ficam)', () => {
+    nav.qs = 'c=rec,mg&carteira=1&s=Financeiro&j=3&modo=detalhado&ordem=pl&dir=asc';
+    renderQuadro();
+    fireEvent.click(screen.getByRole('button', { name: /FIIs/ }));
+    expect(nav.replace).toHaveBeenCalledWith('/analise-ativos?classe=fii&modo=detalhado&j=3', {
+      scroll: false,
+    });
+  });
+
+  it('Na minha carteira sem posição convida a registrar; vazio só por setor oferece Limpar', () => {
+    nav.qs = 'carteira=1';
     estadoQuadro({ data: { pages: [pagina({ itens: [], total: 0 })], pageParams: [0] } });
     const { unmount } = renderQuadro();
-    expect(screen.getByText('Nenhum ativo com esses filtros')).toBeInTheDocument();
-    unmount();
-    nav.qs = 'f=naCarteira';
-    renderQuadro();
     expect(screen.getByText('Você ainda não tem ações na Carteira')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Registrar operação' })).toHaveAttribute(
       'href',
       '/carteira',
     );
+    unmount();
+    nav.qs = 's=Financeiro';
+    renderQuadro();
+    expect(screen.getByText('Nenhum ativo com esses filtros')).toBeInTheDocument();
   });
 
   it('erro mantém os filtros e oferece Tentar de novo', () => {
     const refetch = vi.fn();
-    nav.qs = 'f=dyMinAcao';
+    nav.qs = 'c=mg';
     estadoQuadro({ data: undefined, isError: true, isPending: false, refetch });
     renderQuadro();
     expect(screen.getByRole('alert')).toHaveTextContent('Não foi possível carregar o Quadro agora');
-    expect(screen.getByRole('button', { name: /DY 12m ≥ 4%/ })).toHaveAttribute(
+    expect(screen.getByRole('button', { name: /Margem líquida positiva/ })).toHaveAttribute(
       'aria-pressed',
       'true',
     );
@@ -254,22 +332,40 @@ describe('QuadroAnalise', () => {
     expect(refetch).toHaveBeenCalled();
   });
 
-  it('carregando: cabeçalho real com esqueleto', () => {
+  it('carregando: cabeçalho real com esqueleto; chips já aparecem', () => {
     estadoQuadro({ data: undefined, isPending: true });
     renderQuadro();
-    expect(cabecalhos()).toContain('Índice MF');
+    expect(cabecalhos()).toContain('Critérios');
     expect(screen.getByRole('table').closest('[aria-busy]')).toHaveAttribute('aria-busy', 'true');
+    expect(screen.getByRole('button', { name: /Receita crescente/ })).toBeInTheDocument();
   });
 
-  it('celular: cartões, trilho de chips e botão de Ordem', () => {
+  it('"O que cada critério verifica" e rodapé literal; caso 32: DOM sem linguagem proibida', () => {
+    const wege = { ...API_WEGE3, criterios: CRITERIOS_LINHA_WEGE3 };
+    estadoQuadro({ data: { pages: [pagina({ itens: [wege, API_ITUB4] })], pageParams: [0] } });
+    const { container } = renderQuadro();
+    const det = container.querySelector('details[data-explicacao-criterios]')!;
+    expect(det.textContent).toContain('O que cada critério verifica');
+    expect(det.textContent).toContain('Não se aplica a bancos');
+    expect(container.textContent).not.toMatch(/Índice/);
+    const r = esperarDomLimpo(container);
+    expect(r.literais).toContain('rodape-quadro');
+    // nomes vindos do banco ficam fora da varredura
+    expect(container.querySelector('[data-nome-ativo]')?.textContent).toBe(API_WEGE3.nome);
+  });
+
+  it('celular: cartões com link do ticker, célula Critérios fora do link e botão de Ordem', () => {
     media.celular = true;
+    const wege = { ...API_WEGE3, criterios: CRITERIOS_LINHA_WEGE3 };
+    estadoQuadro({ data: { pages: [pagina({ itens: [wege, API_ITUB4] })], pageParams: [0] } });
     renderQuadro();
     expect(screen.queryByRole('table')).toBeNull();
-    expect(screen.getByRole('link', { name: /WEGE3/ })).toHaveAttribute(
-      'href',
-      '/analise-ativos/WEGE3',
-    );
-    expect(screen.getByRole('button', { name: /Ordem: Índice MF/ })).toBeInTheDocument();
+    const link = screen.getByRole('link', { name: 'WEGE3' });
+    expect(link).toHaveAttribute('href', '/analise-ativos/WEGE3');
+    expect(link.className).toContain('min-h-11');
+    const celula = screen.getByRole('button', { name: /Critérios em 5 anos: 5 de 6/ });
+    expect(celula.closest('a')).toBeNull();
+    expect(screen.getByRole('button', { name: /Ordem: A–Z/ })).toBeInTheDocument();
   });
 
   it('celular: sheet de Ordem fecha no "voltar" do sistema e aplica a ordem só depois do back', () => {
@@ -277,7 +373,7 @@ describe('QuadroAnalise', () => {
     const back = vi.spyOn(window.history, 'back').mockImplementation(() => {});
     const estadoAntes = window.history.state;
     renderQuadro();
-    const abrir = () => fireEvent.click(screen.getByRole('button', { name: /Ordem: Índice MF/ }));
+    const abrir = () => fireEvent.click(screen.getByRole('button', { name: /Ordem: A–Z/ }));
     const sheet = () => screen.queryByRole('dialog', { name: /Ordenar/ });
     const voltar = () =>
       act(() => {
@@ -288,6 +384,10 @@ describe('QuadroAnalise', () => {
     // voltar do sistema: fecha sem aplicar nada nem chamar back de novo
     abrir();
     expect(sheet()).toBeInTheDocument();
+    expect(within(sheet()!).getByRole('radio', { name: /A–Z/ })).toHaveAttribute(
+      'aria-checked',
+      'true',
+    );
     voltar();
     expect(sheet()).toBeNull();
     expect(back).not.toHaveBeenCalled();

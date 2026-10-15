@@ -7,7 +7,8 @@ import { exigirRecursoBlocoD } from './fixtures/analise-bloco-d';
  * desktop 1280) e DESFAZ: o cenário salvo é apagado pelo "Restaurar" (e de novo no `finally`, pela
  * API); o objetivo criado no Planejamento é apagado pela API.
  *
- * - yield 4% → Salvar → recarregar ⇒ 4% → Restaurar (sem confirmação) ⇒ 6% e registro apagado;
+ * - v2.4 (caso 22): premissas EM BRANCO ao abrir; yield 4% → Salvar → recarregar ⇒ 4% →
+ *   "Limpar minhas premissas" (sem confirmação) ⇒ em branco e registro apagado;
  * - slider da margem por teclado (passos de 5); "vs. cotação" com cor neutra;
  * - DOM do card sem palavras proibidas fora do rodapé literal;
  * - MXRF11: "Criar objetivo no Planejamento" ⇒ o objetivo aparece no Planejamento.
@@ -70,7 +71,7 @@ const PROIBIDAS = [
 test.describe('Meus cenários grava e desfaz', () => {
   test.skip(!writesAllowed(), 'só com E2E_ALLOW_WRITES=1');
 
-  test('WEGE3: salvar, recarregar, restaurar sem confirmação', async ({ page }) => {
+  test('WEGE3: abre em branco, salvar, recarregar, limpar sem confirmação', async ({ page }) => {
     await page.goto('/analise-ativos', { waitUntil: 'load' });
     await exigirRecursoBlocoD(page, 'cenarios');
     await apagarCenario(page, 'WEGE3');
@@ -78,8 +79,10 @@ test.describe('Meus cenários grava e desfaz', () => {
       let card = await abrirCenarios(page, 'WEGE3');
       const barra = card.locator('[data-barra-salvamento]');
       await expect(barra).toHaveAttribute('data-barra-salvamento', 'padrao');
-      const yieldCampo = () => card.getByLabel('Yield desejado (Bazin)', { exact: true });
-      await expect(yieldCampo()).toHaveValue('6,0');
+      const yieldCampo = () => card.getByLabel('Yield que você deseja', { exact: true });
+      await expect(yieldCampo()).toHaveValue('');
+      await expect(yieldCampo()).toHaveAttribute('placeholder', 'ex.: 6');
+      await expect(card.locator('[data-metodo="bazin"]')).toContainText('informe yield');
       await yieldCampo().fill('4');
       await expect(barra).toHaveAttribute('data-barra-salvamento', 'naoSalvo');
       await card.locator('[data-cenario-salvar]').click();
@@ -92,9 +95,10 @@ test.describe('Meus cenários grava e desfaz', () => {
         'salvo',
       );
 
+      await expect(card.locator('[data-cenario-restaurar]')).toHaveText('Limpar minhas premissas');
       await card.locator('[data-cenario-restaurar]').click();
       await expect(page.locator('[data-toast-cenarios]')).toContainText('Desfazer');
-      await expect(yieldCampo()).toHaveValue('6,0');
+      await expect(yieldCampo()).toHaveValue('');
       await expect
         .poll(
           async () =>
@@ -112,12 +116,13 @@ test.describe('Meus cenários grava e desfaz', () => {
     const card = await abrirCenarios(page, 'WEGE3');
     const slider = card.locator('[data-slider-margem]');
     await slider.focus();
+    // v2.4: premissas em branco, margem começa em 0 (passo 5)
     await page.keyboard.press('ArrowRight');
-    await expect(slider).toHaveValue('25');
-    await expect(slider).toHaveAttribute('aria-valuetext', '25%');
+    await page.keyboard.press('ArrowRight');
+    await expect(slider).toHaveValue('10');
+    await expect(slider).toHaveAttribute('aria-valuetext', '10%');
     await page.keyboard.press('ArrowLeft');
-    await page.keyboard.press('ArrowLeft');
-    await expect(slider).toHaveValue('15');
+    await expect(slider).toHaveValue('5');
 
     const cor = await card
       .locator('[data-vs-cotacao]')
@@ -136,6 +141,10 @@ test.describe('Meus cenários grava e desfaz', () => {
     for (const re of PROIBIDAS) expect(texto, String(re)).not.toMatch(re);
     await expect(card.locator('[data-rodape-cenarios]')).toContainText(
       "O My Finance não calcula 'preço justo' nem preço-alvo",
+    );
+    await expect(card.locator('[data-rodape-cenarios]')).toHaveAttribute(
+      'data-texto-legal',
+      'rodape-cenarios',
     );
   });
 

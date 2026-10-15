@@ -38,8 +38,26 @@
  * BuscaAtivosProps.classe/desabilitarOutraClasse; cabecalhoExtra em BlocoFundamentosEssencialProps
  * e BlocoValuationMultiplosProps. Tipos do Raio-X, dos Cenários e do Comparador:
  * src/types/analiseAtivosBlocoD.ts.
+ *
+ * v2.4 — Filtros de Fundamentos (docs/analise-ativos/v2-filtros/spec-desenho.json): entram
+ * LinhaQuadroApi.criterios/motivosConferencia, AtivoTopoResposta.criterios, QuadroParams.janela/
+ * criterios, QuadroResposta.definicoes/janela/totalClasse, OverlayCarteiraResposta.posicoes[].
+ * objetivoPct/estrategia/tipoFii e planejados[].secao/id, LinhaFundamentos.ultimoAno, OrdemQuadro
+ * 'criterios' | 'lucro10' e FundamentosResposta.unidade 'R$ bi'. Fatia F: SAEM da superfície o
+ * indicador antigo, o semáforo e a marca de valor (tipos da linha e do topo, efeito na
+ * conferência, ano destacado, ticker de referência, ItemBusca.i/e e a ordem do indicador) e os
+ * campos de observação passam a `observacao`/`observacoes`: nenhuma resposta de
+ * /api/analise-ativos/* tem chave do indicador antigo, de nota, rating ou score (a lista exata
+ * está em CHAVES_PROIBIDAS_CONTRATO, contratoSemNota.test.ts). Tipos dos critérios:
+ * src/types/analiseAtivosCriterios.ts.
  */
 import type { ReactNode } from 'react';
+import type {
+  CriteriosAtivo,
+  CriteriosLinhaApi,
+  DefCriterioChip,
+  Janela,
+} from '@/types/analiseAtivosCriterios';
 
 // ===========================================================================
 // Básicos
@@ -101,8 +119,6 @@ export interface ConferenciaTela {
   motivo: string;
   /** AAAA-MM-DD da detecção (chave da flag quando é data), ou null */
   desde: string | null;
-  /** "Índice MF fica incompleto: Preço e Dividendos"; null = só exibição */
-  efeitoIndice: string | null;
   /**
    * Sempre 'regra' nesta fase (decisão 16: sem conferência manual pelo curador; "relato confirmado"
    * não existe como origem).
@@ -124,24 +140,6 @@ export interface FrescorBloco {
   /** atrasado: documento esperado ('ITR 3T26') */
   documentoEsperado?: string;
 }
-
-/**
- * Estado do Índice MF de uma linha/ativo (decisão 4: três estados visualmente distintos + 2):
- * - calculado: anel sólido com número;
- * - incompleto: anel com trilho tracejado + selo "dados incompletos" + "o que falta";
- * - zero_regra: anel sólido normal + caixa "Componente zerado pela regra" (ex.: AURE3);
- * - fora_do_indice: FoF, "fora do Índice MF nesta fase" (sem número);
- * - sem_score: tem múltiplos mas não tem score (ex.: HCTR11), "Índice MF não calculado".
- */
-export type EstadoIndice =
-  | 'calculado'
-  | 'incompleto'
-  | 'zero_regra'
-  | 'fora_do_indice'
-  | 'sem_score';
-
-/** Status de um critério do semáforo. */
-export type StatusCriterioTela = 'atende' | 'parcial' | 'nao_atende' | 'nao_se_aplica' | 'sem_dado';
 
 /** Por que uma linha está fora do Quadro (aparece só na busca). */
 export type ForaDoQuadroMotivo = 'sem_negociacao_30' | 'fiagro' | 'deslistada';
@@ -190,7 +188,7 @@ export type TipoSeloEstado =
   | 'na_carteira'
   /** bloco C: campo em conferência por regra de sanidade (chip tracejado com lupa) */
   | 'em_conferencia'
-  /** bloco C: cotação de negócio esporádico (só informativo, sem efeito no Índice) */
+  /** bloco C: cotação de negócio esporádico (só informativo) */
   | 'cotacao_esporadica';
 
 // ===========================================================================
@@ -235,8 +233,11 @@ export interface RecursosBlocoD {
 // ===========================================================================
 
 export type OrdemQuadro =
-  | 'indiceMf'
   | 'ticker'
+  /** v2.4: contagem de critérios atendidos na janela (desc), desempate por ticker */
+  | 'criterios'
+  /** v2.4: Lucro 10 anos (desc) */
+  | 'lucro10'
   | 'preco'
   | 'anosLucro'
   | 'mesesRendimento'
@@ -257,33 +258,27 @@ export type OrdemQuadro =
 export type DirecaoOrdem = 'asc' | 'desc';
 export type ModoQuadro = 'resumo' | 'detalhado';
 
-/** Query da rota (zod na rota; estado espelhado na URL da página: ?classe=&ordem=&dir=&modo=&f=). */
+/**
+ * Query da rota (zod ESTRITO na rota; estado espelhado na URL da página). v2.4: os filtros antigos
+ * (lucroConsistente, dyMin, pvpMax, tipo, somenteCompletos) e a ordem do indicador antigo dão 400.
+ */
 export interface QuadroParams {
   classe: ClasseQuadro;
   ordem?: OrdemQuadro;
   dir?: DirecaoOrdem;
-  lucroConsistente?: boolean;
-  dyMin?: number;
-  pvpMax?: number;
-  tipo?: FiiTipoTela;
   naCarteira?: boolean;
   setor?: string;
   segmento?: string;
-  somenteCompletos?: boolean;
+  /** v2.4 (B): janela dos critérios (padrão 5) */
+  janela?: Janela;
+  /**
+   * v2.4 (B): ids ligados (IdCriterio) separados por vírgula, como vão na URL (?criterios=rec,luc);
+   * E lógico; em FII aplica as equivalências tijolo↔papel. A rota valida cada id (zod).
+   */
+  criterios?: string;
   offset?: number;
   /** padrão 25, máximo 100 */
   limite?: number;
-}
-
-/** Índice MF numa linha do Quadro/pares. */
-export interface IndiceLinha {
-  valor: number | null;
-  estado: EstadoIndice;
-  /** incompleto: motivosIncompleto; zero_regra: componentes zerados; sem_score/fora: 1 motivo */
-  motivos: MotivoTela[];
-  criteriosAtendidos: number | null;
-  criteriosAplicaveis: number | null;
-  statusCriterios: StatusCriterioTela[];
 }
 
 /** Uma linha do Quadro (também usada em pares e na busca detalhada). */
@@ -305,7 +300,10 @@ export interface LinhaQuadroApi {
   variacaoDiaPct: number | null;
   liquidezMedia21: number | null;
   baixaLiquidez: boolean;
-  indice: IndiceLinha;
+  /** v2.4 (B): critérios da janela pedida; null = sem avaliação ainda */
+  criterios: CriteriosLinhaApi | null;
+  /** v2.4 (B/C2): motivos de conferência/incompletude da linha */
+  motivosConferencia: MotivoTela[];
   anosLucroConsecutivos: number | null;
   mesesComRendimento: number | null;
   anosDividendo: number | null;
@@ -360,6 +358,12 @@ export interface QuadroResposta {
   facetas: { setores: string[]; tipos: FiiTipoTela[] };
   frescorCotacao: FrescorCotacao;
   itens: LinhaQuadroApi[];
+  /** v2.4 (B): janela aplicada */
+  janela: Janela;
+  /** v2.4 (B): total da classe sem filtros (contador 'X de N') */
+  totalClasse: number;
+  /** v2.4 (B): chips da barra de filtros (de criteria_params) */
+  definicoes: DefCriterioChip[];
 }
 
 // ===========================================================================
@@ -376,10 +380,6 @@ export interface ItemBusca {
   c: ClasseQuadro;
   /** noQuadro */
   q: boolean;
-  /** Índice MF ou null */
-  i: number | null;
-  /** estado do Índice */
-  e: EstadoIndice;
   /** tipo do FII */
   f: FiiTipoTela | null;
   /** motivo de estar fora do Quadro */
@@ -411,11 +411,29 @@ export type CategoriaCarteira = string;
 export interface OverlayCarteiraResposta {
   posicoes: Record<
     string,
-    { portfolioId: string; quantidade: number; categoria: CategoriaCarteira }
+    {
+      portfolioId: string;
+      quantidade: number;
+      categoria: CategoriaCarteira;
+      /** v2.4 (C1): Portfolio.objetivo, % DENTRO da aba (rec. 1); null = sem alvo */
+      objetivoPct?: number | null;
+      /** v2.4 (C1): estratégia da posição (ação: value|growth|risk) — recompra manda a mesma */
+      estrategia?: string | null;
+      /** v2.4 (C1): tipo de FII da posição na Carteira — recompra manda o mesmo */
+      tipoFii?: string | null;
+    }
   >;
   planejados: Record<
     string,
-    { watchlistId: string; categoria: CategoriaCarteira; objetivoPct: number | null }
+    {
+      watchlistId: string;
+      categoria: CategoriaCarteira;
+      objetivoPct: number | null;
+      /** v2.4 (C1): Watchlist.id (PATCH/DELETE de /api/carteira/planejados/[id]) */
+      id?: string;
+      /** v2.4 (C1): Watchlist.secao (1ª compra de planejado usa esta seção) */
+      secao?: string | null;
+    }
   >;
 }
 
@@ -430,44 +448,6 @@ export interface CotacaoTopo {
   variacao: number | null;
   variacaoPct: number | null;
   baixaLiquidez: boolean;
-}
-
-export interface ComponenteIndiceTela {
-  /** 'lucro' | 'divida' | 'rent' | 'div' | 'preco' */
-  nome: string;
-  rotulo: string;
-  nota: number | null;
-  estado: 'calculado' | 'zero_regra' | 'ausente' | 'nao_se_aplica';
-  /** peso efetivo (0–1) */
-  peso: number | null;
-  texto: string;
-}
-
-export interface IndiceTopo {
-  valor: number | null;
-  estado: EstadoIndice;
-  /** 'acao' | 'acao_financeira' | 'fii_tijolo' | 'fii_papel' | 'fora_do_indice' */
-  regua: string | null;
-  motivos: MotivoTela[];
-  /** incompleto: "o que falta"; zero_regra: "Componente zerado pela regra"; senão null */
-  caixaExplicativa: { titulo: string; itens: string[] } | null;
-  /** "4 de 5 critérios atendidos" */
-  leitura: string;
-  componentes: ComponenteIndiceTela[];
-  /** fórmula pública */
-  formula: string;
-  criteriosAtendidos: number | null;
-  criteriosAplicaveis: number | null;
-}
-
-export interface CriterioSemaforoTela {
-  codigo: string;
-  titulo: string;
-  status: StatusCriterioTela;
-  frase: string;
-  provisorio: boolean;
-  /** critério desligado até a validação da fonte (aparece como 'Não se aplica · critério desligado') */
-  desligado: boolean;
 }
 
 export interface KpiAtivo {
@@ -550,11 +530,10 @@ export interface AtivoTopoResposta {
   tags: string[];
   noQuadro: boolean;
   foraDoQuadroMotivo: ForaDoQuadroMotivo | null;
-  tickerReferenciaIndice: string | null;
   assetId: string | null;
   cotacao: CotacaoTopo;
-  indice: IndiceTopo;
-  semaforo: CriterioSemaforoTela[];
+  /** v2.4 (C2): critérios nas 3 janelas; null = sem avaliação ainda */
+  criterios: CriteriosAtivo | null;
   /** 8 por classe */
   kpis: KpiAtivo[];
   grafico: GraficoAtivo;
@@ -586,15 +565,16 @@ export interface LinhaFundamentos {
   /** '2025' ou 'Últ. 12m' */
   rotulo: string;
   ano: number | null;
-  /** último ano FECHADO destacado */
-  destaque: boolean;
+  /** v2.4 (C2): último ano FECHADO (data-ultimo-ano) */
+  ultimoAno: boolean;
   valores: Record<string, Estado<number>>;
   selos: TipoSeloEstado[];
 }
 
 export interface FundamentosResposta {
   nivel: 'essencial';
-  unidade: 'R$ mi';
+  /** v2.4 (C2): o Essencial passa a R$ bi */
+  unidade: 'R$ mi' | 'R$ bi';
   fonte: 'CVM';
   padraoContabil: string | null;
   escopo: string | null;
@@ -602,7 +582,8 @@ export interface FundamentosResposta {
   colunas: ColunaFundamentos[];
   /** só anos fechados + 'Últ. 12m' */
   linhas: LinhaFundamentos[];
-  notas: string[];
+  /** observações de rodapé do card (unidade, padrão contábil, fonte); v2.4: era `notas` */
+  observacoes: string[];
 }
 
 // ===========================================================================
@@ -653,7 +634,8 @@ export interface ValuationResposta {
   /** 2 mini-gráficos (ações: P/L e P/VP; FIIs: P/VP e DY) */
   historicos: HistoricoMultiplo[];
   pares: { criterio: string; itens: LinhaQuadroApi[] };
-  nota: string;
+  /** observação de rodapé (referência dos pares); v2.4: era `nota` */
+  observacao: string;
 }
 
 // ===========================================================================
@@ -681,29 +663,10 @@ export interface TeseDeleteResposta {
 }
 
 // ===========================================================================
-// PROPS dos componentes (stubs da 0a; donos indicados). Props FINAIS: mudar = PR na 0a.
+// PROPS dos componentes (donos indicados).
 // ===========================================================================
 
 // ---- 0b (comuns) ----------------------------------------------------------
-
-export type TamanhoAnel = 32 | 40 | 96;
-
-/** AnelIndice — anel numa cor (outside), trilho tracejado só no incompleto. */
-export interface AnelIndiceProps {
-  valor: number | null;
-  estado: EstadoIndice;
-  tamanho: TamanhoAnel;
-  className?: string;
-}
-
-/** BadgeCriterio — sempre ícone + texto (STATUS_CRITERIO), nunca só cor. */
-export interface BadgeCriterioProps {
-  status: StatusCriterioTela;
-  /** texto alternativo ao rótulo padrão do status */
-  rotulo?: string;
-  compacto?: boolean;
-  className?: string;
-}
 
 /** BarrasDezAnos — 'lucro': 10 barras com linha do zero; 'seguidos': 10 traços cheios até n. */
 export type BarrasDezAnosProps =
@@ -726,13 +689,6 @@ export interface ValorAnaliseProps {
   className?: string;
 }
 
-/** SeloIncompleto — chip tracejado + popover (celular: BottomSheet) com os motivos. */
-export interface SeloIncompletoProps {
-  motivos: MotivoTela[];
-  ticker?: string;
-  className?: string;
-}
-
 /** SeloFonteCvm — 'fonte CVM · pode diferir do relatório do gestor'. */
 export interface SeloFonteCvmProps {
   compacto?: boolean;
@@ -746,7 +702,7 @@ export interface SeloEstadoProps {
   className?: string;
 }
 
-/** RodapeLegal — texto fixo RODAPE_LEGAL (textosTela). */
+/** RodapeLegal — aviso legal único RODAPE_LEGAL_V2 (textosLiterais, data-texto-legal). */
 export interface RodapeLegalProps {
   className?: string;
 }
@@ -816,13 +772,6 @@ export interface CabecalhoAtivoProps {
   seloCarteira?: ReactNode;
   /** slot das ações (AcoesCarteiraAtivo, fatia D) */
   slotAcoes?: ReactNode;
-}
-
-export interface BlocoIndiceSemaforoProps {
-  ticker: string;
-  classe: ClasseQuadro;
-  indice: IndiceTopo;
-  semaforo: CriterioSemaforoTela[];
 }
 
 export interface BlocoKpisProps {

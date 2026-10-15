@@ -1,33 +1,45 @@
 'use client';
 
 /**
- * Estado do Quadro espelhado na URL (?classe=&ordem=&dir=&modo=&f=&s=): voltar da página do ativo,
- * recarregar ou compartilhar o link mantém classe, ordem, filtros e modo. Erro de rede não perde
- * nada (o estado está na URL). Valores inválidos caem no padrão.
+ * Estado do Quadro espelhado na URL (?classe=&ordem=&dir=&modo=&j=&c=&carteira=&s=): voltar da
+ * página do ativo, recarregar ou compartilhar o link mantém classe, janela, critérios, ordem,
+ * filtros e modo. Erro de rede não perde nada (o estado está na URL). Valores inválidos caem no
+ * padrão (a rota é a autoridade e dá 400 para o resto).
  *
- * - f: chips ligados, separados por vírgula (FiltroRapido).
- * - s: setor (ações) ou segmento CVM (FIIs) do popover.
- * Trocar de classe limpa filtros e setor (os chips são diferentes por classe) e volta à ordem padrão.
+ * - j: janela dos critérios (3 | 5 | 10; padrão 5, fora da URL).
+ * - c: critérios ligados (ids, E lógico), separados por vírgula — só os chips habilitados da classe
+ *   (CRITERIOS_FILTRAVEIS); a ordem dos ids é a da barra.
+ * - carteira=1: "Na minha carteira". s: setor (ações) ou segmento CVM (FIIs).
+ * - Ordem padrão A–Z (ticker asc, fora da URL).
+ * Trocar de classe ZERA os filtros (critérios, carteira e setor; os chips são outros) e volta à
+ * ordem A–Z; janela e modo continuam (caso 31).
  */
 import { useCallback, useMemo } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import {
   COLUNAS,
+  CRITERIOS_FILTRAVEIS,
   DIRECAO_PADRAO,
-  FILTROS_RAPIDOS,
-  LIMIARES_FILTRO,
   ORDEM_PADRAO,
-  type FiltroRapido,
 } from '@/constants/analiseAtivosVisual';
 import type { FiltrosQuadro } from '@/hooks/useAnaliseAtivos';
 import type { ClasseQuadro, DirecaoOrdem, ModoQuadro, OrdemQuadro } from '@/types/analiseAtivosApi';
+import {
+  JANELAS_CRITERIOS,
+  JANELA_PADRAO,
+  type IdCriterio,
+  type Janela,
+} from '@/types/analiseAtivosCriterios';
 
 export interface EstadoQuadro {
   classe: ClasseQuadro;
   ordem: OrdemQuadro;
   dir: DirecaoOrdem;
   modo: ModoQuadro;
-  chips: FiltroRapido[];
+  janela: Janela;
+  /** ids ligados, na ordem da barra */
+  criterios: IdCriterio[];
+  naCarteira: boolean;
   setor: string | null;
 }
 
@@ -35,11 +47,17 @@ const CLASSES: ClasseQuadro[] = ['acao', 'fii'];
 const DIRECOES: DirecaoOrdem[] = ['asc', 'desc'];
 const MODOS: ModoQuadro[] = ['resumo', 'detalhado'];
 
-/** Ordens válidas para a classe: as colunas ordenáveis de qualquer modo + Índice MF. */
+/** Ordens válidas para a classe: A–Z + as colunas ordenáveis de qualquer modo. */
 export function ordensDaClasse(classe: ClasseQuadro): OrdemQuadro[] {
   const s = new Set<OrdemQuadro>([ORDEM_PADRAO]);
   for (const modo of MODOS) for (const c of COLUNAS[classe][modo]) if (c.ordem) s.add(c.ordem);
   return [...s];
+}
+
+/** Ids válidos para a classe, sem repetição e na ordem da barra. */
+export function criteriosDaClasse(classe: ClasseQuadro, ids: readonly string[]): IdCriterio[] {
+  const pedidos = new Set(ids);
+  return CRITERIOS_FILTRAVEIS[classe].filter((id) => pedidos.has(id));
 }
 
 export function lerEstadoQuadro(params: URLSearchParams): EstadoQuadro {
@@ -52,12 +70,14 @@ export function lerEstadoQuadro(params: URLSearchParams): EstadoQuadro {
   const dirBruta = params.get('dir') as DirecaoOrdem | null;
   const dir = dirBruta && DIRECOES.includes(dirBruta) ? dirBruta : DIRECAO_PADRAO[ordem];
   const modo = params.get('modo') === 'detalhado' ? 'detalhado' : 'resumo';
-  const validos = FILTROS_RAPIDOS[classe];
-  const chips = (params.get('f') ?? '')
-    .split(',')
-    .filter((c): c is FiltroRapido => (validos as string[]).includes(c));
+  const j = Number(params.get('j'));
+  const janela = (JANELAS_CRITERIOS as readonly number[]).includes(j)
+    ? (j as Janela)
+    : JANELA_PADRAO;
+  const criterios = criteriosDaClasse(classe, (params.get('c') ?? '').split(','));
+  const naCarteira = params.get('carteira') === '1';
   const setor = params.get('s')?.trim() || null;
-  return { classe, ordem, dir, modo, chips: [...new Set(chips)], setor };
+  return { classe, ordem, dir, modo, janela, criterios, naCarteira, setor };
 }
 
 export function escreverEstadoQuadro(e: EstadoQuadro): URLSearchParams {
@@ -68,23 +88,18 @@ export function escreverEstadoQuadro(e: EstadoQuadro): URLSearchParams {
     qs.set('dir', e.dir);
   }
   if (e.modo !== 'resumo') qs.set('modo', e.modo);
-  if (e.chips.length) qs.set('f', e.chips.join(','));
+  if (e.janela !== JANELA_PADRAO) qs.set('j', String(e.janela));
+  if (e.criterios.length) qs.set('c', e.criterios.join(','));
+  if (e.naCarteira) qs.set('carteira', '1');
   if (e.setor) qs.set('s', e.setor);
   return qs;
 }
 
-/** Chips + setor → filtros da API (QuadroParams sem offset/limite). */
+/** Estado → filtros da API (QuadroParams sem offset/limite). */
 export function filtrosDoEstado(e: EstadoQuadro): FiltrosQuadro {
-  const f: FiltrosQuadro = { classe: e.classe, ordem: e.ordem, dir: e.dir };
-  const tem = (c: FiltroRapido) => e.chips.includes(c);
-  if (tem('lucroConsistente')) f.lucroConsistente = true;
-  if (tem('dyMinAcao')) f.dyMin = LIMIARES_FILTRO.dyMinAcao;
-  if (tem('dyMinFii')) f.dyMin = LIMIARES_FILTRO.dyMinFii;
-  if (tem('pvpMax')) f.pvpMax = LIMIARES_FILTRO.pvpMax;
-  if (tem('tijolo')) f.tipo = 'tijolo';
-  if (tem('papel')) f.tipo = 'papel';
-  if (tem('naCarteira')) f.naCarteira = true;
-  if (tem('somenteCompletos')) f.somenteCompletos = true;
+  const f: FiltrosQuadro = { classe: e.classe, ordem: e.ordem, dir: e.dir, janela: e.janela };
+  if (e.criterios.length) f.criterios = e.criterios.join(',');
+  if (e.naCarteira) f.naCarteira = true;
   if (e.setor) {
     if (e.classe === 'acao') f.setor = e.setor;
     else f.segmento = e.setor;
@@ -92,16 +107,16 @@ export function filtrosDoEstado(e: EstadoQuadro): FiltrosQuadro {
   return f;
 }
 
-/** Chips que se excluem (o tipo do FII é um só por vez). */
-const EXCLUSIVOS: Partial<Record<FiltroRapido, FiltroRapido>> = {
-  tijolo: 'papel',
-  papel: 'tijolo',
-};
-
-export function alternarChip(chips: FiltroRapido[], chip: FiltroRapido): FiltroRapido[] {
-  if (chips.includes(chip)) return chips.filter((c) => c !== chip);
-  const oposto = EXCLUSIVOS[chip];
-  return [...chips.filter((c) => c !== oposto), chip];
+/** Liga/desliga um critério mantendo a ordem da barra. */
+export function alternarCriterio(
+  classe: ClasseQuadro,
+  atuais: readonly IdCriterio[],
+  id: IdCriterio,
+): IdCriterio[] {
+  const s = new Set(atuais);
+  if (s.has(id)) s.delete(id);
+  else s.add(id);
+  return criteriosDaClasse(classe, [...s]);
 }
 
 export function useEstadoQuadroUrl() {
@@ -123,11 +138,12 @@ export function useEstadoQuadroUrl() {
     (classe: ClasseQuadro) => {
       if (classe === estado.classe) return;
       aplicar({
+        ...estado,
         classe,
         ordem: ORDEM_PADRAO,
         dir: DIRECAO_PADRAO[ORDEM_PADRAO],
-        modo: estado.modo,
-        chips: [],
+        criterios: [],
+        naCarteira: false,
         setor: null,
       });
     },
@@ -148,12 +164,26 @@ export function useEstadoQuadroUrl() {
     (ordem: OrdemQuadro, dir: DirecaoOrdem) => aplicar({ ...estado, ordem, dir }),
     [aplicar, estado],
   );
+  /** A pílula da coluna ativa volta para A–Z. */
+  const voltarAz = useCallback(
+    () => aplicar({ ...estado, ordem: ORDEM_PADRAO, dir: DIRECAO_PADRAO[ORDEM_PADRAO] }),
+    [aplicar, estado],
+  );
   const setModo = useCallback(
     (modo: ModoQuadro) => aplicar({ ...estado, modo }),
     [aplicar, estado],
   );
-  const alternarFiltro = useCallback(
-    (chip: FiltroRapido) => aplicar({ ...estado, chips: alternarChip(estado.chips, chip) }),
+  const setJanela = useCallback(
+    (janela: Janela) => aplicar({ ...estado, janela }),
+    [aplicar, estado],
+  );
+  const alternarCriterioUrl = useCallback(
+    (id: IdCriterio) =>
+      aplicar({ ...estado, criterios: alternarCriterio(estado.classe, estado.criterios, id) }),
+    [aplicar, estado],
+  );
+  const alternarNaCarteira = useCallback(
+    () => aplicar({ ...estado, naCarteira: !estado.naCarteira }),
     [aplicar, estado],
   );
   const setSetor = useCallback(
@@ -161,12 +191,12 @@ export function useEstadoQuadroUrl() {
     [aplicar, estado],
   );
   const limparFiltros = useCallback(
-    () => aplicar({ ...estado, chips: [], setor: null }),
+    () => aplicar({ ...estado, criterios: [], naCarteira: false, setor: null }),
     [aplicar, estado],
   );
 
   const filtros = useMemo(() => filtrosDoEstado(estado), [estado]);
-  const temFiltro = estado.chips.length > 0 || !!estado.setor;
+  const temFiltro = estado.criterios.length > 0 || estado.naCarteira || !!estado.setor;
 
   return {
     estado,
@@ -175,8 +205,11 @@ export function useEstadoQuadroUrl() {
     setClasse,
     ordenarPor,
     setOrdem,
+    voltarAz,
     setModo,
-    alternarFiltro,
+    setJanela,
+    alternarCriterio: alternarCriterioUrl,
+    alternarNaCarteira,
     setSetor,
     limparFiltros,
   };

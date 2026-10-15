@@ -36,9 +36,9 @@ export interface EntradaFrescorBlocos {
   fiiMes: string | null;
   /** proventos defasados pela regra existente (flags/motivos da linha) */
   proventosDefasados: boolean;
-  /** versão do Quadro (ISO de geradoEm) = quando o Índice foi calculado */
+  /** versão do Quadro (ISO de geradoEm); v2.4: não usada (o bloco do Índice saiu) */
   versao: string | null;
-  /** data de referência do cálculo (AAAA-MM-DD) */
+  /** data de referência do cálculo (AAAA-MM-DD); v2.4: não usada */
   dataRef?: string | null;
 }
 
@@ -175,16 +175,6 @@ export function frescorProventos(defasados: boolean, precoData: string | null): 
   };
 }
 
-export function frescorIndice(versao: string | null, dataRef?: string | null): FrescorBloco {
-  const valida = versao && !Number.isNaN(Date.parse(versao)) ? versao : null;
-  return {
-    fonte: T.fontes.indice,
-    referencia: dataBr(dataRef ?? (valida ? valida.slice(0, 10) : null)),
-    atualizadoEm: valida,
-    status: valida ? 'em_dia' : 'sem_dado',
-  };
-}
-
 const PESO: Record<FrescorBloco['status'], number> = { atrasado: 2, sem_dado: 1, em_dia: 0 };
 
 /** Junta camadas num selo: fontes unidas por ' · ', situação = a pior. */
@@ -204,39 +194,30 @@ export function combinarFrescor(...partes: FrescorBloco[]): FrescorBloco {
   return out;
 }
 
-/** Frescor por bloco (chave = BlocoReporte). Blocos sem menu (carteira, tese, educação) ficam fora. */
+/**
+ * Frescor por bloco (chave = BlocoReporte). Blocos sem menu (carteira, tese, educação) ficam fora.
+ * v2.4 (fatia C2): sai o bloco do Índice (nenhuma chave /indice/ no JSON); entra
+ * 'criterios_fundamentos' (mesma fonte dos fundamentos: DFP/ITR ou informe do FII) e os pares passam
+ * a combinar cotação + fundamentos (a tabela mostra múltiplos e a contagem de critérios).
+ */
 export function montarFrescorBlocos(
   e: EntradaFrescorBlocos,
 ): Partial<Record<BlocoReporte, FrescorBloco>> {
   const cot = frescorCotacao(e.precoData, e.hoje);
   const prov = frescorProventos(e.proventosDefasados, e.precoData);
-  const indice = frescorIndice(e.versao, e.dataRef);
-  if (e.classe === 'fii') {
-    const inf = frescorInformeFii(e.fiiMes, e.hoje);
-    return {
-      cabecalho: cot,
-      indice,
-      criterios: indice,
-      kpis: combinarFrescor(cot, inf),
-      grafico: combinarFrescor(inf, cot),
-      dividendos: prov,
-      fundamentos: inf,
-      valuation: combinarFrescor(cot, inf),
-      historicos: inf,
-      pares: indice,
-    };
-  }
-  const fund = frescorFundamentos(e.dfpAno, e.itr, e.hoje);
+  const fund =
+    e.classe === 'fii'
+      ? frescorInformeFii(e.fiiMes, e.hoje)
+      : frescorFundamentos(e.dfpAno, e.itr, e.hoje);
   return {
     cabecalho: cot,
-    indice,
-    criterios: indice,
+    criterios_fundamentos: fund,
     kpis: combinarFrescor(cot, fund),
     grafico: combinarFrescor(fund, cot),
     dividendos: prov,
     fundamentos: fund,
     valuation: combinarFrescor(cot, fund),
     historicos: fund,
-    pares: indice,
+    pares: combinarFrescor(cot, fund),
   };
 }

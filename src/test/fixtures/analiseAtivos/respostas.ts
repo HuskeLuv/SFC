@@ -1,7 +1,8 @@
 /**
  * Respostas de exemplo das APIs /api/analise-ativos/* (tipadas pelos contratos), para testes de
- * hooks e componentes das fatias 0b, A, B, C e D. Números do banco dev de 29/09/2026.
- * As linhas do Quadro saem de linhasDb.ts via paraLinhaQuadroApi (mesma conversão da API).
+ * hooks e componentes. Números do banco dev de 29/09/2026. As linhas do Quadro saem de linhasDb.ts
+ * via paraLinhaQuadroApi (mesma conversão da API). v2.4 (fatia F): sem o indicador antigo (Índice,
+ * semáforo, efeito no Índice, ano destacado) — o contratoSemNota.test.ts varre estas respostas.
  */
 import { paraLinhaQuadroApi } from '@/services/analiseAtivos/leitura/linhasQuadro';
 import {
@@ -15,6 +16,9 @@ import {
   LINHA_TGMA3,
   LINHA_WEGE3,
 } from '@/test/fixtures/analiseAtivos/linhasDb';
+import { CRITERIOS_ATIVO_WEGE3 } from '@/test/fixtures/analiseAtivos/criterios';
+import { CRITERIA_PARAMS_V1 } from '@/services/analiseAtivos/params/criteriaParamsV1';
+import { definicoesQuadro } from '@/services/analiseAtivos/quadro/consultaQuadro';
 import type {
   AtivoTopoResposta,
   BuscaIndiceResposta,
@@ -60,7 +64,10 @@ export const QUADRO_ACOES: QuadroResposta = {
   contagens: { acao: 4, fii: 3 },
   facetas: { setores: ['Bens Industriais', 'Financeiro', 'Utilidade Pública'], tipos: [] },
   frescorCotacao: { data: '2026-09-29', status: 'em_dia' },
-  itens: [API_ITUB4, API_WEGE3, API_TGMA3, API_AURE3],
+  itens: [API_AURE3, API_ITUB4, API_TGMA3, API_WEGE3],
+  janela: 5,
+  totalClasse: 4,
+  definicoes: definicoesQuadro('acao', CRITERIA_PARAMS_V1),
 };
 
 export const QUADRO_FIIS: QuadroResposta = {
@@ -68,7 +75,9 @@ export const QUADRO_FIIS: QuadroResposta = {
   classe: 'fii',
   total: 3,
   facetas: { setores: [], tipos: ['tijolo', 'papel', 'fof'] },
-  itens: [API_HGLG11, API_HCTR11, API_HFOF11],
+  itens: [API_HCTR11, API_HFOF11, API_HGLG11],
+  totalClasse: 3,
+  definicoes: definicoesQuadro('fii', CRITERIA_PARAMS_V1),
 };
 
 export const BUSCA: BuscaIndiceResposta = {
@@ -87,8 +96,6 @@ export const BUSCA: BuscaIndiceResposta = {
     n: l.nome,
     c: l.classe,
     q: l.noQuadro,
-    i: l.indice.valor,
-    e: l.indice.estado,
     f: l.fiiTipo,
     m: l.foraDoQuadroMotivo,
   })),
@@ -111,7 +118,6 @@ export const ATIVO_WEGE3: AtivoTopoResposta = {
   tags: ['Bens Industriais', 'Motores, Compressores e Outros', 'Novo Mercado'],
   noQuadro: true,
   foraDoQuadroMotivo: null,
-  tickerReferenciaIndice: 'WEGE3',
   assetId: null,
   cotacao: {
     preco: 41.2,
@@ -120,78 +126,7 @@ export const ATIVO_WEGE3: AtivoTopoResposta = {
     variacaoPct: 0.73,
     baixaLiquidez: false,
   },
-  indice: {
-    valor: 9.01,
-    estado: 'calculado',
-    regua: 'acao',
-    motivos: [],
-    caixaExplicativa: null,
-    leitura: '4 de 5 critérios atendidos',
-    componentes: [
-      {
-        nome: 'lucro',
-        rotulo: 'Consistência do lucro',
-        nota: 10,
-        estado: 'calculado',
-        peso: 0.35,
-        texto: '12 anos seguidos de lucro',
-      },
-      {
-        nome: 'divida',
-        rotulo: 'Endividamento',
-        nota: 10,
-        estado: 'calculado',
-        peso: 0.2,
-        texto: 'Caixa líquido',
-      },
-      {
-        nome: 'rent',
-        rotulo: 'Rentabilidade',
-        nota: 10,
-        estado: 'calculado',
-        peso: 0.2,
-        texto: 'ROE de 30,2%',
-      },
-      {
-        nome: 'div',
-        rotulo: 'Proventos',
-        nota: 9.9,
-        estado: 'calculado',
-        peso: 0.15,
-        texto: 'DY 12m de 3,98%',
-      },
-      {
-        nome: 'preco',
-        rotulo: 'Preço',
-        nota: 4.2,
-        estado: 'calculado',
-        peso: 0.1,
-        texto: 'P/L 8% acima da média de 10 anos',
-      },
-    ],
-    formula:
-      'Índice MF = 0,35 × C_lucro + 0,20 × C_dívida + 0,20 × C_rent + 0,15 × C_div + 0,10 × C_preço',
-    criteriosAtendidos: 4,
-    criteriosAplicaveis: 5,
-  },
-  semaforo: [
-    {
-      codigo: 'lucros_consecutivos',
-      titulo: 'Lucros consecutivos',
-      status: 'atende',
-      frase: '12 anos seguidos de lucro; referência do critério: 5 anos',
-      provisorio: false,
-      desligado: false,
-    },
-    {
-      codigo: 'dividendos',
-      titulo: 'Dividendos',
-      status: 'parcial',
-      frase: 'Dividend yield de 12 meses de 3,98%; referência do critério: 4%',
-      provisorio: false,
-      desligado: false,
-    },
-  ],
+  criterios: CRITERIOS_ATIVO_WEGE3,
   kpis: [
     {
       codigo: 'pl',
@@ -296,7 +231,6 @@ export const ATIVO_WEGE3_V2: AtivoTopoResposta = {
       exibicao: 'selo',
       motivo: 'Provento recente mais que o dobro do ano anterior.',
       desde: '2026-09-29',
-      efeitoIndice: 'O Índice MF fica incompleto: proventos fora da conta.',
       origem: 'regra',
       caso: null,
     },
@@ -338,7 +272,7 @@ export const FUNDAMENTOS_WEGE3: FundamentosResposta = {
     {
       rotulo: '2025',
       ano: 2025,
-      destaque: true,
+      ultimoAno: true,
       valores: {
         receita: { estado: 'ok', valor: 40000 },
         lucro: { estado: 'ok', valor: 6400 },
@@ -346,7 +280,7 @@ export const FUNDAMENTOS_WEGE3: FundamentosResposta = {
       selos: ['proventos_em_conferencia'],
     },
   ],
-  notas: ['Valores em R$ mi · ano fiscal · fonte: CVM'],
+  observacoes: ['Valores em R$ mi · ano fiscal · fonte: CVM'],
 };
 
 export const VALUATION_WEGE3: ValuationResposta = {
@@ -394,7 +328,7 @@ export const VALUATION_WEGE3: ValuationResposta = {
     },
   ],
   pares: { criterio: 'mesmo segmento B3 (completado pelo subsetor)', itens: [API_WEGE3] },
-  nota: 'Referência = mediana dos pares; barra = posição nos últimos 10 anos.',
+  observacao: 'Referência = mediana dos pares; barra = posição nos últimos 10 anos.',
 };
 
 export const TESE_VAZIA: TeseResposta = { corpo: '', atualizadoEm: null, visibilidade: 'privada' };

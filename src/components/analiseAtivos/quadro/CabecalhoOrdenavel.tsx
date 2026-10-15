@@ -5,6 +5,9 @@
  * padrão da coluna, DIRECAO_PADRAO). A coluna da ordem fica destacada (fundo patrimonio #396CAA,
  * par do TABLE_STYLES.highlightTd). Colunas sem ordem viram th simples.
  *
+ * v2.4: botão de ordenar com alvo de 44 px (min-h-11) e dica opcional (title do botão,
+ * ex.: "Critérios: quantos critérios o ativo atende na janela").
+ *
  * Contraste (bloco C, fatia B item 7): texto branco sobre outside (#0079F2) dá ~4,2:1 e reprova o
  * AA; sobre patrimonio (#396CAA) dá ≥ 5:1. Outside fica só em elemento não textual.
  */
@@ -23,6 +26,8 @@ export interface CabecalhoOrdenavelProps {
   onOrdenar: (ordem: OrdemQuadro) => void;
   /** coluna fixa à esquerda (Ativo/Fundo) */
   fixa?: boolean;
+  /** dica da coluna (title do botão/th e texto anunciado) */
+  dica?: string;
   className?: string;
 }
 
@@ -45,6 +50,7 @@ export default function CabecalhoOrdenavel({
   dir,
   onOrdenar,
   fixa = false,
+  dica,
   className = '',
 }: CabecalhoOrdenavelProps) {
   const ordenavel = coluna.ordem !== null;
@@ -69,12 +75,14 @@ export default function CabecalhoOrdenavel({
       style={estilo}
       data-coluna={coluna.codigo}
       data-ordem-ativa={ativa ? '' : undefined}
+      title={!ordenavel ? dica : undefined}
     >
       {ordenavel ? (
         <BotaoOrdenar
           rotulo={rotulo}
           ativa={ativa}
           dir={dir}
+          dica={dica}
           onClick={() => onOrdenar(coluna.ordem as OrdemQuadro)}
           justifica={JUSTIFICA[coluna.alinhamento]}
         />
@@ -89,12 +97,14 @@ function BotaoOrdenar({
   rotulo,
   ativa,
   dir,
+  dica,
   onClick,
   justifica,
 }: {
   rotulo: string;
   ativa: boolean;
   dir: DirecaoOrdem;
+  dica?: string;
   onClick: () => void;
   justifica: string;
 }) {
@@ -103,7 +113,8 @@ function BotaoOrdenar({
       type="button"
       onClick={onClick}
       aria-label={formatarTexto(TEXTOS_TELA.quadro.ordenarPor, { valor: rotulo })}
-      className={`inline-flex w-full items-center gap-1 ${justifica} uppercase tracking-wide outline-none focus-visible:ring-[3px] focus-visible:ring-white/80`}
+      title={dica}
+      className={`-my-2 inline-flex min-h-11 w-full items-center gap-1 ${justifica} uppercase tracking-wide outline-none focus-visible:ring-[3px] focus-visible:ring-white/80`}
     >
       <span>{rotulo}</span>
       <span aria-hidden="true" className={ativa ? 'opacity-100' : 'opacity-40'}>

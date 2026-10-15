@@ -9,8 +9,11 @@
  *
  * Consultor agindo (decisão 7): a API não manda o salvo; a calculadora funciona em rascunho com a
  * posição do CLIENTE (overlay da Carteira) e a caixa "Os cenários salvos são pessoais…".
- * Restaurar (decisão 13): sem confirmação; DELETE + padrão + aviso com "Desfazer" (5 s), que
- * regrava o cenário anterior.
+ * "Limpar minhas premissas" (decisão 13; v2.4): sem confirmação; DELETE + premissas em branco +
+ * aviso com "Desfazer" (5 s), que regrava o cenário anterior.
+ *
+ * v2.4 (fatia C2): o PUT vai no formato v2 (premissas em branco = null; o tipo do hook ainda é o
+ * v1 até a F); o rodapé literal leva data-texto-legal="rodape-cenarios".
  */
 import { useCallback, useMemo, useState, type ReactNode } from 'react';
 import CartaoAnalise from '@/components/analiseAtivos/ativo/analise/CartaoAnalise';
@@ -32,7 +35,11 @@ import {
 import { useNaCarteiraAtivo } from '@/components/analiseAtivos/ativo/usuario/useNaCarteiraAtivo';
 import { useApagarCenario, useCenarios, useSalvarCenario } from '@/hooks/useAnaliseAtivosBlocoD';
 import { useIsBelowLg } from '@/hooks/useMediaQuery';
-import { RODAPE_CENARIOS, TEXTOS_CENARIOS } from '@/services/analiseAtivos/textosCenarios';
+import {
+  ID_RODAPE_CENARIOS,
+  RODAPE_CENARIOS,
+  TEXTOS_CENARIOS,
+} from '@/services/analiseAtivos/textosCenarios';
 import { formatarTexto } from '@/services/analiseAtivos/textos';
 import type { CenarioPutBody, CenariosResposta } from '@/types/analiseAtivosBlocoD';
 import type { ClasseQuadro } from '@/types/analiseAtivosApi';
@@ -48,12 +55,14 @@ interface Props {
 }
 
 function corpoDoSalvo(r: CenariosResposta): CenarioPutBody | null {
-  if (!r.salvo) return null;
-  return {
-    classe: r.classe,
-    premissas: r.salvo.premissas,
-    dados: r.salvo.dadosEditados ?? {},
-  } as CenarioPutBody;
+  if (r.classe === 'acao') {
+    return r.salvo
+      ? { classe: 'acao', premissas: r.salvo.premissas, dados: r.salvo.dadosEditados ?? {} }
+      : null;
+  }
+  return r.salvo
+    ? { classe: 'fii', premissas: r.salvo.premissas, dados: r.salvo.dadosEditados ?? {} }
+    : null;
 }
 
 function Calculadora({
@@ -208,6 +217,7 @@ function Calculadora({
             <BlocoMetaRenda
               ticker={ticker}
               meta={saida.metaRenda}
+              motivoSemMeta={saida.metaRendaMotivo}
               temPosicao={!!posicao}
               consultor={consultor}
               onCriado={(mensagem) =>
@@ -264,6 +274,7 @@ export default function MeusCenarios({ ticker, classe, cabecalhoExtra }: Props) 
       <p
         className="rounded-[10px] border border-gray-100 bg-gray-50 px-3 py-2.5 text-[12.5px] leading-normal text-gray-700 dark:border-gray-800 dark:bg-white/[0.03] dark:text-gray-200"
         data-rodape-cenarios=""
+        data-texto-legal={ID_RODAPE_CENARIOS}
       >
         {RODAPE_CENARIOS}
       </p>

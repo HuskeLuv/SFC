@@ -113,7 +113,13 @@ describe('contrato do bloco D', () => {
       expect(ok(acao({ yieldPct: '6,5' }))).toBe(false);
       expect(ok(acao({ yieldPct: '6' }))).toBe(false);
       expect(ok(fii({ rendaMensal: '1000' }))).toBe(false);
-      expect(ok(acao({ yieldPct: null }))).toBe(false);
+    });
+
+    it('v2.4: premissas em branco (null) são aceitas; margem continua obrigatória', () => {
+      expect(ok(acao({ yieldPct: null, gPct: null, kPct: null }))).toBe(true);
+      expect(ok(fii({ yieldPct: null, rendaMensal: null, pvpAlvo: null }))).toBe(true);
+      expect(ok(acao({ margemPct: null }))).toBe(false);
+      expect(ok(acao({ yieldPct: undefined }))).toBe(false);
     });
   });
 

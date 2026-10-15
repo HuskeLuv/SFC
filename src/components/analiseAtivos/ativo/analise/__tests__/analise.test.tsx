@@ -19,12 +19,14 @@ import CardMultiplo from '../CardMultiplo';
 import ChipsGrupo from '../ChipsGrupo';
 import { TEXTOS_TELA } from '@/services/analiseAtivos/textosTela';
 import { TEXTOS_RAIO_X } from '@/services/analiseAtivos/textosRaioX';
+import { TEXTOS_ATIVO } from '@/services/analiseAtivos/textosAtivo';
+import { esperarDomLimpo } from '@/test/utils/varrerDom';
+import { CRITERIOS_LINHA_ITUB4 } from '@/test/fixtures/analiseAtivos/criterios';
 import { MOTIVO_PER_SHARE } from '@/services/analiseAtivos/regras/conferencia/conferenciaAnual';
 import {
   API_HGLG11,
   API_ITUB4,
   API_TGMA3,
-  API_WEGE3,
   FUNDAMENTOS_WEGE3,
   VALUATION_WEGE3,
 } from '@/test/fixtures/analiseAtivos/respostas';
@@ -78,8 +80,12 @@ const VALUATION: ValuationResposta = {
     },
   ],
   pares: {
-    criterio: TEXTOS_TELA.ativo.criterioParesAcao,
-    itens: [API_WEGE3, API_ITUB4, API_TGMA3],
+    criterio: 'mesmo segmento B3, depois mesmo subsetor · ordem A–Z · critérios em 5 anos',
+    // v2.4: só os pares (sem o próprio ativo), A–Z, com os critérios em 5 anos
+    itens: [
+      { ...API_ITUB4, criterios: CRITERIOS_LINHA_ITUB4 },
+      { ...API_TGMA3, criterios: null },
+    ],
   },
 };
 
@@ -89,7 +95,7 @@ const FUNDAMENTOS: FundamentosResposta = {
     {
       rotulo: '2024',
       ano: 2024,
-      destaque: false,
+      ultimoAno: false,
       valores: {
         receita: { estado: 'ok', valor: 37987 },
         lucro: { estado: 'ausente', motivo: 'controladora_zero', texto: 'lucro da controladora' },
@@ -99,14 +105,14 @@ const FUNDAMENTOS: FundamentosResposta = {
     {
       rotulo: '2025',
       ano: 2025,
-      destaque: true,
+      ultimoAno: true,
       valores: { receita: { estado: 'ok', valor: 40804 }, lucro: { estado: 'ok', valor: -664 } },
       selos: ['proventos_em_conferencia'],
     },
     {
       rotulo: 'Últ. 12m',
       ano: null,
-      destaque: false,
+      ultimoAno: false,
       valores: { receita: { estado: 'ok', valor: 40130 }, lucro: { estado: 'ok', valor: 6254 } },
       selos: [],
     },
@@ -120,7 +126,7 @@ beforeEach(() => {
 });
 
 describe('BlocoFundamentosEssencial', () => {
-  it('tabela com th scope=col/row, Ano fixa, último ano destacado e Últ. 12m', () => {
+  it('tabela com th scope=col/row, Ano fixa, último ano marcado (data-ultimo-ano) e Últ. 12m', () => {
     mockHooks.useFundamentosAtivo.mockReturnValue(consulta(FUNDAMENTOS));
     render(<BlocoFundamentosEssencial ticker="WEGE3" classe="acao" />);
     const tabela = screen.getByRole('table');
@@ -128,13 +134,42 @@ describe('BlocoFundamentosEssencial', () => {
     expect(cols.map((c) => c.getAttribute('scope'))).toEqual(['col', 'col', 'col']);
     expect(cols[0].className).toMatch(/sticky/);
     const linhas = within(tabela).getAllByRole('rowheader');
-    expect(linhas.map((l) => l.textContent)).toEqual(['2024', '2025', 'Últ. 12m']);
+    expect(linhas.map((l) => l.textContent)).toEqual([
+      '2024',
+      `2025 (${TEXTOS_ATIVO.essencial.ultimoAnoSr})`,
+      'Últ. 12m',
+    ]);
     expect(linhas.every((l) => l.getAttribute('scope') === 'row')).toBe(true);
-    expect(tabela.querySelector('[data-destaque]')?.textContent).toContain('2025');
+    expect(tabela.querySelector('[data-ultimo-ano]')?.textContent).toContain('2025');
+    expect(tabela.querySelector('[data-destaque]')).toBeNull();
     // ausente = '—' com o motivo no title; negativo com a cor de negativo
     expect(screen.getByTitle('lucro da controladora').textContent).toBe('—');
     expect(screen.getByText('−664').className).toMatch(/D92D20/);
-    expect(screen.getByText(FUNDAMENTOS.notas[0])).toBeTruthy();
+    expect(screen.getByText(FUNDAMENTOS.observacoes[0])).toBeTruthy();
+  });
+
+  it('v2.4: "Lucro líq. ⓘ"/"Margem líq. ⓘ" com a explicação D2 no title, leitor de tela e notas', () => {
+    const fund: FundamentosResposta = {
+      ...FUNDAMENTOS,
+      unidade: 'R$ bi',
+      colunas: [
+        { codigo: 'receita', rotulo: 'Receita líq.', formato: 'numero', fonteCvmAviso: false },
+        { codigo: 'lucro', rotulo: 'Lucro líq. ⓘ', formato: 'numero', fonteCvmAviso: false },
+        { codigo: 'margem', rotulo: 'Margem líq. ⓘ', formato: 'pct', fonteCvmAviso: false },
+      ],
+    };
+    mockHooks.useFundamentosAtivo.mockReturnValue(consulta(fund));
+    const { container } = render(<BlocoFundamentosEssencial ticker="WEGE3" classe="acao" />);
+    const lucro = container.querySelector('[data-explicacao-coluna="lucro"]')!;
+    expect(lucro.getAttribute('title')).toBe(TEXTOS_ATIVO.essencial.tooltips.lucro);
+    expect(lucro.textContent).toContain('Lucro líq. ⓘ');
+    expect(lucro.querySelector('.sr-only')?.textContent).toContain('A CVM não publica');
+    expect(container.querySelector('[data-explicacao-coluna="margem"]')).not.toBeNull();
+    expect(container.querySelector('[data-explicacao-coluna="receita"]')).toBeNull();
+    expect(container.querySelector('[data-nota-coluna="lucro"]')?.textContent).toBe(
+      `Lucro líq.: ${TEXTOS_ATIVO.essencial.tooltips.lucro}`,
+    );
+    expect(screen.getByText(TEXTOS_ATIVO.essencial.notaEssencial)).toBeTruthy();
   });
 
   it('carregando e erro com "Tentar de novo"', () => {
@@ -163,7 +198,7 @@ describe('BlocoFundamentosEssencial — decisão 1 do Bloco D (base por ação q
         {
           rotulo: '2024',
           ano: 2024,
-          destaque: true,
+          ultimoAno: true,
           valores: {
             receita: { estado: 'ok', valor: 8173.6 },
             lpa: {
@@ -196,7 +231,10 @@ describe('BlocoValuationMultiplos', () => {
     const grupo = screen.getByRole('group', { name: TV.gruposRotulo });
     const chips = within(grupo).getAllByRole('button');
     expect(chips.map((c) => c.getAttribute('aria-pressed'))).toEqual(['true', 'false', 'false']);
-    expect(screen.getByText(VALUATION.grupos[0].resumo)).toBeTruthy();
+    const resumo = document.querySelector('[data-resumo-grupo="preco"]')!;
+    expect(resumo.textContent).toBe(
+      `${VALUATION.grupos[0].resumo} · ${TEXTOS_ATIVO.valuation.legenda}`,
+    );
     fireEvent.click(chips[1]);
     expect(chips[1].getAttribute('aria-pressed')).toBe('true');
     expect(screen.getByText(TV.barraConferencia)).toBeTruthy();
@@ -298,30 +336,60 @@ describe('BlocoMultiplosHistoricos', () => {
 });
 
 describe('BlocoPares', () => {
-  it('próprio ativo primeiro e sem link; pares clicáveis; incompleto com asterisco', () => {
+  it('v2.4: só os pares (sem o próprio ativo), clicáveis, sem Índice e com a coluna Critérios', () => {
     mockHooks.useValuationAtivo.mockReturnValue(consulta(VALUATION));
-    render(<BlocoPares ticker="WEGE3" classe="acao" />);
+    const { container } = render(<BlocoPares ticker="WEGE3" classe="acao" />);
     const tabela = screen.getByRole('table');
+    const cols = within(tabela)
+      .getAllByRole('columnheader')
+      .map((c) => c.textContent);
+    expect(cols).toEqual(['Ativo', 'P/L', 'P/VP', 'ROE', 'DY 12m', 'Lucros seguidos', 'Critérios']);
     const linhas = within(tabela).getAllByRole('rowheader');
-    expect(linhas[0].textContent).toContain('WEGE3');
-    expect(within(linhas[0]).queryByRole('link')).toBeNull();
-    const link = within(linhas[1]).getByRole('link', { name: 'ITUB4' });
+    expect(linhas.map((l) => within(l).getByRole('link').textContent)).toEqual(['ITUB4', 'TGMA3']);
+    expect(container.querySelector('[data-par="WEGE3"]')).toBeNull();
+    expect(container.querySelector('[data-proprio]')).toBeNull();
+    const link = within(linhas[0]).getByRole('link', { name: 'ITUB4' });
     expect(link.getAttribute('href')).toBe('/analise-ativos/ITUB4');
-    fireEvent.click(linhas[2].closest('tr')!);
+    expect(link.className).toContain('min-h-11');
+    fireEvent.click(linhas[1].closest('tr')!);
     expect(mockPush).toHaveBeenCalledWith('/analise-ativos/TGMA3');
-    expect(within(tabela).getByText(/\*$/)).toBeTruthy();
-    expect(screen.getByText(TEXTOS_TELA.analise.pares.notaIncompleto)).toBeTruthy();
-    expect(screen.getByText(TEXTOS_TELA.ativo.criterioParesAcao)).toBeTruthy();
+    // critérios: botão neutro 'n de k' que NÃO abre a linha; sem avaliação = '—'
+    mockPush.mockClear();
+    const celula = within(
+      container.querySelector('[data-criterios-par="ITUB4"]') as HTMLElement,
+    ).getByRole('button');
+    expect(celula.textContent).toContain('de 3');
+    fireEvent.click(celula);
+    expect(mockPush).not.toHaveBeenCalled();
+    expect(container.querySelector('[data-criterios-par="TGMA3"]')?.textContent).toContain('—');
+    // nome vindo do banco fica fora da varredura; o resto do card passa na linguagemV2
+    expect(linhas[0].querySelector('[data-nome-ativo]')?.textContent).toBe(API_ITUB4.nome);
+    expect(container.textContent).not.toMatch(/Índice/);
+    esperarDomLimpo(container);
+    expect(screen.getByText(VALUATION.pares.criterio)).toBeTruthy();
+  });
+
+  it('FII de tijolo: Fundo · DY 12m · P/VP · Vacância (CVM) · Patrimônio · Critérios', () => {
+    mockHooks.useValuationAtivo.mockReturnValue(
+      consulta({
+        ...VALUATION,
+        pares: { criterio: 'x', itens: [{ ...API_HGLG11, ticker: 'BTLG11', indice: undefined }] },
+      }),
+    );
+    render(<BlocoPares ticker="HGLG11" classe="fii" />);
+    expect(
+      within(screen.getByRole('table'))
+        .getAllByRole('columnheader')
+        .map((c) => c.textContent),
+    ).toEqual(['Fundo', 'DY 12m', 'P/VP', 'Vacância (CVM)', 'Patrimônio', 'Critérios']);
   });
 
   it('sem pares: texto próprio', () => {
     mockHooks.useValuationAtivo.mockReturnValue(
-      consulta({
-        ...VALUATION,
-        pares: { criterio: TEXTOS_TELA.ativo.criterioParesFii, itens: [API_HGLG11] },
-      }),
+      consulta({ ...VALUATION, pares: { criterio: 'x', itens: [] } }),
     );
     render(<BlocoPares ticker="HGLG11" classe="fii" />);
-    expect(screen.getByText(TEXTOS_TELA.ativo.semPares)).toBeTruthy();
+    expect(screen.getByText(TEXTOS_ATIVO.pares.vazioFii)).toBeTruthy();
+    expect(screen.queryByRole('table')).toBeNull();
   });
 });

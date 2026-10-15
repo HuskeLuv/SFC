@@ -24,7 +24,6 @@ import {
   PREFIXO_MOTIVO_CONFERENCIA,
 } from '@/services/analiseAtivos/leitura/ativo/conferenciasAtivo';
 import { montarKpis } from '@/services/analiseAtivos/leitura/ativo/kpisAtivo';
-import { montarSemaforoTela } from '@/services/analiseAtivos/leitura/ativo/semaforoTela';
 import { montarDividendos } from '@/services/analiseAtivos/leitura/ativo/dividendosAnuais';
 import {
   montarFundamentosAcao,
@@ -342,24 +341,6 @@ function fundamentosDe(classe: ClasseConferencia, flags: string[]) {
   });
 }
 
-/** Checks do semáforo (todos 'atende') por classe. */
-const CHECKS = {
-  acao: ['lucros_consecutivos', 'endividamento', 'rentabilidade', 'preco_historico', 'dividendos'],
-  fii: ['renda_recorrente', 'vacancia', 'obrigacoes_pl', 'preco_vp', 'dividendos'],
-} as const;
-
-function semaforoDe(classe: ClasseConferencia, flags: string[]) {
-  return montarSemaforoTela(
-    CHECKS[classe].map((codigo) => ({
-      codigo,
-      status: 'atende' as const,
-      valor: 1,
-      referencia: 1,
-    })),
-    gruposConf(flags),
-  );
-}
-
 const ehOculto = (e: Estado<number>, g: GrupoConferencia) =>
   e.estado === 'ausente' && e.motivo === `${PREFIXO_MOTIVO_CONFERENCIA}${g}`;
 
@@ -478,22 +459,18 @@ describe.each(CASOS)('matriz: grupo $g × classe $classe', ({ g, classe }) => {
     }
   });
 
-  it('Semáforo e Índice: critérios do grupo "Sem dado"; Índice incompleto só com componente', () => {
-    const s = semaforoDe(classe, flags);
+  it('conferência: critérios e componentes do grupo, sem efeito no Índice no JSON', () => {
     const marcados = g === 'historico' ? [] : def.criteriosSemaforo;
-    for (const c of s) {
-      expect(c.status === 'sem_dado').toBe(marcados.includes(c.codigo));
-      expect(encontrarPalavrasProibidas(c.frase)).toEqual([]);
-    }
     expect([...criteriosEmConferencia([g]).keys()].sort()).toEqual([...marcados].sort());
 
     const confs = montarConferenciasTela({ flags, classe });
     expect(confs.map((c) => c.grupo)).toEqual([g]);
     const comps = g === 'historico' ? [] : componentesDoGrupo(g, classe);
-    expect(confs[0].efeitoIndice !== null).toBe(comps.length > 0);
+    // v2.4: a conferência não leva mais o efeito no Índice (o campo sai do JSON)
+    expect('efeitoIndice' in confs[0]).toBe(false);
     expect([...componentesEmConferencia(confs, classe)].sort()).toEqual([...comps].sort());
     for (const c of confs) {
-      expect(encontrarPalavrasProibidas(`${c.motivo} ${c.efeitoIndice ?? ''}`)).toEqual([]);
+      expect(encontrarPalavrasProibidas(c.motivo)).toEqual([]);
     }
     // página: o campo principal acha a mesma conferência pelo helper único
     expect(conferenciaDoCampo(confs, def.campoPrincipal)?.grupo).toBe(g);
@@ -586,6 +563,5 @@ describe('regressão: params v1 (sem flag conf:) = tela da Fase 1', () => {
     const api = paraLinhaQuadroApi(row);
     expect({ ...api, flags: [] }).toEqual(paraLinhaQuadroApi({ ...row, flags: [] }));
     expect('conferencias' in api).toBe(false);
-    expect(semaforoDe('acao', row.flags).every((c) => c.status === 'atende')).toBe(true);
   });
 });

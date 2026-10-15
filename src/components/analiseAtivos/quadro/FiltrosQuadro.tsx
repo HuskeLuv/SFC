@@ -1,62 +1,48 @@
 'use client';
 
 /**
- * Chips de filtro do Quadro + Setor (ações) / Segmento (FIIs).
- * - Computador: chips de 36px que quebram linha; o Setor abre um popover com a lista (um por vez).
- * - Celular: trilho próprio com rolagem lateral só dentro dele (min-h-11, sem encolher); o Setor
- *   abre um BottomSheet; o "voltar" do sistema fecha o sheet (useMobileHistoryLayer).
- * Chip ligado: fundo seguranca, texto branco, aria-pressed.
+ * Filtro Setor (ações) / Segmento (FIIs) da barra "Filtros de fundamentos" (v2.4). Os chips
+ * antigos (Lucro 5+ anos, DY ≥, P/VP ≤, Tijolo/Papel, Só dados completos) saíram: a barra agora é a
+ * BarraFiltrosCriterios, que usa este componente para o Setor.
+ * - Computador: chip que abre um popover com a lista (um por vez); Esc ou clique fora fecham.
+ * - Celular: o chip abre um BottomSheet; o "voltar" do sistema fecha o sheet
+ *   (useMobileHistoryLayer) e o filtro só é aplicado depois de desfazer a entrada do histórico.
+ * Alvo de 44 px (min-h-11) com a pílula visível de 36 px dentro (`classeChipVisual`).
  */
 import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import BottomSheet from '@/components/ui/sheet/BottomSheet';
 import { useMobileHistoryLayer } from '@/hooks/useMobileHistoryLayer';
-import { TABLE_MOBILE_STYLES } from '@/components/ui/table/tableStyles';
-import { FILTROS_RAPIDOS, type FiltroRapido } from '@/constants/analiseAtivosVisual';
-import { TEXTOS_TELA } from '@/services/analiseAtivos/textosTela';
+import { CHIP_CRITERIO } from '@/constants/analiseAtivosVisual';
+import { TEXTOS_QUADRO } from '@/services/analiseAtivos/textosQuadro';
 import type { ClasseQuadro } from '@/types/analiseAtivosApi';
 
-const T = TEXTOS_TELA.quadro;
+const T = TEXTOS_QUADRO.barra;
 
-export interface FiltrosQuadroProps {
+/** Botão do chip: alvo de 44 px (min-h-11) sem encolher; a pílula visível vai num <span>. */
+export const BOTAO_CHIP = 'group relative inline-flex min-h-11 shrink-0 items-center outline-none';
+
+/** Pílula visível de 36 px do chip (ligado / desligado / sem dado). */
+export function classeChipVisual(estado: 'ligado' | 'desligado' | 'semDado'): string {
+  return `inline-flex h-9 items-center gap-1.5 whitespace-nowrap rounded-full border px-3 text-[13px] group-focus-visible:ring-[3px] group-focus-visible:ring-[#0079F2] dark:group-focus-visible:ring-[#6E9DC4] ${CHIP_CRITERIO[estado]}`;
+}
+
+export interface FiltroSetorProps {
   classe: ClasseQuadro;
-  chips: FiltroRapido[];
-  onAlternar: (chip: FiltroRapido) => void;
   setor: string | null;
   setores: string[];
   onSetor: (setor: string | null) => void;
-  temFiltro: boolean;
-  onLimpar: () => void;
-  variante: 'computador' | 'celular';
+  celular: boolean;
 }
 
-const FOCO =
-  'outline-none focus-visible:ring-[3px] focus-visible:ring-[#0079F2] dark:focus-visible:ring-[#6E9DC4]';
-
-function classeChip(ativo: boolean, celular: boolean): string {
-  const base = celular
-    ? 'inline-flex min-h-11 shrink-0 snap-start items-center whitespace-nowrap rounded-full border px-3.5 text-sm'
-    : 'inline-flex h-9 items-center whitespace-nowrap rounded-full border px-3 text-sm';
-  return `${base} ${FOCO} ${
-    ativo
-      ? 'border-[#314666] bg-[#314666] text-white dark:border-[#6E9DC4]'
-      : 'border-gray-200 text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-white/[0.04]'
-  }`;
-}
-
-export default function FiltrosQuadro({
+export default function FiltroSetor({
   classe,
-  chips,
-  onAlternar,
   setor,
   setores,
   onSetor,
-  temFiltro,
-  onLimpar,
-  variante,
-}: FiltrosQuadroProps) {
-  const celular = variante === 'celular';
+  celular,
+}: FiltroSetorProps) {
   const [aberto, setAberto] = useState(false);
-  const rotuloSetor = classe === 'acao' ? T.filtros.setor : T.filtros.segmento;
+  const rotulo = classe === 'acao' ? T.setor : T.segmento;
   const popoverId = useId();
   const caixaRef = useRef<HTMLSpanElement>(null);
   const fechar = useCallback(() => setAberto(false), []);
@@ -82,7 +68,7 @@ export default function FiltrosQuadro({
   const escolher = (s: string | null) => fecharEntao(() => onSetor(s));
 
   const lista = (
-    <div role="radiogroup" aria-label={rotuloSetor} className="flex flex-col gap-0.5">
+    <div role="radiogroup" aria-label={rotulo} className="flex flex-col gap-0.5">
       {[null, ...setores].map((s) => {
         const marcado = (s ?? null) === setor;
         return (
@@ -92,8 +78,8 @@ export default function FiltrosQuadro({
             role="radio"
             aria-checked={marcado}
             onClick={() => escolher(s)}
-            className={`flex w-full items-center justify-between gap-3 rounded-lg px-3 text-left text-sm ${FOCO} ${
-              celular ? 'min-h-[52px]' : 'min-h-9'
+            className={`flex w-full items-center justify-between gap-3 rounded-lg px-3 text-left text-sm outline-none focus-visible:ring-[3px] focus-visible:ring-[#0079F2] dark:focus-visible:ring-[#6E9DC4] ${
+              celular ? 'min-h-[52px]' : 'min-h-11'
             } ${
               marcado
                 ? 'bg-[#EDF2F8] font-medium text-[#396CAA] dark:bg-[#6E9DC4]/15 dark:text-[#6E9DC4]'
@@ -108,40 +94,20 @@ export default function FiltrosQuadro({
     </div>
   );
 
-  const chipsEl = FILTROS_RAPIDOS[classe].map((c) => {
-    const ativo = chips.includes(c);
-    return (
-      <button
-        key={c}
-        type="button"
-        aria-pressed={ativo}
-        data-filtro={c}
-        onClick={() => onAlternar(c)}
-        className={classeChip(ativo, celular)}
-      >
-        {T.filtros[c]}
-        {ativo && !celular ? (
-          <span aria-hidden="true" className="ml-1.5 text-xs opacity-80">
-            ✕
-          </span>
-        ) : null}
-      </button>
-    );
-  });
-
-  const botaoSetor = (
+  const botao = (
     <button
       type="button"
       aria-expanded={aberto}
       aria-controls={aberto && !celular ? popoverId : undefined}
       aria-haspopup="dialog"
+      aria-pressed={!!setor}
       data-filtro="setor"
       onClick={() => setAberto((x) => !x)}
-      className={classeChip(!!setor, celular)}
+      className={BOTAO_CHIP}
     >
-      {setor ?? rotuloSetor}{' '}
-      <span aria-hidden="true" className="ml-1">
-        ▾
+      <span className={classeChipVisual(setor ? 'ligado' : 'desligado')}>
+        {setor ?? rotulo}
+        <span aria-hidden="true">▾</span>
       </span>
     </button>
   );
@@ -149,26 +115,8 @@ export default function FiltrosQuadro({
   if (celular) {
     return (
       <>
-        <div
-          role="group"
-          aria-label={T.filtrosRotulo}
-          data-mf-scroll-x=""
-          data-quadro-chips=""
-          className={`${TABLE_MOBILE_STYLES.chipRail} min-h-[52px] flex-none items-center`}
-        >
-          {chipsEl}
-          {botaoSetor}
-          {temFiltro ? (
-            <button
-              type="button"
-              onClick={onLimpar}
-              className={`inline-flex min-h-11 shrink-0 items-center px-2 text-sm font-medium text-[#396CAA] dark:text-[#6E9DC4] ${FOCO}`}
-            >
-              {T.limparFiltros}
-            </button>
-          ) : null}
-        </div>
-        <BottomSheet isOpen={aberto} onClose={fechar} title={rotuloSetor}>
+        {botao}
+        <BottomSheet isOpen={aberto} onClose={fechar} title={rotulo}>
           <div className="pb-2">{lista}</div>
         </BottomSheet>
       </>
@@ -176,44 +124,27 @@ export default function FiltrosQuadro({
   }
 
   return (
-    <div
-      role="group"
-      aria-label={T.filtrosRotulo}
-      data-quadro-chips=""
-      className="flex flex-wrap items-center gap-2"
-    >
-      {chipsEl}
-      <span ref={caixaRef} className="relative">
-        {botaoSetor}
-        {aberto ? (
-          <div
-            id={popoverId}
-            role="dialog"
-            aria-label={rotuloSetor}
-            className="absolute top-11 left-0 z-40 max-h-80 w-72 overflow-y-auto rounded-xl border border-gray-200 bg-white p-2 shadow-lg dark:border-gray-700 dark:bg-gray-900"
-          >
-            {lista}
-            <div className="mt-2 flex justify-end">
-              <button
-                type="button"
-                onClick={() => setAberto(false)}
-                className={`inline-flex h-9 items-center rounded-lg px-3 text-sm text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-white/[0.04] ${FOCO}`}
-              >
-                {T.fechar}
-              </button>
-            </div>
-          </div>
-        ) : null}
-      </span>
-      {temFiltro ? (
-        <button
-          type="button"
-          onClick={onLimpar}
-          className={`inline-flex h-9 items-center px-1 text-sm font-medium text-[#396CAA] hover:underline dark:text-[#6E9DC4] ${FOCO}`}
+    <span ref={caixaRef} className="relative inline-flex">
+      {botao}
+      {aberto ? (
+        <div
+          id={popoverId}
+          role="dialog"
+          aria-label={rotulo}
+          className="absolute top-12 left-0 z-40 max-h-80 w-72 overflow-y-auto rounded-xl border border-gray-200 bg-white p-2 shadow-lg dark:border-[#2E3440] dark:bg-[#1F1F22]"
         >
-          {T.limparFiltros}
-        </button>
+          {lista}
+          <div className="mt-2 flex justify-end">
+            <button
+              type="button"
+              onClick={() => setAberto(false)}
+              className="inline-flex min-h-11 items-center rounded-lg px-3 text-sm text-gray-700 outline-none hover:bg-gray-50 focus-visible:ring-[3px] focus-visible:ring-[#0079F2] dark:text-gray-200 dark:hover:bg-white/[0.04]"
+            >
+              {T.fechar}
+            </button>
+          </div>
+        </div>
       ) : null}
-    </div>
+    </span>
   );
 }

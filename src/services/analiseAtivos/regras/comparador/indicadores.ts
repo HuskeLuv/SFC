@@ -1,40 +1,44 @@
 /**
- * Catálogo de critérios do Comparador (Bloco D, fatia C) — PURO e isomórfico.
+ * Catálogo de indicadores do Comparador (v2.4, fatia D — Comparador isonômico). PURO e isomórfico.
  *
- * Fonte: spec-desenho.json `regras_comparador` + decisões (decisoes.md, PREVALECEM):
- *  - D10: Nº de imóveis, Área informada e Vacância física (CVM) aparecem com "fonte CVM" e SEM ★
- *    (semValidacaoCvm) até validar com os relatórios dos gestores;
- *  - D11: payout NEUTRO (sem ★);
- *  - CRIs (papel): Nº de CRIs (maior) e Maior CRI (menor) com o selo "critério provisório";
- *  - Dív. líq./PL e P/Receita vêm do AssetMultiplesCurrent (LinhaQuadroApi não os tem);
- *  - P/VP do FII: tijolo/híbrido = menor; papel = perto de 1; tijolo + papel = sem ★.
+ * Os indicadores aparecem LADO A LADO, todos com o mesmo peso visual: não há direção ("maior é
+ * mais favorável"), marca de valor nem placar (spec v2.4 §3.3/§9). Os critérios de fundamentos
+ * (contagem factual "n de 6") vêm ANTES dos grupos, montados por montarComparador.
  *
- * Linhas fora da tabela (montadas na tela): Índice MF (anel, sem ★), Cotação (nos slots) e "Na
- * minha carteira" (overlay do cliente; a API não tem dado do usuário).
+ * Grupos (spec-desenho.json → arquitetura.fatias[D]):
+ *  - Ações: Qualidade · Endividamento · Preço · Dividendos;
+ *  - FIIs: Renda · Preço · Endividamento · fonte CVM (Obrigações/PL, comum aos dois tipos) ·
+ *    Qualidade dos imóveis (tijolo: vacância CVM com selo, nº de imóveis, área CVM) · Qualidade dos
+ *    ativos da carteira (papel: nº de CRIs) · Tamanho e liquidez.
+ *  - Misto (tijolo + papel, decidido pelo PERFIL de critérios e não pelo rótulo do fundo): cada
+ *    grupo de tipo marca 'n/a' para os fundos do outro tipo.
  *
  * Cada extrator devolve o Estado ANTES da política de conferência; montarComparador aplica a
- * conferência pelo `campoTela` (chip + fora do ★).
+ * conferência pelo `campoTela` (chip 'em conferência').
  */
 import type { CampoTela } from '@/services/analiseAtivos/regras/comum/conferencia';
 import { TEXTOS_COMPARADOR } from '@/services/analiseAtivos/textosComparador';
 import { TEXTOS_TELA } from '@/services/analiseAtivos/textosTela';
-import type { DirecaoDestaque } from '@/types/analiseAtivosBlocoD';
+import type { TipoAtivoComparador } from '@/types/analiseAtivosBlocoD';
 import type {
   ClasseQuadro,
   Estado,
-  FiiTipoTela,
   FormatoAnalise,
   LinhaQuadroApi,
 } from '@/types/analiseAtivosApi';
+import type { CriteriosLinhaApi } from '@/types/analiseAtivosCriterios';
 
-/** Tipo do ativo para a aplicabilidade de grupo/linha ('acao' ou o tipo do FII). */
-export type TipoAtivoComparador = 'acao' | FiiTipoTela;
+// ===========================================================================
+// Catálogo
+// ===========================================================================
 
 /** Dados de um ativo que os extratores leem (montados por montarComparador). */
 export interface DadosAtivoComparador {
   linha: LinhaQuadroApi;
-  /** régua do Índice ('acao_financeira' ⇒ dívida/margem/P/Receita n/a) */
-  regua: string | null;
+  /** perfil do ativo para a aplicabilidade ('acao' | 'tijolo' | 'papel') */
+  tipo: TipoAtivoComparador;
+  /** instituição financeira (D4): margem, dívida e P/Receita 'n/a' */
+  financeira: boolean;
   /** AssetMultiplesCurrent (só os campos usados); null = sem linha */
   atual: {
     divLiqPl: number | null;
@@ -48,33 +52,31 @@ export interface DadosAtivoComparador {
     nImoveis: number | null;
     areaM2: number | null;
     nCri: number | null;
-    maiorCriPct: number | null;
   } | null;
   /** FII com ticker↔CNPJ não conferido: dados do informe ficam '—' */
   cnpjEmConferencia: boolean;
 }
 
+type CodigoLinha = Exclude<keyof typeof TEXTOS_COMPARADOR.linhas, 'semNegociacao'>;
+
 export interface DefIndicador {
-  codigo: keyof typeof TEXTOS_COMPARADOR.linhas;
+  codigo: CodigoLinha;
   rotulo: string;
   sub: string | null;
   formato: FormatoAnalise;
-  /** direção do ★; o P/VP do FII é decidido por tipo (direcaoPvpFii) */
-  direcao: DirecaoDestaque;
   /** tipos a que a linha se aplica; os demais ficam 'n/a' */
   aplicavel: (tipo: TipoAtivoComparador) => boolean;
   fonteCvmAviso: boolean;
-  criterioProvisorio: boolean;
-  /** decisão 10: sem ★ até a validação */
-  semValidacaoCvm: boolean;
   /** campo de tela da conferência (regras/comum/conferencia.ts); null = sem conferência */
   campoTela: CampoTela | null;
   extrator: (d: DadosAtivoComparador) => Estado<number>;
 }
 
 export interface DefGrupoComparador {
-  codigo: keyof typeof TEXTOS_COMPARADOR.grupos;
+  codigo: string;
   rotulo: string;
+  /** rótulo quando a comparação mistura tijolo e papel */
+  rotuloMisto?: string;
   aplicavelA: TipoAtivoComparador[];
   linhas: DefIndicador[];
 }
@@ -82,15 +84,24 @@ export interface DefGrupoComparador {
 const TL = TEXTOS_COMPARADOR.linhas;
 const TG = TEXTOS_COMPARADOR.grupos;
 
-const TIPOS_FII: FiiTipoTela[] = ['tijolo', 'papel', 'hibrido', 'fof', 'indefinido'];
-const TIPOS_IMOVEIS: FiiTipoTela[] = ['tijolo', 'hibrido'];
-const TIPOS_CRI: FiiTipoTela[] = ['papel'];
+const TIPOS_FII: TipoAtivoComparador[] = ['tijolo', 'papel'];
 
+/**
+ * Tipo de comparação de um ativo. FII: o perfil de critérios decide (fii_tijolo | fii_papel); sem
+ * avaliação, a régua gravada no Quadro; sem nada, o rótulo (tijolo/híbrido → tijolo; papel, FoF
+ * e indefinido → papel, a mesma regra de composição dos critérios sem dado de imóveis).
+ */
 export function tipoDoAtivo(
   linha: Pick<LinhaQuadroApi, 'classe' | 'fiiTipo'>,
+  criterios: Pick<CriteriosLinhaApi, 'perfil'> | null,
+  regua: string | null = null,
 ): TipoAtivoComparador {
   if (linha.classe === 'acao') return 'acao';
-  return linha.fiiTipo ?? 'indefinido';
+  if (criterios?.perfil === 'fii_tijolo') return 'tijolo';
+  if (criterios?.perfil === 'fii_papel') return 'papel';
+  if (regua === 'fii_tijolo') return 'tijolo';
+  if (regua === 'fii_papel') return 'papel';
+  return linha.fiiTipo === 'tijolo' || linha.fiiTipo === 'hibrido' ? 'tijolo' : 'papel';
 }
 
 // ---------------------------------------------------------------------------
@@ -115,12 +126,10 @@ function cnpjEmConferencia(): Estado<number> {
   };
 }
 
-const ehFinanceira = (d: DadosAtivoComparador) => d.regua === 'acao_financeira';
-
 /** Campo do AssetMultiplesCurrent de ação (financeira ou naoSeAplica ⇒ n/a). */
 function doAtualAcao(campo: 'divLiqPl' | 'pReceita') {
   return (d: DadosAtivoComparador): Estado<number> => {
-    if (ehFinanceira(d)) return naoSeAplicaComparador('financeira');
+    if (d.financeira) return naoSeAplicaComparador('financeira');
     if (d.atual?.naoSeAplica.includes(campo)) return naoSeAplicaComparador();
     return okOuSemDado(d.atual?.[campo]);
   };
@@ -133,29 +142,21 @@ function doTrimestre(fn: (t: NonNullable<DadosAtivoComparador['trimestre']>) => 
   };
 }
 
-// ---------------------------------------------------------------------------
-// Catálogo
-// ---------------------------------------------------------------------------
-
-type Base = Omit<DefIndicador, 'rotulo' | 'sub' | 'aplicavel'> & {
+type Base = Omit<DefIndicador, 'rotulo' | 'sub' | 'aplicavel' | 'fonteCvmAviso'> & {
   aplicavel?: DefIndicador['aplicavel'];
+  fonteCvmAviso?: boolean;
 };
 
 function linha(b: Base): DefIndicador {
-  const t = TL[b.codigo] as { rotulo: string; sub: string };
+  const t = TL[b.codigo];
   return {
     ...b,
     rotulo: t.rotulo,
     sub: t.sub ? t.sub : null,
     aplicavel: b.aplicavel ?? (() => true),
+    fonteCvmAviso: b.fonteCvmAviso ?? false,
   };
 }
-
-const NEUTRO = {
-  fonteCvmAviso: false,
-  criterioProvisorio: false,
-  semValidacaoCvm: false,
-} as const;
 
 export const GRUPOS_ACAO: DefGrupoComparador[] = [
   {
@@ -164,29 +165,18 @@ export const GRUPOS_ACAO: DefGrupoComparador[] = [
     aplicavelA: ['acao'],
     linhas: [
       linha({
-        ...NEUTRO,
         codigo: 'lucrosSeguidos',
         formato: 'inteiro',
-        direcao: 'maior',
         campoTela: 'anosLucroConsecutivos',
         extrator: (d) => okOuSemDado(d.linha.anosLucroConsecutivos),
       }),
+      linha({ codigo: 'roe', formato: 'pct', campoTela: 'roe', extrator: (d) => d.linha.roe }),
       linha({
-        ...NEUTRO,
-        codigo: 'roe',
-        formato: 'pct',
-        direcao: 'maior',
-        campoTela: 'roe',
-        extrator: (d) => d.linha.roe,
-      }),
-      linha({
-        ...NEUTRO,
         codigo: 'margemLiquida',
         formato: 'pct',
-        direcao: 'maior',
         campoTela: 'margemLiquida',
         extrator: (d) =>
-          ehFinanceira(d) ? naoSeAplicaComparador('financeira') : d.linha.margemLiquida,
+          d.financeira ? naoSeAplicaComparador('financeira') : d.linha.margemLiquida,
       }),
     ],
   },
@@ -196,19 +186,15 @@ export const GRUPOS_ACAO: DefGrupoComparador[] = [
     aplicavelA: ['acao'],
     linhas: [
       linha({
-        ...NEUTRO,
         codigo: 'divLiqEbitda',
         formato: 'numero2',
-        direcao: 'menor',
         campoTela: 'divLiqEbitda',
         extrator: (d) =>
-          ehFinanceira(d) ? naoSeAplicaComparador('financeira') : d.linha.divLiqEbitda,
+          d.financeira ? naoSeAplicaComparador('financeira') : d.linha.divLiqEbitda,
       }),
       linha({
-        ...NEUTRO,
         codigo: 'divLiqPl',
         formato: 'numero2',
-        direcao: 'menor',
         campoTela: 'divLiqPl',
         extrator: doAtualAcao('divLiqPl'),
       }),
@@ -219,27 +205,11 @@ export const GRUPOS_ACAO: DefGrupoComparador[] = [
     rotulo: TG.preco,
     aplicavelA: ['acao'],
     linhas: [
+      linha({ codigo: 'pl', formato: 'numero', campoTela: 'pl', extrator: (d) => d.linha.pl }),
+      linha({ codigo: 'pvp', formato: 'numero2', campoTela: 'pvp', extrator: (d) => d.linha.pvp }),
       linha({
-        ...NEUTRO,
-        codigo: 'pl',
-        formato: 'numero',
-        direcao: 'menor_positivo',
-        campoTela: 'pl',
-        extrator: (d) => d.linha.pl,
-      }),
-      linha({
-        ...NEUTRO,
-        codigo: 'pvp',
-        formato: 'numero2',
-        direcao: 'menor',
-        campoTela: 'pvp',
-        extrator: (d) => d.linha.pvp,
-      }),
-      linha({
-        ...NEUTRO,
         codigo: 'pReceita',
         formato: 'numero2',
-        direcao: 'menor',
         campoTela: 'pReceita',
         extrator: doAtualAcao('pReceita'),
       }),
@@ -251,51 +221,23 @@ export const GRUPOS_ACAO: DefGrupoComparador[] = [
     aplicavelA: ['acao'],
     linhas: [
       linha({
-        ...NEUTRO,
         codigo: 'dy12m',
         formato: 'pct',
-        direcao: 'maior',
         campoTela: 'dy12m',
         extrator: (d) => d.linha.dy12m,
       }),
-      // decisão 11: payout neutro (alto não é mais nem menos favorável)
       linha({
-        ...NEUTRO,
         codigo: 'payout',
         formato: 'pct',
-        direcao: 'neutro',
         campoTela: 'payout',
         extrator: (d) => d.linha.payout,
       }),
     ],
   },
-  {
-    codigo: 'tamanhoLiquidez',
-    rotulo: TG.tamanhoLiquidez,
-    aplicavelA: ['acao'],
-    linhas: [
-      linha({
-        ...NEUTRO,
-        codigo: 'valorMercado',
-        formato: 'moedaCompacta',
-        direcao: 'neutro',
-        campoTela: 'valorMercado',
-        extrator: (d) => okOuSemDado(d.linha.valorMercado),
-      }),
-      linha({
-        ...NEUTRO,
-        codigo: 'liquidez21',
-        formato: 'moedaCompacta',
-        direcao: 'neutro',
-        campoTela: 'liquidez21',
-        extrator: (d) => okOuSemDado(d.linha.liquidezMedia21),
-      }),
-    ],
-  },
 ];
 
-const soImoveis = (t: TipoAtivoComparador) => (TIPOS_IMOVEIS as string[]).includes(t);
-const soCri = (t: TipoAtivoComparador) => (TIPOS_CRI as string[]).includes(t);
+const soTijolo = (t: TipoAtivoComparador) => t === 'tijolo';
+const soPapel = (t: TipoAtivoComparador) => t === 'papel';
 
 export const GRUPOS_FII: DefGrupoComparador[] = [
   {
@@ -304,26 +246,20 @@ export const GRUPOS_FII: DefGrupoComparador[] = [
     aplicavelA: TIPOS_FII,
     linhas: [
       linha({
-        ...NEUTRO,
         codigo: 'dy12m',
         formato: 'pct',
-        direcao: 'maior',
         campoTela: 'dy12m',
         extrator: (d) => d.linha.dy12m,
       }),
       linha({
-        ...NEUTRO,
         codigo: 'rendimentoCota',
         formato: 'numero2',
-        direcao: 'neutro',
         campoTela: 'rendCota12m',
         extrator: (d) => okOuSemDado(d.atual?.rend12m),
       }),
       linha({
-        ...NEUTRO,
         codigo: 'mesesComRendimento',
         formato: 'inteiro',
-        direcao: 'maior',
         campoTela: 'mesesComRendimento',
         extrator: (d) => okOuSemDado(d.linha.mesesComRendimento),
       }),
@@ -334,38 +270,52 @@ export const GRUPOS_FII: DefGrupoComparador[] = [
     rotulo: TG.preco,
     aplicavelA: TIPOS_FII,
     linhas: [
-      // direção por tipo: tijolo/híbrido = menor; papel = perto de 1 (direcaoPvpFii)
       linha({
-        ...NEUTRO,
         codigo: 'pvpFii',
         formato: 'numero2',
-        direcao: 'menor',
         campoTela: 'pvp',
         extrator: (d) => d.linha.pvp,
       }),
       linha({
-        ...NEUTRO,
         codigo: 'vpCota',
         formato: 'numero2',
-        direcao: 'neutro',
         campoTela: 'vpCota',
         extrator: (d) => (d.cnpjEmConferencia ? cnpjEmConferencia() : okOuSemDado(d.atual?.vpCota)),
       }),
     ],
   },
   {
+    // comum aos dois tipos (D3: alavancagem = Obrigações/PL)
+    codigo: 'endividamento',
+    rotulo: TG.endividamentoFii,
+    aplicavelA: TIPOS_FII,
+    linhas: [
+      linha({
+        codigo: 'obrigacoesPl',
+        formato: 'pct',
+        campoTela: 'obrigacoesPl',
+        extrator: (d) => d.linha.obrigacoesPl,
+      }),
+    ],
+  },
+  {
     codigo: 'imoveis',
     rotulo: TG.imoveis,
-    aplicavelA: TIPOS_IMOVEIS,
+    rotuloMisto: TG.imoveisMisto,
+    aplicavelA: ['tijolo'],
     linhas: [
+      linha({
+        codigo: 'vacanciaFisica',
+        formato: 'pct',
+        aplicavel: soTijolo,
+        fonteCvmAviso: true,
+        campoTela: 'vacanciaCvm',
+        extrator: (d) => d.linha.vacanciaCvm,
+      }),
       linha({
         codigo: 'nImoveis',
         formato: 'inteiro',
-        direcao: 'neutro',
-        aplicavel: soImoveis,
-        fonteCvmAviso: true,
-        criterioProvisorio: false,
-        semValidacaoCvm: true,
+        aplicavel: soTijolo,
         campoTela: 'nImoveisCvm',
         extrator: (d) =>
           d.cnpjEmConferencia
@@ -375,68 +325,24 @@ export const GRUPOS_FII: DefGrupoComparador[] = [
       linha({
         codigo: 'areaInformada',
         formato: 'inteiro',
-        direcao: 'neutro',
-        aplicavel: soImoveis,
-        fonteCvmAviso: true,
-        criterioProvisorio: false,
-        semValidacaoCvm: true,
+        aplicavel: soTijolo,
         campoTela: null,
         extrator: doTrimestre((t) => (t.areaM2 === null ? null : t.areaM2 / 1000)),
-      }),
-      linha({
-        codigo: 'vacanciaFisica',
-        formato: 'pct',
-        direcao: 'neutro',
-        aplicavel: soImoveis,
-        fonteCvmAviso: true,
-        criterioProvisorio: false,
-        semValidacaoCvm: true,
-        campoTela: 'vacanciaCvm',
-        extrator: (d) => d.linha.vacanciaCvm,
       }),
     ],
   },
   {
-    codigo: 'cris',
-    rotulo: TG.cris,
-    aplicavelA: TIPOS_CRI,
+    codigo: 'ativosPapel',
+    rotulo: TG.ativosPapel,
+    rotuloMisto: TG.ativosPapelMisto,
+    aplicavelA: ['papel'],
     linhas: [
       linha({
         codigo: 'nCri',
         formato: 'inteiro',
-        direcao: 'maior',
-        aplicavel: soCri,
-        fonteCvmAviso: true,
-        criterioProvisorio: true,
-        semValidacaoCvm: false,
+        aplicavel: soPapel,
         campoTela: 'nCri',
         extrator: doTrimestre((t) => t.nCri),
-      }),
-      linha({
-        codigo: 'maiorCri',
-        formato: 'pct',
-        direcao: 'menor',
-        aplicavel: soCri,
-        fonteCvmAviso: true,
-        criterioProvisorio: true,
-        semValidacaoCvm: false,
-        campoTela: null,
-        extrator: doTrimestre((t) => t.maiorCriPct),
-      }),
-    ],
-  },
-  {
-    codigo: 'alavancagem',
-    rotulo: TG.alavancagem,
-    aplicavelA: TIPOS_FII,
-    linhas: [
-      linha({
-        ...NEUTRO,
-        codigo: 'obrigacoesPl',
-        formato: 'pct',
-        direcao: 'menor',
-        campoTela: 'obrigacoesPl',
-        extrator: (d) => d.linha.obrigacoesPl,
       }),
     ],
   },
@@ -446,26 +352,20 @@ export const GRUPOS_FII: DefGrupoComparador[] = [
     aplicavelA: TIPOS_FII,
     linhas: [
       linha({
-        ...NEUTRO,
         codigo: 'patrimonio',
         formato: 'moedaCompacta',
-        direcao: 'neutro',
         campoTela: 'patrimonio',
         extrator: (d) => okOuSemDado(d.linha.patrimonio),
       }),
       linha({
-        ...NEUTRO,
         codigo: 'cotistas',
         formato: 'inteiro',
-        direcao: 'neutro',
         campoTela: 'cotistas',
         extrator: (d) => okOuSemDado(d.linha.cotistas),
       }),
       linha({
-        ...NEUTRO,
         codigo: 'liquidez21',
         formato: 'moedaCompacta',
-        direcao: 'neutro',
         campoTela: 'liquidez21',
         extrator: (d) => okOuSemDado(d.linha.liquidezMedia21),
       }),
@@ -477,17 +377,7 @@ export function catalogoComparador(classe: ClasseQuadro): DefGrupoComparador[] {
   return classe === 'acao' ? GRUPOS_ACAO : GRUPOS_FII;
 }
 
-/** P/VP do FII: todos papel ⇒ perto de 1; nenhum papel ⇒ menor; tijolo + papel ⇒ sem ★. */
-export function direcaoPvpFii(tipos: readonly TipoAtivoComparador[]): {
-  direcao: DirecaoDestaque;
-  tiposDiferentes: boolean;
-} {
-  const papel = tipos.filter((t) => t === 'papel').length;
-  if (papel > 0 && papel === tipos.length) return { direcao: 'perto_de_1', tiposDiferentes: false };
-  return { direcao: 'menor', tiposDiferentes: papel > 0 };
-}
-
-/** tijolo (ou híbrido) e papel no mesmo conjunto. */
+/** tijolo e papel no mesmo conjunto (pelo perfil de critérios). */
 export function ehMisto(tipos: readonly TipoAtivoComparador[]): boolean {
-  return tipos.some((t) => t === 'papel') && tipos.some((t) => soImoveis(t));
+  return tipos.includes('tijolo') && tipos.includes('papel');
 }

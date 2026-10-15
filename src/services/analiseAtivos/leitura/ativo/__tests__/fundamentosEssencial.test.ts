@@ -25,6 +25,7 @@ import {
   type TrimestreFii,
 } from '../fundamentosEssencial';
 import { TEXTOS_TELA } from '@/services/analiseAtivos/textosTela';
+import { TEXTOS_ATIVO } from '@/services/analiseAtivos/textosAtivo';
 import { linhaQuadroDb } from '@/test/fixtures/analiseAtivos/linhasDb';
 import type { FundamentosPeriodo } from '@/services/analiseAtivos/tipos';
 import { MOTIVO_PER_SHARE } from '@/services/analiseAtivos/regras/conferencia/conferenciaAnual';
@@ -34,6 +35,9 @@ import type { Estado, FundamentosResposta } from '@/types/analiseAtivosApi';
 
 const HOJE = '2026-10-02';
 const TF = TEXTOS_TELA.analise.fundamentos;
+const TE = TEXTOS_ATIVO.essencial;
+/** Essencial da página (v2.4); sem a opção = layout legado, base do Raio-X */
+const V24 = { layout: 'v24' } as const;
 
 function periodo(ano: number, over: Partial<FundamentosPeriodo> = {}): FundamentosPeriodo {
   return {
@@ -122,21 +126,28 @@ const linha = (r: FundamentosResposta, rotulo: string) =>
   r.linhas.find((l) => l.rotulo === rotulo)!;
 
 describe('montarFundamentosAcao', () => {
-  it('WEGE3: 10 anos FECHADOS (sem o ano corrente), último destacado + Últ. 12m', () => {
-    const r = montarFundamentosAcao(entradaWege());
+  it('WEGE3: 10 anos FECHADOS (sem o ano corrente), último ano em ultimoAno + Últ. 12m', () => {
+    const r = montarFundamentosAcao(entradaWege(), V24);
     const anos = r.linhas.filter((l) => l.ano !== null).map((l) => l.ano);
     expect(anos).toEqual([2016, 2017, 2018, 2019, 2020, 2021, 2022, 2023, 2024, 2025]);
     expect(r.linhas.some((l) => l.rotulo === '2026')).toBe(false);
-    expect(r.linhas.filter((l) => l.destaque).map((l) => l.ano)).toEqual([2025]);
+    expect(r.linhas.filter((l) => l.ultimoAno).map((l) => l.ano)).toEqual([2025]);
+    // v2.4: `destaque` sai do JSON (nenhuma chave /destaque/)
+    expect(JSON.stringify(r)).not.toMatch(/destaque/i);
     const ttm = r.linhas[r.linhas.length - 1];
     expect(ttm.rotulo).toBe(TEXTOS_TELA.ativo.ult12mTabela);
     expect(ttm.ano).toBeNull();
     expect(valor(ttm.valores.pl)).toBe(33.7);
     expect(r.variante).toBe('acao');
+    // v2.4: ordem do HTML do Pedro (§3.2 bloco 5)
     expect(r.colunas.map((c) => c.codigo)).toEqual([
       'receita',
+      'ebitda',
       'lucro',
       'margem',
+      'dl',
+      'dlEbitda',
+      'fclCapex',
       'roe',
       'lpa',
       'dpa',
@@ -145,30 +156,131 @@ describe('montarFundamentosAcao', () => {
       'pvp',
       'dy',
     ]);
-    expect(r.notas[0]).toBe(TEXTOS_TELA.ativo.unidadeFundamentos);
+    expect(r.colunas.find((c) => c.codigo === 'lucro')?.rotulo).toBe('Lucro líq. ⓘ');
+    expect(r.colunas.find((c) => c.codigo === 'margem')?.rotulo).toBe('Margem líq. ⓘ');
+    expect(r.unidade).toBe('R$ bi');
+    expect(r.observacoes[0]).toBe(TE.unidadeAcao);
   });
 
-  it('valores em R$ mi e lucro atribuível', () => {
-    const r = montarFundamentosAcao(entradaWege());
+  it('valores em R$ bi e lucro atribuível', () => {
+    const r = montarFundamentosAcao(entradaWege(), V24);
     const l2025 = linha(r, '2025');
-    expect(valor(l2025.valores.receita)).toBe(37_500);
-    expect(valor(l2025.valores.lucro)).toBe(6_500);
+    expect(valor(l2025.valores.receita)).toBe(37.5);
+    expect(valor(l2025.valores.lucro)).toBe(6.5);
+  });
+
+  it('EBITDA = EBIT + D&A, dívida líquida, Dív. líq./EBITDA e FCL/CAPEX (nunca o campo fcf)', () => {
+    const f = (a: number) =>
+      periodo(a, {
+        ebit: 7_000e6,
+        depreciacaoAmortizacao: 1_000e6,
+        dividaBrutaCp: 1_000e6,
+        dividaBrutaLp: 2_000e6,
+        caixa: 4_000e6,
+        aplicacoesFinanceiras: 1_400e6,
+        fco: 6_000e6,
+        capex: 1_500e6,
+        fcf: 999e6,
+      });
+    const r = montarFundamentosAcao(entradaWege({ fys: ANOS.map(f) }), V24);
+    const v = linha(r, '2025').valores;
+    expect(valor(v.ebitda)).toBe(8);
+    // 3,0 − 4,0 − 1,4 = −2,4 bi (caixa líquido)
+    expect(valor(v.dl)).toBe(-2.4);
+    expect(valor(v.dlEbitda)).toBe(-0.3);
+    // (6,0 − 1,5) ÷ 1,5 = 3,0×
+    expect(valor(v.fclCapex)).toBe(3);
+    expect(r.colunas.find((c) => c.codigo === 'dlEbitda')?.formato).toBe('multiplo');
+    expect(r.colunas.find((c) => c.codigo === 'fclCapex')?.formato).toBe('multiplo');
+  });
+
+  it('EBITDA ≤ 0: Dív. líq./EBITDA sem número, com o motivo; sem D&A ou sem caixa = sem dado', () => {
+    const r = montarFundamentosAcao(
+      entradaWege({
+        fys: ANOS.map((a) =>
+          a === 2025
+            ? periodo(a, {
+                ebit: -500e6,
+                depreciacaoAmortizacao: 100e6,
+                dividaBrutaLp: 1_000e6,
+                caixa: 100e6,
+              })
+            : periodo(a, { ebit: 1_000e6, dividaBrutaLp: 1_000e6, caixa: 100e6 }),
+        ),
+      }),
+      V24,
+    );
+    expect(linha(r, '2025').valores.dlEbitda).toEqual({
+      estado: 'ausente',
+      motivo: 'ebitda_nao_positivo',
+      texto: TE.ebitdaNaoPositivo,
+    });
+    expect(linha(r, '2024').valores.ebitda.estado).toBe('ausente');
+    expect(linha(r, '2024').valores.dlEbitda.estado).toBe('ausente');
+    expect(valor(linha(r, '2024').valores.dl)).toBe(0.9);
+    expect(linha(r, '2024').valores.fclCapex.estado).toBe('ausente');
+  });
+
+  it('margem: sem o múltiplo do ano, lucro ÷ receita', () => {
+    const r = montarFundamentosAcao(
+      entradaWege({
+        multiplos: ANOS.map((a) => ({
+          anoFiscal: a,
+          pl: 20,
+          pvp: 4,
+          dyPct: 1.5,
+          roePct: 18,
+          margemLiquidaPct: null,
+          payoutPct: 50,
+        })),
+      }),
+      V24,
+    );
+    // 2025: 6.500 ÷ 37.500 = 17,33%
+    expect(valor(linha(r, '2025').valores.margem)).toBeCloseTo(17.3333, 3);
+  });
+
+  it('margem: receita ≤ lucro (holding / banco no individual) = não se aplica, nunca 148,8%', () => {
+    const r = montarFundamentosAcao(
+      entradaWege({
+        fys: ANOS.map((a) =>
+          periodo(a, { receita: 30_680e6, lucroLiquido: 45_659e6, lucroAtribuivel: 45_659e6 }),
+        ),
+        multiplos: ANOS.map((a) => ({
+          anoFiscal: a,
+          pl: 20,
+          pvp: 4,
+          dyPct: 1.5,
+          roePct: 18,
+          margemLiquidaPct: null,
+          payoutPct: 50,
+        })),
+      }),
+      V24,
+    );
+    expect(linha(r, '2025').valores.margem).toMatchObject({
+      estado: 'nao_se_aplica',
+      motivo: 'receita_menor_que_lucro',
+    });
   });
 
   it('Div./ação > 2× o ano anterior com payout > 150%: selo de proventos em conferência + nota', () => {
-    const r = montarFundamentosAcao(entradaWege());
+    const r = montarFundamentosAcao(entradaWege(), V24);
     expect(linha(r, '2025').selos).toEqual(['proventos_em_conferencia']);
     // 2021 dobrou (0,22 → 0,44) com payout de 49%: salto real, sem selo
     expect(linha(r, '2021').selos).toEqual([]);
-    expect(r.notas).toContain(TF.notaProventosConferencia);
+    expect(r.observacoes).toContain(TF.notaProventosConferencia);
   });
 
   it('sem período mais recente que o último ano fechado: sem linha Últ. 12m', () => {
-    const r = montarFundamentosAcao(entradaWege({ ttm: periodo(2025, { tipoPeriodo: 'TTM' }) }));
+    const r = montarFundamentosAcao(
+      entradaWege({ ttm: periodo(2025, { tipoPeriodo: 'TTM' }) }),
+      V24,
+    );
     expect(r.linhas.every((l) => l.ano !== null)).toBe(true);
   });
 
-  it('ITUB4 (banco): receita e margem saem; nota de padrão contábil individual BR GAAP', () => {
+  it('ITUB4 (banco, D4): receita e margem ficam; EBITDA, DL e FCL saem; nota BR GAAP', () => {
     const r = montarFundamentosAcao(
       entradaWege({
         financeira: true,
@@ -181,13 +293,27 @@ describe('montarFundamentosAcao', () => {
         }),
         proventosEmConferencia: false,
       }),
+      V24,
     );
-    expect(r.colunas.map((c) => c.codigo)).not.toContain('receita');
-    expect(r.colunas.map((c) => c.codigo)).not.toContain('margem');
+    expect(r.colunas.map((c) => c.codigo)).toEqual([
+      'receita',
+      'lucro',
+      'margem',
+      'roe',
+      'lpa',
+      'dpa',
+      'payout',
+      'pl',
+      'pvp',
+      'dy',
+    ]);
+    expect(valor(linha(r, '2025').valores.receita)).toBe(37.5);
+    expect(linha(r, '2025').valores.ebitda.estado).toBe('nao_se_aplica');
+    expect(linha(r, '2025').valores.fclCapex.estado).toBe('nao_se_aplica');
     expect(r.padraoContabil).toBe('BRGAAP');
     expect(r.escopo).toBe('ind');
-    expect(r.notas).toContain('Padrão contábil: individual BR GAAP.');
-    expect(r.notas).toContain(TF.notaFinanceira);
+    expect(r.observacoes).toContain('Padrão contábil: individual BR GAAP.');
+    expect(r.observacoes).toContain(TE.notaFinanceira);
   });
 
   it('controladora_zero: usa o lucro do individual; sem individual, "—" com o motivo', () => {
@@ -199,8 +325,9 @@ describe('montarFundamentosAcao', () => {
     const semInd = periodo(2024, { lucroAtribuivel: null, flags: ['controladora_zero'] });
     const r = montarFundamentosAcao(
       entradaWege({ fys: [...ANOS.slice(0, 10).map((a) => periodo(a)), semInd, comInd] }),
+      V24,
     );
-    expect(valor(linha(r, '2025').valores.lucro)).toBe(800);
+    expect(valor(linha(r, '2025').valores.lucro)).toBe(0.8);
     const l2024 = linha(r, '2024').valores.lucro;
     expect(l2024).toEqual({
       estado: 'ausente',
@@ -225,6 +352,7 @@ describe('montarFundamentosAcao', () => {
           payoutPct: -744,
         })),
       }),
+      V24,
     );
     const l = linha(r, '2023');
     expect(l.valores.payout).toMatchObject({ estado: 'ausente', texto: TF.prejuizoNoAno });
@@ -234,8 +362,32 @@ describe('montarFundamentosAcao', () => {
   it('histórico curto: só os anos que existem', () => {
     const r = montarFundamentosAcao(
       entradaWege({ fys: [2022, 2023, 2024, 2025].map((a) => periodo(a)), ttm: null }),
+      V24,
     );
     expect(r.linhas.map((l) => l.ano)).toEqual([2022, 2023, 2024, 2025]);
+  });
+  it('sem a opção: layout LEGADO, base do Raio-X (R$ mi, banco sem receita e margem)', () => {
+    const r = montarFundamentosAcao(entradaWege());
+    expect(r.unidade).toBe('R$ mi');
+    expect(valor(linha(r, '2025').valores.receita)).toBe(37_500);
+    expect(valor(linha(r, '2025').valores.lucro)).toBe(6_500);
+    expect(r.colunas.map((c) => c.codigo)).toEqual([
+      'receita',
+      'lucro',
+      'margem',
+      'roe',
+      'lpa',
+      'dpa',
+      'payout',
+      'pl',
+      'pvp',
+      'dy',
+    ]);
+    expect(linha(r, '2025').ultimoAno).toBe(true);
+    expect(JSON.stringify(r)).not.toMatch(/destaque/i);
+    const banco = montarFundamentosAcao(entradaWege({ financeira: true }));
+    expect(banco.colunas.map((c) => c.codigo)).not.toContain('receita');
+    expect(banco.observacoes).toContain(TF.notaFinanceira);
   });
 });
 
@@ -304,8 +456,8 @@ describe('montarFundamentosFii', () => {
     });
     expect(valor(linha(r, '2025').valores.receita)).toBe(400);
     expect(valor(linha(r, '2025').valores.resultado)).toBe(440);
-    expect(r.notas.some((n) => n.includes(TEXTOS_TELA.ativo.anoIncompletoFii))).toBe(true);
-    expect(linha(r, '2025').destaque).toBe(true);
+    expect(r.observacoes.some((n) => n.includes(TEXTOS_TELA.ativo.anoIncompletoFii))).toBe(true);
+    expect(linha(r, '2025').ultimoAno).toBe(true);
   });
 
   it('valores por cota antes do desdobramento ficam na base de cotas de hoje', () => {
@@ -335,11 +487,13 @@ describe('montarFundamentosFii', () => {
       'nImoveis',
       'area',
     ]);
+    // rec. 7: 'Área (CVM)' no lugar de ABL
+    expect(r.colunas.find((c) => c.codigo === 'area')?.rotulo).toBe('Área (CVM)');
     const ttm = r.linhas[r.linhas.length - 1];
     expect(ttm.rotulo).toBe(TEXTOS_TELA.ativo.ult12mTabela);
     expect(valor(ttm.valores.receita)).toBe(530); // 100 + 100 + 140 + 190
     expect(valor(ttm.valores.nImoveis)).toBe(37);
-    expect(r.notas).toContain(TF.notaCvmGestor);
+    expect(r.observacoes).toContain(TF.notaCvmGestor);
   });
 
   it('KNCR11 (papel): Nº CRIs e Maior CRI no lugar das 3 últimas; sem aluguel, a receita sai', () => {
@@ -368,7 +522,7 @@ describe('montarFundamentosFii', () => {
       'maiorCri',
     ]);
     expect(valor(linha(r, '2025').valores.nCri)).toBe(63);
-    expect(r.notas).not.toContain(TF.notaCvmGestor);
+    expect(r.observacoes).not.toContain(TF.notaCvmGestor);
   });
 
   it('rendimento > 2× o ano anterior: selo de proventos em conferência', () => {

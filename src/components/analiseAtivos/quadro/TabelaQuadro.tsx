@@ -2,9 +2,13 @@
 
 /**
  * Tabela do Quadro (≥ lg) no padrão TABLE_STYLES: <table> real, cabeçalho seguranca fixo ao rolar,
- * coluna Ativo/Fundo fixa, coluna da ordem destacada (outside no th, highlightTd nos td), aria-sort
- * nos th e o ticker como link dentro do th scope=row. A linha inteira abre a página do ativo; o
- * hover pré-carrega o topo (espera 300 ms, no máximo 1 a cada 2 s).
+ * coluna Ativo/Fundo fixa (fundo opaco), coluna da ordem destacada (outside no th, highlightTd nos
+ * td), aria-sort nos th e o ticker como link de 44 px dentro do th scope=row. A linha inteira abre a
+ * página do ativo; o hover pré-carrega o topo (espera 300 ms, no máximo 1 a cada 2 s).
+ *
+ * v2.4 (fatia B): sai a coluna do indicador antigo; entra "Critérios" (CelulaCriterios: k quadradinhos
+ * NEUTROS + 'n de 6'; financeiras 'n de 3'; FoF/indefinido com a nota de perfil no tooltip). O nome
+ * do ativo vem do banco e fica em [data-nome-ativo] (fora da varredura de linguagem, caso 32).
  *
  * Bloco C: campo em conferência (flags 'conf:', lidas por conferenciasAtivo — o mesmo helper da
  * página) = célula hachurada + "em conferência" em 11px; 'ocultar' mostra '—' (a API não manda o
@@ -20,9 +24,8 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useQueryClient } from '@tanstack/react-query';
 import { useCallback, useRef, type ReactNode } from 'react';
-import AnelIndice from '@/components/analiseAtivos/comum/AnelIndice';
 import BarrasDezAnos from '@/components/analiseAtivos/comum/BarrasDezAnos';
-import SeloIncompleto from '@/components/analiseAtivos/comum/SeloIncompleto';
+import CelulaCriterios from '@/components/analiseAtivos/comum/CelulaCriterios';
 import ValorAnalise from '@/components/analiseAtivos/comum/ValorAnalise';
 import { formatarAnalise } from '@/components/analiseAtivos/comum/formatarAnalise';
 import CabecalhoOrdenavel from '@/components/analiseAtivos/quadro/CabecalhoOrdenavel';
@@ -34,8 +37,13 @@ import { MYFINANCE_BRAND } from '@/constants/brandColors';
 import { COLUNAS, COR_LINK, type ColunaQuadro } from '@/constants/analiseAtivosVisual';
 import { prefetchAtivoTopo } from '@/hooks/useAnaliseAtivos';
 import { TEXTOS_TELA, formatarTexto } from '@/services/analiseAtivos/textosTela';
+import { TEXTOS_QUADRO } from '@/services/analiseAtivos/textosQuadro';
+import { TEXTOS_CRITERIOS } from '@/services/analiseAtivos/textosCriterios';
 import { HACHURA } from '@/components/analiseAtivos/comum/ChipConferencia';
-import { conferenciaDaLinha } from '@/services/analiseAtivos/leitura/ativo/conferenciasAtivo';
+import {
+  conferenciaConf,
+  motivosDaLinha,
+} from '@/services/analiseAtivos/leitura/ativo/conferenciasAtivo';
 import { ehCampoTela } from '@/services/analiseAtivos/regras/comum/conferencia';
 import { TEXTOS_ENTRADAS_COMPARADOR } from '@/services/analiseAtivos/textosEntradasComparador';
 import { MAX_ATIVOS_COMPARADOR } from '@/services/analiseAtivos/cenarios/contrato';
@@ -47,17 +55,54 @@ import type {
   ModoQuadro,
   OrdemQuadro,
 } from '@/types/analiseAtivosApi';
+import type { DefCriterioChip, IdCriterio } from '@/types/analiseAtivosCriterios';
 
 const T = TEXTOS_TELA.quadro;
 const SEM = TEXTOS_TELA.formato.semDado;
-/** td do padrão com px-3: o Resumo (Índice MF e Na carteira inclusive) cabe sem rolar a 1440. */
+/** td do padrão com px-3: o Resumo (Critérios e Na carteira inclusive) cabe sem rolar a 1440. */
 export const TD_QUADRO = TABLE_STYLES.td.replace('px-4', 'px-3');
 
 export const ESPERA_PREFETCH_MS = 300;
 export const INTERVALO_PREFETCH_MS = 2_000;
 
 export function rotuloColuna(c: ColunaQuadro): string {
-  return (T.colunas as Record<string, string>)[c.rotulo] ?? c.rotulo;
+  return (
+    (TEXTOS_QUADRO.colunas as Record<string, string>)[c.rotulo] ??
+    (T.colunas as Record<string, string>)[c.rotulo] ??
+    c.rotulo
+  );
+}
+
+/** Dica do cabeçalho (TEXTOS_QUADRO.dicas), se houver. */
+export function dicaColuna(c: ColunaQuadro): string | undefined {
+  return c.dica ? (TEXTOS_QUADRO.dicas as Record<string, string>)[c.dica] : undefined;
+}
+
+/** id → rótulo dos critérios (inclui o equivalente de papel), para o tooltip da célula. */
+export function rotulosDasDefinicoes(
+  definicoes: readonly DefCriterioChip[] | undefined,
+): Partial<Record<IdCriterio, string>> {
+  const out: Partial<Record<IdCriterio, string>> = {};
+  for (const d of definicoes ?? []) {
+    out[d.id] = d.rotulo;
+    if (d.equivalente) out[d.equivalente.id] = d.equivalente.rotulo;
+  }
+  return out;
+}
+
+/** Nota de perfil do tooltip (FoF/híbrido/indefinido avaliados pela regra de composição). */
+export function observacaoPerfil(l: LinhaQuadroApi): string | null {
+  const perfil = l.criterios?.perfil;
+  if (l.classe !== 'fii' || !perfil) return null;
+  const P = TEXTOS_CRITERIOS.perfil;
+  const nome = perfil === 'fii_tijolo' || perfil === 'fii_papel' ? P.nomes[perfil] : null;
+  if (l.fiiTipo === 'fof') return P.fof;
+  if (!nome) return null;
+  if (l.fiiTipo === 'hibrido') return formatarTexto(P.hibrido, { perfil: nome });
+  if (l.fiiTipo === 'indefinido' || l.fiiTipo === null) {
+    return formatarTexto(P.indefinido, { perfil: nome });
+  }
+  return null;
 }
 
 export function hrefAtivo(ticker: string): string {
@@ -75,41 +120,13 @@ export function ariaSerie(l: LinhaQuadroApi): string {
   });
 }
 
-/** Texto curto embaixo do anel (critérios, incompleto, sem Índice, fora do Índice). */
-export function apoioIndice(l: LinhaQuadroApi): string | null {
-  const i = l.indice;
-  if (i.estado === 'sem_score') return TEXTOS_TELA.indice.semScoreCurto;
-  if (i.estado === 'fora_do_indice') return TEXTOS_TELA.indice.foraDoIndice;
-  if (i.estado === 'incompleto') return TEXTOS_TELA.selos.dadosIncompletos;
-  if (i.criteriosAtendidos !== null && i.criteriosAplicaveis !== null) {
-    return `${i.criteriosAtendidos}/${i.criteriosAplicaveis}`;
-  }
-  return null;
-}
-
-export function CelulaIndice({
-  linha,
-  tamanho = 32,
-}: {
-  linha: LinhaQuadroApi;
-  tamanho?: 32 | 40;
-}) {
-  const apoio = apoioIndice(linha);
-  return (
-    <span className="inline-flex items-center gap-2" data-estado-indice={linha.indice.estado}>
-      <AnelIndice valor={linha.indice.valor} estado={linha.indice.estado} tamanho={tamanho} />
-      {apoio ? (
-        <span className="max-w-[5rem] text-left text-[11px] leading-tight whitespace-normal text-gray-500 dark:text-gray-400">
-          {apoio}
-        </span>
-      ) : null}
-    </span>
-  );
-}
-
-/** Campo da coluna em conferência pelas flags 'conf:' (bloco C); null = como hoje. */
+/**
+ * Campo da coluna em conferência pelas flags 'conf:' (bloco C); null = como hoje. Os motivos vêm de
+ * motivosConferencia (v2.4) — o legado de proventos usa 'div:em_conferencia'.
+ */
 export function conferenciaDaCelula(codigo: string, l: LinhaQuadroApi) {
-  return ehCampoTela(codigo) ? conferenciaDaLinha(l, codigo) : null;
+  if (!ehCampoTela(codigo)) return null;
+  return conferenciaConf(l.flags, motivosDaLinha(l), codigo, l.classe);
 }
 
 /** Valor (ou '—') + "em conferência" em 11px, para célula/cartão do Quadro (bloco C). */
@@ -209,8 +226,6 @@ function conteudoBase(codigo: string, l: LinhaQuadroApi): ReactNode {
     case 'lucro10a':
     case 'rendimento10a':
       return <BarrasDezAnos modo="lucro" serie={l.serie10a} ariaLabel={ariaSerie(l)} />;
-    case 'indiceMf':
-      return <CelulaIndice linha={l} />;
     default:
       return null;
   }
@@ -268,6 +283,26 @@ export interface TabelaQuadroProps {
   legenda: string;
   /** Bloco D: modo Comparar ligado (coluna de caixas); ausente = Quadro de sempre */
   comparar?: ControleComparar;
+  /** v2.4: chips da resposta (rótulos do tooltip da célula Critérios) */
+  definicoes?: DefCriterioChip[];
+}
+
+/** Célula "Critérios" (tabela e cartões): CelulaCriterios com rótulos e nota de perfil. */
+export function CelulaCriteriosLinha({
+  linha,
+  rotulos,
+}: {
+  linha: LinhaQuadroApi;
+  rotulos: Partial<Record<IdCriterio, string>>;
+}) {
+  return (
+    <CelulaCriterios
+      criterios={linha.criterios ?? null}
+      ticker={linha.ticker}
+      rotulos={rotulos}
+      observacaoPerfil={observacaoPerfil(linha)}
+    />
+  );
 }
 
 /** O que as caixas do modo Comparar usam da seleção (tabela e cartões). */
@@ -319,10 +354,12 @@ export default function TabelaQuadro({
   atualizando = false,
   legenda,
   comparar,
+  definicoes,
 }: TabelaQuadroProps) {
   const router = useRouter();
   const prefetch = usePrefetchHover();
   const colunas = COLUNAS[classe][modo];
+  const rotulos = rotulosDasDefinicoes(definicoes);
   // fundo opaco (a coluna fixa passa por cima das outras ao rolar); mesmo tom do card escuro
   const fundoFixo =
     'z-10 bg-white group-hover:bg-gray-50 dark:bg-[#1F1F22] dark:group-hover:bg-[#26262A]';
@@ -331,14 +368,14 @@ export default function TabelaQuadro({
 
   return (
     <div
-      className={`${TABLE_STYLES.wrapper} max-h-[70vh] overflow-y-auto bg-white dark:bg-[#1F1F22] ${
+      className={`${TABLE_STYLES.wrapper} relative max-h-[70vh] overflow-y-auto bg-white dark:bg-[#1F1F22] ${
         atualizando ? 'opacity-70 motion-safe:transition-opacity' : ''
       }`}
       aria-busy={carregando || atualizando || undefined}
       data-quadro-tabela={classe}
     >
       <table
-        className={`${TABLE_STYLES.table} ${modo === 'detalhado' ? 'min-w-[1480px]' : 'min-w-[960px]'}`}
+        className={`${TABLE_STYLES.table} ${modo === 'detalhado' ? 'min-w-[1400px]' : 'min-w-[960px]'}`}
       >
         <caption className="sr-only">{legenda}</caption>
         <thead>
@@ -358,6 +395,7 @@ export default function TabelaQuadro({
                 key={c.codigo}
                 coluna={c}
                 rotulo={rotuloColuna(c)}
+                dica={dicaColuna(c)}
                 ordemAtual={ordem}
                 dir={dir}
                 onOrdenar={onOrdenar}
@@ -397,7 +435,7 @@ export default function TabelaQuadro({
                     </td>
                   ) : null}
                   {colunas.map((c, i) => {
-                    const destaque = c.ordem !== null && c.ordem === ordem;
+                    const colunaOrdenada = c.ordem !== null && c.ordem === ordem;
                     const alinhar =
                       c.alinhamento === 'direita'
                         ? 'text-right'
@@ -410,7 +448,7 @@ export default function TabelaQuadro({
                           key={c.codigo}
                           scope="row"
                           className={`${TD_QUADRO} ${fixoTd} text-left font-normal ${
-                            destaque ? TABLE_STYLES.highlightTd : ''
+                            colunaOrdenada ? TABLE_STYLES.highlightTd : ''
                           }`}
                         >
                           <CelulaAtivo linha={l} />
@@ -421,12 +459,14 @@ export default function TabelaQuadro({
                       <td
                         key={c.codigo}
                         className={`${TD_QUADRO} ${alinhar} whitespace-nowrap tabular-nums ${
-                          destaque ? TABLE_STYLES.highlightTd : ''
+                          colunaOrdenada ? TABLE_STYLES.highlightTd : ''
                         } ${conferenciaDaCelula(c.codigo, l) ? HACHURA : ''}`}
                         data-coluna={c.codigo}
                       >
                         {c.codigo === 'naCarteira' ? (
                           <CelulaNaCarteira info={naCarteira(l.ticker)} classe={classe} />
+                        ) : c.codigo === 'criterios' ? (
+                          <CelulaCriteriosLinha linha={l} rotulos={rotulos} />
                         ) : (
                           conteudoCelula(c.codigo, l)
                         )}
@@ -446,19 +486,17 @@ function CelulaAtivo({ linha }: { linha: LinhaQuadroApi }) {
     <span className="flex min-w-[9rem] items-center gap-3">
       <LogoTicker ticker={linha.ticker} />
       <span className="min-w-0">
-        <span className="flex flex-wrap items-center gap-1.5">
-          <Link
-            href={hrefAtivo(linha.ticker)}
-            onClick={(e) => e.stopPropagation()}
-            className={`font-semibold ${COR_LINK.classes} outline-none hover:underline focus-visible:ring-[3px] focus-visible:ring-[#0079F2] dark:focus-visible:ring-[#6E9DC4]`}
-          >
-            {linha.ticker}
-          </Link>
-          {linha.indice.estado === 'incompleto' ? (
-            <SeloIncompleto motivos={linha.indice.motivos} ticker={linha.ticker} />
-          ) : null}
-        </span>
-        <span className="block max-w-[9rem] truncate text-xs text-gray-500 dark:text-gray-400">
+        <Link
+          href={hrefAtivo(linha.ticker)}
+          onClick={(e) => e.stopPropagation()}
+          className={`-my-1.5 inline-flex min-h-11 items-center font-semibold ${COR_LINK.classes} outline-none hover:underline focus-visible:ring-[3px] focus-visible:ring-[#0079F2] dark:focus-visible:ring-[#6E9DC4]`}
+        >
+          {linha.ticker}
+        </Link>
+        <span
+          data-nome-ativo=""
+          className="-mt-2 block max-w-[9rem] truncate text-xs text-gray-500 dark:text-gray-400"
+        >
           {linha.nome}
         </span>
       </span>

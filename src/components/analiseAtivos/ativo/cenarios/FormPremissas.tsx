@@ -3,7 +3,8 @@
 /**
  * Entradas de "Meus cenários" (Bloco D, fatia B): Dados do ativo (cotação só leitura com borda
  * tracejada; LPA/VPA/DPA ou rendimento/VP por cota editáveis) + Suas premissas + o slider
- * "Margem que você exige".
+ * "Margem que você exige". v2.4 (fatia C2): as premissas abrem EM BRANCO, com placeholder 'ex.: …'
+ * (só formato) e o subtítulo 'em branco até você preencher'; a margem começa em 0%.
  *
  * - Campo: rótulo 14/500 e caixa com a unidade dentro; computador 108×44px, celular 48px e fonte
  *   de 16px (sem zoom no iOS); inputMode decimal, aceita vírgula ou ponto.
@@ -30,7 +31,6 @@ import {
   valoresDoAtivo,
   type CampoForm,
   type EstadoCenario,
-  type PremissaCampo,
 } from '@/components/analiseAtivos/ativo/cenarios/useEstadoCenario';
 import type { CenariosResposta, ConferenciaCampoCenario } from '@/types/analiseAtivosBlocoD';
 
@@ -61,7 +61,10 @@ interface DefCampo {
   campo: CampoForm;
   rotulo: string;
   unidade: string;
+  /** linha de ajuda sob o campo ('' = nenhuma) */
   origem: string;
+  /** exemplo de formato (premissas em branco) */
+  placeholder?: string;
 }
 
 function defsDados(r: CenariosResposta): DefCampo[] {
@@ -78,56 +81,71 @@ function defsDados(r: CenariosResposta): DefCampo[] {
   ];
 }
 
+/**
+ * Premissas do usuário (v2.4, spec §4.4): campos EM BRANCO com placeholder só de formato
+ * ('ex.: 6'); nenhuma origem 'padrão: …'. O P/L alvo abre com a média 10a do ativo, rotulada como
+ * fato ('média 10a do ativo: 36,9 (fato; altere se quiser)').
+ */
 function defsPremissas(r: CenariosResposta): DefCampo[] {
-  const p = r.premissasPadrao as unknown as Record<string, number | null | undefined>;
-  const v = (campo: PremissaCampo) => textoDoNumero(campo, p[campo]);
   if (r.classe === 'fii') {
     return [
       {
         campo: 'yieldPct',
         rotulo: C.yieldFii.rotulo,
         unidade: '%',
-        origem: formatarTexto(C.yieldFii.origem, { valor: formatarNumeroBR(p.yieldPct ?? 0, 0) }),
+        origem: '',
+        placeholder: C.yieldFii.placeholder,
       },
       {
         campo: 'pvpAlvo',
         rotulo: C.pvpAlvo.rotulo,
-        unidade: 'x',
-        origem: formatarTexto(C.pvpAlvo.origem, { valor: v('pvpAlvo') }),
+        unidade: '×',
+        origem: '',
+        placeholder: C.pvpAlvo.placeholder,
       },
       {
         campo: 'rendaMensal',
         rotulo: C.rendaMensal.rotulo,
-        unidade: 'R$',
-        origem: formatarTexto(C.rendaMensal.origem, {
-          valor: formatarNumeroBR(p.rendaMensal ?? 0, 0),
-        }),
+        unidade: C.rendaMensal.unidade,
+        origem: '',
+        placeholder: C.rendaMensal.placeholder,
       },
     ];
   }
   const plOrigem =
     r.base.plAlvoPadrao.estado === 'ok'
-      ? formatarTexto(C.plAlvo.origem, { valor: v('plAlvo') })
+      ? formatarTexto(C.plAlvo.origem, {
+          valor: textoDoNumero('plAlvo', r.base.plAlvoPadrao.valor),
+        })
       : C.plAlvo.historicoCurto;
   return [
     {
       campo: 'yieldPct',
       rotulo: C.yieldAcao.rotulo,
       unidade: '%',
-      origem: formatarTexto(C.yieldAcao.origem, { valor: formatarNumeroBR(p.yieldPct ?? 0, 0) }),
+      origem: '',
+      placeholder: C.yieldAcao.placeholder,
     },
-    { campo: 'plAlvo', rotulo: C.plAlvo.rotulo, unidade: 'x', origem: plOrigem },
+    {
+      campo: 'plAlvo',
+      rotulo: C.plAlvo.rotulo,
+      unidade: '×',
+      origem: plOrigem,
+      placeholder: C.plAlvo.placeholder,
+    },
     {
       campo: 'gPct',
       rotulo: C.gPct.rotulo,
-      unidade: '%',
-      origem: formatarTexto(C.gPct.origem, { valor: formatarNumeroBR(p.gPct ?? 0, 0) }),
+      unidade: C.gPct.unidade,
+      origem: '',
+      placeholder: C.gPct.placeholder,
     },
     {
       campo: 'kPct',
       rotulo: C.kPct.rotulo,
-      unidade: '%',
-      origem: formatarTexto(C.kPct.origem, { valor: formatarNumeroBR(p.kPct ?? 0, 0) }),
+      unidade: C.kPct.unidade,
+      origem: '',
+      placeholder: C.kPct.placeholder,
     },
   ];
 }
@@ -186,10 +204,15 @@ function CampoCenario({ def, r, estado }: CampoProps) {
           inputMode="decimal"
           autoComplete="off"
           value={texto}
+          placeholder={def.placeholder}
           onChange={(e) => estado.setTexto(campo, e.target.value)}
           aria-invalid={erro ? true : undefined}
-          aria-describedby={erro ? `${idHint} ${idErro}` : idHint}
-          className={`${CAIXA} ${FOCO_CENARIOS} ${
+          aria-describedby={
+            [def.origem || editado || mudou !== null || conf ? idHint : null, erro ? idErro : null]
+              .filter(Boolean)
+              .join(' ') || undefined
+          }
+          className={`${CAIXA} ${FOCO_CENARIOS} placeholder:text-gray-400 dark:placeholder:text-gray-500 ${
             erro
               ? 'border-[#D92D20] shadow-[inset_0_0_0_1px_#D92D20] dark:border-[#F97066] dark:shadow-[inset_0_0_0_1px_#F97066]'
               : 'border-gray-300 dark:border-gray-700'
@@ -246,9 +269,9 @@ function CampoCenario({ def, r, estado }: CampoProps) {
               {C.voltarAoAtivo}
             </button>
           </>
-        ) : (
+        ) : def.origem ? (
           <span>{def.origem}</span>
-        )}
+        ) : null}
         {conf && !editado ? (
           <ChipConferencia
             conferencia={confPagina}
@@ -369,7 +392,12 @@ export default function FormPremissas({
   return (
     <div className="flex min-w-0 flex-col gap-3.5" data-cenarios-entradas="">
       <fieldset className="m-0 min-w-0 border-0 p-0">
-        <legend className={LEGENDA}>{T.secoes.dadosAtivo}</legend>
+        <legend className={LEGENDA}>
+          {T.secoes.dadosAtivo}{' '}
+          <small className="font-normal tracking-normal normal-case">
+            ({T.secoes.dadosAtivoSub})
+          </small>
+        </legend>
         <div className={GRADE}>
           <CampoCotacao r={r} />
           {defsDados(r).map((d) => (
@@ -378,7 +406,12 @@ export default function FormPremissas({
         </div>
       </fieldset>
       <fieldset className="m-0 min-w-0 border-0 p-0">
-        <legend className={LEGENDA}>{T.secoes.premissas}</legend>
+        <legend className={LEGENDA}>
+          {T.secoes.premissas}{' '}
+          <small className="font-normal tracking-normal normal-case" data-premissas-em-branco="">
+            ({T.secoes.premissasSub})
+          </small>
+        </legend>
         <div className={GRADE}>
           {defsPremissas(r).map((d) => (
             <CampoCenario key={d.campo} def={d} r={r} estado={estado} />

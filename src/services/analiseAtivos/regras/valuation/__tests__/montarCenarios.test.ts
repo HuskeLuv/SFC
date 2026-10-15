@@ -10,6 +10,8 @@ import {
 } from '@/services/analiseAtivos/regras/valuation/montarCenarios';
 import {
   aplicarCenarioSalvo,
+  premissasIniciaisAcao,
+  premissasIniciaisFii,
   diffDadosEditados,
   lerNumeroDigitado,
   validarPremissa,
@@ -122,7 +124,7 @@ describe('§4.6 pelo módulo da tela (casos 1–13)', () => {
     expect(linha(s.linhas, 'pvpAlvo').resultado).toBe(163.1);
   });
 
-  it('11 · Meta: R$ 1.000 · 13,20 · 158,20 · 40 cotas ⇒ 910 · 143.962,00 · faltam 870', () => {
+  it('11 · Meta: R$ 1.000 · 13,20 · 158,20 · 40 cotas ⇒ 910 · 143.962,00 · diferença 870', () => {
     const s = montarCenarios(
       fii({
         base: base({ rend12m: 13.2, vpCota: 163.1 }),
@@ -130,7 +132,7 @@ describe('§4.6 pelo módulo da tela (casos 1–13)', () => {
         posicao: { pm: 151.4, quantidade: 40 },
       }),
     );
-    expect(s.metaRenda).toMatchObject({ cotas: 910, custo: 143962, faltam: 870 });
+    expect(s.metaRenda).toMatchObject({ cotas: 910, custo: 143962, diferenca: 870 });
   });
 
   it('12 · Sua posição (ação): PM 38,60 · LPA 1,64 · DPA 0,84 ⇒ 23,5 · 2,2%', () => {
@@ -238,7 +240,8 @@ describe('casos-limite: "—" com motivo, nunca exceção', () => {
     expect(s.linhas.map((l) => l.resultado)).toEqual([null, null, null, null]);
     expect(linha(s.linhas, 'bazin').motivoSemResultado).toBe(M.dpaZero);
     expect(linha(s.linhas, 'graham').motivoSemResultado).toBe(M.lpaNaoPositivo);
-    expect(linha(s.linhas, 'multiplo').motivoSemResultado).toBe(M.lpaNaoPositivo);
+    // v2.4: premissa em branco vem primeiro ("informe …" é o que o usuário pode fazer)
+    expect(linha(s.linhas, 'multiplo').motivoSemResultado).toBe(M.plVazio);
     expect(linha(s.linhas, 'gordon').motivoSemResultado).toBe(M.dpaZero);
     expect(s.nenhumResultado).toBe(true);
     expect(s.barras.escalaMax).toBe(0);
@@ -267,10 +270,34 @@ describe('casos-limite: "—" com motivo, nunca exceção', () => {
       acao({ premissas: { yieldPct: Number.NaN, plAlvo: 36.9, gPct: null, kPct: 13 } }),
     );
     expect(linha(s.linhas, 'bazin').motivoSemResultado).toBe('yield fora do limite');
-    expect(linha(s.linhas, 'gordon').motivoSemResultado).toBe('falta g');
+    expect(linha(s.linhas, 'gordon').motivoSemResultado).toBe('informe g');
     const d = montarCenarios(acao({ dadosEditados: { lpa: Number.NaN, dpa: null } }));
-    expect(linha(d.linhas, 'graham').motivoSemResultado).toBe('falta LPA');
-    expect(linha(d.linhas, 'bazin').motivoSemResultado).toBe('falta DPA');
+    expect(linha(d.linhas, 'graham').motivoSemResultado).toBe('sem LPA');
+    expect(linha(d.linhas, 'bazin').motivoSemResultado).toBe('sem DPA');
+  });
+
+  it('v2.4 · premissas em branco: "informe yield", "informe g e k", "informe P/VP alvo"', () => {
+    const s = montarCenarios(
+      acao({ premissas: { yieldPct: null, plAlvo: 36.9, gPct: null, kPct: null } }),
+    );
+    expect(linha(s.linhas, 'bazin').motivoSemResultado).toBe('informe yield');
+    expect(linha(s.linhas, 'gordon').motivoSemResultado).toBe('informe g e k');
+    expect(linha(s.linhas, 'graham').resultado).not.toBeNull();
+    expect(linha(s.linhas, 'multiplo').resultado).not.toBeNull();
+    const k = montarCenarios(
+      acao({ premissas: { yieldPct: 6, plAlvo: 36.9, gPct: 8, kPct: null } }),
+    );
+    expect(linha(k.linhas, 'gordon').motivoSemResultado).toBe('informe k');
+    const f = montarCenarios(
+      fii({ premissas: { yieldPct: null, pvpAlvo: null, rendaMensal: null } }),
+    );
+    expect(linha(f.linhas, 'rendaDesejada').motivoSemResultado).toBe('informe yield');
+    expect(linha(f.linhas, 'pvpAlvo').motivoSemResultado).toBe('informe P/VP alvo');
+    expect(f.metaRenda).toBeNull();
+    expect(f.metaRendaMotivo).toBe('sem_renda');
+    for (const l of [...s.linhas, ...f.linhas]) {
+      expect(l.motivoSemResultado ?? '').not.toMatch(/\bfalta/);
+    }
   });
 
   it('CBAV3 com "ocultar": LPA/VPA vazios + motivo de conferência; digitar libera a conta', () => {
@@ -309,11 +336,17 @@ describe('FIIs', () => {
     const s = montarCenarios(fii());
     expect(linha(s.linhas, 'rendaDesejada')).toMatchObject({ resultado: 166.75, vsCotacaoPct: 13 });
     expect(linha(s.linhas, 'pvpAlvo')).toMatchObject({ resultado: 165.95, vsCotacaoPct: 12 });
-    expect(s.metaRenda).toMatchObject({ cotas: 900, custo: 133137, faltam: 900, target: 133137 });
+    expect(s.metaRenda).toMatchObject({
+      cotas: 900,
+      custo: 133137,
+      diferenca: 900,
+      target: 133137,
+    });
+    expect(s.metaRendaMotivo).toBeNull();
     expect(s.metaRenda?.available).toBe(0);
   });
 
-  it('MXRF11: rendimento com 3 casas (1,195) ⇒ 10.042 cotas · 91.382,20 · faltam 8.792', () => {
+  it('MXRF11: rendimento com 3 casas (1,195) ⇒ 10.042 cotas · 91.382,20 · diferença 8.792', () => {
     const s = montarCenarios(
       fii({
         base: { valores: { rend12m: 1.195, vpCota: 9.260171 }, conferencias: {} },
@@ -324,7 +357,7 @@ describe('FIIs', () => {
     expect(s.metaRenda).toMatchObject({
       cotas: 10042,
       custo: 91382.2,
-      faltam: 8792,
+      diferenca: 8792,
       target: 91382.2,
       available: 11375,
     });
@@ -340,7 +373,7 @@ describe('FIIs', () => {
     expect(s.metaRenda?.cotas).toBe(10042);
   });
 
-  it('posição ≥ cotas ⇒ faltam 0, target > 0 e available = cotas × cotação', () => {
+  it('posição ≥ cotas ⇒ diferença ≤ 0 (com sinal), target > 0 e available = cotas × cotação', () => {
     const s = montarCenarios(
       fii({
         base: { valores: { rend12m: 1.195, vpCota: 9.26 }, conferencias: {} },
@@ -349,7 +382,7 @@ describe('FIIs', () => {
         posicao: { pm: 9.64, quantidade: 1250 },
       }),
     );
-    expect(s.metaRenda).toMatchObject({ cotas: 1005, faltam: 0 });
+    expect(s.metaRenda).toMatchObject({ cotas: 1005, diferenca: -245 });
     expect(s.metaRenda?.target).toBeGreaterThan(0);
     expect(s.metaRenda?.available).toBe(s.metaRenda?.target);
   });
@@ -393,10 +426,35 @@ describe('helpers do cenario.ts (fatia B)', () => {
     expect(validarPremissa('rendaMensal', 1000)).toBe(1000);
   });
 
-  it('aplicarCenarioSalvo: P/L alvo vazio salvo vale (anulável)', () => {
-    const padrao = { yieldPct: 6, gPct: 8, kPct: 13, margemPct: 20, plAlvo: 36.9 as number | null };
-    const r = aplicarCenarioSalvo(padrao, { yieldPct: 4, plAlvo: null }, ['plAlvo']);
-    expect(r.premissas).toMatchObject({ yieldPct: 4, plAlvo: null });
-    expect(aplicarCenarioSalvo(padrao, { plAlvo: null }).premissas.plAlvo).toBe(36.9);
+  it('aplicarCenarioSalvo: null salvo vale (em branco); undefined mantém o inicial; anuláveis restringe', () => {
+    const iniciais = premissasIniciaisAcao(36.9);
+    const r = aplicarCenarioSalvo(iniciais, { yieldPct: 4, plAlvo: null });
+    expect(r.premissas).toEqual({
+      yieldPct: 4,
+      gPct: null,
+      kPct: null,
+      margemPct: 0,
+      plAlvo: null,
+    });
+    expect(aplicarCenarioSalvo(iniciais, { yieldPct: 4 }).premissas.plAlvo).toBe(36.9);
+    expect(aplicarCenarioSalvo(iniciais, { plAlvo: null }, ['yieldPct']).premissas.plAlvo).toBe(
+      36.9,
+    );
+  });
+
+  it('premissas iniciais: em branco, margem 0; P/L alvo só com a média do ativo', () => {
+    expect(premissasIniciaisAcao(null)).toEqual({
+      yieldPct: null,
+      gPct: null,
+      kPct: null,
+      margemPct: 0,
+      plAlvo: null,
+    });
+    expect(premissasIniciaisFii()).toEqual({
+      yieldPct: null,
+      pvpAlvo: null,
+      rendaMensal: null,
+      margemPct: 0,
+    });
   });
 });

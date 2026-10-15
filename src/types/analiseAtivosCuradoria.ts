@@ -23,6 +23,7 @@
 import type {
   BlocoReporte,
   CampoReporte,
+  Descontinuado,
   EfeitoTela,
   OrigemCaso,
   ResolucaoCaso,
@@ -113,8 +114,9 @@ export interface ItemMeuReporte {
   id: string;
   protocolo: string;
   ticker: string;
-  bloco: BlocoReporte;
-  campo: CampoReporte;
+  /** v2.4 (F): relato antigo do indicador que saiu da superfície = 'descontinuado' */
+  bloco: BlocoReporte | Descontinuado;
+  campo: CampoReporte | Descontinuado;
   periodo: string | null;
   /** ISO */
   criadoEm: string;
@@ -224,7 +226,7 @@ export interface ReporteDetalhe {
   /** texto livre (renderizar como TEXTO); '[removido]' depois de anonimizado */
   mensagem: string;
   fonteEsperada: string | null;
-  /** snapshot do servidor (valores da linha, flags, motivos, estadoIndice, dataRef, paramsVersion) */
+  /** snapshot do servidor (valores da linha, flags, motivos, dataRef, paramsVersion) */
   contextoServidor: Record<string, unknown>;
   criadoEm: string;
   anonimizado: boolean;
@@ -336,7 +338,7 @@ export interface ContextoBlocoReporte {
 
 /**
  * MenuBlocoAtivo (fatia 0, componente FINAL; B o encaixa no slot `acao` de CartaoAnalise e nos
- * cabeçalhos de BlocoKpis/BlocoIndiceSemaforo/BlocoDividendos/GraficoLucroCotacao). Botão ⋯ de
+ * cabeçalhos de BlocoKpis/BlocoDividendos/GraficoLucroCotacao e do card de critérios). Botão ⋯ de
  * 44×44 em todas as larguras; menu de 248px no computador, BottomSheet no celular.
  * Itens: 'Reportar dado incorreto' (só com `reporteHabilitado`) e 'Fonte e atualização' (só com
  * `frescor`). Sem nenhum item, o menu NÃO renderiza (página idêntica à de hoje com flag desligada e
@@ -358,7 +360,7 @@ export interface MenuBlocoAtivoProps {
 export type MenuBlocoProps = MenuBlocoAtivoProps;
 
 /**
- * BotaoReportarDado (fatia 0 = STUB que devolve null; fatia D implementa o formulário).
+ * BotaoReportarDado (formulário do relato, Bloco C).
  * - variante 'link': renderiza o próprio gatilho ("Tem uma informação sobre isso? Reportar", no fim
  *   do "Por quê?" de um campo em conferência) e abre o formulário;
  * - variante 'controlado': SEM gatilho; o formulário (modal de 560px / sheet de tela cheia) abre

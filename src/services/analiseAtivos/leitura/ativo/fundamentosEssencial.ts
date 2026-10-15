@@ -2,12 +2,21 @@
  * Fundamentos · Essencial da página do ativo (fatia C). Só o banco: nenhuma fonte externa.
  *
  * - Até 10 anos FECHADOS (o ano corrente fica fora, series.anosFechados) + a linha 'Últ. 12m'
- *   quando há período mais recente que o último ano fechado. O último ano fechado vem destacado.
- * - Ações: Ano | Receita | Lucro líquido | Margem | ROE | LPA | Div./ação | Payout | P/L | P/VP | DY.
- *   Lucro = atribuível à controladora (consolidado com 'controladora_zero' ⇒ o do individual, regra
- *   12; sem individual ⇒ '—' com o motivo). Div./ação dos anos marcados por detectarSaltoProvento
- *   (DPA > 2× o ano anterior) leva o selo 'proventos em conferência'. Bancos/financeiras: receita e
- *   margem não se aplicam (as colunas saem) e a nota diz o padrão contábil (individual BR GAAP).
+ *   quando há período mais recente que o último ano fechado. O último ano fechado vem marcado em
+ *   `ultimoAno` (v2.4: no lugar de `destaque`; a tela usa data-ultimo-ano).
+ * - Ações (v2.4, fatia C2 — ordem do HTML do Pedro, valores em R$ bi): Ano | Receita líq. | EBITDA |
+ *   Lucro líq. ⓘ | Margem líq. ⓘ | Dívida líq. ⓘ | Dív. líq./EBITDA | FCL/CAPEX ⓘ | ROE | LPA |
+ *   Div./ação | Payout | P/L | P/VP | DY. EBITDA = EBIT + D&A; dívida líquida = dívida bruta (CP +
+ *   LP) − caixa − aplicações; FCL/CAPEX = (FCO − CAPEX) ÷ CAPEX (NUNCA o campo fcf); margem =
+ *   lucro ÷ receita quando o múltiplo do ano não vem. Lucro = atribuível à controladora (D2: a CVM
+ *   não publica o lucro sem itens não recorrentes; consolidado com 'controladora_zero' ⇒ o do
+ *   individual, regra 12; sem individual ⇒ '—' com o motivo). Div./ação dos anos marcados por
+ *   detectarSaltoProvento (DPA > 2× o ano anterior) leva o selo 'proventos em conferência'.
+ *   Bancos/financeiras (D4): receita e margem aparecem; EBITDA, dívida líquida, Dív. líq./EBITDA e
+ *   FCL/CAPEX não se aplicam (as colunas saem) e a nota diz o padrão contábil (individual BR GAAP).
+ *   O layout v2.4 sai com `{ layout: 'v24' }` (obterFundamentosEssencial). Sem a opção, o layout
+ *   LEGADO (R$ mi, receita e margem de banco 'não se aplica', colunas de antes) continua: é a base
+ *   que o Raio-X (leitura/ativo/raioX.ts, Bloco D) lê linha a linha — fora desta fatia.
  * - FIIs tijolo/híbrido: Ano | Receita | Resultado | Rend./cota | DY | VP/cota | P/VP | Vacância |
  *   Nº imóveis | Área (CVM). Papel: Nº CRIs | Maior CRI no lugar das 3 últimas. Receita e resultado
  *   = soma dos 4 trimestres do informe; ano com menos de 4 trimestres = '—' com nota. Valores por
@@ -51,6 +60,7 @@ import {
   textoMotivo,
   textoNaoSeAplica,
 } from '@/services/analiseAtivos/textosTela';
+import { TEXTOS_ATIVO } from '@/services/analiseAtivos/textosAtivo';
 import type { FundamentosPeriodo } from '@/services/analiseAtivos/tipos';
 import type {
   ColunaFundamentos,
@@ -67,6 +77,7 @@ export const TTL_ANALISE_MS = 30 * 60_000;
 export const MAX_ANOS_ESSENCIAL = 10;
 
 const TF = TEXTOS_TELA.analise.fundamentos;
+const TE = TEXTOS_ATIVO.essencial;
 const SELO_CONF: TipoSeloEstado = 'proventos_em_conferencia';
 const SELO_CONF_BLOCO_C: TipoSeloEstado = 'em_conferencia';
 
@@ -174,6 +185,13 @@ function emMilhoes(n: number | null | undefined): number | null {
   return typeof n === 'number' && Number.isFinite(n) ? n / 1e6 : null;
 }
 
+function emBilhoes(n: number | null | undefined): number | null {
+  return typeof n === 'number' && Number.isFinite(n) ? n / 1e9 : null;
+}
+
+const finito = (n: number | null | undefined): n is number =>
+  typeof n === 'number' && Number.isFinite(n);
+
 function coluna(
   codigo: keyof typeof TF.colunas,
   formato: FormatoAnalise,
@@ -245,11 +263,81 @@ export interface EntradaFundamentosAcao {
   conferencia?: ConferenciaEntrada;
 }
 
-/** Lucro do período em Estado (regra 12: controladora_zero ⇒ individual; senão motivo). */
-export function lucroEstado(f: FundamentosPeriodo): Estado<number> {
+/**
+ * Lucro do período em Estado (regra 12: controladora_zero ⇒ individual; senão motivo). `escala` =
+ * divisor (1e6 = R$ mi; o Essencial v2.4 usa 1e9 = R$ bi).
+ */
+export function lucroEstado(f: FundamentosPeriodo, escala = 1e6): Estado<number> {
   const v = lucroParaSequencia(f);
-  if (v.estado === 'ok') return ok(v.valor / 1e6);
+  if (v.estado === 'ok') return ok(v.valor / escala);
   return ausenteCom(v.motivo, textoMotivo(v.motivo));
+}
+
+/** EBITDA = EBIT + depreciação e amortização (os dois no período), em R$. */
+export function ebitdaDe(f: FundamentosPeriodo): number | null {
+  return finito(f.ebit) && finito(f.depreciacaoAmortizacao)
+    ? f.ebit + f.depreciacaoAmortizacao
+    : null;
+}
+
+/** Dívida líquida = dívida bruta (CP + LP) − caixa − aplicações financeiras, em R$. */
+export function dividaLiquidaDe(f: FundamentosPeriodo): number | null {
+  if (!finito(f.dividaBrutaCp) && !finito(f.dividaBrutaLp)) return null;
+  if (!finito(f.caixa)) return null;
+  const bruta = (f.dividaBrutaCp ?? 0) + (f.dividaBrutaLp ?? 0);
+  return bruta - f.caixa - (finito(f.aplicacoesFinanceiras) ? f.aplicacoesFinanceiras : 0);
+}
+
+/** FCL/CAPEX = (FCO − CAPEX) ÷ CAPEX (CAPEX = saída positiva; nunca o campo fcf). */
+export function fclCapexDe(f: FundamentosPeriodo): number | null {
+  if (!finito(f.fco) || !finito(f.capex) || f.capex <= 0) return null;
+  return (f.fco - f.capex) / f.capex;
+}
+
+/**
+ * Colunas derivadas do demonstrativo (v2.4): EBITDA, dívida líquida, Dív. líq./EBITDA e FCL/CAPEX
+ * em R$ bi / ×. Instituição financeira (D4): 'não se aplica'. EBITDA ≤ 0 ⇒ Dív. líq./EBITDA sem
+ * número, com o motivo.
+ */
+function derivadasDoPeriodo(
+  f: FundamentosPeriodo,
+  financeira: boolean,
+): Record<'ebitda' | 'dl' | 'dlEbitda' | 'fclCapex', Estado<number>> {
+  if (financeira) {
+    const naFin = naoSeAplicaCom('financeira');
+    return { ebitda: naFin, dl: naFin, dlEbitda: naFin, fclCapex: naFin };
+  }
+  const ebitda = ebitdaDe(f);
+  const dl = dividaLiquidaDe(f);
+  let dlEbitda: Estado<number>;
+  if (ebitda === null || dl === null) dlEbitda = semDado();
+  else if (ebitda <= 0) dlEbitda = ausenteCom('ebitda_nao_positivo', TE.ebitdaNaoPositivo);
+  else dlEbitda = ok(dl / ebitda);
+  return {
+    ebitda: estadoDe(emBilhoes(ebitda)),
+    dl: estadoDe(emBilhoes(dl)),
+    dlEbitda,
+    fclCapex: estadoDe(fclCapexDe(f)),
+  };
+}
+
+/**
+ * Margem líquida do ano: o múltiplo gravado; sem ele, lucro ÷ receita (receita > 0). Receita ≤ lucro
+ * (holding / banco no individual) = 'não se aplica' (regra 15), nunca a conta de lado: o múltiplo
+ * vem nulo justamente por isso e a margem acima de 100% contradizia o card de critérios.
+ */
+function margemDe(
+  pct: number | null | undefined,
+  lucro: Estado<number>,
+  receita: number | null,
+): Estado<number> {
+  if (finito(pct)) return ok(pct);
+  if (lucro.estado === 'ok' && finito(receita) && receita > 0) {
+    const lucroReais = lucro.valor * 1e9;
+    if (receita <= lucroReais) return naoSeAplicaCom('receita_menor_que_lucro');
+    return ok((lucroReais / receita) * 100);
+  }
+  return semDado();
 }
 
 /** Anos (de série anual de proventos por ação) marcados como 'em conferência'. */
@@ -265,7 +353,31 @@ export function anosProventoSuspeito(
   return new Set(detectarSaltoProvento(serie, { payoutPorAno }).anosSuspeitos);
 }
 
+/** Coluna do Essencial de ações (v2.4): rótulos de textosAtivo (D2: 'Lucro líq. ⓘ'). */
+function colunaAcao(codigo: keyof typeof TE.colunas, formato: FormatoAnalise): ColunaFundamentos {
+  return { codigo, rotulo: TE.colunas[codigo], formato, fonteCvmAviso: false };
+}
+
+/** Ordem do HTML do Pedro (§3.2 bloco 5), em R$ bi. */
 const COLUNAS_ACAO: ColunaFundamentos[] = [
+  colunaAcao('receita', 'numero'),
+  colunaAcao('ebitda', 'numero'),
+  colunaAcao('lucro', 'numero'),
+  colunaAcao('margem', 'pct'),
+  colunaAcao('dl', 'numero'),
+  colunaAcao('dlEbitda', 'multiplo'),
+  colunaAcao('fclCapex', 'multiplo'),
+  colunaAcao('roe', 'pct'),
+  colunaAcao('lpa', 'numero2'),
+  colunaAcao('dpa', 'numero2'),
+  colunaAcao('payout', 'pct'),
+  colunaAcao('pl', 'numero'),
+  colunaAcao('pvp', 'numero2'),
+  colunaAcao('dy', 'pct'),
+];
+
+/** Layout legado (base do Raio-X): R$ mi, colunas de antes da v2.4. */
+const COLUNAS_ACAO_LEGADO: ColunaFundamentos[] = [
   coluna('receita', 'moedaMi'),
   coluna('lucro', 'moedaMi'),
   coluna('margem', 'pct'),
@@ -278,6 +390,11 @@ const COLUNAS_ACAO: ColunaFundamentos[] = [
   coluna('dy', 'pct'),
 ];
 
+/** 'v24' = Essencial da página (ordem nova, R$ bi); ausente = legado (base do Raio-X). */
+export interface OpcoesFundamentosAcao {
+  layout?: 'v24';
+}
+
 export function textoPadrao(escopo: string | null, padrao: string | null): string | null {
   if (!escopo || !padrao) return null;
   const e = (TF.escopo as Record<string, string>)[escopo] ?? escopo;
@@ -285,7 +402,29 @@ export function textoPadrao(escopo: string | null, padrao: string | null): strin
   return `${e} ${p}`;
 }
 
-export function montarFundamentosAcao(e: EntradaFundamentosAcao): FundamentosResposta {
+export function montarFundamentosAcao(
+  e: EntradaFundamentosAcao,
+  opts: OpcoesFundamentosAcao = {},
+): FundamentosResposta {
+  const v24 = opts.layout === 'v24';
+  const escala = v24 ? 1e9 : 1e6;
+  const naFin = naoSeAplicaCom('financeira');
+  /** receita, margem e (v2.4) as colunas derivadas do período */
+  const colunasDoPeriodo = (
+    f: FundamentosPeriodo,
+    lucro: Estado<number>,
+    margemPct: number | null | undefined,
+  ): Record<string, Estado<number>> =>
+    v24
+      ? {
+          receita: estadoDe(emBilhoes(f.receita)),
+          ...derivadasDoPeriodo(f, e.financeira),
+          margem: margemDe(margemPct, lucro, f.receita),
+        }
+      : {
+          receita: e.financeira ? naFin : estadoDe(emMilhoes(f.receita)),
+          margem: e.financeira ? naFin : estadoDe(margemPct),
+        };
   const prejuizo = ausenteCom('prejuizo', TF.prejuizoNoAno);
   const fyPorAno = new Map<number, FundamentosPeriodo>();
   for (const f of e.fys) {
@@ -304,23 +443,21 @@ export function montarFundamentosAcao(e: EntradaFundamentosAcao): FundamentosRes
     e.perShare.map((p) => ({ anoFiscal: p.anoFiscal, dpa: p.dpaAjHoje, payout: p.payoutDmplPct })),
     e.hoje,
   );
-  const naFin = naoSeAplicaCom('financeira');
 
   const linhas: LinhaFundamentos[] = anos.map((ano, i) => {
     const f = fyPorAno.get(ano)!;
     const ps = psPorAno.get(ano);
     const m = mPorAno.get(ano);
-    const lucro = lucroEstado(f);
+    const lucro = lucroEstado(f, escala);
     const emPrejuizo = lucro.estado === 'ok' && lucro.valor < 0;
     const suspeito = suspeitos.has(ano);
     return {
       rotulo: String(ano),
       ano,
-      destaque: i === anos.length - 1,
+      ultimoAno: i === anos.length - 1,
       valores: {
-        receita: e.financeira ? naFin : estadoDe(emMilhoes(f.receita)),
+        ...colunasDoPeriodo(f, lucro, m?.margemLiquidaPct),
         lucro,
-        margem: e.financeira ? naFin : estadoDe(m?.margemLiquidaPct),
         roe: estadoDe(m?.roePct),
         lpa: estadoDe(ps?.lpaAjHoje),
         dpa: estadoDe(ps?.dpaAjHoje),
@@ -337,7 +474,7 @@ export function montarFundamentosAcao(e: EntradaFundamentosAcao): FundamentosRes
   const ttm = e.ttm;
   if (ttm && (!ultimoFy || ttm.dtFim > ultimoFy.dtFim) && anoDe(ttm.dtFim) <= anoDe(e.hoje)) {
     const a = e.atual;
-    const lucro = lucroEstado(ttm);
+    const lucro = lucroEstado(ttm, escala);
     const emPrejuizo =
       (lucro.estado === 'ok' && lucro.valor < 0) || (a?.lpaTtm != null && a.lpaTtm < 0);
     const conf = e.proventosEmConferencia;
@@ -346,11 +483,10 @@ export function montarFundamentosAcao(e: EntradaFundamentosAcao): FundamentosRes
     linhas.push({
       rotulo: TEXTOS_TELA.ativo.ult12mTabela,
       ano: null,
-      destaque: false,
+      ultimoAno: false,
       valores: {
-        receita: e.financeira ? naFin : estadoDe(emMilhoes(ttm.receita)),
+        ...colunasDoPeriodo(ttm, lucro, a?.margemLiquidaPct),
         lucro,
-        margem: e.financeira ? naFin : estadoDe(a?.margemLiquidaPct),
         roe: estadoDe(a?.roePct),
         lpa: estadoDe(a?.lpaTtm),
         dpa: prov(a?.dpa12m),
@@ -367,8 +503,8 @@ export function montarFundamentosAcao(e: EntradaFundamentosAcao): FundamentosRes
 
   const padraoContabil = ultimoFy?.padraoContabil ?? null;
   const escopo = ultimoFy?.escopo ?? null;
-  const notas: string[] = [TEXTOS_TELA.ativo.unidadeFundamentos];
-  if (e.financeira) notas.push(TF.notaFinanceira);
+  const notas: string[] = [v24 ? TE.unidadeAcao : TEXTOS_TELA.ativo.unidadeFundamentos];
+  if (e.financeira) notas.push(v24 ? TE.notaFinanceira : TF.notaFinanceira);
   if (padraoContabil === 'BRGAAP' || escopo === 'ind') {
     const t = textoPadrao(escopo, padraoContabil);
     if (t) notas.push(formatarTexto(TF.notaPadraoContabil, { valor: t }));
@@ -384,14 +520,14 @@ export function montarFundamentosAcao(e: EntradaFundamentosAcao): FundamentosRes
   );
   return {
     nivel: 'essencial',
-    unidade: 'R$ mi',
+    unidade: v24 ? 'R$ bi' : 'R$ mi',
     fonte: 'CVM',
     padraoContabil,
     escopo,
     variante: 'acao',
-    colunas: semColunasNaoAplicaveis(COLUNAS_ACAO, linhasConf),
+    colunas: semColunasNaoAplicaveis(v24 ? COLUNAS_ACAO : COLUNAS_ACAO_LEGADO, linhasConf),
     linhas: linhasConf,
-    notas,
+    observacoes: notas,
   };
 }
 
@@ -491,7 +627,8 @@ const COLUNAS_FII_TIJOLO: ColunaFundamentos[] = [
   ...COLUNAS_FII_BASE,
   coluna('vacancia', 'pct', true),
   coluna('nImoveis', 'inteiro', true),
-  coluna('area', 'inteiro', true),
+  // rec. 7: 'Área (CVM)' no lugar de ABL (a área informada à CVM não é a ABL do gestor)
+  { codigo: 'area', rotulo: TE.areaFii, formato: 'inteiro', fonteCvmAviso: true },
 ];
 const COLUNAS_FII_PAPEL: ColunaFundamentos[] = [
   ...COLUNAS_FII_BASE,
@@ -594,7 +731,7 @@ export function montarFundamentosFii(e: EntradaFundamentosFii): FundamentosRespo
     return {
       rotulo: String(ano),
       ano,
-      destaque: i === anos.length - 1,
+      ultimoAno: i === anos.length - 1,
       valores: cnpjConf ? semInformeConferido(valores) : valores,
       selos: suspeitos.has(ano) ? [SELO_CONF] : [],
     };
@@ -619,7 +756,7 @@ export function montarFundamentosFii(e: EntradaFundamentosFii): FundamentosRespo
     linhas.push({
       rotulo: TEXTOS_TELA.ativo.ult12mTabela,
       ano: null,
-      destaque: false,
+      ultimoAno: false,
       valores: semInformeConferido(base),
       selos: conf ? [SELO_CONF] : [],
     });
@@ -649,7 +786,7 @@ export function montarFundamentosFii(e: EntradaFundamentosFii): FundamentosRespo
     linhas.push({
       rotulo: TEXTOS_TELA.ativo.ult12mTabela,
       ano: null,
-      destaque: false,
+      ultimoAno: false,
       valores,
       selos: conf ? [SELO_CONF] : [],
     });
@@ -678,7 +815,7 @@ export function montarFundamentosFii(e: EntradaFundamentosFii): FundamentosRespo
     variante: papel ? 'fii_papel' : 'fii_tijolo',
     colunas: semColunasNaoAplicaveis(colunas, linhasConf),
     linhas: linhasConf,
-    notas,
+    observacoes: notas,
   };
 }
 
@@ -834,20 +971,23 @@ export async function obterFundamentosEssencial(
     const ttms = periodos
       .filter((p) => p.tipoPeriodo === 'TTM')
       .sort((a, b) => a.dtFim.localeCompare(b.dtFim));
-    dados = montarFundamentosAcao({
-      hoje,
-      financeira: linha.regua === 'acao_financeira',
-      fys: periodos.filter((p) => p.tipoPeriodo === 'FY'),
-      ttm: ttms[ttms.length - 1] ?? null,
-      perShare: ps.map((p) => ({ ...p, acoesFim: paraNumero(p.acoesFim) })),
-      multiplos: my,
-      atual: mc,
-      proventosEmConferencia: conf,
-      conferencia: {
-        flags: [...linha.flags, ...flagsAnuaisConf(my)],
-        motivos: linha.motivosIncompleto,
+    dados = montarFundamentosAcao(
+      {
+        hoje,
+        financeira: linha.regua === 'acao_financeira',
+        fys: periodos.filter((p) => p.tipoPeriodo === 'FY'),
+        ttm: ttms[ttms.length - 1] ?? null,
+        perShare: ps.map((p) => ({ ...p, acoesFim: paraNumero(p.acoesFim) })),
+        multiplos: my,
+        atual: mc,
+        proventosEmConferencia: conf,
+        conferencia: {
+          flags: [...linha.flags, ...flagsAnuaisConf(my)],
+          motivos: linha.motivosIncompleto,
+        },
       },
-    });
+      { layout: 'v24' },
+    );
   }
   cache.set(chave, dados, TTL_ANALISE_MS);
   return { dados, cache: false };

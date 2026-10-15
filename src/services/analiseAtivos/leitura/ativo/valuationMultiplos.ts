@@ -54,21 +54,28 @@ import {
   type ResultadoLeitura,
 } from '@/services/analiseAtivos/leitura/ativo/fundamentosEssencial';
 import {
+  JANELA_PARES,
+  criterioParesTela,
   montarParesAtivo,
-  type ParesAtivo,
+  paresParaTela,
 } from '@/services/analiseAtivos/leitura/ativo/paresAtivo';
+import { obterCriteriosVarios } from '@/services/analiseAtivos/leitura/criterios/lerCriterios';
+import type { CriteriosLinhaApi } from '@/types/analiseAtivosCriterios';
 import { textoStatusBarra } from '@/services/analiseAtivos/textos';
 import {
   CAMPO_HISTORICO,
   aplicarConferenciaCampo,
   anosEmConferencia,
   flagsAnuaisConf,
+  motivosDaLinha,
 } from '@/services/analiseAtivos/leitura/ativo/conferenciasAtivo';
 import { ehCampoTela } from '@/services/analiseAtivos/regras/comum/conferencia';
 import { TEXTOS_TELA, formatarTexto, textoNaoSeAplica } from '@/services/analiseAtivos/textosTela';
+import { TEXTOS_ATIVO } from '@/services/analiseAtivos/textosAtivo';
 import type { ScoringParams } from '@/services/analiseAtivos/tipos';
 import type {
   BarraValuation,
+  ClasseQuadro,
   Estado,
   FormatoAnalise,
   GrupoValuation,
@@ -79,6 +86,7 @@ import type {
 } from '@/types/analiseAtivosApi';
 
 const TV = TEXTOS_TELA.analise.valuation;
+const TA_VALUATION = TEXTOS_ATIVO.valuation;
 export const ANOS_BARRA = 10;
 export const ANOS_CAGR = 5;
 export const MIN_PARES_REFERENCIA = 3;
@@ -180,6 +188,8 @@ export interface EntradaValuation {
   /** pares (sem o alvo), na ordem de exibição */
   pares: DadosAtivoValuation[];
   criterioPares: string;
+  /** v2.4: critérios dos pares na janela 5 (ticker → contagem); ausente = sem avaliação */
+  criteriosPares?: ReadonlyMap<string, CriteriosLinhaApi>;
   params?: ScoringParams;
 }
 
@@ -264,7 +274,7 @@ function criarCtx(d: DadosAtivoValuation, hoje: string): Ctx {
   const flagsConf = [...d.linha.flags, ...flagsAnuaisConf(d.anuais)];
   return {
     flagsConf,
-    motivos: d.linha.indice.motivos.map((m) => m.codigo),
+    motivos: motivosDaLinha(d.linha),
     anosHistoricoConf: anosEmConferencia(flagsConf, 'historico'),
     d,
     hoje,
@@ -747,7 +757,15 @@ function resumoGrupo(g: DefGrupo, itens: ItemValuation[]): string {
   const abaixo = comBarra.filter(
     (i) => i.atual.estado === 'ok' && i.barra.media !== null && i.atual.valor < i.barra.media,
   ).length;
-  return formatarTexto(TV.resumoAbaixo, { n: abaixo, total: comBarra.length, valor: rotulo });
+  // v2.4 (fatia C2): resumo literal da spec (§3.2 bloco 6); com menos de 10 anos de histórico, a
+  // média é a dos anos que existem ('média de 8 anos')
+  const anos = Math.min(10, Math.max(...comBarra.map((i) => i.barra.nPontos)));
+  return formatarTexto(TA_VALUATION.resumo, {
+    n: abaixo,
+    total: comBarra.length,
+    valor: rotulo,
+    anos,
+  });
 }
 
 function mediaPontos(pontos: Ponto[], soPositivos: boolean): number | null {
@@ -784,10 +802,15 @@ function montarHistoricos(alvo: Ctx): HistoricoMultiplo[] {
 /**
  * Linha do Quadro para a tabela de pares: números com 4 casas e sem a série de 10 anos (a tabela
  * não a usa; o Quadro e o topo trazem a série completa). Mantém o contrato LinhaQuadroApi.
+ * v2.4: com a contagem de critérios na janela 5.
  */
-export function linhaParEnxuta(l: LinhaQuadroApi): LinhaQuadroApi {
+export function linhaParEnxuta(
+  l: LinhaQuadroApi,
+  criterios: CriteriosLinhaApi | null = l.criterios,
+): LinhaQuadroApi {
   return {
     ...l,
+    criterios,
     variacaoDiaPct: enxugarOuNull(l.variacaoDiaPct),
     roe: enxugarEstado(l.roe),
     pl: enxugarEstado(l.pl),
@@ -827,14 +850,16 @@ export function montarValuation(e: EntradaValuation): ValuationResposta {
     });
   }
 
-  const linhasPares: ParesAtivo['itens'] = [e.alvo.linha, ...e.pares.map((p) => p.linha)].map(
-    linhaParEnxuta,
-  );
+  // v2.4: só os pares (sem o próprio ativo), A–Z, com os critérios da janela 5
+  const linhasPares = paresParaTela(
+    e.alvo.linha.ticker,
+    e.pares.map((p) => p.linha),
+  ).map((l) => linhaParEnxuta(l, e.criteriosPares?.get(l.ticker) ?? l.criterios ?? null));
   return {
     grupos,
     historicos: montarHistoricos(alvo),
     pares: { criterio: e.criterioPares, itens: linhasPares },
-    nota: TV.notaReferencia,
+    observacao: TV.notaReferencia,
   };
 }
 
@@ -915,6 +940,18 @@ function agrupar<T extends { symbol: string }>(linhas: T[]): Map<string, T[]> {
   const m = new Map<string, T[]>();
   for (const l of linhas) m.set(l.symbol, [...(m.get(l.symbol) ?? []), l]);
   return m;
+}
+
+/** Critérios dos pares (janela 5); falha de leitura = sem avaliação (a tela mostra '—'). */
+async function lerCriteriosPares(
+  symbols: readonly string[],
+): Promise<Map<string, CriteriosLinhaApi>> {
+  if (symbols.length === 0) return new Map();
+  try {
+    return await obterCriteriosVarios(prisma, symbols, JANELA_PARES);
+  } catch {
+    return new Map();
+  }
 }
 
 /** null = ticker fora da área (a rota responde 404). */
@@ -1017,11 +1054,13 @@ export async function obterValuation(
     };
   };
 
+  const criteriosPares = await lerCriteriosPares(symbols.slice(1));
   const dados = montarValuation({
     hoje,
     alvo: dadosDe(alvoApi),
     pares: pares.itens.slice(1).map(dadosDe),
-    criterioPares: pares.criterio,
+    criterioPares: criterioParesTela(alvoApi.classe as ClasseQuadro),
+    criteriosPares,
   });
   cache.set(chave, dados, TTL_ANALISE_MS);
   return { dados, cache: false };

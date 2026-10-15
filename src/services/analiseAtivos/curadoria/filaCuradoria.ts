@@ -383,12 +383,10 @@ const SELECT_LINHA = {
   dataRef: true,
   geradoEm: true,
   paramsVersion: true,
-  estadoIndice: true,
   noQuadro: true,
   preco: true,
   precoData: true,
   valorMercado: true,
-  indiceMf: true,
   pl: true,
   pvp: true,
   dy12mPct: true,
@@ -450,10 +448,14 @@ export function fontesOficiais(classe: string, cnpj: string | null, symbol: stri
   return fontes;
 }
 
+/** Chaves do indicador antigo que relatos anteriores à v2.4 guardaram no retrato (não se mostram). */
+const CHAVES_DESCONTINUADAS = new Set(['estadoIndice', 'indiceMf']);
+
 function contextoComoObjeto(v: unknown): Record<string, unknown> {
-  return typeof v === 'object' && v !== null && !Array.isArray(v)
-    ? (v as Record<string, unknown>)
-    : {};
+  if (typeof v !== 'object' || v === null || Array.isArray(v)) return {};
+  return Object.fromEntries(
+    Object.entries(v as Record<string, unknown>).filter(([k]) => !CHAVES_DESCONTINUADAS.has(k)),
+  );
 }
 
 export async function detalharCaso(

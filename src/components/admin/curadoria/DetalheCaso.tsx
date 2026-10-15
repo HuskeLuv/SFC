@@ -172,7 +172,7 @@ export function ConteudoDetalhe({
             itens={[
               [
                 T_FORM.bloco,
-                T_BLOCOS[detalhe.oQueUsuarioViu.bloco] ?? detalhe.oQueUsuarioViu.bloco,
+                T_BLOCOS[detalhe.oQueUsuarioViu.bloco] ?? TEXTOS_TELA.relatos.descontinuado,
               ],
               [
                 T_FORM.valor,

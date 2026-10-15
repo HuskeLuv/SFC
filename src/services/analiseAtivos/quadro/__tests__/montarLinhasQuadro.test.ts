@@ -8,6 +8,7 @@ import {
   type MultiplosQuadro,
   type ScoreQuadro,
 } from '../montarLinhasQuadro';
+import type { CriteriosCompactos } from '@/types/analiseAtivosCriterios';
 
 const DATA_REF = new Date('2026-09-29T00:00:00.000Z');
 const GERADO = new Date('2026-09-30T10:40:00.000Z');
@@ -477,5 +478,58 @@ describe('montarLinhasQuadro', () => {
         { ano: 2025, valor: 2 },
       ]),
     ).toBe(2);
+  });
+});
+
+describe('montarLinhasQuadro — critérios de fundamentos (v2.4)', () => {
+  const compactoWege = {
+    '5': {
+      n: 5,
+      de: 6,
+      m: [['rec', 'atende', 'cresceu em 5 de 5 anos · 17.470 → 40.804 (R$ mi)']],
+    },
+  } as unknown as CriteriosCompactos;
+
+  it('grava a cópia compacta e o perfil quando o job criterios avaliou o símbolo', () => {
+    const r = montarLinhasQuadro(
+      entrada({
+        criterios: [
+          { symbol: 'WEGE3', perfil: 'acao', criterios: compactoWege },
+          { symbol: 'HGLG11', perfil: 'fii_tijolo', criterios: {} },
+        ],
+      }),
+    );
+    expect(linha(r, 'WEGE3')).toMatchObject({ criterios: compactoWege, perfilCriterios: 'acao' });
+    expect(linha(r, 'HGLG11').perfilCriterios).toBe('fii_tijolo');
+  });
+
+  it('sem avaliação: colunas fora do createMany (nulas) e alerta só para linhas do Quadro', () => {
+    const r = montarLinhasQuadro(
+      entrada({ criterios: [{ symbol: 'WEGE3', perfil: 'acao', criterios: compactoWege }] }),
+    );
+    expect('criterios' in linha(r, 'TGMA3')).toBe(false);
+    expect('perfilCriterios' in linha(r, 'TGMA3')).toBe(false);
+    const a = r.alertas.find((x) => x.codigo === 'quadro_sem_criterios');
+    expect(a?.nivel).toBe('aviso');
+    expect(a?.mensagem).toContain('TGMA3');
+    expect(a?.mensagem).not.toContain('WEGE3');
+    const semCriteriosNoQuadro = r.linhas.filter((l) => l.noQuadro && l.symbol !== 'WEGE3');
+    expect(a?.mensagem).toContain(`${semCriteriosNoQuadro.length} linhas do Quadro`);
+  });
+
+  it('todas as linhas avaliadas = sem alerta (100% das linhas do Quadro com critérios)', () => {
+    const base = entrada();
+    const simbolos = [...base.acoes.map((x) => x.symbol), ...base.fiis.map((x) => x.symbol)];
+    const r = montarLinhasQuadro(
+      entrada({
+        criterios: simbolos.map((symbol) => ({
+          symbol,
+          perfil: 'acao' as const,
+          criterios: compactoWege,
+        })),
+      }),
+    );
+    expect(r.alertas.map((x) => x.codigo)).not.toContain('quadro_sem_criterios');
+    expect(r.linhas.every((l) => l.criterios !== undefined)).toBe(true);
   });
 });

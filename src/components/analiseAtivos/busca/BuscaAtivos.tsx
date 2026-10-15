@@ -5,7 +5,8 @@
  * Esc; "/" foca a busca em qualquer tela da área). O índice inteiro (useIndiceBusca) chega uma vez,
  * no primeiro uso, e o filtro roda no cliente (quadro/indiceBusca.ts) — nenhuma requisição por
  * tecla. Grupos Ações/FIIs com o trecho destacado (até 8), selos Na carteira/Planejado (overlay) e
- * "fora do Quadro · motivo" para quem não teve negócio recente.
+ * "fora do Quadro · motivo" para quem não teve negócio recente. v2.4: sem o indicador antigo
+ * ao lado do nome (o índice de busca não traz mais i/e).
  *
  * Celular (< lg): botão que abre um sheet de tela cheia com campo de 16px e as buscas recentes
  * (localStorage, só conveniência).
@@ -271,15 +272,6 @@ function ListaResultados({
                   {motivo ? (
                     <span className="shrink-0 text-right text-xs text-gray-500 dark:text-gray-400">
                       {motivo}
-                    </span>
-                  ) : item.i !== null ? (
-                    <span className="shrink-0 text-xs text-gray-500 tabular-nums dark:text-gray-400">
-                      {formatarTexto(T.indiceCurto, {
-                        valor: item.i.toLocaleString('pt-BR', {
-                          minimumFractionDigits: 1,
-                          maximumFractionDigits: 1,
-                        }),
-                      })}
                     </span>
                   ) : null}
                 </div>

@@ -5,8 +5,10 @@
  * TEXTO (vírgula ou ponto) — nunca é reescrito enquanto ele digita; a conta sai de montarCenarios
  * a cada mudança, sobre os números lidos dos textos.
  *
- * - Ao abrir: valores do ativo + premissas padrão, ou o cenário salvo por cima (premissas e só os
- *   dados que o usuário editou; o P/L alvo vazio salvo continua vazio).
+ * - Ao abrir: valores do ativo + premissas EM BRANCO (v2.4, spec §4.4: yield, g, k, P/VP alvo e
+ *   renda vazios; margem 0; P/L alvo = média 10a do ativo, um fato), ou o cenário salvo por cima
+ *   (premissas — campos em branco continuam em branco — e só os dados que o usuário editou).
+ * - "Limpar minhas premissas" = volta a esse estado inicial (snapshotPadrao) + DELETE do salvo.
  * - "editado": o dado do ativo digitado difere do valor que o campo mostrava (arredondado).
  * - "mudou desde que você salvou": o campo editado guardou o valor do ativo no salvamento e o
  *   ativo hoje mostra outro valor ⇒ aviso + "Usar o valor atual".
@@ -39,6 +41,7 @@ import { TEXTOS_CENARIOS } from '@/services/analiseAtivos/textosCenarios';
 import { formatarTexto } from '@/services/analiseAtivos/textos';
 import type { CenarioPutBody, CenariosResposta } from '@/types/analiseAtivosBlocoD';
 import type { Estado, ExibicaoConferenciaTela } from '@/types/analiseAtivosApi';
+import type { PremissasAcaoV2, PremissasFiiV2 } from '@/types/analiseAtivosCriterios';
 
 const TV = TEXTOS_CENARIOS.validacao;
 
@@ -88,25 +91,33 @@ export function conferenciasDoAtivo(
   return out;
 }
 
-/** Padrão: valores do ativo + premissas padrão. */
+/**
+ * Premissas iniciais (v2.4): as da API (`premissasIniciais`) — em branco, margem 0 e o P/L alvo =
+ * média 10a do ativo. NUNCA as do ScoringParams.
+ */
+export function premissasIniciaisDe(r: CenariosResposta): PremissasAcaoV2 | PremissasFiiV2 {
+  return r.premissasIniciais;
+}
+
+/** Estado inicial ("Limpar minhas premissas"): valores do ativo + premissas em branco. */
 export function snapshotPadrao(r: CenariosResposta): SnapshotCenario {
   const base = valoresDoAtivo(r);
   const textos: Partial<Record<CampoForm, string>> = {};
   for (const c of CAMPOS_DADO[r.classe]) textos[c] = textoDoNumero(c, base[c]);
-  const p = r.premissasPadrao as unknown as Record<string, number | null | undefined>;
+  const iniciais = premissasIniciaisDe(r);
+  const p = iniciais as unknown as Record<string, number | null | undefined>;
   for (const n of PREMISSAS_CLASSE[r.classe])
     textos[n as PremissaCampo] = textoDoNumero(n as PremissaCampo, p[n]);
-  return { textos, margemPct: r.premissasPadrao.margemPct };
+  return { textos, margemPct: iniciais.margemPct };
 }
 
-/** Ao abrir: o cenário salvo por cima do padrão. */
+/** Ao abrir: o cenário salvo por cima das premissas iniciais (null salvo = em branco). */
 export function snapshotInicial(r: CenariosResposta): SnapshotCenario {
   const padrao = snapshotPadrao(r);
   if (!r.salvo) return padrao;
   const premissas = aplicarCenarioSalvo(
-    r.premissasPadrao as unknown as Record<string, unknown>,
+    premissasIniciaisDe(r) as unknown as Record<string, unknown>,
     r.salvo.premissas as unknown as Record<string, unknown>,
-    ['plAlvo'],
   ).premissas as Record<string, number | null | undefined>;
   const textos = { ...padrao.textos };
   for (const n of PREMISSAS_CLASSE[r.classe]) {
@@ -132,10 +143,8 @@ export function erroDoCampo(
 ): string | null {
   const v = lerCampo(campo, texto);
   const ehDado = (CAMPOS_DADO[r.classe] as readonly string[]).includes(campo);
-  if (v === null) {
-    // dado do ativo vazio e P/L alvo vazio são válidos (o método diz o que falta)
-    return ehDado || campo === 'plAlvo' ? null : TV.numero;
-  }
+  // v2.4: campo vazio é válido (dado do ativo ou premissa em branco: o método diz "informe …")
+  if (v === null) return null;
   if (Number.isNaN(v)) return TV.numero;
   if (ehDado) {
     const max = r.limites.dadoAbsMax;
@@ -186,7 +195,7 @@ export function valorMudouDesdeSalvamento(
   return arredondar(antes, c) !== arredondar(agora, c) ? agora : null;
 }
 
-/** PUT do cenário ou os campos com erro. */
+/** PUT do cenário (v2: premissas em branco vão como null) ou os campos com erro. */
 export function corpoParaSalvar(
   r: CenariosResposta,
   s: SnapshotCenario,
@@ -204,10 +213,10 @@ export function corpoParaSalvar(
       corpo: {
         classe: 'fii',
         premissas: {
-          yieldPct: n('yieldPct') as number,
+          yieldPct: n('yieldPct'),
           margemPct: s.margemPct,
-          rendaMensal: n('rendaMensal') as number,
-          pvpAlvo: n('pvpAlvo') as number,
+          rendaMensal: n('rendaMensal'),
+          pvpAlvo: n('pvpAlvo'),
         },
         dados,
       },
@@ -218,9 +227,9 @@ export function corpoParaSalvar(
     corpo: {
       classe: 'acao',
       premissas: {
-        yieldPct: n('yieldPct') as number,
-        gPct: n('gPct') as number,
-        kPct: n('kPct') as number,
+        yieldPct: n('yieldPct'),
+        gPct: n('gPct'),
+        kPct: n('kPct'),
         margemPct: s.margemPct,
         plAlvo: n('plAlvo'),
       },

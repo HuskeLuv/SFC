@@ -42,7 +42,7 @@ function dataBr(iso: string | null): string {
 }
 
 function rotuloCampo(campo: string): string {
-  return (T.campos as Record<string, string>)[campo] ?? campo;
+  return (T.campos as Record<string, string>)[campo] ?? T.descontinuado;
 }
 
 // ---------------------------------------------------------------------------

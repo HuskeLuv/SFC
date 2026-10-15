@@ -30,6 +30,12 @@
  *
  * Convenções iguais às da Fase 1 (src/types/analiseAtivosApi.ts): datas 'AAAA-MM-DD', percentuais
  * em pontos (6 = 6%), Estado<T> com motivo e texto prontos, só anos FECHADOS nas séries anuais.
+ *
+ * v2.4 — Filtros de Fundamentos (fatia F): o Comparador é ISONÔMICO (sem marca de valor, sem
+ * direção, sem resumo com placar: critérios + indicadores lado a lado + "Leitura dos dados"); os
+ * Cenários abrem com premissas EM BRANCO (premissasIniciais) e as premissas do usuário são
+ * anuláveis (null = "informe …") no GET, no PUT e no salvo. Nenhuma chave do indicador antigo, de
+ * nota, rating ou score (contratoSemNota.test.ts).
  */
 import type {
   ClasseQuadro,
@@ -38,9 +44,16 @@ import type {
   FiiTipoTela,
   ForaDoQuadroMotivo,
   FormatoAnalise,
-  IndiceLinha,
   TipoSeloEstado,
 } from '@/types/analiseAtivosApi';
+import type {
+  CriteriosLinhaApi,
+  IdCriterio,
+  Janela,
+  LeituraDosDados,
+  PremissasAcaoV2,
+  PremissasFiiV2,
+} from '@/types/analiseAtivosCriterios';
 
 // ===========================================================================
 // Níveis dos cards (seletores)
@@ -241,22 +254,14 @@ export type FormatoRespostaRaioX = 'json' | 'csv';
 // Meus cenários (fatia B)
 // ===========================================================================
 
-/** Premissas de AÇÃO (pontos percentuais; margem em passos de 5). plAlvo vazio = null. */
-export interface PremissasCenarioAcao {
-  yieldPct: number;
-  gPct: number;
-  kPct: number;
-  margemPct: number;
-  plAlvo?: number | null;
-}
+/**
+ * Premissas de AÇÃO do usuário (pontos percentuais; margem em passos de 5). v2.4: em branco = null
+ * ("informe …"); plAlvo pode faltar num cenário salvo antes da v2.4.
+ */
+export type PremissasCenarioAcao = Omit<PremissasAcaoV2, 'plAlvo'> & { plAlvo?: number | null };
 
-/** Premissas de FII. */
-export interface PremissasCenarioFii {
-  yieldPct: number;
-  margemPct: number;
-  rendaMensal: number;
-  pvpAlvo: number;
-}
+/** Premissas de FII do usuário (v2.4: em branco = null). */
+export type PremissasCenarioFii = PremissasFiiV2;
 
 /** Só o que o usuário editou e difere do valor do ativo (diffDadosEditados). */
 export interface DadosEditadosAcao {
@@ -358,18 +363,21 @@ export type CenariosResposta =
   | (CenariosRespostaComum & {
       classe: 'acao';
       base: BaseCenarioAcao;
-      premissasPadrao: PremissasCenarioAcao;
+      /** v2.4 (C2): premissas em branco (yield/g/k null, margem 0, plAlvo = média 10a | null) */
+      premissasIniciais: PremissasAcaoV2;
       salvo: CenarioSalvo<PremissasCenarioAcao, DadosEditadosAcao> | null;
     })
   | (CenariosRespostaComum & {
       classe: 'fii';
       base: BaseCenarioFii;
-      premissasPadrao: PremissasCenarioFii;
+      /** v2.4 (C2): premissas em branco (yield/pvpAlvo/rendaMensal null, margem 0) */
+      premissasIniciais: PremissasFiiV2;
       salvo: CenarioSalvo<PremissasCenarioFii, DadosEditadosFii> | null;
     });
 
 /**
- * PUT /api/analise-ativos/cenarios/[ticker] — CenarioPutSchema (zod strict, cenarios/contrato.ts).
+ * PUT /api/analise-ativos/cenarios/[ticker] — CenarioPutSchema (zod strict, cenarios/contrato.ts;
+ * o teste de tipo confere que o schema e este tipo são o mesmo). Premissas anuláveis (v2.4).
  * classe ≠ classe do ativo ⇒ 400; consultor ⇒ 403; 301º cenário do usuário ⇒ 409.
  */
 export type CenarioPutBody =
@@ -399,71 +407,66 @@ export type MetodoCenario =
 // ===========================================================================
 
 /**
- * Direção do ★ ('valor numericamente mais favorável', nunca 'melhor'):
- * maior · menor · menor_positivo (P/L: ≤ 0 fica fora) · perto_de_1 (P/VP de papel) · neutro (sem ★).
+ * Tipo do ativo para a aplicabilidade de grupo/linha: 'acao' ou o perfil de critérios do FII
+ * (tijolo | papel; FoF, híbrido e indefinido seguem a regra de composição do motor, rec. 3).
  */
-export type DirecaoDestaque = 'maior' | 'menor' | 'menor_positivo' | 'perto_de_1' | 'neutro';
-
-/** Por que uma linha ficou sem ★ (texto em textosComparador.semDestaque). */
-export type MotivoSemDestaque =
-  | 'menos_de_2'
-  | 'empate'
-  | 'neutro'
-  | 'tipos_diferentes'
-  | 'sem_validacao_cvm';
+export type TipoAtivoComparador = 'acao' | 'tijolo' | 'papel';
 
 /** Por que um ticker do ?t= ficou de fora (aviso no topo; textosComparador.ignorados). */
 export type MotivoIgnorado = 'inexistente' | 'outra_classe' | 'excesso' | 'formato';
 
-/** Célula do Comparador em conferência ('ocultar' = '—' + chip; 'selo' = valor + chip; sem ★). */
+/** Célula do Comparador em conferência ('ocultar' = '—' + chip; 'selo' = valor + chip). */
 export interface ConferenciaCelulaComparador {
   exibicao: ExibicaoConferenciaTela;
   motivo: string;
 }
 
+/** Uma linha de indicador (sem direção, sem marca de valor: todos com o mesmo peso visual). */
 export interface LinhaComparador {
   codigo: string;
   rotulo: string;
   sub: string | null;
   formato: FormatoAnalise;
-  direcao: DirecaoDestaque;
-  /** selo 'fonte CVM' (imóveis/CRIs; decisão 10: sem ★) */
+  /** selo 'fonte CVM' sob o valor (vacância física da CVM, que pode diferir do gestor) */
   fonteCvmAviso: boolean;
-  /** selo 'critério provisório' (nº de CRIs, maior CRI) */
-  criterioProvisorio: boolean;
-  /** chave = ticker; n/a no misto (tijolo × papel) */
+  /** chave = ticker; 'n/a' no misto (tijolo × papel) e nas financeiras */
   valores: Record<string, Estado<number>>;
   conferencia: Record<string, ConferenciaCelulaComparador | null>;
-  /** ticker com ★ (calculado no servidor sobre o valor arredondado como exibido) ou null */
-  destaque: string | null;
-  motivoSemDestaque: MotivoSemDestaque | null;
 }
 
 export interface GrupoComparador {
   codigo: string;
   rotulo: string;
-  /** a que o grupo se aplica ('acao' ou tipos de FII) */
-  aplicavelA: Array<'acao' | FiiTipoTela>;
+  aplicavelA: TipoAtivoComparador[];
   linhas: LinhaComparador[];
 }
 
+/** Ativo do Comparador. */
 export interface AtivoComparador {
   ticker: string;
   nome: string;
   preco: Estado<number>;
   precoData: string | null;
   fiiTipo: FiiTipoTela | null;
-  /** régua do Índice (ex.: 'tijolo'), null em ação */
-  regua: string | null;
-  /** Índice MF + statusCriterios (anel; incompleto tracejado) */
-  indice: IndiceLinha;
+  /** 'acao' | 'tijolo' | 'papel' (perfil de critérios) */
+  tipoComparacao: TipoAtivoComparador;
+  /** critérios na janela pedida; null = sem avaliação */
+  criterios: CriteriosLinhaApi | null;
   noQuadro: boolean;
   /** fora do Quadro entra com o selo 'sem negociação recente' */
   foraDoQuadroMotivo: ForaDoQuadroMotivo | null;
-  /** CampoTela em conferência neste ativo */
+  /** grupos de conferência deste ativo */
   conferencias: string[];
   /** sugestões do mesmo segmento/tipo para o slot vazio */
   pares: string[];
+}
+
+/** Rótulos e equivalências do bloco de critérios (linhas na ordem do perfil). */
+export interface CriteriosComparador {
+  /** id da linha → rótulo, na ORDEM das linhas (no misto, 'Obrigações/PL ≤ 20% / LTV ≤ 60%') */
+  rotulos: Partial<Record<IdCriterio, string>>;
+  /** id da linha (tijolo) → id equivalente (papel); só no misto */
+  equivalencias: Partial<Record<IdCriterio, IdCriterio>>;
 }
 
 /** Mini-gráficos em base 100, MESMA escala para todos (min = min(mín. global, 100)). */
@@ -483,40 +486,35 @@ export interface GraficosComparador {
   }>;
 }
 
-/** Resumo numérico SEM placar (decisão 9): ordem dos slots, sem contar ★, sem "X tem o maior". */
-export interface ResumoComparador {
-  indices: Array<{ ticker: string; valor: number | null; incompleto: boolean }>;
-  criteriosAtendidos: Array<{ ticker: string; atende: number | null; total: number | null }>;
-  emConferencia: Array<{ ticker: string; rotulos: string[] }>;
-  /** textosComparador.resumo.responsabilidade */
-  responsabilidade: string;
-}
-
 /**
- * GET /api/analise-ativos/comparador?t=WEGE3,ITUB4 (1 a MAX_ATIVOS_COMPARADOR; ≤ 80 caracteres;
- * TICKER_RE; nenhum válido ⇒ 400). private, max-age=300. Sem dado do usuário ("Na minha carteira"
- * vem do overlay no cliente). A classe é a do 1º ticker válido; os de outra classe saem em
- * `ignorados`. ORDEM: `tickers`, `ativos`, `resumo.*` e `graficos.series` seguem a ordem pedida
- * (slots). O cache do servidor e o do cliente usam o conjunto ORDENADO + a classe decidida (o 1º
- * slot, no cliente) como chave; quem lê do cache reordena pelos slots (no cliente,
- * ordenarComparadorPelosSlots; no servidor, montarComparador antes de responder).
+ * GET /api/analise-ativos/comparador?t=WEGE3,ITUB4&janela=5 (1 a MAX_ATIVOS_COMPARADOR; ≤ 80
+ * caracteres; TICKER_RE; nenhum válido ⇒ 400). private, max-age=300. Sem dado do usuário ("Na
+ * minha carteira" vem do overlay no cliente). A classe é a do 1º ticker válido; os de outra classe
+ * saem em `ignorados`. Resposta ISONÔMICA: nenhuma direção, marca de valor ou placar.
+ * ORDEM: `tickers`, `ativos`, `graficos.series` e `leitura.contagens` seguem a ordem pedida
+ * (slots). O cache do servidor e o do cliente usam o conjunto ORDENADO + a classe decidida como
+ * chave; quem lê do cache reordena pelos slots (no cliente, ordenarComparadorPelosSlots; no
+ * servidor, montarComparador antes de responder).
  */
 export interface ComparadorResposta {
   classe: ClasseQuadro;
+  janela: Janela;
   tickers: string[];
   ignorados: Array<{ ticker: string; motivo: MotivoIgnorado }>;
-  /** tijolo + papel no mesmo conjunto (aviso neutro; n/a nas linhas do outro tipo) */
+  /** tijolo + papel no mesmo conjunto (pelo perfil de critérios) */
   misto: boolean;
   ativos: AtivoComparador[];
+  criterios: CriteriosComparador;
   grupos: GrupoComparador[];
   /** null com menos de 1 ativo válido */
   graficos: GraficosComparador | null;
-  resumo: ResumoComparador;
+  /** "Leitura dos dados" — só contagens + literal */
+  leitura: LeituraDosDados;
   versao: string;
 }
 
 // ===========================================================================
-// Props dos componentes de fronteira (stubs da fatia 0)
+// Props dos componentes de fronteira
 // ===========================================================================
 
 /**
@@ -551,15 +549,9 @@ export interface PilulasAreaProps {
   className?: string;
 }
 
-/** BotaoComparar (dono: D) — no CabecalhoAtivo; link para ROTAS_BLOCO_D.comparar([ticker]). */
-export interface BotaoCompararProps {
-  ticker: string;
-  classe: ClasseQuadro;
-}
-
 /**
  * BandejaComparar (dono: D) — barra do modo Comparar do Quadro. Abre o Comparador a partir de 1
- * ativo (decisão 13; com 1, o Comparador diz "adicione mais um para ver destaques").
+ * ativo (decisão 13; com 1, o Comparador pede mais um ativo para ver os dados lado a lado).
  */
 export interface BandejaCompararProps {
   classe: ClasseQuadro;

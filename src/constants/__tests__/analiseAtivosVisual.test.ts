@@ -5,12 +5,10 @@ import {
   COLUNAS,
   CORES_PERMITIDAS,
   DIRECAO_PADRAO,
-  FILTROS_RAPIDOS,
-  STATUS_CRITERIO,
-  faixaIndice,
+  ORDEM_PADRAO,
 } from '@/constants/analiseAtivosVisual';
-import { MYFINANCE_BRAND } from '@/constants/brandColors';
 import { TEXTOS_TELA } from '@/services/analiseAtivos/textosTela';
+import { TEXTOS_QUADRO } from '@/services/analiseAtivos/textosQuadro';
 
 const FONTE = readFileSync(path.join(__dirname, '..', 'analiseAtivosVisual.ts'), 'utf8');
 
@@ -28,35 +26,28 @@ describe('analiseAtivosVisual', () => {
     expect(FONTE).not.toMatch(/\b(?:text|bg|border)-(?:green|emerald|amber|yellow|red|lime)-/);
   });
 
-  it('semáforo: atende e parcial em patrimonio com ícones diferentes; só nao_atende vermelho', () => {
-    expect(STATUS_CRITERIO.atende.texto).toContain(MYFINANCE_BRAND.patrimonio);
-    expect(STATUS_CRITERIO.parcial.texto).toContain(MYFINANCE_BRAND.patrimonio);
-    expect(STATUS_CRITERIO.atende.icone).not.toBe(STATUS_CRITERIO.parcial.icone);
-    expect(STATUS_CRITERIO.nao_atende.texto).toContain('#D92D20');
-    expect(STATUS_CRITERIO.sem_dado.borda).toContain('border-dashed');
-    const vermelhos = Object.entries(STATUS_CRITERIO).filter(([, e]) =>
-      e.texto.includes('#D92D20'),
-    );
-    expect(vermelhos.map(([k]) => k)).toEqual(['nao_atende']);
-  });
-
-  it('colunas e filtros referenciam textos existentes; toda ordem tem direção padrão', () => {
-    const rotulos = TEXTOS_TELA.quadro.colunas as Record<string, string>;
-    const filtros = TEXTOS_TELA.quadro.filtros as Record<string, string>;
+  it('colunas referenciam textos existentes; toda ordem tem direção padrão', () => {
+    // v2.4: colunas novas (Critérios) têm o rótulo em textosQuadro (o textosTela só muda na F)
+    const rotulos = {
+      ...(TEXTOS_TELA.quadro.colunas as Record<string, string>),
+      ...(TEXTOS_QUADRO.colunas as Record<string, string>),
+    };
+    const dicas = TEXTOS_QUADRO.dicas as Record<string, string>;
     for (const classe of ['acao', 'fii'] as const) {
       for (const modo of ['resumo', 'detalhado'] as const) {
         for (const c of COLUNAS[classe][modo]) {
           expect(rotulos[c.rotulo], c.rotulo).toBeTruthy();
           if (c.ordem) expect(DIRECAO_PADRAO[c.ordem]).toBeTruthy();
+          if (c.dica) expect(dicas[c.dica], c.dica).toBeTruthy();
+          expect(c.codigo).not.toBe('indiceMf');
         }
       }
-      for (const f of FILTROS_RAPIDOS[classe]) expect(filtros[f], f).toBeTruthy();
     }
   });
 
-  it('faixaIndice é só dado', () => {
-    expect(faixaIndice(9.01)).toBe('8 a 10');
-    expect(faixaIndice(0.08)).toBe('0 a 4');
-    expect(faixaIndice(null)).toBeNull();
+  it('v2.4: ordem padrão A–Z e nenhuma constante do indicador antigo', () => {
+    expect(ORDEM_PADRAO).toBe('ticker');
+    expect(Object.keys(DIRECAO_PADRAO)).not.toContain('indiceMf');
+    expect(FONTE).not.toMatch(/\b(?:ANEL|FAIXA_INDICE|STATUS_CRITERIO|FILTROS_RAPIDOS)\b/);
   });
 });

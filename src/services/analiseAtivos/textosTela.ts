@@ -4,10 +4,10 @@
  * critérios/barras continuam em `textos.ts` (TEXTOS_ANALISE, Fase 0) e são reexportadas/usadas aqui.
  *
  * Compliance: o teste (__tests__/textosTela.test.ts) varre TODAS as folhas de TEXTOS_TELA com
- * `encontrarPalavrasProibidas` (regras/comum/linguagem.ts). Nada de "comprar", "recomendação",
- * "barato/caro", "oportunidade"; o indicador é sempre "Índice MF", nunca "nota". O rodapé legal é
- * texto fixo da Fase 1 (sem ranking nem notas, que não existem nesta fase; o teste também o varre);
- * validar com o jurídico junto com o resto deste módulo.
+ * `encontrarPalavrasProibidas` (regras/comum/linguagem.ts) e o linguagemV2Global (v2.4) as varre
+ * com a lista nova. Nada de "comprar", "recomendação", "barato/caro", "oportunidade", nota, Índice
+ * ou semáforo (v2.4: o indicador antigo saiu da superfície). O aviso legal da área é o
+ * RODAPE_LEGAL_V2 de textosLiterais.ts (literal registrado, PROVISÓRIO para o jurídico).
  *
  * Placeholders `{nome}` são preenchidos com `formatarTexto` (textos.ts). Só os nomes de
  * PLACEHOLDERS_PERMITIDOS são aceitos (o teste confere).
@@ -20,21 +20,12 @@ import type { CampoReporte, BlocoReporte } from '@/services/analiseAtivos/curado
 import type { GrupoConferencia } from '@/services/analiseAtivos/regras/comum/conferencia';
 import type {
   ClasseQuadro,
-  EstadoIndice,
   ForaDoQuadroMotivo,
   MotivoTela,
   TipoSeloEstado,
 } from '@/types/analiseAtivosApi';
 
 export { formatarTexto };
-
-/**
- * Rodapé legal da Fase 1 (texto fixo). Mesmo texto de TEXTOS_ANALISE.rodapeLegal (Fase 0) sem
- * 'o ranking, as notas': Ranking está escondido (decisão 7) e não existem notas (o indicador é o
- * Índice MF).
- */
-export const RODAPE_LEGAL: string =
-  'O My Finance é uma ferramenta de organização financeira e de dados. O Índice MF é um indicador quantitativo de fórmula pública; as teses são anotações pessoais de cada usuário. Nada nesta área constitui análise, consultoria ou recomendação de investimento (Resolução CVM 20/2021). Rentabilidade passada não garante resultados futuros. Decisões de investimento são de responsabilidade exclusiva do usuário.';
 
 export const PLACEHOLDERS_PERMITIDOS = [
   'ticker',
@@ -62,8 +53,6 @@ export const TEXTOS_TELA = {
   area: {
     titulo: 'Análise de Ativos',
     pilulaBeta: 'Beta',
-    subtitulo:
-      'Fundamentos de 10 anos, Índice MF e o que você tem na Carteira, lado a lado. Ações e FIIs da B3.',
     voltarQuadro: 'Voltar ao Quadro',
     trilha: 'Análise de Ativos',
   },
@@ -96,7 +85,6 @@ export const TEXTOS_TELA = {
     novo: 'NOVO',
   },
   blocos: {
-    indice: 'Índice MF',
     criterios: 'Critérios',
     naCarteira: 'Na sua carteira',
     kpis: 'Indicadores',
@@ -112,32 +100,6 @@ export const TEXTOS_TELA = {
     educacao: 'Aprenda a analisar',
     tese: 'Minha tese',
     frescor: 'Dados',
-  },
-  indice: {
-    nome: TEXTOS_ANALISE.indice.nome,
-    formulaRotulo: 'Fórmula pública',
-    componentesRotulo: 'Componentes do Índice MF',
-    semScore: 'Índice MF não calculado para este fundo nesta data',
-    semScoreCurto: 'sem Índice · dados insuficientes',
-    foraDoIndice: TEXTOS_ANALISE.indice.foraDoIndice,
-    incompletoTitulo: 'O que falta',
-    incompletoRodape: 'O número é recalculado quando o dado chegar.',
-    zeroRegraTitulo: 'Componente zerado pela regra',
-    zeroRegraRodape: 'Índice baixo pela regra, não por falta de dado.',
-    zeroRegraComponente: '0 · regra',
-    ariaCalculado: 'Índice MF {valor} de 10',
-    ariaIncompleto: 'Índice MF incompleto: {valor} de 10',
-    ariaZeroRegra: 'Índice MF {valor} de 10, componente zerado pela regra',
-    ariaSemScore: 'Índice MF não calculado: dados insuficientes',
-    ariaForaDoIndice: 'Fora do Índice MF nesta fase',
-    criteriosAtendidos: TEXTOS_ANALISE.indice.leituraSemaforo,
-    criterioDesligado: 'Não se aplica · critério desligado até a validação da fonte',
-  },
-  /** Texto de cada componente zerado pela regra, pelo motivo (sufixo do código). */
-  zeroRegra: {
-    prejuizo: 'Componente zerado pela regra: prejuízo no último exercício',
-    pl_nao_positivo: 'Componente zerado pela regra: patrimônio líquido negativo',
-    pl_negativo: 'Componente zerado pela regra: patrimônio líquido negativo',
   },
   /**
    * Motivos de "dados incompletos"/ausente. Códigos compostos 'componente:motivo' têm texto
@@ -218,8 +180,6 @@ export const TEXTOS_TELA = {
     editarObjetivo: 'Editar objetivo',
   },
   naCarteira: {
-    voceNaoTem:
-      'Você não tem {ticker}. Planeje o ativo para ver na Carteira quanto falta para um objetivo, ou registre uma operação que já fez.',
     naAba: 'Na aba {aba}',
     planejadoEm: 'Planejado em {aba}, com objetivo de {objetivo}% da aba',
     valorPelaCarteira: 'Valor e % calculados pela Carteira com o fechamento de {data}',
@@ -227,7 +187,6 @@ export const TEXTOS_TELA = {
     objetivoAtivo: 'objetivo do ativo',
     classeNoPlanejamento: '{aba} no Planejamento',
     alvoClasse: 'alvo',
-    quantoFalta: 'Quanto falta',
     quantidade: 'Quantidade',
     valor: 'Valor',
     pctCarteira: '% da carteira',
@@ -239,7 +198,6 @@ export const TEXTOS_TELA = {
     rentabilidadeNota: 'com os proventos recebidos, igual à Carteira',
     objetivoNaAba: '{objetivo}% da aba {aba}',
     semObjetivo: 'sem objetivo definido',
-    faltamParaObjetivo: 'faltam {valor} p.p. para o objetivo',
     acimaDoObjetivo: '{valor} p.p. acima do objetivo',
     noObjetivo: 'no objetivo',
     acimaDoAlvo: '{valor} p.p. acima do alvo',
@@ -254,7 +212,6 @@ export const TEXTOS_TELA = {
     cotacaoDiferente:
       'Valor e % calculados pela Carteira com a cotação de {valor}; o cabeçalho mostra o fechamento de {data}.',
     semPosicao: 'Você ainda não tem posição.',
-    faltaPlanejado: 'Na aba {aba}, faltam {valor} para esse objetivo.',
     abaSemDetalhe: 'O ativo está na aba {aba} da sua Carteira. Os números ficam lá.',
     abrirNaCarteira: 'Abrir na Carteira',
     objetivoRotulo: 'Objetivo do ativo na aba (%)',
@@ -303,14 +260,9 @@ export const TEXTOS_TELA = {
     ordenarPor: 'Ordenar por {valor}',
     ordenadoPor: 'ordenado por {valor}',
     filtros: {
-      lucroConsistente: 'Lucro 5+ anos seguidos',
-      dyMinAcao: 'DY 12m ≥ 4%',
-      dyMinFii: 'DY 12m ≥ 8%',
-      pvpMax: 'P/VP ≤ 1',
       tijolo: 'Tijolo',
       papel: 'Papel',
       naCarteira: 'Na minha carteira',
-      somenteCompletos: 'Só dados completos',
       setor: 'Setor',
       segmento: 'Segmento',
       semSetor: 'sem setor',
@@ -338,7 +290,6 @@ export const TEXTOS_TELA = {
       dy12m: 'DY 12m',
       lucro10a: 'Lucro 10 anos',
       rendimento10a: 'Rendimento 10 anos',
-      indiceMf: 'Índice MF',
       naCarteira: 'Na carteira',
       setor: 'Setor',
       segmento: 'Segmento',
@@ -389,12 +340,6 @@ export const TEXTOS_TELA = {
     setorTodos: 'Todos',
     aplicar: 'Aplicar',
     fechar: 'Fechar',
-    formulaRotulo: 'Índice MF',
-    formulaTexto: '(0 a 10), indicador quantitativo de fórmula pública:',
-    formula:
-      '0,35 × lucro + 0,20 × dívida + 0,20 × rentabilidade + 0,15 × proventos + 0,10 × preço',
-    formulaNota:
-      'Critério que não se aplica sai da conta e o peso dele é redistribuído. Dado ausente conta zero e o ativo ganha o selo “dados incompletos”.',
     cotacoesDe: 'Cotações: COTAHIST B3 de {data}',
     posicaoAcoes: '{n} ações · {valor}%',
     posicaoCotas: '{n} cotas · {valor}%',
@@ -417,7 +362,6 @@ export const TEXTOS_TELA = {
     nenhumResultado: 'Nenhum ativo encontrado para “{valor}”',
     instrucoes: '↑ ↓ para escolher · Enter abre · Esc fecha',
     sugestoes: 'Sugestões',
-    indiceCurto: 'Índice {valor}',
     dicaCelular: 'Busque por ticker (WEGE3) ou nome (WEG).',
     abrir: 'Buscar ativo',
     carregando: 'Carregando a busca',
@@ -466,64 +410,6 @@ export const TEXTOS_TELA = {
     },
     precoRotulo: 'Fechamento do último pregão',
     variacaoRotulo: 'variação no dia',
-    indiceDescricao: TEXTOS_ANALISE.indice.descricao,
-    indiceTitulo: 'Índice MF e critérios',
-    criteriosForaDaConta: 'Critérios “Não se aplica” ficam fora da conta.',
-    semDadoComMotivo: 'Sem dado: {motivo}',
-    pesoComponente: 'peso {valor}%',
-    foraDaConta: 'fora da conta',
-    zeroSemDado: '0 · sem dado',
-    componentesNota:
-      'Componente fora da conta tem o peso redistribuído entre os outros, pela fórmula pública.',
-    rotulosComponentes: {
-      acao: {
-        lucro: 'Consistência do lucro',
-        divida: 'Endividamento',
-        rent: 'Rentabilidade',
-        div: 'Proventos',
-        preco: 'Preço',
-      },
-      fii_tijolo: {
-        lucro: 'Meses com rendimento',
-        divida: 'Obrigações/PL',
-        rent: 'Vacância',
-        div: 'Proventos',
-        preco: 'Preço vs. VP',
-      },
-      fii_papel: {
-        lucro: 'Meses com rendimento',
-        divida: 'Concentração do maior CRI',
-        rent: 'Nº de CRIs',
-        div: 'Proventos',
-        preco: 'Preço vs. VP',
-      },
-    },
-    frasesComponentes: {
-      acao: {
-        lucro: '{valor} anos seguidos de lucro',
-        divida: 'Dív. líq./EBITDA de {valor}×',
-        dividaCaixa: 'Caixa líquido',
-        rent: 'ROE de {valor}%',
-        div: 'DY 12m de {valor}%',
-        preco: 'P/L {valor}% em relação à média de 10 anos',
-      },
-      fii_tijolo: {
-        lucro: '{valor} meses com rendimento',
-        divida: 'Obrigações/PL de {valor}%',
-        dividaCaixa: 'Obrigações/PL de {valor}%',
-        rent: 'Vacância física de {valor}% (fonte CVM)',
-        div: 'DY 12m de {valor}%',
-        preco: 'P/VP de {valor}',
-      },
-      fii_papel: {
-        lucro: '{valor} meses com rendimento',
-        divida: 'Maior CRI = {valor}% dos CRIs',
-        dividaCaixa: 'Maior CRI = {valor}% dos CRIs',
-        rent: '{valor} CRIs distintos',
-        div: 'DY 12m de {valor}%',
-        preco: 'P/VP a {valor} de distância de 1',
-      },
-    },
     kpis: {
       rotulos: {
         pl: 'P/L',
@@ -858,7 +744,6 @@ export const TEXTOS_TELA = {
     pares: {
       proprio: 'este ativo',
       caption: 'Pares de {ticker}',
-      notaIncompleto: '* Índice MF com dados incompletos.',
       colunas: {
         ativo: 'Ativo',
         pl: 'P/L',
@@ -867,7 +752,6 @@ export const TEXTOS_TELA = {
         margem: 'Marg. líq.',
         dy12m: 'DY 12m',
         lucrosSeguidos: 'Lucros seguidos',
-        indiceMf: 'Índice MF',
         obrigacoesPl: 'Obrig./PL',
         imoveisCris: 'Imóveis/CRIs (CVM)',
         patrimonio: 'Patrimônio',
@@ -899,10 +783,6 @@ export const TEXTOS_TELA = {
       umAno: '1 ano',
       nenhum: 'nenhum',
     },
-    seloIncompleto: {
-      abrir: 'Ver o que falta',
-      tituloComTicker: 'O que falta em {ticker}',
-    },
     banner: {
       /** palavra do texto do banner que vira link (TEXTOS_TELA.banner.texto) */
       suporte: 'Suporte',
@@ -926,9 +806,6 @@ export const TEXTOS_TELA = {
       ocultoNaTela: 'O valor fica oculto (—) até a conferência terminar.',
       visivelNaTela: 'O valor continua visível, com o selo "em conferência".',
       naoPublicado: 'Valor calculado, não publicado: {valor}',
-      noIndice: 'No Índice MF',
-      efeitoIndice: 'O Índice MF fica incompleto: {valor} fora da conta.',
-      semEfeitoIndice: 'Sem efeito no Índice MF.',
       origem: 'Origem',
       origemRegra: 'conferência automática dos dados',
       situacao: 'Situação',
@@ -998,6 +875,8 @@ export const TEXTOS_TELA = {
   },
   relatos: {
     nome: 'relato',
+    /** v2.4 (F): bloco/campo de relato antigo do indicador que saiu da superfície */
+    descontinuado: 'indicador descontinuado',
     menu: {
       botaoAria: 'Opções do bloco {bloco}',
       reportar: 'Reportar dado incorreto',
@@ -1006,8 +885,7 @@ export const TEXTOS_TELA = {
     },
     blocos: {
       cabecalho: 'Cotação',
-      indice: 'Índice MF',
-      criterios: 'Critérios',
+      criterios_fundamentos: 'Critérios de fundamentos',
       kpis: 'Indicadores',
       grafico: 'Gráfico',
       dividendos: 'Proventos por ano',
@@ -1058,8 +936,10 @@ export const TEXTOS_TELA = {
       nCri: 'Nº de CRIs',
       mesesComRendimento: 'Meses com rendimento',
       taxaAdm: 'Taxa de administração',
-      indiceMf: 'Índice MF',
-      criterioSemaforo: 'Critério',
+      // v2.4 (F): campos do indicador antigo — relatos antigos aparecem como descontinuados
+      indiceMf: 'indicador descontinuado',
+      criterioSemaforo: 'indicador descontinuado',
+      criterioFundamento: 'Critério de fundamentos',
       dataEvento: 'Data do evento',
       outro: 'Outro dado deste bloco',
     } satisfies Record<CampoReporte, string>,
@@ -1287,10 +1167,7 @@ export const TEXTOS_TELA = {
   // Seção própria da fatia (acréscimo; as chaves de conferencia/relatos são da fatia 0).
   // ===========================================================================
   telaConferencia: {
-    /** semáforo: 'Sem dado: nº de ações em conferência' (= semDadoComMotivo + grupo) */
     criterioGrupo: '{valor} em conferência',
-    /** Índice: componente com trilho tracejado */
-    componenteEmConferencia: '0 · em conferência',
     /** ponto anual fora da média (histórico) */
     anoEmConferencia: '{ano} em conferência: fora da média',
     anoRotulo: 'Ano',
@@ -1303,7 +1180,6 @@ export const TEXTOS_TELA = {
       fundamentos: 'CVM · DFP/ITR',
       fii: 'CVM · informe mensal',
       proventos: 'B3 · proventos',
-      indice: 'Índice MF',
     },
     documentos: {
       itr: 'ITR {valor}',
@@ -1329,13 +1205,6 @@ export function motivoTela(codigo: string): MotivoTela {
   return { codigo, texto: textoMotivo(codigo) };
 }
 
-/** Texto de um componente zerado pela regra ('lucro:prejuizo', 'preco:pl_negativo'...). */
-export function textoZeroRegra(codigo: string): string {
-  const sufixo = codigo.includes(':') ? codigo.slice(codigo.lastIndexOf(':') + 1) : codigo;
-  const mapa: Record<string, string> = TEXTOS_TELA.zeroRegra;
-  return mapa[sufixo] ?? TEXTOS_TELA.indice.zeroRegraTitulo;
-}
-
 /** Texto de um motivo de "não se aplica" ('financeira', 'papel_sem_imoveis'...). */
 export function textoNaoSeAplica(motivo: string): string {
   const mapa: Record<string, string> = TEXTOS_TELA.naoSeAplica;
@@ -1344,15 +1213,6 @@ export function textoNaoSeAplica(motivo: string): string {
 
 export function textoForaDoQuadro(motivo: ForaDoQuadroMotivo): string {
   return TEXTOS_TELA.foraDoQuadro[motivo];
-}
-
-/** Motivo único dos estados sem número (sem_score / fora_do_indice); [] nos demais. */
-export function motivosEstadoIndice(estado: EstadoIndice): MotivoTela[] {
-  if (estado === 'sem_score') return [{ codigo: 'sem_score', texto: TEXTOS_TELA.indice.semScore }];
-  if (estado === 'fora_do_indice') {
-    return [{ codigo: 'fora_do_indice', texto: TEXTOS_TELA.indice.foraDoIndice }];
-  }
-  return [];
 }
 
 export function textoSeloEstado(tipo: TipoSeloEstado): string {

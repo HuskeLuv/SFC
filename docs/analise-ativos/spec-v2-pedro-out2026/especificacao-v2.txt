@@ -1,0 +1,613 @@
+Especificação — Análise de Ativos My Finance
+11 de outubro de 2026 · Escolhi Ser Rico / My Finance · Especificação para desenvolvimento · v2.4 (final) — Filtros de Fundamentos + cabeçalho com Planejar/Ver na Carteira
+1. Visão geral
+A Análise de Ativos é uma nova área do My Finance (item da sidebar logo abaixo de Carteira, selo NOVO) para o usuário estudar Ações, FIIs, Stocks e REITs sem sair do hub — com fundamentos, um índice quantitativo, um comparador e um ranking votado pela comunidade.
+Posicionamento: "a única análise de ativos que sabe quem você é". Diferente de Bastter e Fundamentei, cada tela conversa com a Carteira, o Planejamento e o Fluxo de Caixa do usuário: quantidade, peso, preço médio, alvo por classe e sobra de caixa aparecem ao lado dos fundamentos.
+Diferenciais a preservar na implementação
+Integração com a carteira (selo "Na carteira", peso vs. alvo do Planejamento).
+Filtros de Fundamentos: seis critérios factuais por classe, verificados ano a ano nas demonstrações financeiras (janela 3 · 5 · 10 anos), que o usuário combina livremente — o app não pontua, não ranqueia e não destaca ativos.
+Ranking da Comunidade (MF Community Rating): opinião agregada dos usuários, separada dos dados contábeis; voto com lastro (quem tem o ativo na carteira pesa 1,5×; exibir "% dos votantes têm na carteira").
+FIIs avaliados por tipo (tijolo × papel), com padrão construtivo (AAA/AA/A) como informação central de tijolo.
+Comparador isonômico: os mesmos números lado a lado, sem destaque de melhor valor nem "vencedor"; mini-gráficos na mesma escala.
+"Minha tese" privada (diário de decisões) e ponte para a trilha de Educação.
+Postura regulatória (decisões do cliente em 28/09 e 10/10/2026, com parecer de compliance): ferramenta de dados e comunidade, sem analista CNPI. Em 10/10 o "Índice MF" (nota 0–10), o semáforo Atende/Parcial/Não atende e o "★ destaque" do comparador foram removidos e substituídos pelos Filtros de Fundamentos (seção 4.1): o app exibe e cruza dados contábeis públicos; a opinião fica inteiramente com o usuário (seus filtros, seus cenários) e com a comunidade (ranking de votos). Qualquer versão anterior deste documento ou do protótipo que mencione Índice, nota, semáforo ou destaque está obsoleta e não deve ser implementada.
+Protótipo de referência: analise-de-ativos.html (arquivo único, navegável, temas claro e escuro, dados ilustrativos). Toda descrição abaixo corresponde ao que está no protótipo.
+2. Escopo do MVP
+O MVP entrega as quatro classes com Quadro (com Filtros de Fundamentos), Página do ativo, Comparador e Ranking da Comunidade, alimentados por provedores de dados e pela CVM/SEC, com voto e tese da comunidade.
+Item
+MVP
+Depois (Entregas 4–5)
+Classes
+Ações (B3), FIIs, Stocks (NYSE/Nasdaq), REITs
+—
+Quadro (lista)
+Filtros de Fundamentos (6 chips por classe, janela 3/5/10 anos, chip "Na minha carteira"), ordem alfabética padrão e ordenação por qualquer coluna, modo Resumo/Detalhado ("Lucro 10 anos" só no Detalhado), colunas "Critérios" (n de 6) e "Na carteira", paginação "Mostrar mais", estado vazio
+filtros por setor e por faixa de indicadores, filtros salvos, tabelas personalizadas
+Página do ativo
+card "Critérios de fundamentos" (n de 6, janela, séries anuais), KPIs, gráfico Lucro × Cotação, dividendos, Fundamentos 10 anos em dois níveis (Essencial na ordem da seção 3.2 e Raio-X), Valuation (Múltiplos com posição histórica e Meus cenários), múltiplos históricos, pares, comunidade, eventos, card Educação
+padrão construtivo por imóvel, diluição de ações, receita por segmento
+Comparador
+até 4 ativos, bloco de critérios (✓/— por ativo), grupos de métricas sem destaque, tijolo/papel/misto, mini-gráficos
+exportar PDF real, salvar comparações
+Ranking da Comunidade
+voto 1–5 estrelas + sentimento, média bayesiana, peso de holder, voto válido por 12 meses, denúncia
+histórico mensal do ranking, selo "Analista" (gamificação)
+Comunidade
+tese pública (uma por usuário/ativo), curtir, riscos apontados, tese privada
+respostas em thread, denúncia com fluxo completo
+Dados FII não estruturados
+padrão construtivo, inquilinos, contratos atípicos, LTV, inadimplência via planilha curada (top 50)
+extração por LLM + revisão; cobertura total
+Busca
+busca por ticker/nome
+autocomplete, busca por setor/segmento
+Salvos (watchlists)
+placeholder (pill visível, "em breve")
+listas nomeadas, alertas
+Fora de escopo do MVP: recomendações, preço-alvo, sinais de compra/venda, alertas de preço, ordens (integração com corretora), opções/derivativos, cripto.
+3. Navegação e telas
+A área vive em /analise e tem quatro páginas (pills no topo, padrão Resumo/Análise do app): Quadro, Comparador, Ranking e Salvos. Dentro de cada página, tabs por classe (padrão "Carteira Consolidada"): Ações · FIIs · Stocks · REITs, com contador de ativos. A classe selecionada persiste ao trocar de pill.
+Estrutura comum de toda tela
+Banner informativo (padrão do banner Open Finance): "Novo: Análise de Ativos…" com botão "Ver minha carteira" e "Agora não" (dispensável, lembrar por 30 dias).
+Título + subtítulo "Dados, fundamentos e opiniões da comunidade — ações, FIIs, stocks e REITs em um só lugar"; busca (atalho /) com autocomplete por ticker e nome; botão navy "Criar lista".
+Card principal com tabs de classe e o conteúdo da página.
+Rodapé legal fixo (texto na seção 9).
+3.1 Quadro (lista)
+Filtros de Fundamentos (barra acima da tabela): rótulo "Filtros de fundamentos" + pills de janela 3 anos | 5 anos | 10 anos (padrão 5) + seis chips de critério da classe (seção 4.1; em FIIs o chip mostra o rótulo de tijolo e, em cinza, o equivalente de papel: "Vacância ≤ 10% / Inadimplência ≤ 3%") + chip "Na minha carteira" + "Setor ▾". Chips ativos ficam azul-claro; cada chip tem tooltip com a definição completa. Os chips são cumulativos (E lógico). Link "Limpar filtros" aparece quando há filtro ativo. Trocar de classe zera os filtros.
+Contador: "X de N" sem filtro; com filtro, "X de N atendem a k critério(s) em 5 anos". Lista vazia mostra a linha "Nenhum ativo atende a todos os critérios selecionados em 5 anos. Experimente uma janela menor ou menos critérios — ou limpe os filtros."
+Ordenação: padrão alfabética por ticker (A–Z) — apresentação isonômica; clique em qualquer cabeçalho ordena por aquela coluna (▼/▲; direção inicial desc para DY, ROE, lucros seguidos e Critérios; asc para P/L, P/VP, P/FFO, payout, vacância e dívida). A pill ao lado de "ordem" mostra a coluna ativa ("DY 12m ▼") e clicá-la volta a A–Z. Não existe ordenação por nota da comunidade como pill (a coluna Comunidade ordena pelo cabeçalho como qualquer outra). Modo "Resumo | Detalhado" define as colunas. Cabeçalho fixo ao rolar; carregamento de 25 em 25 com "Mostrar mais".
+Tabela (cabeçalho navy). Colunas do modo Resumo por classe (enxuto, decisão do cliente em 10/10): Ações ativo, preço, lucros seguidos, ROE, P/L, P/VP, DY 12m, Critérios, Comunidade, Na carteira · FIIs ativo, tipo, cota, DY 12m, P/VP, vacância, Critérios, Comunidade, Na carteira · Stocks ativo, preço, lucros seguidos, ROE, P/E, div. yield, Critérios, Comunidade, Na carteira · REITs ativo, preço, P/FFO, FFO payout, ocupação, div. yield, Critérios, Comunidade, Na carteira. Modo Detalhado acrescenta "Lucro 10 anos" (dez barras verticais, verde no ano de lucro e vermelha no de prejuízo, valor no hover), setor/segmento, margem, dívida, P/S, patrimônio, liquidez, nº imóveis, FFO/share, anos de dividendo.
+Células especiais: "lucros seguidos" = 10 barrinhas (verdes até n) + "n anos"; Critérios = seis quadradinhos neutros (preenchido = atende, vazio = não) + "n de 6", tooltip com cada critério e o fato; sem cor semântica, sem anel, sem nota; Comunidade = 5 estrelas + nota + nº votos; Na carteira = "120 ações · 3,8%" ou "—".
+Clique na linha abre a Página do ativo dentro do mesmo card. Nota de rodapé fixa: "Os filtros e a coluna Critérios verificam, ano a ano, dados contábeis históricos das demonstrações financeiras públicas (DFP/ITR na CVM; informes dos FIIs; 10-K/10-Q na SEC). Nenhum critério é opinião do My Finance, e atender a mais critérios não significa ser melhor investimento. Rentabilidade passada não é garantia de resultados futuros."
+3.2 Página do ativo
+Ordem dos blocos (todos dentro do card, com link "Voltar ao quadro de ‹classe›"):
+Cabeçalho (padrão da tela de ativo já existente no app, 11/10): ícone com 4 letras, ticker + nome, tags (setor, segmento, listagem, índice) e dois chips de estado — "Na carteira" (azul, quando há posição) e "Planejado" (tracejado, quando o usuário definiu um alvo para o ativo no Planejamento); à direita, preço grande, variação do dia e a linha "fechamento de DD/MM · fonte B3" (ou NYSE/Nasdaq); abaixo, a linha de botões: Comparar e Salvar (pequenos, brancos), Planejar na carteira (vira "Ajustar plano" quando já há alvo), Ver na Carteira e Registrar operação (navy, único botão primário). Comportamento (prototipado em actions.js): Comparar abre um modal "Comparar ‹ticker› com até 3 ‹classe›" com o ativo atual fixo, chips dos escolhidos, busca por ticker/nome e sugestões (pares do mesmo setor/segmento primeiro, depois os demais em ordem alfabética; em FII só fundos do mesmo tipo) com métricas-resumo e "n de 6 crit."; "Abrir comparador" grava em comparisons e navega para o Comparador com o ativo atual na primeira coluna. Salvar alterna o ativo em watchlist_items (botão vira "Salvo ✓"; toast). Planejar na carteira abre o modal "Planejar na carteira · ‹ticker›": campo "Peso-alvo na carteira (%)" em branco (placeholder "ex.: 5"), a classe no Planejamento ("Ações · 18,6% da carteira (alvo da classe: 20%)"), a posição atual, e um resumo ao vivo — valor equivalente ao alvo, quantidade equivalente e "Posição atual vs. alvo: −2,2 p.p. (R$ 3.633 · 69 ações)" — sempre em linguagem de desvio; "Salvar no Planejamento" grava em planning_asset_targets, acende o chip "Planejado" e atualiza o card "Na sua carteira"; "Remover do plano" apaga o alvo. Ver na Carteira abre o modal "‹ticker› na sua Carteira" com a posição (quantidade, valor atual, preço médio, resultado, proventos 12m, alvo planejado e desvio), as últimas operações e os botões "Registrar operação" e "Abrir Carteira completa" (rota /carteira?ativo=‹ticker›); sem posição, mostra "Você ainda não tem ‹ticker› na carteira" e, se houver, o alvo planejado. Registrar operação abre o modal de lançamento (operação, quantidade, preço pré-preenchido com a cotação, data, corretora) com resumo ao vivo (total, nova posição, novo preço médio); ao confirmar, chama o endpoint já existente da Carteira (POST /carteira/movimentacoes), atualiza o card e o peso no Planejamento e mostra toast; proventos e custódia continuam na Carteira. Esc ou clique fora fecha os modais.
+Critérios de fundamentos (substitui o antigo card Índice MF + semáforo): à esquerda o número "n de 6" em cor neutra, rótulo "Critérios de fundamentos", pills de janela 3 | 5 | 10 anos e a frase "verificados ano a ano nas demonstrações financeiras"; à direita os seis critérios da classe (seção 4.1), cada um com marca ✓ (atende) ou — (não atende) em cinza/tinta, nome, mini-barras com os valores anuais da janela (hover mostra ano e valor), uma frase factual ("cresceu em 5 de 5 anos · 17.500 → 40.800 (R$ mi)") e a definição. Nota de fonte no rodapé do card (DFP/ITR CVM · informes FII · 10-K/10-Q SEC) + "Dado contábil histórico, não avaliação do My Finance; rentabilidade passada não é garantia de resultados futuros. Para os demonstrativos completos, use o Raio-X." Sem badge colorido, sem nota, sem "ver cálculo".
+Na sua carteira + 8 KPIs em cards tintados (padrão IBOV/Dólar/Bitcoin): quantidade · valor · % da carteira · PM · resultado; barra de posição vs. alvo do Planejamento com linguagem de desvio (parecer de compliance, 10/10/2026): "posição atual 3,8% · alvo planejado por você: 5% · desvio −1,2 p.p. (R$ 1.982)" — vocabulário permitido: diferença, desvio, distância para o alvo, variação, posição atual vs. alvo planejado; proibido: faltam, compre, venda, complete sua posição, oportunidade de ajuste, invista agora. "Classe X no Planejamento: 18,6% (alvo 20%)". KPIs por classe na seção 4.
+Gráfico principal "Lucro por ação × Cotação (base 100)" — duas linhas na mesma escala, pills 1A/3A/5A/10A/Máx, tooltip com crosshair; FIIs usam VP/cota × cota, REITs FFO/ação × cotação. Ao lado, barras de dividendos por ano com CAGR no cabeçalho.
+Fundamentos — 10 anos, com seletor Essencial | Raio-X (nomenclatura própria do My Finance; não usar "quadro simples/completo"). Essencial = tabela anual (anos em linhas, última linha destacada) com as colunas NESTA ORDEM, definida pelo cliente em 10/10: Ações — Receita líq. · EBITDA · Lucro descontado · Margem descontada · Dívida líq. · Dív. líq./EBITDA · FCL/CAPEX · ROE · LPA (R$) · Div./ação · Payout · P/L · P/VP · DY (valores em R$ bi; LPA e Div./ação por ação). "Lucro descontado" = lucro líquido sem itens não recorrentes (campo net_income_adjusted; se o provedor não entregar, usar lucro líquido e sinalizar no tooltip); "Margem descontada" = lucro descontado ÷ receita líquida; "FCL/CAPEX" = fluxo de caixa livre ÷ CAPEX (vezes); dívida líquida negativa = caixa líquido, com sinal. Stocks: mesmas colunas em inglês (Revenue, EBITDA, Net income adj., Adj. margin, Net debt, Net debt/EBITDA, FCF/CAPEX, ROE, EPS, Div./ação, Payout, P/E, P/S, Div. yield), valores em US$ bi. FIIs: Receita · Resultado · Rend./cota · DY · VP/cota · P/VP · Vacância · Nº imóveis · ABL. REITs: Revenue · FFO · FFO/share · AFFO/share · Div./ação · FFO payout · Ocupação · Imóveis · P/FFO. Cabeçalhos com tooltip de definição. Nota: "Essencial: o que basta para ver se receita, lucro, caixa e dividendos crescem ano a ano. Para abrir todos os demonstrativos, use o Raio-X." Raio-X = demonstrativos completos com anos em colunas (mais recente à esquerda), cabeçalho navy, primeira coluna fixa, linhas de razão em itálico com fundo cinza, negativos em vermelho, unidade e fonte no topo, botão "Exportar CSV". Blocos por classe — Ações/Stocks: Lucro e geração de caixa (receita, lucro bruto, margem bruta, EBITDA, margem EBITDA, EBIT, lucro líquido, margem líquida, LPA, ROE, ROIC, payout) · Caixa e dívida (PL, caixa, dívida bruta e líquida, dív.líq/EBITDA, dív.líq/PL, liquidez corrente, nº de ações) · Fluxo de caixa (FCO, FCI, FCF, CAPEX, FCL = FCO − CAPEX, FCL/lucro, dividendos e JCP pagos; stocks também buybacks). FIIs: Resultado e distribuição · Patrimônio e cota · Carteira de imóveis (tijolo) ou carteira de CRIs (papel) · Alavancagem e custos. REITs: FFO e distribuição · Balanço e dívida · Portfólio.
+Valuation — preço vs. fundamentos, card logo após Fundamentos, com seletor Múltiplos | Meus cenários (referência estudada: abas Balanços e Valuation do Fundamentei; o My Finance acrescenta a posição histórica de cada múltiplo, os cenários com premissas do usuário e a ligação com a carteira). Múltiplos = chips por grupo (Preço · Proventos · Lucratividade [FII/REIT: Qualidade da renda] · Crescimento · Alavancagem) e 4–8 cards por grupo, cada um com: valor atual (últimos 12 meses), uma frase de leitura, referência (setor/índice) e a barra de posição nos 10 anos (mín · média · máx; marcador azul = atual; traço = média) com status em texto ("+40% vs. média 10a", "maior em 10 anos"; percentuais em p.p.). Resumo do grupo no topo: "n de m indicadores de ‹grupo› estão abaixo da própria média de 10 anos". Ações/Stocks: P/L, P/VP, P/Receita, EV/EBITDA, P/FCO, P/FCL, LPA, VPA · DPA, DY, DY médio 5a, payout · margem líquida, ROE, ROA, ROIC · CAGR 5a de receita, lucro, LPA e dividendo · dív.líq/EBITDA, dívida/PL, liquidez corrente, cobertura de juros. FIIs: P/VP, VP/cota, cap rate, preço/m² · rendimento/cota 12m, DY, DY 5a, payout do resultado · vacância física e financeira, contratos atípicos, padrão AAA+AA · CAGR rendimento e VP/cota, crescimento real do aluguel, CAGR cotistas · obrigações/PL, taxas de adm e performance, liquidez. REITs: P/FFO, P/AFFO, P/NAV, implied cap rate, FFO/share, EV/EBITDA · dividend/share, DY, DY 5a, AFFO payout · ocupação, margem NOI, WALT, inquilinos investment grade · CAGR FFO/share e dividendo, same-store rent growth, aquisições · net debt/EBITDA, fixed-charge coverage, dívida a taxa fixa, rating. Meus cenários = calculadora em que os dados do ativo vêm preenchidos (editáveis) e as premissas são do usuário: coluna esquerda com inputs e slider "Margem que você exige" (0–50%); à direita a tabela Método · Suas premissas · Resultado · vs. cotação · Com sua margem, as barras "Resultados lado a lado" com a linha da cotação atual, a linha "Sua posição" (preço médio → P/L ou P/VP ou P/FFO sobre custo e yield sobre custo) e o botão "Salvar cenário". Métodos — Ações/Stocks: preço pelo dividendo (Bazin: DPA ÷ yield desejado), fórmula de Graham (√(22,5 × LPA × VPA)), múltiplo alvo (P/L alvo × LPA; padrão = média de 10 anos) e dividendos crescentes (Gordon: DPA × (1+g) ÷ (k − g)); FIIs: preço pela renda desejada (rendimento 12m ÷ yield desejado), P/VP alvo × VP/cota e Meta de renda (cotas equivalentes a R$ X/mês, valor à cotação de hoje, diferença entre a posição atual e a meta configurada pelo usuário — pode virar objetivo no Planejamento); REITs: P/FFO alvo × FFO/share, Bazin e Gordon. Rodapé fixo: "Os cenários usam as premissas que você definiu. O My Finance não calcula 'preço justo' nem preço-alvo: o resultado é uma conta com os seus parâmetros, serve para estudo e não constitui recomendação de compra ou venda." Sem verde/vermelho na coluna vs. cotação e sem as palavras "barato/caro" em nenhum texto (seção 9).
+Múltiplos históricos (2 mini-gráficos com linha da média de 10 anos) + Comparação com pares do setor (5 linhas, clicáveis).
+Avaliação dos usuários · MF Community Rating: nota média + estrelas + "% dos votantes têm o ativo na carteira" + sentimento; widget "Sua avaliação" (5 estrelas) + "Sentimento pessoal — compraria hoje? Sim/Não"; frase "Seu voto é opinião pessoal, vale por 12 meses e aparece só de forma agregada no Ranking da Comunidade"; tese mais votada (marcada "opinião de usuário"); "Principais riscos apontados" (lista da comunidade); "Minha tese (privada)" com textarea, salva automaticamente, botão "Publicar na comunidade".
+Próximos eventos (3 itens com data, título, descrição; "vai para a sua Agenda") + card Aprenda a analisar (módulo da trilha correspondente à classe).
+Nota "Dados: fonte · data" (selo de frescor) e rodapé legal.
+3.3 Comparador
+Barra: instrução neutra ("Compare até 4 ‹classe› lado a lado · dados das demonstrações financeiras, sem ranking nem destaque"), seletor Tijolo | Papel (só em FIIs), botões Exportar PDF e Salvar comparação.
+Slots: até 4 ativos (ticker, nome, preço, × remover) + slot tracejado "+ Adicionar ativo" com 3 sugestões em ordem alfabética (mesmo tipo, no caso de FIIs).
+Alerta laranja quando há tijolo e papel juntos ("Você está comparando FIIs de tijolo com FIIs de papel…"); linhas não aplicáveis mostram "n/a".
+Tabela critério × ativo (cabeçalho navy): primeiro o bloco "Critérios de fundamentos · N anos" — uma linha por critério da seção 4.1 com ✓ ou — (neutros) e o fato em texto pequeno, fechado pela linha "Critérios atendidos: n de 6"; depois os grupos de métricas por tema (seção 4.2) e "Na minha carteira". Não existe célula de destaque, ★, fundo verde, linha de nota nem "vencedor": todos os números são apresentados da mesma forma.
+Mini-gráficos dos 4 ativos (lucro/VP/FFO por ação, base 100) na mesma escala (min = mínimo global ou 100, max = máximo global); a série vem de fundamentals_period para qualquer ativo da classe.
+Bloco "Leitura dos dados": apenas as contagens ("WEGE3: 5 de 6 critérios em 5 anos · BBAS3: 5 de 6 · …") + frase fixa: "Os critérios são verificações factuais sobre demonstrações financeiras passadas, iguais para todos os ativos da classe. Não há ranking, nota ou ativo 'vencedor': a comparação é um apoio à sua própria pesquisa e não constitui recomendação. Rentabilidade passada não é garantia de resultados futuros." Botão navy "Salvar comparação". Sem CTA de compra.
+3.4 Ranking da comunidade
+Cabeçalho: título "Ranking da Comunidade · ‹classe›" com subtítulo "MF Community Rating", frase "Média das notas que os usuários cadastrados atribuem voluntariamente aos ‹classe›. São opiniões pessoais — o My Finance não valida, não edita e não endossa nenhuma delas." Caixa "Como é calculado" com o critério de ponderação visível: "Média ponderada das notas de 1 a 5 atribuídas por usuários cadastrados · 1 voto por conta (CPF) e por ativo · peso 1,5× para quem tem o ativo na carteira conectada · entra no ranking com 200 votos ou mais · voto válido por 12 meses (lembrete de renovação aos 6) · recalculado diariamente às 03h" + link "denunciar manipulação".
+Bloco "Aviso de isenção e transparência" logo abaixo do cabeçalho, texto obrigatório (parecer jurídico, 10/10/2026): "O Ranking da Comunidade reflete exclusivamente a média das notas e opiniões pessoais cadastradas voluntariamente pelos usuários da plataforma My Finance. O My Finance não realiza análise de valores mobiliários, não valida as opiniões dos usuários e não faz recomendação de compra ou venda de ativos (Resolução CVM nº 20/2021). As pontuações não representam garantia de rentabilidade nem indicação oficial de investimento."
+CTA azul-claro quando o usuário tem ativos na carteira sem voto: "Você tem 3 ações na carteira sem voto… Votar agora".
+Tabela: # + variação mensal (▲n verde / ▼n vermelho / •), ativo, nota da comunidade (estrelas + nota), votos, "têm na carteira" (barra + %), Critérios (janela atual, "n de 6"), "Seu voto" (5 estrelas clicáveis na linha; mostra "seu voto: 5★"). Sem coluna de Índice nem de convergência.
+Nota de rodapé: conteúdo gerado por usuários (Marco Civil, art. 19); votos, teses e comentários são de responsabilidade de quem publica; "denunciar" para spam, ofensa ou manipulação, remoção em até 48 h; a coluna Critérios é dado contábil, não avaliação do My Finance.
+3.5 Salvos
+Placeholder no MVP: pill visível, tela "Listas em breve" com botão "Criar lista" que abre um modal de nome. Entrega 5: listas nomeadas, ativos salvos, alertas.
+3.6 Mobile
+Sidebar oculta abaixo de 760 px (menu do app); tabs de classe com rolagem horizontal; tabelas com rolagem horizontal dentro do card; KPIs em 2 colunas; card de critérios em 1 coluna (lista empilhada); comparador com slots empilhados. Sem rolagem horizontal da página (validado a 390 px).
+4. Regras de negócio
+Todos os limiares abaixo (limites dos critérios, janelas, pesos de voto) são parâmetros configuráveis na tabela criteria_params, não constantes no código. Os valores iniciais são os do protótipo e devem ser validados pelo cliente antes do beta.
+4.1 Filtros de Fundamentos (critérios factuais)
+Substituem o antigo Índice MF (decisão do cliente com parecer de compliance, 10/10/2026). Cada critério é uma verificação binária e factual sobre séries anuais das demonstrações financeiras (fundamentals_period), avaliada numa janela de 3, 5 ou 10 anos escolhida pelo usuário (padrão 5). Não há nota, peso, média nem ordenação derivada: o resultado de cada critério é "atende" ou "não atende", e a única agregação exibida é a contagem "n de 6". Implementação de referência no protótipo: screen.js (CRITERIA, evalCriteria, critCount). Tipos de verificação: crescente = o valor de cada ano da janela é maior que o do ano anterior (janela de 5 anos usa 6 valores e 5 comparações; empate não conta como crescimento); positiva = valor > 0 em todos os anos; limite = valor dentro do limite em todos os anos (≤ para dívida, vacância, inadimplência, LTV, alavancagem, payout; ≥ para ocupação); meses = rendimento pago em todos os meses da janela (12 × anos). Dado ausente em qualquer ano da janela → "não atende" com a frase "sem dado nas demonstrações" (nunca atende por falta de dado). Em dívida líquida/EBITDA, valor negativo (caixa líquido) conta como dentro do limite. A frase de cada critério sempre mostra a contagem e os extremos ("cresceu em 4 de 5 anos · 1.777 → 7.018 (R$ mi)"; "dentro do limite em 5 de 5 anos · máx. 0,0× (limite 3,0×)").
+Nota_rank = n/(n+m) × r + m/(n+m) × C (m = 200; C = média geral da classe; n = soma dos pesos dos votos)
+Critérios por perfil (chip = rótulo curto na tela; a definição completa vai no tooltip):
+Perfil
+Chip
+Verificação (ano a ano na janela)
+Série (fundamentals_period)
+Ações / Stocks
+Receita crescente
+crescente
+revenue
+Ações / Stocks
+Lucro crescente
+crescente
+net_income (descontado quando disponível)
+Ações / Stocks
+EBITDA crescente
+crescente
+ebitda
+Ações / Stocks
+Margem líquida positiva
+positiva
+net_margin
+Ações / Stocks
+Dív. líq./EBITDA < 3×
+limite ≤ 3,0 (caixa líquido conta)
+net_debt ÷ ebitda
+Ações / Stocks
+FCL crescente
+crescente
+free_cash_flow (FCO − CAPEX)
+FII tijolo
+Rendimento/cota crescente
+crescente
+income_per_share
+FII tijolo
+VP/cota crescente
+crescente
+nav_per_share
+FII tijolo
+Vacância ≤ 10%
+limite ≤ 10
+vacancy_physical
+FII tijolo
+Alavancagem ≤ 20% do PL
+limite ≤ 20
+leverage_pct
+FII tijolo
+Rendimento todos os meses
+meses = 12 × janela
+months_with_income
+FII tijolo
+Resultado crescente
+crescente
+ffo (resultado do fundo)
+FII papel
+Rendimento/cota crescente
+crescente
+income_per_share
+FII papel
+VP/cota crescente
+crescente
+nav_per_share
+FII papel
+Inadimplência ≤ 3%
+limite ≤ 3
+default_pct
+FII papel
+LTV ≤ 60%
+limite ≤ 60
+ltv_avg
+FII papel
+Rendimento todos os meses
+meses = 12 × janela
+months_with_income
+FII papel
+Resultado crescente
+crescente
+ffo
+REITs
+FFO/share crescente
+crescente
+ffo_per_share
+REITs
+Dividend/share crescente
+crescente
+dividend_per_share
+REITs
+Ocupação ≥ 95%
+limite ≥ 95
+occupancy
+REITs
+Net debt/EBITDA ≤ 6×
+limite ≤ 6,0
+net_debt ÷ ebitda
+REITs
+AFFO payout ≤ 90%
+limite ≤ 90
+dividends ÷ affo
+REITs
+Revenue crescente
+crescente
+revenue
+Regras de apresentação (vinculantes, seção 9). Os critérios nunca viram nota, estrela, cor semântica (verde/vermelho), selo "aprovado/reprovado" ou "ativo vencedor"; a marca é ✓ / — em cor neutra. A contagem "n de 6" é ordenável pelo cabeçalho como qualquer coluna, mas nunca é a ordem padrão nem recebe rótulo de ranking. Os seis critérios de FII tijolo e papel são exibidos como pares no chip ("Vacância ≤ 10% / Inadimplência ≤ 3%"): o filtro aplica o critério do tipo de cada fundo. FII híbrido: aplicar os critérios de tijolo quando imóveis ≥ 50% do PL; caso contrário, papel. Os limites (3×, 10%, 20%, 3%, 60%, 95%, 6×, 90%) e as janelas ficam em criteria_params com params_version e histórico de alterações; mudar um limite reprocessa criteria_eval no job noturno.
+4.2 Comparador
+Primeiro bloco: "Critérios de fundamentos · N anos" (um por linha, ✓/— + fato) e "Critérios atendidos: n de 6", avaliados na mesma janela do Quadro.
+Grupos de linhas por classe — Ações/Stocks: Qualidade (lucros seguidos, ROE, margem) · Endividamento · Preço (P/L, P/VP ou P/S) · Dividendos. REITs: Geração de caixa (FFO/share, P/FFO, FFO payout) · Qualidade (ocupação, anos de dividendo) · Endividamento · Dividendos. FII tijolo: Renda · Preço · Qualidade dos imóveis (padrão construtivo, vacância, nº imóveis, ABL, nº inquilinos, maior inquilino, contratos atípicos, prazo médio) · Tamanho e liquidez. FII papel: Renda · Preço · Qualidade dos ativos da carteira (nº CRIs, indexador, taxa média, LTV, inadimplência, high yield, duration) · Tamanho e liquidez. Misto: os dois grupos de qualidade, com "n/a".
+Sem destaque por linha. A lógica anterior de "★ destaque" (maior-é-melhor / menor-é-melhor por métrica) foi removida: nenhuma célula recebe cor, estrela ou fundo diferente, e não há linha de total ou nota. Em FII de papel, a nota explicativa do grupo Preço ("P/VP perto de 1,00…") também sai; fica só o número.
+Padrão construtivo: barra empilhada AAA / AA / A-B (% da ABL) + texto, sem destaque.
+"Na minha carteira": posição e peso de cada ativo, ou "—".
+4.3 Ranking da Comunidade
+Voto: 1–5 estrelas + sentimento ("compraria hoje?" sim/não). Um voto por conta (CPF verificado) por ativo, editável; válido por 12 meses (lembrete de renovação aos 6 meses: "você ainda avaliaria X assim?"; sem resposta ao fim dos 12 meses, o voto expira e sai do cálculo).
+Peso do voto w: 1,5 se o usuário tem o ativo na carteira na data do voto; 0,5 se a conta tem < 30 dias; 1,0 nos demais casos.
+Nota bruta r = média ponderada das estrelas; n = soma dos pesos.
+Nota_rank = n/(n+m) × r + m/(n+m) × C (m = 200; C = média geral da classe; n = soma dos pesos dos votos)
+Entra no ranking com n ≥ 200; abaixo disso a tela mostra "poucos votos" e a nota fica fora da ordenação.
+Variação mensal = posição atual − posição no último dia do mês anterior. "Têm na carteira" = % dos votos válidos com w = 1,5.
+Anti-manipulação: limite de 20 votos/dia por usuário; detecção de votos em bloco (≥ 30 votos 5★ no mesmo ativo em 1 h de contas com < 90 dias) → quarentena + revisão; auditoria diária; votos de contas banidas removidos retroativamente.
+Cold start: semear com enquete da audiência Escolhi Ser Rico (votos marcados origem = enquete), aplicando as mesmas regras.
+4.4 Valuation (múltiplos e cenários)
+O Valuation não emite juízo de preço: mostra onde cada múltiplo está em relação ao próprio histórico e faz contas com premissas do usuário. Regras:
+Múltiplo atual = cotação de fechamento do dia ÷ métrica dos últimos 12 meses (TTM) por ação/cota; múltiplos de valor da empresa (EV/EBITDA) usam valor de mercado + dívida líquida do último período. Recalculado no job diário de cotações e gravado em quotes_daily (campos derivados).
+Histórico de 10 anos = cotação de fechamento do último pregão do ano fiscal ÷ métrica daquele ano fiscal (fundamentals_period), um ponto por ano, gravado em multiples_yearly. A barra mostra mín, média aritmética e máx dos 10 pontos; o marcador é o múltiplo atual. Menos de 5 anos de histórico → barra oculta, só o valor.
+Status em texto: múltiplos e valores → variação percentual vs. média ("+40% vs. média 10a"); percentuais (margens, ROE, DY) → diferença em pontos percentuais; quando a média está entre −0,5 e +0,5 (ex.: dívida líquida negativa) só "acima/abaixo da média 10a". |variação| < 3% ou < 0,15 p.p. → "na média de 10 anos". Igual ao máximo/mínimo → acrescenta "maior/menor em 10 anos".
+Referência (setor/índice) = mediana dos pares do mesmo segmento (mesma lista da seção 3.2, item Comparação com pares) e do índice da classe (Ibovespa, IFIX, S&P 500), atualizada no mesmo job.
+Cenários (parecer de compliance, 10/10/2026 — "os campos do simulador nunca vêm pré-preenchidos com chutes da plataforma"): os dados do ativo abrem preenchidos (LPA, VPA, DPA, rendimento 12m, VP/cota, FFO/share — fatos dos últimos 12 meses, editáveis); as premissas do usuário (yield desejado, g, k, P/VP alvo, renda mensal) abrem EM BRANCO, com placeholder "ex.: 6" e o subtítulo "em branco até você preencher"; a única premissa pré-preenchida é o múltiplo alvo (P/L ou P/FFO), com a média histórica de 10 anos do próprio ativo rotulada como fato ("média 10a do ativo: 22,3 (fato; altere se quiser)"); a margem começa em 0%. Enquanto uma premissa necessária estiver em branco, a linha do método mostra "informe yield" / "informe g e k" / "informe P/VP alvo" em vez de resultado, e a Meta de renda mostra "Informe uma renda mensal desejada…". Nunca sugerir valor de yield, g, k ou margem por mensagem, tooltip ou placeholder que não seja claramente um exemplo de formato. "Limpar minhas premissas" devolve os campos ao branco. Fórmulas: Bazin = DPA ÷ yield; Graham = √(22,5 × LPA × VPA) (só fatos, calcula sempre); múltiplo alvo = P/L (ou P/FFO) alvo × LPA (ou FFO/share); Gordon = DPA × (1+g) ÷ (k − g), inválido quando k ≤ g (mostra "—"); renda desejada (FII) = rendimento 12m ÷ yield; P/VP alvo = P/VP × VP/cota; Meta de renda = ⌈renda × 12 ÷ rendimento 12m⌉ cotas, valor equivalente = cotas × cotação, e a linha "Posição atual vs. meta: 40 cotas · diferença para a meta configurada por você: 870 cotas (R$ 137.634)" — nunca "faltam". "Com sua margem" = resultado × (1 − margem). "vs. cotação" = resultado ÷ cotação − 1, sem cor semântica.
+Sua posição (só para ativos na carteira): preço médio ÷ LPA (ou VP/cota, FFO/share) e DPA (ou rendimento 12m) ÷ preço médio (yield sobre custo).
+Salvar cenário grava as premissas por usuário e ativo em user_scenarios; ao reabrir o ativo os inputs voltam com os valores salvos e o link "Limpar minhas premissas" apaga o registro e devolve os campos ao branco. Meta de renda pode ser enviada ao Planejamento como objetivo (Entrega 4; endpoint POST /planejamento/objetivos já existente).
+Linguagem: as palavras "preço justo", "preço-alvo", "barato", "caro", "desconto" e "oportunidade" são proibidas nesta tela; o rodapé regulatório é fixo (seção 3.2, item Valuation). Os textos de leitura de cada múltiplo são definições e faixas usuais de mercado ("referência usual: até 3×"), nunca avaliação do ativo.
+Origem dos métodos (para o Dev entender o porquê, não só o como). Graham: √(22,5 × LPA × VPA), de Benjamin Graham em O Investidor Inteligente — 22,5 = P/L 15 × P/VP 1,5, os limites que ele propôs para uma ação "defensiva". Bazin: preço-teto = dividendo ÷ yield mínimo, de Décio Bazin em Faça Fortuna com Ações; o 6% era a referência de juros da época, por isso é um padrão editável. Gordon: modelo de desconto de dividendos em um estágio (Gordon, 1959), P = D₁ ÷ (k − g), com D₁ = dividendo atual × (1 + g). Múltiplo alvo, renda desejada, P/VP alvo e Meta de renda são aritmética direta. Nenhum método é previsão de preço: são contas de referência, e a tela os apresenta como "Meus cenários".
+Unidades, arredondamento e validação dos inputs. Percentuais entram como número percentual (6 significa 6%) e são divididos por 100 no cálculo; aceitar vírgula ou ponto como separador decimal. Resultados monetários com 2 casas; "vs. cotação" em inteiro (%); status da barra com 0 casas em % e 1 casa em p.p.; multiplicadores com 1 casa (P/L, P/FFO) ou 2 (P/VP). Meta de renda arredonda cotas para cima (⌈ ⌉). Limites: yield 0,1–30%; g 0–20%; k 1–30%; k ≤ g → Gordon mostra "—"; yield ≤ 0 → Bazin/renda desejada mostram "—"; LPA ≤ 0 ou VPA ≤ 0 → Graham mostra "—"; margem 0–50% em passos de 5. Dados do ativo que não existem (ex.: empresa sem dividendo) vêm em branco e o método correspondente fica "—". Nunca lançar exceção na tela: todo caso inválido vira "—".
+4.5 Casos de teste (Valuation e Filtros de Fundamentos)
+Usar como testes unitários das fórmulas do Valuation (casos 1–23) e dos Filtros de Fundamentos (casos 24–32); os dados são os do protótipo (WEGE3 cotação 52,30 · HGLG11 158,20 · O 58,40; séries anuais do Raio-X). A implementação está aceita quando todos os casos passam.
+#
+Caso
+Entradas
+Resultado esperado
+1
+Bazin (ação)
+DPA 0,84 · yield 6%
+R$ 14,00
+2
+Graham
+LPA 1,64 · VPA 5,59
+R$ 14,36 (√206,27)
+3
+Múltiplo alvo
+P/L alvo 22,3 · LPA 1,64
+R$ 36,57
+4
+Gordon
+DPA 0,84 · g 8% · k 13%
+R$ 18,14
+5
+Gordon inválido
+DPA 0,84 · g 13% · k 13%
+"—" (k ≤ g)
+6
+Yield zero
+DPA 0,84 · yield 0%
+"—"
+7
+Graham com prejuízo
+LPA −0,50 · VPA 5,59
+"—"
+8
+vs. cotação e margem
+resultado 14,00 · cotação 52,30 · margem 20%
+−73% · R$ 11,20
+9
+Renda desejada (FII)
+rendimento 12m 13,20 · yield 8%
+R$ 165,00
+10
+P/VP alvo (FII)
+P/VP 1,00 · VP/cota 163,10
+R$ 163,10
+11
+Meta de renda (FII)
+R$ 1.000/mês · rendimento 13,20 · cotação 158,20 · posição 40 cotas
+910 cotas · R$ 143.962,00 · diferença para a meta: 870 cotas (R$ 137.634)
+12
+Sua posição (ação)
+PM 38,60 · LPA 1,64 · DPA 0,84
+P/L 23,5 · yield sobre custo 2,2%
+13
+Sua posição (FII)
+PM 151,40 · VP/cota 163,10 · rendimento 13,20
+P/VP 0,93 · rendimento sobre custo 8,7%
+14
+P/FFO alvo (REIT)
+P/FFO 17,6 · FFO/share 4,19
+US$ 73,74
+15
+Bazin (REIT)
+DPS 3,16 · yield 5,5%
+US$ 57,45
+16
+Gordon (REIT)
+DPS 3,16 · g 3% · k 8%
+US$ 65,10
+17
+Barra — múltiplo
+P/L atual 31,2 · histórico 15,8 · 19,4 · 21,0 · 27,4 · 35,1 · 21,9 · 19,3 · 13,4 · 18,1 · 31,2
+mín 13,4 · média 22,3 · máx 35,1 · "+40% vs. média 10a" (sem "maior em 10 anos")
+18
+Barra — percentual
+ROE atual 29,4 · histórico 18,2 · 17,9 · 18,7 · 20,1 · 24,7 · 30,2 · 29,8 · 32,1 · 30,3 · 29,4
+média 25,1 · "+4,3 p.p. vs. média 10a"
+19
+Barra — média perto de zero
+dív.líq/EBITDA atual −0,50 · média −0,30
+"abaixo da média 10a" (sem percentual) · "menor em 10 anos"
+20
+Barra — na média
+valor 22,5 · média 22,3 (variação de 0,9%, menor que 3%)
+"na média de 10 anos"
+21
+Histórico curto
+4 anos de dados
+barra oculta; só o valor e a referência
+22
+Salvar cenário
+abrir Meus cenários de WEGE3 sem premissas; depois informar yield 4%, salvar, sair e reabrir o ativo; depois "Limpar minhas premissas"
+ao abrir: yield, g, k em branco, P/L alvo 22,3 (média 10a), margem 0%, Bazin e Gordon mostram "informe…", Graham e Múltiplo alvo calculam; após salvar e reabrir: yield 4% e Bazin R$ 21,00; após limpar: campos em branco e registro apagado
+23
+Linguagem
+varredura de strings da tela
+nenhuma ocorrência de "preço justo", "preço-alvo", "barato", "caro", "desconto", "oportunidade"
+24
+Critério crescente — atende
+WEGE3 · Receita 2020–2025: 17.500 · 23.600 · 29.900 · 32.500 · 36.200 · 40.800 · janela 5
+✓ · "cresceu em 5 de 5 anos · 17.500 → 40.800 (R$ mi)"
+25
+Critério crescente — um ano de queda
+WEGE3 · FCL 2020–2025: 1.777 · 3.011 · 2.958 · 4.975 · 5.175 · 7.018 · janela 5
+— · "cresceu em 4 de 5 anos" (2022 < 2021); o ativo não entra no filtro FCL crescente
+26
+Critério limite — caixa líquido
+WEGE3 · dív.líq/EBITDA 2021–2025: −0,03 · −0,37 · −0,35 · −0,48 · −0,50 · limite 3×
+✓ · "dentro do limite em 5 de 5 anos · máx. 0,0× (limite 3,0×)" (valor negativo exibido como 0,0)
+27
+Critério positiva — prejuízo
+AZUL4 · margem líquida negativa em todos os anos
+— · "positiva em 0 de 5 anos · mín. −10,5%"
+28
+Critério meses — janela
+FII com 48 meses seguidos de rendimento
+janela 3 → ✓ "36 de 36 meses"; janela 5 → — "48 de 60 meses"
+29
+Dado ausente
+ativo com 7 anos de demonstrações · janela 10
+— · "sem dado nas demonstrações"; nunca atende por falta de dado
+30
+Filtro combinado
+chips Receita + Lucro + Dív.líq/EBITDA ativos · janela 5 · base do protótipo (Ações)
+só ativos com os 3 critérios ✓ · contador "22 de 312 atendem a 3 critérios em 5 anos" · ordem A–Z
+31
+Troca de classe e lista vazia
+filtros ativos em Ações → clicar em FIIs; depois 6 chips + janela 10 em FIIs
+filtros zerados ao trocar de classe; com 0 resultados aparece a linha "Nenhum ativo atende…" com link "limpe os filtros"
+32
+Linguagem e isonomia
+varredura de strings e de classes CSS em Quadro, Página do ativo, Comparador e Ranking
+nenhuma ocorrência de "Índice", "nota" (do app), "semáforo", "destaque", "vencedor", "aprovado", "melhores", "recomend"; nenhuma célula do comparador com classe best/star
+33
+Planejar na carteira
+WEGE3 · posição 120 ações = 3,8% (R$ 6.276) · informar peso-alvo 6% · salvar · depois remover
+resumo: alvo R$ 9.909 · 189 ações · "posição atual vs. alvo −2,2 p.p. (R$ 3.633 · 69 ações)"; após salvar: chip "Planejado" no cabeçalho e "alvo planejado por você: 6,0%" no card; após remover: chip some e card mostra "sem alvo planejado"; nenhuma string "faltam"/"compre"
+Critério de arredondamento nos testes: comparar com tolerância de 0,005 nos valores monetários e 0,5 nos percentuais inteiros.
+5. Modelo de dados
+As entidades abaixo cobrem a área (o Raio-X lê `financial_statements`, uma linha por ativo, período e indicador, com grupo e formato); todas as tabelas de fundamentos são point-in-time (uma linha por ativo e período, nunca sobrescrita) e toda linha carrega proveniência (source, source_url, fetched_at, reviewed_by).
+Restrição de schema (compliance): o banco de produção não deve ter campo, coluna ou view de nota proprietária do ativo — nada de score, indice_mf, rating ou equivalente nas tabelas de ativos; as únicas notas que existem são as dos usuários, em votes e rankings_daily. O JSON do protótipo (data.js) já não carrega esses campos; se um provedor de dados entregar uma "nota" própria, ela não é persistida.
+Tabela
+Chave
+Campos principais
+assets
+id
+ticker, name, class (acao / fii / stock / reit), exchange, currency, sector, segment, tags[], fii_type (tijolo / papel / hibrido), reit_type, active, liquidity_avg_30d
+quotes_daily
+asset_id + date
+close, change, change_pct, volume; derivados: pl, pvp, ps, pffo, dy_12m
+fundamentals_period
+asset_id + period (ano ou trimestre)
+ações/stocks: revenue, net_income, ebitda, equity, net_debt, roe, net_margin, eps, dps, payout, shares_outstanding; REITs: ffo, ffo_per_share, affo_per_share, occupancy, debt_ebitda, dividend_per_share; FIIs: nav_per_share, net_worth, shareholders, income_per_share, vacancy_physical, vacancy_financial, properties_count, gla_m2, leverage_pct, admin_fee, cap_rate
+fii_property_quality
+asset_id + period
+tijolo: pad_aaa_pct, pad_aa_pct, pad_a_pct, tenants_count, top_tenant_pct, atypical_pct, avg_lease_years; papel: cri_count, index_mix (json: CDI/IPCA/pré %), avg_rate, ltv_avg, default_pct, high_yield_pct, duration_years; sempre: source_pdf_url, source_page, extracted_by (llm / manual), review_status (pending / approved / rejected)
+criteria_eval
+asset_id + window (3/5/10) + computed_at
+profile (acoes / stocks / tijolo / papel / reits), results (json: por critério id, ok, n, of, fact, series[]), met_count, missing_data (bool), params_version — recalculado no job noturno e a cada balanço novo; substitui as antigas tabelas scores e scoring_params
+criteria_params
+version
+profile, criterion_id, kind (up / pos / max / min / months), series_key, threshold, label, long_label, valid_from, created_by — definição e limites dos critérios da seção 4.1, editáveis na tela de admin, com histórico
+votes
+user_id + asset_id
+stars (1–5), would_buy (bool), weight (0,5 / 1,0 / 1,5), holder_at_vote (bool), origin (app / enquete), created_at, updated_at, expires_at, status (valid / expired / quarantined / removed)
+rankings_daily
+asset_id + date
+rating_raw, weight_sum, rating_bayes, holders_pct, sentiment_yes_pct, position, position_delta_month
+theses
+id
+user_id, asset_id, body, visibility (private / public), likes, reports, status (active / hidden / removed), created_at
+asset_risks
+id
+asset_id, text, votes, source (community / curated)
+asset_events
+id
+asset_id, date, type (earnings / ex_dividend / payment / meeting / report), title, description, source_url; espelhado na Agenda do usuário para ativos na carteira
+watchlists / watchlist_items
+id
+user_id, name; asset_id, added_at (Entrega 5)
+comparisons
+id
+user_id, class, asset_ids[], created_at (Salvar comparação)
+data_reports
+id
+user_id, asset_id, field, message, expected_source, status ("reportar dado incorreto")
+multiples_yearly
+asset_id + fiscal_year
+close_year_end, pl, pvp, ps, ev_ebitda, p_fco, p_fcl, dy, payout, net_margin, roe, roa, roic, net_debt_ebitda, debt_equity, current_ratio; FIIs: pvp, nav_per_share, cap_rate, income_per_share, dy, vacancy_physical, vacancy_financial, pad_aaa_aa_pct, leverage_pct; REITs: p_ffo, p_affo, p_nav, dy, affo_payout, occupancy, net_debt_ebitda, fixed_charge_coverage — um ponto por ano fiscal, alimenta a barra de posição do Valuation
+user_scenarios
+user_id + asset_id
+inputs (json: lpa, vpa, dpa, dy, pl, g, k, mg, rend, vp, pvp_alvo, renda, ffo, pffo), updated_at — premissas de "Meus cenários"; "Salvar cenário" grava, "Limpar minhas premissas" apaga
+planning_asset_targets
+user_id + asset_id
+target_pct, created_at, updated_at — alvo por ativo definido pelo usuário em "Planejar na carteira"; complementa planning_targets (alvo por classe, já existente); a tela mostra apenas o desvio entre posição e alvo
+Integração com o app existente: portfolio_positions (já existe) fornece quantity, avg_price, market_value, weight_pct por ativo; planning_targets fornece o alvo por classe. A tela lê ambos por user_id + asset_id.
+Endpoints sugeridos (REST, JSON): GET /analise/{class}?sort=ticker|<coluna>&dir=asc|desc&mode=simple|full&win=3|5|10&criteria=rec,luc,dl&port=1 (ordem padrão: ticker asc; criteria é E lógico) · GET /analise/asset/{ticker}?win=5 (agrega quotes, fundamentals, criteria_eval, community, events, portfolio) · GET /analise/compare?tickers=A,B,C,D&win=5 · GET /analise/ranking/{class} · POST /analise/vote · PUT /analise/thesis · POST /analise/report (origem: dado, tese ou ranking). Respostas cacheadas 15 min (cotações) e 24 h (fundamentos e critérios).
+6. Pipeline de dados
+Leitura para um dev só: nas Entregas 0 a 4 o pipeline é um único job diário lendo um provedor por mercado; a arquitetura completa abaixo (múltiplas fontes, extração por LLM, fila de revisão, internalização CVM/SEC) é o destino, implementado por partes na Entrega 5 conforme a tração justificar. O modelo de dados da seção 5 já nasce preparado para isso (campos source, fetched_at, extracted_by, review_status), então trocar o provedor depois não exige migração.
+O app nunca chama API de terceiros na renderização: jobs agendados gravam no banco próprio e a tela lê só dele.
+
+pipeline de dados · 4 fontes, 3 jobs, 1 banco
+Cotações e balanços entram por jobs automáticos; os dados de FII que só existem em PDF passam por extração e revisão humana antes de chegar ao banco.
+Camada
+Fonte
+Ritmo
+Custo MVP
+Cotações B3
+brapi (~R$ 100/mês, 15 mil req. grátis) ou bolsai (R$ 49/mês, 27 indicadores)
+fechamento diário 18h30; opcional 15 min no pregão
+R$ 50–100/mês
+Cotações EUA
+EODHD (~US$ 60/mês) ou Financial Modeling Prep (US$ 22–59)
+diário
+US$ 22–60/mês
+Fundamentos de ações
+CVM Dados Abertos DFP/ITR (CSV); no MVP via bolsai ou Fintz
+job diário checa balanços novos (ITR ≤ 45 dias após o trimestre; DFP ≤ 3 meses após o ano)
+grátis / incluso
+FIIs — estruturado
+Informe Mensal Estruturado de FII (PL, cotas, cotistas, rendimentos, ativos) + informe anual/trimestral (relação de imóveis)
+mensal
+grátis
+FIIs — não estruturado
+relatórios gerenciais PDF (Fundos.net): padrão construtivo, inquilinos, contratos atípicos, prazo médio, LTV, inadimplência, indexador, high yield
+mensal por FII; extração LLM → fila de revisão
+curador(a) meio período
+Stocks e REITs
+SEC EDGAR company facts (XBRL, JSON, 10+ anos)
+trimestral (10-Q / 10-K)
+grátis
+REITs — FFO/AFFO
+suplementos trimestrais dos REITs (não-GAAP, fora do XBRL) → mesma extração, ou provedor que calcule
+trimestral
+—
+Comunidade
+banco próprio
+tempo real; ranking recalculado às 03h
+—
+Extração de PDFs (FIIs e REITs)
+Job monitora Fundos.net e o IR do REIT; ao detectar relatório novo, baixa o PDF e registra source_pdf_url.
+Modelo de linguagem (Claude API) extrai os campos de fii_property_quality num JSON com schema fixo, cada campo com a página de origem e um grau de confiança.
+Campos com confiança < 0,8, variação > 40% vs. mês anterior ou ausentes vão para a fila de revisão (review_status = pending); os demais entram como approved com extracted_by = llm.
+Curador aprova/corrige na tela de revisão (lado a lado: PDF na página indicada + campos). Nada pending aparece no app.
+Ordem de cobertura: os 100 FIIs mais líquidos primeiro; depois por demanda (ativos com posição de usuários).
+Regras de sanidade (todas as camadas)
+Variação > 40% num indicador entre dois períodos → revisão, não publica.
+Campo obrigatório ausente → incomplete = true, selo "dados incompletos" na tela; nos Filtros de Fundamentos o critério que depende do campo fica "não atende · sem dado nas demonstrações".
+Divergência > 5% entre provedor e CVM no mesmo campo → revisão; CVM prevalece.
+Toda linha guarda source, source_url, fetched_at, reviewed_by; a tela mostra o selo de frescor ("Fundamentos: ITR 2T25 · atualizado 14/08 · fonte: CVM").
+Botão "reportar dado incorreto" em cada bloco cria um data_report; SLA de resposta: 5 dias úteis.
+Horários sugeridos (horário de Brasília): cotações 18h30; fundamentos e informes CVM 06h00; SEC 07h00; extração de PDFs 22h00; ranking 03h00; expiração de votos 04h00.
+7. Design system e componentes
+Reutilizar os componentes existentes do app; os tokens abaixo foram medidos nos prints do My Finance e estão no CSS do protótipo (:root e :root[data-theme="dark"]).
+Token
+Claro
+Escuro
+fundo da página
+#f5f7fb
+#1a1d24
+card / borda
+#ffffff / #e6eaf0 (raio 12 px)
+#22262f / #2e333d
+texto / secundário / apagado
+#1c2233 / #6b7280 / #9aa3b2
+#eef1f6 / #9aa3b2 / #6f7887
+primário (botão azul, raio 8 px)
+#2f80f6
+#3b8cff
+navy (botão secundário, cabeçalho de tabela)
+#2b3a55
+#333b4d / #2e3a52
+nav ativa
+fundo #e8f0fd, texto #1d6fe0
+fundo #233247, texto #7db4ff
+tints dos cards de KPI
+#e8f0fb / #eceff4 / #dfeafb
+#1f2a3d / #262a33 / #1b2b45
+linha selecionada / última linha da tabela (fundo --hi)
+fundo #e7f6ee, texto #16a34a
+fundo #16301f, texto #34c47c
+alerta (misto)
+fundo #fdf1e2, borda #d97706
+fundo #3a2a12, borda #f0a13a
+positivo / alerta / negativo (só para variação de preço, prejuízo no "Lucro 10 anos" e avisos; nunca para critérios)
+#16a34a / #d97706 / #dc2626
+#34c47c / #f0a13a / #f06565
+estrelas
+#f2b01e
+#f2b01e
+rampa padrão construtivo AAA → A
+#1d6fe0 / #7fb0f5 / #c9dcf6
+#3b8cff / #2a5a99 / #233247
+séries de gráfico (validadas p/ daltonismo)
+#0079f2 e #b07110
+#2f86f6 e #b8842e
+Tipografia: Albert Sans em toda a UI (o app não usa Titillium na interface). Título de página 20/700; título de card 14/600; corpo 13,5; rótulo de KPI 11/500; cabeçalho de tabela 11/600; números com font-variant-numeric: tabular-nums.
+Componentes (mapear para os existentes): sidebar 160 px com toggle de tema no rodapé; banner informativo; pills de página (ativa em #1c2233); tabs de classe com sublinhado azul e contador; chips de filtro (com tooltip); pills pequenas (Resumo/Detalhado, janela 3/5/10, períodos 1A–Máx); tabela com cabeçalho navy e hover de linha; cards de KPI tintados; célula "Critérios" (seis quadradinhos neutros + "n de 6"); marca ✓/— neutra; mini-barras anuais do card de critérios; barrinhas de "lucros seguidos"; barra empilhada do padrão construtivo; estrelas de voto (hover preenche até a estrela); slots do comparador; bloco "Leitura dos dados"; modal (Comparar, Registrar) e toast; card escuro "Aprenda a analisar"; rodapé legal. Não existem mais: anel cônico de nota, badges Atende/Parcial, célula de destaque.
+Gráficos (SVG inline ou biblioteca do app):
+Nunca eixo duplo: "Lucro × Cotação" é base 100 numa única escala.
+Duas séries no máximo por gráfico, cores da tabela acima; legenda sempre presente com 2 séries; grade e eixos via tokens (--grid, --axis).
+Linhas 2,2 px; último ponto marcado com rótulo do valor; barras com cantos 4 px e rótulo só no primeiro e último ano.
+Tooltip com crosshair no hover (fixo, fundo do card, borda do tema); área de hit por ano maior que a marca.
+Mini-gráficos do comparador compartilham min/max.
+Respeitar prefers-reduced-motion; nenhuma animação essencial.
+8. Requisitos não funcionais
+Performance: Quadro com até 5.540 ativos carregado por página/virtualização (50 linhas por vez); resposta da API < 300 ms com cache; página do ativo < 1,5 s no 4G. Nenhuma chamada a provedor externo no caminho da requisição.
+Responsivo: desktop (1440), tablet (1080) e celular (390) sem rolagem horizontal da página; tabelas rolam dentro do card.
+Tema: claro e escuro por tokens; segue prefers-color-scheme e o toggle do app; sem cor definida só em um tema.
+Acessibilidade: contraste ≥ 4,5:1 no texto; status sempre com ícone + texto; foco visível; estrelas de voto acessíveis por teclado (radio group); tabelas com th e scope.
+Observabilidade: logs dos jobs (início, fim, linhas gravadas, rejeitadas), alerta se um job falhar 2 vezes seguidas, painel de frescor por camada.
+Auditoria: histórico de votos, teses, revisões de dados e mudanças de criteria_params (quem, quando, valor anterior).
+Feature flags: analise.enabled, analise.ranking, analise.comparador, analise.classes[] — lançamento gradual por plano e por usuário.
+Planos (sugestão): Quadro com Filtros de Fundamentos + voto no Gold; Comparador, Raio-X, Meus cenários, Stocks/REITs e ranking completo no Premium. O Ranking pode ser aberto como isca de engajamento — decisão de negócio, controlada por flag.
+9. Compliance obrigatório
+O My Finance opera como ferramenta de dados e comunidade, sem analista credenciado. Nada na área pode ser lido como análise ou recomendação de valor mobiliário (Resolução CVM 20/2021; art. 27-E da Lei 6.385/76). As regras abaixo são bloqueantes para o lançamento; um parecer jurídico de mercado de capitais valida a redação final.
+Linguagem (aplicada no protótipo — manter em toda tela, PDF e e-mail)
+Sem nota proprietária. Não existe Índice, score, nota, semáforo, selo "aprovado/reprovado", "★ destaque" nem "ativo vencedor" em nenhuma tela, PDF, e-mail ou peça de marketing. Os Filtros de Fundamentos são chamados assim (ou "Busca por critérios"); nunca "Ranking de Qualidade My Finance", "Melhores ativos" ou "Top 10 do My Finance".
+Critérios = fatos. Cada critério é uma verificação contábil binária com a fonte declarada (DFP/ITR na CVM; informes dos FIIs; 10-K/10-Q na SEC) e a frase factual (números e contagem). Proibidos adjetivos de julgamento (excelente, saudável, bom, ruim, barato, caro) e verbos de ação (compre, venda, aproveite). A contagem "n de 6" nunca é a ordem padrão.
+Apresentação isonômica. Ordem padrão alfabética; o usuário ordena por qualquer coluna. No Comparador, nenhuma célula recebe cor, estrela ou fundo diferente; o bloco final chama-se "Leitura dos dados" e só repete contagens.
+Disclaimer de desempenho histórico em toda tela que usa dados passados (Quadro, Página do ativo, Comparador, Valuation): "Rentabilidade passada não é garantia de resultados futuros."
+Comunidade. Título "Ranking da Comunidade" (subtítulo "MF Community Rating"); critério de ponderação visível; 1 voto por conta/CPF; peso 1,5× para quem tem o ativo na carteira conectada; voto válido por 12 meses; canal "denunciar" na tela do ranking e em toda tese; o My Finance não edita nem altera o sentido de voto ou tese; aviso de isenção do parecer (seção 3.4) em toda tela do ranking. Nota = "média das opiniões de usuários"; "compraria hoje?" = sentimento pessoal; teses marcadas "opinião de usuário".
+Valuation. "Meus cenários" calcula com premissas do usuário; sem "preço justo" ou "preço-alvo"; coluna "vs. cotação" sem cor semântica.
+Botão de carteira = "Registrar operação" (registro de posição), nunca "Comprar"; o alvo por ativo é definido pelo usuário em "Planejar na carteira" e exibido só como desvio. Metas do Planejamento são exibidas como desvio em relação ao alvo do próprio usuário, sem verbo de ação.
+Aviso legal (rodapé de todas as telas, PDFs e e-mails): "O My Finance é uma ferramenta de organização financeira e de dados. Os filtros, as tabelas e os comparativos desta área reproduzem informações contábeis históricas das demonstrações financeiras públicas (DFP/ITR na CVM, informes de FIIs, 10-K/10-Q na SEC) e cotações de mercado; o ranking, as notas e as teses são opiniões pessoais de usuários. Nada nesta área constitui análise, consultoria ou recomendação de investimento (Resoluções CVM 19/2021 e 20/2021). Rentabilidade passada não é garantia de resultados futuros. Decisões de investimento são de responsabilidade exclusiva do usuário."
+Comunidade (termos de uso e moderação)
+Termos: votos e teses são opiniões pessoais; proibido apresentar-se como analista sem CNPI, prometer retorno, publicar "compre/venda", divulgar links de venda; sem monetização de teses.
+Moderação: canal "denunciar" em toda tese; fila de revisão; remoção documentada com log (Marco Civil após decisão do STF de 2025: dever de cuidado sobre conteúdo grave; ofensa à honra exige ordem judicial). Sem amplificação algorítmica de teses (ordenação só por curtidas e data).
+Anti-manipulação conforme seção 4.3; suspeita de manipulação de mercado (art. 27-C) → quarentena e registro.
+LGPD
+Base legal e finalidade explícita na política de privacidade para usar a posição em carteira como peso de voto.
+Minimização: nunca expor posição individual nem identidade de quem votou; só agregados ("72% têm na carteira").
+Relatório de impacto (RIPD) antes do lançamento; direito de exclusão remove votos e teses (mantém agregados anônimos).
+Open Finance (BACEN)
+Acesso via participante autorizado (Pluggy, Belvo, ITP). O consentimento deve listar a finalidade "verificação de posição para peso de voto e selo Na carteira"; validade 12 meses; revogação simples; sem compartilhamento com terceiros.
+Gatilho futuro: ao contratar um CNPI, registrar a PJ na CVM, incluir as declarações dos arts. 21/22 e só então reativar linguagem qualitativa (as strings do protótipo estão centralizadas para essa troca).
+10. Roadmap e critérios de aceite
+Premissa de equipe: 1 desenvolvedor full stack, sozinho. Por isso o plano é em série, em entregas pequenas que vão para produção atrás de feature flag (analise.*, seção 8), e tudo o que não é código (curadoria de dados, moderação, textos, parâmetros, jurídico) fica com o Pedro e a Priscila, não com o dev. Estimativa total: cerca de 22 a 26 semanas de desenvolvimento até a Entrega 4, mais a Entrega 5 só depois de haver tração. As estimativas abaixo assumem dedicação integral à área e já incluem testes e correções; se o dev também mantém o resto do app, multiplique por 1,5. A Entrega 1 sai em beta fechado e só vira pública com parecer jurídico e termos aprovados. Cada gate é bloqueante: a entrega seguinte não entra em produção sem o critério marcado.
+Cada gate é bloqueante: a entrega seguinte não entra em produção sem o critério marcado. A tabela de escopo da seção 2 usa "MVP" para as Entregas 0–3 e "Depois" para as Entregas 4–5.
+Entrega
+Semanas
+Escopo (o que o dev constrói)
+Critério de aceite
+0 · Fundação
+3–4
+Contratar um provedor de dados pronto em vez de internalizar CVM/SEC (brapi para B3; EODHD ou FMP para EUA, só quando chegar a Entrega 2); tabelas da seção 5 (começar por assets, quotes_daily, fundamentals_period, multiples_yearly, criteria_eval, criteria_params); um único job diário (cotação → múltiplos → critérios nas 3 janelas → selo de frescor); portar screen.js (CRITERIA, evalCriteria) do protótipo para o backend
+testes unitários das seções 4.4 e 4.5 passando (casos 1–32); 100% das ações e FIIs com cotação D-1; critérios avaliados para ≥ 95% dos ativos com balanço; job com log e alerta por e-mail quando falha
+1 · Quadro e página do ativo (Ações e FIIs)
+5–6
+Quadro (Filtros de Fundamentos com janela, ordenação por coluna com padrão A–Z, Resumo/Detalhado com Lucro 10 anos só no Detalhado, Critérios, Mostrar mais, estado vazio); página do ativo com os blocos 1–10 da seção 3.2, exceto o bloco 8 (comunidade) e o nível Raio-X (card de critérios, Fundamentos Essencial na nova ordem, Valuation Múltiplos); "Na sua carteira" lendo portfolio_positions; botões Comparar/Salvar/Registrar; tese privada; busca simples por ticker/nome; tema claro/escuro; rodapé legal. Stocks e REITs ficam escondidos pela flag analise.classes
+igual ao protótipo nas 3 larguras (copiar o CSS, não redesenhar); API < 300 ms; sem rolagem horizontal no celular; strings neutras revisadas pela checklist da seção 9 (caso 32); beta fechado com 100 usuários por 2 semanas sem incidente crítico; parecer jurídico sobre as telas
+2 · Stocks e REITs
+2–3
+Mesmas telas, só trocando a fonte de dados, as colunas e os perfis de critério (SIMPLE, GROUPS, CRITERIA.stocks/reits já estão no protótipo); FFO/AFFO vindo do provedor; ligar a flag
+4 classes no Quadro; testes dos perfis stocks/reits; nenhuma regressão nas telas de Ações/FIIs
+3 · Comunidade
+4–5
+Voto + sentimento; ranking diário (bayesiano, pesos, expiração em 12 meses, lembrete aos 6) dentro do mesmo job; teses públicas, curtidas, riscos; "denunciar" no ranking e nas teses abrindo item numa fila simples (tabela + tela admin mínima); moderação manual pela equipe; aviso de isenção do parecer na tela; eventos na Agenda
+ranking recalculado às 03h; regras anti-manipulação testadas com cenários sintéticos; denúncia → remoção manual ≤ 48 h; termos e política de privacidade publicados; RIPD concluído (jurídico, não o dev)
+4 · Comparador, Raio-X e Meus cenários
+4–5
+Comparador (bloco de critérios + grupos de métricas sem destaque, tijolo/papel/misto, série base 100 para qualquer ativo); Fundamentos Raio-X (demonstrativos completos; exportar CSV); Valuation Meus cenários + user_scenarios + Meta de renda → objetivo no Planejamento
+casos 1–23 da seção 4.5 verificados na tela; comparador sem CTA de compra e sem célula destacada (caso 32); CSV abre no Excel com vírgula decimal
+5 · Profundidade (só com tração)
+sob demanda
+Dados de FII não estruturados (padrão construtivo, inquilinos, LTV, inadimplência) primeiro por planilha curada importada (Google Sheets → fii_property_quality, extracted_by = manual); extração por LLM e tela de revisão só quando a planilha passar de ~100 fundos; filtros por setor e faixa; Salvos e alertas; exportar PDF; internalização CVM/SEC apenas se o custo do provedor justificar
+50 FIIs mais líquidos com fii_property_quality preenchido; ≤ 5% de correções na revisão; PDF com aviso legal
+Regras para funcionar com um dev só.
+Comprar, não construir, tudo o que não é diferencial: cotações e balanços vêm de provedor por API; internalizar CVM/SEC, extração de PDF por LLM e fila de revisão são Entrega 5, não MVP. O diferencial do My Finance é a integração com a carteira, os filtros factuais e a comunidade — é nisso que o tempo do dev vai.
+O protótipo é o design: não há designer; o analise-de-ativos.html é a referência pixel a pixel e o CSS pode ser copiado (tokens da seção 7). Nenhuma tela nova sem equivalente no protótipo.
+Os casos de teste são o QA: não há testador; a seção 4.5 e os critérios de aceite acima são a definição de pronto. O dev escreve os testes unitários das fórmulas antes das telas (Entrega 0).
+Uma entrega por vez, atrás de flag: nada fica meio pronto em produção; cada entrega liga quando o critério passa. Sem refatorar o app existente para acomodar a área — ela é um módulo novo que lê portfolio_positions e planning_targets como estão.
+O que não é código não é do dev: Pedro define criteria_params (limites e janelas), os textos (seção 9) e a curadoria dos FIIs (planilha); Priscila modera denúncias e responde data_reports; o jurídico cuida de termos, política e RIPD. O dev entrega as telas de admin mínimas para isso (uma tabela editável de parâmetros, uma fila de denúncias), não os processos.
+Deixar para depois, explicitamente: autocomplete com índice de busca, alertas, Salvos, exportar PDF, moderação automática, histórico do ranking, múltiplos trimestrais. Nenhum deles bloqueia o lançamento.
+Ritmo: revisão semanal de 30 min com o Pedro usando o protótipo lado a lado com a tela real; dúvidas de regra de negócio se resolvem pela seção 4, não por interpretação.
+Apoio externo pontual: jurídico nas Entregas 1 e 3 (parecer, termos, RIPD); um(a) curador(a) de dados meio período só na Entrega 5.
+11. Anexos e como usar o protótipo
+O protótipo analise-de-ativos.html é a referência visual e funcional: abra no navegador, alterne o tema pelo ícone lua/sol, clique nas pills e nas linhas. Ele contém três blocos que o dev pode reaproveitar diretamente:
+CSS com tokens (:root e :root[data-theme="dark"]) e as classes dos componentes (sidebar, banner, pills, tabs, chips, tabela, KPIs, célula de critérios, marcas ✓/—, mini-barras, estrelas, slots, modal, toast).
+data.js: estrutura dos objetos por classe (cols, rows, detail, FULL, COMPARE) — serve de contrato para o JSON da API. Dados são ilustrativos.
+screen.js: CRITERIA (os 6 critérios por perfil, com tipo, série e limite), buildSeries (séries anuais; em produção vêm de fundamentals_period), evalCriteria (avaliação ano a ano na janela, com a frase factual) e critCount — é a implementação de referência da seção 4.1 e deve ser portada tal qual.
+app.js: renderList (filtros, janela, ordenação, estado vazio), renderDetail (renderCriteria, essencial com a ordem de colunas da seção 3.2), renderCompare (bloco de critérios, grupos sem destaque, seriesFor), renderRank, bayes, lineChart, barChart.
+val.js / val_app.js: dados e renderização do Valuation (renderMult, rangeBar, renderSim, simRows, simResults) — as fórmulas dos cenários estão aqui.
+actions.js: Comparar (modal de escolha), Salvar, Planejar na carteira (`openPlan`, `S.plan`), Ver na Carteira (`openPortfolio`), Registrar operação, toast e denúncia.
+O antigo score.js (Índice MF) não faz parte do HTML entregue, e data.js não carrega mais campos de nota, checks ou colunas de Índice: nada disso deve ser portado.
+Capturas de tela de referência (claro e escuro): Quadro, Página do ativo (WEGE3, HGLG11), Comparador (FIIs tijolo, papel, misto; REITs), Ranking (Ações).
+Documentos de apoio no projeto: analise-de-ativos-my-finance.md (spec resumida), regulatorio-analise-de-ativos.md, pipeline-dados-analise-de-ativos.md, funcionalidades-my-finance.md.
+Dúvidas abertas para o cliente: validação dos limites e janelas da seção 4.1 (especialmente os critérios de FII e REIT); disponibilidade de "lucro descontado" (net_income_adjusted) no provedor escolhido; escolha do provedor B3 (brapi ou bolsai) e EUA (EODHD ou FMP); parceiro de Open Finance; quais classes entram em cada plano.

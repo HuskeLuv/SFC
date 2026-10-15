@@ -10,6 +10,11 @@
  *
  * Planejado (Watchlist) que já virou posição fica só em `posicoes` (mesma defesa de
  * listarPlanejados: importação/undo criam Portfolio sem passar pela operação).
+ *
+ * v2.4 (fatia C1): `posicoes[t]` traz também o Objetivo (% DENTRO da aba, rec. 1), a estratégia
+ * (ação) e o tipo de FII da posição — a recompra pelo modal "Registrar operação" manda a MESMA seção
+ * sem perguntar; `planejados[t]` traz `id` (PATCH/DELETE de /api/carteira/planejados/[id]) e a
+ * `secao` do plano (a 1ª compra de um planejado preserva a seção escolhida ao planejar).
  */
 import prisma from '@/lib/prisma';
 import { categoriaEfetiva } from '@/services/portfolio/itemValuation';
@@ -36,6 +41,10 @@ const tickerDe = (asset: AssetOverlay | null): string | null => {
   return s ? s : null;
 };
 
+/** Portfolio.objetivo: 0 (padrão da coluna) = sem alvo. */
+const objetivoOuNull = (v: number | null | undefined): number | null =>
+  typeof v === 'number' && Number.isFinite(v) && v > 0 ? v : null;
+
 export async function overlayCarteira(userId: string): Promise<OverlayCarteiraResposta> {
   const [posicoes, planejados] = await Promise.all([
     prisma.portfolio.findMany({
@@ -44,6 +53,9 @@ export async function overlayCarteira(userId: string): Promise<OverlayCarteiraRe
         id: true,
         quantity: true,
         categoriaOverride: true,
+        objetivo: true,
+        estrategia: true,
+        tipoFii: true,
         asset: { select: SELECT_ASSET },
       },
     }),
@@ -52,6 +64,7 @@ export async function overlayCarteira(userId: string): Promise<OverlayCarteiraRe
       select: {
         id: true,
         objetivo: true,
+        secao: true,
         categoriaOverride: true,
         asset: { select: SELECT_ASSET },
       },
@@ -76,6 +89,9 @@ export async function overlayCarteira(userId: string): Promise<OverlayCarteiraRe
       portfolioId: p.id,
       quantidade: p.quantity,
       categoria: categoriaEfetiva(p.asset, p.categoriaOverride),
+      objetivoPct: objetivoOuNull(p.objetivo),
+      estrategia: p.estrategia ?? null,
+      tipoFii: p.tipoFii ?? null,
     };
   }
 
@@ -86,8 +102,10 @@ export async function overlayCarteira(userId: string): Promise<OverlayCarteiraRe
     if (resposta.planejados[ticker]) continue;
     resposta.planejados[ticker] = {
       watchlistId: w.id,
+      id: w.id,
       categoria: categoriaEfetiva(w.asset, w.categoriaOverride),
       objetivoPct: Number.isFinite(w.objetivo) ? w.objetivo : null,
+      secao: w.secao ?? null,
     };
   }
 

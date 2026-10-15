@@ -1,15 +1,17 @@
 /**
  * Cabeçalho da página do ativo (fatia B): sigla, ticker, nome, tags (setor · segmento · listagem
- * nas ações; tipo · segmento CVM nos FIIs — SEM tag de índice de mercado, que não tem fonte), selo
- * da carteira (slot da D), selos de estado e o preço de fechamento do último pregão com a data e
- * a fonte. As ações da carteira (Registrar/Planejar) entram pelo slot da fatia D.
+ * nas ações; tipo · segmento CVM nos FIIs — SEM tag de índice de mercado, que não tem fonte), chips
+ * de estado "Na carteira"/"Planejado" (seloCarteira), selos de estado e o preço de fechamento do
+ * último pregão com a data e a fonte.
  *
- * Bloco D (fatia D): a linha de ações passa por LinhaAcoesCabecalho, que acrescenta o "Comparar"
- * depois delas só com config.recursos.comparador (sem o recurso, o mesmo <div> de hoje).
+ * v2.4 (fatia C1): SEM Índice MF/semáforo (saiu o selo "dados incompletos", que vinha do Índice).
+ * Os chips "Na carteira"/"Planejado" vêm do overlay (ChipsCarteira) — os dois juntos quando a
+ * posição tem alvo; `seloCarteira` só liga os chips (a página do ativo passa; a F remove a prop).
+ * A linha de ações (slotAcoes = AcoesCarteiraAtivo → BarraAcoesAtivo: Comparar · Planejar ·
+ * Ver na Carteira · Registrar operação) fica embaixo, alinhada à direita no computador.
  */
-import { LinhaAcoesCabecalho } from '@/components/analiseAtivos/ativo/topo/BotaoComparar';
+import { ChipsCarteira } from '@/components/analiseAtivos/ativo/acoes/BarraAcoesAtivo';
 import SeloEstado from '@/components/analiseAtivos/comum/SeloEstado';
-import SeloIncompleto from '@/components/analiseAtivos/comum/SeloIncompleto';
 import { formatarAnalise } from '@/components/analiseAtivos/comum/formatarAnalise';
 import { TEXTOS_TELA, formatarTexto } from '@/services/analiseAtivos/textosTela';
 import type { CabecalhoAtivoProps } from '@/types/analiseAtivosApi';
@@ -74,15 +76,14 @@ export default function CabecalhoAtivo({ ativo, seloCarteira, slotAcoes }: Cabec
                   {tag}
                 </span>
               ))}
-              {seloCarteira}
+              {seloCarteira !== undefined || slotAcoes ? (
+                <ChipsCarteira ticker={ativo.ticker} classe={ativo.classe} />
+              ) : null}
               {ativo.foraDoQuadroMotivo === 'sem_negociacao_30' ||
               ativo.foraDoQuadroMotivo === 'deslistada' ? (
                 <SeloEstado tipo="sem_negociacao_recente" />
               ) : null}
               {cotacao.baixaLiquidez ? <SeloEstado tipo="baixa_liquidez" /> : null}
-              {ativo.indice.estado === 'incompleto' ? (
-                <SeloIncompleto motivos={ativo.indice.motivos} ticker={ativo.ticker} />
-              ) : null}
             </div>
           </div>
         </div>
@@ -108,9 +109,9 @@ export default function CabecalhoAtivo({ ativo, seloCarteira, slotAcoes }: Cabec
         </div>
       </div>
       {slotAcoes ? (
-        <LinhaAcoesCabecalho ticker={ativo.ticker} classe={ativo.classe}>
+        <div data-acoes-cabecalho="" className="flex min-w-0 sm:justify-end">
           {slotAcoes}
-        </LinhaAcoesCabecalho>
+        </div>
       ) : null}
     </header>
   );
