@@ -69,6 +69,25 @@ describe('indiceBusca', () => {
     });
   });
 
+  it('v2.5: f = tipo exibido (Tijolo | Papel): FoF/híbrido pelo perfil dos critérios', () => {
+    const base = { nome: 'x', classe: 'fii', noQuadro: true, foraDoQuadroMotivo: null };
+    const idx = montarIndiceBusca([
+      { ...base, symbol: 'BCFF11', fiiTipo: 'fof', perfilCriterios: 'fii_papel' },
+      { ...base, symbol: 'HIBR11', fiiTipo: 'hibrido', perfilCriterios: 'fii_tijolo' },
+      { ...base, symbol: 'HIBP11', fiiTipo: 'hibrido', perfilCriterios: 'fii_papel' },
+      { ...base, symbol: 'INDF11', fiiTipo: 'indefinido', perfilCriterios: null },
+      { ...base, symbol: 'TIJO11', fiiTipo: 'tijolo' },
+    ]);
+    const f = Object.fromEntries(idx.map((i) => [i.t, i.f]));
+    expect(f).toEqual({
+      BCFF11: 'papel',
+      HIBR11: 'tijolo',
+      HIBP11: 'papel',
+      INDF11: 'papel',
+      TIJO11: 'tijolo',
+    });
+  });
+
   it('v2.4: nenhum item traz i/e nem chave do indicador antigo', () => {
     for (const item of INDICE) {
       expect(Object.keys(item).sort()).toEqual(['c', 'f', 'm', 'n', 'q', 't']);

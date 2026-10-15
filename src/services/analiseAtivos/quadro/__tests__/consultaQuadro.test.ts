@@ -5,6 +5,7 @@ import {
   paraLinhaQuadroApiNaJanela,
 } from '@/services/analiseAtivos/leitura/linhasQuadro';
 import { CRITERIA_PARAMS_V1 } from '@/services/analiseAtivos/params/criteriaParamsV1';
+import { CRITERIA_PARAMS_V2 } from '@/services/analiseAtivos/params/criteriaParamsV2';
 import { LINHAS_FIXTURE, linhaQuadroDb } from '@/test/fixtures/analiseAtivos/linhasDb';
 import { definicoesChips } from '@/test/fixtures/analiseAtivos/criterios';
 import {
@@ -379,7 +380,8 @@ describe('consultaQuadro · página, facetas e frescor', () => {
   it('facetas: setores (ações) / segmentos CVM e tipos (FIIs), antes dos filtros', () => {
     expect(facetasDe('acao', muitas).setores).toEqual(['Financeiro', 'Saúde']);
     const r = consultar({ classe: 'fii', segmento: 'Multicategoria' });
-    expect(r.facetas.tipos).toEqual(['tijolo', 'papel', 'fof']);
+    // v2.5: só Tijolo | Papel (o FoF da fixture, sem avaliação, cai em papel)
+    expect(r.facetas.tipos).toEqual(['tijolo', 'papel']);
     expect(r.total).toBe(1);
     expect(r.totalClasse).toBe(3);
   });
@@ -391,5 +393,111 @@ describe('consultaQuadro · página, facetas e frescor', () => {
     expect(frescorCotacao(API, '2026-10-05').status).toBe('atrasado');
     expect(frescorCotacao(API, '2026-10-08').status).toBe('atrasado');
     expect(frescorCotacao([], '2026-10-08')).toEqual({ data: null, status: 'sem_dado' });
+  });
+});
+
+describe('consultaQuadro · v2.5 (criteria_params v2)', () => {
+  const P2 = CRITERIA_PARAMS_V2;
+  const hglg = linhaComCriterios(
+    'HGLG11',
+    'fii_tijolo',
+    {
+      '5': [
+        ['rend', 'atende'],
+        ['vp', 'atende'],
+        ['vac', 'atende'],
+        ['alav', 'atende'],
+        ['mes', 'atende'],
+        ['res', 'nao_atende'],
+      ],
+    },
+    { fiiTipo: 'tijolo', segmentoCvm: 'Logística' },
+  );
+  const xpml = linhaComCriterios(
+    'XPML11',
+    'fii_tijolo',
+    {
+      '5': [
+        ['rend', 'atende'],
+        ['vp', 'atende'],
+        ['vac', 'nao_atende'],
+        ['alav', 'atende'],
+        ['mes', 'atende'],
+        ['res', 'atende'],
+      ],
+    },
+    // híbrido com imóveis ≥ 50% do PL: perfil tijolo → Tijolo, 'Híbrido' no segmento
+    { fiiTipo: 'hibrido', segmentoCvm: 'Shoppings' },
+  );
+  const kncr = linhaComCriterios(
+    'KNCR11',
+    'fii_papel',
+    {
+      '5': [
+        ['rend', 'atende'],
+        ['vp', 'nao_atende'],
+        ['inad', 'sem_dado'],
+        ['ltv', 'sem_dado'],
+        ['mes', 'atende'],
+        ['res', 'atende'],
+      ],
+    },
+    { fiiTipo: 'papel', segmentoCvm: 'Títulos e Valores Mobiliários' },
+  );
+  const bcff = linhaComCriterios(
+    'BCFF11',
+    'fii_papel',
+    {
+      '5': [
+        ['rend', 'atende'],
+        ['vp', 'atende'],
+        ['inad', 'sem_dado'],
+        ['ltv', 'sem_dado'],
+        ['mes', 'atende'],
+        ['res', 'atende'],
+      ],
+    },
+    { fiiTipo: 'fof', segmentoCvm: 'Títulos e Valores Mobiliários' },
+  );
+  const rows = [hglg, xpml, kncr, bcff];
+  const consultar2 = (criterios = '') =>
+    consultarQuadro({
+      params: { classe: 'fii', criterios, janela: 5 },
+      linhas: rows.map((r) => paraLinhaQuadroApiNaJanela(r, 5)),
+      versao: 'v',
+      dataRef: null,
+      hoje: '2026-10-15',
+      criteriaParams: P2,
+    });
+
+  it('todos os chips habilitados, sem selo nem motivo (vacância/inadimplência e LTV ativos)', () => {
+    for (const classe of ['acao', 'fii'] as const) {
+      for (const d of definicoesQuadro(classe, P2)) {
+        expect(d).toMatchObject({ habilitado: true, motivoDesabilitado: null, seloSemDado: false });
+      }
+    }
+    const fii = definicoesQuadro('fii', P2);
+    expect(fii.find((d) => d.id === 'vac')?.equivalente?.id).toBe('inad');
+    expect(fii.find((d) => d.id === 'alav')?.rotulo).toBe('Alavancagem ≤ 20% do PL');
+    expect(idsFiltraveis(fii).has('vac')).toBe(true);
+  });
+
+  it('?criterios=vac filtra; papel com inadimplência sem dado (sem provedor) não atende', () => {
+    expect(tickers(consultar2('vac').itens)).toEqual(['HGLG11']);
+    expect(tickers(consultar2('alav').itens)).toEqual(['HGLG11', 'XPML11']);
+    expect(tickers(consultar2('res').itens)).toEqual(['BCFF11', 'KNCR11', 'XPML11']);
+    expect(consultar2('vac,res').itens).toEqual([]);
+  });
+
+  it('Tipo só Tijolo | Papel; FoF e Híbrido viram prefixo do segmento; faceta com 2 valores', () => {
+    const r = consultar2();
+    const por = Object.fromEntries(r.itens.map((l) => [l.ticker, l]));
+    expect(por.BCFF11).toMatchObject({ fiiTipo: 'papel', segmentoTipo: 'fof' });
+    expect(por.XPML11).toMatchObject({ fiiTipo: 'tijolo', segmentoTipo: 'hibrido' });
+    expect(por.HGLG11).toMatchObject({ fiiTipo: 'tijolo', segmentoTipo: null });
+    expect(por.KNCR11).toMatchObject({ fiiTipo: 'papel', segmentoTipo: null });
+    expect(r.facetas.tipos).toEqual(['tijolo', 'papel']);
+    // o filtro de segmento continua pelo segmento CVM
+    expect(r.facetas.setores).toEqual(['Logística', 'Shoppings', 'Títulos e Valores Mobiliários']);
   });
 });

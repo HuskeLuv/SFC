@@ -21,7 +21,9 @@
  *   2 últimos anos fechados — o que contamina o DY 12m. Salto antigo só aparece no gráfico da
  *   página do ativo.
  * - Pares: até 5 do mesmo segmento (ações: B3, completando pelo subsetor; FIIs: segmento CVM e
- *   tipo), só entre linhas do Quadro, uma por empresa, por valor de mercado.
+ *   tipo), só entre linhas do Quadro, uma por empresa, por valor de mercado. v2.5: o tipo dos pares
+ *   de FII é o EXIBIDO (Tijolo | Papel pelo perfil dos critérios, tipoFiiExibido); a coluna fiiTipo
+ *   continua com o tipo CVM bruto (FoF/Híbrido viram prefixo do segmento só na leitura).
  *
  * Convenções de colunas de array: ver src/services/analiseAtivos/leitura/linhasQuadro.ts.
  *
@@ -40,6 +42,7 @@ import { valorMercadoEmpresa } from '@/services/analiseAtivos/calculo/recalcular
 import type { AlertaJob, ContagemAcoes, TickerAcao } from '@/services/analiseAtivos/tipos';
 import { distanciaEmPregoes } from '@/services/analiseAtivos/regras/comum/pregoes';
 import { DEF_GRUPO, parseFlagConf } from '@/services/analiseAtivos/regras/comum/conferencia';
+import { tipoFiiExibido } from '@/services/analiseAtivos/quadro/tipoFiiExibido';
 import type { ForaDoQuadroMotivo, PontoSerieAnual } from '@/types/analiseAtivosApi';
 import type { CriteriosCompactos, PerfilCriterio } from '@/types/analiseAtivosCriterios';
 
@@ -559,9 +562,12 @@ function preencherPares(linhas: LinhaQuadroGravar[]): void {
       classe === 'acao'
         ? { segmento: l.segmento ?? null, subsetor: l.subsetor ?? null }
         : {
-            // FII: só mesmo segmento CVM E mesmo tipo (sem completar por segmento: um fundo de papel
-            // não recebe tijolos); sem tipo, sem pares
-            segmento: l.segmentoCvm && l.fiiTipo ? `${l.segmentoCvm}|${l.fiiTipo}` : null,
+            // FII: só mesmo segmento CVM E mesmo tipo exibido (sem completar por segmento: um fundo
+            // de papel não recebe tijolos); sem tipo CVM nem avaliação, sem pares
+            segmento:
+              l.segmentoCvm && (l.fiiTipo || l.perfilCriterios)
+                ? `${l.segmentoCvm}|${tipoFiiExibido(l.perfilCriterios, l.fiiTipo)}`
+                : null,
             subsetor: null,
           };
     const universo: Array<ItemPar & { cnpj: string }> = [...porCnpj.values()].map((l) => ({
