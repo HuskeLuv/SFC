@@ -92,7 +92,9 @@ test('ITUB4: financeira — n de 6 (v2.5, sem dado = não atende)', async ({ pag
     await expect(card.locator('li[data-estado-criterio="nao_se_aplica"]')).toHaveCount(0);
     await expect(card.locator('[data-contagem-criterios]')).toContainText(/\d de 6/);
   }
-  await expect(page.locator('[data-kpi="divLiqEbitda"]')).toContainText('n/a');
+  // KPIs seguem os params do card: nada de "não se aplica" para margem e DL/EBITDA na v2
+  await expect(page.locator('[data-kpi="divLiqEbitda"]')).not.toContainText('n/a');
+  await expect(page.locator('[data-kpi="margemLiquida"]')).not.toContainText('não se aplica');
 });
 
 test('TGMA3 e AURE3: nada do Índice nem do semáforo na tela e na API', async ({ page }) => {
