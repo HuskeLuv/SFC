@@ -173,6 +173,7 @@ import { GET as getCenarios } from '../cenarios/[ticker]/route';
 import { GET as getComparador } from '../comparador/route';
 import { GET as getMeusReportes } from '../meus-reportes/route';
 import { GET as getTese } from '../teses/[ticker]/route';
+import { GET as getAlvo } from '../alvos/[ticker]/route';
 
 // ---------------------------------------------------------------------------
 // Varredura
@@ -256,6 +257,7 @@ const CHAMADAS: Chamada[] = [
       ticker: t,
     },
     { rota: 'teses/[ticker]', get: getTese as Rota, url: `${base}/teses/${t}`, ticker: t },
+    { rota: 'alvos/[ticker]', get: getAlvo as Rota, url: `${base}/alvos/${t}`, ticker: t },
   ]),
   { rota: 'comparador', get: getComparador as Rota, url: `${base}/comparador?t=WEGE3,ITUB4` },
   {
@@ -372,6 +374,23 @@ beforeEach(() => {
         dadosEditados: { valores: { lpa: 1.5 }, valoresDoAtivoNoSalvamento: { lpa: 1.49 } },
         updatedAt: new Date('2026-10-10T12:00:00Z'),
       }),
+    },
+    // v2.5 (C): alvo do Planejar na carteira (planning_asset_targets)
+    asset: {
+      findUnique: async (a: unknown) => {
+        const { where } = a as { where: { symbol: string } };
+        return { id: `a-${where.symbol}` };
+      },
+    },
+    planningAssetTarget: {
+      findUnique: async () => ({ targetPct: 6, updatedAt: new Date('2026-10-15T12:00:00Z') }),
+      findMany: async () => [
+        {
+          targetPct: 6,
+          updatedAt: new Date('2026-10-15T12:00:00Z'),
+          asset: { symbol: 'WEGE3' },
+        },
+      ],
     },
     analiseTese: {
       findUnique: async () => ({
