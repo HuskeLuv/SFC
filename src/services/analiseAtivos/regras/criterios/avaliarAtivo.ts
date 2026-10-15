@@ -52,8 +52,8 @@ const temValor = (v: number | null | undefined): boolean =>
 export function margemNaoComparavel(entrada: EntradaAvaliacaoAtivo, janela: Janela): boolean {
   if (entrada.perfil !== 'acao_financeira') return false;
   const anos = anosDaJanela(entrada.anoFim, janela, false);
-  const margem = entrada.series.margemLiquida ?? {};
-  const lucro = entrada.series.lucroLiquido ?? {};
+  const margem = entrada.series.net_margin ?? {};
+  const lucro = entrada.series.net_income ?? {};
   return anos.every((a) => !temValor(margem[a])) && anos.some((a) => temValor(lucro[a]));
 }
 
@@ -64,7 +64,10 @@ export function avaliarJanela(
 ): AvaliacaoJanela {
   const defs = criteriosDoPerfil(params, entrada.perfil);
   const nsa = new Set(idsNaoSeAplica(params, entrada.perfil));
-  const margemNsa = margemNaoComparavel(entrada, janela);
+  // v2.5: o religamento depende do params ('nao_se_aplica' = v2.4; a v2 usa 'sem_dado')
+  const margemNsa =
+    params.perfis.acao_financeira.margemSemReceitaComparavel === 'nao_se_aplica' &&
+    margemNaoComparavel(entrada, janela);
   const resultados = defs.map((def) =>
     avaliarCriterio(
       {
@@ -74,7 +77,7 @@ export function avaliarJanela(
         classe: entrada.classe,
         serie: entrada.series[def.serie],
         meses: entrada.meses,
-        naoSeAplica: nsa.has(def.id) || (margemNsa && def.serie === 'margemLiquida'),
+        naoSeAplica: nsa.has(def.id) || (margemNsa && def.id === 'mg'),
       },
       params,
     ),

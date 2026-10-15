@@ -66,7 +66,7 @@ describe('§4.5 casos 24–29 (motor dos Filtros de Fundamentos)', () => {
         classe: 'acao',
         perfil: 'acao',
         anoFim: 2025,
-        series: { dlEbitda: c.serie },
+        series: { net_debt_ebitda: c.serie },
         meses: null,
       },
       5,

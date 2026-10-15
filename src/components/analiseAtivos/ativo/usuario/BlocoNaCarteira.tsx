@@ -254,7 +254,7 @@ export default function BlocoNaCarteira({
     linha && dados.valorBaseAba !== null
       ? desvioAlvo({
           valorPosicao: linha.valorAtualizado,
-          valorBaseAba: dados.valorBaseAba,
+          valorBase: dados.valorBaseAba,
           alvoPct: alvo,
           preco: null,
         })

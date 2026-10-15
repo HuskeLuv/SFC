@@ -86,7 +86,7 @@ export default function ModalVerNaCarteira({
     dados.valorBaseAba !== null && dados.linha
       ? desvioAlvo({
           valorPosicao: dados.linha.valorAtualizado,
-          valorBaseAba: dados.valorBaseAba,
+          valorBase: dados.valorBaseAba,
           alvoPct: alvo,
           preco: null,
         })

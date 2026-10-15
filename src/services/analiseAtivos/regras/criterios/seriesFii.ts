@@ -11,6 +11,8 @@
  * dados_incompletos) = rendCota e vpCota ausentes; ticker↔CNPJ não conferido = os números do
  * informe (VP/cota, Obrigações/PL, resultado) ausentes — rendimento/cota (proventos B3) continua.
  * Vacância, inadimplência e LTV não têm série (D3: critério inativo).
+ * Chaves de saída = nomes canônicos da spec (v2.5): income_per_share, nav_per_share, leverage_pct,
+ * ffo.
  */
 import type { PrismaClient } from '@prisma/client';
 import { Prisma } from '@prisma/client';
@@ -91,7 +93,12 @@ export function seriesFii(b: BrutoFii): SeriesCriterios {
           : null;
     }
   }
-  return { rendCota, vpCota, obrigacoesPl, resultadoFii };
+  return {
+    income_per_share: rendCota,
+    nav_per_share: vpCota,
+    leverage_pct: obrigacoesPl,
+    ffo: resultadoFii,
+  };
 }
 
 /** Meses com rendimento até dez/anoFim (rec. 4). */

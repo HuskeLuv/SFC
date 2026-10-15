@@ -16,8 +16,17 @@
  * Ids (estáveis) em IDS_CRITERIO (src/types/analiseAtivosCriterios.ts). Textos de rótulo e
  * definição = protótipo final (docs/analise-ativos/v2-filtros/prototipo.html). Valores imutáveis:
  * recalibrar = nova versão.
+ *
+ * v2.5: CRITERIA_PARAMS_V1_JSON é o JSON EXATO gravado em produção (nomes de série legados, sem os
+ * campos novos); CRITERIA_PARAMS_V1 é o mesmo JSON depois do parse (nomes canônicos da spec e os
+ * padrões da v2.4) — o que o motor e os testes usam. Produção não importa mais esta constante: o
+ * vigente do código é CRITERIA_PARAMS_CODIGO (criteriaParamsCodigo.ts).
  */
-import type { CriteriaParams } from '@/services/analiseAtivos/params/criteriaParamsSchema';
+import {
+  criteriaParamsSchema,
+  type CriteriaParams,
+  type CriteriaParamsEntrada,
+} from '@/services/analiseAtivos/params/criteriaParamsSchema';
 
 const REND = {
   id: 'rend',
@@ -59,7 +68,7 @@ const RES = {
   unidade: 'R$ mi',
 } as const;
 
-export const CRITERIA_PARAMS_V1: CriteriaParams = {
+export const CRITERIA_PARAMS_V1_JSON = {
   versao: 1,
   descricao:
     'v1 = spec v2.4 §4.1 (screen.js) + D2/D3/D4 e recomendações 3 e 4 de 13/10/2026 ' +
@@ -198,4 +207,8 @@ export const CRITERIA_PARAMS_V1: CriteriaParams = {
     ebitdaNaoPositivo: 'nao_atende_se_dl_positiva',
   },
   meses: { ancora: 'fim_anoFim', mesesBaseCurta: 'sem_dado' },
-};
+} satisfies CriteriaParamsEntrada;
+
+/** v1 validada (nomes canônicos + padrões da v2.4): dlEbitda → net_debt_ebitda etc. */
+export const CRITERIA_PARAMS_V1: CriteriaParams =
+  criteriaParamsSchema.parse(CRITERIA_PARAMS_V1_JSON);

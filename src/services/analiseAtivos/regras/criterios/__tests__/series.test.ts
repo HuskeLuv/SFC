@@ -109,18 +109,18 @@ describe('seriesAcao (DFP/CVM)', () => {
   it('WEGE3: receita, EBITDA e FCL = FCO − CAPEX em R$ mi (nunca o campo fcf)', () => {
     const a = acao('WEGE3');
     const s = seriesAcao(a);
-    expect(s.receita?.[2020]).toBeCloseTo(17469.557, 3);
-    expect(s.receita?.[2025]).toBeCloseTo(40804.11, 2);
+    expect(s.revenue?.[2020]).toBeCloseTo(17469.557, 3);
+    expect(s.revenue?.[2025]).toBeCloseTo(40804.11, 2);
     expect(s.ebitda?.[2025]).toBeCloseTo(7998.741 + 1001.296, 3);
     const porAno = fysVigentesPorAno(a.fys, a.escopoPreferido);
     for (const ano of [2020, 2021, 2025]) {
       const f = porAno.get(ano)!;
-      expect(s.fcl?.[ano]).toBeCloseTo((f.fco! - f.capex!) / 1e6, 6);
+      expect(s.free_cash_flow?.[ano]).toBeCloseTo((f.fco! - f.capex!) / 1e6, 6);
       // a leitura nem traz o campo fcf (fluxo de financiamento)
       expect('fcf' in f).toBe(false);
     }
-    expect(s.fcl?.[2020]).toBeCloseTo(3371.486, 3);
-    expect(s.fcl?.[2021]).toBeCloseTo(92.041, 3);
+    expect(s.free_cash_flow?.[2020]).toBeCloseTo(3371.486, 3);
+    expect(s.free_cash_flow?.[2021]).toBeCloseTo(92.041, 3);
   });
 
   it('WEGE3: caixa líquido em todos os anos → Dív.líq/EBITDA "máx. 0,0×"; 5 de 6 na janela 5', () => {
@@ -180,12 +180,12 @@ describe('seriesAcao (DFP/CVM)', () => {
   it('ano com fundamentos_escala em conferência = ausente em todas as séries', () => {
     const a = acao('WEGE3');
     const s = seriesAcao({ ...a, flagsConf: ['conf:fundamentos_escala:salto_escala@2023'] });
-    expect(s.receita?.[2023]).toBeNull();
-    expect(s.fcl?.[2023]).toBeNull();
-    expect(s.receita?.[2024]).not.toBeNull();
+    expect(s.revenue?.[2023]).toBeNull();
+    expect(s.free_cash_flow?.[2023]).toBeNull();
+    expect(s.revenue?.[2024]).not.toBeNull();
     // o grupo 'historico' (múltiplos) não mexe nos fundamentos
     const h = seriesAcao({ ...a, flagsConf: ['conf:historico:escala_ano@2023'] });
-    expect(h.receita?.[2023]).not.toBeNull();
+    expect(h.revenue?.[2023]).not.toBeNull();
   });
 
   it('EBITDA ≤ 0: DL positiva = +Infinity (fora), caixa líquido = 0 (dentro)', () => {
@@ -199,7 +199,7 @@ describe('seriesAcao (DFP/CVM)', () => {
       caixa: 10,
       aplicacoesFinanceiras: 0,
     });
-    expect(comDivida.dlEbitda).toBe(Number.POSITIVE_INFINITY);
+    expect(comDivida.net_debt_ebitda).toBe(Number.POSITIVE_INFINITY);
     const comCaixa = valoresAnoAcao({
       ...base,
       ebit: -10,
@@ -209,16 +209,16 @@ describe('seriesAcao (DFP/CVM)', () => {
       caixa: 10,
       aplicacoesFinanceiras: 0,
     });
-    expect(comCaixa.dlEbitda).toBe(0);
-    expect(valoresAnoAcao({ ...base, receita: 0 }).margemLiquida).toBeNull();
+    expect(comCaixa.net_debt_ebitda).toBe(0);
+    expect(valoresAnoAcao({ ...base, receita: 0 }).net_margin).toBeNull();
   });
 
   it('receita ≤ 0 = sem dado (BBSE3: não vira "0 → 0"); receita ≤ lucro = margem sem dado (holding)', () => {
     const base = fysVigentesPorAno(acao('WEGE3').fys, 'con').get(2025)!;
     const zero = valoresAnoAcao({ ...base, receita: 0 });
-    expect(zero.receita).toBeNull();
-    expect(zero.margemLiquida).toBeNull();
-    expect(valoresAnoAcao({ ...base, receita: 5e9, naoSeAplica: ['receita'] }).receita).toBeNull();
+    expect(zero.revenue).toBeNull();
+    expect(zero.net_margin).toBeNull();
+    expect(valoresAnoAcao({ ...base, receita: 5e9, naoSeAplica: ['receita'] }).revenue).toBeNull();
     // ITUB4 individual 2025: receita 30,68 bi e lucro 45,66 bi → margem de 148,8% não entra
     const holding = valoresAnoAcao({
       ...base,
@@ -226,8 +226,8 @@ describe('seriesAcao (DFP/CVM)', () => {
       lucroLiquido: 45_659_000_000,
       lucroAtribuivel: 45_659_000_000,
     });
-    expect(holding.receita).toBeCloseTo(30_680, 6);
-    expect(holding.margemLiquida).toBeNull();
+    expect(holding.revenue).toBeCloseTo(30_680, 6);
+    expect(holding.net_margin).toBeNull();
   });
 
   it('lucro atribuível com sinal oposto ao líquido (AZUL3 2023) = lucro e margem sem dado', () => {
@@ -238,8 +238,8 @@ describe('seriesAcao (DFP/CVM)', () => {
       lucroLiquido: -2_380_456_000,
       lucroAtribuivel: 2_340_930_000,
     });
-    expect(v.lucroLiquido).toBeNull();
-    expect(v.margemLiquida).toBeNull();
+    expect(v.net_income).toBeNull();
+    expect(v.net_margin).toBeNull();
   });
 });
 
@@ -249,11 +249,11 @@ describe('seriesFii (informes CVM + proventos auditados)', () => {
     expect(f.desdobramentos).toEqual([{ refMonth: '2018-04-01', fator: 10 }]);
     const bruto2017 = f.perShare.find((p) => p.anoFiscal === 2017)!;
     const s = seriesFii(f);
-    expect(s.rendCota?.[2017]).toBeCloseTo((bruto2017.rendCota as number) / 10, 6);
-    expect(s.vpCota?.[2017]).toBeCloseTo((bruto2017.vpCotaFim as number) / 10, 6);
+    expect(s.income_per_share?.[2017]).toBeCloseTo((bruto2017.rendCota as number) / 10, 6);
+    expect(s.nav_per_share?.[2017]).toBeCloseTo((bruto2017.vpCotaFim as number) / 10, 6);
     // anos depois do desdobramento ficam como estão
     const bruto2020 = f.perShare.find((p) => p.anoFiscal === 2020)!;
-    expect(s.rendCota?.[2020]).toBeCloseTo(bruto2020.rendCota as number, 6);
+    expect(s.income_per_share?.[2020]).toBeCloseTo(bruto2020.rendCota as number, 6);
   });
 
   it('HGLG11: tijolo; Obrigações/PL 20,2% em 2024 → não atende na janela 5', () => {
@@ -275,9 +275,9 @@ describe('seriesFii (informes CVM + proventos auditados)', () => {
     const tri2024 = f.trimestres.filter((t) => t.refQuarter.startsWith('2024'));
     expect(tri2024).toHaveLength(4);
     const soma = tri2024.reduce((acc, t) => acc + (t.resultadoTrimestral as number), 0) / 1e6;
-    expect(s.resultadoFii?.[2024]).toBeCloseTo(soma, 6);
+    expect(s.ffo?.[2024]).toBeCloseTo(soma, 6);
     const incompleto = seriesFii({ ...f, trimestres: tri2024.slice(0, 3) });
-    expect(incompleto.resultadoFii?.[2024]).toBeNull();
+    expect(incompleto.ffo?.[2024]).toBeNull();
   });
 
   it('XPLG11 tijolo; KNCR11 e MXRF11 papel (LTV e inadimplência sem dado, D3)', () => {
@@ -299,10 +299,10 @@ describe('seriesFii (informes CVM + proventos auditados)', () => {
   it('ticker↔CNPJ não conferido: só o rendimento por cota (proventos B3) continua', () => {
     const f = fii('HGLG11');
     const s = seriesFii({ ...f, conferido: false });
-    expect(Object.values(s.vpCota ?? {}).every((v) => v === null)).toBe(true);
-    expect(Object.values(s.obrigacoesPl ?? {}).every((v) => v === null)).toBe(true);
-    expect(Object.keys(s.resultadoFii ?? {})).toHaveLength(0);
-    expect(s.rendCota?.[2024]).not.toBeNull();
+    expect(Object.values(s.nav_per_share ?? {}).every((v) => v === null)).toBe(true);
+    expect(Object.values(s.leverage_pct ?? {}).every((v) => v === null)).toBe(true);
+    expect(Object.keys(s.ffo ?? {})).toHaveLength(0);
+    expect(s.income_per_share?.[2024]).not.toBeNull();
     expect(imoveisPlPctFii({ ...f, conferido: false })).toBeNull();
   });
 
@@ -312,8 +312,8 @@ describe('seriesFii (informes CVM + proventos auditados)', () => {
       p.anoFiscal === 2023 ? { ...p, flags: [...p.flags, 'salto_acoes_sem_evento'] } : p,
     );
     const s = seriesFii({ ...f, perShare });
-    expect(s.rendCota?.[2023]).toBeNull();
-    expect(s.vpCota?.[2023]).toBeNull();
-    expect(s.rendCota?.[2024]).not.toBeNull();
+    expect(s.income_per_share?.[2023]).toBeNull();
+    expect(s.nav_per_share?.[2023]).toBeNull();
+    expect(s.income_per_share?.[2024]).not.toBeNull();
   });
 });

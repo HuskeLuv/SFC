@@ -113,7 +113,7 @@ export default function ModalPlanejar({
         ? null
         : desvioAlvo({
             valorPosicao,
-            valorBaseAba: dados.valorBaseAba,
+            valorBase: dados.valorBaseAba,
             alvoPct: valor,
             preco: cotacao,
           }),

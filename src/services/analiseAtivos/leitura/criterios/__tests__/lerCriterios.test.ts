@@ -29,9 +29,9 @@ function avaliacao(symbol: string, perfil: PerfilCriterio): AvaliacaoAtivo {
       perfil,
       anoFim: 2025,
       series: {
-        receita: serie(2015, [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]),
-        dlEbitda: serie(2016, [1, 1, 1, 1, 1, 1, 1, 1, 1, 1]),
-        rendCota: serie(2020, [1, 2, 3, 4, 5, 6]),
+        revenue: serie(2015, [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]),
+        net_debt_ebitda: serie(2016, [1, 1, 1, 1, 1, 1, 1, 1, 1, 1]),
+        income_per_share: serie(2020, [1, 2, 3, 4, 5, 6]),
       },
       meses: null,
     },

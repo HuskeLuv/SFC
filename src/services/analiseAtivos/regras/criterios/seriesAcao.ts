@@ -4,14 +4,15 @@
  *  - FY vigente: maior versão por (emissor, dtFim, escopo); escopo preferido do emissor (individual
  *    para bancos, decisão 3); um FY por ano fiscal (o de dtFim mais recente) — a regra de
  *    repositorio/acoes.fundamentosVigentes, lendo SÓ as colunas usadas (lotes de 50 no job);
- *  - receita = FY.receita; lucroLiquido = lucro atribuível aos controladores (lucroParaSequencia,
+ *  - revenue = FY.receita; net_income = lucro atribuível aos controladores (lucroParaSequencia,
  *    regra 12: controladora_zero ⇒ o do individual) — D2;
- *  - receita ≤ 0 = ausente; ebitda = EBIT + D&A (multiplos.ebitda); margemLiquida = lucro ÷ receita
+ *  - receita ≤ 0 = ausente; ebitda = EBIT + D&A (multiplos.ebitda); net_margin = lucro ÷ receita
  *    (receita ≤ lucro = ausente, regra 15 'receita_menor_que_lucro');
- *  - dlEbitda = (dívida bruta − caixa − aplicações) ÷ EBITDA (multiplos.dividaLiquida); EBITDA ≤ 0
+ *  - net_debt_ebitda = (dívida bruta − caixa − aplicações) ÷ EBITDA (multiplos.dividaLiquida); EBITDA ≤ 0
  *    com DL ≤ 0 = 0 (caixa líquido, dentro); EBITDA ≤ 0 com DL > 0 = +Infinity (avaliarCriterio:
  *    'EBITDA ≤ 0 em AAAA');
- *  - fcl = FCO − CAPEX (NUNCA o campo fcf, que é o fluxo de financiamento).
+ *  - free_cash_flow = FCO − CAPEX (NUNCA o campo fcf, que é o fluxo de financiamento).
+ * Nomes de série = os canônicos da spec (v2.5, SERIES_CRITERIO).
  * Valores em R$ mi (margem em %, Dív/EBITDA em ×). Ano com o grupo 'fundamentos_escala' em
  * conferência (bloco C, chave com o ano) = ausente em todas as séries.
  */
@@ -113,7 +114,7 @@ const emMi = (n: number | null): number | null =>
 export function valoresAnoAcao(
   f: FyCriterios,
 ): Record<
-  'receita' | 'lucroLiquido' | 'ebitda' | 'margemLiquida' | 'dlEbitda' | 'fcl',
+  'revenue' | 'net_income' | 'ebitda' | 'net_margin' | 'net_debt_ebitda' | 'free_cash_flow',
   number | null
 > {
   const lucroV = lucroParaSequencia(f);
@@ -140,15 +141,15 @@ export function valoresAnoAcao(
     else dlEbitda = dl.valor > 0 ? Number.POSITIVE_INFINITY : 0;
   }
   return {
-    receita: emMi(receita),
-    lucroLiquido: emMi(lucro),
+    revenue: emMi(receita),
+    net_income: emMi(lucro),
     ebitda: eb.estado === 'ok' ? emMi(eb.valor) : null,
     // receita ≤ lucro (holding / banco no individual) = ausente: margem acima de 100% não é fato útil
     // (regra 15, receita_menor_que_lucro, a mesma dos múltiplos e do Essencial)
-    margemLiquida:
+    net_margin:
       lucro !== null && receita !== null && receita > lucro ? (lucro / receita) * 100 : null,
-    dlEbitda,
-    fcl: f.fco !== null && f.capex !== null ? emMi(f.fco - f.capex) : null,
+    net_debt_ebitda: dlEbitda,
+    free_cash_flow: f.fco !== null && f.capex !== null ? emMi(f.fco - f.capex) : null,
   };
 }
 
@@ -159,9 +160,16 @@ export function seriesAcao(b: BrutoAcao): SeriesCriterios {
   const out: Required<
     Pick<
       SeriesCriterios,
-      'receita' | 'lucroLiquido' | 'ebitda' | 'margemLiquida' | 'dlEbitda' | 'fcl'
+      'revenue' | 'net_income' | 'ebitda' | 'net_margin' | 'net_debt_ebitda' | 'free_cash_flow'
     >
-  > = { receita: {}, lucroLiquido: {}, ebitda: {}, margemLiquida: {}, dlEbitda: {}, fcl: {} };
+  > = {
+    revenue: {},
+    net_income: {},
+    ebitda: {},
+    net_margin: {},
+    net_debt_ebitda: {},
+    free_cash_flow: {},
+  };
   for (const [ano, f] of porAno) {
     const v = valoresAnoAcao(f);
     const conf = emConf.has(ano);

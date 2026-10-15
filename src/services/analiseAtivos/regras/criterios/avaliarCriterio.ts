@@ -156,7 +156,8 @@ export function avaliarCriterio(e: EntradaCriterio, params: CriteriaParams): Res
     fato = formatarTexto(T.fatos.pos, { n, total: janela, min: fmt(Math.min(...w)) });
   } else {
     const limite = def.limite as number;
-    const ehDl = def.serie === 'dlEbitda';
+    // caso 26 ('máx. 0,0×') pelo id do critério, não pelo nome da série (v2.5)
+    const ehDl = def.id === 'dl';
     // EBITDA ≤ 0 com dívida líquida positiva (seriesAcao grava +Infinity): fora do limite
     const anosEbitdaNaoPositivo = anos.filter((_, i) => w[i] === Number.POSITIVE_INFINITY);
     if (def.tipo === 'max') {

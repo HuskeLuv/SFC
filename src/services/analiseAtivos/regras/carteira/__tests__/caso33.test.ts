@@ -42,7 +42,7 @@ describe.each([
     },
   },
 ])('caso 33 — $nome', ({ base, alvo, esperado }) => {
-  const r = desvioAlvo({ valorPosicao: POSICAO, valorBaseAba: base, alvoPct: alvo, preco: PRECO });
+  const r = desvioAlvo({ valorPosicao: POSICAO, valorBase: base, alvoPct: alvo, preco: PRECO });
 
   it('posição, alvo e desvio na MESMA base', () => {
     expect(r.posicaoPct).toBeCloseTo(esperado.posicaoPct, 2);
@@ -63,43 +63,41 @@ describe.each([
 
 describe('desvioAlvo — bordas', () => {
   it('sem alvo: só a posição; campos de alvo e desvio null', () => {
-    expect(desvioAlvo({ valorPosicao: 500, valorBaseAba: 1000, alvoPct: null, preco: 10 })).toEqual(
-      {
-        posicaoPct: 50,
-        alvoValor: null,
-        alvoQtd: null,
-        desvioPp: null,
-        desvioValor: null,
-        desvioQtd: null,
-      },
-    );
+    expect(desvioAlvo({ valorPosicao: 500, valorBase: 1000, alvoPct: null, preco: 10 })).toEqual({
+      posicaoPct: 50,
+      alvoValor: null,
+      alvoQtd: null,
+      desvioPp: null,
+      desvioValor: null,
+      desvioQtd: null,
+    });
   });
 
   it('sem posição (planejado): desvio = −alvo', () => {
-    const r = desvioAlvo({ valorPosicao: 0, valorBaseAba: 20_000, alvoPct: 10, preco: 100 });
+    const r = desvioAlvo({ valorPosicao: 0, valorBase: 20_000, alvoPct: 10, preco: 100 });
     expect(r).toMatchObject({ posicaoPct: 0, alvoValor: 2000, alvoQtd: 20, desvioPp: -10 });
     expect(r.desvioValor).toBe(-2000);
     expect(r.desvioQtd).toBe(-20);
   });
 
   it('acima do alvo: desvio positivo', () => {
-    const r = desvioAlvo({ valorPosicao: 3000, valorBaseAba: 10_000, alvoPct: 25, preco: 10 });
+    const r = desvioAlvo({ valorPosicao: 3000, valorBase: 10_000, alvoPct: 25, preco: 10 });
     expect(r.desvioPp).toBeCloseTo(5, 10);
     expect(r.desvioValor).toBeCloseTo(500, 10);
     expect(r.desvioQtd).toBe(50);
   });
 
   it('no alvo exato: desvio zero sem "−0"', () => {
-    const r = desvioAlvo({ valorPosicao: 2500, valorBaseAba: 10_000, alvoPct: 25, preco: 10 });
+    const r = desvioAlvo({ valorPosicao: 2500, valorBase: 10_000, alvoPct: 25, preco: 10 });
     expect(r.desvioPp).toBe(0);
     expect(Object.is(r.desvioQtd, -0)).toBe(false);
   });
 
   it('sem preço: quantidades null; base zerada não divide por zero', () => {
     expect(
-      desvioAlvo({ valorPosicao: 100, valorBaseAba: 1000, alvoPct: 5, preco: null }),
+      desvioAlvo({ valorPosicao: 100, valorBase: 1000, alvoPct: 5, preco: null }),
     ).toMatchObject({ alvoQtd: null, desvioQtd: null });
-    expect(desvioAlvo({ valorPosicao: 0, valorBaseAba: 0, alvoPct: 5, preco: 10 })).toMatchObject({
+    expect(desvioAlvo({ valorPosicao: 0, valorBase: 0, alvoPct: 5, preco: 10 })).toMatchObject({
       posicaoPct: 0,
       alvoValor: 0,
       alvoQtd: 0,
