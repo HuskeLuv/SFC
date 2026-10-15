@@ -174,6 +174,71 @@ describe('BlocoFundamentosEssencial', () => {
     expect(screen.getByText(TEXTOS_ATIVO.essencial.notaEssencial)).toBeTruthy();
   });
 
+  it('v2.5: célula com o lucro líquido no lugar do descontado = ⓘ + tooltip; "—" com sem dado; fonte e selo', () => {
+    const TE = TEXTOS_ATIVO.essencial;
+    const fund: FundamentosResposta = {
+      ...FUNDAMENTOS,
+      unidade: 'R$ bi',
+      colunas: [
+        { codigo: 'receita', rotulo: 'Receita líq.', formato: 'numero', fonteCvmAviso: false },
+        { codigo: 'ebitda', rotulo: 'EBITDA', formato: 'numero', fonteCvmAviso: false },
+        { codigo: 'lucro', rotulo: 'Lucro descontado ⓘ', formato: 'numero', fonteCvmAviso: false },
+        { codigo: 'margem', rotulo: 'Margem descontada ⓘ', formato: 'pct', fonteCvmAviso: false },
+      ],
+      linhas: [
+        {
+          rotulo: '2024',
+          ano: 2024,
+          ultimoAno: false,
+          valores: {
+            receita: { estado: 'ok', valor: 37.9 },
+            ebitda: { estado: 'ausente', motivo: 'sem_dado_fonte', texto: TE.tooltips.semDado },
+            lucro: { estado: 'ok', valor: 6.2 },
+            margem: { estado: 'ok', valor: 16.4 },
+          },
+          selos: [],
+          marcas: { lucro: { fallback: true }, margem: { fallback: true } },
+        },
+        {
+          rotulo: '2025',
+          ano: 2025,
+          ultimoAno: true,
+          valores: {
+            receita: { estado: 'ok', valor: 40.8 },
+            ebitda: { estado: 'ausente', motivo: 'sem_dado_fonte', texto: TE.tooltips.semDado },
+            lucro: { estado: 'ok', valor: 6.9 },
+            margem: { estado: 'ok', valor: 16.9 },
+          },
+          selos: [],
+          marcas: { lucro: { fonte: 'provedor_x' }, margem: { fonte: 'provedor_x' } },
+        },
+      ],
+      observacoes: [TE.unidadeAcaoSemFonte],
+      textoFonte: 'Fonte: Provedor X · DFP/ITR (CVM).',
+      dadosIncompletos: true,
+    };
+    mockHooks.useFundamentosAtivo.mockReturnValue(consulta(fund));
+    const { container } = render(<BlocoFundamentosEssencial ticker="ITUB4" classe="acao" />);
+    const fallbacks = container.querySelectorAll('td[data-fallback]');
+    expect(fallbacks).toHaveLength(2);
+    expect(fallbacks[0].getAttribute('title')).toBe(TE.tooltips.fallbackLucro);
+    expect(fallbacks[0].textContent).toContain('ⓘ');
+    expect(fallbacks[1].getAttribute('title')).toBe(TE.tooltips.fallbackMargem);
+    // 2025 veio do provedor: sem ⓘ
+    const linha2025 = container.querySelector('tr[data-ultimo-ano]')!;
+    expect(linha2025.querySelector('td[data-fallback]')).toBeNull();
+    // financeira sem EBITDA: '—' com 'sem dado nas demonstrações' (nunca n/a)
+    expect(screen.getAllByTitle(TE.tooltips.semDado).map((t) => t.textContent)).toEqual(['—', '—']);
+    expect(container.textContent).not.toMatch(/não se aplica/);
+    expect(container.querySelector('[data-nota-fonte]')?.textContent).toBe(
+      'Fonte: Provedor X · DFP/ITR (CVM).',
+    );
+    const selo = container.querySelector('[data-selo-incompleto]')!;
+    expect(selo.textContent).toContain(TE.seloIncompleto);
+    expect(selo.className).not.toMatch(/green|red|amber|yellow/);
+    esperarDomLimpo(container);
+  });
+
   it('carregando e erro com "Tentar de novo"', () => {
     mockHooks.useFundamentosAtivo.mockReturnValue(consulta(undefined));
     const { rerender } = render(<BlocoFundamentosEssencial ticker="WEGE3" classe="acao" />);
