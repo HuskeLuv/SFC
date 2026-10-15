@@ -7,7 +7,8 @@
  *  3. 'months' trata dado ausente (mesesJanela.avaliarMeses).
  * pos/max/min usam J valores. Mais as decisões de 13/10:
  *  - D3: critério com ativo:false = 'sem_dado' com motivo 'sem_fonte_confiavel' (texto por id);
- *  - D4: id em naoSeAplica do perfil financeiro = 'nao_se_aplica';
+ *  - D4: id em naoSeAplica do perfil financeiro = 'nao_se_aplica' (e a margem de financeira sem
+ *    receita comparável ao lucro, avaliarAtivo.margemNaoComparavel);
  *  - Dív.líq/EBITDA: caixa líquido conta como dentro; com exibirNegativoComoZero o fato mostra
  *    máx(0, máx) ('máx. 0,0×' quando o máximo real é −0,3); EBITDA ≤ 0 com DL > 0 vem da série como
  *    +Infinity (seriesAcao) e dá 'nao_atende' com o fato 'EBITDA ≤ 0 em AAAA'.
@@ -57,7 +58,9 @@ function arred(v: number): number {
 }
 
 function textoNaoSeAplica(id: IdCriterio): string {
-  return id === 'fcl' ? T.motivos.instituicao_financeira_fcl : T.motivos.instituicao_financeira;
+  if (id === 'fcl') return T.motivos.instituicao_financeira_fcl;
+  if (id === 'mg') return T.motivos.instituicao_financeira_mg;
+  return T.motivos.instituicao_financeira;
 }
 
 function textoSemFonte(id: IdCriterio): string {

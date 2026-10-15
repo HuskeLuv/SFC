@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import type { PrismaClient } from '@prisma/client';
 import {
   coberturaAcoes,
+  coberturaMinima,
   executarCriterios,
   type DependenciasCriterios,
   type UniversoCriterios,
@@ -270,8 +271,14 @@ describe('executarCriterios', () => {
     }));
     await executarCriterios(ctx, d);
     const a = alertas.find((x) => x.codigo === 'criterios_cobertura_baixa');
-    expect(a?.mensagem).toContain('rec 0%');
-    expect(a?.mensagem).toContain('mg 0%');
+    expect(a?.mensagem).toContain('rec 0% (mín. 90%)');
+    expect(a?.mensagem).toContain('mg 0% (mín. 85%)');
+  });
+
+  it('mínimo de cobertura: 90% por padrão, 85% na margem (receita ≤ lucro fica sem dado por regra)', () => {
+    expect(coberturaMinima('rec')).toBe(0.9);
+    expect(coberturaMinima('fcl')).toBe(0.9);
+    expect(coberturaMinima('mg')).toBe(0.85);
   });
 
   it('a cobertura considera só as linhas do Quadro quando há Quadro', async () => {

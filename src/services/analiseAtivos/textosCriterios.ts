@@ -110,6 +110,8 @@ export const TEXTOS_CRITERIOS = {
     } satisfies Partial<Record<IdCriterio, string>>,
     instituicao_financeira:
       'não se aplica a instituições financeiras (bancos, seguradoras e holdings financeiras): o balanço não tem EBITDA nem dívida líquida',
+    instituicao_financeira_mg:
+      'não se aplica a esta instituição financeira: a receita nas demonstrações não é comparável ao lucro (holding de participações ou banco no balanço individual)',
     instituicao_financeira_fcl:
       'não se aplica a instituições financeiras: o caixa operacional de banco e seguradora inclui depósitos, captações e reservas técnicas',
   },

@@ -264,6 +264,38 @@ describe('montarFundamentosAcao', () => {
     });
   });
 
+  it('receita 0 (holding sem receita própria, ex.: BBSE3) = não se aplica, nunca "R$ 0,0 bi"', () => {
+    const r = montarFundamentosAcao(
+      entradaWege({
+        fys: ANOS.map((a) =>
+          periodo(a, { receita: 0, lucroLiquido: 9_017e6, lucroAtribuivel: 9_017e6 }),
+        ),
+        multiplos: ANOS.map((a) => ({
+          anoFiscal: a,
+          pl: 9,
+          pvp: 6,
+          dyPct: 9,
+          roePct: 70,
+          margemLiquidaPct: null,
+          payoutPct: 90,
+        })),
+      }),
+      V24,
+    );
+    for (const campo of ['receita', 'margem'] as const) {
+      expect(linha(r, '2025').valores[campo]).toMatchObject({
+        estado: 'nao_se_aplica',
+        motivo: 'receita_nao_positiva',
+      });
+    }
+    // a receita marcada 'não se aplica' na ingestão também
+    const m = montarFundamentosAcao(
+      entradaWege({ fys: ANOS.map((a) => periodo(a, { naoSeAplica: ['receita'] })) }),
+      V24,
+    );
+    expect(linha(m, '2025').valores.receita).toMatchObject({ estado: 'nao_se_aplica' });
+  });
+
   it('Div./ação > 2× o ano anterior com payout > 150%: selo de proventos em conferência + nota', () => {
     const r = montarFundamentosAcao(entradaWege(), V24);
     expect(linha(r, '2025').selos).toEqual(['proventos_em_conferencia']);

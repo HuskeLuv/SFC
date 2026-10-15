@@ -55,6 +55,15 @@ interface Contexto {
 }
 
 const JANELAS = [3, 5, 10];
+/** Regras do fix 9d2fbdf3 (13/10/2026, depois da medição do desenho). */
+const NOTA_RECEITA_NAO_POSITIVA =
+  'receita ≤ 0 no ano = sem dado (fix 9d2fbdf3 de 13/10, depois da medição do desenho; ex.: holdings sem receita própria)';
+const NOTA_RECEITA_MENOR_LUCRO =
+  'receita ≤ lucro no ano = margem sem dado (regra 15, fix 9d2fbdf3 de 13/10, depois da medição do desenho; ex.: ALOS3 e BRML3 em 2023, ganho da fusão)';
+const NOTA_POR_ID: Partial<Record<string, string>> = {
+  rec: NOTA_RECEITA_NAO_POSITIVA,
+  mg: NOTA_RECEITA_MENOR_LUCRO,
+};
 const TOLERANCIA_PP = 2;
 
 const pct = (n: number, d: number) => (d > 0 ? (n / d) * 100 : 0);
@@ -124,12 +133,14 @@ export const ESPERADO_DESENHO: Esperado[] = [
       rotulo: `ações não financeiras · ${id} com dado · janela 5`,
       num: j5,
       den: 293,
+      ...(NOTA_POR_ID[id] ? { nota: NOTA_POR_ID[id] } : {}),
       medir: medida(5, ehAcao, id, comDado),
     },
     {
       rotulo: `ações não financeiras · ${id} com dado · janela 10`,
       num: j10,
       den: 293,
+      ...(NOTA_POR_ID[id] ? { nota: NOTA_POR_ID[id] } : {}),
       medir: medida(10, ehAcao, id, comDado),
     },
   ]),
@@ -150,13 +161,16 @@ export const ESPERADO_DESENHO: Esperado[] = [
       ? {
           nota: 'EBITDA ≤ 0 com dívida líquida positiva em algum ano = fora (decisão do desenho: fato "EBITDA ≤ 0 em AAAA")',
         }
-      : {}),
+      : id === 'mg'
+        ? { nota: NOTA_RECEITA_MENOR_LUCRO }
+        : {}),
     medir: medida(5, ehClasseAcao, id, atende),
   })),
   {
     rotulo: 'financeiras · rec com dado · janela 5',
     num: 35,
     den: 37,
+    nota: `${NOTA_RECEITA_NAO_POSITIVA}: BBSE3, CXSE3, RPAD`,
     medir: medida(5, ehFin, 'rec', comDado),
   },
   {
@@ -169,7 +183,7 @@ export const ESPERADO_DESENHO: Esperado[] = [
     rotulo: 'financeiras · mg com dado · janela 5',
     num: 30,
     den: 37,
-    nota: '1 ativo de 37 = 2,7 p.p.: receita ≤ 0 ou ausente em algum ano da janela deixa a margem sem dado',
+    nota: '1 ativo de 37 = 2,7 p.p.: receita ≤ 0 ou ausente em algum ano da janela deixa a margem sem dado; holding/banco sem nenhuma margem na janela (receita não comparável ao lucro) = não se aplica',
     medir: medida(5, ehFin, 'mg', comDado),
   },
   {

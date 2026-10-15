@@ -56,7 +56,6 @@
  "controls": [
   "a|||dark:text-gray-400 gap-1.5 inline-flex items-center text-gray-500 text-sm",
   "a|||text-brand-500 underline",
-  "button|||dark:hover:bg-white/[0.04] flex gap-2 hover:bg-gray-50 items-start px-1 py-1 rounded-lg text-left w-full",
   "button|||fc-button fc-button-active fc-button-primary fc-dayGridMonth-button",
   "button|||fc-button fc-button-primary fc-listMonth-button",
   "button|||fc-button fc-button-primary fc-next-button",

@@ -83,6 +83,8 @@ describe('InstitutionPicker', () => {
     expect(await screen.findByText('XP Investimentos')).toBeInTheDocument();
     expect(screen.getByText('Itaú')).toBeInTheDocument();
     expect(screen.getByText('102')).toBeInTheDocument();
+    // alvo de toque de 44 px em qualquer largura (no desktop também)
+    expect(screen.getByText('Itaú').closest('button')?.className).toMatch(/(^|\s)min-h-11(\s|$)/);
   });
 
   it('renderiza opções com responseShape="instituicoes" (aporte/resgate)', async () => {

@@ -1,6 +1,7 @@
 import { test, expect, type Locator, type Page } from '@playwright/test';
 import { csrfHeaders, writesAllowed } from './helpers/api';
 import { exigirRecursoBlocoD } from './fixtures/analise-bloco-d';
+import { montarCardValuation } from './helpers/secaoPreguicosa';
 
 /**
  * Análise de Ativos — Bloco D, fatia B: Valuation · Meus cenários. GRAVA (projeto `escrita`,
@@ -38,13 +39,7 @@ test.beforeEach(async ({ page }) => {
 
 async function abrirCenarios(page: Page, ticker: string): Promise<Locator> {
   await page.goto(`/analise-ativos/${ticker}`, { waitUntil: 'load' });
-  const card = page.locator(`section[aria-labelledby="valuation-${ticker}"]`);
-  // o card fica numa SecaoPreguicosa (monta perto do viewport): rola até o marcador da seção
-  const marcador = page.locator('[aria-label^="Valuation"]').first();
-  await marcador.waitFor({ state: 'attached', timeout: 90_000 });
-  await marcador.scrollIntoViewIfNeeded();
-  await card.waitFor({ timeout: 90_000 });
-  await card.scrollIntoViewIfNeeded();
+  const card = await montarCardValuation(page, ticker);
   await card.getByRole('button', { name: 'Meus cenários', exact: true }).click();
   await expect(card.locator('[data-meus-cenarios]')).toBeVisible({ timeout: 90_000 });
   return card;
