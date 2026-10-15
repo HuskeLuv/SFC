@@ -13,6 +13,9 @@
  *    máx(0, máx) ('máx. 0,0×' quando o máximo real é −0,3); EBITDA ≤ 0 com DL > 0 vem da série como
  *    +Infinity (seriesAcao) e dá 'nao_atende' com o fato 'EBITDA ≤ 0 em AAAA'.
  * Fatos com formatarValorCriterio (fmtC: |v| < 0,05 vira 0, exceto n2) e TEXTOS_CRITERIOS.fatos.
+ * v2.5: a série chega já escolhida para a janela (avaliarAtivo + resolverSeries.escolherSerieJanela:
+ * fallback do lucro descontado pela janela inteira); fonte/obs do resultado são postos por
+ * avaliarAtivo. 'sem dado' é sempre o mesmo texto (sem a nota dos informes de FII).
  * Função pura.
  */
 import type {
@@ -46,6 +49,8 @@ export interface EntradaCriterio {
   serie?: Readonly<Record<number, number | null>>;
   /** só 'months' */
   meses?: MesesRendimento | null;
+  /** só 'months' (v2.5): contagens anuais de um provedor (mesesJanela.avaliarMesesPorAno) */
+  mesesPorAno?: Readonly<Record<number, number | null>> | null;
   /** D4: critério não se aplica ao perfil (financeira) */
   naoSeAplica?: boolean;
 }
@@ -106,7 +111,7 @@ export function avaliarCriterio(e: EntradaCriterio, params: CriteriaParams): Res
     };
   }
   if (def.tipo === 'months') {
-    const r = avaliarMeses(e.meses ?? null, anoFim, janela, params);
+    const r = avaliarMeses(e.meses ?? null, anoFim, janela, params, e.mesesPorAno);
     return {
       id,
       estado: r.estado,

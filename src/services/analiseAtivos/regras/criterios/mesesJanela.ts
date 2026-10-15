@@ -13,6 +13,9 @@
  *    Base que começa DEPOIS de jan/(anoFim − J + 1) e cuja sequência chega até o começo da base
  *    (nenhuma lacuna dentro do que existe) = params.meses.mesesBaseCurta ('sem_dado' por padrão,
  *    com o fato 'sem dado nas demonstrações (proventos registrados desde MM/AAAA)').
+ * 3. v2.5 — contagens anuais de um provedor (EntradaAvaliacaoAtivo.mesesPorAno): com TODOS os anos da
+ *    janela informados, n = Σ, de = 12×J (atende só com 12×J) e qualquer ano nulo = sem dado; ano da
+ *    janela que o provedor não informa = a contagem da CVM acima (sem misturar as bases).
  */
 import type { CriteriaParams } from '@/services/analiseAtivos/params/criteriaParamsSchema';
 import { mesesComRendimentoDetalhado } from '@/services/analiseAtivos/regras/calculo/sequencias';
@@ -95,13 +98,53 @@ function mesAno(mes: string): string {
   return `${mes.slice(5, 7)}/${mes.slice(0, 4)}`;
 }
 
+/**
+ * Contagem pelos meses por ano do provedor (n = Σ, de = 12×J). undefined = algum ano da janela sem
+ * a contagem do provedor (a CVM decide). Pura.
+ */
+export function avaliarMesesPorAno(
+  mesesPorAno: Readonly<Record<number, number | null>> | null | undefined,
+  anoFim: number,
+  janela: Janela,
+): ResultadoMeses | undefined {
+  if (!mesesPorAno) return undefined;
+  const t = TEXTOS_CRITERIOS.fatos;
+  const anoInicio = anoInicioJanela(anoFim, janela);
+  const anos = Array.from({ length: janela }, (_, i) => anoInicio + i);
+  if (!anos.every((a) => Object.prototype.hasOwnProperty.call(mesesPorAno, a))) return undefined;
+  const valores = anos.map((a) => mesesPorAno[a]);
+  if (valores.some((v) => typeof v !== 'number' || !Number.isFinite(v))) {
+    return {
+      estado: 'sem_dado',
+      n: null,
+      de: null,
+      fato: t.semDado,
+      motivo: 'sem_dado_demonstracoes',
+    };
+  }
+  const total = 12 * janela;
+  const n = Math.min(
+    total,
+    (valores as number[]).reduce((s, v) => s + Math.max(0, Math.min(12, Math.trunc(v))), 0),
+  );
+  return {
+    estado: n === total ? 'atende' : 'nao_atende',
+    n,
+    de: total,
+    fato: formatarTexto(t.mesesPeriodo, { n, total, anoInicio, anoFim }),
+  };
+}
+
 export function avaliarMeses(
   meses: MesesRendimento | null,
   anoFim: number,
   janela: Janela,
   params: Pick<CriteriaParams, 'meses'>,
+  mesesPorAno?: Readonly<Record<number, number | null>> | null,
 ): ResultadoMeses {
   const t = TEXTOS_CRITERIOS.fatos;
+  const doProvedor = avaliarMesesPorAno(mesesPorAno, anoFim, janela);
+  if (doProvedor) return doProvedor;
   if (!meses || meses.inicioBase === null) {
     return {
       estado: 'sem_dado',

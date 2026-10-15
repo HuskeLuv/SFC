@@ -1,5 +1,5 @@
 /**
- * Motor puro dos Filtros de Fundamentos (v2.4): avalia os critérios do perfil nas janelas do params
+ * Motor puro dos Filtros de Fundamentos (v2.4; v2.5 com a camada de fontes): avalia os critérios do perfil nas janelas do params
  * (3 | 5 | 10) — port do evalCriteria/critCount do screen.js com as 3 correções da spec (ver
  * avaliarCriterio.ts). O job 'criterios' (executarCriterios) e os casos 24–29 (casos45.test.ts)
  * programam contra ele.
@@ -11,6 +11,14 @@
  * Margem de financeira sem receita comparável (holding de participações, banco no individual): se
  * NENHUM ano da janela tem margem (receita ausente, ≤ 0 ou ≤ lucro) e algum tem lucro, a margem
  * 'não se aplica' — a falta é da estrutura do balanço, não do dado. Lucro também ausente = sem dado.
+ * v2.5: só quando params.perfis.acao_financeira.margemSemReceitaComparavel = 'nao_se_aplica' (a v2
+ * usa 'sem_dado', literal da spec); o critério é achado pelo id 'mg'.
+ *
+ * v2.5 — séries por fonte: a entrada traz as séries resolvidas (resolverSeries) e, opcionalmente, as
+ * origens. Por critério e janela, escolherSerieJanela decide a série (a principal ou a serieFallback
+ * na janela INTEIRA — 'luc' = net_income_adjusted → net_income) e o resultado leva `obs`
+ * ('lucro_sem_descontado', 'dados_incompletos') e, com origens, `fonte` (ids na ordem da prioridade).
+ * 'months' com mesesPorAno (provedor) usa as contagens anuais; sem elas, a contagem da CVM.
  */
 import {
   criteriosDoPerfil,
@@ -22,6 +30,7 @@ import {
   anosDaJanela,
 } from '@/services/analiseAtivos/regras/criterios/ancoraJanela';
 import { avaliarCriterio } from '@/services/analiseAtivos/regras/criterios/avaliarCriterio';
+import { escolherSerieJanela } from '@/services/analiseAtivos/fontes/fundamentos/resolverSeries';
 import type {
   AvaliacaoAtivo,
   AvaliacaoJanela,
@@ -30,6 +39,7 @@ import type {
   Janela,
   ResultadoCriterio,
 } from '@/types/analiseAtivosCriterios';
+import type { IdFonte } from '@/types/analiseAtivosFontes';
 
 /** Contagens de uma janela a partir dos resultados (mesma regra do card e do Quadro). */
 export function contarResultados(resultados: readonly ResultadoCriterio[]): {
@@ -57,6 +67,22 @@ export function margemNaoComparavel(entrada: EntradaAvaliacaoAtivo, janela: Jane
   return anos.every((a) => !temValor(margem[a])) && anos.some((a) => temValor(lucro[a]));
 }
 
+/**
+ * Fontes do critério 'months': as do provedor quando as contagens anuais dele cobrem a janela
+ * (avaliarMesesPorAno), senão a CVM (proventos auditados). Vazio sem origens.
+ */
+function fontesDosMeses(entrada: EntradaAvaliacaoAtivo, janela: Janela): IdFonte[] {
+  if (!entrada.origens) return [];
+  const anos = anosDaJanela(entrada.anoFim, janela, false);
+  const porAno = entrada.mesesPorAno;
+  if (porAno && anos.every((a) => Object.prototype.hasOwnProperty.call(porAno, a))) {
+    const origem = entrada.origens.months_with_income ?? {};
+    const fontes = [...new Set(anos.map((a) => origem[a]?.fonte).filter((f) => !!f))] as IdFonte[];
+    if (fontes.length > 0) return fontes;
+  }
+  return entrada.meses ? ['cvm'] : [];
+}
+
 export function avaliarJanela(
   entrada: EntradaAvaliacaoAtivo,
   janela: Janela,
@@ -68,20 +94,39 @@ export function avaliarJanela(
   const margemNsa =
     params.perfis.acao_financeira.margemSemReceitaComparavel === 'nao_se_aplica' &&
     margemNaoComparavel(entrada, janela);
-  const resultados = defs.map((def) =>
-    avaliarCriterio(
+  const resultados = defs.map((def) => {
+    const naoSeAplica = nsa.has(def.id) || (margemNsa && def.id === 'mg');
+    const escolha =
+      def.tipo === 'months'
+        ? null
+        : escolherSerieJanela(
+            entrada.series,
+            entrada.origens,
+            def,
+            anosDaJanela(entrada.anoFim, janela, def.tipo === 'up'),
+          );
+    const r = avaliarCriterio(
       {
         def,
         janela,
         anoFim: entrada.anoFim,
         classe: entrada.classe,
-        serie: entrada.series[def.serie],
+        serie: escolha ? escolha.valores : entrada.series[def.serie],
         meses: entrada.meses,
-        naoSeAplica: nsa.has(def.id) || (margemNsa && def.id === 'mg'),
+        mesesPorAno: entrada.mesesPorAno,
+        naoSeAplica,
       },
       params,
-    ),
-  );
+    );
+    if (naoSeAplica || def.ativo === false) return r;
+    const fonte = escolha ? escolha.fontes : fontesDosMeses(entrada, janela);
+    const obs = escolha?.obs ?? [];
+    return {
+      ...r,
+      ...(entrada.origens && fonte.length > 0 ? { fonte } : {}),
+      ...(obs.length > 0 ? { obs } : {}),
+    };
+  });
   return {
     janela,
     anoInicio: anoInicioJanela(entrada.anoFim, janela),

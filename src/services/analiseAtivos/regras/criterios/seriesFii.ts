@@ -10,9 +10,12 @@
  * Conferência: ano com a base por cota quebrada (decisão 1 do Bloco D: salto_acoes_sem_evento /
  * dados_incompletos) = rendCota e vpCota ausentes; ticker↔CNPJ não conferido = os números do
  * informe (VP/cota, Obrigações/PL, resultado) ausentes — rendimento/cota (proventos B3) continua.
- * Vacância, inadimplência e LTV não têm série (D3: critério inativo).
  * Chaves de saída = nomes canônicos da spec (v2.5): income_per_share, nav_per_share, leverage_pct,
- * ffo.
+ * ffo. v2.5: a vacância física da CVM (FiiQuarterly.vacanciaFisicaCvmPct, informe trimestral) sai
+ * TRIMESTRAL em vacanciaTrimestralFii — a FonteCvm devolve os pontos 'Q' e o resolverSeries leva ao
+ * ano pela agregação de criteria_params.fontes (decisão 4: o último trimestre do ano). Papel (flag
+ * nsa:vacanciaFisicaCvmPct) e ticker↔CNPJ não conferido = sem dado. Inadimplência e LTV não têm
+ * série na CVM (só fii_property_quality aprovada de um provedor).
  */
 import type { PrismaClient } from '@prisma/client';
 import { Prisma } from '@prisma/client';
@@ -46,8 +49,16 @@ export interface BrutoFii {
     flags: string[];
   }>;
   multiplos: Array<{ anoFiscal: number; obrigacoesPlPct: number | null; flags: string[] }>;
-  /** refQuarter = último dia do trimestre (AAAA-MM-DD); resultado em R$ */
-  trimestres: Array<{ refQuarter: string; resultadoTrimestral: number | null }>;
+  /**
+   * refQuarter = último dia do trimestre (AAAA-MM-DD); resultado em R$. v2.5: vacância física (%)
+   * e flags do trimestre (nsa:vacanciaFisicaCvmPct = papel) — opcionais (fixtures da v2.4).
+   */
+  trimestres: Array<{
+    refQuarter: string;
+    resultadoTrimestral: number | null;
+    vacanciaFisicaCvmPct?: number | null;
+    flags?: string[];
+  }>;
   /** meses com desdobramento de cotas (fii_monthly.fatorDesdobramento) */
   desdobramentos: Array<{ refMonth: string; fator: number }>;
   proventos: ProventoMeses[];
@@ -101,6 +112,32 @@ export function seriesFii(b: BrutoFii): SeriesCriterios {
   };
 }
 
+/** Ponto trimestral de vacância física (% da área, CVM). valor null = sem dado (papel/nsa). */
+export interface VacanciaTrimestre {
+  refQuarter: string;
+  valor: number | null;
+}
+
+/**
+ * Vacância física trimestral da CVM (v2.5, série vacancy_physical). Ticker↔CNPJ não conferido = nada
+ * (os números do informe não valem para o ticker); trimestre com a flag nsa (fundo sem imóveis) ou
+ * sem o campo = null. Pura.
+ */
+export function vacanciaTrimestralFii(
+  b: Pick<BrutoFii, 'conferido' | 'trimestres'>,
+): VacanciaTrimestre[] {
+  if (!b.conferido) return [];
+  return b.trimestres
+    .filter((t) => t.vacanciaFisicaCvmPct !== undefined || t.flags !== undefined)
+    .map((t) => ({
+      refQuarter: t.refQuarter,
+      valor:
+        !(t.flags ?? []).includes('nsa:vacanciaFisicaCvmPct') && finito(t.vacanciaFisicaCvmPct)
+          ? t.vacanciaFisicaCvmPct
+          : null,
+    }));
+}
+
 /** Meses com rendimento até dez/anoFim (rec. 4). */
 export function mesesFii(b: Pick<BrutoFii, 'proventos'>, anoFim: number, scoring: ParamsMeses) {
   return mesesAteAnoFim(b.proventos, anoFim, scoring) satisfies MesesRendimento;
@@ -145,7 +182,13 @@ export async function lerBrutosFii(
     }),
     prisma.fiiQuarterly.findMany({
       where: { cnpj: { in: cnpjs }, refQuarter: { gte: desde } },
-      select: { cnpj: true, refQuarter: true, resultadoTrimestral: true },
+      select: {
+        cnpj: true,
+        refQuarter: true,
+        resultadoTrimestral: true,
+        vacanciaFisicaCvmPct: true,
+        flags: true,
+      },
     }),
     prisma.fiiMonthly.findMany({
       where: { cnpj: { in: cnpjs }, fatorDesdobramento: { not: null } },
@@ -220,6 +263,8 @@ export async function lerBrutosFii(
       b.trimestres.push({
         refQuarter: paraData(t.refQuarter),
         resultadoTrimestral: paraNumero(t.resultadoTrimestral),
+        vacanciaFisicaCvmPct: t.vacanciaFisicaCvmPct,
+        flags: t.flags,
       });
     }
   }

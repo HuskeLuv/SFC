@@ -6,8 +6,9 @@
  *    repositorio/acoes.fundamentosVigentes, lendo SÓ as colunas usadas (lotes de 50 no job);
  *  - revenue = FY.receita; net_income = lucro atribuível aos controladores (lucroParaSequencia,
  *    regra 12: controladora_zero ⇒ o do individual) — D2;
- *  - receita ≤ 0 = ausente; ebitda = EBIT + D&A (multiplos.ebitda); net_margin = lucro ÷ receita
- *    (receita ≤ lucro = ausente, regra 15 'receita_menor_que_lucro');
+ *  - receita ≤ 0 = ausente; ebitda = EBIT + D&A (multiplos.ebitda); net_margin = lucro ÷ receita.
+ *    Receita ≤ lucro (holding, banco no individual): params.criterios.margem.receitaMenorQueLucro —
+ *    'sem_dado' (regra 15 da v2.4, padrão) ou 'valor' (literal da spec na v2: margem > 100% atende);
  *  - net_debt_ebitda = (dívida bruta − caixa − aplicações) ÷ EBITDA (multiplos.dividaLiquida); EBITDA ≤ 0
  *    com DL ≤ 0 = 0 (caixa líquido, dentro); EBITDA ≤ 0 com DL > 0 = +Infinity (avaliarCriterio:
  *    'EBITDA ≤ 0 em AAAA');
@@ -110,9 +111,23 @@ export function fysVigentesPorAno(
 const emMi = (n: number | null): number | null =>
   typeof n === 'number' && Number.isFinite(n) ? n / 1e6 : null;
 
+/** Regras finas das séries de ação vindas do criteria_params (padrões = v2.4). */
+export interface OpcoesSeriesAcao {
+  /** receita ≤ lucro: 'sem_dado' (regra 15, v2.4) | 'valor' (literal da spec, v2) */
+  receitaMenorQueLucro?: 'valor' | 'sem_dado';
+}
+
+/** Opções das séries de ação a partir dos params (criterios.margem). */
+export function opcoesSeriesAcao(params: {
+  criterios: { margem: { receitaMenorQueLucro: 'valor' | 'sem_dado' } };
+}): OpcoesSeriesAcao {
+  return { receitaMenorQueLucro: params.criterios.margem.receitaMenorQueLucro };
+}
+
 /** Valores de um FY (R$ mi, %, ×). Pura. */
 export function valoresAnoAcao(
   f: FyCriterios,
+  opcoes: OpcoesSeriesAcao = {},
 ): Record<
   'revenue' | 'net_income' | 'ebitda' | 'net_margin' | 'net_debt_ebitda' | 'free_cash_flow',
   number | null
@@ -144,17 +159,21 @@ export function valoresAnoAcao(
     revenue: emMi(receita),
     net_income: emMi(lucro),
     ebitda: eb.estado === 'ok' ? emMi(eb.valor) : null,
-    // receita ≤ lucro (holding / banco no individual) = ausente: margem acima de 100% não é fato útil
-    // (regra 15, receita_menor_que_lucro, a mesma dos múltiplos e do Essencial)
+    // receita ≤ lucro (holding / banco no individual): na v2.4 ausente (regra 15,
+    // receita_menor_que_lucro, a mesma dos múltiplos e do Essencial); na v2 o valor (literal)
     net_margin:
-      lucro !== null && receita !== null && receita > lucro ? (lucro / receita) * 100 : null,
+      lucro !== null &&
+      receita !== null &&
+      (receita > lucro || opcoes.receitaMenorQueLucro === 'valor')
+        ? (lucro / receita) * 100
+        : null,
     net_debt_ebitda: dlEbitda,
     free_cash_flow: f.fco !== null && f.capex !== null ? emMi(f.fco - f.capex) : null,
   };
 }
 
 /** Séries anuais de uma empresa. Pura (series.test usa a fixture real do DEV). */
-export function seriesAcao(b: BrutoAcao): SeriesCriterios {
+export function seriesAcao(b: BrutoAcao, opcoes: OpcoesSeriesAcao = {}): SeriesCriterios {
   const porAno = fysVigentesPorAno(b.fys, b.escopoPreferido);
   const emConf = anosEmConferencia(b.flagsConf, 'fundamentos_escala');
   const out: Required<
@@ -171,7 +190,7 @@ export function seriesAcao(b: BrutoAcao): SeriesCriterios {
     free_cash_flow: {},
   };
   for (const [ano, f] of porAno) {
-    const v = valoresAnoAcao(f);
+    const v = valoresAnoAcao(f, opcoes);
     const conf = emConf.has(ano);
     for (const k of Object.keys(out) as Array<keyof typeof out>) {
       out[k][ano] = conf ? null : v[k];
