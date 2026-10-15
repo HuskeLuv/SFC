@@ -5,14 +5,17 @@
  * 2), logo abaixo do cabeçalho. Lê AtivoTopoResposta.criterios: as 3 janelas vêm na MESMA resposta,
  * então trocar a pílula (3 | 5 | 10 anos, padrão 5) não refaz requisição.
  *
- *  - número "n de k" NEUTRO (contagem factual, não é nota): k = critérios que se aplicam (6;
- *    instituições financeiras 3, D4) e a frase 'n critérios não se aplicam a este ativo';
+ *  - número "n de k" NEUTRO (contagem factual, não é nota): k = critérios que se aplicam (6; v2.5:
+ *    financeiras também 6 — só com o D4 religado por params sai a frase 'n critérios não se
+ *    aplicam a este ativo');
  *  - nota do perfil (FoF/indefinido avaliados pela regra de composição, rec. 3);
  *  - itens (ItemCriterio) em 3/2/1 colunas pela largura do card (container query);
- *  - FII na janela de 10 anos: nota de que os informes da CVM começam em 2016 (rec. 5);
- *  - rodapé com a fonte (DFP/ITR ou informes de FIIs, CVM), 'os mesmos critérios dos filtros do
- *    Quadro' e o aviso de dado histórico; menu ⋯ (reportar dado no bloco 'criterios_fundamentos')
- *    e selo de frescor do bloco, como os demais cards.
+ *  - v2.5: sem a nota dos informes de FII de 2016 (janela 10 = só 'sem dado nas demonstrações');
+ *  - rodapé com a fonte — v2.5: montada pelas origens no servidor (criteriosComFonte:
+ *    'Fonte: ‹provedor› · DFP/ITR (CVM).'); sem origens, DFP/ITR ou informes de FIIs (CVM) —,
+ *    'os mesmos critérios dos filtros do Quadro' e o aviso de dado histórico; selo 'dados
+ *    incompletos' (§6) quando a fonte marcou algum ponto da avaliação; menu ⋯ (reportar dado no
+ *    bloco 'criterios_fundamentos') e selo de frescor do bloco, como os demais cards.
  * Sem avaliação (job ainda não rodou): o card fica com o título e o texto de espera.
  */
 import { useState } from 'react';
@@ -51,6 +54,15 @@ export function notasDoPerfil(criterios: CriteriosAtivo, janela: Janela): string
   return notas;
 }
 
+/**
+ * Frase de fonte do rodapé: com as origens da avaliação (v2.5), a montada no servidor; sem elas, a
+ * fixa da classe (v2.4).
+ */
+export function fonteDoCard(criterios: CriteriosAtivo, classe: 'acao' | 'fii'): string {
+  if (criterios.fontes && criterios.fonte) return criterios.fonte;
+  return classe === 'fii' ? TC.fonte.fii : TC.fonte.acao;
+}
+
 export default function CardCriterios({
   ticker,
   classe,
@@ -85,7 +97,10 @@ export default function CardCriterios({
     );
   }
 
-  const fonte = classe === 'fii' ? TC.fonte.fii : TC.fonte.acao;
+  const fonte = fonteDoCard(criterios, classe);
+  const incompleto =
+    criterios.dadosIncompletos === true ||
+    j.itens.some((i) => i.obs?.includes('dados_incompletos'));
   const notas = notasDoPerfil(criterios, janela);
   return (
     <section
@@ -110,6 +125,16 @@ export default function CardCriterios({
             <span className="sr-only"> {formatarTexto(TA.contagemSr, { anos: janela })}</span>
           </p>
           <PilulasJanela valor={janela} onTrocar={setJanela} className="-ml-0.5" />
+          {incompleto ? (
+            <span
+              data-selo-incompleto=""
+              title={TC.incompleto.tooltip}
+              className="inline-flex items-center rounded-full border border-gray-300 px-2 py-0.5 text-[11.5px] text-gray-600 dark:border-gray-600 dark:text-gray-300"
+            >
+              {TC.incompleto.selo}
+              <span className="sr-only">: {TC.incompleto.tooltip}</span>
+            </span>
+          ) : null}
           <p className="m-0 max-w-[26ch] text-xs leading-snug text-gray-500 dark:text-gray-400">
             {notas.join(' · ')}
           </p>
