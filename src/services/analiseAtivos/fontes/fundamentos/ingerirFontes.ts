@@ -551,7 +551,7 @@ export async function ingerirFontes(
             )
           : () => null;
       const extras = new Map<string, { anterior: number | null; cvm: number | null }>();
-      // em ordem de dtFim: o anterior pode ser um ponto já aprovado do próprio lote (1ª carga)
+      // em ordem de dtFim: o anterior pode ser o período anterior do próprio lote (1ª carga), mesmo pendente
       const avaliados: typeof pontos = [];
       for (const p of [...pontos].sort((a, b) => a.dtFim.localeCompare(b.dtFim))) {
         if (p.incompleto) continue;

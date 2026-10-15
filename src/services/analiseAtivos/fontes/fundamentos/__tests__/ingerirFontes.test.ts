@@ -336,14 +336,36 @@ describe("job 'fontes-fundamentos'", () => {
       ponto('net_income_adjusted', 2023, 1000e6),
     ];
     const r = await ingerirFontes(ctxCom().ctx, depsCom(mem, itens));
-    expect(rel(r).pendentes).toBe(1);
+    expect(rel(r).pendentes).toBe(2);
     const status = Object.fromEntries(
       mem.pontos
         .filter((p) => p.serie === 'net_income_adjusted')
         .map((p) => [p.anoFiscal, p.reviewStatus]),
     );
-    // 2024 compara com 2022 (o último APROVADO), não com o 2023 em revisão
-    expect(status).toEqual({ 2022: 'approved', 2023: 'pending', 2024: 'approved' });
+    // §6 "entre dois períodos": 2024 compara com o 2023 do lote (−90%), mesmo pendente
+    expect(status).toEqual({ 2022: 'approved', 2023: 'pending', 2024: 'pending' });
+  });
+
+  it('primeira carga: um salto real > 40% não deixa pendentes os anos seguintes que crescem pouco', async () => {
+    const mem = memoria();
+    const itens = [
+      ponto('net_income_adjusted', 2019, 100e6),
+      ponto('net_income_adjusted', 2020, 150e6),
+      ponto('net_income_adjusted', 2021, 160e6),
+      ponto('net_income_adjusted', 2022, 170e6),
+    ];
+    await ingerirFontes(ctxCom().ctx, depsCom(mem, itens));
+    const status = Object.fromEntries(
+      mem.pontos
+        .filter((p) => p.serie === 'net_income_adjusted')
+        .map((p) => [p.anoFiscal, p.reviewStatus]),
+    );
+    expect(status).toEqual({
+      2019: 'approved',
+      2020: 'pending',
+      2021: 'approved',
+      2022: 'approved',
+    });
   });
 
   it('divergência de 6% contra a CVM → pending, e o resolvedor usa a CVM', async () => {

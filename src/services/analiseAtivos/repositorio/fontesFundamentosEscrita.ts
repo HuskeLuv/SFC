@@ -128,11 +128,12 @@ export function ultimasVersoes(historico: readonly PontoGravado[]): Map<string, 
 }
 
 /**
- * Valor APROVADO do período anterior (mesma série e periodicidade, dtFim imediatamente antes, maior
- * versão aprovada) — base da regra de variação (§6). `lote` = pontos da MESMA ingestão já avaliados
- * (approved, completos): contam como anteriores também, e vencem o histórico no mesmo dtFim — na
- * primeira carga (backfill, histórico vazio) os saltos entre anos do próprio lote vão para revisão,
- * como em filtrarCvmPelaSanidade. Pura.
+ * Valor do período anterior (mesma série e periodicidade, dtFim imediatamente antes) — base da regra
+ * de variação (§6, "entre dois períodos"). No histórico só vale a maior versão APROVADA. `lote` =
+ * pontos completos da MESMA ingestão já avaliados: contam como anteriores QUALQUER que seja o status
+ * (um pico pendente é o período anterior do ano seguinte, que não fica ancorado num aprovado antigo)
+ * e vencem o histórico no mesmo dtFim — na primeira carga (backfill, histórico vazio) os saltos entre
+ * anos do próprio lote vão para revisão, como em filtrarCvmPelaSanidade. Pura.
  */
 export function anteriorAprovado(
   historico: readonly PontoGravado[],
@@ -147,7 +148,9 @@ export function anteriorAprovado(
   let melhor: { dtFim: string; versao: number; valor: number } | null = null;
   const candidatos = [
     ...historico,
-    ...lote.filter((l) => !l.incompleto).map((l) => ({ ...l, versao: Number.MAX_SAFE_INTEGER })),
+    ...lote
+      .filter((l) => !l.incompleto)
+      .map((l) => ({ ...l, reviewStatus: 'approved' as const, versao: Number.MAX_SAFE_INTEGER })),
   ];
   for (const h of candidatos) {
     if (
