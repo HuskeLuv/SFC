@@ -97,9 +97,15 @@ export default function ModalPlanejar({
   }, [aberto, alvoAtual]);
 
   const valor = lerPercentual(texto);
+  // fora de (0, 100]: o resumo não calcula e o erro aparece já na digitação
+  const foraDaFaixa = valor !== null && !(valor > 0 && valor <= 100);
   const linha = dados.linha;
   const valorPosicao = dados.status === 'posicao' ? (linha?.valorAtualizado ?? 0) : 0;
-  const cotacao = preco ?? (linha && linha.cotacaoAtual > 0 ? linha.cotacaoAtual : null);
+  // com posição, valor e quantidade usam a MESMA cotação (a da linha da Carteira, caso 33)
+  const cotacaoLinha =
+    dados.status === 'posicao' && linha && linha.cotacaoAtual > 0 ? linha.cotacaoAtual : null;
+  const cotacao =
+    cotacaoLinha ?? preco ?? (linha && linha.cotacaoAtual > 0 ? linha.cotacaoAtual : null);
   const conta = useMemo(
     () =>
       dados.valorBase === null
@@ -107,17 +113,17 @@ export default function ModalPlanejar({
         : desvioAlvo({
             valorPosicao,
             valorBase: dados.valorBase,
-            alvoPct: valor,
+            alvoPct: foraDaFaixa ? null : valor,
             preco: cotacao,
           }),
-    [dados.valorBase, valorPosicao, valor, cotacao],
+    [dados.valorBase, valorPosicao, valor, foraDaFaixa, cotacao],
   );
 
   const podeGravar = !!assetId && dados.status !== 'carregando' && dados.status !== 'erro';
 
   const salvar = async () => {
     if (!podeGravar || pendente) return;
-    if (valor === null || !(valor > 0) || valor > 100) {
+    if (valor === null || foraDaFaixa) {
       setErro(T.erroFaixa);
       document.getElementById(campoId)?.focus();
       return;
@@ -190,7 +196,7 @@ export default function ModalPlanejar({
       <button
         type="button"
         className={BOTAO_MODAL_PRIMARIO}
-        disabled={!podeGravar || pendente}
+        disabled={!podeGravar || pendente || foraDaFaixa}
         onClick={() => void salvar()}
         data-salvar-plano=""
       >
@@ -222,7 +228,7 @@ export default function ModalPlanejar({
               value={texto}
               placeholder={T.placeholder}
               aria-describedby={resumoId}
-              aria-invalid={erro === T.erroFaixa}
+              aria-invalid={erro === T.erroFaixa || foraDaFaixa}
               onChange={(e) => {
                 editadoRef.current = true;
                 setTexto(e.target.value);
@@ -292,9 +298,9 @@ export default function ModalPlanejar({
             <span>{T.resumoVazio}</span>
           )}
         </div>
-        {erro ? (
+        {erro || foraDaFaixa ? (
           <p role="alert" className="mt-1.5 text-[12.5px] text-[#D92D20] dark:text-[#F97066]">
-            {erro}
+            {erro ?? T.erroFaixa}
           </p>
         ) : null}
         {dados.erroNumeros ? (
