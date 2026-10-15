@@ -88,7 +88,17 @@ describe('resolverSeries — prioridade e pontos vigentes', () => {
     expect(r.origens.net_margin?.[2024].fonte).toBe('cvm');
   });
 
-  it('incompleto = ausente, com a origem marcada (não cai para a próxima fonte)', () => {
+  it('incompleto = ausente, com a origem marcada, quando nenhuma fonte da lista tem valor', () => {
+    const r = resolverSeries({
+      pontos: [ponto('revenue', 2024, null, { fonte: 'prov', incompleto: true })],
+      series: ['revenue'],
+      fontes: FONTES,
+    });
+    expect(r.series.revenue).toEqual({ 2024: null });
+    expect(r.origens.revenue?.[2024]).toMatchObject({ fonte: 'prov', incompleto: true });
+  });
+
+  it('ponto incompleto do provedor não apaga o valor da CVM (cai para a próxima fonte)', () => {
     const r = resolverSeries({
       pontos: [
         ponto('revenue', 2024, null, { fonte: 'prov', incompleto: true }),
@@ -97,8 +107,8 @@ describe('resolverSeries — prioridade e pontos vigentes', () => {
       series: ['revenue'],
       fontes: FONTES,
     });
-    expect(r.series.revenue).toEqual({ 2024: null });
-    expect(r.origens.revenue?.[2024]).toMatchObject({ fonte: 'prov', incompleto: true });
+    expect(r.series.revenue).toEqual({ 2024: 5 });
+    expect(r.origens.revenue?.[2024]).toMatchObject({ fonte: 'cvm', incompleto: false });
   });
 
   it('sem params.fontes = só CVM (fontesEfetivas)', () => {
@@ -173,6 +183,24 @@ describe('resolverSeries — agregação anual (decisão 4)', () => {
       fontes: FONTES,
     });
     expect(r.series.vacancy_physical).toEqual({ 2024: 4 });
+  });
+
+  it("'ultimo': provedor só com o 1º tri aprovado não vence o 4º tri da CVM", () => {
+    const r = resolverSeries({
+      pontos: [trimestre(2023, '03-31', 3.5, { fonte: 'prov' }), trimestre(2023, '12-31', 8.26)],
+      series: ['vacancy_physical'],
+      fontes: FONTES,
+    });
+    expect(r.series.vacancy_physical).toEqual({ 2023: 8.26 });
+    expect(r.origens.vacancy_physical?.[2023].fonte).toBe('cvm');
+    // mesmo período nas duas fontes: vale a prioridade (provedor)
+    const empate = resolverSeries({
+      pontos: [trimestre(2023, '12-31', 7, { fonte: 'prov' }), trimestre(2023, '12-31', 8.26)],
+      series: ['vacancy_physical'],
+      fontes: FONTES,
+    });
+    expect(empate.series.vacancy_physical).toEqual({ 2023: 7 });
+    expect(empate.origens.vacancy_physical?.[2023].fonte).toBe('prov');
   });
 
   it('a v2 agrega a vacância pelo último trimestre', () => {

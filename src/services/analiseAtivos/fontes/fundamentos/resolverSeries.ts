@@ -6,13 +6,18 @@
  *
  * Regras (params.fontes, ver criteriaParamsSchema.fontesEfetivas):
  *  - para cada série, percorre prioridade.porSerie[serie] ?? prioridade.padrao; por ANO, a primeira
- *    fonte com ponto vigente vence (fonte fora da lista é ignorada);
+ *    fonte com valor COMPLETO no ano vence (fonte fora da lista é ignorada);
  *  - ponto vigente = maior versão de (tipoPeriodo, dtFim) dentro da fonte; só 'approved' chega aqui
  *    (o repositório filtra; 'pending'/'rejected' nunca aparecem);
- *  - incompleto (§6) = valor AUSENTE no ano, com a OrigemSerie marcada incompleto (selo na tela);
+ *  - incompleto (§6) = valor AUSENTE no ano, com a OrigemSerie marcada incompleto (selo na tela). Um
+ *    ponto incompleto NÃO apaga a fonte seguinte: o ano só fica incompleto quando nenhuma fonte da
+ *    lista tem valor completo nele (provedor que não mandou a receita não esconde a da CVM);
  *  - valor do ano: o ponto FY do ano fiscal; sem FY, os trimestrais (Q) e, sem eles, os mensais (M)
  *    agregados por agregacaoAnual — 'ultimo' (padrão, decisão 4: o período de dtFim mais recente do
- *    ano) ou 'media' (média dos períodos com valor; algum incompleto = ano incompleto);
+ *    ano) ou 'media' (média dos períodos com valor; algum incompleto = ano incompleto). Com 'ultimo',
+ *    se a fonte vencedora só tem períodos (Q/M) que terminam ANTES do período mais recente que outra
+ *    fonte da lista tem no ano, vale o mais recente (empate = prioridade): um 4º tri do provedor
+ *    ainda em revisão não faz o ano usar o 1º tri dele no lugar do 4º tri da CVM. FY nunca é trocado;
  *  - unidade: o ponto vem na unidade do catálogo (BRL em reais); a saída fica na unidade dos
  *    critérios (BRL → R$ mi, ESCALA_CRITERIO).
  * escolherSerieJanela decide a serieFallback pela JANELA INTEIRA (nunca mistura séries entre anos):
@@ -65,6 +70,9 @@ export interface EntradaResolverSeries {
 interface ValorAno {
   valor: number | null;
   incompleto: boolean;
+  /** granularidade usada e dtFim do período mais recente dela no ano */
+  tipo: PeriodicidadeSerie;
+  dtFim: string;
 }
 
 const ORDEM_GRANULARIDADE: readonly PeriodicidadeSerie[] = ['FY', 'Q', 'M'];
@@ -100,20 +108,40 @@ function valorDoAno(
       .filter((p) => p.tipoPeriodo === tipo)
       .sort((a, b) => a.dtFim.localeCompare(b.dtFim));
     if (doTipo.length === 0) continue;
+    const ultimo = doTipo[doTipo.length - 1];
+    const base = { tipo, dtFim: ultimo.dtFim };
     if (tipo === 'FY' || agregacao === 'ultimo') {
-      const ultimo = doTipo[doTipo.length - 1];
       return ultimo.incompleto
-        ? { valor: null, incompleto: true }
-        : { valor: numeroOuInfinito(ultimo.valor), incompleto: false };
+        ? { ...base, valor: null, incompleto: true }
+        : { ...base, valor: numeroOuInfinito(ultimo.valor), incompleto: false };
     }
-    if (doTipo.some((p) => p.incompleto)) return { valor: null, incompleto: true };
+    if (doTipo.some((p) => p.incompleto)) return { ...base, valor: null, incompleto: true };
     const valores = doTipo.map((p) => p.valor).filter(finito);
     return {
+      ...base,
       valor: valores.length > 0 ? valores.reduce((a, v) => a + v, 0) / valores.length : null,
       incompleto: false,
     };
   }
   return undefined;
+}
+
+/**
+ * Fonte do ano entre os candidatos (já na ordem da prioridade): o primeiro COMPLETO; sem nenhum
+ * completo, o primeiro (incompleto). Com 'ultimo' e vencedor trimestral/mensal, um candidato
+ * completo seguinte com período mais recente no ano o substitui (o mais recente; empate = prioridade).
+ */
+function escolherCandidato<C extends { v: ValorAno }>(
+  candidatos: readonly C[],
+  agregacao: 'ultimo' | 'media',
+): C | undefined {
+  const completos = candidatos.filter((c) => !c.v.incompleto);
+  let escolhido = completos[0];
+  if (!escolhido) return candidatos[0];
+  if (agregacao === 'ultimo' && escolhido.v.tipo !== 'FY') {
+    for (const c of completos) if (c.v.dtFim > escolhido.v.dtFim) escolhido = c;
+  }
+  return escolhido;
 }
 
 /** Resolve as séries de UM ativo pela prioridade de fontes. Pura. */
@@ -145,15 +173,19 @@ export function resolverSeries(e: EntradaResolverSeries): ResultadoResolverSerie
     const valores: Record<number, number | null> = {};
     const orig: Record<number, OrigemSerie> = {};
     for (const ano of anos) {
+      // candidatos na ordem da prioridade
+      const candidatos: Array<{ fonte: IdFonte; v: ValorAno }> = [];
       for (const fonte of prioridade) {
         const pontosAno = porFonte.get(fonte)?.get(ano);
         if (!pontosAno || pontosAno.length === 0) continue;
         const v = valorDoAno(pontosAno, agregacao);
-        if (!v) continue;
-        valores[ano] = v.valor === null ? null : v.valor * escala;
-        orig[ano] = { fonte, serieUsada: serie, fallback: false, incompleto: v.incompleto };
-        break;
+        if (v) candidatos.push({ fonte, v });
       }
+      const escolhido = escolherCandidato(candidatos, agregacao);
+      if (!escolhido) continue;
+      const { fonte, v } = escolhido;
+      valores[ano] = v.valor === null ? null : v.valor * escala;
+      orig[ano] = { fonte, serieUsada: serie, fallback: false, incompleto: v.incompleto };
     }
     series[serie] = valores;
     origens[serie] = orig;

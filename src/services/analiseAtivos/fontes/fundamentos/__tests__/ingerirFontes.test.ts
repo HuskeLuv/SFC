@@ -376,14 +376,25 @@ describe("job 'fontes-fundamentos'", () => {
     const inc = mem.pontos.filter((p) => p.incompleto);
     expect(inc.map((p) => p.serie).sort()).toEqual(['net_income', 'revenue']);
     expect(inc.every((p) => p.valor === null && p.reviewStatus === 'approved')).toBe(true);
-    // no resolvedor: o provedor (à frente da CVM) marca o ano incompleto
+    // no resolvedor: o ponto incompleto do provedor (à frente da CVM) NÃO apaga a receita da CVM
     const res = resolverSeries({
       pontos: [...CVM_WEGE, ...mem.vigentes()],
       series: ['revenue'],
       fontes: fontesEfetivas(PARAMS),
     });
-    expect(res.series.revenue?.[2025]).toBeNull();
-    expect(res.origens.revenue?.[2025]).toMatchObject({ fonte: 'exemplo', incompleto: true });
+    expect(res.series.revenue?.[2025]).not.toBeNull();
+    expect(res.origens.revenue?.[2025]).toMatchObject({ fonte: 'cvm', incompleto: false });
+    // sem a CVM no ano, o ano fica incompleto (selo §6)
+    const soProvedor = resolverSeries({
+      pontos: mem.vigentes(),
+      series: ['revenue'],
+      fontes: fontesEfetivas(PARAMS),
+    });
+    expect(soProvedor.series.revenue?.[2025]).toBeNull();
+    expect(soProvedor.origens.revenue?.[2025]).toMatchObject({
+      fonte: 'exemplo',
+      incompleto: true,
+    });
   });
 
   it('FII: vacância trimestral e qualidade (default_pct/ltv_avg) gravadas pelo gerador', async () => {
