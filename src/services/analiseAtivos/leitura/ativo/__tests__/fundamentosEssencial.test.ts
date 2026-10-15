@@ -7,8 +7,13 @@ const mockPrisma = vi.hoisted(() => ({
   assetMultiplesCurrent: { findUnique: vi.fn() },
   fiiQuarterly: { findMany: vi.fn() },
   fiiMonthly: { findMany: vi.fn() },
+  assetFundamentalsSerie: { findMany: vi.fn() },
 }));
-const mockLeitor = vi.hoisted(() => ({ obterLinhaQuadro: vi.fn(), versaoQuadro: vi.fn() }));
+const mockLeitor = vi.hoisted(() => ({
+  obterLinhaQuadro: vi.fn(),
+  versaoQuadro: vi.fn(),
+  obterCriteriaParamsQuadro: vi.fn(),
+}));
 const mockAcoes = vi.hoisted(() => ({ fundamentosVigentes: vi.fn() }));
 vi.mock('@/lib/prisma', () => ({ prisma: mockPrisma, default: mockPrisma }));
 vi.mock('@/services/analiseAtivos/leitura/linhasQuadro', () => mockLeitor);
@@ -20,6 +25,7 @@ import {
   montarFundamentosAcao,
   montarFundamentosFii,
   obterFundamentosEssencial,
+  regrasEssencialDe,
   type EntradaFundamentosAcao,
   type EntradaFundamentosFii,
   type TrimestreFii,
@@ -32,6 +38,8 @@ import { MOTIVO_PER_SHARE } from '@/services/analiseAtivos/regras/conferencia/co
 import { TEXTOS_RAIO_X } from '@/services/analiseAtivos/textosRaioX';
 import fixtures from '@/test/fixtures/analiseAtivos/raio-x-dev.json';
 import type { Estado, FundamentosResposta } from '@/types/analiseAtivosApi';
+import { CRITERIA_PARAMS_V1 } from '@/services/analiseAtivos/params/criteriaParamsV1';
+import { CRITERIA_PARAMS_V2 } from '@/services/analiseAtivos/params/criteriaParamsV2';
 
 const HOJE = '2026-10-02';
 const TF = TEXTOS_TELA.analise.fundamentos;
@@ -159,7 +167,10 @@ describe('montarFundamentosAcao', () => {
     expect(r.colunas.find((c) => c.codigo === 'lucro')?.rotulo).toBe('Lucro descontado ⓘ');
     expect(r.colunas.find((c) => c.codigo === 'margem')?.rotulo).toBe('Margem descontada ⓘ');
     expect(r.unidade).toBe('R$ bi');
-    expect(r.observacoes[0]).toBe(TE.unidadeAcao);
+    // v2.5: a linha de unidade sem o 'fonte: CVM' fixo; a fonte vem das origens
+    expect(r.observacoes[0]).toBe(TE.unidadeAcaoSemFonte);
+    expect(r.textoFonte).toBe('Fonte: DFP/ITR (CVM).');
+    expect(r.dadosIncompletos).toBeUndefined();
   });
 
   it('valores em R$ bi e lucro atribuível', () => {
@@ -240,9 +251,10 @@ describe('montarFundamentosAcao', () => {
     expect(valor(linha(r, '2025').valores.margem)).toBeCloseTo(17.3333, 3);
   });
 
-  it('margem: receita ≤ lucro (holding / banco no individual) = não se aplica, nunca 148,8%', () => {
-    const r = montarFundamentosAcao(
+  it('margem: receita ≤ lucro (holding) = o valor (literal da spec, v2); "—" com sem_dado', () => {
+    const entrada = (receitaMenorQueLucro: 'valor' | 'sem_dado') =>
       entradaWege({
+        regras: { naoSeAplicaFinanceira: [], notaFinanceira: false, receitaMenorQueLucro },
         fys: ANOS.map((a) =>
           periodo(a, { receita: 30_680e6, lucroLiquido: 45_659e6, lucroAtribuivel: 45_659e6 }),
         ),
@@ -255,16 +267,20 @@ describe('montarFundamentosAcao', () => {
           margemLiquidaPct: null,
           payoutPct: 50,
         })),
-      }),
-      V24,
-    );
-    expect(linha(r, '2025').valores.margem).toMatchObject({
-      estado: 'nao_se_aplica',
-      motivo: 'receita_menor_que_lucro',
+      });
+    // v2 (padrão = CRITERIA_PARAMS_CODIGO): 45.659 ÷ 30.680 = 148,8%
+    const r = montarFundamentosAcao(entrada('valor'), V24);
+    expect(valor(linha(r, '2025').valores.margem)).toBeCloseTo(148.82, 1);
+    const padrao = montarFundamentosAcao({ ...entrada('valor'), regras: undefined }, V24);
+    expect(valor(linha(padrao, '2025').valores.margem)).toBeCloseTo(148.82, 1);
+    const semDado = montarFundamentosAcao(entrada('sem_dado'), V24);
+    expect(linha(semDado, '2025').valores.margem).toMatchObject({
+      estado: 'ausente',
+      texto: TE.tooltips.semDado,
     });
   });
 
-  it('receita 0 (holding sem receita própria, ex.: BBSE3) = não se aplica, nunca "R$ 0,0 bi"', () => {
+  it('receita 0 (holding sem receita própria, ex.: BBSE3) = "—" com o tooltip, nunca "R$ 0,0 bi"', () => {
     const r = montarFundamentosAcao(
       entradaWege({
         fys: ANOS.map((a) =>
@@ -282,10 +298,12 @@ describe('montarFundamentosAcao', () => {
       }),
       V24,
     );
+    // v2.5: '—' com 'sem dado nas demonstrações' (nunca 'não se aplica')
     for (const campo of ['receita', 'margem'] as const) {
-      expect(linha(r, '2025').valores[campo]).toMatchObject({
-        estado: 'nao_se_aplica',
-        motivo: 'receita_nao_positiva',
+      expect(linha(r, '2025').valores[campo]).toEqual({
+        estado: 'ausente',
+        motivo: 'sem_dado_fonte',
+        texto: TE.tooltips.semDado,
       });
     }
     // a receita marcada 'não se aplica' na ingestão também
@@ -293,7 +311,11 @@ describe('montarFundamentosAcao', () => {
       entradaWege({ fys: ANOS.map((a) => periodo(a, { naoSeAplica: ['receita'] })) }),
       V24,
     );
-    expect(linha(m, '2025').valores.receita).toMatchObject({ estado: 'nao_se_aplica' });
+    expect(linha(m, '2025').valores.receita).toMatchObject({
+      estado: 'ausente',
+      texto: TE.tooltips.semDado,
+    });
+    expect(JSON.stringify(r.linhas)).not.toContain('nao_se_aplica');
   });
 
   it('Div./ação > 2× o ano anterior com payout > 150%: selo de proventos em conferência + nota', () => {
@@ -312,18 +334,86 @@ describe('montarFundamentosAcao', () => {
     expect(r.linhas.every((l) => l.ano !== null)).toBe(true);
   });
 
-  it('ITUB4 (banco, D4): receita e margem ficam; EBITDA, DL e FCL saem; nota BR GAAP', () => {
+  const entradaItub = (over: Partial<EntradaFundamentosAcao> = {}) =>
+    entradaWege({
+      financeira: true,
+      fys: ANOS.map((a) => periodo(a, { escopo: 'ind', padraoContabil: 'BRGAAP' })),
+      ttm: periodo(2026, {
+        tipoPeriodo: 'TTM',
+        escopo: 'ind',
+        padraoContabil: 'BRGAAP',
+        dtFim: '2026-06-30',
+      }),
+      proventosEmConferencia: false,
+      ...over,
+    });
+
+  it('ITUB4 (banco, v2.5): as 14 colunas da §3.2 na ordem, "—" com tooltip onde falta dado', () => {
+    const r = montarFundamentosAcao(entradaItub(), V24);
+    expect(r.colunas.map((c) => c.codigo)).toEqual([
+      'receita',
+      'ebitda',
+      'lucro',
+      'margem',
+      'dl',
+      'dlEbitda',
+      'fclCapex',
+      'roe',
+      'lpa',
+      'dpa',
+      'payout',
+      'pl',
+      'pvp',
+      'dy',
+    ]);
+    expect(valor(linha(r, '2025').valores.receita)).toBe(37.5);
+    // banco (layout sem EBIT nem dívida): '—' com 'sem dado nas demonstrações', nunca n/a
+    for (const c of ['ebitda', 'dl', 'dlEbitda', 'fclCapex'] as const) {
+      expect(linha(r, '2025').valores[c]).toEqual({
+        estado: 'ausente',
+        motivo: 'sem_dado_fonte',
+        texto: TE.tooltips.semDado,
+      });
+    }
+    expect(JSON.stringify(r.linhas)).not.toContain('nao_se_aplica');
+    expect(r.padraoContabil).toBe('BRGAAP');
+    expect(r.escopo).toBe('ind');
+    expect(r.observacoes).toContain('Padrão contábil: individual BR GAAP.');
+    // notaFinanceira atrás de acao_financeira.notaEssencial (false na v2)
+    expect(r.observacoes).not.toContain(TE.notaFinanceira);
+  });
+
+  it('holding de layout industrial (ITSA4): EBITDA, DL e FCL/CAPEX com valor', () => {
     const r = montarFundamentosAcao(
-      entradaWege({
-        financeira: true,
-        fys: ANOS.map((a) => periodo(a, { escopo: 'ind', padraoContabil: 'BRGAAP' })),
-        ttm: periodo(2026, {
-          tipoPeriodo: 'TTM',
-          escopo: 'ind',
-          padraoContabil: 'BRGAAP',
-          dtFim: '2026-06-30',
-        }),
-        proventosEmConferencia: false,
+      entradaItub({
+        fys: ANOS.map((a) =>
+          periodo(a, {
+            ebit: 2_000e6,
+            depreciacaoAmortizacao: 500e6,
+            dividaBrutaLp: 3_000e6,
+            caixa: 500e6,
+            fco: 4_000e6,
+            capex: 1_000e6,
+          }),
+        ),
+      }),
+      V24,
+    );
+    const v = linha(r, '2025').valores;
+    expect(valor(v.ebitda)).toBe(2.5);
+    expect(valor(v.dl)).toBe(2.5);
+    expect(valor(v.dlEbitda)).toBe(1);
+    expect(valor(v.fclCapex)).toBe(3);
+  });
+
+  it('D4 religado por params: EBITDA, DL e FCL "não se aplica" (colunas saem) e a nota volta', () => {
+    const r = montarFundamentosAcao(
+      entradaItub({
+        regras: {
+          naoSeAplicaFinanceira: ['ebitda', 'dl', 'fcl'],
+          notaFinanceira: true,
+          receitaMenorQueLucro: 'sem_dado',
+        },
       }),
       V24,
     );
@@ -339,13 +429,63 @@ describe('montarFundamentosAcao', () => {
       'pvp',
       'dy',
     ]);
-    expect(valor(linha(r, '2025').valores.receita)).toBe(37.5);
     expect(linha(r, '2025').valores.ebitda.estado).toBe('nao_se_aplica');
     expect(linha(r, '2025').valores.fclCapex.estado).toBe('nao_se_aplica');
-    expect(r.padraoContabil).toBe('BRGAAP');
-    expect(r.escopo).toBe('ind');
-    expect(r.observacoes).toContain('Padrão contábil: individual BR GAAP.');
     expect(r.observacoes).toContain(TE.notaFinanceira);
+  });
+
+  it('regrasEssencialDe: v2 = n de 6 sem nota e margem literal; v1 = D4', () => {
+    expect(regrasEssencialDe(CRITERIA_PARAMS_V2)).toEqual({
+      naoSeAplicaFinanceira: [],
+      notaFinanceira: false,
+      receitaMenorQueLucro: 'valor',
+    });
+    expect(regrasEssencialDe(CRITERIA_PARAMS_V1).naoSeAplicaFinanceira).toEqual([
+      'ebitda',
+      'dl',
+      'fcl',
+    ]);
+  });
+
+  it('lucro descontado: sem ponto do provedor, lucro líquido com a marca fallback (ⓘ)', () => {
+    const r = montarFundamentosAcao(entradaWege(), V24);
+    const l = linha(r, '2025');
+    expect(valor(l.valores.lucro)).toBe(6.5);
+    expect(l.marcas?.lucro).toEqual({ fallback: true });
+    expect(l.marcas?.margem).toEqual({ fallback: true });
+    // Últ. 12m também (a fonte entrega o descontado por ano fiscal)
+    expect(r.linhas[r.linhas.length - 1].marcas?.lucro).toEqual({ fallback: true });
+  });
+
+  it('lucro descontado: com ponto aprovado do provedor, usa o descontado e a nota cita a fonte', () => {
+    const origem = (incompleto = false) => ({
+      fonte: 'provedor_x',
+      serieUsada: 'net_income_adjusted' as const,
+      fallback: false,
+      incompleto,
+    });
+    const r = montarFundamentosAcao(
+      entradaWege({
+        // R$ mi (unidade dos critérios): 6.000 mi = 6,0 bi
+        descontado: {
+          valores: { 2024: 5_200, 2025: 6_000, 2023: null },
+          origens: { 2024: origem(), 2025: origem(), 2023: origem(true) },
+        },
+        rotulosFontes: { provedor_x: 'Provedor X' },
+      }),
+      V24,
+    );
+    const l25 = linha(r, '2025');
+    expect(valor(l25.valores.lucro)).toBe(6);
+    // margem descontada = descontado ÷ receita (6.000 ÷ 37.500 = 16%), não o múltiplo de 12%
+    expect(valor(l25.valores.margem)).toBe(16);
+    expect(l25.marcas?.lucro).toEqual({ fonte: 'provedor_x' });
+    // ano sem o descontado: lucro líquido com ⓘ
+    expect(linha(r, '2022').marcas?.lucro).toEqual({ fallback: true });
+    // ponto incompleto: lucro líquido com ⓘ + incompleto, e o selo do card
+    expect(linha(r, '2023').marcas?.lucro).toEqual({ fallback: true, incompleto: true });
+    expect(r.dadosIncompletos).toBe(true);
+    expect(r.textoFonte).toBe('Fonte: Provedor X · DFP/ITR (CVM).');
   });
 
   it('controladora_zero: usa o lucro do individual; sem individual, "—" com o motivo', () => {
@@ -652,6 +792,8 @@ describe('obterFundamentosEssencial', () => {
     );
     mockLeitor.obterLinhaQuadro.mockReset();
     mockLeitor.versaoQuadro.mockReset();
+    mockLeitor.obterCriteriaParamsQuadro.mockReset().mockResolvedValue(CRITERIA_PARAMS_V2);
+    mockPrisma.assetFundamentalsSerie.findMany.mockResolvedValue([]);
     mockAcoes.fundamentosVigentes.mockReset();
   });
 
@@ -683,6 +825,69 @@ describe('obterFundamentosEssencial', () => {
     const r2 = await obterFundamentosEssencial('WEGE3', HOJE);
     expect(r2?.cache).toBe(true);
     expect(mockPrisma.assetPerShareYearly.findMany).toHaveBeenCalledTimes(1);
+  });
+
+  it('v2.5: ponto APROVADO do provedor (na prioridade do params) vira o lucro descontado', async () => {
+    mockLeitor.obterLinhaQuadro.mockResolvedValue(
+      linhaQuadroDb({ symbol: 'WEGE3', cnpj: '84429695000111' }),
+    );
+    mockLeitor.versaoQuadro.mockResolvedValue('v-teste-desc');
+    mockLeitor.obterCriteriaParamsQuadro.mockResolvedValue({
+      ...CRITERIA_PARAMS_V2,
+      fontes: {
+        ...CRITERIA_PARAMS_V2.fontes!,
+        prioridade: {
+          padrao: ['cvm'],
+          porSerie: { net_income_adjusted: ['exemplo', 'cvm'] },
+        },
+      },
+    });
+    const e = entradaWege();
+    mockAcoes.fundamentosVigentes.mockResolvedValue([...e.fys, e.ttm]);
+    mockPrisma.assetPerShareYearly.findMany.mockResolvedValue(e.perShare);
+    mockPrisma.assetMultiplesYearly.findMany.mockResolvedValue(e.multiplos);
+    mockPrisma.assetMultiplesCurrent.findUnique.mockResolvedValue(e.atual);
+    mockPrisma.assetFundamentalsSerie.findMany.mockResolvedValue([
+      {
+        symbol: 'WEGE3',
+        serie: 'net_income_adjusted',
+        tipoPeriodo: 'FY',
+        anoFiscal: 2025,
+        dtFim: new Date('2025-12-31T00:00:00Z'),
+        valor: new Prisma.Decimal(6_000e6),
+        fonte: 'exemplo',
+        versao: 1,
+        incompleto: false,
+      },
+    ]);
+    const r = await obterFundamentosEssencial('WEGE3', HOJE);
+    expect(mockPrisma.assetFundamentalsSerie.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ reviewStatus: 'approved', symbol: { in: ['WEGE3'] } }),
+      }),
+    );
+    const l25 = linha(r!.dados, '2025');
+    expect(valor(l25.valores.lucro)).toBe(6);
+    expect(l25.marcas?.lucro).toEqual({ fonte: 'exemplo' });
+    expect(linha(r!.dados, '2024').marcas?.lucro).toEqual({ fallback: true });
+    expect(r!.dados.textoFonte).toBe('Fonte: Fonte de exemplo (teste) · DFP/ITR (CVM).');
+  });
+
+  it('v2.5: leitura dos params ou dos pontos falha → params do código e lucro líquido', async () => {
+    mockLeitor.obterLinhaQuadro.mockResolvedValue(
+      linhaQuadroDb({ symbol: 'WEGE3', cnpj: '84429695000111' }),
+    );
+    mockLeitor.versaoQuadro.mockResolvedValue('v-teste-falha');
+    mockLeitor.obterCriteriaParamsQuadro.mockRejectedValue(new Error('banco fora'));
+    mockPrisma.assetFundamentalsSerie.findMany.mockRejectedValue(new Error('tabela ausente'));
+    const e = entradaWege();
+    mockAcoes.fundamentosVigentes.mockResolvedValue([...e.fys, e.ttm]);
+    mockPrisma.assetPerShareYearly.findMany.mockResolvedValue(e.perShare);
+    mockPrisma.assetMultiplesYearly.findMany.mockResolvedValue(e.multiplos);
+    mockPrisma.assetMultiplesCurrent.findUnique.mockResolvedValue(e.atual);
+    const r = await obterFundamentosEssencial('WEGE3', HOJE);
+    expect(linha(r!.dados, '2025').marcas?.lucro).toEqual({ fallback: true });
+    expect(r!.dados.textoFonte).toBe('Fonte: DFP/ITR (CVM).');
   });
 
   it('FII: trimestres, desdobramentos e múltiplos do banco', async () => {

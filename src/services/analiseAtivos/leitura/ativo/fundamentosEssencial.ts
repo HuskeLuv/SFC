@@ -30,14 +30,43 @@
  *
  * As funções `montar*` são puras (testadas com os casos da spec); `obterFundamentosEssencial` lê o
  * banco e guarda o resultado em memória por ticker:versão do Quadro (TTL 30 min).
+ *
+ * v2.5 (fatia B; desenho final.mudancas_por_item "Financeiras" e "7 · Lucro descontado") — só o
+ * layout 'v24' (o legado, base do Raio-X, fica igual):
+ * - 'Lucro descontado' e 'Margem descontada' (§3.2): por CÉLULA, o net_income_adjusted aprovado de
+ *   um provedor (camada de fontes: lerPontosVigentes + resolverSeries, pela prioridade dos params)
+ *   quando existe; senão o lucro líquido dos controladores com a marca `fallback` (ⓘ com o tooltip
+ *   de textosAtivo.essencial.tooltips.fallbackLucro/fallbackMargem). A margem usa o mesmo numerador
+ *   da célula de lucro. Ponto incompleto da fonte = marca `incompleto` + selo 'dados incompletos'.
+ * - Financeiras (params v2: naoSeAplica vazio): as 14 colunas da §3.2 na ordem, com '—' e o tooltip
+ *   'sem dado nas demonstrações' onde falta dado (banco: EBITDA/DL nulos; holding de layout
+ *   industrial: com valor). Religar o D4 por params (naoSeAplica com ebitda/dl/fcl) volta o
+ *   'não se aplica' dessas colunas; notaFinanceira só com acao_financeira.notaEssencial.
+ * - Receita ≤ 0 = '—' com o mesmo tooltip (nunca 'não se aplica'); receita ≤ lucro segue
+ *   criterios.margem.receitaMenorQueLucro ('valor' na v2 = literal da spec; 'sem_dado' = '—').
+ * - Nota de fonte montada pelas origens (textoFonte: 'Fonte: ‹provedor› · DFP/ITR (CVM).') no
+ *   lugar do 'fonte: CVM' fixo da linha de unidade.
  */
 import { prisma } from '@/lib/prisma';
 import { getTtlCache } from '@/lib/simpleTtlCache';
+import { CRITERIA_PARAMS_CODIGO } from '@/services/analiseAtivos/params/criteriaParamsCodigo';
+import {
+  fontesEfetivas,
+  type CriteriaParams,
+} from '@/services/analiseAtivos/params/criteriaParamsSchema';
+import { resolverSeries } from '@/services/analiseAtivos/fontes/fundamentos/resolverSeries';
+import { rotulosFontes } from '@/services/analiseAtivos/fontes/fundamentos/registro';
+import { lerPontosVigentes } from '@/services/analiseAtivos/repositorio/fontesFundamentos';
+import { textoNotaFonte, type RotulosFonte } from '@/services/analiseAtivos/textosCriterios';
 import { fundamentosVigentes } from '@/services/analiseAtivos/repositorio/acoes';
 import { paraData, paraNumero } from '@/services/analiseAtivos/repositorio/conversao';
 import { lucroParaSequencia } from '@/services/analiseAtivos/regras/calculo/sequencias';
 import { proventosEmConferencia } from '@/services/analiseAtivos/regras/calculo/plausibilidadeProventos';
-import { obterLinhaQuadro, versaoQuadro } from '@/services/analiseAtivos/leitura/linhasQuadro';
+import {
+  obterCriteriaParamsQuadro,
+  obterLinhaQuadro,
+  versaoQuadro,
+} from '@/services/analiseAtivos/leitura/linhasQuadro';
 import {
   CAMPO_COLUNA_FUNDAMENTOS,
   flagsAnuaisConf,
@@ -69,9 +98,12 @@ import type {
   FormatoAnalise,
   FundamentosResposta,
   LinhaFundamentos,
+  MarcaCelulaEssencial,
   PontoSerieAnual,
   TipoSeloEstado,
 } from '@/types/analiseAtivosApi';
+import type { IdCriterio } from '@/types/analiseAtivosCriterios';
+import type { IdFonte, OrigemSerie } from '@/types/analiseAtivosFontes';
 
 export const TTL_ANALISE_MS = 30 * 60_000;
 export const MAX_ANOS_ESSENCIAL = 10;
@@ -261,6 +293,38 @@ export interface EntradaFundamentosAcao {
   proventosEmConferencia: boolean;
   /** bloco C: flags 'conf:' (linha + anos) e motivos; ausente = como hoje */
   conferencia?: ConferenciaEntrada;
+  /** v2.5: regras do Essencial vindas do criteria_params; ausente = CRITERIA_PARAMS_CODIGO */
+  regras?: RegrasEssencialAcao;
+  /**
+   * v2.5: lucro descontado (net_income_adjusted) resolvido pela camada de fontes, em R$ mi por ano
+   * fiscal, com a origem do ponto; ausente/sem o ano = a célula usa o lucro líquido (fallback).
+   */
+  descontado?: {
+    valores: Readonly<Record<number, number | null>>;
+    origens?: Readonly<Record<number, OrigemSerie>>;
+  };
+  /** v2.5: rótulos das fontes para a nota de fonte (registro); ausente = os ids */
+  rotulosFontes?: RotulosFonte;
+}
+
+/** Regras do Essencial de ações que vêm do criteria_params (v2.5; religáveis sem código). */
+export interface RegrasEssencialAcao {
+  /** ids do D4 que não se aplicam à financeira (v2: nenhum) */
+  naoSeAplicaFinanceira: readonly IdCriterio[];
+  /** nota 'não se aplicam a bancos…' (acao_financeira.notaEssencial; v2: false) */
+  notaFinanceira: boolean;
+  /** receita ≤ lucro (criterios.margem.receitaMenorQueLucro; v2: 'valor') */
+  receitaMenorQueLucro: 'valor' | 'sem_dado';
+}
+
+export function regrasEssencialDe(
+  p: Pick<CriteriaParams, 'perfis' | 'criterios'>,
+): RegrasEssencialAcao {
+  return {
+    naoSeAplicaFinanceira: p.perfis.acao_financeira.naoSeAplica,
+    notaFinanceira: p.perfis.acao_financeira.notaEssencial,
+    receitaMenorQueLucro: p.criterios.margem.receitaMenorQueLucro,
+  };
 }
 
 /**
@@ -294,31 +358,49 @@ export function fclCapexDe(f: FundamentosPeriodo): number | null {
   return (f.fco - f.capex) / f.capex;
 }
 
+/** Colunas do Essencial que cada critério do D4 tira da financeira (religado por params). */
+const COLUNAS_DO_CRITERIO_FINANCEIRA: Partial<Record<IdCriterio, readonly string[]>> = {
+  ebitda: ['ebitda'],
+  dl: ['dl', 'dlEbitda'],
+  fcl: ['fclCapex'],
+};
+
+/** Colunas 'não se aplica' da financeira pelos ids de naoSeAplica (v2: nenhuma). */
+export function colunasNaoSeAplicaFinanceira(ids: readonly IdCriterio[]): Set<string> {
+  return new Set(ids.flatMap((id) => COLUNAS_DO_CRITERIO_FINANCEIRA[id] ?? []));
+}
+
+/** '—' do Essencial v2.5 com o tooltip 'sem dado nas demonstrações'. */
+function semDadoEssencial(): Estado<number> {
+  return semDado(TE.tooltips.semDado);
+}
+
 /**
  * Colunas derivadas do demonstrativo (v2.4): EBITDA, dívida líquida, Dív. líq./EBITDA e FCL/CAPEX
- * em R$ bi / ×. Instituição financeira (D4): 'não se aplica'. EBITDA ≤ 0 ⇒ Dív. líq./EBITDA sem
- * número, com o motivo.
+ * em R$ bi / ×. EBITDA ≤ 0 ⇒ Dív. líq./EBITDA sem número, com o motivo. v2.5: só as colunas em
+ * `naoSeAplica` (financeira com o D4 religado por params) saem 'não se aplica'; o resto é calculado
+ * e, sem dado, '—' com o tooltip.
  */
 function derivadasDoPeriodo(
   f: FundamentosPeriodo,
-  financeira: boolean,
+  naoSeAplica: ReadonlySet<string>,
 ): Record<'ebitda' | 'dl' | 'dlEbitda' | 'fclCapex', Estado<number>> {
-  if (financeira) {
-    const naFin = naoSeAplicaCom('financeira');
-    return { ebitda: naFin, dl: naFin, dlEbitda: naFin, fclCapex: naFin };
-  }
   const ebitda = ebitdaDe(f);
   const dl = dividaLiquidaDe(f);
   let dlEbitda: Estado<number>;
-  if (ebitda === null || dl === null) dlEbitda = semDado();
+  if (ebitda === null || dl === null) dlEbitda = semDadoEssencial();
   else if (ebitda <= 0) dlEbitda = ausenteCom('ebitda_nao_positivo', TE.ebitdaNaoPositivo);
   else dlEbitda = ok(dl / ebitda);
-  return {
-    ebitda: estadoDe(emBilhoes(ebitda)),
-    dl: estadoDe(emBilhoes(dl)),
+  const valores = {
+    ebitda: estadoDe(emBilhoes(ebitda), TE.tooltips.semDado),
+    dl: estadoDe(emBilhoes(dl), TE.tooltips.semDado),
     dlEbitda,
-    fclCapex: estadoDe(fclCapexDe(f)),
+    fclCapex: estadoDe(fclCapexDe(f), TE.tooltips.semDado),
   };
+  for (const c of Object.keys(valores) as Array<keyof typeof valores>) {
+    if (naoSeAplica.has(c)) valores[c] = naoSeAplicaCom('financeira');
+  }
+  return valores;
 }
 
 /** Receita ≤ 0 ou marcada 'não se aplica' na ingestão (holding sem receita própria, ex.: BBSE3). */
@@ -326,29 +408,34 @@ function receitaNaoPositiva(f: Pick<FundamentosPeriodo, 'receita' | 'naoSeAplica
   return finito(f.receita) && (f.receita <= 0 || f.naoSeAplica.includes('receita'));
 }
 
-/** Receita do ano em R$ bi; ≤ 0 = 'não se aplica' (regraReceita dos múltiplos), nunca "R$ 0,0 bi". */
+/**
+ * Receita do ano em R$ bi; ≤ 0 = '—' com o tooltip 'sem dado nas demonstrações' (v2.5; a spec não
+ * dá número para receita inexistente), nunca "R$ 0,0 bi" nem 'não se aplica'.
+ */
 function receitaDe(f: Pick<FundamentosPeriodo, 'receita' | 'naoSeAplica'>): Estado<number> {
-  if (receitaNaoPositiva(f)) return naoSeAplicaCom('receita_nao_positiva');
-  return estadoDe(emBilhoes(f.receita));
+  if (receitaNaoPositiva(f)) return semDadoEssencial();
+  return estadoDe(emBilhoes(f.receita), TE.tooltips.semDado);
 }
 
 /**
- * Margem líquida do ano: o múltiplo gravado; sem ele, lucro ÷ receita (receita > 0). Receita ≤ lucro
- * (holding / banco no individual) = 'não se aplica' (regra 15), nunca a conta de lado: o múltiplo
- * vem nulo justamente por isso e a margem acima de 100% contradizia o card de critérios.
+ * Margem do ano (v2.5: 'Margem descontada'): o múltiplo gravado (só quando o numerador é o lucro
+ * líquido); sem ele, lucro ÷ receita (receita > 0). Receita ≤ lucro (holding / banco no individual)
+ * segue criterios.margem.receitaMenorQueLucro: 'valor' (literal da spec, margem > 100%) ou
+ * 'sem_dado' ('—').
  */
 function margemDe(
   pct: number | null | undefined,
   lucro: Estado<number>,
   receita: number | null,
+  receitaMenorQueLucro: 'valor' | 'sem_dado',
 ): Estado<number> {
   if (finito(pct)) return ok(pct);
   if (lucro.estado === 'ok' && finito(receita) && receita > 0) {
     const lucroReais = lucro.valor * 1e9;
-    if (receita <= lucroReais) return naoSeAplicaCom('receita_menor_que_lucro');
+    if (receita <= lucroReais && receitaMenorQueLucro === 'sem_dado') return semDadoEssencial();
     return ok((lucroReais / receita) * 100);
   }
-  return semDado();
+  return semDadoEssencial();
 }
 
 /** Anos (de série anual de proventos por ação) marcados como 'em conferência'. */
@@ -420,24 +507,86 @@ export function montarFundamentosAcao(
   const v24 = opts.layout === 'v24';
   const escala = v24 ? 1e9 : 1e6;
   const naFin = naoSeAplicaCom('financeira');
-  /** receita, margem e (v2.4) as colunas derivadas do período */
+  const regras = e.regras ?? regrasEssencialDe(CRITERIA_PARAMS_CODIGO);
+  const naColunas = e.financeira
+    ? colunasNaoSeAplicaFinanceira(regras.naoSeAplicaFinanceira)
+    : new Set<string>();
+  const fontesUsadas = new Set<IdFonte>(['cvm']);
+  let algumIncompleto = false;
+
+  /**
+   * v2.5: lucro e margem DESCONTADOS da célula — o net_income_adjusted do ano (provedor) quando
+   * existe; senão o lucro líquido (`lucroLiquido`) com a marca fallback.
+   */
+  const lucroEMargem = (
+    f: FundamentosPeriodo,
+    lucroLiquido: Estado<number>,
+    margemPct: number | null | undefined,
+    ano: number | null,
+  ): {
+    valores: Record<'lucro' | 'margem', Estado<number>>;
+    marcas: LinhaFundamentos['marcas'];
+  } => {
+    const semReceita = receitaNaoPositiva(f);
+    const desc = ano === null ? undefined : e.descontado?.valores[ano];
+    const origem = ano === null ? undefined : e.descontado?.origens?.[ano];
+    if (origem?.incompleto) algumIncompleto = true;
+    if (finito(desc)) {
+      const lucro = ok((desc * 1e6) / escala);
+      const fonte = origem?.fonte;
+      if (fonte) fontesUsadas.add(fonte);
+      const marca: MarcaCelulaEssencial = fonte ? { fonte } : {};
+      return {
+        valores: {
+          lucro,
+          margem: semReceita
+            ? semDadoEssencial()
+            : margemDe(null, lucro, f.receita, regras.receitaMenorQueLucro),
+        },
+        marcas: { lucro: marca, margem: marca },
+      };
+    }
+    const margem = semReceita
+      ? semDadoEssencial()
+      : margemDe(margemPct, lucroLiquido, f.receita, regras.receitaMenorQueLucro);
+    const marcaFallback = (v: Estado<number>): MarcaCelulaEssencial | undefined =>
+      v.estado === 'ok' || origem?.incompleto
+        ? { fallback: true, ...(origem?.incompleto ? { incompleto: true } : {}) }
+        : undefined;
+    const marcas: NonNullable<LinhaFundamentos['marcas']> = {};
+    const ml = marcaFallback(lucroLiquido);
+    const mm = marcaFallback(margem);
+    if (ml) marcas.lucro = ml;
+    if (mm) marcas.margem = mm;
+    return { valores: { lucro: lucroLiquido, margem }, marcas };
+  };
+
+  /** receita, (v2.4) as colunas derivadas do período e (v2.5) lucro/margem descontados */
   const colunasDoPeriodo = (
     f: FundamentosPeriodo,
     lucro: Estado<number>,
     margemPct: number | null | undefined,
-  ): Record<string, Estado<number>> =>
-    v24
-      ? {
-          receita: receitaDe(f),
-          ...derivadasDoPeriodo(f, e.financeira),
-          margem: receitaNaoPositiva(f)
-            ? naoSeAplicaCom('receita_nao_positiva')
-            : margemDe(margemPct, lucro, f.receita),
-        }
-      : {
+    ano: number | null,
+  ): { valores: Record<string, Estado<number>>; marcas?: LinhaFundamentos['marcas'] } => {
+    if (!v24) {
+      return {
+        valores: {
           receita: e.financeira ? naFin : estadoDe(emMilhoes(f.receita)),
           margem: e.financeira ? naFin : estadoDe(margemPct),
-        };
+          lucro,
+        },
+      };
+    }
+    const lm = lucroEMargem(f, lucro, margemPct, ano);
+    return {
+      valores: {
+        receita: receitaDe(f),
+        ...derivadasDoPeriodo(f, naColunas),
+        ...lm.valores,
+      },
+      marcas: lm.marcas && Object.keys(lm.marcas).length > 0 ? lm.marcas : undefined,
+    };
+  };
   const prejuizo = ausenteCom('prejuizo', TF.prejuizoNoAno);
   const fyPorAno = new Map<number, FundamentosPeriodo>();
   for (const f of e.fys) {
@@ -464,13 +613,13 @@ export function montarFundamentosAcao(
     const lucro = lucroEstado(f, escala);
     const emPrejuizo = lucro.estado === 'ok' && lucro.valor < 0;
     const suspeito = suspeitos.has(ano);
-    return {
+    const periodo = colunasDoPeriodo(f, lucro, m?.margemLiquidaPct, ano);
+    const linha: LinhaFundamentos = {
       rotulo: String(ano),
       ano,
       ultimoAno: i === anos.length - 1,
       valores: {
-        ...colunasDoPeriodo(f, lucro, m?.margemLiquidaPct),
-        lucro,
+        ...periodo.valores,
         roe: estadoDe(m?.roePct),
         lpa: estadoDe(ps?.lpaAjHoje),
         dpa: estadoDe(ps?.dpaAjHoje),
@@ -481,6 +630,8 @@ export function montarFundamentosAcao(
       },
       selos: suspeito ? [SELO_CONF] : [],
     };
+    if (periodo.marcas) linha.marcas = periodo.marcas;
+    return linha;
   });
 
   const ultimoFy = anos.length ? fyPorAno.get(anos[anos.length - 1])! : null;
@@ -493,13 +644,14 @@ export function montarFundamentosAcao(
     const conf = e.proventosEmConferencia;
     const prov = (n: number | null | undefined) =>
       conf && n == null ? semDado(TEXTOS_TELA.ausentesPorCampo.dyEmConferencia) : estadoDe(n);
-    linhas.push({
+    // Últ. 12m: a fonte entrega o descontado por ano fiscal ⇒ aqui sempre o lucro líquido
+    const periodo = colunasDoPeriodo(ttm, lucro, a?.margemLiquidaPct, null);
+    const linha: LinhaFundamentos = {
       rotulo: TEXTOS_TELA.ativo.ult12mTabela,
       ano: null,
       ultimoAno: false,
       valores: {
-        ...colunasDoPeriodo(ttm, lucro, a?.margemLiquidaPct),
-        lucro,
+        ...periodo.valores,
         roe: estadoDe(a?.roePct),
         lpa: estadoDe(a?.lpaTtm),
         dpa: prov(a?.dpa12m),
@@ -511,13 +663,17 @@ export function montarFundamentosAcao(
         dy: prov(a?.dy12mPct),
       },
       selos: conf ? [SELO_CONF] : [],
-    });
+    };
+    if (periodo.marcas) linha.marcas = periodo.marcas;
+    linhas.push(linha);
   }
 
   const padraoContabil = ultimoFy?.padraoContabil ?? null;
   const escopo = ultimoFy?.escopo ?? null;
-  const notas: string[] = [v24 ? TE.unidadeAcao : TEXTOS_TELA.ativo.unidadeFundamentos];
-  if (e.financeira) notas.push(v24 ? TE.notaFinanceira : TF.notaFinanceira);
+  const notas: string[] = [v24 ? TE.unidadeAcaoSemFonte : TEXTOS_TELA.ativo.unidadeFundamentos];
+  if (e.financeira && (v24 ? regras.notaFinanceira : true)) {
+    notas.push(v24 ? TE.notaFinanceira : TF.notaFinanceira);
+  }
   if (padraoContabil === 'BRGAAP' || escopo === 'ind') {
     const t = textoPadrao(escopo, padraoContabil);
     if (t) notas.push(formatarTexto(TF.notaPadraoContabil, { valor: t }));
@@ -531,7 +687,7 @@ export function montarFundamentosAcao(
   const linhasConf = linhas.map((l) =>
     conferirPerShare(conferirLinha(l, 'acao', e.conferencia), COLUNAS_PER_SHARE.acao, perShareConf),
   );
-  return {
+  const resposta: FundamentosResposta = {
     nivel: 'essencial',
     unidade: v24 ? 'R$ bi' : 'R$ mi',
     fonte: 'CVM',
@@ -542,6 +698,11 @@ export function montarFundamentosAcao(
     linhas: linhasConf,
     observacoes: notas,
   };
+  if (v24) {
+    resposta.textoFonte = textoNotaFonte('acao', [...fontesUsadas], e.rotulosFontes);
+    if (algumIncompleto) resposta.dadosIncompletos = true;
+  }
+  return resposta;
 }
 
 // ---------------------------------------------------------------------------
@@ -854,6 +1015,30 @@ export function anoInicioLeitura(hoje: string): number {
   return anoDe(hoje) - MAX_ANOS_ESSENCIAL - 2;
 }
 
+/** criteria_params vigentes (cache do Quadro); falha = os do código (o Essencial nunca quebra). */
+async function lerParamsEssencial(): Promise<CriteriaParams> {
+  try {
+    return await obterCriteriaParamsQuadro();
+  } catch {
+    return CRITERIA_PARAMS_CODIGO;
+  }
+}
+
+/**
+ * Pontos aprovados do lucro descontado (net_income_adjusted) do ticker, de qualquer fonte (a
+ * prioridade do params decide no resolverSeries). Falha de leitura = nenhum ponto (fallback).
+ */
+async function lerDescontado(
+  symbol: string,
+  desdeAno: number,
+): ReturnType<typeof lerPontosVigentes> {
+  try {
+    return await lerPontosVigentes(prisma, [symbol], ['net_income_adjusted'], desdeAno);
+  } catch {
+    return [];
+  }
+}
+
 /** null = ticker fora da área (a rota responde 404). */
 export async function obterFundamentosEssencial(
   ticker: string,
@@ -941,7 +1126,7 @@ export async function obterFundamentosEssencial(
       conferencia: { flags: linha.flags, motivos: linha.motivosIncompleto },
     });
   } else {
-    const [periodos, ps, my, mc] = await Promise.all([
+    const [periodos, ps, my, mc, params, pontosDescontado] = await Promise.all([
       fundamentosVigentes(prisma, [linha.cnpj], { tipos: ['FY', 'TTM'], desde }),
       prisma.assetPerShareYearly.findMany({
         where: { symbol, anoFiscal: { gte: desdeAno } },
@@ -980,7 +1165,14 @@ export async function obterFundamentosEssencial(
           dpa12m: true,
         },
       }),
+      lerParamsEssencial(),
+      lerDescontado(symbol, desdeAno),
     ]);
+    const descontado = resolverSeries({
+      pontos: pontosDescontado,
+      series: ['net_income_adjusted'],
+      fontes: fontesEfetivas(params),
+    });
     const ttms = periodos
       .filter((p) => p.tipoPeriodo === 'TTM')
       .sort((a, b) => a.dtFim.localeCompare(b.dtFim));
@@ -998,6 +1190,12 @@ export async function obterFundamentosEssencial(
           flags: [...linha.flags, ...flagsAnuaisConf(my)],
           motivos: linha.motivosIncompleto,
         },
+        regras: regrasEssencialDe(params),
+        descontado: {
+          valores: descontado.series.net_income_adjusted ?? {},
+          origens: descontado.origens.net_income_adjusted,
+        },
+        rotulosFontes: rotulosFontes(),
       },
       { layout: 'v24' },
     );
