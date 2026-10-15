@@ -15,9 +15,14 @@
  * (ação) e o tipo de FII da posição — a recompra pelo modal "Registrar operação" manda a MESMA seção
  * sem perguntar; `planejados[t]` traz `id` (PATCH/DELETE de /api/carteira/planejados/[id]) e a
  * `secao` do plano (a 1ª compra de um planejado preserva a seção escolhida ao planejar).
+ *
+ * v2.5 (fatia C): `alvos[t]` = alvo do "Planejar na carteira" (planning_asset_targets, % da carteira
+ * TOTAL) — acende o chip 'Planejado' e o 'Ajustar plano'. Independe de posição e de Watchlist; o
+ * Objetivo da aba (posicoes[t].objetivoPct / planejados[t].objetivoPct) continua só informativo.
  */
 import prisma from '@/lib/prisma';
 import { categoriaEfetiva } from '@/services/portfolio/itemValuation';
+import { alvosPorTicker } from '@/services/analiseAtivos/carteira/alvosAtivo';
 import type { OverlayCarteiraResposta } from '@/types/analiseAtivosApi';
 
 interface AssetOverlay {
@@ -46,7 +51,7 @@ const objetivoOuNull = (v: number | null | undefined): number | null =>
   typeof v === 'number' && Number.isFinite(v) && v > 0 ? v : null;
 
 export async function overlayCarteira(userId: string): Promise<OverlayCarteiraResposta> {
-  const [posicoes, planejados] = await Promise.all([
+  const [posicoes, planejados, alvos] = await Promise.all([
     prisma.portfolio.findMany({
       where: { userId, quantity: { gt: 0 }, assetId: { not: null } },
       select: {
@@ -70,9 +75,10 @@ export async function overlayCarteira(userId: string): Promise<OverlayCarteiraRe
       },
       orderBy: { addedAt: 'asc' },
     }),
+    alvosPorTicker(userId),
   ]);
 
-  const resposta: OverlayCarteiraResposta = { posicoes: {}, planejados: {} };
+  const resposta: OverlayCarteiraResposta = { posicoes: {}, planejados: {}, alvos };
   const comPosicao = new Set<string>();
 
   for (const p of posicoes) {
