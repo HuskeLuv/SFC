@@ -4,6 +4,7 @@ import {
   valorEm,
   dropCurrentDay,
   retornoUltimoDia,
+  diasUteisDefasados,
 } from '../RentabilidadeResumo';
 
 const day = (offsetDias: number): number => {
@@ -144,5 +145,25 @@ describe('retornoUltimoDia — último ponto fechado vs o anterior', () => {
   it('série com menos de 2 pontos devolve 0', () => {
     expect(retornoUltimoDia([])).toBe(0);
     expect(retornoUltimoDia([{ date: dayUtc(-1), value: 5 }])).toBe(0);
+  });
+});
+
+describe('diasUteisDefasados — dias úteis B3 fechados sem ponto novo (data de Brasília)', () => {
+  const sex0910 = Date.UTC(2026, 9, 9);
+
+  it('feriado prolongado não é atraso: sexta 09/10 vista na terça 13/10 22:55 (14/10 01:55 UTC) → 0', () => {
+    expect(diasUteisDefasados(sex0910, Date.UTC(2026, 9, 14, 1, 55))).toBe(0);
+  });
+
+  it('na quarta 14/10 de manhã, antes do snapshot, a terça 13/10 já conta → 1', () => {
+    expect(diasUteisDefasados(sex0910, Date.UTC(2026, 9, 14, 10, 0))).toBe(1);
+  });
+
+  it('o dia de hoje não conta (ainda não fechou)', () => {
+    expect(diasUteisDefasados(Date.UTC(2026, 9, 13), Date.UTC(2026, 9, 14, 15, 0))).toBe(0);
+  });
+
+  it('atraso real de uma semana útil → 5', () => {
+    expect(diasUteisDefasados(sex0910, Date.UTC(2026, 9, 20, 15, 0))).toBe(5);
   });
 });
