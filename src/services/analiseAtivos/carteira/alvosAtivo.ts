@@ -17,12 +17,15 @@ import type { AlvoAtivoApi } from '@/types/analiseAtivosApi';
 
 export const ALVO_MAX_PCT = 100;
 
-/** PUT {targetPct}: número finito, 0 < x ≤ 100, até 3 casas (Decimal(6,3)); campo extra = 400. */
+/**
+ * PUT {targetPct}: número finito, 0,001 ≤ x ≤ 100, até 3 casas (Decimal(6,3)); campo extra = 400.
+ * O piso é 0,001 (e não > 0) para o arredondamento a 3 casas nunca gravar um alvo de 0%.
+ */
 export const AlvoPutSchema = z
   .object({
     targetPct: z
       .number({ error: 'Informe o peso-alvo em %' })
-      .gt(0, { message: 'O peso-alvo precisa ser maior que 0%' })
+      .min(0.001, { message: 'O peso-alvo precisa ser maior que 0%' })
       .max(ALVO_MAX_PCT, { message: 'O peso-alvo pode ser no máximo 100%' }),
   })
   .strict();
