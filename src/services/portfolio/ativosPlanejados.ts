@@ -327,7 +327,13 @@ export async function absorverPlanejadoNaCompra(
   tx: TxLike,
   userId: string,
   assetId: string,
-): Promise<{ objetivo: number; secao: string | null; categoriaOverride: string | null } | null> {
+): Promise<{
+  objetivo: number;
+  secao: string | null;
+  categoriaOverride: string | null;
+  /** Linha apagada, intacta: vai pro snapshot do histórico p/ o desfazer da compra recriá-la. */
+  linha: Watchlist;
+} | null> {
   const planejado = await tx.watchlist.findFirst({ where: { userId, assetId } });
   if (!planejado) return null;
   await tx.watchlist.delete({ where: { id: planejado.id } });
@@ -335,5 +341,6 @@ export async function absorverPlanejadoNaCompra(
     objetivo: planejado.objetivo,
     secao: planejado.secao,
     categoriaOverride: planejado.categoriaOverride ?? null,
+    linha: planejado,
   };
 }

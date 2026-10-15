@@ -40,6 +40,45 @@ export function buildPlanejadoSnapshot(row: Watchlist): ChangeSnapshot {
   };
 }
 
+/** `data` do snapshot de planejado (buildPlanejadoSnapshot). */
+export interface PlanejadoSnapshotData {
+  id: string;
+  assetId: string;
+  objetivo: number;
+  secao: string | null;
+  categoriaOverride?: string | null;
+  notes: string | null;
+  addedAt?: string;
+}
+
+/**
+ * Compra (operacao.registrar) que ABSORVEU um planejado (absorverPlanejadoNaCompra):
+ * o snapshot da entrada carrega a linha apagada para o desfazer da compra recriá-la.
+ * Sem outro snapshot → o próprio snapshot de planejado; com o do Caixa para Investir
+ * → vai em `meta.planejadoAbsorvido` (o `data` do caixa fica intacto).
+ */
+export function comPlanejadoAbsorvido(
+  snapshot: ChangeSnapshot | undefined,
+  linha: Watchlist | null | undefined,
+): ChangeSnapshot | undefined {
+  if (!linha) return snapshot;
+  const planejado = buildPlanejadoSnapshot(linha);
+  if (!snapshot) return planejado;
+  return { ...snapshot, meta: { ...snapshot.meta, planejadoAbsorvido: planejado.data } };
+}
+
+/** Inverso de comPlanejadoAbsorvido. Entradas antigas (sem o planejado) → null. */
+export function planejadoAbsorvidoDoSnapshot(
+  snapshot: ChangeSnapshot | null | undefined,
+): PlanejadoSnapshotData | null {
+  if (!snapshot) return null;
+  const data =
+    snapshot.kind === PLANEJADO_SNAPSHOT_KIND ? snapshot.data : snapshot.meta?.planejadoAbsorvido;
+  if (!data || typeof data !== 'object') return null;
+  const planejado = data as Partial<PlanejadoSnapshotData>;
+  return planejado.id && planejado.assetId ? (planejado as PlanejadoSnapshotData) : null;
+}
+
 type Auth = RecordChangeParams['auth'];
 type AssetLabel = Pick<Asset, 'symbol' | 'name' | 'source'> | null | undefined;
 

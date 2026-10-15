@@ -261,6 +261,8 @@ describe('helpers de planejado com override', () => {
       objetivo: 5,
       secao: 'fiagro',
       categoriaOverride: 'fimFia',
+      // linha intacta: vai pro snapshot do histórico (desfazer da compra recria o planejado)
+      linha: expect.objectContaining({ id: '1', categoriaOverride: 'fimFia' }),
     });
     expect(mockPrisma.watchlist.delete).toHaveBeenCalledWith({ where: { id: '1' } });
   });

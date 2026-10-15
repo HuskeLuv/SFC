@@ -17,7 +17,7 @@ import { prisma } from '@/lib/prisma';
 import { logDataUpdate } from '@/services/impersonationLogger';
 import { isTipoAtivoPermitido } from '@/types/wizard';
 import { isDataFutura } from '@/utils/formatDate';
-import { FixedIncomeType } from '@prisma/client';
+import { FixedIncomeType, type Watchlist } from '@prisma/client';
 import { z } from 'zod';
 import { validationError } from '@/utils/validation-schemas';
 
@@ -42,6 +42,7 @@ import {
   diffFields,
   assetEntityLabel,
   TRANSACTION_FIELD_LABELS,
+  comPlanejadoAbsorvido,
 } from '@/services/changeHistory';
 import { syncSonhoRealizadoBestEffort } from '@/services/planejamento/carteiraToSonhoRealizado';
 import { aplicarVinculoPlanejamento, vinculoPlanejamentoFields } from '@/utils/planejamentoVinculo';
@@ -2256,6 +2257,8 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
       ? await resolverCaixaAba(targetUserId, asset, { tesouroDestino })
       : null;
   let movimentoCaixa: MovimentoCaixa | null = null;
+  // Planejado absorvido pela compra: vai pro snapshot do histórico (desfazer recria).
+  let planejadoAbsorvidoLinha: Watchlist | null = null;
 
   // Transação de compra + Portfolio/FI no MESMO $transaction: falha em
   // qualquer passo desfaz tudo — o retry do usuário não acumula compras órfãs.
@@ -2347,6 +2350,7 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
         // Ativo PLANEJADO (sem posição) virando posição: herda o objetivo e a
         // seção definidos no planejamento e a linha planejada some (16/09/2026).
         const planejadoAbsorvido = await absorverPlanejadoNaCompra(tx, targetUserId, asset!.id);
+        planejadoAbsorvidoLinha = planejadoAbsorvido?.linha ?? null;
         const secaoPlanejada = planejadoAbsorvido?.secao ?? null;
         // Planejado que o usuário MOVEU de aba (mover na Carteira): a posição
         // nasce na aba escolhida, com a seção na coluna do subgrupo dela.
@@ -2552,9 +2556,10 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
     entityId: transacao.id,
     entityLabel: assetEntityLabel(asset) ?? ativoNome ?? undefined,
     changes: diffFields({}, transacao, TRANSACTION_FIELD_LABELS),
-    ...(movimentouCaixa(movimentoCaixa)
-      ? { snapshot: buildCaixaMovimentoSnapshot(movimentoCaixa) }
-      : {}),
+    snapshot: comPlanejadoAbsorvido(
+      movimentouCaixa(movimentoCaixa) ? buildCaixaMovimentoSnapshot(movimentoCaixa) : undefined,
+      planejadoAbsorvidoLinha,
+    ),
   });
 
   const result = NextResponse.json(

@@ -25,6 +25,7 @@ import { syncSonhoRealizadoBestEffort } from '@/services/planejamento/carteiraTo
 import { invalidarContextoUsuario } from '@/services/assistente/contexto';
 import { MOVER_ACTIONS, type MoverSnapshotEstado } from '@/lib/carteiraMover';
 import { MOVER_SNAPSHOT_KIND } from '../../moverHelpers';
+import { planejadoAbsorvidoDoSnapshot, type PlanejadoSnapshotData } from '../../planejadoHelpers';
 import { ACAO_DESTINO_IMPORTACAO } from '@/lib/pluggyDestinos';
 import { overrideDaVenda } from '@/services/cashflow/investimentosPorMes';
 import { UndoError, type UndoContext, type UndoDefinition, type UndoOutcome } from '../types';
@@ -139,6 +140,46 @@ async function recreateFixedIncomeIfMissing(
       tesouroMaturity: fi.tesouroMaturity ? new Date(fi.tesouroMaturity) : null,
     },
   });
+}
+
+/** Recria o planejado (MESMO id — o histórico dele volta a casar) a partir do snapshot. */
+async function recreatePlanejado(userId: string, data: PlanejadoSnapshotData): Promise<void> {
+  await prisma.watchlist.create({
+    data: {
+      id: data.id,
+      userId,
+      assetId: data.assetId,
+      objetivo: data.objetivo,
+      secao: data.secao,
+      ...(data.categoriaOverride ? { categoriaOverride: data.categoriaOverride } : {}),
+      notes: data.notes,
+      ...(data.addedAt ? { addedAt: new Date(data.addedAt) } : {}),
+    },
+  });
+}
+
+/**
+ * Desfazer de uma compra que ABSORVEU um planejado (absorverPlanejadoNaCompra):
+ * sem posição restante, o planejado volta como estava. Se ainda há posição
+ * (outras compras do ativo) ou o ativo já foi planejado de novo, não recria —
+ * planejado e posição não coexistem, e o desfazer da compra não falha por isso.
+ */
+async function restaurarPlanejadoAbsorvido(
+  userId: string,
+  assetId: string,
+  data: PlanejadoSnapshotData,
+): Promise<void> {
+  if (data.assetId !== assetId) return;
+  const posicao = await prisma.portfolio.findFirst({
+    where: { userId, assetId },
+    select: { id: true },
+  });
+  if (posicao) return;
+  try {
+    await recreatePlanejado(userId, data);
+  } catch (error: unknown) {
+    if (!isUniqueViolation(error)) throw error;
+  }
 }
 
 async function recreateTransacao(userId: string, tx: SnapshotTransacao): Promise<void> {
@@ -567,13 +608,20 @@ const adicaoRegistrada: UndoDefinition = {
       await invalidatePortfolioSnapshots(auth.targetUserId, snapshotCutoff);
     }
 
+    // Compra que absorveu um ativo PLANEJADO: o planejado volta (mesmo id,
+    // objetivo, seção, aba). Entradas antigas não trazem o snapshot → no-op.
+    const snap = getSnapshot(entry);
+    const planejadoAbsorvido = planejadoAbsorvidoDoSnapshot(snap);
+    if (planejadoAbsorvido && transaction.assetId) {
+      await restaurarPlanejadoAbsorvido(auth.targetUserId, transaction.assetId, planejadoAbsorvido);
+    }
+
     if (transaction.assetId) {
       await syncSonhoRealizadoBestEffort(auth.targetUserId, { assetId: transaction.assetId });
     }
 
     // A operação mexeu no Caixa para Investir (débito na compra/aporte ou
     // crédito no resgate): devolve o movimento.
-    const snap = getSnapshot(entry);
     if (snap?.kind === 'caixa-movimento') {
       const movimento = snap.data as unknown as MovimentoCaixa;
       if (movimentouCaixa(movimento)) {
@@ -693,33 +741,14 @@ const planejadoRemover: UndoDefinition = {
     if (snap.kind !== 'planejado') {
       throw new UndoError(400, 'Snapshot incompatível', 'UNDO_MISSING_DATA');
     }
-    const data = snap.data as {
-      id: string;
-      assetId: string;
-      objetivo: number;
-      secao: string | null;
-      categoriaOverride?: string | null;
-      notes: string | null;
-      addedAt?: string;
-    };
+    const data = snap.data as unknown as PlanejadoSnapshotData;
     const posicao = await prisma.portfolio.findFirst({
       where: { userId: auth.targetUserId, assetId: data.assetId },
       select: { id: true },
     });
     if (posicao) throw new UndoError(409, 'O ativo já está na carteira como posição');
     try {
-      await prisma.watchlist.create({
-        data: {
-          id: data.id,
-          userId: auth.targetUserId,
-          assetId: data.assetId,
-          objetivo: data.objetivo,
-          secao: data.secao,
-          ...(data.categoriaOverride ? { categoriaOverride: data.categoriaOverride } : {}),
-          notes: data.notes,
-          ...(data.addedAt ? { addedAt: new Date(data.addedAt) } : {}),
-        },
-      });
+      await recreatePlanejado(auth.targetUserId, data);
     } catch (error) {
       if (isUniqueViolation(error)) throw new UndoError(409, 'O ativo já está planejado');
       throw error;
