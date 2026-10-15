@@ -22,6 +22,11 @@
  *
  * Cache em memória por ticker:versão do Quadro (TTL 30 min, LRU 800): a versão muda quando o job
  * 'quadro' grava, e o topo é refeito na próxima leitura.
+ *
+ * v2.5 (fatia B): tags do FII com o tipo EXIBIDO ('FII de tijolo' | 'FII de papel', pelo perfil dos
+ * critérios) e FoF/Híbrido como prefixo do segmento; `fiiTipoCvm` leva o tipo CVM BRUTO (seção
+ * automática da Carteira, fatia C); a frase de fonte do card de critérios é montada pelas origens
+ * (textoNotaFonte + rótulos do registro de fontes) quando a avaliação traz `fontes`.
  */
 import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
@@ -52,6 +57,13 @@ import {
   type EventoAjuste,
 } from '@/services/analiseAtivos/leitura/ativo/seriesGrafico';
 import { FLAG_CNPJ_EM_CONFERENCIA } from '@/services/analiseAtivos/quadro/montarLinhasQuadro';
+import {
+  rotuloSegmentoFii,
+  segmentoTipoDe,
+  tipoFiiExibido,
+} from '@/services/analiseAtivos/quadro/tipoFiiExibido';
+import { rotulosFontes } from '@/services/analiseAtivos/fontes/fundamentos/registro';
+import { textoNotaFonte } from '@/services/analiseAtivos/textosCriterios';
 import { TEXTOS_TELA } from '@/services/analiseAtivos/textosTela';
 import { LINK_EDUCACAO } from '@/constants/analiseAtivosVisual';
 import type {
@@ -109,6 +121,18 @@ async function lerCriteriosTopo(ticker: string): Promise<CriteriosAtivo | null> 
   }
 }
 
+/**
+ * v2.5: com as origens (CriteriosAtivo.fontes), a frase de fonte do card é montada por elas
+ * ('Fonte: ‹provedor› · DFP/ITR (CVM).'); sem origens, fica a da avaliação (v2.4).
+ */
+export function criteriosComFonte(
+  criterios: CriteriosAtivo | null,
+  classe: ClasseQuadro,
+): CriteriosAtivo | null {
+  if (!criterios?.fontes) return criterios;
+  return { ...criterios, fonte: textoNotaFonte(classe, criterios.fontes, rotulosFontes()) };
+}
+
 /** Data civil de hoje em São Paulo (AAAA-MM-DD). */
 export function hojeSaoPaulo(agora: Date = new Date()): string {
   return new Intl.DateTimeFormat('en-CA', {
@@ -129,10 +153,16 @@ const num = (d: unknown): number | null => {
 const somarAnos = (hoje: string, anos: number) =>
   `${Number(hoje.slice(0, 4)) + anos}${hoje.slice(4)}`;
 
-function tagsDe(l: LinhaQuadroApi): string[] {
+/**
+ * Tags do topo. FII (v2.5): tipo EXIBIDO (pelo perfil dos critérios; sem avaliação, tijolo = tijolo
+ * e o resto = papel) + segmento com o prefixo FoF/Híbrido do tipo CVM bruto.
+ */
+export function tagsDe(l: LinhaQuadroApi, perfil?: string | null): string[] {
   if (l.classe === 'fii') {
     const tipos: Record<FiiTipoTela, string> = TEXTOS_TELA.ativo.tiposFii;
-    return [l.fiiTipo ? tipos[l.fiiTipo] : null, l.segmentoCvm].filter((x): x is string => !!x);
+    const tipo = tipos[tipoFiiExibido(perfil ?? l.criterios?.perfil, l.fiiTipo)];
+    const segmento = rotuloSegmentoFii(segmentoTipoDe(l.fiiTipo), l.segmentoCvm);
+    return [tipo, segmento].filter((x): x is string => !!x);
   }
   // setor · segmento · listagem. SEM tag de índice de mercado (IBOV): não tem fonte (decisão 6).
   return [l.setor, l.segmento, l.listagem].filter((x): x is string => !!x);
@@ -393,10 +423,11 @@ export async function montarTopoAtivo(
     ticker,
     classe,
     nome: linha.nome,
-    tags: tagsDe(linha),
+    tags: tagsDe(linha, criterios?.perfil),
     noQuadro: linha.noQuadro,
     foraDoQuadroMotivo: linha.foraDoQuadroMotivo,
     assetId: linha.assetId,
+    fiiTipoCvm: ehAcao ? null : (linha.fiiTipo ?? null),
     cotacao: {
       preco,
       data: linha.precoData,
@@ -404,7 +435,7 @@ export async function montarTopoAtivo(
       variacaoPct: pct,
       baixaLiquidez: linha.baixaLiquidez,
     },
-    criterios,
+    criterios: criteriosComFonte(criterios, classe),
     kpis,
     grafico,
     dividendos,
