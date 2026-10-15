@@ -11,6 +11,15 @@
  *    com a âncora global (anoFimGlobal).
  * 4. Grava criteria_eval numa transação (deleteMany + createMany; idempotente) com a paramsVersion.
  *    Estourou o prazo antes do fim ⇒ 'parcial' SEM gravar (a versão anterior fica inteira).
+ *
+ * v2.5 (camada de fontes): as séries de cada ativo saem do resolverSeries — os pontos da CVM
+ * (FonteCvm: as mesmas leituras e regras de seriesAcao/seriesFii, agora como pontos; vacância física
+ * do informe trimestral) + os pontos APROVADOS de provedores (asset_fundamentals_serie e
+ * fii_property_quality, lidos só quando params.fontes cita uma fonte além da CVM), pela prioridade de
+ * params.fontes; o resultado leva fonte e obs (fallback do lucro descontado, dados incompletos).
+ * Lê a versão VIGENTE do criteria_params ou, com --versao-params=N no runner, a versão N (dry-run de
+ * uma versão ainda não vigente). Com sanidade.aplicaA incluindo 'cvm', a regra de variação da §6
+ * também tira pontos da CVM (contados em detalhes.cvmEmRevisao).
  * Alertas: params ausente; cobertura das ações não financeiras do Quadro na janela 5 abaixo do
  * mínimo em algum critério (90%; margem 85%, coberturaMinima); scores ainda rodando ('pulado').
  */
@@ -18,20 +27,32 @@ import type { PrismaClient } from '@prisma/client';
 import { limparCacheCriterios } from '@/services/analiseAtivos/leitura/criterios/lerCriterios';
 import { LOCK_TTL_PADRAO_MS } from '@/services/analiseAtivos/jobs/executarJob';
 import { obterCriteriaParams } from '@/services/analiseAtivos/params/obterCriteriaParams';
-import type { CriteriaParams } from '@/services/analiseAtivos/params/criteriaParamsSchema';
+import {
+  criteriosDoPerfil,
+  fontesCitadas,
+  fontesEfetivas,
+  type CriteriaParams,
+} from '@/services/analiseAtivos/params/criteriaParamsSchema';
+import { pontosCvmAcao, pontosCvmFii } from '@/services/analiseAtivos/fontes/fundamentos/fonteCvm';
+import { resolverSeries } from '@/services/analiseAtivos/fontes/fundamentos/resolverSeries';
+import { filtrarCvmPelaSanidade } from '@/services/analiseAtivos/fontes/fundamentos/sanidadeFonte';
+import {
+  lerPontosVigentes,
+  lerQualidadeFiiVigente,
+  pontosDaQualidadeFii,
+} from '@/services/analiseAtivos/repositorio/fontesFundamentos';
 import { anoFimGlobal } from '@/services/analiseAtivos/regras/criterios/ancoraJanela';
 import { avaliarAtivo } from '@/services/analiseAtivos/regras/criterios/avaliarAtivo';
 import { perfilCriterios } from '@/services/analiseAtivos/regras/criterios/perfilCriterios';
 import {
   lerBrutosAcoes,
-  seriesAcao,
+  opcoesSeriesAcao,
   type EmpresaCriterios,
 } from '@/services/analiseAtivos/regras/criterios/seriesAcao';
 import {
   imoveisPlPctFii,
   lerBrutosFii,
   mesesFii,
-  seriesFii,
   type FiiCriterios,
 } from '@/services/analiseAtivos/regras/criterios/seriesFii';
 import {
@@ -50,8 +71,10 @@ import type {
   ChaveJanela,
   IdCriterio,
   Janela,
+  PerfilComLista,
   PerfilCriterio,
 } from '@/types/analiseAtivosCriterios';
+import type { PontoSerieVigente, SerieFundamento } from '@/types/analiseAtivosFontes';
 
 /** Empresas / FIIs por lote (pico de RSS medido no DEV: ver RUNBOOK §5). */
 export const LOTE_CRITERIOS = 50;
@@ -76,13 +99,71 @@ export interface UniversoCriterios {
 
 export interface DependenciasCriterios {
   scoresEmExecucao: (prisma: PrismaClient, desde: Date) => Promise<boolean>;
-  obterParams: (prisma: PrismaClient) => Promise<{ versao: number; params: CriteriaParams }>;
+  obterParams: (
+    prisma: PrismaClient,
+    opts?: { versao?: number },
+  ) => Promise<{ versao: number; params: CriteriaParams }>;
   carregarUniverso: (ctx: JobContexto) => Promise<UniversoCriterios>;
   lerBrutosAcoes: typeof lerBrutosAcoes;
   lerBrutosFii: typeof lerBrutosFii;
   /** símbolos do Quadro (noQuadro) para a cobertura; vazio = todos os avaliados */
   simbolosNoQuadro: (prisma: PrismaClient) => Promise<Set<string>>;
   gravar: typeof gravarCriteriaEval;
+  /**
+   * v2.5: pontos APROVADOS de provedores dos símbolos (séries + qualidade de FII). Só chamado quando
+   * params.fontes cita uma fonte além da CVM.
+   */
+  lerPontosProvedores?: (
+    prisma: PrismaClient,
+    symbols: readonly string[],
+    series: readonly SerieFundamento[],
+    desdeAno: number,
+  ) => Promise<PontoSerieVigente[]>;
+}
+
+/** Pontos aprovados de provedores (asset_fundamentals_serie + fii_property_quality). */
+export async function lerPontosProvedores(
+  prisma: PrismaClient,
+  symbols: readonly string[],
+  series: readonly SerieFundamento[],
+  desdeAno: number,
+): Promise<PontoSerieVigente[]> {
+  const [pontos, qualidade] = await Promise.all([
+    lerPontosVigentes(prisma, symbols, series, desdeAno),
+    series.some((s) => s === 'default_pct' || s === 'ltv_avg')
+      ? lerQualidadeFiiVigente(prisma, symbols, `${desdeAno}-01-01`)
+      : Promise.resolve([]),
+  ]);
+  return [...pontos.filter((p) => p.fonte !== 'cvm'), ...pontosDaQualidadeFii(qualidade)];
+}
+
+/** Séries (principal + fallback) dos critérios dos perfis. Pura. */
+export function seriesDosPerfis(
+  params: CriteriaParams,
+  perfis: ReadonlyArray<PerfilComLista>,
+): SerieFundamento[] {
+  const out = new Set<SerieFundamento>();
+  for (const perfil of perfis) {
+    for (const d of criteriosDoPerfil(params, perfil)) {
+      out.add(d.serie);
+      if (d.serieFallback) out.add(d.serieFallback);
+    }
+  }
+  return [...out];
+}
+
+/** Meses com rendimento por ano vindos de PROVEDOR (a CVM conta pelos proventos ancorados). */
+export function mesesPorAnoDeProvedor(
+  r: ReturnType<typeof resolverSeries>,
+): Record<number, number | null> | undefined {
+  const valores = r.series.months_with_income;
+  const origens = r.origens.months_with_income;
+  if (!valores || !origens) return undefined;
+  const out: Record<number, number | null> = {};
+  for (const [ano, o] of Object.entries(origens)) {
+    if (o.fonte !== 'cvm') out[Number(ano)] = valores[Number(ano)] ?? null;
+  }
+  return Object.keys(out).length > 0 ? out : undefined;
 }
 
 export async function scoresEmExecucao(prisma: PrismaClient, desde: Date): Promise<boolean> {
@@ -138,7 +219,13 @@ export const DEPENDENCIAS_PADRAO: DependenciasCriterios = {
   lerBrutosFii,
   simbolosNoQuadro,
   gravar: gravarCriteriaEval,
+  lerPontosProvedores,
 };
+
+export interface OpcoesCriterios {
+  /** versão do criteria_params (runner: --versao-params=N); padrão = a vigente */
+  versaoParams?: number;
+}
 
 function mb(): number {
   return Math.round(process.memoryUsage().rss / 1024 / 1024);
@@ -172,6 +259,7 @@ export function coberturaAcoes(
 export async function executarCriterios(
   ctx: JobContexto,
   deps: DependenciasCriterios = DEPENDENCIAS_PADRAO,
+  opcoes: OpcoesCriterios = {},
 ): Promise<ResultadoJob> {
   const inicio = Date.now();
   const tempos: Record<string, number> = {};
@@ -189,7 +277,10 @@ export async function executarCriterios(
   let params: CriteriaParams;
   let paramsVersion: number;
   try {
-    const p = await deps.obterParams(ctx.prisma);
+    const p =
+      opcoes.versaoParams !== undefined
+        ? await deps.obterParams(ctx.prisma, { versao: opcoes.versaoParams })
+        : await deps.obterParams(ctx.prisma);
     params = p.params;
     paramsVersion = p.versao;
   } catch (e: unknown) {
@@ -204,6 +295,19 @@ export async function executarCriterios(
   const maxJanela = Math.max(...params.janelas);
   // 'up' lê o ano anterior à janela
   const desdeAno = anoFim - maxJanela;
+  const fontes = fontesEfetivas(params);
+  const comProvedores = fontesCitadas(fontes).some((f) => f !== 'cvm');
+  const lerProvedores = deps.lerPontosProvedores ?? lerPontosProvedores;
+  const seriesAcoes = seriesDosPerfis(params, ['acao']);
+  const seriesFiis = seriesDosPerfis(params, ['fii_tijolo', 'fii_papel']);
+  const opcoesAcao = opcoesSeriesAcao(params);
+  let cvmEmRevisao = 0;
+  /** pontos da CVM (com a sanidade literal quando aplicaA inclui 'cvm') + os dos provedores */
+  const juntar = (cvm: PontoSerieVigente[], externos: readonly PontoSerieVigente[]) => {
+    const f = filtrarCvmPelaSanidade(cvm, fontes);
+    cvmEmRevisao += f.emRevisao.length;
+    return [...f.pontos, ...externos];
+  };
 
   // 3. universo + avaliação em lotes
   let t = Date.now();
@@ -228,19 +332,42 @@ export async function executarCriterios(
     }
     const lote = universo.empresas.slice(i, i + LOTE_CRITERIOS);
     const brutos = await deps.lerBrutosAcoes(ctx.prisma, lote, desdeAno);
+    const externos = comProvedores
+      ? porSimbolo(
+          await lerProvedores(
+            ctx.prisma,
+            lote.flatMap((e) => e.symbols),
+            seriesAcoes,
+            desdeAno,
+          ),
+        )
+      : new Map<string, PontoSerieVigente[]>();
     for (const e of lote) {
       const bruto = brutos.get(e.cnpj);
-      const series = bruto ? seriesAcao(bruto) : {};
       const perfil = perfilCriterios(
         { classe: 'acao', ehFinanceira: e.ehFinanceira, fiiTipo: null, imoveisPlPct: null },
         params,
       );
       for (const symbol of e.symbols) {
+        const cvm = bruto ? pontosCvmAcao(bruto, [symbol], opcoesAcao) : [];
+        const r = resolverSeries({
+          pontos: juntar(cvm, externos.get(symbol) ?? []),
+          series: seriesAcoes,
+          fontes,
+        });
         registrar(
           symbol,
           e.cnpj,
           avaliarAtivo(
-            { symbol, classe: 'acao', perfil, anoFim, series, meses: null },
+            {
+              symbol,
+              classe: 'acao',
+              perfil,
+              anoFim,
+              series: r.series,
+              origens: r.origens,
+              meses: null,
+            },
             params,
             paramsVersion,
           ),
@@ -256,8 +383,24 @@ export async function executarCriterios(
     if (ctx.estourouPrazo()) return parcialSemGravar(ctx, 'fiis', i, universo.fiis.length);
     const lote = universo.fiis.slice(i, i + LOTE_CRITERIOS);
     const brutos = await deps.lerBrutosFii(ctx.prisma, lote, desdeAno);
+    const externos = comProvedores
+      ? porSimbolo(
+          await lerProvedores(
+            ctx.prisma,
+            lote.map((f) => f.symbol),
+            seriesFiis,
+            desdeAno,
+          ),
+        )
+      : new Map<string, PontoSerieVigente[]>();
     for (const f of lote) {
       const bruto = brutos.get(f.symbol);
+      const cvm = bruto ? pontosCvmFii(bruto, { anoFim, scoring: ctx.params }) : [];
+      const r = resolverSeries({
+        pontos: juntar(cvm, externos.get(f.symbol) ?? []),
+        series: seriesFiis,
+        fontes,
+      });
       const perfil = perfilCriterios(
         {
           classe: 'fii',
@@ -276,7 +419,9 @@ export async function executarCriterios(
             classe: 'fii',
             perfil,
             anoFim,
-            series: bruto ? seriesFii(bruto) : {},
+            series: r.series,
+            origens: r.origens,
+            mesesPorAno: mesesPorAnoDeProvedor(r),
             meses: bruto ? mesesFii(bruto, anoFim, ctx.params) : null,
           },
           params,
@@ -335,11 +480,23 @@ export async function executarCriterios(
       linhas: linhas.length,
       linhasGravadas: gravadas,
       aplicar: ctx.aplicar,
+      fontes: fontesCitadas(fontes),
+      cvmEmRevisao,
       coberturaAcoesJanela5: cobertura,
       tempos,
       rssMb: rss,
     },
   };
+}
+
+function porSimbolo(pontos: readonly PontoSerieVigente[]): Map<string, PontoSerieVigente[]> {
+  const out = new Map<string, PontoSerieVigente[]>();
+  for (const p of pontos) {
+    const l = out.get(p.symbol);
+    if (l) l.push(p);
+    else out.set(p.symbol, [p]);
+  }
+  return out;
 }
 
 function parcialSemGravar(
