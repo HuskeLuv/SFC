@@ -71,24 +71,26 @@ test('WEGE3: cabeçalho sem IBOV, card de critérios sem Índice, 8 KPIs, gráfi
   await expect(page.locator('[data-bloco="frescor"]')).toContainText('cotação B3 de');
 });
 
-test('HGLG11: FII — vacância "sem dado nas demonstrações" (D3) e KPIs de FII', async ({ page }) => {
+test('HGLG11: FII — vacância ATIVA (v2.5, CVM) e KPIs de FII', async ({ page }) => {
   await abrir(page, 'HGLG11');
   if ((await itensCriterios(page)) > 0) {
     const vac = page.locator('[data-card-criterios] li[data-criterio="vac"]');
-    await expect(vac).toHaveAttribute('data-estado-criterio', 'sem_dado');
-    await expect(vac).toContainText('não atende · sem dado nas demonstrações');
+    // v2.5: vacância física do informe da CVM; sem o motivo D3 nem a nota dos informes de 2016
+    await expect(vac).not.toHaveAttribute('data-estado-criterio', 'nao_se_aplica');
+    await expect(vac).not.toContainText('fica fora do critério');
+    await expect(page.locator('[data-card-criterios]')).not.toContainText('começam em 2016');
   }
   await expect(page.locator('[data-kpi]')).toHaveCount(8);
   await expect(page.locator('[data-kpi="vacanciaCvm"]')).toBeVisible();
   await expect(page.locator('[data-bloco="cabecalho"]')).not.toContainText(/IFIX/);
 });
 
-test('ITUB4: financeira — n de 3 (D4) e endividamento não se aplica', async ({ page }) => {
+test('ITUB4: financeira — n de 6 (v2.5, sem dado = não atende)', async ({ page }) => {
   await abrir(page, 'ITUB4');
   if ((await itensCriterios(page)) > 0) {
     const card = page.locator('[data-card-criterios="ITUB4"]');
-    await expect(card.locator('li[data-estado-criterio="nao_se_aplica"]')).toHaveCount(3);
-    await expect(card.locator('[data-contagem-criterios]')).toContainText(/\d de 3/);
+    await expect(card.locator('li[data-estado-criterio="nao_se_aplica"]')).toHaveCount(0);
+    await expect(card.locator('[data-contagem-criterios]')).toContainText(/\d de 6/);
   }
   await expect(page.locator('[data-kpi="divLiqEbitda"]')).toContainText('n/a');
 });
