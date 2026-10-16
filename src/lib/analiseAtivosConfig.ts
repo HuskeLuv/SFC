@@ -22,6 +22,18 @@
  *  - ANALISE_ATIVOS_COMPARADOR_HABILITADO="true"  página Comparador + entradas (pílulas, Quadro,
  *                                                 botão no cabeçalho do ativo)
  *  - ANALISE_ATIVOS_CENARIOS_HABILITADO="true"    Valuation · Meus cenários (depende do jurídico)
+ *
+ *  Bloco 1 (docs/analise-ativos/bloco1-salvos/desenho.json, flags_e_ativacao): mesmo regime, todas
+ *  desligadas por padrão e válidas SÓ com a área liberada. As DEPENDÊNCIAS ficam em
+ *  acessoAnalise.ts (FLAG_RECURSO): estas funções leem só a própria variável.
+ *  - ANALISE_ATIVOS_SALVOS_HABILITADO="true"   Salvos (listas, Salvar no ativo/Quadro, página
+ *                                              /analise-ativos/salvos, filtros salvos, comparações
+ *                                              salvas com o COMPARADOR) e as APIs listas/salvos/
+ *                                              filtros/comparacoes (sem ela: UI escondida e 404)
+ *  - ANALISE_ATIVOS_ALERTAS_HABILITADO="true"  avisos das listas (aba Alertas, Alertas da lista,
+ *                                              push 'analise', job alertas-salvos). EXIGE SALVOS
+ *  - ANALISE_ATIVOS_PDF_HABILITADO="true"      "Exportar PDF" do Comparador e a rota
+ *                                              comparacao-pdf. EXIGE COMPARADOR
  */
 export function analiseAtivosHabilitada(): boolean {
   return process.env.ANALISE_ATIVOS_HABILITADA === 'true';
@@ -45,6 +57,21 @@ export function analiseAtivosComparadorHabilitado(): boolean {
 /** Bloco D: Valuation · Meus cenários (desligado por padrão; decisão 15). */
 export function analiseAtivosCenariosHabilitado(): boolean {
   return process.env.ANALISE_ATIVOS_CENARIOS_HABILITADO === 'true';
+}
+
+/** Bloco 1: Salvos, filtros e comparações salvas (desligado por padrão). */
+export function analiseAtivosSalvosHabilitado(): boolean {
+  return process.env.ANALISE_ATIVOS_SALVOS_HABILITADO === 'true';
+}
+
+/** Bloco 1: avisos das listas (desligado por padrão; só vale com SALVOS — ver acessoAnalise). */
+export function analiseAtivosAlertasHabilitado(): boolean {
+  return process.env.ANALISE_ATIVOS_ALERTAS_HABILITADO === 'true';
+}
+
+/** Bloco 1: Exportar PDF do Comparador (desligado por padrão; só vale com COMPARADOR). */
+export function analiseAtivosPdfHabilitado(): boolean {
+  return process.env.ANALISE_ATIVOS_PDF_HABILITADO === 'true';
 }
 
 export function analiseAtivosAlertaAdmin(): boolean {

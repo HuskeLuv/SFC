@@ -58,6 +58,11 @@
  * da Carteira); célula do Essencial com fallback/incompleto (LinhaFundamentos.marcas) e nota de fonte
  * pelas origens (FundamentosResposta.textoFonte/dadosIncompletos; nunca "nota" numa chave de resposta).
  *   GET  /api/analise-ativos/alvos/[ticker]               → AlvoGetResposta             (C)
+ *
+ * Bloco 1 (docs/analise-ativos/bloco1-salvos/desenho.json, fatia 0) — acréscimos: RecursosBlocoD.
+ * salvos/alertas/pdfComparador e AnaliseAtivosShellProps.variante 'salvos'. Tipos e rotas das
+ * listas, filtros salvos, comparações, PDF e avisos: src/types/analiseAtivosSalvos.ts e
+ * ROTAS_SALVOS (src/services/analiseAtivos/salvos/contrato.ts).
  *   PUT  /api/analise-ativos/alvos/[ticker] AlvoPutBody   → AlvoPutResposta (CSRF)      (C)
  *   DEL  /api/analise-ativos/alvos/[ticker]               → AlvoDeleteResposta (CSRF)   (C)
  */
@@ -244,11 +249,22 @@ export interface ConfigResposta {
   recursos?: RecursosBlocoD;
 }
 
-/** Bloco D: um booleano por recurso (RecursoBlocoD em acessoAnalise.ts). */
+/**
+ * Bloco D: um booleano por recurso (RecursoBlocoD em acessoAnalise.ts). Bloco 1 acrescenta
+ * salvos, alertas (exige salvos) e pdfComparador (exige comparador), com as dependências já
+ * aplicadas pelo servidor (recursosLiberados). Cliente antigo sem as chaves = desligado.
+ * "Salvar comparação" / "Comparações salvas" = salvos && comparador (sem flag própria).
+ */
 export interface RecursosBlocoD {
   raioX: boolean;
   cenarios: boolean;
   comparador: boolean;
+  /** Bloco 1: Salvos (listas, Salvar, página Salvos, filtros salvos) */
+  salvos: boolean;
+  /** Bloco 1: avisos das listas (só com salvos) */
+  alertas: boolean;
+  /** Bloco 1: Exportar PDF do Comparador (só com comparador) */
+  pdfComparador: boolean;
 }
 
 // ===========================================================================
@@ -817,8 +833,10 @@ export interface AnaliseAtivosShellProps {
    * 'quadro' mostra título + subtítulo + busca + banner; 'ativo' mostra só a busca compacta.
    * Bloco D: 'comparador' (página /analise-ativos/comparador, fatia C) cai no ramo 'ativo' até a
    * fatia D implementar o ramo próprio (título, subtítulo neutro, PilulasArea, busca compacta).
+   * Bloco 1: 'salvos' (página /analise-ativos/salvos, fatia C); até a fatia C implementar o ramo
+   * próprio, cai no ramo 'ativo'.
    */
-  variante: 'quadro' | 'ativo' | 'comparador';
+  variante: 'quadro' | 'ativo' | 'comparador' | 'salvos';
 }
 
 export interface SecaoPreguicosaProps {

@@ -78,6 +78,11 @@ jobs:
       ANALISE_ATIVOS_RAIOX_HABILITADO: 'true'
       ANALISE_ATIVOS_COMPARADOR_HABILITADO: 'true'
       ANALISE_ATIVOS_CENARIOS_HABILITADO: 'true'
+      # Bloco 1 (Salvos, avisos das listas, PDF do Comparador): ligadas no e2e; alertas exige
+      # SALVOS e PDF exige COMPARADOR. Os testes que gravam (*.escrita.spec.ts) desfazem o que criam.
+      ANALISE_ATIVOS_SALVOS_HABILITADO: 'true'
+      ANALISE_ATIVOS_ALERTAS_HABILITADO: 'true'
+      ANALISE_ATIVOS_PDF_HABILITADO: 'true'
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

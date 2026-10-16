@@ -18,6 +18,8 @@ import type { ConfigResposta } from '@/types/analiseAtivosApi';
  * resposta mesmo com a flag desligada); sem sessão → 401. Cache-Control: no-store.
  * reporteHabilitado (bloco C) = ANALISE_ATIVOS_REPORTE_HABILITADO e a área liberada para o usuário.
  * recursos (bloco D) = flag de cada recurso (Raio-X, Cenários, Comparador) e a área liberada.
+ * Bloco 1: recursos.salvos/alertas/pdfComparador, com as dependências (alertas exige salvos;
+ * pdfComparador exige comparador) aplicadas em recursosLiberados.
  */
 export const dynamic = 'force-dynamic';
 

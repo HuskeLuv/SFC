@@ -16,6 +16,7 @@ import {
   estadoAcessoAnalise,
   exigirAcessoAnalise,
   exigirRecursoAnalise,
+  exigirRecursosAnalise,
   flagsRecursosBlocoD,
   limparCacheAcessoAnalise,
   podeAcessarAnaliseAtivos,
@@ -130,8 +131,20 @@ describe('acessoAnalise', () => {
       raioX: 'ANALISE_ATIVOS_RAIOX_HABILITADO',
       cenarios: 'ANALISE_ATIVOS_CENARIOS_HABILITADO',
       comparador: 'ANALISE_ATIVOS_COMPARADOR_HABILITADO',
+      salvos: 'ANALISE_ATIVOS_SALVOS_HABILITADO',
+      alertas: 'ANALISE_ATIVOS_ALERTAS_HABILITADO',
+      pdfComparador: 'ANALISE_ATIVOS_PDF_HABILITADO',
     };
-    const RECURSOS = Object.keys(FLAGS) as RecursoBlocoD[];
+    /** Recursos sem dependência (alertas e pdfComparador têm testes próprios abaixo). */
+    const RECURSOS: RecursoBlocoD[] = ['raioX', 'cenarios', 'comparador', 'salvos'];
+    const DESLIGADO = {
+      raioX: false,
+      cenarios: false,
+      comparador: false,
+      salvos: false,
+      alertas: false,
+      pdfComparador: false,
+    };
     const authUsuario = (id: string, role = 'user') => ({
       payload: { id, email: 'a@b', role },
       targetUserId: id,
@@ -139,20 +152,85 @@ describe('acessoAnalise', () => {
     });
 
     it('flags desligadas por padrão; só "true" liga', () => {
-      expect(flagsRecursosBlocoD()).toEqual({ raioX: false, cenarios: false, comparador: false });
+      expect(flagsRecursosBlocoD()).toEqual(DESLIGADO);
       vi.stubEnv('ANALISE_ATIVOS_RAIOX_HABILITADO', '1');
       vi.stubEnv('ANALISE_ATIVOS_CENARIOS_HABILITADO', 'TRUE');
       vi.stubEnv('ANALISE_ATIVOS_COMPARADOR_HABILITADO', 'true');
-      expect(flagsRecursosBlocoD()).toEqual({ raioX: false, cenarios: false, comparador: true });
+      vi.stubEnv('ANALISE_ATIVOS_SALVOS_HABILITADO', 'yes');
+      expect(flagsRecursosBlocoD()).toEqual({ ...DESLIGADO, comparador: true });
     });
 
-    it('3 flags desligadas: tudo false sem consultar o banco', async () => {
-      expect(await recursosLiberados('u1')).toEqual({
-        raioX: false,
-        cenarios: false,
-        comparador: false,
-      });
+    it('flags desligadas: tudo false sem consultar o banco', async () => {
+      expect(await recursosLiberados('u1')).toEqual(DESLIGADO);
       expect(mockPrisma.user.findUnique).not.toHaveBeenCalled();
+    });
+
+    describe('bloco 1: dependências entre as flags', () => {
+      it('alertas exige SALVOS; pdfComparador exige COMPARADOR', () => {
+        vi.stubEnv('ANALISE_ATIVOS_ALERTAS_HABILITADO', 'true');
+        vi.stubEnv('ANALISE_ATIVOS_PDF_HABILITADO', 'true');
+        expect(flagsRecursosBlocoD()).toEqual(DESLIGADO);
+        vi.stubEnv('ANALISE_ATIVOS_SALVOS_HABILITADO', 'true');
+        expect(flagsRecursosBlocoD()).toMatchObject({ salvos: true, alertas: true });
+        expect(flagsRecursosBlocoD().pdfComparador).toBe(false);
+        vi.stubEnv('ANALISE_ATIVOS_COMPARADOR_HABILITADO', 'true');
+        expect(flagsRecursosBlocoD()).toMatchObject({ comparador: true, pdfComparador: true });
+      });
+
+      it('só SALVOS ligado: alertas continua desligado', () => {
+        vi.stubEnv('ANALISE_ATIVOS_SALVOS_HABILITADO', 'true');
+        expect(flagsRecursosBlocoD()).toEqual({ ...DESLIGADO, salvos: true });
+      });
+
+      it('com as dependências, só valem com a área liberada para o usuário', async () => {
+        for (const f of ['SALVOS', 'ALERTAS', 'COMPARADOR', 'PDF']) {
+          vi.stubEnv(`ANALISE_ATIVOS_${f}_HABILITADO`, 'true');
+        }
+        expect(await recursosLiberados('u1', 'liberada')).toEqual({
+          ...DESLIGADO,
+          comparador: true,
+          salvos: true,
+          alertas: true,
+          pdfComparador: true,
+        });
+        expect(await recursosLiberados('u1', 'fora_do_beta')).toEqual(DESLIGADO);
+        expect(mockPrisma.user.findUnique).not.toHaveBeenCalled();
+      });
+
+      it('exigirRecursoAnalise(alertas) sem SALVOS → 404 antes da sessão', async () => {
+        vi.stubEnv('ANALISE_ATIVOS_ALERTAS_HABILITADO', 'true');
+        await expect(exigirRecursoAnalise(req(), 'alertas')).rejects.toMatchObject({
+          statusCode: 404,
+        });
+        vi.stubEnv('ANALISE_ATIVOS_PDF_HABILITADO', 'true');
+        await expect(exigirRecursoAnalise(req(), 'pdfComparador')).rejects.toMatchObject({
+          statusCode: 404,
+        });
+        expect(mockRequireAuthWithActing).not.toHaveBeenCalled();
+      });
+
+      it('exigirRecursosAnalise: exige TODOS (404 antes da sessão se faltar um)', async () => {
+        vi.stubEnv('ANALISE_ATIVOS_SALVOS_HABILITADO', 'true');
+        await expect(exigirRecursosAnalise(req(), ['salvos', 'comparador'])).rejects.toMatchObject({
+          statusCode: 404,
+          message: MENSAGEM_SEM_ACESSO,
+        });
+        expect(mockRequireAuthWithActing).not.toHaveBeenCalled();
+
+        vi.stubEnv('ANALISE_ATIVOS_COMPARADOR_HABILITADO', 'true');
+        const auth = authUsuario('u1');
+        mockRequireAuthWithActing.mockResolvedValue(auth);
+        mockPrisma.user.findUnique.mockResolvedValue(usuario('user', true));
+        expect(await exigirRecursosAnalise(req(), ['salvos', 'comparador'])).toBe(auth);
+      });
+
+      it('exigirRecursosAnalise: área desligada → 404 mesmo com as flags', async () => {
+        vi.stubEnv('ANALISE_ATIVOS_HABILITADA', 'false');
+        vi.stubEnv('ANALISE_ATIVOS_SALVOS_HABILITADO', 'true');
+        await expect(exigirRecursosAnalise(req(), ['salvos'])).rejects.toMatchObject({
+          statusCode: 404,
+        });
+      });
     });
 
     // matriz flag × área × perfil (admin / beta / fora do beta)
