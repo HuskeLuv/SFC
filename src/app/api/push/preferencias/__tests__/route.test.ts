@@ -3,12 +3,16 @@ import { NextRequest } from 'next/server';
 
 const mocks = vi.hoisted(() => ({
   requireSession: vi.fn(),
-  prisma: { pushPreferencia: { findUnique: vi.fn(), upsert: vi.fn() } },
+  prisma: {
+    pushPreferencia: { findUnique: vi.fn(), upsert: vi.fn() },
+    user: { findUnique: vi.fn() },
+  },
 }));
 vi.mock('@/utils/auth', () => ({ requireSession: mocks.requireSession }));
 vi.mock('@/lib/prisma', () => ({ prisma: mocks.prisma, default: mocks.prisma }));
 
 import { GET, PATCH } from '../route';
+import { limparCacheAcessoAnalise } from '@/services/analiseAtivos/acesso/acessoAnalise';
 
 const req = (body?: unknown) =>
   new NextRequest('http://localhost/api/push/preferencias', {
@@ -39,8 +43,9 @@ describe('GET /api/push/preferencias', () => {
     expect(await res.json()).toEqual({
       habilitado: true,
       vapidPublicKey: 'chave-publica-vapid',
-      categorias: { orcamento: true, agenda: true, comunidade: true, conta: true },
+      categorias: { orcamento: true, agenda: true, comunidade: true, conta: true, analise: true },
       comunidadeVisivel: false,
+      analiseVisivel: false,
     });
     expect(mocks.prisma.pushPreferencia.findUnique).toHaveBeenCalledWith({
       where: { userId: 'u1' },
@@ -54,12 +59,20 @@ describe('GET /api/push/preferencias', () => {
       agenda: true,
       comunidade: false,
       conta: true,
+      analise: false,
     });
     expect(await (await GET(req())).json()).toEqual({
       habilitado: true,
       vapidPublicKey: 'chave-publica-vapid',
-      categorias: { orcamento: false, agenda: true, comunidade: false, conta: true },
+      categorias: {
+        orcamento: false,
+        agenda: true,
+        comunidade: false,
+        conta: true,
+        analise: false,
+      },
       comunidadeVisivel: true,
+      analiseVisivel: false,
     });
   });
 
@@ -82,9 +95,44 @@ describe('PATCH /api/push/preferencias', () => {
     });
   });
 
+  it("aceita a categoria 'analise' (avisos das listas da Análise de Ativos)", async () => {
+    expect((await PATCH(req({ analise: false }))).status).toBe(204);
+    expect(mocks.prisma.pushPreferencia.upsert).toHaveBeenCalledWith({
+      where: { userId: 'u1' },
+      create: { userId: 'u1', analise: false },
+      update: { analise: false },
+    });
+  });
+
   it('rejeita valor não booleano e campo fora do contrato', async () => {
     expect((await PATCH(req({ orcamento: 'sim' }))).status).toBe(400);
     expect((await PATCH(req({ marketing: true }))).status).toBe(400);
     expect(mocks.prisma.pushPreferencia.upsert).not.toHaveBeenCalled();
+  });
+});
+
+describe('GET /api/push/preferencias — analiseVisivel (bloco 1)', () => {
+  const ligarAvisos = () => {
+    vi.stubEnv('ANALISE_ATIVOS_HABILITADA', 'true');
+    vi.stubEnv('ANALISE_ATIVOS_ACESSO', 'beta');
+    vi.stubEnv('ANALISE_ATIVOS_SALVOS_HABILITADO', 'true');
+    vi.stubEnv('ANALISE_ATIVOS_ALERTAS_HABILITADO', 'true');
+  };
+  beforeEach(() => limparCacheAcessoAnalise('u1'));
+
+  it('flags ligadas e usuário no beta → true', async () => {
+    ligarAvisos();
+    mocks.prisma.user.findUnique.mockResolvedValue({ role: 'user', featureBetas: [{ id: 'b' }] });
+    expect((await (await GET(req())).json()).analiseVisivel).toBe(true);
+  });
+
+  it('fora do beta → false; ALERTAS sem SALVOS → false (sem consultar o banco)', async () => {
+    ligarAvisos();
+    mocks.prisma.user.findUnique.mockResolvedValue({ role: 'user', featureBetas: [] });
+    expect((await (await GET(req())).json()).analiseVisivel).toBe(false);
+    limparCacheAcessoAnalise('u1');
+    vi.stubEnv('ANALISE_ATIVOS_SALVOS_HABILITADO', 'false');
+    mocks.prisma.user.findUnique.mockClear();
+    expect((await (await GET(req())).json()).analiseVisivel).toBe(false);
   });
 });

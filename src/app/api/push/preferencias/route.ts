@@ -2,8 +2,10 @@
  * Preferências de web push por categoria (PWA fase 5, fatia A).
  * Contrato HTTP no docblock de `src/lib/push/contract.ts`:
  *
- *  GET   → { habilitado, vapidPublicKey, categorias, comunidadeVisivel }
- *          (a chave pública VAPID viaja aqui — envs sem NEXT_PUBLIC)
+ *  GET   → { habilitado, vapidPublicKey, categorias, comunidadeVisivel, analiseVisivel }
+ *          (a chave pública VAPID viaja aqui — envs sem NEXT_PUBLIC). analiseVisivel = o
+ *          recurso 'alertas' da Análise de Ativos (flag ALERTAS + SALVOS + área liberada para o
+ *          usuário da sessão): só então a linha "Análise de Ativos" aparece no Perfil.
  *  PATCH → 204, parcial; linha criada sob demanda no molde da AgendaPreferencia
  *          (sem registro = tudo ligado)
  *
@@ -18,6 +20,7 @@ import { withErrorHandler } from '@/utils/apiErrorHandler';
 import { validationError } from '@/utils/validation-schemas';
 import { pushHabilitado, vapidPublicKey } from '@/lib/push/pushConfig';
 import { comunidadeHabilitada } from '@/lib/comunidadeConfig';
+import { recursosLiberados } from '@/services/analiseAtivos/acesso/acessoAnalise';
 
 const patchSchema = z
   .object({
@@ -25,12 +28,16 @@ const patchSchema = z
     agenda: z.boolean().optional(),
     comunidade: z.boolean().optional(),
     conta: z.boolean().optional(),
+    analise: z.boolean().optional(),
   })
   .strict();
 
 export const GET = withErrorHandler(async (request: NextRequest) => {
   const payload = await requireSession(request);
-  const pref = await prisma.pushPreferencia.findUnique({ where: { userId: payload.id } });
+  const [pref, recursos] = await Promise.all([
+    prisma.pushPreferencia.findUnique({ where: { userId: payload.id } }),
+    recursosLiberados(payload.id),
+  ]);
   const habilitado = pushHabilitado();
   return NextResponse.json({
     habilitado,
@@ -40,9 +47,12 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
       agenda: pref?.agenda ?? true,
       comunidade: pref?.comunidade ?? true,
       conta: pref?.conta ?? true,
+      analise: pref?.analise ?? true,
     },
     // A linha "Comunidade" só aparece na UI quando a feature existe para o usuário.
     comunidadeVisivel: comunidadeHabilitada(),
+    // A linha "Análise de Ativos" só aparece com os avisos das listas liberados para o usuário.
+    analiseVisivel: recursos.alertas,
   });
 });
 

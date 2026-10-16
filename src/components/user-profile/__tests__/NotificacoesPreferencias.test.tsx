@@ -294,6 +294,28 @@ describe('ativas: aparelhos, categorias e teste', () => {
     expect(screen.queryByText(/A Comunidade só avisa/)).toBeNull();
   });
 
+  it('Análise de Ativos só aparece com analiseVisivel (bloco 1)', async () => {
+    stubApi({ prefs: { ...PREFS_PADRAO, analiseVisivel: false } });
+    const { unmount } = render(<NotificacoesPreferencias />);
+    await esperaCarregar();
+    await screen.findByRole('switch', { name: /Orçamento/ });
+    expect(screen.queryByRole('switch', { name: /Análise de Ativos/ })).toBeNull();
+    unmount();
+
+    stubApi({
+      prefs: {
+        ...PREFS_PADRAO,
+        categorias: { ...PREFS_PADRAO.categorias, analise: true },
+        analiseVisivel: true,
+      },
+    });
+    render(<NotificacoesPreferencias />);
+    await esperaCarregar();
+    expect(
+      await screen.findByRole('switch', { name: /Análise de Ativos: avisos das suas listas/ }),
+    ).toHaveAttribute('aria-checked', 'true');
+  });
+
   it('notificação de teste: POST e cooldown de 30 s', async () => {
     render(<NotificacoesPreferencias />);
     await esperaCarregar();
