@@ -3,6 +3,7 @@ import type { PrismaClient } from '@prisma/client';
 import {
   coberturaAcoes,
   coberturaMinima,
+  DEPENDENCIAS_PADRAO,
   executarCriterios,
   type DependenciasCriterios,
   type UniversoCriterios,
@@ -359,6 +360,16 @@ describe('executarCriterios com a v2 (camada de fontes)', () => {
       versaoParams: 2,
     });
     expect(obterParams).toHaveBeenCalledWith(prisma, { versao: 2 });
+  });
+
+  it('a dependência padrão repassa a versão pedida ao banco (não cai na vigente)', async () => {
+    const findUnique = vi.fn(async () => ({ version: 2, params: CRITERIA_PARAMS_V1 }));
+    const findFirst = vi.fn();
+    const prisma = { criteriaParams: { findUnique, findFirst } } as unknown as PrismaClient;
+    const r = await DEPENDENCIAS_PADRAO.obterParams(prisma, { versao: 2 });
+    expect(findUnique).toHaveBeenCalledWith({ where: { version: 2 } });
+    expect(findFirst).not.toHaveBeenCalled();
+    expect(r.versao).toBe(2);
   });
 });
 

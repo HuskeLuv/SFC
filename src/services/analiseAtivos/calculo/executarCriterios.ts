@@ -213,7 +213,7 @@ async function simbolosNoQuadro(prisma: PrismaClient): Promise<Set<string>> {
 
 export const DEPENDENCIAS_PADRAO: DependenciasCriterios = {
   scoresEmExecucao,
-  obterParams: (prisma) => obterCriteriaParams(prisma),
+  obterParams: (prisma, opts) => obterCriteriaParams(prisma, opts),
   carregarUniverso: carregarUniversoCriterios,
   lerBrutosAcoes,
   lerBrutosFii,
