@@ -295,7 +295,11 @@ export default function ModalPlanejar({
               </span>
             </>
           ) : (
-            <span>{T.resumoVazio}</span>
+            <span>
+              {valor !== null && !foraDaFaixa && dados.totalCarteira === 0
+                ? T.resumoCarteiraVazia
+                : T.resumoVazio}
+            </span>
           )}
         </div>
         {erro || foraDaFaixa ? (

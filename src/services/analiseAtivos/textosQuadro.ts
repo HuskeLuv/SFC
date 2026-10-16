@@ -79,7 +79,7 @@ export const TEXTOS_QUADRO = {
     rendimento10a: 'Rendimento por cota nos últimos 10 anos fechados',
     divLiqEbitda: 'Negativo = caixa líquido',
     vacanciaCvm:
-      'Vacância física informada à CVM (último informe trimestral); pode diferir do relatório do gestor',
+      'Vacância física informada à CVM (último informe trimestral); pode diferir do relatório do gestor. O critério "Vacância ≤ 10%" olha os anos fechados da janela, não este informe',
     criterios:
       'Quantos critérios de fundamentos o ativo atende na janela escolhida (dado contábil, não avaliação do My Finance)',
   },
