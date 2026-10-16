@@ -10,6 +10,10 @@ const nextConfig: NextConfig = {
   // Habilita strict mode do React
   reactStrictMode: true,
 
+  // PDF do Comparador (Análise de Ativos, bloco 1): o pdfkit lê os próprios arquivos (AFM) por fs
+  // e não pode ser empacotado pelo webpack; roda do node_modules no servidor.
+  serverExternalPackages: ['pdfkit'],
+
   // Otimização de imagens
   images: {
     formats: ['image/avif', 'image/webp'],
