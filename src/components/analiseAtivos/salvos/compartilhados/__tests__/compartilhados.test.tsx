@@ -45,8 +45,6 @@ import {
   resumoAlertasLista,
   uniaoAlertas,
 } from '@/components/analiseAtivos/salvos/compartilhados/formatosSalvos';
-import AlertasDaLista from '@/components/analiseAtivos/salvos/AlertasDaLista';
-import AbaAlertas from '@/components/analiseAtivos/salvos/AbaAlertas';
 
 const T = TEXTOS_SALVOS;
 
@@ -344,18 +342,4 @@ describe('mostrarToastSalvo', () => {
   });
 });
 
-describe('stubs da fatia D', () => {
-  it('AlertasDaLista e AbaAlertas não renderizam nada até a fatia D', () => {
-    const { container } = render(
-      <>
-        <AlertasDaLista
-          aberto
-          onFechar={vi.fn()}
-          lista={{ id: 'l1', nome: 'X', alertas: LISTA.alertas, totalAtivos: 0 }}
-        />
-        <AbaAlertas classe="acao" />
-      </>,
-    );
-    expect(container.innerHTML).toBe('');
-  });
-});
+// AlertasDaLista e AbaAlertas (fatia D): salvos/__tests__/alertas.test.tsx
