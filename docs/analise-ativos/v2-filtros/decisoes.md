@@ -50,3 +50,37 @@ Ver `spec-desenho.json` → arquitetura.perguntas_para_pedro (14 itens): limites
 base do alvo (% da aba), financeiras n de 3, FII sem dado + lista dos 50 da curadoria, nome Obrigações/PL, FoF, lucro
 líquido no lugar de descontado, janela 10 em FII, rendimento/cota = proventos pagos, âncora de anos, Dív/EBITDA com
 caixa líquido, meses sem dado, Registrar operação com venda e seção, itens que divergem do HTML.
+
+## v2.5 — regras como a spec do Pedro (Wellington, 15/10; ATIVA em prod 16/10/2026 16:28 UTC)
+
+Direção: regras dos Filtros "o mais próximo possível da spec do Pedro", sem se limitar aos dados
+grátis e já preparadas para um provedor pago (desenho: `docs/analise-ativos/v25-regras-pedro/desenho.json`;
+`criteria_params` v2; PR #302 + fix #303). **Revê D2, D3 e D4**:
+
+- **D2 revista**: "Lucro descontado" / "Margem descontada" como na spec, com fallback para o lucro
+  líquido dos controladores enquanto a fonte não entrega o lucro sem itens não recorrentes (ⓘ +
+  tooltip; obs `lucro_sem_descontado`). Ano com receita ≤ lucro conta a margem como valor
+  (`receitaMenorQueLucro: 'valor'`).
+- **D3 revista**: vacância física avaliada pela CVM no FII de tijolo; inadimplência e LTV só com
+  provedor aprovado (até lá "não atende · sem dado"). Alavancagem = "≤ 20% do PL".
+- **D4 revista**: financeiras "n de 6" como na spec (lista `naoSeAplica` vazia nos params); EBITDA e
+  Dív.líq/EBITDA de banco ficam "sem dado"; FCL de financeiras calculado.
+- Dúvidas do desenho, respondidas pela recomendação: (1) Objetivo da aba da Carteira só como linha
+  informativa; alvo novo só na Análise (`planning_asset_targets`, % da carteira total); (2) Registrar
+  com seção automática + linha "Na Carteira" + link para o formulário completo; (3) FCL de
+  financeiras calculado; (4) agregação anual = último período.
+- Desvio protótipo > texto: coluna Tipo do FII só Tijolo | Papel (o banco guarda o tipo CVM bruto).
+- Camada de fontes: vale para critérios + Essencial; Raio-X, Valuation e Pares precisam de PR de
+  leitura quando houver provedor. Job `fontes-fundamentos` sem cron até haver conector.
+
+Ativação em prod (`spec-v2-pedro-out2026/ATIVACAO-v25.md`), 16/10/2026:
+
+- v2 semeada com `validFrom` 2099; dry-run e `--comparar=1,2` só ficaram corretos depois do #303
+  (o job ignorava `--versao-params`). Diferenças v1 → v2 (janela 5): financeiras n de 2/3 → n de 6;
+  vacância tijolo 0 → 119/199 com dado (64 atendem); margem das ações 259 → 279 com dado;
+  `luc` com fallback em 331/331 ações. Resto igual.
+- 16:28 UTC: v2 vigente; `criterios` 2862 linhas (262 MB, 7,7 s), `quadro` 954, 0 alertas.
+- QA admin (leitura + gravação desfeita): ok. Follow-ups baixos: modal Planejar com carteira vazia
+  mostra "Informe o peso-alvo…" mesmo com peso digitado; coluna "Vacância (CVM)" do Quadro = informe
+  mais recente, critério = janela até dez/anoFim (ex.: FATN11 13,3% na coluna, atende com máx. 5,3%).
+- Rollback rápido: `validFrom` da v2 de volta a 2099 + `criterios` + `quadro`.

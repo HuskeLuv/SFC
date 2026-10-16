@@ -13,6 +13,7 @@ aprovadas ("pode seguir"):
 - D3 FII: vacância/inadimplência/LTV = "sem dado" para todos; chip desabilitado; alavancagem =
   "Obrigações/PL ≤ 20%".
 - D4 financeiras "n de 3" (EBITDA, Dív.líq/EBITDA e FCL "não se aplica").
+- **v2.5 (ativa desde 16/10/2026): D2, D3 e D4 revistas** — ver a seção "v2.5" no mesmo arquivo; ativação em [`ATIVACAO-v25.md`](ATIVACAO-v25.md).
 - D5 fora: Ranking/votos/teses públicas, Stocks/REITs, Salvos/Criar lista/Salvar.
 - D6 o banco do score fica nesta rodada; só sai da superfície (API, tela, textos).
 - Recomendações 1–9: Planejar = Objetivo da Carteira (% da aba); Registrar operação = modal
