@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import {
   checkRateLimit,
   chaveBaldeRateLimit,
+  ehRotaPdfComparacao,
   ehRotaPesadaBlocoD,
   getTierForPath,
   getClientIp,
@@ -182,6 +183,28 @@ describe('getTierForPath', () => {
     );
     expect(raioX.slice(0, 30).every((r) => r.allowed)).toBe(true);
     expect(raioX[30].allowed).toBe(false);
+  });
+
+  it('bloco 1: PDF do Comparador com teto próprio (10/min) e balde separado do /comparador', () => {
+    const pdf = '/api/analise-ativos/comparacao-pdf';
+    expect(getTierForPath(pdf)).toEqual({ limit: 10, windowMs: 60_000 });
+    expect(ehRotaPdfComparacao(pdf)).toBe(true);
+    expect(ehRotaPdfComparacao('/api/analise-ativos/comparacao-pdfx')).toBe(false);
+    expect(chaveBaldeRateLimit(pdf)).toBe(pdf);
+    // comparações salvas ficam no genérico (fora de /comparador/)
+    expect(getTierForPath('/api/analise-ativos/comparacoes').limit).toBe(60);
+    expect(getTierForPath('/api/analise-ativos/listas').limit).toBe(60);
+
+    const store = new Map<string, { timestamps: number[] }>();
+    const ip = '7.7.7.7';
+    const chamar = (p: string) =>
+      checkRateLimit(store, `${ip}:${chaveBaldeRateLimit(p)}`, getTierForPath(p));
+    const pdfs = Array.from({ length: 11 }, () => chamar(pdf));
+    expect(pdfs.slice(0, 10).every((r) => r.allowed)).toBe(true);
+    expect(pdfs[10].allowed).toBe(false);
+    // gerar PDF não consumiu a cota do JSON do Comparador
+    const json = Array.from({ length: 30 }, () => chamar('/api/analise-ativos/comparador'));
+    expect(json.every((r) => r.allowed)).toBe(true);
   });
 
   it('should return general API config for other /api/ paths', () => {

@@ -172,6 +172,14 @@ export const RATE_LIMIT_TIERS: RateLimitTier[] = [
     config: { limit: 10, windowMs: 60_000 },
   },
   {
+    // Análise de Ativos — bloco 1: PDF do Comparador (pdfkit no servidor). Teto próprio de 10/min
+    // por IP, ANTES do tier pesado: gerar PDF não consome a cota do JSON do /comparador (o caminho
+    // fica fora de /comparador/ e o balde de 4 segmentos já o isola). Os 10 por hora por usuário
+    // ficam na rota (comparacoesService.consumirCotaPdf).
+    match: (p) => ehRotaPdfComparacao(p),
+    config: { limit: 10, windowMs: 60_000 },
+  },
+  {
     // Análise de Ativos — Bloco D: Raio-X (JSON e CSV) e Comparador leem muito do banco por
     // chamada — teto de 30/min por IP. O PUT/DELETE dos cenários fica no genérico (60/min; o
     // limite de 300 cenários por usuário fica no banco). Balde próprio: chaveBaldeRateLimit.
@@ -191,6 +199,13 @@ export const RATE_LIMIT_TIERS: RateLimitTier[] = [
 ];
 
 const RE_RAIO_X = /^\/api\/analise-ativos\/ativos\/[^/]+\/raio-x(?:\/|$)/;
+
+/** Bloco 1: rota do PDF do Comparador (balde próprio, separado do /comparador). */
+export const ROTA_PDF_COMPARACAO = '/api/analise-ativos/comparacao-pdf';
+
+export function ehRotaPdfComparacao(pathname: string): boolean {
+  return pathname === ROTA_PDF_COMPARACAO || pathname.startsWith(`${ROTA_PDF_COMPARACAO}/`);
+}
 
 /** Bloco D: rotas de leitura pesada (Raio-X por ticker e Comparador). */
 export function ehRotaPesadaBlocoD(pathname: string): boolean {
