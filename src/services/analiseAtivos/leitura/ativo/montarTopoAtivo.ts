@@ -22,6 +22,11 @@
  *
  * Cache em memória por ticker:versão do Quadro (TTL 30 min, LRU 800): a versão muda quando o job
  * 'quadro' grava, e o topo é refeito na próxima leitura.
+ *
+ * v2.5 (fatia B): tags do FII com o tipo EXIBIDO ('FII de tijolo' | 'FII de papel', pelo perfil dos
+ * critérios) e FoF/Híbrido como prefixo do segmento; `fiiTipoCvm` leva o tipo CVM BRUTO (seção
+ * automática da Carteira, fatia C); a frase de fonte do card de critérios é montada pelas origens
+ * (textoNotaFonte + rótulos do registro de fontes) quando a avaliação traz `fontes`.
  */
 import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
@@ -46,12 +51,21 @@ import {
 import { montarFrescorBlocos } from '@/services/analiseAtivos/leitura/ativo/frescorBlocos';
 import { gruposConf } from '@/services/analiseAtivos/regras/comum/conferencia';
 import { obterCriteriosAtivo } from '@/services/analiseAtivos/leitura/criterios/lerCriterios';
+import { obterCriteriaParamsQuadro } from '@/services/analiseAtivos/leitura/linhasQuadro';
+import { CRITERIA_PARAMS_CODIGO } from '@/services/analiseAtivos/params/criteriaParamsCodigo';
 import {
   montarGraficoAcao,
   montarGraficoFii,
   type EventoAjuste,
 } from '@/services/analiseAtivos/leitura/ativo/seriesGrafico';
 import { FLAG_CNPJ_EM_CONFERENCIA } from '@/services/analiseAtivos/quadro/montarLinhasQuadro';
+import {
+  rotuloSegmentoFii,
+  segmentoTipoDe,
+  tipoFiiExibido,
+} from '@/services/analiseAtivos/quadro/tipoFiiExibido';
+import { rotulosFontes } from '@/services/analiseAtivos/fontes/fundamentos/registro';
+import { textoNotaFonte } from '@/services/analiseAtivos/textosCriterios';
 import { TEXTOS_TELA } from '@/services/analiseAtivos/textosTela';
 import { LINK_EDUCACAO } from '@/constants/analiseAtivosVisual';
 import type {
@@ -60,7 +74,7 @@ import type {
   FiiTipoTela,
   LinhaQuadroApi,
 } from '@/types/analiseAtivosApi';
-import type { CriteriosAtivo } from '@/types/analiseAtivosCriterios';
+import type { CriteriosAtivo, IdCriterio, PontoCriterio } from '@/types/analiseAtivosCriterios';
 
 export const TTL_TOPO_MS = 30 * 60_000;
 export const MAX_TOPO_EM_CACHE = 800;
@@ -109,6 +123,45 @@ async function lerCriteriosTopo(ticker: string): Promise<CriteriosAtivo | null> 
   }
 }
 
+/**
+ * v2.5: dados dos KPIs da AÇÃO FINANCEIRA pelos mesmos params do card (kpisAtivo.kpiFinanceira):
+ * perfis.acao_financeira.naoSeAplica (falha de leitura = os do código) e o último ponto (maior ano,
+ * entre as janelas) das séries de 'mg' e 'dl' da avaliação de critérios.
+ */
+async function dadosKpisFinanceira(criterios: CriteriosAtivo | null): Promise<{
+  naoSeAplica: readonly IdCriterio[];
+  ultimos: Partial<Record<'mg' | 'dl', PontoCriterio | null>>;
+}> {
+  let naoSeAplica: readonly IdCriterio[];
+  try {
+    naoSeAplica = (await obterCriteriaParamsQuadro()).perfis.acao_financeira.naoSeAplica;
+  } catch {
+    naoSeAplica = CRITERIA_PARAMS_CODIGO.perfis.acao_financeira.naoSeAplica;
+  }
+  const ultimos: Partial<Record<'mg' | 'dl', PontoCriterio | null>> = {};
+  for (const id of ['mg', 'dl'] as const) {
+    let ultimo: PontoCriterio | null = null;
+    for (const janela of Object.values(criterios?.janelas ?? {})) {
+      const item = janela?.itens.find((i) => i.id === id);
+      for (const p of item?.serie ?? []) if (!ultimo || p.ano > ultimo.ano) ultimo = p;
+    }
+    ultimos[id] = ultimo;
+  }
+  return { naoSeAplica, ultimos };
+}
+
+/**
+ * v2.5: com as origens (CriteriosAtivo.fontes), a frase de fonte do card é montada por elas
+ * ('Fonte: ‹provedor› · DFP/ITR (CVM).'); sem origens, fica a da avaliação (v2.4).
+ */
+export function criteriosComFonte(
+  criterios: CriteriosAtivo | null,
+  classe: ClasseQuadro,
+): CriteriosAtivo | null {
+  if (!criterios?.fontes) return criterios;
+  return { ...criterios, fonte: textoNotaFonte(classe, criterios.fontes, rotulosFontes()) };
+}
+
 /** Data civil de hoje em São Paulo (AAAA-MM-DD). */
 export function hojeSaoPaulo(agora: Date = new Date()): string {
   return new Intl.DateTimeFormat('en-CA', {
@@ -129,10 +182,16 @@ const num = (d: unknown): number | null => {
 const somarAnos = (hoje: string, anos: number) =>
   `${Number(hoje.slice(0, 4)) + anos}${hoje.slice(4)}`;
 
-function tagsDe(l: LinhaQuadroApi): string[] {
+/**
+ * Tags do topo. FII (v2.5): tipo EXIBIDO (pelo perfil dos critérios; sem avaliação, tijolo = tijolo
+ * e o resto = papel) + segmento com o prefixo FoF/Híbrido do tipo CVM bruto.
+ */
+export function tagsDe(l: LinhaQuadroApi, perfil?: string | null): string[] {
   if (l.classe === 'fii') {
     const tipos: Record<FiiTipoTela, string> = TEXTOS_TELA.ativo.tiposFii;
-    return [l.fiiTipo ? tipos[l.fiiTipo] : null, l.segmentoCvm].filter((x): x is string => !!x);
+    const tipo = tipos[tipoFiiExibido(perfil ?? l.criterios?.perfil, l.fiiTipo)];
+    const segmento = rotuloSegmentoFii(segmentoTipoDe(l.fiiTipo), l.segmentoCvm);
+    return [tipo, segmento].filter((x): x is string => !!x);
   }
   // setor · segmento · listagem. SEM tag de índice de mercado (IBOV): não tem fonte (decisão 6).
   return [l.setor, l.segmento, l.listagem].filter((x): x is string => !!x);
@@ -282,8 +341,11 @@ export async function montarTopoAtivo(
   }
   const ultimoMensal = mensal.length ? iso(mensal[mensal.length - 1].refMonth) : null;
 
+  const financeiraKpis =
+    ehAcao && row.regua === 'acao_financeira' ? await dadosKpisFinanceira(criterios) : undefined;
   const kpis = montarKpis({
     linha,
+    financeira: financeiraKpis,
     atuais: atuais
       ? {
           plMedia10a: atuais.plMedia10a,
@@ -393,10 +455,11 @@ export async function montarTopoAtivo(
     ticker,
     classe,
     nome: linha.nome,
-    tags: tagsDe(linha),
+    tags: tagsDe(linha, criterios?.perfil),
     noQuadro: linha.noQuadro,
     foraDoQuadroMotivo: linha.foraDoQuadroMotivo,
     assetId: linha.assetId,
+    fiiTipoCvm: ehAcao ? null : (linha.fiiTipo ?? null),
     cotacao: {
       preco,
       data: linha.precoData,
@@ -404,7 +467,7 @@ export async function montarTopoAtivo(
       variacaoPct: pct,
       baixaLiquidez: linha.baixaLiquidez,
     },
-    criterios,
+    criterios: criteriosComFonte(criterios, classe),
     kpis,
     grafico,
     dividendos,

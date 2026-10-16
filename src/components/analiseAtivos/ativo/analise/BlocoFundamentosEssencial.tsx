@@ -19,6 +19,13 @@
  * Bloco D (decisão 1, vale sempre): LPA, P/L e P/VP (FII: VP/cota e rendimento/cota) de um ano com a
  * base por ação quebrada saem 'em conferência' — hachura + '—' + chip com o motivo, montado aqui
  * (conferenciaTelaPerShare), igual ao Raio-X.
+ *
+ * v2.5 (fatia B): 'Lucro descontado ⓘ' e 'Margem descontada ⓘ' (§3.2). Célula que usa o lucro
+ * líquido no lugar do descontado (LinhaFundamentos.marcas[c].fallback) leva um ⓘ com o tooltip
+ * (fallbackLucro/fallbackMargem; sr-only para leitor de tela); '—' leva o texto do Estado no title
+ * ('sem dado nas demonstrações'). Financeiras com as 14 colunas. A nota de fonte vem das origens
+ * (FundamentosResposta.textoFonte) e o selo neutro 'dados incompletos' (§6) aparece quando a fonte
+ * marcou algum ponto (dadosIncompletos).
  */
 import type { ReactNode } from 'react';
 import CartaoAnalise, {
@@ -80,6 +87,14 @@ export function explicacaoDaColuna(
 /** Rótulo sem o 'ⓘ' (notas e leitor de tela). */
 function rotuloLimpo(rotulo: string): string {
   return rotulo.replace(/\s*ⓘ\s*$/u, '');
+}
+
+/** Tooltip da célula que usa o lucro líquido no lugar do descontado (v2.5); null = nenhum. */
+export function tooltipFallback(l: LinhaFundamentos, codigo: string): string | null {
+  if (!l.marcas?.[codigo]?.fallback) return null;
+  if (codigo === 'lucro') return TE.tooltips.fallbackLucro;
+  if (codigo === 'margem') return TE.tooltips.fallbackMargem;
+  return null;
 }
 
 function emConferencia(l: LinhaFundamentos): boolean {
@@ -241,14 +256,45 @@ export default function BlocoFundamentosEssencial({
                         const negativo = v.estado === 'ok' && v.valor < 0;
                         const asterisco = conf && COLUNAS_PROVENTO.has(c.codigo);
                         const confC = conferenciaDaCelula(conferencias, l, dados.variante, c, v);
+                        const fallback = v.estado === 'ok' ? tooltipFallback(l, c.codigo) : null;
                         return (
                           <td
                             key={c.codigo}
-                            title={v.estado === 'ok' ? undefined : v.texto}
+                            title={v.estado === 'ok' ? (fallback ?? undefined) : v.texto}
                             data-conferencia={confC?.grupo}
+                            data-fallback={fallback ? '' : undefined}
                             className={`${TABLE_STYLES.compact.td} text-right tabular-nums ${l.ultimoAno ? `${TABLE_STYLES.highlightTd} font-medium text-gray-800 dark:text-white/90` : ''} ${negativo ? TEXTO_NEGATIVO : ''} ${confC ? HACHURA : ''}`}
                           >
                             {formatarEstado(v, c.formato)}
+                            {fallback ? (
+                              <>
+                                {/* ⓘ minúsculo não existe na fonte do app: ícone em SVG */}
+                                <svg
+                                  aria-hidden="true"
+                                  data-icone-fallback=""
+                                  viewBox="0 0 12 12"
+                                  className="ml-1 inline-block h-[11px] w-[11px] cursor-help align-[-1px] text-gray-500 dark:text-gray-400"
+                                >
+                                  <circle
+                                    cx="6"
+                                    cy="6"
+                                    r="5.25"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    strokeWidth="1"
+                                  />
+                                  <circle cx="6" cy="3.6" r="0.75" fill="currentColor" />
+                                  <rect
+                                    x="5.4"
+                                    y="5"
+                                    width="1.2"
+                                    height="3.8"
+                                    fill="currentColor"
+                                  />
+                                </svg>
+                                <span className="sr-only">: {fallback}</span>
+                              </>
+                            ) : null}
                             {asterisco ? (
                               <span aria-label={TEXTOS_TELA.selos.emConferencia}>*</span>
                             ) : null}
@@ -276,6 +322,18 @@ export default function BlocoFundamentosEssencial({
               </tbody>
             </table>
           </div>
+          {dados.dadosIncompletos ? (
+            <p className="m-0">
+              <span
+                data-selo-incompleto=""
+                title={TE.tooltipIncompleto}
+                className="inline-flex items-center rounded-full border border-gray-300 px-2 py-0.5 text-[11.5px] text-gray-600 dark:border-gray-600 dark:text-gray-300"
+              >
+                {TE.seloIncompleto}
+                <span className="sr-only">: {TE.tooltipIncompleto}</span>
+              </span>
+            </p>
+          ) : null}
           <ul className="flex flex-col gap-1 text-xs text-gray-500 dark:text-gray-400">
             <li>
               {dados.variante === 'acao'
@@ -287,6 +345,7 @@ export default function BlocoFundamentosEssencial({
             {dados.observacoes.map((n) => (
               <li key={n}>{n}</li>
             ))}
+            {dados.textoFonte ? <li data-nota-fonte="">{dados.textoFonte}</li> : null}
             {dados.colunas.map((c) => {
               const explicacao = explicacaoDaColuna(dados.variante, c.codigo);
               return explicacao ? (

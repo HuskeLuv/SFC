@@ -115,4 +115,31 @@ describe('GET /api/profile/export (LGPD)', () => {
       }),
     ]);
   });
+
+  it('inclui os alvos por ativo do Planejar na carteira (planning_asset_targets)', async () => {
+    const em = new Date('2026-10-15T12:00:00Z');
+    mocks.prisma.planningAssetTarget.findMany.mockResolvedValueOnce([
+      {
+        targetPct: '6.000',
+        atualizadoPorUserId: null,
+        createdAt: em,
+        updatedAt: em,
+        asset: { symbol: 'WEGE3' },
+      },
+    ]);
+    const res = await GET(new NextRequest('http://localhost/api/profile/export'));
+    const corpo = JSON.parse(await res.text());
+    expect(mocks.prisma.planningAssetTarget.findMany.mock.calls[0][0].where).toEqual({
+      userId: 'u1',
+    });
+    expect(corpo.analiseAtivos.planningAssetTargets).toEqual([
+      {
+        ticker: 'WEGE3',
+        targetPct: 6,
+        atualizadoPorUserId: null,
+        createdAt: em.toISOString(),
+        updatedAt: em.toISOString(),
+      },
+    ]);
+  });
 });

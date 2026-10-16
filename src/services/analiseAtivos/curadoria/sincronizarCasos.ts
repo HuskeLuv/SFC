@@ -51,6 +51,7 @@ import {
 } from '@/services/analiseAtivos/curadoria/notificacoesCaso';
 import type { JobContexto, ResultadoJob } from '@/services/analiseAtivos/tipos';
 import type { RelatorioCuradoria } from '@/types/analiseAtivosCuradoria';
+import { GRUPO_CURADORIA_FONTE_EXTERNA } from '@/types/analiseAtivosFontes';
 
 export type { RelatorioCuradoria };
 
@@ -490,8 +491,13 @@ export async function executarCuradoria(ctx: JobContexto): Promise<ResultadoJob>
 
   const [deteccoes, abertos, fechados, linhasDeHoje] = await Promise.all([
     carregarDeteccoes(prisma, ctx.params?.sanidade?.conferencia?.ligada === true),
+    // v2.5: casos 'fonte_externa' (ponto de provedor em revisão) não são de flag conf:/rev: — a
+    // regra de cessação não os fecha sozinha; só a decisão do curador (efeitoFonteExterna)
     prisma.analiseCasoDado.findMany({
-      where: { status: { in: ['aberto', 'em_analise'] } },
+      where: {
+        status: { in: ['aberto', 'em_analise'] },
+        grupo: { not: GRUPO_CURADORIA_FONTE_EXTERNA },
+      },
       select: SELECT_ABERTO,
     }),
     prisma.analiseCasoDado.findMany({

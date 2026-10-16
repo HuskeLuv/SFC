@@ -13,6 +13,9 @@
  *    máx(0, máx) ('máx. 0,0×' quando o máximo real é −0,3); EBITDA ≤ 0 com DL > 0 vem da série como
  *    +Infinity (seriesAcao) e dá 'nao_atende' com o fato 'EBITDA ≤ 0 em AAAA'.
  * Fatos com formatarValorCriterio (fmtC: |v| < 0,05 vira 0, exceto n2) e TEXTOS_CRITERIOS.fatos.
+ * v2.5: a série chega já escolhida para a janela (avaliarAtivo + resolverSeries.escolherSerieJanela:
+ * fallback do lucro descontado pela janela inteira); fonte/obs do resultado são postos por
+ * avaliarAtivo. 'sem dado' é sempre o mesmo texto (sem a nota dos informes de FII).
  * Função pura.
  */
 import type {
@@ -46,6 +49,8 @@ export interface EntradaCriterio {
   serie?: Readonly<Record<number, number | null>>;
   /** só 'months' */
   meses?: MesesRendimento | null;
+  /** só 'months' (v2.5): contagens anuais de um provedor (mesesJanela.avaliarMesesPorAno) */
+  mesesPorAno?: Readonly<Record<number, number | null>> | null;
   /** D4: critério não se aplica ao perfil (financeira) */
   naoSeAplica?: boolean;
 }
@@ -68,9 +73,9 @@ function textoSemFonte(id: IdCriterio): string {
   return m[id] ?? T.fatos.semDado;
 }
 
-/** Fato de 'sem dado' (FII na janela 10: os informes CVM começam em 2016). */
-function textoSemDado(classe: ClasseQuadro, janela: Janela): string {
-  return classe === 'fii' && janela === 10 ? T.fatos.semDadoFii10 : T.fatos.semDado;
+/** Fato de 'sem dado' (v2.5: sempre o mesmo texto, sem a nota dos informes de FII). */
+function textoSemDado(_classe: ClasseQuadro, _janela: Janela): string {
+  return T.fatos.semDado;
 }
 
 function pontos(anos: number[], valores: Array<number | null>): PontoCriterio[] {
@@ -106,7 +111,7 @@ export function avaliarCriterio(e: EntradaCriterio, params: CriteriaParams): Res
     };
   }
   if (def.tipo === 'months') {
-    const r = avaliarMeses(e.meses ?? null, anoFim, janela, params);
+    const r = avaliarMeses(e.meses ?? null, anoFim, janela, params, e.mesesPorAno);
     return {
       id,
       estado: r.estado,
@@ -156,7 +161,8 @@ export function avaliarCriterio(e: EntradaCriterio, params: CriteriaParams): Res
     fato = formatarTexto(T.fatos.pos, { n, total: janela, min: fmt(Math.min(...w)) });
   } else {
     const limite = def.limite as number;
-    const ehDl = def.serie === 'dlEbitda';
+    // caso 26 ('máx. 0,0×') pelo id do critério, não pelo nome da série (v2.5)
+    const ehDl = def.id === 'dl';
     // EBITDA ≤ 0 com dívida líquida positiva (seriesAcao grava +Infinity): fora do limite
     const anosEbitdaNaoPositivo = anos.filter((_, i) => w[i] === Number.POSITIVE_INFINITY);
     if (def.tipo === 'max') {

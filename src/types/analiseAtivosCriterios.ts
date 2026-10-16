@@ -32,9 +32,17 @@
  *        LeituraDosDados, SeletorTipoFii.
  *   F  — limpeza (textosTela, textos, respostas, constantes, tipos), torna obrigatórios os campos
  *        novos, oficializa o Comparador isonômico e liga linguagemV2Global/contratoSemNota.
+ *
+ * v2.5 (docs/analise-ativos/v25-regras-pedro/desenho.json, fatia 0): séries com os nomes da spec
+ * (SERIES_CRITERIO canônicas; o nome legado da v1 vira o canônico no parse do criteria_params e na
+ * leitura de criteria_eval antigos — MAPA_SERIE_LEGADA), ResultadoCriterio.fonte/obs, MarcaCompacta
+ * com 4º elemento (obs), EntradaDesvioAlvo.valorBase (carteira TOTAL, caso 33), origem 'padrao' da
+ * seção automática e EntradaAvaliacaoAtivo.origens/mesesPorAno. Financeiras passam a "n de 6" pelo
+ * params (naoSeAplica vazio), sem mudança de tipo. Camada de fontes: src/types/analiseAtivosFontes.ts.
  */
 import type { ReactNode } from 'react';
 import type { ClasseQuadro, Estado, FiiTipoTela, FormatoAnalise } from '@/types/analiseAtivosApi';
+import type { IdFonte, OrigemSerie, SerieFundamento } from '@/types/analiseAtivosFontes';
 
 // ===========================================================================
 // Básicos
@@ -101,31 +109,85 @@ export function ehIdCriterio(v: unknown): v is IdCriterio {
 }
 
 /**
- * Série do banco que alimenta o critério (a fatia A monta; mesmas fontes do Essencial):
- * receita = FY.receita · lucroLiquido = FY.lucroAtribuivel (controladores, D2) · ebitda = ebit +
- * D&A · margemLiquida = lucro ÷ receita (receita ≤ 0 = ausente) · dlEbitda = (dívida bruta − caixa −
- * aplicações) ÷ EBITDA · fcl = fco − capex (NUNCA o campo fcf) · rendCota/vpCota =
- * AssetPerShareYearly × fatorCotasApos · obrigacoesPl = AssetMultiplesYearly.obrigacoesPlPct ·
- * resultadoFii = Σ 4 trimestres de FiiQuarterly.resultadoTrimestral · mesesRendimento = proventos
- * auditados · vacancia/inadimplencia/ltv = sem fonte confiável (D3, critério inativo).
+ * Série que alimenta um critério — nomes CANÔNICOS da spec §4.1 (subconjunto de SERIES_FUNDAMENTO,
+ * src/types/analiseAtivosFontes.ts). Unidades no motor: R$ mi (revenue, net_income*, ebitda,
+ * free_cash_flow, ffo), % (net_margin, vacancy_physical, leverage_pct, default_pct, ltv_avg), ×
+ * (net_debt_ebitda), R$/cota (income_per_share, nav_per_share), meses (months_with_income).
+ * De onde vêm (FonteCvm, fatia A; um provedor entra antes pela prioridade de criteria_params.fontes):
+ * revenue = FY.receita · net_income = lucro dos CONTROLADORES · net_income_adjusted = lucro sem itens
+ * não recorrentes (só provedor; sem ele o critério 'luc' usa serieFallback net_income) · ebitda = EBIT
+ * + D&A · net_margin = lucro ÷ receita · net_debt_ebitda = (dívida bruta − caixa − aplicações) ÷
+ * EBITDA · free_cash_flow = FCO − CAPEX (NUNCA o campo fcf) · income_per_share/nav_per_share =
+ * AssetPerShareYearly × fatorCotasApos · leverage_pct = obrigacoesPlPct · ffo = Σ 4 trimestres de
+ * resultadoTrimestral · months_with_income = proventos auditados · vacancy_physical =
+ * FiiQuarterly.vacanciaFisicaCvmPct (CVM, informe trimestral; papel nsa = sem dado) · default_pct /
+ * ltv_avg = fii_property_quality approved (só provedor).
  */
 export const SERIES_CRITERIO = [
-  'receita',
-  'lucroLiquido',
+  'revenue',
+  'net_income',
+  'net_income_adjusted',
   'ebitda',
-  'margemLiquida',
-  'dlEbitda',
-  'fcl',
-  'rendCota',
-  'vpCota',
-  'vacancia',
-  'obrigacoesPl',
-  'mesesRendimento',
-  'resultadoFii',
-  'inadimplencia',
-  'ltv',
-] as const;
+  'net_margin',
+  'net_debt_ebitda',
+  'free_cash_flow',
+  'income_per_share',
+  'nav_per_share',
+  'vacancy_physical',
+  'leverage_pct',
+  'months_with_income',
+  'ffo',
+  'default_pct',
+  'ltv_avg',
+] as const satisfies readonly SerieFundamento[];
 export type SerieCriterio = (typeof SERIES_CRITERIO)[number];
+
+/**
+ * Nomes LEGADOS (criteria_params v1 e criteria_eval gravados com ela) → nome canônico. O schema do
+ * criteria_params aplica o mapa no parse (z.transform): o motor só conhece o nome canônico. Um nome
+ * esquecido aqui falharia em silêncio — o teste criteriaParams.test confere a v1 inteira.
+ */
+export const MAPA_SERIE_LEGADA = {
+  receita: 'revenue',
+  lucroLiquido: 'net_income',
+  ebitda: 'ebitda',
+  margemLiquida: 'net_margin',
+  dlEbitda: 'net_debt_ebitda',
+  fcl: 'free_cash_flow',
+  rendCota: 'income_per_share',
+  vpCota: 'nav_per_share',
+  vacancia: 'vacancy_physical',
+  obrigacoesPl: 'leverage_pct',
+  mesesRendimento: 'months_with_income',
+  resultadoFii: 'ffo',
+  inadimplencia: 'default_pct',
+  ltv: 'ltv_avg',
+} as const satisfies Record<string, SerieCriterio>;
+export type SerieCriterioLegada = keyof typeof MAPA_SERIE_LEGADA;
+export const SERIES_CRITERIO_LEGADAS = Object.keys(MAPA_SERIE_LEGADA) as [
+  SerieCriterioLegada,
+  ...SerieCriterioLegada[],
+];
+
+/** Nome canônico de uma série (legado → spec; canônico passa igual; desconhecido = null). */
+export function serieCanonica(nome: string): SerieCriterio | null {
+  if ((SERIES_CRITERIO as readonly string[]).includes(nome)) return nome as SerieCriterio;
+  return (MAPA_SERIE_LEGADA as Record<string, SerieCriterio>)[nome] ?? null;
+}
+
+/**
+ * Observação de um resultado (JSON opcional em criteria_eval.resultados e 4º elemento da
+ * MarcaCompacta, sem migration):
+ * - lucro_sem_descontado: o critério 'luc' usou a serieFallback (net_income) na janela inteira —
+ *   a fonte não entrega o lucro sem itens não recorrentes (tooltip em textosCriterios.obs);
+ * - dados_incompletos: a fonte marcou um ponto da janela como incompleto (§6; selo na tela).
+ */
+export const OBS_CRITERIO = ['lucro_sem_descontado', 'dados_incompletos'] as const;
+export type ObsCriterio = (typeof OBS_CRITERIO)[number];
+
+export function ehObsCriterio(v: unknown): v is ObsCriterio {
+  return typeof v === 'string' && (OBS_CRITERIO as readonly string[]).includes(v);
+}
 
 /**
  * Formato dos números do fato (fmtC do screen.js; formatarValorCriterio em textosCriterios.ts):
@@ -144,11 +206,13 @@ export type EstadoCriterio = (typeof ESTADOS_CRITERIO)[number];
 /**
  * Por que o critério não tem resultado normal (texto em textosCriterios.motivos):
  * - sem_dado_demonstracoes: valor ausente em algum ano exigido da janela (ou ano em conferência);
- * - sem_fonte_confiavel: critério inativo por D3 (vacância, inadimplência, LTV);
+ * - sem_fonte_confiavel: critério inativo por D3 (só v1; na v2 vacância, inadimplência e LTV ficam
+ *   ativos e, sem fonte, caem em sem_dado_demonstracoes);
  * - base_proventos_curta: base de proventos começa depois do início da janela (rec. 4,
  *   params.meses.mesesBaseCurta = 'sem_dado');
  * - ebitda_nao_positivo: Dív.líq/EBITDA com EBITDA ≤ 0 e DL > 0 (fora, fato 'EBITDA ≤ 0 em AAAA');
- * - instituicao_financeira: n/a para bancos/seguradoras/holdings (D4).
+ * - instituicao_financeira: n/a para bancos/seguradoras/holdings (D4; na v2 só se religado por
+ *   params — naoSeAplica / margemSemReceitaComparavel).
  */
 export type MotivoCriterio =
   | 'sem_dado_demonstracoes'
@@ -181,6 +245,14 @@ export interface ResultadoCriterio {
   fato: string;
   motivo?: MotivoCriterio;
   serie: PontoCriterio[] | null;
+  /**
+   * v2.5: ids das fontes cujos valores entraram na janela, na ordem da prioridade ('cvm', id do
+   * provedor). Ausente = só a CVM (avaliações v1). A nota de fonte do card é montada daqui
+   * (textosCriterios.textoNotaFonte).
+   */
+  fonte?: IdFonte[];
+  /** v2.5: observações (fallback do lucro descontado, dados incompletos). Ausente = nenhuma. */
+  obs?: ObsCriterio[];
 }
 
 /** Avaliação de um ativo numa janela (= uma linha de criteria_eval sem as chaves técnicas). */
@@ -206,8 +278,10 @@ export interface AvaliacaoAtivo {
   janelas: Record<ChaveJanela, AvaliacaoJanela>;
 }
 
-/** Marca compacta: [id, estado, fato]. */
-export type MarcaCompacta = [IdCriterio, EstadoCriterio, string];
+/** Marca compacta: [id, estado, fato] ou, na v2.5, [id, estado, fato, obs] (obs só quando há). */
+export type MarcaCompacta =
+  | [IdCriterio, EstadoCriterio, string]
+  | [IdCriterio, EstadoCriterio, string, ObsCriterio[]];
 
 /**
  * Cópia compacta gravada em AnaliseQuadroLinha.criterios (fatia A; lida pela B):
@@ -226,6 +300,8 @@ export interface MarcaCriterioLinha {
   id: IdCriterio;
   estado: EstadoCriterio;
   fato: string;
+  /** v2.5: tooltip do fallback do lucro / selo de dados incompletos (CelulaCriterios) */
+  obs?: ObsCriterio[];
 }
 
 /**
@@ -253,6 +329,10 @@ export interface ItemCriterioApi {
   serie: PontoCriterio[] | null;
   formato: FormatoCriterio;
   unidade?: UnidadeCriterio;
+  /** v2.5: fontes da janela (ResultadoCriterio.fonte) */
+  fonte?: IdFonte[];
+  /** v2.5: observações (ResultadoCriterio.obs) */
+  obs?: ObsCriterio[];
 }
 
 export interface JanelaCriteriosApi {
@@ -266,12 +346,19 @@ export interface JanelaCriteriosApi {
 /**
  * AtivoTopoResposta.criterios (fatia C2): as 3 janelas na MESMA resposta (trocar a pílula não refaz
  * requisição). < 30 KB no total do topo.
- * - fonte: 'DFP/ITR (CVM)' | 'informes de FIIs (CVM)';
+ * - fonte: 'DFP/ITR (CVM)' | 'informes de FIIs (CVM)' (v2.4); v2.5: nota montada pelas origens
+ *   (textosCriterios.textoNotaFonte(classe, fontes)) — 'Fonte: ‹provedor› · DFP/ITR (CVM).';
+ * - fontes: ids das fontes usadas em alguma janela (união, na ordem da prioridade);
+ * - dadosIncompletos: alguma janela tem obs 'dados_incompletos' (selo §6);
  * - observacaoPerfil: FoF/indefinido 'avaliado com os critérios de papel (regra de composição)', ou null.
  */
 export interface CriteriosAtivo {
   perfil: PerfilCriterio;
   fonte: string;
+  /** v2.5 */
+  fontes?: IdFonte[];
+  /** v2.5 */
+  dadosIncompletos?: boolean;
   anoFim: number;
   paramsVersion: number;
   observacaoPerfil: string | null;
@@ -346,16 +433,19 @@ export interface PremissasFiiV2 {
 }
 
 // ===========================================================================
-// Carteira (fatia C1) — base ÚNICA = % da aba (rec. 1)
+// Carteira — v2.5: base ÚNICA = carteira TOTAL (spec §3.2/§5, caso 33; planning_asset_targets)
 // ===========================================================================
 
-/** Entrada de desvioAlvo (puro): todos os valores na base da ABA. */
+/** Entrada de desvioAlvo (puro): todos os valores na MESMA base. */
 export interface EntradaDesvioAlvo {
   /** valor de mercado da posição (R$) */
   valorPosicao: number;
-  /** valor da aba (distribuicao[aba].valor), base de posição, alvo e desvio */
-  valorBaseAba: number;
-  /** alvo em % da aba (null = sem alvo) */
+  /**
+   * v2.5: valor da carteira TOTAL (totalDinheiro do resumo da Carteira), base de posição, alvo e
+   * desvio (caso 33: 6.276 ÷ 0,038). Na v2.4 era o valor da aba (valorBaseAba).
+   */
+  valorBase: number;
+  /** alvo em % da carteira total (planning_asset_targets.targetPct; null = sem alvo) */
   alvoPct: number | null;
   /** cotação usada para as quantidades */
   preco: number | null;
@@ -365,17 +455,27 @@ export interface ResultadoDesvioAlvo {
   posicaoPct: number;
   alvoValor: number | null;
   alvoQtd: number | null;
-  /** posição − alvo, em p.p. da aba (negativo = abaixo do alvo) */
+  /** posição − alvo, em p.p. da base (negativo = abaixo do alvo) */
   desvioPp: number | null;
   desvioValor: number | null;
   desvioQtd: number | null;
 }
 
-/** Origem da seção da Carteira numa compra (secaoOperacao, fatia C1). */
-export type OrigemSecaoOperacao = 'posicao' | 'planejado' | 'sugestao_cvm' | 'obrigatoria';
+/**
+ * Origem da seção da Carteira numa compra (secaoOperacao). v2.5 (fatia C): seção AUTOMÁTICA, nesta
+ * ordem — 'posicao' (recompra) → 'planejado' (Watchlist.secao antiga) → 'sugestao_cvm' (fiiTipoCvm
+ * 'fof' → 'fofi'; FII pelo perfil: fii_tijolo → 'tijolo', senão 'tvm') → 'padrao' (ação → 'value').
+ * 'obrigatoria' é da v2.4 e deixa de ser devolvida na fatia C (o modal perde o campo Seção).
+ */
+export type OrigemSecaoOperacao =
+  | 'posicao'
+  | 'planejado'
+  | 'sugestao_cvm'
+  | 'padrao'
+  | 'obrigatoria';
 
 export interface SecaoOperacao {
-  /** estrategia (ação: value|growth|risk) ou tipoFii (FII: tijolo|tvm|fofi…); null = obrigatória */
+  /** estrategia (ação: value|growth|risk) ou tipoFii (FII: tijolo|tvm|fofi…); null só na v2.4 */
   valor: string | null;
   editavel: boolean;
   origem: OrigemSecaoOperacao;
@@ -456,8 +556,21 @@ export interface EntradaAvaliacaoAtivo {
   perfil: PerfilCriterio;
   /** ano final global (ancoraJanela) */
   anoFim: number;
-  /** série anual por SerieCriterio; ano ausente = sem dado; anos em conferência já removidos */
+  /**
+   * série anual por SerieCriterio (nome canônico); ano ausente = sem dado; anos em conferência já
+   * removidos. v2.5: saída de resolverSeries (todas as fontes, pela prioridade).
+   */
   series: Partial<Record<SerieCriterio, Record<number, number | null>>>;
+  /**
+   * v2.5: origem por série e ano (resolverSeries). Ausente = só CVM, sem fallback nem incompleto
+   * (entradas v2.4 e fixtures antigas).
+   */
+  origens?: Partial<Record<SerieFundamento, Record<number, OrigemSerie>>>;
+  /**
+   * v2.5: meses com rendimento POR ANO (provedor que entrega contagens anuais). Quando presente e
+   * com todos os anos da janela, avaliarMeses usa n = Σ, de = 12×J; qualquer ano nulo = sem dado.
+   */
+  mesesPorAno?: Record<number, number | null>;
   /** meses com rendimento pago até dez/anoFim e o mês de início da base (meses) */
   meses: {
     consecutivos: number;

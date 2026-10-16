@@ -1,9 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { secaoOperacao } from '../secaoOperacao';
+import { secaoOperacao, tipoCvmDoTopo } from '../secaoOperacao';
+import type { AtivoTopoResposta, FiiTipoTela } from '@/types/analiseAtivosApi';
 import { montarCorpoCompra, montarCorpoVenda, validarOperacao } from '../registroOperacao';
 
-describe('secaoOperacao — seção da Carteira numa compra', () => {
-  it('recompra usa a seção da posição e não pergunta (ação e FII)', () => {
+describe('secaoOperacao — seção automática da Carteira numa compra (v2.5)', () => {
+  const nova = (classe: 'acao' | 'fii', tipoCvm: FiiTipoTela | null = null) =>
+    secaoOperacao({ classe, posicao: null, planejado: null, tipoCvm });
+
+  it('recompra usa a seção da posição (ação e FII), mesmo com outro tipo na CVM', () => {
     expect(
       secaoOperacao({
         classe: 'acao',
@@ -17,12 +21,12 @@ describe('secaoOperacao — seção da Carteira numa compra', () => {
         classe: 'fii',
         posicao: { estrategia: null, tipoFii: 'tijolo' },
         planejado: null,
-        tipoCvm: 'papel',
+        tipoCvm: 'fof',
       }),
     ).toEqual({ valor: 'tijolo', editavel: false, origem: 'posicao' });
   });
 
-  it('planejado usa a secao do plano (não a da CVM)', () => {
+  it('planejado antigo usa a secao do plano (não a da CVM)', () => {
     expect(
       secaoOperacao({
         classe: 'fii',
@@ -30,40 +34,92 @@ describe('secaoOperacao — seção da Carteira numa compra', () => {
         planejado: { secao: 'tvm' },
         tipoCvm: 'tijolo',
       }),
-    ).toEqual({ valor: 'tvm', editavel: true, origem: 'planejado' });
+    ).toEqual({ valor: 'tvm', editavel: false, origem: 'planejado' });
     expect(
       secaoOperacao({ classe: 'acao', posicao: null, planejado: { secao: 'risk' }, tipoCvm: null }),
-    ).toEqual({ valor: 'risk', editavel: true, origem: 'planejado' });
+    ).toEqual({ valor: 'risk', editavel: false, origem: 'planejado' });
   });
 
-  it('FII novo sugere pela CVM (tijolo→tijolo, papel→tvm, fof→fofi)', () => {
-    const fii = (tipoCvm: 'tijolo' | 'papel' | 'fof') =>
-      secaoOperacao({ classe: 'fii', posicao: null, planejado: null, tipoCvm });
-    expect(fii('tijolo')).toEqual({ valor: 'tijolo', editavel: true, origem: 'sugestao_cvm' });
-    expect(fii('papel').valor).toBe('tvm');
-    expect(fii('fof').valor).toBe('fofi');
+  it('ação nova → value (padrão)', () => {
+    expect(nova('acao')).toEqual({ valor: 'value', editavel: false, origem: 'padrao' });
   });
 
-  it('sem nada = obrigatória (ação nova; FII híbrido/indefinido)', () => {
-    const obrigatoria = { valor: null, editavel: true, origem: 'obrigatoria' };
-    expect(
-      secaoOperacao({ classe: 'acao', posicao: null, planejado: null, tipoCvm: null }),
-    ).toEqual(obrigatoria);
-    expect(
-      secaoOperacao({ classe: 'fii', posicao: null, planejado: null, tipoCvm: 'hibrido' }),
-    ).toEqual(obrigatoria);
+  it('FII novo: papel → tvm; tijolo → tijolo; FoF → fofi; híbrido/indefinido → tvm', () => {
+    expect(nova('fii', 'papel')).toEqual({ valor: 'tvm', editavel: false, origem: 'sugestao_cvm' });
+    expect(nova('fii', 'tijolo').valor).toBe('tijolo');
+    expect(nova('fii', 'fof').valor).toBe('fofi');
+    expect(nova('fii', 'hibrido').valor).toBe('tvm');
+    expect(nova('fii', 'indefinido').valor).toBe('tvm');
   });
 
-  it('valor fora das seções da aba é ignorado', () => {
+  it('FII sem tipo conhecido → tvm (padrão); nunca "obrigatoria"', () => {
+    expect(nova('fii')).toEqual({ valor: 'tvm', editavel: false, origem: 'padrao' });
+    for (const classe of ['acao', 'fii'] as const) {
+      expect(nova(classe).valor).not.toBeNull();
+      expect(nova(classe).origem).not.toBe('obrigatoria');
+    }
+  });
+
+  it('valor fora das seções da aba é ignorado (cai no padrão)', () => {
     expect(
       secaoOperacao({
         classe: 'acao',
-        posicao: { estrategia: null },
+        posicao: null,
         planejado: { secao: 'brasil' },
         tipoCvm: null,
-      }).origem,
-    ).toBe('obrigatoria');
+      }),
+    ).toEqual({ valor: 'value', editavel: false, origem: 'padrao' });
   });
+
+  it('posição sem seção válida usa o fallback da Carteira (FII → fofi; ação → value), não a CVM', () => {
+    expect(
+      secaoOperacao({
+        classe: 'fii',
+        posicao: { estrategia: null, tipoFii: null },
+        planejado: { secao: 'tijolo' },
+        tipoCvm: 'papel',
+      }),
+    ).toEqual({ valor: 'fofi', editavel: false, origem: 'posicao' });
+    expect(
+      secaoOperacao({
+        classe: 'acao',
+        posicao: { estrategia: 'brasil' },
+        planejado: { secao: 'risk' },
+        tipoCvm: null,
+      }),
+    ).toEqual({ valor: 'value', editavel: false, origem: 'posicao' });
+  });
+});
+
+describe('tipoCvmDoTopo — tipo para a seção automática', () => {
+  const topo = (
+    extra: Partial<Pick<AtivoTopoResposta, 'fiiTipoCvm' | 'criterios' | 'tags'>> = {},
+  ): Pick<AtivoTopoResposta, 'classe' | 'tags' | 'criterios' | 'fiiTipoCvm'> => ({
+    classe: 'fii',
+    tags: [],
+    criterios: null,
+    ...extra,
+  });
+  const perfil = (p: string) => ({ perfil: p }) as unknown as AtivoTopoResposta['criterios'];
+
+  it('FoF (tipo CVM bruto) vence o perfil de papel → fof → seção fofi', () => {
+    const t = tipoCvmDoTopo(topo({ fiiTipoCvm: 'fof', criterios: perfil('fii_papel') }));
+    expect(t).toBe('fof');
+    expect(nova2(t)).toBe('fofi');
+  });
+
+  it('perfil tijolo/papel; sem perfil, o tipo CVM bruto; ação → null', () => {
+    expect(tipoCvmDoTopo(topo({ fiiTipoCvm: 'hibrido', criterios: perfil('fii_tijolo') }))).toBe(
+      'tijolo',
+    );
+    expect(tipoCvmDoTopo(topo({ criterios: perfil('fii_papel') }))).toBe('papel');
+    expect(tipoCvmDoTopo(topo({ fiiTipoCvm: 'tijolo' }))).toBe('tijolo');
+    expect(tipoCvmDoTopo({ ...topo(), classe: 'acao' })).toBeNull();
+  });
+
+  function nova2(tipo: FiiTipoTela | null) {
+    return secaoOperacao({ classe: 'fii', posicao: null, planejado: null, tipoCvm: tipo }).valor;
+  }
 });
 
 describe('registroOperacao — corpos das rotas existentes', () => {
@@ -125,8 +181,8 @@ describe('registroOperacao — corpos das rotas existentes', () => {
     expect(corpo).not.toHaveProperty('instituicaoId');
   });
 
-  it('validarOperacao: inteiro > 0, venda ≤ posição, data não futura, seção na compra', () => {
-    const base = { data: '2026-10-13', hoje: '2026-10-13', posicao: 10, secao: 'value' };
+  it('validarOperacao: inteiro > 0, venda ≤ posição, data não futura (sem erro de seção)', () => {
+    const base = { data: '2026-10-13', hoje: '2026-10-13', posicao: 10 };
     expect(validarOperacao({ ...base, operacao: 'compra', quantidade: 5 })).toEqual([]);
     expect(validarOperacao({ ...base, operacao: 'compra', quantidade: 1.5 })).toEqual([
       'quantidade_invalida',
@@ -137,15 +193,14 @@ describe('registroOperacao — corpos das rotas existentes', () => {
     expect(validarOperacao({ ...base, operacao: 'venda', quantidade: 11 })).toEqual([
       'acima_da_posicao',
     ]);
-    expect(validarOperacao({ ...base, operacao: 'venda', quantidade: 10, secao: null })).toEqual(
-      [],
-    );
+    expect(validarOperacao({ ...base, operacao: 'venda', quantidade: 10 })).toEqual([]);
     expect(
       validarOperacao({ ...base, operacao: 'compra', quantidade: 1, data: '2026-10-14' }),
     ).toEqual(['data_futura']);
-    expect(validarOperacao({ ...base, operacao: 'compra', quantidade: 1, secao: null })).toEqual([
-      'sem_secao',
-    ]);
+    // compra de ativo sem posição: nada a pedir de seção
+    expect(validarOperacao({ ...base, posicao: null, operacao: 'compra', quantidade: 1 })).toEqual(
+      [],
+    );
     expect(
       validarOperacao({
         ...base,

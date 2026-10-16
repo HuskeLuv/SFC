@@ -5,7 +5,8 @@
  * do dia e, embaixo, o tipo (FII) ou o setor (ação); 3 números da classe (ação: ROE, P/L, DY 12m;
  * FII: DY 12m, P/VP, Vacância (CVM)); no Detalhado as barras de 10 anos; no pé a célula "Critérios"
  * (CelulaCriterios, 44 px) e "Na carteira". Mesmo conteúdo de célula da tabela (conteudoCelula).
- * Bloco C: número em conferência com o mesmo texto e a mesma hachura da tabela.
+ * Bloco C: número em conferência com o mesmo texto e a mesma hachura da tabela. v2.5: o tipo do FII
+ * é o exibido (Tijolo | Papel) e FoF/Híbrido vêm junto ('Papel · FoF'), como no segmento da tabela.
  *
  * O cartão inteiro abre o ativo por um LINK ESTICADO (o ::after do link do ticker cobre o cartão):
  * a célula Critérios e a caixa do modo Comparar ficam por cima (relative z-10) e nunca dentro do
@@ -38,6 +39,18 @@ import type { ClasseQuadro, LinhaQuadroApi, ModoQuadro } from '@/types/analiseAt
 import type { DefCriterioChip } from '@/types/analiseAtivosCriterios';
 
 const C = TEXTOS_TELA.quadro.colunas;
+
+/** 'Tijolo' / 'Papel', com 'FoF' ou 'Híbrido' quando o tipo CVM é esse ('Papel · FoF'). */
+function apoioFii(l: LinhaQuadroApi): string | null {
+  if (!l.fiiTipo) return null;
+  const tipo = TEXTOS_TELA.quadro.tipos[l.fiiTipo];
+  return l.segmentoTipo
+    ? formatarTexto(TEXTOS_QUADRO.segmentoTipo.comSegmento, {
+        tipo,
+        segmento: TEXTOS_QUADRO.segmentoTipo[l.segmentoTipo],
+      })
+    : tipo;
+}
 
 /** Números do cartão por classe (protótipo final). */
 export const CAMPOS_CARTAO: Record<ClasseQuadro, string[]> = {
@@ -125,12 +138,7 @@ export default function CartoesQuadro({
     >
       {linhas.map((l) => {
         const v = l.variacaoDiaPct;
-        const apoio =
-          classe === 'fii'
-            ? l.fiiTipo
-              ? TEXTOS_TELA.quadro.tipos[l.fiiTipo]
-              : null
-            : (l.setor ?? null);
+        const apoio = classe === 'fii' ? apoioFii(l) : (l.setor ?? null);
         return (
           <li
             key={l.ticker}

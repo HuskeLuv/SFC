@@ -50,6 +50,16 @@
  * /api/analise-ativos/* tem chave do indicador antigo, de nota, rating ou score (a lista exata
  * está em CHAVES_PROIBIDAS_CONTRATO, contratoSemNota.test.ts). Tipos dos critérios:
  * src/types/analiseAtivosCriterios.ts.
+ *
+ * v2.5 (docs/analise-ativos/v25-regras-pedro/desenho.json, fatia 0) — acréscimos opcionais:
+ * OverlayCarteiraResposta.alvos + rota /api/analise-ativos/alvos/[ticker] (AlvoAtivoApi, base =
+ * carteira TOTAL, planning_asset_targets); TipoFiiExibido (Tijolo | Papel, protótipo) +
+ * LinhaQuadroApi.segmentoTipo; AtivoTopoResposta.fiiTipoCvm (tipo CVM BRUTO para a seção automática
+ * da Carteira); célula do Essencial com fallback/incompleto (LinhaFundamentos.marcas) e nota de fonte
+ * pelas origens (FundamentosResposta.textoFonte/dadosIncompletos; nunca "nota" numa chave de resposta).
+ *   GET  /api/analise-ativos/alvos/[ticker]               → AlvoGetResposta             (C)
+ *   PUT  /api/analise-ativos/alvos/[ticker] AlvoPutBody   → AlvoPutResposta (CSRF)      (C)
+ *   DEL  /api/analise-ativos/alvos/[ticker]               → AlvoDeleteResposta (CSRF)   (C)
  */
 import type { ReactNode } from 'react';
 import type {
@@ -68,6 +78,19 @@ export type ClasseQuadro = 'acao' | 'fii';
 
 /** Tipo do FII (Fase 0: regras/fii/tipoFii). */
 export type FiiTipoTela = 'tijolo' | 'papel' | 'hibrido' | 'fof' | 'indefinido';
+
+/**
+ * v2.5: tipo EXIBIDO na coluna Tipo, na faceta, no filtro, nas sugestões do Comparar e nas tags
+ * (protótipo data.js: só Tijolo ou Papel). Derivado do perfil de critérios: 'fii_tijolo' → 'tijolo',
+ * senão 'papel' (FoF, híbrido < 50% de imóveis, indefinido e sem tipo caem em papel — regra
+ * conservadora). FoF e Híbrido aparecem como prefixo do segmento (LinhaQuadroApi.segmentoTipo).
+ * O tipo CVM bruto continua em AtivoTopoResposta.fiiTipoCvm (seção da Carteira).
+ */
+export type TipoFiiExibido = 'tijolo' | 'papel';
+export const TIPOS_FII_EXIBIDOS: readonly TipoFiiExibido[] = ['tijolo', 'papel'];
+
+/** Prefixo do segmento quando o tipo CVM bruto não é tijolo/papel (v2.5). */
+export type SegmentoTipoFii = 'fof' | 'hibrido';
 
 /** Motivo legível: código estável + texto pronto de textosTela. */
 export interface MotivoTela {
@@ -291,7 +314,13 @@ export interface LinhaQuadroApi {
   segmento: string | null;
   /** segmento de listagem B3 (Novo Mercado, N2...) */
   listagem: string | null;
+  /**
+   * v2.4: tipo CVM vigente. v2.5 (fatia B): passa a ser o TipoFiiExibido ('tijolo' | 'papel');
+   * o tipo continua declarado como FiiTipoTela só para a transição das linhas já gravadas.
+   */
   fiiTipo: FiiTipoTela | null;
+  /** v2.5 (B): 'fof' | 'hibrido' quando o tipo CVM bruto é esse (prefixo do segmento); senão null */
+  segmentoTipo?: SegmentoTipoFii | null;
   segmentoCvm: string | null;
   noQuadro: boolean;
   foraDoQuadroMotivo: ForaDoQuadroMotivo | null;
@@ -435,6 +464,45 @@ export interface OverlayCarteiraResposta {
       secao?: string | null;
     }
   >;
+  /**
+   * v2.5 (C): alvos do "Planejar na carteira" (planning_asset_targets), por ticker. Acende o chip
+   * 'Planejado' e o 'Ajustar plano'; base = carteira TOTAL. Sempre presente a partir da fatia C
+   * (opcional só para a transição).
+   */
+  alvos?: Record<string, AlvoAtivoApi>;
+}
+
+// ===========================================================================
+// /api/analise-ativos/alvos/[ticker] (C, v2.5) — alvo por ativo do Planejar na carteira
+// ===========================================================================
+
+/** Alvo por ativo: % da carteira TOTAL (0 < x ≤ 100), definido pelo usuário. */
+export interface AlvoAtivoApi {
+  targetPct: number;
+  /** ISO 8601 */
+  atualizadoEm: string;
+}
+
+/** GET → 200 (alvo null quando não há). 404 sem acesso ou ativo fora do catálogo. no-store. */
+export interface AlvoGetResposta {
+  ticker: string;
+  alvo: AlvoAtivoApi | null;
+}
+
+/** PUT (zod strict, CSRF): 0 < targetPct ≤ 100. Idempotente (upsert por userId+assetId). */
+export interface AlvoPutBody {
+  targetPct: number;
+}
+
+export interface AlvoPutResposta {
+  ticker: string;
+  alvo: AlvoAtivoApi;
+}
+
+/** DELETE (CSRF): apaga o alvo; sem alvo = 200 com removido=false. */
+export interface AlvoDeleteResposta {
+  ticker: string;
+  removido: boolean;
 }
 
 // ===========================================================================
@@ -531,6 +599,12 @@ export interface AtivoTopoResposta {
   noQuadro: boolean;
   foraDoQuadroMotivo: ForaDoQuadroMotivo | null;
   assetId: string | null;
+  /**
+   * v2.5 (B preenche; C lê): tipo CVM BRUTO do FII (tijolo | papel | hibrido | fof | indefinido),
+   * separado do tipo exibido nas tags, para a seção automática da Carteira não depender delas
+   * (fiiTipoCvm 'fof' → seção 'fofi'). null = ação ou sem tipo.
+   */
+  fiiTipoCvm?: FiiTipoTela | null;
   cotacao: CotacaoTopo;
   /** v2.4 (C2): critérios nas 3 janelas; null = sem avaliação ainda */
   criterios: CriteriosAtivo | null;
@@ -569,6 +643,22 @@ export interface LinhaFundamentos {
   ultimoAno: boolean;
   valores: Record<string, Estado<number>>;
   selos: TipoSeloEstado[];
+  /**
+   * v2.5 (B): marca por coluna (código) — 'Lucro descontado'/'Margem descontada' com o lucro
+   * líquido no lugar do descontado (fallback, ⓘ com textosAtivo.essencial.tooltips.fallbackLucro)
+   * e célula de ponto incompleto (selo 'dados incompletos'). Ausente = nenhuma.
+   */
+  marcas?: Partial<Record<string, MarcaCelulaEssencial>>;
+}
+
+/** v2.5: marca de uma célula do Essencial. */
+export interface MarcaCelulaEssencial {
+  /** o valor usa a série de fallback (lucro líquido no lugar do descontado) */
+  fallback?: boolean;
+  /** a fonte marcou o ponto como incompleto (§6) */
+  incompleto?: boolean;
+  /** id da fonte do valor ('cvm' ou provedor) */
+  fonte?: string;
 }
 
 export interface FundamentosResposta {
@@ -584,6 +674,13 @@ export interface FundamentosResposta {
   linhas: LinhaFundamentos[];
   /** observações de rodapé do card (unidade, padrão contábil, fonte); v2.4: era `notas` */
   observacoes: string[];
+  /**
+   * v2.5 (B): nota de fonte montada pelas origens (textosCriterios.textoNotaFonte), no lugar do
+   * 'fonte: CVM' fixo de textosAtivo.essencial.unidadeAcao.
+   */
+  textoFonte?: string;
+  /** v2.5 (B): alguma célula com ponto incompleto → selo 'dados incompletos' no card */
+  dadosIncompletos?: boolean;
 }
 
 // ===========================================================================

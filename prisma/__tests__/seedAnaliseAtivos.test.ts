@@ -9,7 +9,8 @@ import {
   avaliarCriteriosFixtures,
   seedAnaliseAtivos,
 } from '../seedAnaliseAtivos';
-import { CRITERIA_PARAMS_V1 } from '@/services/analiseAtivos/params/criteriaParamsV1';
+import { CRITERIA_PARAMS_V1_JSON } from '@/services/analiseAtivos/params/criteriaParamsV1';
+import { CRITERIA_PARAMS_V2_JSON } from '@/services/analiseAtivos/params/criteriaParamsV2';
 
 const MODELOS_FASE0 = [
   'scoringParams',
@@ -131,10 +132,10 @@ describe('seedAnaliseAtivos', () => {
 });
 
 describe('avaliarCriteriosFixtures (v2.4)', () => {
-  it('grava criteria_params v1 (idempotente) e copia a forma compacta para as linhas do Quadro', async () => {
+  it('grava criteria_params v1 e v2 (idempotente; v2 vigente) e copia a forma compacta para as linhas do Quadro', async () => {
     const criteriaParams = {
       createMany: vi.fn(async () => ({ count: 1 })),
-      findFirst: vi.fn(async () => ({ version: 1, params: CRITERIA_PARAMS_V1 })),
+      findFirst: vi.fn(async () => ({ version: 2, params: CRITERIA_PARAMS_V2_JSON })),
     };
     const updateMany = vi.fn(async () => ({ count: 1 }));
     const $queryRaw = vi.fn(async () => [
@@ -172,7 +173,13 @@ describe('avaliarCriteriosFixtures (v2.4)', () => {
       data: [
         expect.objectContaining({
           version: 1,
-          params: CRITERIA_PARAMS_V1,
+          params: CRITERIA_PARAMS_V1_JSON,
+          validFrom: VALIDO_DESDE_CRITERIOS,
+          createdBy: 'seed',
+        }),
+        expect.objectContaining({
+          version: 2,
+          params: CRITERIA_PARAMS_V2_JSON,
           validFrom: VALIDO_DESDE_CRITERIOS,
           createdBy: 'seed',
         }),

@@ -8,6 +8,10 @@
  * vencedor, melhor/pior, recomend*, compre/venda. Literais jurídicos (rodapé do Quadro, aviso legal,
  * aviso do banner) ficam em textosLiterais.ts; textos dos critérios em textosCriterios.ts.
  * Placeholders {chave} via formatarTexto.
+ *
+ * v2.5 (fatia 0, CONGELADOS para a B): coluna/faceta Tipo só com Tijolo ou Papel (protótipo
+ * data.js), FoF e Híbrido como prefixo do segmento; explicação da financeira sem "n de 3" e sem
+ * "sem fonte"; dica da vacância sem "não entra nos critérios".
  */
 import { formatarTexto } from '@/services/analiseAtivos/textos';
 import type { Janela } from '@/types/analiseAtivosCriterios';
@@ -75,7 +79,7 @@ export const TEXTOS_QUADRO = {
     rendimento10a: 'Rendimento por cota nos últimos 10 anos fechados',
     divLiqEbitda: 'Negativo = caixa líquido',
     vacanciaCvm:
-      'Vacância física informada à CVM; pode diferir do relatório do gestor e não entra nos critérios',
+      'Vacância física informada à CVM (último informe trimestral); pode diferir do relatório do gestor',
     criterios:
       'Quantos critérios de fundamentos o ativo atende na janela escolhida (dado contábil, não avaliação do My Finance)',
   },
@@ -85,7 +89,19 @@ export const TEXTOS_QUADRO = {
     resumo: 'O que cada critério verifica',
     papel: 'em FII de papel: {rotulo} — {definicao}',
     financeira:
-      'Não se aplica a bancos, seguradoras e holdings financeiras (contagem passa a "n de 3")',
+      'Bancos, seguradoras e holdings financeiras seguem os mesmos 6 critérios; o que não existe nas demonstrações conta como "não atende · sem dado nas demonstrações"',
+  },
+
+  /** v2.5: tipo exibido (TipoFiiExibido) e prefixo do segmento para FoF/Híbrido. */
+  tipos: {
+    tijolo: 'Tijolo',
+    papel: 'Papel',
+  },
+  segmentoTipo: {
+    fof: 'FoF',
+    hibrido: 'Híbrido',
+    /** '{tipo} · {segmento}' ('FoF · Títulos e Valores Mobiliários') */
+    comSegmento: '{tipo} · {segmento}',
   },
 
   /** Cartões do celular. */
@@ -110,6 +126,8 @@ export const PLACEHOLDERS_QUADRO = [
   'direcao',
   'rotulo',
   'definicao',
+  'tipo',
+  'segmento',
 ] as const;
 
 /**

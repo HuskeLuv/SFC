@@ -16,6 +16,7 @@ import {
   CRITERIOS_LINHA_WEGE3,
   rotulosCriterios,
 } from '@/test/fixtures/analiseAtivos/criterios';
+import { TEXTOS_CRITERIOS } from '@/services/analiseAtivos/textosCriterios';
 import type { EstadoCriterio, Janela } from '@/types/analiseAtivosCriterios';
 
 afterEach(cleanup);
@@ -123,6 +124,24 @@ describe('CelulaCriterios', () => {
 
     fireEvent.keyDown(botao, { key: 'Enter' });
     expect(abrirLinha).not.toHaveBeenCalled();
+  });
+
+  it('v2.5: obs da marca (lucro sem o descontado) entra no tooltip, uma vez só', () => {
+    const marcas = CRITERIOS_LINHA_WEGE3.marcas.map((m) =>
+      m.id === 'luc' ? { ...m, obs: ['lucro_sem_descontado' as const] } : m,
+    );
+    const { container } = render(
+      <CelulaCriterios
+        criterios={{ ...CRITERIOS_LINHA_WEGE3, marcas }}
+        ticker="WEGE3"
+        rotulos={rotulosCriterios('acao')}
+      />,
+    );
+    fireEvent.click(screen.getByRole('button'));
+    const tip = screen.getByRole('tooltip');
+    expect(tip.querySelectorAll('[data-obs-criterio="lucro_sem_descontado"]')).toHaveLength(1);
+    expect(tip.textContent).toContain(TEXTOS_CRITERIOS.obs.lucro_sem_descontado);
+    esperarDomLimpo(container);
   });
 
   it('sem avaliação: "—" sem botão, com aria-label', () => {

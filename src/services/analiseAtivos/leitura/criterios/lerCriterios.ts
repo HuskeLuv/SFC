@@ -15,6 +15,13 @@
  *
  * Nenhuma função chama provedor externo; só o banco (criteria_eval / criteria_params e, quando o
  * client tem, o tipo do FII em analise_quadro_linhas para a nota de perfil).
+ *
+ * v2.5 (fatia A): itens, marcas e a projeção compacta expõem `fonte` (ids das fontes da janela) e
+ * `obs` ('lucro_sem_descontado', 'dados_incompletos'); CriteriosAtivo ganha `fontes` (união, na ordem
+ * da prioridade: provedores antes da CVM) e `dadosIncompletos` (selo §6). Avaliações v1 (sem fonte/obs
+ * no JSON) seguem válidas: as definições vêm do criteria_params da paramsVersion, cujo parse já leva os
+ * nomes de série legados aos nomes da spec (MAPA_SERIE_LEGADA); nada da avaliação gravada depende do
+ * nome da série.
  */
 import type { PrismaClient } from '@prisma/client';
 import { getTtlCache } from '@/lib/simpleTtlCache';
@@ -29,6 +36,7 @@ import type { FiiTipoTela } from '@/types/analiseAtivosApi';
 import {
   ehIdCriterio,
   ehJanela,
+  ehObsCriterio,
   PERFIS_CRITERIO,
   type ChaveJanela,
   type CriteriosAtivo,
@@ -38,8 +46,10 @@ import {
   type Janela,
   type JanelaCriteriosApi,
   type PerfilCriterio,
+  type ObsCriterio,
   type ResultadoCriterio,
 } from '@/types/analiseAtivosCriterios';
+import type { IdFonte } from '@/types/analiseAtivosFontes';
 
 /** TTL do cache de obterCriteriosAtivo (o job grava 1×/dia). */
 export const CRITERIOS_TTL_MS = 10 * 60 * 1000;
@@ -95,8 +105,27 @@ async function fiiTipoDaLinha(
   }
 }
 
+/** obs válidas de um resultado gravado (JSON pode ter lixo). */
+function obsDe(r: ResultadoCriterio): ObsCriterio[] {
+  return Array.isArray(r.obs) ? r.obs.filter(ehObsCriterio) : [];
+}
+
+/** ids de fonte de um resultado gravado (ausente = só CVM, avaliação v1). */
+function fonteDe(r: ResultadoCriterio): IdFonte[] {
+  return Array.isArray(r.fonte) ? r.fonte.filter((f) => typeof f === 'string' && f.length > 0) : [];
+}
+
+/** União das fontes na ordem em que aparecem, provedores antes da CVM. Pura. */
+export function uniaoFontes(listas: ReadonlyArray<readonly IdFonte[]>): IdFonte[] {
+  const vistas: IdFonte[] = [];
+  for (const l of listas) for (const f of l) if (!vistas.includes(f)) vistas.push(f);
+  return [...vistas.filter((f) => f !== 'cvm'), ...vistas.filter((f) => f === 'cvm')];
+}
+
 /** Item da API a partir do resultado gravado + definição do params. Pura. */
 export function itemApi(r: ResultadoCriterio, def: DefCriterio | undefined): ItemCriterioApi {
+  const fonte = fonteDe(r);
+  const obs = obsDe(r);
   return {
     id: r.id,
     rotulo: def?.rotulo ?? r.id,
@@ -109,6 +138,8 @@ export function itemApi(r: ResultadoCriterio, def: DefCriterio | undefined): Ite
     serie: r.serie,
     formato: def?.formato ?? 'n',
     ...(def?.unidade ? { unidade: def.unidade } : {}),
+    ...(fonte.length > 0 ? { fonte } : {}),
+    ...(obs.length > 0 ? { obs } : {}),
   };
 }
 
@@ -150,9 +181,14 @@ export function montarCriteriosAtivo(
       itens: resultadosValidos(l.resultados).map((r) => itemApi(r, defs.get(r.id))),
     };
   }
+  const itens = Object.values(janelas).flatMap((j) => j.itens);
+  const fontes = uniaoFontes(itens.map((i) => i.fonte ?? []));
+  const dadosIncompletos = itens.some((i) => i.obs?.includes('dados_incompletos'));
   return {
     perfil,
     fonte: FONTE_CRITERIOS[classe],
+    ...(fontes.length > 0 ? { fontes } : {}),
+    ...(dadosIncompletos ? { dadosIncompletos } : {}),
     anoFim: Math.max(...validas.map((l) => l.anoFim)),
     paramsVersion: base.paramsVersion,
     observacaoPerfil: observacaoPerfil(fiiTipo, perfil, classe),
@@ -216,11 +252,10 @@ export async function obterCriteriosVarios(
       perfil: l.perfil,
       n: l.atendidos,
       de: l.aplicaveis,
-      marcas: resultadosValidos(l.resultados).map((r) => ({
-        id: r.id,
-        estado: r.estado,
-        fato: r.fato,
-      })),
+      marcas: resultadosValidos(l.resultados).map((r) => {
+        const obs = obsDe(r);
+        return { id: r.id, estado: r.estado, fato: r.fato, ...(obs.length > 0 ? { obs } : {}) };
+      }),
     });
   }
   return out;
@@ -249,6 +284,10 @@ export function projetarCriteriosCompactos(
     perfil,
     n: j.n,
     de: j.de,
-    marcas: j.m.map(([id, estado, fato]) => ({ id, estado, fato })),
+    marcas: j.m.map((m) => {
+      const [id, estado, fato] = m;
+      const obs = m.length > 3 && Array.isArray(m[3]) ? m[3].filter(ehObsCriterio) : [];
+      return { id, estado, fato, ...(obs.length > 0 ? { obs } : {}) };
+    }),
   };
 }

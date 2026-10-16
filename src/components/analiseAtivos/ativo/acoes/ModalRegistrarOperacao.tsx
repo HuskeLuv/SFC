@@ -3,12 +3,13 @@
 /**
  * Modal "Registrar operação · ‹ticker›" (fatia C1, rec. 2) — lançamento rápido sobre as rotas que
  * JÁ EXISTEM na Carteira:
- *  - Compra → POST /api/carteira/operacao, SEMPRE com a seção (estrategia da ação / tipoFii do FII):
- *    recompra usa a da posição sem perguntar; 1ª compra de planejado preserva a do plano; FII novo
- *    sugere pelo tipo na CVM; ação nova pede (secaoOperacao). Instituição pelo seletor do app
- *    (recompra já vem com a da última aquisição).
+ *  - Compra → POST /api/carteira/operacao, SEMPRE com a seção (estrategia da ação / tipoFii do FII),
+ *    escolhida SOZINHA (v2.5, decisão 2 — secaoOperacao): recompra → a da posição; plano antigo → a
+ *    do plano; FoF → Fundo de fundos; FII → Tijolo/Papel (TVM) pelo perfil; ação → Value. Sem campo
+ *    Seção: o resumo mostra "Na Carteira: Ações · Value (dá para mover depois)". Instituição pelo
+ *    seletor do app (recompra já vem com a da última aquisição).
  *  - Venda (só com posição) → POST /api/carteira/resgate SEM instituicaoId: a rota usa a da última
- *    aquisição (com o campo, devolveria 400 se fosse outra). O campo Seção some.
+ *    aquisição (com o campo, devolveria 400 se fosse outra).
  * Resumo ao vivo (total, nova posição, preço médio), aviso de preço fora do fechamento
  * (usePriceDeviationWarning), erros reais da rota no próprio modal e link "abrir o formulário
  * completo" (AddAssetWizard, para taxas/observações/instituição nova). Sucesso →
@@ -39,10 +40,7 @@ import {
   validarOperacao,
   type ErroOperacao,
 } from '@/services/analiseAtivos/regras/carteira/registroOperacao';
-import {
-  SECOES_OPERACAO,
-  secaoOperacao,
-} from '@/services/analiseAtivos/regras/carteira/secaoOperacao';
+import { secaoOperacao } from '@/services/analiseAtivos/regras/carteira/secaoOperacao';
 import { formatarTexto } from '@/services/analiseAtivos/textos';
 import {
   CLASSE_CARTEIRA,
@@ -126,7 +124,7 @@ export default function ModalRegistrarOperacao({
 }: ModalRegistrarOperacaoProps & { onFormularioCompleto?: () => void }) {
   const t = ticker.toUpperCase();
   const cl = CLASSE_CARTEIRA[classe];
-  const ids = { q: useId(), p: useId(), d: useId(), s: useId(), oper: useId(), dica: useId() };
+  const ids = { q: useId(), p: useId(), d: useId(), oper: useId(), dica: useId() };
   const dados = useNaCarteiraAtivo(t, classe);
   const comPosicao = dados.status === 'posicao' && !!dados.portfolioId;
   const posQtd = comPosicao ? (dados.linha?.quantidade ?? dados.quantidade ?? 0) : 0;
@@ -146,7 +144,6 @@ export default function ModalRegistrarOperacao({
   const [qtdTexto, setQtdTexto] = useState('');
   const [precoTexto, setPrecoTexto] = useState('');
   const [data, setData] = useState(() => hojeLocal());
-  const [secaoEscolhida, setSecaoEscolhida] = useState<string>('');
   const [inst, setInst] = useState<{ id: string; nome: string }>({ id: '', nome: '' });
   const [erros, setErros] = useState<ErroOperacao[]>([]);
   const [erroServidor, setErroServidor] = useState<string | null>(null);
@@ -163,10 +160,6 @@ export default function ModalRegistrarOperacao({
     setInst({ id: '', nome: '' });
     // eslint-disable-next-line react-hooks/exhaustive-deps -- só ao abrir
   }, [aberto]);
-  // A seção resolvida chega com o overlay (pode ser depois de abrir).
-  useEffect(() => {
-    if (aberto) setSecaoEscolhida(secao.valor ?? '');
-  }, [aberto, secao.valor]);
   // Recompra: a instituição da última aquisição já vem escolhida (se o nome for conhecido).
   useEffect(() => {
     if (aberto && ultima?.nome)
@@ -189,7 +182,10 @@ export default function ModalRegistrarOperacao({
   const novaQtd = venda ? Math.max(0, posQtd - qOk) : posQtd + qOk;
   const novoPm = !venda && novaQtd > 0 ? ((pm ?? 0) * posQtd + qOk * pOk) / novaQtd : (pm ?? null);
 
-  const secaoFinal = secao.editavel ? secaoEscolhida || null : secao.valor;
+  // v2.5: seção automática (nunca vazia); a aba é a efetiva da posição ou a da classe.
+  const secaoFinal = secao.valor ?? '';
+  const abaSecao = dados.abaNome ?? cl.aba;
+  const unDe = (q: number) => (q === 1 ? cl.unSingular : cl.un);
   const pendente = registrarCompra.isPending || registrarVenda.isPending;
 
   const registrar = async () => {
@@ -201,7 +197,6 @@ export default function ModalRegistrarOperacao({
       data,
       hoje: hojeLocal(),
       posicao: comPosicao ? posQtd : null,
-      secao: venda ? null : secaoFinal,
       cotacao: Number.isFinite(cotacao) ? cotacao : null,
       ...(venda ? {} : { instituicaoId: inst.id || null }),
     });
@@ -212,7 +207,6 @@ export default function ModalRegistrarOperacao({
         acima_da_posicao: ids.q,
         preco_invalido: ids.p,
         data_futura: ids.d,
-        sem_secao: ids.s,
         sem_instituicao: 'instituicao',
       };
       document.getElementById(alvoFoco[lista[0]])?.focus();
@@ -238,7 +232,7 @@ export default function ModalRegistrarOperacao({
             data,
             quantidade,
             cotacao,
-            secao: secaoFinal as string,
+            secao: secaoFinal,
           }),
         );
       }
@@ -246,7 +240,7 @@ export default function ModalRegistrarOperacao({
         tipo: 'ok',
         mensagem: formatarTexto(T.registrada, {
           qtd: quantidade.toLocaleString('pt-BR'),
-          un: cl.un,
+          un: unDe(quantidade),
           ticker: t,
           preco: formatBRL(cotacao),
           pos: novaQtd.toLocaleString('pt-BR'),
@@ -261,18 +255,10 @@ export default function ModalRegistrarOperacao({
   };
 
   const textoErro = (e: ErroOperacao) =>
-    formatarTexto(T.erros[e], { qtd: posQtd.toLocaleString('pt-BR'), un: cl.un });
+    formatarTexto(T.erros[e], { qtd: posQtd.toLocaleString('pt-BR'), un: unDe(posQtd) });
   const erroDe = (...tipos: ErroOperacao[]) => erros.find((e) => tipos.includes(e)) ?? null;
 
   const semCatalogo = !venda && !assetId;
-  const opcoesSecao = SECOES_OPERACAO[classe];
-  const rotuloSecao = classe === 'acao' ? T.rotuloEstrategia : T.rotuloTipoFii;
-  const rotuloCampoSecao =
-    secao.origem === 'planejado'
-      ? T.secaoDoPlano
-      : secao.origem === 'sugestao_cvm'
-        ? T.secaoCvm
-        : T.secao;
 
   const rodape = (
     <>
@@ -280,7 +266,7 @@ export default function ModalRegistrarOperacao({
         {comPosicao
           ? formatarTexto(T.hintPosicao, {
               qtd: posQtd.toLocaleString('pt-BR'),
-              un: cl.un,
+              un: unDe(posQtd),
               pm: pm !== null ? formatBRL(pm) : '—',
             })
           : T.hintSemPosicao}
@@ -415,46 +401,6 @@ export default function ModalRegistrarOperacao({
           </p>
         ) : null}
 
-        {!venda ? (
-          secao.editavel ? (
-            <>
-              <div className={LINHA_FORM}>
-                <label htmlFor={ids.s}>{rotuloCampoSecao}</label>
-                <select
-                  id={ids.s}
-                  value={secaoEscolhida}
-                  onChange={(e) => setSecaoEscolhida(e.target.value)}
-                  aria-invalid={!!erroDe('sem_secao')}
-                  data-secao=""
-                  className={`${CAMPO} w-[170px]`}
-                >
-                  {secaoEscolhida ? null : <option value="">{T.escolha}</option>}
-                  {opcoesSecao.map((o) => (
-                    <option key={o} value={o}>
-                      {ROTULOS_SECAO[o] ?? o}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              {erroDe('sem_secao') ? (
-                <p role="alert" className={ERRO}>
-                  {textoErro('sem_secao')}
-                </p>
-              ) : null}
-            </>
-          ) : (
-            <div className={LINHA_FORM} data-secao-posicao="">
-              <span>{T.secao}</span>
-              <span className="text-right text-[13px]">
-                {formatarTexto(T.secaoPosicao, {
-                  rotulo: rotuloSecao,
-                  valor: ROTULOS_SECAO[secao.valor ?? ''] ?? secao.valor ?? '',
-                })}
-              </span>
-            </div>
-          )
-        ) : null}
-
         {venda ? (
           <div className={LINHA_FORM} data-instituicao-venda="">
             <span>{T.instituicao}</span>
@@ -494,7 +440,7 @@ export default function ModalRegistrarOperacao({
           <span>
             {T.novaPosicao}
             <b className="block text-[14.5px] text-gray-900 tabular-nums dark:text-white">
-              {novaQtd.toLocaleString('pt-BR')} {cl.un}
+              {novaQtd.toLocaleString('pt-BR')} {unDe(novaQtd)}
             </b>
           </span>
           <span>
@@ -506,6 +452,17 @@ export default function ModalRegistrarOperacao({
               <small className="text-xs text-gray-500 dark:text-gray-400">{T.pmMantidoNota}</small>
             ) : null}
           </span>
+          {!venda ? (
+            <span
+              className="w-full text-xs text-gray-500 dark:text-gray-400"
+              data-secao-automatica={secaoFinal}
+            >
+              {formatarTexto(T.secaoAutomatica, {
+                aba: abaSecao,
+                secao: ROTULOS_SECAO[secaoFinal] ?? secaoFinal,
+              })}
+            </span>
+          ) : null}
         </div>
 
         {semCatalogo ? (

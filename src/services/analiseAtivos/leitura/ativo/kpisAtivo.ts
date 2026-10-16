@@ -8,6 +8,11 @@
  * FIIs: DY 12m, P/VP, rendimento/cota 12m, patrimônio, cotistas, liquidez 21d, Obrigações/PL e
  * vacância (fonte CVM; papel = n/a). Sem cap rate.
  *
+ * v2.5 (financeiras): margem e Dív.líq./EBITDA seguem os MESMOS params do card de critérios
+ * (perfis.acao_financeira.naoSeAplica, vazio na v2). Fora dessa lista, o 'não se aplica a bancos…'
+ * da linha do Quadro vira o último ponto da série do critério (mg / dl) ou '—' com 'sem dado nas
+ * demonstrações' — a página não afirma e nega a mesma métrica.
+ *
  * Bloco C (só flags 'conf:', params v2): a política de conferenciasAtivo.aplicarConferenciaCampo
  * vale para cada KPI cujo código é um campo de tela — 'ocultar' vira '—' (número calculado só em
  * valorNaoPublicado, para o "Por quê?") e sem a linha de apoio; 'selo' mantém o valor. Nos dois,
@@ -23,7 +28,9 @@ import {
   motivosDaLinha,
 } from '@/services/analiseAtivos/leitura/ativo/conferenciasAtivo';
 import { ehCampoTela } from '@/services/analiseAtivos/regras/comum/conferencia';
+import { TEXTOS_CRITERIOS } from '@/services/analiseAtivos/textosCriterios';
 import type { Estado, KpiAtivo, LinhaQuadroApi, PontoSerieAnual } from '@/types/analiseAtivosApi';
+import type { IdCriterio, PontoCriterio } from '@/types/analiseAtivosCriterios';
 
 export const PARES_MINIMOS_REFERENCIA = 3;
 export const PONTOS_MINIMOS_MEDIA_PL = 5;
@@ -53,6 +60,35 @@ export interface EntradaKpis {
    * 'ocultar'): só para o "não publicado" do "Por quê?" da página.
    */
   brutos?: Partial<Record<string, number | null>>;
+  /**
+   * v2.5: só na ação financeira (régua acao_financeira). `naoSeAplica` = ids de
+   * perfis.acao_financeira.naoSeAplica; `ultimos` = último ponto da série do critério (card).
+   */
+  financeira?: {
+    naoSeAplica: readonly IdCriterio[];
+    ultimos: Partial<Record<'mg' | 'dl', PontoCriterio | null>>;
+  };
+}
+
+/** Motivos de n/a da linha do Quadro que a v2.5 religa na financeira (pelos params). */
+const MOTIVOS_NA_FINANCEIRA = new Set(['financeira', 'receita_menor_que_lucro']);
+
+/**
+ * KPI da financeira pelos params (v2.5): critério fora de naoSeAplica ⇒ último ponto da série do
+ * critério, ou '—' com 'sem dado nas demonstrações'. Dentro (D4 religado) ⇒ o n/a da linha.
+ */
+export function kpiFinanceira(
+  v: Estado<number>,
+  id: 'mg' | 'dl',
+  fin: EntradaKpis['financeira'],
+): Estado<number> {
+  if (!fin || v.estado !== 'nao_se_aplica' || !MOTIVOS_NA_FINANCEIRA.has(v.motivo)) return v;
+  if (fin.naoSeAplica.includes(id)) return v;
+  const ultimo = fin.ultimos[id];
+  if (ultimo && typeof ultimo.valor === 'number' && Number.isFinite(ultimo.valor)) {
+    return { estado: 'ok', valor: ultimo.valor };
+  }
+  return { estado: 'ausente', motivo: 'sem_dado_fonte', texto: TEXTOS_CRITERIOS.fatos.semDado };
 }
 
 const R = TEXTOS_TELA.ativo.kpis;
@@ -146,7 +182,8 @@ function kpisAcao(e: EntradaKpis): KpiAtivo[] {
       ? formatarTexto(R.mediaDezAnos, { valor: `${formatarNumeroBR(atuais.plMedia10a, 1)}×` })
       : null;
 
-  const div = linha.divLiqEbitda;
+  const div = kpiFinanceira(linha.divLiqEbitda, 'dl', e.financeira);
+  const margem = kpiFinanceira(linha.margemLiquida, 'mg', e.financeira);
   const subDiv = div.estado === 'ok' && div.valor <= 0 ? R.caixaLiquido : null;
 
   const payout = comPrejuizo(linha, 'payout');
@@ -212,9 +249,9 @@ function kpisAcao(e: EntradaKpis): KpiAtivo[] {
     {
       codigo: 'margemLiquida',
       rotulo: R.rotulos.margemLiquida,
-      valor: linha.margemLiquida,
+      valor: margem,
       formato: 'pct',
-      sub: subPares(linha, pares, 'margemLiquida', '%'),
+      sub: subPares({ ...linha, margemLiquida: margem }, pares, 'margemLiquida', '%'),
       selo: null,
     },
     {

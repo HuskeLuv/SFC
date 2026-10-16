@@ -13,7 +13,7 @@
 import { mkdirSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { PrismaClient } from '@prisma/client';
-import { CRITERIA_PARAMS_V1 } from '../../src/services/analiseAtivos/params/criteriaParamsV1';
+import { CRITERIA_PARAMS_CODIGO } from '../../src/services/analiseAtivos/params/criteriaParamsCodigo';
 import { obterScoringParams } from '../../src/services/analiseAtivos/params/obterScoringParams';
 import { anoFimGlobal } from '../../src/services/analiseAtivos/regras/criterios/ancoraJanela';
 import { lerBrutosAcoes } from '../../src/services/analiseAtivos/regras/criterios/seriesAcao';
@@ -56,8 +56,8 @@ async function main() {
   const prisma = new PrismaClient();
   try {
     const scoring = await obterScoringParams(prisma);
-    const anoFim = anoFimGlobal(hoje, CRITERIA_PARAMS_V1);
-    const desdeAno = anoFim - Math.max(...CRITERIA_PARAMS_V1.janelas);
+    const anoFim = anoFimGlobal(hoje, CRITERIA_PARAMS_CODIGO);
+    const desdeAno = anoFim - Math.max(...CRITERIA_PARAMS_CODIGO.janelas);
 
     const tickers = (await listarTickersAcoes(prisma)).filter((t) =>
       (ACOES_FIXTURE as readonly string[]).includes(t.symbol),

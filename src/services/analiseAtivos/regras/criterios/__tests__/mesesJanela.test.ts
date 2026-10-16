@@ -177,3 +177,25 @@ describe('avaliarMeses — base de proventos e dado ausente', () => {
     expect(avaliarMeses(m, 2025, 3, P).estado).toBe('atende');
   });
 });
+
+describe('v2.5 — meses por ano de um provedor (mesesPorAno)', () => {
+  const cvm = { consecutivos: 60, inicioBase: '2015-01', mesesPagos: [] };
+
+  it('todos os anos da janela informados: n = Σ, de = 12×J', () => {
+    const r = avaliarMeses(cvm, 2025, 3, P, { 2023: 12, 2024: 12, 2025: 12 });
+    expect(r).toMatchObject({ estado: 'atende', n: 36, de: 36 });
+    expect(avaliarMeses(cvm, 2025, 3, P, { 2023: 12, 2024: 10, 2025: 12 })).toMatchObject({
+      estado: 'nao_atende',
+      n: 34,
+      fato: '34 de 36 meses com rendimento pago (jan/2023–dez/2025)',
+    });
+  });
+
+  it('ano nulo = sem dado; ano ausente = a contagem da CVM decide', () => {
+    expect(avaliarMeses(cvm, 2025, 3, P, { 2023: 12, 2024: null, 2025: 12 })).toMatchObject({
+      estado: 'sem_dado',
+      motivo: 'sem_dado_demonstracoes',
+    });
+    expect(avaliarMeses(cvm, 2025, 3, P, { 2024: 1, 2025: 1 }).estado).toBe('atende');
+  });
+});

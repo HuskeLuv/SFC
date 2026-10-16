@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
-import CardCriterios, { notasDoPerfil } from '../CardCriterios';
+import CardCriterios, { fonteDoCard, notasDoPerfil } from '../CardCriterios';
 import ItemCriterio, { textoFatoCriterio } from '../ItemCriterio';
 import { CORES_PERMITIDAS } from '@/constants/analiseAtivosVisual';
 import { TEXTOS_ATIVO } from '@/services/analiseAtivos/textosAtivo';
@@ -124,19 +124,15 @@ describe('CardCriterios — FII (D3 e nota da janela de 10 anos)', () => {
     expect(screen.getByText(/Fonte: informes mensais e trimestrais dos FIIs \(CVM\)\./));
   });
 
-  it('janela 10: nota dos informes desde 2016 (rec. 5); some nas outras janelas', () => {
+  it('janela 10: só "sem dado nas demonstrações", sem a nota dos informes de 2016 (v2.5)', () => {
     const { container } = render(
       <CardCriterios ticker="HGLG11" classe="fii" criterios={CRITERIOS_ATIVO_HGLG11} />,
     );
-    expect(container.querySelector('[data-nota-janela-10]')).toBeNull();
     fireEvent.click(radio(10));
-    expect(container.querySelector('[data-nota-janela-10]')).toHaveTextContent(
-      TEXTOS_CRITERIOS.fonte.janela10Fii,
-    );
-    const rend = container.querySelector('li[data-criterio="rend"]') as HTMLElement;
-    expect(within(rend).getByText(`não atende · ${TEXTOS_CRITERIOS.fatos.semDadoFii10}`));
-    fireEvent.click(radio(3));
     expect(container.querySelector('[data-nota-janela-10]')).toBeNull();
+    expect(container.textContent).not.toMatch(/começam em 2016/);
+    const rend = container.querySelector('li[data-criterio="rend"]') as HTMLElement;
+    expect(within(rend).getByText(`não atende · ${TEXTOS_CRITERIOS.fatos.semDado}`));
   });
 
   it('ação na janela 10 não leva a nota de FII', () => {
@@ -205,6 +201,69 @@ describe('ItemCriterio — mini-barras com hover e foco', () => {
       </ul>,
     );
     expect(container.querySelector('[data-mini-barras]')).toBeNull();
+  });
+});
+
+describe('CardCriterios — v2.5 (fontes, selo dados incompletos, obs)', () => {
+  function comObs(crit: CriteriosAtivo, extras: Partial<CriteriosAtivo>): CriteriosAtivo {
+    const janelas = Object.fromEntries(
+      Object.entries(crit.janelas).map(([k, j]) => [
+        k,
+        {
+          ...j,
+          itens: j.itens.map((i) =>
+            i.id === 'luc' ? { ...i, obs: ['lucro_sem_descontado' as const] } : i,
+          ),
+        },
+      ]),
+    ) as CriteriosAtivo['janelas'];
+    return { ...crit, janelas, ...extras };
+  }
+
+  it('fonte das origens (provedor · CVM) no rodapé; sem origens, a fixa da classe', () => {
+    const crit = comObs(CRITERIOS_ATIVO_WEGE3, {
+      fontes: ['provedor_x', 'cvm'],
+      fonte: 'Fonte: Provedor X · DFP/ITR (CVM).',
+    });
+    expect(fonteDoCard(crit, 'acao')).toBe('Fonte: Provedor X · DFP/ITR (CVM).');
+    expect(fonteDoCard(CRITERIOS_ATIVO_WEGE3, 'acao')).toBe(TEXTOS_CRITERIOS.fonte.acao);
+    expect(fonteDoCard(CRITERIOS_ATIVO_HGLG11, 'fii')).toBe(TEXTOS_CRITERIOS.fonte.fii);
+    render(<CardCriterios ticker="WEGE3" classe="acao" criterios={crit} />);
+    expect(screen.getByText(/Fonte: Provedor X · DFP\/ITR \(CVM\)\./)).toBeInTheDocument();
+  });
+
+  it('selo "dados incompletos" só com a marca da fonte; neutro, com o tooltip', () => {
+    const { container, unmount } = render(
+      <CardCriterios ticker="WEGE3" classe="acao" criterios={CRITERIOS_ATIVO_WEGE3} />,
+    );
+    expect(container.querySelector('[data-selo-incompleto]')).toBeNull();
+    unmount();
+    const r = render(
+      <CardCriterios
+        ticker="WEGE3"
+        classe="acao"
+        criterios={{ ...CRITERIOS_ATIVO_WEGE3, dadosIncompletos: true }}
+      />,
+    );
+    const selo = r.container.querySelector('[data-selo-incompleto]') as HTMLElement;
+    expect(selo.textContent).toContain(TEXTOS_CRITERIOS.incompleto.selo);
+    expect(selo.getAttribute('title')).toBe(TEXTOS_CRITERIOS.incompleto.tooltip);
+    expect(selo.className).not.toMatch(/green|red|amber|yellow/);
+    esperarDomLimpo(r.container);
+  });
+
+  it('lucro sem o descontado: ⓘ no rótulo e a frase da fonte na definição', () => {
+    const { container } = render(
+      <CardCriterios ticker="WEGE3" classe="acao" criterios={comObs(CRITERIOS_ATIVO_WEGE3, {})} />,
+    );
+    const luc = container.querySelector('li[data-criterio="luc"]') as HTMLElement;
+    expect(luc.querySelector('[data-obs-ativo]')?.getAttribute('title')).toBe(
+      TEXTOS_CRITERIOS.obs.lucro_sem_descontado,
+    );
+    expect(luc.textContent).toContain(TEXTOS_CRITERIOS.obs.lucro_sem_descontado);
+    const rec = container.querySelector('li[data-criterio="rec"]') as HTMLElement;
+    expect(rec.querySelector('[data-obs-ativo]')).toBeNull();
+    esperarDomLimpo(container);
   });
 });
 

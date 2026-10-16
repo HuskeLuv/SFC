@@ -4,16 +4,13 @@
  * (o índice inteiro chega uma vez; nenhuma requisição por tecla).
  *
  * - Índice: TODAS as linhas (inclusive fora do Quadro, com o motivo), chaves curtas (ItemBusca)
- *   {t, n, c, q, f, m}. v2.4: sem i/e (o indicador antigo saiu da superfície).
+ *   {t, n, c, q, f, m}. v2.4: sem i/e (o indicador antigo saiu da superfície). v2.5: f = tipo
+ *   EXIBIDO do FII (Tijolo | Papel pelo perfil dos critérios, tipoFiiExibido).
  * - Filtro: sem acento e sem caixa (NFD); relevância prefixo do ticker > prefixo de palavra do nome
  *   > substring (ticker ou nome); desempate: do Quadro antes, depois ticker; no máximo 8.
  */
-import type {
-  ClasseQuadro,
-  FiiTipoTela,
-  ForaDoQuadroMotivo,
-  ItemBusca,
-} from '@/types/analiseAtivosApi';
+import { tipoFiiExibido } from '@/services/analiseAtivos/quadro/tipoFiiExibido';
+import type { ClasseQuadro, ForaDoQuadroMotivo, ItemBusca } from '@/types/analiseAtivosApi';
 
 export const MAX_RESULTADOS_BUSCA = 8;
 
@@ -25,6 +22,8 @@ export interface LinhaParaBusca {
   noQuadro: boolean;
   fiiTipo: string | null;
   foraDoQuadroMotivo: string | null;
+  /** v2.5: perfil dos critérios (decide o tipo exibido do FII); ausente/null = pelo tipo CVM */
+  perfilCriterios?: string | null;
 }
 
 export function montarIndiceBusca(linhas: readonly LinhaParaBusca[]): ItemBusca[] {
@@ -35,7 +34,7 @@ export function montarIndiceBusca(linhas: readonly LinhaParaBusca[]): ItemBusca[
         n: l.nome,
         c: l.classe as ClasseQuadro,
         q: l.noQuadro,
-        f: (l.fiiTipo as FiiTipoTela | null) ?? null,
+        f: l.classe === 'fii' ? tipoFiiExibido(l.perfilCriterios, l.fiiTipo) : null,
         m: l.noQuadro ? null : ((l.foraDoQuadroMotivo as ForaDoQuadroMotivo | null) ?? null),
       }),
     )

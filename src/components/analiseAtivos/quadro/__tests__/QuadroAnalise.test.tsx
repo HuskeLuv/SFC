@@ -74,6 +74,9 @@ import {
   definicoesChips,
 } from '@/test/fixtures/analiseAtivos/criterios';
 import { esperarDomLimpo } from '@/test/utils/varrerDom';
+import { TEXTOS_QUADRO } from '@/services/analiseAtivos/textosQuadro';
+import { definicoesQuadro } from '@/services/analiseAtivos/quadro/consultaQuadro';
+import { CRITERIA_PARAMS_V2 } from '@/services/analiseAtivos/params/criteriaParamsV2';
 
 function pagina(over: Partial<QuadroResposta> = {}): QuadroResposta {
   return {
@@ -285,13 +288,46 @@ describe('QuadroAnalise', () => {
     expect(
       screen.getByText(/Nenhum ativo atende a todos os critérios selecionados em 10 anos/),
     ).toBeInTheDocument();
-    expect(document.querySelector('[data-nota-janela-fii]')).not.toBeNull();
+    // v2.5: sem a nota dos informes de FII de 2016
+    expect(document.querySelector('[data-nota-janela-fii]')).toBeNull();
     expect(screen.getByRole('button', { name: /Vacância ≤ 10%/ })).toHaveAttribute(
       'aria-disabled',
       'true',
     );
     fireEvent.click(screen.getByRole('button', { name: 'limpe os filtros' }));
     expect(nav.replace).toHaveBeenCalledWith('/analise-ativos?classe=fii&j=10', { scroll: false });
+  });
+
+  it('v2.5 (caso 31 com a v2): chips de FII todos ativos; ?c=vac fica; explicação sem "sem fonte"', () => {
+    nav.qs = 'classe=fii&c=vac';
+    estadoQuadro({
+      data: {
+        pages: [
+          pagina({
+            ...QUADRO_FIIS,
+            itens: [],
+            total: 0,
+            totalClasse: 3,
+            janela: 5,
+            definicoes: definicoesQuadro('fii', CRITERIA_PARAMS_V2),
+          }),
+        ],
+        pageParams: [0],
+      },
+    });
+    const { container } = renderQuadro();
+    expect(quadro.ultimoFiltro).toMatchObject({ classe: 'fii', criterios: 'vac' });
+    const vac = screen.getByRole('button', { name: /Vacância ≤ 10%/ });
+    expect(vac).toHaveAttribute('aria-pressed', 'true');
+    expect(container.querySelector('[data-chip-desabilitado]')).toBeNull();
+    const det = container.querySelector('details[data-explicacao-criterios]')!;
+    expect(det.textContent).toContain('Inadimplência ≤ 3%');
+    expect(det.textContent).not.toMatch(/fica fora do critério|conferência dos fundos|n de 3/);
+    expect(det.querySelector('[data-explicacao-financeira]')).toBeNull();
+    expect(screen.getByText(/Nenhum ativo atende a todos os critérios selecionados/)).toBeVisible();
+    esperarDomLimpo(container);
+    fireEvent.click(screen.getByRole('button', { name: 'limpe os filtros' }));
+    expect(nav.replace).toHaveBeenCalledWith('/analise-ativos?classe=fii', { scroll: false });
   });
 
   it('caso 31: trocar de classe zera critérios, carteira e setor (janela e modo ficam)', () => {
@@ -346,7 +382,8 @@ describe('QuadroAnalise', () => {
     const { container } = renderQuadro();
     const det = container.querySelector('details[data-explicacao-criterios]')!;
     expect(det.textContent).toContain('O que cada critério verifica');
-    expect(det.textContent).toContain('Não se aplica a bancos');
+    expect(det.textContent).toContain(TEXTOS_QUADRO.explicacao.financeira);
+    expect(det.textContent).not.toMatch(/n de 3/);
     expect(container.textContent).not.toMatch(/Índice/);
     const r = esperarDomLimpo(container);
     expect(r.literais).toContain('rodape-quadro');

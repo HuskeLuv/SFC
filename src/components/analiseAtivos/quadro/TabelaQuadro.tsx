@@ -7,8 +7,11 @@
  * página do ativo; o hover pré-carrega o topo (espera 300 ms, no máximo 1 a cada 2 s).
  *
  * v2.4 (fatia B): sai a coluna do indicador antigo; entra "Critérios" (CelulaCriterios: k quadradinhos
- * NEUTROS + 'n de 6'; financeiras 'n de 3'; FoF/indefinido com a nota de perfil no tooltip). O nome
- * do ativo vem do banco e fica em [data-nome-ativo] (fora da varredura de linguagem, caso 32).
+ * NEUTROS + 'n de 6'; FoF/híbrido com a nota de perfil no tooltip). O nome do ativo vem do banco e
+ * fica em [data-nome-ativo] (fora da varredura de linguagem, caso 32).
+ *
+ * v2.5 (fatia B): coluna Tipo só com Tijolo | Papel (tipo exibido, consultaQuadro) e FoF/Híbrido
+ * como prefixo do Segmento ('FoF · Títulos e Valores Mobiliários'); financeiras também 'n de 6'.
  *
  * Bloco C: campo em conferência (flags 'conf:', lidas por conferenciasAtivo — o mesmo helper da
  * página) = célula hachurada + "em conferência" em 11px; 'ocultar' mostra '—' (a API não manda o
@@ -46,6 +49,7 @@ import {
 } from '@/services/analiseAtivos/leitura/ativo/conferenciasAtivo';
 import { ehCampoTela } from '@/services/analiseAtivos/regras/comum/conferencia';
 import { TEXTOS_ENTRADAS_COMPARADOR } from '@/services/analiseAtivos/textosEntradasComparador';
+import { rotuloSegmentoFii } from '@/services/analiseAtivos/quadro/tipoFiiExibido';
 import { MAX_ATIVOS_COMPARADOR } from '@/services/analiseAtivos/cenarios/contrato';
 import type { SelecaoComparar } from '@/components/analiseAtivos/quadro/useSelecaoComparar';
 import type {
@@ -90,16 +94,21 @@ export function rotulosDasDefinicoes(
   return out;
 }
 
-/** Nota de perfil do tooltip (FoF/híbrido/indefinido avaliados pela regra de composição). */
+/**
+ * Nota de perfil do tooltip (FoF/híbrido/indefinido avaliados pela regra de composição). v2.5: o
+ * tipo CVM bruto chega em segmentoTipo ('fof' | 'hibrido'); linha ainda não convertida (sem
+ * segmentoTipo) usa o fiiTipo bruto.
+ */
 export function observacaoPerfil(l: LinhaQuadroApi): string | null {
   const perfil = l.criterios?.perfil;
   if (l.classe !== 'fii' || !perfil) return null;
   const P = TEXTOS_CRITERIOS.perfil;
   const nome = perfil === 'fii_tijolo' || perfil === 'fii_papel' ? P.nomes[perfil] : null;
-  if (l.fiiTipo === 'fof') return P.fof;
+  const bruto = l.segmentoTipo !== undefined ? l.segmentoTipo : l.fiiTipo;
+  if (bruto === 'fof') return P.fof;
   if (!nome) return null;
-  if (l.fiiTipo === 'hibrido') return formatarTexto(P.hibrido, { perfil: nome });
-  if (l.fiiTipo === 'indefinido' || l.fiiTipo === null) {
+  if (bruto === 'hibrido') return formatarTexto(P.hibrido, { perfil: nome });
+  if (l.segmentoTipo === undefined && (l.fiiTipo === 'indefinido' || l.fiiTipo === null)) {
     return formatarTexto(P.indefinido, { perfil: nome });
   }
   return null;
@@ -188,7 +197,11 @@ function conteudoBase(codigo: string, l: LinhaQuadroApi): ReactNode {
     case 'setor':
       return l.setor ?? <span className="text-gray-400">{SEM}</span>;
     case 'segmento':
-      return l.segmentoCvm ?? <span className="text-gray-400">{SEM}</span>;
+      return (
+        rotuloSegmentoFii(l.segmentoTipo, l.segmentoCvm) ?? (
+          <span className="text-gray-400">{SEM}</span>
+        )
+      );
     case 'tipo':
       return l.fiiTipo ? T.tipos[l.fiiTipo] : <span className="text-gray-400">{SEM}</span>;
     case 'preco':

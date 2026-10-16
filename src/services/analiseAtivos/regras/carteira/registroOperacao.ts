@@ -5,8 +5,9 @@
  *    (secaoOperacao), taxaCorretagem 0, valorInvestido = quantidade × cotação (2 casas);
  *  - Venda (só com posição) → POST /api/carteira/resgate: metodoResgate 'quantidade', SEM
  *    instituicaoId (a rota usa a da última aquisição; com o campo, ela devolve 400 se for outra).
- * validarOperacao: inteiro > 0, venda ≤ posição, data não futura, seção na compra, preço > 0 e
- * instituição na compra. Funções puras.
+ * validarOperacao: inteiro > 0, venda ≤ posição, data não futura, preço > 0 e instituição na
+ * compra. v2.5 (fatia C): a seção é automática (secaoOperacao nunca fica vazia), então não há mais
+ * o erro 'sem_secao'. Funções puras.
  */
 import type { ClasseQuadro } from '@/types/analiseAtivosApi';
 
@@ -57,7 +58,6 @@ export type ErroOperacao =
   | 'quantidade_invalida'
   | 'acima_da_posicao'
   | 'data_futura'
-  | 'sem_secao'
   | 'preco_invalido'
   | 'sem_instituicao';
 
@@ -95,7 +95,6 @@ export function validarOperacao(e: {
   data: string;
   hoje: string;
   posicao: number | null;
-  secao: string | null;
   /** opcionais: o modal valida também o preço e a instituição da compra */
   cotacao?: number | null;
   instituicaoId?: string | null;
@@ -114,7 +113,6 @@ export function validarOperacao(e: {
   }
   // AAAA-MM-DD compara como texto; data vazia também é inválida.
   if (!/^\d{4}-\d{2}-\d{2}$/.test(e.data) || e.data > e.hoje) erros.push('data_futura');
-  if (e.operacao === 'compra' && !e.secao) erros.push('sem_secao');
   if (e.operacao === 'compra' && e.instituicaoId !== undefined && !e.instituicaoId) {
     erros.push('sem_instituicao');
   }

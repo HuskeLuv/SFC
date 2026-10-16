@@ -16,6 +16,9 @@ import {
 } from '@/test/fixtures/analiseAtivos/criterios';
 import { esperarDomLimpo } from '@/test/utils/varrerDom';
 import { CRITERIA_PARAMS_V1 } from '@/services/analiseAtivos/params/criteriaParamsV1';
+import { CRITERIA_PARAMS_V2 } from '@/services/analiseAtivos/params/criteriaParamsV2';
+import { TEXTOS_CRITERIOS } from '@/services/analiseAtivos/textosCriterios';
+import type { MarcaCriterioLinha } from '@/types/analiseAtivosCriterios';
 import { LEITURA_DOS_DADOS } from '@/services/analiseAtivos/textosLiterais';
 
 const estado = vi.hoisted(() => ({
@@ -341,6 +344,49 @@ describe('Comparador isonômico (caso 32)', () => {
     expect(tds[1].textContent).toContain('não atende · sem dado nas demonstrações');
     // KNCR11 (papel): a marca é a de 'inad' (relatórios gerenciais), não um '—' sem avaliação
     expect(tds[1].textContent).toContain('relatórios gerenciais em PDF');
+  });
+
+  it('v2.5: rótulos da v2, financeira "n de 6" com sem dado e a obs do lucro junto da frase', () => {
+    const marcasItub: MarcaCriterioLinha[] = [
+      { id: 'rec', estado: 'atende', fato: 'cresceu em 5 de 5 anos' },
+      {
+        id: 'luc',
+        estado: 'atende',
+        fato: 'cresceu em 5 de 5 anos',
+        obs: ['lucro_sem_descontado'],
+      },
+      { id: 'ebitda', estado: 'sem_dado', fato: TEXTOS_CRITERIOS.fatos.semDado },
+      { id: 'mg', estado: 'atende', fato: 'positiva em 5 de 5 anos' },
+      { id: 'dl', estado: 'sem_dado', fato: TEXTOS_CRITERIOS.fatos.semDado },
+      { id: 'fcl', estado: 'nao_atende', fato: 'cresceu em 2 de 5 anos' },
+    ];
+    const v2: ComparadorResposta = {
+      ...ACOES,
+      ativos: [
+        ACOES.ativos[0],
+        {
+          ...ACOES.ativos[1],
+          criterios: { ...CRITERIOS_LINHA_ITUB4, n: 3, de: 6, marcas: marcasItub },
+        },
+        ACOES.ativos[2],
+      ],
+      criterios: {
+        rotulos: Object.fromEntries(CRITERIA_PARAMS_V2.perfis.acao.map((c) => [c.id, c.rotulo])),
+        equivalencias: {},
+      },
+    };
+    const { container } = montar(v2, 't=WEGE3,ITUB4,TAEE11', false);
+    const linha = (id: string) =>
+      container.querySelector(`[data-criterio="${id}"]`) as HTMLTableRowElement;
+    expect(linha('dl').querySelector('th')?.textContent).toBe('Dív. líq./EBITDA < 3×');
+    const dl = [...linha('dl').querySelectorAll('td')];
+    expect(dl[1].textContent).toContain('não atende · sem dado nas demonstrações');
+    expect(dl[1].textContent).not.toContain('não se aplica');
+    const luc = [...linha('luc').querySelectorAll('td')];
+    expect(luc[1].querySelector('[data-obs-criterio="lucro_sem_descontado"]')).not.toBeNull();
+    const contagem = container.querySelector('[data-criterio="atendidos"]')!;
+    expect(contagem.textContent).toContain('3 de 6');
+    esperarDomLimpo(container);
   });
 
   it('celular: critérios em cartão primeiro; caixas com o mesmo fundo; sem tabela', () => {

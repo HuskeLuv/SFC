@@ -63,11 +63,12 @@ import ModalComparar from '../ModalComparar';
 import BlocoNaCarteira from '@/components/analiseAtivos/ativo/usuario/BlocoNaCarteira';
 
 // ---------------------------------------------------------------------------
-// Fixtures: as rotas reais da Carteira (caso 33 da spec: WEGE3, 120 ações a R$ 52,30 = R$ 6.276;
-// aba Ações de R$ 165.158 → posição 3,8% de Ações)
+// Fixtures: as rotas reais da Carteira (caso 33 da spec: WEGE3, 120 ações a R$ 52,30 = R$ 6.276
+// = 3,8% da carteira TOTAL → totais.dinheiro = 6.276 ÷ 0,038 ≈ R$ 165.158)
 // ---------------------------------------------------------------------------
 
 const PRECO = 52.3;
+const TOTAL_CARTEIRA = 6276 / 0.038;
 let linhaWege: Record<string, unknown>;
 let overlay: OverlayCarteiraResposta;
 let fetchMock: ReturnType<typeof vi.fn>;
@@ -134,7 +135,7 @@ const ABA_FII = {
   ],
 };
 const RESUMO = {
-  totais: { dinheiro: 500_000 },
+  totais: { dinheiro: TOTAL_CARTEIRA },
   distribuicao: {
     acoes: { valor: 165_158, percentual: 33 },
     fiis: { valor: 1000, percentual: 0.2 },
@@ -282,23 +283,19 @@ async function preencher(qtd: string) {
 }
 
 describe('ModalRegistrarOperacao', () => {
-  it('compra NOVA de ação: seção obrigatória; payload exato com estrategia; CSRF e invalidação', async () => {
+  it('compra NOVA de ação: seção automática Value (sem campo); payload exato; CSRF e invalidação', async () => {
     comCliente(
       <ModalRegistrarOperacao {...baseRegistrar} ticker="PETR4" classe="acao" assetId="a-petr" />,
     );
     await screen.findByText('Sem posição atual');
+    expect(screen.queryByLabelText(/Seção na Carteira/)).toBeNull();
+    expect(dialogo().querySelector('select')).toBeNull();
+    expect(
+      screen.getByText('Na Carteira: Ações · Value (dá para mover depois)'),
+    ).toBeInTheDocument();
     const invalidar = vi.spyOn(client, 'invalidateQueries');
     await preencher('10');
     fireEvent.click(screen.getByRole('button', { name: 'Escolher BTG' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Registrar' }));
-    expect(
-      await screen.findByText('Escolha a seção da Carteira em que o ativo vai entrar.'),
-    ).toBeInTheDocument();
-    expect(mocks.csrfFetch).not.toHaveBeenCalled();
-
-    const secao = screen.getByLabelText('Seção na Carteira') as HTMLSelectElement;
-    expect(secao.value).toBe('');
-    fireEvent.change(secao, { target: { value: 'value' } });
     fireEvent.click(screen.getByRole('button', { name: 'Registrar' }));
     await waitFor(() => expect(mocks.csrfFetch).toHaveBeenCalledTimes(1));
     expect(ultimaUrl()).toBe('/api/carteira/operacao');
@@ -315,12 +312,28 @@ describe('ModalRegistrarOperacao', () => {
       taxaCorretagem: 0,
       estrategia: 'value',
     });
-    await waitFor(() =>
-      expect(invalidar.mock.calls.map((c) => JSON.stringify(c[0]?.queryKey))).toContain(
-        JSON.stringify(queryKeys.analiseAtivos.carteira()),
-      ),
-    );
+    // invalidatePortfolioDerivedQueries: carteira, ativos e o overlay da análise
+    await waitFor(() => {
+      const keys = invalidar.mock.calls.map((c) => JSON.stringify(c[0]?.queryKey));
+      expect(keys).toContain(JSON.stringify(queryKeys.analiseAtivos.carteira()));
+      expect(keys).toContain(JSON.stringify(queryKeys.carteira.all));
+      expect(keys).toContain(JSON.stringify(queryKeys.assets.all));
+    });
     expect(mocks.toast).toHaveBeenCalled();
+  });
+
+  it('resumo ao vivo: total, nova posição e novo preço médio', async () => {
+    comCliente(
+      <ModalRegistrarOperacao {...baseRegistrar} ticker="WEGE3" classe="acao" assetId="a-wege" />,
+    );
+    await screen.findByText(/Na Carteira: Ações · Growth/);
+    await screen.findByText(/PM R\$\s38,50/);
+    await preencher('10');
+    const resumo = document.querySelector('[data-resumo-operacao]')!;
+    // 10 × 52,30 = 523,00; 130 ações; (120 × 38,50 + 523) ÷ 130 = 39,56
+    expect(resumo.textContent).toMatch(/R\$\s523,00/);
+    expect(resumo.textContent).toContain('130 ações');
+    expect(resumo.textContent).toMatch(/R\$\s39,56/);
   });
 
   it("quantidade no formato brasileiro: '1.000' grava 1.000 ações, nunca 1", async () => {
@@ -343,11 +356,13 @@ describe('ModalRegistrarOperacao', () => {
     expect(ultimoCorpo()).toMatchObject({ quantidade: 1000 });
   });
 
-  it('RECOMPRA: não pede seção (manda a estratégia da posição) e já vem com a instituição', async () => {
+  it('RECOMPRA: seção da posição (Growth), sem campo, e já vem com a instituição', async () => {
     comCliente(
       <ModalRegistrarOperacao {...baseRegistrar} ticker="WEGE3" classe="acao" assetId="a-wege" />,
     );
-    expect(await screen.findByText('Estratégia: Growth (da sua posição)')).toBeInTheDocument();
+    expect(
+      await screen.findByText('Na Carteira: Ações · Growth (dá para mover depois)'),
+    ).toBeInTheDocument();
     expect(screen.queryByLabelText(/Seção na Carteira/)).toBeNull();
     await waitFor(() =>
       expect(screen.getByTestId('instituicao')).toHaveTextContent('XP Investimentos'),
@@ -374,10 +389,14 @@ describe('ModalRegistrarOperacao', () => {
         fiiTipo="tijolo"
       />,
     );
-    const secao = (await screen.findByLabelText(
-      'Seção na Carteira (do seu plano)',
-    )) as HTMLSelectElement;
-    await waitFor(() => expect(secao.value).toBe('tvm'));
+    await waitFor(() =>
+      expect(
+        document.querySelector('[data-secao-automatica]')?.getAttribute('data-secao-automatica'),
+      ).toBe('tvm'),
+    );
+    expect(document.querySelector('[data-secao-automatica]')!.textContent).toMatch(
+      /^Na Carteira: .+ · Papel \(TVM\) \(dá para mover depois\)$/,
+    );
     await preencher('3');
     fireEvent.click(screen.getByRole('button', { name: 'Escolher BTG' }));
     fireEvent.click(screen.getByRole('button', { name: 'Registrar' }));
@@ -386,29 +405,41 @@ describe('ModalRegistrarOperacao', () => {
     expect(ultimoCorpo()).not.toHaveProperty('estrategia');
   });
 
-  it('FII novo: sugestão pelo tipo na CVM', async () => {
+  it.each([
+    ['tijolo', 'tijolo', 'Tijolo'],
+    ['papel', 'tvm', 'Papel (TVM)'],
+    ['fof', 'fofi', 'Fundo de fundos'],
+  ] as const)('FII novo %s → seção %s (automática)', async (fiiTipo, secao, rotulo) => {
     comCliente(
       <ModalRegistrarOperacao
         {...baseRegistrar}
         ticker="HGLG11"
         classe="fii"
         assetId="a-hglg"
-        fiiTipo="tijolo"
+        fiiTipo={fiiTipo}
       />,
     );
-    const secao = (await screen.findByLabelText(
-      'Seção na Carteira (tipo na CVM)',
-    )) as HTMLSelectElement;
-    expect(secao.value).toBe('tijolo');
+    expect(
+      await screen.findByText(`Na Carteira: FII's · ${rotulo} (dá para mover depois)`),
+    ).toBeInTheDocument();
+    expect(document.querySelector('[data-secao-automatica]')).toHaveAttribute(
+      'data-secao-automatica',
+      secao,
+    );
+    await preencher('2');
+    fireEvent.click(screen.getByRole('button', { name: 'Escolher BTG' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Registrar' }));
+    await waitFor(() => expect(mocks.csrfFetch).toHaveBeenCalled());
+    expect(ultimoCorpo()).toMatchObject({ tipoAtivo: 'fii', tipoFii: secao });
   });
 
   it('VENDA: resgate SEM instituicaoId (da última aquisição); sem seção; nunca acima da posição', async () => {
     comCliente(
       <ModalRegistrarOperacao {...baseRegistrar} ticker="WEGE3" classe="acao" assetId="a-wege" />,
     );
-    await screen.findByText('Estratégia: Growth (da sua posição)');
+    await screen.findByText(/Na Carteira: Ações · Growth/);
     fireEvent.click(screen.getByRole('button', { name: 'Venda' }));
-    expect(screen.queryByText(/da sua posição/)).toBeNull();
+    expect(screen.queryByText(/Na Carteira:/)).toBeNull();
     expect(await screen.findByText('XP Investimentos (da última aquisição)')).toBeInTheDocument();
 
     await preencher('121');
@@ -449,7 +480,7 @@ describe('ModalRegistrarOperacao', () => {
     comCliente(
       <ModalRegistrarOperacao {...baseRegistrar} ticker="WEGE3" classe="acao" assetId="a-wege" />,
     );
-    await screen.findByText('Estratégia: Growth (da sua posição)');
+    await screen.findByText(/Na Carteira: Ações · Growth/);
     await waitFor(() =>
       expect(screen.getByTestId('instituicao')).toHaveTextContent('XP Investimentos'),
     );
@@ -463,7 +494,7 @@ describe('ModalRegistrarOperacao', () => {
     comCliente(
       <ModalRegistrarOperacao {...baseRegistrar} ticker="WEGE3" classe="acao" assetId="a-wege" />,
     );
-    await screen.findByText('Estratégia: Growth (da sua posição)');
+    await screen.findByText(/Na Carteira: Ações · Growth/);
     esperarDomLimpo(dialogo(), OPERACAO);
     fireEvent.click(screen.getByRole('button', { name: 'Venda' }));
     await screen.findByText('XP Investimentos (da última aquisição)');
@@ -474,7 +505,7 @@ describe('ModalRegistrarOperacao', () => {
     comCliente(
       <ModalRegistrarOperacao {...baseRegistrar} ticker="WEGE3" classe="acao" assetId="a-wege" />,
     );
-    await screen.findByText('Estratégia: Growth (da sua posição)');
+    await screen.findByText(/Na Carteira: Ações · Growth/);
     for (const el of within(dialogo()).getAllByRole('button')) {
       if (el.textContent === 'Escolher BTG') continue; // mock do seletor
       expect(el.className, el.textContent ?? '').toMatch(/min-h-11|h-11/);
@@ -485,7 +516,7 @@ describe('ModalRegistrarOperacao', () => {
     comCliente(
       <ModalRegistrarOperacao {...baseRegistrar} ticker="WEGE3" classe="acao" assetId="a-wege" />,
     );
-    await screen.findByText('Estratégia: Growth (da sua posição)');
+    await screen.findByText(/Na Carteira: Ações · Growth/);
     const campos = dialogo().querySelectorAll<HTMLElement>(
       'input:not([type="radio"]):not([type="checkbox"]):not([type="hidden"]), select',
     );
@@ -502,7 +533,7 @@ describe('ModalRegistrarOperacao', () => {
 // Planejar na carteira (rec. 1, caso 33)
 // ---------------------------------------------------------------------------
 
-describe('ModalPlanejar — caso 33 na base da aba', () => {
+describe('ModalPlanejar — caso 33 na base da carteira total (planning_asset_targets)', () => {
   const props = {
     aberto: true,
     onFechar: () => {},
@@ -513,30 +544,49 @@ describe('ModalPlanejar — caso 33 na base da aba', () => {
     preco: PRECO,
   };
 
-  it('resumo ao vivo: alvo R$ 9.909 · 189 ações · −2,2 p.p. de Ações (R$ 3.633 · 69 ações)', async () => {
-    comCliente(<ModalPlanejar {...props} />);
-    await screen.findByText(/120 ações · 3,8% de Ações · R\$ 6\.276/);
-    fireEvent.change(screen.getByLabelText('Peso-alvo dentro de Ações'), {
-      target: { value: '6' },
+  /** Rota do alvo falsa: grava/apaga em overlay.alvos (como o servidor faria). */
+  function rotaAlvoFalsa() {
+    mocks.csrfFetch.mockImplementation(async (url: string, init: RequestInit) => {
+      const t = url.split('/').pop()!;
+      if (init.method === 'PUT') {
+        const { targetPct } = JSON.parse(String(init.body));
+        const alvo = { targetPct, atualizadoEm: '2026-10-15T12:00:00.000Z' };
+        overlay.alvos = { ...(overlay.alvos ?? {}), [t]: alvo };
+        return mockFetchResponse({ ticker: t, alvo });
+      }
+      const alvos = { ...(overlay.alvos ?? {}) };
+      const removido = !!alvos[t];
+      delete alvos[t];
+      overlay.alvos = alvos;
+      return mockFetchResponse({ ticker: t, removido });
     });
+  }
+
+  it('campo em branco (ex.: 5); resumo ao vivo: R$ 9.909 · 189 ações · −2,2 p.p. (R$ 3.633 · 69 ações)', async () => {
+    comCliente(<ModalPlanejar {...props} />);
+    await screen.findByText(/120 ações · 3,8% da carteira · R\$ 6\.276/);
+    const campo = screen.getByLabelText('Peso-alvo na carteira (%)') as HTMLInputElement;
+    expect(campo.value).toBe('');
+    expect(campo.placeholder).toBe('ex.: 5');
+    expect(dialogo().textContent).toContain('Planejar na carteira · WEGE3');
+    expect(dialogo().textContent).toContain(
+      'Informe o peso-alvo para ver a diferença em relação à sua posição atual.',
+    );
+    fireEvent.change(campo, { target: { value: '6' } });
     const resumo = document.querySelector('[data-resumo-plano]')!;
     expect(resumo.textContent).toContain('R$ 9.909');
     expect(resumo.textContent).toContain('189');
-    expect(resumo.textContent).toContain('−2,2 p.p. de Ações (R$ 3.633 · 69 ações)');
-    // % da carteira só informativo: 9.909,48 ÷ 500.000
-    expect(resumo.textContent).toContain('≈ 2,0% da carteira hoje (informativo, não é gravado)');
+    expect(resumo.textContent).toContain('−2,2 p.p. (R$ 3.633 · 69 ações)');
     expect(dialogo().textContent).toContain('Classe no Planejamento');
+    expect(dialogo().textContent).toContain('Ações · 33,0% da carteira (alvo da classe: 35%)');
     expect(dialogo().textContent).not.toMatch(/faltam|compre/i);
+    // sem Seção: o alvo não cria Watchlist
+    expect(dialogo().querySelector('select')).toBeNull();
     esperarDomLimpo(dialogo());
   });
 
-  it('salvar → chip "Planejado" + "alvo planejado por você"; remover → "sem alvo planejado"', async () => {
-    mocks.csrfFetch.mockImplementation(async (url: string, init: RequestInit) => {
-      const corpo = JSON.parse(String(init.body));
-      linhaWege.objetivo = corpo.objetivo;
-      overlay.posicoes.WEGE3.objetivoPct = corpo.objetivo > 0 ? corpo.objetivo : null;
-      return mockFetchResponse({ success: true });
-    });
+  it('salvar → PUT do alvo, chip "Planejado" e card 6,0%; remover → DELETE, chip some; Carteira intacta', async () => {
+    rotaAlvoFalsa();
     function Tela() {
       const [aberto, setAberto] = React.useState(true);
       return (
@@ -560,76 +610,122 @@ describe('ModalPlanejar — caso 33 na base da aba', () => {
       );
     }
     comCliente(<Tela />);
-    await screen.findByText(/120 ações · 3,8% de Ações/);
+    await screen.findByText(/120 ações · 3,8% da carteira/);
     expect(within(screen.getByTestId('chips')).queryByText('Planejado')).toBeNull();
-    fireEvent.change(screen.getByLabelText('Peso-alvo dentro de Ações'), {
+    fireEvent.change(screen.getByLabelText('Peso-alvo na carteira (%)'), {
       target: { value: '6' },
     });
     fireEvent.click(screen.getByRole('button', { name: 'Salvar no Planejamento' }));
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
-    expect(ultimaUrl()).toBe('/api/carteira/acoes/objetivo');
-    expect(ultimoCorpo()).toEqual({ ativoId: 'pf-wege3', objetivo: 6 });
+    expect(ultimaUrl()).toBe('/api/analise-ativos/alvos/WEGE3');
+    expect(mocks.csrfFetch.mock.calls[0][1].method).toBe('PUT');
+    expect(ultimoCorpo()).toEqual({ targetPct: 6 });
     expect(await within(screen.getByTestId('chips')).findByText('Planejado')).toBeInTheDocument();
     const card = () => document.querySelector('[data-na-carteira="posicao"]')!;
-    await waitFor(() =>
-      expect(card().textContent).toContain('alvo planejado por você: 6,0% de Ações'),
-    );
+    await waitFor(() => expect(card().textContent).toContain('alvo planejado por você: 6,0%'));
+    expect(card().textContent).toContain('posição atual 3,8%');
     expect(card().textContent).toContain('desvio −2,2 p.p. (R$ 3.633)');
     expect(card().textContent).not.toMatch(/faltam|compre/i);
 
     fireEvent.click(screen.getByRole('button', { name: 'reabrir' }));
     expect(await screen.findByRole('dialog')).toHaveTextContent('Ajustar plano · WEGE3');
+    await waitFor(() =>
+      expect((screen.getByLabelText('Peso-alvo na carteira (%)') as HTMLInputElement).value).toBe(
+        '6',
+      ),
+    );
     fireEvent.click(screen.getByRole('button', { name: 'Remover do plano' }));
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
-    expect(ultimoCorpo()).toEqual({ ativoId: 'pf-wege3', objetivo: 0 });
+    expect(ultimaUrl()).toBe('/api/analise-ativos/alvos/WEGE3');
+    expect(mocks.csrfFetch.mock.calls.at(-1)![1].method).toBe('DELETE');
     await waitFor(() => expect(card().textContent).toContain('sem alvo planejado'));
     await waitFor(() =>
       expect(within(screen.getByTestId('chips')).queryByText('Planejado')).toBeNull(),
     );
+    // Carteira intacta: o Planejar nunca chama /objetivo nem /planejados
+    const urls = [
+      ...mocks.csrfFetch.mock.calls.map((c) => String(c[0])),
+      ...fetchMock.mock.calls.map((c) => String(c[0])),
+    ];
+    expect(urls.some((u) => /\/objetivo|\/planejados/.test(u))).toBe(false);
   });
 
-  it('ativo sem posição nem plano: escolhe a seção e POST /api/carteira/planejados com ela', async () => {
-    comCliente(<ModalPlanejar {...props} ticker="PETR4" assetId="a-petr" />);
-    await screen.findByText('não está na carteira');
-    fireEvent.change(screen.getByLabelText('Peso-alvo dentro de Ações'), {
-      target: { value: '5' },
-    });
-    // sem seção escolhida não grava (a rota gravaria a 1ª seção da aba, 'value', em silêncio)
-    const secao = screen.getByLabelText('Seção na Carteira') as HTMLSelectElement;
-    expect(secao.value).toBe('');
-    fireEvent.click(screen.getByRole('button', { name: 'Salvar no Planejamento' }));
-    expect(
-      await screen.findByText('Escolha a seção da Carteira em que o ativo vai entrar.'),
-    ).toBeInTheDocument();
-    expect(mocks.csrfFetch).not.toHaveBeenCalled();
-    fireEvent.change(secao, { target: { value: 'growth' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Salvar no Planejamento' }));
-    await waitFor(() => expect(mocks.csrfFetch).toHaveBeenCalled());
-    expect(ultimaUrl()).toBe('/api/carteira/planejados');
-    expect(ultimoCorpo()).toEqual({
-      assetId: 'a-petr',
-      tipoAtivo: 'acao',
-      objetivo: 5,
-      secao: 'growth',
-    });
+  it('Objetivo da aba > 0: linha informativa no card e no modal; não acende o chip', async () => {
+    linhaWege.objetivo = 25;
+    overlay.posicoes.WEGE3.objetivoPct = 25;
+    comCliente(
+      <>
+        <div data-testid="chips">
+          <ChipsCarteira ticker="WEGE3" classe="acao" />
+        </div>
+        <BlocoNaCarteira
+          ticker="WEGE3"
+          classe="acao"
+          nome="WEG"
+          assetId="a-wege"
+          precoCabecalho={PRECO}
+          precoData="2026-10-10"
+        />
+        <ModalPlanejar {...props} />
+      </>,
+    );
+    await waitFor(() => expect(document.querySelectorAll('[data-objetivo-aba]').length).toBe(2));
+    for (const el of document.querySelectorAll('[data-objetivo-aba]')) {
+      expect(el.textContent).toBe('Objetivo na aba Ações da Carteira: 25%');
+    }
+    // o campo do alvo não herda o Objetivo da aba
+    expect((screen.getByLabelText('Peso-alvo na carteira (%)') as HTMLInputElement).value).toBe('');
+    expect(within(screen.getByTestId('chips')).queryByText('Planejado')).toBeNull();
   });
 
-  it('planejado: PATCH; fora de 0–100 mostra o erro e não grava', async () => {
+  it('ativo só com alvo (sem posição): card com o alvo e o valor equivalente', async () => {
+    overlay.alvos = { PETR4: { targetPct: 5, atualizadoEm: '2026-10-15T12:00:00.000Z' } };
+    comCliente(
+      <BlocoNaCarteira
+        ticker="PETR4"
+        classe="acao"
+        nome="Petrobras"
+        assetId="a-petr"
+        precoCabecalho={30}
+        precoData="2026-10-10"
+      />,
+    );
+    const card = await waitFor(() => {
+      const el = document.querySelector('[data-na-carteira="planejado"]');
+      expect(el).not.toBeNull();
+      return el!;
+    });
+    expect(card.textContent).toContain('Você não tem PETR4');
+    expect(card.textContent).toContain('alvo planejado por você: 5,0%');
+    // 5% × 165.157,89 = R$ 8.258 (resumo carregado só por causa do alvo)
+    await waitFor(() =>
+      expect(card.querySelector('[data-valor-alvo]')!.textContent).toBe(
+        'Valor equivalente ao alvo: R$ 8.258',
+      ),
+    );
+    expect(fetchMock.mock.calls.map((c) => String(c[0]))).toContain('/api/carteira/resumo');
+    expect(card.textContent).not.toMatch(/faltam|compre/i);
+  });
+
+  it('fora de (0, 100] mostra o erro e não grava; "12,5" grava 12.5', async () => {
+    rotaAlvoFalsa();
     comCliente(
       <ModalPlanejar {...props} ticker="KNCR11" classe="fii" assetId="a-kncr" preco={100} />,
     );
-    const campo = (await screen.findByLabelText(/Peso-alvo dentro de/)) as HTMLInputElement;
-    await waitFor(() => expect(campo.value).toBe('10'));
-    fireEvent.change(campo, { target: { value: '120' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Salvar no Planejamento' }));
-    expect(await screen.findByText('Informe um peso-alvo entre 0 e 100%.')).toBeInTheDocument();
+    const campo = (await screen.findByLabelText(/Peso-alvo na carteira/)) as HTMLInputElement;
+    // o Objetivo do plano antigo (10% da aba) não vira o alvo: o campo começa em branco
+    expect(campo.value).toBe('');
+    for (const v of ['120', '0', '-1']) {
+      fireEvent.change(campo, { target: { value: v } });
+      fireEvent.click(screen.getByRole('button', { name: 'Salvar no Planejamento' }));
+      expect(await screen.findByText('Informe um peso-alvo entre 0 e 100%.')).toBeInTheDocument();
+    }
     expect(mocks.csrfFetch).not.toHaveBeenCalled();
     fireEvent.change(campo, { target: { value: '12,5' } });
     fireEvent.click(screen.getByRole('button', { name: 'Salvar no Planejamento' }));
     await waitFor(() => expect(mocks.csrfFetch).toHaveBeenCalled());
-    expect(ultimaUrl()).toBe('/api/carteira/planejados/wl-kncr');
-    expect(mocks.csrfFetch.mock.calls[0][1].method).toBe('PATCH');
-    expect(ultimoCorpo()).toEqual({ objetivo: 12.5 });
+    expect(ultimaUrl()).toBe('/api/analise-ativos/alvos/KNCR11');
+    expect(ultimoCorpo()).toEqual({ targetPct: 12.5 });
   });
 });
 
@@ -639,6 +735,14 @@ describe('ModalPlanejar — caso 33 na base da aba', () => {
 
 describe('ModalVerNaCarteira', () => {
   const props = { aberto: true, onFechar: () => {}, classe: 'acao' as const, nome: 'X' };
+
+  it('com posição e alvo: alvo planejado (% da carteira) e desvio na base total', async () => {
+    overlay.alvos = { WEGE3: { targetPct: 6, atualizadoEm: '2026-10-15T12:00:00.000Z' } };
+    comCliente(<ModalVerNaCarteira {...props} ticker="WEGE3" assetId="a-wege" />);
+    await screen.findByText('120 ações');
+    await waitFor(() => expect(dialogo().textContent).toContain('6,0% da carteira'));
+    expect(dialogo().textContent).toContain('posição 3,8% · desvio −2,2 p.p.');
+  });
 
   it('com posição: GET /api/ativos/[id], números, operações e link da Carteira completa', async () => {
     comCliente(<ModalVerNaCarteira {...props} ticker="WEGE3" assetId="a-wege" />);
@@ -655,10 +759,11 @@ describe('ModalVerNaCarteira', () => {
   });
 
   it('sem posição: "Você ainda não tem" e o alvo planejado, se houver', async () => {
+    overlay.alvos = { KNCR11: { targetPct: 4, atualizadoEm: '2026-10-15T12:00:00.000Z' } };
     comCliente(<ModalVerNaCarteira {...props} ticker="KNCR11" classe="fii" assetId="a-k" />);
     expect(
       await screen.findByText(
-        /Você ainda não tem KNCR11 na carteira\. Há um alvo planejado de 10,0%/,
+        'Você ainda não tem KNCR11 na carteira. Há um alvo planejado de 4,0% da carteira no seu Planejamento.',
       ),
     ).toBeInTheDocument();
     expect(screen.queryByRole('link', { name: 'Abrir Carteira completa' })).toBeNull();

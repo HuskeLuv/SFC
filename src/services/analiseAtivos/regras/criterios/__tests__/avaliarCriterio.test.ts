@@ -116,12 +116,12 @@ describe("avaliarCriterio — 'up'", () => {
     expect(r.serie).toBeNull();
   });
 
-  it('FII na janela 10 explica que os informes começam em 2016', () => {
+  it('FII na janela 10: só "sem dado nas demonstrações" (v2.5, sem a nota de 2016)', () => {
     const r = avaliarCriterio(
       { def: def('fii_tijolo', 'rend'), janela: 10, anoFim: 2025, classe: 'fii', serie: {} },
       P,
     );
-    expect(r.fato).toBe(TEXTOS_CRITERIOS.fatos.semDadoFii10);
+    expect(r.fato).toBe(TEXTOS_CRITERIOS.fatos.semDado);
   });
 
   it('formato n2 e unidade R$ (rendimento por cota)', () => {
@@ -305,9 +305,9 @@ describe('avaliarJanela / avaliarAtivo — contagem factual', () => {
     perfil: 'acao_financeira' as const,
     anoFim: 2025,
     series: {
-      receita: serieDe(2020, [1, 2, 3, 4, 5, 6]),
-      lucroLiquido: serieDe(2020, [1, 2, 3, 2, 5, 6]),
-      margemLiquida: serieDe(2021, [10, 11, 12, 13, 14]),
+      revenue: serieDe(2020, [1, 2, 3, 4, 5, 6]),
+      net_income: serieDe(2020, [1, 2, 3, 2, 5, 6]),
+      net_margin: serieDe(2021, [10, 11, 12, 13, 14]),
     },
     meses: null,
   };
@@ -326,9 +326,9 @@ describe('avaliarJanela / avaliarAtivo — contagem factual', () => {
     const holding = {
       ...entrada,
       series: {
-        receita: serieDe(2020, [null, null, null, null, null, null]),
-        lucroLiquido: serieDe(2020, [1, 2, 3, 4, 5, 6]),
-        margemLiquida: serieDe(2021, [null, null, null, null, null]),
+        revenue: serieDe(2020, [null, null, null, null, null, null]),
+        net_income: serieDe(2020, [1, 2, 3, 4, 5, 6]),
+        net_margin: serieDe(2021, [null, null, null, null, null]),
       },
     };
     expect(margemNaoComparavel(holding, 5)).toBe(true);
@@ -345,7 +345,7 @@ describe('avaliarJanela / avaliarAtivo — contagem factual', () => {
   it('margem segue sem dado quando falta só um ano, quando o lucro também falta, ou em não financeira', () => {
     const umAno = {
       ...entrada,
-      series: { ...entrada.series, margemLiquida: serieDe(2021, [10, 11, null, 13, 14]) },
+      series: { ...entrada.series, net_margin: serieDe(2021, [10, 11, null, 13, 14]) },
     };
     expect(margemNaoComparavel(umAno, 5)).toBe(false);
     expect(avaliarJanela(umAno, 5, P).resultados.find((r) => r.id === 'mg')?.estado).toBe(
@@ -354,15 +354,15 @@ describe('avaliarJanela / avaliarAtivo — contagem factual', () => {
     const semLucro = {
       ...entrada,
       series: {
-        lucroLiquido: serieDe(2020, [null, null, null, null, null, null]),
-        margemLiquida: serieDe(2021, [null, null, null, null, null]),
+        net_income: serieDe(2020, [null, null, null, null, null, null]),
+        net_margin: serieDe(2021, [null, null, null, null, null]),
       },
     };
     expect(margemNaoComparavel(semLucro, 5)).toBe(false);
     const naoFinanceira = {
       ...entrada,
       perfil: 'acao' as const,
-      series: { ...entrada.series, margemLiquida: serieDe(2021, [null, null, null, null, null]) },
+      series: { ...entrada.series, net_margin: serieDe(2021, [null, null, null, null, null]) },
     };
     expect(margemNaoComparavel(naoFinanceira, 5)).toBe(false);
   });

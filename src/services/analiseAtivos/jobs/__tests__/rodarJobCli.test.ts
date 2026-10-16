@@ -62,6 +62,38 @@ describe('runner rodar-job', () => {
     });
   });
 
+  it('--versao-params=N chega ao job e fica nos parâmetros do run (dry-run de versão não vigente)', async () => {
+    expect(lerArgsRodarJob(['criterios']).opcoes).toEqual({});
+    expect(lerArgsRodarJob(['criterios', '--versao-params=2']).opcoes).toEqual({ versaoParams: 2 });
+    expect(() => lerArgsRodarJob(['criterios', '--versao-params=0'])).toThrow(/versao-params/);
+    expect(() => lerArgsRodarJob(['criterios', '--versao-params=x'])).toThrow(/versao-params/);
+    expect(lerArgsRodarJob(['fontes-fundamentos', '--fonte=exemplo']).opcoes).toEqual({
+      fonte: 'exemplo',
+    });
+    expect(() => lerArgsRodarJob(['fontes-fundamentos', '--fonte=X;Y'])).toThrow(/fonte/);
+
+    const executar = vi.fn().mockResolvedValue(relatorio('ok'));
+    await rodarJobCli(['criterios', '--sem-aplicar', '--versao-params=2'], executar);
+    expect(executar).toHaveBeenCalledWith('criterios', expect.any(Function), {
+      prazoMs: 240_000,
+      origem: 'cron',
+      parametros: { versaoParams: 2 },
+      aplicar: false,
+    });
+    // a função passada ao wrapper repassa as opções ao job
+    const fn = executar.mock.calls[0][1] as (ctx: unknown) => Promise<unknown>;
+    const espiao = vi
+      .spyOn(CATALOGO_JOBS.criterios, 'executar')
+      .mockResolvedValue({ detalhes: {} });
+    await fn({});
+    expect(espiao).toHaveBeenCalledWith({}, { versaoParams: 2 });
+    espiao.mockRestore();
+  });
+
+  it("'fontes-fundamentos' está no catálogo (leve, prazo de 240 s)", () => {
+    expect(CATALOGO_JOBS['fontes-fundamentos']).toMatchObject({ pesado: false, prazoMs: 240_000 });
+  });
+
   it('roda pelo mesmo wrapper do cron (origem cron, parâmetros do catálogo) e mapeia a saída', async () => {
     const executar = vi.fn().mockResolvedValue(relatorio('falha'));
     const r = await rodarJobCli(['cvm-cias:itr'], executar);

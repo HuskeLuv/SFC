@@ -87,6 +87,33 @@ describe('montarKpis — ações', () => {
     if (k[4].valor.estado !== 'ok') expect(k[4].sub).toBeNull();
   });
 
+  it('ITUB4 v2.5: margem e Dív. líq./EBITDA seguem os params do card (sem n/a da financeira)', () => {
+    const linha = paraLinhaQuadroApi(LINHA_ITUB4);
+    const na = { estado: 'nao_se_aplica', motivo: 'financeira', texto: 'x' } as const;
+    const base = { ...linha, margemLiquida: na, divLiqEbitda: na };
+    const k = montarKpis({
+      linha: base,
+      atuais: null,
+      pares: [],
+      financeira: { naoSeAplica: [], ultimos: { mg: { ano: 2025, valor: 148.8 }, dl: null } },
+    });
+    expect(k[4].valor).toEqual({ estado: 'ok', valor: 148.8 });
+    expect(k[5].valor).toEqual({
+      estado: 'ausente',
+      motivo: 'sem_dado_fonte',
+      texto: 'sem dado nas demonstrações',
+    });
+    // D4 religado por params: volta o 'não se aplica'
+    const religado = montarKpis({
+      linha: base,
+      atuais: null,
+      pares: [],
+      financeira: { naoSeAplica: ['mg', 'dl'], ultimos: { mg: { ano: 2025, valor: 148.8 } } },
+    });
+    expect(religado[4].valor).toEqual(na);
+    expect(religado[5].valor).toEqual(na);
+  });
+
   it('AURE3 (prejuízo): P/L "—" com a frase do prejuízo, não "fora do escopo"', () => {
     const k = montarKpis({ linha: paraLinhaQuadroApi(LINHA_AURE3), atuais: null, pares: [] });
     expect(k[0].valor).toEqual({

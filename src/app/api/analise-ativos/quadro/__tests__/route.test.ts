@@ -33,6 +33,8 @@ import {
   paraLinhaQuadroApiNaJanela,
 } from '@/services/analiseAtivos/leitura/linhasQuadro';
 import { CRITERIA_PARAMS_V1 } from '@/services/analiseAtivos/params/criteriaParamsV1';
+import { CRITERIA_PARAMS_CODIGO } from '@/services/analiseAtivos/params/criteriaParamsCodigo';
+import { definicoesQuadro } from '@/services/analiseAtivos/quadro/consultaQuadro';
 import { COMPACTOS_WEGE3, definicoesChips } from '@/test/fixtures/analiseAtivos/criterios';
 import type { Janela } from '@/types/analiseAtivosCriterios';
 
@@ -191,12 +193,12 @@ describe('GET /api/analise-ativos/quadro', () => {
     }
   });
 
-  it('sem criteria_params no banco: usa o v1 do código (o Quadro não quebra)', async () => {
+  it('sem criteria_params no banco: usa os params vigentes do código (o Quadro não quebra)', async () => {
     mocks.prisma.criteriaParams.findFirst.mockResolvedValue(null);
     vi.spyOn(console, 'warn').mockImplementation(() => undefined);
     const res = await GET(req('classe=fii'));
     expect(res.status).toBe(200);
-    expect((await res.json()).definicoes).toEqual(definicoesChips('fii'));
+    expect((await res.json()).definicoes).toEqual(definicoesQuadro('fii', CRITERIA_PARAMS_CODIGO));
   });
 
   it('params dos critérios em memória: um findFirst para várias requisições', async () => {

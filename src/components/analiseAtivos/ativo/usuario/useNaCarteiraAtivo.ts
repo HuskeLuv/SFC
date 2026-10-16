@@ -17,9 +17,11 @@
  * bloqueiam a página. Elas podem usar o fallback de cotação da Carteira — por isso ficam fora de
  * /api/analise-ativos/*.
  *
- * v2.4 (fatia C1, rec. 1): a BASE de posição, alvo e desvio é o valor da ABA (`valorBaseAba` = soma
- * dos valores atualizados das linhas da aba, o mesmo denominador do "% da aba" e do Objetivo da
- * Carteira). `objetivoPct` é o Objetivo (% dentro da aba; null = sem alvo).
+ * v2.5 (fatia C, caso 33): a BASE de posição, alvo e desvio é a carteira TOTAL (`valorBase` =
+ * totalDinheiro do resumo) e o alvo é o do "Planejar na carteira" (`alvoPct`, planning_asset_targets,
+ * overlay.alvos). Um ativo que só tem alvo (sem posição nem Watchlist) também carrega resumo e
+ * configuração, com a aba da CLASSE (ação → Ações, FII → FII's). O Objetivo da aba na Carteira
+ * (`objetivoAbaPct`, % dentro da aba) é só a linha informativa da decisão 1 — nunca é gravado aqui.
  */
 import { useQuery } from '@tanstack/react-query';
 import { queryKeys } from '@/lib/queryKeys';
@@ -54,6 +56,7 @@ export interface OpcoesNaCarteira {
   base?: boolean;
 }
 
+/** 'planejado' = sem posição, com plano antigo (Watchlist) e/ou alvo do Planejar na carteira. */
 export type StatusNaCarteira = 'carregando' | 'erro' | 'nada' | 'posicao' | 'planejado';
 
 /** Abas com a linha detalhada (as demais mostram só a quantidade e o link). */
@@ -70,25 +73,25 @@ export interface NaCarteiraAtivo {
   watchlistId: string | null;
   /** quantidade do overlay (vale também para abas sem detalhe) */
   quantidade: number | null;
-  /** objetivo do planejado no overlay (antes da linha da aba chegar) */
-  objetivoPlanejado: number | null;
   /** linha do ativo na aba, igual à tabela da Carteira */
   linha: LinhaAbaCarteira | null;
-  /** valorAtualizado ÷ totais.dinheiro × 100 */
+  /** valorAtualizado ÷ totais.dinheiro × 100 (0 sem posição, quando a base chegou) */
   pctCarteira: number | null;
   /** % da classe na carteira (distribuicao[aba].percentual) e alvo (AlocacaoConfig.target) */
   classePct: number | null;
   classeAlvo: number | null;
-  /** v2.4 (C1): aba da base (a efetiva; sem nada, a da classe quando `base`) */
+  /** aba da base (a efetiva; sem posição/plano, a da classe quando há alvo ou `base`) */
   categoriaBase: string | null;
   abaBaseNome: string | null;
-  /** v2.4 (C1): valor da aba (Σ valorAtualizado das linhas) — base ÚNICA de posição/alvo/desvio */
-  valorBaseAba: number | null;
-  /** v2.4 (C1): totais.dinheiro do resumo (só para o "≈ X% da carteira", informativo) */
+  /** v2.5: carteira TOTAL (totalDinheiro do resumo) — base ÚNICA de posição/alvo/desvio */
+  valorBase: number | null;
+  /** totais.dinheiro do resumo (o mesmo número de valorBase) */
   totalCarteira: number | null;
-  /** v2.4 (C1): Objetivo (% dentro da aba) da posição ou do plano; null = sem alvo */
-  objetivoPct: number | null;
-  /** v2.4 (C1): seção da posição (recompra) e do plano (1ª compra de planejado) */
+  /** v2.5: alvo do Planejar na carteira (% da carteira total); null = sem alvo */
+  alvoPct: number | null;
+  /** v2.5 (decisão 1): Objetivo da aba na Carteira (% dentro da aba), só informativo; null = 0 */
+  objetivoAbaPct: number | null;
+  /** seção da posição (recompra) e do plano antigo (1ª compra de planejado) */
   estrategia: string | null;
   tipoFii: string | null;
   secaoPlanejada: string | null;
@@ -144,16 +147,6 @@ export function totalDinheiro(resumo: CarteiraResumo | undefined | null): number
     .reduce((s, [, v]) => s + (v?.valor || 0), 0);
 }
 
-/** Valor da aba: Σ valorAtualizado das linhas (o denominador do % da aba na Carteira). */
-export function valorDaAba(dados: DadosAba | undefined): number | null {
-  if (!dados?.secoes) return null;
-  return dados.secoes.reduce(
-    (s, secao) =>
-      s + (secao.ativos ?? []).reduce((t, a) => t + (Number(a.valorAtualizado) || 0), 0),
-    0,
-  );
-}
-
 const ABA_DA_CLASSE: Record<ClasseQuadro, string> = { acao: 'acoes', fii: 'fiis' };
 
 export function linhaDoTicker(
@@ -169,6 +162,9 @@ export function linhaDoTicker(
   return null;
 }
 
+const objetivoOuNull = (v: number | null | undefined): number | null =>
+  typeof v === 'number' && Number.isFinite(v) && v > 0 ? v : null;
+
 export function useNaCarteiraAtivo(
   ticker: string,
   classe: ClasseQuadro,
@@ -178,12 +174,13 @@ export function useNaCarteiraAtivo(
   const tickerNorm = ticker.toUpperCase();
   const posicao = overlay.data?.posicoes[tickerNorm] ?? null;
   const planejado = posicao ? null : (overlay.data?.planejados[tickerNorm] ?? null);
+  const alvo = overlay.data?.alvos?.[tickerNorm] ?? null;
   const categoria = posicao?.categoria ?? planejado?.categoria ?? null;
   const pedeBase = !!opts.base && !!overlay.data;
-  const categoriaBase = categoria ?? (pedeBase ? ABA_DA_CLASSE[classe] : null);
+  const categoriaBase = categoria ?? (pedeBase || alvo ? ABA_DA_CLASSE[classe] : null);
   const abaDetalhada = categoriaBase ? (ABAS_DETALHADAS[categoriaBase] ?? null) : null;
   const path = abaDetalhada ? CATEGORIA_API_PATH[abaDetalhada] : null;
-  const temAlgo = !!posicao || !!planejado || pedeBase;
+  const temAlgo = !!posicao || !!planejado || !!alvo || pedeBase;
 
   const abaQ = useQuery<DadosAba>({
     queryKey: queryKeys.assets.type(path ?? ''),
@@ -202,18 +199,27 @@ export function useNaCarteiraAtivo(
   });
 
   const linha = path && categoria ? linhaDoTicker(abaQ.data, tickerNorm) : null;
-  const valorBaseAba = path ? valorDaAba(abaQ.data) : null;
   const dinheiro = totalDinheiro(resumoQ.data);
+  const valorBase = dinheiro !== null && dinheiro > 0 ? dinheiro : null;
+  // A linha da aba só é exigida para a posição; sem posição, 0% da carteira.
   const pctCarteira =
-    linha && dinheiro && dinheiro > 0 ? (linha.valorAtualizado / dinheiro) * 100 : null;
+    valorBase === null
+      ? null
+      : linha
+        ? (linha.valorAtualizado / valorBase) * 100
+        : posicao
+          ? null
+          : 0;
   const distrib = categoriaBase
     ? (resumoQ.data?.distribuicao as Record<string, { percentual?: number }> | undefined)?.[
         categoriaBase
       ]
     : undefined;
   const classePct = typeof distrib?.percentual === 'number' ? distrib.percentual : null;
-  const alvo = categoriaBase ? configQ.data?.find((c) => c.categoria === categoriaBase) : undefined;
-  const classeAlvo = typeof alvo?.target === 'number' ? alvo.target : null;
+  const alvoClasse = categoriaBase
+    ? configQ.data?.find((c) => c.categoria === categoriaBase)
+    : undefined;
+  const classeAlvo = typeof alvoClasse?.target === 'number' ? alvoClasse.target : null;
 
   const status: StatusNaCarteira = overlay.isPending
     ? 'carregando'
@@ -221,7 +227,7 @@ export function useNaCarteiraAtivo(
       ? 'erro'
       : posicao
         ? 'posicao'
-        : planejado
+        : planejado || alvo
           ? 'planejado'
           : 'nada';
 
@@ -229,12 +235,11 @@ export function useNaCarteiraAtivo(
     !!abaDetalhada && (abaQ.isPending || resumoQ.isPending || configQ.isPending);
   const erroNumeros = !!abaDetalhada && (abaQ.isError || resumoQ.isError || configQ.isError);
 
-  const objetivoLinha = linha && linha.objetivo > 0 ? linha.objetivo : null;
-  const objetivoOverlay = posicao
-    ? (posicao.objetivoPct ?? null)
-    : planejado && (planejado.objetivoPct ?? 0) > 0
-      ? planejado.objetivoPct
-      : null;
+  // Objetivo da aba (decisão 1): da linha da aba quando chegou; senão do overlay.
+  const objetivoAbaPct = linha
+    ? objetivoOuNull(linha.objetivo)
+    : objetivoOuNull(posicao ? posicao.objetivoPct : planejado?.objetivoPct);
+
   return {
     status,
     categoria,
@@ -242,9 +247,10 @@ export function useNaCarteiraAtivo(
     abaBaseNome: categoriaBase
       ? rotuloCategoria(categoriaBase as Parameters<typeof rotuloCategoria>[0])
       : null,
-    valorBaseAba,
+    valorBase,
     totalCarteira: dinheiro,
-    objetivoPct: linha ? objetivoLinha : objetivoOverlay,
+    alvoPct: alvo && alvo.targetPct > 0 ? alvo.targetPct : null,
+    objetivoAbaPct,
     estrategia: posicao?.estrategia ?? null,
     tipoFii: posicao?.tipoFii ?? null,
     secaoPlanejada: planejado?.secao ?? null,
@@ -253,7 +259,6 @@ export function useNaCarteiraAtivo(
     portfolioId: posicao?.portfolioId ?? null,
     watchlistId: planejado?.watchlistId ?? null,
     quantidade: posicao?.quantidade ?? null,
-    objetivoPlanejado: planejado?.objetivoPct ?? null,
     linha,
     pctCarteira,
     classePct,

@@ -2,13 +2,14 @@ import { test, expect, type Page } from '@playwright/test';
 import { apiDelete, apiPost, writesAllowed } from './helpers/api';
 
 /**
- * Análise de Ativos v2.4 — fatia C1: cabeçalho do ativo e modais da Carteira que GRAVAM (projeto
- * `escrita`, desktop 1280). Sobre as rotas REAIS da Carteira, com o usuário demo:
- *  1. compra NOVA de ação pelo modal "Registrar operação" — seção obrigatória (estratégia);
- *  2. RECOMPRA — o modal não pede a seção (usa a da posição);
+ * Análise de Ativos v2.5 — fatia C: modal "Registrar operação" que GRAVA (projeto `escrita`,
+ * desktop 1280), sobre as rotas REAIS da Carteira, com o usuário demo. A seção da Carteira é
+ * AUTOMÁTICA (decisão 2): o modal não tem o campo Seção e mostra "Na Carteira: ‹aba› · ‹seção›
+ * (dá para mover depois)".
+ *  1. compra NOVA de ação → seção Value (Portfolio.estrategia = 'value', conferido no overlay);
+ *  2. RECOMPRA → a seção da posição;
  *  3. VENDA — sem 400 de instituição (a rota usa a da última aquisição); posição reduzida;
- *  4. Planejar um FII pelo modal "Planejar na carteira" (chip "Planejado") e a 1ª compra dele —
- *     a seção do plano é preservada (Portfolio.tipoFii = a do plano, conferido no overlay).
+ *  4. compra NOVA de FII de papel → seção Papel (TVM) (Portfolio.tipoFii = 'tvm').
  * No fim DESFAZ tudo pelo Desfazer do Histórico (do mais novo para o mais antigo) e confere que a
  * carteira voltou ao que era; se sobrar algo, apaga pelas rotas de exclusão.
  *
@@ -25,10 +26,19 @@ interface Overlay {
     { portfolioId: string; quantidade: number; estrategia?: string | null; tipoFii?: string | null }
   >;
   planejados: Record<string, { watchlistId: string; secao?: string | null }>;
+  alvos?: Record<string, { targetPct: number }>;
+}
+
+interface TopoE2e {
+  assetId: string | null;
+  cotacao: { preco: number | null };
+  fiiTipoCvm?: string | null;
+  criterios?: { perfil?: string | null } | null;
 }
 
 const CANDIDATOS_ACAO = ['WEGE3', 'PETR4', 'VALE3', 'TAEE11', 'ITUB4', 'BBAS3', 'AURE3'];
-const CANDIDATOS_FII = ['KNCR11', 'XPLG11', 'HGLG11', 'MXRF11'];
+/** FIIs de papel (recebíveis) — conferidos pelo perfil/tipo da resposta do ativo. */
+const CANDIDATOS_FII_PAPEL = ['KNCR11', 'CPTS11', 'RECR11', 'HGCR11', 'IRDM11', 'KNIP11', 'MXRF11'];
 
 test.beforeEach(async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 900 });
@@ -57,15 +67,25 @@ async function overlay(page: Page): Promise<Overlay> {
   return (await (await page.request.get('/api/analise-ativos/carteira')).json()) as Overlay;
 }
 
-/** 1º candidato com Asset no catálogo e sem posição nem plano do demo. */
-async function escolherLivre(page: Page, candidatos: string[]): Promise<string | null> {
+/** FII de papel pelo mesmo critério da seção automática (FoF fica de fora: vai para 'fofi'). */
+const ehPapel = (topo: TopoE2e) =>
+  topo.fiiTipoCvm !== 'fof' &&
+  (topo.criterios?.perfil === 'fii_papel' ||
+    (!topo.criterios?.perfil && topo.fiiTipoCvm === 'papel'));
+
+/** 1º candidato com Asset no catálogo, sem posição nem plano do demo (e que passe no filtro). */
+async function escolherLivre(
+  page: Page,
+  candidatos: string[],
+  filtro: (t: TopoE2e) => boolean = () => true,
+): Promise<string | null> {
   const o = await overlay(page);
   for (const t of candidatos) {
     if (o.posicoes[t] || o.planejados[t]) continue;
     const r = await page.request.get(`/api/analise-ativos/ativos/${t}`);
     if (!r.ok()) continue;
-    const topo = (await r.json()) as { assetId: string | null; cotacao: { preco: number | null } };
-    if (topo.assetId && topo.cotacao.preco) return t;
+    const topo = (await r.json()) as TopoE2e;
+    if (topo.assetId && topo.cotacao.preco && filtro(topo)) return t;
   }
   return null;
 }
@@ -77,6 +97,7 @@ async function abrirAtivo(page: Page, ticker: string) {
 }
 
 const dialogo = (page: Page) => page.getByRole('dialog');
+const linhaSecao = (page: Page) => dialogo(page).locator('[data-secao-automatica]');
 
 async function escolherInstituicao(page: Page) {
   const campo = dialogo(page).locator('#instituicao');
@@ -111,49 +132,55 @@ async function desfazerDesde(page: Page, desde: string, anotar: (m: string) => v
   }
 }
 
-test.describe('Registrar operação e Planejar pela página do ativo', () => {
+test.describe('Registrar operação pela página do ativo (seção automática)', () => {
   test.skip(!writesAllowed(), 'só com E2E_ALLOW_WRITES=1');
 
-  test('compra nova, recompra, venda e compra de FII planejado — desfaz tudo', async ({ page }) => {
+  test('compra nova (Value), recompra, venda e compra de FII de papel (TVM) — desfaz tudo', async ({
+    page,
+  }) => {
     test.skip(!(await areaLigada(page)), 'área desligada ou demo fora do beta');
     test.setTimeout(600_000);
     const acao = await escolherLivre(page, CANDIDATOS_ACAO);
-    const fii = await escolherLivre(page, CANDIDATOS_FII);
-    test.skip(!acao || !fii, 'sem ação/FII livre no catálogo para o demo');
+    const fii = await escolherLivre(page, CANDIDATOS_FII_PAPEL, ehPapel);
+    test.skip(!acao || !fii, 'sem ação/FII de papel livre no catálogo para o demo');
     const anotar = (m: string) => test.info().annotations.push({ type: 'limpeza', description: m });
     // Margem de 1 s contra relógio do servidor × navegador.
     const inicio = new Date(Date.now() - 1000).toISOString();
 
     try {
-      // 1. Compra NOVA de ação: seção obrigatória.
+      // 1. Compra NOVA de ação: seção automática Value, sem campo Seção.
       await abrirAtivo(page, acao!);
       await expect(page.locator('[data-acoes-carteira="nada"]')).toBeVisible({ timeout: 30_000 });
       await page.locator('[data-botao-registrar]').click();
       await expect(dialogo(page)).toContainText(`Registrar operação · ${acao}`);
+      await expect(dialogo(page).locator('select')).toHaveCount(0);
+      await expect(linhaSecao(page)).toHaveText(
+        'Na Carteira: Ações · Value (dá para mover depois)',
+        { timeout: 30_000 },
+      );
+      await expect(
+        dialogo(page).getByRole('button', { name: 'abrir o formulário completo' }),
+      ).toBeVisible();
       await dialogo(page)
         .getByLabel(/Quantidade/)
         .fill('10');
+      // resumo ao vivo: total e nova posição
+      await expect(dialogo(page).locator('[data-resumo-operacao]')).toContainText('10 ações');
       await escolherInstituicao(page);
-      await dialogo(page).getByRole('button', { name: 'Registrar', exact: true }).click();
-      await expect(
-        dialogo(page).getByText('Escolha a seção da Carteira em que o ativo vai entrar.'),
-      ).toBeVisible();
-      await dialogo(page).getByLabel('Seção na Carteira').selectOption('growth');
       await registrar(page, '/api/carteira/operacao');
       await expect
         .poll(async () => (await overlay(page)).posicoes[acao!]?.quantidade, { timeout: 30_000 })
         .toBe(10);
-      expect((await overlay(page)).posicoes[acao!].estrategia).toBe('growth');
+      expect((await overlay(page)).posicoes[acao!].estrategia).toBe('value');
       await expect(page.locator('[data-acoes-carteira="posicao"]')).toBeVisible({
         timeout: 30_000,
       });
 
-      // 2. RECOMPRA: não pede a seção.
+      // 2. RECOMPRA: a seção da posição.
       await page.locator('[data-botao-registrar]').click();
-      await expect(dialogo(page).getByText('Estratégia: Growth (da sua posição)')).toBeVisible({
+      await expect(linhaSecao(page)).toHaveAttribute('data-secao-automatica', 'value', {
         timeout: 30_000,
       });
-      await expect(dialogo(page).getByLabel(/Seção na Carteira/)).toHaveCount(0);
       await dialogo(page)
         .getByLabel(/Quantidade/)
         .fill('5');
@@ -164,10 +191,11 @@ test.describe('Registrar operação e Planejar pela página do ativo', () => {
         .poll(async () => (await overlay(page)).posicoes[acao!]?.quantidade, { timeout: 30_000 })
         .toBe(15);
 
-      // 3. VENDA: sem instituição no corpo, sem 400; posição reduzida.
+      // 3. VENDA: sem instituição no corpo, sem 400; posição reduzida; sem linha de seção.
       await page.locator('[data-botao-registrar]').click();
       await dialogo(page).getByRole('button', { name: 'Venda' }).click();
       await expect(dialogo(page).getByText(/da última aquisição/)).toBeVisible({ timeout: 30_000 });
+      await expect(linhaSecao(page)).toHaveCount(0);
       await dialogo(page)
         .getByLabel(/Quantidade/)
         .fill('4');
@@ -180,34 +208,25 @@ test.describe('Registrar operação e Planejar pela página do ativo', () => {
         .poll(async () => (await overlay(page)).posicoes[acao!]?.quantidade, { timeout: 30_000 })
         .toBe(11);
 
-      // 4. Planejar o FII pelo modal (chip "Planejado") e a 1ª compra preserva a seção do plano.
+      // 4. Compra NOVA de FII de papel: seção automática Papel (TVM).
       await abrirAtivo(page, fii!);
-      await page.locator('[data-botao-planejar]').click();
-      await dialogo(page)
-        .getByLabel(/Peso-alvo dentro de/)
-        .fill('5');
-      const plano = page.waitForResponse(
-        (r) => r.url().endsWith('/api/carteira/planejados') && r.request().method() === 'POST',
-      );
-      await dialogo(page).getByRole('button', { name: 'Salvar no Planejamento' }).click();
-      expect((await plano).status()).toBeLessThan(300);
-      await expect(page.locator('[data-bloco="cabecalho"]').getByText('Planejado')).toBeVisible({
+      await page.locator('[data-botao-registrar]').click();
+      await expect(linhaSecao(page)).toHaveAttribute('data-secao-automatica', 'tvm', {
         timeout: 30_000,
       });
-      const secaoPlano = (await overlay(page)).planejados[fii!]?.secao ?? null;
-      expect(secaoPlano).toBeTruthy();
-
-      await page.locator('[data-botao-registrar]').click();
-      const secao = dialogo(page).getByLabel('Seção na Carteira (do seu plano)');
-      await expect(secao).toHaveValue(secaoPlano!, { timeout: 30_000 });
+      await expect(linhaSecao(page)).toContainText('Papel (TVM) (dá para mover depois)');
       await dialogo(page)
         .getByLabel(/Quantidade/)
         .fill('2');
       await escolherInstituicao(page);
+      const corpoFii = page.waitForRequest(
+        (r) => r.url().endsWith('/api/carteira/operacao') && r.method() === 'POST',
+      );
       await registrar(page, '/api/carteira/operacao');
+      expect((await corpoFii).postDataJSON()).toMatchObject({ tipoAtivo: 'fii', tipoFii: 'tvm' });
       await expect
         .poll(async () => (await overlay(page)).posicoes[fii!]?.tipoFii, { timeout: 30_000 })
-        .toBe(secaoPlano);
+        .toBe('tvm');
     } finally {
       await desfazerDesde(page, inicio, anotar);
       // Conferência: a carteira voltou ao que era; o que sobrar sai pelas rotas de exclusão.
@@ -232,7 +251,6 @@ test.describe('Registrar operação e Planejar pela página do ativo', () => {
       const final = await overlay(page);
       expect(final.posicoes[acao ?? ''], 'posição da ação desfeita').toBeUndefined();
       expect(final.posicoes[fii ?? ''], 'posição do FII desfeita').toBeUndefined();
-      expect(final.planejados[fii ?? ''], 'plano do FII desfeito').toBeUndefined();
     }
   });
 });

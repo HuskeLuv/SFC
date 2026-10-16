@@ -6,12 +6,13 @@
  * useQuadroAnalise (25 em 25, "Mostrar mais"), filtrados e ordenados NO SERVIDOR (rec. 8).
  *
  * - Barra "Filtros de fundamentos" (BarraFiltrosCriterios): janela 3 | 5 | 10, chips dos critérios
- *   da classe combinados com E (FII em pares tijolo/papel; vacância/inadimplência desabilitado,
- *   D3), Na minha carteira, Setor/Segmento, Limpar filtros.
+ *   da classe combinados com E (FII em pares tijolo/papel; v2.5: todos ativos), Na minha carteira,
+ *   Setor/Segmento, Limpar filtros.
  * - Contador (aria-live): 'X de N' ou 'X de N atendem a k critérios em J anos' (caso 30).
  * - Ordem padrão A–Z; clicar num cabeçalho ordena pela coluna; a pílula da coluna ativa volta para
- *   A–Z. Resumo | Detalhado. Coluna "Critérios" ('n de 6'; financeiras 'n de 3').
- * - Nota da janela de 10 anos em FII; área recolhível "O que cada critério verifica".
+ *   A–Z. Resumo | Detalhado. Coluna "Critérios" ('n de 6', também nas financeiras na v2.5).
+ * - Área recolhível "O que cada critério verifica" (v2.5: sem a nota dos informes de FII de 2016;
+ *   financeiras com os mesmos 6 critérios; motivo de papel só quando o par está desligado).
  * - Estados: carregando (cabeçalho real + esqueleto), vazio com critérios ("nenhum ativo atende…
  *   limpe os filtros"), Na minha carteira sem posição, erro (mantém filtros) e cotação atrasada.
  * - Rodapé fixo: o literal 'rodape-quadro' (RodapeCriterios, data-texto-legal) + data das cotações.
@@ -51,7 +52,7 @@ import { useIsBelowLg } from '@/hooks/useMediaQuery';
 import { useAnaliseAtivosConfig, useQuadroAnalise } from '@/hooks/useAnaliseAtivos';
 import { useMeusReportes } from '@/components/analiseAtivos/reporte/useMeusReportes';
 import { ROTAS_CURADORIA } from '@/services/analiseAtivos/curadoria/contrato';
-import { CRITERIA_PARAMS_V1 } from '@/services/analiseAtivos/params/criteriaParamsV1';
+import { CRITERIA_PARAMS_CODIGO } from '@/services/analiseAtivos/params/criteriaParamsCodigo';
 import { definicoesQuadro } from '@/services/analiseAtivos/quadro/consultaQuadro';
 import { TEXTOS_CRITERIOS } from '@/services/analiseAtivos/textosCriterios';
 import { TEXTOS_QUADRO, textoContadorQuadro } from '@/services/analiseAtivos/textosQuadro';
@@ -249,7 +250,12 @@ function BotaoModoComparar({ ativo, onAlternar }: { ativo: boolean; onAlternar: 
 
 const maiuscula = (t: string) => t.charAt(0).toUpperCase() + t.slice(1);
 
-/** "O que cada critério verifica" (recolhível): definição de cada chip e do par de papel. */
+/**
+ * "O que cada critério verifica" (recolhível): definição de cada chip e do par de papel. O motivo
+ * de critério desligado (v1, D3) só entra quando o chip não está habilitado; com a v2 nunca. Em
+ * ações, a frase das financeiras (v2.5: mesmos 6 critérios) — ou, se os params religarem o
+ * 'não se aplica' (D4), nada a mais: a contagem do card já diz quantos não se aplicam.
+ */
 function ExplicacaoCriterios({
   classe,
   definicoes,
@@ -264,21 +270,19 @@ function ExplicacaoCriterios({
   for (const d of definicoes) {
     let texto = d.definicao;
     if (!d.habilitado && semFonte[d.id]) texto += `. ${maiuscula(semFonte[d.id]!)}`;
-    if (classe === 'acao' && CRITERIOS_NAO_SE_APLICAM_FINANCEIRA.includes(d.id)) {
-      texto += `. ${TQ.explicacao.financeira}`;
-    }
     itens.push({ id: d.id, rotulo: d.rotulo, texto });
   }
   for (const d of definicoes) {
     const eq = d.equivalente;
     if (!eq) continue;
-    const motivo = semFonte[eq.id];
+    const motivo = d.habilitado ? undefined : semFonte[eq.id];
     itens.push({
       id: eq.id,
       rotulo: eq.rotulo,
       texto: motivo ? `${eq.definicao}. ${maiuscula(motivo)}` : eq.definicao,
     });
   }
+  const notaFinanceira = classe === 'acao' && CRITERIOS_NAO_SE_APLICAM_FINANCEIRA.length === 0;
   return (
     <details
       data-explicacao-criterios=""
@@ -300,6 +304,14 @@ function ExplicacaoCriterios({
           </div>
         ))}
       </dl>
+      {notaFinanceira ? (
+        <p
+          data-explicacao-financeira=""
+          className="m-0 pb-3 text-sm text-gray-600 dark:text-gray-300"
+        >
+          {TQ.explicacao.financeira}
+        </p>
+      ) : null}
     </details>
   );
 }
@@ -336,12 +348,13 @@ function QuadroConteudo({ className = '' }: QuadroAnaliseProps) {
   const total = daClasse ? (primeira?.total ?? 0) : 0;
   const carregando = (q.isPending || !daClasse) && !q.isError;
   const na = useNaCarteira(estado.classe, itens.length > 0);
-  // chips: os da resposta; antes dela, os do params v1 (mesma regra), para a barra não pular
+  // chips: os da resposta; antes dela, os dos params vigentes do código (mesma regra), para a
+  // barra não pular
   const definicoes = useMemo(
     () =>
       daClasse && primeira?.definicoes?.length
         ? primeira.definicoes
-        : definicoesQuadro(estado.classe, CRITERIA_PARAMS_V1),
+        : definicoesQuadro(estado.classe, CRITERIA_PARAMS_CODIGO),
     [daClasse, primeira, estado.classe],
   );
 
@@ -585,15 +598,6 @@ function QuadroConteudo({ className = '' }: QuadroAnaliseProps) {
           <PilulasModo modo={estado.modo} onModo={url.setModo} />
         </div>
       )}
-
-      {estado.classe === 'fii' && estado.janela === 10 ? (
-        <p
-          data-nota-janela-fii=""
-          className="rounded-xl border border-dashed border-gray-300 px-3 py-2 text-sm text-gray-600 dark:border-gray-700 dark:text-gray-300"
-        >
-          {TEXTOS_CRITERIOS.fonte.janela10Fii}
-        </p>
-      ) : null}
 
       <ExplicacaoCriterios classe={estado.classe} definicoes={definicoes} />
 

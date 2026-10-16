@@ -52,9 +52,13 @@ vi.mock('@/services/analiseAtivos/leitura/criterios/lerCriterios', async (import
 
 import {
   _limparCacheTopo,
+  criteriosComFonte,
   hojeSaoPaulo,
   montarTopoAtivo,
+  tagsDe,
 } from '@/services/analiseAtivos/leitura/ativo/montarTopoAtivo';
+import { CRITERIOS_ATIVO_WEGE3 } from '@/test/fixtures/analiseAtivos/criterios';
+import { API_HGLG11 } from '@/test/fixtures/analiseAtivos/respostas';
 
 const AGORA = new Date('2026-10-02T15:00:00Z');
 
@@ -154,6 +158,12 @@ describe('montarTopoAtivo', () => {
     expect(r!.criterios).toBeNull();
     expect(r!.classe).toBe('fii');
     expect(r!.tags[0]).toBe('FII de papel');
+    expect(r!.fiiTipoCvm).toBe('papel');
+  });
+
+  it('v2.5: ação sai com fiiTipoCvm null', async () => {
+    const r = await montarTopoAtivo('WEGE3', { agora: AGORA });
+    expect(r!.fiiTipoCvm).toBeNull();
   });
 
   it('FII consulta informe mensal e cotação de fim de mês; ações não', async () => {
@@ -184,5 +194,41 @@ describe('montarTopoAtivo', () => {
 
   it('data de hoje em São Paulo', () => {
     expect(hojeSaoPaulo(new Date('2026-10-02T02:00:00Z'))).toBe('2026-10-01');
+  });
+});
+
+describe('v2.5 — tags do FII e frase de fonte', () => {
+  const fii = (fiiTipo: typeof API_HGLG11.fiiTipo, segmentoCvm: string | null = 'Logística') => ({
+    ...API_HGLG11,
+    fiiTipo,
+    segmentoCvm,
+    criterios: null,
+  });
+
+  it('tipo exibido pelo perfil; FoF e Híbrido como prefixo do segmento', () => {
+    expect(tagsDe(fii('fof', 'Títulos e Valores Mobiliários'), 'fii_papel')).toEqual([
+      'FII de papel',
+      'FoF · Títulos e Valores Mobiliários',
+    ]);
+    expect(tagsDe(fii('hibrido', 'Shoppings'), 'fii_tijolo')).toEqual([
+      'FII de tijolo',
+      'Híbrido · Shoppings',
+    ]);
+    expect(tagsDe(fii('tijolo'), null)).toEqual(['FII de tijolo', 'Logística']);
+    // sem avaliação: indefinido cai em papel e não aparece no segmento
+    expect(tagsDe(fii('indefinido'), null)).toEqual(['FII de papel', 'Logística']);
+    expect(tagsDe(fii('fof', null), 'fii_papel')).toEqual(['FII de papel', 'FoF']);
+  });
+
+  it('frase de fonte pelas origens (provedor antes da CVM); sem origens, a da avaliação', () => {
+    expect(criteriosComFonte(CRITERIOS_ATIVO_WEGE3, 'acao')).toBe(CRITERIOS_ATIVO_WEGE3);
+    expect(criteriosComFonte(null, 'acao')).toBeNull();
+    const comCvm = criteriosComFonte({ ...CRITERIOS_ATIVO_WEGE3, fontes: ['cvm'] }, 'acao');
+    expect(comCvm?.fonte).toBe('Fonte: DFP/ITR (CVM).');
+    const comProvedor = criteriosComFonte(
+      { ...CRITERIOS_ATIVO_WEGE3, fontes: ['exemplo', 'cvm'] },
+      'acao',
+    );
+    expect(comProvedor?.fonte).toBe('Fonte: Fonte de exemplo (teste) · DFP/ITR (CVM).');
   });
 });

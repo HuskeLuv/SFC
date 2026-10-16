@@ -129,6 +129,25 @@ describe('selecionarSugestoes (pura)', () => {
   });
 });
 
+describe('selecionarSugestoes · v2.5 (tipo exibido)', () => {
+  it('mesmo tipo EXIBIDO: híbrido com perfil tijolo na linha é tijolo; FoF é papel', () => {
+    const alvo = fii('HGLG11', { segmentoCvm: 'Logística' });
+    const linhas = [
+      alvo,
+      fii('HIBR11', { fiiTipo: 'hibrido', criterios: crit(3, 6, 'fii_tijolo') }),
+      fii('HFOF11', { fiiTipo: 'fof', criterios: crit(3, 6, 'fii_papel') }),
+      fii('KNCR11', { fiiTipo: 'papel' }),
+    ];
+    expect(selecionarSugestoes(alvo, linhas, null, new Map()).map((l) => l.ticker)).toEqual([
+      'HIBR11',
+    ]);
+    const papel = fii('KNCR11', { fiiTipo: 'papel' });
+    expect(selecionarSugestoes(papel, linhas, null, new Map()).map((l) => l.ticker)).toEqual([
+      'HFOF11',
+    ]);
+  });
+});
+
 describe('sugestoesComparar (banco em memória)', () => {
   it('itens com nome, mesmoSetor, métrica da classe e "n de k" da janela pedida', async () => {
     mocks.linhas.mockResolvedValue(ACOES);

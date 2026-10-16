@@ -6,13 +6,16 @@ import {
   obterCriteriosAtivo,
   obterCriteriosVarios,
   projetarCriteriosCompactos,
+  uniaoFontes,
   type PrismaCriterios,
 } from '@/services/analiseAtivos/leitura/criterios/lerCriterios';
 import { CRITERIA_PARAMS_V1 } from '@/services/analiseAtivos/params/criteriaParamsV1';
+import { CRITERIA_PARAMS_V2 } from '@/services/analiseAtivos/params/criteriaParamsV2';
 import { avaliarAtivo } from '@/services/analiseAtivos/regras/criterios/avaliarAtivo';
 import {
   compactarAvaliacao,
   linhasCriteriaEval,
+  marcaDoSql,
 } from '@/services/analiseAtivos/repositorio/criterios';
 import { TEXTOS_CRITERIOS } from '@/services/analiseAtivos/textosCriterios';
 import type { AvaliacaoAtivo, PerfilCriterio } from '@/types/analiseAtivosCriterios';
@@ -29,9 +32,9 @@ function avaliacao(symbol: string, perfil: PerfilCriterio): AvaliacaoAtivo {
       perfil,
       anoFim: 2025,
       series: {
-        receita: serie(2015, [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]),
-        dlEbitda: serie(2016, [1, 1, 1, 1, 1, 1, 1, 1, 1, 1]),
-        rendCota: serie(2020, [1, 2, 3, 4, 5, 6]),
+        revenue: serie(2015, [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]),
+        net_debt_ebitda: serie(2016, [1, 1, 1, 1, 1, 1, 1, 1, 1, 1]),
+        income_per_share: serie(2020, [1, 2, 3, 4, 5, 6]),
       },
       meses: null,
     },
@@ -153,6 +156,100 @@ describe('obterCriteriosAtivo / obterCriteriosVarios', () => {
       'fcl',
     ]);
     expect((await obterCriteriosVarios(prisma, [], 5)).size).toBe(0);
+  });
+});
+
+describe('v2.5 — fonte e obs na leitura', () => {
+  /** Avaliação v2 com origens (como o job grava): lucro em fallback + um ano incompleto do provedor. */
+  function avaliacaoV2(): AvaliacaoAtivo {
+    const origem = (fonte: string, incompleto = false) => ({
+      fonte,
+      serieUsada: 'revenue' as const,
+      fallback: false,
+      incompleto,
+    });
+    return avaliarAtivo(
+      {
+        symbol: 'WEGE3',
+        classe: 'acao',
+        perfil: 'acao',
+        anoFim: 2025,
+        series: {
+          revenue: serie(2015, [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]),
+          net_income: serie(2015, [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]),
+        },
+        origens: {
+          revenue: Object.fromEntries(
+            Array.from({ length: 11 }, (_, i) => [
+              2015 + i,
+              origem(i === 10 ? 'provedor_x' : 'cvm', i === 3),
+            ]),
+          ),
+          net_income: Object.fromEntries(
+            Array.from({ length: 11 }, (_, i) => [2015 + i, origem('cvm')]),
+          ),
+        },
+        meses: null,
+      },
+      CRITERIA_PARAMS_V2,
+      2,
+    );
+  }
+
+  it('itens com fonte/obs; CriteriosAtivo com a união das fontes (provedor antes) e o selo', () => {
+    const c = montarCriteriosAtivo(linhas(avaliacaoV2()), CRITERIA_PARAMS_V2, null)!;
+    const luc = c.janelas['5'].itens.find((i) => i.id === 'luc')!;
+    expect(luc).toMatchObject({ obs: ['lucro_sem_descontado'], fonte: ['cvm'] });
+    expect(c.janelas['5'].itens.find((i) => i.id === 'rec')?.fonte).toEqual(['provedor_x', 'cvm']);
+    expect(c.fontes).toEqual(['provedor_x', 'cvm']);
+    // janela 10 pega o ano incompleto (2018) da receita
+    expect(c.janelas['10'].itens.find((i) => i.id === 'rec')?.obs).toEqual(['dados_incompletos']);
+    expect(c.dadosIncompletos).toBe(true);
+    expect(uniaoFontes([['cvm'], ['b', 'cvm'], ['a']])).toEqual(['b', 'a', 'cvm']);
+  });
+
+  it('avaliação v1 (sem fonte/obs no JSON) segue igual: nenhum campo novo', () => {
+    const c = montarCriteriosAtivo(linhas(avaliacao('WEGE3', 'acao')), P, null)!;
+    expect(c.fontes).toBeUndefined();
+    expect(c.dadosIncompletos).toBeUndefined();
+    expect(c.janelas['5'].itens.every((i) => i.obs === undefined)).toBe(true);
+  });
+
+  it('marcas (leitura direta e compacta) carregam a obs; a compacta só tem o 4º elemento com obs', async () => {
+    const a = avaliacaoV2();
+    const compactos = compactarAvaliacao(a);
+    const m5 = compactos['5']!.m;
+    expect(m5.find((x) => x[0] === 'luc')).toEqual([
+      'luc',
+      'atende',
+      expect.any(String),
+      ['lucro_sem_descontado'],
+    ]);
+    expect(m5.find((x) => x[0] === 'rec')).toHaveLength(3);
+    const { prisma } = prismaFake(linhas(a));
+    for (const j of [3, 5, 10] as const) {
+      const projetada = projetarCriteriosCompactos(compactos, j, 'acao');
+      const lida = (await obterCriteriosVarios(prisma, ['WEGE3'], j)).get('WEGE3');
+      expect(projetada).toEqual(lida);
+    }
+    expect(projetarCriteriosCompactos(compactos, 5, 'acao')?.marcas[1].obs).toEqual([
+      'lucro_sem_descontado',
+    ]);
+    // marca vinda do SQL com lixo no 4º elemento: só obs válidas ficam
+    expect(marcaDoSql(['luc', 'atende', 'f', ['lucro_sem_descontado', 'xyz']])).toEqual([
+      'luc',
+      'atende',
+      'f',
+      ['lucro_sem_descontado'],
+    ]);
+    expect(marcaDoSql(['luc', 'atende', 'f', null])).toEqual(['luc', 'atende', 'f']);
+  });
+
+  it('contrato sem nota também com fonte/obs', () => {
+    const c = montarCriteriosAtivo(linhas(avaliacaoV2()), CRITERIA_PARAMS_V2, null)!;
+    expect(JSON.stringify(c)).not.toMatch(
+      /"[^"]*(indice|semaforo|destaque|nota|rating|score)[^"]*":/i,
+    );
   });
 });
 

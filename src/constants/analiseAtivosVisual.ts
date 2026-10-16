@@ -11,8 +11,9 @@
  * paleta permitida (CORES_PERMITIDAS).
  */
 import { MYFINANCE_BRAND } from '@/constants/brandColors';
-import { CRITERIA_PARAMS_V1 } from '@/services/analiseAtivos/params/criteriaParamsV1';
-import type { IdCriterio } from '@/types/analiseAtivosCriterios';
+import { CRITERIA_PARAMS_CODIGO } from '@/services/analiseAtivos/params/criteriaParamsCodigo';
+import type { CriteriaParams } from '@/services/analiseAtivos/params/criteriaParamsSchema';
+import type { DefCriterioChip, IdCriterio } from '@/types/analiseAtivosCriterios';
 import type { ClasseQuadro, DirecaoOrdem, ModoQuadro, OrdemQuadro } from '@/types/analiseAtivosApi';
 
 /** Cinzas do app (tema Tailwind) e negativos usados na área. */
@@ -110,7 +111,7 @@ const col = (
 ): ColunaQuadro =>
   dica ? { codigo, rotulo, ordem, alinhamento, dica } : { codigo, rotulo, ordem, alinhamento };
 
-/** Coluna "Critérios" (CelulaCriterios: 'n de 6'; financeiras 'n de 3'). */
+/** Coluna "Critérios" (CelulaCriterios: 'n de 6'; v2.5: financeiras também 'n de 6'). */
 const CRITERIOS = col('criterios', 'criterios', 'criterios', 'esquerda', 'criterios');
 
 /**
@@ -177,18 +178,37 @@ export const COLUNAS: Record<ClasseQuadro, Record<ModoQuadro, ColunaQuadro[]>> =
 };
 
 /**
- * Critérios que a URL/barra aceitam por classe: os chips HABILITADOS do params v1 (em FII, os ids
- * de tijolo — o par de papel vem pelas equivalências; vacância/inadimplência ficam fora, D3). A rota
- * é a autoridade (400 para o resto); aqui só se limpa a URL.
+ * Critérios que a URL/barra aceitam por classe, derivados dos params: os chips HABILITADOS (em FII,
+ * os ids de tijolo — o par de papel vem pelas equivalências). v2.5: com a v2 todos ficam
+ * habilitados (vacância/inadimplência e LTV ativos), então ?criterios=vac fica na URL. A rota é a
+ * autoridade (400 para o resto); aqui só se limpa a URL.
  */
-export const CRITERIOS_FILTRAVEIS: Record<ClasseQuadro, readonly IdCriterio[]> = {
-  acao: CRITERIA_PARAMS_V1.perfis.acao.filter((c) => c.ativo !== false).map((c) => c.id),
-  fii: CRITERIA_PARAMS_V1.perfis.fii_tijolo.filter((c) => c.ativo !== false).map((c) => c.id),
-};
+export function criteriosFiltraveisDe(
+  params: Pick<CriteriaParams, 'perfis'>,
+): Record<ClasseQuadro, readonly IdCriterio[]> {
+  return {
+    acao: params.perfis.acao.filter((c) => c.ativo !== false).map((c) => c.id),
+    fii: params.perfis.fii_tijolo.filter((c) => c.ativo !== false).map((c) => c.id),
+  };
+}
 
-/** Critérios de ação que não se aplicam a financeiras (D4: 'n de 3'). */
+/** Ids habilitados das definições da resposta do Quadro (QuadroResposta.definicoes). */
+export function criteriosFiltraveisDasDefinicoes(
+  definicoes: readonly DefCriterioChip[],
+): IdCriterio[] {
+  return definicoes.filter((d) => d.habilitado).map((d) => d.id);
+}
+
+/** Fallback do cliente antes da resposta: os params vigentes do código (CRITERIA_PARAMS_CODIGO). */
+export const CRITERIOS_FILTRAVEIS: Record<ClasseQuadro, readonly IdCriterio[]> =
+  criteriosFiltraveisDe(CRITERIA_PARAMS_CODIGO);
+
+/**
+ * Critérios de ação que não se aplicam a financeiras, dos params vigentes do código. v2.5: vazio
+ * ("n de 6", literal da spec); religar = nova versão de params com os ids (D4).
+ */
 export const CRITERIOS_NAO_SE_APLICAM_FINANCEIRA: readonly IdCriterio[] =
-  CRITERIA_PARAMS_V1.perfis.acao_financeira.naoSeAplica;
+  CRITERIA_PARAMS_CODIGO.perfis.acao_financeira.naoSeAplica;
 
 /** Primeiro clique na coluna = direção padrão (múltiplos "quanto menor" começam asc). */
 export const DIRECAO_PADRAO: Record<OrdemQuadro, DirecaoOrdem> = {

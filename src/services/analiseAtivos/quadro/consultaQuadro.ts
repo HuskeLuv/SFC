@@ -13,10 +13,16 @@
  *   duas direções; desempate pelo ticker (página estável). 'criterios' = contagem atendida na janela.
  * - Facetas, contagens das abas e totalClasse saem do universo da classe, antes dos filtros.
  * - definicoes: chips da barra (de criteria_params), na ordem do perfil.
+ *
+ * v2.5 (fatia B): o FII sai com o tipo EXIBIDO (Tijolo | Papel, comTipoFiiExibido — perfil dos
+ * critérios) e FoF/Híbrido como prefixo do segmento (segmentoTipo); a faceta Tipo tem só os 2
+ * valores. Com a v2 do criteria_params todos os chips ficam habilitados (vacância/inadimplência e
+ * LTV ativos): FII sem o dado da série tem a marca 'sem_dado' e conta como não atende.
  */
 import { pregoesEntre } from '@/services/analiseAtivos/regras/comum/pregoes';
 import { TEXTOS_CRITERIOS } from '@/services/analiseAtivos/textosCriterios';
 import { DIRECAO_PADRAO, ORDEM_PADRAO, PAGINA_QUADRO } from '@/constants/analiseAtivosVisual';
+import { comTipoFiiExibido } from '@/services/analiseAtivos/quadro/tipoFiiExibido';
 import type {
   CriteriaParams,
   DefCriterio,
@@ -25,13 +31,14 @@ import type {
   ClasseQuadro,
   DirecaoOrdem,
   Estado,
-  FiiTipoTela,
   FrescorCotacao,
   LinhaQuadroApi,
   OrdemQuadro,
   QuadroParams,
   QuadroResposta,
+  TipoFiiExibido,
 } from '@/types/analiseAtivosApi';
+import { TIPOS_FII_EXIBIDOS } from '@/types/analiseAtivosApi';
 import {
   JANELA_PADRAO,
   ehIdCriterio,
@@ -154,8 +161,8 @@ export function filtrarLinhas(
 // ---------------------------------------------------------------------------
 
 function chipDe(c: DefCriterio, par: DefCriterio | null): DefCriterioChip {
-  // desabilitado só quando o critério do chip é inativo (D3: vacância/inadimplência); o par
-  // Obrigações/PL ↔ LTV fica habilitado (o tooltip explica que papel fica de fora)
+  // desabilitado só quando o critério do chip é inativo (v1, D3: vacância/inadimplência); na v2
+  // nenhum critério tem ativo:false e todo chip (com o par de papel) fica habilitado
   const inativo = c.ativo === false;
   return {
     id: c.id,
@@ -187,19 +194,19 @@ export function idsFiltraveis(definicoes: readonly DefCriterioChip[]): Set<IdCri
 const ordenarPt = (xs: Iterable<string>) =>
   [...new Set(xs)].sort((a, b) => a.localeCompare(b, 'pt-BR'));
 
-const ORDEM_TIPOS: FiiTipoTela[] = ['tijolo', 'papel', 'hibrido', 'fof', 'indefinido'];
-
+/** Facetas da classe; em FII, só os tipos exibidos (Tijolo | Papel) presentes. */
 export function facetasDe(
   classe: ClasseQuadro,
   linhas: readonly LinhaQuadroApi[],
-): { setores: string[]; tipos: FiiTipoTela[] } {
+): { setores: string[]; tipos: TipoFiiExibido[] } {
   const setores = ordenarPt(
     linhas
       .map((l) => (classe === 'acao' ? l.setor : l.segmentoCvm))
       .filter((s): s is string => !!s),
   );
-  const presentes = new Set(linhas.map((l) => l.fiiTipo).filter((t): t is FiiTipoTela => !!t));
-  return { setores, tipos: classe === 'fii' ? ORDEM_TIPOS.filter((t) => presentes.has(t)) : [] };
+  if (classe !== 'fii') return { setores, tipos: [] };
+  const presentes = new Set(linhas.map((l) => comTipoFiiExibido(l).fiiTipo));
+  return { setores, tipos: TIPOS_FII_EXIBIDOS.filter((t) => presentes.has(t)) };
 }
 
 /**
@@ -229,7 +236,9 @@ export interface EntradaConsulta {
 
 export function consultarQuadro(e: EntradaConsulta): QuadroResposta {
   const { params } = e;
-  const daClasse = e.linhas.filter((l) => l.classe === params.classe && l.noQuadro);
+  const daClasse = e.linhas
+    .filter((l) => l.classe === params.classe && l.noQuadro)
+    .map(comTipoFiiExibido);
   const ordem = params.ordem ?? ORDEM_PADRAO;
   const dir = params.dir ?? DIRECAO_PADRAO[ordem];
   const limite = Math.min(Math.max(params.limite ?? PAGINA_QUADRO, 1), LIMITE_MAXIMO);

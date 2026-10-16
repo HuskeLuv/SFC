@@ -41,15 +41,16 @@ describe('CabecalhoAtivo', () => {
     expect(container.textContent).not.toMatch(/Índice|semáforo|nota/i);
   });
 
-  it('chips "Na carteira" e "Planejado" juntos quando a posição tem alvo (overlay)', async () => {
+  it('chips "Na carteira" e "Planejado" juntos quando a posição tem alvo (overlay.alvos, v2.5)', async () => {
     const fetchMock = vi.fn(async () => ({
       ok: true,
       status: 200,
       json: async () => ({
         posicoes: {
-          WEGE3: { portfolioId: 'p', quantidade: 120, categoria: 'acoes', objetivoPct: 6 },
+          WEGE3: { portfolioId: 'p', quantidade: 120, categoria: 'acoes', objetivoPct: 25 },
         },
         planejados: {},
+        alvos: { WEGE3: { targetPct: 6, atualizadoEm: '2026-10-15T12:00:00.000Z' } },
       }),
     }));
     vi.stubGlobal('fetch', fetchMock);
@@ -60,6 +61,29 @@ describe('CabecalhoAtivo', () => {
     );
     expect(await screen.findByText('Planejado')).toBeInTheDocument();
     expect(screen.getByText('Na carteira')).toBeInTheDocument();
+    vi.unstubAllGlobals();
+  });
+
+  it('Objetivo da aba sem alvo do Planejar: só "Na carteira" (o chip "Planejado" não acende)', async () => {
+    const fetchMock = vi.fn(async () => ({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        posicoes: {
+          WEGE3: { portfolioId: 'p', quantidade: 120, categoria: 'acoes', objetivoPct: 25 },
+        },
+        planejados: {},
+        alvos: {},
+      }),
+    }));
+    vi.stubGlobal('fetch', fetchMock);
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <CabecalhoAtivo ativo={ATIVO_WEGE3} seloCarteira={null} />
+      </QueryClientProvider>,
+    );
+    expect(await screen.findByText('Na carteira')).toBeInTheDocument();
+    expect(screen.queryByText('Planejado')).toBeNull();
     vi.unstubAllGlobals();
   });
 });

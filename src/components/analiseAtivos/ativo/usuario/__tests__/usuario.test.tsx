@@ -225,6 +225,16 @@ describe('useNaCarteiraAtivo', () => {
     expect(urlsChamadas()).not.toContain('/api/carteira/resumo');
   });
 
+  it('só com alvo do Planejar (sem posição nem Watchlist): carrega a base da aba da classe', async () => {
+    overlay.alvos = { PETR4: { targetPct: 5, atualizadoEm: '2026-10-15T12:00:00.000Z' } };
+    comCliente(<SondaNaCarteira ticker="PETR4" />);
+    await waitFor(() => expect(sonda()).toMatchObject({ status: 'planejado', classeAlvo: 20 }));
+    expect(sonda()).toMatchObject({ linha: null, pctCarteira: 0, classePct: 21.9 });
+    expect(urlsChamadas()).toEqual(
+      expect.arrayContaining(['/api/carteira/resumo', '/api/carteira/configuracao']),
+    );
+  });
+
   it('nada na carteira: não busca nada da Carteira', async () => {
     comCliente(<SondaNaCarteira ticker="PETR4" />);
     await waitFor(() => expect(sonda().status).toBe('nada'));
@@ -241,23 +251,30 @@ describe('BlocoNaCarteira', () => {
     precoData: '2026-09-29',
   };
 
-  it('com posição: números como a Carteira; posição × alvo na base da aba, em desvio', async () => {
+  it('com posição: números como a Carteira; posição × alvo na base da carteira TOTAL, em desvio', async () => {
+    overlay.alvos = { WEGE3: { targetPct: 5, atualizadoEm: '2026-10-15T12:00:00.000Z' } };
     comCliente(<BlocoNaCarteira ticker="WEGE3" {...props} />);
     await screen.findByText('R$ 6.252,00');
     expect(screen.getByText('6,25%')).toBeInTheDocument(); // % da carteira
     expect(screen.getByText('R$ 38,50')).toBeInTheDocument();
     expect(screen.getByText('38,12%')).toBeInTheDocument();
-    // base da aba = Σ valorAtualizado das linhas (6.252 + 0 do planejado) → 100% de Ações
-    const barra = screen.getByRole('img');
-    expect(barra.getAttribute('aria-label')).toBe(
-      'Posição atual 100,0% de Ações, alvo planejado 20,0% de Ações',
-    );
+    // base = carteira total (totais.dinheiro 100.000): 6.252 → 6,3%; alvo 5% → R$ 5.000
+    const barra = await waitFor(() => {
+      const b = screen.getByRole('img');
+      expect(b.getAttribute('aria-label')).toBe(
+        'Posição atual 6,3% da carteira, alvo planejado 5,0% da carteira',
+      );
+      return b;
+    });
+    expect(barra).toBeInTheDocument();
     const card = document.querySelector('[data-na-carteira="posicao"]')!;
-    expect(card.textContent).toContain('posição atual 100,0% de Ações');
-    expect(card.textContent).toContain('alvo planejado por você: 20,0% de Ações');
-    expect(card.textContent).toMatch(/desvio \+80,0 p\.p\. \(R\$ 5\.002\)/);
-    // informativo em % da carteira: 20% × 6.252 ÷ 100.000
-    expect(card.textContent).toContain('equivale hoje a ≈ 1,3% da carteira');
+    expect(card.textContent).toContain('posição atual 6,3%');
+    expect(card.textContent).toContain('alvo planejado por você: 5,0%');
+    expect(card.textContent).toMatch(/desvio \+1,3 p\.p\. \(R\$ 1\.252\)/);
+    // decisão 1: Objetivo da aba na Carteira (20%) só como linha informativa
+    expect(card.querySelector('[data-objetivo-aba]')?.textContent).toBe(
+      'Objetivo na aba Ações da Carteira: 20%',
+    );
     expect(card.textContent).toContain('Classe Ações no Planejamento: 21,9% da carteira');
     expect(card.textContent).not.toMatch(/faltam|quanto falta|compre/i);
     expect(screen.getByRole('link', { name: 'Ver na Carteira' })).toHaveAttribute(
@@ -274,13 +291,36 @@ describe('BlocoNaCarteira', () => {
     expect(document.querySelector('[data-nota-cotacao]')?.textContent).toContain('29/09/2026');
   });
 
-  it('planejado: "Você não tem" + alvo planejado por você (sem "faltam")', async () => {
+  it('planejado com alvo: "Você não tem" + alvo planejado por você e valor equivalente', async () => {
+    overlay.alvos = { ITUB4: { targetPct: 3, atualizadoEm: '2026-10-15T12:00:00.000Z' } };
     comCliente(<BlocoNaCarteira ticker="ITUB4" {...props} />);
-    await screen.findByText(/alvo planejado por você: 5,0% de Ações/);
+    await screen.findByText(/alvo planejado por você: 3,0%/);
     expect(screen.getByText('Você não tem ITUB4')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'ajustar plano' })).toBeInTheDocument();
     const card = document.querySelector('[data-na-carteira="planejado"]')!;
+    await waitFor(() =>
+      expect(card.querySelector('[data-valor-alvo]')?.textContent).toBe(
+        'Valor equivalente ao alvo: R$ 3.000',
+      ),
+    );
     expect(card.textContent).not.toMatch(/faltam|quanto falta/i);
+  });
+
+  it('plano antigo (Watchlist) sem alvo: sem alvo planejado + Objetivo da aba informativo', async () => {
+    comCliente(<BlocoNaCarteira ticker="ITUB4" {...props} />);
+    await screen.findByText('Você não tem ITUB4');
+    expect(screen.getByText(/sem alvo planejado/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'planejar na carteira' })).toBeInTheDocument();
+    const card = document.querySelector('[data-na-carteira="planejado"]')!;
+    await waitFor(() =>
+      expect(card.querySelector('[data-objetivo-aba]')?.textContent).toBe(
+        'Objetivo na aba Ações da Carteira: 5%',
+      ),
+    );
+    expect(screen.getByRole('link', { name: 'Ver na Carteira' })).toHaveAttribute(
+      'href',
+      '/carteira',
+    );
   });
 
   it('sem nada: "sem alvo planejado" + planejar abre o modal Planejar (não o wizard)', async () => {
@@ -309,8 +349,9 @@ describe('AcoesCarteiraAtivo (BarraAcoesAtivo)', () => {
     expect(screen.queryByText(/comprar/i)).toBeNull();
   });
 
-  it('com alvo planejado: "Ajustar plano"', async () => {
+  it('com alvo planejado: "Ajustar plano" (o Objetivo da aba sozinho não basta)', async () => {
     overlay.posicoes.WEGE3.objetivoPct = 20;
+    overlay.alvos = { WEGE3: { targetPct: 6, atualizadoEm: '2026-10-15T12:00:00.000Z' } };
     comCliente(<AcoesCarteiraAtivo ticker="WEGE3" {...base} />);
     await screen.findByRole('button', { name: /Ajustar plano/ });
   });

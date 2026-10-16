@@ -465,6 +465,35 @@ describe('montarLinhasQuadro', () => {
     expect(linha(r2, 'HGLG11').pares).not.toContain('MXRF11');
   });
 
+  it('v2.5: pares de FII pelo tipo EXIBIDO — híbrido com perfil tijolo é par de tijolo', () => {
+    const base = entrada();
+    const r2 = montarLinhasQuadro(
+      entrada({
+        fiis: [...base.fiis, { symbol: 'HIBR11', cnpj: 'F-HIB' }],
+        resumos: [...base.resumos, resumo('HIBR11')],
+        fiiMensal: [
+          ...base.fiiMensal,
+          {
+            cnpj: 'F-HIB',
+            segmentoCvm: 'Logística',
+            tipoVigente: 'hibrido',
+            cotistas: 10,
+            pl: 1e9,
+            cotas: 1e8,
+          },
+        ],
+        criterios: [
+          { symbol: 'HIBR11', perfil: 'fii_tijolo', criterios: {} },
+          { symbol: 'HGLG11', perfil: 'fii_tijolo', criterios: {} },
+        ],
+      }),
+    );
+    // a coluna continua com o tipo CVM bruto
+    expect(linha(r2, 'HIBR11').fiiTipo).toBe('hibrido');
+    expect(linha(r2, 'HIBR11').pares).toContain('HGLG11');
+    expect(linha(r2, 'HGLG11').pares).toContain('HIBR11');
+  });
+
   it('valor de mercado do FII = cota × cotas', () => {
     expect(linha(r, 'HGLG11').valorMercado).toBe(10 * 4e7);
   });

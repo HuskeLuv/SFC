@@ -8,7 +8,8 @@
  *
  * - j: janela dos critérios (3 | 5 | 10; padrão 5, fora da URL).
  * - c: critérios ligados (ids, E lógico), separados por vírgula — só os chips habilitados da classe
- *   (CRITERIOS_FILTRAVEIS); a ordem dos ids é a da barra.
+ *   (CRITERIOS_FILTRAVEIS, dos params vigentes do código; v2.5: com a v2 todos, então ?c=vac e o
+ *   chip Vacância/Inadimplência ficam); a ordem dos ids é a da barra.
  * - carteira=1: "Na minha carteira". s: setor (ações) ou segmento CVM (FIIs).
  * - Ordem padrão A–Z (ticker asc, fora da URL).
  * Trocar de classe ZERA os filtros (critérios, carteira e setor; os chips são outros) e volta à

@@ -13,7 +13,7 @@ vi.mock('next/navigation', () => ({ useRouter: () => ({ push: mockPush }) }));
 import BlocoFundamentosEssencial from '../BlocoFundamentosEssencial';
 import BlocoValuationMultiplos from '../BlocoValuationMultiplos';
 import BlocoMultiplosHistoricos from '../BlocoMultiplosHistoricos';
-import BlocoPares from '../BlocoPares';
+import BlocoPares, { rotulosDoPerfil } from '../BlocoPares';
 import BarraPosicao10a from '../BarraPosicao10a';
 import CardMultiplo from '../CardMultiplo';
 import ChipsGrupo from '../ChipsGrupo';
@@ -148,28 +148,95 @@ describe('BlocoFundamentosEssencial', () => {
     expect(screen.getByText(FUNDAMENTOS.observacoes[0])).toBeTruthy();
   });
 
-  it('v2.4: "Lucro líq. ⓘ"/"Margem líq. ⓘ" com a explicação D2 no title, leitor de tela e notas', () => {
+  it('v2.5: "Lucro descontado ⓘ"/"Margem descontada ⓘ" com a definição no title, leitor de tela e notas', () => {
     const fund: FundamentosResposta = {
       ...FUNDAMENTOS,
       unidade: 'R$ bi',
       colunas: [
         { codigo: 'receita', rotulo: 'Receita líq.', formato: 'numero', fonteCvmAviso: false },
-        { codigo: 'lucro', rotulo: 'Lucro líq. ⓘ', formato: 'numero', fonteCvmAviso: false },
-        { codigo: 'margem', rotulo: 'Margem líq. ⓘ', formato: 'pct', fonteCvmAviso: false },
+        { codigo: 'lucro', rotulo: 'Lucro descontado ⓘ', formato: 'numero', fonteCvmAviso: false },
+        { codigo: 'margem', rotulo: 'Margem descontada ⓘ', formato: 'pct', fonteCvmAviso: false },
       ],
     };
     mockHooks.useFundamentosAtivo.mockReturnValue(consulta(fund));
     const { container } = render(<BlocoFundamentosEssencial ticker="WEGE3" classe="acao" />);
     const lucro = container.querySelector('[data-explicacao-coluna="lucro"]')!;
     expect(lucro.getAttribute('title')).toBe(TEXTOS_ATIVO.essencial.tooltips.lucro);
-    expect(lucro.textContent).toContain('Lucro líq. ⓘ');
-    expect(lucro.querySelector('.sr-only')?.textContent).toContain('A CVM não publica');
+    expect(lucro.textContent).toContain('Lucro descontado ⓘ');
+    expect(lucro.querySelector('.sr-only')?.textContent).toContain(
+      TEXTOS_ATIVO.essencial.tooltips.lucro,
+    );
     expect(container.querySelector('[data-explicacao-coluna="margem"]')).not.toBeNull();
     expect(container.querySelector('[data-explicacao-coluna="receita"]')).toBeNull();
     expect(container.querySelector('[data-nota-coluna="lucro"]')?.textContent).toBe(
-      `Lucro líq.: ${TEXTOS_ATIVO.essencial.tooltips.lucro}`,
+      `Lucro descontado: ${TEXTOS_ATIVO.essencial.tooltips.lucro}`,
     );
     expect(screen.getByText(TEXTOS_ATIVO.essencial.notaEssencial)).toBeTruthy();
+  });
+
+  it('v2.5: célula com o lucro líquido no lugar do descontado = ⓘ + tooltip; "—" com sem dado; fonte e selo', () => {
+    const TE = TEXTOS_ATIVO.essencial;
+    const fund: FundamentosResposta = {
+      ...FUNDAMENTOS,
+      unidade: 'R$ bi',
+      colunas: [
+        { codigo: 'receita', rotulo: 'Receita líq.', formato: 'numero', fonteCvmAviso: false },
+        { codigo: 'ebitda', rotulo: 'EBITDA', formato: 'numero', fonteCvmAviso: false },
+        { codigo: 'lucro', rotulo: 'Lucro descontado ⓘ', formato: 'numero', fonteCvmAviso: false },
+        { codigo: 'margem', rotulo: 'Margem descontada ⓘ', formato: 'pct', fonteCvmAviso: false },
+      ],
+      linhas: [
+        {
+          rotulo: '2024',
+          ano: 2024,
+          ultimoAno: false,
+          valores: {
+            receita: { estado: 'ok', valor: 37.9 },
+            ebitda: { estado: 'ausente', motivo: 'sem_dado_fonte', texto: TE.tooltips.semDado },
+            lucro: { estado: 'ok', valor: 6.2 },
+            margem: { estado: 'ok', valor: 16.4 },
+          },
+          selos: [],
+          marcas: { lucro: { fallback: true }, margem: { fallback: true } },
+        },
+        {
+          rotulo: '2025',
+          ano: 2025,
+          ultimoAno: true,
+          valores: {
+            receita: { estado: 'ok', valor: 40.8 },
+            ebitda: { estado: 'ausente', motivo: 'sem_dado_fonte', texto: TE.tooltips.semDado },
+            lucro: { estado: 'ok', valor: 6.9 },
+            margem: { estado: 'ok', valor: 16.9 },
+          },
+          selos: [],
+          marcas: { lucro: { fonte: 'provedor_x' }, margem: { fonte: 'provedor_x' } },
+        },
+      ],
+      observacoes: [TE.unidadeAcaoSemFonte],
+      textoFonte: 'Fonte: Provedor X · DFP/ITR (CVM).',
+      dadosIncompletos: true,
+    };
+    mockHooks.useFundamentosAtivo.mockReturnValue(consulta(fund));
+    const { container } = render(<BlocoFundamentosEssencial ticker="ITUB4" classe="acao" />);
+    const fallbacks = container.querySelectorAll('td[data-fallback]');
+    expect(fallbacks).toHaveLength(2);
+    expect(fallbacks[0].getAttribute('title')).toBe(TE.tooltips.fallbackLucro);
+    expect(fallbacks[0].querySelector('svg[data-icone-fallback]')).not.toBeNull();
+    expect(fallbacks[1].getAttribute('title')).toBe(TE.tooltips.fallbackMargem);
+    // 2025 veio do provedor: sem ⓘ
+    const linha2025 = container.querySelector('tr[data-ultimo-ano]')!;
+    expect(linha2025.querySelector('td[data-fallback]')).toBeNull();
+    // financeira sem EBITDA: '—' com 'sem dado nas demonstrações' (nunca n/a)
+    expect(screen.getAllByTitle(TE.tooltips.semDado).map((t) => t.textContent)).toEqual(['—', '—']);
+    expect(container.textContent).not.toMatch(/não se aplica/);
+    expect(container.querySelector('[data-nota-fonte]')?.textContent).toBe(
+      'Fonte: Provedor X · DFP/ITR (CVM).',
+    );
+    const selo = container.querySelector('[data-selo-incompleto]')!;
+    expect(selo.textContent).toContain(TE.seloIncompleto);
+    expect(selo.className).not.toMatch(/green|red|amber|yellow/);
+    esperarDomLimpo(container);
   });
 
   it('carregando e erro com "Tentar de novo"', () => {
@@ -369,7 +436,7 @@ describe('BlocoPares', () => {
     expect(screen.getByText(VALUATION.pares.criterio)).toBeTruthy();
   });
 
-  it('FII de tijolo: Fundo · DY 12m · P/VP · Vacância (CVM) · Patrimônio · Critérios', () => {
+  it('FII de tijolo: Fundo · DY 12m · P/VP · Vacância (CVM) · Alavancagem · Patrimônio · Critérios', () => {
     mockHooks.useValuationAtivo.mockReturnValue(
       consulta({
         ...VALUATION,
@@ -381,7 +448,23 @@ describe('BlocoPares', () => {
       within(screen.getByRole('table'))
         .getAllByRole('columnheader')
         .map((c) => c.textContent),
-    ).toEqual(['Fundo', 'DY 12m', 'P/VP', 'Vacância (CVM)', 'Patrimônio', 'Critérios']);
+    ).toEqual([
+      'Fundo',
+      'DY 12m',
+      'P/VP',
+      'Vacância (CVM)',
+      'Alavancagem (% do PL)',
+      'Patrimônio',
+      'Critérios',
+    ]);
+  });
+
+  it('v2.5: rótulos dos critérios pelos params do código (Alavancagem e Dív. líq./EBITDA < 3×)', () => {
+    expect(rotulosDoPerfil('fii_tijolo').alav).toBe('Alavancagem ≤ 20% do PL');
+    expect(rotulosDoPerfil('acao').dl).toBe('Dív. líq./EBITDA < 3×');
+    // financeira: os mesmos 6 de ação ("n de 6")
+    expect(Object.keys(rotulosDoPerfil('acao_financeira'))).toHaveLength(6);
+    expect(rotulosDoPerfil('fii_papel').ltv).toBe('LTV ≤ 60%');
   });
 
   it('sem pares: texto próprio', () => {

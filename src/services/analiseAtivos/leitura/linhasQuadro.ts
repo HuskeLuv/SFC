@@ -34,7 +34,7 @@ import {
   conferenciaConf,
 } from '@/services/analiseAtivos/leitura/ativo/conferenciasAtivo';
 import { obterCriteriaParams } from '@/services/analiseAtivos/params/obterCriteriaParams';
-import { CRITERIA_PARAMS_V1 } from '@/services/analiseAtivos/params/criteriaParamsV1';
+import { CRITERIA_PARAMS_CODIGO } from '@/services/analiseAtivos/params/criteriaParamsCodigo';
 import type { CriteriaParams } from '@/services/analiseAtivos/params/criteriaParamsSchema';
 import { projetarCriteriosCompactos } from '@/services/analiseAtivos/leitura/criterios/lerCriterios';
 import { TEXTOS_TELA, motivoTela, textoNaoSeAplica } from '@/services/analiseAtivos/textosTela';
@@ -144,10 +144,10 @@ export async function obterCriteriaParamsQuadro(agora = Date.now()): Promise<Cri
     params = (await obterCriteriaParams(prisma)).params;
   } catch (error: unknown) {
     console.warn(
-      '[analise-ativos/linhasQuadro] criteria_params indisponível, usando v1 do código:',
+      '[analise-ativos/linhasQuadro] criteria_params indisponível, usando os params vigentes do código:',
       error instanceof Error ? error.message : error,
     );
-    params = CRITERIA_PARAMS_V1;
+    params = CRITERIA_PARAMS_CODIGO;
   }
   paramsMemo = { params, lidoEm: agora };
   return params;

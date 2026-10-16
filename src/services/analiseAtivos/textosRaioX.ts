@@ -95,7 +95,7 @@ export const TEXTOS_RAIO_X = {
     vacanciaFisicaPct: { rotulo: 'Vacância física', sub: 'fonte CVM · pode diferir do gestor' },
     nCri: { rotulo: 'Nº de CRIs', sub: 'fonte CVM' },
     maiorCriPct: { rotulo: 'Maior CRI', sub: '% do valor em CRIs, fonte CVM' },
-    obrigacoesPlPct: { rotulo: 'Obrigações/PL', sub: '' },
+    obrigacoesPlPct: { rotulo: 'Alavancagem (% do PL)', sub: 'obrigações ÷ PL' },
     /** decisão 3 */
     taxaAdmAnoPct: {
       rotulo: 'Taxa de adm. (% do PL no ano)',

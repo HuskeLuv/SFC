@@ -7,6 +7,8 @@
  * v2.4 (fatia C1): SEM Índice MF/semáforo (saiu o selo "dados incompletos", que vinha do Índice).
  * Os chips "Na carteira"/"Planejado" vêm do overlay (ChipsCarteira) — os dois juntos quando a
  * posição tem alvo; `seloCarteira` só liga os chips (a página do ativo passa; a F remove a prop).
+ * v2.5 (fatia C): "Planejado" = alvo do Planejar na carteira (planning_asset_targets, % da carteira
+ * total); some ao "Remover do plano" (caso 33). O Objetivo da aba na Carteira não acende o chip.
  * A linha de ações (slotAcoes = AcoesCarteiraAtivo → BarraAcoesAtivo: Comparar · Planejar ·
  * Ver na Carteira · Registrar operação) fica embaixo, alinhada à direita no computador.
  */

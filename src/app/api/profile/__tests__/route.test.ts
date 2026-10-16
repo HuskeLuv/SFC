@@ -12,6 +12,7 @@ const mockPrisma = vi.hoisted(() => ({
     updateMany: vi.fn().mockResolvedValue({ count: 0 }),
   },
   analiseCasoEvento: { createMany: vi.fn().mockResolvedValue({ count: 0 }) },
+  planningAssetTarget: { deleteMany: vi.fn().mockResolvedValue({ count: 0 }) },
 }));
 
 const mockRequireAuthWithActing = vi.hoisted(() =>
@@ -242,6 +243,10 @@ describe('DELETE /api/profile', () => {
       where: { clienteId: 'user-1' },
       data: { clienteId: null },
     });
+    // Análise de Ativos (v2.5): alvos do Planejar na carteira apagados (o User não é apagado)
+    expect(mockPrisma.planningAssetTarget.deleteMany).toHaveBeenCalledWith({
+      where: { userId: 'user-1' },
+    });
     // Open Finance: conexões apagadas no Pluggy antes da anonimização
     expect(mockExcluirConexoesDoUsuario).toHaveBeenCalledWith('user-1', expect.anything());
     expect(mockExcluirConexoesDoUsuario.mock.invocationCallOrder[0]).toBeLessThan(
@@ -266,6 +271,7 @@ describe('DELETE /api/profile', () => {
     const res = await DELETE(reqDelete({ currentPassword: '123', confirm: true }));
     expect(res.status).toBe(503);
     expect(mockPrisma.user.update).not.toHaveBeenCalled();
+    expect(mockPrisma.planningAssetTarget.deleteMany).not.toHaveBeenCalled();
     expect(mockBumpSessionVersion).not.toHaveBeenCalled();
   });
 

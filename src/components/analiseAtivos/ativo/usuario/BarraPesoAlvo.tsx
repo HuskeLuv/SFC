@@ -1,7 +1,7 @@
 /**
  * Barra "posição × alvo" do card "Na sua carteira": a posição preenche a barra e o alvo planejado é
- * um traço vertical. v2.4 (fatia C1): posição e alvo na MESMA base (% da aba, rec. 1); o texto ao
- * lado fala em DESVIO (TEXTOS_CRITERIOS.desvio), nunca em "faltam". Elemento NÃO textual em
+ * um traço vertical. v2.5 (fatia C, caso 33): posição e alvo na MESMA base (% da carteira TOTAL),
+ * com 1 casa decimal ('3,8%'); o texto ao lado fala em DESVIO, nunca em "faltam". Elemento NÃO textual em
  * patrimonio/tranquilidade; textos em cinza do app. role="img" com o rótulo completo para leitor de
  * tela. Textos de textosAcoesCarteira.
  */
@@ -11,17 +11,17 @@ import { TEXTOS_ACOES_CARTEIRA } from '@/services/analiseAtivos/textosAcoesCarte
 import { formatNumber } from '@/utils/format';
 
 export interface BarraPesoAlvoProps {
-  /** ex.: 'posição atual 20,4% de Ações' */
+  /** ex.: 'posição atual 3,8%' */
   rotulo: string;
   /** posição em pontos percentuais da base (20,4 = 20,4%) */
   valor: number;
   /** alvo em p.p. da MESMA base; null = sem alvo planejado */
   referencia: number | null;
-  /** ex.: 'alvo planejado por você: 25,0% de Ações · desvio −4,6 p.p. (R$ 1.349)' */
+  /** ex.: 'alvo planejado por você: 6,0% · desvio −2,2 p.p. (R$ 3.633)' */
   rotuloReferencia: string;
   /** ação ao lado do texto do alvo (ex.: botão "planejar na carteira" quando não há alvo) */
   acaoReferencia?: ReactNode;
-  /** linha de apoio embaixo (ex.: equivalência informativa em % da carteira) */
+  /** linha de apoio embaixo (opcional) */
   status?: string;
   /** rótulo acessível completo (padrão: rótulo, valor e referência) */
   ariaLabel?: string;
@@ -41,6 +41,7 @@ export default function BarraPesoAlvo({
   const max = referencia === null ? 100 : Math.max(valor, ref, 0.0001) * 1.3;
   const largura = Math.min(100, Math.max(0, (valor / max) * 100));
   const posRef = Math.min(100, Math.max(0, (ref / max) * 100));
+  // 1 casa decimal, como o card (caso 33: '3,8%')
   const valorTxt = `${formatNumber(valor, 1)}%`;
   return (
     <div className="flex min-w-0 flex-col gap-1.5" data-barra-peso="">

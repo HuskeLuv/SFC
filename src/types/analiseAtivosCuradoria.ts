@@ -383,3 +383,39 @@ export interface BotaoReportarDadoProps {
   onFechar?: () => void;
   className?: string;
 }
+
+// ===========================================================================
+// v2.5 — casos do grupo 'fonte_externa' (fatia A da v25-regras-pedro)
+// ===========================================================================
+
+/** Onde está o ponto de provedor em revisão (asset_fundamentals_serie ou fii_property_quality). */
+export interface ReferenciaPontoFonte {
+  tabela: 'asset_fundamentals_serie' | 'fii_property_quality';
+  id: string;
+}
+
+/**
+ * AnaliseCasoDado.contexto de um caso 'fonte_externa' (aberto pela sanidade da §6 na ingestão
+ * 'fontes-fundamentos'). Resolver o caso é o ÚNICO caminho de aprovação: 'liberar_valor'
+ * (rejeitado/dado_confirmado) aprova o ponto; fechar com qualquer outro efeito o rejeita
+ * (curadoria/efeitoFonteExterna.ts). O caso não tem prazo (só de regra).
+ */
+export interface ContextoCasoFonteExterna {
+  tipo: 'fonte_externa';
+  referencia: ReferenciaPontoFonte;
+  /** id da fonte (provedor) */
+  fonte: string;
+  /** série do catálogo ou 'qualidade_fii' */
+  serie: string;
+  /** valor entregue (unidade do catálogo); null em linha de qualidade */
+  valor: number | null;
+  /** valor da CVM no mesmo período, quando houver (divergência) */
+  valorCvm: number | null;
+  /** valor aprovado do período anterior (variação) */
+  valorAnterior: number | null;
+  /** 'variacao' | 'confianca' | 'divergencia_cvm' */
+  motivos: string[];
+  versao: number;
+  /** dia civil (São Paulo) da detecção */
+  regraDesde: string;
+}

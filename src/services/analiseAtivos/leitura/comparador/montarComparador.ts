@@ -37,7 +37,7 @@ import {
   criteriosDoPerfil,
   type CriteriaParams,
 } from '@/services/analiseAtivos/params/criteriaParamsSchema';
-import { CRITERIA_PARAMS_V1 } from '@/services/analiseAtivos/params/criteriaParamsV1';
+import { CRITERIA_PARAMS_CODIGO } from '@/services/analiseAtivos/params/criteriaParamsCodigo';
 import { obterCriteriaParams } from '@/services/analiseAtivos/params/obterCriteriaParams';
 import { FLAG_CNPJ_EM_CONFERENCIA } from '@/services/analiseAtivos/quadro/montarLinhasQuadro';
 import { paraData } from '@/services/analiseAtivos/repositorio/conversao';
@@ -274,7 +274,8 @@ export function montarComparadorPuro(e: EntradaComparador): NucleoComparador {
       nome: l.nome,
       preco: l.preco,
       precoData: l.precoData,
-      fiiTipo: l.fiiTipo,
+      // v2.5: tipo EXIBIDO (Tijolo | Papel, o mesmo da comparação); FoF/Híbrido só no segmento
+      fiiTipo: classe === 'fii' ? (tipos[i] === 'tijolo' ? 'tijolo' : 'papel') : l.fiiTipo,
       tipoComparacao: tipos[i],
       criterios: a.criterios,
       noQuadro: l.noQuadro,
@@ -360,12 +361,12 @@ function mesesAtras(hoje: string, meses: number): Date {
   return d;
 }
 
-/** criteria_params ativo; sem versão no banco (ou inválida), o v1 do código (só rótulos). */
+/** criteria_params ativo; sem versão no banco (ou inválida), o vigente do código (só rótulos). */
 async function paramsCriterios(): Promise<CriteriaParams> {
   try {
     return (await obterCriteriaParams(prisma)).params;
   } catch {
-    return CRITERIA_PARAMS_V1;
+    return CRITERIA_PARAMS_CODIGO;
   }
 }
 

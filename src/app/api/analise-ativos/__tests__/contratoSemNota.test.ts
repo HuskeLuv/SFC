@@ -148,6 +148,13 @@ vi.mock('@/services/analiseAtivos/leitura/ativo/raioX', async (orig) => {
 });
 
 import { CRITERIA_PARAMS_V1 } from '@/services/analiseAtivos/params/criteriaParamsV1';
+import { Prisma } from '@prisma/client';
+import { CATALOGO_SERIES, SERIES_FUNDAMENTO } from '@/types/analiseAtivosFontes';
+import type {
+  AlvoGetResposta,
+  FundamentosResposta,
+  MarcaCelulaEssencial,
+} from '@/types/analiseAtivosApi';
 import { GERADO_EM_FIXTURE, LINHAS_FIXTURE } from '@/test/fixtures/analiseAtivos/linhasDb';
 import { COMPACTOS_WEGE3 } from '@/test/fixtures/analiseAtivos/criterios';
 import { _resetarCacheLinhasQuadro } from '@/services/analiseAtivos/leitura/linhasQuadro';
@@ -166,6 +173,7 @@ import { GET as getCenarios } from '../cenarios/[ticker]/route';
 import { GET as getComparador } from '../comparador/route';
 import { GET as getMeusReportes } from '../meus-reportes/route';
 import { GET as getTese } from '../teses/[ticker]/route';
+import { GET as getAlvo } from '../alvos/[ticker]/route';
 
 // ---------------------------------------------------------------------------
 // Varredura
@@ -249,6 +257,7 @@ const CHAMADAS: Chamada[] = [
       ticker: t,
     },
     { rota: 'teses/[ticker]', get: getTese as Rota, url: `${base}/teses/${t}`, ticker: t },
+    { rota: 'alvos/[ticker]', get: getAlvo as Rota, url: `${base}/alvos/${t}`, ticker: t },
   ]),
   { rota: 'comparador', get: getComparador as Rota, url: `${base}/comparador?t=WEGE3,ITUB4` },
   {
@@ -366,6 +375,23 @@ beforeEach(() => {
         updatedAt: new Date('2026-10-10T12:00:00Z'),
       }),
     },
+    // v2.5 (C): alvo do Planejar na carteira (planning_asset_targets)
+    asset: {
+      findUnique: async (a: unknown) => {
+        const { where } = a as { where: { symbol: string } };
+        return { id: `a-${where.symbol}` };
+      },
+    },
+    planningAssetTarget: {
+      findUnique: async () => ({ targetPct: 6, updatedAt: new Date('2026-10-15T12:00:00Z') }),
+      findMany: async () => [
+        {
+          targetPct: 6,
+          updatedAt: new Date('2026-10-15T12:00:00Z'),
+          asset: { symbol: 'WEGE3' },
+        },
+      ],
+    },
     analiseTese: {
       findUnique: async () => ({
         corpo: 'Acompanho a margem.',
@@ -439,6 +465,33 @@ describe('contratoSemNota — nenhuma resposta de /api/analise-ativos/* com nota
       ['descontinuado', 'descontinuado'],
       ['kpis', 'payout'],
     ]);
+  });
+
+  it('v2.5: catálogo de séries, chaves de fonte e colunas das 3 tabelas novas sem nota/score', () => {
+    const nomes = [
+      ...SERIES_FUNDAMENTO,
+      ...Object.keys(CATALOGO_SERIES),
+      ...Object.values(Prisma.AssetFundamentalsSerieScalarFieldEnum),
+      ...Object.values(Prisma.FiiPropertyQualityScalarFieldEnum),
+      ...Object.values(Prisma.PlanningAssetTargetScalarFieldEnum),
+    ];
+    expect(nomes.length).toBeGreaterThan(60);
+    expect(nomes.filter((n) => CHAVES_PROIBIDAS_CONTRATO.test(n))).toEqual([]);
+    // contratos de resposta novos (alvos, Essencial): chaves do exemplo tipado
+    const exemplo: AlvoGetResposta & { marcas: MarcaCelulaEssencial } & Pick<
+        FundamentosResposta,
+        'textoFonte' | 'dadosIncompletos'
+      > = {
+      ticker: 'WEGE3',
+      alvo: { targetPct: 6, atualizadoEm: '2026-10-15T00:00:00.000Z' },
+      marcas: { fallback: true, incompleto: false, fonte: 'cvm' },
+      textoFonte: 'Fonte: DFP/ITR (CVM).',
+      dadosIncompletos: false,
+    };
+    const chaves: string[] = [];
+    const valores: string[] = [];
+    varrer(exemplo, '$', chaves, valores);
+    expect(chaves).toEqual([]);
   });
 
   it('a varredura acusa as chaves por substring (sanidade do próprio teste)', () => {

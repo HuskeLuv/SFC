@@ -141,20 +141,22 @@ test('padrão A–Z; chip de critério (E) na URL e na API; Limpar filtros', asy
   await expect(page).not.toHaveURL(/c=rec/);
 });
 
-test('FIIs: janela 10 com critério ligado mostra a nota e o vazio com "limpe os filtros"', async ({
+test('FIIs: janela 10 com critério ligado mostra o vazio com "limpe os filtros"', async ({
   page,
 }) => {
   test.setTimeout(120_000);
   await page.goto('/analise-ativos?classe=fii&j=10&c=rend,vp,alav,mes,res', {
     waitUntil: 'domcontentloaded',
   });
-  await expect(page.locator('[data-nota-janela-fii]')).toBeVisible({ timeout: 60_000 });
+  // v2.5: sem a nota dos informes de FII de 2016 (só "sem dado nas demonstrações")
   await expect(page.getByRole('radio', { name: '10 anos' })).toHaveAttribute(
     'aria-checked',
     'true',
   );
+  // v2.5 (criteria_params v2): o par Vacância/Inadimplência é chip ATIVO
   const vac = page.getByRole('button', { name: /Vacância ≤ 10%/ });
-  await expect(vac).toHaveAttribute('aria-disabled', 'true');
+  await expect(vac).toHaveAttribute('aria-pressed', 'false');
+  await expect(vac).not.toHaveAttribute('aria-disabled', 'true');
   const limpe = page.getByRole('button', { name: 'limpe os filtros' });
   const vazio = await limpe
     .or(
@@ -166,6 +168,33 @@ test('FIIs: janela 10 com critério ligado mostra a nota e o vazio com "limpe os
   test.skip(!vazio, 'algum FII atende aos 5 critérios em 10 anos neste banco');
   await limpe.click();
   await expect(page).toHaveURL(/classe=fii&j=10$/);
+});
+
+test('v2.5: ?c=vac fica na URL e filtra; Tipo só Tijolo | Papel', async ({ page }) => {
+  test.setTimeout(120_000);
+  await page.goto('/analise-ativos?classe=fii&c=vac', { waitUntil: 'domcontentloaded' });
+  const vac = page.getByRole('button', { name: /Vacância ≤ 10%/ });
+  await expect(vac).toHaveAttribute('aria-pressed', 'true', { timeout: 60_000 });
+  await expect(page).toHaveURL(/c=vac/);
+  const r = await page.request.get(
+    '/api/analise-ativos/quadro?classe=fii&criterios=vac&limite=100',
+  );
+  expect(r.ok()).toBe(true);
+  const corpo = (await r.json()) as {
+    facetas: { tipos: string[] };
+    itens: Array<{
+      fiiTipo: string | null;
+      criterios: { marcas: Array<{ id: string; estado: string }> } | null;
+    }>;
+  };
+  for (const i of corpo.itens) {
+    const m = i.criterios?.marcas.find((x) => x.id === 'vac' || x.id === 'inad');
+    expect(m?.estado).toBe('atende');
+  }
+  const todos = await page.request.get('/api/analise-ativos/quadro?classe=fii&limite=100');
+  const tc = (await todos.json()) as typeof corpo;
+  expect(tc.facetas.tipos.every((t) => t === 'tijolo' || t === 'papel')).toBe(true);
+  expect(tc.itens.every((i) => i.fiiTipo === 'tijolo' || i.fiiTipo === 'papel')).toBe(true);
 });
 
 test('contrato: JSON do Quadro e da busca sem chave do indicador antigo; ordem antiga = 400', async ({

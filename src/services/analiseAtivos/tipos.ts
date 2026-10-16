@@ -283,6 +283,8 @@ export type NomeJob =
   | 'curadoria'
   // v2.4: Filtros de Fundamentos (criteria_eval + cópia compacta no Quadro; fatia A registra)
   | 'criterios'
+  // v2.5: ingestão point-in-time dos conectores de fundamentos (asset_fundamentals_serie)
+  | 'fontes-fundamentos'
   | `backfill:${string}`;
 export interface AlertaJob {
   codigo: string;

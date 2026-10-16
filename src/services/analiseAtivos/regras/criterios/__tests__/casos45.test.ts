@@ -9,24 +9,34 @@
  *    quadro/__tests__/caso30.test.ts e QuadroAnalise.test.tsx) — o número real do DEV sai do
  *    scripts/analise-ativos/relatorio-criterios.ts ("análogo do caso 30");
  *  - 32 (linguagem e isonomia): por fatia com varrerDom (B, C1, C2, D) + global na F;
- *  - 33 (alvo na base da aba): Carteira (C1, caso33.test.ts).
+ *  - 33 (alvo na base da carteira TOTAL na v2.5): Carteira (caso33.test.ts).
+ *
+ * v2.5: os casos rodam com a v1 E com a v2 do criteria_params (mesmos ids, séries renomeadas para os
+ * nomes da spec no parse) — o resultado tem de ser o MESMO nas duas (caso 26 'máx. 0,0×' pelo id 'dl').
  */
 import { describe, expect, it } from 'vitest';
 import { CRITERIA_PARAMS_V1 } from '@/services/analiseAtivos/params/criteriaParamsV1';
-import { criteriosDoPerfil } from '@/services/analiseAtivos/params/criteriaParamsSchema';
+import { CRITERIA_PARAMS_V2 } from '@/services/analiseAtivos/params/criteriaParamsV2';
+import {
+  criteriosDoPerfil,
+  type CriteriaParams,
+} from '@/services/analiseAtivos/params/criteriaParamsSchema';
 import { avaliarCriterio } from '@/services/analiseAtivos/regras/criterios/avaliarCriterio';
 import { avaliarJanela } from '@/services/analiseAtivos/regras/criterios/avaliarAtivo';
 import { CASOS_45 } from '@/test/fixtures/analiseAtivos/criterios';
 
-const P = CRITERIA_PARAMS_V1;
+const VERSOES: Array<[string, CriteriaParams]> = [
+  ['v1', CRITERIA_PARAMS_V1],
+  ['v2', CRITERIA_PARAMS_V2],
+];
 
-function defDe(perfil: (typeof CASOS_45)[number]['perfil'], id: string) {
-  const def = criteriosDoPerfil(P, perfil).find((d) => d.id === id);
-  if (!def) throw new Error(`critério ${id} fora do perfil ${perfil}`);
-  return def;
-}
+describe.each(VERSOES)('§4.5 casos 24–29 (motor dos Filtros de Fundamentos) — %s', (_v, P) => {
+  function defDe(perfil: (typeof CASOS_45)[number]['perfil'], id: string) {
+    const def = criteriosDoPerfil(P, perfil).find((d) => d.id === id);
+    if (!def) throw new Error(`critério ${id} fora do perfil ${perfil}`);
+    return def;
+  }
 
-describe('§4.5 casos 24–29 (motor dos Filtros de Fundamentos)', () => {
   for (const c of CASOS_45) {
     it(`caso ${c.caso} — ${c.descricao} (janela ${c.janela})`, () => {
       const def = defDe(c.perfil, c.criterio);
@@ -66,7 +76,7 @@ describe('§4.5 casos 24–29 (motor dos Filtros de Fundamentos)', () => {
         classe: 'acao',
         perfil: 'acao',
         anoFim: 2025,
-        series: { dlEbitda: c.serie },
+        series: { net_debt_ebitda: c.serie },
         meses: null,
       },
       5,

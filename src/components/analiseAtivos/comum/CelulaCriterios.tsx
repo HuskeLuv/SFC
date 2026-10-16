@@ -4,7 +4,9 @@
  * CelulaCriterios (v2.4, fatia 0) — célula "Critérios" do Quadro (B), dos cartões do celular (B) e
  * dos pares (C2): k quadradinhos NEUTROS + 'n de k'.
  *  - cheio (gray-700 / gray-300) = atende; vazio com contorno = não atende OU sem dado;
- *    tracejado = não se aplica (financeiras: n de 3). Nunca verde/vermelho (§9, D1).
+ *    tracejado = não se aplica (só se os params religarem o D4). Nunca verde/vermelho (§9, D1).
+ *  - v2.5: marca com `obs` (lucro sem o descontado na fonte, dados incompletos) acrescenta ao
+ *    tooltip a frase de textosCriterios.obs, uma vez por observação.
  *  - é um <button> com min-h-11 (44 px, também no computador), aria-label completo
  *    ('Critérios em 5 anos: 3 de 6 atendidos. Ver detalhes.') e tooltip em hover (mouse), foco e
  *    toque (o clique abre). NÃO abre a linha: clique e Enter/Espaço param a propagação.
@@ -14,7 +16,11 @@
 import { useEffect, useId, useRef, useState, type KeyboardEvent, type MouseEvent } from 'react';
 import MarcaCriterio from '@/components/analiseAtivos/comum/MarcaCriterio';
 import { TEXTOS_CRITERIOS, formatarTexto } from '@/services/analiseAtivos/textosCriterios';
-import type { CelulaCriteriosProps, EstadoCriterio } from '@/types/analiseAtivosCriterios';
+import type {
+  CelulaCriteriosProps,
+  EstadoCriterio,
+  ObsCriterio,
+} from '@/types/analiseAtivosCriterios';
 
 export type { CelulaCriteriosProps };
 
@@ -61,6 +67,7 @@ export default function CelulaCriterios({
 
   const { n, de, janela, marcas } = criterios;
   const aria = formatarTexto(T.aria, { anos: janela, n, total: de });
+  const observacoes = [...new Set(marcas.flatMap((m) => m.obs ?? []))] as ObsCriterio[];
 
   const aoClicar = (e: MouseEvent<HTMLButtonElement>) => {
     // abre (toque); fecha com Esc, clique fora ou saída do foco. Não abre a linha.
@@ -141,6 +148,15 @@ export default function CelulaCriterios({
               </span>
             ))}
           </span>
+          {observacoes.map((o) => (
+            <span
+              key={o}
+              data-obs-criterio={o}
+              className="mt-1.5 block text-gray-500 dark:text-gray-400"
+            >
+              {TEXTOS_CRITERIOS.obs[o]}
+            </span>
+          ))}
           {observacaoPerfil ? (
             <span className="mt-1.5 block text-gray-500 dark:text-gray-400">
               {observacaoPerfil}

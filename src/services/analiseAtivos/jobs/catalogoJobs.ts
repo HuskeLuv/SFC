@@ -16,6 +16,10 @@ import { executarCriterios } from '@/services/analiseAtivos/calculo/executarCrit
 import { executarScores } from '@/services/analiseAtivos/calculo/executarScores';
 import { executarCuradoria } from '@/services/analiseAtivos/curadoria/sincronizarCasos';
 import { sincronizarIpe } from '@/services/analiseAtivos/eventos/sincronizarIpe';
+import {
+  DEPENDENCIAS_INGESTAO,
+  ingerirFontes,
+} from '@/services/analiseAtivos/fontes/fundamentos/ingerirFontes';
 import { sincronizarFiiCadastro } from '@/services/analiseAtivos/fii/sincronizarFiiCadastro';
 import { sincronizarFiiMensal } from '@/services/analiseAtivos/fii/sincronizarFiiMensal';
 import { sincronizarFiiTrimestral } from '@/services/analiseAtivos/fii/sincronizarFiiTrimestral';
@@ -25,12 +29,23 @@ import type { JobContexto, ResultadoJob } from '@/services/analiseAtivos/tipos';
 
 export type NomeJobCron = (typeof NOMES_JOBS)[number];
 
+/**
+ * Opções que o runner de linha de comando repassa ao job (v2.5): --versao-params=N (criterios e
+ * fontes-fundamentos: lê essa versão do criteria_params, para o dry-run de uma versão ainda não
+ * vigente) e --fonte=<id> (fontes-fundamentos: conector pedido no lugar de ANALISE_FONTES_INGESTAO;
+ * 'exemplo' só fora de produção). Jobs que não usam ignoram.
+ */
+export interface OpcoesExecucaoJob {
+  versaoParams?: number;
+  fonte?: string;
+}
+
 export interface DefinicaoJob {
   nome: NomeJobCron;
   prazoMs: number;
   pesado: boolean;
   parametros?: Record<string, unknown>;
-  executar: (ctx: JobContexto) => Promise<ResultadoJob>;
+  executar: (ctx: JobContexto, opcoes?: OpcoesExecucaoJob) => Promise<ResultadoJob>;
 }
 
 export const CATALOGO_JOBS: Record<NomeJobCron, DefinicaoJob> = {
@@ -104,7 +119,11 @@ export const CATALOGO_JOBS: Record<NomeJobCron, DefinicaoJob> = {
     nome: 'criterios',
     prazoMs: 240_000,
     pesado: true,
-    executar: (ctx) => executarCriterios(ctx),
+    // v2.5: --versao-params=N no runner lê essa versão (dry-run de uma versão ainda não vigente)
+    executar: (ctx, opcoes) =>
+      opcoes?.versaoParams !== undefined
+        ? executarCriterios(ctx, undefined, { versaoParams: opcoes.versaoParams })
+        : executarCriterios(ctx),
   },
   // Fase 1: materializa analise_quadro_linhas depois do scores (medido < 30 s, < 250 MB)
   quadro: {
@@ -120,6 +139,20 @@ export const CATALOGO_JOBS: Record<NomeJobCron, DefinicaoJob> = {
     prazoMs: 120_000,
     pesado: false,
     executar: (ctx) => executarCuradoria(ctx),
+  },
+  // v2.5: ingestão point-in-time dos conectores de fundamentos (provedor pago). Sem conector
+  // habilitado (ANALISE_FONTES_INGESTAO vazio, o padrão) termina 'pulado'. Linha de cron das 10:20
+  // UTC COMENTADA no template do Lightsail: descomentar só quando houver contrato (ver
+  // docs/analise-ativos/v25-regras-pedro/desenho.json → camada_fontes §10).
+  'fontes-fundamentos': {
+    nome: 'fontes-fundamentos',
+    prazoMs: 240_000,
+    pesado: false,
+    executar: (ctx, opcoes) =>
+      ingerirFontes(ctx, DEPENDENCIAS_INGESTAO, {
+        ...(opcoes?.fonte ? { fonte: opcoes.fonte } : {}),
+        ...(opcoes?.versaoParams !== undefined ? { versaoParams: opcoes.versaoParams } : {}),
+      }),
   },
 };
 

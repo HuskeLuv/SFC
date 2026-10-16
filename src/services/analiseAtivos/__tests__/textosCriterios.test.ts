@@ -6,8 +6,11 @@ import {
   formatarValorCriterio,
   textoContador,
   textoJanela,
+  textoNotaFonte,
 } from '@/services/analiseAtivos/textosCriterios';
 import { CRITERIA_PARAMS_V1 } from '@/services/analiseAtivos/params/criteriaParamsV1';
+import { CRITERIA_PARAMS_V2 } from '@/services/analiseAtivos/params/criteriaParamsV2';
+import { OBS_CRITERIO } from '@/types/analiseAtivosCriterios';
 import { encontrarProibidasV2 } from '@/services/analiseAtivos/regras/comum/linguagemV2';
 import { folhasTexto } from '@/services/analiseAtivos/regras/comum/varreduraTextos';
 
@@ -96,5 +99,37 @@ describe('textosCriterios', () => {
     const desvio = folhasTexto(TEXTOS_CRITERIOS.desvio).map(([, v]) => v);
     expect(desvio.filter((v) => /falta|aporte|compre/i.test(v))).toEqual([]);
     expect(TEXTOS_CRITERIOS.desvio.alvo).toBe('alvo planejado por você: {pct}');
+  });
+
+  it('v2: rótulos e definições do criteria_params v2 passam pela varredura', () => {
+    const achados = folhasTexto(CRITERIA_PARAMS_V2.perfis)
+      .filter(([k]) => /\.(rotulo|definicao)$/.test(k))
+      .map(([k, v]) => [k, encontrarProibidasV2(v)] as const)
+      .filter(([, p]) => p.length > 0);
+    expect(achados).toEqual([]);
+  });
+
+  it('v2.5: sem a nota dos informes de FII de 2016; desvio na base da carteira', () => {
+    expect(FOLHAS.filter(([, v]) => /2016/.test(v))).toEqual([]);
+    expect('semDadoFii10' in TEXTOS_CRITERIOS.fatos).toBe(false);
+    expect('janela10Fii' in TEXTOS_CRITERIOS.fonte).toBe(false);
+    expect(TEXTOS_CRITERIOS.desvio.posicao).toBe('posição atual {pct} da carteira');
+  });
+
+  it('v2.5: lucro descontado, fallback, obs por código e selo "dados incompletos"', () => {
+    expect(Object.keys(TEXTOS_CRITERIOS.obs).sort()).toEqual([...OBS_CRITERIO].sort());
+    expect(TEXTOS_CRITERIOS.tooltips.fallbackLucro).toMatch(/lucro líquido dos controladores/);
+    expect(TEXTOS_CRITERIOS.incompleto.selo).toBe('dados incompletos');
+    // "descontado" é palavra inteira e não casa com a lista proibida
+    expect(encontrarProibidasV2('Lucro descontado')).toEqual([]);
+  });
+
+  it('v2.5: frase de fonte montada pelas origens (provedor antes da CVM)', () => {
+    expect(textoNotaFonte('acao')).toBe(TEXTOS_CRITERIOS.fonte.acao);
+    expect(textoNotaFonte('fii', ['cvm'])).toBe(TEXTOS_CRITERIOS.fonte.fii);
+    expect(textoNotaFonte('acao', ['cvm', 'prov_x'], { prov_x: 'Provedor X' })).toBe(
+      'Fonte: Provedor X · DFP/ITR (CVM).',
+    );
+    expect(textoNotaFonte('acao', ['prov_x'])).toBe('Fonte: prov_x.');
   });
 });
