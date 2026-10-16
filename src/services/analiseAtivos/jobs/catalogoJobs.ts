@@ -9,6 +9,7 @@
  * sistema quando o processo termina, o que não acontece dentro do next-server. A rota HTTP dele fica
  * só para disparo manual e recusa rodar com o RSS do servidor já alto (limiteRssRotaMb).
  */
+import { executarAlertasSalvos } from '@/services/analiseAtivos/alertas/executarAlertasSalvos';
 import { sincronizarCvmCias } from '@/services/analiseAtivos/acoes/sincronizarCvmCias';
 import { sincronizarB3Cadastro } from '@/services/analiseAtivos/b3/sincronizarB3Cadastro';
 import { sincronizarCotahist } from '@/services/analiseAtivos/b3/sincronizarCotahist';
@@ -153,6 +154,14 @@ export const CATALOGO_JOBS: Record<NomeJobCron, DefinicaoJob> = {
         ...(opcoes?.fonte ? { fonte: opcoes.fonte } : {}),
         ...(opcoes?.versaoParams !== undefined ? { versaoParams: opcoes.versaoParams } : {}),
       }),
+  },
+  // Bloco 1: avisos das listas dos Salvos (Notification + push 'analise') — 11:10 UTC, depois da
+  // curadoria. Só banco; sem ANALISE_ATIVOS_ALERTAS_HABILITADO termina 'pulado'.
+  'alertas-salvos': {
+    nome: 'alertas-salvos',
+    prazoMs: 120_000,
+    pesado: false,
+    executar: (ctx) => executarAlertasSalvos(ctx),
   },
 };
 
