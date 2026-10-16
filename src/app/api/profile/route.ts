@@ -12,6 +12,7 @@ import { bumpSessionVersion } from '@/lib/auth/sessionVersion';
 import { clearSessionCookie, issueSession, normalizeClaims } from '@/lib/auth/session';
 import { anonimizarReportesDoUsuario } from '@/services/analiseAtivos/curadoria/privacidadeReportes';
 import { apagarAlvosDoUsuario } from '@/services/analiseAtivos/carteira/alvosAtivo';
+import { apagarSalvosDoUsuario } from '@/services/analiseAtivos/salvos/privacidadeSalvos';
 import { excluirConexoesDoUsuario } from '@/services/pluggy/sync';
 import { getClientIp } from '@/lib/rateLimit';
 
@@ -231,6 +232,10 @@ export const DELETE = withErrorHandler(async (req: NextRequest) => {
   // Análise de Ativos (v2.5): alvos por ativo do "Planejar na carteira" — apagados aqui, porque
   // o User é anonimizado (o onDelete Cascade da FK nunca roda).
   await apagarAlvosDoUsuario(me.id);
+
+  // Análise de Ativos (bloco 1): listas e itens dos Salvos, filtros salvos, comparações salvas,
+  // trilha dos avisos e as Notification dos avisos — apagados explicitamente (User anonimizado).
+  await apagarSalvosDoUsuario(me.id);
 
   // Derruba todas as sessões e limpa o cookie de auth da resposta.
   await bumpSessionVersion(me.id);

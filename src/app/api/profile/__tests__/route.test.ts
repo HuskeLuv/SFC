@@ -13,6 +13,14 @@ const mockPrisma = vi.hoisted(() => ({
   },
   analiseCasoEvento: { createMany: vi.fn().mockResolvedValue({ count: 0 }) },
   planningAssetTarget: { deleteMany: vi.fn().mockResolvedValue({ count: 0 }) },
+  // Análise de Ativos (bloco 1): Salvos, filtros, comparações, envios e Notification dos avisos
+  analiseListaItem: { deleteMany: vi.fn().mockResolvedValue({ count: 0 }) },
+  analiseLista: { deleteMany: vi.fn().mockResolvedValue({ count: 0 }) },
+  analiseFiltroSalvo: { deleteMany: vi.fn().mockResolvedValue({ count: 0 }) },
+  analiseComparacao: { deleteMany: vi.fn().mockResolvedValue({ count: 0 }) },
+  analiseAlertaEnvio: { deleteMany: vi.fn().mockResolvedValue({ count: 0 }) },
+  notification: { deleteMany: vi.fn().mockResolvedValue({ count: 0 }) },
+  $transaction: vi.fn(async (ops: Promise<unknown>[]) => Promise.all(ops)),
 }));
 
 const mockRequireAuthWithActing = vi.hoisted(() =>
@@ -246,6 +254,19 @@ describe('DELETE /api/profile', () => {
     // Análise de Ativos (v2.5): alvos do Planejar na carteira apagados (o User não é apagado)
     expect(mockPrisma.planningAssetTarget.deleteMany).toHaveBeenCalledWith({
       where: { userId: 'user-1' },
+    });
+    // Análise de Ativos (bloco 1): tudo dos Salvos apagado + as Notification dos avisos
+    for (const m of [
+      mockPrisma.analiseListaItem,
+      mockPrisma.analiseLista,
+      mockPrisma.analiseFiltroSalvo,
+      mockPrisma.analiseComparacao,
+      mockPrisma.analiseAlertaEnvio,
+    ]) {
+      expect(m.deleteMany).toHaveBeenCalledWith({ where: { userId: 'user-1' } });
+    }
+    expect(mockPrisma.notification.deleteMany).toHaveBeenCalledWith({
+      where: { userId: 'user-1', type: 'analise_ativos_salvos_alerta' },
     });
     // Open Finance: conexões apagadas no Pluggy antes da anonimização
     expect(mockExcluirConexoesDoUsuario).toHaveBeenCalledWith('user-1', expect.anything());
