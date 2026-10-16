@@ -22,6 +22,13 @@
  * esquerda (a coluna Ativo/Fundo passa a ficar fixa logo depois dela): caixa de 18px numa área de
  * 44×44, nome "Comparar WEGE3", clique sem abrir o ativo; no limite, as não marcadas ficam
  * desabilitadas com o motivo no title (o anúncio fica na bandeja). Sem `comparar`, nada muda.
+ *
+ * Bloco 1 (fatia 0): props opcionais para as fatias B e C, sem editar este arquivo:
+ * - `acaoLinha(linha)` + `rotuloColunaAcao`: coluna de 56px no FIM (marcador Salvar do Quadro, "×"
+ *   da tabela Salvos); o clique dentro dela não propaga para a linha (não abre o ativo);
+ * - `colunasExtras`: colunas depois das do Quadro e antes da ação ("Adicionado em");
+ * - `complementoCriterios(linha)`: texto embaixo da célula Critérios ("antes 5 de 6 · 16/10").
+ * Sem essas props o DOM é idêntico ao de antes (acaoLinha.test.tsx, snapshot).
  */
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -281,12 +288,32 @@ export function usePrefetchHover() {
   return { iniciar, cancelar };
 }
 
-export interface TabelaQuadroProps {
+/** Bloco 1: coluna extra depois das do Quadro (ex.: "Adicionado em" da tabela Salvos). */
+export interface ColunaExtraQuadro<L extends LinhaQuadroApi = LinhaQuadroApi> {
+  id: string;
+  rotulo: string;
+  conteudo: (linha: L) => ReactNode;
+  alinhamento?: 'esquerda' | 'direita' | 'centro';
+}
+
+/** Bloco 1: props opcionais compartilhadas por TabelaQuadro e CartoesQuadro. */
+export interface ExtensoesLinhaQuadro<L extends LinhaQuadroApi = LinhaQuadroApi> {
+  /** ação por linha (44px; o clique não abre o ativo). Ausente = sem coluna */
+  acaoLinha?: (linha: L) => ReactNode;
+  /** rótulo (só para leitor de tela) do cabeçalho da coluna de ação */
+  rotuloColunaAcao?: string;
+  /** texto embaixo da célula Critérios */
+  complementoCriterios?: (linha: L) => ReactNode;
+}
+
+export interface TabelaQuadroProps<
+  L extends LinhaQuadroApi = LinhaQuadroApi,
+> extends ExtensoesLinhaQuadro<L> {
   classe: ClasseQuadro;
   modo: ModoQuadro;
   ordem: OrdemQuadro;
   dir: DirecaoOrdem;
-  linhas: LinhaQuadroApi[];
+  linhas: L[];
   onOrdenar: (ordem: OrdemQuadro) => void;
   naCarteira: (ticker: string) => InfoNaCarteira;
   /** linhas de esqueleto no lugar dos dados (carregando) */
@@ -298,6 +325,13 @@ export interface TabelaQuadroProps {
   comparar?: ControleComparar;
   /** v2.4: chips da resposta (rótulos do tooltip da célula Critérios) */
   definicoes?: DefCriterioChip[];
+  /** bloco 1: colunas depois das do Quadro (antes da coluna de ação) */
+  colunasExtras?: ColunaExtraQuadro<L>[];
+}
+
+/** Bloco 1: o clique na área da ação não chega à linha (que abre o ativo). */
+export function pararPropagacao(e: { stopPropagation: () => void }) {
+  e.stopPropagation();
 }
 
 /** Célula "Critérios" (tabela e cartões): CelulaCriterios com rótulos e nota de perfil. */
@@ -355,7 +389,7 @@ export function CaixaComparar({
   );
 }
 
-export default function TabelaQuadro({
+export default function TabelaQuadro<L extends LinhaQuadroApi = LinhaQuadroApi>({
   classe,
   modo,
   ordem,
@@ -368,7 +402,11 @@ export default function TabelaQuadro({
   legenda,
   comparar,
   definicoes,
-}: TabelaQuadroProps) {
+  acaoLinha,
+  rotuloColunaAcao,
+  complementoCriterios,
+  colunasExtras,
+}: TabelaQuadroProps<L>) {
   const router = useRouter();
   const prefetch = usePrefetchHover();
   const colunas = COLUNAS[classe][modo];
@@ -416,6 +454,33 @@ export default function TabelaQuadro({
                 className={i === 0 && comparar ? 'left-14 z-30!' : ''}
               />
             ))}
+            {colunasExtras?.map((x) => (
+              <th
+                key={x.id}
+                scope="col"
+                className={`${TABLE_STYLES.th.replace('px-4', 'px-3')} sticky top-0 z-20 ${
+                  x.alinhamento === 'direita'
+                    ? 'text-right'
+                    : x.alinhamento === 'centro'
+                      ? 'text-center'
+                      : 'text-left'
+                }`}
+                style={{ backgroundColor: MYFINANCE_BRAND.seguranca }}
+                data-coluna={x.id}
+              >
+                {x.rotulo}
+              </th>
+            ))}
+            {acaoLinha ? (
+              <th
+                scope="col"
+                className="sticky top-0 z-20 w-14 min-w-14 px-1.5"
+                style={{ backgroundColor: MYFINANCE_BRAND.seguranca }}
+                data-coluna="acao"
+              >
+                <span className="sr-only">{rotuloColunaAcao}</span>
+              </th>
+            ) : null}
           </tr>
         </thead>
         <tbody>
@@ -428,6 +493,10 @@ export default function TabelaQuadro({
                       <span className="block h-3 w-full max-w-[6rem] rounded bg-gray-200 motion-safe:animate-pulse dark:bg-white/[0.08]" />
                     </td>
                   ))}
+                  {colunasExtras?.map((x) => (
+                    <td key={x.id} className={TD_QUADRO} />
+                  ))}
+                  {acaoLinha ? <td className="w-14 px-1.5" /> : null}
                 </tr>
               ))
             : linhas.map((l) => (
@@ -479,13 +548,46 @@ export default function TabelaQuadro({
                         {c.codigo === 'naCarteira' ? (
                           <CelulaNaCarteira info={naCarteira(l.ticker)} classe={classe} />
                         ) : c.codigo === 'criterios' ? (
-                          <CelulaCriteriosLinha linha={l} rotulos={rotulos} />
+                          complementoCriterios ? (
+                            <span className="inline-flex flex-col items-start">
+                              <CelulaCriteriosLinha linha={l} rotulos={rotulos} />
+                              <span className="text-[11px] leading-tight text-gray-500 dark:text-gray-400">
+                                {complementoCriterios(l)}
+                              </span>
+                            </span>
+                          ) : (
+                            <CelulaCriteriosLinha linha={l} rotulos={rotulos} />
+                          )
                         ) : (
                           conteudoCelula(c.codigo, l)
                         )}
                       </td>
                     );
                   })}
+                  {colunasExtras?.map((x) => (
+                    <td
+                      key={x.id}
+                      className={`${TD_QUADRO} whitespace-nowrap tabular-nums ${
+                        x.alinhamento === 'direita'
+                          ? 'text-right'
+                          : x.alinhamento === 'centro'
+                            ? 'text-center'
+                            : 'text-left'
+                      }`}
+                      data-coluna={x.id}
+                    >
+                      {x.conteudo(l)}
+                    </td>
+                  ))}
+                  {acaoLinha ? (
+                    <td
+                      className="w-14 min-w-14 px-1.5 text-center"
+                      data-coluna="acao"
+                      onClick={pararPropagacao}
+                    >
+                      {acaoLinha(l)}
+                    </td>
+                  ) : null}
                 </tr>
               ))}
         </tbody>
