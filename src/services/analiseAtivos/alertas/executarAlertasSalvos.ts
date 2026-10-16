@@ -23,6 +23,7 @@
 import { randomUUID } from 'crypto';
 import type { Prisma, PrismaClient } from '@prisma/client';
 import { analiseAtivosAcesso, analiseAtivosHabilitada } from '@/lib/analiseAtivosConfig';
+import { pushHabilitado } from '@/lib/push/pushConfig';
 import { flagsRecursosBlocoD, RECURSO_BETA } from '@/services/analiseAtivos/acesso/acessoAnalise';
 import { apagarAvisosVencidos } from '@/services/analiseAtivos/alertas/avisosDoUsuario';
 import {
@@ -88,7 +89,8 @@ export interface RelatorioAlertasSalvos {
   erros: number;
   marcos: number;
   removidosRetencao: number;
-  push: { enviados: number; falhas: number };
+  /** semAparelho = avisos de quem não tem aparelho assinado ou desligou a categoria 'analise' */
+  push: { enviados: number; falhas: number; semAparelho: number };
 }
 
 export interface DependenciasAlertas {
@@ -303,7 +305,7 @@ export async function executarAlertasSalvos(
     erros: 0,
     marcos: 0,
     removidosRetencao: 0,
-    push: { enviados: 0, falhas: 0 },
+    push: { enviados: 0, falhas: 0, semAparelho: 0 },
   };
 
   // --- 2) Quadro + marcos (globais) ---
@@ -683,12 +685,38 @@ export async function executarAlertasSalvos(
     rel.removidosRetencao = r.envios + r.notificacoes;
   }
 
-  // --- push: esperado antes de terminar (o processo CLI sai logo depois) ---
-  const resultados = await emPool(pushes, PUSH_CONCORRENCIA, deps.enviarPush);
+  // --- push: esperado antes de terminar (o processo CLI sai logo depois). Pré-filtro em lote: só
+  // quem tem aparelho assinado e não desligou a categoria 'analise' (o serviço confere de novo, mas
+  // assim 1.000 usuários sem aparelho não viram 1.000 consultas). ---
+  const paraPush = await filtrarPushes(prisma, pushes);
+  rel.push.semAparelho = pushes.length - paraPush.length;
+  const resultados = await emPool(paraPush, PUSH_CONCORRENCIA, deps.enviarPush);
   rel.push.enviados = resultados.filter((r) => r.status === 'fulfilled').length;
   rel.push.falhas = resultados.length - rel.push.enviados;
 
   return { parcial, detalhes: { ...rel, aplicar: ctx.aplicar } };
+}
+
+async function filtrarPushes(
+  prisma: PrismaClient,
+  pushes: readonly NotificacaoCriada[],
+): Promise<NotificacaoCriada[]> {
+  if (pushes.length === 0 || !pushHabilitado()) return [];
+  const users = [...new Set(pushes.map((p) => p.userId))];
+  const [assinaturas, desligados] = await Promise.all([
+    prisma.pushSubscription.findMany({
+      where: { userId: { in: users } },
+      select: { userId: true },
+      distinct: ['userId'],
+    }),
+    prisma.pushPreferencia.findMany({
+      where: { userId: { in: users }, analise: false },
+      select: { userId: true },
+    }),
+  ]);
+  const com = new Set(assinaturas.map((a) => a.userId));
+  for (const d of desligados) com.delete(d.userId);
+  return pushes.filter((p) => com.has(p.userId));
 }
 
 function isoMenosDias(hoje: string, dias: number): string {

@@ -73,6 +73,8 @@ let db: {
   envios: Envio[];
   notifs: Notif[];
   falharEscrita: boolean;
+  aparelhos: Set<string>;
+  pushDesligado: Set<string>;
 };
 
 function novoDb(): typeof db {
@@ -96,6 +98,8 @@ function novoDb(): typeof db {
     envios: [],
     notifs: [],
     falharEscrita: false,
+    aparelhos: new Set(['u1', 'u2']),
+    pushDesligado: new Set(),
   };
 }
 
@@ -196,6 +200,20 @@ function fakePrisma() {
       }),
       deleteMany: vi.fn(async () => ({ count: 0 })),
     },
+    pushSubscription: {
+      findMany: vi.fn(async (a: Arg) =>
+        (em(a.where?.userId) ?? [])
+          .filter((u) => db.aparelhos.has(u))
+          .map((userId) => ({ userId })),
+      ),
+    },
+    pushPreferencia: {
+      findMany: vi.fn(async (a: Arg) =>
+        (em(a.where?.userId) ?? [])
+          .filter((u) => db.pushDesligado.has(u))
+          .map((userId) => ({ userId })),
+      ),
+    },
     $transaction: vi.fn(async (ops: Promise<unknown>[]) => Promise.all(ops)),
   };
   return p;
@@ -280,6 +298,9 @@ beforeEach(() => {
   vi.stubEnv('ANALISE_ATIVOS_ACESSO', 'beta');
   vi.stubEnv('ANALISE_ATIVOS_SALVOS_HABILITADO', 'true');
   vi.stubEnv('ANALISE_ATIVOS_ALERTAS_HABILITADO', 'true');
+  vi.stubEnv('WEB_PUSH_HABILITADO', 'true');
+  vi.stubEnv('VAPID_PUBLIC_KEY', 'pub');
+  vi.stubEnv('VAPID_PRIVATE_KEY', 'priv');
 });
 
 afterEach(() => vi.unstubAllEnvs());
@@ -520,7 +541,33 @@ describe('executarAlertasSalvos', () => {
     expect((r.detalhes as unknown as RelatorioAlertasSalvos).push).toEqual({
       enviados: 1,
       falhas: 1,
+      semAparelho: 0,
     });
+  });
+
+  it("push só para quem tem aparelho e não desligou 'analise'; sino e aba sempre", async () => {
+    lista('L1');
+    for (const u of ['u1', 'u2']) salvar(u, 'L1', 'WEGE3');
+    db.acesso.add('u3');
+    salvar('u3', 'L1', 'WEGE3');
+    db.aparelhos = new Set(['u1', 'u2']);
+    db.pushDesligado = new Set(['u2']);
+    resultado('C-WEG');
+    const { rel } = await rodar();
+    expect(db.notifs.map((n) => n.userId).sort()).toEqual(['u1', 'u2', 'u3']);
+    expect(pushes).toEqual(['WEGE3: resultado do 3T26']);
+    expect(rel.push).toEqual({ enviados: 1, falhas: 0, semAparelho: 2 });
+  });
+
+  it('push desligado no servidor (WEB_PUSH_HABILITADO): nenhuma chamada', async () => {
+    vi.stubEnv('WEB_PUSH_HABILITADO', 'false');
+    lista('L1');
+    salvar('u1', 'L1', 'WEGE3');
+    resultado('C-WEG');
+    await rodar();
+    expect(db.notifs).toHaveLength(1);
+    expect(pushes).toEqual([]);
+    expect(prisma.pushSubscription.findMany).not.toHaveBeenCalled();
   });
 
   it('--sem-aplicar só calcula: nada gravado, sem push, sem limpeza', async () => {
