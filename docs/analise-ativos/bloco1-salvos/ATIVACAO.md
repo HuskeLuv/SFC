@@ -29,8 +29,8 @@ PSQL='sudo -u postgres psql myfinance'
   exige `COMPARADOR`. "Salvar comparação" e "Comparações salvas" = `SALVOS && COMPARADOR` (sem flag
   própria).
 - Ordem de ligar: **SALVOS → PDF → ALERTAS**, um por vez, com [OK] a cada passo. O PDF só entra
-  depois que o COMPARADOR estiver ligado (aguarda o jurídico); se ainda não estiver, o R2 fica para
-  depois e o R3 (ALERTAS) pode seguir.
+  com o COMPARADOR ligado (em prod desde 16/10/2026, sem o jurídico, junto com CENARIOS; conferir o
+  `$ENVF` antes). Se estiver desligado, o R2 fica para depois e o R3 (ALERTAS) pode seguir.
 - Listas, filtros, comparações e avisos são PESSOAIS: consultor agindo pelo cliente vê vazio
   (`podeSalvar=false`), mutações 403. O PDF continua liberado (não leva nome, e-mail nem posição).
 - Nenhuma rota nem o job chamam terceiros: só o banco.
@@ -73,6 +73,24 @@ Anti-spam: unique `(userId, tipo, chave)` com `createMany skipDuplicates`; mesmo
 "provento pago".
 
 ---
+
+## Validado na integração (16/10/2026, banco local do Docker)
+
+- Branch `feat/analise-ativos-bloco1-salvos` com as fatias 0, A, B, C e D: `tsc`, `npm run lint`,
+  vitest dos 37 arquivos de teste tocados (466 testes), `rm -rf .next && npm run build` e
+  `next start` com as 3 flags ligadas.
+- API de ponta a ponta com `usuario.demo`: Salvar com 0 listas cria "Salvos", 1 lista alterna,
+  `listas/[id]` por classe, PATCH dos alertas da lista, filtros, comparações, PDF (`application/pdf`
+  no `next start`, ou seja, `serverExternalPackages` + TTF no bundle OK), `/alertas` e `/alertas/lidos`.
+  Usuário fora do beta: 404 em todas as rotas novas.
+- Tela no computador (1440) e no celular (390): marcador do Quadro, Filtros salvos, Salvar no ativo +
+  "Salvo em", Salvos (listas, abas, ×), Salvos › Alertas, Salvar comparação, Comparações salvas e
+  Baixar PDF (download `comparacao-acoes-WEGE3-ITUB4-<data>.pdf`). Sem erro de console nem 4xx/5xx.
+- e2e: `e2e/analise-ativos-salvos.escrita.spec.ts` (grava e desfaz) cobre Quadro → ativo → Salvos →
+  Alertas → Comparador; `analise-ativos-comparador.spec.ts` passou a aceitar Salvar comparação e
+  Exportar PDF quando `config.recursos` os liga.
+- Não validado aqui: consultor agindo por cliente na tela (coberto nos testes de rota), PDF no PWA
+  iOS/Android em aparelho real (QA do Pedro) e o job `alertas-salvos` com dados reais (R3.2).
 
 ## R0 — Deploy com as flags DESLIGADAS
 
