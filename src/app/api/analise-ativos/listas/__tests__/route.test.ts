@@ -156,6 +156,10 @@ describe('/listas/[id]', () => {
     expect(
       (await getLista(requisicao('GET', '/listas/abc?classe=acao'), ctx({ id: 'abc' }))).status,
     ).toBe(404);
+    // '%' solto (o Next entrega já decodificado): 404, não URIError → 500
+    expect(
+      (await getLista(requisicao('GET', '/listas/x?classe=acao'), ctx({ id: '50%' }))).status,
+    ).toBe(404);
     h.auth.mockResolvedValue(mockAuthAsUser('outro'));
     expect(
       (await getLista(requisicao('GET', `/listas/${id}?classe=acao`), ctx({ id }))).status,

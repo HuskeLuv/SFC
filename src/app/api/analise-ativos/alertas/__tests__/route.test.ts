@@ -173,6 +173,14 @@ describe('POST /api/analise-ativos/alertas/lidos', () => {
   it('corpo fora do contrato (strict, uuid) ⇒ 400', async () => {
     expect((await post({ ids: ['nao-uuid'] })).status).toBe(400);
     expect((await post({ ids: [], todos: true })).status).toBe(400);
+    const malformado = await POST(
+      new NextRequest(`${URL_BASE}/lidos`, {
+        method: 'POST',
+        body: '{ids:',
+        headers: { 'Content-Type': 'application/json' },
+      }),
+    );
+    expect(malformado.status).toBe(400);
     expect(mocks.prisma.notification.updateMany).not.toHaveBeenCalled();
   });
 

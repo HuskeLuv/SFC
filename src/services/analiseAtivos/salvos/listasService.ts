@@ -513,16 +513,25 @@ export function lerQuery<S extends z.ZodType>(
   return r.data;
 }
 
+/** O Next já entrega o segmento decodificado; decodificar de novo um '%' solto lança URIError. */
+function decodificarSegmento(bruto: string | undefined): string | null {
+  try {
+    return decodeURIComponent(bruto ?? '');
+  } catch {
+    return null;
+  }
+}
+
 /** Id de lista/filtro/comparação do caminho: não-uuid ⇒ 404 com a mensagem do recurso. */
 export function lerId(bruto: string | undefined, mensagem404: string): string {
-  const id = decodeURIComponent(bruto ?? '').trim();
+  const id = (decodificarSegmento(bruto) ?? '').trim();
   if (!z.uuid().safeParse(id).success) throw new ApiError(404, mensagem404);
   return id;
 }
 
 /** Ticker do caminho/corpo no formato do bloco 1 (ação/FII); inválido ⇒ 400. */
 export function lerTicker(bruto: string | undefined): string {
-  const symbol = normalizarTicker(decodeURIComponent(bruto ?? ''));
+  const symbol = normalizarTicker(decodificarSegmento(bruto) ?? '');
   if (!ehTickerValido(symbol)) {
     throw new ApiError(400, TS.dadosInvalidos, { ticker: ['Ticker inválido'] });
   }

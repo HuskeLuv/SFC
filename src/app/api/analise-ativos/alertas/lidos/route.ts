@@ -20,7 +20,17 @@ export const dynamic = 'force-dynamic';
 export const POST = withErrorHandler(async (request: NextRequest) => {
   const { payload, actingClient } = await exigirRecursoAnalise(request, 'alertas');
   if (actingClient) throw new ApiError(403, MENSAGEM_LISTAS_PESSOAIS);
-  const parsed = AlertasLidosSchema.safeParse((await request.json().catch(() => ({}))) ?? {});
+  // Corpo vazio = "todos"; JSON malformado é 400 (antes virava {} e marcava tudo como lido).
+  const texto = await request.text();
+  let bruto: unknown = {};
+  if (texto.trim()) {
+    try {
+      bruto = JSON.parse(texto);
+    } catch {
+      bruto = undefined;
+    }
+  }
+  const parsed = AlertasLidosSchema.safeParse(bruto);
   if (!parsed.success) {
     throw new ApiError(400, 'Dados inválidos', {
       campos: parsed.error.issues.map((i) => i.path.join('.')),
