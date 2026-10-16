@@ -52,6 +52,8 @@ vi.mock('@/hooks/useAnaliseAtivos', async (importOriginal) => ({
   ...(await importOriginal<object>()),
   useIndiceBusca: () => ({ data: undefined }),
   useOverlayCarteira: () => ({ data: undefined }),
+  // bloco 1: sem config, Salvar comparação / Exportar PDF não aparecem (a tela de antes)
+  useAnaliseAtivosConfig: () => ({ data: undefined }),
 }));
 vi.mock('@/components/analiseAtivos/quadro/CelulaNaCarteira', async (importOriginal) => ({
   ...(await importOriginal<object>()),
