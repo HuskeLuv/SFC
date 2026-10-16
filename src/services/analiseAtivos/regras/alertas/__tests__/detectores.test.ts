@@ -205,7 +205,7 @@ describe('detectarCriterios', () => {
     expect(r.fatos).toEqual([
       {
         tipo: 'criterios',
-        chave: 'criterios5:WEGE3:2025:4/6>5/6',
+        chave: 'criterios5:WEGE3:2025:v2:4/6>5/6:inicio',
         symbol: 'WEGE3',
         de: { atendidos: 4, aplicaveis: 6 },
         para: { atendidos: 5, aplicaveis: 6 },
@@ -219,6 +219,29 @@ describe('detectarCriterios', () => {
       anterior: { atendidos: 4, aplicaveis: 6 },
       mudouEm: agora,
     });
+  });
+
+  it('ida e volta A→B→A→B na mesma anoFim gera chaves distintas; repetir a rodada não', () => {
+    const d1 = '2026-10-16T11:10:00.000Z';
+    const d2 = '2026-10-17T11:10:00.000Z';
+    const d3 = '2026-10-18T11:10:00.000Z';
+    const r1 = detectarCriterios([av()], new Map([['WEGE3', marco()]]), d1);
+    const r2 = detectarCriterios(
+      [av({ atendidos: 4 })],
+      new Map([['WEGE3', r1.marcosNovos[0].marco]]),
+      d2,
+    );
+    const r3 = detectarCriterios([av()], new Map([['WEGE3', r2.marcosNovos[0].marco]]), d3);
+    const chaves = [r1, r2, r3].map((r) => r.fatos[0].chave);
+    expect(chaves).toEqual([
+      'criterios5:WEGE3:2025:v2:4/6>5/6:inicio',
+      `criterios5:WEGE3:2025:v2:5/6>4/6:${d1}`,
+      `criterios5:WEGE3:2025:v2:4/6>5/6:${d2}`,
+    ]);
+    expect(new Set(chaves).size).toBe(3);
+    // marco não gravado (lote com erro): a rodada seguinte reencontra a MESMA chave
+    const repetida = detectarCriterios([av()], new Map([['WEGE3', r2.marcosNovos[0].marco]]), d3);
+    expect(repetida.fatos[0].chave).toBe(r3.fatos[0].chave);
   });
 
   it('1ª vez e troca de paramsVersion (v1 → v2) não avisam: só regravam o marco', () => {

@@ -273,7 +273,12 @@ export interface MarcoCriterios extends ContagemCriterios {
 
 export interface FatoCriterios {
   tipo: 'criterios';
-  /** 'criterios5:<symbol>:<anoFim>:<de>><para>' (de/para = 'atendidos/aplicaveis') */
+  /**
+   * 'criterios5:<symbol>:<anoFim>:v<paramsVersion>:<de>><para>:<mudouEm do marco | 'inicio'>'
+   * (de/para = 'atendidos/aplicaveis'). O último pedaço é a mudança anterior do marco: distingue a
+   * ida e volta (A→B→A→B) dentro da mesma anoFim e continua igual se a rodada repetir com o marco
+   * não gravado (lote com erro), então o dedupe em analise_alerta_envios segue valendo.
+   */
   chave: string;
   symbol: string;
   de: ContagemCriterios;
@@ -339,7 +344,9 @@ export function detectarCriterios(
     });
     fatos.push({
       tipo: 'criterios',
-      chave: `criterios5:${symbol}:${a.anoFim}:${contagem(de)}>${contagem(para)}`,
+      chave: `criterios5:${symbol}:${a.anoFim}:v${a.paramsVersion}:${contagem(de)}>${contagem(
+        para,
+      )}:${marco.mudouEm ?? 'inicio'}`,
       symbol,
       de,
       para,
