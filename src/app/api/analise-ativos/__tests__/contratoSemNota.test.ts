@@ -203,6 +203,7 @@ const ITENS_ROW = ['WEGE3', 'CEDO4', 'HGLG11'].map((symbol) => ({
   classe: symbol === 'HGLG11' ? 'fii' : 'acao',
   createdAt: new Date('2026-10-01T12:00:00Z'),
 }));
+import { GET as getAlertas } from '../alertas/route';
 
 // ---------------------------------------------------------------------------
 // Varredura
@@ -318,6 +319,9 @@ const CHAMADAS: Chamada[] = [
     get: getComparacaoPdf as Rota,
     url: `${base}/comparacao-pdf?t=WEGE3,ITUB4`,
   },
+  // bloco 1 (fatia D): avisos das listas (Notification do type dos Salvos)
+  { rota: 'alertas', get: getAlertas as Rota, url: `${base}/alertas` },
+  { rota: 'alertas', get: getAlertas as Rota, url: `${base}/alertas?classe=fii&dias=30` },
 ];
 
 async function chamar(c: Chamada): Promise<{ status: number; corpo: unknown; texto: string }> {
@@ -493,6 +497,26 @@ beforeEach(() => {
           updatedAt: new Date('2026-10-10T12:00:00Z'),
         },
       ],
+    },
+    // bloco 1: um aviso de provento e o resumo do dia
+    notification: {
+      findMany: async () => [
+        {
+          id: '00000000-0000-4000-8000-0000000000a1',
+          title: 'HGLG11: provento anunciado',
+          message: 'Rendimento de R$ 1,10 por cota · data-com 20/10 · pagamento 27/10.',
+          metadata: {
+            href: '/analise-ativos/HGLG11',
+            symbol: 'HGLG11',
+            tipo: 'provento',
+            classe: 'fii',
+            eventoId: 'provento:HGLG11:rendimento:2026-10-20',
+          },
+          readAt: null,
+          createdAt: new Date('2026-10-16T11:10:00Z'),
+        },
+      ],
+      count: async () => 1,
     },
     analiseTese: {
       findUnique: async () => ({
