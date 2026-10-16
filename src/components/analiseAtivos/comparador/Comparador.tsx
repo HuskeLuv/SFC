@@ -418,13 +418,13 @@ export default function Comparador({ className = '' }: ComparadorProps) {
         </div>
         {salvosLigado || pdfLigado ? (
           <div
-            className="grid grid-cols-1 gap-2 min-[380px]:grid-cols-2"
+            className="grid grid-cols-1 gap-2 min-[480px]:grid-cols-2"
             data-acoes-salvos-comparador=""
           >
             {menuComparacoes(true)}
             {exportarPdf(true)}
             {salvosLigado ? (
-              <div className="min-[380px]:col-span-2">{salvarComparacao('barra', true)}</div>
+              <div className="min-[480px]:col-span-2">{salvarComparacao('barra', true)}</div>
             ) : null}
           </div>
         ) : null}
