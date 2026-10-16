@@ -11,9 +11,17 @@
  * Também aqui: o AddAssetWizard com preset (link "abrir o formulário completo" do Registrar) e os
  * estilos de botão que a página do ativo reusa (re-exportados por AcoesCarteiraAtivo).
  * Consultor agindo pelo cliente: Ver, Planejar e Registrar continuam, com o aviso (rec. 9).
+ *
+ * Bloco 1 (fatia B), só com recursos.salvos: "Salvar" entre Comparar e Planejar (BotaoSalvarAtivo,
+ * regra 0/1/2+ listas) e, com o ativo salvo, a linha "Salvo em…" embaixo (LinhaSalvoEm). Sem o
+ * recurso, o DOM é o de antes.
  */
 import { Suspense, lazy, useCallback, useState, type ReactNode } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
+import BotaoSalvarAtivo, {
+  useSalvarAtivo,
+} from '@/components/analiseAtivos/ativo/acoes/BotaoSalvarAtivo';
+import LinhaSalvoEm from '@/components/analiseAtivos/ativo/acoes/LinhaSalvoEm';
 import ModalComparar from '@/components/analiseAtivos/ativo/acoes/ModalComparar';
 import ModalPlanejar from '@/components/analiseAtivos/ativo/acoes/ModalPlanejar';
 import ModalRegistrarOperacao from '@/components/analiseAtivos/ativo/acoes/ModalRegistrarOperacao';
@@ -160,6 +168,8 @@ export default function BarraAcoesAtivo({
   const comparador =
     config.data?.recursos?.comparador === true && (classe === 'acao' || classe === 'fii');
   const [modal, setModal] = useState<ModalAcaoAtivo | null>(null);
+  // Bloco 1: Salvar (sem recursos.salvos, salvar.ligado = false e nada aparece)
+  const salvar = useSalvarAtivo({ ticker: t, classe, detalhes: true });
   const { abrir: abrirWizard, wizard } = useWizardCarteiraAtivo({
     ticker: t,
     classe,
@@ -192,7 +202,7 @@ export default function BarraAcoesAtivo({
 
   const base = { ticker: t, classe, nome, onFechar: fechar };
 
-  return (
+  const grupo = (
     <div
       role="group"
       aria-label={formatarTexto(tx.rotulo, { ticker: t })}
@@ -211,6 +221,7 @@ export default function BarraAcoesAtivo({
           {tx.comparar}
         </button>
       ) : null}
+      {salvar.ligado ? <BotaoSalvarAtivo controle={salvar} /> : null}
       <button
         type="button"
         className={BOTAO_PEQUENO}
@@ -270,6 +281,15 @@ export default function BarraAcoesAtivo({
         onFormularioCompleto={() => trocar(() => abrirWizard('compra'))}
       />
       {wizard}
+      {salvar.camadas}
+    </div>
+  );
+
+  if (!salvar.ligado) return grupo;
+  return (
+    <div className="flex w-full min-w-0 flex-col gap-2 sm:w-auto sm:items-end">
+      {grupo}
+      <LinhaSalvoEm controle={salvar} />
     </div>
   );
 }
