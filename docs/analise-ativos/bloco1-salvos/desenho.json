@@ -1,0 +1,575 @@
+{
+  "arquitetura": {
+    "resumo": "VERSÃO FINAL do bloco 1 da Análise de Ativos: Salvos (listas com nome), Filtros salvos no Quadro, Salvar comparação, Exportar PDF e avisos das listas. Parte da main c806abf1 e da spec v2.4 (§2, §3, §3.2, §3.3, §3.5, §9), segue o HTML do Pedro (D1) e incorpora as 20 críticas. Não li o banco DEV: o Neon recusa com \"exceeded the quota\". Os volumes ficam para a fatia D medir.\n\nO que mudou em relação à proposta anterior, por causa das críticas:\n(1) Consultor agindo pelo cliente: fica a regra do precedente (tese e cenários, teses/[ticker]/route.ts:32 e cenarios/[ticker]/route.ts:99). Listas, filtros, comparações e avisos são PESSOAIS. GET vazio com podeSalvar=false, mutações com 403 e botões desabilitados com title. O protótipo precisa trocar a faixa do cenário consultor. Vai como pergunta 1.\n(2) Regra do clique em Salvar, igual à do protótipo: com 0 listas, cria \"Salvos\" (nome do Pedro, não \"Meus salvos\"); com 1 lista, alterna NESSA lista; com 2 ou mais, abre \"Salvar em…\". Saem a coluna `padrao` e a lista padrão escondida. O sentinela 'padrao' do PUT só resolve com 0 ou 1 lista (com 2 ou mais dá 400). Toast com o literal do Pedro.\n(3) Limites únicos em salvos/contrato.ts, devolvidos em `limites` para a cópia interpolar: nome 40, 20 listas, 200 por lista, 500 por usuário, 20 filtros por classe, 30 comparações, 10 PDFs por hora.\n(4) Filtros salvos guardam só janela, critérios, setor e na carteira. Ganham ?filtro=<id> opcional e o estado \"alterado\" (Salvar alterações / Salvar como novo). Tabelas personalizadas continuam FORA.\n(5) PDF no servidor (pdfkit), SEM opções: nunca posição, nunca nome nem e-mail, sem mini-gráficos no bloco 1. Rota própria /api/analise-ativos/comparacao-pdf, com balde próprio de rate limit. No iOS, NotAllowedError vira o botão \"Compartilhar PDF\" (segundo toque).\n(6) Avisos ficam em 3 tipos neutros: resultado entregue à CVM, provento anunciado e mudança no \"n de 6\", este fixo em 5 anos e DESLIGADO por padrão. \"Provento pago\" sai porque duplica a Agenda. Saem também o override por ativo e a chave \"juntar\" (o resumo acima de 5 é fixo). Não há limite próprio de ativos com alerta. Resultado: um aviso por COMPANHIA (\"PETR3/PETR4\"), com data ≥ hoje−7 além do fetchedAt, createMany skipDuplicates e os textos de eventos/textosEventos.ts. Provento anunciado pula o ativo que o usuário tem na Carteira, porque a Agenda já cobre. Os marcos de critérios cobrem o Quadro inteiro e guardam anterior/mudouEm. Só avisa a mudança posterior ao item ter sido salvo. A tabela Salvos mostra \"antes 5 de 6 · 16/10\".\n(7) A aba \"Salvos › Alertas\" fica como lista SIMPLES de 90 dias, lida das próprias Notification (GET /alertas, POST /alertas/lidos). Sem contagem na pílula, porque o sino já mostra. Retenção unificada em 90 dias (job, export, lgpd-retention). Horário 11:10 UTC; a cópia diz \"por volta das 8h\".\n(8) Texto fixo dos avisos sem 'compra' nem 'recomendação' (as duas são proibidas em varreduraTextos.ts): \"Os avisos trazem só fatos publicados (entregas à CVM e proventos anunciados). Não são análise nem indicação de investimento.\" Fica registrado como literal com OK do jurídico.\n(9) A fatia 0 entrega TODA a cópia e os componentes compartilhados (ModalNomeLista, ListaComparacoesSalvas, mostrarToastSalvo). Assim B e C só importam, sem arquivo em comum.\n(10) LGPD: a exclusão de conta apaga também as Notification de type 'analise_ativos_salvos_alerta'. Tese e cenário vão num PR SEPARADO e ANTERIOR.\n(11) \"Criar lista\" fica só no Quadro, no Comparador e em Salvos (fora da página do ativo, onde Registrar é o único primário). No celular é compacto. A coluna se chama \"Adicionado em\". O segundo \"Salvar comparação\" vai no slot de Leitura dos dados (§3.3).\n(12) Reordenar listas sai do bloco 1: ficam na ordem de criação, como no protótipo. Validação de ticker por classe (TICKER_RE_POR_CLASSE) já no contrato. Desvio da rec. 7 e pílula Ranking sem rótulo registrados em decisoes.md.\n\nConstrução: fatia 0 bloqueante (contratos, schema, flags, cópia, componentes compartilhados), depois A backend (listas/filtros/comparações/PDF/LGPD), B entradas (ativo, Quadro, Comparador), C página Salvos + casca de 4 pílulas e D avisos (job, push, aba Alertas, preferências, ATIVACAO.md), sem arquivos em comum.",
+    "modelos_prisma": "Migration ADITIVA, escrita à mão (DEV Neon sem cota): prisma/migrations/20261017000000_analise_ativos_salvos/migration.sql. Só CREATE TABLE, CREATE INDEX e ALTER TABLE ADD COLUMN com DEFAULT. Sem índice parcial, para não gerar drift no Prisma.\n\n// User (relações novas)\n  analiseListas         AnaliseLista[]        @relation(\"AnaliseListaUser\")\n  analiseListaItens     AnaliseListaItem[]    @relation(\"AnaliseListaItemUser\")\n  analiseFiltrosSalvos  AnaliseFiltroSalvo[]  @relation(\"AnaliseFiltroSalvoUser\")\n  analiseComparacoes    AnaliseComparacao[]   @relation(\"AnaliseComparacaoUser\")\n  analiseAlertaEnvios   AnaliseAlertaEnvio[]  @relation(\"AnaliseAlertaEnvioUser\")\n\n/** Salvos (bloco 1). NÃO é o Watchlist da Carteira (planejados/objetivo). Ordem = createdAt (sem reordenar no bloco 1). */\nmodel AnaliseLista {\n  id               String   @id @default(uuid())\n  userId           String\n  user             User     @relation(\"AnaliseListaUser\", fields: [userId], references: [id], onDelete: Cascade)\n  nome             String   // 1..40 (zod): trim + espaços colapsados\n  nomeNormalizado  String   // minúsculas, sem acento: unicidade por usuário\n  alertaResultado  Boolean  @default(true)   // resultado entregue à CVM\n  alertaProvento   Boolean  @default(true)   // provento anunciado (data-com)\n  alertaCriterios  Boolean  @default(false)  // mudança no \"n de 6\", janela FIXA de 5 anos\n  createdAt        DateTime @default(now())\n  updatedAt        DateTime @updatedAt\n  itens            AnaliseListaItem[]\n  @@unique([userId, nomeNormalizado])\n  @@index([userId, createdAt])\n  @@map(\"analise_listas\")\n}\n\nmodel AnaliseListaItem {\n  id        String       @id @default(uuid())\n  listaId   String\n  lista     AnaliseLista @relation(fields: [listaId], references: [id], onDelete: Cascade)\n  userId    String       // denormalizado: limite de 500 por usuário, índice do Salvar, export\n  user      User         @relation(\"AnaliseListaItemUser\", fields: [userId], references: [id], onDelete: Cascade)\n  symbol    String       // ticker do Quadro, sem FK (molde AnaliseTese)\n  classe    String       // 'acao'|'fii'|'stock'|'reit'; o zod do bloco 1 aceita só acao|fii\n  createdAt DateTime     @default(now()) // \"Adicionado em\"; também corta avisos de critérios anteriores a ele\n  @@unique([listaId, symbol])\n  @@index([userId, symbol])\n  @@index([symbol])\n  @@map(\"analise_lista_itens\")\n}\n\nmodel AnaliseFiltroSalvo {\n  id              String    @id @default(uuid())\n  userId          String\n  user            User      @relation(\"AnaliseFiltroSalvoUser\", fields: [userId], references: [id], onDelete: Cascade)\n  nome            String    // 1..40\n  nomeNormalizado String\n  classe          String    // acao|fii (stock|reit no bloco 4)\n  estado          Json      // EstadoFiltroSalvoV1 (zod strict): {janela:3|5|10, criterios:IdCriterio[], naCarteira:boolean, setor:string|null}. SEM modo/ordem/dir (decisão alinhada ao protótipo)\n  versaoSchema    Int       @default(1)\n  ultimoUsoEm     DateTime?\n  createdAt       DateTime  @default(now())\n  updatedAt       DateTime  @updatedAt\n  @@unique([userId, classe, nomeNormalizado])\n  @@index([userId, classe])\n  @@map(\"analise_filtros_salvos\")\n}\n\n/** Comparação salva = classe + tickers + janela + nome. Nunca números: reabrir recalcula. */\nmodel AnaliseComparacao {\n  id        String   @id @default(uuid())\n  userId    String\n  user      User     @relation(\"AnaliseComparacaoUser\", fields: [userId], references: [id], onDelete: Cascade)\n  nome      String   // padrão \"WEGE3 · ITUB4 · BBAS3\" (≤ 40)\n  classe    String   // acao|fii\n  tickers   String[] // 1..4 na ordem dos slots, sem FK\n  janela    Int      @default(5)\n  tipoFii   String?  // 'tijolo'|'papel'|null\n  chave     String   // dedupe: tickers ORDENADOS + ':' + janela + ':' + (tipoFii ?? '-'); salvar de novo atualiza (200)\n  createdAt DateTime @default(now())\n  updatedAt DateTime @updatedAt\n  @@unique([userId, chave])\n  @@index([userId, updatedAt])\n  @@map(\"analise_comparacoes\")\n}\n\n/** Dedupe + anti-spam + trilha dos avisos (sem texto livre). Retenção de 90 dias (lgpd-retention + o próprio job). */\nmodel AnaliseAlertaEnvio {\n  id             String   @id @default(uuid())\n  userId         String\n  user           User     @relation(\"AnaliseAlertaEnvioUser\", fields: [userId], references: [id], onDelete: Cascade)\n  symbol         String   // 'PETR3/PETR4' no aviso por companhia; '*' no resumo\n  tipo           String   // resultado|provento|criterios|resumo\n  chave          String   // 'evento:<AssetEvento.id>' | 'fii_tri:<cnpj>:<AAAA-MM-DD>' | 'provento:<symbol>:<tipo>:<dataCom>' | 'criterios5:<symbol>:<anoFim>:<de>><para>' | 'resumo:<AAAA-MM-DD>'\n  notificationId String?  // sem FK\n  createdAt      DateTime @default(now())\n  @@unique([userId, tipo, chave])   // escrita com createMany({skipDuplicates:true})\n  @@index([userId, createdAt])\n  @@index([createdAt])\n  @@map(\"analise_alerta_envios\")\n}\n\n/** Estado GLOBAL por ativo (sem dado pessoal), atualizado para TODO o Quadro a cada rodada. */\nmodel AnaliseAlertaMarco {\n  symbol       String\n  tipo         String   // 'criterios:5' | 'fii_trimestral'\n  marco        Json     // criterios: {atendidos, aplicaveis, anoFim, paramsVersion, anterior?:{atendidos,aplicaveis}, mudouEm?:ISO} | fii: {refQuarter}\n  atualizadoEm DateTime @updatedAt\n  @@id([symbol, tipo])\n  @@map(\"analise_alerta_marcos\")\n}\n\n// PushPreferencia (aditivo): analise Boolean @default(true) — categoria de push 'analise'\n\nLIMITES (salvos/contrato.ts; conferidos na rota dentro de prisma.$transaction com pg_advisory_xact_lock(hashtext(userId)); excedeu ⇒ 409 com mensagem; devolvidos em `limites` nas respostas para a cópia \"n de {limite}\"):\nMAX_NOME=40 · MAX_LISTAS_POR_USUARIO=20 · MAX_ITENS_POR_LISTA=200 · MAX_ITENS_POR_USUARIO=500 · MAX_FILTROS_POR_CLASSE=20 · MAX_COMPARACOES_POR_USUARIO=30 · MAX_PDF_POR_HORA=10. Sem limite próprio para ativos com aviso.\n\nCascade: todas as FKs com onDelete Cascade, que vale para hard-delete e testes. A exclusão de conta é anonimização, então apaga explicitamente (ver API DELETE /api/profile). Não guardamos assetId: o designer pedia \"ticker/assetId\", mas o precedente da AnaliseTese é sem FK, e o Quadro é por symbol.",
+    "apis": [
+      {
+        "metodo": "GET",
+        "rota": "/api/analise-ativos/config",
+        "descricao": "(alterada) recursos ganha salvos, alertas e pdfComparador: flag && área liberada. alertas exige salvos; pdfComparador exige comparador. Nunca 404."
+      },
+      {
+        "metodo": "GET",
+        "rota": "/api/analise-ativos/listas",
+        "descricao": "{listas:[{id,nome,contagem:{acao,fii},alertas:{resultado,provento,criterios},criadaEm}] (ordem de criação), limites, podeSalvar, motivoSemSalvar:'consultor'|null}. Consultor agindo: listas=[] e podeSalvar=false. exigirRecursoAnalise(req,'salvos'); no-store."
+      },
+      {
+        "metodo": "POST",
+        "rota": "/api/analise-ativos/listas",
+        "descricao": "{nome, tickerInicial?} (zod 1..40) → 201 ResumoLista. tickerInicial cobre o 'Nova lista com TAEE11' do sheet. 409 para nome repetido (nomeNormalizado) ou 21ª lista. Consultor 403 'As listas são pessoais'. CSRF."
+      },
+      {
+        "metodo": "GET",
+        "rota": "/api/analise-ativos/listas/[id]",
+        "descricao": "?classe=acao|fii&janela=&ordem=&dir=&modo= (o zod do Quadro, sem filtros de critério) → {lista, classe, janela, contagem, linhas: LinhaLista[] (= LinhaQuadroApi + adicionadoEm + criteriosAnterior?:{atendidos,aplicaveis,mudouEm}, este do marco 'criterios:5' quando mudouEm > adicionadoEm), foraDoQuadro:[{ticker,classe,motivo}], definicoes}. Ordem padrão A–Z. 404 se a lista não for do usuário."
+      },
+      {
+        "metodo": "PATCH",
+        "rota": "/api/analise-ativos/listas/[id]",
+        "descricao": "{nome?, alertas?:{resultado?,provento?,criterios?}} (strict) → ResumoLista. alertas só com o recurso alertas ligado (senão 400)."
+      },
+      {
+        "metodo": "DELETE",
+        "rota": "/api/analise-ativos/listas/[id]",
+        "descricao": "Apaga a lista e os itens (cascade) → {ok}."
+      },
+      {
+        "metodo": "POST",
+        "rota": "/api/analise-ativos/listas/[id]/itens",
+        "descricao": "{ticker} → 201 {ticker,classe,adicionadoEm}; 200 se já estava (idempotente, usado no Desfazer). Ticker validado por TICKER_RE_POR_CLASSE + obterLinhaQuadro, e a classe vem da linha (404 fora do Quadro). 409 nos limites 200/lista e 500/usuário."
+      },
+      {
+        "metodo": "DELETE",
+        "rota": "/api/analise-ativos/listas/[id]/itens/[ticker]",
+        "descricao": "Remove da lista → {ok}, idempotente (o '×' da tabela Salvos, com Desfazer no toast)."
+      },
+      {
+        "metodo": "GET",
+        "rota": "/api/analise-ativos/salvos",
+        "descricao": "Índice compacto para o botão Salvar (cabeçalho, linhas e cartões do Quadro): {porTicker: Record<ticker, listaId[]>, listas:[{id,nome}], limites, podeSalvar}. No máximo 500 itens; staleTime 5 min."
+      },
+      {
+        "metodo": "PUT",
+        "rota": "/api/analise-ativos/salvos/[ticker]",
+        "descricao": "Define a pertença do ativo: {listaIds: string[]}. O sentinela ['padrao'] resolve assim: 0 listas → cria 'Salvos' com o ativo; 1 lista → essa lista; 2+ → 400 (o cliente abre 'Salvar em…' e manda o conjunto explícito). [] remove de todas. Uma transação com advisory lock (dois cliques não criam duas 'Salvos'); limites 409; lista de outro usuário → 404. → {ticker, listaIds, salvo, listaCriada?:{id,nome}}."
+      },
+      {
+        "metodo": "GET",
+        "rota": "/api/analise-ativos/filtros",
+        "descricao": "?classe=acao|fii → {filtros:[{id,nome,classe,estado,ajustado,atualizadoEm,ultimoUsoEm}], limites, podeSalvar}. Critério que deixou de existir na classe é retirado na leitura, com ajustado=true."
+      },
+      {
+        "metodo": "POST",
+        "rota": "/api/analise-ativos/filtros",
+        "descricao": "{nome, classe, estado: EstadoFiltroSalvoV1} → 201. Mesmo nome na classe → 409 (o cliente oferece 'Substituir', que vira PATCH). 21º da classe → 409."
+      },
+      {
+        "metodo": "PATCH",
+        "rota": "/api/analise-ativos/filtros/[id]",
+        "descricao": "{nome?, estado?, usado?:true} → filtro. estado = 'Salvar alterações'; usado=true marca ultimoUsoEm ao aplicar ?filtro=<id>."
+      },
+      {
+        "metodo": "DELETE",
+        "rota": "/api/analise-ativos/filtros/[id]",
+        "descricao": "→ {ok}."
+      },
+      {
+        "metodo": "GET",
+        "rota": "/api/analise-ativos/comparacoes",
+        "descricao": "?classe= → {comparacoes:[{id,nome,classe,tickers,janela,tipoFii,href,atualizadoEm}], limites}. href = /analise-ativos/comparador?t=…&janela=…&tipo=…. Exige salvos E comparador. Fica fora de /comparador/ para não cair no balde pesado."
+      },
+      {
+        "metodo": "POST",
+        "rota": "/api/analise-ativos/comparacoes",
+        "descricao": "{classe, tickers[1..4] (por classe, todos nas linhas do Quadro da classe), janela, tipoFii?, nome?} → 201, ou 200 {atualizada:true} quando a chave já existe. 31ª → 409. Consultor 403."
+      },
+      {
+        "metodo": "PATCH",
+        "rota": "/api/analise-ativos/comparacoes/[id]",
+        "descricao": "{nome} → comparação."
+      },
+      {
+        "metodo": "DELETE",
+        "rota": "/api/analise-ativos/comparacoes/[id]",
+        "descricao": "→ {ok}."
+      },
+      {
+        "metodo": "GET",
+        "rota": "/api/analise-ativos/comparacao-pdf",
+        "descricao": "?t=&janela=&tipo= (o mesmo zod do /comparador) → application/pdf, attachment 'comparacao-acoes-WEGE3-BBAS3-2026-10-16.pdf' (nomeArquivoPdf em contrato.ts), no-store, runtime nodejs. Exige pdfComparador + comparador. Balde próprio em rateLimit.ts (10/min por IP, chave de 4 segmentos própria) + 10 por hora por usuário (getTtlCache, zera no restart, documentado). Consultor permitido: o PDF não leva dado pessoal nem posição."
+      },
+      {
+        "metodo": "GET",
+        "rota": "/api/analise-ativos/alertas",
+        "descricao": "?classe=acao|fii&dias=90 → {avisos:[{id,titulo,mensagem,href,symbol,tipo,classe,criadoEm,lido}], naoLidos}. Lê Notification type 'analise_ativos_salvos_alerta' de payload.id (sem tabela nova; classe e tipo em metadata). Exige alertas. Consultor: vazio."
+      },
+      {
+        "metodo": "POST",
+        "rota": "/api/analise-ativos/alertas/lidos",
+        "descricao": "{ids?: string[]} (ausente = todos os 90 dias) → {ok, marcados}. Marca readAt só nas Notification desse type do usuário. CSRF; consultor 403."
+      },
+      {
+        "metodo": "GET",
+        "rota": "/api/cron/analise-ativos/alertas-salvos",
+        "descricao": "Disparo manual (Bearer CRON_SECRET) do job 'alertas-salvos' via executarJobAnalise. Em produção roda pela linha de cron com myfinance-job.sh. Flag ALERTAS desligada → 'pulado'."
+      },
+      {
+        "metodo": "GET",
+        "rota": "/api/push/preferencias",
+        "descricao": "(alterada) categorias.analise e analiseVisivel (flag ALERTAS + área liberada para o usuário da sessão)."
+      },
+      {
+        "metodo": "PATCH",
+        "rota": "/api/push/preferencias",
+        "descricao": "(alterada) aceita analise?: boolean. Consultor agindo não altera (403, como hoje para o resto da preferência do cliente)."
+      },
+      {
+        "metodo": "GET",
+        "rota": "/api/profile/export",
+        "descricao": "(alterada) analiseAtivos ganha listas (com itens), filtrosSalvos, comparacoes e alertasEnviados (90 dias: tipo, symbol, chave, data) via salvos/privacidadeSalvos.paraExportacao."
+      },
+      {
+        "metodo": "DELETE",
+        "rota": "/api/profile",
+        "descricao": "(alterada) apagarSalvosDoUsuario(me.id) ao lado de apagarAlvosDoUsuario e antes de bumpSessionVersion: deleteMany em listas (itens por cascade), itens, filtros, comparações, envios E Notification type 'analise_ativos_salvos_alerta', numa transação."
+      },
+      {
+        "metodo": "GET",
+        "rota": "/api/cron/lgpd-retention",
+        "descricao": "(alterada) apaga analise_alerta_envios e Notification type 'analise_ativos_salvos_alerta' com mais de 90 dias (o mesmo prazo do texto da tela)."
+      }
+    ],
+    "alertas": "CONJUNTO MÍNIMO NEUTRO, com 3 tipos. Nenhum aviso sugere ação e nenhum título leva R$. Os textos ficam em textosAlertas.ts (fatia 0) e passam pela varredura linguagemV2, onde 'compra', 'recomendação', 'ranking' e 'melhor' são proibidas.\n1) resultado (padrão LIGADO). Ações: AssetEvento com tipo='resultado', estimado=false, fetchedAt nos últimos 3 dias E data da entrega ≥ hoje−7. O segundo filtro barra backfill ou reprocesso do cvm-ipe, porque gravarEventos.ts regrava fetchedAt no update. É casado pelo cnpj das linhas do Quadro e sai UM aviso por companhia: título 'PETR3/PETR4: …' com os tickers salvos pelo usuário, como em resultadosAnaliseAtivos.ts da Agenda. O texto reaproveita tituloResultado/descricaoResultado de eventos/textosEventos.ts, sem textos paralelos. FIIs: refQuarter novo em fii_quarterly contra o marco 'fii_trimestral'; título 'HGLG11: informe trimestral publicado na CVM'.\n2) provento (padrão LIGADO; é o 'aviso de resultado e data-com' do toast do Pedro). Linha nova em asset_dividend_history (createdAt nos últimos 3 dias) com data-com real (regras/calculo/proventos.dataComReal; no YAHOO usa a data EX) ≥ hoje. Isso evita a avalanche de um backfill. PULA ativo com posição na Carteira do usuário (Portfolio), porque a Agenda já cobre (calendario/lembretes.ts manda 'Provento na conta hoje'). Título 'HGLG11: provento anunciado'. Mensagem do sino: 'Rendimento de R$ 1,10 por cota · data-com 20/10 · pagamento 27/10.' O push leva só o título + corpo genérico.\n3) criterios (padrão DESLIGADO, liga por lista; janela FIXA de 5 anos, como recomendou o designer). CriteriaEval(symbol, 5) contra o marco 'criterios:5'. Mensagem do que o marco suporta: 'WEGE3: de 4 de 6 para 5 de 6 na janela de 5 anos (2021–2025).' Sem nome do critério e sem causa ('reapresentada' é inferência que ninguém grava). Silencioso: 1ª vez de um ativo (grava o marco) e troca de paramsVersion (regrava; na v1→v2 de 16/10 teria gerado avisos em massa). Avisa só se mudouEm > item.createdAt, o que evita o falso 'mudou' de quem tira e salva de novo.\nFORA (com motivo): aviso de preço ('cotação cruza X'), porque a spec §2 o põe fora e um limiar do usuário vira sinal. 'Provento pago', porque duplica a Agenda e dobraria os avisos de FII mensal. Override por ativo, chave 'juntar' e limite de 200 ativos, porque são complexidade sem backend proporcional (ficam para depois, se o uso pedir).\n\nJOB 'alertas-salvos' (src/services/analiseAtivos/alertas/executarAlertasSalvos.ts; detectores PUROS em regras/alertas/detectores.ts):\n- Registro: NomeJob em tipos.ts, NOMES_JOBS, CATALOGO_JOBS (pesado:false, prazoMs 120_000), rota de cron e a linha `10 11 * * * root /usr/local/bin/myfinance-job.sh alertas-salvos` no provision.sh.tftpl. Em produção é preciso acrescentá-la à mão no /etc/cron.d/myfinance, com backup. 11:10 UTC = 08:10 BRT, depois de cvm-ipe, fii-trimestral, criterios (10:30), quadro (10:40) e curadoria (10:55). A cópia da tela diz 'por volta das 8h'; o protótipo, que dizia '08:00', se ajusta.\n- Passos: (1) flag desligada → pulado. (2) Marcos de TODO o Quadro (algumas centenas de linhas, lidas do banco) → detectarCriterios e detectarFiiTrimestral → marcosNovos + fatos. (3) Itens das listas com algum aviso ligado → mapa usuário→ativo→tipos (união entre listas); descarta quem não tem acesso à área (podeAcessarAnaliseAtivos). (4) Lê em lote, SÓ do banco: linhas do Quadro (cnpj), AssetEvento, AssetDividendHistory e Portfolio (posições, para pular provento). Nenhum terceiro é chamado. (5) Por usuário: um aviso por fato (mesmo ativo em 2 listas = 1; mesma companhia = 1); tira as chaves já enviadas. Com mais de 5 novos, cria 1 resumo 'Novidades em N ativos dos seus Salvos' (href /analise-ativos/salvos?aba=alertas) e registra todos os envios. (6) createMany({skipDuplicates:true}) dos envios + Notification (type 'analise_ativos_salvos_alerta', metadata {href:'/analise-ativos/<TICKER>', symbol, tipo, classe, eventoId:chave}). As promessas de enviarPushDaNotificacao são JUNTADAS e esperadas com Promise.allSettled no fim, porque o processo CLI termina. (7) Upsert dos marcos. (8) Apaga envios e Notifications desse type com mais de 90 dias, igual ao lgpd-retention, por redundância. (9) ResultadoJob {usuarios, fatos, avisos, resumos, pulados, erros}. Com --sem-aplicar só calcula e relata.\n- Entrega: sino in-app (NotificationDropdown já usa metadata.href) + aba 'Salvos › Alertas' (lista de 90 dias por dia e classe, 'Marcar todos como lidos'), lida das próprias Notification. Push na categoria nova 'analise' em src/lib/push/contract.ts: CATEGORIA_POR_TYPE com o type literal (sem importar o serviço, para evitar o ciclo de import documentado), TTL 86400, corpoGenerico 'Toque para ver os detalhes na Análise de Ativos.', tag mf-analise-<chave>. Gate da PushPreferencia.analise (sem registro = ligado).\n- Preferências: por lista (3 interruptores) em 'Alertas da lista' na página Salvos e no Criar lista ('Avisar resultado e provento anunciado', marcado). Global de push: linha 'Análise de Ativos: avisos das suas listas' em Perfil › Notificações, só com analiseVisivel. Texto fixo (literal em textosLiterais.ts, com OK do jurídico): 'Os avisos trazem só fatos publicados (entregas à CVM e proventos anunciados). Não são análise nem indicação de investimento.'\n- Consultor: avisos vão sempre ao DONO da lista; o consultor não lê nem marca como lido.\n- Anti-spam: unique (userId, tipo, chave) com skipDuplicates; janelas de 3 e 7 dias; 1 por companhia; teto de 5 por rodada com resumo; marcos silenciosos (1ª vez, troca de parâmetros, mudança anterior ao item); provento pula ativo da carteira; 1 rodada por dia em horário fixo.",
+    "pdf": "DECISÃO: PDF gerado no SERVIDOR com pdfkit (JS puro, sem Chromium no Lightsail de 1,9 GB). Não usar print-CSS. Motivos: a spec pede 'PDF real'; window.print no PWA iOS standalone é instável; o aviso legal precisa sair em toda página; e o PDF tem nome de arquivo. Relatórios e Saúde Financeira continuam com window.print, sem mudança.\nRota: GET /api/analise-ativos/comparacao-pdf?t=&janela=&tipo=, FORA de /comparador/ para não dividir o balde de 30/min do JSON do Comparador. Fatia A cria um tier próprio em src/lib/rateLimit.ts (10/min por IP; o chaveBaldeRateLimit de 4 segmentos já isola o caminho), mais 10 PDFs por hora por usuário via getTtlCache (zera no restart, registrado no ATIVACAO). Recursos pdfComparador + comparador.\nPipeline: montarComparador (o mesmo da tela, números idênticos) → montarDocumentoComparacao (PURO, testável, varrido pela linguagemV2) → renderizarPdfComparacao (pdfkit, A4 retrato; paisagem com 4 ativos se não couber).\nConteúdo, na ordem da tela: 'Comparação · Ações' + data de geração; instrução literal (INSTRUCAO_COMPARADOR_*); colunas com ticker, nome, preço e 'fechamento de DD/MM · fonte B3'; aviso de misto tijolo/papel; 'Critérios de fundamentos · N anos' com marca neutra (check vetorial ou '—') e o fato em texto pequeno; 'Critérios atendidos: n de 6'; grupos de indicadores com formatarAnalise ('—' e 'n/a' iguais aos da tela); 'Leitura dos dados' (literal); rodapé com aviso-legal-v2 integral em TODA página + 'Gerado pelo My Finance em DD/MM/AAAA' + 'página x de y'.\nSEM OPÇÕES no bloco 1 (diverge do protótipo): nunca 'Minha posição na Carteira' (dado pessoal num arquivo que circula, e vazaria a carteira do cliente se o consultor exportasse); nunca nome nem e-mail; mini-gráficos ficam para uma fase 2 em vetor, e o PDF traz a nota 'séries anuais disponíveis no app'. O modal 'Exportar PDF' fica só com prévia, nome do arquivo e 'Baixar PDF'.\nVisual: nenhuma célula com cor ou destaque por valor; cabeçalho da tabela navy #314666 com texto branco, resto cinza neutro, tudo de brandColors.ts. Fonte Outfit em TTF estático (Regular e SemiBold, OFL) em src/fonts/pdf/; o ✓ é vetorial.\nInfra: pdfkit + @types/pdfkit; 'pdfkit' em serverExternalPackages no next.config.ts (lê os AFM por fs); runtime 'nodejs'. Conferir que o build do deploy leva os TTF e AFM para /opt/myfinance/current: rodar `npm run build` + start local antes do merge. Meta: menos de 1 s e menos de 40 MB de RSS para 4 ativos.\nNome do arquivo (nomeArquivoPdf em contrato.ts): comparacao-<classe>-<T1>-<T2>…-AAAA-MM-DD.pdf.\nFront (baixarPdfComparacao em useAnaliseAtivosSalvos.ts): fetch → blob → File. Se navigator.canShare({files}), chama share. No iOS, quando o share depois do await lança NotAllowedError (a ativação do usuário expirou), o helper GUARDA o File e o botão vira 'Compartilhar PDF'; o segundo toque, com ativação nova, chama share. Senão usa <a download> com object URL. AbortError é engolido. Só falha real de rede ou 4xx/5xx mostra 'Não foi possível gerar o PDF. Tente de novo.' Sucesso: toast 'PDF pronto: comparacao-….pdf'. Critério de aceite: QA num iPhone com o app instalado (Pedro).",
+    "flags_e_ativacao": "FLAGS (src/lib/analiseAtivosConfig.ts): todas desligadas por padrão e válidas só com a área liberada (beta + admin).\n- ANALISE_ATIVOS_SALVOS_HABILITADO: pílula Salvos, 'Criar lista', Salvar (cabeçalho, linha, cartão), página /analise-ativos/salvos (notFound sem a flag), Filtros salvos e as APIs listas/salvos/filtros (404 sem a flag).\n- ANALISE_ATIVOS_ALERTAS_HABILITADO: exige SALVOS. Segmento 'Listas | Alertas' da página Salvos, 'Alertas da lista', a opção no Criar lista, a frase do toast ('· você recebe aviso de resultado e data-com'), a linha em Perfil › Notificações, as rotas /alertas e o job (sem a flag termina 'pulado').\n- ANALISE_ATIVOS_PDF_HABILITADO: exige COMPARADOR. Botão 'Exportar PDF' e a rota comparacao-pdf.\n- 'Salvar comparação', 'Comparações salvas' e /comparacoes: SALVOS && COMPARADOR, sem flag própria.\nacessoAnalise.ts: FLAG_RECURSO e RecursosBlocoD (types/analiseAtivosApi.ts) ganham salvos, alertas e pdfComparador; recursosLiberados aplica as dependências; helper novo exigirRecursosAnalise(req, ['salvos','comparador']).\nCASCA: PilulasArea vira lista declarativa [quadro, comparador, ranking (reservado, sem rótulo e sem recurso até o bloco 3: 'ranking' é proibida na varredura e só entra como literal registrado), salvos]. Visual do componente real (branco sobre cinza). Renderiza com ao menos 1 recurso além do Quadro; leva ?classe= ao trocar de pílula; SEM contagem de não lidos (o sino já mostra). 'Criar lista' navy só nas variantes quadro/comparador/salvos (não na página do ativo, onde Registrar é o único primário, §3.2); compacto ao lado do título no celular.\nREGISTRO: decisoes.md ganha a seção 'Bloco 1': consultor pessoal; 'Abrir comparador' do modal não grava (desvio da §3.2 por causa da rec. 7); Ranking sem rótulo; listas em ordem de criação; PDF sem opções; cortes nos avisos.\nATIVAÇÃO EM PRODUÇÃO (docs/analise-ativos/bloco1-salvos/ATIVACAO.md, escrito pela fatia D):\nR0: merge com as flags desligadas; migration aditiva no deploy; conferir `\\d analise_listas` e `push_preferencias.analise`. Nada muda na tela.\nR1: ANALISE_ATIVOS_SALVOS_HABILITADO=true no /etc/myfinance/app.env + restart. QA admin: criar, renomear e apagar lista; Salvar com 0, 1 e 2+ listas; Salvo ✓ no ativo e no Quadro; Salvos em Ações e FIIs; filtros salvos (?filtro, alterado); export LGPD; consultor bloqueado. Desfazer o QA.\nR2: com OK, backup do /etc/cron.d/myfinance (/root/myfinance.cron.bak.$(date +%F)) + linha `10 11 * * * root /usr/local/bin/myfinance-job.sh alertas-salvos`; rodar o runner com --sem-aplicar e conferir as contagens (e as VAPID no ambiente); depois ANALISE_ATIVOS_ALERTAS_HABILITADO=true + restart; acompanhar 2 rodadas (AnaliseJobRun, analise_alerta_envios, sino, aba Alertas, push num aparelho real).\nR3: PDF e Salvar comparação só depois que o COMPARADOR for ligado (aguarda o jurídico) e do OK ao texto do PDF e ao literal dos avisos. ANALISE_ATIVOS_PDF_HABILITADO=true.\nROLLBACK: flag desligada + restart (a UI volta à de hoje; as APIs dão 404); comentar a linha de cron. As tabelas ficam: a migration é aditiva e os dados do usuário são preservados.\nRegistrar cada passo em produção na memória (regra do projeto). PRÉ-REQUISITO separado e anterior: PR de LGPD apagando AnaliseTese e AnaliseCenario no DELETE /api/profile.",
+    "fatias": [
+      {
+        "id": "0",
+        "titulo": "Contratos (bloqueante): schema, flags, tipos, zod, hooks, TODA a cópia e componentes compartilhados",
+        "objetivo": "Fixar tudo o que A–D compartilham, inclusive textos e componentes usados por mais de uma fatia, para elas rodarem em paralelo sem arquivo em comum.",
+        "arquivos_novos": [
+          "prisma/migrations/20261017000000_analise_ativos_salvos/migration.sql",
+          "src/types/analiseAtivosSalvos.ts",
+          "src/services/analiseAtivos/salvos/contrato.ts",
+          "src/hooks/useAnaliseAtivosSalvos.ts",
+          "src/services/analiseAtivos/textosSalvos.ts",
+          "src/services/analiseAtivos/textosAlertas.ts",
+          "src/components/analiseAtivos/salvos/compartilhados/ModalNomeLista.tsx",
+          "src/components/analiseAtivos/salvos/compartilhados/ListaComparacoesSalvas.tsx",
+          "src/components/analiseAtivos/salvos/compartilhados/mostrarToastSalvo.tsx",
+          "src/components/analiseAtivos/salvos/AlertasDaLista.tsx",
+          "src/components/analiseAtivos/salvos/AbaAlertas.tsx",
+          "src/services/analiseAtivos/salvos/__tests__/contrato.test.ts",
+          "src/components/analiseAtivos/salvos/compartilhados/__tests__/compartilhados.test.tsx"
+        ],
+        "arquivos_alterados": [
+          "prisma/schema.prisma",
+          "src/lib/analiseAtivosConfig.ts",
+          "src/services/analiseAtivos/acesso/acessoAnalise.ts",
+          "src/app/api/analise-ativos/config/route.ts",
+          "src/types/analiseAtivosApi.ts",
+          "src/lib/queryKeys.ts",
+          "src/constants/brandColors.ts",
+          "src/services/analiseAtivos/textosLiterais.ts",
+          "src/components/analiseAtivos/quadro/TabelaQuadro.tsx",
+          "src/components/analiseAtivos/quadro/CartoesQuadro.tsx",
+          "src/services/analiseAtivos/__tests__/linguagemV2Global.test.ts",
+          "docs/analise-ativos/v2-filtros/decisoes.md",
+          ".env.example"
+        ],
+        "depende_de": [],
+        "detalhes": "Schema: os 6 modelos + PushPreferencia.analise + relações no User (ver modelos_prisma); SQL escrito à mão, só aditivo. contrato.ts (isomórfico): ROTAS_SALVOS; LIMITES (nome 40, 20 listas, 200/lista, 500/usuário, 20 filtros/classe, 30 comparações, 10 PDF/h); nomeNormalizado(); TICKER_RE_POR_CLASSE (acao/fii = TICKER_RE de cenarios/contrato.ts; stock/reit = /^[A-Z]{1,5}(\\.[A-Z])?$/, reservado); schemas ListaPost{nome,tickerInicial?}/ListaPatch/SalvosPut (com a regra do sentinela 'padrao' documentada)/FiltroSalvo (EstadoFiltroSalvoV1 strict: janela, criterios, naCarteira, setor)/FiltroPatch/ComparacaoPost/AlertasLista{resultado,provento,criterios}/AlertasLidos; chaveComparacao(tickers, janela, tipoFii); nomeArquivoPdf(classe, tickers, data); ANALISE_SALVOS_ALERTA_TYPE='analise_ativos_salvos_alerta'; TIPOS_AVISO=['resultado','provento','criterios','resumo']; RETENCAO_AVISOS_DIAS=90; JANELA_AVISO_CRITERIOS=5; MENSAGEM_LISTAS_PESSOAIS. Tipos: requisições e respostas de todas as rotas, inclusive LinhaLista {…LinhaQuadroApi, adicionadoEm, criteriosAnterior?}; AnaliseAtivosShellProps.variante ganha 'salvos'. Parâmetro opcional ?filtro=<id> no contrato de URL do Quadro (lerEstadoQuadro/escreverEstadoQuadro, só o tipo e o parse, sem UI). Flags + recursosLiberados com dependências + exigirRecursosAnalise. queryKeys.analiseAtivos: listas(), lista(id, params), salvosIndice(), filtros(classe), comparacoes(classe), alertas(classe). Hooks (csrfFetch, credentials:'include'): useListas, useLinhasLista, useCriarLista, useRenomearLista, useApagarLista, useIndiceSalvos, useDefinirSalvo (otimista no índice, reverte em erro, invalida listas/lista), useAdicionarItem, useRemoverItem, filtros (CRUD + marcarUso), comparações (CRUD), useAtualizarAlertasLista, useAlertas/useMarcarAlertasLidos, baixarPdfComparacao (com o caminho NotAllowedError → 'Compartilhar PDF'). Nenhum invalida a Carteira. textosSalvos/textosAlertas: TODA a cópia das fatias B, C e D (designer + literais do Pedro: '<b>WEGE3</b> salvo em <b>Salvos</b>', ' · você recebe aviso de resultado e data-com', '<b>WEGE3</b> removido de Salvos', 'Adicionado em', 'n de {limite}', vazios, erros, consultor); nada de 'ranking', 'compre', 'compra', 'recomendação', 'oportunidade', 'faltam', 'melhores'. textosLiterais ganha 'aviso-salvos-alertas' ('Os avisos trazem só fatos publicados (entregas à CVM e proventos anunciados). Não são análise nem indicação de investimento.'), pendente de jurídico. Componentes compartilhados prontos: ModalNomeLista (criar/renomear; contador n/40; 409 inline; opção 'Avisar resultado e provento anunciado' só com recursos.alertas), ListaComparacoesSalvas (variante 'popover' para B e 'pagina' para C: reabrir, renomear, apagar com confirmação), mostrarToastSalvo (toast com Desfazer, sobre mostrarToastMover). AlertasDaLista e AbaAlertas: stubs que devolvem null (D preenche). brandColors.ts: token fundoSelecionado #EDF2F8 (já usado em 20 arquivos) e borda #DCE6F2, oficializados. TabelaQuadro/CartoesQuadro: props opcionais acaoLinha?(linha) e rotuloColunaAcao?; sem a prop o DOM fica idêntico; coluna de 56 px; o clique não propaga para o link. decisoes.md: seção 'Bloco 1' (ver flags_e_ativacao).",
+        "testes": "contrato.test (limites; strict; nomeNormalizado com acento e maiúscula; chaveComparacao estável à ordem; TICKER_RE_POR_CLASSE; nomeArquivoPdf); acessoAnalise.test (dependências; sem flags não consulta o banco); config route test; compartilhados.test (ModalNomeLista 409 e contador; ListaComparacoesSalvas nas 2 variantes; toast Desfazer); TabelaQuadro/CartoesQuadro sem acaoLinha = snapshot de hoje e, com acaoLinha, o clique não navega; linguagemV2Global varre textosSalvos e textosAlertas com encontrarPalavrasProibidasV2; type-check + lint.",
+        "criterios_aceite": [
+          "npx prisma validate e generate ok; migration só com CREATE/ADD COLUMN DEFAULT",
+          "Com todas as flags desligadas, a UI e as respostas atuais ficam idênticas",
+          "/api/analise-ativos/config devolve salvos/alertas/pdfComparador coerentes com as dependências",
+          "Toda a cópia do bloco está em textosSalvos/textosAlertas e passa na varredura sem exceção nova (o aviso dos alertas é literal registrado)",
+          "Nenhum nome de modelo, tabela ou rota colide com Watchlist/watchlists",
+          "B e C não precisam editar nenhum arquivo criado aqui"
+        ]
+      },
+      {
+        "id": "A",
+        "titulo": "Backend: listas, Salvos, filtros, comparações, PDF, rate limit e LGPD",
+        "objetivo": "Implementar as rotas e os serviços, menos os avisos, com acesso, consultor, limites e LGPD.",
+        "arquivos_novos": [
+          "src/services/analiseAtivos/salvos/listasService.ts",
+          "src/services/analiseAtivos/salvos/filtrosService.ts",
+          "src/services/analiseAtivos/salvos/comparacoesService.ts",
+          "src/services/analiseAtivos/salvos/privacidadeSalvos.ts",
+          "src/services/analiseAtivos/salvos/linhasDaLista.ts",
+          "src/app/api/analise-ativos/listas/route.ts",
+          "src/app/api/analise-ativos/listas/[id]/route.ts",
+          "src/app/api/analise-ativos/listas/[id]/itens/route.ts",
+          "src/app/api/analise-ativos/listas/[id]/itens/[ticker]/route.ts",
+          "src/app/api/analise-ativos/salvos/route.ts",
+          "src/app/api/analise-ativos/salvos/[ticker]/route.ts",
+          "src/app/api/analise-ativos/filtros/route.ts",
+          "src/app/api/analise-ativos/filtros/[id]/route.ts",
+          "src/app/api/analise-ativos/comparacoes/route.ts",
+          "src/app/api/analise-ativos/comparacoes/[id]/route.ts",
+          "src/app/api/analise-ativos/comparacao-pdf/route.ts",
+          "src/services/analiseAtivos/pdf/montarDocumentoComparacao.ts",
+          "src/services/analiseAtivos/pdf/renderizarPdfComparacao.ts",
+          "src/fonts/pdf/Outfit-Regular.ttf",
+          "src/fonts/pdf/Outfit-SemiBold.ttf",
+          "src/services/analiseAtivos/salvos/__tests__/listasService.test.ts",
+          "src/services/analiseAtivos/salvos/__tests__/linhasDaLista.test.ts",
+          "src/app/api/analise-ativos/listas/__tests__/route.test.ts",
+          "src/app/api/analise-ativos/salvos/__tests__/route.test.ts",
+          "src/app/api/analise-ativos/filtros/__tests__/route.test.ts",
+          "src/app/api/analise-ativos/comparacoes/__tests__/route.test.ts",
+          "src/app/api/analise-ativos/comparacao-pdf/__tests__/route.test.ts",
+          "src/services/analiseAtivos/pdf/__tests__/montarDocumentoComparacao.test.ts"
+        ],
+        "arquivos_alterados": [
+          "src/app/api/profile/export/route.ts",
+          "src/app/api/profile/route.ts",
+          "src/lib/rateLimit.ts",
+          "src/lib/__tests__/rateLimit.test.ts",
+          "src/app/api/analise-ativos/__tests__/contratoSemNota.test.ts",
+          "package.json",
+          "package-lock.json",
+          "next.config.ts",
+          "src/fonts/README.md"
+        ],
+        "depende_de": ["0"],
+        "detalhes": "Todas as rotas: withErrorHandler, exigirRecursoAnalise/exigirRecursosAnalise ANTES da sessão, zod do contrato (400 com issues), no-store, dynamic='force-dynamic', sempre payload.id. actingClient → GET vazio com podeSalvar=false e mutações 403 MENSAGEM_LISTAS_PESSOAIS (padrão tese/cenários). Mutações em prisma.$transaction com pg_advisory_xact_lock(hashtext(userId)) para limites e para o sentinela 'padrao' (0 listas → cria 'Salvos'; 1 → essa; 2+ → 400). Ticker: TICKER_RE_POR_CLASSE + obterLinhaQuadro, e a classe vem da linha. linhasDaLista: obterLinhasQuadroApi(classe, janela) em memória filtrado pelos symbols + compararLinhas (A–Z padrão) + adicionadoEm + criteriosAnterior lido de analise_alerta_marcos ('criterios:5', só se mudouEm > adicionadoEm). A tabela é da fatia 0, e A só lê, porque D grava. Itens fora do Quadro vão para foraDoQuadro com motivo. Comparações: tickers todos da classe, chave inclui tipoFii, 200 {atualizada:true} na mesma chave. PDF: ver campo pdf; tier novo em rateLimit.ts para '/api/analise-ativos/comparacao-pdf' (10/min) ANTES do tier pesado, mais 10/h por usuário (getTtlCache). LGPD: privacidadeSalvos.paraExportacao(userId) (listas+itens, filtros, comparações, envios de 90 dias) e apagarSalvosDoUsuario(userId) (+ deleteMany Notification type ANALISE_SALVOS_ALERTA_TYPE), chamado em src/app/api/profile/route.ts ao lado de apagarAlvosDoUsuario. Nenhum log de acesso sensível: o consultor não lê.",
+        "testes": "Rotas com Prisma mockado (vi.hoisted) e mockAuthAsUser/mockAuthAsConsultant: flag desligada → 404 antes da sessão; consultor → GET vazio e 403; limites 409 (21ª lista, 201º item, 501º do usuário, 21º filtro da classe, 31ª comparação); nome repetido 409; PUT /salvos 'padrao' com 0 listas cria 'Salvos', com 1 usa a existente, com 2+ dá 400, e dois PUT concorrentes criam uma lista só; lista de outro usuário → 404; ticker de classe errada → 400; comparação misturada → 400 e a mesma chave → 200. linhasDaLista: criteriosAnterior só depois de adicionadoEm; foraDoQuadro. PDF: Content-Type application/pdf, começa com %PDF, nome do arquivo, 404 sem pdfComparador, 429 no 11º da hora; montarDocumento: aviso legal em todas as páginas, linguagemV2 sem acerto, sem posição e sem campos de usuário. rateLimit: o balde do PDF é separado do /comparador. contratoSemNota inclui as rotas novas. Export e exclusão: blocos novos e deleteMany das Notification.",
+        "criterios_aceite": [
+          "Todas as rotas respondem conforme o contrato da fatia 0",
+          "Consultor agindo nunca lê nem grava lista, filtro ou comparação do cliente",
+          "Exclusão de conta remove listas, itens, filtros, comparações, envios e Notifications de aviso; o export inclui os 4 blocos",
+          "PDF em < 1 s e < 40 MB de RSS para 4 ativos, com aviso legal em toda página e sem dado pessoal; `npm run build` + start local gera PDF (TTF/AFM presentes)",
+          "Gerar PDF não consome a cota do JSON do Comparador"
+        ]
+      },
+      {
+        "id": "B",
+        "titulo": "Entradas: Salvar no ativo e no Quadro, Filtros salvos, Salvar comparação e Exportar PDF",
+        "objetivo": "Ligar as entradas de UI às APIs com o comportamento do HTML do Pedro (D1), a regra de clique do protótipo e a paleta do My Finance.",
+        "arquivos_novos": [
+          "src/components/analiseAtivos/ativo/acoes/BotaoSalvarAtivo.tsx",
+          "src/components/analiseAtivos/ativo/acoes/SheetSalvarEmListas.tsx",
+          "src/components/analiseAtivos/ativo/acoes/LinhaSalvoEm.tsx",
+          "src/components/analiseAtivos/quadro/BotaoSalvarLinha.tsx",
+          "src/components/analiseAtivos/quadro/FiltrosSalvos.tsx",
+          "src/components/analiseAtivos/quadro/FaixaFiltroAplicado.tsx",
+          "src/components/analiseAtivos/quadro/ModalSalvarFiltro.tsx",
+          "src/components/analiseAtivos/comparador/BotaoSalvarComparacao.tsx",
+          "src/components/analiseAtivos/comparador/ModalExportarPdf.tsx",
+          "src/components/analiseAtivos/comparador/MenuComparacoesSalvas.tsx",
+          "src/components/analiseAtivos/ativo/acoes/__tests__/BotaoSalvarAtivo.test.tsx",
+          "src/components/analiseAtivos/quadro/__tests__/FiltrosSalvos.test.tsx",
+          "src/components/analiseAtivos/comparador/__tests__/BotaoSalvarComparacao.test.tsx",
+          "src/components/analiseAtivos/comparador/__tests__/ModalExportarPdf.test.tsx"
+        ],
+        "arquivos_alterados": [
+          "src/components/analiseAtivos/ativo/acoes/BarraAcoesAtivo.tsx",
+          "src/components/analiseAtivos/quadro/QuadroAnalise.tsx",
+          "src/components/analiseAtivos/quadro/FiltrosQuadro.tsx",
+          "src/components/analiseAtivos/comparador/Comparador.tsx",
+          "src/components/analiseAtivos/comparador/LeituraDosDados.tsx"
+        ],
+        "depende_de": ["0"],
+        "detalhes": "Cabeçalho do ativo (§3.2: Comparar · Salvar · Planejar · Ver na Carteira · Registrar). BotaoSalvarAtivo é pequeno e branco (BOTAO_PEQUENO, 44 px): marcador vazio ou preenchido #396CAA, 'Salvar' ou 'Salvo ✓' (fundo fundoSelecionado). Regra do clique: 0–1 lista → PUT ['padrao'] ou [] com mostrarToastSalvo (literal do Pedro; a frase do aviso só com recursos.alertas; 'removido de <lista>' com Desfazer); 2+ listas → SheetSalvarEmListas (popover no computador, BottomSheet + useMobileHistoryLayer no celular): caixas que gravam na hora, o <label> inteiro de 52 px é o alvo, 'Nova lista com <T>' abre ModalNomeLista (tickerInicial), 'Pronto'. LinhaSalvoEm: 'Salvo em Dividendos e Utilidade pública' como TEXTO + um único botão 'Mudar listas' de 44 px. Consultor: desabilitado com title 'As listas são pessoais'. Quadro: acaoLinha = BotaoSalvarLinha (44 px, aria-label 'Salvar WEGE3' / 'WEGE3 está salvo'), estado pelo useIndiceSalvos, mesma regra. FiltrosSalvos: 'Filtros salvos ▾' (dropdown no computador, BottomSheet no celular) com os da classe ('n de {limite}'); aplicar = router.replace com escreverEstadoQuadro + ?filtro=<id> + marcarUso; FaixaFiltroAplicado 'Filtro salvo: X' e, ao mexer nos chips, '· alterado' com 'Salvar alterações' (PATCH estado), 'Salvar como novo' (ModalSalvarFiltro) e '×'; lixeira com confirmação na própria lista; 409 → 'Já existe um filtro com esse nome. Substituir?'; ajustado → aviso de critério retirado. Comparador: na barra, 'Comparações salvas (n) ▾' (MenuComparacoesSalvas = ListaComparacoesSalvas variante popover, só com n > 0), 'Exportar PDF' (secundário, só com pdfComparador; ModalExportarPdf só com prévia, nome do arquivo e Baixar, sem opções; 'Gerando PDF…'; NotAllowedError → 'Compartilhar PDF') e 'Salvar comparação' navy (salvos+comparador) → 'Comparação salva ✓'; o MESMO BotaoSalvarComparacao no slot `acao` de LeituraDosDados (§3.3). 200 atualizada → 'Comparação atualizada'. O modal Comparar NÃO grava. Tudo em 44 px, foco visível #0079F2/#6E9DC4, dark mode, brandColors, cópia só importada de textosSalvos.",
+        "testes": "RTL (jsdom) com fetch mockado: Salvar ↔ Salvo ✓ otimista com reversão em erro; 0 listas cria 'Salvos', 1 lista alterna nela, 2+ abre o sheet; consultor desabilitado; toast sem a frase do aviso com alertas desligado; marcador da linha não navega; FiltrosSalvos aplica a URL com ?filtro, marca 'alterado' ao mexer e oferece Substituir no 409; Comparador: botões escondidos sem recurso, os 2 'Salvar comparação' mandam tickers na ordem dos slots + janela + tipoFii; PDF chama baixarPdfComparacao e NotAllowedError mostra 'Compartilhar PDF'. Varredura de DOM (src/test/utils/varrerDom.ts) com as flags ligadas.",
+        "criterios_aceite": [
+          "Com SALVOS desligado, cabeçalho, Quadro e Comparador ficam idênticos aos de hoje",
+          "Salvar consistente entre cabeçalho, linha e cartão (índice compartilhado), na regra 0/1/2+",
+          "Filtro salvo reaplica janela, critérios, setor e na carteira exatamente; 'alterado' aparece ao mudar",
+          "Exportar PDF funciona no PWA iOS (share, inclusive pelo segundo toque) e Android (QA do Pedro em aparelho real)",
+          "Todos os alvos novos com ≥ 44 px; nenhum texto fora de textosSalvos"
+        ]
+      },
+      {
+        "id": "C",
+        "titulo": "Página Salvos + casca de 4 pílulas + Criar lista",
+        "objetivo": "Entregar /analise-ativos/salvos com listas nomeadas, abas Ações · FIIs, tabela com as colunas do Quadro, Adicionado em e Remover, e a casca pronta para 4 pílulas.",
+        "arquivos_novos": [
+          "src/app/(admin)/(others-pages)/analise-ativos/salvos/page.tsx",
+          "src/components/analiseAtivos/salvos/PaginaSalvos.tsx",
+          "src/components/analiseAtivos/salvos/SeletorListas.tsx",
+          "src/components/analiseAtivos/salvos/CabecalhoLista.tsx",
+          "src/components/analiseAtivos/salvos/ConfirmarApagarLista.tsx",
+          "src/components/analiseAtivos/salvos/TabelaSalvos.tsx",
+          "src/components/analiseAtivos/salvos/EstadoVazioSalvos.tsx",
+          "src/components/analiseAtivos/shell/BotaoCriarLista.tsx",
+          "src/components/analiseAtivos/salvos/__tests__/PaginaSalvos.test.tsx",
+          "src/components/analiseAtivos/shell/__tests__/PilulasArea.test.tsx"
+        ],
+        "arquivos_alterados": [
+          "src/components/analiseAtivos/shell/AnaliseAtivosShell.tsx",
+          "src/components/analiseAtivos/shell/PilulasArea.tsx"
+        ],
+        "depende_de": ["0"],
+        "detalhes": "page.tsx: notFound() sem analiseAtivosSalvosHabilitado() (o gate da área segue no layout); AnaliseAtivosShell variante='salvos'. Casca: BotaoCriarLista navy (BOTAO_PRIMARIO) só nas variantes quadro/comparador/salvos, com recursos.salvos e sem consultor; compacto ao lado do título no celular; abre ModalNomeLista (fatia 0) e vai para /analise-ativos/salvos?lista=<id>. PilulasArea: array declarativo [quadro, comparador, ranking reservado sem rótulo, salvos], branco sobre cinza, sem contagem, ?classe= preservado, dividindo a largura a ≤ 420 px. PaginaSalvos: estado na URL (?lista=&classe=&ordem=&dir=&modo=&janela=&aba=listas|alertas); segmento 'Listas | Alertas' (min-h 44 px) só com recursos.alertas, e a aba Alertas renderiza <AbaAlertas/> (fatia D). SeletorListas: chips roláveis na horizontal em ordem de criação + 'Nova lista'. CabecalhoLista: 'Alertas da lista' (abre <AlertasDaLista/> da fatia D, só com alertas), 'Renomear' (ModalNomeLista) e 'Apagar lista' (ConfirmarApagarLista com botão vermelho: 'Apagar a lista X? Os ativos continuam na Carteira e nas outras listas.'), com botões de ícone de 44×44. Abas Ações · FIIs com contador (ResponsiveTabNav). TabelaSalvos: ≥ lg = TabelaQuadro com acaoLinha '×' (44 px, aria-label 'Remover WEGE3 de <lista>', mostrarToastSalvo com Desfazer → POST item) + coluna 'Adicionado em' + sublinha 'antes 5 de 6 · 16/10' quando houver criteriosAnterior; < lg = CartoesQuadro com a mesma ação. Resumo | Detalhado e janela 3|5|10 como no Quadro; A–Z padrão; seção 'Fora do Quadro'. ListaComparacoesSalvas (fatia 0, variante página) da classe, só com recursos.comparador. Vazios: sem listas, lista sem ativos da classe (atalho para a outra aba). Erro com 'Tentar de novo'. Consultor: 'As listas são pessoais e não aparecem no modo consultor.' Mobile: sem rolagem horizontal a 390/320 px, alvos ≥ 44 px, BottomSheet + useMobileHistoryLayer.",
+        "testes": "RTL: pílulas com salvos e sem comparador e vice-versa; ordem Quadro, Comparador, Salvos; classe preservada; sem contagem na pílula; Criar lista ausente na página do ativo; Salvos lista, troca aba e classe, remove com Desfazer, renomeia, apaga com confirmação; 'antes n de 6'; segmento Alertas só com recurso; vazio, erro e consultor; varredura de DOM; página com notFound sem a flag.",
+        "criterios_aceite": [
+          "Com SALVOS desligado, /analise-ativos/salvos dá 404 e a casca fica idêntica",
+          "Pílulas na ordem da spec, prontas para Ranking no bloco 3 sem refatorar",
+          "Tabela Salvos usa as mesmas colunas e células do Quadro + Adicionado em + Remover",
+          "Claro/escuro, 390 e 320 px sem rolagem horizontal, alvos ≥ 44 px, só tokens de brandColors"
+        ]
+      },
+      {
+        "id": "D",
+        "titulo": "Avisos: job diário, push 'analise', aba Alertas, preferências e ativação",
+        "objetivo": "Gerar os 3 avisos neutros pelo sino, pela aba Alertas e pelo push, com dedupe, anti-spam, preferências e retenção de 90 dias, registrados como job da área.",
+        "arquivos_novos": [
+          "src/services/analiseAtivos/regras/alertas/detectores.ts",
+          "src/services/analiseAtivos/alertas/executarAlertasSalvos.ts",
+          "src/services/analiseAtivos/alertas/textosDoAviso.ts",
+          "src/services/analiseAtivos/alertas/avisosDoUsuario.ts",
+          "src/app/api/cron/analise-ativos/alertas-salvos/route.ts",
+          "src/app/api/analise-ativos/alertas/route.ts",
+          "src/app/api/analise-ativos/alertas/lidos/route.ts",
+          "src/services/analiseAtivos/regras/alertas/__tests__/detectores.test.ts",
+          "src/services/analiseAtivos/alertas/__tests__/executarAlertasSalvos.test.ts",
+          "src/app/api/analise-ativos/alertas/__tests__/route.test.ts",
+          "docs/analise-ativos/bloco1-salvos/ATIVACAO.md"
+        ],
+        "arquivos_alterados": [
+          "src/services/analiseAtivos/tipos.ts",
+          "src/services/analiseAtivos/jobs/nomesJobs.ts",
+          "src/services/analiseAtivos/jobs/catalogoJobs.ts",
+          "infra/modules/lightsail/provision.sh.tftpl",
+          "src/lib/push/contract.ts",
+          "src/lib/push/__tests__/contract.test.ts",
+          "src/app/api/push/preferencias/route.ts",
+          "src/app/api/push/preferencias/__tests__/route.test.ts",
+          "src/components/user-profile/NotificacoesPreferencias.tsx",
+          "src/app/api/cron/lgpd-retention/route.ts",
+          "src/components/analiseAtivos/salvos/AlertasDaLista.tsx",
+          "src/components/analiseAtivos/salvos/AbaAlertas.tsx"
+        ],
+        "depende_de": ["0"],
+        "detalhes": "Ver o campo alertas. detectores.ts PURO: detectarResultados(eventos, cnpjParaTickers, hoje) (estimado=false, fetchedAt ≤ 3 dias E data ≥ hoje−7, 1 fato por companhia), detectarFiiTrimestral(fiiTri, marcos), detectarProventos(linhas, hoje) (dataComReal ≥ hoje, createdAt ≤ 3 dias), detectarCriterios(evals5, marcos) → {fatos, marcosNovos} (1ª vez e paramsVersion novo silenciosos; marco guarda anterior e mudouEm). textosDoAviso reaproveita tituloResultado/descricaoResultado de eventos/textosEventos.ts e o resto vem de textosAlertas. executarAlertasSalvos(ctx): marcos de TODO o Quadro; itens com aviso ligado; filtro de acesso; pula provento de ativo com posição (Portfolio do usuário); corte de critérios por item.createdAt; dedupe; teto de 5 + resumo; createMany skipDuplicates dos envios + Notification; promessas de push com allSettled no fim; upsert dos marcos; limpeza de 90 dias; ctx.aplicar=false não grava; ctx.estourouPrazo → parcial. avisosDoUsuario: GET /alertas (Notification desse type, 90 dias, filtro de classe pelo metadata) e POST /alertas/lidos (readAt), com o consultor vazio/403. Registro do job: NomeJob 'alertas-salvos', NOMES_JOBS, CATALOGO_JOBS (pesado:false), rota de cron igual à da curadoria e a linha `10 11 * * *` no template. contract.ts: CategoriaPush 'analise', CATEGORIA_POR_TYPE literal, TTL 86400, corpoGenerico. preferencias: GET analise + analiseVisivel; PATCH analise. NotificacoesPreferencias: a linha só com analiseVisivel. lgpd-retention: apaga envios e Notifications desse type com mais de 90 dias. AlertasDaLista: 3 interruptores (Resultado entregue à CVM; Provento anunciado (data-com); Mudança na contagem de critérios, 5 anos), PATCH /listas/[id], com o literal 'aviso-salvos-alertas' (data-texto-legal) e chaves com área de toque de 44 px no próprio elemento. AbaAlertas: lista por dia, classe da aba, 'Marcar todos como lidos', vazio, erro e o painel 'Como os avisos chegam' (sino sempre, push conforme o Perfil, 'por volta das 8h', resumo acima de 5). ATIVACAO.md: R0–R3 + rollback + SQL de conferência read-only + nota de que o limite de PDF zera no restart.",
+        "testes": "detectores: estimado não avisa; resultado novo avisa uma vez; entrega antiga com fetchedAt novo (reprocesso) não avisa; PETR3+PETR4 = 1 fato; provento do backfill e data-com passada não avisam; YAHOO usa a data EX; criterios 4→5 avisa; troca de paramsVersion e 1ª vez não avisam; FII refQuarter novo avisa. Job (Prisma mockado): 2 rodadas sem duplicar; mesmo ativo em 2 listas = 1; ativo na carteira não recebe provento; mudança anterior ao item não avisa; mais de 5 = 1 resumo; usuário sem acesso pulado; preferência por lista respeitada; push esperado antes de terminar; --sem-aplicar não grava; flag desligada = pulado; limpeza de 90 dias. Rotas /alertas (consultor, classe, lidos). contract (categoria, TTL, tag, href); preferencias (analise, analiseVisivel); lgpd-retention; textos sem R$ no título e sem palavra proibida.",
+        "criterios_aceite": [
+          "Rodar o job 2× no mesmo dia não duplica aviso; o insert nunca quebra por unique",
+          "Nenhum título contém R$ ou palavra proibida; o push leva só título + corpo genérico",
+          "Usuário com push 'analise' desligado recebe só sino e aba",
+          "Troca de versão de critérios (v1→v2) e reprocesso do cvm-ipe não geram avisos",
+          "Job < 30 s com 1.000 usuários × 50 ativos (seed sintético), só lendo do banco; volume real de proventos/dia medido no DEV quando o Neon voltar"
+        ]
+      }
+    ],
+    "riscos": [
+      "Compliance: 'ranking', 'compra' e 'recomendação' estão em PALAVRAS_PROIBIDAS_BLOCO_D (varreduraTextos.ts). A pílula Ranking fica sem rótulo até o bloco 3. O aviso dos alertas foi reescrito sem essas palavras e registrado como literal, pendente de jurídico. O cenário q-rank do protótipo não vai para o código.",
+      "Compliance: o aviso de 'n de 6' pode ser lido como sinal. Por isso fica desligado por padrão, em janela fixa de 5 anos, com texto factual sem nome do critério nem causa. Aviso de preço fica fora (spec §2).",
+      "Avalanche de avisos: backfill de proventos, reprocesso do cvm-ipe (gravarEventos regrava fetchedAt), troca de criteria_params e a 1ª rodada. Mitigado com data-com ≥ hoje, data da entrega ≥ hoje−7, marcos silenciosos, um aviso por companhia, teto de 5 + resumo, skipDuplicates e o corte por item.createdAt.",
+      "Push num processo CLI: as outras fontes chamam enviarPushDaNotificacao com `void`. No job, as promessas são juntadas e esperadas com allSettled; conferir as VAPID no dry-run.",
+      "LGPD: o DELETE /api/profile ANONIMIZA o User (o cascade não roda). apagarSalvosDoUsuario é explícito e inclui as Notifications de aviso. AnaliseTese e AnaliseCenario também não são apagadas hoje: PR SEPARADO e ANTERIOR. Retenção de 90 dias no lgpd-retention e no job.",
+      "PDF: pdfkit precisa de serverExternalPackages e TTF estático. Se o build do deploy não levar TTF/AFM, falha só em produção, então rodar build + start local antes do merge. O limite de 10/h por usuário está em memória e zera no restart (aceitável numa instância só; documentado).",
+      "iOS PWA: navigator.share depois de await perde a ativação (NotAllowedError). Tratado com o segundo toque 'Compartilhar PDF'; exige QA em iPhone real com o app instalado.",
+      "Em produção o COMPARADOR está desligado até o jurídico, então Salvar comparação e PDF só passam por QA em DEV até lá.",
+      "Banco DEV (Neon) com 'exceeded the quota': migration escrita à mão e volumes não medidos. A fatia D mede quando o banco voltar.",
+      "Concorrência: a regra do sentinela 'padrao' e os limites dependem do advisory lock na transação (sem índice parcial, para evitar drift).",
+      "Itens que saem do Quadro: a seção 'Fora do Quadro' é obrigatória, senão o item some e não dá para remover.",
+      "Linha de cron em produção é manual (o template só vale para provisionamento novo), com backup, como no ATIVACAO da v2.4.",
+      "Críticas aceitas em parte, com motivo: (a) 'pular provento de ativo na carteira OU desligar por padrão em FII': ficou a primeira opção, porque cobre a duplicação com a Agenda sem esconder o aviso de quem só acompanha o fundo. (b) 'bitmap por critério no marco': não entra, porque o texto simplificado não precisa dele e dá para acrescentar depois no Json sem migration. (c) Aba Alertas: mantida, mas como lista simples sobre Notification, sem tabela nova e sem contagem na pílula.",
+      "Rejeitado do protótipo, com motivo: override de aviso por ativo (AnaliseAlertaConfig), chave 'juntar' e limite de 200 ativos com aviso. Somam modelo, UI e testes sem ganho proporcional no MVP, e o teto de 5 + resumo já cobre o spam. Também rejeitado assetId no item, porque o precedente AnaliseTese é sem FK e o Quadro é por symbol.",
+      "Rejeitado da proposta anterior: reordenar listas (PUT /listas/ordem e coluna ordem), porque o protótipo usa ordem de criação; se pedirem, a coluna é aditiva. Também saem a coluna `padrao` e a lista padrão escondida, porque criavam uma 2ª 'Salvos' para quem só tinha 'Dividendos'. Filtro salvo deixa de guardar modo/ordem/dir para ficar igual ao protótipo e mais fácil de explicar."
+    ],
+    "perguntas_para_wellington": [
+      "DIVERGE DO DESIGNER. Consultor agindo por um cliente: o protótipo deixa o consultor salvar listas, filtros e comparações na conta da cliente ('os alertas chegam nos aparelhos dela'). RECOMENDO que sejam PESSOAIS, como a tese e os cenários: no modo consultor aparece 'As listas são pessoais e não aparecem no modo consultor.' e os botões ficam desabilitados. Uma curadoria de ativos feita por terceiro chegando ao aparelho do cliente é sensível perante a CVM 20. De acordo?",
+      "DIVERGE DO DESIGNER. Exportar PDF do Comparador: RECOMENDO gerar no servidor (PDF de verdade, igual no iPhone e no Android, aviso legal em toda página) e SEM opções: nunca 'Minha posição na Carteira' nem nome/e-mail (PDF circula, e o consultor vazaria a carteira do cliente). Os mini-gráficos ficam para uma fase 2. O protótipo tinha mini-gráficos marcados e a posição opcional. Também recomendo flag própria e OK do jurídico ao texto. De acordo?",
+      "DIVERGE DO DESIGNER. Avisos das listas: RECOMENDO 3 tipos neutros: resultado entregue à CVM e provento anunciado (data-com), ligados por padrão, e mudança no 'n de 6' (5 anos), desligado por padrão. Mais uma aba 'Alertas' simples com 90 dias. Corto do protótipo: 'provento pago' (a Agenda já avisa no dia do pagamento, e seriam 2 pushes pelo mesmo fato), o ajuste por ativo, a chave 'juntar' e o limite de 200. Aviso de preço ('WEGE3 passou de R$ X') fica fora, como na spec do Pedro; se quiser, levar ao jurídico antes. De acordo?",
+      "DIVERGE DO DESIGNER. Nome da primeira lista e textos do Salvar: o protótipo cria 'Meus salvos' e diz 'saiu de'. RECOMENDO os literais do HTML do Pedro: a lista se chama 'Salvos', o toast é 'WEGE3 salvo em Salvos · você recebe aviso de resultado e data-com' (a 2ª parte só com avisos ligados) e 'WEGE3 removido de Salvos'. O efeito colateral é a página mostrar 'Salvos › Salvos' até o usuário renomear ou criar outra. Fica assim?",
+      "Comportamento do Salvar e das listas (alinhado entre arquiteto e designer, falta o seu OK): com 0 listas, o 1º Salvar cria 'Salvos'; com 1 lista, alterna nela; com 2 ou mais, abre 'Salvar em…'. As listas ficam na ordem de criação (sem reordenar neste bloco), e os ativos dentro da lista seguem A–Z com ordenação por coluna, como no Quadro. Só o botão 'Salvar comparação' grava; o 'Abrir comparador' do modal continua sem gravar (desvio da spec §3.2 que vem da rec. 7, agora registrado). RECOMENDO assim. De acordo?"
+    ]
+  },
+  "design": {
+    "resumo": "Revisão do protótipo do Bloco 1 (Salvos, filtros salvos, comparações salvas com PDF e alertas), no mesmo arquivo. Aceitei as críticas válidas e alinhei o protótipo à arquitetura. (1) Consultor: listas, filtros e comparações são pessoais. Salvos fica vazio no modo consultor e Criar lista, Salvar, o marcador, Salvar filtros, Filtros salvos, Salvar comparação e Salvas ficam desabilitados com title. O PDF continua liberado. (2) Alertas: saíram o override por ativo, 'Provento pago', a chave 'Juntar' (agora é uma regra fixa, mostrada como 'Sempre'), o limite de 200 ativos, a coluna Alertas em Salvos e a contagem na pílula. Ficaram 3 tipos neutros (resultado entregue à CVM, provento anunciado, contagem de critérios em 5 anos, desligada por padrão), retenção de 90 dias e envio às 08h10. Os textos agora cabem no que o marco guarda: 'De 5 de 6 para 4 de 6 na janela de 5 anos (2021–2025).'. (3) PDF: sem opções, nunca leva posição, nome ou e-mail. A tela mostra o que vai e o que fica de fora, o limite de 10 por hora (com estado próprio) e um estado iPhone com 'Compartilhar PDF' num segundo toque (NotAllowedError). Nome do arquivo: comparacao-acoes-WEGE3-BBAS3-TAEE11-2026-10-16.pdf. (4) Textos do Pedro: a lista padrão chama 'Salvos', com os toasts '‹T› salvo em Salvos · você recebe aviso de resultado e data-com' e '‹T› removido de ‹lista›'. Voltou o segundo 'Salvar comparação' depois da Leitura dos dados. (5) Limites unificados: nome 40, 20 listas, 200 por lista, 500 por usuário, 20 filtros por classe, 30 comparações. (6) Alvos de 44px no segmento, nos botões de ícone, em 'Mudar listas' e em 'Criar lista' no celular. (7) Cores sem paleta trocadas por cinzas Tailwind ou por tons de #396CAA com transparência. (8) 'Criar lista' aparece só no Quadro e em Salvos (no ativo, o único primário é Registrar operação) e vira botão de ícone a 420px ou menos. A coluna passou a 'Adicionado em'. O cenário q-rank ficou marcado como 'não vai para o código'. Conferi no Playwright 31 telas × 6 cenários × 1440/390/320: nenhum erro de JS e nenhum alvo novo abaixo de 44px. O teste acusou rolagem horizontal no app só nas telas Criar lista com 20 listas. Investiguei e é falso positivo: o trilho de chips rola dentro do próprio contêiner, e a captura não mostra rolagem.",
+    "prototipo_path": "/tmp/claude-1000/-home-huske-dev-front/390cde29-a20f-4a52-99fe-a3ad34223b65/scratchpad/analise-salvos/prototipo.html",
+    "telas": [
+      "Casca · Quadro Ações: pílulas Quadro | Comparador | Salvos (sem contagem; o sino mostra os não lidos), busca + 'Criar lista' navy (só Quadro e Salvos; botão de ícone de 44px a ≤420px)",
+      "Casca com 4 pílulas (só para conferir a largura; o rótulo Ranking não vai para o código neste bloco)",
+      "Modal Criar lista (nome até 40, contador, 'Avisar resultado e provento anunciado' marcada) · nome repetido · limite de 20 listas",
+      "Modal Renomear lista",
+      "Modal Apagar lista com confirmação",
+      "Ativo WEGE3: 'Salvar' entre Comparar e Planejar na carteira",
+      "Ativo TAEE11: 'Salvo ✓' + linha 'Salvo em Dividendos e Utilidade pública · alertas: …' com um único botão de 44px 'Mudar listas' (ou 'Ver em Salvos' com 1 lista)",
+      "Escolha de listas: popover no desktop, BottomSheet no celular; linha inteira de 52px como label; 'Nova lista com TAEE11'; aviso de 500 ativos na conta no cenário limite; sem alerta por ativo",
+      "Quadro · salvar pela linha (marcador de 44px; com 0 listas cria 'Salvos')",
+      "Salvos · Ações: chips das listas, cabeçalho (Alertas da lista, Renomear, Apagar lista; ícones de 44px no celular), tabs Ações · FIIs, tabela com as colunas do Quadro + 'Adicionado em' + remover (com Desfazer); CMIG4 com 'antes 5 de 6 · 16/10'; cartões no celular",
+      "Salvos · FIIs",
+      "Salvos · lista sem ativos da classe",
+      "Salvos · sem listas",
+      "Salvos · modo consultor ('Salvos não aparece no modo consultor')",
+      "Quadro · Salvar filtros",
+      "Quadro · Filtros salvos (aplicar, apagar com confirmação na linha, 'n de 20')",
+      "Quadro · filtro salvo aplicado e alterado (Salvar alterações / Salvar como novo / ×)",
+      "Comparador · Ações: barra com Salvas, Copiar link, Exportar PDF, 'Salvar comparação' + segundo botão depois da Leitura dos dados; 'Comparação salva ✓'",
+      "Modal Salvar comparação",
+      "Comparações salvas (abrir, apagar com confirmação, 'n de 30')",
+      "Exportar PDF: o que vai e o que fica de fora + prévia A4 + Baixar → Gerando PDF… → aviso; com Estado=Erro, a falha",
+      "PDF no iPhone: 'O PDF está pronto' + botão 'Compartilhar PDF' (segundo toque)",
+      "PDF · limite de 10 por hora (botão desabilitado, horário em que volta)",
+      "Salvos › Alertas: 90 dias por dia e por classe (Notification) + 'Como os alertas chegam' (sino sempre, push pela linha 'Análise de Ativos' do Perfil, resumo fixo acima de 5 no dia, 8h10, exemplo na tela de bloqueio)",
+      "Alertas da lista (3 chaves; texto neutro sem 'compra/venda')",
+      "Sino do app (alertas como Notification + 'Novidades em 6 ativos dos seus Salvos')",
+      "Alertas · vazio",
+      "Estados Carregando (skeleton) e Erro ('Tentar de novo') em Quadro, Salvos, Comparador e Alertas",
+      "Cenários: 3 listas · usuário novo · no limite (20 listas, 500 ativos) · consultor · push desligado no aparelho · flag de alertas desligada"
+    ],
+    "especificacao_visual": "O que mudou em relação à versão anterior (o resto da especificação continua valendo).\n\nCASCA: PilulasArea com 3 itens (Ranking reservado no array, atrás de recursos.ranking) e SEM contagem na pílula Salvos. 'Criar lista' (navy #314666, hover #396CAA) aparece só em /analise-ativos (Quadro) e /analise-ativos/salvos. A 420px ou menos vira botão de ícone de 44×44 com aria-label 'Criar lista', ao lado da busca. Não aparece na página do ativo nem no Comparador.\n\nSALVAR: com 0 listas, o primeiro clique cria a lista 'Salvos' (padrao=true) com o ativo. Toast literal do Pedro: '<b>T</b> salvo em <b>Salvos</b> · você recebe aviso de resultado e data-com' (a parte depois do · só aparece com recursos.alertas), com ação 'Desfazer'. Com 1 lista, alterna nela (o sentinela 'padrao' resolve para a lista única). Com 2 ou mais, abre a escolha. Remover: '<b>T</b> removido de <b>‹lista›</b>' + Desfazer (6 s). Embaixo do cabeçalho do ativo vai a linha .svline: 'Salvo em <b>A</b> e <b>B</b> · alertas: resultado publicado, provento anunciado' (os nomes são texto) + um único botão sm de 44px, 'Mudar listas' (aria-haspopup=dialog) com 2 ou mais listas, ou 'Ver em Salvos' com 1. Escolha de listas: a linha inteira de 52px é o <label>. O rodapé tem 'Os alertas seguem os de cada lista.' + 'Pronto'. Saiu o 'Alertas de ‹T›'. Com 500 ativos na conta: aviso 'Você chegou a 500 ativos salvos na conta. Tire ativos de alguma lista em Salvos para salvar outros.' e as caixas não marcadas ficam desabilitadas.\n\nSALVOS: as colunas são as do Quadro + 'Adicionado em' (data DD/MM/AAAA) + ×. Saiu a coluna Alertas. No cartão do celular: 'adicionado em DD/MM/AAAA'. O segmento 'Listas | Alertas (n)' tem 44px. Os botões de ícone do cabeçalho da lista têm 44×44 no celular. No modo consultor, a página mostra 'Salvos não aparece no modo consultor' + 'As listas, os filtros e as comparações salvas são pessoais de cada usuário, como a Minha tese. Para ver os dados de um ativo da cliente, use o Quadro ou a página do ativo.' + 'Ir para o Quadro'.\n\nALERTAS: 3 tipos. Resultado publicado ('Quando a empresa ou o fundo entrega uma nova demonstração à CVM (DFP, ITR ou informe trimestral).'), Provento anunciado e 'A contagem de critérios mudou' ('… na janela de 5 anos … Vem desligado.'). Lista nova: resultado + anunciado ligados, critérios desligado. Rodapé do modal Alertas da lista (de textosAlertas): 'Os avisos trazem só fatos publicados (entregas à CVM e proventos anunciados). Não constituem recomendação de investimento. Um ativo em várias listas recebe um aviso só por evento. Os avisos saem às 8h10 (horário de Brasília).'\n\nItens-modelo:\n- 'TAEE11: provento anunciado' / 'JCP de R$ 0,4123 por unit · data-com 24/10/2026 · pagamento 28/11/2026. Fonte: B3.'\n- 'CMIG4: a contagem de critérios mudou' / 'De 5 de 6 para 4 de 6 na janela de 5 anos (2021–2025).'\n- 'EGIE3: resultado do 3T26 entregue à CVM' / 'A companhia entregou o ITR do 3º trimestre de 2026 em 15/10. Os números entram na Análise de Ativos depois do processamento diário.'\n- 'KNCR11: informe trimestral publicado na CVM'.\n\nHora mostrada: 08:10. Painel 'Como os alertas chegam':\n- 'No sino do app': Sempre ('Todo alerta aparece no sino e nesta tela por 90 dias.').\n- 'Notificação no celular': chave = PushPreferencia.analise, 'É a linha \"Análise de Ativos\" em Perfil › Notificações.'.\n- 'Mais de 5 no dia viram um aviso só': Sempre, sem chave.\n- O exemplo na tela de bloqueio continua.\n- Limites: '… às 8h10 … No máximo 1 aviso por ativo e por tipo no dia … Ativos que estão na sua Carteira continuam com o lembrete de pagamento na Agenda.'\n\nResumo no sino: 'Novidades em 6 ativos dos seus Salvos'.\n\nCOMPARADOR: 'Salvar comparação' (navy) na barra E no slot `acao` da Leitura dos dados (o desktop alinha à direita, o celular quebra a linha). Já salva: 'Comparação salva ✓' secundário com aria-pressed. No modo consultor, Salvas e Salvar comparação ficam desabilitados com title.\n\nEXPORTAR PDF (modal lg / sheet): à esquerda, 'O que vai no PDF' (critérios e números com fontes e datas; Leitura dos dados e aviso legal em toda página) e 'O que fica de fora' (posição na Carteira, nome e e-mail; mini-gráficos), mais 'Até 10 PDFs por hora. No celular, o PDF abre no menu de compartilhar do aparelho.'. À direita, a prévia A4, que agora diz 'Séries anuais (receita, lucro, EBITDA, FCL) disponíveis no app.' e não tem posição.\n\nEstados do PDF:\n- Normal: Baixar PDF → Gerando PDF… (aria-busy) → toast 'PDF pronto: comparacao-acoes-WEGE3-BBAS3-TAEE11-2026-10-16.pdf'.\n- Erro: o texto atual + 'Tentar de novo'.\n- iPhone: caixa 'O PDF está pronto. Toque em Compartilhar PDF para salvar em Arquivos ou enviar.' e o botão primário vira 'Compartilhar PDF' (foco nele).\n- Limite: 'Você gerou 10 PDFs na última hora, o limite por conta. Dá para gerar de novo a partir das 15:32.' + Baixar desabilitado.\n\nCONSULTOR (faixa): 'Você está agindo por Ana Ribeiro. As listas são pessoais e não aparecem no modo consultor. Filtros e comparações salvos também ficam de fora; o Quadro, o Comparador e o PDF funcionam normalmente.'\n\nCORES: saíram #EEF0F3, #2A2E36, #EDF2F8 e #DCE6F2. Tints = rgba(57,108,170,.10/.18) (de #396CAA); grade escura = rgba(255,255,255,.06); skeleton = #F2F4F7.",
+    "acessibilidade": "Além do que já estava na versão anterior:\n- Alvos de 44px nos elementos novos. O segmento Listas|Alertas tem min-height 44. Os botões de ícone do cabeçalho da lista têm 44×44 no celular. 'Criar lista' vira ícone de 44×44 com aria-label. Na linha 'Salvo em', os nomes das listas viraram texto e há um único botão de 44px ('Mudar listas' com aria-haspopup=dialog, ou 'Ver em Salvos'). O segundo 'Salvar comparação' tem tamanho normal. Na escolha de listas, a linha inteira de 52px é o <label> da caixa nativa.\n- As chaves continuam 46×28, com ::before que amplia a área para 50×44 (conferir no componente real).\n- No modo consultor os botões usam disabled de verdade, com title e, no marcador, aria-label 'Salvar ‹T› (indisponível no modo consultor)'. O motivo também está escrito na faixa role=note.\n- A contagem de não lidos saiu da pílula, para não repetir o sino. Ela fica no segmento Alertas (aria-label 'n novos') e no sino.\n- 'Mais de 5 no dia viram um aviso só' é texto fixo ('Sempre'), não uma chave sem efeito.\n- No PDF: o estado 'pronto' do iPhone usa role=status e leva o foco para 'Compartilhar PDF'. O limite usa role=alert e Baixar fica desabilitado.\n- Saiu o radiogroup de alerta por ativo, junto com o recurso.\n- Nada mudou no foco preso, no retorno de foco, no Esc, no 'voltar' do Android (useMobileHistoryLayer), em aria-live, em reduced-motion e no contraste.",
+    "decisoes": [
+      "ACEITO (alta) Consultor: vale a regra do arquiteto, que segue o precedente de teses e cenários. Os GETs voltam vazios com podeSalvar=false e as mutações dão 403. No protótipo, Salvos mostra o estado 'não aparece no modo consultor'; Criar lista, Salvar, o marcador, Salvar filtros, Filtros salvos, Salvar comparação e Salvas ficam desabilitados com title. O PDF continua liberado, porque não tem dado pessoal. A faixa foi reescrita. Registrar em decisoes.md antes da fatia 0.",
+      "ACEITO (alta) Alertas: saíram o override por ativo (AnaliseAlertaConfig), 'Provento pago', a chave 'Juntar' (a regra acima de 5 fica fixa no código e aparece como 'Sempre'), o limite de 200 ativos com alertas, a coluna Alertas em Salvos e a contagem na pílula. O cenário/tela 'limite de 200' e 'Alertas de um ativo' saíram da bancada.",
+      "MANTIDO, com contrato definido: a aba Salvos › Alertas fica como lista simples, lida das Notification de type 'analise_ativos_salvos_alerta'. Ela precisa de GET /api/analise-ativos/alertas?classe=&dias=90 e de POST /alertas/lidos (readAt) na fatia 0/D. A divergência está nas perguntas.",
+      "ACEITO Retenção unificada em 90 dias (texto da tela, export e limpeza) e horário em 11:10 UTC. A cópia diz 08:10 / 8h10.",
+      "ACEITO (alta) PDF: sem opções e nunca com posição, nome ou e-mail. Os mini-gráficos ficam fora do bloco 1 (no PDF entra a nota 'séries anuais disponíveis no app'). Limite único de 10 PDFs por hora por usuário, com estado próprio no modal. Nome do arquivo: comparacao-‹classe›-‹T1›-‹T2›…-AAAA-MM-DD.pdf, fixado em contrato.ts (o arquiteto usava comparacao_WEGE3-ITUB4_….pdf).",
+      "ACEITO Lista padrão com o nome 'Salvos' e textos literais do Pedro no toast ('salvo em Salvos · você recebe aviso de resultado e data-com', só com recursos.alertas; 'removido de ‹lista›'). O nome repete o da página ('Salvos › Salvos'), mas é o texto do D1 e pode ser renomeado. Voltou o segundo 'Salvar comparação' no slot acao da Leitura dos dados.",
+      "ACEITO Regra do clique: 0 listas cria 'Salvos'; 1 lista alterna NELA (o sentinela 'padrao' resolve para a lista única); 2 ou mais abrem a escolha. Isso evita criar uma 'Salvos' que ninguém pediu para quem só tem 'Dividendos'. Documentar em contrato.ts e nos testes do PUT /salvos/[ticker].",
+      "ACEITO Texto do alerta de critérios reduzido ao que o marco guarda: 'De 5 de 6 para 4 de 6 na janela de 5 anos (2021–2025).'. A causa e o critério que mudou ficam de fora. Janela do alerta fixa em 5 anos (sai o 'janela por lista' do arquiteto). O 'antes 5 de 6 · 16/10' na tabela Salvos continua e pede contagemAnterior e mudouEm em LinhaLista.",
+      "ACEITO Limites unificados, lidos de `limites` na resposta: nome 40, 20 listas, 200 por lista, 500 por usuário, 20 filtros por classe, 30 comparações, 10 PDFs por hora, sem limite próprio de alertas. Cenário 'limite' = 20 listas + 500 ativos na conta.",
+      "ACEITO Alvos de 44px (segmento, ícones do cabeçalho da lista, 'Mudar listas' único, label de 52px) e cores: as 4 que estavam fora da paleta foram trocadas por cinzas Tailwind ou por tons de #396CAA com alfa. Assim não é preciso acrescentar nada a brandColors.ts.",
+      "ACEITO 'Criar lista' só no Quadro e em Salvos, para manter Registrar operação como único primário no ativo. No celular vira botão de ícone. A contagem saiu da pílula. A coluna virou 'Adicionado em'.",
+      "ACEITO Texto do modal Alertas da lista sem 'compra' nem 'venda': 'Os avisos trazem só fatos publicados (entregas à CVM e proventos anunciados). Não constituem recomendação de investimento.' (passa na varredura; vai para textosAlertas).",
+      "ACEITO PDF no iPhone: um estado 'O PDF está pronto' com o botão 'Compartilhar PDF' (segundo toque, ativação nova) quando o navigator.share recusa com NotAllowedError. Vira critério de aceite da fatia B, a testar no aparelho do Pedro.",
+      "ACEITO Filtros salvos guardam só janela, critérios, setor e 'na carteira' (sem modo/ordem/dir). ?filtro=id entra opcional no contrato do Quadro. O ticker é validado por classe (TICKER_RE_POR_CLASSE).",
+      "ACEITO Ranking: o cenário q-rank está marcado na bancada como 'só largura; não vai para o código'. O 'Abrir comparador' continua sem gravar (rec. 7); registrar o desvio da spec §3.2 em decisoes.md.",
+      "REJEITADO EM PARTE 'Provento anunciado' pulando ativos da Carteira ou desligado por padrão em listas de FII. Com 'Provento pago' fora, não há mais push em dobro com a Agenda, que avisa o pagamento, enquanto aqui é o anúncio, outro fato. Pular os ativos da carteira criaria um comportamento difícil de explicar ('por que não recebi o aviso de HGLG11?'). O volume (cerca de 1 por FII por mês) fica coberto pelo resumo acima de 5 no dia. Medir quando o Neon DEV voltar; a pergunta está abaixo.",
+      "FORA DO DESIGN (arquitetura): detector de resultado (data da entrega ≥ hoje−7, um aviso por companhia, createMany skipDuplicates), arquivos em comum entre fatias (ModalNomeLista, ListaComparacoesSalvas e mostrarToastSalvo prontos na fatia 0), LGPD de tese/cenário/Notification, balde próprio do PDF no rate limit, marcos para ativos que saíram e voltaram. Concordo com as correções propostas e o protótipo não muda por elas."
+    ],
+    "perguntas_para_wellington": [
+      "Aba Salvos › Alertas (histórico de 90 dias + marcar como lidos): o arquiteto não previu backend para ela; os avisos ficavam só no sino. Recomendação: manter a aba e acrescentar GET /api/analise-ativos/alertas e POST /alertas/lidos à fatia D, lendo as Notification existentes (sem tabela nova). Sem ela, o usuário não acha um aviso antigo depois que o sino rola.",
+      "Provento anunciado: vale para todos os ativos salvos, inclusive os que já estão na Carteira? Recomendação: sim para todos (anúncio e pagamento são fatos diferentes, e a Agenda só avisa o pagamento), com o resumo acima de 5 no dia. Revisar quando medirmos o volume real no banco.",
+      "Lista padrão chamada 'Salvos' (texto do Pedro) dentro da página 'Salvos'. Recomendação: manter 'Salvos' (D1); o usuário renomeia quando criar outras listas. A alternativa 'Meus salvos' evita a repetição, mas foge do texto aprovado.",
+      "Push na tela de bloqueio com o ticker no título ('TAEE11: provento anunciado'). Recomendação: manter (é lista de acompanhamento, não posição; o corpo é genérico e sem valores). A alternativa mais fechada é 'Novo alerta nos seus Salvos'.",
+      "Mudança na contagem de critérios: o arquiteto deixava a janela (3/5/10) por lista e eu fixei em 5 anos. Recomendação: 5 anos fixo no bloco 1, para não multiplicar avisos; revisar com uso real.",
+      "PDF sem opções (nunca leva posição na Carteira nem mini-gráficos). Recomendação: assim no bloco 1; mini-gráficos em vetor no pdfkit numa fase 2, se o Pedro pedir.",
+      "Reordenar listas (o arquiteto previu PUT /listas/ordem; o protótipo não tem arrastar). Recomendação: deixar a rota pronta e não pôr arrastar na tela neste bloco (ordem de criação); usar o dnd do Fluxo (#211) se pedirem.",
+      "'Tabelas personalizadas' (escolher colunas). Recomendação: fora do bloco 1, como arquiteto e designer concordam; retomar depois do bloco 4 (Stocks/REITs).",
+      "Nome 'Ranking' da pílula do bloco 3 ('ranking' está em PALAVRAS_PROIBIDAS_BLOCO_D). Recomendação: decidir com o jurídico no bloco 3 (ex.: literal fechado 'Ranking da Comunidade' em textosLiterais.ts); neste bloco a casca só fica pronta para 4 itens."
+    ]
+  },
+  "criticas": {
+    "achados": [
+      {
+        "alvo": "ambos",
+        "severidade": "alta",
+        "achado": "Arquiteto e designer decidem o consultor de formas opostas. O arquiteto segue o precedente da tese e dos cenários, que conferi em src/app/api/analise-ativos/teses/[ticker]/route.ts:32 e em cenarios/[ticker]/route.ts:99: GET vazio com podeSalvar=false e mutações com 403. O protótipo deixa o consultor salvar listas, filtros e comparações na conta da cliente, com a faixa 'Os alertas chegam nos aparelhos dela', e só bloqueia as preferências de push. Do jeito que está, as fatias A, B e C seriam construídas sobre contratos que não batem.",
+        "correcao": "Ficar com a regra do arquiteto, que é o precedente do app e evita curadoria de terceiro chegando ao aparelho do cliente (CVM 20). No protótipo, trocar a faixa do cenário 'consultor' por 'As listas são pessoais e não aparecem no modo consultor.' e desabilitar Salvar, Criar lista, Salvar filtros e Salvar comparação, com title. Registrar a regra em decisoes.md antes da fatia 0."
+      },
+      {
+        "alvo": "ambos",
+        "severidade": "alta",
+        "achado": "Parte do que o designer desenhou para os alertas não tem backend na arquitetura: (1) a aba 'Salvos › Alertas', com histórico de 90 dias por classe e 'Marcar todos como lidos'; (2) a contagem de não lidos na pílula Salvos e no segmento Alertas; (3) o override por ativo ('Alertas de ‹T›': seguir a lista, escolher só para ele, não avisar), com o modelo AnaliseAlertaConfig; (4) o tipo 'Provento pago'; (5) a chave 'Juntar num aviso só quando passar de 5', que o arquiteto fixou no código; (6) o limite de 200 ativos com alertas. Também divergem a retenção (designer 90 dias, arquiteto 180), o horário (11:00 contra 11:10 UTC; a tela mostra '08:00') e os nomes das tabelas (AnaliseAlertaEvento contra AnaliseAlertaEnvio).",
+        "correcao": "Cortar do bloco 1 os itens (3), (4) e (5) e o limite de 200, e deixar a aba Alertas como lista simples, lida das Notification de type 'analise_ativos_salvos_alerta' (GET /api/analise-ativos/alertas?classe=&dias=90 e POST /alertas/lidos, que marca readAt). Se a aba ficar, incluir essas rotas na fatia 0/D e no contrato. Unificar a retenção em 90 dias, que é o texto da tela, também no export e na limpeza do job. Unificar o horário em 11:10 UTC e trocar '08:00' por '08:10' na cópia, ou não mostrar a hora."
+      },
+      {
+        "alvo": "ambos",
+        "severidade": "alta",
+        "achado": "O conteúdo do PDF diverge. O protótipo tem 'Mini-gráficos de lucro' MARCADO por padrão e a opção 'Minha posição na Carteira', que exige dado pessoal no PDF. O arquiteto deixa os dois de fora ('séries anuais disponíveis no app', sem posição, sem nome/e-mail). A posição no PDF também vazaria a carteira do cliente se o consultor, que pode exportar PDF pela arquitetura, gerasse o documento agindo por ele. O limite também diverge: 10 PDFs/h no protótipo, 20/h na arquitetura.",
+        "correcao": "Ficar com a arquitetura: o PDF não leva posição nunca e não tem opções. No bloco 1, o modal Exportar PDF fica só com a prévia, o nome do arquivo e Baixar. Se os mini-gráficos forem pedidos, desenhar em vetor no pdfkit numa fase 2. Fixar um único limite (10/h por usuário) e um único padrão de nome de arquivo (comparacao-acoes-WEGE3-BBAS3-AAAA-MM-DD.pdf) em contrato.ts."
+      },
+      {
+        "alvo": "arquitetura",
+        "severidade": "media",
+        "achado": "Texto que a varredura reprova: 'Avisos com fatos publicados (CVM e proventos). Não são indicação de compra ou venda.' (AlertasDaLista) tem 'compra' e 'venda', que estão em PALAVRAS_PROIBIDAS_BLOCO_D (varreduraTextos.ts:31) e na lista da Fase 1 (linguagem.ts:23). O linguagemV2Global da fatia 0 vai falhar, e o 'registrar se for literal' ficou vago.",
+        "correcao": "Reescrever sem as palavras: 'Os avisos trazem só fatos publicados (entregas à CVM e proventos anunciados). Não constituem recomendação de investimento.' Se 'recomend' também for barrado, usar 'Não são análise nem indicação de investimento.' Ou registrar a frase como literal em textosLiterais.ts, com o OK do jurídico. Rodar encontrarPalavrasProibidasV2 sobre textosAlertas antes de fechar a fatia 0."
+      },
+      {
+        "alvo": "design",
+        "severidade": "media",
+        "achado": "O protótipo se afasta do HTML do Pedro (D1) sem dizer por quê: (a) a lista criada no primeiro Salvar se chama 'Meus salvos' e o toast diz 'saiu de', enquanto o Pedro usa 'salvo em <b>Salvos</b> · você recebe aviso de resultado e data-com' e '<b>T</b> removido de Salvos'; (b) a spec §3.3 e o HTML do Pedro têm um SEGUNDO botão navy 'Salvar comparação' depois de 'Leitura dos dados', e o protótipo só tem o da barra. Nenhuma das 7 ocorrências de 'Salvar comparação' está no bloco Leitura dos dados.",
+        "correcao": "Usar os textos literais do Pedro no toast, com a frase do aviso só com recursos.alertas, como o arquiteto já propôs, e o nome 'Salvos' para a lista padrão. Se a ideia for evitar 'Salvos › Salvos', registrar como desvio em decisoes.md e levar ao Wellington. Acrescentar o botão no slot `acao` de LeituraDosDados, que é o que a fatia B do arquiteto já prevê."
+      },
+      {
+        "alvo": "ambos",
+        "severidade": "media",
+        "achado": "A regra do clique em Salvar diverge, e a do arquiteto falha num caso. Arquitetura: alterna na lista padrão 'Salvos', criada sob demanda, e abre o sheet com 2 ou mais listas. Protótipo: 0 listas cria uma, 1 lista alterna NESSA lista, 2 ou mais abrem a escolha. Na arquitetura, quem criou só 'Dividendos' pelo botão Criar lista e clica Salvar ganha uma segunda lista 'Salvos' sem ter pedido.",
+        "correcao": "Adotar a regra do protótipo e definir 'padrão' como a lista única quando só há uma (o sentinela 'padrao' resolve para ela). Com 0 listas, criar 'Salvos' (texto do Pedro). Documentar no contrato.ts e nos testes do PUT /salvos/[ticker]."
+      },
+      {
+        "alvo": "arquitetura",
+        "severidade": "media",
+        "achado": "O detector de resultado usa só fetchedAt nos últimos 3 dias. Em gravarEventos.ts, createMany e update gravam fetchedAt=agora, e o update também vale quando muda versão, assunto ou sourceUrl. Um backfill ou reprocesso do cvm-ipe (anos antigos, CNPJ novo no catálogo) faria entregas antigas parecerem novas. Além disso, AssetEvento é por CNPJ: quem salvou PETR3 e PETR4 gera duas vezes a mesma chave 'evento:<id>' no unique (userId, tipo, chave), e o insert sem skipDuplicates quebra a rodada.",
+        "correcao": "Filtrar também por data ≥ hoje−7 (data da entrega), além de fetchedAt. Fazer um aviso por companhia, com título 'PETR3/PETR4', como a Agenda já faz em resultadosAnaliseAtivos.ts, e usar createMany({skipDuplicates:true}) em analise_alerta_envios. Reaproveitar tituloResultado/descricaoResultado de eventos/textosEventos.ts em vez de criar textos paralelos."
+      },
+      {
+        "alvo": "design",
+        "severidade": "media",
+        "achado": "'Provento pago' (protótipo) duplica a Agenda. calendario/lembretes.ts já manda 'Provento na conta hoje' no dia do pagamento para os ativos da carteira, então quem tem e salvou o ativo recebe dois pushes pelo mesmo fato. Somado a 'provento anunciado' ligado por padrão, FIIs mensais geram cerca de 2 avisos por fundo por mês: com 20 FIIs salvos são uns 40 por mês, e o aviso-resumo vira rotina diária.",
+        "correcao": "Tirar 'Provento pago' do bloco 1, ficando com os 3 tipos do arquiteto. Para 'provento anunciado', pular os ativos que o usuário tem na carteira (a Agenda cobre) ou deixar desligado por padrão nas listas de FII. Medir o volume real de linhas novas por dia em asset_dividend_history com dataCom ≥ hoje quando o banco DEV voltar; hoje o Neon recusa com 'exceeded the quota', conferido nesta revisão."
+      },
+      {
+        "alvo": "design",
+        "severidade": "media",
+        "achado": "Os textos de alerta de critérios no protótipo pedem dados que a arquitetura não guarda. 'CMIG4: … \"FCL crescente\" passou a não atender depois da DFP 2025 reapresentada à CVM em 14/10/2026' exige saber qual critério mudou e a causa. AnaliseAlertaMarco guarda só {atendidos, aplicaveis, anoFim, paramsVersion}, e a causa (reapresentação) é uma inferência que ninguém grava. O mesmo vale para o 'antes 5 de 6 · 16/10' na tabela Salvos, que precisa de um campo de leitura no GET /listas/[id] que não está no contrato. Há ainda a janela: arquiteto com 3/5/10 por lista, protótipo fixo em 5.",
+        "correcao": "Simplificar o texto para o que o marco suporta: 'De 5 de 6 para 4 de 6 na janela de 5 anos (2021–2025).' Se quiser o critério que mudou, guardar um bitmap por critério no marco, sem a causa. Acrescentar contagemAnterior e mudouEm em LinhaLista e fixar a janela do alerta em 5 anos, a recomendação do designer, para não multiplicar avisos."
+      },
+      {
+        "alvo": "arquitetura",
+        "severidade": "media",
+        "achado": "Há arquivos em comum entre fatias que rodam em paralelo. A regra 'nenhum texto novo fora de textosSalvos' obriga B e C a editarem textosSalvos.ts, criado na fatia 0. B tem 'Criar lista inline' no SheetSalvarEmListas e C tem o ModalNomeLista, ou seja, duas implementações do mesmo formulário. MenuComparacoesSalvas (B) e ComparacoesSalvas (C) repetem a mesma lista de comparações. O toast de Salvar aparece em B e também é usado em C.",
+        "correcao": "Na fatia 0, fechar TODA a cópia em textosSalvos e textosAlertas (inclusive a do protótipo) e entregar também ModalNomeLista, ListaComparacoesSalvas (reusada por B no popover e por C na página) e mostrarToastSalvo como componentes prontos. B e C passam a só importar."
+      },
+      {
+        "alvo": "ambos",
+        "severidade": "media",
+        "achado": "Os limites não batem entre os dois. Nome: 60 (arquiteto) contra 40 (designer). Itens: 100 por lista e 500 por usuário contra 200 por lista. Filtros: 30 no total contra 20 por classe. Comparações: 50 contra 30. Alertas: limite de 200 ativos só no designer. A cópia do protótipo ('n de 20', 'n de 30', 'lista cheia (200)', 'n/40') não vai casar com os 409 da API.",
+        "correcao": "Uma tabela única em salvos/contrato.ts, que o front lê na resposta `limites`. Proposta: nome 40, 20 listas, 200 por lista, 500 por usuário, 20 filtros por classe, 30 comparações, sem limite próprio para alertas. A cópia vira 'n de {limite}' interpolado."
+      },
+      {
+        "alvo": "arquitetura",
+        "severidade": "media",
+        "achado": "Exportar PDF no PWA do iOS: navigator.share({files}) exige ativação do usuário ainda válida. O fluxo do baixarCsvRaioX (useAnaliseAtivosBlocoD.ts:103-121) chama share DEPOIS de await fetch + blob. Para um PDF gerado no servidor (até 1 s, mais a rede móvel), o Safari tende a lançar NotAllowedError. O helper só engole AbortError e relança o resto, e o usuário vê 'Não foi possível gerar o PDF' mesmo com o PDF pronto.",
+        "correcao": "No baixarPdfComparacao, tratar NotAllowedError guardando o File e trocando o botão por 'Compartilhar PDF' (segundo toque, com ativação nova), ou por um link para object URL com target=_blank. Testar num iPhone com o app instalado (QA do Pedro) e escrever esse caminho como critério de aceite da fatia B."
+      },
+      {
+        "alvo": "design",
+        "severidade": "baixa",
+        "achado": "Encontrei alvos abaixo de 44 px nos elementos novos, medidos com Playwright: o segmento 'Listas | Alertas' tem 40 px de altura; os links da linha 'Salvo em Dividendos e Utilidade pública · mudar' têm 19 px; os botões de ícone do cabeçalho da lista a 390 px têm 42 px de largura; as caixas da escolha de listas têm 20 px (o rótulo cobre se for <label>); as chaves têm 46×28 e dependem do ::before. As pílulas de janela (32 px) e os chips de critério (36 px) vêm do v2.4 e já existem no app.",
+        "correcao": "Segmento e botões de ícone com min-h e min-w de 44 px. Na linha 'Salvo em', manter um único botão 'Mudar listas' de 44 px e deixar os nomes das listas como texto, ou como links com padding vertical de 12 px. Garantir que a caixa inteira de 52 px seja o <label>, e conferir a área do ::before das chaves no componente real."
+      },
+      {
+        "alvo": "design",
+        "severidade": "baixa",
+        "achado": "Encontrei cores fora da paleta no protótipo. #EEF0F3 e #2A2E36 não aparecem em brandColors.ts nem em nenhum arquivo de src. #EDF2F8 e #DCE6F2 (fundo do 'Salvo ✓' e dos ícones de alerta) também não estão em brandColors.ts, embora já apareçam em 20 e 4 arquivos do app.",
+        "correcao": "Trocar por tokens de brandColors ou pelos cinzas do Tailwind (gray-100/white/6%). Se #EDF2F8 for o fundo 'selecionado' oficial, incluir em brandColors.ts no PR da fatia 0."
+      },
+      {
+        "alvo": "arquitetura",
+        "severidade": "baixa",
+        "achado": "LGPD. Confirmei o achado lateral: DELETE /api/profile apaga os alvos (apagarAlvosDoUsuario) mas não AnaliseTese nem AnaliseCenario (o texto livre da tese fica). As Notification dos avisos, com o ticker que o usuário acompanha, também não são apagadas na anonimização nem limpas aos 90/180 dias; só analise_alerta_envios seria. Já existe um cron lgpd-retention.",
+        "correcao": "Fazer um PR separado e anterior para tese e cenário. Em apagarSalvosDoUsuario, apagar também as Notification de type 'analise_ativos_salvos_alerta' do usuário. Fazer a retenção dos envios e dessas Notification no lgpd-retention, ou no próprio job com o mesmo prazo do texto da tela."
+      },
+      {
+        "alvo": "arquitetura",
+        "severidade": "baixa",
+        "achado": "Rate limit: chaveBaldeRateLimit corta em 4 segmentos, então /api/analise-ativos/comparador/pdf divide o balde '/api/analise-ativos/comparador' (30/min por IP) com o JSON do Comparador. Quem gera PDFs consome a cota de abrir a tela. Os 20 PDFs/h por usuário com getTtlCache ficam em memória e zeram em cada restart (aceitável numa instância só, mas convém dizer).",
+        "correcao": "Dar um balde próprio ao PDF em chaveBaldeRateLimit ('/api/analise-ativos/comparador-pdf', 10/min) e registrar no ATIVACAO que o limite por usuário zera no restart."
+      },
+      {
+        "alvo": "arquitetura",
+        "severidade": "baixa",
+        "achado": "Os marcos de critérios só são atualizados para os ativos que estão em alguma lista. Se um ativo sai de todas as listas e volta semanas depois, o marco velho dispara um aviso de 'mudou' que não aconteceu desde que o usuário salvou de novo.",
+        "correcao": "Atualizar os marcos de todo o Quadro em cada rodada (são só algumas centenas de linhas, lidas do banco) ou gravar no item a contagem no momento em que foi salvo, e só avisar sobre mudanças posteriores a createdAt do item."
+      },
+      {
+        "alvo": "design",
+        "severidade": "baixa",
+        "achado": "Cabeçalho no celular: o 'Criar lista' navy em largura total aparece em toda página da área, inclusive na do ativo, que passa a ter dois botões primários ('Criar lista' e 'Registrar operação'). A spec §3.2 diz que Registrar é o único primário. A contagem azul na pílula Salvos repete o número do sino (3 e 3, lado a lado na captura). A coluna 'SALVO EM' mostra uma data, mas na página do ativo 'Salvo em' quer dizer as listas.",
+        "correcao": "No celular, deixar 'Criar lista' compacto ao lado do título, ou só nas páginas Quadro e Salvos. Tirar a contagem da pílula, porque o sino já mostra. Renomear a coluna para 'Adicionado em'."
+      },
+      {
+        "alvo": "ambos",
+        "severidade": "baixa",
+        "achado": "Filtros salvos têm duas diferenças: o designer põe ?filtro=id na URL e o estado 'alterado' com 'Salvar alterações' e 'Salvar como novo'; o arquiteto guarda também modo, ordem e dir e não prevê ?filtro. E as rotas /salvos/[ticker] e /listas/[id]/itens validam com TICKER_RE (4 caracteres + 1–2 dígitos), que vai recusar MSFT e O no bloco 4, embora o modelo diga que já está pronto para as 4 classes.",
+        "correcao": "Incluir ?filtro= (opcional) no contrato do Quadro e decidir se modo e ordem fazem parte do filtro (recomendo só janela, critérios, setor e na carteira, como no protótipo). Validar o ticker por classe (TICKER_RE_POR_CLASSE) já no contrato.ts."
+      },
+      {
+        "alvo": "ambos",
+        "severidade": "baixa",
+        "achado": "O 'Abrir comparador' do modal não grava, nas duas propostas. A spec §3.2 diz que ele 'grava em comparisons', mas a rec. 7 já tinha mudado isso. A causa é boa (não gravar histórico sem o usuário pedir), mas o desvio continua sem registro na seção do bloco 1. A pílula 'Ranking' do cenário q-rank do protótipo quebra a varredura, como os dois já sinalizaram.",
+        "correcao": "Registrar o desvio em decisoes.md, com referência à rec. 7. Manter Ranking sem rótulo até o bloco 3 e marcar o cenário q-rank do protótipo como 'não vai para o código'."
+      }
+    ]
+  }
+}
