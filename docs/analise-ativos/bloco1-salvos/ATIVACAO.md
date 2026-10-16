@@ -34,8 +34,9 @@ PSQL='sudo -u postgres psql myfinance'
 - Listas, filtros, comparações e avisos são PESSOAIS: consultor agindo pelo cliente vê vazio
   (`podeSalvar=false`), mutações 403. O PDF continua liberado (não leva nome, e-mail nem posição).
 - Nenhuma rota nem o job chamam terceiros: só o banco.
-- **PRÉ-REQUISITO separado e anterior**: o PR de LGPD que apaga `AnaliseTese` e `AnaliseCenario` no
-  `DELETE /api/profile` (a exclusão de conta anonimiza o User e o cascade não roda).
+- LGPD de teses e cenários: o `DELETE /api/profile` passou a apagar `AnaliseTese` e `AnaliseCenario`
+  neste mesmo PR (a exclusão de conta anonimiza o User e o cascade não roda). Não há mais
+  pré-requisito separado.
 
 ## Onde fica cada coisa
 
