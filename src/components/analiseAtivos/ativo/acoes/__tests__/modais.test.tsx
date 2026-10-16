@@ -585,6 +585,25 @@ describe('ModalPlanejar — caso 33 na base da carteira total (planning_asset_ta
     esperarDomLimpo(dialogo());
   });
 
+  it('carteira vazia: com o peso digitado, o resumo explica que falta posição (não pede o peso de novo)', async () => {
+    overlay = { posicoes: {}, planejados: {} };
+    fetchMock.mockImplementation(async (url: string) =>
+      String(url).startsWith('/api/carteira/resumo')
+        ? mockFetchResponse({ ...RESUMO, totais: { dinheiro: 0 } })
+        : roteador(String(url)),
+    );
+    comCliente(<ModalPlanejar {...props} />);
+    const campo = screen.getByLabelText('Peso-alvo na carteira (%)');
+    const resumo = () => document.querySelector('[data-resumo-plano]')!.textContent;
+    expect(resumo()).toContain('Informe o peso-alvo');
+    fireEvent.change(campo, { target: { value: '1' } });
+    await waitFor(() =>
+      expect(resumo()).toBe(
+        'Sua carteira ainda não tem posições: o valor equivalente ao alvo aparece quando houver.',
+      ),
+    );
+  });
+
   it('salvar → PUT do alvo, chip "Planejado" e card 6,0%; remover → DELETE, chip some; Carteira intacta', async () => {
     rotaAlvoFalsa();
     function Tela() {

@@ -109,6 +109,9 @@ export const TEXTOS_ACOES_CARTEIRA = {
     posicaoValor: '{qtd} {un} · {pct} da carteira · {valor}',
     semPosicao: 'não está na carteira',
     resumoVazio: 'Informe o peso-alvo para ver a diferença em relação à sua posição atual.',
+    /** peso digitado, mas a carteira está vazia (sem total, não há valor equivalente) */
+    resumoCarteiraVazia:
+      'Sua carteira ainda não tem posições: o valor equivalente ao alvo aparece quando houver.',
     valorAlvo: 'Valor equivalente ao alvo',
     qtdAlvo: '≈ {un} no alvo',
     desvio: 'Posição atual vs. alvo',
