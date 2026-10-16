@@ -12,6 +12,8 @@
  *   chip Vacância/Inadimplência ficam); a ordem dos ids é a da barra.
  * - carteira=1: "Na minha carteira". s: setor (ações) ou segmento CVM (FIIs).
  * - Ordem padrão A–Z (ticker asc, fora da URL).
+ * - filtro: id do filtro salvo aplicado (bloco 1, fatia 0: só o tipo e o parse; a UI é da fatia
+ *   B). Opcional; valor que não é uuid é ignorado. Trocar de classe ou limpar os filtros o tira.
  * Trocar de classe ZERA os filtros (critérios, carteira e setor; os chips são outros) e volta à
  * ordem A–Z; janela e modo continuam (caso 31).
  */
@@ -24,6 +26,7 @@ import {
   ORDEM_PADRAO,
 } from '@/constants/analiseAtivosVisual';
 import type { FiltrosQuadro } from '@/hooks/useAnaliseAtivos';
+import { PARAM_FILTRO_SALVO } from '@/services/analiseAtivos/salvos/contrato';
 import type { ClasseQuadro, DirecaoOrdem, ModoQuadro, OrdemQuadro } from '@/types/analiseAtivosApi';
 import {
   JANELAS_CRITERIOS,
@@ -42,7 +45,12 @@ export interface EstadoQuadro {
   criterios: IdCriterio[];
   naCarteira: boolean;
   setor: string | null;
+  /** bloco 1: id do filtro salvo aplicado (?filtro=); ausente/null = nenhum */
+  filtro?: string | null;
 }
+
+/** uuid (id de AnaliseFiltroSalvo); outro valor em ?filtro= é ignorado. */
+const RE_ID_FILTRO = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 const CLASSES: ClasseQuadro[] = ['acao', 'fii'];
 const DIRECOES: DirecaoOrdem[] = ['asc', 'desc'];
@@ -78,7 +86,9 @@ export function lerEstadoQuadro(params: URLSearchParams): EstadoQuadro {
   const criterios = criteriosDaClasse(classe, (params.get('c') ?? '').split(','));
   const naCarteira = params.get('carteira') === '1';
   const setor = params.get('s')?.trim() || null;
-  return { classe, ordem, dir, modo, janela, criterios, naCarteira, setor };
+  const filtroBruto = params.get(PARAM_FILTRO_SALVO)?.trim() ?? '';
+  const filtro = RE_ID_FILTRO.test(filtroBruto) ? filtroBruto.toLowerCase() : null;
+  return { classe, ordem, dir, modo, janela, criterios, naCarteira, setor, filtro };
 }
 
 export function escreverEstadoQuadro(e: EstadoQuadro): URLSearchParams {
@@ -93,6 +103,7 @@ export function escreverEstadoQuadro(e: EstadoQuadro): URLSearchParams {
   if (e.criterios.length) qs.set('c', e.criterios.join(','));
   if (e.naCarteira) qs.set('carteira', '1');
   if (e.setor) qs.set('s', e.setor);
+  if (e.filtro) qs.set(PARAM_FILTRO_SALVO, e.filtro);
   return qs;
 }
 
@@ -146,6 +157,7 @@ export function useEstadoQuadroUrl() {
         criterios: [],
         naCarteira: false,
         setor: null,
+        filtro: null,
       });
     },
     [aplicar, estado],
@@ -192,7 +204,7 @@ export function useEstadoQuadroUrl() {
     [aplicar, estado],
   );
   const limparFiltros = useCallback(
-    () => aplicar({ ...estado, criterios: [], naCarteira: false, setor: null }),
+    () => aplicar({ ...estado, criterios: [], naCarteira: false, setor: null, filtro: null }),
     [aplicar, estado],
   );
 

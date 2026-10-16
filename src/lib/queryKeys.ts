@@ -144,6 +144,19 @@ export const queryKeys = {
       ] as const,
     sugestoesComparar: (ticker: string, janela: number, q = '') =>
       [...queryKeys.analiseAtivos.all, 'ativo', ticker, 'sugestoesComparar', janela, q] as const,
+    // Bloco 1 (fatia 0): tudo do usuário LOGADO sob 'salvos' (invalidar salvosTodos() cobre tudo).
+    // NÃO invalidam a Carteira (listas não mexem em posição).
+    salvosTodos: () => [...queryKeys.analiseAtivos.all, 'salvos'] as const,
+    listas: () => [...queryKeys.analiseAtivos.salvosTodos(), 'listas'] as const,
+    lista: (id: string, params: Record<string, string | number | undefined> = {}) =>
+      [...queryKeys.analiseAtivos.listas(), id, params] as const,
+    salvosIndice: () => [...queryKeys.analiseAtivos.salvosTodos(), 'indice'] as const,
+    filtros: (classe: string) =>
+      [...queryKeys.analiseAtivos.salvosTodos(), 'filtros', classe] as const,
+    comparacoes: (classe?: string) =>
+      [...queryKeys.analiseAtivos.salvosTodos(), 'comparacoes', classe ?? 'todas'] as const,
+    alertas: (classe?: string) =>
+      [...queryKeys.analiseAtivos.salvosTodos(), 'alertas', classe ?? 'todas'] as const,
   },
   comunidade: {
     all: ['comunidade'] as const,
