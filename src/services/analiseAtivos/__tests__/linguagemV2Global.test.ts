@@ -31,6 +31,8 @@ import { RODAPE_CENARIOS, TEXTOS_CENARIOS } from '@/services/analiseAtivos/texto
 import { TEXTOS_RAIO_X } from '@/services/analiseAtivos/textosRaioX';
 import { TEXTOS_LITERAIS_OBRIGATORIOS } from '@/services/analiseAtivos/textosLiterais';
 import { TEXTOS_FILA } from '@/components/admin/curadoria/marcasCaso';
+import { TEXTOS_SALVOS } from '@/services/analiseAtivos/textosSalvos';
+import { TEXTOS_ALERTAS } from '@/services/analiseAtivos/textosAlertas';
 
 type Folha = [caminho: string, texto: string];
 
@@ -58,6 +60,9 @@ const MODULOS: Record<string, unknown> = {
   RODAPE_CENARIOS,
   TEXTOS_RAIO_X,
   TEXTOS_FILA,
+  // bloco 1 (fatia 0): Salvos, filtros, comparações, PDF e avisos das listas
+  TEXTOS_SALVOS,
+  TEXTOS_ALERTAS,
 };
 
 const TODAS: Folha[] = Object.entries(MODULOS).flatMap(([nome, m]) => folhas(m, nome));
@@ -78,6 +83,26 @@ const VARS: Record<string, string> = {
   classe: 'ações',
   campo: 'Payout',
   bloco: 'Indicadores',
+  // bloco 1
+  lista: 'Dividendos',
+  listas: 'Dividendos e Utilidade pública',
+  tipos: 'resultado entregue, provento anunciado',
+  nome: 'Elétricas',
+  tickers: 'WEGE3 · BBAS3',
+  setor: 'Utilidade Pública',
+  x: '1',
+  y: '2',
+  de: '4',
+  para: '5',
+  anoInicio: '2021',
+  anoFim: '2025',
+  trimestre: '3',
+  tipo: 'Rendimento',
+  unidade: 'cota',
+  dataCom: '20/10/2026',
+  pagamento: '27/10/2026',
+  titulo: 'TAEE11: provento anunciado',
+  mensagem: 'Rendimento de R$ 1,10 por cota',
 };
 const preencher = (t: string) => t.replace(/\{(\w+)\}/g, (m, k: string) => VARS[k] ?? 'X');
 
