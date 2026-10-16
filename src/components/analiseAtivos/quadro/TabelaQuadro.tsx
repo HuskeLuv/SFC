@@ -24,8 +24,9 @@
  * desabilitadas com o motivo no title (o anúncio fica na bandeja). Sem `comparar`, nada muda.
  *
  * Bloco 1 (fatia 0): props opcionais para as fatias B e C, sem editar este arquivo:
- * - `acaoLinha(linha)` + `rotuloColunaAcao`: coluna de 56px no FIM (marcador Salvar do Quadro, "×"
- *   da tabela Salvos); o clique dentro dela não propaga para a linha (não abre o ativo);
+ * - `acaoLinha(linha)` + `rotuloColunaAcao`: coluna de 56px no FIM, fixa à direita (marcador Salvar
+ *   do Quadro, "×" da tabela Salvos — fica à vista quando a tabela rola na horizontal, a 1280 com a
+ *   coluna extra); o clique dentro dela não propaga para a linha (não abre o ativo);
  * - `colunasExtras`: colunas depois das do Quadro e antes da ação ("Adicionado em");
  * - `complementoCriterios(linha)`: texto embaixo da célula Critérios ("antes 5 de 6 · 16/10").
  * Sem essas props o DOM é idêntico ao de antes (acaoLinha.test.tsx, snapshot).
@@ -474,7 +475,7 @@ export default function TabelaQuadro<L extends LinhaQuadroApi = LinhaQuadroApi>(
             {acaoLinha ? (
               <th
                 scope="col"
-                className="sticky top-0 z-20 w-14 min-w-14 px-1.5"
+                className="sticky top-0 right-0 z-30 w-14 min-w-14 px-1.5"
                 style={{ backgroundColor: MYFINANCE_BRAND.seguranca }}
                 data-coluna="acao"
               >
@@ -581,7 +582,7 @@ export default function TabelaQuadro<L extends LinhaQuadroApi = LinhaQuadroApi>(
                   ))}
                   {acaoLinha ? (
                     <td
-                      className="w-14 min-w-14 px-1.5 text-center"
+                      className={`sticky right-0 w-14 min-w-14 px-1.5 text-center ${fundoFixo}`}
                       data-coluna="acao"
                       onClick={pararPropagacao}
                     >
