@@ -237,6 +237,11 @@ export const DELETE = withErrorHandler(async (req: NextRequest) => {
   // trilha dos avisos e as Notification dos avisos — apagados explicitamente (User anonimizado).
   await apagarSalvosDoUsuario(me.id);
 
+  // Análise de Ativos (Raio-X e Cenários): teses privadas e cenários por ativo — texto e premissas
+  // da pessoa, apagados aqui pelo mesmo motivo (User anonimizado, cascade não roda).
+  await prisma.analiseTese.deleteMany({ where: { userId: me.id } });
+  await prisma.analiseCenario.deleteMany({ where: { userId: me.id } });
+
   // Derruba todas as sessões e limpa o cookie de auth da resposta.
   await bumpSessionVersion(me.id);
   const response = NextResponse.json({ success: true });

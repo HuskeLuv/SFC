@@ -20,6 +20,9 @@ const mockPrisma = vi.hoisted(() => ({
   analiseComparacao: { deleteMany: vi.fn().mockResolvedValue({ count: 0 }) },
   analiseAlertaEnvio: { deleteMany: vi.fn().mockResolvedValue({ count: 0 }) },
   notification: { deleteMany: vi.fn().mockResolvedValue({ count: 0 }) },
+  // Análise de Ativos (Raio-X e Cenários): teses privadas e cenários
+  analiseTese: { deleteMany: vi.fn().mockResolvedValue({ count: 0 }) },
+  analiseCenario: { deleteMany: vi.fn().mockResolvedValue({ count: 0 }) },
   $transaction: vi.fn(async (ops: Promise<unknown>[]) => Promise.all(ops)),
 }));
 
@@ -235,6 +238,11 @@ describe('DELETE /api/profile', () => {
     expect(mockPrisma.userConsent.updateMany).toHaveBeenCalled();
     // Histórico de alterações (contém PII) é eliminado na anonimização
     expect(mockPrisma.userChangeLog.deleteMany).toHaveBeenCalledWith({
+      where: { userId: 'user-1' },
+    });
+    // Teses privadas e cenários da Análise são apagados (User anonimizado, cascade não roda)
+    expect(mockPrisma.analiseTese.deleteMany).toHaveBeenCalledWith({ where: { userId: 'user-1' } });
+    expect(mockPrisma.analiseCenario.deleteMany).toHaveBeenCalledWith({
       where: { userId: 'user-1' },
     });
     // Relatos da Análise de Ativos: texto livre anonimizado e vínculo de cliente removido
