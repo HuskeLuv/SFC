@@ -1,7 +1,7 @@
 /**
  * Desvio da posição em relação ao alvo planejado (caso 33), com posição, alvo e desvio na MESMA
- * base (`valorBase`). v2.5: a base é a carteira TOTAL (totalDinheiro do resumo da Carteira) e o
- * alvo é o de planning_asset_targets (% da carteira total).
+ * base (`valorBase`). Desde 17/10/2026 a página do ativo usa a base da ABA (soma do valor das linhas
+ * da aba) e o alvo é o Objetivo da Carteira (% dentro da aba); a função não muda com a base.
  *   posicaoPct  = valorPosicao ÷ valorBase × 100
  *   alvoValor   = alvoPct% × valorBase;  alvoQtd = alvoValor ÷ preco (arredondado para baixo)
  *   desvioPp    = posicaoPct − alvoPct (negativo = abaixo do alvo)

@@ -5,15 +5,14 @@
  * (useNaCarteiraAtivo) — valor, % da carteira, preço médio e rentabilidade idênticos aos da
  * Carteira, inclusive com o ativo movido de aba (#275).
  *
- * v2.5 (caso 33, spec §3.2): posição × alvo na base da carteira TOTAL e em linguagem de DESVIO —
- * "posição atual 3,8% · alvo planejado por você: 6,0% · desvio −2,2 p.p. (R$ 3.633)" (1 casa).
- * O alvo é o do Planejar na carteira (planning_asset_targets); quando a aba da Carteira tem
- * Objetivo > 0, aparece a linha informativa "Objetivo na aba Ações da Carteira: 25%" (decisão 1).
- * Nunca "faltam"/"quanto falta". Planejar/Ajustar plano abrem o ModalPlanejar. Consultor agindo:
- * pode planejar (o modal avisa).
+ * Posição × alvo em linguagem de DESVIO — "posição atual 3,8% da aba · alvo planejado por você:
+ * 6,0% em Ações · desvio −2,2 p.p. (R$ 3.633)" (1 casa). Desde 17/10/2026 o alvo é o OBJETIVO DA
+ * CARTEIRA (% dentro da aba, o que o Planejar na carteira grava) e a base do desvio é a aba; o
+ * "≈ X% da carteira total" é informativo. Nunca "faltam"/"quanto falta". Planejar/Ajustar plano
+ * abrem o ModalPlanejar. Consultor agindo: pode planejar (o modal avisa).
  *
- * Estados: com posição · posição numa aba sem detalhe aqui (quantidade + link) · planejado (alvo
- * e/ou plano antigo, sem posição: alvo + valor equivalente) · nada · carregando (skeleton só nos
+ * Estados: com posição · posição numa aba sem detalhe aqui (quantidade + link) · planejado (linha
+ * planejada na aba, sem posição: objetivo + valor equivalente) · nada · carregando (skeleton só nos
  * números) · erro.
  */
 import Link from 'next/link';
@@ -96,13 +95,14 @@ function Dado({
   );
 }
 
-/** Linha informativa do Objetivo da aba na Carteira (decisão 1): só com Objetivo > 0. */
-function LinhaObjetivoAba({ dados }: { dados: NaCarteiraAtivo }) {
-  const aba = dados.abaNome ?? dados.abaBaseNome;
-  if (dados.objetivoAbaPct === null || !aba) return null;
+/** "≈ 2,0% da carteira total": objetivo (% da aba) × peso atual da aba na carteira. */
+function LinhaEquivalenteTotal({ dados }: { dados: NaCarteiraAtivo }) {
+  if (dados.objetivoAbaPct === null || dados.classePct === null || !(dados.valorAba ?? 0)) {
+    return null;
+  }
   return (
-    <p className="text-xs text-gray-500 dark:text-gray-400" data-objetivo-aba="">
-      {formatarTexto(t.objetivoAba, { aba, pct: formatPct(dados.objetivoAbaPct, 0) })}
+    <p className="text-xs text-gray-500 dark:text-gray-400" data-equivalente-total="">
+      {formatarTexto(t.equivalente, { pct: pct1((dados.objetivoAbaPct * dados.classePct) / 100) })}
     </p>
   );
 }
@@ -182,11 +182,15 @@ export default function BlocoNaCarteira({
   const abaNome = dados.abaNome ?? '';
   const linha = dados.linha;
   const carregando = dados.carregandoNumeros;
-  const alvo = dados.alvoPct;
+  // alvo = Objetivo da Carteira (% dentro da aba)
+  const alvo = dados.objetivoAbaPct;
+  const abaPlano = dados.abaNome ?? dados.abaBaseNome ?? '';
 
   if (dados.status === 'nada' || dados.status === 'planejado') {
     const alvoValor =
-      alvo !== null && dados.valorBase !== null ? (alvo / 100) * dados.valorBase : null;
+      alvo !== null && dados.valorAba !== null && dados.valorAba > 0
+        ? (alvo / 100) * dados.valorAba
+        : null;
     return (
       <section aria-label={t.titulo} className={CARD} data-na-carteira={dados.status}>
         <Titulo />
@@ -197,7 +201,7 @@ export default function BlocoNaCarteira({
           <p className="flex flex-wrap items-center gap-x-1 text-[13px] text-gray-600 dark:text-gray-300">
             {alvo !== null ? (
               <>
-                {formatarTexto(t.alvoPlanejado, { pct: pct1(alvo) })}
+                {formatarTexto(t.alvoPlanejado, { pct: pct1(alvo), aba: abaPlano })}
                 {' · '}
                 {botaoPlanejar(t.ajustarPlano)}
               </>
@@ -205,7 +209,7 @@ export default function BlocoNaCarteira({
               <>
                 {t.semAlvo}
                 {' · '}
-                {botaoPlanejar(t.planejar)}
+                {botaoPlanejar(dados.temPlano ? t.ajustarPlano : t.planejar)}
               </>
             )}
           </p>
@@ -221,7 +225,7 @@ export default function BlocoNaCarteira({
             </p>
           ) : null}
         </div>
-        <LinhaObjetivoAba dados={dados} />
+        <LinhaEquivalenteTotal dados={dados} />
         <LinhaClasse dados={dados} />
         {dados.watchlistId ? (
           <div className="flex flex-wrap gap-x-4">
@@ -270,10 +274,10 @@ export default function BlocoNaCarteira({
   }
 
   const conta =
-    linha && dados.valorBase !== null
+    linha && dados.valorAba !== null && dados.valorAba > 0
       ? desvioAlvo({
           valorPosicao: linha.valorAtualizado,
-          valorBase: dados.valorBase,
+          valorBase: dados.valorAba,
           alvoPct: alvo,
           preco: null,
         })
@@ -330,7 +334,7 @@ export default function BlocoNaCarteira({
           referencia={alvo}
           rotuloReferencia={
             alvo !== null && conta.desvioPp !== null
-              ? `${formatarTexto(t.alvoPlanejado, { pct: pct1(alvo) })} · ${formatarTexto(
+              ? `${formatarTexto(t.alvoPlanejado, { pct: pct1(alvo), aba: abaNome })} · ${formatarTexto(
                   t.desvio,
                   {
                     pp: ppComSinal(conta.desvioPp),
@@ -349,7 +353,7 @@ export default function BlocoNaCarteira({
           })}
         />
       ) : null}
-      <LinhaObjetivoAba dados={dados} />
+      <LinhaEquivalenteTotal dados={dados} />
       <LinhaClasse dados={dados} />
       <div className="flex flex-col gap-1 text-xs text-gray-500 dark:text-gray-400">
         <p>{formatarTexto(t.notaAba, { aba: abaNome })}</p>

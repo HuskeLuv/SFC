@@ -30,6 +30,7 @@ import SeloEstado from '@/components/analiseAtivos/comum/SeloEstado';
 import { useAnaliseAtivosConfig, useOverlayCarteira } from '@/hooks/useAnaliseAtivos';
 import { useIsBelowLg } from '@/hooks/useMediaQuery';
 import { invalidatePortfolioDerivedQueries } from '@/lib/invalidatePortfolio';
+import { rotuloCategoria } from '@/lib/carteiraMover';
 import { formatarTexto } from '@/services/analiseAtivos/textos';
 import {
   CLASSE_CARTEIRA,
@@ -38,7 +39,11 @@ import {
 import { formatNumber } from '@/utils/format';
 import type { AddAssetWizardPreset } from '@/components/carteira/AddAssetWizard';
 import type { BarraAcoesAtivoProps, ModalAcaoAtivo } from '@/types/analiseAtivosCriterios';
-import type { AcoesCarteiraAtivoProps, ClasseQuadro } from '@/types/analiseAtivosApi';
+import type {
+  AcoesCarteiraAtivoProps,
+  ClasseQuadro,
+  OverlayCarteiraResposta,
+} from '@/types/analiseAtivosApi';
 
 export type { BarraAcoesAtivoProps };
 
@@ -115,9 +120,29 @@ function Icone({ d }: { d: ReactNode }) {
 }
 
 /**
+ * Plano do ativo NA CARTEIRA (17/10/2026): posição com Objetivo > 0 ou linha planejada na aba. É o
+ * que o "Planejar na carteira" grava — acende o chip "Planejado" e troca o botão por "Ajustar plano".
+ */
+export function planoNaCarteira(
+  overlay: OverlayCarteiraResposta | undefined,
+  ticker: string,
+): { objetivoPct: number | null; categoria: string } | null {
+  const t = ticker.toUpperCase();
+  const posicao = overlay?.posicoes[t] ?? null;
+  if (posicao) {
+    const o = posicao.objetivoPct ?? null;
+    return o !== null && o > 0 ? { objetivoPct: o, categoria: posicao.categoria } : null;
+  }
+  const planejado = overlay?.planejados[t] ?? null;
+  if (!planejado) return null;
+  const o = planejado.objetivoPct;
+  return { objetivoPct: o !== null && o > 0 ? o : null, categoria: planejado.categoria };
+}
+
+/**
  * Chips de estado do cabeçalho (overlay da Carteira): "Na carteira" (há posição) e "Planejado" (há
- * alvo do Planejar na carteira — overlay.alvos, planning_asset_targets; v2.5). O Objetivo da aba na
- * Carteira não acende o chip. Os dois podem aparecer juntos.
+ * plano na Carteira — Objetivo > 0 da posição ou linha planejada; planoNaCarteira). Os dois podem
+ * aparecer juntos.
  */
 export function ChipsCarteira({ ticker, classe }: { ticker: string; classe: ClasseQuadro }) {
   const overlay = useOverlayCarteira();
@@ -125,7 +150,7 @@ export function ChipsCarteira({ ticker, classe }: { ticker: string; classe: Clas
   const tx = TEXTOS_ACOES_CARTEIRA.barra;
   const cl = CLASSE_CARTEIRA[classe];
   const posicao = overlay.data?.posicoes[t] ?? null;
-  const alvo = overlay.data?.alvos?.[t]?.targetPct ?? null;
+  const plano = planoNaCarteira(overlay.data, t);
   return (
     <>
       {posicao ? (
@@ -138,11 +163,15 @@ export function ChipsCarteira({ ticker, classe }: { ticker: string; classe: Clas
           <SeloEstado tipo="na_carteira" texto={tx.chipNaCarteira} />
         </span>
       ) : null}
-      {alvo !== null ? (
+      {plano ? (
         <span
-          title={formatarTexto(tx.chipPlanejadoTitulo, {
-            pct: `${formatNumber(alvo, 1)}%`,
-          })}
+          title={formatarTexto(
+            plano.objetivoPct !== null ? tx.chipPlanejadoTitulo : tx.chipPlanejadoSemObjetivoTitulo,
+            {
+              pct: `${formatNumber(plano.objetivoPct ?? 0, 1)}%`,
+              aba: rotuloCategoria(plano.categoria as Parameters<typeof rotuloCategoria>[0]),
+            },
+          )}
         >
           <SeloEstado tipo="planejado" texto={tx.chipPlanejado} />
         </span>
@@ -197,8 +226,8 @@ export default function BarraAcoesAtivo({
 
   const posicao = overlay.data?.posicoes[t] ?? null;
   const planejado = posicao ? null : (overlay.data?.planejados[t] ?? null);
-  // v2.5: "Ajustar plano" quando há alvo do Planejar na carteira (planning_asset_targets)
-  const temAlvo = !!overlay.data?.alvos?.[t];
+  // "Ajustar plano" quando já há plano na Carteira (Objetivo > 0 da posição ou linha planejada)
+  const temAlvo = !!planoNaCarteira(overlay.data, t);
 
   const base = { ticker: t, classe, nome, onFechar: fechar };
 

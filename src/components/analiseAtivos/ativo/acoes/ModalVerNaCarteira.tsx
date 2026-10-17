@@ -3,11 +3,12 @@
 /**
  * Modal "‹ticker› na sua Carteira" (fatia C1; v2.5 fatia C). Com posição: GET
  * /api/ativos/[portfolioId] (a mesma rota da tela /ativos/[id]) — posição, valor atual, preço médio,
- * resultado, proventos recebidos, alvo planejado (planning_asset_targets, % da carteira TOTAL) com
- * o desvio na mesma base e as últimas operações; "Registrar operação" e "Abrir Carteira completa".
- * Sem posição: "Você ainda não tem ‹ticker› na carteira" e, se houver, o alvo planejado. Objetivo da
- * aba na Carteira > 0 → linha informativa (decisão 1). Consultor agindo: vê a carteira do cliente, com o aviso. O tipo de cada operação sai
- * como a Carteira mostra (Aporte, Resgate, Reinvestimento…).
+ * resultado, proventos recebidos, alvo planejado — desde 17/10/2026 o OBJETIVO DA CARTEIRA (% dentro
+ * da aba, o que o "Planejar na carteira" grava) com o desvio na base da aba — e as últimas
+ * operações; "Registrar operação" e "Abrir Carteira completa". Sem posição: "Você ainda não tem
+ * ‹ticker› na carteira" e, se houver linha planejada, o objetivo dela. Consultor agindo: vê a
+ * carteira do cliente, com o aviso. O tipo de cada operação sai como a Carteira mostra (Aporte,
+ * Resgate, Reinvestimento…).
  */
 import Link from 'next/link';
 import ModalAnalise, {
@@ -82,12 +83,13 @@ export default function ModalVerNaCarteira({
   const posicaoQ = usePosicaoCarteira(dados.portfolioId, aberto && temPosicao);
   const aba = dados.abaNome ?? dados.abaBaseNome ?? cl.aba;
 
-  const alvo = dados.alvoPct;
+  // alvo = Objetivo da Carteira (% dentro da aba); desvio na base da aba
+  const alvo = dados.objetivoAbaPct;
   const conta =
-    dados.valorBase !== null && dados.linha
+    dados.valorAba !== null && dados.valorAba > 0 && dados.linha
       ? desvioAlvo({
           valorPosicao: dados.linha.valorAtualizado,
-          valorBase: dados.valorBase,
+          valorBase: dados.valorAba,
           alvoPct: alvo,
           preco: null,
         })
@@ -127,7 +129,9 @@ export default function ModalVerNaCarteira({
     corpo = (
       <p className="py-3.5 text-sm text-gray-700 dark:text-gray-300" data-ver-vazio="">
         {formatarTexto(T.vazio, { ticker: t })}
-        {alvo !== null ? <> {formatarTexto(T.vazioAlvo, { pct: pct1(alvo) })}</> : null}
+        {dados.status === 'planejado' && alvo !== null ? (
+          <> {formatarTexto(T.vazioAlvo, { pct: pct1(alvo), aba })}</>
+        ) : null}
       </p>
     );
   } else {
@@ -169,7 +173,7 @@ export default function ModalVerNaCarteira({
           />
           <Celula
             rotulo={T.alvo}
-            valor={alvo !== null ? formatarTexto(T.alvoValor, { pct: pct1(alvo) }) : '—'}
+            valor={alvo !== null ? formatarTexto(T.alvoValor, { pct: pct1(alvo), aba }) : '—'}
             nota={
               alvo !== null && conta && conta.desvioPp !== null
                 ? formatarTexto(T.alvoDesvio, {
@@ -256,14 +260,6 @@ export default function ModalVerNaCarteira({
       <p className={SUBTITULO_MODAL}>{T.subtitulo}</p>
       <AvisoConsultor className="mb-2" />
       {corpo}
-      {dados.objetivoAbaPct !== null && dados.status !== 'carregando' ? (
-        <p className="mt-2 text-[12.5px] text-gray-500 dark:text-gray-400" data-objetivo-aba="">
-          {formatarTexto(T.objetivoAba, {
-            aba,
-            pct: `${formatNumber(dados.objetivoAbaPct, 0)}%`,
-          })}
-        </p>
-      ) : null}
     </ModalAnalise>
   );
 }

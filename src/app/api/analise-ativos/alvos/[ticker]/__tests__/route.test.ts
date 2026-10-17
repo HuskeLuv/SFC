@@ -5,21 +5,34 @@ const mocks = vi.hoisted(() => ({
   prisma: {
     user: { findUnique: vi.fn() },
     asset: { findUnique: vi.fn() },
-    planningAssetTarget: {
-      findUnique: vi.fn(),
-      upsert: vi.fn(),
-      deleteMany: vi.fn(),
-    },
+    portfolio: { findFirst: vi.fn(), update: vi.fn() },
+    watchlist: { findFirst: vi.fn(), update: vi.fn(), create: vi.fn(), delete: vi.fn() },
+    planningAssetTarget: { findUnique: vi.fn(), upsert: vi.fn(), deleteMany: vi.fn() },
   },
   requireAuthWithActing: vi.fn(),
   logSensitiveEndpointAccess: vi.fn(),
   jwtVerify: vi.fn(),
+  invalidarContextoUsuario: vi.fn(),
+  recordObjetivoClasseDefinido: vi.fn(),
+  recordPlanejadoAdicionado: vi.fn(),
+  recordPlanejadoEditado: vi.fn(),
+  recordPlanejadoRemovido: vi.fn(),
 }));
 
 vi.mock('@/lib/prisma', () => ({ default: mocks.prisma, prisma: mocks.prisma }));
 vi.mock('@/utils/auth', () => ({ requireAuthWithActing: mocks.requireAuthWithActing }));
 vi.mock('@/services/impersonationLogger', () => ({
   logSensitiveEndpointAccess: mocks.logSensitiveEndpointAccess,
+}));
+vi.mock('@/services/assistente/contexto', () => ({
+  invalidarContextoUsuario: mocks.invalidarContextoUsuario,
+}));
+vi.mock('@/services/changeHistory', () => ({
+  assetEntityLabel: (a: { symbol?: string } | null) => a?.symbol,
+  recordObjetivoClasseDefinido: mocks.recordObjetivoClasseDefinido,
+  recordPlanejadoAdicionado: mocks.recordPlanejadoAdicionado,
+  recordPlanejadoEditado: mocks.recordPlanejadoEditado,
+  recordPlanejadoRemovido: mocks.recordPlanejadoRemovido,
 }));
 vi.mock('jose', () => ({ jwtVerify: mocks.jwtVerify }));
 vi.stubEnv('JWT_SECRET', 'test-secret-key-for-vitest');
@@ -29,21 +42,46 @@ import { limparCacheAcessoAnalise } from '@/services/analiseAtivos/acesso/acesso
 import { middleware } from '@/middleware';
 import { CSRF_COOKIE_NAME } from '@/utils/csrf';
 
-const URL_WEGE = 'http://localhost/api/analise-ativos/alvos/WEGE3';
+const urlDe = (t: string) => `http://localhost/api/analise-ativos/alvos/${t}`;
 const ctx = (ticker = 'WEGE3') => ({ params: Promise.resolve({ ticker }) });
-const put = (corpo: unknown) =>
-  new NextRequest(URL_WEGE, {
+const put = (corpo: unknown, t = 'WEGE3') =>
+  new NextRequest(urlDe(t), {
     method: 'PUT',
     body: JSON.stringify(corpo),
     headers: { 'Content-Type': 'application/json' },
   });
-const del = () => new NextRequest(URL_WEGE, { method: 'DELETE' });
-const ATUALIZADO = new Date('2026-10-15T14:32:00Z');
-const ASSETS: Record<string, string> = { WEGE3: 'a-wege', ITUB4: 'a-itub', HGLG11: 'a-hglg' };
+const del = (t = 'WEGE3') => new NextRequest(urlDe(t), { method: 'DELETE' });
+const get = (t = 'WEGE3') => new NextRequest(urlDe(t));
 
-/** Banco fake: alvos por (userId, assetId). */
-let alvos: Map<string, { targetPct: number; atualizadoPorUserId: string | null }>;
-const chave = (userId: string, assetId: string) => `${userId}|${assetId}`;
+const asset = (id: string, symbol: string, type: string) => ({
+  id,
+  symbol,
+  name: symbol,
+  type,
+  currency: 'BRL',
+  source: 'brapi',
+  categoria: null,
+  subcategoria: null,
+});
+const ASSETS: Record<string, ReturnType<typeof asset>> = {
+  WEGE3: asset('a-wege', 'WEGE3', 'stock'),
+  ITUB4: asset('a-itub', 'ITUB4', 'stock'),
+  HGLG11: asset('a-hglg', 'HGLG11', 'fii'),
+  AFHI11: asset('a-afhi', 'AFHI11', 'fii'),
+  TSLA34: asset('a-tsla', 'TSLA34', 'opcao'),
+};
+
+interface Linha {
+  id: string;
+  userId: string;
+  assetId: string;
+  objetivo: number;
+  categoriaOverride: string | null;
+  [k: string]: unknown;
+}
+/** Banco fake: Portfolio e Watchlist por (userId, assetId). */
+let portfolios: Linha[];
+let watchlists: Linha[];
 
 const comoUsuario = (id: string) =>
   mocks.requireAuthWithActing.mockResolvedValue({
@@ -58,78 +96,126 @@ const comoConsultor = () =>
     actingClient: { id: 'u1', name: 'Cliente', email: 'u1@x' },
   });
 
-type Where = { userId_assetId: { userId: string; assetId: string } };
+type WhereUA = { where: { userId: string; assetId: string } };
+/** Cópia, como o Prisma (o objeto lido não muda com o update seguinte). */
+const acha = (lista: Linha[], { where }: WhereUA) => {
+  const l = lista.find((x) => x.userId === where.userId && x.assetId === where.assetId);
+  return l ? { ...l } : null;
+};
 
 beforeEach(() => {
   vi.clearAllMocks();
   vi.stubEnv('ANALISE_ATIVOS_HABILITADA', 'true');
   vi.stubEnv('ANALISE_ATIVOS_ACESSO', 'todos');
-  alvos = new Map([[chave('u1', 'a-wege'), { targetPct: 6, atualizadoPorUserId: null }]]);
+  portfolios = [
+    {
+      id: 'pf-wege',
+      userId: 'u1',
+      assetId: 'a-wege',
+      objetivo: 0,
+      categoriaOverride: null,
+      estrategia: 'growth',
+      tipoFii: null,
+      regiaoEtf: null,
+      tipoFundo: null,
+    },
+  ];
+  watchlists = [
+    {
+      id: 'wl-hglg',
+      userId: 'u1',
+      assetId: 'a-hglg',
+      objetivo: 5,
+      secao: 'tijolo',
+      categoriaOverride: null,
+      notes: null,
+    },
+  ];
   mocks.prisma.asset.findUnique.mockImplementation(
-    async ({ where }: { where: { symbol: string } }) =>
-      ASSETS[where.symbol] ? { id: ASSETS[where.symbol] } : null,
+    async ({ where }: { where: { symbol: string } }) => ASSETS[where.symbol] ?? null,
   );
-  mocks.prisma.planningAssetTarget.findUnique.mockImplementation(
-    async ({ where }: { where: Where }) => {
-      const a = alvos.get(chave(where.userId_assetId.userId, where.userId_assetId.assetId));
-      return a ? { targetPct: a.targetPct, updatedAt: ATUALIZADO } : null;
+  mocks.prisma.portfolio.findFirst.mockImplementation(async (a: WhereUA) => acha(portfolios, a));
+  mocks.prisma.watchlist.findFirst.mockImplementation(async (a: WhereUA) => acha(watchlists, a));
+  mocks.prisma.portfolio.update.mockImplementation(
+    async ({ where, data }: { where: { id: string }; data: { objetivo: number } }) => {
+      const l = portfolios.find((p) => p.id === where.id)!;
+      Object.assign(l, data);
+      return { ...l };
     },
   );
-  mocks.prisma.planningAssetTarget.upsert.mockImplementation(
-    async ({
-      where,
-      create,
-    }: {
-      where: Where;
-      create: { targetPct: number; atualizadoPorUserId: string | null };
-    }) => {
-      alvos.set(chave(where.userId_assetId.userId, where.userId_assetId.assetId), {
-        targetPct: create.targetPct,
-        atualizadoPorUserId: create.atualizadoPorUserId,
-      });
-      return { targetPct: create.targetPct, updatedAt: ATUALIZADO };
+  mocks.prisma.watchlist.update.mockImplementation(
+    async ({ where, data }: { where: { id: string }; data: { objetivo: number } }) => {
+      const l = watchlists.find((w) => w.id === where.id)!;
+      Object.assign(l, data);
+      return { ...l };
     },
   );
-  mocks.prisma.planningAssetTarget.deleteMany.mockImplementation(
-    async ({ where }: { where: { userId: string; assetId: string } }) => {
-      const k = chave(where.userId, where.assetId);
-      const havia = alvos.delete(k);
-      return { count: havia ? 1 : 0 };
+  mocks.prisma.watchlist.create.mockImplementation(
+    async ({ data }: { data: Omit<Linha, 'id' | 'categoriaOverride'> }) => {
+      const l = { id: `wl-${data.assetId}`, categoriaOverride: null, ...data } as Linha;
+      watchlists.push(l);
+      return { ...l };
     },
   );
+  mocks.prisma.watchlist.delete.mockImplementation(async ({ where }: { where: { id: string } }) => {
+    const i = watchlists.findIndex((w) => w.id === where.id);
+    return watchlists.splice(i, 1)[0];
+  });
   comoUsuario('u1');
 });
 
-describe('GET /api/analise-ativos/alvos/[ticker]', () => {
-  it('devolve o alvo do usuário (no-store)', async () => {
-    const res = await GET(new NextRequest(URL_WEGE), ctx());
+describe('GET /api/analise-ativos/alvos/[ticker] — Objetivo da Carteira', () => {
+  it('com posição: Portfolio.objetivo, aba e seção da posição (no-store)', async () => {
+    portfolios[0].objetivo = 15;
+    const res = await GET(get(), ctx());
     expect(res.status).toBe(200);
     expect(res.headers.get('Cache-Control')).toBe('no-store');
     expect(await res.json()).toEqual({
       ticker: 'WEGE3',
-      alvo: { targetPct: 6, atualizadoEm: ATUALIZADO.toISOString() },
+      alvo: {
+        origem: 'posicao',
+        id: 'pf-wege',
+        objetivoPct: 15,
+        categoria: 'acoes',
+        abaNome: 'Ações',
+        secao: 'growth',
+      },
     });
   });
 
-  it('sem alvo: alvo null', async () => {
-    const res = await GET(new NextRequest(URL_WEGE), ctx('ITUB4'));
-    expect(await res.json()).toEqual({ ticker: 'ITUB4', alvo: null });
+  it('sem posição, com linha planejada: o objetivo do planejado', async () => {
+    const corpo = await (await GET(get('HGLG11'), ctx('HGLG11'))).json();
+    expect(corpo.alvo).toMatchObject({
+      origem: 'planejado',
+      id: 'wl-hglg',
+      objetivoPct: 5,
+      categoria: 'fiis',
+      secao: 'tijolo',
+    });
+  });
+
+  it('sem posição nem plano: alvo null; não lê planning_asset_targets', async () => {
+    expect(await (await GET(get('ITUB4'), ctx('ITUB4'))).json()).toEqual({
+      ticker: 'ITUB4',
+      alvo: null,
+    });
+    expect(mocks.prisma.planningAssetTarget.findUnique).not.toHaveBeenCalled();
   });
 
   it('ticker em minúsculas é normalizado; sem Asset ou inválido → 404', async () => {
-    expect((await GET(new NextRequest(URL_WEGE), ctx('wege3'))).status).toBe(200);
-    expect((await GET(new NextRequest(URL_WEGE), ctx('ZZZZ3'))).status).toBe(404);
-    expect((await GET(new NextRequest(URL_WEGE), ctx('../x'))).status).toBe(404);
+    expect((await GET(get(), ctx('wege3'))).status).toBe(200);
+    expect((await GET(get(), ctx('ZZZZ3'))).status).toBe(404);
+    expect((await GET(get(), ctx('../x'))).status).toBe(404);
   });
 
   it('sem sessão → 401', async () => {
     mocks.requireAuthWithActing.mockRejectedValue(new Error('Não autorizado'));
-    expect((await GET(new NextRequest(URL_WEGE), ctx())).status).toBe(401);
+    expect((await GET(get(), ctx())).status).toBe(401);
   });
 
   it('flag desligada → 404 antes da sessão', async () => {
     vi.stubEnv('ANALISE_ATIVOS_HABILITADA', '');
-    expect((await GET(new NextRequest(URL_WEGE), ctx())).status).toBe(404);
+    expect((await GET(get(), ctx())).status).toBe(404);
     expect(mocks.requireAuthWithActing).not.toHaveBeenCalled();
   });
 
@@ -138,88 +224,169 @@ describe('GET /api/analise-ativos/alvos/[ticker]', () => {
     comoUsuario('u-fora');
     limparCacheAcessoAnalise('u-fora');
     mocks.prisma.user.findUnique.mockResolvedValue({ role: 'user', featureBetas: [] });
-    expect((await GET(new NextRequest(URL_WEGE), ctx())).status).toBe(404);
-    expect(mocks.prisma.planningAssetTarget.findUnique).not.toHaveBeenCalled();
+    expect((await GET(get(), ctx())).status).toBe(404);
+    expect(mocks.prisma.portfolio.findFirst).not.toHaveBeenCalled();
   });
 });
 
-describe('PUT / DELETE', () => {
-  it('PUT cria e é idempotente (upsert por userId+assetId)', async () => {
-    const r1 = await PUT(put({ targetPct: 5 }), ctx('ITUB4'));
-    expect(r1.status).toBe(200);
-    expect(await r1.json()).toEqual({
-      ticker: 'ITUB4',
-      alvo: { targetPct: 5, atualizadoEm: ATUALIZADO.toISOString() },
+describe('PUT — grava o Objetivo da aba', () => {
+  it('com posição: Portfolio.objetivo (2 casas), histórico objetivo-classe e contexto', async () => {
+    const r = await PUT(put({ objetivoPct: 10.126 }), ctx());
+    expect(r.status).toBe(200);
+    const corpo = await r.json();
+    expect(corpo).toMatchObject({
+      ticker: 'WEGE3',
+      criado: false,
+      alvo: { origem: 'posicao', id: 'pf-wege', objetivoPct: 10.13, abaNome: 'Ações' },
     });
-    await PUT(put({ targetPct: 5 }), ctx('ITUB4'));
-    expect(mocks.prisma.planningAssetTarget.upsert).toHaveBeenCalledTimes(2);
-    expect(mocks.prisma.planningAssetTarget.upsert.mock.calls[1][0].where).toEqual({
-      userId_assetId: { userId: 'u1', assetId: 'a-itub' },
+    expect(mocks.prisma.portfolio.update).toHaveBeenCalledWith({
+      where: { id: 'pf-wege' },
+      data: { objetivo: 10.13 },
     });
-    expect([...alvos.keys()].filter((k) => k.endsWith('a-itub'))).toHaveLength(1);
-    expect(alvos.get(chave('u1', 'a-itub'))).toEqual({ targetPct: 5, atualizadoPorUserId: null });
+    expect(mocks.prisma.watchlist.create).not.toHaveBeenCalled();
+    expect(mocks.recordObjetivoClasseDefinido).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ targetUserId: 'u1' }),
+      {
+        classe: 'Ações',
+        ativoId: 'pf-wege',
+        ticker: 'WEGE3',
+        objetivoAnterior: 0,
+        objetivo: 10.13,
+      },
+    );
+    expect(mocks.invalidarContextoUsuario).toHaveBeenCalledWith('u1');
+    // nunca mais planning_asset_targets
+    expect(mocks.prisma.planningAssetTarget.upsert).not.toHaveBeenCalled();
   });
 
-  it('PUT arredonda a 3 casas (Decimal(6,3)) e aceita 100', async () => {
-    await PUT(put({ targetPct: 6.12345 }), ctx());
-    expect(alvos.get(chave('u1', 'a-wege'))?.targetPct).toBe(6.123);
-    expect((await PUT(put({ targetPct: 100 }), ctx())).status).toBe(200);
+  it('com planejado: atualiza Watchlist.objetivo (histórico planejado.editar); seção mantida', async () => {
+    const r = await PUT(put({ objetivoPct: 10, secao: 'tvm' }), ctx('HGLG11'));
+    expect((await r.json()).alvo).toMatchObject({
+      origem: 'planejado',
+      objetivoPct: 10,
+      secao: 'tijolo',
+    });
+    expect(mocks.prisma.watchlist.update).toHaveBeenCalledWith({
+      where: { id: 'wl-hglg' },
+      data: { objetivo: 10 },
+    });
+    expect(mocks.recordPlanejadoEditado).toHaveBeenCalledTimes(1);
+    expect(mocks.prisma.watchlist.create).not.toHaveBeenCalled();
+  });
+
+  it('caso do Pedro: AFHI11 sem posição → nasce o planejado na aba FIIs, seção Papel (tvm)', async () => {
+    const r = await PUT(put({ objetivoPct: 10, secao: 'tvm' }, 'AFHI11'), ctx('AFHI11'));
+    expect(r.status).toBe(200);
+    const corpo = await r.json();
+    expect(corpo).toMatchObject({
+      ticker: 'AFHI11',
+      criado: true,
+      alvo: { origem: 'planejado', objetivoPct: 10, categoria: 'fiis', secao: 'tvm' },
+    });
+    expect(mocks.prisma.watchlist.create).toHaveBeenCalledWith({
+      data: { userId: 'u1', assetId: 'a-afhi', objetivo: 10, secao: 'tvm', notes: null },
+    });
+    expect(mocks.recordPlanejadoAdicionado).toHaveBeenCalledTimes(1);
+    expect(mocks.invalidarContextoUsuario).toHaveBeenCalledWith('u1');
+    // idempotente: a 2ª gravação atualiza a linha criada, não cria outra
+    await PUT(put({ objetivoPct: 12 }, 'AFHI11'), ctx('AFHI11'));
+    expect(mocks.prisma.watchlist.create).toHaveBeenCalledTimes(1);
+    expect(watchlists.filter((w) => w.assetId === 'a-afhi')).toHaveLength(1);
+    expect(watchlists.find((w) => w.assetId === 'a-afhi')?.objetivo).toBe(12);
+  });
+
+  it('sem seção: padrão da aba (ação → value; FII → tvm)', async () => {
+    await PUT(put({ objetivoPct: 4 }, 'ITUB4'), ctx('ITUB4'));
+    expect(mocks.prisma.watchlist.create.mock.calls[0][0].data.secao).toBe('value');
+    await PUT(put({ objetivoPct: 4 }, 'AFHI11'), ctx('AFHI11'));
+    expect(mocks.prisma.watchlist.create.mock.calls[1][0].data.secao).toBe('tvm');
+  });
+
+  it('seção fora da aba → 400 e nada gravado; tipo sem aba planejável → 400', async () => {
+    expect(
+      (await PUT(put({ objetivoPct: 4, secao: 'tijolo' }, 'ITUB4'), ctx('ITUB4'))).status,
+    ).toBe(400);
+    expect((await PUT(put({ objetivoPct: 4 }, 'TSLA34'), ctx('TSLA34'))).status).toBe(400);
+    expect(mocks.prisma.watchlist.create).not.toHaveBeenCalled();
   });
 
   it.each([
-    ['zero', { targetPct: 0 }],
-    ['negativo', { targetPct: -1 }],
-    ['acima de 100', { targetPct: 100.5 }],
-    ['texto', { targetPct: '6' }],
-    ['campo extra', { targetPct: 6, objetivo: 6 }],
+    ['zero', { objetivoPct: 0 }],
+    ['negativo', { objetivoPct: -1 }],
+    ['acima de 100', { objetivoPct: 100.5 }],
+    ['texto', { objetivoPct: '6' }],
+    ['campo antigo', { targetPct: 6 }],
+    ['campo extra', { objetivoPct: 6, objetivo: 6 }],
     ['vazio', {}],
   ])('PUT %s → 400 e nada gravado', async (_n, corpo) => {
     const r = await PUT(put(corpo), ctx());
     expect(r.status).toBe(400);
-    expect(mocks.prisma.planningAssetTarget.upsert).not.toHaveBeenCalled();
+    expect(mocks.prisma.portfolio.update).not.toHaveBeenCalled();
+    expect(mocks.prisma.watchlist.create).not.toHaveBeenCalled();
   });
 
-  it('PUT com JSON inválido → 400; ticker sem Asset → 404', async () => {
-    const req = new NextRequest(URL_WEGE, { method: 'PUT', body: '{' });
+  it('PUT com JSON inválido → 400; ticker sem Asset → 404; aceita 100', async () => {
+    const req = new NextRequest(urlDe('WEGE3'), { method: 'PUT', body: '{' });
     expect((await PUT(req, ctx())).status).toBe(400);
-    expect((await PUT(put({ targetPct: 5 }), ctx('ZZZZ3'))).status).toBe(404);
+    expect((await PUT(put({ objetivoPct: 5 }), ctx('ZZZZ3'))).status).toBe(404);
+    expect((await PUT(put({ objetivoPct: 100 }), ctx())).status).toBe(200);
   });
 
-  it('IDOR: o u2 grava na chave do u2, sem tocar a do u1', async () => {
+  it('IDOR: o u2 grava só no u2 (cria o planejado dele), sem tocar a posição do u1', async () => {
     comoUsuario('u2');
-    await PUT(put({ targetPct: 9 }), ctx());
-    expect(alvos.get(chave('u1', 'a-wege'))?.targetPct).toBe(6);
-    expect(alvos.get(chave('u2', 'a-wege'))?.targetPct).toBe(9);
+    await PUT(put({ objetivoPct: 9 }), ctx());
+    expect(portfolios[0].objetivo).toBe(0);
+    expect(mocks.prisma.watchlist.create.mock.calls[0][0].data.userId).toBe('u2');
   });
+});
 
-  it('DELETE apaga só a do usuário; sem alvo → removido=false', async () => {
+describe('DELETE — "Remover do plano"', () => {
+  it('posição: objetivo volta a 0, com histórico; sem objetivo → removido=false', async () => {
+    portfolios[0].objetivo = 15;
     const r = await DELETE(del(), ctx());
-    expect(await r.json()).toEqual({ ticker: 'WEGE3', removido: true });
-    expect(alvos.has(chave('u1', 'a-wege'))).toBe(false);
+    expect(await r.json()).toEqual({ ticker: 'WEGE3', removido: true, origem: 'posicao' });
+    expect(portfolios[0].objetivo).toBe(0);
+    expect(mocks.recordObjetivoClasseDefinido).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      expect.objectContaining({ objetivoAnterior: 15, objetivo: 0 }),
+    );
     const r2 = await DELETE(del(), ctx());
-    expect(r2.status).toBe(200);
-    expect(await r2.json()).toEqual({ ticker: 'WEGE3', removido: false });
-    expect(mocks.prisma.planningAssetTarget.deleteMany.mock.calls[0][0].where).toEqual({
-      userId: 'u1',
-      assetId: 'a-wege',
-    });
+    expect(await r2.json()).toEqual({ ticker: 'WEGE3', removido: false, origem: 'posicao' });
   });
 
-  it('a rota não toca o Objetivo da Carteira (Portfolio/Watchlist)', async () => {
-    await PUT(put({ targetPct: 7 }), ctx());
-    await DELETE(del(), ctx());
-    expect(Object.keys(mocks.prisma)).not.toContain('portfolio');
-    expect(Object.keys(mocks.prisma)).not.toContain('watchlist');
+  it('planejado: apaga a linha (o × da Carteira), com histórico planejado.remover', async () => {
+    const r = await DELETE(del('HGLG11'), ctx('HGLG11'));
+    expect(await r.json()).toEqual({ ticker: 'HGLG11', removido: true, origem: 'planejado' });
+    expect(mocks.prisma.watchlist.delete).toHaveBeenCalledWith({ where: { id: 'wl-hglg' } });
+    expect(mocks.recordPlanejadoRemovido).toHaveBeenCalledTimes(1);
+    expect(mocks.invalidarContextoUsuario).toHaveBeenCalledWith('u1');
+  });
+
+  it('nada a remover: 200 com removido=false e origem null', async () => {
+    const r = await DELETE(del('ITUB4'), ctx('ITUB4'));
+    expect(r.status).toBe(200);
+    expect(await r.json()).toEqual({ ticker: 'ITUB4', removido: false, origem: null });
+    expect(mocks.prisma.planningAssetTarget.deleteMany).not.toHaveBeenCalled();
   });
 });
 
 describe('consultor agindo pelo cliente', () => {
-  it('grava no cliente, com atualizadoPorUserId e log do acesso', async () => {
+  it('grava no cliente, com log do acesso e o auth do consultor no histórico', async () => {
     comoConsultor();
-    const r = await PUT(put({ targetPct: 4 }), ctx('ITUB4'));
+    const r = await PUT(put({ objetivoPct: 4 }, 'ITUB4'), ctx('ITUB4'));
     expect(r.status).toBe(200);
-    expect(alvos.get(chave('u1', 'a-itub'))).toEqual({ targetPct: 4, atualizadoPorUserId: 'c1' });
-    expect(alvos.has(chave('c1', 'a-itub'))).toBe(false);
+    expect(mocks.prisma.watchlist.create.mock.calls[0][0].data.userId).toBe('u1');
+    expect(mocks.recordPlanejadoAdicionado).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        payload: expect.objectContaining({ id: 'c1' }),
+        targetUserId: 'u1',
+      }),
+      expect.anything(),
+      expect.anything(),
+    );
     expect(mocks.logSensitiveEndpointAccess).toHaveBeenCalledWith(
       expect.anything(),
       expect.objectContaining({ id: 'c1' }),
@@ -232,17 +399,17 @@ describe('consultor agindo pelo cliente', () => {
 
   it('GET e DELETE também no cliente, com log', async () => {
     comoConsultor();
-    const g = await GET(new NextRequest(URL_WEGE), ctx());
-    expect((await g.json()).alvo.targetPct).toBe(6);
+    portfolios[0].objetivo = 8;
+    const g = await GET(get(), ctx());
+    expect((await g.json()).alvo.objetivoPct).toBe(8);
     await DELETE(del(), ctx());
-    expect(alvos.has(chave('u1', 'a-wege'))).toBe(false);
+    expect(portfolios[0].objetivo).toBe(0);
     expect(mocks.logSensitiveEndpointAccess).toHaveBeenCalledTimes(2);
   });
 
-  it('usuário comum: sem log e atualizadoPorUserId null', async () => {
-    await PUT(put({ targetPct: 3 }), ctx());
+  it('usuário comum: sem log', async () => {
+    await PUT(put({ objetivoPct: 3 }), ctx());
     expect(mocks.logSensitiveEndpointAccess).not.toHaveBeenCalled();
-    expect(alvos.get(chave('u1', 'a-wege'))?.atualizadoPorUserId).toBeNull();
   });
 });
 

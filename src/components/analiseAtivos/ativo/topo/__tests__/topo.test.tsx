@@ -41,7 +41,7 @@ describe('CabecalhoAtivo', () => {
     expect(container.textContent).not.toMatch(/Índice|semáforo|nota/i);
   });
 
-  it('chips "Na carteira" e "Planejado" juntos quando a posição tem alvo (overlay.alvos, v2.5)', async () => {
+  it('chips "Na carteira" e "Planejado" juntos quando a posição tem Objetivo > 0 na Carteira', async () => {
     const fetchMock = vi.fn(async () => ({
       ok: true,
       status: 200,
@@ -50,7 +50,6 @@ describe('CabecalhoAtivo', () => {
           WEGE3: { portfolioId: 'p', quantidade: 120, categoria: 'acoes', objetivoPct: 25 },
         },
         planejados: {},
-        alvos: { WEGE3: { targetPct: 6, atualizadoEm: '2026-10-15T12:00:00.000Z' } },
       }),
     }));
     vi.stubGlobal('fetch', fetchMock);
@@ -64,16 +63,15 @@ describe('CabecalhoAtivo', () => {
     vi.unstubAllGlobals();
   });
 
-  it('Objetivo da aba sem alvo do Planejar: só "Na carteira" (o chip "Planejado" não acende)', async () => {
+  it('posição sem Objetivo na Carteira: só "Na carteira" (o chip "Planejado" não acende)', async () => {
     const fetchMock = vi.fn(async () => ({
       ok: true,
       status: 200,
       json: async () => ({
         posicoes: {
-          WEGE3: { portfolioId: 'p', quantidade: 120, categoria: 'acoes', objetivoPct: 25 },
+          WEGE3: { portfolioId: 'p', quantidade: 120, categoria: 'acoes', objetivoPct: null },
         },
         planejados: {},
-        alvos: {},
       }),
     }));
     vi.stubGlobal('fetch', fetchMock);

@@ -441,11 +441,12 @@ export interface EntradaDesvioAlvo {
   /** valor de mercado da posição (R$) */
   valorPosicao: number;
   /**
-   * v2.5: valor da carteira TOTAL (totalDinheiro do resumo da Carteira), base de posição, alvo e
-   * desvio (caso 33: 6.276 ÷ 0,038). Na v2.4 era o valor da aba (valorBaseAba).
+   * Base de posição, alvo e desvio. Desde 17/10/2026 a página do ativo passa o valor da ABA (soma
+   * das linhas da aba), porque o alvo é o Objetivo da Carteira (% dentro da aba); na v2.5 era a
+   * carteira TOTAL (caso 33: 6.276 ÷ 0,038).
    */
   valorBase: number;
-  /** alvo em % da carteira total (planning_asset_targets.targetPct; null = sem alvo) */
+  /** alvo em % de valorBase (Objetivo da Carteira; null = sem alvo) */
   alvoPct: number | null;
   /** cotação usada para as quantidades */
   preco: number | null;

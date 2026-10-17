@@ -1,18 +1,21 @@
 'use client';
 
 /**
- * Modal "Planejar na carteira · ‹ticker›" / "Ajustar plano" (v2.5, spec §3.2, caso 33). Campo
- * "Peso-alvo na carteira (%)" (em branco, placeholder "ex.: 5"), a classe no Planejamento, a posição
- * atual e o resumo ao vivo (valor equivalente, quantidade equivalente e "Posição atual vs. alvo:
- * −2,2 p.p. (R$ 3.633 · 69 ações)"). "Salvar no Planejamento" grava em planning_asset_targets
- * (PUT /api/analise-ativos/alvos/[ticker]) e acende o chip "Planejado"; "Remover do plano" apaga.
+ * Modal "Planejar na carteira · ‹ticker›" / "Ajustar plano". Desde 17/10/2026 (ticket do Pedro)
+ * grava o OBJETIVO DA CARTEIRA — % DENTRO da aba, o mesmo da coluna Objetivo — por
+ * PUT /api/analise-ativos/alvos/[ticker]: com posição, Portfolio.objetivo; sem posição, a linha
+ * planejada da aba (Watchlist), criada na seção da Carteira. Antes ia para planning_asset_targets
+ * (% da carteira total), que a Carteira nunca lia.
  *
- * Base ÚNICA = carteira TOTAL (totalDinheiro do resumo). NÃO lê nem grava o Objetivo da Carteira
- * (rotas /objetivo e /planejados ficam de fora); quando a aba tem Objetivo > 0, só a linha
- * informativa (decisão 1). Linguagem de desvio (nunca "faltam"). Consultor agindo: pode planejar,
- * com o aviso de que grava no Planejamento do cliente (rec. 9).
+ * Mostra o campo "Peso-alvo dentro de ‹aba› (%)", a seção na Carteira (da posição, do plano ou a
+ * de secaoOperacao — a mesma escolha automática do Registrar operação; quando a Análise não sabe,
+ * o usuário escolhe), a classe no Planejamento, a posição atual (% da aba), a linha informativa
+ * "≈ X% da carteira total" (objetivo × peso atual da aba) e o resumo ao vivo do desvio NA BASE DA
+ * ABA. "Remover do plano": posição → objetivo 0; planejado → sai da aba. Linguagem de desvio
+ * (nunca "faltam"). Consultor agindo: pode planejar, com o aviso da carteira do cliente (rec. 9).
  */
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
+import { useAtivoTopo } from '@/hooks/useAnaliseAtivos';
 import ModalAnalise, {
   AvisoConsultor,
   BOTAO_MODAL_PRIMARIO,
@@ -24,9 +27,16 @@ import { useNaCarteiraAtivo } from '@/components/analiseAtivos/ativo/usuario/use
 import { mostrarToastMover } from '@/components/carteira/mover/moverToast';
 import { useMutacoesCarteiraAnalise } from '@/hooks/useAcoesCarteiraAnalise';
 import { desvioAlvo } from '@/services/analiseAtivos/regras/carteira/desvioAlvo';
+import {
+  SECAO_PADRAO,
+  SECOES_OPERACAO,
+  secaoOperacao,
+  tipoCvmDoTopo,
+} from '@/services/analiseAtivos/regras/carteira/secaoOperacao';
 import { formatarTexto } from '@/services/analiseAtivos/textos';
 import {
   CLASSE_CARTEIRA,
+  ROTULOS_SECAO,
   TEXTOS_ACOES_CARTEIRA,
 } from '@/services/analiseAtivos/textosAcoesCarteira';
 import { formatNumber } from '@/utils/format';
@@ -72,33 +82,56 @@ export default function ModalPlanejar({
   const t = ticker.toUpperCase();
   const cl = CLASSE_CARTEIRA[classe];
   const dados = useNaCarteiraAtivo(t, classe, { base: aberto });
+  // tipo do FII da página (mesma key do topo, sem requisição nova) → seção sugerida pela CVM
+  const topo = useAtivoTopo(t, { enabled: aberto && classe === 'fii' });
   const { salvarAlvo, removerAlvo } = useMutacoesCarteiraAnalise();
   const campoId = useId();
+  const secaoId = useId();
   const resumoId = useId();
   const [texto, setTexto] = useState('');
   const [erro, setErro] = useState<string | null>(null);
+  const [secaoEscolhida, setSecaoEscolhida] = useState<string | null>(null);
 
-  const alvoAtual = dados.alvoPct;
-  const temPlano = alvoAtual !== null;
+  const objetivoAtual = dados.objetivoAbaPct;
+  const temPlano = dados.temPlano;
   const aba = dados.abaNome ?? dados.abaBaseNome ?? cl.aba;
   const pendente = salvarAlvo.isPending || removerAlvo.isPending;
 
-  // Ao abrir, o campo começa com o alvo gravado (ou em branco) — também quando o overlay chega
+  // Seção na Carteira: a da posição, a do plano ou a automática do Registrar operação. Só sem
+  // posição nem plano e sem indicação (origem 'padrao') o usuário escolhe.
+  const secao = secaoOperacao({
+    classe,
+    posicao:
+      dados.status === 'posicao' ? { estrategia: dados.estrategia, tipoFii: dados.tipoFii } : null,
+    planejado: dados.status === 'planejado' ? { secao: dados.secaoPlanejada } : null,
+    tipoCvm: topo.data ? tipoCvmDoTopo(topo.data) : null,
+  });
+  const criaPlanejado = dados.status === 'nada';
+  const secaoEditavel = criaPlanejado && secao.origem === 'padrao';
+  const secaoFinal =
+    (secaoEditavel ? (secaoEscolhida ?? secao.valor) : secao.valor) ?? SECAO_PADRAO[classe];
+  const rotuloSecao = ROTULOS_SECAO[secaoFinal] ?? secaoFinal;
+
+  // Ao abrir, o campo começa com o objetivo gravado (ou em branco) — também quando o overlay chega
   // depois de abrir, enquanto o usuário não tiver digitado.
   const editadoRef = useRef(false);
   useEffect(() => {
     if (!aberto) {
       editadoRef.current = false;
+      setSecaoEscolhida(null);
       return;
     }
     if (editadoRef.current) return;
-    setTexto(alvoAtual !== null ? formatNumber(alvoAtual, alvoAtual % 1 === 0 ? 0 : 1) : '');
+    setTexto(
+      objetivoAtual !== null ? formatNumber(objetivoAtual, objetivoAtual % 1 === 0 ? 0 : 1) : '',
+    );
     setErro(null);
-  }, [aberto, alvoAtual]);
+  }, [aberto, objetivoAtual]);
 
   const valor = lerPercentual(texto);
   // fora de (0, 100]: o resumo não calcula e o erro aparece já na digitação
   const foraDaFaixa = valor !== null && !(valor > 0 && valor <= 100);
+  const valorOk = valor !== null && !foraDaFaixa ? valor : null;
   const linha = dados.linha;
   const valorPosicao = dados.status === 'posicao' ? (linha?.valorAtualizado ?? 0) : 0;
   // com posição, valor e quantidade usam a MESMA cotação (a da linha da Carteira, caso 33)
@@ -106,17 +139,16 @@ export default function ModalPlanejar({
     dados.status === 'posicao' && linha && linha.cotacaoAtual > 0 ? linha.cotacaoAtual : null;
   const cotacao =
     cotacaoLinha ?? preco ?? (linha && linha.cotacaoAtual > 0 ? linha.cotacaoAtual : null);
+  // Base do desvio = a ABA (o objetivo é % dentro dela, como a coluna Objetivo da Carteira).
+  const valorAba = dados.valorAba;
+  const carteiraVazia = dados.totalCarteira === 0;
+  const abaVazia = !carteiraVazia && valorAba === 0;
   const conta = useMemo(
     () =>
-      dados.valorBase === null
+      carteiraVazia || valorAba === null || !(valorAba > 0)
         ? null
-        : desvioAlvo({
-            valorPosicao,
-            valorBase: dados.valorBase,
-            alvoPct: foraDaFaixa ? null : valor,
-            preco: cotacao,
-          }),
-    [dados.valorBase, valorPosicao, valor, foraDaFaixa, cotacao],
+        : desvioAlvo({ valorPosicao, valorBase: valorAba, alvoPct: valorOk, preco: cotacao }),
+    [carteiraVazia, valorAba, valorPosicao, valorOk, cotacao],
   );
 
   const podeGravar = !!assetId && dados.status !== 'carregando' && dados.status !== 'erro';
@@ -129,12 +161,18 @@ export default function ModalPlanejar({
       return;
     }
     setErro(null);
-    const pct = Math.round(valor * 1000) / 1000;
+    const pct = Math.round(valor * 100) / 100;
     try {
-      await salvarAlvo.mutateAsync({ ticker: t, targetPct: pct });
+      const r = await salvarAlvo.mutateAsync({
+        ticker: t,
+        objetivoPct: pct,
+        ...(criaPlanejado && SECOES_OPERACAO[classe].includes(secaoFinal)
+          ? { secao: secaoFinal }
+          : {}),
+      });
       mostrarToastMover({
         tipo: 'ok',
-        mensagem: formatarTexto(T.salvo, { ticker: t, pct: pct1(pct) }),
+        mensagem: formatarTexto(T.salvo, { ticker: t, pct: pct1(pct), aba: r.alvo.abaNome || aba }),
       });
       onFechar();
     } catch (e: unknown) {
@@ -146,8 +184,14 @@ export default function ModalPlanejar({
     if (!podeGravar || pendente) return;
     setErro(null);
     try {
-      await removerAlvo.mutateAsync(t);
-      mostrarToastMover({ tipo: 'ok', mensagem: formatarTexto(T.removido, { ticker: t }) });
+      const r = await removerAlvo.mutateAsync(t);
+      mostrarToastMover({
+        tipo: 'ok',
+        mensagem: formatarTexto(
+          r.origem === 'planejado' ? T.removidoPlanejado : T.removidoPosicao,
+          { ticker: t, aba },
+        ),
+      });
       onFechar();
     } catch (e: unknown) {
       setErro(e instanceof Error ? e.message : String(e));
@@ -166,16 +210,28 @@ export default function ModalPlanejar({
         )
       : '—';
   const posicaoLinha =
-    dados.status === 'posicao' && linha && conta
+    dados.status === 'posicao' && linha
       ? formatarTexto(T.posicaoValor, {
           qtd: inteiro(linha.quantidade),
           un: cl.un,
-          pct: pct1(conta.posicaoPct),
+          pct: pct1(linha.percentualCarteira),
           valor: reais0(linha.valorAtualizado),
         })
       : dados.status === 'posicao'
         ? '—'
         : T.semPosicao;
+  // "≈ X% da carteira total" = objetivo × peso atual da aba na carteira (informativo)
+  const equivalenteLinha = carteiraVazia
+    ? T.equivalenteCarteiraVazia
+    : abaVazia
+      ? formatarTexto(T.equivalenteAbaVazia, { aba })
+      : valorOk !== null && dados.classePct !== null
+        ? formatarTexto(T.equivalenteTotal, {
+            pct: pct1((valorOk * dados.classePct) / 100),
+            aba,
+            peso: pct1(dados.classePct),
+          })
+        : null;
 
   const rodape = (
     <>
@@ -214,11 +270,11 @@ export default function ModalPlanejar({
       titulo={formatarTexto(temPlano ? T.tituloAjustar : T.tituloNovo, { ticker: t })}
       rodape={rodape}
     >
-      <p className={SUBTITULO_MODAL}>{formatarTexto(T.subtitulo, { ticker: t })}</p>
+      <p className={SUBTITULO_MODAL}>{formatarTexto(T.subtitulo, { ticker: t, aba })}</p>
       <AvisoConsultor className="mb-2" />
       <div className="flex flex-col" data-modal-planejar="">
         <div className={LINHA_FORM}>
-          <label htmlFor={campoId}>{T.campo}</label>
+          <label htmlFor={campoId}>{formatarTexto(T.campo, { aba })}</label>
           <span className="inline-flex items-center gap-1.5">
             <input
               id={campoId}
@@ -242,6 +298,40 @@ export default function ModalPlanejar({
             <em className="text-[13px] not-italic text-gray-500 dark:text-gray-400">%</em>
           </span>
         </div>
+        {equivalenteLinha ? (
+          <p
+            className="pt-1.5 text-right text-[12.5px] text-gray-500 tabular-nums dark:text-gray-400"
+            data-equivalente-total=""
+          >
+            {equivalenteLinha}
+          </p>
+        ) : null}
+        <div className={LINHA_FORM} data-secao-carteira={secaoFinal}>
+          {secaoEditavel ? (
+            <>
+              <label htmlFor={secaoId}>{T.secaoEscolha}</label>
+              <select
+                id={secaoId}
+                value={secaoFinal}
+                onChange={(e) => setSecaoEscolhida(e.target.value)}
+                className={`min-h-12 rounded-lg border border-gray-300 bg-gray-50 px-2.5 text-base text-gray-800 lg:min-h-11 lg:text-sm dark:border-gray-700 dark:bg-gray-900 dark:text-white/90 ${FOCO_MODAL}`}
+              >
+                {SECOES_OPERACAO[classe].map((s) => (
+                  <option key={s} value={s}>
+                    {ROTULOS_SECAO[s] ?? s}
+                  </option>
+                ))}
+              </select>
+            </>
+          ) : (
+            <>
+              <span>{T.secao}</span>
+              <span className="text-right text-[13px]">
+                {dados.status === 'carregando' ? '…' : rotuloSecao}
+              </span>
+            </>
+          )}
+        </div>
         <div className={LINHA_FORM}>
           <span>{T.classe}</span>
           <span className="text-right text-[13px]">{carregando ? '…' : classeLinha}</span>
@@ -252,21 +342,13 @@ export default function ModalPlanejar({
             {carregando ? '…' : posicaoLinha}
           </span>
         </div>
-        {dados.objetivoAbaPct !== null ? (
-          <p className="mt-1.5 text-[12.5px] text-gray-500 dark:text-gray-400" data-objetivo-aba="">
-            {formatarTexto(T.objetivoAba, {
-              aba,
-              pct: `${formatNumber(dados.objetivoAbaPct, 0)}%`,
-            })}
-          </p>
-        ) : null}
         <div
           id={resumoId}
           aria-live="polite"
           data-resumo-plano=""
           className="mt-3 flex flex-wrap justify-between gap-2.5 rounded-[10px] bg-[#EDF2F8] px-3 py-2.5 text-[13px] text-gray-700 dark:bg-white/5 dark:text-gray-300"
         >
-          {conta && valor !== null && conta.alvoValor !== null && conta.desvioPp !== null ? (
+          {conta && valorOk !== null && conta.alvoValor !== null && conta.desvioPp !== null ? (
             <>
               <span>
                 {T.valorAlvo}
@@ -296,9 +378,11 @@ export default function ModalPlanejar({
             </>
           ) : (
             <span>
-              {valor !== null && !foraDaFaixa && dados.totalCarteira === 0
+              {valorOk !== null && carteiraVazia
                 ? T.resumoCarteiraVazia
-                : T.resumoVazio}
+                : valorOk !== null && abaVazia
+                  ? formatarTexto(T.resumoAbaVazia, { aba })
+                  : T.resumoVazio}
             </span>
           )}
         </div>
@@ -319,6 +403,9 @@ export default function ModalPlanejar({
         ) : null}
         <p className="mt-2.5 text-[12.5px] leading-normal text-gray-500 dark:text-gray-400">
           {formatarTexto(T.nota, { ticker: t, aba })}
+          {criaPlanejado ? (
+            <> {formatarTexto(T.notaPlanejado, { ticker: t, aba, secao: rotuloSecao })}</>
+          ) : null}
         </p>
       </div>
     </ModalAnalise>

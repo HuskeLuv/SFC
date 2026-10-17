@@ -7,9 +7,9 @@ import { apiDelete, writesAllowed } from './helpers/api';
  * - "Na sua carteira" = Carteira: a posição do demo (MXRF11 no seed) em % da carteira TOTAL
  *   (v2.5: valorAtualizado da aba FII's ÷ totais.dinheiro do resumo da Carteira), 1 casa.
  * - Tese em WEGE3: escreve, salva sozinha, recarrega, apaga pela tela. O `finally` apaga pela API.
- * - Planejar pelo modal "Planejar na carteira" (v2.5, planning_asset_targets): salvar acende o chip
- *   "Planejado" e o card mostra o alvo; "Remover do plano" apaga e o chip some. Nenhuma chamada às
- *   rotas do Objetivo da Carteira (/objetivo, /planejados). O `finally` apaga o alvo pela API.
+ * - Planejar pelo modal "Planejar na carteira" (17/10/2026: grava o OBJETIVO DA CARTEIRA, % dentro
+ *   da aba): salvar acende o chip "Planejado", o card mostra o alvo e o ativo aparece na aba da
+ *   Carteira com o Objetivo; "Remover do plano" desfaz e o chip some. O `finally` remove pela API.
  *
  * Só com E2E_ALLOW_WRITES=1 (CI: banco efêmero) e com a área ligada para o demo.
  */
@@ -136,22 +136,20 @@ test.describe('grava e desfaz', () => {
     }
   });
 
-  test('Planejar na carteira: salva o alvo (chip Planejado), remove (chip some); desfaz no fim', async ({
+  test('Planejar na carteira: grava o Objetivo na aba da Carteira (chip Planejado), remove; desfaz no fim', async ({
     page,
   }) => {
     test.skip(!(await areaLigada(page)), 'área desligada ou demo fora do beta');
     test.setTimeout(180_000);
     const TICKER = 'ITUB4';
     const antes = (await (await page.request.get('/api/analise-ativos/carteira')).json()) as {
-      alvos?: Record<string, unknown>;
+      posicoes: Record<string, { objetivoPct?: number | null }>;
+      planejados: Record<string, unknown>;
     };
-    test.skip(!!antes.alvos?.[TICKER], `demo já tem alvo planejado para ${TICKER}`);
-    const rotasCarteira: string[] = [];
-    page.on('request', (r) => {
-      if (r.method() !== 'GET' && /\/api\/carteira\/.*(objetivo|planejados)/.test(r.url())) {
-        rotasCarteira.push(`${r.method()} ${r.url()}`);
-      }
-    });
+    test.skip(
+      (antes.posicoes[TICKER]?.objetivoPct ?? 0) > 0 || !!antes.planejados[TICKER],
+      `demo já tem plano na Carteira para ${TICKER}`,
+    );
     const chip = () =>
       page.locator('[data-bloco="cabecalho"]').getByText('Planejado', { exact: true });
     try {
@@ -164,32 +162,37 @@ test.describe('grava e desfaz', () => {
       await page.locator('[data-botao-planejar]').click();
       const modal = page.getByRole('dialog');
       await expect(modal).toContainText(`Planejar na carteira · ${TICKER}`);
-      const campo = modal.getByLabel('Peso-alvo na carteira (%)');
+      const campo = modal.getByLabel(/^Peso-alvo dentro de /);
       await expect(campo).toHaveValue('');
-      await expect(campo).toHaveAttribute('placeholder', 'ex.: 5');
+      await expect(campo).toHaveAttribute('placeholder', 'ex.: 10');
       await campo.fill('5');
       await expect(modal.locator('[data-resumo-plano]')).toContainText(
         'Valor equivalente ao alvo',
         { timeout: 30_000 },
       );
-      await expect(modal.locator('select')).toHaveCount(0);
       const put = page.waitForResponse(
         (r) =>
           r.url().endsWith(`/api/analise-ativos/alvos/${TICKER}`) && r.request().method() === 'PUT',
       );
-      await modal.getByRole('button', { name: 'Salvar no Planejamento' }).click();
+      await modal.getByRole('button', { name: 'Salvar na Carteira' }).click();
       expect((await put).status()).toBe(200);
       await expect(modal).toHaveCount(0, { timeout: 30_000 });
 
       await expect(chip()).toBeVisible({ timeout: 30_000 });
-      await expect(bloco).toContainText('alvo planejado por você: 5,0%', { timeout: 30_000 });
+      await expect(bloco).toContainText('alvo planejado por você: 5,0% em', { timeout: 30_000 });
       await expect(bloco).not.toContainText(/faltam|compre/i);
       await expect(page.locator('[data-botao-planejar]')).toHaveText(/Ajustar plano/);
+      // o bug do Pedro: o ativo aparece na aba da Carteira com o Objetivo gravado
+      const aba = (await (await page.request.get('/api/carteira/acoes')).json()) as {
+        secoes: Array<{ ativos: Array<{ ticker: string; objetivo: number }> }>;
+      };
+      const naAba = aba.secoes.flatMap((x) => x.ativos).find((a) => a.ticker === TICKER);
+      expect(naAba?.objetivo).toBe(5);
 
       // Remover do plano
       await page.locator('[data-botao-planejar]').click();
       await expect(modal).toContainText(`Ajustar plano · ${TICKER}`);
-      await expect(modal.getByLabel('Peso-alvo na carteira (%)')).toHaveValue('5');
+      await expect(modal.getByLabel(/^Peso-alvo dentro de /)).toHaveValue('5');
       const del = page.waitForResponse(
         (r) =>
           r.url().endsWith(`/api/analise-ativos/alvos/${TICKER}`) &&
@@ -199,7 +202,6 @@ test.describe('grava e desfaz', () => {
       expect((await del).status()).toBe(200);
       await expect(chip()).toHaveCount(0, { timeout: 30_000 });
       await expect(bloco).toContainText('sem alvo planejado', { timeout: 30_000 });
-      expect(rotasCarteira, 'o Planejar não mexe no Objetivo da Carteira').toEqual([]);
     } finally {
       await apiDelete(page, `/api/analise-ativos/alvos/${TICKER}`).catch(() => undefined);
     }

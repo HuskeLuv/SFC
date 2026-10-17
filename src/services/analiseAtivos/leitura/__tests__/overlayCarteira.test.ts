@@ -28,16 +28,8 @@ const asset = (id: string, symbol: string, type: string, currency: string | null
   currency,
 });
 
-const ATUALIZADO = new Date('2026-10-15T12:00:00Z');
-
 beforeEach(() => {
   vi.clearAllMocks();
-  mocks.prisma.planningAssetTarget.findMany.mockResolvedValue([
-    // Decimal(6,3) do Prisma chega como objeto/string → número
-    { targetPct: '6.000', updatedAt: ATUALIZADO, asset: { symbol: 'WEGE3' } },
-    // alvo sem posição nem Watchlist
-    { targetPct: 2.5, updatedAt: ATUALIZADO, asset: { symbol: 'petr4' } },
-  ]);
   mocks.prisma.portfolio.findMany.mockResolvedValue([
     {
       id: 'p-wege',
@@ -180,21 +172,11 @@ describe('overlayCarteira', () => {
     expect(select).not.toHaveProperty('totalInvested');
   });
 
-  it('v2.5: alvos do Planejar na carteira por ticker, independentes de posição e Watchlist', async () => {
+  it('17/10: não lê mais planning_asset_targets (o Planejar grava o Objetivo da Carteira)', async () => {
     const r = await overlayCarteira('u1');
-    expect(r.alvos).toEqual({
-      WEGE3: { targetPct: 6, atualizadoEm: ATUALIZADO.toISOString() },
-      PETR4: { targetPct: 2.5, atualizadoEm: ATUALIZADO.toISOString() },
-    });
-    expect(mocks.prisma.planningAssetTarget.findMany.mock.calls[0][0].where).toEqual({
-      userId: 'u1',
-    });
-    // o Objetivo da aba continua o da Carteira (não vira o alvo)
+    expect(r).not.toHaveProperty('alvos');
+    expect(mocks.prisma.planningAssetTarget.findMany).not.toHaveBeenCalled();
+    // o chip 'Planejado' lê o Objetivo da aba
     expect(r.posicoes.WEGE3.objetivoPct).toBe(25);
-  });
-
-  it('v2.5: sem alvos → objeto vazio', async () => {
-    mocks.prisma.planningAssetTarget.findMany.mockResolvedValue([]);
-    expect((await overlayCarteira('u1')).alvos).toEqual({});
   });
 });

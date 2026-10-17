@@ -56,22 +56,51 @@ describe('usePosicaoCarteira', () => {
   });
 });
 
-describe('alvo por ativo (planning_asset_targets) — helpers', () => {
+describe('Planejar = Objetivo da Carteira — helpers', () => {
   it('urlAlvo normaliza o ticker', () => {
     expect(urlAlvo(' wege3 ')).toBe('/api/analise-ativos/alvos/WEGE3');
   });
 
-  it('aplicarAlvoNoOverlay grava e remove sem tocar posições/planejados', () => {
-    const overlay = {
-      posicoes: { WEGE3: { portfolioId: 'p', quantidade: 1, categoria: 'acoes' } },
-      planejados: {},
+  const overlayBase = () => ({
+    posicoes: {
+      WEGE3: { portfolioId: 'p', quantidade: 1, categoria: 'acoes', objetivoPct: null },
+    },
+    planejados: {},
+  });
+
+  it('posição: grava e zera posicoes[t].objetivoPct', () => {
+    const alvo = {
+      origem: 'posicao' as const,
+      id: 'p',
+      objetivoPct: 15,
+      categoria: 'acoes',
+      abaNome: 'Ações',
+      secao: 'value',
     };
-    const alvo = { targetPct: 6, atualizadoEm: '2026-10-15T00:00:00.000Z' };
-    const com = aplicarAlvoNoOverlay(overlay, 'wege3', alvo)!;
-    expect(com.alvos).toEqual({ WEGE3: alvo });
-    expect(com.posicoes).toBe(overlay.posicoes);
-    expect(aplicarAlvoNoOverlay(com, 'WEGE3', null)!.alvos).toEqual({});
+    const com = aplicarAlvoNoOverlay(overlayBase(), 'wege3', alvo)!;
+    expect(com.posicoes.WEGE3.objetivoPct).toBe(15);
+    expect(aplicarAlvoNoOverlay(com, 'WEGE3', null)!.posicoes.WEGE3.objetivoPct).toBeNull();
     expect(aplicarAlvoNoOverlay(undefined, 'WEGE3', alvo)).toBeUndefined();
+  });
+
+  it('planejado: cria planejados[t] com a seção; remover tira a linha', () => {
+    const alvo = {
+      origem: 'planejado' as const,
+      id: 'wl-afhi',
+      objetivoPct: 10,
+      categoria: 'fiis',
+      abaNome: "FII's",
+      secao: 'tvm',
+    };
+    const com = aplicarAlvoNoOverlay(overlayBase(), 'afhi11', alvo)!;
+    expect(com.planejados.AFHI11).toEqual({
+      watchlistId: 'wl-afhi',
+      id: 'wl-afhi',
+      categoria: 'fiis',
+      objetivoPct: 10,
+      secao: 'tvm',
+    });
+    expect(aplicarAlvoNoOverlay(com, 'AFHI11', null)!.planejados).toEqual({});
   });
 });
 
@@ -127,60 +156,81 @@ describe('useMutacoesCarteiraAnalise', () => {
     expect((erro as Error).message).toBe('Instituição inválida para este investimento');
   });
 
-  it('salvarAlvo: PUT /api/analise-ativos/alvos/[ticker] com CSRF; chip na hora; nunca /objetivo nem /planejados', async () => {
-    const alvo = { targetPct: 6, atualizadoEm: '2026-10-15T00:00:00.000Z' };
-    mocks.csrfFetch.mockResolvedValue(mockFetchResponse({ ticker: 'WEGE3', alvo }));
+  it('salvarAlvo: PUT /api/analise-ativos/alvos/[ticker] com CSRF; chip na hora; invalida a Carteira', async () => {
+    const alvo = {
+      origem: 'planejado',
+      id: 'wl-wege',
+      objetivoPct: 6,
+      categoria: 'acoes',
+      abaNome: 'Ações',
+      secao: 'value',
+    };
+    mocks.csrfFetch.mockResolvedValue(mockFetchResponse({ ticker: 'WEGE3', alvo, criado: true }));
     const { result, queryClient } = renderHookWithClient(() => useMutacoesCarteiraAnalise());
     // o wrapper usa gcTime 0: segura a key do overlay sem observador
     queryClient.setQueryDefaults(queryKeys.analiseAtivos.carteira(), { gcTime: Infinity });
     queryClient.setQueryData(queryKeys.analiseAtivos.carteira(), { posicoes: {}, planejados: {} });
     const invalidar = vi.spyOn(queryClient, 'invalidateQueries');
-    await act(() => result.current.salvarAlvo.mutateAsync({ ticker: 'wege3', targetPct: 6 }));
+    await act(() =>
+      result.current.salvarAlvo.mutateAsync({ ticker: 'wege3', objetivoPct: 6, secao: 'value' }),
+    );
     const [url, init] = mocks.csrfFetch.mock.calls[0];
     expect(url).toBe('/api/analise-ativos/alvos/WEGE3');
     expect(init.method).toBe('PUT');
-    expect(JSON.parse(init.body)).toEqual({ targetPct: 6 });
+    expect(JSON.parse(init.body)).toEqual({ objetivoPct: 6, secao: 'value' });
     expect(
-      (queryClient.getQueryData(queryKeys.analiseAtivos.carteira()) as { alvos: object }).alvos,
-    ).toEqual({ WEGE3: alvo });
+      (queryClient.getQueryData(queryKeys.analiseAtivos.carteira()) as { planejados: object })
+        .planejados,
+    ).toEqual({
+      WEGE3: {
+        watchlistId: 'wl-wege',
+        id: 'wl-wege',
+        categoria: 'acoes',
+        objetivoPct: 6,
+        secao: 'value',
+      },
+    });
+    // invalidatePortfolioDerivedQueries: a Carteira (abas, resumo) mostra o objetivo/planejado
     const keys = invalidar.mock.calls.map((c) => JSON.stringify(c[0]?.queryKey));
     expect(keys).toContain(JSON.stringify(queryKeys.analiseAtivos.carteira()));
-    const urls = mocks.csrfFetch.mock.calls.map((c) => String(c[0]));
-    expect(urls.some((u) => /\/objetivo|\/planejados/.test(u))).toBe(false);
+    expect(keys).toContain(JSON.stringify(queryKeys.carteira.all));
+    expect(keys).toContain(JSON.stringify(queryKeys.assets.all));
   });
 
-  it('removerAlvo: DELETE e o alvo sai do overlay', async () => {
-    mocks.csrfFetch.mockResolvedValue(mockFetchResponse({ ticker: 'WEGE3', removido: true }));
+  it('removerAlvo: DELETE e o objetivo sai do overlay', async () => {
+    mocks.csrfFetch.mockResolvedValue(
+      mockFetchResponse({ ticker: 'WEGE3', removido: true, origem: 'posicao' }),
+    );
     const { result, queryClient } = renderHookWithClient(() => useMutacoesCarteiraAnalise());
     // o wrapper usa gcTime 0: segura a key do overlay sem observador
     queryClient.setQueryDefaults(queryKeys.analiseAtivos.carteira(), { gcTime: Infinity });
     queryClient.setQueryData(queryKeys.analiseAtivos.carteira(), {
-      posicoes: {},
+      posicoes: { WEGE3: { portfolioId: 'p', quantidade: 1, categoria: 'acoes', objetivoPct: 6 } },
       planejados: {},
-      alvos: { WEGE3: { targetPct: 6, atualizadoEm: 'x' } },
     });
     await act(() => result.current.removerAlvo.mutateAsync('WEGE3'));
     expect(mocks.csrfFetch.mock.calls[0][0]).toBe('/api/analise-ativos/alvos/WEGE3');
     expect(mocks.csrfFetch.mock.calls[0][1].method).toBe('DELETE');
-    expect(
-      (queryClient.getQueryData(queryKeys.analiseAtivos.carteira()) as { alvos: object }).alvos,
-    ).toEqual({});
+    const o = queryClient.getQueryData(queryKeys.analiseAtivos.carteira()) as {
+      posicoes: Record<string, { objetivoPct: number | null }>;
+    };
+    expect(o.posicoes.WEGE3.objetivoPct).toBeNull();
   });
 
   it('salvarAlvo com erro da rota vira ErroCarteira com a mensagem', async () => {
     mocks.csrfFetch.mockResolvedValue(
-      mockFetchResponse({ error: 'O peso-alvo pode ser no máximo 100%' }, 400),
+      mockFetchResponse({ error: 'O objetivo pode ser no máximo 100%' }, 400),
     );
     const { result } = renderHookWithClient(() => useMutacoesCarteiraAnalise());
     let erro: unknown;
     await act(async () => {
       try {
-        await result.current.salvarAlvo.mutateAsync({ ticker: 'WEGE3', targetPct: 120 });
+        await result.current.salvarAlvo.mutateAsync({ ticker: 'WEGE3', objetivoPct: 120 });
       } catch (e) {
         erro = e;
       }
     });
     expect(erro).toBeInstanceOf(ErroCarteira);
-    expect((erro as Error).message).toBe('O peso-alvo pode ser no máximo 100%');
+    expect((erro as Error).message).toBe('O objetivo pode ser no máximo 100%');
   });
 });

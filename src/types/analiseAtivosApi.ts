@@ -52,8 +52,8 @@
  * src/types/analiseAtivosCriterios.ts.
  *
  * v2.5 (docs/analise-ativos/v25-regras-pedro/desenho.json, fatia 0) — acréscimos opcionais:
- * OverlayCarteiraResposta.alvos + rota /api/analise-ativos/alvos/[ticker] (AlvoAtivoApi, base =
- * carteira TOTAL, planning_asset_targets); TipoFiiExibido (Tijolo | Papel, protótipo) +
+ * rota /api/analise-ativos/alvos/[ticker] (desde 17/10/2026: ObjetivoAtivoApi = Objetivo da Carteira,
+ * % dentro da aba; o overlay.alvos de planning_asset_targets saiu); TipoFiiExibido (Tijolo | Papel, protótipo) +
  * LinhaQuadroApi.segmentoTipo; AtivoTopoResposta.fiiTipoCvm (tipo CVM BRUTO para a seção automática
  * da Carteira); célula do Essencial com fallback/incompleto (LinhaFundamentos.marcas) e nota de fonte
  * pelas origens (FundamentosResposta.textoFonte/dadosIncompletos; nunca "nota" numa chave de resposta).
@@ -480,45 +480,60 @@ export interface OverlayCarteiraResposta {
       secao?: string | null;
     }
   >;
-  /**
-   * v2.5 (C): alvos do "Planejar na carteira" (planning_asset_targets), por ticker. Acende o chip
-   * 'Planejado' e o 'Ajustar plano'; base = carteira TOTAL. Sempre presente a partir da fatia C
-   * (opcional só para a transição).
-   */
-  alvos?: Record<string, AlvoAtivoApi>;
 }
 
 // ===========================================================================
-// /api/analise-ativos/alvos/[ticker] (C, v2.5) — alvo por ativo do Planejar na carteira
+// /api/analise-ativos/alvos/[ticker] — "Planejar na carteira" = Objetivo da Carteira (17/10/2026)
 // ===========================================================================
 
-/** Alvo por ativo: % da carteira TOTAL (0 < x ≤ 100), definido pelo usuário. */
-export interface AlvoAtivoApi {
-  targetPct: number;
-  /** ISO 8601 */
-  atualizadoEm: string;
+/**
+ * Objetivo do ativo na Carteira, o MESMO da tabela da aba: % DENTRO da aba (Portfolio.objetivo com
+ * posição; Watchlist.objetivo da linha planejada sem posição).
+ */
+export interface ObjetivoAtivoApi {
+  origem: 'posicao' | 'planejado';
+  /** Portfolio.id (posição) ou Watchlist.id (planejado) */
+  id: string;
+  /** % dentro da aba (0 = posição sem objetivo; o planejado pode ter 0 se criado assim na Carteira) */
+  objetivoPct: number;
+  /** aba efetiva (categoriaEfetiva, respeita o mover) */
+  categoria: CategoriaCarteira;
+  /** nome da aba na Carteira ("FII's") */
+  abaNome: string;
+  /** seção na aba (estratégia da ação, tipo do FII…); null quando a aba não tem seção */
+  secao: string | null;
 }
 
-/** GET → 200 (alvo null quando não há). 404 sem acesso ou ativo fora do catálogo. no-store. */
+/** GET → 200 (alvo null sem posição e sem planejado). 404 sem acesso ou fora do catálogo. no-store. */
 export interface AlvoGetResposta {
   ticker: string;
-  alvo: AlvoAtivoApi | null;
+  alvo: ObjetivoAtivoApi | null;
 }
 
-/** PUT (zod strict, CSRF): 0 < targetPct ≤ 100. Idempotente (upsert por userId+assetId). */
+/**
+ * PUT (zod strict, CSRF): 0,01 ≤ objetivoPct ≤ 100 (% dentro da aba, 2 casas). `secao` só vale na
+ * criação da linha planejada (sem posição nem plano); fora das seções da aba = 400. Idempotente.
+ */
 export interface AlvoPutBody {
-  targetPct: number;
+  objetivoPct: number;
+  secao?: string;
 }
 
 export interface AlvoPutResposta {
   ticker: string;
-  alvo: AlvoAtivoApi;
+  alvo: ObjetivoAtivoApi;
+  /** true = a linha planejada (Watchlist) nasceu nesta gravação */
+  criado: boolean;
 }
 
-/** DELETE (CSRF): apaga o alvo; sem alvo = 200 com removido=false. */
+/**
+ * DELETE (CSRF) — "Remover do plano": posição → objetivo 0; planejado → linha apagada (o × da
+ * Carteira). Nada a remover = 200 com removido=false.
+ */
 export interface AlvoDeleteResposta {
   ticker: string;
   removido: boolean;
+  origem: 'posicao' | 'planejado' | null;
 }
 
 // ===========================================================================
