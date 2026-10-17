@@ -285,6 +285,8 @@ export type NomeJob =
   | 'criterios'
   // v2.5: ingestão point-in-time dos conectores de fundamentos (asset_fundamentals_serie)
   | 'fontes-fundamentos'
+  // bloco 1: avisos das listas dos Salvos (Notification + push 'analise')
+  | 'alertas-salvos'
   | `backfill:${string}`;
 export interface AlertaJob {
   codigo: string;

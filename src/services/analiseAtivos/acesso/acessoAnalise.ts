@@ -13,16 +13,25 @@
  * Bloco D (decisão 15): cada recurso (Raio-X, Cenários, Comparador) tem flag própria e só vale com
  * a área liberada para o usuário: recursosLiberados(userId) alimenta ConfigResposta.recursos e
  * exigirRecursoAnalise(request, recurso) protege as rotas do recurso (404 com a flag desligada).
+ *
+ * Bloco 1 (desenho.json, flags_e_ativacao): salvos, alertas e pdfComparador entram no mesmo
+ * mecanismo, com DEPENDÊNCIAS aplicadas aqui (FLAG_RECURSO): alertas exige SALVOS e pdfComparador
+ * exige COMPARADOR. exigirRecursosAnalise(request, ['salvos','comparador']) exige todos (rotas de
+ * comparações salvas). Listas/filtros/comparações/avisos são PESSOAIS: a rota usa payload.id e,
+ * com actingClient, devolve vazio (podeSalvar=false) ou 403 (MENSAGEM_LISTAS_PESSOAIS, contrato).
  */
 import type { NextRequest } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getTtlCache } from '@/lib/simpleTtlCache';
 import {
   analiseAtivosAcesso,
+  analiseAtivosAlertasHabilitado,
   analiseAtivosCenariosHabilitado,
   analiseAtivosComparadorHabilitado,
   analiseAtivosHabilitada,
+  analiseAtivosPdfHabilitado,
   analiseAtivosRaioXHabilitado,
+  analiseAtivosSalvosHabilitado,
 } from '@/lib/analiseAtivosConfig';
 import { ApiError } from '@/utils/apiErrorHandler';
 import { requireAuthWithActing, type AuthWithActingResult } from '@/utils/auth';
@@ -91,41 +100,52 @@ export async function exigirAcessoAnalise(request: NextRequest): Promise<AuthWit
 // Bloco D — recursos com flag própria
 // ---------------------------------------------------------------------------
 
-/** Recursos do Bloco D, cada um com a sua flag (decisão 15). */
+/** Recursos do Bloco D e do bloco 1, cada um com a sua flag (decisão 15). */
 export type RecursoBlocoD = keyof RecursosBlocoD;
 
+/**
+ * Flag de cada recurso JÁ com as dependências (bloco 1): alertas só com SALVOS; pdfComparador só
+ * com COMPARADOR. Assim recursosLiberados e exigirRecursoAnalise nunca divergem.
+ */
 const FLAG_RECURSO: Record<RecursoBlocoD, () => boolean> = {
   raioX: analiseAtivosRaioXHabilitado,
   cenarios: analiseAtivosCenariosHabilitado,
   comparador: analiseAtivosComparadorHabilitado,
+  salvos: analiseAtivosSalvosHabilitado,
+  alertas: () => analiseAtivosAlertasHabilitado() && analiseAtivosSalvosHabilitado(),
+  pdfComparador: () => analiseAtivosPdfHabilitado() && analiseAtivosComparadorHabilitado(),
 };
 
-/** Flags lidas sem olhar o usuário (o estado da área entra em recursosLiberados). */
-export function flagsRecursosBlocoD(): RecursosBlocoD {
+/** Monta o objeto de recursos a partir de uma função por recurso (ordem fixa, tipada). */
+function porRecurso(fn: (r: RecursoBlocoD) => boolean): RecursosBlocoD {
   return {
-    raioX: FLAG_RECURSO.raioX(),
-    cenarios: FLAG_RECURSO.cenarios(),
-    comparador: FLAG_RECURSO.comparador(),
+    raioX: fn('raioX'),
+    cenarios: fn('cenarios'),
+    comparador: fn('comparador'),
+    salvos: fn('salvos'),
+    alertas: fn('alertas'),
+    pdfComparador: fn('pdfComparador'),
   };
+}
+
+/** Flags (com dependências) lidas sem olhar o usuário (o estado da área entra em recursosLiberados). */
+export function flagsRecursosBlocoD(): RecursosBlocoD {
+  return porRecurso((r) => FLAG_RECURSO[r]());
 }
 
 /**
  * Recursos ligados para o usuário: flag && estado 'liberada'. Recebe o estado já calculado (a rota
- * /config já o tem) para não repetir a consulta; sem ele, calcula. Com as 3 flags desligadas não
- * consulta o banco.
+ * /config já o tem) para não repetir a consulta; sem ele, calcula. Com todas as flags desligadas
+ * não consulta o banco.
  */
 export async function recursosLiberados(
   userId: string,
   estado?: EstadoAcessoAnalise,
 ): Promise<RecursosBlocoD> {
   const flags = flagsRecursosBlocoD();
-  if (!flags.raioX && !flags.cenarios && !flags.comparador) return flags;
+  if (!Object.values(flags).some(Boolean)) return flags;
   const liberada = (estado ?? (await estadoAcessoAnalise(userId))) === 'liberada';
-  return {
-    raioX: liberada && flags.raioX,
-    cenarios: liberada && flags.cenarios,
-    comparador: liberada && flags.comparador,
-  };
+  return porRecurso((r) => liberada && flags[r]);
 }
 
 /**
@@ -139,6 +159,21 @@ export async function exigirRecursoAnalise(
   recurso: RecursoBlocoD,
 ): Promise<AuthWithActingResult> {
   if (!analiseAtivosHabilitada() || !FLAG_RECURSO[recurso]()) {
+    throw new ApiError(404, MENSAGEM_SEM_ACESSO);
+  }
+  return exigirAcessoAnalise(request);
+}
+
+/**
+ * Bloco 1: como exigirRecursoAnalise, mas exige TODOS os recursos (ex.: ['salvos','comparador']
+ * nas comparações salvas; ['pdfComparador'] já inclui o comparador). Qualquer flag desligada →
+ * 404 antes da sessão.
+ */
+export async function exigirRecursosAnalise(
+  request: NextRequest,
+  recursos: readonly RecursoBlocoD[],
+): Promise<AuthWithActingResult> {
+  if (!analiseAtivosHabilitada() || recursos.some((r) => !FLAG_RECURSO[r]())) {
     throw new ApiError(404, MENSAGEM_SEM_ACESSO);
   }
   return exigirAcessoAnalise(request);

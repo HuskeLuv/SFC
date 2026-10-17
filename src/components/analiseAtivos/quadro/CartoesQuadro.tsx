@@ -14,6 +14,11 @@
  *
  * Bloco D (fatia D): com `comparar` (modo Comparar), cada cartão ganha embaixo uma linha de 44px
  * com a caixa "Comparar WEGE3". No limite, a caixa fica desabilitada com o motivo visível.
+ *
+ * Bloco 1 (fatia 0): `acaoLinha(linha)` vai no topo do cartão, ao lado do preço (relative z-10,
+ * fora do link esticado: o toque não abre o ativo); `rodapeCartao(linha)` acrescenta uma linha no
+ * pé ("adicionado em 28/09/2026"); `complementoCriterios(linha)` vai embaixo da célula Critérios.
+ * Sem essas props o DOM é idêntico ao de antes.
  */
 import Link from 'next/link';
 import { formatarAnalise } from '@/components/analiseAtivos/comum/formatarAnalise';
@@ -26,9 +31,12 @@ import {
   conferenciaDaCelula,
   conteudoCelula,
   hrefAtivo,
+  pararPropagacao,
   rotulosDasDefinicoes,
   usePrefetchHover,
+  type ExtensoesLinhaQuadro,
 } from '@/components/analiseAtivos/quadro/TabelaQuadro';
+import type { ReactNode } from 'react';
 import { TABLE_MOBILE_STYLES } from '@/components/ui/table/tableStyles';
 import type { ControleComparar } from '@/components/analiseAtivos/quadro/TabelaQuadro';
 import { MAX_ATIVOS_COMPARADOR } from '@/services/analiseAtivos/cenarios/contrato';
@@ -58,10 +66,13 @@ export const CAMPOS_CARTAO: Record<ClasseQuadro, string[]> = {
   fii: ['dy12m', 'pvp', 'vacanciaCvm'],
 };
 
-export interface CartoesQuadroProps {
+export interface CartoesQuadroProps<L extends LinhaQuadroApi = LinhaQuadroApi> extends Omit<
+  ExtensoesLinhaQuadro<L>,
+  'rotuloColunaAcao'
+> {
   classe: ClasseQuadro;
   modo: ModoQuadro;
-  linhas: LinhaQuadroApi[];
+  linhas: L[];
   naCarteira: (ticker: string) => InfoNaCarteira;
   carregando?: boolean;
   atualizando?: boolean;
@@ -69,6 +80,8 @@ export interface CartoesQuadroProps {
   comparar?: ControleComparar;
   /** v2.4: chips da resposta (rótulos do tooltip da célula Critérios) */
   definicoes?: DefCriterioChip[];
+  /** bloco 1: linha extra no pé do cartão */
+  rodapeCartao?: (linha: L) => ReactNode;
 }
 
 const TC = TEXTOS_ENTRADAS_COMPARADOR.quadro;
@@ -103,7 +116,35 @@ function LinhaCaixa({ ticker, controle }: { ticker: string; controle: ControleCo
   );
 }
 
-export default function CartoesQuadro({
+/** Preço + variação do dia + apoio (tipo/setor), à direita do topo do cartão. */
+function PrecoCartao({ l, apoio }: { l: LinhaQuadroApi; apoio: string | null }) {
+  const v = l.variacaoDiaPct;
+  return (
+    <div className="shrink-0 text-right">
+      <div className="text-sm font-semibold text-gray-800 tabular-nums dark:text-white/90">
+        {l.preco.estado === 'ok'
+          ? formatarAnalise(l.preco.valor, 'moeda')
+          : TEXTOS_TELA.formato.semDado}
+      </div>
+      {v !== null ? (
+        <div
+          className={`text-xs tabular-nums ${
+            v < 0 ? TABLE_MOBILE_STYLES.negative : TABLE_MOBILE_STYLES.positive
+          }`}
+        >
+          {formatarAnalise(v, 'pctSinal')}
+        </div>
+      ) : null}
+      {apoio ? (
+        <div className="max-w-[9rem] truncate text-xs text-gray-500 dark:text-gray-400">
+          {apoio}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+export default function CartoesQuadro<L extends LinhaQuadroApi = LinhaQuadroApi>({
   classe,
   modo,
   linhas,
@@ -112,7 +153,10 @@ export default function CartoesQuadro({
   atualizando = false,
   comparar,
   definicoes,
-}: CartoesQuadroProps) {
+  acaoLinha,
+  complementoCriterios,
+  rodapeCartao,
+}: CartoesQuadroProps<L>) {
   const prefetch = usePrefetchHover();
   if (carregando) {
     return (
@@ -137,7 +181,6 @@ export default function CartoesQuadro({
       aria-busy={atualizando || undefined}
     >
       {linhas.map((l) => {
-        const v = l.variacaoDiaPct;
         const apoio = classe === 'fii' ? apoioFii(l) : (l.setor ?? null);
         return (
           <li
@@ -164,27 +207,20 @@ export default function CartoesQuadro({
                   {l.nome}
                 </div>
               </div>
-              <div className="shrink-0 text-right">
-                <div className="text-sm font-semibold text-gray-800 tabular-nums dark:text-white/90">
-                  {l.preco.estado === 'ok'
-                    ? formatarAnalise(l.preco.valor, 'moeda')
-                    : TEXTOS_TELA.formato.semDado}
-                </div>
-                {v !== null ? (
-                  <div
-                    className={`text-xs tabular-nums ${
-                      v < 0 ? TABLE_MOBILE_STYLES.negative : TABLE_MOBILE_STYLES.positive
-                    }`}
+              {acaoLinha ? (
+                <div className="flex shrink-0 items-start gap-1">
+                  <PrecoCartao l={l} apoio={apoio} />
+                  <span
+                    className="relative z-10 -my-1 -mr-2"
+                    data-coluna="acao"
+                    onClick={pararPropagacao}
                   >
-                    {formatarAnalise(v, 'pctSinal')}
-                  </div>
-                ) : null}
-                {apoio ? (
-                  <div className="max-w-[9rem] truncate text-xs text-gray-500 dark:text-gray-400">
-                    {apoio}
-                  </div>
-                ) : null}
-              </div>
+                    {acaoLinha(l)}
+                  </span>
+                </div>
+              ) : (
+                <PrecoCartao l={l} apoio={apoio} />
+              )}
             </div>
             <dl className={TABLE_MOBILE_STYLES.cardGrid}>
               {campos.map((c) => (
@@ -212,9 +248,17 @@ export default function CartoesQuadro({
             <div className="mt-2 flex items-center justify-between gap-3">
               <span className="relative z-10 -ml-1.5" data-coluna="criterios">
                 <CelulaCriteriosLinha linha={l} rotulos={rotulos} />
+                {complementoCriterios ? (
+                  <span className="block pl-1.5 text-[11px] leading-tight text-gray-500 dark:text-gray-400">
+                    {complementoCriterios(l)}
+                  </span>
+                ) : null}
               </span>
               <CelulaNaCarteira info={naCarteira(l.ticker)} classe={classe} />
             </div>
+            {rodapeCartao ? (
+              <div className="mt-2 text-xs text-gray-500 dark:text-gray-400">{rodapeCartao(l)}</div>
+            ) : null}
             {comparar ? <LinhaCaixa ticker={l.ticker} controle={comparar} /> : null}
           </li>
         );

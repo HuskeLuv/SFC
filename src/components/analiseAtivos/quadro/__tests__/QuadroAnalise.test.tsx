@@ -46,7 +46,9 @@ const abas = vi.hoisted(() => ({
 }));
 vi.mock('@/hooks/useAcoes', () => ({ useAcoes: () => abas.acoes }));
 vi.mock('@/hooks/useFii', () => ({ useFii: () => abas.fii }));
-vi.mock('@/hooks/useAnaliseAtivos', () => ({
+vi.mock('@/hooks/useAnaliseAtivos', async (importOriginal) => ({
+  // bloco 1: os hooks dos Salvos usam ErroAnalise/retryAnalise do módulo real
+  ...(await importOriginal<object>()),
   useQuadroAnalise: (filtros: unknown) => {
     quadro.ultimoFiltro = filtros;
     return quadro.estado;

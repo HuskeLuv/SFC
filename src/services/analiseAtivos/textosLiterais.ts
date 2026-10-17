@@ -14,7 +14,8 @@
  *
  * Ids = valores de data-texto-legal combinados com o designer (design.especificacao_visual):
  * rodape-quadro, aviso-legal-v2, instrucao-comparador-{acoes,fiis}, leitura-dos-dados,
- * rodape-cenarios, aviso-banner, disclaimer-desempenho (+ aviso-legal-v2-selo).
+ * rodape-cenarios, aviso-banner, disclaimer-desempenho (+ aviso-legal-v2-selo). Bloco 1:
+ * aviso-salvos-alertas (texto fixo dos avisos das listas, pendente de jurídico).
  */
 
 export interface TextoLiteral {
@@ -99,6 +100,18 @@ export const DISCLAIMER_DESEMPENHO = literal(
   'spec v2.4 §9 (disclaimer de desempenho histórico)',
 );
 
+/**
+ * Bloco 1: texto fixo dos avisos das listas (Alertas da lista, aba Alertas, Perfil). Reescrito sem
+ * 'compra' nem 'recomendação' (proibidas na varredura) — passa na varredura mesmo sem a exceção;
+ * fica registrado como literal para o casamento exato e o OK do jurídico.
+ */
+export const AVISO_SALVOS_ALERTAS = literal(
+  'aviso-salvos-alertas',
+  'Os avisos trazem só fatos publicados (entregas à CVM e proventos anunciados). Não são análise nem indicação de investimento.',
+  'spec v2.4 §3.5 (avisos das listas), bloco 1: desenho.json, decisão do Wellington de 16/10/2026',
+  true,
+);
+
 const LISTA: readonly TextoLiteral[] = [
   RODAPE_QUADRO,
   RODAPE_LEGAL_V2,
@@ -109,6 +122,7 @@ const LISTA: readonly TextoLiteral[] = [
   RODAPE_CENARIOS_V2,
   AVISO_BANNER,
   DISCLAIMER_DESEMPENHO,
+  AVISO_SALVOS_ALERTAS,
 ];
 
 /** Registro por id (= valor de data-texto-legal). */

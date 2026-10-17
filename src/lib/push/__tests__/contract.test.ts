@@ -10,7 +10,10 @@ import {
   COMUNIDADE_COMENTARIO_TYPE,
   COMUNIDADE_MODERACAO_TYPE,
 } from '@/services/comunidade/notificacoes';
+import { ANALISE_SALVOS_ALERTA_TYPE } from '@/services/analiseAtivos/salvos/contrato';
+import { TEXTOS_ALERTAS } from '@/services/analiseAtivos/textosAlertas';
 import {
+  ANALISE_SALVOS_ALERTA_PUSH_TYPE,
   CATEGORIA_POR_TYPE,
   CONSULTANT_INVITE_RESPONSE_TYPE,
   CONSULTANT_INVITE_TYPE,
@@ -54,7 +57,7 @@ describe('TTL_SEGUNDOS_POR_CATEGORIA', () => {
 
 describe('corpoGenerico', () => {
   it('nunca embute valores (sem R$) em nenhuma categoria', () => {
-    const categorias: CategoriaPush[] = ['orcamento', 'agenda', 'comunidade', 'conta'];
+    const categorias: CategoriaPush[] = ['orcamento', 'agenda', 'comunidade', 'conta', 'analise'];
     for (const categoria of categorias) {
       const corpo = corpoGenerico(categoria);
       expect(corpo.length).toBeGreaterThan(0);
@@ -124,5 +127,39 @@ describe('deepLinkDaNotificacao', () => {
     expect(deepLinkDaNotificacao(CONSULTANT_INVITE_TYPE, { inviteId: 'i1' })).toBe('/');
     expect(deepLinkDaNotificacao(COMUNIDADE_MODERACAO_TYPE, null)).toBe('/');
     expect(deepLinkDaNotificacao('type_que_nao_existe', undefined)).toBe('/');
+  });
+});
+
+describe("categoria 'analise' (avisos das listas dos Salvos, bloco 1)", () => {
+  const meta = {
+    href: '/analise-ativos/HGLG11',
+    symbol: 'HGLG11',
+    tipo: 'provento',
+    classe: 'fii',
+    eventoId: 'provento:HGLG11:rendimento:2026-10-20',
+  };
+
+  it('o literal do type bate com o do contrato dos Salvos e mapeia para analise', () => {
+    expect(ANALISE_SALVOS_ALERTA_PUSH_TYPE).toBe(ANALISE_SALVOS_ALERTA_TYPE);
+    expect(categoriaDaNotificacao(ANALISE_SALVOS_ALERTA_TYPE)).toBe('analise');
+  });
+
+  it('TTL de 1 dia e corpo genérico igual ao de textosAlertas', () => {
+    expect(TTL_SEGUNDOS_POR_CATEGORIA.analise).toBe(24 * 60 * 60);
+    expect(corpoGenerico('analise')).toBe(TEXTOS_ALERTAS.push.corpoGenerico);
+  });
+
+  it('tag mf-analise-<chave do envio> e deep link da página do ativo', () => {
+    expect(tagDaNotificacao(ANALISE_SALVOS_ALERTA_TYPE, meta, 'n1')).toBe(
+      'mf-analise-provento:HGLG11:rendimento:2026-10-20',
+    );
+    expect(deepLinkDaNotificacao(ANALISE_SALVOS_ALERTA_TYPE, meta)).toBe('/analise-ativos/HGLG11');
+    expect(
+      deepLinkDaNotificacao(ANALISE_SALVOS_ALERTA_TYPE, {
+        ...meta,
+        href: '/analise-ativos/salvos?aba=alertas',
+      }),
+    ).toBe('/analise-ativos/salvos?aba=alertas');
+    expect(deepLinkDaNotificacao(ANALISE_SALVOS_ALERTA_TYPE, { href: '//evil.com' })).toBe('/');
   });
 });

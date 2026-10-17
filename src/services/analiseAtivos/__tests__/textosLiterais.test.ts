@@ -39,10 +39,21 @@ describe('TEXTOS_LITERAIS_OBRIGATORIOS', () => {
     expect(textoLiteral('inexistente')).toBeUndefined();
   });
 
-  it('os provisórios ficam listados (aviso legal v2 e o selo, para o jurídico)', () => {
-    expect(literaisProvisorios()).toEqual(['aviso-legal-v2', 'aviso-legal-v2-selo']);
+  it('os provisórios ficam listados (aviso legal v2, o selo e o aviso dos alertas, para o jurídico)', () => {
+    expect(literaisProvisorios()).toEqual([
+      'aviso-legal-v2',
+      'aviso-legal-v2-selo',
+      'aviso-salvos-alertas',
+    ]);
     expect(RODAPE_LEGAL_V2.provisorio).toBe(true);
-    expect(lista.filter((l) => l.provisorio).length).toBe(2);
+    expect(lista.filter((l) => l.provisorio).length).toBe(3);
+  });
+
+  it('bloco 1: aviso dos alertas literal, sem compra nem recomendação', () => {
+    expect(textoLiteral('aviso-salvos-alertas')).toBe(
+      'Os avisos trazem só fatos publicados (entregas à CVM e proventos anunciados). Não são análise nem indicação de investimento.',
+    );
+    expect(textoLiteral('aviso-salvos-alertas')).not.toMatch(/compra|recomend/i);
   });
 
   it('aviso legal v2 adaptado à D5: sem ranking, notas, teses públicas nem SEC', () => {

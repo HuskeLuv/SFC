@@ -11,6 +11,8 @@ const mockPrisma = vi.hoisted(() => ({
     updateMany: vi.fn().mockResolvedValue({ count: 0 }),
   },
   analiseCasoEvento: { createMany: vi.fn().mockResolvedValue({ count: 0 }) },
+  analiseAlertaEnvio: { deleteMany: vi.fn().mockResolvedValue({ count: 5 }) },
+  notification: { deleteMany: vi.fn().mockResolvedValue({ count: 6 }) },
 }));
 
 vi.mock('@/lib/prisma', () => ({ default: mockPrisma }));
@@ -77,6 +79,20 @@ describe('GET /api/cron/lgpd-retention', () => {
     const body = await response.json();
     expect(body.analiseRelatosAnonimizados).toBe(2);
     expect(body.cutoffs.analiseRelatos).toBeDefined();
+  });
+
+  it('apaga avisos das listas (envios + Notification do type) com mais de 90 dias', async () => {
+    const response = await GET(createRequest('test-secret'));
+    const envios = mockPrisma.analiseAlertaEnvio.deleteMany.mock.calls[0][0].where;
+    const notif = mockPrisma.notification.deleteMany.mock.calls[0][0].where;
+    expect(notif.type).toBe('analise_ativos_salvos_alerta');
+    for (const corte of [envios.createdAt.lt, notif.createdAt.lt] as Date[]) {
+      expect(Math.abs(corte.getTime() - (Date.now() - 90 * DAYS))).toBeLessThan(60_000);
+    }
+    const body = await response.json();
+    expect(body.analiseAvisosPurgados).toBe(6);
+    expect(body.analiseEnviosPurgados).toBe(5);
+    expect(body.cutoffs.analiseAvisos).toBeDefined();
   });
 
   it('mantém as purgas pré-existentes (invites, impersonation, login)', async () => {

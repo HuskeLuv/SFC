@@ -35,7 +35,14 @@ describe('GET /api/analise-ativos/config', () => {
       acesso: 'beta',
       novoAte: '2026-12-31',
       reporteHabilitado: false,
-      recursos: { raioX: false, cenarios: false, comparador: false },
+      recursos: {
+        raioX: false,
+        cenarios: false,
+        comparador: false,
+        salvos: false,
+        alertas: false,
+        pdfComparador: false,
+      },
     });
     expect(mockEstado).toHaveBeenCalledWith('u1');
   });
@@ -55,20 +62,46 @@ describe('GET /api/analise-ativos/config', () => {
     vi.stubEnv('ANALISE_ATIVOS_RAIOX_HABILITADO', 'true');
     vi.stubEnv('ANALISE_ATIVOS_COMPARADOR_HABILITADO', 'true');
     mockEstado.mockResolvedValue('liberada');
-    expect((await (await GET(req())).json()).recursos).toEqual({
+    expect((await (await GET(req())).json()).recursos).toMatchObject({
       raioX: true,
       cenarios: false,
       comparador: true,
     });
     vi.stubEnv('ANALISE_ATIVOS_CENARIOS_HABILITADO', 'true');
     mockEstado.mockResolvedValue('fora_do_beta');
-    expect((await (await GET(req())).json()).recursos).toEqual({
+    expect((await (await GET(req())).json()).recursos).toMatchObject({
       raioX: false,
       cenarios: false,
       comparador: false,
     });
     // a rota passa o estado já calculado: uma consulta só
     expect(mockEstado).toHaveBeenCalledTimes(2);
+  });
+
+  it('bloco 1: salvos/alertas/pdfComparador coerentes com as dependências', async () => {
+    mockEstado.mockResolvedValue('liberada');
+    vi.stubEnv('ANALISE_ATIVOS_ALERTAS_HABILITADO', 'true');
+    vi.stubEnv('ANALISE_ATIVOS_PDF_HABILITADO', 'true');
+    // alertas sem SALVOS e PDF sem COMPARADOR: desligados
+    expect((await (await GET(req())).json()).recursos).toMatchObject({
+      salvos: false,
+      alertas: false,
+      pdfComparador: false,
+    });
+    vi.stubEnv('ANALISE_ATIVOS_SALVOS_HABILITADO', 'true');
+    vi.stubEnv('ANALISE_ATIVOS_COMPARADOR_HABILITADO', 'true');
+    expect((await (await GET(req())).json()).recursos).toMatchObject({
+      salvos: true,
+      alertas: true,
+      comparador: true,
+      pdfComparador: true,
+    });
+    mockEstado.mockResolvedValue('fora_do_beta');
+    expect((await (await GET(req())).json()).recursos).toMatchObject({
+      salvos: false,
+      alertas: false,
+      pdfComparador: false,
+    });
   });
 
   it('desligada: 200 com habilitada=false (nunca 404)', async () => {

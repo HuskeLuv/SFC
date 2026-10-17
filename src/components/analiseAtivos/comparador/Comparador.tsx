@@ -15,8 +15,13 @@
  * Comparador não grava nada (rec. 7): "Copiar link" leva os tickers e a janela.
  * Estados: vazio, 1 ativo, carregando (esqueleto sem pulsar com reduced-motion) e erro com
  * "Tentar de novo". O título/pílulas da área e o aviso legal ficam na casca.
+ *
+ * Bloco 1 (fatia B): com recursos.salvos, "Comparações salvas (n) ▾" (só com n > 0) e "Salvar
+ * comparação" (navy) na barra, e o MESMO Salvar comparação no slot da Leitura dos dados; com
+ * recursos.pdfComparador, "Exportar PDF" (secundário). Salvar comparação grava só tickers, janela
+ * e tipo do FII (os números são recalculados ao abrir). Sem os recursos, a tela é a de antes.
  */
-import { useCallback, useMemo } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { ResponsiveTabNav } from '@/components/ui/tabs/ResponsiveTabNav';
 import { CARD_ANALISE } from '@/components/analiseAtivos/ativo/analise/CartaoAnalise';
 import PilulasJanela from '@/components/analiseAtivos/comum/PilulasJanela';
@@ -25,6 +30,11 @@ import AlertaMisto, {
   LinhaInformativa,
 } from '@/components/analiseAtivos/comparador/AlertaMisto';
 import BotaoCopiarLink from '@/components/analiseAtivos/comparador/BotaoCopiarLink';
+import BotaoSalvarComparacao, {
+  LinhaComparacaoSalva,
+} from '@/components/analiseAtivos/comparador/BotaoSalvarComparacao';
+import MenuComparacoesSalvas from '@/components/analiseAtivos/comparador/MenuComparacoesSalvas';
+import { BotaoExportarPdf } from '@/components/analiseAtivos/comparador/ModalExportarPdf';
 import CartoesComparador from '@/components/analiseAtivos/comparador/CartoesComparador';
 import LeituraDosDados from '@/components/analiseAtivos/comparador/LeituraDosDados';
 import MiniGraficosComparador from '@/components/analiseAtivos/comparador/MiniGraficosComparador';
@@ -39,7 +49,11 @@ import {
 } from '@/components/analiseAtivos/comparador/useEstadoComparadorUrl';
 import { useNaCarteira } from '@/components/analiseAtivos/quadro/CelulaNaCarteira';
 import { useIsBelowLg } from '@/hooks/useMediaQuery';
-import { useIndiceBusca, useOverlayCarteira } from '@/hooks/useAnaliseAtivos';
+import {
+  useAnaliseAtivosConfig,
+  useIndiceBusca,
+  useOverlayCarteira,
+} from '@/hooks/useAnaliseAtivos';
 import { useComparador } from '@/hooks/useAnaliseAtivosBlocoD';
 import { MAX_ATIVOS_COMPARADOR } from '@/services/analiseAtivos/cenarios/contrato';
 import { TEXTOS_COMPARADOR } from '@/services/analiseAtivos/textosComparador';
@@ -161,6 +175,12 @@ export default function Comparador({ className = '' }: ComparadorProps) {
   const vazio = url.tickers.length === 0;
   const overlay = useOverlayCarteira({ enabled: vazio });
   const indice = useIndiceBusca({ enabled: vazio });
+  // Bloco 1: Salvar comparação / Comparações salvas (salvos) e Exportar PDF (pdfComparador)
+  const config = useAnaliseAtivosConfig();
+  const salvosLigado = config.data?.recursos?.salvos === true;
+  const pdfLigado = config.data?.recursos?.pdfComparador === true;
+  const [menuSalvas, setMenuSalvas] = useState(false);
+  const abrirSalvas = useCallback(() => setMenuSalvas(true), []);
 
   const adicionar = useCallback(
     (t: string) => url.setTickers(adicionarTicker(slots, t)),
@@ -315,16 +335,66 @@ export default function Comparador({ className = '' }: ComparadorProps) {
   const janela = (
     <PilulasJanela valor={url.janela} onTrocar={url.setJanela} rotuloGrupo={TC.janela.rotulo} />
   );
+  // ---- Bloco 1 ----
+  const tipoFii = classe === 'fii' ? tipoAtual : null;
+  const salvarComparacao = (onde: 'barra' | 'leitura', larguraToda = false) =>
+    salvosLigado ? (
+      <BotaoSalvarComparacao
+        classe={classe}
+        tickers={slots}
+        janela={url.janela}
+        tipoFii={tipoFii}
+        onAbrirSalvas={abrirSalvas}
+        larguraToda={larguraToda}
+        onde={onde}
+      />
+    ) : null;
+  const menuComparacoes = (larguraToda = false) =>
+    salvosLigado ? (
+      <MenuComparacoesSalvas
+        aberto={menuSalvas}
+        onAlternar={setMenuSalvas}
+        celular={celular}
+        larguraToda={larguraToda}
+      />
+    ) : null;
+  const exportarPdf = (larguraToda = false) =>
+    pdfLigado ? (
+      <BotaoExportarPdf
+        classe={classe}
+        tickers={slots}
+        janela={url.janela}
+        tipoFii={tipoFii}
+        leitura={dados.leitura}
+        larguraToda={larguraToda}
+      />
+    ) : null;
+  const linhaSalva = salvosLigado ? (
+    <LinhaComparacaoSalva tickers={slots} janela={url.janela} tipoFii={tipoFii} />
+  ) : null;
+
+  const copiarLeitura = (larguraToda: boolean) => (
+    <BotaoCopiarLink
+      slots={slots}
+      janela={url.janela}
+      rotulo={TC.acoes.copiarLinkComparacao}
+      larguraToda={larguraToda}
+    />
+  );
   const leitura = (larguraToda: boolean) => (
     <LeituraDosDados
       leitura={dados.leitura}
       acao={
-        <BotaoCopiarLink
-          slots={slots}
-          janela={url.janela}
-          rotulo={TC.acoes.copiarLinkComparacao}
-          larguraToda={larguraToda}
-        />
+        salvosLigado ? (
+          <div
+            className={`flex flex-wrap items-start gap-2 ${larguraToda ? 'w-full flex-col [&>*]:w-full' : ''}`}
+          >
+            {copiarLeitura(larguraToda)}
+            {salvarComparacao('leitura', larguraToda)}
+          </div>
+        ) : (
+          copiarLeitura(larguraToda)
+        )
       }
     />
   );
@@ -341,10 +411,23 @@ export default function Comparador({ className = '' }: ComparadorProps) {
         {avisos}
         {erroAtualizar}
         <Instrucao classe={classe} />
+        {linhaSalva}
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
           {seletorTipo}
           {janela}
         </div>
+        {salvosLigado || pdfLigado ? (
+          <div
+            className="grid grid-cols-1 gap-2 min-[480px]:grid-cols-2"
+            data-acoes-salvos-comparador=""
+          >
+            {menuComparacoes(true)}
+            {exportarPdf(true)}
+            {salvosLigado ? (
+              <div className="min-[480px]:col-span-2">{salvarComparacao('barra', true)}</div>
+            ) : null}
+          </div>
+        ) : null}
         {dados.misto ? <AlertaMisto /> : null}
         <SlotsComparador slots={slots} ativos={ativosPor} onRemover={remover} celular />
         {cheio ? (
@@ -383,10 +466,14 @@ export default function Comparador({ className = '' }: ComparadorProps) {
         <div className="flex flex-wrap items-center gap-x-4 gap-y-1" data-barra-comparador="">
           <div className="min-w-0 flex-1 basis-[320px]">
             <Instrucao classe={classe} />
+            {linhaSalva}
           </div>
           {seletorTipo}
           {janela}
+          {menuComparacoes()}
           <BotaoCopiarLink slots={slots} janela={url.janela} />
+          {exportarPdf()}
+          {salvarComparacao('barra')}
         </div>
         {dados.misto ? <AlertaMisto /> : null}
         <SlotsComparador

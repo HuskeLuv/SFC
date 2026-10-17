@@ -5,7 +5,9 @@
  * slots ("WEGE3: 5 de 6 critérios em 5 anos · BBAS3: 2 de 3 critérios em 5 anos"), e o texto
  * literal 'leitura-dos-dados' (spec §3.3; registrado em TEXTOS_LITERAIS_OBRIGATORIOS, com
  * data-texto-legal — o nó tem EXATAMENTE o literal). Sem ordenar, somar ou apontar ativo.
- * `acao` = o "Copiar link da comparação" (opcional).
+ * `acao` = o "Copiar link da comparação" (opcional). Bloco 1 (fatia B): com recursos.salvos, o
+ * Comparador põe no slot o "Copiar link" + o MESMO "Salvar comparação" da barra (§3.3); no
+ * computador eles ficam à direita do texto e, no celular, quebram para a linha de baixo.
  */
 import type { ReactNode } from 'react';
 import { textoContagens } from '@/services/analiseAtivos/regras/comparador/resumo';

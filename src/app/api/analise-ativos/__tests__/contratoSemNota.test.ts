@@ -72,6 +72,7 @@ vi.mock('@/services/analiseAtivos/acesso/acessoAnalise', async (orig) => ({
   ...(await orig<object>()),
   exigirAcessoAnalise: vi.fn(async () => sessao),
   exigirRecursoAnalise: vi.fn(async () => sessao),
+  exigirRecursosAnalise: vi.fn(async () => sessao),
   estadoAcessoAnalise: vi.fn(async () => 'liberada'),
   recursosLiberados: vi.fn(async () => ({ raioX: true, cenarios: true, comparador: true })),
 }));
@@ -174,6 +175,35 @@ import { GET as getComparador } from '../comparador/route';
 import { GET as getMeusReportes } from '../meus-reportes/route';
 import { GET as getTese } from '../teses/[ticker]/route';
 import { GET as getAlvo } from '../alvos/[ticker]/route';
+import { GET as getListas } from '../listas/route';
+import { GET as getLista } from '../listas/[id]/route';
+import { GET as getSalvos } from '../salvos/route';
+import { GET as getFiltros } from '../filtros/route';
+import { GET as getComparacoes } from '../comparacoes/route';
+import { GET as getComparacaoPdf } from '../comparacao-pdf/route';
+
+/** Bloco 1: lista e item do usuário no banco falso (uuid válido; linha anterior nos critérios). */
+const LISTA_ID = '00000000-0000-4000-8000-0000000000aa';
+const LISTA_ROW = {
+  id: LISTA_ID,
+  userId: 'u1',
+  nome: 'Salvos',
+  nomeNormalizado: 'salvos',
+  alertaResultado: true,
+  alertaProvento: true,
+  alertaCriterios: false,
+  createdAt: new Date('2026-10-01T12:00:00Z'),
+  updatedAt: new Date('2026-10-01T12:00:00Z'),
+};
+const ITENS_ROW = ['WEGE3', 'CEDO4', 'HGLG11'].map((symbol) => ({
+  id: `item-${symbol}`,
+  listaId: LISTA_ID,
+  userId: 'u1',
+  symbol,
+  classe: symbol === 'HGLG11' ? 'fii' : 'acao',
+  createdAt: new Date('2026-10-01T12:00:00Z'),
+}));
+import { GET as getAlertas } from '../alertas/route';
 
 // ---------------------------------------------------------------------------
 // Varredura
@@ -197,13 +227,18 @@ function varrer(x: unknown, caminho: string, chaves: string[], valores: string[]
   }
 }
 
-type Rota = (req: NextRequest, ctx: { params: Promise<{ ticker: string }> }) => Promise<Response>;
+type Rota = (
+  req: NextRequest,
+  ctx: { params: Promise<Record<string, string>> },
+) => Promise<Response>;
 
 interface Chamada {
   rota: string;
   get: Rota;
   url: string;
   ticker?: string;
+  /** params de rota que não são ticker (bloco 1: listas/[id]) */
+  params?: Record<string, string>;
 }
 
 const base = 'http://localhost/api/analise-ativos';
@@ -266,14 +301,46 @@ const CHAMADAS: Chamada[] = [
     url: `${base}/comparador?t=HGLG11,HCTR11,HFOF11&janela=10`,
   },
   { rota: 'meus-reportes', get: getMeusReportes as Rota, url: `${base}/meus-reportes` },
+  // bloco 1 (Salvos, filtros, comparações, PDF)
+  { rota: 'listas', get: getListas as Rota, url: `${base}/listas` },
+  ...(['acao', 'fii'] as const).map(
+    (classe): Chamada => ({
+      rota: 'listas/[id]',
+      get: getLista as Rota,
+      url: `${base}/listas/${LISTA_ID}?classe=${classe}&janela=5`,
+      params: { id: LISTA_ID },
+    }),
+  ),
+  { rota: 'salvos', get: getSalvos as Rota, url: `${base}/salvos` },
+  { rota: 'filtros', get: getFiltros as Rota, url: `${base}/filtros?classe=acao` },
+  { rota: 'comparacoes', get: getComparacoes as Rota, url: `${base}/comparacoes` },
+  {
+    rota: 'comparacao-pdf',
+    get: getComparacaoPdf as Rota,
+    url: `${base}/comparacao-pdf?t=WEGE3,ITUB4`,
+  },
+  // bloco 1 (fatia D): avisos das listas (Notification do type dos Salvos)
+  { rota: 'alertas', get: getAlertas as Rota, url: `${base}/alertas` },
+  { rota: 'alertas', get: getAlertas as Rota, url: `${base}/alertas?classe=fii&dias=30` },
 ];
 
 async function chamar(c: Chamada): Promise<{ status: number; corpo: unknown; texto: string }> {
   const res = await c.get(new NextRequest(c.url), {
-    params: Promise.resolve({ ticker: c.ticker ?? '' }),
+    params: Promise.resolve(c.params ?? { ticker: c.ticker ?? '' }),
   });
+  const tipo = res.headers.get('Content-Type') ?? '';
+  // PDF (bloco 1): binário com o texto comprimido; o conteúdo é varrido no montador
+  // (montarDocumentoComparacao.test.ts). Aqui confere-se só o status e o cabeçalho do arquivo.
+  if (tipo.includes('application/pdf')) {
+    const bytes = Buffer.from(await res.arrayBuffer());
+    return {
+      status: res.status,
+      corpo: { pdf: bytes.subarray(0, 5).toString('latin1') },
+      texto: bytes.toString('latin1'),
+    };
+  }
   const texto = await res.text();
-  const json = (res.headers.get('Content-Type') ?? '').includes('application/json');
+  const json = tipo.includes('application/json');
   return { status: res.status, corpo: json ? JSON.parse(texto) : texto, texto };
 }
 
@@ -391,6 +458,65 @@ beforeEach(() => {
           asset: { symbol: 'WEGE3' },
         },
       ],
+    },
+    // bloco 1: uma lista com ação no Quadro, ação fora dele e FII; marco de critérios posterior
+    analiseLista: {
+      findMany: async () => [{ ...LISTA_ROW, itens: ITENS_ROW }],
+      findFirst: async () => LISTA_ROW,
+    },
+    analiseListaItem: { findMany: async () => ITENS_ROW },
+    analiseAlertaMarco: {
+      findMany: async () => [
+        {
+          symbol: 'WEGE3',
+          marco: { anterior: { atendidos: 4, aplicaveis: 6 }, mudouEm: '2026-10-10T11:10:00Z' },
+        },
+      ],
+    },
+    analiseFiltroSalvo: {
+      findMany: async () => [
+        {
+          id: 'f1',
+          nome: 'Lucro em 5 anos',
+          classe: 'acao',
+          estado: { janela: 5, criterios: ['luc'], naCarteira: false, setor: null },
+          updatedAt: new Date('2026-10-10T12:00:00Z'),
+          ultimoUsoEm: null,
+        },
+      ],
+    },
+    analiseComparacao: {
+      findMany: async () => [
+        {
+          id: 'c1',
+          nome: 'WEGE3 · ITUB4',
+          classe: 'acao',
+          tickers: ['WEGE3', 'ITUB4'],
+          janela: 5,
+          tipoFii: null,
+          updatedAt: new Date('2026-10-10T12:00:00Z'),
+        },
+      ],
+    },
+    // bloco 1: um aviso de provento e o resumo do dia
+    notification: {
+      findMany: async () => [
+        {
+          id: '00000000-0000-4000-8000-0000000000a1',
+          title: 'HGLG11: provento anunciado',
+          message: 'Rendimento de R$ 1,10 por cota · data-com 20/10 · pagamento 27/10.',
+          metadata: {
+            href: '/analise-ativos/HGLG11',
+            symbol: 'HGLG11',
+            tipo: 'provento',
+            classe: 'fii',
+            eventoId: 'provento:HGLG11:rendimento:2026-10-20',
+          },
+          readAt: null,
+          createdAt: new Date('2026-10-16T11:10:00Z'),
+        },
+      ],
+      count: async () => 1,
     },
     analiseTese: {
       findUnique: async () => ({

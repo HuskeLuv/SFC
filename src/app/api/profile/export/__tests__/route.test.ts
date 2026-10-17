@@ -116,6 +116,71 @@ describe('GET /api/profile/export (LGPD)', () => {
     ]);
   });
 
+  it('bloco 1: inclui listas (com itens), filtros salvos, comparações e avisos de 90 dias', async () => {
+    const em = new Date('2026-10-15T12:00:00Z');
+    mocks.prisma.analiseLista.findMany.mockResolvedValueOnce([
+      {
+        nome: 'Salvos',
+        alertaResultado: true,
+        alertaProvento: true,
+        alertaCriterios: false,
+        createdAt: em,
+        itens: [{ symbol: 'WEGE3', classe: 'acao', createdAt: em }],
+      },
+    ]);
+    mocks.prisma.analiseFiltroSalvo.findMany.mockResolvedValueOnce([
+      {
+        nome: 'Lucro',
+        classe: 'acao',
+        estado: { janela: 5 },
+        createdAt: em,
+        updatedAt: em,
+        ultimoUsoEm: null,
+      },
+    ]);
+    mocks.prisma.analiseComparacao.findMany.mockResolvedValueOnce([
+      {
+        nome: 'WEGE3 · ITUB4',
+        classe: 'acao',
+        tickers: ['WEGE3', 'ITUB4'],
+        janela: 5,
+        tipoFii: null,
+        createdAt: em,
+        updatedAt: em,
+      },
+    ]);
+    mocks.prisma.analiseAlertaEnvio.findMany.mockResolvedValueOnce([
+      { tipo: 'provento', symbol: 'WEGE3', chave: 'provento:WEGE3:jcp:2026-10-20', createdAt: em },
+    ]);
+    const res = await GET(new NextRequest('http://localhost/api/profile/export'));
+    const corpo = JSON.parse(await res.text());
+    for (const m of ['analiseLista', 'analiseFiltroSalvo', 'analiseComparacao']) {
+      expect(mocks.prisma[m].findMany.mock.calls[0][0].where).toEqual({ userId: 'u1' });
+    }
+    expect(mocks.prisma.analiseAlertaEnvio.findMany.mock.calls[0][0].where).toEqual({
+      userId: 'u1',
+      createdAt: { gte: expect.any(Date) },
+    });
+    expect(corpo.analiseAtivos.listas).toEqual([
+      {
+        nome: 'Salvos',
+        alertas: { resultado: true, provento: true, criterios: false },
+        criadaEm: em.toISOString(),
+        itens: [{ ticker: 'WEGE3', classe: 'acao', adicionadoEm: em.toISOString() }],
+      },
+    ]);
+    expect(corpo.analiseAtivos.filtrosSalvos[0]).toMatchObject({ nome: 'Lucro', classe: 'acao' });
+    expect(corpo.analiseAtivos.comparacoes[0]).toMatchObject({ tickers: ['WEGE3', 'ITUB4'] });
+    expect(corpo.analiseAtivos.alertasEnviados).toEqual([
+      {
+        tipo: 'provento',
+        symbol: 'WEGE3',
+        chave: 'provento:WEGE3:jcp:2026-10-20',
+        data: em.toISOString(),
+      },
+    ]);
+  });
+
   it('inclui os alvos por ativo do Planejar na carteira (planning_asset_targets)', async () => {
     const em = new Date('2026-10-15T12:00:00Z');
     mocks.prisma.planningAssetTarget.findMany.mockResolvedValueOnce([

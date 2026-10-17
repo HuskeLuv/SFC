@@ -25,3 +25,16 @@ export const MYFINANCE_BRAND = {
  * #9E8A58 da planilha-base; texto sempre branco por cima).
  */
 export const TABLE_HEADER_BG = MYFINANCE_BRAND.seguranca;
+
+/**
+ * Tons derivados da paleta, já usados no app e oficializados no bloco 1 da Análise de Ativos
+ * (docs/analise-ativos/bloco1-salvos/desenho.json): fundo de estado selecionado/ligado ("Salvo ✓",
+ * faixas de aviso, chips marcados; ~20 arquivos usavam #EDF2F8 solto) e a borda que o acompanha.
+ * Só no tema claro; no escuro, use bg-white/5 e bordas cinza do app.
+ */
+export const MYFINANCE_TONS = {
+  /** #EDF2F8 — fundo selecionado (patrimônio clareado) */
+  fundoSelecionado: '#EDF2F8',
+  /** #DCE6F2 — borda do selecionado */
+  bordaSelecionada: '#DCE6F2',
+} as const;

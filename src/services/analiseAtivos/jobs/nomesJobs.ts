@@ -20,6 +20,8 @@ export const NOMES_JOBS = [
   'curadoria',
   // v2.5: ingestão dos conectores de fundamentos (ANALISE_FONTES_INGESTAO; sem conector = pulado)
   'fontes-fundamentos',
+  // bloco 1: avisos das listas dos Salvos (11:10 UTC, depois da curadoria; sem a flag = pulado)
+  'alertas-salvos',
 ] as const satisfies readonly NomeJob[];
 
 export type DocCvmCias = 'fca' | 'dfp' | 'itr';

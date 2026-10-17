@@ -22,6 +22,12 @@
  * Bloco D (fatia D), só com config.recursos.comparador: botão "Comparar" (aria-pressed, 44px) ao
  * lado de Resumo|Detalhado; ligado, a tabela ganha a coluna de caixas, os cartões a caixa de 44px e
  * aparece a BandejaComparar. Sem o recurso, nada disso aparece.
+ *
+ * Bloco 1 (fatia B), só com config.recursos.salvos: marcador Salvar no fim de cada linha e no topo
+ * de cada cartão (BotaoSalvarLinha, mesma regra do cabeçalho do ativo); "Filtros salvos (n) ▾" e
+ * "Salvar filtros" (FiltrosSalvos + ModalSalvarFiltro); com ?filtro=<id>, a FaixaFiltroAplicado
+ * ("Filtro salvo: X", "· alterado", Salvar alterações / Salvar como novo / ×). Sem o recurso, o
+ * Quadro fica como antes.
  */
 import Link from 'next/link';
 import { Suspense, useMemo, useState, type ReactNode } from 'react';
@@ -37,6 +43,17 @@ import TabelaQuadro, {
   rotuloColuna,
   type ControleComparar,
 } from '@/components/analiseAtivos/quadro/TabelaQuadro';
+import BotaoSalvarLinha from '@/components/analiseAtivos/quadro/BotaoSalvarLinha';
+import FaixaFiltroAplicado from '@/components/analiseAtivos/quadro/FaixaFiltroAplicado';
+import FiltrosSalvos, {
+  estadoFiltroDoQuadro,
+  filtroAlterado,
+  useAplicarEstadoQuadro,
+} from '@/components/analiseAtivos/quadro/FiltrosSalvos';
+import ModalSalvarFiltro from '@/components/analiseAtivos/quadro/ModalSalvarFiltro';
+import { mostrarToastSalvo } from '@/components/analiseAtivos/salvos/compartilhados/mostrarToastSalvo';
+import { useAtualizarFiltro, useFiltrosSalvos } from '@/hooks/useAnaliseAtivosSalvos';
+import { TEXTOS_SALVOS } from '@/services/analiseAtivos/textosSalvos';
 import BandejaComparar, { IconeComparar } from '@/components/analiseAtivos/quadro/BandejaComparar';
 import { useSelecaoComparar } from '@/components/analiseAtivos/quadro/useSelecaoComparar';
 import { TEXTOS_ENTRADAS_COMPARADOR } from '@/services/analiseAtivos/textosEntradasComparador';
@@ -65,6 +82,7 @@ import type {
   QuadroAnaliseProps,
 } from '@/types/analiseAtivosApi';
 import type { DefCriterioChip, IdCriterio } from '@/types/analiseAtivosCriterios';
+import type { LinhaQuadroApi } from '@/types/analiseAtivosApi';
 
 export type { QuadroAnaliseProps };
 
@@ -332,6 +350,15 @@ function QuadroConteudo({ className = '' }: QuadroAnaliseProps) {
   const controleComparar: ControleComparar | undefined = modoComparar
     ? { marcado: selecao.marcado, desabilitado: selecao.desabilitado, alternar: selecao.alternar }
     : undefined;
+  // Bloco 1: Salvos (marcador por linha, filtros salvos)
+  const salvosLigado = config.data?.recursos?.salvos === true;
+  const filtrosQ = useFiltrosSalvos(estado.classe, { enabled: salvosLigado });
+  const atualizarFiltro = useAtualizarFiltro();
+  const aplicarEstado = useAplicarEstadoQuadro();
+  const [modalFiltro, setModalFiltro] = useState(false);
+  const acaoLinha = salvosLigado
+    ? (l: LinhaQuadroApi) => <BotaoSalvarLinha ticker={l.ticker} classe={estado.classe} />
+    : undefined;
   const botaoComparar = comparadorLigado ? (
     <BotaoModoComparar ativo={modoComparar} onAlternar={() => selecao.setAtivo(!selecao.ativo)} />
   ) : null;
@@ -455,6 +482,7 @@ function QuadroConteudo({ className = '' }: QuadroAnaliseProps) {
         atualizando={!carregando && q.isPlaceholderData}
         comparar={controleComparar}
         definicoes={definicoes}
+        acaoLinha={acaoLinha}
       />
     );
   } else {
@@ -472,6 +500,8 @@ function QuadroConteudo({ className = '' }: QuadroAnaliseProps) {
         legenda={legenda}
         comparar={controleComparar}
         definicoes={definicoes}
+        acaoLinha={acaoLinha}
+        rotuloColunaAcao={salvosLigado ? TEXTOS_SALVOS.salvar.colunaQuadro : undefined}
       />
     );
   }
@@ -492,6 +522,51 @@ function QuadroConteudo({ className = '' }: QuadroAnaliseProps) {
       onLimpar={url.limparFiltros}
     />
   );
+
+  // ---- Bloco 1: filtros salvos ----
+  const filtrosDaClasse = filtrosQ.data?.filtros ?? [];
+  const filtroAplicado =
+    salvosLigado && estado.filtro
+      ? (filtrosDaClasse.find((f) => f.id === estado.filtro) ?? null)
+      : null;
+  const filtroSumiu = salvosLigado && !!estado.filtro && filtrosQ.isSuccess && !filtroAplicado;
+  const alterado = filtroAplicado ? filtroAlterado(estado, filtroAplicado.estado) : false;
+  const salvarAlteracoes = async () => {
+    if (!filtroAplicado) return;
+    try {
+      const f = await atualizarFiltro.mutateAsync({
+        id: filtroAplicado.id,
+        estado: estadoFiltroDoQuadro(estado),
+      });
+      mostrarToastSalvo({
+        tipo: 'info',
+        mensagem: formatarTexto(TEXTOS_SALVOS.filtros.toast.atualizado, { nome: f.nome }),
+      });
+    } catch {
+      mostrarToastSalvo({ tipo: 'erro', mensagem: TEXTOS_SALVOS.toast.erroGenerico });
+    }
+  };
+  const filtrosSalvosEl = salvosLigado ? (
+    <FiltrosSalvos
+      classe={estado.classe}
+      estado={estado}
+      definicoes={definicoes}
+      temFiltro={url.temFiltro}
+      celular={celular}
+      onSalvarFiltros={() => setModalFiltro(true)}
+    />
+  ) : null;
+  const faixaFiltro =
+    filtroAplicado || filtroSumiu ? (
+      <FaixaFiltroAplicado
+        filtro={filtroAplicado}
+        alterado={alterado}
+        salvando={atualizarFiltro.isPending}
+        onSalvarAlteracoes={() => void salvarAlteracoes()}
+        onSalvarComoNovo={() => setModalFiltro(true)}
+        onTirar={() => aplicarEstado({ ...estado, filtro: null })}
+      />
+    ) : null;
 
   const contadorEl = (
     <p
@@ -555,6 +630,9 @@ function QuadroConteudo({ className = '' }: QuadroAnaliseProps) {
 
       {barra}
 
+      {celular && filtrosSalvosEl ? <div className="flex">{filtrosSalvosEl}</div> : null}
+      {faixaFiltro}
+
       {celular ? (
         <div className="flex flex-col gap-1 [&>*]:shrink-0">
           {contadorEl}
@@ -593,6 +671,7 @@ function QuadroConteudo({ className = '' }: QuadroAnaliseProps) {
         <div className="flex flex-wrap items-center gap-x-4 gap-y-2" data-quadro-ordem-linha="">
           {contadorEl}
           <span className="flex-1" />
+          {filtrosSalvosEl}
           {pilulasOrdem}
           {botaoComparar}
           <PilulasModo modo={estado.modo} onModo={url.setModo} />
@@ -645,6 +724,25 @@ function QuadroConteudo({ className = '' }: QuadroAnaliseProps) {
         <RodapeCriterios />
         <FrescorCotacoes frescor={daClasse ? primeira?.frescorCotacao : undefined} />
       </div>
+
+      {salvosLigado ? (
+        <ModalSalvarFiltro
+          aberto={modalFiltro}
+          onFechar={() => setModalFiltro(false)}
+          classe={estado.classe}
+          estado={estadoFiltroDoQuadro(estado)}
+          definicoes={definicoes}
+          filtros={filtrosDaClasse}
+          limites={filtrosQ.data?.limites}
+          onSalvo={(f) => {
+            const seguir = () => aplicarEstado({ ...estado, filtro: f.id });
+            setModalFiltro(false);
+            // celular: o painel tem uma entrada no histórico; a URL muda depois do "voltar" dela
+            if (celular) window.addEventListener('popstate', seguir, { once: true });
+            else seguir();
+          }}
+        />
+      ) : null}
 
       {celular ? (
         <SheetOrdem

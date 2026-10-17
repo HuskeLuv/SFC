@@ -16,6 +16,8 @@ import {
 } from '@/lib/pwa/pushClient';
 // Só o TYPE do contrato (o módulo importa serviços com Prisma — nunca importar valor aqui).
 import type { CategoriaPush } from '@/lib/push/contract';
+import { mostrarToastSalvo } from '@/components/analiseAtivos/salvos/compartilhados/mostrarToastSalvo';
+import { TEXTOS_ALERTAS } from '@/services/analiseAtivos/textosAlertas';
 
 /**
  * Perfil › Notificações (PWA fase 5, fatia C).
@@ -38,6 +40,8 @@ interface PreferenciasPush {
   vapidPublicKey: string | null;
   categorias: Record<CategoriaPush, boolean>;
   comunidadeVisivel: boolean;
+  /** bloco 1: avisos das listas da Análise de Ativos liberados para o usuário */
+  analiseVisivel?: boolean;
 }
 
 interface Aparelho {
@@ -68,6 +72,12 @@ const CATEGORIAS: { chave: CategoriaPush; titulo: string; descricao: string; bet
     chave: 'conta',
     titulo: 'Conta e consultor',
     descricao: 'Convites para um consultor acompanhar sua conta',
+  },
+  // Bloco 1 da Análise de Ativos: só aparece com analiseVisivel (recurso 'alertas' liberado).
+  {
+    chave: 'analise',
+    titulo: TEXTOS_ALERTAS.perfil.rotulo,
+    descricao: TEXTOS_ALERTAS.perfil.descricao,
   },
 ];
 
@@ -357,6 +367,14 @@ export default function NotificacoesPreferencias() {
       })
         .then((res) => {
           if (!res.ok) throw new Error('Não consegui salvar a preferência.');
+          if (chave === 'analise') {
+            mostrarToastSalvo({
+              tipo: 'info',
+              mensagem: anterior
+                ? TEXTOS_ALERTAS.perfil.toastDesligado
+                : TEXTOS_ALERTAS.perfil.toastLigado,
+            });
+          }
         })
         .catch((error: unknown) => {
           setPrefs((atual) =>
@@ -397,7 +415,9 @@ export default function NotificacoesPreferencias() {
   const aparelhoLocal =
     (endpointHash && aparelhos.find((a) => a.endpointHash === endpointHash)) || null;
   const categoriasVisiveis = CATEGORIAS.filter(
-    (c) => c.chave !== 'comunidade' || prefs?.comunidadeVisivel,
+    (c) =>
+      (c.chave !== 'comunidade' || prefs?.comunidadeVisivel) &&
+      (c.chave !== 'analise' || prefs?.analiseVisivel),
   );
   const categoriasAtivas = estado === 'ativas';
 

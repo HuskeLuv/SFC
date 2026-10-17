@@ -12,3 +12,20 @@ fetch do `next/font/google` derrubou o build no CI por flake de rede).
 Origem: fonts.gstatic.com (Outfit v15, Titillium Web v19), baixadas em
 2026-09-29. Licença de ambas: SIL Open Font License 1.1. O subset latin cobre
 U+0000–00FF (inclui os acentos do português).
+
+## `pdf/` — fontes do PDF do Comparador (servidor)
+
+Lidas pelo pdfkit no servidor (`src/services/analiseAtivos/pdf/renderizarPdfComparacao.ts`,
+caminho a partir de `process.cwd()`), NÃO pelo `next/font`. O pdfkit precisa de TTF estático
+(o variável não serve).
+
+| Arquivo                   | Fonte  | Peso | Formato      |
+| ------------------------- | ------ | ---- | ------------ |
+| `pdf/Outfit-Regular.ttf`  | Outfit | 400  | TTF estático |
+| `pdf/Outfit-SemiBold.ttf` | Outfit | 600  | TTF estático |
+
+Origem: instâncias estáticas da Outfit v15 servidas por fonts.gstatic.com (CSS da API do
+Google Fonts pedido com user-agent antigo, que devolve `format('truetype')`), baixadas em
+2026-10-16. Licença: SIL Open Font License 1.1. A Outfit não tem `≤ ≥ ≈ ≠ ⇒`: o
+renderizador troca por texto equivalente (`glifoParaFonte`). O deploy leva o fonte inteiro
+(tar do repositório), então os TTF chegam a `/opt/myfinance/current/src/fonts/pdf/`.

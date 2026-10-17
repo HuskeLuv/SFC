@@ -155,6 +155,12 @@ model User {
   analiseCenarios               AnaliseCenario[]              @relation("AnaliseCenarioUser")
   // Análise de Ativos v2.5 — alvo por ativo do "Planejar na carteira" (% da carteira TOTAL)
   planningAssetTargets          PlanningAssetTarget[]         @relation("PlanningAssetTargetUser")
+  // Análise de Ativos — bloco 1 (Salvos: listas, filtros, comparações e avisos; tudo PESSOAL)
+  analiseListas                 AnaliseLista[]                @relation("AnaliseListaUser")
+  analiseListaItens             AnaliseListaItem[]            @relation("AnaliseListaItemUser")
+  analiseFiltrosSalvos          AnaliseFiltroSalvo[]          @relation("AnaliseFiltroSalvoUser")
+  analiseComparacoes            AnaliseComparacao[]           @relation("AnaliseComparacaoUser")
+  analiseAlertaEnvios           AnaliseAlertaEnvio[]          @relation("AnaliseAlertaEnvioUser")
 }
 
 /**
@@ -210,6 +216,8 @@ model PushPreferencia {
   agenda     Boolean  @default(true)
   comunidade Boolean  @default(true)
   conta      Boolean  @default(true)
+  // Análise de Ativos (bloco 1): avisos das listas dos Salvos (categoria de push 'analise')
+  analise    Boolean  @default(true)
   updatedAt  DateTime @updatedAt
 
   @@map("push_preferencias")
@@ -2976,4 +2984,144 @@ model AnaliseCasoEvento {
 
   @@index([casoId, createdAt])
   @@map("analise_casos_eventos")
+}
+
+// ===========================================================================
+// Análise de Ativos — bloco 1 (docs/analise-ativos/bloco1-salvos/desenho.json, fatia 0)
+// Salvos (listas com nome), filtros salvos do Quadro, comparações salvas e os avisos das listas.
+// NÃO confundir com o Watchlist da Carteira (planejados/objetivo): modelos Analise* / analise_*.
+// Tudo PESSOAL (consultor agindo pelo cliente não lê nem grava). Migration aditiva
+// 20261017000000_analise_ativos_salvos.
+// ===========================================================================
+
+/**
+ * Salvos (bloco 1). NÃO é o Watchlist da Carteira (planejados/objetivo). Ordem = createdAt (sem reordenar no bloco 1).
+ */
+model AnaliseLista {
+  id              String             @id @default(uuid())
+  userId          String
+  user            User               @relation("AnaliseListaUser", fields: [userId], references: [id], onDelete: Cascade)
+  // 1..40 (zod): trim + espaços colapsados
+  nome            String
+  // minúsculas, sem acento: unicidade por usuário
+  nomeNormalizado String
+  // resultado entregue à CVM
+  alertaResultado Boolean            @default(true)
+  // provento anunciado (data-com)
+  alertaProvento  Boolean            @default(true)
+  // mudança no "n de 6", janela FIXA de 5 anos
+  alertaCriterios Boolean            @default(false)
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+  itens           AnaliseListaItem[]
+
+  @@unique([userId, nomeNormalizado])
+  @@index([userId, createdAt])
+  @@map("analise_listas")
+}
+
+model AnaliseListaItem {
+  id        String       @id @default(uuid())
+  listaId   String
+  lista     AnaliseLista @relation(fields: [listaId], references: [id], onDelete: Cascade)
+  // denormalizado: limite de 500 por usuário, índice do Salvar, export
+  userId    String
+  user      User         @relation("AnaliseListaItemUser", fields: [userId], references: [id], onDelete: Cascade)
+  // ticker do Quadro, sem FK (molde AnaliseTese)
+  symbol    String
+  // 'acao'|'fii'|'stock'|'reit'; o zod do bloco 1 aceita só acao|fii
+  classe    String
+  // "Adicionado em"; também corta avisos de critérios anteriores a ele
+  createdAt DateTime     @default(now())
+
+  @@unique([listaId, symbol])
+  @@index([userId, symbol])
+  @@index([symbol])
+  @@map("analise_lista_itens")
+}
+
+model AnaliseFiltroSalvo {
+  id              String    @id @default(uuid())
+  userId          String
+  user            User      @relation("AnaliseFiltroSalvoUser", fields: [userId], references: [id], onDelete: Cascade)
+  // 1..40
+  nome            String
+  nomeNormalizado String
+  // acao|fii (stock|reit no bloco 4)
+  classe          String
+  // EstadoFiltroSalvoV1 (zod strict): {janela, criterios, naCarteira, setor}. SEM modo/ordem/dir
+  estado          Json
+  versaoSchema    Int       @default(1)
+  ultimoUsoEm     DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@unique([userId, classe, nomeNormalizado])
+  @@index([userId, classe])
+  @@map("analise_filtros_salvos")
+}
+
+/**
+ * Comparação salva = classe + tickers + janela + nome. Nunca números: reabrir recalcula.
+ */
+model AnaliseComparacao {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation("AnaliseComparacaoUser", fields: [userId], references: [id], onDelete: Cascade)
+  // padrão "WEGE3 · ITUB4 · BBAS3" (≤ 40)
+  nome      String
+  // acao|fii
+  classe    String
+  // 1..4 na ordem dos slots, sem FK
+  tickers   String[]
+  janela    Int      @default(5)
+  // 'tijolo'|'papel'|null
+  tipoFii   String?
+  // dedupe: tickers ORDENADOS + ':' + janela + ':' + (tipoFii ?? '-'); salvar de novo atualiza (200)
+  chave     String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, chave])
+  @@index([userId, updatedAt])
+  @@map("analise_comparacoes")
+}
+
+/**
+ * Dedupe + anti-spam + trilha dos avisos (sem texto livre). Retenção de 90 dias (lgpd-retention + o próprio job).
+ */
+model AnaliseAlertaEnvio {
+  id             String   @id @default(uuid())
+  userId         String
+  user           User     @relation("AnaliseAlertaEnvioUser", fields: [userId], references: [id], onDelete: Cascade)
+  // 'PETR3/PETR4' no aviso por companhia; '*' no resumo
+  symbol         String
+  // resultado|provento|criterios|resumo
+  tipo           String
+  // 'evento:<id>' | 'fii_tri:<cnpj>:<AAAA-MM-DD>' | 'provento:<symbol>:<tipo>:<dataCom>' | 'criterios5:<symbol>:<anoFim>:<de>><para>' | 'resumo:<AAAA-MM-DD>'
+  chave          String
+  // sem FK
+  notificationId String?
+  createdAt      DateTime @default(now())
+
+  // escrita com createMany({skipDuplicates:true})
+  @@unique([userId, tipo, chave])
+  @@index([userId, createdAt])
+  @@index([createdAt])
+  @@map("analise_alerta_envios")
+}
+
+/**
+ * Estado GLOBAL por ativo (sem dado pessoal), atualizado para TODO o Quadro a cada rodada.
+ */
+model AnaliseAlertaMarco {
+  symbol       String
+  // 'criterios:5' | 'fii_trimestral'
+  tipo         String
+  // criterios: {atendidos, aplicaveis, anoFim, paramsVersion, anterior?, mudouEm?} | fii: {refQuarter}
+  marco        Json
+  atualizadoEm DateTime @updatedAt
+
+  @@id([symbol, tipo])
+  @@map("analise_alerta_marcos")
 }

@@ -32,12 +32,13 @@
  *
  * GET /api/push/preferencias
  *   → { habilitado: boolean, vapidPublicKey: string | null,
- *       categorias: { orcamento, agenda, comunidade, conta }: boolean,
- *       comunidadeVisivel: boolean }. Sem registro = tudo ligado. A chave
+ *       categorias: { orcamento, agenda, comunidade, conta, analise }: boolean,
+ *       comunidadeVisivel: boolean, analiseVisivel: boolean }. Sem registro = tudo
+ *   ligado. analiseVisivel = recurso 'alertas' liberado para o usuário da sessão. A chave
  *   pública VAPID viaja aqui (envs sem NEXT_PUBLIC: o build roda sem secrets).
  *
  * PATCH /api/push/preferencias
- *   body parcial { orcamento?, agenda?, comunidade?, conta?: boolean } → 204.
+ *   body parcial { orcamento?, agenda?, comunidade?, conta?, analise?: boolean } → 204.
  *   Linha criada sob demanda, no molde da AgendaPreferencia.
  *
  * Todas as rotas usam a SESSÃO (`requireSession`), nunca
@@ -51,7 +52,7 @@ import {
   COMUNIDADE_MODERACAO_TYPE,
 } from '@/services/comunidade/notificacoes';
 
-export type CategoriaPush = 'orcamento' | 'agenda' | 'comunidade' | 'conta';
+export type CategoriaPush = 'orcamento' | 'agenda' | 'comunidade' | 'conta' | 'analise';
 
 /** Types de Notification dos convites de consultoria (strings literais nas rotas). */
 export const CONSULTANT_INVITE_TYPE = 'consultant_invite';
@@ -67,6 +68,13 @@ export const ANALISE_RELATO_RESPOSTA_TYPE = 'analise_ativos_reporte_resposta';
 export const ANALISE_CURADORIA_SLA_TYPE = 'analise_ativos_curadoria_sla';
 
 /**
+ * Avisos das listas dos Salvos (bloco 1; o mesmo literal de salvos/contrato.
+ * ANALISE_SALVOS_ALERTA_TYPE, repetido aqui pelo mesmo motivo do ciclo de import).
+ * Categoria própria 'analise' (Perfil › Notificações, gate PushPreferencia.analise).
+ */
+export const ANALISE_SALVOS_ALERTA_PUSH_TYPE = 'analise_ativos_salvos_alerta';
+
+/**
  * Categoria de push por `Notification.type`, usando as constantes exportadas
  * pelos serviços reais. Type fora deste mapa NÃO envia push.
  */
@@ -79,6 +87,7 @@ export const CATEGORIA_POR_TYPE: Readonly<Record<string, CategoriaPush>> = {
   [CONSULTANT_INVITE_RESPONSE_TYPE]: 'conta',
   [ANALISE_RELATO_RESPOSTA_TYPE]: 'conta',
   [ANALISE_CURADORIA_SLA_TYPE]: 'conta',
+  [ANALISE_SALVOS_ALERTA_PUSH_TYPE]: 'analise',
 };
 
 /** null = type desconhecido: não envia push. */
@@ -113,6 +122,8 @@ export const TTL_SEGUNDOS_POR_CATEGORIA: Readonly<Record<CategoriaPush, number>>
   agenda: 43200,
   comunidade: 86400,
   conta: 604800,
+  // aviso diário (resultado/provento/critérios): depois de 1 dia o sino e a aba Alertas bastam
+  analise: 86400,
 };
 
 /** Corpo genérico por categoria — nunca leva valores nem texto livre. */
@@ -122,6 +133,9 @@ export function corpoGenerico(categoria: CategoriaPush): string {
       return 'Toque para ver os detalhes na agenda.';
     case 'comunidade':
       return 'Toque para ver os detalhes na comunidade.';
+    case 'analise':
+      // = TEXTOS_ALERTAS.push.corpoGenerico (literal copiado; o teste confere)
+      return 'Toque para ver os detalhes na Análise de Ativos.';
     default:
       return 'Toque para ver os detalhes no app.';
   }

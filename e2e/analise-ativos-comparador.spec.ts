@@ -64,9 +64,19 @@ test('ações: critérios primeiro, sem ★/destaque/Índice, Leitura dos dados 
   await page.getByRole('button', { name: 'Copiar link', exact: true }).click();
   await expect(page.getByText('Link copiado').first()).toBeVisible();
 
-  // nada de compra/salvar/PDF; varredura do DOM fora dos literais e dos nomes do banco
+  // nada de compra; Salvar comparação e Exportar PDF só com os recursos do bloco 1 (salvos e
+  // pdfComparador); varredura do DOM fora dos literais e dos nomes do banco
   const area = page.locator('[data-analise-ativos]');
-  await expect(area.getByRole('button', { name: /comprar|salvar compara|pdf/i })).toHaveCount(0);
+  await expect(area.getByRole('button', { name: /comprar/i })).toHaveCount(0);
+  const config = (await (await page.request.get('/api/analise-ativos/config')).json()) as {
+    recursos?: { salvos?: boolean; pdfComparador?: boolean };
+  };
+  const visiveis = (nome: RegExp) =>
+    area.getByRole('button', { name: nome }).locator('visible=true');
+  if (config.recursos?.salvos !== true) await expect(visiveis(/salvar compara/i)).toHaveCount(0);
+  else await expect(visiveis(/salvar compara/i).first()).toBeVisible();
+  if (config.recursos?.pdfComparador !== true) await expect(visiveis(/pdf/i)).toHaveCount(0);
+  else await expect(visiveis(/exportar pdf/i).first()).toBeVisible();
   const texto = await page.locator('[data-comparador]').evaluate((el) => {
     const c = el.cloneNode(true) as Element;
     c.querySelectorAll('[data-texto-legal],[data-nome-ativo]').forEach((n) => n.remove());
