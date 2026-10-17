@@ -73,8 +73,25 @@ function textoSemFonte(id: IdCriterio): string {
   return m[id] ?? T.fatos.semDado;
 }
 
-/** Fato de 'sem dado' (v2.5: sempre o mesmo texto, sem a nota dos informes de FII). */
-function textoSemDado(_classe: ClasseQuadro, _janela: Janela): string {
+/** Critérios de FII que os informes da CVM não trazem (só o relatório gerencial do fundo). */
+const SO_RELATORIO_GESTOR: ReadonlySet<IdCriterio> = new Set<IdCriterio>(['inad', 'ltv']);
+
+/**
+ * Fato de 'sem dado'. QA do Pedro (16/10): diz POR QUE falta o dado quando dá para saber pela
+ * própria série — indicador fora dos informes da CVM, ou série que só começa depois do início da
+ * janela (empresa/fundo mais novo que a janela) — e cai no texto genérico nos demais casos.
+ */
+function textoSemDado(
+  id: IdCriterio,
+  janela: Janela,
+  anos: number[] = [],
+  brutos: Array<number | null> = [],
+): string {
+  const primeiro = brutos.findIndex((v) => v !== null);
+  if (primeiro === -1 && SO_RELATORIO_GESTOR.has(id)) return T.fatos.semDadoRelatorioGestor;
+  if (primeiro > 0 && brutos.slice(primeiro).every((v) => v !== null)) {
+    return formatarTexto(T.fatos.semDadoDesde, { ano: anos[primeiro], anos: janela });
+  }
   return T.fatos.semDado;
 }
 
@@ -119,7 +136,7 @@ export function avaliarCriterio(e: EntradaCriterio, params: CriteriaParams): Res
       de: r.de,
       fato:
         r.estado === 'sem_dado' && r.motivo === 'sem_dado_demonstracoes'
-          ? textoSemDado(e.classe, janela)
+          ? textoSemDado(id, janela)
           : r.fato,
       ...(r.motivo ? { motivo: r.motivo } : {}),
       serie: null,
@@ -138,7 +155,7 @@ export function avaliarCriterio(e: EntradaCriterio, params: CriteriaParams): Res
       estado: 'sem_dado',
       n: null,
       de: null,
-      fato: textoSemDado(e.classe, janela),
+      fato: textoSemDado(id, janela, anos, brutos),
       motivo: 'sem_dado_demonstracoes',
       serie: algum ? pontos(anos, brutos) : null,
     };
