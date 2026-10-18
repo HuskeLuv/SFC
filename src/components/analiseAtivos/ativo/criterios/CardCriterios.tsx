@@ -5,9 +5,9 @@
  * 2), logo abaixo do cabeçalho. Lê AtivoTopoResposta.criterios: as 3 janelas vêm na MESMA resposta,
  * então trocar a pílula (3 | 5 | 10 anos, padrão 5) não refaz requisição.
  *
- *  - número "n de k" NEUTRO (contagem factual, não é nota): k = critérios que se aplicam (6; v2.5:
- *    financeiras também 6 — só com o D4 religado por params sai a frase 'n critérios não se
- *    aplicam a este ativo');
+ *  - número "n de k" na cor da marca (patrimonio/tranquilidade), contagem factual (não é nota):
+ *    k = critérios que se aplicam (6; v2.5: financeiras também 6 — só com o D4 religado por params
+ *    sai a frase 'n critérios não se aplicam a este ativo');
  *  - nota do perfil (FoF/indefinido avaliados pela regra de composição, rec. 3);
  *  - itens (ItemCriterio) em 3/2/1 colunas pela largura do card (container query);
  *  - v2.5: sem a nota dos informes de FII de 2016 (janela 10 = só 'sem dado nas demonstrações');
@@ -118,7 +118,7 @@ export default function CardCriterios({
             data-contagem-criterios=""
             className="m-0 font-bold leading-none text-gray-800 tabular-nums dark:text-white/90"
           >
-            <span className="text-[42px]">{j.atendidos}</span>{' '}
+            <span className="text-[42px] text-[#396CAA] dark:text-[#6E9DC4]">{j.atendidos}</span>{' '}
             <span className="text-[15px] font-medium text-gray-500 dark:text-gray-400">
               {formatarTexto(TA.deTotal, { total: j.aplicaveis })}
             </span>

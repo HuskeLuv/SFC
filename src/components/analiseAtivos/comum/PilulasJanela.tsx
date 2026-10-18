@@ -5,9 +5,15 @@
  *  - role="radiogroup" com nome acessível; cada opção é role="radio" aria-checked;
  *  - pílula VISÍVEL de 32 px dentro de um alvo de 44 px (min-h-11), também no computador;
  *  - setas ← → (e ↑ ↓) movem e selecionam (roving tabindex: só a selecionada entra no Tab);
- *  - selecionada: fundo #EDF2F8, borda #396CAA, texto #314666 (escuro: tranquilidade a 15%).
+ *  - selecionada: preenchida patrimonio #396CAA com texto branco (escuro: tranquilidade #6E9DC4
+ *    com texto potencia #2D2D2D) — estiloPilulas.ts, ticket do Pedro de 16/10.
  */
 import { useRef, type KeyboardEvent } from 'react';
+import {
+  ANEL_FOCO_GRUPO,
+  PILULA_DESLIGADA,
+  PILULA_LIGADA,
+} from '@/components/analiseAtivos/comum/estiloPilulas';
 import { TEXTOS_CRITERIOS, textoJanela } from '@/services/analiseAtivos/textosCriterios';
 import {
   JANELAS_CRITERIOS,
@@ -69,10 +75,8 @@ export default function PilulasJanela({
             className="group inline-flex min-h-11 items-center justify-center focus-visible:outline-none"
           >
             <span
-              className={`inline-flex h-8 items-center rounded-full border px-3 text-[13px] font-medium whitespace-nowrap tabular-nums group-focus-visible:ring-2 group-focus-visible:ring-[#0079F2] dark:group-focus-visible:ring-[#6E9DC4] ${
-                selecionada
-                  ? 'border-[#396CAA] bg-[#EDF2F8] text-[#314666] dark:border-[#6E9DC4] dark:bg-[#6E9DC4]/15 dark:text-[#6E9DC4]'
-                  : 'border-gray-200 bg-white text-gray-700 hover:border-gray-300 dark:border-[#2E3440] dark:bg-transparent dark:text-gray-300 dark:hover:border-gray-500'
+              className={`inline-flex h-8 items-center rounded-full border px-3 text-[13px] whitespace-nowrap tabular-nums ${ANEL_FOCO_GRUPO} ${
+                selecionada ? PILULA_LIGADA : PILULA_DESLIGADA
               }`}
             >
               {textoJanela(j as Janela, variante === 'compacta')}

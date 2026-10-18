@@ -51,12 +51,18 @@ const AddAssetWizard = lazy(() => import('@/components/carteira/AddAssetWizard')
 
 const FOCO =
   'outline-none focus-visible:ring-[3px] focus-visible:ring-[#0079F2] dark:focus-visible:ring-[#6E9DC4]';
-const BASE_BOTAO =
-  'inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-lg px-4 text-sm font-medium whitespace-nowrap transition-colors sm:w-auto lg:min-h-11';
+const FORMA_BOTAO =
+  'inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-lg transition-colors sm:w-auto lg:min-h-11';
+const BASE_BOTAO = `${FORMA_BOTAO} px-4 text-sm font-medium whitespace-nowrap`;
 export const BOTAO_PRIMARIO = `${BASE_BOTAO} bg-[#314666] text-white hover:bg-[#396CAA] dark:bg-[#396CAA] dark:hover:bg-[#6E9DC4] dark:hover:text-gray-900`;
 export const BOTAO_SECUNDARIO = `${BASE_BOTAO} border border-gray-300 bg-white text-gray-800 hover:bg-gray-50 dark:border-gray-700 dark:bg-transparent dark:text-white/90 dark:hover:bg-white/5`;
-/** Botões pequenos da linha (Comparar, Planejar, Ver): 44 px, 13 px de texto. */
-const BOTAO_PEQUENO = `${BOTAO_SECUNDARIO} px-3 text-[13px] ${FOCO}`;
+/**
+ * Botões de ação da linha (Comparar, Planejar, Ver): 44 px, 14 px semibold, contorno #CCCCCC e
+ * texto seguranca, ícone patrimonio (HTML do Pedro: `.btn`). Só o Registrar usa o fundo navy.
+ * Sem o px-4/text-sm do BASE_BOTAO (no Tailwind v4 o px-4 venceria o px-3): na grade de 2 colunas
+ * do celular, 13 px e quebra de linha permitida ('Planejar na carteira' não vaza em 360 px).
+ */
+const BOTAO_ACAO = `${FORMA_BOTAO} border border-[#CCCCCC] bg-white px-3 text-center text-[13px] leading-tight font-semibold sm:text-sm sm:whitespace-nowrap text-[#314666] shadow-[0_1px_2px_rgba(16,24,40,0.06)] hover:border-[#396CAA] hover:bg-[#EDF2F8] dark:border-gray-600 dark:bg-white/[0.04] dark:text-white/90 dark:hover:border-[#6E9DC4] dark:hover:bg-[#6E9DC4]/15 ${FOCO}`;
 
 export type OperacaoWizard = AddAssetWizardPreset['operacao'];
 
@@ -102,12 +108,19 @@ export function useWizardCarteiraAtivo({
   return { abrir, wizard };
 }
 
-function Icone({ d }: { d: ReactNode }) {
+/** Ícone 16 px; azul (patrimonio/tranquilidade) por padrão, `className` substitui a cor. */
+function Icone({
+  d,
+  className = 'text-[#396CAA] dark:text-[#6E9DC4]',
+}: {
+  d: ReactNode;
+  className?: string;
+}) {
   return (
     <svg
       viewBox="0 0 24 24"
       aria-hidden="true"
-      className="h-4 w-4 flex-none"
+      className={`h-4 w-4 flex-none ${className}`}
       fill="none"
       stroke="currentColor"
       strokeWidth="2"
@@ -241,7 +254,7 @@ export default function BarraAcoesAtivo({
       {comparador ? (
         <button
           type="button"
-          className={BOTAO_PEQUENO}
+          className={BOTAO_ACAO}
           onClick={() => setModal('comparar')}
           aria-label={formatarTexto(tx.compararAria, { ticker: t })}
           data-botao-comparar=""
@@ -253,7 +266,7 @@ export default function BarraAcoesAtivo({
       {salvar.ligado ? <BotaoSalvarAtivo controle={salvar} /> : null}
       <button
         type="button"
-        className={BOTAO_PEQUENO}
+        className={BOTAO_ACAO}
         onClick={() => setModal('planejar')}
         data-botao-planejar=""
       >
@@ -269,7 +282,7 @@ export default function BarraAcoesAtivo({
       </button>
       <button
         type="button"
-        className={BOTAO_PEQUENO}
+        className={BOTAO_ACAO}
         onClick={() => setModal('verNaCarteira')}
         data-botao-ver=""
       >
@@ -285,11 +298,11 @@ export default function BarraAcoesAtivo({
       </button>
       <button
         type="button"
-        className={`${BOTAO_PRIMARIO} col-span-2 ${FOCO}`}
+        className={`${BOTAO_PRIMARIO} col-span-2 font-semibold shadow-[0_6px_16px_-6px_rgba(49,70,102,0.55)] ${FOCO}`}
         onClick={() => setModal('registrar')}
         data-botao-registrar=""
       >
-        <Icone d={<path d="M12 5v14M5 12h14" />} />
+        <Icone d={<path d="M12 5v14M5 12h14" />} className="text-current" />
         {tx.registrar}
       </button>
 

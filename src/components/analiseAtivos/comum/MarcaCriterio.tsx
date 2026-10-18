@@ -1,11 +1,15 @@
 /**
  * MarcaCriterio (v2.4, fatia 0) — marca NEUTRA de um critério de fundamentos:
- *  - atende: ✓ em círculo preenchido (tinta neutra gray-700; gray-300 no escuro);
+ *  - atende: ✓ em círculo preenchido (tinta neutra gray-700; gray-300 no escuro); com tom='verde'
+ *    (só na página do ativo — exceção à paleta autorizada pelo Wellington 17/10) o círculo usa
+ *    MARCA_ATENDE_VERDE;
  *  - não atende E sem dado: — em círculo vazado (sem dado conta como não atende);
  *  - não se aplica: 'n/a' em pílula tracejada.
- * NUNCA verde/vermelho nem classe de placar (spec §9, D1). 22 px ('md') ou 16 px ('sm').
+ * Fora o ✓ verde da exceção, NUNCA verde/vermelho nem classe de placar (spec §9, D1). 22 px
+ * ('md') ou 16 px ('sm').
  * A marca é aria-hidden; o estado vai em texto sr-only ('atende:'), salvo `decorativa`.
  */
+import { MARCA_ATENDE_VERDE } from '@/constants/analiseAtivosVisual';
 import { TEXTOS_CRITERIOS } from '@/services/analiseAtivos/textosCriterios';
 import type { MarcaCriterioProps } from '@/types/analiseAtivosCriterios';
 
@@ -20,15 +24,20 @@ export default function MarcaCriterio({
   estado,
   tamanho = 'md',
   decorativa = false,
+  tom = 'neutro',
   className = '',
 }: MarcaCriterioProps) {
   const t = TAMANHO[tamanho];
   let marca;
   if (estado === 'atende') {
+    const tinta =
+      tom === 'verde'
+        ? MARCA_ATENDE_VERDE
+        : 'bg-gray-700 text-white dark:bg-gray-300 dark:text-gray-900';
     marca = (
       <span
         aria-hidden="true"
-        className={`inline-flex ${t.circulo} flex-none items-center justify-center rounded-full bg-gray-700 text-white dark:bg-gray-300 dark:text-gray-900`}
+        className={`inline-flex ${t.circulo} flex-none items-center justify-center rounded-full ${tinta}`}
       >
         <svg
           width={t.icone}

@@ -3,6 +3,8 @@
 /**
  * Múltiplos históricos (fatia C): 2 mini-gráficos com a média tracejada — ações P/L e P/VP;
  * FIIs P/VP e DY. Usa a mesma consulta do Valuation (useValuationAtivo: uma requisição só).
+ * Layout por container query: na coluna estreita (1/3 da página em xl) os dois ficam um em cima do
+ * outro; com o card ≥ @2xl (672 px, empilhado em tela média) voltam lado a lado.
  *
  * Bloco C: ano do histórico em conferência já vem sem ponto (fora da média, a linha quebra); aqui
  * aparece a nota do ano com o chip "em conferência" que abre o "Por quê?". Menu ⋯ e frescor pelo
@@ -34,37 +36,39 @@ export default function BlocoMultiplosHistoricos({ ticker }: BlocoMultiplosHisto
       alturaEsqueleto={220}
     >
       {q.data ? (
-        <div className="grid min-w-0 gap-4 sm:grid-cols-2">
-          {q.data.historicos.map((h) => (
-            <MiniGraficoMultiplo key={h.codigo} historico={h} />
-          ))}
-          {anos.length > 0 ? (
-            <ul className="flex flex-col gap-1.5 sm:col-span-2" data-historico-conferencia="">
-              {anos.map((c) => {
-                const ano = anoDaConferencia(c);
-                return (
-                  <li
-                    key={c.desde ?? c.grupo}
-                    className="flex flex-wrap items-center gap-2 text-xs text-gray-600 dark:text-gray-300"
-                  >
-                    <span
-                      aria-hidden="true"
-                      className="inline-block h-0 w-4 border-t-2 border-dashed border-[#667085] dark:border-[#98A2B3]"
-                    />
-                    {formatarTexto(TEXTOS_TELA.telaConferencia.anoEmConferencia, {
-                      ano: ano ?? '',
-                    })}
-                    <ChipConferencia
-                      conferencia={c}
-                      campo="historicoPl"
-                      rotuloCampo={String(ano ?? '')}
-                      bloco="historicos"
-                    />
-                  </li>
-                );
-              })}
-            </ul>
-          ) : null}
+        <div className="@container min-w-0">
+          <div className="grid min-w-0 grid-cols-1 gap-4 @2xl:grid-cols-2">
+            {q.data.historicos.map((h) => (
+              <MiniGraficoMultiplo key={h.codigo} historico={h} />
+            ))}
+            {anos.length > 0 ? (
+              <ul className="flex flex-col gap-1.5 @2xl:col-span-2" data-historico-conferencia="">
+                {anos.map((c) => {
+                  const ano = anoDaConferencia(c);
+                  return (
+                    <li
+                      key={c.desde ?? c.grupo}
+                      className="flex flex-wrap items-center gap-2 text-xs text-gray-600 dark:text-gray-300"
+                    >
+                      <span
+                        aria-hidden="true"
+                        className="inline-block h-0 w-4 border-t-2 border-dashed border-[#667085] dark:border-[#98A2B3]"
+                      />
+                      {formatarTexto(TEXTOS_TELA.telaConferencia.anoEmConferencia, {
+                        ano: ano ?? '',
+                      })}
+                      <ChipConferencia
+                        conferencia={c}
+                        campo="historicoPl"
+                        rotuloCampo={String(ano ?? '')}
+                        bloco="historicos"
+                      />
+                    </li>
+                  );
+                })}
+              </ul>
+            ) : null}
+          </div>
         </div>
       ) : null}
     </CartaoAnalise>

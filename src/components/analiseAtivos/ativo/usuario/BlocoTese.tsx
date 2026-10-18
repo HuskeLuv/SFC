@@ -27,8 +27,12 @@ export type { BlocoTeseProps };
 
 export const DEBOUNCE_TESE_MS = 1500;
 
+/**
+ * Cartão tingido (HTML do Pedro): borda esquerda patrimonio, fundo #EDF2F8; no escuro, tranquilidade
+ * a 15% (a 8% sumia no fundo escuro) e contorno tranquilidade/25.
+ */
 const CARD =
-  'flex min-w-0 flex-col gap-4 rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03]';
+  'flex min-w-0 flex-col gap-4 rounded-2xl border border-[#DCE6F2] border-l-4 border-l-[#396CAA] bg-[#EDF2F8] p-5 dark:border-[#6E9DC4]/25 dark:border-l-[#6E9DC4] dark:bg-[#6E9DC4]/15';
 const LINK = `inline-flex min-h-11 items-center text-sm font-medium ${COR_LINK.classes} hover:underline`;
 const t = TEXTOS_TELA.tese;
 
@@ -47,7 +51,7 @@ function Cabecalho({ idTitulo, selo }: { idTitulo: string; selo: string }) {
       <h2 id={idTitulo} className="text-base font-semibold text-gray-800 dark:text-white/90">
         {TEXTOS_TELA.blocos.tese}
       </h2>
-      <span className="inline-flex items-center gap-1.5 text-[13px] text-gray-500 dark:text-gray-400">
+      <span className="inline-flex items-center gap-1.5 text-[13px] text-gray-600 dark:text-gray-400">
         <CadeadoIcon />
         {selo}
       </span>
@@ -220,7 +224,7 @@ function TeseDoUsuario({ ticker, idTitulo }: { ticker: string; idTitulo: string 
       <section aria-labelledby={idTitulo} aria-busy="true" className={CARD} data-tese="carregando">
         {cabecalho}
         <span className="sr-only">{t.carregando}</span>
-        <div className="h-20 animate-pulse rounded-xl bg-gray-100 motion-reduce:animate-none dark:bg-white/5" />
+        <div className="h-20 animate-pulse rounded-xl bg-white/70 motion-reduce:animate-none dark:bg-white/5" />
       </section>
     );
   }
@@ -264,7 +268,7 @@ function TeseDoUsuario({ ticker, idTitulo }: { ticker: string; idTitulo: string 
           <div className="flex min-w-0 flex-col gap-1">
             <span
               id={idContador}
-              className={`text-[13px] tabular-nums ${noLimite ? 'font-semibold text-gray-800 dark:text-white/90' : 'text-gray-500 dark:text-gray-400'}`}
+              className={`text-[13px] tabular-nums ${noLimite ? 'font-semibold text-gray-800 dark:text-white/90' : 'text-gray-600 dark:text-gray-400'}`}
             >
               {formatarTexto(t.contador, {
                 n: n.toLocaleString('pt-BR'),
@@ -300,10 +304,10 @@ function TeseDoUsuario({ ticker, idTitulo }: { ticker: string; idTitulo: string 
     return (
       <section aria-labelledby={idTitulo} className={CARD} data-tese="salva">
         {cabecalho}
-        <div className="border-l-[3px] border-gray-200 pl-3 text-[15px] leading-relaxed whitespace-pre-wrap text-gray-800 dark:border-gray-700 dark:text-white/90">
+        <div className="border-l-[3px] border-[#6E9DC4] pl-3 text-[15px] leading-relaxed whitespace-pre-wrap text-gray-800 dark:border-[#6E9DC4]/60 dark:text-white/90">
           {texto}
         </div>
-        <div className="flex flex-wrap items-center justify-between gap-2 text-[13px] text-gray-500 dark:text-gray-400">
+        <div className="flex flex-wrap items-center justify-between gap-2 text-[13px] text-gray-600 dark:text-gray-400">
           <span aria-live="polite">{quando ? formatarTexto(t.salvoEm, quando) : ''}</span>
           {confirmandoApagar ? (
             <div role="group" className="flex flex-wrap items-center gap-x-3 gap-y-1">
@@ -335,7 +339,7 @@ function TeseDoUsuario({ ticker, idTitulo }: { ticker: string; idTitulo: string 
               </button>
               <button
                 type="button"
-                className="inline-flex min-h-11 items-center text-sm font-medium text-gray-500 hover:underline dark:text-gray-400"
+                className="inline-flex min-h-11 items-center text-sm font-medium text-gray-600 hover:underline dark:text-gray-400"
                 onClick={() => setConfirmandoApagar(true)}
               >
                 {t.apagar}

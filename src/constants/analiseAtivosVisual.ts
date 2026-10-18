@@ -5,10 +5,13 @@
  * (escuro). Nada de verde/âmbar: verde lê como "compre" e não está na paleta.
  * - v2.4 (Filtros de Fundamentos): marcas de critério ✓/— NEUTRAS, nunca verde/vermelho; o
  *   vermelho fica só para erro e prejuízo nas barras. #0079F2 só em elemento NÃO textual.
+ * - Exceção à paleta autorizada pelo Wellington 17/10: verde de positivo SÓ no ✓ do critério
+ *   atendido na página do ativo (VERDE_ATENDE / MARCA_ATENDE_VERDE). Fica fora de
+ *   CORES_PERMITIDAS: Quadro, Comparador e células continuam neutros.
  * - Texto/link: #396CAA no claro / #6E9DC4 no escuro. #0079F2 nunca em texto.
  *
  * O teste (__tests__ em src/constants) lista todos os hex deste arquivo e falha com cor fora da
- * paleta permitida (CORES_PERMITIDAS).
+ * paleta permitida (CORES_PERMITIDAS ∪ CORES_EXCECAO_ATENDE).
  */
 import { MYFINANCE_BRAND } from '@/constants/brandColors';
 import { CRITERIA_PARAMS_CODIGO } from '@/services/analiseAtivos/params/criteriaParamsCodigo';
@@ -44,6 +47,17 @@ export const CORES_PERMITIDAS: readonly string[] = [
   FUNDO_ATENDE_CLARO,
   FUNDO_NOVO_CLARO,
 ];
+
+/**
+ * Exceção à paleta autorizada pelo Wellington 17/10: verde de positivo só no ✓ do critério atendido
+ * na página do ativo; Quadro, Comparador e células continuam neutros. Mesmos tons do --ok do HTML do
+ * Pedro. NÃO entra em CORES_PERMITIDAS (os demais componentes seguem reprovando verde).
+ */
+export const VERDE_ATENDE = { claro: '#16A34A', escuro: '#34C47C' } as const;
+/** Círculo do ✓ atendido (página do ativo): verde no claro; verde claro com ✓ escuro no escuro. */
+export const MARCA_ATENDE_VERDE = 'bg-[#16A34A] text-white dark:bg-[#34C47C] dark:text-[#18181B]';
+/** Hex da exceção do ✓ verde (só para os testes de fonte que a aceitam explicitamente). */
+export const CORES_EXCECAO_ATENDE: readonly string[] = Object.values(VERDE_ATENDE);
 
 /** Texto/link (claro / escuro). */
 export const COR_LINK = {

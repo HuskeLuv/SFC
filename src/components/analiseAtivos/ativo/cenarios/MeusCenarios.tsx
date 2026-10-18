@@ -2,7 +2,8 @@
 
 /**
  * Valuation · Meus cenários (Bloco D, fatia B). Calculadora com as premissas do usuário:
- * entradas (300px) + resultados; abaixo de 900px de container as entradas vão para cima em 2
+ * entradas (320px, num painel cinza único com os campos brancos, como .sim .inp do HTML do Pedro)
+ * + resultados; abaixo de 900px de container as entradas vão para cima em 2
  * colunas, abaixo de 560px em 1. Tabela de métodos no computador, cartões no celular; barras na
  * mesma escala; Meta de renda (FII); Sua posição; barra de salvamento; rodapé LITERAL
  * (RODAPE_CENARIOS = TEXTOS_ANALISE.rodapeValuation, decisão 14), sempre visível.
@@ -197,8 +198,11 @@ function Calculadora({
           <span>{T.consultor}</span>
         </div>
       ) : null}
-      <div className="grid grid-cols-1 items-start gap-5 @min-[900px]:grid-cols-[300px_minmax(0,1fr)]">
-        <div className="min-w-0 border-b border-gray-100 pb-4 @min-[900px]:border-r @min-[900px]:border-b-0 @min-[900px]:pr-5 @min-[900px]:pb-0 dark:border-gray-800">
+      <div className="grid grid-cols-1 items-start gap-5 @min-[900px]:grid-cols-[320px_minmax(0,1fr)]">
+        <div
+          className="min-w-0 rounded-xl border border-gray-200 bg-gray-100 p-3.5 sm:p-4 dark:border-gray-800 dark:bg-white/[0.04]"
+          data-cenarios-painel=""
+        >
           <FormPremissas r={r} estado={estado} />
         </div>
         <div className="flex min-w-0 flex-col gap-3.5">

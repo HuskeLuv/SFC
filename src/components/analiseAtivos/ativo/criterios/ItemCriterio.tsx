@@ -2,15 +2,17 @@
 
 /**
  * ItemCriterio (v2.4, fatia C2) — um critério de fundamentos no card da página do ativo:
- * MarcaCriterio (✓ / — / n/a em tinta NEUTRA) + rótulo + MiniBarrasAnuais da janela (uma cor só;
- * hover e foco mostram 'ano: valor') + fato + definição.
+ * MarcaCriterio (✓ verde quando atende; — / n/a em tinta NEUTRA) + rótulo + MiniBarrasAnuais da
+ * janela (uma cor só; hover e foco mostram 'ano: valor') + fato + definição.
  *
  * Estados (EstadoCriterio):
  *  - atende / nao_atende: fato do motor ('cresceu em 5 de 5 anos · …') e barras da janela;
  *  - sem_dado: conta como NÃO ATENDE → 'não atende · sem dado nas demonstrações …' (D3 traz o motivo
  *    no próprio fato: vacância CVM, inadimplência/LTV só em PDF; janela 10 de FII);
  *  - nao_se_aplica: borda tracejada, sem barras (financeiras, D4: 'não se aplica a instituições…').
- * Nunca verde/vermelho na marca nem no texto (só o valor negativo das barras sai em vermelho).
+ * Exceção à paleta autorizada pelo Wellington 17/10: só o ✓ do critério atendido sai verde
+ * (tom='verde'); não atende / sem dado / n/a e todo o texto seguem neutros (só o valor negativo das
+ * barras sai em vermelho).
  *
  * v2.5: resultado com `obs` — o lucro descontado que a fonte não entrega (o critério usa o lucro
  * líquido dos controladores) ou dados incompletos — ganha ⓘ junto do rótulo (tooltip) e a frase
@@ -48,7 +50,7 @@ export default function ItemCriterio({ item, janela, className = '' }: ItemCrite
       } ${className}`}
     >
       <h3 className="m-0 flex items-center gap-2 text-sm font-semibold text-gray-800 dark:text-white/90">
-        <MarcaCriterio estado={item.estado} />
+        <MarcaCriterio estado={item.estado} tom="verde" />
         <span className="min-w-0">{item.rotulo}</span>
         {obs.length > 0 ? (
           <span

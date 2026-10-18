@@ -501,11 +501,13 @@ export const TEXTOS_TELA = {
   educacao: {
     acao: {
       titulo: 'Aprenda a analisar ações',
-      descricao: 'Trilha de investimentos da Educação',
+      descricao:
+        'Aprenda os fundamentos para investir em empresas e construir patrimônio na bolsa de valores',
     },
     fii: {
       titulo: 'Aprenda a analisar FIIs',
-      descricao: 'Trilha de investimentos da Educação',
+      descricao:
+        'Aprenda os fundamentos para investir em fundos imobiliários e receber rendimentos todo mês',
     },
   } satisfies Record<ClasseQuadro, { titulo: string; descricao: string }>,
   /** Definição + referência usual de cada múltiplo (Valuation e KPIs). Factual, sem juízo. */
