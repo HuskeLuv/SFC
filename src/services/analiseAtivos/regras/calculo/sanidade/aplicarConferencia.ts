@@ -167,6 +167,7 @@ export const METRICAS_DO_GRUPO: Record<GrupoConferencia, readonly string[]> = {
   historico: [],
   fii_vp: ['pvp', 'distanciaPvp1'],
   fii_obrigacoes: ['obrigacoesPlPct'],
+  fii_vacancia: ['vacanciaFisicaCvmPct'],
 };
 
 export type MetricaPorComponente = Partial<Record<NomeComponente, string>>;

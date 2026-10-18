@@ -216,6 +216,8 @@ export interface FiiTrimestre {
   nCri: number | null;
   maiorCriPct: number | null;
   flags: string[];
+  /** receita de aluguel do trimestre (R$): confirma subida real de vacância (saneamentoVacancia) */
+  receitaAluguel?: number | null;
 }
 /**
  * BRAPI: pagamento=date, data gravada=dataCom (data-com real desde o #270, 30/09/2026; antes a data

@@ -15,6 +15,8 @@ const mockPrisma = vi.hoisted(() => ({
   assetMultiplesCurrent: { findUnique: vi.fn() },
   fiiQuarterly: { findMany: vi.fn() },
   fiiMonthly: { findMany: vi.fn() },
+  // episódios de vacância liberados pela curadoria (repositorio/curadoria.liberacoesVacancia)
+  analiseCasoDado: { findMany: vi.fn() },
 }));
 const mockLeitor = vi.hoisted(() => ({ obterLinhaQuadro: vi.fn(), versaoQuadro: vi.fn() }));
 
@@ -106,6 +108,7 @@ describe('GET /fundamentos — FII com ticker↔CNPJ não conferido', () => {
     vi.setSystemTime(new Date('2026-10-02T15:00:00Z'));
     mockExigir.mockReset().mockResolvedValue({ payload: { id: 'u1' }, targetUserId: 'u1' });
     Object.values(mockPrisma).forEach((m) => Object.values(m).forEach((f) => f.mockReset()));
+    mockPrisma.analiseCasoDado.findMany.mockResolvedValue([]);
     Object.values(mockLeitor).forEach((f) => f.mockReset());
   });
   afterEach(() => vi.useRealTimers());

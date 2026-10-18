@@ -6,6 +6,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Prisma } from '@prisma/client';
 import fixture from './fixtures/dev-2026-10-03.json';
+import vacFixture from '@/services/analiseAtivos/regras/fii/__tests__/fixtures/vacanciaBacktest.json';
 import {
   calcularAtualAcao,
   calcularAtualFii,
@@ -450,6 +451,47 @@ describe('FII (o FII é o próprio ticker)', () => {
     const c = calcularAtualFii(e, V2);
     expect(c.flags).toContain('conf:fii_vp:vp_salto@2026-08');
     expect(scoreFii(c, e, V2).indice.motivosIncompleto).toContain('preco:em_conferencia');
+  });
+
+  it('HSML11 (série real, A4 do backtest): 4T25→2T26 ~91% com receita estável ⇒ vacância em conferência', () => {
+    const serie = (vacFixture.series as Record<string, Array<[string, number, number | null]>>)
+      .HSML11;
+    const trimestres = serie.map(([refQuarter, vac, rec]) => ({
+      cnpj: vacFixture.cnpj.HSML11,
+      refQuarter,
+      nImoveisRenda: 9,
+      areaM2: 281_255,
+      vacanciaFisicaCvmPct: vac,
+      inadimplenciaCvmPct: null,
+      nCri: null,
+      maiorCriPct: null,
+      flags: [],
+      receitaAluguel: rec,
+    }));
+    const base = entradaFii('HSML11');
+    const e: EntradaAtualFii = {
+      ...base,
+      trimestre: trimestres[trimestres.length - 1],
+      sanidade: { ...base.sanidade!, trimestres },
+    };
+    const c = calcularAtualFii(e, V2);
+    expect(c.flags).toContain('conf:fii_vacancia:vacancia_ocupacao@2025-12');
+    // o critério 'vacancia' do semáforo (inativo na v1/v2) e o C_rent (inativo) não mudam o Índice
+    expect(scoreFii(c, e, V2).indice.incompleto).toBe(false);
+    // a curadoria liberou o episódio ⇒ nenhuma flag
+    const lib = calcularAtualFii(
+      {
+        ...e,
+        sanidade: {
+          ...e.sanidade!,
+          liberacoes: new Set([chaveLiberacaoDe('HSML11', 'vacancia_ocupacao', '2025-12')]),
+        },
+      },
+      V2,
+    );
+    expect(lib.flags.filter((f) => f.startsWith('conf:fii_vacancia'))).toEqual([]);
+    // v1 (bloco C desligado): nada
+    expect(calcularAtualFii(e, V1).flags.some((f) => f.startsWith('conf:'))).toBe(false);
   });
 
   it('FII normal ⇒ nenhuma flag e Índice completo', () => {

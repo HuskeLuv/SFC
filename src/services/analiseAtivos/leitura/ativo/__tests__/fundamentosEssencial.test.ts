@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { Prisma } from '@prisma/client';
+import vacFixture from '@/services/analiseAtivos/regras/fii/__tests__/fixtures/vacanciaBacktest.json';
 
 const mockPrisma = vi.hoisted(() => ({
   assetPerShareYearly: { findMany: vi.fn() },
@@ -8,6 +9,7 @@ const mockPrisma = vi.hoisted(() => ({
   fiiQuarterly: { findMany: vi.fn() },
   fiiMonthly: { findMany: vi.fn() },
   assetFundamentalsSerie: { findMany: vi.fn() },
+  analiseCasoDado: { findMany: vi.fn() },
 }));
 const mockLeitor = vi.hoisted(() => ({
   obterLinhaQuadro: vi.fn(),
@@ -615,6 +617,59 @@ function entradaHglg(over: Partial<EntradaFundamentosFii> = {}): EntradaFundamen
   };
 }
 
+/** HSML11: série real de produção (fii_quarterly, 18/10/2026) — ocupação no campo de vacância. */
+function entradaHsml(over: Partial<EntradaFundamentosFii> = {}): EntradaFundamentosFii {
+  const serie = (vacFixture.series as Record<string, Array<[string, number, number | null]>>)
+    .HSML11;
+  const anos = [2023, 2024, 2025];
+  return {
+    hoje: '2026-10-18',
+    fiiTipo: 'tijolo',
+    trimestres: serie.map(([ref, vac, rec]) =>
+      trimestre(ref, { vacanciaFisicaCvmPct: vac, receitaAluguel: rec }),
+    ),
+    perShare: anos.map((a) => ({ anoFiscal: a, rendCota: 8, vpCotaFim: 100 })),
+    multiplos: anos.map((a) => ({
+      anoFiscal: a,
+      pvp: 0.9,
+      dyPct: 9,
+      vacanciaFisicaCvmPct: null,
+      nImoveisCvm: 8,
+    })),
+    atual: { pvp: 0.9, dy12mPct: 9, vpCota: 100, rend12m: 8 },
+    desdobramentos: [],
+    proventosEmConferencia: false,
+    ...over,
+  };
+}
+
+describe('montarFundamentosFii — vacância em conferência (backtest 18/10/2026, A4)', () => {
+  it('HSML11: 2025 (4T25 = 91,4%) e Últ. 12m (2T26 = 90,6%) ficam "—" + chip; 2024 segue (3,1%)', () => {
+    const r = montarFundamentosFii(entradaHsml());
+    expect(valor(linha(r, '2024').valores.vacancia)).toBeCloseTo(3.11, 2);
+    const v25 = linha(r, '2025').valores.vacancia;
+    expect(v25).toMatchObject({ estado: 'ausente', exibicao: 'ocultar' });
+    expect((v25 as { valorNaoPublicado?: number }).valorNaoPublicado).toBeCloseTo(91.36, 2);
+    expect(linha(r, '2025').selos).toContain('em_conferencia');
+    const ult = r.linhas.find((l) => l.ano === null)!;
+    expect(ult.valores.vacancia).toMatchObject({ estado: 'ausente', exibicao: 'ocultar' });
+    expect(ult.selos).toContain('em_conferencia');
+  });
+
+  it('episódio liberado pela curadoria ⇒ o número do informe volta a aparecer', () => {
+    const r = montarFundamentosFii(
+      entradaHsml({ vacanciaLiberadas: ['vacancia_ocupacao|2025-12'] }),
+    );
+    expect(valor(linha(r, '2025').valores.vacancia)).toBeCloseTo(91.36, 2);
+    expect(linha(r, '2025').selos).not.toContain('em_conferencia');
+  });
+
+  it('HGLG11 (série estável): nada muda', () => {
+    const r = montarFundamentosFii(entradaHglg());
+    expect(valor(linha(r, '2025').valores.vacancia)).toBe(5);
+  });
+});
+
 describe('montarFundamentosFii', () => {
   it('HGLG11: só anos fechados (2026 fora), ano com menos de 4 trimestres = "—" com nota', () => {
     const r = montarFundamentosFii(entradaHglg());
@@ -794,6 +849,7 @@ describe('obterFundamentosEssencial', () => {
     mockLeitor.versaoQuadro.mockReset();
     mockLeitor.obterCriteriaParamsQuadro.mockReset().mockResolvedValue(CRITERIA_PARAMS_V2);
     mockPrisma.assetFundamentalsSerie.findMany.mockResolvedValue([]);
+    mockPrisma.analiseCasoDado.findMany.mockResolvedValue([]);
     mockAcoes.fundamentosVigentes.mockReset();
   });
 

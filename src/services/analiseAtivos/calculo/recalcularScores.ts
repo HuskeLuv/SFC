@@ -69,6 +69,7 @@ import {
 import {
   aplicarConferenciaComponentes,
   aplicarConferenciaSemaforo,
+  chaveLiberacaoDe,
   componentesEmConferencia,
   conferenciasDaEmpresa,
   contarRegras,
@@ -80,9 +81,11 @@ import {
   type MetricaPorComponente,
 } from '@/services/analiseAtivos/regras/calculo/sanidade/aplicarConferencia';
 import { revisaoDpaDmpl } from '@/services/analiseAtivos/regras/calculo/sanidade/divergenciaFonte';
+import type { VacanciaLiberada } from '@/services/analiseAtivos/regras/fii/saneamentoVacancia';
 import { detectarEscalaAcoes } from '@/services/analiseAtivos/regras/calculo/sanidade/escalaAcoes';
 import {
   detectarFiiObrigacoes,
+  detectarFiiVacancia,
   detectarFiiVp,
   revisaoFiiPl,
 } from '@/services/analiseAtivos/regras/calculo/sanidade/fii';
@@ -704,8 +707,15 @@ export interface EntradaAtualFii {
   dpaAnual?: DpaAnual[];
   /** meses com informe mensal por ano (ano com < 12 sai da série, como no Quadro) */
   mesesInformePorAno?: Record<number, number>;
-  /** bloco C: só lido com sanidade.conferencia.ligada (v2) */
-  sanidade?: EntradaSanidade & { symbol: string; meses: FiiMesEnxuto[] };
+  /**
+   * bloco C: só lido com sanidade.conferencia.ligada (v2). `trimestres` = série trimestral inteira
+   * do CNPJ (a vacância do último trimestre é conferida contra ela: saneamentoVacancia, A4).
+   */
+  sanidade?: EntradaSanidade & {
+    symbol: string;
+    meses: FiiMesEnxuto[];
+    trimestres?: FiiTrimestre[];
+  };
 }
 
 export interface CalculoAtualFii {
@@ -719,7 +729,19 @@ export interface CalculoAtualFii {
   conferenciasIndice?: ConferenciaAplicada[];
 }
 
-/** Bloco C: detecções do motor de sanidade de um FII (R3, R4, R5, R6; revisão fii_pl). Pura. */
+/** Liberações da curadoria ('SYMBOL|regra|chave') → consulta (regra, chave) do saneamentoVacancia. */
+function vacanciaLiberadaDe(
+  symbol: string | undefined,
+  liberacoes: ReadonlySet<string> | undefined,
+): VacanciaLiberada | undefined {
+  if (!symbol || !liberacoes || liberacoes.size === 0) return undefined;
+  return (regra, chave) => liberacoes.has(chaveLiberacaoDe(symbol, regra, chave));
+}
+
+/**
+ * Bloco C: detecções do motor de sanidade de um FII (R3, R4, R5, R6, vacância A4; revisão fii_pl).
+ * Pura.
+ */
 export function deteccoesFii(
   e: EntradaAtualFii,
   m: MultiplosCalculados,
@@ -750,6 +772,15 @@ export function deteccoesFii(
     detectarFiiVp(meses, cfg),
     detectarFiiObrigacoes(e.mesAtual, cfg),
     revisaoFiiPl(meses, cfg.rev),
+    detectarFiiVacancia(
+      (e.sanidade?.trimestres ?? []).map((t) => ({
+        refQuarter: t.refQuarter,
+        vacanciaPct: t.flags.includes('nsa:vacanciaFisicaCvmPct') ? null : t.vacanciaFisicaCvmPct,
+        receitaAluguel: t.receitaAluguel,
+      })),
+      p.sanidade.fii,
+      vacanciaLiberadaDe(e.sanidade?.symbol, e.sanidade?.liberacoes),
+    ),
   ];
   return out.filter((d): d is Deteccao => d !== null);
 }
@@ -1296,8 +1327,21 @@ export async function recalcularScores(
     incompletos: 0,
   };
   const cnpjsFii = [...new Set(u.fiis.map((f) => f.cnpj))];
-  const trimestres = await fiiTrimestralUltimos(ctx.prisma, cnpjsFii, 1);
-  const triPor = new Map(trimestres.map((t) => [t.cnpj, t]));
+  // bloco C: a série trimestral inteira (vacância conferida contra ela, A4); sem ele, só o último
+  const trimestres = await fiiTrimestralUltimos(
+    ctx.prisma,
+    cnpjsFii,
+    conferenciaLigada ? Number.MAX_SAFE_INTEGER : 1,
+  );
+  const triPor = new Map<string, FiiTrimestre>();
+  const triSeriePor = new Map<string, FiiTrimestre[]>();
+  for (const t of trimestres) {
+    // fiiTrimestralUltimos: mais recente primeiro
+    if (!triPor.has(t.cnpj)) triPor.set(t.cnpj, t);
+    const lista = triSeriePor.get(t.cnpj);
+    if (lista) lista.push(t);
+    else triSeriePor.set(t.cnpj, [t]);
+  }
   const rendAnualFii = await lerDpaAnualGravado(
     ctx.prisma,
     u.fiis.map((f) => f.symbol),
@@ -1329,7 +1373,13 @@ export async function recalcularScores(
           dpaAnual: rendAnualFii.get(f.symbol) ?? [],
           mesesInformePorAno: mesesInformePorAno(meses),
           sanidade: conferenciaLigada
-            ? { symbol: f.symbol, meses, serie: seriesFii.get(f.symbol) ?? [], liberacoes }
+            ? {
+                symbol: f.symbol,
+                meses,
+                trimestres: triSeriePor.get(f.cnpj) ?? [],
+                serie: seriesFii.get(f.symbol) ?? [],
+                liberacoes,
+              }
             : undefined,
         }
       : null;

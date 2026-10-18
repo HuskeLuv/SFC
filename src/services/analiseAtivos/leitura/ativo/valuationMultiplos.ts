@@ -180,6 +180,12 @@ export interface DadosAtivoValuation {
   fys: FyValuation[];
   /** FIIs: informe mensal (cotistas, taxa de adm., desdobramentos) */
   mensal: MensalValuation[];
+  /**
+   * FIIs: vacância do último informe trimestral como está no banco (analise_quadro_linhas). A linha
+   * da API a esconde quando está em conferência ('fii_vacancia', A4 do backtest); o cartão do alvo
+   * mostra o número só no "Por quê?" (valorNaoPublicado), como os KPIs.
+   */
+  vacanciaBruta?: number | null;
 }
 
 export interface EntradaValuation {
@@ -315,6 +321,19 @@ const CAMPOS_INFORME_ANUAL: ReadonlySet<CampoAnual> = new Set<CampoAnual>([
 ]);
 
 /** Valor de 12 meses de um campo de asset_multiples_current, com o motivo quando falta. */
+/**
+ * Vacância do cartão: a da linha do Quadro; oculta por conferência ⇒ o número bruto (a política do
+ * grupo é reaplicada em atualComConferencia, e só a página guarda o valorNaoPublicado).
+ */
+function vacanciaAtual(ctx: Ctx): Estado<number> {
+  const e = ctx.d.linha.vacanciaCvm;
+  const bruto = ctx.d.vacanciaBruta;
+  if (e.estado === 'ausente' && e.exibicao === 'ocultar' && typeof bruto === 'number') {
+    return Number.isFinite(bruto) ? { estado: 'ok', valor: bruto } : e;
+  }
+  return e;
+}
+
 function estadoAtual(ctx: Ctx, campo: CampoAtual): Estado<number> {
   const a = ctx.d.atual;
   if (ctx.cnpjConf && CAMPOS_INFORME_ATUAL.has(campo)) return ausenteCnpj();
@@ -594,7 +613,7 @@ const GRUPOS_FII: DefGrupo[] = [
         codigo: 'vacanciaCvm',
         formato: 'pct',
         leitura: 'vacanciaCvm',
-        atual: (ctx) => (ctx.cnpjConf ? ausenteCnpj() : ctx.d.linha.vacanciaCvm),
+        atual: (ctx) => (ctx.cnpjConf ? ausenteCnpj() : vacanciaAtual(ctx)),
         historico: (ctx) => historicoAnual(ctx, 'vacanciaFisicaCvmPct'),
         tipoBarra: 'percentual',
       },
@@ -975,10 +994,12 @@ export async function obterValuation(
   const linhasDb = await Promise.all(symbols.map((s) => obterLinhaQuadro(s)));
   const cnpjPorSymbol = new Map<string, string>();
   const reguaPorSymbol = new Map<string, string | null>();
+  const vacanciaPorSymbol = new Map<string, number | null>();
   linhasDb.forEach((l, i) => {
     if (!l) return;
     cnpjPorSymbol.set(symbols[i], l.cnpj);
     reguaPorSymbol.set(symbols[i], l.regua);
+    vacanciaPorSymbol.set(symbols[i], l.vacanciaFisicaCvmPct);
   });
   const cnpjs = [...new Set(cnpjPorSymbol.values())];
   const desdeAno = anoInicioLeitura(hoje);
@@ -1051,6 +1072,7 @@ export async function obterValuation(
       perShare: psPorSymbol.get(linha.ticker) ?? [],
       fys: fysPorCnpj.get(cnpj) ?? [],
       mensal: mensalPorCnpj.get(cnpj) ?? [],
+      vacanciaBruta: vacanciaPorSymbol.get(linha.ticker) ?? null,
     };
   };
 

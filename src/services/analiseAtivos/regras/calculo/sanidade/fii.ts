@@ -8,8 +8,17 @@
  *    PMRL11). Ticker; selo. Liberação por mês (FII de desenvolvimento).
  *  - rev:fii_pl: PL > rev.fiiPl de variação entre os dois últimos informes (só caso).
  *  - rev:fii_cotistas: nº de cotistas > rev.fiiCotistas, base ≥ rev.fiiCotistasBaseMin (só caso).
+ *  - fii_vacancia / vacancia_ocupacao | vacancia_salto: a vacância do trimestre MAIS RECENTE está em
+ *    conferência pela série (regras/fii/saneamentoVacancia; HSML11 4T25 2,7% → 91,4%). Ticker;
+ *    ocultar. Chave = mês do 1º trimestre do episódio (um caso por episódio).
  * Chave = mês do informe (AAAA-MM).
  */
+import {
+  conferirVacancia,
+  type ParamsVacancia,
+  type TrimestreVacancia,
+  type VacanciaLiberada,
+} from '@/services/analiseAtivos/regras/fii/saneamentoVacancia';
 import type { CfgConferencia, DeteccaoConf, DeteccaoRev } from './aplicarConferencia';
 
 export interface MesFiiSanidade {
@@ -91,4 +100,20 @@ export function revisaoFiiCotistas(
   const v = variacao(par[0].cotistas, base);
   if (v === null || Math.abs(v) <= cfg.fiiCotistas) return null;
   return { tipo: 'rev', regra: 'fii_cotistas', chave: mes(par[0].refMonth), valor: v + 1 };
+}
+
+/**
+ * Vacância do trimestre mais recente em conferência (a série inteira dá a referência). Trimestre mais
+ * recente sem vacância (papel, sem imóvel) = nada. `liberada` = episódio liberado pela curadoria.
+ */
+export function detectarFiiVacancia(
+  trimestres: readonly TrimestreVacancia[],
+  p: ParamsVacancia,
+  liberada?: VacanciaLiberada,
+): DeteccaoConf | null {
+  if (trimestres.length === 0) return null;
+  const ultimo = [...trimestres].sort((a, b) => b.refQuarter.localeCompare(a.refQuarter))[0];
+  const c = conferirVacancia(trimestres, p, liberada).get(ultimo.refQuarter);
+  if (!c) return null;
+  return { tipo: 'conf', grupo: 'fii_vacancia', regra: c.regra, chave: c.chave, valor: c.valorPct };
 }

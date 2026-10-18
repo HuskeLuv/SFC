@@ -76,6 +76,7 @@ export async function fiiTrimestralUltimos(
       inadimplenciaCvmPct: true,
       nCri: true,
       maiorCriPct: true,
+      receitaAluguel: true,
       flags: true,
     },
   });
@@ -85,7 +86,11 @@ export async function fiiTrimestralUltimos(
     const k = contagem.get(l.cnpj) ?? 0;
     if (k >= n) continue;
     contagem.set(l.cnpj, k + 1);
-    out.push({ ...l, refQuarter: paraData(l.refQuarter) });
+    out.push({
+      ...l,
+      refQuarter: paraData(l.refQuarter),
+      receitaAluguel: paraNumero(l.receitaAluguel),
+    });
   }
   return out;
 }
