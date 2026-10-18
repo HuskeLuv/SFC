@@ -44,9 +44,10 @@ describe('TEXTOS_LITERAIS_OBRIGATORIOS', () => {
       'aviso-legal-v2',
       'aviso-legal-v2-selo',
       'aviso-salvos-alertas',
+      'aviso-legal-eua',
     ]);
     expect(RODAPE_LEGAL_V2.provisorio).toBe(true);
-    expect(lista.filter((l) => l.provisorio).length).toBe(3);
+    expect(lista.filter((l) => l.provisorio).length).toBe(4);
   });
 
   it('bloco 1: aviso dos alertas literal, sem compra nem recomendação', () => {

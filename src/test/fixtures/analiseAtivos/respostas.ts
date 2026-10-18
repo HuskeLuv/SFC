@@ -19,6 +19,8 @@ import {
 import { CRITERIOS_ATIVO_WEGE3 } from '@/test/fixtures/analiseAtivos/criterios';
 import { CRITERIA_PARAMS_V1 } from '@/services/analiseAtivos/params/criteriaParamsV1';
 import { definicoesQuadro } from '@/services/analiseAtivos/quadro/consultaQuadro';
+import { TEXTOS_CRITERIOS } from '@/services/analiseAtivos/textosCriterios';
+import { TEXTOS_EUA } from '@/services/analiseAtivos/textosEua';
 import type {
   AtivoTopoResposta,
   BuscaIndiceResposta,
@@ -336,4 +338,72 @@ export const TESE_SALVA: TeseResposta = {
   corpo: 'Acompanho margem e crescimento de receita no exterior.',
   atualizadoEm: '2026-09-28T17:32:00.000Z',
   visibilidade: 'privada',
+};
+
+// ---------------------------------------------------------------------------
+// Stocks e REITs (fatia 0 EUA): config com a chave EUA e uma linha stock/reit SEM cotação (decisão
+// do Wellington de 17/10). As fatias C/D acrescentam as respostas completas das telas.
+// ---------------------------------------------------------------------------
+
+const RECURSOS_DESLIGADOS = {
+  raioX: false,
+  cenarios: false,
+  comparador: false,
+  salvos: false,
+  alertas: false,
+  pdfComparador: false,
+  eua: false,
+  euaPreco: false,
+};
+
+export const CONFIG_EUA_LIGADA: ConfigResposta = {
+  ...CONFIG_LIBERADA,
+  recursos: { ...RECURSOS_DESLIGADOS, eua: true },
+};
+
+const SEM_COTACAO = {
+  estado: 'ausente',
+  motivo: 'licenca',
+  texto: TEXTOS_EUA.cotacao.indisponivel,
+} as const;
+
+/** Linha stock do Quadro EUA (valores em US$; sem preço/P/L/DY sem a chave de preço). */
+export const API_AAPL: LinhaQuadroApi = {
+  ...API_WEGE3,
+  ticker: 'AAPL',
+  classe: 'stock',
+  nome: 'Apple Inc.',
+  setor: 'Indústria',
+  subsetor: null,
+  segmento: null,
+  listagem: null,
+  preco: SEM_COTACAO,
+  precoData: null,
+  variacaoDiaPct: null,
+  liquidezMedia21: null,
+  pl: SEM_COTACAO,
+  pvp: { estado: 'nao_se_aplica', motivo: 'eua', texto: TEXTOS_CRITERIOS.estados.nao_se_aplica },
+  dy12m: SEM_COTACAO,
+  criterios: null,
+  pares: [],
+  assetId: null,
+  moeda: 'USD',
+  bolsa: 'Nasdaq',
+  dpa: 1.02,
+  fcoPorAcao: null,
+  dividendosFcoPct: null,
+};
+
+/** Linha REIT do Quadro EUA (Caixa op./ação, Div./caixa op., Div./ação). */
+export const API_O: LinhaQuadroApi = {
+  ...API_AAPL,
+  ticker: 'O',
+  classe: 'reit',
+  nome: 'Realty Income Corp',
+  setor: 'Finanças, seguros e imóveis',
+  segmento: 'Net lease',
+  bolsa: 'NYSE',
+  dpa: 3.17,
+  fcoPorAcao: 4.4,
+  dividendosFcoPct: 73,
 };
