@@ -1,5 +1,5 @@
 {
-  "geradoEm": "2026-10-18T03:49:13.493Z",
+  "geradoEm": "2026-10-18T06:32:08.571Z",
   "conceitos": [
     {
       "conceito": "us-gaap:Assets",
@@ -15,6 +15,11 @@
       "conceito": "us-gaap:CashAndCashEquivalentsAtCarryingValue",
       "periodo": "CY2023Q4I",
       "empresas": 5349
+    },
+    {
+      "conceito": "us-gaap:CashCashEquivalentsAndShortTermInvestments",
+      "periodo": "CY2023Q4I",
+      "empresas": 280
     },
     {
       "conceito": "us-gaap:CashCashEquivalentsRestrictedCashAndRestrictedCashEquivalents",

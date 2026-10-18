@@ -28,13 +28,17 @@
  * - capex, dividendos pagos, recompras e DPA são positivos: sinal trocado no arquivo (CCI) volta
  *   ao valor absoluto (sourceConcept.sinalCorrigido);
  * - dívida bruta TOTAL em dividaBrutaLp (dividaBrutaCp = null: o XBRL não separa de forma estável);
- *   sem conceito de dívida = null (sem dado — nunca zero).
+ *   sem conceito de dívida = null (sem dado — nunca zero);
+ * - caixa com CashCashEquivalentsAndShortTermInvestments (último passo; CAT 2016) já inclui as
+ *   aplicações de curto prazo: aplicacoesFinanceiras fica null para a dívida líquida não descontar
+ *   duas vezes (sourceConcept.aplicacoesFinanceiras = 'incluidas_no_caixa').
  *
  * Nada de I/O: recebe o JSON já parseado e devolve números (o repositório converte para Decimal).
  */
 import {
   CADEIAS_SEC,
   CAMPOS_SEC,
+  CONCEITO_CAIXA_COM_APLICACOES,
   type CadeiaCampo,
   type CampoSec,
 } from '@/services/analiseAtivos/eua/cadeiasConceitos';
@@ -493,6 +497,10 @@ export function extrairFundamentosSec(
       fonte.dividendosJcpPagos = 'derivado:dpa×acoesMediaDiluida';
     }
 
+    // caixa que já soma as aplicações de curto prazo (CAT 2016): sem aplicações à parte
+    const caixaComAplicacoes = v.caixa?.conceito === CONCEITO_CAIXA_COM_APLICACOES;
+    if (caixaComAplicacoes) fonte.aplicacoesFinanceiras = 'incluidas_no_caixa';
+
     periodos.push({
       emissorId: emissorIdSec(cik),
       cik,
@@ -511,7 +519,9 @@ export function extrairFundamentosSec(
       lucroAtribuivel,
       ativoTotal: usar('ativoTotal', v.ativoTotal),
       caixa: usar('caixa', v.caixa),
-      aplicacoesFinanceiras: usar('aplicacoesFinanceiras', v.aplicacoesCp),
+      aplicacoesFinanceiras: caixaComAplicacoes
+        ? null
+        : usar('aplicacoesFinanceiras', v.aplicacoesCp),
       dividaBrutaCp: null,
       dividaBrutaLp: usar('dividaBrutaLp', v.dividaBruta),
       pl: usar('pl', v.plTotal),

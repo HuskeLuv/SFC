@@ -22,6 +22,8 @@
  * - Dívida com ConvertibleNotesPayable → ConvertibleLongTermNotesPayable no fim (acréscimo da
  *   fatia A). Sem conceito de dívida no ano = null (a leitura decide se vale zero). Passo
  *   irrisório (< 1% de outro passo na mesma data, zero incluído) conta como ausente.
+ * - Caixa com CashCashEquivalentsAndShortTermInvestments no fim (CAT 2016; já inclui as aplicações
+ *   de curto prazo, que o extrator deixa null nesse caso).
  *
  * Todo conceito daqui existe na taxonomia us-gaap/dei: a lista é conferida contra os frames da SEC
  * (fixture conceitos-validados.json, gerada por relatorio-cobertura-eua --validar-conceitos).
@@ -115,6 +117,9 @@ const cadeia = (
   opcoes: Pick<CadeiaCampo, 'descartaIrrisorio'> = {},
 ): CadeiaCampo => ({ campo, tipo, unidade, passos: passos.map(passo), ...opcoes });
 
+/** Caixa + aplicações de curto prazo num conceito só (o extrator zera as aplicações à parte). */
+export const CONCEITO_CAIXA_COM_APLICACOES = 'CashCashEquivalentsAndShortTermInvestments';
+
 export const CADEIAS_SEC: Record<CampoSec, CadeiaCampo> = {
   receita: cadeia('receita', 'duracao', 'USD', [
     'Revenues',
@@ -182,6 +187,8 @@ export const CADEIAS_SEC: Record<CampoSec, CadeiaCampo> = {
     'CashAndCashEquivalentsAtCarryingValue',
     'CashCashEquivalentsRestrictedCashAndRestrictedCashEquivalents',
     'Cash',
+    // caixa e aplicações num conceito só (CAT 2016): as aplicações à parte ficam null
+    CONCEITO_CAIXA_COM_APLICACOES,
   ]),
   aplicacoesCp: cadeia('aplicacoesCp', 'instante', 'USD', [
     'ShortTermInvestments',

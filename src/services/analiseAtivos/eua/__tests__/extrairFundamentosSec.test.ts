@@ -172,7 +172,7 @@ describe('balanço do 10-K do próprio exercício (nota de 10-K posterior não s
   });
 
   it('nenhum salto de dívida/caixa > 8× frente aos dois vizinhos nas fixtures', () => {
-    for (const nome of ['AMT', 'PLD', 'WELL', 'AAPL', 'O', 'CCI', 'TSLA', 'ORCL', 'AMD']) {
+    for (const nome of ['AMT', 'PLD', 'WELL', 'AAPL', 'O', 'CCI', 'TSLA', 'ORCL', 'AMD', 'CAT']) {
       const r = extrairFundamentosSec(companyfacts(nome), { anoMinimo: 2014 });
       expect([nome, r.alertas.filter((a) => a.codigo === 'divida_salto')]).toEqual([nome, []]);
     }
@@ -267,6 +267,39 @@ describe('passo de dívida irrisório conta como ausente', () => {
     expect(um(cf(0, 1_000e6)).dividaBrutaLp).toBe(1_000e6);
     // só zeros: zero (há conceito de dívida no ano)
     expect(um(cf(0, 0)).dividaBrutaLp).toBe(0);
+  });
+});
+
+describe('caixa com aplicações de curto prazo num conceito só (CAT)', () => {
+  it('CAT 2016: caixa 7.168 mi de CashCashEquivalentsAndShortTermInvestments, sem aplicações à parte', () => {
+    const p = fy(periodos('CAT'), 2016);
+    expect(mi(p.caixa)).toBe(7_168);
+    expect(p.sourceConcept.caixa).toBe('CashCashEquivalentsAndShortTermInvestments');
+    expect(p.aplicacoesFinanceiras).toBeNull();
+    expect(p.sourceConcept.aplicacoesFinanceiras).toBe('incluidas_no_caixa');
+  });
+
+  it('com o conceito combinado, ShortTermInvestments não é descontado duas vezes', () => {
+    const inst = (val: number) => ({
+      end: '2020-12-31',
+      val,
+      accn: 'a',
+      form: '10-K',
+      filed: '2021-02-10',
+    });
+    const p = extrairFundamentosSec({
+      cik: 1,
+      entityName: 'X',
+      facts: {
+        'us-gaap': {
+          Revenues: { units: { USD: [{ ...inst(1e9), start: '2020-01-01' }] } },
+          CashCashEquivalentsAndShortTermInvestments: { units: { USD: [inst(700e6)] } },
+          ShortTermInvestments: { units: { USD: [inst(200e6)] } },
+        },
+      },
+    }).periodos[0];
+    expect(p.caixa).toBe(700e6);
+    expect(p.aplicacoesFinanceiras).toBeNull();
   });
 });
 
