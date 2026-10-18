@@ -7,8 +7,10 @@ import BannerNovidade, {
   bannerDispensadoRecente,
 } from '../BannerNovidade';
 import RodapeLegal from '../RodapeLegal';
+import { mercadoDaUrl } from '../AnaliseAtivosShell';
 import {
   AVISO_BANNER,
+  RODAPE_LEGAL_EUA,
   RODAPE_LEGAL_V2,
   RODAPE_LEGAL_V2_SELO,
 } from '@/services/analiseAtivos/textosLiterais';
@@ -100,6 +102,30 @@ describe('RodapeLegal', () => {
     expect(raiz?.textContent).not.toMatch(/Índice/);
     const r = esperarDomLimpo(container);
     expect(r.literais).toEqual(['aviso-legal-v2', 'aviso-legal-v2-selo']);
+  });
+
+  it('Stocks e REITs: aviso EUA (10-K na SEC) no lugar do v2 (CVM), com o mesmo selo', () => {
+    const { container } = render(<RodapeLegal mercado="eua" />);
+    const eua = container.querySelector('[data-texto-legal="aviso-legal-eua"]');
+    expect(eua?.textContent).toBe(RODAPE_LEGAL_EUA.texto);
+    expect(eua?.textContent).toMatch(/10-K entregues à SEC/);
+    expect(container.textContent).not.toMatch(/DFP\/ITR|CVM e informes de FIIs/);
+    expect(container.querySelector('[data-texto-legal="aviso-legal-v2"]')).toBeNull();
+    expect(esperarDomLimpo(container).literais).toEqual(['aviso-legal-eua', 'aviso-legal-v2-selo']);
+  });
+
+  it('mercado pela URL: Quadro ?classe=stock|reit; Comparador por ?c= ou pelos tickers', () => {
+    const u = (qs: string) => new URLSearchParams(qs);
+    expect(mercadoDaUrl('quadro', u('classe=stock'))).toBe('eua');
+    expect(mercadoDaUrl('quadro', u('classe=reit&j=5'))).toBe('eua');
+    expect(mercadoDaUrl('quadro', u('classe=fii'))).toBe('br');
+    expect(mercadoDaUrl('quadro', u(''))).toBe('br');
+    expect(mercadoDaUrl('comparador', u('t=AAPL,MSFT'))).toBe('eua');
+    expect(mercadoDaUrl('comparador', u('t=BRK-B'))).toBe('eua');
+    expect(mercadoDaUrl('comparador', u('t=WEGE3,ITUB4'))).toBe('br');
+    expect(mercadoDaUrl('comparador', u('c=reit'))).toBe('eua');
+    expect(mercadoDaUrl('comparador', u('c=fii'))).toBe('br');
+    expect(mercadoDaUrl('salvos', u('classe=stock'))).toBe('br');
   });
 });
 

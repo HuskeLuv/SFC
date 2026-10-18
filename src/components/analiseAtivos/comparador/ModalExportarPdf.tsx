@@ -26,9 +26,9 @@ import { baixarPdfComparacao } from '@/hooks/useAnaliseAtivosSalvos';
 import { textoContagens } from '@/services/analiseAtivos/regras/comparador/resumo';
 import { LIMITES_SALVOS, nomeArquivoPdf } from '@/services/analiseAtivos/salvos/contrato';
 import { formatarTexto } from '@/services/analiseAtivos/textos';
-import { LEITURA_DOS_DADOS, RODAPE_LEGAL_V2 } from '@/services/analiseAtivos/textosLiterais';
+import { LEITURA_DOS_DADOS, rodapeLegalDoMercado } from '@/services/analiseAtivos/textosLiterais';
 import { TEXTOS_SALVOS } from '@/services/analiseAtivos/textosSalvos';
-import type { ClasseQuadro, TipoFiiExibido } from '@/types/analiseAtivosApi';
+import { ehClasseEua, type ClasseQuadro, type TipoFiiExibido } from '@/types/analiseAtivosApi';
 import type { Janela, LeituraDosDados } from '@/types/analiseAtivosCriterios';
 
 const T = TEXTOS_SALVOS.pdf;
@@ -86,6 +86,7 @@ function PreviaPdf({
   janela,
   leitura,
 }: Pick<ModalExportarPdfProps, 'classe' | 'tickers' | 'janela' | 'leitura'>) {
+  const aviso = rodapeLegalDoMercado(ehClasseEua(classe) ? 'eua' : 'br');
   return (
     <div
       role="img"
@@ -125,7 +126,7 @@ function PreviaPdf({
       </div>
       <div className="mt-auto border-t border-gray-200 pt-1 text-[6.5px] text-gray-500">
         <b className="block text-gray-700">{D.avisoLegalTitulo}</b>
-        <span data-texto-legal={RODAPE_LEGAL_V2.id}>{RODAPE_LEGAL_V2.texto}</span>
+        <span data-texto-legal={aviso.id}>{aviso.texto}</span>
       </div>
     </div>
   );

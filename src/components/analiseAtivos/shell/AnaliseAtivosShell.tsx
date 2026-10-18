@@ -14,19 +14,51 @@
  * "Criar lista" navy (BotaoCriarLista) nas variantes quadro/comparador/salvos, só com
  * config.recursos.salvos: ao lado da busca no computador, ao lado do título no celular. Sem o
  * recurso, o DOM é o de antes.
+ *
+ * Stocks e REITs: o rodapé legal vira o aviso EUA (fonte SEC) no Quadro/Comparador de stock|reit
+ * (pela URL, mercadoDaUrl) e na página de ticker EUA (prop mercado); chave EUA desligada = Brasil.
  */
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import BuscaAtivos from '@/components/analiseAtivos/busca/BuscaAtivos';
 import PilulasArea from '@/components/analiseAtivos/shell/PilulasArea';
 import BotaoCriarLista from '@/components/analiseAtivos/shell/BotaoCriarLista';
 import BannerNovidade from '@/components/analiseAtivos/shell/BannerNovidade';
 import RodapeLegal from '@/components/analiseAtivos/shell/RodapeLegal';
+import { lerEstadoComparador } from '@/components/analiseAtivos/comparador/useEstadoComparadorUrl';
 import { COR_LINK } from '@/constants/analiseAtivosVisual';
 import { useAnaliseAtivosConfig } from '@/hooks/useAnaliseAtivos';
 import { TEXTOS_ENTRADAS_COMPARADOR } from '@/services/analiseAtivos/textosEntradasComparador';
 import { TEXTOS_TELA } from '@/services/analiseAtivos/textosTela';
 import { TEXTOS_QUADRO } from '@/services/analiseAtivos/textosQuadro';
-import type { AnaliseAtivosShellProps } from '@/types/analiseAtivosApi';
+import {
+  ehClasseEua,
+  type AnaliseAtivosShellProps,
+  type MercadoRodapeLegal,
+} from '@/types/analiseAtivosApi';
+import { ehTickerEua } from '@/types/analiseAtivosEua';
+
+interface LeitorParams {
+  get(nome: string): string | null;
+}
+
+/**
+ * Mercado do aviso legal pela URL: Quadro com ?classe=stock|reit; Comparador com ?c=stock|reit ou
+ * tickers EUA em ?t= (a API recusa misturar EUA com Brasil). O resto, Brasil. Pura.
+ */
+export function mercadoDaUrl(
+  variante: AnaliseAtivosShellProps['variante'],
+  params: LeitorParams,
+): MercadoRodapeLegal {
+  if (variante === 'quadro') return ehClasseEua(params.get('classe')) ? 'eua' : 'br';
+  if (variante === 'comparador') {
+    const e = lerEstadoComparador(params);
+    const eua =
+      e.tickers.length > 0 ? e.tickers.some((t) => ehTickerEua(t)) : ehClasseEua(e.classe);
+    return eua ? 'eua' : 'br';
+  }
+  return 'br';
+}
 
 /** Título "Análise de Ativos" + pílula Beta (com "Criar lista" ao lado no celular). */
 function TituloArea({ criarLista }: { criarLista: boolean }) {
@@ -71,9 +103,17 @@ function BuscaArea({
   );
 }
 
-export default function AnaliseAtivosShell({ children, variante }: AnaliseAtivosShellProps) {
+export default function AnaliseAtivosShell({
+  children,
+  variante,
+  mercado,
+}: AnaliseAtivosShellProps) {
   const t = TEXTOS_TELA.area;
   const config = useAnaliseAtivosConfig();
+  const params = useSearchParams();
+  // Stocks e REITs: aviso legal com a fonte da SEC (só com a chave EUA ligada para o usuário)
+  const mercadoRodape: MercadoRodapeLegal =
+    config.data?.recursos?.eua === true ? (mercado ?? mercadoDaUrl(variante, params)) : 'br';
   // bloco 1: "Criar lista" só com o recurso (sem ele, a casca fica idêntica à de hoje)
   const criarLista = config.data?.recursos?.salvos === true;
   return (
@@ -119,7 +159,7 @@ export default function AnaliseAtivosShell({ children, variante }: AnaliseAtivos
         </div>
       )}
       {children}
-      <RodapeLegal className="mt-2" />
+      <RodapeLegal className="mt-2" mercado={mercadoRodape} />
     </div>
   );
 }

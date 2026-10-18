@@ -25,11 +25,11 @@ import {
   INSTRUCAO_COMPARADOR_ACOES,
   INSTRUCAO_COMPARADOR_FIIS,
   LEITURA_DOS_DADOS,
-  RODAPE_LEGAL_V2,
+  rodapeLegalDoMercado,
 } from '@/services/analiseAtivos/textosLiterais';
 import { TEXTOS_SALVOS } from '@/services/analiseAtivos/textosSalvos';
 import type { ComparadorResposta } from '@/types/analiseAtivosBlocoD';
-import type { Estado } from '@/types/analiseAtivosApi';
+import { ehClasseEua, type Estado } from '@/types/analiseAtivosApi';
 import type {
   CriteriosLinhaApi,
   IdCriterio,
@@ -235,7 +235,7 @@ export function montarDocumentoComparacao(
     notaSeries: TD.seriesNoApp,
     rodape: {
       avisoTitulo: TD.avisoLegalTitulo,
-      avisoTexto: RODAPE_LEGAL_V2.texto,
+      avisoTexto: rodapeLegalDoMercado(ehClasseEua(dados.classe) ? 'eua' : 'br').texto,
       gerado: formatarTexto(TD.geradoEm, { data: dataGeracao }),
       paginaModelo: TD.pagina,
     },

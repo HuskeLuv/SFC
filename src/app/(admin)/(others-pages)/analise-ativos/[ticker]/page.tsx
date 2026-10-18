@@ -37,7 +37,7 @@ export default async function AtivoPage({ params }: { params: Params }) {
   const t = TICKER_RE.test(maiusculo) ? maiusculo : symbolAnaliseDaSec(maiusculo);
   if (bruto !== t) redirect(`/analise-ativos/${encodeURIComponent(t)}`);
   return (
-    <AnaliseAtivosShell variante="ativo">
+    <AnaliseAtivosShell variante="ativo" mercado={TICKER_RE.test(t) ? 'br' : 'eua'}>
       <PaginaAtivo ticker={t} />
     </AnaliseAtivosShell>
   );

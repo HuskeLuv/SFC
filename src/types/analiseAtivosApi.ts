@@ -903,9 +903,17 @@ export interface SeloEstadoProps {
   className?: string;
 }
 
-/** RodapeLegal — aviso legal único RODAPE_LEGAL_V2 (textosLiterais, data-texto-legal). */
+/** Mercado do aviso legal: 'br' (CVM, RODAPE_LEGAL_V2) ou 'eua' (SEC, RODAPE_LEGAL_EUA). */
+export type MercadoRodapeLegal = 'br' | 'eua';
+
+/**
+ * RodapeLegal — aviso legal RODAPE_LEGAL_V2 (textosLiterais, data-texto-legal); nas telas de
+ * Stocks e REITs, RODAPE_LEGAL_EUA (mesmo texto com a fonte da SEC).
+ */
 export interface RodapeLegalProps {
   className?: string;
+  /** padrão 'br' */
+  mercado?: MercadoRodapeLegal;
 }
 
 /** BannerNovidade — aviso do beta, dispensável (localStorage por 30 dias); aponta para o Suporte. */
@@ -925,6 +933,11 @@ export interface AnaliseAtivosShellProps {
    * próprio, cai no ramo 'ativo'.
    */
   variante: 'quadro' | 'ativo' | 'comparador' | 'salvos';
+  /**
+   * Mercado do aviso legal quando a página já sabe (página do ativo: ticker EUA = 'eua'). Sem ele,
+   * o Quadro e o Comparador decidem pela URL (?classe=stock|reit, ?c=, tickers EUA em ?t=).
+   */
+  mercado?: MercadoRodapeLegal;
 }
 
 export interface SecaoPreguicosaProps {

@@ -132,6 +132,11 @@ export const RODAPE_LEGAL_EUA = literal(
   true,
 );
 
+/** Aviso legal do mercado da tela: Brasil (CVM) ou Stocks e REITs (SEC). */
+export function rodapeLegalDoMercado(mercado: 'br' | 'eua'): TextoLiteral {
+  return mercado === 'eua' ? RODAPE_LEGAL_EUA : RODAPE_LEGAL_V2;
+}
+
 /** Instrução do Comparador EUA (§3.3) — uma por classe (casamento exato). */
 export const INSTRUCAO_COMPARADOR_STOCKS = literal(
   'instrucao-comparador-stocks',
