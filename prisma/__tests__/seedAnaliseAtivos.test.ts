@@ -110,7 +110,7 @@ describe('seedAnaliseAtivos', () => {
     expect(r.fixtures?.asset).toBe(catalogo.data.length);
   });
 
-  it('EUA (fatia 0): fixtures EUA depois das BR, só no banco efêmero; o stub não grava nada', async () => {
+  it('EUA: fixtures EUA depois das BR, só no banco efêmero', async () => {
     const semearEua = vi.fn(async () => 2);
     const vazio = prismaFalso(0);
     const r = await seedAnaliseAtivos(vazio.prisma, { avaliarCriterios, semearEua });
@@ -119,7 +119,8 @@ describe('seedAnaliseAtivos', () => {
     semearEua.mockClear();
     await seedAnaliseAtivos(prismaFalso(10).prisma, { avaliarCriterios, semearEua });
     expect(semearEua).not.toHaveBeenCalled();
-    expect(await semearFixturesEua(vazio.prisma)).toBe(0);
+    // o padrão é o semeador real das fixtures EUA (fatia C; teste em seedAnaliseAtivosEua.test.ts)
+    expect(typeof semearFixturesEua).toBe('function');
   });
 
   it('sem usuário demo não quebra', async () => {
