@@ -12,7 +12,8 @@
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useCallback, useMemo } from 'react';
 import { MAX_ATIVOS_COMPARADOR, TICKER_RE } from '@/services/analiseAtivos/cenarios/contrato';
-import type { ClasseQuadro } from '@/types/analiseAtivosApi';
+import { ehClasseQuadro, type ClasseQuadro } from '@/types/analiseAtivosApi';
+import { ehTickerEua, symbolAnaliseDaSec } from '@/types/analiseAtivosEua';
 import { JANELA_PADRAO, ehJanela, type Janela } from '@/types/analiseAtivosCriterios';
 
 export const PARAM_TICKERS = 't';
@@ -35,14 +36,19 @@ interface LeitorParams {
 export function lerEstadoComparador(params: LeitorParams): EstadoComparadorUrl {
   const tickers: string[] = [];
   for (const bruto of (params.get(PARAM_TICKERS) ?? '').split(',')) {
-    const t = bruto.trim().toUpperCase();
-    if (TICKER_RE.test(t) && !tickers.includes(t)) tickers.push(t);
+    const maiusculo = bruto.trim().toUpperCase();
+    // Stocks e REITs (fatia C): ticker EUA também (BRK-B → BRK.B); a API decide pela chave EUA
+    const t =
+      !TICKER_RE.test(maiusculo) && ehTickerEua(maiusculo)
+        ? symbolAnaliseDaSec(maiusculo)
+        : maiusculo;
+    if ((TICKER_RE.test(t) || ehTickerEua(t)) && !tickers.includes(t)) tickers.push(t);
   }
   const c = params.get(PARAM_CLASSE);
   const j = Number(params.get(PARAM_JANELA));
   return {
     tickers,
-    classe: c === 'fii' || c === 'acao' ? c : null,
+    classe: ehClasseQuadro(c) ? c : null,
     janela: ehJanela(j) ? j : JANELA_PADRAO,
   };
 }
@@ -54,7 +60,7 @@ export function lerEstadoComparador(params: LeitorParams): EstadoComparadorUrl {
 export function queryComparador(e: Omit<EstadoComparadorUrl, 'janela'> & { janela?: Janela }) {
   const partes: string[] = [];
   if (e.tickers.length > 0) partes.push(`${PARAM_TICKERS}=${e.tickers.join(',')}`);
-  else if (e.classe === 'fii') partes.push(`${PARAM_CLASSE}=fii`);
+  else if (e.classe && e.classe !== 'acao') partes.push(`${PARAM_CLASSE}=${e.classe}`);
   if (e.janela !== undefined && e.janela !== JANELA_PADRAO) {
     partes.push(`${PARAM_JANELA}=${e.janela}`);
   }
