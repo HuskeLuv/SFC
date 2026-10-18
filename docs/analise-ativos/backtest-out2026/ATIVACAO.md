@@ -390,3 +390,114 @@ publicar o zip de 2027. Um 404 de arquivo de ano passado continua dando `falha`.
 - Subida real com a receita de aluguel mantida (renda mínima garantida, imóvel único que o
   inquilino deixou, mas ainda paga multa) fica em conferência até a curadoria liberar. É o
   comportamento desejado: "sem dado" em vez de um "não atende" possivelmente errado.
+
+# Backtest out/2026: ativação das correções em produção
+
+Cada fatia acrescenta a sua seção. Tudo aqui é para o Wellington rodar (com `!`) depois do merge e
+do deploy. Os comandos seguem o `rodar()` de `docs/analise-ativos/fase0/RUNBOOK.md` §1. Regra geral:
+primeiro **sem** `--apply`, conferir o plano e só depois **com** `--apply`, um passo por vez e fora
+do pregão.
+
+---
+
+## Fatia universo-itau (itens A9 e A10)
+
+Branch `bt-universo-itau`. Nenhum dado gravado em prod está errado nesta fatia: falta cadastro (A9),
+e o balanço escolhido para dois bancos é o errado (A10). Por isso **não há script de correção de
+dados**: basta reprocessar o FCA, baixar os balanços das companhias novas e recalcular.
+
+### O que muda
+
+- **A9.** O job `cvm-cias:fca` completa o cadastro do FCA com os tickers negociados na B3
+  (`AssetQuoteResumo`: lote padrão e negócio nos últimos 30 pregões). Ele só usa CNPJs que o
+  próprio FCA do ano traz. O ticker completado grava `origem = 'b3'` em `cvm_company_tickers`.
+  Simulado com o FCA 2026 e o cadastro e COTAHIST de prod de 18/10: **30 tickers novos em 15
+  companhias** (BPAC11/3/5, CSNA3, CMIN3, MBRF3, CEAB3, RAIZ4, KLBN3/4, ALUP3/4, MLAS3, BRST3,
+  B1003, AMAR3, EQPA3/5/7, INEP4, HAGA3/4, EPAR3, LUXM4, FIEI3, NORD3, PLAS3, MAPT3/4, OBTC3).
+  Nenhum ticker existente é fechado nem alterado.
+- **A10.** ITUB3/ITUB4 e BRBI11 passam a ser avaliados pelo **consolidado**. Fica em
+  `ESCOPO_POR_RAIZ_PADRAO`, em `regras/acoes/financeiras.ts`. O ScoringParams v2 gravado não muda:
+  sem o campo `financeiras.escopoPorRaiz`, vale o padrão do código. O efeito aparece no próximo
+  recálculo.
+
+### Passos (prod)
+
+1. **FCA com a B3** (A9). O arquivo FCA 2026 já foi processado em 02/10. Por isso precisa de
+   `--reprocessar`:
+
+   ```bash
+   rodar scripts/analise-ativos/backfill-cvm-cias.ts --docs=fca --anos=2026 --perfil=completo --reprocessar
+   # conferir no detalhe: cadastro.tickersCompletadosB3 ≈ 29, tickersNovos ≈ 30, ciasNovas ≈ 15,
+   # tickersFechados = 0; alertas ticker_completado_b3 (29) e ticker_b3_sem_emissor (WDCN3)
+   rodar scripts/analise-ativos/backfill-cvm-cias.ts --docs=fca --anos=2026 --perfil=completo --reprocessar --apply
+   ```
+
+   Verificação:
+
+   ```sql
+   select origem, count(*) from cvm_company_tickers where "validTo" is null group by 1;
+   -- fca ≈ 426, b3 ≈ 29
+   select symbol, cnpj from cvm_company_tickers
+    where symbol in ('BPAC11','CSNA3','CMIN3','CEAB3','MBRF3','RAIZ4') and "validTo" is null;
+   ```
+
+2. **Balanços das 15 companhias novas.** Sem `--reprocessar`, os arquivos DFP/ITR já processados
+   são pulados. Com ele, só os documentos que faltam (os das companhias novas) são gravados. Um
+   ano por vez, como no passo 6 do RUNBOOK:
+
+   ```bash
+   rodar scripts/analise-ativos/backfill-cvm-cias.ts --docs=dfp,fre --anos=2014 --perfil=completo --reprocessar   # … até --anos=2025
+   rodar scripts/analise-ativos/backfill-cvm-cias.ts --docs=itr --anos=2024 --perfil=completo --reprocessar       # e --anos=2025
+   rodar scripts/analise-ativos/backfill-cvm-cias.ts --docs=dfp,itr --anos=2026 --perfil=completo --reprocessar
+   # (cada um sem e depois com --apply)
+   ```
+
+   Verificação:
+
+   ```sql
+   select "emissorId", count(*) filter (where "tipoPeriodo"='FY') fy, max("dtFim")
+     from asset_fundamentals_period
+    where "emissorId" in ('30306294000145','33042730000104','08902291000115','45242914000105',
+                          '03853896000140','33453598000123')
+    group by 1;
+   ```
+
+3. **Recalcular** (A9 e A10). Use `--tudo`: o ITUB não teve dado novo, só mudou o escopo.
+
+   ```bash
+   rodar scripts/analise-ativos/recalcular-analise.ts --etapas=proventos,eventos,derivados,scores --tudo
+   rodar scripts/analise-ativos/recalcular-analise.ts --etapas=proventos,eventos,derivados,scores --tudo --apply
+   /usr/local/bin/myfinance-job.sh criterios
+   /usr/local/bin/myfinance-job.sh quadro
+   ```
+
+   Ou espere o cron do dia seguinte (scores, depois criterios, depois quadro). Para o ITUB, o
+   cron basta. Para as companhias do passo 2, o recálculo depende dos balanços já gravados.
+
+4. **Conferência** (números esperados pelo backtest):
+
+   ```sql
+   -- ITUB4 janela 5: receita "atende" (173.757 → 387.118 R$ mi); margem mín. ~10,5%
+   select janela, r->>'id', r->>'estado', r->>'fato'
+     from criteria_eval, jsonb_array_elements(resultados) r
+    where symbol in ('ITUB4','BRBI11') and r->>'id' in ('rec','mg') order by symbol, janela;
+   -- BRBI11: receita e margem saem de "sem dado"
+   select symbol, "noQuadro" from analise_quadro_linhas
+    where symbol in ('BPAC11','CSNA3','CEAB3','MBRF3','CMIN3','RAIZ4');
+   ```
+
+### O que fica de fora (dos 34 do backtest)
+
+29 dos 34 entram. Os outros 5 não entram:
+
+- **WDCN3**: a WDC Networks não entregou o FCA 2026. Sem CNPJ no FCA do ano, nada entra. O job
+  emite `ticker_b3_sem_emissor`.
+- **EQMA3B**: o sufixo "3B" está fora da regra 18 (classe pelo sufixo).
+- **AZUL97, AZUL98, AZUL99**: recibos e direitos de subscrição, não são ações.
+
+### Volta atrás
+
+Para desfazer o A10, grave uma versão nova do ScoringParams com
+`financeiras.escopoPorRaiz = {}`. O A9 não grava nada destrutivo: para tirar um ticker, feche a
+vigência (`validTo`) da linha `origem = 'b3'`. Uma linha com `origem = 'manual'` vence as duas
+(FCA e B3).
