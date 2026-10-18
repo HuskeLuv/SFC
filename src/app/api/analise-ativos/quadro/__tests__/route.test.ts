@@ -4,6 +4,8 @@ import { mockAuthAsConsultant, mockAuthAsUser } from '@/test/mocks/auth';
 
 const mocks = vi.hoisted(() => ({
   exigir: vi.fn(),
+  exigirClasse: vi.fn(),
+  flagsEua: vi.fn(() => ({ eua: false, euaPreco: false })),
   versao: vi.fn(),
   linhasApi: vi.fn(),
   linhas: vi.fn(),
@@ -17,6 +19,8 @@ const mocks = vi.hoisted(() => ({
 vi.mock('@/lib/prisma', () => ({ prisma: mocks.prisma, default: mocks.prisma }));
 vi.mock('@/services/analiseAtivos/acesso/acessoAnalise', () => ({
   exigirAcessoAnalise: mocks.exigir,
+  exigirClasseAnalise: mocks.exigirClasse,
+  flagsEua: mocks.flagsEua,
 }));
 vi.mock('@/services/analiseAtivos/leitura/linhasQuadro', async (original) => ({
   ...(await original<typeof import('@/services/analiseAtivos/leitura/linhasQuadro')>()),
@@ -87,7 +91,7 @@ describe('GET /api/analise-ativos/quadro', () => {
   it('400 com query inválida (zod)', async () => {
     for (const qs of [
       '',
-      'classe=stock',
+      'classe=etf',
       'classe=acao&ordem=nota',
       'classe=acao&limite=500',
       'classe=fii&dyMin=-1',

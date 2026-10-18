@@ -4,6 +4,7 @@ import { mockAuthAsUser } from '@/test/mocks/auth';
 
 const mocks = vi.hoisted(() => ({
   exigir: vi.fn(),
+  flagsEua: vi.fn(() => ({ eua: false, euaPreco: false })),
   versao: vi.fn(),
   linhas: vi.fn(),
 }));
@@ -11,6 +12,7 @@ const mocks = vi.hoisted(() => ({
 vi.mock('@/lib/prisma', () => ({ prisma: {}, default: {} }));
 vi.mock('@/services/analiseAtivos/acesso/acessoAnalise', () => ({
   exigirAcessoAnalise: mocks.exigir,
+  flagsEua: mocks.flagsEua,
 }));
 vi.mock('@/services/analiseAtivos/leitura/linhasQuadro', () => ({
   versaoQuadro: mocks.versao,
@@ -19,7 +21,7 @@ vi.mock('@/services/analiseAtivos/leitura/linhasQuadro', () => ({
 
 import { GET } from '../route';
 import { ApiError } from '@/utils/apiErrorHandler';
-import { LINHAS_FIXTURE } from '@/test/fixtures/analiseAtivos/linhasDb';
+import { LINHAS_FIXTURE, linhaQuadroDb } from '@/test/fixtures/analiseAtivos/linhasDb';
 import type { BuscaIndiceResposta } from '@/types/analiseAtivosApi';
 
 const V1 = '2026-09-30T10:40:00.000Z';
@@ -80,5 +82,33 @@ describe('GET /api/analise-ativos/busca', () => {
     const res = await GET(req({ 'if-none-match': `"busca-v2-${V1}"` }));
     expect(res.status).toBe(200);
     expect(((await res.json()) as BuscaIndiceResposta).itens).toHaveLength(2);
+  });
+});
+
+describe('GET /api/analise-ativos/busca — Stocks e REITs', () => {
+  const EUA = [
+    linhaQuadroDb({ symbol: 'AAPL', classe: 'stock', nome: 'Apple Inc.', moeda: 'USD' }),
+    linhaQuadroDb({ symbol: 'O', classe: 'reit', nome: 'Realty Income Corp', moeda: 'USD' }),
+  ];
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.exigir.mockResolvedValue(mockAuthAsUser('u1'));
+    mocks.versao.mockResolvedValue('v-eua');
+    mocks.linhas.mockResolvedValue([...LINHAS_FIXTURE, ...EUA]);
+  });
+
+  it('sem a chave EUA o índice é o de hoje; com ela, stock/reit entram com a classe', async () => {
+    mocks.flagsEua.mockReturnValue({ eua: false, euaPreco: false });
+    const sem = await GET(req());
+    const itensSem = ((await sem.json()) as BuscaIndiceResposta).itens;
+    expect(itensSem.some((i) => i.c === 'stock' || i.c === 'reit')).toBe(false);
+
+    mocks.flagsEua.mockReturnValue({ eua: true, euaPreco: false });
+    const com = await GET(req());
+    const itensCom = ((await com.json()) as BuscaIndiceResposta).itens;
+    expect(itensCom.find((i) => i.t === 'AAPL')?.c).toBe('stock');
+    expect(itensCom.find((i) => i.t === 'O')?.c).toBe('reit');
+    expect(com.headers.get('etag')).not.toBe(sem.headers.get('etag'));
   });
 });
