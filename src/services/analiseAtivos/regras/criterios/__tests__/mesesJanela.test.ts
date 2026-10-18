@@ -199,3 +199,94 @@ describe('v2.5 — meses por ano de um provedor (mesesPorAno)', () => {
     expect(avaliarMeses(cvm, 2025, 3, P, { 2024: 1, 2025: 1 }).estado).toBe('atende');
   });
 });
+
+describe('backtest 18/10/2026 (A5/M7): lacuna de cobertura da base × mês sem rendimento', () => {
+  /** meses 'AAAA-MM' de `de` a `ate` */
+  const meses = (de: string, ate: string): string[] => {
+    const out: string[] = [];
+    let [a, m] = de.split('-').map(Number);
+    const [aFim, mFim] = ate.split('-').map(Number);
+    while (a < aFim || (a === aFim && m <= mFim)) {
+      out.push(`${a}-${String(m).padStart(2, '0')}`);
+      m++;
+      if (m > 12) {
+        m = 1;
+        a++;
+      }
+    }
+    return out;
+  };
+  const cvm = (com: string[], zero: string[] = []) => ({
+    comRendimento: new Set(com),
+    semRendimento: new Set(zero),
+  });
+
+  it('KNRI11, janela de 10 anos: sem provento na base em mar–jun/2016 e fev/2017, a CVM tem DY em fev/2017 ⇒ sem dado (era "114 de 120, não atende")', () => {
+    const prov = pagamentos('2016-01', '2025-12', [
+      '2016-03',
+      '2016-04',
+      '2016-05',
+      '2016-06',
+      '2017-02',
+      '2016-02',
+    ]);
+    // sem o informe da CVM o resultado continua o de hoje
+    expect(avaliarMeses(mesesAteAnoFim(prov, 2025, S), 2025, 10, P)).toMatchObject({
+      estado: 'nao_atende',
+      n: 114,
+    });
+    // informe da CVM de KNRI11 começa em jan/2017 (DY 0,6% ao mês)
+    const m = mesesAteAnoFim(prov, 2025, S, cvm(meses('2017-01', '2025-12')));
+    expect(m.mesesLacunaBase).toEqual(['2017-02']);
+    expect(avaliarMeses(m, 2025, 10, P)).toEqual({
+      estado: 'sem_dado',
+      n: null,
+      de: null,
+      fato: 'sem dado nas demonstrações (a base de proventos não tem 02/2017, com rendimento no informe da CVM)',
+      motivo: 'base_proventos_curta',
+    });
+    // a janela de 5 anos não pega a lacuna: atende
+    expect(avaliarMeses(m, 2025, 5, P).estado).toBe('atende');
+  });
+
+  it('RZTR11 (M8, decisão do Pedro pendente): jan/2021 sem pagamento porque o de dez/2020 foi antecipado (CVM 0 em dez) ⇒ continua "59 de 60, não atende"', () => {
+    const prov = pagamentos('2020-01', '2025-12', ['2021-01']);
+    const m = mesesAteAnoFim(
+      prov,
+      2025,
+      S,
+      cvm(meses('2021-01', '2025-12'), ['2020-10', '2020-11', '2020-12']),
+    );
+    expect(m.mesesLacunaBase).toEqual([]);
+    expect(avaliarMeses(m, 2025, 5, P)).toMatchObject({ estado: 'nao_atende', n: 59, de: 60 });
+  });
+
+  it('mês em que a CVM confirma que não houve distribuição (DY 0 no mês e no anterior) mantém o "não atende" mesmo com outra lacuna de cobertura', () => {
+    const prov = pagamentos('2018-01', '2025-12', ['2022-03', '2024-06']);
+    const com = meses('2018-01', '2025-12').filter((x) => x !== '2024-05' && x !== '2024-06');
+    const m = mesesAteAnoFim(prov, 2025, S, cvm(com, ['2024-05', '2024-06']));
+    expect(m.mesesLacunaBase).toEqual(['2022-03']);
+    expect(m.mesesSemDistribuicaoCvm).toEqual(['2024-06']);
+    expect(avaliarMeses(m, 2025, 5, P)).toMatchObject({ estado: 'nao_atende', n: 58 });
+  });
+
+  it('BTHF11 2023–2025: 9 meses sem provento na base, todos com DY na CVM ⇒ sem dado (era "25 de 36, não atende")', () => {
+    const lacunas = [
+      '2023-10',
+      '2023-11',
+      '2024-01',
+      '2024-02',
+      '2024-03',
+      '2024-04',
+      '2024-05',
+      '2024-07',
+      '2024-08',
+      '2024-10',
+      '2023-01',
+    ];
+    const prov = pagamentos('2023-01', '2025-12', lacunas);
+    const m = mesesAteAnoFim(prov, 2025, S, cvm(meses('2023-02', '2025-12'), ['2023-01']));
+    const r = avaliarMeses(m, 2025, 3, P);
+    expect(r).toMatchObject({ estado: 'sem_dado', motivo: 'base_proventos_curta' });
+  });
+});

@@ -29,6 +29,7 @@ import {
   type ProventoMeses,
 } from '@/services/analiseAtivos/regras/criterios/mesesJanela';
 import { imoveisSobrePlPct } from '@/services/analiseAtivos/regras/criterios/perfilCriterios';
+import { mesesDyCvm } from '@/services/analiseAtivos/regras/calculo/proventos';
 import type { SeriesCriterios } from '@/services/analiseAtivos/regras/criterios/seriesAcao';
 import type { FiiTipoTela } from '@/types/analiseAtivosApi';
 
@@ -62,6 +63,11 @@ export interface BrutoFii {
   /** meses com desdobramento de cotas (fii_monthly.fatorDesdobramento) */
   desdobramentos: Array<{ refMonth: string; fator: number }>;
   proventos: ProventoMeses[];
+  /**
+   * DY do mês do informe mensal da CVM (todas as versões; backtest 18/10/2026, A5/M7): prova de que
+   * o fundo distribuiu num mês sem provento na base. Opcional (fixtures antigas).
+   */
+  dyMesCvm?: Array<{ refMonth: string; dyMesCvmPct: number | null }>;
 }
 
 const finito = (n: number | null | undefined): n is number =>
@@ -138,9 +144,18 @@ export function vacanciaTrimestralFii(
     }));
 }
 
-/** Meses com rendimento até dez/anoFim (rec. 4). */
-export function mesesFii(b: Pick<BrutoFii, 'proventos'>, anoFim: number, scoring: ParamsMeses) {
-  return mesesAteAnoFim(b.proventos, anoFim, scoring) satisfies MesesRendimento;
+/** Meses com rendimento até dez/anoFim (rec. 4), com a prova da CVM das lacunas (A5/M7). */
+export function mesesFii(
+  b: Pick<BrutoFii, 'proventos' | 'dyMesCvm'>,
+  anoFim: number,
+  scoring: ParamsMeses,
+) {
+  return mesesAteAnoFim(
+    b.proventos,
+    anoFim,
+    scoring,
+    b.dyMesCvm ? mesesDyCvm(b.dyMesCvm) : undefined,
+  ) satisfies MesesRendimento;
 }
 
 /** (imóveis + SPE) ÷ PL do último informe, para a regra de composição do perfil. */
@@ -171,7 +186,7 @@ export async function lerBrutosFii(
   const symbols = fiis.map((f) => f.symbol);
   const cnpjs = [...new Set(fiis.map((f) => f.cnpj))];
   const desde = new Date(`${desdeAno}-01-01T00:00:00Z`);
-  const [ps, my, trim, desd, mensal, prov] = await Promise.all([
+  const [ps, my, trim, desd, mensal, prov, dyMes] = await Promise.all([
     prisma.assetPerShareYearly.findMany({
       where: { symbol: { in: symbols }, anoFiscal: { gte: desdeAno } },
       select: { symbol: true, anoFiscal: true, rendCota: true, vpCotaFim: true, flags: true },
@@ -215,6 +230,10 @@ export async function lerBrutosFii(
         dataComReal: true,
       },
     }),
+    prisma.fiiMonthly.findMany({
+      where: { cnpj: { in: cnpjs }, refMonth: { gte: desde }, dyMesCvmPct: { not: null } },
+      select: { cnpj: true, refMonth: true, dyMesCvmPct: true },
+    }),
   ]);
   const mensalPor = new Map(mensal.map((m) => [m.cnpj, m]));
   for (const f of fiis) {
@@ -235,6 +254,7 @@ export async function lerBrutosFii(
       trimestres: [],
       desdobramentos: [],
       proventos: [],
+      dyMesCvm: [],
     });
   }
   const porCnpj = new Map<string, BrutoFii[]>();
@@ -274,6 +294,11 @@ export async function lerBrutosFii(
         refMonth: paraData(d.refMonth),
         fator: d.fatorDesdobramento as number,
       });
+    }
+  }
+  for (const m of dyMes) {
+    for (const b of porCnpj.get(m.cnpj) ?? []) {
+      b.dyMesCvm!.push({ refMonth: paraData(m.refMonth), dyMesCvmPct: m.dyMesCvmPct });
     }
   }
   for (const p of prov) {

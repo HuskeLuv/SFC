@@ -116,6 +116,9 @@ export const TEXTOS_CRITERIOS = {
       'sem dado nas demonstrações (publicado só nos relatórios gerenciais do fundo)',
     /** rec. 4: base de proventos começa depois do início da janela */
     baseProventosCurta: 'sem dado nas demonstrações (proventos registrados desde {mesAno})',
+    /** backtest 18/10/2026 (A5/M7): mês sem provento na base em que a CVM registra distribuição */
+    baseProventosIncompleta:
+      'sem dado nas demonstrações (a base de proventos não tem {mesAno}, com rendimento no informe da CVM)',
     ebitdaNaoPositivo: 'EBITDA ≤ 0 em {ano}',
     /** EUA (REIT, 'pay'): dividendos ÷ caixa operacional com FCO ≤ 0 = não atende */
     caixaOperacionalNaoPositivo: 'caixa operacional ≤ 0 em {ano}',
