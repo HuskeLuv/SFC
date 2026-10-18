@@ -3,6 +3,7 @@
  * Backfills (scripts) usam `backfill:<nome>`.
  */
 import type { NomeJob } from '@/services/analiseAtivos/tipos';
+import { NOMES_JOBS_EUA } from '@/types/analiseAtivosEua';
 
 export const NOMES_JOBS = [
   'b3-cadastro',
@@ -22,6 +23,8 @@ export const NOMES_JOBS = [
   'fontes-fundamentos',
   // bloco 1: avisos das listas dos Salvos (11:10 UTC, depois da curadoria; sem a flag = pulado)
   'alertas-salvos',
+  // Stocks e REITs (fatia 0): um módulo por job em services/analiseAtivos/eua/jobs/* (A e B donos)
+  ...NOMES_JOBS_EUA,
 ] as const satisfies readonly NomeJob[];
 
 export type DocCvmCias = 'fca' | 'dfp' | 'itr';

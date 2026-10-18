@@ -287,6 +287,13 @@ export type NomeJob =
   | 'fontes-fundamentos'
   // bloco 1: avisos das listas dos Salvos (Notification + push 'analise')
   | 'alertas-salvos'
+  // Stocks e REITs (fatia 0; NOMES_JOBS_EUA em src/types/analiseAtivosEua.ts)
+  | 'sec-cadastro'
+  | 'sec-fundamentos'
+  | 'cotacoes-eua'
+  | 'criterios-eua'
+  | 'quadro-eua'
+  | 'eua-diario'
   | `backfill:${string}`;
 export interface AlertaJob {
   codigo: string;
