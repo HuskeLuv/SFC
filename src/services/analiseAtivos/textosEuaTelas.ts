@@ -148,7 +148,18 @@ export const TEXTOS_EUA_TELAS = {
       crescimento: 'Crescimento',
       rentabilidade: 'Rentabilidade',
     },
-    misturaIgnorada: 'outra classe: compare stocks com stocks e REITs com REITs',
+    /** linhas EUA do Comparador (rótulo + linha de apoio) */
+    linhas: {
+      lucrosSeguidosEua: { rotulo: 'Lucros seguidos', sub: 'anos fiscais (FY)' },
+      roeEua: { rotulo: 'ROE', sub: 'último FY' },
+      margemEua: { rotulo: 'Margem líquida', sub: 'último FY' },
+      divLiqEbitdaEua: { rotulo: 'Dív. líq./EBITDA', sub: 'EBITDA calculado · último FY' },
+      payoutEua: { rotulo: 'Payout', sub: 'dividendos ÷ lucro · último FY' },
+      dpaEua: { rotulo: 'Div./ação (US$)', sub: 'último FY' },
+      fcoAcaoEua: { rotulo: 'Caixa op./ação (US$)', sub: 'caixa operacional ÷ média de ações' },
+      divFcoEua: { rotulo: 'Div./caixa op.', sub: 'dividendos pagos ÷ caixa operacional' },
+      anosDividendoEua: { rotulo: 'Div. crescendo', sub: 'anos seguidos' },
+    },
   },
 } as const;
 
