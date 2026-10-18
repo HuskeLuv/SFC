@@ -19,6 +19,10 @@
  * exige COMPARADOR. exigirRecursosAnalise(request, ['salvos','comparador']) exige todos (rotas de
  * comparações salvas). Listas/filtros/comparações/avisos são PESSOAIS: a rota usa payload.id e,
  * com actingClient, devolve vazio (podeSalvar=false) ou 403 (MENSAGEM_LISTAS_PESSOAIS, contrato).
+ *
+ * EUA (stocks-reits, fatia 0): 'eua' e 'euaPreco' no mesmo mecanismo; euaPreco EXIGE eua. As rotas
+ * com classe EUA usam exigirClasseAnalise(request, classe) (stock/reit sem a chave → 404 antes da
+ * sessão; acao/fii = exigirAcessoAnalise de sempre).
  */
 import type { NextRequest } from 'next/server';
 import { prisma } from '@/lib/prisma';
@@ -28,6 +32,8 @@ import {
   analiseAtivosAlertasHabilitado,
   analiseAtivosCenariosHabilitado,
   analiseAtivosComparadorHabilitado,
+  analiseAtivosEuaHabilitado,
+  analiseAtivosEuaPrecoHabilitado,
   analiseAtivosHabilitada,
   analiseAtivosPdfHabilitado,
   analiseAtivosRaioXHabilitado,
@@ -35,7 +41,12 @@ import {
 } from '@/lib/analiseAtivosConfig';
 import { ApiError } from '@/utils/apiErrorHandler';
 import { requireAuthWithActing, type AuthWithActingResult } from '@/utils/auth';
-import type { EstadoAcessoAnalise, RecursosBlocoD } from '@/types/analiseAtivosApi';
+import {
+  ehClasseEua,
+  type ClasseQuadro,
+  type EstadoAcessoAnalise,
+  type RecursosBlocoD,
+} from '@/types/analiseAtivosApi';
 
 export const RECURSO_BETA = 'analise-ativos';
 export const TTL_ACESSO_MS = 60_000;
@@ -114,6 +125,8 @@ const FLAG_RECURSO: Record<RecursoBlocoD, () => boolean> = {
   salvos: analiseAtivosSalvosHabilitado,
   alertas: () => analiseAtivosAlertasHabilitado() && analiseAtivosSalvosHabilitado(),
   pdfComparador: () => analiseAtivosPdfHabilitado() && analiseAtivosComparadorHabilitado(),
+  eua: analiseAtivosEuaHabilitado,
+  euaPreco: () => analiseAtivosEuaPrecoHabilitado() && analiseAtivosEuaHabilitado(),
 };
 
 /** Monta o objeto de recursos a partir de uma função por recurso (ordem fixa, tipada). */
@@ -125,6 +138,8 @@ function porRecurso(fn: (r: RecursoBlocoD) => boolean): RecursosBlocoD {
     salvos: fn('salvos'),
     alertas: fn('alertas'),
     pdfComparador: fn('pdfComparador'),
+    eua: fn('eua'),
+    euaPreco: fn('euaPreco'),
   };
 }
 
@@ -145,7 +160,7 @@ export async function recursosLiberados(
   const flags = flagsRecursosBlocoD();
   if (!Object.values(flags).some(Boolean)) return flags;
   const liberada = (estado ?? (await estadoAcessoAnalise(userId))) === 'liberada';
-  return porRecurso((r) => liberada && flags[r]);
+  return porRecurso((r) => liberada && flags[r] === true);
 }
 
 /**
@@ -177,4 +192,21 @@ export async function exigirRecursosAnalise(
     throw new ApiError(404, MENSAGEM_SEM_ACESSO);
   }
   return exigirAcessoAnalise(request);
+}
+
+/**
+ * EUA: rota com classe (Quadro, página, Comparador, Salvos). acao/fii → exigirAcessoAnalise;
+ * stock/reit → exigirRecursoAnalise(request, 'eua') (404 antes da sessão sem a chave). Para os campos
+ * de preço, a rota confere recursosLiberados(...).euaPreco (nunca 404: só vêm null).
+ */
+export async function exigirClasseAnalise(
+  request: NextRequest,
+  classe: ClasseQuadro,
+): Promise<AuthWithActingResult> {
+  return ehClasseEua(classe) ? exigirRecursoAnalise(request, 'eua') : exigirAcessoAnalise(request);
+}
+
+/** Flags EUA lidas sem olhar o usuário (jobs e rotas de leitura que só escondem campos). */
+export function flagsEua(): { eua: boolean; euaPreco: boolean } {
+  return { eua: FLAG_RECURSO.eua(), euaPreco: FLAG_RECURSO.euaPreco() };
 }

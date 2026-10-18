@@ -34,6 +34,17 @@
  *                                              push 'analise', job alertas-salvos). EXIGE SALVOS
  *  - ANALISE_ATIVOS_PDF_HABILITADO="true"      "Exportar PDF" do Comparador e a rota
  *                                              comparacao-pdf. EXIGE COMPARADOR
+ *
+ *  Stocks e REITs (docs/analise-ativos/stocks-reits/desenho.json, fatia 0): mesmo regime, desligadas
+ *  por padrão e válidas SÓ com a área liberada. Os JOBS EUA não dependem delas (o backfill de
+ *  produção roda com as telas desligadas); só o 'cotacoes-eua' exige a de preço.
+ *  - ANALISE_ATIVOS_EUA_HABILITADO="true"        abas Stocks/REITs do Quadro, página, Comparador,
+ *                                                busca e Salvos EUA (sem ela: abas escondidas e as
+ *                                                rotas/classes EUA respondem 404)
+ *  - ANALISE_ATIVOS_EUA_PRECO_HABILITADO="true"  cotação, P/E, P/S, DY e Meus cenários EUA na Análise
+ *                                                (decisão do Wellington de 17/10: desligada até a
+ *                                                licença de exibição). EXIGE EUA. A Carteira não
+ *                                                depende desta chave
  */
 export function analiseAtivosHabilitada(): boolean {
   return process.env.ANALISE_ATIVOS_HABILITADA === 'true';
@@ -72,6 +83,16 @@ export function analiseAtivosAlertasHabilitado(): boolean {
 /** Bloco 1: Exportar PDF do Comparador (desligado por padrão; só vale com COMPARADOR). */
 export function analiseAtivosPdfHabilitado(): boolean {
   return process.env.ANALISE_ATIVOS_PDF_HABILITADO === 'true';
+}
+
+/** EUA: Stocks e REITs na Análise (desligado por padrão). */
+export function analiseAtivosEuaHabilitado(): boolean {
+  return process.env.ANALISE_ATIVOS_EUA_HABILITADO === 'true';
+}
+
+/** EUA: cotação e múltiplos EUA na Análise (desligado; só vale com EUA — ver acessoAnalise). */
+export function analiseAtivosEuaPrecoHabilitado(): boolean {
+  return process.env.ANALISE_ATIVOS_EUA_PRECO_HABILITADO === 'true';
 }
 
 export function analiseAtivosAlertaAdmin(): boolean {
