@@ -122,6 +122,43 @@ SELECT job, status, "linhasGravadas", "rssPicoMb", "duracaoMs" FROM analise_job_
  WHERE job = 'backfill:sec-fundamentos' ORDER BY inicio DESC LIMIT 1;
 ```
 
+#### Balanço: de qual 10-K vem cada número (e o efeito nos critérios)
+
+O balanço (dívida, caixa, aplicações, PL, ativo) vem do 10-K do **próprio exercício**. Sem nenhum
+passo da cadeia nesse 10-K, vale o comparativo do 10-K seguinte, e um 10-K mais tardio que esse
+nunca é usado (nota com o mesmo conceito: AMT 2019, PLD 2021, WELL 2020). Há três exceções, todas
+anotadas no `sourceConcept`:
+
+- **erro de escala** (`escalaCorrigida`): se o mesmo conceito, na mesma data, difere 100× ou mais
+  no comparativo do 10-K seguinte, vale o comparativo. Caso real: TSLA 2016 tinha a dívida em
+  milhares no próprio 10-K e agora fica com US$ 5.892 mi, não 5,9 mi;
+- **passo de dívida irrisório** (`passoDescartado`): um passo abaixo de 1% de outro passo na mesma
+  data, inclusive zero, conta como ausente. Casos reais: ORCL 2022 tinha `LongTermDebt` = 0 com
+  75.859 mi combinados, e Dív. líq./EBITDA passa de −1,66× para 4,22×; AMD 2021 passa de 1 mi para
+  313 mi;
+- **caixa com aplicações num conceito só** (`CashCashEquivalentsAndShortTermInvestments`, último
+  passo da cadeia do caixa): nesse ano as aplicações ficam null, para não descontar duas vezes na
+  dívida líquida. Caso real: CAT 2013–2016, que estava sem caixa.
+
+**Essa regra muda estados de critérios.** Não vale a afirmação de que a correção do balanço
+(commit `1d0dd088`) não mudou nenhum critério. Ela corrigiu AMT, PLD e WELL, mas, antes das três
+exceções acima, também deixou a CAT 2013–2016 sem caixa, a dívida da TSLA 2016 em 5,9 mi e a da
+ORCL 2022 em zero. No DEV (amostra de 63 CIKs, `criterios-eua --versao-params=3`), as três
+exceções mudaram 1 estado em 1.170: **CAT `dl` na janela 10, de `sem_dado` para `nao_atende`**
+(3,7× em 2016). TSLA, ORCL e AMD mudaram de valor, mas não de estado.
+
+Seguem sem caixa, por desenho, os anos que só aparecem num 10-K mais tardio que o comparativo:
+AVGO 2016 e GOOGL 2013, porque o CIK atual nasceu depois e o 10-K da época é do CIK antecessor, e
+AXP/JPM 2016, que são bancos: neles o `dl` é "sem dado" de qualquer forma. No universo completo,
+compare os estados antes e depois do backfill:
+
+```sql
+-- antes do backfill (anotar) e depois do criterios-eua: estados por ticker/janela/critério
+SELECT symbol, janela, r->>'id' criterio, r->>'estado' estado
+  FROM criteria_eval, jsonb_array_elements(resultados) r
+ WHERE classe IN ('stock','reit') ORDER BY 1,2,3;
+```
+
 ### 3.3 Cobertura (só leitura)
 
 ```bash

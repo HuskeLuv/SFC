@@ -21,6 +21,13 @@ os jobs de dados não dependem delas (só o `cotacoes-eua` exige a de preço).
   flags `ebitda_pre_ir`/`ebitda_lucro`) + `depreciacaoAmortizacao`; dívida bruta total em
   `dividaBrutaLp` (`dividaBrutaCp` = null; sem conceito = null). Desdobramento e ações informadas em
   mil/milhão por engano são corrigidos (`sourceConcept.ajusteDesdobramento`).
+- Balanço (instante) do 10-K do próprio exercício; sem nenhum passo dele, o comparativo do 10-K
+  seguinte; nunca um 10-K mais tardio. Erro de escala ≥ 100× contra o comparativo do 10-K seguinte
+  → vale o comparativo (`sourceConcept.escalaCorrigida`, TSLA 2016); passo de dívida < 1% de outro
+  passo na mesma data (zero incluído) = ausente (`sourceConcept.passoDescartado`, ORCL 2022, AMD
+  2021); caixa por `CashCashEquivalentsAndShortTermInvestments` deixa as aplicações null
+  (`'incluidas_no_caixa'`, CAT 2016). Essas regras **mudam estados de critérios**: comparar antes e
+  depois (ATIVACAO.md §3.2).
 
 ## Carga inicial em produção (cada escrita com o OK do Wellington, pelo runner)
 
