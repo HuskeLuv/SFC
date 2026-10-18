@@ -31,6 +31,7 @@ import type {
   ItemBusca,
   OverlayCarteiraResposta,
 } from '@/types/analiseAtivosApi';
+import { noOverlay } from '@/services/analiseAtivos/carteira/tickerCarteiraEua';
 
 export type { BuscaAtivosProps };
 
@@ -138,7 +139,7 @@ function SeloItem({
 }) {
   const base =
     'inline-flex items-center rounded-full px-1.5 py-0.5 text-[11px] font-medium whitespace-nowrap';
-  if (overlay?.posicoes[item.t]) {
+  if (noOverlay(overlay?.posicoes, item.t)) {
     return (
       <span
         className={`${base} bg-[#EDF2F8] text-[#396CAA] dark:bg-[#6E9DC4]/15 dark:text-[#6E9DC4]`}
@@ -147,7 +148,7 @@ function SeloItem({
       </span>
     );
   }
-  if (overlay?.planejados[item.t]) {
+  if (noOverlay(overlay?.planejados, item.t)) {
     return (
       <span
         className={`${base} border border-dashed border-[#98A2B3] text-gray-600 dark:text-gray-300`}

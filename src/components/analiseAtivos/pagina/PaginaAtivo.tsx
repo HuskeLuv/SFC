@@ -54,6 +54,7 @@ import {
 } from '@/hooks/useAnaliseAtivos';
 import { TEXTOS_TELA } from '@/services/analiseAtivos/textosTela';
 import type { PaginaAtivoProps } from '@/types/analiseAtivosApi';
+import { noOverlay } from '@/services/analiseAtivos/carteira/tickerCarteiraEua';
 
 const CARD =
   'rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03]';
@@ -107,8 +108,8 @@ export default function PaginaAtivo({ ticker }: PaginaAtivoProps) {
 
   const ativo = topo.data;
   const { classe } = ativo;
-  const posicao = overlay.data?.posicoes[ticker];
-  const planejado = overlay.data?.planejados[ticker];
+  const posicao = noOverlay(overlay.data?.posicoes, ticker);
+  const planejado = noOverlay(overlay.data?.planejados, ticker);
   const seloCarteira = posicao ? (
     <SeloEstado tipo="na_carteira" />
   ) : planejado ? (
