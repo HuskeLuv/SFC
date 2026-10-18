@@ -207,9 +207,17 @@ function chipDe(c: DefCriterio, par: DefCriterio | null): DefCriterioChip {
 /** Chips da barra de filtros da classe (FII = pares tijolo/papel pelas equivalências). */
 export function definicoesQuadro(classe: ClasseQuadro, p: CriteriaParams): DefCriterioChip[] {
   if (classe === 'acao') return p.perfis.acao.map((c) => chipDe(c, null));
-  // EUA: perfis opcionais da v3 (stock_financeira usa a lista de stock); v1/v2 = sem chips
-  if (classe === 'stock') return (p.perfis.stock ?? []).map((c) => chipDe(c, null));
-  if (classe === 'reit') return (p.perfis.reit ?? []).map((c) => chipDe(c, null));
+  // EUA: perfis da v3 (stock_financeira usa a lista de stock). Params ativos sem os perfis EUA
+  // (v1/v2 ainda vigentes, antes do seed da v3) = os do código, os mesmos que a tela usa antes da
+  // resposta e que avaliaram as linhas (criteria_eval EUA nasce com a v3)
+  if (classe === 'stock') {
+    const lista = p.perfis.stock ?? CRITERIA_PARAMS_CODIGO.perfis.stock ?? [];
+    return lista.map((c) => chipDe(c, null));
+  }
+  if (classe === 'reit') {
+    const lista = p.perfis.reit ?? CRITERIA_PARAMS_CODIGO.perfis.reit ?? [];
+    return lista.map((c) => chipDe(c, null));
+  }
   const eq = p.equivalencias as Equivalencias;
   return p.perfis.fii_tijolo.map((c) => {
     const idPar = eq[c.id];

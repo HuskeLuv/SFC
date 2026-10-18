@@ -37,6 +37,7 @@ import {
   paraLinhaQuadroApiNaJanela,
 } from '@/services/analiseAtivos/leitura/linhasQuadro';
 import { CRITERIA_PARAMS_V3 } from '@/services/analiseAtivos/params/criteriaParamsV3';
+import { CRITERIA_PARAMS_V2 } from '@/services/analiseAtivos/params/criteriaParamsV2';
 import { encontrarProibidasV2 } from '@/services/analiseAtivos/regras/comum/linguagemV2';
 import type { QuadroResposta } from '@/types/analiseAtivosApi';
 import type { AnaliseQuadroLinha } from '@prisma/client';
@@ -93,6 +94,14 @@ const LINHAS_EUA: AnaliseQuadroLinha[] = [
     dividendosFcoPct: 73,
   }),
 ];
+
+function m2() {
+  _resetarParamsQuadro();
+  mocks.prisma.criteriaParams.findFirst.mockResolvedValue({
+    version: 2,
+    params: CRITERIA_PARAMS_V2,
+  });
+}
 
 const TODAS = [...LINHAS_FIXTURE, ...LINHAS_EUA];
 const req = (qs: string) => new NextRequest(`http://localhost/api/analise-ativos/quadro?${qs}`);
@@ -177,6 +186,13 @@ describe('GET /api/analise-ativos/quadro — Stocks e REITs', () => {
     const res = await GET(req('classe=reit&criterios=ocup'));
     expect(res.status).toBe(400);
     expect((await GET(req('classe=reit&criterios=pay'))).status).toBe(200);
+  });
+
+  it('params ativos sem os perfis EUA (v2, antes do seed da v3): chips do código, sem 400', async () => {
+    m2();
+    const r = await corpo('classe=stock&criterios=mg');
+    expect(r.definicoes.map((d) => d.id)).toEqual(['rec', 'luc', 'ebitda', 'mg', 'dl', 'fcl']);
+    expect(r.total).toBe(3);
   });
 
   it('filtros: critério (E), setor (stock), segmento (reit) e Na minha carteira normalizada', async () => {

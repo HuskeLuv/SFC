@@ -144,9 +144,14 @@ export function criteriosDoComparador(
   tipos: readonly TipoAtivoComparador[],
 ): CriteriosComparador {
   if (classe !== 'fii') {
-    // ação, stock e REIT: a lista do perfil (a financeira usa a mesma, 'n de 6')
+    // ação, stock e REIT: a lista do perfil (a financeira usa a mesma, 'n de 6'); params ativos sem
+    // os perfis EUA (v1/v2, antes do seed da v3) = os do código, que avaliaram as linhas EUA
+    const fonte =
+      ehClasseEua(classe) && criteriosDoPerfil(params, classe).length === 0
+        ? CRITERIA_PARAMS_CODIGO
+        : params;
     return {
-      rotulos: Object.fromEntries(criteriosDoPerfil(params, classe).map((c) => [c.id, c.rotulo])),
+      rotulos: Object.fromEntries(criteriosDoPerfil(fonte, classe).map((c) => [c.id, c.rotulo])),
       equivalencias: {},
     };
   }
