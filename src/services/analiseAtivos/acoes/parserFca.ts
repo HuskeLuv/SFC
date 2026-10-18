@@ -7,6 +7,9 @@
  * - Units: composição em texto livre (parseComposicaoUnit); sem formato conhecido ⇒ alerta.
  * - Data_Fim_Negociacao preenchida ⇒ ticker encerrado (fecha a vigência).
  * - Só entram companhias com pelo menos um ticker de ações em bolsa (universo da análise).
+ * - Linhas de ações/units que o FCA traz erradas (código "000000"/"4030"/"ADR", mercado diferente de
+ *   'Bolsa') ficam em `rejeitadas`, com o cadastro da companhia em `ciasSemTicker`: a etapa
+ *   completarComB3 (regras/acoes/tickersB3.ts) usa as duas para casar o ticker negociado na B3.
  */
 import { cnpjOuOriginal } from '@/services/analiseAtivos/regras/comum/cnpj';
 import { lerCsv } from '@/services/analiseAtivos/fontes/csvStream';
@@ -44,6 +47,21 @@ export interface TituloFca {
   composicaoTexto: string | null;
   dataInicio: string | null;
   dataFim: string | null;
+  /** 'fca' (padrão) ou 'b3' quando o ticker veio da B3 porque o FCA estava errado (tickersB3.ts) */
+  origem?: 'fca' | 'b3';
+}
+
+/** Linha de ações/units do FCA (versão vigente) que não virou título: código ou mercado errado. */
+export interface LinhaFcaRejeitada {
+  cnpj: string;
+  /** código como veio (pode ser '000000', '4030', 'ADR', 'OBTC'…) */
+  codigo: string;
+  classeFca: string;
+  motivo: 'codigo_invalido' | 'mercado';
+  mercado: string;
+  composicaoTexto: string | null;
+  dataInicio: string | null;
+  dataFim: string | null;
 }
 
 export interface ResultadoFca {
@@ -51,6 +69,10 @@ export interface ResultadoFca {
   titulos: TituloFca[];
   alertas: AlertaJob[];
   linhasLidas: number;
+  /** ações/units com código ou mercado errado no FCA (só a versão vigente de cada companhia) */
+  rejeitadas: LinhaFcaRejeitada[];
+  /** cadastro (geral) das companhias que só aparecem em `rejeitadas` */
+  ciasSemTicker: Map<string, CiaFca>;
 }
 
 const RE_DATA = /^\d{4}-\d{2}-\d{2}$/;
@@ -81,6 +103,7 @@ export async function lerFca(
   const nomeVm = entradaFca('valor_mobiliario', ano);
   const versaoVm = new Map<string, number>();
   const brutos: Array<TituloFca & { versao: number }> = [];
+  const rejeitadasBrutas: Array<LinhaFcaRejeitada & { versao: number }> = [];
   for await (const l of lerCsv(linhasDaEntrada(caminho, achar(nomeVm)), {
     separador: ';',
     obrigatorias: COLUNAS_FCA_VALOR_MOBILIARIO,
@@ -90,14 +113,31 @@ export async function lerFca(
     const cnpj = cnpjOuOriginal(l.get('CNPJ_Companhia'));
     const versao = Number(l.get('Versao'));
     versaoVm.set(cnpj, Math.max(versaoVm.get(cnpj) ?? 0, versao));
-    if (l.get('Mercado') !== 'Bolsa') continue;
-    const symbol = l.get('Codigo_Negociacao').toUpperCase();
-    if (!RE_TICKER.test(symbol)) continue;
     const classeFca = classeDoFca(l.get('Valor_Mobiliario'));
     if (!classeFca) continue;
+    const mercado = l.get('Mercado');
+    const symbol = l.get('Codigo_Negociacao').toUpperCase().trim();
+    const tickerValido = RE_TICKER.test(symbol);
+    const texto = l.get('Composicao_BDR_Unit') || null;
+    if (mercado !== 'Bolsa' || !tickerValido) {
+      // debênture/ação de balcão sem código é normal; só guarda o que pode ser ação em bolsa
+      if (mercado === 'Bolsa' || tickerValido) {
+        rejeitadasBrutas.push({
+          cnpj,
+          codigo: symbol,
+          classeFca,
+          motivo: tickerValido ? 'mercado' : 'codigo_invalido',
+          mercado,
+          composicaoTexto: texto,
+          dataInicio: data(l.get('Data_Inicio_Negociacao')),
+          dataFim: data(l.get('Data_Fim_Negociacao')),
+          versao,
+        });
+      }
+      continue;
+    }
     const classeTitulo = classeDoTicker(symbol);
     if (!classeTitulo) continue;
-    const texto = l.get('Composicao_BDR_Unit') || null;
     const unit = classeTitulo === 'UNIT' ? parseComposicaoUnit(texto) : null;
     brutos.push({
       cnpj,
@@ -132,6 +172,10 @@ export async function lerFca(
     }
   }
   const universo = new Set(titulos.map((t) => t.cnpj));
+  const rejeitadas = rejeitadasBrutas
+    .filter((r) => r.versao === versaoVm.get(r.cnpj))
+    .map(({ versao: _v, ...r }) => r);
+  const cnpjsRejeitados = new Set(rejeitadas.map((r) => r.cnpj).filter((c) => !universo.has(c)));
 
   const nomeGeral = entradaFca('geral', ano);
   const cias = new Map<string, CiaFca>();
@@ -142,7 +186,7 @@ export async function lerFca(
   })) {
     linhasLidas++;
     const cnpj = cnpjOuOriginal(l.get('CNPJ_Companhia'));
-    if (!universo.has(cnpj)) continue;
+    if (!universo.has(cnpj) && !cnpjsRejeitados.has(cnpj)) continue;
     const versao = Number(l.get('Versao'));
     const atual = cias.get(cnpj);
     if (atual && atual.versao >= versao) continue;
@@ -160,11 +204,19 @@ export async function lerFca(
       versao,
     });
   }
+  const ciasSemTicker = new Map<string, CiaFca>();
+  for (const cnpj of cnpjsRejeitados) {
+    const c = cias.get(cnpj);
+    if (c) ciasSemTicker.set(cnpj, c);
+    cias.delete(cnpj);
+  }
   // ticker de companhia sem linha no geral não entra (sem cadastro não há universo)
   return {
     cias,
     titulos: titulos.filter((t) => cias.has(t.cnpj)),
     alertas,
     linhasLidas,
+    rejeitadas,
+    ciasSemTicker,
   };
 }

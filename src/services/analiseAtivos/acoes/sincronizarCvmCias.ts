@@ -82,6 +82,7 @@ import {
   type LinhaLida,
 } from '@/services/analiseAtivos/acoes/parserDemonstrativos';
 import { lerFca } from '@/services/analiseAtivos/acoes/parserFca';
+import { completarComB3, type NegociadoB3 } from '@/services/analiseAtivos/regras/acoes/tickersB3';
 import { lerFreAcoes, type AcoesFre } from '@/services/analiseAtivos/acoes/parserFre';
 import {
   contagemComEscalaFixa,
@@ -350,6 +351,17 @@ async function carregarApoio(
 
 // ---------------------------------------------------------------- FCA
 
+/**
+ * Tickers de ações negociados na B3 (COTAHIST via AssetQuoteResumo): lote padrão (BDI 02) e com
+ * negócio nos últimos 30 pregões. Vazio quando o COTAHIST ainda não rodou (dev): nada é completado.
+ */
+async function negociadosB3(prisma: PrismaClient): Promise<NegociadoB3[]> {
+  return prisma.assetQuoteResumo.findMany({
+    where: { codBdi: '02', negociadoUltimos30: true },
+    select: { symbol: true, especi: true },
+  });
+}
+
 async function processarFca(
   ctx: JobContexto,
   ano: number,
@@ -363,13 +375,18 @@ async function processarFca(
   try {
     if (ctx.aplicar) await registrarDownload(ctx.prisma, url, arq);
     const entradas = await listarEntradasZip(arq.caminho);
-    const fca = await lerFca(arq.caminho, entradas, ano);
-    ctx.contar('linhasLidas', fca.linhasLidas);
+    const lido = await lerFca(arq.caminho, entradas, ano);
+    ctx.contar('linhasLidas', lido.linhasLidas);
+    for (const a of lido.alertas) ctx.alertar(a);
+    // FCA errado (código "000000", fim indevido, mercado ≠ Bolsa): completa com o negociado na B3
+    const negociados = await negociadosB3(ctx.prisma);
+    const fca = completarComB3(lido, negociados);
     for (const a of fca.alertas) ctx.alertar(a);
     const r = await gravarCadastroFca(ctx.prisma, fca, {
       sourceUrl: url,
       hoje: ctx.hoje,
       aplicar: ctx.aplicar,
+      b3Disponivel: negociados.length > 0,
     });
     for (const a of r.alertas) ctx.alertar(a);
     const escritas =
@@ -392,6 +409,7 @@ async function processarFca(
         cadastro: {
           companhias: fca.cias.size,
           tickers: fca.titulos.length,
+          tickersCompletadosB3: fca.completados.length,
           ciasNovas: r.ciasNovas,
           ciasAtualizadas: r.ciasAtualizadas,
           tickersNovos: r.tickersNovos,

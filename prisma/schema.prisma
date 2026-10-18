@@ -1959,7 +1959,7 @@ model CvmCompanyTicker {
   composicaoTexto String?
   validFrom       DateTime  @db.Date
   validTo         DateTime? @db.Date
-  // fca | manual
+  // fca | b3 (FCA errado, ticker negociado na B3 casado ao CNPJ do FCA) | manual
   origem          String    @default("fca")
   fetchedAt       DateTime
 

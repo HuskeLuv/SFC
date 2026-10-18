@@ -24,6 +24,7 @@ const UNICOS: Record<string, string[]> = {
   assetShareCount: ['cnpj', 'data'],
   analiseFonteArquivo: ['url'],
   assetCorporateAction: ['id'],
+  assetQuoteResumo: ['symbol'],
 };
 const COM_ID = new Set(['cvmCompanyTicker', 'assetFundamentalsPeriod', 'assetShareCount']);
 const PADROES: Record<string, Linha> = {

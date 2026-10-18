@@ -19,6 +19,7 @@ import {
   fixture,
   zipDfp2025,
   zipFca,
+  zipFcaBacktest,
   zipItr,
 } from '@/services/analiseAtivos/acoes/__tests__/zipFixtures';
 
@@ -191,6 +192,67 @@ describe('sincronizarCvmCias — FCA (cadastro e vigência de tickers)', () => {
     expect(wege[1]).toMatchObject({ cnpj: TAEE, validTo: null });
     expect(dia(wege[1].validFrom)).toBe('2026-10-05');
     expect(ctx.alertas.map((a) => a.codigo)).toContain('ticker_trocou_emissor');
+  });
+});
+
+describe('sincronizarCvmCias — FCA errado completado pela B3 (backtest 18/10, A9)', () => {
+  const BTG = '30306294000145';
+  const negociado = (symbol: string, especi: string) => ({
+    symbol,
+    codBdi: '02',
+    especi,
+    negociadoUltimos30: true,
+  });
+
+  it('BPAC11/CSNA3/CEAB3 entram com origem b3 no CNPJ do FCA; sem COTAHIST nada é fechado; parou de negociar ⇒ fecha', async () => {
+    const { prisma, tabelas } = criarPrismaFake();
+    tabelas.assetQuoteResumo.push(
+      negociado('BPAC11', 'UNT     N2'),
+      negociado('CSNA3', 'ON'),
+      negociado('CEAB3', 'ON      NM'),
+      negociado('KLBN4', 'PN      N2'),
+      // ação negociada mas fora do lote padrão não conta
+      { symbol: 'BPAC3', codBdi: '96', especi: 'ON      N2', negociadoUltimos30: true },
+    );
+    const zips = { [urlArquivoCvm('fca', 2026)]: zipFcaBacktest(dir) };
+    const { ctx, arquivos } = await rodar(prisma, zips, { doc: 'fca' });
+    const abertos = () =>
+      tabelas.cvmCompanyTicker
+        .filter((t) => t.validTo === null)
+        .map((t) => `${t.symbol}:${t.origem}`)
+        .sort();
+    expect(abertos()).toEqual([
+      'ALUP11:fca',
+      'B1003:fca',
+      'BPAC11:b3',
+      'CEAB3:b3',
+      'CSNA3:b3',
+      'KLBN11:fca',
+      'KLBN4:b3',
+    ]);
+    const bpac = tabelas.cvmCompanyTicker.find((t) => t.symbol === 'BPAC11')!;
+    expect(bpac).toMatchObject({ cnpj: BTG, classeTitulo: 'UNIT', unitQtdOn: 1, unitQtdPn: 2 });
+    expect(dia(bpac.validFrom)).toBe('2012-04-26');
+    expect(tabelas.cvmCompany.find((c) => c.cnpj === BTG)).toMatchObject({
+      nome: 'BCO BTG PACTUAL S.A.',
+    });
+    expect(arquivos[0].cadastro).toMatchObject({ tickersCompletadosB3: 4 });
+    expect(ctx.alertas.filter((a) => a.codigo === 'ticker_completado_b3')).toHaveLength(4);
+
+    // COTAHIST vazio (não rodou): os de origem b3 continuam abertos
+    const resumo = [...tabelas.assetQuoteResumo];
+    tabelas.assetQuoteResumo.length = 0;
+    await rodar(prisma, zips, { doc: 'fca', reprocessar: true }, { hoje: '2026-10-19' });
+    expect(abertos()).toContain('BPAC11:b3');
+
+    // BPAC11 parou de negociar: fecha só ele
+    tabelas.assetQuoteResumo.push(...resumo.filter((r) => r.symbol !== 'BPAC11'));
+    await rodar(prisma, zips, { doc: 'fca', reprocessar: true }, { hoje: '2026-10-20' });
+    expect(abertos()).not.toContain('BPAC11:b3');
+    expect(abertos()).toContain('CSNA3:b3');
+    expect(dia(tabelas.cvmCompanyTicker.find((t) => t.symbol === 'BPAC11')!.validTo)).toBe(
+      '2026-10-20',
+    );
   });
 });
 
