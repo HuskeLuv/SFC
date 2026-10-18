@@ -650,7 +650,9 @@ model AssetDividendHistory {
   source        String    @default("BRAPI")
   createdAt     DateTime  @default(now())
 
-  @@unique([symbol, date, tipo])
+  // data-com na chave (backtest 18/10/2026, A1): proventos pagos no mesmo dia com datas-com
+  // diferentes são linhas distintas. A migration cria o índice com NULLS NOT DISTINCT.
+  @@unique([symbol, date, tipo, dataCom])
   @@index([symbol])
   @@index([symbol, date])
   @@index([symbol, dataCom])

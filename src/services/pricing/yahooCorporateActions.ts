@@ -293,10 +293,15 @@ export async function syncYahooDividends(symbol: string): Promise<number> {
       const raw = div.amount * cumFactorAfter(dMs); // des-ajusta pra cru
       if (!(raw > 0)) continue;
       try {
-        await prisma.assetDividendHistory.upsert({
-          where: { symbol_date_tipo: { symbol: dbSymbol, date: div.date, tipo: 'Dividendo' } },
-          update: {},
-          create: {
+        // "cria se não existe" por (symbol, date, tipo), qualquer data-com — a mesma semântica do
+        // upsert antigo (a chave da tabela ganhou a data-com no backtest de 18/10/2026)
+        const ja = await prisma.assetDividendHistory.findFirst({
+          where: { symbol: dbSymbol, date: div.date, tipo: 'Dividendo' },
+          select: { id: true },
+        });
+        if (ja) continue;
+        await prisma.assetDividendHistory.create({
+          data: {
             symbol: dbSymbol,
             date: div.date,
             tipo: 'Dividendo',

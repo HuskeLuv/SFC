@@ -178,6 +178,7 @@ export const resolveProventoEvents = async (userId: string): Promise<ResolveProv
 
       const timeline = buildQuantityTimeline(transactions, corporateActions);
       const out: ProventoEvent[] = [];
+      const consumidas = new Set<string>();
       for (const d of dividends) {
         const payDay = normalizeDateStart(d.date);
         const dMs = payDay.getTime();
@@ -194,10 +195,14 @@ export const resolveProventoEvents = async (userId: string): Promise<ResolveProv
         const key = overrideKey(symbol, dMs, d.tipo);
         if (dismissedKeys.has(key)) continue; // usuário deletou explicitamente
 
+        // Override manual é por (pagamento, tipo): desde o backtest de 18/10/2026 o histórico tem uma
+        // linha por data-com, e as outras parcelas do mesmo dia já estão dentro do valor editado.
+        if (consumidas.has(key)) continue;
         const manual = manualOverrides.get(key);
         if (manual) {
           // Edição manual vence; consome o override para não duplicar abaixo.
           manualOverrides.delete(key);
+          consumidas.add(key);
           out.push({
             symbol,
             paymentDay: dMs,

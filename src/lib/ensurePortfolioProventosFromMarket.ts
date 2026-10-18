@@ -84,6 +84,13 @@ export const ensurePortfolioProventosFromMarket = async (params: {
     });
   }
 
+  // Um PortfolioProvento por (pagamento, tipo) — a chave natural da tela. Desde o backtest de
+  // 18/10/2026 o histórico global guarda uma linha por DATA-COM (VIVT3: 7 JCPs mensais pagos no
+  // mesmo dia): cada parcela entra com a quantidade da SUA data-com e o valor do dia é a soma.
+  const grupos = new Map<
+    string,
+    { day: Date; tipo: string; valorTotal: number; dataComDay: Date; quantidade: number }
+  >();
   for (const d of dividends) {
     const dMs = normalizeDateStart(d.date).getTime();
     if (dMs > hojeMs) continue;
@@ -95,15 +102,32 @@ export const ensurePortfolioProventosFromMarket = async (params: {
       timeline.length > 0 ? quantityAtProventoDate(timeline, d.dataCom, d.date) : portfolioQuantity;
     if (quantidade <= 0) continue;
 
-    const valorTotal = Math.round(quantidade * d.valorUnitario * 1e6) / 1e6;
     const day = normalizeDateStart(d.date);
     const dataComDay = d.dataCom ? normalizeDateStart(d.dataCom) : day;
+    const valor = quantidade * d.valorUnitario;
+    const k = `${day.getTime()}\0${d.tipo}`;
+    const g = grupos.get(k);
+    if (!g) {
+      grupos.set(k, { day, tipo: d.tipo, valorTotal: valor, dataComDay, quantidade });
+    } else {
+      g.valorTotal += valor;
+      // data-com e quantidade de referência = as da parcela mais antiga do dia
+      if (dataComDay.getTime() < g.dataComDay.getTime()) {
+        g.dataComDay = dataComDay;
+        g.quantidade = quantidade;
+      }
+    }
+  }
+
+  for (const g of grupos.values()) {
+    const { day, dataComDay, quantidade, tipo } = g;
+    const valorTotal = Math.round(g.valorTotal * 1e6) / 1e6;
 
     // Lacuna 1 (auditoria 2026-05-19): JCP tem IRRF retido na fonte. Alíquota
     // depende da data de pagamento — 15% até 31/12/2025 (Lei 9.249/95) e 17,5%
     // a partir de 01/01/2026 (LC 224/2025). Persistir aqui melhora a qualidade
     // do dado pra DAA/IR no futuro.
-    const impostoRenda = isJcpType(d.tipo)
+    const impostoRenda = isJcpType(tipo)
       ? Math.round(valorTotal * getJcpIrrfRate(day) * 100) / 100
       : null;
 
@@ -114,7 +138,7 @@ export const ensurePortfolioProventosFromMarket = async (params: {
         portfolioId,
         userId,
         dataPagamento: day,
-        tipo: d.tipo,
+        tipo,
       },
     });
 
@@ -141,7 +165,7 @@ export const ensurePortfolioProventosFromMarket = async (params: {
       data: {
         portfolioId,
         userId,
-        tipo: d.tipo,
+        tipo,
         dataCom: dataComDay,
         dataPagamento: day,
         precificarPor: 'valor',

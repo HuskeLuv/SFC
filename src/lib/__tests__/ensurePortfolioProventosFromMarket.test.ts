@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 const mockPrisma = vi.hoisted(() => ({
   portfolioProvento: {
+    deleteMany: vi.fn(),
     count: vi.fn(),
     findFirst: vi.fn(),
     create: vi.fn(),
@@ -190,5 +191,44 @@ describe('normalizeDateStart UTC-safe', () => {
     // Independente do TZ local do test runner, deve salvar T00:00Z
     expect(data.dataPagamento.toISOString()).toBe('2026-03-05T00:00:00.000Z');
     expect(data.dataCom.toISOString()).toBe('2026-02-23T00:00:00.000Z');
+  });
+});
+
+describe('várias datas-com no mesmo pagamento (backtest 18/10/2026, A1)', () => {
+  it('SAPR11: um PortfolioProvento por (pagamento, tipo), cada parcela com a quantidade da SUA data-com', async () => {
+    mockPrisma.portfolioProvento.count.mockResolvedValue(0);
+    mockPrisma.portfolioProvento.findFirst.mockResolvedValue(null);
+    // compra de 100 em jan/2025 e mais 100 em set/2025: só a 2ª data-com (30/12) pega as 200
+    mockGetDividends.mockResolvedValue([
+      {
+        date: new Date('2026-06-26T00:00:00.000Z'),
+        dataCom: new Date('2025-06-30T00:00:00.000Z'),
+        tipo: 'JCP',
+        valorUnitario: 1.408226885,
+      },
+      {
+        date: new Date('2026-06-26T00:00:00.000Z'),
+        dataCom: new Date('2025-12-30T00:00:00.000Z'),
+        tipo: 'JCP',
+        valorUnitario: 0.552412806,
+      },
+    ]);
+
+    await ensurePortfolioProventosFromMarket({
+      ...baseParams,
+      ticker: 'SAPR11',
+      transactions: [
+        { date: new Date('2025-01-15'), quantity: 100, type: 'compra' },
+        { date: new Date('2025-09-10'), quantity: 100, type: 'compra' },
+      ],
+      portfolioQuantity: 200,
+    });
+
+    expect(mockPrisma.portfolioProvento.create).toHaveBeenCalledTimes(1);
+    const data = mockPrisma.portfolioProvento.create.mock.calls[0][0].data;
+    // 100 × 1,408226885 + 200 × 0,552412806 = 140,8226885 + 110,4825612 = 251,3052497
+    expect(data.valorTotal).toBeCloseTo(251.30525, 5);
+    expect(data.dataCom.toISOString().slice(0, 10)).toBe('2025-06-30');
+    expect(data.quantidadeBase).toBe(100);
   });
 });
