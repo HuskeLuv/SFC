@@ -6,6 +6,7 @@
 import type { PrismaClient } from '@prisma/client';
 import { SCORING_PARAMS_V1 } from '@/services/analiseAtivos/params/scoringParamsV1';
 import { raizTicker } from '@/services/analiseAtivos/repositorio/conversao';
+import { ESCOPO_POR_RAIZ_PADRAO } from '@/services/analiseAtivos/regras/acoes/financeiras';
 import type {
   ClasseTitulo,
   EmissorInfo,
@@ -33,7 +34,8 @@ export async function listarTickersAcoes(prisma: PrismaClient): Promise<TickerAc
  * Emissores (CvmCompany) com setor B3 pela raiz dos tickers vigentes. Financeira/banco pelo SEGMENTO
  * B3 (params.financeiras) + holdings financeiras por raiz; sem AssetSetorB3 (fatia C ainda não rodou)
  * cai para CvmCompany.layoutFinanceiro (fatia A) — banco e financeira. escopoPreferido: 'ind' para
- * banco (decisão 3), senão 'con'.
+ * banco (decisão 3), senão 'con' — salvo exceção por raiz (params.financeiras.escopoPorRaiz ou, sem
+ * ela no JSON, ESCOPO_POR_RAIZ_PADRAO: ITUB e BRBI pelo consolidado, backtest 18/10 A10).
  */
 export async function listarEmissores(
   prisma: PrismaClient,
@@ -61,6 +63,7 @@ export async function listarEmissores(
     : [];
   const setorPorRaiz = new Map(setores.map((s) => [s.raiz, s]));
   const f = params.financeiras;
+  const excecoes = f.escopoPorRaiz ?? ESCOPO_POR_RAIZ_PADRAO;
 
   return cias.map((c) => {
     const raizes = (raizesPorCnpj.get(c.cnpj) ?? []).sort();
@@ -77,6 +80,7 @@ export async function listarEmissores(
       ehFinanceira =
         c.layoutFinanceiro || raizes.some((r) => f.holdingsFinanceirasRaiz.includes(r));
     }
+    const excecao = raizes.map((r) => excecoes[r]).find((e) => e !== undefined);
     return {
       cnpj: c.cnpj,
       nome: c.nome,
@@ -88,7 +92,7 @@ export async function listarEmissores(
       segmentoListagem: setor?.segmentoListagem ?? null,
       ehFinanceira,
       ehBanco,
-      escopoPreferido: ehBanco ? f.escopoBancos : f.escopoDemais,
+      escopoPreferido: excecao?.escopo ?? (ehBanco ? f.escopoBancos : f.escopoDemais),
     };
   });
 }

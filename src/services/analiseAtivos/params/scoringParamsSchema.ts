@@ -217,6 +217,17 @@ const baseSchema = z.strictObject({
     holdingsFinanceirasRaiz: z.array(z.string().regex(/^[A-Z0-9]{4}$/)),
     escopoBancos: z.enum(['con', 'ind']),
     escopoDemais: z.enum(['con', 'ind']),
+    /**
+     * Exceção por raiz ao escopo de banco/demais (backtest 18/10/2026, A10): o individual de ITUB é o
+     * da holding (receita 30,7 bi × 387 bi do consolidado). Ausente no JSON gravado (v1/v2 de prod)
+     * ⇒ vale ESCOPO_POR_RAIZ_PADRAO (regras/acoes/financeiras.ts); {} desliga.
+     */
+    escopoPorRaiz: z
+      .record(
+        z.string().regex(/^[A-Z0-9]{4}$/),
+        z.strictObject({ escopo: z.enum(['con', 'ind']), motivo: z.string().min(1) }),
+      )
+      .optional(),
     fallbackSemSetorB3: z.literal('CvmCompany.layoutFinanceiro'),
     notaConferencia: z.string().optional(),
   }),

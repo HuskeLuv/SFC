@@ -24,6 +24,7 @@ import {
   CRITERIA_PARAMS_V2,
   CRITERIA_PARAMS_V2_JSON,
 } from '@/services/analiseAtivos/params/criteriaParamsV2';
+import { ESCOPO_POR_RAIZ_PADRAO } from '@/services/analiseAtivos/regras/acoes/financeiras';
 import { avaliarAtivo } from '@/services/analiseAtivos/regras/criterios/avaliarAtivo';
 import { perfilCriterios } from '@/services/analiseAtivos/regras/criterios/perfilCriterios';
 import {
@@ -64,8 +65,11 @@ function v2Com(ajuste: (j: Record<string, unknown>) => void): CriteriaParams {
   return criteriaParamsSchema.parse(json);
 }
 
-function avaliarAcao(symbol: string, P: CriteriaParams = V2): AvaliacaoAtivo {
-  const a = acao(symbol);
+function avaliarAcao(
+  symbol: string,
+  P: CriteriaParams = V2,
+  a: AcaoFixture = acao(symbol),
+): AvaliacaoAtivo {
   const perfil = perfilCriterios(
     { classe: 'acao', ehFinanceira: a.ehFinanceira, fiiTipo: null, imoveisPlPct: null },
     P,
@@ -209,6 +213,35 @@ describe('financeiras na v2: "n de 6" (literal da spec, §4.1)', () => {
   it('a v1 continua "n de 3"/"n de 2" pelo mesmo caminho (FonteCvm + resolvedor)', () => {
     expect(avaliarAcao('BBAS3', CRITERIA_PARAMS_V1).janelas['5'].aplicaveis).toBe(3);
     expect(avaliarAcao('ITUB4', CRITERIA_PARAMS_V1).janelas['5'].aplicaveis).toBe(2);
+  });
+});
+
+describe('A10 (backtest 18/10): ITUB4 pelo consolidado, não pelo individual da holding', () => {
+  const escopo = ESCOPO_POR_RAIZ_PADRAO.ITUB.escopo;
+  const comEscopo = (e: 'con' | 'ind') => ({ ...acao('ITUB4'), escopoPreferido: e });
+
+  it('exceção do código: ITUB e BRBI pelo consolidado', () => {
+    expect(escopo).toBe('con');
+    expect(ESCOPO_POR_RAIZ_PADRAO.BRBI.escopo).toBe('con');
+  });
+
+  it('antes (individual): margem acima de 100% "atende" e receita da holding "não atende"', () => {
+    const a = avaliarAcao('ITUB4', V2, comEscopo('ind'));
+    expect(res(a, 'mg').fato).toBe('positiva em 5 de 5 anos · mín. 147,2%');
+    expect(estado(a, 'rec')).toBe('nao_atende');
+    expect(res(a, 'rec').fato).toBe('cresceu em 4 de 5 anos · 4.102 → 30.680 (R$ mi)');
+  });
+
+  it('depois (consolidado): receita 173,8 → 387,1 bi cresce 5 de 5; margem real ~11–15%', () => {
+    const a = avaliarAcao('ITUB4', V2, comEscopo(escopo));
+    expect(estado(a, 'rec')).toBe('atende');
+    expect(res(a, 'rec').fato).toBe('cresceu em 5 de 5 anos · 173.757 → 387.118 (R$ mi)');
+    expect(estado(a, 'mg')).toBe('atende');
+    expect(res(a, 'mg').fato).toBe('positiva em 5 de 5 anos · mín. 10,5%');
+    for (const j of ['3', '5', '10'] as const) {
+      const mg = res(a, 'mg', j).serie ?? [];
+      for (const p of mg) if (p.valor !== null) expect(p.valor, `j${j} ${p.ano}`).toBeLessThan(100);
+    }
   });
 });
 
