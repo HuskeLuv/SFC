@@ -144,6 +144,31 @@ describe('último arquivado vence (reapresentação e desdobramento)', () => {
   });
 });
 
+describe('sinal trocado no arquivo (CCI)', () => {
+  it('dividendos pagos negativos voltam ao valor absoluto e o Declared deixa de ser suspeito', () => {
+    const ps = periodos('CCI');
+    for (const ano of [2017, 2022, 2023, 2024, 2025]) {
+      const p = fy(ps, ano);
+      expect(p.dividendosJcpPagos).toBeGreaterThan(0);
+      expect(p.dpa).toBeGreaterThan(0);
+      expect(p.sourceConcept.sinalCorrigido).toMatch(/dividendosPagos/);
+    }
+    expect(fy(ps, 2024)).toMatchObject({ dpaOrigem: 'declared', dpa: 6.26 });
+    expect(mi(fy(ps, 2024).dividendosJcpPagos)).toBe(2_729);
+    expect(fy(ps, 2021).sourceConcept.sinalCorrigido).toBeUndefined();
+  });
+
+  it('nenhum DPA, dividendo, capex ou recompra negativo nas fixtures', () => {
+    for (const nome of ['AAPL', 'MSFT', 'KO', 'O', 'PLD', 'SPG', 'AMT', 'PSA', 'DLR', 'CCI']) {
+      for (const p of periodos(nome)) {
+        for (const v of [p.dpa, p.dividendosJcpPagos, p.capex, p.recompras]) {
+          if (v !== null) expect([nome, p.anoFiscal, v >= 0]).toEqual([nome, p.anoFiscal, true]);
+        }
+      }
+    }
+  });
+});
+
 describe('cadeias de conceitos', () => {
   it('LLY: capex de PaymentsToAcquireOtherPropertyPlantAndEquipment', () => {
     const p = fy(periodos('LLY'), 2024);

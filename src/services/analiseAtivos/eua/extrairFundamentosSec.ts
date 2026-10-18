@@ -17,6 +17,8 @@
  *   (flag dpa_derivado; Declared suspeito ganha também declared_suspeito);
  * - dividendos pagos: cadeia (… → PaymentsOfCapitalDistribution) → DPA × média diluída
  *   (sourceConcept 'derivado:dpa×acoesMediaDiluida');
+ * - capex, dividendos pagos, recompras e DPA são positivos: sinal trocado no arquivo (CCI) volta
+ *   ao valor absoluto (sourceConcept.sinalCorrigido);
  * - dívida bruta TOTAL em dividaBrutaLp (dividaBrutaCp = null: o XBRL não separa de forma estável);
  *   sem conceito de dívida = null (sem dado — nunca zero).
  *
@@ -230,6 +232,15 @@ export interface OpcoesExtracao {
   anoMinimo?: number;
 }
 
+/** Campos que o US GAAP informa como valor positivo (saída de caixa, dividendo por ação). */
+export const CAMPOS_POSITIVOS: readonly CampoSec[] = [
+  'capex',
+  'dividendosPagos',
+  'recompras',
+  'dpaCashPaid',
+  'dpaDeclared',
+];
+
 /** Campos comparados entre anos para a flag 'troca_conceito'. */
 const CAMPOS_TROCA: readonly string[] = [
   'receita',
@@ -274,6 +285,16 @@ export function extrairFundamentosSec(
     const { fim, ini } = porAno.get(anoFiscal)!;
     const v = {} as Record<CampoSec, ValorCampo | null>;
     for (const campo of CAMPOS_SEC) v[campo] = valorDaCadeia(ler, CADEIAS_SEC[campo], fim);
+    // saídas de caixa e dividendo por ação são positivos por definição no US GAAP; o sinal trocado
+    // é erro do arquivo (CCI: PaymentsOfDividendsCommonStock negativo nos 10-K de 2020, 2025 e 2026)
+    const sinalTrocado: string[] = [];
+    for (const campo of CAMPOS_POSITIVOS) {
+      const x = v[campo];
+      if (x && x.val < 0) {
+        v[campo] = { ...x, val: -x.val };
+        sinalTrocado.push(campo);
+      }
+    }
 
     const ancora = v.receita ?? v.lucroControladora ?? v.fco;
     if (!ancora) continue;
@@ -350,6 +371,7 @@ export function extrairFundamentosSec(
     if (d.conceito) fonte.dpa = d.conceito;
     flags.push(...d.flags);
 
+    if (sinalTrocado.length > 0) fonte.sinalCorrigido = sinalTrocado.join(',');
     if (ajustes.length > 0) fonte.ajusteDesdobramento = [...new Set(ajustes)].join(',');
 
     let dividendosJcpPagos: number | null = usar('dividendosJcpPagos', pagos);

@@ -1,6 +1,6 @@
 /**
  * Séries de Stocks e REITs (fatia B) contra a fixture RECORTADA de companyfacts da SEC
- * (fixtures/eua-dev.json, 26 empresas, FY 2014–2025) e contra a medição do desenho
+ * (fixtures/eua-dev.json, 27 empresas, FY 2014–2025) e contra a medição do desenho
  * (docs/analise-ativos/stocks-reits/medicao-criterios.json → amostra2021_2025).
  */
 import { describe, expect, it } from 'vitest';
@@ -70,8 +70,8 @@ function fy(parcial: Partial<FySec>): FySec {
 }
 
 describe('fixture eua-dev.json', () => {
-  it('26 empresas (11 stocks, 15 REITs), FY até 2025, todas com o CIK no emissorId', () => {
-    expect(EMPRESAS).toHaveLength(26);
+  it('27 empresas (11 stocks, 16 REITs), FY até 2025, todas com o CIK no emissorId', () => {
+    expect(EMPRESAS).toHaveLength(27);
     expect(EMPRESAS.filter((e) => e.classe === 'stock')).toHaveLength(11);
     for (const e of EMPRESAS) {
       expect(e.fys.length).toBeGreaterThan(0);
@@ -221,5 +221,13 @@ describe('regras puras', () => {
       dividendosFcoPctSec({ fco: 200, dividendosJcpPagos: null, dpa: 2, acoesMediaDiluida: 50 }),
     ).toBe(50);
     expect(dpaSec({ dpa: null, dividendosJcpPagos: 30, acoesMediaDiluida: 10 })).toBe(3);
+  });
+
+  it('REIT: DPA ou dividendos negativos (sinal trocado: CCI) = sem dado, nunca dentro do limite', () => {
+    const neg = { fco: 2_943, dividendosJcpPagos: -2_729, dpa: -6.29, acoesMediaDiluida: 434 };
+    expect(dpaSec(neg)).toBeNull();
+    expect(dividendosFcoPctSec(neg)).toBeNull();
+    expect(dpaSec({ ...neg, dpa: 6.26 })).toBe(6.26);
+    expect(dividendosFcoPctSec({ ...neg, dividendosJcpPagos: 2_729 })).toBeCloseTo(92.73, 2);
   });
 });

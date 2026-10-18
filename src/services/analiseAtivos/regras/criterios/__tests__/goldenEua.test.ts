@@ -1,5 +1,5 @@
 /**
- * GOLDEN dos Filtros de Fundamentos EUA (fatia B): 26 empresas da fixture recortada da SEC
+ * GOLDEN dos Filtros de Fundamentos EUA (fatia B): 27 empresas da fixture recortada da SEC
  * (fixtures/eua-dev.json) × janelas 3/5/10, com a criteria_params v3, o MESMO avaliarAtivo do
  * Brasil e o caminho do job (pontosSec → resolverSeries pela prioridade do mercado → ajustarFatosEua).
  * anoFim 2025 (âncora global de 17/10/2026).
@@ -110,12 +110,15 @@ const GOLDEN: Record<string, { perfil: string; '3': string; '5': string; '10': s
   BXP: { perfil: 'reit', '3': 'ANNAAS', '5': 'ANNAAS', '10': 'NNNAAS' },
   AMH: { perfil: 'reit', '3': 'SAAAAS', '5': 'SAAAAS', '10': 'SNNNAS' },
   EQR: { perfil: 'reit', '3': 'SAAAAS', '5': 'SANAAS', '10': 'SNNANS' },
+  // CCI: dividendos pagos com sinal trocado nos 10-K de 2020/2025/2026 (valor absoluto na extração);
+  // 'pay' não atende por 2024 (US$ 2.729 mi ÷ 2.943 mi = 92,7% > 90%)
+  CCI: { perfil: 'reit', '3': 'NNNNNS', '5': 'NNNNNS', '10': 'NNNNNS' },
 };
 
 const IDS_STOCK = ['rec', 'luc', 'ebitda', 'mg', 'dl', 'fcl'];
 const IDS_REIT = ['rec', 'dpa', 'fco_acao', 'dl', 'pay', 'ocup'];
 
-describe('golden EUA — 26 empresas × 3 janelas (v3)', () => {
+describe('golden EUA — 27 empresas × 3 janelas (v3)', () => {
   it('a tabela cobre toda a fixture', () => {
     expect(Object.keys(GOLDEN).sort()).toEqual(EMPRESAS.map((e) => e.symbol).sort());
   });

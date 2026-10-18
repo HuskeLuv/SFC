@@ -12,6 +12,7 @@
  *  - cash_payout_pct: dividendos pagos ÷ FCO × 100 (no lugar do payout sobre o AFFO). Dividendos
  *    pagos ausentes = DPA × média diluída (SPG/PSA). FCO ≤ 0 = +Infinity (fora do limite; o job
  *    troca o fato para 'caixa operacional ≤ 0 em AAAA');
+ *  - DPA ou dividendos negativos (sinal trocado no arquivo) = sem dado, nunca 'atende';
  *  - occupancy: NÃO existe no companyfacts → nenhum ponto (o critério 'ocup' é inativo na v3).
  * Pura.
  */
@@ -44,6 +45,9 @@ export const SERIES_REIT: readonly SerieReit[] = [
 const finito = (v: number | null | undefined): v is number =>
   typeof v === 'number' && Number.isFinite(v);
 
+/** Dividendo (total ou por ação) só vale ≥ 0: negativo é sinal trocado no arquivo = sem dado. */
+const naoNegativo = (v: number | null | undefined): v is number => finito(v) && v >= 0;
+
 const acoesValidas = (f: Pick<FySec, 'acoesMediaDiluida'>): number | null =>
   finito(f.acoesMediaDiluida) && f.acoesMediaDiluida > 0 ? f.acoesMediaDiluida : null;
 
@@ -51,18 +55,18 @@ const acoesValidas = (f: Pick<FySec, 'acoesMediaDiluida'>): number | null =>
 export function dpaSec(
   f: Pick<FySec, 'dpa' | 'dividendosJcpPagos' | 'acoesMediaDiluida'>,
 ): number | null {
-  if (finito(f.dpa)) return f.dpa;
+  if (naoNegativo(f.dpa)) return f.dpa;
   const acoes = acoesValidas(f);
-  return acoes !== null && finito(f.dividendosJcpPagos) ? f.dividendosJcpPagos / acoes : null;
+  return acoes !== null && naoNegativo(f.dividendosJcpPagos) ? f.dividendosJcpPagos / acoes : null;
 }
 
 /** Dividendos pagos (US$): os do fluxo de caixa; sem eles, DPA × média diluída. */
 export function dividendosPagosSec(
   f: Pick<FySec, 'dpa' | 'dividendosJcpPagos' | 'acoesMediaDiluida'>,
 ): number | null {
-  if (finito(f.dividendosJcpPagos)) return f.dividendosJcpPagos;
+  if (naoNegativo(f.dividendosJcpPagos)) return f.dividendosJcpPagos;
   const acoes = acoesValidas(f);
-  return acoes !== null && finito(f.dpa) ? f.dpa * acoes : null;
+  return acoes !== null && naoNegativo(f.dpa) ? f.dpa * acoes : null;
 }
 
 /** FCO ÷ média diluída (US$/ação). */
