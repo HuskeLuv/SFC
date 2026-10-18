@@ -124,6 +124,9 @@ export const TEXTOS_EUA_TELAS = {
     ano: 'FY',
     unidade: 'US$ bi, exceto por ação e % · ano fiscal (FY) termina em {mes}',
     unidadeSemMes: 'US$ bi, exceto por ação e % · ano fiscal (FY)',
+    /** exercício que termina em jan/fev: o rótulo daqui fica um ano atrás do 10-K da empresa */
+    anoFiscalAnterior:
+      'FY{ano} = exercício encerrado em {mes}/{anoSeguinte}; no 10-K da empresa ele aparece como Fiscal {anoSeguinte}.',
     notaStock:
       'Essencial: o que basta para ver se receita, lucro, caixa e dividendos crescem ano a ano. Lucro líquido: a SEC não publica o lucro sem itens não recorrentes; a coluna usa o lucro dos acionistas.',
     notaReit:

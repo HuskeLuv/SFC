@@ -84,6 +84,19 @@ describe('Essencial EUA', () => {
     expect((ultima.valores.divLiqEbitda as { valor: number }).valor).toBeCloseTo(0.25, 2);
     expect(r.observacoes[0]).toMatch(/termina em set/);
     expect(r.colunasPendentes).toBeUndefined();
+    // set/2025 é o mesmo ano do 10-K: sem a nota do ano fiscal anterior
+    expect(r.observacoes.join(' ')).not.toMatch(/no 10-K da empresa ele aparece/);
+  });
+
+  it('exercício que termina em jan/fev: nota FY2025 = encerrado em jan/2026 = Fiscal 2026 (NVDA)', () => {
+    const base = periodos('AAPL');
+    const nvda = base.map((p) => ({ ...p, dtFim: `${p.anoFiscal + 1}-01-25` }));
+    const r = montarFundamentosEua({ classe: 'stock', periodos: nvda, exercicioFimMmdd: '0125' });
+    expect(r.observacoes[0]).toMatch(/termina em jan/);
+    expect(r.observacoes).toContain(
+      'FY2025 = exercício encerrado em jan/2026; no 10-K da empresa ele aparece como Fiscal 2026.',
+    );
+    expect(r.observacoes.flatMap((t) => encontrarProibidasV2(t))).toEqual([]);
   });
 
   it('O (REIT): sem FFO/AFFO/Ocupação/Imóveis — pendentes com a observação', () => {

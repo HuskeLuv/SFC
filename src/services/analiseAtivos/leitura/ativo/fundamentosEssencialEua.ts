@@ -311,6 +311,20 @@ export function montarFundamentosEua(entrada: {
     mes ? formatarTexto(TE.unidade, { mes }) : TE.unidadeSemMes,
     classe === 'stock' ? TE.notaStock : TE.notaReit,
   ];
+  // término em jan/fev conta como o ano anterior (anoFiscalDoTermino): explica a diferença para o
+  // 'Fiscal AAAA' do 10-K (NVDA FY2025 = exercício encerrado em jan/2026 = Fiscal 2026)
+  const ultimoPeriodo = periodos[periodos.length - 1];
+  const mesFim = ultimoPeriodo ? Number(ultimoPeriodo.dtFim.slice(5, 7)) : 0;
+  const anoFim = ultimoPeriodo ? Number(ultimoPeriodo.dtFim.slice(0, 4)) : 0;
+  if (ultimoPeriodo && mesFim <= 2 && anoFim > ultimoPeriodo.anoFiscal) {
+    observacoes.push(
+      formatarTexto(TE.anoFiscalAnterior, {
+        ano: ultimoPeriodo.anoFiscal,
+        mes: TEXTOS_EUA.exercicio.meses[mesFim - 1],
+        anoSeguinte: anoFim,
+      }),
+    );
+  }
   const degraus: Array<[FlagFundamentoSec, string]> = [
     ['ebitda_pre_ir', TEXTOS_EUA.ebitda.degrauPreIr],
     ['ebitda_lucro', TEXTOS_EUA.ebitda.degrauLucro],
