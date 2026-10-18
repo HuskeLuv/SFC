@@ -94,7 +94,8 @@ const GOLDEN: Record<string, { perfil: string; '3': string; '5': string; '10': s
   GOOGL: { perfil: 'stock', '3': 'AAAAAA', '5': 'ANSAAN', '10': 'ANSASN' },
   LLY: { perfil: 'stock', '3': 'ANNAAN', '5': 'ANNAAN', '10': 'NNNNAN' },
   JPM: { perfil: 'stock_financeira', '3': 'ANNASS', '5': 'ANNASS', '10': 'ANNASS' },
-  'BRK.B': { perfil: 'stock_financeira', '3': 'ANNASN', '5': 'ANNNSN', '10': 'NNNNSN' },
+  // financeiras: dl e fcl 'sem dado' com o motivo fixo (todas, com ou sem a tag no XBRL)
+  'BRK.B': { perfil: 'stock_financeira', '3': 'ANNASS', '5': 'ANNNSS', '10': 'NNNNSS' },
   O: { perfil: 'reit', '3': 'AANNAS', '5': 'AANNAS', '10': 'AANSAS' },
   PLD: { perfil: 'reit', '3': 'AANAAS', '5': 'AANAAS', '10': 'AANNAS' },
   SPG: { perfil: 'reit', '3': 'AANAAS', '5': 'ANNNAS', '10': 'NNNNAS' },
@@ -160,6 +161,27 @@ describe('golden EUA — 27 empresas × 3 janelas (v3)', () => {
     expect(luc?.obs).toEqual(['lucro_sem_descontado']);
     expect(luc?.fonte).toEqual(['sec']);
     expect(luc?.fato).toMatch(/\(US\$ mi\)$/);
+  });
+
+  it('financeiras: dl e fcl sem dado com o motivo factual, mesmo com a tag de dívida (BAC-like)', () => {
+    const jpm = EMPRESAS.find((e) => e.symbol === 'JPM')!;
+    // dívida e capex presentes, como no BAC: o resultado não pode depender da tag
+    const comTag = {
+      ...jpm,
+      fys: jpm.fys.map((f) => ({ ...f, dividaBrutaLp: 1e9, caixa: 5e8, capex: 1e8 })),
+    };
+    for (const e of [jpm, comTag]) {
+      const a = avaliarFixture(e);
+      for (const j of ['3', '5', '10'] as const) {
+        const dl = a.janelas[j].resultados.find((r) => r.id === 'dl')!;
+        const fcl = a.janelas[j].resultados.find((r) => r.id === 'fcl')!;
+        expect(dl).toMatchObject({ estado: 'sem_dado', motivo: 'sem_dado_demonstracoes' });
+        expect(dl.fato).toMatch(/não separa a dívida de financiamento/);
+        expect(fcl).toMatchObject({ estado: 'sem_dado', serie: null });
+        expect(fcl.fato).toMatch(/não separa o CAPEX/);
+        expect(a.janelas[j].aplicaveis).toBe(6);
+      }
+    }
   });
 
   it('dl dos REITs usa o limite de 6× e o das stocks o de 3×', () => {

@@ -13,7 +13,8 @@
  *    ['sec']) → avaliarAtivo/avaliarCriterio INALTERADOS, com o MESMO anoFimGlobal do Brasil e o
  *    perfil de perfilCriteriosEua (stock | stock_financeira | reit).
  *    O 'pay' com caixa operacional ≤ 0 vem do motor como o fato do EBITDA ≤ 0 (a série é +Infinity):
- *    ajustarFatosEua troca pelo fato 'caixa operacional ≤ 0 em AAAA' (texto já da fatia 0).
+ *    ajustarFatosEua troca pelo fato 'caixa operacional ≤ 0 em AAAA' (texto já da fatia 0) e põe
+ *    'dl'/'fcl' das financeiras em 'sem dado' com o motivo factual (todas, com ou sem a tag).
  * 4. Grava criteria_eval (cnpj 'CIK:##########', classe stock|reit) pelo gravador ISOLADO da fatia 0
  *    com CLASSES_EUA: nunca apaga acao/fii; symbol já gravado com classe BR = erro antes de escrever.
  *    Estourou o prazo antes do fim ⇒ 'parcial' SEM gravar.
@@ -33,7 +34,10 @@ import {
 import { pontosSec } from '@/services/analiseAtivos/fontes/fundamentos/fonteSec';
 import { resolverSeries } from '@/services/analiseAtivos/fontes/fundamentos/resolverSeries';
 import { anoFimGlobal } from '@/services/analiseAtivos/regras/criterios/ancoraJanela';
-import { avaliarAtivo } from '@/services/analiseAtivos/regras/criterios/avaliarAtivo';
+import {
+  avaliarAtivo,
+  contarResultados,
+} from '@/services/analiseAtivos/regras/criterios/avaliarAtivo';
 import { perfilCriteriosEua } from '@/services/analiseAtivos/regras/criterios/perfilCriteriosEua';
 import { lerBrutosSec, type BrutoSec } from '@/services/analiseAtivos/regras/criterios/seriesStock';
 import {
@@ -156,19 +160,43 @@ export function seriesDoPerfilEua(
   return [...out];
 }
 
+/** stock_financeira: dl e fcl ficam 'sem dado' para TODAS as financeiras, com o motivo fixo. */
+const FATO_FINANCEIRA: Partial<Record<IdCriterio, string>> = {
+  dl: TEXTOS_CRITERIOS.fatos.financeiraSemDividaLiquida,
+  fcl: TEXTOS_CRITERIOS.fatos.financeiraSemFcl,
+};
+
 /**
- * 'pay' com FCO ≤ 0: o motor (inalterado) devolve 'nao_atende' com o fato do EBITDA ≤ 0, porque a
- * série vem +Infinity. Troca pelo fato do caixa operacional (TEXTOS_CRITERIOS) e tira o motivo do
- * EBITDA. O ano é o último da janela com o valor infinito (na série gravada ele fica null). Pura.
+ * Ajustes EUA sobre a saída do motor (inalterado). Pura.
+ * - 'pay' com FCO ≤ 0: o motor devolve 'nao_atende' com o fato do EBITDA ≤ 0, porque a série vem
+ *   +Infinity. Troca pelo fato do caixa operacional (TEXTOS_CRITERIOS) e tira o motivo do EBITDA.
+ *   O ano é o último da janela com o valor infinito (na série gravada ele fica null).
+ * - stock_financeira (n de 6 literal, decisão de 17/10): 'dl' e 'fcl' = 'sem dado' com o motivo
+ *   factual, para todas as financeiras. Sem isso o resultado dependia da tag existir no XBRL (JPM e
+ *   BRK sem dado; BAC, AFL, AXP e UNH "atende" — no BAC a dívida líquida desconta caixa e depósitos e
+ *   vira caixa líquido). As contagens da janela são refeitas (contarResultados).
  */
 export function ajustarFatosEua(
   a: AvaliacaoAtivo,
   serieValores: Readonly<Record<number, number | null>> | undefined,
 ): AvaliacaoAtivo {
   const janelas = { ...a.janelas };
+  const financeira = a.perfil === 'stock_financeira';
   for (const k of Object.keys(janelas) as ChaveJanela[]) {
     const j = janelas[k];
     const resultados = j.resultados.map((r): ResultadoCriterio => {
+      const fatoFinanceira = financeira ? FATO_FINANCEIRA[r.id] : undefined;
+      if (fatoFinanceira) {
+        return {
+          id: r.id,
+          estado: 'sem_dado',
+          n: null,
+          de: null,
+          fato: fatoFinanceira,
+          motivo: 'sem_dado_demonstracoes',
+          serie: null,
+        };
+      }
       if (r.id !== 'pay' || r.motivo !== 'ebitda_nao_positivo') return r;
       const anos = (r.serie ?? [])
         .map((p) => p.ano)
@@ -180,7 +208,9 @@ export function ajustarFatosEua(
         fato: formatarTexto(TEXTOS_CRITERIOS.fatos.caixaOperacionalNaoPositivo, { ano }),
       };
     });
-    janelas[k] = { ...j, resultados };
+    janelas[k] = financeira
+      ? { ...j, ...contarResultados(resultados), resultados }
+      : { ...j, resultados };
   }
   return { ...a, janelas };
 }

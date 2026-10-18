@@ -119,6 +119,11 @@ export const TEXTOS_CRITERIOS = {
     ebitdaNaoPositivo: 'EBITDA ≤ 0 em {ano}',
     /** EUA (REIT, 'pay'): dividendos ÷ caixa operacional com FCO ≤ 0 = não atende */
     caixaOperacionalNaoPositivo: 'caixa operacional ≤ 0 em {ano}',
+    /** EUA (stock_financeira, 'dl' e 'fcl'): sem dado para todas as financeiras, com o motivo */
+    financeiraSemDividaLiquida:
+      'sem dado nas demonstrações · o balanço de bancos e seguradoras não separa a dívida de financiamento dos depósitos e captações',
+    financeiraSemFcl:
+      'sem dado nas demonstrações · o fluxo de caixa de bancos e seguradoras não separa o CAPEX, e o caixa operacional inclui depósitos e captações',
   },
 
   /**
