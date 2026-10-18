@@ -13,6 +13,10 @@
  *    resumo, Planejamento e o overlay da análise) para a Carteira mostrar o objetivo/planejado.
  * Erros das rotas chegam como ErroCarteira com a MENSAGEM REAL da rota (ex.: 'Campos obrigatórios:
  * tipoAtivo, instituicaoId', 'Instituição inválida para este investimento').
+ *
+ * Stocks/REITs (feature EUA, fatia D): o objetivo gravado entra na chave que o ticker já ocupa no
+ * overlay (BRK.B ou, sem o cadastro da SEC, BRKB — chaveNoOverlay); o corpo da compra EUA (CorpoCompraEua) vai para a mesma
+ * rota /api/carteira/operacao, com o Asset manual da posição na recompra.
  */
 import {
   keepPreviousData,
@@ -25,6 +29,7 @@ import {
 import { useCsrf } from '@/hooks/useCsrf';
 import { queryKeys } from '@/lib/queryKeys';
 import { invalidatePortfolioDerivedQueries } from '@/lib/invalidatePortfolio';
+import { chaveNoOverlay } from '@/services/analiseAtivos/carteira/tickerCarteiraEua';
 import type {
   CorpoCompraOperacao,
   CorpoResgateVenda,
@@ -163,7 +168,7 @@ export function aplicarAlvoNoOverlay(
   alvo: ObjetivoAtivoApi | null,
 ): OverlayCarteiraResposta | undefined {
   if (!overlay) return overlay;
-  const t = ticker.toUpperCase();
+  const t = chaveNoOverlay(overlay, ticker);
   const posicoes = { ...overlay.posicoes };
   const planejados = { ...overlay.planejados };
   if (!alvo) {

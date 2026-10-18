@@ -15,8 +15,10 @@ import {
   MENSAGEM_SEM_ACESSO,
   estadoAcessoAnalise,
   exigirAcessoAnalise,
+  exigirClasseAnalise,
   exigirRecursoAnalise,
   exigirRecursosAnalise,
+  flagsEua,
   flagsRecursosBlocoD,
   limparCacheAcessoAnalise,
   podeAcessarAnaliseAtivos,
@@ -134,6 +136,8 @@ describe('acessoAnalise', () => {
       salvos: 'ANALISE_ATIVOS_SALVOS_HABILITADO',
       alertas: 'ANALISE_ATIVOS_ALERTAS_HABILITADO',
       pdfComparador: 'ANALISE_ATIVOS_PDF_HABILITADO',
+      eua: 'ANALISE_ATIVOS_EUA_HABILITADO',
+      euaPreco: 'ANALISE_ATIVOS_EUA_PRECO_HABILITADO',
     };
     /** Recursos sem dependência (alertas e pdfComparador têm testes próprios abaixo). */
     const RECURSOS: RecursoBlocoD[] = ['raioX', 'cenarios', 'comparador', 'salvos'];
@@ -144,6 +148,8 @@ describe('acessoAnalise', () => {
       salvos: false,
       alertas: false,
       pdfComparador: false,
+      eua: false,
+      euaPreco: false,
     };
     const authUsuario = (id: string, role = 'user') => ({
       payload: { id, email: 'a@b', role },
@@ -163,6 +169,56 @@ describe('acessoAnalise', () => {
     it('flags desligadas: tudo false sem consultar o banco', async () => {
       expect(await recursosLiberados('u1')).toEqual(DESLIGADO);
       expect(mockPrisma.user.findUnique).not.toHaveBeenCalled();
+    });
+
+    describe('EUA (Stocks e REITs, fatia 0)', () => {
+      it('EUA_PRECO sem EUA = desligado; com EUA, liga', () => {
+        vi.stubEnv('ANALISE_ATIVOS_EUA_PRECO_HABILITADO', 'true');
+        expect(flagsRecursosBlocoD()).toEqual(DESLIGADO);
+        expect(flagsEua()).toEqual({ eua: false, euaPreco: false });
+        vi.stubEnv('ANALISE_ATIVOS_EUA_HABILITADO', 'true');
+        expect(flagsRecursosBlocoD()).toEqual({ ...DESLIGADO, eua: true, euaPreco: true });
+        vi.stubEnv('ANALISE_ATIVOS_EUA_PRECO_HABILITADO', 'false');
+        expect(flagsEua()).toEqual({ eua: true, euaPreco: false });
+      });
+
+      it('só valem com a área liberada para o usuário', async () => {
+        vi.stubEnv('ANALISE_ATIVOS_EUA_HABILITADO', 'true');
+        vi.stubEnv('ANALISE_ATIVOS_EUA_PRECO_HABILITADO', 'true');
+        expect(await recursosLiberados('u1', 'liberada')).toEqual({
+          ...DESLIGADO,
+          eua: true,
+          euaPreco: true,
+        });
+        expect(await recursosLiberados('u1', 'fora_do_beta')).toEqual(DESLIGADO);
+      });
+
+      it('exigirClasseAnalise: stock/reit sem a chave → 404 antes da sessão; acao/fii seguem', async () => {
+        vi.stubEnv('ANALISE_ATIVOS_HABILITADA', 'true');
+        vi.stubEnv('ANALISE_ATIVOS_ACESSO', 'todos');
+        mockRequireAuthWithActing.mockResolvedValue(authUsuario('u1'));
+        for (const classe of ['stock', 'reit'] as const) {
+          await expect(exigirClasseAnalise(req(), classe)).rejects.toMatchObject({
+            statusCode: 404,
+            message: MENSAGEM_SEM_ACESSO,
+          });
+        }
+        expect(mockRequireAuthWithActing).not.toHaveBeenCalled();
+        await expect(exigirClasseAnalise(req(), 'acao')).resolves.toMatchObject({
+          targetUserId: 'u1',
+        });
+        vi.stubEnv('ANALISE_ATIVOS_EUA_HABILITADO', 'true');
+        await expect(exigirClasseAnalise(req(), 'reit')).resolves.toMatchObject({
+          targetUserId: 'u1',
+        });
+      });
+
+      it('área desligada → 404 mesmo com a chave EUA', async () => {
+        vi.stubEnv('ANALISE_ATIVOS_HABILITADA', 'false');
+        vi.stubEnv('ANALISE_ATIVOS_EUA_HABILITADO', 'true');
+        await expect(exigirClasseAnalise(req(), 'stock')).rejects.toBeInstanceOf(ApiError);
+        expect(mockRequireAuthWithActing).not.toHaveBeenCalled();
+      });
     });
 
     describe('bloco 1: dependências entre as flags', () => {

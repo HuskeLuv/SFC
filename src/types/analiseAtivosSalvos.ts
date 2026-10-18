@@ -31,10 +31,13 @@ import type { DefCriterioChip, IdCriterio, Janela } from '@/types/analiseAtivosC
 // Comuns
 // ===========================================================================
 
-/** Classe de um item salvo. No bloco 1 o zod aceita só 'acao' | 'fii' (stock/reit reservadas). */
+/**
+ * Classe de um item salvo. No bloco 1 o zod aceita só 'acao' | 'fii'; stock/reit entram pela fatia D
+ * da feature EUA (ClasseSalvoSchema com ANALISE_ATIVOS_EUA_HABILITADO).
+ */
 export type ClasseItemSalvo = ClasseQuadro;
-/** Classes que a coluna `classe` admite no banco (stock/reit entram no bloco 4). */
-export type ClasseItemReservada = ClasseQuadro | 'stock' | 'reit';
+/** Classes que a coluna `classe` admite no banco (= ClasseQuadro desde a fatia 0 da feature EUA). */
+export type ClasseItemReservada = ClasseQuadro;
 
 /** Limites por usuário (salvos/contrato.ts, LIMITES_SALVOS), devolvidos nas respostas. */
 export interface LimitesSalvos {
@@ -79,6 +82,9 @@ export interface AlertasLista {
 export interface ContagemPorClasse {
   acao: number;
   fii: number;
+  /** EUA (fatia D): ausente = 0 */
+  stock?: number;
+  reit?: number;
 }
 
 export interface ResumoLista {

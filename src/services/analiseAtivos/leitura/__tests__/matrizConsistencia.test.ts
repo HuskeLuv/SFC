@@ -111,21 +111,24 @@ function linhaFii(over: Partial<AnaliseQuadroLinha> = {}): AnaliseQuadroLinha {
   });
 }
 
-const linhaDe = (classe: ClasseConferencia, over: Partial<AnaliseQuadroLinha> = {}) =>
+/** Só as classes BR: os grupos de conferência não disparam em stock/reit. */
+type ClasseBrTeste = Extract<ClasseConferencia, 'acao' | 'fii'>;
+
+const linhaDe = (classe: ClasseBrTeste, over: Partial<AnaliseQuadroLinha> = {}) =>
   classe === 'acao' ? linhaAcao(over) : linhaFii(over);
 
 /** Campos com Estado no Quadro, por classe (LinhaQuadroApi). */
-const CAMPOS_QUADRO: Record<ClasseConferencia, CampoTela[]> = {
+const CAMPOS_QUADRO: Record<ClasseBrTeste, CampoTela[]> = {
   acao: ['roe', 'pl', 'pvp', 'dy12m', 'margemLiquida', 'divLiqEbitda', 'payout'],
   fii: ['pvp', 'dy12m', 'vacanciaCvm', 'obrigacoesPl'],
 };
 
-const BRUTOS: Record<ClasseConferencia, Record<string, number>> = {
+const BRUTOS: Record<ClasseBrTeste, Record<string, number>> = {
   acao: { pl: 10, pvp: 2, dy12m: 5, roe: 20, margemLiquida: 15, divLiqEbitda: 1.2, payout: 50 },
   fii: { pvp: 0.95, dy12m: 9, vacanciaCvm: 5, obrigacoesPl: 20 },
 };
 
-function kpisDe(api: LinhaQuadroApi, classe: ClasseConferencia) {
+function kpisDe(api: LinhaQuadroApi, classe: ClasseBrTeste) {
   return montarKpis({
     linha: api,
     atuais: { plMedia10a: 9, plPontosHistorico: 8, dpa12m: 1, rend12m: 0.9, vpCota: 100 },
@@ -141,7 +144,7 @@ function kpisDe(api: LinhaQuadroApi, classe: ClasseConferencia) {
 
 const ANOS = Array.from({ length: 12 }, (_, i) => 2014 + i);
 
-function atualVal(classe: ClasseConferencia): AtualValuation {
+function atualVal(classe: ClasseBrTeste): AtualValuation {
   const base: AtualValuation = {
     lpaTtm: 1.5,
     vpa: 5,
@@ -171,7 +174,7 @@ function atualVal(classe: ClasseConferencia): AtualValuation {
     : { ...base, vpCota: 100, rend12m: 9, pvp: 0.95, dy12mPct: 9, obrigacoesPlPct: 20 };
 }
 
-function anualVal(ano: number, i: number, classe: ClasseConferencia): AnualValuation {
+function anualVal(ano: number, i: number, classe: ClasseBrTeste): AnualValuation {
   return {
     anoFiscal: ano,
     pl: 8 + i,
@@ -196,7 +199,7 @@ function anualVal(ano: number, i: number, classe: ClasseConferencia): AnualValua
   };
 }
 
-function valuationDe(api: LinhaQuadroApi, classe: ClasseConferencia) {
+function valuationDe(api: LinhaQuadroApi, classe: ClasseBrTeste) {
   const alvo: DadosAtivoValuation = {
     linha: api,
     regua: classe === 'acao' ? 'acao' : 'fii_tijolo',
@@ -267,7 +270,7 @@ function periodo(ano: number, over: Partial<FundamentosPeriodo> = {}): Fundament
   };
 }
 
-function fundamentosDe(classe: ClasseConferencia, flags: string[]) {
+function fundamentosDe(classe: ClasseBrTeste, flags: string[]) {
   const conferencia = { flags, motivos: [] as string[] };
   if (classe === 'acao') {
     return montarFundamentosAcao({
@@ -349,7 +352,7 @@ const ehOculto = (e: Estado<number>, g: GrupoConferencia) =>
 // ---------------------------------------------------------------------------
 
 const CASOS = GRUPOS_CONFERENCIA.flatMap((g) =>
-  DEF_GRUPO[g].classes.map((classe) => ({ g, classe })),
+  DEF_GRUPO[g].classes.map((classe) => ({ g, classe: classe as ClasseBrTeste })),
 );
 
 describe.each(CASOS)('matriz: grupo $g × classe $classe', ({ g, classe }) => {
@@ -553,7 +556,9 @@ describe('regressão: params v1 (sem flag conf:) = tela da Fase 1', () => {
       }
       const vm = row.valorMercado === null ? null : Number(row.valorMercado.toString());
       expect(api.valorMercado).toBe(vm);
-      expect(kpisDe(api, api.classe).some((k) => k.selo === 'em_conferencia')).toBe(false);
+      expect(
+        kpisDe(api, api.classe as ClasseBrTeste).some((k) => k.selo === 'em_conferencia'),
+      ).toBe(false);
       expect(montarConferenciasTela({ flags: row.flags, classe: api.classe })).toEqual([]);
     }
   });

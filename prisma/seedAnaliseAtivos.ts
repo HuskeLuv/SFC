@@ -21,6 +21,8 @@ import path from 'path';
 import { Prisma, PrismaClient } from '@prisma/client';
 import { CRITERIA_PARAMS_V1_JSON } from '../src/services/analiseAtivos/params/criteriaParamsV1';
 import { CRITERIA_PARAMS_V2_JSON } from '../src/services/analiseAtivos/params/criteriaParamsV2';
+import { CRITERIA_PARAMS_V3_JSON } from '../src/services/analiseAtivos/params/criteriaParamsV3';
+import { semearFixturesEua } from './seedAnaliseAtivosEua';
 
 export const RECURSO_BETA_ANALISE = 'analise-ativos';
 export const EMAIL_DEMO = 'usuario.demo@finapp.local';
@@ -118,11 +120,11 @@ async function carregarFixtures(prisma: PrismaClient): Promise<Record<string, nu
 export const VALIDO_DESDE_CRITERIOS = new Date('2026-10-13T00:00:00.000Z');
 
 /**
- * v2.4/v2.5: criteria_params v1 e v2 + job 'criterios' sobre as fixtures + cópia compacta nas
- * linhas do Quadro. A v2 (maior versão, mesmo validFrom) é a VIGENTE no banco efêmero, como ficará em
- * produção depois da ativação; a v1 entra como foi gravada em produção (nomes legados). Devolve
- * quantas linhas do Quadro ficaram com critérios. Imports dinâmicos: o motor só é carregado quando
- * há fixtures para avaliar.
+ * v2.4/v2.5: criteria_params v1, v2 e v3 + job 'criterios' sobre as fixtures + cópia compacta nas
+ * linhas do Quadro. A v3 (maior versão, mesmo validFrom; Brasil IDÊNTICO à v2, + perfis EUA) é a
+ * VIGENTE no banco efêmero, como ficará em produção depois da ativação; a v1 entra como foi gravada
+ * em produção (nomes legados). Devolve quantas linhas do Quadro ficaram com critérios. Imports
+ * dinâmicos: o motor só é carregado quando há fixtures para avaliar.
  */
 export async function avaliarCriteriosFixtures(prisma: PrismaClient): Promise<number> {
   await prisma.criteriaParams.createMany({
@@ -139,7 +141,14 @@ export async function avaliarCriteriosFixtures(prisma: PrismaClient): Promise<nu
         params: CRITERIA_PARAMS_V2_JSON as unknown as Prisma.InputJsonValue,
         validFrom: VALIDO_DESDE_CRITERIOS,
         createdBy: 'seed',
-        notas: 'seed do banco efêmero (CI/e2e) — o mesmo CRITERIA_PARAMS_V2 do código (vigente)',
+        notas: 'seed do banco efêmero (CI/e2e) — o mesmo CRITERIA_PARAMS_V2 do código',
+      },
+      {
+        version: CRITERIA_PARAMS_V3_JSON.versao,
+        params: CRITERIA_PARAMS_V3_JSON as unknown as Prisma.InputJsonValue,
+        validFrom: VALIDO_DESDE_CRITERIOS,
+        createdBy: 'seed',
+        notas: 'seed do banco efêmero (CI/e2e) — o mesmo CRITERIA_PARAMS_V3 do código (vigente)',
       },
     ],
     skipDuplicates: true,
@@ -170,7 +179,7 @@ export async function avaliarCriteriosFixtures(prisma: PrismaClient): Promise<nu
     aplicar: true,
   });
   for (const a of alertas) console.log(`📈 critérios (seed): ${a}`);
-  const compactos = await repo.lerCompactosPorSimbolo(prisma);
+  const compactos = await repo.lerCompactosPorSimbolo(prisma, { classes: ['acao', 'fii'] });
   let n = 0;
   for (const [symbol, c] of compactos) {
     const r = await prisma.analiseQuadroLinha.updateMany({
@@ -187,6 +196,8 @@ export async function avaliarCriteriosFixtures(prisma: PrismaClient): Promise<nu
 
 export interface DependenciasSeedAnalise {
   avaliarCriterios: (prisma: PrismaClient) => Promise<number>;
+  /** Stocks e REITs (fatia C preenche; stub = 0): fixtures EUA locais, sem rede */
+  semearEua?: (prisma: PrismaClient) => Promise<number>;
 }
 
 /** Demo no beta (idempotente). Devolve false se o usuário demo não existe. */
@@ -208,11 +219,15 @@ export async function colocarDemoNoBeta(prisma: PrismaClient): Promise<boolean> 
 
 export async function seedAnaliseAtivos(
   prisma: PrismaClient,
-  deps: DependenciasSeedAnalise = { avaliarCriterios: avaliarCriteriosFixtures },
+  deps: DependenciasSeedAnalise = {
+    avaliarCriterios: avaliarCriteriosFixtures,
+    semearEua: semearFixturesEua,
+  },
 ): Promise<{ fixtures: Record<string, number> | null; demoNoBeta: boolean }> {
   const temDados = (await prisma.assetScore.count()) > 0;
   const fixtures = temDados ? null : await carregarFixtures(prisma);
   if (fixtures) fixtures.quadroComCriterios = await deps.avaliarCriterios(prisma);
+  if (fixtures && deps.semearEua) fixtures.quadroEua = await deps.semearEua(prisma);
   const demoNoBeta = await colocarDemoNoBeta(prisma);
   return { fixtures, demoNoBeta };
 }

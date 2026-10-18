@@ -15,7 +15,9 @@
  * Ids = valores de data-texto-legal combinados com o designer (design.especificacao_visual):
  * rodape-quadro, aviso-legal-v2, instrucao-comparador-{acoes,fiis}, leitura-dos-dados,
  * rodape-cenarios, aviso-banner, disclaimer-desempenho (+ aviso-legal-v2-selo). Bloco 1:
- * aviso-salvos-alertas (texto fixo dos avisos das listas, pendente de jurídico).
+ * aviso-salvos-alertas (texto fixo dos avisos das listas, pendente de jurídico). Stocks e REITs
+ * (fatia 0 EUA): rodape-quadro-eua, aviso-legal-eua (provisório) e instrucao-comparador-{stocks,
+ * reits} — sem nome de índice de mercado.
  */
 
 export interface TextoLiteral {
@@ -112,6 +114,41 @@ export const AVISO_SALVOS_ALERTAS = literal(
   true,
 );
 
+/**
+ * Rodapé fixo do Quadro EUA (Stocks e REITs): mesma redação do RODAPE_QUADRO com a fonte da SEC.
+ * Cita "melhor" na negativa (literal). Sem nome de índice de mercado.
+ */
+export const RODAPE_QUADRO_EUA = literal(
+  'rodape-quadro-eua',
+  'Os filtros e a coluna "Critérios" verificam, ano a ano, dados contábeis históricos dos relatórios anuais 10-K entregues à SEC. Nenhum critério é opinião do My Finance, e atender a mais critérios não significa ser melhor investimento. Rentabilidade passada não é garantia de resultados futuros.',
+  'spec v2.4 §3.1 (rodapé do Quadro), adaptado a Stocks e REITs (docs/analise-ativos/stocks-reits/desenho.json)',
+);
+
+/** Aviso legal das telas EUA (RODAPE_LEGAL_V2 com a fonte da SEC). PROVISÓRIO para o jurídico. */
+export const RODAPE_LEGAL_EUA = literal(
+  'aviso-legal-eua',
+  'O My Finance é uma ferramenta de organização financeira e de dados. Os filtros, as tabelas e os comparativos de Stocks e REITs reproduzem informações contábeis históricas dos relatórios anuais 10-K entregues à SEC (Securities and Exchange Commission, dos EUA). Nada nesta área constitui análise, consultoria ou recomendação de investimento (Resoluções CVM 19/2021 e 20/2021). Rentabilidade passada não é garantia de resultados futuros. Decisões de investimento são de responsabilidade exclusiva do usuário.',
+  'spec v2.4 §9 (aviso legal), adaptado a Stocks e REITs; decisão do Wellington de 17/10/2026',
+  true,
+);
+
+/** Aviso legal do mercado da tela: Brasil (CVM) ou Stocks e REITs (SEC). */
+export function rodapeLegalDoMercado(mercado: 'br' | 'eua'): TextoLiteral {
+  return mercado === 'eua' ? RODAPE_LEGAL_EUA : RODAPE_LEGAL_V2;
+}
+
+/** Instrução do Comparador EUA (§3.3) — uma por classe (casamento exato). */
+export const INSTRUCAO_COMPARADOR_STOCKS = literal(
+  'instrucao-comparador-stocks',
+  'Compare até 4 stocks lado a lado · dados dos relatórios anuais 10-K, sem ranking nem destaque',
+  'spec v2.4 §3.3 (barra do Comparador), adaptado a Stocks',
+);
+export const INSTRUCAO_COMPARADOR_REITS = literal(
+  'instrucao-comparador-reits',
+  'Compare até 4 REITs lado a lado · dados dos relatórios anuais 10-K, sem ranking nem destaque',
+  'spec v2.4 §3.3 (barra do Comparador), adaptado a REITs',
+);
+
 const LISTA: readonly TextoLiteral[] = [
   RODAPE_QUADRO,
   RODAPE_LEGAL_V2,
@@ -123,6 +160,10 @@ const LISTA: readonly TextoLiteral[] = [
   AVISO_BANNER,
   DISCLAIMER_DESEMPENHO,
   AVISO_SALVOS_ALERTAS,
+  RODAPE_QUADRO_EUA,
+  RODAPE_LEGAL_EUA,
+  INSTRUCAO_COMPARADOR_STOCKS,
+  INSTRUCAO_COMPARADOR_REITS,
 ];
 
 /** Registro por id (= valor de data-texto-legal). */

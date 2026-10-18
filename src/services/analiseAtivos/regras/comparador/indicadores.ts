@@ -15,9 +15,14 @@
  *
  * Cada extrator devolve o Estado ANTES da política de conferência; montarComparador aplica a
  * conferência pelo `campoTela` (chip 'em conferência').
+ *
+ * Stocks e REITs (fatia C): grupos próprios, do último FY da SEC na linha do Quadro, SEM cotação
+ * (decisão do Wellington de 17/10) — stock: Qualidade · Endividamento · Dividendos; REIT: Geração
+ * de caixa · Qualidade · Endividamento · Dividendos. Sem ganhador e sem cor, como no Brasil.
  */
 import type { CampoTela } from '@/services/analiseAtivos/regras/comum/conferencia';
 import { TEXTOS_COMPARADOR } from '@/services/analiseAtivos/textosComparador';
+import { TEXTOS_EUA_TELAS } from '@/services/analiseAtivos/textosEuaTelas';
 import { TEXTOS_TELA } from '@/services/analiseAtivos/textosTela';
 import type { TipoAtivoComparador } from '@/types/analiseAtivosBlocoD';
 import type {
@@ -57,7 +62,8 @@ export interface DadosAtivoComparador {
   cnpjEmConferencia: boolean;
 }
 
-type CodigoLinha = Exclude<keyof typeof TEXTOS_COMPARADOR.linhas, 'semNegociacao'>;
+type CodigoLinhaEua = keyof typeof TEXTOS_EUA_TELAS.comparador.linhas;
+type CodigoLinha = Exclude<keyof typeof TEXTOS_COMPARADOR.linhas, 'semNegociacao'> | CodigoLinhaEua;
 
 export interface DefIndicador {
   codigo: CodigoLinha;
@@ -96,7 +102,8 @@ export function tipoDoAtivo(
   criterios: Pick<CriteriosLinhaApi, 'perfil'> | null,
   regua: string | null = null,
 ): TipoAtivoComparador {
-  if (linha.classe === 'acao') return 'acao';
+  // ação, stock e REIT: um tipo só (o Comparador EUA não mistura classes)
+  if (linha.classe !== 'fii') return 'acao';
   if (criterios?.perfil === 'fii_tijolo') return 'tijolo';
   if (criterios?.perfil === 'fii_papel') return 'papel';
   if (regua === 'fii_tijolo') return 'tijolo';
@@ -148,7 +155,10 @@ type Base = Omit<DefIndicador, 'rotulo' | 'sub' | 'aplicavel' | 'fonteCvmAviso'>
 };
 
 function linha(b: Base): DefIndicador {
-  const t = TL[b.codigo];
+  const t =
+    b.codigo in TL
+      ? TL[b.codigo as Exclude<CodigoLinha, CodigoLinhaEua>]
+      : TEXTOS_EUA_TELAS.comparador.linhas[b.codigo as CodigoLinhaEua];
   return {
     ...b,
     rotulo: t.rotulo,
@@ -373,7 +383,105 @@ export const GRUPOS_FII: DefGrupoComparador[] = [
   },
 ];
 
+// ---------------------------------------------------------------------------
+// Stocks e REITs (fatia C)
+// ---------------------------------------------------------------------------
+
+const GE = TEXTOS_EUA_TELAS.comparador.grupos;
+const EUA: TipoAtivoComparador[] = ['acao'];
+
+const QUALIDADE_EUA = [
+  linha({
+    codigo: 'lucrosSeguidosEua',
+    formato: 'inteiro',
+    campoTela: null,
+    extrator: (d) => okOuSemDado(d.linha.anosLucroConsecutivos),
+  }),
+  linha({ codigo: 'roeEua', formato: 'pct', campoTela: null, extrator: (d) => d.linha.roe }),
+  linha({
+    codigo: 'margemEua',
+    formato: 'pct',
+    campoTela: null,
+    extrator: (d) => d.linha.margemLiquida,
+  }),
+];
+
+const DIVIDA_EUA = linha({
+  codigo: 'divLiqEbitdaEua',
+  formato: 'multiplo',
+  campoTela: null,
+  extrator: (d) => d.linha.divLiqEbitda,
+});
+
+const DPA_EUA = linha({
+  codigo: 'dpaEua',
+  formato: 'numero2',
+  campoTela: null,
+  extrator: (d) => okOuSemDado(d.linha.dpa),
+});
+
+export const GRUPOS_STOCK: DefGrupoComparador[] = [
+  { codigo: 'qualidade', rotulo: GE.qualidade, aplicavelA: EUA, linhas: QUALIDADE_EUA },
+  { codigo: 'endividamento', rotulo: GE.endividamento, aplicavelA: EUA, linhas: [DIVIDA_EUA] },
+  {
+    codigo: 'dividendos',
+    rotulo: GE.dividendos,
+    aplicavelA: EUA,
+    linhas: [
+      DPA_EUA,
+      linha({
+        codigo: 'payoutEua',
+        formato: 'pct',
+        campoTela: null,
+        extrator: (d) => d.linha.payout,
+      }),
+    ],
+  },
+];
+
+export const GRUPOS_REIT: DefGrupoComparador[] = [
+  {
+    codigo: 'geracaoCaixa',
+    rotulo: GE.geracaoCaixa,
+    aplicavelA: EUA,
+    linhas: [
+      linha({
+        codigo: 'fcoAcaoEua',
+        formato: 'numero2',
+        campoTela: null,
+        extrator: (d) => okOuSemDado(d.linha.fcoPorAcao),
+      }),
+      linha({
+        codigo: 'divFcoEua',
+        formato: 'pct',
+        campoTela: null,
+        extrator: (d) => okOuSemDado(d.linha.dividendosFcoPct),
+      }),
+    ],
+  },
+  {
+    codigo: 'qualidade',
+    rotulo: GE.qualidade,
+    aplicavelA: EUA,
+    // a margem do REIT não vem na linha do Quadro (lucro contábil com a depreciação dos imóveis:
+    // n/a na linha); ficam os anos seguidos de lucro e de dividendo crescente
+    linhas: [
+      QUALIDADE_EUA[0],
+      linha({
+        codigo: 'anosDividendoEua',
+        formato: 'inteiro',
+        campoTela: null,
+        extrator: (d) => okOuSemDado(d.linha.anosDividendo),
+      }),
+    ],
+  },
+  { codigo: 'endividamento', rotulo: GE.endividamento, aplicavelA: EUA, linhas: [DIVIDA_EUA] },
+  { codigo: 'dividendos', rotulo: GE.dividendos, aplicavelA: EUA, linhas: [DPA_EUA] },
+];
+
 export function catalogoComparador(classe: ClasseQuadro): DefGrupoComparador[] {
+  if (classe === 'stock') return GRUPOS_STOCK;
+  if (classe === 'reit') return GRUPOS_REIT;
   return classe === 'acao' ? GRUPOS_ACAO : GRUPOS_FII;
 }
 

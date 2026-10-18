@@ -5,16 +5,20 @@
  * params de verdade vêm do banco (obterCriteriaParams); esta é a cópia do código para fallback.
  *
  * Trocar a versão vigente do código = mudar o apontador abaixo (num PR), nunca importar
- * CRITERIA_PARAMS_V1/V2 direto em produção. Os testes que exercitam uma versão específica (casos45
+ * CRITERIA_PARAMS_V1/V2/V3 direto em produção. Os testes que exercitam uma versão específica (casos45
  * com v1 e v2) importam a constante da versão de propósito.
+ *
+ * Stocks e REITs (fatia 0): aponta para a v3 — os perfis BR da v3 são IDÊNTICOS aos da v2 (teste
+ * criteriaParams.test), então as definições/rótulos de fallback do Brasil não mudam; os perfis EUA
+ * passam a ter rótulos de fallback no código antes da v3 estar no banco.
  */
 import type { CriteriaParams } from '@/services/analiseAtivos/params/criteriaParamsSchema';
 import {
-  CRITERIA_PARAMS_V2,
-  CRITERIA_PARAMS_V2_JSON,
-} from '@/services/analiseAtivos/params/criteriaParamsV2';
+  CRITERIA_PARAMS_V3,
+  CRITERIA_PARAMS_V3_JSON,
+} from '@/services/analiseAtivos/params/criteriaParamsV3';
 
-export const CRITERIA_PARAMS_CODIGO: CriteriaParams = CRITERIA_PARAMS_V2;
+export const CRITERIA_PARAMS_CODIGO: CriteriaParams = CRITERIA_PARAMS_V3;
 
 /** JSON da versão vigente do código, como é gravado em criteria_params (seed do CI). */
-export const CRITERIA_PARAMS_CODIGO_JSON = CRITERIA_PARAMS_V2_JSON;
+export const CRITERIA_PARAMS_CODIGO_JSON = CRITERIA_PARAMS_V3_JSON;

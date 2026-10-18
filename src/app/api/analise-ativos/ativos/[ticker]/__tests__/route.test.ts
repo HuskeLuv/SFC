@@ -35,6 +35,9 @@ const db = vi.hoisted(() => {
 
 vi.mock('@/services/analiseAtivos/acesso/acessoAnalise', () => ({
   exigirAcessoAnalise: mockExigir,
+  exigirClasseAnalise: mockExigir,
+  // EUA (fatia C): chave desligada = rotas de hoje
+  flagsEua: () => ({ eua: false, euaPreco: false }),
 }));
 vi.mock('@/services/analiseAtivos/leitura/ativo/montarTopoAtivo', () => ({
   montarTopoAtivo: mockMontar,

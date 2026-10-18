@@ -8,10 +8,46 @@
  * validarOperacao: inteiro > 0, venda ≤ posição, data não futura, preço > 0 e instituição na
  * compra. v2.5 (fatia C): a seção é automática (secaoOperacao nunca fica vazia), então não há mais
  * o erro 'sem_secao'. Funções puras.
+ *
+ * Stocks e REITs (feature EUA, fatia D) — o MESMO corpo do wizard da Carteira:
+ *  - stock → tipoAtivo 'stock', moeda 'USD', cotacaoUnitaria em US$, cotacaoMoeda (US$ → R$),
+ *    estrategia, valorInvestido em R$ (q × US$ × câmbio);
+ *  - reit  → tipoAtivo 'reit', cotacaoUnitaria em US$, cotacaoMoeda, estrategiaReit, valorInvestido
+ *    em US$ (q × US$), como o Step4ReitFields;
+ *  - assetId = o Asset manual da POSIÇÃO (overlay; a recompra não cria outro Asset) ou
+ *    'STOCK-MANUAL' | 'REIT-MANUAL' sem posição; `ativo` = ticker da Análise (BRK.B → 'BRKB-…').
+ *  - venda: o preço vai na unidade em que a Carteira guarda a compra (stock: US$ × câmbio; REIT:
+ *    US$), com cotacaoMoeda.
  */
-import type { ClasseQuadro } from '@/types/analiseAtivosApi';
+import { ehClasseEua, type ClasseQuadro } from '@/types/analiseAtivosApi';
 
-export interface CorpoCompraOperacao {
+/** Asset.type de um Stock/REIT da Carteira (a compra usa o tipo do Asset que já existe). */
+export type TipoOperacaoEua = 'stock' | 'reit';
+
+export type CorpoCompraOperacao = CorpoCompraBr | CorpoCompraEua;
+
+export interface CorpoCompraEua {
+  tipoAtivo: TipoOperacaoEua;
+  /** id do Asset manual da posição, ou 'STOCK-MANUAL' | 'REIT-MANUAL' */
+  assetId: string;
+  ativo: string;
+  instituicaoId: string;
+  /** AAAA-MM-DD */
+  dataCompra: string;
+  quantidade: number;
+  /** US$ por ação */
+  cotacaoUnitaria: number;
+  /** cotação do dólar (US$ → R$) */
+  cotacaoMoeda: number;
+  /** stock: R$ (q × US$ × câmbio); REIT: US$ (q × US$) */
+  valorInvestido: number;
+  taxaCorretagem: 0;
+  moeda?: 'USD';
+  estrategia?: string;
+  estrategiaReit?: string;
+}
+
+export interface CorpoCompraBr {
   tipoAtivo: 'acao' | 'fii';
   assetId: string;
   ativo: string;
@@ -33,11 +69,14 @@ export interface CorpoResgateVenda {
   metodoResgate: 'quantidade';
   quantidade: number;
   cotacaoUnitaria: number;
+  /** EUA: cotação do dólar da venda */
+  cotacaoMoeda?: number;
 }
 
 export interface EntradaCompra {
   classe: ClasseQuadro;
-  assetId: string;
+  /** BR: Asset do catálogo; EUA: Asset manual da posição (null → STOCK-MANUAL/REIT-MANUAL) */
+  assetId: string | null;
   ticker: string;
   instituicaoId: string;
   data: string;
@@ -45,6 +84,10 @@ export interface EntradaCompra {
   cotacao: number;
   /** estrategia (ação) ou tipoFii (FII), de secaoOperacao */
   secao: string;
+  /** EUA: cotação do dólar (US$ → R$); `cotacao` fica em US$ */
+  cambio?: number;
+  /** EUA: Asset.type da posição (overlay.tipoAsset); sem posição, a classe */
+  tipoAsset?: TipoOperacaoEua | null;
 }
 
 export interface EntradaVenda {
@@ -52,6 +95,10 @@ export interface EntradaVenda {
   data: string;
   quantidade: number;
   cotacao: number;
+  /** EUA: classe, câmbio e Asset.type da posição (o preço vai na unidade da Carteira) */
+  classe?: ClasseQuadro;
+  cambio?: number;
+  tipoAsset?: TipoOperacaoEua | null;
 }
 
 export type ErroOperacao =
@@ -59,14 +106,78 @@ export type ErroOperacao =
   | 'acima_da_posicao'
   | 'data_futura'
   | 'preco_invalido'
-  | 'sem_instituicao';
+  | 'sem_instituicao'
+  | 'cambio_invalido';
 
 const centavos = (v: number): number => Math.round(v * 100) / 100;
+/** preço em R$ de US$ × câmbio, sem perder casas que a Carteira guarda */
+const seisCasas = (v: number): number => Math.round(v * 1e6) / 1e6;
+
+/** Tipo da operação EUA: o do Asset que já existe (overlay) ou o da classe. */
+export function tipoOperacaoEua(
+  classe: ClasseQuadro,
+  tipoAsset?: TipoOperacaoEua | null,
+): TipoOperacaoEua {
+  return tipoAsset ?? (classe === 'reit' ? 'reit' : 'stock');
+}
+
+/**
+ * Preço por ação na unidade em que a Carteira guarda a compra (Portfolio.avgPrice): stock = US$ ×
+ * câmbio (o POST da operação converte); REIT = US$. BR = o próprio preço.
+ */
+export function precoNaCarteira(e: {
+  classe: ClasseQuadro;
+  cotacao: number;
+  cambio?: number;
+  tipoAsset?: TipoOperacaoEua | null;
+}): number {
+  if (!ehClasseEua(e.classe)) return e.cotacao;
+  return tipoOperacaoEua(e.classe, e.tipoAsset) === 'stock'
+    ? seisCasas(e.cotacao * (e.cambio ?? 0))
+    : e.cotacao;
+}
+
+/** Total da operação em R$ (EUA: q × US$ × câmbio; BR: q × preço). */
+export function totalEmReais(e: {
+  classe: ClasseQuadro;
+  quantidade: number;
+  cotacao: number;
+  cambio?: number;
+}): number {
+  return ehClasseEua(e.classe)
+    ? e.quantidade * e.cotacao * (e.cambio ?? 0)
+    : e.quantidade * e.cotacao;
+}
+
+function montarCorpoCompraEua(e: EntradaCompra): CorpoCompraEua {
+  const tipo = tipoOperacaoEua(e.classe, e.tipoAsset);
+  const cambio = e.cambio ?? 0;
+  const base = {
+    tipoAtivo: tipo,
+    assetId: e.assetId ?? (tipo === 'stock' ? 'STOCK-MANUAL' : 'REIT-MANUAL'),
+    ativo: e.ticker.trim().toUpperCase(),
+    instituicaoId: e.instituicaoId,
+    dataCompra: e.data,
+    quantidade: e.quantidade,
+    cotacaoUnitaria: e.cotacao,
+    cotacaoMoeda: cambio,
+    taxaCorretagem: 0 as const,
+  };
+  return tipo === 'stock'
+    ? {
+        ...base,
+        moeda: 'USD',
+        valorInvestido: centavos(e.quantidade * e.cotacao * cambio),
+        estrategia: e.secao,
+      }
+    : { ...base, valorInvestido: centavos(e.quantidade * e.cotacao), estrategiaReit: e.secao };
+}
 
 export function montarCorpoCompra(e: EntradaCompra): CorpoCompraOperacao {
+  if (ehClasseEua(e.classe)) return montarCorpoCompraEua(e);
   const base = {
     tipoAtivo: e.classe === 'fii' ? ('fii' as const) : ('acao' as const),
-    assetId: e.assetId,
+    assetId: e.assetId ?? '',
     ativo: e.ticker.toUpperCase(),
     instituicaoId: e.instituicaoId,
     dataCompra: e.data,
@@ -79,12 +190,23 @@ export function montarCorpoCompra(e: EntradaCompra): CorpoCompraOperacao {
 }
 
 export function montarCorpoVenda(e: EntradaVenda): CorpoResgateVenda {
-  return {
+  const corpo: CorpoResgateVenda = {
     portfolioId: e.portfolioId,
     dataResgate: e.data,
     metodoResgate: 'quantidade',
     quantidade: e.quantidade,
     cotacaoUnitaria: e.cotacao,
+  };
+  if (!e.classe || !ehClasseEua(e.classe)) return corpo;
+  return {
+    ...corpo,
+    cotacaoUnitaria: precoNaCarteira({
+      classe: e.classe,
+      cotacao: e.cotacao,
+      cambio: e.cambio,
+      tipoAsset: e.tipoAsset,
+    }),
+    cotacaoMoeda: e.cambio ?? 0,
   };
 }
 
@@ -98,6 +220,8 @@ export function validarOperacao(e: {
   /** opcionais: o modal valida também o preço e a instituição da compra */
   cotacao?: number | null;
   instituicaoId?: string | null;
+  /** EUA: cotação do dólar (> 0) */
+  cambio?: number | null;
 }): ErroOperacao[] {
   const erros: ErroOperacao[] = [];
   const q = e.quantidade;
@@ -110,6 +234,9 @@ export function validarOperacao(e: {
     !(e.cotacao !== null && Number.isFinite(e.cotacao) && e.cotacao > 0)
   ) {
     erros.push('preco_invalido');
+  }
+  if (e.cambio !== undefined && !(e.cambio !== null && Number.isFinite(e.cambio) && e.cambio > 0)) {
+    erros.push('cambio_invalido');
   }
   // AAAA-MM-DD compara como texto; data vazia também é inválida.
   if (!/^\d{4}-\d{2}-\d{2}$/.test(e.data) || e.data > e.hoje) erros.push('data_futura');

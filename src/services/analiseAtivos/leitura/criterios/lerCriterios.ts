@@ -32,7 +32,8 @@ import {
 } from '@/services/analiseAtivos/params/criteriaParamsSchema';
 import { validarCriteriaParams } from '@/services/analiseAtivos/params/obterCriteriaParams';
 import { observacaoPerfil } from '@/services/analiseAtivos/regras/criterios/perfilCriterios';
-import type { FiiTipoTela } from '@/types/analiseAtivosApi';
+import { TEXTOS_EUA } from '@/services/analiseAtivos/textosEua';
+import { ehClasseQuadro, type ClasseQuadro, type FiiTipoTela } from '@/types/analiseAtivosApi';
 import {
   ehIdCriterio,
   ehJanela,
@@ -60,7 +61,10 @@ export type PrismaCriterios = Pick<PrismaClient, 'criteriaEval' | 'criteriaParam
 export const FONTE_CRITERIOS = {
   acao: 'DFP/ITR (CVM)',
   fii: 'informes de FIIs (CVM)',
-} as const;
+  // Stocks e REITs (fatia C): relatório anual na SEC
+  stock: TEXTOS_EUA.fonte.curta,
+  reit: TEXTOS_EUA.fonte.curta,
+} as const satisfies Record<ClasseQuadro, string>;
 
 const cacheAtivo = getTtlCache<CriteriosAtivo | null>('analiseAtivosCriterios');
 const cacheParams = getTtlCache<CriteriaParams>('analiseAtivosCriteriaParams');
@@ -167,7 +171,7 @@ export function montarCriteriosAtivo(
   const base = validas[0];
   if (!ehPerfil(base.perfil)) return null;
   const perfil = base.perfil;
-  const classe = base.classe === 'fii' ? 'fii' : 'acao';
+  const classe: ClasseQuadro = ehClasseQuadro(base.classe) ? base.classe : 'acao';
   const defs = new Map(
     (params ? criteriosDoPerfil(params, perfil) : []).map((d) => [d.id, d] as const),
   );
@@ -191,7 +195,7 @@ export function montarCriteriosAtivo(
     ...(dadosIncompletos ? { dadosIncompletos } : {}),
     anoFim: Math.max(...validas.map((l) => l.anoFim)),
     paramsVersion: base.paramsVersion,
-    observacaoPerfil: observacaoPerfil(fiiTipo, perfil, classe),
+    observacaoPerfil: observacaoPerfil(fiiTipo, perfil, classe === 'fii' ? 'fii' : 'acao'),
     janelas,
   };
 }

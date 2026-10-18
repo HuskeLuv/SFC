@@ -16,7 +16,13 @@ import { useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNod
 import BottomSheet from '@/components/ui/sheet/BottomSheet';
 import { useMobileHistoryLayer } from '@/hooks/useMobileHistoryLayer';
 import { useIsBelowLg } from '@/hooks/useMediaQuery';
-import { useIndiceBusca, useOverlayCarteira } from '@/hooks/useAnaliseAtivos';
+import {
+  useAnaliseAtivosConfig,
+  useIndiceBusca,
+  useOverlayCarteira,
+} from '@/hooks/useAnaliseAtivos';
+import { TEXTOS_EUA } from '@/services/analiseAtivos/textosEua';
+import { CLASSES_QUADRO, type ClasseQuadro } from '@/types/analiseAtivosApi';
 import { filtrarBusca, trechoDestacado } from '@/services/analiseAtivos/quadro/indiceBusca';
 import { TEXTOS_TELA, formatarTexto, textoForaDoQuadro } from '@/services/analiseAtivos/textosTela';
 import { TEXTOS_COMPARADOR } from '@/services/analiseAtivos/textosComparador';
@@ -25,6 +31,7 @@ import type {
   ItemBusca,
   OverlayCarteiraResposta,
 } from '@/types/analiseAtivosApi';
+import { noOverlay } from '@/services/analiseAtivos/carteira/tickerCarteiraEua';
 
 export type { BuscaAtivosProps };
 
@@ -96,13 +103,17 @@ function guardarRecente(ticker: string) {
   }
 }
 
-/** Grupos na ordem Ações → FIIs, mantendo a relevância dentro de cada um. */
+/**
+ * Grupos na ordem Ações → FIIs → Stocks → REITs (os EUA só existem no índice com a chave EUA),
+ * mantendo a relevância dentro de cada um.
+ */
 export function agruparResultados(
   itens: ItemBusca[],
-): Array<{ classe: 'acao' | 'fii'; itens: ItemBusca[] }> {
-  return (['acao', 'fii'] as const)
-    .map((classe) => ({ classe, itens: itens.filter((i) => i.c === classe) }))
-    .filter((g) => g.itens.length > 0);
+): Array<{ classe: ClasseQuadro; itens: ItemBusca[] }> {
+  return CLASSES_QUADRO.map((classe) => ({
+    classe,
+    itens: itens.filter((i) => i.c === classe),
+  })).filter((g) => g.itens.length > 0);
 }
 
 function Destaque({ texto, consulta }: { texto: string; consulta: string }) {
@@ -128,7 +139,7 @@ function SeloItem({
 }) {
   const base =
     'inline-flex items-center rounded-full px-1.5 py-0.5 text-[11px] font-medium whitespace-nowrap';
-  if (overlay?.posicoes[item.t]) {
+  if (noOverlay(overlay?.posicoes, item.t)) {
     return (
       <span
         className={`${base} bg-[#EDF2F8] text-[#396CAA] dark:bg-[#6E9DC4]/15 dark:text-[#6E9DC4]`}
@@ -137,7 +148,7 @@ function SeloItem({
       </span>
     );
   }
-  if (overlay?.planejados[item.t]) {
+  if (noOverlay(overlay?.planejados, item.t)) {
     return (
       <span
         className={`${base} border border-dashed border-[#98A2B3] text-gray-600 dark:text-gray-300`}
@@ -188,6 +199,8 @@ function ListaResultados({
   motivos,
 }: ListaProps) {
   const grupos = agruparResultados(resultados);
+  // Stocks e REITs (fatia C): com a chave EUA, a frase de cobertura cita NYSE e Nasdaq
+  const eua = useAnaliseAtivosConfig().data?.recursos?.eua === true;
   let i = -1;
   return (
     <div
@@ -209,7 +222,9 @@ function ListaResultados({
               <b className="block text-gray-800 dark:text-white/90">
                 {formatarTexto(T.nenhumResultado, { valor: consulta.trim() })}
               </b>
-              <span className="text-gray-500 dark:text-gray-400">{T.semResultado}</span>
+              <span className="text-gray-500 dark:text-gray-400">
+                {eua ? TEXTOS_EUA.busca.semResultadoComEua : T.semResultado}
+              </span>
             </>
           )}
         </div>
@@ -316,6 +331,8 @@ export default function BuscaAtivos({
 }: BuscaAtivosProps & BuscaAtivosExtras) {
   const router = useRouter();
   const telaEstreita = useIsBelowLg();
+  const euaLigado = useAnaliseAtivosConfig().data?.recursos?.eua === true;
+  const placeholderPadrao = euaLigado ? TEXTOS_EUA.busca.placeholderComEua : T.placeholder;
   // embutida: o popover/sheet é do Comparador; aqui só o campo e a lista
   const celular = telaEstreita && !embutida;
   const idBase = useId().replace(/:/g, '');
@@ -423,7 +440,7 @@ export default function BuscaAtivos({
       }
       autoComplete="off"
       autoFocus={emSheet || autoFocus}
-      placeholder={placeholder ?? T.placeholder}
+      placeholder={placeholder ?? placeholderPadrao}
       value={consulta}
       onFocus={() => {
         setUsado(true);
@@ -484,7 +501,7 @@ export default function BuscaAtivos({
           className={`flex min-h-11 items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 text-left text-sm text-gray-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-400 ${FOCO} ${className}`}
         >
           <IconeLupa />
-          <span className="truncate">{T.placeholder}</span>
+          <span className="truncate">{placeholderPadrao}</span>
         </button>
         <BottomSheet
           isOpen={sheet}

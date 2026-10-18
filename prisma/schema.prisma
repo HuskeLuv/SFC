@@ -2036,6 +2036,16 @@ model AssetFundamentalsPeriod {
   // v2.5: quem aprovou a linha (curadoria); null nas linhas automáticas da CVM
   reviewedBy String?
 
+  // EUA (stocks-reits, fatia 0) — nulas para a CVM. Linhas SEC: emissorId 'CIK:##########',
+  // source 'SEC', docTipo '10-K', accession, sourceConcept {campo: conceito}, escopo 'con', USGAAP,
+  // USD, UNIDADE, FY. Flags: ebitda_pre_ir | ebitda_lucro | dpa_derivado | declared_suspeito |
+  // troca_conceito (FLAGS_FUNDAMENTO_SEC em src/types/analiseAtivosEua.ts).
+  acoesMediaDiluida Decimal? @db.Decimal(20, 0)
+  dpa               Float?
+  // cash_paid | declared | derivado
+  dpaOrigem         String?
+  recompras         Decimal? @db.Decimal(20, 2)
+
   @@unique([emissorId, dtFim, tipoPeriodo, escopo, versao])
   @@index([emissorId, tipoPeriodo, dtFim])
   @@index([fetchedAt])
@@ -2551,7 +2561,7 @@ model AssetEvento {
  */
 model AnaliseQuadroLinha {
   symbol                String    @id
-  // acao | fii
+  // acao | fii | stock | reit (os gravadores deletam POR CLASSE: gerarQuadro.gravarLinhasQuadro)
   classe                String
   cnpj                  String
   dataRef               DateTime  @db.Date
@@ -2617,8 +2627,16 @@ model AnaliseQuadroLinha {
   // {"3":{n,de,m:[[id,estado,fato]]},"5":…,"10":…} (CriteriosCompactos em
   // src/types/analiseAtivosCriterios.ts). null = job 'criterios' ainda não rodou.
   criterios             Json?
-  // acao | acao_financeira | fii_tijolo | fii_papel (perfil usado na avaliação)
+  // acao | acao_financeira | fii_tijolo | fii_papel | stock | stock_financeira | reit
   perfilCriterios       String?
+  // EUA (stocks-reits, fatia 0) — nulas no Brasil. moeda 'USD' nas linhas stock/reit (null = BRL)
+  moeda                 String?
+  // NYSE | Nasdaq
+  bolsa                 String?
+  // último FY da SEC: dividendo por ação (US$), FCO ÷ média diluída (US$) e dividendos ÷ FCO (%)
+  dpa                   Float?
+  fcoPorAcao            Float?
+  dividendosFcoPct      Float?
 
   @@index([classe, noQuadro])
   @@index([geradoEm])
@@ -2673,10 +2691,11 @@ model CriteriaParams {
 model CriteriaEval {
   id            String   @id @default(uuid())
   symbol        String
+  // CNPJ (CVM) | 'CIK:##########' (SEC)
   cnpj          String
-  // acao | fii
+  // acao | fii | stock | reit (os gravadores deletam POR CLASSE: repositorio/criterios.ts)
   classe        String
-  // acao | acao_financeira | fii_tijolo | fii_papel
+  // acao | acao_financeira | fii_tijolo | fii_papel | stock | stock_financeira | reit
   perfil        String
   // 3 | 5 | 10
   janela        Int
@@ -3124,4 +3143,83 @@ model AnaliseAlertaMarco {
 
   @@id([symbol, tipo])
   @@map("analise_alerta_marcos")
+}
+
+// ===== Análise de Ativos — Stocks e REITs (EUA, docs/analise-ativos/stocks-reits/desenho.json).
+// Migration ADITIVA (20261017120000_analise_ativos_eua): nenhuma coluna removida ou alterada.
+
+/**
+ * Cadastro SEC (job 'sec-cadastro', semanal, fatia A). cik = 10 dígitos sem prefixo. Universo e
+ * overrides são POR CIK; o ticker vem sempre do arquivo da SEC (SecCompanyTicker).
+ */
+model SecCompany {
+  cik              String    @id
+  nome             String
+  sic              Int?
+  sicDescricao     String?
+  // MMDD do fim do exercício (submissions.fiscalYearEnd), ex.: '0927' AAPL
+  exercicioFimMmdd String?
+  // NYSE | Nasdaq
+  bolsa            String?
+  // dei:EntityPublicFloat da capa do último 10-K + data (anual por natureza)
+  publicFloatUsd   Decimal?  @db.Decimal(22, 2)
+  publicFloatData  DateTime? @db.Date
+  // ok | escala_suspeita | preco_implicito_absurdo
+  floatSanidade    String?
+  // stock | reit | null
+  classe           String?
+  ehReit           Boolean   @default(false)
+  // equity | mortgage
+  reitTipo         String?
+  // chave do segmento REIT curado (SEGMENTOS_REIT) ou null
+  segmento         String?
+  ehFinanceira     Boolean   @default(false)
+  noUniverso       Boolean   @default(false)
+  // float_abaixo | sem_10k | hipotecario | override | sem_bolsa | float_suspeito
+  foraMotivo       String?
+  // CIK que tem o histórico (XOM → 0000034088)
+  cikHistorico     String?
+  // regra | override
+  origem           String    @default("regra")
+  ultimo10k        String?
+  ultimo10kEm      DateTime? @db.Date
+  fetchedAt        DateTime
+
+  @@index([classe, noUniverso])
+  @@map("sec_companies")
+}
+
+/** Tickers de um CIK (company_tickers_exchange.json), com vigência. */
+model SecCompanyTicker {
+  id         String    @id @default(uuid())
+  // como a SEC escreve (BRK-B); na Análise/URL: BRK.B (symbolAnaliseDaSec)
+  symbol     String
+  // sem pontuação (BRKB), para casar com Assets manuais da Carteira (normalizarTickerEua)
+  symbolNorm String
+  cik        String
+  principal  Boolean   @default(false)
+  validFrom  DateTime  @db.Date
+  validTo    DateTime? @db.Date
+  fetchedAt  DateTime
+
+  @@unique([symbol, validFrom])
+  @@index([cik])
+  @@index([symbolNorm])
+  @@map("sec_company_tickers")
+}
+
+/** Fechamento diário EUA (só com ANALISE_ATIVOS_EUA_PRECO_HABILITADO; job 'cotacoes-eua'). */
+model AssetQuoteDailyUs {
+  symbol    String
+  date      DateTime @db.Date
+  close     Decimal  @db.Decimal(18, 6)
+  adjClose  Decimal? @db.Decimal(18, 6)
+  volume    BigInt?
+  // brapi | eodhd | twelvedata (fonte LICENCIADA vigente)
+  source    String
+  fetchedAt DateTime
+
+  @@id([symbol, date])
+  @@index([date])
+  @@map("asset_quotes_daily_us")
 }

@@ -17,7 +17,13 @@ import { MYFINANCE_BRAND } from '@/constants/brandColors';
 import { CRITERIA_PARAMS_CODIGO } from '@/services/analiseAtivos/params/criteriaParamsCodigo';
 import type { CriteriaParams } from '@/services/analiseAtivos/params/criteriaParamsSchema';
 import type { DefCriterioChip, IdCriterio } from '@/types/analiseAtivosCriterios';
-import type { ClasseQuadro, DirecaoOrdem, ModoQuadro, OrdemQuadro } from '@/types/analiseAtivosApi';
+import type {
+  ClasseEua,
+  ClasseQuadro,
+  DirecaoOrdem,
+  ModoQuadro,
+  OrdemQuadro,
+} from '@/types/analiseAtivosApi';
 
 /** Cinzas do app (tema Tailwind) e negativos usados na área. */
 export const CINZAS_APP = {
@@ -189,6 +195,76 @@ export const COLUNAS: Record<ClasseQuadro, Record<ModoQuadro, ColunaQuadro[]>> =
       col('naCarteira', 'naCarteira', null),
     ],
   },
+  /**
+   * EUA (fatia 0; desenho stocks-reits, design.telas): SEM cotação (decisão do Wellington de
+   * 17/10: preço, P/L e DY só com ANALISE_ATIVOS_EUA_PRECO_HABILITADO — COLUNAS_PRECO_EUA). Valores
+   * em US$. Colunas novas sem ordenação no MVP (ordem null).
+   */
+  stock: {
+    resumo: [
+      col('ativo', 'stock', 'ticker', 'esquerda'),
+      col('lucrosSeguidos', 'lucrosSeguidos', 'anosLucro', 'direita', 'lucrosSeguidos'),
+      col('roe', 'roe', 'roe'),
+      col('margemLiquida', 'margemLiquida', 'margem'),
+      col('dpaUsd', 'dpaUsd', null, 'direita', 'dpaUsd'),
+      CRITERIOS,
+      col('naCarteira', 'naCarteira', null),
+    ],
+    detalhado: [
+      col('ativo', 'stock', 'ticker', 'esquerda'),
+      col('setor', 'setor', null, 'esquerda'),
+      col('lucrosSeguidos', 'lucrosSeguidos', 'anosLucro', 'direita', 'lucrosSeguidos'),
+      col('lucro10a', 'lucro10a', 'lucro10', 'centro', 'lucro10a'),
+      col('roe', 'roe', 'roe'),
+      col('margemLiquida', 'margemLiquida', 'margem'),
+      col('divLiqEbitda', 'divLiqEbitda', 'divLiqEbitda', 'direita', 'divLiqEbitda'),
+      col('dpaUsd', 'dpaUsd', null, 'direita', 'dpaUsd'),
+      col('payout', 'payout', 'payout'),
+      CRITERIOS,
+      col('naCarteira', 'naCarteira', null),
+    ],
+  },
+  reit: {
+    resumo: [
+      col('ativo', 'reit', 'ticker', 'esquerda'),
+      col('segmento', 'tipo', null, 'esquerda'),
+      col('fcoAcao', 'fcoAcao', null, 'direita', 'fcoAcao'),
+      col('divFco', 'divFco', null, 'direita', 'divFco'),
+      col('dpaUsd', 'dpaUsd', null, 'direita', 'dpaUsd'),
+      CRITERIOS,
+      col('naCarteira', 'naCarteira', null),
+    ],
+    detalhado: [
+      col('ativo', 'reit', 'ticker', 'esquerda'),
+      col('segmento', 'tipo', null, 'esquerda'),
+      col('fcoAcao', 'fcoAcao', null, 'direita', 'fcoAcao'),
+      col('divFco', 'divFco', null, 'direita', 'divFco'),
+      col('dpaUsd', 'dpaUsd', null, 'direita', 'dpaUsd'),
+      col('divLiqEbitda', 'divLiqEbitda', 'divLiqEbitda', 'direita', 'divLiqEbitda'),
+      col('anosDividendo', 'anosDividendo', null, 'direita', 'anosDividendo'),
+      col('lucro10a', 'lucro10a', 'lucro10', 'centro', 'lucro10a'),
+      CRITERIOS,
+      col('naCarteira', 'naCarteira', null),
+    ],
+  },
+};
+
+/**
+ * Colunas de cotação EUA, inseridas logo depois de 'ativo' (preço) e antes de 'criterios' (P/L e
+ * DY) SÓ com recursos.euaPreco (fatia C). Sem a chave, nunca aparecem.
+ */
+export const COLUNAS_PRECO_EUA: Record<
+  ClasseEua,
+  { aposAtivo: ColunaQuadro[]; antesCriterios: ColunaQuadro[] }
+> = {
+  stock: {
+    aposAtivo: [col('preco', 'precoUsd', 'preco')],
+    antesCriterios: [col('pl', 'pl', 'pl'), col('dy12m', 'dy12m', 'dy')],
+  },
+  reit: {
+    aposAtivo: [col('preco', 'precoUsd', 'preco')],
+    antesCriterios: [col('dy12m', 'dy12m', 'dy')],
+  },
 };
 
 /**
@@ -203,6 +279,9 @@ export function criteriosFiltraveisDe(
   return {
     acao: params.perfis.acao.filter((c) => c.ativo !== false).map((c) => c.id),
     fii: params.perfis.fii_tijolo.filter((c) => c.ativo !== false).map((c) => c.id),
+    // EUA: perfis opcionais (ausentes na v1/v2 = nenhum filtro); a financeira usa a lista de stock
+    stock: (params.perfis.stock ?? []).filter((c) => c.ativo !== false).map((c) => c.id),
+    reit: (params.perfis.reit ?? []).filter((c) => c.ativo !== false).map((c) => c.id),
   };
 }
 
@@ -256,6 +335,8 @@ export const PAGINA_QUADRO = 25;
 export const LINK_EDUCACAO: Record<ClasseQuadro, string> = {
   acao: '/educacao',
   fii: '/educacao',
+  stock: '/educacao',
+  reit: '/educacao',
 };
 
 /** Alvos de toque (celular). */

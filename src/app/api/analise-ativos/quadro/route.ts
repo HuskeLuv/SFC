@@ -3,7 +3,11 @@ import { z } from 'zod';
 import { prisma } from '@/lib/prisma';
 import { withErrorHandler } from '@/utils/apiErrorHandler';
 import { validationError } from '@/utils/validation-schemas';
-import { exigirAcessoAnalise } from '@/services/analiseAtivos/acesso/acessoAnalise';
+import {
+  exigirAcessoAnalise,
+  exigirClasseAnalise,
+  flagsEua,
+} from '@/services/analiseAtivos/acesso/acessoAnalise';
 import {
   obterCriteriaParamsQuadro,
   obterLinhasQuadro,
@@ -16,7 +20,13 @@ import {
   idsFiltraveis,
   LIMITE_MAXIMO,
 } from '@/services/analiseAtivos/quadro/consultaQuadro';
-import type { QuadroParams, QuadroResposta } from '@/types/analiseAtivosApi';
+import {
+  CLASSES_QUADRO,
+  ehClasseEua,
+  type QuadroParams,
+  type QuadroResposta,
+} from '@/types/analiseAtivosApi';
+import { normalizarTickerEua } from '@/types/analiseAtivosEua';
 import {
   JANELAS_CRITERIOS,
   ehIdCriterio,
@@ -36,6 +46,10 @@ import {
  * naCarteira; setor; segmento; ordem; dir; offset; limite ≤ 100.
  *
  * - 404 sem acesso (flag/beta, exigirAcessoAnalise); 400 com query inválida.
+ * - Stocks e REITs (fatia C): classe stock|reit SÓ com ANALISE_ATIVOS_EUA_HABILITADO (sem a chave =
+ *   404 antes da sessão, exigirClasseAnalise); contagens das abas EUA só com a chave; preço/P/L/DY
+ *   EUA só com ANALISE_ATIVOS_EUA_PRECO_HABILITADO (consultaQuadro.comCotacaoEua); ocupação
+ *   (chip inativo, sem fonte) em ?criterios= = 400 como qualquer chip desabilitado.
  * - naCarteira=1: posições e planejados do targetUserId (o cliente, quando o consultor age por ele),
  *   lidos direto de portfolios/watchlists.
  * - Resposta + {janela, totalClasse, definicoes}; nenhuma chave do indicador antigo
@@ -73,7 +87,7 @@ const ORDENS = [
 ] as const;
 
 const schemaQuadro = z.strictObject({
-  classe: z.enum(['acao', 'fii']),
+  classe: z.enum(CLASSES_QUADRO),
   janela: z.coerce
     .number()
     .refine((v) => (JANELAS_CRITERIOS as readonly number[]).includes(v), 'janela: 3, 5 ou 10')
@@ -97,7 +111,14 @@ const schemaQuadro = z.strictObject({
   limite: z.coerce.number().int().min(1).max(LIMITE_MAXIMO).optional(),
 });
 
-/** Tickers com posição (quantidade > 0) ou planejados (watchlist) do usuário. */
+/** Símbolo manual de stock/REIT da Carteira: 'AAPL-1731234567890-abc' → 'AAPL'. */
+const RE_SIMBOLO_MANUAL = /^([A-Z0-9.]+)-\d{13}-[A-Z0-9]+$/i;
+
+/**
+ * Tickers com posição (quantidade > 0) ou planejados (watchlist) do usuário. Cada símbolo entra
+ * também NORMALIZADO (sem pontuação, sem o sufixo dos ativos manuais), para casar stocks e REITs
+ * (BRK.B ↔ BRKB) — tickers da B3 têm dígito e nunca casam com um ticker EUA.
+ */
 async function simbolosDoUsuario(userId: string): Promise<Set<string>> {
   const [posicoes, planejados] = await Promise.all([
     prisma.portfolio.findMany({
@@ -111,16 +132,22 @@ async function simbolosDoUsuario(userId: string): Promise<Set<string>> {
   ]);
   const out = new Set<string>();
   for (const p of [...posicoes, ...planejados]) {
-    if (p.asset?.symbol) out.add(p.asset.symbol.toUpperCase());
+    const symbol = p.asset?.symbol?.toUpperCase();
+    if (!symbol) continue;
+    out.add(symbol);
+    out.add(normalizarTickerEua(RE_SIMBOLO_MANUAL.exec(symbol)?.[1] ?? symbol));
   }
   return out;
 }
 
 export const GET = withErrorHandler(async (request: NextRequest) => {
   const inicio = performance.now();
-  const { targetUserId } = await exigirAcessoAnalise(request);
-
   const bruto = Object.fromEntries(request.nextUrl.searchParams.entries());
+  // stock/reit sem a chave EUA = 404 antes da sessão (como a área desligada)
+  const { targetUserId } = ehClasseEua(bruto.classe)
+    ? await exigirClasseAnalise(request, bruto.classe)
+    : await exigirAcessoAnalise(request);
+
   const parsed = schemaQuadro.safeParse(bruto);
   if (!parsed.success) return validationError(parsed);
   const params: QuadroParams = parsed.data;
@@ -160,6 +187,7 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     dataRef,
     hoje: new Date().toISOString().slice(0, 10),
     criteriaParams,
+    eua: (({ eua, euaPreco }) => ({ habilitado: eua, preco: euaPreco }))(flagsEua()),
   });
   const dur = (performance.now() - inicio).toFixed(1);
   return NextResponse.json(corpo, {

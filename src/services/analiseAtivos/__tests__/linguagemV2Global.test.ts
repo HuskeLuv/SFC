@@ -33,6 +33,7 @@ import { TEXTOS_LITERAIS_OBRIGATORIOS } from '@/services/analiseAtivos/textosLit
 import { TEXTOS_FILA } from '@/components/admin/curadoria/marcasCaso';
 import { TEXTOS_SALVOS } from '@/services/analiseAtivos/textosSalvos';
 import { TEXTOS_ALERTAS } from '@/services/analiseAtivos/textosAlertas';
+import { TEXTOS_EUA } from '@/services/analiseAtivos/textosEua';
 
 type Folha = [caminho: string, texto: string];
 
@@ -63,6 +64,8 @@ const MODULOS: Record<string, unknown> = {
   // bloco 1 (fatia 0): Salvos, filtros, comparações, PDF e avisos das listas
   TEXTOS_SALVOS,
   TEXTOS_ALERTAS,
+  // Stocks e REITs (fatia 0 EUA)
+  TEXTOS_EUA,
 };
 
 const TODAS: Folha[] = Object.entries(MODULOS).flatMap(([nome, m]) => folhas(m, nome));
@@ -103,6 +106,9 @@ const VARS: Record<string, string> = {
   pagamento: '27/10/2026',
   titulo: 'TAEE11: provento anunciado',
   mensagem: 'Rendimento de R$ 1,10 por cota',
+  // Stocks e REITs
+  corte: 'US$ 2 bi',
+  mes: 'set',
 };
 const preencher = (t: string) => t.replace(/\{(\w+)\}/g, (m, k: string) => VARS[k] ?? 'X');
 

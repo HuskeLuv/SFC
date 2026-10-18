@@ -6,7 +6,11 @@
  * - FrescorCotacoes: linha "Cotações: COTAHIST B3 de dd/mm/aaaa".
  * - FaixaFrescorAtrasado: cotação atrasada vira faixa com ícone + texto (não só cor).
  */
-import { RODAPE_QUADRO, DISCLAIMER_DESEMPENHO } from '@/services/analiseAtivos/textosLiterais';
+import {
+  RODAPE_QUADRO,
+  RODAPE_QUADRO_EUA,
+  DISCLAIMER_DESEMPENHO,
+} from '@/services/analiseAtivos/textosLiterais';
 import { TEXTOS_TELA, formatarTexto } from '@/services/analiseAtivos/textosTela';
 import type { FrescorCotacao } from '@/types/analiseAtivosApi';
 import type { RodapeCriteriosProps } from '@/types/analiseAtivosCriterios';
@@ -61,12 +65,26 @@ export function FrescorCotacoes({ frescor }: { frescor: FrescorCotacao | undefin
   );
 }
 
-export default function RodapeCriterios({ className = '' }: RodapeCriteriosProps) {
-  const texto = RODAPE_QUADRO.texto;
+/**
+ * Stocks e REITs (fatia C): `eua` troca o literal pelo 'rodape-quadro-eua' (10-K na SEC) e acrescenta
+ * a regra do universo (QuadroResposta.universoDescricao), SEM nome de índice.
+ */
+export interface RodapeCriteriosEuaProps extends RodapeCriteriosProps {
+  eua?: boolean;
+  universoDescricao?: string;
+}
+
+export default function RodapeCriterios({
+  className = '',
+  eua = false,
+  universoDescricao,
+}: RodapeCriteriosEuaProps) {
+  const literal = eua ? RODAPE_QUADRO_EUA : RODAPE_QUADRO;
+  const texto = literal.texto;
   const i = texto.lastIndexOf(DISCLAIMER_DESEMPENHO.texto);
-  return (
+  const paragrafo = (
     <p
-      data-texto-legal={RODAPE_QUADRO.id}
+      data-texto-legal={literal.id}
       className={`text-[12px] leading-relaxed text-gray-500 dark:text-gray-400 ${className}`}
     >
       {i >= 0 ? (
@@ -81,5 +99,19 @@ export default function RodapeCriterios({ className = '' }: RodapeCriteriosProps
         texto
       )}
     </p>
+  );
+  if (!eua) return paragrafo;
+  return (
+    <>
+      {paragrafo}
+      {universoDescricao ? (
+        <p
+          data-universo-eua=""
+          className="text-[12px] leading-relaxed text-gray-500 dark:text-gray-400"
+        >
+          {universoDescricao}
+        </p>
+      ) : null}
+    </>
   );
 }

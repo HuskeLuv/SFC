@@ -14,6 +14,8 @@ const mockCriteriosVarios = vi.hoisted(() => vi.fn());
 
 vi.mock('@/services/analiseAtivos/acesso/acessoAnalise', () => ({
   exigirRecursoAnalise: mockExigir,
+  // EUA (fatia C): chave desligada = Comparador de hoje
+  flagsEua: () => ({ eua: false, euaPreco: false }),
 }));
 vi.mock('@/lib/prisma', () => ({ prisma: mockPrisma, default: mockPrisma }));
 vi.mock('@/services/analiseAtivos/leitura/criterios/lerCriterios', async (importOriginal) => ({

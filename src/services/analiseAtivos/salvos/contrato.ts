@@ -20,10 +20,20 @@
  * - Avisos: ANALISE_SALVOS_ALERTA_TYPE nas Notification; TIPOS_AVISO; RETENCAO_AVISOS_DIAS (job,
  *   export e lgpd-retention); JANELA_AVISO_CRITERIOS fixa em 5; MAX_AVISOS_POR_RODADA (acima disso,
  *   1 resumo).
+ * - Stocks e REITs (feature EUA, fatia D): ClasseSalvoSchema e TickerSalvoSchema aceitam stock|reit
+ *   e o ticker EUA (BRK.B; BRK-B vira BRK.B) SÓ com ANALISE_ATIVOS_EUA_HABILITADO (lida na hora da
+ *   validação, no servidor). Desligada, o Brasil é o de antes.
  */
 import { z } from 'zod';
 import { TICKER_RE } from '@/services/analiseAtivos/cenarios/contrato';
-import type { ClasseQuadro, TipoFiiExibido } from '@/types/analiseAtivosApi';
+import { analiseAtivosEuaHabilitado } from '@/lib/analiseAtivosConfig';
+import {
+  CLASSES_QUADRO,
+  ehClasseEua,
+  type ClasseQuadro,
+  type TipoFiiExibido,
+} from '@/types/analiseAtivosApi';
+import { ehTickerEua, symbolAnaliseDaSec } from '@/types/analiseAtivosEua';
 import {
   IDS_CRITERIO,
   JANELAS_CRITERIOS,
@@ -187,7 +197,7 @@ export function nomePadraoComparacao(tickers: readonly string[]): string {
 // Tickers
 // ---------------------------------------------------------------------------
 
-/** Ticker por classe. stock/reit reservados (bloco 4): o zod do bloco 1 aceita só acao|fii. */
+/** Ticker por classe. stock/reit só valem com ANALISE_ATIVOS_EUA_HABILITADO (classesSalvosLigadas). */
 export const TICKER_RE_POR_CLASSE: Readonly<Record<ClasseItemReservada, RegExp>> = Object.freeze({
   acao: TICKER_RE,
   fii: TICKER_RE,
@@ -195,18 +205,27 @@ export const TICKER_RE_POR_CLASSE: Readonly<Record<ClasseItemReservada, RegExp>>
   reit: /^[A-Z]{1,5}(\.[A-Z])?$/,
 });
 
-/** Classes aceitas pelo zod do bloco 1. */
+/** Classes aceitas pelo zod do bloco 1 (Brasil). */
 export const CLASSES_SALVOS = ['acao', 'fii'] as const satisfies readonly ClasseQuadro[];
 
-/** trim + maiúsculas (o que a rota compara). */
-export function normalizarTicker(bruto: string): string {
-  return bruto.trim().toUpperCase();
+/** Classes aceitas agora: as do Brasil e, com ANALISE_ATIVOS_EUA_HABILITADO, stock e reit. */
+export function classesSalvosLigadas(): readonly ClasseQuadro[] {
+  return analiseAtivosEuaHabilitado() ? CLASSES_QUADRO : CLASSES_SALVOS;
 }
 
-/** true se o ticker tem o formato da classe (ou de alguma classe do bloco 1, sem classe). */
+/** trim + maiúsculas (o que a rota compara); ticker EUA com hífen da SEC vira a forma com ponto. */
+export function normalizarTicker(bruto: string): string {
+  const t = bruto.trim().toUpperCase();
+  return ehTickerEua(t) ? symbolAnaliseDaSec(t) : t;
+}
+
+/** true se o ticker tem o formato da classe (ou de alguma classe ligada, sem classe). */
 export function ehTickerValido(ticker: string, classe?: ClasseItemReservada): boolean {
-  if (classe) return TICKER_RE_POR_CLASSE[classe].test(ticker);
-  return CLASSES_SALVOS.some((c) => TICKER_RE_POR_CLASSE[c].test(ticker));
+  if (classe) {
+    if (ehClasseEua(classe) && !analiseAtivosEuaHabilitado()) return false;
+    return TICKER_RE_POR_CLASSE[classe].test(ticker);
+  }
+  return classesSalvosLigadas().some((c) => TICKER_RE_POR_CLASSE[c].test(ticker));
 }
 
 // ---------------------------------------------------------------------------
@@ -292,14 +311,20 @@ export const NomeSchema = z
       .regex(SEM_CONTROLE, 'Nome inválido'),
   );
 
-/** Ticker de ação/FII do bloco 1 (maiúsculo). A rota confere que está no Quadro. */
+/**
+ * Ticker de ação/FII (maiúsculo) e, com ANALISE_ATIVOS_EUA_HABILITADO, de stock/REIT (BRK.B). A
+ * rota confere que está no Quadro.
+ */
 export const TickerSalvoSchema = z
   .string()
   .max(12)
   .transform(normalizarTicker)
-  .pipe(z.string().regex(TICKER_RE, 'Ticker inválido'));
+  .pipe(z.string().refine((t) => ehTickerValido(t), 'Ticker inválido'));
 
-export const ClasseSalvoSchema = z.enum(CLASSES_SALVOS);
+/** acao | fii; stock | reit só com ANALISE_ATIVOS_EUA_HABILITADO (desligada → 400). */
+export const ClasseSalvoSchema = z
+  .enum(CLASSES_QUADRO)
+  .refine((c) => classesSalvosLigadas().includes(c), 'Classe inválida');
 const JanelaSchema = z.union(
   JANELAS_CRITERIOS.map((j) => z.literal(j)) as [
     z.ZodLiteral<3>,

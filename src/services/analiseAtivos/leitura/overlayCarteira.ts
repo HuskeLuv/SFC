@@ -19,9 +19,23 @@
  * 17/10/2026: o "Planejar na carteira" grava o Objetivo da Carteira (% dentro da aba) — o chip
  * 'Planejado' e o 'Ajustar plano' leem posicoes[t].objetivoPct / planejados[t]. O `alvos` de
  * planning_asset_targets (v2.5, % da carteira total) saiu.
+ *
+ * Stocks e REITs (feature EUA, fatia D): o Asset manual da Carteira ('AAPL-<ts>-<rnd>', type
+ * stock|reit, USD, source manual) é casado pelo ticker SEM pontuação ('BRKB-…' → BRKB) e entra na
+ * chave da ANÁLISE: o ticker vigente da SEC com esse symbolNorm (BRK-B → 'BRK.B', a URL da página).
+ * Sem ticker na SEC, a chave fica sem pontuação ('BRKB'; os componentes procuram nas duas formas,
+ * noOverlay). Traz `assetId` e `tipoAsset` — a recompra pela Análise manda esse Asset para não
+ * criar outro. Os NÚMEROS continuam vindo da própria aba da Carteira
+ * (/api/carteira/stocks|reit, getAssetPrices), não daqui. ETF em USD e ação da B3 não mudam.
  */
 import prisma from '@/lib/prisma';
 import { categoriaEfetiva } from '@/services/portfolio/itemValuation';
+import {
+  chaveCarteira,
+  ehTipoAssetEua,
+  tickerDeAssetEua,
+} from '@/services/analiseAtivos/carteira/tickerCarteiraEua';
+import { symbolAnaliseDaSec } from '@/types/analiseAtivosEua';
 import type { OverlayCarteiraResposta } from '@/types/analiseAtivosApi';
 
 interface AssetOverlay {
@@ -30,6 +44,7 @@ interface AssetOverlay {
   type: string | null;
   name: string | null;
   currency: string | null;
+  source: string | null;
 }
 
 const SELECT_ASSET = {
@@ -38,12 +53,43 @@ const SELECT_ASSET = {
   type: true,
   name: true,
   currency: true,
+  source: true,
 } as const;
 
-const tickerDe = (asset: AssetOverlay | null): string | null => {
+/**
+ * Chave do ativo: EUA manual → o ticker da Análise (SEC; sem ele, o ticker sem pontuação); o resto
+ * → symbol em maiúsculas.
+ */
+const tickerDe = (asset: AssetOverlay | null, daSec: Map<string, string>): string | null => {
+  const eua = tickerDeAssetEua(asset);
+  if (eua) return daSec.get(eua) ?? chaveCarteira(eua);
   const s = asset?.symbol?.trim().toUpperCase();
   return s ? s : null;
 };
+
+/**
+ * symbolNorm → ticker da Análise ('BRKB' → 'BRK.B') pelo cadastro da SEC (tickers vigentes; o
+ * principal do CIK vence). Só consulta quando há Asset manual EUA.
+ */
+async function tickersDaSec(normalizados: string[]): Promise<Map<string, string>> {
+  const mapa = new Map<string, string>();
+  if (normalizados.length === 0) return mapa;
+  const rows = await prisma.secCompanyTicker.findMany({
+    where: { symbolNorm: { in: normalizados }, validTo: null },
+    select: { symbol: true, symbolNorm: true, principal: true },
+    orderBy: { principal: 'desc' },
+  });
+  for (const r of rows) {
+    if (!mapa.has(r.symbolNorm)) mapa.set(r.symbolNorm, symbolAnaliseDaSec(r.symbol));
+  }
+  return mapa;
+}
+
+/** assetId/tipoAsset só nas linhas EUA manuais (a recompra pela Análise reaproveita o Asset). */
+const camposEua = (asset: AssetOverlay) =>
+  tickerDeAssetEua(asset) && ehTipoAssetEua(asset.type)
+    ? { assetId: asset.id, tipoAsset: asset.type }
+    : {};
 
 /** Portfolio.objetivo: 0 (padrão da coluna) = sem alvo. */
 const objetivoOuNull = (v: number | null | undefined): number | null =>
@@ -78,9 +124,17 @@ export async function overlayCarteira(userId: string): Promise<OverlayCarteiraRe
 
   const resposta: OverlayCarteiraResposta = { posicoes: {}, planejados: {} };
   const comPosicao = new Set<string>();
+  const normalizadosEua = [
+    ...new Set(
+      [...posicoes, ...planejados]
+        .map((x) => tickerDeAssetEua(x.asset))
+        .filter((t): t is string => !!t),
+    ),
+  ];
+  const daSec = await tickersDaSec(normalizadosEua);
 
   for (const p of posicoes) {
-    const ticker = tickerDe(p.asset);
+    const ticker = tickerDe(p.asset, daSec);
     if (!ticker || !p.asset) continue;
     comPosicao.add(p.asset.id);
     const atual = resposta.posicoes[ticker];
@@ -96,11 +150,12 @@ export async function overlayCarteira(userId: string): Promise<OverlayCarteiraRe
       objetivoPct: objetivoOuNull(p.objetivo),
       estrategia: p.estrategia ?? null,
       tipoFii: p.tipoFii ?? null,
+      ...camposEua(p.asset),
     };
   }
 
   for (const w of planejados) {
-    const ticker = tickerDe(w.asset);
+    const ticker = tickerDe(w.asset, daSec);
     if (!ticker || !w.asset) continue;
     if (comPosicao.has(w.asset.id) || resposta.posicoes[ticker]) continue;
     if (resposta.planejados[ticker]) continue;
@@ -110,6 +165,7 @@ export async function overlayCarteira(userId: string): Promise<OverlayCarteiraRe
       categoria: categoriaEfetiva(w.asset, w.categoriaOverride),
       objetivoPct: Number.isFinite(w.objetivo) ? w.objetivo : null,
       secao: w.secao ?? null,
+      ...camposEua(w.asset),
     };
   }
 

@@ -6,8 +6,8 @@
  * insere a versão só se ausente; se já existir, compara com o código (após a validação pelo schema)
  * e avisa quando divergir, mas NUNCA altera uma versão existente (recalibrar = nova versão).
  *
- * v2.5: --versao=N escolhe a versão do código (1 = v2.4, 2 = spec do Pedro + camada de fontes;
- * padrão 1, o comportamento antigo do script) e --valid-from=AAAA-MM-DD a vigência. Para ativar sem
+ * v2.5: --versao=N escolhe a versão do código (1 = v2.4, 2 = spec do Pedro + camada de fontes,
+ * 3 = v2 + Stocks e REITs pela SEC; padrão 1, o comportamento antigo do script) e --valid-from=AAAA-MM-DD a vigência. Para ativar sem
  * pressa (desenho final.ativacao_prod): semear com validFrom no FUTURO (ex.: 2099-01-01), rodar
  * 'criterios --sem-aplicar --versao-params=N' e só então adiantar o validFrom. Grava o JSON como
  * foi escrito (a v1 com os nomes legados, igual à de produção; o parse aplica o alias).
@@ -28,6 +28,7 @@ import {
 } from '../../src/services/analiseAtivos/params/criteriaParamsSchema';
 import { CRITERIA_PARAMS_V1_JSON } from '../../src/services/analiseAtivos/params/criteriaParamsV1';
 import { CRITERIA_PARAMS_V2_JSON } from '../../src/services/analiseAtivos/params/criteriaParamsV2';
+import { CRITERIA_PARAMS_V3_JSON } from '../../src/services/analiseAtivos/params/criteriaParamsV3';
 import { validarCriteriaParams } from '../../src/services/analiseAtivos/params/obterCriteriaParams';
 
 const CREATED_BY = 'seed-v2-filtros';
@@ -45,6 +46,12 @@ export const VERSOES_CODIGO: Record<number, { json: CriteriaParamsEntrada; notas
     notas:
       'v2 = regras da spec do Pedro (§3.2, §4.1, §4.4, §5, §6) + camada de fontes; decisões de ' +
       '15/10/2026 (docs/analise-ativos/v25-regras-pedro/desenho.json)',
+  },
+  3: {
+    json: CRITERIA_PARAMS_V3_JSON,
+    notas:
+      'v3 = v2 (Brasil, igual) + Stocks e REITs pela SEC (perfis stock, stock_financeira e reit; ' +
+      'universo ≥ US$ 2 bi); decisões de 17/10/2026 (docs/analise-ativos/stocks-reits/desenho.json)',
   },
 };
 
@@ -78,9 +85,11 @@ export function resumoParams(p: CriteriaParams): string[] {
     `versao ${p.versao} · janelas ${p.janelas.join('/')} (padrão ${p.janelaPadrao}) · ` +
       `ano anterior liberado em ${p.ancoraAno.mesLiberaAnoAnterior}/AAAA`,
   ];
-  for (const perfil of ['acao', 'fii_tijolo', 'fii_papel'] as const) {
+  for (const perfil of ['acao', 'fii_tijolo', 'fii_papel', 'stock', 'reit'] as const) {
+    const lista = p.perfis[perfil];
+    if (!lista) continue;
     linhas.push(`  ${perfil}:`);
-    for (const c of p.perfis[perfil]) {
+    for (const c of lista) {
       const limite = c.limite !== undefined ? ` limite ${c.limite}` : '';
       const inativo = c.ativo === false ? ` [INATIVO: ${c.motivoInativo}]` : '';
       const serie = c.serieFallback ? `${c.serie}→${c.serieFallback}` : c.serie;
@@ -107,6 +116,23 @@ export function resumoParams(p: CriteriaParams): string[] {
     `  dlEbitda: ${JSON.stringify(p.dlEbitda)}`,
     `  meses: ${JSON.stringify(p.meses)}`,
   );
+  if (p.perfis.stock_financeira) {
+    const nsaEua = idsNaoSeAplica(p, 'stock_financeira');
+    linhas.push(
+      `  stock_financeira: não se aplica ${nsaEua.length ? nsaEua.join(', ') : '(nenhum: n de 6)'} ` +
+        `(${p.perfis.stock_financeira.regraPerfil})`,
+    );
+  }
+  if (f.prioridade.porMercado) {
+    linhas.push(`  fontes por mercado: ${JSON.stringify(f.prioridade.porMercado)}`);
+  }
+  if (p.universoEua) {
+    const u = p.universoEua;
+    linhas.push(
+      `  universo EUA: stocks ≥ US$ ${u.stock.floatEntradaUsd / 1e9} bi (sai < ${u.stock.floatSaidaUsd / 1e9} bi) · ` +
+        `REITs ≥ US$ ${u.reit.floatEntradaUsd / 1e9} bi (sai < ${u.reit.floatSaidaUsd / 1e9} bi)`,
+    );
+  }
   return linhas;
 }
 

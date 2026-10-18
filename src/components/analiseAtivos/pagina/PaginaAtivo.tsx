@@ -16,6 +16,13 @@
  * Bloco C (fatia B): ConferenciaPaginaProvider leva aos blocos as conferências do topo (chip "em
  * conferência" + "Por quê?"), o frescor por bloco (selo no rodapé de cada card) e
  * config.reporteHabilitado (menu ⋯). Com params v1 e a flag desligada nada disso aparece.
+ *
+ * Stocks e REITs (fatia C, AtivoTopoResposta.eua presente): variante SEM cotação — cabeçalho com
+ * setor/segmento, bolsa e FY (sem índice) e "Cotação não exibida"; card de critérios com o link dos
+ * 10-K na SEC; KPIs do último FY; gráfico 'LPA por ano' (stock) ou 'Caixa operacional por ação por
+ * ano' (REIT) no lugar do gráfico lucro × cotação; Essencial EUA; Valuation só com a nota (Múltiplos
+ * e Meus cenários ocultos). Sem pares/múltiplos históricos, eventos e tese nesta versão (dependem
+ * da cotação ou da B3).
  */
 import Link from 'next/link';
 import BlocoFundamentos from '@/components/analiseAtivos/ativo/analise/BlocoFundamentos';
@@ -29,6 +36,8 @@ import BlocoKpis from '@/components/analiseAtivos/ativo/topo/BlocoKpis';
 import CabecalhoAtivo from '@/components/analiseAtivos/ativo/topo/CabecalhoAtivo';
 import CardEducacao from '@/components/analiseAtivos/ativo/topo/CardEducacao';
 import GraficoLucroCotacao from '@/components/analiseAtivos/ativo/topo/GraficoLucroCotacao';
+import GraficoPorAcaoEua from '@/components/analiseAtivos/ativo/topo/GraficoPorAcaoEua';
+import { TEXTOS_EUA_TELAS } from '@/services/analiseAtivos/textosEuaTelas';
 import SeloFrescor from '@/components/analiseAtivos/ativo/topo/SeloFrescor';
 import AcoesCarteiraAtivo from '@/components/analiseAtivos/ativo/usuario/AcoesCarteiraAtivo';
 import BlocoNaCarteira from '@/components/analiseAtivos/ativo/usuario/BlocoNaCarteira';
@@ -45,6 +54,7 @@ import {
 } from '@/hooks/useAnaliseAtivos';
 import { TEXTOS_TELA } from '@/services/analiseAtivos/textosTela';
 import type { PaginaAtivoProps } from '@/types/analiseAtivosApi';
+import { noOverlay } from '@/services/analiseAtivos/carteira/tickerCarteiraEua';
 
 const CARD =
   'rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03]';
@@ -72,7 +82,11 @@ export default function PaginaAtivo({ ticker }: PaginaAtivoProps) {
           {naoEncontrado ? t.naoEncontrado : t.erro}
         </h1>
         {naoEncontrado ? (
-          <p className="text-sm text-gray-600 dark:text-gray-300">{t.naoEncontradoTexto}</p>
+          <p className="text-sm text-gray-600 dark:text-gray-300">
+            {config.data?.recursos?.eua === true
+              ? TEXTOS_EUA_TELAS.ativo.naoEncontradoTexto
+              : t.naoEncontradoTexto}
+          </p>
         ) : (
           <button
             type="button"
@@ -94,8 +108,8 @@ export default function PaginaAtivo({ ticker }: PaginaAtivoProps) {
 
   const ativo = topo.data;
   const { classe } = ativo;
-  const posicao = overlay.data?.posicoes[ticker];
-  const planejado = overlay.data?.planejados[ticker];
+  const posicao = noOverlay(overlay.data?.posicoes, ticker);
+  const planejado = noOverlay(overlay.data?.planejados, ticker);
   const seloCarteira = posicao ? (
     <SeloEstado tipo="na_carteira" />
   ) : planejado ? (
@@ -110,6 +124,49 @@ export default function PaginaAtivo({ ticker }: PaginaAtivoProps) {
     conferencias: ativo.conferencias ?? [],
     frescorBlocos: ativo.frescorBlocos ?? null,
   };
+
+  if (ativo.eua) {
+    return (
+      <ConferenciaPaginaProvider valor={contexto}>
+        <div
+          className="flex min-w-0 flex-col gap-4 md:gap-6"
+          data-pagina-ativo={ticker}
+          data-pagina-eua={classe}
+        >
+          <CabecalhoAtivo
+            ativo={ativo}
+            seloCarteira={seloCarteira}
+            slotAcoes={<AcoesCarteiraAtivo {...base} nome={ativo.nome} assetId={ativo.assetId} />}
+          />
+          <CardCriterios
+            {...base}
+            criterios={ativo.criterios ?? null}
+            linkDocumentos={ativo.eua.linkDocumentos}
+          />
+          <div className="grid min-w-0 gap-4 md:gap-6 xl:grid-cols-2">
+            <BlocoNaCarteira
+              {...base}
+              nome={ativo.nome}
+              assetId={ativo.assetId}
+              precoCabecalho={ativo.cotacao.preco}
+              precoData={ativo.cotacao.data}
+            />
+            <BlocoKpis classe={classe} kpis={ativo.kpis} />
+          </div>
+          <div className="grid min-w-0 gap-4 md:gap-6 xl:grid-cols-2">
+            <GraficoPorAcaoEua ticker={ticker} grafico={ativo.grafico} />
+            <BlocoDividendos classe={classe} dividendos={ativo.dividendos} />
+          </div>
+          <SecaoPreguicosa rotulo={TEXTOS_TELA.blocos.fundamentos}>
+            <BlocoFundamentos {...base} />
+          </SecaoPreguicosa>
+          <BlocoValuation {...base} nome={ativo.nome} />
+          <CardEducacao educacao={ativo.educacao} classe={classe} />
+          <SeloFrescor frescor={ativo.frescor} />
+        </div>
+      </ConferenciaPaginaProvider>
+    );
+  }
 
   return (
     <ConferenciaPaginaProvider valor={contexto}>

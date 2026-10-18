@@ -19,7 +19,10 @@
  *  2. TEXTOS_OPERACAO (Compra/Venda, fatia C1) — varridos com { lista: 'operacao' } (a lista sem
  *     compra/comprar/venda/vender);
  *  3. no DOM, [data-texto-legal] (só com conteúdo do registro) e [data-nome-ativo] — ver
- *     src/test/utils/varrerDom.ts.
+ *     src/test/utils/varrerDom.ts (nome de empresa com sigla de índice, ex. S&P Global, fica em
+ *     data-nome-ativo).
+ * Stocks e REITs (fatia 0 EUA): nomes de índice de mercado (S&P 500, MSCI, Dow Jones, Russell,
+ * Nasdaq-100) entram na lista — o universo EUA é descrito pela regra, nunca por índice.
  */
 import { PALAVRAS_PROIBIDAS_BLOCO_D } from '@/services/analiseAtivos/regras/comum/varreduraTextos';
 import { ehTextoLiteral } from '@/services/analiseAtivos/textosLiterais';
@@ -44,6 +47,16 @@ export const PALAVRAS_PROIBIDAS_V2: readonly string[] = [
   'aporte necessário',
   'vender',
   'top 10',
+  // Stocks e REITs (fatia 0 EUA): nome de índice de mercado (licença) nunca na superfície
+  'S&P 500',
+  'S&P',
+  'MSCI',
+  'Dow Jones',
+  'Russell 1000',
+  'Russell 2000',
+  'Russell 3000',
+  'Nasdaq-100',
+  'Nasdaq 100',
 ];
 
 /** Rótulos de tipo de operação liberados SÓ em TEXTOS_OPERACAO. */

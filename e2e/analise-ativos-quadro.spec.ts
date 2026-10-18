@@ -272,8 +272,10 @@ test('busca "weg" → WEGE3 abre a página do ativo; "/" foca a busca', async ({
 test('busca sem resultado diz o que cobre; textos sem linguagem proibida', async ({ page }) => {
   await abrirQuadro(page);
   const campo = page.getByRole('combobox', { name: 'Buscar ativo' });
-  await campo.fill('AAPL');
-  await expect(page.getByText('A busca cobre ações e FIIs da B3, por ticker ou nome')).toBeVisible({
+  // ticker que não existe em nenhuma classe: com ANALISE_ATIVOS_EUA_HABILITADO o AAPL é achado e
+  // o aviso cita também stocks e REITs (textosEua.busca.semResultadoComEua)
+  await campo.fill('ZZZQ9');
+  await expect(page.getByText(/^A busca cobre ações e FIIs da B3/)).toBeVisible({
     timeout: 30_000,
   });
   await campo.fill('');

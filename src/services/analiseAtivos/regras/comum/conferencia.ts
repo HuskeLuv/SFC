@@ -37,6 +37,7 @@ import {
   proventosEmConferencia,
 } from '@/services/analiseAtivos/regras/calculo/plausibilidadeProventos';
 import type { NomeComponente } from '@/services/analiseAtivos/tipos';
+import type { ClasseQuadro } from '@/types/analiseAtivosApi';
 
 // Legado de proventos reexportado SEM renomear (fatia A: plausibilidadeProventos continua dona).
 export {
@@ -147,11 +148,15 @@ export type EscopoConferencia = 'empresa' | 'ticker';
 /** 'ocultar' = '—' + chip (número só no "Por quê?"); 'selo' = valor visível + chip. */
 export type ExibicaoConferencia = 'ocultar' | 'selo';
 
-export type ClasseConferencia = 'acao' | 'fii';
+/**
+ * Classe de uma conferência. Desde a fatia 0 da feature EUA = ClasseQuadro: os grupos de
+ * DEF_GRUPO só disparam em 'acao'/'fii' (DefGrupo.classes); stock/reit nunca têm grupo.
+ */
+export type ClasseConferencia = ClasseQuadro;
 
 export interface DefGrupo {
   escopo: EscopoConferencia;
-  /** classes em que o grupo pode disparar */
+  /** classes em que o grupo pode disparar (só Brasil: stock/reit nunca têm grupo) */
   classes: readonly ClasseConferencia[];
   /** componentes do Índice MF que viram ausente('em_conferencia') */
   componentes: Partial<Record<ClasseConferencia, readonly NomeComponente[]>>;

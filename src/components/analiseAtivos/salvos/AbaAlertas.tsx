@@ -384,6 +384,9 @@ export default function AbaAlertas({
     return {
       acao: todos.filter((a) => daClasse(a, 'acao')).length,
       fii: todos.filter((a) => daClasse(a, 'fii')).length,
+      // EUA (fatia D liga as abas; CLASSES_SALVOS decide quais aparecem)
+      stock: todos.filter((a) => daClasse(a, 'stock')).length,
+      reit: todos.filter((a) => daClasse(a, 'reit')).length,
     } satisfies Record<ClasseItemSalvo, number>;
   }, [alertas.data]);
   const daAba = useMemo(

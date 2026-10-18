@@ -39,6 +39,13 @@
  * com 4º elemento (obs), EntradaDesvioAlvo.valorBase (carteira TOTAL, caso 33), origem 'padrao' da
  * seção automática e EntradaAvaliacaoAtivo.origens/mesesPorAno. Financeiras passam a "n de 6" pelo
  * params (naoSeAplica vazio), sem mudança de tipo. Camada de fontes: src/types/analiseAtivosFontes.ts.
+ *
+ * Stocks e REITs (docs/analise-ativos/stocks-reits/desenho.json, fatia 0): perfis 'stock',
+ * 'stock_financeira' (SIC 6000–6799 exceto 6798; "n de 6" literal) e 'reit'; ids novos dpa,
+ * fco_acao, pay, ocup e ffo_acao (RESERVADO para a fase 2: FFO/ação do 10-K); séries novas
+ * dividend_per_share, ocf_per_share, cash_payout_pct, occupancy, ffo_per_share, affo_per_share,
+ * affo_payout_pct; unidades em US$. Os ids rec/luc/ebitda/mg/dl/fcl valem igual para stocks (?c=
+ * compartilhado). Contratos próprios da feature: src/types/analiseAtivosEua.ts.
  */
 import type { ReactNode } from 'react';
 import type { ClasseQuadro, Estado, FiiTipoTela, FormatoAnalise } from '@/types/analiseAtivosApi';
@@ -66,11 +73,29 @@ export type ChaveJanela = '3' | '5' | '10';
  * - FII: papel → 'fii_papel'; tijolo → 'fii_tijolo'; híbrido, indefinido, FoF ou sem tipo →
  *   (imóveis + SPE)/PL ≥ params.regraHibrido.limiarImoveisPlPct ? tijolo : papel (rec. 3).
  */
-export const PERFIS_CRITERIO = ['acao', 'acao_financeira', 'fii_tijolo', 'fii_papel'] as const;
+export const PERFIS_CRITERIO_BR = ['acao', 'acao_financeira', 'fii_tijolo', 'fii_papel'] as const;
+/**
+ * Perfis EUA (feature Stocks/REITs): stock → 'stock_financeira' quando SecCompany.ehFinanceira
+ * (SIC 6000–6799 exceto 6798, + override por CIK), senão 'stock'; reit → 'reit'.
+ */
+export const PERFIS_CRITERIO_EUA = ['stock', 'stock_financeira', 'reit'] as const;
+export const PERFIS_CRITERIO = [...PERFIS_CRITERIO_BR, ...PERFIS_CRITERIO_EUA] as const;
 export type PerfilCriterio = (typeof PERFIS_CRITERIO)[number];
+export type PerfilCriterioEua = (typeof PERFIS_CRITERIO_EUA)[number];
 
-/** Perfis com lista própria de 6 critérios em criteria_params (a financeira deriva de 'acao'). */
-export type PerfilComLista = Exclude<PerfilCriterio, 'acao_financeira'>;
+/** Perfis financeiros: derivam da lista de outro perfil ('acao' / 'stock') com naoSeAplica. */
+export type PerfilFinanceira = 'acao_financeira' | 'stock_financeira';
+
+/** Perfis com lista própria de 6 critérios em criteria_params (as financeiras derivam). */
+export type PerfilComLista = Exclude<PerfilCriterio, PerfilFinanceira>;
+
+export function ehPerfilCriterio(v: unknown): v is PerfilCriterio {
+  return typeof v === 'string' && (PERFIS_CRITERIO as readonly string[]).includes(v);
+}
+
+export function ehPerfilEua(v: unknown): v is PerfilCriterioEua {
+  return typeof v === 'string' && (PERFIS_CRITERIO_EUA as readonly string[]).includes(v);
+}
 
 /**
  * Tipos de verificação (port do screen.js):
@@ -85,6 +110,9 @@ export type TipoCriterio = 'up' | 'pos' | 'max' | 'min' | 'months';
  * Ações:  rec · luc · ebitda · mg · dl · fcl
  * FII tijolo: rend · vp · vac · alav · mes · res
  * FII papel:  rend · vp · inad · ltv · mes · res   (equivalências vac↔inad, alav↔ltv)
+ * Stock (e stock_financeira): rec · luc · ebitda · mg · dl · fcl   (os MESMOS ids das ações)
+ * REIT:   rec · dpa · fco_acao · dl · pay · ocup   (dl com limite 6×; ocup inativa sem fonte)
+ * Reservado: ffo_acao (fase 2, FFO/ação extraído do 10-K; nenhum perfil da v3 usa).
  */
 export const IDS_CRITERIO = [
   'rec',
@@ -101,6 +129,13 @@ export const IDS_CRITERIO = [
   'res',
   'inad',
   'ltv',
+  // EUA (REIT)
+  'dpa',
+  'fco_acao',
+  'pay',
+  'ocup',
+  // reservado (fase 2)
+  'ffo_acao',
 ] as const;
 export type IdCriterio = (typeof IDS_CRITERIO)[number];
 
@@ -122,6 +157,10 @@ export function ehIdCriterio(v: unknown): v is IdCriterio {
  * resultadoTrimestral · months_with_income = proventos auditados · vacancy_physical =
  * FiiQuarterly.vacanciaFisicaCvmPct (CVM, informe trimestral; papel nsa = sem dado) · default_pct /
  * ltv_avg = fii_property_quality approved (só provedor).
+ * EUA (fonte 'sec', fatia B): mesmas séries das ações em US$ mi + dividend_per_share (US$/ação; DPA
+ * CashPaid → Declared → derivado), ocf_per_share (FCO ÷ média diluída, US$/ação), cash_payout_pct
+ * (dividendos pagos ÷ FCO × 100) e occupancy (%, sem fonte no XBRL). ffo_per_share,
+ * affo_per_share e affo_payout_pct ficam reservadas para a fase 2 (10-K com curadoria).
  */
 export const SERIES_CRITERIO = [
   'revenue',
@@ -139,6 +178,14 @@ export const SERIES_CRITERIO = [
   'ffo',
   'default_pct',
   'ltv_avg',
+  // EUA (REIT; fase 2 reservada)
+  'dividend_per_share',
+  'ocf_per_share',
+  'cash_payout_pct',
+  'occupancy',
+  'ffo_per_share',
+  'affo_per_share',
+  'affo_payout_pct',
 ] as const satisfies readonly SerieFundamento[];
 export type SerieCriterio = (typeof SERIES_CRITERIO)[number];
 
@@ -196,8 +243,9 @@ export function ehObsCriterio(v: unknown): v is ObsCriterio {
  */
 export type FormatoCriterio = 'n' | 'n1' | 'n2' | '%' | 'x';
 
-/** Unidade exibida entre parênteses no fato de 'up' ('cresceu … (R$ mi)'). */
-export type UnidadeCriterio = 'R$ mi' | 'R$ bi' | 'R$';
+/** Unidade exibida entre parênteses no fato de 'up' ('cresceu … (R$ mi)'; EUA em US$). */
+export const UNIDADES_CRITERIO = ['R$ mi', 'R$ bi', 'R$', 'US$ mi', 'US$ bi', 'US$'] as const;
+export type UnidadeCriterio = (typeof UNIDADES_CRITERIO)[number];
 
 /** Os 4 estados de um critério. 'sem_dado' conta como não atende. */
 export const ESTADOS_CRITERIO = ['atende', 'nao_atende', 'sem_dado', 'nao_se_aplica'] as const;
@@ -207,7 +255,8 @@ export type EstadoCriterio = (typeof ESTADOS_CRITERIO)[number];
  * Por que o critério não tem resultado normal (texto em textosCriterios.motivos):
  * - sem_dado_demonstracoes: valor ausente em algum ano exigido da janela (ou ano em conferência);
  * - sem_fonte_confiavel: critério inativo por D3 (só v1; na v2 vacância, inadimplência e LTV ficam
- *   ativos e, sem fonte, caem em sem_dado_demonstracoes);
+ *   ativos e, sem fonte, caem em sem_dado_demonstracoes). v3 (EUA): ocupação do REIT (não existe
+ *   no XBRL; 'não atende · sem dado', conta no "de 6");
  * - base_proventos_curta: base de proventos começa depois do início da janela (rec. 4,
  *   params.meses.mesesBaseCurta = 'sem_dado');
  * - ebitda_nao_positivo: Dív.líq/EBITDA com EBITDA ≤ 0 e DL > 0 (fora, fato 'EBITDA ≤ 0 em AAAA');
@@ -262,7 +311,7 @@ export interface AvaliacaoJanela {
   anoFim: number;
   /** contagem de 'atende' (não é nota) */
   atendidos: number;
-  /** critérios que se aplicam ao perfil (6; financeira 3) */
+  /** critérios que se aplicam ao perfil (6; financeira 3 na v1; EUA 6) */
   aplicaveis: number;
   /** true quando NENHUM critério aplicável tem dado na janela */
   semDado: boolean;

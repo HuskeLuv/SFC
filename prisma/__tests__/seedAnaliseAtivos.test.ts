@@ -11,6 +11,8 @@ import {
 } from '../seedAnaliseAtivos';
 import { CRITERIA_PARAMS_V1_JSON } from '@/services/analiseAtivos/params/criteriaParamsV1';
 import { CRITERIA_PARAMS_V2_JSON } from '@/services/analiseAtivos/params/criteriaParamsV2';
+import { CRITERIA_PARAMS_V3_JSON } from '@/services/analiseAtivos/params/criteriaParamsV3';
+import { semearFixturesEua } from '../seedAnaliseAtivosEua';
 
 const MODELOS_FASE0 = [
   'scoringParams',
@@ -108,6 +110,19 @@ describe('seedAnaliseAtivos', () => {
     expect(r.fixtures?.asset).toBe(catalogo.data.length);
   });
 
+  it('EUA: fixtures EUA depois das BR, só no banco efêmero', async () => {
+    const semearEua = vi.fn(async () => 2);
+    const vazio = prismaFalso(0);
+    const r = await seedAnaliseAtivos(vazio.prisma, { avaliarCriterios, semearEua });
+    expect(semearEua).toHaveBeenCalledWith(vazio.prisma);
+    expect(r.fixtures?.quadroEua).toBe(2);
+    semearEua.mockClear();
+    await seedAnaliseAtivos(prismaFalso(10).prisma, { avaliarCriterios, semearEua });
+    expect(semearEua).not.toHaveBeenCalled();
+    // o padrão é o semeador real das fixtures EUA (fatia C; teste em seedAnaliseAtivosEua.test.ts)
+    expect(typeof semearFixturesEua).toBe('function');
+  });
+
   it('sem usuário demo não quebra', async () => {
     const { prisma, p } = prismaFalso(10);
     (p.user as { findUnique: ReturnType<typeof vi.fn> }).findUnique.mockResolvedValue(null);
@@ -132,10 +147,10 @@ describe('seedAnaliseAtivos', () => {
 });
 
 describe('avaliarCriteriosFixtures (v2.4)', () => {
-  it('grava criteria_params v1 e v2 (idempotente; v2 vigente) e copia a forma compacta para as linhas do Quadro', async () => {
+  it('grava criteria_params v1, v2 e v3 (idempotente; v3 vigente) e copia a forma compacta para as linhas do Quadro', async () => {
     const criteriaParams = {
       createMany: vi.fn(async () => ({ count: 1 })),
-      findFirst: vi.fn(async () => ({ version: 2, params: CRITERIA_PARAMS_V2_JSON })),
+      findFirst: vi.fn(async () => ({ version: 3, params: CRITERIA_PARAMS_V3_JSON })),
     };
     const updateMany = vi.fn(async () => ({ count: 1 }));
     const $queryRaw = vi.fn(async () => [
@@ -180,6 +195,12 @@ describe('avaliarCriteriosFixtures (v2.4)', () => {
         expect.objectContaining({
           version: 2,
           params: CRITERIA_PARAMS_V2_JSON,
+          validFrom: VALIDO_DESDE_CRITERIOS,
+          createdBy: 'seed',
+        }),
+        expect.objectContaining({
+          version: 3,
+          params: CRITERIA_PARAMS_V3_JSON,
           validFrom: VALIDO_DESDE_CRITERIOS,
           createdBy: 'seed',
         }),

@@ -28,9 +28,15 @@
  * "Salvar filtros" (FiltrosSalvos + ModalSalvarFiltro); com ?filtro=<id>, a FaixaFiltroAplicado
  * ("Filtro salvo: X", "· alterado", Salvar alterações / Salvar como novo / ×). Sem o recurso, o
  * Quadro fica como antes.
+ *
+ * Stocks e REITs (fatia C), só com config.recursos.eua: abas Stocks e REITs com o contador real (no
+ * celular, < 640 px, as 4 abas em grade 2×2, cada uma com 44 px), chips que quebram linha, faixa
+ * "cotações dos EUA ainda não aparecem" (sem recursos.euaPreco) e a faixa dos critérios substitutos
+ * do REIT, valores em US$, rodapé 'rodape-quadro-eua' com a regra do universo (sem nome de índice).
+ * ?classe=stock|reit sem a chave volta para Ações. Sem a chave, nada disso aparece.
  */
 import Link from 'next/link';
-import { Suspense, useMemo, useState, type ReactNode } from 'react';
+import { Suspense, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { ResponsiveTabNav } from '@/components/ui/tabs/ResponsiveTabNav';
 import BarraFiltrosCriterios from '@/components/analiseAtivos/quadro/BarraFiltrosCriterios';
 import CartoesQuadro from '@/components/analiseAtivos/quadro/CartoesQuadro';
@@ -82,12 +88,17 @@ import { definicoesQuadro } from '@/services/analiseAtivos/quadro/consultaQuadro
 import { TEXTOS_CRITERIOS } from '@/services/analiseAtivos/textosCriterios';
 import { TEXTOS_QUADRO, textoContadorQuadro } from '@/services/analiseAtivos/textosQuadro';
 import { TEXTOS_TELA, formatarTexto } from '@/services/analiseAtivos/textosTela';
-import type {
-  ClasseQuadro,
-  DirecaoOrdem,
-  ModoQuadro,
-  OrdemQuadro,
-  QuadroAnaliseProps,
+import { TEXTOS_EUA } from '@/services/analiseAtivos/textosEua';
+import { TEXTOS_EUA_TELAS } from '@/services/analiseAtivos/textosEuaTelas';
+import {
+  CLASSES_BR,
+  CLASSES_QUADRO,
+  ehClasseEua,
+  type ClasseQuadro,
+  type DirecaoOrdem,
+  type ModoQuadro,
+  type OrdemQuadro,
+  type QuadroAnaliseProps,
 } from '@/types/analiseAtivosApi';
 import type { DefCriterioChip, IdCriterio } from '@/types/analiseAtivosCriterios';
 import type { LinhaQuadroApi } from '@/types/analiseAtivosApi';
@@ -305,6 +316,8 @@ function ExplicacaoCriterios({
     });
   }
   const notaFinanceira = classe === 'acao' && CRITERIOS_NAO_SE_APLICAM_FINANCEIRA.length === 0;
+  // EUA: financeiras (SIC 6000–6799 exceto REIT) seguem 'n de 6' com dívida líquida/FCL sem dado
+  const notaFinanceiraEua = classe === 'stock';
   return (
     <details
       data-explicacao-criterios=""
@@ -334,6 +347,15 @@ function ExplicacaoCriterios({
           {TQ.explicacao.financeira}
         </p>
       ) : null}
+      {notaFinanceiraEua ? (
+        <p
+          data-explicacao-financeira=""
+          className="m-0 pb-3 text-sm text-gray-600 dark:text-gray-300"
+        >
+          {TEXTOS_EUA.financeira.semDado.charAt(0).toUpperCase()}
+          {TEXTOS_EUA.financeira.semDado.slice(1)}. {TEXTOS_EUA.dividaLiquida}
+        </p>
+      ) : null}
     </details>
   );
 }
@@ -342,12 +364,49 @@ const BOTAO_SEC = `inline-flex min-h-11 items-center justify-center rounded-xl b
 const BOTAO_PRI = `inline-flex min-h-12 items-center justify-center rounded-xl bg-[#314666] px-4 text-sm font-semibold text-white lg:min-h-11 ${FOCO}`;
 const LINK_INLINE = `inline-flex min-h-11 items-center align-middle font-medium underline underline-offset-2 ${COR_LINK.classes} ${FOCO}`;
 
+/**
+ * Faixas do Quadro EUA: sem a chave de preço, "cotações dos EUA ainda não aparecem"; no REIT, os
+ * critérios substitutos (caixa operacional no lugar do FFO; ocupação sem dado). Texto factual, sem
+ * cor semântica.
+ */
+function FaixasEua({ classe, euaPreco }: { classe: ClasseQuadro; euaPreco: boolean }) {
+  if (!ehClasseEua(classe)) return null;
+  const Q = TEXTOS_EUA_TELAS.quadro;
+  const caixa =
+    'rounded-xl border-l-[3px] border-[#396CAA] bg-[#EDF2F8] px-3 py-2.5 text-[13px] leading-relaxed text-gray-700 dark:border-[#6E9DC4] dark:bg-[#6E9DC4]/10 dark:text-gray-200';
+  return (
+    <div className="flex flex-col gap-2" data-faixas-eua={classe}>
+      {euaPreco ? null : (
+        <p role="note" data-faixa-sem-cotacao="" className={`m-0 ${caixa}`}>
+          <b className="font-semibold text-gray-800 dark:text-white/90">{Q.faixaCotacaoTitulo}</b>{' '}
+          {Q.faixaCotacaoTexto}
+        </p>
+      )}
+      {classe === 'reit' ? (
+        <p role="note" data-faixa-reit="" className={`m-0 ${caixa}`}>
+          {TEXTOS_EUA.reit.faixa}
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
 function QuadroConteudo({ className = '' }: QuadroAnaliseProps) {
   const url = useEstadoQuadroUrl();
   const { estado, filtros } = url;
   const celular = useIsBelowLg();
   const [sheetOrdem, setSheetOrdem] = useState(false);
   const config = useAnaliseAtivosConfig();
+  // Stocks e REITs: abas, rotas e busca EUA só com a chave (o servidor já decide pelo usuário)
+  const euaLigado = config.data?.recursos?.eua === true;
+  const euaPreco = euaLigado && config.data?.recursos?.euaPreco === true;
+  const classeEua = ehClasseEua(estado.classe);
+  const configCarregada = config.isSuccess;
+  const { setClasse } = url;
+  useEffect(() => {
+    // ?classe=stock|reit sem a chave EUA: volta para Ações (a rota responderia 404)
+    if (configCarregada && !euaLigado && classeEua) setClasse('acao');
+  }, [configCarregada, euaLigado, classeEua, setClasse]);
   const comparadorLigado = config.data?.recursos?.comparador === true;
   const selecao = useSelecaoComparar(estado.classe, comparadorLigado);
   const modoComparar = comparadorLigado && selecao.ativo;
@@ -397,10 +456,10 @@ function QuadroConteudo({ className = '' }: QuadroAnaliseProps) {
   });
 
   const contagens = primeira?.contagens;
-  const abas = (['acao', 'fii'] as const).map((c) => ({
-    id: c,
-    label: contagens ? `${T.abas[c]} ${contagens[c]}` : T.abas[c],
-  }));
+  const abas = (euaLigado ? CLASSES_QUADRO : CLASSES_BR).map((c) => {
+    const n = contagens?.[c];
+    return { id: c, label: n === undefined ? T.abas[c] : `${T.abas[c]} ${n}` };
+  });
 
   const totalClasse = daClasse ? (primeira?.totalClasse ?? contagens?.[estado.classe]) : undefined;
   const contador =
@@ -453,7 +512,13 @@ function QuadroConteudo({ className = '' }: QuadroAnaliseProps) {
     } else if (soCarteira) {
       corpo = (
         <CaixaEstado
-          titulo={estado.classe === 'acao' ? T.semPosicaoAcao : T.semPosicaoFii}
+          titulo={
+            ehClasseEua(estado.classe)
+              ? TEXTOS_EUA_TELAS.quadro.semPosicao[estado.classe]
+              : estado.classe === 'acao'
+                ? T.semPosicaoAcao
+                : T.semPosicaoFii
+          }
           texto={T.semPosicaoTexto}
           acao={
             <Link href="/carteira" className={BOTAO_PRI}>
@@ -487,6 +552,7 @@ function QuadroConteudo({ className = '' }: QuadroAnaliseProps) {
         comparar={controleComparar}
         definicoes={definicoes}
         acaoLinha={acaoLinha}
+        euaPreco={euaPreco}
       />
     );
   } else {
@@ -506,6 +572,7 @@ function QuadroConteudo({ className = '' }: QuadroAnaliseProps) {
         definicoes={definicoes}
         acaoLinha={acaoLinha}
         rotuloColunaAcao={salvosLigado ? TEXTOS_SALVOS.salvar.colunaQuadro : undefined}
+        euaPreco={euaPreco}
       />
     );
   }
@@ -524,6 +591,7 @@ function QuadroConteudo({ className = '' }: QuadroAnaliseProps) {
       onAlternarNaCarteira={url.alternarNaCarteira}
       onTrocarSetor={url.setSetor}
       onLimpar={url.limparFiltros}
+      quebrarLinha={euaLigado}
     />
   );
 
@@ -620,7 +688,8 @@ function QuadroConteudo({ className = '' }: QuadroAnaliseProps) {
           onChange={(id) => url.setClasse(id as ClasseQuadro)}
           ariaLabel={T.abasRotulo}
           variant="segmented-sub"
-          className="shrink-0"
+          // EUA no celular: 4 abas em grade 2×2 abaixo de 640 px (sem faixa rolável)
+          className={celular && euaLigado ? 'grid shrink-0 grid-cols-2 sm:flex' : 'shrink-0'}
         />
         {celular && botaoComparar ? (
           <div className="flex items-center justify-between gap-2">
@@ -686,6 +755,8 @@ function QuadroConteudo({ className = '' }: QuadroAnaliseProps) {
 
       <FaixaFrescorAtrasado frescor={daClasse ? primeira?.frescorCotacao : undefined} />
 
+      <FaixasEua classe={estado.classe} euaPreco={euaPreco} />
+
       {corpo}
 
       {itens.length > 0 ? (
@@ -725,7 +796,10 @@ function QuadroConteudo({ className = '' }: QuadroAnaliseProps) {
       ) : null}
 
       <div className="flex flex-col gap-2">
-        <RodapeCriterios />
+        <RodapeCriterios
+          eua={classeEua}
+          universoDescricao={daClasse ? primeira?.universoDescricao : undefined}
+        />
         <FrescorCotacoes frescor={daClasse ? primeira?.frescorCotacao : undefined} />
       </div>
 

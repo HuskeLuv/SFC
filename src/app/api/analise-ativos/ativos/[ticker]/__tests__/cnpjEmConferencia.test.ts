@@ -29,6 +29,9 @@ const m = vi.hoisted(() => ({
 
 vi.mock('@/services/analiseAtivos/acesso/acessoAnalise', () => ({
   exigirAcessoAnalise: m.exigir,
+  exigirClasseAnalise: m.exigir,
+  // EUA (fatia C): chave desligada = rotas de hoje
+  flagsEua: () => ({ eua: false, euaPreco: false }),
 }));
 vi.mock('@/lib/prisma', () => ({ prisma: m.prisma }));
 vi.mock('@/services/analiseAtivos/observabilidade/frescor', () => ({

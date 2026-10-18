@@ -61,13 +61,32 @@ import { formatarTexto } from '@/services/analiseAtivos/textosCriterios';
 import {
   INSTRUCAO_COMPARADOR_ACOES,
   INSTRUCAO_COMPARADOR_FIIS,
+  INSTRUCAO_COMPARADOR_REITS,
+  INSTRUCAO_COMPARADOR_STOCKS,
+  type TextoLiteral,
 } from '@/services/analiseAtivos/textosLiterais';
+import { TEXTOS_EUA } from '@/services/analiseAtivos/textosEua';
+import { TEXTOS_EUA_TELAS } from '@/services/analiseAtivos/textosEuaTelas';
+import { ErroAnalise } from '@/hooks/useAnaliseAtivos';
+import { TEXTOS_TELA } from '@/services/analiseAtivos/textosTela';
 import type { ComparadorProps, ComparadorResposta } from '@/types/analiseAtivosBlocoD';
-import type { ClasseQuadro } from '@/types/analiseAtivosApi';
+import {
+  CLASSES_BR,
+  CLASSES_QUADRO,
+  ehClasseEua,
+  type ClasseQuadro,
+} from '@/types/analiseAtivosApi';
+import type { ItemBusca } from '@/types/analiseAtivosApi';
 
 const TC = TEXTOS_COMPARADOR;
 const MAX = String(MAX_ATIVOS_COMPARADOR);
-const OUTRA: Record<ClasseQuadro, ClasseQuadro> = { acao: 'fii', fii: 'acao' };
+/** A outra classe do MESMO mercado (o Comparador só compara a mesma classe). */
+const OUTRA: Record<ClasseQuadro, ClasseQuadro> = {
+  acao: 'fii',
+  fii: 'acao',
+  stock: 'reit',
+  reit: 'stock',
+};
 
 /** Texto do aviso de um ticker ignorado do link. */
 export function textoIgnorado(
@@ -119,8 +138,71 @@ export function slotsDoTipo(
 }
 
 /** Instrução literal da barra (data-texto-legal: o nó tem exatamente o texto registrado). */
+const INSTRUCOES: Record<ClasseQuadro, TextoLiteral> = {
+  acao: INSTRUCAO_COMPARADOR_ACOES,
+  fii: INSTRUCAO_COMPARADOR_FIIS,
+  stock: INSTRUCAO_COMPARADOR_STOCKS,
+  reit: INSTRUCAO_COMPARADOR_REITS,
+};
+
+/**
+ * Stocks e REITs (fatia C): a API recusa (400) a mistura de stock com REIT (ou EUA com Brasil). Os
+ * tickers do link são separados pela classe do índice de busca, com saída para comparar só os
+ * REITs ou só os stocks. Sem ganhador e sem cor.
+ */
+export function separarPorClasse(
+  tickers: readonly string[],
+  itens: readonly Pick<ItemBusca, 't' | 'c'>[],
+): Partial<Record<ClasseQuadro, string[]>> {
+  const classe = new Map(itens.map((i) => [i.t, i.c]));
+  const out: Partial<Record<ClasseQuadro, string[]>> = {};
+  for (const t of tickers) {
+    const c = classe.get(t);
+    if (c) (out[c] ??= []).push(t);
+  }
+  return out;
+}
+
+function MistoBloqueado({
+  tickers,
+  itens,
+  onComparar,
+}: {
+  tickers: readonly string[];
+  itens: readonly Pick<ItemBusca, 't' | 'c'>[];
+  onComparar: (tickers: string[], classe: ClasseQuadro) => void;
+}) {
+  const grupos = separarPorClasse(tickers, itens);
+  const saidas: Array<[ClasseQuadro, string]> = [
+    ['reit', TEXTOS_EUA.comparador.abrirReits],
+    ['stock', TEXTOS_EUA.comparador.abrirStocks],
+  ];
+  return (
+    <div role="alert" data-comparador-misto-eua="" className="flex flex-col items-start gap-3">
+      <p className="m-0 max-w-[640px] text-sm text-gray-800 dark:text-white/90">
+        {TEXTOS_EUA.comparador.mistoBloqueado}
+      </p>
+      <div className="flex flex-wrap gap-2">
+        {saidas.map(([c, rotulo]) =>
+          grupos[c]?.length ? (
+            <button
+              key={c}
+              type="button"
+              data-saida-misto={c}
+              onClick={() => onComparar(grupos[c] as string[], c)}
+              className={`inline-flex min-h-11 items-center rounded-xl border border-gray-200 bg-white px-4 text-sm font-medium text-gray-800 dark:border-gray-700 dark:bg-white/[0.03] dark:text-white/90 ${FOCO}`}
+            >
+              {rotulo} ({(grupos[c] as string[]).join(', ')})
+            </button>
+          ) : null,
+        )}
+      </div>
+    </div>
+  );
+}
+
 function Instrucao({ classe }: { classe: ClasseQuadro }) {
-  const lit = classe === 'fii' ? INSTRUCAO_COMPARADOR_FIIS : INSTRUCAO_COMPARADOR_ACOES;
+  const lit = INSTRUCOES[classe];
   return (
     <p
       data-texto-legal={lit.id}
@@ -173,11 +255,18 @@ export default function Comparador({ className = '' }: ComparadorProps) {
   );
   const na = useNaCarteira(classe, slots.length > 0);
   const vazio = url.tickers.length === 0;
+  // Stocks e REITs: 400 da mistura de classes (a API manda o texto do bloqueio)
+  const mistoEua =
+    q.isError &&
+    q.error instanceof ErroAnalise &&
+    q.error.status === 400 &&
+    q.error.message === TEXTOS_EUA.comparador.mistoBloqueado;
   const overlay = useOverlayCarteira({ enabled: vazio });
-  const indice = useIndiceBusca({ enabled: vazio });
+  const indice = useIndiceBusca({ enabled: vazio || mistoEua });
   // Bloco 1: Salvar comparação / Comparações salvas (salvos) e Exportar PDF (pdfComparador)
   const config = useAnaliseAtivosConfig();
   const salvosLigado = config.data?.recursos?.salvos === true;
+  const euaLigado = config.data?.recursos?.eua === true;
   const pdfLigado = config.data?.recursos?.pdfComparador === true;
   const [menuSalvas, setMenuSalvas] = useState(false);
   const abrirSalvas = useCallback(() => setMenuSalvas(true), []);
@@ -200,7 +289,11 @@ export default function Comparador({ className = '' }: ComparadorProps) {
     [url, slots, ativosPor],
   );
 
-  const abas = (['acao', 'fii'] as const).map((c) => ({ id: c, label: TC.abas[c] }));
+  // Stocks e REITs só com a chave EUA (rótulos das abas do Quadro)
+  const abas = (euaLigado ? CLASSES_QUADRO : CLASSES_BR).map((c) => ({
+    id: c,
+    label: ehClasseEua(c) ? TEXTOS_TELA.quadro.abas[c] : TC.abas[c],
+  }));
   const nav = (
     <ResponsiveTabNav
       tabs={abas}
@@ -210,8 +303,13 @@ export default function Comparador({ className = '' }: ComparadorProps) {
       }}
       ariaLabel={TC.abas.rotulo}
       variant="segmented-sub"
-      // todo controle com 44px (o segmentado do celular tem 38px por padrão)
-      className="shrink-0 [&>button]:min-h-11"
+      // todo controle com 44px (o segmentado do celular tem 38px por padrão); com as 4 abas
+      // (EUA), grade 2×2 abaixo de 640 px
+      className={
+        euaLigado && celular
+          ? 'grid shrink-0 grid-cols-2 sm:flex [&>button]:min-h-11'
+          : 'shrink-0 [&>button]:min-h-11'
+      }
     />
   );
   const cheio = slots.length >= MAX_ATIVOS_COMPARADOR;
@@ -237,7 +335,11 @@ export default function Comparador({ className = '' }: ComparadorProps) {
               {TC.vazio.titulo}
             </h2>
             <p className="max-w-[640px] text-sm text-gray-700 dark:text-gray-300">
-              {classe === 'fii' ? TC.vazio.textoFii : TC.vazio.textoAcao}
+              {ehClasseEua(classe)
+                ? TEXTOS_EUA_TELAS.comparador.vazio[classe]
+                : classe === 'fii'
+                  ? TC.vazio.textoFii
+                  : TC.vazio.textoAcao}
             </p>
             <SlotAdicionar
               classe={classe}
@@ -277,7 +379,13 @@ export default function Comparador({ className = '' }: ComparadorProps) {
       <div className={`flex min-w-0 flex-col gap-4 ${className}`} data-comparador="estado">
         <section className={card} aria-busy={q.isError ? undefined : true}>
           {nav}
-          {q.isError ? (
+          {mistoEua ? (
+            <MistoBloqueado
+              tickers={url.tickers}
+              itens={indice.data?.itens ?? []}
+              onComparar={(t, c) => url.setTickers(t, c)}
+            />
+          ) : q.isError ? (
             <div role="alert" className="flex flex-col items-start gap-3">
               <p className="text-sm text-gray-800 dark:text-white/90">{TC.estados.erro}</p>
               <button

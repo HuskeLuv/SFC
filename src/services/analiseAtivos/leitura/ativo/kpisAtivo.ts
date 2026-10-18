@@ -29,6 +29,7 @@ import {
 } from '@/services/analiseAtivos/leitura/ativo/conferenciasAtivo';
 import { ehCampoTela } from '@/services/analiseAtivos/regras/comum/conferencia';
 import { TEXTOS_CRITERIOS } from '@/services/analiseAtivos/textosCriterios';
+import { TEXTOS_EUA_TELAS } from '@/services/analiseAtivos/textosEuaTelas';
 import type { Estado, KpiAtivo, LinhaQuadroApi, PontoSerieAnual } from '@/types/analiseAtivosApi';
 import type { IdCriterio, PontoCriterio } from '@/types/analiseAtivosCriterios';
 
@@ -399,4 +400,99 @@ function comConferencia(e: EntradaKpis, kpis: KpiAtivo[]): KpiAtivo[] {
 
 export function montarKpis(e: EntradaKpis): KpiAtivo[] {
   return comConferencia(e, e.linha.classe === 'fii' ? kpisFii(e) : kpisAcao(e));
+}
+
+// ---------------------------------------------------------------------------
+// Stocks e REITs (fatia C): KPIs SEM cotação (decisão do Wellington de 17/10), do último FY da SEC
+// ---------------------------------------------------------------------------
+
+/** Último FY fechado (métricas do 10-K, em US$) e os anos seguidos da linha do Quadro. */
+export interface EntradaKpisEua {
+  classe: 'stock' | 'reit';
+  /** ano fiscal do último 10-K lido; null = sem 10-K */
+  ano: number | null;
+  valores: {
+    roePct: number | null;
+    margemPct: number | null;
+    divLiqEbitda: number | null;
+    dividaLiquida: number | null;
+    lpa: number | null;
+    dpa: number | null;
+    payoutPct: number | null;
+    fcoAcao: number | null;
+    divFcoPct: number | null;
+    receita: number | null;
+    lucro: number | null;
+  } | null;
+  /** o DPA do ano foi derivado (dividendos pagos ÷ média diluída) */
+  dpaCalculado: boolean;
+  anosLucroConsecutivos: number | null;
+  anosDividendo: number | null;
+}
+
+/**
+ * 7 KPIs EUA. Stock: ROE, Margem líq., Dív.líq./EBITDA, LPA, Div./ação, Payout, Lucros seguidos.
+ * REIT: Caixa op./ação, Div./ação, Div./caixa op., Dív.líq./EBITDA, Receita, Lucro líquido, Div.
+ * crescendo. Valores em US$ com a unidade no rótulo; nada que dependa de cotação.
+ */
+export function montarKpisEua(e: EntradaKpisEua): KpiAtivo[] {
+  const E = TEXTOS_EUA_TELAS.ativo.kpis;
+  const v = e.valores;
+  const sub = (modelo: string) => (e.ano === null ? null : formatarTexto(modelo, { ano: e.ano }));
+  const kpi = (
+    codigo: string,
+    rotulo: string,
+    valor: number | null | undefined,
+    formato: KpiAtivo['formato'],
+    linhaApoio: string | null,
+  ): KpiAtivo => ({ codigo, rotulo, valor: ok(valor), formato, sub: linhaApoio, selo: null });
+  const bi = (x: number | null | undefined) =>
+    typeof x === 'number' && Number.isFinite(x) ? x / 1e9 : null;
+  const dl = v?.dividaLiquida ?? null;
+  const subDl =
+    dl === null
+      ? E.subs.ebitdaCalculado
+      : dl <= 0
+        ? E.subs.caixaLiquido
+        : formatarTexto(E.subs.dividaLiquida, { valor: formatarNumeroBR(dl / 1e9, 1) });
+  const dpa = kpi(
+    'dpa',
+    E.rotulos.dpa,
+    v?.dpa,
+    'numero2',
+    e.dpaCalculado ? sub(E.subs.dpaCalculado) : sub(E.subs.dpa),
+  );
+  const divLiq = kpi('divLiqEbitda', E.rotulos.divLiqEbitda, v?.divLiqEbitda, 'multiplo', subDl);
+  if (e.classe === 'reit') {
+    return [
+      kpi('fcoAcao', E.rotulos.fcoAcao, v?.fcoAcao, 'numero2', E.subs.fcoAcao),
+      dpa,
+      kpi('divFco', E.rotulos.divFco, v?.divFcoPct, 'pct', E.subs.divFco),
+      divLiq,
+      kpi('receita', E.rotulos.receita, bi(v?.receita), 'numero2', sub(E.subs.fy)),
+      kpi('lucro', E.rotulos.lucro, bi(v?.lucro), 'numero2', E.subs.lucroReit),
+      kpi(
+        'anosDividendo',
+        E.rotulos.anosDividendo,
+        e.anosDividendo,
+        'inteiro',
+        E.subs.anosDividendo,
+      ),
+    ];
+  }
+  return [
+    kpi('roe', E.rotulos.roe, v?.roePct, 'pct', sub(E.subs.roe)),
+    kpi('margemLiquida', E.rotulos.margemLiquida, v?.margemPct, 'pct', sub(E.subs.margem)),
+    divLiq,
+    kpi('lpa', E.rotulos.lpa, v?.lpa, 'numero2', sub(E.subs.lpa)),
+    dpa,
+    kpi('payout', E.rotulos.payout, v?.payoutPct, 'pct', sub(E.subs.payout)),
+    kpi(
+      'lucrosSeguidos',
+      E.rotulos.lucrosSeguidos,
+      e.anosLucroConsecutivos,
+      'inteiro',
+      E.subs.lucrosSeguidos,
+    ),
+  ];
 }

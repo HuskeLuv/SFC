@@ -38,6 +38,7 @@ import { CRITERIA_PARAMS_CODIGO } from '@/services/analiseAtivos/params/criteria
 import type { CriteriaParams } from '@/services/analiseAtivos/params/criteriaParamsSchema';
 import { projetarCriteriosCompactos } from '@/services/analiseAtivos/leitura/criterios/lerCriterios';
 import { TEXTOS_TELA, motivoTela, textoNaoSeAplica } from '@/services/analiseAtivos/textosTela';
+import { BOLSAS_EUA, type BolsaEua } from '@/types/analiseAtivosEua';
 import type {
   ClasseQuadro,
   Estado,
@@ -230,6 +231,9 @@ type CampoApi = keyof typeof CAMPOS;
 const APLICAVEIS: Record<ClasseQuadro, ReadonlySet<CampoApi>> = {
   acao: new Set<CampoApi>(['roe', 'pl', 'pvp', 'dy12m', 'margemLiquida', 'divLiqEbitda', 'payout']),
   fii: new Set<CampoApi>(['pvp', 'dy12m', 'vacanciaCvm', 'obrigacoesPl']),
+  // EUA (fatia 0): P/L e DY dependem da cotação (null sem ANALISE_ATIVOS_EUA_PRECO_HABILITADO)
+  stock: new Set<CampoApi>(['roe', 'pl', 'dy12m', 'margemLiquida', 'divLiqEbitda', 'payout']),
+  reit: new Set<CampoApi>(['dy12m', 'divLiqEbitda', 'payout']),
 };
 
 const CAMPOS_PROVENTO: ReadonlySet<CampoApi> = new Set<CampoApi>(['dy12m', 'payout']);
@@ -432,5 +436,25 @@ export function paraLinhaQuadroApiNaJanela(
     pares: row.pares,
     assetId: row.assetId,
     ...extras,
+    ...camposEuaDaLinha(row),
+  };
+}
+
+/**
+ * Stocks e REITs (fatia 0): moeda/bolsa/dpa/fcoPorAcao/dividendosFcoPct SÓ nas linhas com moeda
+ * gravada (stock/reit, gerarQuadroEua da fatia B) — a resposta das linhas BR fica idêntica.
+ */
+export function camposEuaDaLinha(
+  row: Pick<AnaliseQuadroLinha, 'moeda' | 'bolsa' | 'dpa' | 'fcoPorAcao' | 'dividendosFcoPct'>,
+): Pick<LinhaQuadroApi, 'moeda' | 'bolsa' | 'dpa' | 'fcoPorAcao' | 'dividendosFcoPct'> {
+  if (row.moeda !== 'USD') return {};
+  return {
+    moeda: 'USD',
+    bolsa: (BOLSAS_EUA as readonly string[]).includes(row.bolsa ?? '')
+      ? (row.bolsa as BolsaEua)
+      : null,
+    dpa: row.dpa,
+    fcoPorAcao: row.fcoPorAcao,
+    dividendosFcoPct: row.dividendosFcoPct,
   };
 }

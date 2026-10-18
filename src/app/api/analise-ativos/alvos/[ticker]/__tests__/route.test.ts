@@ -4,9 +4,17 @@ import { NextRequest } from 'next/server';
 const mocks = vi.hoisted(() => ({
   prisma: {
     user: { findUnique: vi.fn() },
-    asset: { findUnique: vi.fn() },
-    portfolio: { findFirst: vi.fn(), update: vi.fn() },
-    watchlist: { findFirst: vi.fn(), update: vi.fn(), create: vi.fn(), delete: vi.fn() },
+    asset: { findUnique: vi.fn(), create: vi.fn() },
+    portfolio: { findFirst: vi.fn(), findMany: vi.fn(), update: vi.fn() },
+    watchlist: {
+      findFirst: vi.fn(),
+      findMany: vi.fn(),
+      update: vi.fn(),
+      create: vi.fn(),
+      delete: vi.fn(),
+    },
+    secCompanyTicker: { findFirst: vi.fn() },
+    secCompany: { findUnique: vi.fn() },
     planningAssetTarget: { findUnique: vi.fn(), upsert: vi.fn(), deleteMany: vi.fn() },
   },
   requireAuthWithActing: vi.fn(),
@@ -440,5 +448,166 @@ describe('CSRF (middleware) na rota do alvo', () => {
   it('PUT com o token certo passa pela borda', async () => {
     const res = await middleware(pelaBorda('PUT', { 'x-csrf-token': CSRF }));
     expect(res.status).not.toBe(403);
+  });
+});
+
+/**
+ * Stocks/REITs (EUA, fatia D): o Asset é o MANUAL do usuário (posição ou planejado) e a classe vem
+ * do cadastro da SEC; sem a chave EUA → 404 antes da sessão.
+ */
+describe('EUA — Objetivo de Stocks/REITs no Asset manual do usuário', () => {
+  const manual = (id: string, symbol: string, type: string) => ({
+    ...asset(id, symbol, type),
+    currency: 'USD',
+    source: 'manual',
+  });
+  const CADASTRO: Record<string, { cik: string; classe: string }> = {
+    AAPL: { cik: '0000320193', classe: 'stock' },
+    BRKB: { cik: '0001067983', classe: 'stock' },
+    O: { cik: '0000726728', classe: 'reit' },
+  };
+  let assetsCriados: ReturnType<typeof manual>[];
+  /** Portfolio/Watchlist com o asset junto (findMany do helper). */
+  let posicoesEua: Array<{ id: string; userId: string; quantity: number; asset: unknown }>;
+  let planejadosEua: Array<{ id: string; userId: string; asset: unknown }>;
+
+  beforeEach(() => {
+    vi.stubEnv('ANALISE_ATIVOS_EUA_HABILITADO', 'true');
+    assetsCriados = [];
+    posicoesEua = [];
+    planejadosEua = [];
+    mocks.prisma.secCompanyTicker.findFirst.mockImplementation(
+      async ({ where }: { where: { symbolNorm: string } }) =>
+        CADASTRO[where.symbolNorm] ? { cik: CADASTRO[where.symbolNorm].cik } : null,
+    );
+    mocks.prisma.secCompany.findUnique.mockImplementation(
+      async ({ where }: { where: { cik: string } }) =>
+        Object.values(CADASTRO).find((c) => c.cik === where.cik) ?? null,
+    );
+    mocks.prisma.portfolio.findMany.mockImplementation(
+      async ({ where }: { where: { userId: string } }) =>
+        posicoesEua.filter((p) => p.userId === where.userId && p.quantity > 0),
+    );
+    mocks.prisma.watchlist.findMany.mockImplementation(
+      async ({ where }: { where: { userId: string } }) =>
+        planejadosEua.filter((w) => w.userId === where.userId),
+    );
+    mocks.prisma.asset.create.mockImplementation(
+      async ({ data }: { data: Omit<ReturnType<typeof manual>, 'id'> }) => {
+        const a = { id: `a-${data.symbol}`, categoria: null, subcategoria: null, ...data };
+        assetsCriados.push(a);
+        return a;
+      },
+    );
+  });
+
+  it('sem posição nem plano: GET alvo null; PUT cria o Asset manual planejado na aba Stocks', async () => {
+    expect(await (await GET(get('AAPL'), ctx('AAPL'))).json()).toEqual({
+      ticker: 'AAPL',
+      alvo: null,
+    });
+    const r = await PUT(put({ objetivoPct: 10, secao: 'growth' }, 'AAPL'), ctx('AAPL'));
+    expect(r.status).toBe(200);
+    expect(await r.json()).toMatchObject({
+      ticker: 'AAPL',
+      criado: true,
+      alvo: { origem: 'planejado', objetivoPct: 10, categoria: 'stocks', secao: 'growth' },
+    });
+    expect(assetsCriados).toHaveLength(1);
+    expect(assetsCriados[0]).toMatchObject({
+      symbol: expect.stringMatching(/^AAPL-\d{13}-/),
+      name: 'AAPL',
+      type: 'stock',
+      currency: 'USD',
+      source: 'manual',
+    });
+    expect(mocks.prisma.watchlist.create).toHaveBeenCalledWith({
+      data: {
+        userId: 'u1',
+        assetId: assetsCriados[0].id,
+        objetivo: 10,
+        secao: 'growth',
+        notes: null,
+      },
+    });
+    // nunca procura Asset de catálogo para ticker EUA
+    expect(mocks.prisma.asset.findUnique).not.toHaveBeenCalled();
+  });
+
+  it('REIT: o Asset planejado leva o ticker como nome (a Carteira casa o REIT pelo nome)', async () => {
+    const r = await PUT(put({ objetivoPct: 6 }, 'O'), ctx('O'));
+    expect((await r.json()).alvo).toMatchObject({ categoria: 'reits', secao: 'value' });
+    expect(assetsCriados[0]).toMatchObject({ name: 'O', type: 'reit' });
+  });
+
+  it('com posição (BRK-B do wizard = BRKB-…): grava Portfolio.objetivo, sem Asset novo', async () => {
+    const brkb = manual('a-brkb', 'BRKB-1712345678901-abc', 'stock');
+    posicoesEua.push({ id: 'pf-brkb', userId: 'u1', quantity: 3, asset: brkb });
+    portfolios.push({
+      id: 'pf-brkb',
+      userId: 'u1',
+      assetId: 'a-brkb',
+      objetivo: 0,
+      categoriaOverride: null,
+      estrategia: 'value',
+      tipoFii: null,
+      regiaoEtf: null,
+      tipoFundo: null,
+    });
+    const r = await PUT(put({ objetivoPct: 20 }, 'BRK-B'), ctx('BRK-B'));
+    expect(r.status).toBe(200);
+    expect(await r.json()).toMatchObject({
+      ticker: 'BRK.B',
+      criado: false,
+      alvo: { origem: 'posicao', id: 'pf-brkb', objetivoPct: 20, categoria: 'stocks' },
+    });
+    expect(mocks.prisma.portfolio.update).toHaveBeenCalledWith({
+      where: { id: 'pf-brkb' },
+      data: { objetivo: 20 },
+    });
+    expect(assetsCriados).toHaveLength(0);
+    // a busca do helper é pelo Portfolio do usuário com o prefixo do safeSymbol
+    expect(mocks.prisma.portfolio.findMany.mock.calls[0][0].where).toMatchObject({
+      userId: 'u1',
+      asset: { symbol: { startsWith: 'BRKB-' } },
+    });
+  });
+
+  it('planejado já existente: o 2º PUT atualiza a linha, não cria outro Asset', async () => {
+    await PUT(put({ objetivoPct: 10 }, 'AAPL'), ctx('AAPL'));
+    planejadosEua.push({ id: `wl-${assetsCriados[0].id}`, userId: 'u1', asset: assetsCriados[0] });
+    await PUT(put({ objetivoPct: 12 }, 'AAPL'), ctx('AAPL'));
+    expect(assetsCriados).toHaveLength(1);
+    expect(mocks.prisma.watchlist.create).toHaveBeenCalledTimes(1);
+    expect(watchlists.find((w) => w.assetId === assetsCriados[0].id)?.objetivo).toBe(12);
+  });
+
+  it('DELETE sem nada: removido=false; Asset de outro usuário não conta', async () => {
+    posicoesEua.push({
+      id: 'pf-u2',
+      userId: 'u2',
+      quantity: 5,
+      asset: manual('a-u2', 'AAPL-1-x', 'stock'),
+    });
+    const r = await DELETE(del('AAPL'), ctx('AAPL'));
+    expect(await r.json()).toEqual({ ticker: 'AAPL', removido: false, origem: null });
+    expect(mocks.prisma.portfolio.update).not.toHaveBeenCalled();
+  });
+
+  it('ticker fora do cadastro da SEC → 404, nada gravado', async () => {
+    expect((await PUT(put({ objetivoPct: 5 }, 'ZZZZ'), ctx('ZZZZ'))).status).toBe(404);
+    expect(assetsCriados).toHaveLength(0);
+  });
+
+  it('PUT inválido → 400 sem criar Asset', async () => {
+    expect((await PUT(put({ objetivoPct: 0 }, 'AAPL'), ctx('AAPL'))).status).toBe(400);
+    expect(assetsCriados).toHaveLength(0);
+  });
+
+  it('chave EUA desligada → 404 antes da sessão; o Brasil segue', async () => {
+    vi.stubEnv('ANALISE_ATIVOS_EUA_HABILITADO', '');
+    expect((await GET(get('AAPL'), ctx('AAPL'))).status).toBe(404);
+    expect(mocks.requireAuthWithActing).not.toHaveBeenCalled();
+    expect((await GET(get(), ctx())).status).toBe(200);
   });
 });

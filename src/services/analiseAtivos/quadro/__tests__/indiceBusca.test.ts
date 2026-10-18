@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { LINHAS_FIXTURE } from '@/test/fixtures/analiseAtivos/linhasDb';
 import {
   filtrarBusca,
+  linhasDaBusca,
   montarIndiceBusca,
   normalizarBusca,
   trechoDestacado,
@@ -136,5 +137,25 @@ describe('indiceBusca', () => {
     expect(trechoDestacado('Itaú Unibanco', 'itau')).toEqual([0, 4]);
     expect(trechoDestacado('WEGE3', 'ge')).toEqual([2, 4]);
     expect(trechoDestacado('WEGE3', 'xx')).toBeNull();
+  });
+});
+
+describe('indiceBusca — Stocks e REITs', () => {
+  const itens = [
+    { t: 'BRK.B', n: 'Berkshire Hathaway', c: 'stock' as const, q: true, f: null, m: null },
+    { t: 'O', n: 'Realty Income Corp', c: 'reit' as const, q: true, f: null, m: null },
+    { t: 'BRKM5', n: 'Braskem', c: 'acao' as const, q: true, f: null, m: null },
+  ];
+
+  it('ticker EUA casa sem pontuação (BRKB, brk-b) e pelo nome', () => {
+    expect(filtrarBusca(itens, 'brkb').map((r) => r.item.t)).toEqual(['BRK.B']);
+    expect(filtrarBusca(itens, 'brk-b')[0].item.t).toBe('BRK.B');
+    expect(filtrarBusca(itens, 'realty')[0].item.t).toBe('O');
+  });
+
+  it('linhasDaBusca: stock/reit só com a chave EUA', () => {
+    const linhas = [{ classe: 'acao' }, { classe: 'stock' }, { classe: 'reit' }, { classe: 'fii' }];
+    expect(linhasDaBusca(linhas, false).map((l) => l.classe)).toEqual(['acao', 'fii']);
+    expect(linhasDaBusca(linhas, true)).toHaveLength(4);
   });
 });

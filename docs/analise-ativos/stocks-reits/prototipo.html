@@ -1,0 +1,1088 @@
+<title>Stocks e REITs</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap">
+<style>
+/* Layout: casca do app (sidebar + área), estrutura do protótipo do Pedro v2.4; cores só de brandColors.ts.
+   Responsivo por container query na .app, para a bancada simular 390px dentro do desktop. */
+:root{
+  /* paleta My Finance (brandColors.ts) */
+  --mf-potencia:#2D2D2D; --mf-seguranca:#314666; --mf-patrimonio:#396CAA; --mf-outside:#0079F2;
+  --mf-tranquilidade:#6E9DC4; --mf-transparencia:#CCCCCC; --mf-escolha:#EAEAEA;
+  /* superfícies e texto (cinzas do app, Tailwind gray) */
+  --bg:#F9FAFB; --surface:#FFFFFF; --surface2:#F2F4F7; --line:#E4E7EC; --line2:#F2F4F7;
+  --ink:#1D2939; --ink2:#344054; --muted:#667085; --soft:#98A2B3;
+  /* papéis */
+  --link:#396CAA; --btn-n:#314666; --btn-n-h:#396CAA; --btn-p:#396CAA; --btn-p-h:#314666;
+  --on:#396CAA; --on-ink:#FFFFFF;
+  --chip-on-bg:#EDF2F8; --chip-on-ink:#314666; --chip-on-line:#396CAA;
+  --thead:#314666; --thead-ink:#FFFFFF; --th-sort:#396CAA;
+  --row-hover:#F9FAFB; --hi:#F2F4F7;
+  --tint1:#EDF2F8; --tint2:#F2F4F7; --tint3:#DCE6F2;
+  --mark:#344054; --mark-ink:#FFFFFF;
+  --bar:#396CAA; --bar-soft:#DCE6F2; --neg:#D92D20; --neg-bg:rgba(217,45,32,.08);
+  --s1:#0079F2; --s2:#2D2D2D; --grid:#EEF0F3; --axis:#667085;
+  --focus:#0079F2; --overlay:rgba(45,45,45,.45); --shadow:0 12px 32px rgba(45,45,45,.16);
+  --skel:#EEF0F3; --info-bg:#EDF2F8; --info-line:#396CAA;
+  --nav-on-bg:#EDF2F8; --nav-on-ink:#396CAA; --novo-bg:#396CAA;
+  --pill-page-on:#314666;
+  --font:'Outfit',ui-sans-serif,system-ui,-apple-system,'Segoe UI',sans-serif;
+}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
+  --bg:#18181B; --surface:#1F1F22; --surface2:#26262A; --line:#2E3440; --line2:#26262A;
+  --ink:#F2F4F7; --ink2:#D0D5DD; --muted:#98A2B3; --soft:#667085;
+  --link:#6E9DC4; --btn-n:#396CAA; --btn-n-h:#314666; --btn-p:#396CAA; --btn-p-h:#314666;
+  --on:#396CAA; --on-ink:#FFFFFF;
+  --chip-on-bg:rgba(57,108,170,.20); --chip-on-ink:#EAEAEA; --chip-on-line:#6E9DC4;
+  --thead:#314666; --thead-ink:#FFFFFF; --th-sort:#396CAA;
+  --row-hover:rgba(255,255,255,.03); --hi:#26262A;
+  --tint1:rgba(57,108,170,.16); --tint2:#26262A; --tint3:rgba(57,108,170,.26);
+  --mark:#D0D5DD; --mark-ink:#1F1F22;
+  --bar:#6E9DC4; --bar-soft:rgba(110,157,196,.25); --neg:#F97066; --neg-bg:rgba(249,112,102,.10);
+  --s1:#6E9DC4; --s2:#EAEAEA; --grid:#2A2E36; --axis:#98A2B3;
+  --focus:#6E9DC4; --overlay:rgba(0,0,0,.6); --shadow:0 12px 32px rgba(0,0,0,.5);
+  --skel:#26262A; --info-bg:rgba(57,108,170,.14); --info-line:#6E9DC4;
+  --nav-on-bg:rgba(57,108,170,.14); --nav-on-ink:#6E9DC4; --novo-bg:#396CAA; --pill-page-on:#396CAA;
+  color-scheme:dark }}
+:root[data-theme="dark"]{
+  --bg:#18181B; --surface:#1F1F22; --surface2:#26262A; --line:#2E3440; --line2:#26262A;
+  --ink:#F2F4F7; --ink2:#D0D5DD; --muted:#98A2B3; --soft:#667085;
+  --link:#6E9DC4; --btn-n:#396CAA; --btn-n-h:#314666; --btn-p:#396CAA; --btn-p-h:#314666;
+  --on:#396CAA; --on-ink:#FFFFFF;
+  --chip-on-bg:rgba(57,108,170,.20); --chip-on-ink:#EAEAEA; --chip-on-line:#6E9DC4;
+  --thead:#314666; --thead-ink:#FFFFFF; --th-sort:#396CAA;
+  --row-hover:rgba(255,255,255,.03); --hi:#26262A;
+  --tint1:rgba(57,108,170,.16); --tint2:#26262A; --tint3:rgba(57,108,170,.26);
+  --mark:#D0D5DD; --mark-ink:#1F1F22;
+  --bar:#6E9DC4; --bar-soft:rgba(110,157,196,.25); --neg:#F97066; --neg-bg:rgba(249,112,102,.10);
+  --s1:#6E9DC4; --s2:#EAEAEA; --grid:#2A2E36; --axis:#98A2B3;
+  --focus:#6E9DC4; --overlay:rgba(0,0,0,.6); --shadow:0 12px 32px rgba(0,0,0,.5);
+  --skel:#26262A; --info-bg:rgba(57,108,170,.14); --info-line:#6E9DC4;
+  --nav-on-bg:rgba(57,108,170,.14); --nav-on-ink:#6E9DC4; --novo-bg:#396CAA; --pill-page-on:#396CAA;
+  color-scheme:dark }
+
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--font);font-size:14px;-webkit-font-smoothing:antialiased;margin:0}
+button,input,select,textarea{font:inherit;color:inherit}
+button{background:none;border:0;padding:0;cursor:pointer}
+:focus-visible{outline:2px solid var(--focus);outline-offset:2px;border-radius:6px}
+.sr{position:absolute!important;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.tab-num{font-variant-numeric:tabular-nums}
+@media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
+
+/* ===== bancada (só no protótipo) ===== */
+.bench{display:flex;flex-wrap:wrap;gap:8px 16px;align-items:center;padding-block:8px;padding-inline:16px;background:var(--surface2);border-bottom:1px solid var(--line);font-size:12.5px;color:var(--muted)}
+.bench b{color:var(--ink2);font-weight:600;letter-spacing:.06em;text-transform:uppercase;font-size:11px}
+.bench .grp{display:inline-flex;align-items:center;gap:6px;flex-wrap:wrap}
+.bench select{min-height:36px;border:1px solid var(--line);border-radius:8px;background:var(--surface);padding:0 8px;max-width:100%}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:var(--surface)}
+.seg button{min-height:36px;padding:0 12px;font-size:12.5px;color:var(--ink2);border-right:1px solid var(--line)}
+.seg button:last-child{border-right:0}
+.seg button[aria-pressed="true"]{background:var(--on);color:var(--on-ink);font-weight:600}
+.frame-wrap{display:block}
+.frame-wrap.phone{display:flex;justify-content:center;padding-block:16px;padding-inline:16px}
+.frame-wrap.phone .app{width:390px;height:844px;overflow:auto;border:1px solid var(--line);border-radius:20px;transform:translateZ(0);box-shadow:var(--shadow)}
+
+/* ===== casca ===== */
+.app{container-type:inline-size;container-name:app;background:var(--bg)}
+.shell{display:flex;min-height:100%}
+aside.side{width:200px;flex-shrink:0;background:var(--surface);border-right:1px solid var(--line);padding:20px 12px;display:flex;flex-direction:column;gap:2px}
+.logo{display:flex;align-items:center;gap:8px;padding:0 8px 20px;font-weight:700;font-size:18px;color:var(--ink)}
+.logo i{width:28px;height:28px;border-radius:8px;background:var(--mf-outside);display:inline-block}
+.menu-label{font-size:11px;letter-spacing:.14em;color:var(--muted);padding:0 8px 8px;font-weight:500}
+.nav{display:flex;align-items:center;gap:10px;min-height:44px;padding:0 10px;border-radius:8px;color:var(--ink2);font-weight:500;font-size:13.5px;text-decoration:none}
+.nav:hover{background:var(--surface2)}
+.nav.on{background:var(--nav-on-bg);color:var(--nav-on-ink)}
+.nav .novo{margin-left:auto;font-size:10px;letter-spacing:.08em;background:var(--novo-bg);color:#fff;padding:2px 6px;border-radius:99px;font-weight:700}
+main.area{flex:1;min-width:0;padding-block:20px 56px;padding-inline:32px;max-width:1320px}
+@container app (max-width: 760px){ aside.side{display:none} main.area{padding-inline:16px;padding-block:16px 40px} }
+
+/* banner */
+.banner{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:12px 16px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;font-size:13px;color:var(--ink2)}
+.banner b{color:var(--ink)} .banner small{color:var(--muted);display:block;margin-top:2px}
+.banner .txt{flex:1 1 320px;min-width:0}
+/* pílulas de página (PilulasArea) */
+.ptabs{display:inline-flex;gap:4px;margin-top:16px;background:var(--surface2);border-radius:10px;padding:4px}
+.ptabs button{min-height:40px;padding:0 18px;border-radius:8px;font-weight:600;font-size:13.5px;color:var(--link)}
+.ptabs button[aria-current="page"]{background:var(--pill-page-on);color:#fff}
+.head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-top:20px;flex-wrap:wrap}
+h1{font-weight:700;font-size:22px;margin:0;letter-spacing:-.01em}
+.sub{color:var(--muted);margin:4px 0 0;font-size:13.5px}
+.search{position:relative;display:flex;align-items:center;gap:8px;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:0 12px;min-height:44px;width:min(360px,100%);color:var(--muted)}
+.search input{border:0;outline:0;background:transparent;flex:1;min-width:0;font-size:14px;color:var(--ink)}
+.search kbd{font-size:11px;border:1px solid var(--line);border-radius:4px;padding:1px 6px;color:var(--muted)}
+.sugg{position:absolute;left:0;right:0;top:calc(100% + 4px);background:var(--surface);border:1px solid var(--line);border-radius:10px;box-shadow:var(--shadow);z-index:30;padding:6px;max-height:320px;overflow:auto}
+.sugg button{display:flex;width:100%;align-items:center;gap:10px;min-height:44px;padding:0 10px;border-radius:8px;text-align:left}
+.sugg button:hover,.sugg button[aria-selected="true"]{background:var(--surface2)}
+.sugg small{color:var(--muted)}
+@container app (max-width: 760px){ .search{width:100%} }
+
+/* botões (BOTAO_PRIMARIO / SECUNDARIO do app) */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:44px;padding:0 16px;border-radius:8px;border:1px solid var(--line);background:var(--surface);color:var(--ink);font-weight:500;font-size:14px;white-space:nowrap;text-decoration:none}
+.btn:hover{background:var(--surface2)}
+.btn.n{background:var(--btn-n);border-color:var(--btn-n);color:#fff}.btn.n:hover{background:var(--btn-n-h)}
+.btn.p{background:var(--btn-p);border-color:var(--btn-p);color:#fff}.btn.p:hover{background:var(--btn-p-h)}
+.btn.sm{min-height:44px;padding:0 12px;font-size:13px}
+.btn[aria-disabled="true"],.btn:disabled{opacity:.5;cursor:not-allowed}
+.btn svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.link{color:var(--link);font-weight:600;text-decoration:underline;text-underline-offset:2px;min-height:44px;display:inline-flex;align-items:center}
+.link.inl{min-height:0;display:inline}
+
+/* card principal */
+.card{background:var(--surface);border:1px solid var(--line);border-radius:12px}
+.card .hd{padding:12px 18px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.card .hd h3{font-weight:600;font-size:15px;margin:0}
+.card .hd .hint{font-size:12.5px;color:var(--muted)}
+.ctabs{display:flex;gap:4px;padding:0 10px;border-bottom:1px solid var(--line);overflow-x:auto;scrollbar-width:none}
+.ctab{min-height:48px;padding:0 14px;font-size:14px;font-weight:500;color:var(--ink2);border-bottom:2px solid transparent;display:flex;align-items:center;gap:8px;white-space:nowrap}
+.ctab .n{font-size:11.5px;color:var(--muted);background:var(--surface2);padding:1px 7px;border-radius:99px;font-weight:600}
+.ctab[aria-selected="true"]{color:var(--link);border-color:var(--mf-outside);font-weight:600}
+.ctab[aria-selected="true"] .n{background:var(--chip-on-bg);color:var(--chip-on-ink)}
+
+/* barra de filtros */
+.bar{display:flex;align-items:center;gap:8px;padding:14px 18px 6px;flex-wrap:wrap}
+.fl{font-weight:600;font-size:13.5px;margin-right:4px}
+.chip{position:relative;display:inline-flex;align-items:center;gap:6px;min-height:36px;padding:0 12px;border-radius:99px;border:1px solid var(--line);background:var(--surface);color:var(--ink2);font-size:13px;font-weight:500;white-space:nowrap}
+.chip::after{content:"";position:absolute;inset:-4px 0}
+.chip:hover{background:var(--surface2)}
+.chip[aria-pressed="true"]{background:var(--chip-on-bg);border-color:var(--chip-on-line);color:var(--chip-on-ink);font-weight:600}
+.chip .ck{width:14px;height:14px;border-radius:4px;border:1.5px solid currentColor;display:inline-grid;place-items:center;font-size:10px;line-height:1}
+.chip[aria-pressed="true"] .ck::before{content:"✓";font-weight:700}
+.chip small{font-weight:400;color:var(--muted);font-size:12px}
+.chip.nd{border-style:dashed;color:var(--muted);cursor:not-allowed}
+.chip.nd em{font-style:normal;font-size:11px;border:1px solid var(--line);border-radius:4px;padding:0 4px;margin-left:2px}
+.pills{display:inline-flex;gap:2px;background:var(--surface2);border-radius:8px;padding:2px}
+.pill{position:relative;min-height:32px;padding:0 10px;border-radius:6px;font-size:12.5px;font-weight:600;color:var(--ink2)}
+.pill::after{content:"";position:absolute;inset:-6px 0}
+.pill[aria-pressed="true"],.pill[aria-checked="true"]{background:var(--on);color:var(--on-ink)}
+.bar .sp{flex:1}
+.meta{font-size:13px;color:var(--muted)} .meta b{color:var(--ink)}
+.bar2{display:flex;align-items:center;gap:8px 12px;padding:4px 18px 12px;flex-wrap:wrap}
+.critinfo{margin:0 18px 10px;font-size:12.5px;color:var(--muted)}
+.critinfo summary{min-height:36px;display:inline-flex;align-items:center;cursor:pointer;color:var(--link);font-weight:600}
+.critinfo dl{margin:6px 0 0;display:grid;grid-template-columns:minmax(150px,max-content) 1fr;gap:4px 14px}
+.critinfo dt{color:var(--ink2);font-weight:600}.critinfo dd{margin:0}
+@container app (max-width: 760px){ .critinfo dl{grid-template-columns:1fr} .critinfo dd{margin-bottom:6px} }
+.note-i{margin:0 18px 10px;padding:10px 12px;border-radius:10px;background:var(--info-bg);border-left:3px solid var(--info-line);font-size:12.5px;color:var(--ink2);line-height:1.45}
+.popover{position:absolute;z-index:40;background:var(--surface);border:1px solid var(--line);border-radius:10px;box-shadow:var(--shadow);padding:6px;min-width:220px;max-height:300px;overflow:auto}
+.popover button{display:flex;width:100%;min-height:40px;align-items:center;padding:0 10px;border-radius:6px;text-align:left;font-size:13px}
+.popover button:hover,.popover button[aria-checked="true"]{background:var(--surface2)}
+
+/* tabela (TABLE_STYLES) */
+.tbl-pad{padding:0 18px 18px}
+.tbl-wrap{overflow-x:auto;border:1px solid var(--line);border-radius:12px}
+table.tbl{width:100%;border-collapse:collapse;font-size:13.5px;color:var(--ink2)}
+.tbl thead th{background:var(--thead);color:var(--thead-ink);font-weight:500;font-size:12px;text-transform:uppercase;letter-spacing:.04em;text-align:right;padding:0;white-space:nowrap;position:sticky;top:0;z-index:2}
+.tbl thead th>span,.tbl thead th>button{display:flex;align-items:center;justify-content:flex-end;gap:4px;min-height:44px;padding:0 12px;width:100%;color:inherit;font:inherit;text-transform:inherit;letter-spacing:inherit}
+.tbl thead th:first-child>span,.tbl thead th:first-child>button{justify-content:flex-start}
+.tbl thead th[aria-sort]:not([aria-sort="none"]){background:var(--th-sort)}
+.tbl thead th button:hover{text-decoration:underline}
+.tbl th:first-child,.tbl td:first-child{text-align:left}
+.tbl td{padding:10px 12px;border-bottom:1px solid var(--line2);text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}
+.tbl tbody tr:last-child td{border-bottom:0}
+.tbl tbody tr.click{cursor:pointer}.tbl tbody tr.click:hover td{background:var(--row-hover)}
+.tbl .hi td{background:var(--hi);font-weight:600;color:var(--ink)}
+.tk{display:flex;align-items:center;gap:10px}
+.tk .ic{width:36px;height:36px;border-radius:8px;background:var(--chip-on-bg);color:var(--chip-on-ink);font-weight:700;font-size:11px;display:grid;place-items:center;flex-shrink:0}
+.tk a,.tk .tkn{font-weight:600;font-size:14px;color:var(--link);text-decoration:none;display:block}
+.tk a:hover{text-decoration:underline}
+.tk small{color:var(--muted);font-size:12px;display:block}
+.neg{color:var(--neg)} .mut{color:var(--muted)}
+.streak{display:inline-flex;align-items:center;gap:6px}
+.streak i{display:inline-flex;gap:2px}.streak i b{width:4px;height:12px;border-radius:2px;background:var(--line);display:block}.streak i b.on{background:var(--bar)}
+.l10{display:inline-flex;align-items:center;gap:2px;height:28px}
+.l10 .z{position:relative;height:28px;width:6px;display:inline-block}
+.l10 .z b{position:absolute;left:0;width:6px;border-radius:2px;background:var(--bar)}
+.crit{display:inline-flex;align-items:center;gap:7px;font-size:13px;white-space:nowrap;min-height:36px;padding:0 6px;border-radius:6px;position:relative}
+.crit:hover{background:var(--surface2)}
+.crit i{display:inline-flex;gap:2px}
+.crit i b{width:9px;height:9px;border-radius:2px;border:1.5px solid var(--muted);background:transparent}
+.crit i b.on{background:var(--mark);border-color:var(--mark)}
+.crit i b.na{border-style:dashed;opacity:.6}
+.port{font-size:13px;color:var(--muted)} .port b{color:var(--ink);font-weight:600}
+.empty{text-align:center!important;padding:32px 16px!important;color:var(--muted);white-space:normal!important}
+.more{display:flex;justify-content:center;padding:14px 0 4px}
+.note{font-size:12.5px;color:var(--muted);margin:14px 0 0;line-height:1.5}
+.note.c{text-align:center;padding:0 18px}
+.tip{position:fixed;z-index:60;max-width:340px;background:var(--surface);color:var(--ink);border:1px solid var(--line);border-radius:10px;box-shadow:var(--shadow);padding:10px 12px;font-size:12.5px;line-height:1.5;pointer-events:none}
+.tip ul{margin:0;padding:0;list-style:none}.tip li{padding:2px 0}
+.chiprail{display:contents}
+/* cartões do Quadro (celular) */
+.qcards{display:none;padding:0 12px 12px;gap:10px;flex-direction:column}
+.qc{border:1px solid var(--line);border-radius:12px;padding:12px;display:grid;gap:10px;background:var(--surface)}
+.qc .top{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}
+.qc .top .pr{text-align:right;font-weight:600}
+.qc dl{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:0}
+.qc dt{font-size:11.5px;color:var(--muted)} .qc dd{margin:2px 0 0;font-weight:600;font-variant-numeric:tabular-nums}
+.qc .bot{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;border-top:1px solid var(--line2);padding-top:8px}
+.ordm{display:none;align-items:center;gap:8px;font-size:13px;color:var(--muted)}
+.ordm select{min-height:44px;border:1px solid var(--line);border-radius:8px;background:var(--surface);padding:0 8px}
+@container app (max-width: 760px){
+  .qtable{display:none} .qcards{display:flex} .ordm{display:flex}
+  .bar .meta{flex-basis:100%}
+  .chiprail{display:flex;flex-wrap:wrap;gap:8px;flex-basis:100%}
+  .chiprail .chip{flex:0 1 auto;white-space:normal;text-align:left}
+  .ctabs{display:grid;grid-template-columns:1fr 1fr;gap:0 4px;overflow:visible;padding:0 8px}
+  .ctab{justify-content:center}
+}
+
+/* skeleton / erro */
+.skel{background:var(--skel);border-radius:6px;height:14px;animation:pulse 1.4s ease-in-out infinite}
+@keyframes pulse{50%{opacity:.5}}
+.errbox{margin:24px 18px;padding:20px;border:1px solid var(--line);border-radius:12px;display:flex;gap:14px;align-items:flex-start;flex-wrap:wrap}
+.errbox .ico{width:36px;height:36px;border-radius:50%;background:var(--neg-bg);color:var(--neg);display:grid;place-items:center;font-weight:700;flex-shrink:0}
+.errbox h3{margin:0 0 4px;font-size:15px}.errbox p{margin:0 0 10px;color:var(--muted);font-size:13.5px}
+
+/* ===== página do ativo ===== */
+.back{display:inline-flex;align-items:center;gap:6px;color:var(--link);font-size:13.5px;font-weight:600;min-height:44px;padding:4px 18px 0}
+.dhead{display:flex;gap:16px 20px;align-items:flex-start;justify-content:space-between;padding:8px 18px 16px;flex-wrap:wrap}
+.dhead .id{display:flex;gap:14px;align-items:center;min-width:0}
+.dhead .big{width:52px;height:52px;border-radius:12px;background:var(--mf-seguranca);color:#fff;font-weight:700;font-size:14px;display:grid;place-items:center;flex-shrink:0}
+.dhead h2{font-weight:700;font-size:22px;line-height:1.15;margin:0}
+.dhead h2 span{font-weight:400;color:var(--muted)}
+.tags{display:flex;gap:6px;margin-top:6px;flex-wrap:wrap}
+.tag{font-size:12px;font-weight:500;color:var(--ink2);background:var(--surface2);padding:3px 8px;border-radius:6px}
+.tag.st{border:1px solid var(--chip-on-line);color:var(--chip-on-ink);background:var(--chip-on-bg);font-weight:600}
+.tag.st.plan{background:transparent;border-style:dashed;color:var(--ink2);border-color:var(--muted)}
+.dright{display:flex;flex-direction:column;align-items:flex-end;gap:12px}
+.price{text-align:right}.price b{font-weight:700;font-size:26px;display:block;line-height:1.1}
+.price .var{font-size:13px;font-weight:600}.price small{display:block;font-size:12px;color:var(--muted);margin-top:4px}
+.actions{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}
+@container app (max-width: 760px){
+  .dright{align-items:stretch;width:100%}.price{text-align:left}
+  .actions{display:grid;grid-template-columns:1fr 1fr;width:100%}
+  .actions .btn{width:100%;min-height:48px}
+  .actions .btn.n{grid-column:1/-1}
+}
+.pad18{padding:0 18px 18px}
+.grid{display:grid;gap:16px;margin-top:16px}
+.grid>*{min-width:0}
+.g-2{grid-template-columns:1fr 1fr}.g-14{grid-template-columns:minmax(260px,1fr) 3fr}.g-13{grid-template-columns:1fr 2fr}
+@container app (max-width: 1100px){ .g-2,.g-14,.g-13{grid-template-columns:1fr} }
+/* card critérios */
+.critcard{padding:16px 18px;display:grid;grid-template-columns:auto 1fr;gap:16px 22px;align-items:start}
+.critcard .total{text-align:center;padding-right:20px;border-right:1px solid var(--line);min-width:180px;display:flex;flex-direction:column;align-items:center;gap:8px}
+.critcard .lbl{font-size:11.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:600}
+.critcard .v{font-weight:700;font-size:42px;line-height:1;color:var(--ink)}
+.critcard .v small{font-size:15px;font-weight:500;color:var(--muted);margin-left:6px}
+.critcard .total>small{font-size:12px;color:var(--muted);max-width:22ch}
+.clist{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+.ci{border:1px solid var(--line);border-radius:10px;padding:10px 12px;display:flex;flex-direction:column;gap:6px;min-width:0}
+.ci.na{border-style:dashed}
+.ci-h{display:flex;align-items:center;gap:8px}.ci-h b{font-size:14px;font-weight:600}
+.ci p{font-size:13px;color:var(--ink2);margin:0;line-height:1.4}.ci small{font-size:12px;color:var(--muted);line-height:1.4}
+.yn{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%;border:1.5px solid var(--muted);font-size:12px;color:var(--muted);font-weight:700;flex-shrink:0}
+.yn.y{background:var(--mark);color:var(--mark-ink);border-color:var(--mark)}
+.yn.na{border-style:dashed;font-size:10px;width:auto;border-radius:6px;padding:0 6px;height:20px}
+.spk{display:inline-flex;align-items:flex-end;gap:3px;height:22px}
+.spk b{width:10px;border-radius:2px;background:var(--bar)}.spk b.n{background:var(--soft)}
+.critfoot{grid-column:1/-1;display:flex;justify-content:space-between;gap:8px 16px;flex-wrap:wrap;align-items:center;font-size:12.5px;color:var(--muted);line-height:1.5}
+@container app (max-width: 1100px){ .clist{grid-template-columns:repeat(2,1fr)} }
+@container app (max-width: 760px){ .critcard{grid-template-columns:1fr}.critcard .total{border:0;padding:0;align-items:flex-start;text-align:left}.clist{grid-template-columns:1fr} }
+/* carteira + KPIs */
+.q{border-radius:10px;padding:14px 16px;background:var(--tint2)}
+.q.b{background:var(--tint1)}.q.b2{background:var(--tint3)}
+.q .l{font-size:12px;color:var(--muted);font-weight:500}
+.q .v{font-weight:700;font-size:19px;margin-top:6px;line-height:1.15;font-variant-numeric:tabular-nums}
+.q .s{font-size:12px;color:var(--muted);margin-top:5px}
+.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+@container app (max-width: 760px){ .kpis{grid-template-columns:1fr 1fr} }
+.posbar{position:relative;margin-top:12px;height:8px;border-radius:99px;background:var(--surface)}
+.posbar i{position:absolute;inset:0 auto 0 0;border-radius:99px;background:var(--bar)}
+.posbar em{position:absolute;top:-4px;bottom:-4px;width:2px;background:var(--ink);transform:translateX(-50%)}
+.posline{display:flex;justify-content:space-between;gap:4px 10px;flex-wrap:wrap;font-size:12px;color:var(--muted);margin-top:8px}
+.conf{display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:600;color:var(--ink2);border:1px dashed var(--muted);border-radius:99px;padding:1px 7px;margin-left:4px;white-space:nowrap}
+/* gráficos */
+.ch{padding:14px 18px 10px}
+.legend{display:flex;gap:16px;font-size:12.5px;color:var(--muted);margin-bottom:6px;flex-wrap:wrap;align-items:center}
+.legend span{display:inline-flex;align-items:center;gap:6px}.legend i{width:10px;height:10px;border-radius:50%;display:inline-block}
+svg.chart{width:100%;height:auto;display:block}
+.yt td.yr{font-weight:600;position:sticky;left:0;background:var(--surface);z-index:1}
+.yt .hi td.yr{background:var(--hi)}
+.tbl.yt th,.tbl.yt td{padding-left:8px;padding-right:8px}
+.tbl.yt thead th>span{padding:0 8px}
+.qf-meta{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;font-size:12.5px;color:var(--muted);padding:12px 0 8px}
+.qf-title{font-weight:600;font-size:14px;margin:16px 0 8px}
+.tbl.qf td.lbl{text-align:left;font-weight:500;color:var(--ink2);position:sticky;left:0;background:var(--surface);z-index:1}
+.tbl.qf tr.ratio td{color:var(--muted);background:var(--surface2)}.tbl.qf tr.ratio td.lbl{background:var(--surface2);font-weight:400;font-style:italic}
+/* valuation */
+.hsub{font-weight:400;color:var(--muted);font-size:13px;margin-left:6px}
+.vbar{display:flex;align-items:center;gap:10px 14px;flex-wrap:wrap;padding:14px 18px 0}
+.vbar .chips{display:inline-flex;gap:6px;flex-wrap:wrap}
+.vsum{font-size:13px;color:var(--muted)}.vsum b{color:var(--ink)}
+.vgrid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;padding:14px 18px 18px}
+.vc{border:1px solid var(--line);border-radius:12px;padding:12px 14px;min-width:0;display:flex;flex-direction:column}
+.vc .l{font-size:12.5px;color:var(--muted);font-weight:600}
+.vc .v{font-weight:700;font-size:22px;margin-top:4px;line-height:1.1;font-variant-numeric:tabular-nums}
+.vc p{font-size:12.5px;color:var(--muted);margin:6px 0 0;line-height:1.45;flex:1}
+.rng{position:relative;height:8px;border-radius:99px;background:var(--surface2);margin-top:14px;border:1px solid var(--line)}
+.rng .avg{position:absolute;top:-5px;width:2px;height:16px;background:var(--muted);transform:translateX(-50%)}
+.rng .cur{position:absolute;top:-5px;width:16px;height:16px;border-radius:50%;background:var(--mf-outside);border:2px solid var(--surface);transform:translateX(-50%)}
+.rng-l{display:flex;justify-content:space-between;gap:4px;font-size:11.5px;color:var(--muted);margin-top:8px;font-variant-numeric:tabular-nums}
+.vc-st{font-size:12.5px;font-weight:600;color:var(--ink2);margin-top:6px}
+.vc-ref{font-size:12px;color:var(--muted);margin-top:4px}
+@container app (max-width: 1100px){ .vgrid{grid-template-columns:repeat(2,1fr)} }
+@container app (max-width: 760px){ .vgrid{grid-template-columns:1fr} }
+.sim{display:grid;grid-template-columns:330px minmax(0,1fr);gap:16px;padding:14px 18px 18px}.sim>div{min-width:0}
+.inp{border:1px solid var(--line);border-radius:12px;padding:6px 14px 12px;background:var(--surface2)}
+.inp h4{font-size:13.5px;font-weight:600;margin:12px 0 4px}.inp h4 small{font-weight:400;color:var(--muted);font-size:12px}
+.inp label{display:flex;justify-content:space-between;align-items:center;gap:10px;font-size:13px;color:var(--ink2);padding:6px 0;border-bottom:1px dashed var(--line)}
+.inp label>span:first-child{min-width:0}
+.inp .in{display:inline-flex;align-items:center;gap:6px;flex-shrink:0}.inp .in em{font-style:normal;font-size:12px;color:var(--muted);min-width:40px}
+.inp input[type=text]{width:88px;min-height:40px;border:1px solid var(--line);border-radius:8px;padding:0 8px;text-align:right;background:var(--surface);font-variant-numeric:tabular-nums}
+.inp input::placeholder{color:var(--muted)}
+.inp label.rg{flex-direction:column;align-items:stretch;gap:8px;border:0;padding-top:12px}
+.inp input[type=range]{width:100%;accent-color:var(--mf-patrimonio);min-height:32px}
+.need{font-weight:500;color:var(--muted);font-size:13px}
+.tbl.sim-t td,.tbl.sim-t th{white-space:normal;vertical-align:middle}
+.tbl.sim-t td.lbl{min-width:190px;color:var(--ink);text-align:left}
+.tbl.sim-t td.lbl small{display:block;color:var(--muted);font-size:12px;margin-top:2px;line-height:1.35}
+.tbl.sim-t td.mono{color:var(--muted);font-size:12.5px;text-align:left}
+.tbl.sim-t td:nth-child(n+3){white-space:nowrap}
+.rbs{margin-top:14px;border:1px solid var(--line);border-radius:12px;padding:12px 14px}
+.rbs-h{display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;font-size:12.5px;color:var(--muted);margin-bottom:8px}
+.rbs-h b{color:var(--ink2)}
+.rb{display:grid;grid-template-columns:150px 1fr 96px;gap:10px;align-items:center;font-size:13px;padding:4px 0}
+.rb-t{position:relative;height:14px;background:var(--surface2);border-radius:4px}.rb-t i{display:block;height:100%;background:var(--bar);border-radius:4px}
+.rb-t em{position:absolute;top:-3px;width:2px;height:20px;background:var(--ink);transform:translateX(-50%)}
+.rb-v{text-align:right;font-weight:600;font-variant-numeric:tabular-nums}
+.sim-goal{display:grid;grid-template-columns:2fr 1fr 2fr;gap:12px;margin-top:12px;background:var(--tint1);border-radius:12px;padding:12px 14px;font-size:13px;color:var(--ink2)}
+.sim-goal .e{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:600;margin-bottom:3px}.sim-goal b{color:var(--ink);font-size:15px}
+.sim-mine{margin-top:12px;font-size:13.5px;color:var(--ink2);display:flex;align-items:center;flex-wrap:wrap;gap:8px}
+@container app (max-width: 1100px){ .sim{grid-template-columns:1fr} }
+@container app (max-width: 760px){ .rb{grid-template-columns:1fr}.rb-v{text-align:left}.sim-goal{grid-template-columns:1fr} }
+.mini{display:grid;gap:12px;padding:14px 18px}
+.mini .m{border:1px solid var(--line);border-radius:10px;padding:10px 12px;min-width:0}
+.mini .m .l{font-size:12.5px;color:var(--muted);font-weight:600;display:flex;justify-content:space-between}
+.mini .m .l b{color:var(--ink);font-size:14px}
+.m4{grid-template-columns:repeat(4,1fr)}
+@container app (max-width: 1100px){ .m4{grid-template-columns:repeat(2,1fr)} }
+@container app (max-width: 760px){ .m4{grid-template-columns:1fr} }
+.ev{list-style:none;padding:6px 18px 14px;margin:0}.ev li{display:flex;gap:12px;padding:10px 0;border-bottom:1px solid var(--line2);align-items:center}
+.ev li:last-child{border:0}
+.ev .d{width:46px;text-align:center;border:1px solid var(--line);border-radius:8px;padding:4px 0;font-weight:700;font-size:14px;line-height:1.1;background:var(--surface2)}
+.ev .d small{display:block;font-size:10px;letter-spacing:.08em;color:var(--muted);font-weight:600}
+.ev b{font-weight:600;font-size:13.5px;display:block}.ev span{font-size:12.5px;color:var(--muted)}
+.edu{margin-top:16px;padding:16px 18px;border-radius:12px;background:linear-gradient(118deg,#314666,#396CAA);color:#fff}
+.edu .e{font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:#EAEAEA;font-weight:600}
+.edu h4{font-weight:700;font-size:16px;margin:5px 0 0}.edu p{font-size:13px;color:#EAEAEA;margin:5px 0 10px;line-height:1.5}
+.edu .btn{background:#fff;color:#314666;border-color:#fff}
+.tese textarea{width:100%;min-height:96px;border:1px solid var(--line);border-radius:10px;padding:10px 12px;font-size:13.5px;resize:vertical;background:var(--surface)}
+.tese .row{display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;align-items:center;margin-top:6px;font-size:12.5px;color:var(--muted)}
+.fresh{display:flex;gap:8px 16px;flex-wrap:wrap;justify-content:space-between;font-size:12.5px;color:var(--muted);margin-top:16px}
+
+/* ===== comparador ===== */
+.slots{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;padding:14px 18px 6px}
+.slot{position:relative;border:1px solid var(--line);border-radius:10px;padding:12px 14px;background:var(--surface2);min-width:0}
+.slot .rm{position:absolute;right:2px;top:2px;width:44px;height:44px;display:grid;place-items:center;color:var(--muted);font-size:18px}
+.slot .sp-price{margin-top:8px;font-weight:600;font-size:14px}
+.slot.add{border-style:dashed;background:transparent;display:flex;flex-direction:column;justify-content:center;gap:6px;color:var(--link);font-weight:600;font-size:13.5px;min-height:96px}
+.slot.add .sg{display:flex;gap:6px;flex-wrap:wrap}
+.slot.add .sg button{min-height:36px;padding:0 10px;border-radius:99px;background:var(--surface);border:1px solid var(--line);font-size:12.5px;color:var(--ink2);font-weight:500}
+@container app (max-width: 1100px){ .slots{grid-template-columns:repeat(2,1fr)} }
+@container app (max-width: 760px){ .slots{grid-template-columns:1fr} }
+.mix{margin:12px 18px 0;padding:12px 14px;border-radius:10px;background:var(--info-bg);border-left:3px solid var(--info-line);font-size:13.5px;line-height:1.5;color:var(--ink2)}
+.mix b{color:var(--ink)}
+.tbl.cmp th,.tbl.cmp td{text-align:center}
+.tbl.cmp thead th>span{justify-content:center}
+.tbl.cmp thead th:first-child>span{justify-content:flex-start}
+.tbl.cmp td.lbl,.tbl.cmp th:first-child{text-align:left}
+.tbl.cmp td.lbl{color:var(--muted);font-weight:500;white-space:normal;min-width:170px;position:sticky;left:0;background:var(--surface);z-index:1}
+.tbl.cmp tr.grp td{background:var(--surface2);color:var(--ink);font-weight:600;font-size:12px;letter-spacing:.06em;text-transform:uppercase;padding:8px 12px;text-align:left}
+.tbl.cmp tr.tot td{border-top:2px solid var(--line);padding:12px;color:var(--ink)}
+.ynf{display:block;font-size:12px;color:var(--muted);margin-top:4px;white-space:normal;line-height:1.35;max-width:240px;margin-inline:auto}
+.verdict{margin:0 18px 18px;padding:16px 18px;border-radius:12px;background:var(--tint1);display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap}
+.verdict .e{font-size:11.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);font-weight:600}
+.verdict b{font-size:15px;display:block;margin-top:4px}.verdict p{font-size:13px;color:var(--ink2);margin:6px 0 0;line-height:1.5;max-width:75ch}
+.ccards{display:none;padding:0 18px 18px;flex-direction:column;gap:12px}
+.ccard{border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.ccard h4{margin:0;padding:10px 12px;background:var(--surface2);font-size:12px;letter-spacing:.06em;text-transform:uppercase}
+.ccard .r{padding:10px 12px;border-top:1px solid var(--line2)}
+.ccard .r>span{font-size:13px;color:var(--muted);display:block;margin-bottom:6px}
+.ccard .vals{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.ccard .vals div{font-size:13.5px;font-variant-numeric:tabular-nums}.ccard .vals small{display:block;color:var(--muted);font-size:12px}
+@container app (max-width: 760px){ .ctable{display:none} .ccards{display:flex} }
+
+/* ===== modal / bottom sheet / toast ===== */
+.modal{position:fixed;inset:0;background:var(--overlay);display:flex;align-items:center;justify-content:center;z-index:50;padding:16px}
+.mbox{background:var(--surface);color:var(--ink);border:1px solid var(--line);border-radius:14px;width:min(660px,100%);max-height:calc(100% - 32px);display:flex;flex-direction:column;box-shadow:var(--shadow)}
+.mbox.sm{width:min(500px,100%)}
+.mhead{display:flex;justify-content:space-between;gap:12px;padding:18px 20px 12px}
+.mhead h3{font-size:17px;font-weight:600;margin:0 0 4px}.mhead p{font-size:13.5px;color:var(--muted);margin:0;line-height:1.45}
+.mclose{width:44px;height:44px;flex-shrink:0;display:grid;place-items:center;font-size:22px;color:var(--muted);border-radius:8px}
+.mclose:hover{background:var(--surface2)}
+.mbody{overflow:auto;padding:0 20px 8px}
+.mpick{display:flex;gap:6px;flex-wrap:wrap;padding:0 0 10px}
+.mpick .fixed{background:var(--btn-n);border-color:var(--btn-n);color:#fff}
+.mpick .ghost{border-style:dashed;color:var(--muted);cursor:default}
+.mrow{display:grid;grid-template-columns:40px minmax(0,1fr) auto auto 32px;align-items:center;gap:10px;padding:6px 8px;border-radius:10px;min-height:52px;width:100%;text-align:left}
+.mrow:hover{background:var(--surface2)}.mrow[aria-checked="true"]{background:var(--chip-on-bg)}.mrow[aria-disabled="true"]{opacity:.45;cursor:not-allowed}
+.mrow .ic{width:40px;height:36px;border-radius:8px;background:var(--mf-seguranca);color:#fff;font-weight:700;font-size:11px;display:grid;place-items:center}
+.mrow .nm b{font-size:14px;display:block}.mrow .nm small{font-size:12px;color:var(--muted);display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mrow .mt{font-size:12.5px;color:var(--muted);white-space:nowrap;font-variant-numeric:tabular-nums}
+.mrow .ckc{width:28px;height:28px;border-radius:50%;border:1px solid var(--line);display:grid;place-items:center;font-weight:700;color:var(--muted)}
+.mrow[aria-checked="true"] .ckc{background:var(--on);color:#fff;border-color:var(--on)}
+.mfoot{display:flex;align-items:center;gap:10px;padding:12px 20px 18px;border-top:1px solid var(--line);flex-wrap:wrap}
+.mfoot .hint{flex:1 1 180px;font-size:13px;color:var(--muted)}
+.mform label,.mform .fr{display:flex;justify-content:space-between;align-items:center;gap:12px;font-size:13.5px;color:var(--ink2);padding:8px 0;border-bottom:1px dashed var(--line)}
+.mform input,.mform select{width:160px;min-height:44px;border:1px solid var(--line);border-radius:8px;padding:0 10px;background:var(--surface2);text-align:right}
+.mform select{text-align:left}
+.mform .in{display:inline-flex;align-items:center;gap:6px}.mform .in em{font-style:normal;font-size:13px;color:var(--muted)}.mform .in input{width:120px}
+.mform .ro{font-size:13px;text-align:right;color:var(--ink2)}
+.rsum{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-top:12px;background:var(--tint1);border-radius:10px;padding:10px 12px;font-size:13px;color:var(--ink2)}
+.rsum b{color:var(--ink);display:block;font-size:14.5px}
+.err-inline{color:var(--neg);font-size:12.5px;margin-top:6px}
+.pgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:6px 0 12px}
+.pgrid>div{border:1px solid var(--line);border-radius:10px;padding:10px 12px}
+.pgrid .e,.ops .e{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:600;margin-bottom:4px}
+.pgrid b{display:block;font-size:17px}.pgrid small{font-size:12px;color:var(--muted)}
+.pempty{padding:14px 0;font-size:14px;color:var(--ink2)}
+.toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:var(--mf-seguranca);color:#fff;padding:12px 16px;border-radius:10px;font-size:13.5px;box-shadow:var(--shadow);z-index:70;max-width:min(680px,calc(100% - 32px))}
+.grab{display:none;width:40px;height:4px;border-radius:99px;background:var(--line);margin:8px auto 0}
+@container app (max-width: 760px){
+  .modal{align-items:flex-end;padding:0}
+  .mbox,.mbox.sm{width:100%;border-radius:16px 16px 0 0;max-height:92%;padding-bottom:env(safe-area-inset-bottom,0px)}
+  .grab{display:block}
+  .mrow{grid-template-columns:36px minmax(0,1fr) 32px}.mrow .mt{display:none}
+  .mform input,.mform select{width:130px}.mform .in input{width:100px}
+  .pgrid{grid-template-columns:1fr 1fr}
+  .mfoot .btn{flex:1 1 auto}
+}
+footer.legal{margin-top:32px;padding-top:14px;border-top:1px solid var(--line);font-size:12.5px;line-height:1.6;color:var(--muted);max-width:110ch}
+footer.legal b{color:var(--ink2)}
+
+/* alvos de toque ≥ 44 px (revisão) */
+.chip::after,.pill::after{inset:auto 0;top:50%;height:max(100%,44px);transform:translateY(-50%)}
+.crit{min-height:44px}
+.tk a,.tklink{position:relative}
+.tk a::after,.tklink::after{content:"";position:absolute;left:-6px;right:-6px;top:50%;height:44px;transform:translateY(-50%)}
+.tklink{color:var(--link);font-weight:600;text-decoration:none}
+.search{min-height:46px}
+.search input{align-self:stretch;min-height:44px}
+.inp input[type=range]{min-height:44px}
+.seg button{min-height:44px}
+.slot.add .sg button{min-height:44px;padding:0 14px}
+.link.inl{position:relative}
+.link.inl::after{content:"";position:absolute;left:-4px;right:-4px;top:50%;height:44px;transform:translateY(-50%)}
+.critinfo summary{min-height:44px}
+.popover button{min-height:44px}
+.ptabs button{min-height:44px}
+.inp input[type=text]{min-height:44px}
+.legal-prov{display:block;margin-top:6px;font-style:italic;color:var(--muted)}
+
+/* ===== Stocks e REITs (adições deste protótipo) ===== */
+.src{display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:600;color:var(--ink2);border:1px solid var(--line);border-radius:99px;padding:1px 8px;white-space:nowrap;background:var(--surface)}
+.src.x{white-space:normal;border-radius:10px;max-width:100%}
+.src.x{border-style:dashed;color:var(--muted)}
+.fy{display:inline-flex;align-items:center;font-size:11.5px;color:var(--muted);border:1px dashed var(--line);border-radius:6px;padding:1px 6px;margin-left:6px;white-space:nowrap}
+.cot0{display:flex;flex-direction:column;align-items:flex-end;gap:4px;text-align:right;max-width:300px}
+.cot0 b{font-size:15px;font-weight:600;color:var(--ink2)}
+.cot0 small{font-size:12px;color:var(--muted);line-height:1.45}
+@container app (max-width: 760px){ .cot0{align-items:flex-start;text-align:left;max-width:none} }
+.ci .orig{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.ci .why{font-size:12px;color:var(--muted);border-top:1px dashed var(--line);padding-top:6px;line-height:1.45}
+.pend{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;color:var(--ink2)}
+.pend i{width:8px;height:8px;border-radius:50%;border:1.5px dashed var(--muted);display:inline-block}
+.tbl td.nd{color:var(--soft)}
+.tbl thead th small{display:block;font-size:10px;letter-spacing:.04em;opacity:.85;text-transform:none;font-weight:400}
+.tbl thead th span.two{flex-direction:column;align-items:flex-end;justify-content:center;gap:0;line-height:1.2;padding-block:6px}
+.tbl thead th:first-child span.two{align-items:flex-start}
+.blocked{margin:14px 18px 0;padding:16px 18px;border-radius:12px;border:1px solid var(--line);background:var(--surface2);display:grid;gap:10px}
+.blocked h4{margin:0;font-size:15px}
+.blocked p{margin:0;font-size:13.5px;color:var(--ink2);line-height:1.5;max-width:80ch}
+.blocked .row{display:flex;gap:8px;flex-wrap:wrap}
+.slot.off{opacity:.6;border-style:dashed}
+.slot .why{font-size:12px;color:var(--muted);margin-top:6px;line-height:1.4}
+.tipo{font-size:12.5px;color:var(--ink2);white-space:nowrap}
+.proto{margin:0 0 12px;padding:8px 12px;border-radius:8px;border:1px dashed var(--line);font-size:12px;color:var(--muted);line-height:1.5}
+.proto b{color:var(--ink2)}
+.legal-prop{display:block;margin-top:6px;font-style:italic;color:var(--muted)}
+.cls-ph{padding:40px 18px;text-align:center;color:var(--muted);font-size:13.5px}
+.essnote{font-size:12.5px;color:var(--muted);margin:10px 0 0;line-height:1.5}
+.essnote b{color:var(--ink2);font-weight:600}
+.secsel{display:flex;gap:6px;flex-wrap:wrap}
+.secsel button{min-height:44px;padding:0 14px;border-radius:8px;border:1px solid var(--line);background:var(--surface);font-size:13px;color:var(--ink2)}
+.secsel button[aria-pressed="true"]{background:var(--chip-on-bg);border-color:var(--chip-on-line);color:var(--chip-on-ink);font-weight:600}
+.ii{display:inline-grid;place-items:center;width:18px;height:18px;border-radius:50%;border:1.5px solid currentColor;font-size:11px;font-weight:700;font-style:normal}
+</style>
+<div class="bench" role="region" aria-label="Bancada do protótipo">
+  <b>Bancada</b>
+  <span class="grp"><label for="goto">Ir para</label><select id="goto">
+    <option value="">escolha uma tela…</option>
+    <optgroup label="Quadro"><option value="q-stocks">Quadro · Stocks</option><option value="q-stocks-f">Quadro · Stocks com 2 filtros</option><option value="q-stocks-d">Quadro · Stocks Detalhado</option><option value="q-reits">Quadro · REITs</option></optgroup>
+    <optgroup label="Página do ativo"><option value="AAPL">AAPL (stock, com posição)</option><option value="O">O (REIT, com posição)</option><option value="JNJ">JNJ (EBITDA sem dado)</option><option value="JPM">JPM (instituição financeira)</option><option value="PLD">PLD (REIT planejado, sem posição)</option></optgroup>
+    <optgroup label="Comparador"><option value="c-stocks">Comparador · Stocks (AAPL, MSFT, KO, JNJ)</option><option value="c-reits">Comparador · REITs (O, PLD, SPG, PSA)</option><option value="c-misto">Comparador · stock × REIT (bloqueado)</option></optgroup>
+    <optgroup label="Modais"><option value="m-plan">Planejar na carteira (AAPL)</option><option value="m-plan0">Planejar na carteira (PLD, sem posição)</option><option value="m-reg">Registrar operação (AAPL)</option><option value="m-cmp">Comparar (AAPL), REIT recusado</option></optgroup>
+  </select></span>
+  <span class="grp">Cotação EUA <span class="seg" role="group" aria-label="Cotação dos EUA"><button type="button" data-cot="0">Sem cotação</button><button type="button" data-cot="1">Exibida</button></span></span>
+  <span class="grp">REITs <span class="seg" role="group" aria-label="Critérios dos REITs"><button type="button" data-ffo="0">Fase 1 · só XBRL</button><button type="button" data-ffo="1">Fase 2 · FFO do 10-K</button></span></span>
+  <span class="grp">Estado <span class="seg" role="group" aria-label="Estado dos dados"><button type="button" data-est="ok">Dados</button><button type="button" data-est="loading">Carregando</button><button type="button" data-est="error">Erro</button></span></span>
+  <span class="grp">Tema <span class="seg" role="group" aria-label="Tema"><button type="button" data-theme-b="sys">Sistema</button><button type="button" data-theme-b="light">Claro</button><button type="button" data-theme-b="dark">Escuro</button></span></span>
+  <span class="grp">Largura <span class="seg" role="group" aria-label="Largura"><button type="button" data-wid="auto">Livre</button><button type="button" data-wid="390">Celular 390</button></span></span>
+  <span>Fundamentos: SEC companyfacts baixado em 17/10/2026 (15 empresas), calculado com as cadeias de conceitos da arquitetura (EBITDA, dívida líquida, caixa operacional por ação). Cotações: AAPL e O do spike de 30/09; demais ilustrativas. Fase 2 (FFO, AFFO, ocupação, imóveis): O 2023–2025 do 10-K, o resto ilustrativo. Carteira ilustrativa.</span>
+</div>
+<div class="frame-wrap" id="fw"><div class="app" id="app">
+ <div class="shell">
+  <aside class="side" aria-label="Menu do app">
+    <div class="logo"><i aria-hidden="true"></i>My Finance</div>
+    <div class="menu-label">MENU</div>
+    <a class="nav" href="#carteira">Carteira</a>
+    <a class="nav on" href="#" aria-current="page">Análise de Ativos<span class="novo">NOVO</span></a>
+    <a class="nav" href="#fluxo">Fluxo de Caixa</a>
+    <a class="nav" href="#planejamento">Planejamento</a>
+    <a class="nav" href="#agenda">Agenda</a>
+    <a class="nav" href="#educacao">Educação</a>
+  </aside>
+  <main class="area" id="main"></main>
+ </div>
+ <div id="modalRoot"></div><div id="toastRoot" aria-live="polite"></div><div class="tip" id="tip" role="tooltip" hidden></div>
+</div></div>
+<script>
+const SEC={"AAPL":{"nome":"Apple Inc.","fim":"09-26","reit":false,"dpsCalc":[],"rev":[null,233715.0,215639.0,229234.0,265595.0,260174.0,274515.0,365817.0,394328.0,383285.0,391035.0,416161.0],"ni":[null,53394.0,45687.0,48351.0,59531.0,55256.0,57411.0,94680.0,99803.0,96995.0,93736.0,112010.0],"ebitda":[null,80430.0,70529.0,71501.0,81801.0,76477.0,77344.0,120233.0,130541.0,125820.0,134661.0,144748.0],"mg":[null,22.85,21.19,21.09,22.41,21.24,20.91,25.88,25.31,25.31,23.97,26.92],"nd":[null,34709.0,58443.0,83414.0,36218.0,1510.0,16497.0,56080.0,61783.0,43548.0,31491.0,35981.0],"ndE":[null,0.43,0.83,1.17,0.44,0.02,0.21,0.47,0.47,0.35,0.23,0.25],"fcl":[null,70019.0,53497.0,51774.0,64121.0,58896.0,73365.0,92953.0,111443.0,99584.0,108807.0,98767.0],"fcf_capex":[null,6.23,4.2,4.16,4.82,5.61,10.04,8.39,10.41,9.09,11.52,7.77],"roe":[null,44.74,35.62,36.07,55.56,61.06,87.87,150.07,196.96,156.08,164.59,151.91],"eps":[null,2.31,2.08,2.3,2.98,2.97,3.28,5.61,6.11,6.13,6.08,7.46],"dps":[null,0.49,0.55,0.6,0.68,0.75,0.8,0.85,0.9,0.94,0.98,1.02],"payout":[null,21.65,26.19,25.98,23.03,25.55,24.53,15.28,14.87,15.49,16.25,13.77],"sh":[null,23172.28,22001.12,21006.77,20000.44,18595.65,17528.21,16864.92,16325.82,15812.55,15408.09,15004.7],"ebF":[null,"op","op","op","op","op","op","op","op","op","op","op"],"fcoA":[null,3.51,3.01,3.06,3.87,3.73,4.6,6.17,7.48,6.99,7.67,7.43],"payF":[null,14.2,18.1,19.6,17.7,20.3,17.5,13.9,12.1,13.6,12.9,13.8],"fco":[null,81266.0,66231.0,64225.0,77434.0,69391.0,80674.0,104038.0,122151.0,110543.0,118254.0,111482.0]},"MSFT":{"nome":"MICROSOFT CORPORATION","fim":"06-30","reit":false,"dpsCalc":[],"rev":[null,93580.0,91154.0,96571.0,110360.0,125843.0,143015.0,168088.0,198270.0,211915.0,245122.0,281724.0],"ni":[null,12193.0,20539.0,25489.0,16571.0,39240.0,44281.0,61271.0,72738.0,72361.0,88136.0,101832.0],"ebitda":[null,22261.0,30978.0,35125.0,42758.0,52659.0,63659.0,79216.0,95983.0,99523.0,124633.0,150528.0],"mg":[null,13.03,22.53,26.39,15.02,31.18,30.96,36.45,36.69,34.15,35.96,36.15],"nd":[null,24705.0,34090.0,69437.0,-57568.0,-61641.0,-73200.0,-72188.0,-54976.0,-64025.0,-30606.0,-51414.0],"ndE":[null,1.11,1.1,1.98,-1.35,-1.17,-1.15,-0.91,-0.57,-0.64,-0.25,-0.34],"fcl":[null,23724.0,24982.0,31378.0,32252.0,38260.0,45234.0,56118.0,65149.0,59475.0,74071.0,71611.0],"fcf_capex":[null,3.99,2.99,3.86,2.77,2.75,2.93,2.72,2.73,2.12,1.67,1.11],"roe":[null,15.23,24.72,29.06,20.03,38.35,37.43,43.15,43.68,35.09,32.83,29.65],"eps":[null,1.48,2.56,3.25,2.13,5.06,5.76,8.05,9.65,9.68,11.8,13.64],"dps":[null,1.24,1.44,1.56,1.68,1.84,2.04,2.24,2.48,2.72,3.0,3.32],"payout":[null,81.05,53.59,46.47,76.63,35.2,34.18,26.96,24.93,27.36,24.7,23.65],"sh":[null,8254.0,8013.0,7832.0,7794.0,7753.0,7683.0,7608.0,7540.0,7472.0,7469.0,7465.0],"ebF":[null,"op","op","op","op","op","op","op","op","op","op","op"],"fcoA":[null,3.59,4.16,5.04,5.63,6.73,7.9,10.09,11.81,11.72,15.87,18.24],"payF":[null,33.3,33.0,30.0,28.9,26.5,24.9,21.5,20.4,22.6,18.4,17.7],"fco":[null,29668.0,33325.0,39507.0,43884.0,52185.0,60675.0,76740.0,89035.0,87582.0,118548.0,136162.0]},"KO":{"nome":"COCA COLA CO","fim":"12-31","reit":false,"dpsCalc":[],"rev":[null,44294.0,41863.0,36212.0,34300.0,37266.0,33014.0,38655.0,43004.0,45754.0,47061.0,47941.0],"ni":[null,7351.0,6527.0,1248.0,6434.0,8920.0,7747.0,9771.0,9542.0,10714.0,10631.0,13107.0],"ebitda":[null,10698.0,10444.0,9015.0,10238.0,11451.0,10533.0,11760.0,12169.0,12439.0,11067.0,14812.0],"mg":[null,16.6,15.59,3.45,18.76,23.94,23.47,25.28,22.19,23.42,22.59,27.34],"nd":[null,19409.0,20605.0,23061.0,16289.0,22061.0,31467.0,29770.0,27257.0,28141.0,31547.0,31849.0],"ndE":[null,1.81,1.97,2.56,1.59,1.93,2.99,2.53,2.24,2.26,2.85,2.15],"fcl":[null,7975.0,6530.0,5291.0,6079.0,8417.0,8667.0,11258.0,9534.0,9747.0,4741.0,5296.0],"fcf_capex":[null,3.12,2.89,3.02,3.93,4.1,7.36,8.24,6.42,5.26,2.3,2.51],"roe":[null,28.77,28.3,7.31,37.89,46.99,40.14,42.48,39.59,41.3,42.77,40.74],"eps":[null,1.67,1.49,0.29,1.5,2.07,1.79,2.25,2.19,2.47,2.46,3.04],"dps":[null,1.32,1.4,1.48,1.56,1.6,1.64,1.68,1.76,1.84,1.94,2.04],"payout":[null,78.1,92.58,506.41,103.26,76.74,90.96,74.22,79.82,74.22,78.63,66.98],"sh":[null,4405.0,4367.0,4324.0,4299.0,4314.0,4323.0,4340.0,4350.0,4339.0,4320.0,4313.0],"ebF":[null,"op","op","op","op","op","op","op","op","op","op","op"],"fcoA":[null,2.39,2.01,1.63,1.77,2.43,2.28,2.91,2.53,2.67,1.58,1.72],"payF":[null,54.5,68.7,89.8,87.1,65.4,71.6,57.4,69.1,68.6,122.8,118.5],"fco":[null,10528.0,8792.0,7041.0,7627.0,10471.0,9844.0,12625.0,11018.0,11599.0,6805.0,7408.0]},"JNJ":{"nome":"Johnson & Johnson","fim":"01-03","reit":false,"dpsCalc":[],"rev":[null,70074.0,71890.0,76450.0,81581.0,82059.0,82584.0,78740.0,79990.0,85159.0,88821.0,94193.0],"ni":[null,15409.0,16540.0,1300.0,15297.0,15119.0,14714.0,20878.0,17941.0,35153.0,14066.0,26804.0],"ebitda":[null,23494.0,24283.0,24249.0,25933.0,24655.0,23929.0,26751.0,26605.0,23320.0,24781.0,41055.0],"mg":[null,21.99,23.01,1.7,18.75,18.42,17.82,26.52,22.43,41.28,15.84,28.46],"nd":[null,null,-17765.0,13879.0,10597.0,null,9249.0,508.0,6156.0,4423.0,7878.0,21336.0],"ndE":[null,null,-0.73,0.57,0.41,null,0.39,0.02,0.23,0.19,0.32,0.52],"fcl":[null,16106.0,15541.0,17777.0,18531.0,19918.0,20189.0,19758.0,17185.0,18248.0,19842.0,19698.0],"fcf_capex":[null,4.65,4.82,5.42,5.05,5.69,6.03,5.41,4.29,4.02,4.49,4.08],"roe":[null,21.66,23.49,2.16,25.6,25.42,23.25,28.2,23.36,51.11,19.68,32.87],"eps":[null,5.48,5.93,0.47,5.61,5.63,5.51,7.81,6.73,13.72,5.79,11.03],"dps":[null,2.95,3.15,3.32,3.54,3.75,3.98,4.19,4.45,4.7,4.91,5.14],"payout":[null,53.04,52.12,687.92,62.06,65.59,71.23,52.84,65.11,33.48,84.05,46.19],"sh":[null,2812.9,2788.9,2745.3,2728.7,2684.3,2670.7,2674.0,2663.9,2560.4,2429.4,2429.4],"ebF":[null,"pre","pre","pre","pre","pre","pre","pre","pre","pre","pre","pre"],"fcoA":[null,6.96,6.73,7.67,8.14,8.72,8.81,8.75,7.96,8.9,9.99,10.1],"payF":[null,41.8,45.9,42.5,42.8,42.4,44.5,47.1,55.1,51.6,48.7,50.5],"fco":[null,19569.0,18767.0,21056.0,22201.0,23416.0,23536.0,23410.0,21194.0,22791.0,24266.0,24530.0]},"GOOGL":{"nome":"Alphabet Inc.","fim":"12-31","reit":false,"dpsCalc":[],"rev":[null,74989.0,90272.0,110855.0,136819.0,161857.0,182527.0,257637.0,282836.0,307394.0,350018.0,402836.0],"ni":[null,15826.0,19478.0,12662.0,30736.0,34343.0,40269.0,76033.0,59972.0,73795.0,100118.0,132170.0],"ebitda":[null,null,null,null,null,null,null,88987.0,88317.0,96239.0,127701.0,150175.0],"mg":[null,21.1,21.58,11.42,22.46,21.22,22.06,29.51,21.2,24.01,28.6,32.81],"nd":[null,-13324.0,-8918.0,-97845.0,-105078.0,-114990.0,-121375.0,-124209.0,-98450.0,-97916.0,-83657.0,-77758.0],"ndE":[null,null,null,null,null,null,null,-1.4,-1.11,-1.02,-0.66,-0.52],"fcl":[null,16622.0,25824.0,23907.0,22832.0,30972.0,42843.0,67012.0,60010.0,69495.0,72764.0,73266.0],"fcf_capex":[null,1.67,2.53,1.81,0.91,1.32,1.92,2.72,1.91,2.15,1.39,0.8],"roe":[null,13.15,14.01,8.3,17.3,17.05,18.09,30.22,23.41,26.04,30.8,31.83],"eps":[null,null,27.85,18.0,43.7,49.16,2.93,5.61,4.56,5.8,8.04,10.81],"dps":[null,null,null,null,null,null,null,null,null,null,0.6,0.83],"payout":[null,0.3,0.0,0.0,null,null,null,null,0.0,0.0,7.35,7.6],"sh":[null,null,null,null,null,null,null,null,13159.0,12722.0,12447.0,12230.0],"ebF":[null,null,null,null,null,null,null,"op","op","op","op","op"],"fcoA":[null,null,null,null,null,null,null,null,6.95,8.0,10.07,13.47],"payF":[null,0.2,0.0,0.0,null,null,null,null,0.0,0.0,5.9,6.1],"fco":[null,26572.0,36036.0,37091.0,47971.0,54520.0,65124.0,91652.0,91495.0,101746.0,125299.0,164713.0]},"NVDA":{"nome":"NVIDIA CORP","fim":"01-31","reit":false,"dpsCalc":[],"rev":[null,5010.0,6910.0,9714.0,11716.0,10918.0,16675.0,26914.0,26974.0,60922.0,130497.0,215938.0],"ni":[null,614.0,1666.0,3047.0,4141.0,2796.0,4332.0,9752.0,4368.0,29760.0,72880.0,120067.0],"ebitda":[null,944.0,2121.0,3409.0,4066.0,3227.0,5630.0,11215.0,5768.0,34480.0,83317.0,133230.0],"mg":[null,12.26,24.11,31.37,35.34,25.61,25.98,36.23,16.19,48.85,55.85,55.6],"nd":[null,-5037.0,-4815.0,-5123.0,-5434.0,-8906.0,-4598.0,-10262.0,-2343.0,-16275.0,-34747.0,-2137.0],"ndE":[null,-5.34,-2.27,-1.5,-1.34,-2.76,-0.82,-0.92,-0.41,-0.47,-0.42,-0.02],"fcl":[null,null,null,null,null,null,null,8132.0,3808.0,27021.0,60853.0,96676.0],"fcf_capex":[null,null,null,null,null,null,null,8.33,2.08,25.28,18.81,16.0],"roe":[null,13.74,28.91,40.78,44.33,22.91,25.64,36.65,19.76,69.24,91.87,76.33],"eps":[null,0.03,0.06,0.12,0.17,0.11,0.17,0.39,0.17,1.19,2.94,4.9],"dps":[null,0.01,0.01,0.01,0.02,0.02,0.02,0.02,0.16,0.16,0.03,0.04],"payout":[null,34.69,15.67,11.19,8.96,13.95,9.12,4.09,9.11,1.33,1.14,0.81],"sh":[null,22760.0,25960.0,25280.0,25000.0,24720.0,25100.0,25350.0,25070.0,24940.0,24804.0,24514.0],"ebF":[null,"op","op","op","op","op","op","op","op","op","op","op"],"fcoA":[null,0.05,0.06,0.14,0.15,0.19,0.23,0.36,0.23,1.13,2.58,4.19],"payF":[null,18.1,15.6,9.7,9.9,8.2,6.8,4.4,7.1,1.4,1.3,0.9],"fco":[null,1175.0,1672.0,3502.0,3743.0,4761.0,5822.0,9108.0,5641.0,28090.0,64089.0,102718.0]},"PG":{"nome":"PROCTER & GAMBLE Co","fim":"06-30","reit":false,"dpsCalc":[],"rev":[null,70749.0,65299.0,65058.0,66832.0,67684.0,70950.0,76118.0,80187.0,82006.0,84039.0,84284.0],"ni":[null,6777.0,10253.0,15079.0,9485.0,3634.0,12764.0,14035.0,14461.0,14371.0,14595.0,15682.0],"ebitda":[null,14183.0,16519.0,16586.0,16197.0,8311.0,18719.0,20721.0,20620.0,20848.0,21441.0,23298.0],"mg":[null,9.58,15.7,23.18,14.19,5.37,17.99,18.44,18.03,17.52,17.37,18.61],"nd":[null,16293.0,13607.0,14145.0,20066.0,19544.0,9864.0,16431.0,19281.0,20083.0,19625.0,20816.0],"ndE":[null,1.15,0.82,0.85,1.24,2.35,0.53,0.79,0.94,0.96,0.92,0.89],"fcl":[null,10872.0,12121.0,9369.0,11150.0,11895.0,14330.0,15584.0,13567.0,13786.0,16524.0,14044.0],"fcf_capex":[null,2.91,3.66,2.77,3.0,3.55,4.66,5.59,4.3,4.5,4.97,3.72],"roe":[null,10.75,17.68,27.03,17.94,7.64,27.23,30.08,30.86,30.53,28.87,29.99],"eps":[null,2.44,3.69,5.59,3.67,1.43,4.96,5.5,5.81,5.9,6.02,6.51],"dps":[null,2.59,2.66,3.0,2.79,2.9,3.03,3.24,3.52,3.68,3.83,4.08],"payout":[null,107.53,72.53,47.99,77.07,206.33,61.02,58.87,60.65,62.62,63.8,62.95],"sh":[null,2883.6,2844.4,2740.4,2656.7,2539.5,2625.8,2601.0,2539.1,2483.9,2471.9,2454.4],"ebF":[null,"op","op","op","op","op","op","op","op","op","op","op"],"fcoA":[null,5.07,5.43,4.65,5.6,6.0,6.63,7.06,6.59,6.78,8.03,7.26],"payF":[null,49.9,48.2,56.7,49.2,49.2,44.8,45.0,52.4,53.4,46.9,55.4],"fco":[null,14608.0,15435.0,12753.0,14867.0,15242.0,17403.0,18371.0,16723.0,16848.0,19846.0,17817.0]},"JPM":{"nome":"JPMORGAN CHASE & CO","fim":"12-31","reit":false,"dpsCalc":[],"rev":[null,93543.0,96569.0,100705.0,108783.0,115720.0,119951.0,121649.0,128695.0,158104.0,177556.0,182447.0],"ni":[null,22651.0,22834.0,22567.0,30709.0,34642.0,27410.0,46503.0,35892.0,47760.0,56868.0,55681.0],"ebitda":[null,43105.0,49832.0,55953.0,69596.0,80029.0,54389.0,73047.0,79314.0,150445.0,184369.0,179314.0],"mg":[null,24.21,23.65,22.41,28.23,29.94,22.85,38.23,27.89,30.21,32.03,30.52],"nd":[null,null,null,null,null,null,null,null,null,null,null,null],"ndE":[null,null,null,null,null,null,null,null,null,null,null,null],"fcl":[null,null,null,null,null,null,null,null,null,null,null,null],"fcf_capex":[null,null,null,null,null,null,null,null,null,null,null,null],"roe":[null,9.15,8.98,8.83,11.97,13.26,9.81,15.81,12.28,14.57,16.5,15.36],"eps":[null,6.0,6.19,6.31,9.0,10.72,8.88,15.36,12.09,16.23,19.75,20.02],"dps":[null,1.72,1.88,2.12,2.72,3.4,3.6,3.8,4.0,4.1,4.8,5.8],"payout":[null,34.76,37.12,39.85,32.92,35.63,46.3,27.65,37.79,28.19,26.0,29.86],"sh":[null,3773.6,3690.0,3576.8,3414.0,3230.4,3087.4,3026.6,2970.0,2943.1,2879.0,2781.5],"ebF":[null,"pre","pre","pre","pre","pre","pre","pre","pre","pre","pre","pre"],"fcoA":[null,19.47,5.93,-3.03,4.57,1.27,-25.88,25.8,36.07,4.41,-14.59,-53.13],"payF":[null,10.7,38.7,null,64.7,301.6,null,16.5,12.7,103.8,null,null],"fco":[null,73466.0,21884.0,-10827.0,15614.0,4092.0,-79910.0,78084.0,107119.0,12974.0,-42012.0,-147782.0]},"COST":{"nome":"COSTCO WHOLESALE CORP /NEW","fim":"08-30","reit":false,"dpsCalc":[],"rev":[null,116199.0,118719.0,129025.0,141576.0,152703.0,166761.0,195929.0,226954.0,242290.0,254453.0,275235.0],"ni":[null,2377.0,2350.0,2679.0,3134.0,3659.0,4002.0,5007.0,5844.0,6292.0,7367.0,8099.0],"ebitda":[null,4751.0,4927.0,5481.0,5917.0,6229.0,7080.0,8489.0,9693.0,10191.0,11522.0,12809.0],"mg":[null,2.05,1.98,2.08,2.21,2.4,2.4,2.56,2.57,2.6,2.9,2.94],"nd":[null,-284.0,432.0,880.0,-646.0,-2592.0,-5648.0,-4644.0,-4492.0,-8776.0,-5247.0,-9496.0],"ndE":[null,-0.06,0.09,0.16,-0.11,-0.42,-0.8,-0.55,-0.46,-0.86,-0.46,-0.74],"fcl":[null,1892.0,643.0,4224.0,2805.0,3358.0,6051.0,5370.0,3501.0,6745.0,6629.0,7837.0],"fcf_capex":[null,0.79,0.24,1.69,0.94,1.12,2.15,1.5,0.9,1.56,1.41,1.43],"roe":[null,22.39,19.46,24.86,24.49,24.0,21.89,28.51,28.31,25.11,31.19,27.77],"eps":[null,5.37,5.33,6.08,7.09,8.26,9.02,11.27,13.14,14.16,16.56,18.21],"dps":[null,6.51,1.7,8.9,2.14,2.44,null,null,null,3.84,19.36,4.92],"payout":[null,120.53,31.74,145.73,21.98,28.37,36.96,114.8,25.63,19.88,122.72,26.95],"sh":[null,442.72,441.26,440.94,441.83,442.92,443.9,444.35,444.76,444.45,444.76,444.8],"ebF":[null,"op","op","op","op","op","op","op","op","op","op","op"],"fcoA":[null,9.68,7.46,15.25,13.07,14.35,19.96,20.16,16.62,24.9,25.49,29.98],"payF":[null,66.9,22.7,58.0,11.9,16.3,16.7,64.2,20.3,11.3,79.7,16.4],"fco":[null,4285.0,3292.0,6726.0,5774.0,6356.0,8861.0,8958.0,7392.0,11068.0,11339.0,13335.0]},"O":{"nome":"REALTY INCOME CORPORATION","fim":"12-31","reit":true,"dpsCalc":[2015,2016],"rev":[null,1023.28,1103.17,1215.77,1327.84,1488.16,1647.09,2080.46,3343.68,4078.99,5271.14,5749.38],"ni":[null,256.69,288.49,301.51,363.61,436.48,395.49,359.46,869.41,872.31,847.89,1058.59],"ebitda":[null,902.1,961.7,1053.8,1174.8,1328.6,1397.6,1613.9,3053.2,3554.5,4346.5,4814.2],"mg":[null,25.08,26.15,24.8,27.38,29.33,24.01,17.28,26.0,21.39,16.09,18.41],"nd":[null,3599.7,3965.6,null,5669.0,6644.2,7743.6,13383.1,14960.8,19191.0,22293.4,24634.9],"ndE":[null,3.99,4.12,null,4.83,5.0,5.54,8.29,4.9,5.4,5.13,5.12],"fcl":[null,null,null,null,null,null,null,null,null,null,null,null],"fcf_capex":[null,null,null,null,null,null,null,null,null,null,null,null],"roe":[null,3.93,4.26,4.09,4.5,4.47,3.6,1.43,3.03,2.65,2.18,2.68],"eps":[null,1.09,1.13,1.1,1.26,1.38,1.14,0.87,1.42,1.26,0.98,1.17],"dps":[null,2.26,2.39,2.53,2.63,2.71,2.79,2.83,2.97,3.05,3.13,3.22],"payout":[null,207.74,211.62,228.61,209.45,195.23,243.79,325.22,208.58,242.09,317.46,275.92],"sh":[null,236.21,255.62,273.94,289.92,316.16,345.42,414.77,612.18,693.02,863.79,908.33],"ebF":[null,"ni","ni","ni","ni","pre","pre","pre","pre","pre","pre","pre"],"fcoA":[null,2.94,3.13,3.2,3.24,3.38,3.23,3.19,4.19,4.27,4.14,4.4],"payF":[null,76.9,76.3,78.7,81.0,79.7,86.4,88.4,70.7,71.4,75.3,73.1],"fco":[null,693.6,799.9,875.9,940.7,1068.9,1115.5,1322.2,2563.9,2958.8,3573.3,3994.8]},"PLD":{"nome":"Prologis, Inc.","fim":"12-31","reit":true,"dpsCalc":[],"rev":[null,2197.07,2533.14,2618.13,2804.45,3330.62,4438.73,4759.44,5973.69,8023.47,8201.61,8790.13],"ni":[null,862.79,1203.22,1641.93,1643.43,1566.95,1473.12,2933.57,3358.8,3053.37,3725.75,3322.35],"ebitda":[null,1260.5,1599.4,2833.2,2635.2,2989.6,3680.9,4784.9,5280.3,6192.7,6996.4,6983.9],"mg":[null,39.27,47.5,62.71,58.6,47.05,33.19,61.64,56.23,38.06,45.43,37.8],"nd":[null,11362.8,9801.0,8965.6,10746.0,10817.0,16251.1,-340.7,23598.0,28470.5,29560.7,33891.4],"ndE":[null,9.01,6.13,3.16,4.08,3.62,4.41,-0.07,4.47,4.6,4.23,4.85],"fcl":[null,null,null,null,null,null,null,null,null,null,null,null],"fcf_capex":[null,null,null,null,null,null,null,null,null,null,null,null],"roe":[null,5.88,8.03,10.5,7.37,6.92,4.61,8.78,6.31,5.74,6.91,6.25],"eps":[null,1.64,2.27,3.06,2.87,2.46,2.01,3.94,4.25,3.29,4.01,3.56],"dps":[null,1.52,1.68,1.76,1.92,2.12,2.32,2.52,3.16,3.48,3.84,4.04],"payout":[null,93.27,74.26,57.43,68.36,85.88,116.96,63.84,74.27,105.74,95.83,113.32],"sh":[null,533.94,546.67,552.3,590.24,654.9,754.41,764.76,811.61,951.79,953.59,956.83],"ebF":[null,"op","op","op","op","op","op","op","op","op","op","op"],"fcoA":[null,2.09,2.59,3.05,3.06,3.46,3.89,3.92,5.08,5.65,5.15,5.23],"payF":[null,72.1,63.1,55.9,62.3,59.4,58.7,62.5,60.5,60.1,72.7,75.2],"fco":[null,1116.3,1417.0,1687.2,1803.6,2264.0,2937.0,2996.0,4126.4,5373.1,4912.2,5008.4]},"SPG":{"nome":"SIMON PROPERTY GROUP, INC.","fim":"12-31","reit":true,"dpsCalc":[],"rev":[null,5266.1,5435.23,5527.34,5645.29,5755.19,4607.5,5116.79,5291.45,5658.84,5963.8,6364.51],"ni":[null,1824.38,1835.56,1944.62,2436.72,2098.25,1109.23,2246.29,2136.2,2279.79,2367.56,4624.27],"ebitda":[null,3846.4,3973.5,4077.8,4208.8,4253.3,3289.8,3675.9,3810.9,4069.1,4358.1,4601.8],"mg":[null,34.64,33.77,35.18,43.16,36.46,24.07,43.9,40.37,40.29,39.7,72.66],"nd":[null,21715.5,22417.0,23150.2,22791.2,23493.9,25711.7,24787.1,24338.7,23864.4,22864.2,27607.0],"ndE":[null,5.65,5.64,5.68,5.42,5.52,7.82,6.74,6.39,5.86,5.25,6.0],"fcl":[null,null,null,null,null,null,null,null,null,null,null,null],"fcf_capex":[null,null,null,null,null,null,null,null,null,null,null,null],"roe":[null,40.8,42.58,52.75,73.91,83.05,36.49,66.83,68.06,75.42,80.48,88.79],"eps":[null,5.88,5.87,6.24,7.87,6.81,3.59,6.84,6.52,6.98,7.26,14.17],"dps":[null,6.05,6.5,7.15,7.9,8.3,6.0,5.85,6.9,7.45,8.1,8.55],"payout":[null,103.0,111.0,114.74,100.51,null,null,null,null,null,null,null],"sh":[null,310.1,312.69,311.52,309.63,307.95,308.74,328.59,327.82,326.81,326.1,326.37],"ebF":[null,"op","op","op","op","op","op","op","op","op","op","op"],"fcoA":[null,9.75,10.79,11.54,12.11,12.37,7.54,11.07,11.49,12.03,11.7,12.67],"payF":[null,62.1,60.4,62.1,65.3,67.1,79.6,52.8,60.1,61.9,69.2,67.5],"fco":[null,3024.7,3372.7,3593.8,3750.8,3807.8,2326.7,3637.4,3766.6,3930.8,3814.7,4136.6]},"AMT":{"nome":"AMERICAN TOWER CORP /MA/","fim":"12-31","reit":true,"dpsCalc":[2015,2016,2017,2018,2019,2020,2021],"rev":[null,4771.5,5785.7,6663.9,7440.1,7580.3,8041.5,9356.9,9645.4,10012.2,10127.2,10644.6],"ni":[null,594.9,849.3,1151.5,1227.0,1887.8,1690.6,2567.7,1765.8,1483.3,2255.0,2529.5],"ebitda":[null,2898.1,3378.6,3714.3,4015.8,4466.8,4769.8,5464.6,5903.5,6054.0,6545.3,6887.4],"mg":[null,12.47,14.68,17.28,16.49,24.9,21.02,27.44,18.31,14.81,22.27,23.76],"nd":[null,16798.3,17742.3,19402.0,19951.2,-1499.3,26751.4,41547.6,37352.9,33980.3,30809.2,32357.7],"ndE":[null,5.8,5.25,5.22,4.97,-0.34,5.61,7.6,6.33,5.61,4.71,4.7],"fcl":[null,null,null,null,null,null,null,null,null,null,null,null],"fcf_capex":[null,null,null,null,null,null,null,null,null,null,null,null],"roe":[null,8.94,12.56,18.45,22.99,37.34,41.3,50.53,31.69,35.33,66.67,69.25],"eps":[null,1.41,1.98,2.67,2.77,4.24,3.79,5.66,3.82,3.18,4.82,5.4],"dps":[null,1.68,2.06,2.49,2.99,3.6,4.32,5.01,5.86,6.45,6.48,6.8],"payout":[null,119.5,104.33,93.18,107.86,84.91,114.05,88.44,153.77,202.7,134.25,125.75],"sh":[null,423.01,429.28,431.69,442.96,445.52,446.1,453.29,462.75,467.16,468.12,468.76],"ebF":[null,"op","op","op","op","op","op","op","op","op","op","op"],"fcoA":[null,5.12,6.29,6.78,8.46,8.42,8.7,10.63,7.99,10.11,11.3,11.66],"payF":[null,32.8,32.8,36.7,35.3,42.7,49.7,47.1,73.5,63.7,57.2,58.2],"fco":[null,2166.9,2701.7,2925.6,3748.3,3752.6,3881.4,4819.9,3696.2,4722.4,5290.5,5464.0]},"PSA":{"nome":"Public Storage","fim":"12-31","reit":true,"dpsCalc":[],"rev":[null,2381.7,2560.55,2668.53,2759.52,2855.11,2915.07,3415.82,4182.16,4517.69,4695.62,4824.11],"ni":[null,1053.05,1183.88,1171.61,1488.9,1272.77,1098.34,1732.44,4142.29,1948.74,1872.68,1585.59],"ebitda":[null,1658.0,1807.8,1877.7,2005.1,1831.3,1707.9,2776.2,5405.1,3342.1,3506.2,3246.1],"mg":[null,44.21,46.24,43.9,53.95,44.58,37.68,50.72,99.05,43.14,39.88,32.87],"nd":[null,-49.2,207.1,997.9,1051.1,1492.8,2287.4,6740.7,6095.6,8733.3,8905.6,9935.8],"ndE":[null,-0.03,0.11,0.53,0.52,0.82,1.34,2.43,1.13,2.61,2.54,3.06],"fcl":[null,null,null,null,null,null,null,null,null,null,null,null],"fcf_capex":[null,null,null,null,null,null,null,null,null,null,null,null],"roe":[null,11.48,12.58,13.11,16.33,14.04,12.83,18.56,41.12,19.46,19.28,17.14],"eps":[null,6.07,6.81,6.73,8.54,7.29,6.29,9.87,23.5,11.06,10.64,9.01],"dps":[null,6.5,7.3,8.0,8.0,8.0,8.0,8.0,21.15,12.0,12.0,12.0],"payout":[null,null,null,null,null,null,null,null,null,null,null,null],"sh":[null,173.51,173.88,174.15,174.3,174.53,174.64,175.57,176.28,176.14,176.04,175.9],"ebF":[null,"op","op","op","ni","ni","ni","pre","pre","pre","pre","pre"],"fcoA":[null,10.08,11.19,11.33,11.84,11.85,11.7,14.49,17.68,18.43,17.77,18.12],"payF":[null,78.4,77.4,82.6,78.1,77.8,78.6,62.5,125.4,71.0,73.6,72.3],"fco":[null,1748.3,1945.3,1972.9,2063.6,2067.6,2042.9,2543.6,3117.1,3246.6,3128.3,3186.4]},"VICI":{"nome":"VICI Properties Inc.","fim":"12-31","reit":true,"dpsCalc":[],"rev":[null,null,null,187.61,897.98,894.8,1225.57,1509.57,2600.7,3611.99,3849.2,4006.12],"ni":[null,null,null,44.54,523.62,545.96,891.67,1013.85,1117.63,2513.54,2678.81,2775.49],"ebitda":[null,null,null,144.9,143.7,56.1,324.7,1421.5,1682.3,3370.8,3561.2,3668.2],"mg":[null,null,null,23.74,58.31,61.02,72.76,67.16,42.97,69.59,69.59,69.28],"nd":[null,null,null,3938.6,3023.5,3630.2,6429.6,3954.9,13313.4,16201.6,16208.3,16165.3],"ndE":[null,null,null,27.17,21.04,64.67,19.8,2.78,7.91,4.81,4.55,4.41],"fcl":[null,null,null,null,null,null,null,null,null,null,null,null],"fcf_capex":[null,null,null,null,null,null,null,null,null,null,null,null],"roe":[null,null,null,0.95,7.68,6.85,9.47,8.37,5.1,9.95,10.09,9.98],"eps":[null,null,null,null,1.43,1.24,1.75,1.76,1.27,2.47,2.56,2.61],"dps":[null,null,null,null,1.0,1.17,1.25,1.38,1.5,1.61,1.7,1.76],"payout":[null,null,null,null,50.17,92.31,68.66,74.84,109.08,63.01,65.44,66.78],"sh":[null,null,null,null,367.32,439.15,510.91,577.07,879.68,1015.78,1047.68,1062.69],"ebF":[null,null,null,"op","op","op","op","pre","pre","pre","pre","pre"],"fcoA":[null,null,null,null,1.37,1.55,1.73,1.55,2.21,2.15,2.27,2.36],"payF":[null,null,null,null,52.1,73.9,69.3,84.7,62.7,72.6,73.6,73.8],"fco":[null,null,null,null,504.1,682.2,883.6,896.4,1943.4,2181.0,2381.5,2510.0]}};
+</script>
+<script>
+// ===== Protótipo · Stocks e REITs na Análise de Ativos (estrutura do HTML do Pedro v2.4 + Análise v2.5) =====
+const Y0=2014; // índice 0 das séries
+const LAST=2025;
+const $=(s,el=document)=>el.querySelector(s);
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const fmtN=(v,d=1)=>v==null||isNaN(v)?'—':Number(v).toLocaleString('pt-BR',{minimumFractionDigits:d,maximumFractionDigits:d}).replace(/^-/,'−');
+const usd=(v,d=2)=>v==null?'—':'US$ '+fmtN(v,d);
+const bi=v=>v==null?'—':fmtN(v/1000,v!=null&&Math.abs(v)<10000?2:1);
+const pct=(v,d=1)=>v==null?'—':fmtN(v,d)+'%';
+const vx=(v,d=1)=>v==null?'—':v>=1e8?'+∞':fmtN(v,d)+'×';
+const at=(t,k,y)=>{const s=SEC[t]&&SEC[t][k]; if(!s) return null; const v=s[y-Y0]; return v==null?null:v;};
+
+// ---------- metadados (setor, bolsa, tipo de REIT, FY) ----------
+const META={
+  AAPL:{n:'Apple',setor:'Tecnologia',bolsa:'Nasdaq',fy:'set',preco:336.40,chg:1.12,fin:false},
+  COST:{n:'Costco',setor:'Consumo básico',bolsa:'Nasdaq',fy:'ago',preco:918.60,chg:-0.41,fin:false},
+  GOOGL:{n:'Alphabet',setor:'Comunicação',bolsa:'Nasdaq',fy:'dez',preco:241.50,chg:0.62,fin:false},
+  JNJ:{n:'Johnson & Johnson',setor:'Saúde',bolsa:'NYSE',fy:'dez',preco:171.20,chg:0.18,fin:false},
+  JPM:{n:'JPMorgan Chase',setor:'Financeiro',bolsa:'NYSE',fy:'dez',preco:301.70,chg:-0.95,fin:true},
+  KO:{n:'Coca-Cola',setor:'Consumo básico',bolsa:'NYSE',fy:'dez',preco:68.10,chg:0.22,fin:false},
+  MSFT:{n:'Microsoft',setor:'Tecnologia',bolsa:'Nasdaq',fy:'jun',preco:512.30,chg:0.84,fin:false},
+  NVDA:{n:'NVIDIA',setor:'Tecnologia',bolsa:'Nasdaq',fy:'jan',preco:182.40,chg:2.31,fin:false},
+  PG:{n:'Procter & Gamble',setor:'Consumo básico',bolsa:'NYSE',fy:'jun',preco:152.80,chg:-0.12,fin:false},
+  AMT:{n:'American Tower',tipo:'Torres de telecom',bolsa:'NYSE',fy:'dez',preco:196.30,chg:-0.38},
+  O:{n:'Realty Income',tipo:'Net lease · varejo',bolsa:'NYSE',fy:'dez',preco:54.50,chg:-0.27},
+  PLD:{n:'Prologis',tipo:'Industrial e logística',bolsa:'NYSE',fy:'dez',preco:114.20,chg:0.55},
+  PSA:{n:'Public Storage',tipo:'Self storage',bolsa:'NYSE',fy:'dez',preco:288.40,chg:0.10},
+  SPG:{n:'Simon Property',tipo:'Shoppings',bolsa:'NYSE',fy:'dez',preco:178.90,chg:-0.66},
+  VICI:{n:'VICI Properties',tipo:'Cassinos e entretenimento',bolsa:'NYSE',fy:'dez',preco:32.60,chg:0.31},
+};
+const CIK={AAPL:'0000320193',O:'0000726728',JNJ:'0000200406',JPM:'0000019617',PLD:'0001045609'};
+const STOCKS=['AAPL','COST','GOOGL','JNJ','JPM','KO','MSFT','NVDA','PG'];
+const REITS=['AMT','O','PLD','PSA','SPG','VICI'];
+const COUNT={acoes:330,fiis:355,stocks:604,reits:77}; // universo medido 17/10: NYSE/Nasdaq + 10-K + free float de capa (stocks ≥ US$ 10 bi; REITs de patrimônio ≥ US$ 2 bi)
+
+// FFO/AFFO/ocupação/imóveis = extração do 10-K (tabela de reconciliação do MD&A). O 2023–2025: valores reais (spike);
+// demais anos e demais REITs: ILUSTRATIVOS, só para o desenho do estado "Extraído e revisado".
+const X10K={
+  O:{ffo:[2.69,2.84,3.00,3.06,3.19,3.29,3.39,3.59,3.92,4.07,4.01,4.25],affo:[2.92,3.03,3.10,3.12,3.26,3.39,3.38,3.66,3.92,4.00,4.19,4.28],occ:[98.4,98.3,98.3,98.4,98.6,98.6,97.9,98.5,99.0,98.6,98.7,98.7],imv:[4327,4944,5172,5797,6483,6592,11136,12237,13458,15450,15621,15600]},
+  PLD:{ffo:[1.88,2.03,2.31,2.81,3.03,3.31,3.94,4.15,5.42,5.61,5.56,5.84],affo:[1.70,1.85,2.10,2.52,2.75,2.98,3.48,3.85,4.80,4.95,5.10,5.30],occ:[96.1,96.6,97.1,97.2,97.5,96.5,95.6,97.9,98.2,97.1,95.9,95.3],imv:[3200,3300,3270,3290,3320,3830,4700,4900,5500,5600,5700,5800]},
+  SPG:{ffo:[8.90,9.74,11.21,11.21,12.08,12.04,8.22,11.25,11.95,12.24,12.99,12.85],affo:[8.10,9.00,10.30,10.40,11.10,11.20,7.60,10.30,11.00,11.30,11.90,11.80],occ:[96.1,96.1,95.6,95.6,95.9,95.1,91.3,93.4,94.9,95.8,96.5,96.4],imv:[230,232,232,233,234,234,231,229,230,232,232,231]},
+  AMT:{ffo:[5.0,5.5,6.0,6.6,7.4,8.4,9.3,10.2,10.5,10.6,11.2,10.9],affo:[4.8,5.4,6.0,6.6,7.4,8.4,8.8,9.9,9.8,10.4,10.5,10.6],occ:[null,null,null,null,null,null,null,null,null,null,null,null],imv:[null,null,null,null,null,null,null,null,null,null,null,null]},
+  PSA:{ffo:[8.8,9.9,10.5,10.9,11.3,11.5,11.3,14.6,16.9,16.6,16.5,16.9],affo:[8.6,9.7,10.3,10.7,11.1,11.3,11.1,14.4,16.6,16.4,16.3,16.7],occ:[94.0,95.0,94.4,93.7,92.9,92.8,94.5,95.4,93.8,92.9,92.1,91.8],imv:[2250,2300,2350,2400,2450,2500,2550,2780,2870,3040,3100,3150]},
+  VICI:{ffo:[null,null,null,1.50,1.40,1.70,1.85,1.90,2.07,2.24,2.32,2.40],affo:[null,null,null,1.30,1.33,1.55,1.73,1.84,2.02,2.15,2.26,2.33],occ:[null,null,null,100,100,100,100,100,100,100,100,100],imv:[null,null,null,20,25,29,28,43,54,93,93,93]},
+};
+
+// ---------- carteira do usuário (ilustrativa) ----------
+const ABA={stocks:{label:'Stocks',total:61200,un:'ações'},reits:{label:'REITs',total:18400,un:'ações'}};
+const POS={AAPL:{q:10,pm:172.30,obj:30,sec:'Growth',inst:'Avenue'},KO:{q:30,pm:58.20,obj:15,sec:'Value',inst:'Avenue'},O:{q:25,pm:54.80,obj:40,sec:'Value',inst:'Avenue'}};
+const PLAN={PLD:{obj:20,sec:'Growth'}};
+const DOLAR=5.42;
+
+// ---------- critérios por perfil (mesmos ids e limites das ações; REITs = §4.1 do Pedro) ----------
+const CRIT={
+  stocks:[
+    {id:'rec',l:'Receita crescente',d:'Receita (Revenues) maior que a do ano anterior em todos os anos da janela',tipo:'up',k:'rev',f:'bi',src:'10-K · XBRL'},
+    {id:'luc',l:'Lucro crescente',d:'Lucro líquido (Net income) maior que o do ano anterior em todos os anos da janela',tipo:'up',k:'ni',f:'bi',src:'10-K · XBRL',info:'A SEC não publica o lucro sem itens não recorrentes. O critério usa o lucro líquido dos acionistas, como nas ações quando a CVM não traz o descontado.'},
+    {id:'ebitda',l:'EBITDA crescente',d:'EBITDA calculado (lucro operacional + depreciação e amortização; sem lucro operacional no XBRL, lucro antes do IR + juros + D&A) maior que o do ano anterior em todos os anos da janela',tipo:'up',k:'ebitda',f:'bi',src:'10-K · calculado'},
+    {id:'mg',l:'Margem líquida positiva',d:'Margem líquida (lucro líquido ÷ receita) acima de zero em todos os anos da janela',tipo:'pos',k:'mg',f:'%',src:'10-K · calculado'},
+    {id:'dl',l:'Dív. líq./EBITDA < 3×',d:'Dívida líquida (dívida bruta − caixa − aplicações de curto prazo) de até 3 vezes o EBITDA em todos os anos da janela; caixa líquido conta como dentro do limite',tipo:'max',k:'ndE',lim:3,f:'x',src:'10-K · calculado'},
+    {id:'fcl',l:'FCL crescente',d:'Fluxo de caixa livre (caixa operacional − CAPEX) maior que o do ano anterior em todos os anos da janela',tipo:'up',k:'fcl',f:'bi',src:'10-K · calculado'},
+  ],
+  reits:[
+    {id:'fco_acao',l:'Caixa operacional/ação crescente',d:'Caixa operacional (fluxo das operações) ÷ média diluída de ações maior que o do ano anterior em todos os anos da janela. Fica no lugar do FFO/ação, que não existe no XBRL da SEC',tipo:'up',k:'fcoA',f:'u2',src:'10-K · calculado'},
+    {id:'dpa',l:'Dividendo/ação crescente',d:'Dividendo por ação pago no ano maior que o do ano anterior em todos os anos da janela',tipo:'up',k:'dps',f:'u2',src:'10-K · XBRL'},
+    {id:'ocup',l:'Ocupação ≥ 95%',d:'Ocupação do portfólio igual ou acima de 95% no fim de todos os anos da janela',tipo:'min',k:'x:occ',lim:95,f:'%',src:'10-K · texto do relatório',x:true},
+    {id:'dl',l:'Dív. líq./EBITDA ≤ 6×',d:'Dívida líquida (dívida bruta − caixa − aplicações de curto prazo) de até 6 vezes o EBITDA calculado em todos os anos da janela (não é o EBITDAre do relatório)',tipo:'max',k:'ndE',lim:6,f:'x',src:'10-K · calculado'},
+    {id:'pay',l:'Dividendos ≤ 90% do caixa operacional',d:'Dividendos pagos de até 90% do caixa operacional em todos os anos da janela. Fica no lugar do AFFO payout, que não existe no XBRL da SEC',tipo:'max',k:'payF',lim:90,f:'%',src:'10-K · calculado'},
+    {id:'rec',l:'Receita crescente',d:'Receita (Revenues) maior que a do ano anterior em todos os anos da janela',tipo:'up',k:'rev',f:'bi',src:'10-K · XBRL'},
+  ],
+  reits2:[
+    {id:'ffo',l:'FFO/ação crescente',d:'FFO por ação maior que o do ano anterior em todos os anos da janela',tipo:'up',k:'x:ffo',f:'u2',src:'10-K · tabela de FFO',x:true},
+    {id:'dpa',l:'Dividendo/ação crescente',d:'Dividendo por ação pago no ano maior que o do ano anterior em todos os anos da janela',tipo:'up',k:'dps',f:'u2',src:'10-K · XBRL'},
+    {id:'occ',l:'Ocupação ≥ 95%',d:'Ocupação do portfólio igual ou acima de 95% no fim de todos os anos da janela',tipo:'min',k:'x:occ',lim:95,f:'%',src:'10-K · texto do relatório',x:true},
+    {id:'dl',l:'Dív. líq./EBITDA ≤ 6×',d:'Dívida líquida de até 6 vezes o EBITDA calculado em todos os anos da janela (não é o EBITDAre do relatório)',tipo:'max',k:'ndE',lim:6,f:'x',src:'10-K · calculado'},
+    {id:'pay',l:'AFFO payout ≤ 90%',d:'Dividendos por ação de até 90% do AFFO por ação em todos os anos da janela',tipo:'max',k:'x:pay',lim:90,f:'%',src:'10-K · tabela de FFO',x:true},
+    {id:'rec',l:'Receita crescente',d:'Receita (Revenues) maior que a do ano anterior em todos os anos da janela',tipo:'up',k:'rev',f:'bi',src:'10-K · XBRL'},
+  ],
+};
+
+function critsDe(cls){return cls==='reits'?(S.ffo?CRIT.reits2:CRIT.reits):CRIT.stocks;}
+
+// ---------- estado ----------
+const S={view:'quadro',cls:'stocks',t:null,win:5,crit:{},port:false,mode:'resumo',sort:null,cot:false,ffo:false,est:'ok',cmp:{stocks:['AAPL','MSFT','KO','JNJ'],reits:['O','PLD','SPG','PSA']},misto:false,saved:new Set(),plan:Object.assign({},PLAN)};
+
+function serie(t,k){
+  if(k.startsWith('x:')){
+    if(!S.ffo) return null;
+    const x=X10K[t]; if(!x) return null; const kk=k.slice(2);
+    if(kk==='pay') return x.affo.map((a,i)=>{const d=at(t,'dps',Y0+i); return a&&d?d/a*100:null;});
+    return x[kk];
+  }
+  return SEC[t]?SEC[t][k]:null;
+}
+function val(t,k,y){const s=serie(t,k); if(!s) return null; const v=s[y-Y0]; return v==null?null:v;}
+
+function fmtC(c,v){
+  if(v==null) return '—';
+  if(c.f==='bi') return fmtN(v/1000,Math.abs(v)<10000?2:1);
+  if(c.f==='u2') return fmtN(v,2);
+  if(c.f==='%') return fmtN(v,1)+'%';
+  if(c.f==='x') return v>=1e8?'+∞':fmtN(v,1)+'×';
+  return fmtN(v,1);
+}
+function unid(c){return c.f==='bi'?'US$ bi':c.f==='u2'?'US$':'';}
+
+// Avaliação ano a ano (port do evalCriteria): estado atende | nao_atende | sem_dado
+function avaliar(t,c,w){
+  const yrs=[]; for(let y=LAST-w+1;y<=LAST;y++) yrs.push(y);
+  const fin=META[t]&&META[t].fin;
+  if(c.x&&!S.ffo) return {st:'sem_dado',fato:'sem dado nas demonstrações',why:'A ocupação está no texto do relatório anual (10-K), fora do XBRL da SEC. Entra quando a extração do 10-K deste REIT for revisada.',yrs,vals:[]};
+  const vals=yrs.map(y=>val(t,c.k,y));
+  if(c.tipo==='up'){
+    const prev=val(t,c.k,yrs[0]-1);
+    if(prev==null||vals.some(v=>v==null)) return {st:'sem_dado',fato:'sem dado nas demonstrações',why:fin&&c.id==='fcl'?'Instituição financeira: o balanço não separa CAPEX, e o caixa operacional inclui depósitos e captações.':null,yrs,vals};
+    let n=0,p=prev; vals.forEach(v=>{if(v>p) n++; p=v;});
+    const u=unid(c);
+    return {st:n===w?'atende':'nao_atende',fato:`cresceu em ${n} de ${w} anos · ${fmtC(c,prev)} → ${fmtC(c,vals[vals.length-1])}${u?' ('+u+')':''}`,yrs,vals,n};
+  }
+  if(vals.some(v=>v==null)) return {st:'sem_dado',fato:'sem dado nas demonstrações',why:fin&&c.id==='dl'?'Instituição financeira: o balanço não separa a dívida de financiamento da captação de clientes.':null,yrs,vals};
+  if(c.tipo==='pos'){const n=vals.filter(v=>v>0).length; return {st:n===w?'atende':'nao_atende',fato:`positiva em ${n} de ${w} anos · mín. ${fmtC(c,Math.min(...vals))}`,yrs,vals,n};}
+  if(c.tipo==='max'){
+    const ok=vals.map(v=>v<=c.lim); const n=ok.filter(Boolean).length; const mx=Math.max(...vals);
+    const cx=vals.every(v=>v<0);
+    let f=cx?`dentro do limite em ${n} de ${w} anos · caixa líquido em todos os anos`:`dentro do limite em ${n} de ${w} anos · máx. ${fmtC(c,mx)} (limite ${fmtN(c.lim,c.f==='x'?1:0)}${c.f==='x'?'×':'%'})`;
+    if(t==='O'&&c.id==='dl'&&yrs.includes(2021)) f+=' · 2021 com a dívida da VEREIT e só 1 mês do EBITDA dela';
+    return {st:n===w?'atende':'nao_atende',fato:f,yrs,vals,n};
+  }
+  if(c.tipo==='min'){const n=vals.filter(v=>v>=c.lim).length; return {st:n===w?'atende':'nao_atende',fato:`dentro do limite em ${n} de ${w} anos · mín. ${fmtC(c,Math.min(...vals))} (limite ${fmtN(c.lim,0)}%)`,yrs,vals,n};}
+}
+function preIR(t,c,yrs){ if(!['ebitda','dl'].includes(c.id)) return []; const f=SEC[t].ebF||[]; return yrs.concat(c.tipo==='up'?[yrs[0]-1]:[]).filter(y=>f[y-Y0]==='pre'||f[y-Y0]==='ni').sort(); }
+function faixaFY(ys){const a=ys[0],b=ys[ys.length-1]; return ys.length>2&&b-a===ys.length-1?`FY${a}–FY${b}`:ys.map(y=>'FY'+y).join(', ');}
+function perfil(t){return REITS.includes(t)?'reits':'stocks';}
+function avalAtivo(t,w){const cs=critsDe(perfil(t)); const r=cs.map(c=>({c,...avaliar(t,c,w)})); return {r,n:r.filter(x=>x.st==='atende').length,tot:cs.length,sd:r.filter(x=>x.st==='sem_dado').length};}
+function streak(t){let n=0; for(let y=LAST;y>=Y0;y--){const v=at(t,'ni',y); if(v!=null&&v>0) n++; else break;} return n;}
+function divStreak(t){let n=0; for(let y=LAST;y>Y0;y--){const a=at(t,'dps',y),b=at(t,'dps',y-1); if(a!=null&&b!=null&&a>b) n++; else break;} return n;}
+
+// ---------- textos literais propostos (aguardam jurídico) ----------
+const RODAPE_EUA='Os filtros e a coluna "Critérios" verificam, ano a ano, dados contábeis históricos das demonstrações financeiras públicas (10-K na SEC). Nenhum critério é opinião do My Finance, e atender a mais critérios não significa ser melhor investimento. Rentabilidade passada não é garantia de resultados futuros.';
+const AVISO_LEGAL='O My Finance é uma ferramenta de organização financeira e de dados. Os filtros, as tabelas e os comparativos desta área reproduzem informações contábeis históricas das demonstrações financeiras públicas (DFP/ITR na CVM, informes de FIIs e 10-K na SEC) e cotações de mercado. Nada nesta área constitui análise, consultoria ou recomendação de investimento (Resoluções CVM 19/2021 e 20/2021). Rentabilidade passada não é garantia de resultados futuros. Decisões de investimento são de responsabilidade exclusiva do usuário.';
+const LEITURA='Os critérios são verificações factuais sobre demonstrações financeiras passadas, iguais para todos os ativos da classe. Não há ranking, nota ou ativo "vencedor": a comparação é um apoio à sua própria pesquisa e não constitui recomendação. Rentabilidade passada não é garantia de resultados futuros.';
+const INSTR={stocks:'Compare até 4 stocks lado a lado · dados das demonstrações financeiras, sem ranking nem destaque',reits:'Compare até 4 REITs lado a lado · dados das demonstrações financeiras, sem ranking nem destaque'};
+
+// ---------- casca ----------
+function shell(inner){
+  return `<div class="ptabs" role="navigation" aria-label="Páginas da Análise">
+    <button type="button" data-p="quadro" ${S.view==='quadro'||S.view==='ativo'?'aria-current="page"':''}>Quadro</button>
+    <button type="button" data-p="cmp" ${S.view==='cmp'?'aria-current="page"':''}>Comparador</button>
+    <button type="button" data-p="salvos">Salvos</button></div>
+  <div class="head"><div><h1>Análise de Ativos</h1><p class="sub">Dados e fundamentos de ações, FIIs, stocks e REITs, ao lado da sua carteira</p></div>
+    <label class="search"><span aria-hidden="true">⌕</span><span class="sr">Buscar ativo</span><input id="busca" placeholder="Buscar ativo (ex.: WEGE3, HGLG11, AAPL, O)" autocomplete="off"><kbd>/</kbd></label></div>
+  <div class="card" style="margin-top:16px">
+    <div class="ctabs" role="tablist" aria-label="Classe">${[['acoes','Ações'],['fiis','FIIs'],['stocks','Stocks'],['reits','REITs']].map(([k,l])=>`<button type="button" role="tab" class="ctab" data-cls="${k}" aria-selected="${S.cls===k}">${l}<span class="n">${COUNT[k].toLocaleString('pt-BR')}</span></button>`).join('')}</div>
+    ${inner}
+  </div>
+  <footer class="legal"><b>Aviso importante.</b> <span data-texto-legal="aviso-legal-v2-eua">${esc(AVISO_LEGAL)}</span><span class="legal-prop">Texto provisório: acrescenta "10-K na SEC" ao aviso da v2.5; aguarda revisão jurídica.</span></footer>`;
+}
+
+function cotFaixa(){
+  if(S.cot) return '';
+  return `<div class="note-i" role="note"><b>Cotações das bolsas dos EUA ainda não aparecem nesta área.</b> Preço, P/L, dividend yield e Meus cenários ficam ocultos. Os critérios usam só as demonstrações anuais (10-K) e não dependem da cotação.</div>`;
+}
+
+// ---------- Quadro ----------
+function cols(){
+  const st=S.cls==='stocks', det=S.mode==='detalhado';
+  const c=[{k:'ativo',l:st?'Ativo':'REIT'}];
+  if(st){
+    if(S.cot) c.push({k:'preco',l:'Preço',u:'US$'});
+    c.push({k:'streak',l:'Lucros seguidos'},{k:'roe',l:'ROE'});
+    if(S.cot) c.push({k:'pe',l:'P/L'},{k:'dy',l:'Div. yield'}); else c.push({k:'mg',l:'Margem líq.'},{k:'dps',l:'Div./ação',u:'US$'});
+    if(det) c.push({k:'setor',l:'Setor'},{k:'rev',l:'Receita',u:'US$ bi'},{k:'ndE',l:'Dív. líq./EBITDA'},{k:'l10',l:'Lucro 10 anos'});
+  } else {
+    c.push({k:'tipo',l:'Tipo'});
+    if(S.ffo){
+      if(S.cot) c.push({k:'preco',l:'Preço',u:'US$'},{k:'pffo',l:'P/FFO'},{k:'dy',l:'Div. yield'});
+      c.push({k:'ffo',l:'FFO/ação',u:'US$'},{k:'pay',l:'AFFO payout'},{k:'occ',l:'Ocupação'});
+      if(!S.cot) c.push({k:'dps',l:'Div./ação',u:'US$'});
+      if(det) c.push({k:'ndE',l:'Dív. líq./EBITDA'},{k:'dstreak',l:'Div. crescendo'},{k:'rev',l:'Receita',u:'US$ bi'},{k:'imv',l:'Imóveis'});
+    } else {
+      if(S.cot) c.push({k:'preco',l:'Preço',u:'US$'},{k:'dy',l:'Div. yield'});
+      c.push({k:'fcoA',l:'Caixa op./ação',u:'US$'},{k:'payF',l:'Div./caixa op.'});
+      if(!S.cot) c.push({k:'dps',l:'Div./ação',u:'US$'});
+      if(det) c.push({k:'ndE',l:'Dív. líq./EBITDA'},{k:'dstreak',l:'Div. crescendo'},{k:'rev',l:'Receita',u:'US$ bi'},{k:'ni',l:'Lucro líquido',u:'US$ bi'});
+    }
+  }
+  c.push({k:'crit',l:'Critérios'},{k:'port',l:'Na carteira'});
+  return c;
+}
+function rowVal(t,k){
+  const m=META[t],y=LAST;
+  switch(k){
+    case 'preco': return m.preco;
+    case 'streak': return streak(t);
+    case 'dstreak': return divStreak(t);
+    case 'roe': return at(t,'roe',y);
+    case 'mg': return at(t,'mg',y);
+    case 'dps': return at(t,'dps',y);
+    case 'pe': {const e=at(t,'eps',y); return e>0?m.preco/e:null;}
+    case 'dy': {const d=at(t,'dps',y); return d!=null?d/m.preco*100:null;}
+    case 'rev': return at(t,'rev',y);
+    case 'ndE': return at(t,'ndE',y);
+    case 'fcoA': return at(t,'fcoA',y);
+    case 'payF': return at(t,'payF',y);
+    case 'ni': return at(t,'ni',y);
+    case 'ffo': return S.ffo&&X10K[t]?X10K[t].ffo[y-Y0]:null;
+    case 'pffo': {const f=rowVal(t,'ffo'); return f?m.preco/f:null;}
+    case 'pay': {const a=S.ffo&&X10K[t]?X10K[t].affo[y-Y0]:null, d=at(t,'dps',y); return a&&d?d/a*100:null;}
+    case 'occ': return S.ffo&&X10K[t]?X10K[t].occ[y-Y0]:null;
+    case 'imv': return S.ffo&&X10K[t]?X10K[t].imv[y-Y0]:null;
+    case 'crit': return avalAtivo(t,S.win).n;
+    case 'setor': return m.setor; case 'tipo': return m.tipo;
+    case 'ativo': return t;
+  }
+  return null;
+}
+function cellHtml(t,c){
+  const v=rowVal(t,c.k);
+  const xk=['ffo','pffo','pay','occ','imv'].includes(c.k)&&!S.ffo;
+  switch(c.k){
+    case 'ativo': return `<td><div class="tk"><span class="ic" aria-hidden="true">${esc(t.slice(0,4))}</span><div><a href="#${t}" data-open="${t}">${esc(t)}</a><small>${esc(META[t].n)}</small></div></div></td>`;
+    case 'preco': return `<td>${usd(v)}</td>`;
+    case 'streak': case 'dstreak': {const n=Math.min(v,10); return `<td><span class="streak"><i aria-hidden="true">${Array.from({length:10},(_,i)=>`<b class="${i<n?'on':''}"></b>`).join('')}</i>${v>=11?'10+':v} ${v===1?'ano':'anos'}</span></td>`;}
+    case 'roe': case 'mg': return `<td class="${v!=null&&v<0?'neg':''}">${pct(v)}</td>`;
+    case 'dps': return `<td>${fmtN(v,2)}</td>`;
+    case 'pe': case 'pffo': return `<td class="${v==null?'nd':''}">${v==null?'—':fmtN(v,1)}</td>`;
+    case 'dy': case 'pay': case 'occ': return `<td class="${v==null?'nd':''}">${v==null?(xk?'<span title="Vem do 10-K; extração pendente">—</span>':'—'):pct(v)}</td>`;
+    case 'ffo': return `<td class="${v==null?'nd':''}">${v==null?'<span title="Vem do 10-K; extração pendente">—</span>':fmtN(v,2)}</td>`;
+    case 'imv': return `<td class="${v==null?'nd':''}">${v==null?'—':Number(v).toLocaleString('pt-BR')}</td>`;
+    case 'rev': case 'ni': return `<td>${bi(v)}</td>`;
+    case 'fcoA': return `<td>${fmtN(v,2)}</td>`;
+    case 'payF': return `<td>${pct(v,0)}</td>`;
+    case 'ndE': return `<td class="${v==null?'nd':''}">${v==null?'—':vx(v)}</td>`;
+    case 'setor': return `<td style="text-align:left">${esc(v)}</td>`;
+    case 'tipo': return `<td style="text-align:left"><span class="tipo">${esc(v)}</span></td>`;
+    case 'l10': {const s=SEC[t].ni.slice(-10); const mx=Math.max(...s.filter(x=>x!=null).map(Math.abs)); return `<td><span class="l10" aria-label="Lucro líquido em 10 anos">${s.map((x,i)=>x==null?'<span class="z"></span>':`<span class="z" title="FY${LAST-9+i}: US$ ${bi(x)} bi"><b style="${x>=0?`bottom:14px;height:${Math.max(2,x/mx*14)}px`:`top:14px;height:${Math.max(2,-x/mx*14)}px;background:var(--neg)`}"></b></span>`).join('')}</span></td>`;}
+    case 'crit': {const a=avalAtivo(t,S.win); return `<td><button type="button" class="crit" data-tipc="${t}" aria-label="Critérios em ${S.win} anos: ${a.n} de ${a.tot} atendidos. Ver detalhes."><i aria-hidden="true">${a.r.map(x=>`<b class="${x.st==='atende'?'on':x.st==='sem_dado'?'na':''}"></b>`).join('')}</i>${a.n} de ${a.tot}</button></td>`;}
+    case 'port': {const p=POS[t]; if(p){const tot=ABA[S.cls].total; const vv=p.q*META[t].preco*DOLAR; return `<td><span class="port"><b>${p.q}</b> ações · <b>${fmtN(vv/tot*100,1)}%</b></span></td>`;} if(S.plan[t]) return `<td><span class="port">planejado · <b>${fmtN(S.plan[t].obj,0)}%</b></span></td>`; return `<td><span class="port none">—</span></td>`;}
+  }
+  return '<td>—</td>';
+}
+function quadroRows(){
+  let rows=(S.cls==='stocks'?STOCKS:REITS).slice();
+  const on=Object.keys(S.crit).filter(k=>S.crit[k]);
+  if(on.length) rows=rows.filter(t=>{const a=avalAtivo(t,S.win); return on.every(id=>a.r.find(x=>x.c.id===id).st==='atende');});
+  if(S.port) rows=rows.filter(t=>POS[t]||S.plan[t]);
+  if(S.sort){const {k,dir}=S.sort; rows.sort((a,b)=>{const va=rowVal(a,k),vb=rowVal(b,k); if(va==null) return 1; if(vb==null) return -1; return (typeof va==='string'?va.localeCompare(vb):va-vb)*dir;});}
+  return rows;
+}
+function renderQuadro(){
+  const cs=critsDe(S.cls), cl=cols(), on=Object.keys(S.crit).filter(k=>S.crit[k]);
+  const rows=S.est==='ok'?quadroRows():[];
+  const chips=cs.map(c=>{
+    const nd=c.x&&!S.ffo;
+    if(nd) return `<span class="chip nd" title="Sem dado nas demonstrações: vem do 10-K fora do XBRL e entra quando a extração for revisada. O filtro fica desligado até lá." aria-disabled="true"><span class="ck" aria-hidden="true"></span>${esc(c.l)}<em>sem dado</em><span class="sr">filtro indisponível</span></span>`;
+    return `<button type="button" class="chip" data-fc="${c.id}" aria-pressed="${!!S.crit[c.id]}" title="${esc(c.d)}"><span class="ck" aria-hidden="true"></span>${esc(c.l)}</button>`;
+  }).join('');
+  const total=COUNT[S.cls];
+  const meta=on.length?`<b>${rows.length}</b> de ${total.toLocaleString('pt-BR')} atendem a ${on.length} ${on.length>1?'critérios':'critério'} em ${S.win} anos`:`<b>${rows.length}</b> de ${total.toLocaleString('pt-BR')}`;
+  const sortLbl=S.sort?cl.find(c=>c.k===S.sort.k):null;
+  let body;
+  if(S.est==='loading') body=`<tbody>${Array.from({length:6},()=>`<tr>${cl.map(()=>`<td><div class="skel" style="width:${50+Math.random()*40|0}%;margin-left:auto"></div></td>`).join('')}</tr>`).join('')}</tbody>`;
+  else if(S.est==='error') body='';
+  else if(!rows.length) body=`<tbody><tr><td colspan="${cl.length}" class="empty"><b style="color:var(--ink)">Nenhum ativo atende aos filtros</b><br>Nenhum ${S.cls==='stocks'?'stock':'REIT'} atende a todos os critérios selecionados em ${S.win} anos. Experimente uma janela menor ou menos critérios, ou <button type="button" class="link inl" data-clear="1">limpe os filtros</button>.</td></tr></tbody>`;
+  else body=`<tbody>${rows.map(t=>`<tr class="click" data-open="${t}">${cl.map(c=>cellHtml(t,c)).join('')}</tr>`).join('')}</tbody>`;
+  const head=`<thead><tr>${cl.map(c=>{const s=S.sort&&S.sort.k===c.k; return `<th aria-sort="${s?(S.sort.dir>0?'ascending':'descending'):'none'}">${c.k==='l10'||c.k==='port'?`<span>${esc(c.l)}</span>`:`<button type="button" data-sort="${c.k}">${c.u?`<span class="two" style="display:flex;padding:0"><span>${esc(c.l)}${s?(S.sort.dir>0?' ▲':' ▼'):''}</span><small>${c.u}</small></span>`:esc(c.l)+(s?(S.sort.dir>0?' ▲':' ▼'):'')}</button>`}</th>`;}).join('')}</tr></thead>`;
+  const cards=S.est!=='ok'?'':rows.map(t=>{const a=avalAtivo(t,S.win); const m=META[t]; const st=S.cls==='stocks';
+    const f=st?(S.cot?[['P/L',rowVal(t,'pe')==null?'—':fmtN(rowVal(t,'pe'),1)],['Div. yield',pct(rowVal(t,'dy'))],['ROE',pct(rowVal(t,'roe'))]]:[['ROE',pct(rowVal(t,'roe'))],['Margem líq.',pct(rowVal(t,'mg'))],['Div./ação',usd(rowVal(t,'dps'))]])
+      :(S.cot?[['P/FFO',rowVal(t,'pffo')==null?'—':fmtN(rowVal(t,'pffo'),1)],['Div. yield',pct(rowVal(t,'dy'))],['Ocupação',pct(rowVal(t,'occ'))]]:(S.ffo?[['FFO/ação',rowVal(t,'ffo')==null?'—':usd(rowVal(t,'ffo'))],['Div./ação',usd(rowVal(t,'dps'))],['Dív./EBITDA',vx(rowVal(t,'ndE'))]]:[['Caixa op./ação',usd(rowVal(t,'fcoA'))],['Div./ação',usd(rowVal(t,'dps'))],['Div./caixa op.',pct(rowVal(t,'payF'),0)]]));
+    const p=POS[t];
+    return `<div class="qc" data-open="${t}" role="button" tabindex="0" aria-label="${t} ${esc(m.n)}"><div class="top"><div class="tk"><span class="ic" aria-hidden="true">${t.slice(0,4)}</span><div><span class="tkn">${t}</span><small>${esc(st?m.n:m.tipo)}</small></div></div><div class="pr">${S.cot?usd(m.preco):`<small class="mut" style="font-weight:400">${st?esc(m.setor):'REIT'}</small>`}</div></div>
+      <dl>${f.map(([k,v])=>`<div><dt>${k}</dt><dd>${v}</dd></div>`).join('')}</dl>
+      <div class="bot"><span class="crit" style="min-height:0;padding:0"><i aria-hidden="true">${a.r.map(x=>`<b class="${x.st==='atende'?'on':x.st==='sem_dado'?'na':''}"></b>`).join('')}</i>${a.n} de ${a.tot} critérios</span><span class="port">${p?`<b>${p.q}</b> ações`:S.plan[t]?'planejado':'—'}</span></div></div>`;}).join('');
+  const err=S.est==='error'?`<div class="errbox" role="alert"><span class="ico" aria-hidden="true">!</span><div><h3>Não foi possível carregar os ${S.cls==='stocks'?'stocks':'REITs'} agora</h3><p>Os filtros continuam como você deixou. Tente de novo em alguns minutos.</p><button type="button" class="btn sm" data-est-btn="ok">Tentar de novo</button></div></div>`:'';
+  return `${S.cls==='reits'&&!S.ffo?`<div class="note-i" style="margin-top:14px" role="note"><b>Os REITs usam o que a SEC publica nas demonstrações (XBRL).</b> FFO e AFFO não fazem parte desses dados: no lugar deles entram o caixa operacional por ação e os dividendos sobre o caixa operacional. A ocupação fica sem dado e conta como não atendida até a extração do relatório anual (10-K). O caixa operacional varia com o capital de giro e raramente cresce todos os anos de uma janela longa.</div>`:''}
+  <div class="bar"><span class="fl">Filtros de fundamentos</span>
+    <span class="pills" role="radiogroup" aria-label="Janela de anos dos critérios">${[3,5,10].map(w=>`<button type="button" role="radio" class="pill" data-w="${w}" aria-checked="${S.win===w}">${w} anos</button>`).join('')}</span>
+    <span class="chiprail" role="group" aria-label="Critérios de fundamentos (todos os ligados valem juntos)">${chips}</span>
+    <button type="button" class="chip" data-portf="1" aria-pressed="${S.port}"><span class="ck" aria-hidden="true"></span>Na minha carteira</button>
+    <button type="button" class="chip">${S.cls==='stocks'?'Setor':'Tipo'} ▾</button>
+    ${on.length||S.port?'<button type="button" class="link" data-clear="1">Limpar filtros</button>':''}
+  </div>
+  <div class="bar2"><span class="meta" aria-live="polite">${meta}</span><span class="sp" style="flex:1"></span>
+    <span class="meta">ordem</span>${sortLbl?`<button type="button" class="pill" aria-pressed="true" data-az="1" aria-label="Ordenado por ${esc(sortLbl.l)}. Voltar à ordem alfabética">${esc(sortLbl.l)} ${S.sort.dir>0?'▲':'▼'}</button>`:'<span class="pill" aria-pressed="true" style="display:inline-flex;align-items:center;background:var(--on);color:var(--on-ink)">A–Z</span>'}
+    <span class="pills" role="group" aria-label="Colunas"><button type="button" class="pill" data-m="resumo" aria-pressed="${S.mode==='resumo'}">Resumo</button><button type="button" class="pill" data-m="detalhado" aria-pressed="${S.mode==='detalhado'}">Detalhado</button></span>
+  </div>
+  ${cotFaixa().replace('class="note-i"','class="note-i" style="margin-bottom:12px"')}
+  <details class="critinfo"><summary>O que cada critério verifica</summary><dl>${cs.map(c=>`<dt>${esc(c.l)}</dt><dd>${esc(c.d)} · <span class="src${c.x?' x':''}">${esc(c.src)}</span></dd>`).join('')}</dl></details>
+  ${err}
+  ${S.est==='error'?'':`<div class="tbl-pad qtable"><div class="tbl-wrap"><table class="tbl"><caption class="sr">${S.cls==='stocks'?'Stocks':'REITs'}: fundamentos dos 10-K e critérios em ${S.win} anos</caption>${head}${body}</table></div></div>
+  <div class="qcards">${S.est==='loading'?Array.from({length:3},()=>'<div class="qc"><div class="skel" style="width:40%"></div><div class="skel"></div><div class="skel" style="width:70%"></div></div>').join(''):cards||`<p class="empty">Nenhum ativo atende aos filtros. <button type="button" class="link inl" data-clear="1">Limpe os filtros</button>.</p>`}</div>`}
+  <div class="more"><button type="button" class="btn sm">Mostrar mais 25</button></div>
+  <p class="note c" data-texto-legal="rodape-quadro-eua">${esc(RODAPE_EUA)}</p>
+  <p class="note c" style="margin-top:4px;padding-bottom:16px">Demonstrações: SEC EDGAR (10-K), atualizadas a cada novo arquivamento. ${S.cot?'Cotações: fechamento de 30/09/2026 · NYSE/Nasdaq.':'Sem cotações dos EUA nesta área.'} Universo: empresas com ação na NYSE ou na Nasdaq que arquivam 10-K, com free float de pelo menos US$ 10 bi (stocks) ou REITs de patrimônio com pelo menos US$ 2 bi, pelo valor declarado na capa do 10-K. Revisto toda semana.</p>`;
+}
+
+// ---------- página do ativo ----------
+function spark(r){
+  const v=r.vals; if(!v.length||v.some(x=>x==null)) return '';
+  const mx=Math.max(...v.map(Math.abs))||1;
+  return `<span class="spk" aria-hidden="true">${v.map((x,i)=>`<b class="${r.c.tipo==='max'?(x<=r.c.lim?'':'n'):r.c.tipo==='min'?(x>=r.c.lim?'':'n'):x<0?'n':''}" style="height:${Math.max(3,Math.abs(x)/mx*22)}px" title="FY${r.yrs[i]}: ${fmtC(r.c,x)}"></b>`).join('')}</span>`;
+}
+function critCard(t){
+  const a=avalAtivo(t,S.win);
+  const fy=META[t].fy;
+  const fin=META[t].fin;
+  return `<section class="card critcard" aria-labelledby="crt-h">
+    <div class="total"><span class="lbl" id="crt-h">Critérios de fundamentos</span><span class="v">${a.n}<small>de ${a.tot}</small></span>
+      <span class="pills" role="radiogroup" aria-label="Janela de anos dos critérios">${[3,5,10].map(w=>`<button type="button" role="radio" class="pill" data-w="${w}" aria-checked="${S.win===w}">${w} anos</button>`).join('')}</span>
+      <small>verificados ano a ano nas demonstrações financeiras · FY${LAST-S.win+1}–FY${LAST}</small>
+      ${fin?`<small>instituição financeira: ${a.sd} ${a.sd===1?'critério fica':'critérios ficam'} sem dado (o balanço não separa dívida de financiamento nem CAPEX)</small>`:''}
+      ${perfil(t)==='reits'&&!S.ffo?'<small>ocupação depende da extração do 10-K; FFO e AFFO entram no lugar do caixa operacional na fase 2</small>':''}
+    </div>
+    <div class="clist">${a.r.map(r=>`<div class="ci${r.st==='sem_dado'?' na':''}">
+      <div class="ci-h"><span class="yn${r.st==='atende'?' y':''}" aria-hidden="true">${r.st==='atende'?'✓':'—'}</span><span class="sr">${r.st==='atende'?'atende:':r.st==='sem_dado'?'não atende, sem dado:':'não atende:'}</span><b>${esc(r.c.l)}</b>${r.c.info?`<button type="button" class="link inl" style="margin-left:auto;font-weight:400" title="${esc(r.c.info)}" aria-label="Sobre o lucro usado"><span class="ii" aria-hidden="true">i</span></button>`:''}</div>
+      ${spark(r)}
+      <p>${r.st==='sem_dado'?'não atende · ':''}${esc(r.fato)}</p>
+      <small>${esc(r.c.d)}</small>
+      <div class="orig"><span class="src${r.c.x?' x':''}">${esc(r.c.src)}</span>${r.c.id==='dps'&&SEC[t].dpsCalc.some(y=>y>=LAST-S.win)?`<span class="src x" title="Anos sem dividendo por ação no XBRL: dividendos pagos ÷ média de ações">calculado em ${SEC[t].dpsCalc.filter(y=>y>=LAST-S.win).join(', ')}</span>`:''}${preIR(t,r.c,r.yrs).length?`<span class="src x" title="A empresa não publica lucro operacional (OperatingIncomeLoss) nesses anos">sem lucro operacional: lucro antes do IR + juros + D&A em ${faixaFY(preIR(t,r.c,r.yrs))}</span>`:''}</div>
+      ${r.why?`<div class="why">${esc(r.why)}</div>`:''}
+    </div>`).join('')}</div>
+    <div class="critfoot"><span>Fonte: 10-K (SEC EDGAR), conceitos us-gaap do XBRL${perfil(t)==='reits'&&S.ffo?' e tabelas de FFO do relatório anual':''}. ${fy!=='dez'?`O ano fiscal da ${esc(META[t].n)} termina em ${fy}: FY${LAST} vai de ${({set:'out/'+(LAST-1)+' a set/'+LAST,jun:'jul/'+(LAST-1)+' a jun/'+LAST,ago:'set/'+(LAST-1)+' a ago/'+LAST,jan:'fev/'+LAST+' a jan/'+(LAST+1)})[fy]}.`:''} Dado contábil histórico, não avaliação do My Finance; rentabilidade passada não é garantia de resultados futuros. Para os demonstrativos completos, use o Raio-X.</span>
+      ${CIK[t]?`<a class="link" href="https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK=${CIK[t]}&type=10-K" target="_blank" rel="noopener">Ver os 10-K na SEC ↗</a>`:''}</div>
+  </section>`;
+}
+function kpis(t){
+  const y=LAST, m=META[t], st=perfil(t)==='stocks';
+  const p=POS[t]; const aba=ABA[perfil(t)];
+  const pc=m.preco; // mesmo preço da aba da Carteira (cotação da Carteira; preço médio quando falta)
+  const carteira=p?`<div class="q b"><div class="l">Na sua carteira · aba ${aba.label}</div><div class="v">${p.q} ações · ${usd(p.q*pc,0)}</div>
+      <div class="s">preço médio ${usd(p.pm)} · seção ${p.sec} · valor igual ao da aba ${aba.label} da Carteira</div>
+      <div class="posbar" aria-hidden="true"><i style="width:${Math.min(100,p.q*pc*DOLAR/aba.total*100/p.obj*100)}%"></i><em style="left:100%"></em></div>
+      <div class="posline"><span>${fmtN(p.q*pc*DOLAR/aba.total*100,1)}% da aba ${aba.label}</span><span>objetivo ${fmtN(p.obj,0)}% · desvio ${fmtN(p.q*pc*DOLAR/aba.total*100-p.obj,1)} p.p.</span></div></div>`
+    : S.plan[t]?`<div class="q b"><div class="l">Na sua carteira · aba ${aba.label}</div><div class="v">Planejado · ${fmtN(S.plan[t].obj,0)}%</div><div class="s">Sem posição. Objetivo de ${fmtN(S.plan[t].obj,0)}% da aba ${aba.label}, seção ${S.plan[t].sec}.</div></div>`
+    : `<div class="q"><div class="l">Na sua carteira</div><div class="v" style="font-size:15px">Você ainda não tem ${t}</div><div class="s">Planeje um objetivo na aba ${aba.label} ou registre uma operação.</div></div>`;
+  let k;
+  if(st){
+    const eps=at(t,'eps',y), dps=at(t,'dps',y);
+    k=[['ROE',pct(at(t,'roe',y)),`FY${y}`],['Margem líq.',pct(at(t,'mg',y)),`lucro ÷ receita`],['Dív. líq./EBITDA',vx(at(t,'ndE',y)),at(t,'nd',y)<0?'caixa líquido':`dívida líq. US$ ${bi(at(t,'nd',y))} bi`],
+      S.cot?['P/L',eps>0?fmtN(m.preco/eps,1):'—',`LPA ${usd(eps)}`]:['LPA',usd(eps),'lucro por ação diluído'],
+      S.cot?['Div. yield',pct(dps/m.preco*100),`${usd(dps)}/ação no FY${y}`]:['Div./ação',usd(dps),`pago no FY${y}`],
+      ['Payout',pct(at(t,'payout',y),0),'dividendos ÷ lucro'],['Lucros seguidos',`${streak(t)>=11?'10+':streak(t)} anos`,'lucro líquido positivo']];
+  } else if(!S.ffo){
+    const d=at(t,'dps',y);
+    k=[['Caixa op./ação',usd(at(t,'fcoA',y)),'caixa operacional ÷ média de ações'],
+      [S.cot?'Div. yield':'Div./ação',S.cot?pct(d/m.preco*100):usd(d),S.cot?`${usd(d)}/ação no FY${y}`:`pago no FY${y}`],
+      ['Div./caixa op.',pct(at(t,'payF',y),0),'dividendos pagos ÷ caixa operacional'],
+      ['Dív. líq./EBITDA',vx(at(t,'ndE',y)),'EBITDA calculado'],['Receita',`US$ ${bi(at(t,'rev',y))} bi`,`FY${y}`],
+      ['Lucro líquido',`US$ ${bi(at(t,'ni',y))} bi`,'inclui a depreciação dos imóveis'],['Div. crescendo',`${divStreak(t)} anos`,'dividendo/ação maior que no ano anterior']];
+  } else {
+    const x=X10K[t], i=y-Y0, f=S.ffo&&x?x.ffo[i]:null, af=S.ffo&&x?x.affo[i]:null, d=at(t,'dps',y);
+    k=[[S.cot?'P/FFO':'FFO/ação',S.cot?(f?fmtN(m.preco/f,1):'—'):(f?usd(f):'—'),f?(S.cot?`FFO/ação ${usd(f)}`:`AFFO/ação ${usd(af)}`):'10-K · extração pendente'],
+      [S.cot?'Div. yield':'Div./ação',S.cot?pct(d/m.preco*100):usd(d),S.cot?`${usd(d)}/ação no FY${y}`:`pago no FY${y}`],['AFFO payout',af?pct(d/af*100,0):'—',af?'dividendos ÷ AFFO':'10-K · extração pendente'],
+      ['Ocupação',S.ffo&&x&&x.occ[i]!=null?pct(x.occ[i]):'—',S.ffo&&x&&x.imv[i]?`${Number(x.imv[i]).toLocaleString('pt-BR')} imóveis`:'10-K · extração pendente'],
+      ['Dív. líq./EBITDA',vx(at(t,'ndE',y)),'EBITDA calculado'],['Receita',`US$ ${bi(at(t,'rev',y))} bi`,`FY${y}`],['Div. crescendo',`${divStreak(t)} anos`,'dividendo/ação maior que no ano anterior']];
+  }
+  return `<div class="grid g-14">${carteira}<div class="kpis">${k.map(([l,v,s])=>`<div class="q"><div class="l">${l}</div><div class="v">${v}</div><div class="s">${s}</div></div>`).join('')}</div></div>`;
+}
+function essencial(t){
+  const st=perfil(t)==='stocks'; const ys=[]; for(let y=LAST-9;y<=LAST;y++) ys.push(y);
+  let cols,rowf;
+  if(st){
+    cols=['FY','Receita','EBITDA','Lucro líquido','Margem líq.','Dívida líq.','Dív. líq./EBITDA','FCL/CAPEX','ROE','LPA (US$)','Div./ação (US$)','Payout'].concat(S.cot?['P/L','Div. yield']:[]);
+    rowf=y=>{const e=at(t,'eps',y),d=at(t,'dps',y); return [y,bi(at(t,'rev',y)),bi(at(t,'ebitda',y)),bi(at(t,'ni',y)),pct(at(t,'mg',y)),bi(at(t,'nd',y)),vx(at(t,'ndE',y)),vx(at(t,'fcf_capex',y)),pct(at(t,'roe',y)),fmtN(e,2),fmtN(d,2),pct(at(t,'payout',y),0)].concat(S.cot?[y===LAST&&e>0?fmtN(META[t].preco/e,1):'—',y===LAST&&d?pct(d/META[t].preco*100):'—']:[]);};
+  } else if(!S.ffo){
+    cols=['FY','Receita','Lucro líquido','Caixa operacional','Caixa op./ação (US$)','Div./ação (US$)','Div./caixa op.','Dív. líq./EBITDA'].concat(S.cot?['Div. yield']:[]);
+    rowf=y=>{const d=at(t,'dps',y); return [y,bi(at(t,'rev',y)),bi(at(t,'ni',y)),bi(at(t,'fco',y)),fmtN(at(t,'fcoA',y),2),fmtN(d,2),pct(at(t,'payF',y),0),vx(at(t,'ndE',y))].concat(S.cot?[y===LAST&&d?pct(d/META[t].preco*100):'—']:[]);};
+  } else {
+    const x=X10K[t];
+    cols=['FY','Receita','FFO/ação (US$)','AFFO/ação (US$)','Div./ação (US$)','AFFO payout','Ocupação','Imóveis','Dív. líq./EBITDA'].concat(S.cot?['P/FFO']:[]);
+    rowf=y=>{const i=y-Y0, f=S.ffo&&x?x.ffo[i]:null, af=S.ffo&&x?x.affo[i]:null, d=at(t,'dps',y);
+      return [y,bi(at(t,'rev',y)),f==null?'—':fmtN(f,2),af==null?'—':fmtN(af,2),fmtN(d,2),af&&d?pct(d/af*100,0):'—',S.ffo&&x&&x.occ[i]!=null?pct(x.occ[i]):'—',S.ffo&&x&&x.imv[i]?Number(x.imv[i]).toLocaleString('pt-BR'):'—',vx(at(t,'ndE',y))].concat(S.cot?[y===LAST&&f?fmtN(META[t].preco/f,1):'—']:[]);};
+  }
+  const adj=t==='AAPL'?' LPA e dividendo por ação ajustados pelo desdobramento de 4 para 1 de agosto de 2020.':t==='NVDA'?' Valores por ação ajustados pelos desdobramentos de 2021 e 2024.':'';
+  return `<section class="card" style="margin-top:16px"><div class="hd"><h3>Fundamentos · 10 anos</h3><span class="pills" role="group" aria-label="Nível"><button type="button" class="pill" aria-pressed="true">Essencial</button><button type="button" class="pill" aria-pressed="false">Raio-X</button></span></div>
+    <div class="tbl-pad"><div class="qf-meta"><span>US$ bi, exceto por ação e % · ano fiscal (FY)${META[t].fy!=='dez'?` termina em ${META[t].fy}`:''}</span><span>Fonte: 10-K · SEC EDGAR${st||!S.ffo?'':' · FFO, AFFO, ocupação e imóveis: tabelas do 10-K'}</span></div>
+    <div class="tbl-wrap"><table class="tbl yt"><caption class="sr">Fundamentos anuais de ${t}</caption><thead><tr>${cols.map(c=>`<th><span>${esc(c)}</span></th>`).join('')}</tr></thead>
+    <tbody>${ys.map(y=>`<tr class="${y===LAST?'hi':''}">${rowf(y).map((v,i)=>`<td class="${i===0?'yr':''}${v==='—'?' nd':''}">${i===0?'FY'+v:v}</td>`).join('')}</tr>`).join('')}</tbody></table></div>
+    <p class="essnote">Essencial: o que basta para ver se receita, lucro, caixa e dividendos crescem ano a ano. Para abrir todos os demonstrativos, use o Raio-X.${adj}${st?' <b>Lucro líquido</b>: a SEC não publica o lucro sem itens não recorrentes; a coluna usa o lucro dos acionistas.':(S.ffo?' <b>Payout sobre o lucro contábil não vale para REITs</b>: a depreciação dos imóveis reduz o lucro sem sair do caixa (Realty Income FY2025: dividendos de 276% do lucro e 75% do AFFO). Por isso a coluna usa o AFFO.':' <b>Payout sobre o lucro contábil não vale para REITs</b>: a depreciação dos imóveis reduz o lucro sem sair do caixa (Realty Income FY2025: dividendos de 276% do lucro e 73% do caixa operacional). Por isso a coluna usa o caixa operacional. FFO, AFFO, ocupação e número de imóveis entram com a extração do 10-K.')}</p></div></section>`;
+}
+function renderAtivo(t){
+  const m=META[t], st=perfil(t)==='stocks', p=POS[t], pl=S.plan[t];
+  if(S.est==='loading') return `<button type="button" class="back" data-back="1">← Voltar ao quadro de ${st?'Stocks':'REITs'}</button><div class="pad18"><div class="skel" style="width:30%;height:28px"></div><div class="grid g-14"><div class="skel" style="height:140px"></div><div class="skel" style="height:140px"></div></div><div class="skel" style="height:220px;margin-top:16px"></div></div>`;
+  if(S.est==='error') return `<button type="button" class="back" data-back="1">← Voltar ao quadro de ${st?'Stocks':'REITs'}</button><div class="errbox" role="alert"><span class="ico" aria-hidden="true">!</span><div><h3>Não foi possível carregar ${t} agora</h3><p>Os dados da SEC não responderam. Sua carteira e seus planos não foram afetados. Tente de novo em alguns minutos.</p><button type="button" class="btn sm" data-est-btn="ok">Tentar de novo</button></div></div>`;
+  const preco=S.cot?`<div class="price"><b>${usd(m.preco)}</b><span class="var">${m.chg>=0?'▲':'▼'} ${fmtN(Math.abs(m.chg),2)}%</span><small>fechamento de 30/09/2026 · fonte ${m.bolsa}</small></div>`
+    :`<div class="cot0"><b>Cotação não exibida</b><small>Cotações das bolsas dos EUA ainda não aparecem nesta área. Os dados abaixo vêm das demonstrações (10-K).</small></div>`;
+  return `<button type="button" class="back" data-back="1">← Voltar ao quadro de ${st?'Stocks':'REITs'}</button>
+  <div class="dhead"><div class="id"><span class="big" aria-hidden="true">${t.slice(0,4)}</span><div><h2>${t} <span>· ${esc(m.n)}</span></h2>
+    <div class="tags"><span class="tag">${esc(st?m.setor:m.tipo)}</span><span class="tag">${m.bolsa}</span>${st?'':'<span class="tag">REIT de patrimônio</span>'}${m.fy!=='dez'?`<span class="tag">FY termina em ${m.fy}</span>`:''}${p?'<span class="tag st">Na carteira</span>':''}${pl?'<span class="tag st plan">Planejado</span>':''}</div></div></div>
+    <div class="dright">${preco}
+      <div class="actions"><button type="button" class="btn sm" data-act="cmp">Comparar</button><button type="button" class="btn sm" data-act="save" aria-pressed="${S.saved.has(t)}">${S.saved.has(t)?'Salvo ✓':'Salvar'}</button><button type="button" class="btn sm" data-act="plan">${p||pl?'Ajustar plano':'Planejar na carteira'}</button><button type="button" class="btn sm" data-act="port">Ver na Carteira</button><button type="button" class="btn n" data-act="reg">Registrar operação</button></div></div></div>
+  <div class="pad18">
+    ${critCard(t)}
+    <div style="margin-top:16px">${kpis(t)}</div>
+    ${essencial(t)}
+    <section class="card" style="margin-top:16px"><div class="hd"><h3>Valuation · preço vs. fundamentos</h3><span class="pills" role="group" aria-label="Valuation"><button type="button" class="pill" aria-pressed="true">Múltiplos</button><button type="button" class="pill" aria-pressed="false" ${S.cot?'':'aria-disabled="true"'}>Meus cenários</button></span></div>
+      ${S.cot?`<p class="note" style="padding:0 18px 16px">Igual às ações, com ${st?'P/L, P/VP, P/Receita, EV/EBITDA, DY e payout':(S.ffo?'P/FFO, P/AFFO, DY e AFFO payout':'P/L, P/caixa operacional e DY (P/FFO entra com a extração do 10-K)')} e a barra de posição em 10 anos. Fora deste protótipo.</p>`
+        :`<p class="note" style="padding:0 18px 16px">Múltiplos e Meus cenários usam a cotação e ficam ocultos enquanto as cotações dos EUA não aparecem nesta área.</p>`}
+    </section>
+    <div class="fresh"><span>10-K mais recente: FY${LAST} · arquivado na SEC${t==='AAPL'?' em 31/10/2025':t==='O'?' em 25/02/2026':''}</span><span>${S.cot?'Cotação: 30/09/2026':'Sem cotação dos EUA'}</span></div>
+  </div>`;
+}
+
+// ---------- comparador ----------
+function renderCmp(){
+  const cls=S.cls; const ts=S.cmp[cls]; const st=cls==='stocks';
+  if(S.misto){
+    return `<div class="bar"><span data-texto-legal="instrucao-comparador-stocks" class="meta">${esc(INSTR.stocks)}</span></div>
+    <div class="slots">${['AAPL','O'].map(t=>`<div class="slot${t==='O'?' off':''}"><b>${t}</b> <small class="mut">${esc(META[t].n)}</small><div class="sp-price">${t==='O'?'REIT':'Stock'}</div>${t==='O'?'<div class="why">Não entrou na comparação</div>':''}</div>`).join('')}</div>
+    <div class="blocked" role="alert"><h4>Stocks e REITs não entram na mesma comparação</h4>
+      <p>Os dois usam critérios diferentes: stocks são verificados por lucro, EBITDA e caixa livre; REITs, por ${S.ffo?'FFO, ocupação e AFFO':'caixa operacional por ação, dividendos sobre o caixa e ocupação'}. Lado a lado, as linhas não teriam o que comparar. Compare AAPL com outros stocks, ou abra O no comparador de REITs.</p>
+      <div class="row"><button type="button" class="btn sm" data-misto="0">Continuar com AAPL</button><button type="button" class="btn n" data-goto-reit="O">Comparar O com REITs</button></div></div>
+    <div style="height:18px"></div>`;
+  }
+  const w=S.win;
+  const av=ts.map(t=>avalAtivo(t,w));
+  const grp=st?[['Qualidade',[['Lucros seguidos',t=>`${streak(t)>=11?'10+':streak(t)} anos`],['ROE',t=>pct(at(t,'roe',LAST))],['Margem líq.',t=>pct(at(t,'mg',LAST))]]],['Endividamento',[['Dív. líq./EBITDA',t=>vx(at(t,'ndE',LAST))]]],['Preço',[['P/L',t=>S.cot&&at(t,'eps',LAST)>0?fmtN(META[t].preco/at(t,'eps',LAST),1):'—'],['P/Receita',t=>S.cot?fmtN(META[t].preco*at(t,'sh',LAST)/at(t,'rev',LAST),1):'—']]],['Dividendos',[['Div./ação (US$)',t=>fmtN(at(t,'dps',LAST),2)],['Payout',t=>pct(at(t,'payout',LAST),0)],['Div. yield',t=>S.cot?pct(at(t,'dps',LAST)/META[t].preco*100):'—']]]]
+    :!S.ffo?[['Geração de caixa',[['Caixa op./ação (US$)',t=>fmtN(at(t,'fcoA',LAST),2)],['Div./caixa op.',t=>pct(at(t,'payF',LAST),0)]]],['Qualidade',[['Margem líq.',t=>pct(at(t,'mg',LAST))],['Div. crescendo',t=>`${divStreak(t)} anos`]]],['Endividamento',[['Dív. líq./EBITDA',t=>vx(at(t,'ndE',LAST))]]],['Dividendos',[['Div./ação (US$)',t=>fmtN(at(t,'dps',LAST),2)],['Div. yield',t=>S.cot?pct(at(t,'dps',LAST)/META[t].preco*100):'—']]]]
+    :[['Geração de caixa',[['FFO/ação (US$)',t=>{const v=rowVal(t,'ffo'); return v==null?'—':fmtN(v,2);}],['P/FFO',t=>S.cot&&rowVal(t,'ffo')?fmtN(rowVal(t,'pffo'),1):'—'],['AFFO payout',t=>pct(rowVal(t,'pay'),0)]]],['Qualidade',[['Ocupação',t=>pct(rowVal(t,'occ'))],['Div. crescendo',t=>`${divStreak(t)} anos`]]],['Endividamento',[['Dív. líq./EBITDA',t=>vx(at(t,'ndE',LAST))]]],['Dividendos',[['Div./ação (US$)',t=>fmtN(at(t,'dps',LAST),2)],['Div. yield',t=>S.cot?pct(at(t,'dps',LAST)/META[t].preco*100):'—']]]];
+  const cs=critsDe(cls);
+  return `<div class="bar"><span data-texto-legal="instrucao-comparador-${cls}" class="meta">${esc(INSTR[cls])}</span><span class="sp"></span>
+    <span class="pills" role="radiogroup" aria-label="Janela de anos dos critérios">${[3,5,10].map(x=>`<button type="button" role="radio" class="pill" data-w="${x}" aria-checked="${w===x}">${x} anos</button>`).join('')}</span></div>
+  ${cotFaixa().replace('class="note-i"','class="note-i" style="margin:6px 18px 0"')}
+  <div class="slots">${ts.map(t=>`<div class="slot"><button type="button" class="rm" aria-label="Tirar ${t} da comparação">×</button><b>${t}</b> <small class="mut">${esc(META[t].n)}</small><div class="sp-price">${S.cot?usd(META[t].preco):esc(st?META[t].setor:META[t].tipo)}</div></div>`).join('')}</div>
+  <div class="tbl-pad ctable" style="margin-top:12px"><div class="tbl-wrap"><table class="tbl cmp"><caption class="sr">Comparação de ${st?'stocks':'REITs'}</caption>
+    <thead><tr><th><span>Critérios de fundamentos · ${w} anos</span></th>${ts.map(t=>`<th><span>${t}</span></th>`).join('')}</tr></thead>
+    <tbody>${cs.map((c,i)=>`<tr><td class="lbl">${esc(c.l)}</td>${av.map(a=>{const r=a.r[i]; return `<td><span class="yn${r.st==='atende'?' y':''}" aria-hidden="true">${r.st==='atende'?'✓':'—'}</span><span class="sr">${r.st==='atende'?'atende':'não atende'}</span><span class="ynf">${r.st==='sem_dado'?'não atende · ':''}${esc(r.fato)}</span></td>`;}).join('')}</tr>`).join('')}
+    <tr class="tot"><td class="lbl">Critérios atendidos</td>${av.map(a=>`<td><b>${a.n} de ${a.tot}</b></td>`).join('')}</tr>
+    ${grp.map(([g,rs])=>`<tr class="grp"><td colspan="${ts.length+1}">${g}</td></tr>${rs.map(([l,f])=>`<tr><td class="lbl">${l}</td>${ts.map(t=>`<td>${f(t)}</td>`).join('')}</tr>`).join('')}`).join('')}
+    </tbody></table></div></div>
+  <div class="ccards">${ts.map((t,j)=>`<div class="ccard"><h4>${t} · ${esc(META[t].n)}</h4>${cs.map((c,i)=>{const r=av[j].r[i]; return `<div class="r"><span>${esc(c.l)}</span><div><span class="yn${r.st==='atende'?' y':''}" aria-hidden="true">${r.st==='atende'?'✓':'—'}</span> <small class="mut">${r.st==='sem_dado'?'não atende · ':''}${esc(r.fato)}</small></div></div>`;}).join('')}<div class="r"><span>Critérios atendidos</span><b>${av[j].n} de ${av[j].tot}</b></div></div>`).join('')}</div>
+  <div class="verdict"><div><span class="e">Leitura dos dados</span><p data-texto-legal="leitura-dos-dados">${esc(LEITURA)}</p></div></div>`;
+}
+
+// ---------- modais ----------
+function modal(html,cls=''){ $('#modalRoot').innerHTML=`<div class="modal" data-mclose="bg"><div class="mbox ${cls}" role="dialog" aria-modal="true" aria-labelledby="mh"><div class="grab" aria-hidden="true"></div>${html}</div></div>`; const f=$('#modalRoot input,#modalRoot button.mclose'); f&&f.focus(); }
+function closeModal(){ $('#modalRoot').innerHTML=''; }
+function mPlan(t){
+  const p=POS[t], pl=S.plan[t], aba=ABA[perfil(t)], atual=p?p.obj:pl?pl.obj:'';
+  const atualPct=p?p.q*META[t].preco*DOLAR/aba.total*100:0;
+  modal(`<div class="mhead"><div><h3 id="mh">Planejar na carteira · ${t}</h3><p>O objetivo vale dentro da aba ${aba.label} da Carteira, como na coluna Objetivo de lá.</p></div><button type="button" class="mclose" data-mclose="x" aria-label="Fechar">×</button></div>
+  <div class="mbody mform">
+    <label for="objp"><span>Objetivo na aba ${aba.label} (%)</span><span class="in"><input id="objp" inputmode="decimal" placeholder="ex.: 5" value="${atual}"><em>%</em></span></label>
+    ${p?'':`<div class="fr" style="display:block"><span style="display:block;margin-bottom:8px">Seção na aba ${aba.label}</span><div class="secsel" role="group" aria-label="Seção">${['Value','Growth','Risk'].map(s=>`<button type="button" aria-pressed="${(pl?pl.sec:'Value')===s}">${s}</button>`).join('')}</div></div>`}
+    <div class="fr"><span>Posição atual</span><span class="ro">${p?`${p.q} ações · ${fmtN(atualPct,1)}% da aba`:'sem posição'}</span></div>
+    <div class="rsum" id="planSum"></div>
+    ${S.cot?'':'<p class="note" style="margin-top:8px">Sem cotação dos EUA nesta área: a quantidade equivalente aparece na aba Stocks da Carteira, que usa a cotação da sua posição.</p>'}
+  </div>
+  <div class="mfoot"><span class="hint">Grava o Objetivo da aba ${aba.label}. Dá para desfazer pelo Histórico.</span>${p||pl?`<button type="button" class="btn sm" data-plan-rm="${t}">Remover do plano</button>`:''}<button type="button" class="btn n" data-plan-ok="${t}">Salvar objetivo</button></div>`,'sm');
+  const upd=()=>{const v=parseFloat(($('#objp').value||'').replace(',','.')); const el=$('#planSum'); if(isNaN(v)){el.innerHTML='<span>Informe o objetivo em % para ver o valor equivalente.</span>';return;} const valor=aba.total*v/100; el.innerHTML=`<span>Valor equivalente <b>R$ ${fmtN(valor,0)}</b></span>${S.cot?`<span>Quantidade equivalente <b>${Math.floor(valor/DOLAR/META[t].preco)} ações</b></span>`:''}<span>Posição atual vs. objetivo <b>${fmtN(atualPct-v,1)} p.p.</b></span>`;};
+  $('#objp').addEventListener('input',upd); upd();
+}
+function mReg(t){
+  const m=META[t];
+  modal(`<div class="mhead"><div><h3 id="mh">Registrar operação · ${t}</h3><p>Lança na aba ${ABA[perfil(t)].label} da Carteira, em dólar.</p></div><button type="button" class="mclose" data-mclose="x" aria-label="Fechar">×</button></div>
+  <div class="mbody mform">
+    <label for="rop"><span>Operação</span><select id="rop"><option>Compra</option><option>Venda</option></select></label>
+    <label for="rq"><span>Quantidade</span><span class="in"><input id="rq" inputmode="decimal" value="5"><em>ações</em></span></label>
+    <label for="rp"><span>Preço por ação</span><span class="in"><em>US$</em><input id="rp" inputmode="decimal" ${S.cot?`value="${fmtN(m.preco,2)}"`:'placeholder="ex.: 230,00"'}></span></label>
+    ${S.cot?'':'<p class="note" style="margin:4px 0 0">Informe o preço que você pagou: nesta área não há cotação dos EUA para preencher.</p>'}
+    <label for="rd"><span>Data</span><input id="rd" type="date" value="2026-10-16"></label>
+    <label for="ri"><span>Corretora</span><select id="ri"><option>Avenue</option><option>Inter Global</option><option>Nomad</option></select></label>
+    <div class="rsum" id="regSum"></div>
+  </div>
+  <div class="mfoot"><span class="hint">Proventos e custódia continuam na Carteira.</span><button type="button" class="btn sm" data-mclose="x">Cancelar</button><button type="button" class="btn n" data-reg-ok="${t}">Registrar</button></div>`,'sm');
+  const upd=()=>{const q=parseFloat(($('#rq').value||'').replace(',','.')),pr=parseFloat(($('#rp').value||'').replace('.','').replace(',','.')); const el=$('#regSum'); if(isNaN(q)||isNaN(pr)){el.innerHTML='<span>Informe quantidade e preço para ver o total.</span>';return;} const p=POS[t]; const nq=(p?p.q:0)+q; const npm=p?(p.q*p.pm+q*pr)/nq:pr; el.innerHTML=`<span>Total <b>${usd(q*pr)}</b></span><span>Nova posição <b>${nq} ações</b></span><span>Novo preço médio <b>${usd(npm)}</b></span>`;};
+  ['#rq','#rp'].forEach(s=>$(s).addEventListener('input',upd)); upd();
+}
+function mCmp(t){
+  const cls=perfil(t); const pool=(cls==='stocks'?STOCKS:REITS).filter(x=>x!==t);
+  const other=cls==='stocks'?['O','PLD']:['AAPL','MSFT'];
+  modal(`<div class="mhead"><div><h3 id="mh">Comparar ${t} com até 3 ${cls==='stocks'?'stocks':'REITs'}</h3><p>${cls==='stocks'?'Mesmo setor primeiro, depois os demais em ordem alfabética.':'Mesmo tipo primeiro, depois os demais em ordem alfabética.'}</p></div><button type="button" class="mclose" data-mclose="x" aria-label="Fechar">×</button></div>
+  <div class="mbody"><div class="mpick"><span class="chip fixed">${t}</span><span class="chip ghost">+ escolha até 3</span></div>
+  <label class="search" style="width:100%;margin-bottom:8px"><span aria-hidden="true">⌕</span><span class="sr">Buscar</span><input placeholder="Buscar por ticker ou nome" value=""></label>
+  <div role="listbox" aria-label="Sugestões">${pool.map(x=>{const a=avalAtivo(x,S.win); return `<button type="button" class="mrow" role="option" aria-checked="false"><span class="ic">${x.slice(0,4)}</span><span class="nm"><b>${x}</b><small>${esc(META[x].n)} · ${esc(cls==='stocks'?META[x].setor:META[x].tipo)}</small></span><span class="mt">${cls==='stocks'?`ROE ${pct(at(x,'roe',LAST))}`:`Dív./EBITDA ${vx(at(x,'ndE',LAST))}`}</span><span class="mt">${a.n} de ${a.tot} crit.</span><span class="ckc" aria-hidden="true">+</span></button>`;}).join('')}
+  ${other.map(x=>`<div class="mrow" aria-disabled="true"><span class="ic">${x.slice(0,4)}</span><span class="nm"><b>${x}</b><small>${cls==='stocks'?'REIT: compare no comparador de REITs':'Stock: compare no comparador de stocks'}</small></span><span class="mt"></span><span class="mt"></span><span class="ckc" aria-hidden="true">–</span></div>`).join('')}</div></div>
+  <div class="mfoot"><span class="hint">${cls==='stocks'?'REITs e ações da B3 ficam fora: usam critérios ou moeda diferentes.':'Stocks e FIIs ficam fora: usam critérios diferentes.'}</span><button type="button" class="btn n" data-p="cmp">Abrir comparador</button></div>`);
+}
+function toast(msg){ $('#toastRoot').innerHTML=`<div class="toast">${esc(msg)}</div>`; clearTimeout(toast.h); toast.h=setTimeout(()=>{$('#toastRoot').innerHTML='';},3200); }
+
+// ---------- render ----------
+function render(){
+  let inner;
+  if(S.cls==='acoes'||S.cls==='fiis') inner=`<div class="cls-ph">Ações e FIIs seguem como na v2.5 em produção. Este protótipo cobre só Stocks e REITs.</div>`;
+  else if(S.view==='ativo') inner=renderAtivo(S.t);
+  else if(S.view==='cmp') inner=renderCmp();
+  else inner=renderQuadro();
+  $('#main').innerHTML=shell(inner);
+  document.querySelectorAll('[data-cot]').forEach(b=>b.setAttribute('aria-pressed',String(+b.dataset.cot===+S.cot)));
+  document.querySelectorAll('[data-ffo]').forEach(b=>b.setAttribute('aria-pressed',String(+b.dataset.ffo===+S.ffo)));
+  document.querySelectorAll('[data-est]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.est===S.est)));
+}
+function openAtivo(t){S.view='ativo';S.t=t;S.cls=perfil(t);render();window.scrollTo(0,0);const a=$('#app');a.scrollTop=0;}
+
+document.addEventListener('click',e=>{
+  const t=e.target.closest('button,[data-open],a[data-open],.modal');
+  if(!t) return;
+  const d=t.dataset;
+  if(d.mclose){ if(d.mclose==='bg'&&e.target!==t) return; closeModal(); return; }
+  if(d.cot!=null){S.cot=d.cot==='1';render();return;}
+  if(d.ffo!=null){S.ffo=d.ffo==='1';render();return;}
+  if(d.est){S.est=d.est;render();return;}
+  if(d.estBtn){S.est='ok';render();return;}
+  if(d.themeB){ if(d.themeB==='sys') document.documentElement.removeAttribute('data-theme'); else document.documentElement.setAttribute('data-theme',d.themeB); document.querySelectorAll('[data-theme-b]').forEach(b=>b.setAttribute('aria-pressed',String(b===t))); return;}
+  if(d.wid){ $('#fw').classList.toggle('phone',d.wid==='390'); document.querySelectorAll('[data-wid]').forEach(b=>b.setAttribute('aria-pressed',String(b===t))); return;}
+  if(d.cls){S.cls=d.cls;S.view=S.view==='cmp'?'cmp':'quadro';S.crit={};S.sort=null;S.misto=false;render();return;}
+  if(d.p){ closeModal(); if(d.p==='salvos'){toast('Salvos: igual ao Bloco 1, com stocks e REITs nas listas.');return;} S.view=d.p;S.misto=false;render();return;}
+  if(d.open){ e.preventDefault(); openAtivo(d.open); return; }
+  if(d.back){S.view='quadro';render();return;}
+  if(d.w){S.win=+d.w;render();return;}
+  if(d.fc){S.crit[d.fc]=!S.crit[d.fc];render();return;}
+  if(d.portf){S.port=!S.port;render();return;}
+  if(d.clear){S.crit={};S.port=false;render();return;}
+  if(d.m){S.mode=d.m;render();return;}
+  if(d.az){S.sort=null;render();return;}
+  if(d.sort){const k=d.sort; if(S.sort&&S.sort.k===k) S.sort.dir*=-1; else S.sort={k,dir:['pe','pffo','pay','payF','ndE','ativo','setor','tipo'].includes(k)?1:-1}; render();return;}
+  if(d.misto!=null){S.misto=false;render();return;}
+  if(d.gotoReit){S.cls='reits';S.view='cmp';S.misto=false;render();return;}
+  if(d.act){const tk=S.t; if(d.act==='plan') mPlan(tk); else if(d.act==='reg') mReg(tk); else if(d.act==='cmp') mCmp(tk); else if(d.act==='save'){S.saved.has(tk)?S.saved.delete(tk):S.saved.add(tk); render(); toast(S.saved.has(tk)?`${tk} salvo na lista Favoritos.`:`${tk} saiu da lista Favoritos.`);} else if(d.act==='port') toast(`Abre a aba ${ABA[perfil(tk)].label} da Carteira com ${tk} marcado.`); return;}
+  if(d.planOk){const v=parseFloat(($('#objp').value||'').replace(',','.')); if(isNaN(v)||v<=0||v>100){$('#planSum').innerHTML='<span class="err-inline">O objetivo precisa estar entre 0,01% e 100%.</span>';return;} const tk=d.planOk; if(POS[tk]) POS[tk].obj=v; else {const sel=document.querySelector('.secsel [aria-pressed="true"]'); S.plan[tk]={obj:v,sec:sel?sel.textContent:'Value'};} closeModal(); render(); toast(`Objetivo de ${fmtN(v,2)}% salvo na aba ${ABA[perfil(tk)].label}.`); return;}
+  if(d.planRm){const tk=d.planRm; if(POS[tk]) POS[tk].obj=0; else delete S.plan[tk]; closeModal(); render(); toast(`${tk} saiu do plano da aba ${ABA[perfil(tk)].label}.`); return;}
+  if(d.regOk){closeModal(); toast(`Operação de ${d.regOk} registrada na aba ${ABA[perfil(d.regOk)].label}.`); return;}
+  if(t.closest('.secsel')&&t.tagName==='BUTTON'){t.parentElement.querySelectorAll('button').forEach(b=>b.setAttribute('aria-pressed',String(b===t))); return;}
+});
+document.addEventListener('keydown',e=>{ if(e.key==='Escape') closeModal(); if((e.key==='Enter'||e.key===' ')&&e.target.matches('.qc[data-open]')){e.preventDefault();openAtivo(e.target.dataset.open);} if(e.key==='/'&&!e.target.matches('input,textarea,select')){e.preventDefault(); const b=$('#busca'); b&&b.focus();} });
+// tooltip da célula Critérios
+function showTip(el){ const t=el.dataset.tipc; const a=avalAtivo(t,S.win); const tip=$('#tip'); tip.innerHTML=`<b>Critérios em ${S.win} anos</b><ul>${a.r.map(r=>`<li>${r.st==='atende'?'✓':'—'} ${esc(r.c.l)}: ${r.st==='atende'?'atende':r.st==='sem_dado'?'não atende · sem dado nas demonstrações':'não atende'}${r.st!=='sem_dado'?' · '+esc(r.fato):''}</li>`).join('')}</ul>`; tip.hidden=false; const b=el.getBoundingClientRect(); tip.style.left=Math.max(8,Math.min(innerWidth-350,b.left-200))+'px'; tip.style.top=(b.bottom+6)+'px'; }
+document.addEventListener('mouseover',e=>{const el=e.target.closest('[data-tipc]'); if(el) showTip(el); else $('#tip').hidden=true;});
+document.addEventListener('focusin',e=>{const el=e.target.closest('[data-tipc]'); if(el) showTip(el); else $('#tip').hidden=true;});
+$('#goto').addEventListener('change',e=>{
+  const v=e.target.value; closeModal(); S.est='ok'; S.misto=false;
+  if(v==='q-stocks'){S.cls='stocks';S.view='quadro';S.crit={};S.mode='resumo';S.sort=null;}
+  else if(v==='q-stocks-f'){S.cls='stocks';S.view='quadro';S.crit={mg:true,dl:true};S.mode='resumo';}
+  else if(v==='q-stocks-d'){S.cls='stocks';S.view='quadro';S.crit={};S.mode='detalhado';}
+  else if(v==='q-reits'){S.cls='reits';S.view='quadro';S.crit={};S.mode='resumo';}
+  else if(v==='c-stocks'){S.cls='stocks';S.view='cmp';}
+  else if(v==='c-reits'){S.cls='reits';S.view='cmp';}
+  else if(v==='c-misto'){S.cls='stocks';S.view='cmp';S.misto=true;}
+  else if(v.startsWith('m-')){const tk=v==='m-plan0'?'PLD':'AAPL'; openAtivo(tk); if(v==='m-reg') mReg(tk); else if(v==='m-cmp') mCmp(tk); else mPlan(tk); e.target.value=''; return;}
+  else if(META[v]){openAtivo(v); e.target.value=''; return;}
+  render(); e.target.value='';
+});
+document.querySelector('[data-theme-b="sys"]').setAttribute('aria-pressed','true');
+document.querySelector('[data-wid="auto"]').setAttribute('aria-pressed','true');
+render();
+</script>

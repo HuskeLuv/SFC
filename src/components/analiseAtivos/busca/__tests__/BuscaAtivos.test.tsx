@@ -7,6 +7,7 @@ const media = vi.hoisted(() => ({ celular: false }));
 const dados = vi.hoisted(() => ({
   indice: { data: undefined as unknown, isPending: false },
   overlay: { data: undefined as unknown },
+  config: { data: undefined as unknown },
 }));
 
 vi.mock('@/lib/prisma', () => ({ prisma: {}, default: {} }));
@@ -17,6 +18,7 @@ vi.mock('@/hooks/useMediaQuery', () => ({ useIsBelowLg: () => media.celular }));
 vi.mock('@/hooks/useAnaliseAtivos', () => ({
   useIndiceBusca: () => dados.indice,
   useOverlayCarteira: () => dados.overlay,
+  useAnaliseAtivosConfig: () => dados.config,
 }));
 
 import BuscaAtivos from '../BuscaAtivos';
@@ -34,6 +36,7 @@ describe('BuscaAtivos', () => {
     nav.push.mockReset();
     media.celular = false;
     dados.indice = { data: BUSCA, isPending: false };
+    dados.config = { data: undefined };
     dados.overlay = { data: OVERLAY_CARTEIRA };
     window.localStorage.clear();
   });
@@ -67,6 +70,34 @@ describe('BuscaAtivos', () => {
     digitar('cedo');
     expect(
       screen.getByText('fora do Quadro · sem negociação nos últimos 30 pregões'),
+    ).toBeInTheDocument();
+  });
+
+  it('Stocks e REITs: com a chave EUA, placeholder, grupos Stocks/REITs e cobertura NYSE/Nasdaq', () => {
+    dados.config = { data: { recursos: { eua: true } } };
+    dados.indice = {
+      data: {
+        versao: 'v',
+        itens: [
+          ...(BUSCA as { itens: unknown[] }).itens,
+          { t: 'BRK.B', n: 'Berkshire Hathaway', c: 'stock', q: true, f: null, m: null },
+          { t: 'O', n: 'Realty Income Corp', c: 'reit', q: true, f: null, m: null },
+        ],
+      },
+      isPending: false,
+    };
+    render(<BuscaAtivos variante="cabecalho" />);
+    expect(
+      screen.getByPlaceholderText('Buscar ação, FII, stock ou REIT por ticker ou nome'),
+    ).toBeInTheDocument();
+    digitar('brkb');
+    expect(screen.getByRole('group', { name: 'Stocks' })).toBeInTheDocument();
+    expect(screen.getAllByRole('option')[0]).toHaveTextContent('BRK.B');
+    digitar('realty');
+    expect(screen.getByRole('group', { name: 'REITs' })).toBeInTheDocument();
+    digitar('zzzzzz');
+    expect(
+      screen.getByText('A busca cobre ações e FIIs da B3 e stocks e REITs da NYSE e da Nasdaq'),
     ).toBeInTheDocument();
   });
 

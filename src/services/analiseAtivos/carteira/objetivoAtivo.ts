@@ -16,6 +16,13 @@
  * registra o consultor). Toda gravação chama invalidarContextoUsuario (contexto do assistente).
  * planning_asset_targets não é mais lido nem gravado aqui (só LGPD em alvosAtivo.ts e o script de
  * migração scripts/analise-ativos/migrar-alvos-para-objetivo.ts).
+ *
+ * Stocks e REITs (feature EUA, fatia D): a Carteira não tem catálogo EUA, então o "Asset do
+ * ticker" é o Asset MANUAL do usuário (tickerCarteiraEua: 'BRKB-…' para BRK.B) — com posição, o
+ * Objetivo vai no Portfolio da aba Stocks/REIT's; sem posição, na linha planejada. Sem nenhum dos
+ * dois, o 1º PUT cria o Asset manual planejado (criarAssetPlanejadoManual, o mesmo do "+ planejar"
+ * da aba; o REIT leva o TICKER como nome, que é como a Carteira casa o REIT planejado na compra).
+ * A classe (stock | reit) vem do cadastro da SEC (classeEuaDoTicker).
  */
 import type { NextRequest } from 'next/server';
 import type { Asset, Portfolio, Watchlist } from '@prisma/client';
@@ -28,8 +35,16 @@ import { categoriaEfetiva } from '@/services/portfolio/itemValuation';
 import {
   SECOES_POR_ABA,
   abaDoAssetPlanejado,
+  criarAssetPlanejadoManual,
   type AbaPlanejavel,
 } from '@/services/portfolio/ativosPlanejados';
+import {
+  TIPOS_ASSET_EUA,
+  encontrarAssetManualEmPosicao,
+  encontrarAssetManualPlanejado,
+  normalizarTicker,
+} from '@/services/analiseAtivos/carteira/tickerCarteiraEua';
+import { ehClasseEua, type ClasseEua } from '@/types/analiseAtivosApi';
 import { invalidarContextoUsuario } from '@/services/assistente/contexto';
 import {
   assetEntityLabel,
@@ -98,6 +113,60 @@ const SELECT_ASSET = {
 /** Asset do ticker (symbol é único). null = fora do catálogo. */
 export async function assetDoTicker(symbol: string): Promise<AssetAlvo | null> {
   return prisma.asset.findUnique({ where: { symbol }, select: SELECT_ASSET });
+}
+
+/**
+ * EUA: classe do ticker pelo cadastro da SEC (ticker vigente → CIK → SecCompany.classe). null =
+ * ticker fora do cadastro ou CIK sem classe (a rota responde 404).
+ */
+export async function classeEuaDoTicker(symbol: string): Promise<ClasseEua | null> {
+  const symbolNorm = normalizarTicker(symbol);
+  if (!symbolNorm) return null;
+  const ticker = await prisma.secCompanyTicker.findFirst({
+    where: { symbolNorm, validTo: null },
+    orderBy: { principal: 'desc' },
+    select: { cik: true },
+  });
+  if (!ticker) return null;
+  const empresa = await prisma.secCompany.findUnique({
+    where: { cik: ticker.cik },
+    select: { classe: true },
+  });
+  const classe = empresa?.classe;
+  return ehClasseEua(classe) ? classe : null;
+}
+
+/**
+ * EUA: o Asset manual do usuário para o ticker — o da posição (quantidade > 0) ou, sem posição, o
+ * da linha planejada. Procura nos dois tipos (stock e reit): um REIT lançado como stock pelo wizard
+ * continua sendo o mesmo ativo. null = o usuário ainda não tem nem planejou o ticker.
+ */
+export async function assetEuaDoUsuario(userId: string, symbol: string): Promise<AssetAlvo | null> {
+  const posicao = await encontrarAssetManualEmPosicao(prisma, userId, TIPOS_ASSET_EUA, symbol);
+  if (posicao) return posicao.asset;
+  const planejado = await encontrarAssetManualPlanejado(prisma, userId, TIPOS_ASSET_EUA, symbol);
+  return planejado?.asset ?? null;
+}
+
+/**
+ * EUA, 1º "Planejar" sem posição nem plano: cria o Asset manual planejado (symbol 'BRKB-<ts>-<rnd>',
+ * nome = ticker da Análise), igual ao "+ planejar" da aba Stocks/REIT's.
+ */
+export async function criarAssetEuaPlanejado(
+  classe: ClasseEua,
+  symbol: string,
+): Promise<AssetAlvo> {
+  const criado = await criarAssetPlanejadoManual(classe, symbol);
+  return {
+    id: criado.id,
+    symbol: criado.symbol,
+    name: criado.name,
+    type: criado.type,
+    currency: criado.currency,
+    source: criado.source,
+    categoria: criado.categoria,
+    subcategoria: criado.subcategoria,
+  };
 }
 
 /** Seção da posição na coluna da aba (estratégia / tipo do FII / região do ETF / fundo). */

@@ -15,6 +15,12 @@
  * - Cache LIMITADO (getBoundedTtlCache 'analiseComparador', 300 chaves, 30 min) por classe + janela
  *   + conjunto ORDENADO + versão do Quadro + dia; a resposta é reordenada pelos slots antes de sair.
  * - montarComparadorPuro é testável sem banco (critérios, conferência, n/a, misto, gráfico, leitura).
+ *
+ * Stocks e REITs (fatia C): só com `opts.eua.habilitado` (ANALISE_ATIVOS_EUA_HABILITADO) o ticker EUA
+ * é aceito (BRK-B = BRK.B); sem a chave, nada muda (formato inválido / inexistente). Até 4 da MESMA
+ * classe stock|reit: misturar uma classe EUA com qualquer outra é ErroMisturaEua (a rota responde 400
+ * com o texto de TEXTOS_EUA.comparador). Grupos EUA do catálogo (indicadores.ts), critérios do perfil
+ * stock/reit, gráfico do lucro líquido (US$ mi, base 100) e, sem a chave de preço, cotação ausente.
  */
 import { prisma } from '@/lib/prisma';
 import { LIMITES_CACHE_BLOCO_D, getBoundedTtlCache } from '@/lib/boundedTtlCache';
@@ -73,7 +79,10 @@ import { montarLeitura } from '@/services/analiseAtivos/regras/comparador/resumo
 import { TEXTOS_COMPARADOR } from '@/services/analiseAtivos/textosComparador';
 import { TEXTOS_CRITERIOS } from '@/services/analiseAtivos/textosCriterios';
 import { TEXTOS_TELA, formatarTexto } from '@/services/analiseAtivos/textosTela';
-import type { ClasseQuadro, Estado } from '@/types/analiseAtivosApi';
+import { ehClasseEua, type ClasseQuadro, type Estado } from '@/types/analiseAtivosApi';
+import { ehTickerEua, symbolAnaliseDaSec } from '@/types/analiseAtivosEua';
+import { comCotacaoEua } from '@/services/analiseAtivos/quadro/consultaQuadro';
+import { TEXTOS_EUA } from '@/services/analiseAtivos/textosEua';
 import {
   JANELA_PADRAO,
   type CriteriosLinhaApi,
@@ -94,16 +103,22 @@ type Ignorado = { ticker: string; motivo: MotivoIgnorado };
 // Normalização
 // ---------------------------------------------------------------------------
 
-export function normalizarTickers(brutos: readonly string[]): {
+export function normalizarTickers(
+  brutos: readonly string[],
+  eua = false,
+): {
   validos: string[];
   ignorados: Ignorado[];
 } {
   const validos: string[] = [];
   const ignorados: Ignorado[] = [];
   for (const b of brutos) {
-    const t = b.trim().toUpperCase();
-    if (!t) continue;
-    if (!TICKER_RE.test(t)) {
+    const bruto = b.trim().toUpperCase();
+    if (!bruto) continue;
+    // EUA (só com a chave): BRK-B → BRK.B; ticker da B3 sempre tem dígito
+    const t =
+      eua && !TICKER_RE.test(bruto) && ehTickerEua(bruto) ? symbolAnaliseDaSec(bruto) : bruto;
+    if (!TICKER_RE.test(t) && !(eua && ehTickerEua(t))) {
       ignorados.push({ ticker: b.trim().slice(0, MAX_ECO), motivo: 'formato' });
       continue;
     }
@@ -128,9 +143,15 @@ export function criteriosDoComparador(
   classe: ClasseQuadro,
   tipos: readonly TipoAtivoComparador[],
 ): CriteriosComparador {
-  if (classe === 'acao') {
+  if (classe !== 'fii') {
+    // ação, stock e REIT: a lista do perfil (a financeira usa a mesma, 'n de 6'); params ativos sem
+    // os perfis EUA (v1/v2, antes do seed da v3) = os do código, que avaliaram as linhas EUA
+    const fonte =
+      ehClasseEua(classe) && criteriosDoPerfil(params, classe).length === 0
+        ? CRITERIA_PARAMS_CODIGO
+        : params;
     return {
-      rotulos: Object.fromEntries(criteriosDoPerfil(params, 'acao').map((c) => [c.id, c.rotulo])),
+      rotulos: Object.fromEntries(criteriosDoPerfil(fonte, classe).map((c) => [c.id, c.rotulo])),
       equivalencias: {},
     };
   }
@@ -294,9 +315,9 @@ export function montarComparadorPuro(e: EntradaComparador): NucleoComparador {
     );
     const TGR = TEXTOS_COMPARADOR.graficos;
     graficos = {
-      tipo: classe === 'acao' ? 'lucro' : 'vpCota',
+      tipo: classe !== 'fii' ? 'lucro' : 'vpCota',
       titulo:
-        classe === 'acao'
+        classe !== 'fii'
           ? TGR.tituloAcao
           : formatarTexto(TGR.tituloFii, { ano: String(base.anos[0] ?? anoAtual - 1) }),
       ...base,
@@ -377,6 +398,7 @@ async function lerNucleo(
   linhas: LinhaDb[],
   hoje: string,
   janela: Janela,
+  precoEua = false,
 ): Promise<NucleoComparador> {
   const symbols = linhas.map((l) => l.symbol);
   const fii = classe === 'fii';
@@ -433,7 +455,7 @@ async function lerNucleo(
   for (const t of trimestres) if (!trimPor.has(t.cnpj)) trimPor.set(t.cnpj, t); // desc ⇒ o 1º é o último
 
   const ativos: AtivoEntrada[] = linhas.map((raw) => {
-    const linha = paraLinhaQuadroApi(raw);
+    const linha = comCotacaoEua(paraLinhaQuadroApi(raw), precoEua);
     const cnpjConf = fii && raw.flags.includes(FLAG_CNPJ_EM_CONFERENCIA);
     const at = atualPor.get(raw.symbol);
     const tr = fii && !cnpjConf ? trimPor.get(raw.cnpj) : undefined;
@@ -493,6 +515,19 @@ async function lerNucleo(
   return montarComparadorPuro({ classe, hoje, janela, params, ativos });
 }
 
+/** Stock × REIT (ou EUA × Brasil) na mesma comparação: a rota responde 400. */
+export class ErroMisturaEua extends Error {
+  constructor() {
+    super(TEXTOS_EUA.comparador.mistoBloqueado);
+    this.name = 'ErroMisturaEua';
+  }
+}
+
+export interface OpcoesComparador {
+  /** chaves EUA resolvidas pela rota; ausente = desligadas (o Comparador de hoje) */
+  eua?: { habilitado: boolean; preco: boolean };
+}
+
 export interface ResultadoComparador {
   dados: ComparadorResposta;
   cache: boolean;
@@ -506,16 +541,30 @@ export async function montarComparador(
   brutos: readonly string[],
   hoje: string = hojeSaoPaulo(),
   janela: Janela = JANELA_PADRAO,
+  opts: OpcoesComparador = {},
 ): Promise<ResultadoComparador | null> {
-  const { validos, ignorados } = normalizarTickers(brutos);
+  const eua = opts.eua?.habilitado === true;
+  const precoEua = eua && opts.eua?.preco === true;
+  const { validos, ignorados } = normalizarTickers(brutos, eua);
   if (validos.length === 0) return null;
 
   const encontrados = await Promise.all(validos.map((t) => obterLinhaQuadro(t)));
+  // EUA: stock × REIT (ou EUA × Brasil) não se comparam — recusa em vez de ignorar
+  const classesEncontradas = new Set(
+    encontrados
+      .filter((l): l is LinhaDb => !!l && (l.classe === 'acao' || l.classe === 'fii' || eua))
+      .map((l) => l.classe),
+  );
+  if (classesEncontradas.size > 1 && [...classesEncontradas].some(ehClasseEua)) {
+    throw new ErroMisturaEua();
+  }
   let classe: ClasseQuadro | null = null;
   const escolhidas: LinhaDb[] = [];
   validos.forEach((t, i) => {
     const l = encontrados[i];
-    if (!l || (l.classe !== 'acao' && l.classe !== 'fii')) {
+    const aceita =
+      !!l && (l.classe === 'acao' || l.classe === 'fii' || (eua && ehClasseEua(l.classe)));
+    if (!l || !aceita) {
       ignorados.push({ ticker: t, motivo: 'inexistente' });
       return;
     }
@@ -529,12 +578,12 @@ export async function montarComparador(
   const tickers = escolhidas.map((l) => l.symbol);
   const versao = await versaoQuadro();
 
-  const chave = `${VERSAO_COMPARADOR}|${classeFinal}|${janela}|${[...tickers].sort().join(',')}|${versao}|${hoje}`;
+  const chave = `${VERSAO_COMPARADOR}|${classeFinal}|${janela}|${[...tickers].sort().join(',')}|${versao}|${hoje}${precoEua ? '|preco' : ''}`;
   let nucleo = cache.get(chave);
   const doCache = nucleo !== undefined;
   if (!nucleo) {
     const ordenadas = [...escolhidas].sort((a, b) => a.symbol.localeCompare(b.symbol));
-    nucleo = await lerNucleo(classeFinal, ordenadas, hoje, janela);
+    nucleo = await lerNucleo(classeFinal, ordenadas, hoje, janela, precoEua);
     cache.set(chave, nucleo, TTL_ANALISE_MS);
   }
   const n = ordenarPelosSlots(nucleo, tickers);

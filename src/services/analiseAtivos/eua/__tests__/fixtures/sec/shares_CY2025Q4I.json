@@ -1,0 +1,91 @@
+{
+"taxonomy": "dei",
+"tag": "EntityCommonStockSharesOutstanding",
+"ccp": "CY2025Q4I",
+"uom": "shares",
+"label": "Entity Common Stock, Shares Outstanding",
+"description": "Indicate number of shares or other units outstanding of each of registrant's classes of capital or common stock or other ownership interests, if and as stated on cover of related periodic report. Where multiple classes or units exist define each class/interest by adding class of stock items such as Common Class A [Member], Common Class B [Member] or Partnership Interest [Member] onto the Instrument [Domain] of the Entity Listings, Instrument.",
+"pts": 2642,
+"data": [
+{
+"accn": "0001628280-26-008131",
+"cik": 19617,
+"entityName": "JPMorgan Chase & Co",
+"loc": "US-NY",
+"end": "2026-01-31",
+"val": 2697032375
+},
+{
+"accn": "0000034088-26-000045",
+"cik": 34088,
+"entityName": "Exxon Mobil Corporation",
+"loc": "US-TX",
+"end": "2026-01-31",
+"val": 4166763453
+},
+{
+"accn": "0001193125-26-064009",
+"cik": 36146,
+"entityName": "TRUSTMARK CORP",
+"loc": "US-MS",
+"end": "2026-01-30",
+"val": 58849788
+},
+{
+"accn": "0000320193-26-000006",
+"cik": 320193,
+"entityName": "Apple Inc.",
+"loc": "US-CA",
+"end": "2026-01-16",
+"val": 14681140000
+},
+{
+"accn": "0001193125-26-051433",
+"cik": 906107,
+"entityName": "EQUITY RESIDENTIAL",
+"loc": "US-IL",
+"end": "2026-02-06",
+"val": 377547108
+},
+{
+"accn": "0000915912-26-000004",
+"cik": 915912,
+"entityName": "AVALONBAY COMMUNITIES,\u00a0INC.",
+"loc": "US-VA",
+"end": "2026-01-30",
+"val": 140083473
+},
+{
+"accn": "0001193125-26-051453",
+"cik": 1045609,
+"entityName": "Prologis, Inc.",
+"loc": "US-CA",
+"end": "2026-02-11",
+"val": 929559000
+},
+{
+"accn": "0001326160-26-000014",
+"cik": 1326160,
+"entityName": "DUKE ENERGY CORPORATION",
+"loc": "US-NC",
+"end": "2026-01-31",
+"val": 777670866
+},
+{
+"accn": "0001423689-26-000043",
+"cik": 1423689,
+"entityName": "AGNC INVESTMENT CORP.",
+"loc": "US-MD",
+"end": "2026-01-31",
+"val": 1108770670
+},
+{
+"accn": "0001628280-26-009710",
+"cik": 1981792,
+"entityName": "HOWARD HUGHES HOLDINGS INC.",
+"loc": "US-TX",
+"end": "2026-02-12",
+"val": 59636343
+}
+]
+}

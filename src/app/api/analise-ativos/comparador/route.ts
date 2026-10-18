@@ -1,9 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { ApiError, withErrorHandler } from '@/utils/apiErrorHandler';
-import { exigirRecursoAnalise } from '@/services/analiseAtivos/acesso/acessoAnalise';
+import { exigirRecursoAnalise, flagsEua } from '@/services/analiseAtivos/acesso/acessoAnalise';
 import { MAX_CARACTERES_PARAM_T } from '@/services/analiseAtivos/cenarios/contrato';
-import { montarComparador } from '@/services/analiseAtivos/leitura/comparador/montarComparador';
+import {
+  ErroMisturaEua,
+  montarComparador,
+} from '@/services/analiseAtivos/leitura/comparador/montarComparador';
 import { JANELA_PADRAO, ehJanela } from '@/types/analiseAtivosCriterios';
 
 /**
@@ -17,6 +20,8 @@ import { JANELA_PADRAO, ehJanela } from '@/types/analiseAtivosCriterios';
  *   literal). Nenhuma chave de Índice, semáforo ou marca de valor.
  * - Só o banco, em lote; cache limitado no servidor + private, max-age=300. Sem dado do usuário.
  * - Rate limit: tier próprio de 30/min (src/lib/rateLimit.ts).
+ * - Stocks e REITs (fatia C): tickers EUA só com ANALISE_ATIVOS_EUA_HABILITADO (sem a chave, nada
+ *   muda); até 4 da MESMA classe stock|reit — misturar com outra classe = 400 (sem vencedor).
  */
 export const dynamic = 'force-dynamic';
 
@@ -45,7 +50,16 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     const janelaInvalida = q.error.issues.some((i) => i.path[0] === 'janela');
     throw new ApiError(400, janelaInvalida ? 'Parâmetro janela inválido' : 'Parâmetro t inválido');
   }
-  const r = await montarComparador(q.data.t.split(','), undefined, q.data.janela);
+  const { eua, euaPreco } = flagsEua();
+  let r: Awaited<ReturnType<typeof montarComparador>>;
+  try {
+    r = await montarComparador(q.data.t.split(','), undefined, q.data.janela, {
+      eua: { habilitado: eua, preco: euaPreco },
+    });
+  } catch (error: unknown) {
+    if (error instanceof ErroMisturaEua) throw new ApiError(400, error.message);
+    throw error;
+  }
   if (!r) throw new ApiError(400, 'Nenhum ticker válido');
   const dur = (performance.now() - inicio).toFixed(1);
   return NextResponse.json(r.dados, {

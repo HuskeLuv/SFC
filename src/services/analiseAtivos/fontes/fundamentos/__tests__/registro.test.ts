@@ -14,11 +14,11 @@ describe('registro das fontes (contrato da fatia 0)', () => {
     expect(obterFonte('nao_existe', 'test')).toBeNull();
   });
 
-  it('ANALISE_FONTES_INGESTAO: vazio = nenhum; cvm nunca entra; id inválido = erro', () => {
+  it('ANALISE_FONTES_INGESTAO: vazio = nenhum; cvm e sec nunca entram; id inválido = erro', () => {
     expect(idsIngestaoHabilitados({})).toEqual([]);
-    expect(idsIngestaoHabilitados({ ANALISE_FONTES_INGESTAO: ' exemplo, cvm ,exemplo' })).toEqual([
-      'exemplo',
-    ]);
+    expect(
+      idsIngestaoHabilitados({ ANALISE_FONTES_INGESTAO: ' exemplo, cvm ,exemplo,sec' }),
+    ).toEqual(['exemplo']);
     expect(() => idsIngestaoHabilitados({ ANALISE_FONTES_INGESTAO: 'x;y' })).toThrow(/inválido/);
   });
 
@@ -26,8 +26,9 @@ describe('registro das fontes (contrato da fatia 0)', () => {
     expect(rotulosFontes()).toMatchObject({ cvm: 'CVM' });
   });
 
-  it('registro preenchido: CVM (leitura local) e exemplo (ingestão, fora de produção)', () => {
-    expect(Object.keys(FONTES).sort()).toEqual(['cvm', 'exemplo']);
+  it('registro preenchido: CVM e SEC (leitura local) e exemplo (ingestão, fora de produção)', () => {
+    expect(Object.keys(FONTES).sort()).toEqual(['cvm', 'exemplo', 'sec']);
+    expect(obterFonte('sec', 'production')).toMatchObject({ modo: 'leitura_local' });
     expect(obterFonte('cvm', 'production')).toMatchObject({ modo: 'leitura_local' });
     expect(FONTES.cvm.seriesOferecidas).toContain('vacancy_physical');
     // a CVM não publica o lucro descontado nem a qualidade da carteira de crédito

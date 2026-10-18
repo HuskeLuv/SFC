@@ -8,9 +8,16 @@
  *   EXIBIDO do FII (Tijolo | Papel pelo perfil dos critérios, tipoFiiExibido).
  * - Filtro: sem acento e sem caixa (NFD); relevância prefixo do ticker > prefixo de palavra do nome
  *   > substring (ticker ou nome); desempate: do Quadro antes, depois ticker; no máximo 8.
+ * - Stocks e REITs (fatia C): o índice só traz stock/reit com a chave EUA (a rota filtra,
+ *   linhasDaBusca). O ticker casa também SEM pontuação (BRKB, brk-b → BRK.B, como o symbolNorm).
  */
 import { tipoFiiExibido } from '@/services/analiseAtivos/quadro/tipoFiiExibido';
-import type { ClasseQuadro, ForaDoQuadroMotivo, ItemBusca } from '@/types/analiseAtivosApi';
+import {
+  ehClasseEua,
+  type ClasseQuadro,
+  type ForaDoQuadroMotivo,
+  type ItemBusca,
+} from '@/types/analiseAtivosApi';
 
 export const MAX_RESULTADOS_BUSCA = 8;
 
@@ -24,6 +31,14 @@ export interface LinhaParaBusca {
   foraDoQuadroMotivo: string | null;
   /** v2.5: perfil dos critérios (decide o tipo exibido do FII); ausente/null = pelo tipo CVM */
   perfilCriterios?: string | null;
+}
+
+/** Linhas que entram no índice: stock/reit só com a chave EUA. */
+export function linhasDaBusca<L extends Pick<LinhaParaBusca, 'classe'>>(
+  linhas: readonly L[],
+  eua: boolean,
+): L[] {
+  return eua ? [...linhas] : linhas.filter((l) => !ehClasseEua(l.classe));
 }
 
 export function montarIndiceBusca(linhas: readonly LinhaParaBusca[]): ItemBusca[] {
@@ -52,9 +67,16 @@ export interface ResultadoBusca {
   relevancia: number;
 }
 
+const semPontuacao = (s: string) => s.replace(/[^a-z0-9]/g, '');
+
 function relevancia(item: ItemBusca, q: string): number | null {
   const t = item.t.toLowerCase();
   if (t.startsWith(q)) return 0;
+  // EUA: BRKB / brk-b casam com BRK.B (só stock/reit: a busca da B3 não muda)
+  if (ehClasseEua(item.c)) {
+    const qn = semPontuacao(q);
+    if (qn.length > 0 && semPontuacao(t).startsWith(qn)) return 0;
+  }
   const nome = normalizarBusca(item.n);
   if (nome.startsWith(q) || nome.split(/[\s.\-/&]+/).some((p) => p.startsWith(q))) return 1;
   if (t.includes(q) || nome.includes(q)) return 2;

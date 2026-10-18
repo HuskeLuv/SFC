@@ -16,6 +16,8 @@ import { ChipsCarteira } from '@/components/analiseAtivos/ativo/acoes/BarraAcoes
 import SeloEstado from '@/components/analiseAtivos/comum/SeloEstado';
 import { formatarAnalise } from '@/components/analiseAtivos/comum/formatarAnalise';
 import { TEXTOS_TELA, formatarTexto } from '@/services/analiseAtivos/textosTela';
+import { TEXTOS_EUA } from '@/services/analiseAtivos/textosEua';
+import { TEXTOS_EUA_TELAS } from '@/services/analiseAtivos/textosEuaTelas';
 import type { CabecalhoAtivoProps } from '@/types/analiseAtivosApi';
 
 export type { CabecalhoAtivoProps };
@@ -90,25 +92,40 @@ export default function CabecalhoAtivo({ ativo, seloCarteira, slotAcoes }: Cabec
           </div>
         </div>
 
-        <div className="flex-none sm:text-right" data-preco>
-          <p className="sr-only">{t.precoRotulo}</p>
-          <p className="text-2xl font-semibold text-gray-800 tabular-nums dark:text-white/90">
-            {cotacao.preco === null
-              ? TEXTOS_TELA.formato.semDado
-              : formatarAnalise(cotacao.preco, 'moeda')}
-          </p>
-          {typeof variacao === 'number' && typeof cotacao.variacaoPct === 'number' ? (
-            <p className={`text-sm tabular-nums ${corVariacao}`}>
-              <span className="sr-only">{t.variacaoRotulo}: </span>
-              {comSinal(variacao)} ({comSinal(cotacao.variacaoPct)}%)
+        {ativo.eua?.motivoSemPreco ? (
+          // Stocks e REITs sem a chave de preço (decisão do Wellington de 17/10): variante
+          // "sem cotação", texto neutro, nenhum número de preço
+          <div className="min-w-0 sm:max-w-[22rem] sm:text-right" data-preco="" data-sem-cotacao="">
+            <p className="text-sm font-semibold text-gray-800 dark:text-white/90">
+              {TEXTOS_EUA_TELAS.ativo.cotacaoTitulo}
             </p>
-          ) : null}
-          {cotacao.data ? (
-            <p className="text-xs text-gray-500 dark:text-gray-400">
-              {formatarTexto(t.fechamento, { data: dataCurta(cotacao.data) })}
+            <p className="text-xs leading-snug text-gray-500 dark:text-gray-400">
+              {TEXTOS_EUA.cotacao.indisponivel}. {TEXTOS_EUA.cotacao.indisponivelDetalhe}
             </p>
-          ) : null}
-        </div>
+          </div>
+        ) : (
+          <div className="flex-none sm:text-right" data-preco>
+            <p className="sr-only">{t.precoRotulo}</p>
+            <p className="text-2xl font-semibold text-gray-800 tabular-nums dark:text-white/90">
+              {cotacao.preco === null
+                ? TEXTOS_TELA.formato.semDado
+                : ativo.eua
+                  ? `${TEXTOS_EUA.cotacao.moeda} ${formatarAnalise(cotacao.preco, 'numero2')}`
+                  : formatarAnalise(cotacao.preco, 'moeda')}
+            </p>
+            {typeof variacao === 'number' && typeof cotacao.variacaoPct === 'number' ? (
+              <p className={`text-sm tabular-nums ${corVariacao}`}>
+                <span className="sr-only">{t.variacaoRotulo}: </span>
+                {comSinal(variacao)} ({comSinal(cotacao.variacaoPct)}%)
+              </p>
+            ) : null}
+            {cotacao.data ? (
+              <p className="text-xs text-gray-500 dark:text-gray-400">
+                {formatarTexto(t.fechamento, { data: dataCurta(cotacao.data) })}
+              </p>
+            ) : null}
+          </div>
+        )}
       </div>
       {slotAcoes ? (
         <div data-acoes-cabecalho="" className="flex min-w-0 sm:justify-end">

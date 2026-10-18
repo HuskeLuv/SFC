@@ -11,13 +11,21 @@
  * 3. montarLinhasQuadro (pura).
  * 4. Grava numa transação interativa (deleteMany + createMany em lotes de 200): os leitores veem a
  *    versão anterior inteira até o commit (MVCC) e trocam de versão em até 60 s (linhasQuadro.ts).
+ *
+ * Stocks e REITs (fatia 0): gravarLinhasQuadro apaga SÓ as classes do job (este job passa
+ * CLASSES_BR; o gerarQuadroEua da fatia B passa CLASSES_EUA) e recusa linha de outra classe ou
+ * symbol já gravado com outra classe (ErroClasseGravador). A cópia compacta dos critérios também
+ * é lida só das classes BR.
  */
 import { Prisma, type PrismaClient } from '@prisma/client';
 import { lucroParaSequencia } from '@/services/analiseAtivos/regras/calculo/sequencias';
 import { contagensAcoes } from '@/services/analiseAtivos/repositorio/acoes';
 import { paraNumero } from '@/services/analiseAtivos/repositorio/conversao';
 import {
+  ErroClasseGravador,
+  exigirClassesDoGravador,
   lerCompactosPorSimbolo,
+  mensagemColisao,
   PRAZO_TRANSACAO_MS,
 } from '@/services/analiseAtivos/repositorio/criterios';
 import {
@@ -31,6 +39,7 @@ import {
   type LinhaQuadroGravar,
 } from '@/services/analiseAtivos/quadro/montarLinhasQuadro';
 import type { ContagemAcoes, JobContexto, ResultadoJob } from '@/services/analiseAtivos/tipos';
+import { CLASSES_BR, type ClasseQuadro } from '@/types/analiseAtivosApi';
 
 const DIA_MS = 86_400_000;
 /** Linhas por createMany na gravação do Quadro (v2.4). */
@@ -135,7 +144,7 @@ export async function carregarEntradaQuadro(
         FROM "asset_quotes_daily" WHERE "date" >= ${desdePregoes} AND "date" <= ${dataRef}
       ) x WHERE rn <= 2`,
     lucrosFyVigentes(prisma, cnpjsAcao, emissores),
-    lerCompactosPorSimbolo(prisma),
+    lerCompactosPorSimbolo(prisma, { classes: CLASSES_BR }),
   ]);
   const lucrosFy = fys;
 
@@ -289,16 +298,35 @@ export async function lucrosFyVigentes(
   });
 }
 
-/** Troca todas as linhas numa transação (idempotente: rodar 2× deixa o mesmo conjunto). */
+/**
+ * Troca as linhas DAS CLASSES DO JOB numa transação (idempotente: rodar 2× deixa o mesmo conjunto).
+ * As outras classes ficam intactas: o job BR (CLASSES_BR) não apaga stock/reit e o EUA
+ * (CLASSES_EUA, fatia B) não apaga acao/fii. Linha fora das classes ou symbol já gravado com outra
+ * classe → ErroClasseGravador antes de qualquer escrita.
+ */
 export async function gravarLinhasQuadro(
   prisma: PrismaClient,
-  linhas: LinhaQuadroGravar[],
+  linhas: readonly LinhaQuadroGravar[],
+  classes: readonly ClasseQuadro[],
 ): Promise<number> {
+  const doJob = exigirClassesDoGravador('analise_quadro_linhas', classes, linhas);
   // v2.4: transação INTERATIVA com createMany em lotes — com a cópia compacta dos critérios
   // (JSON por linha) o createMany único de ~950 linhas subia o pico do job em ~95 MB no DEV.
   return prisma.$transaction(
     async (tx) => {
-      await tx.analiseQuadroLinha.deleteMany({});
+      if (linhas.length > 0) {
+        const colisoes = await tx.analiseQuadroLinha.findMany({
+          where: {
+            symbol: { in: linhas.map((l) => l.symbol) },
+            classe: { notIn: doJob },
+          },
+          select: { symbol: true, classe: true },
+        });
+        if (colisoes.length > 0) {
+          throw new ErroClasseGravador(mensagemColisao('analise_quadro_linhas', colisoes));
+        }
+      }
+      await tx.analiseQuadroLinha.deleteMany({ where: { classe: { in: doJob } } });
       let criadas = 0;
       for (let i = 0; i < linhas.length; i += LOTE_LINHAS_QUADRO) {
         const r = await tx.analiseQuadroLinha.createMany({
@@ -332,7 +360,7 @@ export async function gerarQuadro(
   }
   let gravadas = 0;
   if (ctx.aplicar) {
-    gravadas = await gravarLinhasQuadro(ctx.prisma, r.linhas);
+    gravadas = await gravarLinhasQuadro(ctx.prisma, r.linhas, CLASSES_BR);
     ctx.contar('linhasGravadas', gravadas);
   }
   return {

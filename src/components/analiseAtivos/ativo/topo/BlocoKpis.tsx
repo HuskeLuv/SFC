@@ -27,6 +27,7 @@ import { RodapeFrescorBloco } from '@/components/analiseAtivos/ativo/topo/SeloFr
 import { conferenciaDoCampo } from '@/services/analiseAtivos/leitura/ativo/conferenciasAtivo';
 import { CAMPOS_REPORTAVEIS } from '@/services/analiseAtivos/curadoria/contrato';
 import { TEXTOS_TELA } from '@/services/analiseAtivos/textosTela';
+import { TEXTOS_EUA_TELAS, formatarTexto } from '@/services/analiseAtivos/textosEuaTelas';
 import type { BlocoKpisProps, KpiAtivo } from '@/types/analiseAtivosApi';
 import type { DadoBlocoReporte } from '@/types/analiseAtivosCuradoria';
 
@@ -46,6 +47,14 @@ function dadosDosKpis(kpis: KpiAtivo[]): DadoBlocoReporte[] {
       valorExibido: formatarEstado(k.valor, k.formato),
       periodo: null,
     }));
+}
+
+/** KPIs EUA de contagem de anos (Lucros seguidos, Div. crescendo): '7 anos' / '10+ anos'. */
+const KPIS_ANOS = new Set(['lucrosSeguidos', 'anosDividendo']);
+
+export function textoAnosKpi(n: number): string {
+  const K = TEXTOS_EUA_TELAS.ativo.kpis;
+  return n >= 10 ? K.anosMais : formatarTexto(K.anos, { n });
 }
 
 function IconeInfo() {
@@ -96,12 +105,18 @@ export default function BlocoKpis({ classe, kpis }: BlocoKpisProps) {
               <span className="text-xs font-medium text-gray-500 dark:text-gray-400">
                 {k.rotulo}
               </span>
-              <ValorAnalise
-                valor={k.valor}
-                formato={k.formato}
-                mostrarMotivo
-                className="text-lg font-semibold text-gray-800 dark:text-white/90"
-              />
+              {KPIS_ANOS.has(k.codigo) && k.valor.estado === 'ok' ? (
+                <span className="text-lg font-semibold text-gray-800 tabular-nums dark:text-white/90">
+                  {textoAnosKpi(k.valor.valor)}
+                </span>
+              ) : (
+                <ValorAnalise
+                  valor={k.valor}
+                  formato={k.formato}
+                  mostrarMotivo
+                  className="text-lg font-semibold text-gray-800 dark:text-white/90"
+                />
+              )}
               {emConf ? (
                 <span className="mt-0.5 self-start">
                   <ChipConferencia

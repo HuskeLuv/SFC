@@ -1,0 +1,115 @@
+{
+"taxonomy": "dei",
+"tag": "EntityPublicFloat",
+"ccp": "CY2025Q2I",
+"uom": "USD",
+"label": "Entity Public Float",
+"description": "The aggregate market value of the voting and non-voting common equity held by non-affiliates computed by reference to the price at which the common equity was last sold, or the average bid and asked price of such common equity, as of the last business day of the registrant's most recently completed second fiscal quarter.",
+"pts": 4293,
+"data": [
+{
+"accn": "0001628280-26-008131",
+"cik": 19617,
+"entityName": "JPMorgan Chase & Co",
+"loc": "US-NY",
+"end": "2025-06-30",
+"val": 794433813496
+},
+{
+"accn": "0000034088-26-000045",
+"cik": 34088,
+"entityName": "Exxon Mobil Corporation",
+"loc": "US-TX",
+"end": "2025-06-30",
+"val": 460000000000
+},
+{
+"accn": "0001193125-26-064009",
+"cik": 36146,
+"entityName": "TRUSTMARK CORP",
+"loc": "US-MS",
+"end": "2025-06-30",
+"val": 961600000000
+},
+{
+"accn": "0000726728-26-000011",
+"cik": 726728,
+"entityName": "REALTY INCOME CORPORATION",
+"loc": "US-CA",
+"end": "2025-06-30",
+"val": 52600000000
+},
+{
+"accn": "0001193125-26-051433",
+"cik": 906107,
+"entityName": "EQUITY RESIDENTIAL",
+"loc": "US-IL",
+"end": "2025-06-30",
+"val": 25600000000
+},
+{
+"accn": "0000915912-26-000004",
+"cik": 915912,
+"entityName": "AVALONBAY COMMUNITIES,\u00a0INC.",
+"loc": "US-VA",
+"end": "2025-06-30",
+"val": 28875214928
+},
+{
+"accn": "0001193125-26-051453",
+"cik": 1045609,
+"entityName": "Prologis, Inc.",
+"loc": "US-CA",
+"end": "2025-06-30",
+"val": 97322102425
+},
+{
+"accn": "0001193125-26-083899",
+"cik": 1067983,
+"entityName": "BERKSHIRE HATHAWAY INC",
+"loc": "US-NE",
+"end": "2025-06-30",
+"val": 902700000000
+},
+{
+"accn": "0001326160-26-000014",
+"cik": 1326160,
+"entityName": "DUKE ENERGY CORPORATION",
+"loc": "US-NC",
+"end": "2025-06-30",
+"val": 91703190830
+},
+{
+"accn": "0001423689-26-000043",
+"cik": 1423689,
+"entityName": "AGNC INVESTMENT CORP.",
+"loc": "US-MD",
+"end": "2025-06-30",
+"val": 8600000000
+},
+{
+"accn": "0001652044-26-000018",
+"cik": 1652044,
+"entityName": "Alphabet Inc.",
+"loc": "US-CA",
+"end": "2025-06-30",
+"val": 1900000000000
+},
+{
+"accn": "0001687229-26-000016",
+"cik": 1687229,
+"entityName": "Invitation Homes Inc.",
+"loc": "US-TX",
+"end": "2025-06-30",
+"val": 20100000000
+},
+{
+"accn": "0001104659-26-051654",
+"cik": 1981792,
+"entityName": "HOWARD HUGHES HOLDINGS\u00a0INC.",
+"loc": "US-TX",
+"end": "2025-06-30",
+"val": 2200000000
+}
+]
+}

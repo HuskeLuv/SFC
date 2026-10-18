@@ -256,6 +256,14 @@ SHELL=/bin/bash
 55 10 * * * root /usr/local/bin/myfinance-job.sh curadoria
 # Análise de Ativos (bloco 1) — avisos das listas dos Salvos (08:10 BRT), depois da curadoria
 10 11 * * * root /usr/local/bin/myfinance-job.sh alertas-salvos
+# Análise de Ativos (Stocks e REITs) — dados SEC. DESLIGADAS até a carga inicial em prod (migration →
+# sec-cadastro manual → backfill:sec-fundamentos → relatório de cobertura → criterios-eua/quadro-eua;
+# ver docs/analise-ativos/stocks-reits/RUNBOOK-dados-sec.md). Todas pelo myfinance-job.sh (pesadas).
+#30 3 * * 0 root /usr/local/bin/myfinance-job.sh sec-cadastro
+# encadeado sec-fundamentos → criterios-eua → quadro-eua (08:25 BRT, depois do alertas-salvos)
+#25 11 * * * root /usr/local/bin/myfinance-job.sh eua-diario
+# cotação EUA: só com ANALISE_ATIVOS_EUA_PRECO_HABILITADO (licença de exibição); sem a chave = pulado
+#30 22 * * 1-5 root /usr/local/bin/myfinance-job.sh cotacoes-eua
 EOF
 # cron ignora arquivos com ponto no nome em /etc/cron.d — é o "desligado".
 # Cutover: mv /etc/cron.d/myfinance.disabled /etc/cron.d/myfinance

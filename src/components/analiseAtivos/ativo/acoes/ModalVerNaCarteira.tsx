@@ -9,6 +9,12 @@
  * ‹ticker› na carteira" e, se houver linha planejada, o objetivo dela. Consultor agindo: vê a
  * carteira do cliente, com o aviso. O tipo de cada operação sai como a Carteira mostra (Aporte,
  * Resgate, Reinvestimento…).
+ *
+ * Stocks e REITs (reverificação de 18/10, a mesma regra do "Na sua carteira"): REIT em US$ (a
+ * unidade em que a Carteira o guarda: posição, preço médio e operações), sem o "% da carteira"
+ * (a Carteira soma o REIT em US$ ao total em R$). Stock (`valoresMistos`: preço médio e operações em
+ * R$, cotação em US$) mostra só a quantidade, a nota de que os números ficam na aba e o link para
+ * a Carteira.
  */
 import Link from 'next/link';
 import ModalAnalise, {
@@ -18,7 +24,7 @@ import ModalAnalise, {
   DICA_RODAPE,
   SUBTITULO_MODAL,
 } from '@/components/analiseAtivos/ativo/acoes/ModalAnalise';
-import { pct1, ppComSinal, reais0 } from '@/components/analiseAtivos/ativo/acoes/ModalPlanejar';
+import { dinheiro0, pct1, ppComSinal } from '@/components/analiseAtivos/ativo/acoes/ModalPlanejar';
 import { useNaCarteiraAtivo } from '@/components/analiseAtivos/ativo/usuario/useNaCarteiraAtivo';
 import { usePosicaoCarteira } from '@/hooks/useAcoesCarteiraAnalise';
 import { desvioAlvo } from '@/services/analiseAtivos/regras/carteira/desvioAlvo';
@@ -28,7 +34,7 @@ import {
   TEXTOS_ACOES_CARTEIRA,
 } from '@/services/analiseAtivos/textosAcoesCarteira';
 import { TABLE_HEADER_STYLE, TABLE_STYLES } from '@/components/ui/table/tableStyles';
-import { formatBRL, formatNumber } from '@/utils/format';
+import { formatBRL, formatNumber, formatUSD } from '@/utils/format';
 import type { ModalVerNaCarteiraProps } from '@/types/analiseAtivosCriterios';
 
 export type { ModalVerNaCarteiraProps };
@@ -82,6 +88,9 @@ export default function ModalVerNaCarteira({
   const temPosicao = dados.status === 'posicao' && !!dados.portfolioId;
   const posicaoQ = usePosicaoCarteira(dados.portfolioId, aberto && temPosicao);
   const aba = dados.abaNome ?? dados.abaBaseNome ?? cl.aba;
+  // unidade da linha na Carteira: US$ só para REIT numa aba EUA (stock e B3 em R$)
+  const dinheiro = dados.moeda === 'USD' ? formatUSD : formatBRL;
+  const dinheiroInteiro = (v: number) => dinheiro0(v, dados.moeda);
 
   // alvo = Objetivo da Carteira (% dentro da aba); desvio na base da aba
   const alvo = dados.objetivoAbaPct;
@@ -134,6 +143,21 @@ export default function ModalVerNaCarteira({
         ) : null}
       </p>
     );
+  } else if (dados.valoresMistos) {
+    // stock: preço médio em R$ e cotação em US$ na Carteira — só a quantidade e o link
+    corpo = (
+      <>
+        <dl className="my-1.5 grid grid-cols-2 gap-2.5 lg:grid-cols-3" data-ver-posicao="aba">
+          <Celula
+            rotulo={T.posicao}
+            valor={`${inteiro(posicaoQ.data!.posicao.quantidade)} ${cl.un}`}
+          />
+        </dl>
+        <p className="text-sm text-gray-600 dark:text-gray-300">
+          {formatarTexto(TEXTOS_ACOES_CARTEIRA.naCarteira.abaSemDetalhe, { aba })}
+        </p>
+      </>
+    );
   } else {
     const p = posicaoQ.data!.posicao;
     const ops = (posicaoQ.data!.transacoes ?? []).slice(0, N_OPERACOES);
@@ -152,23 +176,23 @@ export default function ModalVerNaCarteira({
           />
           <Celula
             rotulo={T.valorAtual}
-            valor={reais0(p.saldoBruto)}
-            nota={formatarTexto(T.aCotacao, { preco: formatBRL(p.cotacaoAtual) })}
+            valor={dinheiroInteiro(p.saldoBruto)}
+            nota={formatarTexto(T.aCotacao, { preco: dinheiro(p.cotacaoAtual) })}
           />
           <Celula
             rotulo={T.precoMedio}
-            valor={formatBRL(p.precoMedio)}
-            nota={formatarTexto(T.custo, { valor: reais0(custo) })}
+            valor={dinheiro(p.precoMedio)}
+            nota={formatarTexto(T.custo, { valor: dinheiroInteiro(custo) })}
           />
           <Celula
             rotulo={T.resultado}
             valor={`${p.rentabilidade < 0 ? '−' : '+'}${formatNumber(Math.abs(p.rentabilidade), 1)}%`}
-            nota={`${p.resultado < 0 ? '−' : ''}${reais0(p.resultado)} · ${T.resultadoNota}`}
+            nota={`${p.resultado < 0 ? '−' : ''}${dinheiroInteiro(p.resultado)} · ${T.resultadoNota}`}
             negativo={p.rentabilidade < 0}
           />
           <Celula
             rotulo={T.proventos}
-            valor={reais0(p.proventosRecebidos)}
+            valor={dinheiroInteiro(p.proventosRecebidos)}
             nota={T.proventosNota}
           />
           <Celula
@@ -211,10 +235,10 @@ export default function ModalVerNaCarteira({
                         {inteiro(o.quantity)}
                       </td>
                       <td className={`${TABLE_STYLES.compact.td} tabular-nums`}>
-                        {formatBRL(o.price)}
+                        {dinheiro(o.price)}
                       </td>
                       <td className={`${TABLE_STYLES.compact.td} tabular-nums`}>
-                        {reais0(o.total)}
+                        {dinheiroInteiro(o.total)}
                       </td>
                     </tr>
                   ))}

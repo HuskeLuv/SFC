@@ -2475,4 +2475,144 @@ describe('POST /api/carteira/operacao', () => {
       expect(mockCaixa.debitarCaixa).not.toHaveBeenCalled();
     });
   });
+  /**
+   * Análise de Ativos EUA (fatia D): a recompra pela Análise manda o id do Asset MANUAL que o
+   * usuário já tem; a rota reaproveita o Asset (1 Asset, quantidade somada) e só aceita Asset manual
+   * com Portfolio/linha planejada do PRÓPRIO usuário. STOCK-MANUAL/REIT-MANUAL não mudam.
+   */
+  describe('Stocks/REITs: recompra com o Asset manual do usuário', () => {
+    const assetAapl = {
+      id: 'asset-aapl-manual',
+      symbol: 'AAPL-1712345678901-abc',
+      name: 'AAPL - R$ 2.000 - 15/01/2024',
+      type: 'stock',
+      currency: 'USD',
+      source: 'manual',
+    };
+    const compraAapl = {
+      tipoAtivo: 'stock',
+      instituicaoId: 'inst-1',
+      assetId: 'asset-aapl-manual',
+      ativo: 'AAPL',
+      dataCompra: '2024-02-15',
+      quantidade: 3,
+      cotacaoUnitaria: 200,
+      moeda: 'USD',
+      cotacaoMoeda: 5,
+      valorInvestido: 3000,
+      estrategia: 'value',
+    };
+
+    it('2ª compra reaproveita o Asset: nenhum Asset novo, quantidade somada na mesma linha', async () => {
+      mockPrisma.asset.findUnique.mockResolvedValueOnce(assetAapl);
+      mockPrisma.portfolio.findFirst.mockResolvedValue({
+        id: 'port-aapl',
+        quantity: 2,
+        totalInvested: 2000,
+        avgPrice: 1000,
+        objetivo: 0,
+        estrategia: 'value',
+      });
+      const response = await POST(createRequest(compraAapl));
+      expect(response.status).toBe(201);
+      expect(mockPrisma.asset.create).not.toHaveBeenCalled();
+      expect(mockPrisma.portfolio.create).not.toHaveBeenCalled();
+      expect(mockPrisma.portfolio.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 'port-aapl' },
+          data: expect.objectContaining({ quantity: 5, totalInvested: 5000 }),
+        }),
+      );
+      expect(mockPrisma.stockTransaction.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ assetId: 'asset-aapl-manual' }),
+        }),
+      );
+      // posse conferida pelo Portfolio do usuário
+      expect(mockPrisma.portfolio.findFirst).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { userId: 'user-123', assetId: 'asset-aapl-manual' },
+        }),
+      );
+    });
+
+    it('Asset manual de OUTRO usuário (sem Portfolio nem plano do usuário) → 403, nada gravado', async () => {
+      mockPrisma.asset.findUnique.mockResolvedValueOnce(assetAapl);
+      mockPrisma.portfolio.findFirst.mockResolvedValue(null);
+      mockPrisma.watchlist.findFirst.mockResolvedValue(null);
+      const response = await POST(createRequest(compraAapl));
+      expect(response.status).toBe(403);
+      expect(mockPrisma.stockTransaction.create).not.toHaveBeenCalled();
+      expect(mockPrisma.portfolio.create).not.toHaveBeenCalled();
+      expect(mockPrisma.portfolio.update).not.toHaveBeenCalled();
+    });
+
+    it('Asset manual planejado do usuário (linha planejada, sem posição) passa', async () => {
+      mockPrisma.asset.findUnique.mockResolvedValueOnce(assetAapl);
+      mockPrisma.portfolio.findFirst.mockResolvedValue(null);
+      mockPrisma.watchlist.findFirst.mockResolvedValue({ id: 'plan-aapl' });
+      const response = await POST(createRequest(compraAapl));
+      expect(response.status).toBe(201);
+      expect(mockPrisma.asset.create).not.toHaveBeenCalled();
+    });
+
+    it('REIT manual do usuário: recompra no mesmo Asset', async () => {
+      mockPrisma.asset.findUnique.mockResolvedValueOnce({
+        ...assetAapl,
+        id: 'asset-o-manual',
+        symbol: 'O-1712345678901-abc',
+        type: 'reit',
+      });
+      mockPrisma.portfolio.findFirst.mockResolvedValue({
+        id: 'port-o',
+        quantity: 10,
+        totalInvested: 550,
+        avgPrice: 55,
+        objetivo: 0,
+        estrategia: 'value',
+      });
+      const response = await POST(
+        createRequest({
+          tipoAtivo: 'reit',
+          instituicaoId: 'inst-1',
+          assetId: 'asset-o-manual',
+          ativo: 'O',
+          dataCompra: '2024-02-15',
+          quantidade: 5,
+          cotacaoUnitaria: 56,
+          cotacaoMoeda: 5,
+          valorInvestido: 280,
+          estrategiaReit: 'value',
+        }),
+      );
+      expect(response.status).toBe(201);
+      expect(mockPrisma.asset.create).not.toHaveBeenCalled();
+      expect(mockPrisma.portfolio.update).toHaveBeenCalledWith(
+        expect.objectContaining({ data: expect.objectContaining({ quantity: 15 }) }),
+      );
+    });
+
+    it('STOCK-MANUAL sem mudança: cria o Asset manual BRKB-… para BRK.B, sem checar posse', async () => {
+      mockPrisma.asset.create.mockResolvedValueOnce({
+        id: 'asset-brkb',
+        symbol: 'BRKB-1-x',
+        type: 'stock',
+        currency: 'USD',
+        source: 'manual',
+      });
+      const response = await POST(
+        createRequest({ ...compraAapl, assetId: 'STOCK-MANUAL', ativo: 'BRK.B' }),
+      );
+      expect(response.status).toBe(201);
+      expect(mockPrisma.asset.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          symbol: expect.stringMatching(/^BRKB-\d{13}-/),
+          type: 'stock',
+          currency: 'USD',
+          source: 'manual',
+        }),
+      });
+      expect(mockPrisma.asset.findUnique).not.toHaveBeenCalled();
+    });
+  });
 });

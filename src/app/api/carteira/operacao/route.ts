@@ -14,6 +14,7 @@ import {
 } from '@/services/portfolio/ativosPlanejados';
 import { requireAuthWithActing } from '@/utils/auth';
 import { prisma } from '@/lib/prisma';
+import { usuarioTemAssetManual } from '@/services/analiseAtivos/carteira/tickerCarteiraEua';
 import { logDataUpdate } from '@/services/impersonationLogger';
 import { isTipoAtivoPermitido } from '@/types/wizard';
 import { isDataFutura } from '@/utils/formatDate';
@@ -1681,6 +1682,17 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
         },
         { status: 400 },
       );
+    }
+
+    // Stocks/REITs (Análise de Ativos EUA, fatia D): a recompra pela Análise manda o id do Asset
+    // MANUAL que o usuário já tem ('AAPL-<ts>-<rnd>'), para não criar um 2º Asset. Asset manual não
+    // tem dono na tabela: só passa se o usuário tiver Portfolio ou linha planejada com ele.
+    if (
+      (tipoAtivo === 'stock' || tipoAtivo === 'reit') &&
+      asset.source === 'manual' &&
+      !(await usuarioTemAssetManual(prisma, targetUserId, asset.id))
+    ) {
+      return NextResponse.json({ error: 'Este ativo não está na sua carteira.' }, { status: 403 });
     }
   }
 

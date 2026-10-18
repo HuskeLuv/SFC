@@ -18,17 +18,30 @@
  * critérios) e FoF/Híbrido como prefixo do segmento (segmentoTipo); a faceta Tipo tem só os 2
  * valores. Com a v2 do criteria_params todos os chips ficam habilitados (vacância/inadimplência e
  * LTV ativos): FII sem o dado da série tem a marca 'sem_dado' e conta como não atende.
+ *
+ * Stocks e REITs (fatia C, docs/analise-ativos/stocks-reits/desenho.json): classes 'stock'/'reit'
+ * com `eua` (ANALISE_ATIVOS_EUA_HABILITADO; sem ela a rota já respondeu 404). Contagens das abas
+ * EUA só com `eua.habilitado`; moeda 'USD' e a regra do universo (universoDescricao, SEM nome de
+ * índice). Sem `eua.preco` (decisão do Wellington de 17/10) preço, P/L, DY, data e variação saem
+ * nulos/ausentes com o motivo 'licenca' (comCotacaoEua). Faceta/filtro: stock = setor (divisão SIC),
+ * reit = segmento curado. Chips: perfis.stock / perfis.reit (ocupação inativa = chip desabilitado).
  */
 import { pregoesEntre } from '@/services/analiseAtivos/regras/comum/pregoes';
 import { TEXTOS_CRITERIOS } from '@/services/analiseAtivos/textosCriterios';
 import { DIRECAO_PADRAO, ORDEM_PADRAO, PAGINA_QUADRO } from '@/constants/analiseAtivosVisual';
 import { comTipoFiiExibido } from '@/services/analiseAtivos/quadro/tipoFiiExibido';
-import type {
-  CriteriaParams,
-  DefCriterio,
+import {
+  universoEuaDe,
+  type CriteriaParams,
+  type DefCriterio,
 } from '@/services/analiseAtivos/params/criteriaParamsSchema';
-import type {
-  ClasseQuadro,
+import { CRITERIA_PARAMS_CODIGO } from '@/services/analiseAtivos/params/criteriaParamsCodigo';
+import { TEXTOS_EUA, textoUniverso } from '@/services/analiseAtivos/textosEua';
+import { normalizarTickerEua } from '@/types/analiseAtivosEua';
+import {
+  CLASSES_EUA,
+  ehClasseEua,
+  type ClasseQuadro,
   DirecaoOrdem,
   Estado,
   FrescorCotacao,
@@ -37,8 +50,8 @@ import type {
   QuadroParams,
   QuadroResposta,
   TipoFiiExibido,
+  TIPOS_FII_EXIBIDOS,
 } from '@/types/analiseAtivosApi';
-import { TIPOS_FII_EXIBIDOS } from '@/types/analiseAtivosApi';
 import {
   JANELA_PADRAO,
   ehIdCriterio,
@@ -140,6 +153,22 @@ export interface FiltrosConsulta {
   segmento?: string;
 }
 
+/** Segmento usado pela faceta/filtro: FII = segmento CVM; REIT = segmento curado (rótulo PT). */
+function segmentoDaFaceta(l: LinhaQuadroApi): string | null {
+  return l.classe === 'reit' ? l.segmento : l.segmentoCvm;
+}
+
+/**
+ * "Na minha carteira": BR pelo symbol do catálogo; EUA também pelo ticker normalizado (os Assets
+ * manuais de stock/REIT da Carteira não têm o ticker exato: BRK.B ↔ BRKB, 'AAPL-<ts>-<rnd>'). A rota
+ * põe as duas formas no conjunto (simbolosDoUsuario).
+ */
+function estaNaCarteira(l: LinhaQuadroApi, naCarteira?: ReadonlySet<string>): boolean {
+  if (!naCarteira) return false;
+  if (naCarteira.has(l.ticker)) return true;
+  return ehClasseEua(l.classe) && naCarteira.has(normalizarTickerEua(l.ticker));
+}
+
 export function filtrarLinhas(
   linhas: readonly LinhaQuadroApi[],
   f: FiltrosConsulta,
@@ -150,8 +179,8 @@ export function filtrarLinhas(
   return linhas.filter((l) => {
     for (const id of ids) if (!atendeCriterio(l, id, equivalencias)) return false;
     if (f.setor && l.setor !== f.setor) return false;
-    if (f.segmento && l.segmentoCvm !== f.segmento) return false;
-    if (f.naCarteira && !(naCarteira?.has(l.ticker) ?? false)) return false;
+    if (f.segmento && segmentoDaFaceta(l) !== f.segmento) return false;
+    if (f.naCarteira && !estaNaCarteira(l, naCarteira)) return false;
     return true;
   });
 }
@@ -178,6 +207,17 @@ function chipDe(c: DefCriterio, par: DefCriterio | null): DefCriterioChip {
 /** Chips da barra de filtros da classe (FII = pares tijolo/papel pelas equivalências). */
 export function definicoesQuadro(classe: ClasseQuadro, p: CriteriaParams): DefCriterioChip[] {
   if (classe === 'acao') return p.perfis.acao.map((c) => chipDe(c, null));
+  // EUA: perfis da v3 (stock_financeira usa a lista de stock). Params ativos sem os perfis EUA
+  // (v1/v2 ainda vigentes, antes do seed da v3) = os do código, os mesmos que a tela usa antes da
+  // resposta e que avaliaram as linhas (criteria_eval EUA nasce com a v3)
+  if (classe === 'stock') {
+    const lista = p.perfis.stock ?? CRITERIA_PARAMS_CODIGO.perfis.stock ?? [];
+    return lista.map((c) => chipDe(c, null));
+  }
+  if (classe === 'reit') {
+    const lista = p.perfis.reit ?? CRITERIA_PARAMS_CODIGO.perfis.reit ?? [];
+    return lista.map((c) => chipDe(c, null));
+  }
   const eq = p.equivalencias as Equivalencias;
   return p.perfis.fii_tijolo.map((c) => {
     const idPar = eq[c.id];
@@ -201,7 +241,7 @@ export function facetasDe(
 ): { setores: string[]; tipos: TipoFiiExibido[] } {
   const setores = ordenarPt(
     linhas
-      .map((l) => (classe === 'acao' ? l.setor : l.segmentoCvm))
+      .map((l) => (classe === 'acao' || classe === 'stock' ? l.setor : segmentoDaFaceta(l)))
       .filter((s): s is string => !!s),
   );
   if (classe !== 'fii') return { setores, tipos: [] };
@@ -232,13 +272,50 @@ export interface EntradaConsulta {
   hoje: string;
   /** params dos critérios (chips e equivalências); sem eles, sem chips e sem filtro de critério */
   criteriaParams?: CriteriaParams;
+  /**
+   * EUA: chaves já resolvidas pela rota. Ausente = desligado (abas EUA sem contagem e, se a classe
+   * vier mesmo assim, sem cotação).
+   */
+  eua?: { habilitado: boolean; preco: boolean };
+}
+
+const SEM_COTACAO_EUA: Estado<number> = {
+  estado: 'ausente',
+  motivo: 'licenca',
+  texto: TEXTOS_EUA.cotacao.indisponivel,
+};
+
+/**
+ * Linha stock/reit SEM a chave de preço (decisão do Wellington de 17/10): preço, P/L e DY ausentes
+ * com o motivo 'licenca', data, variação e valor de mercado nulos. Linha BR ou com a chave: igual.
+ */
+export function comCotacaoEua(l: LinhaQuadroApi, preco: boolean): LinhaQuadroApi {
+  if (!ehClasseEua(l.classe) || preco) return l;
+  return {
+    ...l,
+    preco: SEM_COTACAO_EUA,
+    precoData: null,
+    variacaoDiaPct: null,
+    pl: SEM_COTACAO_EUA,
+    dy12m: SEM_COTACAO_EUA,
+    valorMercado: null,
+  };
+}
+
+/** Regra do universo EUA da classe (sem nome de índice), pelo corte do params vigente. */
+export function universoDescricaoDe(classe: ClasseQuadro, p?: CriteriaParams): string | undefined {
+  if (!ehClasseEua(classe)) return undefined;
+  const corte = universoEuaDe(p ?? CRITERIA_PARAMS_CODIGO)[classe].floatEntradaUsd;
+  return textoUniverso(classe, corte);
 }
 
 export function consultarQuadro(e: EntradaConsulta): QuadroResposta {
   const { params } = e;
+  const precoEua = e.eua?.preco === true && e.eua.habilitado;
   const daClasse = e.linhas
     .filter((l) => l.classe === params.classe && l.noQuadro)
-    .map(comTipoFiiExibido);
+    .map(comTipoFiiExibido)
+    .map((l) => comCotacaoEua(l, precoEua));
   const ordem = params.ordem ?? ORDEM_PADRAO;
   const dir = params.dir ?? DIRECAO_PADRAO[ordem];
   const limite = Math.min(Math.max(params.limite ?? PAGINA_QUADRO, 1), LIMITE_MAXIMO);
@@ -266,15 +343,29 @@ export function consultarQuadro(e: EntradaConsulta): QuadroResposta {
     total: filtradas.length,
     offset,
     limite,
-    contagens: {
-      acao: e.linhas.filter((l) => l.classe === 'acao' && l.noQuadro).length,
-      fii: e.linhas.filter((l) => l.classe === 'fii' && l.noQuadro).length,
-    },
+    contagens: contagensDe(e.linhas, e.eua?.habilitado === true),
     facetas: facetasDe(params.classe, daClasse),
     frescorCotacao: frescorCotacao(daClasse, e.hoje),
     itens: filtradas.slice(offset, offset + limite),
     janela,
     totalClasse: daClasse.length,
     definicoes,
+    ...(ehClasseEua(params.classe)
+      ? {
+          moeda: 'USD' as const,
+          universoDescricao: universoDescricaoDe(params.classe, e.criteriaParams),
+        }
+      : {}),
   };
+}
+
+/** Contadores das abas (noQuadro); stock/reit só com a chave EUA. */
+export function contagensDe(
+  linhas: readonly LinhaQuadroApi[],
+  eua: boolean,
+): QuadroResposta['contagens'] {
+  const conta = (c: ClasseQuadro) => linhas.filter((l) => l.classe === c && l.noQuadro).length;
+  const out: QuadroResposta['contagens'] = { acao: conta('acao'), fii: conta('fii') };
+  if (eua) for (const c of CLASSES_EUA) out[c] = conta(c);
+  return out;
 }

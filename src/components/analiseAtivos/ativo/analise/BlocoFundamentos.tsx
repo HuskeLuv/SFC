@@ -13,6 +13,8 @@
 import { useCallback } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import BlocoFundamentosEssencial from '@/components/analiseAtivos/ativo/analise/BlocoFundamentosEssencial';
+import BlocoFundamentosEua from '@/components/analiseAtivos/ativo/analise/BlocoFundamentosEua';
+import { ehClasseEua } from '@/types/analiseAtivosApi';
 import TabelaRaioX from '@/components/analiseAtivos/ativo/analise/TabelaRaioX';
 import SeletorNivel from '@/components/analiseAtivos/comum/SeletorNivel';
 import { useAnaliseAtivosConfig } from '@/hooks/useAnaliseAtivos';
@@ -74,6 +76,8 @@ function FundamentosComNivel({ ticker, classe }: BlocoFundamentosProps) {
 
 export default function BlocoFundamentos({ ticker, classe }: BlocoFundamentosProps) {
   const config = useAnaliseAtivosConfig();
+  // Stocks e REITs (fatia C): Essencial EUA (10-K da SEC, só colunas com fonte), sem Raio-X
+  if (ehClasseEua(classe)) return <BlocoFundamentosEua ticker={ticker} />;
   if (config.data?.recursos?.raioX !== true) {
     return <BlocoFundamentosEssencial ticker={ticker} classe={classe} />;
   }

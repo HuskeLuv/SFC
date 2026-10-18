@@ -15,6 +15,11 @@
  * Bloco 1 (fatia B), só com recursos.salvos: "Salvar" entre Comparar e Planejar (BotaoSalvarAtivo,
  * regra 0/1/2+ listas) e, com o ativo salvo, a linha "Salvo em…" embaixo (LinhaSalvoEm). Sem o
  * recurso, o DOM é o de antes.
+ *
+ * Stocks e REITs (feature EUA, fatia D): o overlay casa o Asset manual do wizard pelo ticker sem
+ * pontuação ('BRKB-…' ↔ BRK.B; noOverlay procura nas duas formas); Planejar, Ver e Registrar valem para Stocks/REITs sem
+ * Asset de catálogo, e o Registrar EUA não tem o link do formulário completo (o wizard não tem
+ * preset EUA).
  */
 import { Suspense, lazy, useCallback, useState, type ReactNode } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
@@ -31,6 +36,8 @@ import { useAnaliseAtivosConfig, useOverlayCarteira } from '@/hooks/useAnaliseAt
 import { useIsBelowLg } from '@/hooks/useMediaQuery';
 import { invalidatePortfolioDerivedQueries } from '@/lib/invalidatePortfolio';
 import { rotuloCategoria } from '@/lib/carteiraMover';
+import { noOverlay } from '@/services/analiseAtivos/carteira/tickerCarteiraEua';
+import { ehClasseEua } from '@/types/analiseAtivosApi';
 import { formatarTexto } from '@/services/analiseAtivos/textos';
 import {
   CLASSE_CARTEIRA,
@@ -140,13 +147,12 @@ export function planoNaCarteira(
   overlay: OverlayCarteiraResposta | undefined,
   ticker: string,
 ): { objetivoPct: number | null; categoria: string } | null {
-  const t = ticker.toUpperCase();
-  const posicao = overlay?.posicoes[t] ?? null;
+  const posicao = noOverlay(overlay?.posicoes, ticker) ?? null;
   if (posicao) {
     const o = posicao.objetivoPct ?? null;
     return o !== null && o > 0 ? { objetivoPct: o, categoria: posicao.categoria } : null;
   }
-  const planejado = overlay?.planejados[t] ?? null;
+  const planejado = noOverlay(overlay?.planejados, ticker) ?? null;
   if (!planejado) return null;
   const o = planejado.objetivoPct;
   return { objetivoPct: o !== null && o > 0 ? o : null, categoria: planejado.categoria };
@@ -162,7 +168,7 @@ export function ChipsCarteira({ ticker, classe }: { ticker: string; classe: Clas
   const t = ticker.toUpperCase();
   const tx = TEXTOS_ACOES_CARTEIRA.barra;
   const cl = CLASSE_CARTEIRA[classe];
-  const posicao = overlay.data?.posicoes[t] ?? null;
+  const posicao = noOverlay(overlay.data?.posicoes, t) ?? null;
   const plano = planoNaCarteira(overlay.data, t);
   return (
     <>
@@ -237,8 +243,8 @@ export default function BarraAcoesAtivo({
     [celular],
   );
 
-  const posicao = overlay.data?.posicoes[t] ?? null;
-  const planejado = posicao ? null : (overlay.data?.planejados[t] ?? null);
+  const posicao = noOverlay(overlay.data?.posicoes, t) ?? null;
+  const planejado = posicao ? null : (noOverlay(overlay.data?.planejados, t) ?? null);
   // "Ajustar plano" quando já há plano na Carteira (Objetivo > 0 da posição ou linha planejada)
   const temAlvo = !!planoNaCarteira(overlay.data, t);
 
@@ -320,7 +326,9 @@ export default function BarraAcoesAtivo({
         assetId={assetId}
         preco={preco}
         fiiTipo={fiiTipo}
-        onFormularioCompleto={() => trocar(() => abrirWizard('compra'))}
+        onFormularioCompleto={
+          ehClasseEua(classe) ? undefined : () => trocar(() => abrirWizard('compra'))
+        }
       />
       {wizard}
       {salvar.camadas}

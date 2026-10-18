@@ -16,6 +16,27 @@ import SeletorNivel from '@/components/analiseAtivos/comum/SeletorNivel';
 import { useAnaliseAtivosConfig } from '@/hooks/useAnaliseAtivos';
 import { TEXTOS_CENARIOS } from '@/services/analiseAtivos/textosCenarios';
 import type { BlocoValuationProps, NivelValuation } from '@/types/analiseAtivosBlocoD';
+import CartaoAnalise from '@/components/analiseAtivos/ativo/analise/CartaoAnalise';
+import { TEXTOS_EUA_TELAS } from '@/services/analiseAtivos/textosEuaTelas';
+import { ehClasseEua } from '@/types/analiseAtivosApi';
+
+/**
+ * Stocks e REITs (fatia C): Múltiplos e Meus cenários usam a cotação — sem cotação EUA nesta versão
+ * (decisão do Wellington de 17/10), o card só explica que ficam ocultos. Nenhum número de preço.
+ */
+function ValuationEuaOculto({ ticker }: { ticker: string }) {
+  return (
+    <CartaoAnalise
+      id={`valuation-${ticker}`}
+      titulo={TEXTOS_EUA_TELAS.ativo.valuationTitulo}
+      bloco="valuation"
+    >
+      <p data-valuation-oculto="" className="m-0 text-sm text-gray-600 dark:text-gray-300">
+        {TEXTOS_EUA_TELAS.ativo.valuationOculto}
+      </p>
+    </CartaoAnalise>
+  );
+}
 
 const S = TEXTOS_CENARIOS.seletor;
 const OPCOES = [
@@ -27,6 +48,8 @@ export default function BlocoValuation({ ticker, classe }: BlocoValuationProps) 
   const config = useAnaliseAtivosConfig();
   const ligado = config.data?.recursos?.cenarios === true;
   const [nivel, setNivel] = useState<NivelValuation>('multiplos');
+
+  if (ehClasseEua(classe)) return <ValuationEuaOculto ticker={ticker} />;
 
   if (!ligado) return <BlocoValuationMultiplos ticker={ticker} classe={classe} />;
 

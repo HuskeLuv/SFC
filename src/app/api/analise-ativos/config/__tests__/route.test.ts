@@ -42,6 +42,8 @@ describe('GET /api/analise-ativos/config', () => {
         salvos: false,
         alertas: false,
         pdfComparador: false,
+        eua: false,
+        euaPreco: false,
       },
     });
     expect(mockEstado).toHaveBeenCalledWith('u1');
@@ -101,6 +103,25 @@ describe('GET /api/analise-ativos/config', () => {
       salvos: false,
       alertas: false,
       pdfComparador: false,
+    });
+  });
+
+  it('EUA (fatia 0): recursos.eua/euaPreco só com a área liberada; euaPreco exige eua', async () => {
+    mockEstado.mockResolvedValue('liberada');
+    vi.stubEnv('ANALISE_ATIVOS_EUA_PRECO_HABILITADO', 'true');
+    expect((await (await GET(req())).json()).recursos).toMatchObject({
+      eua: false,
+      euaPreco: false,
+    });
+    vi.stubEnv('ANALISE_ATIVOS_EUA_HABILITADO', 'true');
+    expect((await (await GET(req())).json()).recursos).toMatchObject({
+      eua: true,
+      euaPreco: true,
+    });
+    mockEstado.mockResolvedValue('fora_do_beta');
+    expect((await (await GET(req())).json()).recursos).toMatchObject({
+      eua: false,
+      euaPreco: false,
     });
   });
 

@@ -57,6 +57,14 @@ export const SERIES_FUNDAMENTO = [
   // FII (fii_property_quality)
   'default_pct',
   'ltv_avg',
+  // EUA — REITs (fonte 'sec'; ffo/affo reservadas para a fase 2, 'sec_10k')
+  'dividend_per_share',
+  'ocf_per_share',
+  'cash_payout_pct',
+  'occupancy',
+  'ffo_per_share',
+  'affo_per_share',
+  'affo_payout_pct',
 ] as const;
 export type SerieFundamento = (typeof SERIES_FUNDAMENTO)[number];
 
@@ -64,22 +72,35 @@ export function ehSerieFundamento(v: unknown): v is SerieFundamento {
   return typeof v === 'string' && (SERIES_FUNDAMENTO as readonly string[]).includes(v);
 }
 
-/** Unidade do valor GRAVADO (asset_fundamentals_serie.unidade). */
-export const UNIDADES_SERIE = ['BRL', 'BRL_por_cota', 'pct', 'x', 'contagem'] as const;
+/**
+ * Unidade do valor GRAVADO (asset_fundamentals_serie.unidade). EUA: 'USD' e 'USD_por_acao'
+ * (unidadeNoMercado troca BRL → USD e BRL_por_cota → USD_por_acao nos mercados us_*).
+ */
+export const UNIDADES_SERIE = [
+  'BRL',
+  'BRL_por_cota',
+  'pct',
+  'x',
+  'contagem',
+  'USD',
+  'USD_por_acao',
+] as const;
 export type UnidadeSerie = (typeof UNIDADES_SERIE)[number];
 
 /** Periodicidade de um ponto (asset_fundamentals_serie.tipoPeriodo). */
 export const PERIODICIDADES_SERIE = ['FY', 'Q', 'M'] as const;
 export type PeriodicidadeSerie = (typeof PERIODICIDADES_SERIE)[number];
 
-/** Mercado de uma fonte/série. Stocks e REITs ficam só no tipo (fora do escopo da v2.5). */
+/** Mercado de uma fonte/série (us_* = Stocks e REITs pela SEC, feature EUA). */
 export const MERCADOS_FONTE = ['br_acoes', 'br_fii', 'us_stocks', 'us_reits'] as const;
 export type MercadoFonte = (typeof MERCADOS_FONTE)[number];
 
-/** Mercado da classe com tela (acao → br_acoes; fii → br_fii). */
+/** Mercado da classe (acao → br_acoes; fii → br_fii; stock → us_stocks; reit → us_reits). */
 export const MERCADO_DA_CLASSE: Record<ClasseQuadro, MercadoFonte> = {
   acao: 'br_acoes',
   fii: 'br_fii',
+  stock: 'us_stocks',
+  reit: 'us_reits',
 };
 
 export interface DefSerieFundamento {
@@ -89,8 +110,9 @@ export interface DefSerieFundamento {
   periodicidade: PeriodicidadeSerie;
 }
 
-const ACOES: readonly MercadoFonte[] = ['br_acoes', 'us_stocks'];
-const FII: readonly MercadoFonte[] = ['br_fii', 'us_reits'];
+const ACOES: readonly MercadoFonte[] = ['br_acoes', 'us_stocks', 'us_reits'];
+const FII: readonly MercadoFonte[] = ['br_fii'];
+const REIT: readonly MercadoFonte[] = ['us_reits'];
 
 /** Catálogo fechado: unidade, mercado e periodicidade nativa de cada série. */
 export const CATALOGO_SERIES: Record<SerieFundamento, DefSerieFundamento> = {
@@ -115,26 +137,49 @@ export const CATALOGO_SERIES: Record<SerieFundamento, DefSerieFundamento> = {
   cap_rate: { unidade: 'pct', mercados: FII, periodicidade: 'FY' },
   default_pct: { unidade: 'pct', mercados: FII, periodicidade: 'M' },
   ltv_avg: { unidade: 'pct', mercados: FII, periodicidade: 'M' },
+  dividend_per_share: { unidade: 'USD_por_acao', mercados: REIT, periodicidade: 'FY' },
+  ocf_per_share: { unidade: 'USD_por_acao', mercados: REIT, periodicidade: 'FY' },
+  cash_payout_pct: { unidade: 'pct', mercados: REIT, periodicidade: 'FY' },
+  occupancy: { unidade: 'pct', mercados: REIT, periodicidade: 'FY' },
+  ffo_per_share: { unidade: 'USD_por_acao', mercados: REIT, periodicidade: 'FY' },
+  affo_per_share: { unidade: 'USD_por_acao', mercados: REIT, periodicidade: 'FY' },
+  affo_payout_pct: { unidade: 'pct', mercados: REIT, periodicidade: 'FY' },
 };
+
+/** Unidade gravada de uma série NUM MERCADO: nos mercados us_*, BRL → USD e BRL_por_cota → USD_por_acao. */
+export function unidadeNoMercado(serie: SerieFundamento, mercado: MercadoFonte): UnidadeSerie {
+  const u = CATALOGO_SERIES[serie].unidade;
+  if (!mercado.startsWith('us_')) return u;
+  if (u === 'BRL') return 'USD';
+  if (u === 'BRL_por_cota') return 'USD_por_acao';
+  return u;
+}
 
 // ===========================================================================
 // Fontes
 // ===========================================================================
 
 /**
- * Id de uma fonte: 'cvm' (leitura local das tabelas já ingeridas), 'exemplo' (fake determinístico,
+ * Id de uma fonte: 'cvm' (leitura local das tabelas já ingeridas), 'sec' (EUA: leitura local de
+ * asset_fundamentals_period source 'SEC', fonteSec da fatia B), 'exemplo' (fake determinístico,
  * recusado com NODE_ENV=production pelo registro da fatia A) ou o id de um conector registrado
  * (minúsculas, dígitos e '_', 2–32 caracteres; ver RE_ID_FONTE).
  */
-export const IDS_FONTE_CONHECIDOS = ['cvm', 'exemplo'] as const;
+export const IDS_FONTE_CONHECIDOS = ['cvm', 'exemplo', 'sec'] as const;
 export type IdFonte = (typeof IDS_FONTE_CONHECIDOS)[number] | (string & {});
 export const RE_ID_FONTE = /^[a-z][a-z0-9_]{1,31}$/;
 
-/** Camada da sanidade (§6): a CVM ou qualquer provedor externo. */
+/**
+ * Camada da sanidade (§6): a CVM ou qualquer provedor externo. A SEC (dado regulatório público, como
+ * a CVM) fica na camada 'cvm' — a sanidade própria dela é sanidadeSec (fatia A).
+ */
 export type CamadaFonte = 'cvm' | 'provedor';
 
+/** Fontes regulatórias locais (leitura_local das tabelas próprias): CVM e SEC. */
+export const FONTES_REGULATORIAS: readonly IdFonte[] = ['cvm', 'sec'];
+
 export function camadaDaFonte(id: IdFonte): CamadaFonte {
-  return id === 'cvm' ? 'cvm' : 'provedor';
+  return FONTES_REGULATORIAS.includes(id) ? 'cvm' : 'provedor';
 }
 
 export type ModoFonte = 'leitura_local' | 'ingestao';
