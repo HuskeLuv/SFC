@@ -1,0 +1,321 @@
+{
+  "geradoEm": "2026-10-18T03:49:13.493Z",
+  "conceitos": [
+    {
+      "conceito": "us-gaap:Assets",
+      "periodo": "CY2023Q4I",
+      "empresas": 6429
+    },
+    {
+      "conceito": "us-gaap:Cash",
+      "periodo": "CY2023Q4I",
+      "empresas": 1171
+    },
+    {
+      "conceito": "us-gaap:CashAndCashEquivalentsAtCarryingValue",
+      "periodo": "CY2023Q4I",
+      "empresas": 5349
+    },
+    {
+      "conceito": "us-gaap:CashCashEquivalentsRestrictedCashAndRestrictedCashEquivalents",
+      "periodo": "CY2023Q4I",
+      "empresas": 5475
+    },
+    {
+      "conceito": "us-gaap:CommonStockDividendsPerShareCashPaid",
+      "periodo": "CY2023",
+      "empresas": 662
+    },
+    {
+      "conceito": "us-gaap:CommonStockDividendsPerShareDeclared",
+      "periodo": "CY2023",
+      "empresas": 1264
+    },
+    {
+      "conceito": "us-gaap:ConvertibleLongTermNotesPayable",
+      "periodo": "CY2023Q4I",
+      "empresas": 190
+    },
+    {
+      "conceito": "us-gaap:ConvertibleNotesPayable",
+      "periodo": "CY2023Q4I",
+      "empresas": 198
+    },
+    {
+      "conceito": "us-gaap:DebtInstrumentCarryingAmount",
+      "periodo": "CY2023Q4I",
+      "empresas": 1383
+    },
+    {
+      "conceito": "us-gaap:DebtLongtermAndShorttermCombinedAmount",
+      "periodo": "CY2023Q4I",
+      "empresas": 316
+    },
+    {
+      "conceito": "us-gaap:Depreciation",
+      "periodo": "CY2023",
+      "empresas": 3949
+    },
+    {
+      "conceito": "us-gaap:DepreciationAmortizationAndAccretionNet",
+      "periodo": "CY2023",
+      "empresas": 388
+    },
+    {
+      "conceito": "us-gaap:DepreciationAndAmortization",
+      "periodo": "CY2023",
+      "empresas": 2067
+    },
+    {
+      "conceito": "us-gaap:DepreciationDepletionAndAmortization",
+      "periodo": "CY2023",
+      "empresas": 3275
+    },
+    {
+      "conceito": "us-gaap:EarningsPerShareBasic",
+      "periodo": "CY2023",
+      "empresas": 5821
+    },
+    {
+      "conceito": "us-gaap:EarningsPerShareBasicAndDiluted",
+      "periodo": "CY2023",
+      "empresas": 8
+    },
+    {
+      "conceito": "us-gaap:EarningsPerShareDiluted",
+      "periodo": "CY2023",
+      "empresas": 5718
+    },
+    {
+      "conceito": "us-gaap:IncomeLossFromContinuingOperationsBeforeIncomeTaxesExtraordinaryItemsNoncontrollingInterest",
+      "periodo": "CY2023",
+      "empresas": 5067
+    },
+    {
+      "conceito": "us-gaap:IncomeLossFromContinuingOperationsBeforeIncomeTaxesMinorityInterestAndIncomeLossFromEquityMethodInvestments",
+      "periodo": "CY2023",
+      "empresas": 491
+    },
+    {
+      "conceito": "us-gaap:IncomeTaxExpenseBenefit",
+      "periodo": "CY2023",
+      "empresas": 5400
+    },
+    {
+      "conceito": "us-gaap:InterestExpense",
+      "periodo": "CY2023",
+      "empresas": 3612
+    },
+    {
+      "conceito": "us-gaap:InterestExpenseBorrowings",
+      "periodo": "CY2023",
+      "empresas": 188
+    },
+    {
+      "conceito": "us-gaap:InterestExpenseDebt",
+      "periodo": "CY2023",
+      "empresas": 877
+    },
+    {
+      "conceito": "us-gaap:InterestExpenseNonoperating",
+      "periodo": "CY2023",
+      "empresas": 156
+    },
+    {
+      "conceito": "us-gaap:InterestExpenseOperating",
+      "periodo": "CY2023",
+      "empresas": 15
+    },
+    {
+      "conceito": "us-gaap:LeaseIncome",
+      "periodo": "CY2023",
+      "empresas": 149
+    },
+    {
+      "conceito": "us-gaap:LongTermDebt",
+      "periodo": "CY2023Q4I",
+      "empresas": 2290
+    },
+    {
+      "conceito": "us-gaap:LongTermDebtAndCapitalLeaseObligations",
+      "periodo": "CY2023Q4I",
+      "empresas": 505
+    },
+    {
+      "conceito": "us-gaap:LongTermDebtAndCapitalLeaseObligationsCurrent",
+      "periodo": "CY2023Q4I",
+      "empresas": 398
+    },
+    {
+      "conceito": "us-gaap:LongTermDebtCurrent",
+      "periodo": "CY2023Q4I",
+      "empresas": 1547
+    },
+    {
+      "conceito": "us-gaap:LongTermDebtNoncurrent",
+      "periodo": "CY2023Q4I",
+      "empresas": 1873
+    },
+    {
+      "conceito": "us-gaap:MarketableSecuritiesCurrent",
+      "periodo": "CY2023Q4I",
+      "empresas": 430
+    },
+    {
+      "conceito": "us-gaap:NetCashProvidedByUsedInOperatingActivities",
+      "periodo": "CY2023",
+      "empresas": 6519
+    },
+    {
+      "conceito": "us-gaap:NetCashProvidedByUsedInOperatingActivitiesContinuingOperations",
+      "periodo": "CY2023",
+      "empresas": 457
+    },
+    {
+      "conceito": "us-gaap:NetIncomeLoss",
+      "periodo": "CY2023",
+      "empresas": 6386
+    },
+    {
+      "conceito": "us-gaap:NetIncomeLossAvailableToCommonStockholdersBasic",
+      "periodo": "CY2023",
+      "empresas": 2416
+    },
+    {
+      "conceito": "us-gaap:NotesPayable",
+      "periodo": "CY2023Q4I",
+      "empresas": 439
+    },
+    {
+      "conceito": "us-gaap:OperatingIncomeLoss",
+      "periodo": "CY2023",
+      "empresas": 5351
+    },
+    {
+      "conceito": "us-gaap:OperatingLeaseLeaseIncome",
+      "periodo": "CY2023",
+      "empresas": 431
+    },
+    {
+      "conceito": "us-gaap:OperatingLeasesIncomeStatementLeaseRevenue",
+      "periodo": "CY2023",
+      "empresas": 5
+    },
+    {
+      "conceito": "us-gaap:PaymentsForRepurchaseOfCommonStock",
+      "periodo": "CY2023",
+      "empresas": 2668
+    },
+    {
+      "conceito": "us-gaap:PaymentsOfCapitalDistribution",
+      "periodo": "CY2023",
+      "empresas": 147
+    },
+    {
+      "conceito": "us-gaap:PaymentsOfDividends",
+      "periodo": "CY2023",
+      "empresas": 997
+    },
+    {
+      "conceito": "us-gaap:PaymentsOfDividendsCommonStock",
+      "periodo": "CY2023",
+      "empresas": 1182
+    },
+    {
+      "conceito": "us-gaap:PaymentsToAcquireOtherPropertyPlantAndEquipment",
+      "periodo": "CY2023",
+      "empresas": 130
+    },
+    {
+      "conceito": "us-gaap:PaymentsToAcquireProductiveAssets",
+      "periodo": "CY2023",
+      "empresas": 684
+    },
+    {
+      "conceito": "us-gaap:PaymentsToAcquirePropertyPlantAndEquipment",
+      "periodo": "CY2023",
+      "empresas": 4199
+    },
+    {
+      "conceito": "us-gaap:ProfitLoss",
+      "periodo": "CY2023",
+      "empresas": 3565
+    },
+    {
+      "conceito": "us-gaap:RealEstateRevenueNet",
+      "periodo": "CY2018",
+      "empresas": 11
+    },
+    {
+      "conceito": "us-gaap:RevenueFromContractWithCustomerExcludingAssessedTax",
+      "periodo": "CY2023",
+      "empresas": 3142
+    },
+    {
+      "conceito": "us-gaap:RevenueFromContractWithCustomerIncludingAssessedTax",
+      "periodo": "CY2023",
+      "empresas": 781
+    },
+    {
+      "conceito": "us-gaap:Revenues",
+      "periodo": "CY2023",
+      "empresas": 2679
+    },
+    {
+      "conceito": "us-gaap:SalesRevenueGoodsNet",
+      "periodo": "CY2018",
+      "empresas": 92
+    },
+    {
+      "conceito": "us-gaap:SalesRevenueNet",
+      "periodo": "CY2018",
+      "empresas": 121
+    },
+    {
+      "conceito": "us-gaap:SecuredDebt",
+      "periodo": "CY2023Q4I",
+      "empresas": 215
+    },
+    {
+      "conceito": "us-gaap:SeniorNotes",
+      "periodo": "CY2023Q4I",
+      "empresas": 114
+    },
+    {
+      "conceito": "us-gaap:ShortTermInvestments",
+      "periodo": "CY2023Q4I",
+      "empresas": 783
+    },
+    {
+      "conceito": "us-gaap:StockholdersEquity",
+      "periodo": "CY2023Q4I",
+      "empresas": 6271
+    },
+    {
+      "conceito": "us-gaap:StockholdersEquityIncludingPortionAttributableToNoncontrollingInterest",
+      "periodo": "CY2023Q4I",
+      "empresas": 2411
+    },
+    {
+      "conceito": "us-gaap:UnsecuredDebt",
+      "periodo": "CY2023Q4I",
+      "empresas": 129
+    },
+    {
+      "conceito": "us-gaap:WeightedAverageNumberOfDilutedSharesOutstanding",
+      "periodo": "CY2023",
+      "empresas": 5839
+    },
+    {
+      "conceito": "us-gaap:WeightedAverageNumberOfShareOutstandingBasicAndDiluted",
+      "periodo": "CY2023",
+      "empresas": 7
+    },
+    {
+      "conceito": "us-gaap:WeightedAverageNumberOfSharesOutstandingBasic",
+      "periodo": "CY2023",
+      "empresas": 5928
+    }
+  ],
+  "faltando": []
+}

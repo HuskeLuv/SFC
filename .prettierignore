@@ -3,3 +3,6 @@ e2e/**/*-snapshots/
 
 # Fixtures do seed da Análise de Ativos (uma linha de tabela por linha; o prettier dobraria o tamanho).
 prisma/fixtures/
+
+# Recortes de arquivos da SEC (companyfacts/frames/submissions minificados; form.idx de largura fixa).
+src/services/analiseAtivos/eua/__tests__/fixtures/
