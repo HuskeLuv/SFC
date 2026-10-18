@@ -66,6 +66,7 @@ import {
   listarTickersAcoes,
 } from '@/services/analiseAtivos/repositorio/universo';
 import type { JobContexto, ResultadoJob } from '@/services/analiseAtivos/tipos';
+import { CLASSES_BR } from '@/types/analiseAtivosApi';
 import type {
   AvaliacaoAtivo,
   ChaveJanela,
@@ -464,7 +465,8 @@ export async function executarCriterios(
   let gravadas = 0;
   if (ctx.aplicar) {
     t = Date.now();
-    gravadas = await deps.gravar(ctx.prisma, linhas);
+    // fatia 0 EUA: o job BR só troca as linhas acao/fii (as stock/reit do job EUA ficam)
+    gravadas = await deps.gravar(ctx.prisma, linhas, CLASSES_BR);
     tempos.gravar = Date.now() - t;
     ctx.contar('linhasGravadas', gravadas);
     limparCacheCriterios();

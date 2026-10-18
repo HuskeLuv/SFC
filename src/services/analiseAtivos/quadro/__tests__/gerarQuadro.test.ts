@@ -3,6 +3,7 @@ import type { PrismaClient } from '@prisma/client';
 import { gerarQuadro, gravarLinhasQuadro, lucrosFyVigentes } from '../gerarQuadro';
 import type { EntradaQuadro, LinhaQuadroGravar } from '../montarLinhasQuadro';
 import type { AlertaJob, JobContexto } from '@/services/analiseAtivos/tipos';
+import { CLASSES_BR } from '@/types/analiseAtivosApi';
 import { SCORING_PARAMS_V1 } from '@/services/analiseAtivos/params/scoringParamsV1';
 import { CRITERIA_PARAMS_V1 } from '@/services/analiseAtivos/params/criteriaParamsV1';
 import { avaliarAtivo } from '@/services/analiseAtivos/regras/criterios/avaliarAtivo';
@@ -26,10 +27,29 @@ function prismaFake(falharCreate = false) {
       const copia = new Map(tabela);
       const tx = {
         analiseQuadroLinha: {
-          deleteMany: vi.fn(async () => {
+          // checagem de colisão (fatia 0 EUA): symbols do lote gravados com classe de outro job
+          findMany: vi.fn(
+            async ({
+              where,
+            }: {
+              where: { symbol: { in: string[] }; classe: { notIn: string[] } };
+            }) =>
+              [...copia.values()]
+                .filter(
+                  (l) =>
+                    where.symbol.in.includes(l.symbol) && !where.classe.notIn.includes(l.classe),
+                )
+                .map((l) => ({ symbol: l.symbol, classe: l.classe })),
+          ),
+          deleteMany: vi.fn(async ({ where }: { where: { classe: { in: string[] } } }) => {
             ops.push('delete');
-            const count = copia.size;
-            copia.clear();
+            let count = 0;
+            for (const [k, l] of copia) {
+              if (where.classe.in.includes(l.classe)) {
+                copia.delete(k);
+                count++;
+              }
+            }
             return { count };
           }),
           createMany: vi.fn(async ({ data }: { data: LinhaQuadroGravar[] }) => {
@@ -177,9 +197,9 @@ describe('gerarQuadro', () => {
     const { prisma, tabela, ops, opcoes } = prismaFake();
     const linhas = Array.from(
       { length: 450 },
-      (_, i) => ({ symbol: `X${i}` }) as unknown as LinhaQuadroGravar,
+      (_, i) => ({ symbol: `X${i}`, classe: 'acao' }) as unknown as LinhaQuadroGravar,
     );
-    expect(await gravarLinhasQuadro(prisma, linhas)).toBe(450);
+    expect(await gravarLinhasQuadro(prisma, linhas, CLASSES_BR)).toBe(450);
     expect(ops).toEqual(['delete', 'create', 'create', 'create']);
     expect(tabela.size).toBe(450);
     expect(opcoes[0]).toMatchObject({ timeout: 120_000 });
@@ -187,7 +207,11 @@ describe('gerarQuadro', () => {
 
   it('gravarLinhasQuadro devolve o count do createMany', async () => {
     const { prisma } = prismaFake();
-    const n = await gravarLinhasQuadro(prisma, [{ symbol: 'X3' } as unknown as LinhaQuadroGravar]);
+    const n = await gravarLinhasQuadro(
+      prisma,
+      [{ symbol: 'X3', classe: 'acao' } as unknown as LinhaQuadroGravar],
+      CLASSES_BR,
+    );
     expect(n).toBe(1);
   });
 });

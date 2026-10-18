@@ -42,9 +42,16 @@ function prismaFake(falharCreate = false) {
       const copia = new Map(tabela);
       const tx = {
         criteriaEval: {
-          deleteMany: vi.fn(async () => {
-            const count = copia.size;
-            copia.clear();
+          // fatia 0 EUA: checagem de colisão + delete POR CLASSE (o job BR passa CLASSES_BR)
+          findMany: vi.fn(async () => []),
+          deleteMany: vi.fn(async ({ where }: { where: { classe: { in: string[] } } }) => {
+            let count = 0;
+            for (const [k, l] of copia) {
+              if (where.classe.in.includes(l.classe)) {
+                copia.delete(k);
+                count++;
+              }
+            }
             return { count };
           }),
           createMany: vi.fn(async ({ data }: { data: LinhaCriteriaEval[] }) => {
