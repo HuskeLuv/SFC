@@ -19,6 +19,7 @@ import {
   fixture,
   zipDfp2025,
   zipFca,
+  zipFcaBacktest,
   zipItr,
 } from '@/services/analiseAtivos/acoes/__tests__/zipFixtures';
 
@@ -191,6 +192,67 @@ describe('sincronizarCvmCias — FCA (cadastro e vigência de tickers)', () => {
     expect(wege[1]).toMatchObject({ cnpj: TAEE, validTo: null });
     expect(dia(wege[1].validFrom)).toBe('2026-10-05');
     expect(ctx.alertas.map((a) => a.codigo)).toContain('ticker_trocou_emissor');
+  });
+});
+
+describe('sincronizarCvmCias — FCA errado completado pela B3 (backtest 18/10, A9)', () => {
+  const BTG = '30306294000145';
+  const negociado = (symbol: string, especi: string) => ({
+    symbol,
+    codBdi: '02',
+    especi,
+    negociadoUltimos30: true,
+  });
+
+  it('BPAC11/CSNA3/CEAB3 entram com origem b3 no CNPJ do FCA; sem COTAHIST nada é fechado; parou de negociar ⇒ fecha', async () => {
+    const { prisma, tabelas } = criarPrismaFake();
+    tabelas.assetQuoteResumo.push(
+      negociado('BPAC11', 'UNT     N2'),
+      negociado('CSNA3', 'ON'),
+      negociado('CEAB3', 'ON      NM'),
+      negociado('KLBN4', 'PN      N2'),
+      // ação negociada mas fora do lote padrão não conta
+      { symbol: 'BPAC3', codBdi: '96', especi: 'ON      N2', negociadoUltimos30: true },
+    );
+    const zips = { [urlArquivoCvm('fca', 2026)]: zipFcaBacktest(dir) };
+    const { ctx, arquivos } = await rodar(prisma, zips, { doc: 'fca' });
+    const abertos = () =>
+      tabelas.cvmCompanyTicker
+        .filter((t) => t.validTo === null)
+        .map((t) => `${t.symbol}:${t.origem}`)
+        .sort();
+    expect(abertos()).toEqual([
+      'ALUP11:fca',
+      'B1003:fca',
+      'BPAC11:b3',
+      'CEAB3:b3',
+      'CSNA3:b3',
+      'KLBN11:fca',
+      'KLBN4:b3',
+    ]);
+    const bpac = tabelas.cvmCompanyTicker.find((t) => t.symbol === 'BPAC11')!;
+    expect(bpac).toMatchObject({ cnpj: BTG, classeTitulo: 'UNIT', unitQtdOn: 1, unitQtdPn: 2 });
+    expect(dia(bpac.validFrom)).toBe('2012-04-26');
+    expect(tabelas.cvmCompany.find((c) => c.cnpj === BTG)).toMatchObject({
+      nome: 'BCO BTG PACTUAL S.A.',
+    });
+    expect(arquivos[0].cadastro).toMatchObject({ tickersCompletadosB3: 4 });
+    expect(ctx.alertas.filter((a) => a.codigo === 'ticker_completado_b3')).toHaveLength(4);
+
+    // COTAHIST vazio (não rodou): os de origem b3 continuam abertos
+    const resumo = [...tabelas.assetQuoteResumo];
+    tabelas.assetQuoteResumo.length = 0;
+    await rodar(prisma, zips, { doc: 'fca', reprocessar: true }, { hoje: '2026-10-19' });
+    expect(abertos()).toContain('BPAC11:b3');
+
+    // BPAC11 parou de negociar: fecha só ele
+    tabelas.assetQuoteResumo.push(...resumo.filter((r) => r.symbol !== 'BPAC11'));
+    await rodar(prisma, zips, { doc: 'fca', reprocessar: true }, { hoje: '2026-10-20' });
+    expect(abertos()).not.toContain('BPAC11:b3');
+    expect(abertos()).toContain('CSNA3:b3');
+    expect(dia(tabelas.cvmCompanyTicker.find((t) => t.symbol === 'BPAC11')!.validTo)).toBe(
+      '2026-10-20',
+    );
   });
 });
 
@@ -477,5 +539,56 @@ describe('sincronizarCvmCias — nº de ações com o LPA só no individual (VIV
     );
     expect(depois).toHaveLength(1);
     expect(depois[0].status).toBe(original.status);
+  });
+});
+
+describe('sincronizarCvmCias — virada do ano (M13: arquivo do ano novo ainda não existe na CVM)', () => {
+  const ANO_NOVO = { hoje: '2027-01-01' };
+  const naoPublicados = (c: Ctx) =>
+    c.alertas.filter((a) => a.codigo === 'arquivo_ano_nao_publicado');
+
+  it('01/01/2027, ITR na janela do cron {2026, 2027}: 2026 segue, 2027 dá 404 ⇒ "não publicado" com aviso, sem falha', async () => {
+    const { prisma, zips } = await carregarTudo();
+    const { ctx, r, arquivos } = await rodar(prisma, zips, { doc: 'itr' }, ANO_NOVO);
+    expect(r.detalhes?.anos).toEqual([2026, 2027]);
+    expect(arquivos.map((a) => [a.ano, a.status])).toEqual([
+      [2026, 'inalterado'],
+      [2027, 'nao_publicado'],
+    ]);
+    expect(r.parcial).toBe(false);
+    expect(naoPublicados(ctx)).toEqual([
+      expect.objectContaining({ nivel: 'aviso', ref: urlArquivoCvm('itr', 2027) }),
+    ]);
+  });
+
+  it('01/01/2027, DFP 2027 e FCA 2027 com 404 ⇒ "não publicado"; nada gravado', async () => {
+    const { prisma, tabelas, zips } = await carregarTudo();
+    const antes = tabelas.assetFundamentalsPeriod.length;
+    const dfp = await rodar(prisma, zips, { doc: 'dfp', anos: [2025, 2027] }, ANO_NOVO);
+    expect(dfp.arquivos.map((a) => a.status)).toEqual(['inalterado', 'nao_publicado']);
+    const fca = await rodar(prisma, zips, { doc: 'fca' }, ANO_NOVO);
+    expect(fca.arquivos).toEqual([
+      expect.objectContaining({ ano: 2027, doc: 'fca', status: 'nao_publicado' }),
+    ]);
+    expect(naoPublicados(fca.ctx)).toHaveLength(1);
+    expect(tabelas.assetFundamentalsPeriod.length).toBe(antes);
+  });
+
+  it('404 de ano JÁ passado continua falha (o arquivo existia: URL mudou ou sumiu)', async () => {
+    const { prisma, zips } = await carregarTudo();
+    await expect(rodar(prisma, zips, { doc: 'dfp', anos: [2026] }, ANO_NOVO)).rejects.toThrow(
+      /404/,
+    );
+  });
+
+  it('erro que não é 404 no ano corrente continua falha', async () => {
+    const { prisma } = await carregarTudo();
+    const ctx = criarCtx(prisma, ANO_NOVO);
+    const baixar = vi.fn(async () => {
+      throw new ErroFonte('http_erro', 'HTTP 500', 500);
+    });
+    await expect(
+      sincronizarCvmCias(ctx, { doc: 'itr', anos: [2027], perfil: 'dev', baixar }),
+    ).rejects.toThrow(/500/);
   });
 });

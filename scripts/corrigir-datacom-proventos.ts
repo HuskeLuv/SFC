@@ -16,6 +16,10 @@
  *   npx tsx --env-file=.env scripts/corrigir-datacom-proventos.ts --apply
  *
  * Idempotente: rodar de novo não muda nada.
+ *
+ * Desde o backtest de 18/10/2026 a chave da tabela inclui a data-com e um (pagamento, tipo) pode ter
+ * várias datas-com: aqui só se corrige o par que tem UMA data-com na BRAPI (o caso legado). Somas
+ * antigas e versões substituídas: scripts/analise-ativos/limpar-proventos-somados.ts.
  */
 import prisma from '@/lib/prisma';
 import {
@@ -74,8 +78,14 @@ async function main() {
       falhasBrapi++;
       continue;
     }
+    const porChave = new Map<string, Array<Date | null>>();
+    for (const a of agregarProventosBrapi(brutos)) {
+      const k = chave(a.date, a.tipo);
+      porChave.set(k, [...(porChave.get(k) ?? []), a.dataCom]);
+    }
+    // (pagamento, tipo) com mais de uma data-com: ambíguo para esta correção (fica com o sync)
     const dataComPorChave = new Map(
-      agregarProventosBrapi(brutos).map((a) => [chave(a.date, a.tipo), a.dataCom]),
+      [...porChave].filter(([, ds]) => ds.length === 1).map(([k, ds]) => [k, ds[0]]),
     );
 
     const linhas = await prisma.assetDividendHistory.findMany({

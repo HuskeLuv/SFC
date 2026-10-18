@@ -13,7 +13,12 @@
  *    valor igual ou na razão do prêmio de 10% das PN (ON e PN misturadas: CEBR5) ⇒ duplicata
  *    (marcarRepeticoesSemPagamento);
  *  - DIVIDENDO/JCP/RENDIMENTO que repete uma REST CAP DIN/AMORTIZAÇÃO ⇒ tipo_excluido
- *    (marcarCopiasDeRestituicao). Diagnóstico: docs/analise-ativos/fase1/diagnostico-dy-absurdo.md.
+ *    (marcarCopiasDeRestituicao). Diagnóstico: docs/analise-ativos/fase1/diagnostico-dy-absurdo.md;
+ *  - backtest de 18/10/2026 (docs/analise-ativos/backtest-out2026/ATIVACAO.md): soma de proventos de
+ *    datas-com diferentes numa linha (marcarSomasDeParcelas), total declarado + parcelas
+ *    (marcarTotalEParcelas), o mesmo JCP com outro pagamento ou a data-com 1 pregão depois, classe
+ *    irmã pela linha COM pagamento, fantasmas de FII (marcarFantasmasFii) e a soma sem as parcelas
+ *    (temSomaSuspeitaNaJanela, só selo).
  * Data-com real = a gravada (BRAPI pós-#270) ou o pregão B3 anterior à data ex (YAHOO e legado BRAPI).
  * Nunca usa o pagamento como fallback de data-com.
  * Ajuste a hoje POR EVENTO: valor ÷ Π eventos confirmados com data > data-com (MGLU3 2020 teve
@@ -69,6 +74,46 @@ function ms(data: string): number {
 }
 function diasEntre(a: string, b: string): number {
   return Math.abs(ms(a) - ms(b)) / DIA_MS;
+}
+
+/**
+ * Mesmo valor até o arredondamento da fonte (backtest 18/10/2026): a BRAPI repete a parcela com 6 ou
+ * 8 casas (FLRY3 0,13027153132 × 0,13027152; 0,40073265756 × 0,400733) — 5e-6 relativo.
+ */
+function mesmoValor(a: number, b: number): boolean {
+  return Math.abs(a - b) <= Math.max(1e-8, 5e-6 * Math.max(Math.abs(a), Math.abs(b)));
+}
+
+/**
+ * Meses ('AAAA-MM') do informe mensal da CVM com o DY do mês informado: `semRendimento` = todas as
+ * versões do mês com DY 0; `comRendimento` = alguma versão com DY > 0. Mês sem DY (nulo, saneado) não
+ * entra em nenhum. Backtest 18/10/2026: prova de distribuição para os fantasmas de FII (A2) e para a
+ * base de proventos incompleta no critério de meses (A5/M7).
+ */
+export function mesesDyCvm(
+  meses: ReadonlyArray<{ refMonth: string; dyMesCvmPct?: number | null }>,
+): { semRendimento: Set<string>; comRendimento: Set<string> } {
+  const com = new Set<string>();
+  const zero = new Set<string>();
+  for (const m of meses) {
+    const dy = m.dyMesCvmPct;
+    if (typeof dy !== 'number' || !Number.isFinite(dy)) continue;
+    const mes = m.refMonth.slice(0, 7);
+    if (dy > 0) com.add(mes);
+    else zero.add(mes);
+  }
+  for (const mes of com) zero.delete(mes);
+  return { semRendimento: zero, comRendimento: com };
+}
+
+/** Datas a até `max` pregões uma da outra (só conta pregões quando estão a ≤ 7 dias corridos). */
+/** Datas-com a ≥ 2 meses: provento de outro período (ver isenção dos JCPs trimestrais). */
+const DUPLICATA_DATA_COM_MESES_DIAS = 60;
+
+function vizinhas(a: string, b: string, max = 1): boolean {
+  if (a === b) return true;
+  if (diasEntre(a, b) > 7) return false;
+  return distanciaEmPregoes(a, b) <= max;
 }
 
 /** Tipo pelo mapa de params (sem diferenciar acento/caixa); desconhecido ⇒ params.tipoDesconhecido. */
@@ -195,10 +240,14 @@ function marcarCopiasDeRestituicao(itens: ProventoAuditadoCompleto[], p: Scoring
  * pagamento" difere. Critério conservador:
  *  - valor igual (±duplicataSemPagamento.tolPct, 2%): a linha sem pagamento é a duplicata
  *    (KEPL3 15/12/2025 0,1442 × 2; NATU3 mar/2024; LUXM4 abr/2026) — flag 'duplicata_sem_pagamento';
- *  - ações, razão = 1 + premioPreferencialPct (10%, art. 17 §1º da Lei 6.404) ±premioTolPct: a fonte
- *    mistura o valor da ON e o da PN no mesmo ticker (CEBR5/CEBR6/CEEB5/BRSR6). Fica o valor da
- *    espécie do ticker (PN = o maior, ON = o menor; units e outras: a linha com pagamento) — flag
- *    'duplicata_classe_irma'.
+ *  - ações, valores a menos de 1 + premioPreferencialPct (10%, art. 17 §1º da Lei 6.404)
+ *    ±premioTolPct um do outro: a fonte mistura no ticker o valor de OUTRA classe da mesma empresa
+ *    (ON, PNA, PNB). Fica a linha COM pagamento — flag 'duplicata_classe_irma'. Backtest 18/10/2026
+ *    (B3, suplemento por ISIN): qual classe tem o prêmio muda por empresa — Banrisul: PNA com prêmio
+ *    (0,46253751 × ON = PNB = 0,44004976 em 26/12/2025, razão 1,051); CEB e Coelba: PNB com prêmio e
+ *    PNA = ON (CEBR5 = 1,665744588 em 10/12/2025, CEBR6 = 1,832319047). A regra antiga (PN fica com o
+ *    maior) acertava a CEBR6 e errava a BRSR6, a CEBR5 e a CEEB5; a linha com pagamento é a que a fonte
+ *    publica hoje para o ISIN do ticker e bate com a B3 nos três.
  * Data-com deslocada (prod 02/10/2026): a BRAPI repete a parcela com a data-com 1 pregão depois e o
  * "pagamento" = data gravada (CPFE3 3,7315 com data-com 28/04 paga em 31/12 × 29/04 sem pagamento;
  * CEEB5 4,2018 × 4,2554 em 28–29/10/2025). O par mais próximo (mesma data-com primeiro) decide.
@@ -251,18 +300,13 @@ function marcarRepeticoesSemPagamento(
           x.flags.push('duplicata_sem_pagamento');
           break;
         }
-        const ehPremio =
-          classe !== 'fii' &&
-          (Math.abs(razao / premio - 1) <= tolPremio || Math.abs(razao * premio - 1) <= tolPremio);
-        if (!ehPremio) continue;
-        const especie = especieDoTicker(x.symbol);
-        const xMaior = x.valor > y.valor;
-        // PN fica com o maior; ON com o menor; outra espécie: a linha com pagamento
-        const fica = especie === 'PN' ? (xMaior ? x : y) : especie === 'ON' ? (xMaior ? y : x) : y;
-        const sai = fica === x ? y : x;
-        sai.status = 'duplicata';
-        sai.duplicataDe = fica.origemId;
-        sai.flags.push('duplicata_classe_irma');
+        const q = Math.max(razao, 1 / razao);
+        const ehClasseIrma = classe !== 'fii' && q > 1 + tol && q <= premio * (1 + tolPremio);
+        if (!ehClasseIrma) continue;
+        // fica a linha COM pagamento (y); sai a sem pagamento (x), da outra classe
+        x.status = 'duplicata';
+        x.duplicataDe = y.origemId;
+        x.flags.push('duplicata_classe_irma');
         break;
       }
     }
@@ -273,7 +317,11 @@ export function auditarProventos(
   brutos: ProventoBruto[],
   eventos: EventoParaAjuste[],
   p: ScoringParams,
-  opts?: { classe?: 'acao' | 'fii' },
+  opts?: {
+    classe?: 'acao' | 'fii';
+    /** FII: meses 'AAAA-MM' em que o informe mensal da CVM tem DY do mês = 0 (fantasmas, A2) */
+    mesesSemRendimentoCvm?: ReadonlySet<string>;
+  },
 ): ProventoAuditadoCompleto[] {
   const cfg = p.sanidade.proventos;
   const itens: ProventoAuditadoCompleto[] = brutos.map((b) => {
@@ -353,22 +401,69 @@ export function auditarProventos(
       ) {
         continue;
       }
-      if (Math.abs(a.valor - b.valor) >= 1e-8) continue;
+      if (!mesmoValor(a.valor, b.valor)) continue;
       if (a.dataPagamento === null || b.dataPagamento === null) continue;
       const dias = diasEntre(a.dataPagamento, b.dataPagamento);
       if (a.dataComReal !== b.dataComReal) {
+        // mesmo pagamento com datas-com diferentes (e não vizinhas) é o caso que a chave antiga
+        // somava: desde o backtest de 18/10/2026 são linhas distintas e LEGÍTIMAS (ISAE4 0,141311 em
+        // 12/03, 02/04 e 17/04/2026, todos pagos em 29/04; VIVT3 0,156464828 em 27/07 e 25/09/2026)
+        if (
+          dias === 0 &&
+          comPagamento(a) &&
+          comPagamento(b) &&
+          !vizinhas(a.dataComReal!, b.dataComReal!)
+        ) {
+          continue;
+        }
+        // JCPs trimestrais de mesmo valor com o pagamento agendado para a virada do ano: os
+        // pagamentos caem a 1 dia (31/12 × 30/12) e as datas-com estão a meses. HYPE3 0,2925 de
+        // 26/06, 26/09 e 26/12/2025, pagos em 31/12 e 30/12/2026 (a B3 tem os três). Repetição da
+        // fonte vem com o valor reescrito (CEGR3 0,18105036 × 0,18105) ou pagamento a dias (CLSC4,
+        // PETR4 a 3 dias) e continua duplicata.
+        if (
+          dias <= 1 &&
+          a.valor === b.valor &&
+          comPagamento(a) &&
+          comPagamento(b) &&
+          diasEntre(a.dataComReal!, b.dataComReal!) >= DUPLICATA_DATA_COM_MESES_DIAS
+        ) {
+          continue;
+        }
         if (dias <= cfg.duplicataJanelaPagamentoDias) {
           b.status = 'duplicata';
           b.duplicataDe = a.origemId;
           b.flags.push('duplicata_outra_data_com');
+        } else if (
+          !semPagamento(a) &&
+          !semPagamento(b) &&
+          vizinhas(a.dataComReal!, b.dataComReal!)
+        ) {
+          // backtest 18/10/2026: a fonte repete o JCP com a data-com 1 pregão depois e outro
+          // pagamento (ITSA4 0,0182 de 09/12/2025 pago em 06/03 × 10/12 pago em 30/04/2026; a B3
+          // tem um só). Tranche real tem a MESMA data-com.
+          b.status = 'duplicata';
+          b.duplicataDe = a.origemId;
+          b.flags.push('duplicata_data_com_deslocada');
         }
       } else if (dias < cfg.trancheMinDiasEntrePagamentos) {
-        // mesma data-com, mesmo valor e pagamentos próximos: não dá para separar tranche de repetição
+        // mesma data-com, mesmo valor e pagamentos a menos de trancheMinDias: repetição (tranche real
+        // vem com meses de intervalo — CMIG4 30/06 e 30/12). Backtest 18/10/2026: ITUB4 JCP de
+        // 18/06/2026 pago em 28/08 e em 31/08 contava 2× (a B3 tem um). Fica o 1º pagamento.
+        const [fica, sai] = b.dataPagamento < a.dataPagamento ? [b, a] : [a, b];
         for (const x of [a, b])
           if (!x.flags.includes('tranche_ambigua')) x.flags.push('tranche_ambigua');
+        sai.status = 'duplicata';
+        sai.duplicataDe = fica.origemId;
       }
     }
   }
+
+  if (opts?.classe !== 'fii') {
+    marcarTotalEParcelas(itens, p);
+    marcarSomasDeParcelas(itens, p);
+  }
+  if (opts?.classe === 'fii') marcarFantasmasFii(itens, opts.mesesSemRendimentoCvm);
 
   // Possível soma duplicada (1 linha com valor ≈ 2× outro provento do mesmo tipo no ano)
   const tol = cfg.somaDuplicadaTolPct / 100;
@@ -387,6 +482,285 @@ export function auditarProventos(
     if (achou) a.flags.push('possivel_soma_duplicada');
   }
   return itens;
+}
+
+/** Linha com pagamento informado (nem "sem pagamento" do legado, nem YAHOO). */
+function comPagamento(i: ProventoAuditadoCompleto): boolean {
+  return i.dataPagamento !== null && !semPagamento(i);
+}
+
+/**
+ * Subconjunto de `cands` (ordenadas por valor decrescente) com soma `alvo` ± `tolAbs` e pelo menos
+ * `min` elementos; null se não houver ou se a busca passar de `maxNos` nós (não decide). Valores
+ * positivos: poda pela soma do que resta.
+ */
+function subconjuntoComSoma<T extends { valor: number }>(
+  cands: readonly T[],
+  alvo: number,
+  tolAbs: number,
+  min: number,
+  maxNos: number,
+  aceita: (sel: readonly T[]) => boolean = () => true,
+): T[] | null {
+  const restoApos: number[] = new Array(cands.length + 1).fill(0);
+  for (let i = cands.length - 1; i >= 0; i--) restoApos[i] = restoApos[i + 1] + cands[i].valor;
+  let nos = 0;
+  const sel: T[] = [];
+  const busca = (i: number, falta: number): T[] | null => {
+    if (++nos > maxNos) return null;
+    if (Math.abs(falta) <= tolAbs && sel.length >= min && aceita(sel)) return [...sel];
+    if (i >= cands.length || falta < -tolAbs || restoApos[i] < falta - tolAbs) return null;
+    sel.push(cands[i]);
+    const com = busca(i + 1, falta - cands[i].valor);
+    sel.pop();
+    if (com) return com;
+    return busca(i + 1, falta);
+  };
+  return busca(0, alvo);
+}
+
+/**
+ * Tolerância absoluta da soma: relativa ao total, com piso de 2e-6 (a fonte arredonda parcelas a 6
+ * casas: BBDC4 0,297339 + 0,346895 = 0,644234 × 0,644233458).
+ */
+function tolSoma(total: number, tolRel: number): number {
+  return Math.max(tolRel * total, 2e-6);
+}
+
+function agruparPorSimboloTipo(itens: ProventoAuditadoCompleto[]) {
+  const g = new Map<string, ProventoAuditadoCompleto[]>();
+  for (const i of itens) {
+    if (i.status !== 'valido' || !i.dataComReal || !(i.valor > 0)) continue;
+    const k = `${i.symbol}|${i.tipoNormalizado}`;
+    g.set(k, [...(g.get(k) ?? []), i]);
+  }
+  return g.values();
+}
+
+/**
+ * Total declarado + parcelas do MESMO provento (backtest 18/10/2026, A1b): a fonte publica o total e
+ * também o cronograma de pagamento, com a mesma data-com (ou 1 pregão depois); a B3 lista só o total.
+ * Para cada linha T COM pagamento, as candidatas a parcela são as menores, do mesmo tipo, com
+ * pagamento informado até o de T e data-com a ≤ 1 pregão:
+ *  - exato: ≥ 2 candidatas com pagamentos distintos somam T (± somaParcelas.tolPct) — CPFE3 28/04/2023
+ *    0,4339 + 0,2604 + 0,5401 = 1,2344 (fica 1,2344 e o 0,8679 da mesma data); ABEV3 JCP de
+ *    18/12/2025 0,075 + 0,0755 + 0,1185 = 0,269;
+ *  - parcial: T é o MAIOR valor e o ÚLTIMO pagamento entre as linhas válidas do tipo com data-com a
+ *    ≤ 1 pregão, e ≥ 2 candidatas, todas pagas ANTES de T, com pagamentos distintos, somam menos que
+ *    T (CPFE3 29/04/2025: 2,7942 em 15/12 e 0,7811/0,4339/0,3211 em jun–ago; 29/04/2026: 3,7315 em
+ *    31/12 e 1,1282/0,1302/0,2170/0,6075 em mai–set, data-com 30/04). Um cronograma sem o total
+ *    (CPFE3 26/04/2024: 6 parcelas que somam os 2,7540 da B3) não tem esse T e fica inteiro.
+ * Fica o total (a visão da B3); as parcelas saem com status duplicata, flag 'parcela_de_total'.
+ */
+function marcarTotalEParcelas(itens: ProventoAuditadoCompleto[], p: ScoringParams): void {
+  const cfg = p.sanidade.proventos.somaParcelas;
+  const tol = cfg.tolPct / 100;
+  for (const grupo of agruparPorSimboloTipo(itens)) {
+    if (grupo.length < 3) continue;
+    const ordenado = [...grupo].sort(
+      (a, b) => b.valor - a.valor || a.origemId.localeCompare(b.origemId),
+    );
+    for (const t of ordenado) {
+      if (t.status !== 'valido' || !comPagamento(t)) continue;
+      const cands = ordenado.filter(
+        (y) =>
+          y !== t &&
+          y.status === 'valido' &&
+          comPagamento(y) &&
+          y.valor < t.valor * (1 - tol) &&
+          y.dataPagamento! <= t.dataPagamento! &&
+          vizinhas(y.dataComReal!, t.dataComReal!),
+      );
+      if (cands.length < 2) continue;
+      const pagamentosDistintos = (sel: readonly ProventoAuditadoCompleto[]) =>
+        new Set(sel.map((x) => x.dataPagamento)).size === sel.length;
+      const exato = subconjuntoComSoma(
+        cands,
+        t.valor,
+        tolSoma(t.valor, tol),
+        2,
+        cfg.maxNos,
+        pagamentosDistintos,
+      );
+      const antes = cands.filter((y) => y.dataPagamento! < t.dataPagamento!);
+      const vizinhanca = ordenado.filter(
+        (y) => y !== t && y.status === 'valido' && vizinhas(y.dataComReal!, t.dataComReal!),
+      );
+      const totalPorUltimo = vizinhanca.every(
+        (y) => y.valor < t.valor && (y.dataPagamento ?? '') < t.dataPagamento!,
+      );
+      const parcial =
+        !exato &&
+        totalPorUltimo &&
+        antes.length >= 2 &&
+        pagamentosDistintos(antes) &&
+        antes.reduce((s, y) => s + y.valor, 0) < t.valor * (1 + tol)
+          ? antes
+          : null;
+      for (const y of exato ?? parcial ?? []) {
+        y.status = 'duplicata';
+        y.duplicataDe = t.origemId;
+        y.flags.push('parcela_de_total');
+      }
+    }
+  }
+}
+
+/**
+ * Soma de proventos de datas-com DIFERENTES gravada como uma linha (backtest 18/10/2026, A1a): a
+ * chave antiga (symbol, pagamento, tipo) fazia o sync somar as parcelas pagas no mesmo dia e gravar
+ * a data-com de uma delas; as linhas originais (sem pagamento, ou de outra versão da fonte) continuam
+ * no banco. Linha X COM pagamento é soma quando ≥ 2 outras do mesmo tipo, menores, com ≥ 2 datas-com
+ * distintas, data-com até 1 pregão depois da de X e no máximo somaParcelas.janelaDias antes, e uma
+ * delas com a data-com de X (± 1 pregão), somam X (± somaParcelas.tolPct). X sai (duplicata, flag
+ * 'soma_de_parcelas'). SAPR11: 1,960639691 (30/12/2025, pago 26/06/2026) = 1,4082268 (30/06/2025) +
+ * 0,5524128 (30/12/2025); BBDC4: 0,644233458 (03/07/2026) = 0,297339 (07/04) + 0,346895 (06/07).
+ * Quando faltam as parcelas no banco não há como provar a soma: a correção é a regravação da fonte
+ * (scripts/analise-ativos/limpar-proventos-somados.ts); até lá o DY fica em conferência
+ * (temSomaSuspeitaNaJanela, motivo linha_suspeita).
+ */
+function marcarSomasDeParcelas(itens: ProventoAuditadoCompleto[], p: ScoringParams): void {
+  const cfg = p.sanidade.proventos.somaParcelas;
+  const tol = cfg.tolPct / 100;
+  for (const grupo of agruparPorSimboloTipo(itens)) {
+    if (grupo.length < 3) continue;
+    const ordenado = [...grupo].sort(
+      (a, b) => b.valor - a.valor || a.origemId.localeCompare(b.origemId),
+    );
+    for (const x of ordenado) {
+      if (x.status !== 'valido' || !comPagamento(x)) continue;
+      const desde = menosDias(x.dataComReal!, cfg.janelaDias);
+      const cands = ordenado.filter(
+        (y) =>
+          y !== x &&
+          y.status === 'valido' &&
+          y.valor < x.valor * (1 - tol) &&
+          y.dataComReal! >= desde &&
+          (y.dataComReal! <= x.dataComReal! || vizinhas(y.dataComReal!, x.dataComReal!)),
+      );
+      for (const ancora of cands.filter((y) => vizinhas(y.dataComReal!, x.dataComReal!))) {
+        const resto = cands.filter(
+          (y) => y !== ancora && !vizinhas(y.dataComReal!, ancora.dataComReal!),
+        );
+        const sub = subconjuntoComSoma(
+          resto,
+          x.valor - ancora.valor,
+          tolSoma(x.valor, tol),
+          1,
+          cfg.maxNos,
+        );
+        if (!sub) continue;
+        x.status = 'duplicata';
+        x.duplicataDe = ancora.origemId;
+        x.flags.push('soma_de_parcelas');
+        break;
+      }
+    }
+  }
+}
+
+/** 'AAAA-MM' do mês anterior. */
+function mesAnterior(mes: string): string {
+  return menosMeses(`${mes}-01`, 1).slice(0, 7);
+}
+
+/**
+ * Rendimento "fantasma" de FII (backtest 18/10/2026, A2): a BRAPI grava linhas com data-com = data de
+ * pagamento, sempre no dia 01 — a mesma assinatura do fantasma mensal da Carteira
+ * (dividendService.isPhantomMonthlyRow), que nunca é evento real. Sai (duplicata, flag
+ * 'fantasma_mensal') quando:
+ *  - há rendimento real (não fantasma) do mesmo tipo com pagamento ou data-com no MESMO mês —
+ *    RBTS11 01/12/2025 10,9084 × 7,3419 de 30/12; XLPR11 01/12/2025 × 30/12; REME11 01/04 × pago
+ *    15/04; ZAVI11 01/11 e 01/12/2025; ou
+ *  - o informe mensal da CVM diz que o fundo NÃO distribuiu no mês do fantasma nem no anterior
+ *    (DY do mês = 0 nos dois: `mesesSemRendimentoCvm`) — RBTS11 0,2936 em mar–jun/2026 e 3,5665 em
+ *    01/02/2026, meses com DY 0 na CVM.
+ * Sem nenhuma das duas provas o fantasma fica (pode ser a única notícia do pagamento: BTHF11 2023).
+ */
+function marcarFantasmasFii(
+  itens: ProventoAuditadoCompleto[],
+  mesesSemRendimentoCvm: ReadonlySet<string> | undefined,
+): void {
+  const fantasma = (i: ProventoAuditadoCompleto) =>
+    i.dataExOrigem === 'dataCom' &&
+    i.dataPagamento !== null &&
+    i.dataPagamento === i.dataExGravada &&
+    i.dataPagamento.endsWith('-01');
+  const reais = new Map<string, ProventoAuditadoCompleto>();
+  for (const i of itens) {
+    if (i.status !== 'valido' || !i.dataComReal || fantasma(i)) continue;
+    for (const d of [i.dataPagamento, i.dataComReal]) {
+      if (!d) continue;
+      const k = `${i.symbol}|${i.tipoNormalizado}|${d.slice(0, 7)}`;
+      if (!reais.has(k)) reais.set(k, i);
+    }
+  }
+  for (const i of itens) {
+    if (i.status !== 'valido' || !fantasma(i)) continue;
+    const mes = i.dataPagamento!.slice(0, 7);
+    const real = reais.get(`${i.symbol}|${i.tipoNormalizado}|${mes}`);
+    const semCvm =
+      mesesSemRendimentoCvm?.has(mes) === true && mesesSemRendimentoCvm.has(mesAnterior(mes));
+    if (!real && !semCvm) continue;
+    i.status = 'duplicata';
+    i.duplicataDe = real?.origemId ?? null;
+    i.flags.push('fantasma_mensal');
+  }
+}
+
+/**
+ * Soma que não dá para provar (backtest 18/10/2026, M9): enquanto a fonte não é regravada na chave
+ * nova, a soma antiga X fica no banco e as parcelas dela não — só sobra, às vezes, a linha "sem
+ * pagamento" do legado de UMA parcela, que nunca ganhou a versão paga (a versão paga entrou na soma).
+ * Sinal: linha válida SEM pagamento com data-com na janela do DY 12m e há pelo menos
+ * plausibilidade.orfaMinDias, e depois dela uma linha COM pagamento do mesmo tipo maior que
+ * plausibilidade.orfaFator × o valor dela. Prod 17/10/2026: VIVT3 0,1142 (27/04) × 0,9607 (25/09,
+ * 9 JCPs de 2026 somados); CMIG4 0,1150 (25/03) × 0,2602 (22/09); RADL3 0,0860 (07/04) × 0,1744
+ * (03/07); HYPE3 0,2630 × 0,7891. Só põe o DY em conferência (motivo linha_suspeita); nada sai da
+ * conta. Em prod: 11 ações, todas com soma confirmada pela B3 ou pela BRAPI de hoje.
+ */
+export function temSomaSuspeitaNaJanela(
+  proventos: ReadonlyArray<
+    Pick<
+      ProventoAuditadoCompleto,
+      | 'status'
+      | 'tipoNormalizado'
+      | 'valor'
+      | 'dataComReal'
+      | 'dataPagamento'
+      | 'dataExGravada'
+      | 'dataExOrigem'
+    >
+  >,
+  hoje: string,
+  p: ScoringParams,
+): boolean {
+  const cfg = p.sanidade.proventos.plausibilidade;
+  if (!(cfg.orfaFator > 0)) return false;
+  const de = menosMeses(hoje, p.sanidade.proventos.janelaMesesDy);
+  const limite = menosDias(hoje, cfg.orfaMinDias);
+  const validos = proventos.filter(
+    (x) =>
+      x.status === 'valido' &&
+      !!x.dataComReal &&
+      x.dataComReal <= hoje &&
+      p.sanidade.proventos.tiposAcao.includes(x.tipoNormalizado),
+  );
+  return validos.some(
+    (y) =>
+      y.dataComReal! > de &&
+      y.dataComReal! <= limite &&
+      semPagamento(y) &&
+      validos.some(
+        (x) =>
+          x !== y &&
+          x.tipoNormalizado === y.tipoNormalizado &&
+          x.dataPagamento !== null &&
+          !semPagamento(x) &&
+          x.dataComReal! > y.dataComReal! &&
+          x.valor > cfg.orfaFator * y.valor,
+      ),
+  );
 }
 
 type ProventoParaSoma = Pick<

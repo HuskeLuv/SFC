@@ -17,6 +17,11 @@ describe('classeDoTicker (regra 18: sufixo manda, não o FCA)', () => {
     expect(classeDoTicker('B3SA3')).toBe('ON'); // dígito na raiz (antes ficava fora do universo)
   });
 
+  it('B1003 (B100 S.A., FCA 2026 correto, negociada na B3): dígito na 4ª posição da raiz ⇒ ON', () => {
+    // backtest 18/10: a raiz exigia letra na 4ª posição e a B100 ficava fora do universo
+    expect(classeDoTicker('B1003')).toBe('ON');
+  });
+
   it('sufixos fora do padrão de ações (BDR 34, direitos 1/2/9, recibos 10) ⇒ null', () => {
     expect(classeDoTicker('AAPL34')).toBeNull();
     expect(classeDoTicker('ABCD1')).toBeNull();

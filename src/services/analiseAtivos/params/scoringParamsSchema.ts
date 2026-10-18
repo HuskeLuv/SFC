@@ -217,6 +217,17 @@ const baseSchema = z.strictObject({
     holdingsFinanceirasRaiz: z.array(z.string().regex(/^[A-Z0-9]{4}$/)),
     escopoBancos: z.enum(['con', 'ind']),
     escopoDemais: z.enum(['con', 'ind']),
+    /**
+     * Exceção por raiz ao escopo de banco/demais (backtest 18/10/2026, A10): o individual de ITUB é o
+     * da holding (receita 30,7 bi × 387 bi do consolidado). Ausente no JSON gravado (v1/v2 de prod)
+     * ⇒ vale ESCOPO_POR_RAIZ_PADRAO (regras/acoes/financeiras.ts); {} desliga.
+     */
+    escopoPorRaiz: z
+      .record(
+        z.string().regex(/^[A-Z0-9]{4}$/),
+        z.strictObject({ escopo: z.enum(['con', 'ind']), motivo: z.string().min(1) }),
+      )
+      .optional(),
     fallbackSemSetorB3: z.literal('CvmCompany.layoutFinanceiro'),
     notaConferencia: z.string().optional(),
   }),
@@ -266,6 +277,13 @@ const baseSchema = z.strictObject({
       conferenciaValorMercadoSobrePl: faixaNum,
       cvmDivergenciaRendimentoPct: z.number().nonnegative(),
       cvmDivergenciaMeses: z.number().int().positive(),
+      // vacância trimestral da CVM (backtest 18/10/2026, A4: gestor informando ocupação no campo de
+      // vacância — HSML11 4T25 2,7% → 91,4%). regras/fii/saneamentoVacancia. Defaults: as versões
+      // gravadas no banco antes de 18/10/2026 não têm os campos.
+      vacanciaSaltoPp: z.number().positive().default(30),
+      vacanciaComplementarTolPp: z.number().nonnegative().default(15),
+      vacanciaReceitaFator: z.number().min(0).max(1).default(0.5),
+      vacanciaPersistenciaTrimestres: z.number().int().min(2).default(3),
     }),
     b3: z.strictObject({
       liquidezPregoes: z.number().int().positive(),
@@ -348,6 +366,17 @@ const baseSchema = z.strictObject({
           tolPct: z.number().nonnegative(),
         })
         .default({ janelaDias: 3, tolPct: 0.5 }),
+      // backtest 18/10/2026 (A1): linha que é a soma de outras (parcelas de datas-com diferentes
+      // somadas pela chave antiga; total declarado + cronograma de parcelas). tolPct relativo ao
+      // total; janelaDias = quão antes da data-com da soma as parcelas podem estar; maxNos = teto
+      // da busca do subconjunto (passou = não decide)
+      somaParcelas: z
+        .strictObject({
+          tolPct: z.number().nonnegative(),
+          janelaDias: z.number().int().positive(),
+          maxNos: z.number().int().positive(),
+        })
+        .default({ tolPct: 0.0002, janelaDias: 400, maxNos: 50000 }),
       // trava de plausibilidade do DY 12m (Índice MF e semáforo): acima do teto ou com salto de
       // provento recente ⇒ "proventos em conferência" (ausente no Índice, DY exibido em conferência).
       // Teto de ações 18% (era 25% no #277): p95 do Quadro de ações = 20,5% e o que fica entre 18% e
@@ -359,12 +388,19 @@ const baseSchema = z.strictObject({
           saltoFator: z.number().positive(),
           saltoPayoutMaxPct: z.number().positive(),
           anosSaltoRecente: z.number().int().nonnegative(),
+          // backtest 18/10/2026 (M9): linha sem pagamento com ≥ orfaMinDias e, depois dela, uma
+          // paga do mesmo tipo > orfaFator × o valor ⇒ DY 12m em conferência (linha_suspeita;
+          // proventos.temSomaSuspeitaNaJanela); orfaFator 0 desliga
+          orfaMinDias: z.number().int().nonnegative().default(90),
+          orfaFator: z.number().nonnegative().default(1.5),
         })
         .default({
           dyMaxPct: { acao: 18, fii: 20 },
           saltoFator: 2,
           saltoPayoutMaxPct: 150,
           anosSaltoRecente: 1,
+          orfaMinDias: 90,
+          orfaFator: 1.5,
         }),
     }),
     // bloco C: ausente no JSON (v1 gravada antes) = CONFERENCIA_PADRAO (ligada:false)

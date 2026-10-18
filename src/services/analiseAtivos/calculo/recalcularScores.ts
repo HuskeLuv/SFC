@@ -48,15 +48,16 @@ import {
 import {
   motivoProventosDefasados,
   rendimento12m,
+  temSomaSuspeitaNaJanela,
   ultimaDataCom,
   valorProventosComCobertura,
   type MotivoDefasagemProventos,
   type ProventoAuditadoCompleto,
 } from '@/services/analiseAtivos/regras/calculo/proventos';
 import {
-  fatorEventosEntre,
-  saltoAcoesSemEvento,
-} from '@/services/analiseAtivos/regras/calculo/eventosCorporativos';
+  acoesNegociadasDia,
+  contagemVigente,
+} from '@/services/analiseAtivos/regras/calculo/contagemVigente';
 import {
   dyParaIndice,
   flagEmConferencia,
@@ -68,6 +69,7 @@ import {
 import {
   aplicarConferenciaComponentes,
   aplicarConferenciaSemaforo,
+  chaveLiberacaoDe,
   componentesEmConferencia,
   conferenciasDaEmpresa,
   contarRegras,
@@ -79,9 +81,11 @@ import {
   type MetricaPorComponente,
 } from '@/services/analiseAtivos/regras/calculo/sanidade/aplicarConferencia';
 import { revisaoDpaDmpl } from '@/services/analiseAtivos/regras/calculo/sanidade/divergenciaFonte';
+import type { VacanciaLiberada } from '@/services/analiseAtivos/regras/fii/saneamentoVacancia';
 import { detectarEscalaAcoes } from '@/services/analiseAtivos/regras/calculo/sanidade/escalaAcoes';
 import {
   detectarFiiObrigacoes,
+  detectarFiiVacancia,
   detectarFiiVp,
   revisaoFiiPl,
 } from '@/services/analiseAtivos/regras/calculo/sanidade/fii';
@@ -383,44 +387,23 @@ export function calcularAtualAcao(e: EntradaAtualAcao, p: ScoringParams): Calcul
   if (fund?.flags.includes('escala_ambigua') || fyUltimo?.flags.includes('escala_ambigua')) {
     flags.push('escala_ambigua');
   }
-  const contMaisRecente =
-    [...e.contagens]
-      .filter((c) => c.total !== null)
-      .sort((a, b) => b.data.localeCompare(a.data))[0] ?? null;
-  // regra 13 também na contagem dos múltiplos do dia: salto contra o último DFP validado que os
-  // eventos confirmados não explicam ⇒ sem nº de ações (múltiplos por ação ausentes, Índice
-  // incompleto) em vez de múltiplos 1000× errados (PSSA3/BEES3/RAPT4 2026)
-  const refDfp = contMaisRecente
-    ? ([...e.contagens]
-        .filter(
-          (c) =>
-            c.total !== null &&
-            c.total > 0 &&
-            c.data < contMaisRecente.data &&
-            !c.fonte.startsWith('itr') &&
-            c.status === 'ok',
-        )
-        .sort((a, b) => b.data.localeCompare(a.data))[0] ?? null)
-    : null;
-  const saltoSemEvento =
-    contMaisRecente !== null &&
-    refDfp !== null &&
-    saltoAcoesSemEvento(
-      refDfp.total!,
-      contMaisRecente.total!,
-      fatorEventosEntre(e.eventos, refDfp.data, contMaisRecente.data),
-      p,
-    );
-  if (saltoSemEvento) flags.push('salto_acoes_sem_evento');
-  // sem DFP anterior validado ('ok') para servir de referência (todos 'nao_verificavel'/'alerta',
-  // ou nenhum): a contagem mais recente só vale se ela mesma bater com lucro × LPA publicado
-  // (status 'ok' = razão dentro de ±razaoLpaAlertaPct); senão não há como verificar ⇒ sem nº de
-  // ações (múltiplos por ação ausentes) e Índice incompleto
-  const naoVerificavel =
-    contMaisRecente !== null && refDfp === null && contMaisRecente.status !== 'ok';
-  if (naoVerificavel) flags.push('acoes_nao_verificavel');
-  const cont = saltoSemEvento || naoVerificavel ? null : contMaisRecente;
+  // nº de ações vigente (regras/calculo/contagemVigente): a MESMA contagem do valor de mercado do
+  // Quadro — sem 'alerta' desmentida pelo LPA, com os eventos posteriores à contagem e a escala de
+  // milhares pelo volume; salto sem evento / não verificável ⇒ null (múltiplos por ação ausentes)
   const fator = fatorEquivalencia(e.ticker);
+  const vigente = contagemVigente(
+    {
+      contagens: e.contagens,
+      eventos: e.eventos,
+      dataRef: e.dataRef,
+      dataPreco: e.resumo.ultimoPregao,
+      acoesNegociadasDia: acoesNegociadasDia(e.resumo, fator),
+    },
+    p,
+  );
+  flags.push(...vigente.flags);
+  const contMaisRecente = vigente.maisRecente;
+  const cont = vigente.contagem;
   if (fator === null) flags.push('unit_sem_composicao');
   const defasagem = defasagemProventos('acao', e, p);
   if (defasagem) flags.push(`proventos_defasados_${defasagem}`);
@@ -490,6 +473,7 @@ export function calcularAtualAcao(e: EntradaAtualAcao, p: ScoringParams): Calcul
         },
         p,
       ),
+      linhaSuspeita: temSomaSuspeitaNaJanela(e.proventos, e.dataRef, p),
     },
     p,
   );
@@ -724,8 +708,15 @@ export interface EntradaAtualFii {
   dpaAnual?: DpaAnual[];
   /** meses com informe mensal por ano (ano com < 12 sai da série, como no Quadro) */
   mesesInformePorAno?: Record<number, number>;
-  /** bloco C: só lido com sanidade.conferencia.ligada (v2) */
-  sanidade?: EntradaSanidade & { symbol: string; meses: FiiMesEnxuto[] };
+  /**
+   * bloco C: só lido com sanidade.conferencia.ligada (v2). `trimestres` = série trimestral inteira
+   * do CNPJ (a vacância do último trimestre é conferida contra ela: saneamentoVacancia, A4).
+   */
+  sanidade?: EntradaSanidade & {
+    symbol: string;
+    meses: FiiMesEnxuto[];
+    trimestres?: FiiTrimestre[];
+  };
 }
 
 export interface CalculoAtualFii {
@@ -739,7 +730,19 @@ export interface CalculoAtualFii {
   conferenciasIndice?: ConferenciaAplicada[];
 }
 
-/** Bloco C: detecções do motor de sanidade de um FII (R3, R4, R5, R6; revisão fii_pl). Pura. */
+/** Liberações da curadoria ('SYMBOL|regra|chave') → consulta (regra, chave) do saneamentoVacancia. */
+function vacanciaLiberadaDe(
+  symbol: string | undefined,
+  liberacoes: ReadonlySet<string> | undefined,
+): VacanciaLiberada | undefined {
+  if (!symbol || !liberacoes || liberacoes.size === 0) return undefined;
+  return (regra, chave) => liberacoes.has(chaveLiberacaoDe(symbol, regra, chave));
+}
+
+/**
+ * Bloco C: detecções do motor de sanidade de um FII (R3, R4, R5, R6, vacância A4; revisão fii_pl).
+ * Pura.
+ */
 export function deteccoesFii(
   e: EntradaAtualFii,
   m: MultiplosCalculados,
@@ -770,6 +773,15 @@ export function deteccoesFii(
     detectarFiiVp(meses, cfg),
     detectarFiiObrigacoes(e.mesAtual, cfg),
     revisaoFiiPl(meses, cfg.rev),
+    detectarFiiVacancia(
+      (e.sanidade?.trimestres ?? []).map((t) => ({
+        refQuarter: t.refQuarter,
+        vacanciaPct: t.flags.includes('nsa:vacanciaFisicaCvmPct') ? null : t.vacanciaFisicaCvmPct,
+        receitaAluguel: t.receitaAluguel,
+      })),
+      p.sanidade.fii,
+      vacanciaLiberadaDe(e.sanidade?.symbol, e.sanidade?.liberacoes),
+    ),
   ];
   return out.filter((d): d is Deteccao => d !== null);
 }
@@ -1316,8 +1328,21 @@ export async function recalcularScores(
     incompletos: 0,
   };
   const cnpjsFii = [...new Set(u.fiis.map((f) => f.cnpj))];
-  const trimestres = await fiiTrimestralUltimos(ctx.prisma, cnpjsFii, 1);
-  const triPor = new Map(trimestres.map((t) => [t.cnpj, t]));
+  // bloco C: a série trimestral inteira (vacância conferida contra ela, A4); sem ele, só o último
+  const trimestres = await fiiTrimestralUltimos(
+    ctx.prisma,
+    cnpjsFii,
+    conferenciaLigada ? Number.MAX_SAFE_INTEGER : 1,
+  );
+  const triPor = new Map<string, FiiTrimestre>();
+  const triSeriePor = new Map<string, FiiTrimestre[]>();
+  for (const t of trimestres) {
+    // fiiTrimestralUltimos: mais recente primeiro
+    if (!triPor.has(t.cnpj)) triPor.set(t.cnpj, t);
+    const lista = triSeriePor.get(t.cnpj);
+    if (lista) lista.push(t);
+    else triSeriePor.set(t.cnpj, [t]);
+  }
   const rendAnualFii = await lerDpaAnualGravado(
     ctx.prisma,
     u.fiis.map((f) => f.symbol),
@@ -1349,7 +1374,13 @@ export async function recalcularScores(
           dpaAnual: rendAnualFii.get(f.symbol) ?? [],
           mesesInformePorAno: mesesInformePorAno(meses),
           sanidade: conferenciaLigada
-            ? { symbol: f.symbol, meses, serie: seriesFii.get(f.symbol) ?? [], liberacoes }
+            ? {
+                symbol: f.symbol,
+                meses,
+                trimestres: triSeriePor.get(f.cnpj) ?? [],
+                serie: seriesFii.get(f.symbol) ?? [],
+                liberacoes,
+              }
             : undefined,
         }
       : null;

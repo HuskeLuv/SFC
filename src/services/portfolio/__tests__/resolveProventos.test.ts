@@ -339,4 +339,63 @@ describe('resolveProventoEvents', () => {
     expect(res.events).toHaveLength(1);
     expect(res.events[0]).toMatchObject({ symbol: 'ITSA4', tipo: 'Rendimento', net: 12.34 });
   });
+
+  describe('várias datas-com no mesmo pagamento (backtest 18/10/2026)', () => {
+    // SAPR11 JCP pago em 26/06/2026: 1,408226885 (data-com 30/06/2025) + 0,552412806 (30/12/2025);
+    // 100 ações até set/2025 e 200 depois
+    const seed = () => {
+      mockPrisma.stockTransaction.findMany.mockResolvedValue(
+        ['2025-01-02', '2025-09-01'].map((iso) => ({
+          date: d(iso),
+          type: 'compra',
+          quantity: 100,
+          notes: null,
+          asset: { symbol: 'SAPR11' },
+        })),
+      );
+      mockGetDividends.mockResolvedValue([
+        {
+          date: d('2026-06-26'),
+          dataCom: d('2025-06-30'),
+          tipo: 'JCP',
+          valorUnitario: 1.408226885,
+        },
+        {
+          date: d('2026-06-26'),
+          dataCom: d('2025-12-30'),
+          tipo: 'JCP',
+          valorUnitario: 0.552412806,
+        },
+      ]);
+    };
+
+    it('sem override: um evento por parcela, cada um com a quantidade da sua data-com (140,82 e 110,48)', async () => {
+      seed();
+      const res = await resolveProventoEvents('u1');
+      expect(res.events.map((e) => Number(e.gross.toFixed(2)))).toEqual([140.82, 110.48]);
+      expect(res.events.map((e) => e.bookingDay)).toEqual([
+        Date.UTC(2025, 5, 30),
+        Date.UTC(2025, 11, 30),
+      ]);
+    });
+
+    it('override manual de R$ 300 vale para o pagamento inteiro: um evento só, nenhuma parcela a mais', async () => {
+      seed();
+      mockPrisma.portfolioProvento.findMany.mockResolvedValue([
+        {
+          dataPagamento: d('2026-06-26'),
+          tipo: 'JCP',
+          valorTotal: 300,
+          impostoRenda: 52.5,
+          source: 'manual',
+          dismissed: false,
+          portfolio: { asset: { symbol: 'SAPR11' } },
+        },
+      ]);
+      const res = await resolveProventoEvents('u1');
+      expect(res.events).toHaveLength(1);
+      expect(res.events[0]).toMatchObject({ symbol: 'SAPR11', gross: 300, net: 247.5 });
+      expect(res.total).toBeCloseTo(247.5, 6);
+    });
+  });
 });

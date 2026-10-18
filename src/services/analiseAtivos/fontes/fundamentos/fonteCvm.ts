@@ -152,8 +152,12 @@ export function pontosCvmFii(b: BrutoFii, opcoes: OpcoesPontosFii = {}): PontoSe
       out.push(ponto(b.symbol, serie, 'FY', `${anoTxt}-12-31`, paraUnidadeCatalogo(serie, v)));
     }
   }
-  for (const t of vacanciaTrimestralFii(b)) {
-    out.push(ponto(b.symbol, 'vacancy_physical', 'Q', t.refQuarter, t.valor));
+  // trimestre com a vacância em conferência (A4 do backtest): ponto INCOMPLETO — o ano fica sem
+  // dado (nunca "não atende") e uma fonte seguinte da prioridade pode completar
+  const pVac = (opcoes.scoring ?? SCORING_PARAMS_V1).sanidade.fii;
+  for (const t of vacanciaTrimestralFii(b, pVac)) {
+    const p = ponto(b.symbol, 'vacancy_physical', 'Q', t.refQuarter, t.valor);
+    out.push(t.emConferencia ? { ...p, incompleto: true } : p);
   }
   const anoFim = opcoes.anoFim ?? new Date().getUTCFullYear() - 1;
   const meses = mesesAteAnoFim(b.proventos, anoFim, opcoes.scoring ?? SCORING_PARAMS_V1);

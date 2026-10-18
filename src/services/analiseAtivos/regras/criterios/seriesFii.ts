@@ -29,7 +29,16 @@ import {
   type ProventoMeses,
 } from '@/services/analiseAtivos/regras/criterios/mesesJanela';
 import { imoveisSobrePlPct } from '@/services/analiseAtivos/regras/criterios/perfilCriterios';
+import { mesesDyCvm } from '@/services/analiseAtivos/regras/calculo/proventos';
 import type { SeriesCriterios } from '@/services/analiseAtivos/regras/criterios/seriesAcao';
+import { SCORING_PARAMS_V1 } from '@/services/analiseAtivos/params/scoringParamsV1';
+import {
+  conferirVacancia,
+  liberadaPor,
+  type ParamsVacancia,
+  type RegraVacancia,
+} from '@/services/analiseAtivos/regras/fii/saneamentoVacancia';
+import { liberacoesVacancia } from '@/services/analiseAtivos/repositorio/curadoria';
 import type { FiiTipoTela } from '@/types/analiseAtivosApi';
 
 /** Entrada pura de um FII (também o formato da fixture do DEV). */
@@ -52,16 +61,25 @@ export interface BrutoFii {
   /**
    * refQuarter = último dia do trimestre (AAAA-MM-DD); resultado em R$. v2.5: vacância física (%)
    * e flags do trimestre (nsa:vacanciaFisicaCvmPct = papel) — opcionais (fixtures da v2.4).
+   * Receita de aluguel (R$): confirma uma subida real de vacância (saneamentoVacancia).
    */
   trimestres: Array<{
     refQuarter: string;
     resultadoTrimestral: number | null;
     vacanciaFisicaCvmPct?: number | null;
+    receitaAluguel?: number | null;
     flags?: string[];
   }>;
+  /** episódios de vacância liberados pela curadoria ('regra|chave'; saneamentoVacancia) */
+  vacanciaLiberadas?: string[];
   /** meses com desdobramento de cotas (fii_monthly.fatorDesdobramento) */
   desdobramentos: Array<{ refMonth: string; fator: number }>;
   proventos: ProventoMeses[];
+  /**
+   * DY do mês do informe mensal da CVM (todas as versões; backtest 18/10/2026, A5/M7): prova de que
+   * o fundo distribuiu num mês sem provento na base. Opcional (fixtures antigas).
+   */
+  dyMesCvm?: Array<{ refMonth: string; dyMesCvmPct: number | null }>;
 }
 
 const finito = (n: number | null | undefined): n is number =>
@@ -112,35 +130,67 @@ export function seriesFii(b: BrutoFii): SeriesCriterios {
   };
 }
 
-/** Ponto trimestral de vacância física (% da área, CVM). valor null = sem dado (papel/nsa). */
+/**
+ * Ponto trimestral de vacância física (% da área, CVM). valor null = sem dado (papel/nsa ou em
+ * conferência). `emConferencia` = a regra de saneamentoVacancia que marcou o trimestre.
+ */
 export interface VacanciaTrimestre {
   refQuarter: string;
   valor: number | null;
+  emConferencia?: RegraVacancia;
 }
 
 /**
  * Vacância física trimestral da CVM (v2.5, série vacancy_physical). Ticker↔CNPJ não conferido = nada
  * (os números do informe não valem para o ticker); trimestre com a flag nsa (fundo sem imóveis) ou
- * sem o campo = null. Pura.
+ * sem o campo = null. Backtest 18/10/2026 (A4): trimestre com a vacância em conferência (ocupação no
+ * campo de vacância ou salto brusco, regras/fii/saneamentoVacancia) = null com `emConferencia` — o
+ * critério fica "sem dado", nunca "não atende" (HSML11 4T25 91,4%). Pura.
  */
 export function vacanciaTrimestralFii(
-  b: Pick<BrutoFii, 'conferido' | 'trimestres'>,
+  b: Pick<BrutoFii, 'conferido' | 'trimestres' | 'vacanciaLiberadas'>,
+  p: ParamsVacancia = SCORING_PARAMS_V1.sanidade.fii,
 ): VacanciaTrimestre[] {
   if (!b.conferido) return [];
-  return b.trimestres
+  const pontos = b.trimestres
     .filter((t) => t.vacanciaFisicaCvmPct !== undefined || t.flags !== undefined)
     .map((t) => ({
       refQuarter: t.refQuarter,
+      receitaAluguel: t.receitaAluguel,
       valor:
         !(t.flags ?? []).includes('nsa:vacanciaFisicaCvmPct') && finito(t.vacanciaFisicaCvmPct)
           ? t.vacanciaFisicaCvmPct
           : null,
     }));
+  const conf = conferirVacancia(
+    pontos.map((t) => ({
+      refQuarter: t.refQuarter,
+      vacanciaPct: t.valor,
+      receitaAluguel: t.receitaAluguel,
+    })),
+    p,
+    liberadaPor(b.vacanciaLiberadas),
+  );
+  return pontos.map((t) => {
+    const c = conf.get(t.refQuarter);
+    return c
+      ? { refQuarter: t.refQuarter, valor: null, emConferencia: c.regra }
+      : { refQuarter: t.refQuarter, valor: t.valor };
+  });
 }
 
-/** Meses com rendimento até dez/anoFim (rec. 4). */
-export function mesesFii(b: Pick<BrutoFii, 'proventos'>, anoFim: number, scoring: ParamsMeses) {
-  return mesesAteAnoFim(b.proventos, anoFim, scoring) satisfies MesesRendimento;
+/** Meses com rendimento até dez/anoFim (rec. 4), com a prova da CVM das lacunas (A5/M7). */
+export function mesesFii(
+  b: Pick<BrutoFii, 'proventos' | 'dyMesCvm'>,
+  anoFim: number,
+  scoring: ParamsMeses,
+) {
+  return mesesAteAnoFim(
+    b.proventos,
+    anoFim,
+    scoring,
+    b.dyMesCvm ? mesesDyCvm(b.dyMesCvm) : undefined,
+  ) satisfies MesesRendimento;
 }
 
 /** (imóveis + SPE) ÷ PL do último informe, para a regra de composição do perfil. */
@@ -171,7 +221,7 @@ export async function lerBrutosFii(
   const symbols = fiis.map((f) => f.symbol);
   const cnpjs = [...new Set(fiis.map((f) => f.cnpj))];
   const desde = new Date(`${desdeAno}-01-01T00:00:00Z`);
-  const [ps, my, trim, desd, mensal, prov] = await Promise.all([
+  const [ps, my, trim, desd, mensal, prov, dyMes, liberadas] = await Promise.all([
     prisma.assetPerShareYearly.findMany({
       where: { symbol: { in: symbols }, anoFiscal: { gte: desdeAno } },
       select: { symbol: true, anoFiscal: true, rendCota: true, vpCotaFim: true, flags: true },
@@ -187,6 +237,7 @@ export async function lerBrutosFii(
         refQuarter: true,
         resultadoTrimestral: true,
         vacanciaFisicaCvmPct: true,
+        receitaAluguel: true,
         flags: true,
       },
     }),
@@ -215,6 +266,11 @@ export async function lerBrutosFii(
         dataComReal: true,
       },
     }),
+    prisma.fiiMonthly.findMany({
+      where: { cnpj: { in: cnpjs }, refMonth: { gte: desde }, dyMesCvmPct: { not: null } },
+      select: { cnpj: true, refMonth: true, dyMesCvmPct: true },
+    }),
+    liberacoesVacancia(prisma, symbols),
   ]);
   const mensalPor = new Map(mensal.map((m) => [m.cnpj, m]));
   for (const f of fiis) {
@@ -235,6 +291,8 @@ export async function lerBrutosFii(
       trimestres: [],
       desdobramentos: [],
       proventos: [],
+      dyMesCvm: [],
+      ...(liberadas.has(f.symbol) ? { vacanciaLiberadas: liberadas.get(f.symbol) } : {}),
     });
   }
   const porCnpj = new Map<string, BrutoFii[]>();
@@ -264,6 +322,7 @@ export async function lerBrutosFii(
         refQuarter: paraData(t.refQuarter),
         resultadoTrimestral: paraNumero(t.resultadoTrimestral),
         vacanciaFisicaCvmPct: t.vacanciaFisicaCvmPct,
+        receitaAluguel: paraNumero(t.receitaAluguel),
         flags: t.flags,
       });
     }
@@ -274,6 +333,11 @@ export async function lerBrutosFii(
         refMonth: paraData(d.refMonth),
         fator: d.fatorDesdobramento as number,
       });
+    }
+  }
+  for (const m of dyMes) {
+    for (const b of porCnpj.get(m.cnpj) ?? []) {
+      b.dyMesCvm!.push({ refMonth: paraData(m.refMonth), dyMesCvmPct: m.dyMesCvmPct });
     }
   }
   for (const p of prov) {

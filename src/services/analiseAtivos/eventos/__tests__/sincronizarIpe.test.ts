@@ -4,7 +4,7 @@ import os from 'os';
 import path from 'path';
 import type { PrismaClient } from '@prisma/client';
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest';
-import { ErroLayoutFonte } from '@/services/analiseAtivos/fontes/erros';
+import { ErroFonte, ErroLayoutFonte } from '@/services/analiseAtivos/fontes/erros';
 import { SCORING_PARAMS_V1 } from '@/services/analiseAtivos/params/scoringParamsV1';
 import type { AlertaJob, JobContexto } from '@/services/analiseAtivos/tipos';
 
@@ -397,5 +397,37 @@ describe('sincronizarIpe — datas de resultado', () => {
     await sincronizarIpe(ctx, { cacheDir: zipIpe([CABECALHO]), agora: AGORA });
     expect(db.eventos.filter((e) => e.tipo !== 'assembleia')).toHaveLength(0);
     expect(alertas.map((a) => a.codigo)).toContain('sem_entregas');
+  });
+});
+
+describe('sincronizarIpe — virada do ano (M13)', () => {
+  const ANO_NOVO = new Date('2027-01-01T09:25:00Z');
+  const URL_2027 =
+    'https://dados.cvm.gov.br/dados/CIA_ABERTA/DOC/IPE/DADOS/ipe_cia_aberta_2027.zip';
+
+  it('01/01/2027: ipe_cia_aberta_2027.zip dá 404 ⇒ "não publicado" com aviso; as datas de resultado seguem', async () => {
+    db.fundamentos.push(...ENTREGAS_WEG);
+    m.baixar.mockRejectedValue(new ErroFonte('http_erro', `HTTP 404 em ${URL_2027}`, 404));
+    const { ctx, alertas } = criarCtx(db.prisma);
+    const r = await sincronizarIpe(ctx, { agora: ANO_NOVO });
+    expect(m.baixar.mock.calls[0][0]).toBe(URL_2027);
+    expect(r.parcial).toBe(false);
+    expect(r.detalhes!.arquivos).toEqual([{ ano: 2027, url: URL_2027, status: 'nao_publicado' }]);
+    expect(alertas).toContainEqual(
+      expect.objectContaining({
+        codigo: 'arquivo_ano_nao_publicado',
+        nivel: 'aviso',
+        ref: URL_2027,
+      }),
+    );
+    expect(r.detalhes!.resultados).toMatchObject({ emissoresComEstimativa: 1 });
+    expect(db.prisma.analiseFonteArquivo.upsert).not.toHaveBeenCalled();
+  });
+
+  it('404 do arquivo de um ano já passado (2026 em 01/01/2027) continua falha', async () => {
+    m.baixar.mockRejectedValue(new ErroFonte('http_erro', 'HTTP 404', 404));
+    await expect(
+      sincronizarIpe(criarCtx(db.prisma).ctx, { agora: ANO_NOVO, anos: [2026], resultados: false }),
+    ).rejects.toThrow(/404/);
   });
 });

@@ -859,11 +859,14 @@ export const TEXTOS_TELA = {
       historico: 'ano do histórico',
       fii_vp: 'VP por cota',
       fii_obrigacoes: 'obrigações do fundo',
+      fii_vacancia: 'vacância',
     } satisfies Record<GrupoConferencia, string>,
     /** motivo por '<grupo>:<regra>'; sem chave exata cai em motivosPorGrupo */
     motivos: {
       'proventos:dy_acima_teto': 'DY 12m acima do limite de plausibilidade para a classe.',
       'proventos:salto_recente': 'Provento recente mais que o dobro do ano anterior.',
+      'proventos:linha_suspeita':
+        'Um provento da base parece a soma de vários pagamentos; aguardando a atualização da fonte.',
       'acoes_escala:pvp_minimo':
         'P/VP abaixo de 0,08: o nº de ações informado provavelmente está em outra escala.',
       'acoes_escala:pl_minimo':
@@ -883,6 +886,10 @@ export const TEXTOS_TELA = {
       'fii_vp:vp_salto':
         'VP por cota mudou mais de 40% no último informe, sem desdobramento de cotas identificado.',
       'fii_obrigacoes:obrigacoes_acima': 'Obrigações acima de 100% do patrimônio do fundo.',
+      'fii_vacancia:vacancia_ocupacao':
+        'A vacância do informe saltou para perto do complemento da anterior (ex.: de 3% para 91%) sem queda da receita de aluguel: o gestor pode ter informado a ocupação no lugar da vacância.',
+      'fii_vacancia:vacancia_salto':
+        'A vacância do informe mudou mais de 30 pontos em um trimestre sem queda proporcional da receita de aluguel.',
     } as Record<string, string>,
     motivosPorGrupo: {
       proventos: 'Proventos em conferência.',
@@ -893,6 +900,7 @@ export const TEXTOS_TELA = {
       historico: 'Ano do histórico em conferência.',
       fii_vp: 'VP por cota em conferência.',
       fii_obrigacoes: 'Obrigações do fundo em conferência.',
+      fii_vacancia: 'Vacância em conferência.',
     } satisfies Record<GrupoConferencia, string>,
     /** vacância do HGLG11 e afins (decisão 16): nota fixa da tela, sem conferência manual */
     segueCvm: 'A tela segue a CVM: o número do relatório do gestor pode ser diferente.',

@@ -220,6 +220,7 @@ function valuationDe(api: LinhaQuadroApi, classe: ClasseBrTeste) {
       lucro: 1e8 * (1 + i / 10),
     })),
     mensal: [],
+    vacanciaBruta: classe === 'fii' ? BRUTOS.fii.vacanciaCvm : null,
   };
   return montarValuation({ hoje: HOJE, alvo, pares: [], criterioPares: '' });
 }

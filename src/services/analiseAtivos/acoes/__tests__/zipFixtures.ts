@@ -72,3 +72,15 @@ export function zipFca(dir: string, ano: number, ajustar?: (vm: string) => strin
     [`fca_cia_aberta_valor_mobiliario_${ano}.csv`]: ajustar ? ajustar(vm) : vm,
   });
 }
+
+/**
+ * FCA 2026 REAL das companhias do item A9 do backtest de 18/10/2026 (BTG "000000", CSN "4030", CMIN
+ * "25585", MBRF "ADR", C&A e Raízen com fim indevido, Brisanet e Multilaser fora de 'Bolsa', Klabin e
+ * Alupar só com a unit, B100 com dígito na raiz, Haga "2", BRF encerrada de verdade).
+ */
+export function zipFcaBacktest(dir: string): string {
+  return montarZip(dir, 'fca_cia_aberta_2026.zip', {
+    'fca_cia_aberta_geral_2026.csv': fixture('fca_backtest_geral_2026.csv'),
+    'fca_cia_aberta_valor_mobiliario_2026.csv': fixture('fca_backtest_valor_mobiliario_2026.csv'),
+  });
+}

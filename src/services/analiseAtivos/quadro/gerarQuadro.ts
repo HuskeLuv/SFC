@@ -6,7 +6,8 @@
  * 1. dataRef = max(asset_scores.dataRef) (continua vindo de asset_scores até a D6).
  * 2. carregarEntradaQuadro: UMA leitura por tabela (cadastro, scores da dataRef, múltiplos atuais,
  *    setor B3, nomes, informes de FII, resumo de cotação, 2 últimos pregões, per-share, lucro FY,
- *    contagem de ações, Asset.id) + a cópia compacta dos critérios (criteria_eval, gravado pelo job
+ *    contagens de ações e eventos verificados — o valor de mercado usa a contagem dos múltiplos —,
+ *    Asset.id) + a cópia compacta dos critérios (criteria_eval, gravado pelo job
  *    'criterios' das 10:30 UTC) → AnaliseQuadroLinha.criterios/perfilCriterios (v2.4).
  * 3. montarLinhasQuadro (pura).
  * 4. Grava numa transação interativa (deleteMany + createMany em lotes de 200): os leitores veem a
@@ -20,7 +21,8 @@
 import { Prisma, type PrismaClient } from '@prisma/client';
 import { lucroParaSequencia } from '@/services/analiseAtivos/regras/calculo/sequencias';
 import { contagensAcoes } from '@/services/analiseAtivos/repositorio/acoes';
-import { paraNumero } from '@/services/analiseAtivos/repositorio/conversao';
+import { paraData, paraNumero } from '@/services/analiseAtivos/repositorio/conversao';
+import type { EventoParaContagem } from '@/services/analiseAtivos/regras/calculo/contagemVigente';
 import {
   ErroClasseGravador,
   exigirClassesDoGravador,
@@ -38,7 +40,7 @@ import {
   type EntradaQuadro,
   type LinhaQuadroGravar,
 } from '@/services/analiseAtivos/quadro/montarLinhasQuadro';
-import type { ContagemAcoes, JobContexto, ResultadoJob } from '@/services/analiseAtivos/tipos';
+import type { JobContexto, ResultadoJob } from '@/services/analiseAtivos/tipos';
 import { CLASSES_BR, type ClasseQuadro } from '@/types/analiseAtivosApi';
 
 const DIA_MS = 86_400_000;
@@ -73,6 +75,7 @@ export async function carregarEntradaQuadro(
     porAcaoAno,
     emissores,
     contagens,
+    eventosAcoes,
   ] = await Promise.all([
     prisma.assetScore.findMany({ where: { dataRef } }),
     prisma.assetMultiplesCurrent.findMany({ where: { symbol: { in: symbols } } }),
@@ -101,6 +104,20 @@ export async function carregarEntradaQuadro(
     }),
     listarEmissores(prisma, cnpjsAcao),
     contagensAcoes(prisma, cnpjsAcao),
+    prisma.assetCorporateActionCheck.findMany({
+      where: {
+        symbol: { in: acoes.map((a) => a.symbol) },
+        status: { in: ['confirmado', 'emissao_recompra'] },
+      },
+      select: {
+        symbol: true,
+        dataEvento: true,
+        fator: true,
+        status: true,
+        anoBase: true,
+        razaoCvm: true,
+      },
+    }),
   ]);
 
   const [fiiMensal, fiiTrimestral, mesesInforme, ultimos, fys, criterios] = await Promise.all([
@@ -147,14 +164,6 @@ export async function carregarEntradaQuadro(
     lerCompactosPorSimbolo(prisma, { classes: CLASSES_BR }),
   ]);
   const lucrosFy = fys;
-
-  // contagem mais recente (ok) por emissor
-  const contagemPor = new Map<string, ContagemAcoes>();
-  for (const c of contagens) {
-    if (c.status !== 'ok') continue;
-    const atual = contagemPor.get(c.cnpj);
-    if (!atual || c.data > atual.data) contagemPor.set(c.cnpj, c);
-  }
 
   return {
     hoje,
@@ -227,7 +236,15 @@ export async function carregarEntradaQuadro(
     porAcaoAno,
     lucrosFy,
     mesesInformeFii: mesesInforme.map((m) => ({ cnpj: m.cnpj, ano: m.ano, meses: m.meses })),
-    contagens: [...contagemPor.values()],
+    contagens,
+    eventosAcoes: eventosAcoes.map((ev) => ({
+      symbol: ev.symbol,
+      dataEvento: paraData(ev.dataEvento),
+      fator: ev.fator.toNumber(),
+      status: ev.status as EventoParaContagem['status'],
+      anoBase: ev.anoBase,
+      razaoCvm: ev.razaoCvm,
+    })),
     criterios: [...criterios.entries()].map(([symbol, c]) => ({
       symbol,
       perfil: c.perfil,
@@ -351,7 +368,7 @@ export async function gerarQuadro(
   const entrada = await deps.carregar(ctx.prisma, ctx.hoje);
   const universo = entrada.acoes.length + entrada.fiis.length;
   ctx.contar('linhasLidas', universo);
-  const r = montarLinhasQuadro(entrada);
+  const r = montarLinhasQuadro(entrada, ctx.params);
   for (const a of r.alertas) ctx.alertar(a);
   if (r.linhas.length === 0) {
     // cadastro vazio: não apaga a versão atual

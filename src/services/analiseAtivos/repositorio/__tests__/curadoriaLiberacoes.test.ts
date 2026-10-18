@@ -6,6 +6,7 @@ import {
   chaveLiberacao,
   conjuntoLiberacoes,
   expandirLiberacoesEmpresa,
+  liberacoesVacancia,
 } from '@/services/analiseAtivos/repositorio/curadoria';
 import type { PrismaClient } from '@prisma/client';
 
@@ -52,5 +53,39 @@ describe('expandirLiberacoesEmpresa', () => {
       'CELP5|pl_minimo|2026-06-30',
       'CELP6|pl_minimo|2026-06-30',
     ]);
+  });
+});
+
+describe('liberacoesVacancia (A4 do backtest: episódio de vacância liberado)', () => {
+  it("só as regras de vacância, nas duas grafias de regraCodigo, como 'regra|chave' por símbolo", async () => {
+    const where: unknown[] = [];
+    const prisma = {
+      analiseCasoDado: {
+        findMany: async (args: { where: unknown }) => {
+          where.push(args.where);
+          return [
+            {
+              symbol: 'hsml11',
+              regraCodigo: 'fii_vacancia:vacancia_ocupacao',
+              chaveDeteccao: '2025-12',
+            },
+            { symbol: 'HSML11', regraCodigo: 'vp_salto', chaveDeteccao: '2026-08' },
+            { symbol: 'BROF11', regraCodigo: 'vacancia_salto', chaveDeteccao: '2026-03' },
+          ];
+        },
+      },
+    } as unknown as PrismaClient;
+    const r = await liberacoesVacancia(prisma, ['HSML11', 'BROF11']);
+    expect(Object.fromEntries(r)).toEqual({
+      HSML11: ['vacancia_ocupacao|2025-12'],
+      BROF11: ['vacancia_salto|2026-03'],
+    });
+    expect(where[0]).toMatchObject({
+      symbol: { in: ['HSML11', 'BROF11'] },
+      status: 'rejeitado',
+      resolucao: 'dado_confirmado',
+      efeitoTela: 'liberar_valor',
+    });
+    expect((await liberacoesVacancia(prisma, [])).size).toBe(0);
   });
 });

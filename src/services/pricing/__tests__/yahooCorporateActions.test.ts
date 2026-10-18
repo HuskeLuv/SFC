@@ -5,7 +5,7 @@ import {
   syncYahooDividends,
 } from '@/services/pricing/yahooCorporateActions';
 
-const mockDivUpsert = vi.hoisted(() => vi.fn());
+const mockDivCreate = vi.hoisted(() => vi.fn());
 const mockDivFindFirst = vi.hoisted(() => vi.fn(async () => null as { date: Date } | null));
 const mockDivDeleteMany = vi.hoisted(() => vi.fn(async () => ({ count: 0 })));
 const mockCaFindMany = vi.hoisted(() =>
@@ -16,7 +16,7 @@ vi.mock('@/lib/prisma', () => ({
   prisma: {
     assetCorporateAction: { upsert: vi.fn(), findMany: mockCaFindMany },
     assetDividendHistory: {
-      upsert: mockDivUpsert,
+      create: mockDivCreate,
       findFirst: mockDivFindFirst,
       deleteMany: mockDivDeleteMany,
     },
@@ -123,7 +123,7 @@ describe('fetchYahooDividends', () => {
 describe('syncYahooDividends (des-ajuste + gap-fill)', () => {
   beforeEach(() => {
     vi.restoreAllMocks();
-    mockDivUpsert.mockReset();
+    mockDivCreate.mockReset();
     mockDivFindFirst.mockReset();
     mockDivDeleteMany.mockReset();
     mockDivDeleteMany.mockResolvedValue({ count: 0 });
@@ -139,8 +139,11 @@ describe('syncYahooDividends (des-ajuste + gap-fill)', () => {
         c: { date: Date.UTC(2025, 6, 1) / 1000, amount: 0.056 },
       }),
     ) as unknown as typeof fetch;
-    // BRAPI mais antigo: 2025-06-13 → cutoff = início de jun/2025
-    mockDivFindFirst.mockResolvedValue({ date: new Date(Date.UTC(2025, 5, 13)) });
+    // BRAPI mais antigo: 2025-06-13 → cutoff = início de jun/2025; depois, nenhuma linha na mesma
+    // (symbol, date, tipo) — o "cria se não existe" que substituiu o upsert (chave com data-com)
+    mockDivFindFirst
+      .mockResolvedValueOnce({ date: new Date(Date.UTC(2025, 5, 13)) })
+      .mockResolvedValue(null);
     mockCaFindMany.mockResolvedValue([{ date: new Date(Date.UTC(2025, 4, 12)), factor: 10 }]);
 
     const n = await syncYahooDividends('HFOF11');
@@ -149,8 +152,22 @@ describe('syncYahooDividends (des-ajuste + gap-fill)', () => {
     expect(mockDivDeleteMany).toHaveBeenCalledWith({
       where: { symbol: 'HFOF11', source: 'YAHOO' },
     });
-    const arg = mockDivUpsert.mock.calls[0][0];
-    expect(arg.create.valorUnitario).toBeCloseTo(0.6, 5); // 0,06 × 10
-    expect(arg.create.source).toBe('YAHOO');
+    const arg = mockDivCreate.mock.calls[0][0];
+    expect(arg.data.valorUnitario).toBeCloseTo(0.6, 5); // 0,06 × 10
+    expect(arg.data.source).toBe('YAHOO');
+  });
+
+  it('não grava por cima de linha já existente na mesma (symbol, date, tipo)', async () => {
+    global.fetch = vi
+      .fn()
+      .mockResolvedValue(
+        mockDivChart({ a: { date: Date.UTC(2024, 6, 1) / 1000, amount: 0.06 } }),
+      ) as unknown as typeof fetch;
+    mockDivFindFirst
+      .mockResolvedValueOnce({ date: new Date(Date.UTC(2025, 5, 13)) })
+      .mockResolvedValue({ date: new Date(Date.UTC(2024, 6, 1)) });
+    mockCaFindMany.mockResolvedValue([]);
+    expect(await syncYahooDividends('HFOF11')).toBe(0);
+    expect(mockDivCreate).not.toHaveBeenCalled();
   });
 });

@@ -16,7 +16,10 @@
  *  - salto_recente: salto de provento (detectarSaltoProvento: DPA > saltoFator × o do ano anterior,
  *    filtrado pelo payout > saltoPayoutMaxPct quando há payout) num dos `anosSaltoRecente` últimos
  *    anos FECHADOS, ou DPA dos últimos 12 meses > saltoFator × DPA do último ano fechado (mesmo filtro,
- *    com o payout do TTM).
+ *    com o payout do TTM), ou
+ *  - linha_suspeita (backtest 18/10/2026, M9): a base ainda tem soma antiga da fonte sem as parcelas
+ *    (proventos.temSomaSuspeitaNaJanela: VIVT3, CMIG4, RADL3, HYPE3 em prod 17/10/2026) — some
+ *    quando o símbolo é regravado na chave nova (scripts/analise-ativos/limpar-proventos-somados.ts).
  *
  * Fórmula pública (consistente no Índice MF, semáforo, Quadro e página do ativo):
  *   C_div = ausente('em_conferencia') ⇒ nota 0 + selo "dados incompletos" com o motivo
@@ -28,7 +31,7 @@ import { anosFechados, detectarSaltoProvento } from '@/services/analiseAtivos/le
 import { ausente, ok } from '@/services/analiseAtivos/regras/comum/valor';
 import type { ScoringParams, Valor } from '@/services/analiseAtivos/tipos';
 
-export type MotivoProventosEmConferencia = 'dy_acima_teto' | 'salto_recente';
+export type MotivoProventosEmConferencia = 'dy_acima_teto' | 'salto_recente' | 'linha_suspeita';
 
 export const PREFIXO_FLAG_EM_CONFERENCIA = 'proventos_em_conferencia_';
 export const MOTIVO_INDICE_EM_CONFERENCIA = 'div:em_conferencia';
@@ -114,9 +117,15 @@ export function saltoProventoRecente(e: EntradaSaltoRecente, p: ScoringParams): 
   );
 }
 
-/** Motivo de "proventos em conferência" do DY 12m, ou null. O teto vence o salto. */
+/** Motivo de "proventos em conferência" do DY 12m, ou null. Teto > salto > linha suspeita. */
 export function motivoProventosEmConferencia(
-  e: { classe: 'acao' | 'fii'; dyPct: Valor<number> | undefined; saltoRecente: boolean },
+  e: {
+    classe: 'acao' | 'fii';
+    dyPct: Valor<number> | undefined;
+    saltoRecente: boolean;
+    /** proventos.temSomaSuspeitaNaJanela (ações) */
+    linhaSuspeita?: boolean;
+  },
   p: ScoringParams,
 ): MotivoProventosEmConferencia | null {
   if (!e.dyPct || e.dyPct.estado !== 'ok') return null;
@@ -124,6 +133,7 @@ export function motivoProventosEmConferencia(
   if (e.dyPct.valor > teto) return 'dy_acima_teto';
   // salto sem provento nenhum nos 12m não contamina o DY (zero é zero)
   if (e.saltoRecente && e.dyPct.valor > 0) return 'salto_recente';
+  if (e.linhaSuspeita && e.dyPct.valor > 0) return 'linha_suspeita';
   return null;
 }
 

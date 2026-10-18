@@ -6,6 +6,8 @@ const mockPrisma = vi.hoisted(() => ({
     findFirst: vi.fn(),
     deleteMany: vi.fn(),
     upsert: vi.fn(),
+    update: vi.fn(),
+    createMany: vi.fn(),
     count: vi.fn(),
   },
   assetCorporateAction: {
@@ -17,6 +19,7 @@ const mockPrisma = vi.hoisted(() => ({
     findUnique: vi.fn().mockResolvedValue(null),
     upsert: vi.fn().mockResolvedValue({}),
   },
+  $transaction: vi.fn(),
 }));
 
 vi.mock('@/lib/prisma', () => ({
@@ -33,11 +36,16 @@ beforeEach(() => {
   vi.stubEnv('MARKET_DATA_DB_ONLY', 'false');
   mockPrisma.marketDataCoverage.findUnique.mockResolvedValue(null);
   mockPrisma.marketDataCoverage.upsert.mockResolvedValue({});
+  // transação interativa: o callback recebe o próprio mock como `tx`
+  mockPrisma.$transaction.mockImplementation(async (fn: (tx: unknown) => unknown) =>
+    fn(mockPrisma),
+  );
   global.fetch = mockFetch;
 });
 
 import {
   getDividends,
+  gravarProventosBrapi,
   isJcpType,
   getJcpIrrfRate,
   ensureCorporateActionsSynced,
@@ -90,6 +98,23 @@ describe('getDividends', () => {
 
       expect(result).toHaveLength(1);
       expect(result[0].valorUnitario).toBe(0.5); // keeps first
+    });
+
+    // Backtest 18/10/2026 (A1): a chave da tabela inclui a data-com — SAPR11 tem dois JCPs
+    // (data-com 30/06/2025 e 30/12/2025) pagos em 26/06/2026; são dois eventos
+    it('mantém separados proventos do mesmo pagamento com datas-com diferentes (SAPR11)', async () => {
+      const pag = new Date('2026-06-26T00:00:00Z');
+      mockPrisma.assetDividendHistory.findMany.mockResolvedValue([
+        makeDbRow(pag, 'JCP', 1.408226885, new Date('2025-06-30T00:00:00Z')),
+        makeDbRow(pag, 'JCP', 0.552412806, new Date('2025-12-30T00:00:00Z')),
+      ]);
+
+      const result = await getDividends('SAPR11');
+
+      expect(result.map((r) => [r.dataCom?.toISOString().slice(0, 10), r.valorUnitario])).toEqual([
+        ['2025-06-30', 1.408226885],
+        ['2025-12-30', 0.552412806],
+      ]);
     });
 
     // Fantasma "competência mensal" (limpeza prod 21/08/2026): dataCom == date
@@ -175,29 +200,21 @@ describe('getDividends', () => {
       expect(mockFetch).toHaveBeenCalled();
     });
 
-    it('persists fetched dividends to DB via upsert', async () => {
+    it('persists fetched dividends to DB (createMany na chave com data-com)', async () => {
       mockPrisma.assetDividendHistory.findMany.mockResolvedValue([]);
-      mockPrisma.assetDividendHistory.upsert.mockResolvedValue({});
       mockFetch.mockResolvedValue(
         makeBrapiResponse([{ paymentDate: '2024-06-01', cashAmount: 0.75, type: 'Dividendo' }]),
       );
 
       await getDividends('VALE3');
 
-      expect(mockPrisma.assetDividendHistory.upsert).toHaveBeenCalledWith(
+      expect(mockPrisma.assetDividendHistory.createMany).toHaveBeenCalledWith(
         expect.objectContaining({
-          where: expect.objectContaining({
-            symbol_date_tipo: expect.objectContaining({
-              symbol: 'VALE3',
-              tipo: 'Dividendo',
-            }),
-          }),
-          create: expect.objectContaining({
-            symbol: 'VALE3',
-            source: 'BRAPI',
-          }),
+          data: [expect.objectContaining({ symbol: 'VALE3', tipo: 'Dividendo', source: 'BRAPI' })],
+          skipDuplicates: true,
         }),
       );
+      expect(mockPrisma.assetDividendHistory.upsert).not.toHaveBeenCalled();
     });
 
     it('tries .SA suffix when first symbol returns no results', async () => {
@@ -423,12 +440,9 @@ describe('getDividends', () => {
 
       await getDividends('PETR4');
 
-      expect(mockPrisma.assetDividendHistory.upsert).toHaveBeenCalledWith(
+      expect(mockPrisma.assetDividendHistory.createMany).toHaveBeenCalledWith(
         expect.objectContaining({
-          create: expect.objectContaining({
-            symbol: 'PETR4',
-            dataCom: expect.any(Date),
-          }),
+          data: [expect.objectContaining({ symbol: 'PETR4', dataCom: expect.any(Date) })],
         }),
       );
     });
@@ -602,8 +616,8 @@ describe('BRAPI dedup pré-upsert', () => {
     expect(result).toHaveLength(1);
     expect(result[0].tipo).toBe('JCP');
     expect(result[0].valorUnitario).toBeCloseTo(0.42470527, 8);
-    // Único upsert (não dois) — confirma que dedup aconteceu pré-DB.
-    expect(mockPrisma.assetDividendHistory.upsert).toHaveBeenCalledTimes(1);
+    // Uma linha só (não duas) — mesma data-com: o dedup acontece pré-DB.
+    expect(mockPrisma.assetDividendHistory.createMany.mock.calls[0][0].data).toHaveLength(1);
   });
 
   it('mantém entries com tipos diferentes separadas no mesmo dia', async () => {
@@ -618,10 +632,85 @@ describe('BRAPI dedup pré-upsert', () => {
     const result = await getDividends('BBAS3');
 
     expect(result).toHaveLength(3);
-    expect(mockPrisma.assetDividendHistory.upsert).toHaveBeenCalledTimes(3);
+    expect(mockPrisma.assetDividendHistory.createMany.mock.calls[0][0].data).toHaveLength(3);
   });
 
-  it('preserva a primeira data-com não-nula em entries somadas', async () => {
+  it('NÃO soma datas-com diferentes pagas no mesmo dia (VIVT3: JCPs mensais pagos em 14/04/2026)', async () => {
+    mockFetch.mockResolvedValue(
+      makeBrapiResponse([
+        {
+          paymentDate: '2026-04-14',
+          label: 'JCP',
+          rate: 0.118566050261,
+          lastDatePrior: '2025-10-27',
+        },
+        {
+          paymentDate: '2026-04-14',
+          label: 'JCP',
+          rate: 0.1063014382,
+          lastDatePrior: '2025-11-24',
+        },
+        {
+          paymentDate: '2026-04-14',
+          label: 'JCP',
+          rate: 0.10952537999,
+          lastDatePrior: '2025-12-29',
+        },
+      ]),
+    );
+
+    const result = await getDividends('VIVT3');
+
+    expect(result.map((r) => [r.dataCom?.toISOString().slice(0, 10), r.valorUnitario])).toEqual([
+      ['2025-10-27', 0.118566050261],
+      ['2025-11-24', 0.1063014382],
+      ['2025-12-29', 0.10952537999],
+    ]);
+    expect(mockPrisma.assetDividendHistory.createMany.mock.calls[0][0].data).toHaveLength(3);
+  });
+
+  it('descarta a entry provisória (sem approvedOn, data-com = approvedOn da definitiva) — PETR4 2024', async () => {
+    mockFetch.mockResolvedValue(
+      makeBrapiResponse([
+        // provisória: data-com 13/05/2024 = dia da aprovação da definitiva; a B3 só tem a de 11/06
+        {
+          paymentDate: '2024-09-20',
+          lastDatePrior: '2024-05-13',
+          label: 'DIVIDENDO',
+          rate: 0.44806667,
+        },
+        { paymentDate: '2024-09-20', lastDatePrior: '2024-05-13', label: 'JCP', rate: 0.07355446 },
+        {
+          paymentDate: '2024-09-20',
+          lastDatePrior: '2024-06-11',
+          approvedOn: '2024-05-13',
+          label: 'DIVIDENDO',
+          rate: 0.44806667,
+        },
+        {
+          paymentDate: '2024-09-20',
+          lastDatePrior: '2024-06-11',
+          approvedOn: '2024-05-13',
+          label: 'JCP',
+          rate: 0.07355446,
+        },
+        // sem approvedOn e SEM definitiva correspondente: fica
+        { paymentDate: '2024-11-21', lastDatePrior: '2024-08-21', label: 'JCP', rate: 0.41275171 },
+      ]),
+    );
+
+    const result = await getDividends('PETR4');
+
+    expect(
+      result.map((r) => [r.tipo, r.dataCom?.toISOString().slice(0, 10), r.valorUnitario]),
+    ).toEqual([
+      ['DIVIDENDO', '2024-06-11', 0.44806667],
+      ['JCP', '2024-06-11', 0.07355446],
+      ['JCP', '2024-08-21', 0.41275171],
+    ]);
+  });
+
+  it('entry sem data-com não herda a data-com de outra do mesmo pagamento', async () => {
     mockFetch.mockResolvedValue(
       makeBrapiResponse([
         { paymentDate: '2025-06-12', label: 'JCP', rate: 0.1, lastDatePrior: '2025-06-02' },
@@ -631,8 +720,123 @@ describe('BRAPI dedup pré-upsert', () => {
 
     const result = await getDividends('BBAS3');
 
-    expect(result).toHaveLength(1);
-    expect(result[0].dataCom).toEqual(new Date('2025-06-02T00:00:00.000Z'));
+    expect(result).toHaveLength(2);
+    expect(result.find((r) => r.valorUnitario === 0.1)!.dataCom).toEqual(
+      new Date('2025-06-02T00:00:00.000Z'),
+    );
+    expect(result.find((r) => r.valorUnitario === 0.2)!.dataCom).toBeNull();
+  });
+
+  it('linha somada antiga (chave sem data-com) é corrigida no sync: atualiza a parcela e cria as outras', async () => {
+    // prod 17/10/2026: SAPR11 JCP pago em 26/06/2026 gravado como 1,960639691 com data-com 30/12/2025
+    const pag = new Date('2026-06-26T00:00:00Z');
+    mockPrisma.assetDividendHistory.findMany
+      .mockResolvedValueOnce([]) // getDividendsFromDb (força o fallback BRAPI)
+      .mockResolvedValueOnce([
+        {
+          id: 'soma',
+          date: pag,
+          dataCom: new Date('2025-12-30T00:00:00Z'),
+          tipo: 'JCP',
+          valorUnitario: 1.960639691,
+          source: 'BRAPI',
+        },
+      ]);
+    mockFetch.mockResolvedValue(
+      makeBrapiResponse([
+        { paymentDate: '2026-06-26', label: 'JCP', rate: 1.408226885, lastDatePrior: '2025-06-30' },
+        { paymentDate: '2026-06-26', label: 'JCP', rate: 0.552412806, lastDatePrior: '2025-12-30' },
+      ]),
+    );
+
+    await getDividends('SAPR11');
+
+    expect(mockPrisma.assetDividendHistory.update).toHaveBeenCalledWith({
+      where: { id: 'soma' },
+      data: { valorUnitario: 0.552412806 },
+    });
+    expect(mockPrisma.assetDividendHistory.createMany.mock.calls[0][0].data).toEqual([
+      expect.objectContaining({
+        valorUnitario: 1.408226885,
+        dataCom: new Date('2025-06-30T00:00:00Z'),
+      }),
+    ]);
+    expect(mockPrisma.assetDividendHistory.deleteMany).not.toHaveBeenCalled();
+  });
+});
+
+describe('gravarProventosBrapi — tudo ou nada', () => {
+  it('SAPR11: se o createMany falha, o apagar e o atualizar da mesma passada são desfeitos', async () => {
+    // banco em memória com rollback: as operações só valem se o callback da transação terminar
+    const banco = new Map([
+      ['soma', 1.960639691],
+      ['velha', 0.5],
+    ]);
+    mockPrisma.$transaction.mockImplementation(async (fn: (tx: unknown) => unknown) => {
+      const ops: Array<() => void> = [];
+      const tx = {
+        assetDividendHistory: {
+          deleteMany: async ({ where }: { where: { id: { in: string[] } } }) => {
+            ops.push(() => where.id.in.forEach((id) => banco.delete(id)));
+          },
+          update: async ({
+            where,
+            data,
+          }: {
+            where: { id: string };
+            data: { valorUnitario: number };
+          }) => {
+            ops.push(() => banco.set(where.id, data.valorUnitario));
+          },
+          createMany: async () => {
+            throw new Error('conexão caiu');
+          },
+        },
+      };
+      const r = await fn(tx);
+      ops.forEach((op) => op());
+      return r;
+    });
+    const pag = new Date('2026-06-26T00:00:00Z');
+    mockPrisma.assetDividendHistory.findMany.mockResolvedValueOnce([
+      {
+        id: 'soma',
+        date: pag,
+        dataCom: new Date('2025-12-30T00:00:00Z'),
+        tipo: 'JCP',
+        valorUnitario: 1.960639691,
+        source: 'BRAPI',
+      },
+      // versão que a fonte trocou (mesmo provento 1 pregão depois)
+      {
+        id: 'velha',
+        date: new Date('2026-06-29T00:00:00Z'),
+        dataCom: new Date('2025-07-01T00:00:00Z'),
+        tipo: 'JCP',
+        valorUnitario: 1.408226885,
+        source: 'BRAPI',
+      },
+    ]);
+    await expect(
+      gravarProventosBrapi('SAPR11', [
+        {
+          date: pag,
+          tipo: 'JCP',
+          valorUnitario: 1.408226885,
+          dataCom: new Date('2025-06-30T00:00:00Z'),
+        },
+        {
+          date: pag,
+          tipo: 'JCP',
+          valorUnitario: 0.552412806,
+          dataCom: new Date('2025-12-30T00:00:00Z'),
+        },
+      ]),
+    ).rejects.toThrow('conexão caiu');
+    expect(Object.fromEntries(banco)).toEqual({ soma: 1.960639691, velha: 0.5 });
+    // nada escrito fora da transação
+    expect(mockPrisma.assetDividendHistory.deleteMany).not.toHaveBeenCalled();
+    expect(mockPrisma.assetDividendHistory.update).not.toHaveBeenCalled();
   });
 });
 

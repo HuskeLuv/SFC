@@ -8,8 +8,8 @@
  */
 import type { ClasseTitulo } from '@/services/analiseAtivos/tipos';
 
-// raiz de 4 caracteres começando e terminando em letra: aceita dígito no meio (B3SA3)
-const RE_TICKER = /^[A-Z][A-Z0-9]{2}[A-Z](\d{1,2})$/;
+// raiz de 4 caracteres começando em letra: aceita dígito no meio (B3SA3) e no fim (B1003, B100 S.A.)
+const RE_TICKER = /^[A-Z][A-Z0-9]{3}(\d{1,2})$/;
 
 export function classeDoTicker(ticker: string): ClasseTitulo | null {
   const m = RE_TICKER.exec(ticker.trim().toUpperCase());

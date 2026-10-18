@@ -294,6 +294,15 @@ describe('valorDoCampo / campoOk', () => {
     expect(campoOk(valorDoCampo('dy12m', { linha }, '2026-10-06'))).toBe(false);
     expect(campoOk(valorDoCampo('dy12m', {}, HOJE))).toBe(false);
   });
+
+  it("vacância (grupo 'fii_vacancia', A4): lida da linha do Quadro — HSML11 de volta a 3,1% fecha o caso", () => {
+    expect(
+      campoOk(
+        valorDoCampo('vacanciaCvm', { linha: { ...linha, vacanciaFisicaCvmPct: 3.1 } }, HOJE),
+      ),
+    ).toBe(true);
+    expect(campoOk(valorDoCampo('vacanciaCvm', { linha }, HOJE))).toBe(false);
+  });
 });
 
 // ===========================================================================

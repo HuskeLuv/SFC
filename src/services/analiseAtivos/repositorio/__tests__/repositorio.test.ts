@@ -5,6 +5,8 @@ import { cotacaoFimDePeriodo } from '@/services/analiseAtivos/repositorio/cotaco
 import { condicionalDownload } from '@/services/analiseAtivos/repositorio/fontesArquivo';
 import { proventosBrutos } from '@/services/analiseAtivos/repositorio/proventos';
 import { listarEmissores, universoAnalise } from '@/services/analiseAtivos/repositorio/universo';
+import { scoringParamsSchema } from '@/services/analiseAtivos/params/scoringParamsSchema';
+import { SCORING_PARAMS_V1 } from '@/services/analiseAtivos/params/scoringParamsV1';
 
 const d = (s: string) => new Date(`${s}T00:00:00.000Z`);
 const dec = (s: string) => new Prisma.Decimal(s);
@@ -153,6 +155,80 @@ describe('universo.listarEmissores', () => {
       escopoPreferido: 'ind',
       setor: null,
     });
+  });
+});
+
+describe('universo.listarEmissores — exceção de escopo (backtest 18/10, A10)', () => {
+  const ITUB = '60872504000123';
+  const BRBI = '10739356000103';
+  const BBDC = '60746948000112';
+  const banco = (raiz: string) => ({
+    raiz,
+    setor: 'Financeiro',
+    subsetor: 'Intermediários Financeiros',
+    segmento: 'Bancos',
+    segmentoListagem: 'Nível 1',
+  });
+  const prisma = () =>
+    ({
+      cvmCompany: {
+        findMany: vi.fn().mockResolvedValue([
+          { cnpj: ITUB, nome: 'ITAU UNIBANCO HOLDING S.A.', mesFimExercicio: 12 },
+          { cnpj: BRBI, nome: 'BRBI BR Partners S.A', mesFimExercicio: 12 },
+          { cnpj: BBDC, nome: 'BCO BRADESCO S.A.', mesFimExercicio: 12 },
+        ]),
+      },
+      cvmCompanyTicker: {
+        findMany: vi.fn().mockResolvedValue([
+          { symbol: 'ITUB3', cnpj: ITUB },
+          { symbol: 'ITUB4', cnpj: ITUB },
+          { symbol: 'BRBI11', cnpj: BRBI },
+          { symbol: 'BBDC4', cnpj: BBDC },
+        ]),
+      },
+      assetSetorB3: {
+        findMany: vi.fn().mockResolvedValue([banco('ITUB'), banco('BRBI'), banco('BBDC')]),
+      },
+    }) as unknown as PrismaClient;
+
+  it('ITUB e BRBI (individual = holding) pelo consolidado; Bradesco segue no individual', async () => {
+    const por = new Map((await listarEmissores(prisma())).map((e) => [e.cnpj, e]));
+    expect(por.get(ITUB)).toMatchObject({ ehBanco: true, escopoPreferido: 'con' });
+    expect(por.get(BRBI)).toMatchObject({ ehBanco: true, escopoPreferido: 'con' });
+    expect(por.get(BBDC)).toMatchObject({ ehBanco: true, escopoPreferido: 'ind' });
+  });
+
+  it('params com escopoPorRaiz próprio vence o padrão do código ({} desliga a exceção)', async () => {
+    const semExcecao = {
+      ...SCORING_PARAMS_V1,
+      financeiras: { ...SCORING_PARAMS_V1.financeiras, escopoPorRaiz: {} },
+    };
+    const por = new Map(
+      (await listarEmissores(prisma(), undefined, semExcecao)).map((e) => [e.cnpj, e]),
+    );
+    expect(por.get(ITUB)?.escopoPreferido).toBe('ind');
+    const bbdcCon = {
+      ...SCORING_PARAMS_V1,
+      financeiras: {
+        ...SCORING_PARAMS_V1.financeiras,
+        escopoPorRaiz: { BBDC: { escopo: 'con' as const, motivo: 'teste' } },
+      },
+    };
+    const por2 = new Map(
+      (await listarEmissores(prisma(), undefined, bbdcCon)).map((e) => [e.cnpj, e]),
+    );
+    expect(por2.get(BBDC)?.escopoPreferido).toBe('con');
+    expect(por2.get(ITUB)?.escopoPreferido).toBe('ind');
+  });
+
+  it('o JSON gravado (v2 de prod, sem o campo) continua válido no schema', () => {
+    const json = structuredClone(SCORING_PARAMS_V1) as Record<string, unknown>;
+    expect(scoringParamsSchema.safeParse(json).success).toBe(true);
+    const f = json.financeiras as Record<string, unknown>;
+    f.escopoPorRaiz = { ITUB: { escopo: 'con', motivo: 'holding' } };
+    expect(scoringParamsSchema.safeParse(json).success).toBe(true);
+    f.escopoPorRaiz = { ITUB: { escopo: 'outro', motivo: 'x' } };
+    expect(scoringParamsSchema.safeParse(json).success).toBe(false);
   });
 });
 

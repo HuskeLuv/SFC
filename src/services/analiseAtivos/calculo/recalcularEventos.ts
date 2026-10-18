@@ -1,13 +1,27 @@
 /**
  * Etapa "eventos" do job scores: verifica os eventos corporativos de todo o universo (ações pela
- * contagem de ações da CVM; FIIs pelas cotas do Informe Mensal) e regrava por símbolo só o que mudou.
+ * contagem de ações da CVM; FIIs pelas cotas do Informe Mensal; e, nas janelas curtas de
+ * janelasCotacaoEventos, pelo salto da cotação do COTAHIST) e regrava por símbolo só o que mudou.
  * Lê asset_corporate_actions só pelo repositório (leitura).
  */
 import {
+  dataUltimaContagem,
+  deduplicarEventos,
+  janelaCotacaoEvento,
+  janelaCotacaoMesFii,
   verificarEventosCorporativos,
   type EventoVerificadoCompleto,
+  type PregaoEvento,
+  type ProventoEvento,
 } from '@/services/analiseAtivos/regras/calculo/eventosCorporativos';
-import { eventosCorporativosBrutos } from '@/services/analiseAtivos/repositorio/proventos';
+import {
+  pregoesEmJanelas,
+  type JanelaPregoes,
+} from '@/services/analiseAtivos/repositorio/cotacoes';
+import {
+  eventosCorporativosBrutos,
+  rendimentosAuditadosValidos,
+} from '@/services/analiseAtivos/repositorio/proventos';
 import {
   chaveEvento,
   gravarEventosVerificados,
@@ -34,11 +48,51 @@ export interface ResultadoEventos {
   contagem: Record<string, number>;
 }
 
+/**
+ * Janelas de cotação que a verificação usa (backtest 18/10/2026): FII = mês do informe com
+ * desdobramento ± 1 (data ex real do evento 'cvm_cotas'); ação = evento posterior à última contagem
+ * de ações (confirmado pelo salto da cotação). Função pura.
+ */
+export function janelasCotacaoEventos(
+  brutos: EventoCorporativoBruto[],
+  dados: DadosBase,
+  p: ScoringParams,
+): JanelaPregoes[] {
+  const u = dados.universo;
+  const porSimbolo = agrupar(brutos, (b) => b.symbol);
+  const out: JanelaPregoes[] = [];
+  for (const symbol of simbolosDoUniverso(u)) {
+    const cnpj = u.cnpjDoSimbolo.get(symbol) ?? null;
+    if (!cnpj) continue;
+    if (u.classe.get(symbol) === 'fii') {
+      for (const m of dados.fiiMensalPorCnpj.get(cnpj) ?? []) {
+        if ((m.fatorDesdobramento ?? 0) > 1)
+          out.push({ symbol, ...janelaCotacaoMesFii(m.refMonth) });
+      }
+      continue;
+    }
+    const ultima = dataUltimaContagem(dados.contagensPorCnpj.get(cnpj) ?? []);
+    if (ultima === null) continue;
+    for (const e of deduplicarEventos(porSimbolo.get(symbol) ?? [], p)) {
+      if (e.dataEvento > ultima) out.push({ symbol, ...janelaCotacaoEvento(e.dataEvento) });
+    }
+  }
+  return out;
+}
+
 /** Função pura: verifica os eventos de todos os símbolos do universo. */
 export function verificarUniverso(
   brutos: EventoCorporativoBruto[],
   dados: DadosBase,
   p: ScoringParams,
+  /**
+   * pregões em torno dos eventos (janelasCotacaoEventos) e rendimentos auditados dos FIIs com
+   * desdobramento; sem eles, só contagens/informes
+   */
+  extras: {
+    pregoes?: ReadonlyMap<string, readonly PregaoEvento[]>;
+    rendimentos?: ReadonlyMap<string, readonly ProventoEvento[]>;
+  } = {},
 ): Map<string, EventoComCnpj[]> {
   const u = dados.universo;
   const porSimbolo = agrupar(brutos, (b) => b.symbol);
@@ -62,6 +116,7 @@ export function verificarUniverso(
             pl: m.pl,
           })),
           symbol,
+          { pregoes: extras.pregoes?.get(symbol), proventos: extras.rendimentos?.get(symbol) },
         )
       : verificarEventosCorporativos(
           doSimbolo,
@@ -69,6 +124,7 @@ export function verificarUniverso(
           p,
           undefined,
           symbol,
+          { pregoes: extras.pregoes?.get(symbol) },
         );
     if (verificados.length > 0)
       out.set(
@@ -87,7 +143,15 @@ export async function recalcularEventos(
   const simbolos = simbolosDoUniverso(dados.universo);
   const brutos = await eventosCorporativosBrutos(ctx.prisma, simbolos);
   ctx.contar('linhasLidas', brutos.length);
-  const porSimbolo = verificarUniverso(brutos, dados, ctx.params);
+  const janelas = janelasCotacaoEventos(brutos, dados, ctx.params);
+  const pregoes = await pregoesEmJanelas(ctx.prisma, janelas);
+  const fiisComDesdobramento = [
+    ...new Set(
+      janelas.filter((j) => dados.universo.classe.get(j.symbol) === 'fii').map((j) => j.symbol),
+    ),
+  ];
+  const rendimentos = await rendimentosAuditadosValidos(ctx.prisma, fiisComDesdobramento);
+  const porSimbolo = verificarUniverso(brutos, dados, ctx.params, { pregoes, rendimentos });
 
   const gravados = await lerEventosGravados(ctx.prisma);
   const chavesGravadas = new Map<string, string[]>();

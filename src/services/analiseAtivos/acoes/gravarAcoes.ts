@@ -56,7 +56,16 @@ export interface ResultadoCadastro {
 export async function gravarCadastroFca(
   prisma: PrismaClient,
   fca: { cias: Map<string, CiaFca>; titulos: TituloFca[] },
-  meta: { sourceUrl: string; hoje: string; aplicar: boolean },
+  meta: {
+    sourceUrl: string;
+    hoje: string;
+    aplicar: boolean;
+    /**
+     * a lista de negociados da B3 veio nesta execução: só então um ticker de origem 'b3' que não
+     * foi completado de novo é fechado (sem COTAHIST, nada de origem 'b3' é fechado)
+     */
+    b3Disponivel?: boolean;
+  },
 ): Promise<ResultadoCadastro> {
   const agora = new Date();
   const alertas: AlertaJob[] = [];
@@ -116,6 +125,7 @@ export async function gravarCadastroFca(
   for (const t of fca.titulos) {
     vistos.add(t.symbol);
     const aberto = abertoPorSymbol.get(t.symbol);
+    const origem = t.origem ?? 'fca';
     const dados = {
       classeFca: t.classeFca,
       unitQtdOn: t.unitQtdOn,
@@ -145,7 +155,7 @@ export async function gravarCadastroFca(
         classeTitulo: t.classeTitulo,
         ...dados,
         validFrom: deData(t.dataInicio ?? meta.hoje),
-        origem: 'fca',
+        origem,
         fetchedAt: agora,
       });
       continue;
@@ -163,7 +173,7 @@ export async function gravarCadastroFca(
         classeTitulo: t.classeTitulo,
         ...dados,
         validFrom: deData(inicio),
-        origem: 'fca',
+        origem,
         fetchedAt: agora,
       });
       alertas.push({
@@ -178,11 +188,12 @@ export async function gravarCadastroFca(
       aberto.classeFca !== dados.classeFca ||
       aberto.unitQtdOn !== dados.unitQtdOn ||
       aberto.unitQtdPn !== dados.unitQtdPn ||
-      aberto.composicaoTexto !== dados.composicaoTexto;
+      aberto.composicaoTexto !== dados.composicaoTexto ||
+      aberto.origem !== origem; // a companhia corrigiu o FCA (b3 → fca) ou passou a errar
     if (mudou || migrarCnpj) {
       atualizarTicker.push({
         id: aberto.id,
-        data: { ...dados, ...(migrarCnpj ? { cnpj: t.cnpj } : {}), fetchedAt: agora },
+        data: { ...dados, origem, ...(migrarCnpj ? { cnpj: t.cnpj } : {}), fetchedAt: agora },
       });
     }
   }
@@ -204,7 +215,11 @@ export async function gravarCadastroFca(
     }
   }
   // sumiu do FCA: fecha — mas nunca em massa (arquivo truncado/errado não derruba o universo)
-  const sumidos = abertos.filter((t) => t.origem === 'fca' && !vistos.has(t.symbol));
+  const sumidos = abertos.filter(
+    (t) =>
+      (t.origem === 'fca' || (t.origem === 'b3' && meta.b3Disponivel === true)) &&
+      !vistos.has(t.symbol),
+  );
   if (abertos.length > 0 && sumidos.length > Math.max(20, abertos.length * 0.2)) {
     alertas.push({
       codigo: 'fca_sumico_em_massa',

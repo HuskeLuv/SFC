@@ -9,6 +9,34 @@
  */
 import type { MotivoNaoSeAplica } from '@/services/analiseAtivos/tipos';
 
+export interface ExcecaoEscopo {
+  escopo: 'con' | 'ind';
+  motivo: string;
+}
+
+/**
+ * Exceções por raiz ao escopo padrão (bancos pelo individual, decisão 3; demais pelo consolidado).
+ * Vale quando o ScoringParams gravado não traz `financeiras.escopoPorRaiz` (v1/v2 de prod). Backtest
+ * 18/10/2026 (A10): no Itaú e no BR Partners o individual é o da HOLDING, não o do banco — razão
+ * receita individual ÷ consolidada medida em 2020–2025 entre as 25 financeiras do universo: entre
+ * as que usam o individual (segmento Bancos), ITUB 0,02–0,08 e BRBI 0,00–0,01; os outros bancos com
+ * os dois escopos ficam entre 0,54 e 2,49 (BB, Bradesco, Santander, ABC, Pine, BRB, Banrisul…) ou só
+ * têm o individual. PSSA e ITSA também têm razão ~0, mas já usam o consolidado (não são banco). Não
+ * generalizar sem medir.
+ */
+export const ESCOPO_POR_RAIZ_PADRAO: Readonly<Record<string, ExcecaoEscopo>> = {
+  ITUB: {
+    escopo: 'con',
+    motivo:
+      'Itaú Unibanco Holding: individual é o da holding (receita 2025 de R$ 30,7 bi no individual × R$ 387,1 bi no consolidado; margem de 147% a 611%)',
+  },
+  BRBI: {
+    escopo: 'con',
+    motivo:
+      'BR Partners: individual é o da holding (receita 0 em 2023–2025 no individual × R$ 247–365 mi no consolidado)',
+  },
+};
+
 /** Campos de AssetFundamentalsPeriod + métricas derivadas que não se aplicam a layout financeiro. */
 export const NAO_APLICAVEIS_LAYOUT_FINANCEIRO = [
   'ebit',

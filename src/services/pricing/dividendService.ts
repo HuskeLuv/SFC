@@ -11,6 +11,11 @@
 
 import { prisma } from '@/lib/prisma';
 import { recordGap } from '@/services/pricing/marketDataGap';
+import {
+  planejarGravacaoProventosBrapi,
+  planoVazio,
+  type PlanoGravacaoProventos,
+} from '@/services/pricing/proventosBrapiPlano';
 import { prevBusinessDayB3 } from '@/utils/feriadosB3';
 
 // Default banco-only quando o caller não especifica `useBrapiFallback`. Lido por
@@ -270,9 +275,10 @@ const utcMonthKey = (d: Date): string => `${d.getUTCFullYear()}-${d.getUTCMonth(
 /**
  * Busca dividendos do banco para um símbolo. Ignora linhas com assinatura de
  * fantasma mensal quando o mesmo mês tem um evento real — cinto e suspensório
- * caso um dataset assim volte a entrar no banco.
+ * caso um dataset assim volte a entrar no banco. Exportada para o script de limpeza dos espelhos
+ * órfãos da Carteira (só leitura no banco, sem fallback nem registro de lacuna).
  */
-const getDividendsFromDb = async (symbol: string): Promise<DividendEntry[]> => {
+export const getDividendsFromDb = async (symbol: string): Promise<DividendEntry[]> => {
   const variants = getDbSymbolVariants(symbol);
   const allRows = await prisma.assetDividendHistory.findMany({
     where: { symbol: { in: variants } },
@@ -285,9 +291,11 @@ const getDividendsFromDb = async (symbol: string): Promise<DividendEntry[]> => {
   const rows = allRows.filter(
     (r) => !(isPhantomMonthlyRow(r) && mesesComEventoReal.has(utcMonthKey(r.date))),
   );
+  // Chave (pagamento, tipo, data-com) — a mesma da tabela desde o backtest de 18/10/2026: dois
+  // proventos pagos no mesmo dia com datas-com diferentes são dois eventos (elegibilidade própria).
   const byKey = new Map<string, DividendEntry>();
   for (const r of rows) {
-    const key = `${r.date.getTime()}\0${r.tipo}`;
+    const key = `${r.date.getTime()}\0${r.tipo}\0${r.dataCom?.getTime() ?? ''}`;
     if (!byKey.has(key)) {
       byKey.set(key, {
         date: r.date,
@@ -298,7 +306,11 @@ const getDividendsFromDb = async (symbol: string): Promise<DividendEntry[]> => {
       });
     }
   }
-  return [...byKey.values()].sort((a, b) => a.date.getTime() - b.date.getTime());
+  return [...byKey.values()].sort(
+    (a, b) =>
+      a.date.getTime() - b.date.getTime() ||
+      (a.dataCom?.getTime() ?? 0) - (b.dataCom?.getTime() ?? 0),
+  );
 };
 
 // UTC-safe: getters locais geram offset diferente entre TZ do servidor
@@ -314,36 +326,103 @@ export interface ProventoBrapiAgregado {
 }
 
 /**
- * Agrega as entries brutas da BRAPI por (pagamento, tipo). Exportada para o script de
- * correção de data-com (scripts/corrigir-datacom-proventos.ts), que precisa da mesma
- * chave e da mesma data-com que o persist grava.
+ * Agrega as entries brutas da BRAPI por (pagamento, tipo, data-com) — a chave da tabela. Exportada
+ * para o script de correção de data-com (scripts/corrigir-datacom-proventos.ts) e para o de limpeza
+ * das somas antigas (scripts/analise-ativos/limpar-proventos-somados.ts).
  *
- * Dedup BRAPI: a API às vezes retorna múltiplas entries com mesmo (paymentDate, tipo)
- * e rates diferentes (caso BBAS3 JCP 12/06/2025). Política: SOMAR — interpreta como
- * múltiplas distribuições no mesmo dia. Preserva a primeira data-com não-nula
- * encontrada (idealmente iguais entre dups).
+ * Só SOMA parcelas com o MESMO pagamento, tipo e data-com (BBAS3 JCP 12/06/2025: 1º e 2º trimestre
+ * declarados juntos, mesma data-com). Até 18/10/2026 a chave não tinha a data-com e a soma juntava
+ * proventos de datas-com diferentes pagos no mesmo dia (backtest A1: VIVT3, SAPR11, CMIG4, ISAE4).
+ *
+ * Descarta a entry PROVISÓRIA que a BRAPI mantém ao lado da definitiva: sem approvedOn, com a
+ * data-com igual ao approvedOn de outra entry do mesmo pagamento, tipo e valor (PETR4: DIVIDENDO
+ * 0,44806667 e JCP 0,07355446 de 13/05/2024 × os de 11/06/2024 aprovados em 13/05; a B3 só tem os de
+ * 11/06). Com a chave antiga as duas viravam UMA linha somada; com a nova seriam duas.
  */
 export const agregarProventosBrapi = (
   normalized: Record<string, unknown>[],
 ): ProventoBrapiAgregado[] => {
   const aggregated = new Map<string, ProventoBrapiAgregado>();
+  // (data, pagamento, tipo, valor): data = approvedOn da definitiva ou data-com da provisória
+  const chave = (data: Date | null, d: Record<string, unknown>): string | null => {
+    const pag = extractPaymentDate(d);
+    if (!data || !pag) return null;
+    const dia = (x: Date) => toUtcMidnight(x).getTime();
+    return `${dia(data)}\0${dia(pag)}\0${extractDividendType(d)}\0${extractDividendAmount(d)}`;
+  };
+  const definitivas = new Set(
+    normalized.map((d) => chave(parseDateValue(d.approvedOn), d)).filter((k) => k !== null),
+  );
   for (const d of normalized) {
+    if (!parseDateValue(d.approvedOn)) {
+      const k = chave(extractDataCom(d), d);
+      if (k && definitivas.has(k)) continue;
+    }
     const date = extractPaymentDate(d);
     const valorUnitario = extractDividendAmount(d);
     if (!date || !valorUnitario || valorUnitario <= 0) continue;
 
     const tipo = extractDividendType(d);
     const dateNorm = toUtcMidnight(date);
-    const key = `${dateNorm.getTime()}\0${tipo}`;
+    const dataComBruta = extractDataCom(d);
+    const dataCom = dataComBruta ? toUtcMidnight(dataComBruta) : null;
+    const key = `${dateNorm.getTime()}\0${tipo}\0${dataCom?.getTime() ?? ''}`;
     const existing = aggregated.get(key);
-    if (existing) {
-      existing.valorUnitario += valorUnitario;
-      existing.dataCom = existing.dataCom ?? extractDataCom(d);
-    } else {
-      aggregated.set(key, { date: dateNorm, tipo, valorUnitario, dataCom: extractDataCom(d) });
-    }
+    if (existing) existing.valorUnitario += valorUnitario;
+    else aggregated.set(key, { date: dateNorm, tipo, valorUnitario, dataCom });
   }
   return [...aggregated.values()];
+};
+
+/**
+ * Reconcilia as linhas BRAPI do símbolo com a resposta agregada (proventosBrapiPlano): cria as
+ * chaves novas, atualiza valores e apaga as somas antigas e as versões que a fonte substituiu.
+ * Exportada para o script de limpeza (mesmo caminho de escrita do sync). Devolve o plano aplicado.
+ */
+export const gravarProventosBrapi = async (
+  dbSymbol: string,
+  aggregated: ProventoBrapiAgregado[],
+  opts: { aplicar?: boolean } = {},
+): Promise<PlanoGravacaoProventos> => {
+  const existentes = await prisma.assetDividendHistory.findMany({
+    where: { symbol: dbSymbol, source: 'BRAPI' },
+    select: { id: true, date: true, dataCom: true, tipo: true, valorUnitario: true, source: true },
+  });
+  const plano = planejarGravacaoProventosBrapi(existentes, aggregated);
+  if (opts.aplicar === false || planoVazio(plano)) return plano;
+  // tudo ou nada (backtest 18/10/2026): uma falha entre o apagar e o criar deixaria o símbolo sem
+  // as parcelas até a próxima passada (a Carteira mostraria menos proventos). Apaga ANTES de criar
+  // dentro da transação, para a chave nova nunca colidir com a soma antiga.
+  await prisma.$transaction(
+    async (tx) => {
+      if (plano.apagar.length > 0) {
+        await tx.assetDividendHistory.deleteMany({
+          where: { id: { in: plano.apagar.map((a) => a.id) } },
+        });
+      }
+      for (const u of plano.atualizar) {
+        await tx.assetDividendHistory.update({
+          where: { id: u.id },
+          data: { valorUnitario: u.valorUnitario },
+        });
+      }
+      if (plano.criar.length > 0) {
+        await tx.assetDividendHistory.createMany({
+          data: plano.criar.map((c) => ({
+            symbol: dbSymbol,
+            date: c.date,
+            dataCom: c.dataCom,
+            tipo: c.tipo,
+            valorUnitario: c.valorUnitario,
+            source: 'BRAPI',
+          })),
+          skipDuplicates: true,
+        });
+      }
+    },
+    { timeout: 60_000 },
+  );
+  return plano;
 };
 
 /**
@@ -374,7 +453,6 @@ const fetchAndPersistDividendsFromBrapi = async (symbol: string): Promise<Divide
     const entries: DividendEntry[] = [];
 
     const aggregated = agregarProventosBrapi(normalized);
-
     for (const agg of aggregated) {
       entries.push({
         date: agg.date,
@@ -383,27 +461,8 @@ const fetchAndPersistDividendsFromBrapi = async (symbol: string): Promise<Divide
         valorUnitario: agg.valorUnitario,
         valorUnitarioLiquido: computeValorUnitarioLiquido(agg.tipo, agg.valorUnitario, agg.date),
       });
-
-      const dataComNorm = agg.dataCom ? toUtcMidnight(agg.dataCom) : null;
-      await prisma.assetDividendHistory.upsert({
-        where: {
-          symbol_date_tipo: {
-            symbol: dbSymbol,
-            date: agg.date,
-            tipo: agg.tipo,
-          },
-        },
-        update: { valorUnitario: agg.valorUnitario, dataCom: dataComNorm },
-        create: {
-          symbol: dbSymbol,
-          date: agg.date,
-          dataCom: dataComNorm,
-          tipo: agg.tipo,
-          valorUnitario: agg.valorUnitario,
-          source: 'BRAPI',
-        },
-      });
     }
+    await gravarProventosBrapi(dbSymbol, aggregated);
 
     // Persist corporate actions (splits/inplits/bonuses) from same response
     const stockDividends = extractStockDividends(result);

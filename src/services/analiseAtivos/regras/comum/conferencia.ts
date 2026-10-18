@@ -134,6 +134,7 @@ export const GRUPOS_CONFERENCIA = [
   'historico',
   'fii_vp',
   'fii_obrigacoes',
+  'fii_vacancia',
 ] as const;
 
 export type GrupoConferencia = (typeof GRUPOS_CONFERENCIA)[number];
@@ -186,6 +187,9 @@ const SELO: ExibicaoConferencia = 'selo';
  *   da barra; a chave da flag é o ano).
  * - fii_vp: ticker (o FII é o próprio ticker) · fii[preco] · VP/cota e P/VP = ocultar.
  * - fii_obrigacoes: ticker · fii[divida] · Obrigações/PL com selo.
+ * - fii_vacancia: ticker · fii[rent] (componente inativo na v1/v2) · vacância = ocultar (backtest
+ *   18/10/2026, A4: gestor informando a ocupação no campo de vacância — HSML11 4T25 91,4%; salto
+ *   brusco). Chave = mês do 1º trimestre do episódio (regras/fii/saneamentoVacancia).
  */
 export const DEF_GRUPO: Record<GrupoConferencia, DefGrupo> = {
   proventos: {
@@ -203,7 +207,7 @@ export const DEF_GRUPO: Record<GrupoConferencia, DefGrupo> = {
     },
     criteriosSemaforo: ['dividendos', 'renda_recorrente'],
     campoPrincipal: 'dy12m',
-    regras: ['dy_acima_teto', 'salto_recente'],
+    regras: ['dy_acima_teto', 'salto_recente', 'linha_suspeita'],
   },
   acoes_escala: {
     escopo: 'empresa',
@@ -300,6 +304,15 @@ export const DEF_GRUPO: Record<GrupoConferencia, DefGrupo> = {
     criteriosSemaforo: ['obrigacoes_pl'],
     campoPrincipal: 'obrigacoesPl',
     regras: ['obrigacoes_acima'],
+  },
+  fii_vacancia: {
+    escopo: 'ticker',
+    classes: ['fii'],
+    componentes: { fii: ['rent'] },
+    campos: { vacanciaCvm: OCULTAR },
+    criteriosSemaforo: ['vacancia'],
+    campoPrincipal: 'vacanciaCvm',
+    regras: ['vacancia_ocupacao', 'vacancia_salto'],
   },
 };
 

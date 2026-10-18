@@ -13,6 +13,13 @@
  *    Base que começa DEPOIS de jan/(anoFim − J + 1) e cuja sequência chega até o começo da base
  *    (nenhuma lacuna dentro do que existe) = params.meses.mesesBaseCurta ('sem_dado' por padrão,
  *    com o fato 'sem dado nas demonstrações (proventos registrados desde MM/AAAA)').
+ * 4. backtest 18/10/2026 (A5/M7): lacuna de COBERTURA da base ≠ mês sem rendimento. Mês da janela
+ *    sem provento na base em que o informe mensal da CVM tem DY > 0 (e sem pagamento duplo nos meses
+ *    vizinhos nem pagamento vizinho de competência deslocada — CVM 0 no mês do pagamento: RZTR11
+ *    dez/2020 × jan/2021, decisão do Pedro pendente, fica como está) = 'sem_dado' com o fato
+ *    baseProventosIncompleta, salvo se a janela tiver um mês em que a CVM confirma que NÃO houve
+ *    distribuição (DY 0 no mês e no anterior). KNRI11 fev/2017 (DY 0,64% na CVM); BTHF11 2023–2024
+ *    (9 meses sem provento na base, todos com DY na CVM).
  * 3. v2.5 — contagens anuais de um provedor (EntradaAvaliacaoAtivo.mesesPorAno): com TODOS os anos da
  *    janela informados, n = Σ, de = 12×J (atende só com 12×J) e qualquer ano nulo = sem dado; ano da
  *    janela que o provedor não informa = a contagem da CVM acima (sem misturar as bases).
@@ -39,6 +46,10 @@ export interface MesesRendimento {
    * = só a sequência final é conhecida e a contagem cai para min(consecutivos, 12J)
    */
   mesesPagos?: readonly string[];
+  /** meses sem provento na base com distribuição no informe da CVM (lacuna de cobertura, A5/M7) */
+  mesesLacunaBase?: readonly string[];
+  /** meses sem provento na base em que a CVM confirma que não houve distribuição (DY 0 no mês e no anterior) */
+  mesesSemDistribuicaoCvm?: readonly string[];
 }
 
 /** Só a parte do ScoringParams que a contagem lê. */
@@ -63,6 +74,7 @@ export function mesesAteAnoFim(
   proventos: readonly ProventoMeses[],
   anoFim: number,
   scoring: ParamsMeses,
+  cvm?: { comRendimento: ReadonlySet<string>; semRendimento: ReadonlySet<string> },
 ): MesesRendimento {
   const cfg = scoring.sanidade.proventos;
   const semTolerancia = {
@@ -76,13 +88,38 @@ export function mesesAteAnoFim(
   let inicioBase: string | null = null;
   const pagos = new Set<string>();
   const fim = `${anoFim}-12`;
+  const porMes = new Map<string, number>();
   for (const p of proventos) {
     if (p.status !== 'valido' || !cfg.tiposFii.includes(p.tipoNormalizado)) continue;
     const mes = mesDoProvento(p);
     if (mes && (inicioBase === null || mes < inicioBase)) inicioBase = mes;
     if (mes && mes <= fim) pagos.add(mes);
+    if (mes) porMes.set(mes, (porMes.get(mes) ?? 0) + 1);
   }
-  return { consecutivos: meses, inicioBase, mesesPagos: [...pagos].sort() };
+  const out: MesesRendimento = { consecutivos: meses, inicioBase, mesesPagos: [...pagos].sort() };
+  if (cvm && inicioBase !== null) {
+    const lacunas: string[] = [];
+    const semDistribuicao: string[] = [];
+    // pagamento no vizinho que é a distribuição DESTE mês (CVM 0 no mês do pagamento) ou mais de um
+    // pagamento no vizinho: a lacuna é de calendário, não de cobertura
+    const vizinhoExplica = (v: string) =>
+      (porMes.get(v) ?? 0) > 1 || ((porMes.get(v) ?? 0) > 0 && cvm.semRendimento.has(v));
+    for (let m = inicioBase; m <= fim; m = somarMeses(m, 1)) {
+      if (pagos.has(m)) continue;
+      if (cvm.semRendimento.has(m) && cvm.semRendimento.has(somarMeses(m, -1))) {
+        semDistribuicao.push(m);
+      } else if (
+        cvm.comRendimento.has(m) &&
+        !vizinhoExplica(somarMeses(m, -1)) &&
+        !vizinhoExplica(somarMeses(m, 1))
+      ) {
+        lacunas.push(m);
+      }
+    }
+    out.mesesLacunaBase = lacunas;
+    out.mesesSemDistribuicaoCvm = semDistribuicao;
+  }
+  return out;
 }
 
 export interface ResultadoMeses {
@@ -168,6 +205,20 @@ export function avaliarMeses(
       n: total,
       de: total,
       fato: formatarTexto(t.mesesPeriodo, { n: total, total, anoInicio, anoFim }),
+    };
+  }
+  // A5/M7: lacuna de cobertura da base provada pela CVM ⇒ sem dado (a menos que a CVM também
+  // confirme um mês sem distribuição na janela — aí o "não atende" é real)
+  const naJanela = (m: string) => m >= inicioJanela && m <= fimJanela;
+  const lacunas = (meses.mesesLacunaBase ?? []).filter(naJanela);
+  if (lacunas.length > 0 && !(meses.mesesSemDistribuicaoCvm ?? []).some(naJanela)) {
+    const lista = lacunas.slice(0, 3).map(mesAno).join(', ') + (lacunas.length > 3 ? '…' : '');
+    return {
+      estado: 'sem_dado',
+      n: null,
+      de: null,
+      fato: formatarTexto(t.baseProventosIncompleta, { mesAno: lista }),
+      motivo: 'base_proventos_curta',
     };
   }
   // 1º mês da sequência que termina em dez/anoFim (dez/anoFim + 1 quando a sequência é vazia)

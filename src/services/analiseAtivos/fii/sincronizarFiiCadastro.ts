@@ -16,6 +16,10 @@
  */
 import { resumoCotacoes } from '@/services/analiseAtivos/repositorio/cotacoes';
 import { ErroFonte, ErroLayoutFonte } from '@/services/analiseAtivos/fontes/erros';
+import {
+  alertaAnoNaoPublicado,
+  anoPodeNaoEstarPublicado,
+} from '@/services/analiseAtivos/fontes/anoNaoPublicado';
 import { anosDoCron, obterArquivo, urlInformeFii } from '@/services/analiseAtivos/fii/fiiArquivos';
 import { aplicarPlanoMapa, lerMapa } from '@/services/analiseAtivos/fii/gravarFii';
 import { AgregadorAlertas } from '@/services/analiseAtivos/fii/sincronizarFiiMensal';
@@ -84,8 +88,10 @@ export async function sincronizarFiiCadastro(
       cacheDir: opts.cacheDir,
       condicional: false,
       registrar: false,
+      naoPublicadoSe404: anoPodeNaoEstarPublicado(ano, ctx.hoje),
     });
     try {
+      if (arq.status === 'nao_publicado') ctx.alertar(alertaAnoNaoPublicado(url, ano));
       if (!arq.caminho) continue;
       const r = await lerInformeMensalZip(arq.caminho, {
         arquivo: `inf_mensal_fii_${ano}.zip`,

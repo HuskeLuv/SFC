@@ -24,6 +24,7 @@ import {
   CRITERIA_PARAMS_V2,
   CRITERIA_PARAMS_V2_JSON,
 } from '@/services/analiseAtivos/params/criteriaParamsV2';
+import { ESCOPO_POR_RAIZ_PADRAO } from '@/services/analiseAtivos/regras/acoes/financeiras';
 import { avaliarAtivo } from '@/services/analiseAtivos/regras/criterios/avaliarAtivo';
 import { perfilCriterios } from '@/services/analiseAtivos/regras/criterios/perfilCriterios';
 import {
@@ -36,6 +37,7 @@ import {
   vacanciaTrimestralFii,
   type BrutoFii,
 } from '@/services/analiseAtivos/regras/criterios/seriesFii';
+import { SCORING_PARAMS_V1 } from '@/services/analiseAtivos/params/scoringParamsV1';
 import { TEXTOS_CRITERIOS } from '@/services/analiseAtivos/textosCriterios';
 import type { ScoringParams } from '@/services/analiseAtivos/tipos';
 import type {
@@ -44,6 +46,7 @@ import type {
   ResultadoCriterio,
 } from '@/types/analiseAtivosCriterios';
 import fixture from './fixtures/dev-2026-10-13.json';
+import vacFixture from '@/services/analiseAtivos/regras/fii/__tests__/fixtures/vacanciaBacktest.json';
 
 const V2 = CRITERIA_PARAMS_V2;
 const ANO_FIM = fixture.anoFim;
@@ -62,8 +65,11 @@ function v2Com(ajuste: (j: Record<string, unknown>) => void): CriteriaParams {
   return criteriaParamsSchema.parse(json);
 }
 
-function avaliarAcao(symbol: string, P: CriteriaParams = V2): AvaliacaoAtivo {
-  const a = acao(symbol);
+function avaliarAcao(
+  symbol: string,
+  P: CriteriaParams = V2,
+  a: AcaoFixture = acao(symbol),
+): AvaliacaoAtivo {
   const perfil = perfilCriterios(
     { classe: 'acao', ehFinanceira: a.ehFinanceira, fiiTipo: null, imoveisPlPct: null },
     P,
@@ -88,13 +94,17 @@ function avaliarAcao(symbol: string, P: CriteriaParams = V2): AvaliacaoAtivo {
   );
 }
 
-function avaliarFii(f: BrutoFii, P: CriteriaParams = V2): AvaliacaoAtivo {
+function avaliarFii(
+  f: BrutoFii,
+  P: CriteriaParams = V2,
+  scoring: ScoringParams = SCORING,
+): AvaliacaoAtivo {
   const perfil = perfilCriterios(
     { classe: 'fii', ehFinanceira: false, fiiTipo: f.fiiTipo, imoveisPlPct: imoveisPlPctFii(f) },
     P,
   );
   const r = resolverSeries({
-    pontos: pontosCvmFii(f, { anoFim: ANO_FIM, scoring: SCORING }),
+    pontos: pontosCvmFii(f, { anoFim: ANO_FIM, scoring }),
     series: seriesDosPerfis(P, ['fii_tijolo', 'fii_papel']),
     fontes: fontesEfetivas(P),
   });
@@ -206,6 +216,35 @@ describe('financeiras na v2: "n de 6" (literal da spec, §4.1)', () => {
   });
 });
 
+describe('A10 (backtest 18/10): ITUB4 pelo consolidado, não pelo individual da holding', () => {
+  const escopo = ESCOPO_POR_RAIZ_PADRAO.ITUB.escopo;
+  const comEscopo = (e: 'con' | 'ind') => ({ ...acao('ITUB4'), escopoPreferido: e });
+
+  it('exceção do código: ITUB e BRBI pelo consolidado', () => {
+    expect(escopo).toBe('con');
+    expect(ESCOPO_POR_RAIZ_PADRAO.BRBI.escopo).toBe('con');
+  });
+
+  it('antes (individual): margem acima de 100% "atende" e receita da holding "não atende"', () => {
+    const a = avaliarAcao('ITUB4', V2, comEscopo('ind'));
+    expect(res(a, 'mg').fato).toBe('positiva em 5 de 5 anos · mín. 147,2%');
+    expect(estado(a, 'rec')).toBe('nao_atende');
+    expect(res(a, 'rec').fato).toBe('cresceu em 4 de 5 anos · 4.102 → 30.680 (R$ mi)');
+  });
+
+  it('depois (consolidado): receita 173,8 → 387,1 bi cresce 5 de 5; margem real ~11–15%', () => {
+    const a = avaliarAcao('ITUB4', V2, comEscopo(escopo));
+    expect(estado(a, 'rec')).toBe('atende');
+    expect(res(a, 'rec').fato).toBe('cresceu em 5 de 5 anos · 173.757 → 387.118 (R$ mi)');
+    expect(estado(a, 'mg')).toBe('atende');
+    expect(res(a, 'mg').fato).toBe('positiva em 5 de 5 anos · mín. 10,5%');
+    for (const j of ['3', '5', '10'] as const) {
+      const mg = res(a, 'mg', j).serie ?? [];
+      for (const p of mg) if (p.valor !== null) expect(p.valor, `j${j} ${p.ano}`).toBeLessThan(100);
+    }
+  });
+});
+
 describe('lucro descontado (§3.2/§4.1)', () => {
   it("sem net_income_adjusted na CVM: 'luc' usa o lucro líquido na janela inteira, com a obs", () => {
     const a = avaliarAcao('WEGE3');
@@ -280,6 +319,62 @@ describe('FII na v2 (§4.1, §5, §6)', () => {
       estado: 'nao_atende',
       fato: 'dentro do limite em 4 de 5 anos · máx. 12,5% (limite 10,0%)',
     });
+  });
+
+  it('HSML11 (backtest 18/10/2026, A4): 4T25 com a ocupação (91,4%) no campo ⇒ "sem dado", não "não atende"', () => {
+    // série REAL de vacância e receita de aluguel do HSML11 (fii_quarterly de produção) sobre a
+    // estrutura de tijolo da fixture
+    const real = new Map(
+      (vacFixture.series as Record<string, Array<[string, number, number | null]>>).HSML11.map(
+        ([q, v, r]) => [q, { v, r }],
+      ),
+    );
+    const base = fii('HGLG11');
+    const hsml: BrutoFii = {
+      ...base,
+      symbol: 'HSML11',
+      trimestres: base.trimestres
+        .filter((t) => real.has(t.refQuarter))
+        .map((t) => ({
+          ...t,
+          vacanciaFisicaCvmPct: real.get(t.refQuarter)!.v,
+          receitaAluguel: real.get(t.refQuarter)!.r,
+          flags: [],
+        })),
+    };
+    const pontos = vacanciaTrimestralFii(hsml);
+    expect(pontos.find((p) => p.refQuarter === '2025-12-31')).toEqual({
+      refQuarter: '2025-12-31',
+      valor: null,
+      emConferencia: 'vacancia_ocupacao',
+    });
+    expect(pontos.find((p) => p.refQuarter === '2024-12-31')!.valor).toBeCloseTo(3.11, 2);
+    const a = avaliarFii(hsml);
+    for (const j of ['3', '5'] as const) {
+      expect(estado(a, 'vac', j), `janela ${j}`).toBe('sem_dado');
+    }
+    // antes da correção (sem o saneamento: salto mínimo inalcançável) o 4T25 entrava no ano 2025
+    // e o critério reprovava — o que o backtest viu em produção
+    const semSaneamento = {
+      sanidade: {
+        ...SCORING.sanidade,
+        fii: { ...SCORING_PARAMS_V1.sanidade.fii, vacanciaSaltoPp: 1000 },
+      },
+    } as unknown as ScoringParams;
+    const antes = avaliarFii(hsml, V2, semSaneamento);
+    expect(res(antes, 'vac', '3')).toMatchObject({
+      estado: 'nao_atende',
+      fato: 'dentro do limite em 2 de 3 anos · máx. 91,4% (limite 10,0%)',
+    });
+    // e com o 4T25 real (~3%, o que o gestor publica), o mesmo FII atende
+    const corrigido: BrutoFii = {
+      ...hsml,
+      trimestres: hsml.trimestres.map((t) =>
+        t.refQuarter === '2025-12-31' ? { ...t, vacanciaFisicaCvmPct: 3 } : t,
+      ),
+    };
+    expect(estado(avaliarFii(corrigido), 'vac', '3')).toBe('atende');
+    expect(estado(avaliarFii(corrigido), 'vac', '5')).toBe('atende');
   });
 
   it("agregação 'media' (configurável) muda o valor do ano", () => {

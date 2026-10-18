@@ -10,6 +10,17 @@
  *     dezembro pode só aparecer no ano seguinte (CYRE3 2025-12-30 ⇒ anoBase 2026);
  *  3. FII: confirma pela razão de cotas do Informe Mensal no mês do evento (HFOF11 1:10 mai/25) e um
  *     `fatorDesdobramento` do FiiMonthly sem evento bruto vira evento confirmado de origem 'cvm_cotas'.
+ *  4. (backtest 18/10/2026) evento POSTERIOR à última contagem de ações (ORVR3 ×4 em 11/08/2026,
+ *     ENJU3 ×0,1 em 09/10/2026, RCSL3/4 ×0,25 em 05/10/2026 — contagem de 30/06) não pode ser
+ *     confirmado pela razão de ações: é confirmado pelo SALTO DA COTAÇÃO no pregão ex
+ *     (fech. anterior ÷ fech. do dia ≈ fator; confirmarPelaCotacao) e fica com razaoCvm null e a
+ *     fonte FONTE_COTACAO — é o evento que a contagem ainda não reflete (contagemVigente);
+ *  5. (backtest 18/10/2026) FII: o evento de origem 'cvm_cotas' é datado pela data EX real (salto da
+ *     cotação no COTAHIST, mês do informe ±1; sem cotação, salto do rendimento), não pelo 1º dia
+ *     do mês do informe (ALZR11 1:10 era 01/04/2025, ex real 06/05/2025: o rendimento de abril não
+ *     era dividido por 10); e o informe ADIANTADO (cotas novas já no mês anterior ao evento bruto)
+ *     confirma o evento bruto (ALZR11; e os grupamentos BTYU11 ×0,01 e FLMA11 ×0,02, que eram
+ *     descartados e deixavam o rendimento antigo sem ajuste).
  * Ajustam série (fatorEventos*): 'confirmado' e 'emissao_recompra' — este último é o evento que a
  * razão de ações não confirma sozinha porque houve emissão/recompra no mesmo ano e que a Fase A
  * MANTEVE (acoes-cvm.md §2: MGLU3 2024 ×0,1 com follow-on; LREN3 2021 ×1,1 com oferta). Descartado e
@@ -25,6 +36,29 @@ import type {
 
 const DIA_MS = 24 * 60 * 60 * 1000;
 const MAX_COMBINACOES_EVENTOS = 12;
+
+/** Fonte gravada em `fontes` quando a data/confirmação veio do salto da cotação (COTAHIST). */
+export const FONTE_COTACAO = 'cotacao_b3';
+/** Fonte gravada em `fontes` do evento 'cvm_cotas' datado pelo salto do rendimento. */
+export const FONTE_RENDIMENTO = 'salto_rendimento';
+/**
+ * Confirmação pela cotação (backtest 18/10/2026): o pregão ex tem fech. anterior ÷ fech. do dia a
+ * ±25% do fator (ENJU3 0,80 → 8,24 = ×0,097 para ×0,1; RCSL4 0,27 → 0,95 = ×0,284 para ×0,25;
+ * MAXR11 1.859 → 99,87 = ×18,6 para ×19) e o pregão seguinte fica a ±25% do novo nível. Só fatores
+ * ≥ 1,5× (ou ≤ 1/1,5): bonificação de 10% se confunde com a oscilação do dia.
+ */
+const COTACAO_TOL = 0.25;
+const COTACAO_FATOR_MIN = 1.5;
+/** Pregões procurados em torno da data do evento bruto (data ex da fonte ± alguns dias). */
+const COTACAO_JANELA_ANTES_DIAS = 3;
+const COTACAO_JANELA_DEPOIS_DIAS = 5;
+
+/** Pregão do COTAHIST (preço cru) usado para datar/confirmar evento pela cotação. */
+export interface PregaoEvento {
+  date: string;
+  closeRaw: number;
+  negocios?: number;
+}
 
 /** Status que ajustam séries por ação (ver cabeçalho). */
 export function eventoAjustaSerie(status: EventoCorporativoVerificado['status']): boolean {
@@ -65,6 +99,89 @@ function ano(data: string): number {
 function dentroTol(a: number, b: number, tolPct: number): boolean {
   if (!(a > 0) || !(b > 0)) return false;
   return Math.abs(a / b - 1) <= tolPct / 100;
+}
+
+function maisDias(data: string, dias: number): string {
+  return new Date(ms(data) + dias * DIA_MS).toISOString().slice(0, 10);
+}
+
+function ultimoDiaDoMes(refMonth: string): string {
+  const a = ano(refMonth);
+  const m = Number(refMonth.slice(5, 7));
+  return new Date(Date.UTC(a, m, 0)).toISOString().slice(0, 10);
+}
+
+/**
+ * Pregão ex de um desdobramento/grupamento de fator `fator` entre `de` e `ate` (inclusive) pelo salto
+ * da cotação: fech. do pregão anterior ÷ fech. do dia a ±COTACAO_TOL do fator e o pregão seguinte
+ * (quando há) a ±COTACAO_TOL do novo nível. Mais de um candidato ⇒ o mais próximo do fator. null =
+ * sem salto compatível (ou fator pequeno demais para a cotação distinguir).
+ */
+export function dataExPelaCotacao(
+  serie: readonly PregaoEvento[],
+  fator: number,
+  de: string,
+  ate: string,
+): string | null {
+  if (!(fator > 0) || Math.abs(Math.log(fator)) < Math.log(COTACAO_FATOR_MIN)) return null;
+  const s = serie
+    .filter((x) => x.closeRaw > 0 && (x.negocios === undefined || x.negocios > 0))
+    .sort((a, b) => a.date.localeCompare(b.date));
+  const tolLog = Math.log(1 + COTACAO_TOL);
+  let melhor: { data: string; dist: number } | null = null;
+  for (let i = 1; i < s.length; i++) {
+    const dia = s[i];
+    if (dia.date < de || dia.date > ate) continue;
+    const dist = Math.abs(Math.log(s[i - 1].closeRaw / dia.closeRaw / fator));
+    if (dist > tolLog) continue;
+    const seg = s[i + 1];
+    if (seg && Math.abs(Math.log(seg.closeRaw / dia.closeRaw)) > tolLog) continue;
+    if (!melhor || dist < melhor.dist) melhor = { data: dia.date, dist };
+  }
+  return melhor?.data ?? null;
+}
+
+/** Rendimento auditado (válido) de FII: data-com real e valor por cota, cru. */
+export interface ProventoEvento {
+  dataCom: string;
+  valor: number;
+}
+
+/**
+ * Sem cotação (fundo ainda não listado): a data do desdobramento pelo SALTO DO RENDIMENTO entre dois
+ * rendimentos consecutivos (por data-com) na janela — anterior ÷ seguinte a ±COTACAO_TOL do fator ⇒
+ * o evento é o dia seguinte à data-com do anterior (TSNC11 1:60: 37,56 com data-com 15/07/2022 e
+ * 0,626 em 12/08/2022 ⇒ 16/07/2022; o de julho ainda é da base antiga). null = sem salto.
+ */
+export function dataPeloSaltoDoRendimento(
+  proventos: readonly ProventoEvento[],
+  fator: number,
+  de: string,
+  ate: string,
+): string | null {
+  if (!(fator > 0) || Math.abs(Math.log(fator)) < Math.log(COTACAO_FATOR_MIN)) return null;
+  // o rendimento anterior ao evento pode ter data-com até ~1 mês e meio antes da janela; duas linhas
+  // na mesma data-com somam (GARE11 29/07/2022: 0,82 + 0,079)
+  const porData = new Map<string, number>();
+  for (const x of proventos) {
+    if (!(x.valor > 0) || x.dataCom < maisDias(de, -75) || x.dataCom > maisDias(ate, 45)) continue;
+    porData.set(x.dataCom, (porData.get(x.dataCom) ?? 0) + x.valor);
+  }
+  const s = [...porData].sort((a, b) => a[0].localeCompare(b[0]));
+  const tolLog = Math.log(1 + COTACAO_TOL);
+  const perto = (a: number, b: number) => Math.abs(Math.log(a / b)) <= tolLog;
+  for (let i = 1; i < s.length; i++) {
+    const [dataAnt, ant] = s[i - 1];
+    const [data, atual] = s[i];
+    if (data < de || data > ate) continue;
+    if (!perto(ant / atual, fator)) continue;
+    // mudança de NÍVEL: o anterior parecido com o que vem antes dele e o atual com o seguinte
+    // (quando existem) — um rendimento extraordinário isolado não data o evento
+    if (i >= 2 && !perto(s[i - 2][1], ant)) continue;
+    if (i + 1 < s.length && !perto(s[i + 1][1], atual)) continue;
+    return maisDias(dataAnt, 1);
+  }
+  return null;
 }
 
 /** Tipo do evento pelo texto da fonte; fora da lista de params ⇒ null (ignorado). */
@@ -246,16 +363,50 @@ export function verificarEventosCorporativos(
   p: ScoringParams,
   fii?: MesCotasFii[],
   symbol?: string,
+  /**
+   * pregões do símbolo em torno dos eventos (datar/confirmar pela cotação) e, para FII, rendimentos
+   * auditados válidos (datar pelo salto do rendimento quando não há cotação); sem eles, como antes
+   */
+  extras: { pregoes?: readonly PregaoEvento[]; proventos?: readonly ProventoEvento[] } = {},
 ): EventoVerificadoCompleto[] {
   const dedup = deduplicarEventos(brutos, p);
   const alvo = symbol ?? brutos[0]?.symbol ?? '';
-  return fii ? verificarFii(dedup, fii, p, alvo) : verificarAcoes(dedup, contagens, p);
+  return fii
+    ? verificarFii(dedup, fii, p, alvo, extras.pregoes ?? [], extras.proventos ?? [])
+    : verificarAcoes(dedup, contagens, p, extras.pregoes ?? []);
+}
+
+/** Data da contagem de ações mais recente que entra na verificação (null = nenhuma). */
+export function dataUltimaContagem(contagens: ContagemAcoes[]): string | null {
+  let ult: string | null = null;
+  for (const c of contagens) {
+    if (c.status === 'nao_verificavel' || c.total === null || !(c.total > 0)) continue;
+    if (ult === null || c.data > ult) ult = c.data;
+  }
+  return ult;
+}
+
+/**
+ * Janela de pregões em que se procura o salto de um evento de ação: a data ex da fonte ± alguns dias
+ * (a BRAPI/Yahoo às vezes erram por um pregão).
+ */
+export function janelaCotacaoEvento(dataEvento: string): { de: string; ate: string } {
+  return {
+    de: maisDias(dataEvento, -COTACAO_JANELA_ANTES_DIAS),
+    ate: maisDias(dataEvento, COTACAO_JANELA_DEPOIS_DIAS),
+  };
+}
+
+/** Janela de pregões de um desdobramento visto no Informe Mensal do mês `refMonth` (mês ± 1). */
+export function janelaCotacaoMesFii(refMonth: string): { de: string; ate: string } {
+  return { de: mesAnterior(refMonth), ate: ultimoDiaDoMes(mesSeguinte(refMonth)) };
 }
 
 function verificarAcoes(
   eventos: EventoDedup[],
   contagens: ContagemAcoes[],
   p: ScoringParams,
+  pregoes: readonly PregaoEvento[],
 ): EventoVerificadoCompleto[] {
   const tol = p.sanidade.eventos.confirmacaoTolPct;
   const acoes = acoesPorAno(contagens);
@@ -266,6 +417,7 @@ function verificarAcoes(
   for (const a of anos) {
     const fim = acoes.get(a);
     const ini = acoes.get(a - 1);
+    if (!fim || !ini) continue;
     const pendentes = eventos
       .map((e, idx) => ({
         idx,
@@ -275,7 +427,6 @@ function verificarAcoes(
       }))
       .filter((x) => resultado[x.idx] === null && cands[x.idx].includes(a));
     if (pendentes.length === 0) continue;
-    if (!fim || !ini) continue;
     const razao = fim.total / ini.total;
     const selLarga = melhorSubconjunto(pendentes, razao, tol);
     const sel =
@@ -288,6 +439,18 @@ function verificarAcoes(
       if (sel?.has(x.idx)) {
         resultado[x.idx] = completo(e, a, 'confirmado', razao, prodAno);
       } else if (ultimoCandidato) {
+        // evento do MESMO ano civil posterior à contagem do ano que a razão não explica (ITR de
+        // 30/06 entregue antes do split de agosto: ENJU3 ×0,1 em 09/10/2026 dava razão 1 ⇒
+        // 'descartado') ⇒ confirmação pelo salto da cotação, com razaoCvm null (a contagem ainda
+        // não o reflete). Se a contagem já o reflete (ITR entregue depois do evento: LUPA3 ×0,1 em
+        // 14/08/2026 no ITR de 30/06), a razão o confirma acima, como antes.
+        if (ano(e.dataEvento) === a && e.dataEvento > fim.data) {
+          const conf = confirmadoPelaCotacao(e, pregoes);
+          if (conf) {
+            resultado[x.idx] = conf;
+            continue;
+          }
+        }
         // não entrou no subconjunto que bate: ações não mudaram (ou o subconjunto bastou) ⇒
         // descartado; nada bate ⇒ emissão/recompra no ano SÓ se o evento for coerente com a
         // razão (senão não validável — nunca ajusta: LIGT3 2021 par ×10/×0,01, CALI3 2022 ×400)
@@ -302,10 +465,28 @@ function verificarAcoes(
     }
   }
 
-  // sem contagem validada no(s) ano(s) candidato(s): não validável (anoBase = ano da data)
-  return eventos.map(
-    (e, idx) => resultado[idx] ?? completo(e, ano(e.dataEvento), 'nao_validavel', null, null),
-  );
+  // sem contagem validada no(s) ano(s) candidato(s): evento posterior à última contagem ⇒ confirma
+  // pelo salto da cotação no pregão ex (razaoCvm null + FONTE_COTACAO: a contagem ainda não o
+  // reflete); senão não validável (anoBase = ano da data)
+  const ultima = dataUltimaContagem(contagens);
+  return eventos.map((e, idx) => {
+    const r = resultado[idx];
+    if (r) return r;
+    const conf =
+      ultima !== null && e.dataEvento > ultima ? confirmadoPelaCotacao(e, pregoes) : null;
+    return conf ?? completo(e, ano(e.dataEvento), 'nao_validavel', null, null);
+  });
+}
+
+/** Evento confirmado pelo salto da cotação no pregão ex (razaoCvm null + FONTE_COTACAO) ou null. */
+function confirmadoPelaCotacao(
+  e: EventoDedup,
+  pregoes: readonly PregaoEvento[],
+): EventoVerificadoCompleto | null {
+  const j = janelaCotacaoEvento(e.dataEvento);
+  if (dataExPelaCotacao(pregoes, e.fator, j.de, j.ate) === null) return null;
+  const c = completo(e, ano(e.dataEvento), 'confirmado', null, null);
+  return { ...c, fontes: [...c.fontes, FONTE_COTACAO] };
 }
 
 /**
@@ -404,6 +585,8 @@ function verificarFii(
   meses: MesCotasFii[],
   p: ScoringParams,
   symbol: string,
+  pregoes: readonly PregaoEvento[],
+  proventos: readonly ProventoEvento[],
 ): EventoVerificadoCompleto[] {
   const tol = p.sanidade.eventos.confirmacaoTolPct;
   const cotas = new Map<string, number>();
@@ -425,8 +608,16 @@ function verificarFii(
     }
     const razoes = depois.map((d) => d / antes);
     const bate = razoes.find((r) => dentroTol(e.fator, r, tol));
+    // informe ADIANTADO: o gestor já informou as cotas novas no mês ANTERIOR ao evento (ALZR11 1:10
+    // ex 06/05/2025 com as cotas ×10 no informe de abril) ⇒ o salto do mês anterior confirma o
+    // evento bruto, que fica com a data ex dele; o mês anterior não vira evento 'cvm_cotas'
+    const antesDoAnterior = cotas.get(mesAnterior(mesAnterior(mes)));
+    const razaoAdiantada = antesDoAnterior === undefined ? undefined : antes / antesDoAnterior;
     if (bate !== undefined) {
       out.push(completo(e, ano(e.dataEvento), 'confirmado', bate, e.fator));
+    } else if (razaoAdiantada !== undefined && dentroTol(e.fator, razaoAdiantada, tol)) {
+      mesesComEvento.add(mesAnterior(mes));
+      out.push(completo(e, ano(mesAnterior(mes)), 'confirmado', razaoAdiantada, e.fator));
     } else {
       const semMudanca = razoes.every((r) => dentroTol(r, 1, tol));
       const status = semMudanca
@@ -455,16 +646,32 @@ function verificarFii(
       if (plAtual === null || plAnterior === null || !dentroTol(plAtual, plAnterior, tol)) continue;
     }
     if (saltoDeIdaEVolta(m, porMes, tol)) continue;
+    // data EX real pelo salto da cotação no mês do informe ± 1 (backtest 18/10/2026: CXRI11 ex
+    // 10/09/2020, EQIR11 29/09/2022, GAME11 11/03/2022, MAXR11 27/04/2021); sem cotação (fundo
+    // ainda não listado), pelo salto do rendimento (TSNC11); sem nenhum dos dois (RZAT11), o 1º
+    // dia do mês do informe, como antes
+    const j = janelaCotacaoMesFii(m.refMonth);
+    const porCotacao = dataExPelaCotacao(pregoes, m.fatorDesdobramento, j.de, j.ate);
+    const porRendimento = porCotacao
+      ? null
+      : dataPeloSaltoDoRendimento(proventos, m.fatorDesdobramento, j.de, j.ate);
+    const dataEvento = porCotacao ?? porRendimento ?? m.refMonth;
+    const fontes = ['cvm_cotas'];
+    if (porCotacao) fontes.push(FONTE_COTACAO);
+    if (porRendimento) fontes.push(FONTE_RENDIMENTO);
     out.push({
       symbol,
-      dataEvento: m.refMonth,
+      dataEvento,
       fator: m.fatorDesdobramento,
       tipo: 'DESDOBRAMENTO',
+      // anoBase = ano do INFORME com as cotas novas (não o da data ex): é o que as séries por cota
+      // usam (fatorCotasApos pelo mês do informe). MCRE11: ex 16/12/2023, cotas ×10 no informe de
+      // jan/2024 ⇒ anoBase 2024 (com 2023 o rendimento de 2023 era dividido duas vezes)
       anoBase: ano(m.refMonth),
       status: 'confirmado',
       razaoCvm: m.fatorDesdobramento,
       idsOrigem: [],
-      fontes: ['cvm_cotas'],
+      fontes,
       fatorProdutoAno: m.fatorDesdobramento,
     });
   }

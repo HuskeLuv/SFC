@@ -69,8 +69,17 @@ import {
 } from '@/services/analiseAtivos/leitura/linhasQuadro';
 import {
   CAMPO_COLUNA_FUNDAMENTOS,
+  aplicarConferenciaCampo,
   flagsAnuaisConf,
 } from '@/services/analiseAtivos/leitura/ativo/conferenciasAtivo';
+import { formatarFlagConf } from '@/services/analiseAtivos/regras/comum/conferencia';
+import {
+  conferirVacancia,
+  liberadaPor,
+  type VacanciaEmConferencia,
+} from '@/services/analiseAtivos/regras/fii/saneamentoVacancia';
+import { SCORING_PARAMS_V1 } from '@/services/analiseAtivos/params/scoringParamsV1';
+import { liberacoesVacancia } from '@/services/analiseAtivos/repositorio/curadoria';
 import {
   anosPerShareEmConferencia,
   aplicarPerShareNosCodigos,
@@ -756,6 +765,8 @@ export interface EntradaFundamentosFii {
   cnpjEmConferencia?: boolean;
   /** bloco C: flags 'conf:' e motivos da linha; ausente = como hoje */
   conferencia?: ConferenciaEntrada;
+  /** episódios de vacância liberados pela curadoria ('regra|chave'; saneamentoVacancia) */
+  vacanciaLiberadas?: string[];
 }
 
 /** Colunas do FII que vêm do informe CVM do CNPJ. */
@@ -824,9 +835,25 @@ function nImoveis(t: TrimestreFii | undefined): number | null {
   return t.nImoveisRenda + (t.nImoveisOutros ?? 0);
 }
 
-function vacanciaDe(t: TrimestreFii | undefined, anual: number | null | undefined) {
-  if (t?.flags.includes('nsa:vacanciaFisicaCvmPct')) return naoSeAplicaCom('papel_sem_imoveis');
-  return estadoDe(t?.vacanciaFisicaCvmPct ?? anual);
+/**
+ * Vacância do trimestre (4º do ano ou o mais recente). Trimestre com a vacância em conferência pela
+ * série (A4 do backtest: ocupação no campo de vacância, salto brusco) = '—' + chip, o número do
+ * informe só no "Por quê?" — a mesma política do grupo 'fii_vacancia' no Quadro.
+ */
+function vacanciaDe(
+  t: TrimestreFii | undefined,
+  anual: number | null | undefined,
+  emConf: ReadonlyMap<string, VacanciaEmConferencia>,
+): { estado: Estado<number>; conferencia: boolean } {
+  if (t?.flags.includes('nsa:vacanciaFisicaCvmPct')) {
+    return { estado: naoSeAplicaCom('papel_sem_imoveis'), conferencia: false };
+  }
+  const estado = estadoDe(t?.vacanciaFisicaCvmPct ?? anual);
+  const c = t ? emConf.get(t.refQuarter) : undefined;
+  if (!c) return { estado, conferencia: false };
+  const flag = formatarFlagConf({ grupo: 'fii_vacancia', regra: c.regra, chave: c.chave });
+  const r = aplicarConferenciaCampo(estado, [flag], [], 'vacanciaCvm', 'fii', { pagina: true });
+  return { estado: r.estado, conferencia: r.conf !== null };
 }
 
 export function montarFundamentosFii(e: EntradaFundamentosFii): FundamentosResposta {
@@ -845,6 +872,17 @@ export function montarFundamentosFii(e: EntradaFundamentosFii): FundamentosRespo
   }
   const psPorAno = new Map(e.perShare.map((p) => [p.anoFiscal, p]));
   const mPorAno = new Map(e.multiplos.map((m) => [m.anoFiscal, m]));
+  const vacConf = papel
+    ? new Map<string, VacanciaEmConferencia>()
+    : conferirVacancia(
+        trimestres.map((t) => ({
+          refQuarter: t.refQuarter,
+          vacanciaPct: t.flags.includes('nsa:vacanciaFisicaCvmPct') ? null : t.vacanciaFisicaCvmPct,
+          receitaAluguel: t.receitaAluguel,
+        })),
+        SCORING_PARAMS_V1.sanidade.fii,
+        liberadaPor(e.vacanciaLiberadas),
+      );
   // Anos com dado anual (per-share/múltiplos); só trimestres soltos (ex.: o 4T do ano de estreia)
   // não abrem linha. Sem dado anual nenhum, valem os anos com informe trimestral.
   const candidatos = new Set<number>([
@@ -877,6 +915,7 @@ export function montarFundamentosFii(e: EntradaFundamentosFii): FundamentosRespo
     if (!cnpjConf && receita.estado === 'ausente' && receita.motivo === 'ano_incompleto') {
       algumIncompleto = true;
     }
+    let vacEmConf = false;
     const valores: Record<string, Estado<number>> = {
       receita: papel ? receitaPapel(ts, receita) : receita,
       resultado: somaTrimestres(ts, 'resultadoTrimestral'),
@@ -889,16 +928,20 @@ export function montarFundamentosFii(e: EntradaFundamentosFii): FundamentosRespo
       valores.nCri = estadoDe(q4?.nCri);
       valores.maiorCri = estadoDe(q4?.maiorCriPct);
     } else {
-      valores.vacancia = vacanciaDe(q4, m?.vacanciaFisicaCvmPct);
+      const vac = vacanciaDe(q4, m?.vacanciaFisicaCvmPct, vacConf);
+      valores.vacancia = vac.estado;
+      vacEmConf = vac.conferencia;
       valores.nImoveis = estadoDe(nImoveis(q4) ?? m?.nImoveisCvm);
       valores.area = estadoDe(q4?.areaM2);
     }
+    const selos: TipoSeloEstado[] = suspeitos.has(ano) ? [SELO_CONF] : [];
+    if (vacEmConf && !cnpjConf) selos.push(SELO_CONF_BLOCO_C);
     return {
       rotulo: String(ano),
       ano,
       ultimoAno: i === anos.length - 1,
       valores: cnpjConf ? semInformeConferido(valores) : valores,
-      selos: suspeitos.has(ano) ? [SELO_CONF] : [],
+      selos,
     };
   });
 
@@ -940,20 +983,27 @@ export function montarFundamentosFii(e: EntradaFundamentosFii): FundamentosRespo
       pvp: estadoDe(a?.pvp),
     };
     if (papel) valores.receita = receitaPapel(ultimos4, valores.receita);
+    let vacEmConf = false;
     if (papel) {
       valores.nCri = estadoDe(ultimo.nCri);
       valores.maiorCri = estadoDe(ultimo.maiorCriPct);
     } else {
-      valores.vacancia = vacanciaDe(ultimo, null);
+      // a linha do Quadro já traz o grupo (motor de sanidade, v2): conferirLinha aplica abaixo
+      const doQuadro = (e.conferencia?.flags ?? []).some((f) => f.startsWith('conf:fii_vacancia:'));
+      const vac = vacanciaDe(ultimo, null, doQuadro ? new Map() : vacConf);
+      valores.vacancia = vac.estado;
+      vacEmConf = vac.conferencia;
       valores.nImoveis = estadoDe(nImoveis(ultimo));
       valores.area = estadoDe(ultimo.areaM2);
     }
+    const selos: TipoSeloEstado[] = conf ? [SELO_CONF] : [];
+    if (vacEmConf) selos.push(SELO_CONF_BLOCO_C);
     linhas.push({
       rotulo: TEXTOS_TELA.ativo.ult12mTabela,
       ano: null,
       ultimoAno: false,
       valores,
-      selos: conf ? [SELO_CONF] : [],
+      selos,
     });
   }
 
@@ -1051,7 +1101,7 @@ export async function obterFundamentosEssencial(
   if (linha.classe === 'fii') {
     // ticker↔CNPJ não conferido: o informe do CNPJ pode ser de outro fundo (nem é lido)
     const cnpjEmConferencia = linha.flags.includes(FLAG_CNPJ_EM_CONFERENCIA);
-    const [trim, ps, my, mc, desd] = await Promise.all([
+    const [trim, ps, my, mc, desd, vacLib] = await Promise.all([
       cnpjEmConferencia
         ? Promise.resolve([])
         : prisma.fiiQuarterly.findMany({
@@ -1095,6 +1145,9 @@ export async function obterFundamentosEssencial(
             where: { cnpj: linha.cnpj, fatorDesdobramento: { not: null } },
             select: { refMonth: true, fatorDesdobramento: true },
           }),
+      cnpjEmConferencia
+        ? Promise.resolve(new Map<string, string[]>())
+        : liberacoesVacancia(prisma, [symbol]),
     ]);
     dados = montarFundamentosFii({
       hoje,
@@ -1115,6 +1168,7 @@ export async function obterFundamentosEssencial(
       proventosEmConferencia: conf,
       cnpjEmConferencia,
       conferencia: { flags: linha.flags, motivos: linha.motivosIncompleto },
+      vacanciaLiberadas: vacLib.get(symbol.toUpperCase()),
     });
   } else {
     const [periodos, ps, my, mc, params, pontosDescontado] = await Promise.all([

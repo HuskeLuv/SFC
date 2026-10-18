@@ -1,0 +1,16 @@
+CNPJ_Companhia;Data_Referencia;Versao;ID_Documento;Nome_Empresarial;Valor_Mobiliario;Sigla_Classe_Acao_Preferencial;Classe_Acao_Preferencial;Codigo_Negociacao;Composicao_BDR_Unit;Mercado;Sigla_Entidade_Administradora;Entidade_Administradora;Data_Inicio_Negociacao;Data_Fim_Negociacao;Segmento;Data_Inicio_Listagem;Data_Fim_Listagem
+01.838.723/0001-27;2026-01-01;2;159005;BRF S.A.;Ações Ordinárias;;;BRFS3;;Bolsa;B3;B3 S.A. - Brasil, Bolsa, Balcão.;2006-02-17;2025-09-22;Novo Mercado;2006-02-17;
+03.853.896/0001-40;2026-01-01;1;158008;MARFRIG GLOBAL FOODS S.A.;Ações Ordinárias;;;ADR;;Bolsa;B3;B3 S.A. - Brasil, Bolsa, Balcão.;2007-06-29;;Novo Mercado;2007-06-29;
+04.601.397/0001-28;2026-01-01;2;158004;BRISANET SERVIÇOS DE TELECOMUNICAÇÕES S.A.;Ações Ordinárias;;;BRST3;;Balcão Não-Organizado;B3;B3 S.A. - Brasil, Bolsa, Balcão.;2024-12-05;;Novo Mercado;2024-07-29;
+08.364.948/0001-38;2026-01-01;2;161432;ALUPAR INVESTIMENTO S/A;Units;;;ALUP11;1 ON E 2 PN;Bolsa;B3;B3 S.A. - Brasil, Bolsa, Balcão.;2013-04-23;;Nível 2 de Governança Corporativa;2013-04-23;
+08.902.291/0001-15;2026-01-01;1;158711;CSN MINERAÇÃO S.A.;Ações Ordinárias;;;25585;;Bolsa;B3;B3 S.A. - Brasil, Bolsa, Balcão.;2021-02-12;;Nível 2 de Governança Corporativa;2021-02-12;
+30.306.294/0001-45;2026-01-01;1;158545;BCO BTG PACTUAL S.A.;Units;;;000000;1 ON E 2 PNA;Bolsa;B3;B3 S.A. - Brasil, Bolsa, Balcão.;2012-04-26;;Nível 2 de Governança Corporativa;2012-04-26;
+30.540.991/0001-66;2026-01-01;1;155622;HAGA S.A. INDUSTRIA E COMERCIO;Ações Preferenciais;PNA;Preferencial Classe A;2;;Bolsa;B3;B3 S.A. - Brasil, Bolsa, Balcão.;1988-09-01;;Básico;1988-09-01;
+33.042.730/0001-04;2026-01-01;1;158706;CIA SIDERURGICA NACIONAL;Ações Ordinárias;;;4030;;Bolsa;B3;B3 S.A. - Brasil, Bolsa, Balcão.;1973-07-09;;Básico;1973-07-09;
+33.042.730/0001-04;2026-01-01;1;158706;CIA SIDERURGICA NACIONAL;Debêntures;;;;;Balcão Organizado;B3;B3 S.A. - Brasil, Bolsa, Balcão.;2011-07-20;;Básico;2011-07-20;
+33.453.598/0001-23;2026-01-01;2;160320;RAÍZEN S.A.;Debêntures;;;;;Balcão Organizado;B3;B3 S.A. - Brasil, Bolsa, Balcão.;2024-10-08;;Básico;2024-10-08;
+33.453.598/0001-23;2026-01-01;2;160320;RAÍZEN S.A.;Ações Preferenciais;;;RAIZ4;;Bolsa;B3;B3 S.A. - Brasil, Bolsa, Balcão.;2021-08-05;2021-09-10;Nível 2 de Governança Corporativa;2021-08-05;
+45.242.914/0001-05;2026-01-01;1;156253;C&A Modas S.A.;Ações Ordinárias;;;CEAB3;;Bolsa;B3;B3 S.A. - Brasil, Bolsa, Balcão.;2019-10-28;2019-10-28;Novo Mercado;2019-10-24;
+52.270.350/0001-71;2026-01-01;6;157788;B100 S.A.;Ações Ordinárias;;;B1003;;Bolsa;B3;B3 S.A. - Brasil, Bolsa, Balcão.;2025-02-28;;Novo Mercado;2025-02-28;
+59.717.553/0001-02;2026-01-01;3;157192;GRUPO MULTILASER S.A.;Ações Ordinárias;;;MLAS3;;;B3;B3 S.A. - Brasil, Bolsa, Balcão.;2021-07-21;;Novo Mercado;2021-07-21;
+89.637.490/0001-45;2026-01-01;1;155729;KLABIN S.A.;Units;;;KLBN11;1 KLBN3 + 4 KLBN4;Bolsa;B3;B3 S.A. - Brasil, Bolsa, Balcão.;2014-01-07;;Nível 2 de Governança Corporativa;2013-11-28;

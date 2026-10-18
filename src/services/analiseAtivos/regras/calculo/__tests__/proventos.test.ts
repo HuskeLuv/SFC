@@ -673,7 +673,9 @@ describe('repetições da fonte com a mesma data-com (diagnóstico DY absurdo 02
     expect(aud.filter((x) => x.status === 'duplicata').map((x) => x.origemId)).toEqual(['a', 'c']);
   });
 
-  it('CEBR5 (PN): valor da ON (÷1,1) misturado no ticker ⇒ fica o maior; ON fica o menor', () => {
+  // backtest 18/10/2026: a B3 (suplemento por ISIN) dá CEBR5 = PNA = ON = 1,665744588 e
+  // CEBR6 = PNB = 1,832319047 em 10/12/2025 — o prêmio é da PNB na CEB. Fica a linha COM pagamento.
+  it('CEBR5 (PNA): o valor da PNB (×1,1) misturado sem pagamento sai; fica o pago (= B3)', () => {
     const pn = auditarProventos(
       [
         linha('s', 'CEBR5', 1.832319, '2025-09-09', '2025-09-09'),
@@ -683,10 +685,10 @@ describe('repetições da fonte com a mesma data-com (diagnóstico DY absurdo 02
       P,
       { classe: 'acao' },
     );
-    const sai = pn.find((x) => x.origemId === 'p')!;
-    expect(sai).toMatchObject({ status: 'duplicata', duplicataDe: 's' });
+    const sai = pn.find((x) => x.origemId === 's')!;
+    expect(sai).toMatchObject({ status: 'duplicata', duplicataDe: 'p' });
     expect(sai.flags).toContain('duplicata_classe_irma');
-    expect(pn.find((x) => x.origemId === 's')!.status).toBe('valido');
+    expect(pn.find((x) => x.origemId === 'p')!.status).toBe('valido');
 
     const on = auditarProventos(
       [
@@ -699,6 +701,32 @@ describe('repetições da fonte com a mesma data-com (diagnóstico DY absurdo 02
     );
     expect(on.find((x) => x.origemId === 's')!.status).toBe('duplicata');
     expect(on.find((x) => x.origemId === 'p')!.status).toBe('valido');
+  });
+
+  it('BRSR6 (PNB, Banrisul): JCP de 26/12/2025 0,4625375 sem pagamento (valor da PNA, razão 1,051) × 0,44004976 pago ⇒ fica o pago (= B3)', () => {
+    const aud = auditarProventos(
+      [
+        linha('pna', 'BRSR6', 0.4625375, '2025-12-26', '2025-12-26', 'JCP'),
+        linha('pnb', 'BRSR6', 0.44004976, '2026-01-09', '2025-12-26', 'JCP'),
+        // 13/09/2023: PNA 0,18339227 × PNB 0,17162494 (razão 1,069)
+        linha('pna2', 'BRSR6', 0.18339227, '2023-09-13', '2023-09-13', 'JCP'),
+        linha('pnb2', 'BRSR6', 0.17162494, '2023-09-29', '2023-09-13', 'JCP'),
+      ],
+      [],
+      P,
+      { classe: 'acao' },
+    );
+    expect(
+      aud
+        .filter((x) => x.status === 'valido')
+        .map((x) => x.origemId)
+        .sort(),
+    ).toEqual(['pnb', 'pnb2']);
+    expect(aud.find((x) => x.origemId === 'pna')!.flags).toContain('duplicata_classe_irma');
+    expect(rendimento12m(aud, '2026-10-16', 'acao', [], P)).toEqual({
+      estado: 'ok',
+      valor: 0.44004976,
+    });
   });
 
   it('FII não usa o prêmio das PN; valores diferentes e parcelas pagas não são tocados', () => {
@@ -771,7 +799,9 @@ describe('repetições da fonte com a mesma data-com (diagnóstico DY absurdo 02
   });
 
   describe('data-com deslocada 1 pregão (conferência em prod 02/10/2026)', () => {
-    it('CPFE3: 3,7315 pago (data-com 28/04) × 3,7315 sem pagamento (data-com 29/04) ⇒ só a sem pagamento sai; o cronograma real de 29/04 fica', () => {
+    // backtest 18/10/2026: a B3 tem SÓ o total 3,731536204 (data-com 29/04/2026, pago até 31/12);
+    // as parcelas de 30/04 são da mesma declaração e somavam junto (DY 11,78% × 7,56% da B3)
+    it('CPFE3: 3,7315 sem pagamento (data-com 30/04) é repetição do pago; as parcelas de 30/04, pagas antes do total, saem (parcela_de_total)', () => {
       const aud = auditarProventos(
         [
           linha('pago', 'CPFE3', 3.7315361, '2026-12-31', '2026-04-29'),
@@ -791,13 +821,14 @@ describe('repetições da fonte com a mesma data-com (diagnóstico DY absurdo 02
       expect(rep.dataComReal).toBe('2026-04-30');
       expect(rep).toMatchObject({ status: 'duplicata', duplicataDe: 'pago' });
       expect(rep.flags).toContain('duplicata_sem_pagamento');
-      expect(aud.filter((x) => x.status === 'valido').map((x) => x.origemId)).toEqual([
-        'pago',
-        'p1',
-        'p2',
-        'p3',
-        'p4',
-      ]);
+      expect(aud.filter((x) => x.status === 'valido').map((x) => x.origemId)).toEqual(['pago']);
+      for (const id of ['p1', 'p2', 'p3', 'p4']) {
+        expect(aud.find((x) => x.origemId === id)).toMatchObject({
+          status: 'duplicata',
+          duplicataDe: 'pago',
+          flags: ['parcela_de_total'],
+        });
+      }
     });
 
     it('CEEB5: DIVIDENDO 4,2018 pago (28/10) × 4,2554 sem pagamento (29/10, +1,3%) ⇒ duplicata', () => {
@@ -816,7 +847,8 @@ describe('repetições da fonte com a mesma data-com (diagnóstico DY absurdo 02
       expect(aud.find((x) => x.origemId === 'pago')!.status).toBe('valido');
     });
 
-    it('CEEB5 (PN): JCP 0,5737 sem pagamento × 0,5215 pago 1 pregão depois (razão 1,10) ⇒ fica o da PN', () => {
+    // B3 18/10/2026: na Coelba a PNA (CEEB5) recebe o valor da ON; o prêmio de 10% é da PNB (CEEB6)
+    it('CEEB5 (PNA): JCP 0,5737 sem pagamento × 0,5215 pago 1 pregão depois (razão 1,10) ⇒ fica o pago', () => {
       const aud = auditarProventos(
         [
           linha('sp', 'CEEB5', 0.57366943, '2025-10-02', '2025-10-02', 'JCP'),
@@ -826,10 +858,10 @@ describe('repetições da fonte com a mesma data-com (diagnóstico DY absurdo 02
         P,
         { classe: 'acao' },
       );
-      const sai = aud.find((x) => x.origemId === 'pg')!;
-      expect(sai).toMatchObject({ status: 'duplicata', duplicataDe: 'sp' });
+      const sai = aud.find((x) => x.origemId === 'sp')!;
+      expect(sai).toMatchObject({ status: 'duplicata', duplicataDe: 'pg' });
       expect(sai.flags).toContain('duplicata_classe_irma');
-      expect(aud.find((x) => x.origemId === 'sp')!.status).toBe('valido');
+      expect(aud.find((x) => x.origemId === 'pg')!.status).toBe('valido');
     });
 
     it('sexta × segunda é 1 pregão; 2 pregões de distância NÃO é repetição', () => {

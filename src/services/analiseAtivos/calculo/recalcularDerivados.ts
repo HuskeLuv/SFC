@@ -114,6 +114,27 @@ export function valorMercadoEmpresa(
 }
 
 /**
+ * Valor de mercado da empresa visto de um ticker — a conta de multiplosAcao: Σ classes
+ * (valorMercadoEmpresa) e, sem ON/PN separados, preço × ações totais ÷ ações por unit (KLBN11 =
+ * 1 ON + 4 PN ⇒ ÷ 5). Unit sem composição ⇒ null.
+ */
+export function valorMercadoDoTicker(
+  ticker: TickerAcao,
+  tickersEmpresa: TickerAcao[],
+  precoPorSimbolo: Map<string, number>,
+  contagem: ContagemAcoes | null,
+  preco: number | null,
+): number | null {
+  const vm = valorMercadoEmpresa(tickersEmpresa, precoPorSimbolo, contagem);
+  if (vm !== null && vm > 0) return vm;
+  const f = fatorEquivalencia(ticker);
+  if (f === null || preco === null || !(preco > 0) || !contagem?.total || !(contagem.total > 0)) {
+    return null;
+  }
+  return (preco * contagem.total) / f;
+}
+
+/**
  * DPA/rendimento de um ano com os três estados: sem nenhum provento na base, vale a cobertura
  * (EMPTY ⇒ zero); ano ANTERIOR ao primeiro provento da base ⇒ ausente (a base de proventos não
  * alcança o ano — nunca zero, senão o payout por ação vira 0% e dispara auditoria falsa).

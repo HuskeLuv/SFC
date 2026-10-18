@@ -18,6 +18,7 @@ import {
 import { logSensitiveEndpointAccess } from '@/services/impersonationLogger';
 import { getTtlCache } from '@/lib/simpleTtlCache';
 import { overrideEfetivo, type CategoriaMovivel } from '@/lib/carteiraMover';
+import { abrirParcelasDoEspelho } from '@/services/portfolio/parcelasEspelhoProvento';
 
 import { withErrorHandler } from '@/utils/apiErrorHandler';
 
@@ -446,6 +447,23 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     manualProventoKeys.add(proventoDedupKey(symbol, mp.dataPagamento, mp.tipo));
   });
 
+  // Visão por data-com: o espelho da Carteira (1 linha por pagamento+tipo, com a data-com da
+  // parcela mais antiga) abre nas parcelas do histórico, cada uma no mês da SUA data-com — como o
+  // Resumo (resolveProventos). O total não muda. Por pagamento segue uma linha por pagamento.
+  const dividendsPorSymbol = new Map(allDividends.map((x) => [x.asset.symbol, x.dividends]));
+  const proventosCarteira = usarDataCom
+    ? manualProventos.flatMap((mp) => {
+        const symbol = portfolioById.get(mp.portfolioId)?.asset?.symbol;
+        const asset = symbol ? portfolioAssets.find((a) => a.symbol === symbol) : undefined;
+        if (!symbol || !asset) return [mp];
+        const timeline = timelinesBySymbol.get(symbol) || [];
+        return abrirParcelasDoEspelho(mp, dividendsPorSymbol.get(symbol) ?? [], (ms) => {
+          const q = getQuantityAtDate(timeline, ms);
+          return q > 0 ? q : timeline.length === 0 ? asset.quantity : 0;
+        });
+      })
+    : manualProventos;
+
   for (const { asset, dividends } of allDividends) {
     if (dividends.length === 0) continue;
 
@@ -505,7 +523,7 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
   }
 
   // Anexa proventos manuais (PortfolioProvento) — bruto via valorTotal.
-  manualProventos.forEach((mp) => {
+  proventosCarteira.forEach((mp) => {
     const pf = portfolioById.get(mp.portfolioId);
     const symbol = pf?.asset?.symbol;
     if (!symbol || isBlockedSymbol(symbol)) return;
@@ -581,7 +599,7 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
       if (dateTime >= doze_m_ms_row) addUlt12m(asset.symbol, valor);
     }
   }
-  manualProventos.forEach((mp) => {
+  proventosCarteira.forEach((mp) => {
     const pf = portfolioById.get(mp.portfolioId);
     const symbol = pf?.asset?.symbol;
     if (!symbol || isBlockedSymbol(symbol)) return;
@@ -882,7 +900,7 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
   }
 
   // Proventos manuais (PortfolioProvento) entram no histórico realizado — líquido
-  manualProventos.forEach((mp) => {
+  proventosCarteira.forEach((mp) => {
     const pf = portfolioById.get(mp.portfolioId);
     const symbol = pf?.asset?.symbol;
     if (!symbol || isBlockedSymbol(symbol)) return;

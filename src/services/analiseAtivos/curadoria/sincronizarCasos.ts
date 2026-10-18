@@ -282,6 +282,8 @@ export interface FontesValor {
     obrigacoesPlPct: number | null;
     cotistas: number | null;
     patrimonio: number | null;
+    /** grupo 'fii_vacancia' (A4 do backtest); opcional nas fixtures antigas */
+    vacanciaFisicaCvmPct?: number | null;
   };
   atual?: {
     vpCota: number | null;
@@ -322,6 +324,8 @@ export function valorDoCampo(campo: string, f: FontesValor, hoje: string): Valor
       return v(l.payoutPct);
     case 'obrigacoesPl':
       return v(l.obrigacoesPlPct);
+    case 'vacanciaCvm':
+      return v(l.vacanciaFisicaCvmPct);
     case 'cotistas':
       return v(l.cotistas);
     case 'patrimonio':
@@ -423,6 +427,7 @@ async function carregarValores(
         dy12mPct: true,
         payoutPct: true,
         obrigacoesPlPct: true,
+        vacanciaFisicaCvmPct: true,
         cotistas: true,
         patrimonio: true,
       },
@@ -467,6 +472,7 @@ async function carregarValores(
               dy12mPct: l.dy12mPct,
               payoutPct: l.payoutPct,
               obrigacoesPlPct: l.obrigacoesPlPct,
+              vacanciaFisicaCvmPct: l.vacanciaFisicaCvmPct,
               cotistas: l.cotistas,
               patrimonio: num(l.patrimonio),
             }

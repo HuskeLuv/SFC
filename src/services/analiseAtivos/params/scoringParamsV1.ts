@@ -348,6 +348,13 @@ export const SCORING_PARAMS_V1: ScoringParams = {
       conferenciaValorMercadoSobrePl: [0.3, 3],
       cvmDivergenciaRendimentoPct: 5,
       cvmDivergenciaMeses: 3,
+      // vacância trimestral (A4 do backtest 18/10/2026): salto ≥ 30 p.p. da referência = em
+      // conferência; complemento ±15 p.p. = ocupação no campo de vacância; subida real confirmada
+      // pela receita de aluguel (≤ mediana × (1 − 0,5 × salto)) ou 3 trimestres no novo patamar
+      vacanciaSaltoPp: 30,
+      vacanciaComplementarTolPp: 15,
+      vacanciaReceitaFator: 0.5,
+      vacanciaPersistenciaTrimestres: 3,
     },
     b3: {
       liquidezPregoes: 21,
@@ -408,11 +415,16 @@ export const SCORING_PARAMS_V1: ScoringParams = {
         pregoesDataCom: 1,
       },
       copiaRestituicao: { janelaDias: 3, tolPct: 0.5 },
+      // backtest 18/10/2026 (A1): soma de parcelas / total + parcelas
+      somaParcelas: { tolPct: 0.0002, janelaDias: 400, maxNos: 50000 },
       plausibilidade: {
         dyMaxPct: { acao: 18, fii: 20 }, // 18%: p95 do Quadro + antecipações de dez/2025
         saltoFator: 2,
         saltoPayoutMaxPct: 150,
         anosSaltoRecente: 1,
+        // backtest 18/10/2026 (M9): soma antiga sem as parcelas (proventos.temSomaSuspeitaNaJanela)
+        orfaMinDias: 90,
+        orfaFator: 1.5,
       },
     },
     // bloco C (03/10/2026): DESLIGADA na v1 — é o default do schema, que a v1 gravada no banco (sem

@@ -6,6 +6,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Prisma } from '@prisma/client';
 import fixture from './fixtures/dev-2026-10-03.json';
+import vacFixture from '@/services/analiseAtivos/regras/fii/__tests__/fixtures/vacanciaBacktest.json';
 import {
   calcularAtualAcao,
   calcularAtualFii,
@@ -70,6 +71,13 @@ const FYS = Array.from({ length: 10 }, (_, i) => ({
 })) as unknown as FundamentosPeriodo[];
 const HIST_PL = FYS.map((f) => ({ anoFiscal: f.anoFiscal, pl: 10, plNaoSeAplica: false }));
 
+/**
+ * Volume do caso CBAV3-like compatível com 651.073 ações (~1,4% de giro/dia): com o volume real
+ * (R$ 45 mi/dia ≈ 4 mi ações/dia) a escala de milhares pelo volume (contagemVigente) corrige a
+ * contagem antes do R1 — ver o CBAV3 real em regras/calculo/__tests__/contagemVigente.test.ts.
+ */
+const VOLUME_CBAV3_LIKE = 1e5;
+
 function ticker(symbol: string, classe: 'ON' | 'PN' = 'ON'): TickerAcao {
   return { symbol, cnpj: 'X', classeTitulo: classe, unitQtdOn: null, unitQtdPn: null };
 }
@@ -84,6 +92,8 @@ function entradaAcao(
     liberacoes?: Set<string>;
     historicoPl?: EntradaAtualAcao['historicoPl'];
     classe?: 'ON' | 'PN';
+    /** R$/dia; padrão 1e8 */
+    volumeMedio21?: number;
   } = {},
 ): EntradaAtualAcao {
   const t = ticker(symbol, o.classe);
@@ -94,7 +104,7 @@ function entradaAcao(
       symbol,
       ultimoPregao: '2026-09-29',
       closeRaw: preco,
-      volumeMedio21: 1e8,
+      volumeMedio21: o.volumeMedio21 ?? 1e8,
       pregoesComNegocio21: o.pregoes21 ?? 21,
       baixaLiquidez: false,
       negociadoUltimos30: true,
@@ -132,7 +142,10 @@ const semSanidade = (e: EntradaAtualAcao): EntradaAtualAcao => {
 
 describe('REGRESSÃO v1 (sanidade.conferencia.ligada=false): saída idêntica, byte a byte', () => {
   const casos: Array<[string, EntradaAtualAcao]> = [
-    ['CBAV3-like (P/VP 0,0014)', entradaAcao('CBAV3', { preco: 11.22, acoes: 651_073 })],
+    [
+      'CBAV3-like (P/VP 0,0014)',
+      entradaAcao('CBAV3', { preco: 11.22, acoes: 651_073, volumeMedio21: VOLUME_CBAV3_LIKE }),
+    ],
     ['SBSP3 com a série real do salto', entradaAcao('SBSP3', { preco: 27.06, serie: SBSP3_SERIE })],
     ['esporádica fora da faixa', entradaAcao('XPTO3', { pregoes21: 2, preco: 0.5 })],
     [
@@ -178,7 +191,10 @@ describe('REGRESSÃO v1 (sanidade.conferencia.ligada=false): saída idêntica, b
 
 describe('v2: grupo bloqueado entra no Índice/semáforo como ausente(em_conferencia)', () => {
   it('CBAV3-like: conf:acoes_escala ⇒ C_preço em conferência, motivo preco:em_conferencia', () => {
-    const c = calcularAtualAcao(entradaAcao('CBAV3', { preco: 11.22, acoes: 651_073 }), V2);
+    const c = calcularAtualAcao(
+      entradaAcao('CBAV3', { preco: 11.22, acoes: 651_073, volumeMedio21: VOLUME_CBAV3_LIKE }),
+      V2,
+    );
     expect(c.flags).toContain('conf:acoes_escala:pvp_minimo@2025-12-31');
     const s = scoreAcao(comConferenciasDaEmpresa('CBAV3', c, new Map([['CBAV3', c]])), false, V2);
     expect(s.indice.componentes.preco).toEqual({
@@ -208,13 +224,23 @@ describe('v2: grupo bloqueado entra no Índice/semáforo como ausente(em_confere
   it('liberação: mesma chave não marca (Índice volta a completo); chave nova marca', () => {
     const lib = new Set([chaveLiberacaoDe('CBAV3', 'pvp_minimo', '2025-12-31')]);
     const c = calcularAtualAcao(
-      entradaAcao('CBAV3', { preco: 11.22, acoes: 651_073, liberacoes: lib }),
+      entradaAcao('CBAV3', {
+        preco: 11.22,
+        acoes: 651_073,
+        liberacoes: lib,
+        volumeMedio21: VOLUME_CBAV3_LIKE,
+      }),
       V2,
     );
     expect(flagsConf(c.flags)).toEqual([]);
     const outra = new Set([chaveLiberacaoDe('CBAV3', 'pvp_minimo', '2024-12-31')]);
     const c2 = calcularAtualAcao(
-      entradaAcao('CBAV3', { preco: 11.22, acoes: 651_073, liberacoes: outra }),
+      entradaAcao('CBAV3', {
+        preco: 11.22,
+        acoes: 651_073,
+        liberacoes: outra,
+        volumeMedio21: VOLUME_CBAV3_LIKE,
+      }),
       V2,
     );
     expect(flagsConf(c2.flags)).toHaveLength(1);
@@ -425,6 +451,47 @@ describe('FII (o FII é o próprio ticker)', () => {
     const c = calcularAtualFii(e, V2);
     expect(c.flags).toContain('conf:fii_vp:vp_salto@2026-08');
     expect(scoreFii(c, e, V2).indice.motivosIncompleto).toContain('preco:em_conferencia');
+  });
+
+  it('HSML11 (série real, A4 do backtest): 4T25→2T26 ~91% com receita estável ⇒ vacância em conferência', () => {
+    const serie = (vacFixture.series as Record<string, Array<[string, number, number | null]>>)
+      .HSML11;
+    const trimestres = serie.map(([refQuarter, vac, rec]) => ({
+      cnpj: vacFixture.cnpj.HSML11,
+      refQuarter,
+      nImoveisRenda: 9,
+      areaM2: 281_255,
+      vacanciaFisicaCvmPct: vac,
+      inadimplenciaCvmPct: null,
+      nCri: null,
+      maiorCriPct: null,
+      flags: [],
+      receitaAluguel: rec,
+    }));
+    const base = entradaFii('HSML11');
+    const e: EntradaAtualFii = {
+      ...base,
+      trimestre: trimestres[trimestres.length - 1],
+      sanidade: { ...base.sanidade!, trimestres },
+    };
+    const c = calcularAtualFii(e, V2);
+    expect(c.flags).toContain('conf:fii_vacancia:vacancia_ocupacao@2025-12');
+    // o critério 'vacancia' do semáforo (inativo na v1/v2) e o C_rent (inativo) não mudam o Índice
+    expect(scoreFii(c, e, V2).indice.incompleto).toBe(false);
+    // a curadoria liberou o episódio ⇒ nenhuma flag
+    const lib = calcularAtualFii(
+      {
+        ...e,
+        sanidade: {
+          ...e.sanidade!,
+          liberacoes: new Set([chaveLiberacaoDe('HSML11', 'vacancia_ocupacao', '2025-12')]),
+        },
+      },
+      V2,
+    );
+    expect(lib.flags.filter((f) => f.startsWith('conf:fii_vacancia'))).toEqual([]);
+    // v1 (bloco C desligado): nada
+    expect(calcularAtualFii(e, V1).flags.some((f) => f.startsWith('conf:'))).toBe(false);
   });
 
   it('FII normal ⇒ nenhuma flag e Índice completo', () => {

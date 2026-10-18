@@ -38,8 +38,22 @@
 import type { Prisma } from '@prisma/client';
 import { anosFechados, detectarSaltoProvento } from '@/services/analiseAtivos/leitura/ativo/series';
 import { selecionarPares, type ItemPar } from '@/services/analiseAtivos/regras/calculo/pares';
-import { valorMercadoEmpresa } from '@/services/analiseAtivos/calculo/recalcularDerivados';
-import type { AlertaJob, ContagemAcoes, TickerAcao } from '@/services/analiseAtivos/tipos';
+import {
+  fatorEquivalencia,
+  valorMercadoDoTicker,
+} from '@/services/analiseAtivos/calculo/recalcularDerivados';
+import {
+  acoesNegociadasDia,
+  contagemVigente,
+  type EventoParaContagem,
+} from '@/services/analiseAtivos/regras/calculo/contagemVigente';
+import { SCORING_PARAMS_V1 } from '@/services/analiseAtivos/params/scoringParamsV1';
+import type {
+  AlertaJob,
+  ContagemAcoes,
+  ScoringParams,
+  TickerAcao,
+} from '@/services/analiseAtivos/tipos';
 import { distanciaEmPregoes } from '@/services/analiseAtivos/regras/comum/pregoes';
 import { DEF_GRUPO, parseFlagConf } from '@/services/analiseAtivos/regras/comum/conferencia';
 import { tipoFiiExibido } from '@/services/analiseAtivos/quadro/tipoFiiExibido';
@@ -181,8 +195,13 @@ export interface EntradaQuadro {
   lucrosFy: Array<{ cnpj: string; anoFiscal: number; lucro: number | null }>;
   /** meses com informe mensal por FII e ano */
   mesesInformeFii: Array<{ cnpj: string; ano: number; meses: number }>;
-  /** contagem de ações mais recente por emissor (status ok) */
+  /**
+   * contagens de ações dos emissores (todas as datas e status): o valor de mercado usa a MESMA
+   * contagem dos múltiplos do dia (regras/calculo/contagemVigente; backtest 18/10/2026, A8)
+   */
   contagens: ContagemAcoes[];
+  /** eventos corporativos verificados das ações (asset_corporate_action_checks que ajustam série) */
+  eventosAcoes?: Array<EventoParaContagem & { symbol: string }>;
   /**
    * v2.4: cópia compacta da avaliação dos critérios (criteria_eval, job 'criterios') por símbolo.
    * Ausente/sem o símbolo = a linha fica com criterios e perfilCriterios nulos.
@@ -271,7 +290,10 @@ export function anosSeguidosComProvento(serie: readonly PontoSerieAnual[]): numb
 // Montagem
 // ---------------------------------------------------------------------------
 
-export function montarLinhasQuadro(e: EntradaQuadro): ResultadoMontagem {
+export function montarLinhasQuadro(
+  e: EntradaQuadro,
+  p: ScoringParams = SCORING_PARAMS_V1,
+): ResultadoMontagem {
   const alertas: AlertaJob[] = [];
   const anoAtual = Number(e.hoje.slice(0, 4));
 
@@ -322,7 +344,8 @@ export function montarLinhasQuadro(e: EntradaQuadro): ResultadoMontagem {
     }
   }
   const lucrosPor = agrupar(e.lucrosFy, (l) => l.cnpj);
-  const contagemPor = new Map(e.contagens.map((c) => [c.cnpj, c]));
+  const contagensPor = agrupar(e.contagens, (c) => c.cnpj);
+  const eventosPor = agrupar(e.eventosAcoes ?? [], (ev) => ev.symbol);
   const tickersPorCnpj = agrupar(e.acoes, (a) => a.cnpj);
   const mesesPor = new Map<string, Record<number, number>>();
   for (const m of e.mesesInformeFii) {
@@ -422,13 +445,27 @@ export function montarLinhasQuadro(e: EntradaQuadro): ResultadoMontagem {
 
     // valor de mercado
     const preco = m?.preco ?? r?.closeRaw ?? null;
+    const precoData = m?.precoData ?? r?.ultimoPregao ?? null;
     let valorMercado: number | null = null;
     if (ehAcao) {
+      // a mesma contagem e a mesma conta do P/L (calcularAtualAcao): sem 'alerta' desmentida pelo
+      // LPA, eventos posteriores à contagem, escala pelo volume e ÷ ações da unit (KLBN11 1 ON + 4
+      // PN: R$ 111 bi → 22 bi); sem contagem validada ⇒ sem valor de mercado (como o P/L)
       const tickers = tickersPorCnpj.get(u.cnpj) ?? [];
-      const contagem = contagemPor.get(u.cnpj) ?? null;
-      valorMercado = valorMercadoEmpresa(tickers, precoResumo, contagem);
-      if (valorMercado === null && tickers.length === 1 && contagem?.total && preco !== null) {
-        valorMercado = preco * contagem.total;
+      const ticker = tickers.find((t) => t.symbol === u.symbol);
+      if (ticker) {
+        const { contagem } = contagemVigente(
+          {
+            contagens: contagensPor.get(u.cnpj) ?? [],
+            eventos: eventosPor.get(u.symbol) ?? [],
+            dataRef: diaIso(e.dataRef),
+            // cotação do próprio ticker (congelada em ativo fora do Quadro): evento depois dela não vale
+            dataPreco: precoData ? diaIso(precoData) : null,
+            acoesNegociadasDia: acoesNegociadasDia(r, fatorEquivalencia(ticker)),
+          },
+          p,
+        );
+        valorMercado = valorMercadoDoTicker(ticker, tickers, precoResumo, contagem, preco);
       }
     } else if (mensal?.cotas && preco !== null) {
       valorMercado = preco * mensal.cotas;
@@ -464,7 +501,7 @@ export function montarLinhasQuadro(e: EntradaQuadro): ResultadoMontagem {
       regua: score?.regua ?? null,
       tickerReferencia: score?.tickerReferencia ?? null,
       preco,
-      precoData: m?.precoData ?? r?.ultimoPregao ?? null,
+      precoData,
       variacaoDiaPct: variacaoDia(u.symbol),
       volumeMedio21: r?.volumeMedio21 ?? null,
       baixaLiquidez: r?.baixaLiquidez ?? false,
