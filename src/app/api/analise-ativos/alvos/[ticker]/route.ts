@@ -2,12 +2,12 @@ import { NextRequest, NextResponse } from 'next/server';
 import { ApiError, withErrorHandler } from '@/utils/apiErrorHandler';
 import { exigirAcessoAnalise } from '@/services/analiseAtivos/acesso/acessoAnalise';
 import {
-  AlvoPutSchema,
-  apagarAlvo,
+  ObjetivoPutSchema,
   assetDoTicker,
-  lerAlvo,
-  salvarAlvo,
-} from '@/services/analiseAtivos/carteira/alvosAtivo';
+  lerObjetivoAtivo,
+  removerObjetivoAtivo,
+  salvarObjetivoAtivo,
+} from '@/services/analiseAtivos/carteira/objetivoAtivo';
 import { logSensitiveEndpointAccess } from '@/services/impersonationLogger';
 import type {
   AlvoDeleteResposta,
@@ -16,16 +16,18 @@ import type {
 } from '@/types/analiseAtivosApi';
 
 /**
- * /api/analise-ativos/alvos/[ticker] — alvo por ativo do "Planejar na carteira" (v2.5, spec §3.2/
- * §5, caso 33), em % da carteira TOTAL, gravado em planning_asset_targets.
+ * /api/analise-ativos/alvos/[ticker] — "Planejar na carteira" da página do ativo. Desde 17/10/2026
+ * lê e grava o OBJETIVO DA CARTEIRA (% dentro da aba): Portfolio.objetivo com posição; linha
+ * planejada (Watchlist) sem posição. Ver services/analiseAtivos/carteira/objetivoAtivo.ts.
  *
- * - GET → AlvoGetResposta (alvo null quando não há) · PUT {targetPct} (zod strict, CSRF) →
- *   AlvoPutResposta (upsert, idempotente) · DELETE (CSRF) → AlvoDeleteResposta (removido=false
- *   quando não havia).
- * - targetUserId: o consultor agindo pelo cliente lê e grava o alvo DO CLIENTE; o acesso fica
- *   registrado (logSensitiveEndpointAccess) e a gravação leva atualizadoPorUserId = consultor.
+ * - GET → AlvoGetResposta (alvo null sem posição e sem planejado) · PUT {objetivoPct, secao?}
+ *   (zod strict, CSRF) → AlvoPutResposta (criado=true quando a linha planejada nasceu agora) ·
+ *   DELETE (CSRF) → AlvoDeleteResposta (posição → objetivo 0; planejado → linha apagada).
+ * - Histórico + desfazer iguais aos da Carteira ('objetivo-classe.definir' / 'planejado.*').
+ * - targetUserId: o consultor agindo pelo cliente lê e grava o objetivo DO CLIENTE; o acesso fica
+ *   registrado (logSensitiveEndpointAccess) e o histórico registra quem gravou.
  * - Flag desligada / fora do beta → 404 (exigirAcessoAnalise); ticker inválido ou sem Asset → 404.
- * - Não lê nem grava o Objetivo da Carteira. CSRF: o middleware valida PUT/DELETE.
+ *   CSRF: o middleware valida PUT/DELETE.
  */
 export const dynamic = 'force-dynamic';
 
@@ -36,7 +38,8 @@ const NO_STORE = { 'Cache-Control': 'no-store' };
 const ENDPOINT = '/api/analise-ativos/alvos';
 
 async function contexto(request: NextRequest, ctx: Ctx, method: string) {
-  const { payload, targetUserId, actingClient } = await exigirAcessoAnalise(request);
+  const auth = await exigirAcessoAnalise(request);
+  const { payload, targetUserId, actingClient } = auth;
   const { ticker: bruto } = await ctx.params;
   const symbol = decodeURIComponent(bruto ?? '')
     .trim()
@@ -54,36 +57,35 @@ async function contexto(request: NextRequest, ctx: Ctx, method: string) {
       method,
     );
   }
-  return {
-    userId: targetUserId,
-    assetId: asset.id,
-    symbol,
-    atualizadoPor: actingClient ? payload.id : null,
-  };
+  return { auth, asset, symbol };
 }
 
 export const GET = withErrorHandler(async (request: NextRequest, ctx: Ctx) => {
-  const { userId, assetId, symbol } = await contexto(request, ctx, 'GET');
-  const corpo: AlvoGetResposta = { ticker: symbol, alvo: await lerAlvo(userId, assetId) };
+  const { auth, asset, symbol } = await contexto(request, ctx, 'GET');
+  const corpo: AlvoGetResposta = {
+    ticker: symbol,
+    alvo: await lerObjetivoAtivo(auth.targetUserId, asset),
+  };
   return NextResponse.json(corpo, { headers: NO_STORE });
 });
 
 export const PUT = withErrorHandler(async (request: NextRequest, ctx: Ctx) => {
-  const { userId, assetId, symbol, atualizadoPor } = await contexto(request, ctx, 'PUT');
-  const parsed = AlvoPutSchema.safeParse(await request.json().catch(() => null));
+  const { auth, asset, symbol } = await contexto(request, ctx, 'PUT');
+  const parsed = ObjetivoPutSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) {
     const issue = parsed.error.issues[0];
     throw new ApiError(400, issue?.message ?? 'Dados inválidos', {
-      targetPct: parsed.error.issues.map((i) => i.message),
+      objetivoPct: parsed.error.issues.map((i) => i.message),
     });
   }
-  const alvo = await salvarAlvo(userId, assetId, parsed.data.targetPct, atualizadoPor);
-  const corpo: AlvoPutResposta = { ticker: symbol, alvo };
+  const { objetivo, criado } = await salvarObjetivoAtivo(request, auth, asset, parsed.data);
+  const corpo: AlvoPutResposta = { ticker: symbol, alvo: objetivo, criado };
   return NextResponse.json(corpo, { headers: NO_STORE });
 });
 
 export const DELETE = withErrorHandler(async (request: NextRequest, ctx: Ctx) => {
-  const { userId, assetId, symbol } = await contexto(request, ctx, 'DELETE');
-  const corpo: AlvoDeleteResposta = { ticker: symbol, removido: await apagarAlvo(userId, assetId) };
+  const { auth, asset, symbol } = await contexto(request, ctx, 'DELETE');
+  const { removido, origem } = await removerObjetivoAtivo(request, auth, asset);
+  const corpo: AlvoDeleteResposta = { ticker: symbol, removido, origem };
   return NextResponse.json(corpo, { headers: NO_STORE });
 });

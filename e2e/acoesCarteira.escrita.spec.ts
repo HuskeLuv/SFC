@@ -26,7 +26,6 @@ interface Overlay {
     { portfolioId: string; quantidade: number; estrategia?: string | null; tipoFii?: string | null }
   >;
   planejados: Record<string, { watchlistId: string; secao?: string | null }>;
-  alvos?: Record<string, { targetPct: number }>;
 }
 
 interface TopoE2e {

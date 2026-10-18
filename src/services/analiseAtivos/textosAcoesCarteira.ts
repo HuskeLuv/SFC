@@ -13,11 +13,12 @@
  * por isso nenhum outro texto daqui usa "compra"/"venda" (ex.: "da última aquisição").
  * Placeholders {nome} preenchidos com formatarTexto.
  *
- * v2.5 (fatia 0, CONGELADOS para a C): o alvo do "Planejar na carteira" passa a ser % da carteira
- * TOTAL, gravado em planning_asset_targets (spec §3.2/§5, caso 33) — sem mexer no Objetivo da
- * Carteira, que aparece só como linha informativa ('Objetivo na aba ‹Aba› da Carteira: X%', decisão
- * 1). O Registrar operação escolhe a seção sozinho e mostra 'Na Carteira: Ações · Value (dá para
+ * v2.5: o Registrar operação escolhe a seção sozinho e mostra 'Na Carteira: Ações · Value (dá para
  * mover depois)' (decisão 2). Chaves da v2.4 que a C deixa de usar ficam marcadas 'v2.4'.
+ * 17/10/2026 (ticket do Pedro): o alvo do "Planejar na carteira" deixou de ser % da carteira TOTAL
+ * em planning_asset_targets (que nada fora da Análise lia) e passou a ser o OBJETIVO DA CARTEIRA,
+ * % dentro da aba — os textos de alvo/desvio falam "da aba" e o "≈ X% da carteira total" é só
+ * informativo.
  */
 import type { ClasseQuadro } from '@/types/analiseAtivosApi';
 
@@ -58,7 +59,8 @@ export const TEXTOS_ACOES_CARTEIRA = {
     chipNaCarteira: 'Na carteira',
     chipPlanejado: 'Planejado',
     chipNaCarteiraTitulo: 'Você tem {qtd} {un} na carteira',
-    chipPlanejadoTitulo: 'Alvo planejado por você: {pct} da carteira',
+    chipPlanejadoTitulo: 'Objetivo na Carteira: {pct} em {aba}',
+    chipPlanejadoSemObjetivoTitulo: 'Planejado na aba {aba} da Carteira',
   },
   consultor: {
     aviso: 'Você está alterando a carteira de {cliente}.',
@@ -95,39 +97,54 @@ export const TEXTOS_ACOES_CARTEIRA = {
     rotuloMetricaAcao: 'P/L',
     rotuloMetricaFii: 'P/VP',
   },
+  /**
+   * 17/10/2026 (ticket do Pedro): o Planejar grava o OBJETIVO DA CARTEIRA (% dentro da aba), o mesmo
+   * da coluna Objetivo — com posição, Portfolio.objetivo; sem posição, a linha planejada da aba.
+   */
   planejar: {
     tituloNovo: 'Planejar na carteira · {ticker}',
     tituloAjustar: 'Ajustar plano · {ticker}',
     subtitulo:
-      'Defina o peso que {ticker} deve ter na sua carteira. O alvo é seu: o My Finance só mostra a diferença entre a posição atual e ele.',
-    campo: 'Peso-alvo na carteira (%)',
-    placeholder: 'ex.: 5',
+      'Defina o peso que {ticker} deve ter dentro da aba {aba}: é o mesmo Objetivo da sua Carteira. O alvo é seu: o My Finance só mostra a diferença entre a posição atual e ele.',
+    campo: 'Peso-alvo dentro de {aba} (%)',
+    placeholder: 'ex.: 10',
+    secao: 'Seção na Carteira',
+    /** sem posição e sem plano, quando a Análise não sabe a seção: o usuário escolhe */
+    secaoEscolha: 'Seção na Carteira (escolha)',
     classe: 'Classe no Planejamento',
     classeValor: '{aba} · {pct} da carteira (alvo da classe: {alvo})',
     classeSemAlvo: '{aba} · {pct} da carteira (sem alvo da classe)',
     posicao: 'Posição atual',
-    posicaoValor: '{qtd} {un} · {pct} da carteira · {valor}',
+    posicaoValor: '{qtd} {un} · {pct} da aba · {valor}',
     semPosicao: 'não está na carteira',
+    /** linha informativa: objetivo × peso atual da aba na carteira */
+    equivalenteTotal: '≈ {pct} da carteira total (a aba {aba} é {peso} da carteira hoje)',
+    equivalenteAbaVazia:
+      'A aba {aba} ainda não tem posições: o peso na carteira total aparece quando houver.',
+    equivalenteCarteiraVazia:
+      'Sua carteira ainda não tem posições: o peso na carteira total aparece quando houver.',
     resumoVazio: 'Informe o peso-alvo para ver a diferença em relação à sua posição atual.',
     /** peso digitado, mas a carteira está vazia (sem total, não há valor equivalente) */
     resumoCarteiraVazia:
       'Sua carteira ainda não tem posições: o valor equivalente ao alvo aparece quando houver.',
+    /** peso digitado, carteira com posições, mas a aba vazia (sem base para o valor equivalente) */
+    resumoAbaVazia:
+      'A aba {aba} ainda não tem posições: o valor equivalente ao alvo aparece quando houver.',
     valorAlvo: 'Valor equivalente ao alvo',
     qtdAlvo: '≈ {un} no alvo',
     desvio: 'Posição atual vs. alvo',
     desvioValor: '{pp} ({valor} · {qtd} {un})',
     desvioSemQtd: '{pp} ({valor})',
-    /** v2.4 (alvo em % da aba); sem uso com a base total */
-    equivalente: '≈ {pct} da carteira hoje (informativo, não é gravado)',
-    nota: 'Fica salvo no seu Planejamento como o alvo de {ticker} em % da carteira total. O Objetivo da aba {aba} na Carteira não muda.',
-    /** linha informativa quando a posição tem Objetivo > 0 na aba (decisão 1) */
-    objetivoAba: 'Objetivo na aba {aba} da Carteira: {pct}',
+    nota: 'Fica salvo como o Objetivo de {ticker} na aba {aba} da sua Carteira, o mesmo que você edita lá.',
+    notaPlanejado:
+      'Sem posição, {ticker} aparece na aba {aba} da Carteira como ativo planejado, na seção {secao}.',
     remover: 'Remover do plano',
-    salvar: 'Salvar no Planejamento',
+    salvar: 'Salvar na Carteira',
     erroFaixa: 'Informe um peso-alvo entre 0 e 100%.',
     erroBase: 'Não foi possível carregar a aba {aba} da sua Carteira agora.',
-    salvo: '{ticker} planejado: alvo de {pct} da carteira no seu Planejamento.',
-    removido: '{ticker} saiu dos alvos do Planejamento.',
+    salvo: '{ticker} planejado: objetivo de {pct} em {aba} na sua Carteira.',
+    removidoPosicao: '{ticker} saiu do plano: o objetivo em {aba} na Carteira voltou a 0%.',
+    removidoPlanejado: '{ticker} saiu do plano e da aba {aba} da Carteira.',
   },
   ver: {
     titulo: '{ticker} na sua Carteira',
@@ -144,8 +161,8 @@ export const TEXTOS_ACOES_CARTEIRA = {
     proventos: 'Proventos recebidos',
     proventosNota: 'desde a 1ª operação',
     alvo: 'Alvo planejado',
-    alvoValor: '{pct} da carteira',
-    alvoDesvio: 'posição {pos} · desvio {pp}',
+    alvoValor: '{pct} em {aba}',
+    alvoDesvio: 'posição {pos} da aba · desvio {pp}',
     semAlvo: 'sem alvo definido',
     ultimas: 'Últimas operações',
     colData: 'Data',
@@ -155,8 +172,7 @@ export const TEXTOS_ACOES_CARTEIRA = {
     colTotal: 'Total',
     semOperacoes: 'Nenhuma operação registrada.',
     vazio: 'Você ainda não tem {ticker} na carteira.',
-    vazioAlvo: 'Há um alvo planejado de {pct} da carteira no seu Planejamento.',
-    objetivoAba: 'Objetivo na aba {aba} da Carteira: {pct}',
+    vazioAlvo: 'Está planejado na aba {aba} da sua Carteira, com objetivo de {pct}.',
     rodape: 'Dados da sua carteira',
     abrirCompleta: 'Abrir Carteira completa',
     erro: 'Não foi possível carregar sua posição agora.',
@@ -217,17 +233,15 @@ export const TEXTOS_ACOES_CARTEIRA = {
     semAlvo: 'sem alvo planejado',
     planejar: 'planejar na carteira',
     ajustarPlano: 'ajustar plano',
-    alvoPlanejado: 'alvo planejado por você: {pct}',
-    posicaoAtual: 'posição atual {pct}',
-    /** linha informativa quando a posição tem Objetivo > 0 na aba (decisão 1) */
-    objetivoAba: 'Objetivo na aba {aba} da Carteira: {pct}',
+    alvoPlanejado: 'alvo planejado por você: {pct} em {aba}',
+    posicaoAtual: 'posição atual {pct} da aba',
     desvio: 'desvio {pp} ({valor})',
-    equivalente: 'equivale hoje a ≈ {pct} da carteira (informativo; muda com o mercado)',
+    equivalente: '≈ {pct} da carteira total (informativo; muda com o mercado)',
     classe: 'Classe {aba} no Planejamento: {pct} da carteira',
     classeAlvo: '(alvo {alvo})',
     classeSemAlvo: '(sem alvo da classe)',
-    barraAria: 'Posição atual {pos} da carteira, {alvo}',
-    barraAlvoAria: 'alvo planejado {pct} da carteira',
+    barraAria: 'Posição atual {pos} da aba, {alvo}',
+    barraAlvoAria: 'alvo planejado {pct} da aba',
     barraSemAlvoAria: 'sem alvo planejado',
     quantidade: 'Quantidade',
     valor: 'Valor',
@@ -237,7 +251,7 @@ export const TEXTOS_ACOES_CARTEIRA = {
     rentabilidadeNota: 'com os proventos recebidos, igual à Carteira',
     naAba: 'Na aba {aba}',
     notaAba:
-      'Está na aba {aba} da sua Carteira. O alvo planejado é em % da carteira total e não muda se você mover o ativo de aba.',
+      'Está na aba {aba} da sua Carteira. O alvo planejado é o Objetivo dessa aba (% dentro dela), o mesmo da coluna Objetivo da Carteira.',
     cotacaoDiferente:
       'Valor e % calculados pela Carteira com a cotação de {valor}; o cabeçalho mostra o fechamento de {data}.',
     abaSemDetalhe: 'O ativo está na aba {aba} da sua Carteira. Os números ficam lá.',

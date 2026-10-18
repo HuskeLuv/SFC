@@ -402,6 +402,21 @@ beforeEach(() => {
       findUnique: async () => ({ version: 1, params: CRITERIA_PARAMS_V1 }),
     },
     portfolio: {
+      // Planejar na carteira (alvos/[ticker]): a posição do ativo, com o Objetivo da aba
+      findFirst: async (a: unknown) => {
+        const { where } = a as { where: { assetId: string } };
+        return where.assetId === 'a-WEGE3' || where.assetId === 'a-HGLG11'
+          ? {
+              id: `pf-${where.assetId}`,
+              objetivo: where.assetId === 'a-WEGE3' ? 6 : 0,
+              categoriaOverride: null,
+              estrategia: where.assetId === 'a-WEGE3' ? 'value' : null,
+              tipoFii: where.assetId === 'a-HGLG11' ? 'tijolo' : null,
+              regiaoEtf: null,
+              tipoFundo: null,
+            }
+          : null;
+      },
       findMany: async () => [
         {
           id: 'pf-wege3',
@@ -424,6 +439,12 @@ beforeEach(() => {
       ],
     },
     watchlist: {
+      findFirst: async (a: unknown) => {
+        const { where } = a as { where: { assetId: string } };
+        return where.assetId === 'a-ITUB4'
+          ? { id: 'wl-itub4', objetivo: 5, secao: 'value', categoriaOverride: null }
+          : null;
+      },
       findMany: async () => [
         {
           id: 'wl-itub4',
@@ -442,11 +463,16 @@ beforeEach(() => {
         updatedAt: new Date('2026-10-10T12:00:00Z'),
       }),
     },
-    // v2.5 (C): alvo do Planejar na carteira (planning_asset_targets)
+    // Planejar na carteira (alvos/[ticker]): o Asset do ticker
     asset: {
       findUnique: async (a: unknown) => {
         const { where } = a as { where: { symbol: string } };
-        return { id: `a-${where.symbol}` };
+        return {
+          ...asset(where.symbol, where.symbol.endsWith('11') ? 'fii' : 'stock'),
+          source: 'brapi',
+          categoria: null,
+          subcategoria: null,
+        };
       },
     },
     planningAssetTarget: {
@@ -609,7 +635,14 @@ describe('contratoSemNota — nenhuma resposta de /api/analise-ativos/* com nota
         'textoFonte' | 'dadosIncompletos'
       > = {
       ticker: 'WEGE3',
-      alvo: { targetPct: 6, atualizadoEm: '2026-10-15T00:00:00.000Z' },
+      alvo: {
+        origem: 'posicao',
+        id: 'pf-wege3',
+        objetivoPct: 6,
+        categoria: 'acoes',
+        abaNome: 'Ações',
+        secao: 'value',
+      },
       marcas: { fallback: true, incompleto: false, fonte: 'cvm' },
       textoFonte: 'Fonte: DFP/ITR (CVM).',
       dadosIncompletos: false,

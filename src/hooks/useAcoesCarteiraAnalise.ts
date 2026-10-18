@@ -5,12 +5,12 @@
  *  - useSugestoesComparar: GET comparar-sugestoes (queryKeys.analiseAtivos.sugestoesComparar);
  *  - usePosicaoCarteira: GET /api/ativos/[portfolioId] (modal "Ver na Carteira"; a mesma rota da
  *    tela /ativos/[id]) — key sob queryKeys.assets.all, que a invalidação da carteira já cobre;
- *  - useMutacoesCarteiraAnalise: v2.5 — salvarAlvo/removerAlvo (PUT/DELETE
- *    /api/analise-ativos/alvos/[ticker], planning_asset_targets, % da carteira TOTAL; NÃO toca o
- *    Objetivo da Carteira nem as rotas /objetivo e /planejados) e registrar (POST
- *    /api/carteira/operacao | /resgate), sempre com csrfFetch. O alvo atualiza o overlay da análise
- *    na hora (chip 'Planejado') e invalida o overlay; a operação chama
- *    invalidatePortfolioDerivedQueries (abas, resumo, Planejamento e o overlay da análise).
+ *  - useMutacoesCarteiraAnalise: salvarAlvo/removerAlvo (PUT/DELETE
+ *    /api/analise-ativos/alvos/[ticker]) — desde 17/10/2026 gravam o OBJETIVO DA CARTEIRA (% dentro
+ *    da aba: Portfolio.objetivo com posição; linha planejada sem posição) — e registrar (POST
+ *    /api/carteira/operacao | /resgate), sempre com csrfFetch. O objetivo atualiza o overlay da
+ *    análise na hora (chip 'Planejado'); toda mutação chama invalidatePortfolioDerivedQueries (abas,
+ *    resumo, Planejamento e o overlay da análise) para a Carteira mostrar o objetivo/planejado.
  * Erros das rotas chegam como ErroCarteira com a MENSAGEM REAL da rota (ex.: 'Campos obrigatórios:
  * tipoAtivo, instituicaoId', 'Instituição inválida para este investimento').
  */
@@ -31,7 +31,9 @@ import type {
 } from '@/services/analiseAtivos/regras/carteira/registroOperacao';
 import type {
   AlvoDeleteResposta,
+  AlvoPutBody,
   AlvoPutResposta,
+  ObjetivoAtivoApi,
   OverlayCarteiraResposta,
 } from '@/types/analiseAtivosApi';
 import type { Janela, SugestoesCompararResposta } from '@/types/analiseAtivosCriterios';
@@ -46,10 +48,8 @@ export class ErroCarteira extends Error {
   }
 }
 
-export interface AlvoAtivoEntrada {
+export interface AlvoAtivoEntrada extends AlvoPutBody {
   ticker: string;
-  /** % da carteira TOTAL (0 < x ≤ 100) */
-  targetPct: number;
 }
 
 export interface MutacoesCarteiraAnalise {
@@ -152,18 +152,37 @@ export function usePosicaoCarteira(
 export const urlAlvo = (ticker: string) =>
   `/api/analise-ativos/alvos/${encodeURIComponent(ticker.trim().toUpperCase())}`;
 
-/** Aplica o alvo gravado/removido no overlay em cache (o chip 'Planejado' muda na hora). */
+/**
+ * Aplica o objetivo gravado/removido no overlay em cache (o chip 'Planejado' muda na hora, antes do
+ * refetch): posição → posicoes[t].objetivoPct; planejado → planejados[t] criado/atualizado; remoção
+ * (alvo null) → objetivo da posição zerado ou linha planejada fora.
+ */
 export function aplicarAlvoNoOverlay(
   overlay: OverlayCarteiraResposta | undefined,
   ticker: string,
-  alvo: AlvoPutResposta['alvo'] | null,
+  alvo: ObjetivoAtivoApi | null,
 ): OverlayCarteiraResposta | undefined {
   if (!overlay) return overlay;
   const t = ticker.toUpperCase();
-  const alvos = { ...(overlay.alvos ?? {}) };
-  if (alvo) alvos[t] = alvo;
-  else delete alvos[t];
-  return { ...overlay, alvos };
+  const posicoes = { ...overlay.posicoes };
+  const planejados = { ...overlay.planejados };
+  if (!alvo) {
+    if (posicoes[t]) posicoes[t] = { ...posicoes[t], objetivoPct: null };
+    delete planejados[t];
+  } else if (alvo.origem === 'posicao') {
+    if (posicoes[t]) {
+      posicoes[t] = { ...posicoes[t], objetivoPct: alvo.objetivoPct > 0 ? alvo.objetivoPct : null };
+    }
+  } else {
+    planejados[t] = {
+      watchlistId: alvo.id,
+      id: alvo.id,
+      categoria: alvo.categoria,
+      objetivoPct: alvo.objetivoPct,
+      secao: alvo.secao,
+    };
+  }
+  return { ...overlay, posicoes, planejados };
 }
 
 export function useMutacoesCarteiraAnalise(): MutacoesCarteiraAnalise {
@@ -185,21 +204,27 @@ export function useMutacoesCarteiraAnalise(): MutacoesCarteiraAnalise {
     return (await res.json().catch(() => undefined)) as T;
   };
   const aoConcluir = () => invalidatePortfolioDerivedQueries(qc);
-  const aoMudarAlvo = (ticker: string, alvo: AlvoPutResposta['alvo'] | null) => {
+  // O objetivo é o da Carteira: além do overlay, invalida abas/resumo/Planejamento.
+  const aoMudarAlvo = (ticker: string, alvo: ObjetivoAtivoApi | null) => {
     qc.setQueryData<OverlayCarteiraResposta>(queryKeys.analiseAtivos.carteira(), (o) =>
       aplicarAlvoNoOverlay(o, ticker, alvo),
     );
-    void qc.invalidateQueries({ queryKey: queryKeys.analiseAtivos.carteira() });
+    invalidatePortfolioDerivedQueries(qc);
   };
 
   const salvarAlvo = useMutation<AlvoPutResposta, Error, AlvoAtivoEntrada>({
-    mutationFn: ({ ticker, targetPct }) =>
-      enviar<AlvoPutResposta>(urlAlvo(ticker), 'PUT', { targetPct }, 'Erro ao salvar o alvo'),
+    mutationFn: ({ ticker, ...corpo }) =>
+      enviar<AlvoPutResposta>(urlAlvo(ticker), 'PUT', corpo, 'Erro ao salvar o objetivo'),
     onSuccess: (r, e) => aoMudarAlvo(e.ticker, r.alvo),
   });
   const removerAlvo = useMutation<AlvoDeleteResposta, Error, string>({
     mutationFn: (ticker) =>
-      enviar<AlvoDeleteResposta>(urlAlvo(ticker), 'DELETE', undefined, 'Erro ao remover o alvo'),
+      enviar<AlvoDeleteResposta>(
+        urlAlvo(ticker),
+        'DELETE',
+        undefined,
+        'Erro ao remover o objetivo',
+      ),
     onSuccess: (_r, ticker) => aoMudarAlvo(ticker, null),
   });
   const registrarCompra = useMutation<void, Error, CorpoCompraOperacao>({

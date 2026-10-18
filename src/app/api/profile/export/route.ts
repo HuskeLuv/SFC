@@ -80,7 +80,10 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
     relatosParaExportacao(prisma, userId),
     // Análise de Ativos (bloco D): cenários salvos do Valuation (premissas e dados editados).
     cenariosParaExportacao(userId),
-    // Análise de Ativos (v2.5): alvos por ativo do "Planejar na carteira" (% da carteira total).
+    // Análise de Ativos (v2.5, LEGADO): alvos por ativo de planning_asset_targets (% da carteira
+    // total). Desde 17/10/2026 o "Planejar na carteira" grava o Objetivo da Carteira, que já sai em
+    // portfolio.positions[].objetivo e portfolio.watchlists[].objetivo; as linhas antigas seguem
+    // exportadas enquanto existirem.
     alvosParaExportacao(userId),
     // Análise de Ativos (bloco 1): listas (com itens), filtros salvos, comparações salvas e os
     // avisos enviados nos últimos 90 dias.
