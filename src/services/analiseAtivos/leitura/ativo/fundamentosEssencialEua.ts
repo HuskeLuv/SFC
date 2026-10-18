@@ -5,9 +5,9 @@
  *
  * Convenção de leitura (contrato da fatia A, desenho stocks-reits pipeline_dados):
  * - um FY por anoFiscal: a maior `versao` do último dtFim (10-K/A substitui por versão);
- * - EBITDA = ebit + D&A, onde `ebit` é o degrau usado (lucro operacional; com a flag ebitda_pre_ir,
+ * - EBITDA = ebit + D&A (D&A ausente = sem dado, como no criterios-eua), onde `ebit` é o degrau usado (lucro operacional; com a flag ebitda_pre_ir,
  *   lucro antes do IR + juros; com ebitda_lucro, lucro + IR + juros) — selo 'calculado';
- * - dívida líquida = dívida bruta (CP + LP) − caixa − aplicações de curto prazo;
+ * - dívida líquida = dívida bruta (CP + LP) − caixa − aplicações de curto prazo (sem caixa = sem dado);
  * - LPA = lpaOn (diluído publicado) ou lucro ÷ média diluída; DPA = coluna dpa (dpaOrigem);
  * - REIT: caixa op./ação = FCO ÷ média diluída; Div./caixa op. = dividendos pagos ÷ FCO (FCO ≤ 0 =
  *   sem valor).
@@ -23,6 +23,7 @@
 import type { AssetFundamentalsPeriod } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { getTtlCache } from '@/lib/simpleTtlCache';
+import { dividaLiquidaSec, ebitdaSec } from '@/services/analiseAtivos/regras/criterios/seriesStock';
 import { obterLinhaQuadro, versaoQuadro } from '@/services/analiseAtivos/leitura/linhasQuadro';
 import { TEXTOS_EUA } from '@/services/analiseAtivos/textosEua';
 import { TEXTOS_EUA_TELAS, formatarTexto } from '@/services/analiseAtivos/textosEuaTelas';
@@ -150,15 +151,10 @@ export interface ValoresAnoSec {
 }
 
 export function valoresAnoSec(p: PeriodoSec): ValoresAnoSec {
-  const ebitda = finito(p.ebit) ? p.ebit + (p.depreciacaoAmortizacao ?? 0) : null;
-  const temCaixa = finito(p.caixa) || finito(p.aplicacoesFinanceiras);
-  const bruta =
-    finito(p.dividaBrutaCp) || finito(p.dividaBrutaLp)
-      ? (p.dividaBrutaCp ?? 0) + (p.dividaBrutaLp ?? 0)
-      : null;
-  // sem caixa ou sem dívida no relatório (financeiras) = sem dado, nunca 'caixa líquido'
-  const dividaLiquida =
-    temCaixa && bruta !== null ? bruta - (p.caixa ?? 0) - (p.aplicacoesFinanceiras ?? 0) : null;
+  // mesmas regras do criterios-eua (seriesStock): D&A ausente = sem EBITDA; sem caixa ou sem
+  // dívida no relatório (financeiras) = sem dado, nunca 'caixa líquido'
+  const ebitda = ebitdaSec(p);
+  const dividaLiquida = dividaLiquidaSec(p);
   let divLiqEbitda: number | null = null;
   if (dividaLiquida !== null && ebitda !== null) {
     divLiqEbitda = ebitda > 0 ? dividaLiquida / ebitda : null;
