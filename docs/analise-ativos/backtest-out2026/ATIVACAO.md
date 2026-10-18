@@ -305,3 +305,88 @@ Flags novas em `asset_multiples_current.flags` são só informativas e não entr
   e o ITR 2T26 ainda não entrou. O valor de mercado continua baixo até o ITR novo (item M10).
 - INEP3: o histórico por ação de 2024 e 2025 vem de contagens em milhares nos DFP/ITR e não é
   corrigido por esta fatia, que corrige só a contagem do dia (múltiplos atuais e valor de mercado).
+
+# Backtest out/2026: ativação das correções em produção
+
+Cada fatia do backtest de 18/10/2026 acrescenta aqui a sua seção. Regra geral: o deploy é o merge
+na main. Correção de dados já gravados só com OK do Wellington, por script com dry-run por padrão.
+
+## Fatia "fii-rotina": A4 (vacância) e M13 (virada do ano)
+
+Commits na branch `bt-fii-rotina`:
+
+- `fix(analise-ativos): virada do ano — 404 do arquivo do ano corrente da CVM vira "ainda não publicado"` (M13)
+- `fix(analise-ativos): vacância de FII com ocupação no campo ou salto brusco fica em conferência no critério` (A4, critério)
+- `fix(analise-ativos): grupo de conferência 'fii_vacancia' — vacância suspeita sai da tela e abre caso de curadoria` (A4, tela e curadoria)
+
+### Não há script de correção de dados
+
+- **A4**: a detecção roda na leitura, sobre a série trimestral inteira de `fii_quarterly`. Nenhuma
+  linha gravada muda. Os valores da CVM continuam no banco como vieram. A correção aparece sozinha
+  nas próximas rodadas dos jobs diários:
+  - `scores`: grava a flag `conf:fii_vacancia:<regra>@<AAAA-MM>` em `asset_multiples_current`. O
+    `quadro` copia a flag para `analise_quadro_linhas`, e a vacância do FII aparece como "—" com o
+    chip "em conferência".
+  - `curadoria`: abre um caso por episódio, chaveado pelo mês do primeiro trimestre.
+  - `criterios`: o trimestre em conferência vira ponto incompleto, e o critério "Vacância ≤ 10%"
+    fica "sem dado" em vez de "não atende".
+  - Essencial: o cache dura 30 minutos e é renovado quando sai uma nova versão do Quadro.
+- **M13**: só muda o comportamento dos jobs a partir de 01/01/2027. Nada a fazer antes disso.
+- Os limiares novos (`ScoringParams.sanidade.fii.vacancia*`) têm default no schema. As versões
+  gravadas no banco (v1 e v2) não precisam ser regravadas.
+
+### Verificação depois do deploy (só leitura)
+
+```bash
+ssh -i ~/.ssh/myfinance-lightsail ubuntu@56.125.206.95 "sudo -u postgres psql -d myfinance -At -c \"
+SELECT symbol, array_to_string(array(SELECT f FROM unnest(flags) f WHERE f LIKE 'conf:fii_vacancia%'), ',')
+FROM analise_quadro_linhas WHERE array_to_string(flags, ',') LIKE '%conf:fii_vacancia%' ORDER BY 1\""
+```
+
+Esperado com a base de 18/10 (detector rodado sobre `fii_quarterly` de produção): 12 FIIs com o
+último trimestre em conferência: ALMI11, APXM11, BRCR11, BTHR11, CCME11, HSML11, HTMX11, LASC11,
+LKDV11, PLTB11, RBRK11 e RZAT11. HSML11 deve aparecer com
+`conf:fii_vacancia:vacancia_ocupacao@2025-12`.
+
+```bash
+ssh -i ~/.ssh/myfinance-lightsail ubuntu@56.125.206.95 "sudo -u postgres psql -d myfinance -At -c \"
+SELECT symbol, janela, (SELECT r->>'estado' || ' · ' || coalesce(r->>'fato','')
+  FROM jsonb_array_elements(resultados::jsonb) r WHERE r->>'id'='vac')
+FROM criteria_eval WHERE symbol IN ('HSML11','TRBL11','PLTB11') ORDER BY 1,2\""
+```
+
+| FII                | Antes (prod, 18/10)                   | Depois   |
+| ------------------ | ------------------------------------- | -------- |
+| HSML11, 3 anos     | não atende · 2 de 3 anos · máx. 91,4% | sem dado |
+| HSML11, 5 anos     | não atende · 4 de 5 anos · máx. 91,4% | sem dado |
+| TRBL11, 3 e 5 anos | não atende · máx. 50,2% (4T25)        | sem dado |
+
+No total, o critério muda em 10 combinações de FII e janela (todas de "não atende" para "sem
+dado"). Em 5 delas o único ano acima de 10% é o que está em conferência (HSML11 3 e 5 anos, TRBL11
+3 e 5 anos, PLTB11 3 anos). Nas outras 5 (ALMI11 5a, VPPR11 5a, RECT11 5a, APXM11 3a, CCME11 3a),
+o ano em conferência sai da conta e a janela fica "sem dado".
+
+Para conferir a virada do ano na semana de 01/01/2027:
+
+```bash
+ssh -i ~/.ssh/myfinance-lightsail ubuntu@56.125.206.95 "sudo -u postgres psql -d myfinance -At -c \"
+SELECT job, status, inicio::date FROM analise_job_runs
+WHERE inicio >= '2027-01-01' AND job IN ('cvm-cias:dfp','cvm-cias:itr','cvm-cias:fca','cvm-ipe','fii-mensal','fii-trimestral','fii-cadastro')
+ORDER BY inicio DESC LIMIT 30\""
+```
+
+Esperado: status `ok`, com o alerta `arquivo_ano_nao_publicado` (nível aviso) enquanto a CVM não
+publicar o zip de 2027. Um 404 de arquivo de ano passado continua dando `falha`.
+
+### Curadoria
+
+- Caso de regra `fii_vacancia` no campo "Vacância (CVM)", com chave = mês do 1º trimestre do
+  episódio (ex.: HSML11 `2025-12`).
+- **Liberar o valor** (dado confirmado): o episódio inteiro volta a contar. A referência passa a ser
+  o valor novo, e os trimestres seguintes no mesmo patamar não marcam de novo. Isso vale para o
+  Quadro, o critério e o Essencial no próximo cálculo diário.
+- Quando a vacância volta ao normal no informe seguinte, a regra para de marcar e o caso fecha
+  sozinho.
+- Subida real com a receita de aluguel mantida (renda mínima garantida, imóvel único que o
+  inquilino deixou, mas ainda paga multa) fica em conferência até a curadoria liberar. É o
+  comportamento desejado: "sem dado" em vez de um "não atende" possivelmente errado.
