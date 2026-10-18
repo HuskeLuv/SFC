@@ -20,6 +20,9 @@ const mockLeitor = vi.hoisted(() => ({ obterLinhaQuadro: vi.fn(), versaoQuadro: 
 
 vi.mock('@/services/analiseAtivos/acesso/acessoAnalise', () => ({
   exigirAcessoAnalise: mockExigir,
+  exigirClasseAnalise: mockExigir,
+  // EUA (fatia C): chave desligada = rotas de hoje
+  flagsEua: () => ({ eua: false, euaPreco: false }),
 }));
 vi.mock('@/lib/prisma', () => ({ prisma: mockPrisma, default: mockPrisma }));
 vi.mock('@/services/analiseAtivos/leitura/linhasQuadro', () => mockLeitor);

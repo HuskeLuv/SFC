@@ -6,6 +6,9 @@ const mockObter = vi.hoisted(() => vi.fn());
 
 vi.mock('@/services/analiseAtivos/acesso/acessoAnalise', () => ({
   exigirAcessoAnalise: mockExigir,
+  exigirClasseAnalise: mockExigir,
+  // EUA (fatia C): chave desligada = rotas de hoje
+  flagsEua: () => ({ eua: false, euaPreco: false }),
 }));
 vi.mock('@/services/analiseAtivos/leitura/ativo/fundamentosEssencial', () => ({
   obterFundamentosEssencial: mockObter,

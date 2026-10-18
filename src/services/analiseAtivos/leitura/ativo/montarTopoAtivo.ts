@@ -27,6 +27,12 @@
  * critérios) e FoF/Híbrido como prefixo do segmento; `fiiTipoCvm` leva o tipo CVM BRUTO (seção
  * automática da Carteira, fatia C); a frase de fonte do card de critérios é montada pelas origens
  * (textoNotaFonte + rótulos do registro de fontes) quando a avaliação traz `fontes`.
+ *
+ * Stocks e REITs (fatia C): linha stock/reit SÓ com `opts.eua.habilitado` (senão null = 404).
+ * montarTopoAtivoEua lê os 10-K da SEC (lerPeriodosSec) e o cadastro (SecCompany): tags de setor/
+ * segmento, bolsa e 'FY termina em …' (SEM índice), KPIs do último FY (montarKpisEua), gráfico 'LPA
+ * por ano' (stock) ou 'Caixa operacional por ação por ano' (REIT), dividendo por ação por FY e o bloco
+ * `eua` (link dos 10-K na SEC). Sem a chave de preço: cotação nula e motivoSemPreco 'licenca'.
  */
 import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
@@ -68,12 +74,34 @@ import { rotulosFontes } from '@/services/analiseAtivos/fontes/fundamentos/regis
 import { textoNotaFonte } from '@/services/analiseAtivos/textosCriterios';
 import { TEXTOS_TELA } from '@/services/analiseAtivos/textosTela';
 import { LINK_EDUCACAO } from '@/constants/analiseAtivosVisual';
-import type {
-  AtivoTopoResposta,
-  ClasseQuadro,
-  FiiTipoTela,
-  LinhaQuadroApi,
+import {
+  ehClasseEua,
+  type AtivoTopoResposta,
+  type ClasseQuadro,
+  type FiiTipoTela,
+  type LinhaQuadroApi,
+  type DividendosAtivo,
+  type GraficoAtivo,
+  type PontoSerieAnual,
 } from '@/types/analiseAtivosApi';
+import type { AnaliseQuadroLinha } from '@prisma/client';
+import { montarKpisEua } from '@/services/analiseAtivos/leitura/ativo/kpisAtivo';
+import {
+  lerPeriodosSec,
+  valoresAnoSec,
+  type PeriodoSec,
+} from '@/services/analiseAtivos/leitura/ativo/fundamentosEssencialEua';
+import { comCotacaoEua } from '@/services/analiseAtivos/quadro/consultaQuadro';
+import { textoExercicio } from '@/services/analiseAtivos/textosEua';
+import { TEXTOS_EUA_TELAS, formatarTexto } from '@/services/analiseAtivos/textosEuaTelas';
+import {
+  BOLSAS_EUA,
+  SEC_URLS,
+  SEGMENTOS_REIT,
+  cikDoEmissorId,
+  type BolsaEua,
+  type SegmentoReit,
+} from '@/types/analiseAtivosEua';
 import type { CriteriosAtivo, IdCriterio, PontoCriterio } from '@/types/analiseAtivosCriterios';
 
 export const TTL_TOPO_MS = 30 * 60_000;
@@ -197,19 +225,33 @@ export function tagsDe(l: LinhaQuadroApi, perfil?: string | null): string[] {
   return [l.setor, l.segmento, l.listagem].filter((x): x is string => !!x);
 }
 
+export interface OpcoesTopoAtivo {
+  agora?: Date;
+  /** chaves EUA resolvidas pela rota; ausente = desligadas (stock/reit = null) */
+  eua?: { habilitado: boolean; preco: boolean };
+}
+
 /** Monta o topo; null = ticker fora da área (a rota responde 404). */
 export async function montarTopoAtivo(
   tickerBruto: string,
-  opts: { agora?: Date } = {},
+  opts: OpcoesTopoAtivo = {},
 ): Promise<AtivoTopoResposta | null> {
   const ticker = tickerBruto.toUpperCase();
   const agora = opts.agora ?? new Date();
   const versao = await versaoQuadro(agora.getTime());
-  const chave = `${ticker}:${versao}`;
+  const precoEua = opts.eua?.habilitado === true && opts.eua.preco;
+  const chave = `${ticker}:${versao}${precoEua ? ':preco' : ''}`;
+  const row = await obterLinhaQuadro(ticker);
+  if (row && ehClasseEua(row.classe)) {
+    if (opts.eua?.habilitado !== true) return null;
+    const emCacheEua = lerCache(chave, agora.getTime());
+    if (emCacheEua) return emCacheEua;
+    const topoEua = await montarTopoAtivoEua(row, { agora, versao, preco: precoEua });
+    gravarCache(chave, topoEua, agora.getTime());
+    return topoEua;
+  }
   const emCache = lerCache(chave, agora.getTime());
   if (emCache) return emCache;
-
-  const row = await obterLinhaQuadro(ticker);
   if (!row || (row.classe !== 'acao' && row.classe !== 'fii')) return null;
   const linha = paraLinhaQuadroApi(row);
   const classe = linha.classe as ClasseQuadro;
@@ -504,4 +546,170 @@ export async function montarTopoAtivo(
   const topo = resposta as AtivoTopoResposta;
   gravarCache(chave, topo, agora.getTime());
   return topo;
+}
+
+// ---------------------------------------------------------------------------
+// Stocks e REITs (fatia C)
+// ---------------------------------------------------------------------------
+
+const finitoEua = (v: number | null | undefined): v is number =>
+  typeof v === 'number' && Number.isFinite(v);
+
+/** Tags do topo EUA: setor (stock) ou segmento + 'REIT de patrimônio', bolsa e o FY. SEM índice. */
+export function tagsEua(
+  l: Pick<LinhaQuadroApi, 'classe' | 'setor' | 'segmento' | 'bolsa'>,
+  exercicioFimMmdd: string | null,
+): string[] {
+  const tags =
+    l.classe === 'reit'
+      ? [l.segmento, l.bolsa, TEXTOS_EUA_TELAS.ativo.tagReit]
+      : [l.setor, l.bolsa];
+  return [...tags, textoExercicio(exercicioFimMmdd)].filter((x): x is string => !!x);
+}
+
+/** Gráfico anual por ação (LPA do stock; caixa op./ação do REIT), só a série A. Pura. */
+export function graficoEua(
+  classe: 'stock' | 'reit',
+  periodos: readonly PeriodoSec[],
+): GraficoAtivo {
+  const G = TEXTOS_EUA_TELAS.ativo.grafico;
+  const pontos = periodos.slice(-10).map((p) => {
+    const v = valoresAnoSec(p);
+    const valor = classe === 'reit' ? v.fcoAcao : v.lpa;
+    return { chave: String(p.anoFiscal), valor: finitoEua(valor) ? valor : null };
+  });
+  return {
+    titulo: classe === 'reit' ? G.tituloReit : G.tituloStock,
+    figcaption: classe === 'reit' ? G.figcaptionReit : G.figcaptionStock,
+    granularidade: 'anual',
+    periodos: ['10A'],
+    serieA: { rotulo: classe === 'reit' ? G.serieReit : G.serieStock, pontos },
+    serieB: { rotulo: '', pontos: [] },
+    ult12m: null,
+    lacunas: [],
+    insuficiente: pontos.filter((p) => p.valor !== null).length < 3,
+  };
+}
+
+/** Dividendo por ação por FY (US$) com o crescimento anual dos últimos 5 anos fechados. Pura. */
+export function dividendosEua(periodos: readonly PeriodoSec[]): DividendosAtivo {
+  const anos: PontoSerieAnual[] = periodos
+    .slice(-10)
+    .map((p) => ({ ano: p.anoFiscal, valor: finitoEua(p.dpa) ? p.dpa : null }));
+  const fim = anos[anos.length - 1];
+  const ini = anos.find((a) => fim && a.ano === fim.ano - 5);
+  const cagr =
+    fim && ini && finitoEua(fim.valor) && finitoEua(ini.valor) && ini.valor > 0 && fim.valor > 0
+      ? (Math.pow(fim.valor / ini.valor, 1 / 5) - 1) * 100
+      : null;
+  return {
+    anos,
+    ult12m: null,
+    cagr5aPct: cagr,
+    cagrAnoInicio: cagr === null ? null : ini!.ano,
+    cagrAnoFim: cagr === null ? null : fim!.ano,
+    cagrMotivo: null,
+    selo: null,
+    unidade: 'dpa',
+  };
+}
+
+/** Topo de um stock/REIT a partir da linha do Quadro + 10-K da SEC + cadastro. */
+export async function montarTopoAtivoEua(
+  row: AnaliseQuadroLinha,
+  opts: { agora: Date; versao: string; preco: boolean },
+): Promise<AtivoTopoResposta> {
+  const classe = row.classe as 'stock' | 'reit';
+  const linha = comCotacaoEua(paraLinhaQuadroApi(row), opts.preco);
+  const cik = cikDoEmissorId(row.cnpj) ?? row.cnpj.replace(/^CIK:/, '');
+  const [criterios, periodos, empresa] = await Promise.all([
+    lerCriteriosTopo(row.symbol),
+    lerPeriodosSec(row.cnpj),
+    prisma.secCompany.findUnique({
+      where: { cik },
+      select: {
+        exercicioFimMmdd: true,
+        bolsa: true,
+        publicFloatData: true,
+        segmento: true,
+      },
+    }),
+  ]);
+  const ultimo = periodos[periodos.length - 1] ?? null;
+  const v = ultimo ? valoresAnoSec(ultimo) : null;
+  const kpis = montarKpisEua({
+    classe,
+    ano: ultimo?.anoFiscal ?? null,
+    valores: v
+      ? {
+          roePct: v.roePct,
+          margemPct: v.margemPct,
+          divLiqEbitda: v.divLiqEbitda,
+          dividaLiquida: v.dividaLiquida,
+          lpa: v.lpa,
+          dpa: v.dpa,
+          payoutPct: v.payoutPct,
+          fcoAcao: v.fcoAcao,
+          divFcoPct: v.divFcoPct,
+          receita: v.receita,
+          lucro: v.lucro,
+        }
+      : null,
+    dpaCalculado: ultimo?.dpaOrigem === 'derivado',
+    anosLucroConsecutivos: row.anosLucroConsecutivos,
+    anosDividendo: row.anosDividendo,
+  });
+  const exercicio = empresa?.exercicioFimMmdd ?? null;
+  const bolsa = (BOLSAS_EUA as readonly string[]).includes(empresa?.bolsa ?? linha.bolsa ?? '')
+    ? ((empresa?.bolsa ?? linha.bolsa) as BolsaEua)
+    : null;
+  const segmento = (SEGMENTOS_REIT as readonly string[]).includes(empresa?.segmento ?? '')
+    ? (empresa?.segmento as SegmentoReit)
+    : null;
+  const preco = linha.preco.estado === 'ok' ? linha.preco.valor : null;
+  const edu = TEXTOS_TELA.educacao[classe];
+  return {
+    ticker: row.symbol,
+    classe,
+    nome: linha.nome,
+    tags: tagsEua({ ...linha, bolsa }, exercicio),
+    noQuadro: linha.noQuadro,
+    foraDoQuadroMotivo: linha.foraDoQuadroMotivo,
+    assetId: linha.assetId,
+    fiiTipoCvm: null,
+    cotacao: {
+      preco,
+      data: opts.preco ? linha.precoData : null,
+      variacao: null,
+      variacaoPct: opts.preco ? linha.variacaoDiaPct : null,
+      baixaLiquidez: false,
+    },
+    criterios: criteriosComFonte(criterios, classe),
+    kpis,
+    grafico: graficoEua(classe, periodos),
+    dividendos: dividendosEua(periodos),
+    eventos: [],
+    educacao: { titulo: edu.titulo, href: LINK_EDUCACAO[classe], descricao: edu.descricao },
+    frescor: {
+      cotacao: null,
+      fundamentos: ultimo
+        ? formatarTexto(TEXTOS_TELA.ativo.frescor.sec, { ano: ultimo.anoFiscal })
+        : null,
+      fii: null,
+      painelAtrasado: false,
+    },
+    versao: opts.versao,
+    eua: {
+      cik,
+      bolsa,
+      moeda: 'USD',
+      exercicioFimMmdd: exercicio,
+      motivoSemPreco: opts.preco ? null : 'licenca',
+      linkDocumentos: SEC_URLS.documentos10k.replace('{cik}', cik),
+      publicFloatData: empresa?.publicFloatData
+        ? empresa.publicFloatData.toISOString().slice(0, 10)
+        : null,
+      segmento,
+    },
+  };
 }
