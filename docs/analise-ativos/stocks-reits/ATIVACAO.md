@@ -27,6 +27,17 @@ PSQL='sudo -u myfinance psql "$DATABASE_URL"'   # mesma conexão do app.env
 - Antes do merge: CI verde (type-check → lint → test → build → e2e). Os e2e EUA **pulam** no CI
   enquanto `ANALISE_ATIVOS_EUA_HABILITADO` não estiver no `ci.yml` (decisão em aberto).
 
+### Pendência da Carteira (decisão do Wellington antes do passo 6)
+
+A Carteira guarda cada classe EUA numa unidade diferente, herdada do wizard: o **stock** em R$
+(`valorInvestido` = q × US$ × câmbio, preço médio em R$, mas a aba Stocks soma a cotação da BRAPI
+em US$) e o **REIT** em US$ (q × US$, sem câmbio, como o `Step4ReitFields`). A Carteira
+consolidada soma o REIT como se fosse R$: 4 PLD a US$ 110 entram como "REIT's R$ 440,00", e não
+≈ R$ 2.376 (QA de 18/10). A Análise não corrige a Carteira (ela fica intocada) e evita mostrar
+números sem unidade única: o card "Na sua carteira" do stock mostra só a quantidade e o link para
+a aba; o do REIT mostra valor e preço médio em US$, mas não mostra o "% da carteira". Falta
+decidir se a Carteira converte o REIT pelo câmbio no total e grava o stock numa unidade só.
+
 ## 1. Merge, deploy e migration — [OK] do merge
 
 O deploy (merge na main → GitHub Actions → Lightsail, ~4 min) roda `prisma migrate deploy` em

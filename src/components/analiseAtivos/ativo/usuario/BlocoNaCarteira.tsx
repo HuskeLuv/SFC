@@ -314,11 +314,14 @@ export default function BlocoNaCarteira({
           valor={linha ? dinheiro(linha.valorAtualizado) : '—'}
           carregando={carregando}
         />
-        <Dado
-          rotulo={t.pctCarteira}
-          valor={dados.pctCarteira !== null ? formatPct(dados.pctCarteira) : '—'}
-          carregando={carregando}
-        />
+        {/* REIT: a Carteira soma o REIT em US$ ao total em R$ (pendência da ativação): sem o peso */}
+        {dados.moeda === 'USD' ? null : (
+          <Dado
+            rotulo={t.pctCarteira}
+            valor={dados.pctCarteira !== null ? formatPct(dados.pctCarteira) : '—'}
+            carregando={carregando}
+          />
+        )}
         <Dado
           rotulo={t.precoMedio}
           valor={linha ? dinheiro(linha.precoAquisicao) : '—'}

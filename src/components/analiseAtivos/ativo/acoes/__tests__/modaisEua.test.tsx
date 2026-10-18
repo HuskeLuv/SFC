@@ -343,7 +343,7 @@ describe('Na sua carteira — Stocks', () => {
     );
   });
 
-  it("REIT (O): valores em US$ (unidade da aba REIT's), % da carteira convertido pelo dólar", async () => {
+  it("REIT (O): valores em US$ (unidade da aba REIT's), sem o % da carteira", async () => {
     overlay = {
       posicoes: {
         O: {
@@ -381,8 +381,8 @@ describe('Na sua carteira — Stocks', () => {
     );
     await screen.findByText(/US\$\s7\.500,00/);
     expect(screen.getByText(/US\$\s2\.420,00/)).toBeInTheDocument();
-    // 7.500 × 5,40 ÷ 100.000 = 40,50%
-    expect(screen.getByText('40,50%')).toBeInTheDocument();
+    // a Carteira soma o REIT em US$ ao total em R$ (pendência): o card não mostra o peso
+    expect(screen.queryByText('% da carteira')).toBeNull();
     expect(screen.getByText("Mesmo valor da aba REIT's da Carteira.")).toBeInTheDocument();
   });
 });
