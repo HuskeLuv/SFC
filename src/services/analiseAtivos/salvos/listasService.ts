@@ -24,6 +24,7 @@ import {
   LIMITES_SALVOS,
   MENSAGEM_LISTAS_PESSOAIS,
   TICKER_RE_POR_CLASSE,
+  classesSalvosLigadas,
   ehTickerValido,
   normalizarTicker,
   paramsParaObjeto,
@@ -107,9 +108,13 @@ const SELECT_LISTA = {
   createdAt: true,
 } as const;
 
+/** acao/fii sempre; stock/reit (EUA, fatia D) só quando a lista tem itens deles. */
 export function contagemDe(itens: ReadonlyArray<{ classe: string }>): ContagemPorClasse {
   const c: ContagemPorClasse = { acao: 0, fii: 0 };
-  for (const i of itens) if (i.classe === 'acao' || i.classe === 'fii') c[i.classe] += 1;
+  for (const i of itens) {
+    if (i.classe === 'acao' || i.classe === 'fii') c[i.classe] += 1;
+    else if (i.classe === 'stock' || i.classe === 'reit') c[i.classe] = (c[i.classe] ?? 0) + 1;
+  }
   return c;
 }
 
@@ -540,12 +545,13 @@ export function lerTicker(bruto: string | undefined): string {
 
 /**
  * Ativo do Quadro: a classe vem da LINHA (obterLinhaQuadro, inclusive fora do Quadro). Sem linha
- * ou de classe fora do bloco 1 ⇒ 404 'Ativo não encontrado'.
+ * ou de classe desligada (stock/reit sem ANALISE_ATIVOS_EUA_HABILITADO) ⇒ 404 'Ativo não
+ * encontrado'.
  */
 export async function resolverAtivo(symbol: string): Promise<AtivoSalvo> {
   const linha = await obterLinhaQuadro(symbol);
-  const classe = linha?.classe;
-  if (!linha || (classe !== 'acao' && classe !== 'fii')) {
+  const classe = linha?.classe as ClasseQuadro | undefined;
+  if (!linha || !classe || !(classesSalvosLigadas() as readonly string[]).includes(classe)) {
     throw new ApiError(404, TS.ativoNaoEncontrado);
   }
   if (!TICKER_RE_POR_CLASSE[classe].test(symbol)) throw new ApiError(400, TS.dadosInvalidos);

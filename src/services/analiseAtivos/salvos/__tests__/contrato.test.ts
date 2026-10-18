@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   ALERTAS_PADRAO_LISTA,
   ANALISE_SALVOS_ALERTA_TYPE,
@@ -125,10 +125,16 @@ describe('TICKER_RE_POR_CLASSE', () => {
     expect(TICKER_RE_POR_CLASSE.stock.test('WEGE3')).toBe(false);
   });
 
-  it('ehTickerValido sem classe = alguma classe do bloco 1', () => {
+  afterEach(() => vi.unstubAllEnvs());
+
+  it('ehTickerValido sem classe = alguma classe ligada (EUA só com a chave, fatia D)', () => {
     expect(ehTickerValido('WEGE3')).toBe(true);
     expect(ehTickerValido('AAPL')).toBe(false);
+    expect(ehTickerValido('AAPL', 'stock')).toBe(false);
+    vi.stubEnv('ANALISE_ATIVOS_EUA_HABILITADO', 'true');
+    expect(ehTickerValido('AAPL')).toBe(true);
     expect(ehTickerValido('AAPL', 'stock')).toBe(true);
+    expect(ehTickerValido('WEGE3', 'stock')).toBe(false);
   });
 });
 
