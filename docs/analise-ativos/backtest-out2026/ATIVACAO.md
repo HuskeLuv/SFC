@@ -4,7 +4,7 @@ Roteiro único das quatro fatias integradas na branch `fix/analise-ativos-backte
 
 | Fatia         | Itens do backtest           | Precisa de ação em prod além do deploy?                                   |
 | ------------- | --------------------------- | ------------------------------------------------------------------------- |
-| proventos     | A1a–A1f, A2, A5/M7, M9      | sim: migration (automática) + script de limpeza **[OK]**                  |
+| proventos     | A1a–A1f, A2, A5/M7, M9      | sim: migration + limpeza + espelhos órfãos + restart **[OK]**             |
 | acoes-eventos | A3, A6, A7, A8              | não: tudo é derivado e sai no recálculo                                   |
 | fii-rotina    | A4 (vacância), M13 (01/jan) | não: detecção na leitura; M13 só age a partir de 01/01/2027               |
 | universo-itau | A9 (universo), A10 (Itaú)   | sim: reprocessar o FCA 2026 e baixar balanços das empresas novas **[OK]** |
@@ -99,6 +99,53 @@ $PSQL -c "select symbol, date::date pag, \"dataCom\"::date com, tipo, \"valorUni
 # SAPR11 em 26/06/2026: 1,408226885 (com 30/06/2025) e 0,552412806 (com 30/12/2025), sem o 1,9606
 ```
 
+**2d. Espelhos órfãos da Carteira [OK].** A limpeza apaga linhas do histórico global, mas a cópia
+que a Carteira guarda em `portfolio_proventos` (source `brapi`) do mesmo (pagamento, tipo) não é
+apagada por nenhum sync (`ensurePortfolioProventosFromMarket` só cria ou atualiza). A aba Proventos e
+o IR contam essas cópias; o Resumo e a rentabilidade não. O script
+`scripts/analise-ativos/limpar-proventos-orfaos-carteira.ts` apaga só a linha `brapi` não
+dispensada, com pagamento até hoje, cujo (pagamento, tipo) não está mais no histórico do símbolo.
+Nunca toca em `manual`, dispensada, símbolo sem histórico nem linha já creditada no Caixa para
+Investir (essas aparecem à parte no relatório). Rodar DEPOIS do 2b.
+
+```bash
+rodar scripts/analise-ativos/limpar-proventos-orfaos-carteira.ts > /tmp/orfaos-dry.txt   # dry-run
+# cópia das linhas brapi antes de apagar (volta atrás = reinserir pelo id)
+$PSQL -c "\copy (select * from portfolio_proventos where source = 'brapi') to '/tmp/portfolio_proventos_brapi_pre2d.csv' csv header"
+rodar scripts/analise-ativos/limpar-proventos-orfaos-carteira.ts --apply > /tmp/orfaos-apply.txt
+rodar scripts/analise-ativos/limpar-proventos-orfaos-carteira.ts | grep 'órfãs a apagar'   # 0
+```
+
+```sql
+-- conferência (só leitura): cópias 'brapi' sem o (pagamento, tipo) no histórico
+select a.symbol, count(*), count(distinct pp."userId"), round(sum(pp."valorTotal")::numeric, 2)
+  from portfolio_proventos pp join portfolios p on p.id = pp."portfolioId"
+  join assets a on a.id = p."assetId"
+ where pp.source = 'brapi' and not pp.dismissed and pp."dataPagamento" <= now()
+   and not exists (select 1 from asset_dividend_history h where h.symbol = upper(a.symbol)
+                   and h.date = pp."dataPagamento" and h.tipo = pp.tipo)
+ group by 1 order by 1;
+-- antes do passo 2 (18/10, só leitura): 111 linhas, 3 usuários, R$ 14.563,69 — HFOF11 (75),
+-- CPTI11 (21), BDIF11 (13), JSAF11 (2): cópias 'Dividendo' do YAHOO que o refresh da BRAPI trocou
+-- por 'RENDIMENTO' em outra data (a irmã igual continua). Depois do 2b entram ~17 da limpeza (4
+-- usuários; BBDC4, FLRY3, ITSA4, KFOF11, MXRF11, PRIO3, WEGE3; R$ 1.606,63). Depois do 2d: 0.
+-- A consulta não aplica o filtro de fantasma mensal de FII que o script aplica (getDividendsFromDb):
+-- o número exato é o do dry-run.
+```
+
+**2e. Reiniciar o app [OK].** A aba Proventos (`/api/analises/proventos`) guarda o histórico de
+cada símbolo num cache em memória de 7 dias (`dividendsBySymbol`); o script roda em outro processo
+e não o invalida. Sem reiniciar, a aba lê o histórico antigo por até 7 dias enquanto Resumo e IR já
+leem o novo. Fora do pregão:
+
+```bash
+sudo systemctl restart myfinance
+for i in $(seq 1 30); do curl -sf http://localhost:3000/api/health >/dev/null && echo ok && break; sleep 2; done
+```
+
+Conferir na tela (usuário de QA com SAPR11/VIVT3): a aba Proventos por data-com mostra as parcelas
+de SAPR11 de 26/06/2026 em jun/2025 e dez/2025.
+
 ### Passo 3 — Universo de ações completado pela B3 (FCA 2026) **[OK]**
 
 O FCA 2026 já foi processado em 02/10; sem `--reprocessar` o job pula o arquivo.
@@ -119,7 +166,11 @@ select symbol, cnpj from cvm_company_tickers
 
 ### Passo 4 — Balanços das ~15 empresas novas **[OK]**
 
-Com `--reprocessar`, só os documentos que faltam (os das empresas novas) são gravados. Um ano por
+Com `--reprocessar`, só os documentos que faltam são gravados: os das empresas novas e também
+documentos que faltavam de empresas que já estavam no universo. Na base de 18/10 entram o ITR 2T26
+da Camil (CAML3: P/L 19,9 → 30,2, ROE 3,69% → 2,38%, margem 1,00% → 0,67%), os ITRs de 2026 da
+Rossi (margem do RSID3 −602% → −846%), o ITR 3T25 da Oi e a B100 (B1003). Essas mudanças vêm de
+dado novo da CVM, não são regressão. Um ano por
 vez, como no passo 6 do RUNBOOK, cada comando sem e depois com `--apply`:
 
 ```bash
@@ -186,8 +237,9 @@ SELECT symbol, "anoFiscal", "rendCota" FROM asset_per_share_yearly
 -- A6: eventos confirmados pela cotação
 SELECT symbol, "dataEvento", fator, status, "razaoCvm", fontes FROM asset_corporate_action_checks
  WHERE 'cotacao_b3' = ANY(fontes) ORDER BY 1, 2;
--- esperado (17/10): AMBP3 2025-08-05, AZTE3 2026-07-09, ENJU3 2026-10-09, IFCM3 2025-11-07,
--- ORVR3 2026-08-11, RCSL3/RCSL4 2026-10-05
+-- esperado (17/10): AMBP3 2025-08-05, AZTE3 2026-07-09, ENJU3 2026-10-09, ORVR3 2026-08-11,
+-- RCSL3/RCSL4 2026-10-05. IFCM3 2025-11-07 é PENDÊNCIA: na base de 18/10 continua
+-- 'nao_validavel' (fonte YAHOO, razão 3,51)
 ```
 
 **Contagem de ações, múltiplos e valor de mercado (A6–A8):**
@@ -203,15 +255,32 @@ SELECT m.symbol, round(m.pl::numeric, 2) pl, round(m.pvp::numeric, 2) pvp,
 ```
 
 Flags novas em `asset_multiples_current.flags`, só informativas (fora do Índice):
-`acoes_evento_apos_contagem`, `acoes_alerta_lpa_confirma_anterior`, `acoes_escala_x1000_volume`.
+`acoes_evento_apos_contagem`, `acoes_alerta_lpa_confirma_anterior`, `acoes_escala_x1000_volume`,
+`acoes_cotacao_anterior_evento` e `acoes_alerta_sem_lpa_destoa_ok`.
+
+```sql
+-- correções da revisão do QA (base de 18/10, prova local: só estes 5 tickers mudam no Quadro)
+SELECT q.symbol, q."noQuadro", round(q."valorMercado" / 1e6, 1) vm_mi, round(m.pvp::numeric, 2) pvp,
+       round(m.dpa12m::numeric, 4) dpa12m, round(m."dy12mPct"::numeric, 2) dy, m.flags
+  FROM analise_quadro_linhas q JOIN asset_multiples_current m USING (symbol)
+ WHERE q.symbol IN ('AMBP3','LUPA3','AGXY3','RAIZ4','HYPE3') ORDER BY 1;
+-- esperado: AMBP3 VM ~21.669 mi (era 216.690), P/VP ~19,8 (era 198,2) — cotação de 30/12/2024
+-- antes do ×10 de 05/08/2025; LUPA3 ~47,3 mi (era 4,7) e AGXY3 ~911,7 mi (era 60,8), com
+-- acoes_cotacao_anterior_evento (o grupamento já na contagem é desfeito para a cotação antiga; no
+-- AGXY3 a emissão de 2024 não é evento e fica); RAIZ4 ~3.827 mi (era 1.683) com
+-- acoes_alerta_sem_lpa_destoa_ok (ITR 2T26 com 4,55 bi de ações; vale o DFP de 31/03/2026, 10,34
+-- bi); HYPE3 DPA 12m 1,0816 = B3 (era 0,7891), DY ~4,23%
+```
 
 **Vacância de FII (A4):**
 
 ```sql
 SELECT symbol, array_to_string(array(SELECT f FROM unnest(flags) f WHERE f LIKE 'conf:fii_vacancia%'), ',')
   FROM analise_quadro_linhas WHERE array_to_string(flags, ',') LIKE '%conf:fii_vacancia%' ORDER BY 1;
--- esperado (base de 18/10): ALMI11, APXM11, BRCR11, BTHR11, CCME11, HSML11, HTMX11, LASC11,
--- LKDV11, PLTB11, RBRK11, RZAT11; HSML11 com conf:fii_vacancia:vacancia_ocupacao@2025-12
+-- esperado (base de 18/10): 10 FIIs — ALMI11, APXM11, BRCR11, CCME11, HSML11, HTMX11, LASC11,
+-- PLTB11, RBRK11, RZAT11; HSML11 com conf:fii_vacancia:vacancia_ocupacao@2025-12. BTHR11 e LKDV11
+-- (100% em 4T25 e 1T26) voltaram a 0,0% no 2T26 e o episódio fecha sozinho; com dado mais antigo
+-- eles aparecem (12 FIIs)
 
 SELECT symbol, janela, (SELECT r->>'estado' || ' · ' || coalesce(r->>'fato','')
   FROM jsonb_array_elements(resultados::jsonb) r WHERE r->>'id'='vac')
@@ -251,24 +320,75 @@ continuam dando `falha`.
 
 ## Efeito para o usuário da Carteira
 
-Só a fatia de proventos mexe em código compartilhado (`dividendService`, `asset_dividend_history`).
-As outras três ficam dentro da Análise de Ativos.
+Só a fatia de proventos mexe em código compartilhado (`dividendService`, `asset_dividend_history`,
+`resolveProventos`, a aba Proventos). As outras três ficam dentro da Análise de Ativos.
 
-- Com a chave nova, proventos pagos no mesmo dia com datas-com diferentes viram linhas separadas:
-  cada parcela usa a quantidade que o usuário tinha na SUA data-com (antes, a soma inteira usava a
-  quantidade de uma data-com só). Ex.: 100 cotas de SAPR11 em jun/2025 e 200 em dez/2025 recebem
-  251,31 = 100 × 1,4082 + 200 × 0,5524. `ensurePortfolioProventosFromMarket` continua gravando um
-  provento por (pagamento, tipo) — a soma das parcelas — e o override manual vale para todas as
-  parcelas do mesmo dia (`resolveProventos`), sem duplicar.
-- Depois do passo 2, quem tem VIVT3, CMIG4, SAPR11, ITUB4, ISAE4, RADL3, BBDC3/4, PETR4 (2024) e os
-  demais símbolos afetados vê o valor da B3 nesses pagamentos; proventos recebidos e rentabilidade
-  dessas posições caem para o valor certo.
-- Linhas já materializadas em `portfolio_proventos` (source `brapi`) do mesmo (pagamento, tipo) são
-  atualizadas no próximo sync; as de uma versão que a fonte trocou (outro pagamento) ficam até o
-  usuário apagar — como já acontece hoje com qualquer correção da BRAPI. Resumo e rentabilidade
-  usam o histórico global e saem certos.
+- **Chave nova (passo 1).** Proventos pagos no mesmo dia com datas-com diferentes viram linhas
+  separadas: cada parcela usa a quantidade que o usuário tinha na SUA data-com (antes, a soma inteira
+  usava a quantidade de uma data-com só). Ex.: 100 cotas de SAPR11 em jun/2025 e 200 em dez/2025
+  recebem 251,31 = 100 × 1,4082 + 200 × 0,5524 (antes 392,13). `ensurePortfolioProventosFromMarket`
+  continua gravando um provento por (pagamento, tipo) — a soma das parcelas — e o override manual
+  vale para todas as parcelas do mesmo dia (`resolveProventos`), sem duplicar.
+- **O que a limpeza (passo 2) muda de fato.** Na maior parte, ela quebra a soma em parcelas SEM mudar
+  o total do dia: na prova, só 5 chaves (symbol, pagamento, tipo) mudam de soma; as outras ~660
+  atualizações e ~940 criações preservam o total. O valor recebido na Carteira só muda para quem
+  comprou ou vendeu entre as datas-com das parcelas (SAPR11 acima), para quem comprou depois de
+  uma parcela antiga, ou quando uma linha duplicada (`versao_antiga`) é apagada.
+- **Ainda não fica igual à B3 em todos os símbolos.** A Carteira (`resolveProventoEvents`) conta a
+  linha legada "sem pagamento" (pagamento = data-com) ao lado da linha paga equivalente — a Análise
+  descarta essa linha (`duplicata_sem_pagamento`), a Carteira não. Prova local (100 ações compradas
+  em 01/10/2025, data-com entre 17/10/2025 e 16/10/2026, por ação, antes → depois (B3)): SAPR11
+  2,5131 → 1,1048 (0,5524); CPFE3 9,55 → 7,46 (3,73); CMIG4 2,43 → 1,37 (1,14); VIVT3 3,04 → 1,41
+  (1,30); CSMG3 2,36 (1,99); BRSR6 2,37 → 2,37 (1,54), a Carteira continua com o valor da PNA. No
+  total, 19 → 23 de 34 símbolos iguais à B3: melhora, mas não corrige tudo. Follow-up abaixo.
+- **Espelhos órfãos (passo 2d).** Sem o 2d, as cópias em `portfolio_proventos` de proventos que a
+  fonte trocou de data continuam na aba Proventos e no IR (e divergem do Resumo). O usuário não teria
+  como saber qual linha é a fantasma; o 2d apaga essas cópias (contagem no passo 2d).
+- **Aba Proventos por data-com.** O espelho com várias datas-com no mesmo pagamento passa a abrir
+  nas parcelas do histórico, cada uma no mês da sua data-com e com o seu valor unitário, como o
+  Resumo (SAPR11: 140,82 em jun/2025 + 110,48 em dez/2025, em vez de 251,31 em jun/2025; VIVT3: os
+  JCPs mensais de 2025 pagos em 14/04/2026 em cada mês, não todos em abr/2025). Por pagamento nada
+  muda. Linha `manual` não abre.
+- **IR anual muda por dois motivos.** Pela limpeza (o valor certo de cada parcela) e porque o
+  `ir-resumo-anual` já somava, antes desta branch, `getDividends × quantidade atual` E todas as
+  linhas de `portfolio_proventos` não dispensadas, inclusive as copiadas (`brapi`): todo provento
+  que o cron já copiou conta duas vezes (demo local: R$ 1.837,28 antes do cron de cópias, R$ 4.523,35
+  depois; prod tem 1.602 cópias ativas de 8 usuários). Não é desta branch; follow-up abaixo.
+- **Cache da aba Proventos:** só some com o restart do 2e.
+- **Eventos corporativos da Carteira** não usam as correções da Análise (9e420b41): VIVT3 tem em
+  prod DESDOBRAMENTO 80 + GRUPAMENTO 0,025 (BRAPI, 14/04/2025) e DESDOBRAMENTO 2 (YAHOO, 15/04/2025);
+  `buildQuantityTimeline` aplica os três (×4 em vez de ×2). Nenhum usuário de prod tem VIVT3 hoje.
 - O fantasma mensal de FII na Carteira continua com a regra de antes (só o mesmo mês); a Análise
   usa também o informe da CVM, que a Carteira não tem.
+
+### Follow-ups da Carteira (fora desta branch)
+
+1. A Carteira ignorar a linha legada "sem pagamento" quando houver a linha paga equivalente, com a
+   mesma regra `duplicata_sem_pagamento` da Análise (corrige SAPR11, CPFE3, CMIG4, VIVT3, CSMG3 e
+   o BRSR6/PNA acima).
+2. `ir-resumo-anual`: contar só `source = 'manual'` de `portfolio_proventos` (ou deduplicar por
+   (symbol, pagamento, tipo), como a aba Proventos faz).
+3. O cron `brapi-sync/dividends` (modo `sync`) apagar sozinho os espelhos órfãos, com a mesma regra
+   do 2d (`src/services/portfolio/proventosEspelhoOrfaos.ts`), para correções futuras da fonte. Não
+   ligado nesta branch porque apagaria dado de usuário em prod sem o OK do passo 2d.
+4. Eventos corporativos da Carteira sem dedup entre BRAPI e YAHOO em datas vizinhas (VIVT3).
+
+## Comunicado ao Pedro (números que mudam na tela)
+
+- BAZA3 e BGIP3/4 passam de "calculado" para "incompleto": o DY 12m está igual à B3, mas a
+  deduplicação do JCP repetido de 2024 (BAZA3 2024: 12,77 → 6,39) faz o DY atual parecer um salto e
+  entra o selo `proventos_em_conferencia_salto_recente`.
+- 16 ações ficam sem valor de mercado por não terem contagem validada (Anexo B), entre elas SBSP3
+  (R$ 22,5 bi antes) e AZUL3.
+- GFSA3 continua com P/VP 0,006 (pendência conhecida, M10).
+- O DY 12m de FII pode contar 13 datas-com quando o fundo paga perto do dia 16 ou 17 (ALZR11 1,089
+  contra 12 parcelas) — já existia antes.
+- IGTA3 (ticker extinto, fora do Quadro): P/L 18,0 → 9,0.
+- GMAT3: com a limpeza a BRAPI passa a ter os JCPs de jun e set/2025 pagos em dez/2025 e a última
+  data-com (19/11/2025) fica a mais de 300 dias; o ativo ganha `proventos_defasados_pagador_recorrente_parado`
+  e o DY some (Índice "incompleto"), embora o DPA 12m (0,0496) seja igual ao da B3, que também não
+  tem provento novo em 2026. O detector segue a regra aprovada; curadoria se o Pedro quiser liberar.
+- CAML3, RSID3 e as empresas da Oi mudam pelo passo 4 (documentos novos da CVM).
 
 ## Volta atrás
 
