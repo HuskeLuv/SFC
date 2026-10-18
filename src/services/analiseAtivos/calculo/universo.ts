@@ -42,6 +42,7 @@ export type FiiMesEnxuto = Pick<
   | 'fatorDesdobramento'
   | 'tipoVigente'
   | 'reguaVigente'
+  | 'dyMesCvmPct'
 >;
 
 export interface DadosBase {
@@ -61,6 +62,7 @@ export function enxugarFiiMes(m: FiiMes): FiiMesEnxuto {
     fatorDesdobramento: m.fatorDesdobramento,
     tipoVigente: m.tipoVigente,
     reguaVigente: m.reguaVigente,
+    dyMesCvmPct: m.dyMesCvmPct ?? null,
   };
 }
 

@@ -198,6 +198,12 @@ export interface FiiMes {
   obrigacoesPlPct: number | null;
   segmentoCvm: string | null;
   fatorDesdobramento: number | null;
+  /**
+   * DY do mês informado pela CVM (Percentual_Dividend_Yield_Mes, já saneado): SÓ checagem (regra
+   * 21). Backtest 18/10/2026: prova de que o fundo distribuiu ou não no mês (fantasmas A2, base de
+   * proventos incompleta A5/M7). Opcional para fixtures antigas.
+   */
+  dyMesCvmPct?: number | null;
   flags: string[];
 }
 export interface FiiTrimestre {

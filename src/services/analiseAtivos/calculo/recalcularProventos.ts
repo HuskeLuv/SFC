@@ -17,6 +17,7 @@ import {
 } from '@/services/analiseAtivos/calculo/universo';
 import {
   auditarProventos,
+  mesesDyCvm,
   planejarReescritaProventos,
   type ProventoAuditadoCompleto,
 } from '@/services/analiseAtivos/regras/calculo/proventos';
@@ -49,13 +50,30 @@ export function auditarUniverso(
   eventos: Map<string, EventoComCnpj[]>,
   classe: Map<string, 'acao' | 'fii'>,
   p: ScoringParams,
+  /** FII: meses sem distribuição no informe da CVM (fantasmas, backtest 18/10/2026 A2) */
+  mesesSemRendimentoCvm?: Map<string, ReadonlySet<string>>,
 ): Map<string, ProventoAuditadoCompleto[]> {
   const out = new Map<string, ProventoAuditadoCompleto[]>();
   for (const [symbol, lista] of agrupar(brutos, (b) => b.symbol)) {
     out.set(
       symbol,
-      auditarProventos(lista, eventos.get(symbol) ?? [], p, { classe: classe.get(symbol) }),
+      auditarProventos(lista, eventos.get(symbol) ?? [], p, {
+        classe: classe.get(symbol),
+        mesesSemRendimentoCvm: mesesSemRendimentoCvm?.get(symbol),
+      }),
     );
+  }
+  return out;
+}
+
+/** Meses sem distribuição na CVM por símbolo de FII (DadosBase.fiiMensalPorCnpj). Pura. */
+export function mesesSemRendimentoPorFii(dados: DadosBase): Map<string, ReadonlySet<string>> {
+  const out = new Map<string, ReadonlySet<string>>();
+  for (const [symbol, classe] of dados.universo.classe) {
+    if (classe !== 'fii') continue;
+    const cnpj = dados.universo.cnpjDoSimbolo.get(symbol);
+    const meses = cnpj ? dados.fiiMensalPorCnpj.get(cnpj) : undefined;
+    if (meses && meses.length > 0) out.set(symbol, mesesDyCvm(meses).semRendimento);
   }
   return out;
 }
@@ -71,6 +89,7 @@ export async function recalcularProventos(
 ): Promise<ResultadoProventos> {
   const simbolos = simbolosDoUniverso(dados.universo);
   const cobertura = await coberturaProventos(ctx.prisma, simbolos);
+  const semRendimentoCvm = mesesSemRendimentoPorFii(dados);
   const porSimbolo = new Map<string, ProventoAuditadoCompleto[]>();
   const contagem: Record<string, number> = {};
   const flags: Record<string, number> = {};
@@ -81,7 +100,13 @@ export async function recalcularProventos(
     const lote = simbolos.slice(i, i + LOTE_SIMBOLOS);
     const brutos = await proventosBrutos(ctx.prisma, lote, undefined, ctx.params);
     ctx.contar('linhasLidas', brutos.length);
-    const auditados = auditarUniverso(brutos, eventos, dados.universo.classe, ctx.params);
+    const auditados = auditarUniverso(
+      brutos,
+      eventos,
+      dados.universo.classe,
+      ctx.params,
+      semRendimentoCvm,
+    );
     const doLote = [...auditados.values()].flat();
     for (const [s, l] of auditados) porSimbolo.set(s, l);
     for (const a of doLote) {

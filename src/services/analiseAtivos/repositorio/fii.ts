@@ -35,6 +35,7 @@ export async function fiiMensalSerie(
     obrigacoesPlPct: l.obrigacoesPlPct,
     segmentoCvm: l.segmentoCvm,
     fatorDesdobramento: l.fatorDesdobramento,
+    dyMesCvmPct: l.dyMesCvmPct,
     flags: l.flags,
   }));
 }

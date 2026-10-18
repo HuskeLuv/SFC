@@ -4,7 +4,11 @@
  * hoje = 16/10/2026 (janela de data-com (16/10/2025, 16/10/2026]).
  */
 import { describe, expect, it } from 'vitest';
-import { auditarProventos, rendimento12m } from '@/services/analiseAtivos/regras/calculo/proventos';
+import {
+  auditarProventos,
+  mesesDyCvm,
+  rendimento12m,
+} from '@/services/analiseAtivos/regras/calculo/proventos';
 import { P, bruto } from './helpers';
 
 const HOJE = '2026-10-16';
@@ -199,5 +203,98 @@ describe('A1c — mesmo JCP repetido com outro pagamento', () => {
       { classe: 'acao' },
     );
     expect(validos(aud)).toEqual(['a', 'b']);
+  });
+});
+
+describe('A2 — rendimentos "fantasmas" de FII (data-com = pagamento, dia 01)', () => {
+  it('RBTS11: fantasma 10,9084 de 01/12/2025 sai pelo 7,3419 real de 30/12; os de fev–jun/2026 saem pela CVM (DY 0); DY 12m = 7,3419 (B3)', () => {
+    const semCvm = mesesDyCvm([
+      { refMonth: '2025-12-01', dyMesCvmPct: 2.1777 },
+      ...['2026-01', '2026-02', '2026-03', '2026-04', '2026-05', '2026-06'].map((m) => ({
+        refMonth: `${m}-01`,
+        dyMesCvmPct: 0,
+      })),
+    ]).semRendimento;
+    const aud = auditarProventos(
+      [
+        l('f1', 'RBTS11', 'RENDIMENTO', 10.9083805, '2025-12-01', '2025-12-01'),
+        l('real', 'RBTS11', 'RENDIMENTO', 7.34188413, '2025-12-30', '2026-01-15'),
+        l('f2', 'RBTS11', 'RENDIMENTO', 3.5664957, '2026-02-01', '2026-02-01'),
+        l('f3', 'RBTS11', 'RENDIMENTO', 0.2936076, '2026-03-01', '2026-03-01'),
+        l('f4', 'RBTS11', 'RENDIMENTO', 0.2936076, '2026-06-01', '2026-06-01'),
+      ],
+      [],
+      P,
+      { classe: 'fii', mesesSemRendimentoCvm: semCvm },
+    );
+    expect(validos(aud)).toEqual(['real']);
+    expect(aud.find((x) => x.origemId === 'f1')).toMatchObject({
+      duplicataDe: 'real',
+      flags: ['fantasma_mensal'],
+    });
+    expect(dy12m(aud, 'fii')).toBe(7.34188413); // antes: 22,9912 (DY 10,9% × 3,5%)
+  });
+
+  it('REME11: fantasma 1,1376 de 01/04/2026 sai pelo real pago em 15/04 (data-com 31/03); XLPR11 01/12/2025 × 30/12', () => {
+    const reme = auditarProventos(
+      [
+        l('real', 'REME11', 'RENDIMENTO', 0.15, '2026-03-31', '2026-04-15'),
+        l('f', 'REME11', 'RENDIMENTO', 1.1376011, '2026-04-01', '2026-04-01'),
+      ],
+      [],
+      P,
+      { classe: 'fii' },
+    );
+    expect(validos(reme)).toEqual(['real']);
+    const xlpr = auditarProventos(
+      [
+        l('f', 'XLPR11', 'RENDIMENTO', 2.3435884, '2025-12-01', '2025-12-01'),
+        l('real', 'XLPR11', 'RENDIMENTO', 2.343588385846, '2025-12-30', '2026-01-15'),
+      ],
+      [],
+      P,
+      { classe: 'fii' },
+    );
+    expect(validos(xlpr)).toEqual(['real']);
+  });
+
+  it('BTHF11 2023: fantasma sem rendimento real no mês e com DY na CVM fica (é a única notícia do pagamento)', () => {
+    const aud = auditarProventos(
+      [l('f', 'BTHF11', 'RENDIMENTO', 0.07749606, '2023-02-01', '2023-02-01')],
+      [],
+      P,
+      {
+        classe: 'fii',
+        mesesSemRendimentoCvm: mesesDyCvm([
+          { refMonth: '2023-01-01', dyMesCvmPct: 0 },
+          { refMonth: '2023-02-01', dyMesCvmPct: 0.775 },
+        ]).semRendimento,
+      },
+    );
+    expect(validos(aud)).toEqual(['f']);
+  });
+
+  it('ações não usam a regra do fantasma de FII', () => {
+    const aud = auditarProventos(
+      [
+        l('f', 'TEST3', 'DIVIDENDO', 1, '2026-04-01', '2026-04-01'),
+        l('r', 'TEST3', 'DIVIDENDO', 0.5, '2026-03-31', '2026-04-15'),
+      ],
+      [],
+      P,
+      { classe: 'acao' },
+    );
+    expect(validos(aud)).toEqual(['f', 'r']);
+  });
+
+  it('mesesDyCvm: mês com alguma versão > 0 não é "sem rendimento"; DY nulo não entra', () => {
+    const r = mesesDyCvm([
+      { refMonth: '2026-01-01', dyMesCvmPct: 0 },
+      { refMonth: '2026-01-01', dyMesCvmPct: 0.8 },
+      { refMonth: '2026-02-01', dyMesCvmPct: 0 },
+      { refMonth: '2026-03-01', dyMesCvmPct: null },
+    ]);
+    expect([...r.semRendimento]).toEqual(['2026-02']);
+    expect([...r.comRendimento]).toEqual(['2026-01']);
   });
 });

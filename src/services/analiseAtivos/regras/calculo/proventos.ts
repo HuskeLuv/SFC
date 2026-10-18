@@ -84,6 +84,28 @@ function mesmoValor(a: number, b: number): boolean {
   return Math.abs(a - b) <= Math.max(1e-8, 5e-6 * Math.max(Math.abs(a), Math.abs(b)));
 }
 
+/**
+ * Meses ('AAAA-MM') do informe mensal da CVM com o DY do mês informado: `semRendimento` = todas as
+ * versões do mês com DY 0; `comRendimento` = alguma versão com DY > 0. Mês sem DY (nulo, saneado) não
+ * entra em nenhum. Backtest 18/10/2026: prova de distribuição para os fantasmas de FII (A2) e para a
+ * base de proventos incompleta no critério de meses (A5/M7).
+ */
+export function mesesDyCvm(
+  meses: ReadonlyArray<{ refMonth: string; dyMesCvmPct?: number | null }>,
+): { semRendimento: Set<string>; comRendimento: Set<string> } {
+  const com = new Set<string>();
+  const zero = new Set<string>();
+  for (const m of meses) {
+    const dy = m.dyMesCvmPct;
+    if (typeof dy !== 'number' || !Number.isFinite(dy)) continue;
+    const mes = m.refMonth.slice(0, 7);
+    if (dy > 0) com.add(mes);
+    else zero.add(mes);
+  }
+  for (const mes of com) zero.delete(mes);
+  return { semRendimento: zero, comRendimento: com };
+}
+
 /** Datas a até `max` pregões uma da outra (só conta pregões quando estão a ≤ 7 dias corridos). */
 function vizinhas(a: string, b: string, max = 1): boolean {
   if (a === b) return true;
@@ -294,6 +316,8 @@ export function auditarProventos(
   p: ScoringParams,
   opts?: {
     classe?: 'acao' | 'fii';
+    /** FII: meses 'AAAA-MM' em que o informe mensal da CVM tem DY do mês = 0 (fantasmas, A2) */
+    mesesSemRendimentoCvm?: ReadonlySet<string>;
   },
 ): ProventoAuditadoCompleto[] {
   const cfg = p.sanidade.proventos;
@@ -422,6 +446,7 @@ export function auditarProventos(
     marcarTotalEParcelas(itens, p);
     marcarSomasDeParcelas(itens, p);
   }
+  if (opts?.classe === 'fii') marcarFantasmasFii(itens, opts.mesesSemRendimentoCvm);
 
   // Possível soma duplicada (1 linha com valor ≈ 2× outro provento do mesmo tipo no ano)
   const tol = cfg.somaDuplicadaTolPct / 100;
@@ -614,6 +639,55 @@ function marcarSomasDeParcelas(itens: ProventoAuditadoCompleto[], p: ScoringPara
         break;
       }
     }
+  }
+}
+
+/** 'AAAA-MM' do mês anterior. */
+function mesAnterior(mes: string): string {
+  return menosMeses(`${mes}-01`, 1).slice(0, 7);
+}
+
+/**
+ * Rendimento "fantasma" de FII (backtest 18/10/2026, A2): a BRAPI grava linhas com data-com = data de
+ * pagamento, sempre no dia 01 — a mesma assinatura do fantasma mensal da Carteira
+ * (dividendService.isPhantomMonthlyRow), que nunca é evento real. Sai (duplicata, flag
+ * 'fantasma_mensal') quando:
+ *  - há rendimento real (não fantasma) do mesmo tipo com pagamento ou data-com no MESMO mês —
+ *    RBTS11 01/12/2025 10,9084 × 7,3419 de 30/12; XLPR11 01/12/2025 × 30/12; REME11 01/04 × pago
+ *    15/04; ZAVI11 01/11 e 01/12/2025; ou
+ *  - o informe mensal da CVM diz que o fundo NÃO distribuiu no mês do fantasma nem no anterior
+ *    (DY do mês = 0 nos dois: `mesesSemRendimentoCvm`) — RBTS11 0,2936 em mar–jun/2026 e 3,5665 em
+ *    01/02/2026, meses com DY 0 na CVM.
+ * Sem nenhuma das duas provas o fantasma fica (pode ser a única notícia do pagamento: BTHF11 2023).
+ */
+function marcarFantasmasFii(
+  itens: ProventoAuditadoCompleto[],
+  mesesSemRendimentoCvm: ReadonlySet<string> | undefined,
+): void {
+  const fantasma = (i: ProventoAuditadoCompleto) =>
+    i.dataExOrigem === 'dataCom' &&
+    i.dataPagamento !== null &&
+    i.dataPagamento === i.dataExGravada &&
+    i.dataPagamento.endsWith('-01');
+  const reais = new Map<string, ProventoAuditadoCompleto>();
+  for (const i of itens) {
+    if (i.status !== 'valido' || !i.dataComReal || fantasma(i)) continue;
+    for (const d of [i.dataPagamento, i.dataComReal]) {
+      if (!d) continue;
+      const k = `${i.symbol}|${i.tipoNormalizado}|${d.slice(0, 7)}`;
+      if (!reais.has(k)) reais.set(k, i);
+    }
+  }
+  for (const i of itens) {
+    if (i.status !== 'valido' || !fantasma(i)) continue;
+    const mes = i.dataPagamento!.slice(0, 7);
+    const real = reais.get(`${i.symbol}|${i.tipoNormalizado}|${mes}`);
+    const semCvm =
+      mesesSemRendimentoCvm?.has(mes) === true && mesesSemRendimentoCvm.has(mesAnterior(mes));
+    if (!real && !semCvm) continue;
+    i.status = 'duplicata';
+    i.duplicataDe = real?.origemId ?? null;
+    i.flags.push('fantasma_mensal');
   }
 }
 
