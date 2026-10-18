@@ -13,6 +13,7 @@ import {
   contagemVigente,
   eventoRefletidoNaContagem,
   FLAG_ALERTA_DESMENTIDA,
+  FLAG_ALERTA_SEM_LPA_DESTOA,
   FLAG_ESCALA_VOLUME,
   FLAG_EVENTO_POSTERIOR,
   FLAG_PRECO_ANTES_EVENTO,
@@ -321,5 +322,57 @@ describe('A8 — valor de mercado: mesma contagem, unit e escala de milhares', (
 
   it('giro normal não mexe na escala (ORVR3: ~0,3% das ações por dia)', () => {
     expect(vigente(fixture.acoes.ORVR3).escala).toBe(1);
+  });
+});
+
+describe("contagem 'alerta' sem LPA para conferir (prejuízo)", () => {
+  // CVM (asset_share_counts do CNPJ 33453598000123, base de 18/10/2026); B3 hoje: 10.352.509.484
+  const linha = (
+    data: string,
+    on: number,
+    pn: number,
+    fonte: string,
+    razaoLpa: number,
+    status: ContagemAcoes['status'],
+  ): ContagemAcoes => ({
+    cnpj: '33453598000123',
+    data,
+    on,
+    pn,
+    total: on + pn,
+    fonte,
+    razaoLpa,
+    status,
+  });
+  const RAIZ = [
+    linha('2025-03-31', 8_993_572_584, 1_340_673_226, 'dfp', 1.0002, 'ok'),
+    linha('2025-06-30', 8_993_572_584, 1_340_673_226, 'itr', -0.99998, 'alerta'),
+    linha('2025-09-30', 8_993_572_584, 1_349_543_297, 'itr', 1.0005, 'ok'),
+    linha('2025-12-31', 8_993_572_584, 1_349_543_297, 'itr', 1.0004, 'ok'),
+    linha('2026-03-31', 8_993_572_584, 1_349_543_297, 'dfp', 1.0003, 'ok'),
+    linha('2026-06-30', 4_496_786_292, 51_417_222, 'itr', -0.2244, 'alerta'),
+  ];
+
+  it('RAIZ4: ITR 2T26 com 4,55 bi (razão LPA −0,22) contra 10,34 bi do DFP 31/03/2026 ⇒ vale o DFP; VM R$ 1,68 bi → 3,83 bi', () => {
+    const v = contagemVigente({ contagens: RAIZ, eventos: [], dataRef: DATA_REF }, P);
+    expect(v.contagem?.data).toBe('2026-03-31');
+    expect(v.contagem?.total).toBe(10_343_115_881);
+    expect(v.flags).toContain(FLAG_ALERTA_SEM_LPA_DESTOA);
+    expect((0.37 * v.contagem!.total!) / 1e9).toBeCloseTo(3.827, 3);
+  });
+
+  it("'alerta' sem LPA que bate com a 'ok' anterior continua valendo (RAIZ4 2T25)", () => {
+    const v = contagemVigente(
+      { contagens: RAIZ.slice(0, 2), eventos: [], dataRef: '2025-08-01' },
+      P,
+    );
+    expect(v.contagem?.data).toBe('2025-06-30');
+    expect(v.flags).not.toContain(FLAG_ALERTA_SEM_LPA_DESTOA);
+  });
+
+  it("'alerta' com LPA positivo não é afetada (ORVR3 follow-on continua valendo)", () => {
+    const v = vigente(fixture.acoes.ORVR3);
+    expect(v.contagem?.data).toBe('2026-06-30');
+    expect(v.flags).not.toContain(FLAG_ALERTA_SEM_LPA_DESTOA);
   });
 });

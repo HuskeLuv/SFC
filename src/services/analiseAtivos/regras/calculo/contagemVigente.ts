@@ -8,6 +8,11 @@
  *    (65,1 mi) ⇒ 57,4 mi ações, razaoLpa 0,455 ⇒ implícito 126,1 mi ≈ 122,6 mi do 1T26 ⇒ vale o
  *    1T26. Uma 'alerta' em geral NÃO é descartada: ORVR3 (137,3 mi, follow-on), SIMH3 (583,8 mi,
  *    grupamento + emissão) e MOVI3 (401,0 mi) estão certas e só não batem com o LPA da CVM.
+ *    Sem LPA para conferir (razão LPA nula ou ≤ 0: prejuízo, sinal trocado), a 'alerta' que destoa
+ *    mais de ALERTA_DESVIO_MIN da 'ok' imediatamente anterior e recente (≤ ALERTA_OK_RECENTE_DIAS,
+ *    × eventos) também sai: RAIZ4 ITR 2T26 com ON 4,50 bi + PN 51 mi = 4,55 bi contra 10,34 bi no
+ *    DFP de 31/03/2026 (B3: 10,35 bi) ⇒ vale o DFP; VM R$ 1,68 bi → 3,83 bi. Na base de 18/10 é o
+ *    único caso do universo.
  * 2. Regra 13 (salto contra o último DFP 'ok' sem evento que explique — os eventos que estão numa
  *    contagem e não na outra, fatorEventosEntreContagens) e "não verificável" como antes ⇒ sem
  *    contagem (múltiplos por ação ausentes, Índice incompleto).
@@ -38,6 +43,8 @@ const ALERTA_DESVIO_MIN = 0.2;
 const ALERTA_LPA_TOL = 0.05;
 /** A contagem já saltou ≈ o fator do evento contra a anterior (±25%) ⇒ já o reflete. */
 const SALTO_REFLETE_TOL = 0.25;
+/** 'ok' até ~13 meses antes da 'alerta' conta como referência recente sem LPA. */
+const ALERTA_OK_RECENTE_DIAS = 400;
 /** Giro diário máximo plausível (ações negociadas/dia ÷ ações totais). */
 const GIRO_DIARIO_MAX = 0.5;
 const ESCALA_MILHARES = 1000;
@@ -48,6 +55,7 @@ export type EventoParaContagem = Pick<
 >;
 
 export const FLAG_ALERTA_DESMENTIDA = 'acoes_alerta_lpa_confirma_anterior';
+export const FLAG_ALERTA_SEM_LPA_DESTOA = 'acoes_alerta_sem_lpa_destoa_ok';
 export const FLAG_EVENTO_POSTERIOR = 'acoes_evento_apos_contagem';
 export const FLAG_ESCALA_VOLUME = 'acoes_escala_x1000_volume';
 export const FLAG_PRECO_ANTES_EVENTO = 'acoes_cotacao_anterior_evento';
@@ -181,6 +189,28 @@ function alertaDesmentidaPeloLpa(
   return Math.abs(implicito / esperado - 1) <= ALERTA_LPA_TOL;
 }
 
+const diasEntre = (a: string, b: string) =>
+  (Date.parse(`${b}T00:00:00Z`) - Date.parse(`${a}T00:00:00Z`)) / 86_400_000;
+
+/** 'alerta' sem LPA que a confirme (razão nula ou ≤ 0) e longe da 'ok' recente anterior. */
+function alertaSemLpaDestoaDaOk(
+  c: ContagemAcoes,
+  ordenadas: readonly ContagemAcoes[],
+  eventos: readonly EventoParaContagem[],
+): boolean {
+  if (c.status !== 'alerta' || !(c.total! > 0) || (c.razaoLpa !== null && c.razaoLpa > 0)) {
+    return false;
+  }
+  const ref = ordenadas.find((x) => x.data < c.data && x.total! > 0);
+  if (!ref || ref.status !== 'ok' || diasEntre(ref.data, c.data) > ALERTA_OK_RECENTE_DIAS) {
+    return false;
+  }
+  const esperado =
+    ref.total! *
+    fatorEventosEntreContagens(eventos, contagemRef(ref, ordenadas), contagemRef(c, ordenadas));
+  return esperado > 0 && Math.abs(c.total! / esperado - 1) > ALERTA_DESVIO_MIN;
+}
+
 export interface EntradaContagemVigente {
   contagens: readonly ContagemAcoes[];
   eventos: readonly EventoParaContagem[];
@@ -215,6 +245,10 @@ export function contagemVigente(e: EntradaContagemVigente, p: ScoringParams): Co
   for (const c of ordenadas) {
     if (alertaDesmentidaPeloLpa(c, ordenadas, e.eventos)) {
       if (!flags.includes(FLAG_ALERTA_DESMENTIDA)) flags.push(FLAG_ALERTA_DESMENTIDA);
+      continue;
+    }
+    if (alertaSemLpaDestoaDaOk(c, ordenadas, e.eventos)) {
+      if (!flags.includes(FLAG_ALERTA_SEM_LPA_DESTOA)) flags.push(FLAG_ALERTA_SEM_LPA_DESTOA);
       continue;
     }
     maisRecente = c;
