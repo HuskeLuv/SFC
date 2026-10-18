@@ -13,6 +13,11 @@
  *    contagem (múltiplos por ação ausentes, Índice incompleto).
  * 3. Eventos que a contagem ainda NÃO reflete (eventoRefletidoNaContagem) multiplicam on/pn/total:
  *    ORVR3 ×4 em 11/08/2026 sobre a contagem de 30/06 (P/L 54,6 → 218,6); ENJU3 ×0,1 em 09/10/2026.
+ *    A cotação é a do PRÓPRIO ticker (`dataPreco`): evento depois dela não vale para ela — nem o que
+ *    a contagem ainda não reflete (não se aplica) nem o que já reflete (desfaz-se, para a contagem
+ *    ficar no regime de ações da cotação). Cotação congelada (fora do Quadro, na página do ativo):
+ *    AMBP3 cotação de 30/12/2024 e ×10 em 05/08/2025 ⇒ VM 21,7 bi, não 216,7 bi; LUPA3 R$ 1,00 de
+ *    30/12/2025 e ×0,1 de 14/08/2026 já no ITR de 30/06 ⇒ 47,3 mi ações, não 4,7 mi.
  * 4. Escala de milhares pelo volume: ações negociadas por dia acima de GIRO_DIARIO_MAX do total
  *    (INEP3: ~62 mil ações/dia contra 54.399 "ações" do ITR) ⇒ contagem em milhares ⇒ ×1000.
  *    O LPA da CVM vem na mesma escala errada, por isso a razão LPA não pega.
@@ -45,6 +50,7 @@ export type EventoParaContagem = Pick<
 export const FLAG_ALERTA_DESMENTIDA = 'acoes_alerta_lpa_confirma_anterior';
 export const FLAG_EVENTO_POSTERIOR = 'acoes_evento_apos_contagem';
 export const FLAG_ESCALA_VOLUME = 'acoes_escala_x1000_volume';
+export const FLAG_PRECO_ANTES_EVENTO = 'acoes_cotacao_anterior_evento';
 
 /**
  * O evento já está no nº de ações da contagem `c`?
@@ -115,6 +121,27 @@ export function fatorEventosAposContagem(
 }
 
 /**
+ * Π dos eventos posteriores à cotação (`dataPreco` < dataEvento ≤ `dataRef`) que a contagem JÁ
+ * reflete — o que se divide para voltar ao nº de ações da data da cotação (LUPA3 ×0,1 de 14/08/2026
+ * no ITR de 30/06 com cotação de 30/12/2025 ⇒ 10).
+ */
+export function fatorEventosRefletidosAposPreco(
+  eventos: readonly EventoParaContagem[],
+  c: ContagemRef,
+  dataPreco: string,
+  dataRef: string,
+  anterior?: Pick<ContagemAcoes, 'total'> | null,
+): number {
+  let f = 1;
+  for (const e of eventos) {
+    if (!eventoAjustaSerie(e.status) || e.dataEvento <= dataPreco || e.dataEvento > dataRef)
+      continue;
+    if (eventoRefletidoNaContagem(e, c, anterior)) f *= e.fator;
+  }
+  return f;
+}
+
+/**
  * Π dos eventos que estão na contagem `depois` e não na `antes` (eventoRefletidoNaContagem) — o
  * que explica a razão entre duas contagens. Diferente de fatorEventosEntre (só pela data): o ITR
  * entregue depois do evento já o traz (LUPA3 ×0,1 de 14/08/2026 no ITR de 30/06 ⇒ 46,7 mi → 4,7
@@ -158,6 +185,11 @@ export interface EntradaContagemVigente {
   contagens: readonly ContagemAcoes[];
   eventos: readonly EventoParaContagem[];
   dataRef: string;
+  /**
+   * data da cotação usada com a contagem (último pregão do ticker); anterior a `dataRef` em ativo de
+   * cotação congelada. Sem ela, a cotação é de `dataRef`.
+   */
+  dataPreco?: string | null;
   /** ações (equivalentes) negociadas por dia no ticker; sem ela, não confere a escala */
   acoesNegociadasDia?: number | null;
 }
@@ -167,7 +199,7 @@ export interface ContagemVigente {
   contagem: ContagemAcoes | null;
   /** contagem mais recente aceita, como gravada (bloco C R1 usa a bruta) */
   maisRecente: ContagemAcoes | null;
-  /** Π eventos aplicados sobre a contagem (1 = nenhum) */
+  /** Π eventos aplicados sobre a contagem (1 = nenhum); inclui o inverso dos desfeitos pela cotação */
   fatorEventos: number;
   /** 1 ou 1000 (escala de milhares pelo volume) */
   escala: number;
@@ -222,13 +254,19 @@ export function contagemVigente(e: EntradaContagemVigente, p: ScoringParams): Co
   if (!base) return { contagem: null, maisRecente, fatorEventos: 1, escala: 1, flags };
 
   const anterior = ordenadas.find((c) => c.data < base.data && c.total! > 0) ?? null;
-  const fatorEventos = fatorEventosAposContagem(
+  const ref = contagemRef(base, ordenadas);
+  const dataPreco = e.dataPreco && e.dataPreco < e.dataRef ? e.dataPreco : e.dataRef;
+  const fatorAplicado = fatorEventosAposContagem(e.eventos, ref, dataPreco, anterior);
+  const fatorDesfeito = fatorEventosRefletidosAposPreco(
     e.eventos,
-    contagemRef(base, ordenadas),
+    ref,
+    dataPreco,
     e.dataRef,
     anterior,
   );
-  if (fatorEventos !== 1) flags.push(FLAG_EVENTO_POSTERIOR);
+  if (fatorAplicado !== 1) flags.push(FLAG_EVENTO_POSTERIOR);
+  if (fatorDesfeito !== 1) flags.push(FLAG_PRECO_ANTES_EVENTO);
+  const fatorEventos = fatorAplicado / fatorDesfeito;
   let escala = 1;
   const giro = e.acoesNegociadasDia ?? null;
   const total = base.total! * fatorEventos;

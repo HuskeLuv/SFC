@@ -445,6 +445,7 @@ export function montarLinhasQuadro(
 
     // valor de mercado
     const preco = m?.preco ?? r?.closeRaw ?? null;
+    const precoData = m?.precoData ?? r?.ultimoPregao ?? null;
     let valorMercado: number | null = null;
     if (ehAcao) {
       // a mesma contagem e a mesma conta do P/L (calcularAtualAcao): sem 'alerta' desmentida pelo
@@ -458,6 +459,8 @@ export function montarLinhasQuadro(
             contagens: contagensPor.get(u.cnpj) ?? [],
             eventos: eventosPor.get(u.symbol) ?? [],
             dataRef: diaIso(e.dataRef),
+            // cotação do próprio ticker (congelada em ativo fora do Quadro): evento depois dela não vale
+            dataPreco: precoData ? diaIso(precoData) : null,
             acoesNegociadasDia: acoesNegociadasDia(r, fatorEquivalencia(ticker)),
           },
           p,
@@ -498,7 +501,7 @@ export function montarLinhasQuadro(
       regua: score?.regua ?? null,
       tickerReferencia: score?.tickerReferencia ?? null,
       preco,
-      precoData: m?.precoData ?? r?.ultimoPregao ?? null,
+      precoData,
       variacaoDiaPct: variacaoDia(u.symbol),
       volumeMedio21: r?.volumeMedio21 ?? null,
       baixaLiquidez: r?.baixaLiquidez ?? false,

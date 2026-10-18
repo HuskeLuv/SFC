@@ -15,6 +15,7 @@ import {
   FLAG_ALERTA_DESMENTIDA,
   FLAG_ESCALA_VOLUME,
   FLAG_EVENTO_POSTERIOR,
+  FLAG_PRECO_ANTES_EVENTO,
   type EventoParaContagem,
 } from '@/services/analiseAtivos/regras/calculo/contagemVigente';
 import { verificarEventosCorporativos } from '@/services/analiseAtivos/regras/calculo/eventosCorporativos';
@@ -161,6 +162,109 @@ describe('A6 — desdobramento/grupamento depois da última contagem', () => {
     const ultima = { data: '2026-06-30', total: 40_011_514 };
     expect(eventoRefletidoNaContagem(ev!, ultima, { total: 339_094_779 })).toBe(true);
     expect(eventoRefletidoNaContagem(ev!, ultima, { total: 40_011_514 })).toBe(false);
+  });
+});
+
+describe('A6 — cotação congelada ANTERIOR ao evento (fora do Quadro, página do ativo)', () => {
+  const cont = (
+    cnpj: string,
+    linhas: Array<[string, number, string, number, ContagemAcoes['status']]>,
+  ): ContagemAcoes[] =>
+    linhas.map(([data, total, fonte, razaoLpa, status]) => ({
+      cnpj,
+      data,
+      on: total,
+      pn: 0,
+      total,
+      fonte,
+      razaoLpa,
+      status,
+    }));
+  // produção, asset_share_counts e asset_quote_resumo (somente leitura, 18/10/2026)
+  const AMBP3 = cont('12648266000124', [
+    ['2023-12-31', 167_041_869, 'dfp', 0.9999, 'ok'],
+    ['2024-12-31', 166_797_769, 'dfp', 0.9973, 'ok'],
+    ['2025-03-31', 166_562_769, 'itr', 0.9966, 'ok'],
+    ['2025-06-30', 166_684_471, 'itr', 0.9984, 'ok'],
+  ]);
+  // desdobramento ×10 de 05/08/2025, confirmado pela cotação (razaoCvm nulo, sem ITR depois)
+  const evAmbp: EventoParaContagem = {
+    dataEvento: '2025-08-05',
+    fator: 10,
+    status: 'confirmado',
+    anoBase: 2025,
+    razaoCvm: null,
+  };
+
+  it('AMBP3: cotação R$ 130 de 30/12/2024 e ×10 de 05/08/2025 ⇒ o evento não vale para ela: VM 21,7 bi (era 216,7 bi)', () => {
+    const base = { contagens: AMBP3, eventos: [evAmbp], dataRef: DATA_REF };
+    const semData = contagemVigente(base, P);
+    expect(semData.contagem?.total).toBe(1_666_844_710); // o erro: ×10 sobre a cotação antiga
+    const v = contagemVigente({ ...base, dataPreco: '2024-12-30' }, P);
+    expect(v.fatorEventos).toBe(1);
+    expect(v.contagem?.total).toBe(166_684_471);
+    expect(v.flags).not.toContain(FLAG_EVENTO_POSTERIOR);
+    expect((130 * v.contagem!.total!) / 1e9).toBeCloseTo(21.669, 3);
+  });
+
+  it('AMBP3 com cotação depois do evento: continua ×10 (A6 inalterado)', () => {
+    const v = contagemVigente(
+      { contagens: AMBP3, eventos: [evAmbp], dataRef: DATA_REF, dataPreco: '2026-10-16' },
+      P,
+    );
+    expect(v.fatorEventos).toBe(10);
+    expect(v.flags).toContain(FLAG_EVENTO_POSTERIOR);
+  });
+
+  it('LUPA3: R$ 1,00 de 30/12/2025 e ×0,1 de 14/08/2026 já no ITR de 30/06 ⇒ desfaz: 47,3 mi ações, VM R$ 47,3 mi (era 4,7 mi)', () => {
+    const c = fixture.acoes.LUPA3;
+    const evs = verificarEventosCorporativos(
+      c.brutos as EventoCorporativoBruto[],
+      c.contagens as ContagemAcoes[],
+      P,
+      undefined,
+      'LUPA3',
+      { pregoes: c.pregoes },
+    );
+    const v = contagemVigente(
+      {
+        contagens: c.contagens as ContagemAcoes[],
+        eventos: evs,
+        dataRef: DATA_REF,
+        dataPreco: '2025-12-30',
+      },
+      P,
+    );
+    expect(v.fatorEventos).toBeCloseTo(10, 9);
+    expect(v.contagem?.total).toBeCloseTo(47_318_100, 0);
+    expect(v.flags).toContain(FLAG_PRECO_ANTES_EVENTO);
+    expect((1.0 * v.contagem!.total!) / 1e6).toBeCloseTo(47.3, 1);
+  });
+
+  it('AGXY3: R$ 3,63 de 28/12/2023 e grupamento 15:1 de 06/05/2025 já nas contagens ⇒ VM R$ 911,7 mi (era 60,8 mi)', () => {
+    const contagens = cont('21240146000184', [
+      ['2023-12-31', 167_429_310, 'dfp', 0.9979, 'ok'],
+      ['2024-03-31', 167_429_310, 'itr', 1.0023, 'ok'],
+      ['2024-06-30', 251_147_897, 'itr', 1.4461, 'alerta'],
+      ['2024-09-30', 251_147_897, 'itr', 1.2779, 'alerta'],
+      ['2024-12-31', 251_147_897, 'dfp', 1.1945, 'alerta'],
+      ['2025-03-31', 16_743_192, 'itr', 0.067, 'alerta'],
+      ['2025-06-30', 16_743_193, 'itr', 0.0788, 'alerta'],
+      ['2025-09-30', 16_743_193, 'itr', 0.1211, 'alerta'],
+    ]);
+    const ev: EventoParaContagem = {
+      dataEvento: '2025-05-06',
+      fator: 0.06666667,
+      status: 'confirmado',
+      anoBase: 2025,
+      razaoCvm: 0.0667,
+    };
+    const base = { contagens, eventos: [ev], dataRef: DATA_REF };
+    expect((3.63 * contagemVigente(base, P).contagem!.total!) / 1e6).toBeCloseTo(60.8, 1);
+    const v = contagemVigente({ ...base, dataPreco: '2023-12-28' }, P);
+    // o grupamento sai; a emissão de 2024 (167 → 251 mi) não é evento e fica
+    expect(v.contagem!.total! / 1e6).toBeCloseTo(251.15, 1);
+    expect((3.63 * v.contagem!.total!) / 1e6).toBeCloseTo(911.7, 0);
   });
 });
 

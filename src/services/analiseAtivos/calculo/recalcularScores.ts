@@ -396,6 +396,7 @@ export function calcularAtualAcao(e: EntradaAtualAcao, p: ScoringParams): Calcul
       contagens: e.contagens,
       eventos: e.eventos,
       dataRef: e.dataRef,
+      dataPreco: e.resumo.ultimoPregao,
       acoesNegociadasDia: acoesNegociadasDia(e.resumo, fator),
     },
     p,
