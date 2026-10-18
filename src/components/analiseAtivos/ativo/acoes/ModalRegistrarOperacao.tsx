@@ -15,8 +15,15 @@
  * completo" (AddAssetWizard, para taxas/observações/instituição nova). Sucesso →
  * invalidatePortfolioDerivedQueries (no hook). Consultor agindo: registra na carteira do cliente,
  * com o aviso (rec. 9). 44 px em todos os controles.
+ *
+ * Stocks e REITs (feature EUA, fatia D): o preço é em US$ e vem EM BRANCO sem a cotação EUA
+ * (ANALISE_ATIVOS_EUA_PRECO_HABILITADO desligada); a cotação do dólar (US$ → R$) vem preenchida com
+ * a da aba da Carteira e é editável. O corpo é o do wizard (montarCorpoCompra EUA) e, com posição,
+ * leva o Asset manual da posição (overlay) — a recompra não cria um 2º Asset. Sem posição:
+ * STOCK-MANUAL / REIT-MANUAL. Total em R$; posição e preço médio na unidade da aba, como a Carteira
+ * mostra. Sem o link do formulário completo (o wizard não tem preset EUA).
  */
-import { useEffect, useId, useMemo, useState } from 'react';
+import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import ModalAnalise, {
   AvisoConsultor,
   BOTAO_MODAL_PRIMARIO,
@@ -37,9 +44,13 @@ import {
 import {
   montarCorpoCompra,
   montarCorpoVenda,
+  precoNaCarteira,
+  totalEmReais,
   validarOperacao,
   type ErroOperacao,
 } from '@/services/analiseAtivos/regras/carteira/registroOperacao';
+import { TEXTOS_EUA } from '@/services/analiseAtivos/textosEua';
+import { ehClasseEua } from '@/types/analiseAtivosApi';
 import { secaoOperacao } from '@/services/analiseAtivos/regras/carteira/secaoOperacao';
 import { formatarTexto } from '@/services/analiseAtivos/textos';
 import {
@@ -48,7 +59,7 @@ import {
   TEXTOS_ACOES_CARTEIRA,
   TEXTOS_OPERACAO,
 } from '@/services/analiseAtivos/textosAcoesCarteira';
-import { formatBRL, formatNumber } from '@/utils/format';
+import { formatBRL, formatNumber, formatUSD } from '@/utils/format';
 import type { ModalRegistrarOperacaoProps } from '@/types/analiseAtivosCriterios';
 
 export type { ModalRegistrarOperacaoProps };
@@ -124,8 +135,12 @@ export default function ModalRegistrarOperacao({
 }: ModalRegistrarOperacaoProps & { onFormularioCompleto?: () => void }) {
   const t = ticker.toUpperCase();
   const cl = CLASSE_CARTEIRA[classe];
-  const ids = { q: useId(), p: useId(), d: useId(), oper: useId(), dica: useId() };
-  const dados = useNaCarteiraAtivo(t, classe);
+  const eua = ehClasseEua(classe);
+  const ids = { q: useId(), p: useId(), c: useId(), d: useId(), oper: useId(), dica: useId() };
+  // EUA: a aba Stocks/REIT's traz a cotação do dólar da Carteira (pré-preenche o câmbio)
+  const dados = useNaCarteiraAtivo(t, classe, { base: aberto && eua });
+  /** valores da aba (posição, PM): US$ em Stocks/REIT's, como a Carteira mostra */
+  const dinheiroAba = dados.moeda === 'USD' ? formatUSD : formatBRL;
   const comPosicao = dados.status === 'posicao' && !!dados.portfolioId;
   const posQtd = comPosicao ? (dados.linha?.quantidade ?? dados.quantidade ?? 0) : 0;
   const pm = comPosicao ? (dados.linha?.precoAquisicao ?? null) : null;
@@ -143,6 +158,8 @@ export default function ModalRegistrarOperacao({
   const [operacao, setOperacao] = useState<'compra' | 'venda'>(operacaoInicial);
   const [qtdTexto, setQtdTexto] = useState('');
   const [precoTexto, setPrecoTexto] = useState('');
+  const [cambioTexto, setCambioTexto] = useState('');
+  const cambioEditadoRef = useRef(false);
   const [data, setData] = useState(() => hojeLocal());
   const [inst, setInst] = useState<{ id: string; nome: string }>({ id: '', nome: '' });
   const [erros, setErros] = useState<ErroOperacao[]>([]);
@@ -154,12 +171,19 @@ export default function ModalRegistrarOperacao({
     setOperacao(operacaoInicial === 'venda' && comPosicao ? 'venda' : 'compra');
     setQtdTexto('');
     setPrecoTexto(preco !== null && preco > 0 ? formatNumber(preco, 2) : '');
+    setCambioTexto('');
+    cambioEditadoRef.current = false;
     setData(hojeLocal());
     setErros([]);
     setErroServidor(null);
     setInst({ id: '', nome: '' });
     // eslint-disable-next-line react-hooks/exhaustive-deps -- só ao abrir
   }, [aberto]);
+  // EUA: o câmbio começa com a cotação do dólar da aba (até o usuário editar).
+  useEffect(() => {
+    if (!aberto || !eua || cambioEditadoRef.current || dados.cotacaoDolar === null) return;
+    setCambioTexto(formatNumber(dados.cotacaoDolar, 2));
+  }, [aberto, eua, dados.cotacaoDolar]);
   // Recompra: a instituição da última aquisição já vem escolhida (se o nome for conhecido).
   useEffect(() => {
     if (aberto && ultima?.nome)
@@ -169,18 +193,29 @@ export default function ModalRegistrarOperacao({
   const venda = operacao === 'venda';
   const quantidade = lerQuantidade(qtdTexto);
   const cotacao = lerNumero(precoTexto);
+  const cambio = lerNumero(cambioTexto);
+  // EUA sem cotação licenciada: sem aviso de divergência (não há preço de referência)
   const desvioPreco = usePriceDeviationWarning({
     enteredPrice: Number.isFinite(cotacao) ? cotacao : null,
     currentPrice: preco,
-    symbol: aberto ? t : null,
-    referenceDate: aberto ? data : null,
+    symbol: aberto && !eua ? t : null,
+    referenceDate: aberto && !eua ? data : null,
   });
 
   const qOk = Number.isFinite(quantidade) && quantidade > 0 ? quantidade : 0;
   const pOk = Number.isFinite(cotacao) && cotacao > 0 ? cotacao : 0;
-  const total = qOk * pOk;
+  const cOk = eua && Number.isFinite(cambio) && cambio > 0 ? cambio : 0;
+  const total = totalEmReais({ classe, quantidade: qOk, cotacao: pOk, cambio: cOk });
+  // preço na unidade da aba (stock: US$ × câmbio; REIT: US$; BR: o próprio)
+  const precoAba = precoNaCarteira({
+    classe,
+    cotacao: pOk,
+    cambio: cOk,
+    tipoAsset: dados.tipoAsset,
+  });
   const novaQtd = venda ? Math.max(0, posQtd - qOk) : posQtd + qOk;
-  const novoPm = !venda && novaQtd > 0 ? ((pm ?? 0) * posQtd + qOk * pOk) / novaQtd : (pm ?? null);
+  const novoPm =
+    !venda && novaQtd > 0 ? ((pm ?? 0) * posQtd + qOk * precoAba) / novaQtd : (pm ?? null);
 
   // v2.5: seção automática (nunca vazia); a aba é a efetiva da posição ou a da classe.
   const secaoFinal = secao.valor ?? '';
@@ -199,6 +234,7 @@ export default function ModalRegistrarOperacao({
       posicao: comPosicao ? posQtd : null,
       cotacao: Number.isFinite(cotacao) ? cotacao : null,
       ...(venda ? {} : { instituicaoId: inst.id || null }),
+      ...(eua ? { cambio: Number.isFinite(cambio) ? cambio : null } : {}),
     });
     setErros(lista);
     if (lista.length > 0) {
@@ -208,6 +244,7 @@ export default function ModalRegistrarOperacao({
         preco_invalido: ids.p,
         data_futura: ids.d,
         sem_instituicao: 'instituicao',
+        cambio_invalido: ids.c,
       };
       document.getElementById(alvoFoco[lista[0]])?.focus();
       return;
@@ -220,19 +257,22 @@ export default function ModalRegistrarOperacao({
             data,
             quantidade,
             cotacao,
+            ...(eua ? { classe, cambio, tipoAsset: dados.tipoAsset } : {}),
           }),
         );
       } else {
         await registrarCompra.mutateAsync(
           montarCorpoCompra({
             classe,
-            assetId: assetId as string,
+            // EUA: o Asset manual da posição (recompra sem 2º Asset); sem posição, *-MANUAL
+            assetId: eua ? (comPosicao ? dados.assetIdPosicao : null) : (assetId as string),
             ticker: t,
             instituicaoId: inst.id,
             data,
             quantidade,
             cotacao,
             secao: secaoFinal,
+            ...(eua ? { cambio, tipoAsset: dados.tipoAsset } : {}),
           }),
         );
       }
@@ -242,7 +282,7 @@ export default function ModalRegistrarOperacao({
           qtd: quantidade.toLocaleString('pt-BR'),
           un: unDe(quantidade),
           ticker: t,
-          preco: formatBRL(cotacao),
+          preco: eua ? formatUSD(cotacao) : formatBRL(cotacao),
           pos: novaQtd.toLocaleString('pt-BR'),
         }),
       });
@@ -255,10 +295,13 @@ export default function ModalRegistrarOperacao({
   };
 
   const textoErro = (e: ErroOperacao) =>
-    formatarTexto(T.erros[e], { qtd: posQtd.toLocaleString('pt-BR'), un: unDe(posQtd) });
+    e === 'cambio_invalido'
+      ? TEXTOS_EUA.carteira.cambioInvalido
+      : formatarTexto(T.erros[e], { qtd: posQtd.toLocaleString('pt-BR'), un: unDe(posQtd) });
   const erroDe = (...tipos: ErroOperacao[]) => erros.find((e) => tipos.includes(e)) ?? null;
 
-  const semCatalogo = !venda && !assetId;
+  // EUA não tem catálogo na Carteira: a compra cria (ou reaproveita) o Asset manual
+  const semCatalogo = !venda && !assetId && !eua;
 
   const rodape = (
     <>
@@ -267,7 +310,7 @@ export default function ModalRegistrarOperacao({
           ? formatarTexto(T.hintPosicao, {
               qtd: posQtd.toLocaleString('pt-BR'),
               un: unDe(posQtd),
-              pm: pm !== null ? formatBRL(pm) : '—',
+              pm: pm !== null ? dinheiroAba(pm) : '—',
             })
           : T.hintSemPosicao}
       </span>
@@ -361,7 +404,9 @@ export default function ModalRegistrarOperacao({
         <div className={LINHA_FORM}>
           <label htmlFor={ids.p}>{formatarTexto(T.preco, { unSingular: cl.unSingular })}</label>
           <span className="inline-flex items-center gap-1.5">
-            <em className="text-[13px] not-italic text-gray-500 dark:text-gray-400">R$</em>
+            <em className="text-[13px] not-italic text-gray-500 dark:text-gray-400">
+              {eua ? TEXTOS_EUA.cotacao.moeda : 'R$'}
+            </em>
             <input
               id={ids.p}
               inputMode="decimal"
@@ -381,6 +426,42 @@ export default function ModalRegistrarOperacao({
           <p aria-live="polite" className="mt-1.5 text-[12.5px] text-gray-600 dark:text-gray-300">
             {desvioPreco.warning.message}
           </p>
+        ) : eua && !(preco !== null && preco > 0) ? (
+          <p
+            className="mt-1.5 text-[12.5px] text-gray-500 dark:text-gray-400"
+            data-sem-preco-eua=""
+          >
+            {TEXTOS_EUA.carteira.semPrecoRegistrar}
+          </p>
+        ) : null}
+
+        {eua ? (
+          <>
+            <div className={LINHA_FORM}>
+              <label htmlFor={ids.c}>{TEXTOS_EUA.cotacao.cambio}</label>
+              <span className="inline-flex items-center gap-1.5">
+                <em className="text-[13px] not-italic text-gray-500 dark:text-gray-400">R$</em>
+                <input
+                  id={ids.c}
+                  inputMode="decimal"
+                  autoComplete="off"
+                  value={cambioTexto}
+                  onChange={(e) => {
+                    cambioEditadoRef.current = true;
+                    setCambioTexto(e.target.value);
+                  }}
+                  aria-invalid={!!erroDe('cambio_invalido')}
+                  data-campo-cambio=""
+                  className={`${CAMPO} w-[100px] text-right tabular-nums lg:w-[120px]`}
+                />
+              </span>
+            </div>
+            {erroDe('cambio_invalido') ? (
+              <p role="alert" className={ERRO}>
+                {textoErro('cambio_invalido')}
+              </p>
+            ) : null}
+          </>
         ) : null}
 
         <div className={LINHA_FORM}>
@@ -446,7 +527,7 @@ export default function ModalRegistrarOperacao({
           <span>
             {venda ? T.pmMantido : T.novoPm}
             <b className="block text-[14.5px] text-gray-900 tabular-nums dark:text-white">
-              {novoPm !== null && novoPm > 0 ? formatBRL(novoPm) : '—'}
+              {novoPm !== null && novoPm > 0 ? dinheiroAba(novoPm) : '—'}
             </b>
             {venda ? (
               <small className="text-xs text-gray-500 dark:text-gray-400">{T.pmMantidoNota}</small>

@@ -152,6 +152,8 @@ export const TEXTOS_EUA = {
     mesmoValor: 'Mesmo valor da aba {aba} da Carteira.',
     semPrecoRegistrar:
       'A cotação EUA não é exibida nesta versão: informe o preço pago em US$ e a cotação do dólar.',
+    /** fatia D: validação do campo de câmbio do Registrar operação */
+    cambioInvalido: 'Informe a cotação do dólar, maior que zero.',
   },
 
   /** Busca. */
