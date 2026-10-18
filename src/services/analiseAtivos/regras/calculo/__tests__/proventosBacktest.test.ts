@@ -195,6 +195,42 @@ describe('A1c — mesmo JCP repetido com outro pagamento', () => {
     expect(aud.filter((x) => x.status === 'duplicata')).toHaveLength(1);
   });
 
+  it('HYPE3: JCPs trimestrais de 0,2925 (26/06, 26/09 e 26/12/2025) pagos em 31/12 e 30/12/2026 seguem os três; DY 12m = 1,0816 (B3)', () => {
+    // base depois da limpeza (BRAPI 18/10/2026) e suplemento da B3: 0,2925 (26/12/2025) + 3 × 0,26304
+    const aud = auditarProventos(
+      [
+        l('jun', 'HYPE3', 'JCP', 0.2925, '2025-06-26', '2026-12-31'),
+        l('jun_sp', 'HYPE3', 'JCP', 0.2925, '2025-06-26', '2025-06-26'),
+        l('set', 'HYPE3', 'JCP', 0.2925, '2025-09-26', '2026-12-30'),
+        l('set_sp', 'HYPE3', 'JCP', 0.2925, '2025-09-26', '2025-09-26'),
+        l('dez', 'HYPE3', 'JCP', 0.2925, '2025-12-26', '2026-12-30'),
+        l('dez_sp', 'HYPE3', 'JCP', 0.2925, '2025-12-26', '2025-12-26'),
+        l('mar', 'HYPE3', 'JCP', 0.26304, '2026-03-31', '2027-12-31'),
+        l('mar_sp', 'HYPE3', 'JCP', 0.26304, '2026-03-31', '2026-03-31'),
+        l('jun26', 'HYPE3', 'JCP', 0.26304, '2026-06-26', '2027-12-31'),
+        l('set26', 'HYPE3', 'JCP', 0.26304, '2026-09-28', '2027-12-31'),
+      ],
+      [],
+      P,
+      { classe: 'acao' },
+    );
+    expect(validos(aud)).toEqual(['dez', 'jun', 'jun26', 'mar', 'set', 'set26']);
+    expect(dy12m(aud)).toBeCloseTo(1.0816, 4); // antes da correção: 0,7891 (26/12 virava duplicata)
+  });
+
+  it('CEGR3: JCP 0,18105036 (03/12/2020, pago 29/07/2021) repetido como 0,18105 (30/04/2021, pago 30/07) continua duplicata', () => {
+    const aud = auditarProventos(
+      [
+        l('a', 'CEGR3', 'JCP', 0.18105036, '2020-12-03', '2021-07-29'),
+        l('b', 'CEGR3', 'JCP', 0.18105, '2021-04-30', '2021-07-30'),
+      ],
+      [],
+      P,
+      { classe: 'acao' },
+    );
+    expect(validos(aud)).toEqual(['a']);
+  });
+
   it('CMIG4: tranches iguais da MESMA data-com com 6 meses de intervalo seguem as duas', () => {
     const aud = auditarProventos(
       [

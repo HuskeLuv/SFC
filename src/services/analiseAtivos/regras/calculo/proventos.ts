@@ -107,6 +107,9 @@ export function mesesDyCvm(
 }
 
 /** Datas a até `max` pregões uma da outra (só conta pregões quando estão a ≤ 7 dias corridos). */
+/** Datas-com a ≥ 2 meses: provento de outro período (ver isenção dos JCPs trimestrais). */
+const DUPLICATA_DATA_COM_MESES_DIAS = 60;
+
 function vizinhas(a: string, b: string, max = 1): boolean {
   if (a === b) return true;
   if (diasEntre(a, b) > 7) return false;
@@ -410,6 +413,20 @@ export function auditarProventos(
           comPagamento(a) &&
           comPagamento(b) &&
           !vizinhas(a.dataComReal!, b.dataComReal!)
+        ) {
+          continue;
+        }
+        // JCPs trimestrais de mesmo valor com o pagamento agendado para a virada do ano: os
+        // pagamentos caem a 1 dia (31/12 × 30/12) e as datas-com estão a meses. HYPE3 0,2925 de
+        // 26/06, 26/09 e 26/12/2025, pagos em 31/12 e 30/12/2026 (a B3 tem os três). Repetição da
+        // fonte vem com o valor reescrito (CEGR3 0,18105036 × 0,18105) ou pagamento a dias (CLSC4,
+        // PETR4 a 3 dias) e continua duplicata.
+        if (
+          dias <= 1 &&
+          a.valor === b.valor &&
+          comPagamento(a) &&
+          comPagamento(b) &&
+          diasEntre(a.dataComReal!, b.dataComReal!) >= DUPLICATA_DATA_COM_MESES_DIAS
         ) {
           continue;
         }
