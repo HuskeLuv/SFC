@@ -174,7 +174,7 @@ export const CATALOGO_JOBS: Record<NomeJobCron, DefinicaoJob> = {
     pesado: false,
     executar: (ctx) => executarAlertasSalvos(ctx),
   },
-  // ---- Stocks e REITs (fatia 0: módulos stub 'pulado'; A e B preenchem) ----
+  // ---- Stocks e REITs (módulos eua/jobs/*: fatias A e B) ----
   // Cadastro e universo SEC (domingo 03:30 UTC, incremental; a 1ª carga é manual, ~6 min)
   'sec-cadastro': {
     nome: 'sec-cadastro',

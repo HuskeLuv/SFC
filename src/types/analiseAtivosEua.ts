@@ -369,7 +369,7 @@ export const NOMES_JOBS_EUA = [
 export type NomeJobEua = (typeof NOMES_JOBS_EUA)[number];
 
 /**
- * Dono e módulo de cada job (criado como stub 'pulado' na fatia 0). euaDiario encadeia
+ * Dono e módulo de cada job (criado como stub na fatia 0, preenchido pela fatia dona). euaDiario encadeia
  * sec-fundamentos → criterios-eua → quadro-eua importando os módulos abaixo (um AnaliseJobRun por
  * etapa; falha numa etapa não impede as seguintes).
  */

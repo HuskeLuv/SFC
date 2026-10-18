@@ -1,7 +1,9 @@
 /**
  * Fatia 0 da feature Stocks e REITs: o catálogo tem os 6 jobs EUA, cada um importando o SEU módulo
- * (eua/jobs/*), e todos terminam 'pulado' enquanto as fatias A/B não preenchem — sem tocar no banco.
+ * (eua/jobs/*), já preenchido pela fatia dona (A ou B).
  */
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 import type { PrismaClient } from '@prisma/client';
 import { CATALOGO_JOBS, definicaoJob } from '@/services/analiseAtivos/jobs/catalogoJobs';
@@ -54,17 +56,13 @@ describe('jobs EUA no catálogo (fatia 0)', () => {
     }
   });
 
-  // fatia A preencheu sec-cadastro/sec-fundamentos/cotacoes-eua (testes em eua/__tests__) e a
-  // fatia B o criterios-eua; os stubs que restam são os outros da fatia B
-  it.each(NOMES_JOBS_EUA.filter((n) => MODULOS_JOBS_EUA[n].fatia === 'B' && n !== 'criterios-eua'))(
-    '%s: stub termina pulado (com o motivo da fatia dona), sem tocar no banco',
-    async (nome) => {
-      const r = await CATALOGO_JOBS[nome].executar(ctx(), { versaoParams: 3 });
-      expect(r).toEqual({
-        pulado: `job ${nome} ainda não implementado (fatia ${MODULOS_JOBS_EUA[nome].fatia})`,
-      });
-    },
-  );
+  // Integração A+B: os 6 módulos foram preenchidos pelas fatias donas (testes próprios em
+  // eua/__tests__, calculo/__tests__/executarCriteriosEua, quadro/__tests__/gerarQuadroEua e
+  // euaDiario.test); nenhum stub 'ainda não implementado' sobrou.
+  it.each(NOMES_JOBS_EUA)('%s: módulo da fatia dona sem stub', (nome) => {
+    const fonte = readFileSync(resolve(process.cwd(), MODULOS_JOBS_EUA[nome].modulo), 'utf8');
+    expect(fonte).not.toContain('ainda não implementado');
+  });
 
   it('cotacoes-eua (fatia A) sem ANALISE_ATIVOS_EUA_PRECO_HABILITADO: pulado, sem tocar no banco', async () => {
     const antes = process.env.ANALISE_ATIVOS_EUA_PRECO_HABILITADO;
