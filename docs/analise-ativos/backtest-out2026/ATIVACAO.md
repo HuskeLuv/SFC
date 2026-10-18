@@ -196,3 +196,112 @@ total (CPFE3 30/04/2025 e 30/04/2026), somas antigas (VIVT3 0,8559; ITUB4 0,7107
 versões com valor velho (CURY3 0,3571 → 0,4545 de 04/02/2026), a escala errada da HBTS5
 (259,97/ação) e tranches que a fonte separou (VITT3 0,0647 de 03/11/2025 = 0,0326 + 0,0321). O
 número exato em prod é o do dry-run do passo 2 (a BRAPI muda dia a dia).
+
+# Backtest out/2026: ativação das correções
+
+Cada fatia do backtest de 18/10/2026 acrescenta aqui a sua seção: o que muda em produção, o que
+fazer na ativação e como conferir.
+
+## Fatia acoes-eventos (itens A3, A6, A7 e A8)
+
+Branch `bt-acoes-eventos`.
+
+### O que muda
+
+- **A3: desdobramento de FII com a data ex real.** O evento que vem do Informe Mensal da CVM
+  ('cvm_cotas') deixa de ser datado no dia 1º do mês do informe. Agora ele é datado pelo salto da
+  cotação no COTAHIST, no mês do informe com um mês de folga para cada lado. Quando o fundo ainda
+  não tinha cotação, a data sai do salto do rendimento. O `anoBase` continua sendo o ano do informe.
+  Quando o informe já traz as cotas novas no mês anterior ao evento bruto, esse "informe
+  adiantado" confirma o evento bruto. É o caso do ALZR11, que antes era descartado.
+- **A6: evento posterior à última contagem de ações.** É o caso de um split em agosto com o ITR de
+  30/06 já entregue. O evento não é mais descartado nem fica como "não validável". Ele é confirmado
+  pelo salto da cotação no pregão ex, com `razaoCvm` nulo e a fonte `cotacao_b3`, e o nº de ações
+  vigente é multiplicado pelo fator. Exemplos: ORVR3, ENJU3 e RCSL3/4.
+- **A7: contagem "alerta" desmentida pelo LPA.** Uma contagem com status 'alerta' sai da conta
+  quando o nº de ações implícito pelo LPA publicado bate com a última 'ok'. O caso real é o TEND3,
+  com a tesouraria errada no ITR 2T26. As demais 'alerta' continuam valendo, porque o backtest
+  mostrou que estão certas: ORVR3, SIMH3 e MOVI3.
+- **A8: mesma contagem no P/L, no P/VP e no valor de mercado.** O Quadro passa a usar a mesma
+  contagem e a mesma conta dos múltiplos (`regras/calculo/contagemVigente.ts`):
+  - divide pelo nº de ações da unit (KLBN11, ALUP11, BRBI11);
+  - corrige a escala de milhares pelo volume negociado (INEP3, CBAV3);
+  - deixa de usar a última 'ok' antiga (SIMH3, MOVI3, HYPE3, PGMN3, VTRU3, BMGB4).
+  - Quando a empresa não tem nº de ações validado (salto sem evento ou contagem não verificável), o
+    P/L já não aparecia. Agora o valor de mercado também não aparece. São 16 ações do Quadro em
+    17/10: ARND3, AZEV3/4, AZUL3, BSLI3/4, CBEE3, CSUD3, IFCM3, LAVV3, PDGR3, SAUD3, SBSP3, SEQL3,
+    SOJA3 e WEST3. No SBSP3 o valor antigo estava errado (R$ 22,5 bi): falta na base o evento do
+    split 1:5 de 2026.
+
+### Dados já gravados em produção: nenhum script
+
+Não há linha gravada que precise de correção manual. Tudo o que muda é derivado e o job `scores`
+recalcula sozinho na rodada diária seguinte ao deploy (10:10 UTC):
+
+1. A etapa `eventos` regrava `asset_corporate_action_checks` dos símbolos cujo evento mudou. A
+   chave do evento inclui data e status.
+2. A etapa `proventos` reaudita tudo (`fatorAjusteHoje` dos rendimentos de FII).
+3. A etapa `derivados` recalcula `asset_per_share_yearly` e os múltiplos anuais dos símbolos
+   alterados. A lista inclui `ev.alterados`.
+4. A etapa `scores` recalcula `asset_multiples_current`.
+5. O job `criterios` (10:30) e o job `quadro` (10:40) leem os novos valores.
+
+Para antecipar, rode o job `scores` e depois `criterios` e `quadro` pelo caminho de sempre, com
+`!` e o OK do Wellington. Ninguém precisa editar cron nem `app.env`.
+
+### Como conferir depois da rodada (somente leitura)
+
+Use `ssh -i ~/.ssh/myfinance-lightsail ubuntu@56.125.206.95` e depois
+`sudo -u postgres psql -d myfinance -At -c "…"`.
+
+```sql
+-- A3: ALZR11 com um só evento, em 06/05/2025, confirmado (antes: 01/04 confirmado + 06/05 descartado)
+SELECT symbol, "dataEvento", fator, status, fontes FROM asset_corporate_action_checks
+ WHERE symbol IN ('ALZR11','CXRI11','EQIR11','GAME11','MAXR11','TSNC11','RZAT11') ORDER BY 1, 2;
+-- esperado: ALZR11 2025-05-06; CXRI11 2020-09-10; EQIR11 2022-09-29; GAME11 2022-03-11;
+-- MAXR11 2021-04-27; TSNC11 2022-07-16 (salto_rendimento); RZAT11 2021-01-01 (sem cotação nem salto)
+
+-- A3: rendimento por cota do ALZR11 em 2025 (critérios ÷ fatorCotasApos): ~1,00 (era 1,73)
+SELECT symbol, "anoFiscal", "rendCota" FROM asset_per_share_yearly
+ WHERE symbol = 'ALZR11' AND "anoFiscal" = 2025;
+
+-- A6: eventos pela cotação
+SELECT symbol, "dataEvento", fator, status, "razaoCvm", fontes FROM asset_corporate_action_checks
+ WHERE 'cotacao_b3' = ANY(fontes) ORDER BY 1, 2;
+-- esperado (17/10): AMBP3 2025-08-05, AZTE3 2026-07-09, ENJU3 2026-10-09, IFCM3 2025-11-07,
+-- ORVR3 2026-08-11, RCSL3/RCSL4 2026-10-05
+
+-- A6–A8: múltiplos e valor de mercado
+SELECT m.symbol, round(m.pl::numeric, 2) pl, round(m.pvp::numeric, 2) pvp,
+       round(q."valorMercado" / 1e9, 3) vm_bi, m.flags
+  FROM asset_multiples_current m JOIN analise_quadro_linhas q USING (symbol)
+ WHERE m.symbol IN ('ORVR3','ENJU3','TEND3','KLBN11','ALUP11','BRBI11','INEP3','CBAV3','SIMH3');
+-- esperado (preço de 16/10): ORVR3 P/L ~218,6, P/VP ~2,26, VM ~11,0 bi; ENJU3 P/VP ~0,73;
+-- TEND3 P/L ~5,7, P/VP ~2,15; KLBN11 VM ~22,3 bi; ALUP11 ~12,7 bi; BRBI11 ~1,9 bi;
+-- INEP3 ~0,065 bi; CBAV3 ~7,4 bi (P/VP ~1,45); SIMH3 ~8,5 bi
+```
+
+Flags novas em `asset_multiples_current.flags` são só informativas e não entram no Índice:
+`acoes_evento_apos_contagem`, `acoes_alerta_lpa_confirma_anterior` e `acoes_escala_x1000_volume`.
+
+### Efeito medido com os dados de produção de 17/10 (somente leitura)
+
+- 31 tickers de P/L e P/VP do auditor, mais a KLBN11: antes 30 de 32 dentro de 1% (ORVR3 e ENJU3
+  erravam), depois 32 de 32. A tabela do auditor dá 0,0073 para o P/VP certo do ENJU3, mas esse
+  número está na escala errada (205 mil ações); o certo é 0,73.
+- FIIs: 21 fundos têm eventos alterados. O rendimento por cota nos critérios cai onde o mês do
+  evento não era dividido: ALZR11 2025 de 1,73 para 1,00; CXRI11 2020 de 20,46 para 14,16; EQIR11
+  2022 de 2,31 para 1,32; GAME11 2022 de 2,53 para 1,45; MAXR11 2021 de 17,77 para 8,03; TSNC11
+  2022 de 44,44 para 7,51; RBVA11, VIUR11 e XPSF11 perto de 7% menos. Dois grupamentos que eram
+  descartados agora ajustam o rendimento antigo: BTYU11 ×0,01 e FLMA11 ×0,02.
+- Ações do Quadro (331): 7 eventos mudam de status; o P/L e o P/VP mudam em 9 tickers; o valor de mercado
+  muda mais de 5% em 20 tickers; some em 16 (lista acima) e aparece em 2 (PINE3 e PINE4).
+
+### Pendências desta fatia
+
+- RZAT11 (1:10 em jan/2021): o fundo não tinha cotação e o rendimento não mostra salto limpo
+  (linhas "dia 1º" do item A2). A data fica no 1º dia do mês do informe, como antes.
+- GFSA3: a última contagem é de 31/03/2026. A subscrição de maio/2026 elevou as ações para 157 mi
+  e o ITR 2T26 ainda não entrou. O valor de mercado continua baixo até o ITR novo (item M10).
+- INEP3: o histórico por ação de 2024 e 2025 vem de contagens em milhares nos DFP/ITR e não é
+  corrigido por esta fatia, que corrige só a contagem do dia (múltiplos atuais e valor de mercado).
