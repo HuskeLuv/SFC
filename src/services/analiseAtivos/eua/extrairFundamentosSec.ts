@@ -4,6 +4,9 @@
  * Regras (desenho.json → final.pipeline_dados §2 "Extração"):
  * - FY = fato de duração de 350–380 dias vindo de 10-K / 10-K/A / 10-KT; balanço = fato instantâneo
  *   na data de término do FY, também de formulário anual;
+ * - balanço (instante): do 10-K do próprio exercício; sem nenhum passo da cadeia nele, o
+ *   comparativo do 10-K seguinte; nunca de 10-K mais tardio (nota com o mesmo conceito: WELL 2020,
+ *   AMT 2019, PLD 2021);
  * - por data de término, vale o ÚLTIMO arquivado (reapresentação e desdobramento: AAPL 2018 como
  *   reapresentado no 10-K de 2020);
  * - cadeias por campo e por ano (cadeiasConceitos), conceito usado em sourceConcept;
@@ -69,6 +72,18 @@ export interface CompanyFactsSec {
 export const DURACAO_FY_MIN_DIAS = 350;
 export const DURACAO_FY_MAX_DIAS = 380;
 
+/**
+ * Prazos entre o fim do exercício e o arquivamento de um fato de BALANÇO (instante). Vale o 10-K do
+ * próprio ano (sai em até ~3 meses; atrasado, alguns meses a mais), em toda a cadeia. Só sem nenhum
+ * passo da cadeia nele entra o comparativo do 10-K seguinte (~13–14 meses: GOOGL 2014, empresa
+ * criada em 2015). O comparativo não substitui o valor do próprio ano: o 10-K posterior pode trazer
+ * outro item com o mesmo conceito numa nota (WELL 2020: LongTermDebt 2,4 bi no 10-K de 2022 contra
+ * 13,9 bi; AMT 2019: 1,9 mi no 10-K de 2021, com 21,1 bi + 2,9 bi no balanço; PLD 2021: 215 mi no
+ * 10-K de 2024 contra 17,7 bi). Mais tarde que o comparativo, nunca.
+ */
+export const BALANCO_PRAZO_PROPRIO_DIAS = 300;
+export const BALANCO_PRAZO_COMPARATIVO_DIAS = 460;
+
 const FORMS = new Set<string>(FORMULARIOS_ANUAIS_SEC);
 const DIA_MS = 86_400_000;
 const dias = (a: string, b: string) => (Date.parse(b) - Date.parse(a)) / DIA_MS;
@@ -91,11 +106,14 @@ interface ValorAnual {
 
 /**
  * Valores anuais de um conceito por data de término (último arquivado vence; empate de data de
- * arquivamento: o maior accession). Duração: só 350–380 dias; instante: só fatos sem início.
+ * arquivamento: o maior accession). Duração: só 350–380 dias; instante: só fatos sem início (e,
+ * com `prazoMaxDias`, arquivados até N dias depois da data do balanço).
  */
 export function anuaisDoConceito(
   fatos: readonly FatoSec[] | undefined,
   tipo: 'duracao' | 'instante',
+  /** só instante: descarta fatos arquivados mais de N dias depois da data do balanço */
+  prazoMaxDias?: number,
 ): Map<string, ValorAnual> {
   const m = new Map<string, ValorAnual>();
   if (!fatos) return m;
@@ -106,6 +124,8 @@ export function anuaisDoConceito(
       const d = dias(f.start, f.end);
       if (d < DURACAO_FY_MIN_DIAS || d > DURACAO_FY_MAX_DIAS) continue;
     } else if (f.start) {
+      continue;
+    } else if (prazoMaxDias !== undefined && dias(f.end, f.filed) > prazoMaxDias) {
       continue;
     }
     const cur = m.get(f.end);
@@ -135,11 +155,17 @@ export function anuaisDoConceito(
 /** Leitor com cache por (taxonomia, conceito, unidade, tipo) — cada série é montada uma vez. */
 function criarLeitor(cf: CompanyFactsSec) {
   const cache = new Map<string, Map<string, ValorAnual>>();
-  return (taxonomia: string, conceito: string, unidade: string, tipo: 'duracao' | 'instante') => {
-    const k = `${taxonomia}:${conceito}:${unidade}:${tipo}`;
+  return (
+    taxonomia: string,
+    conceito: string,
+    unidade: string,
+    tipo: 'duracao' | 'instante',
+    prazoMaxDias?: number,
+  ) => {
+    const k = `${taxonomia}:${conceito}:${unidade}:${tipo}:${prazoMaxDias ?? ''}`;
     let s = cache.get(k);
     if (!s) {
-      s = anuaisDoConceito(cf.facts[taxonomia]?.[conceito]?.units[unidade], tipo);
+      s = anuaisDoConceito(cf.facts[taxonomia]?.[conceito]?.units[unidade], tipo, prazoMaxDias);
       cache.set(k, s);
     }
     return s;
@@ -154,14 +180,32 @@ export interface ValorCampo {
   accn: string;
 }
 
-/** Primeiro passo da cadeia com valor na data de término `fim`. */
+/**
+ * Primeiro passo da cadeia com valor na data de término `fim`. Balanço: a cadeia inteira no 10-K do
+ * próprio exercício; sem nada nele, a cadeia inteira até o comparativo do 10-K seguinte.
+ */
 export function valorDaCadeia(ler: Leitor, c: CadeiaCampo, fim: string): ValorCampo | null {
+  if (c.tipo === 'instante') {
+    return (
+      valorDaCadeiaNoPrazo(ler, c, fim, BALANCO_PRAZO_PROPRIO_DIAS) ??
+      valorDaCadeiaNoPrazo(ler, c, fim, BALANCO_PRAZO_COMPARATIVO_DIAS)
+    );
+  }
+  return valorDaCadeiaNoPrazo(ler, c, fim, undefined);
+}
+
+function valorDaCadeiaNoPrazo(
+  ler: Leitor,
+  c: CadeiaCampo,
+  fim: string,
+  prazoMaxDias: number | undefined,
+): ValorCampo | null {
   for (const p of c.passos) {
     let soma = 0;
     let base: ValorAnual | null = null;
     let ok = true;
     for (const t of p.termos) {
-      const v = ler(t.taxonomia, t.conceito, c.unidade, c.tipo).get(fim);
+      const v = ler(t.taxonomia, t.conceito, c.unidade, c.tipo, prazoMaxDias).get(fim);
       if (!v) {
         if (t.opcional) continue;
         ok = false;
@@ -434,6 +478,8 @@ export function extrairFundamentosSec(
       acoesMediaDiluida: p.acoesMediaDiluida,
       lpaDiluido: p.lpaOn,
       plControladora: p.plControladora,
+      dividaBruta: p.dividaBrutaLp,
+      caixa: p.caixa,
     })),
   );
   for (const p of periodos) {

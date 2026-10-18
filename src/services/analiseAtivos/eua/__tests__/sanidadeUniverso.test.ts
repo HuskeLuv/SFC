@@ -9,6 +9,7 @@ import {
   alertasSanidade,
   declaredSuspeito,
   lpaConfere,
+  saltoBalanco,
   saltoReceita,
   sanidadeFloat,
 } from '@/services/analiseAtivos/eua/sanidadeSec';
@@ -60,6 +61,26 @@ describe('sanidade dos fundamentos', () => {
       ['receita_salto', 2022],
       ['pl_nao_positivo', 2022],
     ]);
+  });
+
+  it('dívida ou caixa > 8× dos dois vizinhos: alerta divida_salto (AMT 2019 com 1,9 mi)', () => {
+    expect(saltoBalanco(21_160e6, 1.9e6, 29_288e6)).toBe(true);
+    expect(saltoBalanco(21_160e6, 24_055e6, 29_288e6)).toBe(false);
+    // só um vizinho distante (nova dívida grande num ano) não basta
+    expect(saltoBalanco(1e9, 10e9, 11e9)).toBe(false);
+    expect(saltoBalanco(null, 1.9e6, 29_288e6)).toBe(false);
+    const base = {
+      receita: 1e9,
+      lucroControladora: null,
+      acoesMediaDiluida: null,
+      lpaDiluido: null,
+    };
+    const a = alertasSanidade([
+      { ...base, anoFiscal: 2018, plControladora: 1, dividaBruta: 21_160e6, caixa: 1e9 },
+      { ...base, anoFiscal: 2019, plControladora: 1, dividaBruta: 1.9e6, caixa: 1e9 },
+      { ...base, anoFiscal: 2020, plControladora: 1, dividaBruta: 29_288e6, caixa: 1e9 },
+    ]);
+    expect(a.map((x) => [x.codigo, x.anoFiscal])).toEqual([['divida_salto', 2019]]);
   });
 });
 

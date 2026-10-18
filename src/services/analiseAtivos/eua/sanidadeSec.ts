@@ -9,6 +9,8 @@
  * - receita com variação > 50% a/a — alerta 'receita_salto' (O 2022: fusão VEREIT);
  * - troca de conceito na série — flag informativa 'troca_conceito';
  * - PL ≤ 0 — alerta 'pl_nao_positivo' (ROE '—' na leitura);
+ * - dívida bruta ou caixa > 8× (ou < 1/8) dos dois anos vizinhos — alerta 'divida_salto' (conceito
+ *   de nota no lugar do balanço: AMT 2019 com US$ 1,9 mi de dívida);
  * - free float de capa: > 40× o ativo total, ou > US$ 1 tri sem referência = 'escala_suspeita';
  *   float ÷ ações em circulação fora de [US$ 0,5; 100 mil] = 'preco_implicito_absurdo' (ver
  *   sanidadeFloat: o teto de US$ 1 tri sozinho tiraria as 6 maiores empresas de 2026).
@@ -18,13 +20,16 @@ import type { SanidadeFloat, UniversoEuaParams } from '@/types/analiseAtivosEua'
 export const TOLERANCIA_LPA = 0.03;
 export const TOLERANCIA_DPA = 0.1;
 export const LIMITE_SALTO_RECEITA = 0.5;
+/** Dívida bruta ou caixa que muda mais que isto (para cima ou para baixo) frente aos DOIS vizinhos. */
+export const RAZAO_SALTO_BALANCO = 8;
 
 export type CodigoAlertaSanidade =
   | 'lpa_diverge'
   | 'declared_suspeito'
   | 'receita_salto'
   | 'troca_conceito'
-  | 'pl_nao_positivo';
+  | 'pl_nao_positivo'
+  | 'divida_salto';
 
 export interface AlertaSanidade {
   codigo: CodigoAlertaSanidade;
@@ -115,6 +120,23 @@ export interface AnoParaSanidade {
   acoesMediaDiluida: number | null;
   lpaDiluido: number | null;
   plControladora: number | null;
+  dividaBruta?: number | null;
+  caixa?: number | null;
+}
+
+/** Valor salta mais de RAZAO_SALTO_BALANCO× frente aos dois vizinhos (todos > 0)? */
+export function saltoBalanco(
+  anterior: number | null | undefined,
+  atual: number | null | undefined,
+  seguinte: number | null | undefined,
+): boolean {
+  if (!(typeof atual === 'number' && atual > 0)) return false;
+  const vizinhos = [anterior, seguinte];
+  if (!vizinhos.every((v) => typeof v === 'number' && v > 0)) return false;
+  return (vizinhos as number[]).every((v) => {
+    const r = atual / v;
+    return r > RAZAO_SALTO_BALANCO || r < 1 / RAZAO_SALTO_BALANCO;
+  });
 }
 
 /** Alertas informativos de uma empresa (anos em ordem crescente). */
@@ -136,6 +158,21 @@ export function alertasSanidade(anos: readonly AnoParaSanidade[]): AlertaSanidad
         anoFiscal: a.anoFiscal,
         mensagem: `receita variou ${(((a.receita ?? 0) / (ant.receita ?? 1) - 1) * 100).toFixed(0)}% a/a`,
       });
+    }
+    const seg = i + 1 < ordenados.length ? ordenados[i + 1] : null;
+    if (ant && seg && ant.anoFiscal === a.anoFiscal - 1 && seg.anoFiscal === a.anoFiscal + 1) {
+      for (const [campo, rotulo] of [
+        ['dividaBruta', 'dívida bruta'],
+        ['caixa', 'caixa'],
+      ] as const) {
+        if (saltoBalanco(ant[campo], a[campo], seg[campo])) {
+          out.push({
+            codigo: 'divida_salto',
+            anoFiscal: a.anoFiscal,
+            mensagem: `${rotulo} ${a[campo]} difere > ${RAZAO_SALTO_BALANCO}× dos anos vizinhos (${ant[campo]} e ${seg[campo]})`,
+          });
+        }
+      }
     }
     if (a.plControladora !== null && a.plControladora <= 0) {
       out.push({

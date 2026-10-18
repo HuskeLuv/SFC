@@ -142,6 +142,41 @@ describe('último arquivado vence (reapresentação e desdobramento)', () => {
     );
     expect(m.get('2024-12-31')).toMatchObject({ val: 2, accn: 'c', primeiroFiled: '2025-02-01' });
   });
+
+  it('anuaisDoConceito: balanço com prazo descarta o 10-K arquivado tarde demais', () => {
+    const fatos = [
+      { end: '2021-12-31', val: 17_715e6, accn: 'a', form: '10-K', filed: '2022-02-09' },
+      { end: '2021-12-31', val: 215.3e6, accn: 'b', form: '10-K', filed: '2024-02-13' },
+    ];
+    expect(anuaisDoConceito(fatos, 'instante').get('2021-12-31')?.val).toBe(215.3e6);
+    expect(anuaisDoConceito(fatos, 'instante', 300).get('2021-12-31')?.val).toBe(17_715e6);
+  });
+});
+
+describe('balanço do 10-K do próprio exercício (nota de 10-K posterior não substitui)', () => {
+  it('AMT 2019: dívida do balanço (21,1 bi + 2,9 bi), não o LongTermDebt de 1,9 mi do 10-K de 2021', () => {
+    const p = fy(periodos('AMT'), 2019);
+    expect(mi(p.dividaBrutaLp)).toBe(24_055);
+    expect(p.sourceConcept.dividaBrutaLp).toBe(
+      'LongTermDebtAndCapitalLeaseObligations+LongTermDebtAndCapitalLeaseObligationsCurrent?',
+    );
+  });
+
+  it('PLD 2021 e WELL 2020: o valor do próprio 10-K vence o de um 10-K posterior', () => {
+    expect(mi(fy(periodos('PLD'), 2021).dividaBrutaLp)).toBe(17_715);
+    expect(mi(fy(periodos('WELL'), 2020).dividaBrutaLp)).toBe(13_888);
+  });
+
+  it('sem nenhum passo no próprio 10-K, vale o comparativo do 10-K seguinte (GOOGL 2014)', () => {
+    expect(mi(fy(periodos('GOOGL'), 2014).ativoTotal)).toBe(129_187);
+  });
+
+  it('nenhum salto de dívida/caixa > 8× frente aos dois vizinhos nas fixtures', () => {
+    for (const nome of ['AMT', 'PLD', 'WELL', 'AAPL', 'O', 'CCI']) {
+      const r = extrairFundamentosSec(companyfacts(nome), { anoMinimo: 2014 });
+      expect([nome, r.alertas.filter((a) => a.codigo === 'divida_salto')]).toEqual([nome, []]);
+    }
+  });
 });
 
 describe('sinal trocado no arquivo (CCI)', () => {
