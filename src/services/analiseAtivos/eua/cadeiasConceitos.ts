@@ -20,7 +20,8 @@
  * - Receita com RealEstateRevenueNet → OperatingLeasesIncomeStatementLeaseRevenue no fim (REITs),
  *   e, acréscimo da fatia A medido na amostra, OperatingLeaseLeaseIncome → LeaseIncome (ASC 842).
  * - Dívida com ConvertibleNotesPayable → ConvertibleLongTermNotesPayable no fim (acréscimo da
- *   fatia A). Sem conceito de dívida no ano = null (a leitura decide se vale zero).
+ *   fatia A). Sem conceito de dívida no ano = null (a leitura decide se vale zero). Passo
+ *   irrisório (< 1% de outro passo na mesma data, zero incluído) conta como ausente.
  *
  * Todo conceito daqui existe na taxonomia us-gaap/dei: a lista é conferida contra os frames da SEC
  * (fixture conceitos-validados.json, gerada por relatorio-cobertura-eua --validar-conceitos).
@@ -74,6 +75,8 @@ export interface CadeiaCampo {
   tipo: TipoFatoSec;
   unidade: UnidadeSec;
   passos: PassoCadeia[];
+  /** passo irrisório (< 1% de outro passo na mesma data, inclusive zero) conta como ausente */
+  descartaIrrisorio?: boolean;
 }
 
 /** 'Conceito', 'A+B?', 'A+-B', 'dei:Conceito' → passo. */
@@ -109,7 +112,8 @@ const cadeia = (
   tipo: TipoFatoSec,
   unidade: UnidadeSec,
   passos: string[],
-): CadeiaCampo => ({ campo, tipo, unidade, passos: passos.map(passo) });
+  opcoes: Pick<CadeiaCampo, 'descartaIrrisorio'> = {},
+): CadeiaCampo => ({ campo, tipo, unidade, passos: passos.map(passo), ...opcoes });
 
 export const CADEIAS_SEC: Record<CampoSec, CadeiaCampo> = {
   receita: cadeia('receita', 'duracao', 'USD', [
@@ -154,19 +158,26 @@ export const CADEIAS_SEC: Record<CampoSec, CadeiaCampo> = {
     'DepreciationAmortizationAndAccretionNet',
     'Depreciation',
   ]),
-  dividaBruta: cadeia('dividaBruta', 'instante', 'USD', [
-    'LongTermDebt',
-    'LongTermDebtNoncurrent+LongTermDebtCurrent?',
-    'DebtLongtermAndShorttermCombinedAmount',
-    'LongTermDebtAndCapitalLeaseObligations+LongTermDebtAndCapitalLeaseObligationsCurrent?',
-    'DebtInstrumentCarryingAmount',
-    'SeniorNotes',
-    'UnsecuredDebt+SecuredDebt?',
-    'NotesPayable',
-    // só conversíveis (MIRM 2022+): frames CY2024Q4I (168 e 157 empresas)
-    'ConvertibleNotesPayable',
-    'ConvertibleLongTermNotesPayable',
-  ]),
+  // passo irrisório = ausente: ORCL 2022 LongTermDebt 0 (75,9 bi combinados), AMD 2021 1 mi (313 mi)
+  dividaBruta: cadeia(
+    'dividaBruta',
+    'instante',
+    'USD',
+    [
+      'LongTermDebt',
+      'LongTermDebtNoncurrent+LongTermDebtCurrent?',
+      'DebtLongtermAndShorttermCombinedAmount',
+      'LongTermDebtAndCapitalLeaseObligations+LongTermDebtAndCapitalLeaseObligationsCurrent?',
+      'DebtInstrumentCarryingAmount',
+      'SeniorNotes',
+      'UnsecuredDebt+SecuredDebt?',
+      'NotesPayable',
+      // só conversíveis (MIRM 2022+): frames CY2024Q4I (168 e 157 empresas)
+      'ConvertibleNotesPayable',
+      'ConvertibleLongTermNotesPayable',
+    ],
+    { descartaIrrisorio: true },
+  ),
   caixa: cadeia('caixa', 'instante', 'USD', [
     'CashAndCashEquivalentsAtCarryingValue',
     'CashCashEquivalentsRestrictedCashAndRestrictedCashEquivalents',

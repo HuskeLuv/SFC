@@ -10,7 +10,7 @@
  * - troca de conceito na série — flag informativa 'troca_conceito';
  * - PL ≤ 0 — alerta 'pl_nao_positivo' (ROE '—' na leitura);
  * - dívida bruta ou caixa > 8× (ou < 1/8) dos dois anos vizinhos — alerta 'divida_salto' (conceito
- *   de nota no lugar do balanço: AMT 2019 com US$ 1,9 mi de dívida);
+ *   de nota no lugar do balanço: AMT 2019 com US$ 1,9 mi de dívida; zero entre vizinhos > 0 conta);
  * - free float de capa: > 40× o ativo total, ou > US$ 1 tri sem referência = 'escala_suspeita';
  *   float ÷ ações em circulação fora de [US$ 0,5; 100 mil] = 'preco_implicito_absurdo' (ver
  *   sanidadeFloat: o teto de US$ 1 tri sozinho tiraria as 6 maiores empresas de 2026).
@@ -124,13 +124,16 @@ export interface AnoParaSanidade {
   caixa?: number | null;
 }
 
-/** Valor salta mais de RAZAO_SALTO_BALANCO× frente aos dois vizinhos (todos > 0)? */
+/**
+ * Valor salta mais de RAZAO_SALTO_BALANCO× frente aos dois vizinhos (vizinhos > 0)? Zero entre dois
+ * vizinhos positivos também é salto (ORCL 2022: LongTermDebt 0 no 10-K com 75,9 bi de dívida).
+ */
 export function saltoBalanco(
   anterior: number | null | undefined,
   atual: number | null | undefined,
   seguinte: number | null | undefined,
 ): boolean {
-  if (!(typeof atual === 'number' && atual > 0)) return false;
+  if (!(typeof atual === 'number' && atual >= 0)) return false;
   const vizinhos = [anterior, seguinte];
   if (!vizinhos.every((v) => typeof v === 'number' && v > 0)) return false;
   return (vizinhos as number[]).every((v) => {

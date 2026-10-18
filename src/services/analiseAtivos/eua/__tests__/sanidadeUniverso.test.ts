@@ -69,6 +69,11 @@ describe('sanidade dos fundamentos', () => {
     // só um vizinho distante (nova dívida grande num ano) não basta
     expect(saltoBalanco(1e9, 10e9, 11e9)).toBe(false);
     expect(saltoBalanco(null, 1.9e6, 29_288e6)).toBe(false);
+    // zero entre dois vizinhos positivos é salto (ORCL 2022 com LongTermDebt 0); zero com um
+    // vizinho zero, ou valor negativo, não
+    expect(saltoBalanco(84_245e6, 0, 90_481e6)).toBe(true);
+    expect(saltoBalanco(0, 0, 90_481e6)).toBe(false);
+    expect(saltoBalanco(84_245e6, -1, 90_481e6)).toBe(false);
     const base = {
       receita: 1e9,
       lucroControladora: null,

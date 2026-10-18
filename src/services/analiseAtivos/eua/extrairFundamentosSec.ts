@@ -9,6 +9,9 @@
  *   AMT 2019, PLD 2021). Exceção de escala: o valor do próprio 10-K que difere ≥ 100× do mesmo
  *   conceito na mesma data no comparativo do 10-K seguinte cede ao comparativo (TSLA 2016:
  *   LongTermDebt 5.892.016 — em milhares — contra 5.892.016.000; sourceConcept.escalaCorrigida);
+ * - dívida bruta: passo com valor irrisório (< 1% de outro passo da cadeia na mesma data, inclusive
+ *   zero) conta como ausente (ORCL 2022: LongTermDebt 0 contra 75,9 bi combinados; AMD 2021:
+ *   LongTermDebt 1 mi contra 313 mi; sourceConcept.passoDescartado);
  * - por data de término, vale o ÚLTIMO arquivado (reapresentação e desdobramento: AAPL 2018 como
  *   reapresentado no 10-K de 2020);
  * - cadeias por campo e por ano (cadeiasConceitos), conceito usado em sourceConcept;
@@ -93,6 +96,8 @@ export const BALANCO_PRAZO_COMPARATIVO_DIAS = 460;
  * comparativo. Reapresentação legítima não chega perto: WELL 2020 (nota no 10-K de 2022) é 5,8×.
  */
 export const RAZAO_ESCALA_COMPARATIVO = 100;
+/** Passo de dívida abaixo desta fração de outro passo na mesma data conta como ausente. */
+export const FRACAO_PASSO_IRRISORIO = 0.01;
 
 const FORMS = new Set<string>(FORMULARIOS_ANUAIS_SEC);
 const DIA_MS = 86_400_000;
@@ -190,6 +195,8 @@ export interface ValorCampo {
   accn: string;
   /** conceitos do próprio 10-K trocados pelo comparativo do seguinte (erro de escala) */
   escalaCorrigida?: string[];
+  /** passos irrisórios (< 1% de outro, inclusive zero) pulados antes do passo usado */
+  descartados?: string[];
 }
 
 /**
@@ -221,6 +228,7 @@ function valorDaCadeiaNoPrazo(
   /** balanço do próprio 10-K: confere a escala contra o comparativo do 10-K seguinte */
   conferirEscala: boolean,
 ): ValorCampo | null {
+  const candidatos: ValorCampo[] = [];
   for (const p of c.passos) {
     let soma = 0;
     let base: ValorAnual | null = null;
@@ -252,9 +260,23 @@ function valorDaCadeiaNoPrazo(
     if (!ok || !base) continue;
     const x: ValorCampo = { val: soma, conceito: p.rotulo, filed: base.filed, accn: base.accn };
     if (corrigidos.length > 0) x.escalaCorrigida = corrigidos;
-    return x;
+    if (!c.descartaIrrisorio) return x;
+    candidatos.push(x);
   }
-  return null;
+  return escolherSemIrrisorio(candidatos);
+}
+
+/**
+ * Primeiro candidato (ordem da cadeia) que não é irrisório: < FRACAO_PASSO_IRRISORIO do maior
+ * candidato da mesma data (zero incluído). Todos irrisórios ou nenhum positivo: o primeiro.
+ */
+function escolherSemIrrisorio(candidatos: ValorCampo[]): ValorCampo | null {
+  if (candidatos.length === 0) return null;
+  const maior = Math.max(...candidatos.map((x) => x.val));
+  if (!(maior > 0)) return candidatos[0];
+  const i = candidatos.findIndex((x) => x.val >= FRACAO_PASSO_IRRISORIO * maior);
+  if (i <= 0) return candidatos[0];
+  return { ...candidatos[i], descartados: candidatos.slice(0, i).map((x) => x.conceito) };
 }
 
 // ---------------------------------------------------------------------------
@@ -455,11 +477,14 @@ export function extrairFundamentosSec(
 
     if (sinalTrocado.length > 0) fonte.sinalCorrigido = sinalTrocado.join(',');
     const escalas: string[] = [];
+    const descartes: string[] = [];
     for (const campo of CAMPOS_SEC) {
       const x = v[campo];
       if (x?.escalaCorrigida) escalas.push(...x.escalaCorrigida.map((k) => `${campo}:${k}`));
+      if (x?.descartados) descartes.push(...x.descartados.map((k) => `${campo}:${k}`));
     }
     if (escalas.length > 0) fonte.escalaCorrigida = escalas.join(',');
+    if (descartes.length > 0) fonte.passoDescartado = descartes.join(',');
     if (ajustes.length > 0) fonte.ajusteDesdobramento = [...new Set(ajustes)].join(',');
 
     let dividendosJcpPagos: number | null = usar('dividendosJcpPagos', pagos);

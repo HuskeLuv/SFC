@@ -172,7 +172,7 @@ describe('balanço do 10-K do próprio exercício (nota de 10-K posterior não s
   });
 
   it('nenhum salto de dívida/caixa > 8× frente aos dois vizinhos nas fixtures', () => {
-    for (const nome of ['AMT', 'PLD', 'WELL', 'AAPL', 'O', 'CCI', 'TSLA']) {
+    for (const nome of ['AMT', 'PLD', 'WELL', 'AAPL', 'O', 'CCI', 'TSLA', 'ORCL', 'AMD']) {
       const r = extrairFundamentosSec(companyfacts(nome), { anoMinimo: 2014 });
       expect([nome, r.alertas.filter((a) => a.codigo === 'divida_salto')]).toEqual([nome, []]);
     }
@@ -223,6 +223,50 @@ describe('erro de escala no próprio 10-K (TSLA 2016)', () => {
       sourceConcept: expect.objectContaining({ escalaCorrigida: 'dividaBruta:LongTermDebt' }),
     });
     expect(um(cf(2_500e9, 2_500e6)).dividaBrutaLp).toBe(2_500e6); // 1.000× para cima também
+  });
+});
+
+describe('passo de dívida irrisório conta como ausente', () => {
+  it('ORCL 2022: LongTermDebt 0 no 10-K perde para os 75,9 bi combinados', () => {
+    const p = fy(periodos('ORCL'), 2022);
+    expect(mi(p.dividaBrutaLp)).toBe(75_859);
+    expect(p.sourceConcept.dividaBrutaLp).toBe('DebtLongtermAndShorttermCombinedAmount');
+    expect(p.sourceConcept.passoDescartado).toBe('dividaBruta:LongTermDebt');
+    expect(p.flags).not.toContain('troca_conceito');
+  });
+
+  it('AMD 2021: LongTermDebt 1 mi (< 1% de 313 mi) pula para a dívida total de 313 mi', () => {
+    const p = fy(periodos('AMD'), 2021);
+    expect(mi(p.dividaBrutaLp)).toBe(313);
+    expect(p.sourceConcept.dividaBrutaLp).toBe('DebtLongtermAndShorttermCombinedAmount');
+    // os anos vizinhos seguem pelo LongTermDebt / LP + CP
+    expect(mi(fy(periodos('AMD'), 2020).dividaBrutaLp)).toBe(330);
+  });
+
+  it('passo pequeno mas ≥ 1% do maior fica (dívida pequena legítima)', () => {
+    const inst = (val: number) => ({
+      end: '2020-12-31',
+      val,
+      accn: 'a',
+      form: '10-K',
+      filed: '2021-02-10',
+    });
+    const cf = (ltd: number, outro: number): CompanyFactsSec => ({
+      cik: 1,
+      entityName: 'X',
+      facts: {
+        'us-gaap': {
+          Revenues: { units: { USD: [{ ...inst(1e9), start: '2020-01-01' }] } },
+          LongTermDebt: { units: { USD: [inst(ltd)] } },
+          DebtInstrumentCarryingAmount: { units: { USD: [inst(outro)] } },
+        },
+      },
+    });
+    const um = (c: CompanyFactsSec) => extrairFundamentosSec(c).periodos[0];
+    expect(um(cf(50e6, 1_000e6)).dividaBrutaLp).toBe(50e6);
+    expect(um(cf(0, 1_000e6)).dividaBrutaLp).toBe(1_000e6);
+    // só zeros: zero (há conceito de dívida no ano)
+    expect(um(cf(0, 0)).dividaBrutaLp).toBe(0);
   });
 });
 
