@@ -463,8 +463,10 @@ export const GRUPOS_REIT: DefGrupoComparador[] = [
     codigo: 'qualidade',
     rotulo: GE.qualidade,
     aplicavelA: EUA,
+    // a margem do REIT não vem na linha do Quadro (lucro contábil com a depreciação dos imóveis:
+    // n/a na linha); ficam os anos seguidos de lucro e de dividendo crescente
     linhas: [
-      QUALIDADE_EUA[2],
+      QUALIDADE_EUA[0],
       linha({
         codigo: 'anosDividendoEua',
         formato: 'inteiro',
