@@ -56,6 +56,10 @@ vi.mock('@/hooks/useAnaliseAtivos', async (orig) => {
     useValuationAtivo: () => consulta(dados.valuation),
   };
 });
+// Card do curso: sem a lista de cursos (fallback do CardEducacao), sem fetch
+vi.mock('@/hooks/useEducacao', () => ({
+  useCursos: () => ({ cursos: [], accessLevel: 0, loading: true, error: null }),
+}));
 // Carteira e tese (C1 / Fase 1): stubs com texto neutro
 vi.mock('@/components/analiseAtivos/ativo/usuario/BlocoNaCarteira', () => ({
   default: () => <section data-stub="na-carteira" />,

@@ -7,7 +7,9 @@
  * ('ranking' é palavra proibida na varredura e só entra como literal registrado).
  *
  * - Renderiza com ao menos 1 recurso além do Quadro; sem nenhum, null (casca igual à de hoje).
- * - Branco sobre cinza, SEM contagem (o sino já mostra os não lidos).
+ * - Aba ativa preenchida seguranca (#314666; escuro: escolha #EAEAEA), inativas em texto patrimonio
+ *   (#396CAA; escuro: tranquilidade), como o `.ptabs` do HTML do Pedro; SEM contagem (o sino já
+ *   mostra os não lidos).
  * - Leva ?classe= ao trocar de pílula para as páginas que leem a classe (Quadro e Salvos; o
  *   Comparador deduz a classe dos tickers).
  * - Links com aria-current="page" na página atual e 44px em todos os tamanhos (decisão 13); a
@@ -16,6 +18,10 @@
 import { Suspense } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
+import {
+  ABA_AREA_DESLIGADA,
+  ABA_AREA_LIGADA,
+} from '@/components/analiseAtivos/comum/estiloPilulas';
 import { useAnaliseAtivosConfig } from '@/hooks/useAnaliseAtivos';
 import { ROTAS_BLOCO_D } from '@/services/analiseAtivos/cenarios/contrato';
 import { ROTAS_SALVOS } from '@/services/analiseAtivos/salvos/contrato';
@@ -112,9 +118,7 @@ function Pilulas({ ativa, className, classe }: PilulasAreaProps & { classe: stri
             aria-current={atual ? 'page' : undefined}
             data-pilula={item.id}
             className={`inline-flex min-h-11 items-center justify-center rounded-[10px] px-4 text-sm font-semibold max-[420px]:flex-1 max-[420px]:px-2 ${FOCO} ${
-              atual
-                ? 'bg-white text-gray-900 shadow-sm dark:bg-[#26262A] dark:text-white'
-                : 'text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white'
+              atual ? ABA_AREA_LIGADA : ABA_AREA_DESLIGADA
             }`}
           >
             {item.rotulo}

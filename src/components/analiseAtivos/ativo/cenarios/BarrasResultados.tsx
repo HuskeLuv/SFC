@@ -4,8 +4,10 @@
  * "Resultados lado a lado" (Bloco D, fatia B): uma barra por método, MESMA escala a partir de zero,
  * na ordem fixa dos métodos. Barra de 18px com raio 4: a parte escura vai até "com sua margem" e a
  * parte clara até o resultado (patrimonio/tranquilidade, sem cor semântica). Linha tracejada da
- * cotação com rótulo. O desenho é aria-hidden; a tabela/cartões trazem os mesmos números (texto
- * sr-only). Sem nenhum resultado: um aviso único no lugar das barras.
+ * cotação em DOURADO (#B07110 / #B8842E no escuro, o --s2 do HTML do Pedro; exceção à paleta
+ * autorizada pelo Wellington 17/10), com rótulo em texto neutro (contraste). O desenho é
+ * aria-hidden; a tabela/cartões trazem os mesmos números (texto sr-only). Sem nenhum resultado: um
+ * aviso único no lugar das barras.
  */
 import type { BarrasCenario } from '@/services/analiseAtivos/regras/valuation/montarCenarios';
 import { formatarNumeroBR } from '@/services/analiseAtivos/regras/valuation/arredondamento';
@@ -57,7 +59,9 @@ export default function BarrasResultados({ barras, nenhumResultado, explicacaoAc
             {T.legendaAteResultado}
           </span>
           <span className="inline-flex items-center gap-1.5">
-            <i className="inline-block w-4 border-t-2 border-dashed border-[#2D2D2D] dark:border-[#EAEAEA]" />
+            {/* exceção à paleta autorizada pelo Wellington 17/10 (dourado da cotação, como no
+                HTML do Pedro) */}
+            <i className="inline-block w-4 border-t-2 border-dashed border-[#B07110] dark:border-[#B8842E]" />
             {T.legendaCotacao}
           </span>
         </div>
@@ -108,8 +112,10 @@ export default function BarrasResultados({ barras, nenhumResultado, explicacaoAc
                 </span>
               )}
               {cot !== null ? (
+                // exceção à paleta autorizada pelo Wellington 17/10 (dourado da cotação, como no
+                // HTML do Pedro)
                 <span
-                  className="absolute inset-y-0 border-l-[1.5px] border-dashed border-[#2D2D2D] dark:border-[#EAEAEA]"
+                  className="absolute inset-y-0 border-l-2 border-dashed border-[#B07110] dark:border-[#B8842E]"
                   style={{ left: pct(cot, max) }}
                 />
               ) : null}

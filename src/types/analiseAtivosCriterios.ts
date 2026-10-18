@@ -499,6 +499,11 @@ export interface MarcaCriterioProps {
   tamanho?: 'sm' | 'md';
   /** sem texto sr-only (quando o pai já descreve o estado) */
   decorativa?: boolean;
+  /**
+   * Tinta do ✓ atendido: 'neutro' (padrão: Quadro, Comparador, células) ou 'verde' (SÓ na página
+   * do ativo — exceção à paleta autorizada pelo Wellington 17/10). Os demais estados são neutros.
+   */
+  tom?: 'neutro' | 'verde';
   className?: string;
 }
 

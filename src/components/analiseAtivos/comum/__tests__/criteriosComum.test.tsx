@@ -50,6 +50,19 @@ describe('MarcaCriterio', () => {
     expect(container.innerHTML).not.toMatch(CLASSES_SEMANTICAS);
   });
 
+  it('tom="verde" (exceção 17/10, página do ativo): só o ✓ atendido sai verde', () => {
+    const { container, rerender } = render(<MarcaCriterio estado="atende" tom="verde" />);
+    expect(container.innerHTML).toContain('bg-[#16A34A]');
+    expect(container.innerHTML).toContain('dark:bg-[#34C47C]');
+    for (const estado of ['nao_atende', 'sem_dado', 'nao_se_aplica'] as const) {
+      rerender(<MarcaCriterio estado={estado} tom="verde" />);
+      expect(container.innerHTML).not.toMatch(/16A34A|34C47C/);
+    }
+    rerender(<MarcaCriterio estado="atende" />);
+    expect(container.innerHTML).not.toMatch(/16A34A|34C47C/);
+    expect(container.innerHTML).toContain('bg-gray-700');
+  });
+
   it('decorativa: sem texto sr-only; n/a em pílula tracejada; 22 px por padrão', () => {
     const { container, rerender } = render(<MarcaCriterio estado="atende" decorativa />);
     expect(container.querySelector('.sr-only')).toBeNull();

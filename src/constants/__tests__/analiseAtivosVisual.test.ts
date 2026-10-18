@@ -3,7 +3,9 @@ import { readFileSync } from 'fs';
 import path from 'path';
 import {
   COLUNAS,
+  CORES_EXCECAO_ATENDE,
   CORES_PERMITIDAS,
+  VERDE_ATENDE,
   DIRECAO_PADRAO,
   ORDEM_PADRAO,
 } from '@/constants/analiseAtivosVisual';
@@ -13,13 +15,22 @@ import { TEXTOS_QUADRO } from '@/services/analiseAtivos/textosQuadro';
 const FONTE = readFileSync(path.join(__dirname, '..', 'analiseAtivosVisual.ts'), 'utf8');
 
 describe('analiseAtivosVisual', () => {
-  it('só cores da paleta My Finance, cinzas do app e negativos', () => {
+  it('só cores da paleta My Finance, cinzas do app, negativos e a exceção do ✓ verde', () => {
     const hex = [
       ...new Set([...FONTE.matchAll(/#[0-9A-Fa-f]{6}\b/g)].map((m) => m[0].toUpperCase())),
     ];
-    const permitidas = new Set(CORES_PERMITIDAS.map((c) => c.toUpperCase()));
+    const permitidas = new Set(
+      [...CORES_PERMITIDAS, ...CORES_EXCECAO_ATENDE].map((c) => c.toUpperCase()),
+    );
     expect(hex.filter((h) => !permitidas.has(h))).toEqual([]);
     expect(hex.length).toBeGreaterThan(5);
+  });
+
+  it('exceção 17/10: o verde do ✓ atendido fica FORA de CORES_PERMITIDAS', () => {
+    const permitidas = new Set(CORES_PERMITIDAS.map((c) => c.toUpperCase()));
+    for (const v of Object.values(VERDE_ATENDE))
+      expect(permitidas.has(v.toUpperCase())).toBe(false);
+    expect(CORES_EXCECAO_ATENDE).toEqual([VERDE_ATENDE.claro, VERDE_ATENDE.escuro]);
   });
 
   it('sem verde/âmbar: nenhuma classe Tailwind de green/emerald/amber/yellow/red-*', () => {

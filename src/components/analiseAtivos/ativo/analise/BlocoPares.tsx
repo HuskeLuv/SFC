@@ -10,6 +10,10 @@
  *    Patrimônio · Critérios.
  * Computador: tabela TABLE_STYLES com th scope="row" e CelulaCriterios (botão de 44 px com o
  * detalhe em tooltip, sem abrir a linha); celular: cartões (links de 44 px+) com 'n de k' em texto.
+ * Desde que fica em 2/3 da linha (xl, ao lado dos Múltiplos históricos), a tabela cabe na coluna:
+ * sem min-w-max, padding de 8 px e cabeçalhos que quebram em 2 linhas ('Alavancagem (% do PL)')
+ * em vez de rolar e cortar a coluna Critérios; rótulos curtos ('DY 12m'), valores e a 1ª coluna
+ * não quebram.
  * O nome do ativo vem do banco e leva data-nome-ativo (a varredura de linguagem o ignora). Critério
  * de seleção em texto; sem pares: texto próprio.
  */
@@ -134,6 +138,10 @@ function colunasDe(classe: ClasseQuadro, papel: boolean): ColunaPar[] {
   ];
 }
 
+/** Variante mais justa do TABLE_STYLES.compact (mesmos tokens): cabeçalho pode quebrar. */
+const TH = 'px-2 py-2 font-medium leading-tight';
+const TD = 'px-2 py-2 text-xs whitespace-nowrap';
+
 const href = (ticker: string) => `/analise-ativos/${encodeURIComponent(ticker)}`;
 
 export default function BlocoPares({ ticker, classe }: BlocoParesProps) {
@@ -165,13 +173,13 @@ export default function BlocoPares({ ticker, classe }: BlocoParesProps) {
           <>
             {/* Computador: tabela */}
             <div className={`${TABLE_STYLES.wrapper} relative hidden max-w-full lg:block`}>
-              <table className={`${TABLE_STYLES.table} min-w-max`}>
+              <table className={TABLE_STYLES.table}>
                 <caption className="sr-only">{formatarTexto(TP.caption, { ticker })}</caption>
                 <thead>
                   <tr className={TABLE_STYLES.headRow} style={TABLE_HEADER_STYLE}>
                     <th
                       scope="col"
-                      className={`${TABLE_STYLES.compact.th} sticky left-0 z-10 text-left`}
+                      className={`${TH} sticky left-0 z-10 text-left whitespace-nowrap`}
                       style={TABLE_HEADER_STYLE}
                     >
                       {classe === 'fii' ? TA.colunas.fundo : C.ativo}
@@ -181,7 +189,7 @@ export default function BlocoPares({ ticker, classe }: BlocoParesProps) {
                         key={c.codigo}
                         scope="col"
                         title={c.codigo === 'criterios' ? tituloCriterios : undefined}
-                        className={`${TABLE_STYLES.compact.th} ${c.codigo === 'criterios' ? 'text-center' : 'text-right'}`}
+                        className={`${TH} ${c.rotulo.length <= 10 ? 'whitespace-nowrap' : ''} ${c.codigo === 'criterios' ? 'text-center' : 'text-right'}`}
                       >
                         {c.rotulo}
                       </th>
@@ -198,7 +206,7 @@ export default function BlocoPares({ ticker, classe }: BlocoParesProps) {
                     >
                       <th
                         scope="row"
-                        className={`${TABLE_STYLES.compact.td} sticky left-0 z-[1] text-left font-normal ${FUNDO_STICKY}`}
+                        className={`${TD} sticky left-0 z-[1] text-left font-normal ${FUNDO_STICKY}`}
                       >
                         <Link
                           href={href(l.ticker)}
@@ -221,7 +229,7 @@ export default function BlocoPares({ ticker, classe }: BlocoParesProps) {
                             <td
                               key={c.codigo}
                               data-criterios-par={l.ticker}
-                              className={`${TABLE_STYLES.compact.td} text-center`}
+                              className={`${TD} text-center`}
                             >
                               <CelulaCriterios
                                 criterios={l.criterios ?? null}
@@ -238,7 +246,7 @@ export default function BlocoPares({ ticker, classe }: BlocoParesProps) {
                           <td
                             key={c.codigo}
                             title={v.title}
-                            className={`${TABLE_STYLES.compact.td} text-right tabular-nums ${v.negativo ? TEXTO_NEGATIVO : ''}`}
+                            className={`${TD} text-right tabular-nums ${v.negativo ? TEXTO_NEGATIVO : ''}`}
                           >
                             {v.texto}
                           </td>

@@ -11,7 +11,6 @@
  */
 import { useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { BOTAO_PRI } from '@/components/analiseAtivos/ativo/cenarios/ConfirmarObjetivoPlanejamento';
 import { FOCO_CENARIOS } from '@/components/analiseAtivos/ativo/cenarios/FormPremissas';
 import { TEXTOS_CENARIOS } from '@/services/analiseAtivos/textosCenarios';
 import { formatarTexto } from '@/services/analiseAtivos/textos';
@@ -34,6 +33,9 @@ export function textoSalvoEm(iso: string | null): string {
 }
 
 const LINK_BTN = `inline-flex min-h-12 items-center justify-center rounded-xl px-3 text-sm font-medium text-[#396CAA] hover:bg-gray-50 lg:min-h-11 dark:text-[#6E9DC4] dark:hover:bg-white/[0.04] ${FOCO_CENARIOS}`;
+
+// Salvar cenário: azul preenchido quando há o que salvar; desabilitado em cinza legível (sem opacity).
+const BOTAO_SALVAR_CENARIO = `inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-[#396CAA] px-4 text-sm font-semibold text-white shadow-[0_6px_16px_-6px_rgba(57,108,170,0.6)] hover:bg-[#314666] lg:min-h-11 dark:bg-[#6E9DC4] dark:text-[#2D2D2D] dark:hover:bg-[#EAEAEA] disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500 disabled:shadow-none dark:disabled:bg-white/[0.06] dark:disabled:text-gray-400 ${FOCO_CENARIOS}`;
 
 interface Props {
   podeSalvar: boolean;
@@ -143,7 +145,7 @@ export default function BarraSalvamento({
           onClick={onSalvar}
           disabled={salvarDesabilitado}
           aria-busy={status === 'salvando' || undefined}
-          className={`${BOTAO_PRI} w-full sm:w-auto`}
+          className={`${BOTAO_SALVAR_CENARIO} w-full sm:w-auto`}
           data-cenario-salvar=""
         >
           <svg viewBox="0 0 24 24" aria-hidden="true" className="h-[18px] w-[18px]">

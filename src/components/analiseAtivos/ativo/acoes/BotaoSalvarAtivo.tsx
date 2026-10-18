@@ -302,11 +302,11 @@ export function IconeMarcador({ cheio, className = '' }: { cheio: boolean; class
   );
 }
 
-const BASE_BOTAO = `inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-lg border px-3 text-[13px] font-medium whitespace-nowrap transition-colors disabled:cursor-not-allowed disabled:opacity-55 sm:w-auto lg:min-h-11 ${FOCO}`;
-/** Não salvo: o mesmo branco dos botões pequenos do cabeçalho. */
-const BOTAO_SALVAR = `${BASE_BOTAO} border-gray-300 bg-white text-gray-800 hover:bg-gray-50 dark:border-gray-700 dark:bg-transparent dark:text-white/90 dark:hover:bg-white/5`;
+const BASE_BOTAO = `inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-lg border px-3 text-[13px] whitespace-nowrap transition-colors sm:text-sm disabled:cursor-not-allowed disabled:opacity-55 sm:w-auto lg:min-h-11 ${FOCO}`;
+/** Não salvo: o mesmo visual dos botões de ação do cabeçalho (BOTAO_ACAO da BarraAcoesAtivo). */
+const BOTAO_SALVAR = `${BASE_BOTAO} border-[#CCCCCC] bg-white font-semibold text-[#314666] shadow-[0_1px_2px_rgba(16,24,40,0.06)] hover:border-[#396CAA] hover:bg-[#EDF2F8] dark:border-gray-600 dark:bg-white/[0.04] dark:text-white/90 dark:hover:border-[#6E9DC4] dark:hover:bg-[#6E9DC4]/15`;
 /** Salvo: fundo selecionado (#EDF2F8) e borda #DCE6F2 (MYFINANCE_TONS); escuro com o patrimônio claro. */
-const BOTAO_SALVO = `${BASE_BOTAO} border-[#DCE6F2] bg-[#EDF2F8] text-[#314666] hover:bg-[#DCE6F2] dark:border-[#6E9DC4]/40 dark:bg-[#6E9DC4]/15 dark:text-[#6E9DC4] dark:hover:bg-[#6E9DC4]/25`;
+const BOTAO_SALVO = `${BASE_BOTAO} font-medium border-[#DCE6F2] bg-[#EDF2F8] text-[#314666] hover:bg-[#DCE6F2] dark:border-[#6E9DC4]/40 dark:bg-[#6E9DC4]/15 dark:text-[#6E9DC4] dark:hover:bg-[#6E9DC4]/25`;
 
 export interface BotaoSalvarAtivoProps {
   controle: ControleSalvar;
@@ -339,7 +339,7 @@ export default function BotaoSalvarAtivo({ controle: c }: BotaoSalvarAtivoProps)
     >
       <IconeMarcador
         cheio={c.salvo && !c.consultor}
-        className={c.salvo && !c.consultor ? 'text-[#396CAA] dark:text-[#6E9DC4]' : ''}
+        className="text-[#396CAA] dark:text-[#6E9DC4]"
       />
       {c.salvo && !c.consultor ? T.salvo : T.salvar}
     </button>

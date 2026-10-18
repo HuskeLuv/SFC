@@ -236,7 +236,7 @@ function CampoCenario({ def, r, estado }: CampoProps) {
       ) : null}
       <span
         id={idHint}
-        className="col-span-2 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs text-gray-500 dark:text-gray-400"
+        className="col-span-2 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs text-gray-600 dark:text-gray-400"
       >
         {mudou !== null ? (
           <>
@@ -304,18 +304,18 @@ function CampoCotacao({ r }: { r: CenariosResposta }) {
           aria-readonly="true"
           value={v === null ? '—' : formatarNumeroBR(v, CASAS_CAMPO.cotacao)}
           aria-describedby={`${id}-h`}
-          className={`${CAIXA} ${FOCO_CENARIOS} border-dashed border-gray-300 bg-gray-50 text-gray-700 dark:border-gray-700 dark:bg-white/[0.04] dark:text-gray-200`}
+          className={`${CAIXA} ${FOCO_CENARIOS} border-dashed border-gray-300 bg-transparent text-gray-700 dark:border-gray-700 dark:bg-transparent dark:text-gray-200`}
         />
         <span
           aria-hidden="true"
-          className="pointer-events-none absolute right-2.5 text-[12.5px] text-gray-500 dark:text-gray-400"
+          className="pointer-events-none absolute right-2.5 text-[12.5px] text-gray-600 dark:text-gray-400"
         >
           R$
         </span>
       </span>
       <span
         id={`${id}-h`}
-        className="col-span-2 flex flex-wrap items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400"
+        className="col-span-2 flex flex-wrap items-center gap-1.5 text-xs text-gray-600 dark:text-gray-400"
       >
         <span>{formatarTexto(C.cotacao.origem, { data: ddmm(r.cotacao.data) })}</span>
         <span className="sr-only">{C.somenteLeitura}</span>
@@ -337,7 +337,7 @@ function SliderMargem({ estado }: { estado: EstadoCenario }) {
   const id = useId();
   const v = estado.snap.margemPct;
   return (
-    <div className="flex flex-col gap-1.5 rounded-xl border border-gray-100 bg-gray-50 px-3 py-2.5 dark:border-gray-800 dark:bg-white/[0.03]">
+    <div className="flex flex-col gap-1.5 border-t border-gray-200 pt-3 dark:border-gray-700">
       <div className="flex items-baseline justify-between gap-2">
         <label htmlFor={id} className="text-sm font-medium text-gray-800 dark:text-white/90">
           {T.margem.rotulo}
@@ -364,13 +364,13 @@ function SliderMargem({ estado }: { estado: EstadoCenario }) {
       />
       <div
         aria-hidden="true"
-        className="flex justify-between text-[11.5px] text-gray-500 tabular-nums dark:text-gray-400"
+        className="flex justify-between text-[11.5px] text-gray-600 tabular-nums dark:text-gray-400"
       >
         <span>{T.margem.marcas.min}</span>
         <span>{T.margem.marcas.meio}</span>
         <span>{T.margem.marcas.max}</span>
       </div>
-      <span id={`${id}-h`} className="text-xs text-gray-500 dark:text-gray-400">
+      <span id={`${id}-h`} className="text-xs text-gray-600 dark:text-gray-400">
         {T.margem.ajuda}
       </span>
     </div>
@@ -378,7 +378,7 @@ function SliderMargem({ estado }: { estado: EstadoCenario }) {
 }
 
 const LEGENDA =
-  'mb-2 p-0 text-xs font-semibold tracking-[0.06em] text-gray-500 uppercase dark:text-gray-400';
+  'mb-2 p-0 text-xs font-semibold tracking-[0.06em] text-gray-600 uppercase dark:text-gray-300';
 const GRADE =
   'grid grid-cols-1 gap-2.5 @min-[560px]:grid-cols-2 @min-[560px]:gap-x-4 @min-[900px]:grid-cols-1';
 

@@ -29,6 +29,11 @@ import {
 import { TABLE_HEADER_STYLE, TABLE_STYLES } from '@/components/ui/table/tableStyles';
 import ChipConferencia from '@/components/analiseAtivos/comum/ChipConferencia';
 import {
+  ANEL_FOCO,
+  SEGMENTO_DESLIGADO,
+  SEGMENTO_LIGADO,
+} from '@/components/analiseAtivos/comum/estiloPilulas';
+import {
   MenuBlocoPagina,
   useConferenciaPagina,
 } from '@/components/analiseAtivos/comum/PorQueConferencia';
@@ -328,10 +333,8 @@ export default function GraficoLucroCotacao({ ticker, classe, grafico }: Grafico
                     setPeriodo(p);
                     setAtivo(null);
                   }}
-                  className={`min-h-11 min-w-11 rounded-lg px-3 text-sm font-medium sm:min-h-[34px] ${
-                    periodo === p
-                      ? 'bg-white text-gray-800 shadow-sm dark:bg-gray-900 dark:text-white'
-                      : 'text-gray-500 dark:text-gray-400'
+                  className={`min-h-11 min-w-11 rounded-lg px-3 text-sm ${ANEL_FOCO} ${
+                    periodo === p ? SEGMENTO_LIGADO : SEGMENTO_DESLIGADO
                   }`}
                 >
                   {p}

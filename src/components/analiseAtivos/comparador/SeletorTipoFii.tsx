@@ -6,6 +6,11 @@
  * desenho da PilulasJanela). Escolher um tipo deixa na comparação só os fundos daquele tipo
  * (critérios de qualidade diferentes; rec. do protótipo do Pedro). No misto, nenhum fica marcado.
  */
+import {
+  ANEL_FOCO_GRUPO,
+  PILULA_DESLIGADA,
+  PILULA_LIGADA,
+} from '@/components/analiseAtivos/comum/estiloPilulas';
 import { TEXTOS_COMPARADOR } from '@/services/analiseAtivos/textosComparador';
 import type { SeletorTipoFiiProps } from '@/types/analiseAtivosCriterios';
 
@@ -46,10 +51,8 @@ export default function SeletorTipoFii({
             className="group inline-flex min-h-11 items-center justify-center focus-visible:outline-none"
           >
             <span
-              className={`inline-flex h-8 items-center rounded-full border px-3 text-[13px] font-medium whitespace-nowrap group-focus-visible:ring-2 group-focus-visible:ring-[#0079F2] dark:group-focus-visible:ring-[#6E9DC4] ${
-                ativo
-                  ? 'border-[#396CAA] bg-[#EDF2F8] text-[#314666] dark:border-[#6E9DC4] dark:bg-[#6E9DC4]/15 dark:text-[#6E9DC4]'
-                  : 'border-gray-200 bg-white text-gray-700 hover:border-gray-300 dark:border-[#2E3440] dark:bg-transparent dark:text-gray-300 dark:hover:border-gray-500'
+              className={`inline-flex h-8 items-center rounded-full border px-3 text-[13px] whitespace-nowrap ${ANEL_FOCO_GRUPO} ${
+                ativo ? PILULA_LIGADA : PILULA_DESLIGADA
               }`}
             >
               {T[tipo]}

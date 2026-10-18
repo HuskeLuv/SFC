@@ -267,6 +267,23 @@ describe('CardCriterios — v2.5 (fontes, selo dados incompletos, obs)', () => {
   });
 });
 
+describe('CardCriterios — ✓ verde (exceção 17/10) e número na cor da marca', () => {
+  it('só os itens atendidos levam o ✓ verde; o número sai em patrimonio/tranquilidade', () => {
+    const { container } = render(
+      <CardCriterios ticker="HGLG11" classe="fii" criterios={CRITERIOS_ATIVO_HGLG11} />,
+    );
+    const atendidos = container.querySelectorAll('li[data-estado-criterio="atende"]');
+    const outros = container.querySelectorAll('li:not([data-estado-criterio="atende"])');
+    expect(atendidos.length).toBeGreaterThan(0);
+    expect(outros.length).toBeGreaterThan(0);
+    for (const li of atendidos) expect(li.innerHTML).toContain('bg-[#16A34A]');
+    for (const li of outros) expect(li.innerHTML).not.toMatch(/16A34A|34C47C/);
+    const numero = container.querySelector('[data-contagem-criterios] > span') as HTMLElement;
+    expect(numero.className).toContain('text-[#396CAA]');
+    expect(numero.className).toContain('dark:text-[#6E9DC4]');
+  });
+});
+
 describe('CardCriterios — sem avaliação, linguagem e cores', () => {
   it('sem avaliação: título + texto de espera, sem pílulas', () => {
     render(<CardCriterios ticker="XPTO3" classe="acao" criterios={null} />);

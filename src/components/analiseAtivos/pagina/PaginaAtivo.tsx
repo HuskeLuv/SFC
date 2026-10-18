@@ -7,8 +7,10 @@
  *  3. BlocoNaCarteira + BlocoKpis                4. GraficoLucroCotacao + BlocoDividendos
  *  5. BlocoFundamentos (Essencial | Raio-X, preguiçoso)
  *  6. BlocoValuation (Múltiplos | Meus cenários, preguiçoso)
- *  7. BlocoMultiplosHistoricos + BlocoPares (preguiçosos)
- *  8. BlocoTese (privada) ao lado de BlocoEventos + CardEducacao   9. SeloFrescor
+ *  7. BlocoMultiplosHistoricos (1/3) ao lado de BlocoPares (2/3) a partir de xl; abaixo, empilhados
+ *     (preguiçosos)
+ *  8. BlocoTese (privada) ao lado de BlocoEventos + CardEducacao (card do módulo da Educação)
+ *  9. SeloFrescor
  * O rodapé legal vem da AnaliseAtivosShell. A avaliação dos usuários fica fora (D5).
  *
  * Bloco C (fatia B): ConferenciaPaginaProvider leva aos blocos as conferências do topo (chip "em
@@ -139,8 +141,10 @@ export default function PaginaAtivo({ ticker }: PaginaAtivoProps) {
           <BlocoValuation {...base} nome={ativo.nome} />
         </SecaoPreguicosa>
         <SecaoPreguicosa rotulo={TEXTOS_TELA.blocos.historicos}>
-          {/* Pares em largura total: as 8 colunas não cabem em meia linha (1440 cortava 4) */}
-          <div className="grid min-w-0 gap-4 md:gap-6">
+          {/* HTML do Pedro (.grid.g-13): Múltiplos em 1/3 (P/L sobre P/VP) e Pares em 2/3 só a
+              partir de xl, os dois cards com a mesma altura (stretch); a tabela de pares cabe nos 2/3
+              (cabeçalhos quebram). Abaixo de xl (inclusive 390 px) empilha. */}
+          <div className="grid min-w-0 gap-4 md:gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
             <BlocoMultiplosHistoricos {...base} />
             <BlocoPares {...base} />
           </div>
@@ -149,7 +153,7 @@ export default function PaginaAtivo({ ticker }: PaginaAtivoProps) {
           <BlocoTese ticker={ticker} />
           <div className="flex min-w-0 flex-col gap-4 md:gap-6">
             <BlocoEventos classe={classe} eventos={ativo.eventos} />
-            <CardEducacao educacao={ativo.educacao} />
+            <CardEducacao educacao={ativo.educacao} classe={classe} />
           </div>
         </div>
         <SeloFrescor frescor={ativo.frescor} />

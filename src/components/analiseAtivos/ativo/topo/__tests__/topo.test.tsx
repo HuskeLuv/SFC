@@ -14,6 +14,15 @@ import SeloFrescor from '../SeloFrescor';
 import { ConferenciaPaginaProvider } from '@/components/analiseAtivos/comum/PorQueConferencia';
 import { ATIVO_WEGE3 } from '@/test/fixtures/analiseAtivos/respostas';
 import { encontrarPalavrasProibidas } from '@/services/analiseAtivos/textos';
+import { TEXTOS_TELA } from '@/services/analiseAtivos/textosTela';
+import { CURSO_ESR_SLUG } from '@/constants/educacaoModulos';
+import type { CursoResumo, ModuloTrilha } from '@/hooks/useEducacao';
+
+// CardEducacao usa a lista de cursos (React Query): por padrão, carregando → bloco de fallback
+const cursosMock = vi.hoisted(() => ({
+  valor: { cursos: [] as unknown[], accessLevel: 0, loading: true, error: null as string | null },
+}));
+vi.mock('@/hooks/useEducacao', () => ({ useCursos: () => cursosMock.valor }));
 
 describe('CabecalhoAtivo', () => {
   it('ticker, tags sem índice de mercado, preço com data e fonte; slot de ações', () => {
@@ -254,12 +263,96 @@ describe('BlocoEventos, CardEducacao e SeloFrescor', () => {
     expect(screen.getByText(/Para FIIs, aparecem aqui as datas-com/)).toBeInTheDocument();
   });
 
-  it('Educação aponta para o link da classe', () => {
-    render(<CardEducacao educacao={ATIVO_WEGE3.educacao} />);
-    expect(screen.getByRole('link', { name: 'Abrir na Educação' })).toHaveAttribute(
-      'href',
-      '/educacao',
-    );
+  it('Educação carregando: esqueleto com a capa reservada (sem salto de layout)', () => {
+    const { container } = render(<CardEducacao educacao={ATIVO_WEGE3.educacao} />);
+    expect(container.querySelector('[data-educacao="carregando"]')).not.toBeNull();
+    expect(container.querySelector('.aspect-video')).not.toBeNull();
+    expect(screen.queryByRole('link')).toBeNull();
+  });
+
+  it('Educação sem a trilha (erro/sem acesso): aponta para o link da classe', () => {
+    cursosMock.valor = { cursos: [], accessLevel: 0, loading: false, error: 'Erro' };
+    try {
+      render(<CardEducacao educacao={ATIVO_WEGE3.educacao} />);
+      expect(screen.getByRole('link', { name: 'Abrir na Educação' })).toHaveAttribute(
+        'href',
+        '/educacao',
+      );
+    } finally {
+      cursosMock.valor = { cursos: [], accessLevel: 0, loading: true, error: null };
+    }
+  });
+
+  it('com a trilha carregada: card do módulo da classe (capa, link do módulo, descrição)', () => {
+    const modulo = {
+      id: 'm8',
+      title: 'Ações',
+      description: 'descrição da trilha',
+      coverUrl: '/educacao/modulos/08-acoes.jpg',
+      totalAulas: 6,
+      duracaoSegundos: 3600,
+      progresso: 0,
+      status: 'nao_iniciado',
+    } as unknown as ModuloTrilha;
+    const outro = { ...modulo, id: 'm7', title: 'Renda Fixa' } as ModuloTrilha;
+    const curso = {
+      id: 'c1',
+      slug: CURSO_ESR_SLUG,
+      title: 'Educação Financeira do Zero',
+      bloqueado: false,
+      modulos: [outro, modulo],
+    } as unknown as CursoResumo;
+    cursosMock.valor = { cursos: [curso], accessLevel: 1, loading: false, error: null };
+    try {
+      const { container } = render(
+        <CardEducacao
+          educacao={{ ...ATIVO_WEGE3.educacao, descricao: TEXTOS_TELA.educacao.acao.descricao }}
+        />,
+      );
+      const link = screen.getByRole('link', { name: /Ações/ });
+      expect(link).toHaveAttribute('href', `/educacao/${CURSO_ESR_SLUG}?modulo=m8`);
+      expect(link).toHaveAttribute('href', '/educacao/educacao-financeira-do-zero?modulo=m8');
+      expect(within(link).getByRole('img')).toHaveAttribute(
+        'src',
+        '/educacao/modulos/08-acoes.jpg',
+      );
+      expect(
+        screen.getByText(
+          'Aprenda os fundamentos para investir em empresas e construir patrimônio na bolsa de valores',
+        ),
+      ).toBeInTheDocument();
+      expect(screen.queryByText('descrição da trilha')).toBeNull();
+      expect(screen.queryByRole('link', { name: 'Abrir na Educação' })).toBeNull();
+      expect(screen.getByRole('heading', { level: 2 })).toHaveTextContent(
+        'Aprenda a analisar ações',
+      );
+      expect(encontrarPalavrasProibidas(container.textContent ?? '')).toEqual([]);
+    } finally {
+      cursosMock.valor = { cursos: [], accessLevel: 0, loading: true, error: null };
+    }
+  });
+
+  it('FII com a trilha carregada mas sem o módulo: fallback com o link da classe', () => {
+    cursosMock.valor = {
+      cursos: [{ slug: CURSO_ESR_SLUG, bloqueado: false, modulos: [] }],
+      accessLevel: 1,
+      loading: false,
+      error: null,
+    };
+    try {
+      render(
+        <CardEducacao
+          educacao={{ titulo: TEXTOS_TELA.educacao.fii.titulo, href: '/educacao', descricao: null }}
+          classe="fii"
+        />,
+      );
+      expect(screen.getByRole('link', { name: 'Abrir na Educação' })).toHaveAttribute(
+        'href',
+        '/educacao',
+      );
+    } finally {
+      cursosMock.valor = { cursos: [], accessLevel: 0, loading: true, error: null };
+    }
   });
 
   it('frescor com fontes e aviso de atraso com ícone + texto', () => {

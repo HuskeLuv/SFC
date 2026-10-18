@@ -43,6 +43,14 @@ import TabelaQuadro, {
   rotuloColuna,
   type ControleComparar,
 } from '@/components/analiseAtivos/quadro/TabelaQuadro';
+import {
+  ANEL_FOCO,
+  ANEL_FOCO_GRUPO,
+  PILULA_DESLIGADA,
+  PILULA_LIGADA,
+  SEGMENTO_DESLIGADO,
+  SEGMENTO_LIGADO,
+} from '@/components/analiseAtivos/comum/estiloPilulas';
 import BotaoSalvarLinha from '@/components/analiseAtivos/quadro/BotaoSalvarLinha';
 import FaixaFiltroAplicado from '@/components/analiseAtivos/quadro/FaixaFiltroAplicado';
 import FiltrosSalvos, {
@@ -156,10 +164,8 @@ function Pilula({
       className="group inline-flex min-h-11 shrink-0 items-center outline-none"
     >
       <span
-        className={`inline-flex h-8 items-center rounded-full border px-3 text-[13px] font-medium whitespace-nowrap group-focus-visible:ring-[3px] group-focus-visible:ring-[#0079F2] dark:group-focus-visible:ring-[#6E9DC4] ${
-          pressionada
-            ? 'border-[#396CAA] bg-[#EDF2F8] text-[#314666] dark:border-[#6E9DC4] dark:bg-[#6E9DC4]/15 dark:text-[#6E9DC4]'
-            : 'border-gray-200 bg-white text-gray-700 hover:border-gray-300 dark:border-[#2E3440] dark:bg-transparent dark:text-gray-300'
+        className={`inline-flex h-8 items-center rounded-full border px-3 text-[13px] whitespace-nowrap ${ANEL_FOCO_GRUPO} ${
+          pressionada ? PILULA_LIGADA : PILULA_DESLIGADA
         }`}
       >
         {children}
@@ -182,10 +188,8 @@ function PilulasModo({ modo, onModo }: { modo: ModoQuadro; onModo: (m: ModoQuadr
           type="button"
           aria-pressed={modo === m}
           onClick={() => onModo(m)}
-          className={`inline-flex min-h-11 items-center justify-center rounded-[9px] px-3 text-sm font-semibold ${FOCO} ${
-            modo === m
-              ? 'bg-white text-gray-900 shadow-sm dark:bg-[#26262A] dark:text-white'
-              : 'text-gray-600 dark:text-gray-400'
+          className={`inline-flex min-h-11 items-center justify-center rounded-[9px] px-3 text-sm ${ANEL_FOCO} ${
+            modo === m ? SEGMENTO_LIGADO : SEGMENTO_DESLIGADO
           }`}
         >
           {T.modos[m]}
@@ -257,7 +261,7 @@ function BotaoModoComparar({ ativo, onAlternar }: { ativo: boolean; onAlternar: 
       className={`inline-flex min-h-11 shrink-0 items-center justify-center gap-1.5 rounded-xl border px-4 text-sm font-semibold ${FOCO} ${
         ativo
           ? 'border-[#314666] bg-[#314666] text-white dark:border-[#396CAA] dark:bg-[#396CAA]'
-          : 'border-gray-200 text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-white/[0.04]'
+          : 'border-gray-300 bg-white text-[#314666] hover:border-[#396CAA] hover:bg-[#EDF2F8] dark:border-gray-600 dark:bg-transparent dark:text-white/90 dark:hover:border-[#6E9DC4] dark:hover:bg-[#6E9DC4]/15'
       }`}
     >
       <IconeComparar />
