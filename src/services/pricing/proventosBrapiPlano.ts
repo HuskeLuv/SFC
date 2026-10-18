@@ -49,7 +49,16 @@ export type MotivoRemocaoProvento = 'soma_orfa' | 'versao_antiga';
 export interface PlanoGravacaoProventos {
   criar: ProventoBrapiParaGravar[];
   atualizar: Array<{ id: string; valorUnitario: number; antes: number }>;
-  apagar: Array<{ id: string; motivo: MotivoRemocaoProvento; linha: LinhaProventoGravada }>;
+  apagar: Array<{
+    id: string;
+    motivo: MotivoRemocaoProvento;
+    linha: LinhaProventoGravada;
+    /**
+     * a fonte continua com um provento do mesmo tipo, data-com a ≤ 1 pregão e o MESMO valor (±0,5%):
+     * a linha apagada só muda de chave (data-com/pagamento corrigidos). false = o valor sai da base.
+     */
+    substituta: boolean;
+  }>;
 }
 
 const dia = (d: Date | null): string => (d ? d.toISOString().slice(0, 10) : '');
@@ -81,6 +90,20 @@ function dataComVizinha(a: Date, b: Date): boolean {
     a.getTime() <= b.getTime() ? [a.getTime(), b.getTime()] : [b.getTime(), a.getTime()];
   if (x === y) return true;
   return nextBusinessDayB3(x + DIA_MS) >= y && prevBusinessDayB3(y - DIA_MS) <= x;
+}
+
+function temSubstituta(
+  l: LinhaProventoGravada,
+  agregados: readonly ProventoBrapiParaGravar[],
+): boolean {
+  return agregados.some(
+    (a) =>
+      a.tipo === l.tipo &&
+      a.dataCom !== null &&
+      l.dataCom !== null &&
+      dataComVizinha(a.dataCom, l.dataCom) &&
+      Math.abs(a.valorUnitario / l.valorUnitario - 1) <= 0.005,
+  );
 }
 
 export function planejarGravacaoProventosBrapi(
@@ -118,21 +141,38 @@ export function planejarGravacaoProventosBrapi(
     // a chave nova não deixa repetir; sobra só de dados gravados fora do sync (defensivo)
     for (const r of repetidas) {
       usadas.add(r.id);
-      plano.apagar.push({ id: r.id, motivo: 'soma_orfa', linha: r });
+      plano.apagar.push({
+        id: r.id,
+        motivo: 'soma_orfa',
+        linha: r,
+        substituta: temSubstituta(r, agregados),
+      });
     }
   }
   for (const l of brapi) {
     if (usadas.has(l.id) || chavesFonte.has(chave(l.date, l.tipo, l.dataCom))) continue;
     const grupo = datasComDoGrupo.get(chaveGrupo(l.date, l.tipo));
     if (grupo && !grupo.has(dia(l.dataCom))) {
-      plano.apagar.push({ id: l.id, motivo: 'soma_orfa', linha: l });
+      plano.apagar.push({
+        id: l.id,
+        motivo: 'soma_orfa',
+        linha: l,
+        substituta: temSubstituta(l, agregados),
+      });
       continue;
     }
     if (!l.dataCom || linhaSemPagamento(l)) continue;
     const vizinha = agregados.some(
       (a) => a.tipo === l.tipo && a.dataCom !== null && dataComVizinha(a.dataCom, l.dataCom!),
     );
-    if (vizinha) plano.apagar.push({ id: l.id, motivo: 'versao_antiga', linha: l });
+    if (vizinha) {
+      plano.apagar.push({
+        id: l.id,
+        motivo: 'versao_antiga',
+        linha: l,
+        substituta: temSubstituta(l, agregados),
+      });
+    }
   }
   return plano;
 }
