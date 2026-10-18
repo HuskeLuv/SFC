@@ -54,7 +54,7 @@ export interface ResultadoFca {
 }
 
 const RE_DATA = /^\d{4}-\d{2}-\d{2}$/;
-const RE_TICKER = /^[A-Z][A-Z0-9]{2}[A-Z]\d{1,2}$/; // B3SA3 tem dígito na raiz
+const RE_TICKER = /^[A-Z][A-Z0-9]{3}\d{1,2}$/; // dígito na raiz: B3SA3, B1003
 const data = (s: string) => (RE_DATA.test(s) ? s : null);
 
 function classeDoFca(valorMobiliario: string): string | null {
