@@ -14,6 +14,8 @@
  * - Ordem padrão A–Z (ticker asc, fora da URL).
  * - filtro: id do filtro salvo aplicado (bloco 1, fatia 0: só o tipo e o parse; a UI é da fatia
  *   B). Opcional; valor que não é uuid é ignorado. Trocar de classe ou limpar os filtros o tira.
+ * Stocks e REITs (fatia C): classe=stock|reit é lida sempre; sem a chave EUA o QuadroAnalise volta
+ * para Ações (a rota daria 404). Filtro: stock usa ?s= como setor (divisão SIC); reit, como segmento.
  * Trocar de classe ZERA os filtros (critérios, carteira e setor; os chips são outros) e volta à
  * ordem A–Z; janela e modo continuam (caso 31).
  */
@@ -27,7 +29,13 @@ import {
 } from '@/constants/analiseAtivosVisual';
 import type { FiltrosQuadro } from '@/hooks/useAnaliseAtivos';
 import { PARAM_FILTRO_SALVO } from '@/services/analiseAtivos/salvos/contrato';
-import type { ClasseQuadro, DirecaoOrdem, ModoQuadro, OrdemQuadro } from '@/types/analiseAtivosApi';
+import {
+  CLASSES_QUADRO,
+  type ClasseQuadro,
+  type DirecaoOrdem,
+  type ModoQuadro,
+  type OrdemQuadro,
+} from '@/types/analiseAtivosApi';
 import {
   JANELAS_CRITERIOS,
   JANELA_PADRAO,
@@ -52,7 +60,7 @@ export interface EstadoQuadro {
 /** uuid (id de AnaliseFiltroSalvo); outro valor em ?filtro= é ignorado. */
 const RE_ID_FILTRO = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-const CLASSES: ClasseQuadro[] = ['acao', 'fii'];
+const CLASSES: readonly ClasseQuadro[] = CLASSES_QUADRO;
 const DIRECOES: DirecaoOrdem[] = ['asc', 'desc'];
 const MODOS: ModoQuadro[] = ['resumo', 'detalhado'];
 
@@ -70,7 +78,7 @@ export function criteriosDaClasse(classe: ClasseQuadro, ids: readonly string[]):
 }
 
 export function lerEstadoQuadro(params: URLSearchParams): EstadoQuadro {
-  const classe = (CLASSES as string[]).includes(params.get('classe') ?? '')
+  const classe = (CLASSES as readonly string[]).includes(params.get('classe') ?? '')
     ? (params.get('classe') as ClasseQuadro)
     : 'acao';
   const ordemBruta = params.get('ordem') as OrdemQuadro | null;
@@ -113,7 +121,7 @@ export function filtrosDoEstado(e: EstadoQuadro): FiltrosQuadro {
   if (e.criterios.length) f.criterios = e.criterios.join(',');
   if (e.naCarteira) f.naCarteira = true;
   if (e.setor) {
-    if (e.classe === 'acao') f.setor = e.setor;
+    if (e.classe === 'acao' || e.classe === 'stock') f.setor = e.setor;
     else f.segmento = e.setor;
   }
   return f;

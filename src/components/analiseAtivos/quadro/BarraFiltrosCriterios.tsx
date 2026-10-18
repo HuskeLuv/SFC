@@ -33,6 +33,15 @@ import type {
 
 export type { BarraFiltrosCriteriosProps };
 
+/**
+ * Stocks e REITs (fatia C): `quebrarLinha` (ligado com a chave EUA) troca, no celular, o trilho
+ * rolável dos chips por uma faixa que QUEBRA LINHA — os 6 critérios e os filtros ficam à vista em
+ * 390 px, sem rolagem horizontal escondida. Sem a chave, o trilho de sempre.
+ */
+export interface BarraFiltrosCriteriosEuaProps extends BarraFiltrosCriteriosProps {
+  quebrarLinha?: boolean;
+}
+
 const T = TEXTOS_QUADRO.barra;
 const LINK =
   'inline-flex min-h-11 shrink-0 items-center px-1 text-sm font-medium text-[#396CAA] outline-none hover:underline focus-visible:ring-[3px] focus-visible:ring-[#0079F2] dark:text-[#6E9DC4] dark:focus-visible:ring-[#6E9DC4]';
@@ -159,7 +168,8 @@ export default function BarraFiltrosCriterios({
   onTrocarSetor,
   onLimpar,
   className = '',
-}: BarraFiltrosCriteriosProps) {
+  quebrarLinha = false,
+}: BarraFiltrosCriteriosEuaProps) {
   const celular = useIsBelowLg();
   const idRotulo = useId();
   const temFiltro = selecionados.length > 0 || naCarteira || !!setor;
@@ -187,7 +197,8 @@ export default function BarraFiltrosCriterios({
         </span>
       </button>
       <FiltroSetor
-        classe={classe}
+        // stock filtra por setor (divisão SIC) como ação: o rótulo do FiltroSetor é 'Setor'
+        classe={classe === 'stock' ? 'acao' : classe}
         setor={setor}
         setores={setores}
         onSetor={onTrocarSetor}
@@ -223,9 +234,14 @@ export default function BarraFiltrosCriterios({
         <div
           role="group"
           aria-label={T.chipsRotulo}
-          data-mf-scroll-x=""
+          data-mf-scroll-x={quebrarLinha ? undefined : ''}
           data-quadro-chips=""
-          className={`${TABLE_MOBILE_STYLES.chipRail} flex-none items-center`}
+          data-chips-quebram={quebrarLinha ? '' : undefined}
+          className={
+            quebrarLinha
+              ? 'flex min-w-0 flex-wrap items-center gap-x-2'
+              : `${TABLE_MOBILE_STYLES.chipRail} flex-none items-center`
+          }
         >
           {chips}
         </div>

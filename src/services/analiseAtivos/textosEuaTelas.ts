@@ -44,6 +44,7 @@ export const TEXTOS_EUA_TELAS = {
     seloSemCotacao: 'Sem cotação dos EUA',
     ultimo10k: '10-K mais recente: FY{ano}',
     floatData: 'free float da capa do 10-K de {data}',
+    valuationTitulo: 'Valuation · preço vs. fundamentos',
     valuationOculto:
       'Múltiplos e Meus cenários usam a cotação e ficam ocultos enquanto as cotações dos EUA não aparecem nesta área.',
     kpis: {
@@ -147,6 +148,11 @@ export const TEXTOS_EUA_TELAS = {
       dividendos: 'Dividendos',
       crescimento: 'Crescimento',
       rentabilidade: 'Rentabilidade',
+    },
+    vazio: {
+      stock:
+        'Adicione de 2 a 4 stocks. A tabela mostra os critérios de fundamentos e os indicadores de cada um, lado a lado.',
+      reit: 'Adicione de 2 a 4 REITs. A tabela mostra os critérios de fundamentos e os indicadores de cada um, lado a lado.',
     },
     /** linhas EUA do Comparador (rótulo + linha de apoio) */
     linhas: {

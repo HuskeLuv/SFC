@@ -30,6 +30,11 @@
  * - `colunasExtras`: colunas depois das do Quadro e antes da ação ("Adicionado em");
  * - `complementoCriterios(linha)`: texto embaixo da célula Critérios ("antes 5 de 6 · 16/10").
  * Sem essas props o DOM é idêntico ao de antes (acaoLinha.test.tsx, snapshot).
+ *
+ * Stocks e REITs (fatia C): colunas de COLUNAS.stock/reit (valores do último FY da SEC, em US$) e,
+ * só com `euaPreco`, as de cotação (COLUNAS_PRECO_EUA). Células novas: Div./ação (US$), Caixa
+ * op./ação, Div./caixa op., Div. crescendo e o segmento curado do REIT. Dicas das colunas EUA em
+ * textosEuaTelas.
  */
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -45,7 +50,14 @@ import CelulaNaCarteira, {
 } from '@/components/analiseAtivos/quadro/CelulaNaCarteira';
 import { TABLE_STYLES } from '@/components/ui/table/tableStyles';
 import { MYFINANCE_BRAND } from '@/constants/brandColors';
-import { COLUNAS, COR_LINK, type ColunaQuadro } from '@/constants/analiseAtivosVisual';
+import {
+  COLUNAS,
+  COLUNAS_PRECO_EUA,
+  COR_LINK,
+  type ColunaQuadro,
+} from '@/constants/analiseAtivosVisual';
+import { TEXTOS_EUA } from '@/services/analiseAtivos/textosEua';
+import { TEXTOS_EUA_TELAS } from '@/services/analiseAtivos/textosEuaTelas';
 import { prefetchAtivoTopo } from '@/hooks/useAnaliseAtivos';
 import { TEXTOS_TELA, formatarTexto } from '@/services/analiseAtivos/textosTela';
 import { TEXTOS_QUADRO } from '@/services/analiseAtivos/textosQuadro';
@@ -60,12 +72,14 @@ import { TEXTOS_ENTRADAS_COMPARADOR } from '@/services/analiseAtivos/textosEntra
 import { rotuloSegmentoFii } from '@/services/analiseAtivos/quadro/tipoFiiExibido';
 import { MAX_ATIVOS_COMPARADOR } from '@/services/analiseAtivos/cenarios/contrato';
 import type { SelecaoComparar } from '@/components/analiseAtivos/quadro/useSelecaoComparar';
-import type {
-  ClasseQuadro,
-  DirecaoOrdem,
-  LinhaQuadroApi,
-  ModoQuadro,
-  OrdemQuadro,
+import {
+  ehClasseEua,
+  type ClasseQuadro,
+  type DirecaoOrdem,
+  type Estado,
+  type LinhaQuadroApi,
+  type ModoQuadro,
+  type OrdemQuadro,
 } from '@/types/analiseAtivosApi';
 import type { DefCriterioChip, IdCriterio } from '@/types/analiseAtivosCriterios';
 
@@ -85,9 +99,46 @@ export function rotuloColuna(c: ColunaQuadro): string {
   );
 }
 
-/** Dica do cabeçalho (TEXTOS_QUADRO.dicas), se houver. */
+/** Dica do cabeçalho (TEXTOS_QUADRO.dicas; colunas EUA em textosEuaTelas), se houver. */
 export function dicaColuna(c: ColunaQuadro): string | undefined {
-  return c.dica ? (TEXTOS_QUADRO.dicas as Record<string, string>)[c.dica] : undefined;
+  if (!c.dica) return undefined;
+  return (
+    (TEXTOS_QUADRO.dicas as Record<string, string>)[c.dica] ?? TEXTOS_EUA_TELAS.quadro.dicas[c.dica]
+  );
+}
+
+/**
+ * Colunas do Quadro da classe no modo. EUA: as de cotação (preço depois do ativo; P/L e DY antes de
+ * Critérios) SÓ com a chave de preço — sem ela, nunca aparecem.
+ */
+export function colunasDoQuadro(
+  classe: ClasseQuadro,
+  modo: ModoQuadro,
+  euaPreco = false,
+): ColunaQuadro[] {
+  const base = COLUNAS[classe][modo];
+  if (!ehClasseEua(classe) || !euaPreco) return base;
+  const extra = COLUNAS_PRECO_EUA[classe];
+  const i = base.findIndex((c) => c.codigo === 'criterios');
+  return [
+    base[0],
+    ...extra.aposAtivo,
+    ...base.slice(1, i),
+    ...extra.antesCriterios,
+    ...base.slice(i),
+  ];
+}
+
+/** Número (ou null) como Estado, com o '—' padrão. */
+function estadoDe(v: number | null | undefined): Estado<number> {
+  return typeof v === 'number' && Number.isFinite(v)
+    ? { estado: 'ok', valor: v }
+    : { estado: 'ausente', motivo: 'sem_dado_fonte', texto: TEXTOS_TELA.ausentesPorCampo.semDado };
+}
+
+/** 'US$ 230,12' (cotação EUA, só com a chave de preço). */
+export function formatarUsd(v: number): string {
+  return `${TEXTOS_EUA.cotacao.moeda} ${formatarAnalise(v, 'numero2')}`;
 }
 
 /** id → rótulo dos critérios (inclui o equivalente de papel), para o tooltip da célula. */
@@ -205,14 +256,25 @@ function conteudoBase(codigo: string, l: LinhaQuadroApi): ReactNode {
     case 'setor':
       return l.setor ?? <span className="text-gray-400">{SEM}</span>;
     case 'segmento':
+      if (l.classe === 'reit') return l.segmento ?? <span className="text-gray-400">{SEM}</span>;
       return (
         rotuloSegmentoFii(l.segmentoTipo, l.segmentoCvm) ?? (
           <span className="text-gray-400">{SEM}</span>
         )
       );
+    case 'dpaUsd':
+      return <ValorAnalise valor={estadoDe(l.dpa)} formato="numero2" />;
+    case 'fcoAcao':
+      return <ValorAnalise valor={estadoDe(l.fcoPorAcao)} formato="numero2" />;
+    case 'divFco':
+      return <ValorAnalise valor={estadoDe(l.dividendosFcoPct)} formato="pct" />;
+    case 'anosDividendo':
+      return <CelulaSeguidos n={l.anosDividendo} />;
     case 'tipo':
       return l.fiiTipo ? T.tipos[l.fiiTipo] : <span className="text-gray-400">{SEM}</span>;
     case 'preco':
+      // EUA: em US$ (a coluna só existe com a chave de preço); o rótulo da coluna já diz a moeda
+      if (l.moeda === 'USD') return <ValorAnalise valor={l.preco} formato="numero2" />;
       return <ValorAnalise valor={l.preco} formato="moeda" />;
     case 'lucrosSeguidos':
       return <CelulaSeguidos n={l.anosLucroConsecutivos} />;
@@ -328,6 +390,8 @@ export interface TabelaQuadroProps<
   definicoes?: DefCriterioChip[];
   /** bloco 1: colunas depois das do Quadro (antes da coluna de ação) */
   colunasExtras?: ColunaExtraQuadro<L>[];
+  /** EUA: com a chave de preço, colunas de cotação (Preço, P/L, DY) nas abas Stocks/REITs */
+  euaPreco?: boolean;
 }
 
 /** Bloco 1: o clique na área da ação não chega à linha (que abre o ativo). */
@@ -407,10 +471,11 @@ export default function TabelaQuadro<L extends LinhaQuadroApi = LinhaQuadroApi>(
   rotuloColunaAcao,
   complementoCriterios,
   colunasExtras,
+  euaPreco = false,
 }: TabelaQuadroProps<L>) {
   const router = useRouter();
   const prefetch = usePrefetchHover();
-  const colunas = COLUNAS[classe][modo];
+  const colunas = colunasDoQuadro(classe, modo, euaPreco);
   const rotulos = rotulosDasDefinicoes(definicoes);
   // fundo opaco (a coluna fixa passa por cima das outras ao rolar); mesmo tom do card escuro
   const fundoFixo =

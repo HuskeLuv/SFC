@@ -43,7 +43,13 @@ import { MAX_ATIVOS_COMPARADOR } from '@/services/analiseAtivos/cenarios/contrat
 import { TEXTOS_ENTRADAS_COMPARADOR } from '@/services/analiseAtivos/textosEntradasComparador';
 import { TEXTOS_QUADRO } from '@/services/analiseAtivos/textosQuadro';
 import { TEXTOS_TELA, formatarTexto } from '@/services/analiseAtivos/textosTela';
-import type { ClasseQuadro, LinhaQuadroApi, ModoQuadro } from '@/types/analiseAtivosApi';
+import { formatarUsd } from '@/components/analiseAtivos/quadro/TabelaQuadro';
+import {
+  ehClasseEua,
+  type ClasseQuadro,
+  type LinhaQuadroApi,
+  type ModoQuadro,
+} from '@/types/analiseAtivosApi';
 import type { DefCriterioChip } from '@/types/analiseAtivosCriterios';
 
 const C = TEXTOS_TELA.quadro.colunas;
@@ -64,9 +70,15 @@ function apoioFii(l: LinhaQuadroApi): string | null {
 export const CAMPOS_CARTAO: Record<ClasseQuadro, string[]> = {
   acao: ['roe', 'pl', 'dy12m'],
   fii: ['dy12m', 'pvp', 'vacanciaCvm'],
-  // EUA sem cotação (decisão de 17/10); a fatia C troca por P/L e DY com recursos.euaPreco
+  // EUA sem cotação (decisão de 17/10); com recursos.euaPreco, CAMPOS_CARTAO_PRECO_EUA
   stock: ['roe', 'margemLiquida', 'divLiqEbitda'],
-  reit: ['fcoPorAcao', 'dividendosFcoPct', 'dpa'],
+  reit: ['fcoAcao', 'divFco', 'dpaUsd'],
+};
+
+/** EUA com a chave de preço: P/L e DY no lugar de margem/dívida (stock) e de Caixa op. (REIT). */
+export const CAMPOS_CARTAO_PRECO_EUA: Record<'stock' | 'reit', string[]> = {
+  stock: ['roe', 'pl', 'dy12m'],
+  reit: ['dy12m', 'divFco', 'dpaUsd'],
 };
 
 export interface CartoesQuadroProps<L extends LinhaQuadroApi = LinhaQuadroApi> extends Omit<
@@ -85,6 +97,8 @@ export interface CartoesQuadroProps<L extends LinhaQuadroApi = LinhaQuadroApi> e
   definicoes?: DefCriterioChip[];
   /** bloco 1: linha extra no pé do cartão */
   rodapeCartao?: (linha: L) => ReactNode;
+  /** EUA: com a chave de preço, a cotação EUA aparece no cartão */
+  euaPreco?: boolean;
 }
 
 const TC = TEXTOS_ENTRADAS_COMPARADOR.quadro;
@@ -122,11 +136,22 @@ function LinhaCaixa({ ticker, controle }: { ticker: string; controle: ControleCo
 /** Preço + variação do dia + apoio (tipo/setor), à direita do topo do cartão. */
 function PrecoCartao({ l, apoio }: { l: LinhaQuadroApi; apoio: string | null }) {
   const v = l.variacaoDiaPct;
+  // EUA sem cotação (decisão de 17/10): sem a linha de preço, só o apoio (setor/segmento)
+  const eua = ehClasseEua(l.classe);
+  if (eua && l.preco.estado !== 'ok') {
+    return apoio ? (
+      <div className="max-w-[9rem] shrink-0 truncate text-right text-xs text-gray-500 dark:text-gray-400">
+        {apoio}
+      </div>
+    ) : null;
+  }
   return (
     <div className="shrink-0 text-right">
       <div className="text-sm font-semibold text-gray-800 tabular-nums dark:text-white/90">
         {l.preco.estado === 'ok'
-          ? formatarAnalise(l.preco.valor, 'moeda')
+          ? eua
+            ? formatarUsd(l.preco.valor)
+            : formatarAnalise(l.preco.valor, 'moeda')
           : TEXTOS_TELA.formato.semDado}
       </div>
       {v !== null ? (
@@ -159,6 +184,7 @@ export default function CartoesQuadro<L extends LinhaQuadroApi = LinhaQuadroApi>
   acaoLinha,
   complementoCriterios,
   rodapeCartao,
+  euaPreco = false,
 }: CartoesQuadroProps<L>) {
   const prefetch = usePrefetchHover();
   if (carregando) {
@@ -175,7 +201,8 @@ export default function CartoesQuadro<L extends LinhaQuadroApi = LinhaQuadroApi>
     );
   }
   const rotulos = rotulosDasDefinicoes(definicoes);
-  const campos = CAMPOS_CARTAO[classe];
+  const campos =
+    euaPreco && ehClasseEua(classe) ? CAMPOS_CARTAO_PRECO_EUA[classe] : CAMPOS_CARTAO[classe];
 
   return (
     <ul
@@ -184,7 +211,8 @@ export default function CartoesQuadro<L extends LinhaQuadroApi = LinhaQuadroApi>
       aria-busy={atualizando || undefined}
     >
       {linhas.map((l) => {
-        const apoio = classe === 'fii' ? apoioFii(l) : (l.setor ?? null);
+        const apoio =
+          classe === 'fii' ? apoioFii(l) : classe === 'reit' ? l.segmento : (l.setor ?? null);
         return (
           <li
             key={l.ticker}
