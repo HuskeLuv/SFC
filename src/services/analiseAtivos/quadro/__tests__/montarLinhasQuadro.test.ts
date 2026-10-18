@@ -498,6 +498,89 @@ describe('montarLinhasQuadro', () => {
     expect(linha(r, 'HGLG11').valorMercado).toBe(10 * 4e7);
   });
 
+  describe('valor de mercado da ação = a contagem dos múltiplos (backtest 18/10/2026, A6–A8)', () => {
+    const cont = (
+      cnpj: string,
+      data: string,
+      total: number,
+      o: { status?: 'ok' | 'alerta'; razaoLpa?: number; fonte?: string } = {},
+    ) => ({
+      cnpj,
+      data,
+      on: total,
+      pn: 0,
+      total,
+      fonte: o.fonte ?? 'itr',
+      razaoLpa: o.razaoLpa ?? 1,
+      status: o.status ?? ('ok' as const),
+    });
+    const acoes: EntradaQuadro['acoes'] = [
+      { symbol: 'ORVR3', cnpj: 'C-ORV', classeTitulo: 'ON', unitQtdOn: null, unitQtdPn: null },
+      { symbol: 'TEND3', cnpj: 'C-TEN', classeTitulo: 'ON', unitQtdOn: null, unitQtdPn: null },
+      { symbol: 'KLBN11', cnpj: 'C-KLB', classeTitulo: 'UNIT', unitQtdOn: 1, unitQtdPn: 4 },
+      { symbol: 'SIMH3', cnpj: 'C-SIM', classeTitulo: 'ON', unitQtdOn: null, unitQtdPn: null },
+    ];
+    const precos: Record<string, number> = { ORVR3: 20, TEND3: 26.97, KLBN11: 18.12, SIMH3: 14.5 };
+    const rr = montarLinhasQuadro(
+      entrada({
+        acoes,
+        resumos: acoes.map((a) => ({ ...resumo(a.symbol), closeRaw: precos[a.symbol] })),
+        multiplos: acoes.map((a) => mult(a.symbol, { preco: precos[a.symbol] })),
+        contagens: [
+          // ORVR3: só 'alerta' recentes (certas: follow-on) e o split ×4 de 11/08/2026 depois de 30/06
+          cont('C-ORV', '2025-12-31', 96_127_000, { status: 'alerta', fonte: 'dfp_x1000' }),
+          cont('C-ORV', '2024-12-31', 82_951_000, { fonte: 'dfp_x1000' }),
+          cont('C-ORV', '2026-06-30', 137_324_000, { status: 'alerta', razaoLpa: 5.21 }),
+          // TEND3: ITR 2T26 com a tesouraria errada, desmentido pelo LPA ⇒ vale o 1T26
+          cont('C-TEN', '2025-12-31', 121_182_000, { fonte: 'dfp_x1000' }),
+          cont('C-TEN', '2026-03-31', 122_578_000),
+          cont('C-TEN', '2026-06-30', 57_430_000, { status: 'alerta', razaoLpa: 0.4553 }),
+          // KLBN11: só a unit no cadastro ⇒ ÷ 5
+          cont('C-KLB', '2025-12-31', 6_135_427_665, { fonte: 'dfp' }),
+          cont('C-KLB', '2026-06-30', 6_152_895_333),
+          // SIMH3: a última 'ok' é de 2024; vale a 'alerta' de 30/06/2026 (grupamento + emissão)
+          cont('C-SIM', '2024-09-30', 862_026_143),
+          cont('C-SIM', '2024-12-31', 859_960_351, { fonte: 'dfp' }),
+          cont('C-SIM', '2026-06-30', 583_759_291, { status: 'alerta', razaoLpa: 0.88 }),
+        ],
+        eventosAcoes: [
+          {
+            symbol: 'ORVR3',
+            dataEvento: '2026-08-11',
+            fator: 4,
+            status: 'confirmado',
+            anoBase: 2026,
+            razaoCvm: null,
+          },
+          {
+            symbol: 'SIMH3',
+            dataEvento: '2026-02-18',
+            fator: 0.5,
+            status: 'emissao_recompra',
+            anoBase: 2026,
+            razaoCvm: 0.68,
+          },
+        ],
+      }),
+    );
+
+    it('ORVR3: 137,3 mi × 4 (split posterior à contagem) ⇒ R$ 10,99 bi (era R$ 1,66 bi)', () => {
+      expect(linha(rr, 'ORVR3').valorMercado).toBeCloseTo(20 * 549_296_000, 2);
+    });
+
+    it("TEND3: a 'alerta' desmentida pelo LPA não entra ⇒ 122,6 mi ações", () => {
+      expect(linha(rr, 'TEND3').valorMercado).toBeCloseTo(26.97 * 122_578_000, 2);
+    });
+
+    it('KLBN11: ÷ 5 ações por unit ⇒ R$ 22,3 bi (era R$ 111,5 bi)', () => {
+      expect(linha(rr, 'KLBN11').valorMercado).toBeCloseTo((18.12 * 6_152_895_333) / 5, 0);
+    });
+
+    it("SIMH3: a contagem mais recente ('alerta', certa) e não a última 'ok' de 2024", () => {
+      expect(linha(rr, 'SIMH3').valorMercado).toBeCloseTo(14.5 * 583_759_291, 2);
+    });
+  });
+
   it('anosSeguidosComProvento para no primeiro ano sem provento', () => {
     expect(
       anosSeguidosComProvento([

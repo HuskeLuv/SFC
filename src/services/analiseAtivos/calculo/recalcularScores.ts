@@ -55,9 +55,9 @@ import {
   type ProventoAuditadoCompleto,
 } from '@/services/analiseAtivos/regras/calculo/proventos';
 import {
-  fatorEventosEntre,
-  saltoAcoesSemEvento,
-} from '@/services/analiseAtivos/regras/calculo/eventosCorporativos';
+  acoesNegociadasDia,
+  contagemVigente,
+} from '@/services/analiseAtivos/regras/calculo/contagemVigente';
 import {
   dyParaIndice,
   flagEmConferencia,
@@ -384,44 +384,22 @@ export function calcularAtualAcao(e: EntradaAtualAcao, p: ScoringParams): Calcul
   if (fund?.flags.includes('escala_ambigua') || fyUltimo?.flags.includes('escala_ambigua')) {
     flags.push('escala_ambigua');
   }
-  const contMaisRecente =
-    [...e.contagens]
-      .filter((c) => c.total !== null)
-      .sort((a, b) => b.data.localeCompare(a.data))[0] ?? null;
-  // regra 13 também na contagem dos múltiplos do dia: salto contra o último DFP validado que os
-  // eventos confirmados não explicam ⇒ sem nº de ações (múltiplos por ação ausentes, Índice
-  // incompleto) em vez de múltiplos 1000× errados (PSSA3/BEES3/RAPT4 2026)
-  const refDfp = contMaisRecente
-    ? ([...e.contagens]
-        .filter(
-          (c) =>
-            c.total !== null &&
-            c.total > 0 &&
-            c.data < contMaisRecente.data &&
-            !c.fonte.startsWith('itr') &&
-            c.status === 'ok',
-        )
-        .sort((a, b) => b.data.localeCompare(a.data))[0] ?? null)
-    : null;
-  const saltoSemEvento =
-    contMaisRecente !== null &&
-    refDfp !== null &&
-    saltoAcoesSemEvento(
-      refDfp.total!,
-      contMaisRecente.total!,
-      fatorEventosEntre(e.eventos, refDfp.data, contMaisRecente.data),
-      p,
-    );
-  if (saltoSemEvento) flags.push('salto_acoes_sem_evento');
-  // sem DFP anterior validado ('ok') para servir de referência (todos 'nao_verificavel'/'alerta',
-  // ou nenhum): a contagem mais recente só vale se ela mesma bater com lucro × LPA publicado
-  // (status 'ok' = razão dentro de ±razaoLpaAlertaPct); senão não há como verificar ⇒ sem nº de
-  // ações (múltiplos por ação ausentes) e Índice incompleto
-  const naoVerificavel =
-    contMaisRecente !== null && refDfp === null && contMaisRecente.status !== 'ok';
-  if (naoVerificavel) flags.push('acoes_nao_verificavel');
-  const cont = saltoSemEvento || naoVerificavel ? null : contMaisRecente;
+  // nº de ações vigente (regras/calculo/contagemVigente): a MESMA contagem do valor de mercado do
+  // Quadro — sem 'alerta' desmentida pelo LPA, com os eventos posteriores à contagem e a escala de
+  // milhares pelo volume; salto sem evento / não verificável ⇒ null (múltiplos por ação ausentes)
   const fator = fatorEquivalencia(e.ticker);
+  const vigente = contagemVigente(
+    {
+      contagens: e.contagens,
+      eventos: e.eventos,
+      dataRef: e.dataRef,
+      acoesNegociadasDia: acoesNegociadasDia(e.resumo, fator),
+    },
+    p,
+  );
+  flags.push(...vigente.flags);
+  const contMaisRecente = vigente.maisRecente;
+  const cont = vigente.contagem;
   if (fator === null) flags.push('unit_sem_composicao');
   const defasagem = defasagemProventos('acao', e, p);
   if (defasagem) flags.push(`proventos_defasados_${defasagem}`);
