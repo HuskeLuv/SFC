@@ -348,6 +348,17 @@ const baseSchema = z.strictObject({
           tolPct: z.number().nonnegative(),
         })
         .default({ janelaDias: 3, tolPct: 0.5 }),
+      // backtest 18/10/2026 (A1): linha que é a soma de outras (parcelas de datas-com diferentes
+      // somadas pela chave antiga; total declarado + cronograma de parcelas). tolPct relativo ao
+      // total; janelaDias = quão antes da data-com da soma as parcelas podem estar; maxNos = teto
+      // da busca do subconjunto (passou = não decide)
+      somaParcelas: z
+        .strictObject({
+          tolPct: z.number().nonnegative(),
+          janelaDias: z.number().int().positive(),
+          maxNos: z.number().int().positive(),
+        })
+        .default({ tolPct: 0.0002, janelaDias: 400, maxNos: 50000 }),
       // trava de plausibilidade do DY 12m (Índice MF e semáforo): acima do teto ou com salto de
       // provento recente ⇒ "proventos em conferência" (ausente no Índice, DY exibido em conferência).
       // Teto de ações 18% (era 25% no #277): p95 do Quadro de ações = 20,5% e o que fica entre 18% e

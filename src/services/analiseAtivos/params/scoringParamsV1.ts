@@ -408,6 +408,8 @@ export const SCORING_PARAMS_V1: ScoringParams = {
         pregoesDataCom: 1,
       },
       copiaRestituicao: { janelaDias: 3, tolPct: 0.5 },
+      // backtest 18/10/2026 (A1): soma de parcelas / total + parcelas
+      somaParcelas: { tolPct: 0.0002, janelaDias: 400, maxNos: 50000 },
       plausibilidade: {
         dyMaxPct: { acao: 18, fii: 20 }, // 18%: p95 do Quadro + antecipações de dez/2025
         saltoFator: 2,
