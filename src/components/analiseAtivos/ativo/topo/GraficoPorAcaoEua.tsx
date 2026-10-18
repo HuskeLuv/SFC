@@ -146,27 +146,30 @@ export default function GraficoPorAcaoEua({
             />
           </svg>
         )}
-        <table className="sr-only">
-          <caption>{grafico.titulo}</caption>
-          <thead>
-            <tr>
-              <th scope="col">{TEXTOS_EUA_TELAS.essencial.ano}</th>
-              <th scope="col">{grafico.serieA.rotulo}</th>
-            </tr>
-          </thead>
-          <tbody>
-            {pontos.map((p) => (
-              <tr key={p.chave}>
-                <th scope="row">{`FY${p.chave}`}</th>
-                <td>
-                  {p.valor === null
-                    ? TEXTOS_TELA.formato.semDado
-                    : formatarAnalise(p.valor, 'numero2')}
-                </td>
+        {/* div sr-only: a <table> ignora o width de 1px do sr-only e estoura 390 px */}
+        <div className="sr-only">
+          <table>
+            <caption>{grafico.titulo}</caption>
+            <thead>
+              <tr>
+                <th scope="col">{TEXTOS_EUA_TELAS.essencial.ano}</th>
+                <th scope="col">{grafico.serieA.rotulo}</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {pontos.map((p) => (
+                <tr key={p.chave}>
+                  <th scope="row">{`FY${p.chave}`}</th>
+                  <td>
+                    {p.valor === null
+                      ? TEXTOS_TELA.formato.semDado
+                      : formatarAnalise(p.valor, 'numero2')}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
         <figcaption className="text-xs text-gray-500 dark:text-gray-400">
           {grafico.figcaption}
         </figcaption>
