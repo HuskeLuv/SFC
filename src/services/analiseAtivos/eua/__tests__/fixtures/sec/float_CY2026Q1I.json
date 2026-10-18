@@ -1,0 +1,19 @@
+{
+"taxonomy": "dei",
+"tag": "EntityPublicFloat",
+"ccp": "CY2026Q1I",
+"uom": "USD",
+"label": "Entity Public Float",
+"description": "The aggregate market value of the voting and non-voting common equity held by non-affiliates computed by reference to the price at which the common equity was last sold, or the average bid and asked price of such common equity, as of the last business day of the registrant's most recently completed second fiscal quarter.",
+"pts": 44,
+"data": [
+{
+"accn": "0001062993-26-002973",
+"cik": 1720424,
+"entityName": "HIVE DIGITAL TECHNOLOGIES LTD.",
+"loc": "US-TX",
+"end": "2026-03-31",
+"val": 950740231000
+}
+]
+}

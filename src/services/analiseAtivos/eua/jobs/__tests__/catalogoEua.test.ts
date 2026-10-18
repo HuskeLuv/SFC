@@ -54,7 +54,9 @@ describe('jobs EUA no catálogo (fatia 0)', () => {
     }
   });
 
-  it.each(NOMES_JOBS_EUA)(
+  // fatia A preencheu sec-cadastro/sec-fundamentos/cotacoes-eua (testes em eua/__tests__); os
+  // stubs que restam são os da fatia B
+  it.each(NOMES_JOBS_EUA.filter((n) => MODULOS_JOBS_EUA[n].fatia === 'B'))(
     '%s: stub termina pulado (com o motivo da fatia dona), sem tocar no banco',
     async (nome) => {
       const r = await CATALOGO_JOBS[nome].executar(ctx(), { versaoParams: 3 });
@@ -63,6 +65,17 @@ describe('jobs EUA no catálogo (fatia 0)', () => {
       });
     },
   );
+
+  it('cotacoes-eua (fatia A) sem ANALISE_ATIVOS_EUA_PRECO_HABILITADO: pulado, sem tocar no banco', async () => {
+    const antes = process.env.ANALISE_ATIVOS_EUA_PRECO_HABILITADO;
+    delete process.env.ANALISE_ATIVOS_EUA_PRECO_HABILITADO;
+    try {
+      const r = await CATALOGO_JOBS['cotacoes-eua'].executar(ctx());
+      expect(r.pulado).toContain('ANALISE_ATIVOS_EUA_PRECO_HABILITADO');
+    } finally {
+      if (antes !== undefined) process.env.ANALISE_ATIVOS_EUA_PRECO_HABILITADO = antes;
+    }
+  });
 
   it('pesados = processo próprio (myfinance-job.sh); prazos cabem no timeout de 600 s', () => {
     expect(CATALOGO_JOBS['sec-cadastro']).toMatchObject({ pesado: true, prazoMs: 540_000 });

@@ -9,7 +9,8 @@
  *  - cikPorSymbolNorm: CIK pelo ticker normalizado (casa BRK-B, BRK.B e BRKB; Carteira).
  * Só banco: nenhum provedor externo no caminho da requisição.
  */
-import type { PrismaClient } from '@prisma/client';
+import { Prisma, type PrismaClient } from '@prisma/client';
+import { deData, paraData, paraNumero } from '@/services/analiseAtivos/repositorio/conversao';
 import type { ClasseEua } from '@/types/analiseAtivosApi';
 import {
   BOLSAS_EUA,
@@ -177,4 +178,445 @@ export async function cikPorSymbolNorm(
     orderBy: { principal: 'desc' },
   });
   return t?.cik ?? null;
+}
+
+// ===========================================================================
+// ESCRITAS (fatia A: sec-cadastro, sec-fundamentos, cotacoes-eua)
+// ===========================================================================
+
+/** Estado gravado de um CIK (incremental do sec-cadastro: submissions só quando muda). */
+export interface CadastroGravadoEua {
+  cik: string;
+  nome: string;
+  sic: number | null;
+  sicDescricao: string | null;
+  exercicioFimMmdd: string | null;
+  noUniverso: boolean;
+  ultimo10k: string | null;
+  ultimo10kEm: string | null;
+  publicFloatUsd: number | null;
+}
+
+export async function lerCadastrosGravadosEua(
+  prisma: Pick<PrismaClient, 'secCompany'>,
+): Promise<Map<string, CadastroGravadoEua>> {
+  const linhas = await prisma.secCompany.findMany({
+    select: {
+      cik: true,
+      nome: true,
+      sic: true,
+      sicDescricao: true,
+      exercicioFimMmdd: true,
+      noUniverso: true,
+      ultimo10k: true,
+      ultimo10kEm: true,
+      publicFloatUsd: true,
+    },
+  });
+  return new Map(
+    linhas.map((l) => [
+      l.cik,
+      {
+        ...l,
+        ultimo10kEm: paraData(l.ultimo10kEm),
+        publicFloatUsd: paraNumero(l.publicFloatUsd),
+      },
+    ]),
+  );
+}
+
+export interface EmpresaSecGravavel {
+  cik: string;
+  nome: string;
+  sic: number | null;
+  sicDescricao: string | null;
+  exercicioFimMmdd: string | null;
+  bolsa: BolsaEua | null;
+  publicFloatUsd: number | null;
+  publicFloatData: string | null;
+  floatSanidade: string | null;
+  classe: ClasseEua;
+  ehReit: boolean;
+  reitTipo: string | null;
+  segmento: SegmentoReit | null;
+  ehFinanceira: boolean;
+  noUniverso: boolean;
+  foraMotivo: string | null;
+  cikHistorico: string | null;
+  origem: 'regra' | 'override';
+  ultimo10k: string | null;
+  ultimo10kEm: string | null;
+}
+
+export async function gravarEmpresaSec(
+  prisma: Pick<PrismaClient, 'secCompany'>,
+  e: EmpresaSecGravavel,
+  agora: Date = new Date(),
+): Promise<void> {
+  const dados = {
+    nome: e.nome,
+    sic: e.sic,
+    sicDescricao: e.sicDescricao,
+    exercicioFimMmdd: e.exercicioFimMmdd,
+    bolsa: e.bolsa,
+    publicFloatUsd: dec(e.publicFloatUsd, 2),
+    publicFloatData: e.publicFloatData ? deData(e.publicFloatData) : null,
+    floatSanidade: e.floatSanidade,
+    classe: e.classe,
+    ehReit: e.ehReit,
+    reitTipo: e.reitTipo,
+    segmento: e.segmento,
+    ehFinanceira: e.ehFinanceira,
+    noUniverso: e.noUniverso,
+    foraMotivo: e.foraMotivo,
+    cikHistorico: e.cikHistorico,
+    origem: e.origem,
+    ultimo10k: e.ultimo10k,
+    ultimo10kEm: e.ultimo10kEm ? deData(e.ultimo10kEm) : null,
+    fetchedAt: agora,
+  };
+  await prisma.secCompany.upsert({
+    where: { cik: e.cik },
+    create: { cik: e.cik, ...dados },
+    update: dados,
+  });
+}
+
+/** CIKs que saíram dos candidatos (delistados, float muito abaixo): fora do universo. */
+export async function marcarForaDoUniversoEua(
+  prisma: Pick<PrismaClient, 'secCompany'>,
+  ciks: readonly string[],
+  foraMotivo: string,
+  agora: Date = new Date(),
+): Promise<number> {
+  if (ciks.length === 0) return 0;
+  const r = await prisma.secCompany.updateMany({
+    where: { cik: { in: [...ciks] }, noUniverso: true },
+    data: { noUniverso: false, foraMotivo, fetchedAt: agora },
+  });
+  return r.count;
+}
+
+/**
+ * Tickers vigentes de um CIK = os do arquivo da SEC (na ordem; o primeiro é o principal). Ticker
+ * que sumiu ganha validTo = hoje; ticker novo nasce com validFrom = hoje; ticker que mudou de CIK
+ * fecha no antigo e abre no novo. O override nunca passa por aqui. Devolve quantas linhas mudaram.
+ */
+export async function sincronizarTickersSec(
+  prisma: Pick<PrismaClient, 'secCompanyTicker'>,
+  cik: string,
+  symbolsSec: readonly string[],
+  hoje: string,
+  agora: Date = new Date(),
+): Promise<number> {
+  const dia = deData(hoje);
+  const desejados = [...new Set(symbolsSec.map((s) => s.trim().toUpperCase()))];
+  const vigentes = await prisma.secCompanyTicker.findMany({
+    where: { OR: [{ cik }, { symbol: { in: desejados } }], validTo: null },
+    select: { id: true, symbol: true, cik: true, principal: true, validFrom: true },
+  });
+  let mudou = 0;
+  for (const v of vigentes) {
+    if (v.cik === cik && desejados.includes(v.symbol)) continue;
+    // nasceu hoje e já mudou (rodada repetida no mesmo dia): apaga em vez de fechar
+    if (paraData(v.validFrom) === hoje) {
+      await prisma.secCompanyTicker.delete({ where: { id: v.id } });
+    } else {
+      await prisma.secCompanyTicker.update({ where: { id: v.id }, data: { validTo: dia } });
+    }
+    mudou++;
+  }
+  for (const [i, symbol] of desejados.entries()) {
+    const principal = i === 0;
+    const atual = vigentes.find((v) => v.cik === cik && v.symbol === symbol);
+    if (atual) {
+      if (atual.principal !== principal) {
+        await prisma.secCompanyTicker.update({
+          where: { id: atual.id },
+          data: { principal, fetchedAt: agora },
+        });
+        mudou++;
+      }
+      continue;
+    }
+    await prisma.secCompanyTicker.upsert({
+      where: { symbol_validFrom: { symbol, validFrom: dia } },
+      create: {
+        symbol,
+        symbolNorm: normalizarTickerEua(symbol),
+        cik,
+        principal,
+        validFrom: dia,
+        fetchedAt: agora,
+      },
+      update: { cik, principal, validTo: null, fetchedAt: agora },
+    });
+    mudou++;
+  }
+  return mudou;
+}
+
+/** CIK de fundamentos (cikHistorico ?? cik) das empresas no universo, sem repetição. */
+export async function listarCiksFundamentosEua(
+  prisma: Pick<PrismaClient, 'secCompany'>,
+): Promise<{ cik: string; cikFundamentos: string; nome: string }[]> {
+  const linhas = await prisma.secCompany.findMany({
+    where: { noUniverso: true },
+    select: { cik: true, cikHistorico: true, nome: true },
+    orderBy: { cik: 'asc' },
+  });
+  const vistos = new Set<string>();
+  const out: { cik: string; cikFundamentos: string; nome: string }[] = [];
+  for (const l of linhas) {
+    const f = l.cikHistorico ?? l.cik;
+    if (vistos.has(f)) continue;
+    vistos.add(f);
+    out.push({ cik: l.cik, cikFundamentos: f, nome: l.nome });
+  }
+  return out;
+}
+
+/** emissorIds 'CIK:…' que já têm alguma linha SEC (os demais entram no backfill do job). */
+export async function emissoresComFundamentosSec(
+  prisma: Pick<PrismaClient, 'assetFundamentalsPeriod'>,
+): Promise<Set<string>> {
+  const l = await prisma.assetFundamentalsPeriod.findMany({
+    where: { source: 'SEC' },
+    select: { emissorId: true },
+    distinct: ['emissorId'],
+  });
+  return new Set(l.map((x) => x.emissorId));
+}
+
+/** Colunas SEC comparadas para decidir se um FY ganhou versão nova. */
+export const COLUNAS_VALOR_SEC = [
+  'receita',
+  'ebit',
+  'depreciacaoAmortizacao',
+  'lucroLiquido',
+  'lucroAtribuivel',
+  'ativoTotal',
+  'caixa',
+  'aplicacoesFinanceiras',
+  'dividaBrutaCp',
+  'dividaBrutaLp',
+  'pl',
+  'plControladora',
+  'fco',
+  'capex',
+  'dividendosJcpPagos',
+  'recompras',
+  'acoesMediaDiluida',
+  'lpaOn',
+  'dpa',
+] as const;
+export type ColunaValorSec = (typeof COLUNAS_VALOR_SEC)[number];
+
+/** FY SEC já normalizado para gravar (números na escala das colunas). */
+export type PeriodoSecGravavel = Record<ColunaValorSec, number | null> & {
+  emissorId: string;
+  anoFiscal: number;
+  dtIni: string;
+  dtFim: string;
+  accession: string;
+  dtEntrega: string;
+  dtEntregaOriginal: string;
+  sourceUrl: string;
+  dpaOrigem: string | null;
+  sourceConcept: Record<string, string>;
+  flags: string[];
+};
+
+/** Última versão gravada de um FY SEC (por dtFim). */
+export interface VersaoSecGravada {
+  versao: number;
+  impressao: string;
+}
+
+type CamposImpressao = Record<ColunaValorSec, number | null> & {
+  anoFiscal: number;
+  dtIni: string;
+  dpaOrigem: string | null;
+  sourceConcept: Record<string, string>;
+  flags: readonly string[];
+};
+
+/**
+ * Impressão digital de um FY: valores (na escala das colunas), datas, ano, flags, origem do DPA
+ * e conceitos. Igual ⇒ não grava versão nova (versao +1 só quando muda).
+ */
+export function impressaoPeriodoSec(p: CamposImpressao): string {
+  const valores = COLUNAS_VALOR_SEC.map((c) => (p[c] === null ? '' : String(p[c])));
+  const conceitos = Object.keys(p.sourceConcept)
+    .sort()
+    .map((k) => `${k}=${p.sourceConcept[k]}`);
+  return [
+    p.anoFiscal,
+    p.dtIni,
+    valores.join(','),
+    p.dpaOrigem ?? '',
+    [...p.flags].sort().join(','),
+    conceitos.join(';'),
+  ].join('|');
+}
+
+const SELECT_VERSAO_SEC = {
+  dtFim: true,
+  versao: true,
+  anoFiscal: true,
+  dtIni: true,
+  dpaOrigem: true,
+  sourceConcept: true,
+  flags: true,
+  receita: true,
+  ebit: true,
+  depreciacaoAmortizacao: true,
+  lucroLiquido: true,
+  lucroAtribuivel: true,
+  ativoTotal: true,
+  caixa: true,
+  aplicacoesFinanceiras: true,
+  dividaBrutaCp: true,
+  dividaBrutaLp: true,
+  pl: true,
+  plControladora: true,
+  fco: true,
+  capex: true,
+  dividendosJcpPagos: true,
+  recompras: true,
+  acoesMediaDiluida: true,
+  lpaOn: true,
+  dpa: true,
+} satisfies Prisma.AssetFundamentalsPeriodSelect;
+
+export async function lerVersoesSec(
+  prisma: Pick<PrismaClient, 'assetFundamentalsPeriod'>,
+  emissorId: string,
+): Promise<Map<string, VersaoSecGravada>> {
+  const linhas = await prisma.assetFundamentalsPeriod.findMany({
+    where: { emissorId, source: 'SEC', tipoPeriodo: 'FY', escopo: 'con' },
+    select: SELECT_VERSAO_SEC,
+    orderBy: [{ dtFim: 'asc' }, { versao: 'desc' }],
+  });
+  const out = new Map<string, VersaoSecGravada>();
+  for (const l of linhas) {
+    const dtFim = paraData(l.dtFim);
+    if (out.has(dtFim)) continue;
+    const valores = {} as Record<ColunaValorSec, number | null>;
+    for (const c of COLUNAS_VALOR_SEC) valores[c] = paraNumero(l[c]);
+    const sourceConcept =
+      l.sourceConcept && typeof l.sourceConcept === 'object' && !Array.isArray(l.sourceConcept)
+        ? (l.sourceConcept as Record<string, string>)
+        : {};
+    out.set(dtFim, {
+      versao: l.versao,
+      impressao: impressaoPeriodoSec({
+        ...valores,
+        anoFiscal: l.anoFiscal,
+        dtIni: paraData(l.dtIni),
+        dpaOrigem: l.dpaOrigem,
+        sourceConcept,
+        flags: l.flags,
+      }),
+    });
+  }
+  return out;
+}
+
+function dec(v: number | null, casas: number): Prisma.Decimal | null {
+  return v === null ? null : new Prisma.Decimal(v.toFixed(casas));
+}
+
+/** Linha de AssetFundamentalsPeriod (source 'SEC', FY, con, USGAAP, USD, UNIDADE). */
+export function linhaFundamentoSec(
+  p: PeriodoSecGravavel,
+  versao: number,
+  agora: Date,
+): Prisma.AssetFundamentalsPeriodCreateManyInput {
+  return {
+    emissorId: p.emissorId,
+    source: 'SEC',
+    docTipo: '10-K',
+    accession: p.accession,
+    sourceConcept: p.sourceConcept,
+    sourceUrl: p.sourceUrl,
+    tipoPeriodo: 'FY',
+    escopo: 'con',
+    padraoContabil: 'USGAAP',
+    dtIni: deData(p.dtIni),
+    dtFim: deData(p.dtFim),
+    anoFiscal: p.anoFiscal,
+    versao,
+    dtEntrega: deData(p.dtEntrega),
+    dtEntregaOriginal: deData(p.dtEntregaOriginal),
+    moeda: 'USD',
+    escalaOriginal: 'UNIDADE',
+    receita: dec(p.receita, 2),
+    ebit: dec(p.ebit, 2),
+    depreciacaoAmortizacao: dec(p.depreciacaoAmortizacao, 2),
+    lucroLiquido: dec(p.lucroLiquido, 2),
+    lucroAtribuivel: dec(p.lucroAtribuivel, 2),
+    ativoTotal: dec(p.ativoTotal, 2),
+    caixa: dec(p.caixa, 2),
+    aplicacoesFinanceiras: dec(p.aplicacoesFinanceiras, 2),
+    dividaBrutaCp: dec(p.dividaBrutaCp, 2),
+    dividaBrutaLp: dec(p.dividaBrutaLp, 2),
+    pl: dec(p.pl, 2),
+    plControladora: dec(p.plControladora, 2),
+    fco: dec(p.fco, 2),
+    capex: dec(p.capex, 2),
+    dividendosJcpPagos: dec(p.dividendosJcpPagos, 2),
+    recompras: dec(p.recompras, 2),
+    acoesMediaDiluida: dec(p.acoesMediaDiluida, 0),
+    lpaOn: p.lpaOn,
+    dpa: p.dpa,
+    dpaOrigem: p.dpaOrigem,
+    naoSeAplica: [],
+    flags: p.flags,
+    fetchedAt: agora,
+  };
+}
+
+export async function gravarLinhasFundamentoSec(
+  prisma: Pick<PrismaClient, 'assetFundamentalsPeriod'>,
+  linhas: Prisma.AssetFundamentalsPeriodCreateManyInput[],
+): Promise<number> {
+  if (linhas.length === 0) return 0;
+  const r = await prisma.assetFundamentalsPeriod.createMany({ data: linhas, skipDuplicates: true });
+  return r.count;
+}
+
+// ---------------------------------------------------------------- cotação EUA (atrás da chave)
+
+export interface CotacaoEuaGravavel {
+  symbol: string;
+  date: string;
+  close: number;
+  adjClose: number | null;
+  volume: number | null;
+  source: string;
+}
+
+export async function gravarCotacoesEua(
+  prisma: Pick<PrismaClient, 'assetQuoteDailyUs'>,
+  linhas: readonly CotacaoEuaGravavel[],
+  agora: Date = new Date(),
+): Promise<number> {
+  let n = 0;
+  for (const l of linhas) {
+    const dados = {
+      close: new Prisma.Decimal(l.close.toFixed(6)),
+      adjClose: dec(l.adjClose, 6),
+      volume: l.volume === null ? null : BigInt(Math.round(l.volume)),
+      source: l.source,
+      fetchedAt: agora,
+    };
+    await prisma.assetQuoteDailyUs.upsert({
+      where: { symbol_date: { symbol: l.symbol, date: deData(l.date) } },
+      create: { symbol: l.symbol, date: deData(l.date), ...dados },
+      update: dados,
+    });
+    n++;
+  }
+  return n;
 }

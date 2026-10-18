@@ -1,0 +1,139 @@
+{
+"taxonomy": "us-gaap",
+"tag": "Assets",
+"ccp": "CY2025Q4I",
+"uom": "USD",
+"label": "Assets",
+"description": "Sum of the carrying amounts as of the balance sheet date of all assets that are recognized. Assets are probable future economic benefits obtained or controlled by an entity as a result of past transactions or events.",
+"pts": 6167,
+"data": [
+{
+"accn": "0001628280-26-054343",
+"cik": 19617,
+"entityName": "JPMORGAN CHASE & CO",
+"loc": "-",
+"end": "2025-12-31",
+"val": 4424900000000
+},
+{
+"accn": "0000034088-26-000067",
+"cik": 34088,
+"entityName": "Exxon Mobil Corporation",
+"loc": "US-TX",
+"end": "2025-12-31",
+"val": 448980000000
+},
+{
+"accn": "0001193125-26-335156",
+"cik": 36146,
+"entityName": "Trustmark Corporation",
+"loc": "US-MS",
+"end": "2025-12-31",
+"val": 18925211000
+},
+{
+"accn": "0000320193-26-000006",
+"cik": 320193,
+"entityName": "Apple Inc.",
+"loc": "US-CA",
+"end": "2025-12-27",
+"val": 379297000000
+},
+{
+"accn": "0000726728-26-000048",
+"cik": 726728,
+"entityName": "REALTY INCOME CORPORATION",
+"loc": "US-CA",
+"end": "2025-12-31",
+"val": 72795612000
+},
+{
+"accn": "0001193125-26-326170",
+"cik": 906107,
+"entityName": "EQUITY RESIDENTIAL",
+"loc": "US-IL",
+"end": "2025-12-31",
+"val": 20746023000
+},
+{
+"accn": "0000915912-26-000020",
+"cik": 915912,
+"entityName": "AVALONBAY COMMUNITIES,\u00a0INC.",
+"loc": "US-VA",
+"end": "2025-12-31",
+"val": 22192137000
+},
+{
+"accn": "0001193125-26-197850",
+"cik": 1045609,
+"entityName": "Prologis, Inc.",
+"loc": "US-CA",
+"end": "2025-12-31",
+"val": 98724256000
+},
+{
+"accn": "0001193125-26-341032",
+"cik": 1067983,
+"entityName": "BERKSHIRE HATHAWAY INC",
+"loc": "US-NE",
+"end": "2025-12-31",
+"val": 1222176000000
+},
+{
+"accn": "0001326160-26-000026",
+"cik": 1326160,
+"entityName": "DUKE ENERGY CORPORATION",
+"loc": "US-NC",
+"end": "2025-12-31",
+"val": 195736000000
+},
+{
+"accn": "0001423689-26-000128",
+"cik": 1423689,
+"entityName": "AGNC INVESTMENT CORP.",
+"loc": "US-MD",
+"end": "2025-12-31",
+"val": 115077000000
+},
+{
+"accn": "0001652044-26-000071",
+"cik": 1652044,
+"entityName": "Alphabet Inc.",
+"loc": "US-CA",
+"end": "2025-12-31",
+"val": 595281000000
+},
+{
+"accn": "0001687229-26-000045",
+"cik": 1687229,
+"entityName": "Invitation Homes Inc.",
+"loc": "US-TX",
+"end": "2025-12-31",
+"val": 18680290000
+},
+{
+"accn": "0001062993-26-000943",
+"cik": 1720424,
+"entityName": "HIVE Digital Technologies Ltd.",
+"loc": "US-TX",
+"end": "2025-12-31",
+"val": 623995000
+},
+{
+"accn": "0001628280-26-053324",
+"cik": 1981792,
+"entityName": "HOWARD HUGHES HOLDINGS INC.",
+"loc": "US-TX",
+"end": "2025-12-31",
+"val": 10639461000
+},
+{
+"accn": "0000034088-26-000093",
+"cik": 2115436,
+"entityName": "Exxon Mobil Corporation",
+"loc": "US-TX",
+"end": "2025-12-31",
+"val": 448980000000
+}
+]
+}

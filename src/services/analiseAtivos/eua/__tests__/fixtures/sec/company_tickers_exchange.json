@@ -1,0 +1,226 @@
+{
+"fields": [
+"cik",
+"name",
+"ticker",
+"exchange"
+],
+"data": [
+[
+320193,
+"Apple Inc.",
+"AAPL",
+"Nasdaq"
+],
+[
+1652044,
+"Alphabet Inc.",
+"GOOGL",
+"Nasdaq"
+],
+[
+1067983,
+"BERKSHIRE HATHAWAY INC",
+"BRK-B",
+"NYSE"
+],
+[
+19617,
+"JPMORGAN CHASE & CO",
+"JPM",
+"NYSE"
+],
+[
+2115436,
+"ExxonMobil Holdings Corp",
+"XOM",
+"NYSE"
+],
+[
+1045609,
+"Prologis, Inc.",
+"PLD",
+"NYSE"
+],
+[
+1326160,
+"Duke Energy CORP",
+"DUK",
+"NYSE"
+],
+[
+726728,
+"REALTY INCOME CORP",
+"O",
+"NYSE"
+],
+[
+906107,
+"VIVMARK RESIDENTIAL",
+"VMRK",
+"NYSE"
+],
+[
+1687229,
+"Invitation Homes Inc.",
+"INVH",
+"NYSE"
+],
+[
+1423689,
+"AGNC Investment Corp.",
+"AGNC",
+"Nasdaq"
+],
+[
+1981792,
+"Howard Hughes Holdings Inc.",
+"HHH",
+"NYSE"
+],
+[
+36146,
+"TRUSTMARK CORP",
+"TRMK",
+"Nasdaq"
+],
+[
+1720424,
+"HIVE Digital Technologies Ltd.",
+"HIVE",
+"Nasdaq"
+],
+[
+1652044,
+"Alphabet Inc.",
+"GOOG",
+"Nasdaq"
+],
+[
+1067983,
+"BERKSHIRE HATHAWAY INC",
+"BRK-A",
+"NYSE"
+],
+[
+19617,
+"JPMORGAN CHASE & CO",
+"JPM-PC",
+"NYSE"
+],
+[
+19617,
+"JPMORGAN CHASE & CO",
+"AMJB",
+"NYSE"
+],
+[
+19617,
+"JPMORGAN CHASE & CO",
+"JPM-PD",
+"NYSE"
+],
+[
+19617,
+"JPMORGAN CHASE & CO",
+"JPM-PJ",
+"NYSE"
+],
+[
+19617,
+"JPMORGAN CHASE & CO",
+"JPM-PK",
+"NYSE"
+],
+[
+19617,
+"JPMORGAN CHASE & CO",
+"JPM-PL",
+"NYSE"
+],
+[
+19617,
+"JPMORGAN CHASE & CO",
+"JPM-PM",
+"NYSE"
+],
+[
+19617,
+"JPMORGAN CHASE & CO",
+"VYLD",
+"NYSE"
+],
+[
+1045609,
+"Prologis, Inc.",
+"PLDGP",
+"OTC"
+],
+[
+1326160,
+"Duke Energy CORP",
+"DUKB",
+"NYSE"
+],
+[
+1326160,
+"Duke Energy CORP",
+"DUK-PA",
+"NYSE"
+],
+[
+1326160,
+"Duke Energy CORP",
+"DUKU",
+"NYSE"
+],
+[
+1423689,
+"AGNC Investment Corp.",
+"AGNCL",
+"Nasdaq"
+],
+[
+1423689,
+"AGNC Investment Corp.",
+"AGNCM",
+"Nasdaq"
+],
+[
+1423689,
+"AGNC Investment Corp.",
+"AGNCN",
+"Nasdaq"
+],
+[
+1423689,
+"AGNC Investment Corp.",
+"AGNCO",
+"Nasdaq"
+],
+[
+1423689,
+"AGNC Investment Corp.",
+"AGNCP",
+"Nasdaq"
+],
+[
+1423689,
+"AGNC Investment Corp.",
+"AGNCZ",
+"Nasdaq"
+],
+[
+1652044,
+"Alphabet Inc.",
+"GOOGM",
+"Nasdaq"
+],
+[
+1652044,
+"Alphabet Inc.",
+"GOOGN",
+"Nasdaq"
+]
+]
+}
