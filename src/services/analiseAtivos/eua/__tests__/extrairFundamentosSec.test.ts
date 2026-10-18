@@ -172,10 +172,57 @@ describe('balanço do 10-K do próprio exercício (nota de 10-K posterior não s
   });
 
   it('nenhum salto de dívida/caixa > 8× frente aos dois vizinhos nas fixtures', () => {
-    for (const nome of ['AMT', 'PLD', 'WELL', 'AAPL', 'O', 'CCI']) {
+    for (const nome of ['AMT', 'PLD', 'WELL', 'AAPL', 'O', 'CCI', 'TSLA']) {
       const r = extrairFundamentosSec(companyfacts(nome), { anoMinimo: 2014 });
       expect([nome, r.alertas.filter((a) => a.codigo === 'divida_salto')]).toEqual([nome, []]);
     }
+  });
+});
+
+describe('erro de escala no próprio 10-K (TSLA 2016)', () => {
+  it('LongTermDebt 5.892.016 (em milhares) cede ao comparativo do 10-K seguinte: 5.892 mi', () => {
+    const p = fy(periodos('TSLA'), 2016);
+    expect(mi(p.dividaBrutaLp)).toBe(5_892);
+    expect(p.sourceConcept.dividaBrutaLp).toBe('LongTermDebt');
+    expect(p.sourceConcept.escalaCorrigida).toBe('dividaBruta:LongTermDebt');
+    // os outros anos (sem divergência) ficam como estão
+    expect(fy(periodos('TSLA'), 2017).sourceConcept.escalaCorrigida).toBeUndefined();
+    expect(mi(fy(periodos('TSLA'), 2017).dividaBrutaLp)).toBe(8_829);
+  });
+
+  it('divergência < 100× não troca o próprio 10-K pelo comparativo (reapresentação legítima)', () => {
+    const fato = (val: number, filed: string, accn: string) => ({
+      end: '2020-12-31',
+      val,
+      accn,
+      form: '10-K',
+      filed,
+    });
+    const cf = (proprio: number, comparativo: number): CompanyFactsSec => ({
+      cik: 1,
+      entityName: 'X',
+      facts: {
+        'us-gaap': {
+          Revenues: {
+            units: {
+              USD: [{ ...fato(1e9, '2021-02-10', 'a'), start: '2020-01-01' }],
+            },
+          },
+          LongTermDebt: {
+            units: {
+              USD: [fato(proprio, '2021-02-10', 'a'), fato(comparativo, '2022-02-10', 'b')],
+            },
+          },
+        },
+      },
+    });
+    const um = (c: CompanyFactsSec) => extrairFundamentosSec(c).periodos[0];
+    expect(um(cf(50e6, 2_500e6)).dividaBrutaLp).toBe(50e6); // 50×: fica o próprio
+    expect(um(cf(25e6, 2_500e6))).toMatchObject({
+      dividaBrutaLp: 2_500e6, // 100×: comparativo
+      sourceConcept: expect.objectContaining({ escalaCorrigida: 'dividaBruta:LongTermDebt' }),
+    });
+    expect(um(cf(2_500e9, 2_500e6)).dividaBrutaLp).toBe(2_500e6); // 1.000× para cima também
   });
 });
 

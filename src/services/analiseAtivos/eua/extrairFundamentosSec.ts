@@ -6,7 +6,9 @@
  *   na data de término do FY, também de formulário anual;
  * - balanço (instante): do 10-K do próprio exercício; sem nenhum passo da cadeia nele, o
  *   comparativo do 10-K seguinte; nunca de 10-K mais tardio (nota com o mesmo conceito: WELL 2020,
- *   AMT 2019, PLD 2021);
+ *   AMT 2019, PLD 2021). Exceção de escala: o valor do próprio 10-K que difere ≥ 100× do mesmo
+ *   conceito na mesma data no comparativo do 10-K seguinte cede ao comparativo (TSLA 2016:
+ *   LongTermDebt 5.892.016 — em milhares — contra 5.892.016.000; sourceConcept.escalaCorrigida);
  * - por data de término, vale o ÚLTIMO arquivado (reapresentação e desdobramento: AAPL 2018 como
  *   reapresentado no 10-K de 2020);
  * - cadeias por campo e por ano (cadeiasConceitos), conceito usado em sourceConcept;
@@ -79,10 +81,18 @@ export const DURACAO_FY_MAX_DIAS = 380;
  * criada em 2015). O comparativo não substitui o valor do próprio ano: o 10-K posterior pode trazer
  * outro item com o mesmo conceito numa nota (WELL 2020: LongTermDebt 2,4 bi no 10-K de 2022 contra
  * 13,9 bi; AMT 2019: 1,9 mi no 10-K de 2021, com 21,1 bi + 2,9 bi no balanço; PLD 2021: 215 mi no
- * 10-K de 2024 contra 17,7 bi). Mais tarde que o comparativo, nunca.
+ * 10-K de 2024 contra 17,7 bi). Mais tarde que o comparativo, nunca. A única troca é o erro de
+ * escala: o mesmo conceito, na mesma data, ≥ 100× diferente no comparativo do 10-K seguinte (TSLA
+ * 2016 em milhares no próprio 10-K) — aí vale o comparativo (RAZAO_ESCALA_COMPARATIVO).
  */
 export const BALANCO_PRAZO_PROPRIO_DIAS = 300;
 export const BALANCO_PRAZO_COMPARATIVO_DIAS = 460;
+/**
+ * Razão entre o valor do próprio 10-K e o comparativo do 10-K seguinte (mesmo conceito, mesma data)
+ * a partir da qual o próprio é erro de escala (milhares/milhões no lugar de dólares) e cede ao
+ * comparativo. Reapresentação legítima não chega perto: WELL 2020 (nota no 10-K de 2022) é 5,8×.
+ */
+export const RAZAO_ESCALA_COMPARATIVO = 100;
 
 const FORMS = new Set<string>(FORMULARIOS_ANUAIS_SEC);
 const DIA_MS = 86_400_000;
@@ -178,6 +188,8 @@ export interface ValorCampo {
   conceito: string;
   filed: string;
   accn: string;
+  /** conceitos do próprio 10-K trocados pelo comparativo do seguinte (erro de escala) */
+  escalaCorrigida?: string[];
 }
 
 /**
@@ -187,11 +199,18 @@ export interface ValorCampo {
 export function valorDaCadeia(ler: Leitor, c: CadeiaCampo, fim: string): ValorCampo | null {
   if (c.tipo === 'instante') {
     return (
-      valorDaCadeiaNoPrazo(ler, c, fim, BALANCO_PRAZO_PROPRIO_DIAS) ??
-      valorDaCadeiaNoPrazo(ler, c, fim, BALANCO_PRAZO_COMPARATIVO_DIAS)
+      valorDaCadeiaNoPrazo(ler, c, fim, BALANCO_PRAZO_PROPRIO_DIAS, true) ??
+      valorDaCadeiaNoPrazo(ler, c, fim, BALANCO_PRAZO_COMPARATIVO_DIAS, false)
     );
   }
-  return valorDaCadeiaNoPrazo(ler, c, fim, undefined);
+  return valorDaCadeiaNoPrazo(ler, c, fim, undefined, false);
+}
+
+/** Diferem ≥ RAZAO_ESCALA_COMPARATIVO× (os dois ≠ 0, mesmo sinal)? */
+function divergeEscala(a: number, b: number): boolean {
+  if (a === 0 || b === 0 || Math.sign(a) !== Math.sign(b)) return false;
+  const r = Math.abs(a / b);
+  return r >= RAZAO_ESCALA_COMPARATIVO || r <= 1 / RAZAO_ESCALA_COMPARATIVO;
 }
 
 function valorDaCadeiaNoPrazo(
@@ -199,22 +218,41 @@ function valorDaCadeiaNoPrazo(
   c: CadeiaCampo,
   fim: string,
   prazoMaxDias: number | undefined,
+  /** balanço do próprio 10-K: confere a escala contra o comparativo do 10-K seguinte */
+  conferirEscala: boolean,
 ): ValorCampo | null {
   for (const p of c.passos) {
     let soma = 0;
     let base: ValorAnual | null = null;
     let ok = true;
+    const corrigidos: string[] = [];
     for (const t of p.termos) {
-      const v = ler(t.taxonomia, t.conceito, c.unidade, c.tipo, prazoMaxDias).get(fim);
+      let v = ler(t.taxonomia, t.conceito, c.unidade, c.tipo, prazoMaxDias).get(fim);
       if (!v) {
         if (t.opcional) continue;
         ok = false;
         break;
       }
+      if (conferirEscala) {
+        const comp = ler(
+          t.taxonomia,
+          t.conceito,
+          c.unidade,
+          c.tipo,
+          BALANCO_PRAZO_COMPARATIVO_DIAS,
+        ).get(fim);
+        if (comp && comp.filed > v.filed && divergeEscala(v.val, comp.val)) {
+          v = comp;
+          corrigidos.push(t.conceito);
+        }
+      }
       soma += t.sinal * v.val;
       if (!base) base = v;
     }
-    if (ok && base) return { val: soma, conceito: p.rotulo, filed: base.filed, accn: base.accn };
+    if (!ok || !base) continue;
+    const x: ValorCampo = { val: soma, conceito: p.rotulo, filed: base.filed, accn: base.accn };
+    if (corrigidos.length > 0) x.escalaCorrigida = corrigidos;
+    return x;
   }
   return null;
 }
@@ -416,6 +454,12 @@ export function extrairFundamentosSec(
     flags.push(...d.flags);
 
     if (sinalTrocado.length > 0) fonte.sinalCorrigido = sinalTrocado.join(',');
+    const escalas: string[] = [];
+    for (const campo of CAMPOS_SEC) {
+      const x = v[campo];
+      if (x?.escalaCorrigida) escalas.push(...x.escalaCorrigida.map((k) => `${campo}:${k}`));
+    }
+    if (escalas.length > 0) fonte.escalaCorrigida = escalas.join(',');
     if (ajustes.length > 0) fonte.ajusteDesdobramento = [...new Set(ajustes)].join(',');
 
     let dividendosJcpPagos: number | null = usar('dividendosJcpPagos', pagos);
