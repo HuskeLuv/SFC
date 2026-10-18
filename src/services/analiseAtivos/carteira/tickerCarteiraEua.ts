@@ -178,3 +178,27 @@ export async function usuarioTemAssetManual(
   ]);
   return !!p || !!w;
 }
+
+/**
+ * Item do overlay (/api/analise-ativos/carteira) para o ticker da tela. O overlay usa o ticker da
+ * Análise ('BRK.B') quando o cadastro da SEC o resolve e o ticker sem pontuação ('BRKB') quando
+ * não; aqui as duas formas valem. B3: só a forma do próprio ticker.
+ */
+export function noOverlay<T>(mapa: Record<string, T> | undefined, ticker: string): T | undefined {
+  if (!mapa) return undefined;
+  const t = ticker.trim().toUpperCase();
+  return mapa[t] ?? mapa[chaveCarteira(t)];
+}
+
+/** Chave que o ticker JÁ ocupa no overlay (posição ou plano); sem nenhuma, o ticker da tela. */
+export function chaveNoOverlay(
+  overlay: { posicoes: Record<string, unknown>; planejados: Record<string, unknown> } | undefined,
+  ticker: string,
+): string {
+  const t = ticker.trim().toUpperCase();
+  const c = chaveCarteira(t);
+  if (!overlay) return t;
+  if (t in overlay.posicoes || t in overlay.planejados) return t;
+  if (c in overlay.posicoes || c in overlay.planejados) return c;
+  return t;
+}

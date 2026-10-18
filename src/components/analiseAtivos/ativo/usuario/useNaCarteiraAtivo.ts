@@ -23,11 +23,25 @@
  * "% da aba" da tabela); `classePct` (peso da aba na carteira total) dá o "≈ X% da carteira total".
  * Sem posição nem plano, `{ base: true }` (modal Planejar) usa a aba da CLASSE (ação → Ações,
  * FII → FII's).
+ *
+ * Stocks e REITs (feature EUA, fatia D): as abas Stocks e REIT's também têm a linha detalhada,
+ * lida de /api/carteira/stocks|reit com a key do useCarteiraStocks/useReit (a MESMA função de
+ * preço da Carteira, getAssetPrices) — "Na sua carteira" mostra o mesmo valor da aba. A linha é
+ * achada pela chave sem pontuação (chaveCarteira: a página BRK.B casa a linha 'BRKB' do wizard; a
+ * aba REIT's traz o symbol manual 'O-<ts>-<rnd>', reduzido a 'O'). Os valores dessas abas estão na
+ * unidade da Carteira (exibida em US$): `moeda` diz 'USD' e o "% da carteira" converte pelo
+ * `cotacaoDolar` da aba, como o GenericAssetTable. `assetIdPosicao`/`tipoAsset` (overlay) vão para a
+ * recompra pela Análise.
  */
 import { useQuery } from '@tanstack/react-query';
 import { queryKeys } from '@/lib/queryKeys';
 import { CATEGORIA_API_PATH, rotuloCategoria } from '@/lib/carteiraMover';
 import { useOverlayCarteira } from '@/hooks/useAnaliseAtivos';
+import {
+  chaveCarteira,
+  extrairTickerManual,
+  noOverlay,
+} from '@/services/analiseAtivos/carteira/tickerCarteiraEua';
 import type { AlocacaoConfig } from '@/hooks/useAlocacaoConfig';
 import type { CarteiraResumo } from '@/hooks/useCarteira';
 import type { ClasseQuadro } from '@/types/analiseAtivosApi';
@@ -50,6 +64,8 @@ export interface LinhaAbaCarteira {
 
 interface DadosAba {
   secoes?: Array<{ ativos?: LinhaAbaCarteira[] }>;
+  /** abas Stocks/REIT's: cotação do dólar da Carteira (null = sem cotação) */
+  cotacaoDolar?: number | null;
 }
 
 export interface OpcoesNaCarteira {
@@ -61,15 +77,22 @@ export interface OpcoesNaCarteira {
 export type StatusNaCarteira = 'carregando' | 'erro' | 'nada' | 'posicao' | 'planejado';
 
 /** Abas com a linha detalhada (as demais mostram só a quantidade e o link). */
-export type AbaDetalhada = 'acoes' | 'fiis';
+export type AbaDetalhada = 'acoes' | 'fiis' | 'stocks' | 'reits';
 
 export interface NaCarteiraAtivo {
   status: StatusNaCarteira;
   /** aba efetiva (categoria da Carteira) */
   categoria: string | null;
   abaNome: string | null;
-  /** 'acoes' | 'fiis' quando a aba tem os números aqui; null = só quantidade + link */
+  /** aba com os números aqui (Ações, FII's, Stocks, REIT's); null = só quantidade + link */
   abaDetalhada: AbaDetalhada | null;
+  /** unidade dos valores da linha: 'USD' nas abas Stocks/REIT's (como a Carteira exibe) */
+  moeda: 'BRL' | 'USD';
+  /** cotação do dólar da aba Stocks/REIT's (null fora delas ou sem cotação) */
+  cotacaoDolar: number | null;
+  /** EUA: Asset manual da posição (a recompra pela Análise não cria outro) e o Asset.type */
+  assetIdPosicao: string | null;
+  tipoAsset: 'stock' | 'reit' | null;
   portfolioId: string | null;
   watchlistId: string | null;
   /** quantidade do overlay (vale também para abas sem detalhe) */
@@ -104,7 +127,13 @@ export interface NaCarteiraAtivo {
   refetch: () => void;
 }
 
-const ABAS_DETALHADAS: Record<string, AbaDetalhada> = { acoes: 'acoes', fiis: 'fiis' };
+const ABAS_DETALHADAS: Record<string, AbaDetalhada> = {
+  acoes: 'acoes',
+  fiis: 'fiis',
+  stocks: 'stocks',
+  reits: 'reits',
+};
+const ABAS_USD: ReadonlySet<AbaDetalhada> = new Set(['stocks', 'reits']);
 
 /** Mesma fetch do useAssetData (a key é compartilhada com a aba da Carteira). */
 async function buscarAba(path: string, signal?: AbortSignal): Promise<DadosAba> {
@@ -163,9 +192,12 @@ export function linhaDoTicker(
   ticker: string,
 ): LinhaAbaCarteira | null {
   if (!dados?.secoes) return null;
-  const alvo = ticker.toUpperCase();
+  // chave sem pontuação: 'BRK.B' casa 'BRKB'; o symbol manual 'O-<ts>-<rnd>' da aba REIT's vira 'O'
+  const alvo = chaveCarteira(ticker);
   for (const secao of dados.secoes) {
-    const linha = secao.ativos?.find((a) => (a.ticker ?? '').toUpperCase() === alvo);
+    const linha = secao.ativos?.find(
+      (a) => chaveCarteira(extrairTickerManual(a.ticker ?? '')) === alvo,
+    );
     if (linha) return linha;
   }
   return null;
@@ -191,8 +223,8 @@ export function useNaCarteiraAtivo(
 ): NaCarteiraAtivo {
   const overlay = useOverlayCarteira();
   const tickerNorm = ticker.toUpperCase();
-  const posicao = overlay.data?.posicoes[tickerNorm] ?? null;
-  const planejado = posicao ? null : (overlay.data?.planejados[tickerNorm] ?? null);
+  const posicao = noOverlay(overlay.data?.posicoes, tickerNorm) ?? null;
+  const planejado = posicao ? null : (noOverlay(overlay.data?.planejados, tickerNorm) ?? null);
   const categoria = posicao?.categoria ?? planejado?.categoria ?? null;
   const pedeBase = !!opts.base && !!overlay.data;
   const categoriaBase = categoria ?? (pedeBase ? ABA_DA_CLASSE[classe] : null);
@@ -220,12 +252,19 @@ export function useNaCarteiraAtivo(
   const valorAba = path ? somaDaAba(abaQ.data) : null;
   const dinheiro = totalDinheiro(resumoQ.data);
   const valorBase = dinheiro !== null && dinheiro > 0 ? dinheiro : null;
+  const moeda = abaDetalhada && ABAS_USD.has(abaDetalhada) ? 'USD' : 'BRL';
+  const cotacaoDolar =
+    moeda === 'USD' && typeof abaQ.data?.cotacaoDolar === 'number' && abaQ.data.cotacaoDolar > 0
+      ? abaQ.data.cotacaoDolar
+      : null;
+  // Stocks/REIT's: o total da carteira é em R$ e a linha na unidade da aba (GenericAssetTable).
+  const paraReais = moeda === 'USD' ? (cotacaoDolar ?? 1) : 1;
   // A linha da aba só é exigida para a posição; sem posição, 0% da carteira.
   const pctCarteira =
     valorBase === null
       ? null
       : linha
-        ? (linha.valorAtualizado / valorBase) * 100
+        ? ((linha.valorAtualizado * paraReais) / valorBase) * 100
         : posicao
           ? null
           : 0;
@@ -276,6 +315,10 @@ export function useNaCarteiraAtivo(
     secaoPlanejada: planejado?.secao ?? null,
     abaNome: categoria ? rotuloCategoria(categoria as Parameters<typeof rotuloCategoria>[0]) : null,
     abaDetalhada,
+    moeda,
+    cotacaoDolar,
+    assetIdPosicao: posicao?.assetId ?? null,
+    tipoAsset: posicao?.tipoAsset ?? planejado?.tipoAsset ?? null,
     portfolioId: posicao?.portfolioId ?? null,
     watchlistId: planejado?.watchlistId ?? null,
     quantidade: posicao?.quantidade ?? null,

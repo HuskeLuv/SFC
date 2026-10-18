@@ -5,6 +5,7 @@ const mocks = vi.hoisted(() => ({
     portfolio: { findMany: vi.fn() },
     watchlist: { findMany: vi.fn() },
     planningAssetTarget: { findMany: vi.fn() },
+    secCompanyTicker: { findMany: vi.fn() },
   },
   getAssetPrices: vi.fn(),
   brapi: vi.fn(),
@@ -37,6 +38,7 @@ const asset = (
 
 beforeEach(() => {
   vi.clearAllMocks();
+  mocks.prisma.secCompanyTicker.findMany.mockResolvedValue([]);
   mocks.prisma.portfolio.findMany.mockResolvedValue([
     {
       id: 'p-wege',
@@ -187,7 +189,7 @@ describe('overlayCarteira', () => {
     expect(r.posicoes.WEGE3.objetivoPct).toBe(25);
   });
 
-  it('EUA: Asset manual stock/REIT pela chave sem pontuação, com assetId e tipoAsset', async () => {
+  it('EUA: Asset manual stock/REIT sem ticker na SEC → chave sem pontuação, com assetId e tipoAsset', async () => {
     mocks.prisma.portfolio.findMany.mockResolvedValue([
       {
         id: 'p-brkb',
@@ -249,5 +251,35 @@ describe('overlayCarteira', () => {
     });
     // overlay segue sem preço
     expect(mocks.getAssetPrices).not.toHaveBeenCalled();
+  });
+
+  it('EUA: com o cadastro da SEC, a chave é o ticker da Análise (BRKB-… → BRK.B)', async () => {
+    mocks.prisma.portfolio.findMany.mockResolvedValue([
+      {
+        id: 'p-brkb',
+        quantity: 3,
+        categoriaOverride: null,
+        objetivo: 0,
+        estrategia: 'value',
+        tipoFii: null,
+        asset: asset('a-brkb', 'BRKB-1712345678901-abc', 'stock', 'USD', 'manual'),
+      },
+    ]);
+    mocks.prisma.watchlist.findMany.mockResolvedValue([]);
+    mocks.prisma.secCompanyTicker.findMany.mockResolvedValue([
+      { symbol: 'BRK-B', symbolNorm: 'BRKB', principal: true },
+    ]);
+    const r = await overlayCarteira('u1');
+    expect(Object.keys(r.posicoes)).toEqual(['BRK.B']);
+    expect(r.posicoes['BRK.B']).toMatchObject({ portfolioId: 'p-brkb', assetId: 'a-brkb' });
+    expect(mocks.prisma.secCompanyTicker.findMany.mock.calls[0][0].where).toEqual({
+      symbolNorm: { in: ['BRKB'] },
+      validTo: null,
+    });
+  });
+
+  it('Brasil sem Asset manual EUA: não consulta o cadastro da SEC', async () => {
+    await overlayCarteira('u1');
+    expect(mocks.prisma.secCompanyTicker.findMany).not.toHaveBeenCalled();
   });
 });

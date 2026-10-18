@@ -14,19 +14,24 @@
  * Estados: com posição · posição numa aba sem detalhe aqui (quantidade + link) · planejado (linha
  * planejada na aba, sem posição: objetivo + valor equivalente) · nada · carregando (skeleton só nos
  * números) · erro.
+ *
+ * Stocks e REITs (feature EUA, fatia D): a linha vem da aba Stocks/REIT's da Carteira (a mesma
+ * função de preço, getAssetPrices) e os valores saem como a aba mostra (US$), com a nota "Mesmo
+ * valor da aba ‹aba› da Carteira." A posição criada pelo wizard ('BRKB-…') casa a página BRK.B.
  */
 import Link from 'next/link';
 import { useState } from 'react';
 import ModalPlanejar, {
+  dinheiro0,
   pct1,
   ppComSinal,
-  reais0,
 } from '@/components/analiseAtivos/ativo/acoes/ModalPlanejar';
 import { COR_LINK } from '@/constants/analiseAtivosVisual';
 import { desvioAlvo } from '@/services/analiseAtivos/regras/carteira/desvioAlvo';
 import { formatarTexto } from '@/services/analiseAtivos/textos';
 import { TEXTOS_ACOES_CARTEIRA } from '@/services/analiseAtivos/textosAcoesCarteira';
-import { formatBRL, formatPct } from '@/utils/format';
+import { TEXTOS_EUA } from '@/services/analiseAtivos/textosEua';
+import { formatBRL, formatPct, formatUSD } from '@/utils/format';
 import BarraPesoAlvo from './BarraPesoAlvo';
 import { BOTAO_SECUNDARIO } from '@/components/analiseAtivos/ativo/acoes/BarraAcoesAtivo';
 import { useNaCarteiraAtivo, type NaCarteiraAtivo } from './useNaCarteiraAtivo';
@@ -132,6 +137,9 @@ export default function BlocoNaCarteira({
 }: BlocoNaCarteiraProps) {
   const tickerNorm = ticker.toUpperCase();
   const dados = useNaCarteiraAtivo(tickerNorm, classe);
+  // valores na unidade da aba: R$ (Ações/FII's) ou US$ (Stocks/REIT's), como a Carteira mostra
+  const dinheiro = dados.moeda === 'USD' ? formatUSD : formatBRL;
+  const dinheiroInteiro = (v: number) => dinheiro0(v, dados.moeda);
   const [planejando, setPlanejando] = useState(false);
 
   const modal = (
@@ -218,7 +226,7 @@ export default function BlocoNaCarteira({
               {TP.valorAlvo}:{' '}
               <span className="font-semibold text-gray-700 tabular-nums dark:text-gray-200">
                 <Numero
-                  valor={alvoValor !== null ? reais0(alvoValor) : '—'}
+                  valor={alvoValor !== null ? dinheiroInteiro(alvoValor) : '—'}
                   carregando={carregando && alvoValor === null}
                 />
               </span>
@@ -299,7 +307,7 @@ export default function BlocoNaCarteira({
         />
         <Dado
           rotulo={t.valor}
-          valor={linha ? formatBRL(linha.valorAtualizado) : '—'}
+          valor={linha ? dinheiro(linha.valorAtualizado) : '—'}
           carregando={carregando}
         />
         <Dado
@@ -309,7 +317,7 @@ export default function BlocoNaCarteira({
         />
         <Dado
           rotulo={t.precoMedio}
-          valor={linha ? formatBRL(linha.precoAquisicao) : '—'}
+          valor={linha ? dinheiro(linha.precoAquisicao) : '—'}
           carregando={carregando}
         />
         <Dado
@@ -338,7 +346,7 @@ export default function BlocoNaCarteira({
                   t.desvio,
                   {
                     pp: ppComSinal(conta.desvioPp),
-                    valor: reais0(conta.desvioValor ?? 0),
+                    valor: dinheiroInteiro(conta.desvioValor ?? 0),
                   },
                 )}`
               : t.semAlvo
@@ -357,10 +365,15 @@ export default function BlocoNaCarteira({
       <LinhaClasse dados={dados} />
       <div className="flex flex-col gap-1 text-xs text-gray-500 dark:text-gray-400">
         <p>{formatarTexto(t.notaAba, { aba: abaNome })}</p>
+        {dados.moeda === 'USD' ? (
+          <p data-mesmo-valor="">
+            {formatarTexto(TEXTOS_EUA.carteira.mesmoValor, { aba: abaNome })}
+          </p>
+        ) : null}
         {cotacaoDiverge && linha ? (
           <p data-nota-cotacao="">
             {formatarTexto(t.cotacaoDiferente, {
-              valor: formatBRL(linha.cotacaoAtual),
+              valor: dinheiro(linha.cotacaoAtual),
               data: dataCurta(precoData),
             })}
           </p>

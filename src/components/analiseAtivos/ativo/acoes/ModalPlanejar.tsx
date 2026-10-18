@@ -13,6 +13,10 @@
  * "≈ X% da carteira total" (objetivo × peso atual da aba) e o resumo ao vivo do desvio NA BASE DA
  * ABA. "Remover do plano": posição → objetivo 0; planejado → sai da aba. Linguagem de desvio
  * (nunca "faltam"). Consultor agindo: pode planejar, com o aviso da carteira do cliente (rec. 9).
+ *
+ * Stocks e REITs (feature EUA, fatia D): grava o Objetivo da aba Stocks/REIT's (a rota acha o Asset
+ * manual do usuário ou cria o planejado) — sem Asset de catálogo, o botão fica liberado. Os valores
+ * da aba saem em US$, como a Carteira mostra (dinheiro0).
  */
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { useAtivoTopo } from '@/hooks/useAnaliseAtivos';
@@ -40,6 +44,7 @@ import {
   TEXTOS_ACOES_CARTEIRA,
 } from '@/services/analiseAtivos/textosAcoesCarteira';
 import { formatNumber } from '@/utils/format';
+import { ehClasseEua } from '@/types/analiseAtivosApi';
 import type { ModalPlanejarProps } from '@/types/analiseAtivosCriterios';
 
 export type { ModalPlanejarProps };
@@ -58,6 +63,11 @@ export function ppComSinal(v: number): string {
 /** R$ sem centavos ('R$ 1.349'). */
 export const reais0 = (v: number) =>
   `R$ ${Math.abs(v).toLocaleString('pt-BR', { maximumFractionDigits: 0 })}`;
+/** Sem centavos na unidade da aba: R$ (Brasil) ou US$ (Stocks/REIT's, como a Carteira mostra). */
+export const dinheiro0 = (v: number, moeda: 'BRL' | 'USD' = 'BRL') =>
+  moeda === 'USD'
+    ? `US$ ${Math.abs(v).toLocaleString('pt-BR', { maximumFractionDigits: 0 })}`
+    : reais0(v);
 const inteiro = (v: number) => Math.abs(v).toLocaleString('pt-BR', { maximumFractionDigits: 2 });
 
 /** '25' / '25,5' / '25.5' → número; vazio ou inválido → null. */
@@ -151,7 +161,11 @@ export default function ModalPlanejar({
     [carteiraVazia, valorAba, valorPosicao, valorOk, cotacao],
   );
 
-  const podeGravar = !!assetId && dados.status !== 'carregando' && dados.status !== 'erro';
+  // EUA: sem catálogo na Carteira — a rota acha o Asset manual do usuário ou cria o planejado
+  const eua = ehClasseEua(classe);
+  const semAsset = !assetId && !eua;
+  const podeGravar = !semAsset && dados.status !== 'carregando' && dados.status !== 'erro';
+  const dinheiro = (v: number) => dinheiro0(v, dados.moeda);
 
   const salvar = async () => {
     if (!podeGravar || pendente) return;
@@ -215,7 +229,7 @@ export default function ModalPlanejar({
           qtd: inteiro(linha.quantidade),
           un: cl.un,
           pct: pct1(linha.percentualCarteira),
-          valor: reais0(linha.valorAtualizado),
+          valor: dinheiro(linha.valorAtualizado),
         })
       : dados.status === 'posicao'
         ? '—'
@@ -353,7 +367,7 @@ export default function ModalPlanejar({
               <span>
                 {T.valorAlvo}
                 <b className="block text-[14.5px] text-gray-900 tabular-nums dark:text-white">
-                  {reais0(conta.alvoValor)}
+                  {dinheiro(conta.alvoValor)}
                 </b>
               </span>
               {conta.alvoQtd !== null ? (
@@ -369,7 +383,7 @@ export default function ModalPlanejar({
                 <b className="block text-[14.5px] text-gray-900 tabular-nums dark:text-white">
                   {formatarTexto(conta.desvioQtd !== null ? T.desvioValor : T.desvioSemQtd, {
                     pp: ppComSinal(conta.desvioPp),
-                    valor: reais0(conta.desvioValor ?? 0),
+                    valor: dinheiro(conta.desvioValor ?? 0),
                     qtd: inteiro(conta.desvioQtd ?? 0),
                     un: cl.un,
                   })}
@@ -396,7 +410,7 @@ export default function ModalPlanejar({
             {formatarTexto(T.erroBase, { aba })}
           </p>
         ) : null}
-        {!assetId ? (
+        {semAsset ? (
           <p className="mt-2 text-[12.5px] text-gray-500 dark:text-gray-400">
             {TEXTOS_ACOES_CARTEIRA.registrar.semAtivoCatalogo}
           </p>

@@ -78,6 +78,33 @@ const ABA_ACOES = {
   secoes: [{ nome: 'Value', ativos: [LINHA_WEGE, LINHA_ITUB_PLANEJADA, LINHA_OUTRA] }],
   totalGeral: { valorAtualizado: 36349 },
 };
+/** Aba Stocks da Carteira (EUA, fatia D): ticker já limpo pelo extrairTicker da rota. */
+const LINHA_BRKB = {
+  ...LINHA_WEGE,
+  id: 'pf-brkb',
+  ticker: 'BRKB',
+  nome: 'BRKB',
+  quantidade: 3,
+  precoAquisicao: 2400,
+  cotacaoAtual: 2400,
+  valorAtualizado: 1000,
+  percentualCarteira: 100,
+  objetivo: 0,
+};
+const ABA_STOCKS = {
+  cotacaoDolar: 5,
+  secoes: [{ nome: 'Value', ativos: [{ ...LINHA_WEGE, ticker: 'WEGE3' }, LINHA_BRKB] }],
+};
+/** Aba REIT's: a posição traz o symbol manual inteiro ('O-<ts>-<rnd>'). */
+const ABA_REIT = {
+  cotacaoDolar: 5,
+  secoes: [
+    {
+      nome: 'Value',
+      ativos: [{ ...LINHA_BRKB, id: 'pf-o', ticker: 'O-1712345678901-abc', valorAtualizado: 600 }],
+    },
+  ],
+};
 const RESUMO = {
   totais: { dinheiro: 100_000, dinheiroMaisBens: 150_000 },
   distribuicao: {
@@ -100,6 +127,8 @@ function roteador(url: string) {
   if (url.startsWith('/api/analise-ativos/carteira')) return mockFetchResponse(overlay);
   if (url.startsWith('/api/analise-ativos/teses/')) return mockFetchResponse(tese);
   if (url.startsWith('/api/carteira/acoes')) return mockFetchResponse(ABA_ACOES);
+  if (url.startsWith('/api/carteira/stocks')) return mockFetchResponse(ABA_STOCKS);
+  if (url.startsWith('/api/carteira/reit')) return mockFetchResponse(ABA_REIT);
   if (url.startsWith('/api/carteira/resumo')) return mockFetchResponse(RESUMO);
   if (url.startsWith('/api/carteira/configuracao')) return mockFetchResponse(CONFIG);
   return mockFetchResponse({ error: 'não mockado' }, 500);
@@ -183,8 +212,16 @@ describe('StatusSalvamento', () => {
 
 // ---------------------------------------------------------------------------
 
-function SondaNaCarteira({ ticker, base }: { ticker: string; base?: boolean }) {
-  const d = useNaCarteiraAtivo(ticker, 'acao', { base });
+function SondaNaCarteira({
+  ticker,
+  base,
+  classe = 'acao',
+}: {
+  ticker: string;
+  base?: boolean;
+  classe?: 'acao' | 'fii' | 'stock' | 'reit';
+}) {
+  const d = useNaCarteiraAtivo(ticker, classe, { base });
   return (
     <pre data-testid="sonda">
       {JSON.stringify({
@@ -200,6 +237,10 @@ function SondaNaCarteira({ ticker, base }: { ticker: string; base?: boolean }) {
         objetivoAbaPct: d.objetivoAbaPct,
         temPlano: d.temPlano,
         carregandoNumeros: d.carregandoNumeros,
+        moeda: d.moeda,
+        cotacaoDolar: d.cotacaoDolar,
+        assetIdPosicao: d.assetIdPosicao,
+        tipoAsset: d.tipoAsset,
       })}
     </pre>
   );
@@ -233,13 +274,72 @@ describe('useNaCarteiraAtivo', () => {
     );
   });
 
-  it('item MOVIDO para Stocks: aba Stocks, sem buscar a aba Ações', async () => {
+  it('item MOVIDO para Stocks: a linha da aba Stocks (EUA, fatia D), sem buscar a aba Ações', async () => {
     overlay.posicoes.WEGE3.categoria = 'stocks';
     comCliente(<SondaNaCarteira ticker="WEGE3" />);
-    await waitFor(() => expect(sonda().status).toBe('posicao'));
-    expect(sonda()).toMatchObject({ categoria: 'stocks', abaNome: 'Stocks', linha: null });
+    await waitFor(() =>
+      expect(sonda()).toMatchObject({
+        status: 'posicao',
+        classePct: null,
+        carregandoNumeros: false,
+      }),
+    );
+    expect(sonda()).toMatchObject({ categoria: 'stocks', abaNome: 'Stocks', moeda: 'USD' });
+    expect(sonda().linha).toMatchObject({ ticker: 'WEGE3' });
+    expect(urlsChamadas()).toContain('/api/carteira/stocks');
     expect(urlsChamadas()).not.toContain('/api/carteira/acoes');
-    expect(urlsChamadas()).not.toContain('/api/carteira/resumo');
+  });
+
+  it('EUA: BRK.B casa a linha BRKB da aba Stocks (wizard) — mesmo valor da Carteira', async () => {
+    overlay.posicoes = {
+      'BRK.B': {
+        portfolioId: 'pf-brkb',
+        quantidade: 3,
+        categoria: 'stocks',
+        assetId: 'a-brkb',
+        tipoAsset: 'stock',
+      },
+    };
+    comCliente(<SondaNaCarteira ticker="BRK.B" classe="stock" />);
+    await waitFor(() => expect(sonda()).toMatchObject({ status: 'posicao', classeAlvo: null }));
+    await waitFor(() => expect(sonda().carregandoNumeros).toBe(false));
+    const s = sonda();
+    expect(s.linha).toEqual(LINHA_BRKB);
+    expect(s).toMatchObject({
+      moeda: 'USD',
+      cotacaoDolar: 5,
+      assetIdPosicao: 'a-brkb',
+      tipoAsset: 'stock',
+      valorAba: 6252 + 1000,
+    });
+    // % da carteira total em R$: valor da aba × dólar da Carteira ÷ totais.dinheiro
+    expect(s.pctCarteira).toBeCloseTo(((1000 * 5) / 100_000) * 100, 10);
+  });
+
+  it('EUA: overlay sem o cadastro da SEC (chave BRKB) também casa a página BRK.B', async () => {
+    overlay.posicoes = {
+      BRKB: { portfolioId: 'pf-brkb', quantidade: 3, categoria: 'stocks', assetId: 'a-brkb' },
+    };
+    comCliente(<SondaNaCarteira ticker="BRK.B" classe="stock" />);
+    await waitFor(() =>
+      expect(sonda()).toMatchObject({ status: 'posicao', assetIdPosicao: 'a-brkb' }),
+    );
+  });
+
+  it("EUA: a aba REIT's traz o symbol manual inteiro; O casa O-<ts>-<rnd>", async () => {
+    overlay.posicoes = {
+      O: {
+        portfolioId: 'pf-o',
+        quantidade: 3,
+        categoria: 'reits',
+        assetId: 'a-o',
+        tipoAsset: 'reit',
+      },
+    };
+    comCliente(<SondaNaCarteira ticker="O" classe="reit" />);
+    await waitFor(() => expect(sonda().linha).toMatchObject({ id: 'pf-o', valorAtualizado: 600 }));
+    expect(sonda()).toMatchObject({ abaNome: "REIT's", moeda: 'USD', tipoAsset: 'reit' });
+    expect(urlsChamadas()).toContain('/api/carteira/reit');
   });
 
   it('modal Planejar ({ base }) sem posição nem plano: carrega a base da aba da classe', async () => {

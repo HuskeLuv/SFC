@@ -8,10 +8,21 @@
  *
  * O hook da aba só é montado quando a coluna está na tela (`FonteNaCarteira` renderizado pelo
  * Quadro), com uma única chamada por classe.
+ *
+ * Stocks e REITs (feature EUA, fatia D): a fonte é a aba Stocks (useCarteiraStocks) ou REIT's
+ * (useReit) — o mesmo "% da aba" da Carteira. As chaves são sem pontuação (chaveCarteira): a linha
+ * 'BRKB' do wizard casa o BRK.B do Quadro e o symbol manual 'O-<ts>-<rnd>' da aba REIT's vira 'O'.
  */
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useAcoes } from '@/hooks/useAcoes';
 import { useFii } from '@/hooks/useFii';
+import { useCarteiraStocks } from '@/hooks/useStocks';
+import { useReit } from '@/hooks/useReit';
+import {
+  chaveCarteira,
+  extrairTickerManual,
+  noOverlay,
+} from '@/services/analiseAtivos/carteira/tickerCarteiraEua';
 import { useOverlayCarteira } from '@/hooks/useAnaliseAtivos';
 import { formatarAnalise } from '@/components/analiseAtivos/comum/formatarAnalise';
 import { formatPct } from '@/utils/format';
@@ -47,7 +58,7 @@ export function mapaDaAba(data: { secoes?: SecaoAba[] } | null | undefined): Map
   for (const s of data?.secoes ?? []) {
     for (const a of s.ativos ?? []) {
       if (!a.ticker) continue;
-      m.set(a.ticker.toUpperCase(), {
+      m.set(chaveCarteira(extrairTickerManual(a.ticker)), {
         quantidade: a.quantidade ?? 0,
         percentual: a.percentualCarteira ?? 0,
         objetivo: a.objetivo ?? 0,
@@ -64,15 +75,15 @@ export function infoNaCarteira(
   aba: MapaAba | null,
   overlay: OverlayCarteiraResposta | undefined,
 ): InfoNaCarteira {
-  const t = ticker.toUpperCase();
+  const t = chaveCarteira(ticker);
   const naAba = aba?.get(t);
   if (naAba && !naAba.planejado && naAba.quantidade > 0) {
     return { tipo: 'posicao', quantidade: naAba.quantidade, percentual: naAba.percentual };
   }
-  const pos = overlay?.posicoes[t];
+  const pos = noOverlay(overlay?.posicoes, ticker);
   if (pos && pos.quantidade > 0)
     return { tipo: 'posicao', quantidade: pos.quantidade, percentual: null };
-  const plan = overlay?.planejados[t];
+  const plan = noOverlay(overlay?.planejados, ticker);
   if (plan) return { tipo: 'planejado', objetivo: plan.objetivoPct ?? (naAba?.objetivo || null) };
   if (naAba?.planejado) return { tipo: 'planejado', objetivo: naAba.objetivo || null };
   return { tipo: 'nenhum' };
@@ -94,6 +105,22 @@ function FonteFii({ onMapa }: { onMapa: (m: MapaAba) => void }) {
   return null;
 }
 
+function FonteStocks({ onMapa }: { onMapa: (m: MapaAba) => void }) {
+  const { data } = useCarteiraStocks();
+  useEffect(() => {
+    if (data) onMapa(mapaDaAba(data));
+  }, [data, onMapa]);
+  return null;
+}
+
+function FonteReit({ onMapa }: { onMapa: (m: MapaAba) => void }) {
+  const { data } = useReit();
+  useEffect(() => {
+    if (data) onMapa(mapaDaAba(data));
+  }, [data, onMapa]);
+  return null;
+}
+
 /**
  * Dados da coluna para a classe ativa. `fonte` é um elemento invisível que monta o hook da aba
  * (renderizar só quando a coluna está visível); `info(ticker)` resolve a célula.
@@ -103,8 +130,14 @@ export function useNaCarteira(classe: ClasseQuadro, visivel: boolean) {
   const [mapas, setMapas] = useState<Partial<Record<ClasseQuadro, MapaAba>>>({});
   const onAcoes = useCallback((m: MapaAba) => setMapas((x) => ({ ...x, acao: m })), []);
   const onFii = useCallback((m: MapaAba) => setMapas((x) => ({ ...x, fii: m })), []);
+  const onStock = useCallback((m: MapaAba) => setMapas((x) => ({ ...x, stock: m })), []);
+  const onReit = useCallback((m: MapaAba) => setMapas((x) => ({ ...x, reit: m })), []);
   const fonte = !visivel ? null : classe === 'acao' ? (
     <FonteAcoes onMapa={onAcoes} />
+  ) : classe === 'stock' ? (
+    <FonteStocks onMapa={onStock} />
+  ) : classe === 'reit' ? (
+    <FonteReit onMapa={onReit} />
   ) : (
     <FonteFii onMapa={onFii} />
   );
