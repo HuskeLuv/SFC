@@ -1215,6 +1215,91 @@ describe('GET /api/analises/proventos', () => {
     });
   });
 
+  describe('espelho da Carteira com várias datas-com no mesmo pagamento (backtest 18/10/2026)', () => {
+    // SAPR11: pagamento único com parcelas de duas datas-com; 100 cotas na 1ª, 200 na 2ª
+    const now = new Date();
+    const dia = (n: number) => {
+      const x = new Date(now.getTime() + n * 86400000);
+      return new Date(Date.UTC(x.getUTCFullYear(), x.getUTCMonth(), x.getUTCDate()));
+    };
+    const compra1 = dia(-400);
+    const compra2 = dia(-200);
+    const com1 = dia(-300);
+    const com2 = dia(-100);
+    const pagamento = dia(-10);
+    const seed = () => {
+      mockPrisma.portfolio.findMany.mockResolvedValue([
+        {
+          id: 'p1',
+          userId: 'user-123',
+          quantity: 200,
+          totalInvested: 4000,
+          avgPrice: 20,
+          lastUpdate: compra2,
+          assetId: 'a1',
+          asset: { id: 'a1', symbol: 'SAPR11', name: 'Sanepar', type: 'stock' },
+        },
+      ]);
+      mockPrisma.stockTransaction.findMany.mockResolvedValue(
+        [compra1, compra2].map((date, i) => ({
+          id: `tx-${i}`,
+          userId: 'user-123',
+          type: 'compra',
+          quantity: 100,
+          price: 20,
+          total: 2000,
+          date,
+          assetId: 'a1',
+          asset: { symbol: 'SAPR11', name: 'Sanepar', type: 'stock' },
+        })),
+      );
+      mockGetDividends.mockResolvedValue([
+        { date: pagamento, dataCom: com1, tipo: 'DIVIDENDO', valorUnitario: 1.408226885 },
+        { date: pagamento, dataCom: com2, tipo: 'DIVIDENDO', valorUnitario: 0.552412806 },
+      ]);
+      mockPrisma.portfolioProvento.findMany.mockResolvedValue([
+        {
+          id: 'pp1',
+          portfolioId: 'p1',
+          userId: 'user-123',
+          tipo: 'DIVIDENDO',
+          dataCom: com1,
+          dataPagamento: pagamento,
+          valorTotal: 251.30519,
+          quantidadeBase: 100,
+          impostoRenda: null,
+          dismissed: false,
+          source: 'brapi',
+        },
+      ]);
+    };
+
+    it('por data-com: cada parcela no mês da sua data-com (140,82 e 110,48), total 251,31', async () => {
+      seed();
+      const data = await (await GET(createRequest({ dataBase: 'datacom' }))).json();
+      const linhas = data.proventos
+        .map((p: { data: string; valor: number; quantidade: number }) => [
+          p.data.slice(0, 10),
+          p.valor,
+          p.quantidade,
+        ])
+        .sort();
+      expect(linhas).toEqual([
+        [com1.toISOString().slice(0, 10), 140.82, 100],
+        [com2.toISOString().slice(0, 10), 110.48, 200],
+      ]);
+      // cada linha arredonda ao centavo: 140,82 + 110,48 (1 centavo abaixo da linha única)
+      expect(data.total).toBeCloseTo(251.3, 2);
+    });
+
+    it('por pagamento: continua uma linha só', async () => {
+      seed();
+      const data = await (await GET(createRequest())).json();
+      expect(data.proventos).toHaveLength(1);
+      expect(data.proventos[0].valor).toBeCloseTo(251.31, 2);
+    });
+  });
+
   describe('item movido de aba (mover na Carteira)', () => {
     const seed = (categoriaOverride: string | null) => {
       const now = new Date();
