@@ -663,6 +663,47 @@ describe('BRAPI dedup pré-upsert', () => {
     expect(mockPrisma.assetDividendHistory.createMany.mock.calls[0][0].data).toHaveLength(3);
   });
 
+  it('descarta a entry provisória (sem approvedOn, data-com = approvedOn da definitiva) — PETR4 2024', async () => {
+    mockFetch.mockResolvedValue(
+      makeBrapiResponse([
+        // provisória: data-com 13/05/2024 = dia da aprovação da definitiva; a B3 só tem a de 11/06
+        {
+          paymentDate: '2024-09-20',
+          lastDatePrior: '2024-05-13',
+          label: 'DIVIDENDO',
+          rate: 0.44806667,
+        },
+        { paymentDate: '2024-09-20', lastDatePrior: '2024-05-13', label: 'JCP', rate: 0.07355446 },
+        {
+          paymentDate: '2024-09-20',
+          lastDatePrior: '2024-06-11',
+          approvedOn: '2024-05-13',
+          label: 'DIVIDENDO',
+          rate: 0.44806667,
+        },
+        {
+          paymentDate: '2024-09-20',
+          lastDatePrior: '2024-06-11',
+          approvedOn: '2024-05-13',
+          label: 'JCP',
+          rate: 0.07355446,
+        },
+        // sem approvedOn e SEM definitiva correspondente: fica
+        { paymentDate: '2024-11-21', lastDatePrior: '2024-08-21', label: 'JCP', rate: 0.41275171 },
+      ]),
+    );
+
+    const result = await getDividends('PETR4');
+
+    expect(
+      result.map((r) => [r.tipo, r.dataCom?.toISOString().slice(0, 10), r.valorUnitario]),
+    ).toEqual([
+      ['DIVIDENDO', '2024-06-11', 0.44806667],
+      ['JCP', '2024-06-11', 0.07355446],
+      ['JCP', '2024-08-21', 0.41275171],
+    ]);
+  });
+
   it('entry sem data-com não herda a data-com de outra do mesmo pagamento', async () => {
     mockFetch.mockResolvedValue(
       makeBrapiResponse([

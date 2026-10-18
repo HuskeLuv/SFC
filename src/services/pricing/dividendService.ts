@@ -332,12 +332,31 @@ export interface ProventoBrapiAgregado {
  * Só SOMA parcelas com o MESMO pagamento, tipo e data-com (BBAS3 JCP 12/06/2025: 1º e 2º trimestre
  * declarados juntos, mesma data-com). Até 18/10/2026 a chave não tinha a data-com e a soma juntava
  * proventos de datas-com diferentes pagos no mesmo dia (backtest A1: VIVT3, SAPR11, CMIG4, ISAE4).
+ *
+ * Descarta a entry PROVISÓRIA que a BRAPI mantém ao lado da definitiva: sem approvedOn, com a
+ * data-com igual ao approvedOn de outra entry do mesmo pagamento, tipo e valor (PETR4: DIVIDENDO
+ * 0,44806667 e JCP 0,07355446 de 13/05/2024 × os de 11/06/2024 aprovados em 13/05; a B3 só tem os de
+ * 11/06). Com a chave antiga as duas viravam UMA linha somada; com a nova seriam duas.
  */
 export const agregarProventosBrapi = (
   normalized: Record<string, unknown>[],
 ): ProventoBrapiAgregado[] => {
   const aggregated = new Map<string, ProventoBrapiAgregado>();
+  // (data, pagamento, tipo, valor): data = approvedOn da definitiva ou data-com da provisória
+  const chave = (data: Date | null, d: Record<string, unknown>): string | null => {
+    const pag = extractPaymentDate(d);
+    if (!data || !pag) return null;
+    const dia = (x: Date) => toUtcMidnight(x).getTime();
+    return `${dia(data)}\0${dia(pag)}\0${extractDividendType(d)}\0${extractDividendAmount(d)}`;
+  };
+  const definitivas = new Set(
+    normalized.map((d) => chave(parseDateValue(d.approvedOn), d)).filter((k) => k !== null),
+  );
   for (const d of normalized) {
+    if (!parseDateValue(d.approvedOn)) {
+      const k = chave(extractDataCom(d), d);
+      if (k && definitivas.has(k)) continue;
+    }
     const date = extractPaymentDate(d);
     const valorUnitario = extractDividendAmount(d);
     if (!date || !valorUnitario || valorUnitario <= 0) continue;
