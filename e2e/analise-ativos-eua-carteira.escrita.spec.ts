@@ -238,6 +238,7 @@ test.describe('Stocks/REITs: Planejar, Registrar e Na sua carteira (EUA)', () =>
         'O ativo está na aba Stocks da sua Carteira. Os números ficam lá.',
       );
       await expect(bloco).not.toContainText('US$');
+      await expect(bloco).not.toContainText('da carteira');
 
       // 3. BRK.B → chave da Análise
       expect(await abrirAtivo(page, 'BRK.B')).toBe(true);
@@ -260,6 +261,12 @@ test.describe('Stocks/REITs: Planejar, Registrar e Na sua carteira (EUA)', () =>
         .poll(async () => (await overlay(page)).posicoes.O?.categoria, { timeout: 30_000 })
         .toBe('reits');
       expect(daAba(await linhasDaAba(page, 'reit'), 'O')).toHaveLength(1);
+      // REIT em US$ e sem pesos que misturam US$ e R$ (% da carteira, classe, ≈ % do total)
+      await page.reload({ waitUntil: 'load' });
+      const blocoO = page.locator('section[data-na-carteira]');
+      await expect(blocoO).toHaveAttribute('data-na-carteira', 'posicao', { timeout: 30_000 });
+      await expect(blocoO).toContainText('US$');
+      await expect(blocoO).not.toContainText('da carteira');
     } finally {
       await desfazerDesde(page, inicio, anotar);
       const depois = await overlay(page);

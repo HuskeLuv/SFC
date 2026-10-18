@@ -20,7 +20,9 @@
  * com a nota "Mesmo valor da aba ‹aba› da Carteira." Stock: a Carteira guarda o preço médio em R$
  * e soma a cotação em US$ (valoresMistos) — o card mostra só a quantidade e o link para a aba,
  * nunca um valor em R$ com o rótulo US$. A posição criada pelo wizard ('BRKB-…') casa a página
- * BRK.B.
+ * BRK.B. Nas classes EUA o card não mostra o peso da classe nem o "≈ X% da carteira total"
+ * (`semPesoCarteira`: a Carteira soma US$ ao total em R$) e o stock planejado não mostra o valor
+ * equivalente ao alvo (`abaMista`).
  */
 import Link from 'next/link';
 import { useState } from 'react';
@@ -224,7 +226,8 @@ export default function BlocoNaCarteira({
               </>
             )}
           </p>
-          {alvo !== null ? (
+          {/* stock: a aba Stocks soma cotação em US$ com preço médio em R$ — sem valor equivalente */}
+          {alvo !== null && !dados.abaMista ? (
             <p className="text-xs text-gray-500 dark:text-gray-400" data-valor-alvo="">
               {TP.valorAlvo}:{' '}
               <span className="font-semibold text-gray-700 tabular-nums dark:text-gray-200">

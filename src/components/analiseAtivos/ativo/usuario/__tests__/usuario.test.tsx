@@ -239,6 +239,8 @@ function SondaNaCarteira({
         carregandoNumeros: d.carregandoNumeros,
         moeda: d.moeda,
         valoresMistos: d.valoresMistos,
+        abaMista: d.abaMista,
+        semPesoCarteira: d.semPesoCarteira,
         cotacaoDolar: d.cotacaoDolar,
         assetIdPosicao: d.assetIdPosicao,
         tipoAsset: d.tipoAsset,
@@ -260,6 +262,8 @@ describe('useNaCarteiraAtivo', () => {
     expect(s.pctCarteira).toBeCloseTo((6252 / 100_000) * 100, 10);
     expect(s.classePct).toBe(21.9);
     expect(s.classeAlvo).toBe(20);
+    // Brasil: o peso na carteira e o da classe seguem como antes
+    expect(s).toMatchObject({ semPesoCarteira: false, abaMista: false });
     // plano = Objetivo da Carteira (% da aba); base do desvio = soma da aba
     expect(s.objetivoAbaPct).toBe(20);
     expect(s.temPlano).toBe(true);
@@ -321,8 +325,14 @@ describe('useNaCarteiraAtivo', () => {
       tipoAsset: 'stock',
       valorAba: 6252 + 1000,
     });
-    // nada é multiplicado pelo dólar: o valor da linha já não está em US$
-    expect(s.pctCarteira).toBeCloseTo((1000 / 100_000) * 100, 10);
+    // a Carteira soma US$ ao total em R$: sem '% da carteira' nem peso da classe (Stocks é 21,9%
+    // no resumo), e a aba Stocks sem unidade única também sem posição (abaMista)
+    expect(s).toMatchObject({
+      pctCarteira: null,
+      classePct: null,
+      abaMista: true,
+      semPesoCarteira: true,
+    });
   });
 
   it('EUA: overlay sem o cadastro da SEC (chave BRKB) também casa a página BRK.B', async () => {

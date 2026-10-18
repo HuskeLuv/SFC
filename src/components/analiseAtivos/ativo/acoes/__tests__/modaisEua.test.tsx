@@ -6,6 +6,7 @@ import { QueryClientProvider } from '@tanstack/react-query';
 import { createTestQueryClient } from '@/test/wrappers';
 import { mockFetchResponse } from '@/test/mocks/fetch';
 import { TEXTOS_EUA } from '@/services/analiseAtivos/textosEua';
+import { formatarTexto } from '@/services/analiseAtivos/textos';
 import type { OverlayCarteiraResposta } from '@/types/analiseAtivosApi';
 
 /**
@@ -55,6 +56,7 @@ vi.mock('@/components/carteira/wizard/shared/InstitutionPicker', () => ({
 import BarraAcoesAtivo from '../BarraAcoesAtivo';
 import ModalRegistrarOperacao from '../ModalRegistrarOperacao';
 import ModalPlanejar from '../ModalPlanejar';
+import ModalVerNaCarteira from '../ModalVerNaCarteira';
 import BlocoNaCarteira from '@/components/analiseAtivos/ativo/usuario/BlocoNaCarteira';
 
 const LINHA_BRKB = {
@@ -81,7 +83,10 @@ const ABA_STOCKS = {
 };
 const RESUMO = {
   totais: { dinheiro: 100_000 },
-  distribuicao: { stocks: { valor: 54_000, percentual: 54 } },
+  distribuicao: {
+    stocks: { valor: 54_000, percentual: 54 },
+    reits: { valor: 15_300, percentual: 15.3 },
+  },
 };
 const POSICAO_BRKB = {
   ativo: { nome: 'BRK.B', ticker: 'BRKB', instituicao: { id: 'inst-xp', nome: 'XP' } },
@@ -108,6 +113,65 @@ const POSICAO_BRKB = {
   ],
 };
 
+// REIT: a Carteira guarda q × US$ (4 PLD a US$ 110 = US$ 440)
+const POSICAO_PLD = {
+  ativo: { nome: 'PLD', ticker: 'PLD', instituicao: { id: 'inst-xp', nome: 'XP' } },
+  posicao: {
+    quantidade: 4,
+    precoMedio: 100,
+    valorAplicado: 400,
+    saldoBruto: 440,
+    rentabilidade: 10,
+    resultado: 40,
+    proventosRecebidos: 0,
+    cotacaoAtual: 110,
+  },
+  transacoes: [
+    {
+      id: 't-pld',
+      tipoOperacao: 'Aporte',
+      quantity: 4,
+      price: 100,
+      total: 400,
+      date: '2026-09-02T00:00:00.000Z',
+      notes: null,
+    },
+  ],
+};
+const LINHA_PLD = {
+  ...LINHA_BRKB,
+  id: 'pf-pld',
+  ticker: 'PLD-1-abc',
+  quantidade: 4,
+  precoAquisicao: 100,
+  cotacaoAtual: 110,
+  valorAtualizado: 440,
+  percentualCarteira: 100,
+};
+const OVERLAY_PLD: OverlayCarteiraResposta = {
+  posicoes: {
+    PLD: {
+      portfolioId: 'pf-pld',
+      quantidade: 4,
+      categoria: 'reits',
+      objetivoPct: null,
+      estrategia: 'value',
+      tipoFii: null,
+      assetId: 'a-pld',
+      tipoAsset: 'reit',
+    },
+  },
+  planejados: {},
+};
+function comAbaPld() {
+  overlay = OVERLAY_PLD;
+  fetchMock.mockImplementation(async (url: string) =>
+    String(url).startsWith('/api/carteira/reit')
+      ? mockFetchResponse({ cotacaoDolar: 5.4, secoes: [{ nome: 'Value', ativos: [LINHA_PLD] }] })
+      : roteador(String(url)),
+  );
+}
+
 let overlay: OverlayCarteiraResposta;
 let fetchMock: ReturnType<typeof vi.fn>;
 
@@ -122,6 +186,7 @@ function roteador(url: string) {
   if (url.startsWith('/api/carteira/configuracao'))
     return mockFetchResponse({ configuracoes: [{ categoria: 'stocks', target: 50 }] });
   if (url.startsWith('/api/ativos/pf-brkb')) return mockFetchResponse(POSICAO_BRKB);
+  if (url.startsWith('/api/ativos/pf-pld')) return mockFetchResponse(POSICAO_PLD);
   return mockFetchResponse({ error: 'não mockado' }, 500);
 }
 
@@ -384,5 +449,150 @@ describe('Na sua carteira — Stocks', () => {
     // a Carteira soma o REIT em US$ ao total em R$ (pendência): o card não mostra o peso
     expect(screen.queryByText('% da carteira')).toBeNull();
     expect(screen.getByText("Mesmo valor da aba REIT's da Carteira.")).toBeInTheDocument();
+  });
+});
+
+describe('Ver na Carteira — Stocks/REITs (a mesma regra do card)', () => {
+  it("REIT (PLD): valores em US$, sem o '% da carteira' que mistura US$ e R$", async () => {
+    comAbaPld();
+    const { container } = comCliente(
+      <ModalVerNaCarteira aberto onFechar={() => {}} ticker="PLD" classe="reit" />,
+    );
+    await waitFor(() =>
+      expect(container.ownerDocument.querySelector('[data-ver-posicao=""]')).not.toBeNull(),
+    );
+    const corpo = container.ownerDocument.querySelector('[data-ver-posicao=""]')!.textContent!;
+    expect(corpo).toMatch(/US\$\s440/);
+    expect(corpo).toMatch(/a US\$\s110,00/);
+    expect(corpo).toMatch(/US\$\s100,00/);
+    expect(corpo).not.toMatch(/R\$/);
+    expect(corpo).not.toMatch(/da carteira/);
+    // operações do REIT também em US$ (o wizard grava o preço em US$)
+    expect(screen.getByRole('table').textContent).toMatch(/US\$\s400/);
+  });
+
+  it('stock (BRK.B): só a quantidade e o link para a Carteira, nenhum valor', async () => {
+    comCliente(<ModalVerNaCarteira aberto onFechar={() => {}} ticker="BRK.B" classe="stock" />);
+    const celula = await waitFor(() => {
+      const el = document.querySelector('[data-ver-posicao="aba"]');
+      expect(el).not.toBeNull();
+      return el!;
+    });
+    expect(celula.textContent).toContain('3 ações');
+    const dialogo = screen.getByRole('dialog');
+    expect(dialogo.textContent).not.toMatch(/US\$|R\$|da carteira/);
+    expect(screen.queryByRole('table')).toBeNull();
+    expect(
+      screen.getByText('O ativo está na aba Stocks da sua Carteira. Os números ficam lá.'),
+    ).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Abrir Carteira completa' })).toHaveAttribute(
+      'href',
+      '/ativos/pf-brkb',
+    );
+  });
+});
+
+describe('Planejar e card — sem o peso da classe EUA nem valores mistos do stock', () => {
+  const planejar = (ticker: string, classe: 'stock' | 'reit') =>
+    comCliente(
+      <ModalPlanejar
+        aberto
+        onFechar={() => {}}
+        ticker={ticker}
+        classe={classe}
+        nome={ticker}
+        assetId={null}
+        preco={null}
+      />,
+    );
+
+  it('stock com posição: só a quantidade; sem classe, ≈ % do total nem valor equivalente', async () => {
+    planejar('BRK.B', 'stock');
+    const campo = await screen.findByLabelText('Peso-alvo dentro de Stocks (%)');
+    await waitFor(() => expect(screen.getByText('3 ações')).toBeInTheDocument());
+    fireEvent.change(campo, { target: { value: '10' } });
+    const dialogo = screen.getByRole('dialog');
+    expect(dialogo.textContent).not.toMatch(/R\$|US\$/);
+    expect(dialogo.textContent).not.toMatch(/da carteira/);
+    expect(screen.queryByText('Valor equivalente ao alvo')).toBeNull();
+    expect(document.querySelector('[data-classe-planejamento]')).toBeNull();
+    expect(document.querySelector('[data-equivalente-total]')).toBeNull();
+    expect(document.querySelector('[data-resumo-plano]')!.textContent).toBe(
+      formatarTexto(TEXTOS_EUA.carteira.planejarSemValores, { aba: 'Stocks' }),
+    );
+  });
+
+  it('stock sem posição: também sem valor equivalente (a aba Stocks mistura US$ e R$)', async () => {
+    overlay.posicoes = {};
+    planejar('AAPL', 'stock');
+    const campo = await screen.findByLabelText('Peso-alvo dentro de Stocks (%)');
+    await waitFor(() => expect(screen.getByText('não está na carteira')).toBeInTheDocument());
+    fireEvent.change(campo, { target: { value: '10' } });
+    expect(screen.queryByText('Valor equivalente ao alvo')).toBeNull();
+    expect(screen.getByRole('dialog').textContent).not.toMatch(/R\$|da carteira/);
+  });
+
+  it("REIT com posição: desvio em US$ na aba, sem a classe REIT's nem ≈ % do total", async () => {
+    comAbaPld();
+    planejar('PLD', 'reit');
+    const campo = await screen.findByLabelText("Peso-alvo dentro de REIT's (%)");
+    await waitFor(() => expect(screen.getByText(/4 ações · 100,0% da aba/)).toBeInTheDocument());
+    fireEvent.change(campo, { target: { value: '50' } });
+    const resumo = document.querySelector('[data-resumo-plano]')!.textContent!;
+    expect(resumo).toMatch(/US\$\s220/);
+    expect(screen.getByRole('dialog').textContent).not.toMatch(/R\$|da carteira|15,3/);
+    expect(document.querySelector('[data-classe-planejamento]')).toBeNull();
+  });
+
+  it("card do REIT: sem 'Classe REIT's no Planejamento: 15,3% da carteira'", async () => {
+    comAbaPld();
+    const { container } = comCliente(
+      <BlocoNaCarteira
+        ticker="PLD"
+        classe="reit"
+        nome="Prologis"
+        assetId={null}
+        precoCabecalho={null}
+        precoData={null}
+      />,
+    );
+    await waitFor(() =>
+      expect(container.querySelector('[data-na-carteira="posicao"]')).not.toBeNull(),
+    );
+    await screen.findByText(/US\$\s440,00/);
+    expect(container.querySelector('[data-linha-classe]')).toBeNull();
+    expect(container.querySelector('[data-equivalente-total]')).toBeNull();
+    expect(container.textContent).not.toMatch(/15,3|da carteira/);
+  });
+
+  it('card de stock planejado: objetivo sem o valor equivalente ao alvo', async () => {
+    overlay = {
+      posicoes: {},
+      planejados: {
+        AAPL: {
+          watchlistId: 'wl-aapl',
+          categoria: 'stocks',
+          objetivoPct: 10,
+          secao: 'value',
+          tipoAsset: 'stock',
+        },
+      },
+    } as unknown as OverlayCarteiraResposta;
+    const { container } = comCliente(
+      <BlocoNaCarteira
+        ticker="AAPL"
+        classe="stock"
+        nome="Apple"
+        assetId={null}
+        precoCabecalho={null}
+        precoData={null}
+      />,
+    );
+    await waitFor(() =>
+      expect(container.querySelector('[data-na-carteira="planejado"]')).not.toBeNull(),
+    );
+    expect(container.querySelector('[data-valor-alvo]')).toBeNull();
+    expect(container.querySelector('[data-linha-classe]')).toBeNull();
+    expect(container.textContent).not.toMatch(/R\$|US\$|da carteira/);
   });
 });

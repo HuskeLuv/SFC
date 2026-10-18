@@ -16,7 +16,10 @@
  *
  * Stocks e REITs (feature EUA, fatia D): grava o Objetivo da aba Stocks/REIT's (a rota acha o Asset
  * manual do usuário ou cria o planejado) — sem Asset de catálogo, o botão fica liberado. Os valores
- * da aba saem em US$, como a Carteira mostra (dinheiro0).
+ * da aba saem em US$, como a Carteira mostra (dinheiro0). Sem a linha da classe no Planejamento e
+ * sem o "≈ X% da carteira total" (`semPesoCarteira`: a Carteira soma US$ ao total em R$). Stock
+ * (`abaMista`: a aba Stocks soma cotação em US$ com preço médio em R$): a posição é só a
+ * quantidade e o resumo não calcula valor equivalente nem desvio — os números ficam na aba.
  */
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { useAtivoTopo } from '@/hooks/useAnaliseAtivos';
@@ -43,6 +46,7 @@ import {
   ROTULOS_SECAO,
   TEXTOS_ACOES_CARTEIRA,
 } from '@/services/analiseAtivos/textosAcoesCarteira';
+import { TEXTOS_EUA } from '@/services/analiseAtivos/textosEua';
 import { formatNumber } from '@/utils/format';
 import { ehClasseEua } from '@/types/analiseAtivosApi';
 import type { ModalPlanejarProps } from '@/types/analiseAtivosCriterios';
@@ -153,12 +157,13 @@ export default function ModalPlanejar({
   const valorAba = dados.valorAba;
   const carteiraVazia = dados.totalCarteira === 0;
   const abaVazia = !carteiraVazia && valorAba === 0;
+  const abaMista = dados.abaMista;
   const conta = useMemo(
     () =>
-      carteiraVazia || valorAba === null || !(valorAba > 0)
+      abaMista || carteiraVazia || valorAba === null || !(valorAba > 0)
         ? null
         : desvioAlvo({ valorPosicao, valorBase: valorAba, alvoPct: valorOk, preco: cotacao }),
-    [carteiraVazia, valorAba, valorPosicao, valorOk, cotacao],
+    [abaMista, carteiraVazia, valorAba, valorPosicao, valorOk, cotacao],
   );
 
   // EUA: sem catálogo na Carteira — a rota acha o Asset manual do usuário ou cria o planejado
@@ -225,28 +230,34 @@ export default function ModalPlanejar({
       : '—';
   const posicaoLinha =
     dados.status === 'posicao' && linha
-      ? formatarTexto(T.posicaoValor, {
-          qtd: inteiro(linha.quantidade),
-          un: cl.un,
-          pct: pct1(linha.percentualCarteira),
-          // stock: preço médio em R$ e cotação em US$ na aba (valoresMistos) — sem valor aqui
-          valor: dados.valoresMistos ? '—' : dinheiro(linha.valorAtualizado),
-        })
-      : dados.status === 'posicao'
-        ? '—'
-        : T.semPosicao;
-  // "≈ X% da carteira total" = objetivo × peso atual da aba na carteira (informativo)
-  const equivalenteLinha = carteiraVazia
-    ? T.equivalenteCarteiraVazia
-    : abaVazia
-      ? formatarTexto(T.equivalenteAbaVazia, { aba })
-      : valorOk !== null && dados.classePct !== null
-        ? formatarTexto(T.equivalenteTotal, {
-            pct: pct1((valorOk * dados.classePct) / 100),
-            aba,
-            peso: pct1(dados.classePct),
+      ? abaMista
+        ? // stock: preço médio em R$ e cotação em US$ na aba — só a quantidade
+          `${inteiro(linha.quantidade)} ${cl.un}`
+        : formatarTexto(T.posicaoValor, {
+            qtd: inteiro(linha.quantidade),
+            un: cl.un,
+            pct: pct1(linha.percentualCarteira),
+            valor: dinheiro(linha.valorAtualizado),
           })
-        : null;
+      : dados.status === 'posicao' && abaMista && dados.quantidade !== null
+        ? `${inteiro(dados.quantidade)} ${cl.un}`
+        : dados.status === 'posicao'
+          ? '—'
+          : T.semPosicao;
+  // "≈ X% da carteira total" = objetivo × peso atual da aba na carteira (informativo)
+  const equivalenteLinha = dados.semPesoCarteira
+    ? null
+    : carteiraVazia
+      ? T.equivalenteCarteiraVazia
+      : abaVazia
+        ? formatarTexto(T.equivalenteAbaVazia, { aba })
+        : valorOk !== null && dados.classePct !== null
+          ? formatarTexto(T.equivalenteTotal, {
+              pct: pct1((valorOk * dados.classePct) / 100),
+              aba,
+              peso: pct1(dados.classePct),
+            })
+          : null;
 
   const rodape = (
     <>
@@ -347,10 +358,12 @@ export default function ModalPlanejar({
             </>
           )}
         </div>
-        <div className={LINHA_FORM}>
-          <span>{T.classe}</span>
-          <span className="text-right text-[13px]">{carregando ? '…' : classeLinha}</span>
-        </div>
+        {dados.semPesoCarteira ? null : (
+          <div className={LINHA_FORM} data-classe-planejamento="">
+            <span>{T.classe}</span>
+            <span className="text-right text-[13px]">{carregando ? '…' : classeLinha}</span>
+          </div>
+        )}
         <div className={LINHA_FORM}>
           <span>{T.posicao}</span>
           <span className="text-right text-[13px] tabular-nums">
@@ -393,11 +406,13 @@ export default function ModalPlanejar({
             </>
           ) : (
             <span>
-              {valorOk !== null && carteiraVazia
-                ? T.resumoCarteiraVazia
-                : valorOk !== null && abaVazia
-                  ? formatarTexto(T.resumoAbaVazia, { aba })
-                  : T.resumoVazio}
+              {abaMista
+                ? formatarTexto(TEXTOS_EUA.carteira.planejarSemValores, { aba })
+                : valorOk !== null && carteiraVazia
+                  ? T.resumoCarteiraVazia
+                  : valorOk !== null && abaVazia
+                    ? formatarTexto(T.resumoAbaVazia, { aba })
+                    : T.resumoVazio}
             </span>
           )}
         </div>

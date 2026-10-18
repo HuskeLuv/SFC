@@ -154,6 +154,9 @@ export const TEXTOS_EUA = {
       'A cotação EUA não é exibida nesta versão: informe o preço pago em US$ e a cotação do dólar.',
     /** fatia D: validação do campo de câmbio do Registrar operação */
     cambioInvalido: 'Informe a cotação do dólar, maior que zero.',
+    /** Planejar de stock: a aba Stocks soma cotação em US$ com preço médio em R$ */
+    planejarSemValores:
+      'O peso-alvo fica gravado na aba {aba}. O valor equivalente e o desvio aparecem lá, na Carteira.',
   },
 
   /** Busca. */
