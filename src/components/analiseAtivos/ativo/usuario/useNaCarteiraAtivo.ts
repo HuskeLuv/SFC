@@ -150,7 +150,13 @@ export function totalDinheiro(resumo: CarteiraResumo | undefined | null): number
     .reduce((s, [, v]) => s + (v?.valor || 0), 0);
 }
 
-const ABA_DA_CLASSE: Record<ClasseQuadro, string> = { acao: 'acoes', fii: 'fiis' };
+/** Categoria de resumo.distribuicao por classe (carteiraTabsConfig). */
+const ABA_DA_CLASSE: Record<ClasseQuadro, string> = {
+  acao: 'acoes',
+  fii: 'fiis',
+  stock: 'stocks',
+  reit: 'reits',
+};
 
 export function linhaDoTicker(
   dados: DadosAba | undefined,

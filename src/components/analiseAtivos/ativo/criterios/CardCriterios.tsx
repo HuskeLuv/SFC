@@ -24,7 +24,11 @@ import { RodapeFrescorBloco } from '@/components/analiseAtivos/ativo/topo/SeloFr
 import PilulasJanela from '@/components/analiseAtivos/comum/PilulasJanela';
 import { MenuBlocoPagina } from '@/components/analiseAtivos/comum/PorQueConferencia';
 import { TEXTOS_ATIVO } from '@/services/analiseAtivos/textosAtivo';
-import { TEXTOS_CRITERIOS, formatarTexto } from '@/services/analiseAtivos/textosCriterios';
+import {
+  TEXTOS_CRITERIOS,
+  formatarTexto,
+  textoFonteClasse,
+} from '@/services/analiseAtivos/textosCriterios';
 import {
   JANELA_PADRAO,
   type CardCriteriosProps,
@@ -32,6 +36,7 @@ import {
   type CriteriosAtivo,
   type Janela,
 } from '@/types/analiseAtivosCriterios';
+import type { ClasseQuadro } from '@/types/analiseAtivosApi';
 
 export type { CardCriteriosProps };
 
@@ -58,9 +63,11 @@ export function notasDoPerfil(criterios: CriteriosAtivo, janela: Janela): string
  * Frase de fonte do rodapé: com as origens da avaliação (v2.5), a montada no servidor; sem elas, a
  * fixa da classe (v2.4).
  */
-export function fonteDoCard(criterios: CriteriosAtivo, classe: 'acao' | 'fii'): string {
+export function fonteDoCard(criterios: CriteriosAtivo, classe: ClasseQuadro): string {
   if (criterios.fontes && criterios.fonte) return criterios.fonte;
-  return classe === 'fii' ? TC.fonte.fii : TC.fonte.acao;
+  if (classe === 'acao' || classe === 'fii') return classe === 'fii' ? TC.fonte.fii : TC.fonte.acao;
+  // EUA (fatia 0): 'Fonte: relatório anual 10-K (SEC).'
+  return textoFonteClasse(classe);
 }
 
 export default function CardCriterios({

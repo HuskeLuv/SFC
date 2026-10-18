@@ -26,6 +26,9 @@ const CARD =
 const MODULO_DA_CLASSE: Record<ClasseQuadro, string> = {
   acao: MODULOS_TRILHA_ESR[7].title,
   fii: MODULOS_TRILHA_ESR[8].title,
+  // EUA: a trilha não tem módulo próprio; os mais próximos (empresas / imóveis)
+  stock: MODULOS_TRILHA_ESR[7].title,
+  reit: MODULOS_TRILHA_ESR[8].title,
 };
 
 /** Classe pelo prop explícito ou pelo título do bloco (TEXTOS_TELA.educacao). */

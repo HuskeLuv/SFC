@@ -14,6 +14,11 @@
  * (janela 10 = só "sem dado nas demonstrações"); desvio na base da carteira TOTAL ('da carteira');
  * tooltips de lucro/margem descontados e do fallback; pares de chips de FII ativos; selo 'dados
  * incompletos' (§6) e a nota de fonte montada pelas origens (textoNotaFonte).
+ *
+ * Stocks e REITs (fatia 0 da feature EUA): nomes dos perfis stock/stock_financeira/reit, fato do
+ * pagamento sobre caixa operacional ≤ 0, motivo da ocupação sem fonte, fonte '10-K (SEC)' na nota
+ * de fonte das classes EUA. O resto dos textos EUA (universo, cotação, EBITDA calculado, tooltips
+ * dos critérios substitutos) fica em textosEua.ts.
  */
 import { formatarTexto } from '@/services/analiseAtivos/textos';
 import type {
@@ -24,7 +29,7 @@ import type {
   ObsCriterio,
   PerfilCriterio,
 } from '@/types/analiseAtivosCriterios';
-import type { ClasseQuadro } from '@/types/analiseAtivosApi';
+import { ehClasseEua, type ClasseQuadro } from '@/types/analiseAtivosApi';
 import type { IdFonte } from '@/types/analiseAtivosFontes';
 
 export { formatarTexto };
@@ -112,6 +117,8 @@ export const TEXTOS_CRITERIOS = {
     /** rec. 4: base de proventos começa depois do início da janela */
     baseProventosCurta: 'sem dado nas demonstrações (proventos registrados desde {mesAno})',
     ebitdaNaoPositivo: 'EBITDA ≤ 0 em {ano}',
+    /** EUA (REIT, 'pay'): dividendos ÷ caixa operacional com FCO ≤ 0 = não atende */
+    caixaOperacionalNaoPositivo: 'caixa operacional ≤ 0 em {ano}',
   },
 
   /**
@@ -123,6 +130,8 @@ export const TEXTOS_CRITERIOS = {
       vac: 'sem dado nas demonstrações · a vacância informada à CVM pode diferir do relatório do gestor e fica fora do critério até a conferência dos fundos',
       inad: 'sem dado nas demonstrações · existe só nos relatórios gerenciais em PDF; entra quando a planilha curada estiver no ar',
       ltv: 'sem dado nas demonstrações · existe só nos relatórios gerenciais em PDF; entra quando a planilha curada estiver no ar',
+      /** EUA (REIT): ocupação não existe nos dados estruturados (XBRL) da SEC */
+      ocup: 'sem dado nas demonstrações · a ocupação não existe nos dados estruturados da SEC (está só no texto do 10-K); entra com a leitura do relatório',
     } satisfies Partial<Record<IdCriterio, string>>,
     instituicao_financeira:
       'não se aplica a instituições financeiras (bancos, seguradoras e holdings financeiras): o balanço não tem EBITDA nem dívida líquida',
@@ -167,6 +176,9 @@ export const TEXTOS_CRITERIOS = {
       acao_financeira: 'instituições financeiras',
       fii_tijolo: 'tijolo',
       fii_papel: 'papel',
+      stock: 'stocks',
+      stock_financeira: 'instituições financeiras',
+      reit: 'REITs',
     } satisfies Record<PerfilCriterio, string>,
   },
 
@@ -182,6 +194,8 @@ export const TEXTOS_CRITERIOS = {
     /** rótulo da CVM por classe, dentro de textoNotaFonte */
     cvmAcao: 'DFP/ITR (CVM)',
     cvmFii: 'informes mensais e trimestrais dos FIIs (CVM)',
+    /** EUA (stock/reit): rótulo da SEC dentro de textoNotaFonte */
+    sec: 'relatório anual 10-K (SEC)',
     /** 'Fonte: {fontes}.' — {fontes} = rótulos unidos por separador, provedores antes da CVM */
     frase: 'Fonte: {fontes}.',
     separador: ' · ',
@@ -293,8 +307,9 @@ export type RotulosFonte = Readonly<Record<string, string>>;
 
 /**
  * Frase de fonte montada pelas origens (card de critérios e Essencial, v2.5): provedores primeiro
- * (rótulo do registro; sem rótulo, o próprio id), a CVM por último com o rótulo da classe. Sem
- * nenhuma origem (v2.4/v1), só a CVM: 'Fonte: DFP/ITR (CVM).'
+ * (rótulo do registro; sem rótulo, o próprio id), a fonte REGULATÓRIA da classe por último (CVM no
+ * Brasil; SEC nas classes EUA, 'Fonte: relatório anual 10-K (SEC).'). Sem nenhuma origem (v2.4/v1),
+ * só a regulatória: 'Fonte: DFP/ITR (CVM).'
  */
 export function textoNotaFonte(
   classe: ClasseQuadro,
@@ -302,11 +317,18 @@ export function textoNotaFonte(
   rotulos: RotulosFonte = {},
 ): string {
   const F = TEXTOS_CRITERIOS.fonte;
-  const cvm = classe === 'fii' ? F.cvmFii : F.cvmAcao;
-  const provedores = [...new Set(fontes.filter((f) => f !== 'cvm'))].map((f) => rotulos[f] ?? f);
-  const temCvm = fontes.length === 0 || fontes.includes('cvm');
-  const partes = [...provedores, ...(temCvm ? [cvm] : [])];
+  const base = ehClasseEua(classe)
+    ? { id: 'sec', rotulo: F.sec }
+    : { id: 'cvm', rotulo: classe === 'fii' ? F.cvmFii : F.cvmAcao };
+  const provedores = [...new Set(fontes.filter((f) => f !== base.id))].map((f) => rotulos[f] ?? f);
+  const temBase = fontes.length === 0 || fontes.includes(base.id);
+  const partes = [...provedores, ...(temBase ? [base.rotulo] : [])];
   return formatarTexto(F.frase, { fontes: partes.join(F.separador) });
+}
+
+/** Frase de fonte FIXA do card por classe (sem origens): CVM no Brasil, SEC nas classes EUA. */
+export function textoFonteClasse(classe: ClasseQuadro): string {
+  return textoNotaFonte(classe);
 }
 
 /** Placeholders aceitos nos textos deste módulo (o teste confere). */

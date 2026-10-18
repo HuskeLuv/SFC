@@ -254,7 +254,10 @@ export const TEXTOS_TELA = {
   },
   quadro: {
     rotulo: 'Quadro',
-    abas: { acao: 'Ações', fii: 'FIIs' } satisfies Record<ClasseQuadro, string>,
+    abas: { acao: 'Ações', fii: 'FIIs', stock: 'Stocks', reit: 'REITs' } satisfies Record<
+      ClasseQuadro,
+      string
+    >,
     modos: { resumo: 'Resumo', detalhado: 'Detalhado' },
     ordem: 'Ordem',
     ordenarPor: 'Ordenar por {valor}',
@@ -304,6 +307,14 @@ export const TEXTOS_TELA = {
       imoveisCris: 'Imóveis/CRIs (CVM)',
       mesesRendimento: 'Meses com rendimento',
       valorMercado: 'Valor de mercado',
+      // EUA (fatia 0; COLUNAS.stock/reit em analiseAtivosVisual.ts)
+      stock: 'Stock',
+      reit: 'REIT',
+      precoUsd: 'Preço (US$)',
+      dpaUsd: 'Div./ação (US$)',
+      fcoAcao: 'Caixa op./ação',
+      divFco: 'Div./caixa op.',
+      anosDividendo: 'Div. crescendo',
     },
     anos: '{n} anos',
     planejadoPct: 'Planejado · {valor}%',
@@ -332,7 +343,12 @@ export const TEXTOS_TELA = {
     legenda: 'Quadro de {classe}, ordenado por {valor}',
     ordenadoAnuncio: 'Ordenado por {valor}',
     contagemOrdem: '{n} de {total} · ordenado por {valor}',
-    classesMinusculas: { acao: 'ações', fii: 'FIIs' },
+    classesMinusculas: {
+      acao: 'ações',
+      fii: 'FIIs',
+      stock: 'stocks',
+      reit: 'REITs',
+    } satisfies Record<ClasseQuadro, string>,
     vazioFiltroTexto: 'Tire um filtro para ver mais ativos.',
     semPosicaoTexto:
       'Registre uma operação ou planeje um ativo para ele aparecer aqui com a sua posição.',
@@ -355,7 +371,10 @@ export const TEXTOS_TELA = {
     placeholder: 'Buscar ação ou FII por ticker ou nome',
     atalho: 'Pressione / para buscar',
     semResultado: 'A busca cobre ações e FIIs da B3, por ticker ou nome',
-    grupos: { acao: 'Ações', fii: 'FIIs' } satisfies Record<ClasseQuadro, string>,
+    grupos: { acao: 'Ações', fii: 'FIIs', stock: 'Stocks', reit: 'REITs' } satisfies Record<
+      ClasseQuadro,
+      string
+    >,
     recentes: 'Buscas recentes',
     fechar: 'Fechar busca',
     // ---- acréscimos da fatia A (busca) ----
@@ -400,6 +419,8 @@ export const TEXTOS_TELA = {
     voltarQuadroClasse: {
       acao: 'Voltar ao Quadro de Ações',
       fii: 'Voltar ao Quadro de FIIs',
+      stock: 'Voltar ao Quadro de Stocks',
+      reit: 'Voltar ao Quadro de REITs',
     } satisfies Record<ClasseQuadro, string>,
     tiposFii: {
       tijolo: 'FII de tijolo',
@@ -475,6 +496,8 @@ export const TEXTOS_TELA = {
       fundamentosDfpItr: 'CVM DFP {ano} / ITR {valor}',
       fundamentosDfp: 'CVM DFP {ano}',
       fii: 'informe FII {data}',
+      /** EUA: relatório anual 10-K na SEC */
+      sec: 'SEC 10-K {ano}',
     },
     educacaoBotao: 'Abrir na Educação',
     educacaoNota:
@@ -508,6 +531,16 @@ export const TEXTOS_TELA = {
       titulo: 'Aprenda a analisar FIIs',
       descricao:
         'Aprenda os fundamentos para investir em fundos imobiliários e receber rendimentos todo mês',
+    },
+    stock: {
+      titulo: 'Aprenda a analisar stocks',
+      descricao:
+        'Aprenda os fundamentos para estudar empresas listadas nos EUA a partir dos relatórios anuais',
+    },
+    reit: {
+      titulo: 'Aprenda a analisar REITs',
+      descricao:
+        'Aprenda os fundamentos para estudar os fundos imobiliários dos EUA a partir dos relatórios anuais',
     },
   } satisfies Record<ClasseQuadro, { titulo: string; descricao: string }>,
   /** Definição + referência usual de cada múltiplo (Valuation e KPIs). Factual, sem juízo. */
@@ -1182,6 +1215,8 @@ export const TEXTOS_TELA = {
       fundamentos: 'CVM · DFP/ITR',
       fii: 'CVM · informe mensal',
       proventos: 'B3 · proventos',
+      /** EUA */
+      sec: 'SEC · 10-K',
     },
     documentos: {
       itr: 'ITR {valor}',

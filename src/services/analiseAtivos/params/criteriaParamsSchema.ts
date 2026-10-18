@@ -28,6 +28,17 @@
  *    `fontes` (prioridade por série, agregação anual, sanidade por camada, séries obrigatórias).
  *    Ausente = só 'cvm' (fontesEfetivas).
  * Os padrões (.default) reproduzem a v2.4: a v1 gravada em produção avalia igual.
+ *
+ * v3 (Stocks e REITs, docs/analise-ativos/stocks-reits/desenho.json, fatia 0) — tudo OPCIONAL (a v1
+ * e a v2 de produção continuam válidas e avaliam igual):
+ *  - perfis.stock (6 critérios, mesmos ids das ações), perfis.stock_financeira ({ base: 'stock',
+ *    naoSeAplica ⊂ ids de stock, regraPerfil: 'sic_financeira' }; exige perfis.stock) e perfis.reit
+ *    (6 critérios; ocup inativa 'sem_fonte_confiavel');
+ *  - fontes.prioridade.porMercado (us_stocks/us_reits → ['sec']): vale ANTES de porSerie/padrao
+ *    para os ativos daquele mercado; NÃO entra em fontesCitadas (o job BR não muda de caminho);
+ *  - universoEua: corte de free float por classe com histerese (decisão do Wellington de 17/10:
+ *    stocks ≥ US$ 2 bi, saem abaixo de US$ 1,6 bi; REITs de patrimônio ≥ US$ 2 bi) e a sanidade do
+ *    float. Ausente = UNIVERSO_EUA_PADRAO (src/types/analiseAtivosEua.ts).
  */
 import { z } from 'zod';
 import {
@@ -44,11 +55,13 @@ import {
   IDS_CRITERIO,
   SERIES_CRITERIO,
   SERIES_CRITERIO_LEGADAS,
+  UNIDADES_CRITERIO,
   serieCanonica,
   type IdCriterio,
-  type PerfilComLista,
+  type PerfilCriterio,
   type SerieCriterio,
 } from '@/types/analiseAtivosCriterios';
+import { UNIVERSO_EUA_PADRAO, type UniversoEuaParams } from '@/types/analiseAtivosEua';
 
 const janela = z.union([z.literal(3), z.literal(5), z.literal(10)]);
 
@@ -68,6 +81,8 @@ const fontesSchema = z.strictObject({
   prioridade: z.strictObject({
     padrao: listaFontes,
     porSerie: z.partialRecord(z.enum(SERIES_FUNDAMENTO), listaFontes),
+    /** v3: prioridade por mercado (us_stocks/us_reits → ['sec']); vence porSerie/padrao */
+    porMercado: z.partialRecord(z.enum(MERCADOS_FONTE), listaFontes).optional(),
   }),
   /** séries mensais/trimestrais → valor do ano (decisão 4: 'ultimo'); ausente = 'ultimo' */
   agregacaoAnual: z.partialRecord(z.enum(SERIES_FUNDAMENTO), z.enum(['ultimo', 'media'])),
@@ -96,7 +111,7 @@ const criterio = z
     serieFallback: serieCriterio.optional(),
     limite: z.number().optional(),
     formato: z.enum(['n', 'n1', 'n2', '%', 'x']),
-    unidade: z.enum(['R$ mi', 'R$ bi', 'R$']).optional(),
+    unidade: z.enum(UNIDADES_CRITERIO).optional(),
     /** false = critério sempre 'sem_dado' com motivoInativo (D3); ausente = true */
     ativo: z.boolean().optional(),
     motivoInativo: z.literal('sem_fonte_confiavel').optional(),
@@ -138,6 +153,33 @@ const listaCriterios = z
     });
   });
 
+/** Corte de free float de uma classe EUA: entra ≥ entrada; sai < saida (histerese). */
+const corteFloat = z
+  .strictObject({
+    floatEntradaUsd: z.number().positive(),
+    floatSaidaUsd: z.number().positive(),
+  })
+  .refine((c) => c.floatSaidaUsd <= c.floatEntradaUsd, {
+    message: 'floatSaidaUsd deve ser ≤ floatEntradaUsd (histerese)',
+    path: ['floatSaidaUsd'],
+  });
+
+/** v3: universo EUA (sec-cadastro, fatia A). Ausente = UNIVERSO_EUA_PADRAO. */
+const universoEuaSchema = z.strictObject({
+  stock: corteFloat,
+  reit: corteFloat,
+  sanidadeFloat: z
+    .strictObject({
+      maxUsd: z.number().positive(),
+      precoImplicitoMinUsd: z.number().positive(),
+      precoImplicitoMaxUsd: z.number().positive(),
+    })
+    .refine((s) => s.precoImplicitoMinUsd < s.precoImplicitoMaxUsd, {
+      message: 'precoImplicitoMinUsd deve ser < precoImplicitoMaxUsd',
+      path: ['precoImplicitoMinUsd'],
+    }),
+});
+
 export const criteriaParamsSchema = z
   .strictObject({
     versao: z.number().int().positive(),
@@ -163,6 +205,18 @@ export const criteriaParamsSchema = z
       }),
       fii_tijolo: listaCriterios,
       fii_papel: listaCriterios,
+      /** v3 (EUA): mesmos ids das ações (rec/luc/ebitda/mg/dl/fcl) */
+      stock: listaCriterios.optional(),
+      /** v3 (EUA): financeira por SIC 6000–6799 exceto 6798 (+ override por CIK); n de 6 com [] */
+      stock_financeira: z
+        .strictObject({
+          base: z.literal('stock'),
+          naoSeAplica: z.array(z.enum(IDS_CRITERIO)),
+          regraPerfil: z.literal('sic_financeira'),
+        })
+        .optional(),
+      /** v3 (EUA): rec, dpa, fco_acao, dl (6×), pay (90), ocup (inativa) */
+      reit: listaCriterios.optional(),
     }),
     /** par do chip de FII: id de tijolo → id de papel */
     equivalencias: z.partialRecord(z.enum(IDS_CRITERIO), z.enum(IDS_CRITERIO)),
@@ -190,6 +244,8 @@ export const criteriaParamsSchema = z
       .default({ margem: { receitaMenorQueLucro: 'sem_dado' } }),
     /** v2.5: camada de fontes; ausente = só 'cvm' (fontesEfetivas) */
     fontes: fontesSchema.optional(),
+    /** v3: universo EUA; ausente = UNIVERSO_EUA_PADRAO (universoEuaDe) */
+    universoEua: universoEuaSchema.optional(),
   })
   .superRefine((p, ctx) => {
     if (!p.janelas.includes(p.janelaPadrao)) {
@@ -212,6 +268,33 @@ export const criteriaParamsSchema = z
         path: ['perfis', 'acao_financeira', 'naoSeAplica'],
         message: 'ids repetidos',
       });
+    }
+    const sf = p.perfis.stock_financeira;
+    if (sf) {
+      if (!p.perfis.stock) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['perfis', 'stock_financeira'],
+          message: 'stock_financeira exige perfis.stock',
+        });
+      }
+      const idsStock = new Set((p.perfis.stock ?? []).map((c) => c.id));
+      sf.naoSeAplica.forEach((id, i) => {
+        if (!idsStock.has(id)) {
+          ctx.addIssue({
+            code: 'custom',
+            path: ['perfis', 'stock_financeira', 'naoSeAplica', i],
+            message: `id fora de perfis.stock: ${id}`,
+          });
+        }
+      });
+      if (new Set(sf.naoSeAplica).size !== sf.naoSeAplica.length) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['perfis', 'stock_financeira', 'naoSeAplica'],
+          message: 'ids repetidos',
+        });
+      }
     }
     const idsTijolo = new Set(p.perfis.fii_tijolo.map((c) => c.id));
     const idsPapel = new Set(p.perfis.fii_papel.map((c) => c.id));
@@ -253,9 +336,17 @@ export function fontesEfetivas(params: Pick<CriteriaParams, 'fontes'>): FontesPa
   );
 }
 
-/** Fontes de uma série, na ordem da prioridade (porSerie[serie] ?? padrao). */
-export function prioridadeDaSerie(fontes: FontesParams, serie: SerieFundamento): IdFonte[] {
-  return [...(fontes.prioridade.porSerie[serie] ?? fontes.prioridade.padrao)];
+/**
+ * Fontes de uma série, na ordem da prioridade: v3 porMercado[mercado] (EUA) → porSerie[serie] →
+ * padrao. Sem `mercado` (chamadas da v2.5, BR) = porSerie[serie] ?? padrao.
+ */
+export function prioridadeDaSerie(
+  fontes: FontesParams,
+  serie: SerieFundamento,
+  mercado?: MercadoFonte,
+): IdFonte[] {
+  const doMercado = mercado ? fontes.prioridade.porMercado?.[mercado] : undefined;
+  return [...(doMercado ?? fontes.prioridade.porSerie[serie] ?? fontes.prioridade.padrao)];
 }
 
 /** Agregação anual de uma série mensal/trimestral (ausente = 'ultimo', decisão 4). */
@@ -279,18 +370,54 @@ export function fontesCitadas(fontes: FontesParams): IdFonte[] {
   return [...new Set(todas)];
 }
 
-/** Lista de critérios de um perfil (a financeira usa a de 'acao' com naoSeAplica). */
-export function criteriosDoPerfil(
-  params: CriteriaParams,
-  perfil: PerfilComLista | 'acao_financeira',
-): DefCriterio[] {
-  return perfil === 'acao_financeira' ? params.perfis.acao : params.perfis[perfil];
+/**
+ * Perfil com lista nesta versão de params? Os BR sempre; os EUA só quando a versão os traz (v3+).
+ * O job EUA (fatia B) recusa rodar com uma versão sem os perfis EUA.
+ */
+export function perfilDisponivel(params: CriteriaParams, perfil: PerfilCriterio): boolean {
+  switch (perfil) {
+    case 'stock':
+      return params.perfis.stock !== undefined;
+    case 'stock_financeira':
+      return params.perfis.stock !== undefined && params.perfis.stock_financeira !== undefined;
+    case 'reit':
+      return params.perfis.reit !== undefined;
+    default:
+      return true;
+  }
 }
 
-/** Ids que não se aplicam ao perfil (só a financeira tem; D4; vazio na v2 = "n de 6"). */
-export function idsNaoSeAplica(
-  params: CriteriaParams,
-  perfil: PerfilComLista | 'acao_financeira',
-): IdCriterio[] {
-  return perfil === 'acao_financeira' ? [...params.perfis.acao_financeira.naoSeAplica] : [];
+/**
+ * Lista de critérios de um perfil (a financeira usa a lista-base com naoSeAplica). Perfil EUA
+ * ausente na versão (v1/v2) = lista VAZIA (nunca lança: a leitura de uma linha EUA com params
+ * antigos só fica sem rótulos; quem avalia confere perfilDisponivel antes).
+ */
+export function criteriosDoPerfil(params: CriteriaParams, perfil: PerfilCriterio): DefCriterio[] {
+  switch (perfil) {
+    case 'acao':
+    case 'acao_financeira':
+      return params.perfis.acao;
+    case 'fii_tijolo':
+      return params.perfis.fii_tijolo;
+    case 'fii_papel':
+      return params.perfis.fii_papel;
+    case 'stock':
+    case 'stock_financeira':
+      return params.perfis.stock ?? [];
+    case 'reit':
+      return params.perfis.reit ?? [];
+  }
+}
+
+/** Ids que não se aplicam ao perfil (só as financeiras têm; D4; vazio na v2/v3 = "n de 6"). */
+export function idsNaoSeAplica(params: CriteriaParams, perfil: PerfilCriterio): IdCriterio[] {
+  if (perfil === 'acao_financeira') return [...params.perfis.acao_financeira.naoSeAplica];
+  if (perfil === 'stock_financeira')
+    return [...(params.perfis.stock_financeira?.naoSeAplica ?? [])];
+  return [];
+}
+
+/** Universo EUA efetivo: o do params (v3+) ou o padrão do código (UNIVERSO_EUA_PADRAO). */
+export function universoEuaDe(params: Pick<CriteriaParams, 'universoEua'>): UniversoEuaParams {
+  return params.universoEua ?? UNIVERSO_EUA_PADRAO;
 }

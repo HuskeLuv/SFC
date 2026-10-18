@@ -60,6 +60,9 @@ export interface EntradaSecaoOperacao {
 export const SECOES_OPERACAO: Record<ClasseQuadro, readonly string[]> = {
   acao: ['value', 'growth', 'risk'],
   fii: ['tijolo', 'tvm', 'fofi', 'infra'],
+  // EUA (fatia 0): a rota de operação aceita estrategia (stock) / estrategiaReit (reit) nestes 3
+  stock: ['value', 'growth', 'risk'],
+  reit: ['value', 'growth', 'risk'],
 };
 
 /**
@@ -78,10 +81,21 @@ export const SECAO_POR_TIPO_CVM: Record<FiiTipoTela, string> = {
  * Seção em que a Carteira EXIBE uma posição sem seção válida gravada (fallback de
  * /api/carteira/acoes e /api/carteira/fii). A recompra repete esse valor para não mudar a aba.
  */
-export const SECAO_POSICAO_SEM_SECAO: Record<ClasseQuadro, string> = { acao: 'value', fii: 'fofi' };
+export const SECAO_POSICAO_SEM_SECAO: Record<ClasseQuadro, string> = {
+  acao: 'value',
+  fii: 'fofi',
+  // /api/carteira/stocks e /reit exibem a posição sem seção válida em 'value'
+  stock: 'value',
+  reit: 'value',
+};
 
 /** Seção padrão quando nada indica outra (ação → 'value'; FII sem tipo → 'tvm'). */
-export const SECAO_PADRAO: Record<ClasseQuadro, string> = { acao: 'value', fii: 'tvm' };
+export const SECAO_PADRAO: Record<ClasseQuadro, string> = {
+  acao: 'value',
+  fii: 'tvm',
+  stock: 'value',
+  reit: 'value',
+};
 
 export function secaoValida(classe: ClasseQuadro, valor: string | null | undefined): boolean {
   return !!valor && SECOES_OPERACAO[classe].includes(valor);
@@ -94,7 +108,8 @@ export function secaoOperacao({
   tipoCvm,
 }: EntradaSecaoOperacao): SecaoOperacao {
   if (posicao) {
-    const daPosicao = classe === 'acao' ? posicao.estrategia : posicao.tipoFii;
+    // FII guarda a seção em tipoFii; ação, stock e REIT em estrategia
+    const daPosicao = classe === 'fii' ? posicao.tipoFii : posicao.estrategia;
     if (secaoValida(classe, daPosicao)) {
       return { valor: daPosicao as string, editavel: false, origem: 'posicao' };
     }

@@ -67,7 +67,13 @@ import type { ClasseQuadro } from '@/types/analiseAtivosApi';
 
 const TC = TEXTOS_COMPARADOR;
 const MAX = String(MAX_ATIVOS_COMPARADOR);
-const OUTRA: Record<ClasseQuadro, ClasseQuadro> = { acao: 'fii', fii: 'acao' };
+/** A outra classe do MESMO mercado (o Comparador só compara a mesma classe). */
+const OUTRA: Record<ClasseQuadro, ClasseQuadro> = {
+  acao: 'fii',
+  fii: 'acao',
+  stock: 'reit',
+  reit: 'stock',
+};
 
 /** Texto do aviso de um ticker ignorado do link. */
 export function textoIgnorado(

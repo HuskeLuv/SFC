@@ -77,7 +77,7 @@ export const TEXTOS_ALERTAS = {
     vazioClasseTitulo: 'Sem alertas de {classe} nos últimos 90 dias',
     vazioClasseUm: 'Há 1 alerta em {classe}.',
     vazioClasseN: 'Há {n} alertas em {classe}.',
-    classe: { acao: 'Ações', fii: 'FIIs' },
+    classe: { acao: 'Ações', fii: 'FIIs', stock: 'Stocks', reit: 'REITs' },
     erroTitulo: 'Não foi possível carregar os alertas',
     erroTexto:
       'A conexão com o servidor falhou. Seus dados estão guardados; tente de novo em instantes.',

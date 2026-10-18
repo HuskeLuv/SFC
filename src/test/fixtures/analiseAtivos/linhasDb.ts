@@ -69,6 +69,12 @@ export function linhaQuadroDb(over: Partial<AnaliseQuadroLinha> = {}): AnaliseQu
     // v2.4 (fatia 0): nulos até o job 'criterios' (fatia A) gravar a cópia compacta
     criterios: null,
     perfilCriterios: null,
+    // Stocks e REITs (fatia 0): nulos nas linhas BR
+    moeda: null,
+    bolsa: null,
+    dpa: null,
+    fcoPorAcao: null,
+    dividendosFcoPct: null,
     ...over,
   };
 }

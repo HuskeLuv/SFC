@@ -57,6 +57,9 @@ export const ESCALA_CRITERIO: Record<UnidadeSerie, number> = {
   pct: 1,
   x: 1,
   contagem: 1,
+  // EUA: US$ → US$ mi (como BRL → R$ mi); por ação já está em US$/ação
+  USD: 1e-6,
+  USD_por_acao: 1,
 };
 
 export interface EntradaResolverSeries {

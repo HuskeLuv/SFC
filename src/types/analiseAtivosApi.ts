@@ -65,8 +65,20 @@
  * ROTAS_SALVOS (src/services/analiseAtivos/salvos/contrato.ts).
  *   PUT  /api/analise-ativos/alvos/[ticker] AlvoPutBody   → AlvoPutResposta (CSRF)      (C)
  *   DEL  /api/analise-ativos/alvos/[ticker]               → AlvoDeleteResposta (CSRF)   (C)
+ *
+ * Stocks e REITs (docs/analise-ativos/stocks-reits/desenho.json, fatia 0) — acréscimos OPCIONAIS
+ * (nada muda no Brasil): ClasseQuadro += 'stock' | 'reit' (CLASSES_BR/CLASSES_EUA, ehClasseEua);
+ * RecursosBlocoD.eua/euaPreco; QuadroResposta.contagens.stock/reit, moeda e universoDescricao;
+ * LinhaQuadroApi.moeda/bolsa/dpa/fcoPorAcao/dividendosFcoPct; AtivoTopoResposta.eua (TopoEuaApi);
+ * FundamentosResposta em US$/SEC com colunasPendentes. Contratos próprios: src/types/analiseAtivosEua.ts.
  */
 import type { ReactNode } from 'react';
+import type {
+  BolsaEua,
+  ColunaPendenteEua,
+  MoedaClasse,
+  TopoEuaApi,
+} from '@/types/analiseAtivosEua';
 import type {
   CriteriosAtivo,
   CriteriosLinhaApi,
@@ -78,8 +90,30 @@ import type {
 // Básicos
 // ===========================================================================
 
-/** Classes com tela na Fase 1 (Stocks/REITs escondidos, decisão 7). */
-export type ClasseQuadro = 'acao' | 'fii';
+/**
+ * Classes do Quadro. Brasil (CVM/B3): 'acao' | 'fii'. EUA (SEC, docs/analise-ativos/stocks-reits/
+ * desenho.json, fatia 0): 'stock' | 'reit' — só com ANALISE_ATIVOS_EUA_HABILITADO (desligada: as
+ * rotas e abas EUA respondem 404 / não aparecem). Helpers de mercado/família/moeda em
+ * src/types/analiseAtivosEua.ts.
+ */
+export const CLASSES_BR = ['acao', 'fii'] as const;
+export const CLASSES_EUA = ['stock', 'reit'] as const;
+export const CLASSES_QUADRO = [...CLASSES_BR, ...CLASSES_EUA] as const;
+export type ClasseBr = (typeof CLASSES_BR)[number];
+export type ClasseEua = (typeof CLASSES_EUA)[number];
+export type ClasseQuadro = ClasseBr | ClasseEua;
+
+export function ehClasseQuadro(v: unknown): v is ClasseQuadro {
+  return typeof v === 'string' && (CLASSES_QUADRO as readonly string[]).includes(v);
+}
+
+export function ehClasseBr(v: unknown): v is ClasseBr {
+  return typeof v === 'string' && (CLASSES_BR as readonly string[]).includes(v);
+}
+
+export function ehClasseEua(v: unknown): v is ClasseEua {
+  return typeof v === 'string' && (CLASSES_EUA as readonly string[]).includes(v);
+}
 
 /** Tipo do FII (Fase 0: regras/fii/tipoFii). */
 export type FiiTipoTela = 'tijolo' | 'papel' | 'hibrido' | 'fof' | 'indefinido';
@@ -265,6 +299,13 @@ export interface RecursosBlocoD {
   alertas: boolean;
   /** Bloco 1: Exportar PDF do Comparador (só com comparador) */
   pdfComparador: boolean;
+  /**
+   * EUA (fatia 0): abas Stocks/REITs, rotas e busca EUA (ANALISE_ATIVOS_EUA_HABILITADO). Ausente =
+   * desligado (cliente antigo). O servidor sempre preenche.
+   */
+  eua?: boolean;
+  /** EUA: preço, múltiplos e Meus cenários EUA (ANALISE_ATIVOS_EUA_PRECO_HABILITADO; exige eua) */
+  euaPreco?: boolean;
 }
 
 // ===========================================================================
@@ -380,6 +421,16 @@ export interface LinhaQuadroApi {
   pares: string[];
   /** Asset.id do catálogo (null = fora do catálogo: o wizard abre no passo Ativo) */
   assetId: string | null;
+  /** EUA (fatia 0): 'USD' nas linhas stock/reit; ausente = BRL */
+  moeda?: MoedaClasse;
+  /** EUA: bolsa (NYSE | Nasdaq); ausente/null no BR */
+  bolsa?: BolsaEua | null;
+  /** EUA: dividendo por ação do último FY (US$/ação) */
+  dpa?: number | null;
+  /** EUA (REIT): caixa operacional ÷ média diluída do último FY (US$/ação) */
+  fcoPorAcao?: number | null;
+  /** EUA (REIT): dividendos pagos ÷ caixa operacional do último FY (%) */
+  dividendosFcoPct?: number | null;
 }
 
 export interface FrescorCotacao {
@@ -399,7 +450,8 @@ export interface QuadroResposta {
   total: number;
   offset: number;
   limite: number;
-  contagens: { acao: number; fii: number };
+  /** contador das abas; stock/reit só quando recursos.eua (fatia C) */
+  contagens: Record<ClasseBr, number> & Partial<Record<ClasseEua, number>>;
   facetas: { setores: string[]; tipos: FiiTipoTela[] };
   frescorCotacao: FrescorCotacao;
   itens: LinhaQuadroApi[];
@@ -409,6 +461,10 @@ export interface QuadroResposta {
   totalClasse: number;
   /** v2.4 (B): chips da barra de filtros (de criteria_params) */
   definicoes: DefCriterioChip[];
+  /** EUA (fatia C): moeda dos valores da classe; ausente = BRL */
+  moeda?: MoedaClasse;
+  /** EUA (fatia C): regra do universo (TEXTOS_EUA.universo), sem nome de índice */
+  universoDescricao?: string;
 }
 
 // ===========================================================================
@@ -652,6 +708,8 @@ export interface AtivoTopoResposta {
   conferencias?: ConferenciaTela[];
   /** Bloco C: frescor por bloco (chave = BlocoReporte). Ausente = selo único de hoje. */
   frescorBlocos?: Partial<Record<string, FrescorBloco>>;
+  /** EUA (fatia C): bolsa, exercício, link da SEC e motivo sem cotação. Ausente = ativo BR. */
+  eua?: TopoEuaApi;
 }
 
 // ===========================================================================
@@ -694,12 +752,13 @@ export interface MarcaCelulaEssencial {
 
 export interface FundamentosResposta {
   nivel: 'essencial';
-  /** v2.4 (C2): o Essencial passa a R$ bi */
-  unidade: 'R$ mi' | 'R$ bi';
-  fonte: 'CVM';
+  /** v2.4 (C2): o Essencial passa a R$ bi; EUA (fatia C) em US$ */
+  unidade: 'R$ mi' | 'R$ bi' | 'US$ mi' | 'US$ bi';
+  /** EUA: 'SEC' (relatório 10-K) */
+  fonte: 'CVM' | 'SEC';
   padraoContabil: string | null;
   escopo: string | null;
-  variante: 'acao' | 'fii_tijolo' | 'fii_papel';
+  variante: 'acao' | 'fii_tijolo' | 'fii_papel' | 'stock' | 'reit';
   colunas: ColunaFundamentos[];
   /** só anos fechados + 'Últ. 12m' */
   linhas: LinhaFundamentos[];
@@ -712,6 +771,8 @@ export interface FundamentosResposta {
   textoFonte?: string;
   /** v2.5 (B): alguma célula com ponto incompleto → selo 'dados incompletos' no card */
   dadosIncompletos?: boolean;
+  /** EUA (fatia C): colunas sem fonte no XBRL, escondidas com a observação da fase 2 */
+  colunasPendentes?: ColunaPendenteEua[];
 }
 
 // ===========================================================================

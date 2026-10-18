@@ -64,6 +64,9 @@ function apoioFii(l: LinhaQuadroApi): string | null {
 export const CAMPOS_CARTAO: Record<ClasseQuadro, string[]> = {
   acao: ['roe', 'pl', 'dy12m'],
   fii: ['dy12m', 'pvp', 'vacanciaCvm'],
+  // EUA sem cotação (decisão de 17/10); a fatia C troca por P/L e DY com recursos.euaPreco
+  stock: ['roe', 'margemLiquida', 'divLiqEbitda'],
+  reit: ['fcoPorAcao', 'dividendosFcoPct', 'dpa'],
 };
 
 export interface CartoesQuadroProps<L extends LinhaQuadroApi = LinhaQuadroApi> extends Omit<

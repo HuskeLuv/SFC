@@ -360,6 +360,9 @@ export const CAMPO_COLUNA_FUNDAMENTOS: Record<ClasseQuadro, Readonly<Record<stri
     pvp: 'pvp',
     vacancia: 'vacanciaCvm',
   },
+  // EUA: nenhum grupo de conferência dispara em stock/reit (DEF_GRUPO.classes só acao/fii)
+  stock: {},
+  reit: {},
 };
 
 /** Ponto anual do histórico de múltiplos: coluna/código → campo do grupo 'historico'. */

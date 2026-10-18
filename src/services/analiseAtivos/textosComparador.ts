@@ -14,7 +14,7 @@
 export const TEXTOS_COMPARADOR = {
   titulo: 'Comparador',
   subtitulo: 'Compare até 4 ativos da mesma classe, critério por critério.',
-  abas: { rotulo: 'Classe dos ativos', acao: 'Ações', fii: 'FIIs' },
+  abas: { rotulo: 'Classe dos ativos', acao: 'Ações', fii: 'FIIs', stock: 'Stocks', reit: 'REITs' },
   slots: {
     rotulo: 'Ativos na comparação',
     adicionarAcao: 'Adicionar ação',
@@ -57,7 +57,7 @@ export const TEXTOS_COMPARADOR = {
     inexistente: '{ticker} não foi encontrado e ficou de fora.',
     excesso: '{ticker} ficou de fora: o limite é de {max} ativos.',
     formato: '“{valor}” não é um ticker válido e ficou de fora.',
-    classes: { acao: 'ações', fii: 'FIIs' },
+    classes: { acao: 'ações', fii: 'FIIs', stock: 'stocks', reit: 'REITs' },
   },
   /** aviso do misto (tijolo + papel), detectado pelo perfil de critérios */
   misto: {

@@ -34,6 +34,9 @@ export const CLASSE_CARTEIRA: Record<
 > = {
   acao: { aba: 'Ações', plural: 'ações', un: 'ações', unSingular: 'ação' },
   fii: { aba: "FII's", plural: 'FIIs', un: 'cotas', unSingular: 'cota' },
+  // EUA (fatia 0): nomes das abas da Carteira (carteiraTabsConfig: 'Stocks' e "REIT's")
+  stock: { aba: 'Stocks', plural: 'stocks', un: 'ações', unSingular: 'ação' },
+  reit: { aba: "REIT's", plural: 'REITs', un: 'ações', unSingular: 'ação' },
 };
 
 /** Rótulos das seções da Carteira (estratégia de ação; tipo de FII). */

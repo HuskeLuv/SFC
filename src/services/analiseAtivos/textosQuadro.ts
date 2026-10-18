@@ -82,6 +82,12 @@ export const TEXTOS_QUADRO = {
       'Vacância física informada à CVM (último informe trimestral); pode diferir do relatório do gestor. O critério "Vacância ≤ 10%" olha os anos fechados da janela, não este informe',
     criterios:
       'Quantos critérios de fundamentos o ativo atende na janela escolhida (dado contábil, não avaliação do My Finance)',
+    // EUA (fatia 0)
+    dpaUsd: 'Dividendo por ação no último ano fiscal, em US$ (relatório 10-K)',
+    fcoAcao:
+      'Caixa operacional ÷ média de ações diluídas do último ano fiscal, em US$; difere do FFO do relatório',
+    divFco: 'Dividendos pagos ÷ caixa operacional no último ano fiscal',
+    anosDividendo: 'Anos seguidos com dividendo por ação maior que o do ano anterior',
   },
 
   /** Área recolhível "O que cada critério verifica". */

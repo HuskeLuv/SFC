@@ -31,6 +31,9 @@ export async function painelFrescorEmCache(prisma: PrismaClient): Promise<Painel
 const CAMADAS_POR_CLASSE: Record<ClasseQuadro, Camada[]> = {
   acao: ['cotacoes', 'fundamentos_dfp', 'fundamentos_itr', 'scores'],
   fii: ['cotacoes', 'fii_mensal', 'scores'],
+  // EUA: o painel de frescor ainda não tem camada SEC (o frescor EUA é da fatia C: 10-K na SEC)
+  stock: [],
+  reit: [],
 };
 
 export interface EntradaFrescor {
