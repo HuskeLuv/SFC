@@ -4,6 +4,8 @@ import { MAPA_SERIE_LEGADA, SERIES_CRITERIO, serieCanonica } from '@/types/anali
 import { CRITERIA_PARAMS_CODIGO } from '../criteriaParamsCodigo';
 import { CRITERIA_PARAMS_V1, CRITERIA_PARAMS_V1_JSON } from '../criteriaParamsV1';
 import { CRITERIA_PARAMS_V2, CRITERIA_PARAMS_V2_JSON } from '../criteriaParamsV2';
+import { CRITERIA_PARAMS_V3, CRITERIA_PARAMS_V3_JSON } from '../criteriaParamsV3';
+import { UNIVERSO_EUA_PADRAO } from '@/types/analiseAtivosEua';
 import {
   agregacaoDaSerie,
   criteriaParamsSchema,
@@ -11,7 +13,9 @@ import {
   fontesCitadas,
   fontesEfetivas,
   idsNaoSeAplica,
+  perfilDisponivel,
   prioridadeDaSerie,
+  universoEuaDe,
   SANIDADE_PADRAO,
   sanidadeAplicaA,
   seriesObrigatorias,
@@ -363,8 +367,157 @@ describe('CriteriaParams v2 (spec do Pedro + camada de fontes)', () => {
     expect(seriesObrigatorias(f, 'us_reits')).toEqual([]);
   });
 
-  it('CRITERIA_PARAMS_CODIGO aponta para a v2', () => {
-    expect(CRITERIA_PARAMS_CODIGO).toBe(CRITERIA_PARAMS_V2);
-    expect(CRITERIA_PARAMS_CODIGO.versao).toBe(2);
+  it('perfis EUA ausentes na v2: lista vazia, sem naoSeAplica e indisponíveis', () => {
+    expect(V2.perfis.stock).toBeUndefined();
+    expect(criteriosDoPerfil(V2, 'stock')).toEqual([]);
+    expect(criteriosDoPerfil(V2, 'reit')).toEqual([]);
+    expect(idsNaoSeAplica(V2, 'stock_financeira')).toEqual([]);
+    expect(perfilDisponivel(V2, 'stock')).toBe(false);
+    expect(perfilDisponivel(V2, 'acao')).toBe(true);
+    expect(universoEuaDe(V2)).toBe(UNIVERSO_EUA_PADRAO);
   });
 });
+
+describe('CriteriaParams v3 (Stocks e REITs pela SEC)', () => {
+  const V3 = CRITERIA_PARAMS_V3;
+  const copia3 = () =>
+    structuredClone(CRITERIA_PARAMS_V3_JSON) as Record<string, unknown> & {
+      perfis: Record<string, unknown>;
+    };
+
+  it('v1, v2 e v3 validam (v1/v2 como gravadas em produção)', () => {
+    expect(validarCriteriaParams(CRITERIA_PARAMS_V1_JSON).versao).toBe(1);
+    expect(validarCriteriaParams(CRITERIA_PARAMS_V2_JSON).versao).toBe(2);
+    expect(validarCriteriaParams(CRITERIA_PARAMS_V3_JSON).versao).toBe(3);
+    // round-trip JSON (o que o banco devolve)
+    expect(validarCriteriaParams(JSON.parse(JSON.stringify(CRITERIA_PARAMS_V3_JSON)))).toEqual(V3);
+  });
+
+  it('Brasil IDÊNTICO à v2 (perfis, fontes BR e regras): o job BR avalia igual', () => {
+    const { versao: _v2, descricao: _d2, perfis: p2, fontes: f2, ...resto2 } = V2Parse();
+    const { versao: _v3, descricao: _d3, perfis: p3, fontes: f3, universoEua: _u, ...resto3 } = V3;
+    expect(resto3).toEqual(resto2);
+    for (const perfil of ['acao', 'acao_financeira', 'fii_tijolo', 'fii_papel'] as const) {
+      expect(p3[perfil]).toEqual(p2[perfil]);
+    }
+    expect(f3?.prioridade.padrao).toEqual(f2?.prioridade.padrao);
+    expect(f3?.prioridade.porSerie).toEqual(f2?.prioridade.porSerie);
+    expect(fontesCitadas(fontesEfetivas(V3))).toEqual(fontesCitadas(fontesEfetivas(V2Parse())));
+  });
+
+  it('stock: os 6 ids das ações, em US$; financeira n de 6 por SIC', () => {
+    expect(V3.perfis.stock!.map((c) => c.id)).toEqual(['rec', 'luc', 'ebitda', 'mg', 'dl', 'fcl']);
+    expect(V3.perfis.stock!.find((c) => c.id === 'dl')).toMatchObject({ limite: 3, tipo: 'max' });
+    expect(V3.perfis.stock!.filter((c) => c.unidade).every((c) => c.unidade === 'US$ mi')).toBe(
+      true,
+    );
+    expect(V3.perfis.stock_financeira).toEqual({
+      base: 'stock',
+      naoSeAplica: [],
+      regraPerfil: 'sic_financeira',
+    });
+    expect(criteriosDoPerfil(V3, 'stock_financeira')).toBe(V3.perfis.stock);
+    expect(idsNaoSeAplica(V3, 'stock_financeira')).toEqual([]);
+    expect(perfilDisponivel(V3, 'stock_financeira')).toBe(true);
+  });
+
+  it('reit: rec, dpa, fco_acao, dl ≤ 6×, pay ≤ 90 e ocup ≥ 95 inativa (n de 6)', () => {
+    const r = V3.perfis.reit!;
+    expect(r.map((c) => c.id)).toEqual(['rec', 'dpa', 'fco_acao', 'dl', 'pay', 'ocup']);
+    const porId = Object.fromEntries(r.map((c) => [c.id, c]));
+    expect(porId.dl).toMatchObject({ tipo: 'max', limite: 6, serie: 'net_debt_ebitda' });
+    expect(porId.pay).toMatchObject({ tipo: 'max', limite: 90, serie: 'cash_payout_pct' });
+    expect(porId.ocup).toMatchObject({
+      tipo: 'min',
+      limite: 95,
+      ativo: false,
+      motivoInativo: 'sem_fonte_confiavel',
+    });
+    expect(porId.dpa).toMatchObject({ serie: 'dividend_per_share', unidade: 'US$', formato: 'n2' });
+    expect(porId.fco_acao).toMatchObject({ serie: 'ocf_per_share', unidade: 'US$' });
+    // ffo_acao fica reservado (fase 2): nenhum perfil da v3 usa
+    expect([...V3.perfis.stock!, ...r].some((c) => c.id === 'ffo_acao')).toBe(false);
+  });
+
+  it('fontes por mercado: us_stocks/us_reits → sec; BR segue padrão/porSerie', () => {
+    const f = fontesEfetivas(V3);
+    expect(prioridadeDaSerie(f, 'revenue', 'us_stocks')).toEqual(['sec']);
+    expect(prioridadeDaSerie(f, 'dividend_per_share', 'us_reits')).toEqual(['sec']);
+    expect(prioridadeDaSerie(f, 'revenue', 'br_acoes')).toEqual(['cvm']);
+    expect(prioridadeDaSerie(f, 'revenue')).toEqual(['cvm']);
+    expect(prioridadeDaSerie(f, 'vacancy_physical', 'br_fii')).toEqual(['cvm']);
+    expect(fontesCitadas(f)).toEqual(['cvm']);
+  });
+
+  it('universo EUA = decisão de 17/10: stocks ≥ US$ 2 bi (sai < 1,6 bi), REITs ≥ US$ 2 bi', () => {
+    expect(V3.universoEua).toEqual(UNIVERSO_EUA_PADRAO);
+    expect(universoEuaDe(V3)).toEqual({
+      stock: { floatEntradaUsd: 2e9, floatSaidaUsd: 1.6e9 },
+      reit: { floatEntradaUsd: 2e9, floatSaidaUsd: 1.6e9 },
+      sanidadeFloat: { maxUsd: 1e12, precoImplicitoMinUsd: 0.5, precoImplicitoMaxUsd: 100_000 },
+    });
+  });
+
+  it('recusa 7 critérios num perfil EUA', () => {
+    const p = copia3();
+    const reit = p.perfis.reit as unknown[];
+    p.perfis.reit = [...reit, { ...(reit[0] as object), id: 'ffo_acao' }];
+    expect(criteriaParamsSchema.safeParse(p).success).toBe(false);
+    const q = copia3();
+    q.perfis.stock = [...(q.perfis.stock as unknown[]), (q.perfis.stock as unknown[])[0]];
+    expect(criteriaParamsSchema.safeParse(q).success).toBe(false);
+  });
+
+  it('stock_financeira: naoSeAplica ⊂ ids de stock, sem repetição, e exige perfis.stock', () => {
+    const fora = copia3();
+    fora.perfis.stock_financeira = {
+      base: 'stock',
+      naoSeAplica: ['rend'],
+      regraPerfil: 'sic_financeira',
+    };
+    expect(criteriaParamsSchema.safeParse(fora).error?.issues[0].message).toMatch(
+      /fora de perfis\.stock/,
+    );
+    const rep = copia3();
+    rep.perfis.stock_financeira = {
+      base: 'stock',
+      naoSeAplica: ['dl', 'dl'],
+      regraPerfil: 'sic_financeira',
+    };
+    expect(criteriaParamsSchema.safeParse(rep).success).toBe(false);
+    const ok = copia3();
+    ok.perfis.stock_financeira = {
+      base: 'stock',
+      naoSeAplica: ['ebitda', 'dl', 'fcl'],
+      regraPerfil: 'sic_financeira',
+    };
+    const lido = criteriaParamsSchema.parse(ok);
+    expect(idsNaoSeAplica(lido, 'stock_financeira')).toEqual(['ebitda', 'dl', 'fcl']);
+    const semStock = copia3();
+    delete semStock.perfis.stock;
+    expect(criteriaParamsSchema.safeParse(semStock).error?.issues[0].message).toMatch(
+      /stock_financeira exige perfis\.stock/,
+    );
+  });
+
+  it('universo: saída acima da entrada e preço implícito invertido são recusados', () => {
+    const a = copia3();
+    a.universoEua = { ...UNIVERSO_EUA_PADRAO, stock: { floatEntradaUsd: 2e9, floatSaidaUsd: 3e9 } };
+    expect(criteriaParamsSchema.safeParse(a).success).toBe(false);
+    const b = copia3();
+    b.universoEua = {
+      ...UNIVERSO_EUA_PADRAO,
+      sanidadeFloat: { maxUsd: 1e12, precoImplicitoMinUsd: 10, precoImplicitoMaxUsd: 1 },
+    };
+    expect(criteriaParamsSchema.safeParse(b).success).toBe(false);
+  });
+
+  it('CRITERIA_PARAMS_CODIGO aponta para a v3 (BR igual à v2)', () => {
+    expect(CRITERIA_PARAMS_CODIGO).toBe(CRITERIA_PARAMS_V3);
+    expect(CRITERIA_PARAMS_CODIGO.versao).toBe(3);
+  });
+});
+
+function V2Parse() {
+  return CRITERIA_PARAMS_V2;
+}
