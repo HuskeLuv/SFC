@@ -309,14 +309,14 @@ describe('FII na v2 (§4.1, §5, §6)', () => {
     expect(res(a, 'vac').motivo).toBe('sem_dado_demonstracoes');
   });
 
-  it('papel: inadimplência e LTV ATIVOS e, sem fonte, "não atende · sem dado"', () => {
+  it('papel: inadimplência e LTV ATIVOS e, sem fonte, "não atende · sem dado" (relatório do gestor)', () => {
     for (const t of ['KNCR11', 'MXRF11']) {
       const a = avaliarFii(fii(t));
       expect(a.perfil, t).toBe('fii_papel');
       for (const id of ['inad', 'ltv']) {
         expect(res(a, id)).toMatchObject({
           estado: 'sem_dado',
-          fato: TEXTOS_CRITERIOS.fatos.semDado,
+          fato: TEXTOS_CRITERIOS.fatos.semDadoRelatorioGestor,
           motivo: 'sem_dado_demonstracoes',
         });
       }
@@ -379,11 +379,11 @@ describe('FII na v2 (§4.1, §5, §6)', () => {
     );
   });
 
-  it('janela 10: só "sem dado nas demonstrações" (sem a nota dos informes de 2016)', () => {
+  it('janela 10: "sem dado nas demonstrações" com o ano em que os informes começam (QA Pedro 16/10)', () => {
     const a = avaliarFii(fii('HGLG11'));
     expect(res(a, 'rend', '10')).toMatchObject({
       estado: 'sem_dado',
-      fato: TEXTOS_CRITERIOS.fatos.semDado,
+      fato: 'sem dado nas demonstrações (dados desde 2017, menos que a janela de 10 anos)',
     });
   });
 

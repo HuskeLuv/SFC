@@ -103,6 +103,12 @@ export const TEXTOS_CRITERIOS = {
     meses: '{n} de {total} meses com rendimento pago',
     mesesPeriodo: '{n} de {total} meses com rendimento pago (jan/{anoInicio}–dez/{anoFim})',
     semDado: 'sem dado nas demonstrações',
+    /** QA Pedro 16/10: a série só começa depois do início da janela (empresa/fundo mais novo) */
+    semDadoDesde:
+      'sem dado nas demonstrações (dados desde {ano}, menos que a janela de {anos} anos)',
+    /** QA Pedro 16/10: inadimplência e LTV não estão nos informes da CVM */
+    semDadoRelatorioGestor:
+      'sem dado nas demonstrações (publicado só nos relatórios gerenciais do fundo)',
     /** rec. 4: base de proventos começa depois do início da janela */
     baseProventosCurta: 'sem dado nas demonstrações (proventos registrados desde {mesAno})',
     ebitdaNaoPositivo: 'EBITDA ≤ 0 em {ano}',

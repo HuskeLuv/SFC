@@ -155,7 +155,13 @@ export const CASOS_45: CasoCriterio45[] = [
     janela: 10,
     anoFim: 2025,
     serie: { 2019: 800, 2020: 900, 2021: 1000, 2022: 1100, 2023: 1200, 2024: 1300, 2025: 1400 },
-    esperado: { estado: 'sem_dado', fato: 'sem dado nas demonstrações', n: null, de: null },
+    // QA Pedro 16/10: o fato diz desde quando há dado
+    esperado: {
+      estado: 'sem_dado',
+      fato: 'sem dado nas demonstrações (dados desde 2019, menos que a janela de 10 anos)',
+      n: null,
+      de: null,
+    },
   },
 ];
 

@@ -124,6 +124,50 @@ describe("avaliarCriterio — 'up'", () => {
     expect(r.fato).toBe(TEXTOS_CRITERIOS.fatos.semDado);
   });
 
+  it('série que só começa depois do início da janela diz desde quando há dado (QA Pedro 16/10)', () => {
+    const r = avaliarCriterio(
+      {
+        def: def('fii_papel', 'rend'),
+        janela: 5,
+        anoFim: 2025,
+        classe: 'fii',
+        serie: serieDe(2020, [null, null, null, null, 1.1, 1.2]),
+      },
+      P,
+    );
+    expect(r).toMatchObject({
+      estado: 'sem_dado',
+      fato: 'sem dado nas demonstrações (dados desde 2024, menos que a janela de 5 anos)',
+      motivo: 'sem_dado_demonstracoes',
+    });
+    expect(encontrarProibidasV2(r.fato)).toEqual([]);
+  });
+
+  it('lacuna no meio da série segue com o texto genérico', () => {
+    const r = avaliarCriterio(
+      {
+        def: rec,
+        janela: 3,
+        anoFim: 2025,
+        classe: 'acao',
+        serie: serieDe(2022, [null, 2, null, 4]),
+      },
+      P,
+    );
+    expect(r.fato).toBe(TEXTOS_CRITERIOS.fatos.semDado);
+  });
+
+  it('inadimplência e LTV sem série dizem que o dado só existe no relatório do gestor', () => {
+    for (const id of ['inad', 'ltv']) {
+      const r = avaliarCriterio(
+        { def: def('fii_papel', id), janela: 5, anoFim: 2025, classe: 'fii', serie: {} },
+        P,
+      );
+      if (r.estado !== 'sem_dado' || r.motivo !== 'sem_dado_demonstracoes') continue; // v1: inativo
+      expect(r.fato).toBe(TEXTOS_CRITERIOS.fatos.semDadoRelatorioGestor);
+    }
+  });
+
   it('formato n2 e unidade R$ (rendimento por cota)', () => {
     const r = avaliarCriterio(
       {
