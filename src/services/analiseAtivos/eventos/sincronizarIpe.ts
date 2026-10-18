@@ -17,6 +17,10 @@ import path from 'path';
 import type { PrismaClient } from '@prisma/client';
 import { lerCsv } from '@/services/analiseAtivos/fontes/csvStream';
 import { baixarParaArquivo } from '@/services/analiseAtivos/fontes/download';
+import {
+  alertaAnoNaoPublicado,
+  ehAnoNaoPublicado,
+} from '@/services/analiseAtivos/fontes/anoNaoPublicado';
 import { ErroFonte } from '@/services/analiseAtivos/fontes/erros';
 import { linhasDaEntrada, listarEntradasZip } from '@/services/analiseAtivos/fontes/zipStream';
 import {
@@ -283,7 +287,17 @@ export async function sincronizarIpe(
     }
     const url = urlIpe(ano);
     const inicio = Date.now();
-    const arq = await obterArquivo(ctx, ano, opts);
+    let arq: Awaited<ReturnType<typeof obterArquivo>>;
+    try {
+      arq = await obterArquivo(ctx, ano, opts);
+    } catch (e: unknown) {
+      // virada do ano (M13): a CVM só cria o ipe_cia_aberta_AAAA.zip no 1º documento do ano —
+      // segue para as datas de resultado (que não dependem do arquivo) com um aviso
+      if (!ehAnoNaoPublicado(e, ano, hoje)) throw e;
+      ctx.alertar(alertaAnoNaoPublicado(url, ano));
+      arquivos.push({ ano, url, status: 'nao_publicado' });
+      continue;
+    }
     if ('naoModificado' in arq) {
       arquivos.push({ ano, url, status: 'nao_modificado' });
       continue;

@@ -8,6 +8,7 @@ import { existsSync, statSync } from 'fs';
 import path from 'path';
 import type { PrismaClient } from '@prisma/client';
 import { baixarParaArquivo } from '@/services/analiseAtivos/fontes/download';
+import { ehHttp404 } from '@/services/analiseAtivos/fontes/anoNaoPublicado';
 import { ErroLayoutFonte } from '@/services/analiseAtivos/fontes/erros';
 import { listarEntradasZip, type EntradaZip } from '@/services/analiseAtivos/fontes/zipStream';
 import {
@@ -43,7 +44,8 @@ export function anosDoCron(hoje: string, mesesAnoAnterior: number): number[] {
 
 export interface ArquivoObtido {
   url: string;
-  status: 'baixado' | 'nao_modificado' | 'cache';
+  /** 'nao_publicado' = 404 com `naoPublicadoSe404` (arquivo do ano corrente ainda não criado) */
+  status: 'baixado' | 'nao_modificado' | 'cache' | 'nao_publicado';
   caminho: string | null;
   bytes: number;
   sha256: string | null;
@@ -70,6 +72,12 @@ export interface OpcoesObter {
    * Os jobs passam `ctx.aplicar`.
    */
   aplicar?: boolean;
+  /**
+   * true ⇒ HTTP 404 vira status 'nao_publicado' (caminho null) em vez de erro. O job passa
+   * `anoPodeNaoEstarPublicado(ano, ctx.hoje)`: a CVM só cria o zip do ano no 1º informe (M13);
+   * 404 de ano passado continua falha.
+   */
+  naoPublicadoSe404?: boolean;
 }
 
 const nada = async () => {};
@@ -97,11 +105,27 @@ export async function obterArquivo(
   const gravar = registrar && (opts.aplicar ?? true);
   const anterior =
     opts.condicional === false || !registrar ? null : await obterFonteArquivo(prisma, url);
-  const r = await baixarParaArquivo(url, {
-    maxBytes: opts.maxBytes ?? LIMITES_FII.maxBytes,
-    timeoutMs: opts.timeoutMs ?? LIMITES_FII.timeoutMs,
-    condicional: condicionalDownload(anterior),
-  });
+  let r: Awaited<ReturnType<typeof baixarParaArquivo>>;
+  try {
+    r = await baixarParaArquivo(url, {
+      maxBytes: opts.maxBytes ?? LIMITES_FII.maxBytes,
+      timeoutMs: opts.timeoutMs ?? LIMITES_FII.timeoutMs,
+      condicional: condicionalDownload(anterior),
+    });
+  } catch (e: unknown) {
+    if (opts.naoPublicadoSe404 && ehHttp404(e)) {
+      return {
+        url,
+        status: 'nao_publicado',
+        caminho: null,
+        bytes: 0,
+        sha256: null,
+        concluir: nada,
+        descartar: nada,
+      };
+    }
+    throw e;
+  }
   if (r.status === 'baixado' && gravar) {
     await registrarDownload(prisma, url, {
       etag: r.etag,

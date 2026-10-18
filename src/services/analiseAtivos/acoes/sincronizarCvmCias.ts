@@ -28,6 +28,10 @@ import {
   baixarParaArquivo,
   type ResultadoDownload,
 } from '@/services/analiseAtivos/fontes/download';
+import {
+  alertaAnoNaoPublicado,
+  ehAnoNaoPublicado,
+} from '@/services/analiseAtivos/fontes/anoNaoPublicado';
 import { ErroFonte } from '@/services/analiseAtivos/fontes/erros';
 import { listarEntradasZip, type EntradaZip } from '@/services/analiseAtivos/fontes/zipStream';
 import { deData, paraData, paraNumero } from '@/services/analiseAtivos/repositorio/conversao';
@@ -148,7 +152,8 @@ export interface DetalheArquivo {
   url: string;
   doc: DocCvmCias;
   ano: number;
-  status: 'inalterado' | 'processado' | 'parcial' | 'sem_pendentes';
+  /** 'nao_publicado' = 404 do arquivo do ano corrente (a CVM ainda não criou o zip do ano; M13) */
+  status: 'inalterado' | 'processado' | 'parcial' | 'sem_pendentes' | 'nao_publicado';
   bytes?: number;
   docsUniverso?: number;
   pendentes?: number;
@@ -165,9 +170,10 @@ export function perfilPadrao(): PerfilLinhas {
 
 // ---------------------------------------------------------------- arquivo (download ou cache)
 
-type ArquivoObtido =
+type ArquivoBruto =
   | { status: 'inalterado' }
   | (Omit<ResultadoDownload, 'status' | 'caminho'> & { status: 'baixado'; caminho: string });
+type ArquivoObtido = ArquivoBruto | { status: 'nao_publicado' };
 
 async function sha256Arquivo(caminho: string): Promise<string> {
   const h = createHash('sha256');
@@ -184,12 +190,32 @@ async function existe(caminho: string): Promise<boolean> {
   }
 }
 
+/**
+ * Arquivo do ano (download ou cache). 404 do arquivo do ano corrente ⇒ 'nao_publicado' com alerta
+ * (a CVM só cria o zip do ano no 1º documento: M13); 404 de ano passado continua falha.
+ */
 async function obterArquivo(
   ctx: JobContexto,
   url: string,
   nome: string,
+  ano: number,
   opts: OpcoesCvmCias,
 ): Promise<ArquivoObtido> {
+  try {
+    return await obterArquivoBruto(ctx, url, nome, opts);
+  } catch (e: unknown) {
+    if (!ehAnoNaoPublicado(e, ano, ctx.hoje)) throw e;
+    ctx.alertar(alertaAnoNaoPublicado(url, ano));
+    return { status: 'nao_publicado' };
+  }
+}
+
+async function obterArquivoBruto(
+  ctx: JobContexto,
+  url: string,
+  nome: string,
+  opts: OpcoesCvmCias,
+): Promise<ArquivoBruto> {
   const baixar = opts.baixar ?? baixarParaArquivo;
   const fonte = await obterFonteArquivo(ctx.prisma, url);
   if (opts.cacheDir) {
@@ -330,9 +356,9 @@ async function processarFca(
   opts: OpcoesCvmCias,
 ): Promise<{ detalhe: DetalheArquivo; universo: Map<string, string[]> | null }> {
   const url = urlArquivoCvm('fca', ano);
-  const arq = await obterArquivo(ctx, url, nomeArquivoCvm('fca', ano), opts);
-  if (arq.status === 'inalterado') {
-    return { detalhe: { url, doc: 'fca', ano, status: 'inalterado' }, universo: null };
+  const arq = await obterArquivo(ctx, url, nomeArquivoCvm('fca', ano), ano, opts);
+  if (arq.status === 'inalterado' || arq.status === 'nao_publicado') {
+    return { detalhe: { url, doc: 'fca', ano, status: arq.status }, universo: null };
   }
   try {
     if (ctx.aplicar) await registrarDownload(ctx.prisma, url, arq);
@@ -463,8 +489,10 @@ async function processarDemonstrativos(
 ): Promise<DetalheArquivo> {
   const url = urlArquivoCvm(doc, ano);
   const job = `cvm-cias:${doc}`;
-  const arq = await obterArquivo(ctx, url, nomeArquivoCvm(doc, ano), opts);
-  if (arq.status === 'inalterado') return { url, doc, ano, status: 'inalterado' };
+  const arq = await obterArquivo(ctx, url, nomeArquivoCvm(doc, ano), ano, opts);
+  if (arq.status === 'inalterado' || arq.status === 'nao_publicado') {
+    return { url, doc, ano, status: arq.status };
+  }
   const detalhe: DetalheArquivo = { url, doc, ano, status: 'processado', bytes: arq.bytes };
   try {
     if (ctx.aplicar) await registrarDownload(ctx.prisma, url, arq);
@@ -1106,7 +1134,8 @@ export async function carregarFreAcoes(
     const anoFre = fy + 1;
     if (anoFre > ULTIMO_ANO_FRE_ITEM_F) continue;
     const url = urlArquivoCvm('fre', anoFre);
-    const arq = await obterArquivo(ctx, url, nomeArquivoCvm('fre', anoFre), {
+    // FRE ≤ 2022: nunca é o ano corrente (404 = falha)
+    const arq = await obterArquivoBruto(ctx, url, nomeArquivoCvm('fre', anoFre), {
       ...opts,
       doc: 'dfp',
       reprocessar: true,

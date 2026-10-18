@@ -12,6 +12,10 @@
  *   checagem.
  */
 import { fiiOverrides } from '@/services/analiseAtivos/repositorio/fii';
+import {
+  alertaAnoNaoPublicado,
+  anoPodeNaoEstarPublicado,
+} from '@/services/analiseAtivos/fontes/anoNaoPublicado';
 import { anosDoCron, obterArquivo, urlInformeFii } from '@/services/analiseAtivos/fii/fiiArquivos';
 import {
   cnpjsDoMapa,
@@ -325,9 +329,11 @@ export async function sincronizarFiiMensal(
       cacheDir: opts.cacheDir,
       condicional: opts.condicional,
       aplicar: ctx.aplicar,
+      naoPublicadoSe404: anoPodeNaoEstarPublicado(ano, ctx.hoje),
     });
     try {
-      if (arq.status === 'nao_modificado' || !arq.caminho) {
+      if (arq.status === 'nao_publicado') ctx.alertar(alertaAnoNaoPublicado(url, ano));
+      if (arq.status === 'nao_modificado' || arq.status === 'nao_publicado' || !arq.caminho) {
         arquivos.push({ url, status: arq.status });
         continue;
       }

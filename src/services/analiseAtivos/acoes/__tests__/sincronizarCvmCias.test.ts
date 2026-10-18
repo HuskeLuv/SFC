@@ -479,3 +479,54 @@ describe('sincronizarCvmCias — nº de ações com o LPA só no individual (VIV
     expect(depois[0].status).toBe(original.status);
   });
 });
+
+describe('sincronizarCvmCias — virada do ano (M13: arquivo do ano novo ainda não existe na CVM)', () => {
+  const ANO_NOVO = { hoje: '2027-01-01' };
+  const naoPublicados = (c: Ctx) =>
+    c.alertas.filter((a) => a.codigo === 'arquivo_ano_nao_publicado');
+
+  it('01/01/2027, ITR na janela do cron {2026, 2027}: 2026 segue, 2027 dá 404 ⇒ "não publicado" com aviso, sem falha', async () => {
+    const { prisma, zips } = await carregarTudo();
+    const { ctx, r, arquivos } = await rodar(prisma, zips, { doc: 'itr' }, ANO_NOVO);
+    expect(r.detalhes?.anos).toEqual([2026, 2027]);
+    expect(arquivos.map((a) => [a.ano, a.status])).toEqual([
+      [2026, 'inalterado'],
+      [2027, 'nao_publicado'],
+    ]);
+    expect(r.parcial).toBe(false);
+    expect(naoPublicados(ctx)).toEqual([
+      expect.objectContaining({ nivel: 'aviso', ref: urlArquivoCvm('itr', 2027) }),
+    ]);
+  });
+
+  it('01/01/2027, DFP 2027 e FCA 2027 com 404 ⇒ "não publicado"; nada gravado', async () => {
+    const { prisma, tabelas, zips } = await carregarTudo();
+    const antes = tabelas.assetFundamentalsPeriod.length;
+    const dfp = await rodar(prisma, zips, { doc: 'dfp', anos: [2025, 2027] }, ANO_NOVO);
+    expect(dfp.arquivos.map((a) => a.status)).toEqual(['inalterado', 'nao_publicado']);
+    const fca = await rodar(prisma, zips, { doc: 'fca' }, ANO_NOVO);
+    expect(fca.arquivos).toEqual([
+      expect.objectContaining({ ano: 2027, doc: 'fca', status: 'nao_publicado' }),
+    ]);
+    expect(naoPublicados(fca.ctx)).toHaveLength(1);
+    expect(tabelas.assetFundamentalsPeriod.length).toBe(antes);
+  });
+
+  it('404 de ano JÁ passado continua falha (o arquivo existia: URL mudou ou sumiu)', async () => {
+    const { prisma, zips } = await carregarTudo();
+    await expect(rodar(prisma, zips, { doc: 'dfp', anos: [2026] }, ANO_NOVO)).rejects.toThrow(
+      /404/,
+    );
+  });
+
+  it('erro que não é 404 no ano corrente continua falha', async () => {
+    const { prisma } = await carregarTudo();
+    const ctx = criarCtx(prisma, ANO_NOVO);
+    const baixar = vi.fn(async () => {
+      throw new ErroFonte('http_erro', 'HTTP 500', 500);
+    });
+    await expect(
+      sincronizarCvmCias(ctx, { doc: 'itr', anos: [2027], perfil: 'dev', baixar }),
+    ).rejects.toThrow(/500/);
+  });
+});
