@@ -506,7 +506,8 @@ export type CategoriaCarteira = string;
 
 /**
  * GET /api/analise-ativos/carteira — targetUserId (consultor vê o cliente). no-store.
- * Alimenta o filtro "Na minha carteira", o selo e a busca. Os NÚMEROS do bloco "Na sua carteira"
+ * Alimenta o filtro "Na minha carteira", o selo e a busca. Chave = chaveCarteira(ticker) (EUA sem
+ * pontuação: BRK.B → BRKB; B3 igual ao ticker). Os NÚMEROS do bloco "Na sua carteira"
  * vêm dos hooks da própria Carteira (useAcoes/useFii/resumo/configuração), não daqui.
  */
 export interface OverlayCarteiraResposta {
@@ -522,6 +523,13 @@ export interface OverlayCarteiraResposta {
       estrategia?: string | null;
       /** v2.4 (C1): tipo de FII da posição na Carteira — recompra manda o mesmo */
       tipoFii?: string | null;
+      /**
+       * EUA (fatia D): Asset manual da posição (chave sem pontuação: BRK.B → BRKB) — a recompra
+       * pela Análise manda este assetId para não criar outro. Ausente no Brasil.
+       */
+      assetId?: string;
+      /** EUA (fatia D): Asset.type da posição ('stock' | 'reit'); ausente no Brasil */
+      tipoAsset?: 'stock' | 'reit';
     }
   >;
   planejados: Record<
@@ -534,6 +542,10 @@ export interface OverlayCarteiraResposta {
       id?: string;
       /** v2.4 (C1): Watchlist.secao (1ª compra de planejado usa esta seção) */
       secao?: string | null;
+      /** EUA (fatia D): Asset manual do planejado; ausente no Brasil */
+      assetId?: string;
+      /** EUA (fatia D): 'stock' | 'reit'; ausente no Brasil */
+      tipoAsset?: 'stock' | 'reit';
     }
   >;
 }

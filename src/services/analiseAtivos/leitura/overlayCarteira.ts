@@ -19,9 +19,20 @@
  * 17/10/2026: o "Planejar na carteira" grava o Objetivo da Carteira (% dentro da aba) — o chip
  * 'Planejado' e o 'Ajustar plano' leem posicoes[t].objetivoPct / planejados[t]. O `alvos` de
  * planning_asset_targets (v2.5, % da carteira total) saiu.
+ *
+ * Stocks e REITs (feature EUA, fatia D): o Asset manual da Carteira ('AAPL-<ts>-<rnd>', type
+ * stock|reit, USD, source manual) entra pela chave SEM pontuação (chaveCarteira: 'BRKB-…' → BRKB,
+ * a mesma da página BRK.B) e traz `assetId` e `tipoAsset` — a recompra pela Análise manda esse
+ * Asset para não criar outro. Os NÚMEROS continuam vindo da própria aba da Carteira
+ * (/api/carteira/stocks|reit, getAssetPrices), não daqui. ETF em USD e ação da B3 não mudam.
  */
 import prisma from '@/lib/prisma';
 import { categoriaEfetiva } from '@/services/portfolio/itemValuation';
+import {
+  chaveCarteira,
+  ehTipoAssetEua,
+  tickerDeAssetEua,
+} from '@/services/analiseAtivos/carteira/tickerCarteiraEua';
 import type { OverlayCarteiraResposta } from '@/types/analiseAtivosApi';
 
 interface AssetOverlay {
@@ -30,6 +41,7 @@ interface AssetOverlay {
   type: string | null;
   name: string | null;
   currency: string | null;
+  source: string | null;
 }
 
 const SELECT_ASSET = {
@@ -38,12 +50,22 @@ const SELECT_ASSET = {
   type: true,
   name: true,
   currency: true,
+  source: true,
 } as const;
 
+/** Chave do ativo: EUA manual → ticker sem pontuação; o resto → symbol em maiúsculas. */
 const tickerDe = (asset: AssetOverlay | null): string | null => {
+  const eua = tickerDeAssetEua(asset);
+  if (eua) return chaveCarteira(eua);
   const s = asset?.symbol?.trim().toUpperCase();
   return s ? s : null;
 };
+
+/** assetId/tipoAsset só nas linhas EUA manuais (a recompra pela Análise reaproveita o Asset). */
+const camposEua = (asset: AssetOverlay) =>
+  tickerDeAssetEua(asset) && ehTipoAssetEua(asset.type)
+    ? { assetId: asset.id, tipoAsset: asset.type }
+    : {};
 
 /** Portfolio.objetivo: 0 (padrão da coluna) = sem alvo. */
 const objetivoOuNull = (v: number | null | undefined): number | null =>
@@ -96,6 +118,7 @@ export async function overlayCarteira(userId: string): Promise<OverlayCarteiraRe
       objetivoPct: objetivoOuNull(p.objetivo),
       estrategia: p.estrategia ?? null,
       tipoFii: p.tipoFii ?? null,
+      ...camposEua(p.asset),
     };
   }
 
@@ -110,6 +133,7 @@ export async function overlayCarteira(userId: string): Promise<OverlayCarteiraRe
       categoria: categoriaEfetiva(w.asset, w.categoriaOverride),
       objetivoPct: Number.isFinite(w.objetivo) ? w.objetivo : null,
       secao: w.secao ?? null,
+      ...camposEua(w.asset),
     };
   }
 

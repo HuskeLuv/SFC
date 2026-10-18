@@ -20,12 +20,19 @@ vi.mock('@/services/pricing/brapiQuote', () => ({
 
 import { overlayCarteira } from '../overlayCarteira';
 
-const asset = (id: string, symbol: string, type: string, currency: string | null = 'BRL') => ({
+const asset = (
+  id: string,
+  symbol: string,
+  type: string,
+  currency: string | null = 'BRL',
+  source: string | null = 'brapi',
+) => ({
   id,
   symbol,
   type,
   name: symbol,
   currency,
+  source,
 });
 
 beforeEach(() => {
@@ -178,5 +185,69 @@ describe('overlayCarteira', () => {
     expect(mocks.prisma.planningAssetTarget.findMany).not.toHaveBeenCalled();
     // o chip 'Planejado' lê o Objetivo da aba
     expect(r.posicoes.WEGE3.objetivoPct).toBe(25);
+  });
+
+  it('EUA: Asset manual stock/REIT pela chave sem pontuação, com assetId e tipoAsset', async () => {
+    mocks.prisma.portfolio.findMany.mockResolvedValue([
+      {
+        id: 'p-brkb',
+        quantity: 3,
+        categoriaOverride: null,
+        objetivo: 0,
+        estrategia: 'value',
+        tipoFii: null,
+        asset: asset('a-brkb', 'BRKB-1712345678901-abc', 'stock', 'USD', 'manual'),
+      },
+      {
+        id: 'p-o',
+        quantity: 10,
+        categoriaOverride: null,
+        objetivo: 4,
+        estrategia: null,
+        tipoFii: null,
+        asset: asset('a-o', 'O-1712345678901-abc', 'reit', 'USD', 'manual'),
+      },
+      // ETF em USD não vira stock: fica com o symbol cru e sem assetId
+      {
+        id: 'p-voo',
+        quantity: 1,
+        categoriaOverride: null,
+        objetivo: 0,
+        estrategia: null,
+        tipoFii: null,
+        asset: asset('a-voo', 'VOO-1712345678901-abc', 'etf', 'USD', 'manual'),
+      },
+    ]);
+    mocks.prisma.watchlist.findMany.mockResolvedValue([
+      {
+        id: 'w-aapl',
+        objetivo: 5,
+        secao: 'growth',
+        categoriaOverride: null,
+        asset: asset('a-aapl', 'AAPL-1712345678901-abc', 'stock', 'USD', 'manual'),
+      },
+    ]);
+    const r = await overlayCarteira('u1');
+    expect(r.posicoes.BRKB).toEqual({
+      portfolioId: 'p-brkb',
+      quantidade: 3,
+      categoria: 'stocks',
+      objetivoPct: null,
+      estrategia: 'value',
+      tipoFii: null,
+      assetId: 'a-brkb',
+      tipoAsset: 'stock',
+    });
+    expect(r.posicoes.O).toMatchObject({ categoria: 'reits', assetId: 'a-o', tipoAsset: 'reit' });
+    expect(r.posicoes['VOO-1712345678901-ABC']).not.toHaveProperty('assetId');
+    expect(r.planejados.AAPL).toMatchObject({
+      id: 'w-aapl',
+      objetivoPct: 5,
+      secao: 'growth',
+      assetId: 'a-aapl',
+      tipoAsset: 'stock',
+    });
+    // overlay segue sem preço
+    expect(mocks.getAssetPrices).not.toHaveBeenCalled();
   });
 });
