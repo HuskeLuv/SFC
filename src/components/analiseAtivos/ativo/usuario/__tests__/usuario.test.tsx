@@ -238,6 +238,7 @@ function SondaNaCarteira({
         temPlano: d.temPlano,
         carregandoNumeros: d.carregandoNumeros,
         moeda: d.moeda,
+        valoresMistos: d.valoresMistos,
         cotacaoDolar: d.cotacaoDolar,
         assetIdPosicao: d.assetIdPosicao,
         tipoAsset: d.tipoAsset,
@@ -284,13 +285,19 @@ describe('useNaCarteiraAtivo', () => {
         carregandoNumeros: false,
       }),
     );
-    expect(sonda()).toMatchObject({ categoria: 'stocks', abaNome: 'Stocks', moeda: 'USD' });
+    // ativo da B3 movido: preço médio e cotação em R$ (a unidade não muda com a aba)
+    expect(sonda()).toMatchObject({
+      categoria: 'stocks',
+      abaNome: 'Stocks',
+      moeda: 'BRL',
+      valoresMistos: false,
+    });
     expect(sonda().linha).toMatchObject({ ticker: 'WEGE3' });
     expect(urlsChamadas()).toContain('/api/carteira/stocks');
     expect(urlsChamadas()).not.toContain('/api/carteira/acoes');
   });
 
-  it('EUA: BRK.B casa a linha BRKB da aba Stocks (wizard) — mesmo valor da Carteira', async () => {
+  it('EUA: BRK.B casa a linha BRKB da aba Stocks (wizard); preço médio em R$ = valores mistos', async () => {
     overlay.posicoes = {
       'BRK.B': {
         portfolioId: 'pf-brkb',
@@ -305,15 +312,17 @@ describe('useNaCarteiraAtivo', () => {
     await waitFor(() => expect(sonda().carregandoNumeros).toBe(false));
     const s = sonda();
     expect(s.linha).toEqual(LINHA_BRKB);
+    // a Carteira guarda o stock em R$ (q × US$ × câmbio) e soma a cotação em US$: sem unidade única
     expect(s).toMatchObject({
-      moeda: 'USD',
+      moeda: 'BRL',
+      valoresMistos: true,
       cotacaoDolar: 5,
       assetIdPosicao: 'a-brkb',
       tipoAsset: 'stock',
       valorAba: 6252 + 1000,
     });
-    // % da carteira total em R$: valor da aba × dólar da Carteira ÷ totais.dinheiro
-    expect(s.pctCarteira).toBeCloseTo(((1000 * 5) / 100_000) * 100, 10);
+    // nada é multiplicado pelo dólar: o valor da linha já não está em US$
+    expect(s.pctCarteira).toBeCloseTo((1000 / 100_000) * 100, 10);
   });
 
   it('EUA: overlay sem o cadastro da SEC (chave BRKB) também casa a página BRK.B', async () => {

@@ -16,8 +16,11 @@
  * números) · erro.
  *
  * Stocks e REITs (feature EUA, fatia D): a linha vem da aba Stocks/REIT's da Carteira (a mesma
- * função de preço, getAssetPrices) e os valores saem como a aba mostra (US$), com a nota "Mesmo
- * valor da aba ‹aba› da Carteira." A posição criada pelo wizard ('BRKB-…') casa a página BRK.B.
+ * função de preço, getAssetPrices). REIT: valores em US$ (a unidade em que a Carteira o guarda),
+ * com a nota "Mesmo valor da aba ‹aba› da Carteira." Stock: a Carteira guarda o preço médio em R$
+ * e soma a cotação em US$ (valoresMistos) — o card mostra só a quantidade e o link para a aba,
+ * nunca um valor em R$ com o rótulo US$. A posição criada pelo wizard ('BRKB-…') casa a página
+ * BRK.B.
  */
 import Link from 'next/link';
 import { useState } from 'react';
@@ -251,8 +254,9 @@ export default function BlocoNaCarteira({
     ? `/ativos/${encodeURIComponent(dados.portfolioId)}`
     : '/carteira';
 
-  // Posição numa aba sem detalhe aqui (ex.: movida para Stocks/ETF's): quantidade + link.
-  if (!dados.abaDetalhada) {
+  // Posição numa aba sem detalhe aqui (ex.: movida para ETF's) ou stock com preço médio em R$ e
+  // cotação em US$ na aba Stocks (sem unidade única): quantidade + link.
+  if (!dados.abaDetalhada || dados.valoresMistos) {
     return (
       <section aria-label={t.titulo} className={CARD} data-na-carteira="aba">
         <Titulo

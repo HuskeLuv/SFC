@@ -229,7 +229,8 @@ export default function ModalPlanejar({
           qtd: inteiro(linha.quantidade),
           un: cl.un,
           pct: pct1(linha.percentualCarteira),
-          valor: dinheiro(linha.valorAtualizado),
+          // stock: preço médio em R$ e cotação em US$ na aba (valoresMistos) — sem valor aqui
+          valor: dados.valoresMistos ? '—' : dinheiro(linha.valorAtualizado),
         })
       : dados.status === 'posicao'
         ? '—'

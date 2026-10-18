@@ -28,10 +28,16 @@
  * lida de /api/carteira/stocks|reit com a key do useCarteiraStocks/useReit (a MESMA função de
  * preço da Carteira, getAssetPrices) — "Na sua carteira" mostra o mesmo valor da aba. A linha é
  * achada pela chave sem pontuação (chaveCarteira: a página BRK.B casa a linha 'BRKB' do wizard; a
- * aba REIT's traz o symbol manual 'O-<ts>-<rnd>', reduzido a 'O'). Os valores dessas abas estão na
- * unidade da Carteira (exibida em US$): `moeda` diz 'USD' e o "% da carteira" converte pelo
- * `cotacaoDolar` da aba, como o GenericAssetTable. `assetIdPosicao`/`tipoAsset` (overlay) vão para a
- * recompra pela Análise.
+ * aba REIT's traz o symbol manual 'O-<ts>-<rnd>', reduzido a 'O'). `assetIdPosicao`/`tipoAsset`
+ * (overlay) vão para a recompra pela Análise.
+ *
+ * Unidade (QA de 18/10): a Carteira guarda o REIT em US$ (q × US$, como o Step4ReitFields) e o
+ * STOCK em R$ (valorInvestido = q × US$ × câmbio ⇒ preço médio em R$), mas a aba Stocks soma a
+ * cotação da BRAPI em US$ ao valor atualizado. Por isso `moeda` é a unidade do preço médio da
+ * linha — 'USD' só para REIT numa aba EUA, 'BRL' para stock e para ativo da B3 movido — e
+ * `valoresMistos` marca a posição de stock: preço médio em R$ com cotação em US$, sem unidade
+ * única; a Análise não exibe esses valores (só a quantidade e o link para a aba). O "% da carteira"
+ * converte pelo `cotacaoDolar` da aba só o que está em US$.
  */
 import { useQuery } from '@tanstack/react-query';
 import { queryKeys } from '@/lib/queryKeys';
@@ -86,9 +92,11 @@ export interface NaCarteiraAtivo {
   abaNome: string | null;
   /** aba com os números aqui (Ações, FII's, Stocks, REIT's); null = só quantidade + link */
   abaDetalhada: AbaDetalhada | null;
-  /** unidade dos valores da linha: 'USD' nas abas Stocks/REIT's (como a Carteira exibe) */
+  /** unidade do preço médio da linha: 'USD' só para REIT numa aba EUA; stock e B3 = 'BRL' */
   moeda: 'BRL' | 'USD';
-  /** cotação do dólar da aba Stocks/REIT's (null fora delas ou sem cotação) */
+  /** posição de stock numa aba EUA: preço médio em R$ e cotação em US$ — não exibir os valores */
+  valoresMistos: boolean;
+  /** cotação do dólar da aba Stocks/REIT's (null fora delas ou sem cotação; pré-preenche o câmbio) */
   cotacaoDolar: number | null;
   /** EUA: Asset manual da posição (a recompra pela Análise não cria outro) e o Asset.type */
   assetIdPosicao: string | null;
@@ -252,12 +260,19 @@ export function useNaCarteiraAtivo(
   const valorAba = path ? somaDaAba(abaQ.data) : null;
   const dinheiro = totalDinheiro(resumoQ.data);
   const valorBase = dinheiro !== null && dinheiro > 0 ? dinheiro : null;
-  const moeda = abaDetalhada && ABAS_USD.has(abaDetalhada) ? 'USD' : 'BRL';
+  const abaUsd = !!abaDetalhada && ABAS_USD.has(abaDetalhada);
+  // tipo do Asset da linha (overlay); sem posição nem plano, o da classe da página
+  const tipoNaAba =
+    posicao?.tipoAsset ??
+    planejado?.tipoAsset ??
+    (classe === 'reit' ? 'reit' : classe === 'stock' ? 'stock' : null);
+  const moeda = abaUsd && tipoNaAba === 'reit' ? 'USD' : 'BRL';
+  const valoresMistos = abaUsd && !!posicao && tipoNaAba === 'stock';
   const cotacaoDolar =
-    moeda === 'USD' && typeof abaQ.data?.cotacaoDolar === 'number' && abaQ.data.cotacaoDolar > 0
+    abaUsd && typeof abaQ.data?.cotacaoDolar === 'number' && abaQ.data.cotacaoDolar > 0
       ? abaQ.data.cotacaoDolar
       : null;
-  // Stocks/REIT's: o total da carteira é em R$ e a linha na unidade da aba (GenericAssetTable).
+  // o total da carteira é em R$: só a linha em US$ (REIT) converte pelo dólar da aba
   const paraReais = moeda === 'USD' ? (cotacaoDolar ?? 1) : 1;
   // A linha da aba só é exigida para a posição; sem posição, 0% da carteira.
   const pctCarteira =
@@ -316,6 +331,7 @@ export function useNaCarteiraAtivo(
     abaNome: categoria ? rotuloCategoria(categoria as Parameters<typeof rotuloCategoria>[0]) : null,
     abaDetalhada,
     moeda,
+    valoresMistos,
     cotacaoDolar,
     assetIdPosicao: posicao?.assetId ?? null,
     tipoAsset: posicao?.tipoAsset ?? planejado?.tipoAsset ?? null,

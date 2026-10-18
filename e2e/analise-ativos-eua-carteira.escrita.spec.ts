@@ -226,22 +226,18 @@ test.describe('Stocks/REITs: Planejar, Registrar e Na sua carteira (EUA)', () =>
       expect(linhasAapl, 'uma única linha de AAPL na aba Stocks').toHaveLength(1);
       expect(linhasAapl[0]).toMatchObject({ quantidade: 5, objetivo: 10 });
 
-      // 5. selo "Na carteira" e "Na sua carteira" = o valor da aba Stocks (US$, como a aba)
+      // 5. selo "Na carteira"; "Na sua carteira" do stock = quantidade + link para a aba Stocks
+      // (a Carteira guarda o preço médio do stock em R$ e soma a cotação em US$: sem valor aqui)
       await page.reload({ waitUntil: 'load' });
       await expect(page.getByText('Na carteira', { exact: true }).first()).toBeVisible({
         timeout: 30_000,
       });
       const bloco = page.locator('section[data-na-carteira]');
-      await expect(bloco).toHaveAttribute('data-na-carteira', 'posicao', { timeout: 30_000 });
-      const valor = linhasAapl[0].valorAtualizado.toLocaleString('pt-BR', {
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 2,
-      });
-      // formatUSD (Intl pt-BR) separa 'US$' do número com espaço fino/inseparável
-      await expect(bloco).toContainText(new RegExp(`US\\$\\s${valor.replace(/\./g, '\\.')}`), {
-        timeout: 30_000,
-      });
-      await expect(bloco).toContainText('Mesmo valor da aba Stocks da Carteira.');
+      await expect(bloco).toHaveAttribute('data-na-carteira', 'aba', { timeout: 30_000 });
+      await expect(bloco).toContainText(
+        'O ativo está na aba Stocks da sua Carteira. Os números ficam lá.',
+      );
+      await expect(bloco).not.toContainText('US$');
 
       // 3. BRK.B → chave da Análise
       expect(await abrirAtivo(page, 'BRK.B')).toBe(true);

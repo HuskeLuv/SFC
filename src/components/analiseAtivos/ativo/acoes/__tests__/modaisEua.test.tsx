@@ -211,8 +211,9 @@ describe('Registrar operação — Stocks/REITs', () => {
   it('RECOMPRA de BRK.B: manda o Asset manual da posição (não cria outro), na seção da posição', async () => {
     comCliente(<ModalRegistrarOperacao {...baseRegistrar} ticker="BRK.B" classe="stock" />);
     await screen.findByText('Na Carteira: Stocks · Growth (dá para mover depois)');
-    // PM como a aba Stocks mostra (US$)
-    await screen.findByText(/PM US\$\s2\.420,00/);
+    // PM na unidade em que a Carteira guarda o stock: R$ (q × US$ × câmbio ÷ q)
+    await screen.findByText(/PM R\$\s2\.420,00/);
+    expect(screen.queryByText(/PM US\$/)).toBeNull();
     await waitFor(() => expect(screen.getByTestId('instituicao')).toHaveTextContent('XP'));
     preencher(/Quantidade/, '1');
     preencher(/Preço por ação/, '450');
@@ -318,12 +319,58 @@ describe('Planejar — Stocks/REITs sem Asset de catálogo', () => {
 });
 
 describe('Na sua carteira — Stocks', () => {
-  it('BRK.B: os números da aba Stocks (US$), % da carteira em R$ e a nota do mesmo valor', async () => {
+  it('BRK.B: preço médio em R$ com cotação em US$ na aba — só a quantidade e o link, sem valor', async () => {
     const { container } = comCliente(
       <BlocoNaCarteira
         ticker="BRK.B"
         classe="stock"
         nome="Berkshire"
+        assetId={null}
+        precoCabecalho={null}
+        precoData={null}
+      />,
+    );
+    await waitFor(() => expect(container.querySelector('[data-na-carteira="aba"]')).not.toBeNull());
+    expect(
+      screen.getByText('O ativo está na aba Stocks da sua Carteira. Os números ficam lá.'),
+    ).toBeInTheDocument();
+    expect(screen.getByText('3')).toBeInTheDocument();
+    // nenhum valor em R$ com o rótulo US$ (NVDA 3 × US$ 150 × 5,40 aparecia como "US$ 2.430,00")
+    expect(container.textContent).not.toMatch(/US\$|R\$/);
+    expect(screen.getByRole('link', { name: 'Abrir na Carteira' })).toHaveAttribute(
+      'href',
+      '/ativos/pf-brkb',
+    );
+  });
+
+  it("REIT (O): valores em US$ (unidade da aba REIT's), % da carteira convertido pelo dólar", async () => {
+    overlay = {
+      posicoes: {
+        O: {
+          portfolioId: 'pf-o',
+          quantidade: 10,
+          categoria: 'reits',
+          objetivoPct: null,
+          estrategia: 'value',
+          tipoFii: null,
+          assetId: 'a-o',
+          tipoAsset: 'reit',
+        },
+      },
+      planejados: {},
+    };
+    const linhaO = { ...LINHA_BRKB, id: 'pf-o', ticker: 'O-1-abc', quantidade: 10 };
+    const abaReit = { cotacaoDolar: 5.4, secoes: [{ nome: 'Value', ativos: [linhaO] }] };
+    fetchMock.mockImplementation(async (url: string) =>
+      String(url).startsWith('/api/carteira/reit')
+        ? mockFetchResponse(abaReit)
+        : roteador(String(url)),
+    );
+    const { container } = comCliente(
+      <BlocoNaCarteira
+        ticker="O"
+        classe="reit"
+        nome="Realty Income"
         assetId={null}
         precoCabecalho={null}
         precoData={null}
@@ -336,6 +383,6 @@ describe('Na sua carteira — Stocks', () => {
     expect(screen.getByText(/US\$\s2\.420,00/)).toBeInTheDocument();
     // 7.500 × 5,40 ÷ 100.000 = 40,50%
     expect(screen.getByText('40,50%')).toBeInTheDocument();
-    expect(screen.getByText('Mesmo valor da aba Stocks da Carteira.')).toBeInTheDocument();
+    expect(screen.getByText("Mesmo valor da aba REIT's da Carteira.")).toBeInTheDocument();
   });
 });
