@@ -275,9 +275,10 @@ const utcMonthKey = (d: Date): string => `${d.getUTCFullYear()}-${d.getUTCMonth(
 /**
  * Busca dividendos do banco para um símbolo. Ignora linhas com assinatura de
  * fantasma mensal quando o mesmo mês tem um evento real — cinto e suspensório
- * caso um dataset assim volte a entrar no banco.
+ * caso um dataset assim volte a entrar no banco. Exportada para o script de limpeza dos espelhos
+ * órfãos da Carteira (só leitura no banco, sem fallback nem registro de lacuna).
  */
-const getDividendsFromDb = async (symbol: string): Promise<DividendEntry[]> => {
+export const getDividendsFromDb = async (symbol: string): Promise<DividendEntry[]> => {
   const variants = getDbSymbolVariants(symbol);
   const allRows = await prisma.assetDividendHistory.findMany({
     where: { symbol: { in: variants } },
