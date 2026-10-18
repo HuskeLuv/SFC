@@ -390,32 +390,38 @@ export const gravarProventosBrapi = async (
   });
   const plano = planejarGravacaoProventosBrapi(existentes, aggregated);
   if (opts.aplicar === false || planoVazio(plano)) return plano;
-  // apaga ANTES de criar: se o processo cair no meio, a tabela não fica com a soma antiga e as
-  // parcelas novas contando juntas.
-  if (plano.apagar.length > 0) {
-    await prisma.assetDividendHistory.deleteMany({
-      where: { id: { in: plano.apagar.map((a) => a.id) } },
-    });
-  }
-  for (const u of plano.atualizar) {
-    await prisma.assetDividendHistory.update({
-      where: { id: u.id },
-      data: { valorUnitario: u.valorUnitario },
-    });
-  }
-  if (plano.criar.length > 0) {
-    await prisma.assetDividendHistory.createMany({
-      data: plano.criar.map((c) => ({
-        symbol: dbSymbol,
-        date: c.date,
-        dataCom: c.dataCom,
-        tipo: c.tipo,
-        valorUnitario: c.valorUnitario,
-        source: 'BRAPI',
-      })),
-      skipDuplicates: true,
-    });
-  }
+  // tudo ou nada (backtest 18/10/2026): uma falha entre o apagar e o criar deixaria o símbolo sem
+  // as parcelas até a próxima passada (a Carteira mostraria menos proventos). Apaga ANTES de criar
+  // dentro da transação, para a chave nova nunca colidir com a soma antiga.
+  await prisma.$transaction(
+    async (tx) => {
+      if (plano.apagar.length > 0) {
+        await tx.assetDividendHistory.deleteMany({
+          where: { id: { in: plano.apagar.map((a) => a.id) } },
+        });
+      }
+      for (const u of plano.atualizar) {
+        await tx.assetDividendHistory.update({
+          where: { id: u.id },
+          data: { valorUnitario: u.valorUnitario },
+        });
+      }
+      if (plano.criar.length > 0) {
+        await tx.assetDividendHistory.createMany({
+          data: plano.criar.map((c) => ({
+            symbol: dbSymbol,
+            date: c.date,
+            dataCom: c.dataCom,
+            tipo: c.tipo,
+            valorUnitario: c.valorUnitario,
+            source: 'BRAPI',
+          })),
+          skipDuplicates: true,
+        });
+      }
+    },
+    { timeout: 60_000 },
+  );
   return plano;
 };
 

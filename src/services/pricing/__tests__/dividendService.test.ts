@@ -19,6 +19,7 @@ const mockPrisma = vi.hoisted(() => ({
     findUnique: vi.fn().mockResolvedValue(null),
     upsert: vi.fn().mockResolvedValue({}),
   },
+  $transaction: vi.fn(),
 }));
 
 vi.mock('@/lib/prisma', () => ({
@@ -35,11 +36,16 @@ beforeEach(() => {
   vi.stubEnv('MARKET_DATA_DB_ONLY', 'false');
   mockPrisma.marketDataCoverage.findUnique.mockResolvedValue(null);
   mockPrisma.marketDataCoverage.upsert.mockResolvedValue({});
+  // transação interativa: o callback recebe o próprio mock como `tx`
+  mockPrisma.$transaction.mockImplementation(async (fn: (tx: unknown) => unknown) =>
+    fn(mockPrisma),
+  );
   global.fetch = mockFetch;
 });
 
 import {
   getDividends,
+  gravarProventosBrapi,
   isJcpType,
   getJcpIrrfRate,
   ensureCorporateActionsSynced,
@@ -756,6 +762,81 @@ describe('BRAPI dedup pré-upsert', () => {
       }),
     ]);
     expect(mockPrisma.assetDividendHistory.deleteMany).not.toHaveBeenCalled();
+  });
+});
+
+describe('gravarProventosBrapi — tudo ou nada', () => {
+  it('SAPR11: se o createMany falha, o apagar e o atualizar da mesma passada são desfeitos', async () => {
+    // banco em memória com rollback: as operações só valem se o callback da transação terminar
+    const banco = new Map([
+      ['soma', 1.960639691],
+      ['velha', 0.5],
+    ]);
+    mockPrisma.$transaction.mockImplementation(async (fn: (tx: unknown) => unknown) => {
+      const ops: Array<() => void> = [];
+      const tx = {
+        assetDividendHistory: {
+          deleteMany: async ({ where }: { where: { id: { in: string[] } } }) => {
+            ops.push(() => where.id.in.forEach((id) => banco.delete(id)));
+          },
+          update: async ({
+            where,
+            data,
+          }: {
+            where: { id: string };
+            data: { valorUnitario: number };
+          }) => {
+            ops.push(() => banco.set(where.id, data.valorUnitario));
+          },
+          createMany: async () => {
+            throw new Error('conexão caiu');
+          },
+        },
+      };
+      const r = await fn(tx);
+      ops.forEach((op) => op());
+      return r;
+    });
+    const pag = new Date('2026-06-26T00:00:00Z');
+    mockPrisma.assetDividendHistory.findMany.mockResolvedValueOnce([
+      {
+        id: 'soma',
+        date: pag,
+        dataCom: new Date('2025-12-30T00:00:00Z'),
+        tipo: 'JCP',
+        valorUnitario: 1.960639691,
+        source: 'BRAPI',
+      },
+      // versão que a fonte trocou (mesmo provento 1 pregão depois)
+      {
+        id: 'velha',
+        date: new Date('2026-06-29T00:00:00Z'),
+        dataCom: new Date('2025-07-01T00:00:00Z'),
+        tipo: 'JCP',
+        valorUnitario: 1.408226885,
+        source: 'BRAPI',
+      },
+    ]);
+    await expect(
+      gravarProventosBrapi('SAPR11', [
+        {
+          date: pag,
+          tipo: 'JCP',
+          valorUnitario: 1.408226885,
+          dataCom: new Date('2025-06-30T00:00:00Z'),
+        },
+        {
+          date: pag,
+          tipo: 'JCP',
+          valorUnitario: 0.552412806,
+          dataCom: new Date('2025-12-30T00:00:00Z'),
+        },
+      ]),
+    ).rejects.toThrow('conexão caiu');
+    expect(Object.fromEntries(banco)).toEqual({ soma: 1.960639691, velha: 0.5 });
+    // nada escrito fora da transação
+    expect(mockPrisma.assetDividendHistory.deleteMany).not.toHaveBeenCalled();
+    expect(mockPrisma.assetDividendHistory.update).not.toHaveBeenCalled();
   });
 });
 
