@@ -54,9 +54,9 @@ describe('jobs EUA no catálogo (fatia 0)', () => {
     }
   });
 
-  // fatia A preencheu sec-cadastro/sec-fundamentos/cotacoes-eua (testes em eua/__tests__); os
-  // stubs que restam são os da fatia B
-  it.each(NOMES_JOBS_EUA.filter((n) => MODULOS_JOBS_EUA[n].fatia === 'B'))(
+  // fatia A preencheu sec-cadastro/sec-fundamentos/cotacoes-eua (testes em eua/__tests__) e a
+  // fatia B o criterios-eua; os stubs que restam são os outros da fatia B
+  it.each(NOMES_JOBS_EUA.filter((n) => MODULOS_JOBS_EUA[n].fatia === 'B' && n !== 'criterios-eua'))(
     '%s: stub termina pulado (com o motivo da fatia dona), sem tocar no banco',
     async (nome) => {
       const r = await CATALOGO_JOBS[nome].executar(ctx(), { versaoParams: 3 });
