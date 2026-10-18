@@ -147,3 +147,54 @@ export async function serieRecenteCotacoes(
   }
   return out;
 }
+
+/** Janela de pregões de um símbolo (AAAA-MM-DD, inclusive). */
+export interface JanelaPregoes {
+  symbol: string;
+  de: string;
+  ate: string;
+}
+
+const LOTE_JANELAS = 50;
+/** Dias antes de `de` lidos a mais: o pregão anterior ao 1º dia da janela entra na razão. */
+const FOLGA_ANTES_DIAS = 10;
+
+/**
+ * Pregões (date, closeRaw, negocios) de várias janelas curtas — datar/confirmar eventos corporativos
+ * pela cotação (eventosCorporativos.dataExPelaCotacao). Lotes de LOTE_JANELAS janelas; ordenado por
+ * data, sem repetição por símbolo. Só banco.
+ */
+export async function pregoesEmJanelas(
+  prisma: PrismaClient,
+  janelas: readonly JanelaPregoes[],
+): Promise<Map<string, PregaoRecente[]>> {
+  const out = new Map<string, Map<string, PregaoRecente>>();
+  for (let i = 0; i < janelas.length; i += LOTE_JANELAS) {
+    const lote = janelas.slice(i, i + LOTE_JANELAS);
+    const linhas = await prisma.assetQuoteDaily.findMany({
+      where: {
+        OR: lote.map((j) => ({
+          symbol: j.symbol,
+          date: {
+            gte: new Date(deData(j.de).getTime() - FOLGA_ANTES_DIAS * DIA_MS),
+            lte: deData(j.ate),
+          },
+        })),
+      },
+      select: { symbol: true, date: true, closeRaw: true, negocios: true },
+    });
+    for (const l of linhas) {
+      const p: PregaoRecente = {
+        date: paraData(l.date),
+        closeRaw: paraNumero(l.closeRaw) ?? 0,
+        negocios: l.negocios,
+      };
+      const m = out.get(l.symbol) ?? new Map<string, PregaoRecente>();
+      m.set(p.date, p);
+      out.set(l.symbol, m);
+    }
+  }
+  return new Map(
+    [...out].map(([s, m]) => [s, [...m.values()].sort((a, b) => a.date.localeCompare(b.date))]),
+  );
+}

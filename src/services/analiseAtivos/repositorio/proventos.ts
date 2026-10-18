@@ -144,3 +144,26 @@ export async function eventosCorporativosBrutos(
     source: l.source,
   }));
 }
+
+/**
+ * Rendimentos auditados VÁLIDOS (data-com real, valor cru) gravados na última execução, dos FIIs com
+ * desdobramento no Informe Mensal — datar o evento 'cvm_cotas' pelo salto do rendimento quando o
+ * fundo ainda não tinha cotação (eventosCorporativos.dataPeloSaltoDoRendimento). Só banco.
+ */
+export async function rendimentosAuditadosValidos(
+  prisma: PrismaClient,
+  symbols: string[],
+): Promise<Map<string, Array<{ dataCom: string; valor: number }>>> {
+  const out = new Map<string, Array<{ dataCom: string; valor: number }>>();
+  if (symbols.length === 0) return out;
+  const linhas = await prisma.assetProventoAuditado.findMany({
+    where: { symbol: { in: symbols }, status: 'valido', dataComReal: { not: null } },
+    select: { symbol: true, dataComReal: true, valor: true },
+  });
+  for (const l of linhas) {
+    const lista = out.get(l.symbol) ?? [];
+    lista.push({ dataCom: paraData(l.dataComReal!), valor: l.valor });
+    out.set(l.symbol, lista);
+  }
+  return out;
+}

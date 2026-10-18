@@ -65,6 +65,7 @@ vi.mock('@/services/analiseAtivos/repositorio/cotacoes', () => ({
       new Map(symbols.filter((s) => dados.series.has(s)).map((s) => [s, dados.series.get(s)!])),
   ),
   simbolosComSaltoDePreco: vi.fn(async () => new Set(dados.series.keys())),
+  pregoesEmJanelas: vi.fn(async () => new Map()),
   cotacaoFimDePeriodo: vi.fn(
     async (_p: unknown, pares: Array<{ symbol: string; dtFim: string }>) => {
       const m = new Map();
@@ -90,6 +91,7 @@ vi.mock('@/services/analiseAtivos/repositorio/proventos', () => ({
     async (_p: unknown, symbols: string[]) => new Map(symbols.map((s) => [s, 'OK'])),
   ),
   eventosCorporativosBrutos: vi.fn(async () => []),
+  rendimentosAuditadosValidos: vi.fn(async () => new Map()),
 }));
 vi.mock('@/services/analiseAtivos/repositorio/jobs', () => ({
   ultimaExecucaoOkPorJob: vi.fn(async () => new Map()),

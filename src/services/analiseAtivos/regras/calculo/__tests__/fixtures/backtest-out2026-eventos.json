@@ -1,0 +1,2570 @@
+{
+  "fonte": "produção (somente leitura), 18/10/2026 — backtest da Análise de Ativos",
+  "fii": {
+    "ALZR11": {
+      "symbol": "ALZR11",
+      "cnpj": "28737771000185",
+      "meses": [
+        {
+          "refMonth": "2025-01-01",
+          "cotas": 12226625.0,
+          "fatorDesdobramento": null,
+          "pl": 1266506123.73
+        },
+        {
+          "refMonth": "2025-02-01",
+          "cotas": 12226625.0,
+          "fatorDesdobramento": null,
+          "pl": 1268381861.84
+        },
+        {
+          "refMonth": "2025-03-01",
+          "cotas": 12226625.0,
+          "fatorDesdobramento": null,
+          "pl": 1272157932.15
+        },
+        {
+          "refMonth": "2025-04-01",
+          "cotas": 122266250.0,
+          "fatorDesdobramento": 10.0,
+          "pl": 1274128693.8
+        },
+        {
+          "refMonth": "2025-05-01",
+          "cotas": 122266250.0,
+          "fatorDesdobramento": null,
+          "pl": 1278573419.98
+        },
+        {
+          "refMonth": "2025-06-01",
+          "cotas": 122266250.0,
+          "fatorDesdobramento": null,
+          "pl": 1319772054.67
+        },
+        {
+          "refMonth": "2025-07-01",
+          "cotas": 122266250.0,
+          "fatorDesdobramento": null,
+          "pl": 1317134585.24
+        },
+        {
+          "refMonth": "2025-08-01",
+          "cotas": 122266250.0,
+          "fatorDesdobramento": null,
+          "pl": 1305279166.71
+        }
+      ],
+      "brutos": [
+        {
+          "id": "36968c93-d002-4540-b90f-ea9a445a83a6",
+          "symbol": "ALZR11",
+          "date": "2025-05-06",
+          "type": "DESDOBRAMENTO",
+          "factor": 10.0,
+          "source": "YAHOO"
+        }
+      ],
+      "pregoes": [
+        {
+          "date": "2025-04-22",
+          "closeRaw": 97.52,
+          "negocios": 3765
+        },
+        {
+          "date": "2025-04-23",
+          "closeRaw": 97.65,
+          "negocios": 3351
+        },
+        {
+          "date": "2025-04-24",
+          "closeRaw": 97.7,
+          "negocios": 2091
+        },
+        {
+          "date": "2025-04-25",
+          "closeRaw": 98.2,
+          "negocios": 4767
+        },
+        {
+          "date": "2025-04-28",
+          "closeRaw": 97.81,
+          "negocios": 2877
+        },
+        {
+          "date": "2025-04-29",
+          "closeRaw": 98.1,
+          "negocios": 2960
+        },
+        {
+          "date": "2025-04-30",
+          "closeRaw": 97.97,
+          "negocios": 3571
+        },
+        {
+          "date": "2025-05-02",
+          "closeRaw": 98.99,
+          "negocios": 2999
+        },
+        {
+          "date": "2025-05-05",
+          "closeRaw": 99.58,
+          "negocios": 4655
+        },
+        {
+          "date": "2025-05-06",
+          "closeRaw": 9.92,
+          "negocios": 5553
+        },
+        {
+          "date": "2025-05-07",
+          "closeRaw": 9.96,
+          "negocios": 4343
+        },
+        {
+          "date": "2025-05-08",
+          "closeRaw": 9.96,
+          "negocios": 4980
+        },
+        {
+          "date": "2025-05-09",
+          "closeRaw": 10.02,
+          "negocios": 8354
+        },
+        {
+          "date": "2025-05-12",
+          "closeRaw": 9.96,
+          "negocios": 8301
+        },
+        {
+          "date": "2025-05-13",
+          "closeRaw": 10.0,
+          "negocios": 3080
+        },
+        {
+          "date": "2025-05-14",
+          "closeRaw": 10.07,
+          "negocios": 3311
+        },
+        {
+          "date": "2025-05-15",
+          "closeRaw": 10.16,
+          "negocios": 3833
+        },
+        {
+          "date": "2025-05-16",
+          "closeRaw": 10.2,
+          "negocios": 5127
+        },
+        {
+          "date": "2025-05-19",
+          "closeRaw": 9.99,
+          "negocios": 4564
+        },
+        {
+          "date": "2025-05-20",
+          "closeRaw": 10.03,
+          "negocios": 4661
+        }
+      ],
+      "proventos": [
+        {
+          "status": "valido",
+          "tipoNormalizado": "RENDIMENTO",
+          "valor": 0.8055,
+          "dataComReal": "2025-01-17"
+        },
+        {
+          "status": "valido",
+          "tipoNormalizado": "RENDIMENTO",
+          "valor": 0.8055,
+          "dataComReal": "2025-02-18"
+        },
+        {
+          "status": "valido",
+          "tipoNormalizado": "RENDIMENTO",
+          "valor": 0.8055,
+          "dataComReal": "2025-03-18"
+        },
+        {
+          "status": "valido",
+          "tipoNormalizado": "RENDIMENTO",
+          "valor": 0.8155,
+          "dataComReal": "2025-04-16"
+        },
+        {
+          "status": "valido",
+          "tipoNormalizado": "RENDIMENTO",
+          "valor": 0.08155,
+          "dataComReal": "2025-05-16"
+        },
+        {
+          "status": "valido",
+          "tipoNormalizado": "RENDIMENTO",
+          "valor": 0.08155,
+          "dataComReal": "2025-06-17"
+        },
+        {
+          "status": "valido",
+          "tipoNormalizado": "RENDIMENTO",
+          "valor": 0.0937,
+          "dataComReal": "2025-07-18"
+        },
+        {
+          "status": "valido",
+          "tipoNormalizado": "RENDIMENTO",
+          "valor": 0.08255,
+          "dataComReal": "2025-08-18"
+        },
+        {
+          "status": "valido",
+          "tipoNormalizado": "RENDIMENTO",
+          "valor": 0.08355,
+          "dataComReal": "2025-09-18"
+        },
+        {
+          "status": "valido",
+          "tipoNormalizado": "RENDIMENTO",
+          "valor": 0.08355,
+          "dataComReal": "2025-10-17"
+        },
+        {
+          "status": "valido",
+          "tipoNormalizado": "RENDIMENTO",
+          "valor": 0.08355,
+          "dataComReal": "2025-11-17"
+        },
+        {
+          "status": "valido",
+          "tipoNormalizado": "RENDIMENTO",
+          "valor": 0.08355,
+          "dataComReal": "2025-12-16"
+        }
+      ]
+    },
+    "EQIR11": {
+      "symbol": "EQIR11",
+      "cnpj": "41076380000125",
+      "meses": [
+        {
+          "refMonth": "2022-06-01",
+          "cotas": 502500.0,
+          "fatorDesdobramento": null,
+          "pl": 50869350.45
+        },
+        {
+          "refMonth": "2022-07-01",
+          "cotas": 502500.0,
+          "fatorDesdobramento": null,
+          "pl": 49751151.39
+        },
+        {
+          "refMonth": "2022-08-01",
+          "cotas": 502500.0,
+          "fatorDesdobramento": null,
+          "pl": 49835472.58
+        },
+        {
+          "refMonth": "2022-09-01",
+          "cotas": 5025000.0,
+          "fatorDesdobramento": 10.0,
+          "pl": 49856714.6
+        },
+        {
+          "refMonth": "2022-10-01",
+          "cotas": 5025000.0,
+          "fatorDesdobramento": null,
+          "pl": 50004574.36
+        },
+        {
+          "refMonth": "2022-11-01",
+          "cotas": 5025000.0,
+          "fatorDesdobramento": null,
+          "pl": 49267646.34
+        },
+        {
+          "refMonth": "2022-12-01",
+          "cotas": 5025000.0,
+          "fatorDesdobramento": null,
+          "pl": 49065462.53
+        }
+      ],
+      "brutos": [],
+      "pregoes": [
+        {
+          "date": "2022-09-20",
+          "closeRaw": 95.0,
+          "negocios": 22
+        },
+        {
+          "date": "2022-09-21",
+          "closeRaw": 93.21,
+          "negocios": 8
+        },
+        {
+          "date": "2022-09-23",
+          "closeRaw": 95.48,
+          "negocios": 6
+        },
+        {
+          "date": "2022-09-26",
+          "closeRaw": 93.3,
+          "negocios": 11
+        },
+        {
+          "date": "2022-09-27",
+          "closeRaw": 94.49,
+          "negocios": 11
+        },
+        {
+          "date": "2022-09-28",
+          "closeRaw": 92.88,
+          "negocios": 9
+        },
+        {
+          "date": "2022-09-29",
+          "closeRaw": 9.79,
+          "negocios": 2
+        },
+        {
+          "date": "2022-09-30",
+          "closeRaw": 9.8,
+          "negocios": 41
+        },
+        {
+          "date": "2022-10-03",
+          "closeRaw": 9.75,
+          "negocios": 85
+        },
+        {
+          "date": "2022-10-04",
+          "closeRaw": 9.73,
+          "negocios": 95
+        },
+        {
+          "date": "2022-10-05",
+          "closeRaw": 9.89,
+          "negocios": 107
+        },
+        {
+          "date": "2022-10-06",
+          "closeRaw": 9.9,
+          "negocios": 154
+        },
+        {
+          "date": "2022-10-07",
+          "closeRaw": 9.89,
+          "negocios": 144
+        },
+        {
+          "date": "2022-10-10",
+          "closeRaw": 9.8,
+          "negocios": 178
+        }
+      ],
+      "proventos": [
+        {
+          "status": "valido",
+          "tipoNormalizado": "RENDIMENTO",
+          "valor": 1.071213472,
+          "dataComReal": "2022-01-19"
+        },
+        {
+          "status": "valido",
+          "tipoNormalizado": "RENDIMENTO",
+          "valor": 1.05,
+          "dataComReal": "2022-02-17"
+        },
+        {
+          "status": "valido",
+          "tipoNormalizado": "RENDIMENTO",
+          "valor": 1.053056915,
+          "dataComReal": "2022-03-18"
+        },
+        {
+          "status": "valido",
+          "tipoNormalizado": "RENDIMENTO",
+          "valor": 1.1,
+          "dataComReal": "2022-04-20"
+        },
+        {
+          "status": "valido",
+          "tipoNormalizado": "RENDIMENTO",
+          "valor": 1.1,
+          "dataComReal": "2022-05-18"
+        },
+        {
+          "status": "valido",
+          "tipoNormalizado": "RENDIMENTO",
+          "valor": 1.1,
+          "dataComReal": "2022-06-20"
+        },
+        {
+          "status": "valido",
+          "tipoNormalizado": "RENDIMENTO",
+          "valor": 1.2,
+          "dataComReal": "2022-07-19"
+        },
+        {
+          "status": "valido",
+          "tipoNormalizado": "RENDIMENTO",
+          "valor": 1.1,
+          "dataComReal": "2022-08-17"
+        },
+        {
+          "status": "valido",
+          "tipoNormalizado": "RENDIMENTO",
+          "valor": 1.1,
+          "dataComReal": "2022-09-20"
+        },
+        {
+          "status": "valido",
+          "tipoNormalizado": "RENDIMENTO",
+          "valor": 0.11,
+          "dataComReal": "2022-10-20"
+        },
+        {
+          "status": "valido",
+          "tipoNormalizado": "RENDIMENTO",
+          "valor": 0.11,
+          "dataComReal": "2022-11-21"
+        },
+        {
+          "status": "valido",
+          "tipoNormalizado": "RENDIMENTO",
+          "valor": 0.11,
+          "dataComReal": "2022-12-19"
+        }
+      ]
+    },
+    "TSNC11": {
+      "symbol": "TSNC11",
+      "cnpj": "17007443000107",
+      "meses": [
+        {
+          "refMonth": "2022-04-01",
+          "cotas": 18113.0,
+          "fatorDesdobramento": null,
+          "pl": 100046769.28
+        },
+        {
+          "refMonth": "2022-05-01",
+          "cotas": 18113.0,
+          "fatorDesdobramento": null,
+          "pl": 100059015.53
+        },
+        {
+          "refMonth": "2022-06-01",
+          "cotas": 18113.0,
+          "fatorDesdobramento": null,
+          "pl": 94457656.22
+        },
+        {
+          "refMonth": "2022-07-01",
+          "cotas": 1086780.0,
+          "fatorDesdobramento": 60.0,
+          "pl": 94452974.22
+        },
+        {
+          "refMonth": "2022-08-01",
+          "cotas": 1086780.0,
+          "fatorDesdobramento": null,
+          "pl": 94448292.22
+        },
+        {
+          "refMonth": "2022-09-01",
+          "cotas": 1086780.0,
+          "fatorDesdobramento": null,
+          "pl": 94443610.22
+        },
+        {
+          "refMonth": "2022-10-01",
+          "cotas": 1086780.0,
+          "fatorDesdobramento": null,
+          "pl": 94470520.17
+        }
+      ],
+      "brutos": [],
+      "pregoes": [],
+      "proventos": [
+        {
+          "status": "valido",
+          "tipoNormalizado": "RENDIMENTO",
+          "valor": 37.557458179,
+          "dataComReal": "2022-01-14"
+        },
+        {
+          "status": "valido",
+          "tipoNormalizado": "RENDIMENTO",
+          "valor": 37.557458179,
+          "dataComReal": "2022-02-14"
+        },
+        {
+          "status": "valido",
+          "tipoNormalizado": "RENDIMENTO",
+          "valor": 37.557458179,
+          "dataComReal": "2022-03-15"
+        },
+        {
+          "status": "valido",
+          "tipoNormalizado": "RENDIMENTO",
+          "valor": 37.557458179,
+          "dataComReal": "2022-04-14"
+        },
+        {
+          "status": "valido",
+          "tipoNormalizado": "RENDIMENTO",
+          "valor": 37.557458179,
+          "dataComReal": "2022-05-13"
+        },
+        {
+          "status": "valido",
+          "tipoNormalizado": "RENDIMENTO",
+          "valor": 37.557458179,
+          "dataComReal": "2022-06-14"
+        },
+        {
+          "status": "valido",
+          "tipoNormalizado": "RENDIMENTO",
+          "valor": 37.557458179,
+          "dataComReal": "2022-07-15"
+        },
+        {
+          "status": "valido",
+          "tipoNormalizado": "RENDIMENTO",
+          "valor": 0.625957636,
+          "dataComReal": "2022-08-12"
+        },
+        {
+          "status": "valido",
+          "tipoNormalizado": "RENDIMENTO",
+          "valor": 0.625957636,
+          "dataComReal": "2022-09-15"
+        },
+        {
+          "status": "valido",
+          "tipoNormalizado": "RENDIMENTO",
+          "valor": 0.625957636,
+          "dataComReal": "2022-10-17"
+        },
+        {
+          "status": "valido",
+          "tipoNormalizado": "RENDIMENTO",
+          "valor": 0.625957636,
+          "dataComReal": "2022-11-16"
+        },
+        {
+          "status": "valido",
+          "tipoNormalizado": "RENDIMENTO",
+          "valor": 0.625957636,
+          "dataComReal": "2022-12-14"
+        }
+      ]
+    },
+    "MCRE11": {
+      "symbol": "MCRE11",
+      "cnpj": "36655973000106",
+      "meses": [
+        {
+          "refMonth": "2023-09-01",
+          "cotas": 3589771.0,
+          "fatorDesdobramento": null,
+          "pl": 353504655.02
+        },
+        {
+          "refMonth": "2023-10-01",
+          "cotas": 3589771.0,
+          "fatorDesdobramento": null,
+          "pl": 357726971.33
+        },
+        {
+          "refMonth": "2023-11-01",
+          "cotas": 3589771.0,
+          "fatorDesdobramento": null,
+          "pl": 359454688.12
+        },
+        {
+          "refMonth": "2023-12-01",
+          "cotas": 3589771.0,
+          "fatorDesdobramento": null,
+          "pl": 355209675.53
+        },
+        {
+          "refMonth": "2024-01-01",
+          "cotas": 35897710.0,
+          "fatorDesdobramento": 10.0,
+          "pl": 356323497.62
+        },
+        {
+          "refMonth": "2024-02-01",
+          "cotas": 47493830.0,
+          "fatorDesdobramento": null,
+          "pl": 472033898.0
+        },
+        {
+          "refMonth": "2024-03-01",
+          "cotas": 111598921.0,
+          "fatorDesdobramento": null,
+          "pl": 1102999117.76
+        },
+        {
+          "refMonth": "2024-04-01",
+          "cotas": 111598921.0,
+          "fatorDesdobramento": null,
+          "pl": 1091729838.6
+        }
+      ],
+      "brutos": [],
+      "pregoes": [],
+      "proventos": [
+        {
+          "status": "valido",
+          "tipoNormalizado": "RENDIMENTO",
+          "valor": 1.3,
+          "dataComReal": "2023-09-18"
+        },
+        {
+          "status": "valido",
+          "tipoNormalizado": "RENDIMENTO",
+          "valor": 1.3,
+          "dataComReal": "2023-10-17"
+        },
+        {
+          "status": "valido",
+          "tipoNormalizado": "RENDIMENTO",
+          "valor": 1.3,
+          "dataComReal": "2023-11-17"
+        },
+        {
+          "status": "valido",
+          "tipoNormalizado": "RENDIMENTO",
+          "valor": 1.3,
+          "dataComReal": "2023-12-15"
+        },
+        {
+          "status": "valido",
+          "tipoNormalizado": "RENDIMENTO",
+          "valor": 0.13,
+          "dataComReal": "2024-01-16"
+        },
+        {
+          "status": "valido",
+          "tipoNormalizado": "RENDIMENTO",
+          "valor": 0.11,
+          "dataComReal": "2024-02-19"
+        },
+        {
+          "status": "valido",
+          "tipoNormalizado": "RENDIMENTO",
+          "valor": 0.11,
+          "dataComReal": "2024-03-06"
+        }
+      ]
+    },
+    "BTYU11": {
+      "symbol": "BTYU11",
+      "cnpj": "54645216000133",
+      "meses": [
+        {
+          "refMonth": "2026-05-01",
+          "cotas": 30000000.0,
+          "fatorDesdobramento": null,
+          "pl": 307155136.13
+        },
+        {
+          "refMonth": "2026-06-01",
+          "cotas": 30000000.0,
+          "fatorDesdobramento": null,
+          "pl": 303669557.54
+        },
+        {
+          "refMonth": "2026-07-01",
+          "cotas": 30000000.0,
+          "fatorDesdobramento": null,
+          "pl": 302560759.22
+        },
+        {
+          "refMonth": "2026-08-01",
+          "cotas": 300000.0,
+          "fatorDesdobramento": 0.01,
+          "pl": 302176472.6
+        },
+        {
+          "refMonth": "2026-09-01",
+          "cotas": 300000.0,
+          "fatorDesdobramento": null,
+          "pl": 302592059.06
+        }
+      ],
+      "brutos": [
+        {
+          "id": "79ef9a07-2cfc-428d-9483-f8b855751a81",
+          "symbol": "BTYU11",
+          "date": "2026-09-01",
+          "type": "GRUPAMENTO",
+          "factor": 0.01,
+          "source": "YAHOO"
+        }
+      ],
+      "pregoes": [],
+      "proventos": [
+        {
+          "status": "valido",
+          "tipoNormalizado": "RENDIMENTO",
+          "valor": 0.0902,
+          "dataComReal": "2026-05-14"
+        },
+        {
+          "status": "valido",
+          "tipoNormalizado": "RENDIMENTO",
+          "valor": 0.09,
+          "dataComReal": "2026-06-12"
+        },
+        {
+          "status": "valido",
+          "tipoNormalizado": "RENDIMENTO",
+          "valor": 0.074753136,
+          "dataComReal": "2026-07-13"
+        },
+        {
+          "status": "valido",
+          "tipoNormalizado": "RENDIMENTO",
+          "valor": 0.05,
+          "dataComReal": "2026-08-13"
+        },
+        {
+          "status": "valido",
+          "tipoNormalizado": "RENDIMENTO",
+          "valor": 5,
+          "dataComReal": "2026-09-14"
+        },
+        {
+          "status": "valido",
+          "tipoNormalizado": "RENDIMENTO",
+          "valor": 5,
+          "dataComReal": "2026-10-14"
+        }
+      ]
+    }
+  },
+  "acoes": {
+    "ORVR3": {
+      "ticker": {
+        "symbol": "ORVR3",
+        "cnpj": "11421994000136",
+        "classeTitulo": "ON",
+        "unitQtdOn": null,
+        "unitQtdPn": null
+      },
+      "contagens": [
+        {
+          "cnpj": "11421994000136",
+          "data": "2023-12-31",
+          "on": 82951000.0,
+          "pn": 0.0,
+          "total": 82951000.0,
+          "fonte": "dfp_x1000",
+          "razaoLpa": 0.9925583946154805,
+          "status": "ok"
+        },
+        {
+          "cnpj": "11421994000136",
+          "data": "2024-03-31",
+          "on": 82951000.0,
+          "pn": 0.0,
+          "total": 82951000.0,
+          "fonte": "itr_x1000",
+          "razaoLpa": 1.169101515092198,
+          "status": "alerta"
+        },
+        {
+          "cnpj": "11421994000136",
+          "data": "2024-06-30",
+          "on": 82951000.0,
+          "pn": 0.0,
+          "total": 82951000.0,
+          "fonte": "itr_x1000",
+          "razaoLpa": 1.207473288887595,
+          "status": "alerta"
+        },
+        {
+          "cnpj": "11421994000136",
+          "data": "2024-09-30",
+          "on": 82951000.0,
+          "pn": 0.0,
+          "total": 82951000.0,
+          "fonte": "itr_x1000",
+          "razaoLpa": 1.161242002995814,
+          "status": "alerta"
+        },
+        {
+          "cnpj": "11421994000136",
+          "data": "2024-12-31",
+          "on": 82951000.0,
+          "pn": 0.0,
+          "total": 82951000.0,
+          "fonte": "dfp_x1000",
+          "razaoLpa": 0.9943713154999425,
+          "status": "ok"
+        },
+        {
+          "cnpj": "11421994000136",
+          "data": "2025-03-31",
+          "on": 82951000.0,
+          "pn": 0.0,
+          "total": 82951000.0,
+          "fonte": "itr_x1000",
+          "razaoLpa": 0.5248402404302436,
+          "status": "alerta"
+        },
+        {
+          "cnpj": "11421994000136",
+          "data": "2025-06-30",
+          "on": 96127000.0,
+          "pn": 0.0,
+          "total": 96127000.0,
+          "fonte": "itr_x1000",
+          "razaoLpa": 1.316507646656015,
+          "status": "alerta"
+        },
+        {
+          "cnpj": "11421994000136",
+          "data": "2025-09-30",
+          "on": 96127000.0,
+          "pn": 0.0,
+          "total": 96127000.0,
+          "fonte": "itr_x1000",
+          "razaoLpa": 1.248341419190434,
+          "status": "alerta"
+        },
+        {
+          "cnpj": "11421994000136",
+          "data": "2025-12-31",
+          "on": 96127000.0,
+          "pn": 0.0,
+          "total": 96127000.0,
+          "fonte": "dfp_x1000",
+          "razaoLpa": 1.230717136111203,
+          "status": "alerta"
+        },
+        {
+          "cnpj": "11421994000136",
+          "data": "2026-03-31",
+          "on": 96127000.0,
+          "pn": 0.0,
+          "total": 96127000.0,
+          "fonte": "itr_x1000",
+          "razaoLpa": 1.228198466780239,
+          "status": "alerta"
+        },
+        {
+          "cnpj": "11421994000136",
+          "data": "2026-06-30",
+          "on": 137324000.0,
+          "pn": 0.0,
+          "total": 137324000.0,
+          "fonte": "itr_x1000",
+          "razaoLpa": 5.214607830299856,
+          "status": "alerta"
+        }
+      ],
+      "brutos": [
+        {
+          "id": "d4fb07de-3cd3-4ed2-b387-5932ba4f3395",
+          "symbol": "ORVR3",
+          "date": "2026-08-11",
+          "type": "DESDOBRAMENTO",
+          "factor": 4.0,
+          "source": "YAHOO"
+        }
+      ],
+      "pregoes": [
+        {
+          "date": "2026-08-04",
+          "closeRaw": 71.25,
+          "negocios": 4913
+        },
+        {
+          "date": "2026-08-05",
+          "closeRaw": 71.52,
+          "negocios": 2457
+        },
+        {
+          "date": "2026-08-06",
+          "closeRaw": 71.08,
+          "negocios": 3451
+        },
+        {
+          "date": "2026-08-07",
+          "closeRaw": 67.85,
+          "negocios": 4327
+        },
+        {
+          "date": "2026-08-10",
+          "closeRaw": 67.6,
+          "negocios": 3277
+        },
+        {
+          "date": "2026-08-11",
+          "closeRaw": 16.4,
+          "negocios": 10511
+        },
+        {
+          "date": "2026-08-12",
+          "closeRaw": 16.16,
+          "negocios": 12027
+        },
+        {
+          "date": "2026-08-13",
+          "closeRaw": 16.01,
+          "negocios": 9056
+        },
+        {
+          "date": "2026-08-14",
+          "closeRaw": 15.58,
+          "negocios": 17352
+        },
+        {
+          "date": "2026-08-17",
+          "closeRaw": 15.45,
+          "negocios": 6666
+        },
+        {
+          "date": "2026-08-18",
+          "closeRaw": 15.55,
+          "negocios": 10231
+        }
+      ],
+      "resumo": {
+        "closeRaw": 20.0,
+        "volumeMedio21": 77391044.38
+      },
+      "prod": {
+        "pl": 54.65088050940205,
+        "pvp": 0.5660833138900729
+      }
+    },
+    "ENJU3": {
+      "ticker": {
+        "symbol": "ENJU3",
+        "cnpj": "16922038000151",
+        "classeTitulo": "ON",
+        "unitQtdOn": null,
+        "unitQtdPn": null
+      },
+      "contagens": [
+        {
+          "cnpj": "16922038000151",
+          "data": "2023-12-31",
+          "on": 202630000.0,
+          "pn": 0.0,
+          "total": 202630000.0,
+          "fonte": "vizinho",
+          "razaoLpa": -1.005556778237149,
+          "status": "nao_verificavel"
+        },
+        {
+          "cnpj": "16922038000151",
+          "data": "2024-03-31",
+          "on": 202630000.0,
+          "pn": 0.0,
+          "total": 202630000.0,
+          "fonte": "itr_x1000",
+          "razaoLpa": -10.0696093463653,
+          "status": "alerta"
+        },
+        {
+          "cnpj": "16922038000151",
+          "data": "2024-06-30",
+          "on": 202630000.0,
+          "pn": 0.0,
+          "total": 202630000.0,
+          "fonte": "itr_x1000",
+          "razaoLpa": -1.000034607478193,
+          "status": "alerta"
+        },
+        {
+          "cnpj": "16922038000151",
+          "data": "2024-09-30",
+          "on": 205017000.0,
+          "pn": 0.0,
+          "total": 205017000.0,
+          "fonte": "itr_x1000",
+          "razaoLpa": 1.010716964717255,
+          "status": "ok"
+        },
+        {
+          "cnpj": "16922038000151",
+          "data": "2024-12-31",
+          "on": 205017000.0,
+          "pn": 0.0,
+          "total": 205017000.0,
+          "fonte": "dfp_x1000",
+          "razaoLpa": 1.006283566325465,
+          "status": "ok"
+        },
+        {
+          "cnpj": "16922038000151",
+          "data": "2025-03-31",
+          "on": 205017000.0,
+          "pn": 0.0,
+          "total": 205017000.0,
+          "fonte": "itr_x1000",
+          "razaoLpa": -9.999192471358429,
+          "status": "alerta"
+        },
+        {
+          "cnpj": "16922038000151",
+          "data": "2025-06-30",
+          "on": 205017000.0,
+          "pn": 0.0,
+          "total": 205017000.0,
+          "fonte": "itr_x1000",
+          "razaoLpa": -0.9999950223123731,
+          "status": "alerta"
+        },
+        {
+          "cnpj": "16922038000151",
+          "data": "2025-09-30",
+          "on": 205017000.0,
+          "pn": 0.0,
+          "total": 205017000.0,
+          "fonte": "itr_x1000",
+          "razaoLpa": -1.000004650394249,
+          "status": "alerta"
+        },
+        {
+          "cnpj": "16922038000151",
+          "data": "2025-12-31",
+          "on": 205017000.0,
+          "pn": 0.0,
+          "total": 205017000.0,
+          "fonte": "dfp_x1000",
+          "razaoLpa": 1.000050162616155,
+          "status": "ok"
+        },
+        {
+          "cnpj": "16922038000151",
+          "data": "2026-03-31",
+          "on": 205017000.0,
+          "pn": 0.0,
+          "total": 205017000.0,
+          "fonte": "itr_x1000",
+          "razaoLpa": -0.9999964604948125,
+          "status": "alerta"
+        },
+        {
+          "cnpj": "16922038000151",
+          "data": "2026-06-30",
+          "on": 205017000.0,
+          "pn": 0.0,
+          "total": 205017000.0,
+          "fonte": "itr_x1000",
+          "razaoLpa": -1.000009480660779,
+          "status": "alerta"
+        }
+      ],
+      "brutos": [
+        {
+          "id": "1bf395b9-88ee-4c27-9089-788a89688ad8",
+          "symbol": "ENJU3",
+          "date": "2026-10-09",
+          "type": "GRUPAMENTO",
+          "factor": 0.1,
+          "source": "YAHOO"
+        }
+      ],
+      "pregoes": [
+        {
+          "date": "2026-10-01",
+          "closeRaw": 0.69,
+          "negocios": 442
+        },
+        {
+          "date": "2026-10-02",
+          "closeRaw": 0.75,
+          "negocios": 310
+        },
+        {
+          "date": "2026-10-05",
+          "closeRaw": 0.75,
+          "negocios": 718
+        },
+        {
+          "date": "2026-10-06",
+          "closeRaw": 0.74,
+          "negocios": 181
+        },
+        {
+          "date": "2026-10-07",
+          "closeRaw": 0.73,
+          "negocios": 185
+        },
+        {
+          "date": "2026-10-08",
+          "closeRaw": 0.8,
+          "negocios": 536
+        },
+        {
+          "date": "2026-10-09",
+          "closeRaw": 8.24,
+          "negocios": 320
+        },
+        {
+          "date": "2026-10-13",
+          "closeRaw": 7.9,
+          "negocios": 274
+        },
+        {
+          "date": "2026-10-14",
+          "closeRaw": 7.5,
+          "negocios": 294
+        },
+        {
+          "date": "2026-10-15",
+          "closeRaw": 7.21,
+          "negocios": 249
+        },
+        {
+          "date": "2026-10-16",
+          "closeRaw": 7.43,
+          "negocios": 275
+        }
+      ],
+      "resumo": {
+        "closeRaw": 7.43,
+        "volumeMedio21": 859075.76
+      },
+      "prod": {
+        "pl": null,
+        "pvp": 7.321578203630805
+      }
+    },
+    "RCSL3": {
+      "ticker": {
+        "symbol": "RCSL3",
+        "cnpj": "91333666000117",
+        "classeTitulo": "ON",
+        "unitQtdOn": null,
+        "unitQtdPn": null
+      },
+      "contagens": [
+        {
+          "cnpj": "91333666000117",
+          "data": "2021-12-31",
+          "on": 25409000.0,
+          "pn": 50414000.0,
+          "total": 75823000.0,
+          "fonte": "dfp_x1000",
+          "razaoLpa": 0.9998433516819571,
+          "status": "ok"
+        },
+        {
+          "cnpj": "91333666000117",
+          "data": "2022-12-31",
+          "on": 12704000.0,
+          "pn": 25207000.0,
+          "total": 37911000.0,
+          "fonte": "dfp_x1000",
+          "razaoLpa": 1.002970865773902,
+          "status": "ok"
+        },
+        {
+          "cnpj": "91333666000117",
+          "data": "2023-12-31",
+          "on": 42655000.0,
+          "pn": 84634000.0,
+          "total": 127289000.0,
+          "fonte": "dfp_x1000",
+          "razaoLpa": 0.9994780471315433,
+          "status": "ok"
+        },
+        {
+          "cnpj": "91333666000117",
+          "data": "2024-03-31",
+          "on": 42655000.0,
+          "pn": 84634000.0,
+          "total": 127289000.0,
+          "fonte": "itr_x1000",
+          "razaoLpa": 1.004258861995754,
+          "status": "ok"
+        },
+        {
+          "cnpj": "91333666000117",
+          "data": "2024-06-30",
+          "on": 10663000.0,
+          "pn": 21158000.0,
+          "total": 31821000.0,
+          "fonte": "itr_x1000",
+          "razaoLpa": 1.00960655105973,
+          "status": "ok"
+        },
+        {
+          "cnpj": "91333666000117",
+          "data": "2024-09-30",
+          "on": 10663000.0,
+          "pn": 21158000.0,
+          "total": 31821000.0,
+          "fonte": "itr_x1000",
+          "razaoLpa": 1.145824171614633,
+          "status": "alerta"
+        },
+        {
+          "cnpj": "91333666000117",
+          "data": "2024-12-31",
+          "on": 10663000.0,
+          "pn": 21158000.0,
+          "total": 31821000.0,
+          "fonte": "dfp_x1000",
+          "razaoLpa": 1.0734043771777,
+          "status": "alerta"
+        },
+        {
+          "cnpj": "91333666000117",
+          "data": "2025-03-31",
+          "on": 10663000.0,
+          "pn": 21158000.0,
+          "total": 31821000.0,
+          "fonte": "itr_x1000",
+          "razaoLpa": 0.8340798164218958,
+          "status": "alerta"
+        },
+        {
+          "cnpj": "91333666000117",
+          "data": "2025-06-30",
+          "on": 10663000.0,
+          "pn": 21158000.0,
+          "total": 31821000.0,
+          "fonte": "itr_x1000",
+          "razaoLpa": 0.9996213466859929,
+          "status": "ok"
+        },
+        {
+          "cnpj": "91333666000117",
+          "data": "2025-09-30",
+          "on": 10663000.0,
+          "pn": 21158000.0,
+          "total": 31821000.0,
+          "fonte": "itr_x1000",
+          "razaoLpa": 0.9999874486652978,
+          "status": "ok"
+        },
+        {
+          "cnpj": "91333666000117",
+          "data": "2025-12-31",
+          "on": 10663000.0,
+          "pn": 21158000.0,
+          "total": 31821000.0,
+          "fonte": "dfp_x1000",
+          "razaoLpa": 1.015627283819629,
+          "status": "ok"
+        },
+        {
+          "cnpj": "91333666000117",
+          "data": "2026-03-31",
+          "on": 42656000.0,
+          "pn": 84634000.0,
+          "total": 127290000.0,
+          "fonte": "itr_x1000",
+          "razaoLpa": 1.000135714285714,
+          "status": "ok"
+        },
+        {
+          "cnpj": "91333666000117",
+          "data": "2026-06-30",
+          "on": 42656000.0,
+          "pn": 84634000.0,
+          "total": 127290000.0,
+          "fonte": "itr_x1000",
+          "razaoLpa": 0.9957984158063368,
+          "status": "ok"
+        }
+      ],
+      "brutos": [
+        {
+          "id": "4d81a50d-7908-4cab-a302-71009d35e3ac",
+          "symbol": "RCSL3",
+          "date": "2026-10-05",
+          "type": "GRUPAMENTO",
+          "factor": 0.25,
+          "source": "YAHOO"
+        },
+        {
+          "id": "5d1ca694-d1c5-4d2d-8f1c-828e13b663cc",
+          "symbol": "RCSL3",
+          "date": "2024-05-31",
+          "type": "GRUPAMENTO",
+          "factor": 0.25,
+          "source": "YAHOO"
+        },
+        {
+          "id": "fd9553f3-32fc-4428-b977-ddcd2e64c048",
+          "symbol": "RCSL3",
+          "date": "2026-03-03",
+          "type": "DESDOBRAMENTO",
+          "factor": 4.0,
+          "source": "YAHOO"
+        },
+        {
+          "id": "28b984bf-7c82-4b6f-80ce-d57e2b24a666",
+          "symbol": "RCSL3",
+          "date": "2022-06-27",
+          "type": "GRUPAMENTO",
+          "factor": 0.5,
+          "source": "YAHOO"
+        },
+        {
+          "id": "e2bcae1f-3ad1-4692-bcbc-c8bd62250763",
+          "symbol": "RCSL3",
+          "date": "2023-05-02",
+          "type": "GRUPAMENTO",
+          "factor": 0.5,
+          "source": "YAHOO"
+        },
+        {
+          "id": "e6f179b7-9329-4102-bdb3-13893a0aebe3",
+          "symbol": "RCSL3",
+          "date": "2023-07-10",
+          "type": "GRUPAMENTO",
+          "factor": 0.5,
+          "source": "YAHOO"
+        }
+      ],
+      "pregoes": [
+        {
+          "date": "2026-09-28",
+          "closeRaw": 0.51,
+          "negocios": 409
+        },
+        {
+          "date": "2026-09-29",
+          "closeRaw": 0.51,
+          "negocios": 51
+        },
+        {
+          "date": "2026-09-30",
+          "closeRaw": 0.5,
+          "negocios": 45
+        },
+        {
+          "date": "2026-10-01",
+          "closeRaw": 0.5,
+          "negocios": 43
+        },
+        {
+          "date": "2026-10-02",
+          "closeRaw": 0.43,
+          "negocios": 229
+        },
+        {
+          "date": "2026-10-05",
+          "closeRaw": 1.78,
+          "negocios": 474
+        },
+        {
+          "date": "2026-10-06",
+          "closeRaw": 1.79,
+          "negocios": 56
+        },
+        {
+          "date": "2026-10-07",
+          "closeRaw": 1.89,
+          "negocios": 904
+        },
+        {
+          "date": "2026-10-08",
+          "closeRaw": 2.01,
+          "negocios": 228
+        },
+        {
+          "date": "2026-10-09",
+          "closeRaw": 1.98,
+          "negocios": 372
+        }
+      ],
+      "resumo": {
+        "closeRaw": 2.08,
+        "volumeMedio21": 526856.95
+      },
+      "prod": {
+        "pl": null,
+        "pvp": null
+      }
+    },
+    "TEND3": {
+      "ticker": {
+        "symbol": "TEND3",
+        "cnpj": "71476527000135",
+        "classeTitulo": "ON",
+        "unitQtdOn": null,
+        "unitQtdPn": null
+      },
+      "contagens": [
+        {
+          "cnpj": "71476527000135",
+          "data": "2023-12-31",
+          "on": 123094000.0,
+          "pn": 0.0,
+          "total": 123094000.0,
+          "fonte": "dfp_x1000",
+          "razaoLpa": 1.123344480844671,
+          "status": "alerta"
+        },
+        {
+          "cnpj": "71476527000135",
+          "data": "2024-03-31",
+          "on": 123094000.0,
+          "pn": 0.0,
+          "total": 123094000.0,
+          "fonte": "itr_x1000",
+          "razaoLpa": -0.9998610108303249,
+          "status": "alerta"
+        },
+        {
+          "cnpj": "71476527000135",
+          "data": "2024-06-30",
+          "on": 123094000.0,
+          "pn": 0.0,
+          "total": 123094000.0,
+          "fonte": "itr_x1000",
+          "razaoLpa": 1.000405731557148,
+          "status": "ok"
+        },
+        {
+          "cnpj": "71476527000135",
+          "data": "2024-09-30",
+          "on": 123094000.0,
+          "pn": 0.0,
+          "total": 123094000.0,
+          "fonte": "itr_x1000",
+          "razaoLpa": 0.9999986156648452,
+          "status": "ok"
+        },
+        {
+          "cnpj": "71476527000135",
+          "data": "2024-12-31",
+          "on": 123094000.0,
+          "pn": 0.0,
+          "total": 123094000.0,
+          "fonte": "dfp_x1000",
+          "razaoLpa": 1.000016567524645,
+          "status": "ok"
+        },
+        {
+          "cnpj": "71476527000135",
+          "data": "2025-03-31",
+          "on": 122578000.0,
+          "pn": 0.0,
+          "total": 122578000.0,
+          "fonte": "itr_x1000",
+          "razaoLpa": 0.9957625729489503,
+          "status": "ok"
+        },
+        {
+          "cnpj": "71476527000135",
+          "data": "2025-06-30",
+          "on": 122578000.0,
+          "pn": 0.0,
+          "total": 122578000.0,
+          "fonte": "itr_x1000",
+          "razaoLpa": null,
+          "status": "nao_verificavel"
+        },
+        {
+          "cnpj": "71476527000135",
+          "data": "2025-09-30",
+          "on": 122578000.0,
+          "pn": 0.0,
+          "total": 122578000.0,
+          "fonte": "itr_x1000",
+          "razaoLpa": 0.9994864800167566,
+          "status": "ok"
+        },
+        {
+          "cnpj": "71476527000135",
+          "data": "2025-12-31",
+          "on": 121182000.0,
+          "pn": 0.0,
+          "total": 121182000.0,
+          "fonte": "dfp_x1000",
+          "razaoLpa": 0.9877026776356121,
+          "status": "ok"
+        },
+        {
+          "cnpj": "71476527000135",
+          "data": "2026-03-31",
+          "on": 122578000.0,
+          "pn": 0.0,
+          "total": 122578000.0,
+          "fonte": "itr_x1000",
+          "razaoLpa": 0.9999766624870522,
+          "status": "ok"
+        },
+        {
+          "cnpj": "71476527000135",
+          "data": "2026-06-30",
+          "on": 57430000.0,
+          "pn": 0.0,
+          "total": 57430000.0,
+          "fonte": "itr_x1000",
+          "razaoLpa": 0.4553229088220771,
+          "status": "alerta"
+        }
+      ],
+      "brutos": [],
+      "pregoes": [],
+      "resumo": {
+        "closeRaw": 26.97,
+        "volumeMedio21": 166897834.57
+      },
+      "prod": {
+        "pl": 2.675962267736669,
+        "pvp": 1.006413249496269
+      }
+    },
+    "SIMH3": {
+      "ticker": {
+        "symbol": "SIMH3",
+        "cnpj": "07415333000120",
+        "classeTitulo": "ON",
+        "unitQtdOn": null,
+        "unitQtdPn": null
+      },
+      "contagens": [
+        {
+          "cnpj": "07415333000120",
+          "data": "2023-12-31",
+          "on": 827041545.0,
+          "pn": 0.0,
+          "total": 827041545.0,
+          "fonte": "dfp",
+          "razaoLpa": 1.000023175806357,
+          "status": "ok"
+        },
+        {
+          "cnpj": "07415333000120",
+          "data": "2024-03-31",
+          "on": 861670819.0,
+          "pn": 0.0,
+          "total": 861670819.0,
+          "fonte": "itr",
+          "razaoLpa": 0.9967235611230275,
+          "status": "ok"
+        },
+        {
+          "cnpj": "07415333000120",
+          "data": "2024-06-30",
+          "on": 862079079.0,
+          "pn": 0.0,
+          "total": 862079079.0,
+          "fonte": "itr",
+          "razaoLpa": 0.9989880067873305,
+          "status": "ok"
+        },
+        {
+          "cnpj": "07415333000120",
+          "data": "2024-09-30",
+          "on": 862026143.0,
+          "pn": 0.0,
+          "total": 862026143.0,
+          "fonte": "itr",
+          "razaoLpa": 1.000003781459714,
+          "status": "ok"
+        },
+        {
+          "cnpj": "07415333000120",
+          "data": "2024-12-31",
+          "on": 859960351.0,
+          "pn": 0.0,
+          "total": 859960351.0,
+          "fonte": "vizinho",
+          "razaoLpa": 0.7065218572377319,
+          "status": "nao_verificavel"
+        },
+        {
+          "cnpj": "07415333000120",
+          "data": "2025-03-31",
+          "on": 853509551.0,
+          "pn": 0.0,
+          "total": 853509551.0,
+          "fonte": "itr",
+          "razaoLpa": 0.7102389449571173,
+          "status": "alerta"
+        },
+        {
+          "cnpj": "07415333000120",
+          "data": "2025-06-30",
+          "on": 853595516.0,
+          "pn": 0.0,
+          "total": 853595516.0,
+          "fonte": "itr",
+          "razaoLpa": 0.7101508428866371,
+          "status": "alerta"
+        },
+        {
+          "cnpj": "07415333000120",
+          "data": "2025-09-30",
+          "on": 853595516.0,
+          "pn": 0.0,
+          "total": 853595516.0,
+          "fonte": "itr",
+          "razaoLpa": 0.7103225470365014,
+          "status": "alerta"
+        },
+        {
+          "cnpj": "07415333000120",
+          "data": "2025-12-31",
+          "on": 853595516.0,
+          "pn": 0.0,
+          "total": 853595516.0,
+          "fonte": "vizinho",
+          "razaoLpa": 2.013370386856173,
+          "status": "nao_verificavel"
+        },
+        {
+          "cnpj": "07415333000120",
+          "data": "2026-03-31",
+          "on": 426797757.0,
+          "pn": 0.0,
+          "total": 426797757.0,
+          "fonte": "itr",
+          "razaoLpa": -0.09999971945277483,
+          "status": "alerta"
+        },
+        {
+          "cnpj": "07415333000120",
+          "data": "2026-06-30",
+          "on": 583759291.0,
+          "pn": 0.0,
+          "total": 583759291.0,
+          "fonte": "itr",
+          "razaoLpa": 0.8816486675953146,
+          "status": "alerta"
+        }
+      ],
+      "brutos": [
+        {
+          "id": "41be4b30-229f-4208-a622-5266c3fcbac4",
+          "symbol": "SIMH3",
+          "date": "2026-02-18",
+          "type": "GRUPAMENTO",
+          "factor": 0.5,
+          "source": "YAHOO"
+        }
+      ],
+      "pregoes": [],
+      "resumo": {
+        "closeRaw": 14.5,
+        "volumeMedio21": 100998660.52
+      },
+      "prod": {
+        "pl": null,
+        "pvp": 1.437689854332266
+      }
+    },
+    "MOVI3": {
+      "ticker": {
+        "symbol": "MOVI3",
+        "cnpj": "21314559000166",
+        "classeTitulo": "ON",
+        "unitQtdOn": null,
+        "unitQtdPn": null
+      },
+      "contagens": [
+        {
+          "cnpj": "21314559000166",
+          "data": "2023-12-31",
+          "on": 357780270.0,
+          "pn": 0.0,
+          "total": 357780270.0,
+          "fonte": "dfp",
+          "razaoLpa": 1.00275213348956,
+          "status": "ok"
+        },
+        {
+          "cnpj": "21314559000166",
+          "data": "2024-03-31",
+          "on": 357779508.0,
+          "pn": 0.0,
+          "total": 357779508.0,
+          "fonte": "itr",
+          "razaoLpa": 0.9999993918515893,
+          "status": "ok"
+        },
+        {
+          "cnpj": "21314559000166",
+          "data": "2024-06-30",
+          "on": 357873630.0,
+          "pn": 0.0,
+          "total": 357873630.0,
+          "fonte": "itr",
+          "razaoLpa": 0.9947045217792219,
+          "status": "ok"
+        },
+        {
+          "cnpj": "21314559000166",
+          "data": "2024-09-30",
+          "on": 357871557.0,
+          "pn": 0.0,
+          "total": 357871557.0,
+          "fonte": "itr",
+          "razaoLpa": 0.9893673271420977,
+          "status": "ok"
+        },
+        {
+          "cnpj": "21314559000166",
+          "data": "2024-12-31",
+          "on": 357112253.0,
+          "pn": 0.0,
+          "total": 357112253.0,
+          "fonte": "vizinho",
+          "razaoLpa": 0.7410881812460852,
+          "status": "nao_verificavel"
+        },
+        {
+          "cnpj": "21314559000166",
+          "data": "2025-03-31",
+          "on": 348199753.0,
+          "pn": 0.0,
+          "total": 348199753.0,
+          "fonte": "itr",
+          "razaoLpa": 0.9838006453681165,
+          "status": "ok"
+        },
+        {
+          "cnpj": "21314559000166",
+          "data": "2025-06-30",
+          "on": 343015766.0,
+          "pn": 0.0,
+          "total": 343015766.0,
+          "fonte": "itr",
+          "razaoLpa": 0.9814004135982419,
+          "status": "ok"
+        },
+        {
+          "cnpj": "21314559000166",
+          "data": "2025-09-30",
+          "on": 339915766.0,
+          "pn": 0.0,
+          "total": 339915766.0,
+          "fonte": "itr",
+          "razaoLpa": 0.9806382124230388,
+          "status": "ok"
+        },
+        {
+          "cnpj": "21314559000166",
+          "data": "2025-12-31",
+          "on": 339155766.0,
+          "pn": 0.0,
+          "total": 339155766.0,
+          "fonte": "dfp",
+          "razaoLpa": 0.9834924902664873,
+          "status": "ok"
+        },
+        {
+          "cnpj": "21314559000166",
+          "data": "2026-03-31",
+          "on": 337965766.0,
+          "pn": 0.0,
+          "total": 337965766.0,
+          "fonte": "itr",
+          "razaoLpa": 0.9988627845124605,
+          "status": "ok"
+        },
+        {
+          "cnpj": "21314559000166",
+          "data": "2026-06-30",
+          "on": 401036278.0,
+          "pn": 0.0,
+          "total": 401036278.0,
+          "fonte": "itr",
+          "razaoLpa": 1.128055673713787,
+          "status": "alerta"
+        }
+      ],
+      "brutos": [],
+      "pregoes": [],
+      "resumo": {
+        "closeRaw": 16.57,
+        "volumeMedio21": 223688462.1
+      },
+      "prod": {
+        "pl": 15.36583652387251,
+        "pvp": 1.703231886155786
+      }
+    },
+    "INEP3": {
+      "ticker": {
+        "symbol": "INEP3",
+        "cnpj": "76627504000106",
+        "classeTitulo": "ON",
+        "unitQtdOn": null,
+        "unitQtdPn": null
+      },
+      "contagens": [
+        {
+          "cnpj": "76627504000106",
+          "data": "2023-12-31",
+          "on": 31685000.0,
+          "pn": 12627000.0,
+          "total": 44312000.0,
+          "fonte": "dfp_x1000",
+          "razaoLpa": 1.004740074300589,
+          "status": "ok"
+        },
+        {
+          "cnpj": "76627504000106",
+          "data": "2024-03-31",
+          "on": 31685622.0,
+          "pn": 12627232.0,
+          "total": 44312854.0,
+          "fonte": "itr",
+          "razaoLpa": 0.9999930282631347,
+          "status": "ok"
+        },
+        {
+          "cnpj": "76627504000106",
+          "data": "2024-06-30",
+          "on": 31978720.0,
+          "pn": 12627232.0,
+          "total": 44605952.0,
+          "fonte": "itr",
+          "razaoLpa": 1.016104046246072,
+          "status": "ok"
+        },
+        {
+          "cnpj": "76627504000106",
+          "data": "2024-09-30",
+          "on": 31978720.0,
+          "pn": 12627232.0,
+          "total": 44605952.0,
+          "fonte": "itr",
+          "razaoLpa": 1.025117901455753,
+          "status": "ok"
+        },
+        {
+          "cnpj": "76627504000106",
+          "data": "2024-12-31",
+          "on": 31979.0,
+          "pn": 12627.0,
+          "total": 44606.0,
+          "fonte": "dfp",
+          "razaoLpa": 1.017526535937601,
+          "status": "ok"
+        },
+        {
+          "cnpj": "76627504000106",
+          "data": "2025-03-31",
+          "on": 31979.0,
+          "pn": 12627.0,
+          "total": 44606.0,
+          "fonte": "itr",
+          "razaoLpa": 1.014074273541535,
+          "status": "ok"
+        },
+        {
+          "cnpj": "76627504000106",
+          "data": "2025-06-30",
+          "on": 31979.0,
+          "pn": 12627.0,
+          "total": 44606.0,
+          "fonte": "itr",
+          "razaoLpa": 1.010282042103802,
+          "status": "ok"
+        },
+        {
+          "cnpj": "76627504000106",
+          "data": "2025-09-30",
+          "on": 33577.0,
+          "pn": 12627.0,
+          "total": 46204.0,
+          "fonte": "itr",
+          "razaoLpa": 1.024281150320807,
+          "status": "ok"
+        },
+        {
+          "cnpj": "76627504000106",
+          "data": "2025-12-31",
+          "on": 36324.0,
+          "pn": 12627.0,
+          "total": 48951.0,
+          "fonte": "dfp",
+          "razaoLpa": 1.029277365581697,
+          "status": "ok"
+        },
+        {
+          "cnpj": "76627504000106",
+          "data": "2026-03-31",
+          "on": 36324.0,
+          "pn": 12627.0,
+          "total": 48951.0,
+          "fonte": "itr",
+          "razaoLpa": 1.013276877444197,
+          "status": "ok"
+        },
+        {
+          "cnpj": "76627504000106",
+          "data": "2026-06-30",
+          "on": 41772.0,
+          "pn": 12627.0,
+          "total": 54399.0,
+          "fonte": "itr",
+          "razaoLpa": 0.9946549797788399,
+          "status": "ok"
+        }
+      ],
+      "brutos": [],
+      "pregoes": [],
+      "resumo": {
+        "closeRaw": 1.2,
+        "volumeMedio21": 62723.67
+      },
+      "prod": {
+        "pl": null,
+        "pvp": null
+      }
+    },
+    "CBAV3": {
+      "ticker": {
+        "symbol": "CBAV3",
+        "cnpj": "61409892000173",
+        "classeTitulo": "ON",
+        "unitQtdOn": null,
+        "unitQtdPn": null
+      },
+      "contagens": [
+        {
+          "cnpj": "61409892000173",
+          "data": "2023-12-31",
+          "on": 645477321.0,
+          "pn": 0.0,
+          "total": 645477321.0,
+          "fonte": "dfp",
+          "razaoLpa": 1.076237801768089,
+          "status": "alerta"
+        },
+        {
+          "cnpj": "61409892000173",
+          "data": "2024-03-31",
+          "on": 651073000.0,
+          "pn": 0.0,
+          "total": 651073000.0,
+          "fonte": "itr_x1000",
+          "razaoLpa": 1.006969818971631,
+          "status": "ok"
+        },
+        {
+          "cnpj": "61409892000173",
+          "data": "2024-06-30",
+          "on": 651073000.0,
+          "pn": 0.0,
+          "total": 651073000.0,
+          "fonte": "itr_x1000",
+          "razaoLpa": 1.000828665841709,
+          "status": "ok"
+        },
+        {
+          "cnpj": "61409892000173",
+          "data": "2024-09-30",
+          "on": 651073000.0,
+          "pn": 0.0,
+          "total": 651073000.0,
+          "fonte": "itr_x1000",
+          "razaoLpa": 1.000540391024239,
+          "status": "ok"
+        },
+        {
+          "cnpj": "61409892000173",
+          "data": "2024-12-31",
+          "on": 651073.0,
+          "pn": 0.0,
+          "total": 651073.0,
+          "fonte": "dfp",
+          "razaoLpa": 0.9982079082974025,
+          "status": "ok"
+        },
+        {
+          "cnpj": "61409892000173",
+          "data": "2025-03-31",
+          "on": 651073.0,
+          "pn": 0.0,
+          "total": 651073.0,
+          "fonte": "itr",
+          "razaoLpa": 0.9999971322663885,
+          "status": "ok"
+        },
+        {
+          "cnpj": "61409892000173",
+          "data": "2025-06-30",
+          "on": 651073.0,
+          "pn": 0.0,
+          "total": 651073.0,
+          "fonte": "itr",
+          "razaoLpa": 1.000005600873445,
+          "status": "ok"
+        },
+        {
+          "cnpj": "61409892000173",
+          "data": "2025-09-30",
+          "on": 651073.0,
+          "pn": 0.0,
+          "total": 651073.0,
+          "fonte": "itr",
+          "razaoLpa": 1.000009074145975,
+          "status": "ok"
+        },
+        {
+          "cnpj": "61409892000173",
+          "data": "2025-12-31",
+          "on": 651073.0,
+          "pn": 0.0,
+          "total": 651073.0,
+          "fonte": "dfp",
+          "razaoLpa": 1.000008108311302,
+          "status": "ok"
+        },
+        {
+          "cnpj": "61409892000173",
+          "data": "2026-03-31",
+          "on": 651073.0,
+          "pn": 0.0,
+          "total": 651073.0,
+          "fonte": "itr",
+          "razaoLpa": 0.9999902693865297,
+          "status": "ok"
+        },
+        {
+          "cnpj": "61409892000173",
+          "data": "2026-06-30",
+          "on": 651073.0,
+          "pn": 0.0,
+          "total": 651073.0,
+          "fonte": "itr",
+          "razaoLpa": 1.000003810908298,
+          "status": "ok"
+        }
+      ],
+      "brutos": [],
+      "pregoes": [],
+      "resumo": {
+        "closeRaw": 11.31,
+        "volumeMedio21": 45355691.95
+      },
+      "prod": {
+        "pl": 0.01231521353670162,
+        "pvp": 0.001454021143982663
+      }
+    },
+    "KLBN11": {
+      "ticker": {
+        "symbol": "KLBN11",
+        "cnpj": "89637490000145",
+        "classeTitulo": "UNIT",
+        "unitQtdOn": 1,
+        "unitQtdPn": 4
+      },
+      "contagens": [
+        {
+          "cnpj": "89637490000145",
+          "data": "2023-12-31",
+          "on": 2061466118.0,
+          "pn": 3455114253.0,
+          "total": 5516580371.0,
+          "fonte": "dfp",
+          "razaoLpa": 1.000320340359127,
+          "status": "ok"
+        },
+        {
+          "cnpj": "89637490000145",
+          "data": "2024-03-31",
+          "on": 2061446569.0,
+          "pn": 3455036057.0,
+          "total": 5516482626.0,
+          "fonte": "itr",
+          "razaoLpa": 0.9982237523106751,
+          "status": "ok"
+        },
+        {
+          "cnpj": "89637490000145",
+          "data": "2024-06-30",
+          "on": 2269876960.0,
+          "pn": 3809682594.0,
+          "total": 6079559554.0,
+          "fonte": "itr",
+          "razaoLpa": 0.9994728708174472,
+          "status": "ok"
+        },
+        {
+          "cnpj": "89637490000145",
+          "data": "2024-09-30",
+          "on": 2269834446.0,
+          "pn": 3809512446.0,
+          "total": 6079346892.0,
+          "fonte": "itr",
+          "razaoLpa": 0.999517058342637,
+          "status": "ok"
+        },
+        {
+          "cnpj": "89637490000145",
+          "data": "2024-12-31",
+          "on": 2269821404.0,
+          "pn": 3809460163.0,
+          "total": 6079281567.0,
+          "fonte": "dfp",
+          "razaoLpa": 0.9996058469210124,
+          "status": "ok"
+        },
+        {
+          "cnpj": "89637490000145",
+          "data": "2025-03-31",
+          "on": 2269820412.0,
+          "pn": 3809456156.0,
+          "total": 6079276568.0,
+          "fonte": "itr",
+          "razaoLpa": 0.9999757091431107,
+          "status": "ok"
+        },
+        {
+          "cnpj": "89637490000145",
+          "data": "2025-06-30",
+          "on": 2268903078.0,
+          "pn": 3805777402.0,
+          "total": 6074680480.0,
+          "fonte": "itr",
+          "razaoLpa": 0.9998518587086513,
+          "status": "ok"
+        },
+        {
+          "cnpj": "89637490000145",
+          "data": "2025-09-30",
+          "on": 2268903152.0,
+          "pn": 3805777701.0,
+          "total": 6074680853.0,
+          "fonte": "itr",
+          "razaoLpa": 0.9999762108968878,
+          "status": "ok"
+        },
+        {
+          "cnpj": "89637490000145",
+          "data": "2025-12-31",
+          "on": 2291592185.0,
+          "pn": 3843835480.0,
+          "total": 6135427665.0,
+          "fonte": "dfp",
+          "razaoLpa": 0.9995893226375224,
+          "status": "ok"
+        },
+        {
+          "cnpj": "89637490000145",
+          "data": "2026-03-31",
+          "on": 2293154481.0,
+          "pn": 3850095967.0,
+          "total": 6143250448.0,
+          "fonte": "itr",
+          "razaoLpa": 1.000200947942104,
+          "status": "ok"
+        },
+        {
+          "cnpj": "89637490000145",
+          "data": "2026-06-30",
+          "on": 2295083458.0,
+          "pn": 3857811875.0,
+          "total": 6152895333.0,
+          "fonte": "itr",
+          "razaoLpa": 0.9999367267153024,
+          "status": "ok"
+        }
+      ],
+      "brutos": [
+        {
+          "id": "207554bc-d264-4416-a844-972096ea0c1b",
+          "symbol": "KLBN11",
+          "date": "2025-12-18",
+          "type": "DESDOBRAMENTO",
+          "factor": 1.01,
+          "source": "YAHOO"
+        },
+        {
+          "id": "e13c77a0-3937-4c37-a41e-8e7ded6991da",
+          "symbol": "KLBN11",
+          "date": "2024-05-07",
+          "type": "DESDOBRAMENTO",
+          "factor": 1.1,
+          "source": "YAHOO"
+        }
+      ],
+      "pregoes": [],
+      "resumo": {
+        "closeRaw": 18.12,
+        "volumeMedio21": 129532551.9
+      },
+      "prod": {
+        "pl": 126.0299032187965,
+        "pvp": 2.350428809360862
+      }
+    },
+    "LUPA3": {
+      "ticker": {
+        "symbol": "LUPA3",
+        "cnpj": "89463822000112",
+        "classeTitulo": "ON",
+        "unitQtdOn": null,
+        "unitQtdPn": null
+      },
+      "contagens": [
+        {
+          "cnpj": "89463822000112",
+          "data": "2023-12-31",
+          "on": 41037776.0,
+          "pn": 0.0,
+          "total": 41037776.0,
+          "fonte": "dfp",
+          "razaoLpa": 0.999999999993225,
+          "status": "ok"
+        },
+        {
+          "cnpj": "89463822000112",
+          "data": "2024-03-31",
+          "on": 41109776.0,
+          "pn": 0.0,
+          "total": 41109776.0,
+          "fonte": "itr",
+          "razaoLpa": 0.9983247130260847,
+          "status": "ok"
+        },
+        {
+          "cnpj": "89463822000112",
+          "data": "2024-06-30",
+          "on": 41476298.0,
+          "pn": 0.0,
+          "total": 41476298.0,
+          "fonte": "itr",
+          "razaoLpa": 1.000001147911149,
+          "status": "ok"
+        },
+        {
+          "cnpj": "89463822000112",
+          "data": "2024-09-30",
+          "on": 42129719.0,
+          "pn": 0.0,
+          "total": 42129719.0,
+          "fonte": "itr",
+          "razaoLpa": 1.000001892575904,
+          "status": "ok"
+        },
+        {
+          "cnpj": "89463822000112",
+          "data": "2024-12-31",
+          "on": 42130719.0,
+          "pn": 0.0,
+          "total": 42130719.0,
+          "fonte": "dfp",
+          "razaoLpa": 1.000001231256137,
+          "status": "ok"
+        },
+        {
+          "cnpj": "89463822000112",
+          "data": "2025-03-31",
+          "on": 42139719.0,
+          "pn": 0.0,
+          "total": 42139719.0,
+          "fonte": "itr",
+          "razaoLpa": 1.000003960633345,
+          "status": "ok"
+        },
+        {
+          "cnpj": "89463822000112",
+          "data": "2025-06-30",
+          "on": 43716192.0,
+          "pn": 0.0,
+          "total": 43716192.0,
+          "fonte": "itr",
+          "razaoLpa": 1.000001751829872,
+          "status": "ok"
+        },
+        {
+          "cnpj": "89463822000112",
+          "data": "2025-09-30",
+          "on": 46687694.0,
+          "pn": 0.0,
+          "total": 46687694.0,
+          "fonte": "itr",
+          "razaoLpa": 0.9999990981511448,
+          "status": "ok"
+        },
+        {
+          "cnpj": "89463822000112",
+          "data": "2025-12-31",
+          "on": 46687694.0,
+          "pn": 0.0,
+          "total": 46687694.0,
+          "fonte": "dfp",
+          "razaoLpa": 0.999996157880218,
+          "status": "ok"
+        },
+        {
+          "cnpj": "89463822000112",
+          "data": "2026-03-31",
+          "on": 47318103.0,
+          "pn": 0.0,
+          "total": 47318103.0,
+          "fonte": "itr",
+          "razaoLpa": 1.000000000023797,
+          "status": "ok"
+        },
+        {
+          "cnpj": "89463822000112",
+          "data": "2026-06-30",
+          "on": 4731810.0,
+          "pn": 0.0,
+          "total": 4731810.0,
+          "fonte": "itr",
+          "razaoLpa": 0.9999999365988724,
+          "status": "alerta"
+        }
+      ],
+      "brutos": [
+        {
+          "id": "454ec4d9-2d24-4e6c-be30-b2d3d49efc89",
+          "symbol": "LUPA3",
+          "date": "2026-08-14",
+          "type": "GRUPAMENTO",
+          "factor": 0.1,
+          "source": "YAHOO"
+        }
+      ],
+      "pregoes": [],
+      "resumo": {
+        "closeRaw": 1.0,
+        "volumeMedio21": 0.0
+      },
+      "prod": {
+        "pl": null,
+        "pvp": null
+      }
+    },
+    "AZTE3": {
+      "ticker": {
+        "symbol": "AZTE3",
+        "cnpj": "52017473000103",
+        "classeTitulo": "ON",
+        "unitQtdOn": null,
+        "unitQtdPn": null
+      },
+      "contagens": [
+        {
+          "cnpj": "52017473000103",
+          "data": "2023-12-31",
+          "on": 1000.0,
+          "pn": 0.0,
+          "total": 1000.0,
+          "fonte": "limiar",
+          "razaoLpa": null,
+          "status": "nao_verificavel"
+        },
+        {
+          "cnpj": "52017473000103",
+          "data": "2024-03-31",
+          "on": 1000.0,
+          "pn": 0.0,
+          "total": 1000.0,
+          "fonte": "itr",
+          "razaoLpa": null,
+          "status": "nao_verificavel"
+        },
+        {
+          "cnpj": "52017473000103",
+          "data": "2024-06-30",
+          "on": 1000.0,
+          "pn": 0.0,
+          "total": 1000.0,
+          "fonte": "itr",
+          "razaoLpa": null,
+          "status": "nao_verificavel"
+        },
+        {
+          "cnpj": "52017473000103",
+          "data": "2024-09-30",
+          "on": 1.0,
+          "pn": 0.0,
+          "total": 1.0,
+          "fonte": "itr",
+          "razaoLpa": null,
+          "status": "nao_verificavel"
+        },
+        {
+          "cnpj": "52017473000103",
+          "data": "2024-12-31",
+          "on": 197584471.0,
+          "pn": 0.0,
+          "total": 197584471.0,
+          "fonte": "limiar",
+          "razaoLpa": null,
+          "status": "nao_verificavel"
+        },
+        {
+          "cnpj": "52017473000103",
+          "data": "2025-03-31",
+          "on": 197584471.0,
+          "pn": 0.0,
+          "total": 197584471.0,
+          "fonte": "itr",
+          "razaoLpa": null,
+          "status": "nao_verificavel"
+        },
+        {
+          "cnpj": "52017473000103",
+          "data": "2025-06-30",
+          "on": 197584471.0,
+          "pn": 0.0,
+          "total": 197584471.0,
+          "fonte": "itr",
+          "razaoLpa": null,
+          "status": "nao_verificavel"
+        },
+        {
+          "cnpj": "52017473000103",
+          "data": "2025-09-30",
+          "on": 339094779.0,
+          "pn": 0.0,
+          "total": 339094779.0,
+          "fonte": "itr",
+          "razaoLpa": null,
+          "status": "nao_verificavel"
+        },
+        {
+          "cnpj": "52017473000103",
+          "data": "2025-12-31",
+          "on": 339094779.0,
+          "pn": 0.0,
+          "total": 339094779.0,
+          "fonte": "limiar",
+          "razaoLpa": null,
+          "status": "nao_verificavel"
+        },
+        {
+          "cnpj": "52017473000103",
+          "data": "2026-03-31",
+          "on": 339094779.0,
+          "pn": 0.0,
+          "total": 339094779.0,
+          "fonte": "itr",
+          "razaoLpa": 1.371742633495146,
+          "status": "alerta"
+        },
+        {
+          "cnpj": "52017473000103",
+          "data": "2026-06-30",
+          "on": 40011514.0,
+          "pn": 0.0,
+          "total": 40011514.0,
+          "fonte": "itr",
+          "razaoLpa": null,
+          "status": "nao_verificavel"
+        }
+      ],
+      "brutos": [
+        {
+          "id": "4fbecd02-d4f3-4f5a-b4e9-52b2ece0c93a",
+          "symbol": "AZTE3",
+          "date": "2026-07-09",
+          "type": "GRUPAMENTO",
+          "factor": 0.1,
+          "source": "YAHOO"
+        }
+      ],
+      "pregoes": [
+        {
+          "date": "2026-07-01",
+          "closeRaw": 0.16,
+          "negocios": 400
+        },
+        {
+          "date": "2026-07-02",
+          "closeRaw": 0.16,
+          "negocios": 295
+        },
+        {
+          "date": "2026-07-03",
+          "closeRaw": 0.17,
+          "negocios": 111
+        },
+        {
+          "date": "2026-07-06",
+          "closeRaw": 0.16,
+          "negocios": 392
+        },
+        {
+          "date": "2026-07-07",
+          "closeRaw": 0.15,
+          "negocios": 673
+        },
+        {
+          "date": "2026-07-08",
+          "closeRaw": 0.14,
+          "negocios": 438
+        },
+        {
+          "date": "2026-07-09",
+          "closeRaw": 1.23,
+          "negocios": 1027
+        },
+        {
+          "date": "2026-07-10",
+          "closeRaw": 1.13,
+          "negocios": 455
+        },
+        {
+          "date": "2026-07-13",
+          "closeRaw": 1.41,
+          "negocios": 910
+        },
+        {
+          "date": "2026-07-14",
+          "closeRaw": 1.37,
+          "negocios": 753
+        },
+        {
+          "date": "2026-07-15",
+          "closeRaw": 1.27,
+          "negocios": 459
+        }
+      ],
+      "resumo": {
+        "closeRaw": 1.27,
+        "volumeMedio21": 901856.95
+      },
+      "prod": {
+        "pl": null,
+        "pvp": null
+      }
+    }
+  },
+  "checks": {
+    "SIMH3": [
+      {
+        "dataEvento": "2021-08-11",
+        "fator": 4.0,
+        "status": "nao_validavel",
+        "anoBase": 2021,
+        "razaoCvm": null
+      },
+      {
+        "dataEvento": "2026-02-18",
+        "fator": 0.5,
+        "status": "emissao_recompra",
+        "anoBase": 2026,
+        "razaoCvm": 0.6838827993562234
+      }
+    ],
+    "TEND3": [
+      {
+        "dataEvento": "2019-03-15",
+        "fator": 2.0,
+        "status": "confirmado",
+        "anoBase": 2019,
+        "razaoCvm": 1.999961666086195
+      }
+    ],
+    "MOVI3": []
+  }
+}
