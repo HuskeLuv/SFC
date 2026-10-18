@@ -91,13 +91,14 @@ const whereAssetManual = (tipos: Tipos, ticker: string): Prisma.AssetWhereInput 
 type DbPortfolio = { portfolio: Pick<Prisma.TransactionClient['portfolio'], 'findMany'> };
 type DbWatchlist = { watchlist: Pick<Prisma.TransactionClient['watchlist'], 'findMany'> };
 
+/** Os campos de Asset que a Análise usa (mesmo formato de AssetAlvo em objetivoAtivo.ts). */
 export interface AssetManualEua {
   id: string;
   symbol: string;
-  name: string | null;
+  name: string;
   type: string;
-  currency: string | null;
-  source: string | null;
+  currency: string;
+  source: string;
   categoria: string | null;
   subcategoria: string | null;
 }
