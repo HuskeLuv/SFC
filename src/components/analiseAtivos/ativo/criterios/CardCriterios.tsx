@@ -37,8 +37,17 @@ import {
   type Janela,
 } from '@/types/analiseAtivosCriterios';
 import type { ClasseQuadro } from '@/types/analiseAtivosApi';
+import { TEXTOS_EUA } from '@/services/analiseAtivos/textosEua';
 
 export type { CardCriteriosProps };
+
+/**
+ * Stocks e REITs (fatia C): `linkDocumentos` (AtivoTopoResposta.eua.linkDocumentos) acrescenta o
+ * link "Ver os 10-K na SEC" no rodapé do card (abre em outra aba).
+ */
+export interface CardCriteriosEuaProps extends CardCriteriosProps {
+  linkDocumentos?: string;
+}
 
 const TC = TEXTOS_CRITERIOS;
 const TA = TEXTOS_ATIVO.criterios;
@@ -76,7 +85,8 @@ export default function CardCriterios({
   criterios,
   janelaInicial = JANELA_PADRAO,
   className = '',
-}: CardCriteriosProps) {
+  linkDocumentos,
+}: CardCriteriosEuaProps) {
   const [janela, setJanela] = useState<Janela>(janelaInicial);
   const idTitulo = `criterios-${ticker}`;
   const j = criterios?.janelas[String(janela) as ChaveJanela] ?? null;
@@ -162,6 +172,17 @@ export default function CardCriterios({
       <p className="m-0 text-xs leading-relaxed text-gray-500 dark:text-gray-400">
         {fonte} {TA.mesmosCriterios} {TC.fonte.aviso}
       </p>
+      {linkDocumentos ? (
+        <a
+          href={linkDocumentos}
+          target="_blank"
+          rel="noopener noreferrer"
+          data-link-sec=""
+          className="inline-flex min-h-11 items-center self-start text-sm font-medium text-[#396CAA] underline underline-offset-2 outline-none focus-visible:ring-[3px] focus-visible:ring-[#0079F2] dark:text-[#6E9DC4] dark:focus-visible:ring-[#6E9DC4]"
+        >
+          {TEXTOS_EUA.fonte.linkDocumentos} ↗
+        </a>
+      ) : null}
       <RodapeFrescorBloco bloco="criterios_fundamentos" />
     </section>
   );

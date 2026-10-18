@@ -21,6 +21,9 @@ import { RodapeFrescorBloco } from '@/components/analiseAtivos/ativo/topo/SeloFr
 import { conferenciaDoCampo } from '@/services/analiseAtivos/leitura/ativo/conferenciasAtivo';
 import { formatarAnalise } from '@/components/analiseAtivos/comum/formatarAnalise';
 import { TEXTOS_TELA, formatarTexto } from '@/services/analiseAtivos/textosTela';
+import { TEXTOS_EUA } from '@/services/analiseAtivos/textosEua';
+import { TEXTOS_EUA_TELAS } from '@/services/analiseAtivos/textosEuaTelas';
+import { ehClasseEua } from '@/types/analiseAtivosApi';
 import type { BlocoDividendosProps } from '@/types/analiseAtivosApi';
 import type { DadoBlocoReporte } from '@/types/analiseAtivosCuradoria';
 
@@ -34,16 +37,24 @@ const PX = 8;
 const PT = 24;
 const PB = 28;
 
-function moeda(v: number): string {
-  return formatarAnalise(v, 'moeda');
+/** R$ (Brasil) ou US$ (Stocks e REITs: dividendo por ação por FY, do 10-K). */
+function moedaDe(eua: boolean): (v: number) => string {
+  return eua
+    ? (v) => `${TEXTOS_EUA.cotacao.moeda} ${formatarAnalise(v, 'numero2')}`
+    : (v) => formatarAnalise(v, 'moeda');
 }
 
 export default function BlocoDividendos({ classe, dividendos }: BlocoDividendosProps) {
   const ctx = useConferenciaPagina();
   const t = TEXTOS_TELA.ativo;
   const d = t.dividendos;
-  const titulo =
-    classe === 'fii' ? TEXTOS_TELA.blocos.dividendosFii : TEXTOS_TELA.blocos.dividendosAcao;
+  const eua = ehClasseEua(classe);
+  const moeda = moedaDe(eua);
+  const titulo = eua
+    ? TEXTOS_EUA_TELAS.ativo.dividendos.titulo
+    : classe === 'fii'
+      ? TEXTOS_TELA.blocos.dividendosFii
+      : TEXTOS_TELA.blocos.dividendosAcao;
   const anos = dividendos.anos;
   const reais = anos.map((a) => a.valor).filter((v): v is number => typeof v === 'number');
   const max = Math.max(...reais, 0) * 1.12 || 1;
@@ -245,7 +256,11 @@ export default function BlocoDividendos({ classe, dividendos }: BlocoDividendosP
           </p>
         ) : null}
         <figcaption className="text-xs text-gray-500 dark:text-gray-400">
-          {classe === 'fii' ? d.figcaptionFii : d.figcaptionAcao}
+          {eua
+            ? TEXTOS_EUA_TELAS.ativo.dividendos.figcaption
+            : classe === 'fii'
+              ? d.figcaptionFii
+              : d.figcaptionAcao}
           {temSuspeito ? ` ${d.notaConferencia}` : ''}
           {temSemDado ? ` ${d.notaSemDado}` : ''}
         </figcaption>
