@@ -864,6 +864,8 @@ export const TEXTOS_TELA = {
     motivos: {
       'proventos:dy_acima_teto': 'DY 12m acima do limite de plausibilidade para a classe.',
       'proventos:salto_recente': 'Provento recente mais que o dobro do ano anterior.',
+      'proventos:linha_suspeita':
+        'Um provento da base parece a soma de vários pagamentos; aguardando a atualização da fonte.',
       'acoes_escala:pvp_minimo':
         'P/VP abaixo de 0,08: o nº de ações informado provavelmente está em outra escala.',
       'acoes_escala:pl_minimo':

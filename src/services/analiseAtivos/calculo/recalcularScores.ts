@@ -48,6 +48,7 @@ import {
 import {
   motivoProventosDefasados,
   rendimento12m,
+  temSomaSuspeitaNaJanela,
   ultimaDataCom,
   valorProventosComCobertura,
   type MotivoDefasagemProventos,
@@ -490,6 +491,7 @@ export function calcularAtualAcao(e: EntradaAtualAcao, p: ScoringParams): Calcul
         },
         p,
       ),
+      linhaSuspeita: temSomaSuspeitaNaJanela(e.proventos, e.dataRef, p),
     },
     p,
   );

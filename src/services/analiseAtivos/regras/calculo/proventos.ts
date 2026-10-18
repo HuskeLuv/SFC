@@ -691,6 +691,61 @@ function marcarFantasmasFii(
   }
 }
 
+/**
+ * Soma que não dá para provar (backtest 18/10/2026, M9): enquanto a fonte não é regravada na chave
+ * nova, a soma antiga X fica no banco e as parcelas dela não — só sobra, às vezes, a linha "sem
+ * pagamento" do legado de UMA parcela, que nunca ganhou a versão paga (a versão paga entrou na soma).
+ * Sinal: linha válida SEM pagamento com data-com na janela do DY 12m e há pelo menos
+ * plausibilidade.orfaMinDias, e depois dela uma linha COM pagamento do mesmo tipo maior que
+ * plausibilidade.orfaFator × o valor dela. Prod 17/10/2026: VIVT3 0,1142 (27/04) × 0,9607 (25/09,
+ * 9 JCPs de 2026 somados); CMIG4 0,1150 (25/03) × 0,2602 (22/09); RADL3 0,0860 (07/04) × 0,1744
+ * (03/07); HYPE3 0,2630 × 0,7891. Só põe o DY em conferência (motivo linha_suspeita); nada sai da
+ * conta. Em prod: 11 ações, todas com soma confirmada pela B3 ou pela BRAPI de hoje.
+ */
+export function temSomaSuspeitaNaJanela(
+  proventos: ReadonlyArray<
+    Pick<
+      ProventoAuditadoCompleto,
+      | 'status'
+      | 'tipoNormalizado'
+      | 'valor'
+      | 'dataComReal'
+      | 'dataPagamento'
+      | 'dataExGravada'
+      | 'dataExOrigem'
+    >
+  >,
+  hoje: string,
+  p: ScoringParams,
+): boolean {
+  const cfg = p.sanidade.proventos.plausibilidade;
+  if (!(cfg.orfaFator > 0)) return false;
+  const de = menosMeses(hoje, p.sanidade.proventos.janelaMesesDy);
+  const limite = menosDias(hoje, cfg.orfaMinDias);
+  const validos = proventos.filter(
+    (x) =>
+      x.status === 'valido' &&
+      !!x.dataComReal &&
+      x.dataComReal <= hoje &&
+      p.sanidade.proventos.tiposAcao.includes(x.tipoNormalizado),
+  );
+  return validos.some(
+    (y) =>
+      y.dataComReal! > de &&
+      y.dataComReal! <= limite &&
+      semPagamento(y) &&
+      validos.some(
+        (x) =>
+          x !== y &&
+          x.tipoNormalizado === y.tipoNormalizado &&
+          x.dataPagamento !== null &&
+          !semPagamento(x) &&
+          x.dataComReal! > y.dataComReal! &&
+          x.valor > cfg.orfaFator * y.valor,
+      ),
+  );
+}
+
 type ProventoParaSoma = Pick<
   ProventoAuditado,
   'tipoNormalizado' | 'status' | 'dataComReal' | 'valor'

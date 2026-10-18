@@ -203,7 +203,7 @@ export const DEF_GRUPO: Record<GrupoConferencia, DefGrupo> = {
     },
     criteriosSemaforo: ['dividendos', 'renda_recorrente'],
     campoPrincipal: 'dy12m',
-    regras: ['dy_acima_teto', 'salto_recente'],
+    regras: ['dy_acima_teto', 'salto_recente', 'linha_suspeita'],
   },
   acoes_escala: {
     escopo: 'empresa',

@@ -370,12 +370,19 @@ const baseSchema = z.strictObject({
           saltoFator: z.number().positive(),
           saltoPayoutMaxPct: z.number().positive(),
           anosSaltoRecente: z.number().int().nonnegative(),
+          // backtest 18/10/2026 (M9): linha sem pagamento com ≥ orfaMinDias e, depois dela, uma
+          // paga do mesmo tipo > orfaFator × o valor ⇒ DY 12m em conferência (linha_suspeita;
+          // proventos.temSomaSuspeitaNaJanela); orfaFator 0 desliga
+          orfaMinDias: z.number().int().nonnegative().default(90),
+          orfaFator: z.number().nonnegative().default(1.5),
         })
         .default({
           dyMaxPct: { acao: 18, fii: 20 },
           saltoFator: 2,
           saltoPayoutMaxPct: 150,
           anosSaltoRecente: 1,
+          orfaMinDias: 90,
+          orfaFator: 1.5,
         }),
     }),
     // bloco C: ausente no JSON (v1 gravada antes) = CONFERENCIA_PADRAO (ligada:false)

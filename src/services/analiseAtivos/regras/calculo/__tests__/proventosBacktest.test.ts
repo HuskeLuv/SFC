@@ -8,7 +8,10 @@ import {
   auditarProventos,
   mesesDyCvm,
   rendimento12m,
+  temSomaSuspeitaNaJanela,
 } from '@/services/analiseAtivos/regras/calculo/proventos';
+import { motivoProventosEmConferencia } from '@/services/analiseAtivos/regras/calculo/plausibilidadeProventos';
+import { ok } from '@/services/analiseAtivos/regras/comum/valor';
 import { P, bruto } from './helpers';
 
 const HOJE = '2026-10-16';
@@ -296,5 +299,57 @@ describe('A2 — rendimentos "fantasmas" de FII (data-com = pagamento, dia 01)',
     ]);
     expect([...r.semRendimento]).toEqual(['2026-02']);
     expect([...r.comRendimento]).toEqual(['2026-01']);
+  });
+});
+
+describe('M9 — soma antiga sem as parcelas ⇒ DY em conferência (linha_suspeita)', () => {
+  // VIVT3 em prod 17/10/2026: 0,114219 (27/04/2026) sem pagamento e 0,960694047355 (25/09) = 9 JCPs
+  // de 2026 pagos em 30/04/2027, sem as parcelas no banco
+  const vivt3 = () =>
+    auditarProventos(
+      [
+        l('fev', 'VIVT3', 'JCP', 0.101702, '2026-02-24', '2026-12-31'),
+        l('abr', 'VIVT3', 'JCP', 0.114219, '2026-04-27', '2026-04-27'),
+        l('soma', 'VIVT3', 'JCP', 0.960694047355, '2026-09-25', '2027-04-30'),
+      ],
+      [],
+      P,
+      { classe: 'acao' },
+    );
+
+  it('VIVT3: a soma não é provável (parcelas ausentes), mas o sinal liga e o DY vai para conferência', () => {
+    const aud = vivt3();
+    expect(aud.every((x) => x.status === 'valido')).toBe(true);
+    expect(temSomaSuspeitaNaJanela(aud, HOJE, P)).toBe(true);
+    expect(
+      motivoProventosEmConferencia(
+        { classe: 'acao', dyPct: ok(9.56), saltoRecente: false, linhaSuspeita: true },
+        P,
+      ),
+    ).toBe('linha_suspeita');
+  });
+
+  it('linha sem pagamento recente (< 90 dias) é declaração ainda sem cronograma: não liga', () => {
+    expect(temSomaSuspeitaNaJanela(vivt3(), '2026-07-20', P)).toBe(false);
+  });
+
+  it('série saudável (sem pagamento já tem a versão paga) não liga; teto e salto vencem o motivo', () => {
+    const aud = auditarProventos(
+      [
+        l('sp', 'TEST3', 'JCP', 0.2, '2026-03-02', '2026-03-02'),
+        l('pg', 'TEST3', 'JCP', 0.2, '2026-03-02', '2026-04-15'),
+        l('ago', 'TEST3', 'JCP', 0.25, '2026-08-03', '2026-09-15'),
+      ],
+      [],
+      P,
+      { classe: 'acao' },
+    );
+    expect(temSomaSuspeitaNaJanela(aud, HOJE, P)).toBe(false);
+    expect(
+      motivoProventosEmConferencia(
+        { classe: 'acao', dyPct: ok(20), saltoRecente: true, linhaSuspeita: true },
+        P,
+      ),
+    ).toBe('dy_acima_teto');
   });
 });

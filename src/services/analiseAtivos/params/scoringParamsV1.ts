@@ -415,6 +415,9 @@ export const SCORING_PARAMS_V1: ScoringParams = {
         saltoFator: 2,
         saltoPayoutMaxPct: 150,
         anosSaltoRecente: 1,
+        // backtest 18/10/2026 (M9): soma antiga sem as parcelas (proventos.temSomaSuspeitaNaJanela)
+        orfaMinDias: 90,
+        orfaFator: 1.5,
       },
     },
     // bloco C (03/10/2026): DESLIGADA na v1 — é o default do schema, que a v1 gravada no banco (sem
