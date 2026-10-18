@@ -15,6 +15,7 @@
  */
 import type { PrismaClient } from '@prisma/client';
 import { DEF_GRUPO } from '@/services/analiseAtivos/regras/comum/conferencia';
+import { REGRAS_VACANCIA } from '@/services/analiseAtivos/regras/fii/saneamentoVacancia';
 
 export interface LiberacaoConferencia {
   symbol: string;
@@ -58,6 +59,40 @@ export async function liberacoes(prisma: PrismaClient): Promise<LiberacaoConfere
       regraCodigo: codigoDaRegra(c.regraCodigo),
       chaveDeteccao: c.chaveDeteccao,
     });
+  }
+  return out;
+}
+
+/**
+ * Episódios de vacância liberados pela curadoria, por símbolo ('regra|chave', a forma de
+ * saneamentoVacancia.liberadaPor). Só leitura, 1 query por lote: o critério de vacância dos Filtros e
+ * o Essencial refazem a detecção sobre a série inteira e precisam aceitar o episódio liberado (a
+ * referência passa a ser o valor novo).
+ */
+export async function liberacoesVacancia(
+  prisma: PrismaClient,
+  symbols: readonly string[],
+): Promise<Map<string, string[]>> {
+  const out = new Map<string, string[]>();
+  if (symbols.length === 0) return out;
+  const casos = await prisma.analiseCasoDado.findMany({
+    where: {
+      symbol: { in: [...symbols] },
+      status: 'rejeitado',
+      resolucao: 'dado_confirmado',
+      efeitoTela: 'liberar_valor',
+      regraCodigo: { not: null },
+      chaveDeteccao: { not: null },
+    },
+    select: { symbol: true, regraCodigo: true, chaveDeteccao: true },
+  });
+  const regras: ReadonlySet<string> = new Set(REGRAS_VACANCIA);
+  for (const c of casos) {
+    if (!c.regraCodigo || !c.chaveDeteccao) continue;
+    const regra = codigoDaRegra(c.regraCodigo);
+    if (!regras.has(regra)) continue;
+    const symbol = c.symbol.trim().toUpperCase();
+    out.set(symbol, [...(out.get(symbol) ?? []), `${regra}|${c.chaveDeteccao}`]);
   }
   return out;
 }

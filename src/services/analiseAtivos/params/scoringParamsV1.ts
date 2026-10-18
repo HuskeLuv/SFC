@@ -348,6 +348,13 @@ export const SCORING_PARAMS_V1: ScoringParams = {
       conferenciaValorMercadoSobrePl: [0.3, 3],
       cvmDivergenciaRendimentoPct: 5,
       cvmDivergenciaMeses: 3,
+      // vacância trimestral (A4 do backtest 18/10/2026): salto ≥ 30 p.p. da referência = em
+      // conferência; complemento ±15 p.p. = ocupação no campo de vacância; subida real confirmada
+      // pela receita de aluguel (≤ mediana × (1 − 0,5 × salto)) ou 3 trimestres no novo patamar
+      vacanciaSaltoPp: 30,
+      vacanciaComplementarTolPp: 15,
+      vacanciaReceitaFator: 0.5,
+      vacanciaPersistenciaTrimestres: 3,
     },
     b3: {
       liquidezPregoes: 21,

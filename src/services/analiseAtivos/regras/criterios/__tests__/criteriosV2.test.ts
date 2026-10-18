@@ -36,6 +36,7 @@ import {
   vacanciaTrimestralFii,
   type BrutoFii,
 } from '@/services/analiseAtivos/regras/criterios/seriesFii';
+import { SCORING_PARAMS_V1 } from '@/services/analiseAtivos/params/scoringParamsV1';
 import { TEXTOS_CRITERIOS } from '@/services/analiseAtivos/textosCriterios';
 import type { ScoringParams } from '@/services/analiseAtivos/tipos';
 import type {
@@ -44,6 +45,7 @@ import type {
   ResultadoCriterio,
 } from '@/types/analiseAtivosCriterios';
 import fixture from './fixtures/dev-2026-10-13.json';
+import vacFixture from '@/services/analiseAtivos/regras/fii/__tests__/fixtures/vacanciaBacktest.json';
 
 const V2 = CRITERIA_PARAMS_V2;
 const ANO_FIM = fixture.anoFim;
@@ -88,13 +90,17 @@ function avaliarAcao(symbol: string, P: CriteriaParams = V2): AvaliacaoAtivo {
   );
 }
 
-function avaliarFii(f: BrutoFii, P: CriteriaParams = V2): AvaliacaoAtivo {
+function avaliarFii(
+  f: BrutoFii,
+  P: CriteriaParams = V2,
+  scoring: ScoringParams = SCORING,
+): AvaliacaoAtivo {
   const perfil = perfilCriterios(
     { classe: 'fii', ehFinanceira: false, fiiTipo: f.fiiTipo, imoveisPlPct: imoveisPlPctFii(f) },
     P,
   );
   const r = resolverSeries({
-    pontos: pontosCvmFii(f, { anoFim: ANO_FIM, scoring: SCORING }),
+    pontos: pontosCvmFii(f, { anoFim: ANO_FIM, scoring }),
     series: seriesDosPerfis(P, ['fii_tijolo', 'fii_papel']),
     fontes: fontesEfetivas(P),
   });
@@ -280,6 +286,62 @@ describe('FII na v2 (§4.1, §5, §6)', () => {
       estado: 'nao_atende',
       fato: 'dentro do limite em 4 de 5 anos · máx. 12,5% (limite 10,0%)',
     });
+  });
+
+  it('HSML11 (backtest 18/10/2026, A4): 4T25 com a ocupação (91,4%) no campo ⇒ "sem dado", não "não atende"', () => {
+    // série REAL de vacância e receita de aluguel do HSML11 (fii_quarterly de produção) sobre a
+    // estrutura de tijolo da fixture
+    const real = new Map(
+      (vacFixture.series as Record<string, Array<[string, number, number | null]>>).HSML11.map(
+        ([q, v, r]) => [q, { v, r }],
+      ),
+    );
+    const base = fii('HGLG11');
+    const hsml: BrutoFii = {
+      ...base,
+      symbol: 'HSML11',
+      trimestres: base.trimestres
+        .filter((t) => real.has(t.refQuarter))
+        .map((t) => ({
+          ...t,
+          vacanciaFisicaCvmPct: real.get(t.refQuarter)!.v,
+          receitaAluguel: real.get(t.refQuarter)!.r,
+          flags: [],
+        })),
+    };
+    const pontos = vacanciaTrimestralFii(hsml);
+    expect(pontos.find((p) => p.refQuarter === '2025-12-31')).toEqual({
+      refQuarter: '2025-12-31',
+      valor: null,
+      emConferencia: 'vacancia_ocupacao',
+    });
+    expect(pontos.find((p) => p.refQuarter === '2024-12-31')!.valor).toBeCloseTo(3.11, 2);
+    const a = avaliarFii(hsml);
+    for (const j of ['3', '5'] as const) {
+      expect(estado(a, 'vac', j), `janela ${j}`).toBe('sem_dado');
+    }
+    // antes da correção (sem o saneamento: salto mínimo inalcançável) o 4T25 entrava no ano 2025
+    // e o critério reprovava — o que o backtest viu em produção
+    const semSaneamento = {
+      sanidade: {
+        ...SCORING.sanidade,
+        fii: { ...SCORING_PARAMS_V1.sanidade.fii, vacanciaSaltoPp: 1000 },
+      },
+    } as unknown as ScoringParams;
+    const antes = avaliarFii(hsml, V2, semSaneamento);
+    expect(res(antes, 'vac', '3')).toMatchObject({
+      estado: 'nao_atende',
+      fato: 'dentro do limite em 2 de 3 anos · máx. 91,4% (limite 10,0%)',
+    });
+    // e com o 4T25 real (~3%, o que o gestor publica), o mesmo FII atende
+    const corrigido: BrutoFii = {
+      ...hsml,
+      trimestres: hsml.trimestres.map((t) =>
+        t.refQuarter === '2025-12-31' ? { ...t, vacanciaFisicaCvmPct: 3 } : t,
+      ),
+    };
+    expect(estado(avaliarFii(corrigido), 'vac', '3')).toBe('atende');
+    expect(estado(avaliarFii(corrigido), 'vac', '5')).toBe('atende');
   });
 
   it("agregação 'media' (configurável) muda o valor do ano", () => {

@@ -266,6 +266,13 @@ const baseSchema = z.strictObject({
       conferenciaValorMercadoSobrePl: faixaNum,
       cvmDivergenciaRendimentoPct: z.number().nonnegative(),
       cvmDivergenciaMeses: z.number().int().positive(),
+      // vacância trimestral da CVM (backtest 18/10/2026, A4: gestor informando ocupação no campo de
+      // vacância — HSML11 4T25 2,7% → 91,4%). regras/fii/saneamentoVacancia. Defaults: as versões
+      // gravadas no banco antes de 18/10/2026 não têm os campos.
+      vacanciaSaltoPp: z.number().positive().default(30),
+      vacanciaComplementarTolPp: z.number().nonnegative().default(15),
+      vacanciaReceitaFator: z.number().min(0).max(1).default(0.5),
+      vacanciaPersistenciaTrimestres: z.number().int().min(2).default(3),
     }),
     b3: z.strictObject({
       liquidezPregoes: z.number().int().positive(),
