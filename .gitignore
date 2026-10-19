@@ -61,13 +61,28 @@ next-env.d.ts
 .vscode/
 .idea/
 
-# claude worktrees & runtime
-.claude/worktrees/
-.claude/scheduled_tasks.lock
+# Claude Code (config local, memória, skills, worktrees): fora do git
+.claude/
 
 # kinvo comparison artefacts (HAR files, snapshots — podem conter tokens/PII)
 scripts/kinvo-captures/
 
-# Assistente de IA — contexto e resultados do harness contêm dados de contas
-docs/assistente/contexto*.json
-docs/assistente/resultados/
+# Só código no git: documentação, pesquisas, relatórios e capturas ficam locais
+docs/
+research_notes/
+reports/
+
+# scripts de pesquisa/diagnóstico pontual (não fazem parte do app nem dos jobs)
+__pycache__/
+*.pyc
+scripts/tmp-diag/
+scripts/diag-*.sql
+scripts/gen-*-docx.py
+scripts/comdinheiro/
+scripts/cedro/capture-*.ts
+scripts/cedro/probe-*.ts
+scripts/analise-ativos/spike-*.ts
+scripts/analise-ativos/*-probe-*.ts
+scripts/analise-ativos/acoes-cvm-fase-a.ts
+scripts/analise-ativos/eua-*.ts
+scripts/analise-ativos/fiis-b3-listados-fetch.ts
