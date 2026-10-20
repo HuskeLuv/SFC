@@ -55,21 +55,22 @@ describe('jobs da A6 no catálogo (fatia 0)', () => {
     }
   });
 
-  // só os jobs cujo módulo ainda é o stub da fatia 0 (as fatias donas testam o job real)
-  const stubs = NOMES_JOBS_COMPLEMENTOS.filter((nome) =>
-    readFileSync(resolve(process.cwd(), JOBS_COMPLEMENTOS[nome].modulo), 'utf8').includes(
-      'MOTIVO_JOB_NAO_IMPLEMENTADO',
-    ),
-  );
-  if (stubs.length > 0) {
-    it.each(stubs)('%s: stub termina pulado sem tocar no banco', async (nome) => {
+  // Só os módulos que ainda são stub (a fatia dona troca o corpo e testa o job no próprio módulo;
+  // fatia D: cvm-fre-societario em acoes/__tests__/sincronizarFreSocietario.test.ts).
+  it('stubs que restam terminam pulado sem tocar no banco', async () => {
+    const stubs = NOMES_JOBS_COMPLEMENTOS.filter((nome) =>
+      readFileSync(resolve(process.cwd(), JOBS_COMPLEMENTOS[nome].modulo), 'utf8').includes(
+        'MOTIVO_JOB_NAO_IMPLEMENTADO',
+      ),
+    );
+    for (const nome of stubs) {
       const c = ctx();
       const r = await CATALOGO_JOBS[nome].executar(c);
       expect(r.pulado).toContain(MOTIVO_JOB_NAO_IMPLEMENTADO);
       expect(r.pulado).toContain(nome);
       expect(c.contar).not.toHaveBeenCalled();
-    });
-  }
+    }
+  });
 
   it.each(NOMES_JOBS_COMPLEMENTOS)('%s: módulo da fatia dona existe e é o importado', (nome) => {
     const fonte = readFileSync(resolve(process.cwd(), JOBS_COMPLEMENTOS[nome].modulo), 'utf8');
