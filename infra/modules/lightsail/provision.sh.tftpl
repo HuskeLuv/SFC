@@ -264,6 +264,13 @@ SHELL=/bin/bash
 #25 11 * * * root /usr/local/bin/myfinance-job.sh eua-diario
 # cotação EUA: só com ANALISE_ATIVOS_EUA_PRECO_HABILITADO (licença de exibição); sem a chave = pulado
 #30 22 * * 1-5 root /usr/local/bin/myfinance-job.sh cotacoes-eua
+# Análise de Ativos (A6, dados complementares) — DESLIGADAS. Só documentação: este template vale na
+# criação da instância; em prod a ativação é edição manual de /etc/cron.d/myfinance, com OK por ação
+# (docs/analise-ativos/fundamentei-trazer/desenho.json → ativacao_prod). Pesadas (myfinance-job.sh).
+# variação acumulada da cotação (08:40 BRT, terça a sábado; depois do alertas-salvos e do eua-diario)
+#40 11 * * 2-6 root /usr/local/bin/myfinance-job.sh retornos-cotacao
+# Formulário de Referência: acionistas, circulação e direitos por espécie (domingo 03:10 BRT)
+#10 6 * * 0 root /usr/local/bin/myfinance-job.sh cvm-fre-societario
 EOF
 # cron ignora arquivos com ponto no nome em /etc/cron.d — é o "desligado".
 # Cutover: mv /etc/cron.d/myfinance.disabled /etc/cron.d/myfinance

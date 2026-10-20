@@ -13,12 +13,18 @@
  * services/analiseAtivos/eua/jobs/* (MODULOS_JOBS_EUA: sec-cadastro, sec-fundamentos e
  * cotacoes-eua = fatia A; criterios-eua, quadro-eua e eua-diario = fatia B). Este arquivo NÃO é mais
  * editado por A nem por B: cada fatia só preenche o próprio módulo (até lá, 'pulado').
+ *
+ * A6 (fundamentei-trazer, fatia 0): 'retornos-cotacao' (calculo/executarRetornos.ts, fatia C) e
+ * 'cvm-fre-societario' (acoes/sincronizarFreSocietario.ts, fatia D), os dois pesados (processo
+ * próprio pelo myfinance-job.sh; sem rota HTTP). Mesmo regime: a fatia dona só preenche o módulo.
  */
 import { executarAlertasSalvos } from '@/services/analiseAtivos/alertas/executarAlertasSalvos';
 import { sincronizarCvmCias } from '@/services/analiseAtivos/acoes/sincronizarCvmCias';
+import { sincronizarFreSocietario } from '@/services/analiseAtivos/acoes/sincronizarFreSocietario';
 import { sincronizarB3Cadastro } from '@/services/analiseAtivos/b3/sincronizarB3Cadastro';
 import { sincronizarCotahist } from '@/services/analiseAtivos/b3/sincronizarCotahist';
 import { executarCriterios } from '@/services/analiseAtivos/calculo/executarCriterios';
+import { executarRetornos } from '@/services/analiseAtivos/calculo/executarRetornos';
 import { executarScores } from '@/services/analiseAtivos/calculo/executarScores';
 import { executarCuradoria } from '@/services/analiseAtivos/curadoria/sincronizarCasos';
 import { sincronizarIpe } from '@/services/analiseAtivos/eventos/sincronizarIpe';
@@ -38,6 +44,7 @@ import { jobQuadroEua } from '@/services/analiseAtivos/eua/jobs/quadroEua';
 import { jobSecCadastro } from '@/services/analiseAtivos/eua/jobs/secCadastro';
 import { jobSecFundamentos } from '@/services/analiseAtivos/eua/jobs/secFundamentos';
 import type { JobContexto, ResultadoJob } from '@/services/analiseAtivos/tipos';
+import { JOBS_COMPLEMENTOS } from '@/types/analiseAtivosComplementos';
 
 export type NomeJobCron = (typeof NOMES_JOBS)[number];
 
@@ -216,6 +223,21 @@ export const CATALOGO_JOBS: Record<NomeJobCron, DefinicaoJob> = {
     prazoMs: 540_000,
     pesado: true,
     executar: (ctx, opcoes) => jobEuaDiario(ctx, opcoes),
+  },
+  // ---- A6 (módulos das fatias C e D; stubs 'pulado' na fatia 0) ----
+  // Variação acumulada da cotação (11:40 UTC, terça a sábado; meta < 150 MB, lotes de 50)
+  'retornos-cotacao': {
+    nome: 'retornos-cotacao',
+    prazoMs: JOBS_COMPLEMENTOS['retornos-cotacao'].prazoMs,
+    pesado: true,
+    executar: (ctx, opcoes) => executarRetornos(ctx, opcoes),
+  },
+  // FRE societário (domingo 06:10 UTC; streaming; meta < 120 MB)
+  'cvm-fre-societario': {
+    nome: 'cvm-fre-societario',
+    prazoMs: JOBS_COMPLEMENTOS['cvm-fre-societario'].prazoMs,
+    pesado: true,
+    executar: (ctx, opcoes) => sincronizarFreSocietario(ctx, opcoes),
   },
 };
 
