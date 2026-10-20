@@ -157,6 +157,11 @@ export const queryKeys = {
       [...queryKeys.analiseAtivos.salvosTodos(), 'comparacoes', classe ?? 'todas'] as const,
     alertas: (classe?: string) =>
       [...queryKeys.analiseAtivos.salvosTodos(), 'alertas', classe ?? 'todas'] as const,
+    // A6 (fatia 0; hooks das fatias A e D): sob 'ativo' (caem junto com o ativo)
+    imoveisFii: (ticker: string) =>
+      [...queryKeys.analiseAtivos.all, 'ativo', ticker, 'imoveisFii'] as const,
+    societario: (ticker: string) =>
+      [...queryKeys.analiseAtivos.all, 'ativo', ticker, 'societario'] as const,
   },
   comunidade: {
     all: ['comunidade'] as const,
