@@ -169,6 +169,16 @@ export interface OpcoesCvmCias {
    * é inserido; AnaliseFonteArquivo não é tocado. Com aplicar=false, só o relatório (dry-run).
    */
   recompletarCampos?: ModoRecompletar[];
+  /**
+   * A6 (backfill --somente-financeiras): DFP/ITR só dos CNPJs do Set de financeiras (AssetSetorB3);
+   * o histórico das colunas novas sem reler a indústria.
+   */
+  somenteFinanceiras?: boolean;
+  /**
+   * A6 (backfill --tickers, conferência no DEV): só estes tickers — o FCA vira um recorte (gravado
+   * com parcial: nada fora dele é fechado) e o DFP/ITR só os CNPJs deles.
+   */
+  somenteTickers?: string[];
   /** injeção para testes */
   baixar?: typeof baixarParaArquivo;
 }
@@ -354,7 +364,8 @@ export async function sincronizarCvmCias(
     return { detalhes: { doc: 'fca', anos, perfil, arquivos }, universoFca };
   }
 
-  const universo = opts.universo ?? (await carregarUniverso(ctx.prisma));
+  const universoTodo = opts.universo ?? (await carregarUniverso(ctx.prisma));
+  const universo = filtrarUniverso(universoTodo, opts.somenteTickers);
   if (universo.size === 0) {
     ctx.alertar({
       codigo: 'universo_vazio',
@@ -364,6 +375,11 @@ export async function sincronizarCvmCias(
     return { detalhes: { doc: opts.doc, anos, perfil, arquivos, universo: 0 } };
   }
   const apoio = { ...(await carregarApoio(ctx.prisma, universo, perfil, ctx)), fre: opts.freAcoes };
+  if (opts.somenteFinanceiras) {
+    for (const cnpj of [...universo.keys()]) {
+      if (!apoio.segmentos.financeiras.has(cnpj)) universo.delete(cnpj);
+    }
+  }
   if (opts.recompletarCampos && opts.recompletarCampos.length > 0) {
     for (const ano of anos) {
       const r = await recompletarArquivo(ctx, opts.doc, ano, universo, apoio, opts);
@@ -390,6 +406,20 @@ export async function sincronizarCvmCias(
     parcial,
     detalhes: { doc: opts.doc, anos, perfil, universo: universo.size, arquivos },
   };
+}
+
+/** A6: recorte do universo aos tickers pedidos (sem recorte = o universo inteiro, cópia). */
+export function filtrarUniverso(
+  universo: Map<string, string[]>,
+  tickers?: readonly string[],
+): Map<string, string[]> {
+  if (!tickers || tickers.length === 0) return new Map(universo);
+  const quer = new Set(tickers.map((t) => t.toUpperCase()));
+  const out = new Map<string, string[]>();
+  for (const [cnpj, symbols] of universo) {
+    if (symbols.some((s) => quer.has(s.toUpperCase()))) out.set(cnpj, symbols);
+  }
+  return out;
 }
 
 async function carregarUniverso(prisma: PrismaClient): Promise<Map<string, string[]>> {
@@ -488,13 +518,15 @@ async function processarFca(
     for (const a of lido.alertas) ctx.alertar(a);
     // FCA errado (código "000000", fim indevido, mercado ≠ Bolsa): completa com o negociado na B3
     const negociados = await negociadosB3(ctx.prisma);
-    const fca = completarComB3(lido, negociados);
+    const fcaTodo = completarComB3(lido, negociados);
+    const fca = recortarFca(fcaTodo, opts.somenteTickers);
     for (const a of fca.alertas) ctx.alertar(a);
     const r = await gravarCadastroFca(ctx.prisma, fca, {
       sourceUrl: url,
       hoje: ctx.hoje,
       aplicar: ctx.aplicar,
       b3Disponivel: negociados.length > 0,
+      parcial: fca !== fcaTodo,
     });
     for (const a of r.alertas) ctx.alertar(a);
     const escritas =
@@ -530,6 +562,21 @@ async function processarFca(
   } finally {
     await arq.descartar();
   }
+}
+
+/** A6 (--tickers): FCA só com os tickers pedidos e as companhias deles (mesmo objeto sem recorte). */
+function recortarFca<
+  T extends { cias: Map<string, unknown>; titulos: Array<{ symbol: string; cnpj: string }> },
+>(fca: T, tickers?: readonly string[]): T {
+  if (!tickers || tickers.length === 0) return fca;
+  const quer = new Set(tickers.map((t) => t.toUpperCase()));
+  const titulos = fca.titulos.filter((t) => quer.has(t.symbol.toUpperCase()));
+  const cnpjs = new Set(titulos.map((t) => t.cnpj));
+  return {
+    ...fca,
+    titulos,
+    cias: new Map([...fca.cias].filter(([c]) => cnpjs.has(c))),
+  };
 }
 
 // ---------------------------------------------------------------- DFP / ITR

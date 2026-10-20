@@ -6,7 +6,11 @@ import { rmSync } from 'fs';
 import { afterAll, afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { SCORING_PARAMS_V1 } from '@/services/analiseAtivos/params/scoringParamsV1';
 import { urlArquivoCvm } from '@/services/analiseAtivos/acoes/cvmArquivos';
-import { montarLinhasTtm } from '@/services/analiseAtivos/acoes/sincronizarCvmCias';
+import {
+  filtrarUniverso,
+  montarLinhasTtm,
+} from '@/services/analiseAtivos/acoes/sincronizarCvmCias';
+import { zipFca } from '@/services/analiseAtivos/acoes/__tests__/zipFixtures';
 import { cnpjsFinanceirosPorSegmento } from '@/services/analiseAtivos/repositorio/universo';
 import {
   CNPJ,
@@ -153,5 +157,54 @@ describe('TTM da PDD a partir da DVA YTD (regra 14)', () => {
     expect(Number(ttm.pdd)).toBe(-35); // −30 + (−25) − (−20)
     expect(Number(ttm.receita)).toBe(410);
     expect(ttm.flags).toEqual(['ttm_metodo_ytd']);
+  });
+});
+
+describe('--somente-financeiras e --tickers (backfill)', () => {
+  it('somenteFinanceiras: DFP só dos CNPJs do Set (a indústria não é relida)', async () => {
+    const { prisma, tabelas } = fakeComSetores();
+    await rodarFin(prisma, dfp2025(), { doc: 'dfp', anos: [2025], somenteFinanceiras: true });
+    const emissores = new Set(tabelas.assetFundamentalsPeriod.map((l) => l.emissorId));
+    expect(emissores.has(CNPJ.WEGE)).toBe(false);
+    expect(emissores.has(CNPJ.ITUB)).toBe(true);
+    expect(emissores.has(CNPJ.BBSE)).toBe(true);
+  });
+
+  it('somenteTickers: DFP só dos CNPJs dos tickers pedidos', async () => {
+    const { prisma, tabelas } = fakeComSetores();
+    await rodarFin(prisma, dfp2025(), {
+      doc: 'dfp',
+      anos: [2025],
+      somenteTickers: ['itub4', 'BBSE3'],
+    });
+    expect(new Set(tabelas.assetFundamentalsPeriod.map((l) => l.emissorId))).toEqual(
+      new Set([CNPJ.ITUB, CNPJ.BBSE]),
+    );
+    expect(filtrarUniverso(universoFixtures()).size).toBe(universoFixtures().size);
+  });
+
+  it('FCA recortado (--tickers) grava só o recorte e não fecha os tickers de fora', async () => {
+    const { prisma, tabelas } = fakeComSetores();
+    tabelas.cvmCompanyTicker.push({
+      id: 'x',
+      symbol: 'ZZZZ3',
+      cnpj: '11111111000111',
+      classeTitulo: 'ON',
+      validFrom: new Date('2020-01-01T00:00:00Z'),
+      validTo: null,
+      origem: 'fca',
+    });
+    await rodarFin(
+      prisma,
+      { [urlArquivoCvm('fca', 2026)]: zipFca(dirZips, 2026) },
+      {
+        doc: 'fca',
+        anos: [2026],
+        somenteTickers: ['WEGE3'],
+      },
+    );
+    const abertos = tabelas.cvmCompanyTicker.filter((t) => t.validTo === null);
+    expect(abertos.map((t) => t.symbol).sort()).toEqual(['WEGE3', 'ZZZZ3']);
+    expect(tabelas.cvmCompany.map((c) => c.cnpj)).toEqual([CNPJ.WEGE]);
   });
 });

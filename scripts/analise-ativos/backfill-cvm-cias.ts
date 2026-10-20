@@ -31,6 +31,9 @@
  * modo que altera colunas que já existem (ebit/D&A de BBSE/IRB 2016–2022 → 'não se aplica'): o
  * dry-run lista antes/depois por linha e o --apply exige também --confirmar-layout (OK próprio).
  * Sempre dry-run primeiro; o relatório sai por campo e por emissor.
+ * --somente-financeiras: DFP/ITR só dos CNPJs do Set de financeiras (AssetSetorB3).
+ * --tickers=ITUB4,BBSE3 (conferência no DEV): o FCA vira um recorte (nada fora dele é fechado) e o
+ * DFP/ITR só os CNPJs desses tickers.
  *   npx tsx --env-file=.env scripts/analise-ativos/backfill-cvm-cias.ts --anos=2016-2026 \
  *     --docs=dfp,itr --somente-financeiras --recompletar-campos=pdd --cache-dir=$CACHE   # dry-run
  */
@@ -128,6 +131,12 @@ async function main() {
   const reprocessar = a.has('reprocessar');
   const revisitar = a.has('revisitar');
   const recompletarCampos = modosRecompletar(a.get('recompletar-campos'));
+  const somenteFinanceiras = a.has('somente-financeiras');
+  const somenteTickers = a
+    .get('tickers')
+    ?.split(',')
+    .map((t) => t.trim().toUpperCase())
+    .filter(Boolean);
   if (recompletarCampos.includes('layout') && aplicar && !a.has('confirmar-layout')) {
     throw new Error(
       '--recompletar-campos=layout altera ebit/D&A já gravados: rode o dry-run, confira o antes/depois e repita com --confirmar-layout',
@@ -173,6 +182,8 @@ async function main() {
       reprocessar,
       revisitar,
       recompletarCampos,
+      somenteFinanceiras,
+      somenteTickers: somenteTickers ?? null,
     },
   };
   console.log(
@@ -192,6 +203,7 @@ async function main() {
           cacheDir,
           perfil,
           reprocessar,
+          somenteTickers,
         });
         arquivos.push(...((f.detalhes?.arquivos ?? []) as DetalheArquivo[]));
         // dry-run: o FCA não foi gravado, então o universo vem do próprio arquivo lido
@@ -222,6 +234,8 @@ async function main() {
             freAcoes: fre,
             universo,
             recompletarCampos,
+            somenteFinanceiras,
+            somenteTickers,
           });
           const det = (d.detalhes?.arquivos ?? []) as DetalheArquivo[];
           arquivos.push(...det);

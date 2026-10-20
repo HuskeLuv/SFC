@@ -73,6 +73,11 @@ export async function gravarCadastroFca(
      * foi completado de novo é fechado (sem COTAHIST, nada de origem 'b3' é fechado)
      */
     b3Disponivel?: boolean;
+    /**
+     * A6 (backfill --tickers): FCA recortado a poucos tickers — nada que ficou de fora é fechado
+     * (o recorte não é o FCA inteiro)
+     */
+    parcial?: boolean;
   },
 ): Promise<ResultadoCadastro> {
   const agora = new Date();
@@ -223,11 +228,13 @@ export async function gravarCadastroFca(
     }
   }
   // sumiu do FCA: fecha — mas nunca em massa (arquivo truncado/errado não derruba o universo)
-  const sumidos = abertos.filter(
-    (t) =>
-      (t.origem === 'fca' || (t.origem === 'b3' && meta.b3Disponivel === true)) &&
-      !vistos.has(t.symbol),
-  );
+  const sumidos = meta.parcial
+    ? []
+    : abertos.filter(
+        (t) =>
+          (t.origem === 'fca' || (t.origem === 'b3' && meta.b3Disponivel === true)) &&
+          !vistos.has(t.symbol),
+      );
   if (abertos.length > 0 && sumidos.length > Math.max(20, abertos.length * 0.2)) {
     alertas.push({
       codigo: 'fca_sumico_em_massa',
