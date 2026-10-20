@@ -642,6 +642,12 @@ export const TEXTOS_TELA = {
       definicao: 'Obrigações do fundo (aquisição de imóveis, securitização) sobre o patrimônio.',
       referencia: 'Comparado com a mediana dos pares e com a referência do critério.',
     },
+    /** A6 (fatia E, chave ALAV_ATIVO): card 'Alavancagem (% do ativo)' do Valuation FII */
+    obrigacoesAtivo: {
+      definicao:
+        'Obrigações do fundo (aquisição de imóveis, securitização e outros valores a pagar) sobre o ativo total. Outros valores a pagar podem incluir itens que não são dívida.',
+      referencia: 'Comparado com a mediana dos pares. Fonte CVM, informe mensal.',
+    },
     taxaAdm: {
       definicao: 'Taxa de administração mensal informada à CVM.',
       referencia: 'Comparada com a mediana dos pares.',

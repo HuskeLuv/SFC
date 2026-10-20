@@ -18,9 +18,14 @@
  * sai da mediana de referência. Ano do histórico em conferência sai da barra e da média dos
  * mini-gráficos. `montarValuation` é pura; `obterValuation` lê o banco com cache em memória
  * por ticker:versão do Quadro (TTL 30 min).
+ *
+ * A6 (fatia E): com ANALISE_ATIVOS_ALAV_ATIVO_HABILITADO, o grupo Alavancagem do FII ganha o cartão
+ * 'Alavancagem (% do ativo)' (asset_multiples_current/yearly.obrigacoesAtivoPct, com barra de 10
+ * anos e mediana dos pares) logo depois do Obrigações/PL, que não muda. Desligada, idêntico a hoje.
  */
 import { prisma } from '@/lib/prisma';
 import { getTtlCache } from '@/lib/simpleTtlCache';
+import { analiseAtivosAlavAtivoHabilitado } from '@/lib/analiseAtivosConfig';
 import { SCORING_PARAMS_V1 } from '@/services/analiseAtivos/params/scoringParamsV1';
 import { fundamentosVigentes } from '@/services/analiseAtivos/repositorio/acoes';
 import { paraData } from '@/services/analiseAtivos/repositorio/conversao';
@@ -117,6 +122,8 @@ export interface AtualValuation {
   divLiqPl: number | null;
   liquidezCorrente: number | null;
   obrigacoesPlPct: number | null;
+  /** A6 (fatia E): obrigações ÷ ativo total (%); opcional para as entradas antigas */
+  obrigacoesAtivoPct?: number | null;
   naoSeAplica: string[];
 }
 
@@ -140,6 +147,8 @@ export interface AnualValuation {
   vpCota: number | null;
   rendCota12m: number | null;
   obrigacoesPlPct: number | null;
+  /** A6 (fatia E): obrigações ÷ ativo total (%); opcional para as entradas antigas */
+  obrigacoesAtivoPct?: number | null;
   vacanciaFisicaCvmPct: number | null;
   /** bloco C: flags do ano (conf:historico:...@<ano>) */
   flags?: string[];
@@ -197,6 +206,8 @@ export interface EntradaValuation {
   /** v2.4: critérios dos pares na janela 5 (ticker → contagem); ausente = sem avaliação */
   criteriosPares?: ReadonlyMap<string, CriteriosLinhaApi>;
   params?: ScoringParams;
+  /** A6 (fatia E): ANALISE_ATIVOS_ALAV_ATIVO_HABILITADO — cartão 'Alavancagem (% do ativo)' do FII */
+  alavAtivo?: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -311,12 +322,14 @@ const CAMPOS_INFORME_ATUAL: ReadonlySet<CampoAtual> = new Set<CampoAtual>([
   'pvp',
   'vpCota',
   'obrigacoesPlPct',
+  'obrigacoesAtivoPct',
 ]);
 /** FII: campos anuais que vêm do informe CVM do CNPJ. */
 const CAMPOS_INFORME_ANUAL: ReadonlySet<CampoAnual> = new Set<CampoAnual>([
   'pvp',
   'vpCota',
   'obrigacoesPlPct',
+  'obrigacoesAtivoPct',
   'vacanciaFisicaCvmPct',
 ]);
 
@@ -649,6 +662,27 @@ const GRUPOS_FII: DefGrupo[] = [
   },
 ];
 
+/** A6 (fatia E): cartão novo do grupo Alavancagem do FII (só com a chave ALAV_ATIVO). */
+const ITEM_OBRIGACOES_ATIVO = campo(
+  'obrigacoesAtivo',
+  'pct',
+  'obrigacoesAtivo',
+  'obrigacoesAtivoPct',
+  'obrigacoesAtivoPct',
+);
+
+/** GRUPOS_FII com o cartão novo logo depois do Obrigações/PL. */
+const GRUPOS_FII_ALAV_ATIVO: DefGrupo[] = GRUPOS_FII.map((g) =>
+  g.codigo === 'alavancagem'
+    ? {
+        ...g,
+        itens: g.itens.flatMap((i) =>
+          i.codigo === 'obrigacoesPl' ? [i, ITEM_OBRIGACOES_ATIVO] : [i],
+        ),
+      }
+    : g,
+);
+
 // ---------------------------------------------------------------------------
 // Montagem
 // ---------------------------------------------------------------------------
@@ -716,14 +750,16 @@ function atualComConferencia(
   pagina: boolean,
 ): { estado: Estado<number>; emConferencia: boolean } {
   const estado = def.atual(ctx);
-  if (!ehCampoTela(def.codigo) || ctx.flagsConf.length === 0) {
+  // A6: obrigações ÷ ativo sai do mesmo passivo do informe ⇒ segue a conferência do Obrigações/PL
+  const campoConf = def.codigo === 'obrigacoesAtivo' ? 'obrigacoesPl' : def.codigo;
+  if (!ehCampoTela(campoConf) || ctx.flagsConf.length === 0) {
     return { estado, emConferencia: false };
   }
   const r = aplicarConferenciaCampo(
     estado,
     ctx.flagsConf,
     ctx.motivos,
-    def.codigo,
+    campoConf,
     ctx.d.linha.classe,
     { pagina },
   );
@@ -840,6 +876,7 @@ export function linhaParEnxuta(
     payout: enxugarEstado(l.payout),
     vacanciaCvm: enxugarEstado(l.vacanciaCvm),
     obrigacoesPl: enxugarEstado(l.obrigacoesPl),
+    ...(l.obrigacoesAtivoPct ? { obrigacoesAtivoPct: enxugarEstado(l.obrigacoesAtivoPct) } : {}),
     serie10a: [],
     serieUlt12m: enxugarOuNull(l.serieUlt12m),
   };
@@ -849,7 +886,12 @@ export function montarValuation(e: EntradaValuation): ValuationResposta {
   const params = e.params ?? SCORING_PARAMS_V1;
   const alvo = criarCtx(e.alvo, e.hoje);
   const pares = e.pares.map((p) => criarCtx(p, e.hoje));
-  const defs = e.alvo.linha.classe === 'fii' ? GRUPOS_FII : GRUPOS_ACAO;
+  const defs =
+    e.alvo.linha.classe === 'fii'
+      ? e.alavAtivo
+        ? GRUPOS_FII_ALAV_ATIVO
+        : GRUPOS_FII
+      : GRUPOS_ACAO;
 
   const grupos: GrupoValuation[] = [];
   for (const g of defs) {
@@ -916,6 +958,7 @@ const SELECT_ATUAL = {
   divLiqPl: true,
   liquidezCorrente: true,
   obrigacoesPlPct: true,
+  obrigacoesAtivoPct: true,
   naoSeAplica: true,
 } as const;
 
@@ -940,6 +983,7 @@ const SELECT_ANUAL = {
   vpCota: true,
   rendCota12m: true,
   obrigacoesPlPct: true,
+  obrigacoesAtivoPct: true,
   vacanciaFisicaCvmPct: true,
   flags: true,
 } as const;
@@ -982,7 +1026,8 @@ export async function obterValuation(
   const linhaDb = await obterLinhaQuadro(symbol);
   if (!linhaDb) return null;
   const versao = await versaoQuadro();
-  const chave = `${symbol}:${versao}`;
+  const alavAtivo = analiseAtivosAlavAtivoHabilitado();
+  const chave = `${symbol}:${versao}${alavAtivo ? ':alav' : ''}`;
   const emCache = cache.get(chave);
   if (emCache) return { dados: emCache, cache: true };
 
@@ -1083,6 +1128,7 @@ export async function obterValuation(
     pares: pares.itens.slice(1).map(dadosDe),
     criterioPares: criterioParesTela(alvoApi.classe as ClasseQuadro),
     criteriosPares,
+    alavAtivo,
   });
   cache.set(chave, dados, TTL_ANALISE_MS);
   return { dados, cache: false };
