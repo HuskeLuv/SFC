@@ -162,11 +162,9 @@ describe('PaginaAtivo × A6 (fatia 0)', () => {
     expect(props).toEqual({ ticker: 'HGLG11', fiiTipo: 'tijolo' });
   });
 
+  // BlocoImoveisFii deixou de ser stub (fatia A): testado em ativo/fii/__tests__/BlocoImoveisFii
   it('os stubs reais da fatia 0 não renderizam nada', async () => {
     const real = await Promise.all([
-      vi.importActual<typeof import('@/components/analiseAtivos/ativo/fii/BlocoImoveisFii')>(
-        '@/components/analiseAtivos/ativo/fii/BlocoImoveisFii',
-      ),
       vi.importActual<typeof import('@/components/analiseAtivos/ativo/topo/BlocoRetornosCotacao')>(
         '@/components/analiseAtivos/ativo/topo/BlocoRetornosCotacao',
       ),
@@ -174,10 +172,9 @@ describe('PaginaAtivo × A6 (fatia 0)', () => {
         '@/components/analiseAtivos/ativo/societario/BlocoSocietario',
       ),
     ]);
-    const [Imoveis, Retornos, Societario] = real.map((m) => m.default);
+    const [Retornos, Societario] = real.map((m) => m.default);
     const { container } = render(
       <div>
-        <Imoveis ticker="HGLG11" fiiTipo="tijolo" />
         <Retornos ticker="WEGE3" retornos={RETORNOS} />
         <Societario ticker="WEGE3" />
       </div>,

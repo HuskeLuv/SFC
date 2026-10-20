@@ -61,6 +61,8 @@ export const TEXTOS_IMOVEIS_FII = {
       setoresRotulo: 'Setores dos locatários',
       setoresSub: '% da receita, como informado',
       setorItem: '{nome} {valor}',
+      /** fatia A: setores além dos SETORES_INICIAIS exibidos */
+      setoresMais: '+ {n} setores',
     },
     colunas: {
       imovel: 'Imóvel',
