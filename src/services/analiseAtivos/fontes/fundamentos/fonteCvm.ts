@@ -10,7 +10,8 @@
  *    free_cash_flow (FCO − CAPEX). NÃO oferece net_income_adjusted (a CVM não publica o lucro sem
  *    itens não recorrentes: o critério 'luc' cai na serieFallback net_income) nem net_debt;
  *  - FII (FY): income_per_share (rendimento por cota dos proventos B3, na base de cotas de hoje),
- *    nav_per_share, leverage_pct (obrigações ÷ PL), ffo (Σ dos 4 trimestres), months_with_income
+ *    nav_per_share, leverage_pct (obrigações ÷ PL), leverage_assets_pct (A6: obrigações ÷ ativo
+ *    total), ffo (Σ dos 4 trimestres), months_with_income
  *    (meses com rendimento no ano, proventos auditados); (Q) vacancy_physical do informe
  *    trimestral — papel (nsa) e ticker↔CNPJ não conferido = null. NÃO oferece default_pct nem
  *    ltv_avg (só fii_property_quality aprovada de um provedor).
@@ -64,6 +65,8 @@ export const SERIES_CVM_FII = [
   'income_per_share',
   'nav_per_share',
   'leverage_pct',
+  // A6 (fatia E): obrigações ÷ ativo total ('alav' do fii_tijolo na v4)
+  'leverage_assets_pct',
   'ffo',
   'months_with_income',
   'vacancy_physical',
@@ -147,7 +150,14 @@ export interface OpcoesPontosFii {
 export function pontosCvmFii(b: BrutoFii, opcoes: OpcoesPontosFii = {}): PontoSerieVigente[] {
   const out: PontoSerieVigente[] = [];
   const s = seriesFii(b);
-  for (const serie of ['income_per_share', 'nav_per_share', 'leverage_pct', 'ffo'] as const) {
+  const anuais = [
+    'income_per_share',
+    'nav_per_share',
+    'leverage_pct',
+    'leverage_assets_pct',
+    'ffo',
+  ] as const;
+  for (const serie of anuais) {
     for (const [anoTxt, v] of Object.entries(s[serie] ?? {})) {
       out.push(ponto(b.symbol, serie, 'FY', `${anoTxt}-12-31`, paraUnidadeCatalogo(serie, v)));
     }

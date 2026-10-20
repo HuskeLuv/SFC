@@ -30,6 +30,11 @@ import {
 } from '@/services/analiseAtivos/params/criteriaParamsSchema';
 import type { ObsCriterio, SerieCriterio } from '@/types/analiseAtivosCriterios';
 import {
+  FLAG_OBRIGACOES_ATIVO_REVISAO,
+  LIMITE_REVISAO_OBRIGACOES_ATIVO_PCT,
+  SERIE_ALAV_ATIVO,
+} from '@/types/analiseAtivosComplementos';
+import {
   CATALOGO_SERIES,
   type IdFonte,
   type OrigemSerie,
@@ -213,7 +218,10 @@ export interface SerieDaJanela {
   fontes: IdFonte[];
   /** algum ano exigido veio de ponto incompleto */
   incompleto: boolean;
-  /** obs do ResultadoCriterio ('lucro_sem_descontado', 'dados_incompletos') */
+  /**
+   * obs do ResultadoCriterio ('lucro_sem_descontado', 'dados_incompletos' e, A6, a revisão
+   * 'obrigacoes_ativo_revisao' da série leverage_assets_pct acima de 50% do ativo em algum ano)
+   */
   obs: ObsCriterio[];
 }
 
@@ -252,5 +260,16 @@ export function escolherSerieJanela(
   const obsFallback = OBS_FALLBACK[def.serie];
   if (usarFallback && obsFallback) obs.push(obsFallback);
   if (incompleto) obs.push('dados_incompletos');
+  // A6 (fatia E): obrigações acima de 50% do ativo em algum ano exigido = valor em revisão (outros
+  // valores a pagar podem incluir itens que não são dívida). Só marca; o resultado não muda.
+  if (
+    serie === SERIE_ALAV_ATIVO &&
+    anos.some((a) => {
+      const v = valores[a];
+      return finito(v) && v > LIMITE_REVISAO_OBRIGACOES_ATIVO_PCT;
+    })
+  ) {
+    obs.push(FLAG_OBRIGACOES_ATIVO_REVISAO);
+  }
   return { serie, valores, fallback: usarFallback, fontes, incompleto, obs };
 }
