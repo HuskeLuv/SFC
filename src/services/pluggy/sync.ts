@@ -34,7 +34,15 @@ import {
 import { revogarConsentimentosDaConexao } from './consentimento';
 import { classificarDestinos, contarParaRevisar } from './destinosImportacao';
 import { pluggyDestinosHabilitado } from '@/lib/pluggyDestinos';
-import { recomputarCelula, type Celula } from './caixaEntrada';
+import {
+  celulaDe,
+  chaveCelula,
+  recomputarCelula,
+  SELECT_COMPETENCIA,
+  type Celula,
+} from './caixaEntrada';
+import { atualizarCompetenciasDoCartao, sincronizarFaturas } from './faturasCartao';
+import { pluggyCartaoMesFatura } from '@/lib/pluggyConfig';
 import { conectorPermitido } from './conectoresPermitidos';
 
 export const JANELA_RESYNC_DIAS = 7;
@@ -68,7 +76,7 @@ const SELECT_LOCAL = {
   deletedAt: true,
   // Transação já lançada no Fluxo: mudança/remoção recalcula a célula (06/10/2026).
   cashflowItemId: true,
-  date: true,
+  ...SELECT_COMPETENCIA,
 } as const;
 
 // ---------------------------------------------------------------------------
@@ -473,10 +481,13 @@ export async function sincronizarConexao(
     // Células do Fluxo de transações JÁ LANÇADAS que o banco alterou/removeu nesta rodada:
     // recalculadas no fim (antes a célula ficava com o valor antigo até o próximo lançamento).
     const celulasTocadas = new Map<string, Celula>();
-    const tocarCelula = (itemId: string | null, date: Date) => {
+    const tocarCelula = (
+      itemId: string | null,
+      t: { date: Date; competenciaAno: number | null; competenciaMes: number | null },
+    ) => {
       if (!itemId) return;
-      const c = { itemId, year: date.getUTCFullYear(), month: date.getUTCMonth() };
-      celulasTocadas.set(`${c.itemId}|${c.year}|${c.month}`, c);
+      const c = celulaDe(itemId, t);
+      celulasTocadas.set(chaveCelula(c), c);
     };
 
     for (const conta of contas) {
@@ -520,8 +531,8 @@ export async function sincronizarConexao(
           const e = mapaHash.get(t.dedupHash);
           if (!e) continue;
           mapaHash.delete(t.dedupHash);
-          tocarCelula(e.cashflowItemId, e.date);
-          tocarCelula(e.cashflowItemId, t.date);
+          tocarCelula(e.cashflowItemId, e);
+          tocarCelula(e.cashflowItemId, { ...e, date: t.date });
           await prisma.bankTransaction.update({
             where: { id: e.id },
             data: { ...t, deletedAt: null },
@@ -563,8 +574,8 @@ export async function sincronizarConexao(
         const e = porProviderId.get(t.providerTxId);
         if (!e) continue;
         if (e.deletedAt || transacaoMudou(e, t)) {
-          tocarCelula(e.cashflowItemId, e.date);
-          tocarCelula(e.cashflowItemId, t.date);
+          tocarCelula(e.cashflowItemId, e);
+          tocarCelula(e.cashflowItemId, { ...e, date: t.date });
           await prisma.bankTransaction.update({
             where: { id: e.id },
             data: { ...t, deletedAt: null },
@@ -583,14 +594,22 @@ export async function sincronizarConexao(
       };
       const removidasLancadas = await prisma.bankTransaction.findMany({
         where: { ...whereRemovidas, cashflowItemId: { not: null } },
-        select: { cashflowItemId: true, date: true },
+        select: { cashflowItemId: true, ...SELECT_COMPETENCIA },
       });
-      for (const t of removidasLancadas) tocarCelula(t.cashflowItemId, t.date);
+      for (const t of removidasLancadas) tocarCelula(t.cashflowItemId, t);
       const r = await prisma.bankTransaction.updateMany({
         where: whereRemovidas,
         data: { deletedAt: new Date() },
       });
       removidas += r.count;
+
+      // Cartão no mês do vencimento da fatura (ticket 86e3tjtep): faturas + competência de
+      // todas as compras do cartão; as já lançadas que mudam de mês recalculam as 2 células.
+      if (pluggyCartaoMesFatura() && local.type === 'CREDIT') {
+        const faturas = await sincronizarFaturas(client, local);
+        const { celulas } = await atualizarCompetenciasDoCartao(local, faturas, { aplicar: true });
+        for (const c of celulas) celulasTocadas.set(chaveCelula(c), c);
+      }
     }
     for (const c of celulasTocadas.values()) await recomputarCelula(conexao.userId, c);
 
@@ -758,19 +777,15 @@ export async function excluirConexao(connectionId: string, userId: string, ip?: 
   // senão o valor fica órfão e o Desfazer do histórico já não alcança (409).
   const aplicadas = await prisma.bankTransaction.findMany({
     where: { account: { connectionId }, cashflowItemId: { not: null } },
-    select: { cashflowItemId: true, date: true },
+    select: { cashflowItemId: true, ...SELECT_COMPETENCIA },
   });
   // O registro do consentimento fica (revogado): é a prova do que foi autorizado.
   await revogarConsentimentosDaConexao(connectionId, 'usuario', ip);
   await prisma.bankConnection.delete({ where: { id: connectionId } });
   const celulas = new Map<string, Celula>();
   for (const t of aplicadas) {
-    const c: Celula = {
-      itemId: t.cashflowItemId!,
-      year: t.date.getUTCFullYear(),
-      month: t.date.getUTCMonth(),
-    };
-    celulas.set(`${c.itemId}|${c.year}|${c.month}`, c);
+    const c = celulaDe(t.cashflowItemId!, t);
+    celulas.set(chaveCelula(c), c);
   }
   for (const c of celulas.values()) await recomputarCelula(userId, c);
 }

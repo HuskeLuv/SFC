@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import { formatBRL } from '@/utils/format';
 import type { OpcaoLinha, PendenteDTO } from '@/hooks/useConexoesBancarias';
 import LinhaFluxoPickerSheet from './LinhaFluxoPickerSheet';
+import { rotuloCompetencia } from '@/services/pluggy/competenciaCartao';
 
 /**
  * Caixa de entrada em cartões (celular, PWA fase 3). Só apresentação: o estado (escolhas,
@@ -107,7 +108,9 @@ export default function CaixaEntradaCards({
                     {nome}
                   </p>
                   <p className="text-xs text-gray-500 dark:text-gray-400">
-                    {dataCurta(p.date)} · {p.contaNome}
+                    {dataCurta(p.date)}
+                    {p.competencia ? ` · fatura ${rotuloCompetencia(p.competencia)}` : ''} ·{' '}
+                    {p.contaNome}
                     {p.providerCategory ? ` · ${p.providerCategory}` : ''}
                   </p>
                 </div>

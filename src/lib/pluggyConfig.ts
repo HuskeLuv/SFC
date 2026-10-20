@@ -12,6 +12,8 @@
  *  - PLUGGY_INCLUI_SANDBOX="true"   lista conectores de sandbox (só dev)
  *  - PLUGGY_OAUTH_REDIRECT_URL      (opcional) sobrescreve a página de retorno
  *                                   do OAuth; precisa ser https (túnel em dev)
+ *  - PLUGGY_CARTAO_MES_FATURA="true" compra no cartão entra no Fluxo de Caixa no mês
+ *                                   do vencimento da fatura (desligada = mês da compra)
  */
 
 /** Hosts do widget Pluggy Connect (iframe/modal + script do CDN). */
@@ -38,6 +40,15 @@ export function pluggyCredenciais(): PluggyCredenciais | null {
 /** Flag + credenciais, no mesmo espírito de `assistenteHabilitado()`. */
 export function pluggyHabilitado(): boolean {
   return process.env.PLUGGY_HABILITADO === 'true' && pluggyCredenciais() !== null;
+}
+
+/**
+ * Compra no cartão no mês do vencimento da fatura (ticket 86e3tjtep, 20/10/2026). Desligada,
+ * a competência não é calculada e a célula segue a data da compra. Ligar em prod = env +
+ * restart + scripts/pluggy/backfill-competencia-cartao.ts --apply (move o que já foi lançado).
+ */
+export function pluggyCartaoMesFatura(): boolean {
+  return process.env.PLUGGY_CARTAO_MES_FATURA === 'true';
 }
 
 export function pluggyIncluiSandbox(): boolean {

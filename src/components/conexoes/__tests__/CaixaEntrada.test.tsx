@@ -65,6 +65,17 @@ describe('mensagemLancamento', () => {
     );
   });
 
+  it('cartão: usa o mês da fatura (competência) e explica a regra', () => {
+    expect(
+      mensagemLancamento(2, [
+        { date: '2026-09-20T12:00:00Z', competencia: '2026-10' },
+        { date: '2026-09-21T12:00:00Z', competencia: null },
+      ]),
+    ).toBe(
+      '2 transações lançadas no fluxo de caixa em set/2026 (1), out/2026 (1). Compra no cartão entra no mês do vencimento da fatura; o resto, no mês da data.',
+    );
+  });
+
   it('avisa as marcadas que ficaram sem lançar', () => {
     expect(mensagemLancamento(1, [{ date: '2026-09-06T12:00:00Z' }], 2)).toBe(
       '1 transação lançada no fluxo de caixa em set/2026. O valor entra no mês da data da compra. 2 marcadas ficaram sem lançar porque não têm linha escolhida: escolha a linha e lance de novo.',

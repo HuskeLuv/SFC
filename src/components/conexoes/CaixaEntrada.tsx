@@ -9,6 +9,7 @@ import { formatBRL } from '@/utils/format';
 import { useIsBelowLg } from '@/hooks/useMediaQuery';
 import MobilePageState from '@/components/ui/mobile/MobilePageState';
 import CaixaEntradaCards from './mobile/CaixaEntradaCards';
+import { rotuloCompetencia } from '@/services/pluggy/competenciaCartao';
 import {
   useAplicarTransacoes,
   useCaixaEntrada,
@@ -35,20 +36,32 @@ function rotuloSugestao(p: PendenteDTO): string {
 const MESES = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
 
 /**
- * Aviso depois de lançar: quantas foram, em que mês do fluxo entraram (o mês da data da compra,
- * não o da fatura — ticket 06/10/2026: a usuária procurou em outubro o que entrou em setembro) e
- * quantas marcadas ficaram de fora por falta de linha.
+ * Aviso depois de lançar: quantas foram, em que mês do fluxo entraram e quantas marcadas
+ * ficaram de fora por falta de linha (ticket 06/10/2026: a usuária procurou em outubro o que
+ * entrou em setembro). O mês é o da `competencia` quando o servidor manda (cartão no mês do
+ * vencimento da fatura, ticket 86e3tjtep); senão, o da data da transação.
  */
 export function mensagemLancamento(
   aplicadas: number,
-  lancadas: Array<Pick<PendenteDTO, 'date'>>,
+  lancadas: Array<Pick<PendenteDTO, 'date'> & Partial<Pick<PendenteDTO, 'competencia'>>>,
   semLinha = 0,
 ): string {
   const porMes = new Map<string, { ordem: number; qtd: number }>();
+  let peloVencimento = false;
   for (const p of lancadas) {
-    const d = new Date(p.date);
-    const chave = `${MESES[d.getUTCMonth()]}/${d.getUTCFullYear()}`;
-    const atual = porMes.get(chave) ?? { ordem: d.getUTCFullYear() * 12 + d.getUTCMonth(), qtd: 0 };
+    let ano: number;
+    let mes: number;
+    if (p.competencia) {
+      peloVencimento = true;
+      [ano, mes] = p.competencia.split('-').map(Number);
+      mes -= 1;
+    } else {
+      const d = new Date(p.date);
+      ano = d.getUTCFullYear();
+      mes = d.getUTCMonth();
+    }
+    const chave = `${MESES[mes]}/${ano}`;
+    const atual = porMes.get(chave) ?? { ordem: ano * 12 + mes, qtd: 0 };
     porMes.set(chave, { ...atual, qtd: atual.qtd + 1 });
   }
   const meses = [...porMes.entries()]
@@ -56,7 +69,9 @@ export function mensagemLancamento(
     .map(([mes, { qtd }]) => (porMes.size > 1 ? `${mes} (${qtd})` : mes));
   let msg = `${aplicadas} ${aplicadas === 1 ? 'transação lançada' : 'transações lançadas'} no fluxo de caixa`;
   if (meses.length > 0) {
-    msg += ` em ${meses.join(', ')}. O valor entra no mês da data da compra.`;
+    msg += peloVencimento
+      ? ` em ${meses.join(', ')}. Compra no cartão entra no mês do vencimento da fatura; o resto, no mês da data.`
+      : ` em ${meses.join(', ')}. O valor entra no mês da data da compra.`;
   } else {
     msg += '.';
   }
@@ -268,6 +283,11 @@ export default function CaixaEntrada({ onAviso }: { onAviso: (msg: string) => vo
                       </TableCell>
                       <TableCell className={`${TABLE_STYLES.td} whitespace-nowrap`}>
                         {new Date(p.date).toLocaleDateString('pt-BR', { timeZone: 'UTC' })}
+                        {p.competencia && (
+                          <div className="text-xs text-gray-500 dark:text-gray-400">
+                            fatura {rotuloCompetencia(p.competencia)}
+                          </div>
+                        )}
                       </TableCell>
                       <TableCell className={TABLE_STYLES.td}>
                         <div className="text-gray-800 dark:text-white/90">
