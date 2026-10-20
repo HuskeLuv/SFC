@@ -33,6 +33,10 @@
  * segmento, bolsa e 'FY termina em …' (SEM índice), KPIs do último FY (montarKpisEua), gráfico 'LPA
  * por ano' (stock) ou 'Caixa operacional por ação por ano' (REIT), dividendo por ação por FY e o bloco
  * `eua` (link dos 10-K na SEC). Sem a chave de preço: cotação nula e motivoSemPreco 'licenca'.
+ *
+ * A6 (fundamentei-trazer, fatia 0; leitura da fatia C): com ANALISE_ATIVOS_RETORNOS_HABILITADO,
+ * `retornos` (asset_retornos_cotacao, PK symbol, por lerRetornosAtivo; falha = ausente). Sem a chave
+ * nada é consultado e a resposta é a de hoje.
  */
 import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
@@ -65,6 +69,9 @@ import {
   type EventoAjuste,
 } from '@/services/analiseAtivos/leitura/ativo/seriesGrafico';
 import { FLAG_CNPJ_EM_CONFERENCIA } from '@/services/analiseAtivos/quadro/montarLinhasQuadro';
+import { lerRetornosAtivo } from '@/services/analiseAtivos/leitura/ativo/retornosAtivo';
+import { analiseAtivosRetornosHabilitado } from '@/lib/analiseAtivosConfig';
+import type { RetornosCotacaoApi } from '@/types/analiseAtivosComplementos';
 import {
   rotuloSegmentoFii,
   segmentoTipoDe,
@@ -146,6 +153,18 @@ function gravarCache(chave: string, valor: AtivoTopoResposta, agora: number): vo
 async function lerCriteriosTopo(ticker: string): Promise<CriteriosAtivo | null> {
   try {
     return await obterCriteriosAtivo(prisma, ticker);
+  } catch {
+    return null;
+  }
+}
+
+/** A6: retornos da cotação (fatia C). Falha de leitura = null: o topo nunca quebra por isto. */
+async function lerRetornosTopo(
+  ticker: string,
+  classe: 'acao' | 'fii',
+): Promise<RetornosCotacaoApi | null> {
+  try {
+    return await lerRetornosAtivo(prisma, ticker, classe);
   } catch {
     return null;
   }
@@ -278,6 +297,7 @@ export async function montarTopoAtivo(
     pares,
     painel,
     casos,
+    retornos,
   ] = await Promise.all([
     lerCriteriosTopo(ticker),
     prisma.assetMultiplesCurrent.findUnique({ where: { symbol: ticker } }),
@@ -359,6 +379,10 @@ export async function montarTopoAtivo(
     painelFrescorEmCache(prisma),
     // bloco C: só com flag 'conf:' na linha (v1 nunca grava ⇒ nenhuma consulta a mais)
     gruposConf(row.flags).length > 0 ? lerCasosAbertos(prisma, ticker) : Promise.resolve([]),
+    // A6: só com a chave (sem ela, nenhuma consulta a mais e nenhum campo novo)
+    analiseAtivosRetornosHabilitado()
+      ? lerRetornosTopo(ticker, ehAcao ? 'acao' : 'fii')
+      : Promise.resolve(null),
   ]);
   const v2 = (row.paramsVersion ?? 1) >= 2;
   const gruposConferencia = gruposConf(row.flags);
@@ -525,6 +549,7 @@ export async function montarTopoAtivo(
     casos,
   });
   if (conferencias.length > 0) resposta.conferencias = conferencias;
+  if (retornos) resposta.retornos = retornos;
   if (v2) {
     resposta.frescorBlocos = montarFrescorBlocos({
       classe,
