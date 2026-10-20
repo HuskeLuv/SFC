@@ -170,6 +170,7 @@ import { GET as getFundamentos } from '../ativos/[ticker]/fundamentos/route';
 import { GET as getValuation } from '../ativos/[ticker]/valuation/route';
 import { GET as getRaioX } from '../ativos/[ticker]/raio-x/route';
 import { GET as getSugestoes } from '../ativos/[ticker]/comparar-sugestoes/route';
+import { GET as getImoveisFii } from '../ativos/[ticker]/imoveis-fii/route';
 import { GET as getCenarios } from '../cenarios/[ticker]/route';
 import { GET as getComparador } from '../comparador/route';
 import { GET as getMeusReportes } from '../meus-reportes/route';
@@ -294,6 +295,13 @@ const CHAMADAS: Chamada[] = [
     { rota: 'teses/[ticker]', get: getTese as Rota, url: `${base}/teses/${t}`, ticker: t },
     { rota: 'alvos/[ticker]', get: getAlvo as Rota, url: `${base}/alvos/${t}`, ticker: t },
   ]),
+  // A6 (fatia A): imóveis e composição do FII (só FII; banco falso com o XPTO fictício abaixo)
+  {
+    rota: 'ativos/[ticker]/imoveis-fii',
+    get: getImoveisFii as Rota,
+    url: `${base}/ativos/HGLG11/imoveis-fii`,
+    ticker: 'HGLG11',
+  },
   { rota: 'comparador', get: getComparador as Rota, url: `${base}/comparador?t=WEGE3,ITUB4` },
   {
     rota: 'comparador',
@@ -454,6 +462,45 @@ beforeEach(() => {
           asset: asset('ITUB4', 'stock'),
         },
       ],
+    },
+    // A6 (fatia A): só a leitura de imoveis-fii pede valoresReceber; números fictícios
+    fiiMonthly: {
+      findMany: async (a: unknown) =>
+        (a as { select?: Record<string, boolean> }).select?.valoresReceber
+          ? [
+              {
+                refMonth: new Date('2026-09-01T00:00:00Z'),
+                ativoTotal: new Prisma.Decimal(1000),
+                imoveis: new Prisma.Decimal(900),
+                spe: null,
+                cri: new Prisma.Decimal(20),
+                lciLca: null,
+                cotasFii: null,
+                rendaFixa: new Prisma.Decimal(70),
+                acoes: null,
+                valoresReceber: null,
+              },
+            ]
+          : [],
+    },
+    fiiImovelTrimestral: {
+      findFirst: async () => ({ refQuarter: new Date('2026-06-30T00:00:00Z') }),
+      findMany: async () => [
+        {
+          ordem: 0,
+          classe: 'Imóveis para renda acabados',
+          nome: 'Galpão Alfa',
+          endereco: 'Rua Fictícia, 1, Cidade X, SP',
+          ufInferida: 'SP',
+          area: new Prisma.Decimal(1000),
+          unidades: 1,
+          vacanciaPct: 0,
+          receitaPct: 95,
+        },
+      ],
+    },
+    fiiInquilinoSetorTrimestral: {
+      findMany: async () => [{ setor: 'Logística', pctReceitaFii: 95, placeholder: false }],
     },
     analiseCenario: {
       findUnique: async () => ({
