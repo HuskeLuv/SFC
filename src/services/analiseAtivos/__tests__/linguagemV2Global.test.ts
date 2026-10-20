@@ -34,6 +34,10 @@ import { TEXTOS_FILA } from '@/components/admin/curadoria/marcasCaso';
 import { TEXTOS_SALVOS } from '@/services/analiseAtivos/textosSalvos';
 import { TEXTOS_ALERTAS } from '@/services/analiseAtivos/textosAlertas';
 import { TEXTOS_EUA } from '@/services/analiseAtivos/textosEua';
+import { TEXTOS_IMOVEIS_FII } from '@/services/analiseAtivos/textosImoveisFii';
+import { TEXTOS_RETORNOS } from '@/services/analiseAtivos/textosRetornos';
+import { TEXTOS_SOCIETARIO } from '@/services/analiseAtivos/textosSocietario';
+import { TEXTOS_FINANCEIRAS } from '@/services/analiseAtivos/textosFinanceiras';
 
 type Folha = [caminho: string, texto: string];
 
@@ -66,6 +70,11 @@ const MODULOS: Record<string, unknown> = {
   TEXTOS_ALERTAS,
   // Stocks e REITs (fatia 0 EUA)
   TEXTOS_EUA,
+  // A6 — dados complementares (fatia 0: imóveis do FII, retornos, societário, financeiras)
+  TEXTOS_IMOVEIS_FII,
+  TEXTOS_RETORNOS,
+  TEXTOS_SOCIETARIO,
+  TEXTOS_FINANCEIRAS,
 };
 
 const TODAS: Folha[] = Object.entries(MODULOS).flatMap(([nome, m]) => folhas(m, nome));
@@ -109,6 +118,11 @@ const VARS: Record<string, string> = {
   // Stocks e REITs
   corte: 'US$ 2 bi',
   mes: 'set',
+  // A6
+  desde: 'jan/2015',
+  pf: '182 mil',
+  pj: '3,1 mil',
+  inst: '1,4 mil',
 };
 const preencher = (t: string) => t.replace(/\{(\w+)\}/g, (m, k: string) => VARS[k] ?? 'X');
 

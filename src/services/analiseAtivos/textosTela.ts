@@ -748,6 +748,8 @@ export const TEXTOS_TELA = {
         cagrVpCota: 'CAGR VP/cota 5a',
         cagrCotistas: 'CAGR cotistas 5a',
         obrigacoesPl: 'Obrigações/PL',
+        /** A6 (fatia E, chave ALAV_ATIVO): card novo do Valuation FII */
+        obrigacoesAtivo: 'Alavancagem (% do ativo)',
         taxaAdm: 'Taxa de adm. (mês)',
         liquidez21: 'Liquidez média 21d',
       },

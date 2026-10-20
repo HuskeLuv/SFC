@@ -105,6 +105,17 @@ export const TEXTOS_ATIVO = {
       'Obrigações do fundo (passivo menos rendimentos a distribuir) ÷ patrimônio líquido, em %.',
   },
 
+  /**
+   * A6 (fatia 0; usado pela fatia E com ANALISE_ATIVOS_ALAV_ATIVO_HABILITADO): chave NOVA para o valor
+   * novo (obrigações ÷ ativo total). As chaves de PL acima continuam intactas: cada coluna com o
+   * próprio rótulo e o próprio valor.
+   */
+  alavancagemAtivo: {
+    rotulo: 'Alavancagem (% do ativo)',
+    tooltip:
+      'Obrigações do fundo (aquisição de imóveis, securitização e outros valores a pagar) ÷ ativo total, em %. Outros valores a pagar podem incluir itens que não são dívida.',
+  },
+
   /** Pares (§3.2 bloco 7): sem Índice, com a coluna Critérios (janela 5). */
   pares: {
     colunas: {
@@ -113,6 +124,8 @@ export const TEXTOS_ATIVO = {
       vacancia: 'Vacância (CVM)',
       nCri: 'Nº CRIs (CVM)',
       alavancagem: 'Alavancagem (% do PL)',
+      /** A6 (fatia E): coluna nova ao lado da de PL */
+      alavancagemAtivo: 'Alavancagem (% do ativo)',
     },
     /** nome acessível da coluna Critérios ('Critérios de fundamentos em 5 anos') */
     criteriosTitulo: 'Critérios de fundamentos em {anos} anos',
