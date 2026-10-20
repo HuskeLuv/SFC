@@ -16,8 +16,15 @@
  *     devolve parcial: o próximo run continua pelos (cnpj, versão) que faltam.
  *
  * Escopo: grava con E ind sempre que existirem (a escolha ind para bancos é feita na leitura, pelo
- * repositório) e CvmCompany.layoutFinanceiro pelo DRE. Não lê AssetSetorB3 (fatia C).
+ * repositório) e CvmCompany.layoutFinanceiro pelo DRE.
  * Linhas do Raio-X fora de produção: só o subconjunto dev (40 companhias).
+ *
+ * DEPENDÊNCIA (A6, fatia B): a ingestão LÊ AssetSetorB3 no início do job (Apoio.segmentos, via
+ * cnpjsFinanceirosPorSegmento) para conhecer os CNPJs financeiros e seguradores — DVA só das
+ * financeiras (ANALISE_ATIVOS_CVM_DVA), campos de seguradora por rótulo e o layout 'Receitas das
+ * Operações' só das seguradoras. Sem AssetSetorB3 (job b3 ainda não rodou) os Sets ficam vazios e o
+ * comportamento é o de antes; companhia com layout financeiro e sem segmento gera o alerta
+ * 'financeira_sem_segmento' (info).
  */
 import { createHash } from 'crypto';
 import { createReadStream } from 'fs';
@@ -42,7 +49,11 @@ import {
   registrarDownload,
 } from '@/services/analiseAtivos/repositorio/fontesArquivo';
 import { eventosCorporativosBrutos } from '@/services/analiseAtivos/repositorio/proventos';
-import { listarTickersAcoes } from '@/services/analiseAtivos/repositorio/universo';
+import {
+  cnpjsFinanceirosPorSegmento,
+  listarTickersAcoes,
+  type SegmentosFinanceirosIngestao,
+} from '@/services/analiseAtivos/repositorio/universo';
 import {
   DEMONSTRATIVOS_POR_DOC,
   MAX_BYTES_ZIP_CVM,
@@ -313,6 +324,8 @@ interface Apoio {
   fre?: Map<number, Map<string, AcoesFre>>;
   eventos: Map<string, EventoAcoes[]>;
   cnpjsRaioX: Set<string>;
+  /** A6: CNPJs financeiros/seguradores pelo segmento B3 (AssetSetorB3), lidos no início do job */
+  segmentos: SegmentosFinanceirosIngestao;
 }
 
 async function carregarApoio(
@@ -322,8 +335,20 @@ async function carregarApoio(
   ctx: JobContexto,
 ): Promise<Apoio> {
   const cias = await prisma.cvmCompany.findMany({
-    select: { cnpj: true, mesFimExercicio: true },
+    select: { cnpj: true, mesFimExercicio: true, layoutFinanceiro: true },
   });
+  const segmentos = await cnpjsFinanceirosPorSegmento(prisma, universo, ctx.params);
+  const semSegmento = cias
+    .filter((c) => c.layoutFinanceiro && universo.has(c.cnpj) && !segmentos.financeiras.has(c.cnpj))
+    .map((c) => c.cnpj)
+    .sort();
+  if (semSegmento.length > 0) {
+    ctx.alertar({
+      codigo: 'financeira_sem_segmento',
+      nivel: 'info',
+      mensagem: `${semSegmento.length} companhia(s) com layout financeiro sem segmento financeiro em AssetSetorB3 (sem DVA nem campos de seguradora): ${semSegmento.slice(0, 20).join(', ')}`,
+    });
+  }
   const cnpjPorSymbol = new Map<string, string>();
   for (const [cnpj, symbols] of universo) for (const s of symbols) cnpjPorSymbol.set(s, cnpj);
   const brutos = await eventosCorporativosBrutos(prisma, [...cnpjPorSymbol.keys()]);
@@ -346,6 +371,7 @@ async function carregarApoio(
     mesFim: new Map(cias.map((c) => [c.cnpj, c.mesFimExercicio])),
     eventos,
     cnpjsRaioX,
+    segmentos,
   };
 }
 

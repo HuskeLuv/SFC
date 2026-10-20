@@ -25,6 +25,8 @@ const UNICOS: Record<string, string[]> = {
   analiseFonteArquivo: ['url'],
   assetCorporateAction: ['id'],
   assetQuoteResumo: ['symbol'],
+  // A6 (fatia B): a ingestão lê o segmento B3 (Set de financeiras/seguradoras)
+  assetSetorB3: ['raiz'],
 };
 const COM_ID = new Set(['cvmCompanyTicker', 'assetFundamentalsPeriod', 'assetShareCount']);
 const PADROES: Record<string, Linha> = {
