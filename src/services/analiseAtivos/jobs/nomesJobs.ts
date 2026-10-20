@@ -3,6 +3,7 @@
  * Backfills (scripts) usam `backfill:<nome>`.
  */
 import type { NomeJob } from '@/services/analiseAtivos/tipos';
+import { NOMES_JOBS_COMPLEMENTOS } from '@/types/analiseAtivosComplementos';
 import { NOMES_JOBS_EUA } from '@/types/analiseAtivosEua';
 
 export const NOMES_JOBS = [
@@ -25,6 +26,8 @@ export const NOMES_JOBS = [
   'alertas-salvos',
   // Stocks e REITs (fatia 0): um módulo por job em services/analiseAtivos/eua/jobs/* (A e B donos)
   ...NOMES_JOBS_EUA,
+  // A6 (fatia 0): retornos-cotacao (fatia C) e cvm-fre-societario (fatia D), stubs 'pulado'
+  ...NOMES_JOBS_COMPLEMENTOS,
 ] as const satisfies readonly NomeJob[];
 
 export type DocCvmCias = 'fca' | 'dfp' | 'itr';

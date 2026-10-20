@@ -9,11 +9,19 @@
  * - TTM (linha derivada, regra 14): mesma estratégia; a linha do documento base é atualizada quando o
  *   recálculo muda (chegou o YTD do ano anterior, por exemplo).
  * - Prazo: lotes param quando ctx.estourouPrazo(); quem chama devolve { parcial: true }.
+ * - Recompletar (A6, fatia B; backfill --recompletar-campos): ÚNICO caminho que reescreve um
+ *   documento já gravado — UPDATE por id só das colunas novas de financeira (CAMPOS_FINANCEIRAS) que
+ *   estão NULAS no banco (a condição vai no WHERE: coluna preenchida nunca é sobrescrita) e, no modo
+ *   'layout' (BBSE/IRB 2016–2022), ebit/D&A → null + naoSeAplica. Nada mais é alterado.
  */
 import type { Prisma, PrismaClient } from '@prisma/client';
 import { cnpjOuOriginal } from '@/services/analiseAtivos/regras/comum/cnpj';
 import { deData, paraData, paraNumero } from '@/services/analiseAtivos/repositorio/conversao';
 import type { CiaFca, TituloFca } from '@/services/analiseAtivos/acoes/parserFca';
+import {
+  CAMPOS_FINANCEIRAS,
+  type CampoFinanceira,
+} from '@/services/analiseAtivos/regras/acoes/extrairFundamentos';
 import type { AlertaJob, JobContexto } from '@/services/analiseAtivos/tipos';
 
 export const TAMANHO_LOTE = 1_000;
@@ -65,6 +73,11 @@ export async function gravarCadastroFca(
      * foi completado de novo é fechado (sem COTAHIST, nada de origem 'b3' é fechado)
      */
     b3Disponivel?: boolean;
+    /**
+     * A6 (backfill --tickers): FCA recortado a poucos tickers — nada que ficou de fora é fechado
+     * (o recorte não é o FCA inteiro)
+     */
+    parcial?: boolean;
   },
 ): Promise<ResultadoCadastro> {
   const agora = new Date();
@@ -215,11 +228,13 @@ export async function gravarCadastroFca(
     }
   }
   // sumiu do FCA: fecha — mas nunca em massa (arquivo truncado/errado não derruba o universo)
-  const sumidos = abertos.filter(
-    (t) =>
-      (t.origem === 'fca' || (t.origem === 'b3' && meta.b3Disponivel === true)) &&
-      !vistos.has(t.symbol),
-  );
+  const sumidos = meta.parcial
+    ? []
+    : abertos.filter(
+        (t) =>
+          (t.origem === 'fca' || (t.origem === 'b3' && meta.b3Disponivel === true)) &&
+          !vistos.has(t.symbol),
+      );
   if (abertos.length > 0 && sumidos.length > Math.max(20, abertos.length * 0.2)) {
     alertas.push({
       codigo: 'fca_sumico_em_massa',
@@ -336,6 +351,70 @@ export function gravarLinhasDemonstrativo(
   return emLotes(ctx, linhas, (lote) =>
     prisma.assetStatementLine.createMany({ data: lote, skipDuplicates: true }),
   );
+}
+
+// ---------------------------------------------------------------- recompletar campos (A6)
+
+/** Colunas que o modo layout pode reescrever (as únicas colunas antigas que o recompletar toca). */
+export const COLUNAS_LAYOUT_RECOMPLETAR = [
+  'ebit',
+  'depreciacaoAmortizacao',
+  'naoSeAplica',
+] as const;
+
+export interface AtualizacaoCamposFundamentos {
+  id: string;
+  /** colunas novas a preencher (só se ainda NULAS no banco): valor em dec2 */
+  novas: Partial<Record<CampoFinanceira, string>>;
+  /** modo layout: ebit/D&A → null e o naoSeAplica completo */
+  layout?: { naoSeAplica: string[] };
+}
+
+const LOTE_RECOMPLETAR = 200;
+
+/**
+ * UPDATE em lotes (uma transação por lote) das colunas novas e nulas — a condição 'IS NULL' de cada
+ * coluna vai no WHERE, então uma coluna preenchida entre a leitura e a escrita também não é
+ * sobrescrita — e, no modo layout, de ebit/D&A/naoSeAplica. Recusa qualquer outra coluna.
+ */
+export async function completarCamposFundamentos(
+  prisma: PrismaClient,
+  ctx: Pick<JobContexto, 'estourouPrazo'>,
+  atualizacoes: AtualizacaoCamposFundamentos[],
+): Promise<ResultadoLotes> {
+  const permitidas = new Set<string>(CAMPOS_FINANCEIRAS);
+  let gravadas = 0;
+  const ops: Array<Prisma.PrismaPromise<{ count: number }>> = [];
+  for (const a of atualizacoes) {
+    for (const c of Object.keys(a.novas)) {
+      if (!permitidas.has(c)) throw new Error(`recompletar: coluna fora da lista: ${c}`);
+    }
+    const novas = Object.entries(a.novas) as Array<[CampoFinanceira, string]>;
+    if (novas.length > 0) {
+      for (const [c, v] of novas) {
+        ops.push(
+          prisma.assetFundamentalsPeriod.updateMany({
+            where: { id: a.id, [c]: null },
+            data: { [c]: v },
+          }),
+        );
+      }
+    }
+    if (a.layout) {
+      ops.push(
+        prisma.assetFundamentalsPeriod.updateMany({
+          where: { id: a.id },
+          data: { ebit: null, depreciacaoAmortizacao: null, naoSeAplica: a.layout.naoSeAplica },
+        }),
+      );
+    }
+  }
+  for (let i = 0; i < ops.length; i += LOTE_RECOMPLETAR) {
+    if (ctx.estourouPrazo()) return { gravadas, interrompido: true };
+    const r = await prisma.$transaction(ops.slice(i, i + LOTE_RECOMPLETAR));
+    gravadas += r.reduce((n, x) => n + x.count, 0);
+  }
+  return { gravadas, interrompido: false };
 }
 
 // ---------------------------------------------------------------- contagens de ações
@@ -491,6 +570,8 @@ const CAMPOS_COMPARACAO_TTM = [
   'ativoTotal',
   'pl',
   'plControladora',
+  // A6: campos de financeira (PDD da DVA, DRE das seguradoras)
+  ...CAMPOS_FINANCEIRAS,
 ] as const;
 
 /** Cria as linhas TTM novas em lote e atualiza as que o recálculo mudou. */

@@ -39,6 +39,7 @@ import {
 } from '../valuationMultiplos';
 import { paraLinhaQuadroApi } from '@/services/analiseAtivos/leitura/linhasQuadro';
 import { TEXTOS_TELA } from '@/services/analiseAtivos/textosTela';
+import { encontrarProibidasV2 } from '@/services/analiseAtivos/regras/comum/linguagemV2';
 import { encontrarPalavrasProibidas } from '@/services/analiseAtivos/textos';
 import { linhaQuadroDb } from '@/test/fixtures/analiseAtivos/linhasDb';
 import { CRITERIOS_LINHA_WEGE3 } from '@/test/fixtures/analiseAtivos/criterios';
@@ -557,6 +558,72 @@ describe('montarValuation (FIIs)', () => {
     expect(item(r, 'cagrCotistas').atual.estado).toBe('ok');
     expect((item(r, 'cagrCotistas').atual as { valor: number }).valor).toBeCloseTo(20, 5);
     expect(r.historicos.map((h) => h.codigo)).toEqual(['pvp', 'dy12m']);
+  });
+
+  it('A6 desligada: grupo Alavancagem idêntico ao de hoje (sem o cartão novo)', () => {
+    const alvo = fii({
+      atual: atual({ pvp: 0.89, vpCota: 165.95, obrigacoesPlPct: 16.2, obrigacoesAtivoPct: 12 }),
+    });
+    const hoje = montarValuation({ hoje: HOJE, alvo, pares: [], criterioPares: '' });
+    expect(grupo(hoje, 'alavancagem').itens.map((i) => i.codigo)).toEqual([
+      'obrigacoesPl',
+      'taxaAdm',
+      'liquidez21',
+    ]);
+    expect(
+      montarValuation({ hoje: HOJE, alvo, pares: [], criterioPares: '', alavAtivo: false }),
+    ).toEqual(hoje);
+  });
+
+  it('A6 ligada: cartão "Alavancagem (% do ativo)" depois do Obrigações/PL, com barra e pares', () => {
+    const anos = [2017, 2018, 2019, 2020, 2021, 2022, 2023, 2024, 2025];
+    const comAtivo = (pct: number) =>
+      fii({
+        atual: atual({ pvp: 0.89, vpCota: 165.95, obrigacoesPlPct: 16.2, obrigacoesAtivoPct: pct }),
+        anuais: anos.map((a, i) =>
+          anual(a, i, { pvp: 1, dyPct: 8, obrigacoesPlPct: 10, obrigacoesAtivoPct: 6 + i }),
+        ),
+      });
+    const pares = [8, 10, 14].map((v, i) => {
+      const p = comAtivo(v);
+      return { ...p, linha: { ...p.linha, ticker: `PAR${i}11` } };
+    });
+    const r = montarValuation({
+      hoje: HOJE,
+      alvo: comAtivo(12),
+      pares,
+      criterioPares: '',
+      alavAtivo: true,
+    });
+    expect(grupo(r, 'alavancagem').itens.map((i) => i.codigo)).toEqual([
+      'obrigacoesPl',
+      'obrigacoesAtivo',
+      'taxaAdm',
+      'liquidez21',
+    ]);
+    const novo = item(r, 'obrigacoesAtivo');
+    expect(novo.rotulo).toBe('Alavancagem (% do ativo)');
+    expect(novo.atual).toEqual(ok(12));
+    expect(novo.leitura).toBe(TEXTOS_TELA.leituras.obrigacoesAtivo.definicao);
+    expect(novo.referencia.valor).toBe(10);
+    expect(novo.barra.visivel).toBe(true);
+    expect(novo.historico.map((p) => p.valor)).toEqual(anos.map((_, i) => 6 + i));
+    // o Obrigações/PL continua com o próprio valor
+    expect(item(r, 'obrigacoesPl').atual).toEqual(ok(16.2));
+    for (const t of textos(r)) expect(encontrarProibidasV2(t)).toEqual([]);
+  });
+
+  it('A6 ligada: ticker↔CNPJ não conferido = cartão em conferência, sem barra', () => {
+    const alvo = fii(
+      { atual: atual({ obrigacoesAtivoPct: 12 }) },
+      { flags: ['cnpj_em_conferencia'] },
+    );
+    const r = montarValuation({ hoje: HOJE, alvo, pares: [], criterioPares: '', alavAtivo: true });
+    expect(item(r, 'obrigacoesAtivo').atual).toMatchObject({
+      estado: 'ausente',
+      motivo: 'cnpj_em_conferencia',
+    });
+    expect(item(r, 'obrigacoesAtivo').barra.visivel).toBe(false);
   });
 
   it('papel: Qualidade da renda com a explicação (vacância não se aplica)', () => {

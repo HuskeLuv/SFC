@@ -25,9 +25,27 @@
  * ROIC 'não se aplica'; linha 'n/a' em todos os anos sai e o rótulo vai para linhasNaoAplicaveis;
  * linha sem nenhum valor (nem em conferência) sai; bloco sem linha sai. Valores em R$ mi; por
  * ação/cota em R$; nº de ações/cotas em milhões; cotistas em mil; área em mil m².
+ *
+ * A6 (fatia B): com ANALISE_ATIVOS_TEMPLATES_FINANCEIRAS_HABILITADO, banco e seguradora têm catálogo
+ * próprio (LINHAS_BANCO em 3 blocos; LINHAS_SEGURADORA com a operação de seguro por regime contábil)
+ * e as células comuns vêm do Essencial do MESMO template (regra de ouro). Linhas `manter` ficam na
+ * tabela mesmo só com '—' (o motivo no title: IFRS 17, holding, sem DVA). FII com
+ * ANALISE_ATIVOS_ALAV_ATIVO_HABILITADO: linha 'Alavancagem (% do ativo)' no bloco alavancagem_custos,
+ * lida de asset_multiples_yearly.obrigacoesAtivoPct (mesma origem da 'Alavancagem (% do PL)'); nula
+ * até a fatia E e o scores gravarem o múltiplo.
  */
 import { dividaLiquida, ebitda } from '@/services/analiseAtivos/regras/calculo/multiplos';
-import { fatorCotasApos } from '@/services/analiseAtivos/leitura/ativo/fundamentosEssencial';
+import {
+  estadoTemplate,
+  fatorCotasApos,
+} from '@/services/analiseAtivos/leitura/ativo/fundamentosEssencial';
+import {
+  emissorEhHoldingSeguradora,
+  valoresBanco,
+  valoresSeguradora,
+} from '@/services/analiseAtivos/regras/acoes/templateFinanceira';
+import { TEXTOS_FINANCEIRAS } from '@/services/analiseAtivos/textosFinanceiras';
+import type { TemplateFinanceira } from '@/types/analiseAtivosComplementos';
 import {
   anosPerShareEmConferencia,
   aplicarPerShareNosCodigos,
@@ -131,6 +149,8 @@ export interface DefLinhaRaioX {
   escalaEssencial?: number;
   /** linha por ação/cota (decisão 1) que NÃO vem do Essencial */
   perShare?: boolean;
+  /** A6: fica na tabela mesmo sem número em nenhum ano ('—' com o motivo no title) */
+  manter?: boolean;
 }
 
 const L = (
@@ -228,17 +248,27 @@ const LINHAS_FII_CUSTOS: readonly DefLinhaRaioX[] = [
   L('taxaAdmAnoPct', 'alavancagem_custos', 'razao', 'pct'),
   L('taxaPerformance', 'alavancagem_custos', 'valor', 'moedaMi'),
 ];
+/** A6: 'Alavancagem (% do ativo)' logo depois da do PL (só com a chave ALAV_ATIVO). */
+const LINHAS_FII_CUSTOS_ALAV_ATIVO: readonly DefLinhaRaioX[] = [
+  LINHAS_FII_CUSTOS[0],
+  L('obrigacoesAtivoPct', 'alavancagem_custos', 'razao', 'pct'),
+  ...LINHAS_FII_CUSTOS.slice(1),
+];
 
 /** Catálogo por variante (ordem = ordem da tela e do CSV). */
-export function catalogoRaioX(variante: VarianteRaioX): readonly DefLinhaRaioX[] {
+export function catalogoRaioX(
+  variante: VarianteRaioX,
+  opts: { alavAtivo?: boolean } = {},
+): readonly DefLinhaRaioX[] {
+  const custos = opts.alavAtivo ? LINHAS_FII_CUSTOS_ALAV_ATIVO : LINHAS_FII_CUSTOS;
   switch (variante) {
     case 'acao':
     case 'acao_financeira':
       return LINHAS_ACAO;
     case 'fii_papel':
-      return [...LINHAS_FII_BASE, ...LINHAS_FII_RECEBIVEIS, ...LINHAS_FII_CUSTOS];
+      return [...LINHAS_FII_BASE, ...LINHAS_FII_RECEBIVEIS, ...custos];
     default:
-      return [...LINHAS_FII_BASE, ...LINHAS_FII_IMOVEIS, ...LINHAS_FII_CUSTOS];
+      return [...LINHAS_FII_BASE, ...LINHAS_FII_IMOVEIS, ...custos];
   }
 }
 
@@ -295,6 +325,20 @@ export const CAMPO_LINHA_RAIOX: Readonly<Record<CodigoLinhaRaioX, CampoTela | nu
   obrigacoesPlPct: 'obrigacoesPl',
   taxaAdmAnoPct: 'taxaAdm',
   taxaPerformance: null,
+  // A6 (fatia 0: entradas para o tipo; a fatia B pode trocar o campo): banco e seguradora seguem o
+  // grupo de que derivam; 'obrigacoesAtivoPct' do FII sem campo de conferência próprio
+  receitaIntermediacao: 'receita',
+  pdd: 'lucroLiquido',
+  pddLucro: 'lucroLiquido',
+  margemBancariaPct: 'margemLiquida',
+  ativoTotal: 'patrimonioLiquido',
+  plAtivoPct: 'patrimonioLiquido',
+  receitaOperacional: 'receita',
+  equivalenciaPatrimonial: 'lucroLiquido',
+  resultadoFinanceiro: 'lucroLiquido',
+  sinistralidadePct: 'receita',
+  despesaReceitaSeguroPct: 'receita',
+  obrigacoesAtivoPct: 'obrigacoesPl',
 };
 
 function mapaConferencia(codigos: readonly string[]): Record<string, CampoTela> {
@@ -423,7 +467,7 @@ function montar(e: EntradaMontagem): ResultadoMontagem {
         v.estado === 'ok' ||
         (v.estado === 'ausente' && (!!v.exibicao || v.motivo === 'cnpj_em_conferencia')),
     );
-    if (!temValor) continue;
+    if (!temValor && !(d.manter && lista.length > 0)) continue;
     const linha: LinhaRaioX = {
       codigo: d.codigo,
       rotulo,
@@ -468,9 +512,13 @@ export interface EntradaRaioXAcao {
   essencial: FundamentosResposta;
   /** FY no escopo preferido (fundamentosVigentes) */
   fys: FundamentosPeriodo[];
-  perShare: ReadonlyArray<PerShareFlagsAno & { fatorEquivalencia?: number | null }>;
+  perShare: ReadonlyArray<
+    PerShareFlagsAno & { fatorEquivalencia?: number | null; lpaAjHoje?: number | null }
+  >;
   multiplos: ReadonlyArray<MultiplosAnoRaioXAcao>;
   conferencia?: ConferenciaEntrada;
+  /** A6: template de banco/seguradora (o Essencial veio do MESMO template); ausente = o de hoje */
+  template?: TemplateFinanceira | null;
 }
 
 function soma(...xs: Array<number | null>): number | null {
@@ -479,6 +527,7 @@ function soma(...xs: Array<number | null>): number | null {
 }
 
 export function montarRaioXAcao(e: EntradaRaioXAcao): Parcial {
+  if (e.template) return montarRaioXFinanceira({ ...e, template: e.template });
   const fyPorAno = new Map<number, FundamentosPeriodo>();
   for (const f of e.fys) {
     const atual = fyPorAno.get(f.anoFiscal);
@@ -604,6 +653,159 @@ export function montarRaioXAcao(e: EntradaRaioXAcao): Parcial {
   };
 }
 
+// ---------------------------------------------------------------------------
+// Financeiras (A6, fatia B): Raio-X de banco e seguradora
+// ---------------------------------------------------------------------------
+
+/**
+ * Banco em 3 blocos (protótipo A6): intermediação e resultado · balanço · fluxo de caixa. As linhas
+ * com `essencial` vêm LITERALMENTE do Essencial 'banco' do mesmo ano (regra de ouro).
+ */
+export const LINHAS_BANCO: readonly DefLinhaRaioX[] = [
+  L('receitaIntermediacao', 'intermediacao_resultado', 'valor', 'moedaMi', {
+    essencial: 'receitaIntermediacao',
+  }),
+  L('pdd', 'intermediacao_resultado', 'valor', 'moedaMi', { essencial: 'pdd', manter: true }),
+  L('pddLucro', 'intermediacao_resultado', 'razao', 'multiplo', {
+    essencial: 'pddLucro',
+    manter: true,
+  }),
+  L('lucroLiquido', 'intermediacao_resultado', 'valor', 'moedaMi', { essencial: 'lucroLiquido' }),
+  L('margemBancariaPct', 'intermediacao_resultado', 'razao', 'pct', {
+    essencial: 'margemBancaria',
+  }),
+  L('lpa', 'intermediacao_resultado', 'valor', 'moeda', { perShare: true }),
+  L('roePct', 'intermediacao_resultado', 'razao', 'pct', { essencial: 'roe' }),
+  L('payoutPct', 'intermediacao_resultado', 'razao', 'pct', { essencial: 'payout' }),
+  L('ativoTotal', 'balanco', 'valor', 'moedaMi', { essencial: 'ativoTotal' }),
+  L('patrimonioLiquido', 'balanco', 'valor', 'moedaMi', { essencial: 'patrimonio' }),
+  L('plAtivoPct', 'balanco', 'razao', 'pct'),
+  L('nAcoesMi', 'balanco', 'valor', 'milhoes', { perShare: true }),
+  L('dividendosJcpPagos', 'fluxo_caixa', 'valor', 'moedaMi', { essencial: 'divJcp' }),
+];
+
+/**
+ * Seguradora: receita e resultado · operação de seguro · proventos. Sinistralidade só até 2022 e
+ * despesa ÷ receita de seguro só desde 2023; no outro regime (e na holding) a célula fica '—' com o
+ * motivo e a linha continua na tabela (`manter`).
+ */
+export const LINHAS_SEGURADORA: readonly DefLinhaRaioX[] = [
+  L('receitaOperacional', 'receita_resultado', 'valor', 'moedaMi', {
+    essencial: 'receitaOperacional',
+  }),
+  L('equivalenciaPatrimonial', 'receita_resultado', 'valor', 'moedaMi', {
+    essencial: 'equivalencia',
+    manter: true,
+  }),
+  L('resultadoFinanceiro', 'receita_resultado', 'valor', 'moedaMi', {
+    essencial: 'resultadoFinanceiro',
+  }),
+  L('lucroLiquido', 'receita_resultado', 'valor', 'moedaMi', { essencial: 'lucroLiquido' }),
+  L('margemLiquidaPct', 'receita_resultado', 'razao', 'pct', {
+    essencial: 'margemLiquida',
+    manter: true,
+  }),
+  L('roePct', 'receita_resultado', 'razao', 'pct', { essencial: 'roe' }),
+  L('patrimonioLiquido', 'receita_resultado', 'valor', 'moedaMi', { essencial: 'patrimonio' }),
+  L('sinistralidadePct', 'operacao_seguros', 'razao', 'pct', { manter: true }),
+  L('despesaReceitaSeguroPct', 'operacao_seguros', 'razao', 'pct', { manter: true }),
+  L('dividendosJcpPagos', 'proventos', 'valor', 'moedaMi', { essencial: 'divJcp' }),
+  L('payoutPct', 'proventos', 'razao', 'pct', { essencial: 'payout' }),
+];
+
+/** Catálogo do template de financeira (ordem = tela e CSV). */
+export function catalogoRaioXFinanceira(template: TemplateFinanceira): readonly DefLinhaRaioX[] {
+  return template === 'banco' ? LINHAS_BANCO : LINHAS_SEGURADORA;
+}
+
+function montarRaioXFinanceira(e: EntradaRaioXAcao & { template: TemplateFinanceira }): Parcial {
+  const banco = e.template === 'banco';
+  const fyPorAno = new Map<number, FundamentosPeriodo>();
+  for (const f of e.fys) {
+    const atual = fyPorAno.get(f.anoFiscal);
+    if (!atual || f.dtFim > atual.dtFim) fyPorAno.set(f.anoFiscal, f);
+  }
+  const psPorAno = new Map(e.perShare.map((p) => [p.anoFiscal, p]));
+  const perShare = anosPerShareEmConferencia(e.perShare, e.multiplos, { mediana: true });
+  const holding = !banco && emissorEhHoldingSeguradora(e.fys);
+  let algumLucroNaoPositivo = false;
+
+  const proprias = (ano: number, le: LinhaFundamentos): CelulasAno => {
+    const f = fyPorAno.get(ano);
+    const ps = psPorAno.get(ano);
+    if (!f) return {};
+    const lucro = valorOk(le.valores.lucroLiquido);
+    const lucroR = lucro === null ? null : lucro * 1e6;
+    if (banco) {
+      const b = valoresBanco(f, lucroR);
+      if ('motivo' in b.pddLucro && b.pddLucro.motivo === 'lucro_nao_positivo') {
+        algumLucroNaoPositivo = true;
+      }
+      return {
+        plAtivoPct: estadoTemplate(b.plAtivoPct),
+        lpa: estadoDe(ps?.lpaAjHoje),
+        nAcoesMi: estadoDe(ps?.acoesFim, 1e6),
+      };
+    }
+    const s = valoresSeguradora(f, ano, lucroR, holding);
+    return {
+      sinistralidadePct: estadoTemplate(s.sinistralidadePct),
+      despesaReceitaSeguroPct: estadoTemplate(s.despesaReceitaSeguroPct),
+    };
+  };
+
+  const catalogo = catalogoRaioXFinanceira(e.template);
+  const r = montar({
+    catalogo,
+    classe: 'acao',
+    essencial: e.essencial,
+    proprias,
+    conferencia: e.conferencia,
+    perShare,
+    linhasSeloProventos: [],
+  });
+
+  const padraoContabil = e.essencial.padraoContabil;
+  const escopo = (
+    e.essencial.escopo === 'con' || e.essencial.escopo === 'ind' ? e.essencial.escopo : null
+  ) as 'con' | 'ind' | null;
+  const so = TR.sobreOsDados;
+  const tfin = TEXTOS_FINANCEIRAS;
+  const obs: string[] = [];
+  if (banco) {
+    obs.push(tfin.banco.observacoes.basileia);
+    const t = textoPadraoContabil(escopo, padraoContabil);
+    if (t) obs.push(formatarTexto(tfin.banco.observacoes.padraoContabil, { valor: t }));
+    if (algumLucroNaoPositivo) obs.push(tfin.banco.observacoes.pddLucro);
+    obs.push(so.lpaBaseHoje);
+  } else if (holding) {
+    obs.push(tfin.seguradora.observacoes.holdings, tfin.seguradora.observacoes.holdingOperacao);
+  } else {
+    obs.push(
+      tfin.seguradora.observacoes.ifrs17,
+      tfin.seguradora.observacoes.sinistrosComoPublicados,
+      tfin.seguradora.observacoes.equivalenciaOperacional,
+    );
+  }
+  if (r.perShareEmConferencia) obs.push(so.perShareConferencia);
+  if (r.anos.length > 0 && r.anos.length < MAX_ANOS_RAIO_X) {
+    obs.push(formatarTexto(so.semAnosAntes, { ano: r.anos[r.anos.length - 1] }));
+  }
+  return {
+    variante: 'acao_financeira',
+    unidade: 'R$ mi',
+    base: 'ano fiscal',
+    fonte: 'CVM',
+    padraoContabil,
+    escopo,
+    anos: r.anos,
+    blocos: r.blocos,
+    observacoes: obs,
+    linhasNaoAplicaveis: r.linhasNaoAplicaveis,
+    template: e.template,
+  };
+}
+
 /** 'individual BR GAAP' (mesmos rótulos do Essencial). */
 export function textoPadraoContabil(escopo: string | null, padrao: string | null): string | null {
   if (!escopo || !padrao) return null;
@@ -644,11 +846,15 @@ export interface EntradaRaioXFii {
   multiplos: ReadonlyArray<{
     anoFiscal: number;
     obrigacoesPlPct: number | null;
+    /** A6: obrigações ÷ ativo total (asset_multiples_yearly; nula até a fatia E + scores) */
+    obrigacoesAtivoPct?: number | null;
     flags?: string[] | null;
   }>;
   /** ticker↔CNPJ não conferido: tudo que vem do informe do CNPJ sai em conferência */
   cnpjEmConferencia?: boolean;
   conferencia?: ConferenciaEntrada;
+  /** A6: linha 'Alavancagem (% do ativo)' (ANALISE_ATIVOS_ALAV_ATIVO_HABILITADO) */
+  alavAtivo?: boolean;
 }
 
 /** Linhas do FII que vêm do informe CVM do CNPJ (cnpj_em_conferencia). */
@@ -662,6 +868,11 @@ const LINHAS_INFORME_FII: ReadonlySet<CodigoLinhaRaioXFii> = new Set([
   'obrigacoesPlPct',
   'taxaAdmAnoPct',
   'taxaPerformance',
+]);
+/** A6: a linha do ativo também vem do informe do CNPJ. */
+const LINHAS_INFORME_FII_ALAV: ReadonlySet<CodigoLinhaRaioX> = new Set<CodigoLinhaRaioX>([
+  ...LINHAS_INFORME_FII,
+  'obrigacoesAtivoPct',
 ]);
 
 export function montarRaioXFii(e: EntradaRaioXFii): Parcial {
@@ -695,7 +906,7 @@ export function montarRaioXFii(e: EntradaRaioXFii): Parcial {
   const proprias = (ano: number, le: LinhaFundamentos): CelulasAno => {
     if (cnpjConf) {
       const c: CelulasAno = {};
-      for (const k of LINHAS_INFORME_FII) c[k] = emConfCnpj;
+      for (const k of e.alavAtivo ? LINHAS_INFORME_FII_ALAV : LINHAS_INFORME_FII) c[k] = emConfCnpj;
       return c;
     }
     const ts = trimPorAno.get(ano) ?? [];
@@ -767,13 +978,16 @@ export function montarRaioXFii(e: EntradaRaioXFii): Parcial {
           : semDado(),
       cotistas: estadoDe(dez?.cotistas, 1e3),
       obrigacoesPlPct: estadoDe(mPorAno.get(ano)?.obrigacoesPlPct),
+      ...(e.alavAtivo
+        ? { obrigacoesAtivoPct: estadoDe(mPorAno.get(ano)?.obrigacoesAtivoPct) }
+        : {}),
       taxaAdmAnoPct: taxaAdm,
       taxaPerformance,
     };
   };
 
   const r = montar({
-    catalogo: catalogoRaioX(variante),
+    catalogo: catalogoRaioX(variante, { alavAtivo: e.alavAtivo }),
     classe: 'fii',
     essencial: e.essencial,
     proprias,

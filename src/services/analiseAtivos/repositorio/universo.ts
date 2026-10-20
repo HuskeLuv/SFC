@@ -7,6 +7,8 @@ import type { PrismaClient } from '@prisma/client';
 import { SCORING_PARAMS_V1 } from '@/services/analiseAtivos/params/scoringParamsV1';
 import { raizTicker } from '@/services/analiseAtivos/repositorio/conversao';
 import { ESCOPO_POR_RAIZ_PADRAO } from '@/services/analiseAtivos/regras/acoes/financeiras';
+// A6: BBSE3/CXSE3/PSSA3 em 'Seguradoras', IRBR3 em 'Resseguradoras'
+import { SEGMENTOS_SEGURADORA } from '@/services/analiseAtivos/regras/acoes/templateFinanceira';
 import type {
   ClasseTitulo,
   EmissorInfo,
@@ -95,6 +97,55 @@ export async function listarEmissores(
       escopoPreferido: excecao?.escopo ?? (ehBanco ? f.escopoBancos : f.escopoDemais),
     };
   });
+}
+
+/**
+ * Sets de CNPJs financeiros da ingestão CVM (A6, fatia B), pelo segmento B3 (AssetSetorB3) da raiz
+ * dos tickers do universo. `financeiras` = segmentosFinanceiros (lê a DVA: PDD e intermediação);
+ * `bancos` = segmentosBanco; `seguradoras` = SEGMENTOS_SEGURADORA (campos de seguradora por rótulo,
+ * nível 4 da DRE e o layout 'Receitas das Operações'). Sem AssetSetorB3 os Sets ficam vazios e a
+ * ingestão é a de hoje.
+ */
+export interface SegmentosFinanceirosIngestao {
+  financeiras: Set<string>;
+  bancos: Set<string>;
+  seguradoras: Set<string>;
+}
+
+export function segmentosVazios(): SegmentosFinanceirosIngestao {
+  return { financeiras: new Set(), bancos: new Set(), seguradoras: new Set() };
+}
+
+export async function cnpjsFinanceirosPorSegmento(
+  prisma: PrismaClient,
+  universo: ReadonlyMap<string, readonly string[]>,
+  params: ScoringParams = SCORING_PARAMS_V1,
+): Promise<SegmentosFinanceirosIngestao> {
+  const out = segmentosVazios();
+  const cnpjsPorRaiz = new Map<string, Set<string>>();
+  for (const [cnpj, symbols] of universo) {
+    for (const s of symbols) {
+      const raiz = raizTicker(s);
+      const set = cnpjsPorRaiz.get(raiz) ?? new Set<string>();
+      set.add(cnpj);
+      cnpjsPorRaiz.set(raiz, set);
+    }
+  }
+  if (cnpjsPorRaiz.size === 0) return out;
+  const setores = await prisma.assetSetorB3.findMany({
+    where: { raiz: { in: [...cnpjsPorRaiz.keys()] } },
+    select: { raiz: true, segmento: true },
+  });
+  const f = params.financeiras;
+  for (const s of setores) {
+    if (!f.segmentosFinanceiros.includes(s.segmento)) continue;
+    for (const cnpj of cnpjsPorRaiz.get(s.raiz) ?? []) {
+      out.financeiras.add(cnpj);
+      if (f.segmentosBanco.includes(s.segmento)) out.bancos.add(cnpj);
+      if (SEGMENTOS_SEGURADORA.includes(s.segmento)) out.seguradoras.add(cnpj);
+    }
+  }
+  return out;
 }
 
 export async function listarFiisListados(prisma: PrismaClient): Promise<TickerFii[]> {

@@ -8,6 +8,12 @@
  * A fatia A GRAVA o resultado como linha tipoPeriodo='TTM' em AssetFundamentalsPeriod (dtFim do
  * último ITR/DFP, versão do documento base, flags ttm_metodo_* e reapresentacao) — é a única fonte de
  * TTM da fatia D, que nunca importa este arquivo.
+ *
+ * A6 (fatia B): os campos de financeira (CAMPOS_FINANCEIRAS: PDD e intermediação da DVA, DRE das
+ * seguradoras) também têm TTM, calculados à parte (calcularTtmPeriodo com `campos`) e SEM entrar nas
+ * flags da linha (ttm_metodo_*, reapresentacao continuam só dos campos de sempre). A DVA do ITR só
+ * vem YTD (sem 3M), então o TTM da PDD sai pelo caminho YTD: FY anterior + YTD atual − YTD do ano
+ * anterior.
  */
 import {
   fimDoMesAnterior,
@@ -86,7 +92,8 @@ export function calcularTtm(e: EntradaTtm, p: ScoringParams): ResultadoTtm {
 export interface PeriodoFluxo {
   tipoPeriodo: 'FY' | 'YTD' | '3M';
   dtFim: string;
-  valores: Partial<Record<CampoFluxo, number | null>>;
+  /** campos de fluxo (CAMPOS_FLUXO) e, na A6, os de financeira (CAMPOS_FINANCEIRAS) */
+  valores: Partial<Record<string, number | null>>;
 }
 
 /** Campos de fluxo (DRE/DFC) somados no TTM; os de balanço vêm do documento base. */
@@ -105,10 +112,10 @@ export const CAMPOS_FLUXO = [
 ] as const;
 export type CampoFluxo = (typeof CAMPOS_FLUXO)[number];
 
-export interface ResultadoTtmPeriodo {
-  valores: Record<CampoFluxo, number | null>;
-  metodos: Partial<Record<CampoFluxo, MetodoTtm>>;
-  divergencias: Partial<Record<CampoFluxo, number>>;
+export interface ResultadoTtmPeriodo<C extends string = CampoFluxo> {
+  valores: Record<C, number | null>;
+  metodos: Partial<Record<C, MetodoTtm>>;
+  divergencias: Partial<Record<C, number>>;
   flags: string[];
 }
 
@@ -116,12 +123,13 @@ export interface ResultadoTtmPeriodo {
  * TTM de todos os campos de fluxo na data `base` (fim do último ITR/DFP) a partir dos períodos
  * gravados do emissor (um escopo). `mesFimExercicio` define os trimestres fiscais (regra 19).
  */
-export function calcularTtmPeriodo(
+export function calcularTtmPeriodo<C extends string = CampoFluxo>(
   periodos: PeriodoFluxo[],
   base: { tipoPeriodo: 'FY' | 'YTD'; dtFim: string },
   mesFimExercicio: number | null,
   p: ScoringParams,
-): ResultadoTtmPeriodo {
+  campos: readonly C[] = CAMPOS_FLUXO as unknown as readonly C[],
+): ResultadoTtmPeriodo<C> {
   const achar = (tipo: PeriodoFluxo['tipoPeriodo'], dtFim: string) =>
     periodos.find((x) => x.tipoPeriodo === tipo && x.dtFim === dtFim) ?? null;
   const fiscal = periodoFiscal(base.dtFim, mesFimExercicio);
@@ -134,7 +142,7 @@ export function calcularTtmPeriodo(
   const mesmoAnoAnterior = fimDoMesAnterior(base.dtFim, 12);
 
   /** Valor de 3 meses do trimestre que termina em dtFim (Q1 = YTD; Q4 = FY − 9M). */
-  const trimestre = (dtFim: string, campo: CampoFluxo): number | null => {
+  const trimestre = (dtFim: string, campo: C): number | null => {
     const f = periodoFiscal(dtFim, mesFimExercicio);
     if (f.trimestreFiscal === null) {
       const fy = achar('FY', dtFim)?.valores[campo];
@@ -150,11 +158,11 @@ export function calcularTtmPeriodo(
     return null;
   };
 
-  const valores = {} as Record<CampoFluxo, number | null>;
-  const metodos: Partial<Record<CampoFluxo, MetodoTtm>> = {};
-  const divergencias: Partial<Record<CampoFluxo, number>> = {};
+  const valores = {} as Record<C, number | null>;
+  const metodos: Partial<Record<C, MetodoTtm>> = {};
+  const divergencias: Partial<Record<C, number>> = {};
   const flags = new Set<string>();
-  for (const campo of CAMPOS_FLUXO) {
+  for (const campo of campos) {
     const entrada: EntradaTtm =
       trimestreAtual === 4
         ? {

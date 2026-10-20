@@ -26,6 +26,10 @@
  * ('sem dado nas demonstrações'). Financeiras com as 14 colunas. A nota de fonte vem das origens
  * (FundamentosResposta.textoFonte) e o selo neutro 'dados incompletos' (§6) aparece quando a fonte
  * marcou algum ponto (dadosIncompletos).
+ *
+ * A6 (fatia B): banco e seguradora vêm com o template próprio do servidor (FundamentosResposta.
+ * template, colunas de textosFinanceiras). A explicação da coluna vem de ColunaFundamentos.tooltip
+ * quando o servidor manda (ex.: qual receita a seguradora usou); a tabela marca data-template.
  */
 import type { ReactNode } from 'react';
 import CartaoAnalise, {
@@ -73,11 +77,13 @@ const TE = TEXTOS_ATIVO.essencial;
 const ULTIMO_ANO_STICKY =
   'shadow-[inset_0_0_0_999px_rgba(0,121,242,0.06)] dark:shadow-[inset_0_0_0_999px_rgba(0,121,242,0.16)]';
 
-/** Explicação das colunas com ⓘ (D2 e rec. 7), por variante. */
+/** Explicação das colunas com ⓘ (D2 e rec. 7), por variante; A6: o tooltip do servidor primeiro. */
 export function explicacaoDaColuna(
   variante: FundamentosResposta['variante'],
   codigo: string,
+  tooltip?: string,
 ): string | null {
+  if (tooltip) return tooltip;
   if (variante === 'acao') {
     return (TE.tooltips as Record<string, string>)[codigo] ?? null;
   }
@@ -192,6 +198,7 @@ export default function BlocoFundamentosEssencial({
           <div
             className={`${TABLE_STYLES.wrapper} relative max-w-full`}
             data-rolagem-card="fundamentos"
+            data-template={dados.template}
             tabIndex={0}
             aria-label={formatarTexto(TF.caption, { ticker })}
           >
@@ -207,7 +214,7 @@ export default function BlocoFundamentosEssencial({
                     {TF.ano}
                   </th>
                   {dados.colunas.map((c) => {
-                    const explicacao = explicacaoDaColuna(dados.variante, c.codigo);
+                    const explicacao = explicacaoDaColuna(dados.variante, c.codigo, c.tooltip);
                     return (
                       <th
                         key={c.codigo}
@@ -347,7 +354,7 @@ export default function BlocoFundamentosEssencial({
             ))}
             {dados.textoFonte ? <li data-nota-fonte="">{dados.textoFonte}</li> : null}
             {dados.colunas.map((c) => {
-              const explicacao = explicacaoDaColuna(dados.variante, c.codigo);
+              const explicacao = explicacaoDaColuna(dados.variante, c.codigo, c.tooltip);
               return explicacao ? (
                 <li key={`ⓘ-${c.codigo}`} data-nota-coluna={c.codigo}>
                   {rotuloLimpo(c.rotulo)}: {explicacao}

@@ -26,6 +26,7 @@ import {
   type RecursoBlocoD,
 } from '../acessoAnalise';
 import { ApiError } from '@/utils/apiErrorHandler';
+import { ENV_RECURSO_COMPLEMENTO, RECURSOS_COMPLEMENTOS } from '@/types/analiseAtivosComplementos';
 
 function usuario(role: string, beta: boolean) {
   return { role, featureBetas: beta ? [{ id: 'b1' }] : [] };
@@ -138,9 +139,16 @@ describe('acessoAnalise', () => {
       pdfComparador: 'ANALISE_ATIVOS_PDF_HABILITADO',
       eua: 'ANALISE_ATIVOS_EUA_HABILITADO',
       euaPreco: 'ANALISE_ATIVOS_EUA_PRECO_HABILITADO',
+      ...ENV_RECURSO_COMPLEMENTO,
     };
     /** Recursos sem dependência (alertas e pdfComparador têm testes próprios abaixo). */
-    const RECURSOS: RecursoBlocoD[] = ['raioX', 'cenarios', 'comparador', 'salvos'];
+    const RECURSOS: RecursoBlocoD[] = [
+      'raioX',
+      'cenarios',
+      'comparador',
+      'salvos',
+      ...RECURSOS_COMPLEMENTOS,
+    ];
     const DESLIGADO = {
       raioX: false,
       cenarios: false,
@@ -150,6 +158,11 @@ describe('acessoAnalise', () => {
       pdfComparador: false,
       eua: false,
       euaPreco: false,
+      imoveisFii: false,
+      templatesFinanceiras: false,
+      retornos: false,
+      societario: false,
+      alavAtivo: false,
     };
     const authUsuario = (id: string, role = 'user') => ({
       payload: { id, email: 'a@b', role },
@@ -217,6 +230,35 @@ describe('acessoAnalise', () => {
         vi.stubEnv('ANALISE_ATIVOS_HABILITADA', 'false');
         vi.stubEnv('ANALISE_ATIVOS_EUA_HABILITADO', 'true');
         await expect(exigirClasseAnalise(req(), 'stock')).rejects.toBeInstanceOf(ApiError);
+        expect(mockRequireAuthWithActing).not.toHaveBeenCalled();
+      });
+    });
+
+    describe('A6 (fundamentei-trazer, fatia 0): 5 recursos de tela', () => {
+      it('desligados por padrão, só "true" liga, sem dependência entre eles', () => {
+        expect(flagsRecursosBlocoD()).toEqual(DESLIGADO);
+        for (const recurso of RECURSOS_COMPLEMENTOS) {
+          vi.stubEnv(ENV_RECURSO_COMPLEMENTO[recurso], 'TRUE');
+          expect(flagsRecursosBlocoD()[recurso]).toBe(false);
+          vi.stubEnv(ENV_RECURSO_COMPLEMENTO[recurso], 'true');
+          expect(flagsRecursosBlocoD()).toEqual({ ...DESLIGADO, [recurso]: true });
+          vi.stubEnv(ENV_RECURSO_COMPLEMENTO[recurso], 'false');
+        }
+      });
+
+      it('a chave de ingestão CVM_DVA não liga nenhum recurso de tela', async () => {
+        vi.stubEnv('ANALISE_ATIVOS_CVM_DVA', 'true');
+        expect(flagsRecursosBlocoD()).toEqual(DESLIGADO);
+        expect(await recursosLiberados('u1', 'liberada')).toEqual(DESLIGADO);
+      });
+
+      it('exigirRecursoAnalise(imoveisFii | societario) desligado → 404 antes da sessão', async () => {
+        for (const recurso of ['imoveisFii', 'societario'] as const) {
+          await expect(exigirRecursoAnalise(req(), recurso)).rejects.toMatchObject({
+            statusCode: 404,
+            message: MENSAGEM_SEM_ACESSO,
+          });
+        }
         expect(mockRequireAuthWithActing).not.toHaveBeenCalled();
       });
     });

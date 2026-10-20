@@ -202,6 +202,7 @@ export async function carregarEntradaQuadro(
       divLiqEbitda: m.divLiqEbitda,
       divLiqPl: m.divLiqPl,
       obrigacoesPlPct: m.obrigacoesPlPct,
+      obrigacoesAtivoPct: m.obrigacoesAtivoPct,
       anosLucroConsecutivos: m.anosLucroConsecutivos,
       mesesComRendimento: m.mesesComRendimento,
       naoSeAplica: m.naoSeAplica,

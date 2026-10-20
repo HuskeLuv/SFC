@@ -1,6 +1,7 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 import { SCORING_PARAMS_V1 as P } from '@/services/analiseAtivos/params/scoringParamsV1';
 import {
+  obrigacoesSobreAtivo,
   obrigacoesSobrePl,
   parcelasSobrePl,
   reguaFii,
@@ -114,5 +115,59 @@ describe('obrigacoesSobrePl (decisão 7: "Obrigações/PL")', () => {
       estado: 'ok',
       valor: 0,
     });
+  });
+});
+
+describe('obrigacoesSobreAtivo (A6 item 7: "Alavancagem (% do ativo)")', () => {
+  // caso sintético inventado (não é de fundo real): ativo 1.000; aquisição 50, securitização 30,
+  // outros valores a pagar 20 ⇒ 10%. Rendimentos a distribuir (70) NÃO entram.
+  const sintetico = {
+    ativoTotal: 1_000,
+    obrigAquisicao: 50,
+    obrigSecuritizacao: 30,
+    outrosValoresPagar: 20,
+    rendDistribuir: 70,
+  };
+  it('fórmula = (aquisição + securitização + outros valores a pagar) ÷ ativo, sem rendimentos', () => {
+    expect(obrigacoesSobreAtivo(sintetico)).toEqual({ estado: 'ok', valor: 10 });
+    // mudar os rendimentos a distribuir não muda o resultado
+    expect(obrigacoesSobreAtivo({ ...sintetico, rendDistribuir: 0 } as typeof sintetico)).toEqual({
+      estado: 'ok',
+      valor: 10,
+    });
+  });
+  it('ativo ≤ 0 ⇒ não se aplica (base não positiva)', () => {
+    for (const ativoTotal of [0, -5]) {
+      const v = obrigacoesSobreAtivo({ ...sintetico, ativoTotal });
+      expect(v.estado).toBe('nao_se_aplica');
+      expect(v.estado === 'nao_se_aplica' && v.motivo).toBe('base_nao_positiva');
+    }
+  });
+  it('ativo ausente ou as três obrigações ausentes ⇒ ausente; uma ausente conta 0', () => {
+    expect(obrigacoesSobreAtivo({ ...sintetico, ativoTotal: null }).estado).toBe('ausente');
+    expect(
+      obrigacoesSobreAtivo({
+        ativoTotal: 1_000,
+        obrigAquisicao: null,
+        obrigSecuritizacao: null,
+        outrosValoresPagar: null,
+      }).estado,
+    ).toBe('ausente');
+    const umaAusente = obrigacoesSobreAtivo({ ...sintetico, obrigSecuritizacao: null });
+    expect(umaAusente.estado === 'ok' && umaAusente.valor).toBeCloseTo(7, 10);
+  });
+  it('informe real ago/26: HGLG11 ≈ 13,9% e TRXF11 ≈ 41,0% do ativo', () => {
+    const hglg = ago(CNPJ.HGLG);
+    const trxf = ago(CNPJ.TRXF);
+    const v1 = obrigacoesSobreAtivo({
+      ...hglg,
+      outrosValoresPagar: hglg.outrosValoresPagar ?? null,
+    });
+    const v2 = obrigacoesSobreAtivo({
+      ...trxf,
+      outrosValoresPagar: trxf.outrosValoresPagar ?? null,
+    });
+    expect(v1.estado === 'ok' && v1.valor).toBeCloseTo(13.86, 1);
+    expect(v2.estado === 'ok' && v2.valor).toBeCloseTo(41.0, 1);
   });
 });

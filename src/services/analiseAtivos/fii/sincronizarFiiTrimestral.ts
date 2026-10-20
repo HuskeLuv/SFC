@@ -8,6 +8,11 @@
  *
  * Três estados em FiiQuarterly (sem coluna naoSeAplica): coluna null + flag `nsa:<coluna>` quando
  * não se aplica (vacância em FII de papel); null sem flag = ausente.
+ *
+ * A6 (fatia A): na mesma passada, a lista de imóveis (fii_imovel_trimestral) e os setores dos
+ * locatários (fii_inquilino_setor_trimestral) do mesmo zip, via gravarImoveisFii (delete+createMany
+ * por (cnpj, trimestre) na maior Versao, em transação; idempotente). Sem chave: a ingestão roda
+ * sempre; a tela só lê com ANALISE_ATIVOS_IMOVEIS_FII_HABILITADO.
  */
 import { paraData } from '@/services/analiseAtivos/repositorio/conversao';
 import {
@@ -22,6 +27,10 @@ import {
   type LinhaFiiTrimestral,
   type ResultadoGravacao,
 } from '@/services/analiseAtivos/fii/gravarFii';
+import {
+  gravarImoveisFii,
+  type ContagemGravacaoImoveis,
+} from '@/services/analiseAtivos/fii/gravarImoveisFii';
 import { AgregadorAlertas } from '@/services/analiseAtivos/fii/sincronizarFiiMensal';
 import {
   lerInformeTrimestralZip,
@@ -160,6 +169,14 @@ export async function sincronizarFiiTrimestral(
   const arquivos: Array<Record<string, unknown>> = [];
   const total: ResultadoGravacao = { criadas: 0, atualizadas: 0, iguais: 0, versaoMenor: 0 };
   const porTrimestre: Record<string, { fundos: number; comImoveis: number; comCri: number }> = {};
+  const vazia = (): ContagemGravacaoImoveis => ({
+    criadas: 0,
+    substituidas: 0,
+    iguais: 0,
+    versaoMenor: 0,
+    linhas: 0,
+  });
+  const totalImoveis = { imoveis: vazia(), setores: vazia() };
   const agregador = new AgregadorAlertas(ctx.alertar);
   let parcial = false;
 
@@ -211,7 +228,22 @@ export async function sincronizarFiiTrimestral(
       const g = await gravarTrimestral(ctx.prisma, linhas, gravados, ctx.aplicar);
       ctx.contar('linhasGravadas', g.criadas + g.atualizadas);
       for (const k of Object.keys(total) as Array<keyof ResultadoGravacao>) total[k] += g[k];
-      arquivos.push({ url, status: arq.status, bytes: arq.bytes, trimestres: linhas.length, ...g });
+      const gi = await gravarImoveisFii(ctx.prisma, lido.trimestres, ctx.aplicar);
+      ctx.contar('linhasGravadas', gi.imoveis.linhas + gi.setores.linhas);
+      for (const t of ['imoveis', 'setores'] as const) {
+        for (const k of Object.keys(gi[t]) as Array<keyof ContagemGravacaoImoveis>) {
+          totalImoveis[t][k] += gi[t][k];
+        }
+      }
+      arquivos.push({
+        url,
+        status: arq.status,
+        bytes: arq.bytes,
+        trimestres: linhas.length,
+        ...g,
+        imoveis: gi.imoveis,
+        setores: gi.setores,
+      });
       if (ctx.aplicar) await arq.concluir(JOB_FII_TRIMESTRAL);
     } finally {
       await arq.descartar();
@@ -220,6 +252,13 @@ export async function sincronizarFiiTrimestral(
   agregador.fechar();
   return {
     parcial,
-    detalhes: { anos, cnpjsUniverso: cnpjs.length, arquivos, gravacao: total, porTrimestre },
+    detalhes: {
+      anos,
+      cnpjsUniverso: cnpjs.length,
+      arquivos,
+      gravacao: total,
+      gravacaoImoveis: totalImoveis,
+      porTrimestre,
+    },
   };
 }

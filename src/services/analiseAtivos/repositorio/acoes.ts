@@ -7,6 +7,10 @@
 import type { AssetFundamentalsPeriod, PrismaClient } from '@prisma/client';
 import { deData, paraData, paraNumero } from '@/services/analiseAtivos/repositorio/conversao';
 import { listarEmissores } from '@/services/analiseAtivos/repositorio/universo';
+import {
+  CAMPOS_FINANCEIRAS,
+  type CampoFinanceira,
+} from '@/services/analiseAtivos/regras/acoes/extrairFundamentos';
 import type {
   ContagemAcoes,
   EmissorInfo,
@@ -17,8 +21,22 @@ import type {
   TipoPeriodo,
 } from '@/services/analiseAtivos/tipos';
 
+/**
+ * A6 (fatia B): colunas de financeira (PDD da DVA, DRE das seguradoras) — só as preenchidas entram
+ * no objeto, então emissor sem nenhuma (ou banco antes do backfill) lê exatamente como antes.
+ */
+function camposFinanceira(l: AssetFundamentalsPeriod): Partial<FundamentosPeriodo> {
+  const out: Partial<Record<CampoFinanceira, number>> = {};
+  for (const c of CAMPOS_FINANCEIRAS) {
+    const n = paraNumero(l[c]);
+    if (n !== null) out[c] = n;
+  }
+  return out;
+}
+
 function paraFundamentos(l: AssetFundamentalsPeriod): FundamentosPeriodo {
   return {
+    ...camposFinanceira(l),
     emissorId: l.emissorId,
     docTipo: l.docTipo as FundamentosPeriodo['docTipo'],
     tipoPeriodo: l.tipoPeriodo as TipoPeriodo,

@@ -49,6 +49,9 @@ export const SERIES_FUNDAMENTO = [
   'vacancy_physical',
   'vacancy_financial',
   'leverage_pct',
+  // A6: obrigações (aquisição + securitização + outros valores a pagar) ÷ ativo total; leverage_pct
+  // (obrigações ÷ PL) não é redefinida
+  'leverage_assets_pct',
   'months_with_income',
   'ffo',
   'properties_count',
@@ -130,6 +133,7 @@ export const CATALOGO_SERIES: Record<SerieFundamento, DefSerieFundamento> = {
   vacancy_physical: { unidade: 'pct', mercados: FII, periodicidade: 'Q' },
   vacancy_financial: { unidade: 'pct', mercados: FII, periodicidade: 'Q' },
   leverage_pct: { unidade: 'pct', mercados: FII, periodicidade: 'FY' },
+  leverage_assets_pct: { unidade: 'pct', mercados: FII, periodicidade: 'FY' },
   months_with_income: { unidade: 'contagem', mercados: FII, periodicidade: 'FY' },
   ffo: { unidade: 'BRL', mercados: FII, periodicidade: 'FY' },
   properties_count: { unidade: 'contagem', mercados: FII, periodicidade: 'Q' },

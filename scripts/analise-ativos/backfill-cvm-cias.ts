@@ -22,6 +22,20 @@
  * processado) · --revisitar (processa também documentos já gravados: regrava só as contagens de
  * ações que mudaram; fundamentos/Raio-X existentes ficam) · --cache-dir (reusa/guarda os zips). Perfil dev: ITR só 2024+ e Raio-X só das 40
  * companhias do subconjunto. Em produção: só pelo RUNBOOK, com OK humano, em janela noturna.
+ *
+ * A6 (fatia B) — modo --recompletar-campos=pdd,seguradora,layout (só DFP/ITR; FCA e FRE ficam de fora).
+ * A ingestão normal PULA documentos já gravados, então este é o único caminho para o histórico das
+ * colunas novas: relê os CSVs dos documentos já gravados (versão vigente) e faz UPDATE só das colunas
+ * novas e NULAS — 'pdd' (DVA 7.01.01/7.01.03 das financeiras; lê a DVA mesmo sem
+ * ANALISE_ATIVOS_CVM_DVA) e 'seguradora' (DRE por rótulo do Set de seguradoras). 'layout' é o ÚNICO
+ * modo que altera colunas que já existem (ebit/D&A de BBSE/IRB 2016–2022 → 'não se aplica'): o
+ * dry-run lista antes/depois por linha e o --apply exige também --confirmar-layout (OK próprio).
+ * Sempre dry-run primeiro; o relatório sai por campo e por emissor.
+ * --somente-financeiras: DFP/ITR só dos CNPJs do Set de financeiras (AssetSetorB3).
+ * --tickers=ITUB4,BBSE3 (conferência no DEV): o FCA vira um recorte (nada fora dele é fechado) e o
+ * DFP/ITR só os CNPJs desses tickers.
+ *   npx tsx --env-file=.env scripts/analise-ativos/backfill-cvm-cias.ts --anos=2016-2026 \
+ *     --docs=dfp,itr --somente-financeiras --recompletar-campos=pdd --cache-dir=$CACHE   # dry-run
  */
 import {
   executarJobAnalise,
@@ -29,9 +43,11 @@ import {
 } from '../../src/services/analiseAtivos/jobs/executarJob';
 import { jobCvmCias, nomeBackfill } from '../../src/services/analiseAtivos/jobs/nomesJobs';
 import {
+  MODOS_RECOMPLETAR,
   carregarFreAcoes,
   sincronizarCvmCias,
   type DetalheArquivo,
+  type ModoRecompletar,
   type PerfilLinhas,
 } from '../../src/services/analiseAtivos/acoes/sincronizarCvmCias';
 import { prisma } from '../../src/lib/prisma';
@@ -65,6 +81,37 @@ function anosDe(s: string | undefined, padrao: number[]): number[] {
   return [...out].sort();
 }
 
+/** --recompletar-campos=pdd,seguradora,layout → modos validados (vazio = desligado). */
+function modosRecompletar(valor: string | undefined): ModoRecompletar[] {
+  if (!valor) return [];
+  const modos = valor.split(',').map((m) => m.trim()) as ModoRecompletar[];
+  for (const m of modos) {
+    if (!MODOS_RECOMPLETAR.includes(m)) {
+      throw new Error(`--recompletar-campos inválido: ${m} (use ${MODOS_RECOMPLETAR.join(',')})`);
+    }
+  }
+  return [...new Set(modos)];
+}
+
+function imprimirRecompletar(det: DetalheArquivo[]) {
+  for (const x of det) {
+    const r = x.recompletar;
+    if (!r) continue;
+    console.log(
+      `  recompletar ${x.doc} ${x.ano}: docs=${r.documentos} gravadas=${r.gravadas} jaPreenchidas=${r.jaPreenchidas} puladasEscala=${r.puladasEscala}`,
+    );
+    console.log(`    por campo: ${JSON.stringify(r.porCampo)}`);
+    for (const [emissor, campos] of Object.entries(r.porEmissor)) {
+      console.log(`    ${emissor}: ${JSON.stringify(campos)}`);
+    }
+    for (const l of r.layout) {
+      console.log(
+        `    layout ${l.emissorId} ${l.dtFim} ${l.tipoPeriodo} ${l.escopo} v${l.versao}: ebit ${l.antes.ebit} → null · D&A ${l.antes.depreciacaoAmortizacao} → null · naoSeAplica [${l.antes.naoSeAplica.join(',')}] → [${l.depois.naoSeAplica.join(',')}]`,
+      );
+    }
+  }
+}
+
 function imprimir(r: RelatorioJob) {
   const { alertas, ...resto } = r;
   console.log(JSON.stringify(resto, null, 2));
@@ -83,6 +130,18 @@ async function main() {
   const cacheDir = a.get('cache-dir');
   const reprocessar = a.has('reprocessar');
   const revisitar = a.has('revisitar');
+  const recompletarCampos = modosRecompletar(a.get('recompletar-campos'));
+  const somenteFinanceiras = a.has('somente-financeiras');
+  const somenteTickers = a
+    .get('tickers')
+    ?.split(',')
+    .map((t) => t.trim().toUpperCase())
+    .filter(Boolean);
+  if (recompletarCampos.includes('layout') && aplicar && !a.has('confirmar-layout')) {
+    throw new Error(
+      '--recompletar-campos=layout altera ebit/D&A já gravados: rode o dry-run, confira o antes/depois e repita com --confirmar-layout',
+    );
+  }
   const perfil = (a.get('perfil') ?? 'dev') as PerfilLinhas;
   if (perfil !== 'dev' && perfil !== 'completo') throw new Error('--perfil=dev|completo');
   if (perfil === 'completo' && process.env.NODE_ENV !== 'production' && !a.has('forcar-completo')) {
@@ -115,7 +174,17 @@ async function main() {
     aplicar,
     prazoMs: PRAZO_BACKFILL_MS,
     lockTtlMs: PRAZO_BACKFILL_MS,
-    parametros: { anos, docs, perfil, cacheDir: cacheDir ?? null, reprocessar, revisitar },
+    parametros: {
+      anos,
+      docs,
+      perfil,
+      cacheDir: cacheDir ?? null,
+      reprocessar,
+      revisitar,
+      recompletarCampos,
+      somenteFinanceiras,
+      somenteTickers: somenteTickers ?? null,
+    },
   };
   console.log(
     `=== backfill cvm-cias (${aplicar ? 'APPLY' : 'dry-run'}) anos=${anos.join(',')} docs=${docs} perfil=${perfil} ===`,
@@ -126,21 +195,24 @@ async function main() {
     async (ctx) => {
       const arquivos: DetalheArquivo[] = [];
       let universo: Map<string, string[]> | undefined;
-      if (docs.includes('fca')) {
+      // recompletar: só DFP/ITR de documentos já gravados (FCA e FRE não entram)
+      if (docs.includes('fca') && recompletarCampos.length === 0) {
         const f = await sincronizarCvmCias(ctx, {
           doc: 'fca',
           anos: [anos[anos.length - 1]],
           cacheDir,
           perfil,
           reprocessar,
+          somenteTickers,
         });
         arquivos.push(...((f.detalhes?.arquivos ?? []) as DetalheArquivo[]));
         // dry-run: o FCA não foi gravado, então o universo vem do próprio arquivo lido
         if (!aplicar) universo = f.universoFca;
       }
-      const fre = docs.includes('fre')
-        ? await carregarFreAcoes(ctx, anos, { cacheDir }, universo && new Set(universo.keys()))
-        : undefined;
+      const fre =
+        docs.includes('fre') && recompletarCampos.length === 0
+          ? await carregarFreAcoes(ctx, anos, { cacheDir }, universo && new Set(universo.keys()))
+          : undefined;
       if (fre) {
         console.log(
           `FRE item f: ${[...fre].map(([fy, m]) => `FY${fy}=${m.size}`).join(' ') || 'nenhum'}`,
@@ -161,9 +233,13 @@ async function main() {
             revisitar,
             freAcoes: fre,
             universo,
+            recompletarCampos,
+            somenteFinanceiras,
+            somenteTickers,
           });
           const det = (d.detalhes?.arquivos ?? []) as DetalheArquivo[];
           arquivos.push(...det);
+          imprimirRecompletar(det);
           for (const x of det) {
             const rss = Math.round(process.memoryUsage().rss / 1024 / 1024);
             console.log(

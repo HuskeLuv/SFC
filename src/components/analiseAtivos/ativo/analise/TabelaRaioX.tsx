@@ -4,6 +4,8 @@
  * Fundamentos · Raio-X (Bloco D, fatia A). Mesmo card do Essencial (CartaoAnalise com id
  * fundamentos-<ticker>, menu ⋯ e frescor do Bloco C) e TABLE_STYLES compacto.
  *
+ * - A6 (fatia B): banco e seguradora chegam com os blocos do template (RaioXResposta.template, no
+ *   data-template); célula '—' com o motivo no title (IFRS 17, holding, sem DVA).
  * - Anos em colunas, o mais recente à esquerda (peso 600); 1ª coluna FIXA com fundo opaco
  *   (150–170px no celular, 220–260px no computador); colunas de ano com 84px no mínimo.
  * - Faixas de bloco no azul `patrimonio` (TABLE_SECTION_STYLE, th scope=rowgroup); chips por bloco:
@@ -256,7 +258,11 @@ export default function TabelaRaioX({ ticker, classe, cabecalhoExtra }: TabelaRa
           {T.estados.vazio}
         </p>
       ) : dados ? (
-        <div className="flex min-w-0 flex-col gap-3" data-raio-x={dados.variante}>
+        <div
+          className="flex min-w-0 flex-col gap-3"
+          data-raio-x={dados.variante}
+          data-template={dados.template}
+        >
           <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
             <span className="text-[12.5px] text-gray-500 dark:text-gray-400">
               {unidadeTopo(dados)}

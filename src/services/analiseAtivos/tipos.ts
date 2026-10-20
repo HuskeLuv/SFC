@@ -115,6 +115,22 @@ export interface FundamentosPeriodo {
   lpaPn: number | null;
   naoSeAplica: string[];
   flags: string[];
+  /**
+   * A6 (fatia 0; extração da fatia B): templates de banco e seguradora, nulos/ausentes fora das
+   * financeiras. Banco (só com ANALISE_ATIVOS_CVM_DVA): PDD em valor absoluto (DVA 7.01.03) e receita
+   * de intermediação da DVA (7.01.01). Seguradora (por rótulo, nível até 4): resultado financeiro,
+   * equivalência, comissões + serviços, receita/despesa de seguro (IFRS 17) e prêmios ganhos/
+   * sinistros retidos (até 2022). Opcionais para as fixtures antigas.
+   */
+  pdd?: number | null;
+  receitaIntermediacaoDva?: number | null;
+  resultadoFinanceiro?: number | null;
+  equivalenciaPatrimonial?: number | null;
+  receitaComissoesServicos?: number | null;
+  receitaSeguro?: number | null;
+  despesaSeguro?: number | null;
+  premiosGanhos?: number | null;
+  sinistrosRetidos?: number | null;
 }
 // regra 13 (salto sem evento) é flag da fatia D, não status gravado pela A
 export interface ContagemAcoes {
@@ -204,6 +220,13 @@ export interface FiiMes {
    * proventos incompleta A5/M7). Opcional para fixtures antigas.
    */
   dyMesCvmPct?: number | null;
+  /**
+   * A6 (fatia 0; preenchidos pelo fii-mensal da fatia E): Outros_Valores_Pagar, Valores_Receber e
+   * obrigações ÷ ativo total (%). Opcionais para fixtures antigas.
+   */
+  outrosValoresPagar?: number | null;
+  valoresReceber?: number | null;
+  obrigacoesAtivoPct?: number | null;
   flags: string[];
 }
 export interface FiiTrimestre {
@@ -302,6 +325,9 @@ export type NomeJob =
   | 'criterios-eua'
   | 'quadro-eua'
   | 'eua-diario'
+  // A6 (fatia 0; NOMES_JOBS_COMPLEMENTOS em src/types/analiseAtivosComplementos.ts)
+  | 'retornos-cotacao'
+  | 'cvm-fre-societario'
   | `backfill:${string}`;
 export interface AlertaJob {
   codigo: string;

@@ -33,6 +33,10 @@ export async function fiiMensalSerie(
     tipoVigente: l.tipoVigente as FiiTipo | null,
     reguaVigente: l.reguaVigente as Regua | null,
     obrigacoesPlPct: l.obrigacoesPlPct,
+    // A6 (fatia E): obrigações ÷ ativo total e as duas linhas novas do ativo_passivo
+    outrosValoresPagar: paraNumero(l.outrosValoresPagar),
+    valoresReceber: paraNumero(l.valoresReceber),
+    obrigacoesAtivoPct: l.obrigacoesAtivoPct,
     segmentoCvm: l.segmentoCvm,
     fatorDesdobramento: l.fatorDesdobramento,
     dyMesCvmPct: l.dyMesCvmPct,

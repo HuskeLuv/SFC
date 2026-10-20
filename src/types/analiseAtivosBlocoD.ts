@@ -54,6 +54,13 @@ import type {
   PremissasAcaoV2,
   PremissasFiiV2,
 } from '@/types/analiseAtivosCriterios';
+import type {
+  CodigoBlocoRaioXFinanceira,
+  CodigoLinhaRaioXBanco,
+  CodigoLinhaRaioXFiiComplemento,
+  CodigoLinhaRaioXSeguradora,
+  TemplateFinanceira,
+} from '@/types/analiseAtivosComplementos';
 
 // ===========================================================================
 // Níveis dos cards (seletores)
@@ -98,6 +105,8 @@ export type VarianteRaioX = 'acao' | 'acao_financeira' | 'fii_tijolo' | 'fii_pap
 
 /** Blocos (chips) do Raio-X. Ações: 3; FIIs: até 4 (tijolo OU papel na "carteira"). */
 export type CodigoBlocoRaioX =
+  /** A6 (fatia B): blocos de banco e seguradora */
+  | CodigoBlocoRaioXFinanceira
   | 'lucro_caixa'
   | 'caixa_divida'
   | 'fluxo_caixa'
@@ -170,7 +179,17 @@ export type CodigoLinhaRaioXFii =
   | 'taxaAdmAnoPct'
   | 'taxaPerformance';
 
-export type CodigoLinhaRaioX = CodigoLinhaRaioXAcao | CodigoLinhaRaioXFii;
+/**
+ * A6 (fatia 0): + linhas de banco/seguradora (fatia B) e 'obrigacoesAtivoPct' do FII ('Alavancagem
+ * (% do ativo)', lida de asset_multiples_yearly; nula até a fatia E + scores). Contratos em
+ * src/types/analiseAtivosComplementos.ts.
+ */
+export type CodigoLinhaRaioX =
+  | CodigoLinhaRaioXAcao
+  | CodigoLinhaRaioXFii
+  | CodigoLinhaRaioXBanco
+  | CodigoLinhaRaioXSeguradora
+  | CodigoLinhaRaioXFiiComplemento;
 
 /**
  * Formatos do Raio-X (tela; o CSV tem as casas próprias da fatia A):
@@ -245,6 +264,12 @@ export interface RaioXResposta {
   /** rótulos das linhas n/a em TODOS os anos (saem da tabela; ITUB4: 9 linhas) */
   linhasNaoAplicaveis: string[];
   versao: string;
+  /**
+   * A6 (fatia B): template de financeira (blocos intermediacao_resultado/balanco/fluxo_caixa no
+   * banco; receita_resultado/operacao_seguros/proventos na seguradora), só com
+   * ANALISE_ATIVOS_TEMPLATES_FINANCEIRAS_HABILITADO. Ausente = Raio-X de hoje.
+   */
+  template?: TemplateFinanceira;
 }
 
 /** Query da rota do Raio-X. Outro valor ⇒ 400. */

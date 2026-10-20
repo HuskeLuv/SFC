@@ -117,3 +117,27 @@ export function obrigacoesSobrePl(m: {
   const pct = ((passivo.valor - rend) / pl.valor) * 100;
   return Number.isFinite(pct) ? ok(pct) : ausente('sem_dado_fonte');
 }
+
+/**
+ * A6 (item 7, fatia E): "Alavancagem (% do ativo)" = (obrigações por aquisição de imóveis +
+ * obrigações por securitização de recebíveis + outros valores a pagar) ÷ ativo total × 100. SEM
+ * Rendimentos_Distribuir (não é dívida do fundo) e sem as demais linhas do passivo (taxas a pagar,
+ * adiantamentos, provisões). Ativo ≤ 0 ⇒ não se aplica (base não positiva); ativo ausente ou as três
+ * obrigações ausentes (mês sem ativo_passivo) ⇒ ausente. Obrigação ausente com outra presente conta
+ * 0 (o informe deixa vazia a linha que o fundo não tem). Nunca redefine obrigacoesSobrePl.
+ */
+export function obrigacoesSobreAtivo(m: {
+  ativoTotal: number | null;
+  obrigAquisicao: number | null;
+  obrigSecuritizacao: number | null;
+  outrosValoresPagar: number | null;
+}): Valor<number> {
+  const ativo = deNumero(m.ativoTotal);
+  if (ativo.estado !== 'ok') return ativo;
+  if (ativo.valor <= 0) return naoSeAplica('base_nao_positiva', 'ativo ≤ 0');
+  const partes = [m.obrigAquisicao, m.obrigSecuritizacao, m.outrosValoresPagar];
+  if (!partes.some(finito)) return ausente('sem_dado_fonte');
+  const obrigacoes = partes.reduce<number>((s, x) => s + (finito(x) ? x : 0), 0);
+  const pct = (obrigacoes / ativo.valor) * 100;
+  return Number.isFinite(pct) ? ok(pct) : ausente('sem_dado_fonte');
+}

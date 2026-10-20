@@ -4,6 +4,9 @@
  * Idempotente: linha nova ⇒ createMany (lotes de 1.000, skipDuplicates); linha existente com versão
  * MAIOR na fonte ou com derivado diferente (tipo vigente após override, flags…) ⇒ update; versão
  * menor na fonte ⇒ ignorada (nunca regride um reenvio). Linha igual ⇒ nada (2ª execução não escreve).
+ * A6 (fatia E): as colunas novas do FiiMonthly (outrosValoresPagar, valoresReceber,
+ * obrigacoesAtivoPct) entram na comparação: a linha gravada antes da A6 (colunas nulas) difere da
+ * relida ⇒ update da linha inteira com os MESMOS valores nas demais colunas (backfill --forcar).
  */
 import type { Prisma, PrismaClient } from '@prisma/client';
 import { deData, paraData, paraNumero } from '@/services/analiseAtivos/repositorio/conversao';
@@ -41,6 +44,9 @@ export interface LinhaFiiMensal {
   rendDistribuir: number | null;
   obrigAquisicao: number | null;
   obrigSecuritizacao: number | null;
+  /** A6 (fatia E): Outros_Valores_Pagar e Valores_Receber (R$) */
+  outrosValoresPagar: number | null;
+  valoresReceber: number | null;
   imoveis: number | null;
   spe: number | null;
   cri: number | null;
@@ -53,6 +59,8 @@ export interface LinhaFiiMensal {
   tipoVigente: string | null;
   reguaVigente: string | null;
   obrigacoesPlPct: number | null;
+  /** A6 (fatia E): obrigações ÷ ativo total (%) */
+  obrigacoesAtivoPct: number | null;
   fatorDesdobramento: number | null;
   flags: string[];
   sourceUrl: string;
@@ -68,6 +76,8 @@ const CASAS_DECIMAL: Record<string, number> = {
   rendDistribuir: 2,
   obrigAquisicao: 2,
   obrigSecuritizacao: 2,
+  outrosValoresPagar: 2,
+  valoresReceber: 2,
   imoveis: 2,
   spe: 2,
   cri: 2,
@@ -126,6 +136,8 @@ export function linhaMensalDoBanco(b: RowMensal): LinhaFiiMensal {
     rendDistribuir: paraNumero(b.rendDistribuir),
     obrigAquisicao: paraNumero(b.obrigAquisicao),
     obrigSecuritizacao: paraNumero(b.obrigSecuritizacao),
+    outrosValoresPagar: paraNumero(b.outrosValoresPagar),
+    valoresReceber: paraNumero(b.valoresReceber),
     imoveis: paraNumero(b.imoveis),
     spe: paraNumero(b.spe),
     cri: paraNumero(b.cri),
@@ -138,6 +150,7 @@ export function linhaMensalDoBanco(b: RowMensal): LinhaFiiMensal {
     tipoVigente: b.tipoVigente,
     reguaVigente: b.reguaVigente,
     obrigacoesPlPct: b.obrigacoesPlPct,
+    obrigacoesAtivoPct: b.obrigacoesAtivoPct,
     fatorDesdobramento: b.fatorDesdobramento,
     flags: b.flags,
     sourceUrl: b.sourceUrl,

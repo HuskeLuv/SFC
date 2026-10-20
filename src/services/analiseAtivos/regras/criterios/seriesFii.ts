@@ -4,6 +4,8 @@
  *  - rendCota / vpCota = AssetPerShareYearly.rendCota / vpCotaFim levados à base de cotas de HOJE
  *    (÷ fatorCotasApos(31/12 do ano): desdobramento posterior ao ano, ex.: HGLG11 2017);
  *  - obrigacoesPl = AssetMultiplesYearly.obrigacoesPlPct ('Obrigações/PL', D3);
+ *  - A6 (fatia E): obrigacoesAtivo = AssetMultiplesYearly.obrigacoesAtivoPct (obrigações ÷ ativo
+ *    total, série leverage_assets_pct do 'alav' do fii_tijolo na v4; leverage_pct não muda);
  *  - resultadoFii = Σ dos 4 trimestres de FiiQuarterly.resultadoTrimestral (ano com menos de 4
  *    trimestres ou trimestre sem valor = ausente), em R$ mi;
  *  - meses = proventos auditados até dez/anoFim (mesesJanela.mesesAteAnoFim, rec. 4).
@@ -57,7 +59,13 @@ export interface BrutoFii {
     vpCotaFim: number | null;
     flags: string[];
   }>;
-  multiplos: Array<{ anoFiscal: number; obrigacoesPlPct: number | null; flags: string[] }>;
+  /** obrigacoesAtivoPct (A6): opcional para as fixtures antigas (ausente = sem dado) */
+  multiplos: Array<{
+    anoFiscal: number;
+    obrigacoesPlPct: number | null;
+    obrigacoesAtivoPct?: number | null;
+    flags: string[];
+  }>;
   /**
    * refQuarter = último dia do trimestre (AAAA-MM-DD); resultado em R$. v2.5: vacância física (%)
    * e flags do trimestre (nsa:vacanciaFisicaCvmPct = papel) — opcionais (fixtures da v2.4).
@@ -102,8 +110,11 @@ export function seriesFii(b: BrutoFii): SeriesCriterios {
   }
 
   const obrigacoesPl: Record<number, number | null> = {};
+  const obrigacoesAtivo: Record<number, number | null> = {};
   for (const m of b.multiplos) {
     obrigacoesPl[m.anoFiscal] = informe && finito(m.obrigacoesPlPct) ? m.obrigacoesPlPct : null;
+    obrigacoesAtivo[m.anoFiscal] =
+      informe && finito(m.obrigacoesAtivoPct) ? m.obrigacoesAtivoPct : null;
   }
 
   const resultadoFii: Record<number, number | null> = {};
@@ -126,6 +137,7 @@ export function seriesFii(b: BrutoFii): SeriesCriterios {
     income_per_share: rendCota,
     nav_per_share: vpCota,
     leverage_pct: obrigacoesPl,
+    leverage_assets_pct: obrigacoesAtivo,
     ffo: resultadoFii,
   };
 }
@@ -228,7 +240,13 @@ export async function lerBrutosFii(
     }),
     prisma.assetMultiplesYearly.findMany({
       where: { symbol: { in: symbols }, anoFiscal: { gte: desdeAno } },
-      select: { symbol: true, anoFiscal: true, obrigacoesPlPct: true, flags: true },
+      select: {
+        symbol: true,
+        anoFiscal: true,
+        obrigacoesPlPct: true,
+        obrigacoesAtivoPct: true,
+        flags: true,
+      },
     }),
     prisma.fiiQuarterly.findMany({
       where: { cnpj: { in: cnpjs }, refQuarter: { gte: desde } },
@@ -313,6 +331,7 @@ export async function lerBrutosFii(
     out.get(m.symbol)?.multiplos.push({
       anoFiscal: m.anoFiscal,
       obrigacoesPlPct: m.obrigacoesPlPct,
+      obrigacoesAtivoPct: m.obrigacoesAtivoPct,
       flags: m.flags,
     });
   }

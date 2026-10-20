@@ -117,6 +117,8 @@ export interface MultiplosQuadro {
   divLiqEbitda: number | null;
   divLiqPl: number | null;
   obrigacoesPlPct: number | null;
+  /** A6 (fatia E): obrigações ÷ ativo total do FII (%); opcional para as entradas antigas */
+  obrigacoesAtivoPct?: number | null;
   anosLucroConsecutivos: number | null;
   mesesComRendimento: number | null;
   naoSeAplica: string[];
@@ -528,6 +530,8 @@ export function montarLinhasQuadro(
       nImoveisCvm: trim?.nImoveisRenda ?? null,
       nCri: trim?.nCri ?? null,
       obrigacoesPlPct: u.cnpjEmConferencia ? null : (m?.obrigacoesPlPct ?? null),
+      // A6 (fatia E): mesma regra do Obrigações/PL (número do informe do CNPJ)
+      obrigacoesAtivoPct: u.cnpjEmConferencia ? null : (m?.obrigacoesAtivoPct ?? null),
       cotistas: mensal?.cotistas ?? null,
       naoSeAplica: m?.naoSeAplica ?? [],
       serie10a: serie10a as unknown as Prisma.InputJsonValue,

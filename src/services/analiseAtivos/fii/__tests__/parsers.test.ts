@@ -83,6 +83,37 @@ describe('parserInformeMensal', () => {
     expect(r.meses.every((m) => m.temComposicao)).toBe(true);
   });
 
+  it('A6: lê Outros_Valores_Pagar e Valores_Receber (opcionais: layout sem elas = null)', async () => {
+    const r = await mensalFixture('2026_amostra');
+    const hglg = r.meses.find((m) => m.cnpj === CNPJ.HGLG && m.refMonth === '2026-08-01')!;
+    expect(hglg.outrosValoresPagar).toBeCloseTo(566_014_641.18, 2);
+    expect(hglg.valoresReceber).toBeCloseTo(518_603_526.26, 2);
+    const antigo = await mensalFixture('2016_antigo');
+    expect(antigo.meses.every((m) => m.outrosValoresPagar !== undefined)).toBe(true);
+    // sem as duas colunas no cabeçalho: não é erro de layout, só null
+    const semColunas = textoFixture('inf_mensal_fii_ativo_passivo_2026_amostra.csv')
+      .split('\n')
+      .map((linha) => {
+        const cols = linha.split(';');
+        return cols.slice(0, 37).concat(cols.slice(38, 50), cols.slice(51)).join(';');
+      })
+      .join('\n');
+    expect(semColunas.split('\n')[0]).not.toMatch(/Outros_Valores_Pagar|;Valores_Receber/);
+    const r2 = await lerInformeMensalLinhas(
+      {
+        geral: linhasFixture('inf_mensal_fii_geral_2026_amostra.csv'),
+        complemento: linhasFixture('inf_mensal_fii_complemento_2026_amostra.csv'),
+        ativo_passivo: linhasTexto(semColunas),
+      },
+      { arquivo: 'x', params: P, cnpjs: new Set([CNPJ.HGLG]) },
+    );
+    expect(r2.meses.length).toBeGreaterThan(0);
+    expect(r2.meses.every((m) => m.outrosValoresPagar === null && m.valoresReceber === null)).toBe(
+      true,
+    );
+    expect(r2.meses.every((m) => m.temComposicao)).toBe(true);
+  });
+
   it('coluna obrigatória sumida ⇒ ErroLayoutFonte (falha alto)', async () => {
     const texto = textoFixture('inf_mensal_fii_complemento_2026_amostra.csv').replace(
       'Patrimonio_Liquido',

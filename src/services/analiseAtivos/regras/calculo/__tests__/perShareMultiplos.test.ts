@@ -459,6 +459,29 @@ describe('múltiplos anuais (decisão 19: preço cru × ações da mesma data ÷
     expect(val(ps.vpaAjHoje)).toBeCloseTo(110.535, 3);
   });
 
+  it('A6: obrigações ÷ ativo do informe vira o múltiplo obrigacoesAtivoPct (ausente sem dado)', () => {
+    const base = {
+      classe: 'fii' as const,
+      preco: 100,
+      vpCota: 100,
+      rendCota: ok(8),
+      obrigacoesPlPct: 12,
+      vacanciaFisicaCvmPct: null,
+      nImoveisCvm: null,
+      pl: 1e9,
+    };
+    const m = multiplosAnuais({ ...base, obrigacoesAtivoPct: 10.5 }, P);
+    expect(val(m.obrigacoesAtivoPct)).toBe(10.5);
+    expect(val(m.obrigacoesPlPct)).toBe(12);
+    expect(multiplosAnuais(base, P).obrigacoesAtivoPct?.estado).toBe('ausente');
+    const achatado = achatarValores({
+      obrigacoesAtivoPct: m.obrigacoesAtivoPct,
+      obrigacoesPlPct: m.obrigacoesPlPct,
+    });
+    expect(achatado.colunas).toEqual({ obrigacoesAtivoPct: 10.5, obrigacoesPlPct: 12 });
+    expect(achatado.naoSeAplica).toEqual([]);
+  });
+
   it('PABY11 com PL ≤ 0 ⇒ flag pl_nao_positivo e P/VP n/a', () => {
     const mes = fiiInforme.PABY11.meses[1];
     const m = multiplosAnuais(

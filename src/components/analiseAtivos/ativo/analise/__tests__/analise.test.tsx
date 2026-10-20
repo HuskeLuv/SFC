@@ -459,6 +459,49 @@ describe('BlocoPares', () => {
     ]);
   });
 
+  it('A6 chave ligada (API manda obrigacoesAtivoPct): % do PL e % do ativo, cada um com o seu valor', () => {
+    mockHooks.useValuationAtivo.mockReturnValue(
+      consulta({
+        ...VALUATION,
+        pares: {
+          criterio: 'x',
+          itens: [
+            {
+              ...API_HGLG11,
+              ticker: 'BTLG11',
+              indice: undefined,
+              obrigacoesPl: { estado: 'ok', valor: 16.25 },
+              obrigacoesAtivoPct: { estado: 'ok', valor: 12.5 },
+            },
+          ],
+        },
+      }),
+    );
+    const { container } = render(<BlocoPares ticker="HGLG11" classe="fii" />);
+    const tabela = screen.getByRole('table');
+    const cabecalhos = within(tabela)
+      .getAllByRole('columnheader')
+      .map((c) => c.textContent);
+    expect(cabecalhos).toEqual([
+      'Fundo',
+      'DY 12m',
+      'P/VP',
+      'Vacância (CVM)',
+      'Alavancagem (% do PL)',
+      'Alavancagem (% do ativo)',
+      'Patrimônio',
+      'Critérios',
+    ]);
+    const celulas = within(tabela).getAllByRole('row')[1].querySelectorAll('td');
+    expect(celulas[3].textContent).toBe('16,25%');
+    expect(celulas[4].textContent).toBe('12,5%');
+    expect(celulas[4].getAttribute('title')).toBe(TEXTOS_ATIVO.alavancagemAtivo.tooltip);
+    // celular: o mesmo par de rótulos nos cartões
+    const dts = [...container.querySelectorAll('ul dt')].map((d) => d.textContent);
+    expect(dts).toContain('Alavancagem (% do ativo)');
+    expect(dts).toContain('Alavancagem (% do PL)');
+  });
+
   it('v2.5: rótulos dos critérios pelos params do código (Alavancagem e Dív. líq./EBITDA < 3×)', () => {
     expect(rotulosDoPerfil('fii_tijolo').alav).toBe('Alavancagem ≤ 20% do PL');
     expect(rotulosDoPerfil('acao').dl).toBe('Dív. líq./EBITDA < 3×');

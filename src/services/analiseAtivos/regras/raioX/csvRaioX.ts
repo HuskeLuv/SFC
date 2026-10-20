@@ -60,9 +60,21 @@ function celula(e: Estado<number> | undefined, formato: FormatoRaioX): string {
   return '';
 }
 
-function rotuloComUnidade(rotulo: string, formato: FormatoRaioX): string {
+/**
+ * A6 (fatia B): linhas cujo parêntese do rótulo não é unidade (sinistralidade e IFRS 17 da
+ * seguradora) também levam a unidade no CSV.
+ */
+const UNIDADE_SEMPRE: ReadonlySet<string> = new Set([
+  'sinistralidadePct',
+  'despesaReceitaSeguroPct',
+]);
+
+function rotuloComUnidade(rotulo: string, formato: FormatoRaioX, codigo?: string): string {
   const u = TC.unidades[formato];
-  return u && !rotulo.includes('(') ? `${rotulo} ${u}` : rotulo;
+  if (!u) return rotulo;
+  return !rotulo.includes('(') || (codigo !== undefined && UNIDADE_SEMPRE.has(codigo))
+    ? `${rotulo} ${u}`
+    : rotulo;
 }
 
 function dataBr(iso: string): string {
@@ -85,7 +97,7 @@ export function gerarCsvRaioX(r: RaioXResposta, o: OpcoesCsvRaioX): string {
     linhas.push([textoCsv(b.rotulo), ...vazias(largura - 1)]);
     for (const l of b.linhas) {
       linhas.push([
-        textoCsv(rotuloComUnidade(l.rotulo, l.formato)),
+        textoCsv(rotuloComUnidade(l.rotulo, l.formato, l.codigo)),
         ...r.anos.map((ano) => celula(l.valores[ano], l.formato)),
       ]);
     }

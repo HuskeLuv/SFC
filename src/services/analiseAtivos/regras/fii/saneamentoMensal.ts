@@ -8,10 +8,15 @@
  * - DY do mês da CVM (já em p.p.) < 0 ou > dyMesCvmMaxPct (5) ⇒ descartado (nunca é rendimento; é só
  *   checagem — XPML11 jan/26 −5,88% sobre o VP).
  * - Obrigações/PL > obrigacoesRevisaoPct (100) ⇒ flag obrigacoes_revisao.
+ * - A6 (fatia E): obrigações ÷ ativo total (obrigacoesSobreAtivo, sem Rendimentos_Distribuir) é só
+ *   derivado aqui; a revisão acima de 50% do ativo é obs do critério 'alav' da v4, não flag do mês.
  * - Cotistas ±50% (base > 1.000) e VP/cota ±30% sem mudar cotas ⇒ só alerta.
  */
 import type { AlertaJob, ScoringParams } from '@/services/analiseAtivos/tipos';
-import { obrigacoesSobrePl } from '@/services/analiseAtivos/regras/fii/tipoFii';
+import {
+  obrigacoesSobreAtivo,
+  obrigacoesSobrePl,
+} from '@/services/analiseAtivos/regras/fii/tipoFii';
 
 /** Mês do informe já convertido (frações da CVM ×100 ⇒ p.p.; valores em R$). */
 export interface FiiMesBruto {
@@ -31,6 +36,12 @@ export interface FiiMesBruto {
   rendDistribuir: number | null;
   obrigAquisicao: number | null;
   obrigSecuritizacao: number | null;
+  /**
+   * A6 (fatia E): Outros_Valores_Pagar e Valores_Receber do ativo_passivo (R$). Opcionais para as
+   * fixtures antigas; ausentes contam como null.
+   */
+  outrosValoresPagar?: number | null;
+  valoresReceber?: number | null;
   imoveis: number | null;
   spe: number | null;
   cri: number | null;
@@ -46,6 +57,8 @@ export interface FiiMesBruto {
 export interface FiiMesSaneado extends FiiMesBruto {
   vpCotaRecalculado: boolean;
   obrigacoesPlPct: number | null;
+  /** A6 (fatia E): obrigações ÷ ativo total (%); null = ausente ou ativo ≤ 0 */
+  obrigacoesAtivoPct: number | null;
   fatorDesdobramento: number | null;
 }
 
@@ -134,6 +147,13 @@ export function sanearMes(
   if (obrigacoesPlPct !== null && obrigacoesPlPct > s.obrigacoesRevisaoPct) {
     flags.push('obrigacoes_revisao');
   }
+  const obrigAtivo = obrigacoesSobreAtivo({
+    ativoTotal: atual.ativoTotal,
+    obrigAquisicao: atual.obrigAquisicao,
+    obrigSecuritizacao: atual.obrigSecuritizacao,
+    outrosValoresPagar: atual.outrosValoresPagar ?? null,
+  });
+  const obrigacoesAtivoPct = obrigAtivo.estado === 'ok' ? obrigAtivo.valor : null;
 
   // alertas (não mudam dado)
   if (anterior) {
@@ -177,7 +197,10 @@ export function sanearMes(
       vpCota,
       dyMesCvmPct,
       vpCotaRecalculado,
+      outrosValoresPagar: atual.outrosValoresPagar ?? null,
+      valoresReceber: atual.valoresReceber ?? null,
       obrigacoesPlPct,
+      obrigacoesAtivoPct,
       fatorDesdobramento,
     },
     flags,

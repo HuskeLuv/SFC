@@ -46,6 +46,25 @@ describe('sanearMes — casos reais', () => {
     expect(b.flags).toContain('obrigacoes_revisao');
   });
 
+  it('A6: obrigações ÷ ativo derivado no saneamento, sem flag de mês e sem mudar Obrigações/PL', () => {
+    const trxf = mes(m26, CNPJ.TRXF, '2026-08-01');
+    const a = sanearMes(trxf, null, P);
+    expect(a.mes.obrigacoesAtivoPct).toBeCloseTo(41.0, 1);
+    expect(a.mes.outrosValoresPagar).toBeCloseTo(761_002_014.42, 2);
+    expect(a.mes.valoresReceber).toBeCloseTo(660_607_874.27, 2);
+    expect(a.mes.obrigacoesPlPct).toBeCloseTo(70.27, 1);
+    expect(a.flags).not.toContain('obrigacoes_ativo_revisao');
+    // fixture antiga sem as colunas novas: outros valores a pagar ausente conta 0
+    const { outrosValoresPagar: _o, valoresReceber: _v, ...antigo } = trxf;
+    const b = sanearMes(antigo, null, P);
+    expect(b.mes.outrosValoresPagar).toBeNull();
+    expect(b.mes.obrigacoesAtivoPct).toBeCloseTo(
+      ((trxf.obrigAquisicao! + trxf.obrigSecuritizacao!) / trxf.ativoTotal!) * 100,
+      6,
+    );
+    expect(sanearMes({ ...trxf, ativoTotal: 0 }, null, P).mes.obrigacoesAtivoPct).toBeNull();
+  });
+
   it('VP/cota ≠ PL/cotas > 1% ⇒ recomputado (vpCotaRecalculado=true)', () => {
     const base = mes(m26, CNPJ.HGLG, '2026-08-01');
     const { mes: s, flags } = sanearMes({ ...base, vpCota: base.vpCota! * 1.05 }, null, P);

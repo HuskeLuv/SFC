@@ -23,6 +23,14 @@
  * ano' (REIT) no lugar do gráfico lucro × cotação; Essencial EUA; Valuation só com a nota (Múltiplos
  * e Meus cenários ocultos). Sem pares/múltiplos históricos, eventos e tese nesta versão (dependem
  * da cotação ou da B3).
+ *
+ * A6 (fundamentei-trazer, fatia 0 — slots; os blocos são das fatias A, C e D). Desligadas as chaves,
+ * a página é idêntica à de hoje:
+ *  4b. BlocoRetornosCotacao (largura total) — só quando o topo traz `retornos` (C)
+ *  5b. 'Imóveis e composição do fundo' (BlocoImoveisFii, preguiçoso) — só FII e recursos.imoveisFii,
+ *      entre Fundamentos e Valuation (A)
+ *  7b. 'Dados societários e estatuto' (BlocoSocietario, preguiçoso) — só ação e recursos.societario,
+ *      depois de Múltiplos históricos + Pares e antes de Tese/Eventos (D)
  */
 import Link from 'next/link';
 import BlocoFundamentos from '@/components/analiseAtivos/ativo/analise/BlocoFundamentos';
@@ -30,6 +38,9 @@ import BlocoMultiplosHistoricos from '@/components/analiseAtivos/ativo/analise/B
 import BlocoPares from '@/components/analiseAtivos/ativo/analise/BlocoPares';
 import BlocoValuation from '@/components/analiseAtivos/ativo/analise/BlocoValuation';
 import CardCriterios from '@/components/analiseAtivos/ativo/criterios/CardCriterios';
+import BlocoImoveisFii from '@/components/analiseAtivos/ativo/fii/BlocoImoveisFii';
+import BlocoSocietario from '@/components/analiseAtivos/ativo/societario/BlocoSocietario';
+import BlocoRetornosCotacao from '@/components/analiseAtivos/ativo/topo/BlocoRetornosCotacao';
 import BlocoDividendos from '@/components/analiseAtivos/ativo/topo/BlocoDividendos';
 import BlocoEventos from '@/components/analiseAtivos/ativo/topo/BlocoEventos';
 import BlocoKpis from '@/components/analiseAtivos/ativo/topo/BlocoKpis';
@@ -52,6 +63,8 @@ import {
   useAtivoTopo,
   useOverlayCarteira,
 } from '@/hooks/useAnaliseAtivos';
+import { TEXTOS_IMOVEIS_FII } from '@/services/analiseAtivos/textosImoveisFii';
+import { TEXTOS_SOCIETARIO } from '@/services/analiseAtivos/textosSocietario';
 import { TEXTOS_TELA } from '@/services/analiseAtivos/textosTela';
 import type { PaginaAtivoProps } from '@/types/analiseAtivosApi';
 import { noOverlay } from '@/services/analiseAtivos/carteira/tickerCarteiraEua';
@@ -116,6 +129,7 @@ export default function PaginaAtivo({ ticker }: PaginaAtivoProps) {
     <SeloEstado tipo="planejado" />
   ) : null;
   const base = { ticker, classe };
+  const recursos = config.data?.recursos;
   const contexto = {
     ticker,
     classe,
@@ -191,9 +205,21 @@ export default function PaginaAtivo({ ticker }: PaginaAtivoProps) {
           <GraficoLucroCotacao {...base} grafico={ativo.grafico} />
           <BlocoDividendos classe={classe} dividendos={ativo.dividendos} />
         </div>
+        {ativo.retornos ? <BlocoRetornosCotacao ticker={ticker} retornos={ativo.retornos} /> : null}
         <SecaoPreguicosa rotulo={TEXTOS_TELA.blocos.fundamentos}>
           <BlocoFundamentos {...base} />
         </SecaoPreguicosa>
+        {classe === 'fii' && recursos?.imoveisFii === true ? (
+          <SecaoPreguicosa
+            rotulo={
+              ativo.fiiTipoCvm === 'papel' || ativo.fiiTipoCvm === 'fof'
+                ? TEXTOS_IMOVEIS_FII.secao.rotuloSemLista
+                : TEXTOS_IMOVEIS_FII.secao.rotuloComLista
+            }
+          >
+            <BlocoImoveisFii ticker={ticker} fiiTipo={ativo.fiiTipoCvm ?? null} />
+          </SecaoPreguicosa>
+        ) : null}
         <SecaoPreguicosa rotulo={TEXTOS_TELA.blocos.valuation}>
           <BlocoValuation {...base} nome={ativo.nome} />
         </SecaoPreguicosa>
@@ -206,6 +232,11 @@ export default function PaginaAtivo({ ticker }: PaginaAtivoProps) {
             <BlocoPares {...base} />
           </div>
         </SecaoPreguicosa>
+        {classe === 'acao' && recursos?.societario === true ? (
+          <SecaoPreguicosa rotulo={TEXTOS_SOCIETARIO.titulo}>
+            <BlocoSocietario ticker={ticker} />
+          </SecaoPreguicosa>
+        ) : null}
         <div className="grid min-w-0 items-start gap-4 md:gap-6 xl:grid-cols-2">
           <BlocoTese ticker={ticker} />
           <div className="flex min-w-0 flex-col gap-4 md:gap-6">

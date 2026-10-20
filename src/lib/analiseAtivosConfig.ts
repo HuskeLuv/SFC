@@ -45,6 +45,21 @@
  *                                                (decisão do Wellington de 17/10: desligada até a
  *                                                licença de exibição). EXIGE EUA. A Carteira não
  *                                                depende desta chave
+ *
+ *  A6 — dados complementares (docs/analise-ativos/fundamentei-trazer/desenho.json, fatia 0): mesmo
+ *  regime, todas desligadas por padrão. As de TELA valem SÓ com a área liberada (acessoAnalise.ts,
+ *  FLAG_RECURSO); desligada, a tela e as APIs ficam exatamente como hoje (rotas novas = 404).
+ *  - ANALISE_ATIVOS_IMOVEIS_FII_HABILITADO="true"          seção "Imóveis e composição do fundo"
+ *                                                          (FII) e a rota imoveis-fii
+ *  - ANALISE_ATIVOS_TEMPLATES_FINANCEIRAS_HABILITADO="true" Essencial/Raio-X de banco e seguradora
+ *  - ANALISE_ATIVOS_RETORNOS_HABILITADO="true"             card "Variação da cotação" (topo) e as
+ *                                                          linhas de variação no Comparador
+ *  - ANALISE_ATIVOS_SOCIETARIO_HABILITADO="true"           card "Dados societários e estatuto"
+ *                                                          (ações) e a rota societario
+ *  - ANALISE_ATIVOS_ALAV_ATIVO_HABILITADO="true"           'Alavancagem (% do ativo)' no Raio-X,
+ *                                                          Comparador, Pares e Valuation do FII
+ *  - ANALISE_ATIVOS_CVM_DVA="true"                         INGESTÃO (não é tela): o cvm-cias lê a
+ *                                                          DVA das financeiras (PDD, 7.01.01/03)
  */
 export function analiseAtivosHabilitada(): boolean {
   return process.env.ANALISE_ATIVOS_HABILITADA === 'true';
@@ -93,6 +108,36 @@ export function analiseAtivosEuaHabilitado(): boolean {
 /** EUA: cotação e múltiplos EUA na Análise (desligado; só vale com EUA — ver acessoAnalise). */
 export function analiseAtivosEuaPrecoHabilitado(): boolean {
   return process.env.ANALISE_ATIVOS_EUA_PRECO_HABILITADO === 'true';
+}
+
+/** A6: imóveis e composição do FII (desligado por padrão). */
+export function analiseAtivosImoveisFiiHabilitado(): boolean {
+  return process.env.ANALISE_ATIVOS_IMOVEIS_FII_HABILITADO === 'true';
+}
+
+/** A6: templates de banco e seguradora no Essencial/Raio-X (desligado por padrão). */
+export function analiseAtivosTemplatesFinanceirasHabilitado(): boolean {
+  return process.env.ANALISE_ATIVOS_TEMPLATES_FINANCEIRAS_HABILITADO === 'true';
+}
+
+/** A6: ingestão da DVA das financeiras no cvm-cias (job; não é tela; desligado por padrão). */
+export function analiseAtivosCvmDva(): boolean {
+  return process.env.ANALISE_ATIVOS_CVM_DVA === 'true';
+}
+
+/** A6: variação acumulada da cotação (desligado por padrão). */
+export function analiseAtivosRetornosHabilitado(): boolean {
+  return process.env.ANALISE_ATIVOS_RETORNOS_HABILITADO === 'true';
+}
+
+/** A6: dados societários e dividendo mínimo do estatuto (desligado por padrão). */
+export function analiseAtivosSocietarioHabilitado(): boolean {
+  return process.env.ANALISE_ATIVOS_SOCIETARIO_HABILITADO === 'true';
+}
+
+/** A6: alavancagem do FII sobre o ativo total (desligado por padrão). */
+export function analiseAtivosAlavAtivoHabilitado(): boolean {
+  return process.env.ANALISE_ATIVOS_ALAV_ATIVO_HABILITADO === 'true';
 }
 
 export function analiseAtivosAlertaAdmin(): boolean {

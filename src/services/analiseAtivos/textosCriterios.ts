@@ -160,6 +160,9 @@ export const TEXTOS_CRITERIOS = {
       'Sem fonte confiável nas demonstrações: a vacância informada à CVM pode diferir do relatório do gestor, e a inadimplência existe só nos relatórios em PDF. O filtro fica desligado até a conferência.',
     tooltipParAlavancagem:
       'Em FII de tijolo: alavancagem do fundo (obrigações ÷ PL) até 20% do patrimônio. Em FII de papel: LTV médio dos CRIs até 60%.',
+    /** A6 (fatia E): o mesmo par com a v4 vigente (alavancagem do tijolo sobre o ativo total) */
+    tooltipParAlavancagemAtivo:
+      'Em FII de tijolo: obrigações do fundo até 15% do ativo total. Em FII de papel: LTV médio dos CRIs até 60%.',
     tooltipParVacancia:
       'Em FII de tijolo: vacância física até 10%. Em FII de papel: inadimplência da carteira de crédito até 3%.',
     /** nome acessível do chip de par ('Vacância ≤ 10% (tijolo) ou Inadimplência ≤ 3% (papel)') */
@@ -237,7 +240,23 @@ export const TEXTOS_CRITERIOS = {
       'A fonte atual não entrega o lucro sem itens não recorrentes; o critério usa o lucro líquido dos controladores.',
     dados_incompletos:
       'A fonte não entregou um campo obrigatório de algum ano da janela; o critério fica "não atende · sem dado nas demonstrações".',
+    // A6 (fatia 0; a fatia E grava a obs no 'alav' do fii_tijolo na v4)
+    obrigacoes_ativo_revisao:
+      'Obrigações acima de 50% do ativo total em algum ano da janela: valor em revisão, porque outros valores a pagar podem incluir itens que não são dívida.',
   } satisfies Record<ObsCriterio, string>,
+
+  /**
+   * A6 (fatia 0; a fatia E copia rótulo e definição para o 'alav' do fii_tijolo em criteriaParamsV4,
+   * mesmo id): decisão 1 do Wellington, obrigações ÷ ativo ≤ 15%. O rótulo de hoje ('Alavancagem
+   * ≤ 20% do PL', obrigações ÷ PL) continua nas versões v2/v3.
+   */
+  alavancagemAtivoV4: {
+    rotulo: 'Alavancagem ≤ 15% do ativo',
+    definicao:
+      'Obrigações do fundo (aquisição de imóveis, securitização e outros valores a pagar) até 15% do ativo total em todos os anos da janela',
+    observacao:
+      'Fonte CVM informe mensal · outros valores a pagar podem incluir itens que não são dívida.',
+  },
 
   /** Selo 'dados incompletos' (§6) no card de critérios e no Essencial. */
   incompleto: {

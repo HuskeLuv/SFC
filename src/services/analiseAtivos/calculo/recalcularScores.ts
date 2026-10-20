@@ -808,6 +808,7 @@ export function calcularAtualFii(e: EntradaAtualFii, p: ScoringParams): CalculoA
       vpCota: e.mesAtual?.vpCota ?? null,
       rendCota: rend12m,
       obrigacoesPlPct: e.mesAtual?.obrigacoesPlPct ?? null,
+      obrigacoesAtivoPct: e.mesAtual?.obrigacoesAtivoPct ?? null,
       vacanciaFisicaCvmPct: e.trimestre?.vacanciaFisicaCvmPct ?? null,
       nImoveisCvm: e.trimestre?.nImoveisRenda ?? null,
       pl: e.mesAtual?.pl ?? null,
@@ -1016,6 +1017,8 @@ function linhaAtual(
     divLiqPl: m.divLiqPl,
     liquidezCorrente: m.liquidezCorrente,
     obrigacoesPlPct: m.obrigacoesPlPct,
+    // A6 (fatia E): obrigações ÷ ativo total (FII); ação = null
+    obrigacoesAtivoPct: m.obrigacoesAtivoPct,
     plMedia10a: m.plMedia10a,
     plVsMedia10aPct: m.plVsMedia10aPct,
   });

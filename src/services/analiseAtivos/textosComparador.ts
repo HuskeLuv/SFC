@@ -129,6 +129,14 @@ export const TEXTOS_COMPARADOR = {
     mesesComRendimento: { rotulo: 'Meses seguidos com rendimento', sub: '' },
     vpCota: { rotulo: 'VP por cota (R$)', sub: '' },
     obrigacoesPl: { rotulo: 'Obrigações/PL', sub: 'passivo menos rendimentos a distribuir' },
+    /** A6 (fatia E, chave ALAV_ATIVO): grupo 'Endividamento · fonte CVM', sem cor e sem ganhador */
+    obrigacoesAtivo: {
+      rotulo: 'Alavancagem (% do ativo)',
+      sub: 'obrigações ÷ ativo total',
+    },
+    /** A6 (fatia F, chave RETORNOS): grupo Preço, só preço (sem proventos), sem cor */
+    variacao12m: { rotulo: 'Variação 12 meses', sub: 'cotação ajustada, sem proventos' },
+    variacao5a: { rotulo: 'Variação 5 anos (a.a.)', sub: 'cotação ajustada, sem proventos' },
     vacanciaFisica: {
       rotulo: 'Vacância física (CVM)',
       sub: 'pode diferir do relatório do gestor',

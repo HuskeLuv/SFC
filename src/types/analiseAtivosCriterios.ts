@@ -174,6 +174,8 @@ export const SERIES_CRITERIO = [
   'nav_per_share',
   'vacancy_physical',
   'leverage_pct',
+  // A6 (fatia 0; série da fatia E): obrigações ÷ ativo total (critério 'alav' do fii_tijolo na v4)
+  'leverage_assets_pct',
   'months_with_income',
   'ffo',
   'default_pct',
@@ -227,9 +229,15 @@ export function serieCanonica(nome: string): SerieCriterio | null {
  * MarcaCompacta, sem migration):
  * - lucro_sem_descontado: o critério 'luc' usou a serieFallback (net_income) na janela inteira —
  *   a fonte não entrega o lucro sem itens não recorrentes (tooltip em textosCriterios.obs);
- * - dados_incompletos: a fonte marcou um ponto da janela como incompleto (§6; selo na tela).
+ * - dados_incompletos: a fonte marcou um ponto da janela como incompleto (§6; selo na tela);
+ * - obrigacoes_ativo_revisao (A6, fatia 0; a fatia E grava): 'alav' do fii_tijolo na v4 com
+ *   obrigações acima de LIMITE_REVISAO_OBRIGACOES_ATIVO_PCT (50%) do ativo em algum ano da janela.
  */
-export const OBS_CRITERIO = ['lucro_sem_descontado', 'dados_incompletos'] as const;
+export const OBS_CRITERIO = [
+  'lucro_sem_descontado',
+  'dados_incompletos',
+  'obrigacoes_ativo_revisao',
+] as const;
 export type ObsCriterio = (typeof OBS_CRITERIO)[number];
 
 export function ehObsCriterio(v: unknown): v is ObsCriterio {

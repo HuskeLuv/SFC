@@ -25,4 +25,18 @@ describe('ehLayoutFinanceiro (DRE de banco/seguradora)', () => {
   it('sem DRE ⇒ false', () => {
     expect(ehLayoutFinanceiro([])).toBe(false);
   });
+
+  it('A6: "Receitas das Operações" (BBSE/IRB até 2022) só é financeira no Set de seguradoras', () => {
+    const dre = [
+      {
+        demonstrativo: 'DRE' as const,
+        cdConta: '3.01',
+        dsConta: 'Receitas das Operações',
+        valor: 0,
+      },
+    ];
+    expect(ehLayoutFinanceiro(dre, { seguradora: true })).toBe(true);
+    expect(ehLayoutFinanceiro(dre)).toBe(false);
+    expect(ehLayoutFinanceiro(dre, { seguradora: false })).toBe(false);
+  });
 });
