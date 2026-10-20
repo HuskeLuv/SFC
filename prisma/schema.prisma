@@ -2048,6 +2048,21 @@ model AssetFundamentalsPeriod {
   dpaOrigem         String?
   recompras         Decimal? @db.Decimal(20, 2)
 
+  // A6 (fundamentei-trazer, fatia 0): templates de banco e seguradora — nulas fora das financeiras.
+  // Banco: PDD em valor absoluto (DVA 7.01.03) e receita de intermediação da DVA (7.01.01), só com
+  // ANALISE_ATIVOS_CVM_DVA. Seguradora: por rótulo da DRE (nível até 4), só no Set de seguradoras.
+  pdd                      Decimal? @db.Decimal(20, 2)
+  receitaIntermediacaoDva  Decimal? @db.Decimal(20, 2)
+  resultadoFinanceiro      Decimal? @db.Decimal(20, 2)
+  equivalenciaPatrimonial  Decimal? @db.Decimal(20, 2)
+  receitaComissoesServicos Decimal? @db.Decimal(20, 2)
+  // IFRS 17 (desde 2023): receita e despesa de seguro
+  receitaSeguro            Decimal? @db.Decimal(20, 2)
+  despesaSeguro            Decimal? @db.Decimal(20, 2)
+  // até 2022: prêmios ganhos e sinistros retidos (sinistralidade)
+  premiosGanhos            Decimal? @db.Decimal(20, 2)
+  sinistrosRetidos         Decimal? @db.Decimal(20, 2)
+
   @@unique([emissorId, dtFim, tipoPeriodo, escopo, versao])
   @@index([emissorId, tipoPeriodo, dtFim])
   @@index([fetchedAt])
@@ -2178,6 +2193,13 @@ model FiiMonthly {
 
   // v2.5: quem aprovou a linha (curadoria); null nas linhas automáticas da CVM
   reviewedBy String?
+
+  // A6 (fatia 0; preenchidas pelo fii-mensal da fatia E). Outros_Valores_Pagar e Valores_Receber
+  // do informe; obrigacoesAtivoPct = (obrigAquisicao + obrigSecuritizacao + outrosValoresPagar) ÷
+  // ativoTotal × 100 ('Alavancagem (% do ativo)'; nunca redefine obrigacoesPlPct)
+  outrosValoresPagar Decimal? @db.Decimal(20, 2)
+  valoresReceber     Decimal? @db.Decimal(20, 2)
+  obrigacoesAtivoPct Float?
 
   @@unique([cnpj, refMonth])
   @@index([refMonth])
@@ -2436,6 +2458,8 @@ model AssetMultiplesYearly {
   flags                String[]
   paramsVersion        Int
   calculadoEm          DateTime
+  // A6 (fatia 0; gravado pelo scores da fatia E): obrigações ÷ ativo total do FII, em %
+  obrigacoesAtivoPct   Float?
 
   @@unique([symbol, anoFiscal])
   @@index([cnpj])
@@ -2480,6 +2504,8 @@ model AssetMultiplesCurrent {
   flags                 String[]
   paramsVersion         Int
   calculadoEm           DateTime
+  // A6 (fatia 0; gravado pelo scores da fatia E): obrigações ÷ ativo total do FII, em %
+  obrigacoesAtivoPct    Float?
 
   @@index([cnpj])
   @@index([classe])
@@ -2639,6 +2665,8 @@ model AnaliseQuadroLinha {
   dpa                   Float?
   fcoPorAcao            Float?
   dividendosFcoPct      Float?
+  // A6 (fatia 0; gravado pelo quadro da fatia E): obrigações ÷ ativo total do FII, em %
+  obrigacoesAtivoPct    Float?
 
   @@index([classe, noQuadro])
   @@index([geradoEm])
@@ -3224,4 +3252,163 @@ model AssetQuoteDailyUs {
   @@id([symbol, date])
   @@index([date])
   @@map("asset_quotes_daily_us")
+}
+
+// ===========================================================================
+// A6 — dados complementares da Análise de Ativos (docs/analise-ativos/fundamentei-trazer/
+// desenho.json, fatia 0). Tabelas novas, sem FK, preenchidas SÓ por jobs a partir de fontes
+// públicas (CVM dados abertos, B3 COTAHIST). Nenhum valor de terceiros.
+// ===========================================================================
+
+/**
+ * Imóveis do FII por trimestre (informe trimestral CVM, CSV de imóveis; fatia A). Gravação por
+ * delete+createMany de (cnpj, refQuarter) na maior Versao, em transação (idempotente).
+ */
+model FiiImovelTrimestral {
+  cnpj             String
+  // último dia do trimestre
+  refQuarter       DateTime @db.Date
+  // posição da linha no CSV da versão gravada (estável dentro da versão)
+  ordem            Int
+  versao           Int
+  // classe do informe (Imóveis para renda acabados, terreno, em construção…)
+  classe           String?
+  nome             String?
+  // texto da CVM como informado
+  endereco         String?
+  // UF inferida do endereço (null = não identificada)
+  ufInferida       String?
+  // área informada à CVM (m²); não é ABL
+  area             Decimal? @db.Decimal(20, 2)
+  unidades         Int?
+  vacanciaPct      Float?
+  // gravada, mas NÃO exibida por imóvel (critério 'sem dado')
+  inadimplenciaPct Float?
+  // % da receita do FII, como informado (sem normalizar)
+  receitaPct       Float?
+  gravadoEm        DateTime
+
+  @@id([cnpj, refQuarter, ordem])
+  @@index([cnpj, refQuarter])
+  @@map("fii_imovel_trimestral")
+}
+
+/**
+ * Setores dos locatários por trimestre (CSV de inquilino, agregado por fundo; fatia A).
+ */
+model FiiInquilinoSetorTrimestral {
+  cnpj          String
+  refQuarter    DateTime @db.Date
+  // vazio normalizado para '' pelo parser
+  setor         String   @default("")
+  versao        Int
+  pctReceitaFii Float?
+  nLinhas       Int?
+  // 'SetorN' (genérico) = placeholder: não é exibido como setor real
+  placeholder   Boolean  @default(false)
+  gravadoEm     DateTime
+
+  @@id([cnpj, refQuarter, setor])
+  @@map("fii_inquilino_setor_trimestral")
+}
+
+/**
+ * Retornos acumulados da cotação (só preço, sem proventos; job 'retornos-cotacao', fatia C). Uma
+ * linha por símbolo, upsert. Ajustados por desdobramentos/grupamentos/bonificações confirmados.
+ */
+model AssetRetornosCotacao {
+  symbol           String    @id
+  // acao | fii
+  classe           String
+  // último pregão usado (AAAA-MM-DD)
+  asOf             DateTime  @db.Date
+  preco            Decimal?  @db.Decimal(18, 6)
+  ret1mPct         Float?
+  ret12mPct        Float?
+  // anualizados (a.a.)
+  ret5aAaPct       Float?
+  ret10aAaPct      Float?
+  // máxima de fechamento ajustada desde jan/2015 e distância do preço atual até ela (%)
+  precoMaxAjustado Float?
+  distMaxPct       Float?
+  dataMax          DateTime? @db.Date
+  inicioSerie      DateTime? @db.Date
+  pregoes          Int?
+  // serie_curta_5a | serie_curta_10a | evento_nao_confirmado | …
+  flags            String[]
+  calculadoEm      DateTime
+
+  @@map("asset_retornos_cotacao")
+}
+
+/**
+ * Posição acionária do FRE (fre_cia_aberta_posicao_acionaria; job 'cvm-fre-societario', fatia D).
+ * Só acionistas DIRETOS + sintéticas com id fixo ('OUTROS', 'TESOURARIA'). SEM CPF/CNPJ do
+ * acionista (decisão 5 do Wellington: só nome e %).
+ */
+model CiaFrePosicaoAcionaria {
+  cnpj                String
+  anoFre              Int
+  // id do acionista no FRE (ID_Acionista) ou 'OUTROS' | 'TESOURARIA'
+  idAcionista         String
+  versao              Int
+  nome                String
+  // PF | PJ | outro (como no FRE); nunca o documento
+  tipoPessoa          String?
+  pctOn               Float?
+  pctPn               Float?
+  pctTotal            Float?
+  controlador         Boolean   @default(false)
+  acordoAcionistas    Boolean   @default(false)
+  sintetica           Boolean   @default(false)
+  dataReferencia      DateTime? @db.Date
+  dataUltimaAlteracao DateTime? @db.Date
+
+  @@id([cnpj, anoFre, idAcionista])
+  @@map("cia_fre_posicao_acionaria")
+}
+
+/**
+ * Resumo societário do FRE por exercício (circulação e nº de acionistas; fatia D).
+ */
+model CiaFreSocietario {
+  cnpj               String
+  anoFre             Int
+  versao             Int
+  // DT_RECEB (data de entrega exibida na tela; nunca a Data_Referencia futura)
+  dtReceb            DateTime? @db.Date
+  dataReferencia     DateTime? @db.Date
+  pctCirculacaoOn    Float?
+  pctCirculacaoPn    Float?
+  pctCirculacaoTotal Float?
+  nAcionistasPf      Int?
+  nAcionistasPj      Int?
+  nAcionistasInst    Int?
+  // LINK_DOC do FRE vigente: guardado como texto, nunca baixado
+  linkDocFre         String?
+
+  @@id([cnpj, anoFre])
+  @@map("cia_fre_societario")
+}
+
+/**
+ * Direitos por espécie de ação do FRE (tag along, dividendo; o texto do FRE 2022; fatia D).
+ */
+model CiaFreDireitoAcao {
+  cnpj                  String
+  anoFre                Int
+  // ON | PN
+  especie               String
+  // classe da PN (A, B…); ON e sem classe = ''
+  classePn              String  @default("")
+  pctTagAlong           Float?
+  // trecho literal do FRE (Direito_Dividendo), sem interpretação
+  direitoDividendoTexto String?
+  // % do lucro líquido ajustado reconhecido por regex (null = o FRE remete a outro item)
+  pctDividendoMinimo    Float?
+  direitoVoto           String?
+  conversibilidade      String?
+
+  @@id([cnpj, anoFre, especie, classePn])
+  @@map("cia_fre_direito_acao")
 }
