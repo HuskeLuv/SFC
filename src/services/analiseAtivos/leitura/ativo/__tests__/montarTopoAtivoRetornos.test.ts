@@ -121,17 +121,12 @@ describe('montarTopoAtivo × retornos (A6, fatia 0)', () => {
     expect(Object.keys(r!)).not.toContain('retornos');
   });
 
-  it('o stub da fatia 0 devolve null sem tocar no banco', async () => {
+  it('a leitura real (fatia C) devolve null sem linha em asset_retornos_cotacao', async () => {
     const real = await vi.importActual<typeof import('../retornosAtivo')>('../retornosAtivo');
     expect(lerRetornosStub).toBe(m.retornos);
-    const proibido = new Proxy(
-      {},
-      {
-        get(_a, prop) {
-          throw new Error(`stub acessou prisma.${String(prop)}`);
-        },
-      },
-    ) as never;
-    expect(await real.lerRetornosAtivo(proibido, 'WEGE3', 'acao')).toBeNull();
+    const semLinha = {
+      assetRetornosCotacao: { findUnique: vi.fn(async () => null) },
+    } as never;
+    expect(await real.lerRetornosAtivo(semLinha, 'WEGE3', 'acao')).toBeNull();
   });
 });
