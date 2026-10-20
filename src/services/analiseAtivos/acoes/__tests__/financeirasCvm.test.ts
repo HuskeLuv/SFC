@@ -180,6 +180,8 @@ describe('--somente-financeiras e --tickers (backfill)', () => {
     expect(new Set(tabelas.assetFundamentalsPeriod.map((l) => l.emissorId))).toEqual(
       new Set([CNPJ.ITUB, CNPJ.BBSE]),
     );
+    // recorte não marca o arquivo como processado (o resto dele segue pendente para o cron)
+    expect(tabelas.analiseFonteArquivo).toHaveLength(0);
     expect(filtrarUniverso(universoFixtures()).size).toBe(universoFixtures().size);
   });
 

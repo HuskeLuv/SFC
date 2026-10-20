@@ -408,6 +408,11 @@ export async function sincronizarCvmCias(
   };
 }
 
+/** A6: execução sobre um recorte do arquivo (não marca AnaliseFonteArquivo). */
+function ehRecorte(opts: Pick<OpcoesCvmCias, 'somenteTickers' | 'somenteFinanceiras'>): boolean {
+  return (opts.somenteTickers?.length ?? 0) > 0 || opts.somenteFinanceiras === true;
+}
+
 /** A6: recorte do universo aos tickers pedidos (sem recorte = o universo inteiro, cópia). */
 export function filtrarUniverso(
   universo: Map<string, string[]>,
@@ -511,7 +516,8 @@ async function processarFca(
     return { detalhe: { url, doc: 'fca', ano, status: arq.status }, universo: null };
   }
   try {
-    if (ctx.aplicar) await registrarDownload(ctx.prisma, url, arq);
+    // A6: recorte (--tickers/--somente-financeiras) não marca o arquivo — o resto dele segue pendente
+    if (ctx.aplicar && !ehRecorte(opts)) await registrarDownload(ctx.prisma, url, arq);
     const entradas = await listarEntradasZip(arq.caminho);
     const lido = await lerFca(arq.caminho, entradas, ano);
     ctx.contar('linhasLidas', lido.linhasLidas);
@@ -533,7 +539,7 @@ async function processarFca(
       r.ciasNovas + r.ciasAtualizadas + r.tickersNovos + r.tickersFechados + r.tickersAtualizados;
     if (ctx.aplicar) {
       ctx.contar('linhasGravadas', escritas);
-      await marcarProcessado(ctx.prisma, url, 'cvm-cias:fca');
+      if (!ehRecorte(opts)) await marcarProcessado(ctx.prisma, url, 'cvm-cias:fca');
     }
     const universo = new Map<string, string[]>();
     for (const t of fca.titulos) {
@@ -690,7 +696,8 @@ async function processarDemonstrativos(
   }
   const detalhe: DetalheArquivo = { url, doc, ano, status: 'processado', bytes: arq.bytes };
   try {
-    if (ctx.aplicar) await registrarDownload(ctx.prisma, url, arq);
+    // A6: recorte (--tickers/--somente-financeiras) não marca o arquivo — o resto dele segue pendente
+    if (ctx.aplicar && !ehRecorte(opts)) await registrarDownload(ctx.prisma, url, arq);
     const entradas = await listarEntradasZip(arq.caminho);
     const indice = await lerIndice(arq.caminho, entradas, doc, ano, {
       cnpjs: new Set(universo.keys()),
@@ -738,7 +745,7 @@ async function processarDemonstrativos(
         detalhe.status = 'parcial';
         return detalhe;
       }
-      await marcarProcessado(ctx.prisma, url, job);
+      if (!ehRecorte(opts)) await marcarProcessado(ctx.prisma, url, job);
     }
     return detalhe;
   } finally {
