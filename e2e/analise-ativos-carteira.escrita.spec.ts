@@ -4,8 +4,8 @@ import { apiDelete, writesAllowed } from './helpers/api';
 /**
  * Análise de Ativos — usuário (fatia D) que GRAVA: projeto `escrita`, desktop 1280.
  *
- * - "Na sua carteira" = Carteira: a posição do demo (MXRF11 no seed) em % da carteira TOTAL
- *   (v2.5: valorAtualizado da aba FII's ÷ totais.dinheiro do resumo da Carteira), 1 casa.
+ * - "Na sua carteira" = Carteira: a posição do demo (MXRF11 no seed) em % da ABA (desde 17/10)
+ *   (valorAtualizado do MXRF11 ÷ soma do valorAtualizado da aba FII's), 1 casa.
  * - Tese em WEGE3: escreve, salva sozinha, recarrega, apaga pela tela. O `finally` apaga pela API.
  * - Planejar pelo modal "Planejar na carteira" (17/10/2026: grava o OBJETIVO DA CARTEIRA, % dentro
  *   da aba): salvar acende o chip "Planejado", o card mostra o alvo e o ativo aparece na aba da
@@ -51,11 +51,11 @@ const pct1 = (v: number) =>
   `${v.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%`;
 
 test.describe('Na sua carteira (leitura)', () => {
-  test('MXRF11: posição em % da carteira total, igual à conta da Carteira', async ({ page }) => {
+  test('MXRF11: posição em % da aba, igual à conta da Carteira', async ({ page }) => {
     test.skip(!(await areaLigada(page)), 'área desligada ou demo fora do beta');
     test.setTimeout(180_000);
-    // Lê a conta da Carteira e a tela juntas, até baterem: o teste de escrita anterior desfaz
-    // compras e o resumo (cache de 60 s) pode chegar entre a leitura da API e a da tela.
+    // Lê a aba da Carteira e a tela juntas, até baterem: o teste de escrita anterior desfaz
+    // compras e a aba (cache de 60 s) pode chegar entre a leitura da API e a da tela.
     let linha: { ticker: string; valorAtualizado: number; objetivo: number } | undefined;
     await expect(async () => {
       const aba = await page.request.get('/api/carteira/fii');
@@ -65,19 +65,19 @@ test.describe('Na sua carteira (leitura)', () => {
           ativos: Array<{ ticker: string; valorAtualizado: number; objetivo: number }>;
         }>;
       };
-      linha = dados.secoes.flatMap((s) => s.ativos).find((a) => a.ticker === 'MXRF11');
+      const ativos = dados.secoes.flatMap((s) => s.ativos);
+      linha = ativos.find((a) => a.ticker === 'MXRF11');
       if (!linha) return;
-      const resumo = (await (await page.request.get('/api/carteira/resumo')).json()) as {
-        totais?: { dinheiro?: number };
-      };
-      const total = resumo.totais?.dinheiro ?? 0;
-      expect(total, 'resumo sem totais.dinheiro').toBeGreaterThan(0);
+      // 17/10 (ticket do Pedro): a base é a ABA (soma do valor atualizado das linhas), não a
+      // carteira total — a mesma conta do Objetivo da Carteira.
+      const totalAba = ativos.reduce((s, a) => s + (Number(a.valorAtualizado) || 0), 0);
+      expect(totalAba, 'aba FII sem valor').toBeGreaterThan(0);
 
       await abrirAtivo(page, 'MXRF11');
       const bloco = blocoCarteira(page);
       await expect(bloco).toHaveAttribute('data-na-carteira', 'posicao', { timeout: 30_000 });
       await expect(bloco.locator('[data-barra-peso]')).toContainText(
-        `posição atual ${pct1((linha.valorAtualizado / total) * 100)}`,
+        `posição atual ${pct1((linha.valorAtualizado / totalAba) * 100)} da aba`,
         { timeout: 10_000 },
       );
     }).toPass({ timeout: 120_000 });
