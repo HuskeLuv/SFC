@@ -20,9 +20,24 @@ import {
   type RetornosCalculados,
 } from '@/types/analiseAtivosComplementos';
 
+/** 'AAAA-MM-DD=preço,AAAA-MM-DD=preço,…' (string_agg de lerSerieRetornos) → pregões. */
+export function parseSerieRetornos(serie: string | null): PregaoRetorno[] {
+  if (!serie) return [];
+  const partes = serie.split(',');
+  const out: PregaoRetorno[] = new Array(partes.length);
+  for (let i = 0; i < partes.length; i++) {
+    const p = partes[i];
+    out[i] = { date: p.slice(0, 10), closeRaw: Number(p.slice(11)) };
+  }
+  return out;
+}
+
 /**
- * Série de fechamento CRU (só pregões com negócio e fechamento > 0) de [desde, ate] por símbolo,
- * só com as 2 colunas usadas. Os símbolos chegam em lotes do job (LOTE_RETORNOS).
+ * Série de fechamento CRU (só pregões com negócio e fechamento > 0) de [desde, ate] por símbolo.
+ * Os símbolos chegam em lotes do job (LOTE_RETORNOS). Uma linha POR SÍMBOLO com a série num texto
+ * só (string_agg ordenado): o findMany linha a linha (~146 mil objetos com Decimal por lote de 50)
+ * levava o pico do job a ~287 MB no DEV (universo simulado de 1.000 símbolos); arrays (array_agg),
+ * a ~200 MB.
  */
 export async function lerSerieRetornos(
   prisma: PrismaClient,
@@ -32,22 +47,17 @@ export async function lerSerieRetornos(
 ): Promise<Map<string, PregaoRetorno[]>> {
   const out = new Map<string, PregaoRetorno[]>();
   if (symbols.length === 0) return out;
-  const linhas = await prisma.assetQuoteDaily.findMany({
-    where: {
-      symbol: { in: [...symbols] },
-      date: ate ? { gte: deData(desde), lte: deData(ate) } : { gte: deData(desde) },
-      negocios: { gt: 0 },
-      closeRaw: { gt: 0 },
-    },
-    select: { symbol: true, date: true, closeRaw: true },
-    orderBy: [{ symbol: 'asc' }, { date: 'asc' }],
-  });
-  for (const l of linhas) {
-    const p: PregaoRetorno = { date: paraData(l.date), closeRaw: paraNumero(l.closeRaw) ?? 0 };
-    const lista = out.get(l.symbol);
-    if (lista) lista.push(p);
-    else out.set(l.symbol, [p]);
-  }
+  const fim = ate ?? '9999-12-31';
+  const linhas = await prisma.$queryRaw<Array<{ symbol: string; serie: string }>>`
+    SELECT symbol,
+           string_agg(to_char(date, 'YYYY-MM-DD') || '=' || "closeRaw"::text, ',' ORDER BY date)
+             AS serie
+      FROM asset_quotes_daily
+     WHERE symbol = ANY(${[...symbols]}::text[])
+       AND date >= ${desde}::date AND date <= ${fim}::date
+       AND negocios > 0 AND "closeRaw" > 0
+     GROUP BY symbol`;
+  for (const l of linhas) out.set(l.symbol, parseSerieRetornos(l.serie));
   return out;
 }
 
