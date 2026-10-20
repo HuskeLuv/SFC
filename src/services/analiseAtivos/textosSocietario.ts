@@ -29,6 +29,12 @@ export const TEXTOS_SOCIETARIO = {
     rodape:
       'Só acionistas diretos, até 6 por % do total. "Controlador" e "acordo de acionistas" como marcados no FRE. Sem CPF/CNPJ do acionista.',
     caption: 'Principais acionistas diretos de {ticker}',
+    // fatia D (acréscimos)
+    /** sem DT_RECEB exibível (ausente ou depois de hoje) */
+    subSemData: 'diretos · FRE do exercício {ano} · CVM',
+    outrosInclui: '"Outros" soma a linha "Outros" do FRE e os demais acionistas diretos.',
+    semPosicao: 'sem dado · o FRE não informa a posição acionária',
+    naoEmitePn: 'não emite PN',
   },
   circulacao: {
     titulo: 'Ações em circulação',
@@ -60,6 +66,19 @@ export const TEXTOS_SOCIETARIO = {
     rodape:
       'Em Novo Mercado (ON) e Nível 2 (ON e PN) a base é a regra do segmento de listagem (B3). Em Nível 1 e no Tradicional: ON 80% pelo mínimo legal (Lei 6.404, art. 254-A, incluído pela Lei 10.303/2001) e PN "conforme estatuto", ou o valor do FRE 2022 com a fonte.',
     unit: 'Unit: tag along das ações que a compõem.',
+    // fatia D (acréscimos)
+    /** {classe} = classe da PN no FRE ('A', 'B'…) */
+    pnClasse: 'PN classe {classe}',
+    /** {segmento} = rótulo de segmentos */
+    segmento: 'segmento de listagem: {segmento}',
+    segmentos: {
+      NM: 'Novo Mercado',
+      N2: 'Nível 2',
+      N1: 'Nível 1',
+      MA: 'Bovespa Mais',
+      M2: 'Bovespa Mais Nível 2',
+      TRADICIONAL: 'Tradicional',
+    },
   },
   dividendoMinimo: {
     titulo: 'Dividendo mínimo do estatuto',
@@ -69,6 +88,10 @@ export const TEXTOS_SOCIETARIO = {
     trechoRotulo: 'Trecho do FRE 2022',
     semInterpretacao: 'Periodicidade e vantagens da PN: trecho do FRE 2022, sem interpretação.',
     linkFre: 'Ver Formulário de Referência vigente na CVM',
+    // fatia D (acréscimos)
+    semFre2022: 'sem dado · a companhia não tem FRE 2022 nos dados abertos da CVM',
+    /** abre em nova aba (leitor de tela) */
+    linkNovaAba: '(abre em nova aba)',
   },
   /** texto do Estado ausente (MotivoSocietario) */
   motivos: {
