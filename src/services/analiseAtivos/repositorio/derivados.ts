@@ -76,6 +76,8 @@ export interface MultiplosAtuaisGravados {
   divLiqPl: number | null;
   liquidezCorrente: number | null;
   obrigacoesPlPct: number | null;
+  /** A6 (fatia E): obrigações ÷ ativo total do FII (%) */
+  obrigacoesAtivoPct: number | null;
   anosLucroConsecutivos: number | null;
   mesesComRendimento: number | null;
   plMedia10a: number | null;

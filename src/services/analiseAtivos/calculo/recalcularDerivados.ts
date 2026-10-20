@@ -201,6 +201,8 @@ function linhaMultiplos(
     vpCota: m.vpCota,
     rendCota12m: m.rendCota,
     obrigacoesPlPct: m.obrigacoesPlPct,
+    // A6 (fatia E): obrigações ÷ ativo total (FII); ação = null
+    obrigacoesAtivoPct: m.obrigacoesAtivoPct,
     vacanciaFisicaCvmPct: m.vacanciaFisicaCvmPct,
   });
   const vm = m.valorMercadoEmpresa?.estado === 'ok' ? m.valorMercadoEmpresa.valor : null;
@@ -451,6 +453,7 @@ export function linhasDerivadasFii(
         vpCota: mesFim.vpCota,
         rendCota: rendAno,
         obrigacoesPlPct: mesFim.obrigacoesPlPct,
+        obrigacoesAtivoPct: mesFim.obrigacoesAtivoPct ?? null,
         vacanciaFisicaCvmPct: tri?.vacanciaFisicaCvmPct ?? null,
         nImoveisCvm: tri?.nImoveisRenda ?? null,
         pl: mesFim.pl,

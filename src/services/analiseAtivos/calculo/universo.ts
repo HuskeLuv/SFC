@@ -39,6 +39,8 @@ export type FiiMesEnxuto = Pick<
   | 'pl'
   | 'cotas'
   | 'obrigacoesPlPct'
+  // A6 (fatia E): obrigações ÷ ativo total (múltiplo anual/atual 'Alavancagem (% do ativo)')
+  | 'obrigacoesAtivoPct'
   | 'fatorDesdobramento'
   | 'tipoVigente'
   | 'reguaVigente'
@@ -59,6 +61,7 @@ export function enxugarFiiMes(m: FiiMes): FiiMesEnxuto {
     pl: m.pl,
     cotas: m.cotas,
     obrigacoesPlPct: m.obrigacoesPlPct,
+    obrigacoesAtivoPct: m.obrigacoesAtivoPct ?? null,
     fatorDesdobramento: m.fatorDesdobramento,
     tipoVigente: m.tipoVigente,
     reguaVigente: m.reguaVigente,

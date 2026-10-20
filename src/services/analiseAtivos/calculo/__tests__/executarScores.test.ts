@@ -250,6 +250,7 @@ function mes(cnpj: string, refMonth: string, extra: Partial<FiiMes>): FiiMes {
     tipoVigente: 'tijolo',
     reguaVigente: 'fii_tijolo',
     obrigacoesPlPct: 9,
+    obrigacoesAtivoPct: 7.5,
     segmentoCvm: null,
     fatorDesdobramento: null,
     flags: [],
@@ -450,6 +451,19 @@ describe('executarScores', () => {
     expect(wAtual.anosLucroConsecutivos).toBe(10);
     expect(wAtual.plPontosHistorico).toBe(10);
     expect(tabelas.assetMultiplesYearly.filter((l) => l.symbol === 'WEGE3')).toHaveLength(10);
+    // A6 (fatia E): obrigações ÷ ativo total nos múltiplos anual e atual do FII; ação = null
+    const hgAtual = tabelas.assetMultiplesCurrent.find((l) => l.symbol === 'HGLG11')!;
+    expect(hgAtual.obrigacoesAtivoPct).toBe(7.5);
+    expect(hgAtual.obrigacoesPlPct).toBe(9);
+    expect(wAtual.obrigacoesAtivoPct).toBeNull();
+    const hgAnuais = tabelas.assetMultiplesYearly.filter((l) => l.symbol === 'HGLG11');
+    expect(hgAnuais.length).toBeGreaterThan(0);
+    expect(hgAnuais.every((l) => l.obrigacoesAtivoPct === 7.5)).toBe(true);
+    expect(
+      tabelas.assetMultiplesYearly
+        .filter((l) => l.symbol === 'WEGE3')
+        .every((l) => l.obrigacoesAtivoPct === null),
+    ).toBe(true);
     expect(tabelas.assetProventoAuditado.length).toBe(dados.proventos.length);
   });
 

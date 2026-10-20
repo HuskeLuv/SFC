@@ -72,6 +72,11 @@ export interface EntradaMultiplosFii {
   /** rendimento por cota na mesma base do preço (ano ou 12 meses) */
   rendCota: Valor<number>;
   obrigacoesPlPct: number | null;
+  /**
+   * A6 (fatia E): obrigações ÷ ativo total do informe mensal (fii_monthly.obrigacoesAtivoPct, em %).
+   * Opcional para as entradas antigas; ausente = sem dado.
+   */
+  obrigacoesAtivoPct?: number | null;
   vacanciaFisicaCvmPct: number | null;
   nImoveisCvm: number | null;
   pl: number | null;
@@ -101,6 +106,7 @@ export type NomeMultiplo =
   | 'vpCota'
   | 'rendCota'
   | 'obrigacoesPlPct'
+  | 'obrigacoesAtivoPct'
   | 'vacanciaFisicaCvmPct'
   | 'nImoveisCvm';
 
@@ -241,6 +247,7 @@ export function multiplosFii(e: EntradaMultiplosFii): MultiplosCalculados {
     pvp: razao(preco, v(e.vpCota)),
     dyPct: razao(e.rendCota, preco, 100),
     obrigacoesPlPct: v(e.obrigacoesPlPct),
+    obrigacoesAtivoPct: v(e.obrigacoesAtivoPct),
     vacanciaFisicaCvmPct: v(e.vacanciaFisicaCvmPct),
     nImoveisCvm: v(e.nImoveisCvm),
     flags,
