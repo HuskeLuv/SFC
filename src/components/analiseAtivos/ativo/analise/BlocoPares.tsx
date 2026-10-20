@@ -7,7 +7,9 @@
  *  - Ações: Ativo · P/L · P/VP · ROE · DY 12m · Lucros seguidos · Critérios;
  *  - FIIs: Fundo · DY 12m · P/VP · Vacância (CVM) (tijolo) ou Nº CRIs (papel) · Alavancagem (% do
  *    PL) (v2.5, rótulo coerente com o chip 'Alavancagem ≤ 20% do PL'; cálculo = obrigações ÷ PL) ·
- *    Patrimônio · Critérios.
+ *    Patrimônio · Critérios. A6 (fatia E): com ANALISE_ATIVOS_ALAV_ATIVO_HABILITADO a API traz
+ *    obrigacoesAtivoPct nas linhas de FII e a coluna 'Alavancagem (% do ativo)' entra ao lado da de PL,
+ *    cada uma com o próprio valor e rótulo; sem o campo (chave desligada), a tabela é a de hoje.
  * Computador: tabela TABLE_STYLES com th scope="row" e CelulaCriterios (botão de 44 px com o
  * detalhe em tooltip, sem abrir a linha); celular: cartões (links de 44 px+) com 'n de k' em texto.
  * Desde que fica em 2/3 da linha (xl, ao lado dos Múltiplos históricos), a tabela cabe na coluna:
@@ -96,7 +98,20 @@ const CRITERIOS: ColunaPar = {
   valor: textoCriteriosPar,
 };
 
-function colunasDe(classe: ClasseQuadro, papel: boolean): ColunaPar[] {
+/** A6: coluna nova ao lado da de PL (obrigações ÷ ativo total), só quando a API manda o campo. */
+const ALAVANCAGEM_ATIVO: ColunaPar = {
+  codigo: 'alavancagemAtivo',
+  rotulo: TA.colunas.alavancagemAtivo,
+  valor: (l) => {
+    const v = deEstado(
+      l.obrigacoesAtivoPct ?? { estado: 'ausente', motivo: 'sem_dado_fonte', texto: SEM },
+      'pct',
+    );
+    return { ...v, title: v.title ?? TEXTOS_ATIVO.alavancagemAtivo.tooltip };
+  },
+};
+
+function colunasDe(classe: ClasseQuadro, papel: boolean, alavAtivo = false): ColunaPar[] {
   if (classe === 'acao') {
     return [
       { codigo: 'pl', rotulo: C.pl, valor: (l) => deEstado(l.pl, 'numero') },
@@ -129,6 +144,7 @@ function colunasDe(classe: ClasseQuadro, papel: boolean): ColunaPar[] {
         return { ...v, title: v.title ?? TEXTOS_ATIVO.alavancagem.tooltip };
       },
     },
+    ...(alavAtivo ? [ALAVANCAGEM_ATIVO] : []),
     {
       codigo: 'patrimonio',
       rotulo: C.patrimonio,
@@ -151,7 +167,9 @@ export default function BlocoPares({ ticker, classe }: BlocoParesProps) {
   // v2.4: a API manda só os pares; o filtro garante que o próprio ativo nunca aparece
   const itens = (pares?.itens ?? []).filter((l) => l.ticker !== ticker);
   const papel = itens.length > 0 && itens.every((l) => l.fiiTipo === 'papel');
-  const colunas = colunasDe(classe, papel);
+  // A6: o campo só vem na API com a chave ALAV_ATIVO ligada
+  const alavAtivo = classe === 'fii' && itens.some((l) => l.obrigacoesAtivoPct !== undefined);
+  const colunas = colunasDe(classe, papel, alavAtivo);
   const tituloCriterios = formatarTexto(TA.criteriosTitulo, { anos: JANELA_PARES });
 
   return (
