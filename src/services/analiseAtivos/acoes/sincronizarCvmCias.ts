@@ -54,7 +54,9 @@ import {
   listarTickersAcoes,
   type SegmentosFinanceirosIngestao,
 } from '@/services/analiseAtivos/repositorio/universo';
+import { analiseAtivosCvmDva } from '@/lib/analiseAtivosConfig';
 import {
+  CONTAS_DVA_LIDAS,
   DEMONSTRATIVOS_POR_DOC,
   MAX_BYTES_ZIP_CVM,
   SUBCONJUNTO_DEV_STATEMENT_LINES,
@@ -104,6 +106,7 @@ import {
   type ResolucaoAcoes,
 } from '@/services/analiseAtivos/regras/acoes/acoesEmitidas';
 import {
+  CAMPOS_FINANCEIRAS,
   RE_DIVIDENDOS,
   extrairFundamentos,
   type FundamentosExtraidos,
@@ -478,6 +481,9 @@ export function relevanteFundamentos(l: {
       return n <= 3 || (n === 4 && l.cdConta.startsWith('6.01.01.'));
     case 'DMPL':
       return /^5\.0[456]\.\d+$/.test(l.cdConta) && RE_DIVIDENDOS.test(l.dsConta);
+    case 'DVA':
+      // A6: só lida para os CNPJs financeiros (o filtro de documentos fica no streaming)
+      return CONTAS_DVA_LIDAS.has(l.cdConta);
     default:
       return false;
   }
@@ -628,7 +634,17 @@ async function processarPendentes(
     lidas: (n: number) => ctx.contar('linhasLidas', n),
     rejeitada: () => ctx.contar('rejeitadas', 1),
   };
+  // A6: DVA só com a chave e só dos documentos de CNPJs financeiros (nenhum ⇒ nem abre a entrada)
+  const lerDva = analiseAtivosCvmDva();
+  const docsDva = lerDva
+    ? new Map(
+        pendentes
+          .filter((d) => apoio.segmentos.financeiras.has(d.cnpj))
+          .map((d) => [chaveDoc(d.cnpj, d.dtRefer), d.versao]),
+      )
+    : new Map<string, number>();
   for (const dem of DEMONSTRATIVOS_POR_DOC[doc]) {
+    if (dem === 'DVA' && docsDva.size === 0) continue;
     for (const escopo of ESCOPOS) {
       const nome = entradaDemonstrativo(doc, dem, escopo, ano);
       const entrada = acharEntrada(entradas, nome);
@@ -641,13 +657,14 @@ async function processarPendentes(
       for await (const l of lerLinhasDemonstrativo(caminho, entrada, {
         dem,
         escopo,
-        docs: docsAceitos,
+        docs: dem === 'DVA' ? docsDva : docsAceitos,
         contadores,
       })) {
         const a = acumulador(chaveDoc(l.cnpj, l.dtRefer));
         a.presentes[escopo].add(dem);
         if (relevanteFundamentos(l)) a.fund[escopo].push(l);
-        if (a.raioX && dem !== 'DMPL') a.raioX[escopo].push(l);
+        // DMPL e DVA ficam fora do Raio-X (nada novo em asset_statement_lines)
+        if (a.raioX && dem !== 'DMPL' && dem !== 'DVA') a.raioX[escopo].push(l);
       }
       if (ctx.estourouPrazo()) return { parcial: true, contagens: {} };
     }
@@ -693,6 +710,7 @@ async function processarPendentes(
           dtIni: p.dtIni,
           dtFim: d.dtRefer,
           mesFimExercicio: mesFim,
+          dva: docsDva.has(chaveDoc(d.cnpj, d.dtRefer)),
         });
         extraidos.push({ f, escala });
         if (f.flags.includes('controladora_zero') && escopo === 'con') {
@@ -711,6 +729,7 @@ async function processarPendentes(
       ...existentesContagem,
       ...contagensRun,
     ]);
+    escalarCamposFinanceiras(extraidos, fatoresEscala);
     // regra 12: controladora e não controladores zerados ⇒ lucro do individual do mesmo documento
     const comLucroInd = aplicarLucroIndividual(extraidos.map((x) => x.f));
     comLucroInd.forEach((f, i) => {
@@ -920,6 +939,23 @@ function conferirEscala(
   return fatores;
 }
 
+/** A6: a correção de escala do documento vale também para os campos de financeira. */
+function escalarCamposFinanceiras(
+  extraidos: Array<{ f: FundamentosExtraidos }>,
+  fatores: Map<Escopo, number>,
+): void {
+  for (const x of extraidos) {
+    const fator = fatores.get(x.f.escopo) ?? 1;
+    if (fator === 1) continue;
+    const f = { ...x.f };
+    for (const c of CAMPOS_FINANCEIRAS) {
+      const v = f[c];
+      if (typeof v === 'number') f[c] = v * fator;
+    }
+    x.f = f;
+  }
+}
+
 /** Regra 10 no DFP; no ITR a escala unidade/×1000 do DFP mais recente da empresa. */
 function resolverContagem(
   ctx: JobContexto,
@@ -1026,6 +1062,8 @@ function linhaFundamentos(
     capex: dec2(f.capex),
     dividendosJcpPagos: dec2(f.dividendosJcpPagos),
     dmplDeclarado: dec2(f.dmplDeclarado),
+    pdd: dec2(f.pdd),
+    receitaIntermediacaoDva: dec2(f.receitaIntermediacaoDva),
     lpaOn: m.lpaOn,
     lpaPn: m.lpaPn,
     lpaEscalaCorrigida: m.lpaEscalaCorrigida,
@@ -1078,13 +1116,22 @@ export function montarLinhasTtm(
       .map((l) => ({
         tipoPeriodo: l.tipoPeriodo as PeriodoFluxo['tipoPeriodo'],
         dtFim: paraData(l.dtFim),
-        valores: Object.fromEntries(CAMPOS_FLUXO.map((c) => [c, paraNumero(l[c])])),
+        valores: Object.fromEntries(
+          [...CAMPOS_FLUXO, ...CAMPOS_FINANCEIRAS].map((c) => [c, paraNumero(l[c])]),
+        ),
       }));
-    const r = calcularTtmPeriodo(
+    const baseTtm = {
+      tipoPeriodo: base.tipoPeriodo as 'FY' | 'YTD',
+      dtFim: paraData(base.dtFim),
+    };
+    const r = calcularTtmPeriodo(periodosFluxo, baseTtm, doMesFim, ctx.params);
+    // A6: campos de financeira com o mesmo TTM, sem entrar nas flags da linha
+    const rFin = calcularTtmPeriodo(
       periodosFluxo,
-      { tipoPeriodo: base.tipoPeriodo as 'FY' | 'YTD', dtFim: paraData(base.dtFim) },
+      baseTtm,
       doMesFim,
       ctx.params,
+      CAMPOS_FINANCEIRAS,
     );
     const dtFim = paraData(base.dtFim);
     // período com escala declarada ambígua na janela do TTM ⇒ o TTM herda a flag (Índice incompleto)
@@ -1110,6 +1157,7 @@ export function montarLinhasTtm(
       tipoPeriodo: 'TTM',
       dtIni: deData(proximoDia(fimDoMesAnterior(dtFim, 12))),
       ...Object.fromEntries(CAMPOS_FLUXO.map((c) => [c, dec2(r.valores[c])])),
+      ...Object.fromEntries(CAMPOS_FINANCEIRAS.map((c) => [c, dec2(rFin.valores[c])])),
       lpaOn: null,
       lpaPn: null,
       lpaEscalaCorrigida: false,

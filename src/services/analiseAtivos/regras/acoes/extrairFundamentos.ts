@@ -17,6 +17,10 @@
  *     /dividend|JCP/ sem /prescrit|revers|reclassif/, na coluna do PL da controladora (regra do spike:
  *     erro mediano 8,6% contra o FRE 3.5)
  * Layout financeiro (banco/seguradora): EBIT, D&A, AC/PC e dívida bruta ficam null e "não se aplica".
+ * DVA (A6, fatia B; só com ctx.dva = ANALISE_ATIVOS_CVM_DVA + CNPJ financeiro): receitaIntermediacaoDva
+ *   7.01.01 /Intermediação Financeira/ e pdd 7.01.03 /provisão|perdas|crédito/ (plano de instituição
+ *   financeira), como publicados (PDD negativa = despesa). DVA no plano de empresa comum (7.01.03 =
+ *   outra conta: RPAD, BRBI, BSLI) ⇒ null ('sem DVA de instituição financeira no documento').
  * Demonstrativo presente sem a linha somada (capex, dividendos pagos, DMPL) = 0 de verdade; demonstrativo
  * ausente = null (ausente).
  */
@@ -36,7 +40,7 @@ import type {
   TipoPeriodo,
 } from '@/services/analiseAtivos/tipos';
 
-export type Demonstrativo = 'BPA' | 'BPP' | 'DRE' | 'DFC_MI' | 'DMPL';
+export type Demonstrativo = 'BPA' | 'BPP' | 'DRE' | 'DFC_MI' | 'DMPL' | 'DVA';
 
 export interface LinhaDemonstrativo {
   demonstrativo: Demonstrativo;
@@ -57,12 +61,31 @@ export interface ContextoExtracao {
   dtIni: string;
   dtFim: string;
   mesFimExercicio: number | null;
+  /** A6: lê a DVA (PDD e intermediação) — ANALISE_ATIVOS_CVM_DVA e CNPJ do Set de financeiras */
+  dva?: boolean;
 }
 
 export type FundamentosExtraidos = Omit<
   FundamentosPeriodo,
   'emissorId' | 'docTipo' | 'versao' | 'dtEntregaOriginal'
 > & { codContaLucro: string | null };
+
+/**
+ * Campos de financeira (A6, colunas novas de asset_fundamentals_period): DVA das financeiras e DRE
+ * das seguradoras por rótulo. Monetários (seguem a correção de escala) e de fluxo (TTM, regra 14).
+ */
+export const CAMPOS_FINANCEIRAS = [
+  'pdd',
+  'receitaIntermediacaoDva',
+  'resultadoFinanceiro',
+  'equivalenciaPatrimonial',
+  'receitaComissoesServicos',
+  'receitaSeguro',
+  'despesaSeguro',
+  'premiosGanhos',
+  'sinistrosRetidos',
+] as const;
+export type CampoFinanceira = (typeof CAMPOS_FINANCEIRAS)[number];
 
 const RE_DA = /deprecia|amortiza|exaust/i;
 const RE_DA_EXCL = /capta[cç]|custo[s]? de transa|empr[eé]stim|financiament|deb[eê]nture|juros/i;
@@ -75,6 +98,8 @@ const RE_NAO_CONTROLADOR = /N[aã]o Controlador/i;
 const RE_CAIXA = /^Caixa e Equivalentes/i;
 const RE_DIVIDA = /empr[eé]stimo|financiamento/i;
 const COLUNA_PL = 'Patrimônio Líquido';
+const RE_DVA_INTERMEDIACAO = /Intermedia[cç][aã]o Financeira/i;
+const RE_DVA_PDD = /provis[aã]o|perdas?|cr[eé]dito|liquida[cç][aã]o duvidosa/i;
 
 function soma(xs: number[]): number {
   return xs.reduce((s, x) => s + x, 0);
@@ -90,6 +115,7 @@ export function extrairFundamentos(
   const bpp = por('BPP');
   const dfc = por('DFC_MI');
   const dmpl = por('DMPL');
+  const dva = ctx.dva ? por('DVA') : [];
   const conta = (ls: LinhaDemonstrativo[], cd: string) => ls.find((l) => l.cdConta === cd) ?? null;
   const valorConta = (ls: LinhaDemonstrativo[], cd: string) => conta(ls, cd)?.valor ?? null;
   const fin = ctx.ehFinanceira;
@@ -195,6 +221,14 @@ export function extrairFundamentos(
     dmplDeclarado = -total || 0;
   }
 
+  // DVA de instituição financeira (A6): só as duas contas, conferidas pelo rótulo
+  const contaDva = (cd: string, re: RegExp) => {
+    const l = conta(dva, cd);
+    return l && re.test(l.dsConta) ? l.valor : null;
+  };
+  const receitaIntermediacaoDva = ctx.dva ? contaDva('7.01.01', RE_DVA_INTERMEDIACAO) : null;
+  const pdd = ctx.dva && receitaIntermediacaoDva !== null ? contaDva('7.01.03', RE_DVA_PDD) : null;
+
   const naoSeAplica = metricasNaoAplicaveis({
     layoutFinanceiro: fin,
     receita,
@@ -239,6 +273,8 @@ export function extrairFundamentos(
     dmplDeclarado,
     lpaOn: lpa.on,
     lpaPn: lpa.pn,
+    pdd,
+    receitaIntermediacaoDva,
     naoSeAplica: [...naoSeAplica.keys()].sort(),
     flags: [...lucro.flags],
     codContaLucro: lucro.codContaLucro,

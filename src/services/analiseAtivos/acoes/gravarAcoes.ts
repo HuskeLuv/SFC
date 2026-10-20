@@ -14,6 +14,7 @@ import type { Prisma, PrismaClient } from '@prisma/client';
 import { cnpjOuOriginal } from '@/services/analiseAtivos/regras/comum/cnpj';
 import { deData, paraData, paraNumero } from '@/services/analiseAtivos/repositorio/conversao';
 import type { CiaFca, TituloFca } from '@/services/analiseAtivos/acoes/parserFca';
+import { CAMPOS_FINANCEIRAS } from '@/services/analiseAtivos/regras/acoes/extrairFundamentos';
 import type { AlertaJob, JobContexto } from '@/services/analiseAtivos/tipos';
 
 export const TAMANHO_LOTE = 1_000;
@@ -491,6 +492,8 @@ const CAMPOS_COMPARACAO_TTM = [
   'ativoTotal',
   'pl',
   'plControladora',
+  // A6: campos de financeira (PDD da DVA, DRE das seguradoras)
+  ...CAMPOS_FINANCEIRAS,
 ] as const;
 
 /** Cria as linhas TTM novas em lote e atualiza as que o recálculo mudou. */

@@ -4,13 +4,17 @@
  * job falha alto com ErroLayoutFonte em vez de gravar vazio).
  *
  *   DFP (anual) e ITR (trimestral): índice + DRE, BPA, BPP, DFC_MI (+ DMPL só no DFP) e
- *   composicao_capital. DVA, DRA, parecer e DFC_MD não são lidos.
+ *   composicao_capital. DRA, parecer e DFC_MD não são lidos.
+ *   DVA (A6, fatia B): só com ANALISE_ATIVOS_CVM_DVA, só dos CNPJs financeiros (Set de AssetSetorB3)
+ *   e só as contas 7.01.01 (intermediação financeira) e 7.01.03 (PDD); nunca vai para o Raio-X
+ *   (asset_statement_lines).
  *   FCA: geral (cadastro) + valor_mobiliario (tickers). FRE: informacao_financeira (item f, até FY2021).
  */
 import type { Escopo } from '@/services/analiseAtivos/tipos';
+import { CONTAS_DVA_FINANCEIRA } from '@/types/analiseAtivosComplementos';
 
 export type DocCvm = 'dfp' | 'itr' | 'fca' | 'fre';
-export type EntradaDemonstrativo = 'DRE' | 'BPA' | 'BPP' | 'DFC_MI' | 'DMPL';
+export type EntradaDemonstrativo = 'DRE' | 'BPA' | 'BPP' | 'DFC_MI' | 'DMPL' | 'DVA';
 
 export const BASE_CVM = 'https://dados.cvm.gov.br/dados/CIA_ABERTA/DOC';
 
@@ -47,11 +51,17 @@ export function entradaFreInformacaoFinanceira(ano: number): string {
   return `fre_cia_aberta_informacao_financeira_${ano}.csv`;
 }
 
-/** Ordem de leitura: DRE primeiro (decide layout financeiro e escopos das linhas do Raio-X). */
+/**
+ * Ordem de leitura: DRE primeiro (decide layout financeiro e escopos das linhas do Raio-X). A DVA
+ * (último) só é aberta com ANALISE_ATIVOS_CVM_DVA e algum CNPJ financeiro pendente.
+ */
 export const DEMONSTRATIVOS_POR_DOC: Record<'dfp' | 'itr', EntradaDemonstrativo[]> = {
-  dfp: ['DRE', 'BPA', 'BPP', 'DFC_MI', 'DMPL'],
-  itr: ['DRE', 'BPA', 'BPP', 'DFC_MI'],
+  dfp: ['DRE', 'BPA', 'BPP', 'DFC_MI', 'DMPL', 'DVA'],
+  itr: ['DRE', 'BPA', 'BPP', 'DFC_MI', 'DVA'],
 };
+
+/** Contas da DVA lidas das financeiras (A6): intermediação financeira e PDD. */
+export const CONTAS_DVA_LIDAS: ReadonlySet<string> = new Set(Object.values(CONTAS_DVA_FINANCEIRA));
 
 // ---------------------------------------------------------------- colunas obrigatórias
 
@@ -74,6 +84,7 @@ export const COLUNAS_DEMONSTRATIVO: Record<EntradaDemonstrativo, string[]> = {
   DRE: [...BASE_DEMONSTRATIVO, 'DT_INI_EXERC'],
   DFC_MI: [...BASE_DEMONSTRATIVO, 'DT_INI_EXERC'],
   DMPL: [...BASE_DEMONSTRATIVO, 'DT_INI_EXERC', 'COLUNA_DF'],
+  DVA: [...BASE_DEMONSTRATIVO, 'DT_INI_EXERC'],
   BPA: BASE_DEMONSTRATIVO,
   BPP: BASE_DEMONSTRATIVO,
 };
