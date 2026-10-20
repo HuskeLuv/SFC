@@ -7,6 +7,8 @@ import type { PrismaClient } from '@prisma/client';
 import { SCORING_PARAMS_V1 } from '@/services/analiseAtivos/params/scoringParamsV1';
 import { raizTicker } from '@/services/analiseAtivos/repositorio/conversao';
 import { ESCOPO_POR_RAIZ_PADRAO } from '@/services/analiseAtivos/regras/acoes/financeiras';
+// A6: BBSE3/CXSE3/PSSA3 em 'Seguradoras', IRBR3 em 'Resseguradoras'
+import { SEGMENTOS_SEGURADORA } from '@/services/analiseAtivos/regras/acoes/templateFinanceira';
 import type {
   ClasseTitulo,
   EmissorInfo,
@@ -96,12 +98,6 @@ export async function listarEmissores(
     };
   });
 }
-
-/**
- * Segmentos B3 de seguradora (A6, template 'seguradora'): BBSE3/CXSE3/PSSA3 em 'Seguradoras', IRBR3
- * em 'Resseguradoras'. Só valem dentro de params.financeiras.segmentosFinanceiros.
- */
-export const SEGMENTOS_SEGURADORA: readonly string[] = ['Seguradoras', 'Resseguradoras'];
 
 /**
  * Sets de CNPJs financeiros da ingestão CVM (A6, fatia B), pelo segmento B3 (AssetSetorB3) da raiz
