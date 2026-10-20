@@ -155,7 +155,7 @@ describe('recomputarCelula', () => {
     ...extra,
   });
 
-  it('célula vazia: cria com a soma dos valores absolutos do mês (UTC) como parte do banco', async () => {
+  it('célula vazia: cria com a soma do mês (competência do cartão ou, sem ela, a data UTC) como parte do banco', async () => {
     mockPrisma.bankTransaction.findMany.mockResolvedValue([{ amount: -185 }, { amount: -120.5 }]);
     expect(await recomputarCelula('u1', celula)).toBe(305.5);
     expect(mockPrisma.bankTransaction.findMany).toHaveBeenCalledWith({
@@ -164,7 +164,13 @@ describe('recomputarCelula', () => {
         cashflowItemId: 'it-energia',
         deletedAt: null,
         duplicadaDe: null,
-        date: { gte: new Date('2026-08-01T00:00:00Z'), lt: new Date('2026-09-01T00:00:00Z') },
+        OR: [
+          { competenciaAno: 2026, competenciaMes: 7 },
+          {
+            competenciaAno: null,
+            date: { gte: new Date('2026-08-01T00:00:00Z'), lt: new Date('2026-09-01T00:00:00Z') },
+          },
+        ],
       },
       select: { amount: true },
     });
@@ -254,6 +260,24 @@ describe('aplicar / desaplicar / ignorar', () => {
     });
     expect(r.aplicadas).toBe(2);
     expect(r.celulas).toEqual([{ itemId: 'it-energia-user', year: 2026, month: 7, value: 305 }]);
+  });
+
+  it('compra no cartão com competência gravada entra no mês da fatura, não no da data', async () => {
+    mockPrisma.bankTransaction.findMany
+      .mockResolvedValueOnce([
+        {
+          id: 't1',
+          date: new Date('2026-09-20T00:00:00Z'),
+          competenciaAno: 2026,
+          competenciaMes: 9,
+        },
+      ])
+      .mockResolvedValue([{ amount: 100 }]);
+    mockEnsure.mockResolvedValue({ itemId: 'it-super', item: { groupId: 'g-hab' } });
+
+    const r = await aplicar('u1', [{ id: 't1', itemId: 'it-super' }]);
+
+    expect(r.celulas).toEqual([{ itemId: 'it-super', year: 2026, month: 9, value: 100 }]);
   });
 
   it('409 se alguma transação não está pendente; 400 para linha de Investimentos', async () => {

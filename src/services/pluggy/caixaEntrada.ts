@@ -11,8 +11,9 @@
  *  - o sentido (receita/despesa) vem do GRUPO da linha, não do sinal da
  *    transação (cartão manda compra com sinal trocado em alguns conectores);
  *  - linhas do grupo Investimentos não aceitam transação (a Carteira é a fonte);
- *  - mês de competência = data da transação (UTC). Fatura de cartão por data
- *    de vencimento fica para depois.
+ *  - mês de competência = BankTransaction.competencia* quando preenchida (cartão no
+ *    mês do vencimento da fatura, chave PLUGGY_CARTAO_MES_FATURA — competenciaCartao.ts);
+ *    senão, a data da transação (UTC).
  */
 import type { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
@@ -88,6 +89,8 @@ export interface PendenteDTO {
   amount: number;
   type: string;
   providerCategory: string | null;
+  /** Mês do fluxo em que entra ("2026-10"), quando difere da regra da data (cartão). */
+  competencia: string | null;
   sugestao: SugestaoLinha;
 }
 
@@ -128,6 +131,7 @@ export async function listarPendentes(
       amount: Number(t.amount),
       type: t.type,
       providerCategory: t.providerCategory,
+      competencia: competenciaTexto(t),
       sugestao: resolverSugestao(t.providerCategory, idx),
     })),
     total,
@@ -146,11 +150,32 @@ export interface Celula {
   month: number;
 }
 
-const chaveCelula = (c: Celula) => `${c.itemId}|${c.year}|${c.month}`;
+export const chaveCelula = (c: Celula) => `${c.itemId}|${c.year}|${c.month}`;
 
-function celulaDe(itemId: string, date: Date): Celula {
-  return { itemId, year: date.getUTCFullYear(), month: date.getUTCMonth() };
+interface DataCompetencia {
+  date: Date;
+  competenciaAno?: number | null;
+  competenciaMes?: number | null;
 }
+
+/** Célula (item, ano, mês) da transação: a competência gravada ou, sem ela, a data. */
+export function celulaDe(itemId: string, t: DataCompetencia): Celula {
+  if (t.competenciaAno != null && t.competenciaMes != null) {
+    return { itemId, year: t.competenciaAno, month: t.competenciaMes };
+  }
+  return { itemId, year: t.date.getUTCFullYear(), month: t.date.getUTCMonth() };
+}
+
+function competenciaTexto(t: DataCompetencia): string | null {
+  if (t.competenciaAno == null || t.competenciaMes == null) return null;
+  return `${t.competenciaAno}-${String(t.competenciaMes + 1).padStart(2, '0')}`;
+}
+
+export const SELECT_COMPETENCIA = {
+  date: true,
+  competenciaAno: true,
+  competenciaMes: true,
+} as const;
 
 /**
  * Recalcula a parte do banco da célula (Σ |amount| das transações aplicadas no item naquele mês)
@@ -169,7 +194,10 @@ export async function recomputarCelula(userId: string, c: Celula): Promise<numbe
       cashflowItemId: c.itemId,
       deletedAt: null,
       duplicadaDe: null,
-      date: { gte: inicio, lt: fim },
+      OR: [
+        { competenciaAno: c.year, competenciaMes: c.month },
+        { competenciaAno: null, date: { gte: inicio, lt: fim } },
+      ],
     },
     select: { amount: true },
   });
@@ -246,12 +274,12 @@ export async function aplicar(userId: string, aplicacoes: Aplicacao[]): Promise<
   const ids = [...new Set(aplicacoes.map((a) => a.id))];
   const txs = await prisma.bankTransaction.findMany({
     where: { id: { in: ids }, userId, ...PENDENTE_WHERE },
-    select: { id: true, date: true },
+    select: { id: true, ...SELECT_COMPETENCIA },
   });
   if (txs.length !== ids.length) {
     throw new ApiError(409, 'Alguma transação já foi aplicada, ignorada ou não existe');
   }
-  const dataPorTx = new Map(txs.map((t) => [t.id, t.date]));
+  const txPorId = new Map(txs.map((t) => [t.id, t]));
 
   // Resolve cada item pedido uma vez (personalizando template → override).
   const itemFinal = new Map<string, string>();
@@ -285,7 +313,7 @@ export async function aplicar(userId: string, aplicacoes: Aplicacao[]): Promise<
   await prisma.$transaction(
     aplicacoes.map((a) => {
       const finalId = itemFinal.get(a.itemId)!;
-      const c = celulaDe(finalId, dataPorTx.get(a.id)!);
+      const c = celulaDe(finalId, txPorId.get(a.id)!);
       celulas.set(chaveCelula(c), c);
       return prisma.bankTransaction.update({
         where: { id: a.id },
@@ -300,12 +328,12 @@ export async function aplicar(userId: string, aplicacoes: Aplicacao[]): Promise<
 export async function desaplicar(userId: string, ids: string[]): Promise<AplicarResultado> {
   const txs = await prisma.bankTransaction.findMany({
     where: { id: { in: ids }, userId, cashflowItemId: { not: null } },
-    select: { id: true, date: true, cashflowItemId: true },
+    select: { id: true, cashflowItemId: true, ...SELECT_COMPETENCIA },
   });
   if (txs.length === 0) return { aplicadas: 0, celulas: [], ids: [] };
   const celulas = new Map<string, Celula>();
   for (const t of txs) {
-    const c = celulaDe(t.cashflowItemId!, t.date);
+    const c = celulaDe(t.cashflowItemId!, t);
     celulas.set(chaveCelula(c), c);
   }
   await prisma.bankTransaction.updateMany({

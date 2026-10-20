@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mockPrisma = vi.hoisted(() => ({
   bankConnection: {
@@ -14,13 +14,17 @@ const mockPrisma = vi.hoisted(() => ({
   bankInvestment: { count: vi.fn() },
   bankLoan: { count: vi.fn() },
   bankTransaction: { findMany: vi.fn(), createMany: vi.fn(), update: vi.fn(), updateMany: vi.fn() },
+  bankCreditBill: { upsert: vi.fn(), findMany: vi.fn() },
   pluggyWebhookEvent: { findMany: vi.fn(), updateMany: vi.fn(), update: vi.fn() },
   openFinanceConsentimento: { updateMany: vi.fn() },
   cashflowValue: { findUnique: vi.fn(), create: vi.fn(), update: vi.fn(), delete: vi.fn() },
 }));
-// recomputarCelula usa transação interativa: o tx é o próprio mock.
+// recomputarCelula usa transação interativa: o tx é o próprio mock. A forma em lote
+// (array de operações) aparece na competência do cartão.
 Object.assign(mockPrisma, {
-  $transaction: vi.fn(async (fn: (tx: typeof mockPrisma) => unknown) => fn(mockPrisma)),
+  $transaction: vi.fn(async (arg: unknown) =>
+    Array.isArray(arg) ? Promise.all(arg) : (arg as (tx: typeof mockPrisma) => unknown)(mockPrisma),
+  ),
 });
 vi.mock('@/lib/prisma', () => ({ prisma: mockPrisma, default: mockPrisma }));
 
@@ -28,6 +32,7 @@ const mockClient = vi.hoisted(() => ({
   fetchItem: vi.fn(),
   fetchAccounts: vi.fn(),
   fetchAllTransactions: vi.fn(),
+  fetchCreditCardBills: vi.fn(),
   updateItem: vi.fn(),
   deleteItem: vi.fn(),
 }));
@@ -841,6 +846,98 @@ describe('processarEventosPendentes', () => {
     expect(mockPrisma.pluggyWebhookEvent.update).toHaveBeenLastCalledWith({
       where: { id: 'ev-1' },
       data: { status: 'error', error: 'boom', processedAt: expect.any(Date) },
+    });
+  });
+});
+
+describe('cartão no mês da fatura (PLUGGY_CARTAO_MES_FATURA)', () => {
+  const contaLocalCartao = {
+    id: 'acc-l1',
+    ativa: true,
+    type: 'CREDIT',
+    providerAccountId: 'acc-p1',
+    userId: 'user-1',
+    creditDueDate: null,
+  };
+  // Lançada em cf-x pela data (set/2026), sem competência gravada; a fatura dela vence em out.
+  const lancada = {
+    id: 'l1',
+    date: new Date('2026-09-20T12:00:00Z'),
+    billId: null,
+    description: 'MERCADO',
+    amount: 100,
+    installmentNumber: null,
+    installmentTotal: null,
+    competenciaAno: null,
+    competenciaMes: null,
+    cashflowItemId: 'cf-x',
+  };
+
+  beforeEach(() => {
+    mockPrisma.bankAccount.upsert.mockResolvedValue(contaLocalCartao);
+    mockClient.fetchCreditCardBills.mockResolvedValue({
+      results: [
+        {
+          id: 'bill-out',
+          dueDate: '2026-10-12T00:00:00Z',
+          billClosingDate: '2026-10-05T00:00:00Z',
+          totalAmount: 100,
+        },
+      ],
+      totalPages: 1,
+    });
+    mockPrisma.bankCreditBill.findMany.mockResolvedValue([
+      {
+        providerBillId: 'bill-out',
+        dueDate: new Date('2026-10-12T00:00:00Z'),
+        closingDate: new Date('2026-10-05T00:00:00Z'),
+      },
+    ]);
+    type Where = Record<string, unknown>;
+    mockPrisma.bankTransaction.findMany.mockImplementation(
+      async ({ select }: { select?: Where }) => (select?.billId ? [lancada] : []),
+    );
+    mockPrisma.cashflowValue.findUnique.mockResolvedValue(null);
+  });
+
+  afterEach(() => {
+    delete process.env.PLUGGY_CARTAO_MES_FATURA;
+  });
+
+  it('ligada: grava as faturas, a competência e recalcula a célula de origem e a de destino', async () => {
+    process.env.PLUGGY_CARTAO_MES_FATURA = 'true';
+    await sincronizarConexao('conn-1');
+
+    expect(mockClient.fetchCreditCardBills).toHaveBeenCalledWith('acc-p1', { page: 1 });
+    expect(mockPrisma.bankCreditBill.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { providerBillId: 'bill-out' } }),
+    );
+    expect(mockPrisma.bankTransaction.updateMany).toHaveBeenCalledWith({
+      where: { id: { in: ['l1'] } },
+      data: { competenciaAno: 2026, competenciaMes: 9 },
+    });
+    const meses = mockPrisma.cashflowValue.findUnique.mock.calls.map(
+      ([a]: [{ where: { itemId_userId_year_month: { month: number } } }]) =>
+        a.where.itemId_userId_year_month.month,
+    );
+    expect(meses).toEqual(expect.arrayContaining([8, 9]));
+  });
+
+  it('desligada: não busca faturas nem grava competência', async () => {
+    await sincronizarConexao('conn-1');
+    expect(mockClient.fetchCreditCardBills).not.toHaveBeenCalled();
+    expect(mockPrisma.bankTransaction.updateMany).not.toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ competenciaAno: 2026 }) }),
+    );
+  });
+
+  it('falha da API de faturas não derruba o sync (usa as gravadas)', async () => {
+    process.env.PLUGGY_CARTAO_MES_FATURA = 'true';
+    mockClient.fetchCreditCardBills.mockRejectedValue(new Error('403 product not consented'));
+    await expect(sincronizarConexao('conn-1')).resolves.toMatchObject({ connectionId: 'conn-1' });
+    expect(mockPrisma.bankTransaction.updateMany).toHaveBeenCalledWith({
+      where: { id: { in: ['l1'] } },
+      data: { competenciaAno: 2026, competenciaMes: 9 },
     });
   });
 });
