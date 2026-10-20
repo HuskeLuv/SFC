@@ -13,8 +13,10 @@ import {
   linhaFund,
   num,
   rodarFin,
+  setoresFixtures,
   zipDfpFin,
 } from '@/services/analiseAtivos/acoes/__tests__/financeirasFixtures';
+import { criarPrismaFake } from '@/services/analiseAtivos/acoes/__tests__/prismaFake';
 
 afterAll(() => rmSync(dirZips, { recursive: true, force: true }));
 
@@ -127,5 +129,32 @@ describe('Campos de seguradora — DFP 2022 (antes do IFRS 17)', () => {
     const fy = await carregar(2022);
     expect(num(fy('BBSE').receitaComissoesServicos)).toBe(4_141_994 * mil);
     expect(num(fy('BBSE').equivalenciaPatrimonial)).toBe(3_363_765 * mil);
+  });
+});
+
+describe("Layout 'Receitas das Operações' restrito ao Set de seguradoras", () => {
+  it('BBSE 2022 passa a financeira (EBIT/D&A não se aplicam); fora do Set, o mesmo rótulo não muda nada', async () => {
+    const comSet = await carregar(2022);
+    const b = comSet('BBSE');
+    expect(b.ebit ?? null).toBeNull();
+    expect(b.naoSeAplica).toContain('ebit');
+
+    // BBSE fora do Set = uma 'industrial' com o mesmo rótulo na 3.01: segue o layout comum
+    const { prisma, tabelas } = criarPrismaFake();
+    tabelas.assetSetorB3.push(...setoresFixtures(['BBSE']));
+    await rodarFin(
+      prisma,
+      { [urlArquivoCvm('dfp', 2022)]: zipDfpFin(2022) },
+      {
+        doc: 'dfp',
+        anos: [2022],
+      },
+    );
+    const fora = linhaFund(tabelas, CNPJ.BBSE, 'con', 'FY', '2022-12-31')!;
+    expect(num(fora.ebit)).toBe(3_681_904 * mil); // 3.05 do modelo antigo, como hoje
+    expect(fora.naoSeAplica).not.toContain('ebit');
+    expect(tabelas.cvmCompany.find((c) => c.cnpj === CNPJ.BBSE)?.layoutFinanceiro ?? false).toBe(
+      false,
+    );
   });
 });

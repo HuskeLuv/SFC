@@ -711,7 +711,9 @@ async function processarPendentes(
     const mesFim = doc === 'dfp' ? Number(d.dtRefer.slice(5, 7)) : (apoio.mesFim.get(d.cnpj) ?? 12);
     const temCon = a.fund.con.some((l) => l.demonstrativo === 'DRE');
     const dreRef = (temCon ? a.fund.con : a.fund.ind).filter((l) => l.demonstrativo === 'DRE');
-    const layoutFin = ehLayoutFinanceiro(dreRef);
+    const layoutFin = ehLayoutFinanceiro(dreRef, {
+      seguradora: apoio.segmentos.seguradoras.has(d.cnpj),
+    });
     layout.set(d.cnpj, layoutFin);
 
     const extraidos: Array<{ f: FundamentosExtraidos; escala: string }> = [];
