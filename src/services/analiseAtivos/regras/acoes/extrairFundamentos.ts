@@ -19,7 +19,8 @@
  * Layout financeiro (banco/seguradora): EBIT, D&A, AC/PC e dívida bruta ficam null e "não se aplica".
  * DVA (A6, fatia B; só com ctx.dva = ANALISE_ATIVOS_CVM_DVA + CNPJ financeiro): receitaIntermediacaoDva
  *   7.01.01 /Intermediação Financeira/ e pdd 7.01.03 /provisão|perdas|crédito/ (plano de instituição
- *   financeira), como publicados (PDD negativa = despesa). DVA no plano de empresa comum (7.01.03 =
+ *   financeira), como publicados (PDD negativa = despesa); 7.01.03 zerada ⇒ a filha de 7.01.04 com
+ *   /perda esperada/ (ITUB 2019–2021); sem nenhuma ⇒ null. DVA no plano de empresa comum (7.01.03 =
  *   outra conta: RPAD, BRBI, BSLI) ⇒ null ('sem DVA de instituição financeira no documento').
  * Seguradora (A6, fatia B; ctx.seguradora = CNPJ do Set de seguradoras, INDEPENDENTE do layout
  *   financeiro): campos POR RÓTULO da DRE em qualquer nível até 4, como publicados —
@@ -113,6 +114,11 @@ const RE_DIVIDA = /empr[eé]stimo|financiamento/i;
 const COLUNA_PL = 'Patrimônio Líquido';
 const RE_DVA_INTERMEDIACAO = /Intermedia[cç][aã]o Financeira/i;
 const RE_DVA_PDD = /provis[aã]o|perdas?|cr[eé]dito|liquida[cç][aã]o duvidosa/i;
+/**
+ * PDD fora da 7.01.03: ITUB consolidado 2019–2021 publica a 7.01.03 zerada e a perda esperada numa
+ * filha de 'Outras' (7.01.04.02 'Perda Esperada com Ativos Financeiros').
+ */
+export const RE_DVA_PDD_OUTRAS = /perda esperada|liquida[cç][aã]o duvidosa|risco de cr[eé]dito/i;
 
 function soma(xs: number[]): number {
   return xs.reduce((s, x) => s + x, 0);
@@ -336,7 +342,14 @@ export function extrairFundamentos(
     return l && re.test(l.dsConta) ? l.valor : null;
   };
   const receitaIntermediacaoDva = ctx.dva ? contaDva('7.01.01', RE_DVA_INTERMEDIACAO) : null;
-  const pdd = ctx.dva && receitaIntermediacaoDva !== null ? contaDva('7.01.03', RE_DVA_PDD) : null;
+  let pdd = ctx.dva && receitaIntermediacaoDva !== null ? contaDva('7.01.03', RE_DVA_PDD) : null;
+  if (ctx.dva && receitaIntermediacaoDva !== null && !pdd) {
+    // 7.01.03 zerada/ausente: a perda esperada publicada em 7.01.04.x; sem ela, não publicada (null)
+    const outras = dva.filter(
+      (l) => l.cdConta.startsWith('7.01.04.') && RE_DVA_PDD_OUTRAS.test(l.dsConta),
+    );
+    pdd = outras.length > 0 ? soma(outras.map((l) => l.valor)) || null : null;
+  }
 
   const naoSeAplica = metricasNaoAplicaveis({
     layoutFinanceiro: fin,

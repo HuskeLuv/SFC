@@ -12,6 +12,8 @@ import {
 } from '@/services/analiseAtivos/acoes/sincronizarCvmCias';
 import { zipFca } from '@/services/analiseAtivos/acoes/__tests__/zipFixtures';
 import { cnpjsFinanceirosPorSegmento } from '@/services/analiseAtivos/repositorio/universo';
+import { extrairFundamentos } from '@/services/analiseAtivos/regras/acoes/extrairFundamentos';
+import { relevanteFundamentos } from '@/services/analiseAtivos/acoes/sincronizarCvmCias';
 import {
   CNPJ,
   dirZips,
@@ -208,5 +210,45 @@ describe('--somente-financeiras e --tickers (backfill)', () => {
     const abertos = tabelas.cvmCompanyTicker.filter((t) => t.validTo === null);
     expect(abertos.map((t) => t.symbol).sort()).toEqual(['WEGE3', 'ZZZZ3']);
     expect(tabelas.cvmCompany.map((c) => c.cnpj)).toEqual([CNPJ.WEGE]);
+  });
+});
+
+describe('PDD fora da 7.01.03 (ITUB consolidado 2019–2021)', () => {
+  // DVA real do ITUB 2020 (con): 7.01.03 zerada e a perda esperada em 7.01.04.02
+  const dva = (cdConta: string, dsConta: string, valor: number) => ({
+    demonstrativo: 'DVA' as const,
+    cdConta,
+    dsConta,
+    valor,
+  });
+  const linhas = [
+    {
+      demonstrativo: 'DRE' as const,
+      cdConta: '3.01',
+      dsConta: 'Receitas da Intermediação Financeira',
+      valor: 1,
+    },
+    dva('7.01.01', 'Intermediação Financeira', 141_312_000_000),
+    dva('7.01.03', 'Provisão/Reversão de Créds. Liquidação Duvidosa', 0),
+    dva('7.01.04.01', 'Resultado de Oper de Seguros e Prev Privada', 4_488_000_000),
+    dva('7.01.04.02', 'Perda Esperada com Ativos Financeiros', -24_626_000_000),
+  ];
+  const ctx = {
+    demonstrativos: new Set(['DRE', 'DVA']),
+    ehFinanceira: true,
+    tipoPeriodo: 'FY' as const,
+    escopo: 'con' as const,
+    dtIni: '2020-01-01',
+    dtFim: '2020-12-31',
+    mesFimExercicio: 12,
+    dva: true,
+  };
+  it('7.01.03 zerada ⇒ a filha de 7.01.04 com "perda esperada"; a linha passa no filtro de leitura', () => {
+    expect(extrairFundamentos(linhas, ctx).pdd).toBe(-24_626_000_000);
+    expect(relevanteFundamentos(linhas[4])).toBe(true);
+    expect(relevanteFundamentos(linhas[3])).toBe(false);
+  });
+  it('7.01.03 zerada e nenhuma perda esperada ⇒ PDD não publicada (null, nunca 0)', () => {
+    expect(extrairFundamentos(linhas.slice(0, 4), ctx).pdd).toBeNull();
   });
 });

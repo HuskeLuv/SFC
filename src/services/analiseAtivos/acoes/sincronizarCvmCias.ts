@@ -110,6 +110,7 @@ import {
 import {
   CAMPOS_FINANCEIRAS,
   RE_DIVIDENDOS,
+  RE_DVA_PDD_OUTRAS,
   extrairFundamentos,
   type CampoFinanceira,
   type FundamentosExtraidos,
@@ -634,7 +635,10 @@ export function relevanteFundamentos(
       return /^5\.0[456]\.\d+$/.test(l.cdConta) && RE_DIVIDENDOS.test(l.dsConta);
     case 'DVA':
       // A6: só lida para os CNPJs financeiros (o filtro de documentos fica no streaming)
-      return CONTAS_DVA_LIDAS.has(l.cdConta);
+      return (
+        CONTAS_DVA_LIDAS.has(l.cdConta) ||
+        (l.cdConta.startsWith('7.01.04.') && RE_DVA_PDD_OUTRAS.test(l.dsConta))
+      );
     default:
       return false;
   }
