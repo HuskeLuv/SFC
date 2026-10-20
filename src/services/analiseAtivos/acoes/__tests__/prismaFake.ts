@@ -85,6 +85,8 @@ class DecimalFake {
 }
 
 function normalizar(v: unknown): unknown {
+  // coluna ausente na linha = NULL (como no Postgres)
+  if (v === undefined) return null;
   if (v instanceof Date) return v.getTime();
   if (v instanceof DecimalFake) return v.toNumber();
   return v;
@@ -200,7 +202,15 @@ export function criarPrismaFake() {
     },
     updateMany: async (a: { where?: Linha; data: Linha }) => {
       const alvo = tabelas[t].filter((x) => casa(x, a.where));
-      for (const l of alvo) Object.assign(l, a.data);
+      const dados = Object.fromEntries(
+        Object.entries(a.data).map(([k, v]) => [
+          k,
+          DECIMAIS.has(k) && (typeof v === 'string' || typeof v === 'number')
+            ? new DecimalFake(String(v))
+            : v,
+        ]),
+      );
+      for (const l of alvo) Object.assign(l, dados);
       escritas.n += alvo.length;
       return { count: alvo.length };
     },
@@ -217,6 +227,10 @@ export function criarPrismaFake() {
       return { ...n };
     },
   });
-  const prisma = Object.fromEntries(Object.keys(UNICOS).map((t) => [t, delegado(t)]));
+  const prisma: Record<string, unknown> = Object.fromEntries(
+    Object.keys(UNICOS).map((t) => [t, delegado(t)]),
+  );
+  // A6: o recompletar grava em transação (lista de operações já disparadas)
+  prisma.$transaction = async (ops: Array<Promise<unknown>>) => Promise.all(ops);
   return { prisma: prisma as unknown as PrismaClient, tabelas, escritas };
 }

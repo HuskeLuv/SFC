@@ -79,7 +79,9 @@ import {
   gravarLayoutFinanceiro,
   gravarLinhasDemonstrativo,
   gravarTtm,
+  completarCamposFundamentos,
   periodosDosEmissores,
+  type AtualizacaoCamposFundamentos,
   type BalancoVizinho,
   type ContagemGravavel,
   type LinhaFundamentosDb,
@@ -109,6 +111,7 @@ import {
   CAMPOS_FINANCEIRAS,
   RE_DIVIDENDOS,
   extrairFundamentos,
+  type CampoFinanceira,
   type FundamentosExtraidos,
 } from '@/services/analiseAtivos/regras/acoes/extrairFundamentos';
 import {
@@ -159,6 +162,13 @@ export interface OpcoesCvmCias {
   reprocessar?: boolean;
   /** processa também documentos já gravados (regrava só contagens de ações que mudaram) */
   revisitar?: boolean;
+  /**
+   * A6 (backfill --recompletar-campos): relê os CSVs dos documentos JÁ gravados (versão vigente) e
+   * faz UPDATE só das colunas novas e nulas ('pdd': DVA das financeiras, mesmo sem a chave;
+   * 'seguradora': DRE das seguradoras) e, em 'layout', de ebit/D&A só de BBSE/IRB 2016–2022. Nada
+   * é inserido; AnaliseFonteArquivo não é tocado. Com aplicar=false, só o relatório (dry-run).
+   */
+  recompletarCampos?: ModoRecompletar[];
   /** injeção para testes */
   baixar?: typeof baixarParaArquivo;
 }
@@ -177,6 +187,61 @@ export interface DetalheArquivo {
   contagens?: number;
   ttm?: number;
   cadastro?: Record<string, number>;
+  /** A6: relatório do --recompletar-campos (dry-run ou aplicado) */
+  recompletar?: RelatorioRecompletar;
+}
+
+// ---------------------------------------------------------------- recompletar (A6, contratos)
+
+export type ModoRecompletar = 'pdd' | 'seguradora' | 'layout';
+export const MODOS_RECOMPLETAR: readonly ModoRecompletar[] = ['pdd', 'seguradora', 'layout'];
+
+/** Colunas novas que cada modo preenche (só quando NULAS no banco). */
+export const COLUNAS_POR_MODO: Readonly<Record<'pdd' | 'seguradora', readonly CampoFinanceira[]>> =
+  {
+    pdd: ['pdd', 'receitaIntermediacaoDva'],
+    seguradora: [
+      'resultadoFinanceiro',
+      'equivalenciaPatrimonial',
+      'receitaComissoesServicos',
+      'receitaSeguro',
+      'despesaSeguro',
+      'premiosGanhos',
+      'sinistrosRetidos',
+    ],
+  };
+
+/** Modo layout: só estas raízes (modelo antigo 'Receitas das Operações') e estes exercícios. */
+export const RAIZES_LAYOUT_RECOMPLETAR: readonly string[] = ['BBSE', 'IRBR'];
+export const ANOS_LAYOUT_RECOMPLETAR = { de: 2016, ate: 2022 } as const;
+/** Métricas que passam a 'não se aplica' com ebit/D&A nulos no modo layout. */
+const NAO_SE_APLICA_LAYOUT = ['ebit', 'depreciacaoAmortizacao', 'ebitda', 'divLiqEbitda'];
+
+export interface AntesDepoisLayout {
+  emissorId: string;
+  dtFim: string;
+  tipoPeriodo: string;
+  escopo: string;
+  versao: number;
+  antes: { ebit: number | null; depreciacaoAmortizacao: number | null; naoSeAplica: string[] };
+  depois: { ebit: null; depreciacaoAmortizacao: null; naoSeAplica: string[] };
+}
+
+export interface RelatorioRecompletar {
+  modos: ModoRecompletar[];
+  /** documentos (cnpj, DT_REFER, versão vigente) relidos */
+  documentos: number;
+  /** linhas que ganhariam/ganharam alguma coluna, por coluna */
+  porCampo: Partial<Record<CampoFinanceira | 'layout', number>>;
+  /** idem, por emissor */
+  porEmissor: Record<string, Partial<Record<CampoFinanceira | 'layout', number>>>;
+  /** colunas já preenchidas no banco (não sobrescritas) */
+  jaPreenchidas: number;
+  /** linhas com escala corrigida/ambígua: puladas (o fator do documento não é refeito aqui) */
+  puladasEscala: number;
+  /** modo layout: antes/depois por linha (até 500) */
+  layout: AntesDepoisLayout[];
+  gravadas: number;
 }
 
 export function perfilPadrao(): PerfilLinhas {
@@ -299,6 +364,20 @@ export async function sincronizarCvmCias(
     return { detalhes: { doc: opts.doc, anos, perfil, arquivos, universo: 0 } };
   }
   const apoio = { ...(await carregarApoio(ctx.prisma, universo, perfil, ctx)), fre: opts.freAcoes };
+  if (opts.recompletarCampos && opts.recompletarCampos.length > 0) {
+    for (const ano of anos) {
+      const r = await recompletarArquivo(ctx, opts.doc, ano, universo, apoio, opts);
+      arquivos.push(r);
+      if (r.status === 'parcial') {
+        parcial = true;
+        break;
+      }
+    }
+    return {
+      parcial,
+      detalhes: { doc: opts.doc, anos, perfil, universo: universo.size, arquivos },
+    };
+  }
   for (const ano of anos) {
     const r = await processarDemonstrativos(ctx, opts.doc, ano, universo, apoio, opts);
     arquivos.push(r);
@@ -1238,6 +1317,264 @@ async function atualizarTtm(
     if (r.interrompido) return { gravadas, interrompido: true };
   }
   return { gravadas, interrompido: false };
+}
+
+// ---------------------------------------------------------------- recompletar campos (A6)
+
+/** CNPJs do universo cujas raízes estão em `raizes`. */
+function cnpjsDasRaizes(universo: Map<string, string[]>, raizes: readonly string[]): Set<string> {
+  const out = new Set<string>();
+  for (const [cnpj, symbols] of universo) {
+    if (symbols.some((s) => raizes.includes(s.slice(0, 4).toUpperCase()))) out.add(cnpj);
+  }
+  return out;
+}
+
+const ehAnoLayout = (dtRefer: string) => {
+  const a = Number(dtRefer.slice(0, 4));
+  return a >= ANOS_LAYOUT_RECOMPLETAR.de && a <= ANOS_LAYOUT_RECOMPLETAR.ate;
+};
+
+interface PropostaRecompletar {
+  campos: Partial<Record<CampoFinanceira, number | null>>;
+  layoutFin: boolean;
+}
+
+/**
+ * Modo --recompletar-campos de um arquivo (DFP/ITR do ano): relê os demonstrativos dos documentos
+ * já gravados (versão vigente) dos CNPJs-alvo e faz UPDATE só do que falta
+ * (completarCamposFundamentos). Depois recalcula o TTM dos emissores tocados.
+ */
+async function recompletarArquivo(
+  ctx: JobContexto,
+  doc: 'dfp' | 'itr',
+  ano: number,
+  universo: Map<string, string[]>,
+  apoio: Apoio,
+  opts: OpcoesCvmCias,
+): Promise<DetalheArquivo> {
+  const modos = new Set(opts.recompletarCampos ?? []);
+  const url = urlArquivoCvm(doc, ano);
+  const relatorio: RelatorioRecompletar = {
+    modos: [...modos],
+    documentos: 0,
+    porCampo: {},
+    porEmissor: {},
+    jaPreenchidas: 0,
+    puladasEscala: 0,
+    layout: [],
+    gravadas: 0,
+  };
+  const { financeiras, seguradoras } = apoio.segmentos;
+  const layoutCnpjs = modos.has('layout')
+    ? new Set(
+        [...cnpjsDasRaizes(universo, RAIZES_LAYOUT_RECOMPLETAR)].filter((c) => seguradoras.has(c)),
+      )
+    : new Set<string>();
+  const alvo = new Set<string>([
+    ...(modos.has('pdd') ? financeiras : []),
+    ...(modos.has('seguradora') ? seguradoras : []),
+    ...layoutCnpjs,
+  ]);
+  if (alvo.size === 0) {
+    return { url, doc, ano, status: 'sem_pendentes', recompletar: relatorio };
+  }
+  const arq = await obterArquivo(ctx, url, nomeArquivoCvm(doc, ano), ano, {
+    ...opts,
+    reprocessar: true,
+  });
+  if (arq.status === 'inalterado' || arq.status === 'nao_publicado') {
+    return { url, doc, ano, status: arq.status, recompletar: relatorio };
+  }
+  const detalhe: DetalheArquivo = { url, doc, ano, status: 'processado', bytes: arq.bytes };
+  try {
+    const entradas = await listarEntradasZip(arq.caminho);
+    const indice = await lerIndice(arq.caminho, entradas, doc, ano, { cnpjs: alvo });
+    const docTipo = doc === 'dfp' ? 'DFP' : 'ITR';
+    const naJanela = (d: DocIndice) =>
+      (modos.has('pdd') && financeiras.has(d.cnpj)) ||
+      (modos.has('seguradora') && seguradoras.has(d.cnpj)) ||
+      (layoutCnpjs.has(d.cnpj) && ehAnoLayout(d.dtRefer));
+    const candidatos = [...indice.values()].filter(naJanela);
+    const cnpjs = [...new Set(candidatos.map((d) => d.cnpj))];
+    const dtRefers = [...new Set(candidatos.map((d) => d.dtRefer))];
+    const gravados = await documentosGravados(ctx.prisma, docTipo, cnpjs, dtRefers);
+    const docs = candidatos.filter((d) => gravados.has(`${d.cnpj}|${d.dtRefer}|${d.versao}`));
+    relatorio.documentos = docs.length;
+    detalhe.docsUniverso = candidatos.length;
+    detalhe.pendentes = docs.length;
+    detalhe.recompletar = relatorio;
+    if (docs.length === 0) {
+      detalhe.status = 'sem_pendentes';
+      return detalhe;
+    }
+
+    // 1. streaming: DRE (períodos, layout e seguradora) + DVA (pdd)
+    const aceitos = new Map(docs.map((d) => [chaveDoc(d.cnpj, d.dtRefer), d.versao]));
+    const docsDva = new Map(
+      docs
+        .filter((d) => modos.has('pdd') && financeiras.has(d.cnpj))
+        .map((d) => [chaveDoc(d.cnpj, d.dtRefer), d.versao]),
+    );
+    const linhas = new Map<string, Record<Escopo, LinhaLida[]>>();
+    const dems: Array<'DRE' | 'DVA'> = docsDva.size > 0 ? ['DRE', 'DVA'] : ['DRE'];
+    for (const dem of dems) {
+      for (const escopo of ESCOPOS) {
+        const entrada = acharEntrada(entradas, entradaDemonstrativo(doc, dem, escopo, ano));
+        if (!entrada) continue;
+        for await (const l of lerLinhasDemonstrativo(arq.caminho, entrada, {
+          dem,
+          escopo,
+          docs: dem === 'DVA' ? docsDva : aceitos,
+        })) {
+          const seg = modos.has('seguradora') && seguradoras.has(l.cnpj);
+          if (!relevanteFundamentos(l, { seguradora: seg })) continue;
+          const k = chaveDoc(l.cnpj, l.dtRefer);
+          const g = linhas.get(k) ?? { con: [], ind: [] };
+          g[escopo].push(l);
+          linhas.set(k, g);
+        }
+        if (ctx.estourouPrazo()) {
+          detalhe.status = 'parcial';
+          return detalhe;
+        }
+      }
+    }
+
+    // 2. propostas por linha (emissor|dtFim|tipo|escopo|versão)
+    const propostas = new Map<string, PropostaRecompletar>();
+    const layoutPorDoc = new Map<string, boolean>();
+    for (const d of docs) {
+      const g = linhas.get(chaveDoc(d.cnpj, d.dtRefer));
+      if (!g) continue;
+      const mesFim =
+        doc === 'dfp' ? Number(d.dtRefer.slice(5, 7)) : (apoio.mesFim.get(d.cnpj) ?? 12);
+      const dreRef = (g.con.some((l) => l.demonstrativo === 'DRE') ? g.con : g.ind).filter(
+        (l) => l.demonstrativo === 'DRE',
+      );
+      const layoutFin = ehLayoutFinanceiro(dreRef, { seguradora: seguradoras.has(d.cnpj) });
+      layoutPorDoc.set(chaveDoc(d.cnpj, d.dtRefer), layoutFin);
+      for (const escopo of ESCOPOS) {
+        const ls = g[escopo];
+        if (!ls.some((l) => l.demonstrativo === 'DRE')) continue;
+        for (const p of periodosDoDocumento(doc, ls, d.dtRefer, mesFim)) {
+          const doPeriodo = ls.filter(
+            (l) => l.dtFim === d.dtRefer && (l.dtIni === null || l.dtIni === p.dtIni),
+          );
+          const f = extrairFundamentos(doPeriodo, {
+            demonstrativos: new Set<string>(dems),
+            ehFinanceira: layoutFin,
+            tipoPeriodo: p.tipoPeriodo,
+            escopo,
+            dtIni: p.dtIni,
+            dtFim: d.dtRefer,
+            mesFimExercicio: mesFim,
+            dva: docsDva.has(chaveDoc(d.cnpj, d.dtRefer)),
+            seguradora: modos.has('seguradora') && seguradoras.has(d.cnpj),
+          });
+          const campos: PropostaRecompletar['campos'] = {};
+          for (const c of CAMPOS_FINANCEIRAS) campos[c] = f[c] ?? null;
+          propostas.set(`${d.cnpj}|${d.dtRefer}|${p.tipoPeriodo}|${escopo}|${d.versao}`, {
+            campos,
+            layoutFin,
+          });
+        }
+      }
+    }
+    linhas.clear();
+
+    // 3. o que muda em cada linha gravada (só colunas nulas; layout com antes/depois)
+    const existentes = (await ctx.prisma.assetFundamentalsPeriod.findMany({
+      where: {
+        source: 'CVM',
+        docTipo,
+        emissorId: { in: [...new Set(docs.map((d) => d.cnpj))] },
+        dtFim: { in: [...new Set(docs.map((d) => d.dtRefer))].map(deData) },
+      },
+    })) as LinhaFundamentosDb[];
+    const versaoVigente = new Map(docs.map((d) => [chaveDoc(d.cnpj, d.dtRefer), d.versao]));
+    const colunas = [
+      ...(modos.has('pdd') ? COLUNAS_POR_MODO.pdd : []),
+      ...(modos.has('seguradora') ? COLUNAS_POR_MODO.seguradora : []),
+    ];
+    const contar = (emissor: string, campo: CampoFinanceira | 'layout') => {
+      relatorio.porCampo[campo] = (relatorio.porCampo[campo] ?? 0) + 1;
+      const pe = (relatorio.porEmissor[emissor] ??= {});
+      pe[campo] = (pe[campo] ?? 0) + 1;
+    };
+    const atualizacoes: AtualizacaoCamposFundamentos[] = [];
+    const tocados = new Set<string>();
+    for (const e of existentes) {
+      const dtFim = paraData(e.dtFim);
+      const k = chaveDoc(e.emissorId, dtFim);
+      if (versaoVigente.get(k) !== e.versao) continue;
+      const a: AtualizacaoCamposFundamentos = { id: e.id, novas: {} };
+      const prop =
+        e.tipoPeriodo === 'TTM'
+          ? undefined
+          : propostas.get(`${e.emissorId}|${dtFim}|${e.tipoPeriodo}|${e.escopo}|${e.versao}`);
+      if (prop && colunas.length > 0) {
+        if (e.flags.some((x) => x.startsWith('escala_'))) relatorio.puladasEscala++;
+        else {
+          for (const c of colunas) {
+            const novo = prop.campos[c];
+            if (novo === null || novo === undefined) continue;
+            if (paraNumero(e[c]) !== null) {
+              relatorio.jaPreenchidas++;
+              continue;
+            }
+            const v = dec2(novo);
+            if (v === null) continue;
+            a.novas[c] = v;
+            contar(e.emissorId, c);
+          }
+        }
+      }
+      // layout: ebit/D&A → 'não se aplica' (só BBSE/IRB 2016–2022 no modelo antigo de seguradora;
+      // a linha TTM do mesmo documento acompanha)
+      if (layoutCnpjs.has(e.emissorId) && ehAnoLayout(dtFim) && layoutPorDoc.get(k) === true) {
+        const naoSeAplica = [...new Set([...e.naoSeAplica, ...NAO_SE_APLICA_LAYOUT])].sort();
+        const ebit = paraNumero(e.ebit);
+        const da = paraNumero(e.depreciacaoAmortizacao);
+        if (ebit !== null || da !== null || naoSeAplica.length !== e.naoSeAplica.length) {
+          a.layout = { naoSeAplica };
+          contar(e.emissorId, 'layout');
+          if (relatorio.layout.length < 500) {
+            relatorio.layout.push({
+              emissorId: e.emissorId,
+              dtFim,
+              tipoPeriodo: e.tipoPeriodo,
+              escopo: e.escopo,
+              versao: e.versao,
+              antes: { ebit, depreciacaoAmortizacao: da, naoSeAplica: [...e.naoSeAplica] },
+              depois: { ebit: null, depreciacaoAmortizacao: null, naoSeAplica },
+            });
+          }
+        }
+      }
+      if (Object.keys(a.novas).length > 0 || a.layout) {
+        atualizacoes.push(a);
+        tocados.add(e.emissorId);
+      }
+    }
+    detalhe.fundamentos = atualizacoes.length;
+    if (!ctx.aplicar || atualizacoes.length === 0) return detalhe;
+
+    // 4. gravação (UPDATE só do que falta) + TTM dos emissores tocados
+    const r = await completarCamposFundamentos(ctx.prisma, ctx, atualizacoes);
+    relatorio.gravadas = r.gravadas;
+    ctx.contar('linhasGravadas', r.gravadas);
+    if (r.interrompido) {
+      detalhe.status = 'parcial';
+      return detalhe;
+    }
+    const ttm = await atualizarTtm(ctx, [...tocados], ano, apoio);
+    detalhe.ttm = ttm.gravadas;
+    if (ttm.interrompido) detalhe.status = 'parcial';
+    return detalhe;
+  } finally {
+    await arq.descartar();
+  }
 }
 
 // ---------------------------------------------------------------- FRE (só backfill)
