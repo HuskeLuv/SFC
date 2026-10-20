@@ -23,6 +23,11 @@
  * A6 (fatia E): com ANALISE_ATIVOS_ALAV_ATIVO_HABILITADO (catalogoComparador(classe, { alavAtivo })),
  * o grupo 'Endividamento · fonte CVM' do FII ganha 'Alavancagem (% do ativo)' logo depois do
  * Obrigações/PL — sem cor e sem ganhador, como as outras. Desligada, o catálogo é o de hoje.
+ *
+ * A6 (fatia F): com ANALISE_ATIVOS_RETORNOS_HABILITADO (catalogoComparador(classe, { retornos })), o
+ * grupo Preço de ação e de FII ganha 'Variação 12 meses' e 'Variação 5 anos (a.a.)' (só preço, sem
+ * proventos; asset_retornos_cotacao via montarComparador). Formato 'pctSinal': sinal +/− em cor
+ * NEUTRA (a célula só pinta 'pct'), sem ganhador. Sem linha no banco = 'sem dado'.
  */
 import type { CampoTela } from '@/services/analiseAtivos/regras/comum/conferencia';
 import { TEXTOS_COMPARADOR } from '@/services/analiseAtivos/textosComparador';
@@ -35,6 +40,7 @@ import type {
   FormatoAnalise,
   LinhaQuadroApi,
 } from '@/types/analiseAtivosApi';
+import type { JanelaRetorno, RetornosCotacaoApi } from '@/types/analiseAtivosComplementos';
 import type { CriteriosLinhaApi } from '@/types/analiseAtivosCriterios';
 
 // ===========================================================================
@@ -64,6 +70,11 @@ export interface DadosAtivoComparador {
   } | null;
   /** FII com ticker↔CNPJ não conferido: dados do informe ficam '—' */
   cnpjEmConferencia: boolean;
+  /**
+   * A6 (fatia F): retornos da cotação (asset_retornos_cotacao → RetornosCotacaoApi), lidos só com a
+   * chave RETORNOS; null/ausente = sem linha ('sem dado').
+   */
+  retornos?: RetornosCotacaoApi | null;
 }
 
 type CodigoLinhaEua = keyof typeof TEXTOS_EUA_TELAS.comparador.linhas;
@@ -404,6 +415,41 @@ export const GRUPOS_FII_ALAV_ATIVO: DefGrupoComparador[] = GRUPOS_FII.map((g) =>
   g.codigo === 'endividamento' ? { ...g, linhas: [...g.linhas, LINHA_OBRIGACOES_ATIVO] } : g,
 );
 
+/**
+ * A6 (fatia F): variação acumulada da cotação de uma janela. O Estado já vem com a política dos
+ * retornos (série curta, evento não confirmado, sem cotação recente); sem linha = 'sem dado'.
+ */
+function variacaoDaJanela(janela: JanelaRetorno) {
+  return (d: DadosAtivoComparador): Estado<number> =>
+    d.retornos?.janelas.find((j) => j.janela === janela)?.valor ?? okOuSemDado(null);
+}
+
+export const LINHAS_RETORNOS: DefIndicador[] = [
+  linha({
+    codigo: 'variacao12m',
+    formato: 'pctSinal',
+    campoTela: null,
+    extrator: variacaoDaJanela('12m'),
+  }),
+  linha({
+    codigo: 'variacao5a',
+    formato: 'pctSinal',
+    campoTela: null,
+    extrator: variacaoDaJanela('5a'),
+  }),
+];
+
+/** Acrescenta as linhas de variação ao fim do grupo Preço (os outros grupos não mudam). */
+function comRetornos(grupos: DefGrupoComparador[]): DefGrupoComparador[] {
+  return grupos.map((g) =>
+    g.codigo === 'preco' ? { ...g, linhas: [...g.linhas, ...LINHAS_RETORNOS] } : g,
+  );
+}
+
+export const GRUPOS_ACAO_RETORNOS = comRetornos(GRUPOS_ACAO);
+export const GRUPOS_FII_RETORNOS = comRetornos(GRUPOS_FII);
+export const GRUPOS_FII_ALAV_ATIVO_RETORNOS = comRetornos(GRUPOS_FII_ALAV_ATIVO);
+
 // ---------------------------------------------------------------------------
 // Stocks e REITs (fatia C)
 // ---------------------------------------------------------------------------
@@ -503,6 +549,8 @@ export const GRUPOS_REIT: DefGrupoComparador[] = [
 export interface OpcoesCatalogo {
   /** A6: ANALISE_ATIVOS_ALAV_ATIVO_HABILITADO (linha 'Alavancagem (% do ativo)' no FII) */
   alavAtivo?: boolean;
+  /** A6: ANALISE_ATIVOS_RETORNOS_HABILITADO (variação 12m e 5a no grupo Preço de ação e FII) */
+  retornos?: boolean;
 }
 
 export function catalogoComparador(
@@ -511,8 +559,10 @@ export function catalogoComparador(
 ): DefGrupoComparador[] {
   if (classe === 'stock') return GRUPOS_STOCK;
   if (classe === 'reit') return GRUPOS_REIT;
-  if (classe === 'acao') return GRUPOS_ACAO;
-  return opcoes.alavAtivo ? GRUPOS_FII_ALAV_ATIVO : GRUPOS_FII;
+  if (classe === 'acao') return opcoes.retornos ? GRUPOS_ACAO_RETORNOS : GRUPOS_ACAO;
+  if (opcoes.alavAtivo)
+    return opcoes.retornos ? GRUPOS_FII_ALAV_ATIVO_RETORNOS : GRUPOS_FII_ALAV_ATIVO;
+  return opcoes.retornos ? GRUPOS_FII_RETORNOS : GRUPOS_FII;
 }
 
 /** tijolo e papel no mesmo conjunto (pelo perfil de critérios). */

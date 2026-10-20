@@ -21,8 +21,16 @@
  * classe stock|reit: misturar uma classe EUA com qualquer outra é ErroMisturaEua (a rota responde 400
  * com o texto de TEXTOS_EUA.comparador). Grupos EUA do catálogo (indicadores.ts), critérios do perfil
  * stock/reit, gráfico do lucro líquido (US$ mi, base 100) e, sem a chave de preço, cotação ausente.
+ *
+ * A6 (fatia F): com ANALISE_ATIVOS_RETORNOS_HABILITADO (só ação e FII), uma leitura EM LOTE de
+ * asset_retornos_cotacao (lerRetornosPorSimbolos) alimenta 'Variação 12 meses' e '5 anos (a.a.)' no
+ * grupo Preço, com o mesmo Estado da página do ativo (paraRetornosApi). Falha na leitura = 'sem dado'
+ * (o Comparador não quebra). Desligada, nenhuma consulta nova e a resposta é a de hoje.
  */
-import { analiseAtivosAlavAtivoHabilitado } from '@/lib/analiseAtivosConfig';
+import {
+  analiseAtivosAlavAtivoHabilitado,
+  analiseAtivosRetornosHabilitado,
+} from '@/lib/analiseAtivosConfig';
 import { prisma } from '@/lib/prisma';
 import { LIMITES_CACHE_BLOCO_D, getBoundedTtlCache } from '@/lib/boundedTtlCache';
 import { MAX_ATIVOS_COMPARADOR, TICKER_RE } from '@/services/analiseAtivos/cenarios/contrato';
@@ -40,6 +48,8 @@ import {
   hojeSaoPaulo,
 } from '@/services/analiseAtivos/leitura/ativo/fundamentosEssencial';
 import { obterCriteriosVarios } from '@/services/analiseAtivos/leitura/criterios/lerCriterios';
+import { paraRetornosApi } from '@/services/analiseAtivos/leitura/ativo/retornosAtivo';
+import { lerRetornosPorSimbolos } from '@/services/analiseAtivos/repositorio/retornos';
 import {
   criteriosDoPerfil,
   type CriteriaParams,
@@ -81,6 +91,7 @@ import { TEXTOS_COMPARADOR } from '@/services/analiseAtivos/textosComparador';
 import { TEXTOS_CRITERIOS } from '@/services/analiseAtivos/textosCriterios';
 import { TEXTOS_TELA, formatarTexto } from '@/services/analiseAtivos/textosTela';
 import { ehClasseEua, type ClasseQuadro, type Estado } from '@/types/analiseAtivosApi';
+import type { RetornosCalculados } from '@/types/analiseAtivosComplementos';
 import { ehTickerEua, symbolAnaliseDaSec } from '@/types/analiseAtivosEua';
 import { comCotacaoEua } from '@/services/analiseAtivos/quadro/consultaQuadro';
 import { TEXTOS_EUA } from '@/services/analiseAtivos/textosEua';
@@ -207,6 +218,8 @@ export interface EntradaComparador {
   ativos: AtivoEntrada[];
   /** A6 (fatia E): ANALISE_ATIVOS_ALAV_ATIVO_HABILITADO — linha 'Alavancagem (% do ativo)' no FII */
   alavAtivo?: boolean;
+  /** A6 (fatia F): ANALISE_ATIVOS_RETORNOS_HABILITADO — variação 12m/5a no grupo Preço (ação e FII) */
+  retornos?: boolean;
 }
 
 export type NucleoComparador = Pick<
@@ -260,7 +273,8 @@ export function montarComparadorPuro(e: EntradaComparador): NucleoComparador {
   const misto = classe === 'fii' && ehMisto(tipos);
 
   const grupos: GrupoComparador[] = [];
-  for (const g of catalogoComparador(classe, { alavAtivo: e.alavAtivo === true })) {
+  const opcoesCatalogo = { alavAtivo: e.alavAtivo === true, retornos: e.retornos === true };
+  for (const g of catalogoComparador(classe, opcoesCatalogo)) {
     if (!g.aplicavelA.some((t) => tiposPresentes.has(t))) continue;
     const linhas: LinhaComparador[] = g.linhas.map((def) => {
       const valores: Record<string, Estado<number>> = {};
@@ -396,6 +410,20 @@ async function paramsCriterios(): Promise<CriteriaParams> {
 
 type LinhaDb = NonNullable<Awaited<ReturnType<typeof obterLinhaQuadro>>>;
 
+/** A6 (fatia F): retornos em lote (só ação e FII, só com a chave); falha = Map vazio ('sem dado'). */
+async function lerRetornosComparador(
+  classe: ClasseQuadro,
+  symbols: string[],
+  habilitado: boolean,
+): Promise<Map<string, RetornosCalculados>> {
+  if (!habilitado || (classe !== 'acao' && classe !== 'fii')) return new Map();
+  try {
+    return await lerRetornosPorSimbolos(prisma, symbols);
+  } catch {
+    return new Map();
+  }
+}
+
 async function lerNucleo(
   classe: ClasseQuadro,
   linhas: LinhaDb[],
@@ -405,53 +433,56 @@ async function lerNucleo(
 ): Promise<NucleoComparador> {
   const symbols = linhas.map((l) => l.symbol);
   const fii = classe === 'fii';
+  const retornosLigado = analiseAtivosRetornosHabilitado() && (classe === 'acao' || fii);
   const cnpjsFii = fii
     ? linhas.filter((l) => !l.flags.includes(FLAG_CNPJ_EM_CONFERENCIA)).map((l) => l.cnpj)
     : [];
   const anoInicio = Number(hoje.slice(0, 4)) - 12;
-  const [atuais, trimestres, perShare, desdobramentos, criterios, params] = await Promise.all([
-    prisma.assetMultiplesCurrent.findMany({
-      where: { symbol: { in: symbols } },
-      select: {
-        symbol: true,
-        divLiqPl: true,
-        pReceita: true,
-        rend12m: true,
-        vpCota: true,
-        naoSeAplica: true,
-      },
-    }),
-    fii && cnpjsFii.length
-      ? prisma.fiiQuarterly.findMany({
-          where: {
-            cnpj: { in: cnpjsFii },
-            refQuarter: { gte: mesesAtras(hoje, MESES_INFORME_TRIMESTRAL) },
-          },
-          orderBy: { refQuarter: 'desc' },
-          select: {
-            cnpj: true,
-            nImoveisRenda: true,
-            nImoveisOutros: true,
-            areaM2: true,
-            nCri: true,
-          },
-        })
-      : Promise.resolve([]),
-    fii
-      ? prisma.assetPerShareYearly.findMany({
-          where: { symbol: { in: symbols }, anoFiscal: { gte: anoInicio } },
-          select: { symbol: true, anoFiscal: true, vpCotaFim: true, flags: true },
-        })
-      : Promise.resolve([]),
-    fii && cnpjsFii.length
-      ? prisma.fiiMonthly.findMany({
-          where: { cnpj: { in: cnpjsFii }, fatorDesdobramento: { not: null } },
-          select: { cnpj: true, refMonth: true, fatorDesdobramento: true },
-        })
-      : Promise.resolve([]),
-    obterCriteriosVarios(prisma, symbols, janela),
-    paramsCriterios(),
-  ]);
+  const [atuais, trimestres, perShare, desdobramentos, criterios, params, retornos] =
+    await Promise.all([
+      prisma.assetMultiplesCurrent.findMany({
+        where: { symbol: { in: symbols } },
+        select: {
+          symbol: true,
+          divLiqPl: true,
+          pReceita: true,
+          rend12m: true,
+          vpCota: true,
+          naoSeAplica: true,
+        },
+      }),
+      fii && cnpjsFii.length
+        ? prisma.fiiQuarterly.findMany({
+            where: {
+              cnpj: { in: cnpjsFii },
+              refQuarter: { gte: mesesAtras(hoje, MESES_INFORME_TRIMESTRAL) },
+            },
+            orderBy: { refQuarter: 'desc' },
+            select: {
+              cnpj: true,
+              nImoveisRenda: true,
+              nImoveisOutros: true,
+              areaM2: true,
+              nCri: true,
+            },
+          })
+        : Promise.resolve([]),
+      fii
+        ? prisma.assetPerShareYearly.findMany({
+            where: { symbol: { in: symbols }, anoFiscal: { gte: anoInicio } },
+            select: { symbol: true, anoFiscal: true, vpCotaFim: true, flags: true },
+          })
+        : Promise.resolve([]),
+      fii && cnpjsFii.length
+        ? prisma.fiiMonthly.findMany({
+            where: { cnpj: { in: cnpjsFii }, fatorDesdobramento: { not: null } },
+            select: { cnpj: true, refMonth: true, fatorDesdobramento: true },
+          })
+        : Promise.resolve([]),
+      obterCriteriosVarios(prisma, symbols, janela),
+      paramsCriterios(),
+      lerRetornosComparador(classe, symbols, retornosLigado),
+    ]);
 
   const atualPor = new Map(atuais.map((a) => [a.symbol, a]));
   const trimPor = new Map<string, (typeof trimestres)[number]>();
@@ -512,6 +543,13 @@ async function lerNucleo(
             }
           : null,
         cnpjEmConferencia: cnpjConf,
+        ...(retornosLigado
+          ? {
+              retornos: retornos.has(raw.symbol)
+                ? paraRetornosApi(retornos.get(raw.symbol)!, classe as 'acao' | 'fii')
+                : null,
+            }
+          : {}),
       },
     };
   });
@@ -522,6 +560,7 @@ async function lerNucleo(
     params,
     ativos,
     alavAtivo: analiseAtivosAlavAtivoHabilitado(),
+    retornos: retornosLigado,
   });
 }
 
@@ -588,7 +627,7 @@ export async function montarComparador(
   const tickers = escolhidas.map((l) => l.symbol);
   const versao = await versaoQuadro();
 
-  const chave = `${VERSAO_COMPARADOR}|${classeFinal}|${janela}|${[...tickers].sort().join(',')}|${versao}|${hoje}${precoEua ? '|preco' : ''}${analiseAtivosAlavAtivoHabilitado() ? '|alav' : ''}`;
+  const chave = `${VERSAO_COMPARADOR}|${classeFinal}|${janela}|${[...tickers].sort().join(',')}|${versao}|${hoje}${precoEua ? '|preco' : ''}${analiseAtivosAlavAtivoHabilitado() ? '|alav' : ''}${analiseAtivosRetornosHabilitado() ? '|ret' : ''}`;
   let nucleo = cache.get(chave);
   const doCache = nucleo !== undefined;
   if (!nucleo) {
