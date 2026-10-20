@@ -23,8 +23,12 @@
  *   exibição 'ocultar' vira ausente('em_conferencia:<grupo>') SEM valor (vai para o fim da
  *   ordenação); 'selo' fica ok com o valor (a tela põe o chip lendo as mesmas flags). A v1 nunca
  *   grava 'conf:' ⇒ a resposta não muda.
+ * - A6 (fatia E): `obrigacoesAtivoPct` (obrigações ÷ ativo total, Estado) SÓ nas linhas de FII e só
+ *   com ANALISE_ATIVOS_ALAV_ATIVO_HABILITADO; desligada (ou ação), a chave fica AUSENTE e a resposta
+ *   é idêntica à de hoje. Mesma regra do Obrigações/PL (ticker↔CNPJ não conferido = em conferência).
  */
 import type { AnaliseQuadroLinha } from '@prisma/client';
+import { analiseAtivosAlavAtivoHabilitado } from '@/lib/analiseAtivosConfig';
 import { prisma } from '@/lib/prisma';
 import { FLAG_CNPJ_EM_CONFERENCIA } from '@/services/analiseAtivos/quadro/montarLinhasQuadro';
 import { proventosEmConferencia } from '@/services/analiseAtivos/regras/calculo/plausibilidadeProventos';
@@ -225,12 +229,14 @@ const CAMPOS = {
   payout: 'payoutPct',
   vacanciaCvm: 'vacanciaFisicaCvmPct',
   obrigacoesPl: 'obrigacoesPlPct',
+  // A6 (fatia E): só emitido com a chave ALAV_ATIVO (paraLinhaQuadroApiNaJanela)
+  obrigacoesAtivo: 'obrigacoesAtivoPct',
 } as const;
 type CampoApi = keyof typeof CAMPOS;
 
 const APLICAVEIS: Record<ClasseQuadro, ReadonlySet<CampoApi>> = {
   acao: new Set<CampoApi>(['roe', 'pl', 'pvp', 'dy12m', 'margemLiquida', 'divLiqEbitda', 'payout']),
-  fii: new Set<CampoApi>(['pvp', 'dy12m', 'vacanciaCvm', 'obrigacoesPl']),
+  fii: new Set<CampoApi>(['pvp', 'dy12m', 'vacanciaCvm', 'obrigacoesPl', 'obrigacoesAtivo']),
   // EUA (fatia 0): P/L e DY dependem da cotação (null sem ANALISE_ATIVOS_EUA_PRECO_HABILITADO)
   stock: new Set<CampoApi>(['roe', 'pl', 'dy12m', 'margemLiquida', 'divLiqEbitda', 'payout']),
   reit: new Set<CampoApi>(['dy12m', 'divLiqEbitda', 'payout']),
@@ -242,6 +248,7 @@ const CAMPOS_CNPJ_FII: ReadonlySet<CampoApi> = new Set<CampoApi>([
   'pvp',
   'vacanciaCvm',
   'obrigacoesPl',
+  'obrigacoesAtivo',
 ]);
 
 function mapaNaoSeAplica(row: AnaliseQuadroLinha): Map<string, string> {
@@ -299,13 +306,15 @@ function estadoCampo(
     typeof v === 'number' && Number.isFinite(v) ? { estado: 'ok', valor: v } : null;
   // (b) bloco C: grupo 'conf:' que marca o campo. 'ocultar' → '—' sem valor (fim da ordenação);
   // 'selo' → segue com o valor (o chip vem das mesmas flags). Legado de proventos: caminho (c).
-  const conf = conferenciaConf(row.flags, row.motivosIncompleto, campo, classe);
+  // A6: obrigações ÷ ativo sai do MESMO passivo do informe ⇒ segue a conferência do Obrigações/PL
+  const campoConf = campo === 'obrigacoesAtivo' ? 'obrigacoesPl' : campo;
+  const conf = conferenciaConf(row.flags, row.motivosIncompleto, campoConf, classe);
   if (conf?.exibicao === 'ocultar') {
     return aplicarConferenciaCampo(
       valor ?? ausente('sem_dado_fonte', TEXTOS_TELA.ausentesPorCampo.semDado),
       row.flags,
       row.motivosIncompleto,
-      campo,
+      campoConf,
       classe,
     ).estado;
   }
@@ -437,6 +446,9 @@ export function paraLinhaQuadroApiNaJanela(
     assetId: row.assetId,
     ...extras,
     ...camposEuaDaLinha(row),
+    ...(classe === 'fii' && analiseAtivosAlavAtivoHabilitado()
+      ? { obrigacoesAtivoPct: est('obrigacoesAtivo') }
+      : {}),
   };
 }
 

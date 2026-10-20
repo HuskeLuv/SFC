@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { afterEach, describe, it, expect, vi, beforeEach } from 'vitest';
 import { Prisma } from '@prisma/client';
 
 const mockPrisma = vi.hoisted(() => ({
@@ -272,6 +272,38 @@ describe('linhasQuadro', () => {
       ]);
       const sem = paraLinhaQuadroApi({ ...LINHA_ITUB4, flags: [], motivosIncompleto: [] });
       expect(sem.proventosEmConferencia).toBe(false);
+    });
+  });
+
+  describe('A6 (fatia E): obrigacoesAtivoPct atrás de ANALISE_ATIVOS_ALAV_ATIVO_HABILITADO', () => {
+    afterEach(() => {
+      vi.unstubAllEnvs();
+    });
+
+    it('chave desligada: a chave não existe em nenhuma linha (resposta idêntica à de hoje)', () => {
+      vi.stubEnv('ANALISE_ATIVOS_ALAV_ATIVO_HABILITADO', '');
+      const fii = paraLinhaQuadroApi({ ...LINHA_HGLG11, obrigacoesAtivoPct: 12.5 });
+      expect('obrigacoesAtivoPct' in fii).toBe(false);
+      expect(fii.obrigacoesPl).toEqual({ estado: 'ok', valor: 16.25 });
+      expect('obrigacoesAtivoPct' in paraLinhaQuadroApi(LINHA_WEGE3)).toBe(false);
+    });
+
+    it('chave ligada: FII com o próprio valor; ação sem a chave; CNPJ não conferido em conferência', () => {
+      vi.stubEnv('ANALISE_ATIVOS_ALAV_ATIVO_HABILITADO', 'true');
+      const fii = paraLinhaQuadroApi({ ...LINHA_HGLG11, obrigacoesAtivoPct: 12.5 });
+      expect(fii.obrigacoesAtivoPct).toEqual({ estado: 'ok', valor: 12.5 });
+      expect(fii.obrigacoesPl).toEqual({ estado: 'ok', valor: 16.25 });
+      expect('obrigacoesAtivoPct' in paraLinhaQuadroApi(LINHA_WEGE3)).toBe(false);
+      expect(
+        paraLinhaQuadroApi({ ...LINHA_HGLG11, obrigacoesAtivoPct: null }).obrigacoesAtivoPct,
+      ).toMatchObject({ estado: 'ausente', motivo: 'sem_dado_fonte' });
+      expect(
+        paraLinhaQuadroApi({
+          ...LINHA_HGLG11,
+          obrigacoesAtivoPct: null,
+          flags: ['cnpj_em_conferencia'],
+        }).obrigacoesAtivoPct,
+      ).toMatchObject({ estado: 'ausente', motivo: 'cnpj_em_conferencia' });
     });
   });
 });

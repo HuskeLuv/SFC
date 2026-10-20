@@ -277,6 +277,19 @@ describe('montarLinhasQuadro', () => {
     });
   });
 
+  it('A6: obrigacoesAtivoPct do FII vai para a linha; ação e entrada antiga = null', () => {
+    const base = entrada();
+    const rs = montarLinhasQuadro({
+      ...base,
+      multiplos: base.multiplos.map((m) =>
+        m.symbol === 'HGLG11' ? { ...m, obrigacoesAtivoPct: 11.5, obrigacoesPlPct: 14 } : m,
+      ),
+    });
+    expect(linha(rs, 'HGLG11')).toMatchObject({ obrigacoesAtivoPct: 11.5, obrigacoesPlPct: 14 });
+    expect(linha(rs, 'WEGE3').obrigacoesAtivoPct).toBeNull();
+    expect(linha(r, 'HGLG11').obrigacoesAtivoPct).toBeNull();
+  });
+
   it('HCTR11: FII negociado sem score entra no Quadro como sem_score', () => {
     expect(linha(r, 'HCTR11')).toMatchObject({
       classe: 'fii',
