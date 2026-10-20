@@ -1,5 +1,10 @@
-import { beforeAll, describe, expect, it } from 'vitest';
-import { linhasIguais, type LinhaFiiMensal } from '@/services/analiseAtivos/fii/gravarFii';
+import { beforeAll, describe, expect, it, vi } from 'vitest';
+import type { PrismaClient } from '@prisma/client';
+import {
+  gravarMensal,
+  linhasIguais,
+  type LinhaFiiMensal,
+} from '@/services/analiseAtivos/fii/gravarFii';
 import {
   alertaDistribuicao,
   distribuicaoTipos,
@@ -218,6 +223,44 @@ describe('idempotência e alertas', () => {
     expect(linhasIguais(a, { ...a, cotistas: a.cotistas! + 1 })).toBe(false);
     expect(linhasIguais(a, { ...a, tipoVigente: 'papel' })).toBe(false);
     expect(linhasIguais(a, { ...a, pl: a.pl! + 1 })).toBe(false);
+  });
+
+  it('A6: linha gravada antes da A6 (3 colunas novas nulas) é ATUALIZADA; o resto fica igual', async () => {
+    const { linhas } = processarMesesFii(m26, vazio, semOverride, P, {
+      todosOsMeses: false,
+      sourceUrl: URL,
+    });
+    const nova = achar(linhas, CNPJ.HGLG, '2026-08-01');
+    expect(nova.obrigacoesAtivoPct).toBeCloseTo(13.86, 1);
+    expect(nova.outrosValoresPagar).toBeCloseTo(566_014_641.18, 2);
+    expect(nova.valoresReceber).toBeCloseTo(518_603_526.26, 2);
+    const antiga: LinhaFiiMensal = {
+      ...nova,
+      outrosValoresPagar: null,
+      valoresReceber: null,
+      obrigacoesAtivoPct: null,
+    };
+    expect(linhasIguais(nova, antiga)).toBe(false);
+    const semNovas = (l: LinhaFiiMensal) => {
+      const { outrosValoresPagar: _a, valoresReceber: _b, obrigacoesAtivoPct: _c, ...resto } = l;
+      return resto;
+    };
+    expect(linhasIguais(semNovas(nova), semNovas(antiga))).toBe(true);
+    const update = vi.fn((x: unknown) => x);
+    const prisma = {
+      fiiMonthly: { createMany: vi.fn(), update },
+      $transaction: vi.fn(async (ops: unknown[]) => ops),
+    } as unknown as PrismaClient;
+    const chave = `${nova.cnpj}|${nova.refMonth}`;
+    const r = await gravarMensal(prisma, [nova], new Map([[chave, antiga]]), true);
+    expect(r).toMatchObject({ criadas: 0, atualizadas: 1, iguais: 0 });
+    const dados = (update.mock.calls[0][0] as { data: Record<string, unknown> }).data;
+    expect(dados.obrigacoesAtivoPct).toBeCloseTo(13.86, 1);
+    expect(dados.pl).toBe(antiga.pl);
+    expect(dados.obrigacoesPlPct).toBe(antiga.obrigacoesPlPct);
+    // 2ª execução com a linha já completa: nada a escrever
+    const r2 = await gravarMensal(prisma, [nova], new Map([[chave, nova]]), false);
+    expect(r2).toMatchObject({ atualizadas: 0, iguais: 1 });
   });
 
   it('AgregadorAlertas resume repetição por código (não afoga alertas únicos)', () => {

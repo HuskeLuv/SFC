@@ -7,7 +7,8 @@
  *   todos (`todosOsMeses`).
  * - Saneamento (regras 21–22), tipo pela composição, tipo vigente com histerese de 3 meses (lê os
  *   meses anteriores do banco) e FiiTipoOverride; grava reguaVigente e obrigacoesPlPct prontos para
- *   a fatia D.
+ *   a fatia D. A6 (fatia E): também Outros_Valores_Pagar, Valores_Receber e obrigacoesAtivoPct
+ *   (obrigações ÷ ativo total).
  * - Rendimento/DY/meses seguidos NÃO saem daqui (fatia D, base de proventos): dyMesCvmPct é só
  *   checagem.
  */
@@ -207,6 +208,8 @@ export function processarMesesFii(
         rendDistribuir: mes.rendDistribuir,
         obrigAquisicao: mes.obrigAquisicao,
         obrigSecuritizacao: mes.obrigSecuritizacao,
+        outrosValoresPagar: mes.outrosValoresPagar ?? null,
+        valoresReceber: mes.valoresReceber ?? null,
         imoveis: mes.imoveis,
         spe: mes.spe,
         cri: mes.cri,
@@ -219,6 +222,7 @@ export function processarMesesFii(
         tipoVigente,
         reguaVigente: regua?.regua ?? null,
         obrigacoesPlPct: mes.obrigacoesPlPct,
+        obrigacoesAtivoPct: mes.obrigacoesAtivoPct,
         fatorDesdobramento: mes.fatorDesdobramento,
         flags: [...new Set(flags)],
         sourceUrl: opts.sourceUrl,

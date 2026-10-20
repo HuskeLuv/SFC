@@ -8,6 +8,8 @@
  * - 2021+: CNPJ_Fundo_Classe / Nome_Fundo_Classe; pós-ago/2025 (CVM 175) Mandato vazio e Segmento
  *   com taxonomia nova (o tipo sai da composição, não do segmento).
  * Frações da CVM (DY do mês, rentabilidade, taxa de adm.) são convertidas ×100 aqui (p.p.).
+ * A6 (fatia E): Outros_Valores_Pagar e Valores_Receber do ativo_passivo são OPCIONAIS (lidos quando
+ * a coluna existe; layout sem elas = null) e alimentam obrigações ÷ ativo total e a composição.
  */
 import { cnpjOuOriginal } from '@/services/analiseAtivos/regras/comum/cnpj';
 import { lerCsv, type EspecCsv, type LinhaCsv } from '@/services/analiseAtivos/fontes/csvStream';
@@ -129,6 +131,11 @@ function soma(l: LinhaCsv, cols: readonly string[]): number | null {
   return total;
 }
 
+/** Coluna opcional do layout (A6): ausente no cabeçalho ⇒ null, nunca ErroLayoutFonte. */
+function opcional(l: LinhaCsv, coluna: string): number | null {
+  return l.tem(coluna) ? numeroCvm(l.get(coluna)) : null;
+}
+
 interface Comp {
   cotistas: number | null;
   ativoTotal: number | null;
@@ -145,6 +152,8 @@ type Ap = Pick<
   | 'rendDistribuir'
   | 'obrigAquisicao'
   | 'obrigSecuritizacao'
+  | 'outrosValoresPagar'
+  | 'valoresReceber'
   | 'imoveis'
   | 'spe'
   | 'cri'
@@ -260,6 +269,8 @@ async function lerAtivoPassivo(
       rendDistribuir: numeroCvm(l.get('Rendimentos_Distribuir')),
       obrigAquisicao: numeroCvm(l.get('Obrigacoes_Aquisicao_Imoveis')),
       obrigSecuritizacao: numeroCvm(l.get('Obrigacoes_Securitizacao_Recebiveis')),
+      outrosValoresPagar: opcional(l, 'Outros_Valores_Pagar'),
+      valoresReceber: opcional(l, 'Valores_Receber'),
       imoveis: soma(l, colImoveis),
       spe: soma(l, colSpe),
       cri: soma(l, t.recebiveisPapel),
@@ -282,6 +293,8 @@ const AP_VAZIO: Ap = {
   rendDistribuir: null,
   obrigAquisicao: null,
   obrigSecuritizacao: null,
+  outrosValoresPagar: null,
+  valoresReceber: null,
   imoveis: null,
   spe: null,
   cri: null,
