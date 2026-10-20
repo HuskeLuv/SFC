@@ -7,7 +7,8 @@
  * e avisa quando divergir, mas NUNCA altera uma versão existente (recalibrar = nova versão).
  *
  * v2.5: --versao=N escolhe a versão do código (1 = v2.4, 2 = spec do Pedro + camada de fontes,
- * 3 = v2 + Stocks e REITs pela SEC; padrão 1, o comportamento antigo do script) e --valid-from=AAAA-MM-DD a vigência. Para ativar sem
+ * 3 = v2 + Stocks e REITs pela SEC, 4 = v3 com o 'alav' do fii_tijolo sobre o ativo total (A6); padrão
+ * 1, o comportamento antigo do script) e --valid-from=AAAA-MM-DD a vigência. Para ativar sem
  * pressa (desenho final.ativacao_prod): semear com validFrom no FUTURO (ex.: 2099-01-01), rodar
  * 'criterios --sem-aplicar --versao-params=N' e só então adiantar o validFrom. Grava o JSON como
  * foi escrito (a v1 com os nomes legados, igual à de produção; o parse aplica o alias).
@@ -29,6 +30,7 @@ import {
 import { CRITERIA_PARAMS_V1_JSON } from '../../src/services/analiseAtivos/params/criteriaParamsV1';
 import { CRITERIA_PARAMS_V2_JSON } from '../../src/services/analiseAtivos/params/criteriaParamsV2';
 import { CRITERIA_PARAMS_V3_JSON } from '../../src/services/analiseAtivos/params/criteriaParamsV3';
+import { CRITERIA_PARAMS_V4_JSON } from '../../src/services/analiseAtivos/params/criteriaParamsV4';
 import { validarCriteriaParams } from '../../src/services/analiseAtivos/params/obterCriteriaParams';
 
 const CREATED_BY = 'seed-v2-filtros';
@@ -52,6 +54,13 @@ export const VERSOES_CODIGO: Record<number, { json: CriteriaParamsEntrada; notas
     notas:
       'v3 = v2 (Brasil, igual) + Stocks e REITs pela SEC (perfis stock, stock_financeira e reit; ' +
       'universo ≥ US$ 2 bi); decisões de 17/10/2026 (docs/analise-ativos/stocks-reits/desenho.json)',
+  },
+  4: {
+    json: CRITERIA_PARAMS_V4_JSON,
+    notas:
+      "v4 = v3 com o critério 'alav' do fii_tijolo sobre o ativo total (obrigações ÷ ativo ≤ 15%, " +
+      'série leverage_assets_pct, mesmo id); decisão 1 do Wellington de 19/10/2026 ' +
+      '(docs/analise-ativos/fundamentei-trazer/desenho.json, item 7)',
   },
 };
 
