@@ -11,8 +11,19 @@
  *   CNPJ nem é lido).
  * - REGRA DE OURO: a mesma entrada monta o Essencial (montarFundamentos*) e o Raio-X usa as células
  *   dele nas linhas comuns — o mesmo Estado no mesmo ano (testado célula a célula).
+ * - A6 (fatia B): template de banco/seguradora pelo segmento B3 (listarEmissores) com
+ *   ANALISE_ATIVOS_TEMPLATES_FINANCEIRAS_HABILITADO; FII com 'Alavancagem (% do ativo)' lida de
+ *   asset_multiples_yearly.obrigacoesAtivoPct com ANALISE_ATIVOS_ALAV_ATIVO_HABILITADO. Chaves
+ *   desligadas ⇒ as mesmas leituras e a resposta de hoje.
  */
 import { prisma } from '@/lib/prisma';
+import {
+  analiseAtivosAlavAtivoHabilitado,
+  analiseAtivosTemplatesFinanceirasHabilitado,
+} from '@/lib/analiseAtivosConfig';
+import { listarEmissores } from '@/services/analiseAtivos/repositorio/universo';
+import { templateDoEmissor } from '@/services/analiseAtivos/regras/acoes/templateFinanceira';
+import type { TemplateFinanceira } from '@/types/analiseAtivosComplementos';
 import { getBoundedTtlCache, LIMITES_CACHE_BLOCO_D } from '@/lib/boundedTtlCache';
 import { fundamentosVigentes } from '@/services/analiseAtivos/repositorio/acoes';
 import { paraData, paraNumero } from '@/services/analiseAtivos/repositorio/conversao';
@@ -83,6 +94,8 @@ export interface DadosBancoAcao {
   atual: EntradaFundamentosAcao['atual'];
   flagsLinha: string[];
   motivosLinha: string[];
+  /** A6: template de banco/seguradora (só com a chave); ausente = o de hoje */
+  template?: TemplateFinanceira | null;
 }
 
 /** Monta Essencial e Raio-X de uma ação com a MESMA entrada. */
@@ -105,6 +118,7 @@ export function montarAcao(hoje: string, d: DadosBancoAcao) {
     atual: d.atual,
     proventosEmConferencia: proventosEmConferencia(d.flagsLinha, d.motivosLinha),
     conferencia,
+    ...(d.template ? { template: d.template } : {}),
   });
   const raioX = montarRaioXAcao({
     financeira: d.financeira,
@@ -113,6 +127,7 @@ export function montarAcao(hoje: string, d: DadosBancoAcao) {
     perShare: d.perShare,
     multiplos: d.multiplos,
     conferencia,
+    ...(d.template ? { template: d.template } : {}),
   });
   return { essencial, raioX };
 }
@@ -123,11 +138,18 @@ export interface DadosBancoFii {
   meses: Array<MesRaioXFii & { fatorDesdobramento: number | null }>;
   perShare: Array<EntradaFundamentosFii['perShare'][number] & { flags: string[] }>;
   multiplos: Array<
-    EntradaFundamentosFii['multiplos'][number] & { obrigacoesPlPct: number | null; flags: string[] }
+    EntradaFundamentosFii['multiplos'][number] & {
+      obrigacoesPlPct: number | null;
+      /** A6: obrigações ÷ ativo (só lida com a chave ALAV_ATIVO) */
+      obrigacoesAtivoPct?: number | null;
+      flags: string[];
+    }
   >;
   atual: EntradaFundamentosFii['atual'];
   flagsLinha: string[];
   motivosLinha: string[];
+  /** A6: linha 'Alavancagem (% do ativo)' */
+  alavAtivo?: boolean;
 }
 
 /** Monta Essencial e Raio-X de um FII com a MESMA entrada. */
@@ -159,6 +181,7 @@ export function montarFii(hoje: string, d: DadosBancoFii) {
     multiplos: d.multiplos,
     cnpjEmConferencia,
     conferencia,
+    ...(d.alavAtivo ? { alavAtivo: true } : {}),
   });
   return { essencial, raioX };
 }
@@ -173,8 +196,17 @@ async function lerAcao(
   desdeAno: number,
 ): Promise<Omit<DadosBancoAcao, 'financeira' | 'flagsLinha' | 'motivosLinha'>> {
   const desde = `${desdeAno}-01-01`;
+  // A6: o template de financeira sai do segmento B3 do emissor (só com a chave)
+  const emissores = analiseAtivosTemplatesFinanceirasHabilitado()
+    ? await listarEmissores(prisma, [cnpj])
+    : undefined;
+  const template = emissores?.[0] ? templateDoEmissor(emissores[0]) : null;
   const [periodos, ps, my, mc] = await Promise.all([
-    fundamentosVigentes(prisma, [cnpj], { tipos: ['FY', 'TTM'], desde }),
+    fundamentosVigentes(prisma, [cnpj], {
+      tipos: ['FY', 'TTM'],
+      desde,
+      ...(emissores ? { emissores } : {}),
+    }),
     prisma.assetPerShareYearly.findMany({
       where: { symbol, anoFiscal: { gte: desdeAno } },
       select: {
@@ -223,6 +255,7 @@ async function lerAcao(
     perShare: ps.map((p) => ({ ...p, acoesFim: paraNumero(p.acoesFim) })),
     multiplos: my,
     atual: mc,
+    ...(template ? { template } : {}),
   };
 }
 
@@ -233,6 +266,7 @@ async function lerFii(
   cnpjEmConferencia: boolean,
 ): Promise<Omit<DadosBancoFii, 'fiiTipo' | 'flagsLinha' | 'motivosLinha'>> {
   const desde = new Date(`${desdeAno}-01-01T00:00:00Z`);
+  const alavAtivo = analiseAtivosAlavAtivoHabilitado();
   const [trim, meses, ps, my, mc] = await Promise.all([
     cnpjEmConferencia
       ? Promise.resolve([])
@@ -285,6 +319,8 @@ async function lerFii(
         vacanciaFisicaCvmPct: true,
         nImoveisCvm: true,
         obrigacoesPlPct: true,
+        // A6: mesma leitura da Obrigações/PL (regra de ouro), só com a chave
+        ...(alavAtivo ? { obrigacoesAtivoPct: true } : {}),
         flags: true,
       },
     }),
@@ -313,6 +349,7 @@ async function lerFii(
     perShare: ps,
     multiplos: my,
     atual: mc,
+    ...(alavAtivo ? { alavAtivo: true } : {}),
   };
 }
 
