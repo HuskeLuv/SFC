@@ -171,6 +171,7 @@ import { GET as getValuation } from '../ativos/[ticker]/valuation/route';
 import { GET as getRaioX } from '../ativos/[ticker]/raio-x/route';
 import { GET as getSugestoes } from '../ativos/[ticker]/comparar-sugestoes/route';
 import { GET as getImoveisFii } from '../ativos/[ticker]/imoveis-fii/route';
+import { GET as getSocietario } from '../ativos/[ticker]/societario/route';
 import { GET as getCenarios } from '../cenarios/[ticker]/route';
 import { GET as getComparador } from '../comparador/route';
 import { GET as getMeusReportes } from '../meus-reportes/route';
@@ -302,6 +303,15 @@ const CHAMADAS: Chamada[] = [
     url: `${base}/ativos/HGLG11/imoveis-fii`,
     ticker: 'HGLG11',
   },
+  // A6 (fatia D): só ação (FII = 404)
+  ...['WEGE3', 'ITUB4'].map(
+    (t): Chamada => ({
+      rota: 'ativos/[ticker]/societario',
+      get: getSocietario as Rota,
+      url: `${base}/ativos/${t}/societario`,
+      ticker: t,
+    }),
+  ),
   { rota: 'comparador', get: getComparador as Rota, url: `${base}/comparador?t=WEGE3,ITUB4` },
   {
     rota: 'comparador',
