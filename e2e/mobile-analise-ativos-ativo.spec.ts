@@ -36,7 +36,8 @@ for (const ticker of ['WEGE3', 'HGLG11']) {
     for (const nome of ['Período de 5 anos', 'Período de 10 anos', 'Ver dados em tabela']) {
       await expectMinTarget(grafico.getByRole('button', { name: nome }));
     }
-    await expectMinTarget(page.getByRole('link', { name: 'Abrir na Educação' }));
+    // desde #309 o bloco mostra o card do curso (ModuloCard) e não o botão 'Abrir na Educação'
+    await expectMinTarget(page.locator('[data-bloco="educacao"]').getByRole('link').first());
     await expect(page.locator('[data-bloco="indice"]')).toHaveCount(0);
     const card = page.locator('[data-card-criterios]');
     if ((await card.locator('li[data-criterio]').count()) > 0) {
