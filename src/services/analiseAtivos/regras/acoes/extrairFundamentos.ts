@@ -21,6 +21,17 @@
  *   7.01.01 /Intermediação Financeira/ e pdd 7.01.03 /provisão|perdas|crédito/ (plano de instituição
  *   financeira), como publicados (PDD negativa = despesa). DVA no plano de empresa comum (7.01.03 =
  *   outra conta: RPAD, BRBI, BSLI) ⇒ null ('sem DVA de instituição financeira no documento').
+ * Seguradora (A6, fatia B; ctx.seguradora = CNPJ do Set de seguradoras, INDEPENDENTE do layout
+ *   financeiro): campos POR RÓTULO da DRE em qualquer nível até 4, como publicados —
+ *   resultadoFinanceiro (2º nível /^Resultado Financeiro$/) · equivalenciaPatrimonial (a mais rasa
+ *   /^Resultado de Equivalência Patrimonial/) · receitaComissoesServicos (Σ das folhas /^Receitas de
+ *   comissões | prestação de serviços | acesso à rede/: BBSE 3.05.01, CXSE 3.04.04.01/02) ·
+ *   receitaSeguro (3.01 /Atividades Seguradoras/ ou Σ /^Receita(s) de|com seguro(s)|resseguro(s)$/:
+ *   PSSA 3.01.07, IFRS 17) · despesaSeguro (3.02 /Despesas da Atividade Seguradora/ ou Σ /^Despesa(s)
+ *   de seguro$/: PSSA 3.04.05.11) · premiosGanhos (/Prêmios … Ganhos/: IRB 3.01.02.01; sem a linha,
+ *   emitidos + cedidos + variação das provisões técnicas de seguros: PSSA 2022) · sinistrosRetidos
+ *   (Σ das folhas /Sinistros Retidos/: IRB 3.02.02.01, PSSA 3.04.05.03). Sem a linha ⇒ null; o
+ *   modelo IFRS 17 (2023+) ainda traz linhas antigas zeradas — a tela usa ANO_IFRS17, não o zero.
  * Demonstrativo presente sem a linha somada (capex, dividendos pagos, DMPL) = 0 de verdade; demonstrativo
  * ausente = null (ausente).
  */
@@ -63,6 +74,8 @@ export interface ContextoExtracao {
   mesFimExercicio: number | null;
   /** A6: lê a DVA (PDD e intermediação) — ANALISE_ATIVOS_CVM_DVA e CNPJ do Set de financeiras */
   dva?: boolean;
+  /** A6: CNPJ do Set de seguradoras (campos de seguradora por rótulo, nível até 4) */
+  seguradora?: boolean;
 }
 
 export type FundamentosExtraidos = Omit<
@@ -104,6 +117,102 @@ const RE_DVA_PDD = /provis[aã]o|perdas?|cr[eé]dito|liquida[cç][aã]o duvidosa
 function soma(xs: number[]): number {
   return xs.reduce((s, x) => s + x, 0);
 }
+
+// ---------------------------------------------------------------- seguradoras (A6, por rótulo)
+
+const RE_RESULTADO_FINANCEIRO = /^Resultado Financeiro\s*$/i;
+const RE_EQUIVALENCIA = /^Resultado de Equival[eê]ncia Patrimonial/i;
+const RE_COMISSOES_SERVICOS =
+  /^Receitas? (de |com |das? )?(comiss[õo]es|presta[cç][ãa]o(ões|oes)? de servi[cç]os?|presta[cç][õo]es de servi[cç]os?|acesso [àa] rede)/i;
+const RE_RECEITA_ATIVIDADE_SEGURADORA = /Atividades? Segurad/i;
+const RE_RECEITA_SEGURO = /^Receitas? (de|com) (seguros?|resseguros?)\s*$/i;
+const RE_DESPESA_ATIVIDADE_SEGURADORA = /^Despesas? da Atividade Segurad/i;
+const RE_DESPESA_SEGURO = /^Despesas? (de|com) (servi[cç]os de )?seguros?\s*$/i;
+const RE_PREMIOS_GANHOS = /Pr[eê]mios.*Ganhos/i;
+const RE_PREMIOS_EMITIDOS = /Pr[eê]mios de seguros emitidos/i;
+const RE_PREMIOS_CEDIDOS = /Pr[eê]mios de resseguros cedidos/i;
+const RE_VARIACAO_PROVISOES_SEGUROS = /Varia[cç][ãa]o das provis[õo]es t[ée]cnicas\s*-\s*seguros/i;
+const RE_SINISTROS_RETIDOS = /Sinistros Retidos/i;
+
+/** Linhas que casam com o rótulo, sem as que têm uma descendente que também casa (folhas). */
+function folhasQueCasam(ls: LinhaDemonstrativo[], re: RegExp): LinhaDemonstrativo[] {
+  const casam = ls.filter((l) => re.test(l.dsConta.trim()));
+  return casam.filter((l) => !casam.some((o) => o.cdConta.startsWith(`${l.cdConta}.`)));
+}
+
+/** A linha mais rasa (menor nível, depois a primeira conta) que casa com o rótulo. */
+function maisRasa(ls: LinhaDemonstrativo[], re: RegExp): LinhaDemonstrativo | null {
+  return (
+    [...ls]
+      .filter((l) => re.test(l.dsConta.trim()))
+      .sort(
+        (a, b) =>
+          nivelConta(a.cdConta) - nivelConta(b.cdConta) || compararContas(a.cdConta, b.cdConta),
+      )[0] ?? null
+  );
+}
+
+function somaOuNull(ls: LinhaDemonstrativo[]): number | null {
+  return ls.length > 0 ? soma(ls.map((l) => l.valor)) : null;
+}
+
+export interface CamposSeguradora {
+  resultadoFinanceiro: number | null;
+  equivalenciaPatrimonial: number | null;
+  receitaComissoesServicos: number | null;
+  receitaSeguro: number | null;
+  despesaSeguro: number | null;
+  premiosGanhos: number | null;
+  sinistrosRetidos: number | null;
+}
+
+/** Campos de seguradora do DRE de um período (por rótulo; como publicados; Σ das folhas). */
+export function camposSeguradora(dre: LinhaDemonstrativo[]): CamposSeguradora {
+  const doNivel = (n: number) => dre.filter((l) => nivelConta(l.cdConta) === n);
+  const r301 = dre.find((l) => l.cdConta === '3.01');
+  const r302 = dre.find((l) => l.cdConta === '3.02');
+  const receitaSeguro =
+    r301 && RE_RECEITA_ATIVIDADE_SEGURADORA.test(r301.dsConta)
+      ? r301.valor
+      : somaOuNull(folhasQueCasam(dre, RE_RECEITA_SEGURO));
+  const despesaSeguro =
+    r302 && RE_DESPESA_ATIVIDADE_SEGURADORA.test(r302.dsConta.trim())
+      ? r302.valor
+      : somaOuNull(folhasQueCasam(dre, RE_DESPESA_SEGURO));
+  let premiosGanhos = somaOuNull(folhasQueCasam(dre, RE_PREMIOS_GANHOS));
+  if (premiosGanhos === null) {
+    const emitidos = folhasQueCasam(dre, RE_PREMIOS_EMITIDOS);
+    if (emitidos.length > 0) {
+      premiosGanhos = soma(
+        [
+          ...emitidos,
+          ...folhasQueCasam(dre, RE_PREMIOS_CEDIDOS),
+          ...folhasQueCasam(dre, RE_VARIACAO_PROVISOES_SEGUROS),
+        ].map((l) => l.valor),
+      );
+    }
+  }
+  return {
+    resultadoFinanceiro:
+      doNivel(2).find((l) => RE_RESULTADO_FINANCEIRO.test(l.dsConta.trim()))?.valor ?? null,
+    equivalenciaPatrimonial: maisRasa(dre, RE_EQUIVALENCIA)?.valor ?? null,
+    receitaComissoesServicos: somaOuNull(folhasQueCasam(dre, RE_COMISSOES_SERVICOS)),
+    receitaSeguro,
+    despesaSeguro,
+    premiosGanhos,
+    sinistrosRetidos: somaOuNull(folhasQueCasam(dre, RE_SINISTROS_RETIDOS)),
+  };
+}
+
+const SEGURADORA_NULA: CamposSeguradora = {
+  resultadoFinanceiro: null,
+  equivalenciaPatrimonial: null,
+  receitaComissoesServicos: null,
+  receitaSeguro: null,
+  despesaSeguro: null,
+  premiosGanhos: null,
+  sinistrosRetidos: null,
+};
 
 export function extrairFundamentos(
   linhas: LinhaDemonstrativo[],
@@ -275,6 +384,7 @@ export function extrairFundamentos(
     lpaPn: lpa.pn,
     pdd,
     receitaIntermediacaoDva,
+    ...(ctx.seguradora ? camposSeguradora(dre) : SEGURADORA_NULA),
     naoSeAplica: [...naoSeAplica.keys()].sort(),
     flags: [...lucro.flags],
     codContaLucro: lucro.codContaLucro,

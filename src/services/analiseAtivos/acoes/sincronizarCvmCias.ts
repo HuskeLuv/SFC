@@ -464,16 +464,35 @@ interface Acumulador {
 
 const ESCOPOS: Escopo[] = ['con', 'ind'];
 
-/** Só as contas que extrairFundamentos usa (memória: ~80 linhas por documento e escopo). */
-export function relevanteFundamentos(l: {
-  demonstrativo: string;
-  cdConta: string;
-  dsConta: string;
-}) {
+/**
+ * Rótulos das contas de 4º nível da DRE que a seguradora precisa (A6): PSSA 3.04.05.11/3.04.05.03,
+ * CXSE 3.04.04.01/02, IRB 3.02.02.01 e 3.01.02.01.
+ */
+export const RE_DRE_NIVEL4_SEGURADORA =
+  /segur|sinistr|pr[eê]mio|comiss|servi[cç]|acesso [àa] rede/i;
+
+/**
+ * Só as contas que extrairFundamentos usa (memória: ~80 linhas por documento e escopo). A6: com
+ * `seguradora` (CNPJ do Set de seguradoras, independente do layout financeiro) a DRE também deixa
+ * passar o 4º nível quando o rótulo casa com seguro, sinistro, prêmio, comissão, serviço ou acesso à
+ * rede.
+ */
+export function relevanteFundamentos(
+  l: {
+    demonstrativo: string;
+    cdConta: string;
+    dsConta: string;
+  },
+  opts: { seguradora?: boolean } = {},
+) {
   const n = nivelConta(l.cdConta);
   switch (l.demonstrativo) {
     case 'DRE':
-      return n <= 3 || l.cdConta.startsWith('3.99.');
+      return (
+        n <= 3 ||
+        l.cdConta.startsWith('3.99.') ||
+        (opts.seguradora === true && n === 4 && RE_DRE_NIVEL4_SEGURADORA.test(l.dsConta))
+      );
     case 'BPA':
     case 'BPP':
       return n <= 3;
@@ -662,7 +681,9 @@ async function processarPendentes(
       })) {
         const a = acumulador(chaveDoc(l.cnpj, l.dtRefer));
         a.presentes[escopo].add(dem);
-        if (relevanteFundamentos(l)) a.fund[escopo].push(l);
+        if (relevanteFundamentos(l, { seguradora: apoio.segmentos.seguradoras.has(l.cnpj) })) {
+          a.fund[escopo].push(l);
+        }
         // DMPL e DVA ficam fora do Raio-X (nada novo em asset_statement_lines)
         if (a.raioX && dem !== 'DMPL' && dem !== 'DVA') a.raioX[escopo].push(l);
       }
@@ -711,6 +732,7 @@ async function processarPendentes(
           dtFim: d.dtRefer,
           mesFimExercicio: mesFim,
           dva: docsDva.has(chaveDoc(d.cnpj, d.dtRefer)),
+          seguradora: apoio.segmentos.seguradoras.has(d.cnpj),
         });
         extraidos.push({ f, escala });
         if (f.flags.includes('controladora_zero') && escopo === 'con') {
@@ -1064,6 +1086,13 @@ function linhaFundamentos(
     dmplDeclarado: dec2(f.dmplDeclarado),
     pdd: dec2(f.pdd),
     receitaIntermediacaoDva: dec2(f.receitaIntermediacaoDva),
+    resultadoFinanceiro: dec2(f.resultadoFinanceiro),
+    equivalenciaPatrimonial: dec2(f.equivalenciaPatrimonial),
+    receitaComissoesServicos: dec2(f.receitaComissoesServicos),
+    receitaSeguro: dec2(f.receitaSeguro),
+    despesaSeguro: dec2(f.despesaSeguro),
+    premiosGanhos: dec2(f.premiosGanhos),
+    sinistrosRetidos: dec2(f.sinistrosRetidos),
     lpaOn: m.lpaOn,
     lpaPn: m.lpaPn,
     lpaEscalaCorrigida: m.lpaEscalaCorrigida,
