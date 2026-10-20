@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Prisma } from '@prisma/client';
 
 const mockPrisma = vi.hoisted(() => ({
@@ -8,6 +8,7 @@ const mockPrisma = vi.hoisted(() => ({
   assetPerShareYearly: { findMany: vi.fn() },
   fiiMonthly: { findMany: vi.fn() },
   criteriaParams: { findFirst: vi.fn(), findUnique: vi.fn() },
+  assetRetornosCotacao: { findMany: vi.fn() },
 }));
 const mockCriteriosVarios = vi.hoisted(() => vi.fn());
 vi.mock('@/lib/prisma', () => ({ prisma: mockPrisma, default: mockPrisma }));
@@ -516,3 +517,88 @@ describe('montarComparador (v2.4, isonômico)', () => {
     expect(r.ativos[0].preco).toEqual({ estado: 'ok', valor: Number(new Prisma.Decimal('41.2')) });
   });
 });
+
+describe('montarComparador com ANALISE_ATIVOS_RETORNOS_HABILITADO (A6, fatia F)', () => {
+  const linhaRet = (symbol: string, ret12mPct: number | null, flags: string[] = []) => ({
+    symbol,
+    classe: symbol.endsWith('11') ? 'fii' : 'acao',
+    asOf: new Date('2026-10-07T00:00:00Z'),
+    preco: new Prisma.Decimal('41.2'),
+    ret1mPct: 1,
+    ret12mPct,
+    ret5aAaPct: 8.4,
+    ret10aAaPct: 11,
+    precoMaxAjustado: 50,
+    distMaxPct: -17.6,
+    dataMax: new Date('2025-01-10T00:00:00Z'),
+    inicioSerie: new Date('2015-01-02T00:00:00Z'),
+    pregoes: 2700,
+    flags,
+    calculadoEm: new Date('2026-10-08T11:40:00Z'),
+  });
+
+  beforeEach(() => {
+    _resetarCacheLinhasQuadro();
+    _limparCacheComparador();
+    vi.clearAllMocks();
+    prepararBanco();
+    mockPrisma.assetRetornosCotacao.findMany.mockResolvedValue([
+      linhaRet('WEGE3', -3.25),
+      linhaRet('ITUB4', 5, ['evento_nao_confirmado']),
+      linhaRet('HGLG11', 2.5),
+    ]);
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it('desligada: nenhuma leitura nova e resposta idêntica à de hoje', async () => {
+    const hoje = await montar(['WEGE3', 'PETR4', 'ITUB4']);
+    expect(mockPrisma.assetRetornosCotacao.findMany).not.toHaveBeenCalled();
+    expect(codigosPreco(hoje)).toEqual(['pl', 'pvp', 'pReceita']);
+    vi.stubEnv('ANALISE_ATIVOS_RETORNOS_HABILITADO', 'false');
+    _limparCacheComparador();
+    expect(await montar(['WEGE3', 'PETR4', 'ITUB4'])).toEqual(hoje);
+    expect(mockPrisma.assetRetornosCotacao.findMany).not.toHaveBeenCalled();
+  });
+
+  it('ligada: uma leitura em lote; sem linha = sem dado; evento em conferência = sem dado', async () => {
+    vi.stubEnv('ANALISE_ATIVOS_RETORNOS_HABILITADO', 'true');
+    const r = await montar(['WEGE3', 'PETR4', 'ITUB4']);
+    expect(mockPrisma.assetRetornosCotacao.findMany).toHaveBeenCalledTimes(1);
+    expect(codigosPreco(r)).toEqual(['pl', 'pvp', 'pReceita', 'variacao12m', 'variacao5a']);
+    const v12 = linhaDe(r, 'variacao12m');
+    expect(v12.formato).toBe('pctSinal');
+    expect(v12.valores.WEGE3).toEqual({ estado: 'ok', valor: -3.25 });
+    expect(v12.valores.PETR4).toMatchObject({ estado: 'ausente' });
+    expect(v12.valores.ITUB4).toMatchObject({ estado: 'ausente', motivo: 'evento_nao_confirmado' });
+    expect(linhaDe(r, 'variacao5a').valores.WEGE3).toEqual({ estado: 'ok', valor: 8.4 });
+    // contrato isonômico continua valendo
+    expect(chaves(r).filter((k) => /indice|semaforo|destaque|ganhador|cor$/i.test(k))).toEqual([]);
+  });
+
+  it('ligada (FII): variação no grupo Preço; falha na leitura = sem dado, nada quebra', async () => {
+    vi.stubEnv('ANALISE_ATIVOS_RETORNOS_HABILITADO', 'true');
+    const r = await montar(['HGLG11', 'GSRF11']);
+    expect(linhaDe(r, 'variacao12m').valores.HGLG11).toEqual({ estado: 'ok', valor: 2.5 });
+    expect(linhaDe(r, 'variacao12m').valores.GSRF11).toMatchObject({ estado: 'ausente' });
+
+    _limparCacheComparador();
+    mockPrisma.assetRetornosCotacao.findMany.mockRejectedValueOnce(new Error('sem tabela'));
+    const f = await montar(['HGLG11', 'GSRF11']);
+    expect(linhaDe(f, 'variacao12m').valores.HGLG11).toMatchObject({ estado: 'ausente' });
+  });
+
+  it('o cache separa ligada de desligada', async () => {
+    await montarComparador(['WEGE3', 'ITUB4'], HOJE);
+    vi.stubEnv('ANALISE_ATIVOS_RETORNOS_HABILITADO', 'true');
+    const b = await montarComparador(['WEGE3', 'ITUB4'], HOJE);
+    expect(b?.cache).toBe(false);
+    expect(_tamanhoCacheComparador()).toBe(2);
+  });
+});
+
+function codigosPreco(r: ComparadorResposta): string[] {
+  return r.grupos.find((g) => g.codigo === 'preco')!.linhas.map((l) => l.codigo);
+}
