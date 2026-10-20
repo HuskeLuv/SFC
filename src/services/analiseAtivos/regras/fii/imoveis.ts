@@ -13,13 +13,20 @@
 import { ausente, naoSeAplica, ok } from '@/services/analiseAtivos/regras/comum/valor';
 import type { FiiTipo, ScoringParams, Valor } from '@/services/analiseAtivos/tipos';
 
-/** Linha do CSV `imovel` já convertida: percentuais em p.p. (fração da CVM × 100). */
+/**
+ * Linha do CSV `imovel` já convertida: percentuais em p.p. (fração da CVM × 100). A6 (fatia A):
+ * nome, endereço e unidades opcionais (lidos quando a coluna existe; '' e '-' viram null), usados
+ * só pela lista de imóveis (fii_imovel_trimestral); a agregação abaixo não os lê.
+ */
 export interface ImovelTrimestral {
   classe: string;
   area: number | null;
   vacanciaPct: number | null;
   inadimplenciaPct: number | null;
   receitaPct: number | null;
+  nome?: string | null;
+  endereco?: string | null;
+  unidades?: number | null;
 }
 
 export interface AgregadoImoveis {
@@ -34,6 +41,11 @@ export interface AgregadoImoveis {
 }
 
 const RE_RENDA_ACABADO = /renda\s+acabados?/i;
+
+/** Classe "Imóveis para renda acabados" (a única que conta como imóvel de renda). */
+export function ehClasseRenda(classe: string | null | undefined): boolean {
+  return typeof classe === 'string' && RE_RENDA_ACABADO.test(classe);
+}
 const finito = (n: number | null | undefined): n is number =>
   typeof n === 'number' && Number.isFinite(n);
 
