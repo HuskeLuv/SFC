@@ -71,8 +71,16 @@
  * RecursosBlocoD.eua/euaPreco; QuadroResposta.contagens.stock/reit, moeda e universoDescricao;
  * LinhaQuadroApi.moeda/bolsa/dpa/fcoPorAcao/dividendosFcoPct; AtivoTopoResposta.eua (TopoEuaApi);
  * FundamentosResposta em US$/SEC com colunasPendentes. Contratos próprios: src/types/analiseAtivosEua.ts.
+ *
+ * A6 — dados complementares (docs/analise-ativos/fundamentei-trazer/desenho.json, fatia 0) —
+ * acréscimos OPCIONAIS, ausentes com as chaves desligadas (a resposta fica idêntica à de hoje):
+ * RecursosBlocoD.imoveisFii/templatesFinanceiras/retornos/societario/alavAtivo;
+ * AtivoTopoResposta.retornos (RetornosCotacaoApi); FundamentosResposta.template e
+ * ColunaFundamentos.tooltip; LinhaQuadroApi.obrigacoesAtivoPct. Contratos próprios e as rotas novas
+ * (imoveis-fii, societario): src/types/analiseAtivosComplementos.ts.
  */
 import type { ReactNode } from 'react';
+import type { RetornosCotacaoApi, TemplateFinanceira } from '@/types/analiseAtivosComplementos';
 import type {
   BolsaEua,
   ColunaPendenteEua,
@@ -306,6 +314,20 @@ export interface RecursosBlocoD {
   eua?: boolean;
   /** EUA: preço, múltiplos e Meus cenários EUA (ANALISE_ATIVOS_EUA_PRECO_HABILITADO; exige eua) */
   euaPreco?: boolean;
+  /**
+   * A6 (fatia 0): um booleano por recurso de tela, sem dependência entre eles. Ausente = desligado
+   * (cliente antigo); o servidor sempre preenche.
+   */
+  /** seção 'Imóveis e composição do fundo' do FII (ANALISE_ATIVOS_IMOVEIS_FII_HABILITADO) */
+  imoveisFii?: boolean;
+  /** Essencial/Raio-X de banco e seguradora (ANALISE_ATIVOS_TEMPLATES_FINANCEIRAS_HABILITADO) */
+  templatesFinanceiras?: boolean;
+  /** card 'Variação da cotação' e linhas do Comparador (ANALISE_ATIVOS_RETORNOS_HABILITADO) */
+  retornos?: boolean;
+  /** card 'Dados societários e estatuto' das ações (ANALISE_ATIVOS_SOCIETARIO_HABILITADO) */
+  societario?: boolean;
+  /** 'Alavancagem (% do ativo)' do FII (ANALISE_ATIVOS_ALAV_ATIVO_HABILITADO) */
+  alavAtivo?: boolean;
 }
 
 // ===========================================================================
@@ -431,6 +453,11 @@ export interface LinhaQuadroApi {
   fcoPorAcao?: number | null;
   /** EUA (REIT): dividendos pagos ÷ caixa operacional do último FY (%) */
   dividendosFcoPct?: number | null;
+  /**
+   * A6 (fatia E): obrigações ÷ ativo total do FII ('Alavancagem (% do ativo)'), só com
+   * ANALISE_ATIVOS_ALAV_ATIVO_HABILITADO. Ausente = chave desligada ou ação. obrigacoesPl não muda.
+   */
+  obrigacoesAtivoPct?: Estado<number>;
 }
 
 export interface FrescorCotacao {
@@ -722,6 +749,11 @@ export interface AtivoTopoResposta {
   frescorBlocos?: Partial<Record<string, FrescorBloco>>;
   /** EUA (fatia C): bolsa, exercício, link da SEC e motivo sem cotação. Ausente = ativo BR. */
   eua?: TopoEuaApi;
+  /**
+   * A6 (fatia C): variação acumulada da cotação (só preço), com ANALISE_ATIVOS_RETORNOS_HABILITADO.
+   * Ausente = chave desligada ou sem linha em asset_retornos_cotacao (o card não aparece).
+   */
+  retornos?: RetornosCotacaoApi;
 }
 
 // ===========================================================================
@@ -734,6 +766,11 @@ export interface ColunaFundamentos {
   formato: FormatoAnalise;
   /** coluna com fonte CVM que pode diferir do gestor (SeloFonteCvm) */
   fonteCvmAviso: boolean;
+  /**
+   * A6 (fatia B): definição da coluna quando depende do dado (ex.: qual receita a seguradora usou).
+   * Ausente = o tooltip fixo de textosAtivo, como hoje.
+   */
+  tooltip?: string;
 }
 
 export interface LinhaFundamentos {
@@ -785,6 +822,11 @@ export interface FundamentosResposta {
   dadosIncompletos?: boolean;
   /** EUA (fatia C): colunas sem fonte no XBRL, escondidas com a observação da fase 2 */
   colunasPendentes?: ColunaPendenteEua[];
+  /**
+   * A6 (fatia B): template de financeira (colunas COLUNAS_ESSENCIAL_BANCO/SEGURADORA), só com
+   * ANALISE_ATIVOS_TEMPLATES_FINANCEIRAS_HABILITADO. Ausente = template de hoje.
+   */
+  template?: TemplateFinanceira;
 }
 
 // ===========================================================================

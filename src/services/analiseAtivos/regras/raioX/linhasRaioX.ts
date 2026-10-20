@@ -295,6 +295,20 @@ export const CAMPO_LINHA_RAIOX: Readonly<Record<CodigoLinhaRaioX, CampoTela | nu
   obrigacoesPlPct: 'obrigacoesPl',
   taxaAdmAnoPct: 'taxaAdm',
   taxaPerformance: null,
+  // A6 (fatia 0: entradas para o tipo; a fatia B pode trocar o campo): banco e seguradora seguem o
+  // grupo de que derivam; 'obrigacoesAtivoPct' do FII sem campo de conferência próprio
+  receitaIntermediacao: 'receita',
+  pdd: 'lucroLiquido',
+  pddLucro: 'lucroLiquido',
+  margemBancariaPct: 'margemLiquida',
+  ativoTotal: 'patrimonioLiquido',
+  plAtivoPct: 'patrimonioLiquido',
+  receitaOperacional: 'receita',
+  equivalenciaPatrimonial: 'lucroLiquido',
+  resultadoFinanceiro: 'lucroLiquido',
+  sinistralidadePct: 'receita',
+  despesaReceitaSeguroPct: 'receita',
+  obrigacoesAtivoPct: null,
 };
 
 function mapaConferencia(codigos: readonly string[]): Record<string, CampoTela> {

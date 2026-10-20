@@ -38,6 +38,12 @@ export const TEXTOS_RAIO_X = {
     carteira_imoveis: 'Carteira de imóveis',
     carteira_recebiveis: 'Carteira de recebíveis',
     alavancagem_custos: 'Alavancagem e custos',
+    // A6 (fatia 0; usados pela fatia B): templates de banco e seguradora
+    intermediacao_resultado: 'Intermediação e resultado',
+    balanco: 'Balanço',
+    receita_resultado: 'Receita e resultado',
+    operacao_seguros: 'Operação de seguro',
+    proventos: 'Proventos',
   },
   /** rótulo + explicação curta (sub) de cada linha; unidade do CSV em `csv.unidades` */
   linhas: {
@@ -102,6 +108,42 @@ export const TEXTOS_RAIO_X = {
       sub: 'soma dos 12 meses informados à CVM',
     },
     taxaPerformance: { rotulo: 'Taxa de performance', sub: 'soma do ano' },
+    // A6 (fatia 0; fatia B): banco
+    receitaIntermediacao: {
+      rotulo: 'Receita de intermediação financeira',
+      sub: 'receitas da intermediação financeira (DRE 3.01)',
+    },
+    pdd: {
+      rotulo: 'PDD',
+      sub: 'provisão para perdas esperadas de crédito (DVA 7.01.03), em valor absoluto',
+    },
+    pddLucro: { rotulo: 'PDD ÷ lucro', sub: '' },
+    margemBancariaPct: {
+      rotulo: 'Margem líq. bancária',
+      sub: 'lucro líquido ÷ receita de intermediação financeira',
+    },
+    ativoTotal: { rotulo: 'Ativo total', sub: '' },
+    plAtivoPct: { rotulo: 'PL ÷ ativo', sub: '' },
+    // A6 (fatia B): seguradora
+    receitaOperacional: { rotulo: 'Receita operacional', sub: '' },
+    equivalenciaPatrimonial: {
+      rotulo: 'Equivalência patrimonial',
+      sub: 'resultado das investidas',
+    },
+    resultadoFinanceiro: { rotulo: 'Resultado financeiro', sub: '' },
+    sinistralidadePct: {
+      rotulo: 'Sinistralidade (sinistros retidos ÷ prêmios ganhos)',
+      sub: 'até 2022',
+    },
+    despesaReceitaSeguroPct: {
+      rotulo: 'Despesa de seguro ÷ receita de seguro (IFRS 17)',
+      sub: 'desde 2023',
+    },
+    // A6 (fatia B, chave ALAV_ATIVO): FII, ao lado da 'Alavancagem (% do PL)'
+    obrigacoesAtivoPct: {
+      rotulo: 'Alavancagem (% do ativo)',
+      sub: 'obrigações ÷ ativo total',
+    },
   },
   celula: {
     semDado: 'sem dado na fonte naquele ano',
