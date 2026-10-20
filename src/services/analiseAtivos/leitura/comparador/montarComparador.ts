@@ -22,6 +22,7 @@
  * com o texto de TEXTOS_EUA.comparador). Grupos EUA do catálogo (indicadores.ts), critérios do perfil
  * stock/reit, gráfico do lucro líquido (US$ mi, base 100) e, sem a chave de preço, cotação ausente.
  */
+import { analiseAtivosAlavAtivoHabilitado } from '@/lib/analiseAtivosConfig';
 import { prisma } from '@/lib/prisma';
 import { LIMITES_CACHE_BLOCO_D, getBoundedTtlCache } from '@/lib/boundedTtlCache';
 import { MAX_ATIVOS_COMPARADOR, TICKER_RE } from '@/services/analiseAtivos/cenarios/contrato';
@@ -204,6 +205,8 @@ export interface EntradaComparador {
   params: CriteriaParams;
   /** na ordem dos slots */
   ativos: AtivoEntrada[];
+  /** A6 (fatia E): ANALISE_ATIVOS_ALAV_ATIVO_HABILITADO — linha 'Alavancagem (% do ativo)' no FII */
+  alavAtivo?: boolean;
 }
 
 export type NucleoComparador = Pick<
@@ -257,7 +260,7 @@ export function montarComparadorPuro(e: EntradaComparador): NucleoComparador {
   const misto = classe === 'fii' && ehMisto(tipos);
 
   const grupos: GrupoComparador[] = [];
-  for (const g of catalogoComparador(classe)) {
+  for (const g of catalogoComparador(classe, { alavAtivo: e.alavAtivo === true })) {
     if (!g.aplicavelA.some((t) => tiposPresentes.has(t))) continue;
     const linhas: LinhaComparador[] = g.linhas.map((def) => {
       const valores: Record<string, Estado<number>> = {};
@@ -512,7 +515,14 @@ async function lerNucleo(
       },
     };
   });
-  return montarComparadorPuro({ classe, hoje, janela, params, ativos });
+  return montarComparadorPuro({
+    classe,
+    hoje,
+    janela,
+    params,
+    ativos,
+    alavAtivo: analiseAtivosAlavAtivoHabilitado(),
+  });
 }
 
 /** Stock × REIT (ou EUA × Brasil) na mesma comparação: a rota responde 400. */
@@ -578,7 +588,7 @@ export async function montarComparador(
   const tickers = escolhidas.map((l) => l.symbol);
   const versao = await versaoQuadro();
 
-  const chave = `${VERSAO_COMPARADOR}|${classeFinal}|${janela}|${[...tickers].sort().join(',')}|${versao}|${hoje}${precoEua ? '|preco' : ''}`;
+  const chave = `${VERSAO_COMPARADOR}|${classeFinal}|${janela}|${[...tickers].sort().join(',')}|${versao}|${hoje}${precoEua ? '|preco' : ''}${analiseAtivosAlavAtivoHabilitado() ? '|alav' : ''}`;
   let nucleo = cache.get(chave);
   const doCache = nucleo !== undefined;
   if (!nucleo) {

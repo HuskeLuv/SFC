@@ -19,6 +19,10 @@
  * Stocks e REITs (fatia C): grupos próprios, do último FY da SEC na linha do Quadro, SEM cotação
  * (decisão do Wellington de 17/10) — stock: Qualidade · Endividamento · Dividendos; REIT: Geração
  * de caixa · Qualidade · Endividamento · Dividendos. Sem ganhador e sem cor, como no Brasil.
+ *
+ * A6 (fatia E): com ANALISE_ATIVOS_ALAV_ATIVO_HABILITADO (catalogoComparador(classe, { alavAtivo })),
+ * o grupo 'Endividamento · fonte CVM' do FII ganha 'Alavancagem (% do ativo)' logo depois do
+ * Obrigações/PL — sem cor e sem ganhador, como as outras. Desligada, o catálogo é o de hoje.
  */
 import type { CampoTela } from '@/services/analiseAtivos/regras/comum/conferencia';
 import { TEXTOS_COMPARADOR } from '@/services/analiseAtivos/textosComparador';
@@ -383,6 +387,23 @@ export const GRUPOS_FII: DefGrupoComparador[] = [
   },
 ];
 
+/**
+ * A6 (fatia E): obrigações ÷ ativo total (LinhaQuadroApi.obrigacoesAtivoPct, presente só com a
+ * chave). Sem campo de conferência próprio: a linha da API já aplica a do Obrigações/PL.
+ */
+export const LINHA_OBRIGACOES_ATIVO: DefIndicador = linha({
+  codigo: 'obrigacoesAtivo',
+  formato: 'pct',
+  campoTela: null,
+  extrator: (d) =>
+    d.cnpjEmConferencia ? cnpjEmConferencia() : (d.linha.obrigacoesAtivoPct ?? okOuSemDado(null)),
+});
+
+/** GRUPOS_FII com a linha nova no grupo de endividamento (só com a chave ALAV_ATIVO). */
+export const GRUPOS_FII_ALAV_ATIVO: DefGrupoComparador[] = GRUPOS_FII.map((g) =>
+  g.codigo === 'endividamento' ? { ...g, linhas: [...g.linhas, LINHA_OBRIGACOES_ATIVO] } : g,
+);
+
 // ---------------------------------------------------------------------------
 // Stocks e REITs (fatia C)
 // ---------------------------------------------------------------------------
@@ -479,10 +500,19 @@ export const GRUPOS_REIT: DefGrupoComparador[] = [
   { codigo: 'dividendos', rotulo: GE.dividendos, aplicavelA: EUA, linhas: [DPA_EUA] },
 ];
 
-export function catalogoComparador(classe: ClasseQuadro): DefGrupoComparador[] {
+export interface OpcoesCatalogo {
+  /** A6: ANALISE_ATIVOS_ALAV_ATIVO_HABILITADO (linha 'Alavancagem (% do ativo)' no FII) */
+  alavAtivo?: boolean;
+}
+
+export function catalogoComparador(
+  classe: ClasseQuadro,
+  opcoes: OpcoesCatalogo = {},
+): DefGrupoComparador[] {
   if (classe === 'stock') return GRUPOS_STOCK;
   if (classe === 'reit') return GRUPOS_REIT;
-  return classe === 'acao' ? GRUPOS_ACAO : GRUPOS_FII;
+  if (classe === 'acao') return GRUPOS_ACAO;
+  return opcoes.alavAtivo ? GRUPOS_FII_ALAV_ATIVO : GRUPOS_FII;
 }
 
 /** tijolo e papel no mesmo conjunto (pelo perfil de critérios). */
