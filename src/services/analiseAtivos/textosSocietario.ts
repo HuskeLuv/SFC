@@ -34,7 +34,7 @@ export const TEXTOS_SOCIETARIO = {
     subSemData: 'diretos · FRE do exercício {ano} · CVM',
     outrosInclui: '"Outros" soma a linha "Outros" do FRE e os demais acionistas diretos.',
     semPosicao: 'sem dado · o FRE não informa a posição acionária',
-    naoEmitePn: 'não emite PN',
+    naoEmitePn: 'A companhia não emite PN.',
   },
   circulacao: {
     titulo: 'Ações em circulação',
