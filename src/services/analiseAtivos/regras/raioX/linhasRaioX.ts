@@ -783,6 +783,7 @@ function montarRaioXFinanceira(e: EntradaRaioXAcao & { template: TemplateFinance
   } else {
     obs.push(
       tfin.seguradora.observacoes.ifrs17,
+      tfin.seguradora.observacoes.sinistrosComoPublicados,
       tfin.seguradora.observacoes.equivalenciaOperacional,
     );
   }

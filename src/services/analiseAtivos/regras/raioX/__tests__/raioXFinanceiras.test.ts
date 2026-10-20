@@ -143,6 +143,7 @@ describe('Raio-X · seguradora', () => {
       texto: TS.motivos.equivalenciaNaoSeAplica,
     });
     expect(raioX.observacoes).toContain(TS.observacoes.ifrs17);
+    expect(raioX.observacoes).toContain(TS.observacoes.sinistrosComoPublicados);
     for (const d of LINHAS_SEGURADORA.filter((x) => x.essencial)) {
       const l = linhaDe(raioX, d.codigo);
       if (!l) continue;

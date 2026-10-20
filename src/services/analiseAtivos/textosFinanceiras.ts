@@ -88,6 +88,9 @@ export const TEXTOS_FINANCEIRAS = {
       ifrs17:
         'Os anos do outro regime aparecem "—" com o motivo "mudança de norma contábil (IFRS 17, 2023)". O rótulo "sinistralidade" não aparece de 2023 em diante.',
       holdingOperacao: 'Linhas de operação de seguro: "—" na holding.',
+      /** a conta da DRE como publicada; recuperações em linhas próprias ficam de fora (PSSA 2022) */
+      sinistrosComoPublicados:
+        'Sinistralidade: usa a conta de sinistros retidos da DRE como publicada. Recuperações lançadas em linhas próprias (resseguradores, salvados e ressarcimentos) não entram no numerador.',
     },
     motivos: {
       ifrs17: 'mudança de norma contábil (IFRS 17, 2023)',
