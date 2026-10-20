@@ -44,6 +44,11 @@ describe('GET /api/analise-ativos/config', () => {
         pdfComparador: false,
         eua: false,
         euaPreco: false,
+        imoveisFii: false,
+        templatesFinanceiras: false,
+        retornos: false,
+        societario: false,
+        alavAtivo: false,
       },
     });
     expect(mockEstado).toHaveBeenCalledWith('u1');
@@ -149,5 +154,31 @@ describe('GET /api/analise-ativos/config', () => {
     mockRequireSession.mockRejectedValue(new Error('Não autorizado'));
     const res = await GET(req());
     expect(res.status).toBe(401);
+  });
+
+  it('A6: as 5 chaves de tela só com a área liberada; CVM_DVA (ingestão) não aparece', async () => {
+    mockEstado.mockResolvedValue('liberada');
+    vi.stubEnv('ANALISE_ATIVOS_CVM_DVA', 'true');
+    const desligado = (await (await GET(req())).json()).recursos;
+    expect(desligado).toMatchObject({
+      imoveisFii: false,
+      templatesFinanceiras: false,
+      retornos: false,
+      societario: false,
+      alavAtivo: false,
+    });
+    expect(JSON.stringify(desligado)).not.toMatch(/dva/i);
+    vi.stubEnv('ANALISE_ATIVOS_RETORNOS_HABILITADO', 'true');
+    vi.stubEnv('ANALISE_ATIVOS_SOCIETARIO_HABILITADO', 'true');
+    expect((await (await GET(req())).json()).recursos).toMatchObject({
+      retornos: true,
+      societario: true,
+      imoveisFii: false,
+    });
+    mockEstado.mockResolvedValue('fora_do_beta');
+    expect((await (await GET(req())).json()).recursos).toMatchObject({
+      retornos: false,
+      societario: false,
+    });
   });
 });

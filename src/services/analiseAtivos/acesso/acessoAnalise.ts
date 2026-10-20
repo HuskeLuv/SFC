@@ -23,21 +23,31 @@
  * EUA (stocks-reits, fatia 0): 'eua' e 'euaPreco' no mesmo mecanismo; euaPreco EXIGE eua. As rotas
  * com classe EUA usam exigirClasseAnalise(request, classe) (stock/reit sem a chave → 404 antes da
  * sessão; acao/fii = exigirAcessoAnalise de sempre).
+ *
+ * A6 (fundamentei-trazer, fatia 0): imoveisFii, templatesFinanceiras, retornos, societario e
+ * alavAtivo no mesmo mecanismo, SEM dependência entre eles (cada um só com a área liberada). As
+ * rotas novas usam exigirRecursoAnalise(request, 'imoveisFii' | 'societario'): chave desligada →
+ * 404 antes da sessão. A chave de ingestão ANALISE_ATIVOS_CVM_DVA não é recurso de tela.
  */
 import type { NextRequest } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getTtlCache } from '@/lib/simpleTtlCache';
 import {
   analiseAtivosAcesso,
+  analiseAtivosAlavAtivoHabilitado,
   analiseAtivosAlertasHabilitado,
   analiseAtivosCenariosHabilitado,
   analiseAtivosComparadorHabilitado,
   analiseAtivosEuaHabilitado,
   analiseAtivosEuaPrecoHabilitado,
   analiseAtivosHabilitada,
+  analiseAtivosImoveisFiiHabilitado,
   analiseAtivosPdfHabilitado,
   analiseAtivosRaioXHabilitado,
+  analiseAtivosRetornosHabilitado,
   analiseAtivosSalvosHabilitado,
+  analiseAtivosSocietarioHabilitado,
+  analiseAtivosTemplatesFinanceirasHabilitado,
 } from '@/lib/analiseAtivosConfig';
 import { ApiError } from '@/utils/apiErrorHandler';
 import { requireAuthWithActing, type AuthWithActingResult } from '@/utils/auth';
@@ -127,6 +137,12 @@ const FLAG_RECURSO: Record<RecursoBlocoD, () => boolean> = {
   pdfComparador: () => analiseAtivosPdfHabilitado() && analiseAtivosComparadorHabilitado(),
   eua: analiseAtivosEuaHabilitado,
   euaPreco: () => analiseAtivosEuaPrecoHabilitado() && analiseAtivosEuaHabilitado(),
+  // A6: sem dependência entre si (cada um só com a área liberada, em recursosLiberados)
+  imoveisFii: analiseAtivosImoveisFiiHabilitado,
+  templatesFinanceiras: analiseAtivosTemplatesFinanceirasHabilitado,
+  retornos: analiseAtivosRetornosHabilitado,
+  societario: analiseAtivosSocietarioHabilitado,
+  alavAtivo: analiseAtivosAlavAtivoHabilitado,
 };
 
 /** Monta o objeto de recursos a partir de uma função por recurso (ordem fixa, tipada). */
@@ -140,6 +156,11 @@ function porRecurso(fn: (r: RecursoBlocoD) => boolean): RecursosBlocoD {
     pdfComparador: fn('pdfComparador'),
     eua: fn('eua'),
     euaPreco: fn('euaPreco'),
+    imoveisFii: fn('imoveisFii'),
+    templatesFinanceiras: fn('templatesFinanceiras'),
+    retornos: fn('retornos'),
+    societario: fn('societario'),
+    alavAtivo: fn('alavAtivo'),
   };
 }
 

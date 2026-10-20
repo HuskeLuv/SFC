@@ -20,6 +20,9 @@ import type { ConfigResposta } from '@/types/analiseAtivosApi';
  * recursos (bloco D) = flag de cada recurso (Raio-X, Cenários, Comparador) e a área liberada.
  * Bloco 1: recursos.salvos/alertas/pdfComparador, com as dependências (alertas exige salvos;
  * pdfComparador exige comparador) aplicadas em recursosLiberados.
+ * A6 (fatia 0): recursos.imoveisFii/templatesFinanceiras/retornos/societario/alavAtivo, cada um com
+ * a sua chave (desligadas por padrão) e só com a área liberada; a chave de ingestão
+ * ANALISE_ATIVOS_CVM_DVA não aparece aqui.
  */
 export const dynamic = 'force-dynamic';
 
