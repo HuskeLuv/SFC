@@ -352,6 +352,12 @@ export const CAMPO_COLUNA_FUNDAMENTOS: Record<ClasseQuadro, Readonly<Record<stri
     pl: 'pl',
     pvp: 'pvp',
     dy: 'dy12m',
+    // A6 (fatia B): colunas dos templates de banco e seguradora com o mesmo campo de conferência
+    receitaIntermediacao: 'receita',
+    receitaOperacional: 'receita',
+    lucroLiquido: 'lucroLiquido',
+    margemBancaria: 'margemLiquida',
+    margemLiquida: 'margemLiquida',
   },
   fii: {
     rendCota: 'rendCota12m',

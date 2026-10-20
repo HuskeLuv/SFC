@@ -69,6 +69,10 @@ export const TEXTOS_FINANCEIRAS = {
       margem: 'Lucro líquido ÷ receita operacional.',
     },
     unidade: 'Valores em R$ bi · ano fiscal · fonte DFP/ITR (CVM) · receita usada: {valor}',
+    /** fatia B: sem nenhuma receita operacional publicada na janela */
+    unidadeSemReceita: 'Valores em R$ bi · ano fiscal · fonte DFP/ITR (CVM)',
+    /** fatia B: operacional com os dois regimes na janela (receitaUsada de cada um) */
+    receitaUsadaRegimes: '{ate} até 2022 · {desde} desde 2023',
     receitaUsada: {
       comissoes_servicos: 'comissões + serviços (holding)',
       receita_seguro: 'receita de seguro (operacional)',

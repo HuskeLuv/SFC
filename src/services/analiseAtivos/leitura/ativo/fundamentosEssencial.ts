@@ -46,6 +46,13 @@
  *   criterios.margem.receitaMenorQueLucro ('valor' na v2 = literal da spec; 'sem_dado' = '—').
  * - Nota de fonte montada pelas origens (textoFonte: 'Fonte: ‹provedor› · DFP/ITR (CVM).') no
  *   lugar do 'fonte: CVM' fixo da linha de unidade.
+ *
+ * A6 (fatia B; ANALISE_ATIVOS_TEMPLATES_FINANCEIRAS_HABILITADO): banco (segmento B3 'Bancos') e
+ * seguradora ('Seguradoras'/'Resseguradoras') ganham o template próprio — colunas
+ * COLUNAS_ESSENCIAL_BANCO/SEGURADORA com os textos de textosFinanceiras, FundamentosResposta.template
+ * e ColunaFundamentos.tooltip (qual receita a seguradora usou) — nos DOIS layouts (v24 da página e o
+ * legado, base do Raio-X: regra de ouro). Anos, 'Últ. 12m', ROE/payout/DY/P/L/P/VP e a conferência
+ * são os de sempre. Chave desligada (ou outro emissor) ⇒ a resposta de hoje, sem a chave template.
  */
 import { prisma } from '@/lib/prisma';
 import { getTtlCache } from '@/lib/simpleTtlCache';
@@ -99,6 +106,25 @@ import {
   textoNaoSeAplica,
 } from '@/services/analiseAtivos/textosTela';
 import { TEXTOS_ATIVO } from '@/services/analiseAtivos/textosAtivo';
+import { TEXTOS_FINANCEIRAS } from '@/services/analiseAtivos/textosFinanceiras';
+import { analiseAtivosTemplatesFinanceirasHabilitado } from '@/lib/analiseAtivosConfig';
+import { listarEmissores } from '@/services/analiseAtivos/repositorio/universo';
+import {
+  emissorEhHoldingSeguradora,
+  templateDoEmissor,
+  valoresBanco,
+  valoresSeguradora,
+  type MotivoTemplate,
+  type ValorTemplate,
+} from '@/services/analiseAtivos/regras/acoes/templateFinanceira';
+import {
+  COLUNAS_ESSENCIAL_BANCO,
+  COLUNAS_ESSENCIAL_SEGURADORA,
+  type CodigoColunaBanco,
+  type CodigoColunaSeguradora,
+  type OrigemReceitaSeguradora,
+  type TemplateFinanceira,
+} from '@/types/analiseAtivosComplementos';
 import type { FundamentosPeriodo } from '@/services/analiseAtivos/tipos';
 import type {
   ColunaFundamentos,
@@ -305,6 +331,8 @@ export interface EntradaFundamentosAcao {
   };
   /** v2.5: rótulos das fontes para a nota de fonte (registro); ausente = os ids */
   rotulosFontes?: RotulosFonte;
+  /** A6: template de banco/seguradora (só com a chave); ausente/null = o template de hoje */
+  template?: TemplateFinanceira | null;
 }
 
 /** Regras do Essencial de ações que vêm do criteria_params (v2.5; religáveis sem código). */
@@ -505,6 +533,7 @@ export function montarFundamentosAcao(
   opts: OpcoesFundamentosAcao = {},
 ): FundamentosResposta {
   const v24 = opts.layout === 'v24';
+  if (e.template) return montarFundamentosFinanceira({ ...e, template: e.template }, v24);
   const escala = v24 ? 1e9 : 1e6;
   const naFin = naoSeAplicaCom('financeira');
   const regras = e.regras ?? regrasEssencialDe(CRITERIA_PARAMS_CODIGO);
@@ -702,6 +731,303 @@ export function montarFundamentosAcao(
     resposta.textoFonte = textoNotaFonte('acao', [...fontesUsadas], e.rotulosFontes);
     if (algumIncompleto) resposta.dadosIncompletos = true;
   }
+  return resposta;
+}
+
+// ---------------------------------------------------------------------------
+// Financeiras (A6, fatia B): templates de banco e seguradora
+// ---------------------------------------------------------------------------
+
+const TFIN = TEXTOS_FINANCEIRAS;
+
+/** Texto do motivo de uma célula de template sem número. */
+export function textoMotivoTemplate(m: MotivoTemplate): string {
+  switch (m) {
+    case 'sem_dva':
+      return TFIN.banco.motivos.semDva;
+    case 'lucro_nao_positivo':
+      return TFIN.banco.motivos.lucroNaoPositivo;
+    case 'ifrs17':
+      return TFIN.seguradora.motivos.ifrs17;
+    case 'equivalencia_nao_se_aplica':
+      return TFIN.seguradora.motivos.equivalenciaNaoSeAplica;
+    case 'holding_sem_operacao':
+      return TFIN.seguradora.motivos.holdingSemOperacao;
+    case 'margem_sem_leitura':
+      return TFIN.seguradora.motivos.margemSemLeitura;
+    default:
+      return TE.tooltips.semDado;
+  }
+}
+
+/** ValorTemplate → Estado (`escala` = divisor dos valores em R$; 1 nas razões). */
+export function estadoTemplate(x: ValorTemplate, escala = 1): Estado<number> {
+  if ('valor' in x) return ok(x.valor / escala);
+  return ausenteCom(x.motivo, textoMotivoTemplate(x.motivo));
+}
+
+function colunaFin(
+  codigo: string,
+  rotulo: string,
+  formato: FormatoAnalise,
+  tooltip?: string,
+): ColunaFundamentos {
+  const c: ColunaFundamentos = { codigo, rotulo, formato, fonteCvmAviso: false };
+  if (tooltip) c.tooltip = tooltip;
+  return c;
+}
+
+/** Colunas do Essencial 'banco' (COLUNAS_ESSENCIAL_BANCO), no layout pedido. */
+export function colunasBanco(v24: boolean): ColunaFundamentos[] {
+  const r = TFIN.banco.colunas;
+  const t = TFIN.banco.tooltips;
+  const m: FormatoAnalise = v24 ? 'numero' : 'moedaMi';
+  const formatos: Record<CodigoColunaBanco, FormatoAnalise> = {
+    receitaIntermediacao: m,
+    pdd: m,
+    lucroLiquido: m,
+    margemBancaria: 'pct',
+    pddLucro: 'multiplo',
+    ativoTotal: m,
+    patrimonio: m,
+    roe: 'pct',
+    divJcp: m,
+    payout: 'pct',
+    dy: 'pct',
+    pl: 'numero',
+    pvp: 'numero2',
+  };
+  return COLUNAS_ESSENCIAL_BANCO.map((c) =>
+    colunaFin(c, r[c], formatos[c], (t as Partial<Record<string, string>>)[c]),
+  );
+}
+
+/** Colunas do Essencial 'seguradora' (COLUNAS_ESSENCIAL_SEGURADORA); tooltip da receita pela origem. */
+export function colunasSeguradora(
+  v24: boolean,
+  tooltipReceita: string | undefined,
+): ColunaFundamentos[] {
+  const r = TFIN.seguradora.colunas;
+  const t = TFIN.seguradora.tooltips;
+  const m: FormatoAnalise = v24 ? 'numero2' : 'moedaMi';
+  const formatos: Record<CodigoColunaSeguradora, FormatoAnalise> = {
+    receitaOperacional: m,
+    equivalencia: m,
+    resultadoFinanceiro: m,
+    lucroLiquido: m,
+    margemLiquida: 'pct',
+    roe: 'pct',
+    patrimonio: m,
+    divJcp: m,
+    payout: 'pct',
+    dy: 'pct',
+  };
+  const tooltips: Partial<Record<CodigoColunaSeguradora, string>> = {
+    receitaOperacional: tooltipReceita,
+    equivalencia: t.equivalencia,
+    margemLiquida: t.margem,
+  };
+  return COLUNAS_ESSENCIAL_SEGURADORA.map((c) => colunaFin(c, r[c], formatos[c], tooltips[c]));
+}
+
+/** Lucro do período em R$ (o mesmo da célula de lucro) para as razões; null sem número. */
+function lucroReais(f: FundamentosPeriodo): number | null {
+  const l = lucroParaSequencia(f);
+  return l.estado === 'ok' ? l.valor : null;
+}
+
+/** Origens da receita da seguradora → texto 'receita usada' (um regime ou os dois). */
+function receitaUsadaDe(origens: ReadonlyArray<OrigemReceitaSeguradora>): string | null {
+  const unicas = [...new Set(origens)];
+  if (unicas.length === 0) return null;
+  const ru = TFIN.seguradora.receitaUsada;
+  if (unicas.length === 1) return ru[unicas[0]];
+  if (unicas.includes('premios_ganhos') && unicas.includes('receita_seguro')) {
+    return formatarTexto(TFIN.seguradora.receitaUsadaRegimes, {
+      ate: ru.premios_ganhos,
+      desde: ru.receita_seguro,
+    });
+  }
+  return unicas.map((o) => ru[o]).join(' · ');
+}
+
+/**
+ * Essencial de banco/seguradora (A6). Mesmos anos fechados + 'Últ. 12m', mesmos múltiplos anuais
+ * (ROE, payout, DY, P/L, P/VP) e a mesma conferência (Bloco C e decisão 1) do template de hoje; só as
+ * colunas e as notas mudam. `escala` 1e9 (v24, R$ bi) ou 1e6 (legado, R$ mi: base do Raio-X).
+ */
+function montarFundamentosFinanceira(
+  e: EntradaFundamentosAcao & { template: TemplateFinanceira },
+  v24: boolean,
+): FundamentosResposta {
+  const escala = v24 ? 1e9 : 1e6;
+  const banco = e.template === 'banco';
+  const fyPorAno = new Map<number, FundamentosPeriodo>();
+  for (const f of e.fys) {
+    const atual = fyPorAno.get(f.anoFiscal);
+    if (!atual || f.dtFim > atual.dtFim) fyPorAno.set(f.anoFiscal, f);
+  }
+  const anos = anosFechados(
+    [...fyPorAno.keys()].map((ano) => ({ ano })),
+    e.hoje,
+  )
+    .slice(-MAX_ANOS_ESSENCIAL)
+    .map((p) => p.ano);
+  const mPorAno = new Map(e.multiplos.map((m) => [m.anoFiscal, m]));
+  const holding = !banco && emissorEhHoldingSeguradora([...e.fys, ...(e.ttm ? [e.ttm] : [])]);
+  const prejuizo = ausenteCom('prejuizo', TF.prejuizoNoAno);
+  const origens: OrigemReceitaSeguradora[] = [];
+  let algumLucroNaoPositivo = false;
+  let algumaMargemSemLeitura = false;
+  const suspeitos = anosProventoSuspeito(
+    e.perShare.map((p) => ({ anoFiscal: p.anoFiscal, dpa: p.dpaAjHoje, payout: p.payoutDmplPct })),
+    e.hoje,
+  );
+
+  const doPeriodo = (f: FundamentosPeriodo, ano: number): Record<string, Estado<number>> => {
+    const lucro = lucroEstado(f, escala);
+    const lr = lucroReais(f);
+    if (banco) {
+      const b = valoresBanco(f, lr);
+      if ('motivo' in b.pddLucro && b.pddLucro.motivo === 'lucro_nao_positivo') {
+        algumLucroNaoPositivo = true;
+      }
+      return {
+        receitaIntermediacao: estadoTemplate(b.receitaIntermediacao, escala),
+        pdd: estadoTemplate(b.pdd, escala),
+        lucroLiquido: lucro,
+        margemBancaria: estadoTemplate(b.margemBancariaPct),
+        pddLucro: estadoTemplate(b.pddLucro),
+        ativoTotal: estadoTemplate(b.ativoTotal, escala),
+        patrimonio: estadoTemplate(b.patrimonio, escala),
+        divJcp: estadoTemplate(b.divJcp, escala),
+      };
+    }
+    const s = valoresSeguradora(f, ano, lr, holding);
+    if (s.origem) origens.push(s.origem);
+    if ('motivo' in s.margemPct && s.margemPct.motivo === 'margem_sem_leitura') {
+      algumaMargemSemLeitura = true;
+    }
+    return {
+      receitaOperacional: estadoTemplate(s.receitaOperacional, escala),
+      equivalencia: estadoTemplate(s.equivalencia, escala),
+      resultadoFinanceiro: estadoTemplate(s.resultadoFinanceiro, escala),
+      lucroLiquido: lucro,
+      margemLiquida: estadoTemplate(s.margemPct),
+      patrimonio: estadoTemplate(s.patrimonio, escala),
+      divJcp: estadoTemplate(s.divJcp, escala),
+    };
+  };
+
+  const linhas: LinhaFundamentos[] = anos.map((ano, i) => {
+    const f = fyPorAno.get(ano)!;
+    const m = mPorAno.get(ano);
+    const lucro = lucroEstado(f, escala);
+    const emPrejuizo = lucro.estado === 'ok' && lucro.valor < 0;
+    const valores: Record<string, Estado<number>> = {
+      ...doPeriodo(f, ano),
+      roe: estadoDe(m?.roePct),
+      payout: emPrejuizo ? prejuizo : estadoDe(m?.payoutPct),
+      dy: estadoDe(m?.dyPct),
+    };
+    if (banco) {
+      valores.pl = emPrejuizo ? prejuizo : estadoDe(m?.pl);
+      valores.pvp = estadoDe(m?.pvp);
+    }
+    return {
+      rotulo: String(ano),
+      ano,
+      ultimoAno: i === anos.length - 1,
+      valores,
+      selos: suspeitos.has(ano) ? [SELO_CONF] : [],
+    };
+  });
+
+  const ultimoFy = anos.length ? fyPorAno.get(anos[anos.length - 1])! : null;
+  const ttm = e.ttm;
+  if (ttm && (!ultimoFy || ttm.dtFim > ultimoFy.dtFim) && anoDe(ttm.dtFim) <= anoDe(e.hoje)) {
+    const a = e.atual;
+    const lucro = lucroEstado(ttm, escala);
+    const emPrejuizo =
+      (lucro.estado === 'ok' && lucro.valor < 0) || (a?.lpaTtm != null && a.lpaTtm < 0);
+    const conf = e.proventosEmConferencia;
+    const prov = (n: number | null | undefined) =>
+      conf && n == null ? semDado(TEXTOS_TELA.ausentesPorCampo.dyEmConferencia) : estadoDe(n);
+    const valores: Record<string, Estado<number>> = {
+      ...doPeriodo(ttm, anoDe(ttm.dtFim)),
+      roe: estadoDe(a?.roePct),
+      payout: emPrejuizo ? prejuizo : prov(a?.payoutPct),
+      dy: prov(a?.dy12mPct),
+    };
+    if (banco) {
+      valores.pl = emPrejuizo
+        ? ausenteCom('prejuizo', TEXTOS_TELA.ausentesPorCampo.plPrejuizo)
+        : estadoDe(a?.pl);
+      valores.pvp = estadoDe(a?.pvp);
+    }
+    linhas.push({
+      rotulo: TEXTOS_TELA.ativo.ult12mTabela,
+      ano: null,
+      ultimoAno: false,
+      valores,
+      selos: conf ? [SELO_CONF] : [],
+    });
+  }
+
+  const padraoContabil = ultimoFy?.padraoContabil ?? null;
+  const escopo = ultimoFy?.escopo ?? null;
+  const notas: string[] = [];
+  let colunas: ColunaFundamentos[];
+  if (banco) {
+    notas.push(TFIN.banco.unidade, TFIN.banco.observacoes.basileia);
+    const t = textoPadrao(escopo, padraoContabil);
+    if (t) notas.push(formatarTexto(TFIN.banco.observacoes.padraoContabil, { valor: t }));
+    if (algumLucroNaoPositivo) notas.push(TFIN.banco.observacoes.pddLucro);
+    colunas = colunasBanco(v24);
+  } else {
+    const ultimaOrigem = [...origens].pop();
+    const receitaUsada = receitaUsadaDe(origens);
+    notas.push(
+      receitaUsada
+        ? formatarTexto(TFIN.seguradora.unidade, { valor: receitaUsada })
+        : TFIN.seguradora.unidadeSemReceita,
+    );
+    if (holding) {
+      notas.push(TFIN.seguradora.observacoes.holdings);
+      if (algumaMargemSemLeitura) notas.push(TFIN.seguradora.observacoes.margemHolding);
+    } else {
+      notas.push(TFIN.seguradora.observacoes.equivalenciaOperacional);
+    }
+    const ts = TFIN.seguradora.tooltips.receita;
+    const tooltipReceita =
+      [...new Set(origens)].length > 1
+        ? [...new Set(origens)].map((o) => ts[o]).join(' ')
+        : ultimaOrigem
+          ? ts[ultimaOrigem]
+          : undefined;
+    colunas = colunasSeguradora(v24, tooltipReceita);
+  }
+  if (linhas.some((l) => l.ano !== null && l.selos.includes(SELO_CONF))) {
+    notas.push(TF.notaProventosConferencia);
+  }
+
+  const perShareConf = anosPerShareEmConferencia(e.perShare, e.multiplos, { mediana: true });
+  const linhasConf = linhas.map((l) =>
+    conferirPerShare(conferirLinha(l, 'acao', e.conferencia), COLUNAS_PER_SHARE.acao, perShareConf),
+  );
+  const resposta: FundamentosResposta = {
+    nivel: 'essencial',
+    unidade: v24 ? 'R$ bi' : 'R$ mi',
+    fonte: 'CVM',
+    padraoContabil,
+    escopo,
+    variante: 'acao',
+    colunas,
+    linhas: linhasConf,
+    observacoes: notas,
+    template: e.template,
+  };
+  if (v24) resposta.textoFonte = textoNotaFonte('acao', ['cvm'], e.rotulosFontes);
   return resposta;
 }
 
@@ -1171,8 +1497,17 @@ export async function obterFundamentosEssencial(
       vacanciaLiberadas: vacLib.get(symbol.toUpperCase()),
     });
   } else {
+    // A6: o template de financeira sai do segmento B3 do emissor (só com a chave)
+    const emissores = analiseAtivosTemplatesFinanceirasHabilitado()
+      ? await listarEmissores(prisma, [linha.cnpj])
+      : undefined;
+    const template = emissores?.[0] ? templateDoEmissor(emissores[0]) : null;
     const [periodos, ps, my, mc, params, pontosDescontado] = await Promise.all([
-      fundamentosVigentes(prisma, [linha.cnpj], { tipos: ['FY', 'TTM'], desde }),
+      fundamentosVigentes(prisma, [linha.cnpj], {
+        tipos: ['FY', 'TTM'],
+        desde,
+        ...(emissores ? { emissores } : {}),
+      }),
       prisma.assetPerShareYearly.findMany({
         where: { symbol, anoFiscal: { gte: desdeAno } },
         select: {
@@ -1241,6 +1576,7 @@ export async function obterFundamentosEssencial(
           origens: descontado.origens.net_income_adjusted,
         },
         rotulosFontes: rotulosFontes(),
+        ...(template ? { template } : {}),
       },
       { layout: 'v24' },
     );
