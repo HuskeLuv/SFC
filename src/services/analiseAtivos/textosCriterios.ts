@@ -498,3 +498,21 @@ export const PLACEHOLDERS_CRITERIOS = [
   'papel',
   'taxa',
 ] as const;
+
+/** Início da regra do 'cagr' que as v5/v6 põem no fim da definição de cada critério de crescimento. */
+const INICIO_REGRA_CAGR = '; crescimento anual composto = ';
+
+/**
+ * Separa a regra do 'cagr' da definição do critério, para a tela mostrar a regra uma vez só (card de
+ * critérios e "O que cada critério verifica") em vez de repetir a fórmula em cada critério.
+ * Sem a regra (outros tipos, v1–v4), devolve a definição inteira e regra null.
+ */
+export function separarRegraCagr(definicao: string): { definicao: string; regra: string | null } {
+  const i = definicao.indexOf(INICIO_REGRA_CAGR);
+  if (i < 0) return { definicao, regra: null };
+  const regra = definicao.slice(i + 2);
+  return {
+    definicao: definicao.slice(0, i),
+    regra: regra.charAt(0).toUpperCase() + regra.slice(1),
+  };
+}

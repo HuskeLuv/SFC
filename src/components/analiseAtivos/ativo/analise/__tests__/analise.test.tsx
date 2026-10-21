@@ -13,7 +13,7 @@ vi.mock('next/navigation', () => ({ useRouter: () => ({ push: mockPush }) }));
 import BlocoFundamentosEssencial from '../BlocoFundamentosEssencial';
 import BlocoValuationMultiplos from '../BlocoValuationMultiplos';
 import BlocoMultiplosHistoricos from '../BlocoMultiplosHistoricos';
-import BlocoPares, { rotulosDoPerfil } from '../BlocoPares';
+import BlocoPares, { linhaPropriaDoTopo, rotulosDoPerfil } from '../BlocoPares';
 import BarraPosicao10a from '../BarraPosicao10a';
 import CardMultiplo from '../CardMultiplo';
 import ChipsGrupo from '../ChipsGrupo';
@@ -403,6 +403,20 @@ describe('BlocoMultiplosHistoricos', () => {
 });
 
 describe('BlocoPares', () => {
+  it('linha do próprio ativo (visual v2): Lucros seguidos vem do topo; resposta antiga = sem dado', () => {
+    const topo = {
+      ticker: 'WEGE3',
+      nome: 'WEG SA',
+      classe: 'acao',
+      kpis: [],
+      criterios: null,
+    } as unknown as Parameters<typeof linhaPropriaDoTopo>[0];
+    expect(linhaPropriaDoTopo({ ...topo, anosLucroConsecutivos: 12 }).anosLucroConsecutivos).toBe(
+      12,
+    );
+    expect(linhaPropriaDoTopo(topo).anosLucroConsecutivos).toBeNull();
+  });
+
   it('v2.4: só os pares (sem o próprio ativo), clicáveis, sem Índice e com a coluna Critérios', () => {
     mockHooks.useValuationAtivo.mockReturnValue(consulta(VALUATION));
     const { container } = render(<BlocoPares ticker="WEGE3" classe="acao" />);

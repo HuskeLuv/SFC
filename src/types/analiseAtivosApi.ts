@@ -777,6 +777,11 @@ export interface AtivoTopoResposta extends SinaisLeituraV2 {
    * (fiiTipoCvm 'fof' → seção 'fofi'). null = ação ou sem tipo.
    */
   fiiTipoCvm?: FiiTipoTela | null;
+  /**
+   * Anos seguidos com lucro (a coluna "Lucros seguidos" do Quadro), para a linha do próprio ativo
+   * nos Pares (visual v2). Ausente = resposta antiga.
+   */
+  anosLucroConsecutivos?: number | null;
   cotacao: CotacaoTopo;
   /** v2.4 (C2): critérios nas 3 janelas; null = sem avaliação ainda */
   criterios: CriteriosAtivo | null;

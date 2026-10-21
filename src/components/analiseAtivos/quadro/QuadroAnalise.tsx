@@ -98,7 +98,7 @@ import { useMeusReportes } from '@/components/analiseAtivos/reporte/useMeusRepor
 import { ROTAS_CURADORIA } from '@/services/analiseAtivos/curadoria/contrato';
 import { CRITERIA_PARAMS_CODIGO } from '@/services/analiseAtivos/params/criteriaParamsCodigo';
 import { definicoesQuadro } from '@/services/analiseAtivos/quadro/consultaQuadro';
-import { TEXTOS_CRITERIOS } from '@/services/analiseAtivos/textosCriterios';
+import { TEXTOS_CRITERIOS, separarRegraCagr } from '@/services/analiseAtivos/textosCriterios';
 import { TEXTOS_QUADRO, textoContadorQuadro } from '@/services/analiseAtivos/textosQuadro';
 import { TEXTOS_TELA, formatarTexto } from '@/services/analiseAtivos/textosTela';
 import { TEXTOS_EUA } from '@/services/analiseAtivos/textosEua';
@@ -350,8 +350,12 @@ function ExplicacaoCriterios({
     Record<IdCriterio, string>
   >;
   const itens: Array<{ id: string; rotulo: string; texto: string }> = [];
+  // a regra do crescimento anual composto (v5/v6) sai de cada definição e aparece uma vez no fim
+  let regraCagr: string | null = null;
   for (const d of definicoes) {
-    let texto = d.definicao;
+    const partes = separarRegraCagr(d.definicao);
+    regraCagr ??= partes.regra;
+    let texto = partes.definicao;
     if (!d.habilitado && semFonte[d.id]) texto += `. ${maiuscula(semFonte[d.id]!)}`;
     itens.push({ id: d.id, rotulo: d.rotulo, texto });
   }
@@ -389,6 +393,11 @@ function ExplicacaoCriterios({
           </div>
         ))}
       </dl>
+      {regraCagr ? (
+        <p data-regra-cagr="" className="m-0 pb-3 text-sm text-gray-600 dark:text-gray-300">
+          {regraCagr}.
+        </p>
+      ) : null}
       {notaFinanceira ? (
         <p
           data-explicacao-financeira=""

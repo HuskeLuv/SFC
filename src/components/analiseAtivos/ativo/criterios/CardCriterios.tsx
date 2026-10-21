@@ -29,6 +29,7 @@ import { TEXTOS_ATIVO } from '@/services/analiseAtivos/textosAtivo';
 import {
   TEXTOS_CRITERIOS,
   formatarTexto,
+  separarRegraCagr,
   textoFonteClasse,
 } from '@/services/analiseAtivos/textosCriterios';
 import {
@@ -147,6 +148,9 @@ export default function CardCriterios({
     criterios.dadosIncompletos === true ||
     j.itens.some((i) => i.obs?.includes('dados_incompletos'));
   const notas = notasDoPerfil(criterios, janela);
+  // a regra do crescimento anual composto vem no fim de cada definição: aparece uma vez só
+  const partes = j.itens.map((i) => separarRegraCagr(i.definicao));
+  const regraCagr = partes.find((p) => p.regra)?.regra ?? null;
   const corpo = (
     <>
       <div className="grid min-w-0 gap-4 @3xl:grid-cols-[13.5rem_minmax(0,1fr)] @3xl:gap-x-6">
@@ -186,11 +190,23 @@ export default function CardCriterios({
           })}
           className="m-0 grid min-w-0 list-none grid-cols-1 gap-3 p-0 @xl:grid-cols-2 @5xl:grid-cols-3"
         >
-          {j.itens.map((item) => (
-            <ItemCriterio key={item.id} item={item} janela={janela} />
+          {j.itens.map((item, k) => (
+            <ItemCriterio
+              key={item.id}
+              item={{ ...item, definicao: partes[k].definicao }}
+              janela={janela}
+            />
           ))}
         </ul>
       </div>
+      {regraCagr ? (
+        <p
+          data-regra-cagr=""
+          className="m-0 text-xs leading-relaxed text-gray-500 dark:text-gray-400"
+        >
+          {regraCagr}.
+        </p>
+      ) : null}
       <p className="m-0 text-xs leading-relaxed text-gray-500 dark:text-gray-400">
         {fonte} {TA.mesmosCriterios} {TC.fonte.aviso}
       </p>

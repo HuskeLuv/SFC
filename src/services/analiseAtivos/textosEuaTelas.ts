@@ -163,15 +163,15 @@ export const TEXTOS_EUA_TELAS = {
     anoFiscalAnterior:
       'FY{ano} = exercício encerrado em {mes}/{anoSeguinte}; no 10-K da empresa ele aparece como Fiscal {anoSeguinte}.',
     notaStock:
-      'Essencial: o que basta para ver se receita, lucro, caixa e dividendos crescem ano a ano. Lucro líquido: a SEC não publica o lucro sem itens não recorrentes; a coluna usa o lucro dos acionistas.',
+      'Essencial: o que basta para acompanhar receita, lucro, caixa e dividendos ano a ano. Lucro líquido: a SEC não publica o lucro sem itens não recorrentes; a coluna usa o lucro dos acionistas.',
     notaReit:
-      'Essencial: o que basta para ver se receita, lucro, caixa e dividendos crescem ano a ano. Payout sobre o lucro contábil não vale para REITs: a depreciação dos imóveis reduz o lucro sem sair do caixa. Por isso a coluna usa o caixa operacional.',
+      'Essencial: o que basta para acompanhar receita, lucro, caixa e dividendos ano a ano. Payout sobre o lucro contábil não vale para REITs: a depreciação dos imóveis reduz o lucro sem sair do caixa. Por isso a coluna usa o caixa operacional.',
     /** fundamentei-regras (F3, EUA_ROTULOS_EN; A4.e): sem o trecho do lucro sem não recorrentes */
     notaStockUmLucro:
-      'Essencial: o que basta para ver se receita, lucro, caixa e dividendos crescem ano a ano. Lucro líquido = lucro dos acionistas do 10-K.',
+      'Essencial: o que basta para acompanhar receita, lucro, caixa e dividendos ano a ano. Lucro líquido = lucro dos acionistas do 10-K.',
     /** fundamentei-regras (F3, REIT_FCO_AJUSTADO): no lugar de notaReit */
     notaReitAjustado:
-      'Essencial: o que basta para ver se receita, lucro, caixa e dividendos crescem ano a ano. Payout sobre o lucro contábil não vale para REITs: a depreciação dos imóveis reduz o lucro sem sair do caixa. Por isso as colunas usam o caixa operacional ajustado pela remuneração em ações (caixa operacional − remuneração em ações do 10-K).',
+      'Essencial: o que basta para acompanhar receita, lucro, caixa e dividendos ano a ano. Payout sobre o lucro contábil não vale para REITs: a depreciação dos imóveis reduz o lucro sem sair do caixa. Por isso as colunas usam o caixa operacional ajustado pela remuneração em ações (caixa operacional − remuneração em ações do 10-K).',
     /** anos sem SBC no 10-K (marca nas células ajustadas) */
     sbcIndisponivelAnos:
       'FY{anos}: sem remuneração em ações informada no 10-K; usado o caixa operacional sem ajuste (células marcadas com *).',

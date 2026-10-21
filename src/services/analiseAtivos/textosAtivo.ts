@@ -82,7 +82,7 @@ export const TEXTOS_ATIVO = {
     notaFinanceira:
       'EBITDA, dívida líquida e FCL/CAPEX não se aplicam a bancos, seguradoras e holdings financeiras.',
     notaEssencial:
-      'Essencial: o que basta para ver se receita, lucro, caixa e dividendos crescem ano a ano. Para abrir todos os demonstrativos, use o Raio-X.',
+      'Essencial: o que basta para acompanhar receita, lucro, caixa e dividendos ano a ano. Para abrir todos os demonstrativos, use o Raio-X.',
     /** v2.5: rótulo ABL quando gla_m2 vier de um provedor (até lá, areaFii) */
     ablFii: 'ABL (m²)',
     tooltipAblFii: 'Área bruta locável informada pela fonte, em m².',
