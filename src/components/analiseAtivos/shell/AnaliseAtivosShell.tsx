@@ -15,6 +15,11 @@
  * config.recursos.salvos: ao lado da busca no computador, ao lado do título no celular. Sem o
  * recurso, o DOM é o de antes.
  *
+ * fundamentei-regras (F4, item C): prop `visualV2` (ANALISE_ATIVOS_VISUAL_V2_HABILITADO, lida nas
+ * page.tsx) vai ao VisualV2Provider dos blocos. Ligada, o 'quadro'/'salvos' seguem a ordem do HTML
+ * do Pedro: banner, pílulas da área e, abaixo, H1/subtítulo à esquerda e busca à direita. Desligada
+ * (ou ausente), a casca é a de hoje.
+ *
  * Stocks e REITs: o rodapé legal vira o aviso EUA (fonte SEC) no Quadro/Comparador de stock|reit
  * (pela URL, mercadoDaUrl) e na página de ticker EUA (prop mercado); chave EUA desligada = Brasil.
  */
@@ -25,6 +30,7 @@ import PilulasArea from '@/components/analiseAtivos/shell/PilulasArea';
 import BotaoCriarLista from '@/components/analiseAtivos/shell/BotaoCriarLista';
 import BannerNovidade from '@/components/analiseAtivos/shell/BannerNovidade';
 import RodapeLegal from '@/components/analiseAtivos/shell/RodapeLegal';
+import { VisualV2Provider } from '@/components/analiseAtivos/shell/VisualV2';
 import { lerEstadoComparador } from '@/components/analiseAtivos/comparador/useEstadoComparadorUrl';
 import { COR_LINK } from '@/constants/analiseAtivosVisual';
 import { useAnaliseAtivosConfig } from '@/hooks/useAnaliseAtivos';
@@ -103,11 +109,15 @@ function BuscaArea({
   );
 }
 
+/** F4: a casca aceita o sinal do visual v2 (as page.tsx leem a chave no servidor). */
+export type AnaliseAtivosShellPropsV2 = AnaliseAtivosShellProps & { visualV2?: boolean };
+
 export default function AnaliseAtivosShell({
   children,
   variante,
   mercado,
-}: AnaliseAtivosShellProps) {
+  visualV2 = false,
+}: AnaliseAtivosShellPropsV2) {
   const t = TEXTOS_TELA.area;
   const config = useAnaliseAtivosConfig();
   const params = useSearchParams();
@@ -116,9 +126,29 @@ export default function AnaliseAtivosShell({
     config.data?.recursos?.eua === true ? (mercado ?? mercadoDaUrl(variante, params)) : 'br';
   // bloco 1: "Criar lista" só com o recurso (sem ele, a casca fica idêntica à de hoje)
   const criarLista = config.data?.recursos?.salvos === true;
-  return (
+  const casca = (
     <div className="flex min-w-0 flex-col gap-4 md:gap-6" data-analise-ativos={variante}>
-      {variante === 'quadro' || variante === 'salvos' ? (
+      {visualV2 && (variante === 'quadro' || variante === 'salvos') ? (
+        <>
+          {variante === 'quadro' ? <BannerNovidade /> : null}
+          <div className="flex flex-col gap-4" data-casca-v2="">
+            <PilulasArea ativa={variante} />
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+              <div className="min-w-0">
+                <TituloArea criarLista={criarLista} />
+                <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                  {TEXTOS_QUADRO.subtitulo}
+                </p>
+              </div>
+              <BuscaArea
+                variante="cabecalho"
+                className="w-full lg:w-[420px]"
+                criarLista={criarLista}
+              />
+            </div>
+          </div>
+        </>
+      ) : variante === 'quadro' || variante === 'salvos' ? (
         <>
           <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
             <div className="min-w-0">
@@ -162,4 +192,6 @@ export default function AnaliseAtivosShell({
       <RodapeLegal className="mt-2" mercado={mercadoRodape} />
     </div>
   );
+  // sem a chave, nenhum provedor novo na árvore (os blocos leem false do padrão do contexto)
+  return visualV2 ? <VisualV2Provider valor>{casca}</VisualV2Provider> : casca;
 }

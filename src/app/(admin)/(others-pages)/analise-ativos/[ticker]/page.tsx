@@ -2,7 +2,10 @@ import type { Metadata } from 'next';
 import { notFound, redirect } from 'next/navigation';
 import AnaliseAtivosShell from '@/components/analiseAtivos/shell/AnaliseAtivosShell';
 import PaginaAtivo from '@/components/analiseAtivos/pagina/PaginaAtivo';
-import { analiseAtivosEuaHabilitado } from '@/lib/analiseAtivosConfig';
+import {
+  analiseAtivosEuaHabilitado,
+  analiseAtivosVisualV2Habilitado,
+} from '@/lib/analiseAtivosConfig';
 import { ehTickerEua, symbolAnaliseDaSec } from '@/types/analiseAtivosEua';
 
 /** Ticker de ação/FII da B3: 4 letras/dígitos + 1–2 dígitos (WEGE3, KLBN11, HGLG11). */
@@ -37,7 +40,11 @@ export default async function AtivoPage({ params }: { params: Params }) {
   const t = TICKER_RE.test(maiusculo) ? maiusculo : symbolAnaliseDaSec(maiusculo);
   if (bruto !== t) redirect(`/analise-ativos/${encodeURIComponent(t)}`);
   return (
-    <AnaliseAtivosShell variante="ativo" mercado={TICKER_RE.test(t) ? 'br' : 'eua'}>
+    <AnaliseAtivosShell
+      visualV2={analiseAtivosVisualV2Habilitado()}
+      variante="ativo"
+      mercado={TICKER_RE.test(t) ? 'br' : 'eua'}
+    >
       <PaginaAtivo ticker={t} />
     </AnaliseAtivosShell>
   );
