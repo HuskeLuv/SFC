@@ -3,7 +3,10 @@ import { notFound } from 'next/navigation';
 import { Suspense } from 'react';
 import AnaliseAtivosShell from '@/components/analiseAtivos/shell/AnaliseAtivosShell';
 import Comparador from '@/components/analiseAtivos/comparador/Comparador';
-import { analiseAtivosComparadorHabilitado } from '@/lib/analiseAtivosConfig';
+import {
+  analiseAtivosComparadorHabilitado,
+  analiseAtivosVisualV2Habilitado,
+} from '@/lib/analiseAtivosConfig';
 import { TEXTOS_COMPARADOR } from '@/services/analiseAtivos/textosComparador';
 
 export const dynamic = 'force-dynamic';
@@ -21,7 +24,7 @@ export const metadata: Metadata = {
 export default function ComparadorPage() {
   if (!analiseAtivosComparadorHabilitado()) notFound();
   return (
-    <AnaliseAtivosShell variante="comparador">
+    <AnaliseAtivosShell visualV2={analiseAtivosVisualV2Habilitado()} variante="comparador">
       <Suspense fallback={null}>
         <Comparador />
       </Suspense>

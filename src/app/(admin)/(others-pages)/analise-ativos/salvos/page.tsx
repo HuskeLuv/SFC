@@ -2,7 +2,10 @@ import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import AnaliseAtivosShell from '@/components/analiseAtivos/shell/AnaliseAtivosShell';
 import PaginaSalvos from '@/components/analiseAtivos/salvos/PaginaSalvos';
-import { analiseAtivosSalvosHabilitado } from '@/lib/analiseAtivosConfig';
+import {
+  analiseAtivosSalvosHabilitado,
+  analiseAtivosVisualV2Habilitado,
+} from '@/lib/analiseAtivosConfig';
 import { TEXTOS_SALVOS } from '@/services/analiseAtivos/textosSalvos';
 
 export const dynamic = 'force-dynamic';
@@ -19,7 +22,7 @@ export const metadata: Metadata = {
 export default function SalvosPage() {
   if (!analiseAtivosSalvosHabilitado()) notFound();
   return (
-    <AnaliseAtivosShell variante="salvos">
+    <AnaliseAtivosShell visualV2={analiseAtivosVisualV2Habilitado()} variante="salvos">
       <PaginaSalvos />
     </AnaliseAtivosShell>
   );

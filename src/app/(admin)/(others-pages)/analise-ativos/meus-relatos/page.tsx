@@ -2,7 +2,10 @@ import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import AnaliseAtivosShell from '@/components/analiseAtivos/shell/AnaliseAtivosShell';
 import MeusRelatos from '@/components/analiseAtivos/reporte/MeusRelatos';
-import { analiseAtivosReporteHabilitado } from '@/lib/analiseAtivosConfig';
+import {
+  analiseAtivosReporteHabilitado,
+  analiseAtivosVisualV2Habilitado,
+} from '@/lib/analiseAtivosConfig';
 
 export const metadata: Metadata = {
   title: 'Meus relatos · Análise de Ativos',
@@ -18,7 +21,7 @@ export const dynamic = 'force-dynamic';
 export default function MeusRelatosPage() {
   if (!analiseAtivosReporteHabilitado()) notFound();
   return (
-    <AnaliseAtivosShell variante="ativo">
+    <AnaliseAtivosShell visualV2={analiseAtivosVisualV2Habilitado()} variante="ativo">
       <MeusRelatos />
     </AnaliseAtivosShell>
   );

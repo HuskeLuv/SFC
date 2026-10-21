@@ -23,9 +23,25 @@
  * Nunca usa o pagamento como fallback de data-com.
  * Ajuste a hoje POR EVENTO: valor ÷ Π eventos confirmados com data > data-com (MGLU3 2020 teve
  * proventos antes e depois do 4:1 no mesmo ano). Funções puras.
+ *
+ * fundamentei-regras (F2, A4.b/A4.c; desenho docs/analise-ativos/fundamentei-regras/desenho.json):
+ * janelas do DY/DPA de AÇÕES pela regra da scoring_params (regrasCalculoDe), padrões = hoje —
+ *  - baseJanelaDy 'ex': data-ex = pregão seguinte à data-com real (dataExDoProvento; vale também
+ *    para a YAHOO, cuja data-com real já é o pregão anterior à data ex gravada);
+ *  - cortarFuturos: data-ex > hoje fora do DPA do ano (proventos anunciados e ainda não 'ex');
+ *  - dpaPorExercicio: exercício fora de dezembro soma [dtIni, dtFim] do FY, não o ano civil.
+ * FII (rendimento12m 'fii', 'rend' do critério) segue por data-com nesta entrega.
  */
 import { eventoAjustaSerie } from '@/services/analiseAtivos/regras/calculo/eventosCorporativos';
-import { distanciaEmPregoes, pregaoAnterior } from '@/services/analiseAtivos/regras/comum/pregoes';
+import {
+  distanciaEmPregoes,
+  pregaoAnterior,
+  pregaoSeguinte,
+} from '@/services/analiseAtivos/regras/comum/pregoes';
+import {
+  regrasCalculoDe,
+  type BaseJanelaDy,
+} from '@/services/analiseAtivos/params/scoringParamsSchema';
 import { ausente, ok } from '@/services/analiseAtivos/regras/comum/valor';
 import type {
   CoberturaProventos,
@@ -768,10 +784,34 @@ type ProventoParaSoma = Pick<
   'tipoNormalizado' | 'status' | 'dataComReal' | 'valor'
 >;
 
+/** Data-ex de um provento (F2, A4.b): pregão B3 seguinte à data-com real; null sem data-com. */
+export function dataExDoProvento(pr: Pick<ProventoAuditado, 'dataComReal'>): string | null {
+  return pr.dataComReal ? pregaoSeguinte(pr.dataComReal) : null;
+}
+
+/** Data do provento na base da janela ('com' = data-com real; 'ex' = pregão seguinte). */
+function dataNaBase(pr: Pick<ProventoAuditado, 'dataComReal'>, base: BaseJanelaDy): string | null {
+  return base === 'ex' ? dataExDoProvento(pr) : pr.dataComReal;
+}
+
+/**
+ * Opções do DPA do ano (F2 fundamentei-regras). Ausentes = o DPA de hoje (data-com no ano civil,
+ * sem corte), byte a byte.
+ */
+export interface OpcoesDpaAno {
+  /** base da janela: 'com' (padrão, hoje) | 'ex' (scoring v3) */
+  baseJanela?: BaseJanelaDy;
+  /** cortarFuturos (scoring v3): provento com data-ex > `cortarApos` fica fora */
+  cortarApos?: string | null;
+  /** dpaPorExercicio (scoring v3, exercício fora de dezembro): janela [dtIni, dtFim] */
+  periodo?: { dtIni: string; dtFim: string } | null;
+}
+
 /**
  * DPA do ano por data-com (só DIVIDENDO+JCP válidos). base 'fim_do_ano': na base de ações do fim do
  * exercício (÷ eventos confirmados após a data-com e já refletidos no fim do ano: anoBase ≤ ano);
- * 'hoje': na base de hoje (÷ todos os eventos confirmados após a data-com).
+ * 'hoje': na base de hoje (÷ todos os eventos confirmados após a data-com). Com `opts` (F2), a data
+ * da janela pode ser a data-ex, a janela o exercício real e a data-ex futura fica fora.
  */
 export function dpaNoAno(
   proventos: ProventoParaSoma[],
@@ -779,12 +819,18 @@ export function dpaNoAno(
   base: 'fim_do_ano' | 'hoje',
   eventos: EventoParaAjuste[],
   tipos: readonly string[] = ['DIVIDENDO', 'JCP'],
+  opts: OpcoesDpaAno = {},
 ): Valor<number> {
   const prefixo = String(ano);
+  const baseJanela = opts.baseJanela ?? 'com';
   let soma = 0;
   for (const pr of proventos) {
     if (pr.status !== 'valido' || !pr.dataComReal || !tipos.includes(pr.tipoNormalizado)) continue;
-    if (pr.dataComReal.slice(0, 4) !== prefixo) continue;
+    const data = dataNaBase(pr, baseJanela)!;
+    if (opts.periodo) {
+      if (data < opts.periodo.dtIni || data > opts.periodo.dtFim) continue;
+    } else if (data.slice(0, 4) !== prefixo) continue;
+    if (opts.cortarApos && dataExDoProvento(pr)! > opts.cortarApos) continue;
     const fator = eventos
       .filter(
         (e) =>
@@ -796,6 +842,25 @@ export function dpaNoAno(
     soma += pr.valor / fator;
   }
   return ok(soma);
+}
+
+/**
+ * Opções do DPA de um FY de ação pela scoring_params (F2): base da janela, corte de data-ex futura
+ * e exercício real fora de dezembro. Padrões da v1/v2 ⇒ {} (o DPA de hoje).
+ */
+export function opcoesDpaDoFy(
+  f: { dtIni: string; dtFim: string },
+  hoje: string,
+  p: ScoringParams,
+): OpcoesDpaAno {
+  const r = regrasCalculoDe(p);
+  const opts: OpcoesDpaAno = {};
+  if (r.baseJanelaDy !== 'com') opts.baseJanela = r.baseJanelaDy;
+  if (r.cortarFuturos) opts.cortarApos = hoje;
+  if (r.dpaPorExercicio && f.dtFim.slice(5, 7) !== '12') {
+    opts.periodo = { dtIni: f.dtIni, dtFim: f.dtFim };
+  }
+  return opts;
 }
 
 /** Data AAAA-MM-DD menos `meses` meses (dia limitado ao fim do mês). */
@@ -812,6 +877,8 @@ export function menosMeses(data: string, meses: number): string {
 /**
  * Rendimento de 12 meses por data-com, janela de CALENDÁRIO (hoje − 12m, hoje] — nunca "os últimos
  * 12 registros" (regra 26). Ações: DIVIDENDO+JCP bruto; FII: RENDIMENTO+DIVIDENDO. Na base de hoje.
+ * F2 (A4.b): ações com proventos.baseJanelaDy 'ex' (scoring v3) = janela pela data-ex; FII segue
+ * pela data-com. O ajuste por evento continua pela data-com.
  */
 export function rendimento12m(
   proventos: ProventoParaSoma[],
@@ -826,10 +893,12 @@ export function rendimento12m(
       : (p?.sanidade.proventos.tiposFii ?? ['RENDIMENTO', 'DIVIDENDO']);
   const meses = p?.sanidade.proventos.janelaMesesDy ?? 12;
   const de = menosMeses(hoje, meses);
+  const baseJanela: BaseJanelaDy = classe === 'acao' && p ? regrasCalculoDe(p).baseJanelaDy : 'com';
   let soma = 0;
   for (const pr of proventos) {
     if (pr.status !== 'valido' || !pr.dataComReal || !tipos.includes(pr.tipoNormalizado)) continue;
-    if (pr.dataComReal <= de || pr.dataComReal > hoje) continue;
+    const data = dataNaBase(pr, baseJanela)!;
+    if (data <= de || data > hoje) continue;
     soma += pr.valor / fatorApos(eventos, pr.dataComReal);
   }
   return ok(soma);

@@ -10,6 +10,9 @@
  *
  * Contraste (bloco C, fatia B item 7): texto branco sobre outside (#0079F2) dá ~4,2:1 e reprova o
  * AA; sobre patrimonio (#396CAA) dá ≥ 5:1. Outside fica só em elemento não textual.
+ *
+ * Visual v2 (F4, item C5): rótulo SEM caixa alta e a seta só na coluna ordenada, por classe local
+ * (TABLE_STYLES intocado: CABECALHO_SEM_CAIXA_ALTA tira o uppercase do headRow).
  */
 import type { CSSProperties } from 'react';
 import { TABLE_STYLES } from '@/components/ui/table/tableStyles';
@@ -17,6 +20,15 @@ import { TEXTOS_TELA, formatarTexto } from '@/services/analiseAtivos/textosTela'
 import type { ColunaQuadro } from '@/constants/analiseAtivosVisual';
 import type { DirecaoOrdem, OrdemQuadro } from '@/types/analiseAtivosApi';
 import { MYFINANCE_BRAND } from '@/constants/brandColors';
+import { useVisualV2 } from '@/components/analiseAtivos/shell/VisualV2';
+
+/**
+ * headRow do TABLE_STYLES sem a caixa alta nem o espaçamento largo (visual v2 das tabelas da
+ * Análise: Quadro, Comparador, Raio-X). A constante do padrão não muda.
+ */
+export const CABECALHO_SEM_CAIXA_ALTA = TABLE_STYLES.headRow
+  .replace(/\s*\buppercase\b/, '')
+  .replace(/\s*\btracking-wide\b/, '');
 
 export interface CabecalhoOrdenavelProps {
   coluna: ColunaQuadro;
@@ -53,6 +65,7 @@ export default function CabecalhoOrdenavel({
   dica,
   className = '',
 }: CabecalhoOrdenavelProps) {
+  const v2 = useVisualV2();
   const ordenavel = coluna.ordem !== null;
   const ativa = ordenavel && coluna.ordem === ordemAtual;
   const ariaSort = !ordenavel
@@ -85,6 +98,7 @@ export default function CabecalhoOrdenavel({
           dica={dica}
           onClick={() => onOrdenar(coluna.ordem as OrdemQuadro)}
           justifica={JUSTIFICA[coluna.alinhamento]}
+          v2={v2}
         />
       ) : (
         rotulo
@@ -100,6 +114,7 @@ function BotaoOrdenar({
   dica,
   onClick,
   justifica,
+  v2 = false,
 }: {
   rotulo: string;
   ativa: boolean;
@@ -107,7 +122,22 @@ function BotaoOrdenar({
   dica?: string;
   onClick: () => void;
   justifica: string;
+  v2?: boolean;
 }) {
+  if (v2) {
+    return (
+      <button
+        type="button"
+        onClick={onClick}
+        aria-label={formatarTexto(TEXTOS_TELA.quadro.ordenarPor, { valor: rotulo })}
+        title={dica}
+        className={`-my-2 inline-flex min-h-11 w-full items-center gap-1 ${justifica} font-semibold outline-none hover:underline focus-visible:ring-[3px] focus-visible:ring-white/80`}
+      >
+        <span>{rotulo}</span>
+        {ativa ? <span aria-hidden="true">{dir === 'asc' ? '▲' : '▼'}</span> : null}
+      </button>
+    );
+  }
   return (
     <button
       type="button"

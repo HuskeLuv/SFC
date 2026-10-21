@@ -14,6 +14,9 @@
  *
  * v2.4 (fatia C2): resumo literal da spec ('n de m indicadores de ‹grupo› estão abaixo da própria
  * média de 10 anos', montado no servidor) + a legenda da barra quando o grupo tem barra visível.
+ *
+ * Visual v2 (fundamentei-regras F4, item C11): grade de 4 colunas (2 no tablet, 1 no celular), chips
+ * claros (ChipsGrupo) e a frase-resumo sem fundo. Sem a chave, o bloco de hoje.
  */
 import { useState } from 'react';
 import CardMultiplo from '@/components/analiseAtivos/ativo/analise/CardMultiplo';
@@ -26,6 +29,7 @@ import { TEXTOS_TELA } from '@/services/analiseAtivos/textosTela';
 import { TEXTOS_ATIVO } from '@/services/analiseAtivos/textosAtivo';
 import type { BlocoValuationMultiplosProps, GrupoValuation } from '@/types/analiseAtivosApi';
 import type { DadoBlocoReporte } from '@/types/analiseAtivosCuradoria';
+import { useVisualV2 } from '@/components/analiseAtivos/shell/VisualV2';
 
 export type { BlocoValuationMultiplosProps };
 
@@ -51,6 +55,7 @@ export default function BlocoValuationMultiplos({
   cabecalhoExtra,
 }: BlocoValuationMultiplosProps) {
   const q = useValuationAtivo(ticker);
+  const v2 = useVisualV2();
   const [escolhido, setEscolhido] = useState<string | null>(null);
   const grupos = q.data?.grupos ?? [];
   const grupo = grupos.find((g) => g.codigo === escolhido) ?? grupos[0];
@@ -78,7 +83,11 @@ export default function BlocoValuationMultiplos({
           <p
             aria-live="polite"
             data-resumo-grupo={grupo.codigo}
-            className="rounded-lg bg-gray-50 px-3 py-2 text-[13.5px] text-gray-700 dark:bg-white/[0.04] dark:text-gray-200"
+            className={
+              v2
+                ? 'text-xs text-gray-500 dark:text-gray-400'
+                : 'rounded-lg bg-gray-50 px-3 py-2 text-[13.5px] text-gray-700 dark:bg-white/[0.04] dark:text-gray-200'
+            }
           >
             {grupo.explicacao ?? grupo.resumo}
             {!grupo.explicacao && grupo.itens.some((i) => i.barra.visivel) ? (
@@ -90,7 +99,11 @@ export default function BlocoValuationMultiplos({
           </p>
           {grupo.itens.length > 0 ? (
             <div
-              className="grid grid-cols-1 gap-3 sm:grid-cols-[repeat(auto-fill,minmax(230px,1fr))]"
+              className={
+                v2
+                  ? 'grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4'
+                  : 'grid grid-cols-1 gap-3 sm:grid-cols-[repeat(auto-fill,minmax(230px,1fr))]'
+              }
               data-grupo={grupo.codigo}
             >
               {grupo.itens.map((item) => (

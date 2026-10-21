@@ -22,6 +22,11 @@
  *    critérios (BRL → R$ mi, ESCALA_CRITERIO).
  * escolherSerieJanela decide a serieFallback pela JANELA INTEIRA (nunca mistura séries entre anos):
  * se todos os anos exigidos têm a série principal, usa a principal; senão, a de fallback em todos.
+ *
+ * fundamentei-regras (F1): as séries do REIT ajustadas pela remuneração em ações (fco_acao e pay da
+ * v5) caem na série sem ajuste com a obs 'sbc_indisponivel' (OBS_FALLBACK). No payout ajustado,
+ * +Infinity (caixa operacional ajustado ≤ 0) é VALOR do ano (fora do limite), não falta de dado:
+ * não dispara o fallback (SERIES_INFINITO_E_VALOR). As séries de antes seguem a regra de antes.
  */
 import {
   agregacaoDaSerie,
@@ -204,7 +209,18 @@ export function resolverSeries(e: EntradaResolverSeries): ResultadoResolverSerie
 /** Observação do resultado quando a janela usou a serieFallback desta série principal. */
 export const OBS_FALLBACK: Partial<Record<SerieCriterio, ObsCriterio>> = {
   net_income_adjusted: 'lucro_sem_descontado',
+  // fundamentei-regras (v5, REIT): algum ano da janela sem a SBC no 10-K
+  ocf_adjusted_per_share: 'sbc_indisponivel',
+  cash_payout_adjusted_pct: 'sbc_indisponivel',
 };
+
+/**
+ * Séries principais em que +Infinity conta como valor do ano na escolha do fallback (payout com o
+ * denominador ≤ 0 = fora do limite). Só as da v5; as de antes ficam com a regra de antes.
+ */
+export const SERIES_INFINITO_E_VALOR: ReadonlySet<SerieCriterio> = new Set<SerieCriterio>([
+  'cash_payout_adjusted_pct',
+]);
 
 export interface SerieDaJanela {
   /** série efetivamente usada (a principal ou a de fallback) */
@@ -225,8 +241,15 @@ export interface SerieDaJanela {
   obs: ObsCriterio[];
 }
 
-const temTodos = (valores: Readonly<Record<number, number | null>> | undefined, anos: number[]) =>
-  !!valores && anos.every((a) => finito(valores[a]));
+const temTodos = (
+  valores: Readonly<Record<number, number | null>> | undefined,
+  anos: number[],
+  infinitoEValor = false,
+) =>
+  !!valores &&
+  anos.every(
+    (a) => finito(valores[a]) || (infinitoEValor && valores[a] === Number.POSITIVE_INFINITY),
+  );
 
 /**
  * Série de um critério numa janela (anos exigidos já com o ano anterior do 'up'). Fallback pela
@@ -240,7 +263,8 @@ export function escolherSerieJanela(
   anos: number[],
 ): SerieDaJanela {
   const principal = series[def.serie];
-  const usarFallback = !!def.serieFallback && !temTodos(principal, anos);
+  const usarFallback =
+    !!def.serieFallback && !temTodos(principal, anos, SERIES_INFINITO_E_VALOR.has(def.serie));
   const serie = usarFallback ? (def.serieFallback as SerieCriterio) : def.serie;
   const valores = (usarFallback ? series[serie] : principal) ?? {};
   const origemSerie = origens?.[serie];

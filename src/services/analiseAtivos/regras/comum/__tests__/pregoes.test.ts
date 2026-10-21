@@ -4,6 +4,7 @@ import {
   ehPregaoB3,
   pregaoAnterior,
   pregoesEntre,
+  pregaoSeguinte,
   proximoPregaoOuMesmo,
 } from '@/services/analiseAtivos/regras/comum/pregoes';
 
@@ -34,6 +35,17 @@ describe('calendário de pregões B3', () => {
     expect(ehPregaoB3('2025-12-24')).toBe(false);
     expect(ehPregaoB3('2025-12-31')).toBe(false);
     expect(ehPregaoB3('2025-12-30')).toBe(true);
+  });
+
+  it('31/12 no fim de semana: só o pregaoSeguinte (data-ex da v3) fecha o último dia útil do ano', () => {
+    expect(pregaoSeguinte('2023-12-28')).toBe('2024-01-02');
+    expect(pregaoSeguinte('2022-12-29')).toBe('2023-01-02');
+    expect(pregaoSeguinte('2017-12-28')).toBe('2018-01-02');
+    expect(pregaoSeguinte('2016-12-29')).toBe('2017-01-02');
+    // v1/v2 (deduplicação, data-com real da YAHOO, lacunas) seguem o calendário de antes
+    expect(ehPregaoB3('2023-12-29')).toBe(true);
+    expect(pregaoAnterior('2024-01-02')).toBe('2023-12-29');
+    expect(distanciaEmPregoes('2023-12-28', '2024-01-02')).toBe(2);
   });
 
   it('proximoPregaoOuMesmo(sábado) = segunda; em pregão devolve o mesmo dia', () => {

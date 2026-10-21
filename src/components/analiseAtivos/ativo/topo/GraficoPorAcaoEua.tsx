@@ -7,6 +7,10 @@
  *
  * Acessível: <figure> com o SVG role=img + resumo no aria-label, tabela sr-only com os pontos e
  * figcaption neutra. Valor negativo abaixo da linha de base, na cor de negativo do app.
+ *
+ * fundamentei-regras (F3): título, série e figcaption vêm do servidor (caixa do REIT ajustado pela
+ * remuneração em ações; nomes em inglês com a chave). Os anos sem SBC no 10-K chegam em
+ * `grafico.lacunas` e aparecem como notas abaixo da figcaption; sem lacunas (hoje), nada muda.
  */
 import { formatarAnalise } from '@/components/analiseAtivos/comum/formatarAnalise';
 import { RodapeFrescorBloco } from '@/components/analiseAtivos/ativo/topo/SeloFrescor';
@@ -173,6 +177,16 @@ export default function GraficoPorAcaoEua({
         <figcaption className="text-xs text-gray-500 dark:text-gray-400">
           {grafico.figcaption}
         </figcaption>
+        {grafico.lacunas.length > 0 ? (
+          <ul
+            data-lacunas-grafico-eua=""
+            className="flex flex-col gap-0.5 text-xs text-gray-500 dark:text-gray-400"
+          >
+            {grafico.lacunas.map((l) => (
+              <li key={l.chave}>{l.texto}</li>
+            ))}
+          </ul>
+        ) : null}
       </figure>
       <RodapeFrescorBloco bloco="grafico" />
     </section>

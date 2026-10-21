@@ -100,6 +100,8 @@ export async function carregarEntradaQuadro(
         anoFiscal: true,
         dpaAjHoje: true,
         payoutDmplPct: true,
+        // F2 fundamentei-regras: anos fechados por dtFim com a scoring v3 (serie10aPorDtFim)
+        dtFim: true,
       },
     }),
     listarEmissores(prisma, cnpjsAcao),
@@ -234,7 +236,7 @@ export async function carregarEntradaQuadro(
       ordem: Number(q.rn),
       closeRaw: paraNumero(q.closeRaw) ?? 0,
     })),
-    porAcaoAno,
+    porAcaoAno: porAcaoAno.map((p) => ({ ...p, dtFim: paraData(p.dtFim) })),
     lucrosFy,
     mesesInformeFii: mesesInforme.map((m) => ({ cnpj: m.cnpj, ano: m.ano, meses: m.meses })),
     contagens,
@@ -312,7 +314,12 @@ export async function lucrosFyVigentes(
   }
   return [...porAno.entries()].map(([k, v]) => {
     const [cnpj, ano] = k.split('|');
-    return { cnpj, anoFiscal: Number(ano), lucro: v.lucro };
+    return {
+      cnpj,
+      anoFiscal: Number(ano),
+      lucro: v.lucro,
+      dtFim: v.dtFim.toISOString().slice(0, 10),
+    };
   });
 }
 

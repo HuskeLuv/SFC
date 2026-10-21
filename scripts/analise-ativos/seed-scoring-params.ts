@@ -1,6 +1,6 @@
 /**
- * Semeia um ScoringParams do código (v1 = SCORING_PARAMS_V1; v2 = SCORING_PARAMS_V2, bloco C) na
- * tabela scoring_params.
+ * Semeia um ScoringParams do código (v1 = SCORING_PARAMS_V1; v2 = SCORING_PARAMS_V2, bloco C; v3 =
+ * SCORING_PARAMS_V3, alinhamento ao Fundamentei) na tabela scoring_params.
  *
  * Idempotente e imutável: insere a versão só se ausente; se já existir, compara com o código (após
  * a validação pelo schema, que aplica os defaults dos campos acrescentados depois) e avisa quando
@@ -10,21 +10,30 @@
  * futuro liga as regras de conferência no próximo cálculo (em produção: só com OK do Wellington,
  * depois do dry-run; ver docs/analise-ativos/blocoC/ATIVACAO.md). O padrão continua --versao=1.
  *
+ * v3 (fundamentei-regras, F2): INERTE — sem --valido-a-partir nasce com validFrom 2099-01-01 FIXO
+ * (VALID_FROM_SCORING_V3, nunca new Date()). Ativar = UPDATE do validFrom com OK, depois do dry-run
+ * recalcular-analise --versao-params=3 (docs/analise-ativos/fundamentei-regras/ATIVACAO.md).
+ *
  * Uso:
  *   npx tsx --env-file=.env scripts/analise-ativos/seed-scoring-params.ts                    # v1 dry-run
  *   npx tsx --env-file=.env scripts/analise-ativos/seed-scoring-params.ts --apply            # v1 grava
  *   npx tsx --env-file=.env scripts/analise-ativos/seed-scoring-params.ts --versao=2         # v2 dry-run
  *   npx tsx --env-file=.env scripts/analise-ativos/seed-scoring-params.ts --versao=2 --apply \
  *     [--valido-a-partir=AAAA-MM-DD]                                                         # v2 grava
+ *   npx tsx --env-file=.env scripts/analise-ativos/seed-scoring-params.ts --versao=3 --apply # v3 inerte (2099)
  */
 import { isDeepStrictEqual } from 'util';
 import { PrismaClient, type Prisma } from '@prisma/client';
 import type { ScoringParams } from '../../src/services/analiseAtivos/params/scoringParamsSchema';
 import { SCORING_PARAMS_V1 } from '../../src/services/analiseAtivos/params/scoringParamsV1';
 import { SCORING_PARAMS_V2 } from '../../src/services/analiseAtivos/params/scoringParamsV2';
+import {
+  SCORING_PARAMS_V3,
+  VALID_FROM_SCORING_V3,
+} from '../../src/services/analiseAtivos/params/scoringParamsV3';
 import { validarScoringParams } from '../../src/services/analiseAtivos/params/obterScoringParams';
 
-interface DefVersao {
+export interface DefVersao {
   params: ScoringParams;
   rotulo: string;
   validFromPadrao: () => Date;
@@ -32,7 +41,7 @@ interface DefVersao {
   notas: string;
 }
 
-const VERSOES: Record<number, DefVersao> = {
+export const VERSOES: Record<number, DefVersao> = {
   1: {
     params: SCORING_PARAMS_V1,
     rotulo: 'SCORING_PARAMS_V1',
@@ -48,7 +57,22 @@ const VERSOES: Record<number, DefVersao> = {
     notas:
       'v2 = v1 + sanidade.conferencia.ligada (bloco C, docs/analise-ativos/blocoC/decisoes.md)',
   },
+  3: {
+    params: SCORING_PARAMS_V3,
+    rotulo: 'SCORING_PARAMS_V3',
+    // inerte: validFrom FIXO no futuro (desenho F2); ativar = UPDATE do validFrom com OK
+    validFromPadrao: () => new Date(VALID_FROM_SCORING_V3),
+    createdBy: 'seed-fundamentei-regras',
+    notas:
+      "v3 = v2 + payout.regra 'dfc', proventos por data-ex (sem data-ex futura, exercício real fora " +
+      'de dezembro) e serie10aPorDtFim (docs/analise-ativos/fundamentei-regras/desenho.json, F2)',
+  },
 };
+
+/** validFrom que o seed usaria (o informado ou o padrão da versão). */
+export function validFromDoSeed(versao: number, validoAPartir: Date | null): Date {
+  return validoAPartir ?? VERSOES[versao].validFromPadrao();
+}
 
 export function lerArgs(argv: string[]): {
   versao: number;
@@ -96,7 +120,7 @@ async function main() {
       );
       return;
     }
-    const validFrom = validoAPartir ?? def.validFromPadrao();
+    const validFrom = validFromDoSeed(versao, validoAPartir);
     if (!aplicar) {
       console.log(
         `  → v${versao} ausente; seria inserida com validFrom ${validFrom.toISOString()}. ` +

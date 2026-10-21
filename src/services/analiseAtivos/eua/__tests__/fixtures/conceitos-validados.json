@@ -1,6 +1,11 @@
 {
-  "geradoEm": "2026-10-18T06:32:08.571Z",
+  "geradoEm": "2026-10-21T02:48:00.000Z",
   "conceitos": [
+    {
+      "conceito": "us-gaap:AllocatedShareBasedCompensationExpense",
+      "periodo": "CY2023",
+      "empresas": 3263
+    },
     {
       "conceito": "us-gaap:Assets",
       "periodo": "CY2023Q4I",
@@ -285,6 +290,11 @@
       "conceito": "us-gaap:SeniorNotes",
       "periodo": "CY2023Q4I",
       "empresas": 114
+    },
+    {
+      "conceito": "us-gaap:ShareBasedCompensation",
+      "periodo": "CY2023",
+      "empresas": 4793
     },
     {
       "conceito": "us-gaap:ShortTermInvestments",

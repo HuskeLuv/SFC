@@ -16,6 +16,8 @@
  * do fundo de papel pela equivalência (vac ↔ inad, alav ↔ ltv).
  * 'sem_dado' conta como não atende: "não atende · sem dado nas demonstrações".
  */
+import { useVisualV2 } from '@/components/analiseAtivos/shell/VisualV2';
+import { VISUAL_V2 } from '@/constants/analiseAtivosVisual';
 import type { ReactNode } from 'react';
 import { FUNDO_STICKY } from '@/components/analiseAtivos/ativo/analise/CartaoAnalise';
 import MarcaCriterio from '@/components/analiseAtivos/comum/MarcaCriterio';
@@ -44,6 +46,22 @@ const TCR = TEXTOS_CRITERIOS;
 
 /** Faixa de grupo da tabela (th scope=rowgroup, azul patrimonio do TABLE_STYLES). */
 export function FaixaGrupo({ titulo, colunas }: { titulo: string; colunas: number }) {
+  const v2 = useVisualV2();
+  if (v2) {
+    // visual v2 (item C7): faixa cinza (superfície 2) em caixa alta 11 px, no lugar do
+    // TABLE_SECTION_STYLE (que não muda)
+    return (
+      <tr className="border-b border-gray-200 dark:border-gray-800" data-faixa-v2="">
+        <th
+          scope="rowgroup"
+          colSpan={colunas}
+          className={`px-0 py-[7px] text-left text-[11px] font-semibold tracking-[0.06em] text-gray-800 uppercase dark:text-white/90 ${VISUAL_V2.superficie2}`}
+        >
+          <span className="sticky left-0 inline-block px-3.5">{titulo}</span>
+        </th>
+      </tr>
+    );
+  }
   return (
     <tr className={TABLE_STYLES.sectionRow} style={TABLE_SECTION_STYLE}>
       <th scope="rowgroup" colSpan={colunas} className="px-0 py-1.5 text-left text-[13px]">
@@ -63,10 +81,14 @@ export function CabecalhoLinha({
   sub: string | null;
   forte?: boolean;
 }) {
+  const v2 = useVisualV2();
+  // visual v2 (item C7): rótulo da linha em cinza (td.lbl), o total segue forte
+  const cor =
+    v2 && !forte ? 'text-gray-500 dark:text-gray-400' : 'text-gray-800 dark:text-white/90';
   return (
     <th
       scope="row"
-      className={`sticky left-0 z-[1] px-3.5 py-2.5 text-left text-[13.5px] whitespace-normal text-gray-800 dark:text-white/90 ${
+      className={`sticky left-0 z-[1] px-3.5 py-2.5 text-left text-[13.5px] whitespace-normal ${cor} ${
         forte ? 'font-semibold' : 'font-medium'
       } ${FUNDO_STICKY}`}
     >

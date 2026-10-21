@@ -8,6 +8,9 @@
  *   21 pregões) e replicado aos demais; DY e P/L por ticker ficam em AssetMultiplesCurrent.
  * - FIIs: régua = FiiMonthly.reguaVigente (fatia B); FoF e PL ≤ 0 fora do Índice; ticker não conferido
  *   no FiiTickerMap não recebe score (params.fii.exigirTickerConferido) e entra na contagem do run.
+ * - fundamentei-regras (F2, A4.a/A4.b): com a scoring v3, payout do dia = proventos pagos na DFC TTM ÷
+ *   lucro TTM (payout.regra 'dfc'; lucro ≤ 0 = ausente 'prejuizo') e DY 12m de ações pela data-ex
+ *   (proventos.baseJanelaDy 'ex', em rendimento12m). v1/v2 = como antes.
  */
 import type { Prisma } from '@prisma/client';
 import type { EventoComCnpj } from '@/services/analiseAtivos/calculo/recalcularEventos';
@@ -42,9 +45,12 @@ import {
 import {
   achatarValores,
   multiplosAtuais,
+  payoutCaixaPct,
   type MultiplosCalculados,
   type HistoricoPl,
 } from '@/services/analiseAtivos/regras/calculo/multiplos';
+import { regrasCalculoDe } from '@/services/analiseAtivos/params/scoringParamsSchema';
+import type { ContextoComColetor } from '@/services/analiseAtivos/calculo/recalcularDerivados';
 import {
   motivoProventosDefasados,
   rendimento12m,
@@ -450,9 +456,13 @@ export function calcularAtualAcao(e: EntradaAtualAcao, p: ScoringParams): Calcul
     p,
   );
   const lpa = m.lpa ?? ausente('sem_dado_fonte');
-  // payout do TTM = DPA 12m ÷ LPA TTM (LPA ≤ 0 ⇒ n/a, regra 4)
   let payoutPct: Valor<number>;
-  if (lpa.estado !== 'ok') payoutPct = lpa;
+  if (regrasCalculoDe(p).payoutRegra === 'dfc') {
+    // F2 (A4.a, scoring v3): proventos pagos na DFC TTM ÷ lucro TTM (número da empresa); lucro ≤ 0
+    // ⇒ ausente 'prejuizo'
+    payoutPct = fund ? payoutCaixaPct(fund) : ausente('sem_dado_fonte', 'sem_ttm');
+  } else if (lpa.estado !== 'ok') payoutPct = lpa;
+  // payout do TTM = DPA 12m ÷ LPA TTM (LPA ≤ 0 ⇒ n/a, regra 4)
   else if (dpa12m.estado !== 'ok') payoutPct = dpa12m;
   else if (!(lpa.valor > 0)) payoutPct = naoSeAplica('base_nao_positiva');
   else payoutPct = ok((dpa12m.valor / lpa.valor) * 100);
@@ -1275,6 +1285,17 @@ export async function recalcularScores(
         );
         contarDefasado('acao', c.flags);
         calculos.set(t.symbol, c);
+        // F2: relatório antes × depois do recalcular-analise (só com o coletor no contexto)
+        const coletor = (ctx as ContextoComColetor).coletorPayoutDy;
+        if (coletor && (!coletor.simbolos || coletor.simbolos.has(t.symbol))) {
+          const v = (x: Valor<number> | undefined) => (x?.estado === 'ok' ? x.valor : null);
+          coletor.atuais.push({
+            symbol: t.symbol,
+            payoutPct: v(c.payoutPct),
+            dy12mPct: v(c.m.dyPct),
+            dpa12m: v(c.dpa12m),
+          });
+        }
         atuais.push(
           linhaAtual(
             { symbol: t.symbol, cnpj, classe: 'acao', resumo: resumoPor.get(t.symbol)! },

@@ -19,6 +19,13 @@
  * pagamento sobre caixa operacional ≤ 0, motivo da ocupação sem fonte, fonte '10-K (SEC)' na nota
  * de fonte das classes EUA. O resto dos textos EUA (universo, cotação, EBITDA calculado, tooltips
  * dos critérios substitutos) fica em textosEua.ts.
+ *
+ * fundamentei-regras (fatia F1; docs/analise-ativos/fundamentei-regras/desenho.json): fatos do tipo
+ * 'cagr' (crescimento anual composto; base ≤ 0; último ano ≤ 0), do 'mes' pelo mês da data-com,
+ * do payout sobre o caixa operacional ajustado ≤ 0, o motivo n/a do lucro operacional (EBIT) da
+ * financeira e os rótulos/definições em PORTUGUÊS dos critérios que mudam na criteria_params v5
+ * (criteriosV5; os rótulos em inglês dos critérios EUA ficam em textosEuaEn.ts, escolhidos na
+ * leitura). Os textos de antes continuam para ler as avaliações v1–v4.
  */
 import { formatarTexto } from '@/services/analiseAtivos/textos';
 import type {
@@ -107,6 +114,21 @@ export const TEXTOS_CRITERIOS = {
     min: 'dentro do limite em {n} de {total} anos · mín. {min} (limite {limite})',
     meses: '{n} de {total} meses com rendimento pago',
     mesesPeriodo: '{n} de {total} meses com rendimento pago (jan/{anoInicio}–dez/{anoFim})',
+    /** fundamentei-regras (v5, meses.mesReferencia 'data_com'): o mês que conta é o da data-com */
+    mesesPeriodoDataCom:
+      '{n} de {total} meses com rendimento (mês da data-com, jan/{anoInicio}–dez/{anoFim})',
+    /** fundamentei-regras (tipo 'cagr'): taxa = (fim ÷ início)^(1/anos) − 1 */
+    cagr: 'crescimento anual de {taxa} em {total} anos · {inicio} → {fim}',
+    cagrComUnidade: 'crescimento anual de {taxa} em {total} anos · {inicio} → {fim} ({unidade})',
+    /** 'cagr' com o primeiro ano ≤ 0 (cagr.baseNaoPositiva: atende pelo último ano ou sem dado) */
+    cagrBaseNaoPositiva:
+      'saiu de {inicio} para {fim}; taxa anual não se calcula com base negativa ou zero',
+    cagrBaseNaoPositivaComUnidade:
+      'saiu de {inicio} para {fim} ({unidade}); taxa anual não se calcula com base negativa ou zero',
+    /** 'cagr' com o último ano ≤ 0: não atende em qualquer modo */
+    cagrFimNaoPositivo: 'saiu de {inicio} para {fim}; último ano negativo ou zero',
+    cagrFimNaoPositivoComUnidade:
+      'saiu de {inicio} para {fim} ({unidade}); último ano negativo ou zero',
     semDado: 'sem dado nas demonstrações',
     /** QA Pedro 16/10: a série só começa depois do início da janela (empresa/fundo mais novo) */
     semDadoDesde:
@@ -122,6 +144,8 @@ export const TEXTOS_CRITERIOS = {
     ebitdaNaoPositivo: 'EBITDA ≤ 0 em {ano}',
     /** EUA (REIT, 'pay'): dividendos ÷ caixa operacional com FCO ≤ 0 = não atende */
     caixaOperacionalNaoPositivo: 'caixa operacional ≤ 0 em {ano}',
+    /** EUA (REIT, 'pay' da v5): dividendos ÷ caixa operacional ajustado com o ajustado ≤ 0 */
+    caixaOperacionalAjustadoNaoPositivo: 'caixa operacional ajustado ≤ 0 em {ano}',
     /** EUA (stock_financeira, 'dl' e 'fcl'): sem dado para todas as financeiras, com o motivo */
     financeiraSemDividaLiquida:
       'sem dado nas demonstrações · o balanço de bancos e seguradoras não separa a dívida de financiamento dos depósitos e captações',
@@ -143,6 +167,9 @@ export const TEXTOS_CRITERIOS = {
     } satisfies Partial<Record<IdCriterio, string>>,
     instituicao_financeira:
       'não se aplica a instituições financeiras (bancos, seguradoras e holdings financeiras): o balanço não tem EBITDA nem dívida líquida',
+    /** fundamentei-regras (v5): o 'ebitda' passa a ser o lucro operacional (série 'ebit') */
+    instituicao_financeira_ebit:
+      'não se aplica a instituições financeiras (bancos, seguradoras e holdings financeiras): o resultado não separa o lucro operacional (EBIT) do resultado financeiro',
     instituicao_financeira_mg:
       'não se aplica a esta instituição financeira: a receita nas demonstrações não é comparável ao lucro (holding de participações ou banco no balanço individual)',
     instituicao_financeira_fcl:
@@ -243,6 +270,9 @@ export const TEXTOS_CRITERIOS = {
     // A6 (fatia 0; a fatia E grava a obs no 'alav' do fii_tijolo na v4)
     obrigacoes_ativo_revisao:
       'Obrigações acima de 50% do ativo total em algum ano da janela: valor em revisão, porque outros valores a pagar podem incluir itens que não são dívida.',
+    // fundamentei-regras (F0; a F1 grava a obs no fco_acao/pay do REIT na v5)
+    sbc_indisponivel:
+      'Sem remuneração em ações informada no 10-K em algum ano da janela; o critério usa o caixa operacional sem ajuste.',
   } satisfies Record<ObsCriterio, string>,
 
   /**
@@ -256,6 +286,70 @@ export const TEXTOS_CRITERIOS = {
       'Obrigações do fundo (aquisição de imóveis, securitização e outros valores a pagar) até 15% do ativo total em todos os anos da janela',
     observacao:
       'Fonte CVM informe mensal · outros valores a pagar podem incluir itens que não são dívida.',
+  },
+
+  /**
+   * fundamentei-regras (F1): rótulos e definições em PORTUGUÊS dos critérios que mudam na
+   * criteria_params v5 (copiados para o JSON da versão em criteriaParamsV5.ts; o id não muda).
+   * 'ebitda' = nome interno do critério do lucro operacional (EBIT), mantido pelo ?c= e filtros.
+   */
+  criteriosV5: {
+    regraCagr:
+      'crescimento anual composto = (valor do último ano ÷ valor do ano anterior à janela) elevado a 1 ÷ anos, menos 1; com o ponto de partida negativo ou zero, atende se o último ano for positivo',
+    rec: {
+      rotulo: 'Receita com crescimento anual > 0',
+      definicao: 'Receita líquida com crescimento anual composto maior que zero na janela',
+    },
+    luc: {
+      rotulo: 'Lucro líquido com crescimento anual > 0',
+      definicao:
+        'Lucro líquido atribuído aos controladores com crescimento anual composto maior que zero na janela',
+    },
+    ebitda: {
+      rotulo: 'Lucro operacional (EBIT) com crescimento anual > 0',
+      definicao:
+        'Lucro operacional (EBIT, antes do resultado financeiro e dos impostos) com crescimento anual composto maior que zero na janela',
+    },
+    fcl: {
+      rotulo: 'FCL com crescimento anual > 0',
+      definicao:
+        'Fluxo de caixa livre (FCO − CAPEX) com crescimento anual composto maior que zero na janela',
+    },
+    recEua: {
+      rotulo: 'Receita com crescimento anual > 0',
+      definicao:
+        'Receita (revenues do relatório anual 10-K) com crescimento anual composto maior que zero na janela',
+    },
+    recReit: {
+      rotulo: 'Receita com crescimento anual > 0',
+      definicao:
+        'Receita (revenues ou receita de aluguéis do relatório anual 10-K) com crescimento anual composto maior que zero na janela',
+    },
+    lucEua: {
+      rotulo: 'Lucro líquido com crescimento anual > 0',
+      definicao:
+        'Lucro líquido atribuído aos controladores (net income, 10-K) com crescimento anual composto maior que zero na janela',
+    },
+    ebitdaEua: {
+      rotulo: 'Lucro operacional (EBIT) com crescimento anual > 0',
+      definicao:
+        'Lucro operacional do 10-K (sem ele, lucro antes do IR + juros; sem os dois, lucro líquido + IR + juros) com crescimento anual composto maior que zero na janela',
+    },
+    fclEua: {
+      rotulo: 'FCL com crescimento anual > 0',
+      definicao:
+        'Fluxo de caixa livre (caixa operacional − CAPEX, 10-K) com crescimento anual composto maior que zero na janela',
+    },
+    fcoAcaoReit: {
+      rotulo: 'Caixa operacional ajustado por ação crescente',
+      definicao:
+        '(Caixa operacional − remuneração em ações) ÷ média de ações diluídas (10-K) maior que o do ano anterior em todos os anos da janela; se algum ano da janela não informa a remuneração em ações, usa o caixa operacional sem ajuste',
+    },
+    payReit: {
+      rotulo: 'Payout ≤ 90% do caixa operacional ajustado',
+      definicao:
+        'Dividendos pagos ÷ (caixa operacional − remuneração em ações) (10-K) até 90% em todos os anos da janela; caixa operacional ajustado ≤ 0 conta como fora do limite; se algum ano da janela não informa a remuneração em ações, usa o caixa operacional sem ajuste',
+    },
   },
 
   /** Selo 'dados incompletos' (§6) no card de critérios e no Essencial. */
@@ -387,4 +481,5 @@ export const PLACEHOLDERS_CRITERIOS = [
   'fontes',
   'tijolo',
   'papel',
+  'taxa',
 ] as const;

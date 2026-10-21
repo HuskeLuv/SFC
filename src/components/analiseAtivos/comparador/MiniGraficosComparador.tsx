@@ -4,7 +4,14 @@
  * Mini-gráficos do Comparador: base 100, MESMA escala para todos (graficos.escala), linha de 2px
  * numa cor só (sem cor semântica), base 100 tracejada, 86px de altura. O SVG é aria-hidden; a
  * alternativa textual de CADA célula traz só a série daquele ativo ("WEGE3: de 100 para 571").
+ *
+ * Visual v2 (fundamentei-regras F4, item C8): card com cabeçalho `.hd` branco (título + 'mesma
+ * escala nos gráficos'), cada mini-gráfico num cartão com borda, o valor final à direita do ticker
+ * e área de 10% sob a linha. Sem a chave, os de hoje.
  */
+import { useVisualV2 } from '@/components/analiseAtivos/shell/VisualV2';
+import { CARD_V2, CabecalhoCartaoV2 } from '@/components/analiseAtivos/ativo/analise/CartaoAnalise';
+import { TEXTOS_VISUAL } from '@/services/analiseAtivos/textosVisual';
 import { formatarAnalise } from '@/components/analiseAtivos/comum/formatarAnalise';
 import { TEXTOS_COMPARADOR } from '@/services/analiseAtivos/textosComparador';
 import { formatarTexto } from '@/services/analiseAtivos/textosTela';
@@ -42,9 +49,20 @@ export function legendaEscala(g: GraficosComparador): string {
 export interface MiniGraficoProps {
   serie: Serie;
   graficos: GraficosComparador;
+  /** visual v2: área de 10% e sem o rótulo final dentro do SVG (vai ao título do cartão) */
+  v2?: boolean;
 }
 
-export function MiniGrafico({ serie, graficos }: MiniGraficoProps) {
+/** Último valor da série (null sem ponto). */
+export function ultimoDaSerie(serie: Serie): number | null {
+  for (let i = serie.pontos.length - 1; i >= 0; i -= 1) {
+    const p = serie.pontos[i];
+    if (p !== null) return p;
+  }
+  return null;
+}
+
+export function MiniGrafico({ serie, graficos, v2 = false }: MiniGraficoProps) {
   const { anos, escala } = graficos;
   const n = anos.length;
   if (serie.insuficiente || n < 2) {
@@ -81,6 +99,16 @@ export function MiniGrafico({ serie, graficos }: MiniGraficoProps) {
         aria-hidden="true"
         className="block h-auto max-h-[86px] w-full text-[#396CAA] dark:text-[#6E9DC4]"
       >
+        {v2 && trechos.length === 1 && trechos[0].includes(' ') ? (
+          <polygon
+            data-area-serie=""
+            points={`${trechos[0]} ${trechos[0].split(' ').slice(-1)[0].split(',')[0]},${(
+              H - PB
+            ).toFixed(1)} ${trechos[0].split(' ')[0].split(',')[0]},${(H - PB).toFixed(1)}`}
+            fill="currentColor"
+            fillOpacity={0.1}
+          />
+        ) : null}
         <line
           x1={PL}
           x2={W - PR}
@@ -119,13 +147,15 @@ export function MiniGrafico({ serie, graficos }: MiniGraficoProps) {
         {ult !== null ? (
           <>
             <circle cx={x(iUlt)} cy={y(ult)} r={3} fill="currentColor" />
-            <text
-              x={x(iUlt) + 5}
-              y={y(ult) + 4}
-              className="fill-gray-800 text-[11px] font-semibold dark:fill-white/90"
-            >
-              {formatarAnalise(ult, 'inteiro')}
-            </text>
+            {v2 ? null : (
+              <text
+                x={x(iUlt) + 5}
+                y={y(ult) + 4}
+                className="fill-gray-800 text-[11px] font-semibold dark:fill-white/90"
+              >
+                {formatarAnalise(ult, 'inteiro')}
+              </text>
+            )}
           </>
         ) : null}
         <text x={PL} y={H - 2} className="fill-gray-500 text-[11px] dark:fill-gray-400">
@@ -149,6 +179,47 @@ export function MiniGrafico({ serie, graficos }: MiniGraficoProps) {
  * celular, até 4 no computador, com o ticker em cima. Mesma escala em todos; linha numa cor só.
  */
 export default function MiniGraficosComparador({ graficos }: { graficos: GraficosComparador }) {
+  const v2 = useVisualV2();
+  if (v2) {
+    return (
+      <figure
+        className={`m-0 flex flex-col ${CARD_V2}`}
+        aria-labelledby="comparador-graficos-h"
+        data-visual-v2=""
+      >
+        <CabecalhoCartaoV2
+          id="comparador-graficos-h"
+          titulo={`${graficos.titulo} · ${graficos.tipo === 'lucro' ? TG.rotuloAcao : TG.rotuloFii}`}
+          hint={TEXTOS_VISUAL.comparador.escala}
+        />
+        <div className="grid grid-cols-1 gap-3 px-4 py-3.5 sm:grid-cols-2 sm:px-[18px] xl:grid-cols-4">
+          {graficos.series.map((s) => {
+            const ult = ultimoDaSerie(s);
+            return (
+              <div
+                key={s.ticker}
+                data-mini-cartao={s.ticker}
+                className="flex min-w-0 flex-col gap-1 rounded-[10px] border border-gray-200 px-3 py-2.5 dark:border-gray-800"
+              >
+                <span className="flex items-baseline justify-between gap-2 text-[11px] font-semibold text-gray-500 dark:text-gray-400">
+                  {s.ticker}
+                  {ult !== null && !s.insuficiente ? (
+                    <b className="text-[13px] text-gray-800 tabular-nums dark:text-white/90">
+                      {formatarAnalise(ult, 'inteiro')}
+                    </b>
+                  ) : null}
+                </span>
+                <MiniGrafico serie={s} graficos={graficos} v2 />
+              </div>
+            );
+          })}
+        </div>
+        <figcaption className="px-4 pb-3 text-xs text-gray-500 sm:px-[18px] dark:text-gray-400">
+          {legendaEscala(graficos)}
+        </figcaption>
+      </figure>
+    );
+  }
   return (
     <figure className="m-0 overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03]">
       <div className="bg-[#396CAA] px-3 py-2 text-[13.5px] font-semibold text-white">

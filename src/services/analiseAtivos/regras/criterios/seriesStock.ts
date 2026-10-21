@@ -23,6 +23,18 @@
  *    NVDA 2013–2021 em tag própria, fase 2).
  * Funções puras + a leitura do banco em lote (lerBrutosSec, usada também por seriesReit, fonteSec,
  * executarCriteriosEua e gerarQuadroEua).
+ *
+ * fundamentei-regras (docs/analise-ativos/fundamentei-regras/desenho.json, fatia F0; este arquivo
+ * fica PRONTO na F0 — F1 e F3 só consomem):
+ *  - série 'ebit' (critério 'ebitda' da v5, mesmo id): a base do EBITDA pelo degrau, SEM a D&A
+ *    (ebitSec; degrauEbitSec diz qual degrau). Fora das saídas de hoje: valoresAnoStock,
+ *    SERIES_STOCK e seriesStock() sem opção ficam idênticos; quem quer a série usa
+ *    valoresAnoStockComEbit / SERIES_STOCK_COM_EBIT / seriesStock(b, { incluirEbit: true });
+ *  - FySec.remuneracaoAcoes (SBC, US$, positiva; lida por lerBrutosSec; ausente/nula = o 10-K não
+ *    informou — nunca 0) e as funções puras do REIT ajustado: fcoAjustadoSec (FCO − SBC),
+ *    fcoAjustadoPorAcaoSec e dividendosFcoAjustadoPctSec (FCO ajustado ≤ 0 = +Infinity, como hoje).
+ *    SBC nula ou negativa (sinal trocado) = nulo, e quem consome cai na série sem ajuste com a obs
+ *    'sbc_indisponivel'.
  */
 import type { Prisma, PrismaClient } from '@prisma/client';
 import { paraData, paraNumero } from '@/services/analiseAtivos/repositorio/conversao';
@@ -65,6 +77,12 @@ export interface FySec {
   dpa: number | null;
   dpaOrigem: string | null;
   flags: string[];
+  /**
+   * F0 fundamentei-regras: remuneração em ações do ano (SBC, DFC do 10-K, US$, positiva). Ausente
+   * ou null = o 10-K não informou (ou a ingestão ainda não leu: ANALISE_ATIVOS_SEC_SBC). Opcional
+   * para as fixtures de antes continuarem válidas.
+   */
+  remuneracaoAcoes?: number | null;
 }
 
 /** Entrada pura de uma empresa SEC (CIK = cikFundamentos do cadastro). */
@@ -130,6 +148,8 @@ export function dlEbitdaSec(dl: number | null, ebitda: number | null): number | 
 export interface OpcoesSeriesStock {
   /** receita ≤ lucro: 'sem_dado' (padrão) | 'valor' (params.criterios.margem, v2/v3) */
   receitaMenorQueLucro?: 'valor' | 'sem_dado';
+  /** F0 fundamentei-regras: seriesStock() também devolve a série 'ebit' (padrão false = hoje) */
+  incluirEbit?: boolean;
 }
 
 export type SerieStock =
@@ -173,9 +193,47 @@ export function valoresAnoStock(
   };
 }
 
-/** Séries anuais de um stock. Pura. */
+// ---------------------------------------------------------------------------
+// F0 fundamentei-regras: série 'ebit' (lucro operacional pelo degrau)
+// ---------------------------------------------------------------------------
+
+/** Série 'ebit' (critério 'ebitda' da v5, mesmo id). */
+export const SERIE_EBIT = 'ebit' as const;
+export type SerieStockComEbit = SerieStock | typeof SERIE_EBIT;
+
+/** As séries de hoje + 'ebit' (para a fonteSec/critérios da v5; F1). */
+export const SERIES_STOCK_COM_EBIT: readonly SerieStockComEbit[] = [...SERIES_STOCK, SERIE_EBIT];
+
+/** Degrau da base do EBITDA/EBIT gravado pela ingestão (flags ebitda_pre_ir / ebitda_lucro). */
+export type DegrauEbitSec = 'lucro_operacional' | 'pre_ir' | 'lucro';
+
+/** Qual degrau a ingestão usou para o `ebit` do FY (selo de cálculo do EBIT). Pura. */
+export function degrauEbitSec(f: Pick<FySec, 'flags'>): DegrauEbitSec {
+  if (f.flags.includes('ebitda_lucro')) return 'lucro';
+  if (f.flags.includes('ebitda_pre_ir')) return 'pre_ir';
+  return 'lucro_operacional';
+}
+
+/**
+ * Lucro operacional (EBIT) em US$: a base do EBITDA pelo degrau — (1) lucro operacional; (2) lucro
+ * antes do IR + juros; (3) lucro líquido + IR + juros —, SEM a D&A (que pode faltar sem tirar o
+ * EBIT: GOOGL até 2020). Ausente = null. Pura.
+ */
+export function ebitSec(f: Pick<FySec, 'ebit'>): number | null {
+  return finito(f.ebit) ? f.ebit : null;
+}
+
+/** valoresAnoStock + 'ebit' (US$ mi). Pura. */
+export function valoresAnoStockComEbit(
+  f: FySec,
+  opcoes: OpcoesSeriesStock = {},
+): Record<SerieStockComEbit, number | null> {
+  return { ...valoresAnoStock(f, opcoes), ebit: emMi(ebitSec(f)) };
+}
+
+/** Séries anuais de um stock (com incluirEbit, também a 'ebit'). Pura. */
 export function seriesStock(b: BrutoSec, opcoes: OpcoesSeriesStock = {}): SeriesCriteriosEua {
-  const out: Record<SerieStock, Record<number, number | null>> = {
+  const out: Partial<Record<SerieStockComEbit, Record<number, number | null>>> = {
     revenue: {},
     net_income: {},
     ebitda: {},
@@ -183,11 +241,70 @@ export function seriesStock(b: BrutoSec, opcoes: OpcoesSeriesStock = {}): Series
     net_debt_ebitda: {},
     free_cash_flow: {},
   };
+  const series = opcoes.incluirEbit ? SERIES_STOCK_COM_EBIT : SERIES_STOCK;
+  if (opcoes.incluirEbit) out.ebit = {};
   for (const [ano, f] of fysSecPorAno(b.fys)) {
-    const v = valoresAnoStock(f, opcoes);
-    for (const k of SERIES_STOCK) out[k][ano] = v[k];
+    const v = valoresAnoStockComEbit(f, opcoes);
+    for (const k of series) (out[k] as Record<number, number | null>)[ano] = v[k];
   }
   return out;
+}
+
+// ---------------------------------------------------------------------------
+// F0 fundamentei-regras: caixa operacional do REIT ajustado pela SBC (A2.d)
+// ---------------------------------------------------------------------------
+
+/** Séries do REIT ajustadas pela SBC (fco_acao/pay da v5, com serieFallback sem ajuste; F1). */
+export type SerieReitAjustada = 'ocf_adjusted_per_share' | 'cash_payout_adjusted_pct';
+export const SERIES_REIT_AJUSTADAS: readonly SerieReitAjustada[] = [
+  'ocf_adjusted_per_share',
+  'cash_payout_adjusted_pct',
+];
+
+/** SBC do FY (US$) válida: finita e ≥ 0. Ausente, nula ou negativa (sinal trocado) = null. Pura. */
+export function sbcSec(f: Pick<FySec, 'remuneracaoAcoes'>): number | null {
+  const v = f.remuneracaoAcoes;
+  return finito(v) && v >= 0 ? v : null;
+}
+
+/** Caixa operacional ajustado = FCO − SBC (US$). FCO ou SBC sem dado = null. Pura. */
+export function fcoAjustadoSec(f: Pick<FySec, 'fco' | 'remuneracaoAcoes'>): number | null {
+  const sbc = sbcSec(f);
+  return finito(f.fco) && sbc !== null ? f.fco - sbc : null;
+}
+
+/** Caixa operacional ajustado ÷ média de ações diluídas (US$/ação); sem dado = null. Pura. */
+export function fcoAjustadoPorAcaoSec(
+  f: Pick<FySec, 'fco' | 'remuneracaoAcoes' | 'acoesMediaDiluida'>,
+): number | null {
+  const ajustado = fcoAjustadoSec(f);
+  const acoes = finito(f.acoesMediaDiluida) && f.acoesMediaDiluida > 0 ? f.acoesMediaDiluida : null;
+  return ajustado !== null && acoes !== null ? ajustado / acoes : null;
+}
+
+/**
+ * Dividendos ÷ caixa operacional ajustado × 100. `dividendosPagos` = dividendosPagosSec(f) de
+ * seriesReit (passado por parâmetro: seriesReit importa este arquivo). Sem dividendos ou sem FCO
+ * ajustado = null; FCO ajustado ≤ 0 com dividendos conhecidos = +Infinity (fora do limite). Pura.
+ */
+export function dividendosFcoAjustadoPctSec(
+  f: Pick<FySec, 'fco' | 'remuneracaoAcoes'>,
+  dividendosPagos: number | null,
+): number | null {
+  const ajustado = fcoAjustadoSec(f);
+  if (ajustado === null || !finito(dividendosPagos) || dividendosPagos < 0) return null;
+  return ajustado > 0 ? (dividendosPagos / ajustado) * 100 : Number.POSITIVE_INFINITY;
+}
+
+/** Valores ajustados de um FY de REIT (US$/ação e %). Pura. */
+export function valoresAjustadosReitSec(
+  f: Pick<FySec, 'fco' | 'remuneracaoAcoes' | 'acoesMediaDiluida'>,
+  dividendosPagos: number | null,
+): Record<SerieReitAjustada, number | null> {
+  return {
+    ocf_adjusted_per_share: fcoAjustadoPorAcaoSec(f),
+    cash_payout_adjusted_pct: dividendosFcoAjustadoPctSec(f, dividendosPagos),
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -217,6 +334,7 @@ const SELECT_FY_SEC = {
   dpa: true,
   dpaOrigem: true,
   flags: true,
+  remuneracaoAcoes: true,
 } satisfies Prisma.AssetFundamentalsPeriodSelect;
 
 type LinhaFySec = Prisma.AssetFundamentalsPeriodGetPayload<{ select: typeof SELECT_FY_SEC }>;
@@ -246,6 +364,7 @@ export function fySecDaLinha(l: LinhaFySec): FySec {
     dpa: typeof l.dpa === 'number' && Number.isFinite(l.dpa) ? l.dpa : null,
     dpaOrigem: l.dpaOrigem,
     flags: l.flags,
+    remuneracaoAcoes: paraNumero(l.remuneracaoAcoes),
   };
 }
 

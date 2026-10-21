@@ -8,6 +8,9 @@
  * Bloco C (params v2): múltiplo em conferência (flags 'conf:') = borda tracejada, '—' ('ocultar')
  * ou o valor ('selo'), chip "em conferência" que abre o "Por quê?" e a barra oculta. Ano do
  * histórico em conferência: a barra continua, sem o ano, e diz qual ano saiu da média.
+ *
+ * Visual v2 (fundamentei-regras F4, item C11): rótulo em cima (11,5 px/600, cinza) e o valor
+ * embaixo (22 px/700), raio 12, como o `.vc` do HTML do Pedro. Sem a chave, o cartão de hoje.
  */
 import BarraPosicao10a from '@/components/analiseAtivos/ativo/analise/BarraPosicao10a';
 import { TEXTO_NEGATIVO } from '@/components/analiseAtivos/ativo/analise/CartaoAnalise';
@@ -25,6 +28,7 @@ import {
 } from '@/services/analiseAtivos/leitura/ativo/conferenciasAtivo';
 import { TEXTOS_TELA } from '@/services/analiseAtivos/textosTela';
 import type { ItemValuation } from '@/types/analiseAtivosApi';
+import { useVisualV2 } from '@/components/analiseAtivos/shell/VisualV2';
 
 export interface CardMultiploProps {
   item: ItemValuation;
@@ -52,22 +56,37 @@ export default function CardMultiplo({ item }: CardMultiploProps) {
       : [];
   const atual = item.atual.estado === 'ok' ? item.atual.valor : null;
   const negativo = atual !== null && atual < 0;
+  const v2 = useVisualV2();
+  const valor = formatarEstado(item.atual, item.formato);
   return (
     <div
       data-multiplo={item.codigo}
       data-conferencia={conf || !!confC || undefined}
       className={`flex min-w-0 flex-col gap-1.5 rounded-xl px-3.5 py-3 ${confC ? BORDA_CONFERENCIA : conf ? 'border border-dashed border-gray-400 dark:border-gray-500' : 'border border-gray-200 dark:border-gray-800'}`}
     >
-      <div className="flex items-baseline justify-between gap-2">
-        <h3 className="text-[13.5px] font-semibold text-gray-800 dark:text-white/90">
-          {item.rotulo}
-        </h3>
-        <span
-          className={`text-lg font-semibold tabular-nums ${negativo ? TEXTO_NEGATIVO : 'text-gray-800 dark:text-white/90'}`}
-        >
-          {formatarEstado(item.atual, item.formato)}
-        </span>
-      </div>
+      {v2 ? (
+        <div className="flex flex-col gap-1" data-multiplo-v2="">
+          <h3 className="text-[11.5px] font-semibold text-gray-500 dark:text-gray-400">
+            {item.rotulo}
+          </h3>
+          <span
+            className={`text-[22px] leading-tight font-bold tabular-nums ${negativo ? TEXTO_NEGATIVO : 'text-gray-800 dark:text-white/90'}`}
+          >
+            {valor}
+          </span>
+        </div>
+      ) : (
+        <div className="flex items-baseline justify-between gap-2">
+          <h3 className="text-[13.5px] font-semibold text-gray-800 dark:text-white/90">
+            {item.rotulo}
+          </h3>
+          <span
+            className={`text-lg font-semibold tabular-nums ${negativo ? TEXTO_NEGATIVO : 'text-gray-800 dark:text-white/90'}`}
+          >
+            {valor}
+          </span>
+        </div>
+      )}
       {confC ? (
         <span className="self-start">
           <ChipConferencia

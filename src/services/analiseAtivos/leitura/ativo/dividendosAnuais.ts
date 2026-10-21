@@ -8,18 +8,28 @@
  *   series.detectarSaltoProvento) ou com flag de proventos em conferência = suspeito: barra
  *   tracejada, selo 'proventos em conferência' e FORA do CAGR (cagrJanela devolve null com motivo
  *   se o extremo for suspeito). WEGE3 2025 (2,45 contra 0,76) é o caso de referência.
+ * - fundamentei-regras (F2, A4.c): com `criterio: 'dtFim'` (ANALISE_ATIVOS_ESSENCIAL_V2_HABILITADO,
+ *   passado pela leitura do topo), o exercício fora de dezembro entra quando dtFim ≤ hoje (CAML3:
+ *   FY 2026 = mar/25–fev/26 aparece em out/2026). Sem o critério, como hoje.
  */
 import {
   anosFechados,
   cagrJanela,
   detectarSaltoProvento,
   pontoUlt12m,
+  type CriterioAnoFechado,
 } from '@/services/analiseAtivos/leitura/ativo/series';
 import { ehFlagProventosEmConferencia } from '@/services/analiseAtivos/regras/calculo/plausibilidadeProventos';
 import { TEXTOS_TELA, textoMotivo, textoNaoSeAplica } from '@/services/analiseAtivos/textosTela';
 import type { ClasseQuadro, DividendosAtivo, PontoSerieAnual } from '@/types/analiseAtivosApi';
+import { analiseAtivosEssencialV2Habilitado } from '@/lib/analiseAtivosConfig';
 
 export const ANOS_DIVIDENDOS = 10;
+
+/** F2: critério dos anos fechados do bloco de dividendos pela chave de TELA (só leitura). */
+export function criterioDividendos(): CriterioAnoFechado {
+  return analiseAtivosEssencialV2Habilitado() ? 'dtFim' : 'ano';
+}
 
 export interface AnoProvento {
   ano: number;
@@ -27,6 +37,8 @@ export interface AnoProvento {
   /** payout do ano (%), quando houver (ações) */
   payoutPct?: number | null;
   flags?: readonly string[];
+  /** F2: fim do exercício (critério 'dtFim') */
+  dtFim?: string | null;
 }
 
 export interface EntradaDividendos {
@@ -44,6 +56,8 @@ export interface EntradaDividendos {
    * 'em_conferencia' (chip com "Por quê?"); os anos suspeitos seguem a mesma marcação.
    */
   conferenciaProventos?: boolean;
+  /** F2: critério dos anos fechados ('ano' = hoje; 'dtFim' com a chave ESSENCIAL_V2) */
+  criterio?: CriterioAnoFechado;
 }
 
 function flagConferencia(flags: readonly string[] | undefined): boolean {
@@ -53,6 +67,8 @@ function flagConferencia(flags: readonly string[] | undefined): boolean {
 export function montarDividendos(e: EntradaDividendos): DividendosAtivo {
   const fechados = anosFechados(e.anos, e.hoje, {
     mesesPorAno: e.classe === 'fii' ? e.mesesPorAno : undefined,
+    // F2: só ações (FII segue pelo ano civil do informe)
+    ...(e.criterio && e.classe !== 'fii' ? { criterio: e.criterio } : {}),
   }).slice(-ANOS_DIVIDENDOS);
 
   const payoutPorAno: Record<number, number | null | undefined> = {};

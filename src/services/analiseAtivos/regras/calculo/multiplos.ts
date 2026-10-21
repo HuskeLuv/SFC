@@ -12,6 +12,9 @@
  *   P/Receita n/a.
  * - Atual: TTM (linha tipoPeriodo='TTM' gravada pela fatia A); média de 10 anos do P/L só com pontos
  *   > 0 e no mínimo 5 (regra 7).
+ * - fundamentei-regras (F2, A4.a): payoutCaixaPct = proventos pagos na DFC (dividendosJcpPagos, saída
+ *   positiva) ÷ lucro atribuível do MESMO período (FY ou TTM), usado com a scoring v3
+ *   (payout.regra 'dfc'). Lucro ≤ 0 ⇒ ausente('outro', 'prejuizo') — a tela mostra 'L'.
  */
 import {
   ausente,
@@ -45,7 +48,29 @@ export type BaseFundamentos = Pick<
   | 'capex'
   | 'naoSeAplica'
   | 'flags'
->;
+> &
+  /** F2 fundamentei-regras: proventos pagos na DFC (opcional para as entradas antigas) */
+  Partial<Pick<FundamentosPeriodo, 'dividendosJcpPagos'>>;
+
+/** Detalhe do ausente do payout com lucro ≤ 0 (F2: a tela mostra 'L'). */
+export const DETALHE_PAYOUT_PREJUIZO = 'prejuizo';
+
+/**
+ * Payout de caixa (F2, A4.a; scoring v3 'dfc'): dividendos + JCP pagos na DFC ÷ lucro atribuível do
+ * período, em %. Lucro ≤ 0 ⇒ ausente 'prejuizo'; sem lucro ou sem DFC ⇒ ausente com o motivo.
+ */
+export function payoutCaixaPct(
+  f: Pick<BaseFundamentos, 'lucroAtribuivel' | 'flags' | 'dividendosJcpPagos'>,
+): Valor<number> {
+  if (f.lucroAtribuivel === null) {
+    return ausente(f.flags.includes('controladora_zero') ? 'controladora_zero' : 'sem_dado_fonte');
+  }
+  if (!(f.lucroAtribuivel > 0)) return ausente('outro', DETALHE_PAYOUT_PREJUIZO);
+  if (typeof f.dividendosJcpPagos !== 'number' || !Number.isFinite(f.dividendosJcpPagos)) {
+    return ausente('sem_dado_fonte', 'dfc');
+  }
+  return ok((f.dividendosJcpPagos / f.lucroAtribuivel) * 100);
+}
 
 export interface EntradaMultiplosAcao {
   classe: 'acao';

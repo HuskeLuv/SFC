@@ -15,12 +15,17 @@
  *   ANALISE_ATIVOS_TEMPLATES_FINANCEIRAS_HABILITADO; FII com 'Alavancagem (% do ativo)' lida de
  *   asset_multiples_yearly.obrigacoesAtivoPct com ANALISE_ATIVOS_ALAV_ATIVO_HABILITADO. Chaves
  *   desligadas ⇒ as mesmas leituras e a resposta de hoje.
+ * - fundamentei-regras (F2): ANALISE_ATIVOS_ESSENCIAL_V2_HABILITADO (anos por dtFim com 'fev/2026',
+ *   'L' com prejuízo, PDD ÷ lucro em %) vai ao Essencial e ao Raio-X da MESMA entrada (regra de
+ *   ouro); o sub-rótulo do payout segue a payout.regra da scoring vigente (regraPayoutVigente).
  */
 import { prisma } from '@/lib/prisma';
 import {
   analiseAtivosAlavAtivoHabilitado,
+  analiseAtivosEssencialV2Habilitado,
   analiseAtivosTemplatesFinanceirasHabilitado,
 } from '@/lib/analiseAtivosConfig';
+import type { RegraPayout } from '@/services/analiseAtivos/params/scoringParamsSchema';
 import { listarEmissores } from '@/services/analiseAtivos/repositorio/universo';
 import { templateDoEmissor } from '@/services/analiseAtivos/regras/acoes/templateFinanceira';
 import type { TemplateFinanceira } from '@/types/analiseAtivosComplementos';
@@ -37,6 +42,7 @@ import {
   hojeSaoPaulo,
   montarFundamentosAcao,
   montarFundamentosFii,
+  regraPayoutVigente,
   type EntradaFundamentosAcao,
   type EntradaFundamentosFii,
 } from '@/services/analiseAtivos/leitura/ativo/fundamentosEssencial';
@@ -98,8 +104,14 @@ export interface DadosBancoAcao {
   template?: TemplateFinanceira | null;
 }
 
+/** F2: opções de leitura (chave ESSENCIAL_V2 e regra do payout vigente); ausente = como hoje. */
+export interface OpcoesRaioXAcao {
+  essencialV2?: boolean;
+  regraPayout?: RegraPayout;
+}
+
 /** Monta Essencial e Raio-X de uma ação com a MESMA entrada. */
-export function montarAcao(hoje: string, d: DadosBancoAcao) {
+export function montarAcao(hoje: string, d: DadosBancoAcao, opts: OpcoesRaioXAcao = {}) {
   const ttms = d.periodos
     .filter((p) => p.tipoPeriodo === 'TTM')
     .sort((a, b) => a.dtFim.localeCompare(b.dtFim));
@@ -108,18 +120,24 @@ export function montarAcao(hoje: string, d: DadosBancoAcao) {
     flags: [...d.flagsLinha, ...flagsAnuaisConf(d.multiplos)],
     motivos: d.motivosLinha,
   };
-  const essencial = montarFundamentosAcao({
-    hoje,
-    financeira: d.financeira,
-    fys,
-    ttm: ttms[ttms.length - 1] ?? null,
-    perShare: d.perShare,
-    multiplos: d.multiplos,
-    atual: d.atual,
-    proventosEmConferencia: proventosEmConferencia(d.flagsLinha, d.motivosLinha),
-    conferencia,
-    ...(d.template ? { template: d.template } : {}),
-  });
+  const essencial = montarFundamentosAcao(
+    {
+      hoje,
+      financeira: d.financeira,
+      fys,
+      ttm: ttms[ttms.length - 1] ?? null,
+      perShare: d.perShare,
+      multiplos: d.multiplos,
+      atual: d.atual,
+      proventosEmConferencia: proventosEmConferencia(d.flagsLinha, d.motivosLinha),
+      conferencia,
+      ...(d.template ? { template: d.template } : {}),
+    },
+    {
+      ...(opts.essencialV2 ? { essencialV2: true } : {}),
+      ...(opts.regraPayout ? { regraPayout: opts.regraPayout } : {}),
+    },
+  );
   const raioX = montarRaioXAcao({
     financeira: d.financeira,
     essencial,
@@ -128,6 +146,8 @@ export function montarAcao(hoje: string, d: DadosBancoAcao) {
     multiplos: d.multiplos,
     conferencia,
     ...(d.template ? { template: d.template } : {}),
+    ...(opts.essencialV2 ? { essencialV2: true } : {}),
+    ...(opts.regraPayout ? { regraPayout: opts.regraPayout } : {}),
   });
   return { essencial, raioX };
 }
@@ -362,7 +382,8 @@ export async function obterRaioX(
   const linha = await obterLinhaQuadro(symbol);
   if (!linha) return null;
   const versao = await versaoQuadro();
-  const chave = `${symbol}:${versao}:${hoje.slice(0, 4)}`;
+  const essencialV2 = analiseAtivosEssencialV2Habilitado();
+  const chave = `${symbol}:${versao}:${hoje.slice(0, 4)}${essencialV2 ? ':v2' : ''}`;
   const emCache = cache.get(chave);
   if (emCache) return { ...emCache, cache: true };
 
@@ -379,13 +400,20 @@ export async function obterRaioX(
       motivosLinha: linha.motivosIncompleto,
     }).raioX;
   } else {
-    const d = await lerAcao(symbol, linha.cnpj, desdeAno);
-    parcial = montarAcao(hoje, {
-      ...d,
-      financeira: linha.regua === 'acao_financeira',
-      flagsLinha: linha.flags,
-      motivosLinha: linha.motivosIncompleto,
-    }).raioX;
+    const [d, regraPayout] = await Promise.all([
+      lerAcao(symbol, linha.cnpj, desdeAno),
+      regraPayoutVigente(),
+    ]);
+    parcial = montarAcao(
+      hoje,
+      {
+        ...d,
+        financeira: linha.regua === 'acao_financeira',
+        flagsLinha: linha.flags,
+        motivosLinha: linha.motivosIncompleto,
+      },
+      { ...(essencialV2 ? { essencialV2 } : {}), regraPayout },
+    ).raioX;
   }
   const dados: RaioXResposta = {
     ticker: symbol,

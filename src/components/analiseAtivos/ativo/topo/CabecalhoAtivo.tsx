@@ -11,6 +11,10 @@
  * total); some ao "Remover do plano" (caso 33). O Objetivo da aba na Carteira não acende o chip.
  * A linha de ações (slotAcoes = AcoesCarteiraAtivo → BarraAcoesAtivo: Comparar · Planejar ·
  * Ver na Carteira · Registrar operação) fica embaixo, alinhada à direita no computador.
+ *
+ * Visual v2 (fundamentei-regras F4, itens C1 e C16): sem card (`.dhead` do HTML do Pedro), tags sem
+ * borda em superfície 2, nome em '· nome' cinza ao lado do ticker, sigla 52 px raio 12 e o menu ⋯
+ * dos indicadores (reportar) ao lado do preço — o bloco de KPIs perde o card. Sem a chave, o de hoje.
  */
 import { ChipsCarteira } from '@/components/analiseAtivos/ativo/acoes/BarraAcoesAtivo';
 import SeloEstado from '@/components/analiseAtivos/comum/SeloEstado';
@@ -19,6 +23,10 @@ import { TEXTOS_TELA, formatarTexto } from '@/services/analiseAtivos/textosTela'
 import { TEXTOS_EUA } from '@/services/analiseAtivos/textosEua';
 import { TEXTOS_EUA_TELAS } from '@/services/analiseAtivos/textosEuaTelas';
 import type { CabecalhoAtivoProps } from '@/types/analiseAtivosApi';
+import { MenuBlocoPagina } from '@/components/analiseAtivos/comum/PorQueConferencia';
+import { dadosDosKpis } from '@/components/analiseAtivos/ativo/topo/BlocoKpis';
+import { useVisualV2 } from '@/components/analiseAtivos/shell/VisualV2';
+import { VISUAL_V2 } from '@/constants/analiseAtivosVisual';
 
 export type { CabecalhoAtivoProps };
 
@@ -26,6 +34,7 @@ const CARD =
   'rounded-2xl border border-gray-200 bg-white p-4 sm:p-5 dark:border-gray-800 dark:bg-white/[0.03]';
 const TAG =
   'inline-flex items-center rounded-full border border-gray-200 px-2 py-0.5 text-xs text-gray-600 dark:border-gray-700 dark:text-gray-300';
+const TAG_V2 = `inline-flex items-center rounded-md px-2 py-0.5 text-[11px] font-medium text-gray-600 dark:text-gray-300 ${VISUAL_V2.superficie2}`;
 
 /** '+0,17' / '−0,48' / '0,00' (sinal tipográfico, 2 casas). */
 function comSinal(v: number): string {
@@ -49,18 +58,24 @@ export default function CabecalhoAtivo({ ativo, seloCarteira, slotAcoes }: Cabec
   const corVariacao = negativa
     ? 'text-[#D92D20] dark:text-[#F97066]'
     : 'text-[#396CAA] dark:text-[#6E9DC4]';
+  const v2 = useVisualV2();
 
   return (
     <header
       aria-labelledby="ativo-titulo"
       data-bloco="cabecalho"
-      className={`${CARD} flex min-w-0 flex-col gap-4`}
+      data-visual-v2={v2 ? '' : undefined}
+      className={v2 ? 'flex min-w-0 flex-col gap-4' : `${CARD} flex min-w-0 flex-col gap-4`}
     >
       <div className="flex min-w-0 flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div className="flex min-w-0 items-center gap-3">
           <span
             aria-hidden="true"
-            className="grid h-12 w-12 flex-none place-items-center rounded-xl bg-[#314666] text-xs font-semibold tracking-wide text-white"
+            className={
+              v2
+                ? 'grid h-[52px] w-[52px] flex-none place-items-center rounded-xl bg-[#314666] text-sm font-bold text-white'
+                : 'grid h-12 w-12 flex-none place-items-center rounded-xl bg-[#314666] text-xs font-semibold tracking-wide text-white'
+            }
           >
             {ativo.ticker.slice(0, 4)}
           </span>
@@ -70,13 +85,20 @@ export default function CabecalhoAtivo({ ativo, seloCarteira, slotAcoes }: Cabec
               className="flex flex-wrap items-baseline gap-x-2 text-xl font-semibold text-gray-800 sm:text-2xl dark:text-white/90"
             >
               {ativo.ticker}
-              <span className="text-sm font-normal text-gray-500 sm:text-base dark:text-gray-400">
-                {ativo.nome}
-              </span>
+              {v2 ? (
+                <span className="text-sm font-normal text-gray-500 sm:text-base dark:text-gray-400">
+                  <span aria-hidden="true">· </span>
+                  {ativo.nome}
+                </span>
+              ) : (
+                <span className="text-sm font-normal text-gray-500 sm:text-base dark:text-gray-400">
+                  {ativo.nome}
+                </span>
+              )}
             </h1>
             <div className="mt-1.5 flex flex-wrap gap-1.5" data-tags>
               {ativo.tags.map((tag) => (
-                <span key={tag} className={TAG}>
+                <span key={tag} className={v2 ? TAG_V2 : TAG}>
                   {tag}
                 </span>
               ))}
@@ -130,6 +152,11 @@ export default function CabecalhoAtivo({ ativo, seloCarteira, slotAcoes }: Cabec
       {slotAcoes ? (
         <div data-acoes-cabecalho="" className="flex min-w-0 sm:justify-end">
           {slotAcoes}
+          {v2 ? (
+            <span className="ml-1 flex-none self-center">
+              <MenuBlocoPagina bloco="kpis" dados={dadosDosKpis(ativo.kpis)} />
+            </span>
+          ) : null}
         </div>
       ) : null}
     </header>

@@ -35,6 +35,15 @@
  * só com `euaPreco`, as de cotação (COLUNAS_PRECO_EUA). Células novas: Div./ação (US$), Caixa
  * op./ação, Div./caixa op., Div. crescendo e o segmento curado do REIT. Dicas das colunas EUA em
  * textosEuaTelas.
+ *
+ * fundamentei-regras (F4):
+ * - visual v2 (item C5/C16): cabeçalho sem caixa alta (CABECALHO_SEM_CAIXA_ALTA), seta só na
+ *   coluna ordenada, ícone do ticker 32 px raio 8 no acento e ticker no acento;
+ * - rótulos EN (A4.d, `rotulosEn` da resposta): colunas de stock/reit com `rotuloEn`
+ *   (ROTULOS_EUA_EN); frases e dicas seguem em português;
+ * - REIT com caixa ajustado (A2.d): a linha traz fcoAjustadoPorAcao/dividendosFcoAjustadoPct só
+ *   com a chave; a célula usa o ajustado (ano sem SBC = sem ajuste, com a nota no title) e a dica
+ *   vem de TEXTOS_EUA.reitAjustado. Sem esses campos, a célula de hoje.
  */
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -44,7 +53,11 @@ import BarrasDezAnos from '@/components/analiseAtivos/comum/BarrasDezAnos';
 import CelulaCriterios from '@/components/analiseAtivos/comum/CelulaCriterios';
 import ValorAnalise from '@/components/analiseAtivos/comum/ValorAnalise';
 import { formatarAnalise } from '@/components/analiseAtivos/comum/formatarAnalise';
-import CabecalhoOrdenavel from '@/components/analiseAtivos/quadro/CabecalhoOrdenavel';
+import CabecalhoOrdenavel, {
+  CABECALHO_SEM_CAIXA_ALTA,
+} from '@/components/analiseAtivos/quadro/CabecalhoOrdenavel';
+import { useVisualV2 } from '@/components/analiseAtivos/shell/VisualV2';
+import { ROTULOS_EUA_EN } from '@/services/analiseAtivos/textosEuaEn';
 import CelulaNaCarteira, {
   type InfoNaCarteira,
 } from '@/components/analiseAtivos/quadro/CelulaNaCarteira';
@@ -54,6 +67,7 @@ import {
   COLUNAS,
   COLUNAS_PRECO_EUA,
   COR_LINK,
+  VISUAL_V2,
   type ColunaQuadro,
 } from '@/constants/analiseAtivosVisual';
 import { TEXTOS_EUA } from '@/services/analiseAtivos/textosEua';
@@ -91,7 +105,10 @@ export const TD_QUADRO = TABLE_STYLES.td.replace('px-4', 'px-3');
 export const ESPERA_PREFETCH_MS = 300;
 export const INTERVALO_PREFETCH_MS = 2_000;
 
-export function rotuloColuna(c: ColunaQuadro): string {
+export function rotuloColuna(c: ColunaQuadro, rotulosEn = false, reitAjustado = false): string {
+  // A4.d: nomes EN só das colunas EUA marcadas (lista fechada de textosEuaEn)
+  if (rotulosEn && reitAjustado && c.rotuloEnAjustado) return ROTULOS_EUA_EN[c.rotuloEnAjustado];
+  if (rotulosEn && c.rotuloEn) return ROTULOS_EUA_EN[c.rotuloEn];
   return (
     (TEXTOS_QUADRO.colunas as Record<string, string>)[c.rotulo] ??
     (T.colunas as Record<string, string>)[c.rotulo] ??
@@ -100,8 +117,11 @@ export function rotuloColuna(c: ColunaQuadro): string {
 }
 
 /** Dica do cabeçalho (TEXTOS_QUADRO.dicas; colunas EUA em textosEuaTelas), se houver. */
-export function dicaColuna(c: ColunaQuadro): string | undefined {
+export function dicaColuna(c: ColunaQuadro, reitAjustado = false): string | undefined {
   if (!c.dica) return undefined;
+  // A2.d: REIT com o caixa operacional ajustado pela SBC (sem FFO/AFFO/ocupação nas dicas)
+  if (reitAjustado && c.dica === 'fcoAcao') return TEXTOS_EUA.reitAjustado.fcoAjustado;
+  if (reitAjustado && c.dica === 'divFco') return TEXTOS_EUA.reitAjustado.payoutBase;
   return (
     (TEXTOS_QUADRO.dicas as Record<string, string>)[c.dica] ?? TEXTOS_EUA_TELAS.quadro.dicas[c.dica]
   );
@@ -265,8 +285,11 @@ function conteudoBase(codigo: string, l: LinhaQuadroApi): ReactNode {
     case 'dpaUsd':
       return <ValorAnalise valor={estadoDe(l.dpa)} formato="numero2" />;
     case 'fcoAcao':
+      if (l.fcoAjustadoPorAcao !== undefined) return <CelulaReitAjustada linha={l} campo="fco" />;
       return <ValorAnalise valor={estadoDe(l.fcoPorAcao)} formato="numero2" />;
     case 'divFco':
+      if (l.dividendosFcoAjustadoPct !== undefined)
+        return <CelulaReitAjustada linha={l} campo="div" />;
       return <ValorAnalise valor={estadoDe(l.dividendosFcoPct)} formato="pct" />;
     case 'anosDividendo':
       return <CelulaSeguidos n={l.anosDividendo} />;
@@ -314,8 +337,44 @@ function conteudoBase(codigo: string, l: LinhaQuadroApi): ReactNode {
   }
 }
 
+/**
+ * A2.d (REIT_FCO_AJUSTADO): caixa operacional ajustado pela SBC; sem SBC no último 10-K, o valor
+ * sem ajuste com a nota 'sbc_indisponivel' no title (e para leitor de tela).
+ */
+function CelulaReitAjustada({ linha, campo }: { linha: LinhaQuadroApi; campo: 'fco' | 'div' }) {
+  const ajustado = campo === 'fco' ? linha.fcoAjustadoPorAcao : linha.dividendosFcoAjustadoPct;
+  const semAjuste = campo === 'fco' ? linha.fcoPorAcao : linha.dividendosFcoPct;
+  const semSbc = linha.sbcIndisponivel === true || ajustado === null;
+  const valor = (
+    <ValorAnalise
+      valor={estadoDe(semSbc ? semAjuste : ajustado)}
+      formato={campo === 'fco' ? 'numero2' : 'pct'}
+    />
+  );
+  if (!semSbc) return valor;
+  return (
+    <span title={TEXTOS_EUA.reitAjustado.sbcIndisponivel} data-sbc-indisponivel="">
+      {valor}
+      <span className="sr-only"> ({TEXTOS_EUA.reitAjustado.sbcIndisponivel})</span>
+    </span>
+  );
+}
+
 /** Selo de posição para sobrepor no logo: só as 4 letras. */
 export function LogoTicker({ ticker, tamanho = 34 }: { ticker: string; tamanho?: number }) {
+  const v2 = useVisualV2();
+  if (v2) {
+    // item C16: ícone 32 px, raio 8, no acento do HTML do Pedro
+    return (
+      <span
+        aria-hidden="true"
+        style={{ width: 32, height: 32 }}
+        className={`inline-flex shrink-0 items-center justify-center rounded-lg text-[10.5px] font-bold tracking-tight ${VISUAL_V2.iconeTicker}`}
+      >
+        {ticker.slice(0, 4)}
+      </span>
+    );
+  }
   return (
     <span
       aria-hidden="true"
@@ -392,6 +451,10 @@ export interface TabelaQuadroProps<
   colunasExtras?: ColunaExtraQuadro<L>[];
   /** EUA: com a chave de preço, colunas de cotação (Preço, P/L, DY) nas abas Stocks/REITs */
   euaPreco?: boolean;
+  /** A4.d: nomes EN das colunas de stock/reit (QuadroResposta.rotulosEn) */
+  rotulosEn?: boolean;
+  /** A2.d: REIT com o caixa operacional ajustado (QuadroResposta.reitFcoAjustado) */
+  reitFcoAjustado?: boolean;
 }
 
 /** Bloco 1: o clique na área da ação não chega à linha (que abre o ativo). */
@@ -472,8 +535,12 @@ export default function TabelaQuadro<L extends LinhaQuadroApi = LinhaQuadroApi>(
   complementoCriterios,
   colunasExtras,
   euaPreco = false,
+  rotulosEn = false,
+  reitFcoAjustado = false,
 }: TabelaQuadroProps<L>) {
   const router = useRouter();
+  const v2 = useVisualV2();
+  const eua = ehClasseEua(classe);
   const prefetch = usePrefetchHover();
   const colunas = colunasDoQuadro(classe, modo, euaPreco);
   const rotulos = rotulosDasDefinicoes(definicoes);
@@ -496,7 +563,7 @@ export default function TabelaQuadro<L extends LinhaQuadroApi = LinhaQuadroApi>(
       >
         <caption className="sr-only">{legenda}</caption>
         <thead>
-          <tr className={TABLE_STYLES.headRow}>
+          <tr className={v2 ? CABECALHO_SEM_CAIXA_ALTA : TABLE_STYLES.headRow}>
             {comparar ? (
               <th
                 scope="col"
@@ -511,8 +578,8 @@ export default function TabelaQuadro<L extends LinhaQuadroApi = LinhaQuadroApi>(
               <CabecalhoOrdenavel
                 key={c.codigo}
                 coluna={c}
-                rotulo={rotuloColuna(c)}
-                dica={dicaColuna(c)}
+                rotulo={rotuloColuna(c, eua && rotulosEn, classe === 'reit' && reitFcoAjustado)}
+                dica={dicaColuna(c, classe === 'reit' && reitFcoAjustado)}
                 ordemAtual={ordem}
                 dir={dir}
                 onOrdenar={onOrdenar}
@@ -599,7 +666,7 @@ export default function TabelaQuadro<L extends LinhaQuadroApi = LinhaQuadroApi>(
                             colunaOrdenada ? TABLE_STYLES.highlightTd : ''
                           }`}
                         >
-                          <CelulaAtivo linha={l} />
+                          <CelulaAtivo linha={l} v2={v2} />
                         </th>
                       );
                     }
@@ -662,7 +729,29 @@ export default function TabelaQuadro<L extends LinhaQuadroApi = LinhaQuadroApi>(
   );
 }
 
-function CelulaAtivo({ linha }: { linha: LinhaQuadroApi }) {
+function CelulaAtivo({ linha, v2 = false }: { linha: LinhaQuadroApi; v2?: boolean }) {
+  if (v2) {
+    return (
+      <span className="flex min-w-[9rem] items-center gap-2.5">
+        <LogoTicker ticker={linha.ticker} />
+        <span className="min-w-0">
+          <Link
+            href={hrefAtivo(linha.ticker)}
+            onClick={(e) => e.stopPropagation()}
+            className={`-my-1.5 inline-flex min-h-11 items-center text-[13px] font-semibold ${VISUAL_V2.textoAcento} outline-none hover:underline focus-visible:ring-[3px] focus-visible:ring-[#0079F2] dark:focus-visible:ring-[#6E9DC4]`}
+          >
+            {linha.ticker}
+          </Link>
+          <span
+            data-nome-ativo=""
+            className="-mt-2 block max-w-[9rem] truncate text-[11px] text-gray-500 dark:text-gray-400"
+          >
+            {linha.nome}
+          </span>
+        </span>
+      </span>
+    );
+  }
   return (
     <span className="flex min-w-[9rem] items-center gap-3">
       <LogoTicker ticker={linha.ticker} />

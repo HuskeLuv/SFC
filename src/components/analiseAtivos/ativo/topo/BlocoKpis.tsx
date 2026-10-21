@@ -10,6 +10,10 @@
  * "em conferência" que abre o "Por quê?" ('ocultar' mostra '—'; 'selo' mostra o valor). Menu ⋯ no
  * cabeçalho e selo de frescor no rodapé (só com relato ligado / params v2). FII: a vacância leva a
  * nota fixa "a tela segue a CVM" (decisão 16) quando o bloco C está ativo.
+ *
+ * Visual v2 (fundamentei-regras F4, item C1): SEM card — os 8 KPIs em blocos tingidos 4×2
+ * (VISUAL_V2.tintasKpi, na ordem do HTML do Pedro), valor 18 px/700; o título fica só para leitor de
+ * tela e o ⋯ (reportar) vai ao cabeçalho do ativo (CabecalhoAtivo). Sem a chave, o card de hoje.
  */
 import ChipConferencia, {
   BORDA_CONFERENCIA,
@@ -30,6 +34,8 @@ import { TEXTOS_TELA } from '@/services/analiseAtivos/textosTela';
 import { TEXTOS_EUA_TELAS, formatarTexto } from '@/services/analiseAtivos/textosEuaTelas';
 import type { BlocoKpisProps, KpiAtivo } from '@/types/analiseAtivosApi';
 import type { DadoBlocoReporte } from '@/types/analiseAtivosCuradoria';
+import { useVisualV2 } from '@/components/analiseAtivos/shell/VisualV2';
+import { VISUAL_V2 } from '@/constants/analiseAtivosVisual';
 
 export type { BlocoKpisProps };
 
@@ -37,7 +43,7 @@ const CARD =
   'rounded-2xl border border-gray-200 bg-white p-4 sm:p-5 dark:border-gray-800 dark:bg-white/[0.03]';
 
 /** KPIs reportáveis no "Qual dado?" (rótulo · valor como na tela). */
-function dadosDosKpis(kpis: KpiAtivo[]): DadoBlocoReporte[] {
+export function dadosDosKpis(kpis: KpiAtivo[]): DadoBlocoReporte[] {
   const reportaveis = CAMPOS_REPORTAVEIS.kpis as readonly string[];
   return kpis
     .filter((k) => reportaveis.includes(k.codigo))
@@ -69,52 +75,79 @@ function IconeInfo() {
 export default function BlocoKpis({ classe, kpis }: BlocoKpisProps) {
   const ctx = useConferenciaPagina();
   const notaCvm = classe === 'fii' && blocoCAtivo(ctx);
+  const v2 = useVisualV2();
+  const valorClasse = v2
+    ? 'text-lg leading-tight font-bold text-gray-800 dark:text-white/90'
+    : 'text-lg font-semibold text-gray-800 dark:text-white/90';
   return (
     <section
       aria-labelledby="bloco-kpis-h"
       data-bloco="kpis"
       data-classe={classe}
-      className={`${CARD} @container flex min-w-0 flex-col gap-3`}
+      data-visual-v2={v2 ? '' : undefined}
+      className={
+        v2
+          ? '@container flex min-w-0 flex-col gap-2'
+          : `${CARD} @container flex min-w-0 flex-col gap-3`
+      }
     >
-      <div className="flex items-center justify-between gap-2">
-        <h2 id="bloco-kpis-h" className="text-base font-semibold text-gray-800 dark:text-white/90">
+      {v2 ? (
+        <h2 id="bloco-kpis-h" className="sr-only">
           {TEXTOS_TELA.blocos.kpis}
         </h2>
-        <MenuBlocoPagina bloco="kpis" dados={dadosDosKpis(kpis)} />
-      </div>
+      ) : (
+        <div className="flex items-center justify-between gap-2">
+          <h2
+            id="bloco-kpis-h"
+            className="text-base font-semibold text-gray-800 dark:text-white/90"
+          >
+            {TEXTOS_TELA.blocos.kpis}
+          </h2>
+          <MenuBlocoPagina bloco="kpis" dados={dadosDosKpis(kpis)} />
+        </div>
+      )}
       <ul
         data-kpis
-        className="grid grid-cols-1 gap-3 @min-[300px]:grid-cols-2 @min-[720px]:grid-cols-4"
+        className={
+          v2
+            ? 'grid grid-cols-1 gap-3 @min-[280px]:grid-cols-2 @min-[620px]:grid-cols-4'
+            : 'grid grid-cols-1 gap-3 @min-[300px]:grid-cols-2 @min-[720px]:grid-cols-4'
+        }
       >
-        {kpis.map((k) => {
+        {kpis.map((k, i) => {
           const conferencia = k.selo === 'proventos_em_conferencia';
           const emConf = k.selo === 'em_conferencia';
+          const borda = emConf
+            ? BORDA_CONFERENCIA
+            : conferencia
+              ? 'border border-dashed border-gray-500 dark:border-gray-400'
+              : v2
+                ? ''
+                : 'border border-gray-100 dark:border-gray-800';
           return (
             <li
               key={k.codigo}
               data-kpi={k.codigo}
               data-conferencia={conferencia || emConf || undefined}
-              className={`flex min-w-0 flex-col gap-0.5 rounded-xl bg-gray-50 px-3.5 py-3 dark:bg-white/[0.02] ${
-                emConf
-                  ? BORDA_CONFERENCIA
-                  : conferencia
-                    ? 'border border-dashed border-gray-500 dark:border-gray-400'
-                    : 'border border-gray-100 dark:border-gray-800'
-              }`}
+              className={
+                v2
+                  ? `flex min-w-0 flex-col gap-1 rounded-[10px] px-4 py-3.5 ${
+                      VISUAL_V2.tintasKpi[i % VISUAL_V2.tintasKpi.length]
+                    } ${borda}`
+                  : `flex min-w-0 flex-col gap-0.5 rounded-xl bg-gray-50 px-3.5 py-3 dark:bg-white/[0.02] ${borda}`
+              }
             >
               <span className="text-xs font-medium text-gray-500 dark:text-gray-400">
                 {k.rotulo}
               </span>
               {KPIS_ANOS.has(k.codigo) && k.valor.estado === 'ok' ? (
-                <span className="text-lg font-semibold text-gray-800 tabular-nums dark:text-white/90">
-                  {textoAnosKpi(k.valor.valor)}
-                </span>
+                <span className={`${valorClasse} tabular-nums`}>{textoAnosKpi(k.valor.valor)}</span>
               ) : (
                 <ValorAnalise
                   valor={k.valor}
                   formato={k.formato}
                   mostrarMotivo
-                  className="text-lg font-semibold text-gray-800 dark:text-white/90"
+                  className={valorClasse}
                 />
               )}
               {emConf ? (

@@ -38,6 +38,8 @@ import { TEXTOS_IMOVEIS_FII } from '@/services/analiseAtivos/textosImoveisFii';
 import { TEXTOS_RETORNOS } from '@/services/analiseAtivos/textosRetornos';
 import { TEXTOS_SOCIETARIO } from '@/services/analiseAtivos/textosSocietario';
 import { TEXTOS_FINANCEIRAS } from '@/services/analiseAtivos/textosFinanceiras';
+import { TEXTOS_EUA_TELAS } from '@/services/analiseAtivos/textosEuaTelas';
+import { CRITERIOS_EUA_EN, ROTULOS_EUA_EN } from '@/services/analiseAtivos/textosEuaEn';
 
 type Folha = [caminho: string, texto: string];
 
@@ -75,6 +77,10 @@ const MODULOS: Record<string, unknown> = {
   TEXTOS_RETORNOS,
   TEXTOS_SOCIETARIO,
   TEXTOS_FINANCEIRAS,
+  // fundamentei-regras (F3): telas EUA e os rótulos em inglês (o veto vale também em inglês)
+  TEXTOS_EUA_TELAS,
+  ROTULOS_EUA_EN,
+  CRITERIOS_EUA_EN,
 };
 
 const TODAS: Folha[] = Object.entries(MODULOS).flatMap(([nome, m]) => folhas(m, nome));
@@ -123,6 +129,9 @@ const VARS: Record<string, string> = {
   pf: '182 mil',
   pj: '3,1 mil',
   inst: '1,4 mil',
+  // fundamentei-regras (F3)
+  limite: '90',
+  indicador: 'EPS (US$)',
 };
 const preencher = (t: string) => t.replace(/\{(\w+)\}/g, (m, k: string) => VARS[k] ?? 'X');
 

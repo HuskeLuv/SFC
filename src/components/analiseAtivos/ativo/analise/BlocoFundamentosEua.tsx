@@ -9,6 +9,11 @@
  * Ocupação, Imóveis do REIT) NÃO viram coluna de '—' — ficam escondidas, com a observação de que
  * entram com a leitura do 10-K. Sem Raio-X nesta versão (o Raio-X lê a CVM). Coluna FY fixa e
  * rolagem lateral só dentro do card no celular.
+ *
+ * fundamentei-regras (F3): colunas, rótulos (inclusive em inglês) e observações vêm prontos do
+ * servidor. Com o caixa do REIT ajustado pela remuneração em ações, a célula do ano sem SBC no 10-K
+ * (marcas[codigo].sbcIndisponivel) ganha '*' com a explicação no title e para o leitor de tela; sem
+ * marcas (chaves desligadas), o DOM é o de hoje.
  */
 import CartaoAnalise, {
   FUNDO_STICKY,
@@ -104,13 +109,30 @@ export default function BlocoFundamentosEua({ ticker }: { ticker: string }) {
                     {dados.colunas.map((c) => {
                       const v = l.valores[c.codigo];
                       const negativo = v?.estado === 'ok' && v.valor < 0;
+                      // F3 (REIT_FCO_AJUSTADO): ano sem SBC no 10-K = valor sem ajuste com a marca
+                      const semSbc = l.marcas?.[c.codigo]?.sbcIndisponivel === true;
                       return (
                         <td
                           key={c.codigo}
-                          title={v && v.estado !== 'ok' ? v.texto : undefined}
+                          title={
+                            v && v.estado !== 'ok'
+                              ? v.texto
+                              : semSbc
+                                ? TEXTOS_EUA.reitAjustado.sbcIndisponivel
+                                : undefined
+                          }
+                          data-sbc-indisponivel={semSbc || undefined}
                           className={`${TABLE_STYLES.compact.td} text-right tabular-nums ${l.ultimoAno ? `${TABLE_STYLES.highlightTd} font-medium text-gray-800 dark:text-white/90` : ''} ${negativo ? TEXTO_NEGATIVO : ''}`}
                         >
                           {v ? formatarEstado(v, c.formato) : TEXTOS_TELA.formato.semDado}
+                          {semSbc ? (
+                            <>
+                              <span aria-hidden="true">{TE.marcaSbcIndisponivel}</span>
+                              <span className="sr-only">
+                                {` (${TEXTOS_EUA.reitAjustado.sbcIndisponivel})`}
+                              </span>
+                            </>
+                          ) : null}
                         </td>
                       );
                     })}

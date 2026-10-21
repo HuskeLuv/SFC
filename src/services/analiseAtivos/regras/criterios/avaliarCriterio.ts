@@ -16,11 +16,19 @@
  * v2.5: a série chega já escolhida para a janela (avaliarAtivo + resolverSeries.escolherSerieJanela:
  * fallback do lucro descontado pela janela inteira); fonte/obs do resultado são postos por
  * avaliarAtivo. 'sem dado' é sempre o mesmo texto (sem a nota dos informes de FII).
+ *
+ * fundamentei-regras (F1): tipo 'cagr' — lê os J + 1 anos como o 'up', exige todos e calcula a taxa
+ * anual composta (fim ÷ início)^(1/J) − 1; atende com taxa > 0. Último ano ≤ 0 = não atende em
+ * qualquer modo; primeiro ano ≤ 0 (taxa não se calcula) pela regra criteria_params.cagr
+ * .baseNaoPositiva ('fim_positivo' = atende com o último ano > 0 e o fato da base; 'sem_dado' =
+ * motivo 'base_nao_positiva'). n/de seguem a regra do card (atende ⇔ n === de): n = J quando
+ * atende, 0 quando não. Só a v5 usa o tipo; v1–v4 avaliam igual.
  * Função pura.
  */
-import type {
-  CriteriaParams,
-  DefCriterio,
+import {
+  baseNaoPositivaCagrDe,
+  type CriteriaParams,
+  type DefCriterio,
 } from '@/services/analiseAtivos/params/criteriaParamsSchema';
 import { anosDaJanela } from '@/services/analiseAtivos/regras/criterios/ancoraJanela';
 import {
@@ -62,7 +70,10 @@ function arred(v: number): number {
   return Math.round(v * 1e4) / 1e4;
 }
 
-function textoNaoSeAplica(id: IdCriterio): string {
+function textoNaoSeAplica(def: Pick<DefCriterio, 'id' | 'serie'>): string {
+  const id = def.id;
+  // v5: o 'ebitda' é o lucro operacional (série 'ebit'); v1–v4 seguem o texto de antes
+  if (id === 'ebitda' && def.serie === 'ebit') return T.motivos.instituicao_financeira_ebit;
   if (id === 'fcl') return T.motivos.instituicao_financeira_fcl;
   if (id === 'mg') return T.motivos.instituicao_financeira_mg;
   return T.motivos.instituicao_financeira;
@@ -102,6 +113,73 @@ function pontos(anos: number[], valores: Array<number | null>): PontoCriterio[] 
   });
 }
 
+/** 'up' e 'cagr' leem o ano anterior à janela (J + 1 valores). */
+export function incluiAnoAnterior(tipo: DefCriterio['tipo']): boolean {
+  return tipo === 'up' || tipo === 'cagr';
+}
+
+/** Taxa de crescimento anual composto (fração). Início e fim > 0. Pura. */
+export function taxaCagr(inicio: number, fim: number, anos: number): number {
+  return Math.pow(fim / inicio, 1 / anos) - 1;
+}
+
+/** 'cagr' com os J + 1 valores (todos presentes). */
+function avaliarCagr(
+  id: IdCriterio,
+  def: DefCriterio,
+  janela: Janela,
+  w: number[],
+  serie: PontoCriterio[],
+  params: Pick<CriteriaParams, 'cagr'>,
+): ResultadoCriterio {
+  const fmt = (v: number) => formatarValorCriterio(v, def.formato);
+  const inicio = w[0];
+  const fim = w[w.length - 1];
+  const vars = { inicio: fmt(inicio), fim: fmt(fim), total: janela };
+  const com = (semUnidade: string, comUnidade: string, extra: Record<string, string> = {}) =>
+    def.unidade
+      ? formatarTexto(comUnidade, { ...vars, ...extra, unidade: def.unidade })
+      : formatarTexto(semUnidade, { ...vars, ...extra });
+  // +Infinity/−Infinity nunca chegam a uma série de crescimento; por segurança, fora
+  if (!Number.isFinite(inicio) || !Number.isFinite(fim) || fim <= 0) {
+    return {
+      id,
+      estado: 'nao_atende',
+      n: 0,
+      de: janela,
+      fato: com(T.fatos.cagrFimNaoPositivo, T.fatos.cagrFimNaoPositivoComUnidade),
+      serie,
+    };
+  }
+  if (inicio <= 0) {
+    const fato = com(T.fatos.cagrBaseNaoPositiva, T.fatos.cagrBaseNaoPositivaComUnidade);
+    if (baseNaoPositivaCagrDe(params) === 'fim_positivo') {
+      return { id, estado: 'atende', n: janela, de: janela, fato, serie };
+    }
+    return {
+      id,
+      estado: 'sem_dado',
+      n: null,
+      de: null,
+      fato,
+      motivo: 'base_nao_positiva',
+      serie,
+    };
+  }
+  const taxa = taxaCagr(inicio, fim, janela);
+  const atende = taxa > 0;
+  return {
+    id,
+    estado: atende ? 'atende' : 'nao_atende',
+    n: atende ? janela : 0,
+    de: janela,
+    fato: com(T.fatos.cagr, T.fatos.cagrComUnidade, {
+      taxa: formatarValorCriterio(taxa * 100, '%'),
+    }),
+    serie,
+  };
+}
+
 export function avaliarCriterio(e: EntradaCriterio, params: CriteriaParams): ResultadoCriterio {
   const { def, janela, anoFim } = e;
   const id = def.id;
@@ -111,7 +189,7 @@ export function avaliarCriterio(e: EntradaCriterio, params: CriteriaParams): Res
       estado: 'nao_se_aplica',
       n: null,
       de: null,
-      fato: textoNaoSeAplica(id),
+      fato: textoNaoSeAplica(def),
       motivo: 'instituicao_financeira',
       serie: null,
     };
@@ -143,7 +221,7 @@ export function avaliarCriterio(e: EntradaCriterio, params: CriteriaParams): Res
     };
   }
 
-  const anos = anosDaJanela(anoFim, janela, def.tipo === 'up');
+  const anos = anosDaJanela(anoFim, janela, incluiAnoAnterior(def.tipo));
   const brutos = anos.map((a) => {
     const v = e.serie?.[a];
     return typeof v === 'number' && !Number.isNaN(v) ? v : null;
@@ -166,6 +244,9 @@ export function avaliarCriterio(e: EntradaCriterio, params: CriteriaParams): Res
   let n: number;
   let fato: string;
 
+  if (def.tipo === 'cagr') {
+    return avaliarCagr(id, def, janela, w, serie, params);
+  }
   if (def.tipo === 'up') {
     n = 0;
     for (let i = 1; i < w.length; i++) if (w[i] > w[i - 1]) n++;

@@ -6,6 +6,9 @@
  * tipo do FII e o selo "sem negociação recente" fora do Quadro. Celular: slots empilhados de
  * 60px. O slot "Adicionar" entra por `adicionar` (só no computador; no celular o botão fica abaixo
  * da lista).
+ *
+ * Visual v2 (fundamentei-regras F4, itens C8 e C16): slots em superfície 2 com raio 10 e o ícone do
+ * ticker 32 px raio 8 no acento. Sem a chave, os de hoje.
  */
 import Link from 'next/link';
 import type { ReactNode } from 'react';
@@ -15,6 +18,8 @@ import { FOCO } from '@/components/analiseAtivos/comparador/SlotAdicionar';
 import { TEXTOS_COMPARADOR } from '@/services/analiseAtivos/textosComparador';
 import { TEXTOS_TELA, formatarTexto } from '@/services/analiseAtivos/textosTela';
 import type { AtivoComparador } from '@/types/analiseAtivosBlocoD';
+import { useVisualV2 } from '@/components/analiseAtivos/shell/VisualV2';
+import { VISUAL_V2 } from '@/constants/analiseAtivosVisual';
 
 const TS = TEXTOS_COMPARADOR.slots;
 
@@ -27,6 +32,17 @@ function IconeX() {
 }
 
 function Logo({ ticker, tamanho }: { ticker: string; tamanho: 36 | 40 }) {
+  const v2 = useVisualV2();
+  if (v2) {
+    return (
+      <span
+        aria-hidden="true"
+        className={`inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-[10.5px] font-bold ${VISUAL_V2.iconeTicker}`}
+      >
+        {ticker.slice(0, 4)}
+      </span>
+    );
+  }
   return (
     <span
       aria-hidden="true"
@@ -90,6 +106,8 @@ export default function SlotsComparador({
   celular,
   adicionar,
 }: SlotsComparadorProps) {
+  const v2 = useVisualV2();
+  const fundoSlot = `rounded-[10px] border border-gray-200 dark:border-gray-800 ${VISUAL_V2.superficie2}`;
   if (celular) {
     return (
       <ul aria-label={TS.rotulo} className="flex flex-col gap-2">
@@ -99,7 +117,11 @@ export default function SlotsComparador({
             <li
               key={t}
               data-slot={t}
-              className="grid min-h-[60px] grid-cols-[36px_minmax(0,1fr)_auto_44px] items-center gap-2.5 rounded-[14px] border border-gray-200 bg-white py-1.5 pr-1 pl-2.5 dark:border-gray-800 dark:bg-white/[0.03]"
+              className={
+                v2
+                  ? `grid min-h-[60px] grid-cols-[36px_minmax(0,1fr)_auto_44px] items-center gap-2.5 py-1.5 pr-1 pl-2.5 ${fundoSlot}`
+                  : 'grid min-h-[60px] grid-cols-[36px_minmax(0,1fr)_auto_44px] items-center gap-2.5 rounded-[14px] border border-gray-200 bg-white py-1.5 pr-1 pl-2.5 dark:border-gray-800 dark:bg-white/[0.03]'
+              }
             >
               <Logo ticker={t} tamanho={36} />
               <span className="min-w-0">
@@ -138,7 +160,11 @@ export default function SlotsComparador({
             <li
               key={t}
               data-slot={t}
-              className="flex min-w-0 flex-col gap-2 rounded-[14px] border border-gray-200 bg-white p-3 dark:border-gray-800 dark:bg-white/[0.03]"
+              className={
+                v2
+                  ? `flex min-w-0 flex-col gap-2 p-3 ${fundoSlot}`
+                  : 'flex min-w-0 flex-col gap-2 rounded-[14px] border border-gray-200 bg-white p-3 dark:border-gray-800 dark:bg-white/[0.03]'
+              }
             >
               <div className="grid grid-cols-[40px_minmax(0,1fr)_44px] items-center gap-2.5">
                 <Logo ticker={t} tamanho={40} />

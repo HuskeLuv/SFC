@@ -25,6 +25,12 @@
  * - Caixa com CashCashEquivalentsAndShortTermInvestments no fim (CAT 2016; já inclui as aplicações
  *   de curto prazo, que o extrator deixa null nesse caso).
  *
+ * fundamentei-regras (docs/analise-ativos/fundamentei-regras/desenho.json, F3, A2.d): remuneração em
+ * ações (SBC) da DFC do 10-K, ShareBasedCompensation → AllocatedShareBasedCompensationExpense
+ * (duração, USD). Fica FORA de CADEIAS_SEC/CAMPOS_SEC (CADEIA_SBC): a extração só a lê com
+ * ANALISE_ATIVOS_SEC_SBC, e desligada a extração de hoje não muda (nem a versão do FY, nem o 10-K
+ * mais recente). Ano sem nenhum dos dois = SBC nula (nunca 0).
+ *
  * Todo conceito daqui existe na taxonomia us-gaap/dei: a lista é conferida contra os frames da SEC
  * (fixture conceitos-validados.json, gerada por relatorio-cobertura-eua --validar-conceitos).
  */
@@ -236,13 +242,31 @@ export const CADEIAS_SEC: Record<CampoSec, CadeiaCampo> = {
   ativoTotal: cadeia('ativoTotal', 'instante', 'USD', ['Assets']),
 };
 
+/**
+ * Remuneração em ações (SBC, DFC do 10-K): campo gravado `remuneracaoAcoes`. Separada de CADEIAS_SEC
+ * de propósito — só a extração com `incluirSbc` (ANALISE_ATIVOS_SEC_SBC) a lê. Conferida nos frames
+ * CY2023 (ShareBasedCompensation 4.793 empresas; AllocatedShareBasedCompensationExpense 3.263).
+ */
+export const CAMPO_SBC = 'remuneracaoAcoes' as const;
+export const CADEIA_SBC: Omit<CadeiaCampo, 'campo'> & { campo: typeof CAMPO_SBC } = {
+  campo: CAMPO_SBC,
+  tipo: 'duracao',
+  unidade: 'USD',
+  passos: ['ShareBasedCompensation', 'AllocatedShareBasedCompensationExpense'].map(passo),
+};
+
+/** Todas as cadeias (as de CADEIAS_SEC + a da SBC) — validação de conceitos e recorte de fixtures. */
+function todasAsCadeias(): Array<Pick<CadeiaCampo, 'tipo' | 'unidade' | 'passos'>> {
+  return [...Object.values(CADEIAS_SEC), CADEIA_SBC];
+}
+
 /** Conceito proibido (não existe nos frames; 0/22 companyfacts). */
 export const CONCEITOS_PROIBIDOS = ['DepreciationAndAmortizationOfRealEstate'] as const;
 
 /** Todos os conceitos das cadeias, 'taxonomia:Conceito', sem repetição (validação e recorte). */
 export function conceitosDasCadeias(): string[] {
   const s = new Set<string>();
-  for (const c of Object.values(CADEIAS_SEC)) {
+  for (const c of todasAsCadeias()) {
     for (const p of c.passos) for (const t of p.termos) s.add(`${t.taxonomia}:${t.conceito}`);
   }
   return [...s].sort();
@@ -251,7 +275,7 @@ export function conceitosDasCadeias(): string[] {
 /** Unidade XBRL de cada conceito (para recortar fixtures e consultar frames). */
 export function unidadesDosConceitos(): Map<string, { unidade: UnidadeSec; tipo: TipoFatoSec }> {
   const m = new Map<string, { unidade: UnidadeSec; tipo: TipoFatoSec }>();
-  for (const c of Object.values(CADEIAS_SEC)) {
+  for (const c of todasAsCadeias()) {
     for (const p of c.passos) {
       for (const t of p.termos)
         m.set(`${t.taxonomia}:${t.conceito}`, { unidade: c.unidade, tipo: c.tipo });

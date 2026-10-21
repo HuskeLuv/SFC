@@ -29,6 +29,7 @@ import {
 } from '@/services/analiseAtivos/leitura/ativo/conferenciasAtivo';
 import { ehCampoTela } from '@/services/analiseAtivos/regras/comum/conferencia';
 import { TEXTOS_CRITERIOS } from '@/services/analiseAtivos/textosCriterios';
+import { rotuloEuaEn } from '@/services/analiseAtivos/textosEuaEn';
 import { TEXTOS_EUA_TELAS } from '@/services/analiseAtivos/textosEuaTelas';
 import type { Estado, KpiAtivo, LinhaQuadroApi, PontoSerieAnual } from '@/types/analiseAtivosApi';
 import type { IdCriterio, PontoCriterio } from '@/types/analiseAtivosCriterios';
@@ -423,6 +424,13 @@ export interface EntradaKpisEua {
     divFcoPct: number | null;
     receita: number | null;
     lucro: number | null;
+    /**
+     * F3 (REIT_FCO_AJUSTADO): caixa ajustado pela SBC por ação e dividendos ÷ ele, já com o
+     * fallback do ano sem SBC (valoresReitAjustado); sbcIndisponivel = o ano caiu no sem ajuste
+     */
+    fcoAjustadoAcao?: number | null;
+    divFcoAjustadoPct?: number | null;
+    sbcIndisponivel?: boolean;
   } | null;
   /** o DPA do ano foi derivado (dividendos pagos ÷ média diluída) */
   dpaCalculado: boolean;
@@ -430,14 +438,28 @@ export interface EntradaKpisEua {
   anosDividendo: number | null;
 }
 
+/** F3: chaves de tela dos KPIs EUA (ausente = desligadas = KPIs de hoje). */
+export interface OpcoesKpisEua {
+  /** ANALISE_ATIVOS_REIT_FCO_AJUSTADO_HABILITADO */
+  reitFcoAjustado?: boolean;
+  /** ANALISE_ATIVOS_EUA_ROTULOS_EN_HABILITADO */
+  rotulosEn?: boolean;
+}
+
 /**
  * 7 KPIs EUA. Stock: ROE, Margem líq., Dív.líq./EBITDA, LPA, Div./ação, Payout, Lucros seguidos.
  * REIT: Caixa op./ação, Div./ação, Div./caixa op., Dív.líq./EBITDA, Receita, Lucro líquido, Div.
  * crescendo. Valores em US$ com a unidade no rótulo; nada que dependa de cotação.
+ *
+ * fundamentei-regras (F3): com `reitFcoAjustado` o REIT troca Caixa op./ação e Div./caixa op. pelo
+ * caixa ajustado pela remuneração em ações (ano sem SBC: o sem ajuste, com a linha de apoio
+ * 'sem remuneração em ações no 10-K'); com `rotulosEn` os nomes vêm em inglês (textosEuaEn) e a
+ * linha de apoio segue em português (Receita/Lucro: a unidade 'US$ bi' passa para a linha de apoio).
  */
-export function montarKpisEua(e: EntradaKpisEua): KpiAtivo[] {
+export function montarKpisEua(e: EntradaKpisEua, opcoes: OpcoesKpisEua = {}): KpiAtivo[] {
   const E = TEXTOS_EUA_TELAS.ativo.kpis;
   const v = e.valores;
+  const en = opcoes.rotulosEn === true;
   const sub = (modelo: string) => (e.ano === null ? null : formatarTexto(modelo, { ano: e.ano }));
   const kpi = (
     codigo: string,
@@ -445,7 +467,14 @@ export function montarKpisEua(e: EntradaKpisEua): KpiAtivo[] {
     valor: number | null | undefined,
     formato: KpiAtivo['formato'],
     linhaApoio: string | null,
-  ): KpiAtivo => ({ codigo, rotulo, valor: ok(valor), formato, sub: linhaApoio, selo: null });
+  ): KpiAtivo => ({
+    codigo,
+    rotulo: (en ? rotuloEuaEn(codigo) : null) ?? rotulo,
+    valor: ok(valor),
+    formato,
+    sub: linhaApoio,
+    selo: null,
+  });
   const bi = (x: number | null | undefined) =>
     typeof x === 'number' && Number.isFinite(x) ? x / 1e9 : null;
   const dl = v?.dividaLiquida ?? null;
@@ -464,13 +493,48 @@ export function montarKpisEua(e: EntradaKpisEua): KpiAtivo[] {
   );
   const divLiq = kpi('divLiqEbitda', E.rotulos.divLiqEbitda, v?.divLiqEbitda, 'multiplo', subDl);
   if (e.classe === 'reit') {
+    const ajustado = opcoes.reitFcoAjustado === true;
+    const semSbc = ajustado && v?.sbcIndisponivel === true;
+    const caixa = ajustado
+      ? [
+          kpi(
+            'fcoAjustadoAcao',
+            E.rotulos.fcoAjustadoAcao,
+            v?.fcoAjustadoAcao,
+            'numero2',
+            semSbc ? E.subs.sbcIndisponivel : E.subs.fcoAjustadoAcao,
+          ),
+          dpa,
+          kpi(
+            'divFcoAjustado',
+            E.rotulos.divFcoAjustado,
+            v?.divFcoAjustadoPct,
+            'pct',
+            semSbc ? E.subs.sbcIndisponivel : E.subs.divFcoAjustado,
+          ),
+        ]
+      : [
+          kpi('fcoAcao', E.rotulos.fcoAcao, v?.fcoAcao, 'numero2', E.subs.fcoAcao),
+          dpa,
+          kpi('divFco', E.rotulos.divFco, v?.divFcoPct, 'pct', E.subs.divFco),
+        ];
     return [
-      kpi('fcoAcao', E.rotulos.fcoAcao, v?.fcoAcao, 'numero2', E.subs.fcoAcao),
-      dpa,
-      kpi('divFco', E.rotulos.divFco, v?.divFcoPct, 'pct', E.subs.divFco),
+      ...caixa,
       divLiq,
-      kpi('receita', E.rotulos.receita, bi(v?.receita), 'numero2', sub(E.subs.fy)),
-      kpi('lucro', E.rotulos.lucro, bi(v?.lucro), 'numero2', E.subs.lucroReit),
+      kpi(
+        'receita',
+        E.rotulos.receita,
+        bi(v?.receita),
+        'numero2',
+        en ? sub(E.subs.receitaEn) : sub(E.subs.fy),
+      ),
+      kpi(
+        'lucro',
+        E.rotulos.lucro,
+        bi(v?.lucro),
+        'numero2',
+        en ? E.subs.lucroEn : E.subs.lucroReit,
+      ),
       kpi(
         'anosDividendo',
         E.rotulos.anosDividendo,

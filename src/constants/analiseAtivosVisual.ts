@@ -17,6 +17,7 @@ import { MYFINANCE_BRAND } from '@/constants/brandColors';
 import { CRITERIA_PARAMS_CODIGO } from '@/services/analiseAtivos/params/criteriaParamsCodigo';
 import type { CriteriaParams } from '@/services/analiseAtivos/params/criteriaParamsSchema';
 import type { DefCriterioChip, IdCriterio } from '@/types/analiseAtivosCriterios';
+import type { ChaveRotuloEuaEn } from '@/services/analiseAtivos/textosEuaEn';
 import type {
   ClasseEua,
   ClasseQuadro,
@@ -64,6 +65,74 @@ export const VERDE_ATENDE = { claro: '#16A34A', escuro: '#34C47C' } as const;
 export const MARCA_ATENDE_VERDE = 'bg-[#16A34A] text-white dark:bg-[#34C47C] dark:text-[#18181B]';
 /** Hex da exceção do ✓ verde (só para os testes de fonte que a aceitam explicitamente). */
 export const CORES_EXCECAO_ATENDE: readonly string[] = Object.values(VERDE_ATENDE);
+
+/**
+ * fundamentei-regras (F4, item C; Wellington 20/10): cores de EXCEÇÃO do HTML do Pedro, SÓ na
+ * Análise de Ativos e SÓ com ANALISE_ATIVOS_VISUAL_V2_HABILITADO. Ficam aqui (e nas classes de
+ * VISUAL_V2 abaixo) e em nenhum componente: os testes de paleta dos componentes continuam
+ * aceitando só CORES_PERMITIDAS. Fora de CORES_PERMITIDAS, como o verde do ✓.
+ * - acento (chip ligado, ícone do ticker, contagem da aba): --accent-bg / --accent-ink;
+ * - superfície 2 (pílula desligada, faixa de grupo do Comparador, slots): --surface2;
+ * - tintas dos KPIs (blocos 4×2): --tint-blue / --tint-gray / --tint-blue2;
+ * - dourado (#B8842E nos DOIS temas): cotação do gráfico Lucro × Cotação e média dos múltiplos
+ *   históricos (autorizados em 20/10). O marcador da cotação de Meus cenários segue o do #309.
+ * Nada de verde/vermelho semântico novo.
+ */
+export const CORES_EXCECAO_ANALISE = {
+  acentoFundo: { claro: '#E8F0FD', escuro: '#233247' },
+  acentoTexto: { claro: '#1D6FE0', escuro: '#7DB4FF' },
+  superficie2: { claro: '#F3F5F9', escuro: '#1E222A' },
+  tintaAzul: { claro: '#E8F0FB', escuro: '#1F2A3D' },
+  tintaCinza: { claro: '#ECEFF4', escuro: '#262A33' },
+  tintaAzul2: { claro: '#DFEAFB', escuro: '#1B2B45' },
+  dourado: { claro: '#B8842E', escuro: '#B8842E' },
+} as const;
+
+/** Hex da exceção da Análise (para o teste de paleta). */
+export const HEX_EXCECAO_ANALISE: readonly string[] = [
+  ...new Set(Object.values(CORES_EXCECAO_ANALISE).flatMap((c) => [c.claro, c.escuro])),
+];
+
+/** Dourado da série de cotação e da média histórica (mesmo tom no claro e no escuro). */
+export const DOURADO_ANALISE = CORES_EXCECAO_ANALISE.dourado.claro;
+
+/**
+ * Classes do visual v2 (item C, HTML do Pedro). Só usadas com visualV2 ligado; com a chave
+ * desligada os componentes seguem com as classes de sempre (DOM idêntico).
+ */
+export const VISUAL_V2 = {
+  /** chip de critério ligado: pílula 99px, sem borda, acento */
+  chipLigado:
+    'border-transparent bg-[#E8F0FD] font-semibold text-[#1D6FE0] dark:border-transparent dark:bg-[#233247] dark:text-[#7DB4FF]',
+  chipDesligado:
+    'border-gray-200 bg-white font-medium text-gray-600 group-hover:bg-gray-50 dark:border-[#2E3440] dark:bg-transparent dark:text-gray-300 dark:group-hover:bg-white/[0.04]',
+  /** pílula compacta (janela, A–Z, Resumo|Detalhado, 5A|10A, Essencial|Raio-X): ligada = patrimonio */
+  pilulaLigada: 'bg-[#396CAA] font-semibold text-white dark:bg-[#6E9DC4] dark:text-[#2D2D2D]',
+  pilulaDesligada:
+    'bg-[#F3F5F9] font-semibold text-gray-600 hover:text-[#314666] dark:bg-[#1E222A] dark:text-gray-300 dark:hover:text-white',
+  /** ícone do ticker 32px raio 8 (Quadro, slots do Comparador) */
+  iconeTicker: 'bg-[#E8F0FD] text-[#1D6FE0] dark:bg-[#233247] dark:text-[#7DB4FF]',
+  /** texto do ticker no acento (Pares, Quadro) */
+  textoAcento: 'text-[#1D6FE0] dark:text-[#7DB4FF]',
+  /** contagem da aba de classe (ResponsiveTabNav.badge) */
+  badgeAtivo: 'bg-[#E8F0FD] text-[#1D6FE0] dark:bg-[#233247] dark:text-[#7DB4FF]',
+  badgeInativo: 'bg-[#F3F5F9] text-gray-500 dark:bg-[#1E222A] dark:text-gray-400',
+  /** superfície 2 (faixa de grupo do Comparador, slots, trilho das barras) */
+  superficie2: 'bg-[#F3F5F9] dark:bg-[#1E222A]',
+  /** tintas dos 8 KPIs, na ordem do HTML do Pedro: b · cinza · b2 · cinza · cinza · b · cinza · b2 */
+  tintasKpi: [
+    'bg-[#E8F0FB] dark:bg-[#1F2A3D]',
+    'bg-[#ECEFF4] dark:bg-[#262A33]',
+    'bg-[#DFEAFB] dark:bg-[#1B2B45]',
+    'bg-[#ECEFF4] dark:bg-[#262A33]',
+    'bg-[#ECEFF4] dark:bg-[#262A33]',
+    'bg-[#E8F0FB] dark:bg-[#1F2A3D]',
+    'bg-[#ECEFF4] dark:bg-[#262A33]',
+    'bg-[#DFEAFB] dark:bg-[#1B2B45]',
+  ],
+  /** linha destacada (ano mais recente do Essencial, próprio ativo nos Pares) */
+  linhaDestaque: 'bg-[#E8F0FB] font-semibold dark:bg-[#1F2A3D]',
+} as const;
 
 /** Texto/link (claro / escuro). */
 export const COR_LINK = {
@@ -120,6 +189,12 @@ export interface ColunaQuadro {
   alinhamento: 'esquerda' | 'direita' | 'centro';
   /** chave em TEXTOS_QUADRO.dicas (title do cabeçalho), opcional */
   dica?: string;
+  /**
+   * fundamentei-regras (A4.d, F4): nome EN da coluna EUA (ROTULOS_EUA_EN), usado só com
+   * `rotulosEn` da resposta; `rotuloEnAjustado` = REIT com o caixa operacional ajustado (A2.d).
+   */
+  rotuloEn?: ChaveRotuloEuaEn;
+  rotuloEnAjustado?: ChaveRotuloEuaEn;
 }
 
 const col = (
@@ -250,6 +325,43 @@ export const COLUNAS: Record<ClasseQuadro, Record<ModoQuadro, ColunaQuadro[]>> =
 };
 
 /**
+ * A4.d (F4): nomes EN das colunas EUA por código (lista fechada de textosEuaEn.ts). Ativo, setor,
+ * segmento, critérios, Na carteira e Lucro 10 anos ficam em português.
+ */
+const ROTULO_EN_COLUNA: Partial<Record<string, ChaveRotuloEuaEn>> = {
+  lucrosSeguidos: 'profitStreak',
+  roe: 'roe',
+  margemLiquida: 'netMargin',
+  dpaUsd: 'dividendPerShare',
+  divLiqEbitda: 'netDebtEbitda',
+  payout: 'payout',
+  fcoAcao: 'ocfPerShare',
+  divFco: 'payout',
+  anosDividendo: 'dividendGrowing',
+  pl: 'pe',
+  dy12m: 'dividendYield',
+};
+const ROTULO_EN_AJUSTADO: Partial<Record<string, ChaveRotuloEuaEn>> = {
+  fcoAcao: 'ocfAdjustedPerShare',
+  divFco: 'payoutOcfAdjusted',
+};
+
+function comRotuloEn(colunas: ColunaQuadro[]): ColunaQuadro[] {
+  return colunas.map((c) => {
+    const en = ROTULO_EN_COLUNA[c.codigo];
+    if (!en) return c;
+    const aj = ROTULO_EN_AJUSTADO[c.codigo];
+    return aj ? { ...c, rotuloEn: en, rotuloEnAjustado: aj } : { ...c, rotuloEn: en };
+  });
+}
+
+for (const classe of ['stock', 'reit'] as const) {
+  for (const modo of ['resumo', 'detalhado'] as const) {
+    COLUNAS[classe][modo] = comRotuloEn(COLUNAS[classe][modo]);
+  }
+}
+
+/**
  * Colunas de cotação EUA, inseridas logo depois de 'ativo' (preço) e antes de 'criterios' (P/L e
  * DY) SÓ com recursos.euaPreco (fatia C). Sem a chave, nunca aparecem.
  */
@@ -266,6 +378,9 @@ export const COLUNAS_PRECO_EUA: Record<
     antesCriterios: [col('dy12m', 'dy12m', 'dy')],
   },
 };
+for (const classe of ['stock', 'reit'] as const) {
+  COLUNAS_PRECO_EUA[classe].antesCriterios = comRotuloEn(COLUNAS_PRECO_EUA[classe].antesCriterios);
+}
 
 /**
  * Critérios que a URL/barra aceitam por classe, derivados dos params: os chips HABILITADOS (em FII,

@@ -10,11 +10,17 @@
  *   na fonte). O fator é 2 (decisões.md prevalece sobre o 2,5 da spec); com payout do ano
  *   informado, o salto só marca se o payout passar de 150% (WEGE3 2021 dobrou com lucro).
  * - CAGR: null se algum extremo ≤ 0 ('base_nao_positiva') ou sem dado ('historico_curto').
+ * - fundamentei-regras (F2, A4.c): anosFechados recebe o CRITÉRIO por parâmetro — 'ano' (padrão,
+ *   hoje: ano < ano civil) ou 'dtFim' (exercício fora de dezembro fechado quando dtFim ≤ hoje: CAML3
+ *   mar/25–fev/26 = FY 2026 aparece em out/2026; dezembro segue a regra do ano). Nenhuma chave aqui:
+ *   a leitura passa o critério pela ANALISE_ATIVOS_ESSENCIAL_V2_HABILITADO e o job quadro pela
+ *   scoring vigente (serie10aPorDtFim).
  *
  * Funções puras; datas 'AAAA-MM-DD'; percentuais em pontos percentuais.
  */
 import { fatorEventosApos } from '@/services/analiseAtivos/regras/calculo/eventosCorporativos';
 import type { EventoCorporativoVerificado } from '@/services/analiseAtivos/tipos';
+import { TEXTOS_ATIVO } from '@/services/analiseAtivos/textosAtivo';
 import type { PontoSerieAnual, PontoUlt12m } from '@/types/analiseAtivosApi';
 
 /** Fator padrão da regra de salto de provento (decisão 5). */
@@ -24,6 +30,24 @@ export const PAYOUT_MAX_PADRAO = 150;
 
 export function anoDe(data: string): number {
   return Number(data.slice(0, 4));
+}
+
+const TX = TEXTOS_ATIVO.essencialV2;
+
+/** Exercício fora de dezembro? (dtFim 'AAAA-MM-DD' com mês ≠ 12) */
+export function exercicioForaDeDezembro(dtFim: string | null | undefined): boolean {
+  return !!dtFim && /^\d{4}-\d{2}-\d{2}$/.test(dtFim) && dtFim.slice(5, 7) !== '12';
+}
+
+/** Rótulo do ano fiscal (F2, A4.c): 'fev/2026' fora de dezembro; senão '2026'. */
+export function rotuloExercicio(ano: number, dtFim?: string | null): string {
+  if (!exercicioForaDeDezembro(dtFim)) return String(ano);
+  return `${TX.mesesCurtos[Number(dtFim!.slice(5, 7)) - 1]}/${dtFim!.slice(0, 4)}`;
+}
+
+/** Mês por extenso do fim do exercício ('fevereiro'), para a nota 'exercício encerrado em …'. */
+export function mesPorExtenso(dtFim: string): string {
+  return TX.meses[Number(dtFim.slice(5, 7)) - 1];
 }
 
 /** Crescimento anual composto em % a.a.; null se algum extremo ≤ 0/ausente ou anos ≤ 0. */
@@ -38,23 +62,41 @@ export function cagr(
   return (Math.pow(vFim / vIni, 1 / anos) - 1) * 100;
 }
 
+/** Critério de ano fechado (F2): 'ano' = hoje; 'dtFim' = exercício fora de dezembro por dtFim. */
+export type CriterioAnoFechado = 'ano' | 'dtFim';
+
 export interface OpcoesAnosFechados {
   /** FII: meses com informe por ano; ano com menos de `mesesMinimos` sai */
   mesesPorAno?: Record<number, number>;
   /** padrão 12 */
   mesesMinimos?: number;
+  /** F2: padrão 'ano' (hoje) */
+  criterio?: CriterioAnoFechado;
+}
+
+/**
+ * Ponto fechado? 'ano' = ano < ano civil de hoje. 'dtFim' = com dtFim fora de dezembro, dtFim ≤
+ * hoje; sem dtFim ou dezembro = a regra do ano (dezembro não muda).
+ */
+export function anoFechado(
+  p: { ano: number; dtFim?: string | null },
+  hoje: string,
+  criterio: CriterioAnoFechado = 'ano',
+): boolean {
+  if (criterio === 'dtFim' && p.dtFim && p.dtFim.slice(5, 7) !== '12') return p.dtFim <= hoje;
+  return p.ano < anoDe(hoje);
 }
 
 /** Descarta o ano corrente (e posteriores) e, para FIIs, anos com informe incompleto. Ordena por ano. */
-export function anosFechados<T extends { ano: number }>(
+export function anosFechados<T extends { ano: number; dtFim?: string | null }>(
   pontos: readonly T[],
   hoje: string,
   opts: OpcoesAnosFechados = {},
 ): T[] {
-  const anoAtual = anoDe(hoje);
+  const criterio = opts.criterio ?? 'ano';
   const minimo = opts.mesesMinimos ?? 12;
   return pontos
-    .filter((p) => p.ano < anoAtual)
+    .filter((p) => anoFechado(p, hoje, criterio))
     .filter((p) => !opts.mesesPorAno || (opts.mesesPorAno[p.ano] ?? 0) >= minimo)
     .slice()
     .sort((a, b) => a.ano - b.ano);

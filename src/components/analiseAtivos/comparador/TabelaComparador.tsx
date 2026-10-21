@@ -7,6 +7,10 @@
  * Ordem: o bloco "Critérios de fundamentos · N anos" PRIMEIRO, depois os grupos de indicadores da
  * API (valores lado a lado, todos com o mesmo fundo) e "Na minha carteira" (overlay do cliente).
  * Os mini-gráficos base 100 ficam num cartão próprio, abaixo da tabela.
+ *
+ * Visual v2 (fundamentei-regras F4, itens C5 e C7): cabeçalho sem caixa alta; faixas de grupo cinza
+ * em caixa alta 11 px e rótulos das linhas em cinza (BlocoCriteriosComparador); 'Critérios
+ * atendidos' com a borda superior de 2 px. Sem a chave, a tabela de hoje.
  */
 import type { ReactNode } from 'react';
 import BlocoCriteriosComparador, {
@@ -22,6 +26,8 @@ import type { ComparadorResposta } from '@/types/analiseAtivosBlocoD';
 import { TEXTOS_COMPARADOR } from '@/services/analiseAtivos/textosComparador';
 import { formatarTexto } from '@/services/analiseAtivos/textosCriterios';
 import type { ClasseQuadro } from '@/types/analiseAtivosApi';
+import { useVisualV2 } from '@/components/analiseAtivos/shell/VisualV2';
+import { CABECALHO_SEM_CAIXA_ALTA } from '@/components/analiseAtivos/quadro/CabecalhoOrdenavel';
 
 const TC = TEXTOS_COMPARADOR;
 const COL_FIXA = 230;
@@ -35,6 +41,7 @@ export interface TabelaComparadorProps {
 }
 
 export default function TabelaComparador({ dados, classe, naCarteira }: TabelaComparadorProps) {
+  const v2 = useVisualV2();
   const ativos = dados.ativos;
   const tickers = ativos.map((a) => a.ticker);
   const n = ativos.length;
@@ -92,7 +99,10 @@ export default function TabelaComparador({ dados, classe, naCarteira }: TabelaCo
           ))}
         </colgroup>
         <thead>
-          <tr className={TABLE_STYLES.headRow} style={TABLE_HEADER_STYLE}>
+          <tr
+            className={v2 ? CABECALHO_SEM_CAIXA_ALTA : TABLE_STYLES.headRow}
+            style={TABLE_HEADER_STYLE}
+          >
             <th
               scope="col"
               className={`${TABLE_STYLES.th} sticky left-0 z-[2] text-left`}

@@ -87,8 +87,13 @@ export function formatarAnalise(valor: number, formato: FormatoAnalise): string 
   }
 }
 
-/** Estado<number> → texto: ok formatado; ausente '—'; não se aplica 'n/a'. */
+/**
+ * Estado<number> → texto: ok formatado; ausente '—' (ou o rótulo curto do servidor: 'L' = prejuízo
+ * no período, fundamentei-regras F2, só com ANALISE_ATIVOS_ESSENCIAL_V2_HABILITADO); não se aplica
+ * 'n/a'.
+ */
 export function formatarEstado(valor: Estado<number>, formato: FormatoAnalise): string {
   if (valor.estado === 'ok') return formatarAnalise(valor.valor, formato);
-  return valor.estado === 'ausente' ? TEXTOS_TELA.formato.semDado : TEXTOS_TELA.formato.naoSeAplica;
+  if (valor.estado === 'ausente') return valor.rotuloCurto ?? TEXTOS_TELA.formato.semDado;
+  return TEXTOS_TELA.formato.naoSeAplica;
 }

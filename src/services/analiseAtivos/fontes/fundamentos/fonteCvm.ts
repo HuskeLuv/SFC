@@ -16,6 +16,11 @@
  *    trimestral — papel (nsa) e ticker↔CNPJ não conferido = null. NÃO oferece default_pct nem
  *    ltv_avg (só fii_property_quality aprovada de um provedor).
  *
+ * fundamentei-regras (F1): com `incluirEbit` (o job, quando a versão do params pede a série 'ebit',
+ * critério 'ebitda' da v5), as ações também levam a série 'ebit' (FY.ebit, lucro operacional). Sem a
+ * opção os pontos são os de hoje (ingestão e v1–v4 iguais). Os FIIs aceitam `mesReferencia`
+ * ('pagamento' padrão | 'data_com', v5) para os meses com rendimento.
+ *
  * O job 'criterios' já lê os brutos em lotes (com o emissor e o perfil); por isso as conversões são
  * funções PURAS (pontosCvmAcao/pontosCvmFii) usadas pelo job e por lerLocal — uma leitura só, a mesma
  * regra. O app nunca chama terceiros aqui: só o banco.
@@ -31,10 +36,11 @@ import {
 import {
   fysVigentesPorAno,
   lerBrutosAcoes,
-  valoresAnoAcao,
+  valoresAnoAcaoComEbit,
   type BrutoAcao,
   type OpcoesSeriesAcao,
 } from '@/services/analiseAtivos/regras/criterios/seriesAcao';
+import type { MesReferencia } from '@/types/analiseAtivosCriterios';
 import { anosEmConferencia } from '@/services/analiseAtivos/leitura/ativo/conferenciasAtivo';
 import {
   lerBrutosFii,
@@ -59,6 +65,17 @@ export const SERIES_CVM_ACAO = [
   'net_debt_ebitda',
   'free_cash_flow',
 ] as const satisfies readonly SerieFundamento[];
+
+/** As séries de ação + 'ebit' (lucro operacional; fundamentei-regras F1, só com incluirEbit). */
+export const SERIES_CVM_ACAO_COM_EBIT = [
+  ...SERIES_CVM_ACAO,
+  'ebit',
+] as const satisfies readonly SerieFundamento[];
+
+/** Opções dos pontos de ação: as das séries + a série 'ebit' (padrão false = hoje). */
+export interface OpcoesPontosAcao extends OpcoesSeriesAcao {
+  incluirEbit?: boolean;
+}
 
 /** Séries de FII que a CVM oferece. */
 export const SERIES_CVM_FII = [
@@ -110,17 +127,18 @@ function ponto(
 export function pontosCvmAcao(
   b: BrutoAcao,
   symbols: readonly string[],
-  opcoes: OpcoesSeriesAcao = {},
+  opcoes: OpcoesPontosAcao = {},
 ): PontoSerieVigente[] {
   const porAno = fysVigentesPorAno(b.fys, b.escopoPreferido);
   const emConf = anosEmConferencia(b.flagsConf, 'fundamentos_escala');
   const out: PontoSerieVigente[] = [];
+  const series = opcoes.incluirEbit ? SERIES_CVM_ACAO_COM_EBIT : SERIES_CVM_ACAO;
   for (const [ano, f] of porAno) {
-    const v = valoresAnoAcao(f, opcoes);
+    const v = valoresAnoAcaoComEbit(f, opcoes);
     const conf = emConf.has(ano);
     // dtFim do FY vigente; o anoFiscal é o do FY (exercício que não fecha em dezembro)
     for (const symbol of symbols) {
-      for (const serie of SERIES_CVM_ACAO) {
+      for (const serie of series) {
         const p = ponto(
           symbol,
           serie,
@@ -140,6 +158,8 @@ export interface OpcoesPontosFii {
   anoFim?: number;
   /** parâmetros de proventos (tipos de FII); padrão = SCORING_PARAMS_V1 */
   scoring?: ParamsMeses;
+  /** fundamentei-regras (F1): mês que conta nos meses com rendimento (padrão 'pagamento') */
+  mesReferencia?: MesReferencia;
 }
 
 /**
@@ -170,7 +190,13 @@ export function pontosCvmFii(b: BrutoFii, opcoes: OpcoesPontosFii = {}): PontoSe
     out.push(t.emConferencia ? { ...p, incompleto: true } : p);
   }
   const anoFim = opcoes.anoFim ?? new Date().getUTCFullYear() - 1;
-  const meses = mesesAteAnoFim(b.proventos, anoFim, opcoes.scoring ?? SCORING_PARAMS_V1);
+  const meses = mesesAteAnoFim(
+    b.proventos,
+    anoFim,
+    opcoes.scoring ?? SCORING_PARAMS_V1,
+    undefined,
+    opcoes.mesReferencia ? { mesReferencia: opcoes.mesReferencia } : {},
+  );
   if (meses.inicioBase !== null) {
     const porAno = new Map<number, number>();
     for (const m of meses.mesesPagos ?? []) {

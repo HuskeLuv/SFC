@@ -23,9 +23,22 @@
  * 3. v2.5 — contagens anuais de um provedor (EntradaAvaliacaoAtivo.mesesPorAno): com TODOS os anos da
  *    janela informados, n = Σ, de = 12×J (atende só com 12×J) e qualquer ano nulo = sem dado; ano da
  *    janela que o provedor não informa = a contagem da CVM acima (sem misturar as bases).
+ * 5. fundamentei-regras (F1): criteria_params.meses.mesReferencia ('pagamento' padrão = v1–v4 |
+ *    'data_com' = v5). Com 'data_com' o mês que conta é o da data-com (RZTR11 com data-com em 30/09
+ *    conta setembro) e vale a regra do vizinho de sequencias.mesesPreenchidosPeloVizinho (duas
+ *    datas-com num mês e o seguinte vazio não quebram a sequência: HCTR11 jan/fev 2022); o fato diz
+ *    'mês da data-com'. Com 'pagamento' tudo é como antes, inclusive o vizinhoExplica.
  */
-import type { CriteriaParams } from '@/services/analiseAtivos/params/criteriaParamsSchema';
-import { mesesComRendimentoDetalhado } from '@/services/analiseAtivos/regras/calculo/sequencias';
+import {
+  mesReferenciaDe,
+  type CriteriaParams,
+} from '@/services/analiseAtivos/params/criteriaParamsSchema';
+import {
+  mesDoProventoFii,
+  mesesComRendimentoDetalhado,
+  mesesPreenchidosPeloVizinho,
+  type OpcoesMesesRendimento,
+} from '@/services/analiseAtivos/regras/calculo/sequencias';
 import { formatarTexto, TEXTOS_CRITERIOS } from '@/services/analiseAtivos/textosCriterios';
 import type { ProventoAuditado, ScoringParams } from '@/services/analiseAtivos/tipos';
 import type { EstadoCriterio, Janela, MotivoCriterio } from '@/types/analiseAtivosCriterios';
@@ -63,19 +76,14 @@ function somarMeses(mes: string, n: number): string {
   return `${aa}-${String(mm + 1).padStart(2, '0')}`;
 }
 
-/** Mês (AAAA-MM) em que o provento conta, pela mesma regra da contagem. */
-function mesDoProvento(p: ProventoMeses): string | null {
-  if (p.dataPagamento) return p.dataPagamento.slice(0, 7);
-  if (p.dataComReal) return somarMeses(p.dataComReal.slice(0, 7), 1);
-  return null;
-}
-
 export function mesesAteAnoFim(
   proventos: readonly ProventoMeses[],
   anoFim: number,
   scoring: ParamsMeses,
   cvm?: { comRendimento: ReadonlySet<string>; semRendimento: ReadonlySet<string> },
+  opcoes: OpcoesMesesRendimento = {},
 ): MesesRendimento {
+  const dataCom = opcoes.mesReferencia === 'data_com';
   const cfg = scoring.sanidade.proventos;
   const semTolerancia = {
     ...scoring,
@@ -84,17 +92,26 @@ export function mesesAteAnoFim(
       proventos: { ...cfg, mesCorrenteTolerado: false },
     },
   } as ScoringParams;
-  const { meses } = mesesComRendimentoDetalhado([...proventos], `${anoFim}-12-31`, semTolerancia);
+  const { meses } = mesesComRendimentoDetalhado(
+    [...proventos],
+    `${anoFim}-12-31`,
+    semTolerancia,
+    opcoes,
+  );
   let inicioBase: string | null = null;
   const pagos = new Set<string>();
   const fim = `${anoFim}-12`;
   const porMes = new Map<string, number>();
   for (const p of proventos) {
     if (p.status !== 'valido' || !cfg.tiposFii.includes(p.tipoNormalizado)) continue;
-    const mes = mesDoProvento(p);
+    const mes = mesDoProventoFii(p, opcoes.mesReferencia)?.mes ?? null;
     if (mes && (inicioBase === null || mes < inicioBase)) inicioBase = mes;
     if (mes && mes <= fim) pagos.add(mes);
     if (mes) porMes.set(mes, (porMes.get(mes) ?? 0) + 1);
+  }
+  // regra do vizinho, SÓ com 'data_com' (o mês preenchido conta como pago; porMes fica o real)
+  if (dataCom) {
+    for (const m of mesesPreenchidosPeloVizinho(porMes)) if (m <= fim) pagos.add(m);
   }
   const out: MesesRendimento = { consecutivos: meses, inicioBase, mesesPagos: [...pagos].sort() };
   if (cvm && inicioBase !== null) {
@@ -198,13 +215,16 @@ export function avaliarMeses(
   const n = meses.mesesPagos
     ? meses.mesesPagos.filter((m) => m >= inicioJanela && m <= fimJanela).length
     : Math.min(Math.max(0, meses.consecutivos), total);
-  const fato = formatarTexto(t.mesesPeriodo, { n, total, anoInicio, anoFim });
+  // fundamentei-regras (v5): o fato diz que o mês contado é o da data-com
+  const textoPeriodo =
+    mesReferenciaDe(params) === 'data_com' ? t.mesesPeriodoDataCom : t.mesesPeriodo;
+  const fato = formatarTexto(textoPeriodo, { n, total, anoInicio, anoFim });
   if (meses.consecutivos >= total) {
     return {
       estado: 'atende',
       n: total,
       de: total,
-      fato: formatarTexto(t.mesesPeriodo, { n: total, total, anoInicio, anoFim }),
+      fato: formatarTexto(textoPeriodo, { n: total, total, anoInicio, anoFim }),
     };
   }
   // A5/M7: lacuna de cobertura da base provada pela CVM ⇒ sem dado (a menos que a CVM também

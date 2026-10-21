@@ -16,6 +16,10 @@
  *   valor (selo) + ChipConferencia (o "Por quê?" da página; sem grupo do Bloco C, montado aqui).
  * - Topo: 'Valores em R$ mi · ano fiscal · fonte: CVM' + Exportar CSV. Fim: "Sobre os dados".
  * - Estados: carregando (esqueleto do card), erro com "Tentar de novo", vazio só com zero linhas.
+ *
+ * Visual v2 (fundamentei-regras F4, item C10): cada grupo vira um título h4 com borda de acento à
+ * esquerda e a SUA tabela (cabeçalho sem caixa alta); os chips de grupo só no celular (no
+ * computador todos os grupos à vista); Exportar CSV na linha de unidade. Sem a chave, o de hoje.
  */
 import { useState, type ReactNode } from 'react';
 import CartaoAnalise, {
@@ -52,6 +56,8 @@ import type {
   RaioXResposta,
 } from '@/types/analiseAtivosBlocoD';
 import type { DadoBlocoReporte } from '@/types/analiseAtivosCuradoria';
+import { useVisualV2 } from '@/components/analiseAtivos/shell/VisualV2';
+import { CABECALHO_SEM_CAIXA_ALTA } from '@/components/analiseAtivos/quadro/CabecalhoOrdenavel';
 
 const T = TEXTOS_RAIO_X;
 const TODOS = 'todos' as const;
@@ -177,7 +183,9 @@ function Celula({
     );
   } else {
     conteudo = (
-      <span className="text-gray-500 dark:text-gray-400">{TEXTOS_TELA.formato.semDado}</span>
+      <span className="text-gray-500 dark:text-gray-400">
+        {v.rotuloCurto ?? TEXTOS_TELA.formato.semDado}
+      </span>
     );
   }
   return (
@@ -241,6 +249,53 @@ export default function TabelaRaioX({ ticker, classe, cabecalhoExtra }: TabelaRa
     ...blocos.map((b) => ({ codigo: b.codigo as Filtro, rotulo: b.rotulo })),
   ];
 
+  const v2 = useVisualV2();
+  const linhasDoBloco = (b: (typeof blocos)[number]) => (
+    <>
+      {b.linhas.map((l) => {
+        const razao = l.tipo === 'razao';
+        return (
+          <tr key={l.codigo} className={TABLE_STYLES.row} data-linha={l.codigo}>
+            <th
+              scope="row"
+              className={`${TABLE_STYLES.compact.td} ${COLUNA_FIXA} z-[1] text-[13px] font-medium leading-snug text-gray-800 dark:text-white/90 ${razao ? `italic ${FUNDO_RAZAO}` : FUNDO_STICKY}`}
+            >
+              {l.rotulo}
+              {razao ? <span className="sr-only"> {T.celula.razao}</span> : null}
+              {l.sub ? (
+                <small className="block text-[11.5px] font-normal not-italic text-gray-500 dark:text-gray-400">
+                  {l.sub}
+                </small>
+              ) : null}
+            </th>
+            {(dados?.anos ?? []).map((a, i) => (
+              <Celula key={a} l={l} ano={a} recente={i === 0} conferencias={conferencias} />
+            ))}
+          </tr>
+        );
+      })}
+    </>
+  );
+  // visual v2 (item C10): uma tabela por grupo com o título h4 de acento; chips só no celular
+  const cabecalhoAnos = (dadosR: RaioXResposta) => (
+    <thead>
+      <tr className={CABECALHO_SEM_CAIXA_ALTA} style={TABLE_HEADER_STYLE}>
+        <th
+          scope="col"
+          className={`${TABLE_STYLES.compact.th} ${COLUNA_FIXA} z-10`}
+          style={TABLE_HEADER_STYLE}
+        >
+          {T.tabela.colunaIndicador}
+        </th>
+        {dadosR.anos.map((a) => (
+          <th key={a} scope="col" className={`${TABLE_STYLES.compact.th} min-w-[84px] text-right`}>
+            {dadosR.rotulosAnos?.[a] ?? a}
+          </th>
+        ))}
+      </tr>
+    </thead>
+  );
+
   return (
     <CartaoAnalise
       id={`fundamentos-${ticker}`}
@@ -269,110 +324,120 @@ export default function TabelaRaioX({ ticker, classe, cabecalhoExtra }: TabelaRa
             </span>
             <BotaoExportarCsv ticker={ticker} />
           </div>
-          <div
-            role="group"
-            aria-label={T.blocos.rotuloChips}
-            data-mf-scroll-x=""
-            className="-mx-4 flex gap-1.5 overflow-x-auto px-4 pb-1 [scrollbar-width:none] sm:-mx-5 sm:px-5 lg:mx-0 lg:flex-wrap lg:overflow-visible lg:px-0"
-          >
-            {opcoesChips.map((o) => {
-              const sel = o.codigo === ativo;
-              return (
-                <button
-                  key={o.codigo}
-                  type="button"
-                  aria-pressed={sel}
-                  onClick={() => setFiltro(o.codigo)}
-                  className={`inline-flex min-h-11 shrink-0 items-center whitespace-nowrap rounded-full border px-3 text-[13px] ${FOCO} ${
-                    sel
-                      ? 'border-mf-seguranca bg-mf-seguranca text-white dark:border-mf-tranquilidade dark:bg-mf-tranquilidade/25 dark:text-white'
-                      : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:bg-transparent dark:text-gray-300 dark:hover:bg-white/[0.04]'
-                  }`}
-                >
-                  {o.rotulo}
-                </button>
-              );
-            })}
-          </div>
-          <div
-            role="region"
-            tabIndex={0}
-            aria-label={formatarTexto(T.tabela.rotuloRegiao, { ticker })}
-            data-rolagem-card="raio-x"
-            data-mf-scroll-x=""
-            className={`${TABLE_STYLES.wrapper} relative max-w-full ${FOCO}`}
-          >
-            <table className={`${TABLE_STYLES.table} min-w-max`}>
-              <caption className="sr-only">
-                {formatarTexto(T.tabela.caption, {
-                  ticker,
-                  anos: `${dados.anos[0]}–${dados.anos[dados.anos.length - 1]}`,
-                })}
-              </caption>
-              <thead>
-                <tr className={TABLE_STYLES.headRow} style={TABLE_HEADER_STYLE}>
-                  <th
-                    scope="col"
-                    className={`${TABLE_STYLES.compact.th} ${COLUNA_FIXA} z-10`}
-                    style={TABLE_HEADER_STYLE}
+          {v2 && !celular ? null : (
+            <div
+              role="group"
+              aria-label={T.blocos.rotuloChips}
+              data-mf-scroll-x=""
+              className="-mx-4 flex gap-1.5 overflow-x-auto px-4 pb-1 [scrollbar-width:none] sm:-mx-5 sm:px-5 lg:mx-0 lg:flex-wrap lg:overflow-visible lg:px-0"
+            >
+              {opcoesChips.map((o) => {
+                const sel = o.codigo === ativo;
+                return (
+                  <button
+                    key={o.codigo}
+                    type="button"
+                    aria-pressed={sel}
+                    onClick={() => setFiltro(o.codigo)}
+                    className={`inline-flex min-h-11 shrink-0 items-center whitespace-nowrap rounded-full border px-3 text-[13px] ${FOCO} ${
+                      sel
+                        ? 'border-mf-seguranca bg-mf-seguranca text-white dark:border-mf-tranquilidade dark:bg-mf-tranquilidade/25 dark:text-white'
+                        : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:bg-transparent dark:text-gray-300 dark:hover:bg-white/[0.04]'
+                    }`}
                   >
-                    {T.tabela.colunaIndicador}
-                  </th>
-                  {dados.anos.map((a) => (
-                    <th
-                      key={a}
-                      scope="col"
-                      className={`${TABLE_STYLES.compact.th} min-w-[84px] text-right`}
-                    >
-                      {a}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              {visiveis.map((b) => (
-                <tbody key={b.codigo} data-bloco={b.codigo}>
-                  <tr className={TABLE_STYLES.sectionRow} style={TABLE_SECTION_STYLE}>
-                    <th
-                      scope="rowgroup"
-                      colSpan={dados.anos.length + 1}
-                      className="px-3 py-2 text-left text-[13px] font-semibold"
-                      style={TABLE_SECTION_STYLE}
-                    >
-                      <span className="sticky left-3">{b.rotulo}</span>
-                    </th>
-                  </tr>
-                  {b.linhas.map((l) => {
-                    const razao = l.tipo === 'razao';
-                    return (
-                      <tr key={l.codigo} className={TABLE_STYLES.row} data-linha={l.codigo}>
-                        <th
-                          scope="row"
-                          className={`${TABLE_STYLES.compact.td} ${COLUNA_FIXA} z-[1] text-[13px] font-medium leading-snug text-gray-800 dark:text-white/90 ${razao ? `italic ${FUNDO_RAZAO}` : FUNDO_STICKY}`}
-                        >
-                          {l.rotulo}
-                          {razao ? <span className="sr-only"> {T.celula.razao}</span> : null}
-                          {l.sub ? (
-                            <small className="block text-[11.5px] font-normal not-italic text-gray-500 dark:text-gray-400">
-                              {l.sub}
-                            </small>
-                          ) : null}
-                        </th>
-                        {dados.anos.map((a, i) => (
-                          <Celula
-                            key={a}
-                            l={l}
-                            ano={a}
-                            recente={i === 0}
-                            conferencias={conferencias}
-                          />
-                        ))}
-                      </tr>
-                    );
-                  })}
-                </tbody>
+                    {o.rotulo}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+          {v2 ? (
+            <div
+              role="region"
+              tabIndex={0}
+              aria-label={formatarTexto(T.tabela.rotuloRegiao, { ticker })}
+              data-rolagem-card="raio-x"
+              data-visual-v2=""
+              className={`flex min-w-0 flex-col gap-1 ${FOCO}`}
+            >
+              {(celular ? visiveis : blocos).map((b) => (
+                <section key={b.codigo} data-bloco={b.codigo} className="flex min-w-0 flex-col">
+                  <h4 className="mt-3 mb-2 border-l-[3px] border-[#0079F2] pl-2.5 text-[13.5px] font-semibold text-gray-800 dark:border-[#6E9DC4] dark:text-white/90">
+                    {b.rotulo}
+                  </h4>
+                  <div
+                    data-mf-scroll-x=""
+                    className={`${TABLE_STYLES.wrapper} relative max-w-full`}
+                  >
+                    <table className={`${TABLE_STYLES.table} min-w-max`}>
+                      <caption className="sr-only">
+                        {`${b.rotulo} · ${formatarTexto(T.tabela.caption, {
+                          ticker,
+                          anos: `${dados.anos[0]}–${dados.anos[dados.anos.length - 1]}`,
+                        })}`}
+                      </caption>
+                      {cabecalhoAnos(dados)}
+                      <tbody>{linhasDoBloco(b)}</tbody>
+                    </table>
+                  </div>
+                </section>
               ))}
-            </table>
-          </div>
+            </div>
+          ) : (
+            <div
+              role="region"
+              tabIndex={0}
+              aria-label={formatarTexto(T.tabela.rotuloRegiao, { ticker })}
+              data-rolagem-card="raio-x"
+              data-mf-scroll-x=""
+              className={`${TABLE_STYLES.wrapper} relative max-w-full ${FOCO}`}
+            >
+              <table className={`${TABLE_STYLES.table} min-w-max`}>
+                <caption className="sr-only">
+                  {formatarTexto(T.tabela.caption, {
+                    ticker,
+                    anos: `${dados.anos[0]}–${dados.anos[dados.anos.length - 1]}`,
+                  })}
+                </caption>
+                <thead>
+                  <tr className={TABLE_STYLES.headRow} style={TABLE_HEADER_STYLE}>
+                    <th
+                      scope="col"
+                      className={`${TABLE_STYLES.compact.th} ${COLUNA_FIXA} z-10`}
+                      style={TABLE_HEADER_STYLE}
+                    >
+                      {T.tabela.colunaIndicador}
+                    </th>
+                    {dados.anos.map((a) => (
+                      <th
+                        key={a}
+                        scope="col"
+                        className={`${TABLE_STYLES.compact.th} min-w-[84px] text-right`}
+                      >
+                        {/* F2 fundamentei-regras: 'fev/2026' fora de dezembro (ESSENCIAL_V2) */}
+                        {dados.rotulosAnos?.[a] ?? a}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                {visiveis.map((b) => (
+                  <tbody key={b.codigo} data-bloco={b.codigo}>
+                    <tr className={TABLE_STYLES.sectionRow} style={TABLE_SECTION_STYLE}>
+                      <th
+                        scope="rowgroup"
+                        colSpan={dados.anos.length + 1}
+                        className="px-3 py-2 text-left text-[13px] font-semibold"
+                        style={TABLE_SECTION_STYLE}
+                      >
+                        <span className="sticky left-3">{b.rotulo}</span>
+                      </th>
+                    </tr>
+                    {linhasDoBloco(b)}
+                  </tbody>
+                ))}
+              </table>
+            </div>
+          )}
           <div className="flex flex-col gap-1">
             <h3 className="m-0 text-[12.5px] font-semibold text-gray-700 dark:text-gray-200">
               {T.sobreOsDados.titulo}

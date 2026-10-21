@@ -23,8 +23,14 @@
  *     data-nome-ativo).
  * Stocks e REITs (fatia 0 EUA): nomes de índice de mercado (S&P 500, MSCI, Dow Jones, Russell,
  * Nasdaq-100) entram na lista — o universo EUA é descrito pela regra, nunca por índice.
+ * fundamentei-regras (F3, A4.d): com os rótulos EUA em inglês, a lista veta também os termos EN
+ * equivalentes (TERMOS_EN_PROIBIDOS de textosEuaEn.ts: cheap, expensive, fair value, buy, sell,
+ * undervalued, overvalued, discount, opportunity, best, worst, rating, score, recommend, target
+ * price, upside, mais plurais e flexões), com as mesmas regras de casamento (palavra inteira). O
+ * prefixo do 'recomend*' também casa a grafia inglesa 'recommend…' (recommended, recommendation).
  */
 import { PALAVRAS_PROIBIDAS_BLOCO_D } from '@/services/analiseAtivos/regras/comum/varreduraTextos';
+import { TERMOS_EN_PROIBIDOS } from '@/services/analiseAtivos/textosEuaEn';
 import { ehTextoLiteral } from '@/services/analiseAtivos/textosLiterais';
 
 /** Palavras/expressões inteiras (comparação sem acento e sem maiúscula). */
@@ -57,6 +63,18 @@ export const PALAVRAS_PROIBIDAS_V2: readonly string[] = [
   'Russell 3000',
   'Nasdaq-100',
   'Nasdaq 100',
+  // fundamentei-regras (F3): os mesmos vetos em inglês (rótulos EUA em inglês, A4.d)
+  ...TERMOS_EN_PROIBIDOS,
+  'buys',
+  'sells',
+  'buying',
+  'selling',
+  'cheaper',
+  'cheapest',
+  'opportunities',
+  'discounted',
+  'ratings',
+  'scores',
 ];
 
 /** Rótulos de tipo de operação liberados SÓ em TEXTOS_OPERACAO. */
@@ -97,8 +115,8 @@ const PADROES: Record<'padrao' | 'operacao', Padrao[]> = {
   operacao: compilar(PALAVRAS_PROIBIDAS_V2_OPERACAO),
 };
 
-/** prefixo, no texto normalizado */
-const RE_RECOMEND = /(?<![\p{L}\p{N}])recomend/u;
+/** prefixo, no texto normalizado (PT 'recomend…' e EN 'recommend…') */
+const RE_RECOMEND = /(?<![\p{L}\p{N}])(?:recomend|recommend)/u;
 /** no texto ORIGINAL: I maiúsculo (com ou sem acento), palavra inteira */
 const RE_INDICE = /(?<![\p{L}\p{N}])(?:Índice|Indice|ÍNDICE|INDICE)(?![\p{L}\p{N}])/u;
 

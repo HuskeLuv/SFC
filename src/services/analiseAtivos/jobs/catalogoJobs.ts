@@ -64,6 +64,8 @@ export interface DefinicaoJob {
   prazoMs: number;
   pesado: boolean;
   parametros?: Record<string, unknown>;
+  /** opções do runner que o job usa; qualquer outra o rodar-job recusa (ausente = nenhuma) */
+  aceita?: ReadonlyArray<keyof OpcoesExecucaoJob>;
   executar: (ctx: JobContexto, opcoes?: OpcoesExecucaoJob) => Promise<ResultadoJob>;
 }
 
@@ -139,6 +141,7 @@ export const CATALOGO_JOBS: Record<NomeJobCron, DefinicaoJob> = {
     prazoMs: 240_000,
     pesado: true,
     // v2.5: --versao-params=N no runner lê essa versão (dry-run de uma versão ainda não vigente)
+    aceita: ['versaoParams'],
     executar: (ctx, opcoes) =>
       opcoes?.versaoParams !== undefined
         ? executarCriterios(ctx, undefined, { versaoParams: opcoes.versaoParams })
@@ -167,6 +170,7 @@ export const CATALOGO_JOBS: Record<NomeJobCron, DefinicaoJob> = {
     nome: 'fontes-fundamentos',
     prazoMs: 240_000,
     pesado: false,
+    aceita: ['fonte', 'versaoParams'],
     executar: (ctx, opcoes) =>
       ingerirFontes(ctx, DEPENDENCIAS_INGESTAO, {
         ...(opcoes?.fonte ? { fonte: opcoes.fonte } : {}),
@@ -208,6 +212,7 @@ export const CATALOGO_JOBS: Record<NomeJobCron, DefinicaoJob> = {
     nome: 'criterios-eua',
     prazoMs: 240_000,
     pesado: true,
+    aceita: ['versaoParams'],
     executar: (ctx, opcoes) => jobCriteriosEua(ctx, opcoes),
   },
   // analise_quadro_linhas stock/reit
@@ -222,6 +227,7 @@ export const CATALOGO_JOBS: Record<NomeJobCron, DefinicaoJob> = {
     nome: 'eua-diario',
     prazoMs: 540_000,
     pesado: true,
+    aceita: ['versaoParams'],
     executar: (ctx, opcoes) => jobEuaDiario(ctx, opcoes),
   },
   // ---- A6 (módulos das fatias C e D; stubs 'pulado' na fatia 0) ----

@@ -2,6 +2,13 @@
  * Etapa "derivados" do job scores: per-share (AssetPerShareYearly) e múltiplos anuais
  * (AssetMultiplesYearly) das empresas e FIIs alterados desde o último run OK (ou de todos com
  * --tudo). Fundamentos, contagens, informes e preços chegam pelos repositórios da fatia 0.
+ *
+ * fundamentei-regras (F2, A4.a–c): as regras de cálculo vêm da scoring_params do job (regrasCalculoDe;
+ * v1/v2 = hoje). payout.regra 'dfc' ⇒ payoutPct do ano = proventos pagos na DFC ÷ lucro atribuível
+ * (lucro ≤ 0 = null 'prejuizo'); payoutDmplPct e payoutPorAcaoPct continuam gravados (auditoria).
+ * DPA/DY do ano pela data-ex, sem data-ex futura e, fora de dezembro, pelo exercício real
+ * (opcoesDpaDoFy). O coletor opcional do contexto (ColetorPayoutDy) só junta números para o relatório
+ * antes × depois do recalcular-analise; não muda o que é calculado nem gravado.
  */
 import type { Prisma } from '@prisma/client';
 import {
@@ -19,13 +26,16 @@ import {
 import {
   achatarValores,
   multiplosAnuais,
+  payoutCaixaPct,
   type MultiplosCalculados,
 } from '@/services/analiseAtivos/regras/calculo/multiplos';
+import { regrasCalculoDe } from '@/services/analiseAtivos/params/scoringParamsSchema';
 import { perShareAnual, perShareAnualFii } from '@/services/analiseAtivos/regras/calculo/perShare';
 import { flagsDasDeteccoes } from '@/services/analiseAtivos/regras/calculo/sanidade/aplicarConferencia';
 import { detectarHistoricoEscala } from '@/services/analiseAtivos/regras/calculo/sanidade/historicoEscala';
 import {
   dpaNoAno,
+  opcoesDpaDoFy,
   valorProventosComCobertura,
   type ProventoAuditadoCompleto,
 } from '@/services/analiseAtivos/regras/calculo/proventos';
@@ -172,6 +182,53 @@ function anoParcialDaBaseFii(
   return ausente('historico_curto', 'primeiro_ano_parcial_da_base');
 }
 
+/**
+ * F2 fundamentei-regras: coletor do relatório antes × depois (recalcular-analise
+ * --relatorio-tickers). Vai como campo extra do JobContexto (executarScores repassa o contexto);
+ * ausente = nada é juntado. `simbolos` null = todos.
+ */
+export interface ColetorPayoutDy {
+  simbolos: ReadonlySet<string> | null;
+  anuais: Array<{
+    symbol: string;
+    anoFiscal: number;
+    dtFim: string;
+    payoutPct: number | null;
+    dyPct: number | null;
+    dpa: number | null;
+  }>;
+  atuais: Array<{
+    symbol: string;
+    payoutPct: number | null;
+    dy12mPct: number | null;
+    dpa12m: number | null;
+  }>;
+}
+
+export type ContextoComColetor = JobContexto & { coletorPayoutDy?: ColetorPayoutDy };
+
+/** Junta as linhas anuais de múltiplos (só os símbolos pedidos) no coletor do contexto. */
+function coletarAnuais(
+  c: ColetorPayoutDy | undefined,
+  linhas: LinhaMultiplos[],
+  perShare: LinhaPerShare[],
+): void {
+  if (!c) return;
+  const n = (x: unknown) => (typeof x === 'number' && Number.isFinite(x) ? x : null);
+  const dpa = new Map(perShare.map((l) => [`${l.symbol}|${l.anoFiscal}`, n(l.dpaDataCom)]));
+  for (const l of linhas) {
+    if (c.simbolos && !c.simbolos.has(l.symbol)) continue;
+    c.anuais.push({
+      symbol: l.symbol,
+      anoFiscal: l.anoFiscal,
+      dtFim: l.dtFim instanceof Date ? l.dtFim.toISOString().slice(0, 10) : String(l.dtFim),
+      payoutPct: n(l.payoutPct),
+      dyPct: n(l.dyPct),
+      dpa: dpa.get(`${l.symbol}|${l.anoFiscal}`) ?? null,
+    });
+  }
+}
+
 type LinhaPerShare = Prisma.AssetPerShareYearlyCreateManyInput;
 type LinhaMultiplos = Prisma.AssetMultiplesYearlyCreateManyInput;
 
@@ -236,8 +293,10 @@ export interface EntradaDerivadosAcao {
 export function linhasDerivadasAcao(
   e: EntradaDerivadosAcao,
   p: ScoringParams,
-  meta: { paramsVersion: number; agora: Date },
+  meta: { paramsVersion: number; agora: Date; hoje?: string },
 ): { perShare: LinhaPerShare[]; multiplos: LinhaMultiplos[]; flags: string[] } {
+  const regras = regrasCalculoDe(p);
+  const hoje = meta.hoje ?? meta.agora.toISOString().slice(0, 10);
   const perShare: LinhaPerShare[] = [];
   const multiplos: LinhaMultiplos[] = [];
   const flagsEmpresa: string[] = [];
@@ -266,14 +325,16 @@ export function linhasDerivadasAcao(
       const provs = e.memoria.proventos.get(t.symbol) ?? [];
       const evs = e.memoria.eventos.get(t.symbol) ?? [];
       const cob = e.memoria.cobertura.get(t.symbol);
+      // F2: v1/v2 ⇒ {} (o DPA de hoje); v3 ⇒ data-ex, corte de futuros e exercício real
+      const optsDpa = opcoesDpaDoFy(f, hoje, p);
       const dpaFim = proventosDoAno(
-        dpaNoAno(provs, f.anoFiscal, 'fim_do_ano', evs),
+        dpaNoAno(provs, f.anoFiscal, 'fim_do_ano', evs, undefined, optsDpa),
         f.anoFiscal,
         provs,
         cob,
       );
       const dpaHoje = proventosDoAno(
-        dpaNoAno(provs, f.anoFiscal, 'hoje', evs),
+        dpaNoAno(provs, f.anoFiscal, 'hoje', evs, undefined, optsDpa),
         f.anoFiscal,
         provs,
         cob,
@@ -335,7 +396,8 @@ export function linhasDerivadasAcao(
           valorMercadoEmpresa: vmEmpresa,
           fund: f,
           dpa: dpaFim,
-          payoutPct: ps.payoutDmplPct,
+          // F2 (A4.a): 'dfc' = proventos pagos na DFC ÷ lucro; 'dmpl_dpa' (v1/v2) = DMPL ÷ lucro
+          payoutPct: regras.payoutRegra === 'dfc' ? payoutCaixaPct(f) : ps.payoutDmplPct,
           ehFinanceira: e.ehFinanceira,
         },
         p,
@@ -487,7 +549,8 @@ export async function recalcularDerivados(
   opts: { gravar: boolean },
 ): Promise<ResultadoDerivados> {
   const p = ctx.params;
-  const meta = { paramsVersion: ctx.paramsVersion, agora: new Date() };
+  const meta = { paramsVersion: ctx.paramsVersion, agora: new Date(), hoje: ctx.hoje };
+  const coletor = (ctx as ContextoComColetor).coletorPayoutDy;
   const u = dados.universo;
   const flags: Record<string, number> = {};
   const plAnual: ResultadoDerivados['plAnual'] = new Map();
@@ -568,6 +631,7 @@ export async function recalcularDerivados(
     linhasPerShare += perShare.length;
     linhasMultiplos += multiplos.length;
     guardarPl(multiplos);
+    coletarAnuais(coletor, multiplos, perShare);
     if (opts.gravar && ctx.aplicar) {
       gravadas += await gravarPerShareAnual(ctx.prisma, simbolos, perShare);
       gravadas += await gravarMultiplosAnuais(ctx.prisma, simbolos, multiplos);

@@ -25,9 +25,15 @@
  * índice). Sem `eua.preco` (decisão do Wellington de 17/10) preço, P/L, DY, data e variação saem
  * nulos/ausentes com o motivo 'licenca' (comCotacaoEua). Faceta/filtro: stock = setor (divisão SIC),
  * reit = segmento curado. Chips: perfis.stock / perfis.reit (ocupação inativa = chip desabilitado).
+ *
+ * fundamentei-regras (F3), só nas classes EUA e só com a chave (EntradaConsulta.leituraEua, resolvida
+ * pela rota): EUA_ROTULOS_EN = chips com o rótulo em inglês (rotuloCriterioLeitura) e rotulosEn na
+ * resposta; REIT_FCO_AJUSTADO (aba REITs) = sem o chip da ocupação e reitFcoAjustado na resposta (os
+ * valores da coluna já vêm escolhidos por linhasQuadro). Desligadas = resposta de hoje.
  */
 import { pregoesEntre } from '@/services/analiseAtivos/regras/comum/pregoes';
 import { TEXTOS_CRITERIOS } from '@/services/analiseAtivos/textosCriterios';
+import { rotuloCriterioLeitura } from '@/services/analiseAtivos/leitura/criterios/lerCriterios';
 import { DIRECAO_PADRAO, ORDEM_PADRAO, PAGINA_QUADRO } from '@/constants/analiseAtivosVisual';
 import { comTipoFiiExibido } from '@/services/analiseAtivos/quadro/tipoFiiExibido';
 import {
@@ -189,13 +195,13 @@ export function filtrarLinhas(
 // Definições dos chips (criteria_params)
 // ---------------------------------------------------------------------------
 
-function chipDe(c: DefCriterio, par: DefCriterio | null): DefCriterioChip {
+function chipDe(c: DefCriterio, par: DefCriterio | null, rotulo = c.rotulo): DefCriterioChip {
   // desabilitado só quando o critério do chip é inativo (v1, D3: vacância/inadimplência); na v2
   // nenhum critério tem ativo:false e todo chip (com o par de papel) fica habilitado
   const inativo = c.ativo === false;
   return {
     id: c.id,
-    rotulo: c.rotulo,
+    rotulo,
     definicao: c.definicao,
     equivalente: par ? { id: par.id, rotulo: par.rotulo, definicao: par.definicao } : null,
     habilitado: !inativo,
@@ -204,19 +210,34 @@ function chipDe(c: DefCriterio, par: DefCriterio | null): DefCriterioChip {
   };
 }
 
+/** F3: chaves de tela EUA da leitura do Quadro (ausente = desligadas). */
+export interface LeituraEuaQuadro {
+  /** ANALISE_ATIVOS_EUA_ROTULOS_EN_HABILITADO */
+  rotulosEn?: boolean;
+  /** ANALISE_ATIVOS_REIT_FCO_AJUSTADO_HABILITADO */
+  reitFcoAjustado?: boolean;
+}
+
 /** Chips da barra de filtros da classe (FII = pares tijolo/papel pelas equivalências). */
-export function definicoesQuadro(classe: ClasseQuadro, p: CriteriaParams): DefCriterioChip[] {
+export function definicoesQuadro(
+  classe: ClasseQuadro,
+  p: CriteriaParams,
+  leituraEua: LeituraEuaQuadro = {},
+): DefCriterioChip[] {
   if (classe === 'acao') return p.perfis.acao.map((c) => chipDe(c, null));
   // EUA: perfis da v3 (stock_financeira usa a lista de stock). Params ativos sem os perfis EUA
   // (v1/v2 ainda vigentes, antes do seed da v3) = os do código, os mesmos que a tela usa antes da
   // resposta e que avaliaram as linhas (criteria_eval EUA nasce com a v3)
-  if (classe === 'stock') {
-    const lista = p.perfis.stock ?? CRITERIA_PARAMS_CODIGO.perfis.stock ?? [];
-    return lista.map((c) => chipDe(c, null));
-  }
-  if (classe === 'reit') {
-    const lista = p.perfis.reit ?? CRITERIA_PARAMS_CODIGO.perfis.reit ?? [];
-    return lista.map((c) => chipDe(c, null));
+  if (classe === 'stock' || classe === 'reit') {
+    const lista = p.perfis[classe] ?? CRITERIA_PARAMS_CODIGO.perfis[classe] ?? [];
+    // F3: com o caixa ajustado do REIT, o chip da ocupação (sem fonte, desabilitado) sai
+    const visiveis =
+      classe === 'reit' && leituraEua.reitFcoAjustado
+        ? lista.filter((c) => c.id !== 'ocup')
+        : lista;
+    return visiveis.map((c) =>
+      chipDe(c, null, rotuloCriterioLeitura(classe, c, { rotulosEn: leituraEua.rotulosEn })),
+    );
   }
   const eq = p.equivalencias as Equivalencias;
   return p.perfis.fii_tijolo.map((c) => {
@@ -277,6 +298,8 @@ export interface EntradaConsulta {
    * vier mesmo assim, sem cotação).
    */
   eua?: { habilitado: boolean; preco: boolean };
+  /** F3: chaves de tela EUA resolvidas pela rota (rótulos EN, REIT com caixa ajustado) */
+  leituraEua?: LeituraEuaQuadro;
 }
 
 const SEM_COTACAO_EUA: Estado<number> = {
@@ -321,7 +344,10 @@ export function consultarQuadro(e: EntradaConsulta): QuadroResposta {
   const limite = Math.min(Math.max(params.limite ?? PAGINA_QUADRO, 1), LIMITE_MAXIMO);
   const offset = Math.max(params.offset ?? 0, 0);
   const janela = params.janela ?? JANELA_PADRAO;
-  const definicoes = e.criteriaParams ? definicoesQuadro(params.classe, e.criteriaParams) : [];
+  const leituraEua = ehClasseEua(params.classe) ? (e.leituraEua ?? {}) : {};
+  const definicoes = e.criteriaParams
+    ? definicoesQuadro(params.classe, e.criteriaParams, leituraEua)
+    : [];
   const permitidos = idsFiltraveis(definicoes);
   const criterios = idsDaQuery(params.criterios).filter((id) => permitidos.has(id));
   const equivalencias = (e.criteriaParams?.equivalencias ?? {}) as Equivalencias;
@@ -356,6 +382,8 @@ export function consultarQuadro(e: EntradaConsulta): QuadroResposta {
           universoDescricao: universoDescricaoDe(params.classe, e.criteriaParams),
         }
       : {}),
+    ...(leituraEua.rotulosEn ? { rotulosEn: true } : {}),
+    ...(params.classe === 'reit' && leituraEua.reitFcoAjustado ? { reitFcoAjustado: true } : {}),
   };
 }
 

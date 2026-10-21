@@ -368,6 +368,11 @@ export interface AtualizacaoCamposFundamentos {
   novas: Partial<Record<CampoFinanceira, string>>;
   /** modo layout: ebit/D&A → null e o naoSeAplica completo */
   layout?: { naoSeAplica: string[] };
+  /**
+   * fundamentei-regras (F2), modo dividendosJcpPagos: proventos pagos na DFC pela regra ampliada
+   * (dec2). CORRIGE o valor gravado (não só o nulo), como o layout; o dry-run lista antes/depois.
+   */
+  dividendosJcpPagos?: string;
 }
 
 const LOTE_RECOMPLETAR = 200;
@@ -375,7 +380,8 @@ const LOTE_RECOMPLETAR = 200;
 /**
  * UPDATE em lotes (uma transação por lote) das colunas novas e nulas — a condição 'IS NULL' de cada
  * coluna vai no WHERE, então uma coluna preenchida entre a leitura e a escrita também não é
- * sobrescrita — e, no modo layout, de ebit/D&A/naoSeAplica. Recusa qualquer outra coluna.
+ * sobrescrita — e, no modo layout, de ebit/D&A/naoSeAplica; F2: no modo dividendosJcpPagos, a
+ * correção dessa coluna. Recusa qualquer outra coluna.
  */
 export async function completarCamposFundamentos(
   prisma: PrismaClient,
@@ -405,6 +411,14 @@ export async function completarCamposFundamentos(
         prisma.assetFundamentalsPeriod.updateMany({
           where: { id: a.id },
           data: { ebit: null, depreciacaoAmortizacao: null, naoSeAplica: a.layout.naoSeAplica },
+        }),
+      );
+    }
+    if (a.dividendosJcpPagos !== undefined) {
+      ops.push(
+        prisma.assetFundamentalsPeriod.updateMany({
+          where: { id: a.id },
+          data: { dividendosJcpPagos: a.dividendosJcpPagos },
         }),
       );
     }

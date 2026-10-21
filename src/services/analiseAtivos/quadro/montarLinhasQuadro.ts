@@ -48,6 +48,7 @@ import {
   type EventoParaContagem,
 } from '@/services/analiseAtivos/regras/calculo/contagemVigente';
 import { SCORING_PARAMS_V1 } from '@/services/analiseAtivos/params/scoringParamsV1';
+import { regrasCalculoDe } from '@/services/analiseAtivos/params/scoringParamsSchema';
 import type {
   AlertaJob,
   ContagemAcoes,
@@ -167,6 +168,8 @@ export interface PorAcaoAnoQuadro {
   /** ações: DPA na base de hoje; FIIs: rendimento por cota na base de hoje */
   dpaAjHoje: number | null;
   payoutDmplPct: number | null;
+  /** F2 fundamentei-regras: fim do exercício (serie10aPorDtFim); ausente = regra do ano */
+  dtFim?: string | null;
 }
 
 export interface EntradaQuadro {
@@ -194,7 +197,7 @@ export interface EntradaQuadro {
   ultimosPregoes: Array<{ symbol: string; ordem: number; closeRaw: number }>;
   porAcaoAno: PorAcaoAnoQuadro[];
   /** lucro FY atribuível por emissor e ano (lucroParaSequencia; null = ausente) */
-  lucrosFy: Array<{ cnpj: string; anoFiscal: number; lucro: number | null }>;
+  lucrosFy: Array<{ cnpj: string; anoFiscal: number; lucro: number | null; dtFim?: string | null }>;
   /** meses com informe mensal por FII e ano */
   mesesInformeFii: Array<{ cnpj: string; ano: number; meses: number }>;
   /**
@@ -298,6 +301,8 @@ export function montarLinhasQuadro(
 ): ResultadoMontagem {
   const alertas: AlertaJob[] = [];
   const anoAtual = Number(e.hoje.slice(0, 4));
+  // F2 fundamentei-regras (A4.c): critério dos anos fechados pela scoring do job (v1/v2 = 'ano')
+  const criterioFechado = regrasCalculoDe(p).serie10aPorDtFim ? 'dtFim' : 'ano';
 
   const universo = [
     ...e.acoes.map((a) => ({
@@ -404,11 +409,12 @@ export function montarLinhasQuadro(
 
     // séries de anos fechados
     const porAno = (porAcaoAno.get(u.symbol) ?? []).map((p) => ({ ...p, ano: p.anoFiscal }));
-    // FII: só anos com 12 meses de informe (o 1º ano parcial não vira "salto")
+    // FII: só anos com 12 meses de informe (o 1º ano parcial não vira "salto"). F2: ações com a
+    // scoring v3 (serie10aPorDtFim) fecham o exercício fora de dezembro por dtFim ≤ hoje
     const fechadosPorAcao = anosFechados(
       porAno,
       e.hoje,
-      ehAcao ? {} : { mesesPorAno: mesesPor.get(u.cnpj) ?? {} },
+      ehAcao ? { criterio: criterioFechado } : { mesesPorAno: mesesPor.get(u.cnpj) ?? {} },
     );
     const dpa: PontoSerieAnual[] = fechadosPorAcao.map((p) => ({
       ano: p.ano,
@@ -426,8 +432,9 @@ export function montarLinhasQuadro(
       const lucros = (lucrosPor.get(u.cnpj) ?? []).map((l) => ({
         ano: l.anoFiscal,
         valor: l.lucro,
+        dtFim: l.dtFim,
       }));
-      serie10a = anosFechados(lucros, e.hoje)
+      serie10a = anosFechados(lucros, e.hoje, { criterio: criterioFechado })
         .slice(-ANOS_SERIE)
         .map((l) => ({ ano: l.ano, valor: l.valor }));
     } else {

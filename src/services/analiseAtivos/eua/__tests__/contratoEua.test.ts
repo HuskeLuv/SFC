@@ -229,4 +229,41 @@ describe('linhasQuadro — campos EUA na resposta do Quadro', () => {
     ).toEqual({ moeda: 'USD', bolsa: 'NYSE', dpa: 3.17, fcoPorAcao: 4.4, dividendosFcoPct: 73 });
     expect(camposEuaDaLinha({ ...nulos, moeda: 'USD', bolsa: 'LSE' }).bolsa).toBeNull();
   });
+
+  // fundamentei-regras F3 (A2.d): a coluna do REIT pela chave REIT_FCO_AJUSTADO
+  it('REIT: sem a chave a resposta é a de hoje; com ela, a coluna ajustada + sbcIndisponivel', async () => {
+    const { paraLinhaQuadroApi } = await import('@/services/analiseAtivos/leitura/linhasQuadro');
+    const { linhaQuadroDb } = await import('@/test/fixtures/analiseAtivos/linhasDb');
+    const reit = linhaQuadroDb({
+      symbol: 'O',
+      classe: 'reit',
+      cnpj: 'CIK:0000726728',
+      moeda: 'USD',
+      bolsa: 'NYSE',
+      fcoPorAcao: 4.4,
+      dividendosFcoPct: 73.1,
+      fcoAjustadoPorAcao: 4.2,
+      dividendosFcoAjustadoPct: 76.5,
+    });
+    const stock = linhaQuadroDb({ symbol: 'AAPL', classe: 'stock', moeda: 'USD', fcoPorAcao: 7 });
+    vi.stubEnv('ANALISE_ATIVOS_REIT_FCO_AJUSTADO_HABILITADO', '');
+    const hoje = paraLinhaQuadroApi(reit);
+    expect(hoje.fcoPorAcao).toBe(4.4);
+    for (const k of ['fcoAjustadoPorAcao', 'dividendosFcoAjustadoPct', 'sbcIndisponivel']) {
+      expect(hoje).not.toHaveProperty(k);
+    }
+    vi.stubEnv('ANALISE_ATIVOS_REIT_FCO_AJUSTADO_HABILITADO', 'true');
+    expect(paraLinhaQuadroApi(reit)).toMatchObject({
+      fcoPorAcao: 4.2,
+      dividendosFcoPct: 76.5,
+      fcoAjustadoPorAcao: 4.2,
+      sbcIndisponivel: false,
+    });
+    expect(
+      paraLinhaQuadroApi({ ...reit, fcoAjustadoPorAcao: null, dividendosFcoAjustadoPct: null }),
+    ).toMatchObject({ fcoPorAcao: 4.4, dividendosFcoPct: 73.1, sbcIndisponivel: true });
+    // stock não ganha as chaves do REIT
+    expect(paraLinhaQuadroApi(stock)).not.toHaveProperty('sbcIndisponivel');
+    vi.unstubAllEnvs();
+  });
 });

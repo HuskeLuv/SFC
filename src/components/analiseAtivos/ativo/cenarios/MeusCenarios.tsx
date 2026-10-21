@@ -15,6 +15,9 @@
  *
  * v2.4 (fatia C2): o PUT vai no formato v2 (premissas em branco = null; o tipo do hook ainda é o
  * v1 até a F); o rodapé literal leva data-texto-legal="rodape-cenarios".
+ *
+ * Visual v2 (fundamentei-regras F4, item C12): a BarraSalvamento (Salvar cenário) sobe para junto
+ * da ‘Sua posição’, na coluna dos resultados. Sem a chave, embaixo como hoje.
  */
 import { useCallback, useMemo, useState, type ReactNode } from 'react';
 import CartaoAnalise from '@/components/analiseAtivos/ativo/analise/CartaoAnalise';
@@ -36,6 +39,7 @@ import {
 import { useNaCarteiraAtivo } from '@/components/analiseAtivos/ativo/usuario/useNaCarteiraAtivo';
 import { useApagarCenario, useCenarios, useSalvarCenario } from '@/hooks/useAnaliseAtivosBlocoD';
 import { useIsBelowLg } from '@/hooks/useMediaQuery';
+import { useVisualV2 } from '@/components/analiseAtivos/shell/VisualV2';
 import {
   ID_RODAPE_CENARIOS,
   RODAPE_CENARIOS,
@@ -76,6 +80,7 @@ function Calculadora({
   classe: ClasseQuadro;
 }) {
   const celular = useIsBelowLg();
+  const v2 = useVisualV2();
   const naCarteira = useNaCarteiraAtivo(ticker, classe);
   const posicao = useMemo(() => {
     if (naCarteira.status !== 'posicao') return null;
@@ -165,6 +170,18 @@ function Calculadora({
     .join('; ');
   const lpaNegativo =
     r.classe === 'acao' && typeof saida.efetivos.lpa === 'number' && saida.efetivos.lpa <= 0;
+  const barraSalvamento = (
+    <BarraSalvamento
+      podeSalvar={!consultor}
+      status={status}
+      salvoEm={r.salvo?.atualizadoEm ?? null}
+      mensagemErro={mensagemErro}
+      camposInvalidos={tentouSalvar && camposInvalidos}
+      mostrarRestaurar={!!r.salvo || !estado.ehPadrao}
+      onSalvar={onSalvar}
+      onRestaurar={onRestaurar}
+    />
+  );
 
   return (
     <div className="@container flex min-w-0 flex-col gap-4" data-meus-cenarios={r.classe}>
@@ -239,21 +256,14 @@ function Calculadora({
             consultor={consultor}
             carregando={naCarteira.status === 'carregando'}
           />
+          {/* visual v2 (item C12): 'Salvar cenário' junto da 'Sua posição' */}
+          {v2 ? barraSalvamento : null}
           <p className="sr-only" aria-live="polite">
             {live}
           </p>
         </div>
       </div>
-      <BarraSalvamento
-        podeSalvar={!consultor}
-        status={status}
-        salvoEm={r.salvo?.atualizadoEm ?? null}
-        mensagemErro={mensagemErro}
-        camposInvalidos={tentouSalvar && camposInvalidos}
-        mostrarRestaurar={!!r.salvo || !estado.ehPadrao}
-        onSalvar={onSalvar}
-        onRestaurar={onRestaurar}
-      />
+      {v2 ? null : barraSalvamento}
       <ToastCenarios toast={toast} onFechar={() => setToast(null)} />
     </div>
   );

@@ -31,11 +31,17 @@
  *   sem conceito de dívida = null (sem dado — nunca zero);
  * - caixa com CashCashEquivalentsAndShortTermInvestments (último passo; CAT 2016) já inclui as
  *   aplicações de curto prazo: aplicacoesFinanceiras fica null para a dívida líquida não descontar
- *   duas vezes (sourceConcept.aplicacoesFinanceiras = 'incluidas_no_caixa').
+ *   duas vezes (sourceConcept.aplicacoesFinanceiras = 'incluidas_no_caixa');
+ * - fundamentei-regras (F3, A2.d): remuneração em ações (SBC) só com `incluirSbc` (o job passa
+ *   ANALISE_ATIVOS_SEC_SBC): CADEIA_SBC (ShareBasedCompensation → AllocatedShareBasedCompensation
+ *   Expense), gravada em `remuneracaoAcoes` como informada (sem trocar sinal); ano sem os dois = null,
+ *   nunca 0. Entra no "10-K mais recente" do FY como os demais campos. Sem a opção, o PeriodoSec
+ *   não tem a chave `remuneracaoAcoes` e a extração é a de hoje, byte a byte.
  *
  * Nada de I/O: recebe o JSON já parseado e devolve números (o repositório converte para Decimal).
  */
 import {
+  CADEIA_SBC,
   CADEIAS_SEC,
   CAMPOS_SEC,
   CONCEITO_CAIXA_COM_APLICACOES,
@@ -207,7 +213,11 @@ export interface ValorCampo {
  * Primeiro passo da cadeia com valor na data de término `fim`. Balanço: a cadeia inteira no 10-K do
  * próprio exercício; sem nada nele, a cadeia inteira até o comparativo do 10-K seguinte.
  */
-export function valorDaCadeia(ler: Leitor, c: CadeiaCampo, fim: string): ValorCampo | null {
+export function valorDaCadeia(
+  ler: Leitor,
+  c: Omit<CadeiaCampo, 'campo'>,
+  fim: string,
+): ValorCampo | null {
   if (c.tipo === 'instante') {
     return (
       valorDaCadeiaNoPrazo(ler, c, fim, BALANCO_PRAZO_PROPRIO_DIAS, true) ??
@@ -226,7 +236,7 @@ function divergeEscala(a: number, b: number): boolean {
 
 function valorDaCadeiaNoPrazo(
   ler: Leitor,
-  c: CadeiaCampo,
+  c: Omit<CadeiaCampo, 'campo'>,
   fim: string,
   prazoMaxDias: number | undefined,
   /** balanço do próprio 10-K: confere a escala contra o comparativo do 10-K seguinte */
@@ -323,6 +333,11 @@ export interface PeriodoSec {
   /** campo gravado → conceito XBRL usado ('OperatingIncomeLoss', 'pre_ir:…+juros:…') */
   sourceConcept: Record<string, string>;
   flags: FlagFundamentoSec[];
+  /**
+   * F3 fundamentei-regras: remuneração em ações do FY (US$, DFC). Presente SÓ com
+   * `OpcoesExtracao.incluirSbc` (null = o 10-K não informou); ausente = extração de hoje.
+   */
+  remuneracaoAcoes?: number | null;
 }
 
 export interface ResultadoExtracaoSec {
@@ -338,6 +353,11 @@ const CAMPOS_ANCORA: CampoSec[] = ['receita', 'lucroControladora', 'fco'];
 export interface OpcoesExtracao {
   /** só FY com rótulo ≥ este ano (padrão: todos) */
   anoMinimo?: number;
+  /**
+   * F3 fundamentei-regras: lê a remuneração em ações (CADEIA_SBC). O job passa
+   * analiseAtivosSecSbc(); padrão false = a extração de hoje (sem a chave `remuneracaoAcoes`).
+   */
+  incluirSbc?: boolean;
 }
 
 /** Campos que o US GAAP informa como valor positivo (saída de caixa, dividendo por ação). */
@@ -406,9 +426,11 @@ export function extrairFundamentosSec(
 
     const ancora = v.receita ?? v.lucroControladora ?? v.fco;
     if (!ancora) continue;
+    // F3: SBC só com a opção (desligada, nada aqui muda: nem a versão nem o 10-K mais recente)
+    const sbc = opts.incluirSbc ? valorDaCadeia(ler, CADEIA_SBC, fim) : null;
     // versão = o 10-K mais recente que trouxe algum valor usado (reapresentação de qualquer campo)
     let maisRecente: ValorCampo = ancora;
-    for (const x of Object.values(v)) {
+    for (const x of [...Object.values(v), sbc]) {
       if (
         x &&
         (x.filed > maisRecente.filed ||
@@ -536,6 +558,7 @@ export function extrairFundamentosSec(
       dpaOrigem: d.origem,
       sourceConcept: fonte,
       flags,
+      ...(opts.incluirSbc ? { remuneracaoAcoes: usar(CADEIA_SBC.campo, sbc) } : {}),
     });
   }
 

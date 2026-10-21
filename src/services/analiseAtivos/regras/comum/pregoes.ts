@@ -4,7 +4,11 @@
  * Base: `feriadosB3` (src/utils/feriadosB3.ts, só leitura — feriados nacionais, 20/11 desde 2024,
  * Carnaval, Sexta-feira Santa, Corpus Christi) + os dias sem pregão do calendário da B3 que não são
  * feriado bancário: 24/12 e 31/12. Usado pela fatia C (liquidez/lacunas do COTAHIST), D (data-com
- * real = pregão anterior à data ex) e E (data estimada no próximo pregão).
+ * real = pregão anterior à data ex) e E (data estimada no próximo pregão). fundamentei-regras (F2,
+ * A4.b): data-ex = pregão seguinte à data-com real (pregaoSeguinte), que também fecha o último dia
+ * útil do ano quando 31/12 cai no fim de semana (30/12/2022, 29/12/2023). Esse fechamento fica só
+ * no pregaoSeguinte (usado apenas pela scoring v3) para v1/v2 não mudarem: a deduplicação e a
+ * data-com real da YAHOO seguem o calendário de antes.
  */
 import { feriadosB3 } from '@/utils/feriadosB3';
 
@@ -23,14 +27,24 @@ function paraData(ms: number): string {
   return new Date(ms).toISOString().slice(0, 10);
 }
 
-function ehPregaoMs(ms: number): boolean {
+/** Dia (29–31) do último dia de semana de dezembro do ano. */
+function ultimoDiaUtilDoAno(ano: number): number {
+  const dow31 = new Date(Date.UTC(ano, 11, 31)).getUTCDay();
+  return dow31 === 6 ? 30 : dow31 === 0 ? 29 : 31;
+}
+
+function ehPregaoMs(ms: number, fechaUltimoDiaUtil = false): boolean {
   const d = new Date(ms);
   const dow = d.getUTCDay();
   if (dow === 0 || dow === 6) return false;
   const mes = d.getUTCMonth();
   const dia = d.getUTCDate();
-  // B3 não abre em 24/12 nem em 31/12 (não são feriados bancários nacionais).
+  // B3 não abre em 24/12 nem em 31/12 (não são feriados bancários nacionais). Com
+  // fechaUltimoDiaUtil, também não no último dia útil do ano quando 31/12 cai no fim de semana.
   if (mes === 11 && (dia === 24 || dia === 31)) return false;
+  if (fechaUltimoDiaUtil && mes === 11 && dia === ultimoDiaUtilDoAno(d.getUTCFullYear())) {
+    return false;
+  }
   return !feriadosB3(d.getUTCFullYear()).has(ms);
 }
 
@@ -42,6 +56,18 @@ export function ehPregaoB3(data: string): boolean {
 export function pregaoAnterior(data: string): string {
   let ms = paraMs(data) - DIA_MS;
   while (!ehPregaoMs(ms)) ms -= DIA_MS;
+  return paraData(ms);
+}
+
+/**
+ * Primeiro pregão ESTRITAMENTE posterior a `data` (fundamentei-regras F2, A4.b: data-ex = pregão
+ * seguinte à data-com real; sexta ⇒ segunda; véspera de feriado ⇒ o dia útil depois do feriado).
+ * Fecha também o último dia útil do ano quando 31/12 cai no fim de semana (data-com 28/12/2023 ⇒
+ * ex 02/01/2024).
+ */
+export function pregaoSeguinte(data: string): string {
+  let ms = paraMs(data) + DIA_MS;
+  while (!ehPregaoMs(ms, true)) ms += DIA_MS;
   return paraData(ms);
 }
 

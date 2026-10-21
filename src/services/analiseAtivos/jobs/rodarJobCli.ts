@@ -45,6 +45,18 @@ export function lerArgsRodarJob(argv: string[]): ArgsRodarJob {
     if (!/^[a-z][a-z0-9_]{1,31}$/.test(fonte)) throw new Error('--fonte inválido');
     opcoes.fonte = fonte;
   }
+  // Opção que o job não usa (DefinicaoJob.aceita) é recusada em vez de ignorada calada (ex.:
+  // 'scores'/'quadro' com --versao-params rodariam a versão vigente). A scoring de uma versão não
+  // vigente roda por scripts/analise-ativos/recalcular-analise.ts --versao-params=N.
+  const recusadas = (Object.keys(opcoes) as Array<keyof OpcoesExecucaoJob>).filter(
+    (k) => !(def.aceita ?? []).includes(k),
+  );
+  if (recusadas.length > 0) {
+    throw new Error(
+      `o job '${def.nome}' não aceita --versao-params/--fonte (${recusadas.join(', ')})` +
+        ' (scores/quadro de outra versão: recalcular-analise.ts --versao-params=N)',
+    );
+  }
   return { def, prazoMs, aplicar: !argv.includes('--sem-aplicar'), opcoes };
 }
 

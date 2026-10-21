@@ -2093,6 +2093,11 @@ model AssetFundamentalsPeriod {
   premiosGanhos            Decimal? @db.Decimal(20, 2)
   sinistrosRetidos         Decimal? @db.Decimal(20, 2)
 
+  // A2.d (fundamentei-regras, fatia 0): remuneração em ações (SBC) da DFC do 10-K, em US$ (cadeia
+  // ShareBasedCompensation → AllocatedShareBasedCompensationExpense). Gravada só pela ingestão SEC
+  // com ANALISE_ATIVOS_SEC_SBC; 10-K sem o conceito = NULO (não 0). Nula na CVM.
+  remuneracaoAcoes Decimal? @db.Decimal(20, 2)
+
   @@unique([emissorId, dtFim, tipoPeriodo, escopo, versao])
   @@index([emissorId, tipoPeriodo, dtFim])
   @@index([fetchedAt])
@@ -2697,6 +2702,11 @@ model AnaliseQuadroLinha {
   dividendosFcoPct      Float?
   // A6 (fatia 0; gravado pelo quadro da fatia E): obrigações ÷ ativo total do FII, em %
   obrigacoesAtivoPct    Float?
+  // A2.d (fundamentei-regras, fatia 0; gravadas pelo quadro-eua): último FY do REIT com o FCO
+  // ajustado pela SBC (FCO − remuneração em ações) ÷ média diluída (US$) e dividendos ÷ FCO
+  // ajustado (%). Nulas sem SBC no ano e no Brasil.
+  fcoAjustadoPorAcao       Float?
+  dividendosFcoAjustadoPct Float?
 
   @@index([classe, noQuadro])
   @@index([geradoEm])

@@ -19,17 +19,27 @@
  * na janela INTEIRA — 'luc' = net_income_adjusted → net_income) e o resultado leva `obs`
  * ('lucro_sem_descontado', 'dados_incompletos') e, com origens, `fonte` (ids na ordem da prioridade).
  * 'months' com mesesPorAno (provedor) usa as contagens anuais; sem elas, a contagem da CVM.
+ *
+ * fundamentei-regras (F1): o 'cagr' lê o ano anterior à janela como o 'up' (incluiAnoAnterior). A
+ * margem da financeira ganha o override criteria_params.criterios.margem.porPerfil.acao_financeira
+ * (regraMargemDoPerfil): com 'nao_se_aplica' (v5), o 'mg' da financeira não se aplica quando algum
+ * ano da janela tem lucro e não tem margem (receita ausente, ≤ 0 ou ≤ lucro: holding ou banco no
+ * individual) — "n de 2". Sem o override (v1–v4) a regra é a de antes.
  */
 import {
   criteriosDoPerfil,
   idsNaoSeAplica,
+  regraMargemDoPerfil,
   type CriteriaParams,
 } from '@/services/analiseAtivos/params/criteriaParamsSchema';
 import {
   anoInicioJanela,
   anosDaJanela,
 } from '@/services/analiseAtivos/regras/criterios/ancoraJanela';
-import { avaliarCriterio } from '@/services/analiseAtivos/regras/criterios/avaliarCriterio';
+import {
+  avaliarCriterio,
+  incluiAnoAnterior,
+} from '@/services/analiseAtivos/regras/criterios/avaliarCriterio';
 import { escolherSerieJanela } from '@/services/analiseAtivos/fontes/fundamentos/resolverSeries';
 import type {
   AvaliacaoAtivo,
@@ -68,6 +78,22 @@ export function margemNaoComparavel(entrada: EntradaAvaliacaoAtivo, janela: Jane
 }
 
 /**
+ * fundamentei-regras (v5): financeira com ALGUM ano da janela com lucro e sem margem (receita
+ * ausente, ≤ 0 ou ≤ lucro na série — as séries da v5 da financeira gravam a margem nula nesses
+ * anos): a receita do balanço não é comparável ao lucro. Pura.
+ */
+export function margemComReceitaNaoComparavel(
+  entrada: EntradaAvaliacaoAtivo,
+  janela: Janela,
+): boolean {
+  if (entrada.perfil !== 'acao_financeira') return false;
+  const anos = anosDaJanela(entrada.anoFim, janela, false);
+  const margem = entrada.series.net_margin ?? {};
+  const lucro = entrada.series.net_income ?? {};
+  return anos.some((a) => !temValor(margem[a]) && temValor(lucro[a]));
+}
+
+/**
  * Fontes do critério 'months': as do provedor quando as contagens anuais dele cobrem a janela
  * (avaliarMesesPorAno), senão a CVM (proventos auditados). Vazio sem origens.
  */
@@ -92,8 +118,11 @@ export function avaliarJanela(
   const nsa = new Set(idsNaoSeAplica(params, entrada.perfil));
   // v2.5: o religamento depende do params ('nao_se_aplica' = v2.4; a v2 usa 'sem_dado')
   const margemNsa =
-    params.perfis.acao_financeira.margemSemReceitaComparavel === 'nao_se_aplica' &&
-    margemNaoComparavel(entrada, janela);
+    (params.perfis.acao_financeira.margemSemReceitaComparavel === 'nao_se_aplica' &&
+      margemNaoComparavel(entrada, janela)) ||
+    // fundamentei-regras (v5): override por perfil; ausente (v1–v4) = nunca entra aqui
+    (regraMargemDoPerfil(params, entrada.perfil) === 'nao_se_aplica' &&
+      margemComReceitaNaoComparavel(entrada, janela));
   const resultados = defs.map((def) => {
     const naoSeAplica = nsa.has(def.id) || (margemNsa && def.id === 'mg');
     const escolha =
@@ -103,7 +132,7 @@ export function avaliarJanela(
             entrada.series,
             entrada.origens,
             def,
-            anosDaJanela(entrada.anoFim, janela, def.tipo === 'up'),
+            anosDaJanela(entrada.anoFim, janela, incluiAnoAnterior(def.tipo)),
           );
     const r = avaliarCriterio(
       {

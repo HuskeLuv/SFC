@@ -8,11 +8,17 @@
  * autorizada pelo Wellington 17/10), com rótulo em texto neutro (contraste). O desenho é
  * aria-hidden; a tabela/cartões trazem os mesmos números (texto sr-only). Sem nenhum resultado: um
  * aviso único no lugar das barras.
+ *
+ * Visual v2 (fundamentei-regras F4, item C12): numa caixa com borda (`.rbs` do HTML do Pedro), cada
+ * método com o trilho cinza de fundo (superfície 2) e o valor numa coluna à direita. A linha da
+ * cotação segue dourada como no #309. Sem a chave, o de hoje.
  */
 import type { BarrasCenario } from '@/services/analiseAtivos/regras/valuation/montarCenarios';
 import { formatarNumeroBR } from '@/services/analiseAtivos/regras/valuation/arredondamento';
 import { TEXTOS_CENARIOS } from '@/services/analiseAtivos/textosCenarios';
 import { formatarTexto } from '@/services/analiseAtivos/textos';
+import { useVisualV2 } from '@/components/analiseAtivos/shell/VisualV2';
+import { VISUAL_V2 } from '@/constants/analiseAtivosVisual';
 
 const T = TEXTOS_CENARIOS.barras;
 
@@ -26,6 +32,8 @@ interface Props {
 const pct = (v: number, max: number) => `${Math.max(0, Math.min(100, (v / max) * 100))}%`;
 
 export default function BarrasResultados({ barras, nenhumResultado, explicacaoAcao }: Props) {
+  const v2 = useVisualV2();
+  if (v2 && !(nenhumResultado || barras.escalaMax <= 0)) return <BarrasV2 barras={barras} />;
   if (nenhumResultado || barras.escalaMax <= 0) {
     return (
       <div
@@ -124,6 +132,63 @@ export default function BarrasResultados({ barras, nenhumResultado, explicacaoAc
         ))}
       </div>
       <figcaption className="text-[13px] text-gray-500 dark:text-gray-400">
+        {T.escala}
+        <span className="sr-only"> {T.alternativaTexto}</span>
+      </figcaption>
+    </figure>
+  );
+}
+
+/** Visual v2 (item C12): caixa, trilho cinza e o valor à direita. */
+function BarrasV2({ barras }: { barras: BarrasCenario }) {
+  const max = barras.escalaMax;
+  const cot = barras.cotacao;
+  return (
+    <figure
+      className="m-0 flex flex-col gap-2 rounded-xl border border-gray-200 px-3.5 py-3 dark:border-gray-800"
+      data-cenarios-barras=""
+      data-visual-v2=""
+    >
+      <div className="flex flex-wrap items-center justify-between gap-2 text-[11.5px] text-gray-500 dark:text-gray-400">
+        <h3 className="text-[12.5px] font-semibold text-gray-700 dark:text-gray-200">{T.titulo}</h3>
+        {cot !== null ? (
+          <span aria-hidden="true" className="inline-flex items-center gap-1.5">
+            {/* exceção à paleta autorizada pelo Wellington 17/10 (dourado da cotação, #309) */}
+            <i className="inline-block h-3 w-0.5 bg-[#B07110] dark:bg-[#B8842E]" />
+            {formatarTexto(T.rotuloCotacao, { valor: formatarNumeroBR(cot, 2) })}
+          </span>
+        ) : null}
+      </div>
+      <div
+        aria-hidden="true"
+        className="grid grid-cols-1 gap-x-2.5 gap-y-1.5 text-xs sm:grid-cols-[minmax(84px,150px)_minmax(0,1fr)_72px] sm:items-center"
+      >
+        {barras.itens.map((b) => (
+          <div key={b.metodo} className="contents" data-barra={b.metodo}>
+            <span className="truncate text-gray-700 dark:text-gray-200">{b.rotulo}</span>
+            <div className={`relative h-3.5 rounded ${VISUAL_V2.superficie2}`}>
+              {b.resultado !== null ? (
+                <span
+                  className="absolute inset-y-0 left-0 rounded bg-[#396CAA]/80 dark:bg-[#6E9DC4]/80"
+                  style={{ width: pct(b.resultado, max) }}
+                />
+              ) : null}
+              {cot !== null ? (
+                <span
+                  className="absolute -top-[3px] h-5 w-0.5 -translate-x-1/2 bg-[#B07110] dark:bg-[#B8842E]"
+                  style={{ left: pct(cot, max) }}
+                />
+              ) : null}
+            </div>
+            <span className="font-semibold text-gray-800 tabular-nums sm:text-right dark:text-white/90">
+              {b.resultado !== null
+                ? formatarNumeroBR(b.resultado, 2)
+                : `— ${b.motivo ?? T.semResultado}`}
+            </span>
+          </div>
+        ))}
+      </div>
+      <figcaption className="text-[12px] text-gray-500 dark:text-gray-400">
         {T.escala}
         <span className="sr-only"> {T.alternativaTexto}</span>
       </figcaption>
