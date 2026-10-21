@@ -479,10 +479,10 @@ describe('montarComparador (v2.4, isonômico)', () => {
     expect(_tamanhoCacheComparador()).toBe(2);
   });
 
-  it('sem criteria_params no banco: rótulos do v1 do código (nada quebra)', async () => {
+  it('sem criteria_params no banco: rótulos da versão do código (v6; nada quebra)', async () => {
     mockPrisma.criteriaParams.findFirst.mockResolvedValue(null);
     const r = await montar(['WEGE3']);
-    expect(r.criterios.rotulos.rec).toBe('Receita crescente');
+    expect(r.criterios.rotulos.rec).toBe('Receita com crescimento anual > 0');
   });
 
   it('cache limitado por conjunto ordenado: reordena pelos slots sem nova leitura', async () => {

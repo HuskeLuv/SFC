@@ -25,7 +25,6 @@ import {
   CRITERIA_PARAMS_V4,
   CRITERIA_PARAMS_V4_JSON,
 } from '@/services/analiseAtivos/params/criteriaParamsV4';
-import { CRITERIA_PARAMS_CODIGO } from '@/services/analiseAtivos/params/criteriaParamsCodigo';
 import { validarCriteriaParams } from '@/services/analiseAtivos/params/obterCriteriaParams';
 import { avaliarAtivo } from '@/services/analiseAtivos/regras/criterios/avaliarAtivo';
 import { perfilCriterios } from '@/services/analiseAtivos/regras/criterios/perfilCriterios';
@@ -168,10 +167,6 @@ describe('CriteriaParams v4', () => {
     expect(CRITERIA_PARAMS_V3_JSON.perfis.fii_tijolo.find((c) => c.id === 'alav')?.rotulo).toBe(
       'Alavancagem ≤ 20% do PL',
     );
-  });
-
-  it('o código continua apontando para a v3 (ativação pelo banco, com validFrom futuro)', () => {
-    expect(CRITERIA_PARAMS_CODIGO.versao).toBe(3);
   });
 
   it('seed registra a v4 (--versao=4)', () => {

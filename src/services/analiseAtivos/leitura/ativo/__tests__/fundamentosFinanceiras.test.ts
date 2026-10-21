@@ -26,6 +26,7 @@ vi.mock('@/services/analiseAtivos/repositorio/universo', () => mockUniverso);
 import {
   montarFundamentosAcao,
   obterFundamentosEssencial,
+  regrasEssencialDe,
   type EntradaFundamentosAcao,
 } from '../fundamentosEssencial';
 import { TEXTOS_FINANCEIRAS } from '@/services/analiseAtivos/textosFinanceiras';
@@ -181,7 +182,8 @@ describe('Essencial · banco', () => {
   });
 
   it('sem template ⇒ a resposta de hoje (sem a chave template, mesmas colunas)', () => {
-    const e = entradaBanco();
+    // regras da v2 fixas: com as da v6 (código) o EBITDA do banco "não se aplica" e a coluna sai
+    const e = entradaBanco({ regras: regrasEssencialDe(CRITERIA_PARAMS_V2) });
     const hoje = montarFundamentosAcao(e, { layout: 'v24' });
     expect(montarFundamentosAcao({ ...e, template: null }, { layout: 'v24' })).toEqual(hoje);
     expect('template' in hoje).toBe(false);

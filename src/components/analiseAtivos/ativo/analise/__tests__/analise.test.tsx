@@ -503,7 +503,8 @@ describe('BlocoPares', () => {
   });
 
   it('v2.5: rótulos dos critérios pelos params do código (Alavancagem e Dív. líq./EBITDA < 3×)', () => {
-    expect(rotulosDoPerfil('fii_tijolo').alav).toBe('Alavancagem ≤ 20% do PL');
+    // v6 no código (21/10/2026): alavancagem do tijolo sobre o ativo
+    expect(rotulosDoPerfil('fii_tijolo').alav).toBe('Alavancagem ≤ 16,7% do ativo');
     expect(rotulosDoPerfil('acao').dl).toBe('Dív. líq./EBITDA < 3×');
     // financeira: os mesmos 6 de ação ("n de 6")
     expect(Object.keys(rotulosDoPerfil('acao_financeira'))).toHaveLength(6);
