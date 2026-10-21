@@ -13,6 +13,7 @@ import { calcularAtualAcao } from '@/services/analiseAtivos/calculo/recalcularSc
 import { SCORING_PARAMS_V1 } from '@/services/analiseAtivos/params/scoringParamsV1';
 import { SCORING_PARAMS_V2 } from '@/services/analiseAtivos/params/scoringParamsV2';
 import { SCORING_PARAMS_V3 } from '@/services/analiseAtivos/params/scoringParamsV3';
+import { SCORING_PARAMS_V4 } from '@/services/analiseAtivos/params/scoringParamsV4';
 import type { ScoringParams } from '@/services/analiseAtivos/params/scoringParamsSchema';
 import { payoutCaixaPct } from '@/services/analiseAtivos/regras/calculo/multiplos';
 import type {
@@ -230,6 +231,21 @@ describe('derivados anuais: v1/v2 = hoje; v3 = payout de caixa e data-ex', () =>
     expect(v2.perShare[0].dpaDataCom).toBeCloseTo(5, 10);
     expect(v3.perShare[0].dpaDataCom).toBeCloseTo(2, 10);
     expect(v3.multiplos[0].dyPct).toBeCloseTo(4, 10);
+  });
+
+  it('v4, o mesmo exercício mar–fev: DPA pelo ano-calendário da data-ex, sem a data-ex futura', () => {
+    const fyFev = fy(2026, { dtIni: '2025-03-01', dtFim: '2026-02-28' });
+    const provsFev = [
+      provento('2025-05-12', 1),
+      provento('2026-01-15', 1),
+      provento('2026-11-30', 4), // anunciado, data-ex futura
+    ];
+    const v4 = derivar(SCORING_PARAMS_V4, [fyFev], provsFev);
+    // ano civil 2026 pela data-ex = só 15/01 (30/11 é futura); o payout não muda (DFC do exercício)
+    expect(v4.perShare[0].dpaDataCom).toBeCloseTo(1, 10);
+    expect(v4.multiplos[0].payoutPct).toEqual(
+      derivar(SCORING_PARAMS_V3, [fyFev], provsFev).multiplos[0].payoutPct,
+    );
   });
 });
 
