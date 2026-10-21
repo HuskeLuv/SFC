@@ -60,6 +60,28 @@
  *                                                          Comparador, Pares e Valuation do FII
  *  - ANALISE_ATIVOS_CVM_DVA="true"                         INGESTÃO (não é tela): o cvm-cias lê a
  *                                                          DVA das financeiras (PDD, 7.01.01/03)
+ *
+ *  A2+A4+A5+C — alinhar ao Fundamentei (docs/analise-ativos/fundamentei-regras/desenho.json, F0):
+ *  mesmo regime, todas desligadas por padrão. Desligadas, telas, APIs e jobs ficam exatamente como
+ *  hoje. As de TELA só são lidas pela leitura/páginas (nenhum job lê chave de tela: as regras de
+ *  cálculo dos jobs vêm da scoring_params/criteria_params vigente); as de INGESTÃO só pelos jobs.
+ *  - ANALISE_ATIVOS_ESSENCIAL_V2_HABILITADO="true"      TELA: Essencial/Raio-X/Valuation/dividendos
+ *                                                       BR — Lucro líquido/Margem líquida sem ⓘ,
+ *                                                       anos fechados por dtFim + rótulo 'fev/2026',
+ *                                                       'L' com prejuízo, PDD ÷ lucro em %
+ *  - ANALISE_ATIVOS_REIT_FCO_AJUSTADO_HABILITADO="true" TELA: caixa operacional ajustado pela SBC e
+ *                                                       payout sobre ele no REIT (Essencial, KPI,
+ *                                                       Quadro, Comparador), sem FFO/AFFO/ocupação
+ *  - ANALISE_ATIVOS_EUA_ROTULOS_EN_HABILITADO="true"    TELA: nomes de linhas/indicadores e rótulos
+ *                                                       dos critérios EUA em inglês (textosEuaEn.ts)
+ *  - ANALISE_ATIVOS_VISUAL_V2_HABILITADO="true"         TELA: ajustes visuais do HTML do Pedro
+ *                                                       (prop visualV2 das page.tsx)
+ *  - ANALISE_ATIVOS_DFC_PROVENTOS_AMPLO="true"          INGESTÃO CVM: regex ampliado de proventos
+ *                                                       pagos na DFC, sem não controladores (ligar
+ *                                                       junto com o backfill --recompletar-campos)
+ *  - ANALISE_ATIVOS_SEC_SBC="true"                      INGESTÃO SEC: remuneração em ações (SBC) —
+ *                                                       leitura, gravação e impressão digital (ligar
+ *                                                       junto com o backfill da SBC)
  */
 export function analiseAtivosHabilitada(): boolean {
   return process.env.ANALISE_ATIVOS_HABILITADA === 'true';
@@ -138,6 +160,36 @@ export function analiseAtivosSocietarioHabilitado(): boolean {
 /** A6: alavancagem do FII sobre o ativo total (desligado por padrão). */
 export function analiseAtivosAlavAtivoHabilitado(): boolean {
   return process.env.ANALISE_ATIVOS_ALAV_ATIVO_HABILITADO === 'true';
+}
+
+/** fundamentei-regras (tela): Essencial/Raio-X/Valuation/dividendos BR v2 (desligado). */
+export function analiseAtivosEssencialV2Habilitado(): boolean {
+  return process.env.ANALISE_ATIVOS_ESSENCIAL_V2_HABILITADO === 'true';
+}
+
+/** fundamentei-regras (tela): REIT com o caixa operacional ajustado pela SBC (desligado). */
+export function analiseAtivosReitFcoAjustadoHabilitado(): boolean {
+  return process.env.ANALISE_ATIVOS_REIT_FCO_AJUSTADO_HABILITADO === 'true';
+}
+
+/** fundamentei-regras (tela): rótulos EUA em inglês (desligado). */
+export function analiseAtivosEuaRotulosEnHabilitado(): boolean {
+  return process.env.ANALISE_ATIVOS_EUA_ROTULOS_EN_HABILITADO === 'true';
+}
+
+/** fundamentei-regras (tela): ajustes visuais do HTML do Pedro (desligado). */
+export function analiseAtivosVisualV2Habilitado(): boolean {
+  return process.env.ANALISE_ATIVOS_VISUAL_V2_HABILITADO === 'true';
+}
+
+/** fundamentei-regras (ingestão CVM; não é tela): regex ampliado da DFC (desligado). */
+export function analiseAtivosDfcProventosAmplo(): boolean {
+  return process.env.ANALISE_ATIVOS_DFC_PROVENTOS_AMPLO === 'true';
+}
+
+/** fundamentei-regras (ingestão SEC; não é tela): remuneração em ações, SBC (desligado). */
+export function analiseAtivosSecSbc(): boolean {
+  return process.env.ANALISE_ATIVOS_SEC_SBC === 'true';
 }
 
 export function analiseAtivosAlertaAdmin(): boolean {
