@@ -9,7 +9,8 @@
  *
  * Banco (por período): receita de intermediação = DRE 3.01 (receita); PDD em valor absoluto =
  * −pdd (DVA 7.01.03 publicada negativa como despesa); margem bancária = lucro ÷ receita de
- * intermediação; PDD ÷ lucro (×) só com lucro > 0; PL ÷ ativo. Sem DVA de instituição financeira
+ * intermediação; PDD ÷ lucro (×; em % com a chave ESSENCIAL_V2, pddLucroPctDe) só com lucro > 0;
+ * PL ÷ ativo. Sem DVA de instituição financeira
  * (RPAD, BRBI, BSLI) a PDD fica sem dado com o motivo 'sem_dva'.
  *
  * Seguradora (por período): a receita operacional é a de seguro/resseguro na OPERACIONAL — prêmios
@@ -106,6 +107,14 @@ export function valoresBanco(f: FundamentosPeriodo, lucro: number | null): Valor
         : v(null),
     divJcp: v(f.dividendosJcpPagos),
   };
+}
+
+/**
+ * PDD ÷ lucro em % (fundamentei-regras F2, A5; só com ANALISE_ATIVOS_ESSENCIAL_V2_HABILITADO): a
+ * mesma razão de valoresBanco × 100; o motivo sem número passa igual.
+ */
+export function pddLucroPctDe(b: Pick<ValoresBanco, 'pddLucro'>): ValorTemplate {
+  return 'valor' in b.pddLucro ? { valor: b.pddLucro.valor * 100 } : b.pddLucro;
 }
 
 // ---------------------------------------------------------------- seguradora

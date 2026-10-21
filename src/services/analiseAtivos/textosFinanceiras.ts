@@ -6,6 +6,7 @@
  *
  * Basileia fica fora (fase 2: IF.data do Bacen), com a observação no card. Sinistralidade só até
  * 2022; desde 2023 (IFRS 17), despesa ÷ receita de seguro. O Comparador não ganha linha de banco.
+ * fundamentei-regras (F2): banco.tooltipsV2 (PDD ÷ lucro em %, chave ESSENCIAL_V2).
  */
 export const TEXTOS_FINANCEIRAS = {
   banco: {
@@ -29,6 +30,13 @@ export const TEXTOS_FINANCEIRAS = {
       pdd: 'Provisão para perdas esperadas de crédito (DVA 7.01.03), em valor absoluto.',
       margemBancaria: 'Lucro líquido ÷ receita de intermediação financeira.',
       pddLucro: 'PDD ÷ lucro líquido; com lucro ≤ 0 a razão não se aplica.',
+    },
+    /**
+     * fundamentei-regras (F2, A5; só com ANALISE_ATIVOS_ESSENCIAL_V2_HABILITADO): PDD ÷ lucro em %
+     * no Essencial, no Raio-X e no CSV. Sobrepõe as chaves de `tooltips`.
+     */
+    tooltipsV2: {
+      pddLucro: 'PDD ÷ lucro líquido, em %; com lucro ≤ 0 a razão não se aplica.',
     },
     unidade:
       'Valores em R$ bi · ano fiscal · fonte DFP/ITR (CVM), plano de contas de instituição financeira',
