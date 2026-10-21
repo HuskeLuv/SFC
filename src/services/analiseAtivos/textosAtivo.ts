@@ -11,6 +11,11 @@
  * fallback; 'Alavancagem (% do PL)' no lugar de 'Obrigações/PL' nas colunas de FII (Raio-X, pares);
  * a frase de fonte do Essencial passa a ser montada pelas origens (textosCriterios.textoNotaFonte),
  * e unidadeAcaoSemFonte é a linha de unidade sem o 'fonte: CVM' fixo.
+ *
+ * fundamentei-regras (F2; só com ANALISE_ATIVOS_ESSENCIAL_V2_HABILITADO): essencialV2 — um lucro
+ * líquido só ('Lucro líquido' / 'Margem líquida', sem ⓘ de fallback, A4.e), tooltip do 'L' (prejuízo
+ * no período, A4.a), rótulo do exercício fora de dezembro ('fev/2026') e a nota 'exercício encerrado
+ * em {mes}' (A4.c). Sub-rótulo do payout de caixa (segue a payout.regra da scoring vigente, sem chave).
  */
 import { TEXTOS_CRITERIOS } from '@/services/analiseAtivos/textosCriterios';
 
@@ -87,6 +92,56 @@ export const TEXTOS_ATIVO = {
     ultimoAnoSr: 'último ano fiscal fechado',
   },
 
+  /** F2 fundamentei-regras: Essencial/Raio-X/Valuation/dividendos v2 (ESSENCIAL_V2). */
+  essencialV2: {
+    colunas: {
+      lucro: 'Lucro líquido',
+      margem: 'Margem líquida',
+    },
+    /** tooltip do 'L' no lugar do '—' (payout e P/L com lucro ≤ 0) */
+    tooltipPrejuizo: 'prejuízo no período',
+    /** nota do exercício fora de dezembro (Essencial, Raio-X, Valuation) */
+    notaExercicio:
+      'Exercício encerrado em {mes}: cada ano fiscal vai até {mes} e leva o ano em que termina.',
+    mesesCurtos: [
+      'jan',
+      'fev',
+      'mar',
+      'abr',
+      'mai',
+      'jun',
+      'jul',
+      'ago',
+      'set',
+      'out',
+      'nov',
+      'dez',
+    ],
+    meses: [
+      'janeiro',
+      'fevereiro',
+      'março',
+      'abril',
+      'maio',
+      'junho',
+      'julho',
+      'agosto',
+      'setembro',
+      'outubro',
+      'novembro',
+      'dezembro',
+    ],
+  },
+
+  /**
+   * F2 fundamentei-regras (A4.a): o que o payout mede, pela payout.regra da scoring VIGENTE (nunca
+   * por chave): 'dfc' = proventos pagos na DFC; 'dmpl_dpa' = proventos declarados (hoje).
+   */
+  payoutRegra: {
+    dfc: 'proventos pagos (fluxo de caixa) ÷ lucro',
+    dmpl_dpa: 'proventos declarados ÷ lucro',
+  },
+
   /** Valuation · Múltiplos (§3.2 bloco 6 / §4.4): resumo literal + legenda. */
   valuation: {
     resumo: '{n} de {total} indicadores de {valor} estão abaixo da própria média de {anos} anos',
@@ -147,4 +202,5 @@ export const PLACEHOLDERS_ATIVO = [
   'n',
   'total',
   'valor',
+  'mes',
 ] as const;
