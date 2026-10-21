@@ -25,7 +25,7 @@
  *   --relatorio-tickers=ARQ (fundamentei-regras F2) grava o CSV antes × depois de payoutPct, dyPct
  *                           e DPA por ticker (anual e do dia): 'antes' = o que está gravado no banco,
  *                           'depois' = o que esta rodada calculou (com --versao-params, a versão N).
- *                           Não muda o que é calculado nem gravado.
+ *                           Não muda o que é calculado nem gravado. Só em dry-run (sem --apply).
  *   --tickers=A,B           limita o CSV do --relatorio-tickers a estes tickers (padrão: todos)
  *
  * fundamentei-regras (F2) — dry-run da scoring v3 (inerte no banco com validFrom 2099, ou do código):
@@ -90,6 +90,10 @@ function lerArgs(argv: string[]): Args {
   const versaoParams = versaoTxt === undefined ? undefined : Number(versaoTxt);
   if (versaoParams !== undefined && (!Number.isInteger(versaoParams) || versaoParams <= 0)) {
     throw new Error('--versao-params inválido');
+  }
+  // 'antes' é lido do banco depois da rodada: com --apply sairia igual ao 'depois'
+  if (valor('relatorio-tickers') !== undefined && argv.includes('--apply')) {
+    throw new Error('--relatorio-tickers só em dry-run (sem --apply)');
   }
   const tickersTxt = valor('tickers');
   return {
