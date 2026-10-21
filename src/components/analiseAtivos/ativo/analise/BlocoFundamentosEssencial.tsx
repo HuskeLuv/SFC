@@ -77,9 +77,12 @@ import { useVisualV2 } from '@/components/analiseAtivos/shell/VisualV2';
 import { VISUAL_V2 } from '@/constants/analiseAtivosVisual';
 import { TEXTOS_VISUAL, textoVisual } from '@/services/analiseAtivos/textosVisual';
 
-/** Visual v2: célula densa (12 px, padding 8). */
-const TH_DENSO = 'px-2 py-2 font-semibold whitespace-nowrap';
-const TD_DENSO = 'px-2 py-2 text-xs';
+/**
+ * Visual v2: célula densa (12 px, padding 6 × 8) — as 15 colunas cabem em 1440; cabeçalho sem
+ * caixa alta (no th: sobrepõe o uppercase herdado do headRow).
+ */
+const TH_DENSO = 'px-1.5 py-2 font-semibold whitespace-nowrap normal-case tracking-normal';
+const TD_DENSO = 'px-1.5 py-2 text-xs';
 
 export type { BlocoFundamentosEssencialProps };
 
