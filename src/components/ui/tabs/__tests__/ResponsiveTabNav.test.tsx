@@ -178,4 +178,47 @@ describe('ResponsiveTabNav — celular (< lg)', () => {
     expect(btn.className).toContain('h-[38px]');
     expect(btn).toHaveAttribute('aria-current', 'page');
   });
+
+  describe('badge (contagem em pílula, F4 da Análise)', () => {
+    const COM_BADGE: ResponsiveTab[] = [
+      { id: 'acao', label: 'Ações', badge: 312 },
+      { id: 'fii', label: 'FIIs', badge: 418 },
+    ];
+
+    it.each([false, true])('sem badge o botão é só o rótulo (celular=%s)', (mobile) => {
+      stubMatchMedia(mobile);
+      render(
+        <ResponsiveTabNav
+          tabs={CLASS_TABS}
+          activeId="acoes"
+          onChange={() => {}}
+          ariaLabel="Classes"
+          variant="segmented-sub"
+        />,
+      );
+      expect(document.querySelector('[data-tab-badge]')).toBeNull();
+      expect(screen.getByRole('button', { name: 'Ações' }).innerHTML).toBe('Ações');
+    });
+
+    it.each([false, true])(
+      'com badge: pílula com as classes passadas e nome "rótulo contagem" (celular=%s)',
+      (mobile) => {
+        stubMatchMedia(mobile);
+        render(
+          <ResponsiveTabNav
+            tabs={COM_BADGE}
+            activeId="acao"
+            onChange={() => {}}
+            ariaLabel="Classes"
+            variant="segmented-sub"
+            badgeClassNames={{ active: 'badge-on', inactive: 'badge-off' }}
+          />,
+        );
+        const acoes = screen.getByRole('button', { name: 'Ações 312' });
+        expect(acoes.querySelector('[data-tab-badge]')?.className).toContain('badge-on');
+        const fiis = screen.getByRole('button', { name: 'FIIs 418' });
+        expect(fiis.querySelector('[data-tab-badge]')?.className).toContain('badge-off');
+      },
+    );
+  });
 });

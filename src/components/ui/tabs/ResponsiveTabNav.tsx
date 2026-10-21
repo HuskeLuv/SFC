@@ -27,6 +27,49 @@ export interface ResponsiveTab {
   mobileLabel?: string;
   /** Classe sem ativos: mais apagada no celular, mas continua tocável. */
   muted?: boolean;
+  /**
+   * Contagem em pílula depois do rótulo (ex.: 'Ações 312'). Ausente = botão idêntico ao de sempre.
+   * O nome acessível continua 'rótulo contagem' (espaço entre os dois).
+   */
+  badge?: string | number;
+}
+
+/** Classes da pílula de contagem (ativa / inativa); padrão neutro, cada tela pode passar as suas. */
+export interface ResponsiveTabBadgeClassNames {
+  active: string;
+  inactive: string;
+}
+
+export const DEFAULT_TAB_BADGE_CLASSNAMES: ResponsiveTabBadgeClassNames = {
+  active: 'bg-gray-100 text-gray-700 dark:bg-white/[0.08] dark:text-gray-200',
+  inactive: 'bg-gray-100 text-gray-500 dark:bg-white/[0.06] dark:text-gray-400',
+};
+
+const TAB_BADGE_BASE =
+  'ml-1.5 inline-flex items-center rounded-full px-1.5 py-px text-[10.5px] font-semibold tabular-nums';
+
+function TabLabel({
+  label,
+  badge,
+  isActive,
+  classNames,
+}: {
+  label: string;
+  badge: string | number;
+  isActive: boolean;
+  classNames: ResponsiveTabBadgeClassNames;
+}) {
+  return (
+    <>
+      {label}{' '}
+      <span
+        data-tab-badge=""
+        className={`${TAB_BADGE_BASE} ${isActive ? classNames.active : classNames.inactive}`}
+      >
+        {badge}
+      </span>
+    </>
+  );
 }
 
 export type ResponsiveTabNavVariant = 'main' | 'underline' | 'segmented-sub';
@@ -45,6 +88,8 @@ export interface ResponsiveTabNavProps {
   className?: string;
   /** Substitui a classe de desktop do <nav> (cada tela tem a sua variação de scrollbar). */
   navClassName?: string;
+  /** Classes da pílula de contagem (só com `tab.badge`). */
+  badgeClassNames?: ResponsiveTabBadgeClassNames;
 }
 
 // ── Desktop: strings idênticas às de hoje ──────────────────────────────────────────────────
@@ -121,6 +166,7 @@ export function ResponsiveTabNav({
   sticky = false,
   className,
   navClassName,
+  badgeClassNames = DEFAULT_TAB_BADGE_CLASSNAMES,
 }: ResponsiveTabNavProps) {
   const isBelowLg = useIsBelowLg();
   const activeRef = useRef<HTMLButtonElement | null>(null);
@@ -152,7 +198,16 @@ export function ResponsiveTabNav({
               className={desktopTabClassName(variant, isActive)}
               onClick={() => onChange(tab.id)}
             >
-              {tab.label}
+              {tab.badge === undefined ? (
+                tab.label
+              ) : (
+                <TabLabel
+                  label={tab.label}
+                  badge={tab.badge}
+                  isActive={isActive}
+                  classNames={badgeClassNames}
+                />
+              )}
             </button>
           );
         })}
@@ -183,7 +238,20 @@ export function ResponsiveTabNav({
             className={mobileTabClassName(variant, isActive, tab.muted)}
             onClick={() => onChange(tab.id)}
           >
-            {short ? tab.mobileLabel : tab.label}
+            {tab.badge === undefined ? (
+              short ? (
+                tab.mobileLabel
+              ) : (
+                tab.label
+              )
+            ) : (
+              <TabLabel
+                label={short ? (tab.mobileLabel ?? tab.label) : tab.label}
+                badge={tab.badge}
+                isActive={isActive}
+                classNames={badgeClassNames}
+              />
+            )}
           </button>
         );
       })}
