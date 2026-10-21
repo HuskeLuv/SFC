@@ -1,9 +1,16 @@
 /**
  * Sequências do C_lucro e do semáforo: anos consecutivos de lucro (ações) e meses consecutivos com
  * rendimento (FIIs). Funções puras.
+ *
+ * fundamentei-regras (F1): mesesComRendimentoDetalhado ganha a opção mesReferencia ('pagamento',
+ * PADRÃO — o job scores e a coluna 'Meses com rendimento' não mudam; 'data_com' — o critério 'mes'
+ * da criteria_params v5). Só no modo 'data_com' vale a regra do vizinho: mês sem data-com logo
+ * depois de um mês com DUAS datas-com (distribuição antecipada, HCTR11 jan/fev 2022) não quebra a
+ * sequência (mesesPreenchidosPeloVizinho). No modo 'pagamento' a contagem é a de antes, byte a byte.
  */
 import { ausente, ok } from '@/services/analiseAtivos/regras/comum/valor';
 import type { ProventoAuditado, ScoringParams, Valor } from '@/services/analiseAtivos/tipos';
+import { MES_REFERENCIA_PADRAO, type MesReferencia } from '@/types/analiseAtivosCriterios';
 
 /**
  * Do último exercício anual (FY) para trás até o 1º ano com lucro ≤ 0 ou faltando na série.
@@ -117,28 +124,73 @@ export function mesesComRendimentoConsecutivos(
   return mesesComRendimentoDetalhado(proventos, hoje, p).meses;
 }
 
+/** Opções da contagem de meses com rendimento (fundamentei-regras F1). */
+export interface OpcoesMesesRendimento {
+  /** mês que conta: 'pagamento' (padrão; scores) | 'data_com' (critério 'mes' da v5) */
+  mesReferencia?: MesReferencia;
+}
+
+type ProventoMes = Pick<
+  ProventoAuditado,
+  'status' | 'tipoNormalizado' | 'dataPagamento' | 'dataComReal'
+>;
+
+/**
+ * Mês (AAAA-MM) em que um provento conta e se ele foi estimado. 'pagamento': o mês do pagamento;
+ * sem ele (YAHOO), o mês seguinte à data-com (estimado). 'data_com': o mês da data-com; sem ela, o
+ * mês anterior ao do pagamento (estimado). Pura.
+ */
+export function mesDoProventoFii(
+  pr: Pick<ProventoAuditado, 'dataPagamento' | 'dataComReal'>,
+  mesReferencia: MesReferencia = MES_REFERENCIA_PADRAO,
+): { mes: string; estimado: boolean } | null {
+  if (mesReferencia === 'data_com') {
+    if (pr.dataComReal) return { mes: mesDe(pr.dataComReal), estimado: false };
+    if (pr.dataPagamento) return { mes: somarMeses(mesDe(pr.dataPagamento), -1), estimado: true };
+    return null;
+  }
+  if (pr.dataPagamento) return { mes: mesDe(pr.dataPagamento), estimado: false };
+  if (pr.dataComReal) return { mes: somarMeses(mesDe(pr.dataComReal), 1), estimado: true };
+  return null;
+}
+
+/**
+ * Regra do vizinho (SÓ no modo 'data_com'): mês sem provento logo depois de um mês com duas ou mais
+ * datas-com conta como mês com rendimento (a distribuição dele foi anunciada no mês anterior). Cada
+ * mês duplo preenche no máximo o mês seguinte; meses preenchidos não preenchem outros. Pura.
+ */
+export function mesesPreenchidosPeloVizinho(porMes: ReadonlyMap<string, number>): Set<string> {
+  const out = new Set<string>();
+  for (const [mes, n] of porMes) {
+    if (n < 2) continue;
+    const seguinte = somarMeses(mes, 1);
+    if (!porMes.has(seguinte)) out.add(seguinte);
+  }
+  return out;
+}
+
 /** Igual a mesesComRendimentoConsecutivos, dizendo se algum mês contado foi estimado (YAHOO). */
 export function mesesComRendimentoDetalhado(
-  proventos: Array<
-    Pick<ProventoAuditado, 'status' | 'tipoNormalizado' | 'dataPagamento' | 'dataComReal'>
-  >,
+  proventos: ProventoMes[],
   hoje: string,
   p: ScoringParams,
+  opcoes: OpcoesMesesRendimento = {},
 ): { meses: number; mesEstimado: boolean } {
   const cfg = p.sanidade.proventos;
+  const mesReferencia = opcoes.mesReferencia ?? MES_REFERENCIA_PADRAO;
   const pagos = new Map<string, boolean>(); // mês → estimado?
+  const porMes = new Map<string, number>();
   for (const pr of proventos) {
     if (pr.status !== 'valido' || !cfg.tiposFii.includes(pr.tipoNormalizado)) continue;
-    let mes: string | null = null;
-    let estimado = false;
-    if (pr.dataPagamento) mes = mesDe(pr.dataPagamento);
-    else if (pr.dataComReal) {
-      mes = somarMeses(mesDe(pr.dataComReal), 1);
-      estimado = true;
-    }
-    if (!mes) continue;
+    const m = mesDoProventoFii(pr, mesReferencia);
+    if (!m) continue;
+    const { mes, estimado } = m;
     const atual = pagos.get(mes);
     pagos.set(mes, atual === undefined ? estimado : atual && estimado);
+    porMes.set(mes, (porMes.get(mes) ?? 0) + 1);
+  }
+  if (mesReferencia === 'data_com') {
+    for (const mes of mesesPreenchidosPeloVizinho(porMes)) pagos.set(mes, false);
   }
   const corrente = mesDe(hoje);
   let mes = corrente;

@@ -8,7 +8,8 @@
  *    total, série leverage_assets_pct do 'alav' do fii_tijolo na v4; leverage_pct não muda);
  *  - resultadoFii = Σ dos 4 trimestres de FiiQuarterly.resultadoTrimestral (ano com menos de 4
  *    trimestres ou trimestre sem valor = ausente), em R$ mi;
- *  - meses = proventos auditados até dez/anoFim (mesesJanela.mesesAteAnoFim, rec. 4).
+ *  - meses = proventos auditados até dez/anoFim (mesesJanela.mesesAteAnoFim, rec. 4); com
+ *    mesReferencia 'data_com' (criteria_params v5, fundamentei-regras F1) pelo mês da data-com.
  * Conferência: ano com a base por cota quebrada (decisão 1 do Bloco D: salto_acoes_sem_evento /
  * dados_incompletos) = rendCota e vpCota ausentes; ticker↔CNPJ não conferido = os números do
  * informe (VP/cota, Obrigações/PL, resultado) ausentes — rendimento/cota (proventos B3) continua.
@@ -42,6 +43,7 @@ import {
 } from '@/services/analiseAtivos/regras/fii/saneamentoVacancia';
 import { liberacoesVacancia } from '@/services/analiseAtivos/repositorio/curadoria';
 import type { FiiTipoTela } from '@/types/analiseAtivosApi';
+import { MES_REFERENCIA_PADRAO, type MesReferencia } from '@/types/analiseAtivosCriterios';
 
 /** Entrada pura de um FII (também o formato da fixture do DEV). */
 export interface BrutoFii {
@@ -191,17 +193,22 @@ export function vacanciaTrimestralFii(
   });
 }
 
-/** Meses com rendimento até dez/anoFim (rec. 4), com a prova da CVM das lacunas (A5/M7). */
+/**
+ * Meses com rendimento até dez/anoFim (rec. 4), com a prova da CVM das lacunas (A5/M7). Com
+ * mesReferencia 'data_com' (v5), pelo mês da data-com; padrão 'pagamento' (v1–v4, como antes).
+ */
 export function mesesFii(
   b: Pick<BrutoFii, 'proventos' | 'dyMesCvm'>,
   anoFim: number,
   scoring: ParamsMeses,
+  mesReferencia: MesReferencia = MES_REFERENCIA_PADRAO,
 ) {
   return mesesAteAnoFim(
     b.proventos,
     anoFim,
     scoring,
     b.dyMesCvm ? mesesDyCvm(b.dyMesCvm) : undefined,
+    mesReferencia === MES_REFERENCIA_PADRAO ? {} : { mesReferencia },
   ) satisfies MesesRendimento;
 }
 
