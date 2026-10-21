@@ -16,6 +16,11 @@
  * TRACEJADO da série de cotação a partir da data da detecção, com o chip "em conferência" e uma
  * nota; ano dos demonstrativos em conferência = ponto tracejado fora do crescimento. Menu ⋯ no
  * cabeçalho e selo de frescor no rodapé. Tudo a partir das conferências do topo (mesmo helper).
+ *
+ * Visual v2 (fundamentei-regras F4, item C13; Wellington 20/10): cabeçalho `.hd`, períodos 5A | 10A
+ * em pílulas compactas, área de 10% sob o lucro por ação, ponto final cheio com o valor, linha de
+ * base 100 tracejada e a COTAÇÃO EM DOURADO (DOURADO_ANALISE, o mesmo tom nos dois temas). Sem a
+ * chave, o gráfico de hoje.
  */
 import {
   useEffect,
@@ -30,9 +35,20 @@ import { TABLE_HEADER_STYLE, TABLE_STYLES } from '@/components/ui/table/tableSty
 import ChipConferencia from '@/components/analiseAtivos/comum/ChipConferencia';
 import {
   ANEL_FOCO,
+  ANEL_FOCO_GRUPO,
+  PILULA_COMPACTA,
+  PILULA_COMPACTA_DESLIGADA,
+  PILULA_COMPACTA_LIGADA,
   SEGMENTO_DESLIGADO,
   SEGMENTO_LIGADO,
 } from '@/components/analiseAtivos/comum/estiloPilulas';
+import {
+  CARD_V2,
+  CORPO_V2,
+  CabecalhoCartaoV2,
+} from '@/components/analiseAtivos/ativo/analise/CartaoAnalise';
+import { useVisualV2 } from '@/components/analiseAtivos/shell/VisualV2';
+import { DOURADO_ANALISE } from '@/constants/analiseAtivosVisual';
 import {
   MenuBlocoPagina,
   useConferenciaPagina,
@@ -305,6 +321,445 @@ export default function GraficoLucroCotacao({ ticker, classe, grafico }: Grafico
     : null;
   const ultIdx = pontos.length;
 
+  const v2 = useVisualV2();
+  // visual v2 (item C13): cotação em dourado (DOURADO_ANALISE, o mesmo nos dois temas)
+  const corB = v2 ? { stroke: DOURADO_ANALISE } : { className: COR_B.stroke };
+  // área 10% sob o lucro por ação (só sem lacuna de prejuízo, para a área não atravessar o buraco)
+  const idxA = pontos.map((p, i) => (p.a100 !== null && !p.lacuna ? i : -1)).filter((i) => i >= 0);
+  const areaA =
+    v2 && idxA.length >= 2 && !pontos.some((p) => p.lacuna)
+      ? `${caminho(pontos, 'a100', x, y)}L${x(idxA[idxA.length - 1]).toFixed(1)},${y(lo).toFixed(
+          1,
+        )}L${x(idxA[0]).toFixed(1)},${y(lo).toFixed(1)}Z`
+      : null;
+  // ponto final cheio com o valor (último ano fechado de cada série); rótulos afastados se colarem
+  const ultimoDe = (campo: 'a100' | 'b100') => {
+    for (let i = pontos.length - 1; i >= 0; i -= 1) {
+      const v = pontos[i][campo];
+      if (v !== null && !(campo === 'a100' && pontos[i].lacuna)) return { i, v };
+    }
+    return null;
+  };
+  const fimA = v2 && !temUlt ? ultimoDe('a100') : null;
+  const fimB = v2 && !temUlt ? ultimoDe('b100') : null;
+  const finais: Array<{ serie: 'a' | 'b'; i: number; v: number; dy?: number }> = [];
+  if (fimA) finais.push({ serie: 'a', ...fimA });
+  if (fimB) finais.push({ serie: 'b', ...fimB });
+  if (fimA && fimB && Math.abs(y(fimA.v) - y(fimB.v)) < 12) {
+    const acima = y(fimA.v) <= y(fimB.v) ? 0 : 1;
+    finais[acima].dy = -6;
+    finais[1 - acima].dy = 6;
+  }
+
+  const periodosEl = (
+    <div
+      role="group"
+      aria-label={g.periodoGrupo}
+      className={
+        v2
+          ? 'inline-flex items-center gap-1'
+          : 'inline-flex gap-0.5 rounded-xl bg-gray-100 p-[3px] dark:bg-gray-800'
+      }
+    >
+      {periodos.map((p) => (
+        <button
+          key={p}
+          type="button"
+          aria-pressed={periodo === p}
+          aria-label={formatarTexto(g.periodoAria, { n: p.replace('A', '') })}
+          onClick={() => {
+            setPeriodo(p);
+            setAtivo(null);
+          }}
+          className={
+            v2
+              ? 'group inline-flex min-h-11 min-w-11 items-center justify-center focus-visible:outline-none'
+              : `min-h-11 min-w-11 rounded-lg px-3 text-sm ${ANEL_FOCO} ${
+                  periodo === p ? SEGMENTO_LIGADO : SEGMENTO_DESLIGADO
+                }`
+          }
+        >
+          {v2 ? (
+            <span
+              className={`${PILULA_COMPACTA} ${ANEL_FOCO_GRUPO} ${
+                periodo === p ? PILULA_COMPACTA_LIGADA : PILULA_COMPACTA_DESLIGADA
+              }`}
+            >
+              {p}
+            </span>
+          ) : (
+            p
+          )}
+        </button>
+      ))}
+    </div>
+  );
+  const menuEl = <MenuBlocoPagina bloco="grafico" dados={dadosRelato} />;
+  const chipEl = (
+    <>
+      {confGrafico ? (
+        <span className="self-start" data-grafico-conferencia={confGrafico.grupo}>
+          <ChipConferencia
+            conferencia={confGrafico}
+            campo={confCotacao ? 'preco' : 'lucroLiquido'}
+            rotuloCampo={confCotacao ? grafico.serieB.rotulo : grafico.serieA.rotulo}
+            bloco="grafico"
+          />
+        </span>
+      ) : null}
+    </>
+  );
+  const corpoEl = (
+    <>
+      {insuficiente ? (
+        <p className="rounded-xl border border-dashed border-gray-300 px-3 py-6 text-center text-sm text-gray-500 dark:border-gray-700 dark:text-gray-400">
+          {t.historicoInsuficiente}
+        </p>
+      ) : (
+        <>
+          <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-700 dark:text-gray-300">
+            <span className="inline-flex items-center gap-1.5">
+              <i aria-hidden="true" className={`inline-block h-[3px] w-3.5 rounded ${COR_A.bg}`} />
+              {grafico.serieA.rotulo}
+            </span>
+            <span className="inline-flex items-center gap-1.5">
+              <i
+                aria-hidden="true"
+                className={`inline-block h-[3px] w-3.5 rounded ${v2 ? '' : COR_B.bg}`}
+                style={v2 ? { backgroundColor: DOURADO_ANALISE } : undefined}
+              />
+              {grafico.serieB.rotulo}
+            </span>
+            {baseTexto ? (
+              <span className="text-gray-500 dark:text-gray-400">{baseTexto}</span>
+            ) : null}
+          </div>
+
+          {tabela ? (
+            <div className={`${TABLE_STYLES.wrapper} relative`} data-tabela-grafico>
+              <table className={TABLE_STYLES.table}>
+                <caption className="sr-only">
+                  {titulo} · {ticker}
+                </caption>
+                <thead>
+                  <tr className={TABLE_STYLES.headRow} style={TABLE_HEADER_STYLE}>
+                    <th scope="col" className={`${TABLE_STYLES.compact.th} text-left`}>
+                      {mensal ? g.colunaMes : g.colunaAno}
+                    </th>
+                    <th scope="col" className={`${TABLE_STYLES.compact.th} text-right`}>
+                      {grafico.serieA.rotulo}
+                    </th>
+                    <th scope="col" className={`${TABLE_STYLES.compact.th} text-right`}>
+                      {baseTexto}
+                    </th>
+                    <th scope="col" className={`${TABLE_STYLES.compact.th} text-right`}>
+                      {grafico.serieB.rotulo}
+                    </th>
+                    <th scope="col" className={`${TABLE_STYLES.compact.th} text-right`}>
+                      {baseTexto}
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {pontos.map((p) => (
+                    <tr key={p.chave} className={TABLE_STYLES.row}>
+                      <th
+                        scope="row"
+                        className={`${TABLE_STYLES.compact.td} text-left font-medium`}
+                      >
+                        {rotuloChave(p.chave)}
+                      </th>
+                      <td className={`${TABLE_STYLES.compact.td} text-right tabular-nums`}>
+                        {p.lacuna ? p.lacuna : moeda(p.a)}
+                      </td>
+                      <td className={`${TABLE_STYLES.compact.td} text-right tabular-nums`}>
+                        {p.lacuna ? TEXTOS_TELA.formato.semDado : base(p.a100)}
+                      </td>
+                      <td className={`${TABLE_STYLES.compact.td} text-right tabular-nums`}>
+                        {moeda(p.b)}
+                      </td>
+                      <td className={`${TABLE_STYLES.compact.td} text-right tabular-nums`}>
+                        {base(p.b100)}
+                      </td>
+                    </tr>
+                  ))}
+                  {temUlt && grafico.ult12m && janela.ult12m ? (
+                    <tr className={TABLE_STYLES.totalRow}>
+                      <th scope="row" className={`${TABLE_STYLES.compact.td} text-left`}>
+                        {t.ult12mTabela}
+                      </th>
+                      <td className={`${TABLE_STYLES.compact.td} text-right tabular-nums`}>
+                        {moeda(grafico.ult12m.a)}
+                      </td>
+                      <td className={`${TABLE_STYLES.compact.td} text-right tabular-nums`}>
+                        {base(janela.ult12m.a100)}
+                      </td>
+                      <td className={`${TABLE_STYLES.compact.td} text-right tabular-nums`}>
+                        {moeda(grafico.ult12m.b)}
+                      </td>
+                      <td className={`${TABLE_STYLES.compact.td} text-right tabular-nums`}>
+                        {base(janela.ult12m.b100)}
+                      </td>
+                    </tr>
+                  ) : null}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <div
+              className="relative rounded-lg focus-visible:outline-3 focus-visible:outline-[#0079F2] dark:focus-visible:outline-[#6E9DC4]"
+              tabIndex={0}
+              aria-describedby={`${id}-teclado`}
+              onKeyDown={aoTeclar}
+              onFocus={() => setAtivo((a) => a ?? slots - 1)}
+              onBlur={() => setAtivo(null)}
+              data-grafico-svg
+            >
+              <span id={`${id}-teclado`} className="sr-only">
+                {g.teclado}
+              </span>
+              <svg
+                viewBox={`0 0 ${W} ${H}`}
+                role="img"
+                aria-labelledby={`${id}-t ${id}-d`}
+                className="block h-auto max-h-[280px] w-full"
+                onMouseMove={aoMover}
+                onMouseLeave={() => setAtivo(null)}
+              >
+                <title id={`${id}-t`}>{`${titulo} · ${ticker}`}</title>
+                <desc id={`${id}-d`}>{`${grafico.figcaption} ${baseTexto ?? ''}`}</desc>
+                {grade.map((v) => (
+                  <g key={v}>
+                    <line
+                      x1={PL}
+                      x2={W - PR}
+                      y1={y(v)}
+                      y2={y(v)}
+                      className="stroke-gray-200 dark:stroke-gray-800"
+                    />
+                    <text
+                      x={PL - 6}
+                      y={y(v) + 4}
+                      textAnchor="end"
+                      className="fill-gray-500 text-[11px] dark:fill-gray-400"
+                    >
+                      {v}
+                    </text>
+                  </g>
+                ))}
+                {pontos.map((p, i) =>
+                  marcaEixo(i) ? (
+                    <text
+                      key={`x-${p.chave}`}
+                      x={x(i)}
+                      y={H - 8}
+                      textAnchor="middle"
+                      className="fill-gray-500 text-[11px] dark:fill-gray-400"
+                    >
+                      {mensal ? p.chave.slice(0, 4) : p.chave}
+                    </text>
+                  ) : null,
+                )}
+                {temUlt ? (
+                  <text
+                    x={x(ultIdx)}
+                    y={H - 8}
+                    textAnchor="middle"
+                    className="fill-gray-500 text-[11px] dark:fill-gray-400"
+                  >
+                    {t.ult12m}
+                  </text>
+                ) : null}
+                {idxConf >= 0 ? (
+                  <>
+                    <path
+                      d={trecho(pontos, 'b100', x, y, 0, Math.max(0, idxConf - 1))}
+                      fill="none"
+                      strokeWidth={2.2}
+                      {...corB}
+                    />
+                    <path
+                      data-trecho-conferencia=""
+                      d={trecho(pontos, 'b100', x, y, Math.max(0, idxConf - 1), pontos.length - 1)}
+                      fill="none"
+                      strokeWidth={2.2}
+                      strokeDasharray="5 4"
+                      {...corB}
+                    />
+                  </>
+                ) : (
+                  <path d={caminho(pontos, 'b100', x, y)} fill="none" strokeWidth={2.2} {...corB} />
+                )}
+                {v2 && areaA ? (
+                  <path
+                    d={areaA}
+                    data-area-serie=""
+                    className="fill-[#0079F2]/10 stroke-none dark:fill-[#6E9DC4]/10"
+                  />
+                ) : null}
+                {v2 && lo <= 100 && hi >= 100 ? (
+                  <line
+                    data-base-100=""
+                    x1={PL}
+                    x2={W - PR}
+                    y1={y(100)}
+                    y2={y(100)}
+                    strokeDasharray="4 4"
+                    className="stroke-gray-400 dark:stroke-gray-500"
+                  />
+                ) : null}
+                <path
+                  d={caminho(pontos, 'a100', x, y)}
+                  fill="none"
+                  strokeWidth={2.2}
+                  className={COR_A.stroke}
+                />
+                {v2
+                  ? finais.map((f) => (
+                      <g key={`fim-${f.serie}`} data-ponto-final={f.serie}>
+                        <circle
+                          cx={x(f.i)}
+                          cy={y(f.v)}
+                          r={3.5}
+                          className={f.serie === 'a' ? COR_A.fill : undefined}
+                          fill={f.serie === 'b' ? DOURADO_ANALISE : undefined}
+                        />
+                        <text
+                          x={x(f.i) + 6}
+                          y={y(f.v) + (f.dy ?? 0) + 4}
+                          className="fill-gray-800 text-[11px] font-semibold dark:fill-white"
+                        >
+                          {base(f.v)}
+                        </text>
+                      </g>
+                    ))
+                  : null}
+                {idxLpa >= 0 && pontos[idxLpa]?.a100 != null ? (
+                  <circle
+                    data-ponto-conferencia=""
+                    cx={x(idxLpa)}
+                    cy={y(pontos[idxLpa].a100 as number)}
+                    r={5}
+                    strokeWidth={1.6}
+                    strokeDasharray="2 2"
+                    className={`fill-white dark:fill-gray-900 ${COR_A.stroke}`}
+                  />
+                ) : null}
+                {pontos.map((p, i) =>
+                  p.lacuna ? (
+                    <circle
+                      key={`lac-${p.chave}`}
+                      cx={x(i)}
+                      cy={y(lo)}
+                      r={3.5}
+                      strokeDasharray="2 2"
+                      className="fill-none stroke-[#D92D20] dark:stroke-[#F97066]"
+                    >
+                      <title>{`${rotuloChave(p.chave)}: ${p.lacuna}`}</title>
+                    </circle>
+                  ) : null,
+                )}
+                {temUlt && janela.ult12m ? (
+                  <>
+                    {janela.ult12m.b100 !== null ? (
+                      <circle
+                        data-ponto-conferencia={ultConf ? '' : undefined}
+                        cx={x(ultIdx)}
+                        cy={y(janela.ult12m.b100)}
+                        r={ultConf ? 5 : 4}
+                        strokeWidth={ultConf ? 1.6 : 2}
+                        strokeDasharray={ultConf ? '2 2' : undefined}
+                        className={`fill-white dark:fill-gray-900 ${v2 ? '' : COR_B.stroke}`}
+                        stroke={v2 ? DOURADO_ANALISE : undefined}
+                      />
+                    ) : null}
+                    {janela.ult12m.a100 !== null ? (
+                      <circle
+                        cx={x(ultIdx)}
+                        cy={y(janela.ult12m.a100)}
+                        r={4}
+                        strokeWidth={2}
+                        className={`fill-white dark:fill-gray-900 ${COR_A.stroke}`}
+                      />
+                    ) : null}
+                  </>
+                ) : null}
+                {ativo !== null && ativo < slots ? (
+                  <line
+                    x1={x(ativo)}
+                    x2={x(ativo)}
+                    y1={PT}
+                    y2={H - PB}
+                    strokeDasharray="3 3"
+                    className="stroke-gray-400 dark:stroke-gray-500"
+                  />
+                ) : null}
+              </svg>
+              {ativo !== null && ativo < slots ? (
+                <div
+                  aria-hidden="true"
+                  data-tooltip
+                  className="pointer-events-none absolute top-1 z-10 max-w-[90%] rounded-lg border border-gray-200 bg-white px-2.5 py-1.5 text-xs text-gray-800 shadow-sm dark:border-gray-700 dark:bg-gray-900 dark:text-white/90"
+                  style={
+                    x(ativo) > W / 2
+                      ? { right: `${((W - x(ativo)) / W) * 100 + 2}%` }
+                      : { left: `${(x(ativo) / W) * 100 + 2}%` }
+                  }
+                >
+                  {textoPonto(ativo)}
+                </div>
+              ) : null}
+              <p className="sr-only" aria-live="polite">
+                {ativo !== null ? textoPonto(ativo) : ''}
+              </p>
+            </div>
+          )}
+        </>
+      )}
+    </>
+  );
+  const legendaEl = (
+    <figcaption className="text-xs text-gray-500 dark:text-gray-400">
+      {grafico.figcaption} {grafico.lacunas.length > 0 ? `${t.lacunaPrejuizo}. ` : null}
+      {notaConf.length > 0 ? `${notaConf.join(' ')} ` : null}
+      {!insuficiente ? (
+        <button
+          type="button"
+          onClick={() => setTabela((v) => !v)}
+          aria-pressed={tabela}
+          className="inline-flex min-h-11 items-center font-medium text-[#396CAA] underline-offset-2 hover:underline sm:min-h-0 dark:text-[#6E9DC4]"
+        >
+          {tabela ? t.verGrafico : t.verDadosTabela}
+        </button>
+      ) : null}
+    </figcaption>
+  );
+
+  if (v2) {
+    return (
+      <section
+        aria-labelledby={`${id}-h`}
+        data-bloco="grafico"
+        data-classe={classe}
+        data-visual-v2=""
+        className={`${CARD_V2} flex flex-col`}
+      >
+        <CabecalhoCartaoV2 id={`${id}-h`} titulo={titulo}>
+          {periodosEl}
+          {menuEl}
+        </CabecalhoCartaoV2>
+        <div className={CORPO_V2}>
+          <figure ref={caixaRef} className="m-0 flex min-w-0 flex-col gap-2">
+            {chipEl}
+            {corpoEl}
+            {legendaEl}
+          </figure>
+          <RodapeFrescorBloco bloco="grafico" />
+        </div>
+      </section>
+    );
+  }
+
   return (
     <section
       aria-labelledby={`${id}-h`}
@@ -318,338 +773,13 @@ export default function GraficoLucroCotacao({ ticker, classe, grafico }: Grafico
             {titulo}
           </h2>
           <span className="inline-flex items-center gap-2">
-            <div
-              role="group"
-              aria-label={g.periodoGrupo}
-              className="inline-flex gap-0.5 rounded-xl bg-gray-100 p-[3px] dark:bg-gray-800"
-            >
-              {periodos.map((p) => (
-                <button
-                  key={p}
-                  type="button"
-                  aria-pressed={periodo === p}
-                  aria-label={formatarTexto(g.periodoAria, { n: p.replace('A', '') })}
-                  onClick={() => {
-                    setPeriodo(p);
-                    setAtivo(null);
-                  }}
-                  className={`min-h-11 min-w-11 rounded-lg px-3 text-sm ${ANEL_FOCO} ${
-                    periodo === p ? SEGMENTO_LIGADO : SEGMENTO_DESLIGADO
-                  }`}
-                >
-                  {p}
-                </button>
-              ))}
-            </div>
-            <MenuBlocoPagina bloco="grafico" dados={dadosRelato} />
+            {periodosEl}
+            {menuEl}
           </span>
         </div>
-        {confGrafico ? (
-          <span className="self-start" data-grafico-conferencia={confGrafico.grupo}>
-            <ChipConferencia
-              conferencia={confGrafico}
-              campo={confCotacao ? 'preco' : 'lucroLiquido'}
-              rotuloCampo={confCotacao ? grafico.serieB.rotulo : grafico.serieA.rotulo}
-              bloco="grafico"
-            />
-          </span>
-        ) : null}
-
-        {insuficiente ? (
-          <p className="rounded-xl border border-dashed border-gray-300 px-3 py-6 text-center text-sm text-gray-500 dark:border-gray-700 dark:text-gray-400">
-            {t.historicoInsuficiente}
-          </p>
-        ) : (
-          <>
-            <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-700 dark:text-gray-300">
-              <span className="inline-flex items-center gap-1.5">
-                <i
-                  aria-hidden="true"
-                  className={`inline-block h-[3px] w-3.5 rounded ${COR_A.bg}`}
-                />
-                {grafico.serieA.rotulo}
-              </span>
-              <span className="inline-flex items-center gap-1.5">
-                <i
-                  aria-hidden="true"
-                  className={`inline-block h-[3px] w-3.5 rounded ${COR_B.bg}`}
-                />
-                {grafico.serieB.rotulo}
-              </span>
-              {baseTexto ? (
-                <span className="text-gray-500 dark:text-gray-400">{baseTexto}</span>
-              ) : null}
-            </div>
-
-            {tabela ? (
-              <div className={`${TABLE_STYLES.wrapper} relative`} data-tabela-grafico>
-                <table className={TABLE_STYLES.table}>
-                  <caption className="sr-only">
-                    {titulo} · {ticker}
-                  </caption>
-                  <thead>
-                    <tr className={TABLE_STYLES.headRow} style={TABLE_HEADER_STYLE}>
-                      <th scope="col" className={`${TABLE_STYLES.compact.th} text-left`}>
-                        {mensal ? g.colunaMes : g.colunaAno}
-                      </th>
-                      <th scope="col" className={`${TABLE_STYLES.compact.th} text-right`}>
-                        {grafico.serieA.rotulo}
-                      </th>
-                      <th scope="col" className={`${TABLE_STYLES.compact.th} text-right`}>
-                        {baseTexto}
-                      </th>
-                      <th scope="col" className={`${TABLE_STYLES.compact.th} text-right`}>
-                        {grafico.serieB.rotulo}
-                      </th>
-                      <th scope="col" className={`${TABLE_STYLES.compact.th} text-right`}>
-                        {baseTexto}
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {pontos.map((p) => (
-                      <tr key={p.chave} className={TABLE_STYLES.row}>
-                        <th
-                          scope="row"
-                          className={`${TABLE_STYLES.compact.td} text-left font-medium`}
-                        >
-                          {rotuloChave(p.chave)}
-                        </th>
-                        <td className={`${TABLE_STYLES.compact.td} text-right tabular-nums`}>
-                          {p.lacuna ? p.lacuna : moeda(p.a)}
-                        </td>
-                        <td className={`${TABLE_STYLES.compact.td} text-right tabular-nums`}>
-                          {p.lacuna ? TEXTOS_TELA.formato.semDado : base(p.a100)}
-                        </td>
-                        <td className={`${TABLE_STYLES.compact.td} text-right tabular-nums`}>
-                          {moeda(p.b)}
-                        </td>
-                        <td className={`${TABLE_STYLES.compact.td} text-right tabular-nums`}>
-                          {base(p.b100)}
-                        </td>
-                      </tr>
-                    ))}
-                    {temUlt && grafico.ult12m && janela.ult12m ? (
-                      <tr className={TABLE_STYLES.totalRow}>
-                        <th scope="row" className={`${TABLE_STYLES.compact.td} text-left`}>
-                          {t.ult12mTabela}
-                        </th>
-                        <td className={`${TABLE_STYLES.compact.td} text-right tabular-nums`}>
-                          {moeda(grafico.ult12m.a)}
-                        </td>
-                        <td className={`${TABLE_STYLES.compact.td} text-right tabular-nums`}>
-                          {base(janela.ult12m.a100)}
-                        </td>
-                        <td className={`${TABLE_STYLES.compact.td} text-right tabular-nums`}>
-                          {moeda(grafico.ult12m.b)}
-                        </td>
-                        <td className={`${TABLE_STYLES.compact.td} text-right tabular-nums`}>
-                          {base(janela.ult12m.b100)}
-                        </td>
-                      </tr>
-                    ) : null}
-                  </tbody>
-                </table>
-              </div>
-            ) : (
-              <div
-                className="relative rounded-lg focus-visible:outline-3 focus-visible:outline-[#0079F2] dark:focus-visible:outline-[#6E9DC4]"
-                tabIndex={0}
-                aria-describedby={`${id}-teclado`}
-                onKeyDown={aoTeclar}
-                onFocus={() => setAtivo((a) => a ?? slots - 1)}
-                onBlur={() => setAtivo(null)}
-                data-grafico-svg
-              >
-                <span id={`${id}-teclado`} className="sr-only">
-                  {g.teclado}
-                </span>
-                <svg
-                  viewBox={`0 0 ${W} ${H}`}
-                  role="img"
-                  aria-labelledby={`${id}-t ${id}-d`}
-                  className="block h-auto max-h-[280px] w-full"
-                  onMouseMove={aoMover}
-                  onMouseLeave={() => setAtivo(null)}
-                >
-                  <title id={`${id}-t`}>{`${titulo} · ${ticker}`}</title>
-                  <desc id={`${id}-d`}>{`${grafico.figcaption} ${baseTexto ?? ''}`}</desc>
-                  {grade.map((v) => (
-                    <g key={v}>
-                      <line
-                        x1={PL}
-                        x2={W - PR}
-                        y1={y(v)}
-                        y2={y(v)}
-                        className="stroke-gray-200 dark:stroke-gray-800"
-                      />
-                      <text
-                        x={PL - 6}
-                        y={y(v) + 4}
-                        textAnchor="end"
-                        className="fill-gray-500 text-[11px] dark:fill-gray-400"
-                      >
-                        {v}
-                      </text>
-                    </g>
-                  ))}
-                  {pontos.map((p, i) =>
-                    marcaEixo(i) ? (
-                      <text
-                        key={`x-${p.chave}`}
-                        x={x(i)}
-                        y={H - 8}
-                        textAnchor="middle"
-                        className="fill-gray-500 text-[11px] dark:fill-gray-400"
-                      >
-                        {mensal ? p.chave.slice(0, 4) : p.chave}
-                      </text>
-                    ) : null,
-                  )}
-                  {temUlt ? (
-                    <text
-                      x={x(ultIdx)}
-                      y={H - 8}
-                      textAnchor="middle"
-                      className="fill-gray-500 text-[11px] dark:fill-gray-400"
-                    >
-                      {t.ult12m}
-                    </text>
-                  ) : null}
-                  {idxConf >= 0 ? (
-                    <>
-                      <path
-                        d={trecho(pontos, 'b100', x, y, 0, Math.max(0, idxConf - 1))}
-                        fill="none"
-                        strokeWidth={2.2}
-                        className={COR_B.stroke}
-                      />
-                      <path
-                        data-trecho-conferencia=""
-                        d={trecho(
-                          pontos,
-                          'b100',
-                          x,
-                          y,
-                          Math.max(0, idxConf - 1),
-                          pontos.length - 1,
-                        )}
-                        fill="none"
-                        strokeWidth={2.2}
-                        strokeDasharray="5 4"
-                        className={COR_B.stroke}
-                      />
-                    </>
-                  ) : (
-                    <path
-                      d={caminho(pontos, 'b100', x, y)}
-                      fill="none"
-                      strokeWidth={2.2}
-                      className={COR_B.stroke}
-                    />
-                  )}
-                  <path
-                    d={caminho(pontos, 'a100', x, y)}
-                    fill="none"
-                    strokeWidth={2.2}
-                    className={COR_A.stroke}
-                  />
-                  {idxLpa >= 0 && pontos[idxLpa]?.a100 != null ? (
-                    <circle
-                      data-ponto-conferencia=""
-                      cx={x(idxLpa)}
-                      cy={y(pontos[idxLpa].a100 as number)}
-                      r={5}
-                      strokeWidth={1.6}
-                      strokeDasharray="2 2"
-                      className={`fill-white dark:fill-gray-900 ${COR_A.stroke}`}
-                    />
-                  ) : null}
-                  {pontos.map((p, i) =>
-                    p.lacuna ? (
-                      <circle
-                        key={`lac-${p.chave}`}
-                        cx={x(i)}
-                        cy={y(lo)}
-                        r={3.5}
-                        strokeDasharray="2 2"
-                        className="fill-none stroke-[#D92D20] dark:stroke-[#F97066]"
-                      >
-                        <title>{`${rotuloChave(p.chave)}: ${p.lacuna}`}</title>
-                      </circle>
-                    ) : null,
-                  )}
-                  {temUlt && janela.ult12m ? (
-                    <>
-                      {janela.ult12m.b100 !== null ? (
-                        <circle
-                          data-ponto-conferencia={ultConf ? '' : undefined}
-                          cx={x(ultIdx)}
-                          cy={y(janela.ult12m.b100)}
-                          r={ultConf ? 5 : 4}
-                          strokeWidth={ultConf ? 1.6 : 2}
-                          strokeDasharray={ultConf ? '2 2' : undefined}
-                          className={`fill-white dark:fill-gray-900 ${COR_B.stroke}`}
-                        />
-                      ) : null}
-                      {janela.ult12m.a100 !== null ? (
-                        <circle
-                          cx={x(ultIdx)}
-                          cy={y(janela.ult12m.a100)}
-                          r={4}
-                          strokeWidth={2}
-                          className={`fill-white dark:fill-gray-900 ${COR_A.stroke}`}
-                        />
-                      ) : null}
-                    </>
-                  ) : null}
-                  {ativo !== null && ativo < slots ? (
-                    <line
-                      x1={x(ativo)}
-                      x2={x(ativo)}
-                      y1={PT}
-                      y2={H - PB}
-                      strokeDasharray="3 3"
-                      className="stroke-gray-400 dark:stroke-gray-500"
-                    />
-                  ) : null}
-                </svg>
-                {ativo !== null && ativo < slots ? (
-                  <div
-                    aria-hidden="true"
-                    data-tooltip
-                    className="pointer-events-none absolute top-1 z-10 max-w-[90%] rounded-lg border border-gray-200 bg-white px-2.5 py-1.5 text-xs text-gray-800 shadow-sm dark:border-gray-700 dark:bg-gray-900 dark:text-white/90"
-                    style={
-                      x(ativo) > W / 2
-                        ? { right: `${((W - x(ativo)) / W) * 100 + 2}%` }
-                        : { left: `${(x(ativo) / W) * 100 + 2}%` }
-                    }
-                  >
-                    {textoPonto(ativo)}
-                  </div>
-                ) : null}
-                <p className="sr-only" aria-live="polite">
-                  {ativo !== null ? textoPonto(ativo) : ''}
-                </p>
-              </div>
-            )}
-          </>
-        )}
-
-        <figcaption className="text-xs text-gray-500 dark:text-gray-400">
-          {grafico.figcaption} {grafico.lacunas.length > 0 ? `${t.lacunaPrejuizo}. ` : null}
-          {notaConf.length > 0 ? `${notaConf.join(' ')} ` : null}
-          {!insuficiente ? (
-            <button
-              type="button"
-              onClick={() => setTabela((v) => !v)}
-              aria-pressed={tabela}
-              className="inline-flex min-h-11 items-center font-medium text-[#396CAA] underline-offset-2 hover:underline sm:min-h-0 dark:text-[#6E9DC4]"
-            >
-              {tabela ? t.verGrafico : t.verDadosTabela}
-            </button>
-          ) : null}
-        </figcaption>
+        {chipEl}
+        {corpoEl}
+        {legendaEl}
       </figure>
       <RodapeFrescorBloco bloco="grafico" />
     </section>

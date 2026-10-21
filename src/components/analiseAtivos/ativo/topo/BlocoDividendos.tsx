@@ -10,6 +10,11 @@
  * Barras em patrimonio (#396CAA; escuro tranquilidade #6E9DC4).
  * Bloco C: selo 'em_conferencia' (grupo proventos pelas flags 'conf:') = chip que abre o "Por
  * quê?"; menu ⋯ no cabeçalho e selo de frescor no rodapé (só com relato ligado / params v2).
+ *
+ * fundamentei-regras (F4):
+ * - visual v2 (item C16): cabeçalho `.hd` (título, crescimento anual como hint, ⋯), barras em
+ *   outside #0079F2 (elemento não textual) com o valor na 1ª e na última barra;
+ * - rótulos EN (A4.d, `rotulosEn` do topo): título EUA 'Dividend/share (US$)'. Sem as chaves, igual.
  */
 import ChipConferencia from '@/components/analiseAtivos/comum/ChipConferencia';
 import {
@@ -26,8 +31,18 @@ import { TEXTOS_EUA_TELAS } from '@/services/analiseAtivos/textosEuaTelas';
 import { ehClasseEua } from '@/types/analiseAtivosApi';
 import type { BlocoDividendosProps } from '@/types/analiseAtivosApi';
 import type { DadoBlocoReporte } from '@/types/analiseAtivosCuradoria';
+import {
+  CARD_V2,
+  CORPO_V2,
+  CabecalhoCartaoV2,
+} from '@/components/analiseAtivos/ativo/analise/CartaoAnalise';
+import { useVisualV2 } from '@/components/analiseAtivos/shell/VisualV2';
+import { ROTULOS_EUA_EN } from '@/services/analiseAtivos/textosEuaEn';
 
 export type { BlocoDividendosProps };
+
+/** F4: `rotulosEn` do topo (A4.d) — nomes EN no bloco EUA. */
+export type BlocoDividendosPropsV2 = BlocoDividendosProps & { rotulosEn?: boolean };
 
 const CARD =
   'rounded-2xl border border-gray-200 bg-white p-4 sm:p-5 dark:border-gray-800 dark:bg-white/[0.03]';
@@ -44,14 +59,21 @@ function moedaDe(eua: boolean): (v: number) => string {
     : (v) => formatarAnalise(v, 'moeda');
 }
 
-export default function BlocoDividendos({ classe, dividendos }: BlocoDividendosProps) {
+export default function BlocoDividendos({
+  classe,
+  dividendos,
+  rotulosEn = false,
+}: BlocoDividendosPropsV2) {
   const ctx = useConferenciaPagina();
+  const v2 = useVisualV2();
   const t = TEXTOS_TELA.ativo;
   const d = t.dividendos;
   const eua = ehClasseEua(classe);
   const moeda = moedaDe(eua);
   const titulo = eua
-    ? TEXTOS_EUA_TELAS.ativo.dividendos.titulo
+    ? rotulosEn
+      ? ROTULOS_EUA_EN.dividendPerShare
+      : TEXTOS_EUA_TELAS.ativo.dividendos.titulo
     : classe === 'fii'
       ? TEXTOS_TELA.blocos.dividendosFii
       : TEXTOS_TELA.blocos.dividendosAcao;
@@ -113,13 +135,10 @@ export default function BlocoDividendos({ classe, dividendos }: BlocoDividendosP
         .join('; ')}`
     : d.semDados;
 
-  return (
-    <section
-      aria-labelledby="bloco-div-h"
-      data-bloco="dividendos"
-      className={`${CARD} flex min-w-0 flex-col gap-3`}
-    >
-      <figure className="m-0 flex min-w-0 flex-col gap-2">
+  const cagrTexto = cagr ?? `${t.cagr5a}: ${dividendos.cagrMotivo ?? TEXTOS_TELA.formato.semDado}`;
+  const figura = (
+    <figure className="m-0 flex min-w-0 flex-col gap-2">
+      {v2 ? null : (
         <div className="flex flex-wrap items-baseline justify-between gap-2">
           <h2 id="bloco-div-h" className="text-base font-semibold text-gray-800 dark:text-white/90">
             {titulo}
@@ -131,140 +150,175 @@ export default function BlocoDividendos({ classe, dividendos }: BlocoDividendosP
             <MenuBlocoPagina bloco="dividendos" dados={dadosRelato} />
           </span>
         </div>
-        {dividendos.selo === 'em_conferencia' ? (
-          <span className="self-start">
-            <ChipConferencia
-              conferencia={conferenciaDoCampo(ctx?.conferencias, 'proventosAno')}
-              campo="proventosAno"
-              rotuloCampo={titulo}
-              bloco="dividendos"
-            />
-          </span>
-        ) : dividendos.selo ? (
-          <SeloEstado tipo={dividendos.selo} className="self-start" />
-        ) : null}
+      )}
+      {dividendos.selo === 'em_conferencia' ? (
+        <span className="self-start">
+          <ChipConferencia
+            conferencia={conferenciaDoCampo(ctx?.conferencias, 'proventosAno')}
+            campo="proventosAno"
+            rotuloCampo={titulo}
+            bloco="dividendos"
+          />
+        </span>
+      ) : dividendos.selo ? (
+        <SeloEstado tipo={dividendos.selo} className="self-start" />
+      ) : null}
 
-        {reais.length === 0 ? (
-          <p className="rounded-xl border border-dashed border-gray-300 px-3 py-6 text-center text-sm text-gray-500 dark:border-gray-700 dark:text-gray-400">
-            {d.semDados}
-          </p>
-        ) : (
-          <svg
-            viewBox={`0 0 ${W} ${H}`}
-            role="img"
-            aria-label={resumo}
-            className="block h-auto max-h-[260px] w-full"
-          >
-            {anos.map((a, i) => {
-              if (a.valor === null) {
-                return (
-                  <rect
-                    key={a.ano}
-                    data-ano={a.ano}
-                    data-sem-dado
-                    x={x(i)}
-                    y={H - PB - 10}
-                    width={bw}
-                    height={10}
-                    rx={3}
-                    strokeDasharray="3 2"
-                    className="fill-none stroke-gray-400 dark:stroke-gray-500"
-                  />
-                );
-              }
-              const yy = y(a.valor);
+      {reais.length === 0 ? (
+        <p className="rounded-xl border border-dashed border-gray-300 px-3 py-6 text-center text-sm text-gray-500 dark:border-gray-700 dark:text-gray-400">
+          {d.semDados}
+        </p>
+      ) : (
+        <svg
+          viewBox={`0 0 ${W} ${H}`}
+          role="img"
+          aria-label={resumo}
+          className="block h-auto max-h-[260px] w-full"
+        >
+          {anos.map((a, i) => {
+            if (a.valor === null) {
               return (
-                <g key={a.ano}>
-                  <rect
-                    data-ano={a.ano}
-                    data-suspeito={a.suspeito ? 'true' : undefined}
-                    x={x(i)}
-                    y={yy}
-                    width={bw}
-                    height={Math.max(1, H - PB - yy)}
-                    rx={4}
-                    strokeDasharray={a.suspeito ? '3 2' : undefined}
-                    strokeWidth={a.suspeito ? 1.5 : 0}
-                    className={
-                      a.suspeito
-                        ? 'fill-gray-100 stroke-gray-500 dark:fill-gray-800 dark:stroke-gray-400'
-                        : 'fill-[#396CAA] dark:fill-[#6E9DC4]'
-                    }
-                  >
-                    <title>{rotuloBarra(a.ano, a.valor, a.suspeito)}</title>
-                  </rect>
-                  {i === primeiro || i === ultimo ? (
-                    <text
-                      x={x(i) + bw / 2}
-                      y={yy - 6}
-                      textAnchor="middle"
-                      className="fill-gray-800 text-[11px] font-semibold dark:fill-white"
-                    >
-                      {`${formatarAnalise(a.valor, 'numero2')}${a.suspeito ? '*' : ''}`}
-                    </text>
-                  ) : null}
-                </g>
+                <rect
+                  key={a.ano}
+                  data-ano={a.ano}
+                  data-sem-dado
+                  x={x(i)}
+                  y={H - PB - 10}
+                  width={bw}
+                  height={10}
+                  rx={3}
+                  strokeDasharray="3 2"
+                  className="fill-none stroke-gray-400 dark:stroke-gray-500"
+                />
               );
-            })}
-            {anos.map((a, i) =>
-              i === 0 || i === anos.length - 1 || i === Math.floor((anos.length - 1) / 2) ? (
-                <text
-                  key={`x-${a.ano}`}
-                  x={x(i) + bw / 2}
-                  y={H - 8}
-                  textAnchor="middle"
-                  className="fill-gray-500 text-[11px] dark:fill-gray-400"
+            }
+            const yy = y(a.valor);
+            return (
+              <g key={a.ano}>
+                <rect
+                  data-ano={a.ano}
+                  data-suspeito={a.suspeito ? 'true' : undefined}
+                  x={x(i)}
+                  y={yy}
+                  width={bw}
+                  height={Math.max(1, H - PB - yy)}
+                  rx={4}
+                  strokeDasharray={a.suspeito ? '3 2' : undefined}
+                  strokeWidth={a.suspeito ? 1.5 : 0}
+                  className={
+                    a.suspeito
+                      ? 'fill-gray-100 stroke-gray-500 dark:fill-gray-800 dark:stroke-gray-400'
+                      : v2
+                        ? 'fill-[#0079F2]'
+                        : 'fill-[#396CAA] dark:fill-[#6E9DC4]'
+                  }
                 >
-                  {a.ano}
-                </text>
-              ) : null,
-            )}
-            <line
-              x1={PX}
-              x2={W - PX}
-              y1={H - PB}
-              y2={H - PB}
-              className="stroke-gray-300 dark:stroke-gray-700"
-            />
-          </svg>
-        )}
+                  <title>{rotuloBarra(a.ano, a.valor, a.suspeito)}</title>
+                </rect>
+                {i === primeiro || i === ultimo ? (
+                  <text
+                    x={x(i) + bw / 2}
+                    y={yy - 6}
+                    textAnchor="middle"
+                    className="fill-gray-800 text-[11px] font-semibold dark:fill-white"
+                  >
+                    {`${formatarAnalise(a.valor, 'numero2')}${a.suspeito ? '*' : ''}`}
+                  </text>
+                ) : null}
+              </g>
+            );
+          })}
+          {anos.map((a, i) =>
+            i === 0 || i === anos.length - 1 || i === Math.floor((anos.length - 1) / 2) ? (
+              <text
+                key={`x-${a.ano}`}
+                x={x(i) + bw / 2}
+                y={H - 8}
+                textAnchor="middle"
+                className="fill-gray-500 text-[11px] dark:fill-gray-400"
+              >
+                {a.ano}
+              </text>
+            ) : null,
+          )}
+          <line
+            x1={PX}
+            x2={W - PX}
+            y1={H - PB}
+            y2={H - PB}
+            className="stroke-gray-300 dark:stroke-gray-700"
+          />
+        </svg>
+      )}
 
-        <table className="sr-only">
-          <caption>{titulo}</caption>
-          <thead>
-            <tr>
-              <th scope="col">{t.grafico.colunaAno}</th>
-              <th scope="col">{titulo}</th>
+      <table className="sr-only">
+        <caption>{titulo}</caption>
+        <thead>
+          <tr>
+            <th scope="col">{t.grafico.colunaAno}</th>
+            <th scope="col">{titulo}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {anos.map((a) => (
+            <tr key={a.ano}>
+              <th scope="row">{a.ano}</th>
+              <td>
+                {a.valor === null ? TEXTOS_TELA.formato.semDado : moeda(a.valor)}
+                {a.suspeito ? ` (${TEXTOS_TELA.selos.emConferencia})` : ''}
+              </td>
             </tr>
-          </thead>
-          <tbody>
-            {anos.map((a) => (
-              <tr key={a.ano}>
-                <th scope="row">{a.ano}</th>
-                <td>
-                  {a.valor === null ? TEXTOS_TELA.formato.semDado : moeda(a.valor)}
-                  {a.suspeito ? ` (${TEXTOS_TELA.selos.emConferencia})` : ''}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+          ))}
+        </tbody>
+      </table>
 
-        {dividendos.ult12m ? (
-          <p className="text-sm text-gray-700 dark:text-gray-300" data-ult12m>
-            {formatarTexto(d.ult12m, { valor: moeda(dividendos.ult12m.valor) })}
-          </p>
-        ) : null}
-        <figcaption className="text-xs text-gray-500 dark:text-gray-400">
-          {eua
-            ? TEXTOS_EUA_TELAS.ativo.dividendos.figcaption
-            : classe === 'fii'
-              ? d.figcaptionFii
-              : d.figcaptionAcao}
-          {temSuspeito ? ` ${d.notaConferencia}` : ''}
-          {temSemDado ? ` ${d.notaSemDado}` : ''}
-        </figcaption>
-      </figure>
+      {dividendos.ult12m ? (
+        <p className="text-sm text-gray-700 dark:text-gray-300" data-ult12m>
+          {formatarTexto(d.ult12m, { valor: moeda(dividendos.ult12m.valor) })}
+        </p>
+      ) : null}
+      <figcaption className="text-xs text-gray-500 dark:text-gray-400">
+        {eua
+          ? TEXTOS_EUA_TELAS.ativo.dividendos.figcaption
+          : classe === 'fii'
+            ? d.figcaptionFii
+            : d.figcaptionAcao}
+        {temSuspeito ? ` ${d.notaConferencia}` : ''}
+        {temSemDado ? ` ${d.notaSemDado}` : ''}
+      </figcaption>
+    </figure>
+  );
+
+  if (v2) {
+    return (
+      <section
+        aria-labelledby="bloco-div-h"
+        data-bloco="dividendos"
+        data-visual-v2=""
+        className={`${CARD_V2} flex flex-col`}
+      >
+        <CabecalhoCartaoV2
+          id="bloco-div-h"
+          titulo={titulo}
+          hint={<span data-cagr="">{cagrTexto}</span>}
+        >
+          <MenuBlocoPagina bloco="dividendos" dados={dadosRelato} />
+        </CabecalhoCartaoV2>
+        <div className={CORPO_V2}>
+          {figura}
+          <RodapeFrescorBloco bloco="dividendos" />
+        </div>
+      </section>
+    );
+  }
+
+  return (
+    <section
+      aria-labelledby="bloco-div-h"
+      data-bloco="dividendos"
+      className={`${CARD} flex min-w-0 flex-col gap-3`}
+    >
+      {figura}
       <RodapeFrescorBloco bloco="dividendos" />
     </section>
   );

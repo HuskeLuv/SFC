@@ -31,11 +31,17 @@
  *      entre Fundamentos e Valuation (A)
  *  7b. 'Dados societários e estatuto' (BlocoSocietario, preguiçoso) — só ação e recursos.societario,
  *      depois de Múltiplos históricos + Pares e antes de Tese/Eventos (D)
+ *
+ * fundamentei-regras (F4): visual v2 (item C1) — 'Na sua carteira' em 1/4 e os KPIs (sem card) em
+ * 3/4, grade minmax(250px,1fr) 3fr a partir de xl (`.g-14` do HTML do Pedro); o ⋯ dos KPIs vai ao
+ * cabeçalho. `rotulosEn` do topo (A4.d) chega ao bloco de dividendos EUA. Sem a chave, a de hoje.
  */
 import Link from 'next/link';
 import BlocoFundamentos from '@/components/analiseAtivos/ativo/analise/BlocoFundamentos';
 import BlocoMultiplosHistoricos from '@/components/analiseAtivos/ativo/analise/BlocoMultiplosHistoricos';
-import BlocoPares from '@/components/analiseAtivos/ativo/analise/BlocoPares';
+import BlocoPares, {
+  linhaPropriaDoTopo,
+} from '@/components/analiseAtivos/ativo/analise/BlocoPares';
 import BlocoValuation from '@/components/analiseAtivos/ativo/analise/BlocoValuation';
 import CardCriterios from '@/components/analiseAtivos/ativo/criterios/CardCriterios';
 import BlocoImoveisFii from '@/components/analiseAtivos/ativo/fii/BlocoImoveisFii';
@@ -68,6 +74,11 @@ import { TEXTOS_SOCIETARIO } from '@/services/analiseAtivos/textosSocietario';
 import { TEXTOS_TELA } from '@/services/analiseAtivos/textosTela';
 import type { PaginaAtivoProps } from '@/types/analiseAtivosApi';
 import { noOverlay } from '@/services/analiseAtivos/carteira/tickerCarteiraEua';
+import { useVisualV2 } from '@/components/analiseAtivos/shell/VisualV2';
+
+/** Visual v2 (item C1): Na sua carteira 1/4 + KPIs 3/4 (xl), empilhados abaixo. */
+const GRADE_CARTEIRA_KPIS_V2 = 'grid min-w-0 gap-4 md:gap-6 xl:grid-cols-[minmax(250px,1fr)_3fr]';
+const GRADE_CARTEIRA_KPIS = 'grid min-w-0 gap-4 md:gap-6 xl:grid-cols-2';
 
 const CARD =
   'rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03]';
@@ -76,6 +87,7 @@ export default function PaginaAtivo({ ticker }: PaginaAtivoProps) {
   const topo = useAtivoTopo(ticker);
   const overlay = useOverlayCarteira();
   const config = useAnaliseAtivosConfig();
+  const v2 = useVisualV2();
   const t = TEXTOS_TELA.ativo;
 
   if (topo.isPending) {
@@ -157,7 +169,7 @@ export default function PaginaAtivo({ ticker }: PaginaAtivoProps) {
             criterios={ativo.criterios ?? null}
             linkDocumentos={ativo.eua.linkDocumentos}
           />
-          <div className="grid min-w-0 gap-4 md:gap-6 xl:grid-cols-2">
+          <div className={v2 ? GRADE_CARTEIRA_KPIS_V2 : GRADE_CARTEIRA_KPIS}>
             <BlocoNaCarteira
               {...base}
               nome={ativo.nome}
@@ -169,7 +181,11 @@ export default function PaginaAtivo({ ticker }: PaginaAtivoProps) {
           </div>
           <div className="grid min-w-0 gap-4 md:gap-6 xl:grid-cols-2">
             <GraficoPorAcaoEua ticker={ticker} grafico={ativo.grafico} />
-            <BlocoDividendos classe={classe} dividendos={ativo.dividendos} />
+            <BlocoDividendos
+              classe={classe}
+              dividendos={ativo.dividendos}
+              {...(ativo.rotulosEn ? { rotulosEn: true } : {})}
+            />
           </div>
           <SecaoPreguicosa rotulo={TEXTOS_TELA.blocos.fundamentos}>
             <BlocoFundamentos {...base} />
@@ -191,7 +207,7 @@ export default function PaginaAtivo({ ticker }: PaginaAtivoProps) {
           slotAcoes={<AcoesCarteiraAtivo {...base} nome={ativo.nome} assetId={ativo.assetId} />}
         />
         <CardCriterios {...base} criterios={ativo.criterios ?? null} />
-        <div className="grid min-w-0 gap-4 md:gap-6 xl:grid-cols-2">
+        <div className={v2 ? GRADE_CARTEIRA_KPIS_V2 : GRADE_CARTEIRA_KPIS}>
           <BlocoNaCarteira
             {...base}
             nome={ativo.nome}
@@ -229,7 +245,7 @@ export default function PaginaAtivo({ ticker }: PaginaAtivoProps) {
               (cabeçalhos quebram). Abaixo de xl (inclusive 390 px) empilha. */}
           <div className="grid min-w-0 gap-4 md:gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
             <BlocoMultiplosHistoricos {...base} />
-            <BlocoPares {...base} />
+            <BlocoPares {...base} {...(v2 ? { proprio: linhaPropriaDoTopo(ativo) } : {})} />
           </div>
         </SecaoPreguicosa>
         {classe === 'acao' && recursos?.societario === true ? (

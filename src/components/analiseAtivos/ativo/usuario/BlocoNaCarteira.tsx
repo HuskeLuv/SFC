@@ -23,6 +23,9 @@
  * BRK.B. Nas classes EUA o card não mostra o peso da classe nem o "≈ X% da carteira total"
  * (`semPesoCarteira`: a Carteira soma US$ ao total em R$) e o stock planejado não mostra o valor
  * equivalente ao alvo (`abaMista`).
+ *
+ * Visual v2 (fundamentei-regras F4, item C1): 1/4 da linha ao lado dos KPIs, num bloco tingido
+ * (`.q.b` do HTML do Pedro, sem borda) e com os números em 2 colunas. Sem a chave, o card de hoje.
  */
 import Link from 'next/link';
 import { useState } from 'react';
@@ -41,11 +44,15 @@ import BarraPesoAlvo from './BarraPesoAlvo';
 import { BOTAO_SECUNDARIO } from '@/components/analiseAtivos/ativo/acoes/BarraAcoesAtivo';
 import { useNaCarteiraAtivo, type NaCarteiraAtivo } from './useNaCarteiraAtivo';
 import type { BlocoNaCarteiraProps } from '@/types/analiseAtivosApi';
+import { useVisualV2 } from '@/components/analiseAtivos/shell/VisualV2';
+import { VISUAL_V2 } from '@/constants/analiseAtivosVisual';
 
 export type { BlocoNaCarteiraProps };
 
-const CARD =
+const CARD_HOJE =
   'flex min-w-0 flex-col gap-4 rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03]';
+/** Visual v2: bloco tingido (1/4 da linha). */
+const CARD_V2 = `flex min-w-0 flex-col gap-3 rounded-[10px] px-4 py-4 sm:px-[18px] ${VISUAL_V2.tintasKpi[0]}`;
 const LINK = `inline-flex min-h-11 items-center text-sm font-medium ${COR_LINK.classes} hover:underline`;
 const LINK_INLINE = `inline-flex min-h-11 items-center font-medium ${COR_LINK.classes} underline-offset-2 hover:underline`;
 const t = TEXTOS_ACOES_CARTEIRA.naCarteira;
@@ -140,6 +147,8 @@ export default function BlocoNaCarteira({
   precoCabecalho,
   precoData,
 }: BlocoNaCarteiraProps) {
+  const v2 = useVisualV2();
+  const CARD = v2 ? CARD_V2 : CARD_HOJE;
   const tickerNorm = ticker.toUpperCase();
   const dados = useNaCarteiraAtivo(tickerNorm, classe);
   // valores na unidade da aba: R$ (Ações/FII's) ou US$ (Stocks/REIT's), como a Carteira mostra
@@ -306,7 +315,13 @@ export default function BlocoNaCarteira({
   return (
     <section aria-label={t.titulo} className={CARD} data-na-carteira="posicao">
       <Titulo />
-      <dl className="grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-3">
+      <dl
+        className={
+          v2
+            ? 'grid grid-cols-2 gap-x-4 gap-y-3'
+            : 'grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-3'
+        }
+      >
         <Dado
           rotulo={t.quantidade}
           valor={formatarQuantidade(linha?.quantidade ?? dados.quantidade ?? 0)}
