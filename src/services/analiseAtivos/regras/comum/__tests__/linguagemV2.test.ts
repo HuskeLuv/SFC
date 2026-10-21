@@ -87,4 +87,52 @@ describe('linguagemV2', () => {
     expect(PALAVRAS_PROIBIDAS_V2_OPERACAO).not.toContain('venda');
     expect(PALAVRAS_PROIBIDAS_V2_OPERACAO).toContain('compre');
   });
+
+  // fundamentei-regras F3 (A4.d): rótulos EUA em inglês ⇒ o veto vale também em inglês
+  it('termos EN de avaliação e chamada à ação também são proibidos', () => {
+    const casos: Array<[string, string]> = [
+      ['Cheap stock', 'cheap'],
+      ['Looks expensive', 'expensive'],
+      ['Fair value: US$ 50', 'fair value'],
+      ['Fair-value estimate', 'fair value'],
+      ['Strong Buy', 'buy'],
+      ['Time to sell', 'sell'],
+      ['Undervalued REIT', 'undervalued'],
+      ['Overvalued', 'overvalued'],
+      ['Trading at a discount', 'discount'],
+      ['Opportunity', 'opportunity'],
+      ['Best dividend stocks', 'best'],
+      ['Worst performers', 'worst'],
+      ['Analyst rating', 'rating'],
+      ['Quality score', 'score'],
+      ['Target price', 'target price'],
+      ['20% upside', 'upside'],
+      ['Buying opportunities', 'buying'],
+    ];
+    for (const [texto, termo] of casos) {
+      expect(encontrarProibidasV2(texto), texto).toContain(termo);
+    }
+    expect(encontrarProibidasV2('Recommended for income')).toContain('recomend*');
+    expect(encontrarProibidasV2('Our recommendation')).toContain('recomend*');
+  });
+
+  it('os rótulos EN da lista fechada passam (palavra inteira: Revenue, OCF, Payout…)', () => {
+    for (const r of [
+      'Revenue',
+      'Net income',
+      'Net debt/EBITDA',
+      'OCF adj./share (US$)',
+      'Payout (÷ OCF adj.)',
+      'Div. growing',
+      'Profit streak',
+      'Div. yield',
+      'Revenue: annual growth > 0',
+      'Payout ≤ 90% of OCF adj.',
+      // 'sell' e 'buy' só como palavra inteira
+      'Russell Road Holdings',
+      'Buyback',
+    ]) {
+      expect(encontrarProibidasV2(r), r).toEqual([]);
+    }
+  });
 });
