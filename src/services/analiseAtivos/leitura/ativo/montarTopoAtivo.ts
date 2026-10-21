@@ -46,7 +46,10 @@ import {
   versaoQuadro,
 } from '@/services/analiseAtivos/leitura/linhasQuadro';
 import { anosFechados } from '@/services/analiseAtivos/leitura/ativo/series';
-import { montarDividendos } from '@/services/analiseAtivos/leitura/ativo/dividendosAnuais';
+import {
+  criterioDividendos,
+  montarDividendos,
+} from '@/services/analiseAtivos/leitura/ativo/dividendosAnuais';
 import { montarEventos } from '@/services/analiseAtivos/leitura/ativo/eventosAtivo';
 import {
   montarFrescor,
@@ -309,6 +312,8 @@ export async function montarTopoAtivo(
         dpaAjHoje: true,
         payoutDmplPct: true,
         flags: true,
+        // F2 fundamentei-regras: anos fechados por dtFim nos dividendos (chave ESSENCIAL_V2)
+        dtFim: true,
       },
       orderBy: { anoFiscal: 'asc' },
     }),
@@ -469,7 +474,10 @@ export async function montarTopoAtivo(
       valor: p.dpaAjHoje,
       payoutPct: ehAcao ? p.payoutDmplPct : null,
       flags: p.flags,
+      dtFim: iso(p.dtFim),
     })),
+    // F2 fundamentei-regras: 'dtFim' só com ANALISE_ATIVOS_ESSENCIAL_V2_HABILITADO
+    criterio: criterioDividendos(),
     mesesPorAno: ehAcao || cnpjEmConferencia ? undefined : mesesPorAno,
     ult12m: ehAcao ? (atuais?.dpa12m ?? null) : (atuais?.rend12m ?? null),
     ult12mData: iso(atuais?.precoData) ?? linha.precoData,

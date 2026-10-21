@@ -714,3 +714,43 @@ describe('obterValuation', () => {
     expect(mockPrisma.assetMultiplesYearly.findMany).toHaveBeenCalledTimes(1);
   });
 });
+
+describe('fundamentei-regras F2 — Valuation com ANALISE_ATIVOS_ESSENCIAL_V2_HABILITADO', () => {
+  // exercício sintético mar–fev: FY 2016…2026 terminando em fevereiro; hoje = out/2026
+  const ANOS_FEV = Array.from({ length: 11 }, (_, i) => 2016 + i);
+  const fev = (a: number) => `${a}-02-28`;
+  const caml = () =>
+    ativo('CAML3', {
+      anuais: ANOS_FEV.map((a, i) => ({ ...anual(a, i), dtFim: fev(a) })),
+      perShare: ANOS_FEV.map((a, i) => ({ ...perShare(i, a), dtFim: fev(a) })),
+      fys: ANOS_FEV.map((a, i) => ({
+        anoFiscal: a,
+        dtFim: fev(a),
+        receita: 10e9 * 1.1 ** i,
+        lucro: 1e9 * 1.2 ** i,
+      })),
+    });
+  const entrada = (essencialV2?: boolean) => ({
+    hoje: '2026-10-20',
+    alvo: caml(),
+    pares: [],
+    criterioPares: '',
+    ...(essencialV2 === undefined ? {} : { essencialV2 }),
+  });
+
+  it('chave desligada (ou ausente) = resposta de hoje', () => {
+    expect(montarValuation(entrada(false))).toEqual(montarValuation(entrada()));
+  });
+
+  it('chave ligada: o FY de fev/2026 entra na barra e nos mini-gráficos; nota do exercício', () => {
+    const antes = montarValuation(entrada());
+    const depois = montarValuation(entrada(true));
+    const anosPl = (r: ValuationResposta) => r.historicos[0].pontos.map((p) => p.ano);
+    expect(anosPl(antes)).not.toContain(2026);
+    expect(anosPl(depois)).toContain(2026);
+    expect(depois.observacao).toContain('fevereiro');
+    expect(antes.observacao).not.toContain('fevereiro');
+    // os pontos da resposta seguem só com ano e valor
+    expect(Object.keys(depois.historicos[0].pontos[0]).sort()).toEqual(['ano', 'valor']);
+  });
+});

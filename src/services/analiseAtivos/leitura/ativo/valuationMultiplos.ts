@@ -22,10 +22,18 @@
  * A6 (fatia E): com ANALISE_ATIVOS_ALAV_ATIVO_HABILITADO, o grupo Alavancagem do FII ganha o cartão
  * 'Alavancagem (% do ativo)' (asset_multiples_current/yearly.obrigacoesAtivoPct, com barra de 10
  * anos e mediana dos pares) logo depois do Obrigações/PL, que não muda. Desligada, idêntico a hoje.
+ *
+ * fundamentei-regras (F2): com ANALISE_ATIVOS_ESSENCIAL_V2_HABILITADO (`essencialV2`), os anos
+ * fechados das barras, do CAGR e dos mini-gráficos seguem o dtFim do exercício (fora de dezembro,
+ * dtFim ≤ hoje), o salto de provento lê o payoutPct do ano (não o payoutDmplPct) e a observação
+ * ganha a nota do exercício fora de dezembro. Desligada, idêntico a hoje.
  */
 import { prisma } from '@/lib/prisma';
 import { getTtlCache } from '@/lib/simpleTtlCache';
-import { analiseAtivosAlavAtivoHabilitado } from '@/lib/analiseAtivosConfig';
+import {
+  analiseAtivosAlavAtivoHabilitado,
+  analiseAtivosEssencialV2Habilitado,
+} from '@/lib/analiseAtivosConfig';
 import { SCORING_PARAMS_V1 } from '@/services/analiseAtivos/params/scoringParamsV1';
 import { fundamentosVigentes } from '@/services/analiseAtivos/repositorio/acoes';
 import { paraData } from '@/services/analiseAtivos/repositorio/conversao';
@@ -43,6 +51,7 @@ import {
   anosFechados,
   cagrJanela,
   detectarSaltoProvento,
+  type CriterioAnoFechado,
   type MotivoCagr,
 } from '@/services/analiseAtivos/leitura/ativo/series';
 import {
@@ -54,6 +63,7 @@ import {
   fatorCotasApos,
   hojeSaoPaulo,
   naoSeAplicaCom,
+  notaExercicio,
   ok,
   semDado,
   type ResultadoLeitura,
@@ -129,6 +139,8 @@ export interface AtualValuation {
 
 export interface AnualValuation {
   anoFiscal: number;
+  /** F2: fim do exercício (anos fechados por dtFim com a chave ESSENCIAL_V2) */
+  dtFim?: string | null;
   pl: number | null;
   pvp: number | null;
   pReceita: number | null;
@@ -156,6 +168,8 @@ export interface AnualValuation {
 
 export interface PerShareValuation {
   anoFiscal: number;
+  /** F2: fim do exercício (anos fechados por dtFim com a chave ESSENCIAL_V2) */
+  dtFim?: string | null;
   lpaAjHoje: number | null;
   vpaAjHoje: number | null;
   dpaAjHoje: number | null;
@@ -166,6 +180,8 @@ export interface PerShareValuation {
 
 export interface FyValuation {
   anoFiscal: number;
+  /** F2: fim do exercício (anos fechados por dtFim com a chave ESSENCIAL_V2) */
+  dtFim?: string | null;
   receita: number | null;
   lucro: number | null;
 }
@@ -208,6 +224,8 @@ export interface EntradaValuation {
   params?: ScoringParams;
   /** A6 (fatia E): ANALISE_ATIVOS_ALAV_ATIVO_HABILITADO — cartão 'Alavancagem (% do ativo)' do FII */
   alavAtivo?: boolean;
+  /** F2: ANALISE_ATIVOS_ESSENCIAL_V2_HABILITADO (anos fechados por dtFim, payout do ano) */
+  essencialV2?: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -215,7 +233,7 @@ export interface EntradaValuation {
 // ---------------------------------------------------------------------------
 
 type CampoAtual = Exclude<keyof AtualValuation, 'naoSeAplica'>;
-type CampoAnual = Exclude<keyof AnualValuation, 'anoFiscal' | 'flags'>;
+type CampoAnual = Exclude<keyof AnualValuation, 'anoFiscal' | 'flags' | 'dtFim'>;
 
 interface Ctx {
   d: DadosAtivoValuation;
@@ -241,6 +259,8 @@ interface Ctx {
   motivos: string[];
   /** bloco C: anos do histórico em conferência (fora da barra e da média) */
   anosHistoricoConf: Set<number>;
+  /** F2: critério dos anos fechados ('ano' = hoje; 'dtFim' com a chave ESSENCIAL_V2) */
+  criterio: CriterioAnoFechado;
 }
 
 /** FII cujo casamento ticker↔CNPJ não foi conferido (fii_ticker_map.conferido=false). */
@@ -252,21 +272,31 @@ function ausenteCnpj(): Estado<number> {
   return ausenteCom('cnpj_em_conferencia', TEXTOS_TELA.ausentesPorCampo.cnpjEmConferencia);
 }
 
-function ultimosFechados<T extends { ano: number }>(pontos: T[], hoje: string, n: number): T[] {
-  return anosFechados(pontos, hoje).slice(-n);
+function ultimosFechados<T extends { ano: number; dtFim?: string | null }>(
+  pontos: T[],
+  hoje: string,
+  n: number,
+  criterio: CriterioAnoFechado = 'ano',
+): T[] {
+  return anosFechados(pontos, hoje, { criterio }).slice(-n);
 }
 
-function criarCtx(d: DadosAtivoValuation, hoje: string): Ctx {
+function criarCtx(d: DadosAtivoValuation, hoje: string, essencialV2 = false): Ctx {
+  const criterio: CriterioAnoFechado = essencialV2 ? 'dtFim' : 'ano';
   const anuais = ultimosFechados(
     d.anuais.map((a) => ({ ...a, ano: a.anoFiscal })),
     hoje,
     ANOS_BARRA,
+    criterio,
   );
   const perShare = ultimosFechados(
     d.perShare.map((p) => ({ ...p, ano: p.anoFiscal })),
     hoje,
     ANOS_BARRA + 2,
+    criterio,
   );
+  // F2: com a chave, o salto de provento lê o payoutPct do ano (o da scoring que calculou)
+  const payoutAnual = new Map(d.anuais.map((a) => [a.anoFiscal, a.payoutPct]));
   const cnpjConf = fiiCnpjEmConferencia(d.linha);
   const mensal = cnpjConf ? [] : d.mensal;
   const desdobramentos = mensal
@@ -284,15 +314,18 @@ function criarCtx(d: DadosAtivoValuation, hoje: string): Ctx {
           perShare.map((p) => ({
             anoFiscal: p.anoFiscal,
             dpa: p.dpaAjHoje,
-            payout: p.payoutDmplPct,
+            payout: essencialV2 ? (payoutAnual.get(p.anoFiscal) ?? null) : p.payoutDmplPct,
+            ...(essencialV2 ? { dtFim: p.dtFim ?? null } : {}),
           })),
           hoje,
+          criterio,
         );
   const flagsConf = [...d.linha.flags, ...flagsAnuaisConf(d.anuais)];
   return {
     flagsConf,
     motivos: motivosDaLinha(d.linha),
     anosHistoricoConf: anosEmConferencia(flagsConf, 'historico'),
+    criterio,
     d,
     hoje,
     financeira: d.regua === 'acao_financeira',
@@ -380,7 +413,8 @@ const CAMPOS_FINANCEIRA: ReadonlySet<CampoAtual> = new Set<CampoAtual>([
   'liquidezCorrente',
 ]);
 
-type Ponto = { ano: number; valor: number | null };
+/** dtFim só para o critério dos anos fechados (F2); enxugarPontos não o leva à resposta. */
+type Ponto = { ano: number; valor: number | null; dtFim?: string | null };
 
 function historicoAnual(ctx: Ctx, campo: CampoAnual, porCota = false): Ponto[] {
   if (ctx.cnpjConf && CAMPOS_INFORME_ANUAL.has(campo)) return [];
@@ -388,6 +422,7 @@ function historicoAnual(ctx: Ctx, campo: CampoAnual, porCota = false): Ponto[] {
   const conf = campo in CAMPO_HISTORICO ? ctx.anosHistoricoConf : null;
   return ctx.anuais.map((a) => ({
     ano: a.anoFiscal,
+    dtFim: a.dtFim,
     valor:
       conf?.has(a.anoFiscal) === true
         ? null
@@ -406,6 +441,7 @@ function historicoPerShare(
   const porCota = campo === 'rendCota' || campo === 'vpCotaFim';
   return ctx.perShare.slice(-n).map((p) => ({
     ano: p.anoFiscal,
+    dtFim: p.dtFim,
     valor: porCota ? div(p[campo], ctx.fatorCota(p.anoFiscal)) : finito(p[campo]),
   }));
 }
@@ -466,9 +502,14 @@ function estadoCagr(pct: number | null, motivo: MotivoCagr | null): Estado<numbe
 }
 
 /** CAGR 5a de uma série de anos fechados (utilitário único da 0a). */
-function cagrDe(pontos: Ponto[], hoje: string, suspeitos?: Set<number>): Estado<number> {
-  const serie = anosFechados(pontos, hoje).map((p) =>
-    suspeitos?.has(p.ano) ? { ...p, suspeito: true } : p,
+function cagrDe(
+  pontos: Ponto[],
+  hoje: string,
+  suspeitos?: Set<number>,
+  criterio: CriterioAnoFechado = 'ano',
+): Estado<number> {
+  const serie = anosFechados(pontos, hoje, { criterio }).map(({ ano, valor }) =>
+    suspeitos?.has(ano) ? { ano, valor, suspeito: true } : { ano, valor },
   );
   const r = cagrJanela(serie, ANOS_CAGR);
   return estadoCagr(r.pct, r.motivo);
@@ -488,7 +529,7 @@ function cagrItem(
       if (doInforme && ctx.cnpjConf) return ausenteCnpj();
       const s = serie(ctx);
       if (s === null) return naoSeAplicaCom('financeira');
-      return cagrDe(s, ctx.hoje, usaSuspeitos ? ctx.suspeitos : undefined);
+      return cagrDe(s, ctx.hoje, usaSuspeitos ? ctx.suspeitos : undefined, ctx.criterio);
     },
   };
 }
@@ -574,9 +615,13 @@ const GRUPOS_ACAO: DefGrupo[] = [
     semBarra: true,
     itens: [
       cagrItem('cagrReceita', (ctx) =>
-        ctx.financeira ? null : ctx.d.fys.map((f) => ({ ano: f.anoFiscal, valor: f.receita })),
+        ctx.financeira
+          ? null
+          : ctx.d.fys.map((f) => ({ ano: f.anoFiscal, valor: f.receita, dtFim: f.dtFim })),
       ),
-      cagrItem('cagrLucro', (ctx) => ctx.d.fys.map((f) => ({ ano: f.anoFiscal, valor: f.lucro }))),
+      cagrItem('cagrLucro', (ctx) =>
+        ctx.d.fys.map((f) => ({ ano: f.anoFiscal, valor: f.lucro, dtFim: f.dtFim })),
+      ),
       cagrItem('cagrLpa', (ctx) => historicoPerShare(ctx, 'lpaAjHoje', ANOS_BARRA + 2)),
       cagrItem('cagrDividendo', (ctx) => historicoPerShare(ctx, 'dpaAjHoje', ANOS_BARRA + 2), true),
     ],
@@ -884,8 +929,9 @@ export function linhaParEnxuta(
 
 export function montarValuation(e: EntradaValuation): ValuationResposta {
   const params = e.params ?? SCORING_PARAMS_V1;
-  const alvo = criarCtx(e.alvo, e.hoje);
-  const pares = e.pares.map((p) => criarCtx(p, e.hoje));
+  const v2 = e.essencialV2 === true;
+  const alvo = criarCtx(e.alvo, e.hoje, v2);
+  const pares = e.pares.map((p) => criarCtx(p, e.hoje, v2));
   const defs =
     e.alvo.linha.classe === 'fii'
       ? e.alavAtivo
@@ -920,8 +966,14 @@ export function montarValuation(e: EntradaValuation): ValuationResposta {
     grupos,
     historicos: montarHistoricos(alvo),
     pares: { criterio: e.criterioPares, itens: linhasPares },
-    observacao: TV.notaReferencia,
+    observacao: observacaoValuation(alvo, v2),
   };
+}
+
+/** Observação do Valuation; F2 (chave): + a nota do exercício fora de dezembro do próprio ativo. */
+function observacaoValuation(alvo: Ctx, v2: boolean): string {
+  const nota = v2 ? notaExercicio(alvo.anuais.map((a) => a.dtFim)) : null;
+  return nota ? `${TV.notaReferencia} ${nota}` : TV.notaReferencia;
 }
 
 // ---------------------------------------------------------------------------
@@ -965,6 +1017,7 @@ const SELECT_ATUAL = {
 const SELECT_ANUAL = {
   symbol: true,
   anoFiscal: true,
+  dtFim: true,
   pl: true,
   pvp: true,
   pReceita: true,
@@ -991,6 +1044,7 @@ const SELECT_ANUAL = {
 const SELECT_PER_SHARE = {
   symbol: true,
   anoFiscal: true,
+  dtFim: true,
   lpaAjHoje: true,
   vpaAjHoje: true,
   dpaAjHoje: true,
@@ -1027,7 +1081,8 @@ export async function obterValuation(
   if (!linhaDb) return null;
   const versao = await versaoQuadro();
   const alavAtivo = analiseAtivosAlavAtivoHabilitado();
-  const chave = `${symbol}:${versao}${alavAtivo ? ':alav' : ''}`;
+  const essencialV2 = analiseAtivosEssencialV2Habilitado();
+  const chave = `${symbol}:${versao}${alavAtivo ? ':alav' : ''}${essencialV2 ? ':v2' : ''}`;
   const emCache = cache.get(chave);
   if (emCache) return { dados: emCache, cache: true };
 
@@ -1080,8 +1135,8 @@ export async function obterValuation(
   ]);
 
   const atualPorSymbol = new Map(atuais.map((a) => [a.symbol, a]));
-  const anuaisPorSymbol = agrupar(anuais);
-  const psPorSymbol = agrupar(perShare);
+  const anuaisPorSymbol = agrupar(anuais.map((a) => ({ ...a, dtFim: paraData(a.dtFim) })));
+  const psPorSymbol = agrupar(perShare.map((p) => ({ ...p, dtFim: paraData(p.dtFim) })));
   const fysPorCnpj = new Map<string, FyValuation[]>();
   for (const f of fys) {
     const lucro = lucroParaSequencia(f);
@@ -1089,6 +1144,7 @@ export async function obterValuation(
       ...(fysPorCnpj.get(f.emissorId) ?? []),
       {
         anoFiscal: f.anoFiscal,
+        dtFim: f.dtFim,
         receita: f.receita,
         lucro: lucro.estado === 'ok' ? lucro.valor : null,
       },
@@ -1129,6 +1185,7 @@ export async function obterValuation(
     criterioPares: criterioParesTela(alvoApi.classe as ClasseQuadro),
     criteriosPares,
     alavAtivo,
+    ...(essencialV2 ? { essencialV2 } : {}),
   });
   cache.set(chave, dados, TTL_ANALISE_MS);
   return { dados, cache: false };
