@@ -5,6 +5,17 @@ import { CRITERIA_PARAMS_CODIGO } from '../criteriaParamsCodigo';
 import { CRITERIA_PARAMS_V1, CRITERIA_PARAMS_V1_JSON } from '../criteriaParamsV1';
 import { CRITERIA_PARAMS_V2, CRITERIA_PARAMS_V2_JSON } from '../criteriaParamsV2';
 import { CRITERIA_PARAMS_V3, CRITERIA_PARAMS_V3_JSON } from '../criteriaParamsV3';
+import { CRITERIA_PARAMS_V4, CRITERIA_PARAMS_V4_JSON } from '../criteriaParamsV4';
+import { CRITERIA_PARAMS_V5, CRITERIA_PARAMS_V5_JSON } from '../criteriaParamsV5';
+import { LIMITE_ALAV_ATIVO_V5_PCT } from '@/types/analiseAtivosCriterios';
+import { encontrarProibidasV2 } from '@/services/analiseAtivos/regras/comum/linguagemV2';
+import { folhasTexto } from '@/services/analiseAtivos/regras/comum/varreduraTextos';
+import {
+  VALID_FROM_INERTE,
+  VERSOES_CODIGO,
+  lerArgs,
+  validFromDaInsercao,
+} from '../../../../../scripts/analise-ativos/seed-criteria-params';
 import { UNIVERSO_EUA_PADRAO } from '@/types/analiseAtivosEua';
 import {
   agregacaoDaSerie,
@@ -12,8 +23,11 @@ import {
   criteriosDoPerfil,
   fontesCitadas,
   fontesEfetivas,
+  baseNaoPositivaCagrDe,
   idsNaoSeAplica,
+  mesReferenciaDe,
   perfilDisponivel,
+  regraMargemDoPerfil,
   prioridadeDaSerie,
   universoEuaDe,
   SANIDADE_PADRAO,
@@ -521,3 +535,161 @@ describe('CriteriaParams v3 (Stocks e REITs pela SEC)', () => {
 function V2Parse() {
   return CRITERIA_PARAMS_V2;
 }
+
+describe('CriteriaParams v5 (fundamentei-regras F1)', () => {
+  const V5 = CRITERIA_PARAMS_V5;
+  const V4 = CRITERIA_PARAMS_V4;
+  const porId = <C extends { id: string }>(l: readonly C[] | undefined) =>
+    Object.fromEntries((l ?? []).map((c) => [c.id, c]));
+
+  it('valida no zod strict (round-trip JSON), versão 5 e campo desconhecido recusado', () => {
+    expect(validarCriteriaParams(CRITERIA_PARAMS_V5_JSON).versao).toBe(5);
+    expect(validarCriteriaParams(JSON.parse(JSON.stringify(CRITERIA_PARAMS_V5_JSON)))).toEqual(V5);
+    const errado = structuredClone(CRITERIA_PARAMS_V5_JSON) as unknown as Record<string, unknown>;
+    (errado.cagr as Record<string, unknown>).extra = 1;
+    expect(criteriaParamsSchema.safeParse(errado).success).toBe(false);
+  });
+
+  it('= v4 em tudo, menos perfis, meses, cagr e criterios.margem.porPerfil', () => {
+    const {
+      versao: _a,
+      descricao: _b,
+      perfis: _p5,
+      meses: m5,
+      cagr: c5,
+      criterios: cr5,
+      ...resto5
+    } = V5;
+    const {
+      versao: _c,
+      descricao: _d,
+      perfis: _p4,
+      meses: m4,
+      cagr: c4,
+      criterios: cr4,
+      ...resto4
+    } = V4;
+    expect(resto5).toEqual(resto4);
+    expect(m5).toEqual({ ...m4, mesReferencia: 'data_com' });
+    expect(c4).toBeUndefined();
+    expect(c5).toEqual({ baseNaoPositiva: 'fim_positivo' });
+    expect(cr5).toEqual({
+      margem: { ...cr4.margem, porPerfil: { acao_financeira: 'nao_se_aplica' } },
+    });
+    expect(mesReferenciaDe(V5)).toBe('data_com');
+    expect(mesReferenciaDe(V4)).toBe('pagamento');
+    expect(baseNaoPositivaCagrDe(V5)).toBe('fim_positivo');
+    expect(regraMargemDoPerfil(V5, 'acao_financeira')).toBe('nao_se_aplica');
+    expect(regraMargemDoPerfil(V5, 'acao')).toBe(regraMargemDoPerfil(V4, 'acao'));
+  });
+
+  it('acao: rec/luc/fcl e ebitda (série ebit) viram cagr; mg e dl iguais; n de 6', () => {
+    const a5 = porId(V5.perfis.acao);
+    const a4 = porId(V4.perfis.acao);
+    expect(V5.perfis.acao.map((c) => c.id)).toEqual(V4.perfis.acao.map((c) => c.id));
+    for (const id of ['rec', 'luc', 'ebitda', 'fcl']) expect(a5[id].tipo).toBe('cagr');
+    expect(a5.ebitda).toMatchObject({
+      serie: 'ebit',
+      rotulo: 'Lucro operacional (EBIT) com crescimento anual > 0',
+    });
+    expect(a5.luc).toMatchObject({ serie: 'net_income' });
+    expect(a5.luc.serieFallback).toBeUndefined();
+    expect(a5.luc.definicao).not.toMatch(/descontado/);
+    expect(a5.luc.definicao).toContain('controladores');
+    expect(a5.rec.serie).toBe(a4.rec.serie);
+    expect(a5.fcl.serie).toBe(a4.fcl.serie);
+    expect(a5.mg).toEqual(a4.mg);
+    expect(a5.dl).toEqual(a4.dl);
+  });
+
+  it('acao_financeira: ebitda/dl/fcl não se aplicam, nota no Essencial e margem n/a (n de 3)', () => {
+    expect(idsNaoSeAplica(V5, 'acao_financeira')).toEqual(['ebitda', 'dl', 'fcl']);
+    expect(V5.perfis.acao_financeira).toMatchObject({
+      margemSemReceitaComparavel: 'nao_se_aplica',
+      notaEssencial: true,
+      regraPerfil: V4.perfis.acao_financeira.regraPerfil,
+    });
+    expect(criteriosDoPerfil(V5, 'acao_financeira')).toHaveLength(6);
+  });
+
+  it('fii_tijolo: alav IDÊNTICO ao da v4 (15% do ativo); FIIs pela data-com', () => {
+    expect(V5.perfis.fii_tijolo).toEqual(V4.perfis.fii_tijolo);
+    expect(V5.perfis.fii_papel).toEqual(V4.perfis.fii_papel);
+    expect(porId(V5.perfis.fii_tijolo).alav.limite).toBe(LIMITE_ALAV_ATIVO_V5_PCT);
+    expect(LIMITE_ALAV_ATIVO_V5_PCT).toBe(15);
+    expect(V5.equivalencias).toEqual(V4.equivalencias);
+  });
+
+  it('stock: as mesmas mudanças das ações, em US$; stock_financeira n de 3', () => {
+    const s5 = porId(V5.perfis.stock);
+    const s4 = porId(V4.perfis.stock);
+    for (const id of ['rec', 'luc', 'ebitda', 'fcl']) {
+      expect(s5[id]).toMatchObject({ tipo: 'cagr', unidade: 'US$ mi' });
+    }
+    expect(s5.ebitda.serie).toBe('ebit');
+    expect(s5.luc.serieFallback).toBeUndefined();
+    expect(s5.mg).toEqual(s4.mg);
+    expect(s5.dl).toEqual(s4.dl);
+    expect(idsNaoSeAplica(V5, 'stock_financeira')).toEqual(['ebitda', 'dl', 'fcl']);
+  });
+
+  it('reit: rec cagr, fco_acao e pay sobre o caixa ajustado com fallback, dpa e dl iguais, sem ocup (n de 5)', () => {
+    const r5 = porId(V5.perfis.reit);
+    const r4 = porId(V4.perfis.reit);
+    expect(V5.perfis.reit?.map((c) => c.id)).toEqual(['rec', 'dpa', 'fco_acao', 'dl', 'pay']);
+    expect(r5.rec.tipo).toBe('cagr');
+    expect(r5.fco_acao).toMatchObject({
+      tipo: 'up',
+      serie: 'ocf_adjusted_per_share',
+      serieFallback: 'ocf_per_share',
+    });
+    expect(r5.pay).toMatchObject({
+      tipo: 'max',
+      serie: 'cash_payout_adjusted_pct',
+      serieFallback: 'cash_payout_pct',
+      limite: 90,
+    });
+    expect(r5.dpa).toEqual(r4.dpa);
+    expect(r5.dl).toEqual(r4.dl);
+    expect(r5.ocup).toBeUndefined();
+    // rótulos em português (os EN ficam em textosEuaEn.ts, na leitura)
+    expect(r5.fco_acao.rotulo).toBe('Caixa operacional ajustado por ação crescente');
+    expect(r5.pay.rotulo).toBe('Payout ≤ 90% do caixa operacional ajustado');
+  });
+
+  it('rótulos e definições da v5 passam pela varredura de linguagem', () => {
+    const achados = folhasTexto(V5.perfis)
+      .filter(([k]) => /\.(rotulo|definicao)$/.test(k))
+      .map(([k, v]) => [k, encontrarProibidasV2(v)] as const)
+      .filter(([, p]) => p.length > 0);
+    expect(achados).toEqual([]);
+  });
+
+  it('a v4 JSON não foi tocada (a v5 deriva dela)', () => {
+    expect(CRITERIA_PARAMS_V4_JSON.versao).toBe(4);
+    expect(CRITERIA_PARAMS_V4_JSON.meses).toEqual({
+      ancora: 'fim_anoFim',
+      mesesBaseCurta: 'sem_dado',
+    });
+    expect('cagr' in CRITERIA_PARAMS_V4_JSON).toBe(false);
+  });
+
+  it('CRITERIA_PARAMS_CODIGO continua na v3 (a v5 entra pelo banco, inerte)', () => {
+    expect(CRITERIA_PARAMS_CODIGO.versao).toBe(3);
+  });
+
+  it('seed --versao=5: validFrom 2099-01-01 FIXO por padrão; v1–v4 com o padrão de antes', () => {
+    expect(VERSOES_CODIGO[5].json).toBe(CRITERIA_PARAMS_V5_JSON);
+    expect(VERSOES_CODIGO[5].validFromPadrao).toBe('2099-01-01T00:00:00.000Z');
+    expect(lerArgs(['--versao=5'])).toEqual({ aplicar: false, validoAPartir: null, versao: 5 });
+    const agora = () => new Date('2026-10-20T12:00:00.000Z');
+    expect(validFromDaInsercao(5, null, agora).toISOString()).toBe(VALID_FROM_INERTE);
+    expect(validFromDaInsercao(5, new Date('2030-01-01T00:00:00.000Z'), agora).toISOString()).toBe(
+      '2030-01-01T00:00:00.000Z',
+    );
+    for (const v of [1, 2, 3, 4]) {
+      expect(VERSOES_CODIGO[v].validFromPadrao).toBeUndefined();
+      expect(validFromDaInsercao(v, null, agora)).toEqual(agora());
+    }
+  });
+});
