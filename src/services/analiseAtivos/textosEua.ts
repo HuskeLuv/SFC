@@ -114,6 +114,23 @@ export const TEXTOS_EUA = {
       'A ocupação não existe nos dados estruturados da SEC (está só no texto do 10-K). O critério conta como não atendido até a leitura do relatório.',
   },
 
+  /**
+   * fundamentei-regras (F0; F3 e F4 consomem, só com ANALISE_ATIVOS_REIT_FCO_AJUSTADO_HABILITADO):
+   * REIT com o caixa operacional ajustado pela remuneração em ações (SBC). Sem FFO, AFFO nem
+   * ocupação na faixa do Quadro e nos tooltips.
+   */
+  reitAjustado: {
+    /** faixa do Quadro REIT (no lugar de reit.faixa) */
+    faixa:
+      'O caixa operacional por ação é ajustado pela remuneração em ações (caixa operacional − remuneração em ações do 10-K). O caixa operacional oscila com o capital de giro, então pode cair num ano em que o resultado do relatório sobe.',
+    fcoAjustado:
+      'Caixa operacional − remuneração em ações (10-K), ÷ média de ações diluídas. A remuneração em ações é despesa sem saída de caixa que o caixa operacional soma de volta.',
+    payoutBase: 'Dividendos pagos ÷ caixa operacional ajustado pela remuneração em ações (10-K).',
+    /** ano sem SBC no 10-K: card, Essencial e Comparador (obs 'sbc_indisponivel') */
+    sbcIndisponivel:
+      'Sem remuneração em ações informada no 10-K; usado o caixa operacional sem ajuste.',
+  },
+
   /** Dividendo por ação. */
   dpa: {
     seloCalculado: 'calculado',
