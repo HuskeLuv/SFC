@@ -32,6 +32,27 @@ describe('pregaoSeguinte', () => {
     expect(dataExDoProvento(prov('2025-12-30', 1))).toBe('2026-01-02');
     expect(dataExDoProvento({ dataComReal: null })).toBeNull();
   });
+
+  it('31/12 no fim de semana: o último dia útil do ano não tem pregão (data-ex em janeiro)', () => {
+    // 2023: 31/12 domingo ⇒ sem pregão em 29/12; 2022: 31/12 sábado ⇒ sem pregão em 30/12.
+    expect(dataExDoProvento(prov('2023-12-28', 1))).toBe('2024-01-02');
+    expect(dataExDoProvento(prov('2022-12-29', 1))).toBe('2023-01-02');
+    expect(pregaoSeguinte('2017-12-28')).toBe('2018-01-02');
+    expect(pregaoSeguinte('2016-12-29')).toBe('2017-01-02');
+  });
+
+  it("base 'ex' (v3): data-com 28/12/2023 entra no DPA de 2024", () => {
+    const provs = [prov('2023-06-10', 0.3), prov('2023-12-28', 0.1)];
+    const o = { baseJanela: 'ex' as const };
+    expect(dpaNoAno(provs, 2023, 'fim_do_ano', [], undefined, o)).toEqual({
+      estado: 'ok',
+      valor: 0.3,
+    });
+    expect(dpaNoAno(provs, 2024, 'fim_do_ano', [], undefined, o)).toEqual({
+      estado: 'ok',
+      valor: 0.1,
+    });
+  });
 });
 
 describe('DPA do ano: data-com × data-ex na virada do ano', () => {

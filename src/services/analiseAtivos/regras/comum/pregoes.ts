@@ -3,7 +3,8 @@
  *
  * Base: `feriadosB3` (src/utils/feriadosB3.ts, só leitura — feriados nacionais, 20/11 desde 2024,
  * Carnaval, Sexta-feira Santa, Corpus Christi) + os dias sem pregão do calendário da B3 que não são
- * feriado bancário: 24/12 e 31/12. Usado pela fatia C (liquidez/lacunas do COTAHIST), D (data-com
+ * feriado bancário: 24/12 e o último dia útil do ano (31/12, ou a sexta anterior quando 31/12 cai
+ * no fim de semana). Usado pela fatia C (liquidez/lacunas do COTAHIST), D (data-com
  * real = pregão anterior à data ex) e E (data estimada no próximo pregão). fundamentei-regras (F2,
  * A4.b): data-ex = pregão seguinte à data-com real (pregaoSeguinte).
  */
@@ -24,14 +25,21 @@ function paraData(ms: number): string {
   return new Date(ms).toISOString().slice(0, 10);
 }
 
+/** Dia (29–31) do último dia de semana de dezembro do ano. */
+function ultimoDiaUtilDoAno(ano: number): number {
+  const dow31 = new Date(Date.UTC(ano, 11, 31)).getUTCDay();
+  return dow31 === 6 ? 30 : dow31 === 0 ? 29 : 31;
+}
+
 function ehPregaoMs(ms: number): boolean {
   const d = new Date(ms);
   const dow = d.getUTCDay();
   if (dow === 0 || dow === 6) return false;
   const mes = d.getUTCMonth();
   const dia = d.getUTCDate();
-  // B3 não abre em 24/12 nem em 31/12 (não são feriados bancários nacionais).
-  if (mes === 11 && (dia === 24 || dia === 31)) return false;
+  // B3 não abre em 24/12 nem no último dia útil do ano (31/12; se 31/12 cair no sábado ou no
+  // domingo, a sexta anterior — 30/12/2022, 29/12/2023), que não são feriados bancários nacionais.
+  if (mes === 11 && (dia === 24 || dia === ultimoDiaUtilDoAno(d.getUTCFullYear()))) return false;
   return !feriadosB3(d.getUTCFullYear()).has(ms);
 }
 

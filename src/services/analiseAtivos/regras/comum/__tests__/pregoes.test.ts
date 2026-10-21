@@ -36,6 +36,17 @@ describe('calendário de pregões B3', () => {
     expect(ehPregaoB3('2025-12-30')).toBe(true);
   });
 
+  it('31/12 no fim de semana: o último dia útil do ano também não tem pregão', () => {
+    expect(ehPregaoB3('2023-12-29')).toBe(false);
+    expect(ehPregaoB3('2023-12-28')).toBe(true);
+    expect(ehPregaoB3('2022-12-30')).toBe(false);
+    expect(ehPregaoB3('2022-12-29')).toBe(true);
+    expect(ehPregaoB3('2017-12-29')).toBe(false);
+    expect(ehPregaoB3('2016-12-30')).toBe(false);
+    // data-com real da YAHOO: pregão anterior à ex de 02/01/2024
+    expect(pregaoAnterior('2024-01-02')).toBe('2023-12-28');
+  });
+
   it('proximoPregaoOuMesmo(sábado) = segunda; em pregão devolve o mesmo dia', () => {
     expect(proximoPregaoOuMesmo('2026-09-26')).toBe('2026-09-28');
     expect(proximoPregaoOuMesmo('2026-09-30')).toBe('2026-09-30');
