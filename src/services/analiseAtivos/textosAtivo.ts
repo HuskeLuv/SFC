@@ -98,6 +98,11 @@ export const TEXTOS_ATIVO = {
       lucro: 'Lucro líquido',
       margem: 'Margem líquida',
     },
+    /** explicação das colunas (no lugar da do lucro descontado) */
+    tooltips: {
+      lucro: 'Lucro líquido atribuído aos acionistas controladores, como publicado na DFP.',
+      margem: 'Lucro líquido ÷ receita líquida do ano.',
+    },
     /** tooltip do 'L' no lugar do '—' (payout e P/L com lucro ≤ 0) */
     tooltipPrejuizo: 'prejuízo no período',
     /** nota do exercício fora de dezembro (Essencial, Raio-X, Valuation) */

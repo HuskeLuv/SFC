@@ -53,6 +53,15 @@
  * e ColunaFundamentos.tooltip (qual receita a seguradora usou) — nos DOIS layouts (v24 da página e o
  * legado, base do Raio-X: regra de ouro). Anos, 'Últ. 12m', ROE/payout/DY/P/L/P/VP e a conferência
  * são os de sempre. Chave desligada (ou outro emissor) ⇒ a resposta de hoje, sem a chave template.
+ *
+ * fundamentei-regras (F2; desenho docs/analise-ativos/fundamentei-regras/desenho.json) — só com
+ * `essencialV2` (ANALISE_ATIVOS_ESSENCIAL_V2_HABILITADO, lida em obterFundamentosEssencial; nenhum
+ * job lê): um lucro líquido só ('Lucro líquido'/'Margem líquida', sem descontado nem ⓘ de fallback,
+ * A4.e); anos fechados por dtFim com o rótulo 'fev/2026' e a nota do exercício fora de dezembro
+ * (A4.c); 'L' (rotuloCurto, tooltip 'prejuízo no período') no payout e no P/L com prejuízo (A4.a);
+ * banco com PDD ÷ lucro em % (A5); o salto de provento lê o payoutPct do ano (o da scoring que
+ * calculou). Sem a chave, a resposta é a de hoje. O tooltip do payout ('proventos pagos …') segue SÓ
+ * a payout.regra da scoring vigente (`regraPayout`), nunca a chave: com 'dmpl_dpa' nada muda.
  */
 import { prisma } from '@/lib/prisma';
 import { getTtlCache } from '@/lib/simpleTtlCache';
@@ -86,6 +95,11 @@ import {
   type VacanciaEmConferencia,
 } from '@/services/analiseAtivos/regras/fii/saneamentoVacancia';
 import { SCORING_PARAMS_V1 } from '@/services/analiseAtivos/params/scoringParamsV1';
+import { obterScoringParams } from '@/services/analiseAtivos/params/obterScoringParams';
+import {
+  regrasCalculoDe,
+  type RegraPayout,
+} from '@/services/analiseAtivos/params/scoringParamsSchema';
 import { liberacoesVacancia } from '@/services/analiseAtivos/repositorio/curadoria';
 import {
   anosPerShareEmConferencia,
@@ -98,6 +112,10 @@ import {
   anoDe,
   anosFechados,
   detectarSaltoProvento,
+  exercicioForaDeDezembro,
+  mesPorExtenso,
+  rotuloExercicio,
+  type CriterioAnoFechado,
 } from '@/services/analiseAtivos/leitura/ativo/series';
 import {
   TEXTOS_TELA,
@@ -107,10 +125,14 @@ import {
 } from '@/services/analiseAtivos/textosTela';
 import { TEXTOS_ATIVO } from '@/services/analiseAtivos/textosAtivo';
 import { TEXTOS_FINANCEIRAS } from '@/services/analiseAtivos/textosFinanceiras';
-import { analiseAtivosTemplatesFinanceirasHabilitado } from '@/lib/analiseAtivosConfig';
+import {
+  analiseAtivosEssencialV2Habilitado,
+  analiseAtivosTemplatesFinanceirasHabilitado,
+} from '@/lib/analiseAtivosConfig';
 import { listarEmissores } from '@/services/analiseAtivos/repositorio/universo';
 import {
   emissorEhHoldingSeguradora,
+  pddLucroPctDe,
   templateDoEmissor,
   valoresBanco,
   valoresSeguradora,
@@ -137,6 +159,7 @@ import type {
   PontoSerieAnual,
   TipoSeloEstado,
 } from '@/types/analiseAtivosApi';
+import { MOTIVO_PREJUIZO, ROTULO_CURTO_PREJUIZO } from '@/types/analiseAtivosApi';
 import type { IdCriterio } from '@/types/analiseAtivosCriterios';
 import type { IdFonte, OrigemSerie } from '@/types/analiseAtivosFontes';
 import { fatorCotasApos } from '@/services/analiseAtivos/regras/calculo/fatorCotas';
@@ -149,6 +172,7 @@ export const MAX_ANOS_ESSENCIAL = 10;
 
 const TF = TEXTOS_TELA.analise.fundamentos;
 const TE = TEXTOS_ATIVO.essencial;
+const TE2 = TEXTOS_ATIVO.essencialV2;
 const SELO_CONF: TipoSeloEstado = 'proventos_em_conferencia';
 const SELO_CONF_BLOCO_C: TipoSeloEstado = 'em_conferencia';
 
@@ -468,13 +492,21 @@ function margemDe(
 
 /** Anos (de série anual de proventos por ação) marcados como 'em conferência'. */
 export function anosProventoSuspeito(
-  perShare: ReadonlyArray<{ anoFiscal: number; dpa: number | null; payout?: number | null }>,
+  perShare: ReadonlyArray<{
+    anoFiscal: number;
+    dpa: number | null;
+    payout?: number | null;
+    /** F2: fim do exercício (critério 'dtFim') */
+    dtFim?: string | null;
+  }>,
   hoje: string,
+  criterio: CriterioAnoFechado = 'ano',
 ): Set<number> {
   const serie: PontoSerieAnual[] = anosFechados(
-    perShare.map((p) => ({ ano: p.anoFiscal, valor: p.dpa })),
+    perShare.map((p) => ({ ano: p.anoFiscal, valor: p.dpa, dtFim: p.dtFim })),
     hoje,
-  );
+    { criterio },
+  ).map(({ ano, valor }) => ({ ano, valor }));
   const payoutPorAno = Object.fromEntries(perShare.map((p) => [p.anoFiscal, p.payout ?? null]));
   return new Set(detectarSaltoProvento(serie, { payoutPorAno }).anosSuspeitos);
 }
@@ -519,6 +551,115 @@ const COLUNAS_ACAO_LEGADO: ColunaFundamentos[] = [
 /** 'v24' = Essencial da página (ordem nova, R$ bi); ausente = legado (base do Raio-X). */
 export interface OpcoesFundamentosAcao {
   layout?: 'v24';
+  /** F2: ANALISE_ATIVOS_ESSENCIAL_V2_HABILITADO (só leitura); ausente = como hoje */
+  essencialV2?: boolean;
+  /** F2: payout.regra da scoring VIGENTE (tooltip do payout); ausente = 'dmpl_dpa' (hoje) */
+  regraPayout?: RegraPayout;
+}
+
+/** 'L' (prejuízo no período) — Estado ausente com rotuloCurto (F2, só com essencialV2). */
+export function prejuizoComL(): Estado<number> {
+  return {
+    estado: 'ausente',
+    motivo: MOTIVO_PREJUIZO,
+    texto: TE2.tooltipPrejuizo,
+    rotuloCurto: ROTULO_CURTO_PREJUIZO,
+  };
+}
+
+/** FY por ano fiscal (o de dtFim mais recente: regra 19). */
+function fyPorAnoDe(fys: readonly FundamentosPeriodo[]): Map<number, FundamentosPeriodo> {
+  const out = new Map<number, FundamentosPeriodo>();
+  for (const f of fys) {
+    const atual = out.get(f.anoFiscal);
+    if (!atual || f.dtFim > atual.dtFim) out.set(f.anoFiscal, f);
+  }
+  return out;
+}
+
+/** Anos fechados do Essencial (até MAX_ANOS_ESSENCIAL), pelo critério (F2). */
+function anosDoEssencial(
+  fyPorAno: ReadonlyMap<number, FundamentosPeriodo>,
+  hoje: string,
+  criterio: CriterioAnoFechado,
+): number[] {
+  return anosFechados(
+    [...fyPorAno.entries()].map(([ano, f]) => ({ ano, dtFim: f.dtFim })),
+    hoje,
+    { criterio },
+  )
+    .slice(-MAX_ANOS_ESSENCIAL)
+    .map((p) => p.ano);
+}
+
+/** Nota 'exercício encerrado em {mes}' (F2), quando algum ano exibido fecha fora de dezembro. */
+export function notaExercicio(dtFims: ReadonlyArray<string | null | undefined>): string | null {
+  const fora = [...dtFims].reverse().find((d) => exercicioForaDeDezembro(d));
+  return fora ? formatarTexto(TE2.notaExercicio, { mes: mesPorExtenso(fora) }) : null;
+}
+
+/** Ano, rótulo e (com a chave) dtFim de uma linha de ano fechado. */
+function cabecalhoAno(
+  ano: number,
+  f: FundamentosPeriodo,
+  v2: boolean,
+): Pick<LinhaFundamentos, 'rotulo' | 'ano' | 'dtFim'> {
+  return v2
+    ? { rotulo: rotuloExercicio(ano, f.dtFim), ano, dtFim: f.dtFim }
+    : { rotulo: String(ano), ano };
+}
+
+/**
+ * Colunas com as regras da F2: com a chave, 'Lucro líquido'/'Margem líquida' (A4.e) com a
+ * explicação do lucro líquido (no lugar da do descontado); payout com o que ele mede quando a
+ * scoring vigente usa 'dfc' (nunca pela chave). Sem chave e com 'dmpl_dpa' = as colunas de hoje.
+ */
+export function colunasComRegras(
+  colunas: readonly ColunaFundamentos[],
+  essencialV2: boolean,
+  regraPayout: RegraPayout | undefined,
+): ColunaFundamentos[] {
+  return colunas.map((c) => {
+    if (essencialV2 && (c.codigo === 'lucro' || c.codigo === 'margem')) {
+      return { ...c, rotulo: TE2.colunas[c.codigo], tooltip: TE2.tooltips[c.codigo] };
+    }
+    if (c.codigo === 'payout' && regraPayout === 'dfc') {
+      return { ...c, tooltip: TEXTOS_ATIVO.payoutRegra.dfc };
+    }
+    return c;
+  });
+}
+
+/**
+ * Anos com salto de provento (Div./ação) do Essencial: hoje pelo payoutDmplPct e anos por 'ano';
+ * F2 (chave): pelo payoutPct do ano (o da scoring que calculou) e anos por dtFim.
+ */
+function anosProventoSuspeitoDe(
+  e: Pick<EntradaFundamentosAcao, 'perShare' | 'hoje'>,
+  fyPorAno: ReadonlyMap<number, FundamentosPeriodo>,
+  mPorAno: ReadonlyMap<number, MultiplosAnoAcao>,
+  v2: boolean,
+): Set<number> {
+  if (!v2) {
+    return anosProventoSuspeito(
+      e.perShare.map((p) => ({
+        anoFiscal: p.anoFiscal,
+        dpa: p.dpaAjHoje,
+        payout: p.payoutDmplPct,
+      })),
+      e.hoje,
+    );
+  }
+  return anosProventoSuspeito(
+    e.perShare.map((p) => ({
+      anoFiscal: p.anoFiscal,
+      dpa: p.dpaAjHoje,
+      payout: mPorAno.get(p.anoFiscal)?.payoutPct ?? null,
+      dtFim: fyPorAno.get(p.anoFiscal)?.dtFim ?? null,
+    })),
+    e.hoje,
+    'dtFim',
+  );
 }
 
 export function textoPadrao(escopo: string | null, padrao: string | null): string | null {
@@ -533,7 +674,9 @@ export function montarFundamentosAcao(
   opts: OpcoesFundamentosAcao = {},
 ): FundamentosResposta {
   const v24 = opts.layout === 'v24';
-  if (e.template) return montarFundamentosFinanceira({ ...e, template: e.template }, v24);
+  if (e.template) return montarFundamentosFinanceira({ ...e, template: e.template }, v24, opts);
+  const v2 = opts.essencialV2 === true;
+  const criterio: CriterioAnoFechado = v2 ? 'dtFim' : 'ano';
   const escala = v24 ? 1e9 : 1e6;
   const naFin = naoSeAplicaCom('financeira');
   const regras = e.regras ?? regrasEssencialDe(CRITERIA_PARAMS_CODIGO);
@@ -557,6 +700,18 @@ export function montarFundamentosAcao(
     marcas: LinhaFundamentos['marcas'];
   } => {
     const semReceita = receitaNaoPositiva(f);
+    if (v2) {
+      // F2 (A4.e): um lucro líquido só — sem descontado e sem a marca de fallback
+      return {
+        valores: {
+          lucro: lucroLiquido,
+          margem: semReceita
+            ? semDadoEssencial()
+            : margemDe(margemPct, lucroLiquido, f.receita, regras.receitaMenorQueLucro),
+        },
+        marcas: undefined,
+      };
+    }
     const desc = ano === null ? undefined : e.descontado?.valores[ano];
     const origem = ano === null ? undefined : e.descontado?.origens?.[ano];
     if (origem?.incompleto) algumIncompleto = true;
@@ -616,36 +771,24 @@ export function montarFundamentosAcao(
       marcas: lm.marcas && Object.keys(lm.marcas).length > 0 ? lm.marcas : undefined,
     };
   };
-  const prejuizo = ausenteCom('prejuizo', TF.prejuizoNoAno);
-  const fyPorAno = new Map<number, FundamentosPeriodo>();
-  for (const f of e.fys) {
-    const atual = fyPorAno.get(f.anoFiscal);
-    if (!atual || f.dtFim > atual.dtFim) fyPorAno.set(f.anoFiscal, f);
-  }
-  const anos = anosFechados(
-    [...fyPorAno.keys()].map((ano) => ({ ano })),
-    e.hoje,
-  )
-    .slice(-MAX_ANOS_ESSENCIAL)
-    .map((p) => p.ano);
+  // F2: 'L' (prejuízo no período) só com a chave; sem ela, o '—' com o motivo de hoje
+  const prejuizo = v2 ? prejuizoComL() : ausenteCom('prejuizo', TF.prejuizoNoAno);
+  const fyPorAno = fyPorAnoDe(e.fys);
+  const anos = anosDoEssencial(fyPorAno, e.hoje, criterio);
   const psPorAno = new Map(e.perShare.map((p) => [p.anoFiscal, p]));
   const mPorAno = new Map(e.multiplos.map((m) => [m.anoFiscal, m]));
-  const suspeitos = anosProventoSuspeito(
-    e.perShare.map((p) => ({ anoFiscal: p.anoFiscal, dpa: p.dpaAjHoje, payout: p.payoutDmplPct })),
-    e.hoje,
-  );
+  const suspeitos = anosProventoSuspeitoDe(e, fyPorAno, mPorAno, v2);
 
   const linhas: LinhaFundamentos[] = anos.map((ano, i) => {
     const f = fyPorAno.get(ano)!;
     const ps = psPorAno.get(ano);
     const m = mPorAno.get(ano);
     const lucro = lucroEstado(f, escala);
-    const emPrejuizo = lucro.estado === 'ok' && lucro.valor < 0;
+    const emPrejuizo = lucro.estado === 'ok' && (v2 ? lucro.valor <= 0 : lucro.valor < 0);
     const suspeito = suspeitos.has(ano);
     const periodo = colunasDoPeriodo(f, lucro, m?.margemLiquidaPct, ano);
     const linha: LinhaFundamentos = {
-      rotulo: String(ano),
-      ano,
+      ...cabecalhoAno(ano, f, v2),
       ultimoAno: i === anos.length - 1,
       valores: {
         ...periodo.valores,
@@ -669,7 +812,8 @@ export function montarFundamentosAcao(
     const a = e.atual;
     const lucro = lucroEstado(ttm, escala);
     const emPrejuizo =
-      (lucro.estado === 'ok' && lucro.valor < 0) || (a?.lpaTtm != null && a.lpaTtm < 0);
+      (lucro.estado === 'ok' && (v2 ? lucro.valor <= 0 : lucro.valor < 0)) ||
+      (a?.lpaTtm != null && a.lpaTtm < 0);
     const conf = e.proventosEmConferencia;
     const prov = (n: number | null | undefined) =>
       conf && n == null ? semDado(TEXTOS_TELA.ausentesPorCampo.dyEmConferencia) : estadoDe(n);
@@ -686,7 +830,9 @@ export function montarFundamentosAcao(
         dpa: prov(a?.dpa12m),
         payout: emPrejuizo ? prejuizo : prov(a?.payoutPct),
         pl: emPrejuizo
-          ? ausenteCom('prejuizo', TEXTOS_TELA.ausentesPorCampo.plPrejuizo)
+          ? v2
+            ? prejuizoComL()
+            : ausenteCom('prejuizo', TEXTOS_TELA.ausentesPorCampo.plPrejuizo)
           : estadoDe(a?.pl),
         pvp: estadoDe(a?.pvp),
         dy: prov(a?.dy12mPct),
@@ -696,6 +842,7 @@ export function montarFundamentosAcao(
     if (periodo.marcas) linha.marcas = periodo.marcas;
     linhas.push(linha);
   }
+  const notaEx = v2 ? notaExercicio(anos.map((a) => fyPorAno.get(a)?.dtFim)) : null;
 
   const padraoContabil = ultimoFy?.padraoContabil ?? null;
   const escopo = ultimoFy?.escopo ?? null;
@@ -708,6 +855,7 @@ export function montarFundamentosAcao(
     if (t) notas.push(formatarTexto(TF.notaPadraoContabil, { valor: t }));
   }
   notas.push(TF.notaLpaAjustado);
+  if (notaEx) notas.push(notaEx);
   if (linhas.some((l) => l.ano !== null && l.selos.includes(SELO_CONF))) {
     notas.push(TF.notaProventosConferencia);
   }
@@ -716,6 +864,11 @@ export function montarFundamentosAcao(
   const linhasConf = linhas.map((l) =>
     conferirPerShare(conferirLinha(l, 'acao', e.conferencia), COLUNAS_PER_SHARE.acao, perShareConf),
   );
+  const colunasBase = colunasComRegras(
+    v24 ? COLUNAS_ACAO : COLUNAS_ACAO_LEGADO,
+    v2,
+    opts.regraPayout,
+  );
   const resposta: FundamentosResposta = {
     nivel: 'essencial',
     unidade: v24 ? 'R$ bi' : 'R$ mi',
@@ -723,7 +876,7 @@ export function montarFundamentosAcao(
     padraoContabil,
     escopo,
     variante: 'acao',
-    colunas: semColunasNaoAplicaveis(v24 ? COLUNAS_ACAO : COLUNAS_ACAO_LEGADO, linhasConf),
+    colunas: semColunasNaoAplicaveis(colunasBase, linhasConf),
     linhas: linhasConf,
     observacoes: notas,
   };
@@ -778,16 +931,19 @@ function colunaFin(
 }
 
 /** Colunas do Essencial 'banco' (COLUNAS_ESSENCIAL_BANCO), no layout pedido. */
-export function colunasBanco(v24: boolean): ColunaFundamentos[] {
+export function colunasBanco(v24: boolean, essencialV2 = false): ColunaFundamentos[] {
   const r = TFIN.banco.colunas;
-  const t = TFIN.banco.tooltips;
+  // F2 (A5): PDD ÷ lucro em % (tooltip próprio) só com ANALISE_ATIVOS_ESSENCIAL_V2_HABILITADO
+  const t = essencialV2
+    ? { ...TFIN.banco.tooltips, ...TFIN.banco.tooltipsV2 }
+    : TFIN.banco.tooltips;
   const m: FormatoAnalise = v24 ? 'numero' : 'moedaMi';
   const formatos: Record<CodigoColunaBanco, FormatoAnalise> = {
     receitaIntermediacao: m,
     pdd: m,
     lucroLiquido: m,
     margemBancaria: 'pct',
-    pddLucro: 'multiplo',
+    pddLucro: essencialV2 ? 'pct' : 'multiplo',
     ativoTotal: m,
     patrimonio: m,
     roe: 'pct',
@@ -859,30 +1015,20 @@ function receitaUsadaDe(origens: ReadonlyArray<OrigemReceitaSeguradora>): string
 function montarFundamentosFinanceira(
   e: EntradaFundamentosAcao & { template: TemplateFinanceira },
   v24: boolean,
+  opts: OpcoesFundamentosAcao = {},
 ): FundamentosResposta {
+  const v2 = opts.essencialV2 === true;
   const escala = v24 ? 1e9 : 1e6;
   const banco = e.template === 'banco';
-  const fyPorAno = new Map<number, FundamentosPeriodo>();
-  for (const f of e.fys) {
-    const atual = fyPorAno.get(f.anoFiscal);
-    if (!atual || f.dtFim > atual.dtFim) fyPorAno.set(f.anoFiscal, f);
-  }
-  const anos = anosFechados(
-    [...fyPorAno.keys()].map((ano) => ({ ano })),
-    e.hoje,
-  )
-    .slice(-MAX_ANOS_ESSENCIAL)
-    .map((p) => p.ano);
+  const fyPorAno = fyPorAnoDe(e.fys);
+  const anos = anosDoEssencial(fyPorAno, e.hoje, v2 ? 'dtFim' : 'ano');
   const mPorAno = new Map(e.multiplos.map((m) => [m.anoFiscal, m]));
   const holding = !banco && emissorEhHoldingSeguradora([...e.fys, ...(e.ttm ? [e.ttm] : [])]);
-  const prejuizo = ausenteCom('prejuizo', TF.prejuizoNoAno);
+  const prejuizo = v2 ? prejuizoComL() : ausenteCom('prejuizo', TF.prejuizoNoAno);
   const origens: OrigemReceitaSeguradora[] = [];
   let algumLucroNaoPositivo = false;
   let algumaMargemSemLeitura = false;
-  const suspeitos = anosProventoSuspeito(
-    e.perShare.map((p) => ({ anoFiscal: p.anoFiscal, dpa: p.dpaAjHoje, payout: p.payoutDmplPct })),
-    e.hoje,
-  );
+  const suspeitos = anosProventoSuspeitoDe(e, fyPorAno, mPorAno, v2);
 
   const doPeriodo = (f: FundamentosPeriodo, ano: number): Record<string, Estado<number>> => {
     const lucro = lucroEstado(f, escala);
@@ -897,7 +1043,8 @@ function montarFundamentosFinanceira(
         pdd: estadoTemplate(b.pdd, escala),
         lucroLiquido: lucro,
         margemBancaria: estadoTemplate(b.margemBancariaPct),
-        pddLucro: estadoTemplate(b.pddLucro),
+        // F2 (A5): PDD ÷ lucro em % com a chave; sem ela, em × (hoje)
+        pddLucro: estadoTemplate(v2 ? pddLucroPctDe(b) : b.pddLucro),
         ativoTotal: estadoTemplate(b.ativoTotal, escala),
         patrimonio: estadoTemplate(b.patrimonio, escala),
         divJcp: estadoTemplate(b.divJcp, escala),
@@ -923,7 +1070,7 @@ function montarFundamentosFinanceira(
     const f = fyPorAno.get(ano)!;
     const m = mPorAno.get(ano);
     const lucro = lucroEstado(f, escala);
-    const emPrejuizo = lucro.estado === 'ok' && lucro.valor < 0;
+    const emPrejuizo = lucro.estado === 'ok' && (v2 ? lucro.valor <= 0 : lucro.valor < 0);
     const valores: Record<string, Estado<number>> = {
       ...doPeriodo(f, ano),
       roe: estadoDe(m?.roePct),
@@ -935,8 +1082,7 @@ function montarFundamentosFinanceira(
       valores.pvp = estadoDe(m?.pvp);
     }
     return {
-      rotulo: String(ano),
-      ano,
+      ...cabecalhoAno(ano, f, v2),
       ultimoAno: i === anos.length - 1,
       valores,
       selos: suspeitos.has(ano) ? [SELO_CONF] : [],
@@ -949,7 +1095,8 @@ function montarFundamentosFinanceira(
     const a = e.atual;
     const lucro = lucroEstado(ttm, escala);
     const emPrejuizo =
-      (lucro.estado === 'ok' && lucro.valor < 0) || (a?.lpaTtm != null && a.lpaTtm < 0);
+      (lucro.estado === 'ok' && (v2 ? lucro.valor <= 0 : lucro.valor < 0)) ||
+      (a?.lpaTtm != null && a.lpaTtm < 0);
     const conf = e.proventosEmConferencia;
     const prov = (n: number | null | undefined) =>
       conf && n == null ? semDado(TEXTOS_TELA.ausentesPorCampo.dyEmConferencia) : estadoDe(n);
@@ -961,7 +1108,9 @@ function montarFundamentosFinanceira(
     };
     if (banco) {
       valores.pl = emPrejuizo
-        ? ausenteCom('prejuizo', TEXTOS_TELA.ausentesPorCampo.plPrejuizo)
+        ? v2
+          ? prejuizoComL()
+          : ausenteCom('prejuizo', TEXTOS_TELA.ausentesPorCampo.plPrejuizo)
         : estadoDe(a?.pl);
       valores.pvp = estadoDe(a?.pvp);
     }
@@ -983,7 +1132,7 @@ function montarFundamentosFinanceira(
     const t = textoPadrao(escopo, padraoContabil);
     if (t) notas.push(formatarTexto(TFIN.banco.observacoes.padraoContabil, { valor: t }));
     if (algumLucroNaoPositivo) notas.push(TFIN.banco.observacoes.pddLucro);
-    colunas = colunasBanco(v24);
+    colunas = colunasBanco(v24, v2);
   } else {
     const ultimaOrigem = [...origens].pop();
     const receitaUsada = receitaUsadaDe(origens);
@@ -1007,6 +1156,8 @@ function montarFundamentosFinanceira(
           : undefined;
     colunas = colunasSeguradora(v24, tooltipReceita);
   }
+  const notaEx = v2 ? notaExercicio(anos.map((a) => fyPorAno.get(a)?.dtFim)) : null;
+  if (notaEx) notas.push(notaEx);
   if (linhas.some((l) => l.ano !== null && l.selos.includes(SELO_CONF))) {
     notas.push(TF.notaProventosConferencia);
   }
@@ -1022,7 +1173,7 @@ function montarFundamentosFinanceira(
     padraoContabil,
     escopo,
     variante: 'acao',
-    colunas,
+    colunas: colunasComRegras(colunas, false, opts.regraPayout),
     linhas: linhasConf,
     observacoes: notas,
     template: e.template,
@@ -1406,6 +1557,26 @@ async function lerDescontado(
   }
 }
 
+/** Cache curto da payout.regra da scoring vigente (o sub-rótulo segue o número, F2). */
+const cacheRegra = getTtlCache<RegraPayout>('analiseAtivosRegraPayout');
+
+/**
+ * payout.regra da scoring_params VIGENTE (F2, A4.a): decide o que o payout mede no Essencial e no
+ * Raio-X, nunca a chave de tela. Falha de leitura = 'dmpl_dpa' (o de hoje).
+ */
+export async function regraPayoutVigente(): Promise<RegraPayout> {
+  const emCache = cacheRegra.get('vigente');
+  if (emCache) return emCache;
+  let regra: RegraPayout = 'dmpl_dpa';
+  try {
+    regra = regrasCalculoDe((await obterScoringParams(prisma)).params).payoutRegra;
+  } catch {
+    regra = 'dmpl_dpa';
+  }
+  cacheRegra.set('vigente', regra, 5 * 60_000);
+  return regra;
+}
+
 /** null = ticker fora da área (a rota responde 404). */
 export async function obterFundamentosEssencial(
   ticker: string,
@@ -1415,7 +1586,9 @@ export async function obterFundamentosEssencial(
   const linha = await obterLinhaQuadro(symbol);
   if (!linha) return null;
   const versao = await versaoQuadro();
-  const chave = `${symbol}:${versao}`;
+  // F2: a chave de tela e a regra do payout entram na chave do cache (mudam a resposta)
+  const essencialV2 = analiseAtivosEssencialV2Habilitado();
+  const chave = `${symbol}:${versao}${essencialV2 ? ':v2' : ''}`;
   const emCache = cache.get(chave);
   if (emCache) return { dados: emCache, cache: true };
 
@@ -1546,8 +1719,10 @@ export async function obterFundamentosEssencial(
         },
       }),
       lerParamsEssencial(),
-      lerDescontado(symbol, desdeAno),
+      // F2: com a chave, um lucro líquido só (o descontado nem é lido)
+      essencialV2 ? Promise.resolve([]) : lerDescontado(symbol, desdeAno),
     ]);
+    const regraPayout = await regraPayoutVigente();
     const descontado = resolverSeries({
       pontos: pontosDescontado,
       series: ['net_income_adjusted'],
@@ -1578,7 +1753,7 @@ export async function obterFundamentosEssencial(
         rotulosFontes: rotulosFontes(),
         ...(template ? { template } : {}),
       },
-      { layout: 'v24' },
+      { layout: 'v24', ...(essencialV2 ? { essencialV2 } : {}), regraPayout },
     );
   }
   cache.set(chave, dados, TTL_ANALISE_MS);
