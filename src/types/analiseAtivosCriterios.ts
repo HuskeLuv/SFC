@@ -140,6 +140,13 @@ export const MES_REFERENCIA_PADRAO: MesReferencia = 'pagamento';
 export const LIMITE_ALAV_ATIVO_V5_PCT = 15;
 
 /**
+ * Limite do 'alav' do fii_tijolo na v6 (obrigações ÷ ativo, %): os 20% do PL da spec do Pedro
+ * escritos sobre o ativo (0,2 ÷ 1,2 ≈ 16,7%), na base do Fundamentei (obrigações ÷ total de ativos,
+ * que não tem limite próprio). Decisão do Wellington de 21/10/2026.
+ */
+export const LIMITE_ALAV_ATIVO_V6_PCT = 16.7;
+
+/**
  * Ids dos critérios (estáveis: URL ?c=, criteria_eval.resultados, CriteriosCompactos):
  * Ações:  rec · luc · ebitda · mg · dl · fcl
  * FII tijolo: rend · vp · vac · alav · mes · res

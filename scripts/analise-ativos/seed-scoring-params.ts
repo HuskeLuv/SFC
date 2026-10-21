@@ -1,6 +1,7 @@
 /**
  * Semeia um ScoringParams do código (v1 = SCORING_PARAMS_V1; v2 = SCORING_PARAMS_V2, bloco C; v3 =
- * SCORING_PARAMS_V3, alinhamento ao Fundamentei) na tabela scoring_params.
+ * SCORING_PARAMS_V3, alinhamento ao Fundamentei; v4 = SCORING_PARAMS_V4, a v3 com o DPA/DY pelo
+ * ano-calendário também fora de dezembro) na tabela scoring_params.
  *
  * Idempotente e imutável: insere a versão só se ausente; se já existir, compara com o código (após
  * a validação pelo schema, que aplica os defaults dos campos acrescentados depois) e avisa quando
@@ -12,7 +13,8 @@
  *
  * v3 (fundamentei-regras, F2): INERTE — sem --valido-a-partir nasce com validFrom 2099-01-01 FIXO
  * (VALID_FROM_SCORING_V3, nunca new Date()). Ativar = UPDATE do validFrom com OK, depois do dry-run
- * recalcular-analise --versao-params=3 (docs/analise-ativos/fundamentei-regras/ATIVACAO.md).
+ * recalcular-analise --versao-params=3 (docs/analise-ativos/fundamentei-regras/ATIVACAO.md). A v4
+ * (21/10/2026) nasce inerte do mesmo jeito (VALID_FROM_SCORING_V4).
  *
  * Uso:
  *   npx tsx --env-file=.env scripts/analise-ativos/seed-scoring-params.ts                    # v1 dry-run
@@ -21,6 +23,7 @@
  *   npx tsx --env-file=.env scripts/analise-ativos/seed-scoring-params.ts --versao=2 --apply \
  *     [--valido-a-partir=AAAA-MM-DD]                                                         # v2 grava
  *   npx tsx --env-file=.env scripts/analise-ativos/seed-scoring-params.ts --versao=3 --apply # v3 inerte (2099)
+ *   npx tsx --env-file=.env scripts/analise-ativos/seed-scoring-params.ts --versao=4 --apply # v4 inerte (2099)
  */
 import { isDeepStrictEqual } from 'util';
 import { PrismaClient, type Prisma } from '@prisma/client';
@@ -31,6 +34,10 @@ import {
   SCORING_PARAMS_V3,
   VALID_FROM_SCORING_V3,
 } from '../../src/services/analiseAtivos/params/scoringParamsV3';
+import {
+  SCORING_PARAMS_V4,
+  VALID_FROM_SCORING_V4,
+} from '../../src/services/analiseAtivos/params/scoringParamsV4';
 import { validarScoringParams } from '../../src/services/analiseAtivos/params/obterScoringParams';
 
 export interface DefVersao {
@@ -66,6 +73,16 @@ export const VERSOES: Record<number, DefVersao> = {
     notas:
       "v3 = v2 + payout.regra 'dfc', proventos por data-ex (sem data-ex futura, exercício real fora " +
       'de dezembro) e serie10aPorDtFim (docs/analise-ativos/fundamentei-regras/desenho.json, F2)',
+  },
+  4: {
+    params: SCORING_PARAMS_V4,
+    rotulo: 'SCORING_PARAMS_V4',
+    // inerte como a v3; ativar = UPDATE do validFrom com OK
+    validFromPadrao: () => new Date(VALID_FROM_SCORING_V4),
+    createdBy: 'seed-fundamentei-regras',
+    notas:
+      'v4 = v3 com o DPA/DY do ano pelo ano-calendário da data-ex também no exercício fora de ' +
+      'dezembro; decisão do Wellington de 21/10/2026',
   },
 };
 

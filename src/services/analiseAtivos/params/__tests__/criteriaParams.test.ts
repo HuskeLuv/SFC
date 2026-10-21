@@ -7,9 +7,11 @@ import { CRITERIA_PARAMS_V2, CRITERIA_PARAMS_V2_JSON } from '../criteriaParamsV2
 import { CRITERIA_PARAMS_V3, CRITERIA_PARAMS_V3_JSON } from '../criteriaParamsV3';
 import { CRITERIA_PARAMS_V4, CRITERIA_PARAMS_V4_JSON } from '../criteriaParamsV4';
 import { CRITERIA_PARAMS_V5, CRITERIA_PARAMS_V5_JSON } from '../criteriaParamsV5';
-import { LIMITE_ALAV_ATIVO_V5_PCT } from '@/types/analiseAtivosCriterios';
+import { CRITERIA_PARAMS_V6, CRITERIA_PARAMS_V6_JSON } from '../criteriaParamsV6';
+import { LIMITE_ALAV_ATIVO_V5_PCT, LIMITE_ALAV_ATIVO_V6_PCT } from '@/types/analiseAtivosCriterios';
 import { encontrarProibidasV2 } from '@/services/analiseAtivos/regras/comum/linguagemV2';
 import { folhasTexto } from '@/services/analiseAtivos/regras/comum/varreduraTextos';
+import { TEXTOS_CRITERIOS } from '@/services/analiseAtivos/textosCriterios';
 import {
   VALID_FROM_INERTE,
   VERSOES_CODIGO,
@@ -691,5 +693,81 @@ describe('CriteriaParams v5 (fundamentei-regras F1)', () => {
       expect(VERSOES_CODIGO[v].validFromPadrao).toBeUndefined();
       expect(validFromDaInsercao(v, null, agora)).toEqual(agora());
     }
+  });
+});
+
+describe('CriteriaParams v6 (v5 mais próxima do Fundamentei, 21/10/2026)', () => {
+  const V6 = CRITERIA_PARAMS_V6;
+  const V5 = CRITERIA_PARAMS_V5;
+  const porId = <C extends { id: string }>(l: readonly C[] | undefined) =>
+    Object.fromEntries((l ?? []).map((c) => [c.id, c]));
+
+  it('valida no zod strict (round-trip JSON) e é versão 6', () => {
+    expect(validarCriteriaParams(CRITERIA_PARAMS_V6_JSON).versao).toBe(6);
+    expect(validarCriteriaParams(JSON.parse(JSON.stringify(CRITERIA_PARAMS_V6_JSON)))).toEqual(V6);
+  });
+
+  it('= v5 em tudo, menos cagr, o alav do tijolo e as definições dos critérios cagr', () => {
+    const { versao: _a, descricao: _b, perfis: p6, cagr: c6, ...resto6 } = V6;
+    const { versao: _c, descricao: _d, perfis: p5, cagr: _c5, ...resto5 } = V5;
+    expect(resto6).toEqual(resto5);
+    expect(c6).toEqual({ baseNaoPositiva: 'sem_dado' });
+    expect(baseNaoPositivaCagrDe(V6)).toBe('sem_dado');
+    expect(p6.fii_papel).toEqual(p5.fii_papel);
+    expect(p6.acao_financeira).toEqual(p5.acao_financeira);
+    expect(p6.stock_financeira).toEqual(p5.stock_financeira);
+    for (const perfil of ['acao', 'stock', 'reit'] as const) {
+      const l6 = p6[perfil] ?? [];
+      const l5 = p5[perfil] ?? [];
+      expect(l6.map((c) => c.id)).toEqual(l5.map((c) => c.id));
+      l6.forEach((c, i) => {
+        const { definicao: d6, ...r6 } = c;
+        const { definicao: d5, ...r5 } = l5[i];
+        expect(r6).toEqual(r5);
+        if (c.tipo === 'cagr') {
+          expect(d6.endsWith(TEXTOS_CRITERIOS.criteriosV6.regraCagr)).toBe(true);
+          expect(d6).not.toContain('atende se o último ano for positivo');
+        } else {
+          expect(d6).toBe(d5);
+        }
+      });
+    }
+  });
+
+  it('fii_tijolo: alav até 16,7% do ativo (mesmo id e série), o resto igual à v5', () => {
+    const t6 = porId(V6.perfis.fii_tijolo);
+    const t5 = porId(V5.perfis.fii_tijolo);
+    expect(LIMITE_ALAV_ATIVO_V6_PCT).toBe(16.7);
+    expect(t6.alav).toMatchObject({
+      id: 'alav',
+      tipo: 'max',
+      serie: t5.alav.serie,
+      limite: 16.7,
+      rotulo: 'Alavancagem ≤ 16,7% do ativo',
+    });
+    expect(t6.alav.definicao).toContain('16,7%');
+    expect(t6.alav.definicao).not.toContain('15%');
+    for (const id of Object.keys(t5).filter((k) => k !== 'alav')) expect(t6[id]).toEqual(t5[id]);
+  });
+
+  it('rótulos e definições da v6 passam pela varredura de linguagem', () => {
+    const achados = folhasTexto(V6.perfis)
+      .filter(([k]) => /\.(rotulo|definicao)$/.test(k))
+      .map(([k, v]) => [k, encontrarProibidasV2(v)] as const)
+      .filter(([, p]) => p.length > 0);
+    expect(achados).toEqual([]);
+  });
+
+  it('a v5 JSON não foi tocada (a v6 deriva dela)', () => {
+    expect(CRITERIA_PARAMS_V5_JSON.versao).toBe(5);
+    expect(CRITERIA_PARAMS_V5_JSON.cagr).toEqual({ baseNaoPositiva: 'fim_positivo' });
+    expect(porId(V5.perfis.fii_tijolo).alav.limite).toBe(LIMITE_ALAV_ATIVO_V5_PCT);
+  });
+
+  it('seed --versao=6: inerte em 2099-01-01 por padrão', () => {
+    expect(VERSOES_CODIGO[6].json).toBe(CRITERIA_PARAMS_V6_JSON);
+    expect(lerArgs(['--versao=6'])).toEqual({ aplicar: false, validoAPartir: null, versao: 6 });
+    const agora = () => new Date('2026-10-21T12:00:00.000Z');
+    expect(validFromDaInsercao(6, null, agora).toISOString()).toBe(VALID_FROM_INERTE);
   });
 });

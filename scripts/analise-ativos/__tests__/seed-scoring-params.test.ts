@@ -58,3 +58,22 @@ describe('seed-scoring-params --versao=3', () => {
     expect(resto).toEqual(restoV2);
   });
 });
+
+describe('seed-scoring-params --versao=4', () => {
+  it('inerte em 2099-01-01 e = v3 com o DPA/DY pelo ano-calendário', () => {
+    expect(lerArgs(['--versao=4'])).toEqual({ versao: 4, aplicar: false, validoAPartir: null });
+    expect(validFromDoSeed(4, null).toISOString()).toBe('2099-01-01T00:00:00.000Z');
+    const v4 = validarScoringParams(VERSOES[4].params, 'v4');
+    const v3 = validarScoringParams(VERSOES[3].params, 'v3');
+    expect(v4.versao).toBe(4);
+    expect(regrasCalculoDe(v4)).toEqual({ ...regrasCalculoDe(v3), dpaPorExercicio: false });
+    const { versao: _v, descricao: _d, proventos: p4, ...resto4 } = v4;
+    const { versao: _v3, descricao: _d3, proventos: p3, ...resto3 } = v3;
+    expect(resto4).toEqual(resto3);
+    expect(p4).toEqual({ ...p3, dpaPorExercicio: false });
+  });
+
+  it('a v3 do código não foi tocada (a v4 deriva dela)', () => {
+    expect(regrasCalculoDe(VERSOES[3].params).dpaPorExercicio).toBe(true);
+  });
+});

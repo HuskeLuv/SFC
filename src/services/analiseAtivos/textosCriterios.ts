@@ -352,6 +352,21 @@ export const TEXTOS_CRITERIOS = {
     },
   },
 
+  /**
+   * Criteria_params v6 (= v5 com duas regras mais próximas do Fundamentei, 21/10/2026): o 'cagr'
+   * com o ponto de partida ≤ 0 fica sem dado (troca o fim de regraCagr da v5) e o 'alav' do
+   * fii_tijolo até 16,7% do ativo (a observação continua a da v4).
+   */
+  criteriosV6: {
+    regraCagr:
+      'crescimento anual composto = (valor do último ano ÷ valor do ano anterior à janela) elevado a 1 ÷ anos, menos 1; com o ponto de partida negativo ou zero, a taxa não se calcula e o critério fica sem dado',
+    alav: {
+      rotulo: 'Alavancagem ≤ 16,7% do ativo',
+      definicao:
+        'Obrigações do fundo (aquisição de imóveis, securitização e outros valores a pagar) até 16,7% do ativo total em todos os anos da janela (equivale a 20% do patrimônio)',
+    },
+  },
+
   /** Selo 'dados incompletos' (§6) no card de critérios e no Essencial. */
   incompleto: {
     selo: 'dados incompletos',
