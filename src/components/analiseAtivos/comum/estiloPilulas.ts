@@ -14,6 +14,7 @@
  * - SEGMENTO_*: botões dentro de um trilho cinza (Resumo | Detalhado, 1A/3A/5A/10A/Máx).
  * - ABA_AREA_*: abas da área (Quadro | Comparador | Salvos).
  */
+import { VISUAL_V2 } from '@/constants/analiseAtivosVisual';
 
 export const PILULA_LIGADA =
   'border-[#396CAA] bg-[#396CAA] font-semibold text-white dark:border-[#6E9DC4] dark:bg-[#6E9DC4] dark:text-[#2D2D2D]';
@@ -45,3 +46,13 @@ export const ANEL_FOCO_GRUPO =
 
 export const ANEL_FOCO =
   'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0079F2] focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-[#EAEAEA] dark:focus-visible:ring-offset-[#1F1F22]';
+
+/**
+ * fundamentei-regras (F4, item C4) — pílula COMPACTA do HTML do Pedro (`.pill`), só com o visual v2:
+ * raio 6, 4×10 px, 11,5 px/600; desligada na superfície 2 sem borda, ligada preenchida patrimonio. O
+ * visual vai num <span> dentro de um alvo de 44 px (min-h-11): o toque continua com 44 px.
+ */
+export const PILULA_COMPACTA =
+  'inline-flex items-center rounded-[6px] px-2.5 py-1 text-[11.5px] leading-tight whitespace-nowrap';
+export const PILULA_COMPACTA_LIGADA = VISUAL_V2.pilulaLigada;
+export const PILULA_COMPACTA_DESLIGADA = VISUAL_V2.pilulaDesligada;

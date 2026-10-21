@@ -7,13 +7,18 @@
  *  - setas ← → (e ↑ ↓) movem e selecionam (roving tabindex: só a selecionada entra no Tab);
  *  - selecionada: preenchida patrimonio #396CAA com texto branco (escuro: tranquilidade #6E9DC4
  *    com texto potencia #2D2D2D) — estiloPilulas.ts, ticket do Pedro de 16/10.
+ *  - visual v2 (F4, item C4): pílula compacta (PILULA_COMPACTA), alvo de 44 px mantido.
  */
 import { useRef, type KeyboardEvent } from 'react';
 import {
   ANEL_FOCO_GRUPO,
+  PILULA_COMPACTA,
+  PILULA_COMPACTA_DESLIGADA,
+  PILULA_COMPACTA_LIGADA,
   PILULA_DESLIGADA,
   PILULA_LIGADA,
 } from '@/components/analiseAtivos/comum/estiloPilulas';
+import { useVisualV2 } from '@/components/analiseAtivos/shell/VisualV2';
 import { TEXTOS_CRITERIOS, textoJanela } from '@/services/analiseAtivos/textosCriterios';
 import {
   JANELAS_CRITERIOS,
@@ -32,6 +37,7 @@ export default function PilulasJanela({
   className = '',
 }: PilulasJanelaProps) {
   const botoes = useRef<Array<HTMLButtonElement | null>>([]);
+  const v2 = useVisualV2();
 
   const aoTeclar = (e: KeyboardEvent<HTMLDivElement>) => {
     const passo =
@@ -75,9 +81,15 @@ export default function PilulasJanela({
             className="group inline-flex min-h-11 items-center justify-center focus-visible:outline-none"
           >
             <span
-              className={`inline-flex h-8 items-center rounded-full border px-3 text-[13px] whitespace-nowrap tabular-nums ${ANEL_FOCO_GRUPO} ${
-                selecionada ? PILULA_LIGADA : PILULA_DESLIGADA
-              }`}
+              className={
+                v2
+                  ? `${PILULA_COMPACTA} tabular-nums ${ANEL_FOCO_GRUPO} ${
+                      selecionada ? PILULA_COMPACTA_LIGADA : PILULA_COMPACTA_DESLIGADA
+                    }`
+                  : `inline-flex h-8 items-center rounded-full border px-3 text-[13px] whitespace-nowrap tabular-nums ${ANEL_FOCO_GRUPO} ${
+                      selecionada ? PILULA_LIGADA : PILULA_DESLIGADA
+                    }`
+              }
             >
               {textoJanela(j as Janela, variante === 'compacta')}
             </span>

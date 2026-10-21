@@ -17,6 +17,7 @@ import { MYFINANCE_BRAND } from '@/constants/brandColors';
 import { CRITERIA_PARAMS_CODIGO } from '@/services/analiseAtivos/params/criteriaParamsCodigo';
 import type { CriteriaParams } from '@/services/analiseAtivos/params/criteriaParamsSchema';
 import type { DefCriterioChip, IdCriterio } from '@/types/analiseAtivosCriterios';
+import type { ChaveRotuloEuaEn } from '@/services/analiseAtivos/textosEuaEn';
 import type {
   ClasseEua,
   ClasseQuadro,
@@ -188,6 +189,12 @@ export interface ColunaQuadro {
   alinhamento: 'esquerda' | 'direita' | 'centro';
   /** chave em TEXTOS_QUADRO.dicas (title do cabeçalho), opcional */
   dica?: string;
+  /**
+   * fundamentei-regras (A4.d, F4): nome EN da coluna EUA (ROTULOS_EUA_EN), usado só com
+   * `rotulosEn` da resposta; `rotuloEnAjustado` = REIT com o caixa operacional ajustado (A2.d).
+   */
+  rotuloEn?: ChaveRotuloEuaEn;
+  rotuloEnAjustado?: ChaveRotuloEuaEn;
 }
 
 const col = (
@@ -318,6 +325,43 @@ export const COLUNAS: Record<ClasseQuadro, Record<ModoQuadro, ColunaQuadro[]>> =
 };
 
 /**
+ * A4.d (F4): nomes EN das colunas EUA por código (lista fechada de textosEuaEn.ts). Ativo, setor,
+ * segmento, critérios, Na carteira e Lucro 10 anos ficam em português.
+ */
+const ROTULO_EN_COLUNA: Partial<Record<string, ChaveRotuloEuaEn>> = {
+  lucrosSeguidos: 'profitStreak',
+  roe: 'roe',
+  margemLiquida: 'netMargin',
+  dpaUsd: 'dividendPerShare',
+  divLiqEbitda: 'netDebtEbitda',
+  payout: 'payout',
+  fcoAcao: 'ocfPerShare',
+  divFco: 'payout',
+  anosDividendo: 'dividendGrowing',
+  pl: 'pe',
+  dy12m: 'dividendYield',
+};
+const ROTULO_EN_AJUSTADO: Partial<Record<string, ChaveRotuloEuaEn>> = {
+  fcoAcao: 'ocfAdjustedPerShare',
+  divFco: 'payoutOcfAdjusted',
+};
+
+function comRotuloEn(colunas: ColunaQuadro[]): ColunaQuadro[] {
+  return colunas.map((c) => {
+    const en = ROTULO_EN_COLUNA[c.codigo];
+    if (!en) return c;
+    const aj = ROTULO_EN_AJUSTADO[c.codigo];
+    return aj ? { ...c, rotuloEn: en, rotuloEnAjustado: aj } : { ...c, rotuloEn: en };
+  });
+}
+
+for (const classe of ['stock', 'reit'] as const) {
+  for (const modo of ['resumo', 'detalhado'] as const) {
+    COLUNAS[classe][modo] = comRotuloEn(COLUNAS[classe][modo]);
+  }
+}
+
+/**
  * Colunas de cotação EUA, inseridas logo depois de 'ativo' (preço) e antes de 'criterios' (P/L e
  * DY) SÓ com recursos.euaPreco (fatia C). Sem a chave, nunca aparecem.
  */
@@ -334,6 +378,9 @@ export const COLUNAS_PRECO_EUA: Record<
     antesCriterios: [col('dy12m', 'dy12m', 'dy')],
   },
 };
+for (const classe of ['stock', 'reit'] as const) {
+  COLUNAS_PRECO_EUA[classe].antesCriterios = comRotuloEn(COLUNAS_PRECO_EUA[classe].antesCriterios);
+}
 
 /**
  * Critérios que a URL/barra aceitam por classe, derivados dos params: os chips HABILITADOS (em FII,

@@ -34,6 +34,14 @@
  * "cotações dos EUA ainda não aparecem" (sem recursos.euaPreco) e a faixa dos critérios substitutos
  * do REIT, valores em US$, rodapé 'rodape-quadro-eua' com a regra do universo (sem nome de índice).
  * ?classe=stock|reit sem a chave volta para Ações. Sem a chave, nada disso aparece.
+ *
+ * fundamentei-regras (F4):
+ * - visual v2 (itens C3, C4, C6; só com ANALISE_ATIVOS_VISUAL_V2_HABILITADO): abas de classe com a
+ *   contagem em pílula (badge do ResponsiveTabNav); no computador, a meta 'n de N · ordem', A–Z,
+ *   Resumo | Detalhado, Filtros salvos e Comparar vão para a direita da faixa de filtros; pílulas
+ *   compactas. Sem a chave, o Quadro de hoje.
+ * - sinais da resposta (sem chave de tela própria aqui): rotulosEn (nomes EN das colunas EUA) e
+ *   reitFcoAjustado (faixa do REIT sem FFO/AFFO/ocupação, dicas do caixa ajustado).
  */
 import Link from 'next/link';
 import { Suspense, useEffect, useMemo, useState, type ReactNode } from 'react';
@@ -52,11 +60,15 @@ import TabelaQuadro, {
 import {
   ANEL_FOCO,
   ANEL_FOCO_GRUPO,
+  PILULA_COMPACTA,
+  PILULA_COMPACTA_DESLIGADA,
+  PILULA_COMPACTA_LIGADA,
   PILULA_DESLIGADA,
   PILULA_LIGADA,
   SEGMENTO_DESLIGADO,
   SEGMENTO_LIGADO,
 } from '@/components/analiseAtivos/comum/estiloPilulas';
+import { useVisualV2 } from '@/components/analiseAtivos/shell/VisualV2';
 import BotaoSalvarLinha from '@/components/analiseAtivos/quadro/BotaoSalvarLinha';
 import FaixaFiltroAplicado from '@/components/analiseAtivos/quadro/FaixaFiltroAplicado';
 import FiltrosSalvos, {
@@ -78,6 +90,7 @@ import {
   COR_LINK,
   CRITERIOS_NAO_SE_APLICAM_FINANCEIRA,
   ORDEM_PADRAO,
+  VISUAL_V2,
 } from '@/constants/analiseAtivosVisual';
 import { useIsBelowLg } from '@/hooks/useMediaQuery';
 import { useAnaliseAtivosConfig, useQuadroAnalise } from '@/hooks/useAnaliseAtivos';
@@ -166,6 +179,7 @@ function Pilula({
   children: ReactNode;
   ariaLabel?: string;
 }) {
+  const v2 = useVisualV2();
   return (
     <button
       type="button"
@@ -175,9 +189,15 @@ function Pilula({
       className="group inline-flex min-h-11 shrink-0 items-center outline-none"
     >
       <span
-        className={`inline-flex h-8 items-center rounded-full border px-3 text-[13px] whitespace-nowrap ${ANEL_FOCO_GRUPO} ${
-          pressionada ? PILULA_LIGADA : PILULA_DESLIGADA
-        }`}
+        className={
+          v2
+            ? `${PILULA_COMPACTA} ${ANEL_FOCO_GRUPO} ${
+                pressionada ? PILULA_COMPACTA_LIGADA : PILULA_COMPACTA_DESLIGADA
+              }`
+            : `inline-flex h-8 items-center rounded-full border px-3 text-[13px] whitespace-nowrap ${ANEL_FOCO_GRUPO} ${
+                pressionada ? PILULA_LIGADA : PILULA_DESLIGADA
+              }`
+        }
       >
         {children}
       </span>
@@ -186,6 +206,36 @@ function Pilula({
 }
 
 function PilulasModo({ modo, onModo }: { modo: ModoQuadro; onModo: (m: ModoQuadro) => void }) {
+  const v2 = useVisualV2();
+  if (v2) {
+    // item C4: Resumo | Detalhado em pílulas compactas (sem trilho), alvo de 44 px
+    return (
+      <div
+        role="group"
+        aria-label={T.modosRotulo}
+        data-quadro-modos=""
+        className="flex shrink-0 items-center gap-1"
+      >
+        {(['resumo', 'detalhado'] as const).map((m) => (
+          <button
+            key={m}
+            type="button"
+            aria-pressed={modo === m}
+            onClick={() => onModo(m)}
+            className="group inline-flex min-h-11 items-center outline-none"
+          >
+            <span
+              className={`${PILULA_COMPACTA} ${ANEL_FOCO_GRUPO} ${
+                modo === m ? PILULA_COMPACTA_LIGADA : PILULA_COMPACTA_DESLIGADA
+              }`}
+            >
+              {T.modos[m]}
+            </span>
+          </button>
+        ))}
+      </div>
+    );
+  }
   return (
     <div
       role="group"
@@ -369,7 +419,16 @@ const LINK_INLINE = `inline-flex min-h-11 items-center align-middle font-medium 
  * critérios substitutos (caixa operacional no lugar do FFO; ocupação sem dado). Texto factual, sem
  * cor semântica.
  */
-function FaixasEua({ classe, euaPreco }: { classe: ClasseQuadro; euaPreco: boolean }) {
+function FaixasEua({
+  classe,
+  euaPreco,
+  reitAjustado = false,
+}: {
+  classe: ClasseQuadro;
+  euaPreco: boolean;
+  /** A2.d: faixa do REIT com o caixa operacional ajustado (sem FFO/AFFO/ocupação) */
+  reitAjustado?: boolean;
+}) {
   if (!ehClasseEua(classe)) return null;
   const Q = TEXTOS_EUA_TELAS.quadro;
   const caixa =
@@ -384,7 +443,7 @@ function FaixasEua({ classe, euaPreco }: { classe: ClasseQuadro; euaPreco: boole
       )}
       {classe === 'reit' ? (
         <p role="note" data-faixa-reit="" className={`m-0 ${caixa}`}>
-          {TEXTOS_EUA.reit.faixa}
+          {reitAjustado ? TEXTOS_EUA.reitAjustado.faixa : TEXTOS_EUA.reit.faixa}
         </p>
       ) : null}
     </div>
@@ -395,6 +454,7 @@ function QuadroConteudo({ className = '' }: QuadroAnaliseProps) {
   const url = useEstadoQuadroUrl();
   const { estado, filtros } = url;
   const celular = useIsBelowLg();
+  const v2 = useVisualV2();
   const [sheetOrdem, setSheetOrdem] = useState(false);
   const config = useAnaliseAtivosConfig();
   // Stocks e REITs: abas, rotas e busca EUA só com a chave (o servidor já decide pelo usuário)
@@ -458,8 +518,14 @@ function QuadroConteudo({ className = '' }: QuadroAnaliseProps) {
   const contagens = primeira?.contagens;
   const abas = (euaLigado ? CLASSES_QUADRO : CLASSES_BR).map((c) => {
     const n = contagens?.[c];
+    // item C6: contagem em pílula (o nome acessível segue 'Ações 312')
+    if (v2)
+      return n === undefined ? { id: c, label: T.abas[c] } : { id: c, label: T.abas[c], badge: n };
     return { id: c, label: n === undefined ? T.abas[c] : `${T.abas[c]} ${n}` };
   });
+  // sinais da resposta (ausentes = false): nomes EN das colunas EUA e REIT com caixa ajustado
+  const rotulosEn = daClasse && primeira?.rotulosEn === true;
+  const reitFcoAjustado = daClasse && primeira?.reitFcoAjustado === true;
 
   const totalClasse = daClasse ? (primeira?.totalClasse ?? contagens?.[estado.classe]) : undefined;
   const contador =
@@ -573,11 +639,14 @@ function QuadroConteudo({ className = '' }: QuadroAnaliseProps) {
         acaoLinha={acaoLinha}
         rotuloColunaAcao={salvosLigado ? TEXTOS_SALVOS.salvar.colunaQuadro : undefined}
         euaPreco={euaPreco}
+        {...(rotulosEn ? { rotulosEn } : {})}
+        {...(reitFcoAjustado ? { reitFcoAjustado } : {})}
       />
     );
   }
 
-  const barra = (
+  const metaDireitaV2 = v2 && !celular;
+  const montarBarra = (direita?: ReactNode) => (
     <BarraFiltrosCriterios
       classe={estado.classe}
       janela={estado.janela}
@@ -592,6 +661,7 @@ function QuadroConteudo({ className = '' }: QuadroAnaliseProps) {
       onTrocarSetor={url.setSetor}
       onLimpar={url.limparFiltros}
       quebrarLinha={euaLigado}
+      direita={direita}
     />
   );
 
@@ -674,6 +744,26 @@ function QuadroConteudo({ className = '' }: QuadroAnaliseProps) {
     </div>
   );
 
+  // item C3 (computador): meta 'n de N · ordem' + A–Z + Resumo | Detalhado + salvos + Comparar
+  const metaDireita = metaDireitaV2 ? (
+    <>
+      <span className="inline-flex items-center gap-1.5 text-[12.5px] text-gray-500 dark:text-gray-400">
+        <span
+          aria-live="polite"
+          data-quadro-contador=""
+          className="text-gray-600 tabular-nums dark:text-gray-300"
+        >
+          {contador}
+        </span>
+        <span aria-hidden="true">·</span>
+        {pilulasOrdem}
+      </span>
+      <PilulasModo modo={estado.modo} onModo={url.setModo} />
+      {filtrosSalvosEl}
+      {botaoComparar}
+    </>
+  ) : undefined;
+
   return (
     <section
       aria-label={T.rotulo}
@@ -688,6 +778,11 @@ function QuadroConteudo({ className = '' }: QuadroAnaliseProps) {
           onChange={(id) => url.setClasse(id as ClasseQuadro)}
           ariaLabel={T.abasRotulo}
           variant="segmented-sub"
+          {...(v2
+            ? {
+                badgeClassNames: { active: VISUAL_V2.badgeAtivo, inactive: VISUAL_V2.badgeInativo },
+              }
+            : {})}
           // EUA no celular: 4 abas em grade 2×2 abaixo de 640 px (sem faixa rolável)
           className={celular && euaLigado ? 'grid shrink-0 grid-cols-2 sm:flex' : 'shrink-0'}
         />
@@ -701,7 +796,7 @@ function QuadroConteudo({ className = '' }: QuadroAnaliseProps) {
         )}
       </div>
 
-      {barra}
+      {montarBarra(metaDireita)}
 
       {celular && filtrosSalvosEl ? <div className="flex">{filtrosSalvosEl}</div> : null}
       {faixaFiltro}
@@ -740,7 +835,7 @@ function QuadroConteudo({ className = '' }: QuadroAnaliseProps) {
             <PilulasModo modo={estado.modo} onModo={url.setModo} />
           </div>
         </div>
-      ) : (
+      ) : metaDireitaV2 ? null : (
         <div className="flex flex-wrap items-center gap-x-4 gap-y-2" data-quadro-ordem-linha="">
           {contadorEl}
           <span className="flex-1" />
@@ -755,7 +850,7 @@ function QuadroConteudo({ className = '' }: QuadroAnaliseProps) {
 
       <FaixaFrescorAtrasado frescor={daClasse ? primeira?.frescorCotacao : undefined} />
 
-      <FaixasEua classe={estado.classe} euaPreco={euaPreco} />
+      <FaixasEua classe={estado.classe} euaPreco={euaPreco} reitAjustado={reitFcoAjustado} />
 
       {corpo}
 

@@ -10,8 +10,6 @@ export const TEXTOS_VISUAL = {
   quadro: {
     /** rótulo da faixa de filtros (o mesmo de textosQuadro.barra.rotulo) */
     filtros: 'Filtros de fundamentos',
-    /** meta à direita da faixa: '12 de 312 · ordem' */
-    meta: '{contador} · ordem',
   },
   pares: {
     titulo: 'Comparação com pares do setor',

@@ -14,8 +14,17 @@
  * - Celular: rótulo + janela numa linha; chips num trilho com rolagem lateral só dentro dele (sem
  *   rolagem horizontal da página); "Limpar filtros" embaixo.
  * Textos: textosQuadro + textosCriterios. Props FINAIS em src/types/analiseAtivosCriterios.ts.
+ *
+ * Visual v2 (fundamentei-regras F4, item C3; só com ANALISE_ATIVOS_VISUAL_V2_HABILITADO): faixa
+ * única que quebra linha (rótulo + janela, chips, Limpar e, à direita, o slot `direita` com a
+ * meta 'n de N · ordem', A–Z, Resumo | Detalhado, Filtros salvos e Comparar). Chips em pílula de
+ * 99 px com o ✓ em SVG sempre visível (sem caixinha); ligado no acento sem borda. Alvo de 44 px em
+ * todos os tamanhos (min-h-11). No celular os chips quebram linha. Sem a chave, a barra de hoje.
  */
-import { useId } from 'react';
+import { useId, type ReactNode } from 'react';
+import { ANEL_FOCO_GRUPO } from '@/components/analiseAtivos/comum/estiloPilulas';
+import { useVisualV2 } from '@/components/analiseAtivos/shell/VisualV2';
+import { VISUAL_V2 } from '@/constants/analiseAtivosVisual';
 import PilulasJanela from '@/components/analiseAtivos/comum/PilulasJanela';
 import FiltroSetor, {
   BOTAO_CHIP,
@@ -40,6 +49,34 @@ export type { BarraFiltrosCriteriosProps };
  */
 export interface BarraFiltrosCriteriosEuaProps extends BarraFiltrosCriteriosProps {
   quebrarLinha?: boolean;
+  /** visual v2 (computador): conteúdo à direita da faixa (meta, ordem, modo, salvos, Comparar) */
+  direita?: ReactNode;
+}
+
+/** Pílula visível do chip no visual v2 (99 px, 32 px de altura, ✓ sempre visível). */
+function classeChipV2(ligado: boolean): string {
+  return `inline-flex h-8 items-center gap-1.5 whitespace-nowrap rounded-full border px-3 text-[12.5px] ${ANEL_FOCO_GRUPO} ${
+    ligado ? VISUAL_V2.chipLigado : VISUAL_V2.chipDesligado
+  }`;
+}
+
+/** ✓ do chip no visual v2 (SVG, sempre visível; só decoração: o estado é o aria-pressed). */
+function IconeMarca() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      aria-hidden="true"
+      data-chip-marca=""
+      className="h-3 w-3 shrink-0"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2.4"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M5 12.5l4.5 4.5L19 7.5" />
+    </svg>
+  );
 }
 
 const T = TEXTOS_QUADRO.barra;
@@ -86,10 +123,12 @@ function ChipCriterio({
   d,
   ligado,
   onAlternar,
+  v2 = false,
 }: {
   d: DefCriterioChip;
   ligado: boolean;
   onAlternar: (id: IdCriterio) => void;
+  v2?: boolean;
 }) {
   const idDescricao = useId();
   const descricao = descricaoChip(d);
@@ -143,10 +182,17 @@ function ChipCriterio({
       onClick={() => onAlternar(d.id)}
       className={BOTAO_CHIP}
     >
-      <span className={classeChipVisual(ligado ? 'ligado' : 'desligado')}>
-        <CaixaMarca ligado={ligado} />
-        {rotulo}
-      </span>
+      {v2 ? (
+        <span className={classeChipV2(ligado)}>
+          <IconeMarca />
+          {rotulo}
+        </span>
+      ) : (
+        <span className={classeChipVisual(ligado ? 'ligado' : 'desligado')}>
+          <CaixaMarca ligado={ligado} />
+          {rotulo}
+        </span>
+      )}
       <span id={idDescricao} className="sr-only">
         {descricao}
       </span>
@@ -169,8 +215,10 @@ export default function BarraFiltrosCriterios({
   onLimpar,
   className = '',
   quebrarLinha = false,
+  direita,
 }: BarraFiltrosCriteriosEuaProps) {
   const celular = useIsBelowLg();
+  const v2 = useVisualV2();
   const idRotulo = useId();
   const temFiltro = selecionados.length > 0 || naCarteira || !!setor;
 
@@ -182,6 +230,7 @@ export default function BarraFiltrosCriterios({
           d={d}
           ligado={selecionados.includes(d.id)}
           onAlternar={onAlternarCriterio}
+          v2={v2}
         />
       ))}
       <button
@@ -191,10 +240,17 @@ export default function BarraFiltrosCriterios({
         onClick={onAlternarNaCarteira}
         className={BOTAO_CHIP}
       >
-        <span className={classeChipVisual(naCarteira ? 'ligado' : 'desligado')}>
-          <CaixaMarca ligado={naCarteira} />
-          {T.naCarteira}
-        </span>
+        {v2 ? (
+          <span className={classeChipV2(naCarteira)}>
+            <IconeMarca />
+            {T.naCarteira}
+          </span>
+        ) : (
+          <span className={classeChipVisual(naCarteira ? 'ligado' : 'desligado')}>
+            <CaixaMarca ligado={naCarteira} />
+            {T.naCarteira}
+          </span>
+        )}
       </button>
       <FiltroSetor
         // stock filtra por setor (divisão SIC) como ação: o rótulo do FiltroSetor é 'Setor'
@@ -219,7 +275,42 @@ export default function BarraFiltrosCriterios({
     </span>
   );
 
+  if (v2 && !celular) {
+    return (
+      <div
+        role="group"
+        aria-labelledby={idRotulo}
+        data-barra-filtros={classe}
+        data-visual-v2=""
+        className={`flex min-w-0 flex-wrap items-center gap-x-2 ${className}`}
+      >
+        <span className="mr-1 inline-flex items-center gap-2">
+          {rotulo}
+          <PilulasJanela valor={janela} onTrocar={onTrocarJanela} />
+        </span>
+        <div
+          role="group"
+          aria-label={T.chipsRotulo}
+          data-quadro-chips=""
+          className="flex min-w-0 flex-wrap items-center gap-x-2"
+        >
+          {chips}
+        </div>
+        {limpar}
+        {direita ? (
+          <>
+            <span className="flex-1" aria-hidden="true" />
+            <div className="flex flex-wrap items-center gap-x-3" data-barra-direita="">
+              {direita}
+            </div>
+          </>
+        ) : null}
+      </div>
+    );
+  }
+
   if (celular) {
+    const quebra = quebrarLinha || v2;
     return (
       <div
         role="group"
@@ -234,11 +325,11 @@ export default function BarraFiltrosCriterios({
         <div
           role="group"
           aria-label={T.chipsRotulo}
-          data-mf-scroll-x={quebrarLinha ? undefined : ''}
+          data-mf-scroll-x={quebra ? undefined : ''}
           data-quadro-chips=""
-          data-chips-quebram={quebrarLinha ? '' : undefined}
+          data-chips-quebram={quebra ? '' : undefined}
           className={
-            quebrarLinha
+            quebra
               ? 'flex min-w-0 flex-wrap items-center gap-x-2'
               : `${TABLE_MOBILE_STYLES.chipRail} flex-none items-center`
           }
