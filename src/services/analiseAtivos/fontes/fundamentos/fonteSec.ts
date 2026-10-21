@@ -12,6 +12,11 @@
  *  - reit: revenue, dividend_per_share, ocf_per_share, net_debt_ebitda, cash_payout_pct (não
  *    oferece occupancy nem ffo/affo: fase 2, fonte 'sec_10k').
  * params.fontes.prioridade.porMercado (v3) põe us_stocks/us_reits → ['sec'].
+ *
+ * fundamentei-regras (F1): com `incluirSeriesV5` (o job criterios-eua, quando a versão pede), os
+ * stocks levam também a série 'ebit' (critério 'ebitda' da v5: a base do EBITDA pelo degrau, sem a
+ * D&A) e os REITs as séries ajustadas pela remuneração em ações (ocf_adjusted_per_share,
+ * cash_payout_adjusted_pct). Sem a opção, os pontos de hoje (telas e v3/v4 iguais).
  */
 import type { PrismaClient } from '@prisma/client';
 import { paraUnidadeCatalogo } from '@/services/analiseAtivos/fontes/fundamentos/fonteCvm';
@@ -19,11 +24,16 @@ import {
   fysSecPorAno,
   lerBrutosSec,
   SERIES_STOCK,
-  valoresAnoStock,
+  SERIES_STOCK_COM_EBIT,
+  valoresAnoStockComEbit,
   type BrutoSec,
   type OpcoesSeriesStock,
 } from '@/services/analiseAtivos/regras/criterios/seriesStock';
-import { SERIES_REIT, valoresAnoReit } from '@/services/analiseAtivos/regras/criterios/seriesReit';
+import {
+  SERIES_REIT,
+  SERIES_REIT_COM_AJUSTADAS,
+  valoresAnoReitComAjustadas,
+} from '@/services/analiseAtivos/regras/criterios/seriesReit';
 import { cikDoEmissorId, type ClasseEua } from '@/types/analiseAtivosEua';
 import type {
   AtivoFonte,
@@ -42,6 +52,17 @@ export const SERIES_SEC_POR_CLASSE: Record<ClasseEua, readonly SerieFundamento[]
   reit: SERIES_REIT,
 };
 
+/** Séries da SEC por classe com as da v5 (fundamentei-regras F1: 'ebit' e as ajustadas do REIT). */
+export const SERIES_SEC_V5_POR_CLASSE: Record<ClasseEua, readonly SerieFundamento[]> = {
+  stock: SERIES_STOCK_COM_EBIT,
+  reit: SERIES_REIT_COM_AJUSTADAS,
+};
+
+/** Opções dos pontos da SEC: as das séries de stock + as séries da v5 (padrão false = hoje). */
+export interface OpcoesPontosSec extends OpcoesSeriesStock {
+  incluirSeriesV5?: boolean;
+}
+
 /**
  * Pontos FY da SEC de uma empresa, repetidos para cada ticker do CIK (GOOGL/GOOG, BRK.A/BRK.B).
  * EBITDA ≤ 0 com dívida líquida positiva e FCO ≤ 0 no pagamento ficam +Infinity. Pura.
@@ -50,14 +71,17 @@ export function pontosSec(
   b: BrutoSec,
   symbols: readonly string[],
   classe: ClasseEua,
-  opcoes: OpcoesSeriesStock = {},
+  opcoes: OpcoesPontosSec = {},
 ): PontoSerieVigente[] {
   const out: PontoSerieVigente[] = [];
+  const series = (opcoes.incluirSeriesV5 ? SERIES_SEC_V5_POR_CLASSE : SERIES_SEC_POR_CLASSE)[
+    classe
+  ];
   for (const [ano, f] of fysSecPorAno(b.fys)) {
     const valores: Partial<Record<SerieFundamento, number | null>> =
-      classe === 'reit' ? valoresAnoReit(f) : valoresAnoStock(f, opcoes);
+      classe === 'reit' ? valoresAnoReitComAjustadas(f) : valoresAnoStockComEbit(f, opcoes);
     for (const symbol of symbols) {
-      for (const serie of SERIES_SEC_POR_CLASSE[classe]) {
+      for (const serie of series) {
         out.push({
           symbol,
           serie,

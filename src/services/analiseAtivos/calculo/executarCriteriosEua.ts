@@ -20,6 +20,14 @@
  *    Estourou o prazo antes do fim ⇒ 'parcial' SEM gravar.
  * Alerta de cobertura (janela 5): stocks não financeiras ≥ 90% em rec/luc/ebitda/fcl, ≥ 85% em
  * mg/dl; REITs ≥ 85% em dl (aceites da fatia A, desenho final.fatias[A].criterios_aceite).
+ *
+ * fundamentei-regras (F1), tudo pela versão do params (nenhuma chave de tela):
+ *  - séries da v5 nos pontos da SEC ('ebit' dos stocks; FCO ajustado pela SBC dos REITs) só quando a
+ *    versão pede (incluirSeriesV5);
+ *  - stock_financeira com naoSeAplica (v5: ebitda/dl/fcl) fica 'nao_se_aplica' — ajustarFatosEua só
+ *    troca para 'sem dado' o que o params NÃO marcou como não se aplica ("n de 3");
+ *  - 'pay' do REIT sobre o caixa operacional ajustado ≤ 0: o fato diz 'caixa operacional ajustado';
+ *  - a cobertura mínima nunca listou 'ocup' (o REIT da v5 tem 5 critérios, "n de 5").
  */
 import type { PrismaClient } from '@prisma/client';
 import { limparCacheCriterios } from '@/services/analiseAtivos/leitura/criterios/lerCriterios';
@@ -31,6 +39,7 @@ import {
   type CriteriaParams,
   type FontesParams,
 } from '@/services/analiseAtivos/params/criteriaParamsSchema';
+import { SERIES_REIT_AJUSTADAS } from '@/services/analiseAtivos/regras/criterios/seriesStock';
 import { pontosSec } from '@/services/analiseAtivos/fontes/fundamentos/fonteSec';
 import { resolverSeries } from '@/services/analiseAtivos/fontes/fundamentos/resolverSeries';
 import { anoFimGlobal } from '@/services/analiseAtivos/regras/criterios/ancoraJanela';
@@ -179,13 +188,20 @@ const FATO_FINANCEIRA: Partial<Record<IdCriterio, string>> = {
 export function ajustarFatosEua(
   a: AvaliacaoAtivo,
   serieValores: Readonly<Record<number, number | null>> | undefined,
+  /**
+   * fundamentei-regras (v5): payout sobre o caixa operacional AJUSTADO (cash_payout_adjusted_pct);
+   * usado quando o 'pay' não caiu no fallback (sem a obs 'sbc_indisponivel')
+   */
+  serieAjustada?: Readonly<Record<number, number | null>>,
 ): AvaliacaoAtivo {
   const janelas = { ...a.janelas };
   const financeira = a.perfil === 'stock_financeira';
   for (const k of Object.keys(janelas) as ChaveJanela[]) {
     const j = janelas[k];
     const resultados = j.resultados.map((r): ResultadoCriterio => {
-      const fatoFinanceira = financeira ? FATO_FINANCEIRA[r.id] : undefined;
+      // v5: o que o params marcou como não se aplica fica como veio (n de 3)
+      const fatoFinanceira =
+        financeira && r.estado !== 'nao_se_aplica' ? FATO_FINANCEIRA[r.id] : undefined;
       if (fatoFinanceira) {
         return {
           id: r.id,
@@ -198,14 +214,21 @@ export function ajustarFatosEua(
         };
       }
       if (r.id !== 'pay' || r.motivo !== 'ebitda_nao_positivo') return r;
+      const ajustada = !!serieAjustada && !(r.obs ?? []).includes('sbc_indisponivel');
+      const valores = ajustada ? serieAjustada : serieValores;
       const anos = (r.serie ?? [])
         .map((p) => p.ano)
-        .filter((ano) => serieValores?.[ano] === Number.POSITIVE_INFINITY);
+        .filter((ano) => valores?.[ano] === Number.POSITIVE_INFINITY);
       const ano = anos.length > 0 ? anos[anos.length - 1] : j.anoFim;
       const { motivo: _motivo, ...resto } = r;
       return {
         ...resto,
-        fato: formatarTexto(TEXTOS_CRITERIOS.fatos.caixaOperacionalNaoPositivo, { ano }),
+        fato: formatarTexto(
+          ajustada
+            ? TEXTOS_CRITERIOS.fatos.caixaOperacionalAjustadoNaoPositivo
+            : TEXTOS_CRITERIOS.fatos.caixaOperacionalNaoPositivo,
+          { ano },
+        ),
       };
     });
     janelas[k] = financeira
@@ -294,7 +317,17 @@ export async function executarCriteriosEua(
     stock_financeira: seriesDoPerfilEua(params, 'stock_financeira'),
     reit: seriesDoPerfilEua(params, 'reit'),
   };
-  const opcoesStock = { receitaMenorQueLucro: params.criterios.margem.receitaMenorQueLucro };
+  // fundamentei-regras: séries da v5 ('ebit', FCO ajustado do REIT) só quando a versão pede
+  const seriesV5 = new Set<SerieFundamento>(['ebit', ...SERIES_REIT_AJUSTADAS]);
+  const incluirSeriesV5 = Object.values(seriesPor).some((l) => l.some((s) => seriesV5.has(s)));
+  const opcoesStock = {
+    receitaMenorQueLucro: params.criterios.margem.receitaMenorQueLucro,
+    ...(incluirSeriesV5 ? { incluirSeriesV5 } : {}),
+  };
+  // o 'pay' do REIT da versão lê o payout ajustado (v5) ou o de antes (v3/v4)
+  const payAjustado = criteriosDoPerfil(params, 'reit').some(
+    (d) => d.id === 'pay' && d.serie === 'cash_payout_adjusted_pct',
+  );
 
   // 2. universo
   let t = Date.now();
@@ -362,6 +395,7 @@ export async function executarCriteriosEua(
             paramsVersion,
           ),
           r.series.cash_payout_pct,
+          payAjustado ? r.series.cash_payout_adjusted_pct : undefined,
         );
         avaliadas.push({ symbol, cnpj: emissorIdSec(e.cik), avaliacao });
         porPerfil[perfil] = (porPerfil[perfil] ?? 0) + 1;

@@ -14,6 +14,12 @@
  *    troca o fato para 'caixa operacional ≤ 0 em AAAA');
  *  - DPA ou dividendos negativos (sinal trocado no arquivo) = sem dado, nunca 'atende';
  *  - occupancy: NÃO existe no companyfacts → nenhum ponto (o critério 'ocup' é inativo na v3).
+ *
+ * fundamentei-regras (F1; funções puras da F0 em seriesStock): com `incluirAjustadas` (o job, quando
+ * a versão pede: fco_acao e pay da v5), também as séries ajustadas pela remuneração em ações —
+ * ocf_adjusted_per_share ((FCO − SBC) ÷ média diluída) e cash_payout_adjusted_pct (dividendos ÷
+ * (FCO − SBC), ajustado ≤ 0 = +Infinity). Ano sem SBC = null: o critério cai na serieFallback sem
+ * ajuste com a obs 'sbc_indisponivel' (resolverSeries). Sem a opção, as saídas de hoje.
  * Pura.
  */
 import {
@@ -24,6 +30,9 @@ import {
   fysSecPorAno,
   type BrutoSec,
   type FySec,
+  valoresAjustadosReitSec,
+  SERIES_REIT_AJUSTADAS,
+  type SerieReitAjustada,
   type SeriesCriteriosEua,
 } from '@/services/analiseAtivos/regras/criterios/seriesStock';
 
@@ -94,6 +103,18 @@ export function valoresAnoReit(f: FySec): Record<SerieReit, number | null> {
     net_debt_ebitda: dlEbitdaSec(dividaLiquidaSec(f), ebitdaSec(f)),
     cash_payout_pct: dividendosFcoPctSec(f),
   };
+}
+
+/** As séries do REIT + as ajustadas pela SBC (fundamentei-regras F1, só com incluirAjustadas). */
+export type SerieReitComAjustadas = SerieReit | SerieReitAjustada;
+export const SERIES_REIT_COM_AJUSTADAS: readonly SerieReitComAjustadas[] = [
+  ...SERIES_REIT,
+  ...SERIES_REIT_AJUSTADAS,
+];
+
+/** valoresAnoReit + as séries ajustadas pela SBC (US$/ação e %). Pura. */
+export function valoresAnoReitComAjustadas(f: FySec): Record<SerieReitComAjustadas, number | null> {
+  return { ...valoresAnoReit(f), ...valoresAjustadosReitSec(f, dividendosPagosSec(f)) };
 }
 
 /** Séries anuais de um REIT (occupancy fica de fora: sem fonte). Pura. */

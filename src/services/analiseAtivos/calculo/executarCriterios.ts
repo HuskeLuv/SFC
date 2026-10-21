@@ -22,6 +22,11 @@
  * também tira pontos da CVM (contados em detalhes.cvmEmRevisao).
  * Alertas: params ausente; cobertura das ações não financeiras do Quadro na janela 5 abaixo do
  * mínimo em algum critério (90%; margem 85%, coberturaMinima); scores ainda rodando ('pulado').
+ *
+ * fundamentei-regras (F1): tudo vem da versão do params (nenhuma chave de tela é lida aqui):
+ *  - série 'ebit' nos pontos da CVM só quando a versão pede (critério 'ebitda' da v5);
+ *  - margem da financeira pelo override por perfil (opcoesSeriesAcaoDoPerfil; v1–v4 iguais);
+ *  - meses dos FIIs pelo meses.mesReferencia da versão ('data_com' na v5; padrão 'pagamento').
  */
 import type { PrismaClient } from '@prisma/client';
 import { limparCacheCriterios } from '@/services/analiseAtivos/leitura/criterios/lerCriterios';
@@ -31,6 +36,7 @@ import {
   criteriosDoPerfil,
   fontesCitadas,
   fontesEfetivas,
+  mesReferenciaDe,
   type CriteriaParams,
 } from '@/services/analiseAtivos/params/criteriaParamsSchema';
 import { pontosCvmAcao, pontosCvmFii } from '@/services/analiseAtivos/fontes/fundamentos/fonteCvm';
@@ -46,7 +52,7 @@ import { avaliarAtivo } from '@/services/analiseAtivos/regras/criterios/avaliarA
 import { perfilCriterios } from '@/services/analiseAtivos/regras/criterios/perfilCriterios';
 import {
   lerBrutosAcoes,
-  opcoesSeriesAcao,
+  opcoesSeriesAcaoDoPerfil,
   type EmpresaCriterios,
 } from '@/services/analiseAtivos/regras/criterios/seriesAcao';
 import {
@@ -301,7 +307,9 @@ export async function executarCriterios(
   const lerProvedores = deps.lerPontosProvedores ?? lerPontosProvedores;
   const seriesAcoes = seriesDosPerfis(params, ['acao']);
   const seriesFiis = seriesDosPerfis(params, ['fii_tijolo', 'fii_papel']);
-  const opcoesAcao = opcoesSeriesAcao(params);
+  // fundamentei-regras: 'ebit' só quando a versão pede; margem e meses pela versão
+  const incluirEbit = seriesAcoes.includes('ebit');
+  const mesReferencia = mesReferenciaDe(params);
   let cvmEmRevisao = 0;
   /** pontos da CVM (com a sanidade literal quando aplicaA inclui 'cvm') + os dos provedores */
   const juntar = (cvm: PontoSerieVigente[], externos: readonly PontoSerieVigente[]) => {
@@ -350,7 +358,12 @@ export async function executarCriterios(
         params,
       );
       for (const symbol of e.symbols) {
-        const cvm = bruto ? pontosCvmAcao(bruto, [symbol], opcoesAcao) : [];
+        const cvm = bruto
+          ? pontosCvmAcao(bruto, [symbol], {
+              ...opcoesSeriesAcaoDoPerfil(params, perfil),
+              ...(incluirEbit ? { incluirEbit } : {}),
+            })
+          : [];
         const r = resolverSeries({
           pontos: juntar(cvm, externos.get(symbol) ?? []),
           series: seriesAcoes,
@@ -423,7 +436,7 @@ export async function executarCriterios(
             series: r.series,
             origens: r.origens,
             mesesPorAno: mesesPorAnoDeProvedor(r),
-            meses: bruto ? mesesFii(bruto, anoFim, ctx.params) : null,
+            meses: bruto ? mesesFii(bruto, anoFim, ctx.params, mesReferencia) : null,
           },
           params,
           paramsVersion,

@@ -16,6 +16,15 @@
  * Nomes de série = os canônicos da spec (v2.5, SERIES_CRITERIO).
  * Valores em R$ mi (margem em %, Dív/EBITDA em ×). Ano com o grupo 'fundamentos_escala' em
  * conferência (bloco C, chave com o ano) = ausente em todas as séries.
+ *
+ * fundamentei-regras (F1):
+ *  - série 'ebit' (critério 'ebitda' da v5, mesmo id) = FY.ebit (lucro operacional, R$ mi), FORA
+ *    das saídas de hoje: valoresAnoAcao/seriesAcao ficam idênticos; quem quer a série usa
+ *    valoresAnoAcaoComEbit (FonteCvm com incluirEbit);
+ *  - margem por perfil (opcoesSeriesAcaoDoPerfil): o override
+ *    criterios.margem.porPerfil.acao_financeira ('nao_se_aplica' na v5) grava a margem NULA nos
+ *    anos de receita ≤ lucro da financeira (o motor marca o 'mg' como não se aplica); sem o
+ *    override (v1–v4) é a regra global de antes.
  */
 import type { Prisma, PrismaClient } from '@prisma/client';
 import {
@@ -28,9 +37,13 @@ import {
   ebitda,
   type BaseFundamentos,
 } from '@/services/analiseAtivos/regras/calculo/multiplos';
+import {
+  regraMargemDoPerfil,
+  type CriteriaParams,
+} from '@/services/analiseAtivos/params/criteriaParamsSchema';
 import { lucroParaSequencia } from '@/services/analiseAtivos/regras/calculo/sequencias';
 import type { Escopo } from '@/services/analiseAtivos/tipos';
-import type { SerieCriterio } from '@/types/analiseAtivosCriterios';
+import type { PerfilCriterio, SerieCriterio } from '@/types/analiseAtivosCriterios';
 
 export type SeriesCriterios = Partial<Record<SerieCriterio, Record<number, number | null>>>;
 
@@ -124,6 +137,19 @@ export function opcoesSeriesAcao(params: {
   return { receitaMenorQueLucro: params.criterios.margem.receitaMenorQueLucro };
 }
 
+/**
+ * Opções das séries de ação de UM perfil (fundamentei-regras F1): a regra da margem do perfil
+ * (regraMargemDoPerfil). 'nao_se_aplica' grava a margem nula nos anos de receita ≤ lucro (como
+ * 'sem_dado'); o motor decide o n/a. Sem override = opcoesSeriesAcao (v1–v4 iguais).
+ */
+export function opcoesSeriesAcaoDoPerfil(
+  params: Pick<CriteriaParams, 'criterios'>,
+  perfil: PerfilCriterio,
+): OpcoesSeriesAcao {
+  const regra = regraMargemDoPerfil(params, perfil);
+  return { receitaMenorQueLucro: regra === 'nao_se_aplica' ? 'sem_dado' : regra };
+}
+
 /** Valores de um FY (R$ mi, %, ×). Pura. */
 export function valoresAnoAcao(
   f: FyCriterios,
@@ -170,6 +196,14 @@ export function valoresAnoAcao(
     net_debt_ebitda: dlEbitda,
     free_cash_flow: f.fco !== null && f.capex !== null ? emMi(f.fco - f.capex) : null,
   };
+}
+
+/** valoresAnoAcao + 'ebit' (lucro operacional, R$ mi; fundamentei-regras F1). Pura. */
+export function valoresAnoAcaoComEbit(
+  f: FyCriterios,
+  opcoes: OpcoesSeriesAcao = {},
+): ReturnType<typeof valoresAnoAcao> & { ebit: number | null } {
+  return { ...valoresAnoAcao(f, opcoes), ebit: emMi(f.ebit) };
 }
 
 /** Séries anuais de uma empresa. Pura (series.test usa a fixture real do DEV). */
