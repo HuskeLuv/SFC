@@ -11,15 +11,22 @@
  *  - dpa (US$/ação), fcoPorAcao (US$/ação), dividendosFcoPct (%; FCO ≤ 0 = null);
  *  - anosLucroConsecutivos / anosDividendo: anos fechados seguidos com lucro > 0 / DPA > 0, do
  *    último para trás;
- *  - serie10a: lucro líquido dos 10 últimos FY em US$ mi (contrato do Quadro EUA, analiseAtivosEua).
+ *  - serie10a: lucro líquido dos 10 últimos FY em US$ mi (contrato do Quadro EUA, analiseAtivosEua);
+ *  - fundamentei-regras (F3, A2.d): fcoAjustadoPorAcao (US$/ação) e dividendosFcoAjustadoPct (%) do
+ *    mesmo FY com o caixa operacional ajustado pela remuneração em ações (FCO − SBC; funções puras de
+ *    seriesStock). SBC nula no FY = null (a leitura cai no não ajustado com a nota
+ *    'sbc_indisponivel'); caixa ajustado ≤ 0 = null (a coluna não guarda ∞, como dividendosFcoPct).
+ *    Nenhuma coluna antiga muda.
  * Preço (só com ANALISE_ATIVOS_EUA_PRECO_HABILITADO e fechamento em AssetQuoteDailyUs): pl = preço ÷
  * LPA (lucro ÷ média diluída; LPA ≤ 0 = null), pvp = preço ÷ (PL ÷ ações), dy12mPct = DPA ÷ preço ×
  * 100. Sem cotação (ou sem a chave), as três ficam null — a Análise EUA não exibe preço.
  */
 import {
   dividaLiquidaSec,
+  dividendosFcoAjustadoPctSec,
   ebitdaSec,
   emMi,
+  fcoAjustadoPorAcaoSec,
   fysSecPorAno,
   lucroSec,
   type FySec,
@@ -45,6 +52,10 @@ export interface MultiplosEua {
   dpa: number | null;
   fcoPorAcao: number | null;
   dividendosFcoPct: number | null;
+  /** F3: caixa operacional ajustado pela SBC ÷ média diluída (US$/ação); null sem SBC no FY */
+  fcoAjustadoPorAcao: number | null;
+  /** F3: dividendos ÷ caixa operacional ajustado (%); null sem SBC ou com o ajustado ≤ 0 */
+  dividendosFcoAjustadoPct: number | null;
   anosLucroConsecutivos: number | null;
   anosDividendo: number | null;
   serie10a: PontoSerieAnual[];
@@ -90,6 +101,8 @@ export function multiplosEua(fys: readonly FySec[], preco: number | null = null)
     dpa: null,
     fcoPorAcao: null,
     dividendosFcoPct: null,
+    fcoAjustadoPorAcao: null,
+    dividendosFcoAjustadoPct: null,
     anosLucroConsecutivos: null,
     anosDividendo: null,
     serie10a: [],
@@ -125,6 +138,8 @@ export function multiplosEua(fys: readonly FySec[], preco: number | null = null)
     dpa: arred(dpa),
     fcoPorAcao: arred(fcoPorAcaoSec(ult)),
     dividendosFcoPct: arred(razao(dividendos, ult.fco, 100)),
+    fcoAjustadoPorAcao: arred(fcoAjustadoPorAcaoSec(ult)),
+    dividendosFcoAjustadoPct: arred(dividendosFcoAjustadoPctSec(ult, dividendos)),
     anosLucroConsecutivos: seguidos(lucros),
     anosDividendo: seguidos(dpas),
     serie10a: porAno.slice(-ANOS_SERIE_EUA).map((f) => ({

@@ -13,7 +13,11 @@
  *    fechamento em AssetQuoteDailyUs);
  *  - criterios/perfilCriterios/paramsVersion = cópia compacta de criteria_eval das classes EUA
  *    (lerCompactosPorSimbolo com CLASSES_EUA);
- *  - flags = flags SEC do último FY (FLAGS_FUNDAMENTO_SEC: EBITDA por degrau, DPA calculado…).
+ *  - flags = flags SEC do último FY (FLAGS_FUNDAMENTO_SEC: EBITDA por degrau, DPA calculado…);
+ *  - fundamentei-regras (F3): REIT grava também fcoAjustadoPorAcao e dividendosFcoAjustadoPct (caixa
+ *    operacional ajustado pela SBC; null sem SBC no FY). O job não lê chave de tela: grava sempre; a
+ *    leitura (linhasQuadro) escolhe a coluna pela ANALISE_ATIVOS_REIT_FCO_AJUSTADO_HABILITADO.
+ *    Stock: as duas ficam fora (null).
  * Grava pelo gravador ISOLADO da fatia 0 (gravarLinhasQuadro com CLASSES_EUA): nunca apaga acao/fii e
  * recusa symbol já gravado com classe BR. Universo vazio = nada é apagado.
  */
@@ -164,6 +168,12 @@ export function montarLinhasQuadroEua(e: EntradaQuadroEua): {
       dpa: m.dpa,
       fcoPorAcao: m.fcoPorAcao,
       dividendosFcoPct: m.dividendosFcoPct,
+      ...(emp.classe === 'reit'
+        ? {
+            fcoAjustadoPorAcao: m.fcoAjustadoPorAcao,
+            dividendosFcoAjustadoPct: m.dividendosFcoAjustadoPct,
+          }
+        : {}),
       ...(crit
         ? {
             criterios: crit.criterios as unknown as Prisma.InputJsonValue,

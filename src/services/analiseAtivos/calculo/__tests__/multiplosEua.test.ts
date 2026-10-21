@@ -50,6 +50,34 @@ describe('multiplosEua', () => {
   });
 
   it('sem FY: tudo null e série vazia', () => {
-    expect(multiplosEua([])).toMatchObject({ anoFiscal: null, roePct: null, serie10a: [] });
+    expect(multiplosEua([])).toMatchObject({
+      anoFiscal: null,
+      roePct: null,
+      serie10a: [],
+      fcoAjustadoPorAcao: null,
+      dividendosFcoAjustadoPct: null,
+    });
+  });
+
+  // fundamentei-regras F3 (A2.d)
+  it('caixa operacional ajustado pela SBC: sem SBC = null; com SBC, sem mexer nas antigas', () => {
+    const sem = multiplosEua(fys('O'));
+    expect(sem.fcoAjustadoPorAcao).toBeNull();
+    expect(sem.dividendosFcoAjustadoPct).toBeNull();
+    const ultimo = Math.max(...fys('O').map((f) => f.anoFiscal));
+    const comSbc = fys('O').map((f) =>
+      f.anoFiscal === ultimo ? { ...f, remuneracaoAcoes: (f.fco as number) * 0.1 } : f,
+    );
+    const com = multiplosEua(comSbc);
+    expect(com.fcoAjustadoPorAcao).toBeCloseTo((sem.fcoPorAcao as number) * 0.9, 3);
+    expect(com.dividendosFcoAjustadoPct).toBeCloseTo((sem.dividendosFcoPct as number) / 0.9, 1);
+    const { fcoAjustadoPorAcao: _a, dividendosFcoAjustadoPct: _b, ...antigasCom } = com;
+    const { fcoAjustadoPorAcao: _c, dividendosFcoAjustadoPct: _d, ...antigasSem } = sem;
+    expect(antigasCom).toEqual(antigasSem);
+    // SBC ≥ FCO: caixa ajustado ≤ 0 = null na coluna (sem ∞)
+    const negativo = fys('O').map((f) =>
+      f.anoFiscal === ultimo ? { ...f, remuneracaoAcoes: (f.fco as number) * 2 } : f,
+    );
+    expect(multiplosEua(negativo).dividendosFcoAjustadoPct).toBeNull();
   });
 });

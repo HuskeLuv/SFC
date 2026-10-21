@@ -136,6 +136,39 @@ describe('montarLinhasQuadroEua', () => {
     const o = montarLinhasQuadroEua(entrada()).linhas.find((l) => l.symbol === 'O')!;
     expect(o.flags).toEqual(['ebitda_pre_ir']);
   });
+
+  // fundamentei-regras F3 (A2.d): colunas do caixa operacional ajustado pela SBC
+  it('REIT: colunas ajustadas sem SBC = null; com SBC preenchidas; as antigas não mudam', () => {
+    const base = entrada();
+    const semSbc = montarLinhasQuadroEua(base).linhas;
+    const oSem = semSbc.find((l) => l.symbol === 'O')!;
+    expect(oSem.fcoAjustadoPorAcao).toBeNull();
+    expect(oSem.dividendosFcoAjustadoPct).toBeNull();
+    // stock: as colunas novas ficam fora da linha (null no banco)
+    const aapl = semSbc.find((l) => l.symbol === 'AAPL')!;
+    expect('fcoAjustadoPorAcao' in aapl).toBe(false);
+    expect('dividendosFcoAjustadoPct' in aapl).toBe(false);
+
+    // SBC sintética no último FY do O (5% do FCO)
+    const cikO = base.empresas.find((e) => e.symbol === 'O')!.cikFundamentos;
+    const fys = base.brutos.get(cikO)!.fys;
+    const ult = fys.reduce((a, b) => (b.anoFiscal > a.anoFiscal ? b : a));
+    const sbc = (ult.fco as number) * 0.05;
+    const comSbc = new Map(base.brutos);
+    comSbc.set(cikO, {
+      cik: cikO,
+      fys: fys.map((f) => (f === ult ? { ...f, remuneracaoAcoes: sbc } : f)),
+    });
+    const oCom = montarLinhasQuadroEua({ ...base, brutos: comSbc }).linhas.find(
+      (l) => l.symbol === 'O',
+    )!;
+    const acoes = ult.acoesMediaDiluida as number;
+    expect(oCom.fcoAjustadoPorAcao).toBeCloseTo(((ult.fco as number) - sbc) / acoes, 3);
+    expect(oCom.dividendosFcoAjustadoPct).toBeCloseTo((oSem.dividendosFcoPct as number) / 0.95, 1);
+    const { fcoAjustadoPorAcao: _a, dividendosFcoAjustadoPct: _b, ...antigasCom } = oCom;
+    const { fcoAjustadoPorAcao: _c, dividendosFcoAjustadoPct: _d, ...antigasSem } = oSem;
+    expect(antigasCom).toEqual(antigasSem);
+  });
 });
 
 describe('gerarQuadroEua', () => {
