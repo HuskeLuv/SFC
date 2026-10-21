@@ -45,6 +45,15 @@ export function lerArgsRodarJob(argv: string[]): ArgsRodarJob {
     if (!/^[a-z][a-z0-9_]{1,31}$/.test(fonte)) throw new Error('--fonte inválido');
     opcoes.fonte = fonte;
   }
+  // Job declarado como `(ctx) => …` no catálogo não recebe as opções: recusa em vez de ignorar
+  // calado (ex.: 'scores'/'quadro' com --versao-params rodariam a versão vigente). A scoring de uma
+  // versão não vigente roda por scripts/analise-ativos/recalcular-analise.ts --versao-params=N.
+  if (Object.keys(opcoes).length > 0 && def.executar.length < 2) {
+    throw new Error(
+      `o job '${def.nome}' não aceita --versao-params/--fonte` +
+        ' (scores/quadro de outra versão: recalcular-analise.ts --versao-params=N)',
+    );
+  }
   return { def, prazoMs, aplicar: !argv.includes('--sem-aplicar'), opcoes };
 }
 
