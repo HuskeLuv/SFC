@@ -39,6 +39,17 @@
  *  - universoEua: corte de free float por classe com histerese (decisão do Wellington de 17/10:
  *    stocks ≥ US$ 2 bi, saem abaixo de US$ 1,6 bi; REITs de patrimônio ≥ US$ 2 bi) e a sanidade do
  *    float. Ausente = UNIVERSO_EUA_PADRAO (src/types/analiseAtivosEua.ts).
+ *
+ * fundamentei-regras (docs/analise-ativos/fundamentei-regras/desenho.json, fatia F0) — tudo
+ * OPCIONAL e SEM .default (o parse da v1–v4 sai byte a byte igual ao de antes; os padrões ficam nas
+ * funções de leitura abaixo, que o motor da F1 usa):
+ *  - tipo 'cagr' (crescimento anual composto > 0; sem limite, como o 'up');
+ *  - meses.mesReferencia: 'pagamento' (padrão, mesReferenciaDe) | 'data_com' (v5);
+ *  - cagr.baseNaoPositiva: 'fim_positivo' (v5) | 'sem_dado' (padrão, baseNaoPositivaCagrDe);
+ *  - criterios.margem.porPerfil.acao_financeira: override da margem da financeira ('valor' |
+ *    'sem_dado' | 'nao_se_aplica'); ausente = a regra global receitaMenorQueLucro
+ *    (regraMargemDoPerfil);
+ *  - tamanho da lista por perfil (TAMANHO_LISTA_PERFIL): reit 5–6 (a v5 tira 'ocup'), demais 6.
  */
 import { z } from 'zod';
 import {
@@ -52,12 +63,20 @@ import {
   type SerieFundamento,
 } from '@/types/analiseAtivosFontes';
 import {
+  BASE_NAO_POSITIVA_CAGR_PADRAO,
+  BASES_NAO_POSITIVAS_CAGR,
   IDS_CRITERIO,
+  MES_REFERENCIA_PADRAO,
+  MESES_REFERENCIA,
   SERIES_CRITERIO,
   SERIES_CRITERIO_LEGADAS,
+  TIPOS_CRITERIO,
   UNIDADES_CRITERIO,
   serieCanonica,
+  type BaseNaoPositivaCagr,
   type IdCriterio,
+  type MesReferencia,
+  type PerfilComLista,
   type PerfilCriterio,
   type SerieCriterio,
 } from '@/types/analiseAtivosCriterios';
@@ -102,7 +121,7 @@ const criterio = z
     id: z.enum(IDS_CRITERIO),
     rotulo: z.string().min(1),
     definicao: z.string().min(1),
-    tipo: z.enum(['up', 'pos', 'max', 'min', 'months']),
+    tipo: z.enum(TIPOS_CRITERIO),
     serie: serieCriterio,
     /**
      * v2.5: série usada na janela INTEIRA quando a principal não tem todos os anos (ex.: 'luc' =
@@ -140,18 +159,34 @@ const criterio = z
     }
   });
 
-const listaCriterios = z
-  .array(criterio)
-  .length(6)
-  .superRefine((lista, ctx) => {
-    const vistos = new Set<string>();
-    lista.forEach((c, i) => {
-      if (vistos.has(c.id)) {
-        ctx.addIssue({ code: 'custom', path: [i, 'id'], message: `id duplicado: ${c.id}` });
-      }
-      vistos.add(c.id);
+/**
+ * Tamanho da lista de critérios por perfil com lista (fundamentei-regras F0): o REIT aceita 5 ou 6
+ * (a v5 tira a ocupação, que não tem fonte: "n de 5"); os demais, exatamente 6 (v1–v4 iguais).
+ */
+export const TAMANHO_LISTA_PERFIL: Record<PerfilComLista, { min: number; max: number }> = {
+  acao: { min: 6, max: 6 },
+  fii_tijolo: { min: 6, max: 6 },
+  fii_papel: { min: 6, max: 6 },
+  stock: { min: 6, max: 6 },
+  reit: { min: 5, max: 6 },
+};
+
+function listaCriterios(perfil: PerfilComLista) {
+  const { min, max } = TAMANHO_LISTA_PERFIL[perfil];
+  return z
+    .array(criterio)
+    .min(min)
+    .max(max)
+    .superRefine((lista, ctx) => {
+      const vistos = new Set<string>();
+      lista.forEach((c, i) => {
+        if (vistos.has(c.id)) {
+          ctx.addIssue({ code: 'custom', path: [i, 'id'], message: `id duplicado: ${c.id}` });
+        }
+        vistos.add(c.id);
+      });
     });
-  });
+}
 
 /** Corte de free float de uma classe EUA: entra ≥ entrada; sai < saida (histerese). */
 const corteFloat = z
@@ -189,7 +224,7 @@ export const criteriaParamsSchema = z
     /** anoFim = ano − 1 a partir deste mês (1–12); antes, ano − 2 (ancoraJanela, fatia A) */
     ancoraAno: z.strictObject({ mesLiberaAnoAnterior: z.number().int().min(1).max(12) }),
     perfis: z.strictObject({
-      acao: listaCriterios,
+      acao: listaCriterios('acao'),
       acao_financeira: z.strictObject({
         base: z.literal('acao'),
         /** v2.5: pode ser vazio ("n de 6"); religar = nova versão com os ids */
@@ -203,10 +238,10 @@ export const criteriaParamsSchema = z
         /** nota 'não se aplicam a bancos…' no Essencial da financeira (v2.4 = true; v2 = false) */
         notaEssencial: z.boolean().default(true),
       }),
-      fii_tijolo: listaCriterios,
-      fii_papel: listaCriterios,
+      fii_tijolo: listaCriterios('fii_tijolo'),
+      fii_papel: listaCriterios('fii_papel'),
       /** v3 (EUA): mesmos ids das ações (rec/luc/ebitda/mg/dl/fcl) */
-      stock: listaCriterios.optional(),
+      stock: listaCriterios('stock').optional(),
       /** v3 (EUA): financeira por SIC 6000–6799 exceto 6798 (+ override por CIK); n de 6 com [] */
       stock_financeira: z
         .strictObject({
@@ -215,8 +250,8 @@ export const criteriaParamsSchema = z
           regraPerfil: z.literal('sic_financeira'),
         })
         .optional(),
-      /** v3 (EUA): rec, dpa, fco_acao, dl (6×), pay (90), ocup (inativa) */
-      reit: listaCriterios.optional(),
+      /** v3 (EUA): rec, dpa, fco_acao, dl (6×), pay (90), ocup (inativa); v5: sem ocup (5) */
+      reit: listaCriterios('reit').optional(),
     }),
     /** par do chip de FII: id de tijolo → id de papel */
     equivalencias: z.partialRecord(z.enum(IDS_CRITERIO), z.enum(IDS_CRITERIO)),
@@ -232,13 +267,26 @@ export const criteriaParamsSchema = z
     meses: z.strictObject({
       ancora: z.literal('fim_anoFim'),
       mesesBaseCurta: z.enum(['sem_dado', 'nao_atende']),
+      /** F0 fundamentei-regras: mês que conta no 'mes' (ausente = 'pagamento'; v5 = 'data_com') */
+      mesReferencia: z.enum(MESES_REFERENCIA).optional(),
     }),
+    /** F0 fundamentei-regras: regra do 'cagr' com início ≤ 0 (ausente = 'sem_dado') */
+    cagr: z.strictObject({ baseNaoPositiva: z.enum(BASES_NAO_POSITIVAS_CAGR) }).optional(),
     /** v2.5: regras finas por critério (padrões = v2.4) */
     criterios: z
       .strictObject({
         margem: z.strictObject({
           /** receita ≤ lucro: 'sem_dado' (regra 15, v2.4) | 'valor' (literal da spec, v2) */
           receitaMenorQueLucro: z.enum(['valor', 'sem_dado']),
+          /**
+           * F0 fundamentei-regras: override por perfil (v5: acao_financeira 'nao_se_aplica').
+           * Ausente = a regra global acima (regraMargemDoPerfil).
+           */
+          porPerfil: z
+            .strictObject({
+              acao_financeira: z.enum(['valor', 'sem_dado', 'nao_se_aplica']).optional(),
+            })
+            .optional(),
         }),
       })
       .default({ margem: { receitaMenorQueLucro: 'sem_dado' } }),
@@ -415,6 +463,32 @@ export function idsNaoSeAplica(params: CriteriaParams, perfil: PerfilCriterio): 
   if (perfil === 'stock_financeira')
     return [...(params.perfis.stock_financeira?.naoSeAplica ?? [])];
   return [];
+}
+
+/** Mês que conta no critério 'mes' (F0 fundamentei-regras): ausente = 'pagamento' (v1–v4). */
+export function mesReferenciaDe(params: Pick<CriteriaParams, 'meses'>): MesReferencia {
+  return params.meses.mesReferencia ?? MES_REFERENCIA_PADRAO;
+}
+
+/** Regra do 'cagr' com o primeiro ano ≤ 0 (F0 fundamentei-regras): ausente = 'sem_dado'. */
+export function baseNaoPositivaCagrDe(params: Pick<CriteriaParams, 'cagr'>): BaseNaoPositivaCagr {
+  return params.cagr?.baseNaoPositiva ?? BASE_NAO_POSITIVA_CAGR_PADRAO;
+}
+
+/** Regra da margem com receita ≤ lucro, por perfil (override → regra global). */
+export type RegraMargemPerfil = 'valor' | 'sem_dado' | 'nao_se_aplica';
+
+/**
+ * Regra da margem do perfil (F0 fundamentei-regras): o override de criterios.margem.porPerfil
+ * (só acao_financeira) ou, ausente, a regra global receitaMenorQueLucro (v1–v4 iguais).
+ */
+export function regraMargemDoPerfil(
+  params: Pick<CriteriaParams, 'criterios'>,
+  perfil: PerfilCriterio,
+): RegraMargemPerfil {
+  const margem = params.criterios.margem;
+  const override = perfil === 'acao_financeira' ? margem.porPerfil?.acao_financeira : undefined;
+  return override ?? margem.receitaMenorQueLucro;
 }
 
 /** Universo EUA efetivo: o do params (v3+) ou o padrão do código (UNIVERSO_EUA_PADRAO). */

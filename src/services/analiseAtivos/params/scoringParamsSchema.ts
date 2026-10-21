@@ -9,6 +9,18 @@
  *  - semáforo: maior_melhor ⇒ atende ≥ parcial; menor_melhor ⇒ atende ≤ parcial;
  *    faixa ⇒ [atende] contida em [parcial];
  *  - componentes: piso ≠ teto (interpolação aceita piso > teto, "menor é melhor").
+ *
+ * fundamentei-regras (docs/analise-ativos/fundamentei-regras/desenho.json, fatia F0): regras de
+ * CÁLCULO versionadas (os jobs leem a versão vigente, nunca chave de tela), todas OPCIONAIS e SEM
+ * .default no schema — o parse da v1/v2 sai igual ao de antes e os padrões (= comportamento de hoje)
+ * ficam em regrasCalculoDe:
+ *  - payout.regra: 'dmpl_dpa' (hoje: DMPL declarado ÷ lucro no ano; DPA 12m ÷ LPA TTM) | 'dfc'
+ *    (v3: proventos pagos na DFC ÷ lucro do período; lucro ≤ 0 = null 'prejuizo');
+ *  - proventos.baseJanelaDy: 'com' (hoje) | 'ex' (v3: DY 12m e DY do ano por data-ex);
+ *  - proventos.cortarFuturos: false (hoje) | true (v3: data-ex > hoje fora do DPA do ano);
+ *  - proventos.dpaPorExercicio: false (hoje: ano civil) | true (v3: exercício fora de dezembro);
+ *  - serie10aPorDtFim: false (hoje: ano < ano civil) | true (v3: 'lucro 10 anos' e salto de
+ *    provento do job quadro com dtFim ≤ hoje).
  */
 import { z } from 'zod';
 
@@ -175,9 +187,31 @@ const conferencia = z.strictObject({
   }),
 });
 
+/** Regra do payout (F0 fundamentei-regras; scoring v3 = 'dfc'). */
+export const REGRAS_PAYOUT = ['dmpl_dpa', 'dfc'] as const;
+export type RegraPayout = (typeof REGRAS_PAYOUT)[number];
+
+/** Base da janela do DY de ações (F0 fundamentei-regras; scoring v3 = 'ex'). */
+export const BASES_JANELA_DY = ['com', 'ex'] as const;
+export type BaseJanelaDy = (typeof BASES_JANELA_DY)[number];
+
+const payoutSchema = z.strictObject({ regra: z.enum(REGRAS_PAYOUT) });
+
+const proventosCalculoSchema = z.strictObject({
+  baseJanelaDy: z.enum(BASES_JANELA_DY).optional(),
+  cortarFuturos: z.boolean().optional(),
+  dpaPorExercicio: z.boolean().optional(),
+});
+
 const baseSchema = z.strictObject({
   versao: z.number().int().positive(),
   descricao: z.string(),
+  /** F0 fundamentei-regras: regra do payout (ausente = 'dmpl_dpa', hoje) */
+  payout: payoutSchema.optional(),
+  /** F0 fundamentei-regras: janelas e corte do DY/DPA de ações (ausente = hoje) */
+  proventos: proventosCalculoSchema.optional(),
+  /** F0 fundamentei-regras: anos fechados do job quadro por dtFim (ausente = false, hoje) */
+  serie10aPorDtFim: z.boolean().optional(),
   indice: z.strictObject({
     pesos: z.strictObject({ lucro: peso, divida: peso, rent: peso, div: peso, preco: peso }),
     faixasCor: z.strictObject({ verde: z.number(), azul: z.number(), laranja: z.number() }),
@@ -544,3 +578,35 @@ export const scoringParamsSchema = baseSchema.superRefine((p, ctx) => {
 });
 
 export type ScoringParams = z.infer<typeof baseSchema>;
+
+/** Regras de cálculo efetivas de uma versão (F0 fundamentei-regras), com os padrões de hoje. */
+export interface RegrasCalculo {
+  payoutRegra: RegraPayout;
+  baseJanelaDy: BaseJanelaDy;
+  cortarFuturos: boolean;
+  dpaPorExercicio: boolean;
+  serie10aPorDtFim: boolean;
+}
+
+/** Padrões = comportamento da v1/v2 (nenhum campo novo na versão = nada muda). */
+export const REGRAS_CALCULO_PADRAO: Readonly<RegrasCalculo> = Object.freeze({
+  payoutRegra: 'dmpl_dpa',
+  baseJanelaDy: 'com',
+  cortarFuturos: false,
+  dpaPorExercicio: false,
+  serie10aPorDtFim: false,
+});
+
+/** Regras de cálculo da versão (campo ausente = padrão de hoje). Pura. */
+export function regrasCalculoDe(
+  p: Pick<ScoringParams, 'payout' | 'proventos' | 'serie10aPorDtFim'>,
+): RegrasCalculo {
+  const d = REGRAS_CALCULO_PADRAO;
+  return {
+    payoutRegra: p.payout?.regra ?? d.payoutRegra,
+    baseJanelaDy: p.proventos?.baseJanelaDy ?? d.baseJanelaDy,
+    cortarFuturos: p.proventos?.cortarFuturos ?? d.cortarFuturos,
+    dpaPorExercicio: p.proventos?.dpaPorExercicio ?? d.dpaPorExercicio,
+    serie10aPorDtFim: p.serie10aPorDtFim ?? d.serie10aPorDtFim,
+  };
+}
