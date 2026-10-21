@@ -13,8 +13,15 @@
  * - Dado em conferência: chip (o "Por quê?" da página quando houver); 'ocultar' abre vazio.
  * - Valor fora do limite: borda #D92D20/#F97066 + "Use um valor entre X e Y" (aria-invalid).
  * - Slider 0–50 em passos de 5 (← → andam 5), aria-valuetext, área de 44px.
+ *
+ * Visual v2 (fundamentei-regras F4, item C12): rótulo e caixa na mesma linha com a divisória
+ * tracejada do HTML do Pedro embaixo de cada campo. Sem a chave, o de hoje.
  */
 import { useId } from 'react';
+import { useVisualV2 } from '@/components/analiseAtivos/shell/VisualV2';
+
+/** Visual v2: divisória tracejada embaixo de cada campo (`.sim label` do HTML do Pedro). */
+const LINHA_CAMPO_V2 = 'border-b border-dashed border-gray-200 pb-2 dark:border-gray-700';
 import ChipConferencia from '@/components/analiseAtivos/comum/ChipConferencia';
 import { useConferenciaPagina } from '@/components/analiseAtivos/comum/PorQueConferencia';
 import { conferenciaDoCampo } from '@/services/analiseAtivos/leitura/ativo/conferenciasAtivo';
@@ -188,10 +195,13 @@ function CampoCenario({ def, r, estado }: CampoProps) {
   const confPagina = conf ? conferenciaDoCampo(ctx?.conferencias, CAMPO_TELA[conf.campo]) : null;
   const idHint = `${id}-h`;
   const idErro = `${id}-e`;
+  const v2 = useVisualV2();
 
   return (
     <div
-      className="grid grid-cols-[minmax(0,1fr)_108px] items-center gap-x-2.5 gap-y-1"
+      className={`grid grid-cols-[minmax(0,1fr)_108px] items-center gap-x-2.5 gap-y-1${
+        v2 ? ` ${LINHA_CAMPO_V2}` : ''
+      }`}
       data-campo-cenario={campo}
       data-invalido={erro ? '' : undefined}
     >
@@ -292,8 +302,13 @@ function CampoCotacao({ r }: { r: CenariosResposta }) {
   const v = r.cotacao.valor.estado === 'ok' ? r.cotacao.valor.valor : null;
   const conf = r.cotacao.conferencia;
   const confPagina = conf ? conferenciaDoCampo(ctx?.conferencias, 'preco') : null;
+  const v2 = useVisualV2();
   return (
-    <div className="grid grid-cols-[minmax(0,1fr)_108px] items-center gap-x-2.5 gap-y-1">
+    <div
+      className={`grid grid-cols-[minmax(0,1fr)_108px] items-center gap-x-2.5 gap-y-1${
+        v2 ? ` ${LINHA_CAMPO_V2}` : ''
+      }`}
+    >
       <label htmlFor={id} className="text-sm font-medium text-gray-800 dark:text-white/90">
         {C.cotacao.rotulo}
       </label>
