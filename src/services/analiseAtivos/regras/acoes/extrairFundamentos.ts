@@ -35,6 +35,11 @@
  *   modelo IFRS 17 (2023+) ainda traz linhas antigas zeradas — a tela usa ANO_IFRS17, não o zero.
  * Demonstrativo presente sem a linha somada (capex, dividendos pagos, DMPL) = 0 de verdade; demonstrativo
  * ausente = null (ausente).
+ * fundamentei-regras (F2, A4.a; só INGESTÃO, chave ANALISE_ATIVOS_DFC_PROVENTOS_AMPLO, desligada): os
+ *   proventos pagos da DFC passam a casar também 'Pagamento de Proventos', 'remuneração (paga) aos
+ *   acionistas', 'Lucros distribuídos' e 'distribuição de lucros' (RE_DIVIDENDOS_DFC_AMPLO) e deixam
+ *   de fora os pagos a NÃO CONTROLADORES (o payout é sobre o lucro dos controladores). Chave desligada
+ *   = a regra de hoje, byte a byte. A DMPL não muda.
  */
 import { metricasNaoAplicaveis } from '@/services/analiseAtivos/regras/acoes/financeiras';
 import { lpaPublicado } from '@/services/analiseAtivos/regras/acoes/lpa';
@@ -45,6 +50,7 @@ import {
 } from '@/services/analiseAtivos/regras/acoes/lucroDoPeriodo';
 import { periodoFiscal } from '@/services/analiseAtivos/regras/acoes/periodoFiscal';
 import { valorOuNull } from '@/services/analiseAtivos/regras/comum/valor';
+import { analiseAtivosDfcProventosAmplo } from '@/lib/analiseAtivosConfig';
 import type {
   Escopo,
   FundamentosPeriodo,
@@ -77,6 +83,11 @@ export interface ContextoExtracao {
   dva?: boolean;
   /** A6: CNPJ do Set de seguradoras (campos de seguradora por rótulo, nível até 4) */
   seguradora?: boolean;
+  /**
+   * F2 fundamentei-regras: regex ampliado dos proventos pagos na DFC (sem não controladores).
+   * Ausente = ANALISE_ATIVOS_DFC_PROVENTOS_AMPLO (chave de ingestão; só a ingestão CVM chama).
+   */
+  dfcProventosAmplo?: boolean;
 }
 
 export type FundamentosExtraidos = Omit<
@@ -107,6 +118,12 @@ const RE_CAPEX = /imobilizad|intang[ií]v/i;
 const RE_CAPEX_EXCL = /venda|aliena|baixa|recebiment/i;
 export const RE_DIVIDENDOS = /dividend|juros (sobre|s\/) ?(o )?capital|\bJCP\b/i;
 const RE_DIV_EXCL = /prescrit|revers|revert|reclassif/i;
+/**
+ * F2 (A4.a, chave ANALISE_ATIVOS_DFC_PROVENTOS_AMPLO): rótulos de proventos pagos na DFC que o
+ * RE_DIVIDENDOS perde (93 FY com DFC = 0 e DMPL > 0 em 2021–2025).
+ */
+export const RE_DIVIDENDOS_DFC_AMPLO =
+  /dividend|juros (sobre|s\/) ?(o )?capital|\bJCP\b|provento|remunera\S* (paga )?aos acionistas|lucros? distribu|distribui[cç][aã]o de lucros?/i;
 const RE_PL = /^Patrim[oô]nio L[ií]quido/i;
 const RE_NAO_CONTROLADOR = /N[aã]o Controlador/i;
 const RE_CAIXA = /^Caixa e Equivalentes/i;
@@ -304,6 +321,11 @@ export function extrairFundamentos(
           .map((l) => l.valor),
       ) || 0
     : null;
+  // F2: regex ampliado e sem não controladores só com a chave de ingestão (desligada = hoje)
+  const amplo = ctx.dfcProventosAmplo ?? analiseAtivosDfcProventosAmplo();
+  const ehProventoPago = amplo
+    ? (ds: string) => RE_DIVIDENDOS_DFC_AMPLO.test(ds) && !RE_NAO_CONTROLADOR.test(ds)
+    : (ds: string) => RE_DIVIDENDOS.test(ds);
   const dividendosJcpPagos = temDfc
     ? -soma(
         dfc
@@ -311,7 +333,7 @@ export function extrairFundamentos(
             (l) =>
               l.cdConta.startsWith('6.03.') &&
               nivelConta(l.cdConta) === 3 &&
-              RE_DIVIDENDOS.test(l.dsConta) &&
+              ehProventoPago(l.dsConta) &&
               l.valor < 0,
           )
           .map((l) => l.valor),
