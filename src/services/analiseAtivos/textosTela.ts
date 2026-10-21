@@ -696,11 +696,11 @@ export const TEXTOS_TELA = {
       },
       unidadeFii: 'Receita e resultado em R$ mi; valores por cota em R$ · ano fiscal · fonte: CVM',
       notaEssencialAcao:
-        'Essencial: o que basta para ver se lucro, rentabilidade e proventos crescem ano a ano.',
+        'Essencial: o que basta para acompanhar lucro, rentabilidade e proventos ano a ano.',
       notaEssencialFii:
-        'Essencial: o que basta para ver se rendimento, valor patrimonial e imóveis crescem ano a ano.',
+        'Essencial: o que basta para acompanhar rendimento, valor patrimonial e imóveis ano a ano.',
       notaEssencialPapel:
-        'Essencial: o que basta para ver se rendimento, valor patrimonial e carteira de CRIs crescem ano a ano.',
+        'Essencial: o que basta para acompanhar rendimento, valor patrimonial e carteira de CRIs ano a ano.',
       notaProventosConferencia:
         '* Proventos do ano em conferência (mais que o dobro do ano anterior): o ano fica fora do crescimento anual.',
       notaFinanceira:
