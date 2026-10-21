@@ -35,6 +35,31 @@ function radio(anos: number) {
   return screen.getByRole('radio', { name: `${anos} anos` });
 }
 
+describe('CardCriterios — regra do crescimento anual composto (v6)', () => {
+  it('a fórmula sai de cada critério e aparece uma vez só, abaixo da lista', () => {
+    const regra = TEXTOS_CRITERIOS.criteriosV6.regraCagr;
+    const c = structuredClone(CRITERIOS_ATIVO_WEGE3) as CriteriosAtivo;
+    const j5 = c.janelas['5'];
+    j5.itens = j5.itens.map((i) =>
+      i.id === 'rec' || i.id === 'luc' ? { ...i, definicao: `${i.rotulo} na janela; ${regra}` } : i,
+    );
+    const { container } = render(<CardCriterios ticker="WEGE3" classe="acao" criterios={c} />);
+    const regras = container.querySelectorAll('[data-regra-cagr]');
+    expect(regras).toHaveLength(1);
+    expect(regras[0].textContent).toBe(`${regra.charAt(0).toUpperCase()}${regra.slice(1)}.`);
+    for (const li of container.querySelectorAll('li[data-criterio]')) {
+      expect(li.textContent).not.toContain('crescimento anual composto =');
+    }
+  });
+
+  it('sem critério de crescimento composto (v1–v4): nenhuma linha de regra', () => {
+    const { container } = render(
+      <CardCriterios ticker="WEGE3" classe="acao" criterios={CRITERIOS_ATIVO_WEGE3} />,
+    );
+    expect(container.querySelector('[data-regra-cagr]')).toBeNull();
+  });
+});
+
 describe('CardCriterios — janelas (as 3 na mesma resposta)', () => {
   it('abre na janela 5 com "n de 6" neutro, 6 itens e o título do bloco', () => {
     const { container } = render(

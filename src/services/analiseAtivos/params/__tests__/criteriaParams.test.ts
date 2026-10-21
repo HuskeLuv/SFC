@@ -11,7 +11,7 @@ import { CRITERIA_PARAMS_V6, CRITERIA_PARAMS_V6_JSON } from '../criteriaParamsV6
 import { LIMITE_ALAV_ATIVO_V5_PCT, LIMITE_ALAV_ATIVO_V6_PCT } from '@/types/analiseAtivosCriterios';
 import { encontrarProibidasV2 } from '@/services/analiseAtivos/regras/comum/linguagemV2';
 import { folhasTexto } from '@/services/analiseAtivos/regras/comum/varreduraTextos';
-import { TEXTOS_CRITERIOS } from '@/services/analiseAtivos/textosCriterios';
+import { TEXTOS_CRITERIOS, separarRegraCagr } from '@/services/analiseAtivos/textosCriterios';
 import {
   VALID_FROM_INERTE,
   VERSOES_CODIGO,
@@ -739,6 +739,26 @@ describe('CriteriaParams v6 (v5 mais próxima do Fundamentei, 21/10/2026)', () =
     expect(t6.alav.definicao).toContain('16,7%');
     expect(t6.alav.definicao).not.toContain('15%');
     for (const id of Object.keys(t5).filter((k) => k !== 'alav')) expect(t6[id]).toEqual(t5[id]);
+  });
+
+  it('separarRegraCagr: tira a mesma regra de todos os critérios cagr da v6 (e da v5)', () => {
+    for (const P of [V6, V5]) {
+      const regras = new Set<string>();
+      for (const perfil of ['acao', 'stock', 'reit'] as const) {
+        for (const c of P.perfis[perfil] ?? []) {
+          const r = separarRegraCagr(c.definicao);
+          if (c.tipo !== 'cagr') {
+            expect(r).toEqual({ definicao: c.definicao, regra: null });
+            continue;
+          }
+          expect(r.regra).not.toBeNull();
+          expect(r.definicao).not.toContain('crescimento anual composto =');
+          regras.add(r.regra!);
+        }
+      }
+      expect(regras.size).toBe(1);
+      expect([...regras][0]).toMatch(/^Crescimento anual composto = /);
+    }
   });
 
   it('rótulos e definições da v6 passam pela varredura de linguagem', () => {
