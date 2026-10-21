@@ -88,7 +88,7 @@ export function linhaPropriaDoTopo(ativo: AtivoTopoResposta): LinhaQuadroApi {
     margemLiquida: kpi('margemLiquida'),
     vacanciaCvm: kpi('vacanciaCvm'),
     obrigacoesPl: kpi('obrigacoesPl'),
-    anosLucroConsecutivos: null,
+    anosLucroConsecutivos: ativo.anosLucroConsecutivos ?? null,
     patrimonio: numero('patrimonio'),
     nCri: null,
     fiiTipo: ativo.fiiTipoCvm ?? null,

@@ -550,6 +550,7 @@ export async function montarTopoAtivo(
     foraDoQuadroMotivo: linha.foraDoQuadroMotivo,
     assetId: linha.assetId,
     fiiTipoCvm: ehAcao ? null : (linha.fiiTipo ?? null),
+    anosLucroConsecutivos: linha.anosLucroConsecutivos ?? null,
     cotacao: {
       preco,
       data: linha.precoData,
@@ -770,6 +771,7 @@ export async function montarTopoAtivoEua(
     foraDoQuadroMotivo: linha.foraDoQuadroMotivo,
     assetId: linha.assetId,
     fiiTipoCvm: null,
+    anosLucroConsecutivos: linha.anosLucroConsecutivos ?? null,
     cotacao: {
       preco,
       data: opts.preco ? linha.precoData : null,
