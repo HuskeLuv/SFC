@@ -30,6 +30,12 @@
  * A6 (fatia B): banco e seguradora vêm com o template próprio do servidor (FundamentosResposta.
  * template, colunas de textosFinanceiras). A explicação da coluna vem de ColunaFundamentos.tooltip
  * quando o servidor manda (ex.: qual receita a seguradora usou); a tabela marca data-template.
+ *
+ * Visual v2 (fundamentei-regras F4, item C9): linha de unidade ACIMA da tabela ('Valores em R$ bi ·
+ * ano fiscal · fonte'), tabela densa (12 px, padding 8: as 15 colunas cabem a 1440), o ano mais
+ * recente destacado na linha inteira e UMA nota só embaixo (nota do Essencial + observações; as
+ * explicações das colunas ficam no title e no texto para leitor de tela do cabeçalho). Sem a chave,
+ * o bloco de hoje.
  */
 import type { ReactNode } from 'react';
 import CartaoAnalise, {
@@ -67,6 +73,13 @@ import type {
   LinhaFundamentos,
 } from '@/types/analiseAtivosApi';
 import type { DadoBlocoReporte } from '@/types/analiseAtivosCuradoria';
+import { useVisualV2 } from '@/components/analiseAtivos/shell/VisualV2';
+import { VISUAL_V2 } from '@/constants/analiseAtivosVisual';
+import { TEXTOS_VISUAL, textoVisual } from '@/services/analiseAtivos/textosVisual';
+
+/** Visual v2: célula densa (12 px, padding 8). */
+const TH_DENSO = 'px-2 py-2 font-semibold whitespace-nowrap';
+const TD_DENSO = 'px-2 py-2 text-xs';
 
 export type { BlocoFundamentosEssencialProps };
 
@@ -171,6 +184,9 @@ export default function BlocoFundamentosEssencial({
   cabecalhoExtra,
 }: BlocoFundamentosEssencialComNivelProps) {
   const q = useFundamentosAtivo(ticker);
+  const v2 = useVisualV2();
+  const thC = v2 ? TH_DENSO : TABLE_STYLES.compact.th;
+  const tdC = v2 ? TD_DENSO : TABLE_STYLES.compact.td;
   const ctx = useConferenciaPagina();
   const conferencias = ctx?.conferencias ?? [];
   const dados = q.data;
@@ -195,6 +211,17 @@ export default function BlocoFundamentosEssencial({
         <p className="text-sm text-gray-600 dark:text-gray-300">{TF.vazio}</p>
       ) : dados ? (
         <>
+          {v2 ? (
+            <p data-linha-unidade="" className="m-0 text-xs text-gray-500 dark:text-gray-400">
+              {textoVisual(TEXTOS_VISUAL.essencial.unidade, {
+                unidade: dados.unidade,
+                // 'Fonte: X · DFP/ITR (CVM).' entra na linha como 'fonte: X · DFP/ITR (CVM)'
+                fonte: dados.textoFonte
+                  ? dados.textoFonte.replace(/\.\s*$/, '').replace(/^F/, 'f')
+                  : TEXTOS_VISUAL.essencial.fonteCvm,
+              })}
+            </p>
+          ) : null}
           <div
             className={`${TABLE_STYLES.wrapper} relative max-w-full`}
             data-rolagem-card="fundamentos"
@@ -208,7 +235,7 @@ export default function BlocoFundamentosEssencial({
                 <tr className={TABLE_STYLES.headRow} style={TABLE_HEADER_STYLE}>
                   <th
                     scope="col"
-                    className={`${TABLE_STYLES.compact.th} sticky left-0 z-10 text-left`}
+                    className={`${thC} sticky left-0 z-10 text-left`}
                     style={TABLE_HEADER_STYLE}
                   >
                     {TF.ano}
@@ -216,11 +243,7 @@ export default function BlocoFundamentosEssencial({
                   {dados.colunas.map((c) => {
                     const explicacao = explicacaoDaColuna(dados.variante, c.codigo, c.tooltip);
                     return (
-                      <th
-                        key={c.codigo}
-                        scope="col"
-                        className={`${TABLE_STYLES.compact.th} text-right`}
-                      >
+                      <th key={c.codigo} scope="col" className={`${thC} text-right`}>
                         {explicacao ? (
                           <span
                             title={explicacao}
@@ -244,12 +267,18 @@ export default function BlocoFundamentosEssencial({
                   return (
                     <tr
                       key={l.rotulo}
-                      className={TABLE_STYLES.row}
+                      className={
+                        v2 && l.ultimoAno
+                          ? `${TABLE_STYLES.row} ${VISUAL_V2.linhaDestaque}`
+                          : TABLE_STYLES.row
+                      }
                       data-ultimo-ano={l.ultimoAno || undefined}
                     >
                       <th
                         scope="row"
-                        className={`${TABLE_STYLES.compact.td} sticky left-0 z-[1] text-left font-semibold text-gray-800 dark:text-white/90 ${FUNDO_STICKY} ${l.ultimoAno ? ULTIMO_ANO_STICKY : ''}`}
+                        className={`${tdC} sticky left-0 z-[1] text-left font-semibold text-gray-800 dark:text-white/90 ${
+                          v2 && l.ultimoAno ? VISUAL_V2.linhaDestaque : FUNDO_STICKY
+                        } ${l.ultimoAno && !v2 ? ULTIMO_ANO_STICKY : ''}`}
                       >
                         {l.rotulo}
                         {l.ultimoAno ? <span className="sr-only"> ({TE.ultimoAnoSr})</span> : null}
@@ -270,7 +299,13 @@ export default function BlocoFundamentosEssencial({
                             title={v.estado === 'ok' ? (fallback ?? undefined) : v.texto}
                             data-conferencia={confC?.grupo}
                             data-fallback={fallback ? '' : undefined}
-                            className={`${TABLE_STYLES.compact.td} text-right tabular-nums ${l.ultimoAno ? `${TABLE_STYLES.highlightTd} font-medium text-gray-800 dark:text-white/90` : ''} ${negativo ? TEXTO_NEGATIVO : ''} ${confC ? HACHURA : ''}`}
+                            className={`${tdC} text-right tabular-nums ${
+                              l.ultimoAno
+                                ? v2
+                                  ? 'font-semibold text-gray-800 dark:text-white/90'
+                                  : `${TABLE_STYLES.highlightTd} font-medium text-gray-800 dark:text-white/90`
+                                : ''
+                            } ${negativo ? TEXTO_NEGATIVO : ''} ${confC ? HACHURA : ''}`}
                           >
                             {formatarEstado(v, c.formato)}
                             {fallback ? (
@@ -341,27 +376,40 @@ export default function BlocoFundamentosEssencial({
               </span>
             </p>
           ) : null}
-          <ul className="flex flex-col gap-1 text-xs text-gray-500 dark:text-gray-400">
-            <li>
-              {dados.variante === 'acao'
-                ? TE.notaEssencial
-                : dados.variante === 'fii_papel'
-                  ? TF.notaEssencialPapel
-                  : TF.notaEssencialFii}
-            </li>
-            {dados.observacoes.map((n) => (
-              <li key={n}>{n}</li>
-            ))}
-            {dados.textoFonte ? <li data-nota-fonte="">{dados.textoFonte}</li> : null}
-            {dados.colunas.map((c) => {
-              const explicacao = explicacaoDaColuna(dados.variante, c.codigo, c.tooltip);
-              return explicacao ? (
-                <li key={`ⓘ-${c.codigo}`} data-nota-coluna={c.codigo}>
-                  {rotuloLimpo(c.rotulo)}: {explicacao}
-                </li>
-              ) : null;
-            })}
-          </ul>
+          {v2 ? (
+            <p className="m-0 text-xs text-gray-500 dark:text-gray-400" data-nota-essencial="">
+              {[
+                dados.variante === 'acao'
+                  ? TE.notaEssencial
+                  : dados.variante === 'fii_papel'
+                    ? TF.notaEssencialPapel
+                    : TF.notaEssencialFii,
+                ...dados.observacoes,
+              ].join(' ')}
+            </p>
+          ) : (
+            <ul className="flex flex-col gap-1 text-xs text-gray-500 dark:text-gray-400">
+              <li>
+                {dados.variante === 'acao'
+                  ? TE.notaEssencial
+                  : dados.variante === 'fii_papel'
+                    ? TF.notaEssencialPapel
+                    : TF.notaEssencialFii}
+              </li>
+              {dados.observacoes.map((n) => (
+                <li key={n}>{n}</li>
+              ))}
+              {dados.textoFonte ? <li data-nota-fonte="">{dados.textoFonte}</li> : null}
+              {dados.colunas.map((c) => {
+                const explicacao = explicacaoDaColuna(dados.variante, c.codigo, c.tooltip);
+                return explicacao ? (
+                  <li key={`ⓘ-${c.codigo}`} data-nota-coluna={c.codigo}>
+                    {rotuloLimpo(c.rotulo)}: {explicacao}
+                  </li>
+                ) : null;
+              })}
+            </ul>
+          )}
         </>
       ) : null}
     </CartaoAnalise>

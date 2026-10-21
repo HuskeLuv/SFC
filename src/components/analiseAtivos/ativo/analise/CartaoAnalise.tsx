@@ -9,8 +9,14 @@
  * rodapé o selo de frescor do bloco (RodapeFrescorBloco). O bloco vem de `bloco` ou do prefixo do
  * `id` ('fundamentos-', 'valuation-', 'historicos-', 'pares-'). Fora da página, com a flag de
  * relato desligada e params v1, os dois não renderizam (card idêntico).
+ *
+ * Visual v2 (fundamentei-regras F4, item C2): cabeçalho `.hd` do HTML do Pedro — faixa com padding
+ * 14×18, divisória embaixo, título 14 px/600, hint e ações à direita, card com raio 12 e o corpo com
+ * o mesmo respiro. Centralizado aqui (CabecalhoCartaoV2, CARD_V2, CORPO_V2) e reaproveitado pelos
+ * blocos que têm card próprio (dividendos, gráfico, eventos). Sem a chave, o card de hoje.
  */
 import type { ReactNode } from 'react';
+import { useVisualV2 } from '@/components/analiseAtivos/shell/VisualV2';
 import { MenuBlocoPagina } from '@/components/analiseAtivos/comum/PorQueConferencia';
 import { RodapeFrescorBloco } from '@/components/analiseAtivos/ativo/topo/SeloFrescor';
 import { ehBlocoReporte, type BlocoReporte } from '@/services/analiseAtivos/curadoria/contrato';
@@ -19,6 +25,47 @@ import { TEXTOS_TELA } from '@/services/analiseAtivos/textosTela';
 
 export const CARD_ANALISE =
   'min-w-0 rounded-2xl border border-gray-200 bg-white p-4 sm:p-5 dark:border-gray-800 dark:bg-white/[0.03]';
+
+/** Visual v2: card sem padding (o cabeçalho e o corpo têm o próprio), raio 12. */
+export const CARD_V2 =
+  'min-w-0 rounded-xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03]';
+/** Visual v2: corpo do card (respiro de 14×18 do HTML do Pedro). */
+export const CORPO_V2 = 'flex min-w-0 flex-col gap-3 px-4 pt-3.5 pb-4 sm:px-[18px] sm:pb-[18px]';
+
+/**
+ * Visual v2 (item C2): `.hd` — título à esquerda; hint, ações (pílulas, seletor) e menu ⋯ à
+ * direita; divisória embaixo.
+ */
+export function CabecalhoCartaoV2({
+  id,
+  titulo,
+  hint,
+  children,
+}: {
+  id: string;
+  titulo: ReactNode;
+  hint?: ReactNode;
+  children?: ReactNode;
+}) {
+  return (
+    <div
+      data-cartao-hd=""
+      className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 border-b border-gray-200 px-4 py-2.5 sm:px-[18px] sm:py-3.5 dark:border-gray-800"
+    >
+      <h2 id={id} className="text-sm font-semibold text-gray-800 dark:text-white/90">
+        {titulo}
+      </h2>
+      {hint || children ? (
+        <div className="ml-auto flex min-w-0 flex-wrap items-center justify-end gap-x-3 gap-y-1">
+          {hint ? (
+            <span className="text-[11.5px] text-gray-500 dark:text-gray-400">{hint}</span>
+          ) : null}
+          {children}
+        </div>
+      ) : null}
+    </div>
+  );
+}
 
 /** Fundo opaco de célula fixa (sticky) sobre o card, claro/escuro. */
 export const FUNDO_STICKY = 'bg-white dark:bg-[#1F1F22]';
@@ -64,6 +111,59 @@ export default function CartaoAnalise({
 }: Props) {
   const t = TEXTOS_TELA.analise;
   const blocoMenu = bloco ?? blocoDoId(id);
+  const v2 = useVisualV2();
+  const conteudo = carregando ? (
+    <div
+      role="status"
+      aria-label={`${t.carregando}: ${titulo}`}
+      style={{ height: alturaEsqueleto }}
+      className="flex flex-col gap-2"
+    >
+      {[60, 90, 75, 85].map((w) => (
+        <div
+          key={w}
+          style={{ width: `${w}%` }}
+          className="h-3 rounded bg-gray-100 animate-pulse motion-reduce:animate-none dark:bg-gray-800"
+        />
+      ))}
+    </div>
+  ) : erro ? (
+    <div role="alert" className="flex flex-col items-start gap-2">
+      <p className="text-sm text-gray-600 dark:text-gray-300">{t.erro}</p>
+      {onTentarNovamente ? (
+        <button
+          type="button"
+          onClick={onTentarNovamente}
+          className="inline-flex min-h-11 items-center rounded-lg border border-gray-300 px-4 text-sm font-medium text-gray-700 dark:border-gray-700 dark:text-gray-200"
+        >
+          {t.tentarNovamente}
+        </button>
+      ) : null}
+    </div>
+  ) : (
+    children
+  );
+  if (v2) {
+    return (
+      <section
+        aria-labelledby={id}
+        aria-busy={carregando || undefined}
+        data-visual-v2=""
+        className={`${CARD_V2} flex flex-col`}
+      >
+        <CabecalhoCartaoV2 id={id} titulo={titulo} hint={sub}>
+          {acao}
+          {blocoMenu ? (
+            <MenuBlocoPagina bloco={blocoMenu} dados={dadosReporte} className="self-center" />
+          ) : null}
+        </CabecalhoCartaoV2>
+        <div className={CORPO_V2}>
+          {conteudo}
+          {blocoMenu && !carregando ? <RodapeFrescorBloco bloco={blocoMenu} /> : null}
+        </div>
+      </section>
+    );
+  }
   return (
     <section
       aria-labelledby={id}

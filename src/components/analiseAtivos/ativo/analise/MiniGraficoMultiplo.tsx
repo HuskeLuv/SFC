@@ -5,10 +5,15 @@
  * claro / tranquilidade no escuro) com a média tracejada em cinza. viewBox 320 com margem direita
  * de 64 para o rótulo da média não ser cortado. <figure> com figcaption de uma frase e
  * "Ver dados em tabela". Menos de 3 pontos: "histórico insuficiente para o gráfico".
+ *
+ * Visual v2 (fundamentei-regras F4, item C14; Wellington 20/10): mini-cartão com borda, o valor
+ * atual no título (à direita) e a MÉDIA em dourado (DOURADO_ANALISE; o rótulo da média segue em
+ * cinza, pelo contraste). Sem a chave, o de hoje.
  */
 import { useId, useState } from 'react';
 import { formatarAnalise } from '@/components/analiseAtivos/comum/formatarAnalise';
-import { COR_LINK } from '@/constants/analiseAtivosVisual';
+import { COR_LINK, DOURADO_ANALISE } from '@/constants/analiseAtivosVisual';
+import { useVisualV2 } from '@/components/analiseAtivos/shell/VisualV2';
 import { TEXTOS_TELA, formatarTexto } from '@/services/analiseAtivos/textosTela';
 import type { HistoricoMultiplo } from '@/types/analiseAtivosApi';
 
@@ -27,6 +32,8 @@ export interface MiniGraficoMultiploProps {
 export default function MiniGraficoMultiplo({ historico }: MiniGraficoMultiploProps) {
   const [tabela, setTabela] = useState(false);
   const idTabela = useId();
+  const v2 = useVisualV2();
+  const MOLDURA_V2 = 'rounded-[10px] border border-gray-200 px-3 py-2.5 dark:border-gray-800';
   const { pontos, formato, rotulo, media } = historico;
   const validos = pontos.filter((p): p is { ano: number; valor: number } => p.valor !== null);
   const titulo = formatarTexto(TH.titulo, { valor: rotulo });
@@ -34,7 +41,7 @@ export default function MiniGraficoMultiplo({ historico }: MiniGraficoMultiploPr
 
   if (validos.length < 3) {
     return (
-      <figure className="flex min-w-0 flex-col gap-2">
+      <figure className={`flex min-w-0 flex-col gap-2 ${v2 ? MOLDURA_V2 : ''}`.trim()}>
         <h3 className="text-sm font-semibold text-gray-800 dark:text-white/90">{titulo}</h3>
         <p className="text-xs text-gray-500 dark:text-gray-400">
           {TEXTOS_TELA.ativo.historicoInsuficiente}
@@ -76,8 +83,22 @@ export default function MiniGraficoMultiplo({ historico }: MiniGraficoMultiploPr
     .join('; ');
 
   return (
-    <figure className="flex min-w-0 flex-col gap-2" data-historico={historico.codigo}>
-      <h3 className="text-sm font-semibold text-gray-800 dark:text-white/90">{titulo}</h3>
+    <figure
+      className={`flex min-w-0 flex-col gap-2 ${v2 ? MOLDURA_V2 : ''}`.trim()}
+      data-historico={historico.codigo}
+    >
+      {v2 ? (
+        <h3 className="flex items-baseline justify-between gap-2 text-[11px] font-semibold text-gray-500 dark:text-gray-400">
+          {titulo}
+          {ultimo?.valor != null ? (
+            <b className="text-[13px] text-gray-800 tabular-nums dark:text-white/90">
+              {fmt(ultimo.valor)}
+            </b>
+          ) : null}
+        </h3>
+      ) : (
+        <h3 className="text-sm font-semibold text-gray-800 dark:text-white/90">{titulo}</h3>
+      )}
       {tabela ? (
         <table id={idTabela} className="w-full text-xs text-gray-700 dark:text-gray-200">
           <caption className="sr-only">{titulo}</caption>
@@ -119,7 +140,9 @@ export default function MiniGraficoMultiplo({ historico }: MiniGraficoMultiploPr
                 y1={y(media)}
                 y2={y(media)}
                 strokeDasharray="4 3"
-                className="stroke-gray-400 dark:stroke-gray-500"
+                {...(v2
+                  ? { stroke: DOURADO_ANALISE, 'data-media-dourada': '' }
+                  : { className: 'stroke-gray-400 dark:stroke-gray-500' })}
               />
               <text x={W - PR + 4} y={y(media) + 3.5} className="fill-gray-500 dark:fill-gray-400">
                 {formatarTexto(TH.media, { valor: fmt(media) })}

@@ -9,6 +9,9 @@
  * Bloco C: ano do histórico em conferência já vem sem ponto (fora da média, a linha quebra); aqui
  * aparece a nota do ano com o chip "em conferência" que abre o "Por quê?". Menu ⋯ e frescor pelo
  * card.
+ *
+ * Visual v2 (fundamentei-regras F4, item C14): hint 'vs. média 10a' no `.hd` e os mini-gráficos em
+ * mini-cartões com borda (MiniGraficoMultiplo). Sem a chave, o bloco de hoje.
  */
 import CartaoAnalise from '@/components/analiseAtivos/ativo/analise/CartaoAnalise';
 import MiniGraficoMultiplo from '@/components/analiseAtivos/ativo/analise/MiniGraficoMultiplo';
@@ -18,6 +21,8 @@ import { anoDaConferencia } from '@/services/analiseAtivos/leitura/ativo/confere
 import { useValuationAtivo } from '@/hooks/useAnaliseAtivos';
 import { TEXTOS_TELA, formatarTexto } from '@/services/analiseAtivos/textosTela';
 import type { BlocoMultiplosHistoricosProps } from '@/types/analiseAtivosApi';
+import { useVisualV2 } from '@/components/analiseAtivos/shell/VisualV2';
+import { TEXTOS_VISUAL } from '@/services/analiseAtivos/textosVisual';
 
 export type { BlocoMultiplosHistoricosProps };
 
@@ -25,11 +30,12 @@ export default function BlocoMultiplosHistoricos({ ticker }: BlocoMultiplosHisto
   const q = useValuationAtivo(ticker);
   const ctx = useConferenciaPagina();
   const anos = (ctx?.conferencias ?? []).filter((c) => c.grupo === 'historico');
+  const v2 = useVisualV2();
   return (
     <CartaoAnalise
       id={`historicos-${ticker}`}
       titulo={TEXTOS_TELA.blocos.historicos}
-      sub={TEXTOS_TELA.analise.fundamentos.sub}
+      sub={v2 ? TEXTOS_VISUAL.historicos.hint : TEXTOS_TELA.analise.fundamentos.sub}
       carregando={q.isPending}
       erro={q.isError}
       onTentarNovamente={() => void q.refetch()}
@@ -37,7 +43,13 @@ export default function BlocoMultiplosHistoricos({ ticker }: BlocoMultiplosHisto
     >
       {q.data ? (
         <div className="@container min-w-0">
-          <div className="grid min-w-0 grid-cols-1 gap-4 @2xl:grid-cols-2">
+          <div
+            className={
+              v2
+                ? 'grid min-w-0 grid-cols-1 gap-3 @2xl:grid-cols-2'
+                : 'grid min-w-0 grid-cols-1 gap-4 @2xl:grid-cols-2'
+            }
+          >
             {q.data.historicos.map((h) => (
               <MiniGraficoMultiplo key={h.codigo} historico={h} />
             ))}
