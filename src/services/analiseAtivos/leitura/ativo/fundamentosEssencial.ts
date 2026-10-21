@@ -755,10 +755,21 @@ export function montarFundamentosAcao(
     ano: number | null,
   ): { valores: Record<string, Estado<number>>; marcas?: LinhaFundamentos['marcas'] } => {
     if (!v24) {
+      // F2 (A4.e) no Raio-X: com a chave, a margem sai do mesmo lucro da linha (controladores),
+      // como no Essencial v24; margemDe espera o lucro em R$ bi.
+      const margemV2 = (): Estado<number> =>
+        receitaNaoPositiva(f)
+          ? semDadoEssencial()
+          : margemDe(
+              null,
+              lucro.estado === 'ok' ? ok((lucro.valor * escala) / 1e9) : lucro,
+              f.receita,
+              regras.receitaMenorQueLucro,
+            );
       return {
         valores: {
           receita: e.financeira ? naFin : estadoDe(emMilhoes(f.receita)),
-          margem: e.financeira ? naFin : estadoDe(margemPct),
+          margem: e.financeira ? naFin : v2 ? margemV2() : estadoDe(margemPct),
           lucro,
         },
       };

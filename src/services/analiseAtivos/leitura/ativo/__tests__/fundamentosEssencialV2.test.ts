@@ -244,6 +244,31 @@ describe('Raio-X da mesma entrada', () => {
     expect(payoutLinha(raioX)?.valores[2024]).toMatchObject({ rotuloCurto: 'L' });
   });
 
+  it('margem: com a chave, a mesma do Essencial (lucro dos controladores ÷ receita)', () => {
+    // consolidado 120 mi × atribuído 100 mi; receita 2.000 mi; o yearly guarda 6% (consolidado)
+    const e = entrada({
+      fys: ANOS.map((a) => fy(a, { lucroLiquido: 120 * MI, lucroAtribuivel: 100 * MI })),
+      multiplos: ANOS.map((a) => ({
+        anoFiscal: a,
+        pl: 10,
+        pvp: 1,
+        dyPct: 4,
+        roePct: 10,
+        margemLiquidaPct: 6,
+        payoutPct: 40,
+      })),
+    });
+    const margemLinha = (r: ReturnType<typeof montarAcao>['raioX']) =>
+      r.blocos.flatMap((b) => b.linhas).find((l) => l.codigo === 'margemLiquidaPct');
+    const v2 = margemLinha(montarAcao(HOJE, dados(e), { essencialV2: true }).raioX);
+    expect((v2?.valores[2025] as { valor: number }).valor).toBeCloseTo(5, 10);
+    const essencial = porAno(montarFundamentosAcao(e, { ...V24, essencialV2: true }), 2025);
+    expect((essencial.valores.margem as { valor: number }).valor).toBeCloseTo(5, 10);
+    // chave desligada: a de hoje (a do yearly)
+    const hoje = margemLinha(montarAcao(HOJE, dados(e)).raioX);
+    expect(hoje?.valores[2025]).toMatchObject({ estado: 'ok', valor: 6 });
+  });
+
   it("regra 'dfc': sub-rótulo do payout de caixa", () => {
     const { raioX } = montarAcao(HOJE, dados(entrada()), { regraPayout: 'dfc' });
     expect(payoutLinha(raioX)?.sub).toBe(TEXTOS_ATIVO.payoutRegra.dfc);
