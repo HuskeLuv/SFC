@@ -54,7 +54,7 @@ import {
   listarTickersAcoes,
   type SegmentosFinanceirosIngestao,
 } from '@/services/analiseAtivos/repositorio/universo';
-import { analiseAtivosCvmDva } from '@/lib/analiseAtivosConfig';
+import { analiseAtivosCvmDva, analiseAtivosDfcProventosAmplo } from '@/lib/analiseAtivosConfig';
 import {
   CONTAS_DVA_LIDAS,
   DEMONSTRATIVOS_POR_DOC,
@@ -168,6 +168,8 @@ export interface OpcoesCvmCias {
    * faz UPDATE só das colunas novas e nulas ('pdd': DVA das financeiras, mesmo sem a chave;
    * 'seguradora': DRE das seguradoras) e, em 'layout', de ebit/D&A só de BBSE/IRB 2016–2022. Nada
    * é inserido; AnaliseFonteArquivo não é tocado. Com aplicar=false, só o relatório (dry-run).
+   * fundamentei-regras (F2): 'dividendosJcpPagos' relê a DFC de TODO o universo e CORRIGE a coluna
+   * já gravada pelo regex ampliado (exige ANALISE_ATIVOS_DFC_PROVENTOS_AMPLO=true), com antes/depois.
    */
   recompletarCampos?: ModoRecompletar[];
   /**
@@ -204,8 +206,16 @@ export interface DetalheArquivo {
 
 // ---------------------------------------------------------------- recompletar (A6, contratos)
 
-export type ModoRecompletar = 'pdd' | 'seguradora' | 'layout';
-export const MODOS_RECOMPLETAR: readonly ModoRecompletar[] = ['pdd', 'seguradora', 'layout'];
+export type ModoRecompletar = 'pdd' | 'seguradora' | 'layout' | 'dividendosJcpPagos';
+export const MODOS_RECOMPLETAR: readonly ModoRecompletar[] = [
+  'pdd',
+  'seguradora',
+  'layout',
+  'dividendosJcpPagos',
+];
+
+/** F2: modo que corrige dividendosJcpPagos pela regra ampliada da DFC (chave de ingestão). */
+export const MODO_DIVIDENDOS: ModoRecompletar = 'dividendosJcpPagos';
 
 /** Colunas novas que cada modo preenche (só quando NULAS no banco). */
 export const COLUNAS_POR_MODO: Readonly<Record<'pdd' | 'seguradora', readonly CampoFinanceira[]>> =
@@ -238,20 +248,36 @@ export interface AntesDepoisLayout {
   depois: { ebit: null; depreciacaoAmortizacao: null; naoSeAplica: string[] };
 }
 
+/** F2: antes/depois de dividendosJcpPagos por linha (modo dividendosJcpPagos). */
+export interface AntesDepoisDividendos {
+  emissorId: string;
+  dtFim: string;
+  tipoPeriodo: string;
+  escopo: string;
+  versao: number;
+  antes: number | null;
+  depois: number;
+}
+
 export interface RelatorioRecompletar {
   modos: ModoRecompletar[];
   /** documentos (cnpj, DT_REFER, versão vigente) relidos */
   documentos: number;
   /** linhas que ganhariam/ganharam alguma coluna, por coluna */
-  porCampo: Partial<Record<CampoFinanceira | 'layout', number>>;
+  porCampo: Partial<Record<CampoFinanceira | 'layout' | 'dividendosJcpPagos', number>>;
   /** idem, por emissor */
-  porEmissor: Record<string, Partial<Record<CampoFinanceira | 'layout', number>>>;
+  porEmissor: Record<
+    string,
+    Partial<Record<CampoFinanceira | 'layout' | 'dividendosJcpPagos', number>>
+  >;
   /** colunas já preenchidas no banco (não sobrescritas) */
   jaPreenchidas: number;
   /** linhas com escala corrigida/ambígua: puladas (o fator do documento não é refeito aqui) */
   puladasEscala: number;
   /** modo layout: antes/depois por linha (até 500) */
   layout: AntesDepoisLayout[];
+  /** F2, modo dividendosJcpPagos: antes/depois por linha (até 500); ausente nos outros modos */
+  dividendos?: AntesDepoisDividendos[];
   gravadas: number;
 }
 
@@ -1396,6 +1422,14 @@ const ehAnoLayout = (dtRefer: string) => {
 interface PropostaRecompletar {
   campos: Partial<Record<CampoFinanceira, number | null>>;
   layoutFin: boolean;
+  /** F2: proventos pagos na DFC pela regra ampliada (modo dividendosJcpPagos) */
+  dividendosJcpPagos?: number | null;
+}
+
+/** F2: diferença que justifica corrigir dividendosJcpPagos (dec2 de um lado e do outro). */
+export function dividendosMudaram(antes: number | null, depois: number | null): boolean {
+  if (depois === null) return false;
+  return antes === null || Math.abs(antes - depois) >= 0.005;
 }
 
 /**
@@ -1412,6 +1446,12 @@ async function recompletarArquivo(
   opts: OpcoesCvmCias,
 ): Promise<DetalheArquivo> {
   const modos = new Set(opts.recompletarCampos ?? []);
+  const comDividendos = modos.has(MODO_DIVIDENDOS);
+  if (comDividendos && !analiseAtivosDfcProventosAmplo()) {
+    throw new Error(
+      '--recompletar-campos=dividendosJcpPagos exige ANALISE_ATIVOS_DFC_PROVENTOS_AMPLO=true (a mesma regra que a ingestão passa a usar)',
+    );
+  }
   const url = urlArquivoCvm(doc, ano);
   const relatorio: RelatorioRecompletar = {
     modos: [...modos],
@@ -1421,6 +1461,7 @@ async function recompletarArquivo(
     jaPreenchidas: 0,
     puladasEscala: 0,
     layout: [],
+    ...(comDividendos ? { dividendos: [] } : {}),
     gravadas: 0,
   };
   const { financeiras, seguradoras } = apoio.segmentos;
@@ -1433,6 +1474,8 @@ async function recompletarArquivo(
     ...(modos.has('pdd') ? financeiras : []),
     ...(modos.has('seguradora') ? seguradoras : []),
     ...layoutCnpjs,
+    // F2: proventos pagos na DFC de todo o universo (o --tickers / --somente-financeiras recortam)
+    ...(comDividendos ? universo.keys() : []),
   ]);
   if (alvo.size === 0) {
     return { url, doc, ano, status: 'sem_pendentes', recompletar: relatorio };
@@ -1450,6 +1493,7 @@ async function recompletarArquivo(
     const indice = await lerIndice(arq.caminho, entradas, doc, ano, { cnpjs: alvo });
     const docTipo = doc === 'dfp' ? 'DFP' : 'ITR';
     const naJanela = (d: DocIndice) =>
+      comDividendos ||
       (modos.has('pdd') && financeiras.has(d.cnpj)) ||
       (modos.has('seguradora') && seguradoras.has(d.cnpj)) ||
       (layoutCnpjs.has(d.cnpj) && ehAnoLayout(d.dtRefer));
@@ -1475,7 +1519,12 @@ async function recompletarArquivo(
         .map((d) => [chaveDoc(d.cnpj, d.dtRefer), d.versao]),
     );
     const linhas = new Map<string, Record<Escopo, LinhaLida[]>>();
-    const dems: Array<'DRE' | 'DVA'> = docsDva.size > 0 ? ['DRE', 'DVA'] : ['DRE'];
+    const dems: Array<'DRE' | 'DVA' | 'DFC_MI'> = [
+      'DRE',
+      ...(docsDva.size > 0 ? (['DVA'] as const) : []),
+      // F2: a DFC só no modo dividendosJcpPagos
+      ...(comDividendos ? (['DFC_MI'] as const) : []),
+    ];
     for (const dem of dems) {
       for (const escopo of ESCOPOS) {
         const entrada = acharEntrada(entradas, entradaDemonstrativo(doc, dem, escopo, ano));
@@ -1529,12 +1578,14 @@ async function recompletarArquivo(
             mesFimExercicio: mesFim,
             dva: docsDva.has(chaveDoc(d.cnpj, d.dtRefer)),
             seguradora: modos.has('seguradora') && seguradoras.has(d.cnpj),
+            ...(comDividendos ? { dfcProventosAmplo: true } : {}),
           });
           const campos: PropostaRecompletar['campos'] = {};
           for (const c of CAMPOS_FINANCEIRAS) campos[c] = f[c] ?? null;
           propostas.set(`${d.cnpj}|${d.dtRefer}|${p.tipoPeriodo}|${escopo}|${d.versao}`, {
             campos,
             layoutFin,
+            ...(comDividendos ? { dividendosJcpPagos: f.dividendosJcpPagos } : {}),
           });
         }
       }
@@ -1555,7 +1606,7 @@ async function recompletarArquivo(
       ...(modos.has('pdd') ? COLUNAS_POR_MODO.pdd : []),
       ...(modos.has('seguradora') ? COLUNAS_POR_MODO.seguradora : []),
     ];
-    const contar = (emissor: string, campo: CampoFinanceira | 'layout') => {
+    const contar = (emissor: string, campo: CampoFinanceira | 'layout' | 'dividendosJcpPagos') => {
       relatorio.porCampo[campo] = (relatorio.porCampo[campo] ?? 0) + 1;
       const pe = (relatorio.porEmissor[emissor] ??= {});
       pe[campo] = (pe[campo] ?? 0) + 1;
@@ -1610,7 +1661,32 @@ async function recompletarArquivo(
           }
         }
       }
-      if (Object.keys(a.novas).length > 0 || a.layout) {
+      // F2: dividendosJcpPagos pela regra ampliada (corrige o valor gravado; escala ajustada fica fora)
+      const escalaAjustada = e.flags.some((x) => x.startsWith('escala_'));
+      if (comDividendos && prop && escalaAjustada && colunas.length === 0) {
+        relatorio.puladasEscala++;
+      }
+      if (comDividendos && prop && prop.dividendosJcpPagos !== undefined && !escalaAjustada) {
+        const antes = paraNumero(e.dividendosJcpPagos);
+        const novo = dec2(prop.dividendosJcpPagos);
+        const depois = novo === null ? null : Number(novo);
+        if (novo !== null && depois !== null && dividendosMudaram(antes, depois)) {
+          a.dividendosJcpPagos = novo;
+          contar(e.emissorId, 'dividendosJcpPagos');
+          if (relatorio.dividendos && relatorio.dividendos.length < 500) {
+            relatorio.dividendos.push({
+              emissorId: e.emissorId,
+              dtFim,
+              tipoPeriodo: e.tipoPeriodo,
+              escopo: e.escopo,
+              versao: e.versao,
+              antes,
+              depois,
+            });
+          }
+        }
+      }
+      if (Object.keys(a.novas).length > 0 || a.layout || a.dividendosJcpPagos) {
         atualizacoes.push(a);
         tocados.add(e.emissorId);
       }

@@ -31,6 +31,9 @@
  * modo que altera colunas que já existem (ebit/D&A de BBSE/IRB 2016–2022 → 'não se aplica'): o
  * dry-run lista antes/depois por linha e o --apply exige também --confirmar-layout (OK próprio).
  * Sempre dry-run primeiro; o relatório sai por campo e por emissor.
+ * fundamentei-regras (F2): --recompletar-campos=dividendosJcpPagos (com ANALISE_ATIVOS_DFC_PROVENTOS_AMPLO=true)
+ * relê a DFC de todo o universo (ou dos --tickers) e CORRIGE dividendosJcpPagos pelo regex ampliado,
+ * sem não controladores; o dry-run lista antes/depois e o --apply exige --confirmar-dividendos.
  * --somente-financeiras: DFP/ITR só dos CNPJs do Set de financeiras (AssetSetorB3).
  * --tickers=ITUB4,BBSE3 (conferência no DEV): o FCA vira um recorte (nada fora dele é fechado) e o
  * DFP/ITR só os CNPJs desses tickers.
@@ -109,6 +112,11 @@ function imprimirRecompletar(det: DetalheArquivo[]) {
         `    layout ${l.emissorId} ${l.dtFim} ${l.tipoPeriodo} ${l.escopo} v${l.versao}: ebit ${l.antes.ebit} → null · D&A ${l.antes.depreciacaoAmortizacao} → null · naoSeAplica [${l.antes.naoSeAplica.join(',')}] → [${l.depois.naoSeAplica.join(',')}]`,
       );
     }
+    for (const l of r.dividendos ?? []) {
+      console.log(
+        `    dividendos ${l.emissorId} ${l.dtFim} ${l.tipoPeriodo} ${l.escopo} v${l.versao}: ${l.antes} → ${l.depois}`,
+      );
+    }
   }
 }
 
@@ -140,6 +148,16 @@ async function main() {
   if (recompletarCampos.includes('layout') && aplicar && !a.has('confirmar-layout')) {
     throw new Error(
       '--recompletar-campos=layout altera ebit/D&A já gravados: rode o dry-run, confira o antes/depois e repita com --confirmar-layout',
+    );
+  }
+  // F2 fundamentei-regras: corrige dividendosJcpPagos já gravado ⇒ OK próprio, como o layout
+  if (
+    recompletarCampos.includes('dividendosJcpPagos') &&
+    aplicar &&
+    !a.has('confirmar-dividendos')
+  ) {
+    throw new Error(
+      '--recompletar-campos=dividendosJcpPagos altera os proventos pagos já gravados: rode o dry-run, confira o antes/depois e repita com --confirmar-dividendos',
     );
   }
   const perfil = (a.get('perfil') ?? 'dev') as PerfilLinhas;
