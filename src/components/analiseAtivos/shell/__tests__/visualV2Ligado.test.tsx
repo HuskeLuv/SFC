@@ -119,6 +119,7 @@ import PaginaAtivo from '@/components/analiseAtivos/pagina/PaginaAtivo';
 import Comparador from '@/components/analiseAtivos/comparador/Comparador';
 import TabelaRaioX from '@/components/analiseAtivos/ativo/analise/TabelaRaioX';
 import MeusCenarios from '@/components/analiseAtivos/ativo/cenarios/MeusCenarios';
+import AnaliseAtivosShell from '@/components/analiseAtivos/shell/AnaliseAtivosShell';
 import { VisualV2Provider } from '@/components/analiseAtivos/shell/VisualV2';
 import {
   API_ITUB4,
@@ -412,4 +413,34 @@ describe('VISUAL_V2 ligada: Raio-X, Comparador e Meus cenários', () => {
     const coluna = posicao.parentElement!;
     expect(coluna.querySelector('[data-cenario-salvar]')).not.toBeNull();
   });
+});
+
+describe('VISUAL_V2: casca da área', () => {
+  it.each(['quadro', 'comparador'] as const)(
+    '%s: pílulas da área antes do título (ordem do HTML); sem a prop, a casca de hoje',
+    (variante) => {
+      est.config = CONFIG;
+      const { container, unmount } = render(
+        <QueryClientProvider client={new QueryClient()}>
+          <AnaliseAtivosShell variante={variante} visualV2>
+            <div />
+          </AnaliseAtivosShell>
+        </QueryClientProvider>,
+      );
+      const casca = container.querySelector('[data-casca-v2]')!;
+      expect(casca).not.toBeNull();
+      const nav = casca.querySelector('nav[data-pilulas-area]')!;
+      const h1 = casca.querySelector('h1')!;
+      expect(nav.compareDocumentPosition(h1) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+      unmount();
+      const hoje = render(
+        <QueryClientProvider client={new QueryClient()}>
+          <AnaliseAtivosShell variante={variante}>
+            <div />
+          </AnaliseAtivosShell>
+        </QueryClientProvider>,
+      );
+      expect(hoje.container.querySelector('[data-casca-v2]')).toBeNull();
+    },
+  );
 });

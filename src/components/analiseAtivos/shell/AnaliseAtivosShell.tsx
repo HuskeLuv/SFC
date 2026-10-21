@@ -17,7 +17,8 @@
  *
  * fundamentei-regras (F4, item C): prop `visualV2` (ANALISE_ATIVOS_VISUAL_V2_HABILITADO, lida nas
  * page.tsx) vai ao VisualV2Provider dos blocos. Ligada, o 'quadro'/'salvos' seguem a ordem do HTML
- * do Pedro: banner, pílulas da área e, abaixo, H1/subtítulo à esquerda e busca à direita. Desligada
+ * do Pedro: banner, pílulas da área e, abaixo, H1/subtítulo à esquerda e busca à direita (no
+ * 'comparador', o mesmo sem o banner). Desligada
  * (ou ausente), a casca é a de hoje.
  *
  * Stocks e REITs: o rodapé legal vira o aviso EUA (fonte SEC) no Quadro/Comparador de stock|reit
@@ -166,6 +167,23 @@ export default function AnaliseAtivosShell({
           </div>
           {variante === 'quadro' ? <BannerNovidade /> : null}
         </>
+      ) : visualV2 && variante === 'comparador' ? (
+        <div className="flex flex-col gap-4" data-casca-v2="">
+          <PilulasArea ativa="comparador" />
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+            <div className="min-w-0">
+              <TituloArea criarLista={criarLista} />
+              <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                {TEXTOS_ENTRADAS_COMPARADOR.paginaComparador.subtitulo}
+              </p>
+            </div>
+            <BuscaArea
+              variante="compacta"
+              className="w-full sm:w-[320px]"
+              criarLista={criarLista}
+            />
+          </div>
+        </div>
       ) : variante === 'comparador' ? (
         <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
           <div className="min-w-0">
