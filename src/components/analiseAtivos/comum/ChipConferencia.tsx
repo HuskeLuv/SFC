@@ -201,6 +201,7 @@ export default function ChipConferencia({
         ref={botaoRef}
         type="button"
         data-chip-conferencia={conferencia.grupo}
+        data-compacto={compacto || undefined}
         aria-label={formatarTexto(t.chipAria, { campo: rotuloCampo })}
         aria-haspopup="dialog"
         aria-expanded={aberto}
@@ -210,7 +211,7 @@ export default function ChipConferencia({
           e.preventDefault();
           setAberto((v) => !v);
         }}
-        className={`${CHIP} relative cursor-pointer after:absolute after:inset-x-[-4px] after:-inset-y-3 after:content-[''] hover:border-solid hover:text-[#1D2939] dark:hover:text-white ${FOCO} ${className}`}
+        className={`${CHIP} ${compacto ? 'px-1.5' : ''} relative cursor-pointer after:absolute after:inset-x-[-4px] after:-inset-y-3 after:content-[''] hover:border-solid hover:text-[#1D2939] dark:hover:text-white ${FOCO} ${className}`}
       >
         {conteudoChip}
       </button>

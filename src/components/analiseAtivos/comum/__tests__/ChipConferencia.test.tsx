@@ -107,6 +107,23 @@ describe('ChipConferencia — computador (popover)', () => {
     expect(chip.className).toContain('after:-inset-y-3');
   });
 
+  it('compacto (tabela densa do Essencial v2): só a lupa, texto em sr-only, mesmo nome acessível', () => {
+    comContexto(
+      <ChipConferencia
+        conferencia={CONF_ACOES}
+        campo="pvp"
+        rotuloCampo="P/VP"
+        valorNaoPublicado="0,00"
+        bloco="fundamentos"
+        compacto
+      />,
+    );
+    const chip = screen.getByRole('button', { name: 'P/VP em conferência: por quê?' });
+    expect(chip).toHaveAttribute('data-compacto');
+    expect(chip.className).toContain('px-1.5');
+    expect(within(chip).getByText('em conferência').className).toContain('sr-only');
+  });
+
   it('abre o "Por quê?" com motivo, desde, na tela + não publicado, origem e situação (sem Índice)', () => {
     comContexto(chipPvp);
     const chip = screen.getByRole('button', { name: /por quê/ });

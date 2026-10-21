@@ -355,6 +355,9 @@ export default function BlocoFundamentosEssencial({
                                   rotuloCampo={`${c.rotulo} · ${l.rotulo}`}
                                   valorNaoPublicado={naoPublicado(v, c.formato)}
                                   bloco="fundamentos"
+                                  // v2 (tabela densa): só a lupa; o chip inteiro alargava a coluna
+                                  // e empurrava P/VP e DY para fora (CAML3 a 1440 px)
+                                  compacto={v2}
                                 />
                               </span>
                             ) : null}
