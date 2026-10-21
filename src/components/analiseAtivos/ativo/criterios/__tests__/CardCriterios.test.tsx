@@ -9,6 +9,8 @@ import { CORES_PERMITIDAS } from '@/constants/analiseAtivosVisual';
 import { TEXTOS_ATIVO } from '@/services/analiseAtivos/textosAtivo';
 import { TEXTOS_CRITERIOS } from '@/services/analiseAtivos/textosCriterios';
 import { esperarDomLimpo } from '@/test/utils/varrerDom';
+import { VisualV2Provider } from '@/components/analiseAtivos/shell/VisualV2';
+import { TEXTOS_VISUAL } from '@/services/analiseAtivos/textosVisual';
 import {
   CRITERIOS_ATIVO_HGLG11,
   CRITERIOS_ATIVO_ITUB4,
@@ -315,5 +317,36 @@ describe('CardCriterios — sem avaliação, linguagem e cores', () => {
       expect(fora, a).toEqual([]);
       expect(semanticas.test(f), a).toBe(false);
     }
+  });
+});
+
+describe('CardCriterios — visual v2 (C2)', () => {
+  it('cabeçalho .hd com título, hint e ⋯ acima do corpo; contagem e itens iguais', () => {
+    const { container } = render(
+      <VisualV2Provider valor>
+        <CardCriterios ticker="WEGE3" classe="acao" criterios={CRITERIOS_ATIVO_WEGE3} />
+      </VisualV2Provider>,
+    );
+    const hd = container.querySelector('[data-cartao-hd]')!;
+    expect(hd).toBeInTheDocument();
+    expect(
+      within(hd as HTMLElement).getByRole('heading', {
+        level: 2,
+        name: 'Critérios de fundamentos',
+      }),
+    ).toBeInTheDocument();
+    expect(hd).toHaveTextContent(TEXTOS_VISUAL.criterios.hint);
+    expect(screen.getAllByRole('heading', { level: 2 })).toHaveLength(1);
+    expect(container.querySelectorAll('li[data-criterio]')).toHaveLength(6);
+  });
+
+  it('sem avaliação: o mesmo .hd e o texto de espera', () => {
+    const { container } = render(
+      <VisualV2Provider valor>
+        <CardCriterios ticker="WEGE3" classe="acao" criterios={null} />
+      </VisualV2Provider>,
+    );
+    expect(container.querySelector('[data-cartao-hd]')).toBeInTheDocument();
+    expect(screen.getByText(TEXTOS_ATIVO.criterios.semAvaliacao)).toBeInTheDocument();
   });
 });

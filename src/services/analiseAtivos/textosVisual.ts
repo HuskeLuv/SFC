@@ -22,6 +22,9 @@ export const TEXTOS_VISUAL = {
   eventos: {
     hint: 'vai para a sua Agenda',
   },
+  criterios: {
+    hint: 'mesmos critérios dos filtros do Quadro',
+  },
   historicos: {
     hint: 'vs. média 10a',
     media: 'média 10a',

@@ -17,6 +17,8 @@
  *    incompletos' (§6) quando a fonte marcou algum ponto da avaliação; menu ⋯ (reportar dado no
  *    bloco 'criterios_fundamentos') e selo de frescor do bloco, como os demais cards.
  * Sem avaliação (job ainda não rodou): o card fica com o título e o texto de espera.
+ * Visual v2 (fundamentei-regras F4, C2): cabeçalho `.hd` (título, hint e ⋯) acima do corpo, como
+ * os blocos do CartaoAnalise; sem a chave, o card de hoje.
  */
 import { useState } from 'react';
 import ItemCriterio from '@/components/analiseAtivos/ativo/criterios/ItemCriterio';
@@ -38,6 +40,13 @@ import {
 } from '@/types/analiseAtivosCriterios';
 import type { ClasseQuadro } from '@/types/analiseAtivosApi';
 import { TEXTOS_EUA } from '@/services/analiseAtivos/textosEua';
+import { TEXTOS_VISUAL } from '@/services/analiseAtivos/textosVisual';
+import { useVisualV2 } from '@/components/analiseAtivos/shell/VisualV2';
+import {
+  CabecalhoCartaoV2,
+  CARD_V2,
+  CORPO_V2,
+} from '@/components/analiseAtivos/ativo/analise/CartaoAnalise';
 
 export type { CardCriteriosProps };
 
@@ -90,8 +99,9 @@ export default function CardCriterios({
   const [janela, setJanela] = useState<Janela>(janelaInicial);
   const idTitulo = `criterios-${ticker}`;
   const j = criterios?.janelas[String(janela) as ChaveJanela] ?? null;
+  const v2 = useVisualV2();
 
-  const cabecalho = (
+  const cabecalho = v2 ? null : (
     <div className="flex items-start justify-between gap-2">
       <h2 id={idTitulo} className={ROTULO}>
         {TC.titulo}
@@ -99,6 +109,11 @@ export default function CardCriterios({
       <MenuBlocoPagina bloco="criterios_fundamentos" className="-my-2" />
     </div>
   );
+  const cabecalhoV2 = v2 ? (
+    <CabecalhoCartaoV2 id={idTitulo} titulo={TC.titulo} hint={TEXTOS_VISUAL.criterios.hint}>
+      <MenuBlocoPagina bloco="criterios_fundamentos" className="self-center" />
+    </CabecalhoCartaoV2>
+  ) : null;
 
   if (!criterios || !j) {
     return (
@@ -106,10 +121,23 @@ export default function CardCriterios({
         aria-labelledby={idTitulo}
         data-card-criterios={ticker}
         data-bloco="criterios_fundamentos"
-        className={`${CARD} flex flex-col gap-3 ${className}`}
+        className={
+          v2 ? `${CARD_V2} flex flex-col ${className}` : `${CARD} flex flex-col gap-3 ${className}`
+        }
       >
-        {cabecalho}
-        <p className="m-0 text-sm text-gray-600 dark:text-gray-300">{TA.semAvaliacao}</p>
+        {v2 ? (
+          <>
+            {cabecalhoV2}
+            <div className={CORPO_V2}>
+              <p className="m-0 text-sm text-gray-600 dark:text-gray-300">{TA.semAvaliacao}</p>
+            </div>
+          </>
+        ) : (
+          <>
+            {cabecalho}
+            <p className="m-0 text-sm text-gray-600 dark:text-gray-300">{TA.semAvaliacao}</p>
+          </>
+        )}
       </section>
     );
   }
@@ -119,14 +147,8 @@ export default function CardCriterios({
     criterios.dadosIncompletos === true ||
     j.itens.some((i) => i.obs?.includes('dados_incompletos'));
   const notas = notasDoPerfil(criterios, janela);
-  return (
-    <section
-      aria-labelledby={idTitulo}
-      data-card-criterios={ticker}
-      data-bloco="criterios_fundamentos"
-      data-janela={janela}
-      className={`${CARD} flex flex-col gap-4 ${className}`}
-    >
+  const corpo = (
+    <>
       <div className="grid min-w-0 gap-4 @3xl:grid-cols-[13.5rem_minmax(0,1fr)] @3xl:gap-x-6">
         <div className="flex min-w-0 flex-col items-start gap-2 @3xl:border-r @3xl:border-gray-200 @3xl:pr-6 @3xl:dark:border-gray-800">
           {cabecalho}
@@ -184,6 +206,22 @@ export default function CardCriterios({
         </a>
       ) : null}
       <RodapeFrescorBloco bloco="criterios_fundamentos" />
+    </>
+  );
+  return (
+    <section
+      aria-labelledby={idTitulo}
+      data-card-criterios={ticker}
+      data-bloco="criterios_fundamentos"
+      data-janela={janela}
+      className={
+        v2
+          ? `@container ${CARD_V2} flex flex-col ${className}`
+          : `${CARD} flex flex-col gap-4 ${className}`
+      }
+    >
+      {cabecalhoV2}
+      {v2 ? <div className={`${CORPO_V2} gap-4`}>{corpo}</div> : corpo}
     </section>
   );
 }
