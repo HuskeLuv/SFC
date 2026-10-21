@@ -177,7 +177,9 @@ function Celula({
     );
   } else {
     conteudo = (
-      <span className="text-gray-500 dark:text-gray-400">{TEXTOS_TELA.formato.semDado}</span>
+      <span className="text-gray-500 dark:text-gray-400">
+        {v.rotuloCurto ?? TEXTOS_TELA.formato.semDado}
+      </span>
     );
   }
   return (
@@ -324,7 +326,8 @@ export default function TabelaRaioX({ ticker, classe, cabecalhoExtra }: TabelaRa
                       scope="col"
                       className={`${TABLE_STYLES.compact.th} min-w-[84px] text-right`}
                     >
-                      {a}
+                      {/* F2 fundamentei-regras: 'fev/2026' fora de dezembro (ESSENCIAL_V2) */}
+                      {dados.rotulosAnos?.[a] ?? a}
                     </th>
                   ))}
                 </tr>

@@ -33,6 +33,12 @@
  * ANALISE_ATIVOS_ALAV_ATIVO_HABILITADO: linha 'Alavancagem (% do ativo)' no bloco alavancagem_custos,
  * lida de asset_multiples_yearly.obrigacoesAtivoPct (mesma origem da 'Alavancagem (% do PL)'); nula
  * até a fatia E e o scores gravarem o múltiplo.
+ *
+ * fundamentei-regras (F2): o sub-rótulo do payout segue a payout.regra da scoring VIGENTE
+ * (`regraPayout`; 'dfc' = proventos pagos na DFC; ausente/'dmpl_dpa' = o de hoje), nunca a chave. Com
+ * ANALISE_ATIVOS_ESSENCIAL_V2_HABILITADO (`essencialV2`, o Essencial da mesma entrada também): 'L' no
+ * payout com prejuízo (vem do Essencial), PDD ÷ lucro do banco em % (formato 'pct'), rótulo do ano
+ * 'fev/2026' no cabeçalho (rotulosAnos) e a nota do exercício fora de dezembro.
  */
 import { dividaLiquida, ebitda } from '@/services/analiseAtivos/regras/calculo/multiplos';
 import {
@@ -45,6 +51,9 @@ import {
   valoresSeguradora,
 } from '@/services/analiseAtivos/regras/acoes/templateFinanceira';
 import { TEXTOS_FINANCEIRAS } from '@/services/analiseAtivos/textosFinanceiras';
+import { TEXTOS_ATIVO } from '@/services/analiseAtivos/textosAtivo';
+import { notaExercicio } from '@/services/analiseAtivos/leitura/ativo/fundamentosEssencial';
+import type { RegraPayout } from '@/services/analiseAtivos/params/scoringParamsSchema';
 import type { TemplateFinanceira } from '@/types/analiseAtivosComplementos';
 import {
   anosPerShareEmConferencia,
@@ -519,6 +528,51 @@ export interface EntradaRaioXAcao {
   conferencia?: ConferenciaEntrada;
   /** A6: template de banco/seguradora (o Essencial veio do MESMO template); ausente = o de hoje */
   template?: TemplateFinanceira | null;
+  /** F2: ANALISE_ATIVOS_ESSENCIAL_V2_HABILITADO (o Essencial da entrada veio com a mesma opção) */
+  essencialV2?: boolean;
+  /** F2: payout.regra da scoring vigente (sub-rótulo do payout); ausente = 'dmpl_dpa' */
+  regraPayout?: RegraPayout;
+}
+
+/**
+ * F2: ajustes da regra do payout e da chave ESSENCIAL_V2 nas linhas, no cabeçalho dos anos e nas
+ * observações. Sem a chave e com 'dmpl_dpa', devolve exatamente o que recebeu.
+ */
+function ajustesF2(
+  e: Pick<EntradaRaioXAcao, 'essencial' | 'essencialV2' | 'regraPayout'>,
+  p: Parcial,
+): Parcial {
+  const v2 = e.essencialV2 === true;
+  const dfc = e.regraPayout === 'dfc';
+  if (!v2 && !dfc) return p;
+  const blocos = p.blocos.map((b) => ({
+    ...b,
+    linhas: b.linhas.map((l) => {
+      if (l.codigo === 'payoutPct' && dfc) return { ...l, sub: TEXTOS_ATIVO.payoutRegra.dfc };
+      if (l.codigo === 'pddLucro' && v2) return { ...l, formato: 'pct' as const };
+      return l;
+    }),
+  }));
+  const out: Parcial = { ...p, blocos };
+  if (v2) {
+    const rotulos: Record<number, string> = {};
+    for (const l of e.essencial.linhas) {
+      if (l.ano !== null && p.anos.includes(l.ano) && l.rotulo !== String(l.ano)) {
+        rotulos[l.ano] = l.rotulo;
+      }
+    }
+    if (Object.keys(rotulos).length > 0) out.rotulosAnos = rotulos;
+    const nota = notaExercicio(
+      e.essencial.linhas
+        .filter((l) => l.ano !== null && p.anos.includes(l.ano))
+        .map((l) => l.dtFim),
+    );
+    if (nota) {
+      out.observacaoExercicio = nota;
+      out.observacoes = [...p.observacoes, nota];
+    }
+  }
+  return out;
 }
 
 function soma(...xs: Array<number | null>): number | null {
@@ -639,7 +693,7 @@ export function montarRaioXAcao(e: EntradaRaioXAcao): Parcial {
   if (r.anos.length > 0 && r.anos.length < MAX_ANOS_RAIO_X) {
     obs.push(formatarTexto(so.semAnosAntes, { ano: r.anos[r.anos.length - 1] }));
   }
-  return {
+  return ajustesF2(e, {
     variante: fin ? 'acao_financeira' : 'acao',
     unidade: 'R$ mi',
     base: 'ano fiscal',
@@ -650,7 +704,7 @@ export function montarRaioXAcao(e: EntradaRaioXAcao): Parcial {
     blocos: r.blocos,
     observacoes: obs,
     linhasNaoAplicaveis: r.linhasNaoAplicaveis,
-  };
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -791,7 +845,7 @@ function montarRaioXFinanceira(e: EntradaRaioXAcao & { template: TemplateFinance
   if (r.anos.length > 0 && r.anos.length < MAX_ANOS_RAIO_X) {
     obs.push(formatarTexto(so.semAnosAntes, { ano: r.anos[r.anos.length - 1] }));
   }
-  return {
+  return ajustesF2(e, {
     variante: 'acao_financeira',
     unidade: 'R$ mi',
     base: 'ano fiscal',
@@ -803,7 +857,7 @@ function montarRaioXFinanceira(e: EntradaRaioXAcao & { template: TemplateFinance
     observacoes: obs,
     linhasNaoAplicaveis: r.linhasNaoAplicaveis,
     template: e.template,
-  };
+  });
 }
 
 /** 'individual BR GAAP' (mesmos rótulos do Essencial). */
