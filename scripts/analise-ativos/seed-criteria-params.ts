@@ -16,7 +16,8 @@
  * fundamentei-regras (F1): --versao=5 (v4 + crescimento anual composto, FII pela data-com,
  * financeiras "não se aplica", REIT com caixa operacional ajustado e sem ocupação). A v5 tem
  * validFromPadrao 2099-01-01 FIXO na entrada (nunca new Date()): sem --valid-from ela entra INERTE;
- * adiantar a vigência = UPDATE pontual do validFrom depois do relatório antes × depois.
+ * adiantar a vigência = UPDATE pontual do validFrom depois do relatório antes × depois. --versao=6
+ * (21/10/2026) = v5 com o crescimento "sem dado" na base ≤ 0 e o 'alav' até 16,7%; também inerte.
  *
  * Uso:
  *   npx tsx --env-file=.env scripts/analise-ativos/seed-criteria-params.ts --versao=2   # dry-run
@@ -37,6 +38,7 @@ import { CRITERIA_PARAMS_V2_JSON } from '../../src/services/analiseAtivos/params
 import { CRITERIA_PARAMS_V3_JSON } from '../../src/services/analiseAtivos/params/criteriaParamsV3';
 import { CRITERIA_PARAMS_V4_JSON } from '../../src/services/analiseAtivos/params/criteriaParamsV4';
 import { CRITERIA_PARAMS_V5_JSON } from '../../src/services/analiseAtivos/params/criteriaParamsV5';
+import { CRITERIA_PARAMS_V6_JSON } from '../../src/services/analiseAtivos/params/criteriaParamsV6';
 import { validarCriteriaParams } from '../../src/services/analiseAtivos/params/obterCriteriaParams';
 
 const CREATED_BY = 'seed-v2-filtros';
@@ -84,6 +86,13 @@ export const VERSOES_CODIGO: Record<
       'financeiras "não se aplica" (n de 3/2), REIT com caixa operacional ajustado pela SBC e sem ' +
       'ocupação (n de 5); decisões do Wellington de 20/10/2026 ' +
       '(docs/analise-ativos/fundamentei-regras/desenho.json)',
+    validFromPadrao: VALID_FROM_INERTE,
+  },
+  6: {
+    json: CRITERIA_PARAMS_V6_JSON,
+    notas:
+      'v6 = v5 com o crescimento anual composto "sem dado" quando o primeiro ano é negativo ou zero ' +
+      'e a alavancagem do FII de tijolo até 16,7% do ativo; decisão do Wellington de 21/10/2026',
     validFromPadrao: VALID_FROM_INERTE,
   },
 };
