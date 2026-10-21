@@ -33,6 +33,7 @@ import {
   type TrimestreFii,
 } from '../fundamentosEssencial';
 import { TEXTOS_TELA } from '@/services/analiseAtivos/textosTela';
+import { CRITERIA_PARAMS_V3 } from '@/services/analiseAtivos/params/criteriaParamsV3';
 import { TEXTOS_ATIVO } from '@/services/analiseAtivos/textosAtivo';
 import { linhaQuadroDb } from '@/test/fixtures/analiseAtivos/linhasDb';
 import type { FundamentosPeriodo } from '@/services/analiseAtivos/tipos';
@@ -347,6 +348,8 @@ describe('montarFundamentosAcao', () => {
         dtFim: '2026-06-30',
       }),
       proventosEmConferencia: false,
+      // regras da v3 fixas (financeiras sem "não se aplica"); a v6 do código está no teste D4 abaixo
+      regras: regrasEssencialDe(CRITERIA_PARAMS_V3),
       ...over,
     });
 

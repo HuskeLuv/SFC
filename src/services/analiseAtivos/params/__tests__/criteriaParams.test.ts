@@ -527,11 +527,6 @@ describe('CriteriaParams v3 (Stocks e REITs pela SEC)', () => {
     };
     expect(criteriaParamsSchema.safeParse(b).success).toBe(false);
   });
-
-  it('CRITERIA_PARAMS_CODIGO aponta para a v3 (BR igual à v2)', () => {
-    expect(CRITERIA_PARAMS_CODIGO).toBe(CRITERIA_PARAMS_V3);
-    expect(CRITERIA_PARAMS_CODIGO.versao).toBe(3);
-  });
 });
 
 function V2Parse() {
@@ -676,10 +671,6 @@ describe('CriteriaParams v5 (fundamentei-regras F1)', () => {
     expect('cagr' in CRITERIA_PARAMS_V4_JSON).toBe(false);
   });
 
-  it('CRITERIA_PARAMS_CODIGO continua na v3 (a v5 entra pelo banco, inerte)', () => {
-    expect(CRITERIA_PARAMS_CODIGO.versao).toBe(3);
-  });
-
   it('seed --versao=5: validFrom 2099-01-01 FIXO por padrão; v1–v4 com o padrão de antes', () => {
     expect(VERSOES_CODIGO[5].json).toBe(CRITERIA_PARAMS_V5_JSON);
     expect(VERSOES_CODIGO[5].validFromPadrao).toBe('2099-01-01T00:00:00.000Z');
@@ -762,6 +753,11 @@ describe('CriteriaParams v6 (v5 mais próxima do Fundamentei, 21/10/2026)', () =
     expect(CRITERIA_PARAMS_V5_JSON.versao).toBe(5);
     expect(CRITERIA_PARAMS_V5_JSON.cagr).toEqual({ baseNaoPositiva: 'fim_positivo' });
     expect(porId(V5.perfis.fii_tijolo).alav.limite).toBe(LIMITE_ALAV_ATIVO_V5_PCT);
+  });
+
+  it('CRITERIA_PARAMS_CODIGO aponta para a v6 (vigente no banco desde 21/10/2026)', () => {
+    expect(CRITERIA_PARAMS_CODIGO).toBe(CRITERIA_PARAMS_V6);
+    expect(CRITERIA_PARAMS_CODIGO.versao).toBe(6);
   });
 
   it('seed --versao=6: inerte em 2099-01-01 por padrão', () => {

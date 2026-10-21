@@ -375,7 +375,10 @@ describe('QuadroAnalise', () => {
     renderQuadro();
     expect(cabecalhos()).toContain('Critérios');
     expect(screen.getByRole('table').closest('[aria-busy]')).toHaveAttribute('aria-busy', 'true');
-    expect(screen.getByRole('button', { name: /Receita crescente/ })).toBeInTheDocument();
+    // chips antes da resposta = params do código (v6)
+    expect(
+      screen.getByRole('button', { name: /Receita com crescimento anual > 0/ }),
+    ).toBeInTheDocument();
   });
 
   it('"O que cada critério verifica" e rodapé literal; caso 32: DOM sem linguagem proibida', () => {
@@ -384,7 +387,8 @@ describe('QuadroAnalise', () => {
     const { container } = renderQuadro();
     const det = container.querySelector('details[data-explicacao-criterios]')!;
     expect(det.textContent).toContain('O que cada critério verifica');
-    expect(det.textContent).toContain(TEXTOS_QUADRO.explicacao.financeira);
+    // v6: EBITDA, dívida e FCL não se aplicam à financeira; a nota "mesmos 6 critérios" sai
+    expect(det.textContent).not.toContain(TEXTOS_QUADRO.explicacao.financeira);
     expect(det.textContent).not.toMatch(/n de 3/);
     expect(container.textContent).not.toMatch(/Índice/);
     const r = esperarDomLimpo(container);
