@@ -98,12 +98,17 @@ import type { AnaliseQuadroLinha } from '@prisma/client';
 import { montarKpisEua } from '@/services/analiseAtivos/leitura/ativo/kpisAtivo';
 import {
   lerPeriodosSec,
+  opcoesLeituraEuaDoAmbiente,
+  sufixoCacheLeituraEua,
   valoresAnoSec,
+  valoresReitAjustado,
+  type OpcoesLeituraEua,
   type PeriodoSec,
 } from '@/services/analiseAtivos/leitura/ativo/fundamentosEssencialEua';
 import { comCotacaoEua } from '@/services/analiseAtivos/quadro/consultaQuadro';
 import { textoExercicio } from '@/services/analiseAtivos/textosEua';
 import { TEXTOS_EUA_TELAS, formatarTexto } from '@/services/analiseAtivos/textosEuaTelas';
+import { rotuloEuaEn } from '@/services/analiseAtivos/textosEuaEn';
 import {
   BOLSAS_EUA,
   SEC_URLS,
@@ -153,9 +158,15 @@ function gravarCache(chave: string, valor: AtivoTopoResposta, agora: number): vo
  * Critérios das 3 janelas (fatia A grava; < 30 KB no topo). Falha de leitura = null ("sem
  * avaliação"): o topo nunca quebra por causa dos critérios.
  */
-async function lerCriteriosTopo(ticker: string): Promise<CriteriosAtivo | null> {
+async function lerCriteriosTopo(
+  ticker: string,
+  /** F3: rótulos EN dos critérios EUA; ausente = a chave do ambiente */
+  leitura?: { rotulosEn?: boolean },
+): Promise<CriteriosAtivo | null> {
   try {
-    return await obterCriteriosAtivo(prisma, ticker);
+    return await (leitura
+      ? obterCriteriosAtivo(prisma, ticker, leitura)
+      : obterCriteriosAtivo(prisma, ticker));
   } catch {
     return null;
   }
@@ -251,6 +262,8 @@ export interface OpcoesTopoAtivo {
   agora?: Date;
   /** chaves EUA resolvidas pela rota; ausente = desligadas (stock/reit = null) */
   eua?: { habilitado: boolean; preco: boolean };
+  /** F3: chaves de tela EUA; ausente = as do ambiente (opcoesLeituraEuaDoAmbiente) */
+  leituraEua?: OpcoesLeituraEua;
 }
 
 /** Monta o topo; null = ticker fora da área (a rota responde 404). */
@@ -266,10 +279,13 @@ export async function montarTopoAtivo(
   const row = await obterLinhaQuadro(ticker);
   if (row && ehClasseEua(row.classe)) {
     if (opts.eua?.habilitado !== true) return null;
-    const emCacheEua = lerCache(chave, agora.getTime());
+    // F3: chaves de tela EUA (REIT_FCO_AJUSTADO, EUA_ROTULOS_EN); desligadas = a chave de hoje
+    const leitura = opts.leituraEua ?? opcoesLeituraEuaDoAmbiente();
+    const chaveEua = `${chave}${sufixoCacheLeituraEua(leitura)}`;
+    const emCacheEua = lerCache(chaveEua, agora.getTime());
     if (emCacheEua) return emCacheEua;
-    const topoEua = await montarTopoAtivoEua(row, { agora, versao, preco: precoEua });
-    gravarCache(chave, topoEua, agora.getTime());
+    const topoEua = await montarTopoAtivoEua(row, { agora, versao, preco: precoEua, leitura });
+    gravarCache(chaveEua, topoEua, agora.getTime());
     return topoEua;
   }
   const emCache = lerCache(chave, agora.getTime());
@@ -600,26 +616,57 @@ export function tagsEua(
   return [...tags, textoExercicio(exercicioFimMmdd)].filter((x): x is string => !!x);
 }
 
-/** Gráfico anual por ação (LPA do stock; caixa op./ação do REIT), só a série A. Pura. */
+/**
+ * Gráfico anual por ação (LPA do stock; caixa op./ação do REIT), só a série A. Pura.
+ * F3: com `reitFcoAjustado` o REIT mostra o caixa ajustado pela SBC por ação (ano sem SBC: a barra
+ * sem ajuste e uma lacuna com a nota); com `rotulosEn` título e série levam o nome em inglês.
+ */
 export function graficoEua(
   classe: 'stock' | 'reit',
   periodos: readonly PeriodoSec[],
+  opcoes: OpcoesLeituraEua = {},
 ): GraficoAtivo {
   const G = TEXTOS_EUA_TELAS.ativo.grafico;
+  const ajustado = classe === 'reit' && opcoes.reitFcoAjustado === true;
+  const lacunas: GraficoAtivo['lacunas'] = [];
   const pontos = periodos.slice(-10).map((p) => {
     const v = valoresAnoSec(p);
-    const valor = classe === 'reit' ? v.fcoAcao : v.lpa;
+    let valor = classe === 'reit' ? v.fcoAcao : v.lpa;
+    if (ajustado) {
+      const aj = valoresReitAjustado(v);
+      valor = aj.fcoAjustadoAcao;
+      if (aj.sbcIndisponivel && finitoEua(valor)) {
+        lacunas.push({
+          chave: String(p.anoFiscal),
+          texto: formatarTexto(G.lacunaSbc, { ano: p.anoFiscal }),
+        });
+      }
+    }
     return { chave: String(p.anoFiscal), valor: finitoEua(valor) ? valor : null };
   });
+  const codigo = classe === 'stock' ? 'lpa' : ajustado ? 'fcoAjustadoAcao' : 'fcoAcao';
+  const nomeEn = opcoes.rotulosEn ? rotuloEuaEn(codigo) : null;
+  let titulo: string = classe === 'reit' ? G.tituloReit : G.tituloStock;
+  let figcaption: string = classe === 'reit' ? G.figcaptionReit : G.figcaptionStock;
+  let serie: string = classe === 'reit' ? G.serieReit : G.serieStock;
+  if (ajustado) {
+    titulo = G.tituloReitAjustado;
+    figcaption = G.figcaptionReitAjustado;
+    serie = G.serieReitAjustado;
+  }
+  if (nomeEn) {
+    titulo = formatarTexto(G.tituloPorIndicador, { indicador: nomeEn });
+    serie = nomeEn;
+  }
   return {
-    titulo: classe === 'reit' ? G.tituloReit : G.tituloStock,
-    figcaption: classe === 'reit' ? G.figcaptionReit : G.figcaptionStock,
+    titulo,
+    figcaption,
     granularidade: 'anual',
     periodos: ['10A'],
-    serieA: { rotulo: classe === 'reit' ? G.serieReit : G.serieStock, pontos },
+    serieA: { rotulo: serie, pontos },
     serieB: { rotulo: '', pontos: [] },
     ult12m: null,
-    lacunas: [],
+    lacunas,
     insuficiente: pontos.filter((p) => p.valor !== null).length < 3,
   };
 }
@@ -650,13 +697,15 @@ export function dividendosEua(periodos: readonly PeriodoSec[]): DividendosAtivo 
 /** Topo de um stock/REIT a partir da linha do Quadro + 10-K da SEC + cadastro. */
 export async function montarTopoAtivoEua(
   row: AnaliseQuadroLinha,
-  opts: { agora: Date; versao: string; preco: boolean },
+  opts: { agora: Date; versao: string; preco: boolean; leitura?: OpcoesLeituraEua },
 ): Promise<AtivoTopoResposta> {
+  const leitura = opts.leitura ?? {};
+  const ajustadoReit = row.classe === 'reit' && leitura.reitFcoAjustado === true;
   const classe = row.classe as 'stock' | 'reit';
   const linha = comCotacaoEua(paraLinhaQuadroApi(row), opts.preco);
   const cik = cikDoEmissorId(row.cnpj) ?? row.cnpj.replace(/^CIK:/, '');
   const [criterios, periodos, empresa] = await Promise.all([
-    lerCriteriosTopo(row.symbol),
+    lerCriteriosTopo(row.symbol, { rotulosEn: leitura.rotulosEn === true }),
     lerPeriodosSec(row.cnpj),
     prisma.secCompany.findUnique({
       where: { cik },
@@ -670,28 +719,39 @@ export async function montarTopoAtivoEua(
   ]);
   const ultimo = periodos[periodos.length - 1] ?? null;
   const v = ultimo ? valoresAnoSec(ultimo) : null;
-  const kpis = montarKpisEua({
-    classe,
-    ano: ultimo?.anoFiscal ?? null,
-    valores: v
-      ? {
-          roePct: v.roePct,
-          margemPct: v.margemPct,
-          divLiqEbitda: v.divLiqEbitda,
-          dividaLiquida: v.dividaLiquida,
-          lpa: v.lpa,
-          dpa: v.dpa,
-          payoutPct: v.payoutPct,
-          fcoAcao: v.fcoAcao,
-          divFcoPct: v.divFcoPct,
-          receita: v.receita,
-          lucro: v.lucro,
-        }
-      : null,
-    dpaCalculado: ultimo?.dpaOrigem === 'derivado',
-    anosLucroConsecutivos: row.anosLucroConsecutivos,
-    anosDividendo: row.anosDividendo,
-  });
+  const aj = v && ajustadoReit ? valoresReitAjustado(v) : null;
+  const kpis = montarKpisEua(
+    {
+      classe,
+      ano: ultimo?.anoFiscal ?? null,
+      valores: v
+        ? {
+            roePct: v.roePct,
+            margemPct: v.margemPct,
+            divLiqEbitda: v.divLiqEbitda,
+            dividaLiquida: v.dividaLiquida,
+            lpa: v.lpa,
+            dpa: v.dpa,
+            payoutPct: v.payoutPct,
+            fcoAcao: v.fcoAcao,
+            divFcoPct: v.divFcoPct,
+            receita: v.receita,
+            lucro: v.lucro,
+            ...(aj
+              ? {
+                  fcoAjustadoAcao: aj.fcoAjustadoAcao,
+                  divFcoAjustadoPct: aj.divFcoAjustadoPct,
+                  sbcIndisponivel: aj.sbcIndisponivel,
+                }
+              : {}),
+          }
+        : null,
+      dpaCalculado: ultimo?.dpaOrigem === 'derivado',
+      anosLucroConsecutivos: row.anosLucroConsecutivos,
+      anosDividendo: row.anosDividendo,
+    },
+    leitura,
+  );
   const exercicio = empresa?.exercicioFimMmdd ?? null;
   const bolsa = (BOLSAS_EUA as readonly string[]).includes(empresa?.bolsa ?? linha.bolsa ?? '')
     ? ((empresa?.bolsa ?? linha.bolsa) as BolsaEua)
@@ -719,7 +779,7 @@ export async function montarTopoAtivoEua(
     },
     criterios: criteriosComFonte(criterios, classe),
     kpis,
-    grafico: graficoEua(classe, periodos),
+    grafico: graficoEua(classe, periodos, leitura),
     dividendos: dividendosEua(periodos),
     eventos: [],
     educacao: { titulo: edu.titulo, href: LINK_EDUCACAO[classe], descricao: edu.descricao },
@@ -744,5 +804,7 @@ export async function montarTopoAtivoEua(
         : null,
       segmento,
     },
+    ...(leitura.rotulosEn ? { rotulosEn: true } : {}),
+    ...(ajustadoReit ? { reitFcoAjustado: true } : {}),
   };
 }

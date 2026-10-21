@@ -19,13 +19,35 @@
  * só com a chave de preço — nesta versão sem cotação, nunca saem.
  *
  * Cache em memória por ticker:versão do Quadro (30 min), como o Essencial do Brasil.
+ *
+ * fundamentei-regras (F3), cada um atrás da sua chave de TELA (desligadas = resposta de hoje):
+ * - ANALISE_ATIVOS_REIT_FCO_AJUSTADO_HABILITADO (REIT): colunas Caixa operacional, Caixa op.
+ *   ajustado, Caixa op. ajust./ação e Div./caixa op. ajust. (FCO − remuneração em ações do 10-K,
+ *   funções puras de seriesStock). Ano sem SBC no 10-K: a célula usa o caixa operacional sem ajuste
+ *   com a marca sbcIndisponivel e a nota dos anos. Sem FFO/AFFO/ocupação/imóveis: colunasPendentes
+ *   = [] e sem a observação da fase 2. Resposta com reitFcoAjustado: true;
+ * - ANALISE_ATIVOS_EUA_ROTULOS_EN_HABILITADO: nomes das colunas em inglês (textosEuaEn,
+ *   rotuloEuaEn por código); notas em português; a nota do stock sem o trecho do lucro sem itens não
+ *   recorrentes (A4.e). Resposta com rotulosEn: true.
  */
 import type { AssetFundamentalsPeriod } from '@prisma/client';
+import {
+  analiseAtivosEuaRotulosEnHabilitado,
+  analiseAtivosReitFcoAjustadoHabilitado,
+} from '@/lib/analiseAtivosConfig';
 import { prisma } from '@/lib/prisma';
 import { getTtlCache } from '@/lib/simpleTtlCache';
-import { dividaLiquidaSec, ebitdaSec } from '@/services/analiseAtivos/regras/criterios/seriesStock';
+import {
+  dividaLiquidaSec,
+  dividendosFcoAjustadoPctSec,
+  ebitdaSec,
+  fcoAjustadoPorAcaoSec,
+  fcoAjustadoSec,
+  sbcSec,
+} from '@/services/analiseAtivos/regras/criterios/seriesStock';
 import { obterLinhaQuadro, versaoQuadro } from '@/services/analiseAtivos/leitura/linhasQuadro';
 import { TEXTOS_EUA } from '@/services/analiseAtivos/textosEua';
+import { rotuloEuaEn } from '@/services/analiseAtivos/textosEuaEn';
 import { TEXTOS_EUA_TELAS, formatarTexto } from '@/services/analiseAtivos/textosEuaTelas';
 import { TEXTOS_TELA } from '@/services/analiseAtivos/textosTela';
 import {
@@ -41,7 +63,32 @@ import {
   type FormatoAnalise,
   type FundamentosResposta,
   type LinhaFundamentos,
+  type MarcaCelulaEssencial,
 } from '@/types/analiseAtivosApi';
+
+/**
+ * Chaves de TELA da leitura EUA (fundamentei-regras F3). Ausente = desligadas = telas de hoje. As
+ * leituras com banco resolvem pelo ambiente (opcoesLeituraEuaDoAmbiente); as funções puras recebem.
+ */
+export interface OpcoesLeituraEua {
+  /** ANALISE_ATIVOS_REIT_FCO_AJUSTADO_HABILITADO */
+  reitFcoAjustado?: boolean;
+  /** ANALISE_ATIVOS_EUA_ROTULOS_EN_HABILITADO */
+  rotulosEn?: boolean;
+}
+
+/** As duas chaves de tela da leitura EUA, como estão no ambiente. */
+export function opcoesLeituraEuaDoAmbiente(): OpcoesLeituraEua {
+  return {
+    reitFcoAjustado: analiseAtivosReitFcoAjustadoHabilitado(),
+    rotulosEn: analiseAtivosEuaRotulosEnHabilitado(),
+  };
+}
+
+/** Sufixo de cache pelas chaves ligadas ('' = desligadas: a chave de cache de hoje). */
+export function sufixoCacheLeituraEua(o: OpcoesLeituraEua): string {
+  return `${o.reitFcoAjustado ? ':reitAj' : ''}${o.rotulosEn ? ':en' : ''}`;
+}
 
 /** Anos fechados no Essencial (como o Brasil). */
 export const MAX_ANOS_ESSENCIAL_EUA = 10;
@@ -68,6 +115,8 @@ export interface PeriodoSec {
   dpa: number | null;
   dpaOrigem: string | null;
   flags: string[];
+  /** F3: remuneração em ações do FY (US$; SBC). Ausente/null = o 10-K não informou */
+  remuneracaoAcoes?: number | null;
 }
 
 const num = (d: unknown): number | null => {
@@ -99,6 +148,7 @@ export function periodoSecDaLinha(p: AssetFundamentalsPeriod): PeriodoSec {
     dpa: num(p.dpa),
     dpaOrigem: p.dpaOrigem,
     flags: p.flags,
+    remuneracaoAcoes: num(p.remuneracaoAcoes),
   };
 }
 
@@ -148,7 +198,18 @@ export interface ValoresAnoSec {
   fco: number | null;
   fcoAcao: number | null;
   divFcoPct: number | null;
+  /** F3: FCO − SBC (US$); null sem SBC no FY */
+  fcoAjustado: number | null;
+  /** F3: FCO ajustado ÷ média diluída (US$/ação); null sem SBC */
+  fcoAjustadoAcao: number | null;
+  /** F3: dividendos ÷ FCO ajustado (%); null sem SBC ou com o ajustado ≤ 0 */
+  divFcoAjustadoPct: number | null;
+  /** F3: o FY tem FCO mas não tem SBC no 10-K (o ajustado cai no sem ajuste: sbc_indisponivel) */
+  sbcIndisponivel: boolean;
 }
+
+/** ∞ (caixa ajustado ≤ 0 com dividendos) não vira célula: sem valor, como o Div./caixa op. */
+const soFinito = (v: number | null): number | null => (finito(v) ? v : null);
 
 export function valoresAnoSec(p: PeriodoSec): ValoresAnoSec {
   // mesmas regras do criterios-eua (seriesStock): D&A ausente = sem EBITDA; sem caixa ou sem
@@ -185,6 +246,36 @@ export function valoresAnoSec(p: PeriodoSec): ValoresAnoSec {
       finito(p.dividendosPagos) && finito(p.fco) && p.fco > 0
         ? (p.dividendosPagos / p.fco) * 100
         : null,
+    fcoAjustado: fcoAjustadoSec(p),
+    fcoAjustadoAcao: fcoAjustadoPorAcaoSec(p),
+    divFcoAjustadoPct: soFinito(dividendosFcoAjustadoPctSec(p, p.dividendosPagos)),
+    sbcIndisponivel: finito(p.fco) && sbcSec(p) === null,
+  };
+}
+
+/**
+ * F3: valores do REIT com o caixa ajustado; o ano sem SBC no 10-K usa o sem ajuste (a tela marca com
+ * sbcIndisponivel). Pura.
+ */
+export function valoresReitAjustado(v: ValoresAnoSec): {
+  fcoAjustado: number | null;
+  fcoAjustadoAcao: number | null;
+  divFcoAjustadoPct: number | null;
+  sbcIndisponivel: boolean;
+} {
+  if (v.sbcIndisponivel) {
+    return {
+      fcoAjustado: v.fco,
+      fcoAjustadoAcao: v.fcoAcao,
+      divFcoAjustadoPct: v.divFcoPct,
+      sbcIndisponivel: true,
+    };
+  }
+  return {
+    fcoAjustado: v.fcoAjustado,
+    fcoAjustadoAcao: v.fcoAjustadoAcao,
+    divFcoAjustadoPct: v.divFcoAjustadoPct,
+    sbcIndisponivel: false,
   };
 }
 
@@ -199,6 +290,8 @@ interface DefColunaEua {
   formato: FormatoAnalise;
   /** valor exibido a partir das métricas do ano (US$ bi nos absolutos) */
   valor: (v: ValoresAnoSec) => number | null;
+  /** F3: coluna ajustada pela SBC (marca sbcIndisponivel no ano sem SBC) */
+  ajustada?: boolean;
 }
 
 const BI = 1e9;
@@ -219,6 +312,22 @@ const COL: Record<CodigoEua, Omit<DefColunaEua, 'codigo'>> = {
   fco: { formato: 'numero', valor: (v) => emBi(v.fco) },
   fcoAcao: { formato: 'numero2', valor: (v) => v.fcoAcao },
   divFco: { formato: 'pct', valor: (v) => v.divFcoPct },
+  // F3 (REIT_FCO_AJUSTADO): ano sem SBC = o sem ajuste, com a marca
+  fcoAjustado: {
+    formato: 'numero',
+    valor: (v) => emBi(valoresReitAjustado(v).fcoAjustado),
+    ajustada: true,
+  },
+  fcoAjustadoAcao: {
+    formato: 'numero2',
+    valor: (v) => valoresReitAjustado(v).fcoAjustadoAcao,
+    ajustada: true,
+  },
+  divFcoAjustado: {
+    formato: 'pct',
+    valor: (v) => valoresReitAjustado(v).divFcoAjustadoPct,
+    ajustada: true,
+  },
 };
 
 /** Colunas do Essencial por classe (só as que têm fonte no XBRL). */
@@ -238,6 +347,18 @@ export const COLUNAS_ESSENCIAL_EUA: Record<ClasseEua, readonly CodigoEua[]> = {
   ],
   reit: ['receita', 'lucro', 'fco', 'fcoAcao', 'dpa', 'divFco', 'divLiqEbitda'],
 };
+
+/** F3: REIT com ANALISE_ATIVOS_REIT_FCO_AJUSTADO_HABILITADO (caixa ajustado pela SBC, sem FFO). */
+export const COLUNAS_ESSENCIAL_REIT_AJUSTADO: readonly CodigoEua[] = [
+  'receita',
+  'lucro',
+  'fco',
+  'fcoAjustado',
+  'fcoAjustadoAcao',
+  'dpa',
+  'divFcoAjustado',
+  'divLiqEbitda',
+];
 
 /** Valores em bi com menos de 10 (REITs menores) ganham 2 casas. */
 function formatoDaColuna(def: DefColunaEua, valores: Array<number | null>): FormatoAnalise {
@@ -271,19 +392,25 @@ export function mesDoExercicio(mmdd: string | null | undefined): string | null {
 }
 
 /** Monta o Essencial EUA (pura). `exercicioFimMmdd` = MMDD do fim do FY ('0927'). */
-export function montarFundamentosEua(entrada: {
-  classe: ClasseEua;
-  periodos: readonly PeriodoSec[];
-  exercicioFimMmdd: string | null;
-}): FundamentosResposta {
+export function montarFundamentosEua(
+  entrada: {
+    classe: ClasseEua;
+    periodos: readonly PeriodoSec[];
+    exercicioFimMmdd: string | null;
+  },
+  opcoes: OpcoesLeituraEua = {},
+): FundamentosResposta {
   const { classe } = entrada;
+  const ajustado = classe === 'reit' && opcoes.reitFcoAjustado === true;
+  const en = opcoes.rotulosEn === true;
   const periodos = entrada.periodos.slice(-MAX_ANOS_ESSENCIAL_EUA);
   const valores = periodos.map(valoresAnoSec);
-  const defs = COLUNAS_ESSENCIAL_EUA[classe].map((codigo) => ({ codigo, ...COL[codigo] }));
+  const codigos = ajustado ? COLUNAS_ESSENCIAL_REIT_AJUSTADO : COLUNAS_ESSENCIAL_EUA[classe];
+  const defs = codigos.map((codigo) => ({ codigo, ...COL[codigo] }));
   const TE = TEXTOS_EUA_TELAS.essencial;
   const colunas: ColunaFundamentos[] = defs.map((d) => ({
     codigo: d.codigo,
-    rotulo: TE.colunas[d.codigo],
+    rotulo: (en ? rotuloEuaEn(d.codigo) : null) ?? TE.colunas[d.codigo],
     formato: formatoDaColuna(
       d,
       valores.map((v) => d.valor(v)),
@@ -291,26 +418,33 @@ export function montarFundamentosEua(entrada: {
     fonteCvmAviso: false,
   }));
   const ultimo = periodos.length ? periodos[periodos.length - 1].anoFiscal : null;
+  const anosSemSbc: number[] = [];
   const linhas: LinhaFundamentos[] = periodos.map((p, i) => {
     const v = valores[i];
     const out: Record<string, Estado<number>> = {};
+    const marcas: Partial<Record<string, MarcaCelulaEssencial>> = {};
     for (const d of defs) {
       const x = d.valor(v);
       out[d.codigo] = finito(x) ? { estado: 'ok', valor: x } : semDado();
+      if (d.ajustada && v.sbcIndisponivel && finito(x))
+        marcas[d.codigo] = { sbcIndisponivel: true };
     }
+    const comMarca = Object.keys(marcas).length > 0;
+    if (comMarca) anosSemSbc.push(p.anoFiscal);
     return {
       rotulo: `FY${p.anoFiscal}`,
       ano: p.anoFiscal,
       ultimoAno: p.anoFiscal === ultimo,
       valores: out,
       selos: [],
+      ...(comMarca ? { marcas } : {}),
     };
   });
   const mes = mesDoExercicio(entrada.exercicioFimMmdd);
-  const observacoes = [
-    mes ? formatarTexto(TE.unidade, { mes }) : TE.unidadeSemMes,
-    classe === 'stock' ? TE.notaStock : TE.notaReit,
-  ];
+  let notaClasse: string = TE.notaReit;
+  if (classe === 'stock') notaClasse = en ? TE.notaStockUmLucro : TE.notaStock;
+  else if (ajustado) notaClasse = TE.notaReitAjustado;
+  const observacoes = [mes ? formatarTexto(TE.unidade, { mes }) : TE.unidadeSemMes, notaClasse];
   // término em jan/fev conta como o ano anterior (anoFiscalDoTermino): explica a diferença para o
   // 'Fiscal AAAA' do 10-K (NVDA FY2025 = exercício encerrado em jan/2026 = Fiscal 2026)
   const ultimoPeriodo = periodos[periodos.length - 1];
@@ -335,7 +469,11 @@ export function montarFundamentosEua(entrada: {
       observacoes.push(formatarTexto(texto, { anos: `FY${faixaAnos(anos)}` }));
     }
   }
-  if (classe === 'reit') observacoes.push(TEXTOS_EUA.colunasPendentes.observacao);
+  if (ajustado && anosSemSbc.length > 0) {
+    observacoes.push(formatarTexto(TE.sbcIndisponivelAnos, { anos: anosSemSbc.join(', FY') }));
+  }
+  // F3: com o caixa ajustado, FFO/AFFO/ocupação/imóveis saem da página (sem a observação da fase 2)
+  if (classe === 'reit' && !ajustado) observacoes.push(TEXTOS_EUA.colunasPendentes.observacao);
   return {
     nivel: 'essencial',
     unidade: 'US$ bi',
@@ -347,7 +485,9 @@ export function montarFundamentosEua(entrada: {
     linhas,
     observacoes,
     textoFonte: TEXTOS_EUA.fonte.card,
-    ...(classe === 'reit' ? { colunasPendentes: [...COLUNAS_PENDENTES_EUA] } : {}),
+    ...(classe === 'reit' ? { colunasPendentes: ajustado ? [] : [...COLUNAS_PENDENTES_EUA] } : {}),
+    ...(en ? { rotulosEn: true } : {}),
+    ...(ajustado ? { reitFcoAjustado: true } : {}),
   };
 }
 
@@ -356,12 +496,13 @@ const cache = getTtlCache<FundamentosResposta>('analiseAtivosFundamentosEua');
 /** Leitura do Essencial EUA; null = ticker fora da área EUA (a rota responde 404). */
 export async function obterFundamentosEssencialEua(
   ticker: string,
+  opcoes: OpcoesLeituraEua = opcoesLeituraEuaDoAmbiente(),
 ): Promise<{ dados: FundamentosResposta; cache: boolean } | null> {
   const symbol = ticker.toUpperCase();
   const linha = await obterLinhaQuadro(symbol);
   if (!linha || !ehClasseEua(linha.classe)) return null;
   const versao = await versaoQuadro();
-  const chave = `${symbol}:${versao}`;
+  const chave = `${symbol}:${versao}${sufixoCacheLeituraEua(opcoes)}`;
   const emCache = cache.get(chave);
   if (emCache) return { dados: emCache, cache: true };
   const cik = linha.cnpj.replace(/^CIK:/, '');
@@ -369,11 +510,14 @@ export async function obterFundamentosEssencialEua(
     lerPeriodosSec(linha.cnpj),
     prisma.secCompany.findUnique({ where: { cik }, select: { exercicioFimMmdd: true } }),
   ]);
-  const dados = montarFundamentosEua({
-    classe: linha.classe,
-    periodos,
-    exercicioFimMmdd: empresa?.exercicioFimMmdd ?? null,
-  });
+  const dados = montarFundamentosEua(
+    {
+      classe: linha.classe,
+      periodos,
+      exercicioFimMmdd: empresa?.exercicioFimMmdd ?? null,
+    },
+    opcoes,
+  );
   cache.set(chave, dados, TTL_MS);
   return { dados, cache: false };
 }

@@ -22,8 +22,16 @@
  * no JSON) seguem válidas: as definições vêm do criteria_params da paramsVersion, cujo parse já leva os
  * nomes de série legados aos nomes da spec (MAPA_SERIE_LEGADA); nada da avaliação gravada depende do
  * nome da série.
+ *
+ * fundamentei-regras (F3, A4.d): com ANALISE_ATIVOS_EUA_ROTULOS_EN_HABILITADO os rótulos dos critérios
+ * dos perfis EUA (stock, stock_financeira, reit) saem em inglês, escolhidos na LEITURA por id + tipo +
+ * série + limite da definição da paramsVersion (rotuloCriterioEuaEn de textosEuaEn.ts; o JSON da
+ * criteria_params fica em português). Perfil BR ou combinação fora do mapa: o rótulo PT. A
+ * definição do 'ebitda' com a série 'ebit' (v5) ganha o selo do degrau do EBIT (sem D&A); v1–v4 não
+ * têm a série e não mudam. Chave desligada = leitura de hoje.
  */
 import type { PrismaClient } from '@prisma/client';
+import { analiseAtivosEuaRotulosEnHabilitado } from '@/lib/analiseAtivosConfig';
 import { getTtlCache } from '@/lib/simpleTtlCache';
 import {
   criteriosDoPerfil,
@@ -33,11 +41,13 @@ import {
 import { validarCriteriaParams } from '@/services/analiseAtivos/params/obterCriteriaParams';
 import { observacaoPerfil } from '@/services/analiseAtivos/regras/criterios/perfilCriterios';
 import { TEXTOS_EUA } from '@/services/analiseAtivos/textosEua';
+import { rotuloCriterioEuaEn } from '@/services/analiseAtivos/textosEuaEn';
 import { ehClasseQuadro, type ClasseQuadro, type FiiTipoTela } from '@/types/analiseAtivosApi';
 import {
   ehIdCriterio,
   ehJanela,
   ehObsCriterio,
+  ehPerfilEua,
   PERFIS_CRITERIO,
   type ChaveJanela,
   type CriteriosAtivo,
@@ -126,14 +136,46 @@ export function uniaoFontes(listas: ReadonlyArray<readonly IdFonte[]>): IdFonte[
   return [...vistas.filter((f) => f !== 'cvm'), ...vistas.filter((f) => f === 'cvm')];
 }
 
+/** F3: opções de leitura dos critérios (chave de tela; ausente = desligada). */
+export interface OpcoesLeituraCriterios {
+  /** ANALISE_ATIVOS_EUA_ROTULOS_EN_HABILITADO */
+  rotulosEn?: boolean;
+}
+
+/**
+ * Rótulo de um critério na LEITURA: com `rotulosEn` e perfil EUA, o nome em inglês pela definição
+ * vigente (id + tipo + série + limite); senão (ou sem nome EN) o rótulo PT do params. Pura.
+ */
+export function rotuloCriterioLeitura(
+  perfil: PerfilCriterio | null,
+  def: Pick<DefCriterio, 'id' | 'tipo' | 'serie' | 'limite' | 'rotulo'>,
+  opcoes: OpcoesLeituraCriterios = {},
+): string {
+  if (!opcoes.rotulosEn || !perfil || !ehPerfilEua(perfil)) return def.rotulo;
+  return rotuloCriterioEuaEn(perfil, def) ?? def.rotulo;
+}
+
+/** F3: definição do 'ebitda' com a série 'ebit' nos perfis EUA ganha o selo do degrau do EBIT. */
+function definicaoLeitura(perfil: PerfilCriterio | null, def: DefCriterio): string {
+  if (perfil && ehPerfilEua(perfil) && def.serie === 'ebit' && def.definicao) {
+    return `${def.definicao} ${TEXTOS_EUA.ebit.degraus}`;
+  }
+  return def.definicao;
+}
+
 /** Item da API a partir do resultado gravado + definição do params. Pura. */
-export function itemApi(r: ResultadoCriterio, def: DefCriterio | undefined): ItemCriterioApi {
+export function itemApi(
+  r: ResultadoCriterio,
+  def: DefCriterio | undefined,
+  perfil: PerfilCriterio | null = null,
+  opcoes: OpcoesLeituraCriterios = {},
+): ItemCriterioApi {
   const fonte = fonteDe(r);
   const obs = obsDe(r);
   return {
     id: r.id,
-    rotulo: def?.rotulo ?? r.id,
-    definicao: def?.definicao ?? '',
+    rotulo: def ? rotuloCriterioLeitura(perfil, def, opcoes) : r.id,
+    definicao: def ? definicaoLeitura(perfil, def) : '',
     estado: r.estado,
     n: r.n,
     de: r.de,
@@ -165,6 +207,7 @@ export function montarCriteriosAtivo(
   }>,
   params: CriteriaParams | null,
   fiiTipo: FiiTipoTela | null,
+  opcoes: OpcoesLeituraCriterios = {},
 ): CriteriosAtivo | null {
   const validas = linhas.filter((l) => ehJanela(l.janela));
   if (validas.length === 0) return null;
@@ -182,7 +225,7 @@ export function montarCriteriosAtivo(
       anoFim: l.anoFim,
       atendidos: l.atendidos,
       aplicaveis: l.aplicaveis,
-      itens: resultadosValidos(l.resultados).map((r) => itemApi(r, defs.get(r.id))),
+      itens: resultadosValidos(l.resultados).map((r) => itemApi(r, defs.get(r.id), perfil, opcoes)),
     };
   }
   const itens = Object.values(janelas).flatMap((j) => j.itens);
@@ -200,13 +243,15 @@ export function montarCriteriosAtivo(
   };
 }
 
-/** Critérios das 3 janelas de um ativo (cache TTL por symbol). */
+/** Critérios das 3 janelas de um ativo (cache TTL por symbol e pela chave de rótulos EN). */
 export async function obterCriteriosAtivo(
   prisma: PrismaCriterios,
   symbol: string,
+  opcoes: OpcoesLeituraCriterios = { rotulosEn: analiseAtivosEuaRotulosEnHabilitado() },
 ): Promise<CriteriosAtivo | null> {
   const s = symbol.toUpperCase();
-  const emCache = cacheAtivo.get(s);
+  const chave = opcoes.rotulosEn ? `${s}:en` : s;
+  const emCache = cacheAtivo.get(chave);
   if (emCache !== undefined) return emCache;
   const linhas = await prisma.criteriaEval.findMany({
     where: { symbol: s },
@@ -229,10 +274,10 @@ export async function obterCriteriosAtivo(
       paramsDaVersao(prisma, linhas[0].paramsVersion),
       linhas[0].classe === 'fii' ? fiiTipoDaLinha(prisma, s) : Promise.resolve(null),
     ]);
-    dados = montarCriteriosAtivo(linhas, params, fiiTipo);
+    dados = montarCriteriosAtivo(linhas, params, fiiTipo, opcoes);
   }
-  cacheAtivo.set(s, dados, CRITERIOS_TTL_MS);
-  chavesAtivo.add(s);
+  cacheAtivo.set(chave, dados, CRITERIOS_TTL_MS);
+  chavesAtivo.add(chave);
   return dados;
 }
 

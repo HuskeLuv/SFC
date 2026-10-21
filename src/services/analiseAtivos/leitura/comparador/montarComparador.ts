@@ -18,6 +18,11 @@
  *
  * Stocks e REITs (fatia C): só com `opts.eua.habilitado` (ANALISE_ATIVOS_EUA_HABILITADO) o ticker EUA
  * é aceito (BRK-B = BRK.B); sem a chave, nada muda (formato inválido / inexistente). Até 4 da MESMA
+ * fundamentei-regras (F3): ANALISE_ATIVOS_REIT_FCO_AJUSTADO_HABILITADO (REIT: caixa ajustado pela
+ * SBC no grupo Geração de caixa, com a nota dos tickers sem SBC no sub da linha) e
+ * ANALISE_ATIVOS_EUA_ROTULOS_EN_HABILITADO (nomes das linhas e dos critérios EUA em inglês), lidas
+ * aqui só para classes EUA; entram na chave do cache e na resposta (reitFcoAjustado / rotulosEn).
+ *
  * classe stock|reit: misturar uma classe EUA com qualquer outra é ErroMisturaEua (a rota responde 400
  * com o texto de TEXTOS_EUA.comparador). Grupos EUA do catálogo (indicadores.ts), critérios do perfil
  * stock/reit, gráfico do lucro líquido (US$ mi, base 100) e, sem a chave de preço, cotação ausente.
@@ -29,6 +34,8 @@
  */
 import {
   analiseAtivosAlavAtivoHabilitado,
+  analiseAtivosEuaRotulosEnHabilitado,
+  analiseAtivosReitFcoAjustadoHabilitado,
   analiseAtivosRetornosHabilitado,
 } from '@/lib/analiseAtivosConfig';
 import { prisma } from '@/lib/prisma';
@@ -47,7 +54,10 @@ import {
   TTL_ANALISE_MS,
   hojeSaoPaulo,
 } from '@/services/analiseAtivos/leitura/ativo/fundamentosEssencial';
-import { obterCriteriosVarios } from '@/services/analiseAtivos/leitura/criterios/lerCriterios';
+import {
+  obterCriteriosVarios,
+  rotuloCriterioLeitura,
+} from '@/services/analiseAtivos/leitura/criterios/lerCriterios';
 import { paraRetornosApi } from '@/services/analiseAtivos/leitura/ativo/retornosAtivo';
 import { lerRetornosPorSimbolos } from '@/services/analiseAtivos/repositorio/retornos';
 import {
@@ -69,6 +79,7 @@ import {
   type PontoBruto,
 } from '@/services/analiseAtivos/regras/comparador/escala';
 import {
+  CODIGOS_REIT_AJUSTADO,
   catalogoComparador,
   ehMisto,
   naoSeAplicaComparador,
@@ -89,6 +100,7 @@ import type {
 import { montarLeitura } from '@/services/analiseAtivos/regras/comparador/resumo';
 import { TEXTOS_COMPARADOR } from '@/services/analiseAtivos/textosComparador';
 import { TEXTOS_CRITERIOS } from '@/services/analiseAtivos/textosCriterios';
+import { TEXTOS_EUA_TELAS } from '@/services/analiseAtivos/textosEuaTelas';
 import { TEXTOS_TELA, formatarTexto } from '@/services/analiseAtivos/textosTela';
 import { ehClasseEua, type ClasseQuadro, type Estado } from '@/types/analiseAtivosApi';
 import type { RetornosCalculados } from '@/types/analiseAtivosComplementos';
@@ -154,6 +166,8 @@ export function criteriosDoComparador(
   params: CriteriaParams,
   classe: ClasseQuadro,
   tipos: readonly TipoAtivoComparador[],
+  /** F3: ANALISE_ATIVOS_EUA_ROTULOS_EN_HABILITADO (rótulos dos critérios EUA em inglês) */
+  opcoes: { rotulosEn?: boolean } = {},
 ): CriteriosComparador {
   if (classe !== 'fii') {
     // ação, stock e REIT: a lista do perfil (a financeira usa a mesma, 'n de 6'); params ativos sem
@@ -162,8 +176,14 @@ export function criteriosDoComparador(
       ehClasseEua(classe) && criteriosDoPerfil(params, classe).length === 0
         ? CRITERIA_PARAMS_CODIGO
         : params;
+    const perfil = ehClasseEua(classe) ? classe : null;
     return {
-      rotulos: Object.fromEntries(criteriosDoPerfil(fonte, classe).map((c) => [c.id, c.rotulo])),
+      rotulos: Object.fromEntries(
+        criteriosDoPerfil(fonte, classe).map((c) => [
+          c.id,
+          rotuloCriterioLeitura(perfil, c, opcoes),
+        ]),
+      ),
       equivalencias: {},
     };
   }
@@ -220,6 +240,25 @@ export interface EntradaComparador {
   alavAtivo?: boolean;
   /** A6 (fatia F): ANALISE_ATIVOS_RETORNOS_HABILITADO — variação 12m/5a no grupo Preço (ação e FII) */
   retornos?: boolean;
+  /** F3: ANALISE_ATIVOS_REIT_FCO_AJUSTADO_HABILITADO (só REIT) */
+  reitFcoAjustado?: boolean;
+  /** F3: ANALISE_ATIVOS_EUA_ROTULOS_EN_HABILITADO (só stock/REIT) */
+  rotulosEn?: boolean;
+}
+
+/**
+ * F3: sub da linha ajustada com os tickers cujo último FY não tem SBC no 10-K (a célula usa o caixa
+ * sem ajuste). Nenhum = o sub de sempre. Pura.
+ */
+export function subComSbcIndisponivel(
+  sub: string | null,
+  tickers: readonly string[],
+): string | null {
+  if (tickers.length === 0) return sub;
+  return formatarTexto(TEXTOS_EUA_TELAS.comparador.sbcIndisponivel, {
+    sub: sub ?? '',
+    tickers: tickers.join(', '),
+  });
 }
 
 export type NucleoComparador = Pick<
@@ -273,7 +312,12 @@ export function montarComparadorPuro(e: EntradaComparador): NucleoComparador {
   const misto = classe === 'fii' && ehMisto(tipos);
 
   const grupos: GrupoComparador[] = [];
-  const opcoesCatalogo = { alavAtivo: e.alavAtivo === true, retornos: e.retornos === true };
+  const opcoesCatalogo = {
+    alavAtivo: e.alavAtivo === true,
+    retornos: e.retornos === true,
+    reitFcoAjustado: e.reitFcoAjustado === true,
+    rotulosEn: e.rotulosEn === true,
+  };
   for (const g of catalogoComparador(classe, opcoesCatalogo)) {
     if (!g.aplicavelA.some((t) => tiposPresentes.has(t))) continue;
     const linhas: LinhaComparador[] = g.linhas.map((def) => {
@@ -285,10 +329,13 @@ export function montarComparadorPuro(e: EntradaComparador): NucleoComparador {
         valores[ticker] = estado;
         conferencia[ticker] = conf;
       });
+      const semSbc = CODIGOS_REIT_AJUSTADO.includes(def.codigo)
+        ? e.ativos.filter((a) => a.dados.linha.sbcIndisponivel).map((a) => a.dados.linha.ticker)
+        : [];
       return {
         codigo: def.codigo,
         rotulo: def.rotulo,
-        sub: def.sub,
+        sub: subComSbcIndisponivel(def.sub, semSbc),
         formato: def.formato,
         fonteCvmAviso: def.fonteCvmAviso,
         valores,
@@ -346,7 +393,7 @@ export function montarComparadorPuro(e: EntradaComparador): NucleoComparador {
     janela,
     misto,
     ativos,
-    criterios: criteriosDoComparador(e.params, classe, tipos),
+    criterios: criteriosDoComparador(e.params, classe, tipos, { rotulosEn: e.rotulosEn === true }),
     grupos,
     graficos,
     leitura: montarLeitura(
@@ -561,7 +608,19 @@ async function lerNucleo(
     ativos,
     alavAtivo: analiseAtivosAlavAtivoHabilitado(),
     retornos: retornosLigado,
+    ...leituraEuaComparador(classe),
   });
+}
+
+/** F3: chaves de tela EUA do Comparador, só para as classes EUA (BR = ausentes, como hoje). */
+function leituraEuaComparador(classe: ClasseQuadro): { reitFcoAjustado?: true; rotulosEn?: true } {
+  if (!ehClasseEua(classe)) return {};
+  return {
+    ...(classe === 'reit' && analiseAtivosReitFcoAjustadoHabilitado()
+      ? { reitFcoAjustado: true as const }
+      : {}),
+    ...(analiseAtivosEuaRotulosEnHabilitado() ? { rotulosEn: true as const } : {}),
+  };
 }
 
 /** Stock × REIT (ou EUA × Brasil) na mesma comparação: a rota responde 400. */
@@ -627,7 +686,8 @@ export async function montarComparador(
   const tickers = escolhidas.map((l) => l.symbol);
   const versao = await versaoQuadro();
 
-  const chave = `${VERSAO_COMPARADOR}|${classeFinal}|${janela}|${[...tickers].sort().join(',')}|${versao}|${hoje}${precoEua ? '|preco' : ''}${analiseAtivosAlavAtivoHabilitado() ? '|alav' : ''}${analiseAtivosRetornosHabilitado() ? '|ret' : ''}`;
+  const leituraEua = leituraEuaComparador(classeFinal);
+  const chave = `${VERSAO_COMPARADOR}|${classeFinal}|${janela}|${[...tickers].sort().join(',')}|${versao}|${hoje}${precoEua ? '|preco' : ''}${analiseAtivosAlavAtivoHabilitado() ? '|alav' : ''}${analiseAtivosRetornosHabilitado() ? '|ret' : ''}${leituraEua.reitFcoAjustado ? '|reitAj' : ''}${leituraEua.rotulosEn ? '|en' : ''}`;
   let nucleo = cache.get(chave);
   const doCache = nucleo !== undefined;
   if (!nucleo) {
@@ -644,6 +704,7 @@ export async function montarComparador(
       tickers,
       ignorados,
       versao: `${VERSAO_COMPARADOR}:${versao}`,
+      ...leituraEua,
     },
   };
 }

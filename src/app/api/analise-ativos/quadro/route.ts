@@ -1,5 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
+import {
+  analiseAtivosEuaRotulosEnHabilitado,
+  analiseAtivosReitFcoAjustadoHabilitado,
+} from '@/lib/analiseAtivosConfig';
 import { prisma } from '@/lib/prisma';
 import { withErrorHandler } from '@/utils/apiErrorHandler';
 import { validationError } from '@/utils/validation-schemas';
@@ -188,6 +192,11 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     hoje: new Date().toISOString().slice(0, 10),
     criteriaParams,
     eua: (({ eua, euaPreco }) => ({ habilitado: eua, preco: euaPreco }))(flagsEua()),
+    // fundamentei-regras (F3): chaves de tela EUA (desligadas = resposta de hoje)
+    leituraEua: {
+      rotulosEn: analiseAtivosEuaRotulosEnHabilitado(),
+      reitFcoAjustado: analiseAtivosReitFcoAjustadoHabilitado(),
+    },
   });
   const dur = (performance.now() - inicio).toFixed(1);
   return NextResponse.json(corpo, {

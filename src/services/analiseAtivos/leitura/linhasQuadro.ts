@@ -26,9 +26,18 @@
  * - A6 (fatia E): `obrigacoesAtivoPct` (obrigações ÷ ativo total, Estado) SÓ nas linhas de FII e só
  *   com ANALISE_ATIVOS_ALAV_ATIVO_HABILITADO; desligada (ou ação), a chave fica AUSENTE e a resposta
  *   é idêntica à de hoje. Mesma regra do Obrigações/PL (ticker↔CNPJ não conferido = em conferência).
+ * - fundamentei-regras (F3, A2.d): com ANALISE_ATIVOS_REIT_FCO_AJUSTADO_HABILITADO, a linha de REIT
+ *   escolhe a coluna do caixa operacional AJUSTADO pela remuneração em ações: fcoPorAcao e
+ *   dividendosFcoPct passam a ser fcoAjustadoPorAcao/dividendosFcoAjustadoPct gravados pelo
+ *   quadro-eua (a tabela, a ordenação e o Comparador leem os mesmos campos); sem SBC no último FY
+ *   ficam os sem ajuste com sbcIndisponivel: true. A resposta leva também fcoAjustadoPorAcao e
+ *   dividendosFcoAjustadoPct crus. Desligada (ou stock/BR): as chaves ficam AUSENTES, como hoje.
  */
 import type { AnaliseQuadroLinha } from '@prisma/client';
-import { analiseAtivosAlavAtivoHabilitado } from '@/lib/analiseAtivosConfig';
+import {
+  analiseAtivosAlavAtivoHabilitado,
+  analiseAtivosReitFcoAjustadoHabilitado,
+} from '@/lib/analiseAtivosConfig';
 import { prisma } from '@/lib/prisma';
 import { FLAG_CNPJ_EM_CONFERENCIA } from '@/services/analiseAtivos/quadro/montarLinhasQuadro';
 import { proventosEmConferencia } from '@/services/analiseAtivos/regras/calculo/plausibilidadeProventos';
@@ -446,6 +455,9 @@ export function paraLinhaQuadroApiNaJanela(
     assetId: row.assetId,
     ...extras,
     ...camposEuaDaLinha(row),
+    ...(classe === 'reit' && analiseAtivosReitFcoAjustadoHabilitado()
+      ? camposReitAjustadoDaLinha(row)
+      : {}),
     ...(classe === 'fii' && analiseAtivosAlavAtivoHabilitado()
       ? { obrigacoesAtivoPct: est('obrigacoesAtivo') }
       : {}),
@@ -468,5 +480,37 @@ export function camposEuaDaLinha(
     dpa: row.dpa,
     fcoPorAcao: row.fcoPorAcao,
     dividendosFcoPct: row.dividendosFcoPct,
+  };
+}
+
+/**
+ * F3 (REIT, só com ANALISE_ATIVOS_REIT_FCO_AJUSTADO_HABILITADO): escolhe o caixa operacional ajustado
+ * pela SBC para fcoPorAcao/dividendosFcoPct (a tabela e a ordenação seguem lendo os mesmos campos).
+ * Último FY sem SBC (ajustado null com o sem ajuste presente): ficam os sem ajuste e
+ * sbcIndisponivel: true. Pura.
+ */
+export function camposReitAjustadoDaLinha(
+  row: Pick<
+    AnaliseQuadroLinha,
+    'moeda' | 'fcoPorAcao' | 'dividendosFcoPct' | 'fcoAjustadoPorAcao' | 'dividendosFcoAjustadoPct'
+  >,
+): Pick<
+  LinhaQuadroApi,
+  | 'fcoPorAcao'
+  | 'dividendosFcoPct'
+  | 'fcoAjustadoPorAcao'
+  | 'dividendosFcoAjustadoPct'
+  | 'sbcIndisponivel'
+> {
+  if (row.moeda !== 'USD') return {};
+  const fcoAjustadoPorAcao = row.fcoAjustadoPorAcao ?? null;
+  const dividendosFcoAjustadoPct = row.dividendosFcoAjustadoPct ?? null;
+  const sbcIndisponivel = fcoAjustadoPorAcao === null && row.fcoPorAcao !== null;
+  return {
+    fcoPorAcao: sbcIndisponivel ? row.fcoPorAcao : fcoAjustadoPorAcao,
+    dividendosFcoPct: sbcIndisponivel ? row.dividendosFcoPct : dividendosFcoAjustadoPct,
+    fcoAjustadoPorAcao,
+    dividendosFcoAjustadoPct,
+    sbcIndisponivel,
   };
 }

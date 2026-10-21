@@ -28,9 +28,17 @@
  * grupo Preço de ação e de FII ganha 'Variação 12 meses' e 'Variação 5 anos (a.a.)' (só preço, sem
  * proventos; asset_retornos_cotacao via montarComparador). Formato 'pctSinal': sinal +/− em cor
  * NEUTRA (a célula só pinta 'pct'), sem ganhador. Sem linha no banco = 'sem dado'.
+ *
+ * fundamentei-regras (F3): com ANALISE_ATIVOS_REIT_FCO_AJUSTADO_HABILITADO (catalogoComparador
+ * ('reit', { reitFcoAjustado })) o grupo Geração de caixa do REIT troca as linhas pelo caixa
+ * operacional ajustado pela remuneração em ações (o valor vem da linha do Quadro, que já escolheu a
+ * coluna ajustada; ano sem SBC = o sem ajuste, com a nota no sub montada por montarComparador). Com
+ * ANALISE_ATIVOS_EUA_ROTULOS_EN_HABILITADO ({ rotulosEn }) os nomes das linhas EUA saem em inglês
+ * (textosEuaEn.rotuloEuaEn); grupos e linhas de apoio seguem em português. Desligadas = de hoje.
  */
 import type { CampoTela } from '@/services/analiseAtivos/regras/comum/conferencia';
 import { TEXTOS_COMPARADOR } from '@/services/analiseAtivos/textosComparador';
+import { rotuloEuaEn } from '@/services/analiseAtivos/textosEuaEn';
 import { TEXTOS_EUA_TELAS } from '@/services/analiseAtivos/textosEuaTelas';
 import { TEXTOS_TELA } from '@/services/analiseAtivos/textosTela';
 import type { TipoAtivoComparador } from '@/types/analiseAtivosBlocoD';
@@ -546,19 +554,69 @@ export const GRUPOS_REIT: DefGrupoComparador[] = [
   { codigo: 'dividendos', rotulo: GE.dividendos, aplicavelA: EUA, linhas: [DPA_EUA] },
 ];
 
+/** Códigos das linhas do REIT com o caixa ajustado (montarComparador põe a nota do ano sem SBC). */
+export const CODIGOS_REIT_AJUSTADO: readonly string[] = ['fcoAjustadoAcaoEua', 'divFcoAjustadoEua'];
+
+/**
+ * F3: REIT com o caixa operacional ajustado pela SBC. A linha do Quadro (linhasQuadro, com a mesma
+ * chave) já traz em fcoPorAcao/dividendosFcoPct a coluna ajustada (ou a sem ajuste no ano sem SBC).
+ */
+export const GRUPOS_REIT_AJUSTADO: DefGrupoComparador[] = GRUPOS_REIT.map((g) =>
+  g.codigo === 'geracaoCaixa'
+    ? {
+        ...g,
+        linhas: [
+          linha({
+            codigo: 'fcoAjustadoAcaoEua',
+            formato: 'numero2',
+            campoTela: null,
+            extrator: (d) => okOuSemDado(d.linha.fcoPorAcao),
+          }),
+          linha({
+            codigo: 'divFcoAjustadoEua',
+            formato: 'pct',
+            campoTela: null,
+            extrator: (d) => okOuSemDado(d.linha.dividendosFcoPct),
+          }),
+        ],
+      }
+    : g,
+);
+
+/** F3: nomes das linhas EUA em inglês (rotuloEuaEn por código); o resto igual. */
+function comRotulosEn(grupos: DefGrupoComparador[]): DefGrupoComparador[] {
+  return grupos.map((g) => ({
+    ...g,
+    linhas: g.linhas.map((l) => ({ ...l, rotulo: rotuloEuaEn(l.codigo) ?? l.rotulo })),
+  }));
+}
+
+export const GRUPOS_STOCK_EN = comRotulosEn(GRUPOS_STOCK);
+export const GRUPOS_REIT_EN = comRotulosEn(GRUPOS_REIT);
+export const GRUPOS_REIT_AJUSTADO_EN = comRotulosEn(GRUPOS_REIT_AJUSTADO);
+
 export interface OpcoesCatalogo {
   /** A6: ANALISE_ATIVOS_ALAV_ATIVO_HABILITADO (linha 'Alavancagem (% do ativo)' no FII) */
   alavAtivo?: boolean;
   /** A6: ANALISE_ATIVOS_RETORNOS_HABILITADO (variação 12m e 5a no grupo Preço de ação e FII) */
   retornos?: boolean;
+  /** F3: ANALISE_ATIVOS_REIT_FCO_AJUSTADO_HABILITADO (REIT com o caixa ajustado pela SBC) */
+  reitFcoAjustado?: boolean;
+  /** F3: ANALISE_ATIVOS_EUA_ROTULOS_EN_HABILITADO (nomes das linhas EUA em inglês) */
+  rotulosEn?: boolean;
 }
 
 export function catalogoComparador(
   classe: ClasseQuadro,
   opcoes: OpcoesCatalogo = {},
 ): DefGrupoComparador[] {
-  if (classe === 'stock') return GRUPOS_STOCK;
-  if (classe === 'reit') return GRUPOS_REIT;
+  if (classe === 'stock') return opcoes.rotulosEn ? GRUPOS_STOCK_EN : GRUPOS_STOCK;
+  if (classe === 'reit') {
+    if (opcoes.reitFcoAjustado) {
+      return opcoes.rotulosEn ? GRUPOS_REIT_AJUSTADO_EN : GRUPOS_REIT_AJUSTADO;
+    }
+    return opcoes.rotulosEn ? GRUPOS_REIT_EN : GRUPOS_REIT;
+  }
   if (classe === 'acao') return opcoes.retornos ? GRUPOS_ACAO_RETORNOS : GRUPOS_ACAO;
   if (opcoes.alavAtivo)
     return opcoes.retornos ? GRUPOS_FII_ALAV_ATIVO_RETORNOS : GRUPOS_FII_ALAV_ATIVO;
