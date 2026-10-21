@@ -88,6 +88,11 @@ export const TEXTOS_QUADRO = {
       'Caixa operacional ÷ média de ações diluídas do último ano fiscal, em US$; difere do FFO do relatório',
     divFco: 'Dividendos pagos ÷ caixa operacional no último ano fiscal',
     anosDividendo: 'Anos seguidos com dividendo por ação maior que o do ano anterior',
+    // fundamentei-regras (F3): REIT com ANALISE_ATIVOS_REIT_FCO_AJUSTADO_HABILITADO (sem FFO)
+    fcoAcaoAjustado:
+      'Caixa operacional − remuneração em ações ÷ média de ações diluídas do último ano fiscal, em US$ (relatório 10-K)',
+    divFcoAjustado:
+      'Dividendos pagos ÷ caixa operacional ajustado pela remuneração em ações no último ano fiscal',
   },
 
   /** Área recolhível "O que cada critério verifica". */

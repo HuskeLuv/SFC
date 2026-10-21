@@ -99,6 +99,16 @@ export const TEXTOS_EUA = {
     ebitdaReDifere: 'O EBITDAre informado no relatório do REIT pode diferir deste cálculo.',
   },
 
+  /**
+   * fundamentei-regras (F3): selo de cálculo do critério 'ebitda' quando a série é 'ebit' (v5) — o
+   * mesmo degrau do EBITDA, sem a depreciação e amortização.
+   */
+  ebit: {
+    calculado: 'EBIT calculado a partir do 10-K (lucro operacional)',
+    degraus:
+      'Sem lucro operacional no relatório: lucro antes do IR + juros; sem os dois, lucro líquido + IR + juros.',
+  },
+
   /** Dívida líquida (definição única). */
   dividaLiquida: 'Dívida líquida = dívida bruta − caixa − aplicações de curto prazo.',
 

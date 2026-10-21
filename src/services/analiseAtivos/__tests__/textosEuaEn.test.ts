@@ -7,11 +7,13 @@
 import { describe, expect, it } from 'vitest';
 import { encontrarProibidasV2 } from '@/services/analiseAtivos/regras/comum/linguagemV2';
 import {
+  CODIGOS_EUA_EN,
   CRITERIOS_EUA_EN,
   PLACEHOLDERS_EUA_EN,
   ROTULOS_EUA_EN,
   TERMOS_EN_PROIBIDOS,
   rotuloCriterioEuaEn,
+  rotuloEuaEn,
 } from '@/services/analiseAtivos/textosEuaEn';
 import { TEXTOS_EUA } from '@/services/analiseAtivos/textosEua';
 import { TEXTOS_CRITERIOS } from '@/services/analiseAtivos/textosCriterios';
@@ -61,7 +63,19 @@ describe('textosEuaEn', () => {
       'P/E',
       'P/S',
       'Div. yield',
+      // F3: Div./caixa op. sem o ajuste (REIT_FCO_AJUSTADO desligada)
+      'Payout (÷ OCF)',
     ]);
+  });
+
+  it('F3: todo código das telas EUA aponta para um nome da lista fechada', () => {
+    for (const [codigo, chave] of Object.entries(CODIGOS_EUA_EN)) {
+      expect(ROTULOS_EUA_EN[chave], codigo).toBeTruthy();
+      expect(rotuloEuaEn(codigo)).toBe(ROTULOS_EUA_EN[chave]);
+    }
+    expect(rotuloEuaEn('fcoAjustadoAcao')).toBe('OCF adj./share (US$)');
+    expect(rotuloEuaEn('divFcoAjustadoEua')).toBe('Payout (÷ OCF adj.)');
+    expect(rotuloEuaEn('naoExiste')).toBeNull();
   });
 
   it('linguagem: nada proibido em português (linguagemV2) nem em inglês', () => {

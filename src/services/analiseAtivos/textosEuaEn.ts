@@ -40,8 +40,60 @@ export const ROTULOS_EUA_EN = {
   pe: 'P/E',
   ps: 'P/S',
   dividendYield: 'Div. yield',
+  /**
+   * F3: Div./caixa op. SEM o ajuste (REIT com REIT_FCO_AJUSTADO desligada, ou avaliação v3/v4) —
+   * a única entrada além da lista do desenho, para a coluna não ficar em português ao lado das
+   * outras em inglês.
+   */
+  payoutOcf: 'Payout (÷ OCF)',
 } as const;
 export type ChaveRotuloEuaEn = keyof typeof ROTULOS_EUA_EN;
+
+/**
+ * F3: código da coluna/KPI/linha das telas EUA → nome EN (lista fechada). Essencial
+ * (fundamentosEssencialEua), KPIs (kpisAtivo.montarKpisEua), gráfico por ação (montarTopoAtivo) e
+ * Comparador (indicadores.ts, códigos com o sufixo 'Eua'). Código fora do mapa = fica o rótulo PT.
+ */
+export const CODIGOS_EUA_EN: Readonly<Record<string, ChaveRotuloEuaEn>> = {
+  receita: 'revenue',
+  ebitda: 'ebitda',
+  lucro: 'netIncome',
+  margem: 'netMargin',
+  margemLiquida: 'netMargin',
+  dividaLiquida: 'netDebt',
+  divLiqEbitda: 'netDebtEbitda',
+  fclCapex: 'fcfCapex',
+  roe: 'roe',
+  lpa: 'eps',
+  dpa: 'dividendPerShare',
+  payout: 'payout',
+  fco: 'operatingCashFlow',
+  fcoAcao: 'ocfPerShare',
+  divFco: 'payoutOcf',
+  fcoAjustado: 'ocfAdjusted',
+  fcoAjustadoAcao: 'ocfAdjustedPerShare',
+  divFcoAjustado: 'payoutOcfAdjusted',
+  lucrosSeguidos: 'profitStreak',
+  anosDividendo: 'dividendGrowing',
+  // Comparador EUA (indicadores.ts)
+  lucrosSeguidosEua: 'profitStreak',
+  roeEua: 'roe',
+  margemEua: 'netMargin',
+  divLiqEbitdaEua: 'netDebtEbitda',
+  payoutEua: 'payout',
+  dpaEua: 'dividendPerShare',
+  fcoAcaoEua: 'ocfPerShare',
+  divFcoEua: 'payoutOcf',
+  anosDividendoEua: 'dividendGrowing',
+  fcoAjustadoAcaoEua: 'ocfAdjustedPerShare',
+  divFcoAjustadoEua: 'payoutOcfAdjusted',
+};
+
+/** Nome EN de um código das telas EUA; null = sem nome EN (fica o PT). Pura. */
+export function rotuloEuaEn(codigo: string): string | null {
+  const chave = CODIGOS_EUA_EN[codigo];
+  return chave ? ROTULOS_EUA_EN[chave] : null;
+}
 
 /**
  * Rótulos EN dos critérios EUA por id. Variantes pelo TIPO e pela SÉRIE da definição vigente (a
