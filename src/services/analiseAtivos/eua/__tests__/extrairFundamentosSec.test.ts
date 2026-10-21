@@ -7,6 +7,7 @@ import { readFileSync } from 'fs';
 import path from 'path';
 import { describe, expect, it } from 'vitest';
 import {
+  CADEIA_SBC,
   CADEIAS_SEC,
   CONCEITOS_PROIBIDOS,
   conceitosDasCadeias,
@@ -464,5 +465,69 @@ describe('cadeias de conceitos', () => {
     ]);
     expect(passo('dei:EntityPublicFloat').termos[0].taxonomia).toBe('dei');
     expect(() => passo('A?')).toThrow();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// fundamentei-regras F3 (A2.d): remuneração em ações (SBC) só com `incluirSbc`
+// ---------------------------------------------------------------------------
+describe('remuneração em ações (SBC, ANALISE_ATIVOS_SEC_SBC)', () => {
+  const comSbc = (cf: CompanyFactsSec) =>
+    extrairFundamentosSec(cf, { anoMinimo: 2014, incluirSbc: true }).periodos;
+  const semConceito = (cf: CompanyFactsSec, ...conceitos: string[]) => {
+    for (const c of conceitos) delete cf.facts['us-gaap'][c];
+    return cf;
+  };
+  const SBC = ['ShareBasedCompensation', 'AllocatedShareBasedCompensationExpense'];
+
+  it('sem a opção: extração de hoje (sem a chave remuneracaoAcoes nem o conceito)', () => {
+    for (const nome of ['O', 'PLD', 'AAPL']) {
+      const ps = periodos(nome);
+      expect(ps.length).toBeGreaterThan(0);
+      for (const p of ps) {
+        expect('remuneracaoAcoes' in p).toBe(false);
+        expect(p.sourceConcept.remuneracaoAcoes).toBeUndefined();
+      }
+      // a fixture com os fatos da SBC extrai igual à fixture sem eles
+      const semSbc = extrairFundamentosSec(semConceito(companyfacts(nome), ...SBC), {
+        anoMinimo: 2014,
+      }).periodos;
+      expect(ps).toEqual(semSbc);
+      expect(
+        extrairFundamentosSec(companyfacts(nome), { anoMinimo: 2014, incluirSbc: false }),
+      ).toEqual(extrairFundamentosSec(companyfacts(nome), { anoMinimo: 2014 }));
+    }
+  });
+
+  it('cadeia principal ShareBasedCompensation (REIT O e PLD), valor da DFC do 10-K', () => {
+    const o = comSbc(companyfacts('O'));
+    expect(fy(o, 2024).remuneracaoAcoes).toBe(57_493_000);
+    expect(fy(o, 2024).sourceConcept.remuneracaoAcoes).toBe('ShareBasedCompensation');
+    expect(o.every((p) => typeof p.remuneracaoAcoes === 'number')).toBe(true);
+    const pld = comSbc(companyfacts('PLD'));
+    expect(mi(fy(pld, 2023).remuneracaoAcoes ?? null)).toBe(268);
+  });
+
+  it('fallback AllocatedShareBasedCompensationExpense quando o principal falta no ano', () => {
+    const o = comSbc(semConceito(companyfacts('O'), 'ShareBasedCompensation'));
+    expect(fy(o, 2015).remuneracaoAcoes).toBe(10_400_000);
+    expect(fy(o, 2015).sourceConcept.remuneracaoAcoes).toBe(
+      'AllocatedShareBasedCompensationExpense',
+    );
+    // sem nenhum dos dois no ano = null (nunca 0), sem conceito
+    expect(fy(o, 2020).remuneracaoAcoes).toBeNull();
+    expect(fy(o, 2020).sourceConcept.remuneracaoAcoes).toBeUndefined();
+  });
+
+  it('SBC ausente = null em todo FY; os demais campos não mudam', () => {
+    const com = comSbc(semConceito(companyfacts('O'), ...SBC));
+    expect(com.every((p) => p.remuneracaoAcoes === null)).toBe(true);
+    expect(com.map(({ remuneracaoAcoes: _r, ...p }) => p)).toEqual(periodos('O'));
+  });
+
+  it('a cadeia da SBC fica fora de CADEIAS_SEC, mas dentro da validação de conceitos', () => {
+    expect(Object.keys(CADEIAS_SEC)).not.toContain('remuneracaoAcoes');
+    expect(CADEIA_SBC.passos.map((p) => p.rotulo)).toEqual(SBC);
+    expect(conceitosDasCadeias()).toEqual(expect.arrayContaining(SBC.map((c) => `us-gaap:${c}`)));
   });
 });

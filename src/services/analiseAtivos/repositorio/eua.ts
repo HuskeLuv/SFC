@@ -412,6 +412,25 @@ export const COLUNAS_VALOR_SEC = [
 ] as const;
 export type ColunaValorSec = (typeof COLUNAS_VALOR_SEC)[number];
 
+/**
+ * F3 fundamentei-regras (A2.d): remuneração em ações (SBC). Entra na comparação de versão SÓ com
+ * ANALISE_ATIVOS_SEC_SBC (`incluirSbc`): desligada, COLUNAS_VALOR_SEC, a impressão digital e a
+ * leitura das versões gravadas são as de hoje e o cron sec-fundamentos não cria versão nova.
+ */
+export const COLUNA_SBC_SEC = 'remuneracaoAcoes' as const;
+
+/** Opção da comparação de versão (o job passa analiseAtivosSecSbc()). */
+export interface OpcoesVersaoSec {
+  incluirSbc?: boolean;
+}
+
+/** Colunas comparadas: as de hoje + a SBC com `incluirSbc`. */
+export function colunasValorSec(
+  opts: OpcoesVersaoSec = {},
+): ReadonlyArray<ColunaValorSec | typeof COLUNA_SBC_SEC> {
+  return opts.incluirSbc ? [...COLUNAS_VALOR_SEC, COLUNA_SBC_SEC] : COLUNAS_VALOR_SEC;
+}
+
 /** FY SEC já normalizado para gravar (números na escala das colunas). */
 export type PeriodoSecGravavel = Record<ColunaValorSec, number | null> & {
   emissorId: string;
@@ -425,6 +444,8 @@ export type PeriodoSecGravavel = Record<ColunaValorSec, number | null> & {
   dpaOrigem: string | null;
   sourceConcept: Record<string, string>;
   flags: string[];
+  /** F3: só com a extração `incluirSbc` (ausente = linha de hoje, coluna nula) */
+  remuneracaoAcoes?: number | null;
 };
 
 /** Última versão gravada de um FY SEC (por dtFim). */
@@ -439,15 +460,24 @@ type CamposImpressao = Record<ColunaValorSec, number | null> & {
   dpaOrigem: string | null;
   sourceConcept: Record<string, string>;
   flags: readonly string[];
+  remuneracaoAcoes?: number | null;
 };
 
 /**
  * Impressão digital de um FY: valores (na escala das colunas), datas, ano, flags, origem do DPA
  * e conceitos. Igual ⇒ não grava versão nova (versao +1 só quando muda).
+ *
+ * F3: sem `incluirSbc` a string é a de hoje — a SBC fica fora dos valores e o conceito
+ * 'remuneracaoAcoes' fica fora dos conceitos (inclusive o de uma versão gravada com a chave ligada:
+ * desligar a chave depois não gera versão nova). Com `incluirSbc`, a SBC entra no fim dos valores.
  */
-export function impressaoPeriodoSec(p: CamposImpressao): string {
-  const valores = COLUNAS_VALOR_SEC.map((c) => (p[c] === null ? '' : String(p[c])));
+export function impressaoPeriodoSec(p: CamposImpressao, opts: OpcoesVersaoSec = {}): string {
+  const valores = colunasValorSec(opts).map((c) => {
+    const v = c === COLUNA_SBC_SEC ? (p.remuneracaoAcoes ?? null) : p[c];
+    return v === null ? '' : String(v);
+  });
   const conceitos = Object.keys(p.sourceConcept)
+    .filter((k) => opts.incluirSbc || k !== COLUNA_SBC_SEC)
     .sort()
     .map((k) => `${k}=${p.sourceConcept[k]}`);
   return [
@@ -489,13 +519,24 @@ const SELECT_VERSAO_SEC = {
   dpa: true,
 } satisfies Prisma.AssetFundamentalsPeriodSelect;
 
+/** F3: a mesma leitura + a SBC, para a impressão gravada bater com a recalculada (incluirSbc). */
+const SELECT_VERSAO_SEC_SBC = {
+  ...SELECT_VERSAO_SEC,
+  remuneracaoAcoes: true,
+} satisfies Prisma.AssetFundamentalsPeriodSelect;
+
 export async function lerVersoesSec(
   prisma: Pick<PrismaClient, 'assetFundamentalsPeriod'>,
   emissorId: string,
+  opts: OpcoesVersaoSec = {},
 ): Promise<Map<string, VersaoSecGravada>> {
-  const linhas = await prisma.assetFundamentalsPeriod.findMany({
+  const linhas: Array<
+    Prisma.AssetFundamentalsPeriodGetPayload<{ select: typeof SELECT_VERSAO_SEC }> & {
+      remuneracaoAcoes?: Prisma.Decimal | null;
+    }
+  > = await prisma.assetFundamentalsPeriod.findMany({
     where: { emissorId, source: 'SEC', tipoPeriodo: 'FY', escopo: 'con' },
-    select: SELECT_VERSAO_SEC,
+    select: opts.incluirSbc ? SELECT_VERSAO_SEC_SBC : SELECT_VERSAO_SEC,
     orderBy: [{ dtFim: 'asc' }, { versao: 'desc' }],
   });
   const out = new Map<string, VersaoSecGravada>();
@@ -510,14 +551,18 @@ export async function lerVersoesSec(
         : {};
     out.set(dtFim, {
       versao: l.versao,
-      impressao: impressaoPeriodoSec({
-        ...valores,
-        anoFiscal: l.anoFiscal,
-        dtIni: paraData(l.dtIni),
-        dpaOrigem: l.dpaOrigem,
-        sourceConcept,
-        flags: l.flags,
-      }),
+      impressao: impressaoPeriodoSec(
+        {
+          ...valores,
+          anoFiscal: l.anoFiscal,
+          dtIni: paraData(l.dtIni),
+          dpaOrigem: l.dpaOrigem,
+          sourceConcept,
+          flags: l.flags,
+          ...(opts.incluirSbc ? { remuneracaoAcoes: paraNumero(l.remuneracaoAcoes) } : {}),
+        },
+        opts,
+      ),
     });
   }
   return out;
@@ -574,6 +619,8 @@ export function linhaFundamentoSec(
     naoSeAplica: [],
     flags: p.flags,
     fetchedAt: agora,
+    // F3: só com a extração `incluirSbc`; sem ela a coluna fica fora do insert (nula, como hoje)
+    ...('remuneracaoAcoes' in p ? { remuneracaoAcoes: dec(p.remuneracaoAcoes ?? null, 2) } : {}),
   };
 }
 

@@ -12,9 +12,12 @@
  * os CIKs do índice voltam no próximo run e a versão igual não é regravada).
  *
  * O backfill (scripts/analise-ativos/backfill-sec-fundamentos.ts) usa a mesma processarCikSec.
+ * fundamentei-regras (F3): a remuneração em ações (SBC) só é lida, gravada e comparada com
+ * ANALISE_ATIVOS_SEC_SBC (opts.incluirSbc); desligada, extração, impressão e gravação são as de hoje.
  * DONO: fatia A (docs/analise-ativos/stocks-reits/desenho.json).
  */
 import type { PrismaClient } from '@prisma/client';
+import { analiseAtivosSecSbc } from '@/lib/analiseAtivosConfig';
 import {
   extrairFundamentosSec,
   type CompanyFactsSec,
@@ -136,6 +139,8 @@ export function normalizarPeriodoSec(p: PeriodoSec): PeriodoSecGravavel {
     acoesMediaDiluida: r(p.acoesMediaDiluida, 0),
     lpaOn: r(p.lpaOn, 6),
     dpa: r(p.dpa, 6),
+    // F3: só quando a extração leu a SBC (ANALISE_ATIVOS_SEC_SBC)
+    ...(p.remuneracaoAcoes !== undefined ? { remuneracaoAcoes: r(p.remuneracaoAcoes, 2) } : {}),
   };
 }
 
@@ -161,6 +166,8 @@ export async function processarCikSec(
     aplicar: boolean;
     alertar?: (a: AlertaJob) => void;
     agora?: Date;
+    /** F3: remuneração em ações (SBC); padrão = ANALISE_ATIVOS_SEC_SBC */
+    incluirSbc?: boolean;
   },
 ): Promise<ResultadoCikSec> {
   const cik = normalizarCik(cikFundamentos);
@@ -170,15 +177,17 @@ export async function processarCikSec(
     cf = await opts.cliente.obterJson<CompanyFactsSec>(urlSec(SEC_URLS.companyfacts, { cik }));
   }
   if (!cf) return { cik, status: 'sem_companyfacts', periodos: 0, novasVersoes: 0, alertas: 0 };
-  const ext = extrairFundamentosSec(cf, { anoMinimo: opts.anoMinimo });
+  const incluirSbc = opts.incluirSbc ?? analiseAtivosSecSbc();
+  const versaoSbc = { incluirSbc };
+  const ext = extrairFundamentosSec(cf, { anoMinimo: opts.anoMinimo, ...versaoSbc });
   cf = null; // libera o JSON antes de tocar no banco
-  const gravadas = await lerVersoesSec(prisma, emissorIdSec(cik));
+  const gravadas = await lerVersoesSec(prisma, emissorIdSec(cik), versaoSbc);
   const agora = opts.agora ?? new Date();
   const linhas = [];
   for (const p of ext.periodos) {
     const n = normalizarPeriodoSec(p);
     const g = gravadas.get(n.dtFim);
-    if (g && g.impressao === impressaoPeriodoSec(n)) continue;
+    if (g && g.impressao === impressaoPeriodoSec(n, versaoSbc)) continue;
     linhas.push(linhaFundamentoSec(n, (g?.versao ?? 0) + 1, agora));
   }
   if (opts.alertar) {
