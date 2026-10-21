@@ -243,6 +243,9 @@ export const TEXTOS_CRITERIOS = {
     // A6 (fatia 0; a fatia E grava a obs no 'alav' do fii_tijolo na v4)
     obrigacoes_ativo_revisao:
       'Obrigações acima de 50% do ativo total em algum ano da janela: valor em revisão, porque outros valores a pagar podem incluir itens que não são dívida.',
+    // fundamentei-regras (F0; a F1 grava a obs no fco_acao/pay do REIT na v5)
+    sbc_indisponivel:
+      'Sem remuneração em ações informada no 10-K em algum ano da janela; o critério usa o caixa operacional sem ajuste.',
   } satisfies Record<ObsCriterio, string>,
 
   /**

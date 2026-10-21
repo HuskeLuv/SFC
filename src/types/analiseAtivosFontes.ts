@@ -68,6 +68,11 @@ export const SERIES_FUNDAMENTO = [
   'ffo_per_share',
   'affo_per_share',
   'affo_payout_pct',
+  // fundamentei-regras (F0): lucro operacional (CVM: FY.ebit; SEC: a base do EBITDA pelo degrau) e
+  // o caixa operacional do REIT ajustado pela remuneração em ações (FCO − SBC), por ação e no payout
+  'ebit',
+  'ocf_adjusted_per_share',
+  'cash_payout_adjusted_pct',
 ] as const;
 export type SerieFundamento = (typeof SERIES_FUNDAMENTO)[number];
 
@@ -148,6 +153,9 @@ export const CATALOGO_SERIES: Record<SerieFundamento, DefSerieFundamento> = {
   ffo_per_share: { unidade: 'USD_por_acao', mercados: REIT, periodicidade: 'FY' },
   affo_per_share: { unidade: 'USD_por_acao', mercados: REIT, periodicidade: 'FY' },
   affo_payout_pct: { unidade: 'pct', mercados: REIT, periodicidade: 'FY' },
+  ebit: { unidade: 'BRL', mercados: ACOES, periodicidade: 'FY' },
+  ocf_adjusted_per_share: { unidade: 'USD_por_acao', mercados: REIT, periodicidade: 'FY' },
+  cash_payout_adjusted_pct: { unidade: 'pct', mercados: REIT, periodicidade: 'FY' },
 };
 
 /** Unidade gravada de uma série NUM MERCADO: nos mercados us_*, BRL → USD e BRL_por_cota → USD_por_acao. */

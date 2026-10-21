@@ -314,12 +314,18 @@ export type FlagFundamentoSec = (typeof FLAGS_FUNDAMENTO_SEC)[number];
  * - roePct, margemLiquidaPct, divLiqEbitda, payoutPct, anosLucroConsecutivos, anosDividendo,
  *   serie10a (lucro líquido em US$ mi) e as colunas novas dpa (US$/ação), fcoPorAcao (US$/ação) e
  *   dividendosFcoPct (%) = último FY fechado da SEC;
+ * - fundamentei-regras (F0; o quadro-eua da F3 grava): fcoAjustadoPorAcao (US$/ação) e
+ *   dividendosFcoAjustadoPct (%) = o mesmo FY com o caixa operacional ajustado pela SBC
+ *   (fcoAjustadoPorAcaoSec/dividendosFcoAjustadoPctSec em seriesStock.ts); null sem SBC no ano;
  * - criterios/perfilCriterios/paramsVersion = cópia compacta de criteria_eval (lerCompactosPorSimbolo
  *   com CLASSES_EUA); flags = flags SEC relevantes.
  */
 export const MOEDA_LINHA_EUA = 'USD' as const;
 
-/** Colunas do Essencial EUA que não têm fonte no XBRL (a UI esconde, com a observação da fase 2). */
+/**
+ * Colunas do Essencial EUA que não têm fonte no XBRL (a UI esconde, com a observação da fase 2).
+ * Com ANALISE_ATIVOS_REIT_FCO_AJUSTADO_HABILITADO a resposta leva colunasPendentes = [] (F3).
+ */
 export const COLUNAS_PENDENTES_EUA = ['ffo', 'affo', 'ocupacao', 'imoveis'] as const;
 export type ColunaPendenteEua = (typeof COLUNAS_PENDENTES_EUA)[number];
 

@@ -46,6 +46,13 @@
  * dividend_per_share, ocf_per_share, cash_payout_pct, occupancy, ffo_per_share, affo_per_share,
  * affo_payout_pct; unidades em US$. Os ids rec/luc/ebitda/mg/dl/fcl valem igual para stocks (?c=
  * compartilhado). Contratos próprios da feature: src/types/analiseAtivosEua.ts.
+ *
+ * A2+A4 — alinhar ao Fundamentei (docs/analise-ativos/fundamentei-regras/desenho.json, fatia F0):
+ * tipo 'cagr' (crescimento anual composto > 0 na janela; base ≤ 0 pela regra
+ * criteria_params.cagr.baseNaoPositiva), séries 'ebit' (lucro operacional; na SEC, a base do
+ * EBITDA pelo degrau), 'ocf_adjusted_per_share' e 'cash_payout_adjusted_pct' (REIT: caixa
+ * operacional ajustado pela remuneração em ações, SBC), motivo 'base_nao_positiva' e obs
+ * 'sbc_indisponivel'. Só a criteria_params v5 (F1) usa; v1–v4 avaliam igual.
  */
 import type { ReactNode } from 'react';
 import type { ClasseQuadro, Estado, FiiTipoTela, FormatoAnalise } from '@/types/analiseAtivosApi';
@@ -101,9 +108,36 @@ export function ehPerfilEua(v: unknown): v is PerfilCriterioEua {
  * Tipos de verificação (port do screen.js):
  * - up: cresceu em todos os anos da janela (J+1 valores, J comparações; empate não conta);
  * - pos: > 0 em todos os J anos; max: ≤ limite em todos os J anos; min: ≥ limite;
- * - months: rendimento pago em todos os 12×J meses (âncora jan/(fim−J+1)–dez/fim, rec. 4).
+ * - months: rendimento pago em todos os 12×J meses (âncora jan/(fim−J+1)–dez/fim, rec. 4);
+ * - cagr (F0 do fundamentei-regras; motor na F1): lê os J+1 anos como o 'up', exige todos e atende
+ *   com taxa = (fim/início)^(1/J) − 1 > 0. Início ≤ 0: criteria_params.cagr.baseNaoPositiva
+ *   ('fim_positivo' = atende se fim > 0, com o fato da base; 'sem_dado' = motivo
+ *   'base_nao_positiva'). Fim ≤ 0 = não atende em qualquer modo.
  */
-export type TipoCriterio = 'up' | 'pos' | 'max' | 'min' | 'months';
+export const TIPOS_CRITERIO = ['up', 'pos', 'max', 'min', 'months', 'cagr'] as const;
+export type TipoCriterio = (typeof TIPOS_CRITERIO)[number];
+
+/** Regra do 'cagr' com início ≤ 0 (criteria_params.cagr.baseNaoPositiva; v5 = 'fim_positivo'). */
+export const BASES_NAO_POSITIVAS_CAGR = ['fim_positivo', 'sem_dado'] as const;
+export type BaseNaoPositivaCagr = (typeof BASES_NAO_POSITIVAS_CAGR)[number];
+/** Padrão quando a versão não traz o bloco `cagr` (v1–v4 não têm o tipo; nada muda). */
+export const BASE_NAO_POSITIVA_CAGR_PADRAO: BaseNaoPositivaCagr = 'sem_dado';
+
+/**
+ * Mês que conta no critério 'mes' dos FIIs (criteria_params.meses.mesReferencia): 'pagamento'
+ * (v1–v4, padrão) ou 'data_com' (v5). A regra do vizinho com duas datas-com no mesmo mês só vale
+ * em 'data_com' (F1).
+ */
+export const MESES_REFERENCIA = ['pagamento', 'data_com'] as const;
+export type MesReferencia = (typeof MESES_REFERENCIA)[number];
+export const MES_REFERENCIA_PADRAO: MesReferencia = 'pagamento';
+
+/**
+ * Limite do 'alav' do fii_tijolo na v5 (obrigações ÷ ativo, %): herdado da v4 (decisão 1 do
+ * Wellington de 20/10/2026; o Pedro ainda escolhe entre 15 e 16,7 antes do seed em prod — depois
+ * disso, mudar = v6).
+ */
+export const LIMITE_ALAV_ATIVO_V5_PCT = 15;
 
 /**
  * Ids dos critérios (estáveis: URL ?c=, criteria_eval.resultados, CriteriosCompactos):
@@ -188,6 +222,11 @@ export const SERIES_CRITERIO = [
   'ffo_per_share',
   'affo_per_share',
   'affo_payout_pct',
+  // fundamentei-regras (F0): lucro operacional (critério 'ebitda' da v5, mesmo id) e o caixa
+  // operacional do REIT ajustado pela SBC (fco_acao/pay da v5, com serieFallback sem ajuste)
+  'ebit',
+  'ocf_adjusted_per_share',
+  'cash_payout_adjusted_pct',
 ] as const satisfies readonly SerieFundamento[];
 export type SerieCriterio = (typeof SERIES_CRITERIO)[number];
 
@@ -231,12 +270,16 @@ export function serieCanonica(nome: string): SerieCriterio | null {
  *   a fonte não entrega o lucro sem itens não recorrentes (tooltip em textosCriterios.obs);
  * - dados_incompletos: a fonte marcou um ponto da janela como incompleto (§6; selo na tela);
  * - obrigacoes_ativo_revisao (A6, fatia 0; a fatia E grava): 'alav' do fii_tijolo na v4 com
- *   obrigações acima de LIMITE_REVISAO_OBRIGACOES_ATIVO_PCT (50%) do ativo em algum ano da janela.
+ *   obrigações acima de LIMITE_REVISAO_OBRIGACOES_ATIVO_PCT (50%) do ativo em algum ano da janela;
+ * - sbc_indisponivel (fundamentei-regras F0; F1 grava): critério do REIT na v5 (fco_acao/pay sobre o
+ *   caixa operacional ajustado pela SBC) que usou a serieFallback sem ajuste porque algum ano da
+ *   janela não tem a remuneração em ações no 10-K.
  */
 export const OBS_CRITERIO = [
   'lucro_sem_descontado',
   'dados_incompletos',
   'obrigacoes_ativo_revisao',
+  'sbc_indisponivel',
 ] as const;
 export type ObsCriterio = (typeof OBS_CRITERIO)[number];
 
@@ -269,14 +312,17 @@ export type EstadoCriterio = (typeof ESTADOS_CRITERIO)[number];
  *   params.meses.mesesBaseCurta = 'sem_dado');
  * - ebitda_nao_positivo: Dív.líq/EBITDA com EBITDA ≤ 0 e DL > 0 (fora, fato 'EBITDA ≤ 0 em AAAA');
  * - instituicao_financeira: n/a para bancos/seguradoras/holdings (D4; na v2 só se religado por
- *   params — naoSeAplica / margemSemReceitaComparavel).
+ *   params — naoSeAplica / margemSemReceitaComparavel);
+ * - base_nao_positiva (fundamentei-regras F0; F1 grava): 'cagr' com o primeiro ano da janela ≤ 0 e
+ *   criteria_params.cagr.baseNaoPositiva = 'sem_dado' (a taxa anual não se calcula).
  */
 export type MotivoCriterio =
   | 'sem_dado_demonstracoes'
   | 'sem_fonte_confiavel'
   | 'base_proventos_curta'
   | 'ebitda_nao_positivo'
-  | 'instituicao_financeira';
+  | 'instituicao_financeira'
+  | 'base_nao_positiva';
 
 /** Ponto anual da janela (mini-barras). valor null = sem dado naquele ano. */
 export interface PontoCriterio {

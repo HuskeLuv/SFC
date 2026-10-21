@@ -78,6 +78,13 @@
  * AtivoTopoResposta.retornos (RetornosCotacaoApi); FundamentosResposta.template e
  * ColunaFundamentos.tooltip; LinhaQuadroApi.obrigacoesAtivoPct. Contratos próprios e as rotas novas
  * (imoveis-fii, societario): src/types/analiseAtivosComplementos.ts.
+ *
+ * A2+A4+A5+C — alinhar ao Fundamentei (docs/analise-ativos/fundamentei-regras/desenho.json, F0) —
+ * acréscimos OPCIONAIS, ausentes com as chaves desligadas (a resposta fica idêntica à de hoje):
+ * SinaisLeituraV2 (rotulosEn, reitFcoAjustado, visualV2) nas respostas do Quadro, do topo, do
+ * Essencial e do Valuation (e do Comparador/Raio-X em analiseAtivosBlocoD.ts); Estado ausente com
+ * rotuloCurto 'L' (prejuízo, ESSENCIAL_V2); LinhaFundamentos.dtFim; MarcaCelulaEssencial.
+ * sbcIndisponivel; LinhaQuadroApi.fcoAjustadoPorAcao/dividendosFcoAjustadoPct/sbcIndisponivel.
  */
 import type { ReactNode } from 'react';
 import type { RetornosCotacaoApi, TemplateFinanceira } from '@/types/analiseAtivosComplementos';
@@ -168,8 +175,37 @@ export type Estado<T> =
        * envia).
        */
       valorNaoPublicado?: number;
+      /** F0 fundamentei-regras: 'L' (prejuízo) no lugar do '—'; ausente = '—' (ROTULO_CURTO_PREJUIZO) */
+      rotuloCurto?: RotuloCurtoEstado;
     }
   | { estado: 'nao_se_aplica'; motivo: string; texto: string };
+
+/** Motivo do Estado ausente por prejuízo no período (payout, P/L). */
+export const MOTIVO_PREJUIZO = 'prejuizo';
+
+/**
+ * Rótulo curto de um Estado ausente (F0 fundamentei-regras, A4.a): 'L' = prejuízo no período, no
+ * lugar do '—' (o `texto` vai no tooltip). Só com ANALISE_ATIVOS_ESSENCIAL_V2_HABILITADO, no
+ * Essencial, no Raio-X e no template de banco; ausente = '—' como hoje.
+ */
+export const ROTULO_CURTO_PREJUIZO = 'L';
+export type RotuloCurtoEstado = typeof ROTULO_CURTO_PREJUIZO;
+
+/**
+ * Sinais de leitura da entrega fundamentei-regras (F0), presentes SÓ com a chave ligada (ausente =
+ * false; com as chaves desligadas a resposta é idêntica à de hoje):
+ * - rotulosEn: ANALISE_ATIVOS_EUA_ROTULOS_EN_HABILITADO (classes EUA; nomes em inglês de
+ *   textosEuaEn.ts já aplicados pelo servidor);
+ * - reitFcoAjustado: ANALISE_ATIVOS_REIT_FCO_AJUSTADO_HABILITADO (REIT com o caixa operacional
+ *   ajustado pela SBC);
+ * - visualV2: ANALISE_ATIVOS_VISUAL_V2_HABILITADO (ajustes visuais; as page.tsx também passam a
+ *   prop visualV2).
+ */
+export interface SinaisLeituraV2 {
+  rotulosEn?: boolean;
+  reitFcoAjustado?: boolean;
+  visualV2?: boolean;
+}
 
 /** Política de exibição de um campo em conferência (regras/comum/conferencia.ts). */
 export type ExibicaoConferenciaTela = 'ocultar' | 'selo';
@@ -458,6 +494,16 @@ export interface LinhaQuadroApi {
    * ANALISE_ATIVOS_ALAV_ATIVO_HABILITADO. Ausente = chave desligada ou ação. obrigacoesPl não muda.
    */
   obrigacoesAtivoPct?: Estado<number>;
+  /**
+   * F0 fundamentei-regras (REIT, só com ANALISE_ATIVOS_REIT_FCO_AJUSTADO_HABILITADO): caixa
+   * operacional ajustado pela SBC (FCO − remuneração em ações) ÷ média diluída do último FY
+   * (US$/ação) e dividendos ÷ caixa operacional ajustado (%). null = ano sem SBC no 10-K (a tela
+   * usa fcoPorAcao/dividendosFcoPct com sbcIndisponivel).
+   */
+  fcoAjustadoPorAcao?: number | null;
+  dividendosFcoAjustadoPct?: number | null;
+  /** F0 fundamentei-regras: o último FY do REIT não tem SBC (nota 'sbc_indisponivel') */
+  sbcIndisponivel?: boolean;
 }
 
 export interface FrescorCotacao {
@@ -469,7 +515,7 @@ export interface FrescorCotacao {
  * GET /api/analise-ativos/quadro — só linhas noQuadro=true. Nulos e n/a sempre no fim; desempate
  * por ticker. 400 (zod); 404 sem acesso. Cache-Control: no-store (cache em memória no servidor).
  */
-export interface QuadroResposta {
+export interface QuadroResposta extends SinaisLeituraV2 {
   classe: ClasseQuadro;
   dataRef: string | null;
   /** versão das linhas (max(geradoEm) ISO) */
@@ -716,7 +762,7 @@ export interface FrescorAtivo {
  * GET /api/analise-ativos/ativos/[ticker] — 400 formato; 404 inexistente ou sem acesso.
  * Cache-Control: private, max-age=300. < 25 KB.
  */
-export interface AtivoTopoResposta {
+export interface AtivoTopoResposta extends SinaisLeituraV2 {
   ticker: string;
   classe: ClasseQuadro;
   nome: string;
@@ -779,6 +825,11 @@ export interface LinhaFundamentos {
   ano: number | null;
   /** v2.4 (C2): último ano FECHADO (data-ultimo-ano) */
   ultimoAno: boolean;
+  /**
+   * F0 fundamentei-regras (A4.c, só com ANALISE_ATIVOS_ESSENCIAL_V2_HABILITADO): fim do exercício
+   * ('AAAA-MM-DD'). Com mesFimExercicio ≠ 12 o rótulo vira 'fev/2026'. Ausente = como hoje.
+   */
+  dtFim?: string;
   valores: Record<string, Estado<number>>;
   selos: TipoSeloEstado[];
   /**
@@ -797,9 +848,14 @@ export interface MarcaCelulaEssencial {
   incompleto?: boolean;
   /** id da fonte do valor ('cvm' ou provedor) */
   fonte?: string;
+  /**
+   * F0 fundamentei-regras (REIT, REIT_FCO_AJUSTADO): o ano não tem SBC no 10-K; a célula usa o
+   * caixa operacional sem ajuste (nota 'sbc_indisponivel')
+   */
+  sbcIndisponivel?: boolean;
 }
 
-export interface FundamentosResposta {
+export interface FundamentosResposta extends SinaisLeituraV2 {
   nivel: 'essencial';
   /** v2.4 (C2): o Essencial passa a R$ bi; EUA (fatia C) em US$ */
   unidade: 'R$ mi' | 'R$ bi' | 'US$ mi' | 'US$ bi';
@@ -872,7 +928,7 @@ export interface HistoricoMultiplo {
   pontos: Array<{ ano: number; valor: number | null }>;
 }
 
-export interface ValuationResposta {
+export interface ValuationResposta extends SinaisLeituraV2 {
   grupos: GrupoValuation[];
   /** 2 mini-gráficos (ações: P/L e P/VP; FIIs: P/VP e DY) */
   historicos: HistoricoMultiplo[];

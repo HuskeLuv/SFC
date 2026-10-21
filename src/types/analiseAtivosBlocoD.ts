@@ -44,6 +44,7 @@ import type {
   FiiTipoTela,
   ForaDoQuadroMotivo,
   FormatoAnalise,
+  SinaisLeituraV2,
   TipoSeloEstado,
 } from '@/types/analiseAtivosApi';
 import type {
@@ -270,6 +271,13 @@ export interface RaioXResposta {
    * ANALISE_ATIVOS_TEMPLATES_FINANCEIRAS_HABILITADO. Ausente = Raio-X de hoje.
    */
   template?: TemplateFinanceira;
+  /**
+   * F0 fundamentei-regras (A4.c, só com ANALISE_ATIVOS_ESSENCIAL_V2_HABILITADO): rótulo do
+   * cabeçalho por ano quando o exercício não fecha em dezembro ('fev/2026') e a frase 'exercício
+   * encerrado em {mês}'. Ausente = cabeçalho String(ano), como hoje.
+   */
+  rotulosAnos?: Record<number, string>;
+  observacaoExercicio?: string;
 }
 
 /** Query da rota do Raio-X. Outro valor ⇒ 400. */
@@ -521,7 +529,7 @@ export interface GraficosComparador {
  * chave; quem lê do cache reordena pelos slots (no cliente, ordenarComparadorPelosSlots; no
  * servidor, montarComparador antes de responder).
  */
-export interface ComparadorResposta {
+export interface ComparadorResposta extends SinaisLeituraV2 {
   classe: ClasseQuadro;
   janela: Janela;
   tickers: string[];
