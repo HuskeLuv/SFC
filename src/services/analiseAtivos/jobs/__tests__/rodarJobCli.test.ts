@@ -71,6 +71,13 @@ describe('runner rodar-job', () => {
     expect(() => lerArgsRodarJob(['scores', '--versao-params=3'])).toThrow(/não aceita/);
     expect(() => lerArgsRodarJob(['quadro', '--versao-params=3'])).toThrow(/recalcular-analise/);
     expect(() => lerArgsRodarJob(['scores', '--fonte=exemplo'])).toThrow(/não aceita/);
+    // jobs que recebem as opções mas não as usam também recusam
+    expect(() => lerArgsRodarJob(['quadro-eua', '--versao-params=5'])).toThrow(/não aceita/);
+    expect(() => lerArgsRodarJob(['retornos-cotacao', '--versao-params=3'])).toThrow(/não aceita/);
+    expect(() => lerArgsRodarJob(['criterios', '--fonte=abc'])).toThrow(/não aceita/);
+    expect(lerArgsRodarJob(['criterios-eua', '--versao-params=5']).opcoes).toEqual({
+      versaoParams: 5,
+    });
     expect(lerArgsRodarJob(['scores']).opcoes).toEqual({});
     expect(lerArgsRodarJob(['fontes-fundamentos', '--fonte=exemplo']).opcoes).toEqual({
       fonte: 'exemplo',
