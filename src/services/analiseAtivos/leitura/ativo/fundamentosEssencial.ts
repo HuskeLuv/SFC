@@ -701,13 +701,15 @@ export function montarFundamentosAcao(
   } => {
     const semReceita = receitaNaoPositiva(f);
     if (v2) {
-      // F2 (A4.e): um lucro líquido só — sem descontado e sem a marca de fallback
+      // F2 (A4.e): um lucro líquido só — sem descontado e sem a marca de fallback. A margem sai do
+      // MESMO lucro da coluna (atribuído aos controladores) ÷ receita, como o 'mg' dos critérios;
+      // a margemLiquidaPct do yearly é sobre o lucro consolidado (inclui não controladores).
       return {
         valores: {
           lucro: lucroLiquido,
           margem: semReceita
             ? semDadoEssencial()
-            : margemDe(margemPct, lucroLiquido, f.receita, regras.receitaMenorQueLucro),
+            : margemDe(null, lucroLiquido, f.receita, regras.receitaMenorQueLucro),
         },
         marcas: undefined,
       };

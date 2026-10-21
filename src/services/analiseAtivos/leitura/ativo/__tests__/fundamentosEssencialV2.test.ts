@@ -144,6 +144,29 @@ describe('Essencial — chave ligada', () => {
     expect(r.linhas.every((l) => !l.marcas)).toBe(true);
   });
 
+  it('a margem sai do mesmo lucro da coluna (controladores), não do consolidado do yearly', () => {
+    // consolidado 120 mi (inclui não controladores) × atribuído 100 mi; receita 2.000 mi
+    const e = entrada({
+      fys: ANOS.map((a) => fy(a, { lucroLiquido: 120 * MI, lucroAtribuivel: 100 * MI })),
+      multiplos: ANOS.map((a) => ({
+        anoFiscal: a,
+        pl: 10,
+        pvp: 1,
+        dyPct: 4,
+        roePct: 10,
+        margemLiquidaPct: 6, // 120 ÷ 2.000
+        payoutPct: 40,
+      })),
+    });
+    const v2 = porAno(montarFundamentosAcao(e, { ...V24, essencialV2: true }), 2025);
+    expect(v2.valores.lucro).toEqual({ estado: 'ok', valor: 0.1 });
+    expect(v2.valores.margem).toMatchObject({ estado: 'ok' });
+    expect((v2.valores.margem as { valor: number }).valor).toBeCloseTo(5, 10);
+    // chave desligada: a margem de hoje (a do yearly)
+    const hoje = porAno(montarFundamentosAcao(e, V24), 2025);
+    expect(hoje.valores.margem).toEqual({ estado: 'ok', valor: 6 });
+  });
+
   it("prejuízo no ano: payout e P/L com 'L' (tooltip 'prejuízo no período')", () => {
     const p = porAno(r, 2024).valores.payout;
     expect(p).toMatchObject({ estado: 'ausente', rotuloCurto: 'L', texto: TX.tooltipPrejuizo });
