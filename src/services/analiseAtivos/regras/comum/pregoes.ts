@@ -4,7 +4,8 @@
  * Base: `feriadosB3` (src/utils/feriadosB3.ts, só leitura — feriados nacionais, 20/11 desde 2024,
  * Carnaval, Sexta-feira Santa, Corpus Christi) + os dias sem pregão do calendário da B3 que não são
  * feriado bancário: 24/12 e 31/12. Usado pela fatia C (liquidez/lacunas do COTAHIST), D (data-com
- * real = pregão anterior à data ex) e E (data estimada no próximo pregão).
+ * real = pregão anterior à data ex) e E (data estimada no próximo pregão). fundamentei-regras (F2,
+ * A4.b): data-ex = pregão seguinte à data-com real (pregaoSeguinte).
  */
 import { feriadosB3 } from '@/utils/feriadosB3';
 
@@ -42,6 +43,17 @@ export function ehPregaoB3(data: string): boolean {
 export function pregaoAnterior(data: string): string {
   let ms = paraMs(data) - DIA_MS;
   while (!ehPregaoMs(ms)) ms -= DIA_MS;
+  return paraData(ms);
+}
+
+/**
+ * Primeiro pregão ESTRITAMENTE posterior a `data` (fundamentei-regras F2, A4.b: data-ex = pregão
+ * seguinte à data-com real; sexta ⇒ segunda; véspera de feriado ⇒ o dia útil depois do feriado).
+ * Inversa de pregaoAnterior para datas que são pregão: pregaoSeguinte(pregaoAnterior(ex)) = ex.
+ */
+export function pregaoSeguinte(data: string): string {
+  let ms = paraMs(data) + DIA_MS;
+  while (!ehPregaoMs(ms)) ms += DIA_MS;
   return paraData(ms);
 }
 
