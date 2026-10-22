@@ -310,6 +310,25 @@ describe('helpers puros', () => {
     expect(c).toEqual({ total: 4, porCriterio: { luc: 0.75 } });
   });
 
+  it('coberturaPerfil: com o filtro, só conta os tickers com a janela completa', () => {
+    const av = (symbol: string, estado: 'atende' | 'sem_dado') =>
+      ({
+        symbol,
+        classe: 'stock',
+        perfil: 'stock',
+        paramsVersion: 6,
+        janelas: {
+          '5': { resultados: [{ id: 'dl', estado, n: null, de: null, fato: '', serie: null }] },
+        },
+      }) as unknown as AvaliacaoAtivo;
+    const todos = [av('A', 'atende'), av('B', 'atende'), av('IPO', 'sem_dado')];
+    expect(coberturaPerfil(todos, 'stock', 5).porCriterio.dl).toBe(0.667);
+    expect(coberturaPerfil(todos, 'stock', 5, new Set(['A', 'B']))).toEqual({
+      total: 2,
+      porCriterio: { dl: 1 },
+    });
+  });
+
   it('agruparUniversoEua: um item por CIK com todos os tickers (GOOGL/GOOG)', () => {
     const base = {
       symbolSec: '',

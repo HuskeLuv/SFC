@@ -75,7 +75,8 @@ export const LOTE_CRITERIOS_EUA = 50;
 export const JANELA_COBERTURA_EUA: Janela = 5;
 
 /**
- * Cobertura mínima (com dado) por perfil × critério na janela 5. 'sem_dado' por base ≤ 0
+ * Cobertura mínima (com dado) por perfil × critério na janela 5, entre os tickers com todos os FY
+ * da janela. 'sem_dado' por base ≤ 0
  * (motivo base_nao_positiva) conta como COM dado: o dado existe e a regra decidiu (coberturaPerfil).
  */
 export const COBERTURA_MINIMA_EUA: Partial<
@@ -246,9 +247,13 @@ export function coberturaPerfil(
   avaliacoes: readonly AvaliacaoAtivo[],
   perfil: PerfilCriterio,
   janela: Janela,
+  /** só estes tickers (os que têm todos os FY da janela); ausente = todos */
+  comJanelaCompleta?: ReadonlySet<string>,
 ): { total: number; porCriterio: Partial<Record<IdCriterio, number>> } {
   const chave = String(janela) as ChaveJanela;
-  const doPerfil = avaliacoes.filter((a) => a.perfil === perfil);
+  const doPerfil = avaliacoes.filter(
+    (a) => a.perfil === perfil && (!comJanelaCompleta || comJanelaCompleta.has(a.symbol)),
+  );
   const com: Partial<Record<IdCriterio, number>> = {};
   const ids = new Set<IdCriterio>();
   for (const a of doPerfil) {
@@ -356,6 +361,9 @@ export async function executarCriteriosEua(
   const avaliadas: AvaliacaoGravar[] = [];
   const porPerfil: Partial<Record<PerfilCriterio, number>> = {};
   let semFundamentos = 0;
+  // tickers com todos os FY da janela de cobertura (IPO/spin-off recente não entra no alerta, como
+  // no relatorio-cobertura-eua: decisão do Wellington de 22/10/2026)
+  const comJanelaCompleta = new Set<string>();
   t = Date.now();
   for (let i = 0; i < universo.length; i += LOTE_CRITERIOS_EUA) {
     if (ctx.estourouPrazo()) {
@@ -375,6 +383,10 @@ export async function executarCriteriosEua(
     for (const e of lote) {
       const bruto = brutos.get(e.cikFundamentos) ?? { cik: e.cikFundamentos, fys: [] };
       if (bruto.fys.length === 0) semFundamentos++;
+      const anosFy = new Set(bruto.fys.map((f) => f.anoFiscal));
+      let completa = true;
+      for (let a = anoFim - JANELA_COBERTURA_EUA; a <= anoFim; a++) completa &&= anosFy.has(a);
+      if (completa) for (const s of e.symbols) comJanelaCompleta.add(s);
       const perfil = perfilCriteriosEua({
         classe: e.classe,
         ehFinanceira: e.ehFinanceira,
@@ -429,6 +441,7 @@ export async function executarCriteriosEua(
       avaliadas.map((a) => a.avaliacao),
       perfil,
       JANELA_COBERTURA_EUA,
+      comJanelaCompleta,
     );
     coberturas[perfil] = c;
     if (c.total === 0) continue;
@@ -443,7 +456,7 @@ export async function executarCriteriosEua(
     ctx.alertar({
       codigo: 'criterios_eua_cobertura_baixa',
       nivel: 'aviso',
-      mensagem: `cobertura EUA (janela ${JANELA_COBERTURA_EUA}) abaixo do mínimo: ${abaixo.join(', ')}`,
+      mensagem: `cobertura EUA (janela ${JANELA_COBERTURA_EUA}, tickers com os ${JANELA_COBERTURA_EUA + 1} FY) abaixo do mínimo: ${abaixo.join(', ')}`,
     });
   }
 
