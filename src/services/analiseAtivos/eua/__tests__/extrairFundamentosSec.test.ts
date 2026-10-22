@@ -393,9 +393,11 @@ describe('cadeias de conceitos', () => {
     expect(fy(periodos('PLD'), 2024)).toMatchObject({ dpaOrigem: 'cash_paid', dpa: 3.84 });
   });
 
-  it('dívida: sem conceito no ano = null (JPM, BRK), nunca zero', () => {
-    expect(fy(periodos('JPM'), 2024).dividaBrutaLp).toBeNull();
+  it('dívida: sem conceito mas com sinal de dívida = null (BRK); JPM pelos empréstimos de CP', () => {
     expect(fy(periodos('BRK-B'), 2024).dividaBrutaLp).toBeNull();
+    expect(fy(periodos('BRK-B'), 2024).flags).not.toContain('divida_zero_inferida');
+    expect(mi(fy(periodos('JPM'), 2024).dividaBrutaLp)).toBe(52_893);
+    expect(fy(periodos('JPM'), 2024).sourceConcept.dividaBrutaLp).toBe('ShortTermBorrowings');
     expect(fy(periodos('AAPL'), 2024).dividaBrutaCp).toBeNull();
   });
 
@@ -586,5 +588,54 @@ describe('cadeias de cobertura (22/10/2026)', () => {
     });
     expect(mi(p.ebit)).toBe(1_237);
     expect(p.flags).toContain('ebitda_pre_ir');
+  });
+});
+
+describe('dívida: cadeia ampliada e zero inferido (padrão Fundamentei)', () => {
+  const inst = (val: number) => ({
+    end: '2025-12-31',
+    val,
+    accn: 'a',
+    form: '10-K',
+    filed: '2026-02-10',
+  });
+  const extrair = (instantes: Record<string, number>, duracoes: Record<string, number> = {}) =>
+    extrairFundamentosSec({
+      cik: 1,
+      entityName: 'X',
+      facts: {
+        'us-gaap': {
+          Revenues: { units: { USD: [{ ...inst(1e9), start: '2025-01-01' }] } },
+          ...Object.fromEntries(
+            Object.entries(instantes).map(([c, v]) => [c, { units: { USD: [inst(v)] } }]),
+          ),
+          ...Object.fromEntries(
+            Object.entries(duracoes).map(([c, v]) => [
+              c,
+              { units: { USD: [{ ...inst(v), start: '2025-01-01' }] } },
+            ]),
+          ),
+        },
+      },
+    }).periodos[0];
+
+  it('ADI 2020: não garantida LP + CP', () => {
+    const p = extrair({ UnsecuredLongTermDebt: 5_150e6, UnsecuredDebtCurrent: 520e6 });
+    expect(mi(p.dividaBrutaLp)).toBe(5_670);
+    expect(p.flags).not.toContain('divida_zero_inferida');
+  });
+
+  it('sem conceito de dívida e sem nenhum sinal: dívida 0 (caixa líquido, como no Fundamentei)', () => {
+    const p = extrair({ CashAndCashEquivalentsAtCarryingValue: 2e9 });
+    expect(p.dividaBrutaLp).toBe(0);
+    expect(p.sourceConcept.dividaBrutaLp).toBe('zero_inferido');
+    expect(p.flags).toContain('divida_zero_inferida');
+  });
+
+  it('com sinal de dívida (juros) em conceito próprio: segue sem dado (F, GM)', () => {
+    expect(extrair({}, { InterestExpense: 7_613e6 }).dividaBrutaLp).toBeNull();
+    expect(
+      extrair({ DebtInstrumentCarryingAmount: 0, LongTermDebtFairValue: 300e6 }).dividaBrutaLp,
+    ).toBe(0);
   });
 });

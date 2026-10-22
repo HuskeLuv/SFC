@@ -301,6 +301,8 @@ export const FLAGS_FUNDAMENTO_SEC = [
   'dpa_derivado',
   'declared_suspeito',
   'troca_conceito',
+  /** sem conceito de dívida e sem nenhum sinal de dívida no 10-K → dívida bruta 0 (SINAIS_DIVIDA) */
+  'divida_zero_inferida',
 ] as const;
 export type FlagFundamentoSec = (typeof FLAGS_FUNDAMENTO_SEC)[number];
 

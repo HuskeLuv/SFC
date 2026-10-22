@@ -74,7 +74,10 @@ import type { SerieFundamento } from '@/types/analiseAtivosFontes';
 export const LOTE_CRITERIOS_EUA = 50;
 export const JANELA_COBERTURA_EUA: Janela = 5;
 
-/** Cobertura mínima (com dado) por perfil × critério na janela 5. */
+/**
+ * Cobertura mínima (com dado) por perfil × critério na janela 5. 'sem_dado' por base ≤ 0
+ * (motivo base_nao_positiva) conta como COM dado: o dado existe e a regra decidiu (coberturaPerfil).
+ */
 export const COBERTURA_MINIMA_EUA: Partial<
   Record<PerfilCriterioEua, Partial<Record<IdCriterio, number>>>
 > = {
@@ -251,7 +254,11 @@ export function coberturaPerfil(
   for (const a of doPerfil) {
     for (const r of a.janelas[chave]?.resultados ?? []) {
       ids.add(r.id);
-      if (r.estado === 'sem_dado' || r.estado === 'nao_se_aplica') continue;
+      // base ≤ 0 (CAGR, regra v6) é resultado da regra com o dado presente, não falta de dado
+      const semDado =
+        (r.estado === 'sem_dado' && r.motivo !== 'base_nao_positiva') ||
+        r.estado === 'nao_se_aplica';
+      if (semDado) continue;
       com[r.id] = (com[r.id] ?? 0) + 1;
     }
   }

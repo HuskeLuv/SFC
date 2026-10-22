@@ -1,5 +1,5 @@
 {
-  "geradoEm": "2026-10-22T15:51:04.509Z",
+  "geradoEm": "2026-10-22T19:03:37.924Z",
   "conceitos": [
     {
       "conceito": "us-gaap:AllocatedShareBasedCompensationExpense",
@@ -42,6 +42,21 @@
       "empresas": 1264
     },
     {
+      "conceito": "us-gaap:ConvertibleDebt",
+      "periodo": "CY2023Q4I",
+      "empresas": 141
+    },
+    {
+      "conceito": "us-gaap:ConvertibleDebtCurrent",
+      "periodo": "CY2023Q4I",
+      "empresas": 201
+    },
+    {
+      "conceito": "us-gaap:ConvertibleDebtNoncurrent",
+      "periodo": "CY2023Q4I",
+      "empresas": 172
+    },
+    {
       "conceito": "us-gaap:ConvertibleLongTermNotesPayable",
       "periodo": "CY2023Q4I",
       "empresas": 190
@@ -52,9 +67,34 @@
       "empresas": 198
     },
     {
+      "conceito": "us-gaap:ConvertibleNotesPayableCurrent",
+      "periodo": "CY2023Q4I",
+      "empresas": 303
+    },
+    {
+      "conceito": "us-gaap:DebtAndCapitalLeaseObligations",
+      "periodo": "CY2023Q4I",
+      "empresas": 228
+    },
+    {
+      "conceito": "us-gaap:DebtCurrent",
+      "periodo": "CY2023Q4I",
+      "empresas": 406
+    },
+    {
       "conceito": "us-gaap:DebtInstrumentCarryingAmount",
       "periodo": "CY2023Q4I",
       "empresas": 1383
+    },
+    {
+      "conceito": "us-gaap:DebtInstrumentFaceAmount",
+      "periodo": "CY2023Q4I",
+      "empresas": 344
+    },
+    {
+      "conceito": "us-gaap:DebtInstrumentFairValue",
+      "periodo": "CY2023Q4I",
+      "empresas": 209
     },
     {
       "conceito": "us-gaap:DebtLongtermAndShorttermCombinedAmount",
@@ -167,6 +207,11 @@
       "empresas": 149
     },
     {
+      "conceito": "us-gaap:LineOfCredit",
+      "periodo": "CY2023Q4I",
+      "empresas": 514
+    },
+    {
       "conceito": "us-gaap:LongTermDebt",
       "periodo": "CY2023Q4I",
       "empresas": 2290
@@ -187,9 +232,24 @@
       "empresas": 1547
     },
     {
+      "conceito": "us-gaap:LongTermDebtFairValue",
+      "periodo": "CY2023Q4I",
+      "empresas": 357
+    },
+    {
       "conceito": "us-gaap:LongTermDebtNoncurrent",
       "periodo": "CY2023Q4I",
       "empresas": 1873
+    },
+    {
+      "conceito": "us-gaap:LongTermLineOfCredit",
+      "periodo": "CY2023Q4I",
+      "empresas": 175
+    },
+    {
+      "conceito": "us-gaap:LongTermNotesPayable",
+      "periodo": "CY2023Q4I",
+      "empresas": 326
     },
     {
       "conceito": "us-gaap:MarketableSecuritiesCurrent",
@@ -222,9 +282,19 @@
       "empresas": 436
     },
     {
+      "conceito": "us-gaap:NotesAndLoansPayable",
+      "periodo": "CY2023Q4I",
+      "empresas": 68
+    },
+    {
       "conceito": "us-gaap:NotesPayable",
       "periodo": "CY2023Q4I",
       "empresas": 439
+    },
+    {
+      "conceito": "us-gaap:NotesPayableCurrent",
+      "periodo": "CY2023Q4I",
+      "empresas": 587
     },
     {
       "conceito": "us-gaap:OperatingIncomeLoss",
@@ -240,6 +310,16 @@
       "conceito": "us-gaap:OperatingLeasesIncomeStatementLeaseRevenue",
       "periodo": "CY2023",
       "empresas": 5
+    },
+    {
+      "conceito": "us-gaap:OtherLongTermDebtCurrent",
+      "periodo": "CY2023Q4I",
+      "empresas": 88
+    },
+    {
+      "conceito": "us-gaap:OtherLongTermDebtNoncurrent",
+      "periodo": "CY2023Q4I",
+      "empresas": 123
     },
     {
       "conceito": "us-gaap:PaymentsForCapitalImprovements",
@@ -312,6 +392,11 @@
       "empresas": 35
     },
     {
+      "conceito": "us-gaap:ProceedsFromIssuanceOfLongTermDebt",
+      "periodo": "CY2023",
+      "empresas": 1166
+    },
+    {
       "conceito": "us-gaap:ProfitLoss",
       "periodo": "CY2023",
       "empresas": 3565
@@ -325,6 +410,11 @@
       "conceito": "us-gaap:RegulatedAndUnregulatedOperatingRevenue",
       "periodo": "CY2023",
       "empresas": 24
+    },
+    {
+      "conceito": "us-gaap:RepaymentsOfLongTermDebt",
+      "periodo": "CY2023",
+      "empresas": 1394
     },
     {
       "conceito": "us-gaap:ResultsOfOperationsDepreciationDepletionAmortizationAndAccretion",
@@ -372,6 +462,16 @@
       "empresas": 215
     },
     {
+      "conceito": "us-gaap:SecuredDebtCurrent",
+      "periodo": "CY2023Q4I",
+      "empresas": 63
+    },
+    {
+      "conceito": "us-gaap:SecuredLongTermDebt",
+      "periodo": "CY2023Q4I",
+      "empresas": 91
+    },
+    {
       "conceito": "us-gaap:SeniorNotes",
       "periodo": "CY2023Q4I",
       "empresas": 114
@@ -380,6 +480,11 @@
       "conceito": "us-gaap:ShareBasedCompensation",
       "periodo": "CY2023",
       "empresas": 4793
+    },
+    {
+      "conceito": "us-gaap:ShortTermBorrowings",
+      "periodo": "CY2023Q4I",
+      "empresas": 786
     },
     {
       "conceito": "us-gaap:ShortTermInvestments",
@@ -400,6 +505,16 @@
       "conceito": "us-gaap:UnsecuredDebt",
       "periodo": "CY2023Q4I",
       "empresas": 129
+    },
+    {
+      "conceito": "us-gaap:UnsecuredDebtCurrent",
+      "periodo": "CY2023Q4I",
+      "empresas": 24
+    },
+    {
+      "conceito": "us-gaap:UnsecuredLongTermDebt",
+      "periodo": "CY2023Q4I",
+      "empresas": 30
     },
     {
       "conceito": "us-gaap:UtilitiesOperatingExpenseDepreciationAndAmortization",
