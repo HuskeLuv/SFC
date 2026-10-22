@@ -53,6 +53,8 @@ import { TEXTOS_TELA } from '@/services/analiseAtivos/textosTela';
 import {
   COLUNAS_PENDENTES_EUA,
   FONTE_PERIODO_SEC,
+  cikDoEmissorId,
+  emissorIdSec,
   type FlagFundamentoSec,
 } from '@/types/analiseAtivosEua';
 import {
@@ -170,8 +172,17 @@ export function umPeriodoPorAno<T extends { anoFiscal: number; dtFim: string; ve
   return [...por.values()].sort((a, b) => a.anoFiscal - b.anoFiscal);
 }
 
-/** FYs SEC de um emissor ('CIK:…'), um por ano. */
-export async function lerPeriodosSec(emissorId: string): Promise<PeriodoSec[]> {
+/**
+ * FYs SEC de um emissor ('CIK:…' do cadastro), um por ano. Os 10-K vêm do cikHistorico quando o
+ * cadastro tem um (XOM: holding nova 0002115436 sem 10-K, histórico no 0000034088), como nos
+ * critérios (repositorio/eua: cikFundamentos = cikHistorico ?? cik).
+ */
+export async function lerPeriodosSec(emissorIdCadastro: string): Promise<PeriodoSec[]> {
+  const cik = cikDoEmissorId(emissorIdCadastro);
+  const empresa = cik
+    ? await prisma.secCompany.findUnique({ where: { cik }, select: { cikHistorico: true } })
+    : null;
+  const emissorId = empresa?.cikHistorico ? emissorIdSec(empresa.cikHistorico) : emissorIdCadastro;
   const linhas = await prisma.assetFundamentalsPeriod.findMany({
     where: { emissorId, source: FONTE_PERIODO_SEC, tipoPeriodo: 'FY' },
     orderBy: [{ dtFim: 'asc' }, { versao: 'asc' }],
