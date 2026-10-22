@@ -531,3 +531,60 @@ describe('remuneração em ações (SBC, ANALISE_ATIVOS_SEC_SBC)', () => {
     expect(conceitosDasCadeias()).toEqual(expect.arrayContaining(SBC.map((c) => `us-gaap:${c}`)));
   });
 });
+
+describe('cadeias de cobertura (22/10/2026)', () => {
+  const dur = (val: number) => ({
+    start: '2025-01-01',
+    end: '2025-12-31',
+    val,
+    accn: 'a',
+    form: '10-K',
+    filed: '2026-02-10',
+  });
+  const extrair = (fatos: Record<string, number>) =>
+    extrairFundamentosSec({
+      cik: 1,
+      entityName: 'X',
+      facts: {
+        'us-gaap': Object.fromEntries(
+          Object.entries(fatos).map(([c, v]) => [c, { units: { USD: [dur(v)] } }]),
+        ),
+      },
+    }).periodos[0];
+
+  it('banco: receita bruta = juros + não juros (como no BR)', () => {
+    const p = extrair({ InterestAndDividendIncomeOperating: 900e6, NoninterestIncome: 300e6 });
+    expect(mi(p.receita)).toBe(1_200);
+    expect(p.sourceConcept.receita).toBe('InterestAndDividendIncomeOperating+NoninterestIncome');
+  });
+
+  it('capex de óleo e gás: exploração e desenvolvimento antes da compra de áreas (SM 2025)', () => {
+    const p = extrair({
+      Revenues: 3e9,
+      PaymentsToExploreAndDevelopOilAndGasProperties: 1_438e6,
+      PaymentsToAcquireOilAndGasPropertyAndEquipment: 34e6,
+    });
+    expect(mi(p.capex)).toBe(1_438);
+  });
+
+  it('capex: passo irrisório (< 1%) conta como ausente (KNX 2025: 1 mi × 795 mi)', () => {
+    const p = extrair({
+      Revenues: 7e9,
+      PaymentsToAcquireOtherProductiveAssets: 1e6,
+      PaymentsToAcquireMachineryAndEquipment: 795e6,
+    });
+    expect(mi(p.capex)).toBe(795);
+    expect(p.sourceConcept.passoDescartado).toBe('capex:PaymentsToAcquireOtherProductiveAssets');
+  });
+
+  it('EBIT: pré-IR doméstico + exterior e juros pagos da DFC como último recurso', () => {
+    const p = extrair({
+      Revenues: 10e9,
+      IncomeLossFromContinuingOperationsBeforeIncomeTaxesDomestic: 903e6,
+      IncomeLossFromContinuingOperationsBeforeIncomeTaxesForeign: 234e6,
+      InterestPaidNet: 100e6,
+    });
+    expect(mi(p.ebit)).toBe(1_237);
+    expect(p.flags).toContain('ebitda_pre_ir');
+  });
+});
