@@ -16,6 +16,7 @@ import {
   type ResolucaoCaso,
 } from '@/services/analiseAtivos/curadoria/contrato';
 import type { ItemMeuReporte, MeusReportesResposta } from '@/types/analiseAtivosCuradoria';
+import { ehTickerEua } from '@/types/analiseAtivosEua';
 
 /**
  * GET /api/analise-ativos/meus-reportes?ticker=&cursor= — "Meus relatos" (bloco C, fatia D).
@@ -73,7 +74,8 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
   const sp = request.nextUrl.searchParams;
   const tickerBruto = sp.get('ticker');
   const ticker = tickerBruto ? tickerBruto.trim().toUpperCase() : null;
-  if (ticker !== null && !RE_TICKER.test(ticker)) throw new ApiError(400, 'Ticker inválido');
+  if (ticker !== null && !(RE_TICKER.test(ticker) || ehTickerEua(ticker)))
+    throw new ApiError(400, 'Ticker inválido');
   const cursorBruto = sp.get('cursor');
   const cursor = cursorBruto ? decodificarCursor(cursorBruto) : null;
   if (cursorBruto && !cursor) throw new ApiError(400, 'Cursor inválido');

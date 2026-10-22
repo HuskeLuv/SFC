@@ -70,6 +70,14 @@ describe('validarCorpoReporte', () => {
     expect(r.corpo.periodo).toBeNull();
   });
 
+  it('aceita ticker EUA de 1 a 3 letras (O, JPM) e com classe (BRK.B)', () => {
+    for (const t of ['O', 'jpm', 'BRK.B']) {
+      const r = validarCorpoReporte(bruto({ ticker: t }));
+      expect(r.ok).toBe(true);
+    }
+    expect(validarCorpoReporte(bruto({ ticker: '../x' })).ok).toBe(false);
+  });
+
   it('remove bidi/zero-width/controle ANTES do tamanho e conta o que removeu', () => {
     const r = validarCorpoReporte(bruto({ mensagem: 'abc‮def​ghi\u0007jk' }));
     expect(r.ok).toBe(true);

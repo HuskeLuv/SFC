@@ -46,6 +46,7 @@ import {
   type CampoConferencia,
 } from '@/services/analiseAtivos/regras/comum/conferencia';
 import type { ReportePostBody, ReportePostResposta } from '@/types/analiseAtivosCuradoria';
+import { ehTickerEua } from '@/types/analiseAtivosEua';
 
 // ===========================================================================
 // Validação do corpo
@@ -151,7 +152,8 @@ export function validarCorpoReporte(bruto: unknown): ResultadoValidacao {
     textos[k] = s.texto;
   }
   const ticker = d.ticker.trim().toUpperCase();
-  if (!RE_TICKER.test(ticker)) erros.ticker = ['invalido'];
+  // B3 ou EUA (O, JPM, BRK.B)
+  if (!(RE_TICKER.test(ticker) || ehTickerEua(ticker))) erros.ticker = ['invalido'];
   if (!campoReportavel(d.bloco, d.campo)) erros.campo = ['invalido'];
   if (Object.keys(erros).length > 0) return { ok: false, erros };
   return {
