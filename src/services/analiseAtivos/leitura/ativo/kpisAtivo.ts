@@ -410,6 +410,8 @@ export function montarKpis(e: EntradaKpis): KpiAtivo[] {
 /** Último FY fechado (métricas do 10-K, em US$) e os anos seguidos da linha do Quadro. */
 export interface EntradaKpisEua {
   classe: 'stock' | 'reit';
+  /** SecCompany.ehFinanceira: sem o KPI de dívida líquida ÷ EBITDA (não se aplica) */
+  financeira?: boolean;
   /** ano fiscal do último 10-K lido; null = sem 10-K */
   ano: number | null;
   valores: {
@@ -547,7 +549,7 @@ export function montarKpisEua(e: EntradaKpisEua, opcoes: OpcoesKpisEua = {}): Kp
   return [
     kpi('roe', E.rotulos.roe, v?.roePct, 'pct', sub(E.subs.roe)),
     kpi('margemLiquida', E.rotulos.margemLiquida, v?.margemPct, 'pct', sub(E.subs.margem)),
-    divLiq,
+    ...(e.financeira === true ? [] : [divLiq]),
     kpi('lpa', E.rotulos.lpa, v?.lpa, 'numero2', sub(E.subs.lpa)),
     dpa,
     kpi('payout', E.rotulos.payout, v?.payoutPct, 'pct', sub(E.subs.payout)),

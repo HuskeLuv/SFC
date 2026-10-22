@@ -359,6 +359,12 @@ export const COLUNAS_ESSENCIAL_EUA: Record<ClasseEua, readonly CodigoEua[]> = {
   reit: ['receita', 'lucro', 'fco', 'fcoAcao', 'dpa', 'divFco', 'divLiqEbitda'],
 };
 
+/** Stock financeira (banco, seguradora, BDC): sem EBITDA, dívida líquida e FCL, que não se aplicam. */
+export const COLUNAS_ESSENCIAL_EUA_FINANCEIRA: readonly CodigoEua[] =
+  COLUNAS_ESSENCIAL_EUA.stock.filter(
+    (c) => !['ebitda', 'dividaLiquida', 'divLiqEbitda', 'fclCapex'].includes(c),
+  );
+
 /** F3: REIT com ANALISE_ATIVOS_REIT_FCO_AJUSTADO_HABILITADO (caixa ajustado pela SBC, sem FFO). */
 export const COLUNAS_ESSENCIAL_REIT_AJUSTADO: readonly CodigoEua[] = [
   'receita',
@@ -408,6 +414,8 @@ export function montarFundamentosEua(
     classe: ClasseEua;
     periodos: readonly PeriodoSec[];
     exercicioFimMmdd: string | null;
+    /** SecCompany.ehFinanceira: sem EBITDA, dívida líquida e FCL (não se aplicam, como nos critérios) */
+    financeira?: boolean;
   },
   opcoes: OpcoesLeituraEua = {},
 ): FundamentosResposta {
@@ -416,7 +424,11 @@ export function montarFundamentosEua(
   const en = opcoes.rotulosEn === true;
   const periodos = entrada.periodos.slice(-MAX_ANOS_ESSENCIAL_EUA);
   const valores = periodos.map(valoresAnoSec);
-  const codigos = ajustado ? COLUNAS_ESSENCIAL_REIT_AJUSTADO : COLUNAS_ESSENCIAL_EUA[classe];
+  const codigos = ajustado
+    ? COLUNAS_ESSENCIAL_REIT_AJUSTADO
+    : classe === 'stock' && entrada.financeira === true
+      ? COLUNAS_ESSENCIAL_EUA_FINANCEIRA
+      : COLUNAS_ESSENCIAL_EUA[classe];
   const defs = codigos.map((codigo) => ({ codigo, ...COL[codigo] }));
   const TE = TEXTOS_EUA_TELAS.essencial;
   const colunas: ColunaFundamentos[] = defs.map((d) => ({
@@ -519,13 +531,17 @@ export async function obterFundamentosEssencialEua(
   const cik = linha.cnpj.replace(/^CIK:/, '');
   const [periodos, empresa] = await Promise.all([
     lerPeriodosSec(linha.cnpj),
-    prisma.secCompany.findUnique({ where: { cik }, select: { exercicioFimMmdd: true } }),
+    prisma.secCompany.findUnique({
+      where: { cik },
+      select: { exercicioFimMmdd: true, ehFinanceira: true },
+    }),
   ]);
   const dados = montarFundamentosEua(
     {
       classe: linha.classe,
       periodos,
       exercicioFimMmdd: empresa?.exercicioFimMmdd ?? null,
+      financeira: empresa?.ehFinanceira === true,
     },
     opcoes,
   );

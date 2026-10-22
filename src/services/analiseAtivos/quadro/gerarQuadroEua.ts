@@ -147,8 +147,9 @@ export function montarLinhasQuadroEua(e: EntradaQuadroEua): {
       pvp: m.pvp,
       dy12mPct: m.dy12mPct,
       margemLiquidaPct: m.margemLiquidaPct,
-      divLiqEbitda: m.divLiqEbitda,
-      divLiqPl: m.divLiqPl,
+      // financeira (banco, seguradora, BDC): dívida líquida não se aplica, como nos critérios
+      divLiqEbitda: emp.ehFinanceira ? null : m.divLiqEbitda,
+      divLiqPl: emp.ehFinanceira ? null : m.divLiqPl,
       payoutPct: m.payoutPct,
       vacanciaFisicaCvmPct: null,
       nImoveisCvm: null,
