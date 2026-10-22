@@ -8,6 +8,7 @@ import type { PrismaClient } from '@prisma/client';
 import {
   agruparUniversoEua,
   ajustarFatosEua,
+  coberturaPerfil,
   executarCriteriosEua,
   fontesDoMercado,
   type DependenciasCriteriosEua,
@@ -280,6 +281,35 @@ describe('executarCriteriosEua', () => {
 });
 
 describe('helpers puros', () => {
+  it('coberturaPerfil: sem dado por base ≤ 0 conta como com dado; demonstração faltando não', () => {
+    const av = (
+      estado: 'atende' | 'sem_dado',
+      motivo?: 'base_nao_positiva' | 'sem_dado_demonstracoes',
+    ) =>
+      ({
+        symbol: 'X',
+        classe: 'stock',
+        perfil: 'stock',
+        paramsVersion: 6,
+        janelas: {
+          '5': {
+            resultados: [{ id: 'luc', estado, motivo, n: null, de: null, fato: '', serie: null }],
+          },
+        },
+      }) as unknown as AvaliacaoAtivo;
+    const c = coberturaPerfil(
+      [
+        av('atende'),
+        av('sem_dado', 'base_nao_positiva'),
+        av('sem_dado', 'sem_dado_demonstracoes'),
+        av('atende'),
+      ],
+      'stock',
+      5,
+    );
+    expect(c).toEqual({ total: 4, porCriterio: { luc: 0.75 } });
+  });
+
   it('agruparUniversoEua: um item por CIK com todos os tickers (GOOGL/GOOG)', () => {
     const base = {
       symbolSec: '',
