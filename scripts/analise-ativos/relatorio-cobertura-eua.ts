@@ -2,7 +2,9 @@
  * Relatório de cobertura dos fundamentos SEC no UNIVERSO EUA (Stocks e REITs, fatia A) — o aceite
  * antes de ligar critérios/Quadro EUA (desenho.json → fatias[A].criterios_aceite):
  *  - stocks não financeiras ≥ 90% em ebitda e fcl e ≥ 85% em dl; REITs ≥ 85% em dl — na janela 5
- *    (os 6 últimos FY fechados, todos com dado); abaixo disso, a lista de campos faltantes;
+ *    (os 6 últimos FY fechados, todos com dado), entre os CIKs que têm os 6 FY na SEC (mesma regra do
+ *    10/11, Wellington 22/10/2026; o universo inteiro sai como informativo); abaixo disso, a lista
+ *    de campos faltantes;
  *  - ≥ 95% dos CIKs com receita e lucro em 10 de 11 anos, entre os que têm os 11 FY na SEC (IPO ou
  *    spin-off depois do início da janela não entra na conta: decisão do Wellington de 22/10/2026);
  *  - CIKs do universo sem nenhum FY SEC (moeda ≠ USD, trust sem DRE… → override ou SIC fora);
@@ -189,6 +191,7 @@ async function relatorio() {
     );
     const campoCob: Record<string, number> = Object.fromEntries(CAMPOS.map((c) => [c, 0]));
     const faltas: Record<string, string[]> = {};
+    let comJanela = 0;
     for (const e of g.ciks) {
       const emissor = emissorIdSec(e.cikHistorico ?? e.cik);
       const rows = await prisma.assetFundamentalsPeriod.findMany({
@@ -217,6 +220,7 @@ async function relatorio() {
           }
         }
       }
+      if (anosJanela.every((a) => porAno.has(a))) comJanela++;
       const temTodos = (campos: readonly string[]) =>
         anosJanela.every((a) => campos.every((c) => (porAno.get(a)?.[c] ?? null) !== null));
       for (const c of CAMPOS) if (temTodos([c])) campoCob[c]++;
@@ -251,7 +255,8 @@ async function relatorio() {
     );
     for (const crit of Object.keys(criterios)) {
       const meta = chave !== 'stock_financeira' ? METAS[`${g.perfil}:${crit}`] : undefined;
-      const frac = n ? atende[crit] / n : 0;
+      // atender exige dado em todos os anos da janela: quem atende está entre os comJanela
+      const frac = comJanela ? atende[crit] / comJanela : 0;
       const marca =
         meta === undefined
           ? ''
@@ -259,10 +264,13 @@ async function relatorio() {
             ? `  ✔ meta ${meta * 100}%`
             : `  ✘ ABAIXO da meta ${meta * 100}%`;
       p(
-        `  ${crit.padEnd(9)} ${String(atende[crit]).padStart(4)}/${n}  ${pct(atende[crit], n)}${marca}`,
+        `  ${crit.padEnd(9)} ${String(atende[crit]).padStart(4)}/${comJanela} com os ${janela + 1} FY  ` +
+          `${pct(atende[crit], comJanela)}${marca}  (universo: ${atende[crit]}/${n} = ${pct(atende[crit], n)})`,
       );
       if (meta !== undefined)
-        aceite.push(`${g.rotulo} ${crit}: ${pct(atende[crit], n)} (meta ${meta * 100}%)`);
+        aceite.push(
+          `${g.rotulo} ${crit}: ${pct(atende[crit], comJanela)} com os ${janela + 1} FY (meta ${meta * 100}%)`,
+        );
       if (faltas[crit]?.length)
         p(
           `      sem dado: ${faltas[crit].slice(0, 25).join('; ')}${faltas[crit].length > 25 ? ` … +${faltas[crit].length - 25}` : ''}`,
