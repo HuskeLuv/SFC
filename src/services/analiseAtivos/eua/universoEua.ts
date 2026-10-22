@@ -10,13 +10,17 @@
  *   (histerese de 80%); REITs de patrimônio: mesmo corte (SIC 6798 + overrides; hipotecários fora);
  * - float fora da sanidade (> US$ 1 tri, ou preço implícito fora de [US$ 0,5; 100 mil]) → fora,
  *   foraMotivo 'float_suspeito' + alerta;
- * - financeira = SIC 6000–6799 exceto 6798 (perfil stock_financeira);
+ * - financeira = SIC 6000–6799 exceto 6798 (perfil stock_financeira), ou SEM SIC: a SEC não dá SIC
+ *   às BDCs (ARCC, MAIN, FSK, OBDC…) e em 21/10/2026 os 10 CIKs do universo sem SIC eram 9 BDCs e
+ *   um banco (CBC) — alerta 'sem_sic';
+ * - SIC de SICS_FORA_EUA (6221: trusts de ouro/prata/cripto) → fora, foraMotivo 'sic_fora';
  * - o ticker exibido vem SEMPRE do arquivo da SEC; o override só classifica/inclui/exclui o CIK.
  */
 import { sanidadeFloat } from '@/services/analiseAtivos/eua/sanidadeSec';
 import { segmentoCuradoReit } from '@/services/analiseAtivos/eua/overridesEua';
 import {
   BOLSAS_EUA,
+  SICS_FORA_EUA,
   SIC_REIT,
   ehSicFinanceira,
   ehTickerEua,
@@ -63,7 +67,8 @@ export type CodigoAlertaUniverso =
   | 'ticker_sem_10k'
   | 'reit_por_sic_suspeito'
   | 'reit_sem_segmento'
-  | 'override_sem_ticker';
+  | 'override_sem_ticker'
+  | 'sem_sic';
 
 export interface DecisaoUniverso {
   cik: string;
@@ -155,7 +160,8 @@ export function decidirUniverso(
   const ehReit = classe === 'reit';
   const reitTipo: TipoReit | null = ehReit ? (override?.reitTipo ?? 'equity') : null;
   const segmento = ehReit ? (override?.segmento ?? segmentoCuradoReit(cik)) : null;
-  const ehFinanceira = override?.ehFinanceira ?? (!ehReit && ehSicFinanceira(c.sic));
+  const ehFinanceira =
+    override?.ehFinanceira ?? (!ehReit && (c.sic === null || ehSicFinanceira(c.sic)));
   const bolsa = bolsaDoCandidato(c.tickers);
   const cikHistorico = override?.cikHistorico ? normalizarCik(override.cikHistorico) : null;
   const floatSanidade =
@@ -174,6 +180,8 @@ export function decidirUniverso(
     foraMotivo = reitTipo === 'mortgage' ? 'hipotecario' : 'override';
   } else if (!bolsa) {
     foraMotivo = 'sem_bolsa';
+  } else if (c.sic !== null && SICS_FORA_EUA.includes(c.sic) && override?.acao !== 'incluir') {
+    foraMotivo = 'sic_fora';
   } else if (!c.tem10k && !cikHistorico) {
     foraMotivo = 'sem_10k';
   } else if (c.publicFloatUsd === null) {
@@ -205,6 +213,12 @@ export function decidirUniverso(
       mensagem: cikHistorico
         ? `CIK sem 10-K; histórico no CIK ${cikHistorico}`
         : 'CIK sem 10-K (histórico em CIK predecessor?) — fora até um override',
+    });
+  }
+  if (foraMotivo === null && c.sic === null && !ehReit && override?.ehFinanceira === undefined) {
+    alertas.push({
+      codigo: 'sem_sic',
+      mensagem: 'CIK sem SIC na SEC (BDC/fundo?) — entra como financeira',
     });
   }
   if (foraMotivo === null && ehReit && !override && !segmento) {

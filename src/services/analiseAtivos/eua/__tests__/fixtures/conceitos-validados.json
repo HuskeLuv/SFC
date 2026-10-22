@@ -1,5 +1,5 @@
 {
-  "geradoEm": "2026-10-21T02:48:00.000Z",
+  "geradoEm": "2026-10-22T15:51:04.509Z",
   "conceitos": [
     {
       "conceito": "us-gaap:AllocatedShareBasedCompensationExpense",
@@ -29,7 +29,7 @@
     {
       "conceito": "us-gaap:CashCashEquivalentsRestrictedCashAndRestrictedCashEquivalents",
       "periodo": "CY2023Q4I",
-      "empresas": 5475
+      "empresas": 5476
     },
     {
       "conceito": "us-gaap:CommonStockDividendsPerShareCashPaid",
@@ -97,9 +97,19 @@
       "empresas": 5718
     },
     {
+      "conceito": "us-gaap:IncomeLossFromContinuingOperationsBeforeIncomeTaxesDomestic",
+      "periodo": "CY2023",
+      "empresas": 2479
+    },
+    {
       "conceito": "us-gaap:IncomeLossFromContinuingOperationsBeforeIncomeTaxesExtraordinaryItemsNoncontrollingInterest",
       "periodo": "CY2023",
       "empresas": 5067
+    },
+    {
+      "conceito": "us-gaap:IncomeLossFromContinuingOperationsBeforeIncomeTaxesForeign",
+      "periodo": "CY2023",
+      "empresas": 2309
     },
     {
       "conceito": "us-gaap:IncomeLossFromContinuingOperationsBeforeIncomeTaxesMinorityInterestAndIncomeLossFromEquityMethodInvestments",
@@ -110,6 +120,11 @@
       "conceito": "us-gaap:IncomeTaxExpenseBenefit",
       "periodo": "CY2023",
       "empresas": 5400
+    },
+    {
+      "conceito": "us-gaap:InterestAndDividendIncomeOperating",
+      "periodo": "CY2023",
+      "empresas": 479
     },
     {
       "conceito": "us-gaap:InterestExpense",
@@ -135,6 +150,16 @@
       "conceito": "us-gaap:InterestExpenseOperating",
       "periodo": "CY2023",
       "empresas": 15
+    },
+    {
+      "conceito": "us-gaap:InterestPaid",
+      "periodo": "CY2023",
+      "empresas": 310
+    },
+    {
+      "conceito": "us-gaap:InterestPaidNet",
+      "periodo": "CY2023",
+      "empresas": 4710
     },
     {
       "conceito": "us-gaap:LeaseIncome",
@@ -184,12 +209,17 @@
     {
       "conceito": "us-gaap:NetIncomeLoss",
       "periodo": "CY2023",
-      "empresas": 6386
+      "empresas": 6387
     },
     {
       "conceito": "us-gaap:NetIncomeLossAvailableToCommonStockholdersBasic",
       "periodo": "CY2023",
       "empresas": 2416
+    },
+    {
+      "conceito": "us-gaap:NoninterestIncome",
+      "periodo": "CY2023",
+      "empresas": 436
     },
     {
       "conceito": "us-gaap:NotesPayable",
@@ -212,6 +242,16 @@
       "empresas": 5
     },
     {
+      "conceito": "us-gaap:PaymentsForCapitalImprovements",
+      "periodo": "CY2023",
+      "empresas": 146
+    },
+    {
+      "conceito": "us-gaap:PaymentsForConstructionInProcess",
+      "periodo": "CY2023",
+      "empresas": 30
+    },
+    {
       "conceito": "us-gaap:PaymentsForRepurchaseOfCommonStock",
       "periodo": "CY2023",
       "empresas": 2668
@@ -232,6 +272,26 @@
       "empresas": 1182
     },
     {
+      "conceito": "us-gaap:PaymentsToAcquireMachineryAndEquipment",
+      "periodo": "CY2023",
+      "empresas": 91
+    },
+    {
+      "conceito": "us-gaap:PaymentsToAcquireOilAndGasProperty",
+      "periodo": "CY2023",
+      "empresas": 30
+    },
+    {
+      "conceito": "us-gaap:PaymentsToAcquireOilAndGasPropertyAndEquipment",
+      "periodo": "CY2023",
+      "empresas": 32
+    },
+    {
+      "conceito": "us-gaap:PaymentsToAcquireOtherProductiveAssets",
+      "periodo": "CY2023",
+      "empresas": 170
+    },
+    {
       "conceito": "us-gaap:PaymentsToAcquireOtherPropertyPlantAndEquipment",
       "periodo": "CY2023",
       "empresas": 130
@@ -247,6 +307,11 @@
       "empresas": 4199
     },
     {
+      "conceito": "us-gaap:PaymentsToExploreAndDevelopOilAndGasProperties",
+      "periodo": "CY2023",
+      "empresas": 35
+    },
+    {
       "conceito": "us-gaap:ProfitLoss",
       "periodo": "CY2023",
       "empresas": 3565
@@ -255,6 +320,16 @@
       "conceito": "us-gaap:RealEstateRevenueNet",
       "periodo": "CY2018",
       "empresas": 11
+    },
+    {
+      "conceito": "us-gaap:RegulatedAndUnregulatedOperatingRevenue",
+      "periodo": "CY2023",
+      "empresas": 24
+    },
+    {
+      "conceito": "us-gaap:ResultsOfOperationsDepreciationDepletionAmortizationAndAccretion",
+      "periodo": "CY2023",
+      "empresas": 17
     },
     {
       "conceito": "us-gaap:RevenueFromContractWithCustomerExcludingAssessedTax",
@@ -272,6 +347,11 @@
       "empresas": 2679
     },
     {
+      "conceito": "us-gaap:RevenuesNetOfInterestExpense",
+      "periodo": "CY2023",
+      "empresas": 64
+    },
+    {
       "conceito": "us-gaap:SalesRevenueGoodsNet",
       "periodo": "CY2018",
       "empresas": 92
@@ -280,6 +360,11 @@
       "conceito": "us-gaap:SalesRevenueNet",
       "periodo": "CY2018",
       "empresas": 121
+    },
+    {
+      "conceito": "us-gaap:SalesRevenueServicesNet",
+      "periodo": "CY2018",
+      "empresas": 53
     },
     {
       "conceito": "us-gaap:SecuredDebt",
@@ -304,17 +389,22 @@
     {
       "conceito": "us-gaap:StockholdersEquity",
       "periodo": "CY2023Q4I",
-      "empresas": 6271
+      "empresas": 6272
     },
     {
       "conceito": "us-gaap:StockholdersEquityIncludingPortionAttributableToNoncontrollingInterest",
       "periodo": "CY2023Q4I",
-      "empresas": 2411
+      "empresas": 2412
     },
     {
       "conceito": "us-gaap:UnsecuredDebt",
       "periodo": "CY2023Q4I",
       "empresas": 129
+    },
+    {
+      "conceito": "us-gaap:UtilitiesOperatingExpenseDepreciationAndAmortization",
+      "periodo": "CY2023",
+      "empresas": 32
     },
     {
       "conceito": "us-gaap:WeightedAverageNumberOfDilutedSharesOutstanding",

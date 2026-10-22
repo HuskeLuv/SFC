@@ -139,6 +139,14 @@ export const CADEIAS_SEC: Record<CampoSec, CadeiaCampo> = {
     // conferidos nos frames CY2024 (415 e 141 empresas)
     'OperatingLeaseLeaseIncome',
     'LeaseIncome',
+    // cobertura (22/10/2026), medidos no companyfacts dos CIKs do universo sem receita:
+    // utilities (XEL, MGEE, AWK, NJR, SR, SWX); serviços antes de 2017 (ABM, ACM, BAH)
+    'RegulatedAndUnregulatedOperatingRevenue',
+    'SalesRevenueServicesNet',
+    // bancos: receita BRUTA (juros + não juros), mesma escolha do BR (Fundamentei); ~53 bancos
+    'InterestAndDividendIncomeOperating+NoninterestIncome',
+    // GS, MS: receita líquida de juros (sem a bruta separada)
+    'RevenuesNetOfInterestExpense',
   ]),
   // lucro líquido da controladora
   lucroControladora: cadeia('lucroControladora', 'duracao', 'USD', [
@@ -148,10 +156,14 @@ export const CADEIAS_SEC: Record<CampoSec, CadeiaCampo> = {
   ]),
   // lucro consolidado (com minoritários)
   lucroConsolidado: cadeia('lucroConsolidado', 'duracao', 'USD', ['ProfitLoss', 'NetIncomeLoss']),
+  // NÃO usar IncomeLossFromContinuingOperationsBeforeInterestExpenseInterestIncomeIncomeTaxes…Net:
+  // na PBI não fecha com pré-IR + juros (2022: 82 × 279; 2023: 111 × 56), medido em 22/10/2026
   lucroOperacional: cadeia('lucroOperacional', 'duracao', 'USD', ['OperatingIncomeLoss']),
   lucroAntesIr: cadeia('lucroAntesIr', 'duracao', 'USD', [
     'IncomeLossFromContinuingOperationsBeforeIncomeTaxesExtraordinaryItemsNoncontrollingInterest',
     'IncomeLossFromContinuingOperationsBeforeIncomeTaxesMinorityInterestAndIncomeLossFromEquityMethodInvestments',
+    // só a abertura doméstico + exterior (KBH, NVR; TXT 903 + 234 = 1.137 = o total)
+    'IncomeLossFromContinuingOperationsBeforeIncomeTaxesDomestic+IncomeLossFromContinuingOperationsBeforeIncomeTaxesForeign?',
   ]),
   impostoRenda: cadeia('impostoRenda', 'duracao', 'USD', ['IncomeTaxExpenseBenefit']),
   juros: cadeia('juros', 'duracao', 'USD', [
@@ -162,12 +174,20 @@ export const CADEIAS_SEC: Record<CampoSec, CadeiaCampo> = {
     'InterestExpenseBorrowings',
     // REIT com juros dentro das despesas operacionais (O, INVH, AMH 2022+): frames CY2024 (36)
     'InterestExpenseOperating',
+    // último recurso: juros PAGOS da DFC (GE, HON, NKE, OXY, CTVA, LEN… sem despesa de juros
+    // tagueada; 22 CIKs do universo em 22/10/2026)
+    'InterestPaidNet',
+    'InterestPaid',
   ]),
   depreciacaoAmortizacao: cadeia('depreciacaoAmortizacao', 'duracao', 'USD', [
     'DepreciationDepletionAndAmortization',
     'DepreciationAndAmortization',
     'DepreciationAmortizationAndAccretionNet',
     'Depreciation',
+    // utilities (MGEE, OGS) e DD&A de óleo e gás (SM, NOG). Fica FORA o D&A só do custo
+    // (CostOfGoodsAndServicesSoldDepreciationAndAmortization): na HRI é ~1/3 do total
+    'UtilitiesOperatingExpenseDepreciationAndAmortization',
+    'ResultsOfOperationsDepreciationDepletionAmortizationAndAccretion',
   ]),
   // passo irrisório = ausente: ORCL 2022 LongTermDebt 0 (75,9 bi combinados), AMD 2021 1 mi (313 mi)
   dividaBruta: cadeia(
@@ -204,11 +224,27 @@ export const CADEIAS_SEC: Record<CampoSec, CadeiaCampo> = {
     'NetCashProvidedByUsedInOperatingActivities',
     'NetCashProvidedByUsedInOperatingActivitiesContinuingOperations',
   ]),
-  capex: cadeia('capex', 'duracao', 'USD', [
-    'PaymentsToAcquirePropertyPlantAndEquipment',
-    'PaymentsToAcquireOtherPropertyPlantAndEquipment',
-    'PaymentsToAcquireProductiveAssets',
-  ]),
+  // passo irrisório = ausente: KNX 2025 OtherProductiveAssets 1 mi × MachineryAndEquipment 795 mi
+  capex: cadeia(
+    'capex',
+    'duracao',
+    'USD',
+    [
+      'PaymentsToAcquirePropertyPlantAndEquipment',
+      'PaymentsToAcquireOtherPropertyPlantAndEquipment',
+      'PaymentsToAcquireProductiveAssets',
+      // cobertura (22/10/2026), medidos contra o FCO nos CIKs do universo sem capex:
+      // óleo e gás (SM 1.438 mi, FANG, APA) — antes da compra de áreas (SM 34 mi)
+      'PaymentsToExploreAndDevelopOilAndGasProperties',
+      'PaymentsToAcquireOtherProductiveAssets', // VZ 17,0 bi, GPK, MUR, MATX
+      'PaymentsForCapitalImprovements', // GLW 1,28 bi, WES, PENN, SNA, IT
+      'PaymentsToAcquireMachineryAndEquipment', // KNX, AAON
+      'PaymentsForConstructionInProcess', // AEP, ED
+      'PaymentsToAcquireOilAndGasPropertyAndEquipment', // RRC, MGY
+      'PaymentsToAcquireOilAndGasProperty', // BSM
+    ],
+    { descartaIrrisorio: true },
+  ),
   dividendosPagos: cadeia('dividendosPagos', 'duracao', 'USD', [
     'PaymentsOfDividendsCommonStock',
     'PaymentsOfDividends',

@@ -3,7 +3,9 @@
  * antes de ligar critérios/Quadro EUA (desenho.json → fatias[A].criterios_aceite):
  *  - stocks não financeiras ≥ 90% em ebitda e fcl e ≥ 85% em dl; REITs ≥ 85% em dl — na janela 5
  *    (os 6 últimos FY fechados, todos com dado); abaixo disso, a lista de campos faltantes;
- *  - ≥ 95% dos CIKs com receita e lucro em 10 de 11 anos;
+ *  - ≥ 95% dos CIKs com receita e lucro em 10 de 11 anos, entre os que têm os 11 FY na SEC (IPO ou
+ *    spin-off depois do início da janela não entra na conta: decisão do Wellington de 22/10/2026);
+ *  - CIKs do universo sem nenhum FY SEC (moeda ≠ USD, trust sem DRE… → override ou SIC fora);
  *  - data do free float de capa (anual por natureza) e overrides aplicados.
  * Só leitura do banco (nenhuma escrita). Critério aqui = dado presente (não se atende); quem avalia é
  * o criterios-eua (fatia B).
@@ -173,7 +175,10 @@ async function relatorio() {
   }
 
   let com10de11 = 0;
+  let com11fy = 0;
+  let com10de11Total = 0;
   const menos10: string[] = [];
+  const semFy: string[] = [];
   const aceite: string[] = [];
   const conceitosUsados = new Map<string, Map<string, number>>();
 
@@ -227,11 +232,16 @@ async function relatorio() {
           );
         }
       }
+      if (porAno.size === 0) semFy.push(`${tickerDe.get(e.cik) ?? e.cik} (${e.cik})`);
       const rl = anos11.filter(
         (a) => porAno.get(a)?.receita != null && porAno.get(a)?.lucroAtribuivel != null,
       ).length;
-      if (rl >= 10) com10de11++;
-      else menos10.push(`${tickerDe.get(e.cik) ?? e.cik} ${rl}/11`);
+      if (rl >= 10) com10de11Total++;
+      if (anos11.every((a) => porAno.has(a))) {
+        com11fy++;
+        if (rl >= 10) com10de11++;
+        else menos10.push(`${tickerDe.get(e.cik) ?? e.cik} ${rl}/11`);
+      }
     }
     const n = g.ciks.length;
     p(`== ${g.rotulo} (${n})`);
@@ -261,10 +271,19 @@ async function relatorio() {
     p();
   }
 
+  const marca10 = com11fy && com10de11 / com11fy >= 0.95 ? '✔' : '✘';
   p(
-    `Receita e lucro em ≥ 10 de 11 anos (FY${anos11[0]}–FY${ancora}): ${com10de11}/${empresas.length} = ${pct(com10de11, empresas.length)} (meta 95%)`,
+    `Receita e lucro em ≥ 10 de 11 anos (FY${anos11[0]}–FY${ancora}), entre os ${com11fy} CIKs com os 11 FY: ` +
+      `${com10de11}/${com11fy} = ${pct(com10de11, com11fy)} ${marca10} meta 95% ` +
+      `(universo inteiro: ${com10de11Total}/${empresas.length} = ${pct(com10de11Total, empresas.length)}, informativo)`,
   );
   if (menos10.length) p(`  abaixo de 10/11: ${menos10.join(' · ')}`);
+  aceite.push(`Receita e lucro 10/11 (com 11 FY): ${pct(com10de11, com11fy)} (meta 95%)`);
+  p(
+    semFy.length
+      ? `✘ No universo SEM nenhum FY SEC (${semFy.length}): ${semFy.join(' · ')}`
+      : '✔ Todo CIK do universo tem FY SEC',
+  );
   p();
   p('Aceite:');
   for (const a of aceite) p(`  ${a}`);
