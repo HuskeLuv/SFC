@@ -279,6 +279,40 @@ export const CADEIAS_SEC: Record<CampoSec, CadeiaCampo> = {
 };
 
 /**
+ * Dívida, cadeia COMPLEMENTAR: só quando a cadeia principal (CADEIAS_SEC.dividaBruta) não acha nada
+ * nem no 10-K do exercício nem no comparativo do seguinte. Separada porque vários passos daqui são
+ * PARCIAIS (linha de crédito, só a parte de CP) e, na cadeia principal, um deles no 10-K do próprio
+ * ano passaria na frente do valor completo do comparativo (medido em 22/10/2026: O 2018 5.377 → 252
+ * mi pela LineOfCredit; OHI, SM, EXR). Medidos nos FY sem dívida das stocks do universo.
+ */
+export const CADEIA_DIVIDA_COMPLEMENTAR: CadeiaCampo = cadeia(
+  'dividaBruta',
+  'instante',
+  'USD',
+  [
+    'DebtAndCapitalLeaseObligations', // dívida total com arrendamentos: BRK, LKQ, CVCO, CNH
+    'NotesAndLoansPayable', // KBH, HHH
+    // conversíveis (PANW, OKTA, NET, VRNS), não garantida/garantida LP + CP (ADI 5,15 bi, CDNS;
+    // ALNY, MTDR), notas, outras dívidas, linha de crédito (LULU, WSM, ROL) e, por último, só CP
+    'ConvertibleDebtNoncurrent+ConvertibleDebtCurrent?',
+    'ConvertibleDebt',
+    'ConvertibleDebtCurrent',
+    'ConvertibleNotesPayableCurrent',
+    'UnsecuredLongTermDebt+UnsecuredDebtCurrent?',
+    'SecuredLongTermDebt+SecuredDebtCurrent?',
+    'LongTermNotesPayable+NotesPayableCurrent?',
+    'OtherLongTermDebtNoncurrent+OtherLongTermDebtCurrent?',
+    'LongTermLineOfCredit',
+    'LineOfCredit',
+    'LongTermDebtCurrent',
+    'DebtCurrent',
+    'ShortTermBorrowings',
+    'NotesPayableCurrent',
+  ],
+  { descartaIrrisorio: true },
+);
+
+/**
  * Remuneração em ações (SBC, DFC do 10-K): campo gravado `remuneracaoAcoes`. Separada de CADEIAS_SEC
  * de propósito — só a extração com `incluirSbc` (ANALISE_ATIVOS_SEC_SBC) a lê. Conferida nos frames
  * CY2023 (ShareBasedCompensation 4.793 empresas; AllocatedShareBasedCompensationExpense 3.263).
@@ -291,9 +325,39 @@ export const CADEIA_SBC: Omit<CadeiaCampo, 'campo'> & { campo: typeof CAMPO_SBC 
   passos: ['ShareBasedCompensation', 'AllocatedShareBasedCompensationExpense'].map(passo),
 };
 
-/** Todas as cadeias (as de CADEIAS_SEC + a da SBC) — validação de conceitos e recorte de fixtures. */
+/**
+ * Sinais de dívida no 10-K (padrão Fundamentei: empresa sem dívida aparece com caixa líquido). Sem
+ * nenhum passo de dívida no FY e sem NENHUM destes fatos com valor ≠ 0 no mesmo exercício, a dívida
+ * bruta é 0 (flag 'divida_zero_inferida'); com algum sinal, segue null (a dívida está em conceito
+ * próprio da empresa, que o companyfacts não traz: F, GM, AES, PCAR). Medido em 22/10/2026: 85
+ * stocks do universo sem sinal (VRTX, ANET, CPRT, ISRG, GRMN…); erro conhecido: TXT (dívida e juros
+ * só em conceitos próprios).
+ */
+export const SINAIS_DIVIDA: Readonly<Record<TipoFatoSec, readonly string[]>> = {
+  duracao: [
+    'InterestExpense',
+    'InterestExpenseDebt',
+    'InterestExpenseNonoperating',
+    'InterestExpenseBorrowings',
+    'InterestPaid',
+    'InterestPaidNet',
+    'ProceedsFromIssuanceOfLongTermDebt',
+    'RepaymentsOfLongTermDebt',
+  ],
+  instante: [
+    'DebtInstrumentFaceAmount',
+    'DebtInstrumentCarryingAmount',
+    'LongTermDebtFairValue',
+    'DebtInstrumentFairValue',
+  ],
+};
+
+/** Todas as cadeias (CADEIAS_SEC, SBC e sinais de dívida) — validação de conceitos e recorte de fixtures. */
 function todasAsCadeias(): Array<Pick<CadeiaCampo, 'tipo' | 'unidade' | 'passos'>> {
-  return [...Object.values(CADEIAS_SEC), CADEIA_SBC];
+  const sinais = (Object.entries(SINAIS_DIVIDA) as Array<[TipoFatoSec, readonly string[]]>).map(
+    ([tipo, conceitos]) => ({ tipo, unidade: 'USD' as const, passos: conceitos.map(passo) }),
+  );
+  return [...Object.values(CADEIAS_SEC), CADEIA_DIVIDA_COMPLEMENTAR, CADEIA_SBC, ...sinais];
 }
 
 /** Conceito proibido (não existe nos frames; 0/22 companyfacts). */

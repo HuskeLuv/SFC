@@ -28,7 +28,10 @@
  * - capex, dividendos pagos, recompras e DPA são positivos: sinal trocado no arquivo (CCI) volta
  *   ao valor absoluto (sourceConcept.sinalCorrigido);
  * - dívida bruta TOTAL em dividaBrutaLp (dividaBrutaCp = null: o XBRL não separa de forma estável);
- *   sem conceito de dívida = null (sem dado — nunca zero);
+ *   sem valor na cadeia principal, a CADEIA_DIVIDA_COMPLEMENTAR (passos parciais); sem nada nas duas
+ *   = null (sem dado), EXCETO sem nenhum sinal de dívida no exercício
+ *   (SINAIS_DIVIDA: juros, emissão/amortização, valor de face/justo) = 0, flag
+ *   'divida_zero_inferida' e sourceConcept 'zero_inferido' (padrão Fundamentei: caixa líquido);
  * - caixa com CashCashEquivalentsAndShortTermInvestments (último passo; CAT 2016) já inclui as
  *   aplicações de curto prazo: aplicacoesFinanceiras fica null para a dívida líquida não descontar
  *   duas vezes (sourceConcept.aplicacoesFinanceiras = 'incluidas_no_caixa');
@@ -41,10 +44,12 @@
  * Nada de I/O: recebe o JSON já parseado e devolve números (o repositório converte para Decimal).
  */
 import {
+  CADEIA_DIVIDA_COMPLEMENTAR,
   CADEIA_SBC,
   CADEIAS_SEC,
   CAMPOS_SEC,
   CONCEITO_CAIXA_COM_APLICACOES,
+  SINAIS_DIVIDA,
   type CadeiaCampo,
   type CampoSec,
 } from '@/services/analiseAtivos/eua/cadeiasConceitos';
@@ -293,6 +298,17 @@ function escolherSemIrrisorio(candidatos: ValorCampo[]): ValorCampo | null {
   return { ...candidatos[i], descartados: candidatos.slice(0, i).map((x) => x.conceito) };
 }
 
+/** Algum fato de SINAIS_DIVIDA com valor ≠ 0 no exercício que termina em `fim`? */
+function temSinalDivida(ler: Leitor, fim: string): boolean {
+  const comValor = (x: ValorAnual | undefined) => x !== undefined && x.val !== 0;
+  return (
+    SINAIS_DIVIDA.duracao.some((c) => comValor(ler('us-gaap', c, 'USD', 'duracao').get(fim))) ||
+    SINAIS_DIVIDA.instante.some((c) =>
+      comValor(ler('us-gaap', c, 'USD', 'instante', BALANCO_PRAZO_COMPARATIVO_DIAS).get(fim)),
+    )
+  );
+}
+
 // ---------------------------------------------------------------------------
 // Saída
 // ---------------------------------------------------------------------------
@@ -413,6 +429,8 @@ export function extrairFundamentosSec(
     const { fim, ini } = porAno.get(anoFiscal)!;
     const v = {} as Record<CampoSec, ValorCampo | null>;
     for (const campo of CAMPOS_SEC) v[campo] = valorDaCadeia(ler, CADEIAS_SEC[campo], fim);
+    // dívida: a cadeia complementar (passos parciais) só sem nenhum valor da principal
+    v.dividaBruta ??= valorDaCadeia(ler, CADEIA_DIVIDA_COMPLEMENTAR, fim);
     // saídas de caixa e dividendo por ação são positivos por definição no US GAAP; o sinal trocado
     // é erro do arquivo (CCI: PaymentsOfDividendsCommonStock negativo nos 10-K de 2020, 2025 e 2026)
     const sinalTrocado: string[] = [];
@@ -465,6 +483,13 @@ export function extrairFundamentosSec(
       flags.push('ebitda_lucro');
     }
     const depreciacaoAmortizacao = usar('depreciacaoAmortizacao', v.depreciacaoAmortizacao);
+
+    let dividaBruta = usar('dividaBrutaLp', v.dividaBruta);
+    if (dividaBruta === null && !temSinalDivida(ler, fim)) {
+      dividaBruta = 0;
+      fonte.dividaBrutaLp = 'zero_inferido';
+      flags.push('divida_zero_inferida');
+    }
 
     // desdobramento: ano não reapresentado depois de um split vai para a escala atual
     // (fator pelo arquivamento de CADA valor: o 10-K pós-split pode reapresentar o LPA e não o DPA)
@@ -545,7 +570,7 @@ export function extrairFundamentosSec(
         ? null
         : usar('aplicacoesFinanceiras', v.aplicacoesCp),
       dividaBrutaCp: null,
-      dividaBrutaLp: usar('dividaBrutaLp', v.dividaBruta),
+      dividaBrutaLp: dividaBruta,
       pl: usar('pl', v.plTotal),
       plControladora: usar('plControladora', v.plControladora),
       fco: usar('fco', v.fco),
