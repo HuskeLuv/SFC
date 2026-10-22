@@ -237,6 +237,28 @@ describe('universo EUA por CIK', () => {
     expect(d.alertas.map((a) => a.codigo)).toEqual(['float_suspeito']);
   });
 
+  it('SIC 6221 (trusts de ouro/cripto: GLD, IBIT) fica fora com sic_fora', () => {
+    expect(decidir(candidato({ cik: '1222333', sic: 6221 }))).toMatchObject({
+      noUniverso: false,
+      foraMotivo: 'sic_fora',
+    });
+  });
+
+  it('sem SIC (BDCs: ARCC, MAIN) entra como financeira, com alerta informativo', () => {
+    const d = decidir(candidato({ cik: '1287750', sic: null }));
+    expect(d).toMatchObject({ noUniverso: true, ehFinanceira: true, classe: 'stock' });
+    expect(d.alertas.map((a) => a.codigo)).toEqual(['sem_sic']);
+  });
+
+  it('CP e ENB (demonstrações em CAD) ficam fora por override', () => {
+    for (const cik of ['16875', '895728']) {
+      expect(decidir(candidato({ cik, sic: 4011 }))).toMatchObject({
+        noUniverso: false,
+        foraMotivo: 'override',
+      });
+    }
+  });
+
   it('AVB: override de inclusão sem ticker nos arquivos da SEC fica fora, com alerta', () => {
     const d = decidir(
       candidato({

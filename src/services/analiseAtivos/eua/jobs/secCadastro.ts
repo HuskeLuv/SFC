@@ -15,7 +15,7 @@
  *    universoEuaDe(criteria_params vigente), sem versão no banco = UNIVERSO_EUA_PADRAO);
  * 5. grava SecCompany e SecCompanyTicker; quem saiu dos candidatos fica fora do universo.
  *
- * Alertas: float_suspeito, ticker_sem_10k, reit_por_sic_suspeito (e reit_sem_segmento, info).
+ * Alertas: float_suspeito, ticker_sem_10k, reit_por_sic_suspeito (e reit_sem_segmento e sem_sic, info).
  * Prazo estourado ⇒ 'parcial' (o próximo run continua: os não processados seguem "novos").
  * DEV: ANALISE_EUA_AMOSTRA_CIKS=320193,789019,… restringe aos CIKs listados (alerta 'amostra').
  *
@@ -345,7 +345,7 @@ export async function sincronizarSecCadastro(
     for (const a of d.alertas) {
       ctx.alertar({
         codigo: a.codigo,
-        nivel: a.codigo === 'reit_sem_segmento' ? 'info' : 'aviso',
+        nivel: a.codigo === 'reit_sem_segmento' || a.codigo === 'sem_sic' ? 'info' : 'aviso',
         mensagem: `${tickers[0]?.symbol ?? cik} (CIK ${cik}): ${a.mensagem}`,
         ref: cik,
       });

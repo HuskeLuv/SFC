@@ -60,6 +60,16 @@ export const OVERRIDES_EUA: readonly OverrideCikEua[] = [
       motivo: `${nome}: REIT hipotecário`,
     }),
   ),
+  // 10-K em dólar canadense: companyfacts só com unidade CAD (conferido em 22/10/2026), a extração
+  // (USD) não acha nenhum FY
+  ...(
+    [
+      ['16875', 'Canadian Pacific Kansas City'],
+      ['895728', 'Enbridge'],
+    ] as const
+  ).map(([cik, nome]) =>
+    o({ cik, acao: 'excluir', motivo: `${nome}: demonstrações em CAD (sem fatos em USD)` }),
+  ),
   // SIC 6798 sem ser REIT de patrimônio: entram como stock
   o({
     cik: '1981792',

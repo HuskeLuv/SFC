@@ -207,6 +207,13 @@ export function ehSicFinanceira(sic: number | null | undefined): boolean {
   );
 }
 
+/**
+ * SIC fora do universo: 6221 (Commodity Contracts Brokers & Dealers) = trusts de ouro, prata e
+ * cripto que entregam 10-K (GLD, IAU, SLV, IBIT, GBTC, ETHA…) e não são empresas operacionais.
+ * Medido em prod em 21/10/2026: 12 CIKs no universo, todos sem fundamentos SEC.
+ */
+export const SICS_FORA_EUA: readonly number[] = [6221];
+
 /** Bolsas do universo (company_tickers_exchange.json; o resto fica fora: 'sem_bolsa'). */
 export const BOLSAS_EUA = ['NYSE', 'Nasdaq'] as const;
 export type BolsaEua = (typeof BOLSAS_EUA)[number];
@@ -223,6 +230,7 @@ export const FORA_MOTIVOS_EUA = [
   'override',
   'sem_bolsa',
   'float_suspeito',
+  'sic_fora',
 ] as const;
 export type ForaMotivoEua = (typeof FORA_MOTIVOS_EUA)[number];
 
