@@ -6,6 +6,8 @@ import { SECOES_ORDEM } from '@/lib/carteiraCategoryColors';
 import { getCategoriaFromPortfolio } from '@/lib/portfolioCategoria';
 import { moverCaixaRfHabilitado } from '@/lib/carteiraMoverConfig';
 import { reservaDestinoPorAsset } from '@/services/portfolio/tesouroDestino';
+import { posicaoEmDolar } from '@/lib/ativoEmDolar';
+import { getCotacaoDolarHoje } from '@/services/market/cambioUsdBrl';
 
 import { withErrorHandler } from '@/utils/apiErrorHandler';
 export const GET = withErrorHandler(async (request: NextRequest) => {
@@ -50,6 +52,13 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     [...new Set(symbols)].filter((s) => /^[A-Za-z]/.test(s)),
     { useBrapiFallback: true },
   );
+
+  // Carteira EUA em US$: posição gravada em US$ (REIT, stock com moedaRegistro 'USD') vale
+  // qty × (cotação ?? preço médio) × câmbio do dia — a mesma taxa do resumo, obtida uma vez.
+  // Sem câmbio, o item fica fora da lista (nunca US$ somado como R$) e vai em `semCambio`.
+  const temPosicaoEmDolar = portfolio.some((p) => posicaoEmDolar(p, p.asset));
+  const cotacaoDolar = temPosicaoEmDolar ? ((await getCotacaoDolarHoje())?.taxa ?? null) : null;
+  const semCambio: string[] = [];
 
   const lastTransactionByPortfolio = new Map<string, Date>();
   const transactions = await prisma.stockTransaction.findMany({
@@ -122,6 +131,13 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
       }
     } else if (item.asset?.type === 'imovel' || item.asset?.type === 'personalizado') {
       valorAtual = item.totalInvested > 0 ? item.totalInvested : item.quantity * item.avgPrice;
+    } else if (posicaoEmDolar(item, item.asset)) {
+      if (cotacaoDolar === null) {
+        semCambio.push(symbol);
+        continue;
+      }
+      const precoUsd = quotes.get(symbol) || item.avgPrice;
+      valorAtual = item.quantity * precoUsd * cotacaoDolar;
     } else {
       const currentPrice = quotes.get(symbol);
       valorAtual = currentPrice ? item.quantity * currentPrice : item.quantity * item.avgPrice;
@@ -150,5 +166,11 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     ativos: ativosPorCategoria[categoria],
   }));
 
-  return NextResponse.json({ secoes });
+  if (semCambio.length > 0) {
+    console.warn(
+      `[historico/ativos] ${semCambio.length} posição(ões) em US$ sem câmbio: fora da posição consolidada`,
+    );
+  }
+
+  return NextResponse.json({ secoes, semCambio });
 });
