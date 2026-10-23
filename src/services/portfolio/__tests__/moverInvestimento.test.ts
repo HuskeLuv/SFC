@@ -41,6 +41,7 @@ import {
   MSG_ABA_FORA_DA_FASE,
   MSG_ESCOLHA_SECAO,
   MSG_SECAO_SEGUE_CVM,
+  MSG_ETF_USD_PARA_EUA,
   type ItemMover,
 } from '../moverInvestimento';
 import { secaoRendaFixa, tituloTesouroDoNome } from '@/lib/rendaFixaSecao';
@@ -220,14 +221,24 @@ describe('moverInvestimento — matriz', () => {
     });
   });
 
-  it('ETF em dólar ↔ Stocks fica "em validação" (409)', async () => {
+  it('ETF em dólar → Stocks/REITs dá 400 (Carteira EUA em US$: fica para a fase 2)', async () => {
     mockPrisma.portfolio.findFirst.mockResolvedValue(posicao(VOO));
+    for (const categoria of ['stocks', 'reits'] as const) {
+      await expect(
+        moverInvestimento('user-1', { tipo: 'posicao', id: 'p-1', categoria, subgrupo: 'value' }),
+      ).rejects.toMatchObject({ statusCode: 400, message: MSG_ETF_USD_PARA_EUA });
+    }
+    expect(mockPrisma.portfolio.update).not.toHaveBeenCalled();
+  });
+
+  it('Stock (USD) → ETFs segue "em validação" (409)', async () => {
+    mockPrisma.portfolio.findFirst.mockResolvedValue(posicao(AAPL));
     await expect(
       moverInvestimento('user-1', {
         tipo: 'posicao',
         id: 'p-1',
-        categoria: 'stocks',
-        subgrupo: 'value',
+        categoria: 'etfs',
+        subgrupo: 'estados_unidos',
       }),
     ).rejects.toMatchObject({ statusCode: 409, message: MOTIVO_EM_VALIDACAO });
   });

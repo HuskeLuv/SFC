@@ -87,6 +87,8 @@ import type { FixedIncomeAssetWithAsset } from '@/services/portfolio/patrimonioH
 import { buildSaudeFinanceira } from '@/services/saudeFinanceira/saudeFinanceiraServer';
 import type { TipoRendaFixa } from '@/types/rendaFixa';
 import type { ResumoDestinos } from '@/lib/pluggyDestinos';
+import { posicaoEmDolar } from '@/lib/ativoEmDolar';
+import { getCotacaoDolarHoje } from '@/services/market/cambioUsdBrl';
 
 // ── Carregamento ─────────────────────────────────────────────────────────────
 
@@ -96,6 +98,21 @@ export const MSG_JA_NO_ORIGINAL = 'Este investimento já está na classificaçã
 export const MSG_ABA_FORA_DA_FASE = 'Ainda não dá para mover ativos para esta aba';
 /** Destino com seção escolhida à mão e corpo sem `subgrupo`. */
 export const MSG_ESCOLHA_SECAO = 'Escolha a seção';
+/**
+ * Carteira EUA em US$ (fase 1): ETF em dólar não vai para Stocks/REIT's — essas abas guardam a
+ * posição em US$ pela unidade gravada, e o ETF USD (gravado em R$) fica para a fase 2.
+ */
+export const MSG_ETF_USD_PARA_EUA =
+  "ETF em dólar ainda não pode ir para Stocks ou REIT's. Essa opção chega numa próxima etapa.";
+
+/** ETF com currency USD indo para Stocks/REIT's (bloqueado até a fase 2). */
+export const etfUsdParaAbaEua = (
+  asset: Pick<Asset, 'type' | 'currency'>,
+  destino: CategoriaMovivel,
+): boolean =>
+  (destino === 'stocks' || destino === 'reits') &&
+  (asset.type === 'etf' || asset.type === 'etf-cvm') &&
+  asset.currency === 'USD';
 
 type NotesCompra = SubgrupoCtx['notes'];
 
@@ -391,14 +408,19 @@ async function valorAtualDe(userId: string, item: ItemMover): Promise<number | u
           preloadedAssets: [{ ...fi, qty: fi.qty ?? row.quantity }],
         })
       : null;
-    const { valorAtualBRL } = valuatePortfolioItem({
+    // Posição em US$: câmbio do dia (sem ele, 'semCambio' = 0 e a confirmação usa a frase fixa).
+    const cotacaoDolar = posicaoEmDolar(row, asset)
+      ? ((await getCotacaoDolarHoje().catch(() => null))?.taxa ?? null)
+      : null;
+    const { valorAtualBRL, semCambio } = valuatePortfolioItem({
       item: row,
       asset,
       fixedIncome: fi,
+      cotacaoDolar,
       tesouroReservaDestino: item.baseCtx.reservaDestino ?? undefined,
       fiGetCurrentValue: pricer?.getCurrentValue,
     });
-    return Number.isFinite(valorAtualBRL) ? valorAtualBRL : undefined;
+    return !semCambio && Number.isFinite(valorAtualBRL) ? valorAtualBRL : undefined;
   } catch {
     return undefined;
   }
@@ -482,7 +504,11 @@ const analisarDestinos = (item: ItemMover): AnaliseDestinos => {
     tipo: item.tipo,
     baseCtx: item.baseCtx,
     caixaRfLiberado,
-  });
+  }).map((d) =>
+    d.permitido && etfUsdParaAbaEua(item.asset, d.categoria)
+      ? { ...d, permitido: false, motivo: MSG_ETF_USD_PARA_EUA }
+      : d,
+  );
   return analise;
 };
 
@@ -800,6 +826,7 @@ export function planejarMover(
 ): PlanoMover {
   const destino = input.categoria;
 
+  if (etfUsdParaAbaEua(item.asset, destino)) throw new ApiError(400, MSG_ETF_USD_PARA_EUA);
   if (isCategoriaCaixaRf(destino) && !moverCaixaRfHabilitado()) {
     throw new ApiError(409, MSG_ABA_FORA_DA_FASE);
   }
