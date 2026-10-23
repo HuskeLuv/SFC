@@ -6,7 +6,7 @@
  *
  * DONO: fatia C (e2e/analise-ativos-eua.spec.ts); a fatia D usa as MESMAS linhas no e2e de escrita
  * sem editar este arquivo. Chamado por seedAnaliseAtivos depois das fixtures BR (só no banco efêmero:
- * asset_scores vazio). Também roda sozinho no banco de DEV local (amostra de tela):
+ * asset_multiples_current vazio). Também roda sozinho no banco de DEV local (amostra de tela):
  *   DATABASE_URL=… npx tsx prisma/seedAnaliseAtivosEua.ts
  *
  * Grava, idempotente:

@@ -432,7 +432,7 @@ async function main() {
     await seedEducacao();
 
     // Análise de Ativos (Fase 1): fixtures da Fase 0 + linhas do Quadro SÓ em banco sem
-    // asset_scores (CI/e2e); usuário demo no beta da área. Idempotente.
+    // asset_multiples_current (CI/e2e); usuário demo no beta da área. Idempotente.
     const analise = await seedAnaliseAtivos(prisma);
     console.log(
       analise.fixtures

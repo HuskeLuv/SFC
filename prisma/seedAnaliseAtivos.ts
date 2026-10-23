@@ -1,10 +1,10 @@
 /**
  * Seed da Análise de Ativos — Fase 1 (fatia 0a). Idempotente.
  *
- * 1. Fixtures (só em banco SEM dados da Fase 0, i.e. asset_scores vazio — o banco efêmero do CI/e2e):
- *    carrega prisma/fixtures/analise-ativos/fase0-amostra.json (tabelas da Fase 0 dos ~20 símbolos
- *    da amostra) e quadro-linhas.json (analise_quadro_linhas), mais as linhas do catálogo (assets)
- *    dos símbolos da amostra que faltarem. Num banco com dados reais (Neon dev,
+ * 1. Fixtures (só em banco SEM dados da Fase 0, i.e. asset_multiples_current vazio — o banco
+ *    efêmero do CI/e2e): carrega prisma/fixtures/analise-ativos/fase0-amostra.json (tabelas da Fase 0
+ *    dos ~20 símbolos da amostra) e quadro-linhas.json (analise_quadro_linhas), mais as linhas do
+ *    catálogo (assets) dos símbolos da amostra que faltarem. Num banco com dados reais (Neon dev,
  *    produção) NÃO toca nas tabelas de dados.
  *    v2.4 (Filtros de Fundamentos): no mesmo banco efêmero grava criteria_params v1 (o do código),
  *    roda o MESMO job 'criterios' (executarCriterios) sobre as tabelas da amostra e copia a forma
@@ -31,7 +31,11 @@ const DIR = path.join(__dirname, 'fixtures', 'analise-ativos');
 
 type Linha = Record<string, unknown>;
 
-/** Ordem de carga (sem FKs entre si; a ordem só deixa o log legível). */
+/**
+ * Ordem de carga (sem FKs entre si; a ordem só deixa o log legível). D6-a: sem 'assetScore' — o
+ * Índice MF saiu do pipeline e nada mais lê asset_scores; a chave continua no JSON da fixture
+ * (ignorada) até a D6-b.
+ */
 const MODELOS = [
   'scoringParams',
   'cvmCompany',
@@ -49,7 +53,6 @@ const MODELOS = [
   'assetPerShareYearly',
   'assetMultiplesYearly',
   'assetMultiplesCurrent',
-  'assetScore',
   'assetEvento',
 ] as const;
 type Modelo = (typeof MODELOS)[number];
@@ -224,7 +227,7 @@ export async function seedAnaliseAtivos(
     semearEua: semearFixturesEua,
   },
 ): Promise<{ fixtures: Record<string, number> | null; demoNoBeta: boolean }> {
-  const temDados = (await prisma.assetScore.count()) > 0;
+  const temDados = (await prisma.assetMultiplesCurrent.count()) > 0;
   const fixtures = temDados ? null : await carregarFixtures(prisma);
   if (fixtures) fixtures.quadroComCriterios = await deps.avaliarCriterios(prisma);
   if (fixtures && deps.semearEua) fixtures.quadroEua = await deps.semearEua(prisma);
