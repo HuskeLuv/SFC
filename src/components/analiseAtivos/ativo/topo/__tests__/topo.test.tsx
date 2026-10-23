@@ -12,6 +12,7 @@ import CardEducacao from '../CardEducacao';
 import GraficoLucroCotacao from '../GraficoLucroCotacao';
 import SeloFrescor from '../SeloFrescor';
 import { ConferenciaPaginaProvider } from '@/components/analiseAtivos/comum/PorQueConferencia';
+import { VisualV2Provider } from '@/components/analiseAtivos/shell/VisualV2';
 import { ATIVO_WEGE3 } from '@/test/fixtures/analiseAtivos/respostas';
 import { encontrarPalavrasProibidas } from '@/services/analiseAtivos/textos';
 import { TEXTOS_TELA } from '@/services/analiseAtivos/textosTela';
@@ -38,6 +39,30 @@ describe('CabecalhoAtivo', () => {
     expect(screen.getByText('R$ 41,20')).toBeInTheDocument();
     expect(screen.getByText('fechamento de 29/09 · fonte B3')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Planejar' })).toBeInTheDocument();
+  });
+
+  it('variação positiva: verde só com o visual v2 (exceção 23/10); negativa em vermelho', () => {
+    const variacao = (v: number, v2: boolean) => {
+      const { container, unmount } = render(
+        <QueryClientProvider client={new QueryClient()}>
+          <VisualV2Provider valor={v2}>
+            <CabecalhoAtivo
+              ativo={{
+                ...ATIVO_WEGE3,
+                cotacao: { ...ATIVO_WEGE3.cotacao, variacao: v, variacaoPct: v },
+              }}
+            />
+          </VisualV2Provider>
+        </QueryClientProvider>,
+      );
+      const classe = container.querySelector('[data-preco] p.text-sm')?.className ?? '';
+      unmount();
+      return classe;
+    };
+    expect(variacao(0.5, true)).toContain('text-[#16A34A]');
+    expect(variacao(0.5, false)).toContain('text-[#396CAA]');
+    expect(variacao(-0.5, true)).toContain('text-[#D92D20]');
+    expect(variacao(0, true)).toContain('text-[#396CAA]');
   });
 
   it('v2.4: sem Índice MF — nem o selo "dados incompletos" do Índice aparece', () => {

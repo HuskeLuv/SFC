@@ -26,7 +26,7 @@ import type { CabecalhoAtivoProps } from '@/types/analiseAtivosApi';
 import { MenuBlocoPagina } from '@/components/analiseAtivos/comum/PorQueConferencia';
 import { dadosDosKpis } from '@/components/analiseAtivos/ativo/topo/BlocoKpis';
 import { useVisualV2 } from '@/components/analiseAtivos/shell/VisualV2';
-import { VISUAL_V2 } from '@/constants/analiseAtivosVisual';
+import { TEXTO_VARIACAO_POSITIVA, VISUAL_V2 } from '@/constants/analiseAtivosVisual';
 
 export type { CabecalhoAtivoProps };
 
@@ -55,10 +55,14 @@ export default function CabecalhoAtivo({ ativo, seloCarteira, slotAcoes }: Cabec
   const { cotacao } = ativo;
   const variacao = cotacao.variacao;
   const negativa = typeof variacao === 'number' && variacao < 0;
+  const v2 = useVisualV2();
+  // visual v2 (Wellington 23/10, como no HTML do Pedro): variação positiva em verde de destaque
+  const positiva = v2 && typeof variacao === 'number' && variacao > 0;
   const corVariacao = negativa
     ? 'text-[#D92D20] dark:text-[#F97066]'
-    : 'text-[#396CAA] dark:text-[#6E9DC4]';
-  const v2 = useVisualV2();
+    : positiva
+      ? TEXTO_VARIACAO_POSITIVA
+      : 'text-[#396CAA] dark:text-[#6E9DC4]';
 
   return (
     <header
