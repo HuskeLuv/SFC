@@ -16,6 +16,14 @@ import ComponentCard from '@/components/common/ComponentCard';
 import { useIsBelowLg } from '@/hooks/useMediaQuery';
 import { ResumoAportesCards, UsdTotalMobile } from '@/components/carteira/shared/AssetCardSections';
 import { TABLE_STYLES, TABLE_HEADER_STYLE } from '@/components/ui/table/tableStyles';
+import {
+  FaixaCambioEua,
+  LinhasTotalAbaEua,
+  TotaisAbaEuaMobile,
+  ValorUsdComBrl,
+  metricCardsAbaEua,
+  temLinhaAproximada,
+} from '@/components/carteira/shared/AbaEuaUsd';
 import { formatWallClockDate } from '@/utils/formatDate';
 import PieChartStocksAtivo from '@/components/charts/pie/PieChartStocksAtivo';
 
@@ -49,6 +57,11 @@ export default function StocksTable({ totalCarteira = 0 }: StocksTableProps) {
     updateObjetivo(ativoId, novoObjetivo);
 
   const cotacaoDolar = data?.cotacaoDolar ?? null;
+  // Chave CARTEIRA_EUA_DOLAR_HABILITADO (a rota devolve layoutUsd): total em US$ + "equivale a
+  // R$" e o caixa (R$) numa linha própria. Desligada: layout de hoje (os valores já vêm sem o
+  // caixa somado ao total em US$).
+  const layoutUsd = data?.layoutUsd === true;
+  const usd = (rotulo: string) => (layoutUsd ? `${rotulo} (US$)` : rotulo);
   const formatCurrencyBRL = (valueUSD: number) =>
     cotacaoDolar != null
       ? (valueUSD * cotacaoDolar).toLocaleString('pt-BR', {
@@ -109,7 +122,7 @@ export default function StocksTable({ totalCarteira = 0 }: StocksTableProps) {
     },
     {
       key: 'precoAquisicao',
-      header: 'Preco Medio',
+      header: usd('Preco Medio'),
       align: 'right',
       render: (a, f) => f.formatCurrency(a.precoAquisicao),
       renderSectionTotal: () => '-',
@@ -117,15 +130,18 @@ export default function StocksTable({ totalCarteira = 0 }: StocksTableProps) {
     },
     {
       key: 'valorTotal',
-      header: 'Valor Total',
+      header: usd('Valor Total'),
       align: 'right',
       render: (a, f) => f.formatCurrency(a.valorTotal),
       renderSectionTotal: (s, f) => f.formatCurrency(s.totalValorAplicado),
-      renderGrandTotal: (t) => formatCurrencyBRL((t?.valorAplicado as number) ?? 0),
+      renderGrandTotal: (t, f) =>
+        layoutUsd
+          ? f.formatCurrency((t?.valorAplicado as number) ?? 0)
+          : formatCurrencyBRL((t?.valorAplicado as number) ?? 0),
     },
     {
       key: 'cotacaoAtual',
-      header: 'Cotacao Atual',
+      header: usd('Cotacao Atual'),
       align: 'right',
       render: (a, f) => (
         <span className="text-gray-900 dark:text-white">{f.formatCurrency(a.cotacaoAtual)}</span>
@@ -135,11 +151,19 @@ export default function StocksTable({ totalCarteira = 0 }: StocksTableProps) {
     },
     {
       key: 'valorAtualizado',
-      header: 'Valor Atualizado',
+      header: usd('Valor Atualizado'),
       align: 'right',
-      render: (a, f) => f.formatCurrency(a.valorAtualizado),
+      render: (a, f) =>
+        layoutUsd ? (
+          <ValorUsdComBrl usd={a.valorAtualizado} brl={a.valorAtualizadoBRL} linha={a} />
+        ) : (
+          f.formatCurrency(a.valorAtualizado)
+        ),
       renderSectionTotal: (s, f) => f.formatCurrency(s.totalValorAtualizado),
-      renderGrandTotal: (t) => formatCurrencyBRL((t?.valorAtualizado as number) ?? 0),
+      renderGrandTotal: (t, f) =>
+        layoutUsd
+          ? f.formatCurrency((t?.valorAtualizado as number) ?? 0)
+          : formatCurrencyBRL((t?.valorAtualizado as number) ?? 0),
     },
     {
       key: 'riscoPorAtivo',
@@ -198,7 +222,10 @@ export default function StocksTable({ totalCarteira = 0 }: StocksTableProps) {
       align: 'right',
       render: (a, f) => f.formatCurrency(a.necessidadeAporte),
       renderSectionTotal: (s, f) => f.formatCurrency(s.totalNecessidadeAporte),
-      renderGrandTotal: (t) => formatCurrencyBRL((t?.necessidadeAporte as number) ?? 0),
+      renderGrandTotal: (t, f) =>
+        layoutUsd
+          ? f.formatCurrency((t?.necessidadeAporte as number) ?? 0)
+          : formatCurrencyBRL((t?.necessidadeAporte as number) ?? 0),
     },
     {
       key: 'proventos',
@@ -218,7 +245,7 @@ export default function StocksTable({ totalCarteira = 0 }: StocksTableProps) {
     },
   ];
 
-  const metricCards: MetricCardConfig[] = [
+  const metricCardsLegado: MetricCardConfig[] = [
     {
       title: 'Necessidade de Aporte Total',
       // nec vem do necessidadeAporteMap (base carteira, já em BRL) — sem conversão.
@@ -246,8 +273,12 @@ export default function StocksTable({ totalCarteira = 0 }: StocksTableProps) {
     },
   ];
 
+  const metricCards = layoutUsd
+    ? metricCardsAbaEua(data, formatPercentage, metricColorBySign)
+    : metricCardsLegado;
+
   // Extra "TOTAL EM USD" row — mesma ordem e contagem das 14 colunas acima
-  const extraTotalRows = (
+  const extraTotalRowsLegado = (
     <tr className={TABLE_STYLES.totalRow}>
       <td className={`${TABLE_STYLES.compact.td} font-semibold`}>TOTAL EM USD</td>
       <td className={`${TABLE_STYLES.compact.td} font-semibold text-center`}>-</td>
@@ -277,7 +308,7 @@ export default function StocksTable({ totalCarteira = 0 }: StocksTableProps) {
   );
 
   // Celular: a mesma linha "TOTAL EM USD" no cartão de total.
-  const extraTotalMobile = (
+  const extraTotalMobileLegado = (
     <UsdTotalMobile
       aplicado={formatCurrency(
         ((data?.totalGeral as unknown as Record<string, unknown>)?.valorAplicado as number) ?? 0,
@@ -312,8 +343,17 @@ export default function StocksTable({ totalCarteira = 0 }: StocksTableProps) {
       formatNumber={formatNumber}
       totalCarteira={totalCarteira}
       cotacaoParaBRL={cotacaoDolar}
-      extraTotalRows={extraTotalRows}
-      extraTotalMobile={extraTotalMobile}
+      // O caixa da aba é sempre R$ (a aba é em US$).
+      formatCaixa={formatBRL}
+      topo={
+        layoutUsd ? (
+          <FaixaCambioEua aba={data} temAproximado={temLinhaAproximada(data?.secoes)} />
+        ) : undefined
+      }
+      extraTotalRows={
+        layoutUsd ? <LinhasTotalAbaEua columns={columns} aba={data} /> : extraTotalRowsLegado
+      }
+      extraTotalMobile={layoutUsd ? <TotaisAbaEuaMobile aba={data} /> : extraTotalMobileLegado}
       mobileQuantityUnit="ações"
       mover={{ categoria: 'stocks' }}
     >
