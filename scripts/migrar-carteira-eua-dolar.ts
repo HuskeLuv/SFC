@@ -23,7 +23,7 @@
  *     posição encerrada: só as transações (não recria Portfolio);
  *  6) --invalidar-snapshots: invalidatePortfolioSnapshots(userId, 1ª data USD);
  *  7) idempotente: a 2ª rodada não acha pendentes. Cada Asset numa $transaction.
- *  8) --restore regrava as linhas do backup e recalcula só as posições que existiam nele.
+ *  8) --restore regrava as linhas do backup como estavam (sem recálculo).
  */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -486,14 +486,9 @@ async function restaurar(args: Args) {
       });
     }
   });
-  for (const p of backup.portfolios) {
-    await recalculatePortfolioFromTransactions({
-      targetUserId: p.userId,
-      assetId: p.assetId,
-      portfolioId: p.id,
-    });
-  }
-  console.log('  ✓ restaurado e recalculado\n');
+  // Sem recálculo: o backup já tem as colunas da posição, e o recálculo regravaria
+  // moedaRegistro/totalInvestedBrl de REIT (o rollback deixaria de ser exato).
+  console.log('  ✓ restaurado\n');
 }
 
 async function main() {
