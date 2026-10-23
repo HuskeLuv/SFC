@@ -87,8 +87,6 @@ describe('montarLinhasQuadroEua', () => {
       cnpj: 'CIK:0000320193',
       noQuadro: true,
       foraDoQuadroMotivo: null,
-      temScore: false,
-      estadoIndice: 'sem_score',
       setor: 'Indústria',
       segmento: null,
       moeda: 'USD',

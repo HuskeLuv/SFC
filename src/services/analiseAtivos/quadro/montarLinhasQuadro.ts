@@ -63,18 +63,6 @@ import { colunasLegadasPorSimbolo } from '@/services/analiseAtivos/quadro/coluna
 import type { ForaDoQuadroMotivo, PontoSerieAnual } from '@/types/analiseAtivosApi';
 import type { CriteriosCompactos, PerfilCriterio } from '@/types/analiseAtivosCriterios';
 
-/**
- * Estado da coluna analise_quadro_linhas.estado_indice (interno; nenhuma API o expõe desde a v2.4).
- * Desde a D6-a o Quadro grava sempre 'sem_score'; os outros valores ficam nas linhas antigas até a
- * coluna sair na D6-b.
- */
-export type EstadoIndiceGravado =
-  | 'calculado'
-  | 'incompleto'
-  | 'zero_regra'
-  | 'fora_do_indice'
-  | 'sem_score';
-
 export const N_PARES = 5;
 /** Ação fora da ClassifSetorial vigente sem negócio há mais de N pregões ⇒ deslistada. */
 export const DESLISTADA_SEM_PREGOES = 5;
@@ -459,9 +447,6 @@ export function montarLinhasQuadro(
       dataRef: e.dataRef,
       noQuadro,
       foraDoQuadroMotivo,
-      // D6-a: sem Índice MF (como o Quadro EUA)
-      temScore: false,
-      estadoIndice: 'sem_score' satisfies EstadoIndiceGravado,
       nome,
       nomeCurto: ehAcao ? (setor?.nomePregao ?? null) : nomeB3,
       setor: setor?.setor ?? null,
@@ -479,10 +464,6 @@ export function montarLinhasQuadro(
       baixaLiquidez: r?.baixaLiquidez ?? false,
       valorMercado,
       patrimonio: mensal?.pl ?? null,
-      indiceMf: null,
-      criteriosAtendidos: null,
-      criteriosAplicaveis: null,
-      statusCriterios: [],
       motivosIncompleto: legado?.motivosIncompleto ?? [],
       componentesZeroRegra: legado?.componentesZeroRegra ?? [],
       anosLucroConsecutivos: m?.anosLucroConsecutivos ?? null,

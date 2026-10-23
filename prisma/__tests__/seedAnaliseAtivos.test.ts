@@ -139,19 +139,18 @@ describe('seedAnaliseAtivos', () => {
     expect((await seedAnaliseAtivos(prisma, deps)).demoNoBeta).toBe(false);
   });
 
-  it('fixtures cobrem os estados da amostra (incompleto, zero_regra, sem_score, FoF, fora do Quadro)', () => {
+  it('fixtures sem as colunas do Índice MF (D6-b) e com ação fora do Quadro', () => {
     const linhas = JSON.parse(
       readFileSync(
         path.join(__dirname, '..', 'fixtures', 'analise-ativos', 'quadro-linhas.json'),
         'utf8',
       ),
-    ) as Array<{ symbol: string; estadoIndice: string; noQuadro: boolean; dataRef: string }>;
-    const por = new Map(linhas.map((l) => [l.symbol, l]));
-    expect(por.get('TGMA3')?.estadoIndice).toBe('incompleto');
-    expect(por.get('AURE3')?.estadoIndice).toBe('zero_regra');
-    expect(por.get('HCTR11')?.estadoIndice).toBe('sem_score');
-    expect(por.get('HFOF11')?.estadoIndice).toBe('fora_do_indice');
-    expect(por.get('WEGE3')?.estadoIndice).toBe('calculado');
+    ) as Array<Record<string, unknown> & { noQuadro: boolean }>;
+    for (const l of linhas) {
+      for (const coluna of ['temScore', 'estadoIndice', 'indiceMf', 'statusCriterios']) {
+        expect(l).not.toHaveProperty(coluna);
+      }
+    }
     expect(linhas.some((l) => !l.noQuadro)).toBe(true);
   });
 });

@@ -46,8 +46,6 @@ function eua(over: Partial<AnaliseQuadroLinha>): AnaliseQuadroLinha {
   return linhaQuadroDb({
     classe: 'stock',
     cnpj: 'CIK:0000320193',
-    temScore: false,
-    estadoIndice: 'sem_score',
     segmentoListagem: null,
     subsetor: null,
     segmento: null,

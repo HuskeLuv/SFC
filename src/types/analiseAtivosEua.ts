@@ -315,7 +315,6 @@ export type FlagFundamentoSec = (typeof FLAGS_FUNDAMENTO_SEC)[number];
  * exatamente isto:
  * - symbol = forma da Análise (symbolAnaliseDaSec); classe 'stock' | 'reit'; cnpj = emissorIdSec(cik);
  * - noQuadro = SecCompany.noUniverso; foraDoQuadroMotivo = null (fora do universo = sem linha);
- * - temScore = false; estadoIndice = 'sem_score' (não há indicador antigo para EUA);
  * - setor = rótulo PT da divisão SIC (TEXTOS_EUA.setorDoSic); segmento = rótulo PT do segmento REIT
  *   (TEXTOS_EUA.segmentosReit) ou null; subsetor/segmentoListagem/fiiTipo/segmentoCvm = null;
  * - moeda = 'USD'; bolsa = 'NYSE' | 'Nasdaq' (colunas novas, nulas no BR);

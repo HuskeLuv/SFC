@@ -213,16 +213,11 @@ describe('montarLinhasQuadro', () => {
     expect(l.pares).not.toContain('WEGE3');
   });
 
-  it('D6-a: sem Índice MF em nenhuma linha (como o Quadro EUA)', () => {
+  it('D6-b: nenhuma linha grava as colunas do Índice MF', () => {
     for (const l of r.linhas) {
-      expect(l).toMatchObject({
-        temScore: false,
-        estadoIndice: 'sem_score',
-        indiceMf: null,
-        criteriosAtendidos: null,
-        criteriosAplicaveis: null,
-        statusCriterios: [],
-      });
+      for (const coluna of ['temScore', 'estadoIndice', 'indiceMf', 'statusCriterios']) {
+        expect(l).not.toHaveProperty(coluna);
+      }
     }
   });
 
