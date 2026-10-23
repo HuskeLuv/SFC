@@ -402,6 +402,26 @@ describe('montarContexto — ativos planejados', () => {
     };
     expect(ctx.carteira).not.toHaveProperty('ativosPlanejadosSemPosicao');
   });
+  it('Stocks/REITs EUA levam a moeda US$, o câmbio do dia e o total em R$', () => {
+    const ctx = montarContexto(
+      {
+        ...base,
+        posicoes: {
+          reit: {
+            secoes: [{ nome: 'REITs', ativos: [{ ticker: 'O', valorAtualizado: 350 }] }],
+            cotacaoDolar: 5.04,
+            totalBRL: 1764,
+          },
+        },
+      } as unknown as typeof base,
+      new Date('2026-09-16T12:00:00Z'),
+    ) as { carteira: { posicoes: Record<string, Record<string, unknown>> } };
+    expect(ctx.carteira.posicoes.reit).toMatchObject({
+      moeda: 'USD',
+      cotacaoDolarHoje: 5.04,
+      totalEquivalenteBRL: 1764,
+    });
+  });
   it('não leva nome nem e-mail do usuário (promessa de /subprocessadores)', () => {
     const comPerfil = {
       ...base,

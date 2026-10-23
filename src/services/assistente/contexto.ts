@@ -685,7 +685,15 @@ export function montarContexto(raw: ContextoBruto, hoje: Date = new Date()): Jso
   const posicoes: Json = {};
   for (const [classe, d] of Object.entries(raw.posicoes)) {
     const c = compactClasse(d);
-    if (c) posicoes[classe] = c;
+    if (!c) continue;
+    // Stocks/REITs EUA: valores das abas em US$ (o resumo da carteira já soma em R$).
+    if (classe === 'stocks' || classe === 'reit') {
+      const eua = (d ?? {}) as Json;
+      c.moeda = 'USD';
+      if (typeof eua.cotacaoDolar === 'number') c.cotacaoDolarHoje = round(eua.cotacaoDolar);
+      if (typeof eua.totalBRL === 'number') c.totalEquivalenteBRL = round(eua.totalBRL);
+    }
+    posicoes[classe] = c;
   }
   const orc = raw.orcamento as Json | null;
   return {
