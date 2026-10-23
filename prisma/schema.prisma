@@ -516,6 +516,9 @@ model Portfolio {
   // Aba escolhida pelo usuário quando ≠ aba base (mover na Carteira, out/2026); null = deriva de Asset.type
   categoriaOverride String?
   tipoFundo         String? // Subgrupo escolhido na aba Fundos (FundoSubtipo); null = cadeia atual
+  // Carteira EUA em US$ (out/2026): 'USD' quando avgPrice/totalInvested estão em US$; null = legado (ver src/lib/ativoEmDolar.ts)
+  moedaRegistro     String?
+  totalInvestedBrl  Float? // Custo em R$ pelo câmbio de cada transação; preenchido pelo recálculo
   lastUpdate        DateTime            @default(now())
   proventos         PortfolioProvento[]
 
