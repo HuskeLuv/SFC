@@ -35,7 +35,11 @@ import { pregoesEntre } from '@/services/analiseAtivos/regras/comum/pregoes';
 import { TEXTOS_CRITERIOS } from '@/services/analiseAtivos/textosCriterios';
 import { rotuloCriterioLeitura } from '@/services/analiseAtivos/leitura/criterios/lerCriterios';
 import { DIRECAO_PADRAO, ORDEM_PADRAO, PAGINA_QUADRO } from '@/constants/analiseAtivosVisual';
-import { comTipoFiiExibido } from '@/services/analiseAtivos/quadro/tipoFiiExibido';
+import {
+  comTipoFiiExibido,
+  rotuloSegmentoFii,
+} from '@/services/analiseAtivos/quadro/tipoFiiExibido';
+import { TEXTOS_TELA } from '@/services/analiseAtivos/textosTela';
 import {
   universoEuaDe,
   type CriteriaParams,
@@ -71,11 +75,25 @@ export const PREGOES_ATRASO_COTACAO = 2;
 
 const valorOk = (e: Estado<number>): number | null => (e.estado === 'ok' ? e.valor : null);
 
+type OrdemTexto = 'setor' | 'tipo' | 'segmento';
+type OrdemNumerica = Exclude<OrdemQuadro, 'ticker' | 'naCarteira' | OrdemTexto>;
+
+/** Colunas de texto: ordenam pelo rótulo exibido na célula; null = vai para o fim. */
+export const TEXTO_ORDEM: Record<OrdemTexto, (l: LinhaQuadroApi) => string | null> = {
+  setor: (l) => l.setor,
+  tipo: (l) => (l.fiiTipo ? TEXTOS_TELA.quadro.tipos[l.fiiTipo] : null),
+  segmento: (l) =>
+    l.classe === 'reit' ? l.segmento : rotuloSegmentoFii(l.segmentoTipo, l.segmentoCvm),
+};
+
+/** Posições e planejados do usuário (a ordem "Na carteira": posição > planejado > resto). */
+export interface CarteiraOrdem {
+  posicoes: ReadonlySet<string>;
+  planejados: ReadonlySet<string>;
+}
+
 /** Valor de ordenação de cada coluna; null = vai para o fim. */
-export const VALOR_ORDEM: Record<
-  Exclude<OrdemQuadro, 'ticker'>,
-  (l: LinhaQuadroApi) => number | null
-> = {
+export const VALOR_ORDEM: Record<OrdemNumerica, (l: LinhaQuadroApi) => number | null> = {
   // contagem de critérios atendidos na janela projetada (fato, não nota); sem avaliação = fim
   criterios: (l) => l.criterios?.n ?? null,
   // Lucro (ou Rendimento) 10 anos = anos com valor positivo na série de 10 anos fechados
@@ -97,7 +115,11 @@ export const VALOR_ORDEM: Record<
   liquidez: (l) => l.liquidezMedia21,
   obrigacoesPl: (l) => valorOk(l.obrigacoesPl),
   cotistas: (l) => l.cotistas,
+  imoveis: (l) =>
+    l.nImoveisCvm === null && l.nCri === null ? null : (l.nImoveisCvm ?? 0) + (l.nCri ?? 0),
 };
+
+const ehOrdemTexto = (o: OrdemQuadro): o is OrdemTexto => o in TEXTO_ORDEM;
 
 const finito = (v: number | null | undefined): v is number =>
   typeof v === 'number' && Number.isFinite(v);
@@ -107,10 +129,29 @@ const porTicker = (a: LinhaQuadroApi, b: LinhaQuadroApi) => a.ticker.localeCompa
 export function compararLinhas(
   ordem: OrdemQuadro,
   dir: DirecaoOrdem,
+  carteira?: CarteiraOrdem,
 ): (a: LinhaQuadroApi, b: LinhaQuadroApi) => number {
   const m = dir === 'desc' ? -1 : 1;
   if (ordem === 'ticker') return (a, b) => m * porTicker(a, b);
-  const valor = VALOR_ORDEM[ordem];
+  if (ehOrdemTexto(ordem)) {
+    const texto = TEXTO_ORDEM[ordem];
+    return (a, b) => {
+      const ta = texto(a);
+      const tb = texto(b);
+      if (ta && tb && ta !== tb) return m * ta.localeCompare(tb, 'pt-BR');
+      if (!ta !== !tb) return ta ? -1 : 1; // sem dado no fim nas duas direções
+      return porTicker(a, b);
+    };
+  }
+  const valor: (l: LinhaQuadroApi) => number | null =
+    ordem === 'naCarteira'
+      ? (l) =>
+          estaNaCarteira(l, carteira?.posicoes)
+            ? 2
+            : estaNaCarteira(l, carteira?.planejados)
+              ? 1
+              : null
+      : VALOR_ORDEM[ordem];
   return (a, b) => {
     const va = valor(a);
     const vb = valor(b);
@@ -288,6 +329,8 @@ export interface EntradaConsulta {
   /** linhas do Quadro (noQuadro=true) das DUAS classes, com os critérios na janela pedida */
   linhas: readonly LinhaQuadroApi[];
   naCarteira?: ReadonlySet<string>;
+  /** só com ordem 'naCarteira': posições e planejados separados */
+  carteiraOrdem?: CarteiraOrdem;
   versao: string;
   dataRef: string | null;
   hoje: string;
@@ -361,7 +404,7 @@ export function consultarQuadro(e: EntradaConsulta): QuadroResposta {
     },
     e.naCarteira,
     equivalencias,
-  ).sort(compararLinhas(ordem, dir));
+  ).sort(compararLinhas(ordem, dir, e.carteiraOrdem));
   return {
     classe: params.classe,
     dataRef: e.dataRef,

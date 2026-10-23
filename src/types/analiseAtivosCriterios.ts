@@ -797,6 +797,8 @@ export interface CardCriteriosProps {
   classe: ClasseQuadro;
   criterios: CriteriosAtivo | null;
   janelaInicial?: Janela;
+  /** a página do ativo grava a janela escolhida na URL (volta ao Quadro com ela) */
+  aoTrocarJanela?: (janela: Janela) => void;
   className?: string;
 }
 

@@ -61,6 +61,7 @@ export const TEXTOS_TELA = {
     texto:
       'Dados da CVM e da B3, atualizados todo dia útil depois do fechamento. Se um número parecer errado, conte pra gente pelo Suporte.',
     dispensar: 'Entendi',
+    verCarteira: 'Ver minha carteira',
     rotuloRegiao: 'Aviso do beta',
   },
   foraDoBeta: {
@@ -272,6 +273,7 @@ export const TEXTOS_TELA = {
     },
     mostrando: 'Mostrando {n} de {total}',
     mostrarMais: 'Mostrar mais 25',
+    mostrarMaisRestantes: 'Mostrar mais {n} de {restantes} restantes',
     carregando: 'Carregando o Quadro',
     vazioFiltro: 'Nenhum ativo com esses filtros',
     limparFiltros: 'Limpar filtros',

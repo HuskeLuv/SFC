@@ -391,7 +391,15 @@ export type OrdemQuadro =
   | 'patrimonio'
   | 'liquidez'
   | 'obrigacoesPl'
-  | 'cotistas';
+  | 'cotistas'
+  /** colunas de texto (A–Z pelo rótulo exibido; sem dado no fim) — HTML do Pedro, 23/10 */
+  | 'setor'
+  | 'tipo'
+  | 'segmento'
+  /** FII: imóveis + CRIs do último informe */
+  | 'imoveis'
+  /** posição primeiro, depois planejado, depois o resto (o % da célula é calculado no navegador) */
+  | 'naCarteira';
 
 export type DirecaoOrdem = 'asc' | 'desc';
 export type ModoQuadro = 'resumo' | 'detalhado';

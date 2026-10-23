@@ -96,6 +96,7 @@ export const TEXTOS_ACOES_CARTEIRA = {
     erro: 'Não foi possível carregar as sugestões.',
     escolhaUm: 'Escolha pelo menos 1 ativo',
     nDe4: '{n} de 4 selecionados',
+    nDe4Cheio: '4 de 4 selecionados · máximo de 4 ativos',
     abrir: 'Abrir comparador',
     rotuloMetricaAcao: 'P/L',
     rotuloMetricaFii: 'P/VP',

@@ -181,9 +181,8 @@ describe('QuadroAnalise', () => {
       screen.getByRole('button', { name: `Ordenar por ${nome}` }).closest('th')!;
     expect(th('Ativo')).toHaveAttribute('aria-sort', 'ascending');
     expect(th('P/L')).toHaveAttribute('aria-sort', 'none');
-    expect(screen.getByRole('columnheader', { name: 'Na carteira' })).not.toHaveAttribute(
-      'aria-sort',
-    );
+    // 23/10 (HTML do Pedro): Na carteira também ordena (posição > planejado > resto)
+    expect(th('Na carteira')).toHaveAttribute('aria-sort', 'none');
     expect(screen.getByRole('button', { name: 'A–Z' })).toHaveAttribute('aria-pressed', 'true');
     expect(quadro.ultimoFiltro).toMatchObject({ ordem: 'ticker', dir: 'asc', janela: 5 });
     fireEvent.click(screen.getByRole('button', { name: 'Ordenar por P/L' }));
@@ -211,7 +210,8 @@ describe('QuadroAnalise', () => {
     renderQuadro();
     expect(screen.getByText(/Mostrando 4 de 331/)).toBeInTheDocument();
     expect(document.querySelector('[data-quadro-contador]')?.textContent).toBe('331 de 331');
-    fireEvent.click(screen.getByRole('button', { name: 'Mostrar mais 25' }));
+    // 4 carregados de 331: a próxima página traz 25 dos 327 restantes
+    fireEvent.click(screen.getByRole('button', { name: 'Mostrar mais 25 de 327 restantes' }));
     expect(fetchNextPage).toHaveBeenCalled();
   });
 

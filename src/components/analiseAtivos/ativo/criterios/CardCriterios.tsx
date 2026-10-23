@@ -94,6 +94,7 @@ export default function CardCriterios({
   classe,
   criterios,
   janelaInicial = JANELA_PADRAO,
+  aoTrocarJanela,
   className = '',
   linkDocumentos,
 }: CardCriteriosEuaProps) {
@@ -167,7 +168,14 @@ export default function CardCriterios({
             </span>
             <span className="sr-only"> {formatarTexto(TA.contagemSr, { anos: janela })}</span>
           </p>
-          <PilulasJanela valor={janela} onTrocar={setJanela} className="-ml-0.5" />
+          <PilulasJanela
+            valor={janela}
+            onTrocar={(nova) => {
+              setJanela(nova);
+              aoTrocarJanela?.(nova);
+            }}
+            className="-ml-0.5"
+          />
           {incompleto ? (
             <span
               data-selo-incompleto=""

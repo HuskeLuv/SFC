@@ -75,6 +75,7 @@ import { TEXTOS_TELA } from '@/services/analiseAtivos/textosTela';
 import type { PaginaAtivoProps } from '@/types/analiseAtivosApi';
 import { noOverlay } from '@/services/analiseAtivos/carteira/tickerCarteiraEua';
 import { useVisualV2 } from '@/components/analiseAtivos/shell/VisualV2';
+import { useJanelaDaPagina } from '@/components/analiseAtivos/shell/LinkVoltarQuadro';
 
 /** Visual v2 (item C1): Na sua carteira 1/4 + KPIs 3/4 (xl), empilhados abaixo. */
 const GRADE_CARTEIRA_KPIS_V2 = 'grid min-w-0 gap-4 md:gap-6 xl:grid-cols-[minmax(250px,1fr)_3fr]';
@@ -88,6 +89,7 @@ export default function PaginaAtivo({ ticker }: PaginaAtivoProps) {
   const overlay = useOverlayCarteira();
   const config = useAnaliseAtivosConfig();
   const v2 = useVisualV2();
+  const [janelaInicial, aoTrocarJanela] = useJanelaDaPagina();
   const t = TEXTOS_TELA.ativo;
 
   if (topo.isPending) {
@@ -141,6 +143,7 @@ export default function PaginaAtivo({ ticker }: PaginaAtivoProps) {
     <SeloEstado tipo="planejado" />
   ) : null;
   const base = { ticker, classe };
+  const janela = { janelaInicial, aoTrocarJanela };
   const recursos = config.data?.recursos;
   const contexto = {
     ticker,
@@ -166,6 +169,7 @@ export default function PaginaAtivo({ ticker }: PaginaAtivoProps) {
           />
           <CardCriterios
             {...base}
+            {...janela}
             criterios={ativo.criterios ?? null}
             linkDocumentos={ativo.eua.linkDocumentos}
           />
@@ -206,7 +210,7 @@ export default function PaginaAtivo({ ticker }: PaginaAtivoProps) {
           seloCarteira={seloCarteira}
           slotAcoes={<AcoesCarteiraAtivo {...base} nome={ativo.nome} assetId={ativo.assetId} />}
         />
-        <CardCriterios {...base} criterios={ativo.criterios ?? null} />
+        <CardCriterios {...base} {...janela} criterios={ativo.criterios ?? null} />
         <div className={v2 ? GRADE_CARTEIRA_KPIS_V2 : GRADE_CARTEIRA_KPIS}>
           <BlocoNaCarteira
             {...base}

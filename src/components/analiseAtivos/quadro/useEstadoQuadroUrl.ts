@@ -19,7 +19,8 @@
  * Trocar de classe ZERA os filtros (critérios, carteira e setor; os chips são outros) e volta à
  * ordem A–Z; janela e modo continuam (caso 31).
  */
-import { useCallback, useMemo } from 'react';
+import { useCallback, useEffect, useMemo } from 'react';
+import { lembrarQuadro } from '@/components/analiseAtivos/shell/LinkVoltarQuadro';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import {
   COLUNAS,
@@ -145,6 +146,10 @@ export function useEstadoQuadroUrl() {
   const params = useSearchParams();
   const chave = params?.toString() ?? '';
   const estado = useMemo(() => lerEstadoQuadro(new URLSearchParams(chave)), [chave]);
+  // "Voltar ao Quadro" da página do ativo reabre o Quadro como estava (só o da raiz da área)
+  useEffect(() => {
+    if (pathname === '/analise-ativos') lembrarQuadro(chave);
+  }, [pathname, chave]);
 
   const aplicar = useCallback(
     (novo: EstadoQuadro) => {
