@@ -9,6 +9,18 @@ import {
   APPLICABLE_CORPORATE_ACTION_TYPES,
 } from './corporateActions';
 import { ensureCorporateActionsSynced } from '@/services/pricing/dividendService';
+import {
+  isAtivoEmDolar,
+  MOEDA_REGISTRO_USD,
+  unidadeDaTransacao,
+  type AtivoMoedaRef,
+} from '@/lib/ativoEmDolar';
+import {
+  carregarSerieCambio,
+  cotacaoMoedaDasNotes,
+  fxDaTransacao,
+  type SerieCambio,
+} from '@/services/market/cambioUsdBrl';
 
 /**
  * Source of truth para os totais do Portfolio: lê todas as StockTransactions do
@@ -96,7 +108,7 @@ export async function recalculatePortfolioFromTransactions(params: {
   // registros nessa tabela, então o findMany volta vazio e o replay é no-op.
   const asset = await prisma.asset.findUnique({
     where: { id: assetId },
-    select: { symbol: true, type: true },
+    select: { symbol: true, type: true, currency: true },
   });
   // Garante os eventos corporativos no banco antes do replay, sem depender do
   // cron: um ativo recém-registrado que passou por split/bonificação/grupamento
@@ -174,6 +186,10 @@ export async function recalculatePortfolioFromTransactions(params: {
     quantity: runningQty,
     avgPrice,
     totalInvested: runningCost,
+    // Carteira EUA em US$: unidade da posição + custo em R$ (só ativo em dólar).
+    ...(isReservaValueBased
+      ? {}
+      : await colunasMoedaDaPosicao(asset, realTransactions, corporateActions, assetId)),
     lastUpdate: new Date(),
   };
   if (portfolioId) {
@@ -218,6 +234,74 @@ export async function recalculatePortfolioFromTransactions(params: {
   if (recomputeSnapshotsFrom) {
     await invalidatePortfolioSnapshots(targetUserId, recomputeSnapshotsFrom);
   }
+}
+
+/**
+ * Carteira EUA em US$ (out/2026): `moedaRegistro` e `totalInvestedBrl` de um ativo em dólar.
+ *
+ *  - Todas as transações em US$ (marcador `unidade: 'USD'`, ou REIT sem marcador): grava
+ *    moedaRegistro 'USD' e totalInvestedBrl = replay paralelo em R$, em que cada compra vale
+ *    total US$ × câmbio da transação + fees (R$) e cada venda tira a fração vendida (mesmo
+ *    custo médio do replay em US$). Compra sem câmbio (nem nas notes, nem na série) deixa
+ *    totalInvestedBrl null — o leitor cai em totalInvested × taxa do dia.
+ *  - Todas em R$ (stock legado): nada muda.
+ *  - Mistura de unidades no mesmo Asset: logger.error e NÃO toca as colunas — o
+ *    moedaRegistro já gravado pela compra nunca é rebaixado para null nem para BRL.
+ *  - Ativo que não está em dólar (ação BR, ETF, cripto...): devolve {} (colunas intocadas).
+ */
+async function colunasMoedaDaPosicao(
+  asset: (AtivoMoedaRef & { symbol?: string | null }) | null,
+  transacoes: Array<{
+    date: Date;
+    type: string;
+    quantity: number;
+    price: number;
+    total: number;
+    fees?: number | null;
+    notes?: string | null;
+  }>,
+  corporateActions: Array<{ date: Date; type: string; factor: number }>,
+  assetId: string,
+): Promise<{ moedaRegistro?: string; totalInvestedBrl?: number | null }> {
+  if (!isAtivoEmDolar(asset)) return {};
+  const unidades = new Set(transacoes.map((t) => unidadeDaTransacao(t, asset)));
+  if (unidades.size > 1) {
+    logger.error(
+      `[portfolioRecalculation] ativo em dólar ${asset?.symbol ?? assetId} com transações em R$ e em US$ — moedaRegistro/totalInvestedBrl mantidos`,
+    );
+    return {};
+  }
+  if (!unidades.has('USD')) return {};
+
+  // Série de câmbio só quando alguma compra não traz a cotação nas notes.
+  const compras = transacoes.filter((t) => t.type === 'compra');
+  const precisaSerie = compras.some((t) => cotacaoMoedaDasNotes(t.notes) === null);
+  let serie: SerieCambio | null = null;
+  if (precisaSerie && compras.length > 0) {
+    serie = await carregarSerieCambio(compras[0].date).catch((error: unknown) => {
+      logger.warn('[portfolioRecalculation] série USD-BRL indisponível:', error);
+      return null;
+    });
+  }
+
+  let semCambio = false;
+  const emReais = transacoes.map((t) => {
+    if (t.type !== 'compra') return t;
+    const totalUsd = Number(t.total) > 0 ? Number(t.total) : Number(t.quantity) * Number(t.price);
+    const fx = fxDaTransacao(t.notes, t.date, serie);
+    if (fx === null) semCambio = true;
+    return { ...t, total: totalUsd * (fx ?? 0) + (Number(t.fees) || 0) };
+  });
+  if (semCambio) {
+    logger.warn(
+      `[portfolioRecalculation] compra de ${asset?.symbol ?? assetId} sem câmbio — totalInvestedBrl fica vazio`,
+    );
+  }
+  const custoBrl = semCambio ? null : replayPosition(emReais, corporateActions).cost;
+  return {
+    moedaRegistro: MOEDA_REGISTRO_USD,
+    totalInvestedBrl: custoBrl === null ? null : Math.round(custoBrl * 100) / 100,
+  };
 }
 
 /**
