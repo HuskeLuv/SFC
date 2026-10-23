@@ -32,6 +32,20 @@ describe('MovimentacoesCards', () => {
     expect(screen.getByText('8 movimentações no período.')).toBeInTheDocument();
   });
 
+  it('movimentação em US$ mostra o US$ e o R$ ao lado, como a tabela', () => {
+    const usdMov: Movimentacao = {
+      ...mov(1),
+      moeda: 'USD',
+      totalMoeda: 1000,
+      cotacaoMoeda: 5.2,
+      valorBRL: 5210,
+      total: 5210,
+    };
+    render(<MovimentacoesCards movimentacoes={[usdMov]} totalNoPeriodo={1} />);
+    expect(screen.getByText(/US\$\s*1\.000,00/)).toBeInTheDocument();
+    expect(screen.getByText(/≈ R\$\s*5\.210,00/)).toBeInTheDocument();
+  });
+
   it('até 5: sem "Ver as"; período maior que a lista avisa quantas são', () => {
     render(<MovimentacoesCards movimentacoes={[mov(1), mov(2)]} totalNoPeriodo={40} />);
     expect(screen.queryByRole('button', { name: /Ver as/ })).toBeNull();

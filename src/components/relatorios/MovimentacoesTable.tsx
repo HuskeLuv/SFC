@@ -40,7 +40,7 @@ const usd = (v: number): string =>
   v.toLocaleString('pt-BR', { style: 'currency', currency: 'USD' });
 
 /** Linha em US$: valor nativo com o R$ ao lado (ou o aviso de câmbio ausente). */
-function ValorMovimentacao({ mov }: { mov: Movimentacao }) {
+export function ValorMovimentacao({ mov }: { mov: Movimentacao }) {
   if (mov.moeda !== 'USD') return <>{brl(mov.total)}</>;
   const cotacao =
     mov.cotacaoMoeda != null
