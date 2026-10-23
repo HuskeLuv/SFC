@@ -392,3 +392,27 @@ export const valuatePortfolioItem = (input: ItemValuationInput): ItemValuation =
 
   return { ...base, valorAtualBRL: item.quantity * item.avgPrice, fonte: 'fallback' };
 };
+
+/**
+ * Soma do custo (totalInvested) em R$ — o antigo `_sum(totalInvested)` dos planejamentos
+ * (Sonhos, Aposentadoria, contexto). Posição gravada em US$ (posicaoEmDolar) entra por
+ * totalInvestedBrl ?? totalInvested × câmbio do dia; sem câmbio fica fora (nunca US$ como R$).
+ * As demais entram pelo totalInvested gravado, como antes.
+ */
+export const somarCustoEmBrl = (
+  itens: ReadonlyArray<
+    Pick<PortfolioItemLike, 'totalInvested' | 'moedaRegistro' | 'totalInvestedBrl'> & {
+      asset?: Pick<AssetLike, 'type' | 'currency'> | null;
+    }
+  >,
+  cotacaoDolar: number | null | undefined,
+): number =>
+  itens.reduce((soma, item) => {
+    if (!posicaoEmDolar(item, item.asset)) return soma + (Number(item.totalInvested) || 0);
+    if (item.totalInvestedBrl != null && item.totalInvestedBrl > 0) {
+      return soma + item.totalInvestedBrl;
+    }
+    return cotacaoDolar != null && cotacaoDolar > 0
+      ? soma + item.totalInvested * cotacaoDolar
+      : soma;
+  }, 0);

@@ -27,7 +27,13 @@ import {
 } from '@/services/market/economicRates';
 import { overrideEfetivo } from '@/lib/carteiraMover';
 import { createFixedIncomePricer } from '@/services/portfolio/fixedIncomePricing';
-import { valuatePortfolioItem } from '@/services/portfolio/itemValuation';
+import { somarCustoEmBrl, valuatePortfolioItem } from '@/services/portfolio/itemValuation';
+import { posicaoEmDolar, unidadeDaTransacao } from '@/lib/ativoEmDolar';
+import {
+  carregarSerieCambio,
+  fxDaTransacao,
+  getCotacaoDolarHoje,
+} from '@/services/market/cambioUsdBrl';
 
 const round2 = (v: number) => Math.round(v * 100) / 100;
 
@@ -40,6 +46,8 @@ type ItemReserva = {
   avgPrice: number;
   assetId: string | null;
   categoriaOverride: string | null;
+  moedaRegistro: string | null;
+  totalInvestedBrl: number | null;
   asset: {
     type: string;
     symbol: string;
@@ -65,7 +73,11 @@ const abaMovida = (p: ItemReserva) =>
  * a Reserva de Emergência, avaliado como na Saúde (valuatePortfolioItem — curva
  * do título / PU do Tesouro), para os dois números baterem.
  */
-async function calcularReservaEmergencia(userId: string, itens: ItemReserva[]): Promise<number> {
+async function calcularReservaEmergencia(
+  userId: string,
+  itens: ItemReserva[],
+  cotacaoDolar: number | null,
+): Promise<number> {
   let total = 0;
   const movidosParaReserva: ItemReserva[] = [];
   for (const p of itens) {
@@ -86,6 +98,7 @@ async function calcularReservaEmergencia(userId: string, itens: ItemReserva[]): 
       item: p,
       asset: p.asset,
       fixedIncome: p.assetId ? fiPricer.fixedIncomeByAssetId.get(p.assetId) : null,
+      cotacaoDolar,
       fiGetCurrentValue: fiPricer.getCurrentValue,
     });
     total += valorAtualBRL;
@@ -101,12 +114,8 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
   const dozeMesesAtras = new Date(now);
   dozeMesesAtras.setFullYear(dozeMesesAtras.getFullYear() - 1);
 
-  const [portfolioAgg, reservaItems, transacoesUlt12m, cdiAnualizado, inflacao12m, cashflowGroups] =
+  const [reservaItems, transacoesUlt12m, cdiAnualizado, inflacao12m, cashflowGroups] =
     await Promise.all([
-      prisma.portfolio.aggregate({
-        where: { userId: targetUserId },
-        _sum: { totalInvested: true },
-      }),
       prisma.portfolio.findMany({
         where: { userId: targetUserId },
         select: {
@@ -117,6 +126,8 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
           planejamentoObjetivoId: true,
           vinculoAposentadoria: true,
           categoriaOverride: true,
+          moedaRegistro: true,
+          totalInvestedBrl: true,
           asset: {
             select: { type: true, symbol: true, currency: true, name: true, currentPrice: true },
           },
@@ -135,6 +146,8 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
           price: true,
           quantity: true,
           notes: true,
+          date: true,
+          asset: { select: { type: true, currency: true } },
         },
       }),
       getCdiAnualizado(),
@@ -142,10 +155,20 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
       getMergedCashflowGroups(targetUserId, currentYear),
     ]);
 
-  const patrimonio = round2(Number(portfolioAgg._sum.totalInvested ?? 0));
+  // Carteira EUA em US$: posição e transação gravadas em US$ entram em R$ (câmbio do dia no
+  // custo da posição; câmbio da transação no aporte). Câmbio só é buscado quando há US$.
+  const temPosicaoUsd = reservaItems.some((p) => posicaoEmDolar(p, p.asset));
+  const temTransacaoUsd = transacoesUlt12m.some((t) => unidadeDaTransacao(t, t.asset) === 'USD');
+  const [cotacaoHoje, serieCambio] = await Promise.all([
+    temPosicaoUsd ? getCotacaoDolarHoje().catch(() => null) : null,
+    temTransacaoUsd ? carregarSerieCambio(dozeMesesAtras).catch(() => null) : null,
+  ]);
+  const cotacaoDolar = cotacaoHoje?.taxa ?? null;
+
+  const patrimonio = round2(somarCustoEmBrl(reservaItems, cotacaoDolar));
 
   const reservaEmergenciaAtual = round2(
-    await calcularReservaEmergencia(targetUserId, reservaItems),
+    await calcularReservaEmergencia(targetUserId, reservaItems, cotacaoDolar),
   );
 
   // Vínculos de planejamento: assets de sonho saem da média geral (esse
@@ -161,7 +184,12 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
   const valorLiquido = (t: (typeof transacoesUlt12m)[number]) => {
     if (isReinvestimentoTransaction(t.notes)) return 0;
     const total = Number(t.total);
-    const abs = Number.isFinite(total) && total > 0 ? total : t.price * t.quantity;
+    let abs = Number.isFinite(total) && total > 0 ? total : t.price * t.quantity;
+    if (unidadeDaTransacao(t, t.asset) === 'USD') {
+      const fx = fxDaTransacao(t.notes, t.date, serieCambio);
+      if (!fx) return 0; // sem câmbio: fora da média (nunca US$ como R$)
+      abs *= fx;
+    }
     return t.type === 'venda' ? -abs : abs;
   };
 

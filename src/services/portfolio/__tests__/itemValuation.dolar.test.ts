@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { valuatePortfolioItem, type ItemValuationInput } from '../itemValuation';
+import { somarCustoEmBrl, valuatePortfolioItem, type ItemValuationInput } from '../itemValuation';
 
 /**
  * Carteira EUA em US$ (FB): a valoração converte pela unidade GRAVADA (posicaoEmDolar),
@@ -141,5 +141,34 @@ describe('valuatePortfolioItem — posição em US$', () => {
     vi.stubEnv('CARTEIRA_EUA_DOLAR_HABILITADO', 'true');
     const ligada = valuatePortfolioItem(input);
     expect(ligada).toEqual(desligada);
+  });
+});
+
+describe('somarCustoEmBrl', () => {
+  const PETR4 = { type: 'stock', currency: 'BRL' };
+  it('soma o custo em R$: posição em US$ convertida, BRL como gravado', () => {
+    expect(
+      somarCustoEmBrl(
+        [
+          { totalInvested: 3000, asset: PETR4 },
+          { totalInvested: 440, moedaRegistro: null, asset: REIT },
+          { totalInvested: 400, moedaRegistro: 'USD', totalInvestedBrl: 2100, asset: STOCK_USD },
+          { totalInvested: 2160, moedaRegistro: null, asset: STOCK_USD },
+        ],
+        5.4,
+      ),
+    ).toBeCloseTo(3000 + 2376 + 2100 + 2160);
+  });
+
+  it('sem câmbio: posição em US$ sem totalInvestedBrl fica fora', () => {
+    expect(
+      somarCustoEmBrl(
+        [
+          { totalInvested: 3000, asset: PETR4 },
+          { totalInvested: 440, asset: REIT },
+        ],
+        null,
+      ),
+    ).toBe(3000);
   });
 });
