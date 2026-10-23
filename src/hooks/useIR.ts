@@ -22,6 +22,12 @@ export interface IRResumoAnual {
       jcp: number;
       total: number;
     };
+    /** Proventos de Stocks/REITs EUA em R$ (tributáveis, fora dos isentos). */
+    exterior?: {
+      proventos: number;
+      total: number;
+      semCambio: number;
+    };
     totalRecebido: number;
   };
   observacoes: string[];
