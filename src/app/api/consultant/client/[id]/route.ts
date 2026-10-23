@@ -11,7 +11,7 @@ import { authenticateConsultant, assertClientOwnership } from '@/utils/consultan
 
 import { withErrorHandler } from '@/utils/apiErrorHandler';
 import { overrideEfetivo, type CategoriaMovivel } from '@/lib/carteiraMover';
-import { posicaoEmDolar } from '@/lib/ativoEmDolar';
+import { posicaoEmDolar, unidadeDaTransacao } from '@/lib/ativoEmDolar';
 
 const CACHE_CONTROL_HEADER = 'private, no-cache, no-store, must-revalidate';
 
@@ -155,20 +155,36 @@ const getClientRecentCashflows = async (clientId: string) => {
       id: true,
       type: true,
       total: true,
+      quantity: true,
+      price: true,
+      fees: true,
+      notes: true,
       date: true,
-      asset: { select: { symbol: true, name: true, type: true } },
+      asset: { select: { symbol: true, name: true, type: true, currency: true } },
     },
   });
 
-  return movements.map((movement) => ({
-    id: movement.id,
-    type: movement.type.toLowerCase() === 'compra' ? 'Aporte' : 'Resgate',
-    category: movement.asset?.type ?? 'carteira',
-    description: movement.asset?.name ?? movement.asset?.symbol ?? 'Movimentação de carteira',
-    value: movement.total,
-    date: movement.date,
-    paid: true,
-  }));
+  // Transação gravada em US$ entra em R$ (total × câmbio da tx + fees); sem câmbio fica de
+  // fora (nunca US$ como R$). As demais seguem pelo total gravado.
+  const serieCambio = await carregarCambioDasTransacoes(movements);
+  return movements.flatMap((movement) => {
+    const value =
+      unidadeDaTransacao(movement, movement.asset) === 'USD'
+        ? valorTransacaoEmReais(movement, serieCambio)
+        : movement.total;
+    if (value == null) return [];
+    return [
+      {
+        id: movement.id,
+        type: movement.type.toLowerCase() === 'compra' ? 'Aporte' : 'Resgate',
+        category: movement.asset?.type ?? 'carteira',
+        description: movement.asset?.name ?? movement.asset?.symbol ?? 'Movimentação de carteira',
+        value,
+        date: movement.date,
+        paid: true,
+      },
+    ];
+  });
 };
 
 const getClientMonthlyNetHistory = async (clientId: string, months = 12) => {

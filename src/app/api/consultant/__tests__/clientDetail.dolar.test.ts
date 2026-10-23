@@ -128,4 +128,52 @@ describe('GET /api/consultant/client/[id] — Carteira EUA em US$', () => {
     expect(body.portfolio.totalInvested).toBe(3000);
     expect(body.portfolio.currentValue).toBe(3000);
   });
+
+  it('últimas movimentações: compra em US$ em R$ pelo câmbio da tx; sem câmbio fica de fora', async () => {
+    mockGetCotacaoDolarHoje.mockResolvedValue({ taxa: 5.4, data: new Date(), fonte: 'indicador' });
+    mockCarregarSerieCambio.mockResolvedValue(() => null);
+    const reit = (id: string, notes: string | null) => ({
+      id,
+      type: 'compra',
+      total: 1000,
+      quantity: 10,
+      price: 100,
+      fees: 10,
+      date: new Date('2026-05-10T00:00:00Z'),
+      notes,
+      asset: { ...REIT },
+    });
+    mockPrisma.stockTransaction.findMany.mockImplementation(
+      async (args: { where?: { type?: string } }) =>
+        args?.where?.type === 'compra'
+          ? []
+          : [
+              reit(
+                'tx-com-fx',
+                JSON.stringify({ operation: { unidade: 'USD', cotacaoMoeda: 5.2 } }),
+              ),
+              reit('tx-sem-fx', null),
+              {
+                id: 'tx-petr',
+                type: 'venda',
+                total: 3000,
+                quantity: 100,
+                price: 30,
+                fees: 0,
+                date: new Date('2026-05-11T00:00:00Z'),
+                notes: null,
+                asset: { ...PETR4 },
+              },
+            ],
+    );
+
+    const body = await chamar();
+
+    expect(body.recentCashflows.map((m: { id: string; value: number }) => [m.id, m.value])).toEqual(
+      [
+        ['tx-com-fx', 1000 * 5.2 + 10],
+        ['tx-petr', 3000],
+      ],
+    );
+  });
 });
