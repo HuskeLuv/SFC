@@ -266,8 +266,6 @@ describe('Registrar operação — Stocks/REITs', () => {
       quantidade: 2,
       cotacaoUnitaria: 200,
       cotacaoMoeda: 5.5,
-      moeda: 'USD',
-      valorInvestido: 2200,
       taxaCorretagem: 0,
       estrategia: 'value',
     });
@@ -294,7 +292,7 @@ describe('Registrar operação — Stocks/REITs', () => {
     });
   });
 
-  it('REIT sem posição: REIT-MANUAL, valor em US$ e estrategiaReit', async () => {
+  it('REIT sem posição: REIT-MANUAL, US$ + câmbio e estrategiaReit', async () => {
     overlay.posicoes = {};
     comCliente(<ModalRegistrarOperacao {...baseRegistrar} ticker="O" classe="reit" />);
     await screen.findByText('Sem posição atual');
@@ -314,9 +312,9 @@ describe('Registrar operação — Stocks/REITs', () => {
       ativo: 'O',
       cotacaoUnitaria: 57.5,
       cotacaoMoeda: 5.4,
-      valorInvestido: 575,
       estrategiaReit: 'value',
     });
+    expect(ultimoCorpo()).not.toHaveProperty('valorInvestido');
   });
 
   it('câmbio vazio: erro no campo e nada enviado', async () => {

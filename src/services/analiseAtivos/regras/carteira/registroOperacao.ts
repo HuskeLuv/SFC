@@ -9,15 +9,15 @@
  * compra. v2.5 (fatia C): a seção é automática (secaoOperacao nunca fica vazia), então não há mais
  * o erro 'sem_secao'. Funções puras.
  *
- * Stocks e REITs (feature EUA, fatia D) — o MESMO corpo do wizard da Carteira:
- *  - stock → tipoAtivo 'stock', moeda 'USD', cotacaoUnitaria em US$, cotacaoMoeda (US$ → R$),
- *    estrategia, valorInvestido em R$ (q × US$ × câmbio);
- *  - reit  → tipoAtivo 'reit', cotacaoUnitaria em US$, cotacaoMoeda, estrategiaReit, valorInvestido
- *    em US$ (q × US$), como o Step4ReitFields;
+ * Stocks e REITs (feature EUA, fatia D; Carteira EUA em US$, out/2026) — o MESMO corpo nas duas
+ * classes, independente da chave CARTEIRA_EUA_DOLAR_HABILITADO:
+ *  - tipoAtivo 'stock' | 'reit', cotacaoUnitaria em US$, cotacaoMoeda (US$ → R$) e a seção
+ *    (estrategia no stock, estrategiaReit no REIT), SEM valorInvestido: quem decide a unidade da
+ *    gravação (US$, ou R$ no stock legado) é a rota, pela posição;
  *  - assetId = o Asset manual da POSIÇÃO (overlay; a recompra não cria outro Asset) ou
  *    'STOCK-MANUAL' | 'REIT-MANUAL' sem posição; `ativo` = ticker da Análise (BRK.B → 'BRKB-…').
- *  - venda: o preço vai na unidade em que a Carteira guarda a compra (stock: US$ × câmbio; REIT:
- *    US$), com cotacaoMoeda.
+ *  - venda: preço em US$ + cotacaoMoeda (obrigatória no resgate de ativo em dólar); a rota
+ *    converte para a unidade da posição.
  */
 import { ehClasseEua, type ClasseQuadro } from '@/types/analiseAtivosApi';
 
@@ -39,10 +39,7 @@ export interface CorpoCompraEua {
   cotacaoUnitaria: number;
   /** cotação do dólar (US$ → R$) */
   cotacaoMoeda: number;
-  /** stock: R$ (q × US$ × câmbio); REIT: US$ (q × US$) */
-  valorInvestido: number;
   taxaCorretagem: 0;
-  moeda?: 'USD';
   estrategia?: string;
   estrategiaReit?: string;
 }
@@ -110,8 +107,6 @@ export type ErroOperacao =
   | 'cambio_invalido';
 
 const centavos = (v: number): number => Math.round(v * 100) / 100;
-/** preço em R$ de US$ × câmbio, sem perder casas que a Carteira guarda */
-const seisCasas = (v: number): number => Math.round(v * 1e6) / 1e6;
 
 /** Tipo da operação EUA: o do Asset que já existe (overlay) ou o da classe. */
 export function tipoOperacaoEua(
@@ -122,8 +117,8 @@ export function tipoOperacaoEua(
 }
 
 /**
- * Preço por ação na unidade em que a Carteira guarda a compra (Portfolio.avgPrice): stock = US$ ×
- * câmbio (o POST da operação converte); REIT = US$. BR = o próprio preço.
+ * Preço por ação que vai no corpo: EUA = US$ (stock e REIT; a rota converte para a unidade da
+ * posição); BR = o próprio preço. `cambio`/`tipoAsset` ficam na assinatura por compatibilidade.
  */
 export function precoNaCarteira(e: {
   classe: ClasseQuadro;
@@ -131,10 +126,7 @@ export function precoNaCarteira(e: {
   cambio?: number;
   tipoAsset?: TipoOperacaoEua | null;
 }): number {
-  if (!ehClasseEua(e.classe)) return e.cotacao;
-  return tipoOperacaoEua(e.classe, e.tipoAsset) === 'stock'
-    ? seisCasas(e.cotacao * (e.cambio ?? 0))
-    : e.cotacao;
+  return e.cotacao;
 }
 
 /** Total da operação em R$ (EUA: q × US$ × câmbio; BR: q × preço). */
@@ -152,7 +144,7 @@ export function totalEmReais(e: {
 function montarCorpoCompraEua(e: EntradaCompra): CorpoCompraEua {
   const tipo = tipoOperacaoEua(e.classe, e.tipoAsset);
   const cambio = e.cambio ?? 0;
-  const base = {
+  const base: CorpoCompraEua = {
     tipoAtivo: tipo,
     assetId: e.assetId ?? (tipo === 'stock' ? 'STOCK-MANUAL' : 'REIT-MANUAL'),
     ativo: e.ticker.trim().toUpperCase(),
@@ -161,16 +153,9 @@ function montarCorpoCompraEua(e: EntradaCompra): CorpoCompraEua {
     quantidade: e.quantidade,
     cotacaoUnitaria: e.cotacao,
     cotacaoMoeda: cambio,
-    taxaCorretagem: 0 as const,
+    taxaCorretagem: 0,
   };
-  return tipo === 'stock'
-    ? {
-        ...base,
-        moeda: 'USD',
-        valorInvestido: centavos(e.quantidade * e.cotacao * cambio),
-        estrategia: e.secao,
-      }
-    : { ...base, valorInvestido: centavos(e.quantidade * e.cotacao), estrategiaReit: e.secao };
+  return tipo === 'stock' ? { ...base, estrategia: e.secao } : { ...base, estrategiaReit: e.secao };
 }
 
 export function montarCorpoCompra(e: EntradaCompra): CorpoCompraOperacao {
@@ -198,16 +183,7 @@ export function montarCorpoVenda(e: EntradaVenda): CorpoResgateVenda {
     cotacaoUnitaria: e.cotacao,
   };
   if (!e.classe || !ehClasseEua(e.classe)) return corpo;
-  return {
-    ...corpo,
-    cotacaoUnitaria: precoNaCarteira({
-      classe: e.classe,
-      cotacao: e.cotacao,
-      cambio: e.cambio,
-      tipoAsset: e.tipoAsset,
-    }),
-    cotacaoMoeda: e.cambio ?? 0,
-  };
+  return { ...corpo, cotacaoMoeda: e.cambio ?? 0 };
 }
 
 /** Erros na ordem dos campos do modal (o 1º recebe o foco). */
