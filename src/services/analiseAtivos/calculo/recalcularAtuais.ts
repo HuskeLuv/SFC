@@ -107,6 +107,7 @@ import {
 import { fiiTrimestralUltimos } from '@/services/analiseAtivos/repositorio/fii';
 import { menosMeses } from '@/services/analiseAtivos/regras/calculo/proventos';
 import type {
+  AlertaJob,
   CoberturaProventos,
   ContagemAcoes,
   EmissorInfo,
@@ -709,6 +710,62 @@ export interface ResultadoAtuais {
   };
   /** bloco C: relatório do motor de sanidade (só com sanidade.conferencia.ligada) */
   sanidade?: RelatorioSanidade;
+  /**
+   * acoesPct/fiisPct: % das linhas do Quadro com linha de múltiplos atuais (alerta
+   * cobertura_multiplos). comMultiploPct: % com P/L ou P/VP (só informativo: prejuízo com PL negativo
+   * e número de ações sem validação ficam legitimamente sem os dois).
+   */
+  cobertura: {
+    acoesPct: number | null;
+    fiisPct: number | null;
+    acoesComMultiploPct: number | null;
+    fiisComMultiploPct: number | null;
+  };
+}
+
+/** Abaixo disso o job alerta: parte do universo ficou sem múltiplos (antes: cobertura_scores). */
+export const COBERTURA_MULTIPLOS_MIN_PCT = 95;
+
+type CoberturaMultiplos = ResultadoAtuais['cobertura'];
+
+/**
+ * D6-b: substitui o cobertura_scores — o sinal de que o job deixou de gerar derivados para parte do
+ * universo: linha do Quadro (ticker com preço; FII conferido) sem linha de múltiplos atuais.
+ */
+export function coberturaMultiplos(
+  atuais: Pick<Prisma.AssetMultiplesCurrentCreateManyInput, 'symbol' | 'classe' | 'pl' | 'pvp'>[],
+  noQuadro: ReadonlySet<string>,
+  totais: { acao: number; fii: number },
+): CoberturaMultiplos {
+  const pct = (n: number, base: number) =>
+    base > 0 ? Math.round(Math.min(100, (n / base) * 100) * 10) / 10 : null;
+  const linhasDe = (classe: 'acao' | 'fii') =>
+    atuais.filter((a) => a.classe === classe && noQuadro.has(a.symbol));
+  const comMultiplo = (classe: 'acao' | 'fii') =>
+    linhasDe(classe).filter((a) => a.pvp != null || a.pl != null).length;
+  return {
+    acoesPct: pct(linhasDe('acao').length, totais.acao),
+    fiisPct: pct(linhasDe('fii').length, totais.fii),
+    acoesComMultiploPct: pct(comMultiplo('acao'), totais.acao),
+    fiisComMultiploPct: pct(comMultiplo('fii'), totais.fii),
+  };
+}
+
+export function alertasCobertura(c: CoberturaMultiplos): AlertaJob[] {
+  const out: AlertaJob[] = [];
+  for (const [rotulo, v] of [
+    ['ações', c.acoesPct],
+    ['FIIs', c.fiisPct],
+  ] as const) {
+    if (v !== null && v < COBERTURA_MULTIPLOS_MIN_PCT) {
+      out.push({
+        codigo: 'cobertura_multiplos',
+        nivel: 'aviso',
+        mensagem: `cobertura de múltiplos de ${rotulo} ${v.toFixed(1)}% (< ${COBERTURA_MULTIPLOS_MIN_PCT}%)`,
+      });
+    }
+  }
+  return out;
 }
 
 export interface RelatorioSanidade {
@@ -1063,6 +1120,12 @@ export async function recalcularAtuais(
         `${JSON.stringify(porMotivo)}; data-com mais recente da classe ${ultima ?? '—'}`,
     });
   }
+
+  const cobertura = coberturaMultiplos(atuais, noQuadro, {
+    acao: res.noQuadro,
+    fii: fiisRes.noQuadro,
+  });
+  for (const a of alertasCobertura(cobertura)) ctx.alertar(a);
   return {
     dataRef,
     multiplosAtuais: atuais.length,
@@ -1070,5 +1133,6 @@ export async function recalcularAtuais(
     acoes: res,
     fiis: fiisRes,
     ...(sanidade ? { sanidade } : {}),
+    cobertura,
   };
 }
