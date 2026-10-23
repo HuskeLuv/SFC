@@ -17,7 +17,15 @@
  *
  * Sem I/O. Recebe transactions já carregadas com fxRate por operação; retorna
  * apuração mensal cronológica.
+ *
+ * Carteira EUA em US$ (out/2026): `montarTransacoesUs` monta a entrada a partir das
+ * StockTransactions, filtrando por isAtivoEmDolar e lendo o preço pela UNIDADE gravada
+ * (unidadeDaTransacao) — assim `priceUsd × fxRate` é sempre o valor em R$ da operação, sem
+ * dupla conversão do stock legado gravado em R$. O regime (isenção mensal de R$ 35 mil)
+ * não muda nesta fase; a regra anual da Lei 14.754 e a PTAX ficam para a fase 2.
  */
+import { isAtivoEmDolar, unidadeDaTransacao, type AtivoMoedaRef } from '@/lib/ativoEmDolar';
+import type { SerieCambio } from '@/services/market/cambioUsdBrl';
 
 export interface UsTransaction {
   date: Date;
@@ -31,6 +39,11 @@ export interface UsTransaction {
   fxRate: number;
   /** Taxas em BRL (corretagem + IOF de conversão). Default 0. */
   feesBrl?: number;
+  /**
+   * fxRate veio da série USD-BRL na data (câmbio de mercado, aproximado), não da cotação
+   * gravada na operação.
+   */
+  fxAproximado?: boolean;
 }
 
 export interface UsMonthlyResult {
@@ -43,6 +56,8 @@ export interface UsMonthlyResult {
   motivoIsencao: string | null;
   aliquota: number;
   irDevido: number;
+  /** Alguma venda do mês usou o câmbio de mercado da data (sem cotação gravada). */
+  cambioAproximado: boolean;
 }
 
 export interface UsApuracao {
@@ -132,8 +147,83 @@ export function apurarStocksUs(transactions: UsTransaction[]): UsApuracao {
       motivoIsencao,
       aliquota: aliquotaAplicada,
       irDevido,
+      cambioAproximado: sellsOfMonth.some((x) => x.fxAproximado === true),
     });
   }
 
   return { meses };
+}
+
+/** Rótulo do câmbio quando a operação não tem cotação gravada. */
+export const ROTULO_CAMBIO_APROXIMADO = 'câmbio de mercado (aproximado)';
+
+/** Aviso fixo da tela do IR EUA enquanto o regime anual não entra (fase 2). */
+export const AVISO_REGRA_LEI_14754 =
+  'Regra anual da Lei 14.754 em revisão; confira com seu contador.';
+
+/** Recorte da StockTransaction (com o Asset) que a montagem precisa. */
+export interface UsTransactionRow {
+  date: Date;
+  type: string;
+  quantity: number;
+  price: number;
+  fees: number | null;
+  notes: string | null;
+  asset: (AtivoMoedaRef & { symbol?: string | null }) | null;
+}
+
+export interface MontagemTransacoesUs {
+  transactions: UsTransaction[];
+  /** Compras/vendas de ativo em dólar descartadas por falta de câmbio (nem gravado nem série). */
+  semCambio: number;
+  /** Operações que usaram o câmbio de mercado da data (fallback). */
+  comCambioAproximado: number;
+}
+
+/**
+ * Monta a entrada de `apurarStocksUs` a partir das StockTransactions do usuário.
+ *  - Só stock/REIT com currency 'USD' (isAtivoEmDolar): PETR4 nunca entra, mesmo com
+ *    cotacaoMoeda nas notes.
+ *  - fx = cotação gravada na operação; sem ela, a série USD-BRL na data (aproximado).
+ *  - priceUsd = price se a unidade é US$; price ÷ fx se é o stock legado em R$ — o produto
+ *    priceUsd × fx devolve exatamente o R$ gravado.
+ * `cotacaoGravada` é injetada (cotacaoMoedaDasNotes) para o módulo continuar sem I/O.
+ */
+export function montarTransacoesUs(
+  rows: ReadonlyArray<UsTransactionRow>,
+  deps: { cotacaoGravada: (notes: unknown) => number | null; serie: SerieCambio | null },
+): MontagemTransacoesUs {
+  const transactions: UsTransaction[] = [];
+  let semCambio = 0;
+  let comCambioAproximado = 0;
+
+  for (const tx of rows) {
+    if (tx.type !== 'compra' && tx.type !== 'venda') continue;
+    if (!isAtivoEmDolar(tx.asset)) continue;
+
+    const gravado = deps.cotacaoGravada(tx.notes);
+    const fxRate = gravado ?? deps.serie?.(tx.date) ?? null;
+    if (fxRate === null) {
+      semCambio += 1;
+      continue;
+    }
+    const fxAproximado = gravado === null;
+    if (fxAproximado) comCambioAproximado += 1;
+
+    const price = Number(tx.price);
+    const priceUsd = unidadeDaTransacao(tx, tx.asset) === 'USD' ? price : price / fxRate;
+
+    transactions.push({
+      date: tx.date,
+      type: tx.type,
+      symbol: tx.asset?.symbol || 'UNKNOWN',
+      quantity: tx.quantity,
+      priceUsd,
+      fxRate,
+      feesBrl: tx.fees ? Number(tx.fees) : 0,
+      fxAproximado,
+    });
+  }
+
+  return { transactions, semCambio, comCambioAproximado };
 }
