@@ -1360,6 +1360,18 @@ export const buildPatrimonioHistorico = async (
   // com o provento do dia como renda (ver calculateHistoricoTWR/incomeByDay).
   const proventosAcumuladosByDay = new Map<number, number>();
   let diasSemCambio = 0;
+  // Último câmbio de operação por símbolo até o dia: cobre o dia sem ponto na série USD-BRL
+  // (antes do 1º ponto ou série vazia). Sem ele a posição saía do saldo, mas o aplicado
+  // (fluxo pela cotação gravada na operação) ficava — perda fantasma na série e no TWR.
+  const ultimoFxOperacaoBySymbol = new Map<string, { day: number; fx: number }>();
+  fxOperacaoBySymbolDay.forEach((porDia, symbol) => {
+    porDia.forEach((fx, d) => {
+      const atual = ultimoFxOperacaoBySymbol.get(symbol);
+      if (d < timelineStartTs && (!atual || d > atual.day)) {
+        ultimoFxOperacaoBySymbol.set(symbol, { day: d, fx });
+      }
+    });
+  });
 
   // Pre-seed valorAplicado and cashBalance from transactions before the timeline.
   // Without this, assets bought years ago but with maxHistoricoMonths truncation
@@ -1412,6 +1424,11 @@ export const buildPatrimonioHistorico = async (
       proventosAcumulados += proventosByDay.get(day) || 0;
     }
 
+    fxOperacaoBySymbolDay.forEach((porDia, symbol) => {
+      const fx = porDia.get(day);
+      if (fx != null) ultimoFxOperacaoBySymbol.set(symbol, { day, fx });
+    });
+
     transactionsBySymbol.forEach((deltas, symbol) => {
       const qtyDelta = deltas.get(day);
       if (!qtyDelta) return;
@@ -1441,8 +1458,13 @@ export const buildPatrimonioHistorico = async (
       const price = priceMap?.get(day) ?? fallbackPriceBySymbol.get(symbol);
       if (!price || !Number.isFinite(price) || price <= 0) return;
       if (posicaoEmUsd(symbol)) {
-        // Preço em US$ × câmbio do dia (o da operação, no dia dela). Sem câmbio: fora.
-        const fx = fxOperacaoBySymbolDay.get(symbol)?.get(day) ?? serieCambio?.(day) ?? null;
+        // Preço em US$ × câmbio do dia (o da operação, no dia dela; sem ponto na série, o da
+        // última operação do símbolo — o mesmo do aplicado). Sem nenhum: fora.
+        const fx =
+          fxOperacaoBySymbolDay.get(symbol)?.get(day) ??
+          serieCambio?.(day) ??
+          ultimoFxOperacaoBySymbol.get(symbol)?.fx ??
+          null;
         if (fx == null) {
           diasSemCambio += 1;
           return;

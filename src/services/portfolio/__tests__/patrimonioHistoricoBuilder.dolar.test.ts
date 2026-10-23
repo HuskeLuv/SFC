@@ -237,6 +237,32 @@ describe('buildPatrimonioHistorico — ativo em dólar', () => {
     expect(r.cashFlowsByDay.get(dia(D1))).toBe(0);
   });
 
+  it('série vazia, cotação gravada na compra: dias seguintes usam o câmbio da operação (sem perda fantasma)', async () => {
+    const r = await buildPatrimonioHistorico({
+      ...base,
+      stockTransactions: [tx({ notes: JSON.stringify({ cotacaoMoeda: 5.2 }) })],
+      serieCambio: null,
+    });
+    // Saldo e aplicado pelo mesmo câmbio (5,2) em todos os dias: nada sai do saldo e fica no
+    // aplicado, e o TWR não inventa queda.
+    for (const d of [D1, D2, D3]) {
+      expect(pontoEm(r, d).saldoBruto).toBeCloseTo(5200, 2);
+      expect(pontoEm(r, d).valorAplicado).toBeCloseTo(5200, 2);
+      expect(twrEm(r.historicoTWR, d)).toBe(0);
+    }
+  });
+
+  it('série com ponto só depois da compra: antes dele vale o câmbio da operação; depois, a série', async () => {
+    const serieTardia = montarSerieCambio([{ date: new Date(dia(D3)), price: 5.5 }]);
+    const r = await buildPatrimonioHistorico({
+      ...base,
+      stockTransactions: [tx({ notes: JSON.stringify({ cotacaoMoeda: 5.2 }) })],
+      serieCambio: serieTardia,
+    });
+    expect(pontoEm(r, D2).saldoBruto).toBeCloseTo(5200, 2);
+    expect(pontoEm(r, D3).saldoBruto).toBeCloseTo(5500, 2);
+  });
+
   it('sem serieCambio no parâmetro: carrega a série USD-BRL do banco uma vez', async () => {
     mockPrisma.assetPriceHistory.findMany.mockResolvedValue([
       { date: new Date(dia(D1)), price: 5.2 },
