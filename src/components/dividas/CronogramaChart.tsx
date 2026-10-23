@@ -103,7 +103,7 @@ export default function CronogramaChart({ cronograma, parcelasPagas }: Cronogram
     return {
       chart: {
         id: 'divida-cronograma',
-        fontFamily: 'Outfit, sans-serif',
+        fontFamily: 'inherit',
         stacked: true,
         // Mistura coluna + linha: sem isto o Apex tenta empilhar a linha do saldo também.
         stackOnlyBar: true,

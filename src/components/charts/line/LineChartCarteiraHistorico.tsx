@@ -203,7 +203,7 @@ export default function LineChartCarteiraHistorico({
       // (azul suave, custo), Valor Atual = outside (azul-assinatura, destaque).
       colors: ['#6E9DC4', '#0079F2'],
       chart: {
-        fontFamily: 'Outfit, sans-serif',
+        fontFamily: 'inherit',
         height: 335,
         id: 'patrimonio-historico',
         type: 'area',

@@ -83,7 +83,7 @@ function SheetItem({
       isOpen
       onClose={onFechar}
       title={`Onde ${rotulo} vai entrar`}
-      className="font-outfit"
+      className="font-app"
       footer={
         <div className="flex gap-2">
           <SecondaryButton onClick={onFechar}>Voltar</SecondaryButton>
@@ -147,7 +147,7 @@ function SheetGrupo({
       isOpen
       onClose={onFechar}
       title={titulo}
-      className="font-outfit"
+      className="font-app"
       footer={
         <div className="flex gap-2">
           <SecondaryButton onClick={onFechar}>Voltar</SecondaryButton>

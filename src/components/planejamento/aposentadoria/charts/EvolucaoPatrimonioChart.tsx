@@ -55,7 +55,7 @@ export default function EvolucaoPatrimonioChart({
     () => ({
       chart: {
         id: 'apos-evol-patrimonio',
-        fontFamily: 'Outfit, sans-serif',
+        fontFamily: 'inherit',
         type: 'line',
         zoom: { enabled: true, type: 'x', autoScaleYaxis: true },
         toolbar: {

@@ -107,7 +107,7 @@ export default function OrcamentoMensalChart({
   const options: ApexOptions = useMemo(() => {
     const base: ApexOptions = {
       chart: {
-        fontFamily: 'Outfit, sans-serif',
+        fontFamily: 'inherit',
         type: 'bar',
         toolbar: { show: false },
         zoom: { enabled: false },
@@ -120,7 +120,7 @@ export default function OrcamentoMensalChart({
         show: true,
         position: 'top',
         horizontalAlign: 'left',
-        fontFamily: 'Outfit, sans-serif',
+        fontFamily: 'inherit',
         fontSize: '12px',
         labels: { colors: isDarkMode ? '#ffffff' : '#000000' },
       },
@@ -188,7 +188,7 @@ export default function OrcamentoMensalChart({
     const axisLabels = { colors: isDarkMode ? '#98A2B3' : '#64748B', fontSize: '11px' };
     const base: ApexOptions = {
       chart: {
-        fontFamily: 'Outfit, sans-serif',
+        fontFamily: 'inherit',
         type: 'bar',
         toolbar: { show: false },
         zoom: { enabled: false },
@@ -200,7 +200,7 @@ export default function OrcamentoMensalChart({
         show: true,
         position: 'bottom',
         horizontalAlign: 'center',
-        fontFamily: 'Outfit, sans-serif',
+        fontFamily: 'inherit',
         fontSize: '11px',
         labels: { colors: isDarkMode ? '#ffffff' : '#000000' },
         itemMargin: { horizontal: 6, vertical: 1 },

@@ -120,12 +120,12 @@ export default function ProventosDistribuicaoChart({
         show: true,
         position: 'bottom',
         horizontalAlign: 'center',
-        fontFamily: 'Outfit, sans-serif',
+        fontFamily: 'inherit',
         fontSize: '12px',
       },
       colors: COLORS,
       chart: {
-        fontFamily: 'Outfit, sans-serif',
+        fontFamily: 'inherit',
         height: 400,
         type: 'donut',
         toolbar: {

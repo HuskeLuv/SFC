@@ -55,7 +55,7 @@ export default function OrcamentoChart({ linhas, variant = 'default' }: Orcament
     () => ({
       colors: cores,
       labels,
-      chart: { fontFamily: 'Outfit, sans-serif', type: 'donut' },
+      chart: { fontFamily: 'inherit', type: 'donut' },
       stroke: { show: false },
       plotOptions: {
         pie: {
@@ -99,7 +99,7 @@ export default function OrcamentoChart({ linhas, variant = 'default' }: Orcament
       legend: {
         show: true,
         position: 'bottom',
-        fontFamily: 'Outfit, sans-serif',
+        fontFamily: 'inherit',
         fontSize: '12px',
         labels: { colors: isDarkMode ? '#ffffff' : '#000000' },
         markers: { width: 8, height: 8, strokeWidth: 0, radius: 12 },

@@ -72,7 +72,7 @@ const PatrimonioEvolucaoChart: React.FC<PatrimonioEvolucaoChartProps> = ({
     () => ({
       colors: ['#0079F2'],
       chart: {
-        fontFamily: 'Outfit, sans-serif',
+        fontFamily: 'inherit',
         height: 350,
         type: 'area',
         toolbar: {

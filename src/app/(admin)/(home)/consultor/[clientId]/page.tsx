@@ -92,7 +92,7 @@ const wealthChartOptions: ApexOptions = {
     type: 'area',
     height: 320,
     toolbar: { show: false },
-    fontFamily: 'Outfit, sans-serif',
+    fontFamily: 'inherit',
   },
   stroke: {
     width: 3,

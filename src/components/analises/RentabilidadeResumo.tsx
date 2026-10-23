@@ -356,7 +356,7 @@ export default function RentabilidadeResumo({
       return {
         chart: {
           type: 'donut',
-          fontFamily: 'Outfit, sans-serif',
+          fontFamily: 'inherit',
         },
         labels: [],
         series: [],
@@ -366,7 +366,7 @@ export default function RentabilidadeResumo({
     return {
       chart: {
         type: 'donut',
-        fontFamily: 'Outfit, sans-serif',
+        fontFamily: 'inherit',
         width: '100%',
       },
       labels: donutData.labels,
