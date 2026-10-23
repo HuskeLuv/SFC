@@ -485,6 +485,11 @@ const ORDENS_QUADRO = [
   'liquidez',
   'obrigacoesPl',
   'cotistas',
+  'setor',
+  'tipo',
+  'segmento',
+  'imoveis',
+  'naCarteira',
 ] as const;
 
 /** GET /listas/[id]: o zod do Quadro sem os filtros de critério (classe obrigatória). */

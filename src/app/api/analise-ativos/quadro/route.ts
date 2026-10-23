@@ -4,7 +4,7 @@ import {
   analiseAtivosEuaRotulosEnHabilitado,
   analiseAtivosReitFcoAjustadoHabilitado,
 } from '@/lib/analiseAtivosConfig';
-import { prisma } from '@/lib/prisma';
+import { carteiraDoUsuario } from '@/services/analiseAtivos/quadro/carteiraDoUsuario';
 import { withErrorHandler } from '@/utils/apiErrorHandler';
 import { validationError } from '@/utils/validation-schemas';
 import {
@@ -30,7 +30,6 @@ import {
   type QuadroParams,
   type QuadroResposta,
 } from '@/types/analiseAtivosApi';
-import { normalizarTickerEua } from '@/types/analiseAtivosEua';
 import {
   JANELAS_CRITERIOS,
   ehIdCriterio,
@@ -88,6 +87,11 @@ const ORDENS = [
   'liquidez',
   'obrigacoesPl',
   'cotistas',
+  'setor',
+  'tipo',
+  'segmento',
+  'imoveis',
+  'naCarteira',
 ] as const;
 
 const schemaQuadro = z.strictObject({
@@ -114,35 +118,6 @@ const schemaQuadro = z.strictObject({
   offset: z.coerce.number().int().min(0).max(10_000).optional(),
   limite: z.coerce.number().int().min(1).max(LIMITE_MAXIMO).optional(),
 });
-
-/** Símbolo manual de stock/REIT da Carteira: 'AAPL-1731234567890-abc' → 'AAPL'. */
-const RE_SIMBOLO_MANUAL = /^([A-Z0-9.]+)-\d{13}-[A-Z0-9]+$/i;
-
-/**
- * Tickers com posição (quantidade > 0) ou planejados (watchlist) do usuário. Cada símbolo entra
- * também NORMALIZADO (sem pontuação, sem o sufixo dos ativos manuais), para casar stocks e REITs
- * (BRK.B ↔ BRKB) — tickers da B3 têm dígito e nunca casam com um ticker EUA.
- */
-async function simbolosDoUsuario(userId: string): Promise<Set<string>> {
-  const [posicoes, planejados] = await Promise.all([
-    prisma.portfolio.findMany({
-      where: { userId, quantity: { gt: 0 }, assetId: { not: null } },
-      select: { asset: { select: { symbol: true } } },
-    }),
-    prisma.watchlist.findMany({
-      where: { userId, assetId: { not: null } },
-      select: { asset: { select: { symbol: true } } },
-    }),
-  ]);
-  const out = new Set<string>();
-  for (const p of [...posicoes, ...planejados]) {
-    const symbol = p.asset?.symbol?.toUpperCase();
-    if (!symbol) continue;
-    out.add(symbol);
-    out.add(normalizarTickerEua(RE_SIMBOLO_MANUAL.exec(symbol)?.[1] ?? symbol));
-  }
-  return out;
-}
 
 export const GET = withErrorHandler(async (request: NextRequest) => {
   const inicio = performance.now();
@@ -175,18 +150,21 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     );
   }
 
-  const [versao, linhas, linhasDb, naCarteira] = await Promise.all([
+  const [versao, linhas, linhasDb, carteira] = await Promise.all([
     versaoQuadro(),
     obterLinhasQuadroApi(undefined, { janela: params.janela }),
     obterLinhasQuadro(),
-    params.naCarteira ? simbolosDoUsuario(targetUserId) : Promise.resolve(undefined),
+    params.naCarteira || params.ordem === 'naCarteira'
+      ? carteiraDoUsuario(targetUserId)
+      : Promise.resolve(undefined),
   ]);
   const dataRef = linhasDb[0]?.dataRef ? linhasDb[0].dataRef.toISOString().slice(0, 10) : null;
 
   const corpo: QuadroResposta = consultarQuadro({
     params,
     linhas,
-    naCarteira,
+    naCarteira: carteira?.todos,
+    carteiraOrdem: carteira,
     versao,
     dataRef,
     hoje: new Date().toISOString().slice(0, 10),

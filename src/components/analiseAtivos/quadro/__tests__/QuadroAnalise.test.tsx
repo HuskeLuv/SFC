@@ -181,9 +181,8 @@ describe('QuadroAnalise', () => {
       screen.getByRole('button', { name: `Ordenar por ${nome}` }).closest('th')!;
     expect(th('Ativo')).toHaveAttribute('aria-sort', 'ascending');
     expect(th('P/L')).toHaveAttribute('aria-sort', 'none');
-    expect(screen.getByRole('columnheader', { name: 'Na carteira' })).not.toHaveAttribute(
-      'aria-sort',
-    );
+    // 23/10 (HTML do Pedro): Na carteira também ordena (posição > planejado > resto)
+    expect(th('Na carteira')).toHaveAttribute('aria-sort', 'none');
     expect(screen.getByRole('button', { name: 'A–Z' })).toHaveAttribute('aria-pressed', 'true');
     expect(quadro.ultimoFiltro).toMatchObject({ ordem: 'ticker', dir: 'asc', janela: 5 });
     fireEvent.click(screen.getByRole('button', { name: 'Ordenar por P/L' }));

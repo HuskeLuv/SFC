@@ -17,7 +17,12 @@ import {
   obterCriteriaParamsQuadro,
   obterLinhasQuadroApi,
 } from '@/services/analiseAtivos/leitura/linhasQuadro';
-import { compararLinhas, definicoesQuadro } from '@/services/analiseAtivos/quadro/consultaQuadro';
+import {
+  compararLinhas,
+  definicoesQuadro,
+  type CarteiraOrdem,
+} from '@/services/analiseAtivos/quadro/consultaQuadro';
+import { carteiraDoUsuario } from '@/services/analiseAtivos/quadro/carteiraDoUsuario';
 import { MARCO_CRITERIOS } from '@/services/analiseAtivos/salvos/contrato';
 import {
   contagemDe,
@@ -82,6 +87,8 @@ export interface EntradaLinhasLista {
   marcos: ReadonlyMap<string, unknown>;
   ordem?: OrdemQuadro;
   dir?: DirecaoOrdem;
+  /** só com ordem 'naCarteira' */
+  carteira?: CarteiraOrdem;
 }
 
 /** Parte PURA: junta itens e linhas do Quadro, separa os de fora e ordena. */
@@ -117,7 +124,7 @@ export function montarLinhasDaLista(e: EntradaLinhasLista): {
     const anterior = criteriosAnteriorDoMarco(e.marcos.get(item.symbol), item.createdAt);
     linhas.push({ ...linha, adicionadoEm, ...(anterior ? { criteriosAnterior: anterior } : {}) });
   }
-  linhas.sort(compararLinhas(e.ordem ?? 'ticker', e.dir ?? 'asc'));
+  linhas.sort(compararLinhas(e.ordem ?? 'ticker', e.dir ?? 'asc', e.carteira));
   foraDoQuadro.sort((a, b) => a.ticker.localeCompare(b.ticker));
   return { linhas, foraDoQuadro };
 }
@@ -141,10 +148,11 @@ export async function linhasDaLista(
   const janela = params.janela ?? JANELA_PADRAO;
   const itens = await itensDaLista(userId, lista.id);
   const daClasse = itens.filter((i) => i.classe === params.classe).map((i) => i.symbol);
-  const [linhasQuadro, marcos, criteriaParams] = await Promise.all([
+  const [linhasQuadro, marcos, criteriaParams, carteira] = await Promise.all([
     obterLinhasQuadroApi(params.classe, { janela }),
     marcosCriterios(daClasse),
     obterCriteriaParamsQuadro(),
+    params.ordem === 'naCarteira' ? carteiraDoUsuario(userId) : Promise.resolve(undefined),
   ]);
   const { linhas, foraDoQuadro } = montarLinhasDaLista({
     classe: params.classe,
@@ -153,6 +161,7 @@ export async function linhasDaLista(
     marcos,
     ordem: params.ordem,
     dir: params.dir,
+    carteira,
   });
   const contagem = contagemDe(itens);
   return {
