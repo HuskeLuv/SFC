@@ -8,9 +8,13 @@ import {
   buildDailyTimeline,
   calculateHistoricoTWR,
   normalizeDateStart,
+  valorTransacaoEmReais,
 } from '@/services/portfolio/patrimonioHistoricoBuilder';
 import { nextBusinessDayB3 } from '@/utils/feriadosB3';
-import { resolveProventoEvents } from '@/services/portfolio/resolveProventos';
+import { loadProventosByDay } from '@/services/portfolio/proventosByDay';
+import { unidadeDaTransacao } from '@/lib/ativoEmDolar';
+import { fxDaTransacao } from '@/services/market/cambioUsdBrl';
+import { carregarCambioDasTransacoes } from '@/services/cashflow/investimentosPorMes';
 import {
   APPLICABLE_CORPORATE_ACTION_TYPES,
   buildQuantityTimeline,
@@ -98,8 +102,10 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
       quantity: true,
       price: true,
       total: true,
+      fees: true,
+      notes: true,
       date: true,
-      asset: { select: { symbol: true, type: true } },
+      asset: { select: { symbol: true, type: true, currency: true } },
     },
     orderBy: {
       date: 'asc',
@@ -186,6 +192,20 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
   const cashFlowsByDay = new Map<number, number>();
   const pricePointsBySymbol = new Map<string, IndexData[]>();
 
+  // Carteira EUA em US$ (mesma regra do patrimonioHistoricoBuilder): símbolo com transação
+  // gravada em US$ tem preço em US$ e vale q × preço × câmbio do dia (o da operação, no dia
+  // dela; sem ponto na série, o da última operação). Fluxo = total × câmbio da tx + fees R$.
+  // Sem câmbio: fora da soma (nunca US$ como R$).
+  const simbolosEmUsd = new Set<string>();
+  transactionsFiltradas.forEach((trans) => {
+    if (trans.asset?.symbol && unidadeDaTransacao(trans, trans.asset) === 'USD') {
+      simbolosEmUsd.add(trans.asset.symbol);
+    }
+  });
+  const serieCambio =
+    simbolosEmUsd.size > 0 ? await carregarCambioDasTransacoes(transactionsFiltradas) : null;
+  const fxOperacaoBySymbolDay = new Map<string, Map<number, number>>();
+
   transactionsFiltradas.forEach((trans) => {
     const symbol = trans.asset?.symbol;
     if (!symbol) return;
@@ -197,12 +217,23 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     const dayKey = nextBusinessDayB3(rawDayKey);
     const value = getTransactionValue(trans);
 
+    if (simbolosEmUsd.has(symbol)) {
+      const fx = fxDaTransacao(trans.notes, trans.date, serieCambio);
+      if (fx != null) {
+        if (!fxOperacaoBySymbolDay.has(symbol)) fxOperacaoBySymbolDay.set(symbol, new Map());
+        fxOperacaoBySymbolDay.get(symbol)!.set(dayKey, fx);
+      }
+    }
+
     // Pré-janela: a timeline de quantidade split-aware (buildQuantityTimeline)
     // já captura a posição herdada; não precisa de preStartQuantities.
     if (dayKey < timelineStart.getTime()) return;
 
-    const cashFlowDelta = trans.type === 'compra' ? value : -value;
-    cashFlowsByDay.set(dayKey, (cashFlowsByDay.get(dayKey) || 0) + cashFlowDelta);
+    const valorEmReais = valorTransacaoEmReais(trans, serieCambio);
+    if (valorEmReais != null) {
+      const cashFlowDelta = trans.type === 'compra' ? valorEmReais : -valorEmReais;
+      cashFlowsByDay.set(dayKey, (cashFlowsByDay.get(dayKey) || 0) + cashFlowDelta);
+    }
 
     // Preço CRU da transação como ponto-âncora (des-ajustado pelo split mais
     // abaixo, pra casar com a escala ajustada do preço de mercado e a quantidade
@@ -220,14 +251,14 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
   // Proventos BRUTOS entram como renda no `bookingDay` (= DATA-COM snapada pro
   // pregão), espelhando o Gorila (decisão de produto 31/08/2026) — inclui
   // provisionados (data-com passada, pagamento futuro). NÃO são cashflow (não
-  // entram em cashFlowsByDay): são retorno.
+  // entram em cashFlowsByDay): são retorno. Provento em US$ já vem em R$ pela taxa
+  // da data de pagamento (loadProventosByDay); sem taxa fica fora.
   const proventosByDay = new Map<number, number>();
-  const { events: proventoEvents } = await resolveProventoEvents(targetUserId);
-  for (const ev of proventoEvents) {
-    if (!(ev.gross > 0)) continue;
-    const dayKey = ev.bookingDay;
+  const { proventosByDay: proventosTodos } = await loadProventosByDay(targetUserId);
+  for (const [dayKey, bruto] of proventosTodos) {
+    if (!(bruto > 0)) continue;
     if (dayKey < timelineStart.getTime() || dayKey > today.getTime()) continue;
-    proventosByDay.set(dayKey, (proventosByDay.get(dayKey) || 0) + ev.gross);
+    proventosByDay.set(dayKey, bruto);
   }
 
   const entries = await Promise.all(
@@ -290,9 +321,21 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
 
   const portfolioValues: IndexData[] = [];
   let proventosAcumulados = 0;
+  let diasSemCambio = 0;
+  const ultimoFxOperacaoBySymbol = new Map<string, number>();
+  fxOperacaoBySymbolDay.forEach((porDia, symbol) => {
+    const anteriores = [...porDia.keys()].filter((d) => d < timeline[0]).sort((a, b) => a - b);
+    if (anteriores.length > 0) {
+      ultimoFxOperacaoBySymbol.set(symbol, porDia.get(anteriores[anteriores.length - 1])!);
+    }
+  });
 
   for (const day of timeline) {
     let portfolioTotal = 0;
+    fxOperacaoBySymbolDay.forEach((porDia, symbol) => {
+      const fx = porDia.get(day);
+      if (fx != null) ultimoFxOperacaoBySymbol.set(symbol, fx);
+    });
 
     pricesBySymbol.forEach((priceMap, symbol) => {
       const qtyTimeline = quantityTimelineBySymbol.get(symbol);
@@ -312,9 +355,21 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
       const quantity = cumFactorAfter ? actualQty * cumFactorAfter(day) : actualQty;
 
       const price = priceMap.get(day);
-      if (price && price > 0) {
-        portfolioTotal += quantity * price;
+      if (!(price && price > 0)) return;
+      if (simbolosEmUsd.has(symbol)) {
+        const fx =
+          fxOperacaoBySymbolDay.get(symbol)?.get(day) ??
+          serieCambio?.(day) ??
+          ultimoFxOperacaoBySymbol.get(symbol) ??
+          null;
+        if (fx == null) {
+          diasSemCambio += 1;
+          return;
+        }
+        portfolioTotal += quantity * price * fx;
+        return;
       }
+      portfolioTotal += quantity * price;
     });
 
     // Caixa de proventos acumulada até o dia — usada só na série do MWR
@@ -326,6 +381,12 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
       value: Math.round((portfolioTotal + proventosAcumulados) * 100) / 100,
       marketValue: Math.round(portfolioTotal * 100) / 100,
     });
+  }
+
+  if (diasSemCambio > 0) {
+    logger.warn(
+      `[carteira-historico] ${diasSemCambio} ponto(s) de posição em US$ sem câmbio: fora da soma`,
+    );
   }
 
   if (portfolioValues.length > 1) {
