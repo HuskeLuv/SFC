@@ -99,6 +99,8 @@ export interface MetricCardConfig {
    * definida, tem precedência sobre `color`.
    */
   getColor?: (resumo: Record<string, unknown>, necessidadeAporte?: number) => MetricCardColor;
+  /** Linha de apoio sob o valor (ex.: abas EUA: "equivale a R$ X"). Sem cor de alta/baixa. */
+  getSubtitle?: (resumo: Record<string, unknown>) => string | null | undefined;
 }
 
 /**
@@ -192,9 +194,19 @@ export interface GenericAssetTableProps<TAtivo, TSecao> {
    * (totalCarteira = resumo.totais.dinheiro) é em BRL. Não afeta
    * percentualCarteira/necessidadeAporte, que são relativos à própria aba.
    * Se null/ausente (cotação indisponível), mantém o comportamento anterior
-   * (sem conversão).
+   * (sem conversão). Também converte o valor-alvo da classe (necessidadeAporteMap,
+   * em R$) para a moeda da aba quando ele vira a base da necessidade de aporte.
    */
   cotacaoParaBRL?: number | null;
+
+  /**
+   * Formato do Caixa para Investir da aba (padrão: formatCurrency). O caixa é sempre R$,
+   * inclusive nas abas em US$ (Stocks/REIT's).
+   */
+  formatCaixa?: (value: number) => string;
+
+  /** Faixa acima dos cards (ex.: câmbio das abas EUA). Desktop e celular. */
+  topo?: ReactNode;
 
   // normalizedSections override — some tables need custom section normalization
   normalizedSections?: TSecao[];
@@ -237,6 +249,47 @@ interface GenericSectionProps<TAtivo, TSecao> {
   onRemovePlanejado: (planejadoId: string) => void;
   /** Mover ligado: a seção vira alvo e as linhas ganham alça e menu (coluna extra no fim). */
   mover?: SecaoMover<TAtivo>;
+}
+
+/**
+ * Linha extra de total (abaixo do TOTAL GERAL), alinhada às colunas da tabela: célula por
+ * `key` da coluna, '-' onde não houver valor. Ex.: abas EUA ("Equivale a (R$)", "TOTAL EM
+ * USD"). `comMover` reserva a coluna da alça/menu do mover.
+ */
+export function LinhaTotalExtra<TAtivo, TSecao>({
+  columns,
+  rotulo,
+  celulas,
+  comMover = false,
+  vazio = '-',
+  className,
+}: {
+  columns: ColumnDef<TAtivo, TSecao>[];
+  rotulo: ReactNode;
+  celulas: Partial<Record<string, ReactNode>>;
+  comMover?: boolean;
+  /** Conteúdo das colunas sem valor (padrão '-'). */
+  vazio?: ReactNode;
+  className?: string;
+}) {
+  return (
+    <tr className={twMerge(TABLE_STYLES.totalRow, className)}>
+      {columns.map((col, idx) => {
+        const alignClass =
+          col.align === 'right'
+            ? 'text-right'
+            : col.align === 'center'
+              ? 'text-center'
+              : 'text-left';
+        return (
+          <td key={col.key} className={`${TABLE_STYLES.compact.td} font-semibold ${alignClass}`}>
+            {idx === 0 ? rotulo : (celulas[col.key] ?? vazio)}
+          </td>
+        );
+      })}
+      {comMover ? <td className={TABLE_STYLES.compact.td} aria-hidden /> : null}
+    </tr>
+  );
 }
 
 /**
@@ -511,6 +564,8 @@ export default function GenericAssetTable<TAtivo, TSecao>({
   formatNumber,
   totalCarteira = 0,
   cotacaoParaBRL = null,
+  formatCaixa,
+  topo,
   normalizedSections: normalizedSectionsProp,
   dataComRisco: dataComRiscoProp,
   extraTotalRows,
@@ -555,9 +610,12 @@ export default function GenericAssetTable<TAtivo, TSecao>({
     // Aba VAZIA (só planejados, sem caixa): a necessidade de aporte não tem
     // base (0 × objetivo). Usa o valor-alvo da classe na Alocação de Ativos —
     // que, com a aba zerada, é exatamente a necessidade da classe no card.
-    const alvoClasse = necessidadeAporteKey
+    // O alvo é R$; nas abas em US$ (cotacaoParaBRL) vira US$ para servir de base à aba.
+    const alvoClasseBRL = necessidadeAporteKey
       ? ((necessidadeAporteMap as Record<string, number>)[necessidadeAporteKey] ?? 0)
       : 0;
+    const alvoClasse =
+      cotacaoParaBRL != null && cotacaoParaBRL > 0 ? alvoClasseBRL / cotacaoParaBRL : alvoClasseBRL;
     const baseAporte = totalTabValue > 0 ? totalTabValue : alvoClasse;
     const shouldCalculateRisco = totalCarteira > 0;
     const secoes = getSecoes(data);
@@ -760,7 +818,7 @@ export default function GenericAssetTable<TAtivo, TSecao>({
       key={key}
       title={title}
       value={(resumo?.caixaParaInvestir as number) ?? 0}
-      formatCurrency={(value) => formatCurrency(value ?? 0)}
+      formatCurrency={(value) => (formatCaixa ?? formatCurrency)(value ?? 0)}
       onSave={onUpdateCaixaParaInvestir}
       color={card.color ?? 'success'}
     />
@@ -783,6 +841,7 @@ export default function GenericAssetTable<TAtivo, TSecao>({
       }));
     const mobileContent = (
       <div className="space-y-4">
+        {topo}
         <AssetTabMobileSummary
           heroLabel="Valor atualizado"
           heroValue={
@@ -963,6 +1022,7 @@ export default function GenericAssetTable<TAtivo, TSecao>({
 
   return (
     <div className="space-y-4">
+      {topo}
       {/* Metric cards */}
       <div className={`grid grid-cols-2 gap-4 md:grid-cols-3 ${metricGridCols}`}>
         {metricCards.map((card, idx) => {
@@ -972,18 +1032,21 @@ export default function GenericAssetTable<TAtivo, TSecao>({
               <CaixaParaInvestirCard
                 key={idx}
                 value={(resumo?.caixaParaInvestir as number) ?? 0}
-                formatCurrency={(value) => formatCurrency(value ?? 0)}
+                formatCurrency={(value) => (formatCaixa ?? formatCurrency)(value ?? 0)}
                 onSave={onUpdateCaixaParaInvestir}
                 color={card.color ?? 'success'}
               />
             );
           }
 
+          const subtitulo = card.getSubtitle?.(resumo);
           return (
             <MetricCard
               key={idx}
               title={card.title}
               value={card.getValue(resumo, necessidadeAporteTotalCalculada)}
+              change={subtitulo ?? undefined}
+              changeDirection={subtitulo ? 'neutral' : undefined}
               color={
                 card.getColor ? card.getColor(resumo, necessidadeAporteTotalCalculada) : card.color
               }

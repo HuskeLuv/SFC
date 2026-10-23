@@ -529,6 +529,50 @@ describe('GenericAssetTable — aba vazia com planejado', () => {
     expect(screen.getAllByText('R$ 1000.00').length).toBeGreaterThanOrEqual(2);
     contextMock.necessidadeAporteMap = {};
   });
+
+  it('aba em US$ (cotacaoParaBRL): o valor-alvo em R$ vira US$ antes de servir de base', () => {
+    contextMock.necessidadeAporteMap = { stocks: 5000 };
+    const planejado: TestAtivo & { planejado: boolean } = {
+      id: 'plan-1',
+      ticker: 'MSFT',
+      nome: 'Microsoft',
+      valorAtualizado: 0,
+      objetivo: 20,
+      percentualCarteira: 0,
+      quantoFalta: 20,
+      necessidadeAporte: 0,
+      planejado: true,
+    };
+    const abaVazia = {
+      secoes: [{ ...mockSecao, ativos: [planejado], totalValorAtualizado: 0 }],
+      totalGeral: { valorAtualizado: 0, objetivo: 20, quantoFalta: 20, necessidadeAporte: 0 },
+      resumo: { caixaParaInvestir: 0, necessidadeAporteTotal: 0 },
+    };
+    const colunas: ColumnDef<TestAtivo, TestSecao>[] = [
+      ...testColumns,
+      {
+        key: 'necessidadeAporte',
+        header: 'Nec. Aporte',
+        align: 'right',
+        render: (ativo, fmt) => fmt.formatCurrency(ativo.necessidadeAporte),
+        renderGrandTotal: (total, fmt) => fmt.formatCurrency(total.necessidadeAporte as number),
+      },
+    ];
+    render(
+      <GenericAssetTable
+        {...buildDefaultProps({
+          data: abaVazia as unknown as Record<string, unknown>,
+          columns: colunas,
+          necessidadeAporteKey: 'stocks',
+          cotacaoParaBRL: 5,
+        })}
+      />,
+      { wrapper: TestWrapper },
+    );
+    // R$ 5.000 ÷ 5 = US$ 1.000 de base; 20% = 200 (na moeda da aba)
+    expect(screen.getAllByText('R$ 200.00').length).toBeGreaterThanOrEqual(2);
+    contextMock.necessidadeAporteMap = {};
+  });
 });
 
 // ---------------------------------------------------------------------------
