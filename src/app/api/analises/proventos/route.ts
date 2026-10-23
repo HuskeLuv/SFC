@@ -19,6 +19,18 @@ import { logSensitiveEndpointAccess } from '@/services/impersonationLogger';
 import { getTtlCache } from '@/lib/simpleTtlCache';
 import { overrideEfetivo, type CategoriaMovivel } from '@/lib/carteiraMover';
 import { abrirParcelasDoEspelho } from '@/services/portfolio/parcelasEspelhoProvento';
+import {
+  isAtivoEmDolar,
+  posicaoEmDolar,
+  unidadeDaTransacao,
+  type AtivoMoedaRef,
+} from '@/lib/ativoEmDolar';
+import {
+  carregarSerieCambio,
+  fxDaTransacao,
+  getCotacaoDolarHoje,
+  type SerieCambio,
+} from '@/services/market/cambioUsdBrl';
 
 import { withErrorHandler } from '@/utils/apiErrorHandler';
 
@@ -62,6 +74,15 @@ interface PortfolioAssetEntry {
   currency?: string | null;
   /** Aba escolhida no "Mover na Carteira" (vale só via overrideEfetivo). */
   categoriaOverride?: string | null;
+  /**
+   * Carteira EUA em US$ (out/2026): stock/REIT em dólar — os proventos dele vêm em US$
+   * (moeda do evento, mesma regra de ProventoEvent.moeda) e são convertidos em R$ aqui.
+   */
+  emDolar: boolean;
+  /** avgPrice/totalInvested gravados em US$ (posicaoEmDolar). */
+  posicaoUsd: boolean;
+  /** Custo em R$ pelo câmbio de cada compra (Portfolio.totalInvestedBrl), quando houver. */
+  totalInvestedBrl: number | null;
 }
 
 interface TransactionPoint {
@@ -292,6 +313,41 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     : [];
   const portfolioById = new Map(portfolio.map((p) => [p.id, p]));
 
+  // Carteira EUA em US$ (out/2026): esta rota devolve tudo em R$. Provento de ativo em dólar
+  // vem em US$ e é convertido UMA vez, pela taxa da data de pagamento (série USD-BRL repetindo
+  // a última taxa); posição em US$ vira R$ pela taxa do dia. Sem taxa: fora da soma, contado
+  // em `semCambio` — nunca somar US$ como R$. Ações BR e demais tipos não passam por aqui.
+  const temAtivoEmDolar = portfolio.some((p) => isAtivoEmDolar(p.asset));
+  const [serieCambio, cotacaoHoje]: [SerieCambio | null, number | null] = temAtivoEmDolar
+    ? await Promise.all([
+        carregarSerieCambio().catch(() => null),
+        getCotacaoDolarHoje()
+          .then((c) => c?.taxa ?? null)
+          .catch(() => null),
+      ])
+    : [null, null];
+  const proventosSemCambio = new Set<string>();
+  /** Valor de provento em R$ (null = ativo em dólar sem câmbio na data → fora da soma). */
+  const proventoEmBrl = (
+    asset: AtivoMoedaRef | null | undefined,
+    symbol: string,
+    valor: number,
+    pagamento: Date,
+  ): number | null => {
+    if (!isAtivoEmDolar(asset)) return valor;
+    const taxa =
+      serieCambio?.(pagamento) ?? (pagamento.getTime() > Date.now() ? cotacaoHoje : null);
+    if (taxa === null) {
+      proventosSemCambio.add(`${symbol}\0${pagamento.getTime()}`);
+      return null;
+    }
+    return valor * taxa;
+  };
+  const refMoeda = (entry: PortfolioAssetEntry): AtivoMoedaRef => ({
+    type: entry.assetType,
+    currency: entry.currency,
+  });
+
   const portfolioAssets: PortfolioAssetEntry[] = portfolio
     .map((item) => {
       const symbol = item.asset?.symbol;
@@ -310,6 +366,9 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
         assetId: item.assetId,
         currency: item.asset?.currency ?? null,
         categoriaOverride: item.categoriaOverride ?? null,
+        emDolar: isAtivoEmDolar(item.asset),
+        posicaoUsd: posicaoEmDolar(item, item.asset),
+        totalInvestedBrl: item.totalInvestedBrl ?? null,
       };
     })
     .filter(Boolean) as PortfolioAssetEntry[];
@@ -407,6 +466,16 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     const price = quote || asset.avgPrice;
     const current = price > 0 ? price * asset.quantity : 0;
     const invested = asset.avgPrice * asset.quantity;
+    if (asset.posicaoUsd) {
+      // Posição em US$: R$ pela taxa do dia (aplicado: custo em R$ gravado, se houver).
+      // Sem taxa, fica fora de YoC/DY.
+      if (cotacaoHoje === null) return;
+      assetValuesBySymbol.set(asset.symbol, {
+        invested: asset.totalInvestedBrl ?? invested * cotacaoHoje,
+        current: current * cotacaoHoje,
+      });
+      return;
+    }
     assetValuesBySymbol.set(asset.symbol, { invested, current });
   });
 
@@ -503,8 +572,14 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
       // Kinvo statement). Para JCP isto = bruto × 0.85; pra dividendos comuns
       // e rendimentos isentos, equivale ao bruto. O IR/DAA usa bruto via
       // d.valorUnitario diretamente (rota separada `ir-resumo-anual`).
-      const valor =
-        Math.round(quantidade * (d.valorUnitarioLiquido ?? d.valorUnitario) * 100) / 100;
+      const valorUnitarioBrl = proventoEmBrl(
+        refMoeda(asset),
+        asset.symbol,
+        d.valorUnitarioLiquido ?? d.valorUnitario,
+        d.date,
+      );
+      if (valorUnitarioBrl === null) return;
+      const valor = Math.round(quantidade * valorUnitarioBrl * 100) / 100;
       proventos.push({
         id: `${asset.symbol}-${dateTime}-${index}`,
         data: dataBase.toISOString(),
@@ -516,7 +591,7 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
         classe,
         valor,
         quantidade,
-        valorUnitario: d.valorUnitarioLiquido ?? d.valorUnitario,
+        valorUnitario: valorUnitarioBrl,
         status: d.date.getTime() > hojeMs ? ('a_receber' as const) : ('realizado' as const),
       });
     });
@@ -540,7 +615,13 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     if (endDateTime && dateTime > endDateTime) return;
 
     const quantidade = mp.quantidadeBase || 0;
-    const liquido = netValueOfManualProvento(mp);
+    const liquido = proventoEmBrl(
+      pf?.asset,
+      symbol,
+      netValueOfManualProvento(mp),
+      mp.dataPagamento,
+    );
+    if (liquido === null) return;
     const valor = Math.round(liquido * 100) / 100;
     proventos.push({
       id: `manual-${mp.id}`,
@@ -594,7 +675,13 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
       const qtdHist = getQuantityAtDate(timeline, eligibilityDate);
       const quantidade = qtdHist > 0 ? qtdHist : timeline.length === 0 ? asset.quantity : 0;
       if (quantidade <= 0) continue;
-      const valor = quantidade * (d.valorUnitarioLiquido ?? d.valorUnitario);
+      const valor = proventoEmBrl(
+        refMoeda(asset),
+        asset.symbol,
+        quantidade * (d.valorUnitarioLiquido ?? d.valorUnitario),
+        d.date,
+      );
+      if (valor === null) continue;
       addLifetime(asset.symbol, valor, dateTime);
       if (dateTime >= doze_m_ms_row) addUlt12m(asset.symbol, valor);
     }
@@ -606,7 +693,13 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     if (!isValidProventoDate(mp.dataPagamento)) return;
     const dateTime = dataBaseDe(mp.dataPagamento, mp.dataCom).getTime();
     if (dateTime > hojeMs) return;
-    const liquido = netValueOfManualProvento(mp);
+    const liquido = proventoEmBrl(
+      pf?.asset,
+      symbol,
+      netValueOfManualProvento(mp),
+      mp.dataPagamento,
+    );
+    if (liquido === null) return;
     addLifetime(symbol, liquido, dateTime);
     if (dateTime >= doze_m_ms_row) addUlt12m(symbol, liquido);
   });
@@ -710,7 +803,9 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
       if (!asset) return;
 
       const classe = mapAssetTypeToClasse(asset);
-      const quote = quotes.get(symbol) ?? asset.avgPrice;
+      // Posição em US$: preço médio e cotação exibidos em R$ pela taxa do dia, como o resto.
+      const fatorPosicao = asset.posicaoUsd ? (cotacaoHoje ?? 0) : 1;
+      const quote = (quotes.get(symbol) ?? asset.avgPrice) * fatorPosicao;
 
       // Último provento por cota (ordenado por data asc)
       const sortedItems = [...data.items].sort(
@@ -721,7 +816,7 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
 
       data.classe = classe;
       data.quantidadeAtual = asset.quantity;
-      data.precoMedio = asset.avgPrice;
+      data.precoMedio = asset.avgPrice * fatorPosicao;
       data.cotacaoAtual = quote;
       data.ultimoProvento = ultimoProvento;
       data.ultimoProventoTotal = Math.round(ultimoProventoTotal * 100) / 100;
@@ -844,7 +939,13 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
       if (manualProventoKeys.has(proventoDedupKey(asset.symbol, d.date, d.tipo))) continue;
       const quantidade = asset.quantity;
       if (quantidade <= 0) continue;
-      const valor = quantidade * (d.valorUnitarioLiquido ?? d.valorUnitario);
+      const valor = proventoEmBrl(
+        refMoeda(asset),
+        asset.symbol,
+        quantidade * (d.valorUnitarioLiquido ?? d.valorUnitario),
+        d.date,
+      );
+      if (valor === null) continue;
       accumulateFuture(asset.symbol, asset.name || asset.symbol, dateTime, valor);
     }
   }
@@ -857,7 +958,14 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     const dateTime = mp.dataPagamento.getTime();
     if (dateTime <= hojeKpiMs) return;
     const name = pf?.asset?.name || symbol;
-    accumulateFuture(symbol, name, dateTime, netValueOfManualProvento(mp));
+    const liquido = proventoEmBrl(
+      pf?.asset,
+      symbol,
+      netValueOfManualProvento(mp),
+      mp.dataPagamento,
+    );
+    if (liquido === null) return;
+    accumulateFuture(symbol, name, dateTime, liquido);
   });
 
   const topPayer = (
@@ -892,10 +1000,14 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
       const qtdHist = getQuantityAtDate(timeline, eligibilityDate);
       const quantidade = qtdHist > 0 ? qtdHist : timeline.length === 0 ? asset.quantity : 0;
       if (quantidade <= 0) continue;
-      proventosRealizadosTodos.push({
-        data: dateTime,
-        valor: quantidade * (d.valorUnitarioLiquido ?? d.valorUnitario),
-      });
+      const valor = proventoEmBrl(
+        refMoeda(asset),
+        asset.symbol,
+        quantidade * (d.valorUnitarioLiquido ?? d.valorUnitario),
+        d.date,
+      );
+      if (valor === null) continue;
+      proventosRealizadosTodos.push({ data: dateTime, valor });
     }
   }
 
@@ -907,7 +1019,14 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     if (!isValidProventoDate(mp.dataPagamento)) return;
     const dateTime = dataBaseDe(mp.dataPagamento, mp.dataCom).getTime();
     if (dateTime > hojeKpiMs) return;
-    proventosRealizadosTodos.push({ data: dateTime, valor: netValueOfManualProvento(mp) });
+    const liquido = proventoEmBrl(
+      pf?.asset,
+      symbol,
+      netValueOfManualProvento(mp),
+      mp.dataPagamento,
+    );
+    if (liquido === null) return;
+    proventosRealizadosTodos.push({ data: dateTime, valor: liquido });
   });
 
   const rendaUlt12m = proventosRealizadosTodos
@@ -925,7 +1044,11 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     .filter((t) => t.type === 'compra' && t.date.getTime() >= doze_m_ms)
     .reduce((s, t) => {
       const total = Number(t.total);
-      return s + (Number.isFinite(total) && total > 0 ? total : t.price * t.quantity);
+      const bruto = Number.isFinite(total) && total > 0 ? total : t.price * t.quantity;
+      if (unidadeDaTransacao(t, t.asset) !== 'USD') return s + bruto;
+      // Compra gravada em US$: R$ pelo câmbio da transação; sem câmbio, fora da soma.
+      const fx = fxDaTransacao(t.notes, t.date, serieCambio);
+      return fx === null ? s : s + bruto * fx;
     }, 0);
 
   // Média mensal do período filtrado: usa o intervalo [startDate, endDate] se ambos definidos;
@@ -1034,5 +1157,7 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     media: Math.round(mediaMensal * 100) / 100,
     corporateActions,
     kpis,
+    // Proventos de Stocks/REITs EUA sem câmbio na data de pagamento (fora das somas).
+    semCambio: proventosSemCambio.size,
   });
 });

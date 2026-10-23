@@ -21,6 +21,11 @@ const mockGetAssetPrices = vi.hoisted(() => vi.fn().mockResolvedValue(new Map())
 const mockGetDividends = vi.hoisted(() => vi.fn().mockResolvedValue([]));
 const mockGetCorporateActions = vi.hoisted(() => vi.fn().mockResolvedValue([]));
 const mockLogSensitiveEndpointAccess = vi.hoisted(() => vi.fn().mockResolvedValue(undefined));
+// Câmbio (Carteira EUA em US$): série por data e taxa do dia; o resto do módulo é o real.
+const mockCambio = vi.hoisted(() => ({
+  serie: vi.fn((_d: Date | number): number | null => null),
+  hoje: vi.fn(async (): Promise<{ taxa: number } | null> => null),
+}));
 
 vi.mock('@/utils/auth', () => ({
   requireAuthWithActing: mockRequireAuthWithActing,
@@ -50,6 +55,12 @@ vi.mock('@/services/impersonationLogger', () => ({
   logSensitiveEndpointAccess: mockLogSensitiveEndpointAccess,
 }));
 
+vi.mock('@/services/market/cambioUsdBrl', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/services/market/cambioUsdBrl')>()),
+  carregarSerieCambio: vi.fn(async () => mockCambio.serie),
+  getCotacaoDolarHoje: () => mockCambio.hoje(),
+}));
+
 import { GET } from '../route';
 
 const createRequest = (params: Record<string, string> = {}) => {
@@ -76,6 +87,8 @@ describe('GET /api/analises/proventos', () => {
     mockPrisma.stockTransaction.findMany.mockResolvedValue([]);
     mockGetAssetPrices.mockResolvedValue(new Map());
     mockGetDividends.mockResolvedValue([]);
+    mockCambio.serie.mockImplementation(() => null);
+    mockCambio.hoje.mockImplementation(async () => null);
   });
 
   it('retorna resposta vazia quando portfolio vazio', async () => {
@@ -1297,6 +1310,111 @@ describe('GET /api/analises/proventos', () => {
       const data = await (await GET(createRequest())).json();
       expect(data.proventos).toHaveLength(1);
       expect(data.proventos[0].valor).toBeCloseTo(251.31, 2);
+    });
+  });
+
+  describe('Carteira EUA em US$: converte pela moeda do evento', () => {
+    const REIT = {
+      id: 'asset-reit',
+      symbol: 'O-1700000000000-abc',
+      name: 'Realty Income',
+      type: 'reit',
+      currency: 'USD',
+    };
+    const PETR4 = {
+      id: 'asset-petr',
+      symbol: 'PETR4',
+      name: 'Petrobras',
+      type: 'stock',
+      currency: 'BRL',
+    };
+
+    const montar = (hoje: Date) => {
+      const compra = new Date(hoje.getTime() - 60 * 86400000);
+      mockPrisma.portfolio.findMany.mockResolvedValue([
+        {
+          id: 'p-reit',
+          userId: 'user-123',
+          quantity: 10,
+          totalInvested: 500, // US$
+          totalInvestedBrl: 2600,
+          moedaRegistro: null, // REIT sem marcador = US$
+          avgPrice: 50,
+          lastUpdate: compra,
+          assetId: 'asset-reit',
+          asset: REIT,
+        },
+        {
+          id: 'p-petr',
+          userId: 'user-123',
+          quantity: 100,
+          totalInvested: 3000,
+          avgPrice: 30,
+          lastUpdate: compra,
+          assetId: 'asset-petr',
+          asset: PETR4,
+        },
+      ]);
+      mockPrisma.stockTransaction.findMany.mockResolvedValue([
+        {
+          type: 'compra',
+          quantity: 10,
+          price: 50,
+          total: 500,
+          date: compra,
+          notes: null,
+          asset: REIT,
+        },
+        {
+          type: 'compra',
+          quantity: 100,
+          price: 30,
+          total: 3000,
+          date: compra,
+          notes: null,
+          asset: PETR4,
+        },
+      ]);
+      const pagamento = new Date(hoje.getTime() - 10 * 86400000);
+      mockGetDividends.mockImplementation(
+        async (symbol: string) =>
+          symbol === REIT.symbol
+            ? [{ date: pagamento, tipo: 'Dividendo', valorUnitario: 0.25 }] // US$ 2,50
+            : [{ date: pagamento, tipo: 'Dividendo', valorUnitario: 0.5 }], // R$ 50
+      );
+      return pagamento;
+    };
+
+    it('provento do REIT vira R$ pela taxa da data de pagamento; PETR4 intacto', async () => {
+      const pagamento = montar(new Date());
+      mockCambio.serie.mockImplementation((d) =>
+        new Date(d).getTime() === pagamento.getTime() ? 5 : 4,
+      );
+      mockCambio.hoje.mockImplementation(async () => ({ taxa: 5.2 }));
+
+      const response = await GET(createRequest());
+      const data = await response.json();
+      const reit = data.proventos.find((p: { symbol: string }) => p.symbol === REIT.symbol);
+      const petr = data.proventos.find((p: { symbol: string }) => p.symbol === 'PETR4');
+      expect(reit.valor).toBe(12.5); // 10 × 0,25 × 5
+      expect(reit.valorUnitario).toBeCloseTo(1.25, 6);
+      expect(petr.valor).toBe(50);
+      expect(data.total).toBe(62.5);
+      expect(data.semCambio).toBe(0);
+      // Aplicado do REIT em R$: custo em R$ gravado (2.600) + PETR4 (3.000); aporte em US$ × fx.
+      expect(data.kpis.totalInvestido).toBe(5600);
+      expect(data.kpis.aportesUlt12m).toBe(3000 + 500 * 4);
+      expect(data.grouped['Realty Income'].precoMedio).toBeCloseTo(50 * 5.2, 6);
+    });
+
+    it('sem câmbio: provento do REIT fica fora da soma (nunca US$ como R$)', async () => {
+      montar(new Date());
+      const response = await GET(createRequest());
+      const data = await response.json();
+      expect(data.proventos.map((p: { symbol: string }) => p.symbol)).toEqual(['PETR4']);
+      expect(data.total).toBe(50);
+      expect(data.semCambio).toBe(1);
+      expect(data.kpis.totalInvestido).toBe(3000);
     });
   });
 
