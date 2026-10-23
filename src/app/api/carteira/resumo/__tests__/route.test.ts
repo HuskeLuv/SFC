@@ -82,6 +82,7 @@ import { loadHistoricoFromSnapshots } from '@/services/portfolio/portfolioSnapsh
 import { triggerLazyBackfill } from '@/services/portfolio/portfolioSnapshotPersistence';
 import { buildPatrimonioHistorico } from '@/services/portfolio/patrimonioHistoricoBuilder';
 import { applyChartAggregation } from '@/services/portfolio/portfolioSeriesAggregation';
+import { getIndicator } from '@/services/market/marketIndicatorService';
 
 const createGetRequest = (params = '') =>
   new NextRequest(`http://localhost/api/carteira/resumo${params}`, {
@@ -185,6 +186,61 @@ describe('GET /api/carteira/resumo', () => {
     const data = await response.json();
     expect(data.distribuicao.fimFia.valor).toBeCloseTo(5000);
     expect(data.distribuicao.rendaFixaFundos.valor).toBe(0);
+  });
+
+  it('REIT em US$ (4 × US$ 110 a 5,4) vale R$ 2.376 no saldo, no aplicado e na pizza', async () => {
+    vi.mocked(getIndicator).mockResolvedValueOnce({ price: 5.4 } as never);
+    mockPrisma.portfolio.findMany.mockResolvedValue([
+      {
+        id: 'p-1',
+        assetId: 'a-reit',
+        quantity: 4,
+        avgPrice: 110,
+        totalInvested: 440,
+        moedaRegistro: null,
+        totalInvestedBrl: null,
+        asset: { symbol: 'O-1700000000000-abc', type: 'reit', currency: 'USD', name: 'Realty' },
+      },
+      {
+        id: 'p-2',
+        assetId: 'a-petr',
+        quantity: 100,
+        avgPrice: 25,
+        totalInvested: 2500,
+        asset: { symbol: 'PETR4', type: 'stock', currency: 'BRL', name: 'Petrobras' },
+      },
+    ]);
+    vi.mocked(getAssetPrices).mockResolvedValue(new Map([['PETR4', 25]]));
+
+    const response = await GET(createGetRequest('?includeHistorico=false'));
+    const data = await response.json();
+    // Antes: 'REIT's R$ 440' (US$ somado como R$).
+    expect(data.distribuicao.reits.valor).toBeCloseTo(2376);
+    expect(data.saldoBruto).toBeCloseTo(2376 + 2500);
+    expect(data.valorAplicado).toBeCloseTo(2376 + 2500);
+    expect(data.distribuicao.acoes.valor).toBeCloseTo(2500);
+    expect(data.cambio).toMatchObject({ cotacaoDolar: 5.4, posicoesSemCambio: 0 });
+  });
+
+  it('REIT em US$ sem câmbio fica fora da soma (semCambio), nunca somado como R$', async () => {
+    mockPrisma.portfolio.findMany.mockResolvedValue([
+      {
+        id: 'p-1',
+        assetId: 'a-reit',
+        quantity: 4,
+        avgPrice: 110,
+        totalInvested: 440,
+        asset: { symbol: 'O-1700000000000-abc', type: 'reit', currency: 'USD', name: 'Realty' },
+      },
+    ]);
+    vi.mocked(getAssetPrices).mockResolvedValue(new Map());
+
+    const response = await GET(createGetRequest('?includeHistorico=false'));
+    const data = await response.json();
+    expect(data.saldoBruto).toBe(0);
+    expect(data.valorAplicado).toBe(0);
+    expect(data.distribuicao.reits.valor).toBe(0);
+    expect(data.cambio).toMatchObject({ cotacaoDolar: null, posicoesSemCambio: 1 });
   });
 
   it('reserva editada vale o MESMO no saldoBruto e na distribuição (avgPrice-first)', async () => {

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireAuthWithActing } from '@/utils/auth';
 import { prisma } from '@/lib/prisma';
 import { getAssetPrices } from '@/services/pricing/assetPriceService';
-import { getIndicator } from '@/services/market/marketIndicatorService';
+import { getCotacaoDolarHoje } from '@/services/market/cambioUsdBrl';
 import { logSensitiveEndpointAccess } from '@/services/impersonationLogger';
 import { Prisma } from '@prisma/client';
 import { deleteTtlCacheKeyPrefix, getTtlCache } from '@/lib/simpleTtlCache';
@@ -11,6 +11,7 @@ import { loadHistoricoFromSnapshots } from '@/services/portfolio/portfolioSnapsh
 import { triggerLazyBackfill } from '@/services/portfolio/portfolioSnapshotPersistence';
 import { createFixedIncomePricer } from '@/services/portfolio/fixedIncomePricing';
 import { valuatePortfolioItem } from '@/services/portfolio/itemValuation';
+import { posicaoEmDolar } from '@/lib/ativoEmDolar';
 import { isFundoType } from '@/lib/fundoTypes';
 import type { FixedIncomeAssetWithAsset } from '@/services/portfolio/patrimonioHistoricoBuilder';
 import {
@@ -222,13 +223,14 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
         /^[A-Za-z]/.test(symbol),
     );
 
-  // Buscar cotações e dólar em paralelo
-  const [quotesResult, dolarIndicator] = await Promise.all([
+  // Buscar cotações e dólar em paralelo. A taxa do dia é obtida UMA vez e passada a todos os
+  // itens (a mesma das abas Stocks/REITs), para aba e resumo não divergirem.
+  const [quotesResult, cotacaoDolarHoje] = await Promise.all([
     getAssetPrices(symbols, { useBrapiFallback: true }),
-    getIndicator('USD-BRL', { useBrapiFallback: true }).catch(() => null),
+    getCotacaoDolarHoje().catch(() => null),
   ]);
   const quotes = quotesResult;
-  const cotacaoDolar = dolarIndicator?.price ?? null;
+  const cotacaoDolar = cotacaoDolarHoje?.taxa ?? null;
 
   // Inicializar contadores para cada categoria (antes do loop)
   const categorias = {
@@ -270,8 +272,13 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
   // saldoBruto e outro na distribuição. Imóveis/personalizados ficam fora de
   // saldoBruto E de valorAplicado (contaNoSaldoBruto=false): contá-los só no
   // aplicado fazia a rentabilidade desabar (ex.: -94% com um imóvel de 500k).
+  // Posição gravada em US$ (REIT, stock com moedaRegistro 'USD') entra no aplicado por
+  // valuation.valorAplicadoBRL (totalInvestedBrl ?? totalInvested × câmbio); sem câmbio
+  // ('semCambio') fica fora das duas somas. As demais seguem com o totalInvested gravado. Os proventos (loadProventosByDay) já
+  // chegam em R$, convertidos pela moeda do evento.
   let stocksTotalInvested = 0;
   let stocksCurrentValue = 0;
+  let posicoesSemCambio = 0;
   for (const item of portfolio) {
     const symbol = item.asset?.symbol;
     const valuation = valuatePortfolioItem({
@@ -285,10 +292,13 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
         : undefined,
       fiGetCurrentValue: fiPricer.getCurrentValue,
     });
+    if (valuation.semCambio) posicoesSemCambio += 1;
     categorias[valuation.categoria] += valuation.valorAtualBRL;
     if (valuation.contaNoSaldoBruto) {
       stocksCurrentValue += valuation.valorAtualBRL;
-      stocksTotalInvested += item.totalInvested;
+      stocksTotalInvested += posicaoEmDolar(item, item.asset)
+        ? valuation.valorAplicadoBRL
+        : item.totalInvested;
     }
   }
 
@@ -646,6 +656,13 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     historicoTWR,
     historicoMWR,
     distribuicao,
+    // Câmbio do dia usado nas posições em US$ (o mesmo das abas Stocks/REITs).
+    // posicoesSemCambio > 0 = posições em US$ fora da soma por falta de câmbio (a tela avisa).
+    cambio: {
+      cotacaoDolar,
+      data: cotacaoDolarHoje?.data.toISOString().slice(0, 10) ?? null,
+      posicoesSemCambio,
+    },
     portfolioDetalhes: {
       totalAcoes: portfolio.length,
       totalInvestimentos: investments.length,
