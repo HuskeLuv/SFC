@@ -124,6 +124,12 @@ export const fetchCryptoQuotes = async (
 
 // ================== CURRENCY API (v2/currency) ==================
 
+/** Número > 0 vindo como number ou string numérica; senão null. */
+const numeroDaCotacao = (valor: unknown): number | null => {
+  const n = typeof valor === 'string' ? parseFloat(valor) : valor;
+  return typeof n === 'number' && Number.isFinite(n) && n > 0 ? n : null;
+};
+
 /**
  * Busca cotações de moedas via endpoint v2/currency da Brapi.
  * Símbolos no formato XXX-BRL (ex: USD-BRL, EUR-BRL).
@@ -153,11 +159,9 @@ export const fetchCurrencyQuotes = async (symbols: string[]): Promise<Map<string
       const item = items[0];
       const bidPrice = item?.bidPrice ?? item?.bid;
       const askPrice = item?.askPrice ?? item?.ask;
-      const price = Number.isFinite(bidPrice)
-        ? bidPrice
-        : Number.isFinite(askPrice)
-          ? askPrice
-          : null;
+      // A BRAPI v2/currency devolve bid/ask como STRING ("5.0385"), que Number.isFinite recusava:
+      // a cotação de moeda saía vazia (provável causa da série USD-BRL parada em 07/06/2026).
+      const price = numeroDaCotacao(bidPrice) ?? numeroDaCotacao(askPrice);
 
       if (price !== null && price > 0) {
         result.set(symbol, price);

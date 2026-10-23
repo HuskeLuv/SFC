@@ -561,3 +561,46 @@ describe('assetPriceService', () => {
     });
   });
 });
+
+// fetchCurrencyQuotes é mockado acima para o assetPriceService; aqui vale a implementação real,
+// que usa o fetch global stubado (mockGlobalFetch).
+describe('fetchCurrencyQuotes (real)', () => {
+  const respostaMoeda = (item: Record<string, unknown>) => ({
+    ok: true,
+    json: async () => ({ currency: [item] }),
+  });
+
+  beforeEach(() => {
+    mockGlobalFetch.mockReset();
+  });
+
+  it('aceita bid em string ("5.0385")', async () => {
+    const { fetchCurrencyQuotes } =
+      await vi.importActual<typeof import('../brapiQuote')>('../brapiQuote');
+    mockGlobalFetch.mockResolvedValueOnce(respostaMoeda({ bidPrice: '5.0385', askPrice: '5.04' }));
+
+    const res = await fetchCurrencyQuotes(['USD-BRL']);
+    expect(res.get('USD-BRL')).toBeCloseTo(5.0385, 6);
+  });
+
+  it('cai no ask quando o bid é inválido', async () => {
+    const { fetchCurrencyQuotes } =
+      await vi.importActual<typeof import('../brapiQuote')>('../brapiQuote');
+    mockGlobalFetch.mockResolvedValueOnce(respostaMoeda({ bidPrice: 'abc', askPrice: '5.04' }));
+
+    const res = await fetchCurrencyQuotes(['USD-BRL']);
+    expect(res.get('USD-BRL')).toBeCloseTo(5.04, 6);
+  });
+
+  it('continua aceitando bid numérico e ignora zero/vazio', async () => {
+    const { fetchCurrencyQuotes } =
+      await vi.importActual<typeof import('../brapiQuote')>('../brapiQuote');
+    mockGlobalFetch
+      .mockResolvedValueOnce(respostaMoeda({ bid: 5.1 }))
+      .mockResolvedValueOnce(respostaMoeda({ bidPrice: '0', askPrice: '' }));
+
+    const res = await fetchCurrencyQuotes(['USD-BRL', 'EUR-BRL']);
+    expect(res.get('USD-BRL')).toBe(5.1);
+    expect(res.has('EUR-BRL')).toBe(false);
+  });
+});
