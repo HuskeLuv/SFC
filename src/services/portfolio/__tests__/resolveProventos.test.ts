@@ -398,4 +398,74 @@ describe('resolveProventoEvents', () => {
       expect(res.total).toBeCloseTo(247.5, 6);
     });
   });
+
+  // Carteira EUA em US$ (F0): contrato de moeda — valor NATIVO + moeda, sem conversão.
+  describe('moeda do evento', () => {
+    it("REIT em USD: moeda 'USD' e valor inalterado (sem câmbio)", async () => {
+      mockPrisma.stockTransaction.findMany.mockResolvedValue([
+        {
+          date: d('2024-01-10'),
+          type: 'compra',
+          quantity: 10,
+          notes: null,
+          asset: { symbol: 'O-1700000000000-abc', type: 'reit', currency: 'USD' },
+        },
+      ]);
+      mockGetDividends.mockResolvedValue([
+        { date: d('2024-03-15'), dataCom: d('2024-02-29'), tipo: 'Dividendo', valorUnitario: 0.25 },
+      ]);
+
+      const res = await resolveProventoEvents('u1');
+      expect(res.events[0]).toMatchObject({ moeda: 'USD', gross: 2.5, net: 2.5 });
+      expect(res.total).toBeCloseTo(2.5, 6);
+    });
+
+    it("PETR4 (stock BRL): moeda 'BRL'", async () => {
+      mockPrisma.stockTransaction.findMany.mockResolvedValue([
+        {
+          date: d('2024-01-10'),
+          type: 'compra',
+          quantity: 100,
+          notes: null,
+          asset: { symbol: 'PETR4', type: 'stock', currency: 'BRL' },
+        },
+      ]);
+      mockGetDividends.mockResolvedValue([
+        { date: d('2024-03-01'), dataCom: d('2024-02-15'), tipo: 'Dividendo', valorUnitario: 0.5 },
+      ]);
+
+      const res = await resolveProventoEvents('u1');
+      expect(res.events[0]).toMatchObject({ symbol: 'PETR4', moeda: 'BRL', gross: 50 });
+    });
+
+    it("provento manual órfão de REIT em USD sai em 'USD', valor como gravado", async () => {
+      mockPrisma.stockTransaction.findMany.mockResolvedValue([
+        {
+          date: d('2024-01-10'),
+          type: 'compra',
+          quantity: 10,
+          notes: null,
+          asset: { symbol: 'O-1700000000000-abc', type: 'reit', currency: 'USD' },
+        },
+      ]);
+      mockPrisma.portfolioProvento.findMany.mockResolvedValue([
+        {
+          dataPagamento: d('2024-05-10'),
+          tipo: 'Dividendo',
+          valorTotal: 3,
+          impostoRenda: 0.9,
+          source: 'manual',
+          dismissed: false,
+          portfolio: {
+            asset: { symbol: 'O-1700000000000-abc', type: 'reit', currency: 'USD' },
+          },
+        },
+      ]);
+
+      const res = await resolveProventoEvents('u1');
+      expect(res.events).toHaveLength(1);
+      expect(res.events[0]).toMatchObject({ moeda: 'USD', gross: 3 });
+      expect(res.events[0].net).toBeCloseTo(2.1, 6);
+    });
+  });
 });
