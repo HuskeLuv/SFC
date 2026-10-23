@@ -7,6 +7,7 @@ import BusinessDayDatePicker from './shared/BusinessDayDatePicker';
 import ReinvestimentoToggle from './shared/ReinvestimentoToggle';
 import { Step4FieldsProps } from './step4Types';
 import { SecaoAtualNaCarteira } from '@/components/carteira/mover/SecaoAtualNaCarteira';
+import { formatUSD } from '@/utils/format';
 
 export default function Step4ReitFields({
   formData,
@@ -77,7 +78,7 @@ export default function Step4ReitFields({
         />
       </div>
       <div>
-        <Label htmlFor="cotacaoUnitaria">Preço da Cota (USD) *</Label>
+        <Label htmlFor="cotacaoUnitaria">Preço da Cota (US$) *</Label>
         <Input
           id="cotacaoUnitaria"
           {...decimalInputProps}
@@ -113,24 +114,21 @@ export default function Step4ReitFields({
         </p>
       </div>
       <div>
-        <Label htmlFor="valorInvestido">Total Investido (USD)</Label>
+        <Label htmlFor="valorInvestido">Total Investido (US$)</Label>
         <Input
           id="valorInvestido"
           type="text"
           placeholder="Calculado automaticamente"
           value={
             formData.quantidade * formData.cotacaoUnitaria > 0
-              ? (formData.quantidade * formData.cotacaoUnitaria).toLocaleString('en-US', {
-                  minimumFractionDigits: 2,
-                  maximumFractionDigits: 2,
-                }) + ' USD'
+              ? formatUSD(formData.quantidade * formData.cotacaoUnitaria)
               : ''
           }
           disabled
           className="bg-gray-50 dark:bg-gray-800"
         />
         <p className="mt-1 text-xs text-gray-500">
-          Calculado automaticamente: Quantidade × Preço por Cota (USD)
+          Calculado automaticamente: Quantidade × Preço por Cota (US$)
         </p>
       </div>
       <ReinvestimentoToggle

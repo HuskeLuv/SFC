@@ -331,6 +331,13 @@ export const RENDA_FIXA_TIPOS_HIBRIDOS = [
   { value: 'LIG_HIB', label: 'LIG Híbrido' },
 ];
 
+/**
+ * Carteira EUA em US$ (out/2026): Stocks EUA e REITs são sempre em dólar — o campo de moeda do
+ * wizard virou texto fixo. MOEDAS_FIXAS fica para rotular compras antigas.
+ */
+export const MOEDA_ATIVO_EUA = 'USD' as const;
+export const MOEDA_ATIVO_EUA_LABEL = 'USD · Dólar americano';
+
 export const MOEDAS_FIXAS = [
   { value: 'USD', label: 'Dólar Americano (USD)' },
   { value: 'EUR', label: 'Euro (EUR)' },
