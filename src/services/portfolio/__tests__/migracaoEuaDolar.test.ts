@@ -137,6 +137,16 @@ describe('planejarMigracaoAsset — stock legado em R$', () => {
     if (plano.status === 'pular') expect(plano.motivo).toMatch(/compra sem cotação/);
   });
 
+  it("stock com unidade 'BRL' explícita (gravado em R$ com a chave desligada) é pulado", () => {
+    const plano = planejarMigracaoAsset(
+      STOCK,
+      [tx({ type: 'compra', price: 500, quantity: 10, notes: notesFx(5, { unidade: 'BRL' }) })],
+      { serie: () => 5 },
+    );
+    expect(plano.status).toBe('pular');
+    if (plano.status === 'pular') expect(plano.motivo).toMatch(/R\$ de propósito/);
+  });
+
   it('venda em US$ só ganha marcador; venda em R$ é dividida pelo câmbio', () => {
     const compra = tx({ type: 'compra', price: 500, quantity: 10, notes: notesFx(5) }); // US$ 100
     const vendaUsd = tx({ type: 'venda', price: 110, quantity: 2, date: d('2025-02-10') });

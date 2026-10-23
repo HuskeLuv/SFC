@@ -208,6 +208,17 @@ export function planejarMigracaoAsset(
     };
   }
 
+  // Stock com unidade 'BRL' explícita foi gravado em R$ de propósito (chave desligada): é
+  // posição em R$ por desenho, não legado sem marcador.
+  const marcadaBrl = operacoes.find(
+    (t) =>
+      (lerNotesTransacao(t.notes)?.operation as Record<string, unknown> | undefined)?.unidade ===
+      'BRL',
+  );
+  if (marcadaBrl) {
+    return { status: 'pular', motivo: `stock gravado em R$ de propósito (${marcadaBrl.id})` };
+  }
+
   // 1) Compras: sem cotação gravada em QUALQUER compra, o Asset inteiro é pulado.
   const compras = operacoes.filter((t) => t.type === 'compra');
   const compraSemFx = compras.find((t) => cotacaoGravada(lerNotesTransacao(t.notes)) === null);
