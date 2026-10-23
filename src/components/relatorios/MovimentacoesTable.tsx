@@ -20,12 +20,41 @@ export interface Movimentacao {
   /** Categoria efetiva (a da pizza/aba, com o mover) — use esta para classificar por classe. */
   categoria: CategoriaCarteira | null;
   quantidade: number;
+  /** Valor em R$ (o que o resumo do período soma). */
   total: number;
   jaInvestido: boolean;
+  /** Unidade gravada da transação (Carteira EUA em US$). Ausente = 'BRL'. */
+  moeda?: 'BRL' | 'USD';
+  /** Total na `moeda` (US$ sem taxas quando moeda = 'USD'). */
+  totalMoeda?: number;
+  /** Câmbio da operação (R$ por US$ 1); null em R$ ou sem câmbio. */
+  cotacaoMoeda?: number | null;
+  /** Total em R$ (US$ × câmbio + taxas); null = sem câmbio. */
+  valorBRL?: number | null;
 }
 
 const brl = (v: number): string =>
   v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+
+const usd = (v: number): string =>
+  v.toLocaleString('pt-BR', { style: 'currency', currency: 'USD' });
+
+/** Linha em US$: valor nativo com o R$ ao lado (ou o aviso de câmbio ausente). */
+function ValorMovimentacao({ mov }: { mov: Movimentacao }) {
+  if (mov.moeda !== 'USD') return <>{brl(mov.total)}</>;
+  const cotacao =
+    mov.cotacaoMoeda != null
+      ? `US$ 1 = R$ ${mov.cotacaoMoeda.toLocaleString('pt-BR', { maximumFractionDigits: 4 })}`
+      : undefined;
+  return (
+    <span className="inline-flex flex-col items-end">
+      <span>{usd(mov.totalMoeda ?? 0)}</span>
+      <span className="text-xs font-normal text-gray-500 dark:text-gray-400" title={cotacao}>
+        {mov.valorBRL != null ? `≈ ${brl(mov.valorBRL)}` : 'sem câmbio'}
+      </span>
+    </span>
+  );
+}
 
 const fmtData = (iso: string): string => {
   const [y, m, d] = iso.split('-');
@@ -93,7 +122,7 @@ export default function MovimentacoesTable({
                 <td
                   className={`${TABLE_STYLES.td} text-right font-medium text-gray-900 dark:text-white`}
                 >
-                  {brl(mov.total)}
+                  <ValorMovimentacao mov={mov} />
                 </td>
               </tr>
             ))}

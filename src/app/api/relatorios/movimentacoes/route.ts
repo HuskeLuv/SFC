@@ -5,6 +5,9 @@ import { withErrorHandler } from '@/utils/apiErrorHandler';
 import { isReinvestimentoTransaction } from '@/services/portfolio/patrimonioHistoricoBuilder';
 import { categoriaEfetiva, isReservaAsset } from '@/services/portfolio/itemValuation';
 import { reservaDestinoPorAsset } from '@/services/portfolio/tesouroDestino';
+import { unidadeDaTransacao } from '@/lib/ativoEmDolar';
+import { fxDaTransacao } from '@/services/market/cambioUsdBrl';
+import { carregarCambioDasTransacoes } from '@/services/cashflow/investimentosPorMes';
 
 /**
  * Movimentações (compras/vendas) do período para a seção de Relatórios
@@ -16,6 +19,12 @@ import { reservaDestinoPorAsset } from '@/services/portfolio/tesouroDestino';
  * `categoria` é a categoria EFETIVA (categoriaEfetiva: aba escolhida no mover,
  * reserva do Tesouro de catálogo, Imóveis & Bens) — a mesma régua da pizza e
  * das abas. `tipoAtivo` (Asset.type cru) fica só por compatibilidade.
+ *
+ * Moeda por linha (Carteira EUA em US$): `moeda` é a unidade gravada da transação
+ * (`unidadeDaTransacao`). Em US$, `totalMoeda` = total em US$ (sem taxas), `cotacaoMoeda`
+ * = câmbio da operação (ou da série USD-BRL na data) e `valorBRL` = total × câmbio + fees
+ * (R$). `total` continua sendo o valor em R$ (é o que o resumo do período soma); linha em
+ * US$ sem câmbio tem `valorBRL` null e `total` 0 — fora da soma, nunca US$ como R$.
  */
 
 const MAX_LINHAS = 500;
@@ -102,6 +111,30 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     });
   };
 
+  const serieCambio = await carregarCambioDasTransacoes(transacoes);
+  const valoresDe = (t: (typeof transacoes)[number]) => {
+    const fees = t.fees || 0;
+    if (unidadeDaTransacao(t, t.asset) !== 'USD') {
+      const valorBRL = Math.round((t.total + fees) * 100) / 100;
+      return {
+        moeda: 'BRL' as const,
+        totalMoeda: valorBRL,
+        cotacaoMoeda: null,
+        valorBRL,
+        total: valorBRL,
+      };
+    }
+    const fx = fxDaTransacao(t.notes, t.date, serieCambio);
+    const valorBRL = fx == null ? null : Math.round((t.total * fx + fees) * 100) / 100;
+    return {
+      moeda: 'USD' as const,
+      totalMoeda: Math.round(t.total * 100) / 100,
+      cotacaoMoeda: fx,
+      valorBRL,
+      total: valorBRL ?? 0,
+    };
+  };
+
   const movimentacoes = transacoes.map((t) => ({
     id: t.id,
     data: t.date.toISOString().slice(0, 10),
@@ -112,7 +145,7 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     categoria: categoriaDe(t),
     quantidade: t.quantity,
     preco: t.price,
-    total: Math.round((t.total + (t.fees || 0)) * 100) / 100,
+    ...valoresDe(t),
     // Flag "dinheiro já estava investido" (rolagem/troca/posição pré-existente)
     jaInvestido: isReinvestimentoTransaction(t.notes),
   }));
