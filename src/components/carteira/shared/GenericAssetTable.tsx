@@ -849,6 +849,9 @@ export default function GenericAssetTable<TAtivo, TSecao>({
               ? heroCard.getValue(resumo, necessidadeAporteTotalCalculada)
               : formatCurrency(Number(totalGeral?.valorAtualizado ?? 0) || 0)
           }
+          heroSubtitles={[heroCard, rentCard]
+            .map((c) => c?.getSubtitle?.(resumo))
+            .filter((t): t is string => Boolean(t))}
           rentabilidade={
             rentCard
               ? { value: Number(resumo?.rentabilidade ?? 0) || 0, formatPercentage }

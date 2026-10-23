@@ -200,6 +200,8 @@ export function RentabilidadeDelta({
 export interface AssetTabMobileSummaryProps {
   heroLabel: string;
   heroValue: string;
+  /** Linhas de apoio sob o número principal (ex.: abas EUA: "equivale a R$ X"). */
+  heroSubtitles?: string[];
   /** Rentabilidade da aba (sob o número principal). */
   rentabilidade?: { value: number; formatPercentage: (v: number) => string };
   /** Linha de mini-indicadores (Rendimento, Saldo início do mês…). */
@@ -212,6 +214,7 @@ export interface AssetTabMobileSummaryProps {
 export function AssetTabMobileSummary({
   heroLabel,
   heroValue,
+  heroSubtitles = [],
   rentabilidade,
   minis = [],
   necessidadeAporte,
@@ -231,6 +234,11 @@ export function AssetTabMobileSummary({
             suffix=" de rentabilidade"
           />
         )}
+        {heroSubtitles.map((t) => (
+          <p key={t} className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+            {t}
+          </p>
+        ))}
         {minis.length > 0 && (
           <dl className="mt-3 grid grid-cols-2 gap-3 border-t border-gray-100 pt-3 dark:border-gray-800">
             {minis.map((m) => (
