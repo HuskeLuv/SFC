@@ -15,6 +15,8 @@ import type { FixedIncomeAssetWithAsset } from '@/services/portfolio/patrimonioH
 import { computePortfolioLiveTotals } from '@/services/portfolio/portfolioLiveTotals';
 import { getAssetHistory, isNonMarketSymbol } from '@/services/pricing/assetPriceService';
 import { buildSensibilidadeCarteira, monthKey } from '@/services/analises/sensibilidadeCarteira';
+import { getCotacaoDolarHoje } from '@/services/market/cambioUsdBrl';
+import { posicaoEmDolar } from '@/lib/ativoEmDolar';
 import type { SensibilidadeCarteiraResponse } from '@/types/analises';
 
 /** Janela TTL para cache do payload: se o portfolioHash não mudou, serve do cache por até 24h. */
@@ -91,18 +93,24 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
   ]);
 
   // Seleciona posições de mercado (exclui reservas/renda-fixa/TD/FX e afins)
+  // Posição em US$ pesa em R$ pelo câmbio do dia (obtido uma vez); sem câmbio, fica de fora.
+  const cotacaoDolar = portfolio.some((p) => posicaoEmDolar(p, p.asset))
+    ? ((await getCotacaoDolarHoje().catch(() => null))?.taxa ?? null)
+    : null;
   const positions: MarketPosition[] = [];
   for (const p of portfolio) {
     const symbol = (p.asset?.symbol ?? '').toUpperCase();
     if (!symbol || isNonMarketSymbol(symbol)) continue;
     const currentPrice = p.asset?.currentPrice ? Number(p.asset.currentPrice) : p.avgPrice;
     if (!Number.isFinite(currentPrice) || currentPrice <= 0) continue;
+    const fx = posicaoEmDolar(p, p.asset) ? cotacaoDolar : 1;
+    if (fx === null) continue;
     positions.push({
       symbol,
       nome: p.asset?.name ?? symbol,
       quantity: p.quantity,
       price: currentPrice,
-      rawWeight: p.quantity * currentPrice,
+      rawWeight: p.quantity * currentPrice * fx,
     });
   }
 

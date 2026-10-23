@@ -180,6 +180,56 @@ describe('GET /api/analises/sensibilidade-carteira', () => {
     expect(mockPrisma.portfolioSensibilidadeCache.upsert).toHaveBeenCalledOnce();
   });
 
+  it('posição em US$ pesa em R$ pelo câmbio do dia (REIT US$ 700 × 5 = PETR4 R$ 3.500)', async () => {
+    mockPrisma.portfolio.findMany.mockResolvedValue([
+      {
+        assetId: 'a1',
+        quantity: 100,
+        avgPrice: 30,
+        totalInvested: 3000,
+        moedaRegistro: null,
+        asset: {
+          symbol: 'PETR4',
+          name: 'Petrobras',
+          currentPrice: 35,
+          type: 'stock',
+          currency: 'BRL',
+        },
+        stock: null,
+      },
+      {
+        assetId: 'a2',
+        quantity: 10,
+        avgPrice: 60,
+        totalInvested: 600,
+        moedaRegistro: 'USD',
+        asset: {
+          symbol: 'O',
+          name: 'Realty Income',
+          currentPrice: 70,
+          type: 'reit',
+          currency: 'USD',
+        },
+        stock: null,
+      },
+    ]);
+    const daily: Array<{ date: number; value: number }> = [];
+    let price = 100;
+    const [y0, m0] = months[0].split('-').map(Number);
+    daily.push({ date: Date.UTC(y0, m0 - 1, 28), value: price });
+    for (let i = 0; i < portfolioReturns.length; i++) {
+      price *= 1 + portfolioReturns[i];
+      const [y, m] = months[i + 1].split('-').map(Number);
+      daily.push({ date: Date.UTC(y, m - 1, 28), value: price });
+    }
+    mockGetAssetHistory.mockResolvedValue(daily);
+
+    const body = await (await GET(createRequest({ windowMonths: '24' }))).json();
+
+    const peso = (t: string) => body.ativos.find((a: { ticker: string }) => a.ticker === t)?.peso;
+    expect(peso('O')).toBeCloseTo(peso('PETR4'), 6);
+  });
+
   it('serve do cache sem recomputar quando o portfolioHash coincide e TTL está válido', async () => {
     mockPrisma.portfolio.findMany.mockResolvedValue([
       {
