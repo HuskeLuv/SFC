@@ -308,6 +308,8 @@ export type NomeJob =
   | 'fii-mensal'
   | 'fii-trimestral'
   | 'cotahist'
+  | 'derivados'
+  /** D6-a: nome antigo do 'derivados' (alias na rota/CLI; histórico de AnaliseJobRun) */
   | 'scores'
   | 'quadro'
   // bloco C: fila de curadoria (casos de regra + digest de prazo)
@@ -351,7 +353,7 @@ export interface JobContexto {
 export interface ResultadoJob {
   parcial?: boolean;
   /**
-   * v2.4: o job decidiu não rodar (ex.: 'criterios' com o 'scores' ainda executando) — o run fecha
+   * v2.4: o job decidiu não rodar (ex.: 'criterios' com o 'derivados' ainda executando) — o run fecha
    * com status 'pulado' e este motivo em `erro`. Nada é gravado.
    */
   pulado?: string;

@@ -1051,7 +1051,7 @@ describe('bloco C — motor de sanidade no job scores', () => {
 
   it('v2 incremental: emissor com liberação nova desde o último OK entra nos derivados', async () => {
     vi.mocked(ultimaExecucaoOkPorJob).mockResolvedValueOnce(
-      new Map([['scores', new Date('2026-09-26T10:10:00Z')]]),
+      new Map([['derivados', new Date('2026-09-26T10:10:00Z')]]),
     );
     const empresas = (r: Awaited<ReturnType<typeof executarScores>>) =>
       (r.detalhes as { derivados: { empresas: number } }).derivados.empresas;
@@ -1062,7 +1062,7 @@ describe('bloco C — motor de sanidade no job scores', () => {
     });
     const sem = empresas(await executarScores(ctxV2()));
     vi.mocked(ultimaExecucaoOkPorJob).mockResolvedValueOnce(
-      new Map([['scores', new Date('2026-09-26T10:10:00Z')]]),
+      new Map([['derivados', new Date('2026-09-26T10:10:00Z')]]),
     );
     dados.liberadosDesde = ['XPTO4'];
     const com = empresas(await executarScores(ctxV2()));
@@ -1072,7 +1072,7 @@ describe('bloco C — motor de sanidade no job scores', () => {
     // v1 (sem conferência): nem consulta
     vi.mocked(simbolosLiberadosDesde).mockClear();
     vi.mocked(ultimaExecucaoOkPorJob).mockResolvedValueOnce(
-      new Map([['scores', new Date('2026-09-26T10:10:00Z')]]),
+      new Map([['derivados', new Date('2026-09-26T10:10:00Z')]]),
     );
     expect(empresas(await executarScores(ctxDe(fakePrisma().prisma, '2026-09-27')))).toBe(sem);
     expect(simbolosLiberadosDesde).not.toHaveBeenCalled();

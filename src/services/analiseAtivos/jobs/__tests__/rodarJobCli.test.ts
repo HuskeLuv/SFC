@@ -25,19 +25,38 @@ const relatorio = (status: RelatorioJob['status']): RelatorioJob => ({
 });
 
 describe('catálogo de jobs', () => {
-  it('cobre todos os jobs de cron e marca o scores como pesado', () => {
+  it('cobre todos os jobs de cron e marca o derivados como pesado', () => {
     expect(Object.keys(CATALOGO_JOBS).sort()).toEqual([...NOMES_JOBS].sort());
-    for (const [k, d] of Object.entries(CATALOGO_JOBS)) expect(d.nome).toBe(k);
-    expect(CATALOGO_JOBS.scores.pesado).toBe(true);
+    // 'scores' é o alias do 'derivados' (D6-a): o único com nome ≠ chave
+    for (const [k, d] of Object.entries(CATALOGO_JOBS)) {
+      expect(d.nome).toBe(k === 'scores' ? 'derivados' : k);
+    }
+    expect(CATALOGO_JOBS.derivados).toMatchObject({ pesado: true, prazoMs: 240_000 });
     // v2.4: o job 'criterios' passa de 250 MB no runner (265 MB no DEV)
     expect(CATALOGO_JOBS.criterios).toMatchObject({ pesado: true, prazoMs: 240_000 });
     expect(() => definicaoJob('xpto')).toThrow(/job desconhecido/);
   });
 
   it('rota de job pesado recusa com RSS acima do limite; leve nunca recusa', () => {
-    expect(recusaRotaPesada(CATALOGO_JOBS.scores, 500, 400)).toMatch(/processo separado/);
-    expect(recusaRotaPesada(CATALOGO_JOBS.scores, 300, 400)).toBeNull();
+    expect(recusaRotaPesada(CATALOGO_JOBS.derivados, 500, 400)).toMatch(/processo separado/);
+    expect(recusaRotaPesada(CATALOGO_JOBS.derivados, 300, 400)).toBeNull();
     expect(recusaRotaPesada(CATALOGO_JOBS.cotahist, 900, 400)).toBeNull();
+  });
+});
+
+describe("alias 'scores' → 'derivados' (D6-a)", () => {
+  it("definicaoJob('scores') é o MESMO job do 'derivados' (nome, lock e função)", () => {
+    expect(definicaoJob('scores')).toBe(definicaoJob('derivados'));
+    expect(definicaoJob('scores').nome).toBe('derivados');
+  });
+
+  it("myfinance-job.sh scores ⇒ o runner grava job='derivados' (mesma função)", async () => {
+    const executar = vi.fn().mockResolvedValue(relatorio('ok'));
+    await rodarJobCli(['scores'], executar);
+    expect(executar).toHaveBeenCalledWith('derivados', CATALOGO_JOBS.derivados.executar, {
+      prazoMs: 240_000,
+      origem: 'cron',
+    });
   });
 });
 

@@ -115,12 +115,22 @@ describe('calcularFrescor', () => {
 
   it('sem execução e sem dado ⇒ sem_dado; dado sem job OK ⇒ atrasado', () => {
     const e = entradaTudoEmDia();
-    e.ultimaOkPorJob.delete('scores');
+    e.ultimaOkPorJob.delete('derivados');
     e.dadoMaisRecente.scores = null;
     e.ultimaOkPorJob.delete('fii-mensal');
     const p = calcularFrescor(e, AGORA);
     expect(p.camadas.scores.status).toBe('sem_dado');
     expect(p.camadas.fii_mensal.status).toBe('atrasado');
     expect(p.atrasadas).toEqual(['fii_mensal']);
+  });
+
+  it("D6-a: a camada 'scores' (nome mantido) segue o job 'derivados'", () => {
+    expect(JOB_POR_CAMADA.scores).toBe('derivados');
+    const e = entradaTudoEmDia();
+    e.ultimaOkPorJob.delete('derivados');
+    e.ultimaOkPorJob.set('scores', antes(1));
+    // só o nome antigo no mapa cru ⇒ atrasado (quem dobra o antigo no novo é o repositório)
+    expect(calcularFrescor(e, AGORA).camadas.scores.job).toBe('derivados');
+    expect(calcularFrescor(e, AGORA).camadas.scores.status).toBe('atrasado');
   });
 });

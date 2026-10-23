@@ -8,7 +8,7 @@
  *   devolve { parcial: true } para continuar no próximo run.
  * - RSS amostrado a cada 500 ms; delta > 300 MB ⇒ alerta 'rss_acima_limite' nível erro (não aborta).
  * - ScoringParams: sem versão ativa válida no banco, jobs de ingestão usam SCORING_PARAMS_V1 do código
- *   com alerta 'params_fallback_codigo'; jobs que exigem params do banco ('scores') falham.
+ *   com alerta 'params_fallback_codigo'; jobs que exigem params do banco ('derivados') falham.
  * - ErroLayoutFonte ⇒ 'falha' + alerta nível erro. Nunca lança: devolve RelatorioJob.
  */
 import type { Prisma, PrismaClient } from '@prisma/client';
@@ -33,6 +33,8 @@ export const LOCK_TTL_PADRAO_MS = 600_000;
 export const LIMITE_RSS_DELTA_MB = 300;
 export const MAX_ALERTAS = 200;
 const INTERVALO_RSS_MS = 500;
+/** Jobs que falham sem ScoringParams válido no banco (D6-a: 'scores' = nome antigo do derivados). */
+const JOBS_COM_PARAMS_DO_BANCO: readonly NomeJob[] = ['derivados', 'scores'];
 
 export interface OpcoesJob {
   prazoMs?: number;
@@ -40,7 +42,7 @@ export interface OpcoesJob {
   origem?: 'cron' | 'script';
   aplicar?: boolean;
   parametros?: Record<string, unknown>;
-  /** true só em 'scores' (padrão: job === 'scores') */
+  /** true só em 'derivados' (padrão: job 'derivados' ou o nome antigo 'scores') */
   exigeParamsDoBanco?: boolean;
   /** injeção para testes/scripts; padrão = src/lib/prisma */
   prisma?: PrismaClient;
@@ -59,7 +61,7 @@ export async function executarJobAnalise(
   const prazoMs = opts.prazoMs ?? PRAZO_PADRAO_MS;
   const lockTtlMs = opts.lockTtlMs ?? LOCK_TTL_PADRAO_MS;
   const origem = opts.origem ?? 'cron';
-  const exigeParams = opts.exigeParamsDoBanco ?? job === 'scores';
+  const exigeParams = opts.exigeParamsDoBanco ?? JOBS_COM_PARAMS_DO_BANCO.includes(job);
   const rssInicio = rssMb();
   let rssPico = rssInicio;
 

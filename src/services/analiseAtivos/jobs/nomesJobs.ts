@@ -16,6 +16,8 @@ export const NOMES_JOBS = [
   'fii-mensal',
   'fii-trimestral',
   'cotahist',
+  // D6-a: 'derivados' é o job (ex-'scores'); 'scores' fica como alias da rota/CLI (CATALOGO_JOBS)
+  'derivados',
   'scores',
   'criterios',
   'quadro',

@@ -1,5 +1,6 @@
 /**
- * Job "scores" da Análise de Ativos (fatia D) — diário 10:10 UTC, só banco.
+ * Job "derivados" (ex-"scores") da Análise de Ativos (fatia D) — diário 10:10 UTC, só banco.
+ * Alias: CATALOGO_JOBS.scores é o MESMO job (nome 'derivados' em AnaliseJobRun, mesmo lock).
  *
  * Etapas (cada uma checa ctx.estourouPrazo()):
  *  1. eventos corporativos: verificação de todo o universo (a auditoria de proventos usa os eventos
@@ -145,7 +146,7 @@ export async function executarScores(
     let cnpjsFii = todosFii;
     const ultimoOk = opts.tudo
       ? undefined
-      : (await ultimaExecucaoOkPorJob(ctx.prisma)).get('scores');
+      : (await ultimaExecucaoOkPorJob(ctx.prisma)).get('derivados');
     if (ultimoOk) {
       const [emAlt, fiiAlt, liberadosNovos] = await Promise.all([
         emissoresAlteradosDesde(ctx.prisma, ultimoOk),

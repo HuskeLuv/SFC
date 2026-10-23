@@ -85,7 +85,8 @@ export const JOB_POR_CAMADA: Record<Camada, NomeJob> = {
   cadastro_b3: 'b3-cadastro',
   cadastro_fii: 'fii-cadastro',
   eventos: 'cvm-ipe',
-  scores: 'scores',
+  // D6-a: a camada mantém o nome 'scores' (SeloFrescor, painel); o job é o 'derivados'
+  scores: 'derivados',
   quadro: 'quadro',
 };
 
@@ -105,7 +106,7 @@ export const LIMITES_FRESCOR_PADRAO: Record<Camada, LimiteFrescor> = {
   cadastro_fii: { maxHorasJob: 8 * 24, maxDiasDado: 8 },
   eventos: { maxHorasJob: 26, maxDiasDado: 120 },
   scores: { maxHorasJob: 26, maxDiasDado: 2, emPregoes: true },
-  // Fase 1: linhas do Quadro (dataRef = a do score); diário depois do scores
+  // Fase 1: linhas do Quadro (dataRef = a dos múltiplos atuais); diário depois do derivados
   quadro: { maxHorasJob: 26, maxDiasDado: 2, emPregoes: true },
 };
 
