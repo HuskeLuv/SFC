@@ -101,7 +101,9 @@ export default function ModalComparar({
       <span className={DICA_RODAPE} aria-live="polite">
         {escolhidos.length === 0
           ? T.escolhaUm
-          : formatarTexto(T.nDe4, { n: escolhidos.length + 1 })}
+          : cheio
+            ? T.nDe4Cheio
+            : formatarTexto(T.nDe4, { n: escolhidos.length + 1 })}
       </span>
       <button type="button" className={BOTAO_MODAL_SECUNDARIO} onClick={onFechar}>
         {TEXTOS_ACOES_CARTEIRA.modal.cancelar}

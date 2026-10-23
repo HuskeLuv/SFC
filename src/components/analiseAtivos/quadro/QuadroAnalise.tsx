@@ -90,6 +90,7 @@ import {
   COR_LINK,
   CRITERIOS_NAO_SE_APLICAM_FINANCEIRA,
   ORDEM_PADRAO,
+  PAGINA_QUADRO,
   VISUAL_V2,
 } from '@/constants/analiseAtivosVisual';
 import { useIsBelowLg } from '@/hooks/useMediaQuery';
@@ -885,7 +886,12 @@ function QuadroConteudo({ className = '' }: QuadroAnaliseProps) {
               aria-busy={q.isFetchingNextPage || undefined}
               className={`${BOTAO_SEC} w-full lg:w-auto`}
             >
-              {q.isFetchingNextPage ? T.carregandoMais : T.mostrarMais}
+              {q.isFetchingNextPage
+                ? T.carregandoMais
+                : formatarTexto(T.mostrarMaisRestantes, {
+                    n: Math.min(PAGINA_QUADRO, total - itens.length),
+                    restantes: total - itens.length,
+                  })}
             </button>
           ) : null}
         </div>

@@ -9,6 +9,8 @@
  * dispensou. localStorage indisponível (aba privada, bloqueio) = mostra o banner.
  */
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
+import { useVisualV2 } from '@/components/analiseAtivos/shell/VisualV2';
 import { COR_LINK } from '@/constants/analiseAtivosVisual';
 import { TEXTOS_TELA } from '@/services/analiseAtivos/textosTela';
 import { AVISO_BANNER } from '@/services/analiseAtivos/textosLiterais';
@@ -57,6 +59,7 @@ export default function BannerNovidade({ className }: BannerNovidadeProps) {
   const t = TEXTOS_TELA.banner;
   // null = ainda não leu o localStorage (SSR e primeiro render no cliente).
   const [visivel, setVisivel] = useState<boolean | null>(null);
+  const v2 = useVisualV2();
 
   useEffect(() => {
     setVisivel(!bannerDispensadoRecente());
@@ -89,6 +92,15 @@ export default function BannerNovidade({ className }: BannerNovidadeProps) {
           {AVISO_BANNER.texto}
         </small>
       </p>
+      {v2 ? (
+        // visual v2: atalho do banner do HTML do Pedro
+        <Link
+          href="/carteira"
+          className="inline-flex min-h-11 items-center rounded-xl bg-[#396CAA] px-4 text-sm font-semibold text-white hover:bg-[#314666] focus-visible:ring-2 focus-visible:ring-[#0079F2] focus-visible:outline-none dark:bg-[#6E9DC4] dark:text-[#2D2D2D] dark:hover:bg-[#EAEAEA]"
+        >
+          {t.verCarteira}
+        </Link>
+      ) : null}
       <button
         type="button"
         onClick={dispensar}

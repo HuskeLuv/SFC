@@ -943,7 +943,7 @@ describe('ModalComparar', () => {
       'href',
       '/analise-ativos/comparador?t=WEGE3,EMBJ3,MOTV3,TUPY3',
     );
-    expect(screen.getByText('4 de 4 selecionados')).toBeInTheDocument();
+    expect(screen.getByText('4 de 4 selecionados · máximo de 4 ativos')).toBeInTheDocument();
     expect(mocks.csrfFetch).not.toHaveBeenCalled();
     esperarDomLimpo(dialogo());
   });

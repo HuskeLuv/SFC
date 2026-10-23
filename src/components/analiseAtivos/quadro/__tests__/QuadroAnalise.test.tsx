@@ -210,7 +210,8 @@ describe('QuadroAnalise', () => {
     renderQuadro();
     expect(screen.getByText(/Mostrando 4 de 331/)).toBeInTheDocument();
     expect(document.querySelector('[data-quadro-contador]')?.textContent).toBe('331 de 331');
-    fireEvent.click(screen.getByRole('button', { name: 'Mostrar mais 25' }));
+    // 4 carregados de 331: a próxima página traz 25 dos 327 restantes
+    fireEvent.click(screen.getByRole('button', { name: 'Mostrar mais 25 de 327 restantes' }));
     expect(fetchNextPage).toHaveBeenCalled();
   });
 
