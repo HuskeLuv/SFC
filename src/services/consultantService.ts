@@ -5,6 +5,14 @@ import { getAssetPrices } from '@/services/pricing/assetPriceService';
 import { getCashBalances, getMonthlyFlows } from '@/services/cashflow/clientCashflowSummary';
 import { resolveProventoEvents } from '@/services/portfolio/resolveProventos';
 import { overrideEfetivo, type CategoriaMovivel } from '@/lib/carteiraMover';
+import { posicaoEmDolar, unidadeDaTransacao } from '@/lib/ativoEmDolar';
+import {
+  carregarSerieCambio,
+  fxDaTransacao,
+  getCotacaoDolarHoje,
+  type SerieCambio,
+} from '@/services/market/cambioUsdBrl';
+import { valuatePortfolioItem } from '@/services/portfolio/itemValuation';
 
 export interface ConsultantClientDescriptor {
   id: string;
@@ -31,6 +39,35 @@ export interface ConsultantOverview {
 }
 
 const roundTwoDecimals = (value: number) => Math.round(value * 100) / 100;
+
+/** Câmbio do dia (R$ por US$ 1) ou null — sem câmbio, posição em US$ fica fora das somas. */
+const cotacaoDolarHoje = async (): Promise<number | null> =>
+  (await getCotacaoDolarHoje().catch(() => null))?.taxa ?? null;
+
+type ItemPortfolioComAsset = Parameters<typeof valuatePortfolioItem>[0]['item'] & {
+  asset: Parameters<typeof valuatePortfolioItem>[0]['asset'];
+};
+
+/**
+ * Valor atual e aplicado em R$ de um item, para os painéis do consultor. Posição gravada em US$
+ * (REIT, stock com moedaRegistro 'USD') passa pela valoração canônica com o câmbio do dia; sem
+ * câmbio devolve null (fora da soma — nunca US$ somado como R$). As demais seguem como antes:
+ * (cotação ?? preço médio) × quantidade.
+ */
+const valorItemConsultor = (
+  item: ItemPortfolioComAsset,
+  quote: number | undefined,
+  cotacaoDolar: number | null,
+): { atual: number; aplicado: number } | null => {
+  if (posicaoEmDolar(item, item.asset)) {
+    const v = valuatePortfolioItem({ item, asset: item.asset, quote, cotacaoDolar });
+    return v.semCambio ? null : { atual: v.valorAtualBRL, aplicado: v.valorAplicadoBRL };
+  }
+  return {
+    atual: (quote ?? item.avgPrice) * item.quantity,
+    aplicado: item.totalInvested ?? item.avgPrice * item.quantity,
+  };
+};
 
 const normalizeConsultantId = async (consultantId: string) => {
   if (!consultantId) {
@@ -88,19 +125,20 @@ const calculatePortfolioSnapshot = async (clientId: string) => {
 
   let currentValue = 0;
   let totalInvested = 0;
+  const cotacaoDolar = await cotacaoDolarHoje();
 
   for (const item of portfolio) {
-    const invested = item.totalInvested ?? item.avgPrice * item.quantity;
-    totalInvested += invested;
-
     const symbol = item.asset?.symbol;
+    const valor = valorItemConsultor(item, symbol ? quotes.get(symbol) : undefined, cotacaoDolar);
+    if (!valor) continue;
+    totalInvested += valor.aplicado;
+
     if (!symbol) {
-      currentValue += invested;
+      currentValue += valor.aplicado;
       continue;
     }
 
-    const currentPrice = quotes.get(symbol) ?? item.avgPrice;
-    currentValue += currentPrice * item.quantity;
+    currentValue += valor.atual;
   }
 
   return {
@@ -330,13 +368,22 @@ const getClientDividends = async (clientId: string, year?: number): Promise<numb
 
   // Proventos efetivamente recebidos (líquidos), da mesma fonte usada pela
   // série de rentabilidade e pelos "Rendimentos Recebidos" da planilha.
+  // Evento em US$ (ProventoEvent.moeda) é convertido UMA vez, pelo câmbio da data de pagamento
+  // (série USD-BRL; sem ela, o câmbio do dia). Sem câmbio nenhum, fica fora da soma.
   const { events } = await resolveProventoEvents(clientId);
-  return events
-    .filter(
-      (event) =>
-        event.paymentDay <= todayMs && new Date(event.paymentDay).getUTCFullYear() === targetYear,
-    )
-    .reduce((sum, event) => sum + event.net, 0);
+  const recebidos = events.filter(
+    (event) =>
+      event.paymentDay <= todayMs && new Date(event.paymentDay).getUTCFullYear() === targetYear,
+  );
+  const temUsd = recebidos.some((event) => event.moeda === 'USD');
+  const [serie, taxaHoje] = temUsd
+    ? await Promise.all([carregarSerieCambio().catch(() => null), cotacaoDolarHoje()])
+    : [null, null];
+  return recebidos.reduce((sum, event) => {
+    if (event.moeda !== 'USD') return sum + event.net;
+    const fx = serie?.(event.paymentDay) ?? taxaHoje;
+    return fx ? sum + event.net * fx : sum;
+  }, 0);
 };
 
 const getClientAportesResgates = async (
@@ -359,14 +406,27 @@ const getClientAportesResgates = async (
       type: true,
       total: true,
       fees: true,
+      date: true,
+      notes: true,
+      asset: { select: { type: true, currency: true } },
     },
   });
+
+  // Transação gravada em US$ (unidadeDaTransacao): total × câmbio da transação + fees (R$).
+  const temUsd = transactions.some((tx) => unidadeDaTransacao(tx, tx.asset) === 'USD');
+  const serie: SerieCambio | null = temUsd ? await carregarSerieCambio().catch(() => null) : null;
 
   let aportes = 0;
   let resgates = 0;
 
   transactions.forEach((tx) => {
-    const total = tx.total + (tx.fees || 0);
+    let valorBruto = tx.total;
+    if (unidadeDaTransacao(tx, tx.asset) === 'USD') {
+      const fx = fxDaTransacao(tx.notes, tx.date, serie);
+      if (!fx) return; // sem câmbio: fora da soma
+      valorBruto = tx.total * fx;
+    }
+    const total = valorBruto + (tx.fees || 0);
     if (tx.type.toLowerCase() === 'compra') {
       aportes += total;
     } else if (tx.type.toLowerCase() === 'venda') {
@@ -404,11 +464,12 @@ const getClientPortfolioConcentration = async (clientId: string): Promise<number
     // Em caso de erro, quotes ficará vazio e usaremos avgPrice como fallback
   }
 
+  const cotacaoDolar = await cotacaoDolarHoje();
   const assetValues: number[] = [];
   portfolio.forEach((item) => {
     const symbol = item.asset?.symbol;
-    const currentPrice = symbol ? (quotes.get(symbol) ?? item.avgPrice) : item.avgPrice;
-    assetValues.push(currentPrice * item.quantity);
+    const valor = valorItemConsultor(item, symbol ? quotes.get(symbol) : undefined, cotacaoDolar);
+    if (valor) assetValues.push(valor.atual);
   });
 
   const totalValue = assetValues.reduce((sum, val) => sum + val, 0);
@@ -749,6 +810,7 @@ export const getConsolidatedAssetDistribution = async (
   }
 
   const classMap = new Map<string, number>();
+  const cotacaoDolar = await cotacaoDolarHoje();
 
   for (const assignment of clients) {
     const portfolio = await prisma.portfolio.findMany({
@@ -776,8 +838,9 @@ export const getConsolidatedAssetDistribution = async (
     portfolio.forEach((item) => {
       const assetType = (item.asset?.type ?? 'other').toLowerCase();
       const symbol = item.asset?.symbol;
-      const currentPrice = symbol ? (quotes.get(symbol) ?? item.avgPrice) : item.avgPrice;
-      const value = currentPrice * item.quantity;
+      const valor = valorItemConsultor(item, symbol ? quotes.get(symbol) : undefined, cotacaoDolar);
+      if (!valor) return; // posição em US$ sem câmbio: fora da soma
+      const value = valor.atual;
 
       let classKey = 'Outros';
 
