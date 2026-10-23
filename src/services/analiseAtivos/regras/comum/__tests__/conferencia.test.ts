@@ -7,7 +7,6 @@ import {
   REGRAS_REVISAO,
   campoEmConferencia,
   camposDoGrupo,
-  componentesDoGrupo,
   deveContaminarEmpresa,
   flagsConf,
   formatarFlagConf,
@@ -15,7 +14,6 @@ import {
   formatarFlagRev,
   gruposConf,
   gruposLegados,
-  motivoIndiceConferencia,
   parseFlagConf,
   parseFlagInfo,
   parseFlagRev,
@@ -144,7 +142,6 @@ describe('campoEmConferencia por grupo × classe × exibição', () => {
       expect(campoEmConferencia(f, [], campo, 'acao')?.exibicao).toBe('ocultar');
     }
     expect(campoEmConferencia(f, [], 'dy12m', 'acao')).toBeNull();
-    expect(componentesDoGrupo('acoes_escala', 'acao')).toEqual(['preco']);
   });
 
   it('SBSP3 (preco_base): cotação com selo; DY, P/L, P/VP e VM ocultos', () => {
@@ -155,7 +152,6 @@ describe('campoEmConferencia por grupo × classe × exibição', () => {
     for (const campo of ['dy12m', 'pl', 'pvp', 'valorMercado'] as const) {
       expect(campoEmConferencia(f, [], campo, 'acao')?.exibicao).toBe('ocultar');
     }
-    expect(componentesDoGrupo('preco_base', 'acao')).toEqual(['div', 'preco']);
   });
 
   it('dois grupos no mesmo campo: ocultar vence selo; mesmo com o legado de proventos', () => {
@@ -168,14 +164,12 @@ describe('campoEmConferencia por grupo × classe × exibição', () => {
     expect(c).toMatchObject({ grupo: 'preco_base', exibicao: 'ocultar', origem: 'conf' });
   });
 
-  it('PMRL11 (fii_obrigacoes): Obrigações/PL com selo, componente dívida do FII', () => {
+  it('PMRL11 (fii_obrigacoes): Obrigações/PL com selo só no FII', () => {
     const f = [
       formatarFlagConf({ grupo: 'fii_obrigacoes', regra: 'obrigacoes_acima', chave: '2026-08' }),
     ];
     expect(campoEmConferencia(f, [], 'obrigacoesPl', 'fii')?.exibicao).toBe('selo');
-    expect(componentesDoGrupo('fii_obrigacoes', 'fii')).toEqual(['divida']);
-    expect(componentesDoGrupo('fii_obrigacoes', 'acao')).toEqual([]);
-    expect(motivoIndiceConferencia('divida')).toBe('divida:em_conferencia');
+    expect(campoEmConferencia(f, [], 'obrigacoesPl', 'acao')).toBeNull();
   });
 
   it('política aprovada: ocultar em escala/histórico/base/VP; selo em proventos, esporádico e obrigações', () => {
@@ -224,5 +218,15 @@ describe('deveContaminarEmpresa (escopo empresa × ticker)', () => {
   it('grupos de FII são de escopo ticker', () => {
     expect(DEF_GRUPO.fii_vp.escopo).toBe('ticker');
     expect(DEF_GRUPO.fii_obrigacoes.escopo).toBe('ticker');
+  });
+});
+
+describe('D6-a: contrato sem efeito no Índice', () => {
+  it('DEF_GRUPO só descreve escopo, classes, campos, campo principal e regras', () => {
+    for (const g of GRUPOS_CONFERENCIA) {
+      expect(Object.keys(DEF_GRUPO[g]).sort()).toEqual(
+        ['campoPrincipal', 'campos', 'classes', 'escopo', 'regras'].sort(),
+      );
+    }
   });
 });

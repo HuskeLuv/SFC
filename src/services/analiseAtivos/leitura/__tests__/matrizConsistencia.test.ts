@@ -1,8 +1,8 @@
 /**
  * Matriz de consistência do "em conferência" (bloco C, fatia B): para cada grupo × classe ×
  * exibição, a MESMA linha (flags 'conf:') marca os MESMOS campos, com o MESMO texto, no Quadro, nos
- * KPIs, nos fundamentos, no valuation (cartão e barra), no semáforo, no Índice, nos dividendos e no
- * gráfico — tudo lido de conferenciasAtivo (que lê regras/comum/conferencia.ts).
+ * KPIs, nos fundamentos, no valuation (cartão e barra), nos dividendos e no gráfico — tudo lido de
+ * conferenciasAtivo (que lê regras/comum/conferencia.ts).
  *
  * Também a regressão obrigatória: com a v1 (sem 'conf:') nada muda — legado de proventos continua
  * "valor + selo", sem `conferencias`, sem chip, sem frescor por bloco.
@@ -15,10 +15,8 @@ vi.mock('@/lib/prisma', () => ({ prisma: {}, default: {} }));
 import { paraLinhaQuadroApi } from '@/services/analiseAtivos/leitura/linhasQuadro';
 import {
   CAMPO_COLUNA_FUNDAMENTOS,
-  componentesEmConferencia,
   conferenciaDaLinha,
   conferenciaDoCampo,
-  criteriosEmConferencia,
   ehEstadoEmConferencia,
   montarConferenciasTela,
   PREFIXO_MOTIVO_CONFERENCIA,
@@ -39,7 +37,6 @@ import { indiceDesde } from '@/components/analiseAtivos/ativo/topo/GraficoLucroC
 import {
   DEF_GRUPO,
   GRUPOS_CONFERENCIA,
-  componentesDoGrupo,
   ehCampoTela,
   formatarFlagConf,
   gruposConf,
@@ -463,16 +460,11 @@ describe.each(CASOS)('matriz: grupo $g × classe $classe', ({ g, classe }) => {
     }
   });
 
-  it('conferência: critérios e componentes do grupo, sem efeito no Índice no JSON', () => {
-    const marcados = g === 'historico' ? [] : def.criteriosSemaforo;
-    expect([...criteriosEmConferencia([g]).keys()].sort()).toEqual([...marcados].sort());
-
+  it('conferência: o grupo na página, sem efeito no Índice no JSON', () => {
     const confs = montarConferenciasTela({ flags, classe });
     expect(confs.map((c) => c.grupo)).toEqual([g]);
-    const comps = g === 'historico' ? [] : componentesDoGrupo(g, classe);
     // v2.4: a conferência não leva mais o efeito no Índice (o campo sai do JSON)
     expect('efeitoIndice' in confs[0]).toBe(false);
-    expect([...componentesEmConferencia(confs, classe)].sort()).toEqual([...comps].sort());
     for (const c of confs) {
       expect(encontrarPalavrasProibidas(c.motivo)).toEqual([]);
     }
