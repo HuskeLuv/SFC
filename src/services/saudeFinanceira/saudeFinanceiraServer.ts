@@ -18,7 +18,7 @@ import { CAIXA_METRICS, computeCaixaResumo } from '@/services/portfolio/caixaPar
 import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { getAssetPrices } from '@/services/pricing/assetPriceService';
-import { getIndicator } from '@/services/market/marketIndicatorService';
+import { getCotacaoDolarHoje } from '@/services/market/cambioUsdBrl';
 import { createFixedIncomePricer } from '@/services/portfolio/fixedIncomePricing';
 import { valuatePortfolioItem, type CategoriaCarteira } from '@/services/portfolio/itemValuation';
 import { isFundoType } from '@/lib/fundoTypes';
@@ -299,11 +299,13 @@ export async function buildSaudeFinanceira(userId: string): Promise<SaudeFinance
         !symbol.startsWith('-') &&
         /^[A-Za-z]/.test(symbol),
     );
-  const [quotes, dolarIndicator] = await Promise.all([
+  // Câmbio do dia (o mesmo do resumo): posição em US$ (REIT, stock em dólar) é convertida em
+  // valuatePortfolioItem; sem câmbio ela fica fora da soma ('semCambio').
+  const [quotes, cotacaoHoje] = await Promise.all([
     getAssetPrices(symbols, { useBrapiFallback: true }),
-    getIndicator('USD-BRL', { useBrapiFallback: true }).catch(() => null),
+    getCotacaoDolarHoje().catch(() => null),
   ]);
-  const cotacaoDolar = dolarIndicator?.price ?? null;
+  const cotacaoDolar = cotacaoHoje?.taxa ?? null;
 
   // Loop canônico de valoração com split de liquidez por categoria.
   const porCategoria: Record<CategoriaCarteira, number> = {
