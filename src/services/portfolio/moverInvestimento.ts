@@ -35,6 +35,7 @@ import {
   AVISO_OBJETIVO_ZERA,
   AVISO_SAUDE_RESERVA,
   CAMPO_SUBGRUPO_PORTFOLIO,
+  MOTIVO_EM_VALIDACAO,
   MOTIVO_PLANEJADO_RV,
   SUBGRUPOS_POR_CATEGORIA,
   SUBGRUPO_EDITAVEL,
@@ -102,8 +103,7 @@ export const MSG_ESCOLHA_SECAO = 'Escolha a seção';
  * Carteira EUA em US$ (fase 1): ETF em dólar não vai para Stocks/REIT's — essas abas guardam a
  * posição em US$ pela unidade gravada, e o ETF USD (gravado em R$) fica para a fase 2.
  */
-export const MSG_ETF_USD_PARA_EUA =
-  "ETF em dólar ainda não pode ir para Stocks ou REIT's. Essa opção chega numa próxima etapa.";
+export const MSG_ETF_USD_PARA_EUA = MOTIVO_EM_VALIDACAO;
 
 /** ETF com currency USD indo para Stocks/REIT's (bloqueado até a fase 2). */
 export const etfUsdParaAbaEua = (
