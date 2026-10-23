@@ -8,12 +8,6 @@ import {
 } from '@/services/analiseAtivos/params/scoringParamsSchema';
 import { SCORING_PARAMS_V1 } from '@/services/analiseAtivos/params/scoringParamsV1';
 import { SCORING_PARAMS_V2 } from '@/services/analiseAtivos/params/scoringParamsV2';
-import {
-  calcularIndiceComParams,
-  componentesIndiceAcao,
-  type EntradaIndiceAcao,
-} from '@/services/analiseAtivos/regras/calculo/indiceMf';
-import { ok } from '@/services/analiseAtivos/regras/comum/valor';
 import { ErroParams, obterScoringParams } from '@/services/analiseAtivos/params/obterScoringParams';
 
 const clonar = (): ScoringParams => structuredClone(SCORING_PARAMS_V1);
@@ -159,29 +153,6 @@ describe('bloco C — sanidade.conferencia (v1 idêntica, v2 liga)', () => {
     const lido = scoringParamsSchema.parse(v1SemConferencia());
     expect(lido).toEqual(SCORING_PARAMS_V1);
     expect(lido.sanidade.conferencia).toEqual(CONFERENCIA_PADRAO);
-  });
-
-  it('v1 do banco gera os mesmos scores da fixture da Fase 1 (WEGE3 8,02)', () => {
-    const lido = scoringParamsSchema.parse(v1SemConferencia());
-    const WEGE3: EntradaIndiceAcao = {
-      anosLucroConsecutivos: ok(10),
-      lucroUltimoFy: ok(6376.2e6),
-      ehFinanceira: false,
-      dividaLiquida: ok(-1500e6),
-      ebitda: ok(8900e6),
-      roePct: ok(29.4),
-      plControladora: ok(17417.2e6),
-      dy12mPct: ok(1.6),
-      plVsMedia10aPct: ok(40),
-    };
-    const comCodigo = calcularIndiceComParams(
-      componentesIndiceAcao(WEGE3, SCORING_PARAMS_V1),
-      'acao',
-      SCORING_PARAMS_V1,
-    );
-    const comBanco = calcularIndiceComParams(componentesIndiceAcao(WEGE3, lido), 'acao', lido);
-    expect(comBanco).toEqual(comCodigo);
-    expect(comBanco.indice).toEqual(ok(8.02));
   });
 
   it('o default não é compartilhado (mutar o lido não muda CONFERENCIA_PADRAO)', () => {

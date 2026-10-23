@@ -49,28 +49,7 @@ export type Valor<T = number> =
   | { estado: 'nao_se_aplica'; motivo: MotivoNaoSeAplica; detalhe?: string };
 
 export type StatusCriterio = 'atende' | 'parcial' | 'nao_atende' | 'nao_se_aplica' | 'sem_dado';
-export interface CheckSemaforo {
-  codigo: string;
-  status: StatusCriterio;
-  valor: number | null;
-  referencia: number | [number, number] | null;
-  provisorio?: boolean;
-  motivo?: string;
-}
-
-export type EstadoComponente =
-  | { estado: 'calculado'; nota: number; metrica: number }
-  | { estado: 'zero_regra'; nota: 0; motivo: 'prejuizo' | 'pl_nao_positivo' }
-  | { estado: 'ausente'; nota: 0; motivo: MotivoAusente }
-  | { estado: 'nao_se_aplica'; motivo: MotivoNaoSeAplica };
 export type NomeComponente = 'lucro' | 'divida' | 'rent' | 'div' | 'preco';
-export interface ResultadoIndice {
-  indice: Valor<number>;
-  componentes: Record<NomeComponente, EstadoComponente>;
-  pesosEfetivos: Partial<Record<NomeComponente, number>>;
-  incompleto: boolean;
-  motivosIncompleto: string[];
-}
 
 export interface FundamentosPeriodo {
   emissorId: string;
@@ -308,6 +287,8 @@ export type NomeJob =
   | 'fii-mensal'
   | 'fii-trimestral'
   | 'cotahist'
+  | 'derivados'
+  /** D6-a: nome antigo do 'derivados' (alias na rota/CLI; histórico de AnaliseJobRun) */
   | 'scores'
   | 'quadro'
   // bloco C: fila de curadoria (casos de regra + digest de prazo)
@@ -351,7 +332,7 @@ export interface JobContexto {
 export interface ResultadoJob {
   parcial?: boolean;
   /**
-   * v2.4: o job decidiu não rodar (ex.: 'criterios' com o 'scores' ainda executando) — o run fecha
+   * v2.4: o job decidiu não rodar (ex.: 'criterios' com o 'derivados' ainda executando) — o run fecha
    * com status 'pulado' e este motivo em `erro`. Nada é gravado.
    */
   pulado?: string;

@@ -1,6 +1,10 @@
 import { Prisma, type PrismaClient } from '@prisma/client';
 import { describe, expect, it, vi } from 'vitest';
 import { fundamentosVigentes } from '@/services/analiseAtivos/repositorio/acoes';
+import {
+  dadoMaisRecentePorCamada,
+  ultimaExecucaoOkPorJob,
+} from '@/services/analiseAtivos/repositorio/jobs';
 import { cotacaoFimDePeriodo } from '@/services/analiseAtivos/repositorio/cotacoes';
 import { condicionalDownload } from '@/services/analiseAtivos/repositorio/fontesArquivo';
 import { proventosBrutos } from '@/services/analiseAtivos/repositorio/proventos';
@@ -462,5 +466,71 @@ describe('fontesArquivo.condicionalDownload', () => {
       lastModified: null,
       sha256: 'h',
     });
+  });
+});
+
+describe("jobs — rename 'scores' → 'derivados' (D6-a)", () => {
+  const prismaRuns = (grupos: Array<{ job: string; fim: string }>) =>
+    ({
+      analiseJobRun: {
+        groupBy: vi.fn(async () =>
+          grupos.map((g) => ({ job: g.job, _max: { fim: new Date(g.fim) } })),
+        ),
+      },
+    }) as unknown as PrismaClient;
+
+  it("só o OK antigo de 'scores' ⇒ vale para 'derivados' (1º run do nome novo é incremental)", async () => {
+    const m = await ultimaExecucaoOkPorJob(
+      prismaRuns([
+        { job: 'scores', fim: '2026-10-22T10:11:00Z' },
+        { job: 'quadro', fim: '2026-10-22T10:41:00Z' },
+      ]),
+    );
+    expect(m.get('derivados')).toEqual(new Date('2026-10-22T10:11:00Z'));
+    expect(m.get('scores')).toEqual(new Date('2026-10-22T10:11:00Z'));
+    expect(m.get('quadro')).toEqual(new Date('2026-10-22T10:41:00Z'));
+  });
+
+  it("'derivados' mais novo ganha; 'scores' mais novo (processo pré-deploy) também conta", async () => {
+    const novo = await ultimaExecucaoOkPorJob(
+      prismaRuns([
+        { job: 'scores', fim: '2026-10-22T10:11:00Z' },
+        { job: 'derivados', fim: '2026-10-23T10:12:00Z' },
+      ]),
+    );
+    expect(novo.get('derivados')).toEqual(new Date('2026-10-23T10:12:00Z'));
+    const antigo = await ultimaExecucaoOkPorJob(
+      prismaRuns([
+        { job: 'scores', fim: '2026-10-23T10:11:00Z' },
+        { job: 'derivados', fim: '2026-10-22T18:00:00Z' },
+      ]),
+    );
+    expect(antigo.get('derivados')).toEqual(new Date('2026-10-23T10:11:00Z'));
+    expect((await ultimaExecucaoOkPorJob(prismaRuns([]))).has('derivados')).toBe(false);
+  });
+
+  it("camada 'scores' = max(precoData) dos múltiplos atuais de ação/FII; asset_scores não é lido", async () => {
+    const vazio = vi.fn(async () => ({ _max: {} }));
+    const multiplos = vi.fn(async () => ({ _max: { precoData: d('2026-10-22') } }));
+    const assetScore = vi.fn();
+    const prisma = {
+      assetQuoteDaily: { aggregate: vazio },
+      assetFundamentalsPeriod: { aggregate: vazio },
+      fiiMonthly: { aggregate: vazio },
+      fiiQuarterly: { aggregate: vazio },
+      assetSetorB3: { aggregate: vazio },
+      fiiTickerMap: { aggregate: vazio },
+      assetEvento: { aggregate: vazio },
+      assetMultiplesCurrent: { aggregate: multiplos },
+      assetScore: { aggregate: assetScore },
+      analiseQuadroLinha: { aggregate: vazio },
+    } as unknown as PrismaClient;
+    const r = await dadoMaisRecentePorCamada(prisma);
+    expect(r.scores).toBe('2026-10-22');
+    expect(multiplos).toHaveBeenCalledWith({
+      where: { classe: { in: ['acao', 'fii'] } },
+      _max: { precoData: true },
+    });
+    expect(assetScore).not.toHaveBeenCalled();
   });
 });

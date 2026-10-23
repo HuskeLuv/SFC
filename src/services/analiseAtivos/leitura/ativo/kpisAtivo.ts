@@ -55,7 +55,7 @@ export interface EntradaKpis {
   lpaAnual?: readonly PontoSerieAnual[];
   /** FIIs: data (AAAA-MM-DD) do informe mensal do patrimônio */
   patrimonioData?: string | null;
-  /** motivos do Índice da linha (AnaliseQuadroLinha.motivosIncompleto), para o legado */
+  /** códigos de conferência da linha (AnaliseQuadroLinha.motivosIncompleto), para o legado */
   motivosIncompleto?: readonly string[];
   /**
    * Números brutos da linha do Quadro por código de KPI (a linha da API já esconde os campos

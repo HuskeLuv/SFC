@@ -6,28 +6,32 @@
  * decisoes.md (prevalece: sem conferência manual pelo curador nesta fase — decisão 16 —, lucro com
  * salto e "variação > 40%"/"provedor × CVM" só como caso de revisão — decisões 1 e 2).
  *
- * Quem usa (sem arquivo em comum entre as fatias; todas leem daqui):
- *  - A (motor): grava as flags `conf:` / `rev:` / `info:` com `formatarFlagConf`/`formatarFlagRev`
- *    nas linhas (AssetMultiplesCurrent.flags, AssetMultiplesYearly.flags) e troca as métricas de
- *    `componentesDoGrupo(grupo, classe)` por ausente('em_conferencia', '<grupo>:<regra>'), motivo
- *    `motivoIndiceConferencia(comp)` = '<comp>:em_conferencia'. Contaminação entre tickers da mesma
- *    empresa SÓ quando `deveContaminarEmpresa` diz (escopo 'empresa' × 'ticker').
+ * D6-a (out/2026): o Índice MF e o semáforo saíram do pipeline. O contrato não tem mais efeito em
+ * nota nem em critério do semáforo; ele só descreve FLAGS e a política de EXIBIÇÃO.
+ *
+ * Quem usa (todas as fatias leem daqui):
+ *  - A (motor de sanidade, job derivados): grava as flags `conf:` / `rev:` / `info:` com
+ *    `formatarFlagConf`/`formatarFlagRev` nas linhas (AssetMultiplesCurrent.flags,
+ *    AssetMultiplesYearly.flags). Contaminação entre tickers da mesma empresa SÓ quando
+ *    `deveContaminarEmpresa` diz (escopo 'empresa' × 'ticker').
+ *  - Quadro (job quadro): deriva das flags os 2 códigos legados de proventos que grava em
+ *    `motivosIncompleto` ('div:em_conferencia' e 'div:fonte_defasada'; quadro/colunasLegadasQuadro).
  *  - B (tela): `campoEmConferencia(flags, motivos, campo, classe)` decide, por campo, o estado e a
  *    política de exibição ('ocultar' = '—' + chip, número só no "Por quê?"; 'selo' = valor + chip).
  *  - C (curadoria): `CAMPO_PRINCIPAL[grupo]` e `REGRAS_REVISAO[regra].campo` chaveiam os casos de
  *    regra (`chaveCaso` em curadoria/contrato.ts com periodo = chave da detecção).
  *  - D (relato): `campoPertenceAoGrupo` (curadoria/contrato.ts) usa `DEF_GRUPO[grupo].campos`.
  *
- * COMPATIBILIDADE (obrigatória): a v1 do ScoringParams NUNCA grava 'conf:' (só a v2, com
+ * COMPATIBILIDADE (obrigatória): a v1 do ScoringParams NUNCA grava 'conf:' (só a v2+, com
  * sanidade.conferencia.ligada=true). O legado de proventos ('proventos_em_conferencia_*',
  * 'provento_suspeito', 'proventos_defasados*', motivos 'div:em_conferencia'/'div:fonte_defasada')
  * continua no caminho de hoje (valor visível + selo). Por isso há DUAS leituras separadas:
  * `gruposConf` (só 'conf:') e `gruposLegados` (só o legado) — a leitura nova não muda o legado.
+ * CAMPOS_TELA mantém 'indiceMf'/'criterioSemaforo' por causa de casos antigos da curadoria (D6-b).
  *
  * Formato das flags (a chave nunca leva ':' nem '@' nem espaço):
- *   conf:<grupo>:<regra>@<chave>   bloqueante (grupo em conferência; efeito no Índice se o grupo tem
- *                                  componente para a classe)
- *   rev:<regra>@<chave>            só abre caso de revisão (nada muda na tela nem no Índice)
+ *   conf:<grupo>:<regra>@<chave>   bloqueante (grupo em conferência: os campos do grupo na tela)
+ *   rev:<regra>@<chave>            só abre caso de revisão (nada muda na tela)
  *   info:<codigo>                  só selo informativo (ex.: 'info:cotacao_esporadica')
  */
 import {
@@ -36,7 +40,6 @@ import {
   PREFIXO_FLAG_EM_CONFERENCIA,
   proventosEmConferencia,
 } from '@/services/analiseAtivos/regras/calculo/plausibilidadeProventos';
-import type { NomeComponente } from '@/services/analiseAtivos/tipos';
 import type { ClasseQuadro } from '@/types/analiseAtivosApi';
 
 // Legado de proventos reexportado SEM renomear (fatia A: plausibilidadeProventos continua dona).
@@ -159,12 +162,8 @@ export interface DefGrupo {
   escopo: EscopoConferencia;
   /** classes em que o grupo pode disparar (só Brasil: stock/reit nunca têm grupo) */
   classes: readonly ClasseConferencia[];
-  /** componentes do Índice MF que viram ausente('em_conferencia') */
-  componentes: Partial<Record<ClasseConferencia, readonly NomeComponente[]>>;
   /** campos de tela afetados e a política de exibição de cada um */
   campos: Partial<Record<CampoTela, ExibicaoConferencia>>;
-  /** critérios do semáforo que viram 'sem dado' (códigos de ScoringParams.*.semaforo) */
-  criteriosSemaforo: readonly string[];
   /** campo que chaveia o caso de regra na curadoria (ativo × dado) */
   campoPrincipal: CampoTela;
   /** códigos de regra que o motor (fatia A) pode gravar neste grupo */
@@ -175,27 +174,26 @@ const OCULTAR: ExibicaoConferencia = 'ocultar';
 const SELO: ExibicaoConferencia = 'selo';
 
 /**
- * Tabela central (spec fatia 0 item 3 + regras_sanidade). Valores aprovados:
- * - proventos: empresa · div · DY/payout/rendimento com selo (o comportamento de hoje).
- * - acoes_escala: empresa · acao[preco] · TODOS os campos que dependem do nº de ações = ocultar
- *   (inclusive o próprio nº de ações, EV/EBITDA e P/Receita — caso CBAV3).
- * - preco_base: ticker · [div, preco] · múltiplos que usam a cotação = ocultar; a cotação negociada
- *   continua visível com selo (é o preço real da B3).
- * - preco_esporadico: ticker · [div, preco] · cotação, P/VP e DY com selo.
- * - fundamentos_escala: empresa · acao[divida, rent, preco] · demonstrações e derivados = ocultar.
- * - historico: empresa · acao[preco] (média de 10 anos) · o ponto anual = ocultar (sai da média e
- *   da barra; a chave da flag é o ano).
- * - fii_vp: ticker (o FII é o próprio ticker) · fii[preco] · VP/cota e P/VP = ocultar.
- * - fii_obrigacoes: ticker · fii[divida] · Obrigações/PL com selo.
- * - fii_vacancia: ticker · fii[rent] (componente inativo na v1/v2) · vacância = ocultar (backtest
- *   18/10/2026, A4: gestor informando a ocupação no campo de vacância — HSML11 4T25 91,4%; salto
- *   brusco). Chave = mês do 1º trimestre do episódio (regras/fii/saneamentoVacancia).
+ * Tabela central (spec fatia 0 item 3 + regras_sanidade). Valores aprovados (escopo · campos):
+ * - proventos: empresa · DY/payout/rendimento com selo (o comportamento de hoje).
+ * - acoes_escala: empresa · TODOS os campos que dependem do nº de ações = ocultar (inclusive o
+ *   próprio nº de ações, EV/EBITDA e P/Receita — caso CBAV3).
+ * - preco_base: ticker · múltiplos que usam a cotação = ocultar; a cotação negociada continua
+ *   visível com selo (é o preço real da B3).
+ * - preco_esporadico: ticker · cotação, P/VP e DY com selo.
+ * - fundamentos_escala: empresa · demonstrações e derivados = ocultar.
+ * - historico: empresa · o ponto anual = ocultar (sai da média de 10 anos e da barra; a chave da
+ *   flag é o ano).
+ * - fii_vp: ticker (o FII é o próprio ticker) · VP/cota e P/VP = ocultar.
+ * - fii_obrigacoes: ticker · Obrigações/PL com selo.
+ * - fii_vacancia: ticker · vacância = ocultar (backtest 18/10/2026, A4: gestor informando a
+ *   ocupação no campo de vacância — HSML11 4T25 91,4%; salto brusco). Chave = mês do 1º trimestre
+ *   do episódio (regras/fii/saneamentoVacancia).
  */
 export const DEF_GRUPO: Record<GrupoConferencia, DefGrupo> = {
   proventos: {
     escopo: 'empresa',
     classes: ['acao', 'fii'],
-    componentes: { acao: ['div'], fii: ['div'] },
     campos: {
       dy12m: SELO,
       payout: SELO,
@@ -205,14 +203,12 @@ export const DEF_GRUPO: Record<GrupoConferencia, DefGrupo> = {
       proventosAno: SELO,
       historicoDy: SELO,
     },
-    criteriosSemaforo: ['dividendos', 'renda_recorrente'],
     campoPrincipal: 'dy12m',
     regras: ['dy_acima_teto', 'salto_recente', 'linha_suspeita'],
   },
   acoes_escala: {
     escopo: 'empresa',
     classes: ['acao'],
-    componentes: { acao: ['preco'] },
     campos: {
       pl: OCULTAR,
       pvp: OCULTAR,
@@ -225,14 +221,12 @@ export const DEF_GRUPO: Record<GrupoConferencia, DefGrupo> = {
       vpa: OCULTAR,
       nAcoes: OCULTAR,
     },
-    criteriosSemaforo: ['preco_historico'],
     campoPrincipal: 'nAcoes',
     regras: ['pvp_minimo', 'pl_minimo', 'vm_razao'],
   },
   preco_base: {
     escopo: 'ticker',
     classes: ['acao', 'fii'],
-    componentes: { acao: ['div', 'preco'], fii: ['div', 'preco'] },
     campos: {
       preco: SELO,
       dy12m: OCULTAR,
@@ -241,23 +235,19 @@ export const DEF_GRUPO: Record<GrupoConferencia, DefGrupo> = {
       evEbitda: OCULTAR,
       valorMercado: OCULTAR,
     },
-    criteriosSemaforo: ['dividendos', 'renda_recorrente', 'preco_historico', 'preco_vp'],
     campoPrincipal: 'preco',
     regras: ['base_sem_evento'],
   },
   preco_esporadico: {
     escopo: 'ticker',
     classes: ['acao', 'fii'],
-    componentes: { acao: ['div', 'preco'], fii: ['div', 'preco'] },
     campos: { preco: SELO, pvp: SELO, dy12m: SELO },
-    criteriosSemaforo: ['dividendos', 'renda_recorrente', 'preco_historico', 'preco_vp'],
     campoPrincipal: 'preco',
     regras: ['faixa_pvp', 'desvio_mediana'],
   },
   fundamentos_escala: {
     escopo: 'empresa',
     classes: ['acao'],
-    componentes: { acao: ['divida', 'rent', 'preco'] },
     campos: {
       receita: OCULTAR,
       lucroLiquido: OCULTAR,
@@ -274,43 +264,34 @@ export const DEF_GRUPO: Record<GrupoConferencia, DefGrupo> = {
       lpa: OCULTAR,
       vpa: OCULTAR,
     },
-    criteriosSemaforo: ['endividamento', 'rentabilidade', 'preco_historico'],
     campoPrincipal: 'receita',
     regras: ['salto_escala'],
   },
   historico: {
     escopo: 'empresa',
     classes: ['acao'],
-    componentes: { acao: ['preco'] },
     campos: { historicoPl: OCULTAR, historicoPvp: OCULTAR, historicoPReceita: OCULTAR },
-    criteriosSemaforo: ['preco_historico'],
     campoPrincipal: 'historicoPl',
     regras: ['escala_ano'],
   },
   fii_vp: {
     escopo: 'ticker',
     classes: ['fii'],
-    componentes: { fii: ['preco'] },
     campos: { vpCota: OCULTAR, pvp: OCULTAR },
-    criteriosSemaforo: ['preco_vp'],
     campoPrincipal: 'vpCota',
     regras: ['vp_salto'],
   },
   fii_obrigacoes: {
     escopo: 'ticker',
     classes: ['fii'],
-    componentes: { fii: ['divida'] },
     campos: { obrigacoesPl: SELO },
-    criteriosSemaforo: ['obrigacoes_pl'],
     campoPrincipal: 'obrigacoesPl',
     regras: ['obrigacoes_acima'],
   },
   fii_vacancia: {
     escopo: 'ticker',
     classes: ['fii'],
-    componentes: { fii: ['rent'] },
     campos: { vacanciaCvm: OCULTAR },
-    criteriosSemaforo: ['vacancia'],
     campoPrincipal: 'vacanciaCvm',
     regras: ['vacancia_ocupacao', 'vacancia_salto'],
   },
@@ -319,28 +300,10 @@ export const DEF_GRUPO: Record<GrupoConferencia, DefGrupo> = {
 /** Grupos de prioridade de exibição: 'ocultar' vence 'selo' quando dois grupos marcam o campo. */
 const PESO_EXIBICAO: Record<ExibicaoConferencia, number> = { ocultar: 2, selo: 1 };
 
-/** Componentes do Índice afetados pelo grupo na classe ([] = só exibição). */
-export function componentesDoGrupo(
-  grupo: GrupoConferencia,
-  classe: ClasseConferencia,
-): readonly NomeComponente[] {
-  return DEF_GRUPO[grupo].componentes[classe] ?? [];
-}
-
-/** Motivo do Índice para um componente em conferência ('preco:em_conferencia'). */
-export function motivoIndiceConferencia(componente: NomeComponente): string {
-  return `${componente}:em_conferencia`;
-}
-
-/** Detalhe do ausente('em_conferencia', detalhe) gravado pelo motor: '<grupo>:<regra>'. */
-export function detalheConferencia(grupo: GrupoConferencia, regra: string): string {
-  return `${grupo}:${regra}`;
-}
-
 /**
  * Contaminação entre tickers da mesma empresa: grupo de escopo 'empresa' sempre contamina a
  * referência; grupo de escopo 'ticker' só quando o ticker marcado É a referência (uma PN ilíquida com
- * preço esporádico não tira o C_preço da ON).
+ * preço esporádico não põe a ON em conferência).
  */
 export function deveContaminarEmpresa(
   grupo: GrupoConferencia,
@@ -356,7 +319,7 @@ export function deveContaminarEmpresa(
 // ===========================================================================
 
 /**
- * Regras que SÓ abrem caso de revisão (sem efeito na tela nem no Índice), com o campo que chaveia o
+ * Regras que SÓ abrem caso de revisão (sem efeito na tela), com o campo que chaveia o
  * caso. Decisões 1 e 2: "variação > 40%", "provedor × CVM" e lucro com salto ficam aqui.
  */
 export const REGRAS_REVISAO = {

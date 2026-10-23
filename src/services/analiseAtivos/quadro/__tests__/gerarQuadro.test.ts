@@ -1,10 +1,16 @@
 import { describe, it, expect, vi } from 'vitest';
 import type { PrismaClient } from '@prisma/client';
-import { gerarQuadro, gravarLinhasQuadro, lucrosFyVigentes } from '../gerarQuadro';
+import {
+  carregarEntradaQuadro,
+  gerarQuadro,
+  gravarLinhasQuadro,
+  lucrosFyVigentes,
+} from '../gerarQuadro';
 import type { EntradaQuadro, LinhaQuadroGravar } from '../montarLinhasQuadro';
 import type { AlertaJob, JobContexto } from '@/services/analiseAtivos/tipos';
 import { CLASSES_BR } from '@/types/analiseAtivosApi';
 import { SCORING_PARAMS_V1 } from '@/services/analiseAtivos/params/scoringParamsV1';
+import { SCORING_PARAMS_V4 } from '@/services/analiseAtivos/params/scoringParamsV4';
 import { CRITERIA_PARAMS_V1 } from '@/services/analiseAtivos/params/criteriaParamsV1';
 import { avaliarAtivo } from '@/services/analiseAtivos/regras/criterios/avaliarAtivo';
 import {
@@ -105,7 +111,6 @@ function entradaMinima(geradoEm: Date, simbolos = ['WEGE3', 'ITUB4']): EntradaQu
       unitQtdPn: null,
     })),
     fiis: [],
-    scores: [],
     multiplos: [],
     resumos: simbolos.map((s) => ({
       symbol: s,
@@ -135,7 +140,13 @@ describe('gerarQuadro', () => {
     const { ctx, contagem } = ctxCom(prisma);
     const carregar = vi.fn(async () => entradaMinima(new Date('2026-09-30T10:40:00Z')));
     const r = await gerarQuadro(ctx, { carregar });
-    expect(carregar).toHaveBeenCalledWith(prisma, '2026-10-02');
+    // D6-a: os params do job vão para a carga (emissores e régua do FII)
+    expect(carregar).toHaveBeenCalledWith(
+      prisma,
+      '2026-10-02',
+      expect.any(Date),
+      SCORING_PARAMS_V1,
+    );
     expect(ops).toEqual(['delete', 'create']);
     expect(tabela.size).toBe(2);
     expect(contagem).toMatchObject({ linhasLidas: 2, linhasGravadas: 2 });
@@ -318,6 +329,58 @@ describe('lucrosFyVigentes', () => {
     );
     const mapa = Object.fromEntries(r.map((x) => [`${x.cnpj}${x.anoFiscal}`, x.lucro]));
     expect(mapa).toEqual({ A2024: 12, A2025: 7, B2025: 2, B2023: 4 });
+    // D6-a: o "último FY" do prejuízo não usa o individual da controladora_zero
+    const semInd = Object.fromEntries(
+      r.map((x) => [`${x.cnpj}${x.anoFiscal}`, x.lucroSemIndividual]),
+    );
+    expect(semInd).toEqual({ A2024: 12, A2025: null, B2025: 2, B2023: 4 });
+  });
+});
+
+describe('carregarEntradaQuadro — D6-a (sem asset_scores)', () => {
+  /**
+   * Prisma fake: qualquer findMany devolve [], $queryRaw devolve [] e asset_multiples_current dá a
+   * dataRef. Tocar em assetScore quebra o teste (o Quadro não lê mais o AssetScore).
+   */
+  function prismaCarga(maxPrecoData: Date | null) {
+    const aggregate = vi.fn(async () => ({ _max: { precoData: maxPrecoData } }));
+    const modelo = (nome: string) =>
+      nome === 'assetMultiplesCurrent'
+        ? { aggregate, findMany: vi.fn(async () => []) }
+        : { findMany: vi.fn(async () => []) };
+    const prisma = new Proxy(
+      { $queryRaw: vi.fn(async () => []) },
+      {
+        get(alvo, prop: string) {
+          if (prop === 'assetScore') throw new Error('o Quadro não pode ler asset_scores');
+          if (prop in alvo) return alvo[prop as keyof typeof alvo];
+          return modelo(prop);
+        },
+      },
+    ) as unknown as PrismaClient;
+    return { prisma, aggregate };
+  }
+
+  it('dataRef = max(asset_multiples_current.precoData) de ações e FIIs', async () => {
+    const { prisma, aggregate } = prismaCarga(DATA_REF);
+    const e = await carregarEntradaQuadro(prisma, '2026-10-02', new Date(), SCORING_PARAMS_V4);
+    expect(e.dataRef).toEqual(DATA_REF);
+    expect(aggregate).toHaveBeenCalledWith({
+      where: { classe: { in: ['acao', 'fii'] } },
+      _max: { precoData: true },
+    });
+    expect(e.emissores).toEqual([]);
+  });
+
+  it('sem múltiplos atuais: erro pedindo o job derivados', async () => {
+    const { prisma } = prismaCarga(null);
+    await expect(carregarEntradaQuadro(prisma, '2026-10-02')).rejects.toThrow(
+      'asset_multiples_current vazio: rode o job derivados antes do quadro',
+    );
+  });
+
+  it('financeiras da v1 (padrão antigo do listarEmissores no Quadro) = v4 vigente', () => {
+    expect(SCORING_PARAMS_V4.financeiras).toEqual(SCORING_PARAMS_V1.financeiras);
   });
 });
 

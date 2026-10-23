@@ -21,7 +21,6 @@ import {
   GRUPOS_CONFERENCIA,
   campoEmConferencia,
   camposDoGrupo,
-  componentesDoGrupo,
   ehGrupoConferencia,
   flagsConf,
   type CampoConferencia,
@@ -301,30 +300,6 @@ export function conferenciaDoCampo(
 /** Ano do ponto anual de uma conferência do histórico (desde = fim do exercício). */
 export function anoDaConferencia(c: Pick<ConferenciaTela, 'grupo' | 'desde'>): number | null {
   return c.desde ? Number(c.desde.slice(0, 4)) : null;
-}
-
-/** Componentes do Índice (nomes) em conferência pelas conferências da página. */
-export function componentesEmConferencia(
-  conferencias: readonly ConferenciaTela[] | null | undefined,
-  classe: ClasseQuadro,
-): Set<string> {
-  const out = new Set<string>();
-  for (const c of conferencias ?? []) {
-    if (!ehGrupoConferencia(c.grupo) || c.grupo === 'historico') continue;
-    for (const comp of componentesDoGrupo(c.grupo, classe as ClasseConferencia)) out.add(comp);
-  }
-  return out;
-}
-
-/** Critérios do semáforo que viram 'Sem dado' (DEF_GRUPO[g].criteriosSemaforo). */
-export function criteriosEmConferencia(grupos: readonly string[]): Map<string, GrupoConferencia> {
-  const out = new Map<string, GrupoConferencia>();
-  for (const g of grupos) {
-    // histórico: só o ponto anual sai da média (o critério continua calculado pelo motor)
-    if (!ehGrupoConferencia(g) || g === 'historico') continue;
-    for (const c of DEF_GRUPO[g].criteriosSemaforo) if (!out.has(c)) out.set(c, g);
-  }
-  return out;
 }
 
 /** Grupos (distintos) das conferências da página. */

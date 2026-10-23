@@ -34,7 +34,6 @@ function entrada(): EntradaQuadro {
     geradoEm: new Date('2026-10-20T10:40:00.000Z'),
     acoes,
     fiis: [],
-    scores: [],
     multiplos: acoes.map((a) => ({
       symbol: a.symbol,
       preco: 10,

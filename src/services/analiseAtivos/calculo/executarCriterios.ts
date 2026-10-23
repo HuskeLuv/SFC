@@ -1,8 +1,8 @@
 /**
  * Job 'criterios' da Análise de Ativos v2.4 (Filtros de Fundamentos) — diário 10:30 UTC, entre o
- * 'scores' (10:10) e o 'quadro' (10:40). Só banco: nenhum provedor externo.
+ * 'derivados' (ex-'scores', 10:10) e o 'quadro' (10:40). Só banco: nenhum provedor externo.
  *
- * 1. Se o 'scores' ainda está executando (run aberto mais novo que o lock), termina 'pulado' com
+ * 1. Se o 'derivados' ainda está executando (run aberto mais novo que o lock), termina 'pulado' com
  *    alerta: o 'quadro' usa a avaliação anterior.
  * 2. CriteriaParams ativo (criteria_params; ausente = alerta de erro e falha, nada é gravado).
  * 3. Universo = cadastro do Quadro (CvmCompanyTicker vigente ∪ FiiTickerMap vigente), em lotes de
@@ -175,7 +175,8 @@ export function mesesPorAnoDeProvedor(
 
 export async function scoresEmExecucao(prisma: PrismaClient, desde: Date): Promise<boolean> {
   const aberto = await prisma.analiseJobRun.findFirst({
-    where: { job: 'scores', status: 'executando', inicio: { gt: desde } },
+    // D6-a: 'derivados' (ex-'scores'); o nome antigo cobre um run aberto por um processo pré-deploy
+    where: { job: { in: ['derivados', 'scores'] }, status: 'executando', inicio: { gt: desde } },
     select: { id: true },
   });
   return aberto !== null;
@@ -272,10 +273,10 @@ export async function executarCriterios(
   const tempos: Record<string, number> = {};
   const rss: Record<string, number> = {};
 
-  // 1. scores ainda rodando: o quadro usa a avaliação anterior
+  // 1. derivados ainda rodando: o quadro usa a avaliação anterior (código do alerta mantido)
   if (await deps.scoresEmExecucao(ctx.prisma, new Date(Date.now() - LOCK_TTL_PADRAO_MS))) {
     const motivo =
-      "job 'scores' ainda em execução: criterios pulado (o quadro usa a avaliação anterior)";
+      "job 'derivados' ainda em execução: criterios pulado (o quadro usa a avaliação anterior)";
     ctx.alertar({ codigo: 'criterios_scores_em_execucao', nivel: 'aviso', mensagem: motivo });
     return { pulado: motivo, detalhes: { pulado: 'scores_em_execucao' } };
   }

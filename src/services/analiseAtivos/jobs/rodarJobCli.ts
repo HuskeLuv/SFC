@@ -26,7 +26,7 @@ export function lerArgsRodarJob(argv: string[]): ArgsRodarJob {
   if (posicionais.length !== 1) {
     throw new Error(
       'uso: rodar-job.ts <job> [--prazo-s=N] [--sem-aplicar] [--versao-params=N] [--fonte=<id>]' +
-        '   (ex.: scores, cvm-cias:dfp)',
+        '   (ex.: derivados, cvm-cias:dfp; scores = alias de derivados)',
     );
   }
   const def = definicaoJob(posicionais[0]);
@@ -46,7 +46,7 @@ export function lerArgsRodarJob(argv: string[]): ArgsRodarJob {
     opcoes.fonte = fonte;
   }
   // Opção que o job não usa (DefinicaoJob.aceita) é recusada em vez de ignorada calada (ex.:
-  // 'scores'/'quadro' com --versao-params rodariam a versão vigente). A scoring de uma versão não
+  // 'derivados'/'quadro' com --versao-params rodariam a versão vigente). A scoring de uma versão não
   // vigente roda por scripts/analise-ativos/recalcular-analise.ts --versao-params=N.
   const recusadas = (Object.keys(opcoes) as Array<keyof OpcoesExecucaoJob>).filter(
     (k) => !(def.aceita ?? []).includes(k),
@@ -54,7 +54,7 @@ export function lerArgsRodarJob(argv: string[]): ArgsRodarJob {
   if (recusadas.length > 0) {
     throw new Error(
       `o job '${def.nome}' não aceita --versao-params/--fonte (${recusadas.join(', ')})` +
-        ' (scores/quadro de outra versão: recalcular-analise.ts --versao-params=N)',
+        ' (derivados/quadro de outra versão: recalcular-analise.ts --versao-params=N)',
     );
   }
   return { def, prazoMs, aplicar: !argv.includes('--sem-aplicar'), opcoes };

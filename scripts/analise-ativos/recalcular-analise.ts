@@ -1,20 +1,26 @@
 /**
  * Recalcula os derivados da Análise de Ativos (fatia D) — backfill passos 9 e 10 e recálculo manual.
- * Roda exatamente a função do cron /api/cron/analise-ativos/scores (executarScores), registrada em
- * AnaliseJobRun como 'backfill:recalcular-analise' (origem 'script').
+ * Roda exatamente a função do cron /api/cron/analise-ativos/derivados (executarDerivados; a rota
+ * /scores é alias), registrada em AnaliseJobRun como 'backfill:recalcular-analise' (origem 'script').
  *
  * Uso:
  *   npx tsx --env-file=.env scripts/analise-ativos/recalcular-analise.ts \
- *     --etapas=proventos,eventos,derivados,scores          # dry-run: contagens e amostra, não grava
+ *     --etapas=proventos,eventos,derivados,atuais          # dry-run: contagens, não grava
  *   NODE_OPTIONS=--max-old-space-size=384 npx tsx --env-file=.env \
- *     scripts/analise-ativos/recalcular-analise.ts --etapas=proventos,eventos,derivados,scores --apply
+ *     scripts/analise-ativos/recalcular-analise.ts --etapas=proventos,eventos,derivados,atuais --apply
+ *
+ * D6-a (23/10/2026): o Índice MF e o semáforo saíram do job. A etapa 'scores' continua aceita como
+ * alias de 'atuais' (múltiplos do dia + sanidade), com aviso — os comandos antigos do RUNBOOK e de
+ * produção (--etapas=proventos,eventos,derivados,scores) fazem o mesmo trabalho de antes, sem gravar
+ * asset_scores. --sem-retencao é aceito sem efeito (não há mais retenção de asset_scores).
  *
  * Opções:
  *   --apply                 grava (padrão: dry-run)
- *   --etapas=a,b            subconjunto de proventos,eventos,derivados,scores (padrão: todas)
+ *   --etapas=a,b            subconjunto de proventos,eventos,derivados,atuais (padrão: todas;
+ *                           'scores' = alias de 'atuais')
  *   --tudo                  derivados anuais de TODOS os emissores/FIIs (padrão: só os alterados
- *                           desde o último run OK do job scores; sem run anterior = todos)
- *   --sem-retencao          não aplica a retenção de asset_scores
+ *                           desde o último run OK do job derivados/scores; sem run anterior = todos)
+ *   --sem-retencao          sem efeito desde a D6-a (aceito com aviso)
  *   --prazo-s=N             prazo interno (padrão 1.800 s no script; o cron usa 240 s)
  *   --simbolos-arquivo=F    JSON {"acao": [...], "fii": [...]} com símbolos EXTRAS só para
  *                           proventos/eventos (dev sem cadastro das fatias A/B)
@@ -30,21 +36,22 @@
  *
  * fundamentei-regras (F2) — dry-run da scoring v3 (inerte no banco com validFrom 2099, ou do código):
  *   npx tsx --env-file=.env scripts/analise-ativos/recalcular-analise.ts --versao-params=3 \
- *     --etapas=derivados,scores --tudo --sem-retencao --relatorio-tickers=/tmp/v2-x-v3.csv
+ *     --etapas=derivados,atuais --tudo --relatorio-tickers=/tmp/v2-x-v3.csv
  *
- * Bloco C — dry-run da v2 com relatório por regra (o mesmo que vai para detalhes.scores.sanidade):
+ * Bloco C — dry-run da v2 com relatório por regra (o mesmo que vai para detalhes.atuais.sanidade):
  *   npx tsx --env-file=.env scripts/analise-ativos/recalcular-analise.ts --versao-params=2 --tudo \
- *     --sem-retencao --relatorio=/tmp/dryrun-v2.txt
+ *     --relatorio=/tmp/dryrun-v2.txt
  *
- * Idempotente (reescrita por símbolo / chave (symbol, dataRef)) e retomável (rodar de novo continua
+ * Idempotente (reescrita por símbolo) e retomável (rodar de novo continua
  * do estado gravado). Nunca escreve em tabelas existentes do app.
  */
 import { readFileSync, writeFileSync } from 'node:fs';
 import {
   ETAPAS,
-  executarScores,
+  executarDerivados,
+  normalizarEtapas,
   type Etapa,
-} from '../../src/services/analiseAtivos/calculo/executarScores';
+} from '../../src/services/analiseAtivos/calculo/executarDerivados';
 import { executarJobAnalise } from '../../src/services/analiseAtivos/jobs/executarJob';
 import {
   ErroParams,
@@ -53,7 +60,7 @@ import {
 import { SCORING_PARAMS_V2 } from '../../src/services/analiseAtivos/params/scoringParamsV2';
 import { SCORING_PARAMS_V3 } from '../../src/services/analiseAtivos/params/scoringParamsV3';
 import { SCORING_PARAMS_V4 } from '../../src/services/analiseAtivos/params/scoringParamsV4';
-import type { RelatorioSanidade } from '../../src/services/analiseAtivos/calculo/recalcularScores';
+import type { RelatorioSanidade } from '../../src/services/analiseAtivos/calculo/recalcularAtuais';
 import type {
   ColetorPayoutDy,
   ContextoComColetor,
@@ -61,11 +68,10 @@ import type {
 import type { JobContexto, ScoringParams } from '../../src/services/analiseAtivos/tipos';
 import { prisma } from '../../src/lib/prisma';
 
-interface Args {
+export interface Args {
   aplicar: boolean;
   etapas: Etapa[];
   tudo: boolean;
-  retencao: boolean;
   prazoMs: number;
   extras?: { acao?: string[]; fii?: string[] };
   versaoParams?: number;
@@ -74,12 +80,15 @@ interface Args {
   tickers?: string[];
 }
 
-function lerArgs(argv: string[]): Args {
+export function lerArgs(argv: string[]): Args {
   const valor = (nome: string) => argv.find((a) => a.startsWith(`--${nome}=`))?.split('=', 2)[1];
   const etapasTxt = valor('etapas');
-  const etapas = (etapasTxt ? etapasTxt.split(',') : [...ETAPAS]).map((e) => e.trim());
-  for (const e of etapas) {
-    if (!(ETAPAS as readonly string[]).includes(e)) throw new Error(`etapa inválida: ${e}`);
+  // 'scores' = alias de 'atuais' (D6-a), com aviso; etapa desconhecida lança
+  const etapas = normalizarEtapas(etapasTxt ? etapasTxt.split(',') : [...ETAPAS]);
+  if (argv.includes('--sem-retencao')) {
+    console.warn(
+      '[recalcular-analise] --sem-retencao não tem mais efeito (D6-a: sem asset_scores)',
+    );
   }
   const prazo = Number(valor('prazo-s') ?? 1800);
   if (!Number.isFinite(prazo) || prazo <= 0) throw new Error('--prazo-s inválido');
@@ -108,9 +117,8 @@ function lerArgs(argv: string[]): Args {
           .filter(Boolean)
       : undefined,
     aplicar: argv.includes('--apply'),
-    etapas: etapas as Etapa[],
+    etapas,
     tudo: argv.includes('--tudo'),
-    retencao: !argv.includes('--sem-retencao'),
     prazoMs: prazo * 1000,
     extras,
   };
@@ -125,7 +133,7 @@ const VERSOES_CODIGO: Record<number, ScoringParams> = {
 
 /**
  * Params da --versao-params: a versão do banco se existir; senão, a v2/v3/v4 do código (só dry-run —
- * gravar scores com uma versão que não está no banco quebraria a trilha paramsVersion).
+ * gravar derivados com uma versão que não está no banco quebraria a trilha paramsVersion).
  */
 async function paramsDaVersao(
   versao: number,
@@ -155,11 +163,7 @@ export function relatorioTexto(r: RelatorioSanidade | undefined, cabecalho: stri
   if (!r) return `${cabecalho}\n(motor de sanidade desligado nesta versão: nenhuma regra rodou)\n`;
   const linhas = [
     cabecalho,
-    `Quadro: ${r.totais.acao} ações · ${r.totais.fii} FIIs (linhas com score)`,
-    `Índices com componente em conferência pelo bloco C: ${r.indicesEmConferencia.acao} empresas · ${r.indicesEmConferencia.fii} FIIs`,
-    `Calculados (completos) sem o bloco C: ${r.calculadosSemBlocoC.acao} empresas · ${r.calculadosSemBlocoC.fii} FIIs`,
-    `  passam a incompletos com o bloco C: ${r.calculadosQueCaem.acao.length} empresas (${pct(r.calculadosQueCaem.acao.length, r.calculadosSemBlocoC.acao)}%) ${r.calculadosQueCaem.acao.join(', ')}`,
-    `                                      ${r.calculadosQueCaem.fii.length} FIIs (${pct(r.calculadosQueCaem.fii.length, r.calculadosSemBlocoC.fii)}%) ${r.calculadosQueCaem.fii.join(', ')}`,
+    `Quadro: ${r.totais.acao} ações · ${r.totais.fii} FIIs (linhas do Quadro)`,
     `Liberações da curadoria lidas: ${r.liberacoes}`,
     '',
     'classe        regra                                      ações (%)      empresas  FIIs (%)   amostra',
@@ -317,11 +321,10 @@ async function main() {
         ? { ...ctxJob, params: override.params, paramsVersion: args.versaoParams! }
         : ctxJob;
       const ctx: ContextoComColetor = coletor ? { ...base, coletorPayoutDy: coletor } : base;
-      const r = await executarScores(ctx, {
+      const r = await executarDerivados(ctx, {
         etapas: args.etapas,
         tudo: args.tudo,
         extras: args.extras,
-        retencao: args.retencao,
       });
       detalhes = r.detalhes;
       return r;
@@ -359,8 +362,8 @@ async function main() {
       2,
     ),
   );
-  const sanidade = (detalhes?.scores as { sanidade?: RelatorioSanidade } | undefined)?.sanidade;
-  if (detalhes?.scores) {
+  const sanidade = (detalhes?.atuais as { sanidade?: RelatorioSanidade } | undefined)?.sanidade;
+  if (detalhes?.atuais) {
     const texto = relatorioTexto(
       sanidade,
       `=== motor de sanidade (bloco C) — relatório por regra — ScoringParams ${args.versaoParams ? `v${args.versaoParams}` : 'ativa'} — ${args.aplicar ? 'APPLY' : 'dry-run'} ===`,

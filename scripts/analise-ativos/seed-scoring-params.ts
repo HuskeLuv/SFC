@@ -3,6 +3,12 @@
  * SCORING_PARAMS_V3, alinhamento ao Fundamentei; v4 = SCORING_PARAMS_V4, a v3 com o DPA/DY pelo
  * ano-calendário também fora de dezembro) na tabela scoring_params.
  *
+ * D6-a (out/2026): o Índice MF e o semáforo saíram do pipeline, mas o ScoringParams CONTINUA
+ * vigente — o job derivados (eventos, proventos, per-share, múltiplos, sanidade/Bloco C), o Quadro
+ * (financeiras, régua do FII, universo, pares) e o Valuation leem as partes que ficam. As chaves
+ * indice/componentes/semaforo do JSON continuam validadas pelo schema e saem na D6-b
+ * (acao.componentes.preco.minPontosHistorico ainda é lido pelo P/L médio de 10 anos).
+ *
  * Idempotente e imutável: insere a versão só se ausente; se já existir, compara com o código (após
  * a validação pelo schema, que aplica os defaults dos campos acrescentados depois) e avisa quando
  * divergir, mas NUNCA altera uma versão existente (recalibrar = nova versão).

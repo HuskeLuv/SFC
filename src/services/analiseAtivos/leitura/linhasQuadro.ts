@@ -15,8 +15,10 @@
  * CONVENÇÃO das colunas de array gravadas pelo job (fatia A):
  * - naoSeAplica: nome do campo ('divLiqEbitda') ou 'campo:motivo' ('vacanciaFisicaCvmPct:
  *   papel_sem_imoveis'). Sem motivo explícito, vale o da régua (acao_financeira → financeira).
- * - motivosIncompleto: 'componente:motivo' do AssetScore ('div:fonte_defasada').
- * - componentesZeroRegra: 'componente:motivo' ('lucro:prejuizo', 'preco:pl_negativo').
+ * - motivosIncompleto: códigos de conferência de proventos gravados pelo job 'quadro' a partir das
+ *   flags dos múltiplos atuais ('div:em_conferencia', 'div:fonte_defasada'; D6-a, sem AssetScore).
+ * - componentesZeroRegra: 'componente:motivo' gravado pelo job 'quadro' ('lucro:prejuizo',
+ *   'preco:prejuizo' quando o lucro do último exercício é <= 0).
  * - flags: inclui 'provento_suspeito', 'proventos_defasados*' e 'proventos_em_conferencia_*' (trava
  *   de plausibilidade do DY) (⇒ proventosEmConferencia).
  * - bloco C (só params v2): flags 'conf:<grupo>:<regra>@<chave>' (conferencia.ts). Campo com

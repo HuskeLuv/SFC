@@ -3,7 +3,7 @@ import { NextRequest } from 'next/server';
 
 const mocks = vi.hoisted(() => ({
   executarJobAnalise: vi.fn(),
-  executarScores: vi.fn(),
+  executarDerivados: vi.fn(),
 }));
 
 vi.mock('@/services/analiseAtivos/jobs/executarJob', async () => {
@@ -14,11 +14,12 @@ vi.mock('@/services/analiseAtivos/jobs/executarJob', async () => {
       NextResponse.json(r, { status: r.status === 'falha' ? 500 : 200 }),
   };
 });
-vi.mock('@/services/analiseAtivos/calculo/executarScores', () => ({
-  executarScores: mocks.executarScores,
+vi.mock('@/services/analiseAtivos/calculo/executarDerivados', () => ({
+  executarDerivados: mocks.executarDerivados,
 }));
 
-import { GET } from '../route';
+import { GET as GET_DERIVADOS } from '../../derivados/route';
+import { dynamic, GET, runtime } from '../route';
 
 const req = (secret?: string) =>
   new NextRequest('http://localhost/api/cron/analise-ativos/scores', {
@@ -27,7 +28,7 @@ const req = (secret?: string) =>
 
 const relatorio = (status: string) => ({
   id: 'run-1',
-  job: 'scores',
+  job: 'derivados',
   status,
   duracaoMs: 10,
   linhasLidas: 1,
@@ -49,14 +50,20 @@ afterEach(() => {
   delete process.env.ANALISE_ATIVOS_ROTA_RSS_MAX_MB;
 });
 
-describe('GET /api/cron/analise-ativos/scores', () => {
+describe('GET /api/cron/analise-ativos/scores (alias do derivados, D6-a)', () => {
+  it('é o MESMO handler da rota /derivados, com a mesma config de segmento', () => {
+    expect(GET).toBe(GET_DERIVADOS);
+    expect(runtime).toBe('nodejs');
+    expect(dynamic).toBe('force-dynamic');
+  });
+
   it('401 sem o segredo do cron', async () => {
     const r = await GET(req('errado'));
     expect(r.status).toBe(401);
     expect(mocks.executarJobAnalise).not.toHaveBeenCalled();
   });
 
-  it('roda o job "scores" com executarScores e devolve 200', async () => {
+  it("o cron de produção em /scores grava job='derivados' (mesmo lock) e devolve 200", async () => {
     mocks.executarJobAnalise.mockImplementation(
       async (job: string, fn: (ctx: unknown) => unknown) => {
         await fn({ ctx: true });
@@ -65,10 +72,10 @@ describe('GET /api/cron/analise-ativos/scores', () => {
     );
     const r = await GET(req('segredo-teste'));
     expect(r.status).toBe(200);
-    expect(mocks.executarJobAnalise).toHaveBeenCalledWith('scores', expect.any(Function), {
+    expect(mocks.executarJobAnalise).toHaveBeenCalledWith('derivados', expect.any(Function), {
       prazoMs: 240_000,
     });
-    expect(mocks.executarScores).toHaveBeenCalledWith({ ctx: true });
+    expect(mocks.executarDerivados).toHaveBeenCalledWith({ ctx: true });
     expect((await r.json()).status).toBe('ok');
   });
 
@@ -84,7 +91,7 @@ describe('GET /api/cron/analise-ativos/scores', () => {
     expect(r.status).toBe(503);
     const corpo = await r.json();
     expect(corpo.status).toBe('recusado');
-    expect(corpo.erro).toContain('rodar-job.ts scores');
+    expect(corpo.erro).toContain('rodar-job.ts derivados');
     expect(mocks.executarJobAnalise).not.toHaveBeenCalled();
   });
 });

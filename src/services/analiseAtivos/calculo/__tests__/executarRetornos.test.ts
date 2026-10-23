@@ -116,7 +116,7 @@ describe('trava de concorrência', () => {
   it('jobs da trava: os pesados do catálogo (sem o próprio) + quadro e alertas-salvos', async () => {
     const jobs = await jobsDaTrava();
     expect(jobs).toEqual(
-      expect.arrayContaining(['scores', 'criterios', 'eua-diario', 'quadro', 'alertas-salvos']),
+      expect.arrayContaining(['derivados', 'criterios', 'eua-diario', 'quadro', 'alertas-salvos']),
     );
     expect(jobs).toContain('cvm-fre-societario');
     expect(jobs).not.toContain('retornos-cotacao');

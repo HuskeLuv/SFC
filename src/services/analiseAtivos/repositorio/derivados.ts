@@ -1,52 +1,10 @@
 /**
- * Leituras dos derivados da fatia D (Índice MF/semáforo e múltiplos atuais) para a Fase 1 e frescor.
+ * Leituras dos derivados da fatia D (múltiplos atuais) para a Fase 1 e frescor. D6-a: as leituras de
+ * asset_scores (ScoreGravado/scoresNaData) saíram com o Índice MF.
  */
 import type { PrismaClient } from '@prisma/client';
-import { deData, paraData, paraNumero } from '@/services/analiseAtivos/repositorio/conversao';
-import type { CheckSemaforo, ClasseAnalise, Regua } from '@/services/analiseAtivos/tipos';
-
-export interface ScoreGravado {
-  symbol: string;
-  cnpj: string;
-  dataRef: string;
-  classe: ClasseAnalise;
-  regua: Regua;
-  fiiTipo: string | null;
-  tickerReferencia: string | null;
-  indiceMf: number | null;
-  cLucro: number | null;
-  cDivida: number | null;
-  cRent: number | null;
-  cDiv: number | null;
-  cPreco: number | null;
-  componentes: unknown;
-  pesosEfetivos: unknown;
-  checks: CheckSemaforo[];
-  criteriosAplicaveis: number;
-  criteriosAtendidos: number;
-  incompleto: boolean;
-  motivosIncompleto: string[];
-  paramsVersion: number;
-  computedAt: Date;
-}
-
-export async function scoresNaData(
-  prisma: PrismaClient,
-  dataRef: string,
-  symbols?: string[],
-): Promise<ScoreGravado[]> {
-  const linhas = await prisma.assetScore.findMany({
-    where: { dataRef: deData(dataRef), ...(symbols ? { symbol: { in: symbols } } : {}) },
-    orderBy: { symbol: 'asc' },
-  });
-  return linhas.map((l) => ({
-    ...l,
-    dataRef: paraData(l.dataRef),
-    classe: l.classe as ClasseAnalise,
-    regua: l.regua as Regua,
-    checks: (Array.isArray(l.checks) ? l.checks : []) as unknown as CheckSemaforo[],
-  }));
-}
+import { paraData, paraNumero } from '@/services/analiseAtivos/repositorio/conversao';
+import type { ClasseAnalise } from '@/services/analiseAtivos/tipos';
 
 export interface MultiplosAtuaisGravados {
   symbol: string;

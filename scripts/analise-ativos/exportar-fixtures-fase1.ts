@@ -9,6 +9,9 @@
  * (incompleto), AURE3 (zero_regra), SOJA3; FIIs HGLG11, XPLG11, BTLG11, KNCR11, MXRF11, HFOF11
  * (FoF) e HCTR11 (sem score); + CELP3 (ação com score fora do Quadro, só na busca).
  * Cotação diária reduzida: último pregão de cada mês + últimos 45 dias.
+ * D6-a: asset_scores não é mais exportada (o Índice MF saiu do pipeline e nada lê a tabela); os
+ * estados da amostra ('incompleto', 'zero_regra', 'sem score') descrevem as linhas do Quadro da
+ * fixture, gravadas antes da D6-a.
  *
  * Uso: npx tsx --env-file=.env scripts/analise-ativos/exportar-fixtures-fase1.ts
  */
@@ -68,7 +71,6 @@ async function main() {
     const cnpjsFii = [...new Set(tickersFii.map((t) => t.cnpj))];
     const cnpjs = [...cnpjsAcao, ...cnpjsFii];
     const raizes = [...new Set(tickersAcao.map((t) => t.symbol.slice(0, 4)))];
-    const ultimoScore = await prisma.assetScore.aggregate({ _max: { dataRef: true } });
 
     const [
       scoringParams,
@@ -84,7 +86,6 @@ async function main() {
       assetPerShareYearly,
       assetMultiplesYearly,
       assetMultiplesCurrent,
-      assetScore,
       assetEvento,
       quadro,
     ] = await Promise.all([
@@ -108,9 +109,6 @@ async function main() {
       prisma.assetPerShareYearly.findMany({ where: { symbol: { in: S } } }),
       prisma.assetMultiplesYearly.findMany({ where: { symbol: { in: S } } }),
       prisma.assetMultiplesCurrent.findMany({ where: { symbol: { in: S } } }),
-      prisma.assetScore.findMany({
-        where: { symbol: { in: S }, dataRef: ultimoScore._max.dataRef ?? undefined },
-      }),
       prisma.assetEvento.findMany({ where: { cnpj: { in: cnpjs } } }),
       prisma.analiseQuadroLinha.findMany({
         where: { symbol: { in: S } },
@@ -149,7 +147,6 @@ async function main() {
       assetPerShareYearly,
       assetMultiplesYearly,
       assetMultiplesCurrent,
-      assetScore,
       assetEvento,
     };
 

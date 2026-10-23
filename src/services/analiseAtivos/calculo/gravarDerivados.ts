@@ -1,7 +1,8 @@
 /**
  * Escrita (e leitura do próprio estado) das tabelas da fatia D: asset_proventos_auditados,
- * asset_corporate_action_checks, asset_per_share_yearly, asset_multiples_yearly,
- * asset_multiples_current e asset_scores. Nenhuma outra tabela é escrita aqui.
+ * asset_corporate_action_checks, asset_per_share_yearly, asset_multiples_yearly e
+ * asset_multiples_current. Nenhuma outra tabela é escrita aqui (D6-a: asset_scores não é mais
+ * gravado; a tabela sai na D6-b).
  *
  * Padrão: reescrita POR SÍMBOLO numa transação em lote (deleteMany symbol IN … + createMany), em lotes
  * de até 1.000 linhas — idempotente (rodar 2× dá o mesmo estado) e sem órfãos. Em dry-run
@@ -351,7 +352,7 @@ export async function lerDpaAnualGravado(
 }
 
 // ---------------------------------------------------------------------------------------------
-// Múltiplos atuais e scores
+// Múltiplos atuais
 // ---------------------------------------------------------------------------------------------
 
 export async function gravarMultiplosAtuais(
@@ -363,42 +364,4 @@ export async function gravarMultiplosAtuais(
     prisma.assetMultiplesCurrent.deleteMany({ where: { symbol: { in: ss } } }),
     prisma.assetMultiplesCurrent.createMany({ data: ls }),
   ]);
-}
-
-/** Regrava a chave (symbol, dataRef): 2 runs no mesmo dataRef dão o mesmo estado. */
-export async function gravarScores(
-  prisma: PrismaClient,
-  dataRef: string,
-  linhas: Prisma.AssetScoreCreateManyInput[],
-): Promise<number> {
-  const simbolos = linhas.map((l) => l.symbol);
-  const data = deData(dataRef);
-  return reescrever(prisma, simbolos, linhas, (ss, ls) => [
-    prisma.assetScore.deleteMany({ where: { dataRef: data, symbol: { in: ss } } }),
-    prisma.assetScore.createMany({ data: ls }),
-  ]);
-}
-
-/**
- * Retenção de asset_scores: apaga dataRef < hoje − 40 dias que não seja o ÚLTIMO dataRef do seu mês.
- */
-export async function aplicarRetencaoScores(
-  prisma: PrismaClient,
-  hoje: string,
-  diasDiarios = 40,
-): Promise<{ apagadas: number; datas: string[] }> {
-  const corte = new Date(deData(hoje).getTime() - diasDiarios * 24 * 60 * 60 * 1000);
-  const grupos = await prisma.assetScore.groupBy({
-    by: ['dataRef'],
-    where: { dataRef: { lt: corte } },
-  });
-  const datas = grupos.map((g) => paraData(g.dataRef)).sort();
-  const ultimaDoMes = new Map<string, string>();
-  for (const d of datas) ultimaDoMes.set(d.slice(0, 7), d);
-  const apagar = datas.filter((d) => ultimaDoMes.get(d.slice(0, 7)) !== d);
-  if (apagar.length === 0) return { apagadas: 0, datas: [] };
-  const r = await prisma.assetScore.deleteMany({
-    where: { dataRef: { in: apagar.map(deData) } },
-  });
-  return { apagadas: r.count, datas: apagar };
 }

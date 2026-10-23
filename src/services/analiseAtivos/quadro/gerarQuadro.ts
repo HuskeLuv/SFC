@@ -3,8 +3,11 @@
  * Roda depois do 'scores' (cron 10:40 UTC, processo separado pelo myfinance-job.sh), via
  * executarJobAnalise (lock, AnaliseJobRun, prazo). Só banco: nenhum provedor externo.
  *
- * 1. dataRef = max(asset_scores.dataRef) (continua vindo de asset_scores até a D6).
- * 2. carregarEntradaQuadro: UMA leitura por tabela (cadastro, scores da dataRef, múltiplos atuais,
+ * 1. dataRef = max(asset_multiples_current.precoData) de ações e FIIs: a data do último pregão do
+ *    run do job 'scores' (derivados), que grava os múltiplos atuais. D6-a (A3, 23/10/2026): o Quadro
+ *    não lê mais asset_scores; régua, tipo, motivos de conferência e versão vêm dos derivados
+ *    (colunasLegadasQuadro.ts).
+ * 2. carregarEntradaQuadro: UMA leitura por tabela (cadastro, emissores, múltiplos atuais,
  *    setor B3, nomes, informes de FII, resumo de cotação, 2 últimos pregões, per-share, lucro FY,
  *    contagens de ações e eventos verificados — o valor de mercado usa a contagem dos múltiplos —,
  *    Asset.id) + a cópia compacta dos critérios (criteria_eval, gravado pelo job
@@ -40,7 +43,8 @@ import {
   type EntradaQuadro,
   type LinhaQuadroGravar,
 } from '@/services/analiseAtivos/quadro/montarLinhasQuadro';
-import type { JobContexto, ResultadoJob } from '@/services/analiseAtivos/tipos';
+import { SCORING_PARAMS_V1 } from '@/services/analiseAtivos/params/scoringParamsV1';
+import type { JobContexto, ResultadoJob, ScoringParams } from '@/services/analiseAtivos/tipos';
 import { CLASSES_BR, type ClasseQuadro } from '@/types/analiseAtivosApi';
 
 const DIA_MS = 86_400_000;
@@ -53,10 +57,16 @@ export async function carregarEntradaQuadro(
   prisma: PrismaClient,
   hoje: string,
   geradoEm: Date = new Date(),
+  params: ScoringParams = SCORING_PARAMS_V1,
 ): Promise<EntradaQuadro> {
-  const ultimoScore = await prisma.assetScore.aggregate({ _max: { dataRef: true } });
-  const dataRef = ultimoScore._max.dataRef;
-  if (!dataRef) throw new Error('asset_scores vazio: rode o job scores antes do quadro');
+  const ultimo = await prisma.assetMultiplesCurrent.aggregate({
+    where: { classe: { in: ['acao', 'fii'] } },
+    _max: { precoData: true },
+  });
+  const dataRef = ultimo._max.precoData;
+  if (!dataRef) {
+    throw new Error('asset_multiples_current vazio: rode o job derivados antes do quadro');
+  }
 
   const [acoes, fiis] = await Promise.all([listarTickersAcoes(prisma), listarFiisListados(prisma)]);
   const symbols = [...acoes.map((a) => a.symbol), ...fiis.map((f) => f.symbol)];
@@ -65,7 +75,6 @@ export async function carregarEntradaQuadro(
   const desdePregoes = new Date(dataRef.getTime() - JANELA_PREGOES_DIAS * DIA_MS);
 
   const [
-    scores,
     multiplos,
     resumos,
     setores,
@@ -77,7 +86,6 @@ export async function carregarEntradaQuadro(
     contagens,
     eventosAcoes,
   ] = await Promise.all([
-    prisma.assetScore.findMany({ where: { dataRef } }),
     prisma.assetMultiplesCurrent.findMany({ where: { symbol: { in: symbols } } }),
     prisma.assetQuoteResumo.findMany({ where: { symbol: { in: symbols } } }),
     prisma.assetSetorB3.findMany(),
@@ -104,7 +112,7 @@ export async function carregarEntradaQuadro(
         dtFim: true,
       },
     }),
-    listarEmissores(prisma, cnpjsAcao),
+    listarEmissores(prisma, cnpjsAcao, params),
     contagensAcoes(prisma, cnpjsAcao),
     prisma.assetCorporateActionCheck.findMany({
       where: {
@@ -129,11 +137,13 @@ export async function carregarEntradaQuadro(
             cnpj: string;
             segmentoCvm: string | null;
             tipoVigente: string | null;
+            reguaVigente: string | null;
             cotistas: number | null;
             pl: Prisma.Decimal | null;
             cotas: Prisma.Decimal | null;
           }>
-        >`SELECT DISTINCT ON ("cnpj") "cnpj", "segmentoCvm", "tipoVigente", "cotistas", "pl", "cotas"
+        >`SELECT DISTINCT ON ("cnpj") "cnpj", "segmentoCvm", "tipoVigente", "reguaVigente",
+                 "cotistas", "pl", "cotas"
           FROM "fii_monthly" WHERE "cnpj" IN (${Prisma.join(cnpjsFii)})
           ORDER BY "cnpj", "refMonth" DESC, "versao" DESC`
       : Promise.resolve([]),
@@ -173,22 +183,7 @@ export async function carregarEntradaQuadro(
     geradoEm,
     acoes,
     fiis: fiis.map((f) => ({ symbol: f.symbol, cnpj: f.cnpj, conferido: f.conferido })),
-    scores: scores.map((s) => ({
-      symbol: s.symbol,
-      cnpj: s.cnpj,
-      classe: s.classe,
-      regua: s.regua,
-      fiiTipo: s.fiiTipo,
-      tickerReferencia: s.tickerReferencia,
-      indiceMf: s.indiceMf,
-      componentes: s.componentes,
-      checks: s.checks,
-      criteriosAplicaveis: s.criteriosAplicaveis,
-      criteriosAtendidos: s.criteriosAtendidos,
-      incompleto: s.incompleto,
-      motivosIncompleto: s.motivosIncompleto,
-      paramsVersion: s.paramsVersion,
-    })),
+    emissores: emissores.map((x) => ({ cnpj: x.cnpj, ehFinanceira: x.ehFinanceira })),
     multiplos: multiplos.map((m) => ({
       symbol: m.symbol,
       preco: paraNumero(m.preco),
@@ -209,6 +204,7 @@ export async function carregarEntradaQuadro(
       mesesComRendimento: m.mesesComRendimento,
       naoSeAplica: m.naoSeAplica,
       flags: m.flags,
+      paramsVersion: m.paramsVersion,
     })),
     resumos: resumos.map((r) => ({
       symbol: r.symbol,
@@ -226,6 +222,7 @@ export async function carregarEntradaQuadro(
       cnpj: m.cnpj,
       segmentoCvm: m.segmentoCvm,
       tipoVigente: m.tipoVigente,
+      reguaVigente: m.reguaVigente,
       cotistas: m.cotistas,
       pl: paraNumero(m.pl),
       cotas: paraNumero(m.cotas),
@@ -260,7 +257,8 @@ export async function carregarEntradaQuadro(
  * Lucro FY por emissor e ano — a MESMA regra de repositorio/acoes.fundamentosVigentes (maior versão
  * por período e escopo; escopo preferido do emissor; individual quando controladora_zero) +
  * umFyPorAno + lucroParaSequencia, mas lendo só as colunas do lucro: a leitura completa dos ~12 mil
- * FY custava ~200 MB de RSS no job.
+ * FY custava ~200 MB de RSS no job. lucroSemIndividual (D6-a) = o lucro do FY sem o individual da
+ * controladora_zero, a regra do "último FY" do calcularAtualAcao (prejuízo ⇒ componentesZeroRegra).
  */
 export async function lucrosFyVigentes(
   prisma: PrismaClient,
@@ -295,7 +293,10 @@ export async function lucrosFyVigentes(
     porPeriodo.set(k, [...(porPeriodo.get(k) ?? []), l]);
   }
   // um FY por ano fiscal: o de dtFim mais recente (umFyPorAno)
-  const porAno = new Map<string, { dtFim: Date; lucro: number | null }>();
+  const porAno = new Map<
+    string,
+    { dtFim: Date; lucro: number | null; lucroSemIndividual: number | null }
+  >();
   for (const grupo of porPeriodo.values()) {
     const quer = preferido.get(grupo[0].emissorId) ?? 'con';
     const f = grupo.find((g) => g.escopo === quer) ?? grupo[0];
@@ -306,10 +307,20 @@ export async function lucrosFyVigentes(
       lucroAtribuivelIndividual: f.escopo === 'con' && ind ? paraNumero(ind.lucroAtribuivel) : null,
       flags: f.flags,
     });
+    const semInd = lucroParaSequencia({
+      lucroAtribuivel: paraNumero(f.lucroAtribuivel),
+      lucroLiquido: paraNumero(f.lucroLiquido),
+      lucroAtribuivelIndividual: null,
+      flags: f.flags,
+    });
     const k = `${f.emissorId}|${f.anoFiscal}`;
     const atual = porAno.get(k);
     if (!atual || f.dtFim > atual.dtFim) {
-      porAno.set(k, { dtFim: f.dtFim, lucro: v.estado === 'ok' ? v.valor : null });
+      porAno.set(k, {
+        dtFim: f.dtFim,
+        lucro: v.estado === 'ok' ? v.valor : null,
+        lucroSemIndividual: semInd.estado === 'ok' ? semInd.valor : null,
+      });
     }
   }
   return [...porAno.entries()].map(([k, v]) => {
@@ -318,6 +329,7 @@ export async function lucrosFyVigentes(
       cnpj,
       anoFiscal: Number(ano),
       lucro: v.lucro,
+      lucroSemIndividual: v.lucroSemIndividual,
       dtFim: v.dtFim.toISOString().slice(0, 10),
     };
   });
@@ -373,7 +385,8 @@ export async function gerarQuadro(
   ctx: JobContexto,
   deps: DependenciasQuadro = { carregar: carregarEntradaQuadro },
 ): Promise<ResultadoJob> {
-  const entrada = await deps.carregar(ctx.prisma, ctx.hoje);
+  // D6-a: os params do job (financeiras/escopo dos emissores, régua do FII)
+  const entrada = await deps.carregar(ctx.prisma, ctx.hoje, new Date(), ctx.params);
   const universo = entrada.acoes.length + entrada.fiis.length;
   ctx.contar('linhasLidas', universo);
   const r = montarLinhasQuadro(entrada, ctx.params);

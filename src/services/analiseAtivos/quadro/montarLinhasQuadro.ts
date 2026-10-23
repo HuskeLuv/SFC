@@ -3,17 +3,18 @@
  * gerarQuadro carregou do banco (uma leitura por tabela) e devolve as linhas + alertas.
  *
  * Regras (spec fatia A + decisões 3, 4 e 5 do Wellington):
- * - UNIVERSO = cadastro: ações (CvmCompanyTicker vigente) ∪ FIIs (FiiTickerMap vigente). O
- *   AssetScore da dataRef é OPCIONAL (FII com múltiplos e sem score — HCTR11 — entra).
+ * - UNIVERSO = cadastro: ações (CvmCompanyTicker vigente) ∪ FIIs (FiiTickerMap vigente).
  * - noQuadro = negociado nos últimos 30 pregões E não é Fiagro E não está deslistada. Fora do
  *   Quadro = só na busca. Deslistada (ação): a raiz não está na ClassifSetorial VIGENTE da B3 (sem
  *   linha em AssetSetorB3 ou presenteUltimoArquivo = false) e o último negócio tem mais de
  *   DESLISTADA_SEM_PREGOES pregões — SHOW3 (T4F) teve o registro cancelado pela CVM em 01/09/2026
  *   depois da OPA, saiu da lista da B3 e ficava ~30 pregões no Quadro sem setor (o cadastro CVM/FCA
  *   ainda a dava como vigente). Ação nova (IPO) sem setor continua no Quadro com o alerta.
- * - estadoIndice: fora_do_indice (FoF), sem_score, incompleto, zero_regra (componente zerado pela
- *   regra com incompleto=false — AURE3), calculado.
- * - Unit sem score próprio usa o Índice da empresa (score do ticker de referência do mesmo CNPJ).
+ * - D6-a (A3, 23/10/2026): o Quadro NÃO lê mais asset_scores. As colunas do Índice MF sem leitor
+ *   saem como no Quadro EUA (temScore=false, estadoIndice='sem_score', indiceMf, criteriosAtendidos e
+ *   criteriosAplicaveis nulos, statusCriterios=[]; as colunas saem do banco na D6-b). As que têm
+ *   leitor (regua, fiiTipo, tickerReferencia, motivosIncompleto, componentesZeroRegra,
+ *   paramsVersion) vêm de colunasLegadasQuadro.ts, com os mesmos valores, a partir dos derivados.
  * - serie10a: ações = lucro FY (atribuível, lucroParaSequencia) de anos FECHADOS; FIIs =
  *   rendimento por cota de anos fechados com 12 meses de informe, com o salto > 2× marcado
  *   'suspeito'. O últ. 12m fica à parte (serieUlt12m).
@@ -58,12 +59,14 @@ import type {
 import { distanciaEmPregoes } from '@/services/analiseAtivos/regras/comum/pregoes';
 import { DEF_GRUPO, parseFlagConf } from '@/services/analiseAtivos/regras/comum/conferencia';
 import { tipoFiiExibido } from '@/services/analiseAtivos/quadro/tipoFiiExibido';
+import { colunasLegadasPorSimbolo } from '@/services/analiseAtivos/quadro/colunasLegadasQuadro';
 import type { ForaDoQuadroMotivo, PontoSerieAnual } from '@/types/analiseAtivosApi';
 import type { CriteriosCompactos, PerfilCriterio } from '@/types/analiseAtivosCriterios';
 
 /**
- * Estado gravado na coluna analise_quadro_linhas.estado_indice pelo pipeline do score (interno;
- * nenhuma API o expõe desde a v2.4 — a coluna sai na D6-b, com o resto do banco do score).
+ * Estado da coluna analise_quadro_linhas.estado_indice (interno; nenhuma API o expõe desde a v2.4).
+ * Desde a D6-a o Quadro grava sempre 'sem_score'; os outros valores ficam nas linhas antigas até a
+ * coluna sair na D6-b.
  */
 export type EstadoIndiceGravado =
   | 'calculado'
@@ -86,23 +89,6 @@ export const FLAG_CNPJ_EM_CONFERENCIA = 'cnpj_em_conferencia';
 // Entrada (números já convertidos; datas civis como Date UTC)
 // ---------------------------------------------------------------------------
 
-export interface ScoreQuadro {
-  symbol: string;
-  cnpj: string;
-  classe: string;
-  regua: string;
-  fiiTipo: string | null;
-  tickerReferencia: string | null;
-  indiceMf: number | null;
-  componentes: unknown;
-  checks: unknown;
-  criteriosAplicaveis: number;
-  criteriosAtendidos: number;
-  incompleto: boolean;
-  motivosIncompleto: string[];
-  paramsVersion: number;
-}
-
 export interface MultiplosQuadro {
   symbol: string;
   preco: number | null;
@@ -124,6 +110,8 @@ export interface MultiplosQuadro {
   mesesComRendimento: number | null;
   naoSeAplica: string[];
   flags: string[];
+  /** D6-a: ScoringParams do job que gravou a linha (vai para AnaliseQuadroLinha.paramsVersion) */
+  paramsVersion?: number | null;
 }
 
 export interface ResumoCotacaoQuadro {
@@ -150,6 +138,8 @@ export interface FiiMensalQuadro {
   cnpj: string;
   segmentoCvm: string | null;
   tipoVigente: string | null;
+  /** D6-a: régua da fatia B (fii_tijolo | fii_papel | fora_do_indice); ausente = sem régua */
+  reguaVigente?: string | null;
   cotistas: number | null;
   pl: number | null;
   cotas: number | null;
@@ -184,7 +174,8 @@ export interface EntradaQuadro {
    * e o fundo não serve de par. Ausente = conferido.
    */
   fiis: Array<{ symbol: string; cnpj: string; conferido?: boolean }>;
-  scores: ScoreQuadro[];
+  /** D6-a: financeira pelo segmento B3 (listarEmissores com os params do job) ⇒ régua da ação */
+  emissores?: Array<{ cnpj: string; ehFinanceira: boolean }>;
   multiplos: MultiplosQuadro[];
   resumos: ResumoCotacaoQuadro[];
   setores: SetorQuadro[];
@@ -196,8 +187,17 @@ export interface EntradaQuadro {
   /** fechamento dos 2 últimos pregões por símbolo (ordem 1 = último) */
   ultimosPregoes: Array<{ symbol: string; ordem: number; closeRaw: number }>;
   porAcaoAno: PorAcaoAnoQuadro[];
-  /** lucro FY atribuível por emissor e ano (lucroParaSequencia; null = ausente) */
-  lucrosFy: Array<{ cnpj: string; anoFiscal: number; lucro: number | null; dtFim?: string | null }>;
+  /**
+   * lucro FY atribuível por emissor e ano (lucroParaSequencia; null = ausente). lucroSemIndividual
+   * (D6-a) = o mesmo sem o individual da controladora_zero (o "último FY" do prejuízo); ausente = lucro.
+   */
+  lucrosFy: Array<{
+    cnpj: string;
+    anoFiscal: number;
+    lucro: number | null;
+    lucroSemIndividual?: number | null;
+    dtFim?: string | null;
+  }>;
   /** meses com informe mensal por FII e ano */
   mesesInformeFii: Array<{ cnpj: string; ano: number; meses: number }>;
   /**
@@ -233,40 +233,6 @@ const diaIso = (d: Date) => d.toISOString().slice(0, 10);
 /** Fiagro não entra no Quadro nesta fase (o cadastro de FIIs já exclui; dupla checagem pelo nome). */
 export function ehFiagro(nome: string | null | undefined): boolean {
   return !!nome && /\bFI[\s-]?AGRO\b/i.test(nome);
-}
-
-interface ComponenteJson {
-  estado?: string;
-  motivo?: string;
-}
-
-/** Componentes zerados pela regra, como 'componente:motivo'. */
-export function componentesZeroRegra(componentes: unknown): string[] {
-  if (!componentes || typeof componentes !== 'object') return [];
-  return Object.entries(componentes as Record<string, ComponenteJson>)
-    .filter(([, c]) => c?.estado === 'zero_regra')
-    .map(([nome, c]) => `${nome}:${c.motivo ?? 'regra'}`);
-}
-
-export function estadoIndiceDe(
-  score: Pick<ScoreQuadro, 'regua' | 'incompleto'> | undefined,
-  zeroRegra: string[],
-  fiiTipo: string | null,
-): EstadoIndiceGravado {
-  if (!score) return fiiTipo === 'fof' ? 'fora_do_indice' : 'sem_score';
-  if (score.regua === 'fora_do_indice') return 'fora_do_indice';
-  if (score.incompleto) return 'incompleto';
-  if (zeroRegra.length > 0) return 'zero_regra';
-  return 'calculado';
-}
-
-function statusDosChecks(checks: unknown): string[] {
-  if (!Array.isArray(checks)) return [];
-  return checks.map((c) =>
-    c && typeof c === 'object' && typeof (c as { status?: unknown }).status === 'string'
-      ? (c as { status: string }).status
-      : 'sem_dado',
-  );
 }
 
 function agrupar<T, K>(itens: readonly T[], chave: (t: T) => K): Map<K, T[]> {
@@ -319,14 +285,8 @@ export function montarLinhasQuadro(
     })),
   ];
 
-  const scorePor = new Map(e.scores.map((s) => [s.symbol, s]));
-  // unit/ticker sem score próprio: score de referência da empresa (mesmo CNPJ, classe ação)
-  const scoreEmpresa = new Map<string, ScoreQuadro>();
-  for (const s of e.scores) {
-    if (s.classe !== 'acao') continue;
-    const atual = scoreEmpresa.get(s.cnpj);
-    if (!atual || s.symbol === s.tickerReferencia) scoreEmpresa.set(s.cnpj, s);
-  }
+  // D6-a: régua, tipo, referência, motivos de conferência e versão sem o AssetScore
+  const legadasPor = colunasLegadasPorSimbolo(e, p);
   const multPor = new Map(e.multiplos.map((m) => [m.symbol, m]));
   const resumoPor = new Map(e.resumos.map((r) => [r.symbol, r]));
   const setorPor = new Map(e.setores.map((s) => [s.raiz, s]));
@@ -374,7 +334,7 @@ export function montarLinhasQuadro(
   const semSetor: string[] = [];
   const linhas: LinhaQuadroGravar[] = universo.map((u) => {
     const ehAcao = u.classe === 'acao';
-    const score = scorePor.get(u.symbol) ?? (ehAcao ? scoreEmpresa.get(u.cnpj) : undefined);
+    const legado = legadasPor.get(u.symbol);
     const m = multPor.get(u.symbol);
     const r = resumoPor.get(u.symbol);
     const setor = ehAcao ? setorPor.get(raiz(u.symbol)) : undefined;
@@ -383,9 +343,13 @@ export function montarLinhasQuadro(
     const trim = ehAcao || u.cnpjEmConferencia ? undefined : trimPor.get(u.cnpj);
     const asset = assetPor.get(u.symbol);
     const nomeB3 = ehAcao ? null : (nomeB3Por.get(u.symbol) ?? null);
-    const fiiTipo = ehAcao ? null : (score?.fiiTipo ?? mensal?.tipoVigente ?? null);
+    const fiiTipo = ehAcao
+      ? null
+      : legado?.fiiTipo !== undefined
+        ? legado.fiiTipo
+        : (mensal?.tipoVigente ?? null);
 
-    // universo e estado do Índice
+    // universo
     const fiagro = !ehAcao && ehFiagro(nomeB3);
     const negociado = r?.negociadoUltimos30 ?? false;
     const naListaB3 = setor !== undefined && setor.presenteUltimoArquivo !== false;
@@ -403,8 +367,6 @@ export function montarLinhasQuadro(
         : deslistada
           ? 'deslistada'
           : 'sem_negociacao_30';
-    const zeroRegra = componentesZeroRegra(score?.componentes);
-    const estadoIndice = estadoIndiceDe(score, zeroRegra, fiiTipo);
     if (ehAcao && noQuadro && !setor) semSetor.push(u.symbol);
 
     // séries de anos fechados
@@ -497,8 +459,9 @@ export function montarLinhasQuadro(
       dataRef: e.dataRef,
       noQuadro,
       foraDoQuadroMotivo,
-      temScore: !!score,
-      estadoIndice,
+      // D6-a: sem Índice MF (como o Quadro EUA)
+      temScore: false,
+      estadoIndice: 'sem_score' satisfies EstadoIndiceGravado,
       nome,
       nomeCurto: ehAcao ? (setor?.nomePregao ?? null) : nomeB3,
       setor: setor?.setor ?? null,
@@ -507,8 +470,8 @@ export function montarLinhasQuadro(
       segmentoListagem: setor?.segmentoListagem ?? null,
       fiiTipo,
       segmentoCvm: mensal?.segmentoCvm ?? null,
-      regua: score?.regua ?? null,
-      tickerReferencia: score?.tickerReferencia ?? null,
+      regua: legado?.regua ?? null,
+      tickerReferencia: legado?.tickerReferencia ?? null,
       preco,
       precoData,
       variacaoDiaPct: variacaoDia(u.symbol),
@@ -516,12 +479,12 @@ export function montarLinhasQuadro(
       baixaLiquidez: r?.baixaLiquidez ?? false,
       valorMercado,
       patrimonio: mensal?.pl ?? null,
-      indiceMf: score?.indiceMf ?? null,
-      criteriosAtendidos: score?.criteriosAtendidos ?? null,
-      criteriosAplicaveis: score?.criteriosAplicaveis ?? null,
-      statusCriterios: statusDosChecks(score?.checks),
-      motivosIncompleto: score?.motivosIncompleto ?? [],
-      componentesZeroRegra: zeroRegra,
+      indiceMf: null,
+      criteriosAtendidos: null,
+      criteriosAplicaveis: null,
+      statusCriterios: [],
+      motivosIncompleto: legado?.motivosIncompleto ?? [],
+      componentesZeroRegra: legado?.componentesZeroRegra ?? [],
       anosLucroConsecutivos: m?.anosLucroConsecutivos ?? null,
       mesesComRendimento: m?.mesesComRendimento ?? null,
       anosDividendo: ehAcao ? anosSeguidosComProvento(dpa) : null,
@@ -546,7 +509,7 @@ export function montarLinhasQuadro(
       pares: [],
       assetId: asset?.id ?? null,
       flags,
-      paramsVersion: score?.paramsVersion ?? null,
+      paramsVersion: legado?.paramsVersion ?? null,
       geradoEm: e.geradoEm,
       ...(crit
         ? {

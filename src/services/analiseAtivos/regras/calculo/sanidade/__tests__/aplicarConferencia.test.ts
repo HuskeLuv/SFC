@@ -1,7 +1,7 @@
 /**
- * Aplicação das conferências do bloco C ao Índice MF e ao semáforo (fatia A): escopo empresa × ticker,
- * troca de componente por ausente('em_conferencia') na forma da trava do DY, consistência Índice ⇔
- * motivo ⇔ flag, liberação e REGRESSÃO v1 (com a v1 a saída é idêntica, byte a byte).
+ * Motor de sanidade do bloco C (fatia A) nos múltiplos do dia: flags 'conf:' por grupo, escopo
+ * empresa × ticker (conferenciasDaEmpresa), liberação, relatório por regra e REGRESSÃO v1 (com a v1 a
+ * saída é idêntica, byte a byte). D6-a: a aplicação ao Índice MF e ao semáforo saiu com o Índice.
  */
 import { describe, expect, it } from 'vitest';
 import type { Prisma } from '@prisma/client';
@@ -10,29 +10,20 @@ import vacFixture from '@/services/analiseAtivos/regras/fii/__tests__/fixtures/v
 import {
   calcularAtualAcao,
   calcularAtualFii,
-  comConferenciaDaEmpresa,
-  comConferenciasDaEmpresa,
-  scoreAcao,
-  scoreFii,
-  type CalculoAtualAcao,
   type EntradaAtualAcao,
   type EntradaAtualFii,
-} from '@/services/analiseAtivos/calculo/recalcularScores';
+} from '@/services/analiseAtivos/calculo/recalcularAtuais';
 import { marcarHistoricoForaDeEscala } from '@/services/analiseAtivos/calculo/recalcularDerivados';
 import { SCORING_PARAMS_V1 } from '@/services/analiseAtivos/params/scoringParamsV1';
 import { SCORING_PARAMS_V2 } from '@/services/analiseAtivos/params/scoringParamsV2';
-import type { ComponentesIndice } from '@/services/analiseAtivos/regras/calculo/indiceMf';
 import {
-  aplicarConferenciaComponentes,
-  aplicarConferenciaSemaforo,
   chaveLiberacaoDe,
-  componentesEmConferencia,
   conferenciasDaEmpresa,
   contarRegras,
   regrasAcimaDoLimite,
 } from '@/services/analiseAtivos/regras/calculo/sanidade/aplicarConferencia';
 import type { PregaoSerie } from '@/services/analiseAtivos/regras/calculo/sanidade/precoBase';
-import { componentesDoGrupo, flagsConf } from '@/services/analiseAtivos/regras/comum/conferencia';
+import { flagsConf } from '@/services/analiseAtivos/regras/comum/conferencia';
 import type { FundamentosPeriodo, TickerAcao } from '@/services/analiseAtivos/tipos';
 
 const V1 = SCORING_PARAMS_V1;
@@ -156,20 +147,12 @@ describe('REGRESSÃO v1 (sanidade.conferencia.ligada=false): saída idêntica, b
     ],
   ];
 
-  it.each(casos)(
-    '%s: calcularAtualAcao e scoreAcao iguais com e sem a entrada do motor',
-    (_n, e) => {
-      const com = calcularAtualAcao(e, V1);
-      const sem = calcularAtualAcao(semSanidade(e), V1);
-      expect(JSON.stringify(com)).toBe(JSON.stringify(sem));
-      expect(com.flags.some((f) => /^(conf|rev|info):/.test(f))).toBe(false);
-      expect(com.conferenciasIndice).toBeUndefined();
-      const mapa = new Map([[e.ticker.symbol, com]]);
-      const s1 = scoreAcao(comConferenciasDaEmpresa(e.ticker.symbol, com, mapa), false, V1);
-      const s0 = scoreAcao(comConferenciaDaEmpresa(sem, [sem]), false, V1);
-      expect(JSON.stringify(s1)).toBe(JSON.stringify(s0));
-    },
-  );
+  it.each(casos)('%s: calcularAtualAcao igual com e sem a entrada do motor', (_n, e) => {
+    const com = calcularAtualAcao(e, V1);
+    const sem = calcularAtualAcao(semSanidade(e), V1);
+    expect(JSON.stringify(com)).toBe(JSON.stringify(sem));
+    expect(com.flags.some((f) => /^(conf|rev|info):/.test(f))).toBe(false);
+  });
 
   it('v1 ignora a flag de ano em conferência gravada no banco (o ponto continua na média)', () => {
     const e = entradaAcao('POMO3', {
@@ -189,39 +172,23 @@ describe('REGRESSÃO v1 (sanidade.conferencia.ligada=false): saída idêntica, b
   });
 });
 
-describe('v2: grupo bloqueado entra no Índice/semáforo como ausente(em_conferencia)', () => {
-  it('CBAV3-like: conf:acoes_escala ⇒ C_preço em conferência, motivo preco:em_conferencia', () => {
+describe('v2: grupo bloqueado vira flag conf: (o valor continua gravado)', () => {
+  it('CBAV3-like: conf:acoes_escala:pvp_minimo', () => {
     const c = calcularAtualAcao(
       entradaAcao('CBAV3', { preco: 11.22, acoes: 651_073, volumeMedio21: VOLUME_CBAV3_LIKE }),
       V2,
     );
     expect(c.flags).toContain('conf:acoes_escala:pvp_minimo@2025-12-31');
-    const s = scoreAcao(comConferenciasDaEmpresa('CBAV3', c, new Map([['CBAV3', c]])), false, V2);
-    expect(s.indice.componentes.preco).toEqual({
-      estado: 'ausente',
-      nota: 0,
-      motivo: 'em_conferencia',
-    });
-    expect(s.indice.incompleto).toBe(true);
-    expect(s.indice.motivosIncompleto).toContain('preco:em_conferencia');
-    expect(s.semaforo.checks.find((x) => x.codigo === 'preco_historico')).toMatchObject({
-      status: 'sem_dado',
-      motivo: 'em_conferencia',
-    });
     // o valor bruto continua calculado (gravado na coluna)
     expect(c.m.pvp?.estado).toBe('ok');
   });
 
-  it('SBSP3 (série real): preco_base ⇒ C_div e C_preço em conferência', () => {
+  it('SBSP3 (série real): conf:preco_base:base_sem_evento', () => {
     const c = calcularAtualAcao(entradaAcao('SBSP3', { preco: 27.06, serie: SBSP3_SERIE }), V2);
     expect(c.flags).toContain('conf:preco_base:base_sem_evento@2026-04-29');
-    const s = scoreAcao(comConferenciasDaEmpresa('SBSP3', c, new Map([['SBSP3', c]])), false, V2);
-    expect(s.indice.motivosIncompleto).toEqual(
-      expect.arrayContaining(['div:em_conferencia', 'preco:em_conferencia']),
-    );
   });
 
-  it('liberação: mesma chave não marca (Índice volta a completo); chave nova marca', () => {
+  it('liberação: mesma chave não marca; chave nova marca', () => {
     const lib = new Set([chaveLiberacaoDe('CBAV3', 'pvp_minimo', '2025-12-31')]);
     const c = calcularAtualAcao(
       entradaAcao('CBAV3', {
@@ -246,49 +213,34 @@ describe('v2: grupo bloqueado entra no Índice/semáforo como ausente(em_confere
     expect(flagsConf(c2.flags)).toHaveLength(1);
   });
 
-  it('empresa normal na v2: nenhuma flag conf:, Índice completo', () => {
+  it('empresa normal na v2: nenhuma flag conf:', () => {
     const c = calcularAtualAcao(entradaAcao('WEGE3'), V2);
     expect(flagsConf(c.flags)).toEqual([]);
-    const s = scoreAcao(comConferenciasDaEmpresa('WEGE3', c, new Map([['WEGE3', c]])), false, V2);
-    expect(s.indice.incompleto).toBe(false);
-    expect(s.completoSemBlocoC).toBe(true);
   });
 });
 
-describe('escopo empresa × ticker', () => {
-  const on = () => calcularAtualAcao(entradaAcao('ABCD3'), V2);
-  const comFlag = (c: CalculoAtualAcao, flag: string): CalculoAtualAcao => ({
-    ...c,
-    flags: [...c.flags, flag],
+describe('escopo empresa × ticker (conferenciasDaEmpresa)', () => {
+  it('PN esporádica (preco_esporadico, escopo ticker) com ON líquida ⇒ não contamina a ON', () => {
+    expect(
+      conferenciasDaEmpresa('ABCD3', [
+        ['ABCD3', []],
+        ['ABCD4', ['conf:preco_esporadico:faixa_pvp@2026-09-29']],
+      ]),
+    ).toEqual([]);
   });
 
-  it('PN esporádica (preco_esporadico, escopo ticker) com ON líquida ⇒ C_preço da ON fica ok', () => {
-    const ref = on();
-    const pn = comFlag(on(), 'conf:preco_esporadico:faixa_pvp@2026-09-29');
-    const todos = new Map([
-      ['ABCD3', ref],
-      ['ABCD4', pn],
+  it('acoes_escala na PN (escopo empresa) ⇒ contamina a ON de referência', () => {
+    expect(
+      conferenciasDaEmpresa('ABCD3', [
+        ['ABCD3', []],
+        ['ABCD4', ['conf:acoes_escala:pvp_minimo@2025-12-31']],
+      ]),
+    ).toEqual([
+      { grupo: 'acoes_escala', regra: 'pvp_minimo', chave: '2025-12-31', symbol: 'ABCD4' },
     ]);
-    const c = comConferenciasDaEmpresa('ABCD3', ref, todos);
-    expect(c.conferenciasIndice).toBeUndefined();
-    const s = scoreAcao(c, false, V2);
-    expect(s.indice.componentes.preco.estado).toBe('calculado');
-    expect(s.indice.incompleto).toBe(false);
   });
 
-  it('acoes_escala na PN (escopo empresa) ⇒ a ON fica incompleta', () => {
-    const ref = on();
-    const pn = comFlag(on(), 'conf:acoes_escala:pvp_minimo@2025-12-31');
-    const todos = new Map([
-      ['ABCD3', ref],
-      ['ABCD4', pn],
-    ]);
-    const s = scoreAcao(comConferenciasDaEmpresa('ABCD3', ref, todos), false, V2);
-    expect(s.indice.motivosIncompleto).toContain('preco:em_conferencia');
-    expect(s.completoSemBlocoC).toBe(true);
-  });
-
-  it('preco_base no PRÓPRIO ticker de referência contamina o Índice da empresa', () => {
+  it('preco_base no PRÓPRIO ticker de referência contamina a empresa', () => {
     expect(
       conferenciasDaEmpresa('ABCD3', [
         ['ABCD4', ['conf:preco_base:base_sem_evento@2026-04-29']],
@@ -305,93 +257,6 @@ describe('escopo empresa × ticker', () => {
         ['ABCD3', ['conf:proventos:dy_acima_teto@2026-09-29', 'conf:historico:escala_ano@2017']],
       ]),
     ).toEqual([]);
-  });
-});
-
-describe('componentes e semáforo', () => {
-  const comps: ComponentesIndice = {
-    lucro: { estado: 'calculado', nota: 10, metrica: 10 },
-    divida: { estado: 'calculado', nota: 8, metrica: 1 },
-    rent: { estado: 'calculado', nota: 6, metrica: 15 },
-    div: { estado: 'calculado', nota: 5, metrica: 4 },
-    preco: { estado: 'zero_regra', nota: 0, motivo: 'prejuizo' },
-  };
-  const metricasAcao = {
-    lucro: 'anosLucroConsecutivos',
-    divida: 'divLiqEbitda',
-    rent: 'roePct',
-    div: 'dy12mPct',
-    preco: 'plVsMedia10aPct',
-  };
-
-  it('zero_regra (prejuízo) fica: zero é zero; calculado vira em conferência', () => {
-    const afetados = componentesEmConferencia(
-      [{ grupo: 'preco_base', regra: 'base_sem_evento' }],
-      'acao',
-      metricasAcao,
-    );
-    expect([...afetados.keys()]).toEqual(['div', 'preco']);
-    const out = aplicarConferenciaComponentes(comps, afetados);
-    expect(out.div).toEqual({ estado: 'ausente', nota: 0, motivo: 'em_conferencia' });
-    expect(out.preco).toBe(comps.preco);
-    expect(out.lucro).toBe(comps.lucro);
-  });
-
-  it('fii_obrigacoes: tijolo (C_dívida = Obrigações/PL) entra; papel (concentração de CRI) não', () => {
-    const g = [{ grupo: 'fii_obrigacoes' as const, regra: 'obrigacoes_acima' }];
-    const tijolo = Object.fromEntries(
-      Object.entries(V2.fii.tijolo.componentes).map(([k, v]) => [k, v.metrica]),
-    );
-    const papel = Object.fromEntries(
-      Object.entries(V2.fii.papel.componentes).map(([k, v]) => [k, v.metrica]),
-    );
-    expect([...componentesEmConferencia(g, 'fii', tijolo).keys()]).toEqual(['divida']);
-    expect([...componentesEmConferencia(g, 'fii', papel).keys()]).toEqual([]);
-  });
-
-  it('todo grupo com componente na classe mapeia para métricas do ScoringParams', () => {
-    for (const grupo of [
-      'acoes_escala',
-      'preco_base',
-      'preco_esporadico',
-      'fundamentos_escala',
-    ] as const) {
-      const afetados = componentesEmConferencia([{ grupo, regra: 'x' }], 'acao', metricasAcao);
-      expect([...afetados.keys()].sort()).toEqual([...componentesDoGrupo(grupo, 'acao')].sort());
-    }
-  });
-
-  it('semáforo: critério da métrica do grupo vira sem_dado(em_conferencia); n/a e não-atende por regra ficam', () => {
-    const sem = {
-      checks: [
-        { codigo: 'preco_historico', status: 'atende' as const, valor: -10, referencia: 0 },
-        {
-          codigo: 'dividendos',
-          status: 'nao_atende' as const,
-          valor: null,
-          referencia: 4,
-          motivo: 'pl_negativo',
-        },
-        { codigo: 'rentabilidade', status: 'atende' as const, valor: 20, referencia: 15 },
-      ],
-      aplicaveis: 3,
-      atendidos: 2,
-    };
-    const metricas = new Map([
-      ['preco_historico', 'plVsMedia10aPct'],
-      ['dividendos', 'dy12mPct'],
-      ['rentabilidade', 'roePct'],
-    ]);
-    const out = aplicarConferenciaSemaforo(sem, [{ grupo: 'preco_base' }], metricas);
-    expect(out.checks[0]).toMatchObject({
-      status: 'sem_dado',
-      valor: null,
-      motivo: 'em_conferencia',
-    });
-    expect(out.checks[1]).toBe(sem.checks[1]);
-    expect(out.checks[2]).toBe(sem.checks[2]);
-    expect(out.atendidos).toBe(1);
-    expect(aplicarConferenciaSemaforo(sem, [], metricas)).toBe(sem);
   });
 });
 
@@ -433,24 +298,17 @@ function entradaFii(
 }
 
 describe('FII (o FII é o próprio ticker)', () => {
-  it('APXU11-like (Obrigações/PL 125%) tijolo ⇒ C_dívida em conferência, valor visível', () => {
+  it('APXU11-like (Obrigações/PL 125%) tijolo ⇒ conf:fii_obrigacoes, valor visível', () => {
     const e = entradaFii('APXU11', { obrigacoes: 125 });
     const c = calcularAtualFii(e, V2);
     expect(c.flags).toContain('conf:fii_obrigacoes:obrigacoes_acima@2026-08');
     expect(c.m.obrigacoesPlPct).toEqual({ estado: 'ok', valor: 125 });
-    const s = scoreFii(c, e, V2);
-    expect(s.indice.motivosIncompleto).toContain('divida:em_conferencia');
-    expect(s.semaforo.checks.find((x) => x.codigo === 'obrigacoes_pl')).toMatchObject({
-      status: 'sem_dado',
-      motivo: 'em_conferencia',
-    });
   });
 
-  it('GSRF11-like (VP/cota ×6,23) ⇒ C_preço (P/VP) em conferência', () => {
+  it('GSRF11-like (VP/cota ×6,23) ⇒ conf:fii_vp', () => {
     const e = entradaFii('GSRF11', { vp: [87.62, 14.07] });
     const c = calcularAtualFii(e, V2);
     expect(c.flags).toContain('conf:fii_vp:vp_salto@2026-08');
-    expect(scoreFii(c, e, V2).indice.motivosIncompleto).toContain('preco:em_conferencia');
   });
 
   it('HSML11 (série real, A4 do backtest): 4T25→2T26 ~91% com receita estável ⇒ vacância em conferência', () => {
@@ -476,8 +334,6 @@ describe('FII (o FII é o próprio ticker)', () => {
     };
     const c = calcularAtualFii(e, V2);
     expect(c.flags).toContain('conf:fii_vacancia:vacancia_ocupacao@2025-12');
-    // o critério 'vacancia' do semáforo (inativo na v1/v2) e o C_rent (inativo) não mudam o Índice
-    expect(scoreFii(c, e, V2).indice.incompleto).toBe(false);
     // a curadoria liberou o episódio ⇒ nenhuma flag
     const lib = calcularAtualFii(
       {
@@ -494,29 +350,10 @@ describe('FII (o FII é o próprio ticker)', () => {
     expect(calcularAtualFii(e, V1).flags.some((f) => f.startsWith('conf:'))).toBe(false);
   });
 
-  it('FII normal ⇒ nenhuma flag e Índice completo', () => {
+  it('FII normal ⇒ nenhuma flag', () => {
     const e = entradaFii('RECT11');
     const c = calcularAtualFii(e, V2);
     expect(c.flags.filter((f) => f.startsWith('conf:'))).toEqual([]);
-    expect(scoreFii(c, e, V2).indice.incompleto).toBe(false);
-  });
-});
-
-describe('consistência: Índice incompleto ⇔ motivo <comp>:em_conferencia ⇔ flag conf: com componente', () => {
-  const flagsPorGrupo = [
-    'conf:acoes_escala:pvp_minimo@2025-12-31',
-    'conf:preco_base:base_sem_evento@2026-04-29',
-    'conf:preco_esporadico:faixa_pvp@2026-09-29',
-    'conf:fundamentos_escala:salto_escala@2025',
-  ];
-  it.each([[null], ...flagsPorGrupo.map((f) => [f])])('flag %s', (flag) => {
-    const base = calcularAtualAcao(entradaAcao('ABCD3'), V2);
-    const c = flag ? { ...base, flags: [...base.flags, flag] } : base;
-    const s = scoreAcao(comConferenciasDaEmpresa('ABCD3', c, new Map([['ABCD3', c]])), false, V2);
-    const motivosConf = s.indice.motivosIncompleto.filter((m) => m.endsWith(':em_conferencia'));
-    const comps = flag ? componentesDoGrupo(flagsConf([flag])[0].grupo, 'acao') : [];
-    expect(s.indice.incompleto).toBe(comps.length > 0);
-    expect(motivosConf.sort()).toEqual(comps.map((x) => `${x}:em_conferencia`).sort());
   });
 });
 

@@ -6,30 +6,11 @@ import {
   montarLinhasQuadro,
   type EntradaQuadro,
   type MultiplosQuadro,
-  type ScoreQuadro,
 } from '../montarLinhasQuadro';
 import type { CriteriosCompactos } from '@/types/analiseAtivosCriterios';
 
 const DATA_REF = new Date('2026-09-29T00:00:00.000Z');
 const GERADO = new Date('2026-09-30T10:40:00.000Z');
-
-function score(over: Partial<ScoreQuadro> & { symbol: string; cnpj: string }): ScoreQuadro {
-  return {
-    classe: 'acao',
-    regua: 'acao',
-    fiiTipo: null,
-    tickerReferencia: over.symbol,
-    indiceMf: 7,
-    componentes: { lucro: { estado: 'calculado' } },
-    checks: [{ status: 'atende' }, { status: 'parcial' }],
-    criteriosAplicaveis: 5,
-    criteriosAtendidos: 4,
-    incompleto: false,
-    motivosIncompleto: [],
-    paramsVersion: 1,
-    ...over,
-  };
-}
 
 function mult(symbol: string, over: Partial<MultiplosQuadro> = {}): MultiplosQuadro {
   return {
@@ -51,6 +32,7 @@ function mult(symbol: string, over: Partial<MultiplosQuadro> = {}): MultiplosQua
     mesesComRendimento: null,
     naoSeAplica: [],
     flags: [],
+    paramsVersion: 1,
     ...over,
   };
 }
@@ -94,42 +76,10 @@ function entrada(over: Partial<EntradaQuadro> = {}): EntradaQuadro {
       { symbol: 'HFOF11', cnpj: 'F-HFO' },
       { symbol: 'AGRO11', cnpj: 'F-AGR' },
     ],
-    scores: [
-      score({ symbol: 'WEGE3', cnpj: 'C-WEG', indiceMf: 9.01 }),
-      score({
-        symbol: 'TGMA3',
-        cnpj: 'C-TGM',
-        indiceMf: 8.48,
-        incompleto: true,
-        motivosIncompleto: ['div:fonte_defasada'],
-      }),
-      score({
-        symbol: 'AURE3',
-        cnpj: 'C-AUR',
-        indiceMf: 0.08,
-        componentes: { lucro: { estado: 'zero_regra', motivo: 'prejuizo' } },
-      }),
-      score({ symbol: 'CEDO4', cnpj: 'C-CED' }),
-      score({ symbol: 'SHOW3', cnpj: 'C-SHO' }),
-      score({ symbol: 'KLBN4', cnpj: 'C-KLA', indiceMf: 2.87, tickerReferencia: 'KLBN4' }),
-      score({
-        symbol: 'HGLG11',
-        cnpj: 'F-HGL',
-        classe: 'fii',
-        regua: 'fii_tijolo',
-        fiiTipo: 'tijolo',
-      }),
-      score({
-        symbol: 'HGPO11',
-        cnpj: 'F-HGP',
-        classe: 'fii',
-        regua: 'fii_tijolo',
-        fiiTipo: 'tijolo',
-      }),
-    ],
     multiplos: [
       mult('WEGE3'),
-      mult('TGMA3'),
+      // base de proventos defasada: DY ausente ⇒ o legado 'div:fonte_defasada'
+      mult('TGMA3', { dy12mPct: null, flags: ['proventos_defasados_cobertura_antiga'] }),
       mult('AURE3', { pl: null }),
       mult('CEDO4'),
       mult('SHOW3'),
@@ -143,7 +93,7 @@ function entrada(over: Partial<EntradaQuadro> = {}): EntradaQuadro {
       resumo('AURE3'),
       resumo('CEDO4', false),
       resumo('SHOW3'),
-      resumo('KLBN4'),
+      { ...resumo('KLBN4'), volumeMedio21: 2_000_000 },
       resumo('KLBN11'),
       resumo('HGLG11'),
       resumo('HCTR11'),
@@ -236,45 +186,52 @@ const linha = (r: ReturnType<typeof montarLinhasQuadro>, s: string) => {
 describe('montarLinhasQuadro', () => {
   const r = montarLinhasQuadro(entrada());
 
-  it('universo = cadastro inteiro (score opcional), uma linha por ticker', () => {
+  it('universo = cadastro inteiro, uma linha por ticker', () => {
     expect(r.linhas).toHaveLength(12);
     expect(r.noQuadroPorClasse).toEqual({ acao: 6, fii: 3 });
     expect(r.foraDoQuadroPorClasse).toEqual({ acao: 1, fii: 2 });
   });
 
-  it('WEGE3 completo: calculado, nome do catálogo, assetId, variação do dia, pares', () => {
+  it('WEGE3 completo: nome do catálogo, assetId, variação do dia, pares, colunas legadas', () => {
     const l = linha(r, 'WEGE3');
     expect(l).toMatchObject({
       classe: 'acao',
       noQuadro: true,
       foraDoQuadroMotivo: null,
-      temScore: true,
-      estadoIndice: 'calculado',
-      indiceMf: 9.01,
       nome: 'WEG',
       setor: 'Bens Industriais',
       assetId: 'asset-wege3',
-      statusCriterios: ['atende', 'parcial'],
       geradoEm: GERADO,
+      regua: 'acao',
+      tickerReferencia: 'WEGE3',
+      paramsVersion: 1,
+      motivosIncompleto: [],
+      componentesZeroRegra: [],
     });
     expect(l.variacaoDiaPct).toBeCloseTo(25);
     expect(l.pares).toContain('AURE3');
     expect(l.pares).not.toContain('WEGE3');
   });
 
-  it('TGMA3 incompleto com os motivos do score', () => {
-    expect(linha(r, 'TGMA3')).toMatchObject({
-      estadoIndice: 'incompleto',
-      motivosIncompleto: ['div:fonte_defasada'],
-    });
+  it('D6-a: sem Índice MF em nenhuma linha (como o Quadro EUA)', () => {
+    for (const l of r.linhas) {
+      expect(l).toMatchObject({
+        temScore: false,
+        estadoIndice: 'sem_score',
+        indiceMf: null,
+        criteriosAtendidos: null,
+        criteriosAplicaveis: null,
+        statusCriterios: [],
+      });
+    }
   });
 
-  it('AURE3 zero pela regra (incompleto=false) guarda o componente zerado', () => {
-    expect(linha(r, 'AURE3')).toMatchObject({
-      estadoIndice: 'zero_regra',
-      componentesZeroRegra: ['lucro:prejuizo'],
-      indiceMf: 0.08,
-    });
+  it('TGMA3: base de proventos defasada vira o motivo legado div:fonte_defasada', () => {
+    expect(linha(r, 'TGMA3').motivosIncompleto).toEqual(['div:fonte_defasada']);
+  });
+
+  it('AURE3: prejuízo no último FY guarda os componentes zerados pela regra', () => {
+    expect(linha(r, 'AURE3').componentesZeroRegra).toEqual(['lucro:prejuizo', 'preco:prejuizo']);
   });
 
   it('A6: obrigacoesAtivoPct do FII vai para a linha; ação e entrada antiga = null', () => {
@@ -290,14 +247,12 @@ describe('montarLinhasQuadro', () => {
     expect(linha(r, 'HGLG11').obrigacoesAtivoPct).toBeNull();
   });
 
-  it('HCTR11: FII negociado sem score entra no Quadro como sem_score', () => {
+  it('HCTR11: FII negociado sem múltiplos de régua entra no Quadro com o tipo do informe', () => {
     expect(linha(r, 'HCTR11')).toMatchObject({
       classe: 'fii',
       noQuadro: true,
-      temScore: false,
-      estadoIndice: 'sem_score',
-      indiceMf: null,
       fiiTipo: 'papel',
+      paramsVersion: 1,
     });
   });
 
@@ -305,15 +260,17 @@ describe('montarLinhasQuadro', () => {
     expect(linha(r, 'HGPO11')).toMatchObject({
       noQuadro: false,
       foraDoQuadroMotivo: 'sem_negociacao_30',
-      estadoIndice: 'calculado',
+      // sem informe: régua indefinida dos params; sem múltiplos: sem versão
+      regua: 'fii_tijolo',
+      paramsVersion: null,
     });
   });
 
-  it('ação com score e sem negociação nos últimos 30 pregões fica fora do Quadro', () => {
+  it('ação com resumo e sem negociação nos últimos 30 pregões fica fora do Quadro', () => {
     expect(linha(r, 'CEDO4')).toMatchObject({
       noQuadro: false,
       foraDoQuadroMotivo: 'sem_negociacao_30',
-      temScore: true,
+      regua: 'acao',
     });
   });
 
@@ -328,8 +285,8 @@ describe('montarLinhasQuadro', () => {
     expect(linha(r, 'HGLG11')).toMatchObject({ nome: 'FII CSHG LOG', assetId: 'asset-hglg11' });
   });
 
-  it('FoF sem score fica fora do Índice', () => {
-    expect(linha(r, 'HFOF11')).toMatchObject({ estadoIndice: 'fora_do_indice', fiiTipo: 'fof' });
+  it('FoF: régua fora do Índice e tipo fof', () => {
+    expect(linha(r, 'HFOF11')).toMatchObject({ regua: 'fora_do_indice', fiiTipo: 'fof' });
   });
 
   it('ação do Quadro sem setor B3 gera alerta', () => {
@@ -364,13 +321,9 @@ describe('montarLinhasQuadro', () => {
     expect(linha(saiu, 'SHOW3')).toMatchObject({ noQuadro: true, foraDoQuadroMotivo: null });
   });
 
-  it('unit sem score próprio usa o Índice da empresa', () => {
-    expect(linha(r, 'KLBN11')).toMatchObject({
-      temScore: true,
-      indiceMf: 2.87,
-      tickerReferencia: 'KLBN4',
-      estadoIndice: 'calculado',
-    });
+  it('unit: colunas da empresa calculadas no ticker de referência (maior volume)', () => {
+    expect(linha(r, 'KLBN11')).toMatchObject({ regua: 'acao', tickerReferencia: 'KLBN4' });
+    expect(linha(r, 'KLBN4')).toMatchObject({ regua: 'acao', tickerReferencia: 'KLBN4' });
     // uma linha por empresa nos pares
     const pares = linha(r, 'WEGE3').pares as string[];
     expect(pares.filter((p) => p.startsWith('KLBN'))).toHaveLength(1);

@@ -179,6 +179,7 @@ describe('obterPainelFrescor', () => {
         fetchedAt: v,
         data: v,
         dataRef: v,
+        precoData: v,
       },
     });
     const d = (s: string) => new Date(`${s}T00:00:00Z`);
@@ -196,7 +197,8 @@ describe('obterPainelFrescor', () => {
       assetSetorB3: { aggregate: vi.fn(async () => max(null)) },
       fiiTickerMap: { aggregate: vi.fn(async () => max(null)) },
       assetEvento: { aggregate: vi.fn(async () => max(d('2026-09-25'))) },
-      assetScore: { aggregate: vi.fn(async () => max(null)) },
+      // D6-a: a camada 'scores' lê os múltiplos atuais (asset_scores não é mais lido)
+      assetMultiplesCurrent: { aggregate: vi.fn(async () => max(null)) },
       analiseQuadroLinha: { aggregate: vi.fn(async () => max(null)) },
     };
     const p = await obterPainelFrescor(prisma as unknown as PrismaClient, agora);

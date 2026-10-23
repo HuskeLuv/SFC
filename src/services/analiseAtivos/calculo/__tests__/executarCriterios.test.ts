@@ -5,6 +5,7 @@ import {
   coberturaMinima,
   DEPENDENCIAS_PADRAO,
   executarCriterios,
+  scoresEmExecucao,
   type DependenciasCriterios,
   type UniversoCriterios,
 } from '@/services/analiseAtivos/calculo/executarCriterios';
@@ -227,12 +228,12 @@ describe('executarCriterios', () => {
     expect(quebrado.tabela.size).toBe(antes.size);
   });
 
-  it("scores ainda executando ⇒ 'pulado' com alerta, sem ler nem gravar", async () => {
+  it("derivados (ex-scores) ainda executando ⇒ 'pulado' com alerta, sem ler nem gravar", async () => {
     const { prisma, tabela } = prismaFake();
     const { ctx, alertas } = ctxCom(prisma);
     const d = deps({ scoresEmExecucao: vi.fn(async () => true) });
     const r = await executarCriterios(ctx, d);
-    expect(r.pulado).toContain('scores');
+    expect(r.pulado).toContain("job 'derivados' ainda em execução");
     expect(alertas).toContainEqual(
       expect.objectContaining({ codigo: 'criterios_scores_em_execucao', nivel: 'aviso' }),
     );
@@ -384,5 +385,20 @@ describe('coberturaAcoes', () => {
   it('fração com dado por critério das ações não financeiras', () => {
     const r = coberturaAcoes([], 5);
     expect(r).toEqual({ total: 0, porCriterio: {} });
+  });
+});
+
+describe('scoresEmExecucao (D6-a)', () => {
+  it("procura run 'executando' do 'derivados' e do nome antigo 'scores', mais novo que o lock", async () => {
+    const findFirst = vi.fn(async () => ({ id: 'run-1' }));
+    const p = { analiseJobRun: { findFirst } } as unknown as PrismaClient;
+    const desde = new Date('2026-10-23T10:00:00Z');
+    expect(await scoresEmExecucao(p, desde)).toBe(true);
+    expect(findFirst).toHaveBeenCalledWith({
+      where: { job: { in: ['derivados', 'scores'] }, status: 'executando', inicio: { gt: desde } },
+      select: { id: true },
+    });
+    findFirst.mockResolvedValueOnce(null as never);
+    expect(await scoresEmExecucao(p, desde)).toBe(false);
   });
 });

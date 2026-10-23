@@ -9,7 +9,7 @@ import {
   linhasDerivadasAcao,
   type MemoriaCalculo,
 } from '@/services/analiseAtivos/calculo/recalcularDerivados';
-import { calcularAtualAcao } from '@/services/analiseAtivos/calculo/recalcularScores';
+import { calcularAtualAcao } from '@/services/analiseAtivos/calculo/recalcularAtuais';
 import { SCORING_PARAMS_V1 } from '@/services/analiseAtivos/params/scoringParamsV1';
 import { SCORING_PARAMS_V2 } from '@/services/analiseAtivos/params/scoringParamsV2';
 import { SCORING_PARAMS_V3 } from '@/services/analiseAtivos/params/scoringParamsV3';

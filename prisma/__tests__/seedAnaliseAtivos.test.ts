@@ -31,14 +31,15 @@ const MODELOS_FASE0 = [
   'assetPerShareYearly',
   'assetMultiplesYearly',
   'assetMultiplesCurrent',
-  'assetScore',
   'assetEvento',
 ];
 
-function prismaFalso(scores: number) {
+function prismaFalso(multiplosAtuais: number) {
   const createMany = vi.fn(async ({ data }: { data: unknown[] }) => ({ count: data.length }));
   const p: Record<string, unknown> = {
-    assetScore: { count: vi.fn().mockResolvedValue(scores), createMany },
+    assetMultiplesCurrent: { count: vi.fn().mockResolvedValue(multiplosAtuais), createMany },
+    // D6-a: asset_scores não é mais o sinal nem é carregado (o Índice saiu do pipeline)
+    assetScore: { count: vi.fn(), createMany: vi.fn() },
     user: { findUnique: vi.fn().mockResolvedValue({ id: 'demo-1' }) },
     featureBetaUser: { upsert: vi.fn().mockResolvedValue({}) },
     asset: {
@@ -63,6 +64,10 @@ describe('seedAnaliseAtivos', () => {
     const r = await seedAnaliseAtivos(prisma, deps);
     expect(r).toEqual({ fixtures: null, demoNoBeta: true });
     expect(createMany).not.toHaveBeenCalled();
+    // D6-a: o sinal de "banco com dados" é asset_multiples_current (gravada pelo job derivados)
+    const atuais = p.assetMultiplesCurrent as { count: ReturnType<typeof vi.fn> };
+    expect(atuais.count).toHaveBeenCalledTimes(1);
+    expect((p.assetScore as { count: ReturnType<typeof vi.fn> }).count).not.toHaveBeenCalled();
     // banco com dados reais: o job 'criterios' é o do cron, não o do seed
     expect(avaliarCriterios).not.toHaveBeenCalled();
     const upsert = (p.featureBetaUser as { upsert: ReturnType<typeof vi.fn> }).upsert;
@@ -85,6 +90,11 @@ describe('seedAnaliseAtivos', () => {
     expect(avaliarCriterios).toHaveBeenCalledWith(prisma);
     expect(r.fixtures?.quadroComCriterios).toBe(19);
     for (const m of MODELOS_FASE0) expect(r.fixtures?.[m], m).toBeGreaterThan(0);
+    // D6-a: a chave assetScore do JSON é ignorada; asset_scores não é lido nem escrito
+    expect(r.fixtures).not.toHaveProperty('assetScore');
+    const score = p.assetScore as Record<string, ReturnType<typeof vi.fn>>;
+    expect(score.count).not.toHaveBeenCalled();
+    expect(score.createMany).not.toHaveBeenCalled();
     expect(r.fixtures?.analiseQuadroLinha).toBeGreaterThanOrEqual(19);
     for (const call of createMany.mock.calls)
       expect(call[0]).toMatchObject({ skipDuplicates: true });

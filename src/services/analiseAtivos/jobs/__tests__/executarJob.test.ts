@@ -183,14 +183,17 @@ describe('executarJobAnalise', () => {
     expect(r.alertas.map((a) => a.codigo)).toContain('params_fallback_codigo');
   });
 
-  it("sem ScoringParams no banco: 'scores' ⇒ 'falha' sem executar", async () => {
-    m.prisma.scoringParams.findFirst.mockResolvedValue(null);
-    const fn = vi.fn();
-    const r = await executarJobAnalise('scores', fn);
-    expect(r.status).toBe('falha');
-    expect(r.erro).toMatch(/ScoringParams/);
-    expect(fn).not.toHaveBeenCalled();
-  });
+  it.each(['derivados', 'scores'] as const)(
+    "sem ScoringParams no banco: '%s' ⇒ 'falha' sem executar",
+    async (job) => {
+      m.prisma.scoringParams.findFirst.mockResolvedValue(null);
+      const fn = vi.fn();
+      const r = await executarJobAnalise(job, fn);
+      expect(r.status).toBe('falha');
+      expect(r.erro).toMatch(/ScoringParams/);
+      expect(fn).not.toHaveBeenCalled();
+    },
+  );
 
   it('estourouPrazo() só depois do prazo; restanteMs decresce', async () => {
     await executarJobAnalise(
