@@ -31,7 +31,7 @@ import PilulasArea from '@/components/analiseAtivos/shell/PilulasArea';
 import BotaoCriarLista from '@/components/analiseAtivos/shell/BotaoCriarLista';
 import BannerNovidade from '@/components/analiseAtivos/shell/BannerNovidade';
 import RodapeLegal from '@/components/analiseAtivos/shell/RodapeLegal';
-import { VisualV2Provider } from '@/components/analiseAtivos/shell/VisualV2';
+import { VisualV2Provider, useVisualV2 } from '@/components/analiseAtivos/shell/VisualV2';
 import { lerEstadoComparador } from '@/components/analiseAtivos/comparador/useEstadoComparadorUrl';
 import { COR_LINK } from '@/constants/analiseAtivosVisual';
 import { useAnaliseAtivosConfig } from '@/hooks/useAnaliseAtivos';
@@ -70,8 +70,12 @@ export function mercadoDaUrl(
 /** Título "Análise de Ativos" + pílula Beta (com "Criar lista" ao lado no celular). */
 function TituloArea({ criarLista }: { criarLista: boolean }) {
   const t = TEXTOS_TELA.area;
+  // visual v2: título como no HTML do Pedro (20px em negrito, sem crescer no desktop)
+  const classe = useVisualV2()
+    ? 'flex items-center gap-2 text-xl font-bold text-gray-800 dark:text-white/90'
+    : 'flex items-center gap-2 text-xl font-semibold text-gray-800 md:text-2xl dark:text-white/90';
   const h1 = (
-    <h1 className="flex items-center gap-2 text-xl font-semibold text-gray-800 md:text-2xl dark:text-white/90">
+    <h1 className={classe}>
       {t.titulo}
       <span className="rounded-full bg-[#314666] px-2 py-0.5 text-[11px] font-semibold tracking-wide text-white uppercase">
         {t.pilulaBeta}

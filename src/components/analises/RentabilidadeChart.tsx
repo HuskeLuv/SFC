@@ -640,7 +640,7 @@ export default function RentabilidadeChart({
         show: true,
         position: legendPosition,
         horizontalAlign: legendPosition === 'bottom' ? 'center' : 'left',
-        fontFamily: 'Outfit, sans-serif',
+        fontFamily: 'inherit',
         fontSize: '14px',
         fontWeight: 400,
         markers: {
@@ -651,7 +651,7 @@ export default function RentabilidadeChart({
       },
       colors: customColors ?? seriesColors,
       chart: {
-        fontFamily: 'Outfit, sans-serif',
+        fontFamily: 'inherit',
         height: 300,
         type: chartType,
         width: '100%',

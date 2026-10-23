@@ -82,7 +82,11 @@ export default function CabecalhoAtivo({ ativo, seloCarteira, slotAcoes }: Cabec
           <div className="min-w-0">
             <h1
               id="ativo-titulo"
-              className="flex flex-wrap items-baseline gap-x-2 text-xl font-semibold text-gray-800 sm:text-2xl dark:text-white/90"
+              className={
+                v2
+                  ? 'flex flex-wrap items-baseline gap-x-2 text-xl font-bold text-gray-800 dark:text-white/90'
+                  : 'flex flex-wrap items-baseline gap-x-2 text-xl font-semibold text-gray-800 sm:text-2xl dark:text-white/90'
+              }
             >
               {ativo.ticker}
               {v2 ? (
@@ -128,7 +132,9 @@ export default function CabecalhoAtivo({ ativo, seloCarteira, slotAcoes }: Cabec
         ) : (
           <div className="flex-none sm:text-right" data-preco>
             <p className="sr-only">{t.precoRotulo}</p>
-            <p className="text-2xl font-semibold text-gray-800 tabular-nums dark:text-white/90">
+            <p
+              className={`text-2xl ${v2 ? 'font-bold' : 'font-semibold'} text-gray-800 tabular-nums dark:text-white/90`}
+            >
               {cotacao.preco === null
                 ? TEXTOS_TELA.formato.semDado
                 : ativo.eua

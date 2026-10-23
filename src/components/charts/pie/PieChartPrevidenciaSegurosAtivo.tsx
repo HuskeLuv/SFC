@@ -49,7 +49,7 @@ export default function PieChartPrevidenciaSegurosAtivo({
       ],
       labels: chartData.labels,
       chart: {
-        fontFamily: 'Outfit, sans-serif',
+        fontFamily: 'inherit',
         type: 'donut',
         width: '100%',
         height: 300,
@@ -112,7 +112,7 @@ export default function PieChartPrevidenciaSegurosAtivo({
         show: true,
         position: 'bottom',
         horizontalAlign: 'center',
-        fontFamily: 'Outfit',
+        fontFamily: 'inherit',
         fontSize: '12px',
         fontWeight: 400,
         markers: {

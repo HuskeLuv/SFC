@@ -107,7 +107,7 @@ function DialogoComputador({
 
   return createPortal(
     <div
-      className="fixed inset-0 z-[99999] flex items-center justify-center p-4 font-outfit"
+      className="fixed inset-0 z-[99999] flex items-center justify-center p-4 font-app"
       data-modal-analise=""
     >
       <div

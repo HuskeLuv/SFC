@@ -21,7 +21,7 @@ const PieChartStocksAtivo: React.FC<PieChartStocksAtivoProps> = ({ data, isDarkM
       colors: data.map((item) => item.cor),
       labels: data.map((item) => item.ticker),
       chart: {
-        fontFamily: 'Outfit, sans-serif',
+        fontFamily: 'inherit',
         type: 'donut',
         width: '100%',
         height: 300,
@@ -79,7 +79,7 @@ const PieChartStocksAtivo: React.FC<PieChartStocksAtivoProps> = ({ data, isDarkM
         show: true,
         position: 'bottom',
         horizontalAlign: 'center',
-        fontFamily: 'Outfit',
+        fontFamily: 'inherit',
         fontSize: '10px',
         fontWeight: 400,
         markers: {

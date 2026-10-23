@@ -34,7 +34,7 @@ export default function EvolucaoRentChart({ categories, rent, meta }: EvolucaoRe
     () => ({
       chart: {
         id: 'apos-evol-rent',
-        fontFamily: 'Outfit, sans-serif',
+        fontFamily: 'inherit',
         type: 'bar',
         toolbar: { show: false },
       },

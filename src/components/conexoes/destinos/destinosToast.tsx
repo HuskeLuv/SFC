@@ -140,7 +140,7 @@ export function DestinosToastHost() {
     // com os botões no rodapé, e o toast embaixo cobria o "Entendi" (QA 390px).
     <div
       data-mf-destinos-toast-camada=""
-      className="pointer-events-none fixed inset-x-0 z-[100000] flex justify-center px-4 font-outfit max-lg:top-[calc(env(safe-area-inset-top,0px)+8px)] lg:bottom-[18px]"
+      className="pointer-events-none fixed inset-x-0 z-[100000] flex justify-center px-4 font-app max-lg:top-[calc(env(safe-area-inset-top,0px)+8px)] lg:bottom-[18px]"
       onMouseEnter={() => setPausado(true)}
       onMouseLeave={() => setPausado(false)}
       onFocus={() => setPausado(true)}

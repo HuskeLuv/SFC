@@ -157,7 +157,7 @@ export function EscolherSecaoPopover({
         bottom: posicao?.bottom ?? 0,
         visibility: posicao ? 'visible' : 'hidden',
       }}
-      className={`fixed z-[99993] flex ${editavel ? 'w-[min(320px,calc(100vw-16px))]' : 'w-[min(380px,calc(100vw-16px))]'} flex-col gap-2.5 rounded-[14px] border border-gray-200 bg-white p-3.5 font-outfit shadow-xl outline-none dark:border-gray-700 dark:bg-gray-900`}
+      className={`fixed z-[99993] flex ${editavel ? 'w-[min(320px,calc(100vw-16px))]' : 'w-[min(380px,calc(100vw-16px))]'} flex-col gap-2.5 rounded-[14px] border border-gray-200 bg-white p-3.5 font-app shadow-xl outline-none dark:border-gray-700 dark:bg-gray-900`}
     >
       <span
         aria-hidden="true"

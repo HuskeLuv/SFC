@@ -503,7 +503,7 @@ function RevisaoAberta({
           aria-labelledby={tituloId}
           aria-describedby={descId}
           data-mf-revisar-destinos="mobile"
-          className="fixed inset-0 z-[99980] flex flex-col bg-gray-50 font-outfit dark:bg-[#18181B]"
+          className="fixed inset-0 z-[99980] flex flex-col bg-gray-50 font-app dark:bg-[#18181B]"
         >
           <div className="flex shrink-0 items-center gap-1 border-b border-gray-200 bg-white px-1 pt-[env(safe-area-inset-top)] dark:border-gray-800 dark:bg-[#1F1F22]">
             <button
@@ -559,7 +559,7 @@ function RevisaoAberta({
 
   return createPortal(
     <div
-      className="fixed inset-0 z-[99999] flex items-center justify-center p-4 font-outfit"
+      className="fixed inset-0 z-[99999] flex items-center justify-center p-4 font-app"
       data-mf-revisar-destinos="desktop"
     >
       <div className="fixed inset-0 bg-mf-potencia/45" aria-hidden="true" onClick={fechar} />

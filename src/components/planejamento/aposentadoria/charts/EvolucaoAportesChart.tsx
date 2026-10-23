@@ -35,7 +35,7 @@ export default function EvolucaoAportesChart({
     () => ({
       chart: {
         id: 'apos-evol-aportes',
-        fontFamily: 'Outfit, sans-serif',
+        fontFamily: 'inherit',
         type: 'bar',
         toolbar: { show: false },
       },

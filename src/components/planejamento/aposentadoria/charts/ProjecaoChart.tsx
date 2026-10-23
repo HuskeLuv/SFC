@@ -85,7 +85,7 @@ export default function ProjecaoChart({ data, apos, vida }: ProjecaoChartProps) 
     return {
       chart: {
         id: 'apos-projecao',
-        fontFamily: 'Outfit, sans-serif',
+        fontFamily: 'inherit',
         toolbar: { show: false },
         zoom: { enabled: false },
         type: 'line',

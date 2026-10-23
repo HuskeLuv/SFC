@@ -80,7 +80,7 @@ export default function MoverInvestimentoSheet({
       isOpen={open}
       onClose={fluxo.fechar}
       title={`Mover ${fluxo.rotulo}`}
-      className="font-outfit"
+      className="font-app"
       footer={
         <div className="flex flex-col gap-2">
           {fluxo.avisos.length > 0 && (

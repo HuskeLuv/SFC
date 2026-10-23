@@ -21,7 +21,7 @@ const PieChartFiiSegmento: React.FC<PieChartFiiSegmentoProps> = ({ data, isDarkM
       colors: data.map((item) => item.cor),
       labels: data.map((item) => item.segmento),
       chart: {
-        fontFamily: 'Outfit, sans-serif',
+        fontFamily: 'inherit',
         type: 'donut',
         width: '100%',
         height: 300,
@@ -87,7 +87,7 @@ const PieChartFiiSegmento: React.FC<PieChartFiiSegmentoProps> = ({ data, isDarkM
         show: true,
         position: 'bottom',
         horizontalAlign: 'center',
-        fontFamily: 'Outfit',
+        fontFamily: 'inherit',
         fontSize: '12px',
         fontWeight: 400,
         markers: {

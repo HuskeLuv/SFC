@@ -11,9 +11,12 @@ import ServiceWorkerRegistrar from '@/components/pwa/ServiceWorkerRegistrar';
 
 // Self-hosted (src/fonts) para o build não depender do Google Fonts — o
 // fetch do next/font/google derrubou o build no CI 2× em 28/09 (flake de rede).
-const outfit = localFont({
-  src: '../fonts/outfit-latin-variable.woff2',
+// Albert Sans desde 23/10/2026 (a do HTML de referência do Pedro). A variável vai no <html> para o
+// token --font-app do globals.css (declarado no :root) enxergá-la.
+const albertSans = localFont({
+  src: '../fonts/albert-sans-latin-variable.woff2',
   weight: '100 900',
+  variable: '--font-albert-sans',
 });
 
 // CSP com nonce por request exige render dinâmico em todas as rotas: uma
@@ -72,8 +75,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="pt-BR">
-      <body className={`${outfit.className} dark:bg-gray-900`}>
+    <html lang="pt-BR" className={albertSans.variable}>
+      <body className={`${albertSans.className} dark:bg-gray-900`}>
         <Providers>{children}</Providers>
         <ServiceWorkerRegistrar />
         <CookieConsentBanner />

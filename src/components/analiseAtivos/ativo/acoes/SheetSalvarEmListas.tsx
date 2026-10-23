@@ -167,7 +167,7 @@ export function CamadaEscolha({
       aria-label={rotulo}
       data-camada={dataCamada}
       style={estilo}
-      className="z-[99990] flex max-h-[min(480px,calc(100dvh-24px))] flex-col overflow-hidden rounded-xl border border-gray-200 bg-white font-outfit text-gray-800 shadow-lg dark:border-[#2E3440] dark:bg-[#1F1F22] dark:text-white/90"
+      className="z-[99990] flex max-h-[min(480px,calc(100dvh-24px))] flex-col overflow-hidden rounded-xl border border-gray-200 bg-white font-app text-gray-800 shadow-lg dark:border-[#2E3440] dark:bg-[#1F1F22] dark:text-white/90"
     >
       <div className="min-h-0 flex-1 overflow-y-auto p-2">{children}</div>
       {rodape ? (

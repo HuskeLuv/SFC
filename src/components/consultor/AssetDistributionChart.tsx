@@ -93,7 +93,7 @@ const AssetDistributionChart: React.FC<AssetDistributionChartProps> = ({
       colors: chartData.colors,
       labels: chartData.labels,
       chart: {
-        fontFamily: 'Outfit, sans-serif',
+        fontFamily: 'inherit',
         type: 'donut',
       },
       stroke: {
@@ -173,7 +173,7 @@ const AssetDistributionChart: React.FC<AssetDistributionChartProps> = ({
       legend: {
         show: true,
         position: 'bottom',
-        fontFamily: 'Outfit, sans-serif',
+        fontFamily: 'inherit',
         fontWeight: 400,
         fontSize: '14px',
         colors: isDarkMode ? ['#ffffff'] : ['#000000'],

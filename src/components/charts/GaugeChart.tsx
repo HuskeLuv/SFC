@@ -37,7 +37,7 @@ export default function GaugeChart({
     () => ({
       colors: [color],
       chart: {
-        fontFamily: 'Outfit, sans-serif',
+        fontFamily: 'inherit',
         type: 'radialBar',
         height,
         sparkline: { enabled: true },

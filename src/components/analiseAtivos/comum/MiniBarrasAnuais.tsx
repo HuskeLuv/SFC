@@ -2,7 +2,8 @@
 
 /**
  * MiniBarrasAnuais (v2.4, fatia 0) — valores anuais da janela de um critério (card de critérios,
- * C2). Barras numa cor só (patrimonio #396CAA / tranquilidade #6E9DC4 no escuro), SEM cor semântica:
+ * C2). Barras numa cor só (patrimonio #396CAA, ou outside #0079F2 no visual v2 / tranquilidade #6E9DC4
+ * no escuro), SEM cor semântica:
  * valor negativo desce abaixo da linha do zero na mesma cor, e só o TEXTO do valor sai em vermelho
  * (#D92D20 / #F97066). Ano sem dado = contorno tracejado rente ao zero. Limite (max/min) opcional
  * como linha tracejada cinza.
@@ -12,6 +13,8 @@
  * 'ano: valor' na linha de leitura (aria-hidden; o aria-label já tem tudo).
  */
 import { useState, type KeyboardEvent } from 'react';
+import { useVisualV2 } from '@/components/analiseAtivos/shell/VisualV2';
+import { BARRA_CRITERIO_V2 } from '@/constants/analiseAtivosVisual';
 import {
   TEXTOS_CRITERIOS,
   formatarTexto,
@@ -55,6 +58,7 @@ export default function MiniBarrasAnuais({
   className = '',
 }: MiniBarrasAnuaisProps) {
   const [ativo, setAtivo] = useState<number | null>(null);
+  const cor = useVisualV2() ? BARRA_CRITERIO_V2 : 'fill-[#396CAA] dark:fill-[#6E9DC4]';
   const pontos = [...serie].sort((a, b) => a.ano - b.ano);
   const valores = pontos.filter((p) => p.valor !== null).map((p) => p.valor as number);
   const refs = limite !== undefined ? [...valores, limite] : valores;
@@ -129,7 +133,7 @@ export default function MiniBarrasAnuais({
                 height={h}
                 rx={1.5}
                 onMouseEnter={aoEntrar}
-                className={`fill-[#396CAA] dark:fill-[#6E9DC4] ${ativo === null || realcada ? '' : 'opacity-60'}`}
+                className={`${cor} ${ativo === null || realcada ? '' : 'opacity-60'}`}
               >
                 <title>{textoAno(p, formato)}</title>
               </rect>

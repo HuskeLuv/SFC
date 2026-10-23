@@ -113,7 +113,7 @@ export default function PieChartCarteiraInvestimentos({
       colors: CATEGORIAS_DONUT.map((c) => CATEGORIA_CORES[c]),
       labels: CATEGORIAS_DONUT.map((c) => CATEGORIA_LABELS[c]),
       chart: {
-        fontFamily: 'Outfit, sans-serif',
+        fontFamily: 'inherit',
         type: 'donut',
       },
       // Com a paleta só de azuis, o contorno fino delimita fatias de tons
@@ -186,7 +186,7 @@ export default function PieChartCarteiraInvestimentos({
       legend: {
         show: true,
         position: 'bottom',
-        fontFamily: 'Outfit, sans-serif',
+        fontFamily: 'inherit',
         fontWeight: 400,
         fontSize: '14px',
         colors: isDarkMode ? ['#ffffff'] : ['#000000'],

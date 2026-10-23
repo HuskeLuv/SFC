@@ -208,7 +208,7 @@ export function MoverToastHost() {
         aria-live={erro ? 'assertive' : 'polite'}
         data-mf-mover-toast={toast.tipo}
         className={twMerge(
-          'pointer-events-auto flex max-w-[min(640px,100%)] items-center gap-3.5 rounded-xl py-2.5 pr-3 pl-4 font-outfit text-sm shadow-lg',
+          'pointer-events-auto flex max-w-[min(640px,100%)] items-center gap-3.5 rounded-xl py-2.5 pr-3 pl-4 font-app text-sm shadow-lg',
           erro
             ? 'border border-[#D92D20] bg-[#D92D20] text-white dark:border-[#F97066] dark:bg-[#26262A] dark:text-[#F97066]'
             : 'bg-mf-seguranca text-white dark:bg-[#26262A] dark:text-mf-escolha',

@@ -63,6 +63,13 @@ export const CORES_PERMITIDAS: readonly string[] = [
 export const VERDE_ATENDE = { claro: '#16A34A', escuro: '#34C47C' } as const;
 /** Círculo do ✓ atendido (página do ativo): verde no claro; verde claro com ✓ escuro no escuro. */
 export const MARCA_ATENDE_VERDE = 'bg-[#16A34A] text-white dark:bg-[#34C47C] dark:text-[#18181B]';
+/**
+ * Visual v2 (ANALISE_ATIVOS_VISUAL_V2_HABILITADO, 23/10): o ✓ atendido da página do ativo sai em
+ * marinho discreto, como no HTML do Pedro (seguranca #314666; tranquilidade no escuro).
+ */
+export const MARCA_ATENDE_MARINHO = 'bg-[#314666] text-white dark:bg-[#6E9DC4] dark:text-[#18181B]';
+/** Visual v2: barras dos critérios no azul vivo da marca (outside #0079F2; não é texto). */
+export const BARRA_CRITERIO_V2 = 'fill-[#0079F2] dark:fill-[#6E9DC4]';
 /** Hex da exceção do ✓ verde (só para os testes de fonte que a aceitam explicitamente). */
 export const CORES_EXCECAO_ATENDE: readonly string[] = Object.values(VERDE_ATENDE);
 

@@ -12,7 +12,7 @@
  *  - nao_se_aplica: borda tracejada, sem barras (financeiras, D4: 'não se aplica a instituições…').
  * Exceção à paleta autorizada pelo Wellington 17/10: só o ✓ do critério atendido sai verde
  * (tom='verde'); não atende / sem dado / n/a e todo o texto seguem neutros (só o valor negativo das
- * barras sai em vermelho).
+ * barras sai em vermelho). Visual v2 (23/10): o ✓ sai em marinho, como no HTML do Pedro.
  *
  * v2.5: resultado com `obs` — o lucro descontado que a fonte não entrega (o critério usa o lucro
  * líquido dos controladores) ou dados incompletos — ganha ⓘ junto do rótulo (tooltip) e a frase
@@ -20,6 +20,7 @@
  */
 import MarcaCriterio from '@/components/analiseAtivos/comum/MarcaCriterio';
 import MiniBarrasAnuais from '@/components/analiseAtivos/comum/MiniBarrasAnuais';
+import { useVisualV2 } from '@/components/analiseAtivos/shell/VisualV2';
 import { TEXTOS_ATIVO } from '@/services/analiseAtivos/textosAtivo';
 import { TEXTOS_CRITERIOS, formatarTexto } from '@/services/analiseAtivos/textosCriterios';
 import type { ItemCriterioApi, ItemCriterioProps } from '@/types/analiseAtivosCriterios';
@@ -38,6 +39,7 @@ export default function ItemCriterio({ item, janela, className = '' }: ItemCrite
   const naoSeAplica = item.estado === 'nao_se_aplica';
   const serie = !naoSeAplica && item.serie && item.serie.length > 0 ? item.serie : null;
   const obs = (item.obs ?? []).map((o) => TEXTOS_CRITERIOS.obs[o]);
+  const visualV2 = useVisualV2();
   return (
     <li
       data-criterio={item.id}
@@ -50,7 +52,7 @@ export default function ItemCriterio({ item, janela, className = '' }: ItemCrite
       } ${className}`}
     >
       <h3 className="m-0 flex items-center gap-2 text-sm font-semibold text-gray-800 dark:text-white/90">
-        <MarcaCriterio estado={item.estado} tom="verde" />
+        <MarcaCriterio estado={item.estado} tom={visualV2 ? 'marinho' : 'verde'} />
         <span className="min-w-0">{item.rotulo}</span>
         {obs.length > 0 ? (
           <span
