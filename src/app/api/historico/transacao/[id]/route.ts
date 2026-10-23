@@ -17,7 +17,49 @@ import {
 } from '@/services/changeHistory';
 
 import { withErrorHandler } from '@/utils/apiErrorHandler';
+import { isAtivoEmDolar, lerNotesTransacao, type AtivoMoedaRef } from '@/lib/ativoEmDolar';
 const EDITABLE_FIELDS = ['quantity', 'price', 'total', 'date', 'fees', 'notes'] as const;
+
+/** Campos do marcador de unidade (Carteira EUA em US$) que a edição nunca troca. */
+const CAMPOS_MARCADOR = ['unidade', 'moeda', 'cotacaoMoeda'] as const;
+
+const objetoOuNull = (v: unknown): Record<string, unknown> | null =>
+  v && typeof v === 'object' && !Array.isArray(v) ? (v as Record<string, unknown>) : null;
+
+/**
+ * Notes novas sobre as antigas (Carteira EUA em US$): o JSON novo é aplicado sobre o antigo
+ * (`operation` mesclado campo a campo), em vez de trocar o campo inteiro. Em ativo em dólar,
+ * `operation.{unidade, moeda, cotacaoMoeda}` gravados na operação são preservados — sem eles o
+ * leitor passaria a tratar o valor em US$ como R$ — e um texto solto vai para `observacoes`.
+ * Notes antigas ilegíveis, ou texto solto em outros ativos: como antes (troca o campo).
+ */
+function mesclarNotesDaEdicao(
+  antigas: string | null,
+  novas: string | null,
+  asset: AtivoMoedaRef | null | undefined,
+): string | null {
+  const anterior = lerNotesTransacao(antigas);
+  if (!anterior) return novas;
+  const emDolar = isAtivoEmDolar(asset);
+  const nova = lerNotesTransacao(novas);
+  if (!nova && !emDolar) return novas;
+
+  const base: Record<string, unknown> = nova
+    ? { ...anterior, ...nova }
+    : { ...anterior, observacoes: novas ?? undefined };
+  const opAnterior = objetoOuNull(anterior.operation);
+  const opNova = objetoOuNull(nova?.operation);
+  if (opAnterior || opNova) {
+    const operation: Record<string, unknown> = { ...(opAnterior ?? {}), ...(opNova ?? {}) };
+    if (emDolar && opAnterior) {
+      for (const campo of CAMPOS_MARCADOR) {
+        if (opAnterior[campo] !== undefined) operation[campo] = opAnterior[campo];
+      }
+    }
+    base.operation = operation;
+  }
+  return JSON.stringify(base);
+}
 
 export const PATCH = withErrorHandler(
   async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
@@ -71,6 +113,12 @@ export const PATCH = withErrorHandler(
 
     if (!transaction) {
       return NextResponse.json({ error: 'Transação não encontrada' }, { status: 404 });
+    }
+
+    // Merge de notes (preserva o marcador de unidade do ativo em dólar). Preço e total
+    // editados ficam na unidade da transação.
+    if (updates.notes !== undefined) {
+      updates.notes = mesclarNotesDaEdicao(transaction.notes, updates.notes, transaction.asset);
     }
 
     // Manter invariante total = quantity * price ao editar um campo isoladamente;
