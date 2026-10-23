@@ -423,6 +423,12 @@ describe('executarDerivados', () => {
     expect(det.atuais.acoes.noQuadro).toBe(3);
     expect(det.atuais.fiis).toMatchObject({ naoConferidos: 1, noQuadro: 2, fof: 1 });
     expect(alertas.map((a) => a.codigo)).not.toContain('cobertura_scores');
+    // D6-b: cobertura_multiplos no lugar do cobertura_scores (todo elegível com múltiplo)
+    expect((det.atuais as unknown as { cobertura: unknown }).cobertura).toMatchObject({
+      acoesPct: 100,
+      fiisPct: 100,
+    });
+    expect(alertas.map((a) => a.codigo)).not.toContain('cobertura_multiplos');
 
     // múltiplos atuais para todo o universo com preço (inclusive o FII não conferido)
     expect(tabelas.assetMultiplesCurrent.map((l) => l.symbol).sort()).toEqual([

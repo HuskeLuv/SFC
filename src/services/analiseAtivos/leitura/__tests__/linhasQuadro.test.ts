@@ -262,7 +262,6 @@ describe('linhasQuadro', () => {
       const api = paraLinhaQuadroApi({
         ...LINHA_ITUB4,
         flags: ['proventos_em_conferencia_dy_acima_teto'],
-        estadoIndice: 'incompleto',
         motivosIncompleto: ['div:em_conferencia'],
       });
       expect(api.proventosEmConferencia).toBe(true);

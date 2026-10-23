@@ -37,8 +37,6 @@ describe('fixtures EUA (Stocks e REITs) do banco efêmero', () => {
       bolsa: 'NYSE',
       segmento: 'Net lease',
       preco: null,
-      temScore: false,
-      estadoIndice: 'sem_score',
       noQuadro: true,
     });
     expect(linhaO.fcoPorAcao).toBeCloseTo(4.4, 1);

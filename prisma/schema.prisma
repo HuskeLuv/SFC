@@ -2550,43 +2550,6 @@ model AssetMultiplesCurrent {
   @@map("asset_multiples_current")
 }
 
-// Retenção: job scores apaga dataRef < hoje−40d que não seja o último dataRef do mês.
-model AssetScore {
-  id                  String   @id @default(uuid())
-  symbol              String
-  cnpj                String
-  // data do ÚLTIMO PREGÃO com cotação, não o dia do run
-  dataRef             DateTime @db.Date
-  classe              String
-  // acao | acao_financeira | fii_tijolo | fii_papel | fora_do_indice
-  regua               String
-  fiiTipo             String?
-  // decisão 13: índice por empresa, calculado no ticker de referência
-  tickerReferencia    String?
-  // null = fora do índice (FoF) ou sem nenhum componente
-  indiceMf            Float?
-  cLucro              Float?
-  cDivida             Float?
-  cRent               Float?
-  cDiv                Float?
-  cPreco              Float?
-  componentes         Json
-  pesosEfetivos       Json
-  // CheckSemaforo[] compacto — frases vêm de textos.ts
-  checks              Json
-  criteriosAplicaveis Int
-  criteriosAtendidos  Int
-  incompleto          Boolean
-  motivosIncompleto   String[]
-  paramsVersion       Int
-  computedAt          DateTime
-
-  @@unique([symbol, dataRef])
-  @@index([dataRef])
-  @@index([classe, dataRef])
-  @@map("asset_scores")
-}
-
 model AssetEvento {
   id            String    @id @default(uuid())
   cnpj          String
@@ -2635,9 +2598,6 @@ model AnaliseQuadroLinha {
   noQuadro              Boolean
   // sem_negociacao_30 | fiagro
   foraDoQuadroMotivo    String?
-  temScore              Boolean
-  // calculado | incompleto | zero_regra | fora_do_indice | sem_score
-  estadoIndice          String
   nome                  String
   nomeCurto             String?
   setor                 String?
@@ -2655,10 +2615,6 @@ model AnaliseQuadroLinha {
   baixaLiquidez         Boolean   @default(false)
   valorMercado          Decimal?  @db.Decimal(22, 2)
   patrimonio            Decimal?  @db.Decimal(20, 2)
-  indiceMf              Float?
-  criteriosAtendidos    Int?
-  criteriosAplicaveis   Int?
-  statusCriterios       String[]
   motivosIncompleto     String[]
   // ex.: ['lucro:prejuizo','preco:pl_negativo']
   componentesZeroRegra  String[]
