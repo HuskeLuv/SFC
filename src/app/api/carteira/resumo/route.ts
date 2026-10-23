@@ -496,18 +496,21 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
   const historicoMWR: Array<{ data: number; value: number }> = [];
   let historicoMWRPeriodo: Array<{ data: number; value: number }> = [];
   if (historicoPatrimonio.length > 0) {
-    const { buildDailyTimeline, buildPatrimonioCashFlowsByDayOnly } =
+    const { buildDailyTimeline, buildPatrimonioCashFlowsByDayOnly, carregarCambioDoHistorico } =
       await import('@/services/portfolio/patrimonioHistoricoBuilder');
     const { buildMwrSeries } = await import('@/services/portfolio/mwrSeriesBuilder');
     const startMs = historicoPatrimonio[0].data;
     const endMs = historicoPatrimonio[historicoPatrimonio.length - 1].data;
     const dailyTimeline = buildDailyTimeline(new Date(startMs), new Date(endMs));
+    // Fluxo em US$ (Carteira EUA) sem cotação gravada usa a série USD-BRL na data.
+    const serieCambio = await carregarCambioDoHistorico(portfolio, stockTransactions);
     const cashFlowsByDay = buildPatrimonioCashFlowsByDayOnly(
       portfolio,
       fixedIncomeAssets,
       stockTransactions,
       cashflowInvestments,
       dailyTimeline,
+      serieCambio,
     );
     historicoMWR.push(
       ...buildMwrSeries({
