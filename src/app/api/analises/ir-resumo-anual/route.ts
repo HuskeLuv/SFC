@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuthWithActing } from '@/utils/auth';
 import { prisma } from '@/lib/prisma';
-import { getDividends } from '@/services/pricing/dividendService';
+import { resolveProventoEvents } from '@/services/portfolio/resolveProventos';
 import {
   apurarRendaVariavel,
   type RvTransaction,
@@ -105,7 +105,7 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
   }
 
   // Carrega tudo de uma vez — apuração reusa os serviços puros das fases 1-5.
-  const [transactions, portfolio, manualProventos] = await Promise.all([
+  const [transactions, portfolio] = await Promise.all([
     prisma.stockTransaction.findMany({
       where: { userId: targetUserId },
       include: { asset: true },
@@ -114,9 +114,6 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     prisma.portfolio.findMany({
       where: { userId: targetUserId },
       include: { asset: true },
-    }),
-    prisma.portfolioProvento.findMany({
-      where: { userId: targetUserId, dismissed: false },
     }),
   ]);
 
@@ -212,10 +209,11 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
   // ---- Proventos do ano: classificação por tributação ----
   const blockedSymbols = ['RESERVA-EMERG', 'RESERVA-OPORT', 'PERSONALIZADO'];
   const isBlocked = (s: string) => blockedSymbols.some((p) => s.toUpperCase().startsWith(p));
-  const yearStart = new Date(year, 0, 1).getTime();
-  const yearEnd = new Date(year + 1, 0, 1).getTime() - 1;
+  // paymentDay do resolvedor é UTC 00:00.
+  const yearStart = Date.UTC(year, 0, 1);
+  const yearEnd = Date.UTC(year + 1, 0, 1) - 1;
 
-  // BRAPI dividends por símbolo de ação/FII presente no portfolio
+  // Totais por tributação (isento, exclusiva, exterior).
   type ProventoSlot = {
     dividendoAcao: number;
     rendimentoFii: number;
@@ -240,50 +238,30 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     }
     slots.exterior += valorUsd * taxa;
   };
-  // Após consolidação Stock → Asset: ações e FIIs são Asset com type='stock'/'fii';
-  // REIT só entra em dólar (linha Exterior).
-  const portfolioStocks = portfolio.filter(
-    (p) =>
-      (p.asset?.type === 'stock' || p.asset?.type === 'fii' || isAtivoEmDolar(p.asset)) &&
-      p.asset?.symbol &&
-      !isBlocked(p.asset?.symbol ?? ''),
-  );
-  await Promise.all(
-    portfolioStocks.map(async (p) => {
-      const symbol = p.asset!.symbol;
-      const isFii = p.asset!.type === 'fii';
-      const emDolar = isAtivoEmDolar(p.asset);
-      const dividends = await getDividends(symbol);
-      for (const d of dividends) {
-        const ts = d.date.getTime();
-        if (ts < yearStart || ts > yearEnd) continue;
-        const valor = (p.quantity || 0) * d.valorUnitario;
-        if (valor <= 0) continue;
-        if (emDolar) {
-          somarExterior(valor, d.date);
-          continue;
-        }
-        const tipo = (d.tipo || '').toLowerCase();
-        if (tipo.includes('jcp') || tipo.includes('juros')) slots.jcp += valor;
-        else if (isFii) slots.rendimentoFii += valor;
-        else slots.dividendoAcao += valor;
-      }
-    }),
-  );
-  // Manuais: usa o tipo do PortfolioProvento (de ativo em dólar = US$, linha Exterior)
-  const portfolioById = new Map(portfolio.map((p) => [p.id, p]));
-  for (const mp of manualProventos) {
-    const ts = mp.dataPagamento.getTime();
-    if (ts < yearStart || ts > yearEnd) continue;
-    if (isAtivoEmDolar(portfolioById.get(mp.portfolioId)?.asset)) {
-      somarExterior(mp.valorTotal, mp.dataPagamento);
+  // Proventos pela mesma fonte do Resumo e da rentabilidade (resolveProventoEvents): histórico
+  // global × quantidade na data-com, edição manual substitui o evento e o espelho 'brapi' de
+  // portfolio_proventos é ignorado — somar o espelho junto do histórico contava tudo 2×.
+  // Só o que já foi pago (paymentDay ≤ hoje); JCP pelo líquido (como a DIRPF pede).
+  const { events: proventos } = await resolveProventoEvents(targetUserId);
+  const tipoPorSymbol = new Map<string, string | null | undefined>();
+  for (const tx of transactions)
+    if (tx.asset?.symbol) tipoPorSymbol.set(tx.asset.symbol, tx.asset.type);
+  for (const p of portfolio) if (p.asset?.symbol) tipoPorSymbol.set(p.asset.symbol, p.asset.type);
+  const hojeMs = Date.now();
+  for (const e of proventos) {
+    if (e.paymentDay < yearStart || e.paymentDay > yearEnd || e.paymentDay > hojeMs) continue;
+    if (isBlocked(e.symbol)) continue;
+    // Ativo em dólar (REIT, stock EUA): linha Exterior, bruto em US$ → R$.
+    if (e.moeda === 'USD') {
+      somarExterior(e.gross, new Date(e.paymentDay));
       continue;
     }
-    const tipo = (mp.tipo || '').toLowerCase();
-    if (tipo.includes('jcp') || tipo.includes('juros')) slots.jcp += mp.valorTotal;
-    else if (tipo.includes('rendimento') || tipo.includes('aluguel'))
-      slots.rendimentoFii += mp.valorTotal;
-    else slots.dividendoAcao += mp.valorTotal;
+    const tipoAtivo = tipoPorSymbol.get(e.symbol);
+    if (tipoAtivo !== 'stock' && tipoAtivo !== 'fii') continue;
+    const tipo = (e.tipo || '').toLowerCase();
+    if (tipo.includes('jcp') || tipo.includes('juros')) slots.jcp += e.net;
+    else if (tipoAtivo === 'fii') slots.rendimentoFii += e.gross;
+    else slots.dividendoAcao += e.gross;
   }
 
   const isentosTotal = round2(slots.dividendoAcao + slots.rendimentoFii);

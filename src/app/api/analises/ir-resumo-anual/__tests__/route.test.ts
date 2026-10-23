@@ -20,15 +20,39 @@ const mockPrisma = vi.hoisted(() => ({
   },
 }));
 
-const mockGetDividends = vi.hoisted(() => vi.fn().mockResolvedValue([]));
+const mockResolveProventoEvents = vi.hoisted(() =>
+  vi.fn().mockResolvedValue({ events: [], total: 0 }),
+);
 
 vi.mock('@/utils/auth', () => ({
   requireAuthWithActing: mockRequireAuthWithActing,
 }));
 vi.mock('@/lib/prisma', () => ({ prisma: mockPrisma, default: mockPrisma }));
-vi.mock('@/services/pricing/dividendService', () => ({
-  getDividends: mockGetDividends,
+vi.mock('@/services/portfolio/resolveProventos', () => ({
+  resolveProventoEvents: mockResolveProventoEvents,
 }));
+
+const dia = (iso: string) => Date.UTC(+iso.slice(0, 4), +iso.slice(5, 7) - 1, +iso.slice(8, 10));
+/** Evento do resolvedor (histórico global × quantidade na data-com, overrides aplicados). */
+const evento = (
+  symbol: string,
+  pagamento: string,
+  tipo: string,
+  gross: number,
+  net = gross,
+  moeda: 'BRL' | 'USD' = 'BRL',
+) => ({
+  symbol,
+  paymentDay: dia(pagamento),
+  exDay: dia(pagamento),
+  bookingDay: dia(pagamento),
+  tipo,
+  moeda,
+  gross,
+  net,
+});
+const proventos = (...events: ReturnType<typeof evento>[]) =>
+  mockResolveProventoEvents.mockResolvedValue({ events, total: 0 });
 
 import { GET } from '../route';
 
@@ -49,7 +73,7 @@ describe('GET /api/analises/ir-resumo-anual', () => {
     mockPrisma.stockTransaction.findMany.mockResolvedValue([]);
     mockPrisma.portfolio.findMany.mockResolvedValue([]);
     mockPrisma.portfolioProvento.findMany.mockResolvedValue([]);
-    mockGetDividends.mockResolvedValue([]);
+    mockResolveProventoEvents.mockResolvedValue({ events: [], total: 0 });
     mockPrisma.assetPriceHistory.findMany.mockResolvedValue([]);
   });
 
@@ -100,9 +124,7 @@ describe('GET /api/analises/ir-resumo-anual', () => {
         asset: { symbol: 'PETR4', name: 'PETR4', type: 'stock' },
       },
     ]);
-    mockGetDividends.mockResolvedValue([
-      { date: new Date('2025-03-15'), tipo: 'Dividendo', valorUnitario: 0.5 }, // 100*0.5=50
-    ]);
+    proventos(evento('PETR4', '2025-03-15', 'Dividendo', 50));
 
     const response = await GET(createRequest('2025'));
     const data = await response.json();
@@ -124,12 +146,10 @@ describe('GET /api/analises/ir-resumo-anual', () => {
         asset: { symbol: 'ITUB4', name: 'ITUB4', type: 'stock' },
       },
     ]);
-    mockGetDividends.mockResolvedValue([
-      { date: new Date('2025-03-15'), tipo: 'JCP', valorUnitario: 1.0 }, // 100
-    ]);
+    proventos(evento('ITUB4', '2025-03-15', 'JCP', 100, 85)); // bruto 100, líquido 85
     const response = await GET(createRequest('2025'));
     const data = await response.json();
-    expect(data.rendimentos.tributacaoExclusiva.jcp).toBe(100);
+    expect(data.rendimentos.tributacaoExclusiva.jcp).toBe(85);
     expect(data.rendimentos.isentos.dividendosAcoesBr).toBe(0);
   });
 
@@ -146,9 +166,7 @@ describe('GET /api/analises/ir-resumo-anual', () => {
         asset: { symbol: 'HGLG11', name: 'HGLG11', type: 'fii' },
       },
     ]);
-    mockGetDividends.mockResolvedValue([
-      { date: new Date('2025-03-15'), tipo: 'Rendimento', valorUnitario: 1.0 }, // 10
-    ]);
+    proventos(evento('HGLG11', '2025-03-15', 'Rendimento', 10));
     const response = await GET(createRequest('2025'));
     const data = await response.json();
     expect(data.rendimentos.isentos.rendimentosFii).toBe(10);
@@ -168,13 +186,79 @@ describe('GET /api/analises/ir-resumo-anual', () => {
         asset: { symbol: 'PETR4', name: 'PETR4', type: 'stock' },
       },
     ]);
-    mockGetDividends.mockResolvedValue([
-      { date: new Date('2024-03-15'), tipo: 'Dividendo', valorUnitario: 0.5 },
-      { date: new Date('2025-03-15'), tipo: 'Dividendo', valorUnitario: 1.0 },
-    ]);
+    proventos(
+      evento('PETR4', '2024-03-15', 'Dividendo', 50),
+      evento('PETR4', '2025-03-15', 'Dividendo', 100),
+    );
     const response = await GET(createRequest('2025'));
     const data = await response.json();
     expect(data.rendimentos.isentos.dividendosAcoesBr).toBe(100); // só 2025
+  });
+
+  it('conta cada provento uma vez: não lê o espelho brapi de portfolio_proventos', async () => {
+    mockPrisma.portfolio.findMany.mockResolvedValue([
+      {
+        id: 'p1',
+        quantity: 100,
+        totalInvested: 3000,
+        avgPrice: 30,
+        asset: { symbol: 'PETR4', type: 'stock' },
+      },
+    ]);
+    // O espelho 'brapi' do mesmo pagamento existe no banco, mas não pode somar de novo.
+    mockPrisma.portfolioProvento.findMany.mockResolvedValue([
+      {
+        portfolioId: 'p1',
+        source: 'brapi',
+        dataPagamento: new Date('2025-03-15'),
+        tipo: 'Dividendo',
+        valorTotal: 50,
+      },
+    ]);
+    proventos(evento('PETR4', '2025-03-15', 'Dividendo', 50));
+
+    const data = await (await GET(createRequest('2025'))).json();
+    expect(data.rendimentos.isentos.dividendosAcoesBr).toBe(50);
+    expect(data.rendimentos.totalRecebido).toBe(50);
+  });
+
+  it('ano corrente: provento com pagamento futuro (provisionado) não entra', async () => {
+    const ano = new Date().getUTCFullYear();
+    const amanha = new Date(Date.now() + 86_400_000).toISOString().slice(0, 10);
+    mockPrisma.portfolio.findMany.mockResolvedValue([
+      {
+        id: 'p1',
+        quantity: 100,
+        totalInvested: 3000,
+        avgPrice: 30,
+        asset: { symbol: 'PETR4', type: 'stock' },
+      },
+    ]);
+    proventos(
+      evento('PETR4', `${ano}-01-02`, 'Dividendo', 40),
+      ...(amanha.startsWith(String(ano)) ? [evento('PETR4', amanha, 'Dividendo', 60)] : []),
+    );
+
+    const data = await (await GET(createRequest(String(ano)))).json();
+    expect(data.rendimentos.isentos.dividendosAcoesBr).toBe(40);
+  });
+
+  it('ETF e reserva não entram nos rendimentos do IR', async () => {
+    mockPrisma.portfolio.findMany.mockResolvedValue([
+      {
+        id: 'p1',
+        quantity: 10,
+        totalInvested: 1000,
+        avgPrice: 100,
+        asset: { symbol: 'BOVA11', type: 'etf' },
+      },
+    ]);
+    proventos(
+      evento('BOVA11', '2025-03-15', 'Dividendo', 7),
+      evento('RESERVA-EMERG-1', '2025-03-15', 'Rendimento', 9),
+    );
+    const data = await (await GET(createRequest('2025'))).json();
+    expect(data.rendimentos.totalRecebido).toBe(0);
   });
 
   describe('Carteira EUA em US$', () => {
@@ -201,17 +285,10 @@ describe('GET /api/analises/ir-resumo-anual', () => {
           asset: REIT,
         },
       ]);
-      mockGetDividends.mockResolvedValue([
-        { date: new Date('2025-03-15'), tipo: 'Dividendo', valorUnitario: 0.25 }, // US$ 25
-      ]);
-      mockPrisma.portfolioProvento.findMany.mockResolvedValue([
-        {
-          portfolioId: 'p-reit',
-          dataPagamento: new Date('2025-02-15'),
-          tipo: 'Dividendo',
-          valorTotal: 10, // US$ 10 manual, câmbio 5
-        },
-      ]);
+      proventos(
+        evento(REIT.symbol, '2025-03-15', 'Dividendo', 25, 25, 'USD'),
+        evento(REIT.symbol, '2025-02-15', 'Dividendo', 10, 10, 'USD'), // manual, câmbio 5
+      );
 
       const response = await GET(createRequest('2025'));
       const data = await response.json();
@@ -238,9 +315,7 @@ describe('GET /api/analises/ir-resumo-anual', () => {
           asset: REIT,
         },
       ]);
-      mockGetDividends.mockResolvedValue([
-        { date: new Date('2025-03-15'), tipo: 'Dividendo', valorUnitario: 0.25 },
-      ]);
+      proventos(evento(REIT.symbol, '2025-03-15', 'Dividendo', 25, 25, 'USD'));
       const response = await GET(createRequest('2025'));
       const data = await response.json();
       expect(data.rendimentos.exterior.total).toBe(0);
