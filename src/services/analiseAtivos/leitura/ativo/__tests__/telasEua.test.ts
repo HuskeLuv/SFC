@@ -5,6 +5,7 @@ import {
 } from '../../../../../../prisma/seedAnaliseAtivosEua';
 import {
   COLUNAS_ESSENCIAL_EUA,
+  COLUNAS_ESSENCIAL_EUA_FINANCEIRA,
   montarFundamentosEua,
   umPeriodoPorAno,
   valoresAnoSec,
@@ -134,6 +135,38 @@ describe('Essencial EUA', () => {
       [2023, 1],
       [2024, 2],
     ]);
+  });
+});
+
+describe('financeiras EUA (banco, seguradora, BDC)', () => {
+  it('Essencial sem EBITDA, dívida líquida, Dív. líq./EBITDA e FCF (não se aplicam)', () => {
+    const r = montarFundamentosEua({
+      classe: 'stock',
+      periodos: periodos('AAPL'),
+      exercicioFimMmdd: '1231',
+      financeira: true,
+    });
+    const cod = r.colunas.map((c) => c.codigo);
+    expect(cod).toEqual([...COLUNAS_ESSENCIAL_EUA_FINANCEIRA]);
+    for (const c of ['ebitda', 'dividaLiquida', 'divLiqEbitda', 'fclCapex']) {
+      expect(cod).not.toContain(c);
+    }
+    expect(cod).toEqual(expect.arrayContaining(['receita', 'lucro', 'roe', 'payout']));
+  });
+
+  it('topo sem o KPI de dívida líquida ÷ EBITDA', () => {
+    const entrada = {
+      classe: 'stock' as const,
+      ano: 2025,
+      valores: valoresAnoSec(periodos('AAPL').at(-1)!),
+      dpaCalculado: false,
+      anosLucroConsecutivos: 11,
+      anosDividendo: 9,
+    };
+    expect(montarKpisEua(entrada).map((k) => k.codigo)).toContain('divLiqEbitda');
+    const fin = montarKpisEua({ ...entrada, financeira: true });
+    expect(fin.map((k) => k.codigo)).not.toContain('divLiqEbitda');
+    expect(fin).toHaveLength(6);
   });
 });
 

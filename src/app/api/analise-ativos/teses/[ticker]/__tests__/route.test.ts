@@ -55,7 +55,7 @@ beforeEach(() => {
   vi.stubEnv('ANALISE_ATIVOS_ACESSO', 'todos');
   teses = new Map([[chave('u1', 'WEGE3'), { corpo: 'tese do u1', updatedAt: ATUALIZADO }]]);
   mocks.obterLinhaQuadro.mockImplementation(async (s: string) =>
-    ['WEGE3', 'ITUB4', 'HGLG11'].includes(s) ? { symbol: s } : null,
+    ['WEGE3', 'ITUB4', 'HGLG11', 'O', 'BRK.B'].includes(s) ? { symbol: s } : null,
   );
   mocks.prisma.analiseTese.findUnique.mockImplementation(
     async ({ where }: { where: { userId_symbol: { userId: string; symbol: string } } }) =>
@@ -113,6 +113,12 @@ describe('GET /api/analise-ativos/teses/[ticker]', () => {
     expect((await GET(new NextRequest(URL_WEGE), ctx('wege3'))).status).toBe(200);
     expect((await GET(new NextRequest(URL_WEGE), ctx('ZZZZ3'))).status).toBe(404);
     expect((await GET(new NextRequest(URL_WEGE), ctx('../x'))).status).toBe(404);
+  });
+
+  it('tickers EUA de 1 a 5 letras (O, BRK.B) que estão no Quadro → 200', async () => {
+    expect((await GET(new NextRequest(URL_WEGE), ctx('O'))).status).toBe(200);
+    expect((await GET(new NextRequest(URL_WEGE), ctx('brk.b'))).status).toBe(200);
+    expect((await GET(new NextRequest(URL_WEGE), ctx('XYZ'))).status).toBe(404);
   });
 
   it('consultor agindo pelo cliente → 403, sem ler nada', async () => {

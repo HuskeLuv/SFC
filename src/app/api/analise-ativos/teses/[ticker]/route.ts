@@ -9,6 +9,7 @@ import {
   salvarTese,
 } from '@/services/analiseAtivos/tese/teseService';
 import type { TeseDeleteResposta, TesePutResposta } from '@/types/analiseAtivosApi';
+import { ehTickerEua } from '@/types/analiseAtivosEua';
 
 /**
  * /api/analise-ativos/teses/[ticker] — tese PRIVADA (fatia D, decisão 2).
@@ -34,7 +35,8 @@ async function contexto(request: NextRequest, ctx: Ctx) {
   const symbol = decodeURIComponent(bruto ?? '')
     .trim()
     .toUpperCase();
-  if (!TICKER_RE.test(symbol) || !(await obterLinhaQuadro(symbol))) {
+  // B3 (WEGE3) ou EUA (O, JPM, BRK.B: 1 a 5 letras); a linha do Quadro confirma que o ativo existe
+  if (!(TICKER_RE.test(symbol) || ehTickerEua(symbol)) || !(await obterLinhaQuadro(symbol))) {
     throw new ApiError(404, 'Ativo não encontrado');
   }
   return { userId: payload.id, symbol };

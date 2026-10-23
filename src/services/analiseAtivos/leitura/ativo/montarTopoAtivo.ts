@@ -715,6 +715,7 @@ export async function montarTopoAtivoEua(
         bolsa: true,
         publicFloatData: true,
         segmento: true,
+        ehFinanceira: true,
       },
     }),
   ]);
@@ -724,6 +725,7 @@ export async function montarTopoAtivoEua(
   const kpis = montarKpisEua(
     {
       classe,
+      financeira: empresa?.ehFinanceira === true,
       ano: ultimo?.anoFiscal ?? null,
       valores: v
         ? {
