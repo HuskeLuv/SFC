@@ -6,6 +6,17 @@ import {
   APPLICABLE_CORPORATE_ACTION_TYPES,
   isCorporateActionAuditTx,
 } from '@/services/portfolio/corporateActions';
+import {
+  posicaoEmDolar,
+  unidadeDaTransacao,
+  type AtivoMoedaRef,
+  type UnidadeValor,
+} from '@/lib/ativoEmDolar';
+import {
+  carregarSerieCambio,
+  fxDaTransacao,
+  type SerieCambio,
+} from '@/services/market/cambioUsdBrl';
 import type { Prisma } from '@prisma/client';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -103,6 +114,133 @@ export const getTransactionValue = (transaction: {
 
   const fallback = Number(transaction.quantity) * Number(transaction.price);
   return Number.isFinite(fallback) ? fallback : 0;
+};
+
+/*
+ * Carteira EUA em US$ (out/2026): o histórico converte SEMPRE pela unidade gravada,
+ * sem chave (docs/carteira-eua-dolar, regra_de_moeda › HISTÓRICO):
+ *  - valor do dia d de posição em US$ (posicaoEmDolar) = q × preço US$(d) × câmbio(d);
+ *  - fluxo de transação com unidade 'USD' = total × câmbio da tx + fees (R$);
+ *  - no dia de uma compra/venda em US$ o valor usa o MESMO câmbio do fluxo — senão a
+ *    diferença entre a cotação informada e a da série vira retorno espúrio;
+ *  - sem câmbio: o item fica fora da soma (nunca soma US$ como R$).
+ * Stock legado em R$ (sem marcador e sem moedaRegistro), ações BR, crypto, moedas e ETF
+ * não passam por estes ramos: a série é idêntica à de antes.
+ */
+
+/**
+ * Fluxo em R$ de uma transação: unidade 'BRL' = valor da transação (como sempre);
+ * unidade 'USD' = total × câmbio da tx + fees R$. Sem câmbio = null (fora da soma).
+ */
+export const valorTransacaoEmReais = (
+  transaction: {
+    total: number;
+    quantity: number;
+    price: number;
+    fees?: number | null;
+    notes?: string | null;
+    date: Date;
+    asset?: AtivoMoedaRef | null;
+  },
+  serieCambio: SerieCambio | null | undefined,
+): number | null => {
+  const valor = getTransactionValue(transaction);
+  if (unidadeDaTransacao(transaction, transaction.asset) !== 'USD') return valor;
+  const fx = fxDaTransacao(transaction.notes, transaction.date, serieCambio);
+  if (fx == null) return null;
+  return valor * fx + (Number(transaction.fees) || 0);
+};
+
+/**
+ * Primeira data em que o histórico precisa de câmbio (transação ou posição de ativo em
+ * dólar). null = carteira sem nada em US$ (nenhuma consulta de câmbio).
+ */
+export const inicioDoCambioNecessario = (
+  portfolio: ReadonlyArray<{
+    lastUpdate?: Date | null;
+    moedaRegistro?: string | null;
+    asset?: AtivoMoedaRef | null;
+  }>,
+  stockTransactions: ReadonlyArray<{
+    date: Date;
+    notes?: string | null;
+    asset?: AtivoMoedaRef | null;
+  }>,
+): Date | null => {
+  let inicio: number | null = null;
+  const considerar = (data: Date | null | undefined) => {
+    const ms = data ? new Date(data).getTime() : NaN;
+    if (Number.isFinite(ms) && (inicio === null || ms < inicio)) inicio = ms;
+  };
+  for (const tx of stockTransactions) {
+    if (unidadeDaTransacao(tx, tx.asset) === 'USD') considerar(tx.date);
+  }
+  for (const item of portfolio) {
+    if (posicaoEmDolar(item, item.asset)) considerar(item.lastUpdate ?? new Date());
+  }
+  return inicio === null ? null : new Date(inicio);
+};
+
+/**
+ * Série USD-BRL para o histórico, carregada uma vez desde a 1ª data em US$. Sem nada em
+ * US$ = null sem consultar o banco. Falha na leitura = null (itens em US$ ficam fora).
+ */
+export const carregarCambioDoHistorico = async (
+  portfolio: Parameters<typeof inicioDoCambioNecessario>[0],
+  stockTransactions: Parameters<typeof inicioDoCambioNecessario>[1],
+): Promise<SerieCambio | null> => {
+  const desde = inicioDoCambioNecessario(portfolio, stockTransactions);
+  if (!desde) return null;
+  try {
+    return await carregarSerieCambio(desde);
+  } catch (error) {
+    logger.warn('[patrimonioHistorico] série USD-BRL indisponível; itens em US$ fora da soma', {
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return null;
+  }
+};
+
+type PortfolioInvestidoRef = {
+  totalInvested: number;
+  quantity: number;
+  avgPrice: number;
+  moedaRegistro?: string | null;
+  totalInvestedBrl?: number | null;
+  asset?: AtivoMoedaRef | null;
+};
+
+/** Custo da posição na unidade gravada (US$ quando posicaoEmDolar). */
+const investidoNativoDoPortfolio = (item: PortfolioInvestidoRef): number =>
+  item.totalInvested > 0 ? item.totalInvested : item.quantity * item.avgPrice;
+
+/**
+ * Custo em R$ de posição sem transações (entra como aporte no dia do lastUpdate).
+ * Em US$: totalInvestedBrl (câmbio de cada compra) ou custo × câmbio do dia; sem
+ * nenhum = null (fora da soma).
+ */
+const investidoEmReaisDoPortfolio = (
+  item: PortfolioInvestidoRef,
+  day: number,
+  serieCambio: SerieCambio | null | undefined,
+): number | null => {
+  const nativo = investidoNativoDoPortfolio(item);
+  if (!posicaoEmDolar(item, item.asset)) return nativo;
+  if (item.totalInvestedBrl != null && item.totalInvestedBrl > 0) return item.totalInvestedBrl;
+  const fx = serieCambio?.(day) ?? null;
+  return fx == null ? null : nativo * fx;
+};
+
+/** Preço de uma transação na unidade da posição (o mesmo Asset não deveria misturar). */
+const precoNaUnidadeDaPosicao = (
+  preco: number,
+  unidadeTx: UnidadeValor,
+  unidadePosicao: UnidadeValor,
+  fxTx: number | null,
+): number | null => {
+  if (unidadeTx === unidadePosicao) return preco;
+  if (fxTx == null) return null;
+  return unidadePosicao === 'USD' ? preco / fxTx : preco * fxTx;
 };
 
 // F1.10 / flag "dinheiro já estava investido" (reinvestimento de provento,
@@ -671,6 +809,12 @@ export type BuildPatrimonioHistoricoParams = {
    * dividendo aparecia como -11% no gráfico).
    */
   proventosByDay?: Map<number, number>;
+  /**
+   * Câmbio USD-BRL por data (Carteira EUA em US$). Omitido: o builder carrega sozinho,
+   * e só quando há posição/transação em US$. null: sem câmbio — itens em US$ ficam fora
+   * da soma. O loader (`loadCarteiraHistoricoData`) já devolve a série.
+   */
+  serieCambio?: SerieCambio | null;
 };
 
 export type BuildPatrimonioHistoricoResult = {
@@ -711,6 +855,10 @@ export const buildPatrimonioHistorico = async (
     timelineEndDate,
     proventosByDay,
   } = params;
+  const serieCambio =
+    params.serieCambio !== undefined
+      ? params.serieCambio
+      : await carregarCambioDoHistorico(portfolio, stockTransactionsRaw);
 
   // Transação com data FUTURA (além do fim da timeline) fica fora do cômputo:
   // não existe fluxo realizado no futuro, e uma linha assim (legado pré-guard
@@ -780,6 +928,25 @@ export const buildPatrimonioHistorico = async (
     });
   });
 
+  // Unidade da posição por símbolo: a do Portfolio (posicaoEmDolar) e, para posição já
+  // encerrada (sem Portfolio), a das transações. Preços e avgPrice ficam nessa unidade;
+  // a conversão para R$ acontece só no valor do dia.
+  const unidadePosicaoBySymbol = new Map<string, UnidadeValor>();
+  portfolio.forEach((item) => {
+    const symbol = item.asset?.symbol;
+    if (symbol)
+      unidadePosicaoBySymbol.set(symbol, posicaoEmDolar(item, item.asset) ? 'USD' : 'BRL');
+  });
+  stockTransactions.forEach((tx) => {
+    const symbol = tx.asset?.symbol;
+    if (!symbol || unidadePosicaoBySymbol.has(symbol)) return;
+    if (unidadeDaTransacao(tx, tx.asset) === 'USD') unidadePosicaoBySymbol.set(symbol, 'USD');
+  });
+  const posicaoEmUsd = (symbol: string): boolean => unidadePosicaoBySymbol.get(symbol) === 'USD';
+  // Câmbio das transações em US$ por símbolo/dia: vale no valor do dia da operação.
+  const fxOperacaoBySymbolDay = new Map<string, Map<number, number>>();
+  let transacoesSemCambio = 0;
+
   const manualValuesByDay = new Map<number, number>();
   investmentsExclReservas.forEach((investment) => {
     (investment.values || []).forEach((value) => {
@@ -823,7 +990,49 @@ export const buildPatrimonioHistorico = async (
     const symbolDeltas = transactionsBySymbol.get(symbol)!;
     symbolDeltas.set(day, (symbolDeltas.get(day) || 0) + qtyDelta);
 
-    const totalValue = getTransactionValue(transaction);
+    const unidadeTx = unidadeDaTransacao(transaction, transaction.asset);
+    const fxTx =
+      unidadeTx === 'USD' || posicaoEmUsd(symbol)
+        ? fxDaTransacao(transaction.notes, transaction.date, serieCambio)
+        : null;
+    if (posicaoEmUsd(symbol) && fxTx != null) {
+      if (!fxOperacaoBySymbolDay.has(symbol)) fxOperacaoBySymbolDay.set(symbol, new Map());
+      fxOperacaoBySymbolDay.get(symbol)!.set(day, fxTx);
+    }
+
+    const priceValue =
+      transaction.price > 0
+        ? transaction.price
+        : transaction.quantity > 0
+          ? getTransactionValue(transaction) / transaction.quantity
+          : 0;
+    const precoNaPosicao =
+      priceValue > 0
+        ? precoNaUnidadeDaPosicao(
+            priceValue,
+            unidadeTx,
+            unidadePosicaoBySymbol.get(symbol) ?? 'BRL',
+            fxTx,
+          )
+        : null;
+    if (precoNaPosicao != null && precoNaPosicao > 0) {
+      if (!pricePointsBySymbol.has(symbol)) {
+        pricePointsBySymbol.set(symbol, []);
+      }
+      pricePointsBySymbol.get(symbol)!.push({ date: day, value: precoNaPosicao });
+    }
+
+    if (!firstTransactionBySymbol.has(symbol)) {
+      firstTransactionBySymbol.set(symbol, day);
+    }
+
+    // Fluxo em R$ (US$ × câmbio da tx + fees). Sem câmbio: a quantidade conta, mas o
+    // fluxo fica fora — o valor do dia também fica fora enquanto não houver câmbio.
+    const totalValue = valorTransacaoEmReais(transaction, serieCambio);
+    if (totalValue == null) {
+      transacoesSemCambio += 1;
+      return;
+    }
     const cashDelta = transaction.type === 'compra' ? -totalValue : totalValue;
     const appliedDelta = transaction.type === 'compra' ? totalValue : -totalValue;
     // F1.10 generalizado (ticket 19/08/2026): a flag vale para compra E venda
@@ -845,24 +1054,12 @@ export const buildPatrimonioHistorico = async (
     }
     const symbolApplied = appliedDeltasBySymbol.get(symbol)!;
     symbolApplied.set(day, (symbolApplied.get(day) || 0) + appliedDelta);
-
-    const priceValue =
-      transaction.price > 0
-        ? transaction.price
-        : transaction.quantity > 0
-          ? totalValue / transaction.quantity
-          : 0;
-    if (priceValue > 0) {
-      if (!pricePointsBySymbol.has(symbol)) {
-        pricePointsBySymbol.set(symbol, []);
-      }
-      pricePointsBySymbol.get(symbol)!.push({ date: day, value: priceValue });
-    }
-
-    if (!firstTransactionBySymbol.has(symbol)) {
-      firstTransactionBySymbol.set(symbol, day);
-    }
   });
+  if (transacoesSemCambio > 0) {
+    logger.warn(
+      `[patrimonioHistorico] ${transacoesSemCambio} transação(ões) em US$ sem câmbio: fluxo fora da soma`,
+    );
+  }
 
   portfolio.forEach((item) => {
     const symbol = item.asset?.symbol;
@@ -877,13 +1074,20 @@ export const buildPatrimonioHistorico = async (
     const symbolDeltas = transactionsBySymbol.get(symbol)!;
     symbolDeltas.set(day, (symbolDeltas.get(day) || 0) + item.quantity);
 
-    const investedValue =
-      item.totalInvested > 0 ? item.totalInvested : item.quantity * item.avgPrice;
-    const cashDelta = -investedValue;
-    const appliedDelta = investedValue;
-    cashDeltasByDay.set(day, (cashDeltasByDay.get(day) || 0) + cashDelta);
-    appliedDeltasByDay.set(day, (appliedDeltasByDay.get(day) || 0) + appliedDelta);
-    aportesByDay.set(day, (aportesByDay.get(day) || 0) + investedValue);
+    const investedValue = investidoEmReaisDoPortfolio(item, day, serieCambio);
+    const investidoNativo = investidoNativoDoPortfolio(item);
+    if (posicaoEmUsd(symbol) && investedValue != null && investidoNativo > 0) {
+      // Mesmo câmbio no fluxo e no valor do dia de entrada (retorno 0 nesse dia).
+      if (!fxOperacaoBySymbolDay.has(symbol)) fxOperacaoBySymbolDay.set(symbol, new Map());
+      fxOperacaoBySymbolDay.get(symbol)!.set(day, investedValue / investidoNativo);
+    }
+    if (investedValue != null) {
+      const cashDelta = -investedValue;
+      const appliedDelta = investedValue;
+      cashDeltasByDay.set(day, (cashDeltasByDay.get(day) || 0) + cashDelta);
+      appliedDeltasByDay.set(day, (appliedDeltasByDay.get(day) || 0) + appliedDelta);
+      aportesByDay.set(day, (aportesByDay.get(day) || 0) + investedValue);
+    }
 
     if (item.avgPrice > 0) {
       if (!pricePointsBySymbol.has(symbol)) {
@@ -1155,6 +1359,7 @@ export const buildPatrimonioHistorico = async (
   // snapshots). O TWR NÃO usa mais o acumulado: consome a série de patrimônio
   // com o provento do dia como renda (ver calculateHistoricoTWR/incomeByDay).
   const proventosAcumuladosByDay = new Map<number, number>();
+  let diasSemCambio = 0;
 
   // Pre-seed valorAplicado and cashBalance from transactions before the timeline.
   // Without this, assets bought years ago but with maxHistoricoMonths truncation
@@ -1235,6 +1440,16 @@ export const buildPatrimonioHistorico = async (
       const priceMap = pricesBySymbol.get(symbol);
       const price = priceMap?.get(day) ?? fallbackPriceBySymbol.get(symbol);
       if (!price || !Number.isFinite(price) || price <= 0) return;
+      if (posicaoEmUsd(symbol)) {
+        // Preço em US$ × câmbio do dia (o da operação, no dia dela). Sem câmbio: fora.
+        const fx = fxOperacaoBySymbolDay.get(symbol)?.get(day) ?? serieCambio?.(day) ?? null;
+        if (fx == null) {
+          diasSemCambio += 1;
+          return;
+        }
+        valorMercadoAtivos += quantity * price * fx;
+        return;
+      }
       valorMercadoAtivos += quantity * price;
     });
 
@@ -1248,6 +1463,11 @@ export const buildPatrimonioHistorico = async (
       saldoBruto: Math.round(saldoBrutoDia * 100) / 100,
     });
     proventosAcumuladosByDay.set(day, Math.round(proventosAcumulados * 100) / 100);
+  }
+  if (diasSemCambio > 0) {
+    logger.warn(
+      `[patrimonioHistorico] ${diasSemCambio} ponto(s) de posição em US$ sem câmbio: fora da soma`,
+    );
   }
 
   // Backfill: se todos os saldoBruto são 0 mas o valor atual é > 0 (sem histórico de preços no DB),
@@ -1332,6 +1552,12 @@ export const buildPatrimonioCashFlowsByDayOnly = (
   stockTransactions: StockTransactionWithRelations[],
   investmentsExclReservas: InvestmentCashflowItem[],
   timeline: number[],
+  /**
+   * Câmbio USD-BRL (Carteira EUA em US$): fluxo em US$ = total × câmbio da tx + fees.
+   * Sem a série, vale só a cotação gravada na operação; transação em US$ sem nenhuma
+   * cotação fica fora (nunca soma US$ como R$). Passe a `serieCambio` do loader.
+   */
+  serieCambio?: SerieCambio | null,
 ): Map<number, number> => {
   const manualValuesByDay = new Map<number, number>();
   investmentsExclReservas.forEach((investment) => {
@@ -1351,7 +1577,8 @@ export const buildPatrimonioCashFlowsByDayOnly = (
     if (isImovelAssetType(transaction.asset?.type)) return;
 
     const day = shiftToBusinessDay(normalizeDateStart(transaction.date).getTime());
-    const totalValue = getTransactionValue(transaction);
+    const totalValue = valorTransacaoEmReais(transaction, serieCambio);
+    if (totalValue == null) return;
     const cashDelta = transaction.type === 'compra' ? -totalValue : totalValue;
     // Operações marcadas (flag "já investido") CONTAM como fluxo externo do
     // TWR/MWR — mesma semântica do builder principal (ver comentário do helper
@@ -1369,8 +1596,8 @@ export const buildPatrimonioCashFlowsByDayOnly = (
     if (hasTx) return;
 
     const day = shiftToBusinessDay(normalizeDateStart(item.lastUpdate || new Date()).getTime());
-    const investedValue =
-      item.totalInvested > 0 ? item.totalInvested : item.quantity * item.avgPrice;
+    const investedValue = investidoEmReaisDoPortfolio(item, day, serieCambio);
+    if (investedValue == null) return;
     const cashDelta = -investedValue;
     cashDeltasByDay.set(day, (cashDeltasByDay.get(day) || 0) + cashDelta);
   });

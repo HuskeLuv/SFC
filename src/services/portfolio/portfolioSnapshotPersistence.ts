@@ -125,7 +125,7 @@ const persistSeriesDays = async (userId: string, days: SeriesDay[]): Promise<num
 };
 
 const computeFullSeries = async (userId: string, timelineEndDate: Date) => {
-  const { portfolio, fixedIncomeAssets, stockTransactions, investmentsExclReservas } =
+  const { portfolio, fixedIncomeAssets, stockTransactions, investmentsExclReservas, serieCambio } =
     await loadCarteiraHistoricoData(userId);
 
   const fiPricer = await createFixedIncomePricer(userId, {
@@ -149,6 +149,7 @@ const computeFullSeries = async (userId: string, timelineEndDate: Date) => {
       fixedIncomeValueSeriesBuilder: fiPricer.buildValueSeriesForAsset,
       implicitCdiValueSeriesBuilder: fiPricer.buildImplicitCdiValueSeries,
       proventosByDay,
+      serieCambio,
     });
 
   return buildSeriesDays(historicoPatrimonio, historicoTWR, proventosAcumuladosByDay);

@@ -122,8 +122,13 @@ export const loadHistoricoFromSnapshots = async (
     const periodStart = normalizeDateStart(new Date(twrStart)).getTime();
     const periodEnd = end.getTime();
     if (periodStart <= periodEnd) {
-      const { portfolio, fixedIncomeAssets, stockTransactions, investmentsExclReservas } =
-        await loadCarteiraHistoricoData(userId);
+      const {
+        portfolio,
+        fixedIncomeAssets,
+        stockTransactions,
+        investmentsExclReservas,
+        serieCambio,
+      } = await loadCarteiraHistoricoData(userId);
       const timeline = historicoPatrimonio.map((p) => p.data);
       const cashFlowsByDay = buildPatrimonioCashFlowsByDayOnly(
         portfolio,
@@ -131,6 +136,7 @@ export const loadHistoricoFromSnapshots = async (
         stockTransactions,
         investmentsExclReservas,
         timeline,
+        serieCambio,
       );
 
       // TWR de período com provento como RENDA do dia (mesma metodologia do
