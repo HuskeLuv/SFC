@@ -81,6 +81,10 @@ export const useStocks = () => {
   };
 };
 
+/**
+ * Aba Stocks: valores em US$ (a rota faz a conta na unidade da posição). `formatCurrency` é
+ * US$; o caixa e a necessidade de aporte são R$ (formatados à parte pela tabela).
+ */
 export const useCarteiraStocks = () => {
   const assetData = useAssetData<CarteiraStockData>({
     apiPath: '/api/carteira/stocks',
@@ -131,6 +135,12 @@ export const useCarteiraStocks = () => {
       estrategia: ativo.estrategia || 'value',
       observacoes: ativo.observacoes,
       dataUltimaAtualizacao: ativo.dataUltimaAtualizacao,
+      // Carteira EUA em US$: a unidade gravada e o equivalente em R$ vêm da rota (linhaEua).
+      moedaRegistro: ativo.moedaRegistro,
+      aproximado: ativo.aproximado,
+      semCambio: ativo.semCambio,
+      valorTotalBRL: ativo.valorTotalBRL,
+      valorAtualizadoBRL: ativo.valorAtualizadoBRL,
     };
   };
 

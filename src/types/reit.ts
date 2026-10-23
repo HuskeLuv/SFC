@@ -9,6 +9,7 @@ import {
   AlocacaoAtivo,
   TabelaAuxiliar,
 } from './base';
+import type { CamposAbaEua, CamposLinhaEua } from './carteiraStocks';
 
 export type EstrategiaReit = 'value' | 'growth' | 'risk';
 
@@ -24,7 +25,7 @@ export type SetorReit =
   | 'hotel'
   | 'other';
 
-export interface ReitAtivo extends BaseQuantityAtivo {
+export interface ReitAtivo extends BaseQuantityAtivo, CamposLinhaEua {
   setor: SetorReit;
   estrategia: EstrategiaReit;
 }
@@ -48,8 +49,7 @@ export interface ReitAlocacaoAtivo extends AlocacaoAtivo {
   cor: string;
 }
 
-export interface ReitData {
-  cotacaoDolar?: number | null;
+export interface ReitData extends CamposAbaEua {
   resumo: ReitResumo;
   secoes: ReitSecao[];
   tabelaAuxiliar: ReitTabelaAuxiliar[];

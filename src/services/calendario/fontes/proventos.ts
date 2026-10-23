@@ -7,6 +7,7 @@
 import prisma from '@/lib/prisma';
 import { getTtlCache } from '@/lib/simpleTtlCache';
 import { resolveProventoEvents, type ProventoEvent } from '@/services/portfolio/resolveProventos';
+import { carregarSerieCambio, type SerieCambio } from '@/services/market/cambioUsdBrl';
 import type { EventoAgenda, Periodo } from '../types';
 import { dataCivil, hojeCivil } from '../datas';
 
@@ -20,6 +21,7 @@ export function proventosComoEventos(
   periodo: Periodo,
   linkPorSymbol: Map<string, string>,
   hoje: string = hojeCivil(),
+  serieCambio: SerieCambio | null = null,
 ): EventoAgenda[] {
   const out: EventoAgenda[] = [];
   for (const e of eventos) {
@@ -27,11 +29,15 @@ export function proventosComoEventos(
     const dataCom = dataCivil(new Date(e.bookingDay));
     const provisionado = dataPagamento > hoje;
     const link = linkPorSymbol.get(e.symbol) ?? '/carteira';
+    // Provento em US$ (Stocks/REITs EUA) vira R$ pelo câmbio da data de pagamento; sem
+    // câmbio fica sem valor (nunca US$ somado como R$ no "a receber").
+    const fx = e.moeda === 'USD' ? (serieCambio?.(new Date(e.paymentDay)) ?? null) : 1;
+    const emReais = (v: number) => (fx === null ? null : round2(v * fx));
     const base = {
       symbol: e.symbol,
       tipoProvento: e.tipo,
-      bruto: round2(e.gross),
-      liquido: round2(e.net),
+      bruto: emReais(e.gross),
+      liquido: emReais(e.net),
       dataCom,
       dataPagamento,
       provisionado,
@@ -44,7 +50,7 @@ export function proventosComoEventos(
         data: dataPagamento,
         dataFim: null,
         hora: null,
-        valor: round2(e.net),
+        valor: emReais(e.net),
         descricao: provisionado ? 'Pagamento previsto (provisionado)' : 'Pagamento',
         link,
         detalhe: { ...base, evento: 'pagamento' },
@@ -90,5 +96,15 @@ export async function eventosProventos(userId: string, periodo: Periodo): Promis
   for (const p of posicoes) {
     if (p.asset?.symbol) linkPorSymbol.set(p.asset.symbol, `/ativos/${p.id}`);
   }
-  return proventosComoEventos(eventos, periodo, linkPorSymbol);
+  const primeiroUsd = eventos
+    .filter((e) => e.moeda === 'USD')
+    .reduce<number | null>((min, e) => {
+      const ms = new Date(e.paymentDay).getTime();
+      return min === null || ms < min ? ms : min;
+    }, null);
+  const serieCambio =
+    primeiroUsd === null
+      ? null
+      : await carregarSerieCambio(new Date(primeiroUsd)).catch(() => null);
+  return proventosComoEventos(eventos, periodo, linkPorSymbol, hojeCivil(), serieCambio);
 }

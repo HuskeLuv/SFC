@@ -39,6 +39,10 @@ vi.mock('@/services/pricing/fundamentalsService', () => ({
 vi.mock('@/services/portfolio/proventosPorSymbol', () => ({
   proventosRecebidosPorSymbol: mockProventosPorSymbol,
 }));
+const mockGetCotacaoDolarHoje = vi.hoisted(() => vi.fn().mockResolvedValue(null));
+vi.mock('@/services/market/cambioUsdBrl', () => ({
+  getCotacaoDolarHoje: mockGetCotacaoDolarHoje,
+}));
 
 import { GET, PATCH } from '../route';
 import { parseRangeMonths } from '@/utils/rangeQuery';
@@ -122,6 +126,92 @@ describe('GET /api/ativos/[id] — rentabilidade com proventos', () => {
     expect(data.posicao.proventosRecebidos).toBe(0);
     expect(data.posicao.resultado).toBeCloseTo(data.posicao.resultadoPreco, 6);
     expect(data.posicao.rentabilidade).toBeCloseTo(40.84, 1);
+  });
+});
+
+// Carteira EUA em US$: a página mostra a posição na unidade gravada + o R$ como informação.
+describe('GET /api/ativos/[id] — moeda da posição', () => {
+  const callGET = (id = 'pf-1') =>
+    GET(new NextRequest(`http://localhost/api/ativos/${id}`), {
+      params: Promise.resolve({ id }),
+    });
+  const posicao = (over: Record<string, unknown>, asset: Record<string, unknown>) => ({
+    id: 'pf-1',
+    userId: 'user-1',
+    assetId: 'asset-1',
+    lastUpdate: new Date('2026-05-10'),
+    planejamentoObjetivoId: null,
+    vinculoAposentadoria: false,
+    moedaRegistro: null,
+    totalInvestedBrl: null,
+    ...over,
+    asset: { id: 'asset-1', source: 'manual', ...asset },
+  });
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockPrisma.fixedIncomeAsset.findFirst.mockResolvedValue(null);
+    mockPrisma.assetCorporateAction.findMany.mockResolvedValue([]);
+    mockPrisma.institution.findUnique.mockResolvedValue(null);
+    mockPrisma.stockTransaction.findMany.mockResolvedValue([]);
+    mockProventosPorSymbol.mockResolvedValue(new Map());
+    mockGetCotacaoDolarHoje.mockResolvedValue({
+      taxa: 5.4,
+      data: new Date('2026-10-22T00:00:00Z'),
+      fonte: 'indicador',
+    });
+  });
+
+  it("REIT em US$: moeda 'USD', valores em US$ e o equivalente em R$", async () => {
+    mockPrisma.portfolio.findFirst.mockResolvedValue(
+      posicao(
+        { quantity: 4, avgPrice: 110, totalInvested: 440, totalInvestedBrl: 2300 },
+        { symbol: 'O-1700000000000-abc', name: 'Realty Income', type: 'reit', currency: 'USD' },
+      ),
+    );
+    mockGetAssetPrices.mockResolvedValue(new Map());
+
+    const data = await (await callGET()).json();
+    expect(data.posicao).toMatchObject({
+      moeda: 'USD',
+      precoMedio: 110,
+      cotacaoAtual: 110,
+      valorAplicado: 440,
+      saldoBruto: 440,
+      cotacaoDolar: 5.4,
+      valorAplicadoBRL: 2300,
+      taxaData: '2026-10-22',
+    });
+    expect(data.posicao.saldoBrutoBRL).toBeCloseTo(2376, 2);
+  });
+
+  it("stock legado em R$: moeda 'BRL' e a cotação em US$ vira R$ (sem comparar US$ com R$)", async () => {
+    mockPrisma.portfolio.findFirst.mockResolvedValue(
+      posicao(
+        { quantity: 2, avgPrice: 1000, totalInvested: 2000 },
+        { symbol: 'AAPL', name: 'Apple', type: 'stock', currency: 'USD' },
+      ),
+    );
+    mockGetAssetPrices.mockResolvedValue(new Map([['AAPL', 200]]));
+
+    const data = await (await callGET()).json();
+    expect(data.posicao.moeda).toBe('BRL');
+    expect(data.posicao.cotacaoAtual).toBeCloseTo(1080, 2);
+    expect(data.posicao.saldoBruto).toBeCloseTo(2160, 2);
+  });
+
+  it('PETR4 não consulta o câmbio', async () => {
+    mockPrisma.portfolio.findFirst.mockResolvedValue(
+      posicao(
+        { quantity: 100, avgPrice: 30, totalInvested: 3000 },
+        { symbol: 'PETR4', name: 'Petrobras', type: 'stock', currency: 'BRL' },
+      ),
+    );
+    mockGetAssetPrices.mockResolvedValue(new Map([['PETR4', 40]]));
+
+    const data = await (await callGET()).json();
+    expect(data.posicao).toMatchObject({ moeda: 'BRL', cotacaoAtual: 40, saldoBrutoBRL: 4000 });
+    expect(mockGetCotacaoDolarHoje).not.toHaveBeenCalled();
   });
 });
 

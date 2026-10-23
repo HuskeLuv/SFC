@@ -29,6 +29,8 @@ import {
   isCorporateActionAuditTx,
 } from '@/services/portfolio/corporateActions';
 import { nextBusinessDayB3 } from '@/utils/feriadosB3';
+import { isAtivoEmDolar, posicaoEmDolar } from '@/lib/ativoEmDolar';
+import { getCotacaoDolarHoje } from '@/services/market/cambioUsdBrl';
 
 import { withErrorHandler } from '@/utils/apiErrorHandler';
 import { parseRangeMonths } from '@/utils/rangeQuery';
@@ -488,16 +490,51 @@ export const GET = withErrorHandler(
         })
       : [];
 
-    const quotes = await getAssetPrices([ticker], { useBrapiFallback: true });
-    const cotacaoAtual = quotes.get(ticker) ?? portfolio.avgPrice;
+    // Carteira EUA em US$: a página mostra a posição na unidade GRAVADA (moeda) e o R$ como
+    // informação. Posição em US$: preço médio, cotação e valores em US$. Stock legado em R$
+    // (moedaRegistro null): a cotação BRAPI (US$) vira R$ pelo câmbio do dia — antes a página
+    // comparava US$ com R$.
+    const emDolar = posicaoEmDolar(portfolio, portfolio.asset);
+    const legadoEmReal = !emDolar && isAtivoEmDolar(portfolio.asset);
+    const [quotes, cotacaoHoje] = await Promise.all([
+      getAssetPrices([ticker], { useBrapiFallback: true }),
+      emDolar || legadoEmReal ? getCotacaoDolarHoje().catch(() => null) : null,
+    ]);
+    const cotacaoDolar = cotacaoHoje?.taxa ?? null;
+    const quote = quotes.get(ticker);
+    const cotacaoAtual =
+      quote == null
+        ? portfolio.avgPrice
+        : legadoEmReal
+          ? cotacaoDolar
+            ? quote * cotacaoDolar
+            : portfolio.avgPrice
+          : quote;
     const saldoBruto = portfolio.quantity * cotacaoAtual;
     const valorAplicado = portfolio.totalInvested;
+    const moeda: 'BRL' | 'USD' = emDolar ? 'USD' : 'BRL';
+    // Equivalente em R$ da posição em US$ (aplicado pelo câmbio de cada compra; atual pelo do dia).
+    const valorAplicadoBRL = emDolar
+      ? portfolio.totalInvestedBrl != null && portfolio.totalInvestedBrl > 0
+        ? portfolio.totalInvestedBrl
+        : cotacaoDolar
+          ? valorAplicado * cotacaoDolar
+          : null
+      : valorAplicado;
+    const saldoBrutoBRL = emDolar ? (cotacaoDolar ? saldoBruto * cotacaoDolar : null) : saldoBruto;
     const resultadoPreco = saldoBruto - valorAplicado;
     const rentabilidadePreco = valorAplicado > 0 ? (resultadoPreco / valorAplicado) * 100 : 0;
     // Ticket 01/09/2026 (BBSE3: MF 40,84% × Gorila 108,98%): os cards da página
     // mostravam só preço. Mesma convenção das abas (auditoria B1 25/08): retorno
     // total = preço + proventos brutos na data-com (incl. provisionados).
-    const proventosRecebidos = (await proventosRecebidosPorSymbol(targetUserId)).get(ticker) ?? 0;
+    // Provento de ativo em dólar vem em US$ (moeda nativa do evento): posição em R$ (legado)
+    // converte pelo câmbio do dia; sem câmbio fica fora do resultado.
+    const proventosNativos = (await proventosRecebidosPorSymbol(targetUserId)).get(ticker) ?? 0;
+    const proventosRecebidos = legadoEmReal
+      ? cotacaoDolar
+        ? proventosNativos * cotacaoDolar
+        : 0
+      : proventosNativos;
     const resultado = resultadoPreco + proventosRecebidos;
     const rentabilidade = valorAplicado > 0 ? (resultado / valorAplicado) * 100 : 0;
 
@@ -800,6 +837,11 @@ export const GET = withErrorHandler(
         resultadoPreco,
         proventosRecebidos,
         cotacaoAtual,
+        moeda,
+        cotacaoDolar,
+        taxaData: cotacaoHoje?.data.toISOString().slice(0, 10) ?? null,
+        valorAplicadoBRL,
+        saldoBrutoBRL,
       },
       transacoes,
       historicoPatrimonio,

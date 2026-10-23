@@ -4,7 +4,7 @@
  * - rate: CDI anual mais recente convertido pra mensal composto. Cobre o caso
  *   default — user pode editar pra refletir a expectativa real.
  * - available: soma Portfolio.totalInvested do user (aproximação de patrimônio
- *   disponível). Não usa o saldoBruto computado em /api/carteira/resumo
+ *   disponível), em R$: posição gravada em US$ convertida (somarCustoEmBrl). Não usa o saldoBruto computado em /api/carteira/resumo
  *   porque aquele endpoint é pesado (snapshots, séries, etc.) e aqui só
  *   precisa de uma sugestão.
  */
@@ -13,6 +13,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireAuthWithActing } from '@/utils/auth';
 import { prisma } from '@/lib/prisma';
 import { withErrorHandler } from '@/utils/apiErrorHandler';
+import { posicaoEmDolar } from '@/lib/ativoEmDolar';
+import { getCotacaoDolarHoje } from '@/services/market/cambioUsdBrl';
+import { somarCustoEmBrl } from '@/services/portfolio/itemValuation';
 import { aaToAm } from '@/utils/rateConversion';
 
 const DEFAULT_RATE_MONTHLY = 0.009; // ~0.9%/mês como fallback se CDI indisponível
@@ -20,17 +23,26 @@ const DEFAULT_RATE_MONTHLY = 0.009; // ~0.9%/mês como fallback se CDI indispon�
 export const GET = withErrorHandler(async (request: NextRequest) => {
   const { targetUserId } = await requireAuthWithActing(request);
 
-  const [latestCdi, portfolioAgg] = await Promise.all([
+  const [latestCdi, posicoes] = await Promise.all([
     prisma.economicIndex.findFirst({
       where: { indexType: 'CDI_ANUALIZADO' },
       orderBy: { date: 'desc' },
       select: { value: true },
     }),
-    prisma.portfolio.aggregate({
+    prisma.portfolio.findMany({
       where: { userId: targetUserId },
-      _sum: { totalInvested: true },
+      select: {
+        totalInvested: true,
+        moedaRegistro: true,
+        totalInvestedBrl: true,
+        asset: { select: { type: true, currency: true } },
+      },
     }),
   ]);
+  // Câmbio só quando há posição em US$ (REIT, stock em dólar).
+  const cotacaoDolar = posicoes.some((p) => posicaoEmDolar(p, p.asset))
+    ? ((await getCotacaoDolarHoje().catch(() => null))?.taxa ?? null)
+    : null;
 
   let rate = DEFAULT_RATE_MONTHLY;
   if (latestCdi) {
@@ -41,7 +53,7 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     }
   }
 
-  const available = Number(portfolioAgg._sum.totalInvested ?? 0);
+  const available = somarCustoEmBrl(posicoes, cotacaoDolar);
 
   return NextResponse.json({
     rate: Math.round(rate * 1e6) / 1e6, // 6 casas decimais

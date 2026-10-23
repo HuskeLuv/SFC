@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState, useMemo, Suspense } from 'react';
+import React, { useCallback, useEffect, useState, useMemo, Suspense } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import ProtectedRoute from '@/components/auth/ProtectedRoute';
@@ -32,13 +32,20 @@ import { useMoverInvestimento } from '@/hooks/useMoverInvestimento';
 import MoverInvestimento from '@/components/carteira/mover/MoverInvestimento';
 import { NaCarteiraCartao, NaCarteiraLinha } from '@/components/carteira/mover/AtivoNaCarteira';
 
-const formatCurrency = (value: number) =>
+/**
+ * Valor na moeda GRAVADA da posição (Carteira EUA em US$: stock/REIT em dólar mostram US$ e o
+ * R$ como informação). Renda fixa e ativos BR: sempre R$.
+ */
+const formatMoeda = (value: number, moeda: 'BRL' | 'USD' = 'BRL') =>
   new Intl.NumberFormat('pt-BR', {
     style: 'currency',
-    currency: 'BRL',
+    currency: moeda,
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   }).format(value);
+
+const formatTaxa = (taxa: number) =>
+  taxa.toLocaleString('pt-BR', { minimumFractionDigits: 4, maximumFractionDigits: 4 });
 
 const formatPercentage = (value: number) =>
   `${value >= 0 ? '' : '-'}${Math.abs(value).toFixed(2)}%`;
@@ -101,7 +108,9 @@ interface ExtratoItem {
 const signedClass = (value: number) =>
   value < 0 ? TABLE_MOBILE_STYLES.negative : TABLE_MOBILE_STYLES.positive;
 
-const HISTORICO_MENSAL_COLUMNS: ResponsiveColumn<HistoricoMensalRow>[] = [
+const historicoMensalColumns = (
+  formatCurrency: (value: number) => string,
+): ResponsiveColumn<HistoricoMensalRow>[] => [
   { id: 'mes', header: 'Mês', mobile: 'primary', cell: (r) => formatMonthYear(r.date) },
   {
     id: 'saldo',
@@ -138,7 +147,9 @@ const HISTORICO_MENSAL_COLUMNS: ResponsiveColumn<HistoricoMensalRow>[] = [
   },
 ];
 
-const EXTRATO_COLUMNS: ResponsiveColumn<ExtratoItem>[] = [
+const extratoColumns = (
+  formatCurrency: (value: number) => string,
+): ResponsiveColumn<ExtratoItem>[] => [
   {
     id: 'tipo',
     header: 'Tipo',
@@ -209,6 +220,15 @@ interface AtivoData {
     resultadoPreco?: number;
     proventosRecebidos?: number;
     cotacaoAtual: number;
+    /** Unidade gravada da posição (ausente = R$, ex.: renda fixa). */
+    moeda?: 'BRL' | 'USD';
+    /** R$ por US$ 1 do dia (posição em US$). */
+    cotacaoDolar?: number | null;
+    taxaData?: string | null;
+    /** Custo em R$ (câmbio de cada compra) da posição em US$. */
+    valorAplicadoBRL?: number | null;
+    /** Saldo em R$ pelo câmbio do dia da posição em US$. */
+    saldoBrutoBRL?: number | null;
   };
   transacoes: Array<{
     id: string;
@@ -287,6 +307,15 @@ function AtivoDetalheContent() {
     };
     void fetchData();
   }, [id, rentabilidadeRange]);
+
+  // Moeda da posição: valores em US$ para stock/REIT gravados em dólar (o R$ é informativo).
+  const moeda = data?.posicao?.moeda ?? 'BRL';
+  const formatCurrency = useCallback((value: number) => formatMoeda(value, moeda), [moeda]);
+  const historicoMensalCols = useMemo(
+    () => historicoMensalColumns(formatCurrency),
+    [formatCurrency],
+  );
+  const extratoCols = useMemo(() => extratoColumns(formatCurrency), [formatCurrency]);
 
   const rentabilidadeStartDate = useMemo(() => {
     if (!data?.historicoTWR?.length) return undefined;
@@ -497,7 +526,7 @@ function AtivoDetalheContent() {
     });
 
     return items.sort((a, b) => new Date(b.data).getTime() - new Date(a.data).getTime());
-  }, [data?.transacoes, data?.proventos]);
+  }, [data?.transacoes, data?.proventos, formatCurrency]);
 
   if (loading) {
     return <LoadingSpinner text="Carregando detalhes do ativo..." />;
@@ -522,6 +551,25 @@ function AtivoDetalheContent() {
 
   const posicao = data.posicao;
   const temProventos = (posicao.proventosRecebidos ?? 0) > 0;
+  // Posição em US$: o R$ aparece como informação (custo pelo câmbio de cada compra; saldo pelo
+  // câmbio do dia).
+  const emDolar = posicao.moeda === 'USD';
+  const linhaCambio =
+    emDolar && posicao.cotacaoDolar
+      ? `US$ 1 = R$ ${formatTaxa(posicao.cotacaoDolar)}${
+          posicao.taxaData
+            ? ` em ${posicao.taxaData.split('-').reverse().slice(0, 2).join('/')}`
+            : ''
+        }`
+      : null;
+  const saldoEmReais =
+    emDolar && posicao.saldoBrutoBRL != null
+      ? `equivale a ${formatMoeda(posicao.saldoBrutoBRL)}`
+      : undefined;
+  const custoEmReais =
+    emDolar && posicao.valorAplicadoBRL != null
+      ? `custo em R$: ${formatMoeda(posicao.valorAplicadoBRL)}`
+      : undefined;
 
   return (
     <div className="space-y-6 max-lg:space-y-4">
@@ -560,12 +608,21 @@ function AtivoDetalheContent() {
                 inclui {formatCurrency(posicao.proventosRecebidos ?? 0)} de proventos
               </p>
             )}
+            {saldoEmReais && (
+              <p className="text-xs text-gray-500 tabular-nums dark:text-gray-400">
+                {saldoEmReais}
+                {linhaCambio ? ` · ${linhaCambio}` : ''}
+              </p>
+            )}
             <dl className={`mt-3 ${TABLE_MOBILE_STYLES.cardDetailGrid}`}>
               {[
                 ['Quantidade', formatNumber(posicao.quantidade)],
                 ['Preço médio', formatCurrency(posicao.precoMedio)],
                 ['Última cotação', formatCurrency(posicao.cotacaoAtual)],
                 ['Valor aplicado', formatCurrency(posicao.valorAplicado)],
+                ...(custoEmReais && posicao.valorAplicadoBRL != null
+                  ? [['Custo em R$', formatMoeda(posicao.valorAplicadoBRL)]]
+                  : []),
                 ['Rentabilidade', formatPercentage(posicao.rentabilidade)],
                 ['Resultado', formatCurrency(posicao.resultado)],
               ].map(([label, value]) => (
@@ -635,8 +692,18 @@ function AtivoDetalheContent() {
               changeDirection="neutral"
             />
             <MetricCard title="Última cotação" value={formatCurrency(data.posicao.cotacaoAtual)} />
-            <MetricCard title="Valor aplicado" value={formatCurrency(data.posicao.valorAplicado)} />
-            <MetricCard title="Saldo bruto" value={formatCurrency(data.posicao.saldoBruto)} />
+            <MetricCard
+              title="Valor aplicado"
+              value={formatCurrency(data.posicao.valorAplicado)}
+              change={custoEmReais}
+              changeDirection="neutral"
+            />
+            <MetricCard
+              title="Saldo bruto"
+              value={formatCurrency(data.posicao.saldoBruto)}
+              change={saldoEmReais}
+              changeDirection="neutral"
+            />
             <MetricCard
               title="Resultado"
               value={formatCurrency(data.posicao.resultado)}
@@ -665,7 +732,7 @@ function AtivoDetalheContent() {
             <ComponentCard title="Valor aplicado vs Saldo" className="overflow-hidden">
               {data.historicoPatrimonio?.length > 0 ? (
                 <div className="min-w-0 max-w-full overflow-hidden">
-                  <LineChartCarteiraHistorico data={data.historicoPatrimonio} />
+                  <LineChartCarteiraHistorico data={data.historicoPatrimonio} moeda={moeda} />
                 </div>
               ) : (
                 <div className="flex h-64 items-center justify-center text-gray-500 dark:text-gray-400">
@@ -680,7 +747,7 @@ function AtivoDetalheContent() {
               <>
                 <ResponsiveCardList
                   ariaLabel="Histórico mensal"
-                  columns={HISTORICO_MENSAL_COLUMNS}
+                  columns={historicoMensalCols}
                   rows={
                     showAllMensal ? historicoMensal : historicoMensal.slice(0, MOBILE_LIST_PREVIEW)
                   }
@@ -879,7 +946,7 @@ function AtivoDetalheContent() {
               <>
                 <ResponsiveCardList
                   ariaLabel="Extrato"
-                  columns={EXTRATO_COLUMNS}
+                  columns={extratoCols}
                   rows={
                     showAllExtrato
                       ? extratoUnificado

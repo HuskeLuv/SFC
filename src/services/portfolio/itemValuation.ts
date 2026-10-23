@@ -13,6 +13,7 @@
 import { FUNDO_TYPES_AGRUPADOS, isFundoType } from '@/lib/fundoTypes';
 import { isTickerAcaoB3, overrideEfetivo } from '@/lib/carteiraMover';
 import { moverCaixaRfHabilitado } from '@/lib/carteiraMoverConfig';
+import { posicaoEmDolar } from '@/lib/ativoEmDolar';
 import type { FixedIncomeAssetWithAsset } from './patrimonioHistoricoBuilder';
 
 export type CategoriaCarteira =
@@ -49,6 +50,13 @@ export type PortfolioItemLike = {
   totalInvested: number;
   /** Aba escolhida pelo usuário (mover na Carteira); vale via categoriaEfetiva. */
   categoriaOverride?: string | null;
+  /**
+   * Unidade da posição (Carteira EUA em US$): 'USD' = avgPrice/totalInvested em US$. null em
+   * REIT também é US$; null em stock é R$ legado (ver posicaoEmDolar).
+   */
+  moedaRegistro?: string | null;
+  /** Custo em R$ pelo câmbio de cada compra (posição em US$); null = ainda não calculado. */
+  totalInvestedBrl?: number | null;
 };
 
 export type ItemValuationInput = {
@@ -58,7 +66,10 @@ export type ItemValuationInput = {
   fixedIncome?: FixedIncomeAssetWithAsset | null;
   /** Cotação live (getAssetPrices) na moeda nativa do asset. */
   quote?: number | null;
-  /** USD→BRL para converter cotações de assets currency='USD'. */
+  /**
+   * USD→BRL do dia (getCotacaoDolarHoje, obtido UMA vez por requisição): converte cotações de
+   * assets currency='USD' e as posições gravadas em US$ (posicaoEmDolar).
+   */
   cotacaoDolar?: number | null;
   /** Tesouro do catálogo destinado a reserva (transaction.notes.tesouroDestino). */
   tesouroReservaDestino?: 'emergencia' | 'oportunidade';
@@ -77,7 +88,12 @@ export type ItemValuation = {
    * valorAplicado dos cards (simetria — era a fonte da rentabilidade -94%).
    */
   contaNoSaldoBruto: boolean;
-  fonte: 'tesouro-pu' | 'fixed-income' | 'reserva' | 'quote' | 'manual' | 'fallback';
+  fonte: 'tesouro-pu' | 'fixed-income' | 'reserva' | 'quote' | 'manual' | 'fallback' | 'semCambio';
+  /**
+   * Posição em US$ sem câmbio do dia: valores zerados e fora do saldo (nunca somar US$ como
+   * R$). A tela avisa.
+   */
+  semCambio?: boolean;
 };
 
 const toNumber = (v: { toNumber(): number } | number | null | undefined): number | null => {
@@ -278,9 +294,13 @@ export const CATEGORIA_ASSET_TYPE_FILTERS: Record<CategoriaCarteira, readonly st
  *      edição manual → calculado)
  *   2. Reserva → edição manual (avgPrice×qty) → totalInvested → qty×avgPrice
  *   3. Imóvel/personalizado → totalInvested → qty×avgPrice (fora do saldo)
- *   4. Cotação live → qty×quote (+USD→BRL, exceto tipos já em BRL)
- *   5. Fallback sem cotação → qty×avgPrice (avgPrice é gravado em BRL pela
- *      /api/carteira/operacao — NÃO converter, senão dupla conversão)
+ *   4. Posição gravada em US$ (posicaoEmDolar: REIT, stock com moedaRegistro 'USD') →
+ *      qty × (quote ?? avgPrice) × câmbio do dia; aplicado = totalInvestedBrl ?? totalInvested
+ *      × câmbio. Sem câmbio: 'semCambio', fora da soma. Não depende da chave
+ *      CARTEIRA_EUA_DOLAR_HABILITADO: decide pela unidade gravada.
+ *   5. Cotação live → qty×quote (+USD→BRL, exceto tipos já em BRL)
+ *   6. Fallback sem cotação → qty×avgPrice (posição em R$, inclusive stock legado com
+ *      moedaRegistro null — NÃO converter, senão dupla conversão)
  */
 export const valuatePortfolioItem = (input: ItemValuationInput): ItemValuation => {
   const { item, asset, fixedIncome, quote, cotacaoDolar, fiGetCurrentValue } = input;
@@ -336,6 +356,31 @@ export const valuatePortfolioItem = (input: ItemValuationInput): ItemValuation =
     return { ...base, valorAtualBRL: valor, fonte: 'manual' };
   }
 
+  if (posicaoEmDolar(item, asset)) {
+    const fx = cotacaoDolar != null && cotacaoDolar > 0 ? cotacaoDolar : null;
+    if (fx === null) {
+      return {
+        categoria,
+        valorAtualBRL: 0,
+        valorAplicadoBRL: 0,
+        contaNoSaldoBruto: false,
+        fonte: 'semCambio',
+        semCambio: true,
+      };
+    }
+    const precoUsd = cotacao != null && cotacao > 0 ? cotacao : item.avgPrice;
+    const aplicadoBrl =
+      item.totalInvestedBrl != null && item.totalInvestedBrl > 0
+        ? item.totalInvestedBrl
+        : valorAplicadoBRL * fx;
+    return {
+      ...base,
+      valorAplicadoBRL: aplicadoBrl,
+      valorAtualBRL: item.quantity * precoUsd * fx,
+      fonte: cotacao != null && cotacao > 0 ? 'quote' : 'fallback',
+    };
+  }
+
   if (cotacao != null && cotacao > 0) {
     let valor = item.quantity * cotacao;
     const jaEmBRL = TIPOS_PRECO_EM_BRL.includes(asset?.type ?? '');
@@ -347,3 +392,27 @@ export const valuatePortfolioItem = (input: ItemValuationInput): ItemValuation =
 
   return { ...base, valorAtualBRL: item.quantity * item.avgPrice, fonte: 'fallback' };
 };
+
+/**
+ * Soma do custo (totalInvested) em R$ — o antigo `_sum(totalInvested)` dos planejamentos
+ * (Sonhos, Aposentadoria, contexto). Posição gravada em US$ (posicaoEmDolar) entra por
+ * totalInvestedBrl ?? totalInvested × câmbio do dia; sem câmbio fica fora (nunca US$ como R$).
+ * As demais entram pelo totalInvested gravado, como antes.
+ */
+export const somarCustoEmBrl = (
+  itens: ReadonlyArray<
+    Pick<PortfolioItemLike, 'totalInvested' | 'moedaRegistro' | 'totalInvestedBrl'> & {
+      asset?: Pick<AssetLike, 'type' | 'currency'> | null;
+    }
+  >,
+  cotacaoDolar: number | null | undefined,
+): number =>
+  itens.reduce((soma, item) => {
+    if (!posicaoEmDolar(item, item.asset)) return soma + (Number(item.totalInvested) || 0);
+    if (item.totalInvestedBrl != null && item.totalInvestedBrl > 0) {
+      return soma + item.totalInvestedBrl;
+    }
+    return cotacaoDolar != null && cotacaoDolar > 0
+      ? soma + item.totalInvested * cotacaoDolar
+      : soma;
+  }, 0);

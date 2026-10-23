@@ -1,6 +1,9 @@
 import { prisma } from '@/lib/prisma';
 import { Prisma } from '@prisma/client';
-import { filterInvestmentsExclReservas } from './patrimonioHistoricoBuilder';
+import {
+  carregarCambioDoHistorico,
+  filterInvestmentsExclReservas,
+} from './patrimonioHistoricoBuilder';
 import { normalizeInvestmentItemValues } from '@/utils/cashflowFilters';
 import type {
   FixedIncomeAssetWithAsset,
@@ -11,6 +14,10 @@ import type {
 /**
  * Carrega dados mínimos para buildPatrimonioHistorico (cron / resumo).
  * Usa selects enxutos onde possível para reduzir payload.
+ *
+ * `serieCambio` (Carteira EUA em US$): série USD-BRL carregada UMA vez, desde a 1ª
+ * transação/posição em US$; null sem nada em US$ (nenhuma consulta). Repasse ao builder
+ * e a `buildPatrimonioCashFlowsByDayOnly`.
  */
 export const loadCarteiraHistoricoData = async (targetUserId: string) => {
   const [
@@ -76,11 +83,13 @@ export const loadCarteiraHistoricoData = async (targetUserId: string) => {
     allInvestmentGroups.flatMap((group) => group.items || []),
   );
   const investmentsExclReservas = filterInvestmentsExclReservas(investments);
+  const serieCambio = await carregarCambioDoHistorico(portfolio, stockTransactions);
 
   return {
     portfolio,
     fixedIncomeAssets: fixedIncomeResult,
     stockTransactions,
     investmentsExclReservas,
+    serieCambio,
   };
 };

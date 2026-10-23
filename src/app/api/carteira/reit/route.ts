@@ -6,7 +6,14 @@ import { isSubgrupoValido } from '@/lib/carteiraMover';
 import { requireAuthWithActing } from '@/utils/auth';
 import { prisma } from '@/lib/prisma';
 import { getAssetPrices } from '@/services/pricing/assetPriceService';
-import { getAllIndicators } from '@/services/market/marketIndicatorService';
+import { getCotacaoDolarHoje } from '@/services/market/cambioUsdBrl';
+import { carteiraEuaDolarHabilitado } from '@/lib/carteiraEuaConfig';
+import {
+  proventoDaLinhaEmUsd,
+  totaisEua,
+  valoresLinhaEua,
+  type AtivoEuaRef,
+} from '@/app/api/carteira/_lib/linhaEua';
 
 import { withErrorHandler } from '@/utils/apiErrorHandler';
 import { handleCaixaAbaPost } from '@/app/api/carteira/_lib/caixaParaInvestirPost';
@@ -43,14 +50,9 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     return NextResponse.json({ error: 'Usuário não encontrado' }, { status: 404 });
   }
 
-  // Buscar cotação do dólar para conversão USD -> BRL
-  let cotacaoDolar: number | null = null;
-  try {
-    const indicators = await getAllIndicators();
-    cotacaoDolar = indicators.dolar?.price ?? null;
-  } catch {
-    // Ignorar erro - usar null e exibir em USD
-  }
+  // Câmbio do dia (o mesmo do resumo): a aba é em US$ e o "equivale a R$" usa esta taxa.
+  const cotacaoHoje = await getCotacaoDolarHoje().catch(() => null);
+  const cotacaoDolar = cotacaoHoje?.taxa ?? null;
 
   // Buscar caixa para investir específico de REIT
   const caixaParaInvestirData = await prisma.dashboardData.findFirst({
@@ -109,9 +111,13 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
   ];
   const quotes = await getAssetPrices(reitSymbols, { useBrapiFallback: true });
 
+  // Valores em US$ na unidade da posição (valoresLinhaEua): REIT sempre foi gravado em US$;
+  // stock em R$ (legado) movida para cá é exibida ÷ câmbio, marcada 'aproximado'.
+  const ativoPorLinha = new Map<string, AtivoEuaRef>();
   const reitAtivos = portfolio
     .filter((item) => item.asset)
     .map((item) => {
+      ativoPorLinha.set(item.id, item.asset!);
       const assetId = item.assetId || '';
       const notes = latestNotesByAsset.get(assetId);
       // Precedência: Portfolio.estrategia (gravada pelo mover) > notes da
@@ -123,8 +129,13 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
             ? notes!.estrategia
             : 'value'
       ) as 'value' | 'growth' | 'risk';
-      const cotacaoAtual = quotes.get(item.asset!.symbol) || item.avgPrice;
-      const valorAtualizado = item.quantity * cotacaoAtual;
+      const valores = valoresLinhaEua({
+        item,
+        asset: item.asset,
+        quote: quotes.get(item.asset!.symbol),
+        cotacaoDolar,
+      });
+      const { precoAquisicao, valorTotal, cotacaoAtual, valorAtualizado } = valores;
 
       return {
         id: item.id,
@@ -133,10 +144,15 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
         setor: 'outros',
         subsetor: '',
         quantidade: item.quantity,
-        precoAquisicao: item.avgPrice,
-        valorTotal: item.totalInvested,
+        precoAquisicao,
+        valorTotal,
         cotacaoAtual,
         valorAtualizado,
+        moedaRegistro: valores.moedaRegistro,
+        aproximado: valores.aproximado,
+        semCambio: valores.semCambio,
+        valorTotalBRL: valores.valorTotalBRL,
+        valorAtualizadoBRL: valores.valorAtualizadoBRL,
         riscoPorAtivo: 0,
         percentualCarteira: 0,
         objetivo: item.objetivo ?? 0,
@@ -144,7 +160,7 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
         necessidadeAporte: 0,
         proventos: 0, // preenchido por aplicarProventosNosAtivos
         rentabilidade:
-          item.avgPrice > 0 ? ((cotacaoAtual - item.avgPrice) / item.avgPrice) * 100 : 0,
+          precoAquisicao > 0 ? ((cotacaoAtual - precoAquisicao) / precoAquisicao) * 100 : 0,
         estrategia,
         observacoes: undefined,
         dataUltimaAtualizacao: item.lastUpdate,
@@ -178,6 +194,17 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
   // Auditoria 25/08/2026 (B1): proventos recebidos entram na rentabilidade da linha.
   const proventosPorSymbol = await proventosRecebidosPorSymbol(targetUserId);
   aplicarProventosNosAtivos(reitAtivosComPlanejados, proventosPorSymbol);
+  // Provento de ativo em dólar já está em US$ (moeda nativa); ativo BRL movido para cá, ÷ câmbio.
+  reitAtivosComPlanejados.forEach((ativo) => {
+    const asset = ativoPorLinha.get(ativo.id);
+    if (!asset || !ativo.proventos) return;
+    const semCambio = (ativo as { semCambio?: boolean }).semCambio === true;
+    ativo.proventos = semCambio ? 0 : proventoDaLinhaEmUsd(ativo.proventos, asset, cotacaoDolar);
+    if (ativo.valorTotal > 0) {
+      ativo.rentabilidade =
+        ((ativo.valorAtualizado + ativo.proventos - ativo.valorTotal) / ativo.valorTotal) * 100;
+    }
+  });
   const totalProventos = reitAtivosComPlanejados.reduce(
     (sum, ativo) => sum + (ativo.proventos ?? 0),
     0,
@@ -289,13 +316,15 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     );
   });
 
-  // Calcular resumo
-  const valorAtualizadoComCaixa = totalValorAtualizado + caixaParaInvestir;
+  // Calcular resumo (US$). O caixa (R$) NÃO entra no total: fica em caixaParaInvestirBRL,
+  // numa linha própria (antes era somado ao total em US$).
+  const caixaEmUsd = cotacaoDolar ? caixaParaInvestir / cotacaoDolar : 0;
+  const totais = totaisEua(reitAtivosComPlanejados, cotacaoDolar);
   const resumo = {
     necessidadeAporteTotal: totalNecessidadeAporte,
     caixaParaInvestir: caixaParaInvestir,
     saldoInicioMes: totalValorAplicado,
-    valorAtualizado: valorAtualizadoComCaixa,
+    valorAtualizado: totalValorAtualizado,
     rendimento: totalValorAtualizado + totalProventos - totalValorAplicado,
     rentabilidade:
       totalValorAplicado > 0
@@ -314,8 +343,9 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
       cor: getAtivoColor(ativo.ticker),
     }));
 
-  // Tabela auxiliar (cotacaoAtual, necessidadeAporte, loteAproximado)
-  const totalTabValue = valorAtualizadoComCaixa;
+  // Tabela auxiliar (cotacaoAtual, necessidadeAporte, loteAproximado): a base do aporte
+  // inclui o caixa da aba convertido para US$.
+  const totalTabValue = totalValorAtualizado + caixaEmUsd;
   const tabelaAuxiliar = reitAtivosComPlanejados
     .filter((a) => !(a as { planejado?: boolean }).planejado)
     .map((ativo) => {
@@ -337,12 +367,19 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
 
   const data = {
     cotacaoDolar,
+    taxaData: cotacaoHoje?.data.toISOString().slice(0, 10) ?? null,
+    // Chave CARTEIRA_EUA_DOLAR_HABILITADO: só o layout novo da tabela (os valores não mudam).
+    layoutUsd: carteiraEuaDolarHabilitado(),
+    caixaParaInvestirBRL: caixaParaInvestir,
+    totalUSD: totais.totalUSD,
+    totalBRL: totais.totalBRL,
+    posicoesSemCambio: totais.posicoesSemCambio,
     resumo,
     secoes,
     totalGeral: {
       quantidade: totalQuantidade,
       valorAplicado: totalValorAplicado,
-      valorAtualizado: valorAtualizadoComCaixa, // Incluir caixa no total
+      valorAtualizado: totalValorAtualizado, // Sem o caixa (R$): ver caixaParaInvestirBRL
       percentualCarteira: 100.0,
       risco: totalRisco,
       objetivo: totalObjetivo,

@@ -139,6 +139,18 @@ export default function IRResumoAnual() {
                   {formatBRL(data.rendimentos.tributacaoExclusiva.jcp)}
                 </dd>
               </div>
+              {data.rendimentos.exterior &&
+                (data.rendimentos.exterior.total > 0 ||
+                  data.rendimentos.exterior.semCambio > 0) && (
+                  <div className="flex justify-between gap-3 border-b border-gray-100 py-1.5 dark:border-gray-800">
+                    <dt className="text-gray-500 dark:text-gray-400">
+                      Exterior — Stocks/REITs EUA (tributável)
+                    </dt>
+                    <dd className="font-medium text-gray-900 dark:text-white">
+                      {formatBRL(data.rendimentos.exterior.total)}
+                    </dd>
+                  </div>
+                )}
               <div className="flex justify-between gap-3 py-1.5">
                 <dt className="font-medium text-gray-700 dark:text-gray-200">Total recebido</dt>
                 <dd className="font-semibold text-gray-900 dark:text-white">

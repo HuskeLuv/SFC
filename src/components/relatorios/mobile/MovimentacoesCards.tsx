@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { TABLE_MOBILE_STYLES } from '@/components/ui/table/tableStyles';
-import type { Movimentacao } from '../MovimentacoesTable';
+import { ValorMovimentacao, type Movimentacao } from '../MovimentacoesTable';
 
 /**
  * Movimentações do período no celular (PWA fase 3): as 5 mais recentes em cartões e "Ver as n"
@@ -11,9 +11,6 @@ import type { Movimentacao } from '../MovimentacoesTable';
  */
 
 export const MOVIMENTACOES_INICIAIS = 5;
-
-const brl = (v: number): string =>
-  v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
 const fmtData = (iso: string): string => {
   const [y, m, d] = iso.split('-');
@@ -44,7 +41,9 @@ export default function MovimentacoesCards({
                   {mov.jaInvestido ? ' · já investido' : ''}
                 </p>
               </div>
-              <p className={`${TABLE_MOBILE_STYLES.valuePrimary} shrink-0`}>{brl(mov.total)}</p>
+              <p className={`${TABLE_MOBILE_STYLES.valuePrimary} shrink-0`}>
+                <ValorMovimentacao mov={mov} />
+              </p>
             </div>
           </li>
         ))}

@@ -1,4 +1,11 @@
 import prisma from '@/lib/prisma';
+import { logger } from '@/lib/logger';
+import { unidadeDaTransacao } from '@/lib/ativoEmDolar';
+import {
+  carregarSerieCambio,
+  cotacaoMoedaDasNotes,
+  type SerieCambio,
+} from '@/services/market/cambioUsdBrl';
 import { overrideEfetivo, type BaseCtx, type CategoriaMovivel } from '@/lib/carteiraMover';
 import { primeiroDestinoPorAsset, type TesouroDestino } from '@/services/portfolio/tesouroDestino';
 
@@ -191,50 +198,71 @@ export const isReinvestimentoTransaction = (notes: string | null | undefined): b
 /**
  * Conversão USD→BRL dos totais de transação para a planilha (100% BRL).
  *
- * Convenção de gravação HOJE (rota operacao): stocks convertem na ESCRITA
- * (total/price já em BRL); REIT grava total na moeda de origem (USD) — a aba
- * REIT converte no display — e o câmbio da compra fica em notes.cotacaoMoeda.
- * Sem esta conversão, um aporte de US$ 300 entrava como R$ 300 no
- * Aporte/Resgate, na Evolução do Patrimônio e na base aplicada.
- *
- * Vendas (rota resgate) não gravam câmbio: usa o último câmbio conhecido do
- * mesmo ativo (compra anterior, iterando em ordem cronológica); sem nenhum,
- * mantém o valor bruto (melhor aproximação disponível).
+ * Carteira EUA em US$ (out/2026): decide pela UNIDADE GRAVADA da transação
+ * (`unidadeDaTransacao`), nunca só pelo tipo do ativo:
+ *  - 'BRL' (ações BR, stock legado em R$, ETF, crypto…): total + fees, como sempre;
+ *  - 'USD' (stock EUA marcado e REIT): total × câmbio da tx + fees (fees já é R$).
+ * Câmbio da tx = cotação gravada nas notes; sem ela (vendas antigas), a série USD-BRL
+ * na data; sem série, o último câmbio conhecido do mesmo ativo (compra anterior, em
+ * ordem cronológica). Sem nenhum: 0 — fica fora da soma (nunca soma US$ como R$).
  */
 export interface TransacaoParaConversao {
   total: number;
   fees?: number | null;
   notes?: string | null;
+  date?: Date | null;
   assetId?: string | null;
   asset?: { type?: string | null; currency?: string | null } | null;
 }
-
-const cotacaoMoedaFromNotes = (notes: string | null | undefined): number | null => {
-  if (!notes) return null;
-  try {
-    const parsed = JSON.parse(notes);
-    const rate = Number(parsed?.cotacaoMoeda ?? parsed?.operation?.cotacaoMoeda);
-    return Number.isFinite(rate) && rate > 0 ? rate : null;
-  } catch {
-    return null;
-  }
-};
-
-const isUsdStoredTransaction = (t: TransacaoParaConversao): boolean =>
-  t.asset?.type === 'reit' && t.asset?.currency === 'USD';
 
 /** Total + taxas da transação em BRL. Atualiza `lastRateByAsset` quando a
  * transação carrega câmbio próprio (compras), para reuso nas vendas. */
 export function totalBRLTransacao(
   t: TransacaoParaConversao,
   lastRateByAsset: Map<string, number>,
+  serieCambio?: SerieCambio | null,
 ): number {
-  const bruto = t.total + (t.fees || 0);
-  if (!isUsdStoredTransaction(t)) return bruto;
-  const rateFromNotes = cotacaoMoedaFromNotes(t.notes);
+  const fees = t.fees || 0;
+  if (unidadeDaTransacao(t, t.asset) !== 'USD') return t.total + fees;
+  const rateFromNotes = cotacaoMoedaDasNotes(t.notes);
   if (rateFromNotes && t.assetId) lastRateByAsset.set(t.assetId, rateFromNotes);
-  const rate = rateFromNotes ?? (t.assetId ? lastRateByAsset.get(t.assetId) : undefined);
-  return rate ? bruto * rate : bruto;
+  const rate =
+    rateFromNotes ??
+    (t.date ? (serieCambio?.(t.date) ?? null) : null) ??
+    (t.assetId ? lastRateByAsset.get(t.assetId) : undefined) ??
+    null;
+  if (rate == null) {
+    logger.warn('[investimentosPorMes] transação em US$ sem câmbio: fora da soma', {
+      assetId: t.assetId ?? null,
+    });
+    return 0;
+  }
+  if (t.assetId && !rateFromNotes) lastRateByAsset.set(t.assetId, rate);
+  return t.total * rate + fees;
+}
+
+/**
+ * Série USD-BRL só quando alguma transação está gravada em US$ (desde a 1ª delas).
+ * Sem nada em US$ não consulta o banco; falha na leitura = null.
+ */
+export async function carregarCambioDasTransacoes(
+  transacoes: ReadonlyArray<TransacaoParaConversao>,
+): Promise<SerieCambio | null> {
+  let desde: number | null = null;
+  for (const t of transacoes) {
+    if (!t.date || unidadeDaTransacao(t, t.asset) !== 'USD') continue;
+    const ms = t.date.getTime();
+    if (desde === null || ms < desde) desde = ms;
+  }
+  if (desde === null) return null;
+  try {
+    return await carregarSerieCambio(new Date(desde));
+  } catch (error) {
+    logger.warn('[investimentosPorMes] série USD-BRL indisponível', {
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return null;
+  }
 }
 
 export interface InvestimentosPorMes {
@@ -355,13 +383,15 @@ export async function computeInvestimentosPorMes(
   const porTipo: Record<string, Record<number, number>> = {};
   const tipos = new Set<string>();
   const lastRateByAsset = new Map<string, number>();
+  const serieCambio = await carregarCambioDasTransacoes(transacoes);
 
   for (const transacao of transacoes) {
     if (!transacao.asset) continue;
 
     const mes = transacao.date.getMonth();
     const valor =
-      totalBRLTransacao(transacao, lastRateByAsset) * (transacao.type === 'venda' ? -1 : 1);
+      totalBRLTransacao(transacao, lastRateByAsset, serieCambio) *
+      (transacao.type === 'venda' ? -1 : 1);
     const tipoReservaTesouro = transacao.assetId
       ? reservaTesouroPorAsset.get(transacao.assetId)
       : undefined;

@@ -33,13 +33,18 @@ const MOBILE_LABEL_CLASS = 'mb-1 block text-xs font-medium text-gray-500 dark:te
 
 const MO_PAGE_SIZE = 6;
 
-const formatCurrency = (value: number) =>
+/**
+ * Valor na moeda gravada da posição (Carteira EUA em US$: preço/total e proventos de stock/REIT
+ * em dólar ficam em US$). Corretagem (Taxas) e IR seguem sempre em R$.
+ */
+const formatMoeda = (value: number, moeda: 'BRL' | 'USD' = 'BRL') =>
   new Intl.NumberFormat('pt-BR', {
     style: 'currency',
-    currency: 'BRL',
+    currency: moeda,
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   }).format(value);
+const formatBRL = (value: number) => formatMoeda(value, 'BRL');
 
 // Datas de transação são armazenadas como UTC midnight (00:00:00Z do dia escolhido).
 // Sem timeZone:'UTC', viewer em BRT vê o dia anterior — usar formatWallClockDate.
@@ -188,6 +193,8 @@ interface EditarPayload {
   } | null;
   operacoes: OperacaoRow[];
   proventos: ProventoRow[];
+  /** Unidade gravada da posição (ausente = R$). */
+  moeda?: 'BRL' | 'USD';
 }
 
 /**
@@ -347,6 +354,11 @@ const AtivoEditarContent = () => {
   const queryClient = useQueryClient();
   const id = params?.id as string;
   const [data, setData] = useState<EditarPayload | null>(null);
+  // Posição em US$: preço, total e proventos em US$ (rótulos e formato pela moeda gravada).
+  const moedaPosicao = data?.moeda ?? 'BRL';
+  const emDolar = moedaPosicao === 'USD';
+  const rotuloMoeda = emDolar ? 'US$' : 'R$';
+  const formatCurrency = (value: number) => formatMoeda(value, moedaPosicao);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [transacaoIdToDelete, setTransacaoIdToDelete] = useState<string | null>(null);
@@ -662,7 +674,7 @@ const AtivoEditarContent = () => {
             {p.quantidadeBase.toLocaleString('pt-BR')}
           </td>
           <td className={`${TABLE_STYLES.td} text-right`}>
-            {p.impostoRenda != null ? formatCurrency(p.impostoRenda) : '—'}
+            {p.impostoRenda != null ? formatBRL(p.impostoRenda) : '—'}
           </td>
           <td className={`${TABLE_STYLES.td} text-right`}>
             <button
@@ -819,7 +831,7 @@ const AtivoEditarContent = () => {
         <div className="min-w-0">
           <dt className={TABLE_MOBILE_STYLES.cardDetailLabel}>IR</dt>
           <dd className={TABLE_MOBILE_STYLES.cardDetailValue}>
-            {p.impostoRenda != null ? formatCurrency(p.impostoRenda) : '—'}
+            {p.impostoRenda != null ? formatBRL(p.impostoRenda) : '—'}
           </dd>
         </div>
       </dl>
@@ -904,7 +916,7 @@ const AtivoEditarContent = () => {
         <div className="grid grid-cols-2 gap-2 max-[359px]:grid-cols-1">
           <div className="min-w-0">
             <label htmlFor={fid('valorTotal')} className={MOBILE_LABEL_CLASS}>
-              Valor total (R$)
+              Valor total ({rotuloMoeda})
             </label>
             <input
               id={fid('valorTotal')}
@@ -1081,6 +1093,15 @@ const AtivoEditarContent = () => {
                 <h3 className="mb-4 text-base font-semibold text-gray-900 dark:text-white">
                   Movimentação inicial
                 </h3>
+                {emDolar && (
+                  <p
+                    role="note"
+                    className="mb-4 rounded-lg border border-[#DCE6F2] bg-[#EDF2F8] px-3 py-2 text-xs text-gray-700 dark:border-gray-700 dark:bg-white/5 dark:text-gray-300"
+                  >
+                    Posição em dólar: cotação e valor total em US$; taxas e IR em R$. Editar aqui
+                    não muda o câmbio gravado em cada operação.
+                  </p>
+                )}
                 {inicial ? (
                   <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                     <div>
@@ -1137,7 +1158,7 @@ const AtivoEditarContent = () => {
                         <EditableField
                           value={inicial.fees ?? 0}
                           onSubmit={(v) => handleUpdateTransacao(inicial.id, 'fees', v)}
-                          formatDisplay={(v) => formatCurrency(v)}
+                          formatDisplay={(v) => formatBRL(v)}
                           min={0}
                           inputWidth="w-full max-w-[10rem]"
                           mobileLabel="Taxas"
@@ -1289,7 +1310,7 @@ const AtivoEditarContent = () => {
                             </div>
                             <div>
                               <p className="text-xs font-medium text-gray-500 dark:text-gray-400">
-                                Valor total (R$)
+                                Valor total ({rotuloMoeda})
                               </p>
                               <div className="mt-1">
                                 <EditableField

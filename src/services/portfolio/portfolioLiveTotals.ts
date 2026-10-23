@@ -1,5 +1,7 @@
 import { getAssetPrices } from '@/services/pricing/assetPriceService';
-import { getIndicator } from '@/services/market/marketIndicatorService';
+import { getCotacaoDolarHoje } from '@/services/market/cambioUsdBrl';
+import { posicaoEmDolar } from '@/lib/ativoEmDolar';
+import { valuatePortfolioItem } from './itemValuation';
 import type { FixedIncomePricer } from './fixedIncomePricing';
 import type {
   FixedIncomeAssetWithAsset,
@@ -101,13 +103,13 @@ export const computePortfolioLiveTotals = async ({
     if (isQuotableSymbol(symbol)) symbolsToQuote.add(symbol);
   }
 
-  const [quotes, dolarIndicator] = await Promise.all([
+  const [quotes, cotacaoHoje] = await Promise.all([
     symbolsToQuote.size > 0
       ? getAssetPrices(Array.from(symbolsToQuote), { useBrapiFallback: true })
       : Promise.resolve(new Map<string, number>()),
-    getIndicator('USD-BRL', { useBrapiFallback: true }).catch(() => null),
+    getCotacaoDolarHoje().catch(() => null),
   ]);
-  const cotacaoDolar = dolarIndicator?.price ?? null;
+  const cotacaoDolar = cotacaoHoje?.taxa ?? null;
 
   // tipos de ativo cuja cotação BRAPI já vem em BRL (não converter)
   const tiposPrecoEmBRL = new Set(['crypto', 'currency', 'metal', 'commodity']);
@@ -122,6 +124,24 @@ export const computePortfolioLiveTotals = async ({
   let valorAplicado = 0;
 
   for (const item of portfolio) {
+    // Posição gravada em US$ (REIT, stock com moedaRegistro 'USD'): a cascata canônica
+    // (valuatePortfolioItem) converte valor e aplicado pelo câmbio do dia. Sem câmbio o item
+    // fica fora das duas somas ('semCambio') — nunca US$ somado como R$.
+    if (posicaoEmDolar(item, item.asset)) {
+      const symbol = item.asset?.symbol;
+      const v = valuatePortfolioItem({
+        item,
+        asset: item.asset,
+        quote: symbol ? (quotes.get(symbol) ?? null) : null,
+        cotacaoDolar,
+      });
+      if (!v.semCambio) {
+        saldoBruto += v.valorAtualBRL;
+        valorAplicado += v.valorAplicadoBRL;
+      }
+      continue;
+    }
+
     valorAplicado += manualFallbackValue(item);
 
     // FI tem prioridade sobre o flag de reserva: uma reserva-emergência cadastrada como

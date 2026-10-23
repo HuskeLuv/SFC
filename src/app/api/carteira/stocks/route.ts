@@ -5,7 +5,14 @@ import { aplicarCamposMovido, camposMovidoPorLinha } from '@/app/api/carteira/_l
 import { requireAuthWithActing } from '@/utils/auth';
 import { prisma } from '@/lib/prisma';
 import { getAssetPrices } from '@/services/pricing/assetPriceService';
-import { getAllIndicators } from '@/services/market/marketIndicatorService';
+import { getCotacaoDolarHoje } from '@/services/market/cambioUsdBrl';
+import { carteiraEuaDolarHabilitado } from '@/lib/carteiraEuaConfig';
+import {
+  proventoDaLinhaEmUsd,
+  totaisEua,
+  valoresLinhaEua,
+  type AtivoEuaRef,
+} from '@/app/api/carteira/_lib/linhaEua';
 
 import { withErrorHandler } from '@/utils/apiErrorHandler';
 import { handleCaixaAbaPost } from '@/app/api/carteira/_lib/caixaParaInvestirPost';
@@ -42,14 +49,10 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     return NextResponse.json({ error: 'Usuário não encontrado' }, { status: 404 });
   }
 
-  // Cotação do dólar para conversão USD → BRL na UI (tabela exibe em BRL + linha TOTAL EM USD)
-  let cotacaoDolar: number | null = null;
-  try {
-    const indicators = await getAllIndicators();
-    cotacaoDolar = indicators.dolar?.price ?? null;
-  } catch {
-    // Ignora — sem cotação a UI cai no formato USD
-  }
+  // Câmbio do dia (o mesmo do resumo): a aba é em US$ e o "equivale a R$" usa esta taxa.
+  // Sem câmbio a aba segue em US$; posição em R$ fica fora do total (semCambio).
+  const cotacaoHoje = await getCotacaoDolarHoje().catch(() => null);
+  const cotacaoDolar = cotacaoHoje?.taxa ?? null;
 
   // Buscar caixa para investir específico de Stocks
   const caixaParaInvestirData = await prisma.dashboardData.findFirst({
@@ -110,19 +113,24 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     return parte && /^[A-Za-z]/.test(parte) ? parte : symbol;
   };
 
-  // Converter portfolio para formato esperado
+  // Converter portfolio para formato esperado. Valores em US$ na unidade da posição
+  // (valoresLinhaEua): posição em R$ (legado) é exibida ÷ câmbio, marcada 'aproximado'.
+  const ativoPorLinha = new Map<string, AtivoEuaRef>();
   const stocksAtivos = portfolio
     .filter((item) => item.asset) // Filtrar apenas itens com asset
     .map((item) => {
-      // Buscar cotação atual da brapi
-      const cotacaoAtual = quotes.get(item.asset!.symbol) || item.avgPrice;
-
-      // Calcular valor atualizado com cotação atual
-      const valorAtualizado = item.quantity * cotacaoAtual;
+      ativoPorLinha.set(item.id, item.asset!);
+      const valores = valoresLinhaEua({
+        item,
+        asset: item.asset,
+        quote: quotes.get(item.asset!.symbol),
+        cotacaoDolar,
+      });
+      const { precoAquisicao, valorTotal, cotacaoAtual, valorAtualizado } = valores;
 
       // Calcular rentabilidade real
       const rentabilidade =
-        item.avgPrice > 0 ? ((cotacaoAtual - item.avgPrice) / item.avgPrice) * 100 : 0;
+        precoAquisicao > 0 ? ((cotacaoAtual - precoAquisicao) / precoAquisicao) * 100 : 0;
 
       const estrategia =
         item.estrategia === 'growth' || item.estrategia === 'risk' || item.estrategia === 'value'
@@ -139,10 +147,15 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
         sector: 'other',
         industryCategory: '',
         quantidade: item.quantity,
-        precoAquisicao: item.avgPrice,
-        valorTotal: item.totalInvested,
+        precoAquisicao,
+        valorTotal,
         cotacaoAtual,
         valorAtualizado,
+        moedaRegistro: valores.moedaRegistro,
+        aproximado: valores.aproximado,
+        semCambio: valores.semCambio,
+        valorTotalBRL: valores.valorTotalBRL,
+        valorAtualizadoBRL: valores.valorAtualizadoBRL,
         riscoPorAtivo: 0, // Calcular depois
         percentualCarteira: 0, // Calcular depois
         objetivo: item.objetivo ?? 0,
@@ -223,6 +236,17 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
   // Auditoria 25/08/2026 (B1): proventos recebidos entram na rentabilidade da linha.
   const proventosPorSymbol = await proventosRecebidosPorSymbol(targetUserId);
   aplicarProventosNosAtivos(stocksAtivosComPlanejados, proventosPorSymbol);
+  // Provento de ativo em dólar já está em US$ (moeda nativa); ativo BRL movido para cá, ÷ câmbio.
+  stocksAtivosComPlanejados.forEach((ativo) => {
+    const asset = ativoPorLinha.get(ativo.id);
+    if (!asset || !ativo.proventos) return;
+    const semCambio = (ativo as { semCambio?: boolean }).semCambio === true;
+    ativo.proventos = semCambio ? 0 : proventoDaLinhaEmUsd(ativo.proventos, asset, cotacaoDolar);
+    if (ativo.valorTotal > 0) {
+      ativo.rentabilidade =
+        ((ativo.valorAtualizado + ativo.proventos - ativo.valorTotal) / ativo.valorTotal) * 100;
+    }
+  });
   const totalProventos = stocksAtivosComPlanejados.reduce(
     (sum, ativo) => sum + (ativo.proventos ?? 0),
     0,
@@ -302,19 +326,20 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     (a) => a.valorAtualizado + (a.proventos ?? 0),
   );
 
-  // Calcular resumo
-  // Para simplificar, vamos considerar:
+  // Calcular resumo (US$)
   // - Saldo início do mês = valor aplicado (investido)
-  // - Valor atualizado = valor com cotação atual
+  // - Valor atualizado = valor com cotação atual. O caixa (R$) NÃO entra: fica em
+  //   caixaParaInvestirBRL, numa linha própria (antes era somado ao total em US$).
   // - Rendimento = diferença entre valor atualizado e aplicado
   // - Rentabilidade = percentual de ganho/perda
-  const valorAtualizadoComCaixa = totalValorAtualizado + caixaParaInvestir;
+  const caixaEmUsd = cotacaoDolar ? caixaParaInvestir / cotacaoDolar : 0;
+  const totais = totaisEua(stocksAtivosComPlanejados, cotacaoDolar);
   const resumo = {
     necessidadeAporteTotal: totalNecessidadeAporte,
     caixaParaInvestir: caixaParaInvestir,
     saldoInicioMes: totalValorAplicado, // Valor investido (base de cálculo)
-    valorAtualizado: valorAtualizadoComCaixa, // Valor com cotação atual + caixa
-    rendimento: totalValorAtualizado + totalProventos - totalValorAplicado, // Ganho ou perda em R$
+    valorAtualizado: totalValorAtualizado, // Valor com cotação atual, sem o caixa
+    rendimento: totalValorAtualizado + totalProventos - totalValorAplicado, // Ganho ou perda em US$
     rentabilidade:
       totalValorAplicado > 0
         ? ((totalValorAtualizado + totalProventos - totalValorAplicado) / totalValorAplicado) * 100
@@ -332,8 +357,9 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
       cor: getAtivoColor(ativo.nome),
     }));
 
-  // Tabela auxiliar (cotacaoAtual, necessidadeAporte, loteAproximado)
-  const totalTabValue = valorAtualizadoComCaixa;
+  // Tabela auxiliar (cotacaoAtual, necessidadeAporte, loteAproximado): a base do aporte
+  // inclui o caixa da aba convertido para US$.
+  const totalTabValue = totalValorAtualizado + caixaEmUsd;
   const tabelaAuxiliar = stocksAtivosComPlanejados
     .filter((a) => !(a as { planejado?: boolean }).planejado)
     .map((ativo) => {
@@ -356,12 +382,19 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
 
   const data = {
     cotacaoDolar,
+    taxaData: cotacaoHoje?.data.toISOString().slice(0, 10) ?? null,
+    // Chave CARTEIRA_EUA_DOLAR_HABILITADO: só o layout novo da tabela (os valores não mudam).
+    layoutUsd: carteiraEuaDolarHabilitado(),
+    caixaParaInvestirBRL: caixaParaInvestir,
+    totalUSD: totais.totalUSD,
+    totalBRL: totais.totalBRL,
+    posicoesSemCambio: totais.posicoesSemCambio,
     resumo,
     secoes,
     totalGeral: {
       quantidade: totalQuantidade,
       valorAplicado: totalValorAplicado,
-      valorAtualizado: valorAtualizadoComCaixa, // Incluir caixa no total
+      valorAtualizado: totalValorAtualizado, // Sem o caixa (R$): ver caixaParaInvestirBRL
       percentualCarteira: 100.0,
       risco: totalRisco,
       objetivo: totalObjetivo,

@@ -8,7 +8,6 @@ const mockPrisma = vi.hoisted(() => ({
     findMany: vi.fn(),
   },
   portfolio: {
-    aggregate: vi.fn(),
     findMany: vi.fn(),
   },
   stockTransaction: {
@@ -30,6 +29,13 @@ vi.mock('@/utils/auth', () => ({ requireAuthWithActing: mockRequireAuthWithActin
 vi.mock('@/lib/prisma', () => ({ prisma: mockPrisma, default: mockPrisma }));
 vi.mock('@/services/cashflow/getCashflowTree', () => ({
   getMergedCashflowGroups: mockGetMergedCashflowGroups,
+}));
+const mockGetCotacaoDolarHoje = vi.hoisted(() => vi.fn());
+const mockCarregarSerieCambio = vi.hoisted(() => vi.fn());
+vi.mock('@/services/market/cambioUsdBrl', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/services/market/cambioUsdBrl')>()),
+  getCotacaoDolarHoje: mockGetCotacaoDolarHoje,
+  carregarSerieCambio: mockCarregarSerieCambio,
 }));
 
 import { GET } from '../route';
@@ -87,7 +93,6 @@ const cashflowTree = (): CashflowGroup[] => [
 
 beforeEach(() => {
   vi.clearAllMocks();
-  mockPrisma.portfolio.aggregate.mockResolvedValue({ _sum: { totalInvested: 50_000 } });
   mockPrisma.portfolio.findMany.mockResolvedValue([
     {
       totalInvested: 10_000,
@@ -215,7 +220,6 @@ describe('GET /api/planejamento/contexto', () => {
 
   it('cdiAnualizado null e patrimônio 0 em conta vazia', async () => {
     mockPrisma.economicIndex.findFirst.mockResolvedValue(null);
-    mockPrisma.portfolio.aggregate.mockResolvedValue({ _sum: { totalInvested: null } });
     mockPrisma.portfolio.findMany.mockResolvedValue([]);
     mockPrisma.stockTransaction.findMany.mockResolvedValue([]);
 
@@ -226,5 +230,62 @@ describe('GET /api/planejamento/contexto', () => {
     expect(data.patrimonio).toBe(0);
     expect(data.reservaEmergenciaAtual).toBe(0);
     expect(data.aporteMensalRealizado).toBe(0);
+  });
+
+  it('posição e transação em US$ entram em R$ (patrimônio pelo câmbio do dia, aporte pelo da compra)', async () => {
+    mockGetCotacaoDolarHoje.mockResolvedValue({ taxa: 5.4, data: new Date(), fonte: 'indicador' });
+    mockCarregarSerieCambio.mockResolvedValue(() => 5);
+    mockPrisma.portfolio.findMany.mockResolvedValue([
+      {
+        totalInvested: 40_000,
+        quantity: 100,
+        avgPrice: 30,
+        assetId: 'asset-petr4',
+        planejamentoObjetivoId: null,
+        vinculoAposentadoria: false,
+        moedaRegistro: null,
+        totalInvestedBrl: null,
+        asset: { type: 'stock', symbol: 'PETR4', currency: 'BRL' },
+      },
+      {
+        totalInvested: 440,
+        quantity: 4,
+        avgPrice: 110,
+        assetId: 'asset-reit',
+        planejamentoObjetivoId: null,
+        vinculoAposentadoria: false,
+        moedaRegistro: null,
+        totalInvestedBrl: null,
+        asset: { type: 'reit', symbol: 'O-1700000000000-abc', currency: 'USD' },
+      },
+    ]);
+    mockPrisma.stockTransaction.findMany.mockResolvedValue([
+      {
+        assetId: 'asset-reit',
+        type: 'compra',
+        total: 440,
+        price: 110,
+        quantity: 4,
+        fees: 10, // corretagem em R$: soma depois do câmbio
+        date: new Date('2026-05-10T00:00:00Z'),
+        // câmbio gravado na compra vence a série
+        notes: JSON.stringify({ operation: { unidade: 'USD', moeda: 'USD', cotacaoMoeda: 5.4 } }),
+        asset: { type: 'reit', currency: 'USD' },
+      },
+      {
+        assetId: 'asset-reit',
+        type: 'compra',
+        total: 120,
+        price: 120,
+        quantity: 1,
+        date: new Date('2026-06-10T00:00:00Z'),
+        notes: null, // REIT sem marcador = US$; câmbio da série (5)
+        asset: { type: 'reit', currency: 'USD' },
+      },
+    ]);
+
+    const data = await (await GET(req())).json();
+    expect(data.patrimonio).toBeCloseTo(40_000 + 2376, 2);
+    expect(data.aporteMensalRealizado).toBeCloseTo((440 * 5.4 + 10 + 120 * 5) / 12, 2);
   });
 });

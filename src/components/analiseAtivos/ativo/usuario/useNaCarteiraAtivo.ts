@@ -45,6 +45,12 @@
  * classe e o "≈ X% da carteira total" saem distorcidos e não são exibidos. `abaMista` marca o stock
  * numa aba EUA com ou sem posição: o valor atualizado da aba Stocks mistura cotação em US$ e preço
  * médio em R$, então nem o valor equivalente ao alvo nem o desvio em dinheiro/p.p. têm unidade.
+ *
+ * Carteira EUA em US$ (out/2026): a rota da aba devolve a unidade gravada de cada linha
+ * (`moedaRegistro`). Linha com moedaRegistro 'USD' (`linhaEmDolar`) é coerente em US$: valor, preço
+ * médio e cotação em US$ (o R$ vem de `valorAtualizadoBRL`/`cotacaoDolar` da rota), sem
+ * abaMista/valoresMistos, e o '% da carteira' volta: valor em R$ ÷ totais.dinheiro (o resumo já
+ * converte a posição em US$). Sem moedaRegistro (rota antiga ou planejado) o contorno acima segue.
  */
 import { useQuery } from '@tanstack/react-query';
 import { queryKeys } from '@/lib/queryKeys';
@@ -73,6 +79,10 @@ export interface LinhaAbaCarteira {
   necessidadeAporte: number;
   rentabilidade: number;
   planejado?: boolean;
+  /** abas Stocks/REIT's: unidade gravada da posição ('USD' = linha coerente em US$) */
+  moedaRegistro?: 'USD' | 'BRL';
+  /** abas Stocks/REIT's: valor atual em R$ pela cotação do dia (null = sem câmbio) */
+  valorAtualizadoBRL?: number | null;
 }
 
 interface DadosAba {
@@ -107,6 +117,10 @@ export interface NaCarteiraAtivo {
   abaMista: boolean;
   /** classe EUA ou aba Stocks/REIT's: sem '% da carteira', peso da classe nem "≈ X% do total" */
   semPesoCarteira: boolean;
+  /** linha da aba EUA gravada em US$ (moedaRegistro 'USD'): valores em US$ + o R$, com peso */
+  linhaEmDolar: boolean;
+  /** valor atual da linha em R$ (linha em US$; null sem câmbio ou fora dela) */
+  valorAtualizadoBRL: number | null;
   /** cotação do dólar da aba Stocks/REIT's (null fora delas ou sem cotação; pré-preenche o câmbio) */
   cotacaoDolar: number | null;
   /** EUA: Asset manual da posição (a recompra pela Análise não cria outro) e o Asset.type */
@@ -277,13 +291,24 @@ export function useNaCarteiraAtivo(
     posicao?.tipoAsset ??
     planejado?.tipoAsset ??
     (classe === 'reit' ? 'reit' : classe === 'stock' ? 'stock' : null);
-  const moeda = abaUsd && tipoNaAba === 'reit' ? 'USD' : 'BRL';
-  const abaMista = abaUsd && tipoNaAba === 'stock';
+  // Linha gravada em US$ (rota da Carteira EUA em US$): unidade única, com o R$ ao lado.
+  const linhaEmDolar = abaUsd && linha?.moedaRegistro === 'USD';
+  const moeda = linhaEmDolar || (abaUsd && tipoNaAba === 'reit') ? 'USD' : 'BRL';
+  const abaMista = !linhaEmDolar && abaUsd && tipoNaAba === 'stock';
   const valoresMistos = abaMista && !!posicao;
-  const semPesoCarteira = abaUsd || ehClasseEua(classe);
+  const semPesoCarteira = !linhaEmDolar && (abaUsd || ehClasseEua(classe));
   const cotacaoDolar =
     abaUsd && typeof abaQ.data?.cotacaoDolar === 'number' && abaQ.data.cotacaoDolar > 0
       ? abaQ.data.cotacaoDolar
+      : null;
+  // valor da linha em US$ em R$: o da rota (câmbio do dia) ou valor × cotação da aba
+  const valorAtualizadoBRL =
+    linhaEmDolar && linha
+      ? typeof linha.valorAtualizadoBRL === 'number'
+        ? linha.valorAtualizadoBRL
+        : cotacaoDolar !== null
+          ? linha.valorAtualizado * cotacaoDolar
+          : null
       : null;
   // o total da carteira é em R$: só a linha em US$ (REIT) converte pelo dólar da aba
   const paraReais = moeda === 'USD' ? (cotacaoDolar ?? 1) : 1;
@@ -291,11 +316,15 @@ export function useNaCarteiraAtivo(
   const pctCarteira =
     semPesoCarteira || valorBase === null
       ? null
-      : linha
-        ? ((linha.valorAtualizado * paraReais) / valorBase) * 100
-        : posicao
-          ? null
-          : 0;
+      : linhaEmDolar
+        ? valorAtualizadoBRL !== null
+          ? (valorAtualizadoBRL / valorBase) * 100
+          : null
+        : linha
+          ? ((linha.valorAtualizado * paraReais) / valorBase) * 100
+          : posicao
+            ? null
+            : 0;
   const distrib = categoriaBase
     ? (resumoQ.data?.distribuicao as Record<string, { percentual?: number }> | undefined)?.[
         categoriaBase
@@ -348,6 +377,8 @@ export function useNaCarteiraAtivo(
     valoresMistos,
     abaMista,
     semPesoCarteira,
+    linhaEmDolar,
+    valorAtualizadoBRL,
     cotacaoDolar,
     assetIdPosicao: posicao?.assetId ?? null,
     tipoAsset: posicao?.tipoAsset ?? planejado?.tipoAsset ?? null,
