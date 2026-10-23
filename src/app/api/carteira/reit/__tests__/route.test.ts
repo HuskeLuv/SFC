@@ -35,6 +35,8 @@ vi.mock('@/lib/prisma', () => ({ prisma: mockPrisma, default: mockPrisma }));
 
 vi.mock('@/services/market/marketIndicatorService', () => ({
   getAllIndicators: vi.fn().mockResolvedValue({ dolar: { price: 5.0 } }),
+  // Câmbio do dia da aba (getCotacaoDolarHoje → getIndicator('USD-BRL')).
+  getIndicator: vi.fn().mockResolvedValue({ price: 5.0 }),
 }));
 
 vi.mock('@/services/pricing/assetPriceService', () => ({
