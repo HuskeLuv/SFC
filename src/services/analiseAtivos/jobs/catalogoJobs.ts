@@ -25,7 +25,7 @@ import { sincronizarB3Cadastro } from '@/services/analiseAtivos/b3/sincronizarB3
 import { sincronizarCotahist } from '@/services/analiseAtivos/b3/sincronizarCotahist';
 import { executarCriterios } from '@/services/analiseAtivos/calculo/executarCriterios';
 import { executarRetornos } from '@/services/analiseAtivos/calculo/executarRetornos';
-import { executarScores } from '@/services/analiseAtivos/calculo/executarScores';
+import { executarDerivados } from '@/services/analiseAtivos/calculo/executarDerivados';
 import { executarCuradoria } from '@/services/analiseAtivos/curadoria/sincronizarCasos';
 import { sincronizarIpe } from '@/services/analiseAtivos/eventos/sincronizarIpe';
 import {
@@ -78,7 +78,7 @@ const JOB_DERIVADOS: DefinicaoJob = {
   nome: 'derivados',
   prazoMs: 240_000,
   pesado: true,
-  executar: (ctx) => executarScores(ctx),
+  executar: (ctx) => executarDerivados(ctx),
 };
 
 export const CATALOGO_JOBS: Record<NomeJobCron, DefinicaoJob> = {

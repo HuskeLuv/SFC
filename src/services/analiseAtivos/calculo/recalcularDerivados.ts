@@ -1,5 +1,5 @@
 /**
- * Etapa "derivados" do job scores: per-share (AssetPerShareYearly) e múltiplos anuais
+ * Etapa "derivados" do job derivados (ex-scores): per-share (AssetPerShareYearly) e múltiplos anuais
  * (AssetMultiplesYearly) das empresas e FIIs alterados desde o último run OK (ou de todos com
  * --tudo). Fundamentos, contagens, informes e preços chegam pelos repositórios da fatia 0.
  *
@@ -184,7 +184,7 @@ function anoParcialDaBaseFii(
 
 /**
  * F2 fundamentei-regras: coletor do relatório antes × depois (recalcular-analise
- * --relatorio-tickers). Vai como campo extra do JobContexto (executarScores repassa o contexto);
+ * --relatorio-tickers). Vai como campo extra do JobContexto (executarDerivados repassa o contexto);
  * ausente = nada é juntado. `simbolos` null = todos.
  */
 export interface ColetorPayoutDy {
@@ -418,7 +418,7 @@ const numOuNull = (x: unknown): number | null =>
 /**
  * Bloco C, R2 (regras/calculo/sanidade/historicoEscala): por ticker, o ano com ≥ 2 de {P/L, P/VP,
  * P/Receita} a ≥ 20× (ou ≤ 1/20) da mediana do ativo ganha a flag 'conf:historico:escala_ano@<ano>'
- * (salvo liberação). O ponto sai da média de 10 anos no job scores. Muta as linhas recebidas.
+ * (salvo liberação). O ponto sai da média de 10 anos na etapa atuais. Muta as linhas recebidas.
  */
 export function marcarHistoricoForaDeEscala(
   multiplos: LinhaMultiplos[],
@@ -578,7 +578,7 @@ export async function recalcularDerivados(
   // Ações — por lotes de empresas (limita memória e o tamanho dos IN)
   const tickersPorCnpj = agrupar(u.acoes, (t) => t.cnpj);
   const LOTE = 40;
-  // FIIs: 48 trimestres de informe por fundo — lote menor (pico de RSS do job scores, achado rodada 2)
+  // FIIs: 48 trimestres de informe por fundo — lote menor (pico de RSS do job, achado rodada 2)
   const LOTE_FII = 50;
   for (let i = 0; i < alvo.cnpjsAcoes.length; i += LOTE) {
     if (ctx.estourouPrazo()) break;

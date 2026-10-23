@@ -1,8 +1,9 @@
 /**
- * Orquestração do job scores com repositórios mockados e as tabelas da fatia D em memória:
- * dataRef = último pregão (domingo ⇒ sexta), idempotência (2 runs regravam a mesma chave), índice por
- * empresa replicado aos tickers, FII não conferido sem score, FoF fora do Índice, reescrita de
- * proventos sem órfão quando o Yahoo reinsere a linha com id novo.
+ * Orquestração do job derivados (ex-scores) com repositórios mockados e as tabelas da fatia D em
+ * memória: dataRef = último pregão (domingo ⇒ sexta), idempotência (2 runs regravam a mesma chave),
+ * múltiplos atuais de todo o universo com preço, asset_scores nunca gravado (D6-a), etapa 'scores'
+ * como alias de 'atuais', reescrita de proventos sem órfão quando o Yahoo reinsere a linha com id
+ * novo e o relatório de sanidade com a mesma base de antes (linhas do Quadro).
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { PrismaClient } from '@prisma/client';
@@ -101,8 +102,8 @@ vi.mock('@/services/analiseAtivos/repositorio/curadoria', () => ({
   simbolosLiberadosDesde: vi.fn(async () => dados.liberadosDesde),
 }));
 
-import { executarScores } from '@/services/analiseAtivos/calculo/executarScores';
-import { dataRefScores } from '@/services/analiseAtivos/calculo/recalcularScores';
+import { executarDerivados } from '@/services/analiseAtivos/calculo/executarDerivados';
+import { dataRefAtuais } from '@/services/analiseAtivos/calculo/recalcularAtuais';
 import { SCORING_PARAMS_V2 } from '@/services/analiseAtivos/params/scoringParamsV2';
 import {
   conjuntoLiberacoes,
@@ -390,53 +391,38 @@ beforeEach(() => {
 describe('dataRef', () => {
   it('domingo ⇒ último pregão (sexta); sem cotação ⇒ pregão anterior', () => {
     expect(
-      dataRefScores([{ ultimoPregao: '2026-09-25' }, { ultimoPregao: '2026-09-24' }], '2026-09-27'),
+      dataRefAtuais([{ ultimoPregao: '2026-09-25' }, { ultimoPregao: '2026-09-24' }], '2026-09-27'),
     ).toBe('2026-09-25');
-    expect(dataRefScores([], '2026-09-27')).toBe('2026-09-25');
-    expect(dataRefScores([], '2026-09-28')).toBe('2026-09-25');
+    expect(dataRefAtuais([], '2026-09-27')).toBe('2026-09-25');
+    expect(dataRefAtuais([], '2026-09-28')).toBe('2026-09-25');
   });
 });
 
-describe('executarScores', () => {
-  it('grava scores do último pregão; FII não conferido sem score; FoF fora do Índice; índice por empresa', async () => {
+describe('executarDerivados', () => {
+  it('grava múltiplos atuais do universo com preço; asset_scores não é gravado; base do Quadro', async () => {
     const { prisma, tabelas } = fakePrisma();
     const alertas: AlertaJob[] = [];
-    const r = await executarScores(ctxDe(prisma, '2026-09-27', alertas), { tudo: true });
+    const r = await executarDerivados(ctxDe(prisma, '2026-09-27', alertas), { tudo: true });
     expect(r.parcial).toBeUndefined();
-    const scores = tabelas.assetScore;
-    expect(new Set(scores.map((s) => (s.dataRef as Date).toISOString().slice(0, 10)))).toEqual(
-      new Set(['2026-09-25']),
-    );
-    const simbolos = scores.map((s) => s.symbol).sort();
-    expect(simbolos).toEqual(['FOFX11', 'HGLG11', 'WEGE3', 'XPTO3', 'XPTO4']);
-    expect(simbolos).not.toContain('NCON11');
-
-    const fof = scores.find((s) => s.symbol === 'FOFX11')!;
-    expect(fof).toMatchObject({
-      regua: 'fora_do_indice',
-      indiceMf: null,
-      checks: [],
-      criteriosAplicaveis: 0,
-    });
-
-    const x3 = scores.find((s) => s.symbol === 'XPTO3')!;
-    const x4 = scores.find((s) => s.symbol === 'XPTO4')!;
-    expect(x3.tickerReferencia).toBe('XPTO4'); // maior volume médio
-    expect(x3.indiceMf).toBe(x4.indiceMf);
-    expect(x3.regua).toBe('acao_financeira');
-    expect(x3.cDivida).toBeNull();
-    expect(x3.criteriosAplicaveis).toBe(4);
-
-    const hg = scores.find((s) => s.symbol === 'HGLG11')!;
-    expect(hg.regua).toBe('fii_tijolo');
-    expect(hg.criteriosAplicaveis).toBe(3);
-    expect(hg.cRent).toBeNull();
+    // D6-a: o Índice MF saiu — nenhuma linha em asset_scores
+    expect(tabelas.assetScore).toEqual([]);
+    expect(prisma.assetScore.createMany).not.toHaveBeenCalled();
+    expect(prisma.assetScore.deleteMany).not.toHaveBeenCalled();
 
     const det = r.detalhes as {
-      scores: { fiis: { naoConferidos: number }; pctIncompleto: number };
+      etapas: string[];
+      atuais: {
+        dataRef: string;
+        acoes: { noQuadro: number };
+        fiis: { naoConferidos: number; noQuadro: number; fof: number };
+      };
     };
-    expect(det.scores.fiis.naoConferidos).toBe(1);
-    expect(typeof det.scores.pctIncompleto).toBe('number');
+    expect(det.etapas).toEqual(['proventos', 'eventos', 'derivados', 'atuais']);
+    expect(det.atuais.dataRef).toBe('2026-09-25');
+    // a mesma base que recebia score: ações com preço; FIIs com preço e conferidos
+    expect(det.atuais.acoes.noQuadro).toBe(3);
+    expect(det.atuais.fiis).toMatchObject({ naoConferidos: 1, noQuadro: 2, fof: 1 });
+    expect(alertas.map((a) => a.codigo)).not.toContain('cobertura_scores');
 
     // múltiplos atuais para todo o universo com preço (inclusive o FII não conferido)
     expect(tabelas.assetMultiplesCurrent.map((l) => l.symbol).sort()).toEqual([
@@ -469,25 +455,26 @@ describe('executarScores', () => {
 
   it('2ª execução no mesmo dia (sábado × domingo) regrava a mesma chave, sem duplicar', async () => {
     const { prisma, tabelas } = fakePrisma();
-    await executarScores(ctxDe(prisma, '2026-09-26'), { tudo: true });
-    const n1 = tabelas.assetScore.length;
-    const chaves1 = tabelas.assetScore
-      .map((s) => `${s.symbol}|${(s.dataRef as Date).toISOString()}`)
+    await executarDerivados(ctxDe(prisma, '2026-09-26'), { tudo: true });
+    const chaves1 = tabelas.assetMultiplesCurrent
+      .map((s) => `${s.symbol}|${(s.precoData as Date).toISOString()}`)
       .sort();
-    await executarScores(ctxDe(prisma, '2026-09-27'), { tudo: true });
-    expect(tabelas.assetScore.length).toBe(n1);
-    expect(
-      tabelas.assetScore.map((s) => `${s.symbol}|${(s.dataRef as Date).toISOString()}`).sort(),
-    ).toEqual(chaves1);
+    await executarDerivados(ctxDe(prisma, '2026-09-27'), { tudo: true });
     expect(tabelas.assetMultiplesCurrent.length).toBe(6);
+    expect(
+      tabelas.assetMultiplesCurrent
+        .map((s) => `${s.symbol}|${(s.precoData as Date).toISOString()}`)
+        .sort(),
+    ).toEqual(chaves1);
+    expect(tabelas.assetScore).toEqual([]);
   });
 
   it('linha Yahoo reinserida com id novo ⇒ símbolo reescrito, sem órfão', async () => {
     const { prisma, tabelas } = fakePrisma();
-    await executarScores(ctxDe(prisma, '2026-09-27'), { etapas: ['proventos', 'eventos'] });
+    await executarDerivados(ctxDe(prisma, '2026-09-27'), { etapas: ['proventos', 'eventos'] });
     expect(tabelas.assetProventoAuditado.some((l) => l.origemId === 'y-old')).toBe(true);
     dados.proventos = dados.proventos.map((x) => (x.id === 'y-old' ? { ...x, id: 'y-new' } : x));
-    const r = await executarScores(ctxDe(prisma, '2026-09-27'), {
+    const r = await executarDerivados(ctxDe(prisma, '2026-09-27'), {
       etapas: ['proventos', 'eventos'],
     });
     const ids = tabelas.assetProventoAuditado.map((l) => l.origemId);
@@ -496,7 +483,7 @@ describe('executarScores', () => {
     expect(ids.length).toBe(dados.proventos.length);
     expect((r.detalhes as { proventos: { reescritos: number } }).proventos.reescritos).toBe(1);
     // nada mudou ⇒ nada reescrito
-    const r3 = await executarScores(ctxDe(prisma, '2026-09-27'), {
+    const r3 = await executarDerivados(ctxDe(prisma, '2026-09-27'), {
       etapas: ['proventos', 'eventos'],
     });
     expect((r3.detalhes as { proventos: { reescritos: number } }).proventos.reescritos).toBe(0);
@@ -504,48 +491,39 @@ describe('executarScores', () => {
 
   it('dry-run (aplicar=false) não grava nada', async () => {
     const { prisma, tabelas } = fakePrisma();
-    await executarScores({ ...ctxDe(prisma, '2026-09-27'), aplicar: false }, { tudo: true });
+    await executarDerivados({ ...ctxDe(prisma, '2026-09-27'), aplicar: false }, { tudo: true });
     expect(Object.values(tabelas).every((t) => t.length === 0)).toBe(true);
   });
 
-  it('retenção: apaga scores > 40 dias que não são o último dataRef do mês', async () => {
+  it("etapa 'scores' = alias de 'atuais' (com aviso); asset_scores antigos ficam intocados", async () => {
     const { prisma, tabelas } = fakePrisma();
     const velho = (d: string) => ({ symbol: 'WEGE3', dataRef: new Date(`${d}T00:00:00Z`) });
-    tabelas.assetScore.push(
-      velho('2026-07-15'),
-      velho('2026-07-31'),
-      velho('2026-08-10'),
-      velho('2026-09-20'),
-    );
-    await executarScores(ctxDe(prisma, '2026-09-27'), { etapas: ['scores'] });
-    const datas = tabelas.assetScore.map((s) => (s.dataRef as Date).toISOString().slice(0, 10));
-    expect(datas).not.toContain('2026-07-15');
-    expect(datas).toContain('2026-07-31');
-    expect(datas).toContain('2026-08-10'); // < 40 dias
-    expect(datas).toContain('2026-09-20');
+    tabelas.assetScore.push(velho('2026-07-15'), velho('2026-09-20'));
+    const aviso = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    try {
+      const r = await executarDerivados(ctxDe(prisma, '2026-09-27'), {
+        etapas: ['scores'],
+        retencao: true,
+      });
+      expect((r.detalhes as { etapas: string[] }).etapas).toEqual(['atuais']);
+      expect((r.detalhes as { atuais?: unknown }).atuais).toBeDefined();
+      expect(aviso).toHaveBeenCalledWith(expect.stringContaining("'scores' é alias de 'atuais'"));
+    } finally {
+      aviso.mockRestore();
+    }
+    expect(tabelas.assetMultiplesCurrent.length).toBe(6);
+    // sem retenção nem gravação de scores: as linhas antigas continuam lá (DROP é a D6-b)
+    expect(tabelas.assetScore.map((l) => (l.dataRef as Date).toISOString().slice(0, 10))).toEqual([
+      '2026-07-15',
+      '2026-09-20',
+    ]);
   });
-});
 
-describe('scoreAcao — lacuna na sequência de lucro (achado qa-dados 30/09)', () => {
-  it('ano ausente no meio da série ⇒ Índice incompleto com motivo lucro:serie_com_lacuna', async () => {
-    const { scoreAcao } = await import('@/services/analiseAtivos/calculo/recalcularScores');
-    const { ok } = await import('@/services/analiseAtivos/regras/comum/valor');
-    const base = {
-      m: { flags: [] },
-      anos: ok(1),
-      lucroUltimoFy: ok(4291.56e6),
-      lpaTtm: ok(1.4),
-      vpa: ok(5),
-      dpa12m: ok(1),
-      payoutPct: ok(70),
-      plControladora: ok(10e9),
-      flags: [],
-    };
-    const sem = scoreAcao({ ...base, anosLacuna: null }, false, SCORING_PARAMS_V1);
-    const com = scoreAcao({ ...base, anosLacuna: 2024 }, false, SCORING_PARAMS_V1);
-    expect(sem.indice.motivosIncompleto).not.toContain('lucro:serie_com_lacuna_2024');
-    expect(com.indice.incompleto).toBe(true);
-    expect(com.indice.motivosIncompleto).toContain('lucro:serie_com_lacuna_2024');
+  it('etapa desconhecida ⇒ erro', async () => {
+    const { prisma } = fakePrisma();
+    await expect(
+      executarDerivados(ctxDe(prisma, '2026-09-27'), { etapas: ['indice' as never] }),
+    ).rejects.toThrow('etapa inválida: indice');
   });
 });
 
@@ -561,7 +539,7 @@ describe('calcularAtualAcao — regra 13 na contagem dos múltiplos do dia (acha
     status: 'ok',
   });
   async function calcular(contagens: ContagemAcoes[]) {
-    const { calcularAtualAcao } = await import('@/services/analiseAtivos/calculo/recalcularScores');
+    const { calcularAtualAcao } = await import('@/services/analiseAtivos/calculo/recalcularAtuais');
     const ticker: TickerAcao = {
       symbol: 'PSSA3',
       cnpj: 'X',
@@ -647,9 +625,8 @@ describe('calcularAtualAcao — regra 13 na contagem dos múltiplos do dia (acha
     flags: [],
   };
 
-  it('DFPs anteriores todos não verificáveis e contagem recente sem LPA ⇒ sem nº de ações, incompleto', async () => {
-    const { calcularAtualAcao, scoreAcao } =
-      await import('@/services/analiseAtivos/calculo/recalcularScores');
+  it('DFPs anteriores todos não verificáveis e contagem recente sem LPA ⇒ sem nº de ações', async () => {
+    const { calcularAtualAcao } = await import('@/services/analiseAtivos/calculo/recalcularAtuais');
     const contagens = [
       naoVerif(cont('2024-12-31', 640_000_000, 'dfp')),
       naoVerif(cont('2025-12-31', 640_360_000, 'dfp')),
@@ -662,13 +639,11 @@ describe('calcularAtualAcao — regra 13 na contagem dos múltiplos do dia (acha
       SCORING_PARAMS_V1,
     );
     expect(comFund.vpa.estado).not.toBe('ok');
-    const sc = scoreAcao(comFund, false, SCORING_PARAMS_V1);
-    expect(sc.indice.incompleto).toBe(true);
-    expect(sc.indice.motivosIncompleto).toContain('acoes:nao_verificavel');
+    expect(comFund.flags).toContain('acoes_nao_verificavel');
   });
 
   it('sem DFP de referência, mas a contagem recente bate com lucro × LPA (±5%) ⇒ usa a contagem', async () => {
-    const { calcularAtualAcao } = await import('@/services/analiseAtivos/calculo/recalcularScores');
+    const { calcularAtualAcao } = await import('@/services/analiseAtivos/calculo/recalcularAtuais');
     const contagens = [
       naoVerif(cont('2025-12-31', 640_360_000, 'dfp')),
       { ...cont('2026-06-30', 640_992_323, 'itr'), razaoLpa: 1.02 },
@@ -681,9 +656,8 @@ describe('calcularAtualAcao — regra 13 na contagem dos múltiplos do dia (acha
     expect(r.vpa.estado).toBe('ok');
   });
 
-  it('fundamentos com escala declarada ambígua (não corrigida) ⇒ Índice incompleto', async () => {
-    const { calcularAtualAcao, scoreAcao } =
-      await import('@/services/analiseAtivos/calculo/recalcularScores');
+  it('fundamentos com escala declarada ambígua (não corrigida) ⇒ flag escala_ambigua', async () => {
+    const { calcularAtualAcao } = await import('@/services/analiseAtivos/calculo/recalcularAtuais');
     const contagens = [cont('2025-12-31', 640_360_000, 'dfp')];
     const r = calcularAtualAcao(
       {
@@ -693,9 +667,6 @@ describe('calcularAtualAcao — regra 13 na contagem dos múltiplos do dia (acha
       SCORING_PARAMS_V1,
     );
     expect(r.flags).toContain('escala_ambigua');
-    const sc = scoreAcao(r, false, SCORING_PARAMS_V1);
-    expect(sc.indice.incompleto).toBe(true);
-    expect(sc.indice.motivosIncompleto).toContain('fundamentos:escala_ambigua');
   });
 
   function entradaMinima(contagens: ContagemAcoes[]) {
@@ -734,7 +705,7 @@ describe('calcularAtualAcao — regra 13 na contagem dos múltiplos do dia (acha
 
 describe('calcularAtualFii — base de proventos parada (achado qa-dados 30/09)', () => {
   it('HGLG11 com a base parada em jun/2026 ⇒ rendimento 12m e meses AUSENTES (não subestimados)', async () => {
-    const { calcularAtualFii } = await import('@/services/analiseAtivos/calculo/recalcularScores');
+    const { calcularAtualFii } = await import('@/services/analiseAtivos/calculo/recalcularAtuais');
     const proventos = ['2026-03-31', '2026-04-30', '2026-05-28'].map((d, i) => ({
       origemId: String(i),
       symbol: 'HGLG11',
@@ -819,7 +790,7 @@ describe('trava de plausibilidade do DY 12m (diagnóstico DY absurdo 02/10/2026)
     flags: [],
   };
   async function acao(symbol: string, dpa: number, dpaAnual?: unknown[]) {
-    const { calcularAtualAcao } = await import('@/services/analiseAtivos/calculo/recalcularScores');
+    const { calcularAtualAcao } = await import('@/services/analiseAtivos/calculo/recalcularAtuais');
     const ticker: TickerAcao = {
       symbol,
       cnpj: symbol,
@@ -867,50 +838,20 @@ describe('trava de plausibilidade do DY 12m (diagnóstico DY absurdo 02/10/2026)
     );
   }
 
-  it('DY 12m acima do teto (BMKS3 34%) ⇒ DY gravado com flag, fora do Índice e do semáforo', async () => {
-    const { scoreAcao } = await import('@/services/analiseAtivos/calculo/recalcularScores');
+  it('DY 12m acima do teto (BMKS3 34%) ⇒ DY gravado com a flag de conferência', async () => {
     const c = await acao('BMKS3', 13.6); // 13,6 ÷ 40 = 34%
     expect(c.m.dyPct).toEqual({ estado: 'ok', valor: 34 });
     expect(c.flags).toContain('proventos_em_conferencia_dy_acima_teto');
-    expect(c.dyIndice).toMatchObject({ estado: 'ausente', motivo: 'em_conferencia' });
-    const s = scoreAcao(c, false, SCORING_PARAMS_V1);
-    expect(s.indice.componentes.div).toMatchObject({ estado: 'ausente', nota: 0 });
-    expect(s.indice.incompleto).toBe(true);
-    expect(s.indice.motivosIncompleto).toContain('div:em_conferencia');
-    expect(s.semaforo.checks.find((k) => k.codigo === 'dividendos')?.status).toBe('sem_dado');
   });
 
-  it('o topo não é sustentado por DY suspeito: mesma empresa com DY 34% fica ABAIXO da de DY 8%', async () => {
-    const { scoreAcao } = await import('@/services/analiseAtivos/calculo/recalcularScores');
-    const suspeito = scoreAcao(await acao('AAAA3', 13.6), false, SCORING_PARAMS_V1);
-    const normal = scoreAcao(await acao('BBBB3', 3.2), false, SCORING_PARAMS_V1); // 8%
-    expect(normal.indice.componentes.div).toMatchObject({ estado: 'calculado', nota: 10 });
-    const v = (r: typeof normal) => (r.indice.indice.estado === 'ok' ? r.indice.indice.valor : -1);
-    expect(v(suspeito)).toBeLessThan(v(normal));
-  });
-
-  it('CEEB5 com DY acima do teto e referência CEEB3 normal ⇒ Índice da empresa incompleto (Quadro e Índice concordam)', async () => {
-    const { comConferenciaDaEmpresa, scoreAcao } =
-      await import('@/services/analiseAtivos/calculo/recalcularScores');
+  it('CEEB5 com DY acima do teto e CEEB3 normal ⇒ a flag fica só no ticker (o Quadro replica)', async () => {
     const ref = await acao('CEEB3', 3.2); // 8%
     const pn = await acao('CEEB5', 12); // 30%
     expect(ref.flags.some((f) => f.startsWith('proventos_em_conferencia'))).toBe(false);
     expect(pn.flags).toContain('proventos_em_conferencia_dy_acima_teto');
-    const empresa = comConferenciaDaEmpresa(ref, [ref, pn]);
-    expect(empresa.dyIndice).toMatchObject({
-      estado: 'ausente',
-      motivo: 'em_conferencia',
-      detalhe: 'dy_acima_teto',
-    });
-    const s = scoreAcao(empresa, false, SCORING_PARAMS_V1);
-    expect(s.indice.incompleto).toBe(true);
-    expect(s.indice.motivosIncompleto).toContain('div:em_conferencia');
-    // sem ticker em conferência nada muda
-    expect(comConferenciaDaEmpresa(ref, [ref, await acao('CEEB5', 3.5)])).toBe(ref);
   });
 
-  it('provento_suspeito no último ano fechado (DPA 2025 = 3× 2024, payout 245%) ⇒ fora do Índice', async () => {
-    const { scoreAcao } = await import('@/services/analiseAtivos/calculo/recalcularScores');
+  it('provento_suspeito no último ano fechado (DPA 2025 = 3× 2024, payout 245%) ⇒ em conferência', async () => {
     const c = await acao('BALM4', 3.2, [
       { anoFiscal: 2023, dpaAjHoje: 0.33, payoutDmplPct: null },
       { anoFiscal: 2024, dpaAjHoje: 0.36, payoutDmplPct: null },
@@ -918,15 +859,13 @@ describe('trava de plausibilidade do DY 12m (diagnóstico DY absurdo 02/10/2026)
     ]);
     expect(c.m.dyPct).toEqual({ estado: 'ok', valor: 8 });
     expect(c.flags).toContain('proventos_em_conferencia_salto_recente');
-    const s = scoreAcao(c, false, SCORING_PARAMS_V1);
-    expect(s.indice.motivosIncompleto).toContain('div:em_conferencia');
     // sem a série anual (memória antiga) só o teto vale
     const semSerie = await acao('BALM4', 3.2);
     expect(semSerie.flags.some((f) => f.startsWith('proventos_em_conferencia'))).toBe(false);
   });
 
-  it('FII com DY 12m acima de 20% ⇒ flag e DY fora do Índice; 12% passa', async () => {
-    const { calcularAtualFii } = await import('@/services/analiseAtivos/calculo/recalcularScores');
+  it('FII com DY 12m acima de 20% ⇒ flag de conferência; 12% passa', async () => {
+    const { calcularAtualFii } = await import('@/services/analiseAtivos/calculo/recalcularAtuais');
     const meses = ['2025-10', '2025-11', '2025-12', '2026-01', '2026-02', '2026-03'];
     const entrada = (valor: number) => ({
       resumo: {
@@ -947,15 +886,15 @@ describe('trava de plausibilidade do DY 12m (diagnóstico DY absurdo 02/10/2026)
     });
     const alto = calcularAtualFii(entrada(7), SCORING_PARAMS_V1); // 42%
     expect(alto.flags).toContain('proventos_em_conferencia_dy_acima_teto');
-    expect(alto.dyIndice).toMatchObject({ estado: 'ausente', motivo: 'em_conferencia' });
+    expect(alto.m.dyPct).toEqual({ estado: 'ok', valor: 42 });
     const normal = calcularAtualFii(entrada(2), SCORING_PARAMS_V1); // 12%
     expect(normal.flags.some((f) => f.startsWith('proventos_em_conferencia'))).toBe(false);
-    expect(normal.dyIndice).toEqual({ estado: 'ok', valor: 12 });
+    expect(normal.m.dyPct).toEqual({ estado: 'ok', valor: 12 });
   });
 
   it('mesesInformePorAno conta meses distintos por ano', async () => {
     const { mesesInformePorAno } =
-      await import('@/services/analiseAtivos/calculo/recalcularScores');
+      await import('@/services/analiseAtivos/calculo/recalcularAtuais');
     expect(
       mesesInformePorAno([
         { refMonth: '2024-11-01' },
@@ -967,7 +906,7 @@ describe('trava de plausibilidade do DY 12m (diagnóstico DY absurdo 02/10/2026)
   });
 });
 
-describe('bloco C — motor de sanidade no job scores', () => {
+describe('bloco C — motor de sanidade no job derivados', () => {
   /** XPTO4 (referência da empresa X) com a base de cotação ×0,20 sem evento (o caso SBSP3). */
   function serieComSalto() {
     const dias = ['2026-04-24', '2026-04-27', '2026-04-28', '2026-04-29', '2026-04-30'];
@@ -985,22 +924,22 @@ describe('bloco C — motor de sanidade no job scores', () => {
 
   it('REGRESSÃO v1: nada do motor é lido e as tabelas saem idênticas com dados que disparariam as regras', async () => {
     const a = fakePrisma();
-    await executarScores(ctxDe(a.prisma, '2026-09-27'), { tudo: true });
+    await executarDerivados(ctxDe(a.prisma, '2026-09-27'), { tudo: true });
     dados.series = new Map([['XPTO4', serieComSalto()]]);
     dados.liberacoes = new Set(['XPTO4|base_sem_evento|2026-04-29']);
     const b = fakePrisma();
-    const r = await executarScores(ctxDe(b.prisma, '2026-09-27'), { tudo: true });
+    const r = await executarDerivados(ctxDe(b.prisma, '2026-09-27'), { tudo: true });
     expect(serieRecenteCotacoes).not.toHaveBeenCalled();
     expect(simbolosComSaltoDePreco).not.toHaveBeenCalled();
     expect(conjuntoLiberacoes).not.toHaveBeenCalled();
-    for (const t of ['assetMultiplesCurrent', 'assetScore', 'assetMultiplesYearly']) {
+    for (const t of ['assetMultiplesCurrent', 'assetMultiplesYearly']) {
       expect(semTempo(b.tabelas[t])).toBe(semTempo(a.tabelas[t]));
     }
     expect(JSON.stringify(b.tabelas.assetMultiplesCurrent)).not.toMatch(/"(conf|rev|info):/);
-    expect((r.detalhes as { scores: { sanidade?: unknown } }).scores.sanidade).toBeUndefined();
+    expect((r.detalhes as { atuais: { sanidade?: unknown } }).atuais.sanidade).toBeUndefined();
   });
 
-  it('v2: preco_base na referência ⇒ flag no ticker, Índice da empresa em conferência, relatório e alerta', async () => {
+  it('v2: preco_base na referência ⇒ flag só no ticker, relatório (base = Quadro) e alerta', async () => {
     dados.series = new Map([['XPTO4', serieComSalto()]]);
     const { prisma, tabelas } = fakePrisma();
     const alertas: AlertaJob[] = [];
@@ -1009,33 +948,43 @@ describe('bloco C — motor de sanidade no job scores', () => {
       params: SCORING_PARAMS_V2,
       paramsVersion: 2,
     };
-    const r = await executarScores(ctx, { tudo: true });
+    const r = await executarDerivados(ctx, { tudo: true });
     expect(conjuntoLiberacoes).toHaveBeenCalledTimes(1);
     const x4 = tabelas.assetMultiplesCurrent.find((l) => l.symbol === 'XPTO4')!;
     expect(x4.flags).toContain('conf:preco_base:base_sem_evento@2026-04-29');
-    // escopo ticker: só a XPTO4 tem a flag, mas ela é a referência ⇒ a empresa toda fica incompleta
+    // escopo ticker: só a XPTO4 tem a flag (o Quadro decide a contaminação da empresa)
     expect(tabelas.assetMultiplesCurrent.find((l) => l.symbol === 'XPTO3')!.flags).not.toContain(
       'conf:preco_base:base_sem_evento@2026-04-29',
     );
-    for (const s of ['XPTO3', 'XPTO4']) {
-      const sc = tabelas.assetScore.find((l) => l.symbol === s)!;
-      expect(sc.incompleto).toBe(true);
-      expect(sc.motivosIncompleto).toEqual(
-        expect.arrayContaining(['div:em_conferencia', 'preco:em_conferencia']),
-      );
-    }
-    // a WEGE3 (outra empresa) não ganha conferência
     expect(
-      (tabelas.assetScore.find((l) => l.symbol === 'WEGE3')!.motivosIncompleto as string[]).filter(
-        (m) => m.endsWith(':em_conferencia'),
+      (tabelas.assetMultiplesCurrent.find((l) => l.symbol === 'WEGE3')!.flags as string[]).filter(
+        (f) => f.startsWith('conf:'),
       ),
     ).toEqual([]);
+    expect(tabelas.assetScore).toEqual([]);
     const san = (
       r.detalhes as {
-        scores: { sanidade: { regras: Array<{ regra: string; acao: number }>; totais: unknown } };
+        atuais: {
+          sanidade: {
+            regras: Array<{ regra: string; acao: number }>;
+            totais: unknown;
+            acimaDoLimite: Array<{ regra: string; classe: string; n: number; pct: number }>;
+          };
+        };
       }
-    ).scores.sanidade;
+    ).atuais.sanidade;
     expect(san.regras.find((x) => x.regra === 'conf:preco_base:base_sem_evento')?.acao).toBe(1);
+    // mesma base de antes (linhas que recebiam score): 3 ações com preço, 2 FIIs conferidos com preço
+    expect(san.totais).toEqual({ acao: 3, fii: 2 });
+    expect(san.acimaDoLimite).toEqual([
+      {
+        regra: 'conf:preco_base:base_sem_evento',
+        classe: 'acao',
+        n: 1,
+        pct: expect.closeTo(33.33, 2),
+      },
+    ]);
+    expect(Object.keys(san).sort()).toEqual(['acimaDoLimite', 'liberacoes', 'regras', 'totais']);
     expect(alertas.map((a) => a.codigo)).toContain('sanidade_regra_acima_limite');
   });
 
@@ -1044,7 +993,7 @@ describe('bloco C — motor de sanidade no job scores', () => {
     dados.liberacoes = new Set(['XPTO4|base_sem_evento|2026-04-29']);
     const { prisma, tabelas } = fakePrisma();
     const ctx = { ...ctxDe(prisma, '2026-09-27'), params: SCORING_PARAMS_V2, paramsVersion: 2 };
-    await executarScores(ctx, { tudo: true });
+    await executarDerivados(ctx, { tudo: true });
     const x4 = tabelas.assetMultiplesCurrent.find((l) => l.symbol === 'XPTO4')!;
     expect((x4.flags as string[]).filter((f) => f.startsWith('conf:'))).toEqual([]);
   });
@@ -1053,19 +1002,19 @@ describe('bloco C — motor de sanidade no job scores', () => {
     vi.mocked(ultimaExecucaoOkPorJob).mockResolvedValueOnce(
       new Map([['derivados', new Date('2026-09-26T10:10:00Z')]]),
     );
-    const empresas = (r: Awaited<ReturnType<typeof executarScores>>) =>
+    const empresas = (r: Awaited<ReturnType<typeof executarDerivados>>) =>
       (r.detalhes as { derivados: { empresas: number } }).derivados.empresas;
     const ctxV2 = () => ({
       ...ctxDe(fakePrisma().prisma, '2026-09-27'),
       params: SCORING_PARAMS_V2,
       paramsVersion: 2,
     });
-    const sem = empresas(await executarScores(ctxV2()));
+    const sem = empresas(await executarDerivados(ctxV2()));
     vi.mocked(ultimaExecucaoOkPorJob).mockResolvedValueOnce(
       new Map([['derivados', new Date('2026-09-26T10:10:00Z')]]),
     );
     dados.liberadosDesde = ['XPTO4'];
-    const com = empresas(await executarScores(ctxV2()));
+    const com = empresas(await executarDerivados(ctxV2()));
     expect(simbolosLiberadosDesde).toHaveBeenCalled();
     expect(com).toBe(sem + 1);
 
@@ -1074,7 +1023,7 @@ describe('bloco C — motor de sanidade no job scores', () => {
     vi.mocked(ultimaExecucaoOkPorJob).mockResolvedValueOnce(
       new Map([['derivados', new Date('2026-09-26T10:10:00Z')]]),
     );
-    expect(empresas(await executarScores(ctxDe(fakePrisma().prisma, '2026-09-27')))).toBe(sem);
+    expect(empresas(await executarDerivados(ctxDe(fakePrisma().prisma, '2026-09-27')))).toBe(sem);
     expect(simbolosLiberadosDesde).not.toHaveBeenCalled();
   });
 });

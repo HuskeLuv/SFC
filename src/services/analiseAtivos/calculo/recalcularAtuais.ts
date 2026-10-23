@@ -1,13 +1,15 @@
 /**
- * Etapas 4–6 do job scores: múltiplos atuais de todo o universo (AssetMultiplesCurrent), Índice MF +
- * semáforo (AssetScore) e retenção de asset_scores.
+ * Etapa 'atuais' do job derivados (ex-'scores'): múltiplos atuais de todo o universo
+ * (AssetMultiplesCurrent), o motor de sanidade do bloco C sobre eles e os alertas
+ * sanidade_regra_acima_limite e proventos_defasados.
  *
- * - dataRef = último pregão com cotação (max AssetQuoteResumo.ultimoPregao), nunca o dia do run: runs
- *   de sábado/domingo regravam a mesma chave (symbol, dataRef).
- * - Ações (decisão 13): Índice POR EMPRESA, calculado no ticker de referência (maior volume médio de
- *   21 pregões) e replicado aos demais; DY e P/L por ticker ficam em AssetMultiplesCurrent.
- * - FIIs: régua = FiiMonthly.reguaVigente (fatia B); FoF e PL ≤ 0 fora do Índice; ticker não conferido
- *   no FiiTickerMap não recebe score (params.fii.exigirTickerConferido) e entra na contagem do run.
+ * D6-a (23/10/2026): o Índice MF, o semáforo e a régua saíram do pipeline — nada disso aparecia em
+ * API/tela desde a v2.4. asset_scores não é mais gravado (a tabela fica até a D6-b); o Quadro deriva
+ * régua, tipo, motivos de conferência e versão dos derivados.
+ *
+ * - dataRef = último pregão com cotação (max AssetQuoteResumo.ultimoPregao), nunca o dia do run.
+ * - Relatório de sanidade: a base do percentual são as linhas do Quadro — ações com cotação e FIIs
+ *   com cotação e (conferido no FiiTickerMap || !params.fii.exigirTickerConferido).
  * - fundamentei-regras (F2, A4.a/A4.b): com a scoring v3, payout do dia = proventos pagos na DFC TTM ÷
  *   lucro TTM (payout.regra 'dfc'; lucro ≤ 0 = ausente 'prejuizo') e DY 12m de ações pela data-ex
  *   (proventos.baseJanelaDy 'ex', em rendimento12m). v1/v2 = como antes.
@@ -15,9 +17,7 @@
 import type { Prisma } from '@prisma/client';
 import type { EventoComCnpj } from '@/services/analiseAtivos/calculo/recalcularEventos';
 import {
-  aplicarRetencaoScores,
   gravarMultiplosAtuais,
-  gravarScores,
   lerDpaAnualGravado,
   lerPlAnualGravado,
   type DpaAnualGravado,
@@ -34,14 +34,6 @@ import {
   type DadosBase,
   type FiiMesEnxuto,
 } from '@/services/analiseAtivos/calculo/universo';
-import {
-  calcularIndiceComParams,
-  componentesIndiceAcao,
-  componentesIndiceFii,
-  NOMES_COMPONENTES,
-  type ComponentesIndice,
-  type ResultadoIndiceCalc,
-} from '@/services/analiseAtivos/regras/calculo/indiceMf';
 import {
   achatarValores,
   multiplosAtuais,
@@ -65,26 +57,18 @@ import {
   contagemVigente,
 } from '@/services/analiseAtivos/regras/calculo/contagemVigente';
 import {
-  dyParaIndice,
   flagEmConferencia,
   motivoProventosEmConferencia,
-  PREFIXO_FLAG_EM_CONFERENCIA,
   saltoProventoRecente,
   type DpaAnual,
 } from '@/services/analiseAtivos/regras/calculo/plausibilidadeProventos';
 import {
-  aplicarConferenciaComponentes,
-  aplicarConferenciaSemaforo,
   chaveLiberacaoDe,
-  componentesEmConferencia,
-  conferenciasDaEmpresa,
   contarRegras,
   flagsDasDeteccoes,
   regrasAcimaDoLimite,
-  type ConferenciaAplicada,
   type ContagemRegra,
   type Deteccao,
-  type MetricaPorComponente,
 } from '@/services/analiseAtivos/regras/calculo/sanidade/aplicarConferencia';
 import { revisaoDpaDmpl } from '@/services/analiseAtivos/regras/calculo/sanidade/divergenciaFonte';
 import type { VacanciaLiberada } from '@/services/analiseAtivos/regras/fii/saneamentoVacancia';
@@ -106,11 +90,6 @@ import {
   type PregaoSerie,
 } from '@/services/analiseAtivos/regras/calculo/sanidade/precoBase';
 import { detectarPrecoEsporadico } from '@/services/analiseAtivos/regras/calculo/sanidade/precoEsporadico';
-import {
-  criteriosDaRegua,
-  semaforo,
-  type ResultadoSemaforo,
-} from '@/services/analiseAtivos/regras/calculo/semaforo';
 import {
   anosLucroConsecutivosDetalhado,
   lucroParaSequencia,
@@ -134,9 +113,6 @@ import type {
   FiiTrimestre,
   FundamentosPeriodo,
   JobContexto,
-  MotivoNaoSeAplica,
-  NomeComponente,
-  Regua,
   ResumoCotacao,
   ScoringParams,
   TickerAcao,
@@ -144,7 +120,7 @@ import type {
 } from '@/services/analiseAtivos/tipos';
 
 /** Último pregão com cotação (≤ hoje). Sem cotação nenhuma: pregão anterior a hoje. */
-export function dataRefScores(
+export function dataRefAtuais(
   resumos: Pick<ResumoCotacao, 'ultimoPregao'>[],
   hoje: string,
 ): string {
@@ -221,20 +197,6 @@ export function mesesInformePorAno(
   return Object.fromEntries([...porAno].map(([a, s]) => [a, s.size]));
 }
 
-function componentesJson(c: ComponentesIndice): Prisma.InputJsonValue {
-  const out: Record<string, Record<string, unknown>> = {};
-  for (const nome of NOMES_COMPONENTES) out[nome] = { ...c[nome] };
-  return out as Prisma.InputJsonValue;
-}
-
-function notaComponente(
-  r: ResultadoIndiceCalc,
-  nome: (typeof NOMES_COMPONENTES)[number],
-): number | null {
-  const c = r.componentes[nome];
-  return c.estado === 'nao_se_aplica' ? null : c.nota;
-}
-
 export interface EntradaAtualAcao {
   ticker: TickerAcao;
   resumo: ResumoCotacao;
@@ -293,19 +255,13 @@ function defasagemProventos(
 export interface CalculoAtualAcao {
   m: MultiplosCalculados & Partial<HistoricoPl>;
   anos: Valor<number>;
-  /** ano ausente que interrompeu a sequência de lucro (≠ prejuízo) ⇒ Índice incompleto */
-  anosLacuna?: number | null;
   lucroUltimoFy: Valor<number>;
   lpaTtm: Valor<number>;
   vpa: Valor<number>;
   dpa12m: Valor<number>;
   payoutPct: Valor<number>;
   plControladora: Valor<number>;
-  /** DY 12m que entra no Índice/semáforo (trava de plausibilidade aplicada) */
-  dyIndice?: Valor<number>;
   flags: string[];
-  /** bloco C: conferências ('conf:') que valem para o Índice da empresa (comConferenciasDaEmpresa) */
-  conferenciasIndice?: ConferenciaAplicada[];
 }
 
 /**
@@ -468,7 +424,7 @@ export function calcularAtualAcao(e: EntradaAtualAcao, p: ScoringParams): Calcul
   else payoutPct = ok((dpa12m.valor / lpa.valor) * 100);
   m.payoutPct = payoutPct;
   // trava de plausibilidade (regras/calculo/plausibilidadeProventos): DY acima do teto ou salto de
-  // provento recente ⇒ DY "em conferência", fora do Índice e do semáforo
+  // provento recente ⇒ DY "em conferência" (flag proventos_em_conferencia_*)
   const motivoConf = motivoProventosEmConferencia(
     {
       classe: 'acao',
@@ -513,195 +469,13 @@ export function calcularAtualAcao(e: EntradaAtualAcao, p: ScoringParams): Calcul
   return {
     m,
     anos,
-    anosLacuna: seq.lacuna,
     lucroUltimoFy: ultimoFy,
     lpaTtm: lpa,
     vpa: m.vpa ?? ausente('sem_dado_fonte'),
     dpa12m,
     payoutPct,
     plControladora: deNumero(fund?.plControladora ?? fund?.pl ?? null),
-    dyIndice: dyParaIndice(m.dyPct, motivoConf),
     flags: [...flags, ...m.flags],
-  };
-}
-
-/**
- * Trava de plausibilidade POR EMPRESA (conferência de prod 02/10/2026, CEEB5): o Índice é da empresa
- * (calculado no ticker de referência, decisão 13) e replicado a todos os tickers, mas o DY em
- * conferência é por ticker (preço e proventos próprios). CEEB5 tinha `dy_acima_teto` e o Índice da
- * COELBA, calculado no CEEB3, ficava 'calculado' — o Quadro mostrava o DY em conferência numa linha
- * com Índice completo. Regra: se QUALQUER ticker da empresa tem o DY em conferência, o DY da
- * referência entra no Índice/semáforo como ausente('em_conferencia') (motivo do primeiro ticker
- * marcado). DY da referência já ausente (fonte defasada, sem dado) fica como está. Função pura.
- */
-export function comConferenciaDaEmpresa(
-  ref: CalculoAtualAcao,
-  todos: Iterable<CalculoAtualAcao>,
-): CalculoAtualAcao {
-  const dyRef = ref.dyIndice ?? dyParaIndice(ref.m.dyPct, null);
-  if (dyRef.estado !== 'ok') return ref;
-  for (const c of todos) {
-    const flag = c.flags.find((f) => f.startsWith(PREFIXO_FLAG_EM_CONFERENCIA));
-    if (flag) {
-      return {
-        ...ref,
-        dyIndice: ausente('em_conferencia', flag.slice(PREFIXO_FLAG_EM_CONFERENCIA.length)),
-      };
-    }
-  }
-  return ref;
-}
-
-/**
- * Bloco C — escopo empresa × ticker (spec fatia A item 1): além da trava do DY (acima), as flags
- * 'conf:' de QUALQUER ticker da empresa valem para o Índice calculado na referência quando
- * `deveContaminarEmpresa` (grupo de escopo 'empresa', ou o próprio ticker de referência). preco_base e
- * preco_esporadico de uma PN ilíquida NÃO tiram o C_preço da ON. Sem flag 'conf:' (v1) ⇒ idêntico a
- * comConferenciaDaEmpresa. Função pura.
- */
-export function comConferenciasDaEmpresa(
-  refSymbol: string,
-  ref: CalculoAtualAcao,
-  todos: ReadonlyMap<string, CalculoAtualAcao>,
-): CalculoAtualAcao {
-  const base = comConferenciaDaEmpresa(ref, todos.values());
-  const conferencias = conferenciasDaEmpresa(
-    refSymbol,
-    [...todos].map(([s, c]) => [s, c.flags] as const),
-  );
-  return conferencias.length > 0 ? { ...base, conferenciasIndice: conferencias } : base;
-}
-
-/** Motivos de incompleto que scoreAcao acrescenta fora dos componentes. */
-const EXTRAS_ACAO = [
-  'acoes:salto_sem_evento',
-  'fundamentos:escala_ambigua',
-  'acoes:nao_verificavel',
-];
-
-function metricasDosComponentes(
-  cfg: Partial<Record<NomeComponente, { metrica?: string }>>,
-): MetricaPorComponente {
-  const out: MetricaPorComponente = {};
-  for (const nome of NOMES_COMPONENTES) {
-    const m = cfg[nome]?.metrica;
-    if (m) out[nome] = m;
-  }
-  return out;
-}
-
-function metricasDoSemaforo(regua: Regua, p: ScoringParams): Map<string, string> {
-  return new Map(criteriosDaRegua(regua, p).map((c) => [c.codigo, c.metrica]));
-}
-
-export interface ScoreCalculado {
-  regua: Regua;
-  indice: ResultadoIndiceCalc;
-  semaforo: ResultadoSemaforo;
-  fiiTipo: string | null;
-  motivosExtras: string[];
-  /** bloco C: componentes que o motor de sanidade pôs em conferência (relatório; não é gravado) */
-  emConferenciaBlocoC?: NomeComponente[];
-  /** bloco C (só com a conferência ligada): o Índice estaria completo sem as conferências do bloco C */
-  completoSemBlocoC?: boolean;
-}
-
-/** Componentes que mudaram de estado com a conferência (antes ≠ depois). */
-function componentesTrocados(
-  antes: ComponentesIndice,
-  depois: ComponentesIndice,
-): NomeComponente[] {
-  return NOMES_COMPONENTES.filter((n) => antes[n] !== depois[n]);
-}
-
-/** Função pura: Índice + semáforo de uma empresa a partir do ticker de referência. */
-export function scoreAcao(
-  c: CalculoAtualAcao,
-  ehFinanceira: boolean,
-  p: ScoringParams,
-): ScoreCalculado {
-  const regua: Regua = ehFinanceira ? 'acao_financeira' : 'acao';
-  const m = c.m;
-  const comps = componentesIndiceAcao(
-    {
-      anosLucroConsecutivos: c.anos,
-      lucroUltimoFy: c.lucroUltimoFy,
-      ehFinanceira,
-      dividaLiquida: m.dividaLiquida ?? ausente('sem_dado_fonte'),
-      ebitda: m.ebitda ?? ausente('sem_dado_fonte'),
-      roePct: m.roePct ?? ausente('sem_dado_fonte'),
-      plControladora: c.plControladora,
-      dy12mPct: c.dyIndice ?? dyParaIndice(m.dyPct, null),
-      plVsMedia10aPct: m.plVsMedia10aPct ?? ausente('historico_curto'),
-    },
-    p,
-  );
-  const conf = c.conferenciasIndice ?? [];
-  const afetados = componentesEmConferencia(
-    conf,
-    'acao',
-    metricasDosComponentes(p.acao.componentes),
-  );
-  const compsConf = aplicarConferenciaComponentes(comps, afetados);
-  const indice = calcularIndiceComParams(compsConf, regua, p);
-  const incompletoSemBlocoC =
-    afetados.size > 0 ? calcularIndiceComParams(comps, regua, p).incompleto : indice.incompleto;
-  if (c.flags.includes('salto_acoes_sem_evento')) {
-    indice.incompleto = true;
-    indice.motivosIncompleto = [...indice.motivosIncompleto, 'acoes:salto_sem_evento'];
-  }
-  if (c.flags.includes('escala_ambigua')) {
-    indice.incompleto = true;
-    indice.motivosIncompleto = [...indice.motivosIncompleto, 'fundamentos:escala_ambigua'];
-  }
-  if (c.flags.includes('acoes_nao_verificavel')) {
-    indice.incompleto = true;
-    indice.motivosIncompleto = [...indice.motivosIncompleto, 'acoes:nao_verificavel'];
-  }
-  if (c.anosLacuna != null) {
-    indice.incompleto = true;
-    indice.motivosIncompleto = [
-      ...indice.motivosIncompleto,
-      `lucro:serie_com_lacuna_${c.anosLacuna}`,
-    ];
-  }
-  const plNaoPositivo =
-    (m.pl?.estado === 'nao_se_aplica' && m.pl.motivo === 'base_nao_positiva') ||
-    (c.lucroUltimoFy.estado === 'ok' && c.lucroUltimoFy.valor <= 0);
-  const sem = semaforo(
-    {
-      metricas: {
-        anosLucroConsecutivos: c.anos,
-        divLiqEbitda: m.divLiqEbitda ?? ausente('sem_dado_fonte'),
-        roePct: m.roePct ?? ausente('sem_dado_fonte'),
-        plVsMedia10aPct: m.plVsMedia10aPct ?? ausente('historico_curto'),
-        dy12mPct: c.dyIndice ?? dyParaIndice(m.dyPct, null),
-      },
-      ehFinanceira,
-      dividaLiquida: m.dividaLiquida,
-      ebitda: m.ebitda,
-      plControladora: c.plControladora,
-      plNaoPositivo,
-    },
-    regua,
-    p,
-  );
-  return {
-    regua,
-    indice,
-    semaforo: aplicarConferenciaSemaforo(sem, conf, metricasDoSemaforo(regua, p)),
-    fiiTipo: null,
-    motivosExtras: [],
-    ...(conf.length > 0 ? { emConferenciaBlocoC: componentesTrocados(comps, compsConf) } : {}),
-    ...(p.sanidade.conferencia.ligada
-      ? {
-          completoSemBlocoC:
-            !incompletoSemBlocoC &&
-            !indice.motivosIncompleto.some(
-              (m) => EXTRAS_ACAO.includes(m) || m.startsWith('lucro:'),
-            ),
-        }
-      : {}),
   };
 }
 
@@ -733,11 +507,7 @@ export interface CalculoAtualFii {
   m: MultiplosCalculados;
   rend12m: Valor<number>;
   meses: Valor<number>;
-  /** DY 12m que entra no Índice/semáforo (trava de plausibilidade aplicada) */
-  dyIndice?: Valor<number>;
   flags: string[];
-  /** bloco C: conferências ('conf:') do próprio FII que valem para o Índice */
-  conferenciasIndice?: ConferenciaAplicada[];
 }
 
 /** Liberações da curadoria ('SYMBOL|regra|chave') → consulta (regra, chave) do saneamentoVacancia. */
@@ -847,147 +617,12 @@ export function calcularAtualFii(e: EntradaAtualFii, p: ScoringParams): CalculoA
     p,
   );
   if (motivoConf) flags.push(flagEmConferencia(motivoConf));
-  const out: CalculoAtualFii = {
-    m,
-    rend12m,
-    meses,
-    dyIndice: dyParaIndice(m.dyPct, motivoConf),
-    flags,
-  };
-  // bloco C (só v2): o FII é o próprio ticker — as conferências valem direto para o Índice
+  // bloco C (só v2): regras de sanidade do próprio FII — flags conf:/rev:/info:, salvo liberação
   if (p.sanidade.conferencia.ligada && e.sanidade) {
     const symbol = e.sanidade.symbol;
     flags.push(...flagsDasDeteccoes(symbol, deteccoesFii(e, m, p), e.sanidade.liberacoes));
-    const conf = conferenciasDaEmpresa(symbol, [[symbol, flags]]);
-    if (conf.length > 0) out.conferenciasIndice = conf;
   }
-  return out;
-}
-
-/** Régua do FII: reguaVigente da B; PL ≤ 0 ⇒ fora (regra 22); sem régua ⇒ tijolo + incompleto. */
-export function reguaDoFii(
-  mes: FiiMesEnxuto | null,
-  p: ScoringParams,
-): { regua: Regua; motivoFora: MotivoNaoSeAplica | null; motivosExtras: string[] } {
-  if (mes?.pl !== null && mes?.pl !== undefined && mes.pl <= 0) {
-    return { regua: 'fora_do_indice', motivoFora: 'base_nao_positiva', motivosExtras: [] };
-  }
-  const tipo = mes?.tipoVigente ?? null;
-  if (tipo === 'fof' || mes?.reguaVigente === 'fora_do_indice') {
-    return { regua: 'fora_do_indice', motivoFora: 'fof', motivosExtras: [] };
-  }
-  const extras: string[] = [];
-  if (tipo === 'indefinido' && p.fii.indefinido.marcarIncompleto) extras.push('tipo:indefinido');
-  if (mes?.reguaVigente === 'fii_tijolo' || mes?.reguaVigente === 'fii_papel') {
-    return { regua: mes.reguaVigente, motivoFora: null, motivosExtras: extras };
-  }
-  return {
-    regua: p.fii.indefinido.regua,
-    motivoFora: null,
-    motivosExtras: [...extras, 'regua:sem_informe'],
-  };
-}
-
-export function scoreFii(c: CalculoAtualFii, e: EntradaAtualFii, p: ScoringParams): ScoreCalculado {
-  const { regua, motivoFora, motivosExtras } = reguaDoFii(e.mesAtual, p);
-  const nCri = deNumero(e.trimestre?.nCri ?? null);
-  const maiorCri = deNumero(e.trimestre?.maiorCriPct ?? null);
-  const compsBrutos = componentesIndiceFii(
-    {
-      mesesComRendimento: c.meses,
-      obrigacoesPlPct: c.m.obrigacoesPlPct ?? ausente('sem_dado_fonte'),
-      vacanciaFisicaCvmPct: c.m.vacanciaFisicaCvmPct ?? ausente('sem_dado_fonte'),
-      dy12mPct: c.dyIndice ?? dyParaIndice(c.m.dyPct, null),
-      pvp: c.m.pvp ?? ausente('sem_dado_fonte'),
-      maiorCriPct: maiorCri,
-      nCri,
-    },
-    regua,
-    p,
-    motivoFora ?? 'fof',
-  );
-  const conf = regua === 'fii_tijolo' || regua === 'fii_papel' ? (c.conferenciasIndice ?? []) : [];
-  const cfgFii = regua === 'fii_papel' ? p.fii.papel.componentes : p.fii.tijolo.componentes;
-  const comps = aplicarConferenciaComponentes(
-    compsBrutos,
-    componentesEmConferencia(conf, 'fii', metricasDosComponentes(cfgFii)),
-  );
-  const indice = calcularIndiceComParams(comps, regua, p, motivoFora ?? 'fof');
-  const incompletoSemBlocoC =
-    comps !== compsBrutos
-      ? calcularIndiceComParams(compsBrutos, regua, p, motivoFora ?? 'fof').incompleto
-      : indice.incompleto;
-  if (motivosExtras.length > 0 && regua !== 'fora_do_indice') {
-    indice.incompleto = true;
-    indice.motivosIncompleto = [...indice.motivosIncompleto, ...motivosExtras];
-  }
-  const sem = semaforo(
-    {
-      metricas: {
-        dy12mPct: c.dyIndice ?? dyParaIndice(c.m.dyPct, null),
-        vacanciaFisicaCvmPct: c.m.vacanciaFisicaCvmPct ?? ausente('sem_dado_fonte'),
-        nImoveisCvm: c.m.nImoveisCvm ?? ausente('sem_dado_fonte'),
-        obrigacoesPlPct: c.m.obrigacoesPlPct ?? ausente('sem_dado_fonte'),
-        pvp: c.m.pvp ?? ausente('sem_dado_fonte'),
-        maiorCriPct: maiorCri,
-        nCri,
-      },
-    },
-    regua,
-    p,
-  );
-  return {
-    regua,
-    indice,
-    semaforo: aplicarConferenciaSemaforo(sem, conf, metricasDoSemaforo(regua, p)),
-    fiiTipo: e.mesAtual?.tipoVigente ?? null,
-    motivosExtras,
-    ...(conf.length > 0 ? { emConferenciaBlocoC: componentesTrocados(compsBrutos, comps) } : {}),
-    ...(p.sanidade.conferencia.ligada
-      ? {
-          completoSemBlocoC:
-            !incompletoSemBlocoC && !(motivosExtras.length > 0 && regua !== 'fora_do_indice'),
-        }
-      : {}),
-  };
-}
-
-function linhaScore(
-  base: {
-    symbol: string;
-    cnpj: string;
-    classe: 'acao' | 'fii';
-    dataRef: string;
-    tickerReferencia: string | null;
-  },
-  s: ScoreCalculado,
-  meta: { paramsVersion: number; agora: Date },
-): Prisma.AssetScoreCreateManyInput {
-  const r = s.indice;
-  return {
-    symbol: base.symbol,
-    cnpj: base.cnpj,
-    dataRef: deData(base.dataRef),
-    classe: base.classe,
-    regua: s.regua,
-    fiiTipo: s.fiiTipo,
-    tickerReferencia: base.tickerReferencia,
-    indiceMf: r.indice.estado === 'ok' ? r.indice.valor : null,
-    cLucro: notaComponente(r, 'lucro'),
-    cDivida: notaComponente(r, 'divida'),
-    cRent: notaComponente(r, 'rent'),
-    cDiv: notaComponente(r, 'div'),
-    cPreco: notaComponente(r, 'preco'),
-    componentes: componentesJson(r.componentes),
-    pesosEfetivos: r.pesosEfetivos as Prisma.InputJsonValue,
-    checks: s.semaforo.checks as unknown as Prisma.InputJsonValue,
-    criteriosAplicaveis: s.semaforo.aplicaveis,
-    criteriosAtendidos: s.semaforo.atendidos,
-    incompleto: r.incompleto,
-    motivosIncompleto: r.motivosIncompleto,
-    paramsVersion: meta.paramsVersion,
-    computedAt: meta.agora,
-  };
+  return { m, rend12m, meses, flags };
 }
 
 function linhaAtual(
@@ -1051,20 +686,17 @@ function linhaAtual(
   };
 }
 
-export interface ResultadoScores {
+export interface ResultadoAtuais {
   dataRef: string;
   multiplosAtuais: number;
-  scores: number;
   gravadas: number;
-  retencao: { apagadas: number; datas: string[] };
   acoes: {
     tickers: number;
     comPreco: number;
     comFy: number;
     comFyEPreco: number;
-    comScore: number;
-    scoreDeFyEPreco: number;
-    incompletos: number;
+    /** tickers com cotação (linhas do Quadro) */
+    noQuadro: number;
   };
   fiis: {
     listados: number;
@@ -1072,13 +704,9 @@ export interface ResultadoScores {
     conferidosComPreco: number;
     fof: number;
     comInformeEPreco: number;
-    comScore: number;
-    incompletos: number;
+    /** FIIs com cotação e (conferido || !exigirTickerConferido) (linhas do Quadro) */
+    noQuadro: number;
   };
-  pctIncompleto: number;
-  coberturaAcoesPct: number | null;
-  coberturaFiisPct: number | null;
-  amostra: Array<Record<string, unknown>>;
   /** bloco C: relatório do motor de sanidade (só com sanidade.conferencia.ligada) */
   sanidade?: RelatorioSanidade;
 }
@@ -1086,16 +714,10 @@ export interface ResultadoScores {
 export interface RelatorioSanidade {
   /** símbolos por regra ('conf:<grupo>:<regra>' | 'rev:<regra>' | 'info:<codigo>') e classe */
   regras: ContagemRegra[];
-  /** linhas do Quadro (com score) por classe — base do percentual do alerta */
+  /** linhas do Quadro por classe — base do percentual do alerta */
   totais: { acao: number; fii: number };
   /** regras bloqueantes acima de alertaPctQuadro% do Quadro de uma classe */
   acimaDoLimite: Array<{ regra: string; classe: 'acao' | 'fii'; n: number; pct: number }>;
-  /** Índices (empresa/FII) com algum componente posto em conferência pelo bloco C */
-  indicesEmConferencia: { acao: number; fii: number };
-  /** Índices que estariam 'calculado' (completos) sem o bloco C */
-  calculadosSemBlocoC: { acao: number; fii: number };
-  /** desses, os que passam a incompletos por causa do bloco C (ações: ticker de referência) */
-  calculadosQueCaem: { acao: string[]; fii: string[] };
   /** liberações da curadoria lidas no run */
   liberacoes: number;
 }
@@ -1120,19 +742,19 @@ function fundamentosAtuais(recentes: FundamentosPeriodo[]): Map<string, Fundamen
   return out;
 }
 
-export async function recalcularScores(
+export async function recalcularAtuais(
   ctx: JobContexto,
   dados: DadosBase,
   memoria: MemoriaCalculo,
   plAnualFresco: Map<string, PlAnualPonto[]>,
-  opts: { gravar: boolean; retencao: boolean },
-): Promise<ResultadoScores> {
+  opts: { gravar: boolean },
+): Promise<ResultadoAtuais> {
   const p = ctx.params;
   const u = dados.universo;
   const meta = { paramsVersion: ctx.paramsVersion, agora: new Date() };
   const resumos = await resumoCotacoes(ctx.prisma);
   const resumoPor = new Map(resumos.map((r) => [r.symbol, r]));
-  const dataRef = dataRefScores(resumos, ctx.hoje);
+  const dataRef = dataRefAtuais(resumos, ctx.hoje);
   // frescor da base de proventos por classe (data-com mais recente do universo da classe)
   const ultimaDataComClasse = (symbols: string[]) =>
     ultimaDataCom(
@@ -1160,7 +782,7 @@ export async function recalcularScores(
   const liberacoes = memoria.liberacoes;
   const cfgConf = p.sanidade.conferencia;
   // só lê a série inteira de quem pode disparar R3 (pré-filtro do salto no banco) ou R4 com a mediana
-  // (FII esporádico): manter o job scores dentro de +20% de prazo
+  // (FII esporádico): manter o job derivados dentro de +20% de prazo
   const comSalto = conferenciaLigada
     ? await simbolosComSaltoDePreco(
         ctx.prisma,
@@ -1177,32 +799,20 @@ export async function recalcularScores(
     conferenciaLigada
       ? serieRecenteCotacoes(ctx.prisma, symbols.filter(precisaSerie), desdeSerie)
       : new Map<string, PregaoSerie[]>();
-  const indicesEmConferencia = { acao: 0, fii: 0 };
-  const calculadosSemBlocoC = { acao: 0, fii: 0 };
-  const calculadosQueCaem: Record<'acao' | 'fii', string[]> = { acao: [], fii: [] };
-  const contarIndiceEmConferencia = (classe: 'acao' | 'fii', s: ScoreCalculado, symbol: string) => {
-    if (!conferenciaLigada) return;
-    if ((s.emConferenciaBlocoC?.length ?? 0) > 0) indicesEmConferencia[classe]++;
-    if (s.completoSemBlocoC && s.indice.indice.estado === 'ok') {
-      calculadosSemBlocoC[classe]++;
-      if (s.indice.incompleto) calculadosQueCaem[classe].push(symbol);
-    }
-  };
 
   const simbolosAcao = u.acoes.map((a) => a.symbol);
   const plGravado = await lerPlAnualGravado(ctx.prisma, simbolosAcao);
   for (const [s, l] of plAnualFresco) plGravado.set(s, l);
 
   const atuais: Prisma.AssetMultiplesCurrentCreateManyInput[] = [];
-  const scores: Prisma.AssetScoreCreateManyInput[] = [];
-  const res: ResultadoScores['acoes'] = {
+  /** linhas do Quadro (base do relatório de sanidade): o mesmo conjunto que recebia score */
+  const noQuadro = new Set<string>();
+  const res: ResultadoAtuais['acoes'] = {
     tickers: u.acoes.length,
     comPreco: 0,
     comFy: 0,
     comFyEPreco: 0,
-    comScore: 0,
-    scoreDeFyEPreco: 0,
-    incompletos: 0,
+    noQuadro: 0,
   };
 
   // Ações, por empresa, em LOTES de LOTE_FUND emissores: os fundamentos (FY completo para a
@@ -1258,7 +868,6 @@ export async function recalcularScores(
         comPreco.map((t) => [t.symbol, resumoPor.get(t.symbol)!.closeRaw]),
       );
       const emissor = u.emissores.get(cnpj);
-      const calculos = new Map<string, CalculoAtualAcao>();
       for (const t of comPreco) {
         const c = calcularAtualAcao(
           {
@@ -1284,7 +893,6 @@ export async function recalcularScores(
           p,
         );
         contarDefasado('acao', c.flags);
-        calculos.set(t.symbol, c);
         // F2: relatório antes × depois do recalcular-analise (só com o coletor no contexto)
         const coletor = (ctx as ContextoComColetor).coletorPayoutDy;
         if (coletor && (!coletor.simbolos || coletor.simbolos.has(t.symbol))) {
@@ -1311,45 +919,20 @@ export async function recalcularScores(
             meta,
           ),
         );
-      }
-      // decisão 13: índice por empresa no ticker de maior volume médio
-      const ref = [...comPreco].sort(
-        (a, b) =>
-          resumoPor.get(b.symbol)!.volumeMedio21 - resumoPor.get(a.symbol)!.volumeMedio21 ||
-          a.symbol.localeCompare(b.symbol),
-      )[0];
-      // DY em conferência em qualquer ticker ⇒ fora do Índice da empresa (Quadro e Índice concordam);
-      // bloco C: conferências 'conf:' com o escopo do grupo (empresa × ticker)
-      const s = scoreAcao(
-        comConferenciasDaEmpresa(ref.symbol, calculos.get(ref.symbol)!, calculos),
-        emissor?.ehFinanceira ?? false,
-        p,
-      );
-      contarIndiceEmConferencia('acao', s, ref.symbol);
-      for (const t of comPreco) {
-        scores.push(
-          linhaScore(
-            { symbol: t.symbol, cnpj, classe: 'acao', dataRef, tickerReferencia: ref.symbol },
-            s,
-            meta,
-          ),
-        );
-        res.comScore++;
-        if (temFy) res.scoreDeFyEPreco++;
-        if (s.indice.incompleto) res.incompletos++;
+        noQuadro.add(t.symbol);
+        res.noQuadro++;
       }
     }
   }
 
   // FIIs
-  const fiisRes: ResultadoScores['fiis'] = {
+  const fiisRes: ResultadoAtuais['fiis'] = {
     listados: u.fiis.length,
     naoConferidos: 0,
     conferidosComPreco: 0,
     fof: 0,
     comInformeEPreco: 0,
-    comScore: 0,
-    incompletos: 0,
+    noQuadro: 0,
   };
   const cnpjsFii = [...new Set(u.fiis.map((f) => f.cnpj))];
   // bloco C: a série trimestral inteira (vacância conferida contra ela, A4); sem ele, só o último
@@ -1408,9 +991,8 @@ export async function recalcularScores(
             : undefined,
         }
       : null;
-    let calc: CalculoAtualFii | null = null;
     if (entrada) {
-      calc = calcularAtualFii(entrada, p);
+      const calc = calcularAtualFii(entrada, p);
       contarDefasado('fii', calc.flags);
       atuais.push(
         linhaAtual(
@@ -1425,27 +1007,17 @@ export async function recalcularScores(
       fiisRes.naoConferidos++;
       continue;
     }
-    if (!entrada || !calc) continue;
+    if (!entrada) continue;
     fiisRes.conferidosComPreco++;
     const fora = mesAtual?.tipoVigente === 'fof' || mesAtual?.reguaVigente === 'fora_do_indice';
     if (fora) fiisRes.fof++;
     else if (mesAtual) fiisRes.comInformeEPreco++;
-    const s = scoreFii(calc, entrada, p);
-    contarIndiceEmConferencia('fii', s, f.symbol);
-    scores.push(
-      linhaScore(
-        { symbol: f.symbol, cnpj: f.cnpj, classe: 'fii', dataRef, tickerReferencia: null },
-        s,
-        meta,
-      ),
-    );
-    fiisRes.comScore++;
-    if (s.indice.incompleto) fiisRes.incompletos++;
+    noQuadro.add(f.symbol);
+    fiisRes.noQuadro++;
   }
 
   let sanidade: RelatorioSanidade | undefined;
   if (conferenciaLigada) {
-    const noQuadro = new Set(scores.map((x) => x.symbol));
     const regras = contarRegras(
       atuais
         .filter((a) => noQuadro.has(a.symbol))
@@ -1456,10 +1028,7 @@ export async function recalcularScores(
           flags: (a.flags as string[]) ?? [],
         })),
     );
-    const totais = {
-      acao: scores.filter((x) => x.classe === 'acao').length,
-      fii: scores.filter((x) => x.classe === 'fii').length,
-    };
+    const totais = { acao: res.noQuadro, fii: fiisRes.noQuadro };
     const acima = regrasAcimaDoLimite(regras, totais, p.sanidade.conferencia.alertaPctQuadro);
     for (const a of acima) {
       ctx.alertar({
@@ -1470,48 +1039,15 @@ export async function recalcularScores(
           `(${a.pct.toFixed(1)}% do Quadro; limite ${p.sanidade.conferencia.alertaPctQuadro}%)`,
       });
     }
-    sanidade = {
-      regras,
-      totais,
-      acimaDoLimite: acima,
-      indicesEmConferencia,
-      calculadosSemBlocoC,
-      calculadosQueCaem,
-      liberacoes: liberacoes?.size ?? 0,
-    };
+    sanidade = { regras, totais, acimaDoLimite: acima, liberacoes: liberacoes?.size ?? 0 };
   }
 
   let gravadas = 0;
-  let retencao = { apagadas: 0, datas: [] as string[] };
   if (opts.gravar && ctx.aplicar) {
     gravadas += await gravarMultiplosAtuais(ctx.prisma, atuais);
-    gravadas += await gravarScores(ctx.prisma, dataRef, scores);
-    if (opts.retencao) retencao = await aplicarRetencaoScores(ctx.prisma, ctx.hoje);
     ctx.contar('linhasGravadas', gravadas);
   }
 
-  const totalScores = scores.length;
-  const incompletos = res.incompletos + fiisRes.incompletos;
-  const coberturaAcoesPct =
-    res.comFyEPreco > 0 ? (res.scoreDeFyEPreco / res.comFyEPreco) * 100 : null;
-  const fiisElegiveis = fiisRes.comInformeEPreco;
-  const fiisComScoreElegiveis = scores.filter(
-    (s) => s.classe === 'fii' && s.regua !== 'fora_do_indice' && s.indiceMf !== null,
-  ).length;
-  const coberturaFiisPct =
-    fiisElegiveis > 0 ? Math.min(100, (fiisComScoreElegiveis / fiisElegiveis) * 100) : null;
-  for (const [rotulo, pct] of [
-    ['ações', coberturaAcoesPct],
-    ['FIIs', coberturaFiisPct],
-  ] as const) {
-    if (pct !== null && pct < 95) {
-      ctx.alertar({
-        codigo: 'cobertura_scores',
-        nivel: 'aviso',
-        mensagem: `cobertura de scores de ${rotulo} ${pct.toFixed(1)}% (< 95%)`,
-      });
-    }
-  }
   for (const [classe, rotulo, ultima] of [
     ['acao', 'ações', ultimaDataComAcoes],
     ['fii', 'FIIs', ultimaDataComFiis],
@@ -1530,23 +1066,9 @@ export async function recalcularScores(
   return {
     dataRef,
     multiplosAtuais: atuais.length,
-    scores: totalScores,
     gravadas,
-    retencao,
     acoes: res,
     fiis: fiisRes,
-    pctIncompleto: totalScores > 0 ? (incompletos / totalScores) * 100 : 0,
-    coberturaAcoesPct,
-    coberturaFiisPct,
-    amostra: scores.slice(0, 5).map((s) => ({
-      symbol: s.symbol,
-      regua: s.regua,
-      indiceMf: s.indiceMf,
-      componentes: [s.cLucro, s.cDivida, s.cRent, s.cDiv, s.cPreco],
-      criterios: `${s.criteriosAtendidos} de ${s.criteriosAplicaveis}`,
-      incompleto: s.incompleto,
-      motivos: s.motivosIncompleto,
-    })),
     ...(sanidade ? { sanidade } : {}),
   };
 }

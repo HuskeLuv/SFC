@@ -3,7 +3,7 @@ import { NextRequest } from 'next/server';
 
 const mocks = vi.hoisted(() => ({
   executarJobAnalise: vi.fn(),
-  executarScores: vi.fn(),
+  executarDerivados: vi.fn(),
 }));
 
 vi.mock('@/services/analiseAtivos/jobs/executarJob', async () => {
@@ -14,8 +14,8 @@ vi.mock('@/services/analiseAtivos/jobs/executarJob', async () => {
       NextResponse.json(r, { status: r.status === 'falha' ? 500 : 200 }),
   };
 });
-vi.mock('@/services/analiseAtivos/calculo/executarScores', () => ({
-  executarScores: mocks.executarScores,
+vi.mock('@/services/analiseAtivos/calculo/executarDerivados', () => ({
+  executarDerivados: mocks.executarDerivados,
 }));
 
 import { GET as GET_DERIVADOS } from '../../derivados/route';
@@ -75,7 +75,7 @@ describe('GET /api/cron/analise-ativos/scores (alias do derivados, D6-a)', () =>
     expect(mocks.executarJobAnalise).toHaveBeenCalledWith('derivados', expect.any(Function), {
       prazoMs: 240_000,
     });
-    expect(mocks.executarScores).toHaveBeenCalledWith({ ctx: true });
+    expect(mocks.executarDerivados).toHaveBeenCalledWith({ ctx: true });
     expect((await r.json()).status).toBe('ok');
   });
 

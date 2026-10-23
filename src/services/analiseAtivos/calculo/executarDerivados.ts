@@ -1,6 +1,8 @@
 /**
- * Job "derivados" (ex-"scores") da Análise de Ativos (fatia D) — diário 10:10 UTC, só banco.
- * Alias: CATALOGO_JOBS.scores é o MESMO job (nome 'derivados' em AnaliseJobRun, mesmo lock).
+ * Job "derivados" da Análise de Ativos (ex-"scores", fatia D) — diário 10:10 UTC, só banco.
+ *
+ * Alias: o cron de produção ainda chama /api/cron/analise-ativos/scores e `myfinance-job.sh scores`;
+ * CATALOGO_JOBS.scores é o MESMO job (nome 'derivados' em AnaliseJobRun, mesmo lock).
  *
  * Etapas (cada uma checa ctx.estourouPrazo()):
  *  1. eventos corporativos: verificação de todo o universo (a auditoria de proventos usa os eventos
@@ -8,20 +10,20 @@
  *  2. auditoria COMPLETA de proventos com reescrita por impressão digital (sem incremental);
  *  3. per-share e múltiplos anuais dos emissores/FIIs alterados desde o último run OK (ou de todos),
  *     mais os emissores com liberação nova da curadoria (v2: refaz conf:historico do ano liberado);
- *  4. múltiplos atuais do universo inteiro (preço de AssetQuoteResumo; TTM da fatia A);
- *  5. Índice MF + semáforo (ScoringParams ativo), dataRef = último pregão;
- *  6. retenção de asset_scores.
- * Bloco C (só com ScoringParams.sanidade.conferencia.ligada — v2): o motor de sanidade
- * (regras/calculo/sanidade) roda dentro de 3 (ponto histórico fora de escala) e de 4–5 (demais grupos),
+ *  4. 'atuais': múltiplos atuais do universo inteiro (preço de AssetQuoteResumo; TTM da fatia A).
+ * D6-a (23/10/2026): o Índice MF, o semáforo e a retenção de asset_scores saíram; a etapa 'scores'
+ * continua aceita como alias de 'atuais' (comandos do RUNBOOK e de produção), com aviso.
+ * Bloco C (só com ScoringParams.sanidade.conferencia.ligada — v2+): o motor de sanidade
+ * (regras/calculo/sanidade) roda dentro de 3 (ponto histórico fora de escala) e de 4 (demais grupos),
  * com as liberações da curadoria lidas UMA vez aqui; o relatório por regra sai em
- * detalhes.scores.sanidade e regra bloqueante acima de alertaPctQuadro% do Quadro gera alerta 'aviso'.
+ * detalhes.atuais.sanidade e regra bloqueante acima de alertaPctQuadro% do Quadro gera alerta 'aviso'.
  * Eventos e proventos são sempre recalculados em memória (baratos); a etapa só decide se GRAVA.
  */
 import type { PlAnualPonto } from '@/services/analiseAtivos/calculo/gravarDerivados';
+import { recalcularAtuais } from '@/services/analiseAtivos/calculo/recalcularAtuais';
 import { recalcularDerivados } from '@/services/analiseAtivos/calculo/recalcularDerivados';
 import { recalcularEventos } from '@/services/analiseAtivos/calculo/recalcularEventos';
 import { recalcularProventos } from '@/services/analiseAtivos/calculo/recalcularProventos';
-import { recalcularScores } from '@/services/analiseAtivos/calculo/recalcularScores';
 import { carregarDadosBase } from '@/services/analiseAtivos/calculo/universo';
 import { emissoresAlteradosDesde } from '@/services/analiseAtivos/repositorio/acoes';
 import { fiisAlteradosDesde } from '@/services/analiseAtivos/repositorio/fii';
@@ -32,16 +34,40 @@ import {
 import { ultimaExecucaoOkPorJob } from '@/services/analiseAtivos/repositorio/jobs';
 import type { JobContexto, ResultadoJob } from '@/services/analiseAtivos/tipos';
 
-export const ETAPAS = ['proventos', 'eventos', 'derivados', 'scores'] as const;
+export const ETAPAS = ['proventos', 'eventos', 'derivados', 'atuais'] as const;
 export type Etapa = (typeof ETAPAS)[number];
+/** Nomes antigos aceitos nas opções (D6-a): 'scores' = 'atuais'. */
+export const ALIASES_ETAPA: Readonly<Record<string, Etapa>> = { scores: 'atuais' };
 
-export interface OpcoesScores {
-  etapas?: readonly Etapa[];
+/**
+ * Normaliza a lista de etapas: alias 'scores' vira 'atuais' com aviso no console; etapa
+ * desconhecida lança. Sem duplicatas, na ordem pedida.
+ */
+export function normalizarEtapas(etapas: readonly string[]): Etapa[] {
+  const out: Etapa[] = [];
+  for (const bruto of etapas) {
+    const e = bruto.trim();
+    let etapa: Etapa;
+    if ((ETAPAS as readonly string[]).includes(e)) etapa = e as Etapa;
+    else if (ALIASES_ETAPA[e]) {
+      etapa = ALIASES_ETAPA[e];
+      console.warn(
+        `[analise-ativos] etapa '${e}' é alias de '${etapa}' (D6-a: o Índice MF saiu do job)`,
+      );
+    } else throw new Error(`etapa inválida: ${e} (válidas: ${ETAPAS.join(', ')})`);
+    if (!out.includes(etapa)) out.push(etapa);
+  }
+  return out;
+}
+
+export interface OpcoesDerivados {
+  /** etapas a rodar; 'scores' é aceito como alias de 'atuais' */
+  etapas?: readonly (Etapa | 'scores')[];
   /** recalcula per-share/múltiplos anuais de TODOS (padrão: só os alterados desde o último run OK) */
   tudo?: boolean;
   /** símbolos extras só para proventos/eventos (script de dev sem cadastro) */
   extras?: { acao?: string[]; fii?: string[] };
-  /** aplica a retenção de asset_scores (padrão: true) */
+  /** D6-a: sem efeito (a retenção de asset_scores saiu com o Índice); aceito por compatibilidade */
   retencao?: boolean;
 }
 
@@ -49,11 +75,11 @@ function mb(): number {
   return Math.round(process.memoryUsage().rss / 1024 / 1024);
 }
 
-export async function executarScores(
+export async function executarDerivados(
   ctx: JobContexto,
-  opts: OpcoesScores = {},
+  opts: OpcoesDerivados = {},
 ): Promise<ResultadoJob> {
-  const etapas = new Set<Etapa>(opts.etapas ?? ETAPAS);
+  const etapas = new Set<Etapa>(normalizarEtapas(opts.etapas ?? ETAPAS));
   const inicio = Date.now();
   const tempos: Record<string, number> = {};
   const marca = (nome: string, desde: number) => {
@@ -186,16 +212,13 @@ export async function executarScores(
     if (ctx.estourouPrazo()) return { parcial: true, detalhes };
   }
 
-  // 4–6. múltiplos atuais, scores e retenção
-  if (etapas.has('scores')) {
+  // 4. múltiplos atuais (+ sanidade do bloco C)
+  if (etapas.has('atuais')) {
     t = Date.now();
-    const sc = await recalcularScores(ctx, dados, memoria, plAnual, {
-      gravar: true,
-      retencao: opts.retencao ?? true,
-    });
-    marca('scores', t);
-    rss.scores = mb();
-    detalhes.scores = sc;
+    const at = await recalcularAtuais(ctx, dados, memoria, plAnual, { gravar: true });
+    marca('atuais', t);
+    rss.atuais = mb();
+    detalhes.atuais = at;
   }
   tempos.total = Date.now() - inicio;
   return { detalhes };

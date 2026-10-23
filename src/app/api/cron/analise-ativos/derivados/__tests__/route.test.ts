@@ -3,7 +3,7 @@ import { NextRequest } from 'next/server';
 
 const mocks = vi.hoisted(() => ({
   executarJobAnalise: vi.fn(),
-  executarScores: vi.fn(),
+  executarDerivados: vi.fn(),
 }));
 
 vi.mock('@/services/analiseAtivos/jobs/executarJob', async () => {
@@ -14,8 +14,8 @@ vi.mock('@/services/analiseAtivos/jobs/executarJob', async () => {
       NextResponse.json(r, { status: r.status === 'falha' ? 500 : 200 }),
   };
 });
-vi.mock('@/services/analiseAtivos/calculo/executarScores', () => ({
-  executarScores: mocks.executarScores,
+vi.mock('@/services/analiseAtivos/calculo/executarDerivados', () => ({
+  executarDerivados: mocks.executarDerivados,
 }));
 
 import { GET } from '../route';
@@ -56,7 +56,7 @@ describe('GET /api/cron/analise-ativos/derivados', () => {
     expect(mocks.executarJobAnalise).not.toHaveBeenCalled();
   });
 
-  it('roda o job "derivados" com executarScores e devolve 200', async () => {
+  it('roda o job "derivados" com executarDerivados e devolve 200', async () => {
     mocks.executarJobAnalise.mockImplementation(
       async (job: string, fn: (ctx: unknown) => unknown) => {
         await fn({ ctx: true });
@@ -68,7 +68,7 @@ describe('GET /api/cron/analise-ativos/derivados', () => {
     expect(mocks.executarJobAnalise).toHaveBeenCalledWith('derivados', expect.any(Function), {
       prazoMs: 240_000,
     });
-    expect(mocks.executarScores).toHaveBeenCalledWith({ ctx: true });
+    expect(mocks.executarDerivados).toHaveBeenCalledWith({ ctx: true });
     expect((await r.json()).status).toBe('ok');
   });
 

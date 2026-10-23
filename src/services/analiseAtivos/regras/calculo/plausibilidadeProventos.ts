@@ -21,14 +21,12 @@
  *    (proventos.temSomaSuspeitaNaJanela: VIVT3, CMIG4, RADL3, HYPE3 em prod 17/10/2026) — some
  *    quando o símbolo é regravado na chave nova (scripts/analise-ativos/limpar-proventos-somados.ts).
  *
- * Fórmula pública (consistente no Índice MF, semáforo, Quadro e página do ativo):
- *   C_div = ausente('em_conferencia') ⇒ nota 0 + selo "dados incompletos" com o motivo
- *   'div:em_conferencia' ("proventos em conferência"); o DY continua gravado em
- *   AssetMultiplesCurrent.dy12mPct e aparece como "em conferência" (flag
- *   'proventos_em_conferencia_<motivo>').
+ * Fórmula pública (consistente no Quadro e na página do ativo): o DY continua gravado em
+ *   AssetMultiplesCurrent.dy12mPct e aparece como "em conferência" pela flag
+ *   'proventos_em_conferencia_<motivo>' (o Quadro grava o motivo legado 'div:em_conferencia').
+ *   D6-a (23/10/2026): dyParaIndice (DY do Índice MF/semáforo) saiu com o Índice.
  */
 import { anosFechados, detectarSaltoProvento } from '@/services/analiseAtivos/leitura/ativo/series';
-import { ausente, ok } from '@/services/analiseAtivos/regras/comum/valor';
 import type { ScoringParams, Valor } from '@/services/analiseAtivos/tipos';
 
 export type MotivoProventosEmConferencia = 'dy_acima_teto' | 'salto_recente' | 'linha_suspeita';
@@ -135,14 +133,4 @@ export function motivoProventosEmConferencia(
   if (e.saltoRecente && e.dyPct.valor > 0) return 'salto_recente';
   if (e.linhaSuspeita && e.dyPct.valor > 0) return 'linha_suspeita';
   return null;
-}
-
-/** DY para o Índice/semáforo: em conferência ⇒ ausente('em_conferencia'); senão o próprio DY. */
-export function dyParaIndice(
-  dyPct: Valor<number> | undefined,
-  motivo: MotivoProventosEmConferencia | null,
-): Valor<number> {
-  if (!dyPct) return ausente('sem_dado_fonte');
-  if (motivo && dyPct.estado === 'ok') return ausente('em_conferencia', motivo);
-  return dyPct.estado === 'ok' ? ok(dyPct.valor) : dyPct;
 }

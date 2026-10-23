@@ -1,42 +1,33 @@
 /**
- * Motor de sanidade do bloco C (fatia A) — aplicação das conferências ao Índice MF e ao semáforo.
- * Funções puras, sem I/O.
+ * Motor de sanidade do bloco C (fatia A) — das detecções às flags. Funções puras, sem I/O.
  *
  * As regras (escalaAcoes, historicoEscala, precoBase, precoEsporadico, fii, fundamentosRevisao,
  * divergenciaFonte) devolvem DETECÇÕES; aqui elas viram flags ('conf:' / 'rev:' / 'info:', formato de
- * regras/comum/conferencia.ts), passam pelo filtro de liberações da curadoria e, quando bloqueantes,
- * trocam os componentes do grupo por ausente('em_conferencia') — a MESMA forma da trava do DY
- * (plausibilidadeProventos): nota 0, Índice incompleto, motivo '<comp>:em_conferencia'.
+ * regras/comum/conferencia.ts) gravadas em asset_multiples_current/yearly, passando pelo filtro de
+ * liberações da curadoria. Quem lê as flags (Quadro, página do ativo, curadoria) decide o efeito na
+ * tela ("em conferência").
  *
- * Regras de aplicação:
- *  - só os componentes de `componentesDoGrupo(grupo, classe)` cuja MÉTRICA (ScoringParams) depende do
- *    grupo mudam (ex.: fii_obrigacoes não toca o C_dívida do FII de papel, que é a concentração de
- *    CRI). 'zero_regra' (prejuízo, PL ≤ 0, EBITDA ≤ 0 com dívida) e 'nao_se_aplica' ficam como estão:
- *    zero é zero, e "não se aplica" redistribui o peso;
- *  - o grupo 'historico' NÃO usa este caminho: o ponto anual fora de escala sai da média de 10 anos
- *    (C_preço recalculado; < mínimo de pontos ⇒ historico_curto), regras_sanidade R2;
- *  - o grupo 'proventos' continua no caminho legado (dyIndice + PREFIXO_FLAG_EM_CONFERENCIA);
- *  - escopo empresa × ticker: `deveContaminarEmpresa` (uma PN com preço esporádico não tira o C_preço
- *    da ON de referência; acoes_escala na PN deixa a ON incompleta);
+ * D6-a (23/10/2026): a aplicação ao Índice MF e ao semáforo (componentesEmConferencia,
+ * aplicarConferenciaComponentes, aplicarConferenciaSemaforo, METRICAS_DO_GRUPO) saiu com o Índice.
+ *
+ * Regras:
+ *  - escopo empresa × ticker: `deveContaminarEmpresa` (uma PN com preço esporádico não contamina a ON
+ *    de referência; acoes_escala na PN contamina) — conferenciasDaEmpresa;
  *  - liberação (curadoria, decisão 15): a mesma (symbol, regra, chave) não marca de novo; chave nova
  *    marca.
  * Decisão 16: NÃO há conferência manual pelo curador nesta fase.
  */
 import {
-  componentesDoGrupo,
   formatarFlagConf,
   formatarFlagInfo,
   formatarFlagRev,
   deveContaminarEmpresa,
   flagsConf,
-  type ClasseConferencia,
   type GrupoConferencia,
   type InfoConferencia,
   type RegraRevisao,
 } from '@/services/analiseAtivos/regras/comum/conferencia';
-import type { ComponentesIndice } from '@/services/analiseAtivos/regras/calculo/indiceMf';
-import type { ResultadoSemaforo } from '@/services/analiseAtivos/regras/calculo/semaforo';
-import type { NomeComponente, ScoringParams } from '@/services/analiseAtivos/tipos';
+import type { ScoringParams } from '@/services/analiseAtivos/tipos';
 
 export type CfgConferencia = ScoringParams['sanidade']['conferencia'];
 
@@ -50,7 +41,7 @@ export interface DeteccaoConf {
   valor?: number;
 }
 
-/** Detecção só de revisão (vira 'rev:<regra>@<chave>'; nada muda na tela nem no Índice). */
+/** Detecção só de revisão (vira 'rev:<regra>@<chave>'; nada muda na tela). */
 export interface DeteccaoRev {
   tipo: 'rev';
   regra: RegraRevisao;
@@ -124,8 +115,8 @@ export interface ConferenciaAplicada {
 }
 
 /**
- * Conferências que valem para o Índice da empresa calculado no ticker de referência: toda flag 'conf:'
- * de qualquer ticker cujo grupo `deveContaminarEmpresa`. Sem repetição de grupo (o primeiro ticker
+ * Conferências que valem para a empresa vista pelo ticker de referência: toda flag 'conf:' de
+ * qualquer ticker cujo grupo `deveContaminarEmpresa`. Sem repetição de grupo (o primeiro ticker
  * marcado, na ordem recebida, dá a regra/chave). 'proventos' fica de fora (caminho legado).
  */
 export function conferenciasDaEmpresa(
@@ -150,98 +141,7 @@ export function conferenciasDaEmpresa(
 }
 
 // ===========================================================================
-// Índice e semáforo
-// ===========================================================================
-
-/**
- * Métricas (nomes de ScoringParams: componentes e semáforo) que dependem do dado de cada grupo. O
- * componente/critério só entra em conferência se a SUA métrica está aqui.
- */
-export const METRICAS_DO_GRUPO: Record<GrupoConferencia, readonly string[]> = {
-  proventos: ['dy12mPct'],
-  acoes_escala: ['plVsMedia10aPct', 'pvp', 'distanciaPvp1'],
-  preco_base: ['dy12mPct', 'plVsMedia10aPct', 'pvp', 'distanciaPvp1'],
-  preco_esporadico: ['dy12mPct', 'plVsMedia10aPct', 'pvp', 'distanciaPvp1'],
-  fundamentos_escala: ['divLiqEbitda', 'roePct', 'plVsMedia10aPct'],
-  // ponto anual: sai da média (não troca o componente)
-  historico: [],
-  fii_vp: ['pvp', 'distanciaPvp1'],
-  fii_obrigacoes: ['obrigacoesPlPct'],
-  fii_vacancia: ['vacanciaFisicaCvmPct'],
-};
-
-export type MetricaPorComponente = Partial<Record<NomeComponente, string>>;
-
-/** Componentes afetados por uma lista de grupos, com o motivo '<grupo>:<regra>' do primeiro. */
-export function componentesEmConferencia(
-  grupos: readonly Pick<ConferenciaAplicada, 'grupo' | 'regra'>[],
-  classe: ClasseConferencia,
-  metricaPorComponente: MetricaPorComponente,
-): Map<NomeComponente, string> {
-  const out = new Map<NomeComponente, string>();
-  for (const g of grupos) {
-    const metricas = METRICAS_DO_GRUPO[g.grupo];
-    for (const comp of componentesDoGrupo(g.grupo, classe)) {
-      const metrica = metricaPorComponente[comp];
-      if (!metrica || !metricas.includes(metrica) || out.has(comp)) continue;
-      out.set(comp, `${g.grupo}:${g.regra}`);
-    }
-  }
-  return out;
-}
-
-/**
- * Troca os componentes afetados por ausente('em_conferencia') (nota 0). Calculado e ausente viram
- * conferência; zero_regra e nao_se_aplica ficam. Devolve um objeto novo.
- */
-export function aplicarConferenciaComponentes(
-  comps: ComponentesIndice,
-  afetados: ReadonlyMap<NomeComponente, string>,
-): ComponentesIndice {
-  if (afetados.size === 0) return comps;
-  const out = { ...comps };
-  for (const comp of afetados.keys()) {
-    const c = out[comp];
-    if (c.estado === 'calculado' || c.estado === 'ausente') {
-      out[comp] = { estado: 'ausente', nota: 0, motivo: 'em_conferencia' };
-    }
-  }
-  return out;
-}
-
-/**
- * Critérios do semáforo cuja métrica depende de um grupo em conferência viram 'sem dado' com motivo
- * 'em_conferencia' (mesma regra do DY em conferência). 'nao_se_aplica' fica, e 'nao_atende' por regra
- * (valor null: PL ≤ 0, EBITDA ≤ 0 com dívida) também.
- */
-export function aplicarConferenciaSemaforo(
-  sem: ResultadoSemaforo,
-  grupos: readonly Pick<ConferenciaAplicada, 'grupo'>[],
-  metricaPorCriterio: ReadonlyMap<string, string>,
-): ResultadoSemaforo {
-  if (grupos.length === 0) return sem;
-  const metricas = new Set(grupos.flatMap((g) => METRICAS_DO_GRUPO[g.grupo]));
-  let mudou = false;
-  const checks = sem.checks.map((c) => {
-    const metrica = metricaPorCriterio.get(c.codigo);
-    if (!metrica || !metricas.has(metrica)) return c;
-    if (c.status === 'nao_se_aplica') return c;
-    if (c.status === 'nao_atende' && c.valor === null) return c;
-    if (c.status === 'sem_dado' && c.motivo === 'em_conferencia') return c;
-    mudou = true;
-    const novo = { ...c, status: 'sem_dado' as const, valor: null, motivo: 'em_conferencia' };
-    return novo;
-  });
-  if (!mudou) return sem;
-  return {
-    checks,
-    aplicaveis: checks.filter((c) => c.status !== 'nao_se_aplica').length,
-    atendidos: checks.filter((c) => c.status === 'atende').length,
-  };
-}
-
-// ===========================================================================
-// Relatório por regra (job scores e recalcular-analise --versao-params)
+// Relatório por regra (job derivados e recalcular-analise --versao-params)
 // ===========================================================================
 
 export type ClasseRegra = 'conferencia' | 'revisao' | 'info';

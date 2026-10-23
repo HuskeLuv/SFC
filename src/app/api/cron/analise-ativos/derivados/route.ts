@@ -1,7 +1,7 @@
 /**
  * Cron da Análise de Ativos (fatia D): proventos auditados, eventos verificados, per-share, múltiplos
  * anuais e atuais e o motor de sanidade do bloco C. Só banco. Ver
- * src/services/analiseAtivos/calculo/executarScores.ts. Ex-'scores' (D6-a, 23/10/2026: sem Índice
+ * src/services/analiseAtivos/calculo/executarDerivados.ts. Ex-'scores' (D6-a, 23/10/2026: sem Índice
  * MF nem semáforo); /api/cron/analise-ativos/scores continua como alias deste job.
  *
  * Job PESADO (catalogoJobs): em produção o cron diário roda em processo separado

@@ -1,10 +1,9 @@
 /**
  * Trava de plausibilidade do DY 12m (diagnóstico DY absurdo 02/10/2026): teto por classe, salto de
- * provento recente e o DY que entra no Índice MF.
+ * provento recente e as flags de tela.
  */
 import { describe, expect, it } from 'vitest';
 import {
-  dyParaIndice,
   ehFlagProventosEmConferencia,
   flagEmConferencia,
   motivoProventosEmConferencia,
@@ -125,20 +124,7 @@ describe('salto de provento recente', () => {
   });
 });
 
-describe('DY no Índice e flags de tela', () => {
-  it('em conferência ⇒ ausente(em_conferencia) com o motivo no detalhe; senão o próprio DY', () => {
-    expect(dyParaIndice(ok(34), 'dy_acima_teto')).toEqual({
-      estado: 'ausente',
-      motivo: 'em_conferencia',
-      detalhe: 'dy_acima_teto',
-    });
-    expect(dyParaIndice(ok(8), null)).toEqual({ estado: 'ok', valor: 8 });
-    expect(dyParaIndice(undefined, null)).toMatchObject({ estado: 'ausente' });
-    expect(dyParaIndice(ausente('fonte_defasada'), 'dy_acima_teto')).toMatchObject({
-      motivo: 'fonte_defasada',
-    });
-  });
-
+describe('flags de tela', () => {
   it('flags e motivos que põem os proventos em conferência na tela', () => {
     expect(flagEmConferencia('dy_acima_teto')).toBe('proventos_em_conferencia_dy_acima_teto');
     expect(ehFlagProventosEmConferencia('proventos_em_conferencia_salto_recente')).toBe(true);
