@@ -23,7 +23,7 @@ const base = {
 };
 
 describe('montarCorpoCompra — EUA', () => {
-  it('stock sem posição: STOCK-MANUAL, moeda USD, valor em R$ e estratégia', () => {
+  it('stock sem posição: STOCK-MANUAL, US$ + câmbio, sem valorInvestido, e estratégia', () => {
     expect(montarCorpoCompra({ ...base, classe: 'stock', assetId: null })).toEqual({
       tipoAtivo: 'stock',
       assetId: 'STOCK-MANUAL',
@@ -33,8 +33,6 @@ describe('montarCorpoCompra — EUA', () => {
       quantidade: 3,
       cotacaoUnitaria: 200,
       cotacaoMoeda: 5.5,
-      moeda: 'USD',
-      valorInvestido: 3300,
       taxaCorretagem: 0,
       estrategia: 'growth',
     });
@@ -51,7 +49,7 @@ describe('montarCorpoCompra — EUA', () => {
     expect(c).toMatchObject({ assetId: 'a-brkb', ativo: 'BRK.B', tipoAtivo: 'stock' });
   });
 
-  it('REIT sem posição: REIT-MANUAL, valor em US$ e estrategiaReit', () => {
+  it('REIT sem posição: REIT-MANUAL, US$ + câmbio e estrategiaReit', () => {
     expect(montarCorpoCompra({ ...base, classe: 'reit', ticker: 'o', assetId: null })).toEqual({
       tipoAtivo: 'reit',
       assetId: 'REIT-MANUAL',
@@ -61,7 +59,6 @@ describe('montarCorpoCompra — EUA', () => {
       quantidade: 3,
       cotacaoUnitaria: 200,
       cotacaoMoeda: 5.5,
-      valorInvestido: 600,
       taxaCorretagem: 0,
       estrategiaReit: 'growth',
     });
@@ -86,7 +83,7 @@ describe('montarCorpoCompra — EUA', () => {
 });
 
 describe('montarCorpoVenda — EUA', () => {
-  it('stock: preço na unidade da Carteira (US$ × câmbio) + cotacaoMoeda', () => {
+  it('stock: preço em US$ + cotacaoMoeda (a rota converte para a unidade da posição)', () => {
     expect(
       montarCorpoVenda({
         portfolioId: 'p-1',
@@ -101,7 +98,7 @@ describe('montarCorpoVenda — EUA', () => {
       dataResgate: '2026-10-16',
       metodoResgate: 'quantidade',
       quantidade: 1,
-      cotacaoUnitaria: 1134.54,
+      cotacaoUnitaria: 210.1,
       cotacaoMoeda: 5.4,
     });
   });
@@ -128,7 +125,7 @@ describe('montarCorpoVenda — EUA', () => {
 
 describe('preço, total e validação EUA', () => {
   it('precoNaCarteira e totalEmReais', () => {
-    expect(precoNaCarteira({ classe: 'stock', cotacao: 200, cambio: 5.5 })).toBe(1100);
+    expect(precoNaCarteira({ classe: 'stock', cotacao: 200, cambio: 5.5 })).toBe(200);
     expect(precoNaCarteira({ classe: 'reit', cotacao: 57, cambio: 5.5 })).toBe(57);
     expect(precoNaCarteira({ classe: 'acao', cotacao: 40 })).toBe(40);
     expect(totalEmReais({ classe: 'reit', quantidade: 2, cotacao: 50, cambio: 5 })).toBe(500);

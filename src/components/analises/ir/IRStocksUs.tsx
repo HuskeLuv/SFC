@@ -8,9 +8,37 @@ import { formatBRL, formatYearMonth } from './irFormatters';
 import { TABLE_STYLES, TABLE_HEADER_STYLE } from '@/components/ui/table/tableStyles';
 import { ResponsiveCardList } from '@/components/ui/table/ResponsiveTable';
 import { useIsBelowLg } from '@/hooks/useMediaQuery';
+import type { IRStocksUsResponse } from '@/hooks/useIR';
+
+/**
+ * Campos que a rota passou a devolver na Carteira EUA em US$ (out/2026): aviso fixo da regra
+ * anual (Lei 14.754, fase 2) e o rótulo dos meses cujo câmbio veio da série de mercado.
+ */
+type IRStocksUsDados = Omit<IRStocksUsResponse, 'meses'> & {
+  meses: Array<IRStocksUsResponse['meses'][number] & { cambioAproximado?: boolean }>;
+  aviso?: string;
+  rotuloCambioAproximado?: string;
+  operacoesSemCambio?: number;
+};
+
+const AVISO_PADRAO = 'Regra anual da Lei 14.754 em revisão; confira com seu contador.';
+const ROTULO_APROXIMADO_PADRAO = 'câmbio de mercado (aproximado)';
+
+/** Faixa de aviso na paleta My Finance (tom de estado selecionado; no escuro, bg-white/5). */
+function AvisoIR({ children }: { children: React.ReactNode }) {
+  return (
+    <p
+      role="note"
+      className="rounded-lg border border-[#DCE6F2] bg-[#EDF2F8] px-4 py-3 text-sm text-[#314666] dark:border-gray-700 dark:bg-white/5 dark:text-gray-300"
+    >
+      {children}
+    </p>
+  );
+}
 
 export default function IRStocksUs() {
-  const { data, isLoading, error } = useIRStocksUs();
+  const { data: resposta, isLoading, error } = useIRStocksUs();
+  const data = resposta as IRStocksUsDados | undefined;
   const isBelowLg = useIsBelowLg();
 
   if (isLoading) return <LoadingSpinner text="Carregando apuração de Stocks US..." />;
@@ -27,9 +55,14 @@ export default function IRStocksUs() {
       <IRStateMessage
         variant="empty"
         title="Sem operações de Stocks US ou REITs"
-        description="As operações precisam estar cadastradas com a cotação do dólar (cotacaoMoeda) usada no dia. BDRs seguem regras de Renda Variável BR."
+        description="Considera Stocks e REITs cadastrados em dólar. Operações sem a cotação do dólar usam o câmbio de mercado da data. BDRs seguem regras de Renda Variável BR."
       />
     );
+
+  const aviso = data.aviso ?? AVISO_PADRAO;
+  const rotuloAproximado = data.rotuloCambioAproximado ?? ROTULO_APROXIMADO_PADRAO;
+  const algumAproximado = data.meses.some((m) => m.cambioAproximado);
+  const semCambio = data.operacoesSemCambio ?? 0;
 
   const totalIR = data.meses.reduce((s, m) => s + m.irDevido, 0);
   const totalVendas = data.meses.reduce((s, m) => s + m.vendasTotalBrl, 0);
@@ -38,6 +71,13 @@ export default function IRStocksUs() {
 
   return (
     <div className="space-y-5">
+      <AvisoIR>
+        {aviso}
+        {algumAproximado &&
+          ` Meses marcados com * usam o ${rotuloAproximado} na data da operação, porque a cotação do dólar não foi gravada.`}
+        {semCambio > 0 &&
+          ` ${semCambio} operação(ões) sem câmbio disponível ficaram fora da apuração.`}
+      </AvisoIR>
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <IRSummaryCard
           label="IR devido sobre lucro"
@@ -48,7 +88,7 @@ export default function IRStocksUs() {
         <IRSummaryCard
           label="Total alienado em BRL"
           value={formatBRL(totalVendas)}
-          subtext="Vendas convertidas pelo PTAX-venda"
+          subtext="Vendas convertidas pelo câmbio da operação"
         />
         <IRSummaryCard
           label="Lucro/prejuízo total"
@@ -78,7 +118,13 @@ export default function IRStocksUs() {
               id: 'mes',
               header: 'Mês',
               mobile: 'primary',
-              cell: (m) => formatYearMonth(m.yearMonth),
+              cell: (m) => (
+                <MesComCambio
+                  yearMonth={m.yearMonth}
+                  aproximado={m.cambioAproximado}
+                  rotulo={rotuloAproximado}
+                />
+              ),
             },
             {
               id: 'status',
@@ -130,7 +176,11 @@ export default function IRStocksUs() {
                   <td
                     className={`${TABLE_STYLES.td} whitespace-nowrap font-medium text-gray-900 dark:text-white`}
                   >
-                    {formatYearMonth(m.yearMonth)}
+                    <MesComCambio
+                      yearMonth={m.yearMonth}
+                      aproximado={m.cambioAproximado}
+                      rotulo={rotuloAproximado}
+                    />
                   </td>
                   <td className={`${TABLE_STYLES.td} whitespace-nowrap text-right`}>
                     {formatBRL(m.vendasTotalBrl)}
@@ -175,6 +225,24 @@ export default function IRStocksUs() {
         </div>
       )}
     </div>
+  );
+}
+
+function MesComCambio({
+  yearMonth,
+  aproximado,
+  rotulo,
+}: {
+  yearMonth: string;
+  aproximado?: boolean;
+  rotulo: string;
+}) {
+  if (!aproximado) return <>{formatYearMonth(yearMonth)}</>;
+  return (
+    <span title={rotulo}>
+      {formatYearMonth(yearMonth)}
+      <span aria-label={rotulo}>*</span>
+    </span>
   );
 }
 

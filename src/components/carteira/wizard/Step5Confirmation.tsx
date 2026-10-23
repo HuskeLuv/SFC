@@ -2,15 +2,20 @@
 import React, { useEffect } from 'react';
 import PlanejamentoVinculoField from './shared/PlanejamentoVinculoField';
 import UsarCaixaField from './shared/UsarCaixaField';
-import { abaDaCompraEfetiva, valorDaCompraBRL } from './shared/caixaDaOperacao';
+import {
+  abaDaCompraEfetiva,
+  resumoCompraEmDolar,
+  valorDaCompraBRL,
+} from './shared/caixaDaOperacao';
 import { useCategoriaEfetivaAtivo } from '@/hooks/useCategoriaEfetivaAtivo';
 import {
   WizardFormData,
   TIPOS_ATIVO,
-  MOEDAS_FIXAS,
+  MOEDA_ATIVO_EUA_LABEL,
   RENDA_FIXA_TIPOS,
   RENDA_FIXA_TIPOS_HIBRIDOS,
 } from '@/types/wizard';
+import { formatBRL, formatUSD } from '@/utils/format';
 
 interface Step5ConfirmationProps {
   formData: WizardFormData;
@@ -39,11 +44,6 @@ export default function Step5Confirmation({
   const getTipoAtivoLabel = (value: string | number | Date | null | undefined) => {
     if (typeof value !== 'string') return '-';
     return TIPOS_ATIVO.find((t) => t.value === value)?.label || value;
-  };
-
-  const getMoedaLabel = (value: string | number | Date | null | undefined) => {
-    if (typeof value !== 'string') return '-';
-    return MOEDAS_FIXAS.find((m) => m.value === value)?.label || value;
   };
 
   const getRendaFixaTipoLabel = (
@@ -88,6 +88,47 @@ export default function Step5Confirmation({
               : value}
         </span>
       </div>
+    );
+  };
+
+  // Stock EUA/REIT (Carteira EUA em US$): total da posição em US$, corretagem em R$ à parte e o
+  // equivalente em R$ (o que sai do Caixa para Investir). A rota decide a unidade da gravação.
+  const formatCurrencyUSD = (value: string | number | Date | null | undefined) =>
+    typeof value === 'number' ? formatUSD(value) : '-';
+  const formatCotacaoDolar = (value: string | number | Date | null | undefined) =>
+    typeof value === 'number'
+      ? `R$ ${value.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 4 })}`
+      : '-';
+  const renderResumoEmDolar = () => {
+    const r = resumoCompraEmDolar(formData);
+    return (
+      <>
+        <div
+          data-total-usd=""
+          className="flex justify-between py-2 border-b border-gray-100 dark:border-gray-700"
+        >
+          <span className="text-sm font-medium text-gray-900 dark:text-white">
+            Total investido (US$):
+          </span>
+          <span className="text-sm font-semibold text-gray-900 dark:text-white">
+            {formatUSD(r.totalUsd)}
+          </span>
+        </div>
+        {renderFieldValue('Corretagem (R$)', r.corretagemBrl, formatCurrency)}
+        <div
+          data-equivale-brl=""
+          className="flex justify-between gap-3 py-2 border-b border-gray-100 dark:border-gray-700"
+        >
+          <span className="text-sm text-gray-600 dark:text-gray-400">Equivale a (R$):</span>
+          <span className="text-right text-sm font-medium text-gray-900 dark:text-white">
+            {formatBRL(r.equivaleBrl)}
+            <span className="block text-xs font-normal text-gray-500 dark:text-gray-400">
+              {formatUSD(r.totalUsd)} × {formatCotacaoDolar(r.cotacaoMoeda)}
+              {r.corretagemBrl > 0 ? ` + ${formatBRL(r.corretagemBrl)}` : ''}
+            </span>
+          </span>
+        </div>
+      </>
     );
   };
 
@@ -406,12 +447,6 @@ export default function Step5Confirmation({
         );
 
       case 'reit':
-        const formatCurrencyUSD = (value: string | number | Date | null | undefined) => {
-          if (typeof value !== 'number') return '-';
-          return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(
-            value,
-          );
-        };
         return (
           <>
             {renderFieldValue('REIT', formData.ativo)}
@@ -420,18 +455,15 @@ export default function Step5Confirmation({
               renderFieldValue('Tipo de Investimento', formData.estrategiaReit, (val) =>
                 val === 'value' ? 'Value' : val === 'growth' ? 'Growth' : 'Risk',
               )}
-            {renderFieldValue('Quantidade de Cotas', formData.quantidade)}
-            {renderFieldValue('Preço da Cota (USD)', formData.cotacaoUnitaria, formatCurrencyUSD)}
+            {renderFieldValue('Moeda', MOEDA_ATIVO_EUA_LABEL)}
             {renderFieldValue(
-              'Cotação do dólar no câmbio (R$)',
+              'Cotação do dólar no câmbio',
               formData.cotacaoMoeda,
-              formatCurrency,
+              formatCotacaoDolar,
             )}
-            {renderFieldValue(
-              'Total Investido (USD)',
-              (formData.quantidade || 0) * (formData.cotacaoUnitaria || 0),
-              formatCurrencyUSD,
-            )}
+            {renderFieldValue('Quantidade de Cotas', formData.quantidade)}
+            {renderFieldValue('Preço da Cota (US$)', formData.cotacaoUnitaria, formatCurrencyUSD)}
+            {renderResumoEmDolar()}
           </>
         );
 
@@ -471,19 +503,15 @@ export default function Step5Confirmation({
               renderFieldValue('Estratégia', formData.estrategia, (val) =>
                 val === 'value' ? 'Value' : val === 'growth' ? 'Growth' : 'Risk',
               )}
-            {renderFieldValue('Moeda', formData.moeda, getMoedaLabel)}
-            {renderFieldValue('Cotação da Moeda (R$)', formData.cotacaoMoeda, formatCurrency)}
-            {renderFieldValue('Quantidade', formData.quantidade)}
-            {renderFieldValue('Preço por Ação (moeda selecionada)', formData.cotacaoUnitaria)}
-            {renderFieldValue('Taxa de Corretagem', formData.taxaCorretagem, formatCurrency)}
+            {renderFieldValue('Moeda', MOEDA_ATIVO_EUA_LABEL)}
             {renderFieldValue(
-              'Total em R$',
-              (formData.quantidade || 0) *
-                (formData.cotacaoUnitaria || 0) *
-                (formData.cotacaoMoeda || 0) +
-                (formData.taxaCorretagem || 0),
-              formatCurrency,
+              'Cotação do dólar no dia da compra',
+              formData.cotacaoMoeda,
+              formatCotacaoDolar,
             )}
+            {renderFieldValue('Quantidade', formData.quantidade)}
+            {renderFieldValue('Preço por Ação (US$)', formData.cotacaoUnitaria, formatCurrencyUSD)}
+            {renderResumoEmDolar()}
           </>
         );
 

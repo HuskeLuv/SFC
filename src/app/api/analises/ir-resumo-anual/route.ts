@@ -7,10 +7,17 @@ import {
   type RvTransaction,
   type RendaVariavelCategory,
 } from '@/services/ir/rendaVariavelIR';
-import { apurarStocksUs, type UsTransaction } from '@/services/ir/stocksUsIR';
+import { apurarStocksUs, montarTransacoesUs } from '@/services/ir/stocksUsIR';
 import { apurarCripto, type CriptoTransaction } from '@/services/ir/criptoIR';
 import { withErrorHandler } from '@/utils/apiErrorHandler';
 import { isFundoType } from '@/lib/fundoTypes';
+import { isAtivoEmDolar, type AtivoMoedaRef } from '@/lib/ativoEmDolar';
+import {
+  ROTULO_FONTE_CAMBIO,
+  carregarSerieCambio,
+  cotacaoMoedaDasNotes,
+  type SerieCambio,
+} from '@/services/market/cambioUsdBrl';
 
 /**
  * Resumo anual consolidado de IR (Fase 6).
@@ -27,6 +34,11 @@ import { isFundoType } from '@/lib/fundoTypes';
  *    aba carteira diretamente.
  *  - NÃO gera arquivo da DAA — apenas retorna os números pra transcrição
  *    manual.
+ *
+ * Carteira EUA em US$ (out/2026): stocks/REITs em dólar (isAtivoEmDolar) entram só no
+ * ganho de capital em ME (preço pela unidade gravada, sem dupla conversão) e os proventos
+ * deles saem dos isentos BR para `rendimentos.exterior` (tributáveis), convertidos em R$
+ * pelo câmbio de mercado da data de pagamento. Sem câmbio, o provento fica fora da soma.
  */
 
 interface AnualResumo {
@@ -50,6 +62,13 @@ interface AnualResumo {
       jcp: number; // 15% IRRF na fonte (já líquido) — declarável separadamente
       total: number;
     };
+    /** Proventos de stocks/REITs EUA (tributáveis no Brasil, fora dos isentos), em R$. */
+    exterior: {
+      proventos: number;
+      total: number;
+      /** Proventos em US$ sem câmbio na data (fora da soma). */
+      semCambio: number;
+    };
     totalRecebido: number;
   };
   observacoes: string[];
@@ -61,33 +80,17 @@ const isB3StockTicker = (ticker: string): boolean =>
 
 function categorizeBR(
   ticker: string | null,
-  assetType: string | null,
+  asset: AtivoMoedaRef | null | undefined,
 ): RendaVariavelCategory | null {
   if (!ticker) return null;
+  // Stock/REIT em dólar é ganho de capital em ME (Fase 3), nunca renda variável BR.
+  if (isAtivoEmDolar(asset)) return null;
+  const assetType = asset?.type ?? null;
   const upper = ticker.toUpperCase();
   if (assetType === 'fii') return 'fii';
   if (assetType === 'stock' && isB3StockTicker(upper)) return 'acao_br';
   if (assetType === 'etf' && upper.endsWith('11')) return 'etf_br';
   return null;
-}
-
-interface StoredOperation {
-  moeda?: string | null;
-  cotacaoMoeda?: number | null;
-}
-
-function parseFx(notes: string | null): number | null {
-  if (!notes) return null;
-  try {
-    const parsed = JSON.parse(notes) as { operation?: StoredOperation };
-    const op = parsed.operation;
-    if (!op || (op.moeda && op.moeda.toUpperCase() !== 'USD')) return null;
-    return op.cotacaoMoeda && Number.isFinite(op.cotacaoMoeda) && op.cotacaoMoeda > 0
-      ? op.cotacaoMoeda
-      : null;
-  } catch {
-    return null;
-  }
 }
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
@@ -122,8 +125,7 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
   for (const tx of transactions) {
     if (tx.type !== 'compra' && tx.type !== 'venda') continue;
     const ticker = tx.asset?.symbol || null;
-    const assetType = tx.asset?.type ?? null;
-    const cat = categorizeBR(ticker, assetType);
+    const cat = categorizeBR(ticker, tx.asset);
     if (!cat) continue;
     rvTxs.push({
       date: tx.date,
@@ -140,25 +142,18 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     .filter((m) => m.year === year)
     .reduce((s, m) => s + m.irTotalDevido, 0);
 
-  // ---- Fase 3: Stocks US/REIT ----
-  const usTxs: UsTransaction[] = [];
-  for (const tx of transactions) {
-    if (tx.type !== 'compra' && tx.type !== 'venda') continue;
-    const t = tx.asset?.type;
-    if (t !== 'stock' && t !== 'reit') continue;
-    const fx = parseFx(tx.notes);
-    if (!fx) continue;
-    usTxs.push({
-      date: tx.date,
-      type: tx.type,
-      symbol: tx.asset?.symbol || 'UNKNOWN',
-      quantity: tx.quantity,
-      priceUsd: Number(tx.price),
-      fxRate: fx,
-      feesBrl: tx.fees ? Number(tx.fees) : 0,
-    });
-  }
-  const usApur = apurarStocksUs(usTxs);
+  // ---- Fase 3: Stocks US/REIT (só isAtivoEmDolar; preço pela unidade gravada) ----
+  // A série USD-BRL (fallback do câmbio das operações e câmbio dos proventos) só é
+  // carregada quando há ativo em dólar.
+  const temAtivoEmDolar =
+    transactions.some((tx) => isAtivoEmDolar(tx.asset)) ||
+    portfolio.some((p) => isAtivoEmDolar(p.asset));
+  const serie: SerieCambio | null = temAtivoEmDolar ? await carregarSerieCambio() : null;
+  const usMontagem = montarTransacoesUs(transactions, {
+    cotacaoGravada: cotacaoMoedaDasNotes,
+    serie,
+  });
+  const usApur = apurarStocksUs(usMontagem.transactions);
   const usAnual = usApur.meses.filter((m) => m.year === year).reduce((s, m) => s + m.irDevido, 0);
 
   // ---- Fase 4: Cripto ----
@@ -221,25 +216,53 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
   const yearEnd = new Date(year + 1, 0, 1).getTime() - 1;
 
   // BRAPI dividends por símbolo de ação/FII presente no portfolio
-  type ProventoSlot = { dividendoAcao: number; rendimentoFii: number; jcp: number };
-  const slots: ProventoSlot = { dividendoAcao: 0, rendimentoFii: 0, jcp: 0 };
-  // Após consolidação Stock → Asset: ações e FIIs são Asset com type='stock'/'fii'.
+  type ProventoSlot = {
+    dividendoAcao: number;
+    rendimentoFii: number;
+    jcp: number;
+    exterior: number;
+    exteriorSemCambio: number;
+  };
+  const slots: ProventoSlot = {
+    dividendoAcao: 0,
+    rendimentoFii: 0,
+    jcp: 0,
+    exterior: 0,
+    exteriorSemCambio: 0,
+  };
+  // Provento de ativo em dólar: valor nativo em US$ (mesma regra de moeda do contrato
+  // ProventoEvent.moeda) → R$ pelo câmbio da data de pagamento; sem câmbio, fora da soma.
+  const somarExterior = (valorUsd: number, dataPagamento: Date) => {
+    const taxa = serie?.(dataPagamento) ?? null;
+    if (taxa === null) {
+      slots.exteriorSemCambio += 1;
+      return;
+    }
+    slots.exterior += valorUsd * taxa;
+  };
+  // Após consolidação Stock → Asset: ações e FIIs são Asset com type='stock'/'fii';
+  // REIT só entra em dólar (linha Exterior).
   const portfolioStocks = portfolio.filter(
     (p) =>
-      (p.asset?.type === 'stock' || p.asset?.type === 'fii') &&
-      p.asset.symbol &&
-      !isBlocked(p.asset.symbol),
+      (p.asset?.type === 'stock' || p.asset?.type === 'fii' || isAtivoEmDolar(p.asset)) &&
+      p.asset?.symbol &&
+      !isBlocked(p.asset?.symbol ?? ''),
   );
   await Promise.all(
     portfolioStocks.map(async (p) => {
       const symbol = p.asset!.symbol;
       const isFii = p.asset!.type === 'fii';
+      const emDolar = isAtivoEmDolar(p.asset);
       const dividends = await getDividends(symbol);
       for (const d of dividends) {
         const ts = d.date.getTime();
         if (ts < yearStart || ts > yearEnd) continue;
         const valor = (p.quantity || 0) * d.valorUnitario;
         if (valor <= 0) continue;
+        if (emDolar) {
+          somarExterior(valor, d.date);
+          continue;
+        }
         const tipo = (d.tipo || '').toLowerCase();
         if (tipo.includes('jcp') || tipo.includes('juros')) slots.jcp += valor;
         else if (isFii) slots.rendimentoFii += valor;
@@ -247,10 +270,15 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
       }
     }),
   );
-  // Manuais: usa o tipo do PortfolioProvento
+  // Manuais: usa o tipo do PortfolioProvento (de ativo em dólar = US$, linha Exterior)
+  const portfolioById = new Map(portfolio.map((p) => [p.id, p]));
   for (const mp of manualProventos) {
     const ts = mp.dataPagamento.getTime();
     if (ts < yearStart || ts > yearEnd) continue;
+    if (isAtivoEmDolar(portfolioById.get(mp.portfolioId)?.asset)) {
+      somarExterior(mp.valorTotal, mp.dataPagamento);
+      continue;
+    }
     const tipo = (mp.tipo || '').toLowerCase();
     if (tipo.includes('jcp') || tipo.includes('juros')) slots.jcp += mp.valorTotal;
     else if (tipo.includes('rendimento') || tipo.includes('aluguel'))
@@ -260,7 +288,8 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
 
   const isentosTotal = round2(slots.dividendoAcao + slots.rendimentoFii);
   const exclusivaTotal = round2(slots.jcp);
-  const totalRecebido = round2(isentosTotal + exclusivaTotal);
+  const exteriorTotal = round2(slots.exterior);
+  const totalRecebido = round2(isentosTotal + exclusivaTotal + exteriorTotal);
 
   const observacoes: string[] = [];
   if (year !== currentYear) {
@@ -271,6 +300,23 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
   observacoes.push(
     'IR de renda fixa não recolhido manualmente — banco/corretora retém na fonte no resgate.',
   );
+  if (exteriorTotal > 0 || slots.exteriorSemCambio > 0) {
+    const fmt = (n: number) =>
+      n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 2 });
+    observacoes.push(
+      `Exterior (tributável): ${fmt(exteriorTotal)} em proventos de Stocks/REITs EUA, fora dos isentos — convertidos pelo ${ROTULO_FONTE_CAMBIO} da data de pagamento (aproximado). Regra anual da Lei 14.754 em revisão; confira com seu contador.`,
+    );
+  }
+  if (slots.exteriorSemCambio > 0) {
+    observacoes.push(
+      `${slots.exteriorSemCambio} provento(s) de Stocks/REITs EUA sem câmbio na data ficaram fora da soma.`,
+    );
+  }
+  if (usMontagem.comCambioAproximado > 0) {
+    observacoes.push(
+      `Stocks EUA: ${usMontagem.comCambioAproximado} operação(ões) sem cotação gravada usaram o ${ROTULO_FONTE_CAMBIO} da data (aproximado).`,
+    );
+  }
 
   const resumo: AnualResumo = {
     year,
@@ -292,6 +338,11 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
       tributacaoExclusiva: {
         jcp: round2(slots.jcp),
         total: exclusivaTotal,
+      },
+      exterior: {
+        proventos: exteriorTotal,
+        total: exteriorTotal,
+        semCambio: slots.exteriorSemCambio,
       },
       totalRecebido,
     },

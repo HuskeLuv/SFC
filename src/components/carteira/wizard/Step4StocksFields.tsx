@@ -1,9 +1,10 @@
 'use client';
-import React from 'react';
-import { MOEDAS_FIXAS } from '@/types/wizard';
+import React, { useEffect } from 'react';
+import { MOEDA_ATIVO_EUA, MOEDA_ATIVO_EUA_LABEL } from '@/types/wizard';
 import Label from '@/components/form/Label';
 import Input from '@/components/form/input/InputField';
 import Select from '@/components/form/Select';
+import { formatUSD } from '@/utils/format';
 import BusinessDayDatePicker from './shared/BusinessDayDatePicker';
 import ReinvestimentoToggle from './shared/ReinvestimentoToggle';
 import { Step4FieldsProps } from './step4Types';
@@ -18,6 +19,13 @@ export default function Step4StocksFields({
   decimalInputProps,
   integerInputProps,
 }: Step4FieldsProps) {
+  // Carteira EUA em US$: stock é sempre em dólar (antes havia USD/EUR/GBP/CAD/AUD).
+  useEffect(() => {
+    if (formData.moeda !== MOEDA_ATIVO_EUA) handleInputChange('moeda', MOEDA_ATIVO_EUA);
+  }, [formData.moeda, handleInputChange]);
+
+  const totalUsd = (formData.quantidade || 0) * (formData.cotacaoUnitaria || 0);
+
   return (
     <>
       <BusinessDayDatePicker
@@ -54,15 +62,18 @@ export default function Step4StocksFields({
         {errors.estrategia && <p className="mt-1 text-sm text-red-500">{errors.estrategia}</p>}
       </div>
       <div>
-        <Label htmlFor="moeda">Moeda *</Label>
-        <Select
-          options={MOEDAS_FIXAS}
-          placeholder="Selecione a moeda"
-          defaultValue={formData.moeda}
-          onChange={(value) => handleInputChange('moeda', value)}
-          className={errors.moeda ? 'border-red-500' : ''}
-        />
-        {errors.moeda && <p className="mt-1 text-sm text-red-500">{errors.moeda}</p>}
+        <Label htmlFor="moeda">Moeda</Label>
+        <div
+          id="moeda"
+          data-moeda-fixa=""
+          className="flex h-11 items-center justify-between rounded-lg border border-gray-200 bg-gray-50 px-4 text-sm text-gray-800 dark:border-gray-700 dark:bg-gray-800 dark:text-white/90"
+        >
+          <span>{MOEDA_ATIVO_EUA_LABEL}</span>
+          <span className="text-xs text-gray-500 dark:text-gray-400">fixo</span>
+        </div>
+        <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+          Stocks EUA são sempre registrados em dólar.
+        </p>
       </div>
       <div>
         <Label htmlFor="cotacaoMoeda">Cotação do dólar no dia da compra (R$) *</Label>
@@ -93,7 +104,7 @@ export default function Step4StocksFields({
         />
       </div>
       <div>
-        <Label htmlFor="cotacaoUnitaria">Preço por Ação (moeda selecionada) *</Label>
+        <Label htmlFor="cotacaoUnitaria">Preço por Ação (US$) *</Label>
         <Input
           id="cotacaoUnitaria"
           {...decimalInputProps}
@@ -117,6 +128,23 @@ export default function Step4StocksFields({
           min="0"
           step="0.01"
         />
+        <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+          Fica em reais e não entra no preço médio em US$.
+        </p>
+      </div>
+      <div>
+        <Label htmlFor="totalInvestidoUsd">Total Investido (US$)</Label>
+        <Input
+          id="totalInvestidoUsd"
+          type="text"
+          placeholder="Calculado automaticamente"
+          value={totalUsd > 0 ? formatUSD(totalUsd) : ''}
+          disabled
+          className="bg-gray-50 dark:bg-gray-800"
+        />
+        <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+          Calculado automaticamente: Quantidade × Preço por Ação (US$)
+        </p>
       </div>
       <ReinvestimentoToggle
         checked={!!formData.isReinvestimento}

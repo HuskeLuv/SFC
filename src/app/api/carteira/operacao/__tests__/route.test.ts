@@ -883,6 +883,7 @@ describe('POST /api/carteira/operacao', () => {
         symbol: 'AAPL',
         name: 'Apple',
         type: 'stock',
+        currency: 'USD',
       });
       const response = await POST(
         createRequest({
@@ -905,7 +906,15 @@ describe('POST /api/carteira/operacao', () => {
       expect(mockPrisma.portfolio.create).toHaveBeenCalled();
     });
 
-    it('retorna 400 quando moeda ausente para stock', async () => {
+    // Carteira EUA em US$: a moeda do stock é fixa (USD) — `moeda` deixou de ser obrigatória.
+    it('aceita stock sem o campo moeda (moeda fixa USD)', async () => {
+      mockPrisma.asset.findUnique.mockResolvedValueOnce({
+        id: 'asset-1',
+        symbol: 'AAPL',
+        name: 'Apple',
+        type: 'stock',
+        currency: 'USD',
+      });
       const response = await POST(
         createRequest({
           tipoAtivo: 'stock',
@@ -918,9 +927,7 @@ describe('POST /api/carteira/operacao', () => {
           estrategia: 'growth',
         }),
       );
-      const data = await response.json();
-      expect(response.status).toBe(400);
-      expect(data.error).toContain('moeda');
+      expect(response.status).toBe(201);
     });
 
     it('retorna 400 quando cotacaoMoeda inválida (<= 0)', async () => {
@@ -1131,6 +1138,7 @@ describe('POST /api/carteira/operacao', () => {
         symbol: 'O',
         name: 'Realty Income',
         type: 'reit',
+        currency: 'USD',
       });
       const response = await POST(
         createRequest({
@@ -1152,6 +1160,13 @@ describe('POST /api/carteira/operacao', () => {
     });
 
     it('adiciona REIT manual com sucesso', async () => {
+      mockPrisma.asset.create.mockResolvedValueOnce({
+        id: 'asset-o',
+        symbol: 'O-1-x',
+        name: 'O',
+        type: 'reit',
+        currency: 'USD',
+      });
       const response = await POST(
         createRequest({
           tipoAtivo: 'reit',
@@ -2270,6 +2285,7 @@ describe('POST /api/carteira/operacao', () => {
         symbol: 'O',
         name: 'Realty Income',
         type: 'reit',
+        currency: 'USD',
       });
       mockPrisma.portfolio.findFirst.mockResolvedValue({
         id: 'port-reit',

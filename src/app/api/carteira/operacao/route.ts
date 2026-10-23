@@ -47,6 +47,14 @@ import {
 } from '@/services/changeHistory';
 import { syncSonhoRealizadoBestEffort } from '@/services/planejamento/carteiraToSonhoRealizado';
 import { aplicarVinculoPlanejamento, vinculoPlanejamentoFields } from '@/utils/planejamentoVinculo';
+import {
+  isAtivoEmDolar,
+  marcadorOperacaoUsd,
+  MOEDA_REGISTRO_USD,
+  posicaoEmDolar,
+  type UnidadeValor,
+} from '@/lib/ativoEmDolar';
+import { carteiraEuaDolarHabilitado } from '@/lib/carteiraEuaConfig';
 
 /** Valores de fundoDestino que viram seções na aba "Fundos". */
 const FUNDO_SUBTIPO_DESTINOS: Set<string> = new Set(FUNDO_SUBTIPO_ORDER);
@@ -738,11 +746,13 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
       );
     }
   } else if (tipoAtivo === 'stock') {
-    if (!dataCompra || !quantidade || !cotacaoUnitaria || !moeda || !cotacaoMoeda || !estrategia) {
+    // Carteira EUA em US$: a moeda do stock é sempre USD (o wizard não oferece outra), então
+    // `moeda` deixou de ser obrigatória; cotacaoUnitaria vem SEMPRE em US$.
+    if (!dataCompra || !quantidade || !cotacaoUnitaria || !cotacaoMoeda || !estrategia) {
       return NextResponse.json(
         {
           error:
-            'Campos obrigatórios para stocks: dataCompra, quantidade, cotacaoUnitaria, moeda, cotacaoMoeda, estrategia',
+            'Campos obrigatórios para stocks: dataCompra, quantidade, cotacaoUnitaria (US$), cotacaoMoeda, estrategia',
         },
         { status: 400 },
       );
@@ -1464,10 +1474,9 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
     if (!tickerStock) {
       return NextResponse.json({ error: 'Ticker do stock é obrigatório' }, { status: 400 });
     }
+    // Nome em US$ (q × US$), como o REIT: o valorInvestido do corpo é ignorado no stock.
     const valorTotalStock =
-      quantidade > 0 && cotacaoUnitaria > 0 && cotacaoMoeda > 0
-        ? quantidade * cotacaoUnitaria * cotacaoMoeda
-        : valorInvestido;
+      quantidade > 0 && cotacaoUnitaria > 0 ? quantidade * cotacaoUnitaria : 0;
     const timestamp = Date.now();
     const uniqueId = Math.random().toString(36).substring(2, 9);
     const safeSymbol =
@@ -1478,9 +1487,9 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
     const assetSymbol = `${safeSymbol}-${timestamp}-${uniqueId}`;
     const dataFormatada = new Date(dataCompra || new Date()).toLocaleDateString('pt-BR');
     const valorFormatado = valorTotalStock
-      ? new Intl.NumberFormat('pt-BR', {
+      ? new Intl.NumberFormat('en-US', {
           style: 'currency',
-          currency: 'BRL',
+          currency: 'USD',
           minimumFractionDigits: 0,
           maximumFractionDigits: 0,
         }).format(valorTotalStock)
@@ -1651,6 +1660,13 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
         { status: 400 },
       );
     }
+    // Asset 'stock' em US$ é Stock EUA, não ação BR: registrar como ação gravaria US$ como R$.
+    if (tipoAtivo === 'acao' && asset.currency === 'USD') {
+      return NextResponse.json(
+        { error: 'Este ativo é cotado em dólar: registre-o em Stocks EUA.' },
+        { status: 400 },
+      );
+    }
     if (tipoAtivo === 'fii' && asset.type !== 'fii') {
       return NextResponse.json(
         { error: `Tipo do ativo incompatível (esperado fii, encontrado ${asset.type}).` },
@@ -1696,6 +1712,47 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
     }
   }
 
+  // Carteira EUA em US$ — guardas de moeda nos dois sentidos (sem chave):
+  //  - Stocks/REITs exigem Asset em dólar (type stock/reit + currency USD): PETR4 em 'stock' é 400;
+  //  - BDR com currency USD também é 400 (ação BR é barrada no ramo de 'acao' acima).
+  if ((tipoAtivo === 'stock' || tipoAtivo === 'reit') && !isAtivoEmDolar(asset)) {
+    return NextResponse.json(
+      {
+        error:
+          tipoAtivo === 'stock'
+            ? 'Stocks EUA aceitam só ativos cotados em dólar. Ações brasileiras vão em Ações.'
+            : 'REITs aceitam só ativos cotados em dólar.',
+      },
+      { status: 400 },
+    );
+  }
+  if (tipoAtivo === 'bdr' && asset?.currency === 'USD') {
+    return NextResponse.json(
+      { error: 'Este ativo é cotado em dólar: registre-o em Stocks EUA.' },
+      { status: 400 },
+    );
+  }
+
+  // Unidade da compra de ativo em dólar: a posição existente manda (moedaRegistro; null = R$ no
+  // stock legado, US$ no REIT). Posição nova: REIT sempre US$; stock pela chave
+  // CARTEIRA_EUA_DOLAR_HABILITADO (desligada = R$ legado, como antes). O mesmo Asset nunca
+  // mistura unidades.
+  let unidadeCompra: UnidadeValor = 'BRL';
+  if (isAtivoEmDolar(asset)) {
+    const posicaoAtual = await prisma.portfolio.findFirst({
+      where: { userId: targetUserId, assetId: asset!.id },
+      select: { moedaRegistro: true },
+    });
+    unidadeCompra = posicaoAtual
+      ? posicaoEmDolar(posicaoAtual, asset)
+        ? 'USD'
+        : 'BRL'
+      : asset!.type === 'reit' || carteiraEuaDolarHabilitado()
+        ? 'USD'
+        : 'BRL';
+  }
+  const compraEmDolar = unidadeCompra === 'USD';
+
   // Calcular valor total baseado no tipo de ativo
   let valorCalculado = 0;
   let quantidadeFinal = 0;
@@ -1706,7 +1763,13 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
     valorCalculado = quantidade * cotacaoUnitaria + (taxaCorretagem || 0);
     quantidadeFinal = quantidade;
     precoFinal = cotacaoUnitaria;
+  } else if (tipoAtivo === 'stock' && compraEmDolar) {
+    // Stock em US$: price e total em US$, SEM corretagem (fees fica em R$ à parte).
+    valorCalculado = quantidade * cotacaoUnitaria;
+    quantidadeFinal = quantidade;
+    precoFinal = cotacaoUnitaria;
   } else if (tipoAtivo === 'stock') {
+    // Stock legado em R$ (posição antiga, ou chave desligada): convertido na gravação.
     valorCalculado = quantidade * cotacaoUnitaria * cotacaoMoeda + (taxaCorretagem || 0);
     quantidadeFinal = quantidade;
     precoFinal = cotacaoUnitaria * cotacaoMoeda;
@@ -1842,7 +1905,9 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
     precoFinal = cotacaoUnitaria;
   }
 
-  const valorFinal = valorTotal || valorCalculado;
+  // Ativo em dólar: o total sai da quantidade × preço na unidade da posição; valorTotal e
+  // valorInvestido do corpo (que podem vir em R$) são ignorados.
+  const valorFinal = isAtivoEmDolar(asset) ? valorCalculado : valorTotal || valorCalculado;
   const dataTransacao = new Date(dataFinal);
 
   // Preparar notes com metadados e log da operação
@@ -1957,6 +2022,14 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
   const isReinvestimento = requestBody.isReinvestimento === true;
   const operationAction = isReinvestimento ? 'reinvestimento' : 'compra';
 
+  // Carteira EUA em US$: unidade em que price/total foram gravados (fonte da verdade da
+  // conversão, ver src/lib/ativoEmDolar.ts). Só em ativo em dólar; vence moeda/cotacaoMoeda.
+  const marcadorUnidade = !isAtivoEmDolar(asset)
+    ? {}
+    : compraEmDolar
+      ? marcadorOperacaoUsd(cotacaoMoeda)
+      : { unidade: 'BRL' as const };
+
   const notesData = JSON.stringify({
     ...metadata,
     operation: {
@@ -1983,6 +2056,7 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
       cotacaoMoeda: cotacaoMoeda || null,
       opcaoTipo: opcaoTipo || null,
       opcaoCompraVenda: opcaoCompraVenda || null,
+      ...marcadorUnidade,
     },
   });
 
@@ -2248,14 +2322,16 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
   // desconta a compra da reserva da aba e depois do caixa livre. Não vale para
   // reinvestimento (dinheiro que já estava investido). Reservas, conta
   // corrente, imóveis e personalizados não têm reserva própria → só o livre.
-  // REIT: valorFinal vem em US$ (cotação em dólar, sem conversão) — converte
-  // pela cotação informada; sem cotação não há como descontar em R$.
-  const valorCompraBRL =
-    tipoAtivo === 'reit'
-      ? typeof cotacaoMoeda === 'number' && cotacaoMoeda > 0
-        ? valorFinal * cotacaoMoeda
-        : 0
-      : valorFinal;
+  // Compra em US$ (REIT e stock novo): o caixa continua em R$ = total US$ × câmbio informado
+  // + corretagem (R$); sem cotação não há como descontar. Stock legado já está em R$.
+  const valorCompraBRL = compraEmDolar
+    ? typeof cotacaoMoeda === 'number' && cotacaoMoeda > 0
+      ? valorFinal * cotacaoMoeda + (taxaCorretagem || 0)
+      : 0
+    : valorFinal;
+  // moedaRegistro 'USD' gravado DENTRO do $transaction da compra: sobrevive a uma falha do
+  // recálculo que roda depois do commit (o recálculo nunca o rebaixa).
+  const moedaRegistroDaCompra = compraEmDolar ? { moedaRegistro: MOEDA_REGISTRO_USD } : {};
   const usarCaixa = parsed.data.usarCaixa === true && !isReinvestimento && valorCompraBRL > 0;
   const semReservaPropria =
     isReserva ||
@@ -2411,6 +2487,7 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
                 ? { objetivo: planejadoAbsorvido.objetivo }
                 : {}),
               ...secaoFixada,
+              ...moedaRegistroDaCompra,
               lastUpdate: new Date(),
             },
           });
@@ -2427,6 +2504,7 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
               ...(tipoAtivo === 'fii' && tipoFii ? { tipoFii } : {}),
               ...(tipoAtivo === 'etf' && regiaoEtf ? { regiaoEtf } : {}),
               ...(planejadoAbsorvido ? { objetivo: planejadoAbsorvido.objetivo } : {}),
+              ...moedaRegistroDaCompra,
               // Seção do planejamento vale quando a compra não informou uma.
               ...(estrategiaNaCompra && !estrategia && secaoBasePlanejada
                 ? { estrategia: secaoBasePlanejada }

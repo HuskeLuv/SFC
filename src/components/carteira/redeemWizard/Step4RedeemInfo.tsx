@@ -46,6 +46,28 @@ export const quickRedeemQuantity = (available: number, fraction: number): number
   return units / factor;
 };
 
+/**
+ * Carteira EUA em US$: resgate de Stock EUA (tipo 'acao' com moeda USD no wizard) ou REIT exige a
+ * cotação do dólar da venda — o servidor recusa sem ela (400), grava em notes.operation e converte
+ * o preço (sempre em US$) para a unidade da posição. ETF em dólar não entra aqui.
+ */
+export const resgateExigeCambio = (formData: Pick<RedeemWizardFormData, 'tipoAtivo' | 'moeda'>) =>
+  formData.moeda === 'USD' && ['acao', 'stock', 'reit'].includes(formData.tipoAtivo);
+
+/** Câmbio com até 4 casas; vírgula OU ponto é o decimal ("5,1111" e "5.1111"). */
+const parseCambio = (texto: string): number | undefined => {
+  const limpo = texto
+    .trim()
+    .replace(/[^\d.,]/g, '')
+    .replace(',', '.');
+  if (!limpo || (limpo.match(/\./g) ?? []).length > 1) return undefined;
+  const valor = Number(limpo);
+  return Number.isFinite(valor) && valor > 0 ? valor : undefined;
+};
+
+const formatCambio = (value: number) =>
+  value.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 4 });
+
 const formatQuantity = (value: number) =>
   value.toLocaleString('pt-BR', { maximumFractionDigits: 8 });
 
@@ -79,6 +101,35 @@ export default function Step4RedeemInfo({
   // decimal no re-render — digitar "0,5" registrava 5, colar "1.500,50"
   // registrava 1,50 (auditoria 2026-08-06, achado #4).
   const [decimalInputValues, setDecimalInputValues] = useState<Record<string, string>>({});
+  const exigeCambio = resgateExigeCambio(formData);
+  const [cambioTexto, setCambioTexto] = useState(
+    formData.cotacaoMoeda ? formatCambio(formData.cotacaoMoeda) : '',
+  );
+  const [cambioTocado, setCambioTocado] = useState(false);
+  const cambioInvalido = exigeCambio && !(formData.cotacaoMoeda && formData.cotacaoMoeda > 0);
+
+  // Sugere a cotação atual do dólar (mesma fonte do card "Dólar Comercial"); o usuário ajusta
+  // para a taxa da nota de câmbio.
+  useEffect(() => {
+    if (!exigeCambio || formData.cotacaoMoeda !== undefined) return;
+    let ativo = true;
+    fetch('/api/analises/indicadores', { credentials: 'include' })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data: { indicators?: { dolar?: { price?: number | null } } } | null) => {
+        const price = data?.indicators?.dolar?.price;
+        if (ativo && price && price > 0) {
+          const arredondado = Math.round(price * 10000) / 10000;
+          setCambioTexto(formatCambio(arredondado));
+          onFormDataChange({ cotacaoMoeda: arredondado });
+        }
+      })
+      .catch(() => undefined);
+    return () => {
+      ativo = false;
+    };
+    // Só na primeira exibição: depois o usuário manda na cotação.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [exigeCambio]);
 
   // Rodada 3 (achado frontend #4/#16): o wizard desabilita o Avançar via
   // isValid mas nunca preenchia errors.* — os hints por campo eram código
@@ -322,6 +373,29 @@ export default function Step4RedeemInfo({
             onChange={handleDecimalInputChange('valorResgate')}
             error={!!errors.valorResgate}
             hint={errors.valorResgate}
+          />
+        </div>
+      )}
+      {exigeCambio && (
+        <div>
+          <Label htmlFor="cotacaoMoedaResgateInfo">Cotação do dólar no dia do resgate (R$) *</Label>
+          <Input
+            id="cotacaoMoedaResgateInfo"
+            type="text"
+            inputMode="decimal"
+            placeholder="Ex.: 5,40"
+            value={cambioTexto}
+            onChange={(e) => {
+              setCambioTexto(e.target.value);
+              setCambioTocado(true);
+              onFormDataChange({ cotacaoMoeda: parseCambio(e.target.value) });
+            }}
+            error={cambioTocado && cambioInvalido}
+            hint={
+              cambioTocado && cambioInvalido
+                ? 'Informe a cotação do dólar (maior que zero).'
+                : 'Use a taxa da sua nota de câmbio. O preço acima é em US$.'
+            }
           />
         </div>
       )}

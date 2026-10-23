@@ -5,7 +5,7 @@
  * resolvido com `categorizarAsset` e usa o valor gravado na transação).
  *
  * Espelha as regras de /api/carteira/operacao: valor calculado por tipo e
- * REIT cotado em US$ (convertido pela cotação informada).
+ * Stock EUA/REIT cotados em US$ (convertidos pela cotação informada + corretagem em R$).
  */
 import { CATEGORIA_TO_CAIXA_ABA, type CaixaAbaKey } from '@/lib/caixaParaInvestirPlano';
 import type { CategoriaMovivel } from '@/lib/carteiraMover';
@@ -115,9 +115,8 @@ export function valorDaCompraBRL(form: CompraForm): number {
     case 'opcoes':
       return qtd * cotacao + n(form.taxaCorretagem);
     case 'stock':
-      return qtd * cotacao * n(form.cotacaoMoeda) + n(form.taxaCorretagem);
     case 'reit':
-      return qtd * cotacao * n(form.cotacaoMoeda);
+      return resumoCompraEmDolar(form).equivaleBrl;
     case 'criptoativo':
     case 'moeda':
       return qtd * n(form.cotacaoCompra);
@@ -143,6 +142,26 @@ export function valorDaCompraBRL(form: CompraForm): number {
       // reserva-emergencia / reserva-oportunidade
       return n(form.valorInvestido);
   }
+}
+
+/**
+ * Compra de Stock EUA/REIT (Carteira EUA em US$): o total da posição em US$ (q × preço, sem
+ * corretagem), a corretagem em R$ à parte e o equivalente em R$ (total × câmbio + corretagem),
+ * que é o que sai do Caixa para Investir. Vale com a chave ligada ou desligada: a tela mostra as
+ * duas moedas e a rota decide a unidade em que grava.
+ */
+export function resumoCompraEmDolar(
+  form: Pick<CompraForm, 'quantidade' | 'cotacaoUnitaria' | 'cotacaoMoeda' | 'taxaCorretagem'>,
+): { totalUsd: number; corretagemBrl: number; cotacaoMoeda: number; equivaleBrl: number } {
+  const totalUsd = n(form.quantidade) * n(form.cotacaoUnitaria);
+  const corretagemBrl = n(form.taxaCorretagem);
+  const cotacaoMoeda = n(form.cotacaoMoeda);
+  return {
+    totalUsd,
+    corretagemBrl,
+    cotacaoMoeda,
+    equivaleBrl: totalUsd * cotacaoMoeda + corretagemBrl,
+  };
 }
 
 /**

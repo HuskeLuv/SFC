@@ -27,6 +27,12 @@ import {
 } from '@/services/changeHistory';
 import { syncSonhoRealizadoBestEffort } from '@/services/planejamento/carteiraToSonhoRealizado';
 import { getIndicator } from '@/services/market/marketIndicatorService';
+import {
+  isAtivoEmDolar,
+  marcadorOperacaoUsd,
+  posicaoEmDolar,
+  type UnidadeValor,
+} from '@/lib/ativoEmDolar';
 
 export const POST = withErrorHandler(async (request: NextRequest) => {
   const auth = await requireAuthWithActing(request);
@@ -168,9 +174,27 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
     }
   }
 
+  // Carteira EUA em US$ (Stock EUA/REIT com currency USD): o corpo manda o preço SEMPRE em US$
+  // e a cotação do dólar da venda é obrigatória (fica gravada em notes.operation e é o fx do IR).
+  // A rota normaliza para a unidade da posição: em US$ grava como veio; stock legado em R$
+  // converte × cotacaoMoeda.
+  const ativoEmDolar = isAtivoEmDolar(portfolio.asset);
+  const cotacaoMoedaResgate = parsed.data.cotacaoMoeda;
+  if (ativoEmDolar && !(typeof cotacaoMoedaResgate === 'number' && cotacaoMoedaResgate > 0)) {
+    return NextResponse.json(
+      { error: 'Informe a cotação do dólar no dia do resgate (cotacaoMoeda).' },
+      { status: 400 },
+    );
+  }
+  const unidadeResgate: UnidadeValor =
+    ativoEmDolar && posicaoEmDolar(portfolio, portfolio.asset) ? 'USD' : 'BRL';
+  const fatorUnidade = ativoEmDolar && unidadeResgate === 'BRL' ? cotacaoMoedaResgate! : 1;
+
   const quantityResgate = metodoResgate === 'valor' ? 1 : quantidade!;
-  const priceResgate = metodoResgate === 'valor' ? valorResgate! : cotacaoUnitaria!;
-  const totalResgate = metodoResgate === 'valor' ? valorResgate! : quantityResgate * priceResgate;
+  const priceResgate =
+    (metodoResgate === 'valor' ? valorResgate! : cotacaoUnitaria!) * fatorUnidade;
+  const totalResgate =
+    metodoResgate === 'valor' ? valorResgate! * fatorUnidade : quantityResgate * priceResgate;
 
   // 'reinvestimento' = o valor resgatado volta pra carteira (troca/rolagem):
   // sai das linhas automáticas de Aporte/Resgate do Fluxo de Caixa e dos
@@ -204,6 +228,12 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
         quantity: availableQuantity,
         total: availableTotal,
       },
+      // Marcador da unidade de price/total (src/lib/ativoEmDolar.ts). Só em ativo em dólar.
+      ...(ativoEmDolar
+        ? unidadeResgate === 'USD'
+          ? marcadorOperacaoUsd(cotacaoMoedaResgate)
+          : { moeda: 'USD', cotacaoMoeda: cotacaoMoedaResgate, unidade: 'BRL' as const }
+        : {}),
     },
   });
 
@@ -212,10 +242,15 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
   // dólar credita em reais: cotação do câmbio informada no resgate (como na
   // compra de stock/REIT) ou, sem ela, a cotação atual do USD-BRL. Outras
   // moedas não têm câmbio disponível e não creditam.
+  // Stock EUA/REIT: total em US$ × câmbio do resgate; stock legado já foi convertido para R$
+  // acima (sem dupla conversão).
   const moedaAtivo = portfolio.asset?.currency ?? 'BRL';
   const querCreditar = parsed.data.creditarCaixa === true && !isReinvestimento;
-  const cambioCaixa =
-    moedaAtivo === 'BRL'
+  const cambioCaixa = ativoEmDolar
+    ? unidadeResgate === 'USD'
+      ? cotacaoMoedaResgate!
+      : 1
+    : moedaAtivo === 'BRL'
       ? 1
       : querCreditar && moedaAtivo === 'USD'
         ? (parsed.data.cotacaoMoeda ??
