@@ -14,7 +14,10 @@ const cfg = vi.hoisted(() => ({ data: undefined as unknown }));
 const auth = vi.hoisted(() => ({ actingClient: null as null | { id: string; name: string } }));
 const nav = vi.hoisted(() => ({ params: new URLSearchParams(), push: vi.fn() }));
 
-vi.mock('@/hooks/useAnaliseAtivos', () => ({ useAnaliseAtivosConfig: () => cfg }));
+vi.mock('@/hooks/useAnaliseAtivos', () => ({
+  useAnaliseAtivosConfig: () => cfg,
+  useAtivoTopo: () => ({ data: undefined }),
+}));
 vi.mock('@/hooks/useAuth', () => ({ useAuth: () => auth }));
 vi.mock('@/hooks/useAnaliseAtivosSalvos', () => ({
   useListas: () => ({ data: undefined }),
@@ -22,6 +25,7 @@ vi.mock('@/hooks/useAnaliseAtivosSalvos', () => ({
 vi.mock('next/navigation', () => ({
   useSearchParams: () => nav.params,
   useRouter: () => ({ push: nav.push, replace: vi.fn() }),
+  usePathname: () => '/analise-ativos',
 }));
 vi.mock('next/link', () => ({
   default: ({ href, children, ...rest }: { href: string; children: React.ReactNode }) => (

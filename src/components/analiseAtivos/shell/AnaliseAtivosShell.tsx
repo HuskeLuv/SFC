@@ -24,16 +24,15 @@
  * Stocks e REITs: o rodapé legal vira o aviso EUA (fonte SEC) no Quadro/Comparador de stock|reit
  * (pela URL, mercadoDaUrl) e na página de ticker EUA (prop mercado); chave EUA desligada = Brasil.
  */
-import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import BuscaAtivos from '@/components/analiseAtivos/busca/BuscaAtivos';
 import PilulasArea from '@/components/analiseAtivos/shell/PilulasArea';
 import BotaoCriarLista from '@/components/analiseAtivos/shell/BotaoCriarLista';
 import BannerNovidade from '@/components/analiseAtivos/shell/BannerNovidade';
+import LinkVoltarQuadro from '@/components/analiseAtivos/shell/LinkVoltarQuadro';
 import RodapeLegal from '@/components/analiseAtivos/shell/RodapeLegal';
 import { VisualV2Provider, useVisualV2 } from '@/components/analiseAtivos/shell/VisualV2';
 import { lerEstadoComparador } from '@/components/analiseAtivos/comparador/useEstadoComparadorUrl';
-import { COR_LINK } from '@/constants/analiseAtivosVisual';
 import { useAnaliseAtivosConfig } from '@/hooks/useAnaliseAtivos';
 import { TEXTOS_ENTRADAS_COMPARADOR } from '@/services/analiseAtivos/textosEntradasComparador';
 import { TEXTOS_TELA } from '@/services/analiseAtivos/textosTela';
@@ -123,7 +122,6 @@ export default function AnaliseAtivosShell({
   mercado,
   visualV2 = false,
 }: AnaliseAtivosShellPropsV2) {
-  const t = TEXTOS_TELA.area;
   const config = useAnaliseAtivosConfig();
   const params = useSearchParams();
   // Stocks e REITs: aviso legal com a fonte da SEC (só com a chave EUA ligada para o usuário)
@@ -201,12 +199,7 @@ export default function AnaliseAtivosShell({
         </div>
       ) : (
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <Link
-            href="/analise-ativos"
-            className={`inline-flex min-h-11 items-center text-sm font-medium ${COR_LINK.classes}`}
-          >
-            ← {t.voltarQuadro}
-          </Link>
+          <LinkVoltarQuadro />
           <BuscaAtivos variante="compacta" className="w-full sm:w-[320px]" />
         </div>
       )}
