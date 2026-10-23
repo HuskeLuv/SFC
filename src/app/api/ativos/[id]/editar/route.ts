@@ -3,6 +3,7 @@ import { requireAuthWithActing } from '@/utils/auth';
 import { prisma } from '@/lib/prisma';
 import { ensurePortfolioProventosFromMarket } from '@/lib/ensurePortfolioProventosFromMarket';
 import { isCorporateActionAuditTx } from '@/services/portfolio/corporateActions';
+import { posicaoEmDolar } from '@/lib/ativoEmDolar';
 
 import { withErrorHandler } from '@/utils/apiErrorHandler';
 const tipoOperacaoMap: Record<string, string> = {
@@ -135,6 +136,9 @@ export const GET = withErrorHandler(
       movimentacaoInicial,
       operacoes,
       proventos,
+      // Carteira EUA em US$: unidade gravada da posição (preço/total das transações em US$;
+      // corretagem e IR seguem em R$). A tela rotula os campos por ela.
+      moeda: posicaoEmDolar(portfolio, portfolio.asset) ? 'USD' : 'BRL',
     });
   },
 );
