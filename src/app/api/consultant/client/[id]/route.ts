@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
-import { getClientSummary } from '@/services/consultantService';
+import { getClientSummary, valorItemConsultor } from '@/services/consultantService';
+import { getCotacaoDolarHoje } from '@/services/market/cambioUsdBrl';
+import { valorTransacaoEmReais } from '@/services/portfolio/patrimonioHistoricoBuilder';
+import { carregarCambioDasTransacoes } from '@/services/cashflow/investimentosPorMes';
 import { getCashBalances, getMonthlyFlows } from '@/services/cashflow/clientCashflowSummary';
 import { getAssetPrices } from '@/services/pricing/assetPriceService';
 import { logConsultantAction } from '@/services/impersonationLogger';
@@ -8,6 +11,7 @@ import { authenticateConsultant, assertClientOwnership } from '@/utils/consultan
 
 import { withErrorHandler } from '@/utils/apiErrorHandler';
 import { overrideEfetivo, type CategoriaMovivel } from '@/lib/carteiraMover';
+import { posicaoEmDolar } from '@/lib/ativoEmDolar';
 
 const CACHE_CONTROL_HEADER = 'private, no-cache, no-store, must-revalidate';
 
@@ -19,21 +23,37 @@ const getClientBalances = async (clientId: string) => {
   // Entradas/despesas vêm da planilha; "investimentos" vem das compras reais
   // da carteira (o grupo de investimentos da planilha é derivado das mesmas
   // transações, injetado só no client).
-  const [balances, totalAportes, monthAportes] = await Promise.all([
+  const [balances, compras] = await Promise.all([
     getCashBalances(clientId),
-    prisma.stockTransaction.aggregate({
+    prisma.stockTransaction.findMany({
       where: { userId: clientId, type: 'compra' },
-      _sum: { total: true },
-    }),
-    prisma.stockTransaction.aggregate({
-      where: { userId: clientId, type: 'compra', date: { gte: monthStart, lt: nextMonthStart } },
-      _sum: { total: true },
+      select: {
+        assetId: true,
+        total: true,
+        quantity: true,
+        price: true,
+        fees: true,
+        notes: true,
+        date: true,
+        asset: { select: { type: true, currency: true } },
+      },
     }),
   ]);
 
+  // Carteira EUA em US$: compra gravada em US$ entra por total × câmbio da tx + fees (R$);
+  // sem câmbio fica fora da soma. As demais entram pelo total gravado, como no antigo _sum.
+  const serieCambio = await carregarCambioDasTransacoes(compras);
+  let investmentsTotal = 0;
+  let investmentsMonth = 0;
+  for (const compra of compras) {
+    const valor = valorTransacaoEmReais(compra, serieCambio) ?? 0;
+    investmentsTotal += valor;
+    if (compra.date >= monthStart && compra.date < nextMonthStart) investmentsMonth += valor;
+  }
+
   return {
-    total: { ...balances.total, investments: totalAportes._sum.total ?? 0 },
-    monthly: { ...balances.monthly, investments: monthAportes._sum.total ?? 0 },
+    total: { ...balances.total, investments: investmentsTotal },
+    monthly: { ...balances.monthly, investments: investmentsMonth },
   };
 };
 
@@ -76,33 +96,45 @@ const getClientPortfolio = async (clientId: string) => {
 
   const quotes = await getAssetPrices(symbols, { useBrapiFallback: true });
 
+  // Posição em US$ (REIT, stock com moedaRegistro 'USD') vale em R$ pelo câmbio do dia,
+  // obtido uma vez; sem câmbio fica fora dos totais e da alocação (nunca US$ como R$).
+  const cotacaoDolar = portfolio.some((p) => posicaoEmDolar(p, p.asset))
+    ? ((await getCotacaoDolarHoje().catch(() => null))?.taxa ?? null)
+    : null;
+
   let currentValue = 0;
   let totalInvested = 0;
 
-  const assets = portfolio.map((item) => {
+  const assets = portfolio.flatMap((item) => {
+    const symbol = item.asset?.symbol;
+    const quote = symbol ? quotes.get(symbol) : undefined;
+    const valor = valorItemConsultor(item, quote, cotacaoDolar);
+    if (!valor) return [];
+
     const movido = item.asset ? overrideEfetivo(item.asset, item.categoriaOverride) : null;
     const inferredType = movido ? TIPO_DA_CATEGORIA_MOVIDA[movido] : (item.asset?.type ?? 'other');
-    const invested = item.totalInvested ?? item.avgPrice * item.quantity;
+    const invested = valor.aplicado;
     totalInvested += invested;
 
-    const symbol = item.asset?.symbol;
-    const currentPrice = symbol ? (quotes.get(symbol) ?? item.avgPrice) : item.avgPrice;
-    const assetCurrentValue = currentPrice * item.quantity;
+    const currentPrice = quote ?? item.avgPrice;
+    const assetCurrentValue = valor.atual;
     currentValue += assetCurrentValue;
 
-    return {
-      id: item.id,
-      symbol,
-      name: item.asset?.name ?? symbol ?? '',
-      type: inferredType,
-      quantity: item.quantity,
-      avgPrice: item.avgPrice,
-      totalInvested: invested,
-      currentPrice,
-      currentValue: assetCurrentValue,
-      profit: assetCurrentValue - invested,
-      profitPercentage: invested > 0 ? ((assetCurrentValue - invested) / invested) * 100 : 0,
-    };
+    return [
+      {
+        id: item.id,
+        symbol,
+        name: item.asset?.name ?? symbol ?? '',
+        type: inferredType,
+        quantity: item.quantity,
+        avgPrice: item.avgPrice,
+        totalInvested: invested,
+        currentPrice,
+        currentValue: assetCurrentValue,
+        profit: assetCurrentValue - invested,
+        profitPercentage: invested > 0 ? ((assetCurrentValue - invested) / invested) * 100 : 0,
+      },
+    ];
   });
 
   return {

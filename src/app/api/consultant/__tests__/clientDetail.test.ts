@@ -12,7 +12,8 @@ vi.mock('@/utils/consultantAuth', () => ({
   authenticateConsultant: vi.fn().mockResolvedValue({ consultantId: 'c-1', userId: 'u-c' }),
   assertClientOwnership: vi.fn().mockResolvedValue(undefined),
 }));
-vi.mock('@/services/consultantService', () => ({
+vi.mock('@/services/consultantService', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/services/consultantService')>()),
   getClientSummary: vi.fn().mockResolvedValue(null),
 }));
 vi.mock('@/services/cashflow/clientCashflowSummary', () => ({

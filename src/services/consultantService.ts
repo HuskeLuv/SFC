@@ -54,7 +54,7 @@ type ItemPortfolioComAsset = Parameters<typeof valuatePortfolioItem>[0]['item'] 
  * câmbio devolve null (fora da soma — nunca US$ somado como R$). As demais seguem como antes:
  * (cotação ?? preço médio) × quantidade.
  */
-const valorItemConsultor = (
+export const valorItemConsultor = (
   item: ItemPortfolioComAsset,
   quote: number | undefined,
   cotacaoDolar: number | null,
