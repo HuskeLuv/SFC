@@ -24,6 +24,10 @@
  * (`semPesoCarteira`: a Carteira soma US$ ao total em R$) e o stock planejado não mostra o valor
  * equivalente ao alvo (`abaMista`).
  *
+ * Carteira EUA em US$ (out/2026): linha gravada em US$ (`linhaEmDolar`, moedaRegistro 'USD' da
+ * rota) mostra valor e preço médio em US$ com o R$ embaixo (cotação do dia da aba) e volta a ter
+ * o '% da carteira' (valor em R$ ÷ total do resumo). Sem moedaRegistro, o contorno acima.
+ *
  * Visual v2 (fundamentei-regras F4, item C1): 1/4 da linha ao lado dos KPIs, num bloco tingido
  * (`.q.b` do HTML do Pedro, sem borda) e com os números em 2 colunas. Sem a chave, o card de hoje.
  */
@@ -330,10 +334,16 @@ export default function BlocoNaCarteira({
         <Dado
           rotulo={t.valor}
           valor={linha ? dinheiro(linha.valorAtualizado) : '—'}
+          nota={
+            dados.linhaEmDolar && dados.valorAtualizadoBRL !== null
+              ? `≈ ${formatBRL(dados.valorAtualizadoBRL)}`
+              : undefined
+          }
           carregando={carregando}
         />
-        {/* REIT: a Carteira soma o REIT em US$ ao total em R$ (pendência da ativação): sem o peso */}
-        {dados.moeda === 'USD' ? null : (
+        {/* REIT sem a unidade da rota: a Carteira somava o REIT em US$ ao total em R$ — sem o peso.
+            Linha em US$ (moedaRegistro 'USD'): o resumo converte, o peso volta. */}
+        {dados.moeda === 'USD' && !dados.linhaEmDolar ? null : (
           <Dado
             rotulo={t.pctCarteira}
             valor={dados.pctCarteira !== null ? formatPct(dados.pctCarteira) : '—'}
@@ -343,6 +353,11 @@ export default function BlocoNaCarteira({
         <Dado
           rotulo={t.precoMedio}
           valor={linha ? dinheiro(linha.precoAquisicao) : '—'}
+          nota={
+            dados.linhaEmDolar && linha && dados.cotacaoDolar !== null
+              ? `≈ ${formatBRL(linha.precoAquisicao * dados.cotacaoDolar)}`
+              : undefined
+          }
           carregando={carregando}
         />
         <Dado
