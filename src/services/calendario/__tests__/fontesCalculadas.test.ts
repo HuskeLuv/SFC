@@ -192,6 +192,27 @@ describe('fonte provento', () => {
     expect(out[2].detalhe.evento).toBe('pagamento');
   });
 
+  it('provento em US$ vira R$ pelo câmbio da data de pagamento; sem câmbio fica sem valor', () => {
+    const reit = {
+      symbol: 'O',
+      tipo: 'Dividendo',
+      paymentDay: dia('2026-09-15'),
+      bookingDay: dia('2026-09-15'),
+      exDay: 0,
+      net: 10,
+      gross: 10,
+      moeda: 'USD' as const,
+    };
+    const comFx = proventosComoEventos([reit], periodoSet, new Map(), '2026-09-30', () => 5.2);
+    expect(comFx[0].valor).toBe(52);
+    expect(comFx[0].detalhe).toMatchObject({ bruto: 52, liquido: 52 });
+    const semFx = proventosComoEventos([reit], periodoSet, new Map(), '2026-09-30', () => null);
+    expect(semFx[0].valor).toBeNull();
+    // Provento em R$ ignora a série.
+    const br = proventosComoEventos([eventos[0]], periodoSet, new Map(), '2026-09-30', () => 5.2);
+    expect(br[0].valor).toBe(312);
+  });
+
   it('eventosProventos: resolve uma vez (cache) e monta os links', async () => {
     mocks.resolveProventoEvents.mockResolvedValue({ events: eventos, total: 0 });
     mocks.prisma.portfolio.findMany.mockResolvedValue([
