@@ -2,14 +2,14 @@
  * MarcaCriterio (v2.4, fatia 0) — marca NEUTRA de um critério de fundamentos:
  *  - atende: ✓ em círculo preenchido (tinta neutra gray-700; gray-300 no escuro); com tom='verde'
  *    (só na página do ativo — exceção à paleta autorizada pelo Wellington 17/10) o círculo usa
- *    MARCA_ATENDE_VERDE;
+ *    MARCA_ATENDE_VERDE; com tom='marinho' (visual v2, 23/10), MARCA_ATENDE_MARINHO;
  *  - não atende E sem dado: — em círculo vazado (sem dado conta como não atende);
  *  - não se aplica: 'n/a' em pílula tracejada.
  * Fora o ✓ verde da exceção, NUNCA verde/vermelho nem classe de placar (spec §9, D1). 22 px
  * ('md') ou 16 px ('sm').
  * A marca é aria-hidden; o estado vai em texto sr-only ('atende:'), salvo `decorativa`.
  */
-import { MARCA_ATENDE_VERDE } from '@/constants/analiseAtivosVisual';
+import { MARCA_ATENDE_MARINHO, MARCA_ATENDE_VERDE } from '@/constants/analiseAtivosVisual';
 import { TEXTOS_CRITERIOS } from '@/services/analiseAtivos/textosCriterios';
 import type { MarcaCriterioProps } from '@/types/analiseAtivosCriterios';
 
@@ -33,7 +33,9 @@ export default function MarcaCriterio({
     const tinta =
       tom === 'verde'
         ? MARCA_ATENDE_VERDE
-        : 'bg-gray-700 text-white dark:bg-gray-300 dark:text-gray-900';
+        : tom === 'marinho'
+          ? MARCA_ATENDE_MARINHO
+          : 'bg-gray-700 text-white dark:bg-gray-300 dark:text-gray-900';
     marca = (
       <span
         aria-hidden="true"

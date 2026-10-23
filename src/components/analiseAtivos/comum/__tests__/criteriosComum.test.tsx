@@ -63,6 +63,13 @@ describe('MarcaCriterio', () => {
     expect(container.innerHTML).toContain('bg-gray-700');
   });
 
+  it('tom="marinho" (visual v2, 23/10): ✓ atendido em marinho da paleta, sem verde', () => {
+    const { container } = render(<MarcaCriterio estado="atende" tom="marinho" />);
+    expect(container.innerHTML).toContain('bg-[#314666]');
+    expect(container.innerHTML).toContain('dark:bg-[#6E9DC4]');
+    expect(container.innerHTML).not.toMatch(/16A34A|34C47C/);
+  });
+
   it('decorativa: sem texto sr-only; n/a em pílula tracejada; 22 px por padrão', () => {
     const { container, rerender } = render(<MarcaCriterio estado="atende" decorativa />);
     expect(container.querySelector('.sr-only')).toBeNull();
