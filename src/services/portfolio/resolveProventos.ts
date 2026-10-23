@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/prisma';
+import { isAtivoEmDolar, type AtivoMoedaRef, type UnidadeValor } from '@/lib/ativoEmDolar';
 import { getDividends, isJcpType, getJcpIrrfRate } from '@/services/pricing/dividendService';
 import { nextBusinessDayB3 } from '@/utils/feriadosB3';
 import {
@@ -37,11 +38,24 @@ export interface ProventoEvent {
    */
   bookingDay: number;
   tipo: string;
-  /** Valor recebido líquido de IRRF (R$). */
+  /**
+   * Moeda NATIVA de `net`/`gross` (Carteira EUA em US$, out/2026): 'USD' quando o ativo é
+   * stock/REIT em dólar (isAtivoEmDolar), senão 'BRL'. Este módulo NÃO converte: cada leitor
+   * converte uma vez só (proventosByDay/analises para R$ pela taxa de `paymentDay`; abas EUA
+   * somam em US$). Provento manual de ativo em dólar é US$ por definição.
+   */
+  moeda: UnidadeValor;
+  /** Valor recebido líquido de IRRF, na moeda `moeda`. */
   net: number;
-  /** Valor BRUTO (antes do IRRF de JCP, R$) — usado nas rentabilidades (convenção Gorila). */
+  /**
+   * Valor BRUTO (antes do IRRF de JCP), na moeda `moeda` — usado nas rentabilidades
+   * (convenção Gorila).
+   */
   gross: number;
 }
+
+const moedaDoAtivo = (asset: AtivoMoedaRef | null | undefined): UnidadeValor =>
+  isAtivoEmDolar(asset) ? 'USD' : 'BRL';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 /**
@@ -57,8 +71,9 @@ const exDayFromDataCom = (dataCom: Date | null, fallbackMs: number): number =>
 export interface ResolveProventosResult {
   events: ProventoEvent[];
   /**
-   * Soma líquida de todos os eventos (R$). Inclui provisionados (data-com
-   * passada, pagamento futuro) — consumidores de CAIXA devem filtrar por
+   * Soma líquida NATIVA de todos os eventos, sem conversão: com evento em 'USD' mistura
+   * moedas — quem precisa de R$ soma `events` convertendo pela `moeda`. Inclui provisionados
+   * (data-com passada, pagamento futuro) — consumidores de CAIXA devem filtrar por
    * `paymentDay <= hoje` (ex.: consultantService).
    */
   total: number;
@@ -102,10 +117,12 @@ export const resolveProventoEvents = async (userId: string): Promise<ResolveProv
       type: true,
       quantity: true,
       notes: true,
-      asset: { select: { symbol: true } },
+      asset: { select: { symbol: true, type: true, currency: true } },
     },
     orderBy: { date: 'asc' },
   });
+
+  const moedaBySymbol = new Map<string, UnidadeValor>();
 
   const txBySymbol = new Map<string, Array<{ date: Date; type: string; quantity: number }>>();
   for (const t of txs) {
@@ -114,6 +131,7 @@ export const resolveProventoEvents = async (userId: string): Promise<ResolveProv
     // Linhas de auditoria de evento corporativo são display-only (o fator já é
     // aplicado na timeline); somá-las contaria o split duas vezes.
     if (isCorporateActionAuditTx(t.notes)) continue;
+    moedaBySymbol.set(symbol, moedaDoAtivo(t.asset));
     if (!txBySymbol.has(symbol)) txBySymbol.set(symbol, []);
     txBySymbol.get(symbol)!.push({ date: t.date, type: t.type, quantity: t.quantity });
   }
@@ -131,14 +149,21 @@ export const resolveProventoEvents = async (userId: string): Promise<ResolveProv
       impostoRenda: true,
       source: true,
       dismissed: true,
-      portfolio: { select: { asset: { select: { symbol: true } } } },
+      portfolio: { select: { asset: { select: { symbol: true, type: true, currency: true } } } },
     },
   });
 
   const dismissedKeys = new Set<string>();
   const manualOverrides = new Map<
     string,
-    { net: number; gross: number; symbol: string; paymentDay: number; tipo: string }
+    {
+      net: number;
+      gross: number;
+      symbol: string;
+      paymentDay: number;
+      tipo: string;
+      moeda: UnidadeValor;
+    }
   >();
   for (const r of overrideRows) {
     const symbol = r.portfolio?.asset?.symbol;
@@ -152,7 +177,14 @@ export const resolveProventoEvents = async (userId: string): Promise<ResolveProv
     if (r.source === 'manual') {
       const gross = r.valorTotal ?? 0;
       const net = gross - (r.impostoRenda ?? 0);
-      manualOverrides.set(key, { net, gross, symbol, paymentDay: day, tipo: r.tipo });
+      manualOverrides.set(key, {
+        net,
+        gross,
+        symbol,
+        paymentDay: day,
+        tipo: r.tipo,
+        moeda: moedaDoAtivo(r.portfolio?.asset),
+      });
     }
   }
 
@@ -160,6 +192,7 @@ export const resolveProventoEvents = async (userId: string): Promise<ResolveProv
   const perSymbol = await Promise.all(
     symbols.map(async (symbol): Promise<ProventoEvent[]> => {
       const transactions = txBySymbol.get(symbol)!;
+      const moeda = moedaBySymbol.get(symbol) ?? 'BRL';
       const compraTimes = transactions
         .filter((t) => t.type === 'compra')
         .map((t) => t.date.getTime());
@@ -209,6 +242,7 @@ export const resolveProventoEvents = async (userId: string): Promise<ResolveProv
             exDay: exMs,
             bookingDay: bookingMs,
             tipo: d.tipo,
+            moeda,
             net: manual.net,
             gross: manual.gross,
           });
@@ -230,6 +264,7 @@ export const resolveProventoEvents = async (userId: string): Promise<ResolveProv
           exDay: exMs,
           bookingDay: bookingMs,
           tipo: d.tipo,
+          moeda,
           net: valorTotal - imposto,
           gross: valorTotal,
         });
@@ -251,6 +286,7 @@ export const resolveProventoEvents = async (userId: string): Promise<ResolveProv
       exDay: m.paymentDay,
       bookingDay: nextBusinessDayB3(m.paymentDay),
       tipo: m.tipo,
+      moeda: m.moeda,
       net: m.net,
       gross: m.gross,
     });
