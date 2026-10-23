@@ -1046,9 +1046,10 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
       const total = Number(t.total);
       const bruto = Number.isFinite(total) && total > 0 ? total : t.price * t.quantity;
       if (unidadeDaTransacao(t, t.asset) !== 'USD') return s + bruto;
-      // Compra gravada em US$: R$ pelo câmbio da transação; sem câmbio, fora da soma.
+      // Compra gravada em US$: total × câmbio da transação + corretagem (fees, já em R$ —
+      // em R$ o total já a inclui); sem câmbio, fora da soma.
       const fx = fxDaTransacao(t.notes, t.date, serieCambio);
-      return fx === null ? s : s + bruto * fx;
+      return fx === null ? s : s + bruto * fx + (Number(t.fees) || 0);
     }, 0);
 
   // Média mensal do período filtrado: usa o intervalo [startDate, endDate] se ambos definidos;

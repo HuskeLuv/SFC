@@ -1361,6 +1361,7 @@ describe('GET /api/analises/proventos', () => {
           quantity: 10,
           price: 50,
           total: 500,
+          fees: 10, // corretagem em R$: soma depois do câmbio
           date: compra,
           notes: null,
           asset: REIT,
@@ -1403,7 +1404,7 @@ describe('GET /api/analises/proventos', () => {
       expect(data.semCambio).toBe(0);
       // Aplicado do REIT em R$: custo em R$ gravado (2.600) + PETR4 (3.000); aporte em US$ × fx.
       expect(data.kpis.totalInvestido).toBe(5600);
-      expect(data.kpis.aportesUlt12m).toBe(3000 + 500 * 4);
+      expect(data.kpis.aportesUlt12m).toBe(3000 + 500 * 4 + 10);
       expect(data.grouped['Realty Income'].precoMedio).toBeCloseTo(50 * 5.2, 6);
     });
 
