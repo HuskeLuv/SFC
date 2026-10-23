@@ -8,7 +8,11 @@ import {
   buildSaldoContaCorrenteAnterior,
   computeEvolucaoSeries,
 } from './evolucaoPatrimonioSeries';
-import { computeInvestimentosPorMes, totalBRLTransacao } from './investimentosPorMes';
+import {
+  carregarCambioDasTransacoes,
+  computeInvestimentosPorMes,
+  totalBRLTransacao,
+} from './investimentosPorMes';
 import type { CashflowGroup } from '@/types/cashflow';
 
 /**
@@ -24,8 +28,8 @@ const DAY_MS = 24 * 60 * 60 * 1000;
  * compras − Σ (total + fees) das vendas, em BRL. É a "aplicação inicial" da
  * planilha — sem marcação a mercado.
  *
- * Por transação (não groupBy): totais de REIT são gravados em USD e precisam
- * do câmbio de notes.cotacaoMoeda (`totalBRLTransacao`).
+ * Por transação (não groupBy): transações gravadas em US$ (REIT, stock EUA
+ * marcado) entram pelo câmbio da operação (`totalBRLTransacao`).
  */
 export async function getBaseAplicadaAnterior(userId: string, year: number): Promise<number> {
   const transacoes = await prisma.stockTransaction.findMany({
@@ -39,6 +43,7 @@ export async function getBaseAplicadaAnterior(userId: string, year: number): Pro
       total: true,
       fees: true,
       notes: true,
+      date: true,
       assetId: true,
       asset: { select: { type: true, currency: true } },
     },
@@ -47,8 +52,9 @@ export async function getBaseAplicadaAnterior(userId: string, year: number): Pro
 
   let base = 0;
   const lastRateByAsset = new Map<string, number>();
+  const serieCambio = await carregarCambioDasTransacoes(transacoes);
   for (const transacao of transacoes) {
-    const valor = totalBRLTransacao(transacao, lastRateByAsset);
+    const valor = totalBRLTransacao(transacao, lastRateByAsset, serieCambio);
     base += transacao.type === 'venda' ? -valor : valor;
   }
   return Math.round(base * 100) / 100;

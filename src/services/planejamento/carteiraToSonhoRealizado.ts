@@ -2,14 +2,19 @@ import { prisma } from '@/lib/prisma';
 import { logger } from '@/lib/logger';
 import { REALIZADO_COLOR, syncCashflowToObjetivo } from './cashflowToSonhoSync';
 import { syncObjetivoRecordToCashflow } from './sonhoCashflowSync';
-import { isReinvestimentoTransaction } from '@/services/cashflow/investimentosPorMes';
+import {
+  carregarCambioDasTransacoes,
+  isReinvestimentoTransaction,
+  totalBRLTransacao,
+} from '@/services/cashflow/investimentosPorMes';
 import { recomputeEvolucaoSnapshotsSafe } from '@/services/cashflow/evolucaoPatrimonioServer';
 
 /**
  * Sync carteira → sonho: quando um sonho tem ATIVOS VINCULADOS
  * (Portfolio.planejamentoObjetivoId), o realizado da linha-espelho no fluxo
  * de caixa deixa de ser digitado à mão e passa a ser 100% derivado das
- * transações reais — líquido mensal (compras − vendas, total + taxas),
+ * transações reais — líquido mensal (compras − vendas, total + taxas, em R$
+ * via `totalBRLTransacao`: transação em US$ pelo câmbio da operação),
  * excluindo reinvestimentos de proventos (não são capital novo).
  *
  * O serviço reescreve as células REALIZADO (vermelhas) da linha-espelho e
@@ -116,13 +121,25 @@ async function syncOne(userId: string, objetivoId: string): Promise<void> {
   if (assetIds.length > 0) {
     const transacoes = await prisma.stockTransaction.findMany({
       where: { userId, assetId: { in: assetIds }, type: { in: ['compra', 'venda'] } },
-      select: { type: true, total: true, fees: true, date: true, notes: true },
+      select: {
+        type: true,
+        total: true,
+        fees: true,
+        date: true,
+        notes: true,
+        assetId: true,
+        asset: { select: { type: true, currency: true } },
+      },
+      orderBy: { date: 'asc' },
     });
+    const lastRateByAsset = new Map<string, number>();
+    const serieCambio = await carregarCambioDasTransacoes(transacoes);
     for (const tx of transacoes) {
       if (isReinvestimentoTransaction(tx.notes)) continue;
       const year = tx.date.getFullYear();
       const month = tx.date.getMonth();
-      const valor = (tx.total + (tx.fees || 0)) * (tx.type === 'venda' ? -1 : 1);
+      const valor =
+        totalBRLTransacao(tx, lastRateByAsset, serieCambio) * (tx.type === 'venda' ? -1 : 1);
       const key = `${year}-${month}`;
       const current = netByKey.get(key);
       netByKey.set(key, { year, month, value: (current?.value ?? 0) + valor });

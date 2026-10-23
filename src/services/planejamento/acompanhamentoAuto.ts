@@ -1,5 +1,10 @@
 import { prisma } from '@/lib/prisma';
 import { off2date } from './aposentadoria';
+import { unidadeDaTransacao } from '@/lib/ativoEmDolar';
+import {
+  carregarCambioDasTransacoes,
+  totalBRLTransacao,
+} from '@/services/cashflow/investimentosPorMes';
 
 /**
  * Deriva os registros mensais de acompanhamento (aporte realizado + patrimônio
@@ -11,7 +16,8 @@ import { off2date } from './aposentadoria';
  *                 Com ativos vinculados à aposentadoria (Portfolio.
  *                 vinculoAposentadoria), só as transações DELES contam; sem
  *                 vínculo, vale a carteira toda menos os ativos de sonho
- *                 (esse dinheiro pertence à meta do sonho).
+ *                 (esse dinheiro pertence à meta do sonho). Transação gravada
+ *                 em US$ entra em R$ por `totalBRLTransacao` (câmbio da tx).
  *
  * Só cobre meses já iniciados (até o mês corrente). Meses sem snapshot ficam
  * com `hasData=false` e NÃO são preenchidos — não inventamos patrimônio.
@@ -78,8 +84,11 @@ export async function deriveAcompanhamentoEntries(
         total: true,
         price: true,
         quantity: true,
+        fees: true,
         notes: true,
+        asset: { select: { type: true, currency: true } },
       },
+      orderBy: { date: 'asc' },
     }),
     prisma.portfolio.findMany({
       where: {
@@ -105,6 +114,8 @@ export async function deriveAcompanhamentoEntries(
 
   // aporte líquido por mês (compras − vendas, excl. reinvestimento).
   const aporteByMonth = new Map<number, number>();
+  const lastRateByAsset = new Map<string, number>();
+  const serieCambio = await carregarCambioDasTransacoes(transactions);
   for (const tx of transactions) {
     if (isReinvestimento(tx.notes)) continue;
     if (assetsAposentadoria.size > 0) {
@@ -113,7 +124,20 @@ export async function deriveAcompanhamentoEntries(
       continue;
     }
     const key = monthKey(tx.date.getUTCFullYear(), tx.date.getUTCMonth());
-    const total = Number(tx.total) > 0 ? Number(tx.total) : tx.price * tx.quantity;
+    // R$ legado: como sempre (total, sem somar taxas). US$: total × câmbio da tx + fees.
+    const total =
+      unidadeDaTransacao(tx, tx.asset) === 'USD'
+        ? totalBRLTransacao(
+            {
+              ...tx,
+              total: Number(tx.total) > 0 ? Number(tx.total) : tx.price * tx.quantity,
+            },
+            lastRateByAsset,
+            serieCambio,
+          )
+        : Number(tx.total) > 0
+          ? Number(tx.total)
+          : tx.price * tx.quantity;
     const signed = tx.type === 'compra' ? total : -total;
     aporteByMonth.set(key, (aporteByMonth.get(key) ?? 0) + signed);
   }
