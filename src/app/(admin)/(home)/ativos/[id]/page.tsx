@@ -732,7 +732,7 @@ function AtivoDetalheContent() {
             <ComponentCard title="Valor aplicado vs Saldo" className="overflow-hidden">
               {data.historicoPatrimonio?.length > 0 ? (
                 <div className="min-w-0 max-w-full overflow-hidden">
-                  <LineChartCarteiraHistorico data={data.historicoPatrimonio} />
+                  <LineChartCarteiraHistorico data={data.historicoPatrimonio} moeda={moeda} />
                 </div>
               ) : (
                 <div className="flex h-64 items-center justify-center text-gray-500 dark:text-gray-400">

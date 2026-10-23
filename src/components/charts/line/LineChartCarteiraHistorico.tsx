@@ -98,6 +98,8 @@ interface LineChartCarteiraHistoricoProps {
     valorAplicado: number;
     saldoBruto: number;
   }>;
+  /** Moeda da série (posição em US$ na página do ativo); padrão R$. */
+  moeda?: 'BRL' | 'USD';
 }
 
 type PeriodoId = '1M' | '3M' | '6M' | 'YTD' | '1A' | 'MAX';
@@ -139,7 +141,9 @@ const periodoStart = (id: PeriodoId, latestTs: number): number | null => {
 
 export default function LineChartCarteiraHistorico({
   data: historicoData,
+  moeda = 'BRL',
 }: LineChartCarteiraHistoricoProps) {
+  const simbolo = moeda === 'USD' ? 'US$' : 'R$';
   const [periodo, setPeriodo] = useState<PeriodoId>('MAX');
   // PWA fase 1: abaixo de lg o gráfico cabe na tela (sem a largura mínima de 600px), mais baixo e
   // com menos marcas nos eixos. O desktop continua com as opções de sempre.
@@ -276,7 +280,7 @@ export default function LineChartCarteiraHistorico({
             fontSize: '12px',
           },
           formatter: (val: number) => {
-            return `R$ ${(val / 1000).toFixed(0)}K`;
+            return `${simbolo} ${(val / 1000).toFixed(0)}K`;
           },
         },
       },
@@ -307,7 +311,7 @@ export default function LineChartCarteiraHistorico({
         },
         y: {
           formatter: (val: number) => {
-            return `R$ ${val.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+            return `${simbolo} ${val.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
           },
         },
       },
@@ -333,7 +337,7 @@ export default function LineChartCarteiraHistorico({
         borderColor: '#E5E7EB',
       },
     }),
-    [isShortPeriod, yAxisMin],
+    [isShortPeriod, yAxisMin, simbolo],
   );
 
   const chartOptions: ApexOptions = useMemo(() => {
