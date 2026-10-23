@@ -145,6 +145,7 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
           total: true,
           price: true,
           quantity: true,
+          fees: true,
           notes: true,
           date: true,
           asset: { select: { type: true, currency: true } },
@@ -188,7 +189,8 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     if (unidadeDaTransacao(t, t.asset) === 'USD') {
       const fx = fxDaTransacao(t.notes, t.date, serieCambio);
       if (!fx) return 0; // sem câmbio: fora da média (nunca US$ como R$)
-      abs *= fx;
+      // total × câmbio + corretagem (fees, já em R$), como os demais leitores de fluxo.
+      abs = abs * fx + (Number(t.fees) || 0);
     }
     return t.type === 'venda' ? -abs : abs;
   };

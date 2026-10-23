@@ -266,6 +266,7 @@ describe('GET /api/planejamento/contexto', () => {
         total: 440,
         price: 110,
         quantity: 4,
+        fees: 10, // corretagem em R$: soma depois do câmbio
         date: new Date('2026-05-10T00:00:00Z'),
         // câmbio gravado na compra vence a série
         notes: JSON.stringify({ operation: { unidade: 'USD', moeda: 'USD', cotacaoMoeda: 5.4 } }),
@@ -285,6 +286,6 @@ describe('GET /api/planejamento/contexto', () => {
 
     const data = await (await GET(req())).json();
     expect(data.patrimonio).toBeCloseTo(40_000 + 2376, 2);
-    expect(data.aporteMensalRealizado).toBeCloseTo((440 * 5.4 + 120 * 5) / 12, 2);
+    expect(data.aporteMensalRealizado).toBeCloseTo((440 * 5.4 + 10 + 120 * 5) / 12, 2);
   });
 });
