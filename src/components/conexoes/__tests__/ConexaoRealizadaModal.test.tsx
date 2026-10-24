@@ -42,9 +42,11 @@ describe('ConexaoRealizadaModal', () => {
     expect(t).toContain('já entrou em Dívidas');
     expect(t).toContain('1 item que não conseguimos trazer sozinhos');
     expect(t).toContain('A autorização vale até 21/09/2027');
+    expect(t).toContain('Alguns bancos enviam parte dos investimentos até 48 horas depois');
+    expect(t).not.toContain('nenhum por enquanto');
   });
 
-  it('sem investimentos nem empréstimos não lista essas linhas', () => {
+  it('sem investimentos nem empréstimos: avisa que investimentos podem levar 48h, sem linha de Dívidas', () => {
     render(
       <ConexaoRealizadaModal
         conexao={{ ...conexao, consentExpiresAt: null }}
@@ -63,6 +65,9 @@ describe('ConexaoRealizadaModal', () => {
     );
     const t = texto();
     expect(t).toContain('Transações (nenhuma no período por enquanto)');
+    expect(t).toContain('Investimentos (nenhum por enquanto)');
+    expect(t).toContain('alguns bancos levam até 48 horas para enviar');
+    expect(t).not.toContain('Alguns bancos enviam parte');
     expect(t).not.toContain('Carteira,');
     expect(t).not.toContain('Dívidas');
     expect(t).not.toContain('vale até');
