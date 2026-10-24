@@ -2,7 +2,7 @@
 
 /**
  * Card "Composição do fundo" (A6, item 2; fatia A): barra 100% horizontal + legenda com as fatias
- * sobre o ATIVO TOTAL do último informe mensal. Tons neutros da paleta My Finance (azuis e cinzas),
+ * sobre a base (caixa + imóveis + papéis + fundos) do último informe mensal. Tons neutros da paleta My Finance (azuis e cinzas),
  * nenhuma fatia com cor de "bom" ou "ruim". `largo` (papel e FoF, sem lista ao lado): barra e legenda
  * à esquerda, "Como ler" à direita a partir de md.
  */
@@ -19,12 +19,8 @@ const T = TEXTOS_IMOVEIS_FII.composicao;
 export const COR_FATIA: Readonly<Record<CodigoFatiaComposicao, string>> = {
   imoveis: 'bg-mf-seguranca dark:bg-mf-tranquilidade',
   cri_cra: 'bg-mf-patrimonio dark:bg-mf-patrimonio',
-  lci_lca: 'bg-mf-tranquilidade dark:bg-mf-seguranca',
   cotas_fii: 'bg-mf-outside/70 dark:bg-mf-outside/60',
   caixa_renda_fixa: 'bg-mf-transparencia dark:bg-gray-500',
-  outros: 'bg-gray-400 dark:bg-gray-600',
-  alugueis_receber: 'bg-gray-400 dark:bg-gray-600',
-  outros_investimentos: 'bg-mf-escolha dark:bg-gray-700',
 };
 
 const MESES = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
@@ -104,6 +100,7 @@ export default function ComposicaoAtivoFii({ ticker, composicao, largo, semLista
   const rodape =
     composicao.estado === 'ok' ? (
       <p className="m-0 text-xs text-gray-500 dark:text-gray-400">
+        {formatarTexto(T.base, { valor: reais(composicao.valor.base) })} ·{' '}
         {formatarTexto(T.ativoTotal, { valor: reais(composicao.valor.ativoTotal) })} ·{' '}
         {formatarTexto(T.rodape, { data: mesAno(composicao.valor.refMonth) })}
       </p>

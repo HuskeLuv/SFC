@@ -117,25 +117,21 @@ export const ROTAS_COMPLEMENTOS = {
 // ===========================================================================
 
 /**
- * Fatias da composição, SEMPRE sobre o ATIVO TOTAL, em ordem fixa. 'imoveis' inclui SPE. Com
- * fii_monthly.valoresReceber preenchido (fatia E), 'outros' se divide em 'alugueis_receber' +
- * 'outros_investimentos' (e 'outros' some). Nulo com o ativo/passivo presente conta como 0.
+ * Fatias da composição (igual ao Fundamentei), em ordem fixa, sobre a BASE = soma das 4 fatias
+ * (sem valores a receber, LCI/LCA e demais ativos). 'imoveis' inclui SPE. Nulo com o ativo/passivo
+ * presente conta como 0.
  */
 export const CODIGOS_FATIA_COMPOSICAO = [
   'imoveis',
   'cri_cra',
-  'lci_lca',
   'cotas_fii',
   'caixa_renda_fixa',
-  'outros',
-  'alugueis_receber',
-  'outros_investimentos',
 ] as const;
 export type CodigoFatiaComposicao = (typeof CODIGOS_FATIA_COMPOSICAO)[number];
 
 export interface FatiaComposicaoFiiApi {
   codigo: CodigoFatiaComposicao;
-  /** % do ativo total (0 aparece como 0, nunca some: as mesmas fatias em todos os FIIs) */
+  /** % da base (0 aparece como 0, nunca some: as mesmas fatias em todos os FIIs) */
   pct: number;
   /** R$ */
   valor: number;
@@ -146,9 +142,9 @@ export interface ComposicaoFiiApi {
   refMonth: string;
   /** R$ */
   ativoTotal: number;
+  /** R$: caixa + imóveis + papéis + fundos (denominador dos percentuais) */
+  base: number;
   fatias: FatiaComposicaoFiiApi[];
-  /** true = 'outros' dividido em aluguéis/valores a receber + outros investimentos */
-  outrosDetalhado: boolean;
 }
 
 /** Motivos de Estado da composição e da lista (texto em TEXTOS_IMOVEIS_FII.motivos). */

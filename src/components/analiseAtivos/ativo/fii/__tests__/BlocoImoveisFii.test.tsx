@@ -61,14 +61,12 @@ const RESPOSTA: ImoveisFiiResposta = {
     valor: {
       refMonth: '2026-09-01',
       ativoTotal: 4_820_000_000,
-      outrosDetalhado: false,
+      base: 4_617_560_000,
       fatias: [
-        { codigo: 'imoveis', pct: 85.9, valor: 4_140_380_000 },
-        { codigo: 'cri_cra', pct: 3.1, valor: 149_420_000 },
-        { codigo: 'lci_lca', pct: 1.2, valor: 57_840_000 },
+        { codigo: 'imoveis', pct: 89.6667, valor: 4_140_380_000 },
+        { codigo: 'cri_cra', pct: 3.2359, valor: 149_420_000 },
         { codigo: 'cotas_fii', pct: 0, valor: 0 },
-        { codigo: 'caixa_renda_fixa', pct: 6.8, valor: 327_760_000 },
-        { codigo: 'outros', pct: 3, valor: 144_600_000 },
+        { codigo: 'caixa_renda_fixa', pct: 7.0981, valor: 327_760_000 },
       ],
     },
   },
@@ -90,7 +88,7 @@ describe('BlocoImoveisFii', () => {
     const { container } = render(<BlocoImoveisFii ticker="XPTO11" fiiTipo="tijolo" />);
     const grid = container.querySelector('[data-bloco-imoveis-fii="com-lista"]')!;
     expect(grid.className).toContain('xl:grid-cols-3');
-    expect(container.querySelectorAll('[data-fatia]')).toHaveLength(6);
+    expect(container.querySelectorAll('[data-fatia]')).toHaveLength(4);
     // 0% aparece (não some)
     expect(container.querySelector('[data-fatia="cotas_fii"]')!.textContent).toContain('0%');
     expect(screen.getByText(/set\/2026 · fonte CVM informe mensal/)).toBeTruthy();

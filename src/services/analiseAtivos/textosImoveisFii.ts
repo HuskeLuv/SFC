@@ -18,30 +18,26 @@ export const TEXTOS_IMOVEIS_FII = {
   },
   composicao: {
     titulo: 'Composição do fundo',
-    sub: '% do ativo total',
-    ariaBarra: 'Composição do ativo total',
+    sub: '% de caixa, imóveis, papéis e fundos',
+    ariaBarra: 'Composição do fundo',
     fatias: {
       imoveis: 'Imóveis',
-      cri_cra: 'CRI/CRA',
-      lci_lca: 'LCI/LCA/LH/LIG',
-      cotas_fii: 'Cotas de FII',
+      cri_cra: 'Papéis (CRI/CRA)',
+      cotas_fii: 'Fundos (cotas de FII)',
       caixa_renda_fixa: 'Caixa e renda fixa',
-      outros: 'Outros',
-      alugueis_receber: 'Aluguéis e valores a receber',
-      outros_investimentos: 'Outros investimentos',
     },
     subFatias: {
       imoveis: 'inclui participação em SPE',
-      outros: 'ações, debêntures, valores a receber e demais',
     },
     /** legenda de cada fatia: '% · R$ x bi' */
     legendaValor: '{valor} do ativo',
     ativoTotal: 'Ativo total {valor}',
+    base: 'Base {valor}',
     rodape:
-      'ref. {data} · fonte CVM informe mensal · base: ativo total do fundo (pode diferir de outras fontes que usam outra base)',
+      'ref. {data} · fonte CVM informe mensal · base: caixa + imóveis + papéis + fundos (fora valores a receber e outros ativos)',
     comoLerTitulo: 'Como ler',
     comoLer:
-      'Percentuais sobre o ativo total do fundo no último informe mensal. "Imóveis" aparece com 0% em vez de sumir, para manter as mesmas fatias em todos os FIIs.',
+      'Percentuais sobre a soma de caixa, imóveis, papéis (CRI/CRA) e fundos no último informe mensal; aluguéis e valores a receber e outros ativos ficam fora da conta. "Imóveis" aparece com 0% em vez de sumir, para manter as mesmas fatias em todos os FIIs.',
     semLista: 'Lista de imóveis: não se aplica a fundo de papel nem a fundo de fundos.',
   },
   imoveis: {

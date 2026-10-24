@@ -291,40 +291,56 @@ const COMP: EntradaComposicaoFii = {
 };
 
 describe('montarComposicaoFii', () => {
-  it('6 fatias sobre o ativo total, somando 100%; nulo conta como 0; imóveis inclui SPE', () => {
-    const r = montarComposicaoFii(COMP);
+  it('4 fatias sobre caixa + imóveis + papéis + fundos (como o Fundamentei); imóveis inclui SPE', () => {
+    const r = montarComposicaoFii({ ...COMP, lciLca: 40, valoresReceber: 25 });
     if (r.estado !== 'ok') throw new Error('esperava ok');
     expect(r.valor.fatias.map((f) => f.codigo)).toEqual([
       'imoveis',
       'cri_cra',
-      'lci_lca',
       'cotas_fii',
       'caixa_renda_fixa',
-      'outros',
     ]);
-    expect(r.valor.fatias.map((f) => f.pct)).toEqual([85, 3, 0, 2, 6, 4]);
-    expect(r.valor.fatias.reduce((a, f) => a + f.pct, 0)).toBeCloseTo(100, 6);
-    expect(r.valor.outrosDetalhado).toBe(false);
+    // base = 850 + 30 + 20 + 60 = 960; LCI, ações e valores a receber ficam fora
+    expect(r.valor.base).toBe(960);
+    expect(r.valor.ativoTotal).toBe(1000);
+    expect(r.valor.fatias.map((f) => f.pct)).toEqual([88.5417, 3.125, 2.0833, 6.25]);
+    expect(r.valor.fatias.reduce((a, f) => a + f.pct, 0)).toBeCloseTo(100, 3);
   });
 
-  it('resíduo negativo vira sem dado (composição inconsistente)', () => {
-    const r = montarComposicaoFii({ ...COMP, imoveis: 950 });
-    expect(r).toMatchObject({
+  it('HGLG11 set/2026: imóveis 97,5% da base (Fundamentei 98%)', () => {
+    const r = montarComposicaoFii({
+      refMonth: '2026-09-01',
+      ativoTotal: 8835.7,
+      imoveis: 7060.4,
+      spe: 1051.7,
+      cri: 31.4,
+      lciLca: 0,
+      cotasFii: 148.3,
+      rendaFixa: 24.2,
+      acoes: 0,
+      valoresReceber: 519.7,
+    });
+    if (r.estado !== 'ok') throw new Error('esperava ok');
+    expect(r.valor.fatias[0].pct).toBeCloseTo(97.55, 2);
+  });
+
+  it('fatia negativa além da tolerância ou base zero vira sem dado (composição inconsistente)', () => {
+    expect(montarComposicaoFii({ ...COMP, cri: -30 })).toMatchObject({
       estado: 'ausente',
       motivo: 'composicao_inconsistente',
       texto: TEXTOS_IMOVEIS_FII.motivos.composicao_inconsistente,
     });
-  });
-
-  it('com valoresReceber: Outros se divide em aluguéis a receber + outros investimentos', () => {
-    const r = montarComposicaoFii({ ...COMP, valoresReceber: 25 });
-    if (r.estado !== 'ok') throw new Error('esperava ok');
-    expect(r.valor.outrosDetalhado).toBe(true);
-    expect(r.valor.fatias.slice(-2)).toEqual([
-      { codigo: 'alugueis_receber', pct: 2.5, valor: 25 },
-      { codigo: 'outros_investimentos', pct: 1.5, valor: 15 },
-    ]);
-    expect(r.valor.fatias.reduce((a, f) => a + f.pct, 0)).toBeCloseTo(100, 6);
+    expect(
+      montarComposicaoFii({
+        ...COMP,
+        imoveis: 0,
+        spe: 0,
+        cri: 0,
+        cotasFii: 0,
+        rendaFixa: 0,
+        lciLca: 900,
+      }),
+    ).toMatchObject({ estado: 'ausente', motivo: 'composicao_inconsistente' });
   });
 
   it('sem ativo total ou sem nenhuma coluna de composição: sem informe mensal', () => {
