@@ -70,6 +70,11 @@ export const MARCA_ATENDE_VERDE = 'bg-[#16A34A] text-white dark:bg-[#34C47C] dar
 export const MARCA_ATENDE_MARINHO = 'bg-[#314666] text-white dark:bg-[#6E9DC4] dark:text-[#18181B]';
 /** Visual v2: barras dos critérios no azul vivo da marca (outside #0079F2; não é texto). */
 export const BARRA_CRITERIO_V2 = 'fill-[#0079F2] dark:fill-[#6E9DC4]';
+/**
+ * Exceção à paleta autorizada pelo Wellington 23/10 (visual v2): variação positiva da cotação no
+ * cabeçalho do ativo em verde, como no HTML do Pedro. Mesmos tons do VERDE_ATENDE.
+ */
+export const TEXTO_VARIACAO_POSITIVA = 'text-[#16A34A] dark:text-[#34C47C]';
 /** Hex da exceção do ✓ verde (só para os testes de fonte que a aceitam explicitamente). */
 export const CORES_EXCECAO_ATENDE: readonly string[] = Object.values(VERDE_ATENDE);
 
