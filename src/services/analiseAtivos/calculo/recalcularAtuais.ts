@@ -417,7 +417,9 @@ export function calcularAtualAcao(e: EntradaAtualAcao, p: ScoringParams): Calcul
   if (regrasCalculoDe(p).payoutRegra === 'dfc') {
     // F2 (A4.a, scoring v3): proventos pagos na DFC TTM ÷ lucro TTM (número da empresa); lucro ≤ 0
     // ⇒ ausente 'prejuizo'
-    payoutPct = fund ? payoutCaixaPct(fund) : ausente('sem_dado_fonte', 'sem_ttm');
+    payoutPct = fund
+      ? payoutCaixaPct(fund, regrasCalculoDe(p).lucroPlTotais)
+      : ausente('sem_dado_fonte', 'sem_ttm');
   } else if (lpa.estado !== 'ok') payoutPct = lpa;
   // payout do TTM = DPA 12m ÷ LPA TTM (LPA ≤ 0 ⇒ n/a, regra 4)
   else if (dpa12m.estado !== 'ok') payoutPct = dpa12m;

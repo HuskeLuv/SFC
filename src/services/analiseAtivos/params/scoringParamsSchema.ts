@@ -206,6 +206,11 @@ const proventosCalculoSchema = z.strictObject({
   jcpLiquido: z.boolean().optional(),
 });
 
+/** fundamentei-regras (24/10/2026): lucro e PL TOTAIS (com minoritários) nos múltiplos de ação. */
+const multiplosCalculoSchema = z.strictObject({
+  lucroPlTotais: z.boolean().optional(),
+});
+
 const baseSchema = z.strictObject({
   versao: z.number().int().positive(),
   descricao: z.string(),
@@ -213,6 +218,8 @@ const baseSchema = z.strictObject({
   payout: payoutSchema.optional(),
   /** F0 fundamentei-regras: janelas e corte do DY/DPA de ações (ausente = hoje) */
   proventos: proventosCalculoSchema.optional(),
+  /** fundamentei-regras: base de lucro/PL dos múltiplos de ação (ausente = atribuível, hoje) */
+  multiplos: multiplosCalculoSchema.optional(),
   /** F0 fundamentei-regras: anos fechados do job quadro por dtFim (ausente = false, hoje) */
   serie10aPorDtFim: z.boolean().optional(),
   indice: z.strictObject({
@@ -589,6 +596,7 @@ export interface RegrasCalculo {
   cortarFuturos: boolean;
   dpaPorExercicio: boolean;
   jcpLiquido: boolean;
+  lucroPlTotais: boolean;
   serie10aPorDtFim: boolean;
 }
 
@@ -599,12 +607,13 @@ export const REGRAS_CALCULO_PADRAO: Readonly<RegrasCalculo> = Object.freeze({
   cortarFuturos: false,
   dpaPorExercicio: false,
   jcpLiquido: false,
+  lucroPlTotais: false,
   serie10aPorDtFim: false,
 });
 
 /** Regras de cálculo da versão (campo ausente = padrão de hoje). Pura. */
 export function regrasCalculoDe(
-  p: Pick<ScoringParams, 'payout' | 'proventos' | 'serie10aPorDtFim'>,
+  p: Pick<ScoringParams, 'payout' | 'proventos' | 'multiplos' | 'serie10aPorDtFim'>,
 ): RegrasCalculo {
   const d = REGRAS_CALCULO_PADRAO;
   return {
@@ -613,6 +622,7 @@ export function regrasCalculoDe(
     cortarFuturos: p.proventos?.cortarFuturos ?? d.cortarFuturos,
     dpaPorExercicio: p.proventos?.dpaPorExercicio ?? d.dpaPorExercicio,
     jcpLiquido: p.proventos?.jcpLiquido ?? d.jcpLiquido,
+    lucroPlTotais: p.multiplos?.lucroPlTotais ?? d.lucroPlTotais,
     serie10aPorDtFim: p.serie10aPorDtFim ?? d.serie10aPorDtFim,
   };
 }

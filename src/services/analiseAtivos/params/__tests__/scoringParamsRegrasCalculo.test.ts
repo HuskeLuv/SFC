@@ -38,6 +38,7 @@ describe('F0 fundamentei-regras — scoring v1/v2 inalteradas', () => {
       cortarFuturos: false,
       dpaPorExercicio: false,
       jcpLiquido: false,
+      lucroPlTotais: false,
       serie10aPorDtFim: false,
     });
   });
@@ -64,8 +65,18 @@ describe('F0 fundamentei-regras — campos novos', () => {
       cortarFuturos: true,
       dpaPorExercicio: true,
       jcpLiquido: false,
+      lucroPlTotais: false,
       serie10aPorDtFim: true,
     });
+  });
+
+  it('multiplos.lucroPlTotais (v5): aceito e lido; ausente = atribuível; chave extra recusada', () => {
+    const lido = scoringParamsSchema.parse({ ...base(), multiplos: { lucroPlTotais: true } });
+    expect(regrasCalculoDe(lido).lucroPlTotais).toBe(true);
+    expect(regrasCalculoDe(scoringParamsSchema.parse(base())).lucroPlTotais).toBe(false);
+    expect(
+      scoringParamsSchema.safeParse({ ...base(), multiplos: { lucroTotal: true } }).success,
+    ).toBe(false);
   });
 
   it('jcpLiquido (v5): aceito e lido; ausente = JCP bruto', () => {
