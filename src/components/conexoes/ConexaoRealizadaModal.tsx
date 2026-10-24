@@ -59,7 +59,14 @@ export default function ConexaoRealizadaModal({
         : 'Transações (nenhuma no período por enquanto)',
     onde: 'na Caixa de entrada, para você revisar e levar ao Fluxo de Caixa',
   });
-  if (importados.investimentos > 0) {
+  // Alguns bancos mandam os investimentos só no sync seguinte (BTG, ticket
+  // 86e3vj7rf: ações na madrugada, CDBs ~36h depois de conectar).
+  if (importados.investimentos === 0) {
+    linhas.push({
+      dado: 'Investimentos (nenhum por enquanto)',
+      onde: 'alguns bancos levam até 48 horas para enviar; quando chegarem, entram sozinhos na Carteira',
+    });
+  } else {
     linhas.push({
       dado: plural(importados.investimentos, 'investimento', 'investimentos'),
       onde:
@@ -145,6 +152,9 @@ export default function ConexaoRealizadaModal({
         <p className="mt-4 text-xs text-gray-500 dark:text-gray-400">
           {conexao.consentExpiresAt
             ? `A autorização vale até ${new Date(conexao.consentExpiresAt).toLocaleDateString('pt-BR', { timeZone: 'UTC' })}. `
+            : ''}
+          {importados.investimentos > 0
+            ? 'Alguns bancos enviam parte dos investimentos até 48 horas depois; o que chegar entra sozinho na Carteira. '
             : ''}
           Os dados novos chegam automaticamente enquanto a autorização valer. Você pode desconectar
           a qualquer momento nesta tela.
