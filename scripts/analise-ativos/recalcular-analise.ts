@@ -60,6 +60,7 @@ import {
 import { SCORING_PARAMS_V2 } from '../../src/services/analiseAtivos/params/scoringParamsV2';
 import { SCORING_PARAMS_V3 } from '../../src/services/analiseAtivos/params/scoringParamsV3';
 import { SCORING_PARAMS_V4 } from '../../src/services/analiseAtivos/params/scoringParamsV4';
+import { SCORING_PARAMS_V5 } from '../../src/services/analiseAtivos/params/scoringParamsV5';
 import type { RelatorioSanidade } from '../../src/services/analiseAtivos/calculo/recalcularAtuais';
 import type {
   ColetorPayoutDy,
@@ -129,10 +130,11 @@ const VERSOES_CODIGO: Record<number, ScoringParams> = {
   [SCORING_PARAMS_V2.versao]: SCORING_PARAMS_V2,
   [SCORING_PARAMS_V3.versao]: SCORING_PARAMS_V3,
   [SCORING_PARAMS_V4.versao]: SCORING_PARAMS_V4,
+  [SCORING_PARAMS_V5.versao]: SCORING_PARAMS_V5,
 };
 
 /**
- * Params da --versao-params: a versão do banco se existir; senão, a v2/v3/v4 do código (só dry-run —
+ * Params da --versao-params: a versão do banco se existir; senão, a v2/v3/v4/v5 do código (só dry-run —
  * gravar derivados com uma versão que não está no banco quebraria a trilha paramsVersion).
  */
 async function paramsDaVersao(
