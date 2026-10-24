@@ -11,6 +11,8 @@ const mockPrisma = vi.hoisted(() => {
     tx,
     asset: { findFirst: vi.fn(), updateMany: vi.fn() },
     portfolio: { findFirst: vi.fn() },
+    fixedIncomeAsset: { findFirst: vi.fn() },
+    tesouroDiretoPrice: { findFirst: vi.fn() },
     fiiTickerMap: { findFirst: vi.fn() },
     fiiMonthly: { findFirst: vi.fn() },
     bankInvestment: { update: vi.fn(), findMany: vi.fn(), count: vi.fn() },
@@ -46,6 +48,7 @@ import {
   taxaAaParaAm,
   tipoDivida,
   tipoRendaFixa,
+  tiposTesouroPorNome,
 } from '../importarCarteira';
 
 const base = {
@@ -96,6 +99,8 @@ beforeEach(() => {
   mockPrisma.bankInvestment.count.mockResolvedValue(0);
   mockPrisma.fiiTickerMap.findFirst.mockResolvedValue(null);
   mockPrisma.fiiMonthly.findFirst.mockResolvedValue(null);
+  mockPrisma.fixedIncomeAsset.findFirst.mockResolvedValue(null);
+  mockPrisma.tesouroDiretoPrice.findFirst.mockResolvedValue(null);
 });
 
 describe('mapeamentos', () => {
@@ -333,6 +338,136 @@ describe('importarInvestimento', () => {
       data: expect.objectContaining({ quantity: 1, avgPrice: 2000, totalInvested: 2000 }),
     });
     expect(mockRecalc).not.toHaveBeenCalled();
+  });
+
+  describe('Tesouro Direto', () => {
+    // NTN-B Principal do BTG (ticket 86e3vj7rf), como o Pluggy manda.
+    const ntnbP = {
+      ...base,
+      type: 'FIXED_INCOME',
+      subtype: 'TREASURY',
+      name: 'TESOURO DIRETO - NTNB-P',
+      code: 'BRSTNCNTB666',
+      isin: 'BRSTNCNTB666',
+      issuer: null,
+      balance: 21742.86,
+      quantity: 11.4,
+      amountOriginal: 18925.48,
+      rate: 100,
+      rateType: 'IPCA',
+      fixedAnnualRate: 7.01,
+      issueDate: new Date('2025-09-01T03:00:00Z'),
+      dueDate: new Date('2040-08-15T03:00:00Z'),
+    };
+    const vencimento = new Date('2040-08-15T00:00:00Z');
+
+    it('sigla do nome → tipo do Tesouro Transparente', () => {
+      expect(tiposTesouroPorNome('TESOURO DIRETO - NTNB-P')).toEqual(['Tesouro IPCA+']);
+      expect(tiposTesouroPorNome('TESOURO DIRETO - NTNB')).toEqual([
+        'Tesouro IPCA+ com Juros Semestrais',
+      ]);
+      expect(tiposTesouroPorNome('TESOURO DIRETO - NTN-B1')).toEqual([
+        'Tesouro Renda+ Aposentadoria Extra',
+        'Tesouro Educa+',
+      ]);
+      expect(tiposTesouroPorNome('TESOURO DIRETO - NTNF')).toEqual([
+        'Tesouro Prefixado com Juros Semestrais',
+      ]);
+      expect(tiposTesouroPorNome('TESOURO DIRETO - LTN')).toEqual(['Tesouro Prefixado']);
+      expect(tiposTesouroPorNome('TESOURO DIRETO - LFT')).toEqual(['Tesouro Selic']);
+      expect(tiposTesouroPorNome('Tesouro IPCA+ com Juros Semestrais 2035')).toEqual([
+        'Tesouro IPCA+ com Juros Semestrais',
+      ]);
+      expect(tiposTesouroPorNome('Tesouro IPCA+ 2029')).toEqual(['Tesouro IPCA+']);
+      expect(tiposTesouroPorNome('COE Autocall')).toEqual([]);
+    });
+
+    it('NTN-B Principal: renda fixa marcada pelo PU oficial, com a quantidade de títulos', async () => {
+      mockPrisma.tesouroDiretoPrice.findFirst.mockResolvedValue({
+        bondType: 'Tesouro IPCA+',
+        maturityDate: vencimento,
+      });
+      const st = await importarInvestimento(ntnbP);
+      expect(st).toBe('importado');
+      expect(mockPrisma.tesouroDiretoPrice.findFirst).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ bondType: { in: ['Tesouro IPCA+'] } }),
+        }),
+      );
+      expect(mockPrisma.tx.asset.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          symbol: 'PLUGGY-TD-44FECCAF',
+          name: 'Tesouro IPCA+ 2040',
+          type: 'bond',
+        }),
+      });
+      expect(mockPrisma.tx.portfolio.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          quantity: 11.4,
+          avgPrice: 1660.129825,
+          totalInvested: 18925.48,
+        }),
+      });
+      expect(mockPrisma.tx.fixedIncomeAsset.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          type: 'CDB_HIB',
+          indexer: 'IPCA',
+          indexerPercent: 100,
+          annualRate: 7.01,
+          investedAmount: 18925.48,
+          taxExempt: false,
+          tesouroBondType: 'Tesouro IPCA+',
+          tesouroMaturity: vencimento,
+        }),
+      });
+      expect(mockPrisma.bankInvestment.update).toHaveBeenLastCalledWith({
+        where: { id: 'bi-1' },
+        data: expect.objectContaining({ importStatus: 'importado', fixedIncomeAssetId: 'fi-1' }),
+      });
+    });
+
+    it('título já cadastrado pelo wizard: só vincula, sem duplicar', async () => {
+      mockPrisma.tesouroDiretoPrice.findFirst.mockResolvedValue({
+        bondType: 'Tesouro IPCA+',
+        maturityDate: vencimento,
+      });
+      mockPrisma.fixedIncomeAsset.findFirst.mockResolvedValue({ id: 'fi-w', assetId: 'td-cat' });
+      mockPrisma.portfolio.findFirst.mockResolvedValue({ id: 'port-w' });
+      const st = await importarInvestimento(ntnbP);
+      expect(st).toBe('vinculado');
+      expect(mockPrisma.fixedIncomeAsset.findFirst).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: {
+            userId: 'user-1',
+            tesouroBondType: 'Tesouro IPCA+',
+            tesouroMaturity: vencimento,
+          },
+        }),
+      );
+      expect(mockPrisma.tx.asset.create).not.toHaveBeenCalled();
+      expect(mockPrisma.bankInvestment.update).toHaveBeenCalledWith({
+        where: { id: 'bi-1' },
+        data: expect.objectContaining({
+          importStatus: 'vinculado',
+          assetId: 'td-cat',
+          portfolioId: 'port-w',
+          fixedIncomeAssetId: 'fi-w',
+        }),
+      });
+    });
+
+    it('título sem PU conhecido para o vencimento: sem-suporte, nada criado', async () => {
+      const st = await importarInvestimento(ntnbP);
+      expect(st).toBe('sem-suporte');
+      expect(mockPrisma.tx.asset.create).not.toHaveBeenCalled();
+      expect(mockPrisma.bankInvestment.update).toHaveBeenCalledWith({
+        where: { id: 'bi-1' },
+        data: expect.objectContaining({
+          importStatus: 'sem-suporte',
+          importError: expect.stringContaining('15/08/2040'),
+        }),
+      });
+    });
   });
 
   it('CDB que o banco parou de atualizar não entra na Carteira', async () => {
