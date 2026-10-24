@@ -1,8 +1,12 @@
 /**
  * Retornos acumulados da cotação (A6, item 5; fatia C) — função PURA, sem banco.
  *
- * Só PREÇO (sem proventos): fechamento cru do COTAHIST ajustado por desdobramentos, grupamentos e
- * bonificações que ajustam série (eventoAjustaSerie: 'confirmado' | 'emissao_recompra').
+ * RETORNO TOTAL (igual ao Fundamentei, 24/10/2026): fechamento cru do COTAHIST ajustado por
+ * desdobramentos, grupamentos e bonificações que ajustam série (eventoAjustaSerie: 'confirmado' |
+ * 'emissao_recompra') E por proventos reinvestidos na data-ex: cada provento multiplica os preços
+ * anteriores à data-ex por (1 − valor ÷ fechamento do pregão anterior à data-ex). Valor e fechamento
+ * na base da época (crus), então o fator não depende de evento de ações. Provento com valor fora de
+ * (0; 50%) do fechamento é ignorado (dado ruim não vira retorno).
  *
  * - Data-alvo de cada janela = último pregão (ateData) − 1/12/60/120 meses (dia limitado ao fim do
  *   mês). Preço na data-alvo = último pregão da série ≤ alvo, aceito só se estiver a no máximo
@@ -57,11 +61,19 @@ export interface PregaoRetorno {
 
 export type EventoRetorno = Pick<EventoCorporativoVerificado, 'dataEvento' | 'fator' | 'status'>;
 
+/** Provento por ação/cota na base da época (cru), com a data-ex (1º pregão sem o direito). */
+export interface ProventoRetorno {
+  dataEx: string;
+  valor: number;
+}
+
 export interface EntradaRetornos {
   symbol: string;
   classe: ClasseBr;
   pregoes: readonly PregaoRetorno[];
   eventos: readonly EventoRetorno[];
+  /** proventos válidos (retorno total); ausente = só preço */
+  proventos?: readonly ProventoRetorno[];
   /** data civil de referência do job (AAAA-MM-DD), só para 'sem_cotacao_recente' */
   hoje: string;
 }
@@ -102,6 +114,42 @@ export function inicioCargaRetornos(ate: string): string {
 
 const pct = (r: number) => r * 100;
 
+/** Provento acima disto (fração do fechamento da véspera) é dado ruim: fica fora. */
+const MAX_PROVENTO_FRACAO = 0.5;
+
+/**
+ * Fatores de reinvestimento por data-ex (≤ ate): 1 − valor ÷ fechamento do último pregão antes da
+ * data-ex. Sem pregão anterior na série ⇒ fora.
+ */
+export function fatoresProventos(
+  pregoes: readonly PregaoRetorno[],
+  proventos: readonly ProventoRetorno[],
+  ate: string,
+): Array<{ dataEx: string; fator: number }> {
+  const out: Array<{ dataEx: string; fator: number }> = [];
+  for (const pr of proventos) {
+    if (!(pr.valor > 0) || pr.dataEx > ate) continue;
+    const i = ultimoAte(pregoes, pr.dataEx);
+    const iVespera = i >= 0 && pregoes[i].date === pr.dataEx ? i - 1 : i;
+    if (iVespera < 0) continue;
+    const fracao = pr.valor / pregoes[iVespera].closeRaw;
+    if (!(fracao > 0 && fracao < MAX_PROVENTO_FRACAO)) continue;
+    out.push({ dataEx: pr.dataEx, fator: 1 - fracao });
+  }
+  return out;
+}
+
+/** Π dos fatores de proventos com data-ex em (de, ate]. */
+function fatorProventosEntre(
+  fatores: ReadonlyArray<{ dataEx: string; fator: number }>,
+  de: string,
+  ate: string,
+): number {
+  let f = 1;
+  for (const x of fatores) if (x.dataEx > de && x.dataEx <= ate) f *= x.fator;
+  return f;
+}
+
 /** Calcula os retornos de um símbolo; null = sem nenhum pregão válido. */
 export function retornosCotacao(e: EntradaRetornos): RetornosCalculados | null {
   const pregoes = e.pregoes.filter((p) => Number.isFinite(p.closeRaw) && p.closeRaw > 0);
@@ -111,6 +159,11 @@ export function retornosCotacao(e: EntradaRetornos): RetornosCalculados | null {
   const preco = ultimo.closeRaw;
   const flags = new Set<FlagRetorno>();
   const eventos = [...e.eventos];
+  const proventos = fatoresProventos(pregoes, e.proventos ?? [], ate);
+  /** preço do pregão na base de hoje: ÷ eventos de ações e × reinvestimento dos proventos depois */
+  const ajustar = (p: PregaoRetorno) =>
+    (p.closeRaw / fatorEventosEntre(eventos, p.date, ate)) *
+    fatorProventosEntre(proventos, p.date, ate);
 
   if (e.hoje > ate && distanciaEmPregoes(ate, e.hoje) > PREGOES_SEM_COTACAO_RECENTE) {
     flags.add('sem_cotacao_recente');
@@ -141,9 +194,7 @@ export function retornosCotacao(e: EntradaRetornos): RetornosCalculados | null {
       continue;
     }
     if (j === '1m' ? pendenteEm(alvo) : eventoPendente) continue;
-    const base = pregoes[i];
-    const baseAjustada = base.closeRaw / fatorEventosEntre(eventos, base.date, ate);
-    const r = preco / baseAjustada - 1;
+    const r = preco / ajustar(pregoes[i]) - 1;
     const anos = MESES_JANELA_RETORNO[j] / 12;
     valores[j] = pct(j === '5a' || j === '10a' ? Math.pow(1 + r, 1 / anos) - 1 : r);
   }
@@ -154,7 +205,7 @@ export function retornosCotacao(e: EntradaRetornos): RetornosCalculados | null {
   let dataMax: string | null = null;
   if (!eventoPendente) {
     for (const p of desdeMaxima) {
-      const ajustado = p.closeRaw / fatorEventosEntre(eventos, p.date, ate);
+      const ajustado = ajustar(p);
       if (precoMax === null || ajustado >= precoMax) {
         precoMax = ajustado;
         dataMax = p.date;

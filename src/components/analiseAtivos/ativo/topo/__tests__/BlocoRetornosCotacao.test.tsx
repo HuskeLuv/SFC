@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 /**
  * A6 (fatia C): card "Variação da cotação" — 4 janelas + distância da máxima com sinal +/− em cor
- * NEUTRA (nenhuma classe de cor semântica), 'sem dado' com o motivo, "sem proventos" no rodapé e a
+ * NEUTRA (nenhuma classe de cor semântica), 'sem dado' com o motivo, "proventos reinvestidos" no rodapé e a
  * nota do FII sobre rendimentos.
  */
 import { afterEach, describe, expect, it } from 'vitest';
@@ -79,9 +79,9 @@ describe('BlocoRetornosCotacao', () => {
     expect(celulas[4].textContent).toContain('jan/2015');
   });
 
-  it('rodapé: sem proventos, até a data, rentabilidade passada; ação sem a nota do FII', () => {
+  it('rodapé: proventos reinvestidos, até a data, rentabilidade passada; ação sem a nota do FII', () => {
     const { container } = render(<BlocoRetornosCotacao ticker="WEGE3" retornos={ACAO} />);
-    expect(container.textContent).toContain('sem proventos');
+    expect(container.textContent).toContain('proventos reinvestidos');
     expect(container.textContent).toContain('até 16/10/2026');
     expect(container.textContent).toContain(TEXTOS_RETORNOS.rentabilidadePassada);
     expect(container.querySelector('[data-nota-fii]')).toBeNull();

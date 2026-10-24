@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * Card "Variação da cotação" da página do ativo (A6, item 5; fatia C). A PaginaAtivo só o monta
+ * Card "Retorno total" (antes "Variação da cotação") da página do ativo (A6, item 5; fatia C). A PaginaAtivo só o monta
  * quando o topo traz `retornos` (ANALISE_ATIVOS_RETORNOS_HABILITADO), em largura total depois de
  * GraficoLucroCotacao + BlocoDividendos e antes de Fundamentos.
  *
@@ -9,7 +9,7 @@
  * - Sinal +/− em cor NEUTRA (decisão do Wellington, 19/10): nenhuma classe de cor semântica aqui —
  *   o verde/vermelho fica só na variação do dia, no cabeçalho.
  * - Janela sem dado: 'sem dado' + o motivo (série curta, evento em conferência, sem cotação).
- * - Rodapé: "sem proventos", fonte e data; no FII, o texto sobre os rendimentos; rentabilidade
+ * - Rodapé: retorno total (proventos reinvestidos), fonte e data; no FII, o texto sobre os rendimentos; rentabilidade
  *   passada. Textos só de TEXTOS_RETORNOS.
  * - Grade: 2 colunas no celular (a distância da máxima ocupa a linha toda), 5 a partir de lg.
  */

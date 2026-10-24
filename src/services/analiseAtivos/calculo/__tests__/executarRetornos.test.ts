@@ -45,6 +45,7 @@ function deps(universo: ItemUniversoRetornos[], over: Partial<DependenciasRetorn
       return new Map(symbols.filter((s) => !s.startsWith('SEM')).map((s) => [s, PREGOES]));
     }),
     lerEventos: vi.fn(async () => new Map()),
+    lerProventos: vi.fn(async () => new Map()),
     gravar: vi.fn(async (_p: PrismaClient, linhas: readonly unknown[]) => linhas.length),
     ...over,
   };

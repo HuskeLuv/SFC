@@ -11,7 +11,9 @@ import { deData, paraData, paraNumero } from '@/services/analiseAtivos/repositor
 import type {
   EventoRetorno,
   PregaoRetorno,
+  ProventoRetorno,
 } from '@/services/analiseAtivos/regras/calculo/retornosCotacao';
+import { pregaoSeguinte } from '@/services/analiseAtivos/regras/comum/pregoes';
 import type { EventoCorporativoVerificado } from '@/services/analiseAtivos/tipos';
 import { ehClasseBr } from '@/types/analiseAtivosApi';
 import {
@@ -58,6 +60,38 @@ export async function lerSerieRetornos(
        AND negocios > 0 AND "closeRaw" > 0
      GROUP BY symbol`;
   for (const l of linhas) out.set(l.symbol, parseSerieRetornos(l.serie));
+  return out;
+}
+
+/**
+ * Proventos válidos (asset_proventos_auditados, status 'valido': sem duplicatas) por símbolo, para o
+ * retorno total: valor CRU da época e data-ex = pregão seguinte à data-com real (até `ate`).
+ */
+export async function lerProventosRetornos(
+  prisma: PrismaClient,
+  symbols: readonly string[],
+  desde: string,
+  ate: string,
+): Promise<Map<string, ProventoRetorno[]>> {
+  const out = new Map<string, ProventoRetorno[]>();
+  if (symbols.length === 0) return out;
+  const linhas = await prisma.assetProventoAuditado.findMany({
+    where: {
+      symbol: { in: [...symbols] },
+      status: 'valido',
+      dataComReal: { gte: deData(desde), lt: deData(ate) },
+    },
+    select: { symbol: true, dataComReal: true, valor: true },
+    orderBy: [{ symbol: 'asc' }, { dataComReal: 'asc' }],
+  });
+  for (const l of linhas) {
+    const valor = paraNumero(l.valor);
+    if (!l.dataComReal || valor === null) continue;
+    const pr: ProventoRetorno = { dataEx: pregaoSeguinte(paraData(l.dataComReal)), valor };
+    const lista = out.get(l.symbol);
+    if (lista) lista.push(pr);
+    else out.set(l.symbol, [pr]);
+  }
   return out;
 }
 

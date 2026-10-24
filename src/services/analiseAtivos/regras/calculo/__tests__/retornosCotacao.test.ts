@@ -10,6 +10,7 @@ import {
   subtrairMeses,
   type EventoRetorno,
   type PregaoRetorno,
+  type ProventoRetorno,
 } from '@/services/analiseAtivos/regras/calculo/retornosCotacao';
 import { fatorEventosEntre } from '@/services/analiseAtivos/regras/calculo/eventosCorporativos';
 import { pregoesEntre } from '@/services/analiseAtivos/regras/comum/pregoes';
@@ -243,5 +244,64 @@ describe('retornosCotacao', () => {
       'serie_curta_10a',
       'sem_cotacao_recente',
     ]);
+  });
+});
+
+describe('retorno total (proventos reinvestidos na data-ex, igual ao Fundamentei)', () => {
+  const total = (
+    pregoes: PregaoRetorno[],
+    proventos: ProventoRetorno[],
+    eventos: EventoRetorno[] = [],
+  ) => {
+    const r = retornosCotacao({
+      symbol: 'TEST3',
+      classe: 'acao',
+      pregoes,
+      eventos,
+      proventos,
+      hoje: HOJE,
+    });
+    if (!r) throw new Error('sem resultado');
+    return r;
+  };
+
+  it('preço que cai exatamente o provento na data-ex ⇒ retorno total zero (não perda)', () => {
+    // 100 até a véspera da data-ex (2026-06-01), 98 depois: provento de 2
+    const p = serie('2015-01-02', ATE, (d) => (d < '2026-06-01' ? 100 : 98));
+    const r = total(p, [{ dataEx: '2026-06-01', valor: 2 }]);
+    expect(r.ret12mPct).toBeCloseTo(0, 10);
+    expect(r.ret1mPct).toBeCloseTo(0, 10);
+    // sem os proventos (como era): −2%
+    expect(calc(p).ret12mPct).toBeCloseTo(-2, 10);
+    // a máxima também é ajustada: 100 × 0,98 = 98 = preço atual ⇒ distância 0
+    expect(r.distMaxPct).toBeCloseTo(0, 10);
+  });
+
+  it('dois proventos compõem; provento fora da janela não entra no 1m', () => {
+    const p = serie('2015-01-02', ATE, constante(50));
+    const r = total(p, [
+      { dataEx: '2026-03-02', valor: 1 },
+      { dataEx: '2026-09-01', valor: 0.5 },
+    ]);
+    expect(r.ret12mPct).toBeCloseTo((1 / ((1 - 1 / 50) * (1 - 0.5 / 50)) - 1) * 100, 10);
+    expect(r.ret1mPct).toBeCloseTo(0, 10);
+  });
+
+  it('com desdobramento 1:2 no meio: provento cru da época ÷ fechamento cru da época', () => {
+    // 100 cru antes do desdobramento (2026-03-02), 50 depois; provento de 2 em jan (base antiga)
+    const p = serie('2015-01-02', ATE, (d) => (d < '2026-03-02' ? 100 : 50));
+    const ev: EventoRetorno[] = [{ dataEvento: '2026-03-02', fator: 2, status: 'confirmado' }];
+    const r = total(p, [{ dataEx: '2026-01-05', valor: 2 }], ev);
+    expect(r.ret12mPct).toBeCloseTo((50 / ((100 / 2) * 0.98) - 1) * 100, 10);
+  });
+
+  it('provento futuro, sem pregão anterior ou acima de 50% do preço fica fora', () => {
+    const p = serie('2015-01-02', ATE, constante(10));
+    const r = total(p, [
+      { dataEx: '2026-12-01', valor: 1 },
+      { dataEx: '2014-06-02', valor: 1 },
+      { dataEx: '2026-06-01', valor: 6 },
+    ]);
+    expect(r.ret12mPct).toBeCloseTo(0, 10);
   });
 });

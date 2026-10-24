@@ -1,7 +1,7 @@
 /**
  * A6 (fatia C): varredura própria dos textos da "Variação da cotação" — nada de 'queda' nem
- * 'desconto' (a distância da máxima é só um número, sem leitura de oportunidade), "sem proventos" no
- * rodapé e o texto do FII sobre rendimentos. O card não usa classe de cor semântica.
+ * 'desconto' (a distância da máxima é só um número, sem leitura de oportunidade), retorno total
+ * ("proventos reinvestidos") no rodapé e o texto do FII sobre rendimentos. O card não usa classe de cor semântica.
  */
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
@@ -20,10 +20,10 @@ describe('textos da variação da cotação (fatia C)', () => {
       for (const re of PROIBIDAS_RETORNOS) expect(texto).not.toMatch(re);
   });
 
-  it('rodapé com "sem proventos" e o texto do FII sobre rendimentos', () => {
-    expect(TEXTOS_RETORNOS.rodape).toContain('sem proventos');
+  it('rodapé com "proventos reinvestidos" e o texto do FII sobre rendimentos', () => {
+    expect(TEXTOS_RETORNOS.rodape).toContain('proventos reinvestidos');
     expect(TEXTOS_RETORNOS.rodape).toContain('{data}');
-    expect(TEXTOS_RETORNOS.rodapeFii).toMatch(/não inclui esses rendimentos/);
+    expect(TEXTOS_RETORNOS.rodapeFii).toMatch(/reinvestidos na data-ex/);
   });
 
   it('o componente não tem texto solto proibido nem cor semântica', () => {
