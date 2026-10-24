@@ -209,6 +209,8 @@ const proventosCalculoSchema = z.strictObject({
 /** fundamentei-regras (24/10/2026): lucro e PL TOTAIS (com minoritários) nos múltiplos de ação. */
 const multiplosCalculoSchema = z.strictObject({
   lucroPlTotais: z.boolean().optional(),
+  /** valor de mercado = Σ classes × ações emitidas INCLUINDO tesouraria (ausente = sem, hoje) */
+  valorMercadoComTesouraria: z.boolean().optional(),
 });
 
 const baseSchema = z.strictObject({
@@ -597,6 +599,7 @@ export interface RegrasCalculo {
   dpaPorExercicio: boolean;
   jcpLiquido: boolean;
   lucroPlTotais: boolean;
+  valorMercadoComTesouraria: boolean;
   serie10aPorDtFim: boolean;
 }
 
@@ -608,6 +611,7 @@ export const REGRAS_CALCULO_PADRAO: Readonly<RegrasCalculo> = Object.freeze({
   dpaPorExercicio: false,
   jcpLiquido: false,
   lucroPlTotais: false,
+  valorMercadoComTesouraria: false,
   serie10aPorDtFim: false,
 });
 
@@ -623,6 +627,8 @@ export function regrasCalculoDe(
     dpaPorExercicio: p.proventos?.dpaPorExercicio ?? d.dpaPorExercicio,
     jcpLiquido: p.proventos?.jcpLiquido ?? d.jcpLiquido,
     lucroPlTotais: p.multiplos?.lucroPlTotais ?? d.lucroPlTotais,
+    valorMercadoComTesouraria:
+      p.multiplos?.valorMercadoComTesouraria ?? d.valorMercadoComTesouraria,
     serie10aPorDtFim: p.serie10aPorDtFim ?? d.serie10aPorDtFim,
   };
 }

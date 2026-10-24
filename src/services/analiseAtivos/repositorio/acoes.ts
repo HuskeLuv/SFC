@@ -142,6 +142,8 @@ export async function contagensAcoes(
     data: paraData(l.data),
     on: paraNumero(l.on),
     pn: paraNumero(l.pn),
+    tesourariaOn: paraNumero(l.tesourariaOn),
+    tesourariaPn: paraNumero(l.tesourariaPn),
     total: paraNumero(l.total),
     fonte: l.fonte,
     razaoLpa: l.razaoLpa,

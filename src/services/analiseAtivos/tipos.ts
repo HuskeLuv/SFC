@@ -117,6 +117,9 @@ export interface ContagemAcoes {
   data: string;
   on: number | null;
   pn: number | null;
+  /** tesouraria por classe (DFP/ITR); ausente/null nas fontes sem classe */
+  tesourariaOn?: number | null;
+  tesourariaPn?: number | null;
   total: number | null;
   fonte: string;
   razaoLpa: number | null;
