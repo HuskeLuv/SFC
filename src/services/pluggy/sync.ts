@@ -18,7 +18,7 @@
  *  - nunca gravar documento (CPF) de contrapartes: só o nome.
  */
 import { createHash } from 'crypto';
-import type { Account, Item, Transaction } from 'pluggy-sdk';
+import type { Account, Item, PageResponse, Transaction } from 'pluggy-sdk';
 import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { getPluggyClient } from '@/lib/pluggy';
@@ -673,6 +673,30 @@ export async function sincronizarConexao(
   }
 }
 
+/** Máximo aceito pelo Pluggy; o default (20) cortava a lista de quem tem muitas posições. */
+const TAMANHO_PAGINA_POSICOES = 500;
+/** Teto de segurança: 50 × 500 = 25 mil posições por produto. */
+const MAX_PAGINAS_POSICOES = 50;
+
+/**
+ * Lê TODAS as páginas antes de qualquer escrita. Lista incompleta faria o
+ * updateMany de `sincronizarPosicoes` marcar como inativas as posições das
+ * páginas não lidas; por isso passar do teto é erro, não lista truncada.
+ */
+async function buscarTodasPaginas<T>(
+  buscar: (opts: { page: number; pageSize: number }) => Promise<PageResponse<T>>,
+): Promise<T[]> {
+  const todos: T[] = [];
+  for (let page = 1; ; page++) {
+    const r = await buscar({ page, pageSize: TAMANHO_PAGINA_POSICOES });
+    todos.push(...r.results);
+    if (page >= (r.totalPages ?? 1)) return todos;
+    if (page >= MAX_PAGINAS_POSICOES) {
+      throw new Error(`mais de ${MAX_PAGINAS_POSICOES} páginas de posições`);
+    }
+  }
+}
+
 /**
  * Espelha investimentos e empréstimos do item. Posição que sumiu do provedor
  * fica `ativo=false` (não apaga: o vínculo com a Carteira/Dívida continua).
@@ -686,7 +710,9 @@ async function sincronizarPosicoes(
   let investimentos = 0;
   let emprestimos = 0;
   try {
-    const lista = (await client.fetchInvestments(providerItemId)).results;
+    const lista = await buscarTodasPaginas((opts) =>
+      client.fetchInvestments(providerItemId, undefined, opts),
+    );
     const ids: string[] = [];
     for (const inv of lista) {
       const dados = mapInvestment(inv, connectionId, userId);
@@ -709,7 +735,7 @@ async function sincronizarPosicoes(
     });
   }
   try {
-    const lista = (await client.fetchLoans(providerItemId)).results;
+    const lista = await buscarTodasPaginas((opts) => client.fetchLoans(providerItemId, opts));
     const ids: string[] = [];
     for (const loan of lista) {
       const dados = mapLoan(loan, connectionId, userId);

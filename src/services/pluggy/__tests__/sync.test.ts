@@ -11,8 +11,8 @@ const mockPrisma = vi.hoisted(() => ({
     delete: vi.fn(),
   },
   bankAccount: { upsert: vi.fn(), findMany: vi.fn(), update: vi.fn(), count: vi.fn() },
-  bankInvestment: { count: vi.fn() },
-  bankLoan: { count: vi.fn() },
+  bankInvestment: { count: vi.fn(), upsert: vi.fn(), updateMany: vi.fn() },
+  bankLoan: { count: vi.fn(), upsert: vi.fn(), updateMany: vi.fn() },
   bankTransaction: { findMany: vi.fn(), createMany: vi.fn(), update: vi.fn(), updateMany: vi.fn() },
   bankCreditBill: { upsert: vi.fn(), findMany: vi.fn() },
   pluggyWebhookEvent: { findMany: vi.fn(), updateMany: vi.fn(), update: vi.fn() },
@@ -33,6 +33,8 @@ const mockClient = vi.hoisted(() => ({
   fetchAccounts: vi.fn(),
   fetchAllTransactions: vi.fn(),
   fetchCreditCardBills: vi.fn(),
+  fetchInvestments: vi.fn(),
+  fetchLoans: vi.fn(),
   updateItem: vi.fn(),
   deleteItem: vi.fn(),
 }));
@@ -488,6 +490,72 @@ describe('sincronizarConexao', () => {
     expect(mockPrisma.bankConnection.update).toHaveBeenLastCalledWith({
       where: { id: 'conn-1' },
       data: { lastSyncError: 'Response code 429' },
+    });
+  });
+});
+
+describe('sincronizarConexao — posições paginadas', () => {
+  const pagina = <T>(results: T[], page: number, totalPages: number) => ({
+    results,
+    page,
+    total: results.length,
+    totalPages,
+  });
+  const inv = (id: string) => ({ id, type: 'EQUITY', name: id, balance: 100 });
+
+  it('lê todas as páginas de investimentos antes de inativar as que sumiram', async () => {
+    mockClient.fetchInvestments
+      .mockResolvedValueOnce(pagina([inv('i1'), inv('i2')], 1, 2))
+      .mockResolvedValueOnce(pagina([inv('i3')], 2, 2));
+    mockClient.fetchLoans.mockResolvedValue(pagina([], 1, 0));
+
+    const r = await sincronizarConexao('conn-1');
+
+    expect(mockClient.fetchInvestments).toHaveBeenNthCalledWith(1, 'item-1', undefined, {
+      page: 1,
+      pageSize: 500,
+    });
+    expect(mockClient.fetchInvestments).toHaveBeenNthCalledWith(2, 'item-1', undefined, {
+      page: 2,
+      pageSize: 500,
+    });
+    expect(mockPrisma.bankInvestment.upsert).toHaveBeenCalledTimes(3);
+    expect(mockPrisma.bankInvestment.updateMany).toHaveBeenCalledWith({
+      where: {
+        connectionId: 'conn-1',
+        providerInvestmentId: { notIn: ['i1', 'i2', 'i3'] },
+        ativo: true,
+      },
+      data: { ativo: false },
+    });
+    expect(r.investimentos).toBe(3);
+  });
+
+  it('falha numa página do meio: nada é gravado nem inativado', async () => {
+    mockClient.fetchInvestments
+      .mockResolvedValueOnce(pagina([inv('i1')], 1, 2))
+      .mockRejectedValueOnce(new Error('timeout'));
+    mockClient.fetchLoans.mockResolvedValue(pagina([], 1, 0));
+
+    const r = await sincronizarConexao('conn-1');
+
+    expect(mockPrisma.bankInvestment.upsert).not.toHaveBeenCalled();
+    expect(mockPrisma.bankInvestment.updateMany).not.toHaveBeenCalled();
+    expect(r.investimentos).toBe(0);
+  });
+
+  it('empréstimos também paginam', async () => {
+    mockClient.fetchInvestments.mockResolvedValue(pagina([], 1, 0));
+    mockClient.fetchLoans
+      .mockResolvedValueOnce(pagina([{ id: 'l1' }], 1, 2))
+      .mockResolvedValueOnce(pagina([{ id: 'l2' }], 2, 2));
+
+    await sincronizarConexao('conn-1');
+
+    expect(mockClient.fetchLoans).toHaveBeenNthCalledWith(2, 'item-1', { page: 2, pageSize: 500 });
+    expect(mockPrisma.bankLoan.updateMany).toHaveBeenCalledWith({
+      where: { connectionId: 'conn-1', providerLoanId: { notIn: ['l1', 'l2'] }, ativo: true },
+      data: { ativo: false },
     });
   });
 });
