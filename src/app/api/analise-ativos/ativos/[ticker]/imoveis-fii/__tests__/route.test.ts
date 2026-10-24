@@ -27,15 +27,13 @@ const RESPOSTA: ImoveisFiiResposta = {
     valor: {
       refMonth: '2026-09-01',
       ativoTotal: 1000,
+      base: 980,
       fatias: [
-        { codigo: 'imoveis', pct: 90, valor: 900 },
+        { codigo: 'imoveis', pct: 91.8367, valor: 900 },
         { codigo: 'cri_cra', pct: 0, valor: 0 },
-        { codigo: 'lci_lca', pct: 0, valor: 0 },
         { codigo: 'cotas_fii', pct: 0, valor: 0 },
-        { codigo: 'caixa_renda_fixa', pct: 8, valor: 80 },
-        { codigo: 'outros', pct: 2, valor: 20 },
+        { codigo: 'caixa_renda_fixa', pct: 8.1633, valor: 80 },
       ],
-      outrosDetalhado: false,
     },
   },
   imoveis: {
