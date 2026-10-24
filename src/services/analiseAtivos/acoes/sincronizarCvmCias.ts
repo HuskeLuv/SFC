@@ -958,6 +958,8 @@ async function processarPendentes(
         on: resol.on,
         pn: resol.pn,
         tesouraria: resol.tesouraria,
+        tesourariaOn: resol.tesourariaOn,
+        tesourariaPn: resol.tesourariaPn,
         total: resol.acoes,
         fonte: resol.fonte ?? 'sem_verificacao',
         razaoLpa: resol.razaoLpa,

@@ -66,6 +66,9 @@ export interface ResolucaoAcoes {
   on: number | null;
   pn: number | null;
   tesouraria: number | null;
+  /** tesouraria por classe (composição do DFP/ITR); null fora do candidato por classe */
+  tesourariaOn: number | null;
+  tesourariaPn: number | null;
   fonte: FonteAcoes | null;
   razaoLpa: number | null;
   status: 'ok' | 'alerta' | 'nao_verificavel';
@@ -79,6 +82,8 @@ interface Candidato {
   on: number;
   pn: number;
   tesouraria: number | null;
+  tesOn: number | null;
+  tesPn: number | null;
 }
 
 const DIA_MS = 86_400_000;
@@ -124,18 +129,36 @@ function candidatos(e: EntradaResolucaoAcoes): Candidato[] {
     const pn = c.pn - c.tesPn;
     if (on + pn > 0) {
       const tes = c.tesOn + c.tesPn;
-      out.push({ nome: 'dfp', acoes: on + pn, on, pn, tesouraria: tes });
+      out.push({
+        nome: 'dfp',
+        acoes: on + pn,
+        on,
+        pn,
+        tesouraria: tes,
+        tesOn: c.tesOn,
+        tesPn: c.tesPn,
+      });
       out.push({
         nome: 'dfp_x1000',
         acoes: (on + pn) * 1000,
         on: on * 1000,
         pn: pn * 1000,
         tesouraria: tes * 1000,
+        tesOn: c.tesOn * 1000,
+        tesPn: c.tesPn * 1000,
       });
     }
   }
   if (e.freAcoes && e.freAcoes > 0) {
-    out.push({ nome: 'fre_f', acoes: e.freAcoes, on: 0, pn: 0, tesouraria: null });
+    out.push({
+      nome: 'fre_f',
+      acoes: e.freAcoes,
+      on: 0,
+      pn: 0,
+      tesouraria: null,
+      tesOn: null,
+      tesPn: null,
+    });
   }
   return out;
 }
@@ -207,6 +230,8 @@ export function resolverAcoesExercicio(e: EntradaResolucaoAcoes, p: ScoringParam
       on: porClasse ? c.on : null,
       pn: porClasse ? c.pn : null,
       tesouraria: c.tesouraria,
+      tesourariaOn: porClasse ? c.tesOn : null,
+      tesourariaPn: porClasse ? c.tesPn : null,
       fonte,
       razaoLpa: razao,
       status: extras.status ?? statusPorRazao(razao),
@@ -221,6 +246,8 @@ export function resolverAcoesExercicio(e: EntradaResolucaoAcoes, p: ScoringParam
       on: null,
       pn: null,
       tesouraria: null,
+      tesourariaOn: null,
+      tesourariaPn: null,
       fonte: null,
       razaoLpa: null,
       status: 'nao_verificavel',
@@ -371,6 +398,8 @@ export function contagemComEscalaFixa(
       on: null,
       pn: null,
       tesouraria: null,
+      tesourariaOn: null,
+      tesourariaPn: null,
       fonte: null,
       razaoLpa: null,
       status: 'nao_verificavel',
@@ -404,6 +433,8 @@ export function contagemComEscalaFixa(
     on: cand.on,
     pn: cand.pn,
     tesouraria: cand.tesouraria,
+    tesourariaOn: cand.tesOn,
+    tesourariaPn: cand.tesPn,
     fonte: x1000 ? 'itr_x1000' : 'itr',
     razaoLpa: razao,
     status,
