@@ -449,6 +449,9 @@ export interface ContagemGravavel {
   on: number | null;
   pn: number | null;
   tesouraria: number | null;
+  /** tesouraria por classe (valor de mercado com tesouraria, regra multiplos.valorMercadoComTesouraria) */
+  tesourariaOn: number | null;
+  tesourariaPn: number | null;
   total: number | null;
   fonte: string;
   razaoLpa: number | null;
@@ -477,6 +480,8 @@ export async function contagensExistentes(
     on: paraNumero(l.on),
     pn: paraNumero(l.pn),
     tesouraria: paraNumero(l.tesouraria),
+    tesourariaOn: paraNumero(l.tesourariaOn),
+    tesourariaPn: paraNumero(l.tesourariaPn),
     total: paraNumero(l.total),
     fonte: l.fonte,
     razaoLpa: l.razaoLpa,
@@ -501,6 +506,8 @@ export async function gravarContagens(
     on: dec0(c.on),
     pn: dec0(c.pn),
     tesouraria: dec0(c.tesouraria),
+    tesourariaOn: dec0(c.tesourariaOn),
+    tesourariaPn: dec0(c.tesourariaPn),
     total: dec0(c.total),
     fonte: c.fonte,
     razaoLpa: c.razaoLpa,
@@ -517,6 +524,8 @@ export async function gravarContagens(
     }
     const igual =
       e.total === (c.total === null ? null : Math.round(c.total)) &&
+      e.tesourariaOn === (c.tesourariaOn === null ? null : Math.round(c.tesourariaOn)) &&
+      e.tesourariaPn === (c.tesourariaPn === null ? null : Math.round(c.tesourariaPn)) &&
       e.fonte === c.fonte &&
       e.status === c.status &&
       e.versaoDoc === c.versaoDoc &&

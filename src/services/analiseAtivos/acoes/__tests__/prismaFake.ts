@@ -71,6 +71,8 @@ const DECIMAIS = new Set([
   'on',
   'pn',
   'tesouraria',
+  'tesourariaOn',
+  'tesourariaPn',
   'total',
 ]);
 
