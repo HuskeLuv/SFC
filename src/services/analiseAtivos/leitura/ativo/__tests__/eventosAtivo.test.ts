@@ -19,6 +19,26 @@ const ev = (over: Partial<EventoGravado>): EventoGravado => ({
 });
 
 describe('montarEventos', () => {
+  it('JCP líquido de IR (17,5% em 2026) com a regra jcpLiquido; dividendo e regra desligada brutos', () => {
+    const datasCom = [
+      { dataComReal: '2026-10-20', tipoNormalizado: 'JCP', valor: 0.4, status: 'valido' },
+      { dataComReal: '2026-10-21', tipoNormalizado: 'DIVIDENDO', valor: 0.4, status: 'valido' },
+    ];
+    const ligado = montarEventos({
+      classe: 'acao',
+      hoje: HOJE,
+      eventos: [],
+      datasCom,
+      jcpLiquido: true,
+    });
+    expect(ligado.map((e) => e.descricao)).toEqual([
+      'R$ 0,33 por ação · líquido de IR',
+      'R$ 0,40 por ação',
+    ]);
+    const desligado = montarEventos({ classe: 'acao', hoje: HOJE, eventos: [], datasCom });
+    expect(desligado.map((e) => e.descricao)).toEqual(['R$ 0,40 por ação', 'R$ 0,40 por ação']);
+  });
+
   it('resultado estimado com selo; estimado substituído pelo real some', () => {
     const r = montarEventos({
       classe: 'acao',

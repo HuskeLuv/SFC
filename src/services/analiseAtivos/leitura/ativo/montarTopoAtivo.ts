@@ -51,6 +51,7 @@ import {
   montarDividendos,
 } from '@/services/analiseAtivos/leitura/ativo/dividendosAnuais';
 import { montarEventos } from '@/services/analiseAtivos/leitura/ativo/eventosAtivo';
+import { jcpLiquidoVigente } from '@/services/analiseAtivos/leitura/ativo/fundamentosEssencial';
 import {
   montarFrescor,
   painelFrescorEmCache,
@@ -519,6 +520,7 @@ export async function montarTopoAtivo(
       valor: d.valor,
       status: d.status,
     })),
+    jcpLiquido: ehAcao ? await jcpLiquidoVigente() : false,
   });
 
   const frescor = montarFrescor({

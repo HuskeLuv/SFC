@@ -6,7 +6,10 @@
  * - data-com REAL já anunciada, de asset_proventos_auditados (status 'valido', entre hoje e
  *   hoje + 2 anos: descarta a data-sentinela 9999-12-31).
  * NÃO existe 'JCP estimado'. FIIs não têm IPE: só datas-com.
+ * Com a regra proventos.jcpLiquido da scoring vigente, o JCP aparece LÍQUIDO de IR (alíquota pela
+ * data-com, como no DPA/DY), igual ao Fundamentei.
  */
+import { aliquotaJcpPorDataCom } from '@/services/analiseAtivos/regras/calculo/proventos';
 import { formatarNumeroBR, formatarTexto } from '@/services/analiseAtivos/textos';
 import { TEXTOS_TELA } from '@/services/analiseAtivos/textosTela';
 import type { ClasseQuadro, EventoAtivo } from '@/types/analiseAtivosApi';
@@ -37,6 +40,8 @@ export interface EntradaEventos {
   hoje: string;
   eventos: readonly EventoGravado[];
   datasCom: readonly DataComGravada[];
+  /** regra proventos.jcpLiquido da scoring vigente (ação): JCP líquido de IR */
+  jcpLiquido?: boolean;
 }
 
 /** '2026-3T' → '3T26'; '2026-FY' → 'anual de 2026'. */
@@ -97,15 +102,17 @@ export function montarEventos(e: EntradaEventos): EventoAtivo[] {
     vistos.add(chave);
     const tipo =
       TEXTOS_TELA.ativo.tiposProvento[d.tipoNormalizado] ?? TEXTOS_TELA.ativo.tiposProvento.OUTRO;
+    const liquido = e.jcpLiquido === true && e.classe === 'acao' && d.tipoNormalizado === 'JCP';
+    const valor = liquido ? d.valor * (1 - aliquotaJcpPorDataCom(d.dataComReal)) : d.valor;
     out.push({
       data: d.dataComReal,
       tipo: 'data_com',
       titulo: formatarTexto(t.dataCom, { valor: tipo }),
       descricao:
-        Number.isFinite(d.valor) && d.valor > 0
+        Number.isFinite(valor) && valor > 0
           ? formatarTexto(unidade, {
-              valor: `R$ ${formatarNumeroBR(d.valor, d.valor < 0.1 ? 4 : 2)}`,
-            })
+              valor: `R$ ${formatarNumeroBR(valor, valor < 0.1 ? 4 : 2)}`,
+            }) + (liquido ? t.jcpLiquido : '')
           : null,
       estimado: false,
     });
