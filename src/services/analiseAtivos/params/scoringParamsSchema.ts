@@ -19,6 +19,8 @@
  *  - proventos.baseJanelaDy: 'com' (hoje) | 'ex' (v3: DY 12m e DY do ano por data-ex);
  *  - proventos.cortarFuturos: false (hoje) | true (v3: data-ex > hoje fora do DPA do ano);
  *  - proventos.dpaPorExercicio: false (hoje: ano civil) | true (v3: exercício fora de dezembro);
+ *  - proventos.jcpLiquido: false (hoje: JCP bruto) | true (como o Fundamentei: JCP líquido de IR no
+ *    DPA/DY de ações; 15% com data-com até 2025, 17,5% a partir de 2026 — LC 224/2025);
  *  - serie10aPorDtFim: false (hoje: ano < ano civil) | true (v3: 'lucro 10 anos' e salto de
  *    provento do job quadro com dtFim ≤ hoje).
  */
@@ -201,6 +203,7 @@ const proventosCalculoSchema = z.strictObject({
   baseJanelaDy: z.enum(BASES_JANELA_DY).optional(),
   cortarFuturos: z.boolean().optional(),
   dpaPorExercicio: z.boolean().optional(),
+  jcpLiquido: z.boolean().optional(),
 });
 
 const baseSchema = z.strictObject({
@@ -585,6 +588,7 @@ export interface RegrasCalculo {
   baseJanelaDy: BaseJanelaDy;
   cortarFuturos: boolean;
   dpaPorExercicio: boolean;
+  jcpLiquido: boolean;
   serie10aPorDtFim: boolean;
 }
 
@@ -594,6 +598,7 @@ export const REGRAS_CALCULO_PADRAO: Readonly<RegrasCalculo> = Object.freeze({
   baseJanelaDy: 'com',
   cortarFuturos: false,
   dpaPorExercicio: false,
+  jcpLiquido: false,
   serie10aPorDtFim: false,
 });
 
@@ -607,6 +612,7 @@ export function regrasCalculoDe(
     baseJanelaDy: p.proventos?.baseJanelaDy ?? d.baseJanelaDy,
     cortarFuturos: p.proventos?.cortarFuturos ?? d.cortarFuturos,
     dpaPorExercicio: p.proventos?.dpaPorExercicio ?? d.dpaPorExercicio,
+    jcpLiquido: p.proventos?.jcpLiquido ?? d.jcpLiquido,
     serie10aPorDtFim: p.serie10aPorDtFim ?? d.serie10aPorDtFim,
   };
 }

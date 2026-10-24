@@ -29,7 +29,8 @@
  *  - baseJanelaDy 'ex': data-ex = pregão seguinte à data-com real (dataExDoProvento; vale também
  *    para a YAHOO, cuja data-com real já é o pregão anterior à data ex gravada);
  *  - cortarFuturos: data-ex > hoje fora do DPA do ano (proventos anunciados e ainda não 'ex');
- *  - dpaPorExercicio: exercício fora de dezembro soma [dtIni, dtFim] do FY, não o ano civil.
+ *  - dpaPorExercicio: exercício fora de dezembro soma [dtIni, dtFim] do FY, não o ano civil;
+ *  - jcpLiquido: JCP entra líquido de IR (valorParaDpa), como o Fundamentei mostra.
  * FII (rendimento12m 'fii', 'rend' do critério) segue por data-com nesta entrega.
  */
 import { eventoAjustaSerie } from '@/services/analiseAtivos/regras/calculo/eventosCorporativos';
@@ -798,6 +799,25 @@ function dataNaBase(pr: Pick<ProventoAuditado, 'dataComReal'>, base: BaseJanelaD
  * Opções do DPA do ano (F2 fundamentei-regras). Ausentes = o DPA de hoje (data-com no ano civil,
  * sem corte), byte a byte.
  */
+/**
+ * Alíquota do IR sobre JCP pela DATA-COM: 15% até 2025, 17,5% a partir de 2026 (LC 224/2025). O
+ * Fundamentei segue a data da declaração (JCP declarado em 2025 e pago em 2026 sai a 15%); sem a data
+ * de aprovação na base, a data-com é a aproximação (erro ≤ 0,1% no DPA 12m do ITUB4 em out/2026).
+ * A Carteira usa a data de pagamento (getJcpIrrfRate): é outro uso.
+ */
+export function aliquotaJcpPorDataCom(dataCom: string): number {
+  return dataCom >= '2026-01-01' ? 0.175 : 0.15;
+}
+
+/** Valor do provento para DPA/DY: JCP líquido de IR quando a regra jcpLiquido está ligada. */
+export function valorParaDpa(
+  pr: Pick<ProventoParaSoma, 'tipoNormalizado' | 'valor' | 'dataComReal'>,
+  jcpLiquido: boolean,
+): number {
+  if (!jcpLiquido || pr.tipoNormalizado !== 'JCP' || !pr.dataComReal) return pr.valor;
+  return pr.valor * (1 - aliquotaJcpPorDataCom(pr.dataComReal));
+}
+
 export interface OpcoesDpaAno {
   /** base da janela: 'com' (padrão, hoje) | 'ex' (scoring v3) */
   baseJanela?: BaseJanelaDy;
@@ -805,6 +825,8 @@ export interface OpcoesDpaAno {
   cortarApos?: string | null;
   /** dpaPorExercicio (scoring v3, exercício fora de dezembro): janela [dtIni, dtFim] */
   periodo?: { dtIni: string; dtFim: string } | null;
+  /** jcpLiquido (scoring v5): JCP líquido de IR */
+  jcpLiquido?: boolean;
 }
 
 /**
@@ -839,7 +861,7 @@ export function dpaNoAno(
           (base === 'hoje' || e.anoBase <= ano),
       )
       .reduce((acc, e) => acc * e.fator, 1);
-    soma += pr.valor / fator;
+    soma += valorParaDpa(pr, opts.jcpLiquido ?? false) / fator;
   }
   return ok(soma);
 }
@@ -857,6 +879,7 @@ export function opcoesDpaDoFy(
   const opts: OpcoesDpaAno = {};
   if (r.baseJanelaDy !== 'com') opts.baseJanela = r.baseJanelaDy;
   if (r.cortarFuturos) opts.cortarApos = hoje;
+  if (r.jcpLiquido) opts.jcpLiquido = true;
   if (r.dpaPorExercicio && f.dtFim.slice(5, 7) !== '12') {
     opts.periodo = { dtIni: f.dtIni, dtFim: f.dtFim };
   }
@@ -894,12 +917,13 @@ export function rendimento12m(
   const meses = p?.sanidade.proventos.janelaMesesDy ?? 12;
   const de = menosMeses(hoje, meses);
   const baseJanela: BaseJanelaDy = classe === 'acao' && p ? regrasCalculoDe(p).baseJanelaDy : 'com';
+  const jcpLiquido = classe === 'acao' && p ? regrasCalculoDe(p).jcpLiquido : false;
   let soma = 0;
   for (const pr of proventos) {
     if (pr.status !== 'valido' || !pr.dataComReal || !tipos.includes(pr.tipoNormalizado)) continue;
     const data = dataNaBase(pr, baseJanela)!;
     if (data <= de || data > hoje) continue;
-    soma += pr.valor / fatorApos(eventos, pr.dataComReal);
+    soma += valorParaDpa(pr, jcpLiquido) / fatorApos(eventos, pr.dataComReal);
   }
   return ok(soma);
 }
