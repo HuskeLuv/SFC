@@ -397,7 +397,10 @@ export function linhasDerivadasAcao(
           fund: f,
           dpa: dpaFim,
           // F2 (A4.a): 'dfc' = proventos pagos na DFC ÷ lucro; 'dmpl_dpa' (v1/v2) = DMPL ÷ lucro
-          payoutPct: regras.payoutRegra === 'dfc' ? payoutCaixaPct(f) : ps.payoutDmplPct,
+          payoutPct:
+            regras.payoutRegra === 'dfc'
+              ? payoutCaixaPct(f, regras.lucroPlTotais)
+              : ps.payoutDmplPct,
           ehFinanceira: e.ehFinanceira,
         },
         p,

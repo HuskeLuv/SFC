@@ -15,6 +15,9 @@
  * - fundamentei-regras (F2, A4.a): payoutCaixaPct = proventos pagos na DFC (dividendosJcpPagos, saída
  *   positiva) ÷ lucro atribuível do MESMO período (FY ou TTM), usado com a scoring v3
  *   (payout.regra 'dfc'). Lucro ≤ 0 ⇒ ausente('outro', 'prejuizo') — a tela mostra 'L'.
+ * - fundamentei-regras (24/10/2026, multiplos.lucroPlTotais): lucro e PL TOTAIS consolidados (com
+ *   minoritários) no lugar do atribuível/controladora em LPA, VPA, P/L, P/VP, ROE, DL/PL e no payout
+ *   de caixa, como o Fundamentei. Total nulo ⇒ cai no atribuível/controladora. Desligada = hoje.
  */
 import {
   ausente,
@@ -23,6 +26,7 @@ import {
   naoSeAplica,
   ok,
 } from '@/services/analiseAtivos/regras/comum/valor';
+import { regrasCalculoDe } from '@/services/analiseAtivos/params/scoringParamsSchema';
 import type { FundamentosPeriodo, ScoringParams, Valor } from '@/services/analiseAtivos/tipos';
 
 /** Alíquota nominal de IR+CSLL usada no NOPAT do ROIC (aproximação; relatório da Fase A §2.1). */
@@ -60,16 +64,18 @@ export const DETALHE_PAYOUT_PREJUIZO = 'prejuizo';
  * período, em %. Lucro ≤ 0 ⇒ ausente 'prejuizo'; sem lucro ou sem DFC ⇒ ausente com o motivo.
  */
 export function payoutCaixaPct(
-  f: Pick<BaseFundamentos, 'lucroAtribuivel' | 'flags' | 'dividendosJcpPagos'>,
+  f: Pick<BaseFundamentos, 'lucroAtribuivel' | 'lucroLiquido' | 'flags' | 'dividendosJcpPagos'>,
+  lucroTotal = false,
 ): Valor<number> {
-  if (f.lucroAtribuivel === null) {
+  const lucro = lucroTotal ? (f.lucroLiquido ?? f.lucroAtribuivel) : f.lucroAtribuivel;
+  if (lucro === null) {
     return ausente(f.flags.includes('controladora_zero') ? 'controladora_zero' : 'sem_dado_fonte');
   }
-  if (!(f.lucroAtribuivel > 0)) return ausente('outro', DETALHE_PAYOUT_PREJUIZO);
+  if (!(lucro > 0)) return ausente('outro', DETALHE_PAYOUT_PREJUIZO);
   if (typeof f.dividendosJcpPagos !== 'number' || !Number.isFinite(f.dividendosJcpPagos)) {
     return ausente('sem_dado_fonte', 'dfc');
   }
-  return ok((f.dividendosJcpPagos / f.lucroAtribuivel) * 100);
+  return ok((f.dividendosJcpPagos / lucro) * 100);
 }
 
 export interface EntradaMultiplosAcao {
@@ -198,15 +204,16 @@ function mapearEbit(f: BaseFundamentos): Valor<number> {
   return f.ebit === null ? ausente('sem_dado_fonte', 'ebit') : ok(f.ebit * (1 - ALIQUOTA_NOPAT));
 }
 
-export function multiplosAcao(e: EntradaMultiplosAcao): MultiplosCalculados {
+export function multiplosAcao(e: EntradaMultiplosAcao, lucroPlTotais = false): MultiplosCalculados {
   const f = e.fund;
   const flags: string[] = [];
   const preco = comPreco(e.preco);
+  const lucroBase = lucroPlTotais ? (f.lucroLiquido ?? f.lucroAtribuivel) : f.lucroAtribuivel;
   const lucroAtr: Valor<number> =
-    f.lucroAtribuivel === null
+    lucroBase === null
       ? ausente(f.flags.includes('controladora_zero') ? 'controladora_zero' : 'sem_dado_fonte')
-      : ok(f.lucroAtribuivel);
-  const plCtrl = v(f.plControladora ?? f.pl);
+      : ok(lucroBase);
+  const plCtrl = v(lucroPlTotais ? (f.pl ?? f.plControladora) : (f.plControladora ?? f.pl));
   const lpa = porAcao(lucroAtr, e.acoesTotais, e.fatorEquivalencia);
   const vpa = porAcao(plCtrl, e.acoesTotais, e.fatorEquivalencia);
   const receita = regraReceita(f);
@@ -282,9 +289,9 @@ export function multiplosFii(e: EntradaMultiplosFii): MultiplosCalculados {
 /** Múltiplos de um ano fiscal (histórico da barra de posição). */
 export function multiplosAnuais(
   e: EntradaMultiplosAcao | EntradaMultiplosFii,
-  _p: ScoringParams,
+  p: ScoringParams,
 ): MultiplosCalculados {
-  return e.classe === 'acao' ? multiplosAcao(e) : multiplosFii(e);
+  return e.classe === 'acao' ? multiplosAcao(e, regrasCalculoDe(p).lucroPlTotais) : multiplosFii(e);
 }
 
 export interface HistoricoPl {
