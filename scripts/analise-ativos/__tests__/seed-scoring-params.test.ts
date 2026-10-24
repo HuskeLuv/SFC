@@ -44,6 +44,9 @@ describe('seed-scoring-params --versao=3', () => {
       baseJanelaDy: 'ex',
       cortarFuturos: true,
       dpaPorExercicio: true,
+      jcpLiquido: false,
+      lucroPlTotais: false,
+      valorMercadoComTesouraria: false,
       serie10aPorDtFim: true,
     });
     const {
@@ -75,5 +78,31 @@ describe('seed-scoring-params --versao=4', () => {
 
   it('a v3 do código não foi tocada (a v4 deriva dela)', () => {
     expect(regrasCalculoDe(VERSOES[3].params).dpaPorExercicio).toBe(true);
+  });
+});
+
+describe('seed-scoring-params --versao=5', () => {
+  it('inerte em 2099-01-01 e = v4 + jcpLiquido, lucroPlTotais e valorMercadoComTesouraria', () => {
+    expect(lerArgs(['--versao=5'])).toEqual({ versao: 5, aplicar: false, validoAPartir: null });
+    expect(validFromDoSeed(5, null).toISOString()).toBe('2099-01-01T00:00:00.000Z');
+    const v5 = validarScoringParams(VERSOES[5].params, 'v5');
+    const v4 = validarScoringParams(VERSOES[4].params, 'v4');
+    expect(v5.versao).toBe(5);
+    expect(regrasCalculoDe(v5)).toEqual({
+      ...regrasCalculoDe(v4),
+      jcpLiquido: true,
+      lucroPlTotais: true,
+      valorMercadoComTesouraria: true,
+    });
+    const { versao: _v, descricao: _d, proventos: p5, multiplos: m5, ...resto5 } = v5;
+    const { versao: _v4, descricao: _d4, proventos: p4, ...resto4 } = v4;
+    expect(resto5).toEqual(resto4);
+    expect(p5).toEqual({ ...p4, jcpLiquido: true });
+    expect(m5).toEqual({ lucroPlTotais: true, valorMercadoComTesouraria: true });
+  });
+
+  it('a v4 do código não foi tocada (a v5 deriva dela)', () => {
+    expect(regrasCalculoDe(VERSOES[4].params).jcpLiquido).toBe(false);
+    expect('multiplos' in VERSOES[4].params).toBe(false);
   });
 });
