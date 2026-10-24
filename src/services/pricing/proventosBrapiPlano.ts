@@ -20,7 +20,10 @@
  *    outro pagamento/data-com (ITUB4 JCP de 18/06/2026 pago em 28/08 e de novo em 31/08; CPFE3
  *    parcelas de 30/04/2026 que a fonte trocou pelo total de 29/04). Linhas "sem pagamento" do
  *    legado (pagamento = data-com, ou o pregão seguinte) e linhas sem provento vizinho na resposta
- *    (histórico que a BRAPI não cobre) NUNCA são apagadas.
+ *    (histórico que a BRAPI não cobre) NUNCA são apagadas;
+ *  - 'projecao': linha com data-com depois de hoje cuja chave a BRAPI não devolve mais — projeção
+ *    descartada por agregarProventosBrapi (CAML3 2027) ou provento futuro retirado pela fonte. Linha
+ *    futura nunca é "histórico que a BRAPI não cobre".
  */
 import { nextBusinessDayB3, prevBusinessDayB3 } from '@/utils/feriadosB3';
 
@@ -44,7 +47,7 @@ export interface LinhaProventoGravada {
   source: string;
 }
 
-export type MotivoRemocaoProvento = 'soma_orfa' | 'versao_antiga';
+export type MotivoRemocaoProvento = 'soma_orfa' | 'versao_antiga' | 'projecao';
 
 export interface PlanoGravacaoProventos {
   criar: ProventoBrapiParaGravar[];
@@ -109,7 +112,9 @@ function temSubstituta(
 export function planejarGravacaoProventosBrapi(
   existentes: readonly LinhaProventoGravada[],
   agregados: readonly ProventoBrapiParaGravar[],
+  hoje: Date = new Date(),
 ): PlanoGravacaoProventos {
+  const fimDeHoje = Date.UTC(hoje.getUTCFullYear(), hoje.getUTCMonth(), hoje.getUTCDate() + 1);
   const brapi = existentes.filter((l) => l.source === 'BRAPI');
   const porChave = new Map<string, LinhaProventoGravada[]>();
   for (const l of brapi) {
@@ -159,6 +164,10 @@ export function planejarGravacaoProventosBrapi(
         linha: l,
         substituta: temSubstituta(l, agregados),
       });
+      continue;
+    }
+    if (l.dataCom && l.dataCom.getTime() >= fimDeHoje) {
+      plano.apagar.push({ id: l.id, motivo: 'projecao', linha: l, substituta: false });
       continue;
     }
     if (!l.dataCom || linhaSemPagamento(l)) continue;

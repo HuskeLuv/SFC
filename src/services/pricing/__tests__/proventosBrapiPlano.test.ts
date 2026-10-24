@@ -121,6 +121,23 @@ describe('planejarGravacaoProventosBrapi', () => {
     expect(planoVazio(plano)).toBe(true);
   });
 
+  it('CAML3: projeção futura que a fonte não devolve mais ⇒ projecao; a futura aprovada fica', () => {
+    const hoje = d('2026-10-24');
+    const atual = [
+      linha('nov', '2026-12-08', '2026-11-30', 'DIVIDENDO', 0.19057602607),
+      linha('fev', '2027-03-08', '2027-02-26', 'DIVIDENDO', 0.07329847),
+      linha('mai', '2027-06-08', '2027-05-31', 'DIVIDENDO', 0.07329847),
+      linha('antiga', '2019-09-10', '2019-09-02', 'DIVIDENDO', 0.05),
+    ];
+    const resposta = [fonte('2026-12-08', '2026-11-30', 'DIVIDENDO', 0.19057602607)];
+    const plano = planejarGravacaoProventosBrapi(atual, resposta, hoje);
+    expect(plano.apagar.map((a) => [a.id, a.motivo, a.substituta])).toEqual([
+      ['fev', 'projecao', false],
+      ['mai', 'projecao', false],
+    ]);
+    expect(plano.criar).toEqual([]);
+  });
+
   it('linhaSemPagamento: pagamento = data-com, data-com −1 dia (fuso) e o pregão seguinte (sexta → segunda)', () => {
     expect(linhaSemPagamento({ date: d('2025-12-30'), dataCom: d('2025-12-30') })).toBe(true);
     expect(linhaSemPagamento({ date: d('2014-04-01'), dataCom: d('2014-04-02') })).toBe(true);
