@@ -357,7 +357,7 @@ export interface RetornoJanelaApi {
 
 /**
  * AtivoTopoResposta.retornos (só com ANALISE_ATIVOS_RETORNOS_HABILITADO; ausente sem a chave ou sem
- * linha em asset_retornos_cotacao). Só preço, sem proventos.
+ * linha em asset_retornos_cotacao). Retorno total: proventos reinvestidos na data-ex (24/10/2026).
  */
 export interface RetornosCotacaoApi {
   classe: ClasseBr;

@@ -1,5 +1,5 @@
 /**
- * A6 (item 5, fatia F): 'Variação 12 meses' e 'Variação 5 anos (a.a.)' no grupo Preço do Comparador
+ * A6 (item 5, fatia F): 'Retorno 12 meses' e 'Retorno 5 anos (a.a.)' (antes 'Variação') no grupo Preço do Comparador
  * (ação e FII), só com ANALISE_ATIVOS_RETORNOS_HABILITADO. Desligada, o catálogo e a resposta são os
  * de hoje; ligada, duas linhas a mais no fim do grupo Preço, formato com sinal (cor neutra: a célula
  * só pinta 'pct'), sem ganhador; ativo sem linha em asset_retornos_cotacao = 'sem dado'.
@@ -97,7 +97,7 @@ const montar = (classe: ClasseQuadro, ativos: AtivoEntrada[], retornos?: boolean
 const preco = (r: ReturnType<typeof montar>) => r.grupos.find((g) => g.codigo === 'preco')!;
 
 describe('catálogo', () => {
-  it('desligada: o de hoje; ligada: + Variação 12 meses e 5 anos (a.a.) no fim do Preço', () => {
+  it('desligada: o de hoje; ligada: + Retorno 12 meses e 5 anos (a.a.) no fim do Preço', () => {
     expect(catalogoComparador('acao')).toBe(GRUPOS_ACAO);
     expect(catalogoComparador('acao', { retornos: false })).toBe(GRUPOS_ACAO);
     expect(catalogoComparador('fii')).toBe(GRUPOS_FII);
@@ -121,11 +121,11 @@ describe('catálogo', () => {
       expect(p1.linhas.slice(0, p0.linhas.length)).toEqual(p0.linhas);
       const novas = p1.linhas.slice(p0.linhas.length);
       expect(novas.map((l) => [l.codigo, l.rotulo, l.formato])).toEqual([
-        ['variacao12m', 'Variação 12 meses', 'pctSinal'],
-        ['variacao5a', 'Variação 5 anos (a.a.)', 'pctSinal'],
+        ['variacao12m', 'Retorno 12 meses', 'pctSinal'],
+        ['variacao5a', 'Retorno 5 anos (a.a.)', 'pctSinal'],
       ]);
       for (const l of novas) {
-        expect(l.sub).toContain('sem proventos');
+        expect(l.sub).toContain('proventos reinvestidos');
         expect(encontrarProibidasV2(`${l.rotulo} ${l.sub}`)).toEqual([]);
       }
       // os outros grupos não mudam

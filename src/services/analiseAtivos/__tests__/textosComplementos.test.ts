@@ -1,7 +1,7 @@
 /**
  * A6 (fundamentei-trazer, fatia 0): os textos novos, congelados para as fatias A–F, cobrem os
  * códigos dos contratos (src/types/analiseAtivosComplementos.ts) e trazem as decisões do Wellington
- * de 19/10: 'Alavancagem ≤ 15% do ativo'; retornos "sem proventos" + texto do FII sobre rendimentos;
+ * de 19/10: 'Alavancagem ≤ 15% do ativo'; retornos (retorno total desde 24/10) + texto do FII sobre rendimentos;
  * "texto do FRE 2022 · pode ter sido alterado" + link do FRE vigente; acionistas só nome e %.
  * A varredura de palavras fica no linguagemV2Global (módulos registrados lá).
  */
@@ -129,11 +129,11 @@ describe('textos da A6 (fatia 0)', () => {
     expect(TEXTOS_RAIO_X.linhas.obrigacoesPlPct.rotulo).toBe('Alavancagem (% do PL)');
   });
 
-  it('decisões 2 e 3: retornos só de preço, "sem proventos", texto do FII, sem queda/desconto', () => {
-    expect(TEXTOS_RETORNOS.rodape).toContain('sem proventos');
-    expect(TEXTOS_RETORNOS.rodapeFii).toMatch(/não inclui esses rendimentos/);
-    expect(TEXTOS_COMPARADOR.linhas.variacao12m.sub).toContain('sem proventos');
-    expect(TEXTOS_COMPARADOR.linhas.variacao5a.sub).toContain('sem proventos');
+  it('retornos = retorno total (24/10: igual ao Fundamentei), texto do FII, sem queda/desconto', () => {
+    expect(TEXTOS_RETORNOS.rodape).toContain('proventos reinvestidos');
+    expect(TEXTOS_RETORNOS.rodapeFii).toMatch(/reinvestidos na data-ex/);
+    expect(TEXTOS_COMPARADOR.linhas.variacao12m.sub).toContain('proventos reinvestidos');
+    expect(TEXTOS_COMPARADOR.linhas.variacao5a.sub).toContain('proventos reinvestidos');
     const retornos = folhasTexto(TEXTOS_RETORNOS).map(([, t]) => t);
     expect(retornos.filter((t) => /\b(queda|desconto|caiu|subiu|alta|baixa)\b/i.test(t))).toEqual(
       [],

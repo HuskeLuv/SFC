@@ -134,9 +134,9 @@ export const TEXTOS_COMPARADOR = {
       rotulo: 'Alavancagem (% do ativo)',
       sub: 'obrigações ÷ ativo total',
     },
-    /** A6 (fatia F, chave RETORNOS): grupo Preço, só preço (sem proventos), sem cor */
-    variacao12m: { rotulo: 'Variação 12 meses', sub: 'cotação ajustada, sem proventos' },
-    variacao5a: { rotulo: 'Variação 5 anos (a.a.)', sub: 'cotação ajustada, sem proventos' },
+    /** A6 (fatia F, chave RETORNOS): grupo Preço, retorno total (proventos reinvestidos), sem cor */
+    variacao12m: { rotulo: 'Retorno 12 meses', sub: 'com proventos reinvestidos' },
+    variacao5a: { rotulo: 'Retorno 5 anos (a.a.)', sub: 'com proventos reinvestidos' },
     vacanciaFisica: {
       rotulo: 'Vacância física (CVM)',
       sub: 'pode diferir do relatório do gestor',

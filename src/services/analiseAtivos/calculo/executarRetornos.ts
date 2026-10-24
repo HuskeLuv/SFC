@@ -27,6 +27,7 @@ import {
 import {
   gravarRetornos,
   lerEventosRetornos,
+  lerProventosRetornos,
   lerSerieRetornos,
 } from '@/services/analiseAtivos/repositorio/retornos';
 import {
@@ -53,6 +54,7 @@ export interface DependenciasRetornos {
   carregarUniverso: (prisma: PrismaClient) => Promise<ItemUniversoRetornos[]>;
   lerSerie: typeof lerSerieRetornos;
   lerEventos: typeof lerEventosRetornos;
+  lerProventos: typeof lerProventosRetornos;
   gravar: typeof gravarRetornos;
 }
 
@@ -95,6 +97,7 @@ export const DEPENDENCIAS_RETORNOS: DependenciasRetornos = {
   carregarUniverso: carregarUniversoRetornos,
   lerSerie: lerSerieRetornos,
   lerEventos: lerEventosRetornos,
+  lerProventos: lerProventosRetornos,
   gravar: gravarRetornos,
 };
 
@@ -149,9 +152,10 @@ export async function executarRetornos(
     }
     const lote = universo.slice(i, i + LOTE_RETORNOS);
     const symbols = lote.map((l) => l.symbol);
-    const [series, eventos] = await Promise.all([
+    const [series, eventos, proventos] = await Promise.all([
       deps.lerSerie(ctx.prisma, symbols, desde, ctx.hoje),
       deps.lerEventos(ctx.prisma, symbols),
+      deps.lerProventos(ctx.prisma, symbols, desde, ctx.hoje),
     ]);
     ctx.contar('linhasLidas', lote.length);
     const linhas: RetornosCalculados[] = [];
@@ -161,6 +165,7 @@ export async function executarRetornos(
         classe: item.classe,
         pregoes: series.get(item.symbol) ?? [],
         eventos: eventos.get(item.symbol) ?? [],
+        proventos: proventos.get(item.symbol) ?? [],
         hoje: ctx.hoje,
       });
       if (!r) {

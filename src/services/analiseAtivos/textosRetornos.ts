@@ -6,10 +6,12 @@
  *
  * Decisões do Wellington (19/10): sinal +/− em cor NEUTRA (a cor fica só na variação do dia, no
  * cabeçalho); retorno só de PREÇO, "sem proventos", com o texto explícito no FII sobre rendimentos.
+ * 24/10/2026 (regra "igual ao Fundamentei"): passa a ser RETORNO TOTAL, com proventos reinvestidos na
+ * data-ex; os textos dizem isso.
  */
 export const TEXTOS_RETORNOS = {
-  titulo: 'Variação da cotação',
-  sub: 'preço de fechamento ajustado',
+  titulo: 'Retorno total',
+  sub: 'cotação ajustada, com proventos reinvestidos',
   janelas: {
     '1m': '1 mês',
     '12m': '12 meses',
@@ -33,9 +35,9 @@ export const TEXTOS_RETORNOS = {
     sem_cotacao: 'sem cotação recente neste código',
   },
   rodape:
-    'Cotação de fechamento ajustada por desdobramentos, grupamentos e bonificações confirmados; sem proventos · fonte B3 (COTAHIST) · até {data}.',
+    'Cotação de fechamento ajustada por desdobramentos, grupamentos e bonificações confirmados, com os proventos reinvestidos na data-ex · fonte B3 (COTAHIST) · até {data}.',
   rodapeFii:
-    'FIIs distribuem a maior parte do resultado; a variação da cota não inclui esses rendimentos (ver DY ao lado).',
+    'Inclui os rendimentos distribuídos pelo fundo, reinvestidos na data-ex (o DY ao lado mostra só os rendimentos).',
   rentabilidadePassada: 'Rentabilidade passada não é garantia de resultados futuros.',
   /** nome acessível de cada célula ('12 meses: +4,6%') */
   ariaCelula: '{campo}: {valor}',
