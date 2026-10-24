@@ -206,16 +206,28 @@ export interface DetalheArquivo {
 
 // ---------------------------------------------------------------- recompletar (A6, contratos)
 
-export type ModoRecompletar = 'pdd' | 'seguradora' | 'layout' | 'dividendosJcpPagos';
+export type ModoRecompletar =
+  | 'pdd'
+  | 'seguradora'
+  | 'layout'
+  | 'dividendosJcpPagos'
+  | 'depreciacaoAmortizacao';
 export const MODOS_RECOMPLETAR: readonly ModoRecompletar[] = [
   'pdd',
   'seguradora',
   'layout',
   'dividendosJcpPagos',
+  'depreciacaoAmortizacao',
 ];
 
 /** F2: modo que corrige dividendosJcpPagos pela regra ampliada da DFC (chave de ingestão). */
 export const MODO_DIVIDENDOS: ModoRecompletar = 'dividendosJcpPagos';
+
+/**
+ * Modo que corrige a D&A da DFC pela regra de hoje (linha própria de direito de uso / arrendamento
+ * fora, como o Fundamentei — RE_DA_EXCL em extrairFundamentos). Corrige o valor gravado.
+ */
+export const MODO_DA: ModoRecompletar = 'depreciacaoAmortizacao';
 
 /** Colunas novas que cada modo preenche (só quando NULAS no banco). */
 export const COLUNAS_POR_MODO: Readonly<Record<'pdd' | 'seguradora', readonly CampoFinanceira[]>> =
@@ -264,12 +276,9 @@ export interface RelatorioRecompletar {
   /** documentos (cnpj, DT_REFER, versão vigente) relidos */
   documentos: number;
   /** linhas que ganhariam/ganharam alguma coluna, por coluna */
-  porCampo: Partial<Record<CampoFinanceira | 'layout' | 'dividendosJcpPagos', number>>;
+  porCampo: Partial<Record<CampoRecompletado, number>>;
   /** idem, por emissor */
-  porEmissor: Record<
-    string,
-    Partial<Record<CampoFinanceira | 'layout' | 'dividendosJcpPagos', number>>
-  >;
+  porEmissor: Record<string, Partial<Record<CampoRecompletado, number>>>;
   /** colunas já preenchidas no banco (não sobrescritas) */
   jaPreenchidas: number;
   /** linhas com escala corrigida/ambígua: puladas (o fator do documento não é refeito aqui) */
@@ -278,8 +287,16 @@ export interface RelatorioRecompletar {
   layout: AntesDepoisLayout[];
   /** F2, modo dividendosJcpPagos: antes/depois por linha (até 500); ausente nos outros modos */
   dividendos?: AntesDepoisDividendos[];
+  /** modo depreciacaoAmortizacao: antes/depois por linha (até 500); ausente nos outros modos */
+  depreciacao?: AntesDepoisDividendos[];
   gravadas: number;
 }
+
+type CampoRecompletado =
+  | CampoFinanceira
+  | 'layout'
+  | 'dividendosJcpPagos'
+  | 'depreciacaoAmortizacao';
 
 export function perfilPadrao(): PerfilLinhas {
   return process.env.NODE_ENV === 'production' ? 'completo' : 'dev';
@@ -1424,6 +1441,8 @@ interface PropostaRecompletar {
   layoutFin: boolean;
   /** F2: proventos pagos na DFC pela regra ampliada (modo dividendosJcpPagos) */
   dividendosJcpPagos?: number | null;
+  /** modo depreciacaoAmortizacao: D&A da DFC pela regra de hoje */
+  depreciacaoAmortizacao?: number | null;
 }
 
 /** F2: diferença que justifica corrigir dividendosJcpPagos (dec2 de um lado e do outro). */
@@ -1447,6 +1466,7 @@ async function recompletarArquivo(
 ): Promise<DetalheArquivo> {
   const modos = new Set(opts.recompletarCampos ?? []);
   const comDividendos = modos.has(MODO_DIVIDENDOS);
+  const comDa = modos.has(MODO_DA);
   if (comDividendos && !analiseAtivosDfcProventosAmplo()) {
     throw new Error(
       '--recompletar-campos=dividendosJcpPagos exige ANALISE_ATIVOS_DFC_PROVENTOS_AMPLO=true (a mesma regra que a ingestão passa a usar)',
@@ -1462,6 +1482,7 @@ async function recompletarArquivo(
     puladasEscala: 0,
     layout: [],
     ...(comDividendos ? { dividendos: [] } : {}),
+    ...(comDa ? { depreciacao: [] } : {}),
     gravadas: 0,
   };
   const { financeiras, seguradoras } = apoio.segmentos;
@@ -1476,6 +1497,8 @@ async function recompletarArquivo(
     ...layoutCnpjs,
     // F2: proventos pagos na DFC de todo o universo (o --tickers / --somente-financeiras recortam)
     ...(comDividendos ? universo.keys() : []),
+    // D&A: universo sem as financeiras (que não têm EBITDA)
+    ...(comDa ? [...universo.keys()].filter((c) => !financeiras.has(c)) : []),
   ]);
   if (alvo.size === 0) {
     return { url, doc, ano, status: 'sem_pendentes', recompletar: relatorio };
@@ -1494,6 +1517,7 @@ async function recompletarArquivo(
     const docTipo = doc === 'dfp' ? 'DFP' : 'ITR';
     const naJanela = (d: DocIndice) =>
       comDividendos ||
+      (comDa && !financeiras.has(d.cnpj)) ||
       (modos.has('pdd') && financeiras.has(d.cnpj)) ||
       (modos.has('seguradora') && seguradoras.has(d.cnpj)) ||
       (layoutCnpjs.has(d.cnpj) && ehAnoLayout(d.dtRefer));
@@ -1523,7 +1547,7 @@ async function recompletarArquivo(
       'DRE',
       ...(docsDva.size > 0 ? (['DVA'] as const) : []),
       // F2: a DFC só no modo dividendosJcpPagos
-      ...(comDividendos ? (['DFC_MI'] as const) : []),
+      ...(comDividendos || comDa ? (['DFC_MI'] as const) : []),
     ];
     for (const dem of dems) {
       for (const escopo of ESCOPOS) {
@@ -1586,6 +1610,7 @@ async function recompletarArquivo(
             campos,
             layoutFin,
             ...(comDividendos ? { dividendosJcpPagos: f.dividendosJcpPagos } : {}),
+            ...(comDa ? { depreciacaoAmortizacao: f.depreciacaoAmortizacao } : {}),
           });
         }
       }
@@ -1606,7 +1631,7 @@ async function recompletarArquivo(
       ...(modos.has('pdd') ? COLUNAS_POR_MODO.pdd : []),
       ...(modos.has('seguradora') ? COLUNAS_POR_MODO.seguradora : []),
     ];
-    const contar = (emissor: string, campo: CampoFinanceira | 'layout' | 'dividendosJcpPagos') => {
+    const contar = (emissor: string, campo: CampoRecompletado) => {
       relatorio.porCampo[campo] = (relatorio.porCampo[campo] ?? 0) + 1;
       const pe = (relatorio.porEmissor[emissor] ??= {});
       pe[campo] = (pe[campo] ?? 0) + 1;
@@ -1686,7 +1711,41 @@ async function recompletarArquivo(
           }
         }
       }
-      if (Object.keys(a.novas).length > 0 || a.layout || a.dividendosJcpPagos) {
+      // D&A pela regra de hoje (sem direito de uso); escala ajustada, layout financeiro e 'não se
+      // aplica' ficam fora; resultado nulo não apaga o gravado
+      if (
+        comDa &&
+        prop &&
+        prop.depreciacaoAmortizacao !== undefined &&
+        !escalaAjustada &&
+        !prop.layoutFin &&
+        !e.naoSeAplica.includes('depreciacaoAmortizacao')
+      ) {
+        const antes = paraNumero(e.depreciacaoAmortizacao);
+        const novo = dec2(prop.depreciacaoAmortizacao);
+        const depois = novo === null ? null : Number(novo);
+        if (novo !== null && depois !== null && dividendosMudaram(antes, depois)) {
+          a.depreciacaoAmortizacao = novo;
+          contar(e.emissorId, 'depreciacaoAmortizacao');
+          if (relatorio.depreciacao && relatorio.depreciacao.length < 500) {
+            relatorio.depreciacao.push({
+              emissorId: e.emissorId,
+              dtFim,
+              tipoPeriodo: e.tipoPeriodo,
+              escopo: e.escopo,
+              versao: e.versao,
+              antes,
+              depois,
+            });
+          }
+        }
+      }
+      if (
+        Object.keys(a.novas).length > 0 ||
+        a.layout ||
+        a.dividendosJcpPagos ||
+        a.depreciacaoAmortizacao
+      ) {
         atualizacoes.push(a);
         tocados.add(e.emissorId);
       }
