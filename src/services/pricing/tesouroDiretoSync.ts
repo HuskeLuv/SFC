@@ -15,6 +15,9 @@ const BATCH_SIZE = 50;
  *  Reduced from 7 to 3 to minimize DB writes within Vercel's 60s limit. */
 const DEFAULT_LOOKBACK_DAYS = 3;
 
+/** Teto da recuperação de dias perdidos (fonte parada); acima disso, script de backfill. */
+const MAX_RECUPERACAO_DIAS = 120;
+
 /** CSV column separator */
 const SEPARATOR = ';';
 
@@ -99,6 +102,26 @@ const parseRow = (line: string): TesouroDiretoRow | null => {
 // ================== CORE SYNC ==================
 
 /**
+ * Data a partir da qual as linhas do CSV entram: os últimos `lookbackDays`, ou
+ * desde o último dia já gravado se for antes. Sem isso, quando a fonte fica
+ * parada mais que a janela (out/2026: CSV sem atualizar desde 16/10), os dias
+ * publicados depois da volta caíam fora do corte e nunca eram gravados.
+ */
+export function calcularCorte(hoje: Date, lookbackDays: number, ultimoGravado: Date | null): Date {
+  const corte = new Date(hoje);
+  corte.setDate(corte.getDate() - lookbackDays);
+  corte.setHours(0, 0, 0, 0);
+  if (!ultimoGravado) return corte;
+  const limite = new Date(hoje);
+  limite.setDate(limite.getDate() - MAX_RECUPERACAO_DIAS);
+  limite.setHours(0, 0, 0, 0);
+  const desdeUltimo = new Date(ultimoGravado);
+  desdeUltimo.setHours(0, 0, 0, 0);
+  if (desdeUltimo >= corte) return corte;
+  return desdeUltimo < limite ? limite : desdeUltimo;
+}
+
+/**
  * Download and parse the Tesouro Transparente CSV, persisting recent bond prices.
  *
  * Strategy: download the full CSV (~13MB) but parse from the end,
@@ -135,9 +158,12 @@ export async function runTesouroDiretoSync(
 
     // 2. Parse all lines, collecting rows within the lookback window.
     //    The CSV is NOT sorted by date, so we must scan all lines.
-    const cutoffDate = new Date();
-    cutoffDate.setDate(cutoffDate.getDate() - lookbackDays);
-    cutoffDate.setHours(0, 0, 0, 0);
+    const ultimo = await prisma.tesouroDiretoPrice.findFirst({
+      orderBy: { baseDate: 'desc' },
+      select: { baseDate: true },
+    });
+    const cutoffDate = calcularCorte(new Date(), lookbackDays, ultimo?.baseDate ?? null);
+    logger.info(`📆 Lendo linhas a partir de ${cutoffDate.toISOString().slice(0, 10)}`);
 
     const rows: TesouroDiretoRow[] = [];
 
