@@ -1570,6 +1570,23 @@ async function lerDescontado(
   }
 }
 
+/** Cache curto da regra proventos.jcpLiquido da scoring vigente (próximos proventos no topo). */
+const cacheJcpLiquido = getTtlCache<boolean>('analiseAtivosRegraJcpLiquido');
+
+/** proventos.jcpLiquido da scoring_params VIGENTE. Falha de leitura = false (o de hoje). */
+export async function jcpLiquidoVigente(): Promise<boolean> {
+  const emCache = cacheJcpLiquido.get('vigente');
+  if (emCache !== undefined) return emCache;
+  let ligado = false;
+  try {
+    ligado = regrasCalculoDe((await obterScoringParams(prisma)).params).jcpLiquido;
+  } catch {
+    ligado = false;
+  }
+  cacheJcpLiquido.set('vigente', ligado, 5 * 60_000);
+  return ligado;
+}
+
 /** Cache curto da payout.regra da scoring vigente (o sub-rótulo segue o número, F2). */
 const cacheRegra = getTtlCache<RegraPayout>('analiseAtivosRegraPayout');
 

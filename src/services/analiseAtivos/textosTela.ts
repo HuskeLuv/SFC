@@ -522,6 +522,8 @@ export const TEXTOS_TELA = {
     resultadoEstimadoDescricao: 'Pelo histórico de divulgação da companhia',
     assembleia: 'Assembleia {valor}',
     dataCom: 'Data-com {valor}',
+    /** sufixo da descrição do JCP com a regra proventos.jcpLiquido */
+    jcpLiquido: ' · líquido de IR',
   },
   educacao: {
     acao: {
