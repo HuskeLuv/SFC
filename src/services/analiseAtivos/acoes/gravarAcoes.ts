@@ -373,6 +373,8 @@ export interface AtualizacaoCamposFundamentos {
    * (dec2). CORRIGE o valor gravado (não só o nulo), como o layout; o dry-run lista antes/depois.
    */
   dividendosJcpPagos?: string;
+  /** modo depreciacaoAmortizacao: D&A da DFC pela regra de hoje (dec2); corrige o gravado */
+  depreciacaoAmortizacao?: string;
 }
 
 const LOTE_RECOMPLETAR = 200;
@@ -419,6 +421,14 @@ export async function completarCamposFundamentos(
         prisma.assetFundamentalsPeriod.updateMany({
           where: { id: a.id },
           data: { dividendosJcpPagos: a.dividendosJcpPagos },
+        }),
+      );
+    }
+    if (a.depreciacaoAmortizacao !== undefined) {
+      ops.push(
+        prisma.assetFundamentalsPeriod.updateMany({
+          where: { id: a.id },
+          data: { depreciacaoAmortizacao: a.depreciacaoAmortizacao },
         }),
       );
     }

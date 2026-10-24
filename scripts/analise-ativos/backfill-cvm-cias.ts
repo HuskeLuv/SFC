@@ -34,6 +34,9 @@
  * fundamentei-regras (F2): --recompletar-campos=dividendosJcpPagos (com ANALISE_ATIVOS_DFC_PROVENTOS_AMPLO=true)
  * relê a DFC de todo o universo (ou dos --tickers) e CORRIGE dividendosJcpPagos pelo regex ampliado,
  * sem não controladores; o dry-run lista antes/depois e o --apply exige --confirmar-dividendos.
+ * --recompletar-campos=depreciacaoAmortizacao: refaz a D&A da DFC dos documentos já gravados pela regra
+ * de hoje (linha própria de direito de uso / arrendamento fora, como o Fundamentei); o dry-run lista
+ * antes/depois e o --apply exige --confirmar-da.
  * --somente-financeiras: DFP/ITR só dos CNPJs do Set de financeiras (AssetSetorB3).
  * --tickers=ITUB4,BBSE3 (conferência no DEV): o FCA vira um recorte (nada fora dele é fechado) e o
  * DFP/ITR só os CNPJs desses tickers.
@@ -117,6 +120,11 @@ function imprimirRecompletar(det: DetalheArquivo[]) {
         `    dividendos ${l.emissorId} ${l.dtFim} ${l.tipoPeriodo} ${l.escopo} v${l.versao}: ${l.antes} → ${l.depois}`,
       );
     }
+    for (const l of r.depreciacao ?? []) {
+      console.log(
+        `    D&A ${l.emissorId} ${l.dtFim} ${l.tipoPeriodo} ${l.escopo} v${l.versao}: ${l.antes} → ${l.depois}`,
+      );
+    }
   }
 }
 
@@ -158,6 +166,12 @@ async function main() {
   ) {
     throw new Error(
       '--recompletar-campos=dividendosJcpPagos altera os proventos pagos já gravados: rode o dry-run, confira o antes/depois e repita com --confirmar-dividendos',
+    );
+  }
+  // D&A sem direito de uso (como o Fundamentei): corrige a D&A já gravada ⇒ OK próprio
+  if (recompletarCampos.includes('depreciacaoAmortizacao') && aplicar && !a.has('confirmar-da')) {
+    throw new Error(
+      '--recompletar-campos=depreciacaoAmortizacao altera a D&A já gravada: rode o dry-run, confira o antes/depois e repita com --confirmar-da',
     );
   }
   const perfil = (a.get('perfil') ?? 'dev') as PerfilLinhas;
