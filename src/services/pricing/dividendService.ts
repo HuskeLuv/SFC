@@ -338,10 +338,17 @@ export interface ProventoBrapiAgregado {
  * data-com igual ao approvedOn de outra entry do mesmo pagamento, tipo e valor (PETR4: DIVIDENDO
  * 0,44806667 e JCP 0,07355446 de 13/05/2024 × os de 11/06/2024 aprovados em 13/05; a B3 só tem os de
  * 11/06). Com a chave antiga as duas viravam UMA linha somada; com a nova seriam duas.
+ *
+ * Descarta também a PROJEÇÃO: sem approvedOn e com data-com depois de `hoje` (CAML3 out/2026:
+ * dividendos de 26/02 e 31/05/2027 sem aprovação, com o ticker no lugar do ISIN; o Fundamentei não
+ * lista). Provento futuro que ninguém aprovou ainda não existe. Sem approvedOn e no passado fica
+ * (histórico antigo da BRAPI vem assim: ITUB4/BBDC4 1999, FIIs 2016).
  */
 export const agregarProventosBrapi = (
   normalized: Record<string, unknown>[],
+  hoje: Date = new Date(),
 ): ProventoBrapiAgregado[] => {
+  const amanha = toUtcMidnight(hoje).getTime() + 24 * 60 * 60 * 1000;
   const aggregated = new Map<string, ProventoBrapiAgregado>();
   // (data, pagamento, tipo, valor): data = approvedOn da definitiva ou data-com da provisória
   const chave = (data: Date | null, d: Record<string, unknown>): string | null => {
@@ -357,6 +364,8 @@ export const agregarProventosBrapi = (
     if (!parseDateValue(d.approvedOn)) {
       const k = chave(extractDataCom(d), d);
       if (k && definitivas.has(k)) continue;
+      const com = extractDataCom(d);
+      if (com && toUtcMidnight(com).getTime() >= amanha) continue;
     }
     const date = extractPaymentDate(d);
     const valorUnitario = extractDividendAmount(d);
