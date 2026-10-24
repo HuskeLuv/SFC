@@ -377,7 +377,12 @@ export function calcularAtualAcao(e: EntradaAtualAcao, p: ScoringParams): Calcul
         e.proventos,
         e.cobertura,
       );
-  const vm = valorMercadoEmpresa(e.tickersEmpresa, e.resumosEmpresa, cont);
+  const vm = valorMercadoEmpresa(
+    e.tickersEmpresa,
+    e.resumosEmpresa,
+    cont,
+    regrasCalculoDe(p).valorMercadoComTesouraria,
+  );
   const vazio: FundamentosPeriodo['naoSeAplica'] = [];
   const m = multiplosAtuais(
     {
@@ -455,8 +460,12 @@ export function calcularAtualAcao(e: EntradaAtualAcao, p: ScoringParams): Calcul
       return { data: cont?.data ?? null };
     }
     const vm =
-      valorMercadoEmpresa(e.tickersEmpresa, e.resumosEmpresa, contMaisRecente) ??
-      (e.resumo.closeRaw * contMaisRecente.total) / fator;
+      valorMercadoEmpresa(
+        e.tickersEmpresa,
+        e.resumosEmpresa,
+        contMaisRecente,
+        regrasCalculoDe(p).valorMercadoComTesouraria,
+      ) ?? (e.resumo.closeRaw * contMaisRecente.total) / fator;
     return { data: contMaisRecente.data, valorMercadoBruto: vm > 0 ? ok(vm) : undefined };
   };
   // bloco C (só v2): regras de sanidade por grupo — flags conf:/rev:/info:, salvo liberação
