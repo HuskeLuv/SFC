@@ -113,7 +113,12 @@ export const CAMPOS_FINANCEIRAS = [
 export type CampoFinanceira = (typeof CAMPOS_FINANCEIRAS)[number];
 
 const RE_DA = /deprecia|amortiza|exaust/i;
-const RE_DA_EXCL = /capta[cç]|custo[s]? de transa|empr[eé]stim|financiament|deb[eê]nture|juros/i;
+// Amortização/depreciação do direito de uso (IFRS 16) em linha PRÓPRIA fica fora do EBITDA, como no
+// Fundamentei (CAML3 FY fev/26: Depreciações 198.624 + Amortizações Intangível 24.752 = 223.376; a
+// linha "Amortizações Ativo de Direito de Uso" 62.547 não entra). Linha única que já inclui tudo
+// (WEGE3 "Depreciação, Amortização e Exaustão") continua inteira. 72 de 404 cias na DFP 2025.
+const RE_DA_EXCL =
+  /capta[cç]|custo[s]? de transa|empr[eé]stim|financiament|deb[eê]nture|juros|direitos? de uso|arrendament/i;
 const RE_CAPEX = /imobilizad|intang[ií]v/i;
 const RE_CAPEX_EXCL = /venda|aliena|baixa|recebiment/i;
 export const RE_DIVIDENDOS = /dividend|juros (sobre|s\/) ?(o )?capital|\bJCP\b/i;
