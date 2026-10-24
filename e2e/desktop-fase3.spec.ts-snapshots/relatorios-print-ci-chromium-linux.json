@@ -54,7 +54,7 @@ tr|table-row|0|static|9
 td|table-cell|0|static|-
 td|table-cell|0|static|-
 td|table-cell|0|static|-
-span|inline|0|static|0
+span|inline|0|static|1
 tr|table-row|0|static|9
 td|table-cell|0|static|-
 td|table-cell|0|static|-
@@ -63,7 +63,7 @@ tr|table-row|0|static|9
 td|table-cell|0|static|-
 td|table-cell|0|static|-
 td|table-cell|0|static|-
-span|inline|0|static|0
+span|inline|0|static|1
 tr|table-row|0|static|9
 td|table-cell|0|static|-
 td|table-cell|0|static|-
@@ -219,7 +219,7 @@ span|inline-flex|0|static|1
 td|table-cell|0|static|-
 tr|table-row|0|static|9
 td|table-cell|0|static|-
-span|inline-flex|0|static|1
+span|inline-flex|0|static|2
 td|table-cell|0|static|-
 tr|table-row|0|static|9
 td|table-cell|0|static|-
