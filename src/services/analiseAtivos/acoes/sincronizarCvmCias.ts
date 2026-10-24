@@ -72,6 +72,7 @@ import {
 import {
   balancosVizinhos,
   contagensExistentes,
+  preencherTesourariaClasse,
   dec2,
   gravarCadastroFca,
   gravarContagens,
@@ -83,6 +84,7 @@ import {
   periodosDosEmissores,
   type AtualizacaoCamposFundamentos,
   type BalancoVizinho,
+  type ContagemExistente,
   type ContagemGravavel,
   type LinhaFundamentosDb,
   documentosGravados,
@@ -106,6 +108,7 @@ import {
   type EntradaResolucaoAcoes,
   type EventoAcoes,
   type ResolucaoAcoes,
+  type ComposicaoCapital,
 } from '@/services/analiseAtivos/regras/acoes/acoesEmitidas';
 import {
   CAMPOS_FINANCEIRAS,
@@ -202,6 +205,8 @@ export interface DetalheArquivo {
   cadastro?: Record<string, number>;
   /** A6: relatório do --recompletar-campos (dry-run ou aplicado) */
   recompletar?: RelatorioRecompletar;
+  /** modo --recompletar-campos=tesouraria: relatório próprio (contagens, não fundamentos) */
+  tesouraria?: RelatorioTesouraria;
 }
 
 // ---------------------------------------------------------------- recompletar (A6, contratos)
@@ -211,14 +216,61 @@ export type ModoRecompletar =
   | 'seguradora'
   | 'layout'
   | 'dividendosJcpPagos'
-  | 'depreciacaoAmortizacao';
+  | 'depreciacaoAmortizacao'
+  | 'tesouraria';
 export const MODOS_RECOMPLETAR: readonly ModoRecompletar[] = [
   'pdd',
   'seguradora',
   'layout',
   'dividendosJcpPagos',
   'depreciacaoAmortizacao',
+  'tesouraria',
 ];
+
+/**
+ * Modo que preenche asset_share_counts.tesourariaOn/Pn (NULAS) das contagens já gravadas de fonte
+ * DFP/ITR, pela composição do capital do mesmo documento — só se ON + PN (na escala da contagem) bater
+ * com a tesouraria total gravada. Não relê demonstrativos nem regrava mais nada. Roda sozinho.
+ */
+export const MODO_TESOURARIA: ModoRecompletar = 'tesouraria';
+
+export interface RelatorioTesouraria {
+  documentos: number;
+  /** contagens que ganham (dry-run) / ganharam a tesouraria por classe */
+  preenchidas: number;
+  jaPreenchidas: number;
+  /** contagem de fonte sem classe (fre_f, lpa_implicito, vizinho…) ou sem tesouraria total */
+  semClasse: number;
+  /** contagem de DFP/ITR sem composição no arquivo */
+  semComposicao: number;
+  /** ON + PN ≠ tesouraria total gravada: não preenche (até 50 exemplos) */
+  divergentes: string[];
+  nDivergentes: number;
+  gravadas: number;
+}
+
+const ESCALA_FONTE: Readonly<Record<string, number>> = {
+  dfp: 1,
+  itr: 1,
+  dfp_x1000: 1000,
+  itr_x1000: 1000,
+};
+
+/**
+ * Tesouraria por classe de uma contagem gravada a partir da composição do documento. 'sem_classe' =
+ * fonte sem classe ou sem total; 'divergente' = ON + PN ≠ total gravado (escala trocada etc.).
+ */
+export function propostaTesouraria(
+  c: Pick<ContagemExistente, 'fonte' | 'tesouraria'>,
+  comp: Pick<ComposicaoCapital, 'tesOn' | 'tesPn'>,
+): { tesourariaOn: number; tesourariaPn: number } | 'sem_classe' | 'divergente' {
+  const esc = ESCALA_FONTE[c.fonte];
+  if (!esc || c.tesouraria === null) return 'sem_classe';
+  const tesourariaOn = comp.tesOn * esc;
+  const tesourariaPn = comp.tesPn * esc;
+  if (Math.abs(tesourariaOn + tesourariaPn - c.tesouraria) >= 1) return 'divergente';
+  return { tesourariaOn, tesourariaPn };
+}
 
 /** F2: modo que corrige dividendosJcpPagos pela regra ampliada da DFC (chave de ingestão). */
 export const MODO_DIVIDENDOS: ModoRecompletar = 'dividendosJcpPagos';
@@ -425,8 +477,16 @@ export async function sincronizarCvmCias(
     }
   }
   if (opts.recompletarCampos && opts.recompletarCampos.length > 0) {
+    const soTesouraria = opts.recompletarCampos.includes(MODO_TESOURARIA);
+    if (soTesouraria && opts.recompletarCampos.length > 1) {
+      throw new Error(
+        '--recompletar-campos=tesouraria roda sozinho (não combina com outros modos)',
+      );
+    }
     for (const ano of anos) {
-      const r = await recompletarArquivo(ctx, opts.doc, ano, universo, apoio, opts);
+      const r = soTesouraria
+        ? await recompletarTesourariaArquivo(ctx, opts.doc, ano, universo, opts)
+        : await recompletarArquivo(ctx, opts.doc, ano, universo, apoio, opts);
       arquivos.push(r);
       if (r.status === 'parcial') {
         parcial = true;
@@ -1451,6 +1511,113 @@ interface PropostaRecompletar {
 export function dividendosMudaram(antes: number | null, depois: number | null): boolean {
   if (depois === null) return false;
   return antes === null || Math.abs(antes - depois) >= 0.005;
+}
+
+/** Modo --recompletar-campos=tesouraria de um arquivo (DFP/ITR do ano): só a composição do capital. */
+async function recompletarTesourariaArquivo(
+  ctx: JobContexto,
+  doc: 'dfp' | 'itr',
+  ano: number,
+  universo: Map<string, string[]>,
+  opts: OpcoesCvmCias,
+): Promise<DetalheArquivo> {
+  const url = urlArquivoCvm(doc, ano);
+  const relatorio: RelatorioTesouraria = {
+    documentos: 0,
+    preenchidas: 0,
+    jaPreenchidas: 0,
+    semClasse: 0,
+    semComposicao: 0,
+    divergentes: [],
+    nDivergentes: 0,
+    gravadas: 0,
+  };
+  const arq = await obterArquivo(ctx, url, nomeArquivoCvm(doc, ano), ano, {
+    ...opts,
+    reprocessar: true,
+  });
+  if (arq.status === 'inalterado' || arq.status === 'nao_publicado') {
+    return { url, doc, ano, status: arq.status, tesouraria: relatorio };
+  }
+  const detalhe: DetalheArquivo = {
+    url,
+    doc,
+    ano,
+    status: 'processado',
+    bytes: arq.bytes,
+    tesouraria: relatorio,
+  };
+  try {
+    const entradas = await listarEntradasZip(arq.caminho);
+    const indice = await lerIndice(arq.caminho, entradas, doc, ano, {
+      cnpjs: new Set(universo.keys()),
+    });
+    const candidatos = [...indice.values()];
+    const cnpjs = [...new Set(candidatos.map((d) => d.cnpj))];
+    const dtRefers = [...new Set(candidatos.map((d) => d.dtRefer))];
+    const gravados = await documentosGravados(
+      ctx.prisma,
+      doc === 'dfp' ? 'DFP' : 'ITR',
+      cnpjs,
+      dtRefers,
+    );
+    const docs = candidatos.filter((d) => gravados.has(`${d.cnpj}|${d.dtRefer}|${d.versao}`));
+    relatorio.documentos = docs.length;
+    if (docs.length === 0) {
+      detalhe.status = 'sem_pendentes';
+      return detalhe;
+    }
+    const entradaComp = acharEntrada(entradas, entradaComposicao(doc, ano));
+    const composicoes = entradaComp
+      ? await lerComposicao(
+          arq.caminho,
+          entradaComp,
+          new Map(docs.map((d) => [chaveDoc(d.cnpj, d.dtRefer), d.versao])),
+        )
+      : new Map<string, ComposicaoCapital>();
+    const contagens = new Map(
+      (await contagensExistentes(ctx.prisma, [...new Set(docs.map((d) => d.cnpj))])).map((c) => [
+        chaveDoc(c.cnpj, c.data),
+        c,
+      ]),
+    );
+    const preencher: Array<{ id: string; tesourariaOn: number; tesourariaPn: number }> = [];
+    for (const d of docs) {
+      const k = chaveDoc(d.cnpj, d.dtRefer);
+      const c = contagens.get(k);
+      if (!c) continue;
+      if (c.tesourariaOn !== null || c.tesourariaPn !== null) {
+        relatorio.jaPreenchidas++;
+        continue;
+      }
+      const comp = composicoes.get(k);
+      if (!comp) {
+        if (ESCALA_FONTE[c.fonte]) relatorio.semComposicao++;
+        else relatorio.semClasse++;
+        continue;
+      }
+      const p = propostaTesouraria(c, comp);
+      if (p === 'sem_classe') relatorio.semClasse++;
+      else if (p === 'divergente') {
+        relatorio.nDivergentes++;
+        if (relatorio.divergentes.length < 50) {
+          relatorio.divergentes.push(
+            `${c.cnpj} ${c.data} ${c.fonte}: tesouraria ${c.tesouraria} × composição ${comp.tesOn}+${comp.tesPn}`,
+          );
+        }
+      } else preencher.push({ id: c.id, ...p });
+    }
+    relatorio.preenchidas = preencher.length;
+    if (ctx.aplicar && preencher.length > 0) {
+      const r = await preencherTesourariaClasse(ctx.prisma, ctx, preencher);
+      relatorio.gravadas = r.gravadas;
+      ctx.contar('linhasGravadas', r.gravadas);
+      if (r.interrompido) detalhe.status = 'parcial';
+    }
+    return detalhe;
+  } finally {
+    await arq.descartar();
+  }
 }
 
 /**

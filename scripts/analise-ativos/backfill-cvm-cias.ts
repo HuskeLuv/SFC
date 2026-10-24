@@ -37,6 +37,9 @@
  * --recompletar-campos=depreciacaoAmortizacao: refaz a D&A da DFC dos documentos já gravados pela regra
  * de hoje (linha própria de direito de uso / arrendamento fora, como o Fundamentei); o dry-run lista
  * antes/depois e o --apply exige --confirmar-da.
+ * --recompletar-campos=tesouraria (sozinho): preenche asset_share_counts.tesourariaOn/Pn NULAS das
+ * contagens DFP/ITR já gravadas pela composição do capital do mesmo documento (só se ON + PN bater com a
+ * tesouraria total gravada). Não relê demonstrativos, não grava fundamentos/Raio-X nem TTM.
  * --somente-financeiras: DFP/ITR só dos CNPJs do Set de financeiras (AssetSetorB3).
  * --tickers=ITUB4,BBSE3 (conferência no DEV): o FCA vira um recorte (nada fora dele é fechado) e o
  * DFP/ITR só os CNPJs desses tickers.
@@ -101,6 +104,13 @@ function modosRecompletar(valor: string | undefined): ModoRecompletar[] {
 
 function imprimirRecompletar(det: DetalheArquivo[]) {
   for (const x of det) {
+    const t = x.tesouraria;
+    if (t) {
+      console.log(
+        `  tesouraria ${x.doc} ${x.ano}: docs=${t.documentos} preenchidas=${t.preenchidas} gravadas=${t.gravadas} jaPreenchidas=${t.jaPreenchidas} semClasse=${t.semClasse} semComposicao=${t.semComposicao} divergentes=${t.nDivergentes}`,
+      );
+      for (const d of t.divergentes) console.log(`    divergente ${d}`);
+    }
     const r = x.recompletar;
     if (!r) continue;
     console.log(

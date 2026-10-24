@@ -491,6 +491,31 @@ export async function contagensExistentes(
   }));
 }
 
+/**
+ * Modo --recompletar-campos=tesouraria: grava a tesouraria por classe SÓ onde ainda é nula (nunca
+ * sobrescreve). Um UPDATE por linha, em lotes de transação.
+ */
+export async function preencherTesourariaClasse(
+  prisma: PrismaClient,
+  ctx: Pick<JobContexto, 'estourouPrazo'>,
+  linhas: Array<{ id: string; tesourariaOn: number; tesourariaPn: number }>,
+): Promise<ResultadoLotes> {
+  let gravadas = 0;
+  for (let i = 0; i < linhas.length; i += 200) {
+    if (ctx.estourouPrazo()) return { gravadas, interrompido: true };
+    const r = await prisma.$transaction(
+      linhas.slice(i, i + 200).map((l) =>
+        prisma.assetShareCount.updateMany({
+          where: { id: l.id, tesourariaOn: null, tesourariaPn: null },
+          data: { tesourariaOn: dec0(l.tesourariaOn), tesourariaPn: dec0(l.tesourariaPn) },
+        }),
+      ),
+    );
+    gravadas += r.reduce((a, x) => a + x.count, 0);
+  }
+  return { gravadas, interrompido: false };
+}
+
 /** Upsert por (cnpj, data) com 1 leitura: cria as novas em lote e atualiza só as que mudaram. */
 export async function gravarContagens(
   prisma: PrismaClient,
