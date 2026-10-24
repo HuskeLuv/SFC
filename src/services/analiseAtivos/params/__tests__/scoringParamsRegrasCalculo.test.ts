@@ -37,6 +37,7 @@ describe('F0 fundamentei-regras — scoring v1/v2 inalteradas', () => {
       baseJanelaDy: 'com',
       cortarFuturos: false,
       dpaPorExercicio: false,
+      jcpLiquido: false,
       serie10aPorDtFim: false,
     });
   });
@@ -62,8 +63,15 @@ describe('F0 fundamentei-regras — campos novos', () => {
       baseJanelaDy: 'ex',
       cortarFuturos: true,
       dpaPorExercicio: true,
+      jcpLiquido: false,
       serie10aPorDtFim: true,
     });
+  });
+
+  it('jcpLiquido (v5): aceito e lido; ausente = JCP bruto', () => {
+    const lido = scoringParamsSchema.parse({ ...base(), proventos: { jcpLiquido: true } });
+    expect(regrasCalculoDe(lido).jcpLiquido).toBe(true);
+    expect(regrasCalculoDe(scoringParamsSchema.parse(base())).jcpLiquido).toBe(false);
   });
 
   it('bloco parcial: o que falta fica no padrão de hoje', () => {
