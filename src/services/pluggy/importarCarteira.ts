@@ -20,8 +20,11 @@
  *    ativo CDB já resgatado, com o saldo do último dia (bug 26/09/2026);
  *  - cheque especial e adiantamento a depositante são limite rotativo, não
  *    dívida parcelada: ficam 'ignorado';
- *  - COE, Tesouro e o que não der para mapear ficam 'sem-suporte' para o
- *    usuário cadastrar pelo wizard;
+ *  - Tesouro Direto: sigla + vencimento casados com tesouro_direto_prices
+ *    viram renda fixa marcada pelo PU oficial (tesouroBondType/Maturity); se o
+ *    usuário já tem o título, só vincula;
+ *  - COE, Tesouro não reconhecido e o que não der para mapear ficam
+ *    'sem-suporte' para o usuário cadastrar pelo wizard;
  *  - posição sintética (renda fixa, fundo/previdência sem catálogo) e dívida
  *    guardam uma ORIGEM estável (PluggyImportacaoOrigem): ao conectar o mesmo
  *    banco de novo — os ids do Pluggy mudam e o espelho antigo sumiu com a
@@ -158,6 +161,54 @@ export function indexadorRendaFixa(
     return { indexer: 'CDI', indexerPercent: rate && rate > 0 ? rate : 100, annualRate: 0 };
   }
   return { indexer: 'PRE', indexerPercent: null, annualRate: rate ?? fixedAnnualRate ?? 0 };
+}
+
+/**
+ * Sigla do título como o banco manda no nome ("TESOURO DIRETO - NTNB-P") →
+ * bondType(s) do Tesouro Transparente. A ordem importa: NTN-B1 e NTN-B
+ * Principal antes da NTN-B com juros. NTN-B1 é Renda+ ou Educa+: quem decide é
+ * o vencimento (ver resolverTituloTesouro).
+ */
+const TESOURO_POR_SIGLA: Array<[RegExp, string[]]> = [
+  [/NTN-?B1|RENDA\+|EDUCA\+/, ['Tesouro Renda+ Aposentadoria Extra', 'Tesouro Educa+']],
+  [/NTN-?B-?P\b|NTN-?B PRINCIPAL/, ['Tesouro IPCA+']],
+  [/NTN-?B|IPCA\+ COM JUROS/, ['Tesouro IPCA+ com Juros Semestrais']],
+  [/IPCA\+/, ['Tesouro IPCA+']],
+  [/NTN-?F|PREFIXADO COM JUROS/, ['Tesouro Prefixado com Juros Semestrais']],
+  [/\bLTN\b|PREFIXADO/, ['Tesouro Prefixado']],
+  [/\bLFT\b|SELIC/, ['Tesouro Selic']],
+  [/NTN-?C|IGPM/, ['Tesouro IGPM+ com Juros Semestrais']],
+];
+
+export function tiposTesouroPorNome(nome: string): string[] {
+  const n = norm(nome);
+  return TESOURO_POR_SIGLA.find(([re]) => re.test(n))?.[1] ?? [];
+}
+
+/**
+ * Título do Tesouro (bondType + vencimento exatamente como estão em
+ * tesouro_direto_prices) — é o que o pricer usa para marcar pelo PU oficial.
+ * Sem casar sigla e vencimento com um título conhecido, devolve null.
+ */
+async function resolverTituloTesouro(
+  inv: Pick<BankInvestment, 'name' | 'dueDate'>,
+): Promise<{ bondType: string; maturity: Date } | null> {
+  const tipos = tiposTesouroPorNome(inv.name);
+  if (tipos.length === 0 || !inv.dueDate) return null;
+  // O banco manda o vencimento com fuso (03:00Z); a tabela grava meia-noite.
+  const meiaJanela = 36 * 3_600_000;
+  const row = await prisma.tesouroDiretoPrice.findFirst({
+    where: {
+      bondType: { in: tipos },
+      maturityDate: {
+        gte: new Date(inv.dueDate.getTime() - meiaJanela),
+        lte: new Date(inv.dueDate.getTime() + meiaJanela),
+      },
+    },
+    orderBy: { baseDate: 'desc' },
+    select: { bondType: true, maturityDate: true },
+  });
+  return row ? { bondType: row.bondType, maturity: row.maturityDate } : null;
 }
 
 export function tipoDivida(tipoProvedor: string | null): string {
@@ -445,8 +496,49 @@ export async function importarInvestimento(
       return 'importado';
     }
 
-    // 2) Renda fixa bancária → Asset 'bond' + FixedIncomeAsset (curva)
-    if (inv.type === 'FIXED_INCOME' && inv.subtype && RF_BANCARIA.has(inv.subtype)) {
+    // 2) Tesouro Direto: título conhecido vira renda fixa sintética (abaixo) com
+    // tesouroBondType/tesouroMaturity, marcada pelo PU oficial como a do wizard.
+    // Não usa o Asset do catálogo: FixedIncomeAsset.assetId é unique, então o
+    // título de catálogo só pode ter um dono.
+    const ehTesouro = inv.type === 'FIXED_INCOME' && inv.subtype === 'TREASURY';
+    const tesouro = ehTesouro ? await resolverTituloTesouro(inv) : null;
+    if (ehTesouro && !tesouro) {
+      await marcar('bankInvestment', inv.id, {
+        importStatus: 'sem-suporte',
+        importError: `título do Tesouro não reconhecido (${inv.name}, vencimento ${inv.dueDate ? dataBr(inv.dueDate) : '-'}) — cadastre pelo wizard`,
+      });
+      return 'sem-suporte';
+    }
+    if (tesouro) {
+      // Mesmo título já na carteira (cadastrado pelo wizard): só vincula.
+      const fiExistente = await prisma.fixedIncomeAsset.findFirst({
+        where: {
+          userId: inv.userId,
+          tesouroBondType: tesouro.bondType,
+          tesouroMaturity: tesouro.maturity,
+        },
+        select: { id: true, assetId: true },
+      });
+      const portExistente = fiExistente
+        ? await prisma.portfolio.findFirst({
+            where: { userId: inv.userId, assetId: fiExistente.assetId },
+            select: { id: true },
+          })
+        : null;
+      if (fiExistente && portExistente) {
+        await marcar('bankInvestment', inv.id, {
+          importStatus: 'vinculado',
+          assetId: fiExistente.assetId,
+          portfolioId: portExistente.id,
+          fixedIncomeAssetId: fiExistente.id,
+          importedAt: agora,
+        });
+        return 'vinculado';
+      }
+    }
+
+    // 3) Renda fixa bancária e Tesouro → Asset 'bond' + FixedIncomeAsset (curva)
+    if (tesouro || (inv.type === 'FIXED_INCOME' && inv.subtype && RF_BANCARIA.has(inv.subtype))) {
       const { indexer, indexerPercent, annualRate } = indexadorRendaFixa(
         inv.rateType,
         inv.rate,
@@ -470,8 +562,15 @@ export async function importarInvestimento(
         });
         return 'vinculado';
       }
-      const nome = inv.issuer ? `${inv.name} - ${inv.issuer}` : inv.name;
-      const symbol = `PLUGGY-RF-${inv.providerInvestmentId.slice(0, 8).toUpperCase()}`;
+      const nome = tesouro
+        ? `${tesouro.bondType} ${tesouro.maturity.getUTCFullYear()}`
+        : inv.issuer
+          ? `${inv.name} - ${inv.issuer}`
+          : inv.name;
+      const symbol = `PLUGGY-${tesouro ? 'TD' : 'RF'}-${inv.providerInvestmentId.slice(0, 8).toUpperCase()}`;
+      // Tesouro guarda a quantidade de títulos: o pricer usa investido/qty como PU de compra.
+      const quantidade = tesouro && inv.quantity && inv.quantity > 0 ? inv.quantity : 1;
+      const preco = Math.round((investido / quantidade) * 1_000_000) / 1_000_000;
       const r = await prisma.$transaction(async (tx) => {
         const asset = await tx.asset.create({
           data: { symbol, name: nome, type: 'bond', currency: 'BRL', source: 'pluggy' },
@@ -481,8 +580,8 @@ export async function importarInvestimento(
             userId: inv.userId,
             assetId: asset.id,
             type: 'compra',
-            quantity: 1,
-            price: investido,
+            quantity: quantidade,
+            price: preco,
             total: investido,
             date: start,
             fees: 0,
@@ -493,8 +592,8 @@ export async function importarInvestimento(
           data: {
             userId: inv.userId,
             assetId: asset.id,
-            quantity: 1,
-            avgPrice: investido,
+            quantity: quantidade,
+            avgPrice: preco,
             totalInvested: investido,
             lastUpdate: agora,
           },
@@ -512,7 +611,10 @@ export async function importarInvestimento(
             indexer,
             indexerPercent,
             liquidityType: null,
-            taxExempt: ISENTOS.has(inv.subtype ?? ''),
+            // Tesouro nunca é isento (tabela regressiva).
+            taxExempt: !tesouro && ISENTOS.has(inv.subtype ?? ''),
+            tesouroBondType: tesouro?.bondType ?? null,
+            tesouroMaturity: tesouro?.maturity ?? null,
           },
         });
         return { asset, port, fi };
@@ -532,7 +634,7 @@ export async function importarInvestimento(
       return 'importado';
     }
 
-    // 3) Fundos e previdência: catálogo CVM pelo CNPJ, senão ativo manual que segue o saldo
+    // 4) Fundos e previdência: catálogo CVM pelo CNPJ, senão ativo manual que segue o saldo
     if (inv.type === 'MUTUAL_FUND' || inv.type === 'SECURITY') {
       const cnpj = (inv.code ?? '').replace(/\D/g, '');
       const catalogo =
