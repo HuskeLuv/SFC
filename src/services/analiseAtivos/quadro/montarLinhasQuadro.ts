@@ -424,7 +424,14 @@ export function montarLinhasQuadro(
           },
           p,
         );
-        valorMercado = valorMercadoDoTicker(ticker, tickers, precoResumo, contagem, preco);
+        valorMercado = valorMercadoDoTicker(
+          ticker,
+          tickers,
+          precoResumo,
+          contagem,
+          preco,
+          regrasCalculoDe(p).valorMercadoComTesouraria,
+        );
       }
     } else if (mensal?.cotas && preco !== null) {
       valorMercado = preco * mensal.cotas;

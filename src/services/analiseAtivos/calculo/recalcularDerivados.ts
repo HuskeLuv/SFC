@@ -103,11 +103,14 @@ export function contagemNaData(contagens: ContagemAcoes[], dtFim: string): Conta
 /**
  * Valor de mercado da EMPRESA = Σ classes (preço × ações da classe), com o preço da classe negociada
  * quando a outra não negocia (decisão 13). Sem ON/PN separados ⇒ null (o múltiplo usa preço × total).
+ * comTesouraria (regra multiplos.valorMercadoComTesouraria, como o Fundamentei): ações emitidas da
+ * classe INCLUINDO a tesouraria da classe; tesouraria por classe ausente ⇒ ex-tesouraria (hoje).
  */
 export function valorMercadoEmpresa(
   tickers: TickerAcao[],
   precoPorSimbolo: Map<string, number>,
   contagem: ContagemAcoes | null,
+  comTesouraria = false,
 ): number | null {
   if (!contagem || contagem.on === null || contagem.pn === null) return null;
   const preco = (classe: 'ON' | 'PN') =>
@@ -120,7 +123,11 @@ export function valorMercadoEmpresa(
   const on = pOn ?? pPn;
   const pn = pPn ?? pOn;
   if (on === null || pn === null) return null;
-  return on * contagem.on + pn * contagem.pn;
+  const tes = (x: number | null | undefined) => (comTesouraria && x ? x : 0);
+  return (
+    on * (contagem.on + tes(contagem.tesourariaOn)) +
+    pn * (contagem.pn + tes(contagem.tesourariaPn))
+  );
 }
 
 /**
@@ -134,8 +141,9 @@ export function valorMercadoDoTicker(
   precoPorSimbolo: Map<string, number>,
   contagem: ContagemAcoes | null,
   preco: number | null,
+  comTesouraria = false,
 ): number | null {
-  const vm = valorMercadoEmpresa(tickersEmpresa, precoPorSimbolo, contagem);
+  const vm = valorMercadoEmpresa(tickersEmpresa, precoPorSimbolo, contagem, comTesouraria);
   if (vm !== null && vm > 0) return vm;
   const f = fatorEquivalencia(ticker);
   if (f === null || preco === null || !(preco > 0) || !contagem?.total || !(contagem.total > 0)) {
@@ -311,7 +319,12 @@ export function linhasDerivadasAcao(
       const c = e.precoFim.get(`${t.symbol}|${f.dtFim}`);
       if (c) precos.set(t.symbol, c.closeRaw);
     }
-    const vmEmpresa = valorMercadoEmpresa(e.tickers, precos, cont);
+    const vmEmpresa = valorMercadoEmpresa(
+      e.tickers,
+      precos,
+      cont,
+      regras.valorMercadoComTesouraria,
+    );
     const lucro: Valor<number> =
       f.lucroAtribuivel === null
         ? ausente(f.flags.includes('controladora_zero') ? 'controladora_zero' : 'sem_dado_fonte')

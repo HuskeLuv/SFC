@@ -39,6 +39,7 @@ describe('F0 fundamentei-regras — scoring v1/v2 inalteradas', () => {
       dpaPorExercicio: false,
       jcpLiquido: false,
       lucroPlTotais: false,
+      valorMercadoComTesouraria: false,
       serie10aPorDtFim: false,
     });
   });
@@ -66,6 +67,7 @@ describe('F0 fundamentei-regras — campos novos', () => {
       dpaPorExercicio: true,
       jcpLiquido: false,
       lucroPlTotais: false,
+      valorMercadoComTesouraria: false,
       serie10aPorDtFim: true,
     });
   });

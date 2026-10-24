@@ -2140,6 +2140,9 @@ model AssetShareCount {
   on         Decimal? @db.Decimal(20, 0)
   pn         Decimal? @db.Decimal(20, 0)
   tesouraria Decimal? @db.Decimal(20, 0)
+  // tesouraria por classe (composição do DFP/ITR); null nas fontes sem classe
+  tesourariaOn Decimal? @db.Decimal(20, 0)
+  tesourariaPn Decimal? @db.Decimal(20, 0)
   // ex-tesouraria
   total      Decimal? @db.Decimal(20, 0)
   // dfp | dfp_x1000 | itr | itr_x1000 | fre_f | lpa_implicito | vizinho | limiar | sem_verificacao
