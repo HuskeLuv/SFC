@@ -487,6 +487,28 @@ describe('ativarOrcamentoV2 --aplicar', () => {
     expect(banco.dados.cashflowOrcamentoPrefs).toHaveLength(0);
     expect(geraisDo(U)).toHaveLength(0);
   });
+
+  it('compensação: erro na Fase C (depois do commit) também desfaz e não deixa ativado', async () => {
+    await cenarioPersonalizado();
+    // a 2ª capturarInvariantes (Fase C) estoura na 1ª query
+    const modelo = banco.prisma.cashflowValue as { findMany: (a?: Linha) => Promise<Linha[]> };
+    const findMany = modelo.findMany;
+    let capturas = 0;
+    modelo.findMany = async (args?: Linha) => {
+      if ((args?.distinct as string[] | undefined)?.[0] === 'year' && ++capturas === 2) {
+        throw new Error('P2024 timeout');
+      }
+      return findMany(args);
+    };
+    const r = await ativarOrcamentoV2(U, { dryRun: false, hoje: HOJE });
+    expect(r.status).toBe('compensado');
+    expect(r.motivo).toBe('erro_verificacao: P2024 timeout');
+    expect(banco.dados.cashflowOrcamentoItem).toHaveLength(0);
+    expect(banco.dados.cashflowOrcamentoPrefs).toHaveLength(0);
+    expect(geraisDo(U)).toHaveLength(0);
+    modelo.findMany = findMany;
+    expect((await ativarOrcamentoV2(U, { dryRun: false, hoje: HOJE })).status).toBe('ativado');
+  });
 });
 
 describe('garantirGerais', () => {

@@ -17,7 +17,8 @@
  *  4. Fase B (uma `$transaction` curta, só com `tx`): copia as metas visíveis de
  *     `cashflow_orcamentos` para a Geral (12 meses por ano, % → valor), grava o prefs
  *     (`estruturaCriadaEm` = marca de ativação) e, se pedido/usuário novo, as sugestões (P4).
- *  5. Fase C (depois do commit): invariantes DEPOIS × ANTES. Divergiu → `compensarAtivacao`.
+ *  5. Fase C (depois do commit): invariantes DEPOIS × ANTES. Divergiu ou falhou →
+ *     `compensarAtivacao`.
  *
  * Metas antigas (§3.3/§4 passo 4a), resolvidas contra a árvore mesclada de ANTES da Fase A (é a
  * que a tela atual mostra):
@@ -862,13 +863,21 @@ export async function ativarOrcamentoV2(
       return { ...base, status: 'compensado', motivo: `erro: ${msg}`, plano, mudancas };
     }
 
-    // Fase C — verificação depois do commit.
-    const depois = await capturarInvariantes(userId);
-    const divergencias = compararInvariantes(
-      antes,
-      depois,
-      esperadoOrcado(plano, opts.adotarOrfas === true),
-    );
+    // Fase C — verificação depois do commit. Um erro aqui (P2024, timeout) também compensa: a
+    // Fase B já gravou a marca, e sem compensar a próxima chamada diria 'ja_ativado' sem verificar.
+    let divergencias: DivergenciaInvariante[];
+    try {
+      const depois = await capturarInvariantes(userId);
+      divergencias = compararInvariantes(
+        antes,
+        depois,
+        esperadoOrcado(plano, opts.adotarOrfas === true),
+      );
+    } catch (error: unknown) {
+      await compensarAtivacao(userId, inseridos);
+      const msg = error instanceof Error ? error.message : String(error);
+      return { ...base, status: 'compensado', motivo: `erro_verificacao: ${msg}`, plano, mudancas };
+    }
     if (divergencias.length > 0) {
       await compensarAtivacao(userId, inseridos);
       return {
