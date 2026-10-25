@@ -25,6 +25,16 @@ import {
   type FieldChange,
 } from '@/services/changeHistory';
 
+import {
+  assertNaoCategoriaSistema,
+  assertNaoGeral,
+  categoriaInfoDoRegistro,
+  delegarExclusaoItem,
+  guardarCriacaoItemV2,
+  guardarEdicaoItemV2,
+  usuarioOrcamentoV2Ativo,
+} from '@/services/cashflow/orcamentoV2/guardas';
+
 import { withErrorHandler } from '@/utils/apiErrorHandler';
 
 /**
@@ -71,6 +81,10 @@ interface RecordOutcome {
  *     rank?: string,
  *   }
  * }
+ *
+ * Orçamento v2 (guardas.ts): a subcategoria Geral não é renomeada, movida nem excluída (409, por
+ * dado). Para usuário ativado: nome de sub único/1–60 na categoria (422), sub nova antes da Geral,
+ * nada de linha solta em Despesas/Despesas Fixas (409) e categoria de sistema não excluível (409).
  */
 export const PATCH = withErrorHandler(async (request: NextRequest) => {
   const auth = await requireAuthWithActing(request);
@@ -98,6 +112,9 @@ export const PATCH = withErrorHandler(async (request: NextRequest) => {
       ? await touchesInvestimentoGroup(type, id, data as { groupId?: string; type?: string })
       : false;
 
+  // Orçamento v2: as guardas por usuário só valem para quem está ativado (targetUserId).
+  const v2 = await usuarioOrcamentoV2Ativo(targetUserId);
+
   // Operações com grupos
   let result;
   let outcome: RecordOutcome = {};
@@ -107,6 +124,7 @@ export const PATCH = withErrorHandler(async (request: NextRequest) => {
       id,
       (data || {}) as GroupData,
       targetUserId,
+      v2,
     ));
   } else if (type === 'item') {
     ({ response: result, outcome } = await handleItemOperation(
@@ -114,6 +132,7 @@ export const PATCH = withErrorHandler(async (request: NextRequest) => {
       id,
       (data || {}) as ItemData,
       targetUserId,
+      v2,
     ));
   } else {
     return NextResponse.json({ error: 'Tipo não suportado' }, { status: 400 });
@@ -236,6 +255,7 @@ async function handleGroupOperation(
   id: string | undefined,
   data: GroupData,
   userId: string,
+  v2: boolean,
 ): Promise<{ response: NextResponse; outcome: RecordOutcome }> {
   if (operation === 'create') {
     // Criar novo grupo personalizado puro (sem templateId)
@@ -381,6 +401,11 @@ async function handleGroupOperation(
       };
     }
 
+    // Orçamento v2: categoria padrão (e os níveis que as contêm) não é excluível (R-12).
+    if (v2 && (target.userId === null || target.userId === userId)) {
+      assertNaoCategoriaSistema(await categoriaInfoDoRegistro(target), 'excluir');
+    }
+
     // Caso A: id aponta para um template (userId=null) → criar tombstone.
     if (target.userId === null) {
       const tombstoneId = await hideTemplateGroup(target.id, userId);
@@ -500,6 +525,7 @@ async function handleItemOperation(
   id: string | undefined,
   data: ItemData,
   userId: string,
+  v2: boolean,
 ): Promise<{ response: NextResponse; outcome: RecordOutcome }> {
   if (operation === 'create') {
     // Criar novo item personalizado puro (sem templateId)
@@ -522,6 +548,17 @@ async function handleItemOperation(
       };
     }
 
+    // Orçamento v2 (antes de personalizar): Q15, nome na categoria e posição antes da Geral.
+    let nomeFinal = data.name;
+    let orderIndex: number | undefined;
+    if (v2) {
+      ({ nome: nomeFinal, orderIndex } = await guardarCriacaoItemV2(
+        userId,
+        data.groupId,
+        data.name,
+      ));
+    }
+
     // Se grupo é template, personalizar primeiro
     let finalGroupId = group.id;
     if (group.userId === null) {
@@ -536,7 +573,8 @@ async function handleItemOperation(
       data: {
         userId,
         groupId: finalGroupId,
-        name: data.name,
+        name: nomeFinal,
+        ...(orderIndex !== undefined && { orderIndex }),
         significado: data.significado || null,
         rank: data.rank || newRank,
       },
@@ -572,6 +610,17 @@ async function handleItemOperation(
         response: NextResponse.json({ error: 'Item não encontrado' }, { status: 404 }),
         outcome: {},
       };
+    }
+
+    // Geral (por dado): não renomeia nem muda de grupo. Reenviar o mesmo nome/grupo passa.
+    if (item.isGeral) {
+      if (data.name && data.name !== item.name) assertNaoGeral(item, 'renomear');
+      if (data.groupId && data.groupId !== item.groupId) assertNaoGeral(item, 'mover');
+    }
+    // Orçamento v2 (antes de personalizar): nome na categoria e destino do movimento.
+    if (v2) {
+      const { nome } = await guardarEdicaoItemV2(userId, id, data, { nomeAtual: item.name });
+      if (nome !== undefined) data = { ...data, name: nome };
     }
 
     // Se é template, criar override (vinculado por templateId) e atualizar.
@@ -652,6 +701,21 @@ async function handleItemOperation(
       return {
         response: NextResponse.json({ error: 'Item não encontrado' }, { status: 404 }),
         outcome: {},
+      };
+    }
+
+    // Geral (por dado) não se exclui; linha de outro usuário cai no 404 mais abaixo.
+    if (target.userId === userId) assertNaoGeral(target, 'excluir');
+    // Orçamento v2: item de categoria de despesa → fusão na Geral (PR 7; o stub devolve
+    // 'nao_aplica' e a exclusão segue o caminho de hoje).
+    if (
+      v2 &&
+      (target.userId === null || target.userId === userId) &&
+      (await delegarExclusaoItem(prisma, userId, id)) === 'fundido'
+    ) {
+      return {
+        response: NextResponse.json({ success: true, message: 'Item excluído' }),
+        outcome: { entityId: target.id, entityLabel: target.name },
       };
     }
 

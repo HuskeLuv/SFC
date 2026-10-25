@@ -3,6 +3,9 @@ import type { CashflowGroup, CashflowItem } from '@/types/cashflow';
 
 const mockEstado = vi.hoisted(() => vi.fn());
 const mockGetMerged = vi.hoisted(() => vi.fn());
+const mockPrisma = vi.hoisted(() => ({ cashflowGroup: { findUnique: vi.fn() } }));
+
+vi.mock('@/lib/prisma', () => ({ prisma: mockPrisma, default: mockPrisma }));
 
 vi.mock('@/services/cashflow/orcamentoV2/acesso', () => ({
   estadoAcessoOrcamentoV2: mockEstado,
@@ -17,9 +20,11 @@ import {
   assertNaoGeral,
   assertNomeLivreNaCategoria,
   categoriaInfo,
+  categoriaInfoDoRegistro,
   delegarExclusaoItem,
   ehCategoriaSistema,
   guardarCriacaoItemV2,
+  guardarEdicaoItemV2,
   localizarGrupo,
   localizarItem,
   nomesIrmaos,
@@ -222,5 +227,72 @@ describe('guardarCriacaoItemV2', () => {
 describe('delegarExclusaoItem', () => {
   it('stub até a PR 7', async () => {
     expect(await delegarExclusaoItem({} as never, 'u1', 'i1')).toBe('nao_aplica');
+  });
+});
+
+describe('categoriaInfoDoRegistro', () => {
+  it('template, override (nome do template) e grupo do usuário', async () => {
+    expect(
+      await categoriaInfoDoRegistro({ name: 'Habitação', userId: null, templateId: null }),
+    ).toEqual({ nomeCanonico: 'Habitação', derivadaDeTemplate: true });
+    mockPrisma.cashflowGroup.findUnique.mockResolvedValue({ name: 'Habitação' });
+    expect(
+      await categoriaInfoDoRegistro({ name: 'Minha Casa', userId: 'u1', templateId: 'tpl-hab' }),
+    ).toEqual({ nomeCanonico: 'Habitação', derivadaDeTemplate: true });
+    expect(
+      await categoriaInfoDoRegistro({ name: 'Habitação', userId: 'u1', templateId: null }),
+    ).toEqual({ nomeCanonico: 'Habitação', derivadaDeTemplate: false });
+  });
+});
+
+describe('guardarEdicaoItemV2', () => {
+  beforeEach(() => mockGetMerged.mockResolvedValue(arvore()));
+
+  it('sem nome nem grupo não carrega a árvore', async () => {
+    expect(await guardarEdicaoItemV2('u1', 'aluguel', { name: '' })).toEqual({});
+    expect(mockGetMerged).not.toHaveBeenCalled();
+  });
+
+  it('renomear na categoria: valida contra as irmãs; nome igual não é renomear', async () => {
+    expect(await guardarEdicaoItemV2('u1', 'aluguel', { name: ' Condomínio ' })).toEqual({
+      nome: 'Condomínio',
+    });
+    expect(await guardarEdicaoItemV2('u1', 'aluguel', { name: 'Aluguel' })).toEqual({});
+    await expect(
+      guardarEdicaoItemV2('u1', 'aluguel', { name: 'energia eletrica' }),
+    ).rejects.toMatchObject({ statusCode: 422, codigo: 'nome_duplicado' });
+    // Fora de categoria (Entradas): sem regra de nome.
+    expect(await guardarEdicaoItemV2('u1', 'sal', { name: '' + 'x'.repeat(80) })).toEqual({});
+  });
+
+  it('Geral: 409 ao renomear ou mudar de grupo; reenviar o mesmo nome passa', async () => {
+    await expect(guardarEdicaoItemV2('u1', 'geral-hab', { name: 'Outros' })).rejects.toMatchObject({
+      statusCode: 409,
+      codigo: 'geral',
+    });
+    await expect(guardarEdicaoItemV2('u1', 'geral-hab', { groupId: 'var' })).rejects.toMatchObject({
+      statusCode: 409,
+      codigo: 'geral',
+    });
+    expect(await guardarEdicaoItemV2('u1', 'geral-hab', { name: 'Geral' })).toEqual({});
+  });
+
+  it('mudar de grupo: solto → 409; nome repetido no destino → 422', async () => {
+    await expect(guardarEdicaoItemV2('u1', 'aluguel', { groupId: 'fixas' })).rejects.toMatchObject({
+      codigo: 'item_solto',
+    });
+    await expect(
+      guardarEdicaoItemV2('u1', 'aluguel', { groupId: 'var', name: 'geral' }),
+    ).rejects.toMatchObject({ codigo: 'nome_duplicado' });
+    expect(await guardarEdicaoItemV2('u1', 'aluguel', { groupId: 'var' })).toEqual({});
+  });
+
+  it('lote: a árvore passada recebe o nome novo', async () => {
+    const a = arvore();
+    await guardarEdicaoItemV2('u1', 'aluguel', { name: 'Gás' }, { arvore: a });
+    await expect(
+      guardarEdicaoItemV2('u1', 'ovr-luz', { name: 'gas' }, { arvore: a }),
+    ).rejects.toMatchObject({ codigo: 'nome_duplicado' });
+    expect(mockGetMerged).not.toHaveBeenCalled();
   });
 });

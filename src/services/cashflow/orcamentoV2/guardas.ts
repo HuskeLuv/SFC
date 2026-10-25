@@ -21,6 +21,7 @@
  * solto.
  */
 import type { Prisma } from '@prisma/client';
+import { prisma } from '@/lib/prisma';
 import { ApiError } from '@/utils/apiErrorHandler';
 import { isReceitaGroupByType } from '@/utils/formatters';
 import { validarNomeSubcategoria, NOME_MAX } from '@/lib/orcamento/regras';
@@ -112,6 +113,24 @@ export function ehCategoriaSistema(grupo: CategoriaInfo): boolean {
   return (
     categoriaDoCatalogo(grupo.nomeCanonico) != null || ESTRUTURAIS_DESPESA.has(grupo.nomeCanonico)
   );
+}
+
+/**
+ * CategoriaInfo de uma linha de `cashflow_groups` (rotas que recebem o id cru): template → o
+ * próprio nome; override → o nome do template; grupo do usuário → não derivado de template.
+ */
+export async function categoriaInfoDoRegistro(row: {
+  name: string;
+  userId: string | null;
+  templateId: string | null;
+}): Promise<CategoriaInfo> {
+  if (row.userId === null) return { nomeCanonico: row.name, derivadaDeTemplate: true };
+  if (!row.templateId) return { nomeCanonico: row.name, derivadaDeTemplate: false };
+  const template = await prisma.cashflowGroup.findUnique({
+    where: { id: row.templateId },
+    select: { name: true },
+  });
+  return { nomeCanonico: template?.name ?? row.name, derivadaDeTemplate: true };
 }
 
 /** R-12: categoria de sistema não pode ser excluída (409). */
@@ -267,4 +286,50 @@ export async function guardarCriacaoItemV2(
     nome: validarNomeNaCategoria(nome, nomesIrmaos(local.grupo)),
     orderIndex: orderIndexNovaSub(local.grupo),
   };
+}
+
+/**
+ * Renomear e/ou mudar de grupo uma linha existente, para usuário v2 (PATCH update e batch-update):
+ * - Geral: não renomeia nem muda de grupo (409);
+ * - mudando de grupo: destino solto → 409 (Q15); destino categoria → nome (novo, validado com
+ *   R-18; ou o atual, só unicidade) livre lá (422);
+ * - só renomeando numa categoria → `validarNomeNaCategoria` contra as irmãs (422).
+ * Nome igual ao atual (o desktop reenvia o nome a cada edição de valor) não é renomear. Devolve o
+ * nome aparado a gravar. Com `opcoes.arvore` (lote), a árvore recebe o nome novo para as próximas
+ * linhas do mesmo lote enxergarem a mudança.
+ */
+export async function guardarEdicaoItemV2(
+  userId: string,
+  itemId: string,
+  mudanca: { name?: unknown; groupId?: unknown },
+  opcoes: { nomeAtual?: string; arvore?: CashflowGroup[] } = {},
+): Promise<{ nome?: string }> {
+  const nomePedido = typeof mudanca.name === 'string' && mudanca.name !== '' ? mudanca.name : null;
+  const grupoPedido =
+    typeof mudanca.groupId === 'string' && mudanca.groupId !== '' ? mudanca.groupId : null;
+  if (nomePedido === null && grupoPedido === null) return {};
+
+  const arvore = opcoes.arvore ?? (await carregarArvoreEstrutura(userId));
+  const origem = localizarItem(arvore, itemId);
+  const nomeAtual = origem?.item.name ?? opcoes.nomeAtual ?? '';
+  const renomeia = nomePedido !== null && nomePedido.trim() !== nomeAtual;
+  const destino = grupoPedido ? localizarGrupo(arvore, grupoPedido) : null;
+  const mudaDeGrupo = destino != null && destino.grupo.id !== origem?.grupo.id;
+
+  if (renomeia) assertNaoGeral(origem?.item, 'renomear');
+  if (mudaDeGrupo) assertNaoGeral(origem?.item, 'mover');
+
+  let nome: string | undefined;
+  if (mudaDeGrupo) {
+    assertNaoNivelSolto(destino.papel);
+    if (destino.papel === 'categoria') {
+      const irmaos = nomesIrmaos(destino.grupo);
+      if (renomeia) nome = validarNomeNaCategoria(nomePedido, irmaos);
+      else assertNomeLivreNaCategoria(nomeAtual, irmaos);
+    }
+  } else if (renomeia && origem?.papel === 'categoria') {
+    nome = validarNomeNaCategoria(nomePedido, nomesIrmaos(origem.grupo, origem.item.id));
+  }
+  if (nome !== undefined && opcoes.arvore && origem) origem.item.name = nome;
+  return nome !== undefined ? { nome } : {};
 }
