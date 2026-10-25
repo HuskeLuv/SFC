@@ -176,6 +176,20 @@ describe('sugestões (P4)', () => {
     expect(faltantes).toEqual(['Água', 'Gás', 'Internet / TV']);
   });
 
+  it('não sugere o que outra categoria já tem por alias que cruza categoria', () => {
+    const nomes = (cat: string, outras: string[]) =>
+      sugestoesFaltantes(cat, [], outras).map((s) => s.nome);
+    expect(nomes('Impostos', ['IPTU + Taxas Municipais'])).not.toContain('IPTU');
+    expect(nomes('Despesas Pessoais', ['Telefones celulares'])).not.toContain('Celular');
+    expect(nomes('Despesas Financeiras', ['Seguro Vida'])).not.toContain('Seguro de vida');
+    expect(nomes('Despesas com Dependentes', ['Escola/Faculdade'])).not.toContain('Escola');
+    // sem os nomes de fora, a sugestão aparece (o chamador precisa passá-los)
+    expect(nomes('Impostos', [])).toContain('IPTU');
+    expect(nomes('Despesas Pessoais', [])).toContain('Celular');
+    expect(nomes('Despesas Financeiras', [])).toContain('Seguro de vida');
+    expect(nomes('Despesas com Dependentes', [])).toContain('Escola');
+  });
+
   it('casa a categoria pelo nome do Anexo A e ignora categoria do usuário', () => {
     expect(sugestoesFaltantes('Animais de estimação', ['Ração']).map((s) => s.nome)).toEqual([
       'Veterinário',

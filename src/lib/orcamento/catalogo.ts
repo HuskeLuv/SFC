@@ -405,14 +405,21 @@ export const SUBCATEGORIAS_SUGERIDAS: Readonly<Record<string, readonly Subcatego
 /**
  * Sugestões que ainda faltam numa categoria, dados os nomes dos itens que ela já tem (comparação
  * pelo nome canônico normalizado, com aliases). Categoria fora do catálogo → nenhuma.
+ *
+ * `nomesEmOutrasCategorias`: itens das demais categorias de despesa do usuário. Alguns aliases
+ * cruzam categoria ("IPTU + Taxas Municipais" fica em Habitação e equivale a IPTU, de Impostos).
+ * Sem esses nomes a sugestão sai em duplicata, então o chamador deve passá-los.
  */
 export function sugestoesFaltantes(
   nomeCanonicoCategoria: string,
   nomesExistentes: readonly string[],
+  nomesEmOutrasCategorias: readonly string[] = [],
 ): SubcategoriaCatalogo[] {
   const categoria = categoriaDoCatalogo(nomeCanonicoCategoria);
   if (!categoria) return [];
-  const existentes = new Set(nomesExistentes.map(nomeCanonicoSubcategoria));
+  const existentes = new Set(
+    [...nomesExistentes, ...nomesEmOutrasCategorias].map(nomeCanonicoSubcategoria),
+  );
   return SUBCATEGORIAS_SUGERIDAS[categoria.nomeCanonico].filter(
     (s) => !existentes.has(nomeCanonicoSubcategoria(s.nome)),
   );
