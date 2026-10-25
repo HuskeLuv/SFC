@@ -36,6 +36,10 @@ export interface CashflowItem {
    * somente-leitura (anotado pelo GET /api/cashflow).
    */
   objetivoAutoRealizado?: boolean;
+  /** Orçamento v2: subcategoria "Geral" da categoria (linha do usuário; sempre a última). */
+  isGeral?: boolean;
+  /** Orçamento v2: subcategoria fixa no orçamento (nulo = `fixaPadrao` do catálogo). */
+  orcamentoFixa?: boolean | null;
   createdAt?: Date;
   updatedAt?: Date;
 }
@@ -58,6 +62,8 @@ export interface CashflowGroup {
   templateName?: string | null;
   hidden?: boolean;
   isTemplate?: boolean;
+  /** Orçamento v2: ícone da categoria (nulo = padrão do catálogo pelo nome canônico). */
+  icone?: string | null;
   createdAt?: Date;
   updatedAt?: Date;
 }

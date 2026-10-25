@@ -79,6 +79,44 @@ describe('GET /api/profile/export (LGPD)', () => {
     ]);
   });
 
+  it('inclui o orçamento do usuário logado: metas antigas, orçado v2 e preferências', async () => {
+    const em = new Date('2026-10-27T12:00:00Z');
+    mocks.prisma.cashflowOrcamento.findMany.mockResolvedValueOnce([
+      { groupId: 'g1', tipo: 'grupo', year: 2026, tipoMeta: 'valor', valor: '500.00' },
+    ]);
+    mocks.prisma.cashflowOrcamentoItem.findMany.mockResolvedValueOnce([
+      { itemId: 'i1', ano: 2026, mes: 9, valor: '1200.50', pct: null, createdAt: em },
+      { itemId: 'i2', ano: 2026, mes: 9, valor: null, pct: '10.5', createdAt: em },
+    ]);
+    mocks.prisma.cashflowOrcamentoPrefs.findUnique.mockResolvedValueOnce({
+      userId: 'u1',
+      categoriasRecolhidas: ['g1'],
+      graficoVisivel: false,
+      fonte: 'consolidado',
+    });
+
+    const res = await GET(new NextRequest('http://localhost/api/profile/export'));
+    const corpo = JSON.parse(await res.text());
+
+    const porUsuario = { userId: 'u1' };
+    expect(mocks.prisma.cashflowOrcamento.findMany.mock.calls[0][0].where).toEqual(porUsuario);
+    expect(mocks.prisma.cashflowOrcamentoItem.findMany.mock.calls[0][0].where).toEqual(porUsuario);
+    expect(mocks.prisma.cashflowOrcamentoPrefs.findUnique.mock.calls[0][0].where).toEqual(
+      porUsuario,
+    );
+    // Decimal vira número no JSON.
+    expect(corpo.cashflow.orcamento.metas).toEqual([
+      expect.objectContaining({ groupId: 'g1', valor: 500 }),
+    ]);
+    expect(corpo.cashflow.orcamento.orcadoPorSubcategoria).toEqual([
+      expect.objectContaining({ itemId: 'i1', valor: 1200.5, pct: null }),
+      expect.objectContaining({ itemId: 'i2', valor: null, pct: 10.5 }),
+    ]);
+    expect(corpo.cashflow.orcamento.preferencias).toEqual(
+      expect.objectContaining({ fonte: 'consolidado', categoriasRecolhidas: ['g1'] }),
+    );
+  });
+
   it('inclui os relatos de dado incorreto do usuário logado, com o status como ele vê', async () => {
     mocks.prisma.analiseDataReport.findMany.mockResolvedValueOnce([
       {

@@ -120,6 +120,8 @@ model User {
   changeLogs                    UserChangeLog[]               @relation("UserChangeLogUser")
   cashflowPatrimonioSnapshots   CashflowPatrimonioSnapshot[]  @relation("CashflowPatrimonioSnapshotUser")
   cashflowOrcamentos            CashflowOrcamento[]           @relation("CashflowOrcamentoUser")
+  cashflowOrcamentoItens        CashflowOrcamentoItem[]
+  cashflowOrcamentoPrefs        CashflowOrcamentoPrefs?
   saudeFinanceiraSnapshots      SaudeFinanceiraSnapshot[]     @relation("SaudeFinanceiraSnapshotUser")
   seguroApolices                SeguroApolice[]               @relation("SeguroApoliceUser")
   lessonProgresses              LessonProgress[]              @relation("LessonProgressUser")
@@ -374,6 +376,9 @@ model CashflowGroup {
   // Tombstone: usuário ocultou um template. Override row com hidden=true some do tree.
   hidden     Boolean             @default(false)
   orcamentos CashflowOrcamento[] @relation("CashflowOrcamentoGroup")
+  // Orçamento v2: ícone da categoria (nome do catálogo de ícones). Nulo = padrão do catálogo
+  // pelo nome canônico. Gravado no override; o merge da árvore copia do override.
+  icone      String?             @db.VarChar(30)
   createdAt  DateTime            @default(now())
   updatedAt  DateTime            @updatedAt
 
@@ -384,38 +389,46 @@ model CashflowGroup {
 }
 
 model CashflowItem {
-  id          String                @id @default(uuid())
-  userId      String? // null se for item padrão (template)
-  user        User?                 @relation(fields: [userId], references: [id])
-  groupId     String
-  group       CashflowGroup         @relation(fields: [groupId], references: [id])
-  name        String
-  significado String? // explicação opcional
-  rank        String? // ordem de importância (essencial, normal, etc.)
+  id            String                @id @default(uuid())
+  userId        String? // null se for item padrão (template)
+  user          User?                 @relation(fields: [userId], references: [id])
+  groupId       String
+  group         CashflowGroup         @relation(fields: [groupId], references: [id])
+  name          String
+  significado   String? // explicação opcional
+  rank          String? // ordem de importância (essencial, normal, etc.)
   // Posição da linha dentro do grupo (reordenável pelo usuário, ago/2026).
   // Backfill da migração preservou a ordem alfabética que era exibida antes.
-  orderIndex  Int                   @default(0)
+  orderIndex    Int                   @default(0)
   // Override layer: quando setado, esta linha personaliza o item-template apontado.
-  templateId  String?
-  template    CashflowItem?         @relation("ItemOverride", fields: [templateId], references: [id])
-  overrides   CashflowItem[]        @relation("ItemOverride")
+  templateId    String?
+  template      CashflowItem?         @relation("ItemOverride", fields: [templateId], references: [id])
+  overrides     CashflowItem[]        @relation("ItemOverride")
   // Tombstone: usuário ocultou um item-template.
-  hidden      Boolean               @default(false)
+  hidden        Boolean               @default(false)
   // Vínculo opcional com um objetivo do Planejamento de Sonhos. Quando setado,
   // esta linha é espelho do sonho (somente-leitura no fluxo de caixa) e seus
   // valores mensais são o aporte mensal (pmt) sincronizado pelo planejamento.
-  objetivoId  String?               @unique
-  objetivo    PlanejamentoObjetivo? @relation(fields: [objetivoId], references: [id], onDelete: SetNull)
+  objetivoId    String?               @unique
+  objetivo      PlanejamentoObjetivo? @relation(fields: [objetivoId], references: [id], onDelete: SetNull)
   // Vínculo opcional com uma dívida. Quando setado, esta linha é espelho do
   // financiamento (somente-leitura no fluxo de caixa) e seus valores mensais
   // são as parcelas do cronograma SAC/Price sincronizadas pela área de Dívidas.
-  dividaId    String?               @unique
-  divida      Divida?               @relation(fields: [dividaId], references: [id], onDelete: SetNull)
-  createdAt   DateTime              @default(now())
-  updatedAt   DateTime              @updatedAt
+  dividaId      String?               @unique
+  divida        Divida?               @relation(fields: [dividaId], references: [id], onDelete: SetNull)
+  // Orçamento v2: subcategoria "Geral" da categoria (sempre linha do usuário, nunca template).
+  // CHECK "CashflowItem_geral_do_usuario" (isGeral => userId não nulo) e o índice único parcial
+  // "CashflowItem_geral_por_grupo" (uma Geral visível por grupo) ficam só na migration
+  // 20261027000000_orcamento_v2_estrutura — o Prisma não modela CHECK nem índice parcial.
+  isGeral       Boolean               @default(false)
+  // Orçamento v2: subcategoria fixa no orçamento. Nulo = `fixaPadrao` do catálogo.
+  orcamentoFixa Boolean?
+  createdAt     DateTime              @default(now())
+  updatedAt     DateTime              @updatedAt
 
   values           CashflowValue[]
-  bankTransactions BankTransaction[] @relation("BankTransactionCashflowItem")
+  bankTransactions BankTransaction[]       @relation("BankTransactionCashflowItem")
+  orcamentoItens   CashflowOrcamentoItem[]
 
   @@unique([userId, templateId])
   @@index([groupId])
@@ -445,6 +458,47 @@ model CashflowOrcamento {
   @@unique([userId, year, tipo, groupId])
   @@index([userId, year])
   @@map("cashflow_orcamentos")
+}
+
+// Orçamento v2 (ticket 86e3v8p3u): orçado por subcategoria (CashflowItem do usuário) e mês.
+// Exatamente um de `valor` (R$) e `pct` (% da receita, 1 casa; só Planejamento Financeiro).
+// Os CHECKs (xor valor/pct, valor >= 0, pct 0..100, mes 0..11) ficam só na migration
+// 20261027000000_orcamento_v2_estrutura. O FK do item é NO ACTION de propósito: apagar um
+// item com orçado sem passar pela fusão na Geral falha alto, em vez de perder o orçado.
+// `updatedAt` só é preenchido pelo Prisma: SQL cru nesta tabela precisa setar a coluna.
+model CashflowOrcamentoItem {
+  id        String       @id @default(uuid())
+  userId    String
+  user      User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  itemId    String
+  item      CashflowItem @relation(fields: [itemId], references: [id], onDelete: NoAction)
+  ano       Int
+  mes       Int // 0 = Jan, 11 = Dez (igual CashflowValue)
+  valor     Decimal?     @db.Decimal(15, 2)
+  pct       Decimal?     @db.Decimal(5, 1)
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+
+  @@unique([userId, itemId, ano, mes])
+  @@index([userId, ano])
+  @@index([itemId])
+  @@map("cashflow_orcamento_itens")
+}
+
+// Orçamento v2: preferências de tela por usuário. `estruturaCriadaEm` preenchido = usuário
+// ativado (estrutura com as Gerais criada e orçados antigos copiados). CHECK de `fonte`
+// ('lancado' | 'consolidado') só na migration.
+model CashflowOrcamentoPrefs {
+  userId               String    @id
+  user                 User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  categoriasRecolhidas String[]  @default([]) // ids de CashflowGroup (do usuário)
+  graficoVisivel       Boolean   @default(true)
+  fonte                String    @default("lancado") @db.VarChar(12)
+  estruturaCriadaEm    DateTime? // marca de ativação (idempotência)
+  avisoGeralVistoEm    DateTime? // aviso de primeira visita
+  updatedAt            DateTime  @updatedAt
+
+  @@map("cashflow_orcamento_prefs")
 }
 
 model CashflowValue {

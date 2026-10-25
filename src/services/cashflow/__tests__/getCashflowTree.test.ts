@@ -259,4 +259,169 @@ describe('mergeTemplatesWithCustomizations', () => {
       expect(lazer.items.map((i) => i.name)).toEqual(['Cinema']);
     });
   });
+
+  describe('Orçamento v2: colunas novas e a Geral', () => {
+    it('copia isGeral/orcamentoFixa do override do item e icone do override do grupo', () => {
+      const template = group({
+        id: 'tpl-group',
+        name: 'Habitação',
+        icone: null,
+        items: [
+          item({ id: 'tpl-a', groupId: 'tpl-group', name: 'Aluguel', orderIndex: 1 }),
+          item({ id: 'tpl-b', groupId: 'tpl-group', name: 'Condomínio', orderIndex: 2 }),
+        ],
+      });
+      const override = group({
+        id: 'user-group',
+        userId: 'user-1',
+        templateId: 'tpl-group',
+        name: 'Casa',
+        icone: 'casa',
+        items: [
+          item({
+            id: 'user-a',
+            userId: 'user-1',
+            groupId: 'user-group',
+            templateId: 'tpl-a',
+            name: 'Aluguel',
+            orderIndex: 1,
+            orcamentoFixa: true,
+          }),
+        ],
+      });
+
+      const [merged] = mergeTemplatesWithCustomizations([template], [override]);
+
+      expect(merged.icone).toBe('casa');
+      expect(merged.name).toBe('Casa');
+      const aluguel = merged.items.find((i) => i.id === 'user-a');
+      expect(aluguel?.orcamentoFixa).toBe(true);
+      expect(aluguel?.isGeral).toBe(false);
+      // Item sem override continua o template (sem colunas do usuário).
+      expect(merged.items.find((i) => i.id === 'tpl-b')?.orcamentoFixa).toBeUndefined();
+    });
+
+    it('grupo sem override não ganha ícone (nulo = padrão do catálogo)', () => {
+      const tplA = group({ id: 'tpl-a', name: 'Habitação', orderIndex: 0 });
+      const tplB = group({ id: 'tpl-b', name: 'Lazer', orderIndex: 1 });
+      const overrideB = group({
+        id: 'user-b',
+        userId: 'user-1',
+        templateId: 'tpl-b',
+        name: 'Lazer',
+        orderIndex: 1,
+      });
+
+      const [hab, lazer] = mergeTemplatesWithCustomizations([tplA, tplB], [overrideB]);
+
+      expect(hab.icone ?? null).toBeNull();
+      expect(lazer.icone).toBeNull();
+    });
+
+    it('a Geral fica sempre por último, mesmo com orderIndex menor que os demais', () => {
+      const template = group({
+        id: 'tpl-group',
+        name: 'Habitação',
+        items: [
+          item({ id: 'tpl-a', groupId: 'tpl-group', name: 'Aluguel', orderIndex: 1 }),
+          item({ id: 'tpl-b', groupId: 'tpl-group', name: 'Condomínio', orderIndex: 2 }),
+        ],
+      });
+      const override = group({
+        id: 'user-group',
+        userId: 'user-1',
+        templateId: 'tpl-group',
+        name: 'Habitação',
+        items: [
+          item({
+            id: 'user-geral',
+            userId: 'user-1',
+            groupId: 'user-group',
+            templateId: null,
+            name: 'Geral',
+            orderIndex: 0,
+            isGeral: true,
+          }),
+          item({
+            id: 'user-custom',
+            userId: 'user-1',
+            groupId: 'user-group',
+            templateId: null,
+            name: 'Zelador',
+            orderIndex: 5,
+          }),
+        ],
+      });
+
+      const [merged] = mergeTemplatesWithCustomizations([template], [override]);
+
+      expect(merged.items.map((i) => i.name)).toEqual([
+        'Aluguel',
+        'Condomínio',
+        'Zelador',
+        'Geral',
+      ]);
+      expect(merged.items.at(-1)?.isGeral).toBe(true);
+    });
+
+    it('override de item-template marcado como Geral também vai para o fim', () => {
+      // Ativação que adota um item do usuário chamado "Geral" (override de template).
+      const template = group({
+        id: 'tpl-group',
+        name: 'Lazer',
+        items: [
+          item({ id: 'tpl-a', groupId: 'tpl-group', name: 'Cinema', orderIndex: 1 }),
+          item({ id: 'tpl-g', groupId: 'tpl-group', name: 'Geral', orderIndex: 0 }),
+        ],
+      });
+      const override = group({
+        id: 'user-group',
+        userId: 'user-1',
+        templateId: 'tpl-group',
+        name: 'Lazer',
+        items: [
+          item({
+            id: 'user-g',
+            userId: 'user-1',
+            groupId: 'user-group',
+            templateId: 'tpl-g',
+            name: 'Geral',
+            orderIndex: 0,
+            isGeral: true,
+          }),
+        ],
+      });
+
+      const [merged] = mergeTemplatesWithCustomizations([template], [override]);
+
+      expect(merged.items.map((i) => i.id)).toEqual(['tpl-a', 'user-g']);
+      expect(merged.items[1].isGeral).toBe(true);
+    });
+
+    it('grupo criado pelo usuário (sem template): Geral por último, resto na ordem da query', () => {
+      const template = group({ id: 'tpl-group', name: 'Habitação', orderIndex: 0 });
+      const custom = group({
+        id: 'user-custom',
+        userId: 'user-1',
+        templateId: null,
+        name: 'Pets',
+        orderIndex: 9,
+        items: [
+          item({
+            id: 'u-geral',
+            userId: 'user-1',
+            groupId: 'user-custom',
+            name: 'Geral',
+            isGeral: true,
+          }),
+          item({ id: 'u-racao', userId: 'user-1', groupId: 'user-custom', name: 'Ração' }),
+          item({ id: 'u-banho', userId: 'user-1', groupId: 'user-custom', name: 'Banho' }),
+        ],
+      });
+
+      const merged = mergeTemplatesWithCustomizations([template], [custom]);
+
+      expect(merged[1].items.map((i) => i.id)).toEqual(['u-racao', 'u-banho', 'u-geral']);
+    });
+  });
 });

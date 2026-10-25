@@ -151,6 +151,10 @@ export function mergeTemplatesWithCustomizations(
     return byName && !byName.templateId ? byName : undefined;
   };
 
+  // ATENÇÃO: com override, o item mesclado espalha o ITEM-TEMPLATE e o grupo mesclado espalha
+  // o GRUPO-TEMPLATE; do override só sai o que está listado abaixo. Coluna nova em
+  // CashflowItem/CashflowGroup gravada no override precisa entrar aqui explicitamente, senão
+  // some da árvore em silêncio (ex.: isGeral/orcamentoFixa/icone do Orçamento v2).
   const mergeGroup = (template: CashflowGroup, parentKey: string): CashflowGroup | null => {
     const pathKey = `${parentKey}|${template.name}`;
     const override = findOverrideGroup(template, pathKey);
@@ -175,6 +179,9 @@ export function mergeTemplatesWithCustomizations(
           orderIndex: userItem.orderIndex ?? tplItem.orderIndex,
           values: userItem.values ?? [],
           templateId: userItem.templateId ?? tplItem.id,
+          // Orçamento v2: colunas gravadas no override (o template nunca é Geral).
+          isGeral: userItem.isGeral ?? false,
+          orcamentoFixa: userItem.orcamentoFixa ?? null,
           hidden: false,
           isTemplate: false,
         });
@@ -210,10 +217,7 @@ export function mergeTemplatesWithCustomizations(
     }
 
     mergedChildren.sort((a, b) => a.orderIndex - b.orderIndex);
-    // Ordem do usuário (orderIndex, backfill = alfabética) com desempate por nome.
-    mergedItems.sort(
-      (a, b) => (a.orderIndex ?? 0) - (b.orderIndex ?? 0) || a.name.localeCompare(b.name),
-    );
+    mergedItems.sort(compararItens);
 
     const base: CashflowGroup = override
       ? {
@@ -225,6 +229,8 @@ export function mergeTemplatesWithCustomizations(
           orderIndex: override.orderIndex,
           templateId: override.templateId ?? template.id,
           templateName: template.name,
+          // Orçamento v2: ícone escolhido pelo usuário (nulo = padrão do catálogo).
+          icone: override.icone ?? null,
           hidden: false,
           isTemplate: false,
         }
@@ -301,6 +307,18 @@ export function findMovedItemIds(
   return moved;
 }
 
+/**
+ * Ordem dos itens de um grupo: a "Geral" do Orçamento v2 sempre por último; depois a ordem do
+ * usuário (orderIndex, backfill = alfabética) com desempate por nome.
+ */
+function compararItens(a: CashflowItem, b: CashflowItem): number {
+  return (
+    Number(a.isGeral ?? false) - Number(b.isGeral ?? false) ||
+    (a.orderIndex ?? 0) - (b.orderIndex ?? 0) ||
+    a.name.localeCompare(b.name)
+  );
+}
+
 function markTemplate(group: CashflowGroup): CashflowGroup {
   return {
     ...group,
@@ -310,7 +328,7 @@ function markTemplate(group: CashflowGroup): CashflowGroup {
       .map((i) => ({ ...i, isTemplate: true }))
       // Mesmo comparador do caminho com personalizações: a pura-função fica
       // determinística mesmo quando o caller não ordenou na query.
-      .sort((a, b) => (a.orderIndex ?? 0) - (b.orderIndex ?? 0) || a.name.localeCompare(b.name)),
+      .sort(compararItens),
     children: (group.children ?? []).map((c) => markTemplate(c)),
   };
 }
@@ -319,7 +337,12 @@ function buildPureCustomTree(g: CashflowGroup): CashflowGroup {
   return {
     ...g,
     isTemplate: false,
-    items: (g.items ?? []).filter((i) => !i.hidden).map((i) => ({ ...i, isTemplate: false })),
+    items: (g.items ?? [])
+      .filter((i) => !i.hidden)
+      .map((i) => ({ ...i, isTemplate: false }))
+      // Mantém a ordem da query (orderIndex, name) e só leva a Geral do Orçamento v2 para o
+      // fim (sort estável; sem Geral a ordem não muda).
+      .sort((a, b) => Number(a.isGeral ?? false) - Number(b.isGeral ?? false)),
     children: (g.children ?? []).filter((c) => !c.hidden).map((c) => buildPureCustomTree(c)),
   };
 }
