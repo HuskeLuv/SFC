@@ -102,6 +102,32 @@ export function planejar(
   };
 }
 
+/**
+ * Grava a mudança na lista (idempotente: adicionar ignora quem já está; remover ignora quem não
+ * está). Devolve quantas linhas mudaram. Também usada por `ativar.ts --beta`, que inclui o
+ * usuário no beta no mesmo comando, depois de ativar e verificar.
+ */
+export async function gravarBeta(
+  prisma: Pick<PrismaClient, 'featureBetaUser'>,
+  acao: 'adicionar' | 'remover',
+  usuarios: UsuarioAlvo[],
+  por: string,
+  motivo: string | null,
+): Promise<number> {
+  if (usuarios.length === 0) return 0;
+  if (acao === 'adicionar') {
+    const r = await prisma.featureBetaUser.createMany({
+      data: usuarios.map((u) => ({ recurso: RECURSO, userId: u.id, adicionadoPor: por, motivo })),
+      skipDuplicates: true,
+    });
+    return r.count;
+  }
+  const r = await prisma.featureBetaUser.deleteMany({
+    where: { recurso: RECURSO, userId: { in: usuarios.map((u) => u.id) } },
+  });
+  return r.count;
+}
+
 async function listar(prisma: PrismaClient) {
   const beta = await prisma.featureBetaUser.findMany({
     where: { recurso: RECURSO },
@@ -174,23 +200,10 @@ async function main() {
       console.log('\nNada a gravar.');
       return;
     }
-    if (op.acao === 'adicionar') {
-      const r = await prisma.featureBetaUser.createMany({
-        data: mudar.map((u) => ({
-          recurso: RECURSO,
-          userId: u.id,
-          adicionadoPor: op.por,
-          motivo: op.motivo,
-        })),
-        skipDuplicates: true,
-      });
-      console.log(`\nGravado: ${r.count} adicionado(s). Vale em até 60 s (cache do acesso).`);
-    } else {
-      const r = await prisma.featureBetaUser.deleteMany({
-        where: { recurso: RECURSO, userId: { in: mudar.map((u) => u.id) } },
-      });
-      console.log(`\nGravado: ${r.count} removido(s). Vale em até 60 s (cache do acesso).`);
-    }
+    const n = await gravarBeta(prisma, op.acao, mudar, op.por, op.motivo);
+    console.log(
+      `\nGravado: ${n} ${op.acao === 'adicionar' ? 'adicionado' : 'removido'}(s). Vale em até 60 s (cache do acesso).`,
+    );
   } finally {
     await prisma.$disconnect();
   }

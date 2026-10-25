@@ -1,5 +1,5 @@
-import { describe, it, expect } from 'vitest';
-import { RECURSO, lerOpcoes, planejar } from '../beta';
+import { describe, it, expect, vi } from 'vitest';
+import { RECURSO, gravarBeta, lerOpcoes, planejar } from '../beta';
 import { RECURSO_ORCAMENTO_V2 } from '@/services/cashflow/orcamentoV2/acesso';
 
 describe('scripts/orcamento-v2/beta', () => {
@@ -56,6 +56,35 @@ describe('scripts/orcamento-v2/beta', () => {
         new Set([a.id]),
       );
       expect(plano).toEqual({ mudar: [a], semMudanca: [b], naoEncontrados: [] });
+    });
+  });
+
+  describe('gravarBeta', () => {
+    const u = { id: '11111111-1111-1111-1111-111111111111', email: 'p@x.com' };
+    const falso = () => ({
+      featureBetaUser: {
+        createMany: vi.fn().mockResolvedValue({ count: 1 }),
+        deleteMany: vi.fn().mockResolvedValue({ count: 1 }),
+      },
+    });
+
+    it('adicionar: createMany idempotente com o recurso do gate', async () => {
+      const db = falso();
+      expect(await gravarBeta(db as never, 'adicionar', [u], 'well', 'piloto')).toBe(1);
+      expect(db.featureBetaUser.createMany).toHaveBeenCalledWith({
+        data: [{ recurso: RECURSO, userId: u.id, adicionadoPor: 'well', motivo: 'piloto' }],
+        skipDuplicates: true,
+      });
+    });
+
+    it('remover: deleteMany pelo recurso; lista vazia não toca o banco', async () => {
+      const db = falso();
+      await gravarBeta(db as never, 'remover', [u], 'well', null);
+      expect(db.featureBetaUser.deleteMany).toHaveBeenCalledWith({
+        where: { recurso: RECURSO, userId: { in: [u.id] } },
+      });
+      expect(await gravarBeta(db as never, 'adicionar', [], 'well', null)).toBe(0);
+      expect(db.featureBetaUser.createMany).not.toHaveBeenCalled();
     });
   });
 });
