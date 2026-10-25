@@ -216,6 +216,15 @@ describe('R-08 status da subcategoria', () => {
     expect(statusSubcategoria(1000, 1005, true, RITMO)).toBe('ok');
     expect(statusSubcategoria(1000, 1005.01, true, RITMO)).toBe('bad');
     expect(statusSubcategoria(200, 201, false, 1)).toBe('ok'); // 100,5% em mês fechado
+    // 10,05 ÷ 10 = 1,0050000000000001 em ponto flutuante: exatamente 100,5% não é estouro
+    expect(statusSubcategoria(10, 10.05, false, 1)).toBe('ok');
+    expect(statusSubcategoria(6, 6.03, true, RITMO)).toBe('ok');
+    expect(statusSubcategoria(10, 10.06, false, 1)).toBe('bad');
+    // categoria: mesma tolerância sobre as somas
+    const ok = { orcado: 0, realizado: 0, status: 'ok' as const };
+    expect(statusCategoria([{ ...ok, orcado: 10, realizado: 10.05 }]).status).toBe('ok');
+    expect(statusCategoria([{ ...ok, orcado: 6, realizado: 6.03 }]).status).toBe('ok');
+    expect(statusCategoria([{ ...ok, orcado: 10, realizado: 10.06 }]).status).toBe('bad');
   });
 
   it('T11: Ração 98% (24 p.p. acima do ritmo) → à frente; Pets 81% laranja com "1 à frente"', () => {

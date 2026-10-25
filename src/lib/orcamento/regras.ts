@@ -58,6 +58,14 @@ const temReceita = (receita: number | null | undefined): receita is number =>
 
 const soma = (ns: number[]): number => arred2(ns.reduce((a, n) => a + n, 0));
 
+/**
+ * R-08/R-09: realizado ACIMA de orçado × 1,005, comparado em centavos inteiros (10,05 ÷ 10 dá
+ * 1,0050000000000001 em ponto flutuante e acenderia "estouro" exatamente em 100,5%).
+ */
+const passouDaTolerancia = (orcado: number, realizado: number): boolean =>
+  Math.round(realizado * 100) * 1000 >
+  Math.round(orcado * 100) * Math.round(TOLERANCIA_ESTOURO * 1000);
+
 // ─── Calendário (R-06, R-15) ────────────────────────────────────────────────────────────────
 
 export function diasNoMes(ano: number, mes0: number): number {
@@ -195,8 +203,8 @@ export function statusSubcategoria(
   ritmo: number,
 ): StatusOrcamento {
   if (!(orcado > 0)) return realizado > 0 ? 'bad' : 'none';
+  if (passouDaTolerancia(orcado, realizado)) return 'bad';
   const p = realizado / orcado;
-  if (p > TOLERANCIA_ESTOURO) return 'bad';
   if (fixa) return 'ok';
   if (p >= LIMIAR_A_FRENTE - EPS && p - ritmo >= MARGEM_RITMO - EPS) return 'warn';
   return 'ok';
@@ -217,7 +225,7 @@ export function statusCategoria(
   const qtdAFrente = subs.filter((s) => s.status === 'warn').length;
   let status: StatusOrcamento;
   if (!(orcado > 0)) status = realizado > 0 ? 'bad' : 'none';
-  else if (realizado > orcado * TOLERANCIA_ESTOURO) status = 'bad';
+  else if (passouDaTolerancia(orcado, realizado)) status = 'bad';
   else if (qtdAFrente > 0) status = 'warn';
   else status = 'ok';
   return { status, qtdEstouro, qtdAFrente };
