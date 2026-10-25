@@ -154,12 +154,13 @@ describe('R-06 ritmo do mês', () => {
 });
 
 describe('R-15 acumulado do ano', () => {
-  it('ritmo do período corrente = dias decorridos ÷ dias de jan até o fim do mês', () => {
-    // 1º/jan..23/out = 273 + 23 = 296 dias; jan..out = 304 dias.
-    expect(ritmoDoAno(2026, 9, HOJE)).toBeCloseTo(296 / 304, 10);
-    // em dezembro é o "dias decorridos ÷ dias do ano" da spec
+  it('ritmo do período corrente = dias decorridos no ano ÷ dias do ano', () => {
+    // 1º/jan..23/out = 273 + 23 = 296 dias; 2026 tem 365.
+    expect(ritmoDoAno(2026, 9, HOJE)).toBeCloseTo(296 / 365, 10);
     expect(ritmoDoAno(2026, 11, { ano: 2026, mes0: 11, dia: 31 })).toBe(1);
     expect(ritmoDoAno(2026, 11, { ano: 2026, mes0: 11, dia: 1 })).toBeCloseTo(335 / 365, 10);
+    // ano bissexto: 31 + 29 = 60 dias até 29/fev, de 366
+    expect(ritmoDoAno(2028, 1, { ano: 2028, mes0: 1, dia: 29 })).toBeCloseTo(60 / 366, 10);
   });
 
   it('período fechado ou que termina no futuro = 1', () => {

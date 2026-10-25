@@ -108,21 +108,20 @@ export function ritmoDoMes(
   return { dia, diasNoMes: dias, ritmo: dia / dias, fase };
 }
 
+/** Dias do ano (365/366). */
+export const diasNoAno = (ano: number): number => (bissexto(ano) ? 366 : 365);
+
 /**
- * R-15, ritmo do acumulado (jan..mes0): fração do PERÍODO acumulado que já passou. O orçado do
- * acumulado é Σ jan..mes0, então o denominador é o número de dias de jan até o fim de `mes0`
- * (em dezembro coincide com "dias decorridos ÷ dias do ano" da spec). Período já fechado = 1;
- * período que termina no futuro = 1 (mesma leitura de previsto do R-06/Q18).
+ * R-15 (spec §5 e R-06), ritmo do acumulado (jan..mes0) com `mes0` corrente: dias decorridos no
+ * ano ÷ dias do ano (23/out/2026 = 296/365 = 0,811). Período já fechado = 1 e período que termina
+ * no futuro = 1 (mesma leitura de previsto do R-06/Q18).
  */
 export function ritmoDoAno(ano: number, mes0: number, hojeSP: HojeSP): number {
   const fase = faseDoMes(ano, mes0, hojeSP);
   if (fase !== 'corrente') return 1;
   const decorridos = diasAteFimDoMes(ano, mes0 - 1) + ritmoDoMes(ano, mes0, hojeSP).dia;
-  return decorridos / diasAteFimDoMes(ano, mes0);
+  return decorridos / diasNoAno(ano);
 }
-
-/** Dias do ano (365/366), exposto para textos de apoio. */
-export const diasNoAno = (ano: number): number => (bissexto(ano) ? 366 : 365);
 
 // ─── Orçado (R-01, R-17) ────────────────────────────────────────────────────────────────────
 
