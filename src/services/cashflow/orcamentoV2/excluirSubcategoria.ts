@@ -179,7 +179,8 @@ export interface DadosSnapshotExclusao {
     mes: number;
     geralAntes: CelulaEstado;
     sub: CelulaEstado;
-    geralDepois: { value: number; valorBanco: number };
+    /** Estado completo gravado na Geral: o undo só restaura se ainda bater em tudo. */
+    geralDepois: CelulaEstado;
   }[];
   transacoes: string[];
   orcadosSub: OrcadoLinha[];
@@ -580,7 +581,7 @@ export async function excluirSubcategoria(
       mes: s.mes,
       geralAntes: estadoDe(g),
       sub: estadoDe(s),
-      geralDepois: { value: depois.value, valorBanco: depois.valorBanco },
+      geralDepois: estadoDe(depois),
     })),
     transacoes,
     orcadosSub: orc.orcadosSub,

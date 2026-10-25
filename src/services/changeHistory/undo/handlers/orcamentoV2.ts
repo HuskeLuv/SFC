@@ -6,7 +6,8 @@
  *  1. o item volta: lápide de override/legado → `hidden=false` (e o `templateId` original);
  *     lápide nova de item-template → apagada; linha só do usuário → recriada com o mesmo id;
  *  2. células movidas voltam para a sub (pelo id); células somadas: a da Geral volta ao estado
- *     de antes e a da sub é recriada — só se a da Geral ainda vale o que a fusão gravou;
+ *     de antes e a da sub é recriada — só se a da Geral ainda está como a fusão a gravou (valor,
+ *     valor do banco, cor, comentário e fórmula);
  *  3. transações do banco que ainda estão na Geral voltam para a sub;
  *  4. orçados: os da Geral voltam ao anterior (se ainda valem o somado) e os da sub são recriados.
  * Qualquer mudança posterior nos alvos → 409 (STATE_MISMATCH), sem desfazer nada pela metade.
@@ -103,10 +104,15 @@ const subcategoriaExcluir: UndoDefinition = {
         const atual = await tx.cashflowValue.findFirst({
           where: { itemId: d.geralId, userId, year: c.ano, month: c.mes },
         });
+        // Tudo o que a fusão gravou (cor, comentário e fórmula também): uma mudança de status
+        // feita depois, com o mesmo valor, não pode ser revertida sem aviso (Consolidado).
         if (
           !atual ||
           !valuesMatch(atual.value, c.geralDepois.value) ||
-          !valuesMatch(atual.valorBanco, c.geralDepois.valorBanco)
+          !valuesMatch(atual.valorBanco, c.geralDepois.valorBanco) ||
+          (atual.color ?? null) !== (c.geralDepois.color ?? null) ||
+          (atual.comment ?? null) !== (c.geralDepois.comment ?? null) ||
+          (atual.formula ?? null) !== (c.geralDepois.formula ?? null)
         ) {
           throw conflito();
         }

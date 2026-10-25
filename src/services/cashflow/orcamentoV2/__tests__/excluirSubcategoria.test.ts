@@ -679,6 +679,19 @@ describe('undo orcamento.subcategoria.excluir', () => {
     expect(estado()).toEqual(antes);
   });
 
+  it('status da Geral mudado depois (mesmo valor) → 409, o Consolidado não volta sozinho', async () => {
+    itemProprio('pet', 'tpl-hab', 'Pet');
+    const geral = geralDe('tpl-hab');
+    celula('pet', ANO, 2, 50);
+    celula(geral, ANO, 2, 100);
+    await executarExclusaoSubcategoria(U, 'pet', { agora: AGORA, contexto });
+    banco.dados.cashflowValue.find((v) => v.itemId === geral && v.month === 2)!.color = VERMELHO;
+    const depoisDaEdicao = estado();
+
+    await expect(desfazer(entradaGravada())).rejects.toMatchObject({ status: 409 });
+    expect(estado()).toEqual(depoisDaEdicao);
+  });
+
   it('Geral mexida depois → 409 e nada é desfeito pela metade', async () => {
     itemProprio('pet', 'tpl-hab', 'Pet');
     const geral = geralDe('tpl-hab');
