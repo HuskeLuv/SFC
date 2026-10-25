@@ -1,5 +1,5 @@
 import prisma from '@/lib/prisma';
-import { CashflowGroup, CashflowItem } from '@prisma/client';
+import { CashflowGroup, CashflowItem, Prisma } from '@prisma/client';
 
 /**
  * Utilitários para gerenciar personalização do fluxo de caixa.
@@ -414,7 +414,31 @@ export async function hideTemplateItem(templateItemId: string, userId: string): 
     throw new Error('Usuário não encontrado. Faça logout e login novamente.');
   }
 
-  const templateItem = await prisma.cashflowItem.findUnique({
+  // Fora de transação: o grupo-template do item pode ser personalizado na hora.
+  return ocultarItemTemplateTx(prisma, templateItemId, userId, {
+    grupoDoUsuario: (templateGroupId) => personalizeGroup(templateGroupId, userId),
+  });
+}
+
+/**
+ * Núcleo de `hideTemplateItem` que roda num cliente/transação recebido (`tx`), para a
+ * exclusão com fusão do Orçamento v2 ocultar o item na MESMA transação da fusão.
+ *
+ * `templateItemId` é o id do ITEM-TEMPLATE (com o id do override lança "Item não é um
+ * template"); para ocultar um override, passe o `templateId` dele.
+ *
+ * Quando o tombstone precisa morar no override do grupo-template, `opcoes.grupoDoUsuario`
+ * resolve esse grupo. Sem ele (padrão dentro de `$transaction`), o override do grupo já tem
+ * que existir: `personalizeGroup` usa o `prisma` global e a própria transação, então não
+ * pode ser chamado aqui dentro.
+ */
+export async function ocultarItemTemplateTx(
+  tx: Prisma.TransactionClient,
+  templateItemId: string,
+  userId: string,
+  opcoes: { grupoDoUsuario?: (templateGroupId: string) => Promise<string> } = {},
+): Promise<string> {
+  const templateItem = await tx.cashflowItem.findUnique({
     where: { id: templateItemId },
   });
   if (!templateItem) {
@@ -425,12 +449,12 @@ export async function hideTemplateItem(templateItemId: string, userId: string): 
   }
 
   // 1) Override já vinculado por templateId
-  const existingByTemplate = await prisma.cashflowItem.findFirst({
+  const existingByTemplate = await tx.cashflowItem.findFirst({
     where: { userId, templateId: templateItem.id },
   });
   if (existingByTemplate) {
     if (!existingByTemplate.hidden) {
-      await prisma.cashflowItem.update({
+      await tx.cashflowItem.update({
         where: { id: existingByTemplate.id },
         data: { hidden: true },
       });
@@ -442,15 +466,25 @@ export async function hideTemplateItem(templateItemId: string, userId: string): 
   //    é template, usamos o override do grupo (criando-o se necessário) — o
   //    tombstone do item precisa morar no grupo personalizado do usuário.
   let groupIdForTombstone = templateItem.groupId;
-  const itemGroup = await prisma.cashflowGroup.findUnique({
+  const itemGroup = await tx.cashflowGroup.findUnique({
     where: { id: templateItem.groupId },
   });
   if (itemGroup && itemGroup.userId === null) {
-    groupIdForTombstone = await personalizeGroup(itemGroup.id, userId);
+    if (opcoes.grupoDoUsuario) {
+      groupIdForTombstone = await opcoes.grupoDoUsuario(itemGroup.id);
+    } else {
+      const grupoOverride = await tx.cashflowGroup.findFirst({
+        where: { userId, templateId: itemGroup.id },
+      });
+      if (!grupoOverride) {
+        throw new Error('Grupo do item ainda não personalizado para o usuário');
+      }
+      groupIdForTombstone = grupoOverride.id;
+    }
   }
 
   // 3) Override legado (sem templateId) com mesmo nome no mesmo grupo
-  const existingByName = await prisma.cashflowItem.findFirst({
+  const existingByName = await tx.cashflowItem.findFirst({
     where: {
       userId,
       templateId: null,
@@ -459,7 +493,7 @@ export async function hideTemplateItem(templateItemId: string, userId: string): 
     },
   });
   if (existingByName) {
-    await prisma.cashflowItem.update({
+    await tx.cashflowItem.update({
       where: { id: existingByName.id },
       data: { hidden: true, templateId: templateItem.id },
     });
@@ -467,7 +501,7 @@ export async function hideTemplateItem(templateItemId: string, userId: string): 
   }
 
   // 4) Criar tombstone novo
-  const tombstone = await prisma.cashflowItem.create({
+  const tombstone = await tx.cashflowItem.create({
     data: {
       userId,
       groupId: groupIdForTombstone,
