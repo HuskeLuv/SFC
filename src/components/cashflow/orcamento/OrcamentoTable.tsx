@@ -4,7 +4,8 @@ import { useState } from 'react';
 import { formatBRL, formatPct } from '@/utils/format';
 import { TABLE_HEADER_BG } from '@/constants/brandColors';
 import { nivelOrcamento } from '@/lib/cashflow/orcamentoNivel';
-import { SELO_TEXTO, TOM_FUNDO, tomDoNivel } from './OrcamentoMobileList';
+import { SELO_TEXTO, TOM_FUNDO } from '@/lib/orcamento/tons';
+import { tomDoNivel } from './OrcamentoMobileList';
 
 export type OrcamentoTipoMeta = 'valor' | 'percentual';
 

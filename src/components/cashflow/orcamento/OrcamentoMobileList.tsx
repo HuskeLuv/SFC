@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import { MobileEditSheet, type MobileEditFailure } from '@/components/ui/sheet/MobileEditSheet';
 import { formatBRL, formatPct } from '@/utils/format';
 import { nivelOrcamento, type OrcamentoNivel } from '@/lib/cashflow/orcamentoNivel';
+import { SELO_TEXTO, TOM_FUNDO, type TomOrcamento } from '@/lib/orcamento/tons';
 import type { OrcamentoLinha, OrcamentoTipoMeta } from './OrcamentoTable';
 
 /**
@@ -19,7 +20,7 @@ export type SaveMetaMobile = (
   tipoMeta: OrcamentoTipoMeta,
 ) => Promise<void | MobileEditFailure>;
 
-type Tom = 'ok' | 'atencao' | 'estourou' | 'neutro';
+type Tom = TomOrcamento;
 
 /** Tom visual do nível: atingir 100% é alerta numa categoria e é bom em Investimentos. */
 export function tomDoNivel(nivel: OrcamentoNivel, isInvestimentos: boolean): Tom {
@@ -36,22 +37,6 @@ export function tomDoNivel(nivel: OrcamentoNivel, isInvestimentos: boolean): Tom
       return 'estourou';
   }
 }
-
-/** Texto do selo (AA nos dois temas). Âmbar #B45309/#D97706 e vermelho semântico #D92D20/#F97066. */
-export const SELO_TEXTO: Record<Tom, string> = {
-  ok: 'text-mf-patrimonio dark:text-mf-tranquilidade',
-  atencao: 'text-[#B45309] dark:text-[#D97706]',
-  estourou: 'text-[#D92D20] dark:text-[#F97066]',
-  neutro: 'text-gray-500 dark:text-gray-400',
-};
-
-/** Ponto do selo e preenchimento do medidor (elementos não textuais). */
-export const TOM_FUNDO: Record<Tom, string> = {
-  ok: 'bg-[#0079F2]',
-  atencao: 'bg-[#D97706]',
-  estourou: 'bg-[#D92D20] dark:bg-[#F97066]',
-  neutro: 'bg-gray-300 dark:bg-gray-600',
-};
 
 export function OrcamentoSelo({ nivel, tom }: { nivel: OrcamentoNivel; tom: Tom }) {
   return (
