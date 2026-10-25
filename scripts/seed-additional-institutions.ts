@@ -7,7 +7,8 @@ import prisma from '../src/lib/prisma';
  * não cobria. Idempotente — upsert por `codigo`.
  *
  * Uso:
- *   npx tsx scripts/seed-additional-institutions.ts
+ *   npx tsx scripts/seed-additional-institutions.ts           # dry-run: lista o que mudaria
+ *   npx tsx scripts/seed-additional-institutions.ts --apply   # grava
  *
  * Convenção de código:
  *   - COMPE oficial (3 dígitos) quando a entidade tem registro Bacen.
@@ -108,10 +109,20 @@ const ADDITIONAL_INSTITUTIONS: Array<{
   // ─── Previdência / Seguradoras (usadas como "instituição" de previdência) ───
   { code: 'PREV-BRASILPREV', name: 'Brasilprev Seguros e Previdência', cnpj: null },
   { code: 'PREV-ICATU', name: 'Icatu Seguros / Previdência', cnpj: null },
-  { code: 'PREV-MAPFRE', name: 'MAPFRE Previdência', cnpj: null },
+  { code: 'PREV-MAPFRE', name: 'MAPFRE Seguros / Previdência', cnpj: null },
   { code: 'PREV-SULAMERICA', name: 'SulAmérica Previdência', cnpj: null },
   { code: 'PREV-BRADESCO', name: 'Bradesco Vida e Previdência', cnpj: null },
   { code: 'PREV-ITAUVIDA', name: 'Itaú Vida e Previdência', cnpj: null },
+  // Seguradoras para o lançamento de seguros (ClickUp 86e3fr9me)
+  { code: 'PREV-PRUDENTIAL', name: 'Prudential do Brasil Seguros', cnpj: null },
+  { code: 'PREV-MAG', name: 'MAG Seguros (Mongeral Aegon)', cnpj: null },
+  { code: 'PREV-METLIFE', name: 'MetLife Seguros', cnpj: null },
+  { code: 'PREV-PORTO', name: 'Porto Seguro', cnpj: null },
+  { code: 'PREV-BRASILSEG', name: 'Brasilseg (BB Seguros)', cnpj: null },
+  { code: 'PREV-CAIXAVIDA', name: 'Caixa Vida e Previdência', cnpj: null },
+  { code: 'PREV-HDI', name: 'HDI Seguros', cnpj: null },
+  { code: 'PREV-TOKIOMARINE', name: 'Tokio Marine Seguradora', cnpj: null },
+  { code: 'PREV-ALLIANZ', name: 'Allianz Seguros', cnpj: null },
 
   // ─── Exchanges de cripto ───
   { code: 'CRP-MERCADO-BITCOIN', name: 'Mercado Bitcoin', cnpj: '18213434000147' },
@@ -136,32 +147,49 @@ const ADDITIONAL_INSTITUTIONS: Array<{
 ];
 
 async function main() {
-  console.log(`🏦 Sincronizando ${ADDITIONAL_INSTITUTIONS.length} instituições...\n`);
+  const aplicar = process.argv.includes('--apply');
+  console.log(
+    `🏦 Sincronizando ${ADDITIONAL_INSTITUTIONS.length} instituições (${aplicar ? 'APPLY' : 'dry-run'})...\n`,
+  );
   let inserted = 0;
   let updated = 0;
+  let unchanged = 0;
 
   for (const inst of ADDITIONAL_INSTITUTIONS) {
     const existing = await prisma.institution.findUnique({
       where: { codigo: inst.code },
-      select: { id: true, nome: true },
+      select: { id: true, nome: true, cnpj: true, status: true },
     });
 
-    await prisma.institution.upsert({
-      where: { codigo: inst.code },
-      create: {
-        codigo: inst.code,
-        nome: inst.name,
-        cnpj: inst.cnpj,
-        status: 'ATIVA',
-      },
-      update: {
-        nome: inst.name,
-        cnpj: inst.cnpj,
-        status: 'ATIVA',
-      },
-    });
+    if (
+      existing &&
+      existing.nome === inst.name &&
+      existing.cnpj === inst.cnpj &&
+      existing.status === 'ATIVA'
+    ) {
+      unchanged += 1;
+      continue;
+    }
+
+    if (aplicar) {
+      await prisma.institution.upsert({
+        where: { codigo: inst.code },
+        create: {
+          codigo: inst.code,
+          nome: inst.name,
+          cnpj: inst.cnpj,
+          status: 'ATIVA',
+        },
+        update: {
+          nome: inst.name,
+          cnpj: inst.cnpj,
+          status: 'ATIVA',
+        },
+      });
+    }
 
     if (existing) {
+      console.log(`  ✏️  ${existing.nome} → ${inst.name} (${inst.code})`);
       updated += 1;
     } else {
       console.log(`  ✅ ${inst.name} (${inst.code})`);
@@ -169,7 +197,9 @@ async function main() {
     }
   }
 
-  console.log(`\n${inserted} inseridos · ${updated} atualizados.`);
+  console.log(
+    `\n${inserted} ${aplicar ? 'inseridos' : 'a inserir'} · ${updated} ${aplicar ? 'atualizados' : 'a atualizar'} · ${unchanged} iguais.`,
+  );
 }
 
 if (require.main === module) {
