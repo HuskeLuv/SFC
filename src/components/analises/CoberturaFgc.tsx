@@ -544,13 +544,21 @@ export default function CoberturaFgc() {
         </>
       )}
 
-      {data.semCobertura && temForaDoFgc && <ForaDoFgc semCobertura={data.semCobertura} />}
+      {data.semCobertura && temForaDoFgc && (
+        <ForaDoFgc semCobertura={data.semCobertura} isBelowLg={isBelowLg} />
+      )}
     </div>
   );
 }
 
 /** O resto da carteira, sem a proteção do FGC, por classe (ClickUp 86e2vvde3). */
-function ForaDoFgc({ semCobertura }: { semCobertura: SemCoberturaFgc }) {
+function ForaDoFgc({
+  semCobertura,
+  isBelowLg,
+}: {
+  semCobertura: SemCoberturaFgc;
+  isBelowLg: boolean;
+}) {
   const pctDaCarteira = (valor: number) =>
     semCobertura.totalInvestimentos > 0 ? (valor / semCobertura.totalInvestimentos) * 100 : 0;
   return (
@@ -568,47 +576,80 @@ function ForaDoFgc({ semCobertura }: { semCobertura: SemCoberturaFgc }) {
           fixa não coberta ou acima do limite e as classes abaixo.
         </p>
       </div>
-      <div className={TABLE_STYLES.wrapper}>
-        <table className={TABLE_STYLES.table}>
-          <thead>
-            <tr className={TABLE_STYLES.headRow} style={TABLE_HEADER_STYLE}>
-              <th className={`${TABLE_STYLES.th} text-left`}>Classe</th>
-              <th className={`${TABLE_STYLES.th} text-right`}>Valor atual</th>
-              <th className={`${TABLE_STYLES.th} text-right`}>% dos investimentos</th>
-            </tr>
-          </thead>
-          <tbody>
-            {semCobertura.classes.map((c) => (
-              <tr key={c.classe} className={TABLE_STYLES.row}>
-                <td className={TABLE_STYLES.td}>
-                  <span className="font-medium text-gray-900 dark:text-white">{c.rotulo}</span>
-                  <span className="ml-2 text-xs text-gray-400 dark:text-gray-500">
-                    {c.quantidadeAtivos} {c.quantidadeAtivos === 1 ? 'ativo' : 'ativos'}
-                  </span>
-                  {c.nota && (
-                    <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">{c.nota}</p>
-                  )}
+      {/* Celular: cartões (a tabela de 3 colunas passava da largura a 390/320 px). */}
+      {isBelowLg ? (
+        <ResponsiveCardList<SemCoberturaFgc['classes'][number]>
+          ariaLabel="Investimentos fora do FGC"
+          rows={semCobertura.classes}
+          getRowKey={(c) => c.classe}
+          columns={[
+            { id: 'classe', header: 'Classe', mobile: 'primary', cell: (c) => c.rotulo },
+            {
+              id: 'valor',
+              header: 'Valor atual',
+              mobile: 'value',
+              cell: (c) => formatBRL(c.valor),
+            },
+            {
+              id: 'ativos',
+              header: 'Ativos',
+              mobile: 'subtitle',
+              cell: (c) =>
+                [
+                  `${c.quantidadeAtivos} ${c.quantidadeAtivos === 1 ? 'ativo' : 'ativos'}`,
+                  `${formatPercent(pctDaCarteira(c.valor))} dos investimentos`,
+                ].join(' · '),
+            },
+            { id: 'nota', header: 'Garantia', mobile: 'detail', cell: (c) => c.nota ?? '—' },
+          ]}
+          total={{
+            label: 'Total fora do FGC',
+            cells: { valor: formatBRL(semCobertura.total) },
+          }}
+        />
+      ) : (
+        <div className={TABLE_STYLES.wrapper}>
+          <table className={TABLE_STYLES.table}>
+            <thead>
+              <tr className={TABLE_STYLES.headRow} style={TABLE_HEADER_STYLE}>
+                <th className={`${TABLE_STYLES.th} text-left`}>Classe</th>
+                <th className={`${TABLE_STYLES.th} text-right`}>Valor atual</th>
+                <th className={`${TABLE_STYLES.th} text-right`}>% dos investimentos</th>
+              </tr>
+            </thead>
+            <tbody>
+              {semCobertura.classes.map((c) => (
+                <tr key={c.classe} className={TABLE_STYLES.row}>
+                  <td className={TABLE_STYLES.td}>
+                    <span className="font-medium text-gray-900 dark:text-white">{c.rotulo}</span>
+                    <span className="ml-2 text-xs text-gray-400 dark:text-gray-500">
+                      {c.quantidadeAtivos} {c.quantidadeAtivos === 1 ? 'ativo' : 'ativos'}
+                    </span>
+                    {c.nota && (
+                      <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">{c.nota}</p>
+                    )}
+                  </td>
+                  <td className={`${TABLE_STYLES.td} text-right whitespace-nowrap`}>
+                    {formatBRL(c.valor)}
+                  </td>
+                  <td className={`${TABLE_STYLES.td} text-right whitespace-nowrap`}>
+                    {formatPercent(pctDaCarteira(c.valor))}
+                  </td>
+                </tr>
+              ))}
+              <tr className={TABLE_STYLES.totalRow}>
+                <td className={TABLE_STYLES.td}>Total fora do FGC</td>
+                <td className={`${TABLE_STYLES.td} text-right whitespace-nowrap`}>
+                  {formatBRL(semCobertura.total)}
                 </td>
                 <td className={`${TABLE_STYLES.td} text-right whitespace-nowrap`}>
-                  {formatBRL(c.valor)}
-                </td>
-                <td className={`${TABLE_STYLES.td} text-right whitespace-nowrap`}>
-                  {formatPercent(pctDaCarteira(c.valor))}
+                  {formatPercent(pctDaCarteira(semCobertura.total))}
                 </td>
               </tr>
-            ))}
-            <tr className={TABLE_STYLES.totalRow}>
-              <td className={TABLE_STYLES.td}>Total fora do FGC</td>
-              <td className={`${TABLE_STYLES.td} text-right whitespace-nowrap`}>
-                {formatBRL(semCobertura.total)}
-              </td>
-              <td className={`${TABLE_STYLES.td} text-right whitespace-nowrap`}>
-                {formatPercent(pctDaCarteira(semCobertura.total))}
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   );
 }

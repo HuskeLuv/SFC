@@ -29,6 +29,28 @@
    "className": "bg-transparent border-b-2 border-transparent dark:hover:text-gray-200 dark:text-gray-400 duration-200 ease-in-out font-medium hover:text-gray-700 inline-flex items-center px-3 py-3 text-gray-500 text-sm transition-colors whitespace-nowrap"
   }
  ],
- "tables": [],
+ "tables": [
+  {
+   "ths": [
+    "Classe",
+    "Valor atual",
+    "% dos investimentos"
+   ],
+   "colCount": 3,
+   "theadClass": "",
+   "thClasses": [
+    "font-medium px-4 py-3 text-left whitespace-nowrap",
+    "font-medium px-4 py-3 text-right whitespace-nowrap"
+   ],
+   "trClasses": [
+    "bg-gray-50 border-b border-gray-200 dark:bg-white/[0.02] dark:border-gray-800 dark:text-gray-100 font-medium text-gray-800",
+    "border-b border-gray-100 dark:border-gray-800 last:border-b-0"
+   ],
+   "tdClasses": [
+    "px-4 py-2.5 text-right text-sm whitespace-nowrap",
+    "px-4 py-2.5 text-sm"
+   ]
+  }
+ ],
  "mobileArtifactsVisible": 0
 }
