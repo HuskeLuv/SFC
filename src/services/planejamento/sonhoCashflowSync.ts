@@ -3,6 +3,7 @@ import { personalizeGroup } from '@/utils/cashflowPersonalization';
 import { recomputeEvolucaoSnapshotsSafe } from '@/services/cashflow/evolucaoPatrimonioServer';
 import { addMonths, pmt } from './planejamentoSonhos';
 import { REALIZADO_COLOR } from './cashflowToSonhoSync';
+import { tratarOrcadosAntesDeApagarItem } from '@/services/cashflow/orcamentoV2/excluirSubcategoria';
 
 /**
  * Sincroniza um objetivo do Planejamento de Sonhos com a linha espelho no fluxo
@@ -179,9 +180,14 @@ async function syncObjetivoToCashflowInner(
 export async function removeObjetivoCashflow(objetivoId: string): Promise<void> {
   const item = await prisma.cashflowItem.findUnique({
     where: { objetivoId },
-    select: { id: true, userId: true },
+    select: { id: true, userId: true, _count: { select: { orcamentoItens: true } } },
   });
   if (!item) return;
+  // Orçamento v2 (FK NO ACTION): meses fechados do orçado vão para a Geral da categoria do
+  // espelho; corrente e futuros são apagados. Sem orçado (todo usuário fora do v2), nada muda.
+  if (item.userId && (item._count?.orcamentoItens ?? 0) > 0) {
+    await tratarOrcadosAntesDeApagarItem(item.userId, item.id);
+  }
   await prisma.cashflowValue.deleteMany({ where: { itemId: item.id } });
   await prisma.cashflowItem.delete({ where: { id: item.id } });
   // Valores (planejados e realizados) de qualquer ano sumiram — recomputa os
