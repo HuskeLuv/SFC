@@ -163,7 +163,8 @@ export async function personalizeGroup(
         },
       });
 
-      // Copiar itens dentro da mesma transação
+      // Copiar itens dentro da mesma transação. O orderIndex vem junto (como em
+      // personalizeItem): criado com 0, o merge reordenaria o grupo em ordem alfabética.
       for (const templateItem of templateGroup.items) {
         await tx.cashflowItem.create({
           data: {
@@ -172,6 +173,7 @@ export async function personalizeGroup(
             name: templateItem.name,
             significado: templateItem.significado,
             rank: templateItem.rank,
+            orderIndex: templateItem.orderIndex,
             templateId: templateItem.id,
           },
         });
