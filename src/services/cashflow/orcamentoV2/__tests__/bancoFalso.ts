@@ -3,8 +3,10 @@
  *
  * Implementa só o subconjunto do Prisma que a ativação, `personalizeGroup` (o REAL, para
  * reproduzir a "ressurreição" de grupo oculto) e a desativação usam: where com igualdade, `in`,
- * `not` e `OR`; select raso; distinct; createMany com skipDuplicates; as unicidades relevantes
- * (inclusive o índice parcial da Geral, que dispara P2002) e o FK NO ACTION do orçado.
+ * `not` e `OR`; select raso (e `_count.orcamentoItens` do item); distinct; createMany com
+ * skipDuplicates; chave única composta no where; as unicidades relevantes (inclusive o índice
+ * parcial da Geral, que dispara P2002) e o FK NO ACTION do orçado (também o de CashflowValue no
+ * `delete` de item).
  * `$transaction` desfaz as escritas se o callback lançar; `$executeRaw` simula o advisory lock
  * (serializa quem pede a mesma chave até o fim da transação que o pediu).
  *
@@ -69,6 +71,8 @@ function casa(linha: Linha, where: Where | undefined): boolean {
     const v = linha[k];
     if (cond !== null && typeof cond === 'object' && !(cond instanceof Date)) {
       const c = cond as Record<string, unknown>;
+      // Chave única composta (ex.: userId_itemId_ano_mes: {...}): igualdade campo a campo.
+      if (!('in' in c || 'not' in c || 'lt' in c)) return casa(linha, c);
       if ('in' in c && !(c.in as unknown[]).includes(v)) return false;
       if ('not' in c && v === c.not) return false;
       if ('lt' in c && !((v as number) < (c.lt as number))) return false;
@@ -83,6 +87,30 @@ function selecionar(linha: Linha, select: Record<string, unknown> | undefined): 
   const out: Linha = {};
   for (const k of Object.keys(select)) if (select[k]) out[k] = linha[k];
   return out;
+}
+
+/** `_count` (select ou include) de `cashflowItem`: só `orcamentoItens`, o que as rotas leem. */
+function comContagem(
+  dados: Record<NomeTabela, Linha[]>,
+  tabela: NomeTabela,
+  linha: Linha,
+  args: { select?: Linha; include?: Linha },
+): Linha {
+  const pedido = (args.select?._count ?? args.include?._count) as
+    | { select?: Record<string, unknown> }
+    | undefined;
+  const base = args.select
+    ? selecionar(
+        linha,
+        Object.fromEntries(Object.entries(args.select).filter(([k]) => k !== '_count')),
+      )
+    : { ...linha };
+  if (!pedido || tabela !== 'cashflowItem') return base;
+  const _count: Record<string, number> = {};
+  if (pedido.select?.orcamentoItens) {
+    _count.orcamentoItens = dados.cashflowOrcamentoItem.filter((o) => o.itemId === linha.id).length;
+  }
+  return { ...base, _count };
 }
 
 export interface BancoFalso {
@@ -173,11 +201,11 @@ export function criarBancoFalso(): BancoFalso {
       if (tabela === 'cashflowItem' && args.include?.group) {
         return { ...l, group: dados.cashflowGroup.find((g) => g.id === l.groupId) ?? null };
       }
-      return selecionar(l, args.select as Record<string, unknown> | undefined);
+      return comContagem(dados, tabela, l, args);
     },
-    findFirst: async (args: { where?: Where; select?: Linha }) => {
+    findFirst: async (args: { where?: Where; select?: Linha; include?: Linha }) => {
       const l = dados[tabela].find((x) => casa(x, args?.where));
-      return l ? selecionar(l, args.select as Record<string, unknown> | undefined) : null;
+      return l ? comContagem(dados, tabela, l, args) : null;
     },
     findMany: async (args: { where?: Where; select?: Linha; distinct?: string[] } = {}) => {
       let linhas = dados[tabela].filter((x) => casa(x, args.where));
@@ -190,7 +218,7 @@ export function criarBancoFalso(): BancoFalso {
           return true;
         });
       }
-      return linhas.map((l) => selecionar(l, args.select as Record<string, unknown> | undefined));
+      return linhas.map((l) => comContagem(dados, tabela, l, args));
     },
     count: async (args: { where?: Where } = {}) =>
       dados[tabela].filter((x) => casa(x, args.where)).length,
@@ -236,6 +264,21 @@ export function criarBancoFalso(): BancoFalso {
       }
       return { ...inserir(tabela, args.create) };
     },
+    delete: async (args: { where: Where }) => {
+      const l = dados[tabela].find((x) => casa(x, args.where));
+      if (!l) throw Object.assign(new Error('Record not found'), { code: 'P2025' });
+      if (tabela === 'cashflowItem') {
+        // FK NO ACTION do orçado e o FK (Restrict) de CashflowValue.itemId
+        const presa =
+          dados.cashflowOrcamentoItem.some((o) => o.itemId === l.id) ||
+          dados.cashflowValue.some((v) => v.itemId === l.id);
+        if (presa) {
+          throw Object.assign(new Error('Foreign key constraint failed'), { code: 'P2003' });
+        }
+      }
+      dados[tabela] = dados[tabela].filter((x) => x !== l);
+      return { ...l };
+    },
     deleteMany: async (args: { where?: Where } = {}) => {
       const alvo = dados[tabela].filter((x) => casa(x, args.where));
       if (tabela === 'cashflowItem') {
@@ -252,7 +295,9 @@ export function criarBancoFalso(): BancoFalso {
 
   const prisma: Record<string, unknown> = Object.fromEntries(TABELAS.map((t) => [t, modelo(t)]));
 
-  prisma.$transaction = async (fn: (tx: unknown) => Promise<unknown>) => {
+  prisma.$transaction = async (fn: ((tx: unknown) => Promise<unknown>) | Promise<unknown>[]) => {
+    // Forma em lote: as operações do fake já rodaram (em ordem) ao serem chamadas.
+    if (Array.isArray(fn)) return Promise.all(fn);
     const antes = copia();
     let soltar: (() => void) | undefined;
     const tx = {
