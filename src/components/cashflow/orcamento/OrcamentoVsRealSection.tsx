@@ -8,7 +8,6 @@ import { useOrcamento } from '@/hooks/useOrcamento';
 import { MONTHS } from '@/constants/cashflow';
 import type { SeriePorModo } from '@/services/cashflow/orcamentoVsReal';
 import { OrcamentoTable, type OrcamentoLinha, type OrcamentoTipoMeta } from './OrcamentoTable';
-import OrcamentoChart from './OrcamentoChart';
 import OrcamentoMensalChart from './OrcamentoMensalChart';
 import OrcamentoMobileView from './OrcamentoMobileView';
 
@@ -24,8 +23,11 @@ type ModoReal = 'lancado' | 'consolidado';
  *   decorridos vs real acumulado).
  * - Real "Lançado" (todas as células, padrão) ou "Consolidado" (apenas as
  *   pintadas de Pago/Recebido na planilha).
- * - Linha Investimentos: meta mensal em R$ como as categorias, posicionada
- *   antes do Total (fora da soma); real = Aporte/Resgate.
+ * - Investimentos NÃO aparece (especificação do Orçamento v.8, decisão D12, 24/10/2026): aporte
+ *   não é categoria de orçamento e o real lido (Aporte/Resgate) chegava a milhares de % no mês
+ *   da carga da carteira. A meta salva fica no banco (groupId NULL), só não é exibida.
+ * - Sem a etiqueta do grupo-pai: "Despesas Fixas" aparecia até em Lazer (é o grupo da árvore,
+ *   não uma característica da categoria).
  */
 export default function OrcamentoVsRealSection() {
   const { year, setYear } = useCashflowYear();
@@ -75,7 +77,7 @@ export default function OrcamentoVsRealSection() {
     return data.categorias.map((cat) => ({
       key: cat.groupId,
       nome: cat.nome,
-      parentNome: cat.parentNome,
+      parentNome: null,
       metaBase: cat.metaMensal,
       tipoMeta: 'valor' as const,
       metaJanela: cat.metaMensal !== null ? cat.metaMensal * janela.fatorMeta : null,
@@ -83,23 +85,6 @@ export default function OrcamentoVsRealSection() {
       isInvestimentos: false,
     }));
   }, [data, janela]);
-
-  const investimentos = useMemo<OrcamentoLinha | null>(() => {
-    if (!data) return null;
-    const inv = data.investimentos;
-    return {
-      key: 'investimentos',
-      nome: 'Investimentos',
-      parentNome: null,
-      // Meta em R$ mensal OU % da renda (opção reintroduzida ago/2026) —
-      // o input pré-preenche com o número bruto do modo escolhido.
-      metaBase: inv.tipoMeta !== null ? inv.valorMeta : null,
-      tipoMeta: (inv.tipoMeta === 'percentual' ? 'percentual' : 'valor') as OrcamentoTipoMeta,
-      metaJanela: inv.tipoMeta !== null ? janela.somaJanela(inv.metaPorMes[modoReal]) : null,
-      real: janela.somaJanela(inv.realPorMes),
-      isInvestimentos: true,
-    };
-  }, [data, janela, modoReal]);
 
   const totais = useMemo(() => {
     const totalMeta = linhas.reduce((sum, l) => sum + (l.metaJanela ?? 0), 0);
@@ -182,7 +167,7 @@ export default function OrcamentoVsRealSection() {
         onModoRealChange={setModoReal}
         mesesAcumulados={mesesAcumulados}
         linhas={linhas}
-        investimentos={investimentos}
+        investimentos={null}
         totais={totais}
         categorias={data.categorias}
         orcadoMensal={data.totais.metaMensal}
@@ -255,6 +240,11 @@ export default function OrcamentoVsRealSection() {
             Consolidado
           </button>
         </div>
+        <p className="text-xs text-gray-500 dark:text-gray-400">
+          {modoReal === 'lancado'
+            ? 'Lançado: todas as células da planilha.'
+            : 'Consolidado: só as células marcadas como pago/recebido.'}
+        </p>
       </div>
 
       {saveError && (
@@ -263,33 +253,29 @@ export default function OrcamentoVsRealSection() {
         </div>
       )}
 
-      {/* Layout no formato da planilha-base ("Orçamento vs Real (Mensal)"):
-          gráficos LADO A LADO no topo (donut + "Orçamento vs. Atual"), depois
-          o subtítulo "Resumo por Categoria" e a tabela em largura total. */}
-      <div className="grid grid-cols-1 items-stretch gap-5 lg:grid-cols-2">
-        <OrcamentoChart linhas={linhas} />
-        {/* Visão Mês: Orçado × Real por categoria do mês selecionado;
-            Acumulado: mensal Jan–Dez com o Real empilhado por categoria. */}
-        <OrcamentoMensalChart
-          visao={visao}
-          mes={mes}
-          modoReal={modoReal}
-          categorias={data.categorias}
-          orcadoMensal={data.totais.metaMensal}
-        />
-      </div>
-
+      {/* Tabela primeiro (o que pede ação) e o gráfico depois; a rosca saiu (especificação do
+          Orçamento v.8, problema D: 14 fatias ocupando a primeira dobra). */}
       <div className="space-y-3">
         <h3 className="text-base font-semibold text-gray-800 dark:text-white/90">
           Resumo por Categoria
         </h3>
         <OrcamentoTable
           linhas={linhas}
-          investimentos={investimentos}
+          investimentos={null}
           totais={totais}
           onSaveMeta={handleSaveMeta}
         />
       </div>
+
+      {/* Visão Mês: Orçado × Real por categoria do mês selecionado;
+          Acumulado: mensal Jan–Dez com o Real empilhado por categoria. */}
+      <OrcamentoMensalChart
+        visao={visao}
+        mes={mes}
+        modoReal={modoReal}
+        categorias={data.categorias}
+        orcadoMensal={data.totais.metaMensal}
+      />
     </div>
   );
 }
