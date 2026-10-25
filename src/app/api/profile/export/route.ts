@@ -34,6 +34,9 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
     cashflowItems,
     cashflowValues,
     cashflowGroups,
+    cashflowOrcamentos,
+    cashflowOrcamentoItens,
+    cashflowOrcamentoPrefs,
     planejamentoObjetivos,
     notifications,
     watchlists,
@@ -63,6 +66,11 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
     prisma.cashflowItem.findMany({ where: { userId } }),
     prisma.cashflowValue.findMany({ where: { userId } }),
     prisma.cashflowGroup.findMany({ where: { userId } }),
+    // Orçamento: metas da tela atual (por categoria e ano) e, no Orçamento v2, o orçado por
+    // subcategoria e mês + as preferências de tela.
+    prisma.cashflowOrcamento.findMany({ where: { userId } }),
+    prisma.cashflowOrcamentoItem.findMany({ where: { userId } }),
+    prisma.cashflowOrcamentoPrefs.findUnique({ where: { userId } }),
     prisma.planejamentoObjetivo.findMany({ where: { userId }, include: { entries: true } }),
     prisma.notification.findMany({ where: { userId } }),
     prisma.watchlist.findMany({ where: { userId } }),
@@ -113,6 +121,15 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
       // Decimal → number para o JSON do export ficar legível/numérico.
       values: cashflowValues.map((v) => ({ ...v, value: Number(v.value) })),
       groups: cashflowGroups,
+      orcamento: {
+        metas: cashflowOrcamentos.map((o) => ({ ...o, valor: Number(o.valor) })),
+        orcadoPorSubcategoria: cashflowOrcamentoItens.map((o) => ({
+          ...o,
+          valor: o.valor === null ? null : Number(o.valor),
+          pct: o.pct === null ? null : Number(o.pct),
+        })),
+        preferencias: cashflowOrcamentoPrefs,
+      },
     },
     planejamento: planejamentoObjetivos,
     notifications,
