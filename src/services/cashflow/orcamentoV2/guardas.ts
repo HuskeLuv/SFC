@@ -20,7 +20,6 @@
  * de despesa do usuário na raiz; "Despesas" e "Despesas Fixas" (com filhos) são o nível de item
  * solto.
  */
-import type { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { ApiError } from '@/utils/apiErrorHandler';
 import { isReceitaGroupByType } from '@/utils/formatters';
@@ -29,6 +28,10 @@ import { categoriaDoCatalogo } from '@/lib/orcamento/catalogo';
 import { CANONICAL_GROUPS, canonicalName, isCanonical } from '@/services/cashflow/groupMatchers';
 import { getMergedCashflowGroups } from '@/services/cashflow/getCashflowTree';
 import { estadoAcessoOrcamentoV2 } from '@/services/cashflow/orcamentoV2/acesso';
+import {
+  executarExclusaoSubcategoria,
+  type ContextoRegistro,
+} from '@/services/cashflow/orcamentoV2/excluirSubcategoria';
 import type { CashflowGroup, CashflowItem } from '@/types/cashflow';
 
 export type CodigoErroEstrutura =
@@ -161,15 +164,20 @@ export function assertNomeLivreNaCategoria(nome: string, irmaos: string[]): void
 }
 
 /**
- * Exclusão de item de categoria de despesa de usuário v2 → fusão na Geral (R-12, D11). Stub até a
- * PR 7 (`excluirSubcategoria`): devolve sempre 'nao_aplica', e a rota segue o caminho de hoje.
+ * Exclusão de item de categoria de despesa de usuário v2 → fusão na Geral (R-12, D11; PR 7). É o
+ * mesmo `executarExclusaoSubcategoria` do DELETE do Orçamento, então excluir pela Planilha ou pelo
+ * Orçamento dá o mesmo resultado (inclusive o histórico `orcamento.subcategoria.excluir`, gravado
+ * quando `contexto` vem). Item fora de categoria, inexistente ou espelho → 'nao_aplica' (a rota
+ * segue o caminho de hoje). Recusas da fusão (cores divergentes, Geral) lançam
+ * `ErroExclusaoSubcategoria` (409).
  */
 export async function delegarExclusaoItem(
-  _tx: Prisma.TransactionClient,
-  _userId: string,
-  _itemId: string,
+  userId: string,
+  itemId: string,
+  contexto?: ContextoRegistro,
 ): Promise<'fundido' | 'nao_aplica'> {
-  return 'nao_aplica';
+  const r = await executarExclusaoSubcategoria(userId, itemId, { contexto, delegacao: true });
+  return r ? 'fundido' : 'nao_aplica';
 }
 
 // ─── Árvore mesclada: papel dos grupos ───────────────────────────────────────────────────────

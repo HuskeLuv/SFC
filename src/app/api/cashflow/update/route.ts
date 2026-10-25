@@ -34,6 +34,7 @@ import {
   guardarEdicaoItemV2,
   usuarioOrcamentoV2Ativo,
 } from '@/services/cashflow/orcamentoV2/guardas';
+import type { ContextoRegistro } from '@/services/cashflow/orcamentoV2/excluirSubcategoria';
 
 import { withErrorHandler } from '@/utils/apiErrorHandler';
 
@@ -47,6 +48,8 @@ interface RecordOutcome {
   entityLabel?: string;
   changes?: FieldChange[];
   snapshot?: ChangeSnapshot;
+  /** A operação já gravou o próprio histórico (fusão do Orçamento v2): a rota não grava outro. */
+  jaRegistrado?: boolean;
 }
 /**
  * PATCH /api/cashflow/update
@@ -85,6 +88,7 @@ interface RecordOutcome {
  * Orçamento v2 (guardas.ts): a subcategoria Geral não é renomeada, movida nem excluída (409, por
  * dado). Para usuário ativado: nome de sub único/1–60 na categoria (422), sub nova antes da Geral,
  * nada de linha solta em Despesas/Despesas Fixas (409) e categoria de sistema não excluível (409).
+ * Excluir item de categoria (v2) funde a linha na Geral (excluirSubcategoria, PR 7).
  */
 export const PATCH = withErrorHandler(async (request: NextRequest) => {
   const auth = await requireAuthWithActing(request);
@@ -133,6 +137,7 @@ export const PATCH = withErrorHandler(async (request: NextRequest) => {
       (data || {}) as ItemData,
       targetUserId,
       v2,
+      { request, auth },
     ));
   } else {
     return NextResponse.json({ error: 'Tipo não suportado' }, { status: 400 });
@@ -159,7 +164,7 @@ export const PATCH = withErrorHandler(async (request: NextRequest) => {
 
   // Histórico de alterações — só após a mutação ter sucesso, com o outcome
   // real da camada de override (diff, snapshot e id final).
-  if (result.status >= 200 && result.status < 300) {
+  if (result.status >= 200 && result.status < 300 && !outcome.jaRegistrado) {
     const verb = { create: 'criar', update: 'editar', delete: 'excluir' }[operation];
     const dataName = data && typeof data.name === 'string' ? data.name : undefined;
     await recordChange({
@@ -526,6 +531,7 @@ async function handleItemOperation(
   data: ItemData,
   userId: string,
   v2: boolean,
+  contexto?: ContextoRegistro,
 ): Promise<{ response: NextResponse; outcome: RecordOutcome }> {
   if (operation === 'create') {
     // Criar novo item personalizado puro (sem templateId)
@@ -698,9 +704,10 @@ async function handleItemOperation(
       };
     }
 
-    // Resolver linha alvo
+    // Resolver linha alvo (com a contagem de orçados v2: o FK do orçado é NO ACTION)
     const target = await prisma.cashflowItem.findUnique({
       where: { id },
+      include: { _count: { select: { orcamentoItens: true } } },
     });
 
     if (!target) {
@@ -712,16 +719,19 @@ async function handleItemOperation(
 
     // Geral (por dado) não se exclui; linha de outro usuário cai no 404 mais abaixo.
     if (target.userId === userId) assertNaoGeral(target, 'excluir');
-    // Orçamento v2: item de categoria de despesa → fusão na Geral (PR 7; o stub devolve
-    // 'nao_aplica' e a exclusão segue o caminho de hoje).
+    // Orçamento v2: item de categoria de despesa → fusão na Geral (PR 7), o mesmo resultado do
+    // DELETE do Orçamento (D11), que já grava o histórico `orcamento.subcategoria.excluir`. Linha
+    // com orçado passa pela fusão mesmo sem o v2 liberado (ativado com a flag desligada): apagar
+    // direto falharia no FK NO ACTION. Cores divergentes → 409 (ErroExclusaoSubcategoria).
+    const temOrcado = (target._count?.orcamentoItens ?? 0) > 0;
     if (
-      v2 &&
+      (v2 || temOrcado) &&
       (target.userId === null || target.userId === userId) &&
-      (await delegarExclusaoItem(prisma, userId, id)) === 'fundido'
+      (await delegarExclusaoItem(userId, id, contexto)) === 'fundido'
     ) {
       return {
         response: NextResponse.json({ success: true, message: 'Item excluído' }),
-        outcome: { entityId: target.id, entityLabel: target.name },
+        outcome: { entityId: target.id, entityLabel: target.name, jaRegistrado: true },
       };
     }
 

@@ -13,6 +13,10 @@ vi.mock('@/services/cashflow/orcamentoV2/acesso', () => ({
 vi.mock('@/services/cashflow/getCashflowTree', () => ({
   getMergedCashflowGroups: mockGetMerged,
 }));
+const mockExecutarExclusao = vi.hoisted(() => vi.fn());
+vi.mock('@/services/cashflow/orcamentoV2/excluirSubcategoria', () => ({
+  executarExclusaoSubcategoria: mockExecutarExclusao,
+}));
 
 import {
   ErroEstruturaOrcamento,
@@ -225,8 +229,18 @@ describe('guardarCriacaoItemV2', () => {
 });
 
 describe('delegarExclusaoItem', () => {
-  it('stub até a PR 7', async () => {
-    expect(await delegarExclusaoItem({} as never, 'u1', 'i1')).toBe('nao_aplica');
+  it('fusão feita → fundido; não se aplica (null) → nao_aplica; repassa o contexto', async () => {
+    const contexto = { request: {} as never, auth: {} as never };
+    mockExecutarExclusao.mockResolvedValueOnce({ itemId: 'i1' });
+    expect(await delegarExclusaoItem('u1', 'i1', contexto)).toBe('fundido');
+    expect(mockExecutarExclusao).toHaveBeenCalledWith('u1', 'i1', { contexto, delegacao: true });
+    mockExecutarExclusao.mockResolvedValueOnce(null);
+    expect(await delegarExclusaoItem('u1', 'i2')).toBe('nao_aplica');
+  });
+
+  it('recusa da fusão sobe (409 da rota)', async () => {
+    mockExecutarExclusao.mockRejectedValueOnce(new Error('cores'));
+    await expect(delegarExclusaoItem('u1', 'i1')).rejects.toThrow('cores');
   });
 });
 
