@@ -5,7 +5,9 @@
  * Planilha (`delegarExclusaoItem` no batch-update/update): o resultado é idêntico (D11).
  *
  * Antes de tudo, fora da transação, `garantirGerais` (e `personalizeGroup` se a categoria ainda for
- * template). Depois, UMA transação só com `tx`:
+ * template). Depois, UMA transação só com `tx`, serializada por usuário
+ * (`pg_advisory_xact_lock(hashtext('orcv2-excluir:' || userId))`) e com o alvo resolvido de novo
+ * depois da trava:
  *  1. células da sub: sem célula da Geral no (ano, mês) → `itemId = geral` (nada se perde); com
  *     célula → soma `value` e `valorBanco`, `formula = null`, comentário "Somado de <sub> ao
  *     excluir". Cor: mesmo status de consolidado → mantém a da Geral; status divergentes (uma
@@ -483,13 +485,17 @@ export async function excluirSubcategoria(
   itemId: string,
   hojeSP: HojeSP,
 ): Promise<ResultadoExclusao> {
+  // Serializa as exclusões do usuário (duplo clique, Planilha × Orçamento): sem a trava, uma
+  // segunda transação que já resolveu o alvo somaria de novo na Geral (no modo lápide/ocultado o
+  // passo 4 não falha). Depois da trava, o alvo é resolvido de novo: já excluído → 404.
+  await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`orcv2-excluir:${userId}`}))`;
   const r = await resolverAlvo(tx, userId, itemId);
   if (!r.ok) throw new ErroExclusaoSubcategoria(r.codigo);
   const { item: mesclado, geral } = r.alvo;
   if (!geral) throw new ErroExclusaoSubcategoria('sem_geral');
 
   const linha = await tx.cashflowItem.findUnique({ where: { id: mesclado.id } });
-  if (!linha) throw new ErroExclusaoSubcategoria('nao_encontrado');
+  if (!linha || linha.hidden) throw new ErroExclusaoSubcategoria('nao_encontrado');
 
   // 1) Células
   const [sub, daGeral] = await Promise.all([

@@ -298,7 +298,7 @@ export function criarBancoFalso(): BancoFalso {
   prisma.$transaction = async (fn: ((tx: unknown) => Promise<unknown>) | Promise<unknown>[]) => {
     // Forma em lote: as operações do fake já rodaram (em ordem) ao serem chamadas.
     if (Array.isArray(fn)) return Promise.all(fn);
-    const antes = copia();
+    let antes = copia();
     let soltar: (() => void) | undefined;
     const tx = {
       ...prisma,
@@ -312,6 +312,9 @@ export function criarBancoFalso(): BancoFalso {
           anterior.then(() => minha),
         );
         await anterior;
+        // Sem MVCC: o ponto de restauração passa a ser o fim da espera (a trava vem primeiro na
+        // transação), senão um rollback de quem esperou apagaria o commit de quem segurava a trava.
+        antes = copia();
         return 1;
       },
     };

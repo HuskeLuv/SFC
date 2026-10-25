@@ -490,6 +490,28 @@ describe('executarExclusaoSubcategoria', () => {
     expect(hab.items.map((i) => i.name)).toEqual(['Condomínio', 'Geral']);
   });
 
+  it('duas exclusões simultâneas do mesmo override: a segunda dá 404 e a Geral soma uma vez só', async () => {
+    const alug = itemDo('tpl-alug');
+    const geral = geralDe('tpl-hab');
+    celula(alug, ANO, 1, 100);
+    celula(geral, ANO, 1, 50);
+
+    const [a, b] = await Promise.allSettled([
+      executarExclusaoSubcategoria(U, alug, { agora: AGORA }),
+      executarExclusaoSubcategoria(U, alug, { agora: AGORA }),
+    ]);
+
+    expect([a.status, b.status].sort()).toEqual(['fulfilled', 'rejected']);
+    const erro = (a.status === 'rejected' ? a.reason : (b as PromiseRejectedResult).reason) as {
+      statusCode: number;
+    };
+    expect(erro).toBeInstanceOf(ErroExclusaoSubcategoria);
+    expect(erro.statusCode).toBe(404);
+    expect(celulasDo(geral)).toHaveLength(1);
+    expect(celulasDo(geral)[0]).toMatchObject({ value: 150 });
+    expect(banco.travas.some((t) => t.sql.includes('pg_advisory_xact_lock'))).toBe(true);
+  });
+
   it('override legado (sem templateId) e item-template viram lápide', async () => {
     // legado: linha do usuário com o nome da linha padrão, sem templateId
     const cond = itemDo('tpl-cond');
