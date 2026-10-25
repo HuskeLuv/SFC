@@ -356,6 +356,35 @@ describe('ativarOrcamentoV2 --aplicar', () => {
     expect([...porGrupo.values()].every((n) => n === 1)).toBe(true);
   });
 
+  it('pool: ativações de usuários diferentes não seguram duas travas ao mesmo tempo', async () => {
+    await cenarioPersonalizado();
+    const original = banco.prisma.$transaction as (
+      fn: (tx: unknown) => Promise<unknown>,
+      opcoes?: { timeout?: number },
+    ) => Promise<unknown>;
+    let travasAbertas = 0;
+    let maximo = 0;
+    banco.prisma.$transaction = async (
+      fn: (tx: unknown) => Promise<unknown>,
+      opcoes?: { timeout?: number },
+    ) => {
+      const daTrava = (opcoes?.timeout ?? 0) >= 10 * 60_000;
+      if (daTrava) maximo = Math.max(maximo, ++travasAbertas);
+      try {
+        return await original(fn, opcoes);
+      } finally {
+        if (daTrava) travasAbertas--;
+      }
+    };
+    const rs = await Promise.all([
+      ativarOrcamentoV2(U, { dryRun: false, hoje: HOJE }),
+      ativarOrcamentoV2('u2', { dryRun: false, hoje: HOJE }),
+      ativarOrcamentoV2(U, { dryRun: false, hoje: HOJE }),
+    ]);
+    expect(rs.map((r) => r.status)).toEqual(['ativado', 'ativado', 'ja_ativado']);
+    expect(maximo).toBe(1);
+  });
+
   it('valoresEmItemTemplate > 0 aborta sem escrever nada', async () => {
     valor('tpl-alug', 2026, 0, 500); // célula do usuário apontando para item-template
     const antes = banco.copia();

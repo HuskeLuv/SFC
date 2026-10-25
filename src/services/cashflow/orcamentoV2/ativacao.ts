@@ -7,7 +7,8 @@
  * transação): uma verificação "dentro da transação" leria por outra conexão.
  *
  *  0. Trava: `pg_advisory_xact_lock(hashtext('orcv2:' || userId))` numa transação aberta só para
- *     segurar a trava durante a ativação inteira (duas abas / remount chamando POST /ativar).
+ *     segurar a trava durante a ativação inteira (duas abas / remount chamando POST /ativar),
+ *     atrás de uma fila do processo (uma ativação por vez: não esgota o pool).
  *  1. Pré-checagens: já ativado → só `garantirGerais`; valores em item-template ou orçados v2
  *     sem ativação → aborta sem escrever.
  *  2. Invariantes ANTES (real Lançado/Consolidado por categoria e mês; meta visível; orçado v2).
@@ -766,18 +767,36 @@ const semMudancas = (): MudancasAtivacao => ({
   prefsGravado: false,
 });
 
+/** Fila do processo: uma ativação/desativação por vez (ver `comTravaDoUsuario`). */
+let filaDoProcesso: Promise<unknown> = Promise.resolve();
+
+function naFilaDoProcesso<T>(fn: () => Promise<T>): Promise<T> {
+  const minha = filaDoProcesso.then(fn);
+  filaDoProcesso = minha.catch(() => undefined);
+  return minha;
+}
+
 /**
  * Segura `pg_advisory_xact_lock(hashtext('orcv2:' || userId))` numa transação aberta só para
  * isso enquanto `fn` roda (as fases usam outras conexões). Uma segunda chamada simultânea espera
  * e, ao entrar, já encontra o usuário ativado.
+ *
+ * Custo no pool: a transação da trava prende 1 conexão ociosa durante a ativação inteira, e as
+ * fases usam outras (até 4 em paralelo no `Promise.all` do plano). Com `connection_limit=5` em
+ * prod, N ativações simultâneas (ACESSO=todos, várias abas, remount) esgotariam o pool e o app
+ * inteiro ficaria sem banco (P2024). Por isso as ativações do MESMO processo (a app roda numa
+ * instância só) passam por uma fila e nunca seguram mais de uma trava por vez: quem espera na fila
+ * não ocupa conexão. A trava no banco continua valendo entre processos (script × rota).
  */
 export async function comTravaDoUsuario<T>(userId: string, fn: () => Promise<T>): Promise<T> {
-  return prisma.$transaction(
-    async (tx) => {
-      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`orcv2:${userId}`}))`;
-      return fn();
-    },
-    { timeout: TIMEOUT_TRAVA_MS, maxWait: 30_000 },
+  return naFilaDoProcesso(() =>
+    prisma.$transaction(
+      async (tx) => {
+        await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`orcv2:${userId}`}))`;
+        return fn();
+      },
+      { timeout: TIMEOUT_TRAVA_MS, maxWait: 30_000 },
+    ),
   );
 }
 
