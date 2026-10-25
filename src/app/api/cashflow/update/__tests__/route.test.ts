@@ -52,10 +52,15 @@ vi.mock('@/services/cashflow/getCashflowTree', () => ({
   getMergedCashflowGroups: mockGetMerged,
 }));
 const mockExecutarExclusao = vi.hoisted(() => vi.fn());
+const mockTratarOrcados = vi.hoisted(() => vi.fn());
 vi.mock('@/services/cashflow/orcamentoV2/excluirSubcategoria', async (importOriginal) => {
   const original =
     await importOriginal<typeof import('@/services/cashflow/orcamentoV2/excluirSubcategoria')>();
-  return { ...original, executarExclusaoSubcategoria: mockExecutarExclusao };
+  return {
+    ...original,
+    executarExclusaoSubcategoria: mockExecutarExclusao,
+    tratarOrcadosAntesDeApagarItem: mockTratarOrcados,
+  };
 });
 
 import { PATCH } from '../route';
@@ -179,6 +184,26 @@ describe('PATCH /api/cashflow/update — usuário sem Orçamento v2 (como antes)
     const res = await PATCH(req({ operation: 'delete', type: 'item', id: 'aluguel' }));
     expect(res.status).toBe(200);
     expect(mockPrisma.$transaction).not.toHaveBeenCalled();
+  });
+
+  it('espelho de sonho com orçado: trata os orçados antes de apagar (sem bater no FK)', async () => {
+    mockPrisma.cashflowItem.findUnique
+      .mockResolvedValueOnce({ group: { type: 'despesa' } })
+      .mockResolvedValueOnce(itemRow({ objetivoId: 'obj-1', _count: { orcamentoItens: 2 } }));
+    const ordem: string[] = [];
+    mockTratarOrcados.mockImplementation(async () => {
+      ordem.push('orcados');
+      return { somados: 1, apagados: 1 };
+    });
+    mockPrisma.$transaction.mockImplementationOnce(async (ops: unknown[]) => {
+      ordem.push('delete');
+      return ops;
+    });
+    const res = await PATCH(req({ operation: 'delete', type: 'item', id: 'aluguel' }));
+    expect(res.status).toBe(200);
+    expect(mockExecutarExclusao).toHaveBeenCalled();
+    expect(mockTratarOrcados).toHaveBeenCalledWith('user-1', 'aluguel');
+    expect(ordem).toEqual(['orcados', 'delete']);
   });
 
   it('renomeia item sem consultar a árvore nem validar nome', async () => {

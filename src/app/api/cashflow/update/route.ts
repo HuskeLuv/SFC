@@ -34,7 +34,10 @@ import {
   guardarEdicaoItemV2,
   usuarioOrcamentoV2Ativo,
 } from '@/services/cashflow/orcamentoV2/guardas';
-import type { ContextoRegistro } from '@/services/cashflow/orcamentoV2/excluirSubcategoria';
+import {
+  tratarOrcadosAntesDeApagarItem,
+  type ContextoRegistro,
+} from '@/services/cashflow/orcamentoV2/excluirSubcategoria';
 
 import { withErrorHandler } from '@/utils/apiErrorHandler';
 
@@ -788,6 +791,10 @@ async function handleItemOperation(
       where: { itemId: id, userId },
       select: { year: true, month: true, value: true, comment: true, color: true },
     });
+
+    // Orçado que a fusão não tratou (espelho de sonho, linha fora de categoria): meses fechados na
+    // Geral, o resto apagado, antes do delete (FK NO ACTION), como no batch-update.
+    if (temOrcado) await tratarOrcadosAntesDeApagarItem(userId, id);
 
     // Deletar valores e item em uma única transação
     await prisma.$transaction([
