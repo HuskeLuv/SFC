@@ -15,6 +15,7 @@ import {
   ErroEstruturaOrcamento,
   assertNaoCategoriaSistema,
   assertNaoGeral,
+  assertNomeLivreNaCategoria,
   categoriaInfo,
   delegarExclusaoItem,
   ehCategoriaSistema,
@@ -155,6 +156,15 @@ describe('validarNomeNaCategoria', () => {
     expect(motivo('   ', [])).toBe('nome_vazio');
     expect(motivo('x'.repeat(61), [])).toBe('nome_longo');
     expect(motivo('ALUGUÉL', ['Aluguel'])).toBe('nome_duplicado');
+  });
+});
+
+describe('assertNomeLivreNaCategoria', () => {
+  it('só barra o duplicado (nome antigo longo não impede mover)', () => {
+    expect(() => assertNomeLivreNaCategoria('x'.repeat(80), ['Aluguel'])).not.toThrow();
+    expect(() => assertNomeLivreNaCategoria('aluguel', ['Aluguel'])).toThrow(
+      ErroEstruturaOrcamento,
+    );
   });
 });
 

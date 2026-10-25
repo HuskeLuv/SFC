@@ -131,6 +131,17 @@ export function validarNomeNaCategoria(nome: string, irmaos: string[]): string {
 }
 
 /**
+ * Só a unicidade (R-12), para quando a linha muda de categoria sem trocar de nome (mover): um
+ * nome antigo fora do limite de R-18 não impede a mudança. Lança 422 'nome_duplicado'.
+ */
+export function assertNomeLivreNaCategoria(nome: string, irmaos: string[]): void {
+  const r = validarNomeSubcategoria(nome, irmaos);
+  if (!r.ok && r.motivo === 'duplicado') {
+    throw new ErroEstruturaOrcamento(422, MENSAGEM_NOME.duplicado, 'nome_duplicado');
+  }
+}
+
+/**
  * Exclusão de item de categoria de despesa de usuário v2 → fusão na Geral (R-12, D11). Stub até a
  * PR 7 (`excluirSubcategoria`): devolve sempre 'nao_aplica', e a rota segue o caminho de hoje.
  */
