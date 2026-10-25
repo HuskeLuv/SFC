@@ -249,8 +249,18 @@ describe('guardarEdicaoItemV2', () => {
   beforeEach(() => mockGetMerged.mockResolvedValue(arvore()));
 
   it('sem nome nem grupo não carrega a árvore', async () => {
-    expect(await guardarEdicaoItemV2('u1', 'aluguel', { name: '' })).toEqual({});
+    expect(await guardarEdicaoItemV2('u1', 'aluguel', {})).toEqual({});
+    expect(await guardarEdicaoItemV2('u1', 'aluguel', { name: undefined, groupId: '' })).toEqual(
+      {},
+    );
     expect(mockGetMerged).not.toHaveBeenCalled();
+  });
+
+  it("name: '' é nome pedido: 422 nome_vazio na categoria", async () => {
+    await expect(guardarEdicaoItemV2('u1', 'aluguel', { name: '' })).rejects.toMatchObject({
+      statusCode: 422,
+      codigo: 'nome_vazio',
+    });
   });
 
   it('renomear na categoria: valida contra as irmãs; nome igual não é renomear', async () => {

@@ -619,7 +619,13 @@ async function handleItemOperation(
     }
     // Orçamento v2 (antes de personalizar): nome na categoria e destino do movimento.
     if (v2) {
-      const { nome } = await guardarEdicaoItemV2(userId, id, data, { nomeAtual: item.name });
+      // `name: ''` aqui é "sem nome" (o update abaixo só grava nome truthy): não vai à guarda.
+      const { nome } = await guardarEdicaoItemV2(
+        userId,
+        id,
+        { name: data.name || undefined, groupId: data.groupId },
+        { nomeAtual: item.name },
+      );
       if (nome !== undefined) data = { ...data, name: nome };
     }
 

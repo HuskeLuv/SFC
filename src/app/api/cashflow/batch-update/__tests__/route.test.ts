@@ -215,6 +215,7 @@ describe('PUT /api/cashflow/batch-update — usuário ativado no v2', () => {
         updates: [
           { itemId: 'aluguel', name: 'ENERGIA' },
           { itemId: 'luz', name: '   ' },
+          { itemId: 'aluguel', name: '' },
           { itemId: 'geral-hab', name: 'x'.repeat(61) },
           { itemId: 'aluguel', values: [{ month: 1, value: 5 }] },
         ],
@@ -228,6 +229,7 @@ describe('PUT /api/cashflow/batch-update — usuário ativado no v2', () => {
         error: 'Já existe uma subcategoria com esse nome nesta categoria',
       },
       { itemId: 'luz', success: false, error: 'Informe o nome da subcategoria' },
+      { itemId: 'aluguel', success: false, error: 'Informe o nome da subcategoria' },
       { itemId: 'geral-hab', success: false, error: 'A subcategoria Geral não pode ser renomeada' },
       { itemId: 'aluguel', success: true },
     ]);

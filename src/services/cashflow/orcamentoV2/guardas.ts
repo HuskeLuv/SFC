@@ -294,7 +294,7 @@ export async function guardarCriacaoItemV2(
  * - mudando de grupo: destino solto → 409 (Q15); destino categoria → nome (novo, validado com
  *   R-18; ou o atual, só unicidade) livre lá (422);
  * - só renomeando numa categoria → `validarNomeNaCategoria` contra as irmãs (422).
- * Nome igual ao atual (o desktop reenvia o nome a cada edição de valor) não é renomear. Devolve o
+ * `name: ''` conta como nome pedido (vazio → 422). Nome igual ao atual (o desktop reenvia o nome a cada edição de valor) não é renomear. Devolve o
  * nome aparado a gravar. Com `opcoes.arvore` (lote), a árvore recebe o nome novo para as próximas
  * linhas do mesmo lote enxergarem a mudança.
  */
@@ -304,7 +304,9 @@ export async function guardarEdicaoItemV2(
   mudanca: { name?: unknown; groupId?: unknown },
   opcoes: { nomeAtual?: string; arvore?: CashflowGroup[] } = {},
 ): Promise<{ nome?: string }> {
-  const nomePedido = typeof mudanca.name === 'string' && mudanca.name !== '' ? mudanca.name : null;
+  // '' também é nome pedido (vazio → 422 pela R-18); quem trata '' como "sem nome" (PATCH update)
+  // não o repassa.
+  const nomePedido = typeof mudanca.name === 'string' ? mudanca.name : null;
   const grupoPedido =
     typeof mudanca.groupId === 'string' && mudanca.groupId !== '' ? mudanca.groupId : null;
   if (nomePedido === null && grupoPedido === null) return {};
