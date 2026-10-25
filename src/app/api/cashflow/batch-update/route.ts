@@ -338,8 +338,17 @@ export const PUT = withErrorHandler(async (request: NextRequest) => {
           continue;
         }
 
+        // Nome recusado (Geral, ou R-12/R-18 no v2): só o nome fica de fora. Valores, significado
+        // e rank da mesma linha seguem gravando (o desktop manda tudo junto e só olha `httpOk`);
+        // o result sai com success=false e o motivo. Sem mais nada a gravar, a linha para aqui.
+        let nomeRecusado: string | null = null;
+        const temOutrosCampos = () =>
+          (Array.isArray(values) && values.length > 0) ||
+          significado !== undefined ||
+          rank !== undefined;
+
         // Orçamento v2 (antes de personalizar): nome novo de sub validado na categoria (R-12,
-        // R-18) e Geral não renomeia. Recusa parcial: a linha inteira fica de fora.
+        // R-18) e Geral não renomeia.
         if (v2 && name !== undefined) {
           try {
             const r = await guardarEdicaoItemV2(
@@ -351,8 +360,12 @@ export const PUT = withErrorHandler(async (request: NextRequest) => {
             if (r.nome !== undefined) name = r.nome;
           } catch (error) {
             if (!(error instanceof ErroEstruturaOrcamento)) throw error;
-            results.push({ itemId, success: false, error: error.message });
-            continue;
+            nomeRecusado = error.message;
+            name = undefined;
+            if (!temOutrosCampos()) {
+              results.push({ itemId, success: false, error: nomeRecusado });
+              continue;
+            }
           }
         }
 
@@ -383,8 +396,12 @@ export const PUT = withErrorHandler(async (request: NextRequest) => {
         // Geral do Orçamento v2 (por dado): não é renomeada. Reenviar o mesmo nome (o desktop
         // manda o nome junto com os valores) passa.
         if (linked?.isGeral && name !== undefined && name !== linked.name) {
-          results.push({ itemId, success: false, error: mensagemGeral('renomear') });
-          continue;
+          nomeRecusado = mensagemGeral('renomear');
+          name = undefined;
+          if (!temOutrosCampos()) {
+            results.push({ itemId, success: false, error: nomeRecusado });
+            continue;
+          }
         }
         const objetivoId = linked?.objetivoId ?? null;
         const dividaId = linked?.dividaId ?? null;
@@ -482,7 +499,11 @@ export const PUT = withErrorHandler(async (request: NextRequest) => {
         }
 
         if (objetivoId) affectedObjetivos.add(objetivoId);
-        results.push({ itemId, success: true });
+        results.push(
+          nomeRecusado
+            ? { itemId, success: false, error: nomeRecusado }
+            : { itemId, success: true },
+        );
       } catch (error) {
         logger.error(`Erro ao atualizar item ${update.itemId}:`, error);
         results.push({

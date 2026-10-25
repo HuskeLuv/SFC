@@ -164,7 +164,7 @@ describe('PUT /api/cashflow/batch-update — Geral (por dado, recusa parcial)', 
     });
   });
 
-  it('não renomeia a Geral; reenviar o mesmo nome com valores salva os valores', async () => {
+  it('não renomeia a Geral, mas salva os valores da mesma linha; reenviar o mesmo nome passa', async () => {
     mockPrisma.cashflowItem.findUnique.mockResolvedValue(
       linkedRow({ name: 'Geral', isGeral: true }),
     );
@@ -178,7 +178,8 @@ describe('PUT /api/cashflow/batch-update — Geral (por dado, recusa parcial)', 
       { itemId: 'geral-hab', success: false, error: 'A subcategoria Geral não pode ser renomeada' },
     ]);
     expect(mockPrisma.cashflowItem.update).not.toHaveBeenCalled();
-    expect(mockPrisma.cashflowValue.upsert).not.toHaveBeenCalled();
+    expect(mockPrisma.cashflowValue.upsert).toHaveBeenCalledTimes(1);
+    mockPrisma.cashflowValue.upsert.mockClear();
 
     const igual = await PUT(
       req({
@@ -236,6 +237,36 @@ describe('PUT /api/cashflow/batch-update — usuário ativado no v2', () => {
     expect(mockPrisma.cashflowItem.update).not.toHaveBeenCalled();
     expect(mockEnsurePersonalizedItem).toHaveBeenCalledTimes(1);
     expect(mockPrisma.cashflowValue.upsert).toHaveBeenCalledTimes(1);
+  });
+
+  it('nome recusado não descarta valores, significado e rank da mesma linha', async () => {
+    const res = await PUT(
+      req({
+        updates: [
+          {
+            itemId: 'aluguel',
+            name: 'Energia',
+            significado: 'Fixo',
+            values: [{ month: 2, value: 1500 }],
+          },
+        ],
+      }),
+    );
+    expect((await res.json()).results).toEqual([
+      {
+        itemId: 'aluguel',
+        success: false,
+        error: 'Já existe uma subcategoria com esse nome nesta categoria',
+      },
+    ]);
+    expect(mockPrisma.cashflowItem.update).toHaveBeenCalledWith({
+      where: { id: 'aluguel', userId: 'user-1' },
+      data: { significado: 'Fixo' },
+    });
+    expect(mockPrisma.cashflowValue.upsert).toHaveBeenCalledTimes(1);
+    expect(mockPrisma.cashflowValue.upsert.mock.calls[0][0]).toMatchObject({
+      update: { value: 1500 },
+    });
   });
 
   it('grava o nome aparado e enxerga renomeações anteriores do mesmo lote', async () => {
