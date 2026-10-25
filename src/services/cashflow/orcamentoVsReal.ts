@@ -187,7 +187,12 @@ export function buildOrcamentoVsReal({
         groupId: group.id,
         nome: group.name,
         parentNome,
-        metaMensal: metaPorGrupo.get(group.id) ?? null,
+        // Meta gravada no id do template continua valendo depois que o grupo ganha override
+        // (ex.: ativação do Orçamento v2 compensada ou desfeita); a do override tem prioridade.
+        metaMensal:
+          metaPorGrupo.get(group.id) ??
+          (group.templateId ? metaPorGrupo.get(group.templateId) : undefined) ??
+          null,
         realPorMes,
         realAnual: {
           lancado: round2(realPorMes.lancado.reduce((a, b) => a + b, 0)),

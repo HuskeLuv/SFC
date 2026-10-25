@@ -123,6 +123,34 @@ describe('buildOrcamentoVsReal', () => {
     expect(result.totais.metaMensal).toBe(4500);
   });
 
+  it('meta gravada no id do template vale para o grupo com override; a do override tem prioridade', () => {
+    const tree = sampleTree();
+    const fixas = tree[1].children![0];
+    fixas.children![0] = {
+      ...fixas.children![0],
+      id: 'habitacao-override',
+      templateId: 'habitacao',
+    };
+    fixas.children![1] = {
+      ...fixas.children![1],
+      id: 'transporte-override',
+      templateId: 'transporte',
+    };
+    const result = buildOrcamentoVsReal({
+      groups: tree,
+      metas: [
+        { groupId: 'habitacao', tipo: 'grupo', tipoMeta: 'valor', valor: 3500 },
+        { groupId: 'transporte', tipo: 'grupo', tipoMeta: 'valor', valor: 1000 },
+        { groupId: 'transporte-override', tipo: 'grupo', tipoMeta: 'valor', valor: 800 },
+      ],
+      investimentosRealPorMes: Array(12).fill(0),
+    });
+
+    expect(result.categorias[0].metaMensal).toBe(3500);
+    expect(result.categorias[1].metaMensal).toBe(800);
+    expect(result.totais.metaMensal).toBe(4300);
+  });
+
   it('meta de investimentos em R$ mensal (padrão): valor fixo nos dois modos', () => {
     const result = buildOrcamentoVsReal({
       groups: sampleTree(),

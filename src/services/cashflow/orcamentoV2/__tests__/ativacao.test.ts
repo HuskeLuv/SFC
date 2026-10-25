@@ -617,6 +617,26 @@ describe('ativarOrcamentoV2 --aplicar', () => {
   });
 });
 
+describe('metas no id do template (Fase A personaliza a categoria)', () => {
+  it('compensado: a tela antiga continua mostrando a meta, sem reescrever a tabela antiga', async () => {
+    // categoria ainda template, com meta visível hoje no id do template
+    meta('m-hab-tpl', 'tpl-hab', 800);
+    const antes = await capturarInvariantes(U);
+    expect(antes.categorias['2026|tpl-hab'].metaMensal).toBe(800);
+
+    banco.ganchos['cashflowOrcamentoItem.createMany'] = () => {
+      throw new Error('conexão caiu');
+    };
+    const r = await ativarOrcamentoV2(U, { dryRun: false, hoje: HOJE });
+    expect(r.status).toBe('compensado');
+    // a categoria ganhou override na Fase A; a meta segue valendo pelo templateId
+    const depois = await capturarInvariantes(U);
+    expect(depois.categorias['2026|tpl-hab'].metaMensal).toBe(800);
+    expect(banco.dados.cashflowOrcamento).toHaveLength(1);
+    expect(banco.dados.cashflowOrcamento[0].groupId).toBe('tpl-hab');
+  });
+});
+
 describe('garantirGerais', () => {
   beforeEach(async () => {
     await personalizeGroup('tpl-desp', U);

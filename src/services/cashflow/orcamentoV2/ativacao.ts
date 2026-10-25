@@ -1103,7 +1103,8 @@ async function itensComDados(db: Db, ids: string[]): Promise<Set<string>> {
  * Desfaz o que a ativação gravou quando a verificação diverge (ou uma fase falha): apaga os
  * orçados inseridos e o prefs (ou só limpa a marca, se ele já existia), apaga as Gerais e
  * sugestões criadas que continuam sem dados (com dados viram item comum) e devolve as Gerais
- * adotadas a item comum. Os overrides da Fase A ficam (inofensivos, iguais a ter editado).
+ * adotadas a item comum. Os overrides da Fase A ficam (iguais a ter editado; a
+ * tela antiga acha a meta do template pelo templateId).
  */
 export async function compensarAtivacao(
   userId: string,
