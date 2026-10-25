@@ -113,9 +113,10 @@ function serieDoGrupo(group: CashflowGroup): SeriePorModo {
 
 /**
  * Partição disjunta das categorias de despesa (ver doc do módulo).
- * Retorna pares (grupo, nome do pai) na ordem da árvore.
+ * Retorna pares (grupo, nome do pai) na ordem da árvore. Exportada para a ativação do
+ * Orçamento v2, que usa exatamente a mesma partição (desenho técnico §2).
  */
-function collectCategorias(
+export function collectCategorias(
   groups: CashflowGroup[],
 ): Array<{ group: CashflowGroup; parentNome: string | null }> {
   const out: Array<{ group: CashflowGroup; parentNome: string | null }> = [];

@@ -1,3 +1,4 @@
+import type { Prisma, PrismaClient } from '@prisma/client';
 import prisma from '@/lib/prisma';
 import type { CashflowGroup, CashflowItem } from '@/types/cashflow';
 
@@ -25,9 +26,14 @@ const valuesInclude = (valuesFilter: { userId: string; year: number }) => ({
   },
 });
 
+/**
+ * `db` (opcional): cliente ou transação onde ler. Padrão = `prisma` global; o Orçamento v2 passa a
+ * transação para `garantirGerais` enxergar a própria estrutura.
+ */
 export async function getMergedCashflowGroups(
   targetUserId: string,
   year: number,
+  db: PrismaClient | Prisma.TransactionClient = prisma,
 ): Promise<CashflowGroup[]> {
   const valuesFilter = { userId: targetUserId, year };
   const items = valuesInclude(valuesFilter);
@@ -50,12 +56,12 @@ export async function getMergedCashflowGroups(
   };
 
   const [templates, customizations] = await Promise.all([
-    prisma.cashflowGroup.findMany({
+    db.cashflowGroup.findMany({
       where: { userId: null, parentId: null },
       orderBy: { orderIndex: 'asc' },
       include: nestedInclude,
     }),
-    prisma.cashflowGroup.findMany({
+    db.cashflowGroup.findMany({
       where: { userId: targetUserId, parentId: null },
       orderBy: { orderIndex: 'asc' },
       include: nestedInclude,
