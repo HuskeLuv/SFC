@@ -11,6 +11,8 @@ const mockRequireAuthWithActing = vi.hoisted(() => vi.fn());
 
 const mockGetGroupForUser = vi.hoisted(() => vi.fn());
 const mockPersonalizeGroup = vi.hoisted(() => vi.fn());
+const mockEstadoV2 = vi.hoisted(() => vi.fn());
+const mockGetMerged = vi.hoisted(() => vi.fn());
 
 vi.mock('@/utils/auth', () => ({
   requireAuthWithActing: mockRequireAuthWithActing,
@@ -24,6 +26,14 @@ vi.mock('@/lib/prisma', () => ({
 vi.mock('@/utils/cashflowPersonalization', () => ({
   getGroupForUser: mockGetGroupForUser,
   personalizeGroup: mockPersonalizeGroup,
+}));
+
+vi.mock('@/services/cashflow/orcamentoV2/acesso', () => ({
+  estadoAcessoOrcamentoV2: mockEstadoV2,
+}));
+
+vi.mock('@/services/cashflow/getCashflowTree', () => ({
+  getMergedCashflowGroups: mockGetMerged,
 }));
 
 const createPostRequest = (body: Record<string, unknown>) => {
@@ -45,6 +55,7 @@ describe('POST /api/cashflow/items', () => {
       targetUserId: 'user-123',
       actingClient: null,
     });
+    mockEstadoV2.mockResolvedValue({ estado: 'desligada', ativado: false });
   });
 
   it('cria item com sucesso em grupo personalizado', async () => {
@@ -113,5 +124,94 @@ describe('POST /api/cashflow/items', () => {
 
     expect(response.status).toBe(400);
     expect(data.error).toContain('inválidos');
+  });
+
+  describe('Orçamento v2 (usuário ativado)', () => {
+    // Árvore mesclada sintética: Despesas > Despesas Fixas > Habitação (com Geral).
+    const arvoreV2 = () => [
+      {
+        id: 'desp',
+        name: 'Despesas',
+        templateName: 'Despesas',
+        type: 'despesa',
+        userId: null,
+        isTemplate: true,
+        items: [],
+        children: [
+          {
+            id: 'fixas',
+            name: 'Despesas Fixas',
+            templateName: 'Despesas Fixas',
+            type: 'despesa',
+            userId: null,
+            isTemplate: true,
+            items: [],
+            children: [
+              {
+                id: 'hab',
+                name: 'Habitação',
+                templateName: 'Habitação',
+                type: 'despesa',
+                userId: 'user-123',
+                templateId: 'tpl-hab',
+                items: [
+                  { id: 'a', name: 'Aluguel', orderIndex: 3, isGeral: false },
+                  { id: 'g', name: 'Geral', orderIndex: 0, isGeral: true },
+                ],
+                children: [],
+              },
+            ],
+          },
+        ],
+      },
+    ];
+
+    beforeEach(() => {
+      mockEstadoV2.mockResolvedValue({ estado: 'liberada', ativado: true });
+      mockGetMerged.mockResolvedValue(arvoreV2());
+      mockGetGroupForUser.mockResolvedValue({ id: 'hab', name: 'Habitação', userId: 'user-123' });
+      mockPrisma.cashflowItem.create.mockImplementation(async ({ data }) => ({
+        id: 'new',
+        ...data,
+        values: [],
+      }));
+    });
+
+    it('cria a sub com nome aparado e orderIndex antes da Geral', async () => {
+      const response = await POST(createPostRequest({ groupId: 'hab', name: '  Gás  ' }));
+      expect(response.status).toBe(200);
+      expect(mockPrisma.cashflowItem.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ name: 'Gás', orderIndex: 4, groupId: 'hab' }),
+        }),
+      );
+    });
+
+    it.each([
+      ['duplicado (sem acento/caixa)', 'ALUGUEL'],
+      ['vazio', '   '],
+      ['longo', 'x'.repeat(61)],
+    ])('422 para nome %s', async (_caso, name) => {
+      const response = await POST(createPostRequest({ groupId: 'hab', name }));
+      expect(response.status).toBe(422);
+      expect(mockPrisma.cashflowItem.create).not.toHaveBeenCalled();
+    });
+
+    it('Q15: 409 para linha solta direto em Despesas Fixas, sem personalizar', async () => {
+      mockGetGroupForUser.mockResolvedValue({ id: 'fixas', name: 'Despesas Fixas', userId: null });
+      const response = await POST(createPostRequest({ groupId: 'fixas', name: 'Solta' }));
+      expect(response.status).toBe(409);
+      expect(mockPersonalizeGroup).not.toHaveBeenCalled();
+      expect(mockPrisma.cashflowItem.create).not.toHaveBeenCalled();
+    });
+
+    it('beta sem ativação: sem guardas e sem orderIndex', async () => {
+      mockEstadoV2.mockResolvedValue({ estado: 'liberada', ativado: false });
+      const response = await POST(createPostRequest({ groupId: 'hab', name: 'ALUGUEL' }));
+      expect(response.status).toBe(200);
+      expect(mockGetMerged).not.toHaveBeenCalled();
+      const { data } = mockPrisma.cashflowItem.create.mock.calls[0][0];
+      expect(data).not.toHaveProperty('orderIndex');
+    });
   });
 });
