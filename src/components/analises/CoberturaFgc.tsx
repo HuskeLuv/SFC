@@ -6,6 +6,7 @@ import Tooltip from '@/components/ui/tooltip/Tooltip';
 import { TABLE_STYLES, TABLE_HEADER_STYLE } from '@/components/ui/table/tableStyles';
 import { ResponsiveCardList } from '@/components/ui/table/ResponsiveTable';
 import { useIsBelowLg } from '@/hooks/useMediaQuery';
+import type { SemCoberturaFgc } from '@/services/analises/semCoberturaFgc';
 
 function formatBRL(value: number): string {
   return new Intl.NumberFormat('pt-BR', {
@@ -95,7 +96,10 @@ export default function CoberturaFgc() {
     );
   }
 
-  if (!data || data.instituicoes.length === 0) {
+  const temRendaFixa = (data?.instituicoes.length ?? 0) > 0;
+  const temForaDoFgc = (data?.semCobertura?.classes.length ?? 0) > 0;
+
+  if (!data || (!temRendaFixa && !temForaDoFgc)) {
     return (
       <div className="flex flex-col items-center justify-center space-y-4 py-16">
         <svg
@@ -114,10 +118,10 @@ export default function CoberturaFgc() {
         </svg>
         <div className="text-center">
           <h3 className="text-lg font-semibold text-gray-700 dark:text-gray-300">
-            Nenhum ativo de renda fixa encontrado
+            Nenhum investimento encontrado
           </h3>
           <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-            Adicione investimentos de renda fixa para visualizar a cobertura do FGC.
+            Adicione investimentos para visualizar a cobertura do FGC.
           </p>
         </div>
       </div>
@@ -169,363 +173,441 @@ export default function CoberturaFgc() {
         </div>
       </div>
 
-      {/* Summary cards */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <SummaryCard
-          label="Total coberto pelo FGC"
-          value={formatBRL(resumo.totalEfetivamenteCoberto)}
-          subtext={`de ${formatBRL(resumo.limiteGlobal)} (teto global)`}
-          color="text-emerald-600 dark:text-emerald-400"
-        />
-        <SummaryCard
-          label="Não coberto pelo FGC"
-          value={formatBRL(resumo.totalNaoCoberto)}
-          subtext="Produtos sem cobertura (CRI, CRA, etc.)"
-          color="text-gray-700 dark:text-gray-300"
-          tooltip={FGC_NAO_COBERTO_TOOLTIP}
-        />
-        <SummaryCard
-          label="Excedente (acima do limite)"
-          value={formatBRL(resumo.totalExcedente)}
-          subtext="Valor acima de R$ 250 mil por instituição"
-          color={
-            resumo.totalExcedente > 0
-              ? 'text-red-600 dark:text-red-400'
-              : 'text-gray-700 dark:text-gray-300'
-          }
-        />
-        <SummaryCard
-          label="Cobertura da carteira"
-          value={formatPercent(resumo.percentualCoberto)}
-          subtext={`${resumo.totalAtivos} ativos em ${resumo.totalInstituicoes} ${resumo.totalInstituicoes === 1 ? 'instituição' : 'instituições'}`}
-          color="text-brand-500 dark:text-brand-400"
-        />
-      </div>
+      {temRendaFixa && (
+        <>
+          {/* Summary cards */}
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            <SummaryCard
+              label="Total coberto pelo FGC"
+              value={formatBRL(resumo.totalEfetivamenteCoberto)}
+              subtext={`de ${formatBRL(resumo.limiteGlobal)} (teto global)`}
+              color="text-emerald-600 dark:text-emerald-400"
+            />
+            <SummaryCard
+              label="Não coberto pelo FGC"
+              value={formatBRL(resumo.totalNaoCoberto)}
+              subtext="Produtos sem cobertura (CRI, CRA, etc.)"
+              color="text-gray-700 dark:text-gray-300"
+              tooltip={FGC_NAO_COBERTO_TOOLTIP}
+            />
+            <SummaryCard
+              label="Excedente (acima do limite)"
+              value={formatBRL(resumo.totalExcedente)}
+              subtext="Valor acima de R$ 250 mil por instituição"
+              color={
+                resumo.totalExcedente > 0
+                  ? 'text-red-600 dark:text-red-400'
+                  : 'text-gray-700 dark:text-gray-300'
+              }
+            />
+            <SummaryCard
+              label="Cobertura da carteira"
+              value={formatPercent(resumo.percentualCoberto)}
+              subtext={`${resumo.totalAtivos} ativos em ${resumo.totalInstituicoes} ${resumo.totalInstituicoes === 1 ? 'instituição' : 'instituições'}`}
+              color="text-brand-500 dark:text-brand-400"
+            />
+          </div>
 
-      {/* Global coverage bar */}
-      <div className="rounded-xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03] max-lg:p-4">
-        <div className="mb-3 flex items-center justify-between max-lg:flex-wrap max-lg:gap-x-3 max-lg:gap-y-1">
-          <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300">
-            Utilização do teto global FGC
-          </h3>
-          <span className="text-sm font-semibold text-gray-900 dark:text-white">
-            {formatBRL(resumo.totalEfetivamenteCoberto)} / {formatBRL(resumo.limiteGlobal)}
-          </span>
-        </div>
-        <ProgressBar
-          percent={(resumo.totalEfetivamenteCoberto / resumo.limiteGlobal) * 100}
-          color={getBarColor((resumo.totalEfetivamenteCoberto / resumo.limiteGlobal) * 100)}
-        />
-        <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
-          {formatPercent((resumo.totalEfetivamenteCoberto / resumo.limiteGlobal) * 100)} utilizado
-          do teto global de {formatBRL(resumo.limiteGlobal)} (renovado a cada 4 anos)
-        </p>
-      </div>
+          {/* Global coverage bar */}
+          <div className="rounded-xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03] max-lg:p-4">
+            <div className="mb-3 flex items-center justify-between max-lg:flex-wrap max-lg:gap-x-3 max-lg:gap-y-1">
+              <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                Utilização do teto global FGC
+              </h3>
+              <span className="text-sm font-semibold text-gray-900 dark:text-white">
+                {formatBRL(resumo.totalEfetivamenteCoberto)} / {formatBRL(resumo.limiteGlobal)}
+              </span>
+            </div>
+            <ProgressBar
+              percent={(resumo.totalEfetivamenteCoberto / resumo.limiteGlobal) * 100}
+              color={getBarColor((resumo.totalEfetivamenteCoberto / resumo.limiteGlobal) * 100)}
+            />
+            <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+              {formatPercent((resumo.totalEfetivamenteCoberto / resumo.limiteGlobal) * 100)}{' '}
+              utilizado do teto global de {formatBRL(resumo.limiteGlobal)} (renovado a cada 4 anos)
+            </p>
+          </div>
 
-      {/* Institution breakdown */}
-      <div className="space-y-3">
-        <h3 className="text-base font-medium text-gray-800 dark:text-white/90">
-          Cobertura por instituição
-        </h3>
+          {/* Institution breakdown */}
+          <div className="space-y-3">
+            <h3 className="text-base font-medium text-gray-800 dark:text-white/90">
+              Cobertura por instituição
+            </h3>
 
-        {instituicoes.map((inst) => {
-          const key = inst.cnpj || inst.instituicaoId;
-          const isExpanded = expandedInstitutions.has(key);
-          const status = getStatusLabel(
-            inst.percentualUtilizado,
-            inst.totalCoberto,
-            inst.totalNaoCoberto,
-          );
-          const barColor = getBarColor(inst.percentualUtilizado);
+            {instituicoes.map((inst) => {
+              const key = inst.cnpj || inst.instituicaoId;
+              const isExpanded = expandedInstitutions.has(key);
+              const status = getStatusLabel(
+                inst.percentualUtilizado,
+                inst.totalCoberto,
+                inst.totalNaoCoberto,
+              );
+              const barColor = getBarColor(inst.percentualUtilizado);
 
-          return (
-            <div
-              key={key}
-              className="overflow-hidden rounded-xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03]"
-            >
-              {/* Institution header */}
-              <button
-                type="button"
-                aria-expanded={isExpanded}
-                className="flex w-full items-center justify-between p-5 text-left transition-colors hover:bg-gray-50 dark:hover:bg-white/[0.02] max-lg:p-4"
-                onClick={() => toggleInstitution(key)}
-              >
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-3">
-                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-gray-100 dark:bg-gray-800">
+              return (
+                <div
+                  key={key}
+                  className="overflow-hidden rounded-xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03]"
+                >
+                  {/* Institution header */}
+                  <button
+                    type="button"
+                    aria-expanded={isExpanded}
+                    className="flex w-full items-center justify-between p-5 text-left transition-colors hover:bg-gray-50 dark:hover:bg-white/[0.02] max-lg:p-4"
+                    onClick={() => toggleInstitution(key)}
+                  >
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-3">
+                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-gray-100 dark:bg-gray-800">
+                          <svg
+                            className="text-gray-500 dark:text-gray-400"
+                            width="20"
+                            height="20"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          >
+                            <path d="M3 21h18" />
+                            <path d="M3 10h18" />
+                            <path d="M5 6l7-3 7 3" />
+                            <path d="M4 10v11" />
+                            <path d="M20 10v11" />
+                            <path d="M8 14v4" />
+                            <path d="M12 14v4" />
+                            <path d="M16 14v4" />
+                          </svg>
+                        </div>
+                        <div className="min-w-0">
+                          <h4 className="truncate text-sm font-semibold text-gray-900 dark:text-white">
+                            {inst.instituicaoNome}
+                          </h4>
+                          <div className="flex items-center gap-2 max-lg:flex-wrap max-lg:gap-x-2 max-lg:gap-y-0.5">
+                            {inst.cnpj && (
+                              <span className="text-xs text-gray-400 dark:text-gray-500">
+                                CNPJ: {inst.cnpj}
+                              </span>
+                            )}
+                            {status.tooltip ? (
+                              <Tooltip content={status.tooltip}>
+                                <span
+                                  className={`text-xs font-medium ${status.className} cursor-help`}
+                                >
+                                  {status.text}
+                                  <span className="ml-1 opacity-60" aria-hidden>
+                                    ⓘ
+                                  </span>
+                                </span>
+                              </Tooltip>
+                            ) : (
+                              <span className={`text-xs font-medium ${status.className}`}>
+                                {status.text}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Progress bar */}
+                      <div className="mt-3">
+                        <div className="mb-1 flex items-center justify-between text-xs max-lg:flex-wrap max-lg:gap-x-2">
+                          <span className="text-gray-500 dark:text-gray-400">
+                            {formatBRL(inst.totalCoberto)} coberto
+                          </span>
+                          <span className="text-gray-500 dark:text-gray-400">
+                            {formatPercent(inst.percentualUtilizado)} de {formatBRL(inst.limiteFgc)}
+                          </span>
+                        </div>
+                        <ProgressBar percent={inst.percentualUtilizado} color={barColor} />
+                      </div>
+
+                      {inst.excedente > 0 && (
+                        <p className="mt-1.5 text-xs font-medium text-red-600 dark:text-red-400 max-lg:text-[#D92D20] max-lg:dark:text-[#F97066]">
+                          {formatBRL(inst.excedente)} acima do limite FGC
+                        </p>
+                      )}
+
+                      {inst.totalNaoCoberto > 0 && (
+                        <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                          + {formatBRL(inst.totalNaoCoberto)} em produtos não cobertos
+                        </p>
+                      )}
+                    </div>
+
+                    {/* Expand icon */}
+                    <div className="ml-4 shrink-0 max-lg:ml-2">
                       <svg
-                        className="text-gray-500 dark:text-gray-400"
-                        width="20"
-                        height="20"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
+                        className={`h-5 w-5 text-gray-400 transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`}
+                        viewBox="0 0 20 20"
+                        fill="currentColor"
                       >
-                        <path d="M3 21h18" />
-                        <path d="M3 10h18" />
-                        <path d="M5 6l7-3 7 3" />
-                        <path d="M4 10v11" />
-                        <path d="M20 10v11" />
-                        <path d="M8 14v4" />
-                        <path d="M12 14v4" />
-                        <path d="M16 14v4" />
+                        <path
+                          fillRule="evenodd"
+                          d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"
+                          clipRule="evenodd"
+                        />
                       </svg>
                     </div>
-                    <div className="min-w-0">
-                      <h4 className="truncate text-sm font-semibold text-gray-900 dark:text-white">
-                        {inst.instituicaoNome}
-                      </h4>
-                      <div className="flex items-center gap-2 max-lg:flex-wrap max-lg:gap-x-2 max-lg:gap-y-0.5">
-                        {inst.cnpj && (
-                          <span className="text-xs text-gray-400 dark:text-gray-500">
-                            CNPJ: {inst.cnpj}
-                          </span>
-                        )}
-                        {status.tooltip ? (
-                          <Tooltip content={status.tooltip}>
-                            <span className={`text-xs font-medium ${status.className} cursor-help`}>
-                              {status.text}
-                              <span className="ml-1 opacity-60" aria-hidden>
-                                ⓘ
-                              </span>
-                            </span>
-                          </Tooltip>
-                        ) : (
-                          <span className={`text-xs font-medium ${status.className}`}>
-                            {status.text}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  </div>
+                  </button>
 
-                  {/* Progress bar */}
-                  <div className="mt-3">
-                    <div className="mb-1 flex items-center justify-between text-xs max-lg:flex-wrap max-lg:gap-x-2">
-                      <span className="text-gray-500 dark:text-gray-400">
-                        {formatBRL(inst.totalCoberto)} coberto
-                      </span>
-                      <span className="text-gray-500 dark:text-gray-400">
-                        {formatPercent(inst.percentualUtilizado)} de {formatBRL(inst.limiteFgc)}
-                      </span>
-                    </div>
-                    <ProgressBar percent={inst.percentualUtilizado} color={barColor} />
-                  </div>
-
-                  {inst.excedente > 0 && (
-                    <p className="mt-1.5 text-xs font-medium text-red-600 dark:text-red-400 max-lg:text-[#D92D20] max-lg:dark:text-[#F97066]">
-                      {formatBRL(inst.excedente)} acima do limite FGC
-                    </p>
-                  )}
-
-                  {inst.totalNaoCoberto > 0 && (
-                    <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                      + {formatBRL(inst.totalNaoCoberto)} em produtos não cobertos
-                    </p>
-                  )}
-                </div>
-
-                {/* Expand icon */}
-                <div className="ml-4 shrink-0 max-lg:ml-2">
-                  <svg
-                    className={`h-5 w-5 text-gray-400 transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`}
-                    viewBox="0 0 20 20"
-                    fill="currentColor"
-                  >
-                    <path
-                      fillRule="evenodd"
-                      d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"
-                      clipRule="evenodd"
-                    />
-                  </svg>
-                </div>
-              </button>
-
-              {/* Expanded asset list */}
-              {isExpanded && (
-                <div className="border-t border-gray-100 p-4 dark:border-gray-800 max-lg:p-3">
-                  {isBelowLg ? (
-                    <ResponsiveCardList<(typeof inst.ativos)[number]>
-                      ariaLabel={`Ativos em ${inst.instituicaoNome}`}
-                      rows={inst.ativos}
-                      getRowKey={(a) => a.id}
-                      columns={[
-                        { id: 'nome', header: 'Ativo', mobile: 'primary', cell: (a) => a.nome },
-                        {
-                          id: 'produto',
-                          header: 'Produto',
-                          mobile: 'subtitle',
-                          cell: (a) =>
-                            [a.produto, a.isentoIR ? 'Isento de IR' : null]
-                              .filter(Boolean)
-                              .join(' · '),
-                        },
-                        {
-                          id: 'atual',
-                          header: 'Valor atual',
-                          mobile: 'value',
-                          cell: (a) => formatBRL(a.valorAtual),
-                        },
-                        {
-                          id: 'investido',
-                          header: 'Investido',
-                          mobile: 'field',
-                          cell: (a) => formatBRL(a.valorInvestido),
-                        },
-                        {
-                          id: 'venc',
-                          header: 'Vencimento',
-                          mobile: 'field',
-                          cell: (a) =>
-                            a.vencimento
-                              ? new Date(a.vencimento).toLocaleDateString('pt-BR', {
-                                  timeZone: 'UTC',
-                                })
-                              : '—',
-                        },
-                        {
-                          id: 'fgc',
-                          header: 'FGC',
-                          mobile: 'field',
-                          cell: (a) =>
-                            a.coberto && inst.excedente > 0 ? (
-                              <span className="text-[#B45309] dark:text-amber-300">Parcial</span>
-                            ) : a.coberto ? (
-                              'Coberto'
-                            ) : (
-                              <span className="text-gray-500 dark:text-gray-400">Não coberto</span>
-                            ),
-                        },
-                      ]}
-                    />
-                  ) : (
-                    <div className={TABLE_STYLES.wrapper}>
-                      <table className={TABLE_STYLES.table}>
-                        <thead>
-                          <tr className={TABLE_STYLES.headRow} style={TABLE_HEADER_STYLE}>
-                            <th className={`${TABLE_STYLES.th} text-left`}>Ativo</th>
-                            <th className={`${TABLE_STYLES.th} text-left`}>Produto</th>
-                            <th className={`${TABLE_STYLES.th} text-right`}>Valor investido</th>
-                            <th className={`${TABLE_STYLES.th} text-right`}>Valor atual</th>
-                            <th className={`${TABLE_STYLES.th} text-left`}>Vencimento</th>
-                            <th className={`${TABLE_STYLES.th} text-center`}>FGC</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {inst.ativos.map((ativo) => (
-                            <tr
-                              key={ativo.id}
-                              className={`${TABLE_STYLES.row} ${TABLE_STYLES.rowHover}`}
-                            >
-                              <td className={`${TABLE_STYLES.td} whitespace-nowrap`}>
-                                <div className="font-medium text-gray-900 dark:text-white">
-                                  {ativo.nome}
-                                </div>
-                                {ativo.isentoIR && (
-                                  <span className="text-xs text-emerald-600 dark:text-emerald-400">
-                                    Isento de IR
-                                  </span>
-                                )}
-                              </td>
-                              <td className={`${TABLE_STYLES.td} whitespace-nowrap`}>
-                                <span className="inline-flex rounded-md bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-700 dark:bg-gray-800 dark:text-gray-300">
-                                  {ativo.produto}
-                                </span>
-                              </td>
-                              <td className={`${TABLE_STYLES.td} whitespace-nowrap text-right`}>
-                                {formatBRL(ativo.valorInvestido)}
-                              </td>
-                              <td
-                                className={`${TABLE_STYLES.td} whitespace-nowrap text-right font-medium text-gray-900 dark:text-white`}
-                              >
-                                {formatBRL(ativo.valorAtual)}
-                              </td>
-                              <td className={`${TABLE_STYLES.td} whitespace-nowrap`}>
-                                {ativo.vencimento
-                                  ? new Date(ativo.vencimento).toLocaleDateString('pt-BR', {
+                  {/* Expanded asset list */}
+                  {isExpanded && (
+                    <div className="border-t border-gray-100 p-4 dark:border-gray-800 max-lg:p-3">
+                      {isBelowLg ? (
+                        <ResponsiveCardList<(typeof inst.ativos)[number]>
+                          ariaLabel={`Ativos em ${inst.instituicaoNome}`}
+                          rows={inst.ativos}
+                          getRowKey={(a) => a.id}
+                          columns={[
+                            { id: 'nome', header: 'Ativo', mobile: 'primary', cell: (a) => a.nome },
+                            {
+                              id: 'produto',
+                              header: 'Produto',
+                              mobile: 'subtitle',
+                              cell: (a) =>
+                                [a.produto, a.isentoIR ? 'Isento de IR' : null]
+                                  .filter(Boolean)
+                                  .join(' · '),
+                            },
+                            {
+                              id: 'atual',
+                              header: 'Valor atual',
+                              mobile: 'value',
+                              cell: (a) => formatBRL(a.valorAtual),
+                            },
+                            {
+                              id: 'investido',
+                              header: 'Investido',
+                              mobile: 'field',
+                              cell: (a) => formatBRL(a.valorInvestido),
+                            },
+                            {
+                              id: 'venc',
+                              header: 'Vencimento',
+                              mobile: 'field',
+                              cell: (a) =>
+                                a.vencimento
+                                  ? new Date(a.vencimento).toLocaleDateString('pt-BR', {
                                       timeZone: 'UTC',
                                     })
-                                  : '—'}
-                              </td>
-                              <td className={`${TABLE_STYLES.td} whitespace-nowrap text-center`}>
-                                {/* 2.7 (auditoria jul/2026): o limite FGC é por INSTITUIÇÃO,
+                                  : '—',
+                            },
+                            {
+                              id: 'fgc',
+                              header: 'FGC',
+                              mobile: 'field',
+                              cell: (a) =>
+                                a.coberto && inst.excedente > 0 ? (
+                                  <span className="text-[#B45309] dark:text-amber-300">
+                                    Parcial
+                                  </span>
+                                ) : a.coberto ? (
+                                  'Coberto'
+                                ) : (
+                                  <span className="text-gray-500 dark:text-gray-400">
+                                    Não coberto
+                                  </span>
+                                ),
+                            },
+                          ]}
+                        />
+                      ) : (
+                        <div className={TABLE_STYLES.wrapper}>
+                          <table className={TABLE_STYLES.table}>
+                            <thead>
+                              <tr className={TABLE_STYLES.headRow} style={TABLE_HEADER_STYLE}>
+                                <th className={`${TABLE_STYLES.th} text-left`}>Ativo</th>
+                                <th className={`${TABLE_STYLES.th} text-left`}>Produto</th>
+                                <th className={`${TABLE_STYLES.th} text-right`}>Valor investido</th>
+                                <th className={`${TABLE_STYLES.th} text-right`}>Valor atual</th>
+                                <th className={`${TABLE_STYLES.th} text-left`}>Vencimento</th>
+                                <th className={`${TABLE_STYLES.th} text-center`}>FGC</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {inst.ativos.map((ativo) => (
+                                <tr
+                                  key={ativo.id}
+                                  className={`${TABLE_STYLES.row} ${TABLE_STYLES.rowHover}`}
+                                >
+                                  <td className={`${TABLE_STYLES.td} whitespace-nowrap`}>
+                                    <div className="font-medium text-gray-900 dark:text-white">
+                                      {ativo.nome}
+                                    </div>
+                                    {ativo.isentoIR && (
+                                      <span className="text-xs text-emerald-600 dark:text-emerald-400">
+                                        Isento de IR
+                                      </span>
+                                    )}
+                                  </td>
+                                  <td className={`${TABLE_STYLES.td} whitespace-nowrap`}>
+                                    <span className="inline-flex rounded-md bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-700 dark:bg-gray-800 dark:text-gray-300">
+                                      {ativo.produto}
+                                    </span>
+                                  </td>
+                                  <td className={`${TABLE_STYLES.td} whitespace-nowrap text-right`}>
+                                    {formatBRL(ativo.valorInvestido)}
+                                  </td>
+                                  <td
+                                    className={`${TABLE_STYLES.td} whitespace-nowrap text-right font-medium text-gray-900 dark:text-white`}
+                                  >
+                                    {formatBRL(ativo.valorAtual)}
+                                  </td>
+                                  <td className={`${TABLE_STYLES.td} whitespace-nowrap`}>
+                                    {ativo.vencimento
+                                      ? new Date(ativo.vencimento).toLocaleDateString('pt-BR', {
+                                          timeZone: 'UTC',
+                                        })
+                                      : '—'}
+                                  </td>
+                                  <td
+                                    className={`${TABLE_STYLES.td} whitespace-nowrap text-center`}
+                                  >
+                                    {/* 2.7 (auditoria jul/2026): o limite FGC é por INSTITUIÇÃO,
                                   não por ativo. Se a soma dos ativos cobertos da instituição
                                   excede o limite (mesma condição do header "R$ X acima do
                                   limite"), TODOS os ativos cobertos dela estão parcialmente
                                   expostos — antes o badge só acusava quando o ativo SOZINHO
                                   passava de 250k, contradizendo o header. */}
-                                {ativo.coberto && inst.excedente > 0 ? (
-                                  <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
-                                    <svg
-                                      width="12"
-                                      height="12"
-                                      viewBox="0 0 24 24"
-                                      fill="none"
-                                      stroke="currentColor"
-                                      strokeWidth="3"
-                                      strokeLinecap="round"
-                                      strokeLinejoin="round"
-                                    >
-                                      <path d="M12 9v4" />
-                                      <path d="M12 17h.01" />
-                                      <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
-                                    </svg>
-                                    Parcialmente Coberto
-                                  </span>
-                                ) : ativo.coberto ? (
-                                  <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400">
-                                    <svg
-                                      width="12"
-                                      height="12"
-                                      viewBox="0 0 24 24"
-                                      fill="none"
-                                      stroke="currentColor"
-                                      strokeWidth="3"
-                                      strokeLinecap="round"
-                                      strokeLinejoin="round"
-                                    >
-                                      <polyline points="20 6 9 17 4 12" />
-                                    </svg>
-                                    Coberto
-                                  </span>
-                                ) : (
-                                  <Tooltip content={FGC_NAO_COBERTO_TOOLTIP}>
-                                    <span className="inline-flex items-center gap-1 rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-500 dark:bg-gray-800 dark:text-gray-400 cursor-help">
-                                      <svg
-                                        width="12"
-                                        height="12"
-                                        viewBox="0 0 24 24"
-                                        fill="none"
-                                        stroke="currentColor"
-                                        strokeWidth="3"
-                                        strokeLinecap="round"
-                                        strokeLinejoin="round"
-                                      >
-                                        <line x1="18" y1="6" x2="6" y2="18" />
-                                        <line x1="6" y1="6" x2="18" y2="18" />
-                                      </svg>
-                                      Não coberto
-                                      <span className="ml-0.5 opacity-60" aria-hidden>
-                                        ⓘ
+                                    {ativo.coberto && inst.excedente > 0 ? (
+                                      <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
+                                        <svg
+                                          width="12"
+                                          height="12"
+                                          viewBox="0 0 24 24"
+                                          fill="none"
+                                          stroke="currentColor"
+                                          strokeWidth="3"
+                                          strokeLinecap="round"
+                                          strokeLinejoin="round"
+                                        >
+                                          <path d="M12 9v4" />
+                                          <path d="M12 17h.01" />
+                                          <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+                                        </svg>
+                                        Parcialmente Coberto
                                       </span>
-                                    </span>
-                                  </Tooltip>
-                                )}
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
+                                    ) : ativo.coberto ? (
+                                      <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400">
+                                        <svg
+                                          width="12"
+                                          height="12"
+                                          viewBox="0 0 24 24"
+                                          fill="none"
+                                          stroke="currentColor"
+                                          strokeWidth="3"
+                                          strokeLinecap="round"
+                                          strokeLinejoin="round"
+                                        >
+                                          <polyline points="20 6 9 17 4 12" />
+                                        </svg>
+                                        Coberto
+                                      </span>
+                                    ) : (
+                                      <Tooltip content={FGC_NAO_COBERTO_TOOLTIP}>
+                                        <span className="inline-flex items-center gap-1 rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-500 dark:bg-gray-800 dark:text-gray-400 cursor-help">
+                                          <svg
+                                            width="12"
+                                            height="12"
+                                            viewBox="0 0 24 24"
+                                            fill="none"
+                                            stroke="currentColor"
+                                            strokeWidth="3"
+                                            strokeLinecap="round"
+                                            strokeLinejoin="round"
+                                          >
+                                            <line x1="18" y1="6" x2="6" y2="18" />
+                                            <line x1="6" y1="6" x2="18" y2="18" />
+                                          </svg>
+                                          Não coberto
+                                          <span className="ml-0.5 opacity-60" aria-hidden>
+                                            ⓘ
+                                          </span>
+                                        </span>
+                                      </Tooltip>
+                                    )}
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
-              )}
-            </div>
-          );
-        })}
+              );
+            })}
+          </div>
+        </>
+      )}
+
+      {data.semCobertura && temForaDoFgc && <ForaDoFgc semCobertura={data.semCobertura} />}
+    </div>
+  );
+}
+
+/** O resto da carteira, sem a proteção do FGC, por classe (ClickUp 86e2vvde3). */
+function ForaDoFgc({ semCobertura }: { semCobertura: SemCoberturaFgc }) {
+  const pctDaCarteira = (valor: number) =>
+    semCobertura.totalInvestimentos > 0 ? (valor / semCobertura.totalInvestimentos) * 100 : 0;
+  return (
+    <div className="space-y-3">
+      <div>
+        <h3 className="text-base font-medium text-gray-800 dark:text-white/90">
+          Investimentos fora do FGC
+        </h3>
+        <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+          <strong className="text-gray-800 dark:text-gray-100">
+            {formatPercent(semCobertura.percentualSemProtecao)}
+          </strong>{' '}
+          dos seus investimentos ({formatBRL(semCobertura.totalSemProtecao)} de{' '}
+          {formatBRL(semCobertura.totalInvestimentos)}) não têm a proteção do FGC, somando a renda
+          fixa não coberta ou acima do limite e as classes abaixo.
+        </p>
+      </div>
+      <div className={TABLE_STYLES.wrapper}>
+        <table className={TABLE_STYLES.table}>
+          <thead>
+            <tr className={TABLE_STYLES.headRow} style={TABLE_HEADER_STYLE}>
+              <th className={`${TABLE_STYLES.th} text-left`}>Classe</th>
+              <th className={`${TABLE_STYLES.th} text-right`}>Valor atual</th>
+              <th className={`${TABLE_STYLES.th} text-right`}>% dos investimentos</th>
+            </tr>
+          </thead>
+          <tbody>
+            {semCobertura.classes.map((c) => (
+              <tr key={c.classe} className={TABLE_STYLES.row}>
+                <td className={TABLE_STYLES.td}>
+                  <span className="font-medium text-gray-900 dark:text-white">{c.rotulo}</span>
+                  <span className="ml-2 text-xs text-gray-400 dark:text-gray-500">
+                    {c.quantidadeAtivos} {c.quantidadeAtivos === 1 ? 'ativo' : 'ativos'}
+                  </span>
+                  {c.nota && (
+                    <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">{c.nota}</p>
+                  )}
+                </td>
+                <td className={`${TABLE_STYLES.td} text-right whitespace-nowrap`}>
+                  {formatBRL(c.valor)}
+                </td>
+                <td className={`${TABLE_STYLES.td} text-right whitespace-nowrap`}>
+                  {formatPercent(pctDaCarteira(c.valor))}
+                </td>
+              </tr>
+            ))}
+            <tr className={TABLE_STYLES.totalRow}>
+              <td className={TABLE_STYLES.td}>Total fora do FGC</td>
+              <td className={`${TABLE_STYLES.td} text-right whitespace-nowrap`}>
+                {formatBRL(semCobertura.total)}
+              </td>
+              <td className={`${TABLE_STYLES.td} text-right whitespace-nowrap`}>
+                {formatPercent(pctDaCarteira(semCobertura.total))}
+              </td>
+            </tr>
+          </tbody>
+        </table>
       </div>
     </div>
   );

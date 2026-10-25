@@ -4,6 +4,10 @@ import { requireAuthWithActing } from '@/utils/auth';
 import { prisma } from '@/lib/prisma';
 import { withErrorHandler } from '@/utils/apiErrorHandler';
 import { createFixedIncomePricer } from '@/services/portfolio/fixedIncomePricing';
+import { valuatePortfolioItem } from '@/services/portfolio/itemValuation';
+import { getAssetPrices } from '@/services/pricing/assetPriceService';
+import { getCotacaoDolarHoje } from '@/services/market/cambioUsdBrl';
+import { resumirSemCobertura, type ItemSemCobertura } from '@/services/analises/semCoberturaFgc';
 
 /** FGC coverage limit per CPF per institution (CNPJ). */
 const FGC_LIMIT_PER_INSTITUTION = 250_000;
@@ -142,6 +146,8 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
   }
 
   const institutionGroups = new Map<string, InstitutionGroup>();
+  // Fora do FGC (ClickUp 86e2vvde3): Tesouro aqui; as demais classes depois do loop.
+  const semCoberturaItens: ItemSemCobertura[] = [];
 
   // Poupança e conta corrente são cobertas pelo FGC ("depósitos à vista" no caso da conta corrente)
   // e não têm FixedIncomeAsset associado — derivamos a info do símbolo do asset.
@@ -173,7 +179,13 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
       // Tesouro Direto não é coberto pelo FGC (tem garantia do Tesouro Nacional).
       // Filtrar fora pra não poluir esta aba — relevante para Tesouro+Reserva, que cria
       // FixedIncomeAsset com tesouroBondType preenchido.
-      if (fi.tesouroBondType) continue;
+      if (fi.tesouroBondType) {
+        semCoberturaItens.push({
+          classe: 'tesouroDireto',
+          valorAtual: calculateCurrentValue(fi, item),
+        });
+        continue;
+      }
       valorAtual = calculateCurrentValue(fi, item);
       coberto = isFgcCovered(fi.type);
       asset = {
@@ -234,6 +246,38 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     group.totalValor += valorAtual;
   }
 
+  // 7b. O resto da carteira (ações, FIIs, fundos, cripto, previdência...) não tem FGC. Valor
+  // pela mesma cascata das abas (valuatePortfolioItem); imóveis/bens ficam fora (não são
+  // investimento financeiro) e posição em US$ sem câmbio do dia também (nunca US$ como R$).
+  const outros = await prisma.portfolio.findMany({
+    where: {
+      userId: targetUserId,
+      quantity: { gt: 0 },
+      id: { notIn: portfolio.map((p) => p.id) },
+    },
+    include: { asset: true },
+  });
+  const simbolosOutros = [
+    ...new Set(outros.map((p) => p.asset?.symbol).filter((s): s is string => Boolean(s))),
+  ];
+  const [cotacoesOutros, cotacaoHoje] = await Promise.all([
+    simbolosOutros.length > 0
+      ? getAssetPrices(simbolosOutros, { useBrapiFallback: true })
+      : Promise.resolve(new Map<string, number>()),
+    outros.length > 0 ? getCotacaoDolarHoje().catch(() => null) : Promise.resolve(null),
+  ]);
+  for (const item of outros) {
+    const symbol = item.asset?.symbol;
+    const v = valuatePortfolioItem({
+      item,
+      asset: item.asset,
+      quote: symbol ? (cotacoesOutros.get(symbol) ?? null) : null,
+      cotacaoDolar: cotacaoHoje?.taxa ?? null,
+    });
+    if (!v.contaNoSaldoBruto || v.semCambio) continue;
+    semCoberturaItens.push({ classe: v.categoria, valorAtual: v.valorAtualBRL });
+  }
+
   // Calculate percentages and excedent per institution
   const instituicoes = Array.from(institutionGroups.values()).map((group) => {
     const percentual = (group.totalCoberto / FGC_LIMIT_PER_INSTITUTION) * 100;
@@ -278,5 +322,9 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
       totalInstituicoes: instituicoes.length,
     },
     instituicoes,
+    semCobertura: resumirSemCobertura(semCoberturaItens, {
+      totalValor: totalValorRendaFixa,
+      totalEfetivamenteCoberto,
+    }),
   });
 });
