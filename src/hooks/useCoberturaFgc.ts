@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { queryKeys } from '@/lib/queryKeys';
+import type { SemCoberturaFgc } from '@/services/analises/semCoberturaFgc';
 
 interface AssetFgcInfo {
   id: string;
@@ -40,6 +41,8 @@ interface FgcResumo {
 export interface CoberturaFgcResponse {
   resumo: FgcResumo;
   instituicoes: InstitutionFgcGroup[];
+  /** O resto da carteira, fora do FGC, por classe (ClickUp 86e2vvde3). */
+  semCobertura?: SemCoberturaFgc;
 }
 
 export function useCoberturaFgc() {
