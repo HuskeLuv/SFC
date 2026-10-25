@@ -187,6 +187,38 @@ describe('resolverMetas', () => {
     expect(r.copiar[0].categoria.chave).toBe('tpl-var');
   });
 
+  it('subgrupo com a categoria também orçada no ano → duplicada (a tela só mostra a da categoria)', async () => {
+    await personalizeGroup('tpl-desp', U);
+    const sub = banco.inserir('cashflowGroup', {
+      userId: U,
+      name: 'Viagens',
+      type: 'despesa',
+      parentId: grupoDo(U, 'tpl-var'),
+    });
+    const linha = (id: string, groupId: string, year = 2026) => ({
+      id,
+      groupId,
+      tipo: 'grupo',
+      tipoMeta: 'valor',
+      year,
+      valor: 1,
+    });
+    const r = resolverMetas(
+      [
+        linha('cat', grupoDo(U, 'tpl-var')),
+        linha('sub', sub.id as string),
+        linha('sub-2025', sub.id as string, 2025),
+      ],
+      banco.arvoreMesclada(U, 2026),
+      new Set(),
+    );
+    expect(r.copiar.map((c) => [c.linha.id, c.deSubgrupo])).toEqual([
+      ['cat', false],
+      ['sub-2025', true],
+    ]);
+    expect(r.ignoradas).toEqual([{ linhaId: 'sub', motivo: 'duplicada' }]);
+  });
+
   it('grupo que não existe mais → grupo_inexistente', () => {
     const r = resolverMetas(
       [{ id: 'x', groupId: 'sumiu', tipo: 'grupo', tipoMeta: 'valor', year: 2026, valor: 1 }],
@@ -482,6 +514,51 @@ describe('ativarOrcamentoV2 --aplicar', () => {
     expect(nomes.slice(0, 2)).toEqual(['Aluguel / Prestação', 'Condomínio']);
   });
 
+  it('meta de subgrupo: com a da categoria = duplicada; sozinha = copiada e relatada à parte', async () => {
+    await cenarioPersonalizado();
+    const viagens = banco.inserir('cashflowGroup', {
+      userId: U,
+      name: 'Viagens',
+      type: 'despesa',
+      parentId: grupoDo(U, 'tpl-var'),
+    });
+    meta('m-var-2026', grupoDo(U, 'tpl-var'), 1500); // a que a tela mostra
+    meta('m-viag-2026', viagens.id as string, 300); // sobra de reestruturação: invisível
+    meta('m-viag-2025', viagens.id as string, 100, { year: 2025 }); // categoria já tem 2025
+
+    const plano = await planejarAtivacao(U, HOJE);
+    expect(plano.orcadosIgnorados).toEqual(
+      expect.arrayContaining([
+        { linhaId: 'm-viag-2026', motivo: 'duplicada' },
+        { linhaId: 'm-viag-2025', motivo: 'duplicada' },
+      ]),
+    );
+    expect(plano.metasDeSubgrupo).toEqual([]);
+
+    const r = await ativarOrcamentoV2(U, { dryRun: false, hoje: HOJE });
+    expect(r.status).toBe('ativado');
+    const geralVar = geralDoGrupo(grupoDo(U, 'tpl-var'))!.id as string;
+    expect(somaOrcado(geralVar, 2026)).toBe(18000); // = meta visível × 12, não 21.600
+  });
+
+  it('meta só no subgrupo: copiada para a Geral, listada em metasDeSubgrupo e aceita na Fase C', async () => {
+    await cenarioPersonalizado();
+    const viagens = banco.inserir('cashflowGroup', {
+      userId: U,
+      name: 'Viagens',
+      type: 'despesa',
+      parentId: grupoDo(U, 'tpl-var'),
+    });
+    meta('m-viag-2026', viagens.id as string, 300);
+    const plano = await planejarAtivacao(U, HOJE);
+    expect(plano.metasDeSubgrupo).toEqual([
+      { linhaId: 'm-viag-2026', categoriaChave: 'tpl-var', ano: 2026, total: 3600 },
+    ]);
+    const r = await ativarOrcamentoV2(U, { dryRun: false, hoje: HOJE });
+    expect(r.status).toBe('ativado');
+    expect(somaOrcado(geralDoGrupo(grupoDo(U, 'tpl-var'))!.id as string, 2026)).toBe(3600);
+  });
+
   it('compensação: verificação divergente desfaz orçados, prefs, Gerais criadas e a adoção', async () => {
     await cenarioPersonalizado();
     const itensAntes = banco.dados.cashflowItem.length;
@@ -587,22 +664,35 @@ describe('invariantes', () => {
   it('real alterado por categoria/mês diverge; orçado igual ao esperado não diverge', async () => {
     await cenarioPersonalizado();
     const antes = await capturarInvariantes(U);
-    expect(antes.categorias['2026|tpl-hab']).toMatchObject({ metaMensal: 1500, orcadoV2: 0 });
+    expect(antes.categorias['2026|tpl-hab']).toMatchObject({
+      metaMensal: 1500,
+      metaAnual: 18000,
+      orcadoV2: 0,
+    });
+    // meta % visível convertida pela receita Lançado do ano (10% × 10.000 × 12)
+    expect(antes.categorias['2026|tpl-plan']).toMatchObject({ metaMensal: 10, metaAnual: 12000 });
     expect(antes.categorias['2026|tpl-hab'].lancado.slice(0, 2)).toEqual([2000, 2000]);
     expect(antes.categorias['2026|tpl-hab'].consolidado.slice(0, 2)).toEqual([2000, 0]);
 
     const depois = structuredClone(antes);
+    for (const c of Object.values(depois.categorias)) c.orcadoV2 = c.metaAnual;
     depois.categorias['2026|tpl-hab'].consolidado[1] = 2000;
-    depois.categorias['2026|tpl-hab'].orcadoV2 = 18000;
-    expect(compararInvariantes(antes, depois, { '2026|tpl-hab': 18000 })).toEqual([
+    expect(compararInvariantes(antes, depois, {})).toEqual([
       { chave: '2026|tpl-hab', tipo: 'real_consolidado', mes: 1, antes: 0, depois: 2000 },
     ]);
     // tolerância de R$ 0,01 no orçado
     depois.categorias['2026|tpl-hab'].consolidado[1] = 0;
     depois.categorias['2026|tpl-hab'].orcadoV2 = 18000.01;
-    expect(compararInvariantes(antes, depois, { '2026|tpl-hab': 18000 })).toEqual([]);
+    expect(compararInvariantes(antes, depois, {})).toEqual([]);
     depois.categorias['2026|tpl-hab'].orcadoV2 = 17990;
-    expect(compararInvariantes(antes, depois, { '2026|tpl-hab': 18000 })[0].tipo).toBe('orcado');
+    expect(compararInvariantes(antes, depois, {})[0].tipo).toBe('orcado');
+    // o esperado vem da meta visível de ANTES: gravar a mais (soma em dobro) diverge
+    depois.categorias['2026|tpl-hab'].orcadoV2 = 21600;
+    expect(compararInvariantes(antes, depois, {})).toEqual([
+      { chave: '2026|tpl-hab', tipo: 'orcado', antes: 18000, depois: 21600 },
+    ]);
+    // ... a não ser que o plano declare o excedente (subgrupo copiado, órfã adotada)
+    expect(compararInvariantes(antes, depois, { '2026|tpl-hab': 3600 })).toEqual([]);
   });
 
   it('categoria com valores que some da árvore diverge', async () => {

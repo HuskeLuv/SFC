@@ -28,6 +28,7 @@ const plano: PlanoAtivacao = {
   orfasAdotaveis: [
     { linhaId: 'l4', categoriaId: 'g1', ano: 2026, valor: 300, tipoMeta: 'valor', meses: [] },
   ],
+  metasDeSubgrupo: [{ linhaId: 'l5', categoriaChave: 't1', ano: 2026, total: 3600 }],
   mesesSemReceita: [],
   valoresEmItemTemplate: 0,
   orcadosV2Existentes: 0,
@@ -84,6 +85,7 @@ describe('scripts/orcamento-v2/ativar', () => {
     expect(linhas).toContain('metas ignoradas: duplicada=2, grupo_oculto=1');
     expect(linhas).toContain('órfãs adotáveis (--adotar-orfas): 1 [l4]');
     expect(linhas).toContain('orçados a inserir: 12 linha(s) mensais');
+    expect(linhas).toContain('metas de subgrupo copiadas (além da meta visível): 1 [l5]');
   });
 
   it('mostra as divergências da compensação', () => {
@@ -131,6 +133,7 @@ describe('scripts/orcamento-v2/relatorio-dump', () => {
     const l2 = linhaDoPlano({ ...plano, jaAtivado: true, valoresEmItemTemplate: 2 }, 0);
     expect(l1).toMatchObject({
       orfas: 1,
+      subgrupos: 1,
       duplicadas: 2,
       ocultas: 1,
       itensSoltos: 1,

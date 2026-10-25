@@ -23,7 +23,10 @@
  *
  * Metas antigas (§3.3/§4 passo 4a), resolvidas contra a árvore mesclada de ANTES da Fase A (é a
  * que a tela atual mostra):
- *  - id da categoria (ou de subgrupo dela) → copiada para a Geral da categoria;
+ *  - id da categoria → copiada para a Geral da categoria;
+ *  - id de subgrupo dela → copiada só se a categoria não tem linha própria no ano (a tela só
+ *    mostra a da categoria; havendo as duas, a do subgrupo é 'duplicada'). Copiada, entra em
+ *    `metasDeSubgrupo` (é orçado além da meta visível, relatado à parte);
  *  - id de template cujo override é visível: se há linha no override para o mesmo ano, vence a
  *    do override (a do template vai para `orcadosIgnorados`/'duplicada'); senão é ÓRFÃ (a tela
  *    não a mostra) e só é copiada com `adotarOrfas`;
@@ -110,6 +113,11 @@ export interface PlanoAtivacao {
   orcadosAInserir: OrcadoPlanejado[];
   orcadosIgnorados: { linhaId: string; motivo: MotivoIgnorada }[];
   orfasAdotaveis: OrfaAdotavel[];
+  /**
+   * Linhas de subgrupo copiadas para a Geral da categoria (a categoria não tinha linha própria
+   * no ano): orçado ALÉM da meta visível, que a Fase C soma ao esperado. `total` = anual.
+   */
+  metasDeSubgrupo: { linhaId: string; categoriaChave: string; ano: number; total: number }[];
   /** Metas % em mês sem receita Lançado: gravadas como 0. */
   mesesSemReceita: { linhaId: string; ano: number; mes: number }[];
   /** Células do usuário em item-template nas despesas: somem ao personalizar. > 0 aborta. */
@@ -159,11 +167,18 @@ export interface OpcoesAtivacao {
 export interface InvariantesOrcamento {
   categorias: Record<
     string,
-    { lancado: number[]; consolidado: number[]; metaMensal: number | null; orcadoV2: number }
+    {
+      lancado: number[];
+      consolidado: number[];
+      metaMensal: number | null;
+      /** Meta visível na tela atual × 12 (meta % convertida pela receita Lançado do ano). */
+      metaAnual: number;
+      orcadoV2: number;
+    }
   >;
 }
 
-/** Orçado v2 anual esperado a mais, por `${ano}|${categoriaChave}`. */
+/** Orçado v2 anual esperado a mais (além da meta visível), por `${ano}|${categoriaChave}`. */
 export type AjustesEsperados = Record<string, number>;
 
 export interface DivergenciaInvariante {
@@ -250,7 +265,8 @@ export function receitaLancadaPorMes(arvore: CashflowGroup[]): number[] {
 // ---------------------------------------------------------------------------------------------
 
 export interface ResolucaoMetas {
-  copiar: { linha: MetaAntiga; categoria: CategoriaAtivacao }[];
+  /** `deSubgrupo`: a linha está num subgrupo (a tela atual não a mostra). */
+  copiar: { linha: MetaAntiga; categoria: CategoriaAtivacao; deSubgrupo: boolean }[];
   orfas: { linha: MetaAntiga; categoria: CategoriaAtivacao }[];
   ignoradas: { linhaId: string; motivo: MotivoIgnorada }[];
 }
@@ -280,8 +296,13 @@ export function resolverMetas(
   }
   const naArvore = idsDaArvore(arvore);
   const linhasPorAnoGrupo = new Set(
-    metas.filter((m) => m.groupId).map((m) => `${m.year}|${m.groupId}`),
+    metas
+      .filter((m) => m.groupId && m.tipo !== 'investimentos')
+      .map((m) => `${m.year}|${m.groupId}`),
   );
+  // A tela atual só mostra a linha no id da categoria: havendo ela, a de subgrupo é duplicada.
+  const categoriaTemLinha = (ano: number, categoria: CategoriaAtivacao) =>
+    linhasPorAnoGrupo.has(`${ano}|${categoria.id}`);
 
   const out: ResolucaoMetas = { copiar: [], orfas: [], ignoradas: [] };
   for (const linha of metas) {
@@ -295,12 +316,20 @@ export function resolverMetas(
     }
     const categoria = porNo.get(linha.groupId);
     if (categoria) {
-      out.copiar.push({ linha, categoria });
+      const deSubgrupo = linha.groupId !== categoria.id;
+      if (deSubgrupo && categoriaTemLinha(linha.year, categoria)) {
+        out.ignoradas.push({ linhaId: linha.id, motivo: 'duplicada' });
+      } else {
+        out.copiar.push({ linha, categoria, deSubgrupo });
+      }
       continue;
     }
     const sobreposto = porTemplateSobreposto.get(linha.groupId);
     if (sobreposto) {
-      if (linhasPorAnoGrupo.has(`${linha.year}|${sobreposto.idOverride}`)) {
+      if (
+        linhasPorAnoGrupo.has(`${linha.year}|${sobreposto.idOverride}`) ||
+        categoriaTemLinha(linha.year, sobreposto.categoria)
+      ) {
         out.ignoradas.push({ linhaId: linha.id, motivo: 'duplicada' });
       } else {
         out.orfas.push({ linha, categoria: sobreposto.categoria });
@@ -355,7 +384,7 @@ export function agregarOrcados(orcados: OrcadoPlanejado[]): OrcadoPlanejado[] {
   return [...porChave.values()];
 }
 
-/** Orçado anual a mais esperado por categoria depois da ativação. */
+/** Orçado anual total que o plano grava por categoria (meta visível + subgrupos + órfãs). */
 export function esperadoOrcado(plano: PlanoAtivacao, adotarOrfas = false): AjustesEsperados {
   const out: AjustesEsperados = {};
   const somar = (o: OrcadoPlanejado) => {
@@ -364,6 +393,29 @@ export function esperadoOrcado(plano: PlanoAtivacao, adotarOrfas = false): Ajust
   };
   plano.orcadosAInserir.forEach(somar);
   if (adotarOrfas) plano.orfasAdotaveis.forEach((o) => o.meses.forEach(somar));
+  return out;
+}
+
+/**
+ * O que o plano grava ALÉM da meta visível (Fase C, desenho §4 passo 5): linhas de subgrupo
+ * copiadas e, com `adotarOrfas`, as órfãs. A meta visível vem das invariantes de ANTES (a mesma
+ * conta da tela atual), não do plano: a verificação não é autorreferente.
+ */
+export function esperadoAlemDaMetaVisivel(
+  plano: PlanoAtivacao,
+  adotarOrfas = false,
+): AjustesEsperados {
+  const out: AjustesEsperados = {};
+  const somar = (ano: number, categoriaChave: string, valor: number) => {
+    const k = chaveAnoCategoria(ano, categoriaChave);
+    out[k] = arred2((out[k] ?? 0) + valor);
+  };
+  plano.metasDeSubgrupo.forEach((m) => somar(m.ano, m.categoriaChave, m.total));
+  if (adotarOrfas) {
+    plano.orfasAdotaveis.forEach((o) =>
+      o.meses.forEach((m) => somar(m.ano, m.categoriaChave, m.valor)),
+    );
+  }
   return out;
 }
 
@@ -548,8 +600,20 @@ export async function planejarAtivacao(
     semReceita.forEach((mes) => mesesSemReceita.push({ linhaId: linha.id, ano: linha.year, mes }));
     return valores.map((valor, mes) => ({ categoriaChave, ano: linha.year, mes, valor }));
   };
+  const metasDeSubgrupo: PlanoAtivacao['metasDeSubgrupo'] = [];
   const orcadosAInserir = agregarOrcados(
-    resolucao.copiar.flatMap(({ linha, categoria }) => converter(linha, categoria.chave)),
+    resolucao.copiar.flatMap(({ linha, categoria, deSubgrupo }) => {
+      const meses = converter(linha, categoria.chave);
+      if (deSubgrupo) {
+        metasDeSubgrupo.push({
+          linhaId: linha.id,
+          categoriaChave: categoria.chave,
+          ano: linha.year,
+          total: arred2(meses.reduce((t, m) => t + m.valor, 0)),
+        });
+      }
+      return meses;
+    }),
   );
   const orfasAdotaveis: OrfaAdotavel[] = resolucao.orfas.map(({ linha, categoria }) => ({
     linhaId: linha.id,
@@ -615,6 +679,7 @@ export async function planejarAtivacao(
     orcadosAInserir,
     orcadosIgnorados: resolucao.ignoradas,
     orfasAdotaveis,
+    metasDeSubgrupo,
     mesesSemReceita,
     valoresEmItemTemplate,
     orcadosV2Existentes,
@@ -667,18 +732,30 @@ export async function capturarInvariantes(userId: string): Promise<InvariantesOr
     const arvore = await getMergedCashflowGroups(userId, ano);
     const categorias = categoriasDaArvore(arvore);
     const porId = new Map(categorias.map((c) => [c.id, c]));
+    const metasDoAno = metasDb
+      .filter((m) => m.year === ano)
+      .map((m) => ({
+        groupId: m.groupId,
+        tipo: m.tipo,
+        tipoMeta: m.tipoMeta,
+        valor: Number(m.valor),
+      }));
     const r = buildOrcamentoVsReal({
       groups: arvore,
-      metas: metasDb
-        .filter((m) => m.year === ano)
-        .map((m) => ({
-          groupId: m.groupId,
-          tipo: m.tipo,
-          tipoMeta: m.tipoMeta,
-          valor: Number(m.valor),
-        })),
+      metas: metasDoAno,
       investimentosRealPorMes: [],
     });
+    // Meta visível × 12 (a linha no id mesclado da categoria; % → valor como na Fase B).
+    const linhaVisivel = new Map(
+      metasDoAno.filter((m) => m.tipo !== 'investimentos' && m.groupId).map((m) => [m.groupId, m]),
+    );
+    let receita: number[] | null = null;
+    const metaAnualDe = (groupId: string): number => {
+      const linha = linhaVisivel.get(groupId);
+      if (!linha) return 0;
+      if (linha.tipoMeta === 'percentual') receita ??= receitaLancadaPorMes(arvore);
+      return arred2(converterMeta(linha, receita).valores.reduce((t, v) => t + v, 0));
+    };
     const chavePorItem = new Map<string, string>();
     for (const c of categorias) {
       for (const item of itensDaSubarvore(c.grupo)) chavePorItem.set(item.id, c.chave);
@@ -697,6 +774,7 @@ export async function capturarInvariantes(userId: string): Promise<InvariantesOr
         lancado: cat.realPorMes.lancado,
         consolidado: cat.realPorMes.consolidado,
         metaMensal: cat.metaMensal,
+        metaAnual: metaAnualDe(cat.groupId),
         orcadoV2: arred2(orcadoPorChave.get(categoria.chave) ?? 0),
       };
     }
@@ -708,19 +786,20 @@ const temAlgo = (c: { lancado: number[]; consolidado: number[]; orcadoV2: number
   c.orcadoV2 !== 0 || c.lancado.some((v) => v !== 0) || c.consolidado.some((v) => v !== 0);
 
 /**
- * Exige (T34): real por categoria e mês igual nos dois modos, e orçado v2 anual = antes +
- * esperado (meta visível × 12, metas % convertidas, órfãs adotadas), com R$ 0,01 de tolerância.
+ * Exige (T34): real por categoria e mês igual nos dois modos, e (§4 passo 5) orçado v2 anual =
+ * antes + meta visível de ANTES × 12 (metas % convertidas) + `alemDaMeta` (subgrupos copiados,
+ * órfãs adotadas), com R$ 0,01 de tolerância. A meta visível vem das invariantes, não do plano.
  */
 export function compararInvariantes(
   antes: InvariantesOrcamento,
   depois: InvariantesOrcamento,
-  esperado: AjustesEsperados,
+  alemDaMeta: AjustesEsperados,
 ): DivergenciaInvariante[] {
   const out: DivergenciaInvariante[] = [];
   const chaves = new Set([
     ...Object.keys(antes.categorias),
     ...Object.keys(depois.categorias),
-    ...Object.keys(esperado),
+    ...Object.keys(alemDaMeta),
   ]);
   for (const chave of chaves) {
     const a = antes.categorias[chave];
@@ -744,7 +823,7 @@ export function compararInvariantes(
         }
       }
     }
-    const alvo = arred2((a?.orcadoV2 ?? 0) + (esperado[chave] ?? 0));
+    const alvo = arred2((a?.orcadoV2 ?? 0) + (a?.metaAnual ?? 0) + (alemDaMeta[chave] ?? 0));
     const obtido = d?.orcadoV2 ?? 0;
     if (Math.abs(alvo - obtido) > TOLERANCIA_ORCADO) {
       out.push({ chave, tipo: 'orcado', antes: alvo, depois: obtido });
@@ -890,7 +969,7 @@ export async function ativarOrcamentoV2(
       divergencias = compararInvariantes(
         antes,
         depois,
-        esperadoOrcado(plano, opts.adotarOrfas === true),
+        esperadoAlemDaMetaVisivel(plano, opts.adotarOrfas === true),
       );
     } catch (error: unknown) {
       await compensarAtivacao(userId, inseridos);

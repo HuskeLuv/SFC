@@ -83,6 +83,7 @@ export function formatarRelatorio(r: RelatorioAtivacao): string[] {
           .join(', ') || '0'
       }`,
       `órfãs adotáveis (--adotar-orfas): ${p.orfasAdotaveis.length}${p.orfasAdotaveis.length ? ` [${p.orfasAdotaveis.map((o) => o.linhaId).join(', ')}]` : ''}`,
+      `metas de subgrupo copiadas (além da meta visível): ${p.metasDeSubgrupo.length}${p.metasDeSubgrupo.length ? ` [${p.metasDeSubgrupo.map((m) => m.linhaId).join(', ')}]` : ''}`,
       `meses de meta % sem receita (gravados 0): ${p.mesesSemReceita.length}`,
       `células em item-template (aborta se > 0): ${p.valoresEmItemTemplate}`,
       `orçados v2 já existentes sem ativação (aborta se > 0): ${p.orcadosV2Existentes}`,

@@ -26,6 +26,7 @@ export interface LinhaRelatorio {
   aPersonalizar: number;
   orcados: number;
   orfas: number;
+  subgrupos: number;
   duplicadas: number;
   ocultas: number;
   itensSoltos: number;
@@ -45,6 +46,7 @@ export function linhaDoPlano(p: PlanoAtivacao, valorMenorQueBanco: number): Linh
     aPersonalizar: p.categoriasAPersonalizar.length,
     orcados: p.orcadosAInserir.length,
     orfas: p.orfasAdotaveis.length,
+    subgrupos: p.metasDeSubgrupo.length,
     duplicadas: motivos('duplicada'),
     ocultas: motivos('grupo_oculto'),
     itensSoltos: p.itensSoltos.length,
@@ -58,6 +60,7 @@ export function linhaDoPlano(p: PlanoAtivacao, valorMenorQueBanco: number): Linh
 const CAMPOS_SOMADOS = [
   'orcados',
   'orfas',
+  'subgrupos',
   'duplicadas',
   'ocultas',
   'itensSoltos',
