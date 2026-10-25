@@ -13,6 +13,15 @@ import { recomputeEvolucaoSnapshotsSafe } from '@/services/cashflow/evolucaoPatr
 import { invalidatePortfolioSnapshots } from '@/services/portfolio/portfolioRecalculation';
 import { recordChange, finalStateChanges, CASHFLOW_FIELD_LABELS } from '@/services/changeHistory';
 import { evaluateFormula } from '@/utils/formulaParser';
+import {
+  ErroEstruturaOrcamento,
+  carregarArvoreEstrutura,
+  delegarExclusaoItem,
+  guardarEdicaoItemV2,
+  mensagemGeral,
+  usuarioOrcamentoV2Ativo,
+} from '@/services/cashflow/orcamentoV2/guardas';
+import type { CashflowGroup } from '@/types/cashflow';
 
 import { withErrorHandler } from '@/utils/apiErrorHandler';
 /**
@@ -32,6 +41,11 @@ import { withErrorHandler } from '@/utils/apiErrorHandler';
  *   }>,
  *   deletes: string[]
  * }
+ *
+ * Orçamento v2 (guardas.ts), com recusa PARCIAL (a linha entra em `results` com success=false):
+ * a subcategoria Geral não é excluída nem renomeada (por dado). Para usuário ativado, o nome
+ * novo de uma sub é validado na categoria (único/1–60) e a exclusão de item passa antes por
+ * `delegarExclusaoItem` (fusão na Geral, PR 7; o stub devolve 'nao_aplica').
  */
 export const PUT = withErrorHandler(async (request: NextRequest) => {
   const auth = await requireAuthWithActing(request);
@@ -55,6 +69,12 @@ export const PUT = withErrorHandler(async (request: NextRequest) => {
   const targetYear = year ?? new Date().getFullYear();
   const results: Array<{ itemId: string; success: boolean; error?: string }> = [];
 
+  // Orçamento v2: guardas por usuário só para quem está ativado (targetUserId). A árvore mesclada
+  // é carregada uma vez, e só se algum update renomear.
+  const v2 = await usuarioOrcamentoV2Ativo(targetUserId);
+  let arvoreV2: CashflowGroup[] | null = null;
+  const arvoreEstrutura = async () => (arvoreV2 ??= await carregarArvoreEstrutura(targetUserId));
+
   // Alcance retroativo da mutação, para recomputar os snapshots travados da
   // Evolução do Patrimônio ao final. Exclusões apagam valores de todos os
   // anos → new Date(0); edição de valores → mês mais antigo editado.
@@ -73,7 +93,8 @@ export const PUT = withErrorHandler(async (request: NextRequest) => {
   // (remove o objetivo + entries + linha-espelho) — liberado na reunião
   // jun/2026, com confirmação no front.
   if (deletes && Array.isArray(deletes) && deletes.length > 0) {
-    const owned = await prisma.cashflowItem.findMany({
+    const handled = new Set<string>();
+    const encontrados = await prisma.cashflowItem.findMany({
       where: { id: { in: deletes }, userId: targetUserId },
       select: {
         id: true,
@@ -83,9 +104,28 @@ export const PUT = withErrorHandler(async (request: NextRequest) => {
         templateId: true,
         objetivoId: true,
         dividaId: true,
+        isGeral: true,
         group: { select: { type: true, templateId: true } },
       },
     });
+    // Geral do Orçamento v2 (por dado): recusa parcial, nunca é excluída.
+    for (const i of encontrados) {
+      if (!i.isGeral) continue;
+      handled.add(i.id);
+      results.push({ itemId: i.id, success: false, error: mensagemGeral('excluir') });
+    }
+    // Usuário v2: item de categoria de despesa → fusão na Geral (PR 7). Stub: 'nao_aplica'.
+    if (v2) {
+      for (const itemId of deletes) {
+        if (handled.has(itemId)) continue;
+        if ((await delegarExclusaoItem(prisma, targetUserId, itemId)) === 'fundido') {
+          handled.add(itemId);
+          results.push({ itemId, success: true });
+          markRecompute(new Date(0));
+        }
+      }
+    }
+    const owned = encontrados.filter((i) => !handled.has(i.id));
     if (owned.some((i) => i.group?.type === 'investimento')) touchedInvestimento = true;
     // Override LEGADO de linha padrão: sem templateId gravado, mas a árvore o casa com a linha
     // padrão de mesmo nome no grupo-template (getCashflowTree.findOverrideItem). Resolve aqui
@@ -119,7 +159,6 @@ export const PUT = withErrorHandler(async (request: NextRequest) => {
     const ownedLinked = owned.filter(
       (i): i is (typeof owned)[number] & { objetivoId: string } => i.objetivoId != null,
     );
-    const handled = new Set<string>();
 
     // 1) Linhas livres — single round-trip (values + items) em transação.
     if (ownedFree.length > 0) {
@@ -205,7 +244,7 @@ export const PUT = withErrorHandler(async (request: NextRequest) => {
       }
     }
     const restantes = deletes.filter(
-      (id: string) => !handled.has(id) && !owned.some((o) => o.id === id),
+      (id: string) => !handled.has(id) && !encontrados.some((o) => o.id === id),
     );
     if (restantes.length > 0) {
       const templates = await prisma.cashflowItem.findMany({
@@ -291,11 +330,30 @@ export const PUT = withErrorHandler(async (request: NextRequest) => {
   if (updates && Array.isArray(updates) && updates.length > 0) {
     for (const update of updates) {
       try {
-        const { itemId, name, significado, rank, values } = update;
+        const { itemId, significado, rank, values } = update;
+        let { name } = update;
 
         if (!itemId) {
           results.push({ itemId: '', success: false, error: 'itemId é obrigatório' });
           continue;
+        }
+
+        // Orçamento v2 (antes de personalizar): nome novo de sub validado na categoria (R-12,
+        // R-18) e Geral não renomeia. Recusa parcial: a linha inteira fica de fora.
+        if (v2 && name !== undefined) {
+          try {
+            const r = await guardarEdicaoItemV2(
+              targetUserId,
+              itemId,
+              { name },
+              { arvore: await arvoreEstrutura() },
+            );
+            if (r.nome !== undefined) name = r.nome;
+          } catch (error) {
+            if (!(error instanceof ErroEstruturaOrcamento)) throw error;
+            results.push({ itemId, success: false, error: error.message });
+            continue;
+          }
         }
 
         // Ensure item is personalized (creates a copy if it's a template)
@@ -316,9 +374,18 @@ export const PUT = withErrorHandler(async (request: NextRequest) => {
           select: {
             objetivoId: true,
             dividaId: true,
+            name: true,
+            isGeral: true,
             objetivo: { select: { portfolios: { select: { id: true }, take: 1 } } },
           },
         });
+
+        // Geral do Orçamento v2 (por dado): não é renomeada. Reenviar o mesmo nome (o desktop
+        // manda o nome junto com os valores) passa.
+        if (linked?.isGeral && name !== undefined && name !== linked.name) {
+          results.push({ itemId, success: false, error: mensagemGeral('renomear') });
+          continue;
+        }
         const objetivoId = linked?.objetivoId ?? null;
         const dividaId = linked?.dividaId ?? null;
 
