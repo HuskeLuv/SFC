@@ -12,15 +12,14 @@ import type { OrcamentoCategoria } from '@/services/cashflow/orcamentoVsReal';
 import type { OrcamentoLinha } from './OrcamentoTable';
 import OrcamentoResumoMobile from './OrcamentoResumoMobile';
 import OrcamentoMobileList, { type SaveMetaMobile } from './OrcamentoMobileList';
-import OrcamentoChart from './OrcamentoChart';
 import OrcamentoMensalChart from './OrcamentoMensalChart';
 
 /**
  * Orçamento vs Real no celular (PWA fase 2, protótipo cenário g). Recebe os MESMOS dados que a
  * seção calcula para o desktop (janela, linhas, investimentos, totais) e só muda a apresentação:
  * barra do mês (compartilhada com a Planilha via `?mes=`), segmentos Mês | Acumulado do ano e
- * Lançado | Consolidado, resumo com medidor e avisos, categorias em cartões com a meta no sheet,
- * rosca "Para onde foi o dinheiro" e "Orçado × real" em barras horizontais.
+ * Lançado | Consolidado, resumo com medidor e avisos, categorias em cartões com a meta no sheet e
+ * "Orçado × real" em barras horizontais (a rosca saiu: especificação do Orçamento v.8).
  */
 
 export type OrcamentoVisao = 'mes' | 'ano';
@@ -221,7 +220,6 @@ export default function OrcamentoMobileView({
         onSaveMeta={onSaveMeta}
       />
 
-      <OrcamentoChart linhas={linhas} variant="mobile" />
       <OrcamentoMensalChart
         visao={visao}
         mes={mes}
