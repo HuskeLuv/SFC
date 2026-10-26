@@ -456,6 +456,40 @@ describe('undo orcamento.item.editar', () => {
   });
 });
 
+describe('undo orcamento.subcategoria.fixa', () => {
+  const entradaFixa = (): UserChangeLog => {
+    const params = mockRecordChange.mock.calls.at(-1)![0];
+    return {
+      id: 'log-1',
+      action: params.action,
+      entityId: params.entityId,
+      entityLabel: params.entityLabel,
+      changes: params.changes,
+      snapshot: null,
+    } as unknown as UserChangeLog;
+  };
+
+  it('está no registry e volta orcamentoFixa ao anterior', async () => {
+    expect(UNDO_REGISTRY[ACAO_FIXA_SUBCATEGORIA]).toBeDefined();
+    const div = itemDo('tpl-div');
+    await marcarFixa(U, div, true, ANO, { contexto });
+    const r = await desfazer(entradaFixa());
+    expect(banco.dados.cashflowItem.find((i) => i.id === div)!.orcamentoFixa).toBeNull();
+    expect(r.changes).toEqual([
+      { field: 'orcamentoFixa', label: 'Fixa', before: true, after: null },
+    ]);
+  });
+
+  it('fixa mudou depois → 409, nada muda', async () => {
+    const div = itemDo('tpl-div');
+    await marcarFixa(U, div, true, ANO, { contexto });
+    const entrada = entradaFixa();
+    banco.dados.cashflowItem.find((i) => i.id === div)!.orcamentoFixa = false;
+    await expect(desfazer(entrada)).rejects.toMatchObject({ status: 409 });
+    expect(banco.dados.cashflowItem.find((i) => i.id === div)!.orcamentoFixa).toBe(false);
+  });
+});
+
 describe('undo orcamento.copiar', () => {
   let alug: string;
   let cond: string;

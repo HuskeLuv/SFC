@@ -96,7 +96,7 @@ const fixaBodySchema = z.object({
  * categoria, resumo}` do mês pedido (padrão: o corrente) recalculados no servidor; 400 corpo
  * inválido ou categoria de poupança (sempre fixa); 404 item oculto/fora das categorias/de outro
  * usuário. Flag/beta → 404; não ativado → 409. Item-template é personalizado antes. Histórico
- * `orcamento.subcategoria.fixa` (sem Desfazer); CSRF pelo middleware.
+ * `orcamento.subcategoria.fixa` (com Desfazer); CSRF pelo middleware.
  */
 export const PATCH = withErrorHandler(
   async (request: NextRequest, { params }: { params: Promise<{ itemId: string }> }) => {

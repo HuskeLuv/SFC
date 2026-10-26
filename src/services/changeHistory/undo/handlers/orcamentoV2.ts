@@ -27,6 +27,7 @@ import {
 } from '@/services/cashflow/orcamentoV2/excluirSubcategoria';
 import {
   ACAO_EDITAR_ORCADO,
+  ACAO_FIXA_SUBCATEGORIA,
   KIND_SNAPSHOT_EDITAR_ORCADO,
   mesmoOrcado,
   orcadoDaLinha,
@@ -46,7 +47,15 @@ import {
   type UndoDefinition,
   type UndoOutcome,
 } from '../types';
-import { getChanges, getSnapshot, invertChanges, isUniqueViolation, valuesMatch } from '../helpers';
+import {
+  assertCurrentMatchesAfter,
+  getChanges,
+  getSnapshot,
+  invertChanges,
+  isUniqueViolation,
+  restoreData,
+  valuesMatch,
+} from '../helpers';
 
 const conflito = () => new UndoError(409, STATE_MISMATCH_MESSAGE);
 
@@ -271,8 +280,31 @@ const copiarMes: UndoDefinition = {
   },
 };
 
+/**
+ * 'orcamento.subcategoria.fixa': volta `orcamentoFixa` ao valor anterior, só se o atual ainda é o
+ * gravado. Sem handler, a entrada travaria no LIFO o Desfazer das edições anteriores do item.
+ */
+const subcategoriaFixa: UndoDefinition = {
+  strategy: 'restore-fields',
+  requires: { entityId: true, changes: true },
+  async execute({ auth, entry }: UndoContext): Promise<UndoOutcome> {
+    const changes = getChanges(entry).filter((c) => c.field === 'orcamentoFixa');
+    if (changes.length === 0) {
+      throw new UndoError(400, 'Diff sem campos restauráveis', 'UNDO_MISSING_DATA');
+    }
+    const item = await prisma.cashflowItem.findFirst({
+      where: { id: entry.entityId!, userId: auth.targetUserId, hidden: false },
+    });
+    if (!item) throw new UndoError(409, 'A subcategoria não existe mais');
+    assertCurrentMatchesAfter(item as unknown as Record<string, unknown>, changes);
+    await prisma.cashflowItem.update({ where: { id: item.id }, data: restoreData(changes) });
+    return { changes: invertChanges(changes), entityLabel: item.name };
+  },
+};
+
 export const ORCAMENTO_V2_UNDO_HANDLERS: Record<string, UndoDefinition> = {
   [ACAO_EXCLUIR_SUBCATEGORIA]: subcategoriaExcluir,
   [ACAO_EDITAR_ORCADO]: orcadoEditar,
   [ACAO_COPIAR_MES]: copiarMes,
+  [ACAO_FIXA_SUBCATEGORIA]: subcategoriaFixa,
 };

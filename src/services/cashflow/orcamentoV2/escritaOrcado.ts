@@ -10,7 +10,7 @@
  * - R-17: `pct` só em subcategoria NÃO Geral de categoria poupança (Planejamento) → senão 400.
  * - `valor: null` limpa (apaga a linha do mês). Sem mudança real → nada é gravado nem registrado.
  * - Histórico depois da escrita: `orcamento.item.editar` (undo pelo registry LIFO com o valor
- *   anterior, `handlers/orcamentoV2.ts`) e `orcamento.subcategoria.fixa` (sem undo). O consultor
+ *   anterior, `handlers/orcamentoV2.ts`) e `orcamento.subcategoria.fixa` (undo restaura o anterior). O consultor
  *   (acting) fica registrado pelo próprio `recordChange` (`viaConsultant`/`actorId`).
  */
 import prisma from '@/lib/prisma';
@@ -235,7 +235,7 @@ export async function salvarOrcado(
 
 /**
  * R-07: marca/desmarca a subcategoria como fixa (`null` = volta ao padrão do catálogo). Em
- * Planejamento Financeiro é sempre fixa → 400. Registra `orcamento.subcategoria.fixa` (sem undo).
+ * Planejamento Financeiro é sempre fixa → 400. Registra `orcamento.subcategoria.fixa` (undo restaura o anterior).
  */
 export async function marcarFixa(
   userId: string,
