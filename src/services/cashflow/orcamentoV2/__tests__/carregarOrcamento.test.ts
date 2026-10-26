@@ -7,11 +7,13 @@ const mockPrisma = vi.hoisted(() => ({
 }));
 const mockGetMerged = vi.hoisted(() => vi.fn());
 const mockInvestimentos = vi.hoisted(() => vi.fn());
+const mockGarantirGerais = vi.hoisted(() => vi.fn());
 
 vi.mock('@/lib/prisma', () => ({ prisma: mockPrisma, default: mockPrisma }));
 vi.mock('@/services/cashflow/getCashflowTree', () => ({
   getMergedCashflowGroups: mockGetMerged,
 }));
+vi.mock('../ativacao', () => ({ garantirGerais: mockGarantirGerais }));
 vi.mock('@/services/cashflow/investimentosPorMes', () => ({
   computeInvestimentosPorMes: mockInvestimentos,
 }));
@@ -52,6 +54,7 @@ describe('carregarOrcamentoV2', () => {
     mockPrisma.cashflowOrcamentoItem.findMany.mockReset().mockResolvedValue(linhasDoBanco());
     mockPrisma.cashflowOrcamentoPrefs.findUnique.mockReset().mockResolvedValue(null);
     mockInvestimentos.mockReset();
+    mockGarantirGerais.mockReset().mockResolvedValue({ criadas: [], adotadas: [] });
   });
 
   it('monta o Anexo B: T01/T02/T04 com Decimal convertido', async () => {
@@ -81,6 +84,30 @@ describe('carregarOrcamentoV2', () => {
     expect(mockPrisma.cashflowOrcamentoPrefs.findUnique.mock.calls[0][0].where).toEqual({
       userId: 'u1',
     });
+  });
+
+  it('não ativado: não garante Gerais (a estrutura só muda na ativação)', async () => {
+    await carregarOrcamentoV2('u1', { ano: 2026, mes0: 9, visao: 'mes' }, AGORA);
+    expect(mockGarantirGerais).not.toHaveBeenCalled();
+  });
+
+  it('ativado: garante Gerais e relê a árvore só se criou ou adotou alguma', async () => {
+    mockPrisma.cashflowOrcamentoPrefs.findUnique.mockResolvedValue({
+      categoriasRecolhidas: [],
+      graficoVisivel: true,
+      fonte: null,
+      estruturaCriadaEm: new Date('2026-10-20T12:00:00Z'),
+      avisoGeralVistoEm: null,
+    });
+    await carregarOrcamentoV2('u1', { ano: 2026, mes0: 9, visao: 'mes' }, AGORA);
+    expect(mockGarantirGerais).toHaveBeenCalledWith('u1');
+    expect(mockGetMerged).toHaveBeenCalledTimes(1);
+
+    mockGetMerged.mockClear();
+    mockGarantirGerais.mockResolvedValue({ criadas: ['g1'], adotadas: [] });
+    await carregarOrcamentoV2('u1', { ano: 2026, mes0: 9, visao: 'mes' }, AGORA);
+    expect(mockGetMerged).toHaveBeenCalledTimes(2);
+    expect(mockGetMerged).toHaveBeenLastCalledWith('u1', 2026);
   });
 
   it('T33: não calcula investimentos (D12)', async () => {

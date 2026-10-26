@@ -9,6 +9,7 @@ import { prisma } from '@/lib/prisma';
 import type { HojeSP } from '@/lib/orcamento/regras';
 import type { FonteOrcamento, OrcamentoV2Response, VisaoOrcamento } from '@/types/orcamentoV2';
 import { getMergedCashflowGroups } from '../getCashflowTree';
+import { garantirGerais } from './ativacao';
 import { montarOrcamentoV2, type OrcadoRow, type PrefsRow } from './montarOrcamento';
 import { receitaPrevistaPorMes } from './receitaPrevista';
 
@@ -43,7 +44,7 @@ export async function carregarOrcamentoV2(
 ): Promise<OrcamentoV2Response> {
   const { ano, mes0, visao } = params;
 
-  const [arvore, orcadosRows, prefsRow] = await Promise.all([
+  const [arvoreLida, orcadosRows, prefsRow] = await Promise.all([
     getMergedCashflowGroups(userId, ano),
     prisma.cashflowOrcamentoItem.findMany({
       where: { userId, OR: [{ ano }, { ano: ano - 1, mes: 11 }] },
@@ -60,6 +61,15 @@ export async function carregarOrcamentoV2(
       },
     }),
   ]);
+
+  // Geral preguiçosa (§6.2): só para quem já foi ativado — antes disso a estrutura não muda.
+  // Barato: só escreve se faltar; se criou ou adotou alguma, a árvore é lida de novo.
+  let arvore = arvoreLida;
+  if (prefsRow?.estruturaCriadaEm) {
+    const { criadas, adotadas } = await garantirGerais(userId);
+    if (criadas.length > 0 || adotadas.length > 0)
+      arvore = await getMergedCashflowGroups(userId, ano);
+  }
 
   const receitaPorMes = await receitaPrevistaPorMes(userId, ano, arvore);
 
