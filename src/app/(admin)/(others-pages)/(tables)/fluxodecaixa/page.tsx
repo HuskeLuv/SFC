@@ -99,11 +99,11 @@ export default function FluxoDeCaixa() {
 
   return (
     <div
-      className={`${cardWidth} min-w-0 transition-all duration-300 -m-[30px] max-lg:m-0 h-[calc(100vh-60px)] max-lg:h-auto flex flex-col overflow-hidden max-lg:overflow-visible`}
+      className={`${cardWidth} min-w-0 transition-all duration-300 -mx-6 -my-[30px] max-lg:m-0 h-[calc(100vh-60px)] max-lg:h-auto flex flex-col overflow-hidden max-lg:overflow-visible`}
     >
       <ComponentCard
         title={modo === 'planilha' ? `Fluxo de Caixa · ${year}` : `Orçamento vs Real · ${year}`}
-        className="flex-1 flex flex-col min-w-0 m-[30px] max-lg:m-0 overflow-hidden max-lg:overflow-visible max-[359px]:-mx-4 max-[359px]:rounded-none max-[359px]:border-x-0"
+        className="flex-1 flex flex-col min-w-0 mx-6 my-[30px] max-lg:m-0 overflow-hidden max-lg:overflow-visible max-[359px]:-mx-4 max-[359px]:rounded-none max-[359px]:border-x-0"
         bodyClassName="max-lg:overflow-visible"
       >
         {/* Abaixo de lg nenhum ancestral corta (overflow visível): a barra do mês gruda na rolagem
