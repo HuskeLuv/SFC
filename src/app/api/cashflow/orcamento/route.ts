@@ -6,6 +6,7 @@ import { getMergedCashflowGroups } from '@/services/cashflow/getCashflowTree';
 import { computeInvestimentosPorMes } from '@/services/cashflow/investimentosPorMes';
 import { buildOrcamentoVsReal } from '@/services/cashflow/orcamentoVsReal';
 import { checkOrcamentoAlertasSafe } from '@/services/cashflow/orcamentoAlertas';
+import { estadoAcessoOrcamentoV2 } from '@/services/cashflow/orcamentoV2/acesso';
 import { cashflowOrcamentoUpdateSchema, validationError } from '@/utils/validation-schemas';
 import { recordChange } from '@/services/changeHistory';
 import { withErrorHandler } from '@/utils/apiErrorHandler';
@@ -21,7 +22,14 @@ import { withErrorHandler } from '@/utils/apiErrorHandler';
  * PUT          → upsert/delete de metas em lote. Meta de categoria referencia
  *               um CashflowGroup de despesa (template ou personalizado);
  *               `groupId: null` é a meta percentual de investimentos.
+ *               Orçamento v2 (desenho técnico §3.3): para o dono dos dados com o v2
+ *               liberado e ativado, 409 `orcamento_v2_ativo` — as metas dele vivem em
+ *               cashflow_orcamento_itens e uma edição aqui se perderia. O GET segue igual.
  */
+
+const ORCAMENTO_V2_ATIVO = 'orcamento_v2_ativo';
+const MENSAGEM_ORCAMENTO_V2_ATIVO =
+  'Seu orçamento agora fica na nova tela de Orçamento. Recarregue a página para editar por lá.';
 
 const parseYear = (request: NextRequest): { year?: number; error?: NextResponse } => {
   const { searchParams } = new URL(request.url);
@@ -93,6 +101,15 @@ export const PUT = withErrorHandler(async (request: NextRequest) => {
     '/api/cashflow/orcamento',
     'PUT',
   );
+
+  // Decide pelo dono dos dados; com a flag desligada responde sem consultar o banco.
+  const acessoV2 = await estadoAcessoOrcamentoV2(targetUserId);
+  if (acessoV2.estado === 'liberada' && acessoV2.ativado) {
+    return NextResponse.json(
+      { error: MENSAGEM_ORCAMENTO_V2_ATIVO, code: ORCAMENTO_V2_ATIVO },
+      { status: 409 },
+    );
+  }
 
   const body = await request.json();
   const parsed = cashflowOrcamentoUpdateSchema.safeParse(body);

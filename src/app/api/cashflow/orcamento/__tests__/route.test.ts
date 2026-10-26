@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { NextRequest } from 'next/server';
 import { GET, PUT } from '../route';
+import { limparCacheAcessoOrcamentoV2 } from '@/services/cashflow/orcamentoV2/acesso';
 
 const mockPrisma = vi.hoisted(() => {
   const prisma = {
@@ -12,6 +13,7 @@ const mockPrisma = vi.hoisted(() => {
       deleteMany: vi.fn(),
     },
     cashflowGroup: { findMany: vi.fn() },
+    user: { findUnique: vi.fn() },
     $transaction: vi.fn(),
   };
   prisma.$transaction.mockImplementation(async (fn: (tx: typeof prisma) => Promise<unknown>) =>
@@ -145,6 +147,10 @@ const createPutRequest = (body: unknown) => {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  vi.unstubAllEnvs();
+  limparCacheAcessoOrcamentoV2('user-123');
+  limparCacheAcessoOrcamentoV2('client-456');
+  mockPrisma.user.findUnique.mockResolvedValue(null);
   mockPrisma.$transaction.mockImplementation(
     async (fn: (tx: typeof mockPrisma) => Promise<unknown>) => fn(mockPrisma),
   );
@@ -334,5 +340,92 @@ describe('PUT /api/cashflow/orcamento', () => {
   it('body inválido retorna 400', async () => {
     const response = await PUT(createPutRequest({ metas: [{ groupId: 'x', valor: 1 }] }));
     expect(response.status).toBe(400);
+  });
+});
+
+// Orçamento v2 (desenho técnico §3.3, PR 12): a tela antiga não escreve para quem foi ativado.
+describe('PUT /api/cashflow/orcamento — usuário com Orçamento v2', () => {
+  const perfilV2 = ({ beta, ativado }: { beta: boolean; ativado: boolean }) => ({
+    featureBetas: beta ? [{ id: 'fb-1' }] : [],
+    cashflowOrcamentoPrefs: ativado
+      ? { estruturaCriadaEm: new Date('2026-10-20T12:00:00Z') }
+      : null,
+  });
+  const corpoMeta = { year: 2026, metas: [{ groupId: 'habitacao', valor: 3500 }] };
+
+  it('ativado e liberado: 409 orcamento_v2_ativo, sem gravar nem registrar histórico', async () => {
+    vi.stubEnv('ORCAMENTO_V2_HABILITADO', 'true');
+    mockPrisma.user.findUnique.mockResolvedValue(perfilV2({ beta: true, ativado: true }));
+
+    const response = await PUT(createPutRequest(corpoMeta));
+    const data = await response.json();
+
+    expect(response.status).toBe(409);
+    expect(data.code).toBe('orcamento_v2_ativo');
+    expect(typeof data.error).toBe('string');
+    expect(mockPrisma.$transaction).not.toHaveBeenCalled();
+    expect(mockPrisma.cashflowOrcamento.upsert).not.toHaveBeenCalled();
+    expect(mockPrisma.cashflowOrcamento.deleteMany).not.toHaveBeenCalled();
+    expect(mockRecordChange).not.toHaveBeenCalled();
+  });
+
+  it('consultor: decide pelo cliente (targetUserId)', async () => {
+    vi.stubEnv('ORCAMENTO_V2_HABILITADO', 'true');
+    mockRequireAuthWithActing.mockResolvedValue({
+      payload: { id: 'consultor-1', email: 'c@test.com', role: 'consultant' },
+      targetUserId: 'client-456',
+      actingClient: { id: 'client-456' },
+    });
+    mockPrisma.user.findUnique.mockResolvedValue(perfilV2({ beta: true, ativado: true }));
+
+    const response = await PUT(createPutRequest(corpoMeta));
+
+    expect(response.status).toBe(409);
+    expect(mockPrisma.user.findUnique).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: 'client-456' } }),
+    );
+  });
+
+  it('liberado mas não ativado: grava como hoje', async () => {
+    vi.stubEnv('ORCAMENTO_V2_HABILITADO', 'true');
+    mockPrisma.user.findUnique.mockResolvedValue(perfilV2({ beta: true, ativado: false }));
+    mockPrisma.cashflowGroup.findMany.mockResolvedValue([{ id: 'habitacao', name: 'Habitação' }]);
+
+    const response = await PUT(createPutRequest(corpoMeta));
+
+    expect(response.status).toBe(200);
+    expect(mockPrisma.cashflowOrcamento.upsert).toHaveBeenCalledTimes(1);
+    expect(mockRecordChange).toHaveBeenCalledTimes(1);
+  });
+
+  it('ativado fora do beta: grava como hoje', async () => {
+    vi.stubEnv('ORCAMENTO_V2_HABILITADO', 'true');
+    mockPrisma.user.findUnique.mockResolvedValue(perfilV2({ beta: false, ativado: true }));
+    mockPrisma.cashflowGroup.findMany.mockResolvedValue([{ id: 'habitacao', name: 'Habitação' }]);
+
+    const response = await PUT(createPutRequest(corpoMeta));
+
+    expect(response.status).toBe(200);
+    expect(mockPrisma.cashflowOrcamento.upsert).toHaveBeenCalledTimes(1);
+  });
+
+  it('flag desligada: grava como hoje, sem consultar o perfil v2', async () => {
+    mockPrisma.user.findUnique.mockResolvedValue(perfilV2({ beta: true, ativado: true }));
+    mockPrisma.cashflowGroup.findMany.mockResolvedValue([{ id: 'habitacao', name: 'Habitação' }]);
+
+    const response = await PUT(createPutRequest(corpoMeta));
+
+    expect(response.status).toBe(200);
+    expect(mockPrisma.cashflowOrcamento.upsert).toHaveBeenCalledTimes(1);
+    expect(mockPrisma.user.findUnique).not.toHaveBeenCalled();
+  });
+
+  it('GET antigo segue respondendo para o ativado', async () => {
+    vi.stubEnv('ORCAMENTO_V2_HABILITADO', 'true');
+    mockPrisma.user.findUnique.mockResolvedValue(perfilV2({ beta: true, ativado: true }));
+
+    const response = await GET(createGetRequest({ year: '2026' }));
+
+    expect(response.status).toBe(200);
   });
 });
