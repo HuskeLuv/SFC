@@ -217,12 +217,19 @@ const itemCriar: UndoDefinition = {
   async execute({ auth, entry }: UndoContext): Promise<UndoOutcome> {
     const item = await prisma.cashflowItem.findFirst({
       where: { id: entry.entityId!, userId: auth.targetUserId },
+      include: { _count: { select: { orcamentoItens: true } } },
     });
     if (!item) throw new UndoError(409, 'O item não existe mais');
     if (item.objetivoId) {
       throw new UndoError(409, 'Esta linha espelha um sonho — exclua o sonho no Planejamento');
     }
+    // Orçamento v2: os orçados da linha criada (também registrados no histórico) saem antes —
+    // o FK do orçado é NO ACTION.
+    const temOrcado = (item._count?.orcamentoItens ?? 0) > 0;
     await prisma.$transaction([
+      ...(temOrcado
+        ? [prisma.cashflowOrcamentoItem.deleteMany({ where: { itemId: item.id } })]
+        : []),
       prisma.cashflowValue.deleteMany({ where: { itemId: item.id } }),
       prisma.cashflowItem.delete({ where: { id: item.id } }),
     ]);
@@ -525,6 +532,10 @@ const importarPlanilha: UndoDefinition = {
     }
 
     if (idsCriados.length > 0) {
+      // Orçamento v2: orçado gravado depois numa linha criada pelo import (FK NO ACTION).
+      await prisma.cashflowOrcamentoItem.deleteMany({
+        where: { itemId: { in: idsCriados }, userId: targetUserId },
+      });
       await prisma.cashflowValue.deleteMany({
         where: { itemId: { in: idsCriados }, userId: targetUserId },
       });

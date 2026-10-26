@@ -5,6 +5,7 @@ import { recomputeEvolucaoSnapshotsSafe } from '@/services/cashflow/evolucaoPatr
 import { REALIZADO_COLOR } from '@/services/planejamento/cashflowToSonhoSync';
 import { corrigirCronograma, gerarCronograma, parcelasCortadasDe } from './amortizacao';
 import { isIndexadorCorrigivel, monthlyIndexFactors } from './indexacaoDivida';
+import { tratarOrcadosAntesDeApagarItem } from '@/services/cashflow/orcamentoV2/excluirSubcategoria';
 
 /**
  * Sincroniza uma dívida com a linha-espelho no fluxo de caixa (grupo
@@ -263,9 +264,14 @@ export async function resyncDividasIndexadas(): Promise<{ dividas: number; usuar
 export async function removeDividaCashflow(dividaId: string): Promise<void> {
   const item = await prisma.cashflowItem.findUnique({
     where: { dividaId },
-    select: { id: true, userId: true },
+    select: { id: true, userId: true, _count: { select: { orcamentoItens: true } } },
   });
   if (!item) return;
+  // Orçamento v2 (FK NO ACTION): meses fechados do orçado vão para a Geral da categoria do
+  // espelho; corrente e futuros são apagados. Sem orçado (todo usuário fora do v2), nada muda.
+  if (item.userId && (item._count?.orcamentoItens ?? 0) > 0) {
+    await tratarOrcadosAntesDeApagarItem(item.userId, item.id);
+  }
   await prisma.cashflowValue.deleteMany({ where: { itemId: item.id } });
   await prisma.cashflowItem.delete({ where: { id: item.id } });
   // Valores (planejados e realizados) de qualquer ano sumiram — recomputa os

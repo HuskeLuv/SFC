@@ -30,6 +30,7 @@ const mockPrisma = vi.hoisted(() => ({
   },
   cashflow: { findFirst: vi.fn(), update: vi.fn(), create: vi.fn() },
   planejamentoObjetivo: { findUnique: vi.fn() },
+  cashflowOrcamentoItem: { deleteMany: vi.fn() },
   $transaction: vi.fn((ops: unknown[]) => Promise.all(ops as Promise<unknown>[])),
 }));
 

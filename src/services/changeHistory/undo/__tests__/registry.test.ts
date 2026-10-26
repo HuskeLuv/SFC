@@ -74,6 +74,7 @@ describe('UNDO_REGISTRY', () => {
       'grupo.criar',
       'grupo.editar',
       'grupo.excluir',
+      'orcamento.subcategoria.excluir',
       'sonho.criar',
       'sonho.editar',
       'sonho.excluir',

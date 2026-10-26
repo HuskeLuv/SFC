@@ -49,8 +49,15 @@ vi.mock('@/services/cashflow/orcamentoV2/acesso', () => ({
 vi.mock('@/services/cashflow/getCashflowTree', () => ({
   getMergedCashflowGroups: mockGetMerged,
 }));
+const mockExecutarExclusao = vi.hoisted(() => vi.fn());
+vi.mock('@/services/cashflow/orcamentoV2/excluirSubcategoria', async (importOriginal) => {
+  const original =
+    await importOriginal<typeof import('@/services/cashflow/orcamentoV2/excluirSubcategoria')>();
+  return { ...original, executarExclusaoSubcategoria: mockExecutarExclusao };
+});
 
 import { PUT } from '../route';
+import { ErroExclusaoSubcategoria } from '@/services/cashflow/orcamentoV2/excluirSubcategoria';
 
 const req = (body: Record<string, unknown>) =>
   new NextRequest('http://localhost/api/cashflow/batch-update', {
@@ -137,6 +144,7 @@ beforeEach(() => {
   mockPrisma.cashflowItem.count.mockResolvedValue(0);
   mockPrisma.cashflowValue.upsert.mockResolvedValue({});
   mockRecordChange.mockResolvedValue(undefined);
+  mockExecutarExclusao.mockResolvedValue(null);
 });
 
 describe('PUT /api/cashflow/batch-update — Geral (por dado, recusa parcial)', () => {
@@ -193,6 +201,30 @@ describe('PUT /api/cashflow/batch-update — Geral (por dado, recusa parcial)', 
 });
 
 describe('PUT /api/cashflow/batch-update — usuário sem Orçamento v2 (como antes)', () => {
+  it('excluir linha comum não passa pela fusão', async () => {
+    mockPrisma.cashflowItem.findMany.mockResolvedValue([ownedRow('aluguel')]);
+    await PUT(req({ updates: [], deletes: ['aluguel'] }));
+    expect(mockExecutarExclusao).not.toHaveBeenCalled();
+    expect(mockPrisma.cashflowItem.deleteMany).toHaveBeenCalled();
+  });
+
+  it('linha com orçado v2 (ativado com a flag desligada) funde em vez de bater no FK', async () => {
+    mockPrisma.cashflowItem.findMany.mockResolvedValue([
+      ownedRow('aluguel', { _count: { orcamentoItens: 2 } }),
+      ownedRow('livre'),
+    ]);
+    mockExecutarExclusao.mockResolvedValue({ itemId: 'aluguel' });
+    const res = await PUT(req({ updates: [], deletes: ['aluguel', 'livre'] }));
+    expect((await res.json()).results).toEqual([
+      { itemId: 'aluguel', success: true },
+      { itemId: 'livre', success: true },
+    ]);
+    expect(mockExecutarExclusao).toHaveBeenCalledTimes(1);
+    expect(mockPrisma.cashflowItem.deleteMany).toHaveBeenCalledWith({
+      where: { id: { in: ['livre'] }, userId: 'user-1' },
+    });
+  });
+
   it('renomeia sem validar nome e só carrega a árvore da resposta', async () => {
     const res = await PUT(req({ updates: [{ itemId: 'aluguel', name: '  energia ' }] }));
     expect((await res.json()).results).toEqual([{ itemId: 'aluguel', success: true }]);
@@ -289,12 +321,47 @@ describe('PUT /api/cashflow/batch-update — usuário ativado no v2', () => {
     expect(mockGetMerged).toHaveBeenCalledTimes(2);
   });
 
-  it('excluir: o stub da fusão devolve nao_aplica e a exclusão segue igual', async () => {
+  it('excluir sub: funde na Geral (mesmo serviço do Orçamento) e não apaga direto', async () => {
+    mockPrisma.cashflowItem.findMany.mockResolvedValue([ownedRow('aluguel')]);
+    mockExecutarExclusao.mockResolvedValue({ itemId: 'aluguel' });
+    const res = await PUT(req({ updates: [], deletes: ['aluguel'] }));
+    expect((await res.json()).results).toEqual([{ itemId: 'aluguel', success: true }]);
+    expect(mockExecutarExclusao).toHaveBeenCalledWith(
+      'user-1',
+      'aluguel',
+      expect.objectContaining({ delegacao: true, contexto: expect.any(Object) }),
+    );
+    expect(mockPrisma.cashflowItem.deleteMany).not.toHaveBeenCalled();
+    expect(mockPrisma.cashflowValue.deleteMany).not.toHaveBeenCalled();
+  });
+
+  it('excluir: fusão não se aplica (fora de categoria) → exclusão segue igual', async () => {
     mockPrisma.cashflowItem.findMany.mockResolvedValue([ownedRow('aluguel')]);
     const res = await PUT(req({ updates: [], deletes: ['aluguel'] }));
     expect((await res.json()).results).toEqual([{ itemId: 'aluguel', success: true }]);
     expect(mockPrisma.cashflowItem.deleteMany).toHaveBeenCalledWith({
       where: { id: { in: ['aluguel'] }, userId: 'user-1' },
+    });
+  });
+
+  it('cores divergentes: recusa parcial com a mensagem; o resto do lote é excluído', async () => {
+    mockPrisma.cashflowItem.findMany.mockResolvedValue([ownedRow('aluguel'), ownedRow('livre')]);
+    mockExecutarExclusao.mockImplementation(async (_u: string, id: string) => {
+      if (id === 'aluguel') {
+        throw new ErroExclusaoSubcategoria('cores_divergentes', [{ ano: 2026, mes: 2 }]);
+      }
+      return null;
+    });
+    const res = await PUT(req({ updates: [], deletes: ['aluguel', 'livre'] }));
+    const { results } = await res.json();
+    expect(results).toContainEqual({
+      itemId: 'aluguel',
+      success: false,
+      error: expect.stringContaining('status diferentes'),
+    });
+    expect(results).toContainEqual({ itemId: 'livre', success: true });
+    expect(mockPrisma.cashflowItem.deleteMany).toHaveBeenCalledWith({
+      where: { id: { in: ['livre'] }, userId: 'user-1' },
     });
   });
 });

@@ -21,6 +21,7 @@ import {
   mensagemGeral,
   usuarioOrcamentoV2Ativo,
 } from '@/services/cashflow/orcamentoV2/guardas';
+import { ErroExclusaoSubcategoria } from '@/services/cashflow/orcamentoV2/excluirSubcategoria';
 import type { CashflowGroup } from '@/types/cashflow';
 
 import { withErrorHandler } from '@/utils/apiErrorHandler';
@@ -45,7 +46,8 @@ import { withErrorHandler } from '@/utils/apiErrorHandler';
  * Orçamento v2 (guardas.ts), com recusa PARCIAL (a linha entra em `results` com success=false):
  * a subcategoria Geral não é excluída nem renomeada (por dado). Para usuário ativado, o nome
  * novo de uma sub é validado na categoria (único/1–60) e a exclusão de item passa antes por
- * `delegarExclusaoItem` (fusão na Geral, PR 7; o stub devolve 'nao_aplica').
+ * `delegarExclusaoItem` (fusão na Geral, PR 7: o mesmo resultado do DELETE do Orçamento; cores
+ * divergentes → recusa parcial com a mensagem).
  */
 export const PUT = withErrorHandler(async (request: NextRequest) => {
   const auth = await requireAuthWithActing(request);
@@ -106,6 +108,7 @@ export const PUT = withErrorHandler(async (request: NextRequest) => {
         dividaId: true,
         isGeral: true,
         group: { select: { type: true, templateId: true } },
+        _count: { select: { orcamentoItens: true } },
       },
     });
     // Geral do Orçamento v2 (por dado): recusa parcial, nunca é excluída.
@@ -114,14 +117,26 @@ export const PUT = withErrorHandler(async (request: NextRequest) => {
       handled.add(i.id);
       results.push({ itemId: i.id, success: false, error: mensagemGeral('excluir') });
     }
-    // Usuário v2: item de categoria de despesa → fusão na Geral (PR 7). Stub: 'nao_aplica'.
-    if (v2) {
+    // Usuário v2: item de categoria de despesa → fusão na Geral (PR 7), igual ao DELETE do
+    // Orçamento (D11). Linha com orçado também passa por ela mesmo sem o v2 liberado (ativado com
+    // a flag desligada): apagar direto falharia no FK NO ACTION do orçado.
+    const temOrcado = new Set(
+      encontrados.filter((i) => (i._count?.orcamentoItens ?? 0) > 0).map((i) => i.id),
+    );
+    if (v2 || temOrcado.size > 0) {
       for (const itemId of deletes) {
-        if (handled.has(itemId)) continue;
-        if ((await delegarExclusaoItem(prisma, targetUserId, itemId)) === 'fundido') {
+        if (handled.has(itemId) || (!v2 && !temOrcado.has(itemId))) continue;
+        try {
+          const r = await delegarExclusaoItem(targetUserId, itemId, { request, auth });
+          if (r === 'fundido') {
+            handled.add(itemId);
+            results.push({ itemId, success: true });
+            markRecompute(new Date(0));
+          }
+        } catch (error) {
+          if (!(error instanceof ErroExclusaoSubcategoria)) throw error;
           handled.add(itemId);
-          results.push({ itemId, success: true });
-          markRecompute(new Date(0));
+          results.push({ itemId, success: false, error: error.message });
         }
       }
     }

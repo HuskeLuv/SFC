@@ -51,8 +51,20 @@ vi.mock('@/services/cashflow/orcamentoV2/acesso', () => ({
 vi.mock('@/services/cashflow/getCashflowTree', () => ({
   getMergedCashflowGroups: mockGetMerged,
 }));
+const mockExecutarExclusao = vi.hoisted(() => vi.fn());
+const mockTratarOrcados = vi.hoisted(() => vi.fn());
+vi.mock('@/services/cashflow/orcamentoV2/excluirSubcategoria', async (importOriginal) => {
+  const original =
+    await importOriginal<typeof import('@/services/cashflow/orcamentoV2/excluirSubcategoria')>();
+  return {
+    ...original,
+    executarExclusaoSubcategoria: mockExecutarExclusao,
+    tratarOrcadosAntesDeApagarItem: mockTratarOrcados,
+  };
+});
 
 import { PATCH } from '../route';
+import { ErroExclusaoSubcategoria } from '@/services/cashflow/orcamentoV2/excluirSubcategoria';
 
 const req = (body: unknown) =>
   new NextRequest('http://localhost/api/cashflow/update', {
@@ -131,6 +143,7 @@ beforeEach(() => {
     actingClient: null,
   });
   mockEstadoV2.mockResolvedValue({ estado: 'desligada', ativado: false });
+  mockExecutarExclusao.mockResolvedValue(null);
   mockPrisma.cashflowItem.findUnique.mockResolvedValue({ group: { type: 'despesa' } });
   mockPrisma.cashflowGroup.findUnique.mockResolvedValue({ type: 'despesa' });
   mockPrisma.cashflowItem.update.mockImplementation(async ({ data }) => ({
@@ -154,6 +167,45 @@ beforeEach(() => {
 });
 
 describe('PATCH /api/cashflow/update — usuário sem Orçamento v2 (como antes)', () => {
+  it('excluir item comum não passa pela fusão', async () => {
+    mockPrisma.cashflowItem.findUnique
+      .mockResolvedValueOnce({ group: { type: 'despesa' } })
+      .mockResolvedValueOnce(itemRow());
+    const res = await PATCH(req({ operation: 'delete', type: 'item', id: 'aluguel' }));
+    expect(res.status).toBe(200);
+    expect(mockExecutarExclusao).not.toHaveBeenCalled();
+  });
+
+  it('item com orçado v2 (ativado com a flag desligada) funde em vez de bater no FK', async () => {
+    mockPrisma.cashflowItem.findUnique
+      .mockResolvedValueOnce({ group: { type: 'despesa' } })
+      .mockResolvedValueOnce(itemRow({ _count: { orcamentoItens: 1 } }));
+    mockExecutarExclusao.mockResolvedValue({ itemId: 'aluguel' });
+    const res = await PATCH(req({ operation: 'delete', type: 'item', id: 'aluguel' }));
+    expect(res.status).toBe(200);
+    expect(mockPrisma.$transaction).not.toHaveBeenCalled();
+  });
+
+  it('espelho de sonho com orçado: trata os orçados antes de apagar (sem bater no FK)', async () => {
+    mockPrisma.cashflowItem.findUnique
+      .mockResolvedValueOnce({ group: { type: 'despesa' } })
+      .mockResolvedValueOnce(itemRow({ objetivoId: 'obj-1', _count: { orcamentoItens: 2 } }));
+    const ordem: string[] = [];
+    mockTratarOrcados.mockImplementation(async () => {
+      ordem.push('orcados');
+      return { somados: 1, apagados: 1 };
+    });
+    mockPrisma.$transaction.mockImplementationOnce(async (ops: unknown[]) => {
+      ordem.push('delete');
+      return ops;
+    });
+    const res = await PATCH(req({ operation: 'delete', type: 'item', id: 'aluguel' }));
+    expect(res.status).toBe(200);
+    expect(mockExecutarExclusao).toHaveBeenCalled();
+    expect(mockTratarOrcados).toHaveBeenCalledWith('user-1', 'aluguel');
+    expect(ordem).toEqual(['orcados', 'delete']);
+  });
+
   it('renomeia item sem consultar a árvore nem validar nome', async () => {
     mockPersonalization.getItemForUser.mockResolvedValue(itemRow());
     const res = await PATCH(
@@ -324,12 +376,41 @@ describe('PATCH /api/cashflow/update — usuário ativado no v2', () => {
     expect(mockPrisma.cashflowGroup.delete).toHaveBeenCalledWith({ where: { id: 'viagens' } });
   });
 
-  it('excluir item: stub da fusão devolve nao_aplica e a exclusão segue igual', async () => {
+  it('excluir sub: funde na Geral e o histórico é o da fusão (sem item.excluir duplicado)', async () => {
+    mockPrisma.cashflowItem.findUnique
+      .mockResolvedValueOnce({ group: { type: 'despesa' } })
+      .mockResolvedValueOnce(itemRow());
+    mockExecutarExclusao.mockResolvedValue({ itemId: 'aluguel' });
+    const res = await PATCH(req({ operation: 'delete', type: 'item', id: 'aluguel' }));
+    expect(res.status).toBe(200);
+    expect(mockExecutarExclusao).toHaveBeenCalledWith(
+      'user-1',
+      'aluguel',
+      expect.objectContaining({ delegacao: true, contexto: expect.any(Object) }),
+    );
+    expect(mockPrisma.$transaction).not.toHaveBeenCalled();
+    expect(mockRecordChange).not.toHaveBeenCalled();
+  });
+
+  it('excluir item: fusão não se aplica → a exclusão segue igual', async () => {
     mockPrisma.cashflowItem.findUnique
       .mockResolvedValueOnce({ group: { type: 'despesa' } })
       .mockResolvedValueOnce(itemRow());
     const res = await PATCH(req({ operation: 'delete', type: 'item', id: 'aluguel' }));
     expect(res.status).toBe(200);
     expect(mockPrisma.$transaction).toHaveBeenCalled();
+  });
+
+  it('excluir sub com cores divergentes → 409 com os meses', async () => {
+    mockPrisma.cashflowItem.findUnique
+      .mockResolvedValueOnce({ group: { type: 'despesa' } })
+      .mockResolvedValueOnce(itemRow());
+    mockExecutarExclusao.mockRejectedValue(
+      new ErroExclusaoSubcategoria('cores_divergentes', [{ ano: 2026, mes: 2 }]),
+    );
+    const res = await PATCH(req({ operation: 'delete', type: 'item', id: 'aluguel' }));
+    expect(res.status).toBe(409);
+    expect(await res.json()).toMatchObject({ details: { coresDivergentes: ['2026-03'] } });
+    expect(mockPrisma.$transaction).not.toHaveBeenCalled();
   });
 });
