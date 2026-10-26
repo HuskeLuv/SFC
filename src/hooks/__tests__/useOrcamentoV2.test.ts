@@ -320,6 +320,89 @@ describe('useOrcamentoV2 — troca de mês com a escrita pendente', () => {
   });
 });
 
+describe('useOrcamentoV2 — escritas sobrepostas', () => {
+  /** Resposta do servidor com Aluguel e Geral nos valores dados. */
+  const resposta = (alug: number, geral: number) => {
+    const p = payload();
+    const [a, g] = p.categorias[0].subcategorias;
+    const cat = {
+      ...p.categorias[0],
+      orcado: alug + geral,
+      subcategorias: [
+        { ...a, orcado: alug, valor: alug },
+        { ...g, orcado: geral, valor: geral || null },
+      ],
+    };
+    return { subcategoria: cat.subcategorias[0], categoria: cat, resumo: p.resumo };
+  };
+  const verdade = (alug: number, geral: number): OrcamentoV2Response => {
+    const r = resposta(alug, geral);
+    return { ...payload(), categorias: [r.categoria] };
+  };
+
+  async function disparar() {
+    const hook = await montar();
+    const putA = adiado<Response>();
+    const putB = adiado<Response>();
+    fetchMock.mockReturnValueOnce(putA.promessa).mockReturnValueOnce(putB.promessa);
+    act(() => {
+      hook.result.current.salvarOrcado.mutate({ itemId: 'alug', valor: 400 });
+    });
+    await waitFor(() => expect(chamadas('PUT')).toHaveLength(1));
+    act(() => {
+      hook.result.current.salvarOrcado.mutate({ itemId: 'geral', valor: 200 });
+    });
+    await waitFor(() => expect(chamadas('PUT')).toHaveLength(2));
+    // Palpites empilhados.
+    expect(subDoCache(hook.queryClient, 'alug')?.orcado).toBe(400);
+    expect(subDoCache(hook.queryClient, 'geral')?.orcado).toBe(200);
+    return { ...hook, putA, putB };
+  }
+
+  it('respostas fora de ordem: nenhuma sobrescreve a outra; a última recarrega a chave aberta', async () => {
+    const { queryClient, putA, putB } = await disparar();
+    fetchMock.mockResolvedValue(mockFetchResponse(verdade(400, 200)));
+    putB.resolver(mockFetchResponse(resposta(1000, 200)));
+    await waitFor(() => expect(queryClient.isMutating()).toBe(1));
+    // B não aplicou a resposta (sem A) por cima do palpite de A.
+    expect(subDoCache(queryClient, 'alug')?.orcado).toBe(400);
+    expect(chamadas('GET')).toHaveLength(1);
+
+    putA.resolver(mockFetchResponse(resposta(400, 0))); // calculada antes de B
+    await waitFor(() => expect(chamadas('GET')).toHaveLength(2));
+    await waitFor(() => expect(subDoCache(queryClient, 'geral')?.orcado).toBe(200));
+    expect(subDoCache(queryClient, 'alug')?.orcado).toBe(400);
+  });
+
+  it('B confirma e A falha: o rollback de A não apaga B; o refetch traz o estado real', async () => {
+    const { queryClient, putA, putB } = await disparar();
+    fetchMock.mockResolvedValue(mockFetchResponse(verdade(1000, 200)));
+    putB.resolver(mockFetchResponse(resposta(1000, 200)));
+    await waitFor(() => expect(queryClient.isMutating()).toBe(1));
+    putA.resolver(mockFetchResponse({ error: 'x' }, 500));
+    await waitFor(() => expect(chamadas('GET')).toHaveLength(2));
+    await waitFor(() => expect(subDoCache(queryClient, 'alug')?.orcado).toBe(1000));
+    expect(subDoCache(queryClient, 'geral')?.orcado).toBe(200);
+  });
+
+  it('depois da rajada, uma escrita sozinha volta a aplicar a resposta sem refetch', async () => {
+    const { result, queryClient, putA, putB } = await disparar();
+    fetchMock.mockResolvedValueOnce(mockFetchResponse(verdade(400, 200)));
+    putA.resolver(mockFetchResponse(resposta(400, 0)));
+    putB.resolver(mockFetchResponse(resposta(400, 200)));
+    await waitFor(() => expect(chamadas('GET')).toHaveLength(2));
+    await waitFor(() => expect(queryClient.isFetching()).toBe(0));
+
+    fetchMock.mockResolvedValueOnce(mockFetchResponse(resposta(500, 200)));
+    await act(async () => {
+      await result.current.salvarOrcado.mutateAsync({ itemId: 'alug', valor: 500 });
+    });
+    expect(subDoCache(queryClient, 'alug')?.orcado).toBe(500);
+    expect(chamadas('GET')).toHaveLength(2);
+    expect(queryClient.getQueryState(CHAVE)?.isInvalidated).toBe(false);
+  });
+});
+
 describe('useOrcamentoV2 — marcarFixa, prefs e copiar', () => {
   it('marcarFixa: palpite com rollback no erro', async () => {
     const { result, queryClient } = await montar();

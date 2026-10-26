@@ -7,14 +7,15 @@
  * - `salvarOrcado` e `marcarFixa`: OTIMISTAS — recalculam a linha/categoria/resumo no cache com as
  *   mesmas regras puras do servidor (`lib/orcamento/otimista`), fazem o PUT/PATCH com csrfFetch,
  *   trocam o palpite pela resposta (`{subcategoria, categoria, resumo}`) e, no erro, voltam ao
- *   payload anterior (rollback). As outras visões/meses do v2 são invalidadas.
+ *   payload anterior (rollback). As outras visões/meses do v2 são invalidadas. Escritas
+ *   sobrepostas não aplicam resposta nem rollback: a última a terminar recarrega o v2.
  * - `salvarPrefs`: otimista nas prefs de todos os payloads do v2 em cache, com rollback. O
  *   debounce (500 ms) fica com quem chama.
  * - `copiarMes`: sem palpite (o servidor decide o que copia); no sucesso invalida todo o v2 (a
  *   cópia pode cruzar o ano).
  * Mês 1–12 em tudo (a API converte).
  */
-import { useCallback } from 'react';
+import { useCallback, useRef } from 'react';
 import {
   hashKey,
   useMutation,
@@ -88,7 +89,7 @@ async function lerErro(res: Response, padrao: string): Promise<ErroOrcamentoV2> 
 const BASE = '/api/cashflow/orcamento/v2';
 
 /**
- * Prefixo do `mutationKey` das escritas otimistas (orçado/fixa). A chave inclui a do mês aberto:
+ * Base do `mutationKey` das escritas otimistas (orçado/fixa). A chave inclui a do mês aberto:
  * quando o usuário troca de mês com uma escrita pendente, o `mutationKey` muda e o observer se
  * desliga da mutation (`MutationObserver.setOptions` → `reset`), que segue com as opções do mês
  * em que foi feita — sem isso o TanStack repassa as opções novas à mutation pendente e o
@@ -137,23 +138,45 @@ export function useOrcamentoV2(params: ParamsUseOrcamentoV2, opts: { enabled?: b
     [csrfFetch],
   );
 
+  /**
+   * Escritas otimistas sobrepostas (uma começou antes de outra terminar): a resposta de cada uma
+   * foi calculada sem a outra e o snapshot do rollback não tem o que a outra confirmou. Nesse caso
+   * nenhuma aplica resposta nem rollback; a última a terminar invalida o v2 (inclusive a chave
+   * aberta) e o refetch traz a verdade do servidor. Contador próprio (não `isMutating`): o status
+   * da mutation só muda depois do onSettled, então duas respostas quase juntas se veriam ainda
+   * pendentes e ninguém recarregaria.
+   */
+  const pendentesRef = useRef(0);
+  const concorrenciaRef = useRef(false);
+
   /** Palpite otimista na chave aberta; devolve o payload anterior para o rollback. */
   const palpitar = async (
     aplicar: (d: OrcamentoV2Response) => OrcamentoV2Response,
   ): Promise<{ anterior: OrcamentoV2Response | undefined }> => {
+    pendentesRef.current += 1;
+    if (pendentesRef.current > 1) concorrenciaRef.current = true;
     await queryClient.cancelQueries({ queryKey: chave });
     const anterior = queryClient.getQueryData<OrcamentoV2Response>(chave);
     if (anterior) queryClient.setQueryData<OrcamentoV2Response>(chave, aplicar(anterior));
     return { anterior };
   };
   const desfazerPalpite = (ctx: { anterior: OrcamentoV2Response | undefined } | undefined) => {
+    if (concorrenciaRef.current) return;
     if (ctx?.anterior) queryClient.setQueryData(chave, ctx.anterior);
   };
   const confirmar = (resposta: OrcadoEscritaResponse) => {
+    if (concorrenciaRef.current) return;
     queryClient.setQueryData<OrcamentoV2Response>(chave, (d) =>
       d ? aplicarRespostaEscrita(d, resposta) : d,
     );
     invalidarOutrosV2(queryClient, chave);
+  };
+  /** onSettled: a última de uma rajada sobreposta recarrega o v2 todo. */
+  const encerrarEscrita = () => {
+    pendentesRef.current = Math.max(0, pendentesRef.current - 1);
+    if (!concorrenciaRef.current || pendentesRef.current > 0) return;
+    concorrenciaRef.current = false;
+    void queryClient.invalidateQueries({ queryKey: queryKeys.cashflow.orcamentoV2Todos() });
   };
 
   const salvarOrcado = useMutation<
@@ -186,6 +209,7 @@ export function useOrcamentoV2(params: ParamsUseOrcamentoV2, opts: { enabled?: b
       ),
     onError: (_err, _e, ctx) => desfazerPalpite(ctx),
     onSuccess: confirmar,
+    onSettled: encerrarEscrita,
   });
 
   const marcarFixa = useMutation<
@@ -207,6 +231,7 @@ export function useOrcamentoV2(params: ParamsUseOrcamentoV2, opts: { enabled?: b
       palpitar((d) => (e.fixa === null ? d : aplicarNaSubcategoria(d, e.itemId, { fixa: e.fixa }))),
     onError: (_err, _e, ctx) => desfazerPalpite(ctx),
     onSuccess: confirmar,
+    onSettled: encerrarEscrita,
   });
 
   const salvarPrefs = useMutation<
