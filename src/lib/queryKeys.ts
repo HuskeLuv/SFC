@@ -23,6 +23,18 @@ export const queryKeys = {
       [...queryKeys.cashflow.all, 'evolucao-patrimonio', year] as const,
     investimentos: (year: number) => [...queryKeys.cashflow.all, 'investimentos', year] as const,
     orcamento: (year: number) => [...queryKeys.cashflow.all, 'orcamento', year] as const,
+    // Orçamento v2 (86e3v8p3u): tudo sob ['cashflow','orcamento','v2'] — invalidar
+    // orcamentoV2Todos() pega todos os anos/meses/visões/fontes (copiar dez→jan, receita de
+    // jan–mar que olha o ano anterior). `fonte` 'padrao' = a salva nas prefs. O acesso fica numa
+    // chave irmã ('v2-acesso'), fora do prefixo dos dados.
+    orcamentoV2Todos: () => [...queryKeys.cashflow.all, 'orcamento', 'v2'] as const,
+    orcamentoV2: (
+      ano: number,
+      mes: number,
+      visao: 'mes' | 'ano',
+      fonte: 'lancado' | 'consolidado' | 'padrao',
+    ) => [...queryKeys.cashflow.orcamentoV2Todos(), ano, mes, visao, fonte] as const,
+    orcamentoV2Acesso: () => [...queryKeys.cashflow.all, 'orcamento', 'v2-acesso'] as const,
     anos: () => [...queryKeys.cashflow.all, 'anos'] as const,
   },
   planejamento: {
