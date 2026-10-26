@@ -115,7 +115,7 @@ async function cenarioPersonalizado(opts: { receitaSoAteJunho?: boolean } = {}) 
 
   meta('m-hab', grupoDo(U, 'tpl-hab'), 1500);
   meta('m-hab-tpl', 'tpl-hab', 999); // duplicada: vence a do override
-  meta('m-tra-tpl', 'tpl-tra', 300); // órfã: a tela atual não mostra
+  meta('m-tra-tpl', 'tpl-tra', 300); // no template, sem linha no override: visível pelo templateId
   meta('m-plan', grupoDo(U, 'tpl-plan'), 10, { tipoMeta: 'percentual' });
   meta('m-inv', null, 20, { tipo: 'investimentos', tipoMeta: 'percentual' });
   meta('m-laz', grupoDo(U, 'tpl-laz'), 400); // grupo oculto
@@ -247,21 +247,15 @@ describe('planejarAtivacao (dry-run, só leitura)', () => {
     );
 
     // anual → 12 mensais; % → valor (inclusive Planejamento); 2025 também
-    expect(plano.orcadosAInserir).toHaveLength(36);
+    expect(plano.orcadosAInserir).toHaveLength(48);
     expect(esperadoOrcado(plano)).toEqual({
       '2026|tpl-hab': 18000,
+      '2026|tpl-tra': 3600,
       '2026|tpl-plan': 12000,
       '2025|tpl-var': 2400,
     });
-    // órfã não entra por padrão
-    expect(plano.orfasAdotaveis).toHaveLength(1);
-    expect(plano.orfasAdotaveis[0]).toMatchObject({
-      linhaId: 'm-tra-tpl',
-      categoriaId: grupoDo(U, 'tpl-tra'),
-      ano: 2026,
-      valor: 300,
-    });
-    expect(esperadoOrcado(plano, true)['2026|tpl-tra']).toBe(3600);
+    // a linha no id do template de categoria com override é visível (fallback da tela atual)
+    expect(plano.orfasAdotaveis).toHaveLength(0);
     expect(Object.fromEntries(plano.orcadosIgnorados.map((x) => [x.linhaId, x.motivo]))).toEqual({
       'm-hab-tpl': 'duplicada',
       'm-inv': 'investimentos',
@@ -314,7 +308,7 @@ describe('ativarOrcamentoV2 --aplicar', () => {
       gruposPersonalizados: 0,
       geraisCriadas: 3,
       geraisAdotadas: 1,
-      orcadosInseridos: 36,
+      orcadosInseridos: 48,
       prefsGravado: true,
     });
     // trava por usuário
@@ -327,9 +321,9 @@ describe('ativarOrcamentoV2 --aplicar', () => {
     expect(somaOrcado(geralHab.id as string, 2026)).toBe(18000);
     expect(somaOrcado(geralDoGrupo(grupoDo(U, 'tpl-plan'))!.id as string, 2026)).toBe(12000);
     expect(somaOrcado(geralDoGrupo(grupoDo(U, 'tpl-var'))!.id as string, 2025)).toBe(2400);
-    // Geral adotada, órfã NÃO copiada
+    // Geral adotada recebe a meta do id do template (visível na tela atual pelo templateId)
     expect(geralDoGrupo(grupoDo(U, 'tpl-tra'))!.id).toBe('item-geral-tra');
-    expect(somaOrcado('item-geral-tra', 2026)).toBe(0);
+    expect(somaOrcado('item-geral-tra', 2026)).toBe(3600);
     // todos os orçados em valor (nunca %), sempre no id do usuário
     expect(banco.dados.cashflowOrcamentoItem.every((o) => o.pct === null)).toBe(true);
     // Geral é última na árvore mesclada
@@ -346,9 +340,9 @@ describe('ativarOrcamentoV2 --aplicar', () => {
     expect(banco.dados.cashflowOrcamento).toHaveLength(8);
   });
 
-  it('--adotar-orfas copia a órfã para a Geral da categoria do override', async () => {
+  it('meta no id do template de categoria com override vai para a Geral sem --adotar-orfas', async () => {
     await cenarioPersonalizado();
-    const r = await ativarOrcamentoV2(U, { dryRun: false, adotarOrfas: true, hoje: HOJE });
+    const r = await ativarOrcamentoV2(U, { dryRun: false, hoje: HOJE });
     expect(r.status).toBe('ativado');
     expect(somaOrcado('item-geral-tra', 2026)).toBe(3600);
     expect(r.mudancas.orcadosInseridos).toBe(48);
@@ -382,7 +376,7 @@ describe('ativarOrcamentoV2 --aplicar', () => {
       ativarOrcamentoV2(U, { dryRun: false, hoje: HOJE }),
     ]);
     expect(rs.map((r) => r.status).sort()).toEqual(['ativado', 'ja_ativado']);
-    expect(banco.dados.cashflowOrcamentoItem).toHaveLength(36);
+    expect(banco.dados.cashflowOrcamentoItem).toHaveLength(48);
     const porGrupo = new Map<unknown, number>();
     geraisDo(U).forEach((g) => porGrupo.set(g.groupId, (porGrupo.get(g.groupId) ?? 0) + 1));
     expect([...porGrupo.values()].every((n) => n === 1)).toBe(true);
@@ -742,7 +736,7 @@ describe('desativarOrcamentoV2', () => {
     const antes = banco.copia();
     const { plano, aplicado } = await desativarOrcamentoV2(U, { dryRun: true });
     expect(aplicado).toBe(false);
-    expect(plano).toMatchObject({ noBeta: true, ativado: true, orcados: 36, temPrefs: true });
+    expect(plano).toMatchObject({ noBeta: true, ativado: true, orcados: 48, temPrefs: true });
     expect(plano.geraisAConverter).toEqual([geralDoGrupo(grupoDo(U, 'tpl-hab'))!.id]);
     expect(plano.geraisAApagar).toHaveLength(3);
     expect(banco.copia()).toEqual(antes);

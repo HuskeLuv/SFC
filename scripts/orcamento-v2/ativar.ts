@@ -11,8 +11,9 @@
  *  --beta          depois de ativar E verificar, inclui o usuário em feature_beta_users no mesmo
  *                  comando (as linhas "Geral" na Planilha e a tela v2 aparecem juntas). No dry-run
  *                  só mostra que incluiria. Nunca inclui se a ativação abortou ou foi compensada.
- *  --adotar-orfas  copia também as metas órfãs (gravadas em id de template, invisíveis hoje).
- *                  Decisão caso a caso, olhando o dry-run (Q17).
+ *  --adotar-orfas  copia também as metas órfãs (Q17). Desde que a tela atual acha a meta pelo
+ *                  templateId, a linha no id do template de categoria com override é visível e já
+ *                  é copiada; a lista de órfãs fica vazia e a opção não muda nada.
  *  --sugestoes     cria as subcategorias sugeridas do catálogo (P4). Sem a opção, só para usuário
  *                  sem nenhuma célula nas despesas (Q9).
  *

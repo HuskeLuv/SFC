@@ -324,15 +324,19 @@ export function resolverMetas(
       }
       continue;
     }
+    // Linha no id do template de um nó com override: a tela atual a mostra pelo templateId
+    // (buildOrcamentoVsReal), então é visível e copiada; havendo linha no id do override (ou na
+    // categoria, para subgrupo), vale a do override e esta é duplicada.
     const sobreposto = porTemplateSobreposto.get(linha.groupId);
     if (sobreposto) {
+      const deSubgrupo = sobreposto.idOverride !== sobreposto.categoria.id;
       if (
         linhasPorAnoGrupo.has(`${linha.year}|${sobreposto.idOverride}`) ||
-        categoriaTemLinha(linha.year, sobreposto.categoria)
+        (deSubgrupo && categoriaTemLinha(linha.year, sobreposto.categoria))
       ) {
         out.ignoradas.push({ linhaId: linha.id, motivo: 'duplicada' });
       } else {
-        out.orfas.push({ linha, categoria: sobreposto.categoria });
+        out.copiar.push({ linha, categoria: sobreposto.categoria, deSubgrupo });
       }
       continue;
     }
@@ -745,13 +749,16 @@ export async function capturarInvariantes(userId: string): Promise<InvariantesOr
       metas: metasDoAno,
       investimentosRealPorMes: [],
     });
-    // Meta visível × 12 (a linha no id mesclado da categoria; % → valor como na Fase B).
+    // Meta visível × 12 (% → valor como na Fase B).
     const linhaVisivel = new Map(
       metasDoAno.filter((m) => m.tipo !== 'investimentos' && m.groupId).map((m) => [m.groupId, m]),
     );
     let receita: number[] | null = null;
+    // Mesma regra da tela atual: a linha no id da categoria e, sem ela, a do templateId.
     const metaAnualDe = (groupId: string): number => {
-      const linha = linhaVisivel.get(groupId);
+      const templateId = porId.get(groupId)?.grupo.templateId;
+      const linha =
+        linhaVisivel.get(groupId) ?? (templateId ? linhaVisivel.get(templateId) : undefined);
       if (!linha) return 0;
       if (linha.tipoMeta === 'percentual') receita ??= receitaLancadaPorMes(arvore);
       return arred2(converterMeta(linha, receita).valores.reduce((t, v) => t + v, 0));
