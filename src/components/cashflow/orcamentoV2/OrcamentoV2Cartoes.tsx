@@ -7,6 +7,7 @@ import { SELO_TEXTO } from '@/lib/orcamento/tons';
 import type { CategoriaV2, FonteOrcamento, VisaoOrcamento } from '@/types/orcamentoV2';
 import AvisoGeral from './AvisoGeral';
 import CartaoCategoria from './CartaoCategoria';
+import { GraficoOrcamentoCelular } from './GraficoOrcamento';
 import HeroiOrcamento from './HeroiOrcamento';
 import { DEBOUNCE_PREFS_MS } from './OrcamentoV2Tabela';
 import type { ConteudoOrcamentoV2Props } from './OrcamentoV2Section';
@@ -18,7 +19,7 @@ const SEGMENTO =
 const opcao = (ativa: boolean) =>
   `min-h-9 truncate rounded-md px-2 text-sm font-medium transition ${
     ativa
-      ? 'bg-white text-brand-600 shadow-theme-xs dark:bg-gray-900 dark:text-brand-400'
+      ? 'bg-mf-outside text-white shadow-theme-xs'
       : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'
   }`;
 const BTN_MES =
@@ -125,6 +126,7 @@ export default function OrcamentoV2Cartoes({
           onVisto={() => orcamento.salvarPrefs.mutate({ avisoGeralVisto: true })}
         />
         <HeroiOrcamento data={data} />
+        <GraficoOrcamentoCelular data={data} />
 
         <div className="flex items-center justify-between gap-2">
           <h3 className="text-[15px] font-semibold text-gray-800 dark:text-white/90">

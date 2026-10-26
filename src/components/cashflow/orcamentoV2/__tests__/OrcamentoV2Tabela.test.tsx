@@ -45,11 +45,13 @@ afterEach(() => {
 });
 
 describe('OrcamentoV2Tabela — Anexo B', () => {
-  it('cabeçalho grudado num contêiner único de rolagem, tabela de 860 px', () => {
+  it('sem rolagem vertical própria (rola a página), cabeçalho grudado, tabela de 860 px', () => {
     const { container } = renderTabela();
     const rolagem = container.querySelector('[data-mf-orcamento-v2-rolagem]')!;
     expect(rolagem.className).toContain('overflow-x-auto');
-    expect(rolagem.className).toContain('overflow-y-auto');
+    expect(rolagem.className).toContain('xl:overflow-clip');
+    expect(rolagem.className).not.toContain('overflow-y-auto');
+    expect(rolagem.className).not.toContain('max-h-');
     expect(rolagem.querySelector('table')!.className).toContain('min-w-[860px]');
     const ths = rolagem.querySelectorAll('thead th');
     expect(ths).toHaveLength(7);

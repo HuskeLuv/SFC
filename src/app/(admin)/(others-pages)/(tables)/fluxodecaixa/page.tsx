@@ -85,7 +85,7 @@ export default function FluxoDeCaixa() {
             onClick={() => selectModo(m.value)}
             className={`rounded-md px-4 py-1.5 text-sm font-medium transition max-lg:min-h-11 max-lg:flex-1 max-lg:rounded-[10px] ${
               isActive
-                ? 'bg-white text-brand-600 shadow-theme-xs dark:bg-gray-900 dark:text-brand-400'
+                ? 'bg-mf-outside text-white shadow-theme-xs'
                 : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'
             }`}
             aria-pressed={isActive}
@@ -99,11 +99,11 @@ export default function FluxoDeCaixa() {
 
   return (
     <div
-      className={`${cardWidth} min-w-0 transition-all duration-300 -m-[30px] max-lg:m-0 h-[calc(100vh-60px)] max-lg:h-auto flex flex-col overflow-hidden max-lg:overflow-visible`}
+      className={`${cardWidth} min-w-0 transition-all duration-300 -mx-6 -my-[30px] max-lg:m-0 h-[calc(100vh-60px)] max-lg:h-auto flex flex-col overflow-hidden max-lg:overflow-visible`}
     >
       <ComponentCard
         title={modo === 'planilha' ? `Fluxo de Caixa · ${year}` : `Orçamento vs Real · ${year}`}
-        className="flex-1 flex flex-col min-w-0 m-[30px] max-lg:m-0 overflow-hidden max-lg:overflow-visible max-[359px]:-mx-4 max-[359px]:rounded-none max-[359px]:border-x-0"
+        className="flex-1 flex flex-col min-w-0 mx-6 my-[30px] max-lg:m-0 overflow-hidden max-lg:overflow-visible max-[359px]:-mx-4 max-[359px]:rounded-none max-[359px]:border-x-0"
         bodyClassName="max-lg:overflow-visible"
       >
         {/* Abaixo de lg nenhum ancestral corta (overflow visível): a barra do mês gruda na rolagem
