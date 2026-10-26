@@ -2,14 +2,30 @@
 import ComponentCard from '@/components/common/ComponentCard';
 import DataTableTwo from '@/components/tables/DataTables/TableTwo/DataTableTwo';
 import OrcamentoVsRealSection from '@/components/cashflow/orcamento/OrcamentoVsRealSection';
+import OrcamentoV2Section, {
+  EsqueletoOrcamentoV2,
+} from '@/components/cashflow/orcamentoV2/OrcamentoV2Section';
 import ConectarBancoCard from '@/components/conexoes/ConectarBancoCard';
 import CashflowMonthView from '@/components/cashflow/mobile/CashflowMonthView';
 import { useStableIsBelowLg } from '@/hooks/useStableIsBelowLg';
+import { useOrcamentoV2Acesso } from '@/hooks/useOrcamentoV2Acesso';
 import { useSidebar } from '@/context/SidebarContext';
 import { useCashflowYear } from '@/context/CashflowYearContext';
 import React, { useEffect, useState } from 'react';
 
 type Modo = 'planilha' | 'orcamento';
+
+/**
+ * Aba Orçamento: o Orçamento v2 só para `liberada && ativado` (desenho técnico §8); qualquer
+ * outro estado — flag desligada, fora do beta, não ativado ou erro na consulta — vê a tela de
+ * hoje, sem mudança. Esqueleto enquanto o acesso carrega. O acesso só é consultado com a aba
+ * aberta (a Planilha não paga a chamada).
+ */
+function AbaOrcamento() {
+  const acesso = useOrcamentoV2Acesso();
+  if (acesso.loading) return <EsqueletoOrcamentoV2 />;
+  return acesso.usarV2 ? <OrcamentoV2Section /> : <OrcamentoVsRealSection />;
+}
 
 const MODOS: { value: Modo; label: string }[] = [
   { value: 'planilha', label: 'Planilha' },
@@ -86,7 +102,7 @@ export default function FluxoDeCaixa() {
           ) : (
             // Abaixo de lg sem rolagem própria: a barra do mês do Orçamento gruda na da página.
             <div className="flex-1 min-h-0 overflow-y-auto pr-1 max-lg:overflow-visible max-lg:pr-0">
-              <OrcamentoVsRealSection />
+              <AbaOrcamento />
             </div>
           )}
         </div>
