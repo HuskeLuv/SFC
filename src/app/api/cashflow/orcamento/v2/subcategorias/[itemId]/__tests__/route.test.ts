@@ -7,6 +7,8 @@ const mockLogSensitive = vi.hoisted(() => vi.fn());
 const mockExecutar = vi.hoisted(() => vi.fn());
 const mockAlertas = vi.hoisted(() => vi.fn());
 const mockRecompute = vi.hoisted(() => vi.fn());
+const mockMarcarFixa = vi.hoisted(() => vi.fn());
+const mockResposta = vi.hoisted(() => vi.fn());
 
 vi.mock('@/lib/prisma', () => ({ prisma: mockPrisma, default: mockPrisma }));
 vi.mock('@/utils/auth', () => ({ requireAuthWithActing: mockRequireAuthWithActing }));
@@ -18,13 +20,20 @@ vi.mock('@/services/cashflow/orcamentoV2/excluirSubcategoria', async (importOrig
     await importOriginal<typeof import('@/services/cashflow/orcamentoV2/excluirSubcategoria')>();
   return { ...original, executarExclusaoSubcategoria: mockExecutar };
 });
+vi.mock('@/services/cashflow/orcamentoV2/escritaOrcado', async (importOriginal) => {
+  const original =
+    await importOriginal<typeof import('@/services/cashflow/orcamentoV2/escritaOrcado')>();
+  return { ...original, marcarFixa: mockMarcarFixa, respostaDaSubcategoria: mockResposta };
+});
 vi.mock('@/services/cashflow/orcamentoAlertas', () => ({ checkOrcamentoAlertasSafe: mockAlertas }));
 vi.mock('@/services/cashflow/evolucaoPatrimonioServer', () => ({
   recomputeEvolucaoSnapshotsSafe: mockRecompute,
 }));
 
-import { DELETE } from '../route';
+import { DELETE, PATCH } from '../route';
 import { ErroExclusaoSubcategoria } from '@/services/cashflow/orcamentoV2/excluirSubcategoria';
+import { ErroEscritaOrcamento } from '@/services/cashflow/orcamentoV2/escritaOrcado';
+import { hojeEmSaoPaulo } from '@/services/cashflow/orcamentoV2/carregarOrcamento';
 
 const req = () =>
   new NextRequest('http://localhost/api/cashflow/orcamento/v2/subcategorias/pet', {
@@ -152,5 +161,84 @@ describe('DELETE /api/cashflow/orcamento/v2/subcategorias/[itemId]', () => {
     });
     expect((await DELETE(req(), ctx())).status).toBe(409);
     expect(mockExecutar).not.toHaveBeenCalled();
+  });
+});
+
+describe('PATCH /api/cashflow/orcamento/v2/subcategorias/[itemId] (fixa)', () => {
+  let usuarioId: string;
+  const patch = (body: unknown) =>
+    new NextRequest('http://localhost/api/cashflow/orcamento/v2/subcategorias/pet', {
+      method: 'PATCH',
+      body: JSON.stringify(body),
+      headers: { 'Content-Type': 'application/json' },
+    });
+  const RESPOSTA = { subcategoria: { id: 'pet-u', fixa: true }, categoria: {}, resumo: {} };
+
+  beforeEach(() => {
+    vi.stubEnv('ORCAMENTO_V2_HABILITADO', 'true');
+    vi.stubEnv('ORCAMENTO_V2_ACESSO', 'beta');
+    vi.clearAllMocks();
+    mockPrisma.user.findUnique.mockResolvedValue(ativado);
+    usuarioId = `fixa${++uid}`;
+    mockRequireAuthWithActing.mockResolvedValue({
+      payload: { id: usuarioId, email: 'a@b', role: 'user' },
+      targetUserId: usuarioId,
+      actingClient: null,
+    });
+    mockMarcarFixa.mockResolvedValue({ itemId: 'pet-u', mudou: true });
+    mockResposta.mockResolvedValue(RESPOSTA);
+  });
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it('marca fixa no dono dos dados e responde o recálculo do mês pedido', async () => {
+    const res = await PATCH(patch({ fixa: true, ano: 2026, mes: 3 }), ctx());
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual(RESPOSTA);
+    expect(mockMarcarFixa).toHaveBeenCalledWith(usuarioId, 'pet', true, 2026, {
+      contexto: { request: expect.any(NextRequest), auth: expect.any(Object) },
+    });
+    expect(mockResposta).toHaveBeenCalledWith(
+      usuarioId,
+      'pet-u',
+      { ano: 2026, mes0: 2, fonte: undefined },
+      expect.any(Date),
+    );
+    expect(mockExecutar).not.toHaveBeenCalled();
+  });
+
+  it('sem mês: usa o corrente (SP); fixa null volta ao padrão', async () => {
+    const hoje = hojeEmSaoPaulo(new Date());
+    await PATCH(patch({ fixa: null }), ctx());
+    expect(mockMarcarFixa.mock.calls[0][2]).toBeNull();
+    expect(mockResposta.mock.calls[0][2]).toMatchObject({ ano: hoje.ano, mes0: hoje.mes0 });
+  });
+
+  it.each([[{}], [{ fixa: 'sim' }], [{ fixa: true, mes: 13 }]])(
+    'corpo inválido %j → 400',
+    async (body) => {
+      expect((await PATCH(patch(body), ctx())).status).toBe(400);
+      expect(mockMarcarFixa).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each([
+    ['fixa_poupanca', 400],
+    ['nao_encontrado', 404],
+  ] as const)('recusa %s → %i', async (codigo, status) => {
+    mockMarcarFixa.mockRejectedValue(new ErroEscritaOrcamento(codigo));
+    const res = await PATCH(patch({ fixa: true }), ctx());
+    expect(res.status).toBe(status);
+    expect((await res.json()).codigo).toBe(codigo);
+  });
+
+  it('não ativado → 409, sem escrita', async () => {
+    mockPrisma.user.findUnique.mockResolvedValue({
+      featureBetas: [{ id: 'b1' }],
+      cashflowOrcamentoPrefs: null,
+    });
+    expect((await PATCH(patch({ fixa: true }), ctx())).status).toBe(409);
+    expect(mockMarcarFixa).not.toHaveBeenCalled();
   });
 });
