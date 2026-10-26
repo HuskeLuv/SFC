@@ -246,6 +246,7 @@ export default function OrcamentoV2Section() {
               onCriarSub={async (categoriaId, nome) => {
                 await estrutura.criar.mutateAsync({ categoriaId, nome });
               }}
+              onErroCriarSub={(texto) => setAviso({ tipo: 'erro', texto })}
               onRenomearSub={async (categoriaId, itemId, nome) => {
                 await estrutura.renomear.mutateAsync({ categoriaId, itemId, nome });
               }}

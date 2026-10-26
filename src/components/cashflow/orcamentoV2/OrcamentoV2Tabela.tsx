@@ -21,6 +21,11 @@ export interface OrcamentoV2TabelaProps {
   onSalvarRecolhidas: (ids: string[]) => void;
   /** Cria a sub pela rota da Planilha; lança com a mensagem do servidor. */
   onCriarSub: (categoriaId: string, nome: string) => Promise<void>;
+  /**
+   * Erro de uma subcategoria nova cuja linha já fechou (o usuário foi adicionar em outra categoria
+   * antes da resposta): vai para o aviso da seção em vez de sumir.
+   */
+  onErroCriarSub: (texto: string) => void;
   onRenomearSub: (categoriaId: string, itemId: string, nome: string) => Promise<void>;
   onBuscarImpacto: MenuSubcategoriaProps['onBuscarImpacto'];
   onExcluirSub: MenuSubcategoriaProps['onExcluir'];
@@ -50,6 +55,7 @@ export default function OrcamentoV2Tabela({
   onMarcarFixa,
   onSalvarRecolhidas,
   onCriarSub,
+  onErroCriarSub,
   onRenomearSub,
   onBuscarImpacto,
   onExcluirSub,
@@ -129,11 +135,13 @@ export default function OrcamentoV2Tabela({
           <NovaSubcategoria
             categoria={c}
             irmaos={nomes}
-            onCancelar={() => setAdicionandoEm(null)}
+            // Fecha só a própria linha: se o usuário já abriu outra, ela fica como está.
+            onCancelar={() => setAdicionandoEm((cur) => (cur === c.id ? null : cur))}
             onCriar={async (nome) => {
               await onCriarSub(c.id, nome);
-              setAdicionandoEm(null);
+              setAdicionandoEm((cur) => (cur === c.id ? null : cur));
             }}
+            onErroFora={onErroCriarSub}
           />
         )}
         {aberta && (
@@ -236,23 +244,49 @@ export default function OrcamentoV2Tabela({
 
 /**
  * Linha de nome da subcategoria nova (spec §4.5, T21/T22): Enter salva (POST da Planilha), Esc ou
- * nome vazio cancela e a linha some sem salvar nada.
+ * nome vazio cancela e a linha some sem salvar nada. Se a linha fechar com um erro na tela (nome
+ * recusado no blur) ou o servidor recusar depois que ela fechou, o erro vai para `onErroFora`.
  */
 function NovaSubcategoria({
   categoria,
   irmaos,
   onCancelar,
   onCriar,
+  onErroFora,
 }: {
   categoria: CategoriaV2;
   irmaos: string[];
   onCancelar: () => void;
   onCriar: (nome: string) => Promise<void>;
+  onErroFora: (texto: string) => void;
 }) {
   const [nome, setNome] = useState('');
-  const [erro, setErro] = useState<string | null>(null);
+  const [erro, setErroEstado] = useState<string | null>(null);
   const [salvando, setSalvando] = useState(false);
   const encerradoRef = useRef(false);
+  const montadoRef = useRef(false);
+  const erroRef = useRef<{ nome: string; texto: string } | null>(null);
+  const onErroForaRef = useRef(onErroFora);
+  onErroForaRef.current = onErroFora;
+
+  const setErro = (texto: string | null, nomeTentado = nome.trim()) => {
+    erroRef.current = texto ? { nome: nomeTentado, texto } : null;
+    setErroEstado(texto);
+  };
+  const avisarFora = (e: { nome: string; texto: string }) =>
+    onErroForaRef.current(
+      `A subcategoria "${e.nome}" não foi adicionada em ${categoria.nome}: ${e.texto}`,
+    );
+
+  useEffect(() => {
+    montadoRef.current = true;
+    return () => {
+      montadoRef.current = false;
+      // Fechou com o erro na tela (ex.: nome recusado no blur ao abrir outra categoria).
+      if (erroRef.current && !encerradoRef.current) avisarFora(erroRef.current);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const confirmar = async () => {
     if (salvando || encerradoRef.current) return;
@@ -272,7 +306,12 @@ function NovaSubcategoria({
       await onCriar(v.nome);
       encerradoRef.current = true;
     } catch (e: unknown) {
-      setErro(e instanceof Error ? e.message : 'Não foi possível adicionar a subcategoria.');
+      const texto = e instanceof Error ? e.message : 'Não foi possível adicionar a subcategoria.';
+      if (!montadoRef.current) {
+        avisarFora({ nome: v.nome, texto });
+        return;
+      }
+      setErro(texto, v.nome);
       setSalvando(false);
     }
   };

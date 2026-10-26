@@ -21,6 +21,7 @@ function renderTabela(
     onMarcarFixa: vi.fn(),
     onSalvarRecolhidas: vi.fn(),
     onCriarSub: vi.fn().mockResolvedValue(undefined),
+    onErroCriarSub: vi.fn(),
     onRenomearSub: vi.fn().mockResolvedValue(undefined),
     onBuscarImpacto: vi.fn(),
     onExcluirSub: vi.fn().mockResolvedValue(undefined),
@@ -176,6 +177,58 @@ describe('OrcamentoV2Tabela — Anexo B', () => {
     fireEvent.keyDown(input, { key: 'Enter' });
     expect(screen.getByRole('alert')).toHaveTextContent('Já existe uma subcategoria com esse nome');
     expect(props.onCriarSub).not.toHaveBeenCalled();
+  });
+
+  it('abrir outra categoria enquanto a primeira salva não fecha a nova nem perde o texto', async () => {
+    let resolver!: () => void;
+    const onCriarSub = vi.fn(() => new Promise<void>((r) => (resolver = r)));
+    const data = montarPayload();
+    renderTabela(data, { onCriarSub });
+    fireEvent.click(screen.getByRole('button', { name: '+ Adicionar subcategoria em Lazer' }));
+    const lazer = screen.getByRole('textbox', { name: 'Nome da nova subcategoria em Lazer' });
+    fireEvent.change(lazer, { target: { value: 'Shows e teatro' } });
+    fireEvent.blur(lazer);
+    fireEvent.click(screen.getByRole('button', { name: '+ Adicionar subcategoria em Habitação' }));
+    const hab = screen.getByRole('textbox', { name: 'Nome da nova subcategoria em Habitação' });
+    fireEvent.change(hab, { target: { value: 'Condomínio extra' } });
+    expect(onCriarSub).toHaveBeenCalledWith(categoriaDe(data, 'Lazer').id, 'Shows e teatro');
+
+    await act(async () => resolver());
+    expect(
+      screen.getByRole('textbox', { name: 'Nome da nova subcategoria em Habitação' }),
+    ).toHaveValue('Condomínio extra');
+  });
+
+  it('recusa do servidor depois que a linha fechou vai para o aviso da seção', async () => {
+    let rejeitar!: (e: Error) => void;
+    const onCriarSub = vi.fn(() => new Promise<void>((_r, j) => (rejeitar = j)));
+    const { props } = renderTabela(montarPayload(), { onCriarSub });
+    fireEvent.click(screen.getByRole('button', { name: '+ Adicionar subcategoria em Lazer' }));
+    const lazer = screen.getByRole('textbox', { name: 'Nome da nova subcategoria em Lazer' });
+    fireEvent.change(lazer, { target: { value: 'Shows e teatro' } });
+    fireEvent.blur(lazer);
+    fireEvent.click(screen.getByRole('button', { name: '+ Adicionar subcategoria em Habitação' }));
+
+    await act(async () => rejeitar(new Error('Nome já existe')));
+    expect(props.onErroCriarSub).toHaveBeenCalledWith(
+      'A subcategoria "Shows e teatro" não foi adicionada em Lazer: Nome já existe',
+    );
+    expect(
+      screen.getByRole('textbox', { name: 'Nome da nova subcategoria em Habitação' }),
+    ).toBeInTheDocument();
+  });
+
+  it('nome recusado no blur ao abrir outra categoria vai para o aviso da seção', () => {
+    const { props } = renderTabela();
+    fireEvent.click(screen.getByRole('button', { name: '+ Adicionar subcategoria em Lazer' }));
+    const lazer = screen.getByRole('textbox', { name: 'Nome da nova subcategoria em Lazer' });
+    fireEvent.change(lazer, { target: { value: 'restaurantes' } });
+    fireEvent.blur(lazer);
+    fireEvent.click(screen.getByRole('button', { name: '+ Adicionar subcategoria em Habitação' }));
+    expect(props.onCriarSub).not.toHaveBeenCalled();
+    expect(props.onErroCriarSub).toHaveBeenCalledWith(
+      expect.stringContaining('"restaurantes" não foi adicionada em Lazer: Já existe'),
+    );
   });
 
   it('T22: Esc ou Enter com nome vazio cancela — a linha some e nada é salvo', () => {
