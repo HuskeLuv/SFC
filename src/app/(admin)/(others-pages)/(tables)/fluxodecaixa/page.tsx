@@ -4,37 +4,12 @@ import DataTableTwo from '@/components/tables/DataTables/TableTwo/DataTableTwo';
 import OrcamentoVsRealSection from '@/components/cashflow/orcamento/OrcamentoVsRealSection';
 import ConectarBancoCard from '@/components/conexoes/ConectarBancoCard';
 import CashflowMonthView from '@/components/cashflow/mobile/CashflowMonthView';
-import { useIsBelowLg } from '@/hooks/useMediaQuery';
-import { MOBILE_MEDIA_QUERY } from '@/lib/ui/mobile';
+import { useStableIsBelowLg } from '@/hooks/useStableIsBelowLg';
 import { useSidebar } from '@/context/SidebarContext';
 import { useCashflowYear } from '@/context/CashflowYearContext';
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 
 type Modo = 'planilha' | 'orcamento';
-
-/**
- * `useIsBelowLg` com a TROCA de layout adiada (1s) depois da montagem: a planilha de desktop e a
- * visão do mês guardam estado próprio (grupo em edição, modal de importação) que se perde ao
- * trocar de árvore. Uma oscilação curta da largura (screenshot de página inteira, barra do
- * navegador) não pode desmontar a planilha; a primeira leitura no cliente vale na hora.
- */
-function useStableIsBelowLg(): boolean {
-  const raw = useIsBelowLg();
-  const [stable, setStable] = useState(false);
-  const mountedRef = useRef(false);
-  useEffect(() => {
-    if (!mountedRef.current) {
-      mountedRef.current = true;
-      setStable(
-        typeof window.matchMedia === 'function' && window.matchMedia(MOBILE_MEDIA_QUERY).matches,
-      );
-      return;
-    }
-    const timer = setTimeout(() => setStable(raw), 1000);
-    return () => clearTimeout(timer);
-  }, [raw]);
-  return stable;
-}
 
 const MODOS: { value: Modo; label: string }[] = [
   { value: 'planilha', label: 'Planilha' },
