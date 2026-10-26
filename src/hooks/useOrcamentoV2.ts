@@ -87,6 +87,15 @@ async function lerErro(res: Response, padrao: string): Promise<ErroOrcamentoV2> 
 
 const BASE = '/api/cashflow/orcamento/v2';
 
+/**
+ * Prefixo do `mutationKey` das escritas otimistas (orçado/fixa). A chave inclui a do mês aberto:
+ * quando o usuário troca de mês com uma escrita pendente, o `mutationKey` muda e o observer se
+ * desliga da mutation (`MutationObserver.setOptions` → `reset`), que segue com as opções do mês
+ * em que foi feita — sem isso o TanStack repassa as opções novas à mutation pendente e o
+ * palpite/resposta/rollback cairiam na chave do mês novo.
+ */
+const ESCRITA_V2 = ['orcamentoV2', 'escrita'] as const;
+
 /** Invalida o v2 todo, menos a chave aberta (que já recebeu a resposta do servidor). */
 function invalidarOutrosV2(qc: QueryClient, aberta: QueryKey) {
   const h = hashKey(aberta);
@@ -153,6 +162,7 @@ export function useOrcamentoV2(params: ParamsUseOrcamentoV2, opts: { enabled?: b
     SalvarOrcadoEntrada,
     { anterior: OrcamentoV2Response | undefined }
   >({
+    mutationKey: [...ESCRITA_V2, 'orcado', ...chave],
     mutationFn: (e) => {
       const corpo = 'pct' in e ? { pct: e.pct } : { valor: e.valor };
       return enviar<OrcadoEscritaResponse>(
@@ -184,6 +194,7 @@ export function useOrcamentoV2(params: ParamsUseOrcamentoV2, opts: { enabled?: b
     MarcarFixaEntrada,
     { anterior: OrcamentoV2Response | undefined }
   >({
+    mutationKey: [...ESCRITA_V2, 'fixa', ...chave],
     mutationFn: (e) =>
       enviar<OrcadoEscritaResponse>(
         `${BASE}/subcategorias/${encodeURIComponent(e.itemId)}`,

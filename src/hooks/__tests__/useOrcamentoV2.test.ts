@@ -234,6 +234,92 @@ describe('useOrcamentoV2 — salvarOrcado (otimista)', () => {
   });
 });
 
+describe('useOrcamentoV2 — troca de mês com a escrita pendente', () => {
+  const NOV = queryKeys.cashflow.orcamentoV2(2026, 11, 'mes', 'padrao');
+  // Nov tem a mesma categoria (mesmo id), ainda sem orçado.
+  const payloadNov = (): OrcamentoV2Response => {
+    const p = payload();
+    const cat = {
+      ...p.categorias[0],
+      orcado: 0,
+      subcategorias: [sub('alug'), p.categorias[0].subcategorias[1]],
+    };
+    return { ...p, mes: 11, categorias: [cat], resumo: { ...p.resumo, orcado: 0 } };
+  };
+  const orcadoNov = (qc: ReturnType<typeof renderHookWithClient>['queryClient']) => {
+    const d = qc.getQueryData<OrcamentoV2Response>(NOV)!;
+    return [
+      d.mes,
+      d.resumo.orcado,
+      d.categorias[0].orcado,
+      d.categorias[0].subcategorias[0].orcado,
+    ];
+  };
+
+  async function montarTrocavel() {
+    let params: { ano: number; mes: number } = { ...PARAMS };
+    fetchMock.mockResolvedValueOnce(mockFetchResponse(payload()));
+    const hook = renderHookWithClient(() => useOrcamentoV2(params));
+    hook.queryClient.setQueryDefaults(queryKeys.cashflow.orcamentoV2Todos(), { gcTime: Infinity });
+    await waitFor(() => expect(hook.result.current.data).not.toBeNull());
+    const irParaNov = async () => {
+      params = { ano: 2026, mes: 11 };
+      hook.rerender();
+      await waitFor(() => expect(hook.result.current.data?.mes).toBe(11));
+    };
+    return { ...hook, irParaNov };
+  }
+
+  const respostaOut = () => {
+    const p = payload();
+    const cat = {
+      ...p.categorias[0],
+      orcado: 400,
+      subcategorias: [{ ...p.categorias[0].subcategorias[0], orcado: 400, valor: 400 }],
+    };
+    return {
+      subcategoria: cat.subcategorias[0],
+      categoria: cat,
+      resumo: { ...p.resumo, orcado: 400 },
+    };
+  };
+
+  it('sucesso: a resposta vai para o mês da edição (out), não para o aberto (nov)', async () => {
+    const { result, queryClient, irParaNov } = await montarTrocavel();
+    const put = adiado<Response>();
+    fetchMock.mockReturnValueOnce(put.promessa);
+    act(() => {
+      result.current.salvarOrcado.mutate({ itemId: 'alug', valor: 400 });
+    });
+    await waitFor(() => expect(chamadas('PUT')).toHaveLength(1));
+    fetchMock.mockResolvedValue(mockFetchResponse(payloadNov()));
+    await irParaNov();
+
+    put.resolver(mockFetchResponse(respostaOut()));
+    await waitFor(() => expect(subDoCache(queryClient, 'alug')?.valor).toBe(400));
+    await waitFor(() => expect(queryClient.isMutating()).toBe(0));
+    expect(orcadoNov(queryClient)).toEqual([11, 0, 0, 0]);
+    expect(corpo(chamadas('PUT')[0])).toMatchObject({ ano: 2026, mes: 10 });
+  });
+
+  it('erro: o rollback volta o mês da edição (out) e não grava out em nov', async () => {
+    const { result, queryClient, irParaNov } = await montarTrocavel();
+    const put = adiado<Response>();
+    fetchMock.mockReturnValueOnce(put.promessa);
+    act(() => {
+      result.current.salvarOrcado.mutate({ itemId: 'alug', valor: 400 });
+    });
+    await waitFor(() => expect(subDoCache(queryClient, 'alug')?.orcado).toBe(400));
+    fetchMock.mockResolvedValue(mockFetchResponse(payloadNov()));
+    await irParaNov();
+
+    put.resolver(mockFetchResponse({ error: 'x' }, 500));
+    await waitFor(() => expect(subDoCache(queryClient, 'alug')?.orcado).toBe(1000));
+    await waitFor(() => expect(queryClient.isMutating()).toBe(0));
+    expect(orcadoNov(queryClient)).toEqual([11, 0, 0, 0]);
+  });
+});
+
 describe('useOrcamentoV2 — marcarFixa, prefs e copiar', () => {
   it('marcarFixa: palpite com rollback no erro', async () => {
     const { result, queryClient } = await montar();
