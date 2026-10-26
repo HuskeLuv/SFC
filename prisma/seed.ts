@@ -6,6 +6,7 @@ import { CURSO_ESR_SLUG, MODULOS_TRILHA_ESR } from '../src/constants/educacaoMod
 import { AULAS_TRILHA_ESR, buildVturbEmbed } from '../src/constants/educacaoAulas';
 import { seedAnaliseAtivos } from './seedAnaliseAtivos';
 import { EMAIL_ADMIN_DEV, garantirAdminDev } from './seedAdminDev';
+import { EMAIL_ORCAMENTO_V2, seedOrcamentoV2 } from './seedOrcamentoV2';
 
 const prisma = new PrismaClient();
 
@@ -440,6 +441,11 @@ async function main() {
         : '📈 Análise de Ativos: banco já tem dados da Fase 0 — fixtures puladas',
     );
     console.log(`📈 Demo no beta da Análise de Ativos: ${analise.demoNoBeta ? 'sim' : 'não'}`);
+
+    // Orçamento v2 (PR 13): usuário próprio dos e2e, ativado e no beta (o demo fica fora: a tela
+    // de hoje e os snapshots orcamento-*/planilha-* não mudam). Idempotente: refaz do zero.
+    const orcamentoV2 = await seedOrcamentoV2(prisma);
+    console.log(`🧾 Orçamento v2: ${EMAIL_ORCAMENTO_V2} (${orcamentoV2.status}, no beta)`);
 
     // Bloco C (curadoria): admin de dev/CI só com SEED_ADMIN_DEV=1 (job de e2e do CI) e só em
     // banco de dev/CI (guarda em seedAdminDev.ts).

@@ -83,6 +83,10 @@ jobs:
       ANALISE_ATIVOS_SALVOS_HABILITADO: 'true'
       ANALISE_ATIVOS_ALERTAS_HABILITADO: 'true'
       ANALISE_ATIVOS_PDF_HABILITADO: 'true'
+      # Orçamento v2 (PR 13): ligado só para o usuário do seed orcamento.v2@finapp.local (beta +
+      # ativado em prisma/seedOrcamentoV2.ts). O demo fica fora do beta: a tela de hoje e os
+      # snapshots orcamento-*/planilha-* não mudam. Nunca ORCAMENTO_V2_ACESSO=todos aqui.
+      ORCAMENTO_V2_HABILITADO: 'true'
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
