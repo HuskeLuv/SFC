@@ -113,8 +113,9 @@ function serieDoGrupo(group: CashflowGroup): SeriePorModo {
 
 /**
  * Partição disjunta das categorias de despesa (ver doc do módulo).
- * Retorna pares (grupo, nome do pai) na ordem da árvore. Exportada para a ativação do
- * Orçamento v2, que usa exatamente a mesma partição (desenho técnico §2).
+ * Retorna pares (grupo, nome do pai) na ordem da árvore. É a mesma partição de categorias da
+ * ativação e da leitura do Orçamento v2 (desenho técnico §2): as telas nunca divergem no que é
+ * categoria.
  */
 export function collectCategorias(
   groups: CashflowGroup[],
@@ -147,8 +148,11 @@ export function collectCategorias(
   return out;
 }
 
-/** Entradas (renda) por mês nos dois modos — base da meta % de investimentos. */
-function entradasPorMes(groups: CashflowGroup[]): SeriePorModo {
+/**
+ * Entradas (renda) por mês nos dois modos — base da meta % de investimentos e da receita prevista
+ * do Orçamento v2 (`orcamentoV2/receitaPrevista`, sempre no Lançado).
+ */
+export function entradasPorMes(groups: CashflowGroup[]): SeriePorModo {
   const into = { lancado: zeros(), consolidado: zeros() };
   groups.forEach((group) => {
     if (isReceitaGroupByType(group.type)) sumSubtree(group, into);
