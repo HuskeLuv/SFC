@@ -44,7 +44,7 @@ export default function OrcamentoV2Moldura({
   const toggleClass = (active: boolean) =>
     `rounded-md px-3 py-1.5 text-sm font-medium transition ${
       active
-        ? 'bg-white text-brand-600 shadow-theme-xs dark:bg-gray-900 dark:text-brand-400'
+        ? 'bg-mf-outside text-white shadow-theme-xs'
         : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'
     }`;
 

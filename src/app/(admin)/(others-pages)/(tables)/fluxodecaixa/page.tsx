@@ -85,7 +85,7 @@ export default function FluxoDeCaixa() {
             onClick={() => selectModo(m.value)}
             className={`rounded-md px-4 py-1.5 text-sm font-medium transition max-lg:min-h-11 max-lg:flex-1 max-lg:rounded-[10px] ${
               isActive
-                ? 'bg-white text-brand-600 shadow-theme-xs dark:bg-gray-900 dark:text-brand-400'
+                ? 'bg-mf-outside text-white shadow-theme-xs'
                 : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'
             }`}
             aria-pressed={isActive}
