@@ -13,6 +13,8 @@ vi.mock('@/services/cashflow/orcamentoV2/acesso', () => ({
 vi.mock('@/services/cashflow/getCashflowTree', () => ({
   getMergedCashflowGroups: mockGetMerged,
 }));
+const mockGarantirGerais = vi.hoisted(() => vi.fn());
+vi.mock('@/services/cashflow/orcamentoV2/ativacao', () => ({ garantirGerais: mockGarantirGerais }));
 const mockExecutarExclusao = vi.hoisted(() => vi.fn());
 vi.mock('@/services/cashflow/orcamentoV2/excluirSubcategoria', () => ({
   executarExclusaoSubcategoria: mockExecutarExclusao,
@@ -27,6 +29,7 @@ import {
   categoriaInfoDoRegistro,
   delegarExclusaoItem,
   ehCategoriaSistema,
+  garantirGeraisSeAtivo,
   guardarCriacaoItemV2,
   guardarEdicaoItemV2,
   localizarGrupo,
@@ -318,5 +321,32 @@ describe('guardarEdicaoItemV2', () => {
       guardarEdicaoItemV2('u1', 'ovr-luz', { name: 'gas' }, { arvore: a }),
     ).rejects.toMatchObject({ codigo: 'nome_duplicado' });
     expect(mockGetMerged).not.toHaveBeenCalled();
+  });
+});
+
+describe('garantirGeraisSeAtivo', () => {
+  beforeEach(() => {
+    mockGarantirGerais.mockReset();
+    mockEstado.mockReset();
+  });
+
+  it('não ativado → não garante (e não lança)', async () => {
+    mockEstado.mockResolvedValue({ estado: 'liberada', ativado: false });
+    await garantirGeraisSeAtivo('u-nao');
+    expect(mockGarantirGerais).not.toHaveBeenCalled();
+  });
+
+  it('ativado (consultado ou informado) → garante', async () => {
+    mockEstado.mockResolvedValue({ estado: 'liberada', ativado: true });
+    mockGarantirGerais.mockResolvedValue({ criadas: ['g'], adotadas: [] });
+    await garantirGeraisSeAtivo('u-sim');
+    await garantirGeraisSeAtivo('u-sim2', true);
+    expect(mockGarantirGerais).toHaveBeenCalledTimes(2);
+    expect(mockEstado).toHaveBeenCalledTimes(1);
+  });
+
+  it('erro ao garantir vira log, não lança', async () => {
+    mockGarantirGerais.mockRejectedValue(new Error('boom'));
+    await expect(garantirGeraisSeAtivo('u-err', true)).resolves.toBeUndefined();
   });
 });

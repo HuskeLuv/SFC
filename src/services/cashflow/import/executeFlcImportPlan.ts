@@ -1,6 +1,7 @@
 import prisma from '@/lib/prisma';
 import { logger } from '@/lib/logger';
 import { ensurePersonalizedItem, personalizeGroup } from '@/utils/cashflowPersonalization';
+import { garantirGeraisSeAtivo } from '@/services/cashflow/orcamentoV2/guardas';
 import { normalizeLabel } from './parseFlcXlsx';
 import type { FlcImportPlan, FlcItemPlano } from './mapFlcToCashflow';
 
@@ -271,6 +272,10 @@ export const executeFlcImportPlan = async (
       }
     }
   }
+
+  // Orçamento v2 (§6.2): grupos de despesa personalizados/criados pela importação ganham a Geral.
+  // Só para usuário ativado; fora de transação (os escritos acima já foram gravados).
+  if (grupoFinal.size > 0) await garantirGeraisSeAtivo(targetUserId);
 
   return { relatorio, undo };
 };

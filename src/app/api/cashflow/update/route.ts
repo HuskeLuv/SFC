@@ -30,6 +30,7 @@ import {
   assertNaoGeral,
   categoriaInfoDoRegistro,
   delegarExclusaoItem,
+  garantirGeraisSeAtivo,
   guardarCriacaoItemV2,
   guardarEdicaoItemV2,
   usuarioOrcamentoV2Ativo,
@@ -301,6 +302,8 @@ async function handleGroupOperation(
         children: true,
       },
     });
+    // Orçamento v2 (§6.2): categoria nova de despesa nasce com a Geral (só para ativado).
+    if (v2 && newGroup.type === 'despesa') await garantirGeraisSeAtivo(userId, true);
 
     return {
       response: NextResponse.json({ success: true, group: newGroup }),

@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { NextRequest } from 'next/server';
 
 const mockPrisma = vi.hoisted(() => ({
-  cashflowGroup: { findUnique: vi.fn(), findMany: vi.fn(), delete: vi.fn() },
+  cashflowGroup: { findUnique: vi.fn(), findMany: vi.fn(), delete: vi.fn(), create: vi.fn() },
   cashflowItem: {
     findUnique: vi.fn(),
     create: vi.fn(),
@@ -51,6 +51,12 @@ vi.mock('@/services/cashflow/orcamentoV2/acesso', () => ({
 vi.mock('@/services/cashflow/getCashflowTree', () => ({
   getMergedCashflowGroups: mockGetMerged,
 }));
+const mockGarantirGerais = vi.hoisted(() => vi.fn());
+vi.mock('@/services/cashflow/orcamentoV2/ativacao', async (importOriginal) => {
+  const original =
+    await importOriginal<typeof import('@/services/cashflow/orcamentoV2/ativacao')>();
+  return { ...original, garantirGerais: mockGarantirGerais };
+});
 const mockExecutarExclusao = vi.hoisted(() => vi.fn());
 const mockTratarOrcados = vi.hoisted(() => vi.fn());
 vi.mock('@/services/cashflow/orcamentoV2/excluirSubcategoria', async (importOriginal) => {
@@ -164,6 +170,47 @@ beforeEach(() => {
   });
   mockPersonalization.hideTemplateGroup.mockResolvedValue('tomb-1');
   mockRecordChange.mockResolvedValue(undefined);
+  mockGarantirGerais.mockResolvedValue({ criadas: [], adotadas: [] });
+  mockPrisma.cashflowGroup.create.mockImplementation(async ({ data }) => ({
+    id: 'grupo-novo',
+    ...data,
+    items: [],
+    children: [],
+  }));
+});
+
+const criarGrupo = (type: string) =>
+  PATCH(req({ operation: 'create', type: 'group', data: { name: 'Pets', type } }));
+
+describe('PATCH /api/cashflow/update — criar grupo × Geral do Orçamento v2 (§6.2)', () => {
+  it('sem v2: cria o grupo sem garantir Geral', async () => {
+    const res = await criarGrupo('despesa');
+    expect(res.status).toBe(200);
+    expect(mockGarantirGerais).not.toHaveBeenCalled();
+  });
+
+  it('ativado: grupo de despesa → garantirGerais depois de criar', async () => {
+    ativarV2();
+    const res = await criarGrupo('despesa');
+    expect(res.status).toBe(200);
+    expect(mockGarantirGerais).toHaveBeenCalledWith('user-1');
+    expect(mockPrisma.cashflowGroup.create.mock.invocationCallOrder[0]).toBeLessThan(
+      mockGarantirGerais.mock.invocationCallOrder[0],
+    );
+  });
+
+  it('ativado: grupo de entrada não garante Geral', async () => {
+    ativarV2();
+    await criarGrupo('entrada');
+    expect(mockGarantirGerais).not.toHaveBeenCalled();
+  });
+
+  it('falha ao garantir a Geral não desfaz a criação (o GET garante de novo)', async () => {
+    ativarV2();
+    mockGarantirGerais.mockRejectedValue(new Error('boom'));
+    const res = await criarGrupo('despesa');
+    expect(res.status).toBe(200);
+  });
 });
 
 describe('PATCH /api/cashflow/update — usuário sem Orçamento v2 (como antes)', () => {

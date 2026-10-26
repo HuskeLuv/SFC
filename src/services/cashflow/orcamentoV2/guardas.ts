@@ -21,6 +21,7 @@
  * solto.
  */
 import { prisma } from '@/lib/prisma';
+import { logger } from '@/lib/logger';
 import { ApiError } from '@/utils/apiErrorHandler';
 import { isReceitaGroupByType } from '@/utils/formatters';
 import { validarNomeSubcategoria, NOME_MAX } from '@/lib/orcamento/regras';
@@ -28,6 +29,7 @@ import { categoriaDoCatalogo } from '@/lib/orcamento/catalogo';
 import { CANONICAL_GROUPS, canonicalName, isCanonical } from '@/services/cashflow/groupMatchers';
 import { getMergedCashflowGroups } from '@/services/cashflow/getCashflowTree';
 import { estadoAcessoOrcamentoV2 } from '@/services/cashflow/orcamentoV2/acesso';
+import { garantirGerais } from '@/services/cashflow/orcamentoV2/ativacao';
 import {
   executarExclusaoSubcategoria,
   type ContextoRegistro,
@@ -80,6 +82,24 @@ const MENSAGEM_NOME: Record<'vazio' | 'longo' | 'duplicado', string> = {
 export async function usuarioOrcamentoV2Ativo(userId: string): Promise<boolean> {
   const { estado, ativado } = await estadoAcessoOrcamentoV2(userId);
   return estado === 'liberada' && ativado;
+}
+
+/**
+ * R-02/D-6: depois de criar grupo(s) de despesa (PATCH /update, importação FLC), garante a Geral
+ * das categorias novas — só para quem está ativado (`ativo` já calculado pela rota, ou consultado
+ * aqui; com a flag desligada nem o banco é lido). Fora de transação e tolerante a falha: o GET v2
+ * garante as Gerais de novo, então um erro aqui só vira log e não desfaz a criação.
+ */
+export async function garantirGeraisSeAtivo(userId: string, ativo?: boolean): Promise<void> {
+  try {
+    if (!(ativo ?? (await usuarioOrcamentoV2Ativo(userId)))) return;
+    await garantirGerais(userId);
+  } catch (error: unknown) {
+    logger.warn('[orcamento-v2] garantirGerais após criar grupo falhou', {
+      userId,
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
 }
 
 /** R-02: a Geral não é renomeada, excluída nem movida (409). */
