@@ -44,6 +44,7 @@ import {
   type ChangeSnapshot,
 } from '@/services/changeHistory';
 import { categoriasDaArvore, garantirGerais, receitaLancadaPorMes } from './ativacao';
+import { hojeEmSaoPaulo } from './carregarOrcamento';
 import type { CategoriaAtivacao } from './ativacao';
 
 type Db = PrismaClient | Prisma.TransactionClient;
@@ -52,12 +53,6 @@ export const ACAO_EXCLUIR_SUBCATEGORIA = 'orcamento.subcategoria.excluir';
 export const KIND_SNAPSHOT_EXCLUSAO = 'orcamento-subcategoria-excluir';
 /** A transação lê a árvore e move células de vários anos: folga sobre os 5 s padrão. */
 const TIMEOUT_TX_MS = 30_000;
-
-/** "Hoje" em America/Sao_Paulo (UTC−3 fixo), mesmo critério de `orcamentoAlertas`. */
-export function hojeEmSaoPauloExclusao(agora: Date): HojeSP {
-  const brt = new Date(agora.getTime() - 3 * 60 * 60 * 1000);
-  return { ano: brt.getUTCFullYear(), mes0: brt.getUTCMonth(), dia: brt.getUTCDate() };
-}
 
 // ---------------------------------------------------------------------------------------------
 // Erros e tipos
@@ -657,7 +652,7 @@ export async function executarExclusaoSubcategoria(
   itemId: string,
   opts: OpcoesExecucao = {},
 ): Promise<ResultadoExclusao | null> {
-  const hojeSP = hojeEmSaoPauloExclusao(opts.agora ?? new Date());
+  const hojeSP = hojeEmSaoPaulo(opts.agora ?? new Date());
   const r = await resolverAlvo(prisma, userId, itemId);
   if (!r.ok) {
     if (opts.delegacao && NAO_APLICA_NA_DELEGACAO.has(r.codigo)) return null;
@@ -718,7 +713,7 @@ export async function tratarOrcadosAntesDeApagarItem(
   itemId: string,
   agora: Date = new Date(),
 ): Promise<{ somados: number; apagados: number }> {
-  const hojeSP = hojeEmSaoPauloExclusao(agora);
+  const hojeSP = hojeEmSaoPaulo(agora);
   const arvore = await getMergedCashflowGroups(userId, new Date().getFullYear());
   let geralId = localizarNaCategoria(arvore, itemId)?.geral?.id ?? null;
   if (!geralId && localizarNaCategoria(arvore, itemId)) {

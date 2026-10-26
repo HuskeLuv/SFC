@@ -42,7 +42,6 @@ import {
   ACAO_EXCLUIR_SUBCATEGORIA,
   ErroExclusaoSubcategoria,
   executarExclusaoSubcategoria,
-  hojeEmSaoPauloExclusao,
   planejarExclusao,
   planejarFusaoCelulas,
   planejarFusaoOrcados,
@@ -50,6 +49,7 @@ import {
   type Celula,
 } from '../excluirSubcategoria';
 import { delegarExclusaoItem } from '../guardas';
+import { hojeEmSaoPaulo } from '../carregarOrcamento';
 import { ORCAMENTO_V2_UNDO_HANDLERS } from '@/services/changeHistory/undo/handlers/orcamentoV2';
 import { FLUXO_CAIXA_UNDO_HANDLERS } from '@/services/changeHistory/undo/handlers/fluxoCaixa';
 import { removeObjetivoCashflow } from '@/services/planejamento/sonhoCashflowSync';
@@ -58,7 +58,7 @@ import { removeDividaCashflow } from '@/services/dividas/dividaCashflowSync';
 const U = 'u1';
 /** 23/10/2026: meses fechados = jan–set/2026 e anteriores; out = corrente. */
 const AGORA = new Date('2026-10-23T12:00:00Z');
-const HOJE_SP = hojeEmSaoPauloExclusao(AGORA);
+const HOJE_SP = hojeEmSaoPaulo(AGORA);
 const ANO = new Date().getFullYear();
 const VERMELHO = '#FF0000';
 const AZUL = '#0000FF';
