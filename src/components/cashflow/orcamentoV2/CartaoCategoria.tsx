@@ -1,6 +1,7 @@
 'use client';
 
 import { useId } from 'react';
+import { twMerge } from 'tailwind-merge';
 import { TABLE_MOBILE_STYLES } from '@/components/ui/table/tableStyles';
 import type { SalvarOrcadoEntrada } from '@/hooks/useOrcamentoV2';
 import { SELO_TEXTO } from '@/lib/orcamento/tons';
@@ -54,7 +55,7 @@ export default function CartaoCategoria({
   )} com orçamento${c.pctReceita !== null && c.orcado > 0 ? ` · ${pct(c.pctReceita)} da receita` : ''}`;
 
   return (
-    <div className={`${TABLE_MOBILE_STYLES.card} p-0`}>
+    <div className={twMerge(TABLE_MOBILE_STYLES.card, 'p-0')}>
       <button
         type="button"
         aria-expanded={aberta}

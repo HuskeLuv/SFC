@@ -198,6 +198,12 @@ describe('OrcamentoV2Cartoes — celular', () => {
       /(^|\s)(min-)?w-\[\d+px\]/.test(el.getAttribute('class') ?? ''),
     );
     expect(fixas).toHaveLength(0);
+    // O padding do cartão é zerado de fato (twMerge): sem `px-4`/`py-3.5` ao lado do `p-0`, que
+    // no Tailwind 4 ganhariam do `p-0` e dobrariam o recuo do botão e do corpo.
+    const casca = container.querySelector<HTMLElement>('li[data-mf-card] > div')!;
+    const classes = casca.className.split(/\s+/);
+    expect(classes).toContain('p-0');
+    expect(classes.filter((c) => /^p[xytrbl]?-/.test(c))).toEqual(['p-0']);
     expect(container.querySelector('[data-mf-heroi-realizado]')!.className).toContain(
       'tabular-nums',
     );
