@@ -358,3 +358,88 @@ describe('comentários da célula', () => {
     expect(refetchMock).not.toHaveBeenCalled();
   });
 });
+
+describe('T35: mutações da Planilha invalidam o Orçamento v2', () => {
+  const V2 = queryKeys.cashflow.orcamentoV2(YEAR, 10, 'mes', 'padrao');
+  const V2_ANO_ANTERIOR = queryKeys.cashflow.orcamentoV2(YEAR - 1, 12, 'ano', 'lancado');
+  type Hook = ReturnType<typeof setup>;
+
+  function setupComV2(): Hook {
+    const hook = setup();
+    // gcTime 0 do cliente de teste: sem observador, a chave sumiria na hora.
+    hook.queryClient.setQueryDefaults(queryKeys.cashflow.orcamentoV2Todos(), { gcTime: Infinity });
+    hook.queryClient.setQueryDefaults(queryKeys.cashflow.orcamentoV2Acesso(), { gcTime: Infinity });
+    hook.queryClient.setQueryData(V2, { versao: 2 });
+    hook.queryClient.setQueryData(V2_ANO_ANTERIOR, { versao: 2 });
+    hook.queryClient.setQueryData(queryKeys.cashflow.orcamentoV2Acesso(), { estado: 'liberada' });
+    return hook;
+  }
+
+  const invalidado = (h: Hook, k: readonly unknown[]) =>
+    h.queryClient.getQueryState(k)?.isInvalidated;
+
+  it.each([
+    [
+      'saveItemChanges',
+      async (r: Hook['result']) => {
+        fetchMock.mockResolvedValue(mockFetchResponse({ success: true, results: [] }));
+        await r.current.saveItemChanges({ groupId: 'g1', deletes: ['a'] });
+      },
+    ],
+    [
+      'createItem',
+      async (r: Hook['result']) => {
+        fetchMock.mockResolvedValue(mockFetchResponse({ id: 'novo', groupId: 'g1', name: 'N' }));
+        await r.current.createItem('g1', 'N');
+      },
+    ],
+    [
+      'saveCellComment',
+      async (r: Hook['result']) => {
+        fetchMock.mockResolvedValue(mockFetchResponse({ success: true }));
+        await r.current.saveCellComment('a', 6, 'nota');
+      },
+    ],
+    [
+      'reorderItem',
+      async (r: Hook['result']) => {
+        fetchMock.mockResolvedValue(mockFetchResponse({ success: true }));
+        await r.current.reorderItem('g1', 'c', 'a');
+      },
+    ],
+    [
+      'moveItem',
+      async (r: Hook['result']) => {
+        fetchMock.mockResolvedValue(mockFetchResponse({ success: true }));
+        await r.current.moveItem('a', 'g2', 'x', true);
+      },
+    ],
+  ])('%s invalida as chaves do v2 (inclusive de outro ano), não o acesso', async (_n, rodar) => {
+    const h = setupComV2();
+    await act(async () => {
+      await rodar(h.result);
+    });
+    expect(invalidado(h, V2)).toBe(true);
+    expect(invalidado(h, V2_ANO_ANTERIOR)).toBe(true);
+    expect(invalidado(h, queryKeys.cashflow.orcamentoV2Acesso())).toBe(false);
+  });
+
+  it('falha no reorder/comentário não invalida o v2', async () => {
+    const h = setupComV2();
+    fetchMock.mockResolvedValue(mockFetchResponse({ error: 'x' }, 500));
+    await act(async () => {
+      await h.result.current.reorderItem('g1', 'c', 'a');
+      await h.result.current.saveCellComment('a', 6, 'nota').catch(() => {});
+    });
+    expect(invalidado(h, V2)).toBe(false);
+  });
+
+  it('sem v2 em cache (usuário fora do v2): nenhuma invalidação a mais', async () => {
+    fetchMock.mockResolvedValue(mockFetchResponse({ id: 'novo', groupId: 'g1', name: 'N' }));
+    const { result, invalidate } = setup();
+    await act(async () => {
+      await result.current.createItem('g1', 'N');
+    });
+    expect(invalidate).not.toHaveBeenCalled();
+  });
+});
