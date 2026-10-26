@@ -11,6 +11,7 @@ import { useStableIsBelowLg } from '@/hooks/useStableIsBelowLg';
 import { SELO_TEXTO } from '@/lib/orcamento/tons';
 import type { FonteOrcamento, OrcamentoV2Response, VisaoOrcamento } from '@/types/orcamentoV2';
 import AvisoGeral from './AvisoGeral';
+import GraficoOrcamento from './GraficoOrcamento';
 import CopiarMes from './CopiarMes';
 import KpisOrcamento from './KpisOrcamento';
 import OrcamentoV2Cartoes from './OrcamentoV2Cartoes';
@@ -208,6 +209,10 @@ export default function OrcamentoV2Section() {
               </div>
             )}
             <KpisOrcamento data={data} />
+            <GraficoOrcamento
+              data={data}
+              onAlternar={(graficoVisivel) => orcamento.salvarPrefs.mutate({ graficoVisivel })}
+            />
             <OrcamentoV2Tabela
               data={data}
               onSalvarOrcado={(e) => orcamento.salvarOrcado.mutateAsync(e)}
