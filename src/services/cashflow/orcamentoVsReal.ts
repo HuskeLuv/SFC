@@ -113,9 +113,10 @@ function serieDoGrupo(group: CashflowGroup): SeriePorModo {
 
 /**
  * Partição disjunta das categorias de despesa (ver doc do módulo).
- * Retorna pares (grupo, nome do pai) na ordem da árvore.
+ * Retorna pares (grupo, nome do pai) na ordem da árvore. Exportada para a ativação do
+ * Orçamento v2, que usa exatamente a mesma partição (desenho técnico §2).
  */
-function collectCategorias(
+export function collectCategorias(
   groups: CashflowGroup[],
 ): Array<{ group: CashflowGroup; parentNome: string | null }> {
   const out: Array<{ group: CashflowGroup; parentNome: string | null }> = [];
@@ -186,7 +187,12 @@ export function buildOrcamentoVsReal({
         groupId: group.id,
         nome: group.name,
         parentNome,
-        metaMensal: metaPorGrupo.get(group.id) ?? null,
+        // Meta gravada no id do template continua valendo depois que o grupo ganha override
+        // (ex.: ativação do Orçamento v2 compensada ou desfeita); a do override tem prioridade.
+        metaMensal:
+          metaPorGrupo.get(group.id) ??
+          (group.templateId ? metaPorGrupo.get(group.templateId) : undefined) ??
+          null,
         realPorMes,
         realAnual: {
           lancado: round2(realPorMes.lancado.reduce((a, b) => a + b, 0)),
