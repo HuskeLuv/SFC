@@ -16,7 +16,7 @@ interface BarraConsumoProps {
 }
 
 /**
- * Coluna "Consumido" (spec §4.5): barra de 120 px com o traço do ritmo e o % (0 casas). A cor é a
+ * Coluna "Consumido" (spec §4.5): barra de 120 px (96 abaixo de 2xl, para a tabela caber em 1280 px com a sidebar) com o traço do ritmo e o % (0 casas). A cor é a
  * do status que o servidor mandou (tons de `lib/orcamento/tons`); o texto só ganha cor quando o
  * status pede ação (à frente do ritmo / estouro).
  */
@@ -25,7 +25,7 @@ export default function BarraConsumo({ consumido, status, ritmo, tituloRitmo }: 
     return (
       <span className="inline-flex items-center gap-2" data-mf-consumo="none">
         <span
-          className="block h-2 w-[120px] rounded-full bg-gray-100 dark:bg-gray-800"
+          className="block h-2 w-24 rounded-full 2xl:w-[120px] bg-gray-100 dark:bg-gray-800"
           title="sem orçamento"
         />
         <span className="w-11 text-right text-xs tabular-nums text-gray-400 dark:text-gray-500">
@@ -39,7 +39,7 @@ export default function BarraConsumo({ consumido, status, ritmo, tituloRitmo }: 
   const pct = consumido * 100;
   return (
     <span className="inline-flex items-center gap-2" data-mf-consumo={status}>
-      <span className="relative block h-2 w-[120px] rounded-full bg-gray-100 dark:bg-gray-800">
+      <span className="relative block h-2 w-24 rounded-full 2xl:w-[120px] bg-gray-100 dark:bg-gray-800">
         <span
           className={`absolute inset-y-0 left-0 rounded-full ${TOM_FUNDO[tom]}`}
           style={{ width: `${Math.min(100, Math.max(0, pct))}%` }}

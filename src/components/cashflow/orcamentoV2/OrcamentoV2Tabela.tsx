@@ -35,6 +35,9 @@ const BTN_SM =
   'inline-flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:bg-white/[0.03] dark:text-gray-200 dark:hover:bg-white/5';
 
 const TH = `${TABLE_STYLES.th} sticky top-0 z-10`;
+// Cabeçalho numérico que pode quebrar em duas linhas: sem isso a tabela passa de 964 px e, em
+// 1280 px com a sidebar, a coluna de ações some atrás da rolagem horizontal.
+const TH_QUEBRA = `${TABLE_STYLES.th.replace('whitespace-nowrap', '')} sticky top-0 z-10`;
 
 const MOTIVO_NOME = {
   longo: 'Use no máximo 60 caracteres.',
@@ -207,16 +210,16 @@ export default function OrcamentoV2Tabela({
               <th className={`${TH} text-left`} style={TABLE_HEADER_STYLE}>
                 Categoria / subcategoria
               </th>
-              <th className={`${TH} text-right`} style={TABLE_HEADER_STYLE}>
+              <th className={`${TH_QUEBRA} text-right`} style={TABLE_HEADER_STYLE}>
                 % da receita
               </th>
               <th className={`${TH} text-right`} style={TABLE_HEADER_STYLE}>
                 Orçado (R$)
               </th>
-              <th className={`${TH} text-right`} style={TABLE_HEADER_STYLE}>
+              <th className={`${TH_QUEBRA} text-right`} style={TABLE_HEADER_STYLE}>
                 {rotuloReal}
               </th>
-              <th className={`${TH} text-right`} style={TABLE_HEADER_STYLE}>
+              <th className={`${TH_QUEBRA} text-right`} style={TABLE_HEADER_STYLE}>
                 Diferença (R$)
               </th>
               <th className={`${TH} text-left`} style={TABLE_HEADER_STYLE}>
