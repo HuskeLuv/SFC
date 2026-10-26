@@ -4,6 +4,10 @@ import { requireAuthWithActing } from '@/utils/auth';
 import { personalizeGroup, getGroupForUser } from '@/utils/cashflowPersonalization';
 import { cashflowItemCreateSchema, validationError } from '@/utils/validation-schemas';
 import { recordChange, diffFields, CASHFLOW_FIELD_LABELS } from '@/services/changeHistory';
+import {
+  guardarCriacaoItemV2,
+  usuarioOrcamentoV2Ativo,
+} from '@/services/cashflow/orcamentoV2/guardas';
 
 import { withErrorHandler } from '@/utils/apiErrorHandler';
 
@@ -32,6 +36,19 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
     return NextResponse.json({ error: 'Grupo não encontrado' }, { status: 404 });
   }
 
+  // Orçamento v2 (só usuário ativado): nada de linha solta em Despesas/Despesas Fixas (Q15, 409);
+  // em categoria, nome único/1–60 (R-12/R-18, 422) e a sub nova entra antes da Geral. Antes de
+  // personalizar, para a recusa não deixar override criado.
+  let nomeFinal = (name || descricao)!;
+  let orderIndex: number | undefined;
+  if (await usuarioOrcamentoV2Ativo(targetUserId)) {
+    ({ nome: nomeFinal, orderIndex } = await guardarCriacaoItemV2(
+      targetUserId,
+      groupId,
+      nomeFinal,
+    ));
+  }
+
   // Se grupo é template, personalizar antes de adicionar item
   let finalGroupId = group.id;
   if (group.userId === null) {
@@ -46,10 +63,11 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
   const newItem = await prisma.cashflowItem.create({
     data: {
       userId: targetUserId, // Sempre personalizado quando criado pelo usuário
-      name: (name || descricao)!,
+      name: nomeFinal,
       significado: significado || null,
       groupId: finalGroupId,
       rank: newRank,
+      ...(orderIndex !== undefined && { orderIndex }),
     },
     include: {
       values: {

@@ -8,6 +8,11 @@
  * grupo de destino), o item passa a morar no grupo de destino — levando os
  * valores de todos os anos, que são do item — e o destino recebe orderIndex
  * por posição. O merge (getCashflowTree) exibe o override no grupo real.
+ *
+ * Orçamento v2: a subcategoria "Geral" não muda de seção (409, para qualquer usuário: a Geral só
+ * existe para ativados) e não é renumerada no destino. Para usuário ativado, o destino não pode
+ * ser "Despesas"/"Despesas Fixas" (Q15, 409) e, numa categoria, o nome não pode repetir o de uma
+ * sub de lá (R-12, 422).
  */
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -19,6 +24,15 @@ import { validationError, zString } from '@/utils/validation-schemas';
 import { personalizeGroup, personalizeItem } from '@/utils/cashflowPersonalization';
 import { getUserCashflowStructure } from '@/utils/cashflowSetup';
 import { recordChange } from '@/services/changeHistory';
+import {
+  assertNaoGeral,
+  assertNaoNivelSolto,
+  assertNomeLivreNaCategoria,
+  carregarArvoreEstrutura,
+  localizarGrupo,
+  nomesIrmaos,
+  usuarioOrcamentoV2Ativo,
+} from '@/services/cashflow/orcamentoV2/guardas';
 
 const moveSchema = z.object({
   itemId: zString(255),
@@ -29,6 +43,7 @@ const moveSchema = z.object({
 interface TreeItem {
   id: string;
   userId: string | null;
+  isGeral?: boolean;
 }
 interface TreeGroup {
   id: string;
@@ -126,11 +141,13 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
       templateId: true,
       objetivoId: true,
       dividaId: true,
+      isGeral: true,
     },
   });
   if (!row) {
     return NextResponse.json({ error: 'Linha não encontrada' }, { status: 404 });
   }
+  assertNaoGeral(row, 'mover');
   // Espelhos de sonho/dívida são sincronizados pelo grupo onde nasceram.
   if (row.objetivoId || row.dividaId) {
     return NextResponse.json(
@@ -148,6 +165,16 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
     itemIds.length === itensDestino.size + 1;
   if (!listaValida) {
     return NextResponse.json({ error: 'Lista de linhas do destino inválida' }, { status: 400 });
+  }
+
+  // Orçamento v2 (só ativado), antes de personalizar: destino solto (Q15) e nome repetido (R-12).
+  if (await usuarioOrcamentoV2Ativo(targetUserId)) {
+    const local = localizarGrupo(await carregarArvoreEstrutura(targetUserId), toGroupId);
+    if (local) {
+      assertNaoNivelSolto(local.papel);
+      if (local.papel === 'categoria')
+        assertNomeLivreNaCategoria(row.name, nomesIrmaos(local.grupo));
+    }
   }
 
   // Personaliza fora da $transaction (as funções têm as próprias). Grupo de
@@ -170,11 +197,15 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
     finalIds.push(it.userId === null ? await personalizeItem(id, targetUserId) : id);
   }
 
+  // A Geral do destino (v2) não é renumerada: a árvore a mantém sempre por último.
+  const geraisDestino = new Set((destino.items ?? []).filter((i) => i.isGeral).map((i) => i.id));
   await prisma.$transaction([
     prisma.cashflowItem.update({ where: { id: finalItemId }, data: { groupId: finalGroupId } }),
-    ...finalIds.map((id, index) =>
-      prisma.cashflowItem.update({ where: { id }, data: { orderIndex: index + 1 } }),
-    ),
+    ...finalIds
+      .filter((id) => !geraisDestino.has(id))
+      .map((id, index) =>
+        prisma.cashflowItem.update({ where: { id }, data: { orderIndex: index + 1 } }),
+      ),
   ]);
 
   await recordChange({

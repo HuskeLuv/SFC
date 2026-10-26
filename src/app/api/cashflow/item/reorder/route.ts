@@ -6,6 +6,9 @@
  * ids do merge template+overrides). Itens de template são personalizados
  * (override via personalizeItem, que preserva demais campos) para que a
  * posição seja por usuário; cada linha recebe orderIndex = posição.
+ *
+ * Orçamento v2 (R-02): a subcategoria "Geral" não é renumerada — fica fora das posições e a
+ * árvore a mantém sempre por último (`isGeral` é a chave primária da ordenação do merge).
  */
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -57,7 +60,7 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
 
   const rows = await prisma.cashflowItem.findMany({
     where: { id: { in: itemIds }, OR: [{ userId: targetUserId }, { userId: null }] },
-    select: { id: true, userId: true, groupId: true, name: true },
+    select: { id: true, userId: true, groupId: true, name: true, isGeral: true },
   });
   const rowById = new Map(rows.map((r) => [r.id, r]));
 
@@ -76,10 +79,13 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
     finalIds.push(row.userId === null ? await personalizeItem(id, targetUserId) : id);
   }
 
+  const gerais = new Set(rows.filter((r) => r.isGeral).map((r) => r.id));
   await prisma.$transaction(
-    finalIds.map((id, index) =>
-      prisma.cashflowItem.update({ where: { id }, data: { orderIndex: index + 1 } }),
-    ),
+    finalIds
+      .filter((id) => !gerais.has(id))
+      .map((id, index) =>
+        prisma.cashflowItem.update({ where: { id }, data: { orderIndex: index + 1 } }),
+      ),
   );
 
   await recordChange({

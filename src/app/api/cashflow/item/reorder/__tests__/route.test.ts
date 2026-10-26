@@ -94,4 +94,27 @@ describe('POST /api/cashflow/item/reorder', () => {
     const res = await POST(req({ groupId: 'grp-1', itemIds: ['a'] }));
     expect(res.status).toBe(400);
   });
+
+  it('Orçamento v2: a Geral fica fora da renumeração (as demais seguem a posição)', async () => {
+    mockPrisma.cashflowItem.findMany.mockResolvedValue([
+      { id: 'user-a', userId: 'user-1', groupId: 'grp-user', name: 'Aluguel', isGeral: false },
+      { id: 'geral', userId: 'user-1', groupId: 'grp-user', name: 'Geral', isGeral: true },
+      { id: 'user-b', userId: 'user-1', groupId: 'grp-user', name: 'Internet', isGeral: false },
+    ]);
+
+    const res = await POST(req({ groupId: 'grp-1', itemIds: ['user-b', 'geral', 'user-a'] }));
+    expect(res.status).toBe(200);
+    expect(mockPrisma.cashflowItem.update).toHaveBeenCalledTimes(2);
+    expect(mockPrisma.cashflowItem.update).toHaveBeenCalledWith({
+      where: { id: 'user-b' },
+      data: { orderIndex: 1 },
+    });
+    expect(mockPrisma.cashflowItem.update).toHaveBeenCalledWith({
+      where: { id: 'user-a' },
+      data: { orderIndex: 2 },
+    });
+    expect(mockPrisma.cashflowItem.update).not.toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: 'geral' } }),
+    );
+  });
 });

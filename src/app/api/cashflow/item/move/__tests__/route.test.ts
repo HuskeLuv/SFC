@@ -18,6 +18,8 @@ const mockPersonalizeItem = vi.hoisted(() => vi.fn());
 const mockPersonalizeGroup = vi.hoisted(() => vi.fn());
 const mockGetStructure = vi.hoisted(() => vi.fn());
 const mockRecordChange = vi.hoisted(() => vi.fn());
+const mockEstadoV2 = vi.hoisted(() => vi.fn());
+const mockGetMerged = vi.hoisted(() => vi.fn());
 
 vi.mock('@/utils/auth', () => ({ requireAuthWithActing: mockRequireAuthWithActing }));
 vi.mock('@/lib/prisma', () => ({ prisma: mockPrisma, default: mockPrisma }));
@@ -30,6 +32,13 @@ vi.mock('@/services/changeHistory', async (importOriginal) => {
   const original = await importOriginal<typeof import('@/services/changeHistory')>();
   return { ...original, recordChange: mockRecordChange };
 });
+
+vi.mock('@/services/cashflow/orcamentoV2/acesso', () => ({
+  estadoAcessoOrcamentoV2: mockEstadoV2,
+}));
+vi.mock('@/services/cashflow/getCashflowTree', () => ({
+  getMergedCashflowGroups: mockGetMerged,
+}));
 
 import { POST } from '../route';
 
@@ -87,6 +96,7 @@ beforeEach(() => {
     dividaId: null,
   });
   mockPersonalizeItem.mockResolvedValue('user-internet');
+  mockEstadoV2.mockResolvedValue({ estado: 'desligada', ativado: false });
 });
 
 describe('POST /api/cashflow/item/move', () => {
@@ -248,6 +258,135 @@ describe('POST /api/cashflow/item/move', () => {
     expect(mockPrisma.cashflowItem.update).toHaveBeenCalledWith({
       where: { id: 'user-cinema' },
       data: { templateId: 'tpl-cinema' },
+    });
+  });
+
+  describe('Orçamento v2', () => {
+    // Destino com Geral (linha do usuário) — vale para qualquer usuário, por dado.
+    const treeComGeral = () => {
+      const t = tree();
+      t[0].children![1].items = [
+        { id: 'user-cinema', userId: 'user-1' },
+        { id: 'geral-lazer', userId: 'user-1', isGeral: true } as never,
+      ];
+      return t;
+    };
+    // Árvore mesclada (com templateName) que as guardas do v2 leem.
+    const merged = () => [
+      {
+        id: 'despesas',
+        name: 'Despesas',
+        templateName: 'Despesas',
+        type: 'despesa',
+        userId: null,
+        isTemplate: true,
+        items: [],
+        children: [
+          {
+            id: 'user-lazer',
+            name: 'Lazer',
+            type: 'despesa',
+            userId: 'user-1',
+            templateId: 'tpl-lazer',
+            templateName: 'Lazer',
+            items: [
+              { id: 'user-cinema', name: 'Cinema' },
+              { id: 'geral-lazer', name: 'Geral', isGeral: true },
+            ],
+            children: [],
+          },
+        ],
+      },
+    ];
+
+    it('409 ao mover a Geral (qualquer usuário), sem personalizar nada', async () => {
+      mockPrisma.cashflowItem.findFirst.mockResolvedValue({
+        id: 'geral-hab',
+        userId: 'user-1',
+        name: 'Geral',
+        objetivoId: null,
+        dividaId: null,
+        isGeral: true,
+      });
+      const res = await POST(
+        req({
+          itemId: 'tpl-internet',
+          toGroupId: 'user-lazer',
+          itemIds: ['tpl-internet', 'user-cinema'],
+        }),
+      );
+      expect(res.status).toBe(409);
+      expect((await res.json()).error).toBe('A subcategoria Geral não pode ser movida');
+      expect(mockPersonalizeItem).not.toHaveBeenCalled();
+      expect(mockPrisma.$transaction).not.toHaveBeenCalled();
+    });
+
+    it('a Geral do destino não é renumerada', async () => {
+      mockGetStructure.mockResolvedValue(treeComGeral());
+      const res = await POST(
+        req({
+          itemId: 'tpl-internet',
+          toGroupId: 'user-lazer',
+          itemIds: ['user-cinema', 'tpl-internet', 'geral-lazer'],
+        }),
+      );
+      expect(res.status).toBe(200);
+      expect(mockPrisma.cashflowItem.update).toHaveBeenCalledWith({
+        where: { id: 'user-cinema' },
+        data: { orderIndex: 1 },
+      });
+      expect(mockPrisma.cashflowItem.update).toHaveBeenCalledWith({
+        where: { id: 'user-internet' },
+        data: { orderIndex: 2 },
+      });
+      expect(mockPrisma.cashflowItem.update).not.toHaveBeenCalledWith(
+        expect.objectContaining({ where: { id: 'geral-lazer' } }),
+      );
+    });
+
+    it('ativado: 422 quando a categoria de destino já tem sub com o mesmo nome', async () => {
+      mockEstadoV2.mockResolvedValue({ estado: 'liberada', ativado: true });
+      mockGetMerged.mockResolvedValue(merged());
+      mockPrisma.cashflowItem.findFirst.mockResolvedValue({
+        id: 'tpl-internet',
+        userId: null,
+        name: 'CINEMA',
+        objetivoId: null,
+        dividaId: null,
+      });
+      const res = await POST(
+        req({
+          itemId: 'tpl-internet',
+          toGroupId: 'user-lazer',
+          itemIds: ['tpl-internet', 'user-cinema'],
+        }),
+      );
+      expect(res.status).toBe(422);
+      expect(mockPersonalizeItem).not.toHaveBeenCalled();
+    });
+
+    it('ativado: 409 ao mover para Despesas (linha solta, Q15)', async () => {
+      mockEstadoV2.mockResolvedValue({ estado: 'liberada', ativado: true });
+      mockGetMerged.mockResolvedValue(merged());
+      const res = await POST(
+        req({ itemId: 'tpl-internet', toGroupId: 'despesas', itemIds: ['tpl-internet'] }),
+      );
+      expect(res.status).toBe(409);
+      expect(mockPersonalizeItem).not.toHaveBeenCalled();
+    });
+
+    it('ativado: nome livre na categoria → move normalmente', async () => {
+      mockEstadoV2.mockResolvedValue({ estado: 'liberada', ativado: true });
+      mockGetMerged.mockResolvedValue(merged());
+      const res = await POST(
+        req({
+          itemId: 'tpl-internet',
+          toGroupId: 'user-lazer',
+          itemIds: ['tpl-internet', 'user-cinema'],
+        }),
+      );
+      expect(res.status).toBe(200);
+      expect(mockGetMerged).toHaveBeenCalledWith('user-1', expect.any(Number));
     });
   });
 });
