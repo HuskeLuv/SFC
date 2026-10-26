@@ -119,6 +119,18 @@ const ACTION_RENDERERS: Record<string, Renderer> = {
     'Excluiu uma subcategoria do orçamento (somada na Geral)',
     (l) => `Excluiu a subcategoria ${l} (somada na Geral)`,
   ),
+  'orcamento.item.editar': withLabel(
+    'Editou o orçado de uma subcategoria',
+    (l) => `Editou o orçado de ${l}`,
+  ),
+  'orcamento.copiar': withLabel(
+    'Copiou o orçamento de outro mês',
+    (l) => `Copiou o orçamento para ${l}`,
+  ),
+  'orcamento.subcategoria.fixa': withLabel(
+    'Mudou a marcação "fixa" de uma subcategoria do orçamento',
+    (l) => `Mudou a marcação "fixa" da subcategoria ${l}`,
+  ),
   'item.mover': withLabel(
     'Moveu uma linha do fluxo de caixa para outra seção',
     (l) => `Moveu a linha ${l} para outra seção`,
