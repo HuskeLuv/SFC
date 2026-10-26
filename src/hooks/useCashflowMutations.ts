@@ -84,6 +84,16 @@ export function useCashflowMutations(year: number) {
   const queryClient = useQueryClient();
   const { data, refetch } = useCashflowData(year);
 
+  // T35 (Orçamento v2, desenho técnico §7): valores, comentários e estrutura da Planilha mudam o
+  // realizado/as linhas do v2 — invalida todas as chaves do v2 (todos os anos: a receita de
+  // jan–mar olha o ano anterior). Só quando há v2 em cache (usuário ativado que abriu a aba); para
+  // os demais nada muda, nem a lista de invalidações.
+  const invalidarOrcamentoV2 = useCallback(() => {
+    const filtro = { queryKey: queryKeys.cashflow.orcamentoV2Todos() };
+    if (queryClient.getQueryCache().findAll(filtro).length === 0) return;
+    void queryClient.invalidateQueries(filtro);
+  }, [queryClient]);
+
   const saveItemChanges = useCallback(
     async ({
       groupId,
@@ -131,6 +141,7 @@ export function useCashflowMutations(year: number) {
       void queryClient.invalidateQueries({
         queryKey: queryKeys.cashflow.orcamento(year),
       });
+      invalidarOrcamentoV2();
       // Editar a linha-espelho de um sonho re-deriva o "Realizado" no backend;
       // invalida a query de sonhos pra a tela de Planejamento refletir na hora.
       queryClient.invalidateQueries({ queryKey: queryKeys.planejamento.all });
@@ -151,7 +162,7 @@ export function useCashflowMutations(year: number) {
       }
       return { ok: true, httpOk: true, treeUpdated, results };
     },
-    [csrfFetch, queryClient, refetch, year],
+    [csrfFetch, queryClient, refetch, year, invalidarOrcamentoV2],
   );
 
   const createItem = useCallback(
@@ -162,10 +173,11 @@ export function useCashflowMutations(year: number) {
       opts?: { refetch?: boolean },
     ): Promise<CashflowItem> => {
       const newItem = (await createCashflowItem(groupId, name, significado)) as unknown;
+      invalidarOrcamentoV2();
       if (opts?.refetch) await refetch();
       return newItem as CashflowItem;
     },
-    [refetch],
+    [refetch, invalidarOrcamentoV2],
   );
 
   // Ao soltar `activeId` sobre `overId` no mesmo grupo, reordena o cache na hora (a planilha não
@@ -191,6 +203,7 @@ export function useCashflowMutations(year: number) {
           body: JSON.stringify({ groupId, itemIds: ids }),
         });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        invalidarOrcamentoV2();
         return true;
       } catch (error) {
         logger.error('Erro ao reordenar linha:', error);
@@ -198,7 +211,7 @@ export function useCashflowMutations(year: number) {
         return false;
       }
     },
-    [data, queryClient, year, csrfFetch, refetch],
+    [data, queryClient, year, csrfFetch, refetch, invalidarOrcamentoV2],
   );
 
   // Move a linha para outro grupo (solta numa linha ou no cabeçalho): move no cache na hora e
@@ -235,6 +248,7 @@ export function useCashflowMutations(year: number) {
         void queryClient.invalidateQueries({
           queryKey: queryKeys.cashflow.orcamento(year),
         });
+        invalidarOrcamentoV2();
         return { ok: true };
       } catch (error) {
         logger.error('Erro ao mover linha:', error);
@@ -249,7 +263,7 @@ export function useCashflowMutations(year: number) {
         await refetch();
       }
     },
-    [data, queryClient, year, csrfFetch, refetch],
+    [data, queryClient, year, csrfFetch, refetch, invalidarOrcamentoV2],
   );
 
   const fetchCellComment = useCallback(
@@ -309,9 +323,10 @@ export function useCashflowMutations(year: number) {
         );
       }
 
+      invalidarOrcamentoV2();
       await refetch();
     },
-    [csrfFetch, refetch, year],
+    [csrfFetch, refetch, year, invalidarOrcamentoV2],
   );
 
   return {

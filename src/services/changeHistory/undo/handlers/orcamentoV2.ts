@@ -11,6 +11,12 @@
  *  3. transações do banco que ainda estão na Geral voltam para a sub;
  *  4. orçados: os da Geral voltam ao anterior (se ainda valem o somado) e os da sub são recriados.
  * Qualquer mudança posterior nos alvos → 409 (STATE_MISMATCH), sem desfazer nada pela metade.
+ *
+ * 'orcamento.item.editar': volta o orçado do (item, ano, mês) ao valor anterior (sem linha →
+ * apaga) — só se o orçado atual ainda é o que a edição gravou e a subcategoria ainda existe.
+ *
+ * 'orcamento.copiar': volta cada célula escrita pela cópia ao estado anterior, numa transação;
+ * se QUALQUER uma mudou depois (edição, exclusão da sub), 409 sem tocar em nenhuma.
  */
 import prisma from '@/lib/prisma';
 import { recomputeEvolucaoSnapshotsSafe } from '@/services/cashflow/evolucaoPatrimonioServer';
@@ -20,13 +26,36 @@ import {
   KIND_SNAPSHOT_EXCLUSAO,
 } from '@/services/cashflow/orcamentoV2/excluirSubcategoria';
 import {
+  ACAO_EDITAR_ORCADO,
+  ACAO_FIXA_SUBCATEGORIA,
+  KIND_SNAPSHOT_EDITAR_ORCADO,
+  mesmoOrcado,
+  orcadoDaLinha,
+  type DadosSnapshotEditarOrcado,
+} from '@/services/cashflow/orcamentoV2/escritaOrcado';
+import {
+  ACAO_COPIAR_MES,
+  KIND_SNAPSHOT_COPIAR,
+  type DadosSnapshotCopiar,
+} from '@/services/cashflow/orcamentoV2/copiarMes';
+import type { Orcado } from '@/lib/orcamento/regras';
+import type { Prisma } from '@prisma/client';
+import {
   STATE_MISMATCH_MESSAGE,
   UndoError,
   type UndoContext,
   type UndoDefinition,
   type UndoOutcome,
 } from '../types';
-import { getChanges, getSnapshot, invertChanges, isUniqueViolation, valuesMatch } from '../helpers';
+import {
+  assertCurrentMatchesAfter,
+  getChanges,
+  getSnapshot,
+  invertChanges,
+  isUniqueViolation,
+  restoreData,
+  valuesMatch,
+} from '../helpers';
 
 const conflito = () => new UndoError(409, STATE_MISMATCH_MESSAGE);
 
@@ -164,6 +193,118 @@ const subcategoriaExcluir: UndoDefinition = {
   },
 };
 
+/**
+ * Confere que o orçado de (item, ano, mês) ainda é `esperado` e o volta para `anterior` (`null` =
+ * sem linha). Lança 409 se mudou. Dentro da transação do undo.
+ */
+async function restaurarOrcado(
+  tx: Prisma.TransactionClient,
+  userId: string,
+  itemId: string,
+  ano: number,
+  mes: number,
+  esperado: Orcado | null,
+  anterior: Orcado | null,
+): Promise<void> {
+  const chave = { userId, itemId, ano, mes };
+  const linha = await tx.cashflowOrcamentoItem.findUnique({
+    where: { userId_itemId_ano_mes: chave },
+    select: { valor: true, pct: true },
+  });
+  if (!mesmoOrcado(orcadoDaLinha(linha), esperado)) throw conflito();
+  if (anterior === null) {
+    if (linha) await tx.cashflowOrcamentoItem.deleteMany({ where: chave });
+    return;
+  }
+  await tx.cashflowOrcamentoItem.upsert({
+    where: { userId_itemId_ano_mes: chave },
+    update: { valor: anterior.valor, pct: anterior.pct },
+    create: { ...chave, valor: anterior.valor, pct: anterior.pct },
+  });
+}
+
+const orcadoValido = (o: unknown): o is Orcado | null =>
+  o === null || (typeof o === 'object' && 'valor' in o && 'pct' in o);
+
+const orcadoEditar: UndoDefinition = {
+  strategy: 'custom',
+  requires: { entityId: true, snapshot: true },
+  precheck(entry) {
+    return getSnapshot(entry)?.kind === KIND_SNAPSHOT_EDITAR_ORCADO;
+  },
+  async execute({ auth, entry }: UndoContext): Promise<UndoOutcome> {
+    const { targetUserId: userId } = auth;
+    const snap = getSnapshot(entry);
+    const d = snap?.data as unknown as DadosSnapshotEditarOrcado | undefined;
+    if (
+      snap?.kind !== KIND_SNAPSHOT_EDITAR_ORCADO ||
+      !d?.itemId ||
+      typeof d.ano !== 'number' ||
+      typeof d.mes !== 'number' ||
+      !orcadoValido(d.antes) ||
+      !orcadoValido(d.depois)
+    ) {
+      throw new UndoError(400, 'Snapshot sem os dados do orçado', 'UNDO_MISSING_DATA');
+    }
+    await prisma.$transaction(async (tx) => {
+      const item = await tx.cashflowItem.findFirst({
+        where: { id: d.itemId, userId, hidden: false },
+        select: { id: true },
+      });
+      if (!item) throw new UndoError(409, 'A subcategoria não existe mais');
+      await restaurarOrcado(tx, userId, d.itemId, d.ano, d.mes, d.depois, d.antes);
+    });
+    return { changes: invertChanges(getChanges(entry)) };
+  },
+};
+
+const copiarMes: UndoDefinition = {
+  strategy: 'custom',
+  requires: { entityId: true, snapshot: true },
+  precheck(entry) {
+    return getSnapshot(entry)?.kind === KIND_SNAPSHOT_COPIAR;
+  },
+  async execute({ auth, entry }: UndoContext): Promise<UndoOutcome> {
+    const { targetUserId: userId } = auth;
+    const snap = getSnapshot(entry);
+    const d = snap?.data as unknown as DadosSnapshotCopiar | undefined;
+    if (snap?.kind !== KIND_SNAPSHOT_COPIAR || !d?.para || !Array.isArray(d.celulas)) {
+      throw new UndoError(400, 'Snapshot sem os dados da cópia', 'UNDO_MISSING_DATA');
+    }
+    await prisma.$transaction(async (tx) => {
+      for (const c of d.celulas) {
+        await restaurarOrcado(tx, userId, c.itemId, d.para.ano, d.para.mes0, c.depois, c.antes);
+      }
+    });
+    return { changes: invertChanges(getChanges(entry)) };
+  },
+};
+
+/**
+ * 'orcamento.subcategoria.fixa': volta `orcamentoFixa` ao valor anterior, só se o atual ainda é o
+ * gravado. Sem handler, a entrada travaria no LIFO o Desfazer das edições anteriores do item.
+ */
+const subcategoriaFixa: UndoDefinition = {
+  strategy: 'restore-fields',
+  requires: { entityId: true, changes: true },
+  async execute({ auth, entry }: UndoContext): Promise<UndoOutcome> {
+    const changes = getChanges(entry).filter((c) => c.field === 'orcamentoFixa');
+    if (changes.length === 0) {
+      throw new UndoError(400, 'Diff sem campos restauráveis', 'UNDO_MISSING_DATA');
+    }
+    const item = await prisma.cashflowItem.findFirst({
+      where: { id: entry.entityId!, userId: auth.targetUserId, hidden: false },
+    });
+    if (!item) throw new UndoError(409, 'A subcategoria não existe mais');
+    assertCurrentMatchesAfter(item as unknown as Record<string, unknown>, changes);
+    await prisma.cashflowItem.update({ where: { id: item.id }, data: restoreData(changes) });
+    return { changes: invertChanges(changes), entityLabel: item.name };
+  },
+};
+
 export const ORCAMENTO_V2_UNDO_HANDLERS: Record<string, UndoDefinition> = {
   [ACAO_EXCLUIR_SUBCATEGORIA]: subcategoriaExcluir,
+  [ACAO_EDITAR_ORCADO]: orcadoEditar,
+  [ACAO_COPIAR_MES]: copiarMes,
+  [ACAO_FIXA_SUBCATEGORIA]: subcategoriaFixa,
 };

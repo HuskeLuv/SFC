@@ -134,3 +134,52 @@ export interface OrcamentoV2Response {
   mesesSemOrcamento?: number[];
   categorias: CategoriaV2[];
 }
+
+// ─── Escrita (PR 9) ─────────────────────────────────────────────────────────────────────────
+
+/**
+ * Resposta do `PUT .../subcategorias/[itemId]/orcado` e do `PATCH .../subcategorias/[itemId]`
+ * (fixa): a linha, a categoria dela e o resumo do mês, recalculados no servidor pelas mesmas
+ * funções puras do GET (a UI otimista troca o que adivinhou por isto). `subcategoria.id` é o id
+ * do usuário (um item-template é personalizado na primeira escrita).
+ */
+export interface OrcadoEscritaResponse {
+  subcategoria: SubcategoriaV2;
+  categoria: CategoriaV2;
+  resumo: ResumoOrcamentoV2;
+}
+
+/** Corpo do `PUT .../orcado` (mês 1–12): `valor` OU `pct`; `valor: null` limpa. */
+export type OrcadoEscritaBody =
+  | { ano: number; mes: number; valor: number | null; fonte?: FonteOrcamento }
+  | { ano: number; mes: number; pct: number; fonte?: FonteOrcamento };
+
+/** Corpo do `PUT .../prefs` (todos opcionais, ao menos um). */
+export interface PrefsEscritaBody {
+  categoriasRecolhidas?: string[];
+  graficoVisivel?: boolean;
+  fonte?: FonteOrcamento;
+  /** `true` marca o aviso da Geral como visto; `false` volta a mostrá-lo. */
+  avisoGeralVisto?: boolean;
+}
+
+/** Resposta do `PUT .../prefs`. */
+export interface PrefsEscritaResponse extends PrefsOrcamentoV2 {
+  fonte: FonteOrcamento;
+}
+
+/** Corpo do `POST .../copiar` (meses 1–12). */
+export interface CopiarMesBody {
+  de: AnoMes;
+  para: AnoMes;
+  /** `false` = só preenche as subcategorias sem orçado no destino. */
+  sobrescrever: boolean;
+}
+
+/** Resposta do `POST .../copiar`. */
+export interface CopiarMesResponse {
+  /** Subcategorias com orçado na origem que ficaram com ele no destino. */
+  copiados: number;
+  /** Subcategorias puladas porque o destino já tinha orçado (`sobrescrever: false`). */
+  ignorados: number;
+}

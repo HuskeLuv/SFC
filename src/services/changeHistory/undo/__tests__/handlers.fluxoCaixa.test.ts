@@ -177,6 +177,48 @@ describe('item.criar (delete-created)', () => {
   });
 });
 
+describe('grupo.criar (delete-created)', () => {
+  const grupoEntry = () =>
+    makeEntry({ action: 'grupo.criar', entity: 'grupo', entityId: 'g-1', entityLabel: 'Pets' });
+  const geralVazia = {
+    groupId: 'g-1',
+    userId: 'user-1',
+    isGeral: true,
+    values: { none: {} },
+    orcamentoItens: { none: {} },
+    bankTransactions: { none: {} },
+  };
+
+  it('usuário v2: a Geral vazia não bloqueia e sai junto com o grupo', async () => {
+    mockPrisma.cashflowGroup.findFirst.mockResolvedValue({ id: 'g-1', userId: 'user-1' });
+    mockPrisma.cashflowGroup.count.mockResolvedValue(0);
+    // O count já desconta a Geral vazia (NOT geralVazia).
+    mockPrisma.cashflowItem.count.mockResolvedValue(0);
+    await FLUXO_CAIXA_UNDO_HANDLERS['grupo.criar'].execute({
+      request,
+      auth,
+      entry: grupoEntry(),
+    });
+    expect(mockPrisma.cashflowItem.count).toHaveBeenCalledWith({
+      where: { groupId: 'g-1', userId: 'user-1', NOT: geralVazia },
+    });
+    expect(mockPrisma.cashflowItem.deleteMany).toHaveBeenCalledWith({ where: geralVazia });
+    expect(mockPrisma.cashflowGroup.delete).toHaveBeenCalledWith({ where: { id: 'g-1' } });
+    expect(mockPrisma.$transaction).toHaveBeenCalledTimes(1);
+  });
+
+  it('409 quando há outro item (ou Geral com dados) no grupo', async () => {
+    mockPrisma.cashflowGroup.findFirst.mockResolvedValue({ id: 'g-1', userId: 'user-1' });
+    mockPrisma.cashflowGroup.count.mockResolvedValue(0);
+    mockPrisma.cashflowItem.count.mockResolvedValue(1);
+    await expect(
+      FLUXO_CAIXA_UNDO_HANDLERS['grupo.criar'].execute({ request, auth, entry: grupoEntry() }),
+    ).rejects.toMatchObject({ status: 409 });
+    expect(mockPrisma.cashflowItem.deleteMany).not.toHaveBeenCalled();
+    expect(mockPrisma.cashflowGroup.delete).not.toHaveBeenCalled();
+  });
+});
+
 describe('item.excluir (recreate-from-snapshot)', () => {
   it('tombstone → deleta a linha oculta', async () => {
     mockPrisma.cashflowItem.findFirst.mockResolvedValue({ id: 'tomb-1' });

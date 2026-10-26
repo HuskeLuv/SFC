@@ -3,7 +3,6 @@ import { logSensitiveEndpointAccess } from '@/services/impersonationLogger';
 import { exigirAcessoOrcamentoV2 } from '@/services/cashflow/orcamentoV2/acesso';
 import {
   ErroExclusaoSubcategoria,
-  hojeEmSaoPauloExclusao,
   planejarExclusao,
 } from '@/services/cashflow/orcamentoV2/excluirSubcategoria';
 import {
@@ -11,6 +10,7 @@ import {
   mesesDaApi,
   respostaRecusa,
 } from '@/services/cashflow/orcamentoV2/rotaExclusao';
+import { hojeEmSaoPaulo } from '@/services/cashflow/orcamentoV2/carregarOrcamento';
 import { withErrorHandler } from '@/utils/apiErrorHandler';
 
 /**
@@ -36,11 +36,7 @@ export const GET = withErrorHandler(
     await exigirOrcamentoV2Ativado(targetUserId);
 
     try {
-      const impacto = await planejarExclusao(
-        targetUserId,
-        itemId,
-        hojeEmSaoPauloExclusao(new Date()),
-      );
+      const impacto = await planejarExclusao(targetUserId, itemId, hojeEmSaoPaulo(new Date()));
       return NextResponse.json(
         {
           itemId: impacto.itemId,

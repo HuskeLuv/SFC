@@ -284,14 +284,29 @@ const grupoCriar: UndoDefinition = {
     });
     if (!group) throw new UndoError(409, 'O grupo não existe mais');
 
+    // Orçamento v2 (§6.2): a Geral nasce junto com a categoria de despesa e não pode ser excluída
+    // à mão. Vazia (sem célula, orçado nem transação), ela não bloqueia o undo e sai com o grupo.
+    const geralVazia = {
+      groupId: group.id,
+      userId: targetUserId,
+      isGeral: true,
+      values: { none: {} },
+      orcamentoItens: { none: {} },
+      bankTransactions: { none: {} },
+    };
     const [children, items] = await Promise.all([
       prisma.cashflowGroup.count({ where: { parentId: group.id, userId: targetUserId } }),
-      prisma.cashflowItem.count({ where: { groupId: group.id, userId: targetUserId } }),
+      prisma.cashflowItem.count({
+        where: { groupId: group.id, userId: targetUserId, NOT: geralVazia },
+      }),
     ]);
     if (children > 0 || items > 0) {
       throw new UndoError(409, 'O grupo já tem itens ou subgrupos — exclua-os primeiro');
     }
-    await prisma.cashflowGroup.delete({ where: { id: group.id } });
+    await prisma.$transaction([
+      prisma.cashflowItem.deleteMany({ where: geralVazia }),
+      prisma.cashflowGroup.delete({ where: { id: group.id } }),
+    ]);
     return { changes: invertChanges(getChanges(entry)) };
   },
 };

@@ -10,9 +10,13 @@ const mockPrisma = vi.hoisted(() => ({
 
 const mockEnsurePersonalizedItem = vi.hoisted(() => vi.fn());
 const mockPersonalizeGroup = vi.hoisted(() => vi.fn());
+const mockGarantirGeraisSeAtivo = vi.hoisted(() => vi.fn());
 
 vi.mock('@/lib/prisma', () => ({ prisma: mockPrisma, default: mockPrisma }));
 vi.mock('@/lib/logger', () => ({ logger: { error: vi.fn(), info: vi.fn(), warn: vi.fn() } }));
+vi.mock('@/services/cashflow/orcamentoV2/guardas', () => ({
+  garantirGeraisSeAtivo: mockGarantirGeraisSeAtivo,
+}));
 vi.mock('@/utils/cashflowPersonalization', () => ({
   ensurePersonalizedItem: mockEnsurePersonalizedItem,
   personalizeGroup: mockPersonalizeGroup,
@@ -447,5 +451,32 @@ describe('executeFlcImportPlan', () => {
 
     expect(rel.erros).toEqual([{ label: 'Quebrado', erro: 'Item não encontrado' }]);
     expect(rel.celulasGravadas).toBe(1);
+  });
+
+  describe('Orçamento v2: Geral das categorias tocadas (§6.2)', () => {
+    it('item novo (grupo resolvido) → garantirGeraisSeAtivo no fim, depois das escritas', async () => {
+      await executeFlcImportPlan(
+        plano([
+          grupoPlano([
+            itemPlano({
+              label: 'Jardim',
+              destino: { tipo: 'criar', significado: null, rank: null },
+            }),
+          ]),
+        ]),
+        'user-1',
+        2026,
+        'sobrescrever',
+      );
+      expect(mockGarantirGeraisSeAtivo).toHaveBeenCalledWith('user-1');
+      expect(mockPrisma.cashflowValue.upsert.mock.invocationCallOrder.at(-1)).toBeLessThan(
+        mockGarantirGeraisSeAtivo.mock.invocationCallOrder[0],
+      );
+    });
+
+    it('só itens existentes (nenhum grupo resolvido) → não consulta o v2', async () => {
+      await executeFlcImportPlan(plano([grupoPlano([itemPlano()])]), 'user-1', 2026, 'manter');
+      expect(mockGarantirGeraisSeAtivo).not.toHaveBeenCalled();
+    });
   });
 });
