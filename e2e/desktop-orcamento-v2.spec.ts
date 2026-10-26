@@ -37,9 +37,12 @@ async function esperarTabela(page: Page) {
 
 test('aba Orçamento abre o v2 (tabela por categoria), não a tela antiga', async ({ page }) => {
   await page.goto('/fluxodecaixa', { waitUntil: 'domcontentloaded' });
-  await page.getByRole('button', { name: 'Orçamento', exact: true }).click();
-
-  await expect(page.locator('[data-mf-orcamento-v2]')).toBeVisible({ timeout: 60_000 });
+  // O botão já vem no HTML do servidor: um clique antes da hidratação não faz nada. Repete o
+  // clique até a aba trocar (clicar de novo em "Orçamento" não desfaz a troca).
+  await expect(async () => {
+    await page.getByRole('button', { name: 'Orçamento', exact: true }).click();
+    await expect(page.locator('[data-mf-orcamento-v2]')).toBeVisible({ timeout: 5_000 });
+  }).toPass({ timeout: 60_000 });
   await esperarTabela(page);
   await expect(page.getByRole('columnheader', { name: 'Orçado (R$)' })).toBeVisible();
   await expect(page.locator('[data-mf-orcamento-nivel]')).toHaveCount(0);
