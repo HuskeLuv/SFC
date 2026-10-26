@@ -6,7 +6,7 @@ import { mockFetchResponse } from '@/test/mocks/fetch';
 import { queryKeys } from '@/lib/queryKeys';
 import type { OrcamentoV2Response, SubcategoriaV2 } from '@/types/orcamentoV2';
 import { useOrcamentoV2, ErroOrcamentoV2 } from '../useOrcamentoV2';
-import { useOrcamentoV2Acesso } from '../useOrcamentoV2Acesso';
+import { deveRepetirAcesso, useOrcamentoV2Acesso } from '../useOrcamentoV2Acesso';
 
 // ─── Payload sintético (out/2026, receita 10.000, ritmo 0,5) ────────────────────────────────
 
@@ -471,6 +471,13 @@ describe('useOrcamentoV2 — marcarFixa, prefs e copiar', () => {
 });
 
 describe('useOrcamentoV2Acesso', () => {
+  it('repete uma vez só e nunca em 4xx (o esqueleto não fica ~7 s na tela)', () => {
+    const e500 = new Error('Erro ao consultar o Orçamento v2 (500)');
+    expect(deveRepetirAcesso(0, e500)).toBe(true);
+    expect(deveRepetirAcesso(1, e500)).toBe(false);
+    expect(deveRepetirAcesso(0, new Error('Erro ao consultar o Orçamento v2 (403)'))).toBe(false);
+  });
+
   it('usarV2 só com liberada && ativado', async () => {
     fetchMock.mockResolvedValueOnce(mockFetchResponse({ estado: 'liberada', ativado: true }));
     const { result } = renderHookWithClient(() => useOrcamentoV2Acesso());

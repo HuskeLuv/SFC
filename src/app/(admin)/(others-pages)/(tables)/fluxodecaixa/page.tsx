@@ -9,6 +9,7 @@ import ConectarBancoCard from '@/components/conexoes/ConectarBancoCard';
 import CashflowMonthView from '@/components/cashflow/mobile/CashflowMonthView';
 import { useStableIsBelowLg } from '@/hooks/useStableIsBelowLg';
 import { useOrcamentoV2Acesso } from '@/hooks/useOrcamentoV2Acesso';
+import { SELO_TEXTO } from '@/lib/orcamento/tons';
 import { useSidebar } from '@/context/SidebarContext';
 import { useCashflowYear } from '@/context/CashflowYearContext';
 import React, { useEffect, useState } from 'react';
@@ -16,14 +17,32 @@ import React, { useEffect, useState } from 'react';
 type Modo = 'planilha' | 'orcamento';
 
 /**
- * Aba Orçamento: o Orçamento v2 só para `liberada && ativado` (desenho técnico §8); qualquer
- * outro estado — flag desligada, fora do beta, não ativado ou erro na consulta — vê a tela de
- * hoje, sem mudança. Esqueleto enquanto o acesso carrega. O acesso só é consultado com a aba
- * aberta (a Planilha não paga a chamada).
+ * Aba Orçamento: o Orçamento v2 só para `liberada && ativado` (desenho técnico §8); quem a
+ * resposta diz que não usa o v2 — flag desligada, fora do beta, não ativado — vê a tela de hoje,
+ * sem mudança. A tela de hoje só aparece com a resposta em mãos: sem ela, esqueleto enquanto
+ * carrega e, se a consulta falhar, um erro com "Tentar de novo" (a tela antiga nunca aparece
+ * para quem já está ativado). O acesso só é consultado com a aba aberta (a Planilha não paga a
+ * chamada).
  */
 function AbaOrcamento() {
   const acesso = useOrcamentoV2Acesso();
-  if (acesso.loading) return <EsqueletoOrcamentoV2 />;
+  if (!acesso.data) {
+    if (acesso.loading || !acesso.error) return <EsqueletoOrcamentoV2 />;
+    return (
+      <div className="flex h-48 flex-col items-center justify-center gap-3 text-center">
+        <p role="alert" className={`text-sm ${SELO_TEXTO.estourou}`}>
+          Não foi possível carregar o orçamento.
+        </p>
+        <button
+          type="button"
+          onClick={() => void acesso.refetch()}
+          className="rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:bg-white/[0.03] dark:text-gray-200 dark:hover:bg-white/5"
+        >
+          Tentar de novo
+        </button>
+      </div>
+    );
+  }
   return acesso.usarV2 ? <OrcamentoV2Section /> : <OrcamentoVsRealSection />;
 }
 
