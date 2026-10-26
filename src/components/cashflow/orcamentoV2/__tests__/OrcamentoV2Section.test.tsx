@@ -317,14 +317,57 @@ describe('OrcamentoV2Section (desktop)', () => {
 });
 
 describe('OrcamentoV2Section (abaixo de lg)', () => {
-  it('não mostra a tabela: fica o ponto dos cartões (PR 11) com os KPIs', async () => {
+  it('troca a tabela pelos cartões (PR 11): herói, cartões por categoria e nenhuma <table>', async () => {
     estado.celular = true;
     const { container } = renderSecao();
-    await waitFor(() =>
-      expect(container.querySelector('[data-mf-orcamento-v2-celular]')).not.toBeNull(),
-    );
     expect(container.querySelector('[data-mf-orcamento-v2]')).not.toBeNull();
+    expect(
+      await screen.findByRole('list', { name: 'Orçamento por categoria' }),
+    ).toBeInTheDocument();
+    expect(container.querySelector('[data-mf-orcamento-v2-celular]')).not.toBeNull();
+    expect(container.querySelector('[data-mf-orcamento-heroi]')).not.toBeNull();
     expect(container.querySelector('table')).toBeNull();
-    expect(container.querySelectorAll('[data-mf-kpi]')).toHaveLength(5);
+    expect(screen.queryByRole('button', { name: 'Recolher todas' })).not.toBeNull();
+    expect(container.querySelectorAll('li[data-mf-card]')).toHaveLength(
+      payloadMes.categorias.length,
+    );
+  });
+
+  it('editar o orçado no cartão faz o PUT do v2 pelo hook (otimista)', async () => {
+    estado.celular = true;
+    extra = (url, init) =>
+      init?.method === 'PUT' && url.includes('/orcado')
+        ? new Promise<Response>(() => {})
+        : undefined;
+    const { container } = renderSecao();
+    const input = await screen.findByRole('textbox', { name: 'Orçado de Mercado em Habitação' });
+    fireEvent.focus(input);
+    fireEvent.change(input, { target: { value: '1.500,00' } });
+    fireEvent.blur(input);
+
+    const mercado = subDe(payloadMes, 'Habitação', 'Mercado');
+    await waitFor(() =>
+      expect(chamadas('PUT', '/api/cashflow/orcamento/v2/subcategorias/')).toHaveLength(1),
+    );
+    const [url, init] = chamadas('PUT', '/api/cashflow/orcamento/v2/subcategorias/')[0];
+    expect(url).toBe(`/api/cashflow/orcamento/v2/subcategorias/${mercado.id}/orcado`);
+    expect(corpo(init)).toEqual({ ano: 2026, mes: 10, valor: 1500 });
+    await waitFor(() =>
+      expect(container.querySelector('[data-mf-heroi-disponivel]')).toHaveTextContent(
+        'R$ 1.938,90',
+      ),
+    );
+  });
+
+  it('Mês | Acumulado no celular recarrega com visao=ano e deixa o orçado só leitura', async () => {
+    estado.celular = true;
+    renderSecao();
+    await screen.findByRole('list', { name: 'Orçamento por categoria' });
+    fireEvent.click(screen.getByRole('button', { name: 'Acumulado' }));
+    await waitFor(() => expect(screen.getByText('Total acumulado')).toBeInTheDocument());
+    expect(
+      chamadas('GET', '/api/cashflow/orcamento/v2?').some(([u]) => String(u).includes('visao=ano')),
+    ).toBe(true);
+    expect(screen.queryByRole('textbox', { name: /Orçado de/ })).toBeNull();
   });
 });

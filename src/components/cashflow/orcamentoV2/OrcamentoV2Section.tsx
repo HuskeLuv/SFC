@@ -13,6 +13,7 @@ import type { FonteOrcamento, OrcamentoV2Response, VisaoOrcamento } from '@/type
 import AvisoGeral from './AvisoGeral';
 import CopiarMes from './CopiarMes';
 import KpisOrcamento from './KpisOrcamento';
+import OrcamentoV2Cartoes from './OrcamentoV2Cartoes';
 import OrcamentoV2Moldura from './OrcamentoV2Moldura';
 import OrcamentoV2Tabela from './OrcamentoV2Tabela';
 import { plural } from './apresentacao';
@@ -85,31 +86,6 @@ export interface ConteudoOrcamentoV2Props {
   estrutura: UseOrcamentoV2Estrutura;
 }
 
-/**
- * Abaixo de lg: ponto de troca da PR 11 — vira `<OrcamentoV2Cartoes {...props} />` (cartões
- * mínimos do celular). Até lá, só os KPIs e um aviso: a tabela de 860 px nunca aparece no celular
- * (desenho técnico §8) e ninguém é ativado antes da E1 completa.
- */
-export function OrcamentoV2Celular({ data, loading, error }: ConteudoOrcamentoV2Props) {
-  if (loading) return <EsqueletoOrcamentoV2 />;
-  if (error || !data) {
-    return (
-      <p role="alert" className={`py-8 text-center text-sm ${SELO_TEXTO.estourou}`}>
-        {error ?? 'Erro ao carregar o orçamento.'}
-      </p>
-    );
-  }
-  return (
-    <div className="space-y-4" data-mf-orcamento-v2-celular="">
-      <KpisOrcamento data={data} />
-      <p className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-600 dark:border-gray-800 dark:bg-white/[0.03] dark:text-gray-300">
-        A edição do orçamento por subcategoria no celular chega na próxima versão. Use uma tela
-        maior para editar.
-      </p>
-    </div>
-  );
-}
-
 type Aviso = { tipo: 'ok' | 'erro'; texto: string };
 
 /**
@@ -170,7 +146,7 @@ export default function OrcamentoV2Section() {
   if (isBelowLg) {
     return (
       <div data-mf-orcamento-v2="">
-        <OrcamentoV2Celular {...props} />
+        <OrcamentoV2Cartoes {...props} />
       </div>
     );
   }
