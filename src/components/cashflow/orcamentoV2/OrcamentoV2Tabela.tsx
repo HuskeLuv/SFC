@@ -199,11 +199,10 @@ export default function OrcamentoV2Tabela({
         </button>
       </div>
 
-      {/* Contêiner único de rolagem (x e y): o cabeçalho gruda no topo dele. */}
-      <div
-        data-mf-orcamento-v2-rolagem=""
-        className={`${TABLE_STYLES.wrapper} max-h-[calc(100vh-240px)] min-h-[320px] overflow-y-auto`}
-      >
+      {/* Sem rolagem vertical própria: quem rola é o contêiner da página, e o cabeçalho gruda no
+          topo dele. A partir de xl a tabela cabe, então o wrapper só corta (overflow-clip não cria
+          contêiner de rolagem e o sticky continua valendo); abaixo disso, rolagem horizontal. */}
+      <div data-mf-orcamento-v2-rolagem="" className={`${TABLE_STYLES.wrapper} xl:overflow-clip`}>
         <table className={`${TABLE_STYLES.table} min-w-[860px]`}>
           <thead>
             <tr className={TABLE_STYLES.headRow}>
