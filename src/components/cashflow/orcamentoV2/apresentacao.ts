@@ -1,0 +1,80 @@
+/**
+ * Peças de apresentação do Orçamento v2 (desktop): tom visual por status, formatação pt-BR e os
+ * rótulos de mês. Nada aqui calcula status ou regra — tudo isso chega pronto no payload do GET v2.
+ */
+import type { StatusOrcamento } from '@/lib/orcamento/regras';
+import type { TomOrcamento } from '@/lib/orcamento/tons';
+import { formatNumber } from '@/utils/format';
+import type { AnoMes } from '@/types/orcamentoV2';
+
+/** Status do payload → tom de `lib/orcamento/tons` (desenho técnico §8). */
+export const TOM_DO_STATUS: Record<StatusOrcamento, TomOrcamento> = {
+  ok: 'ok',
+  warn: 'atencao',
+  bad: 'estourou',
+  none: 'neutro',
+};
+
+/** Etiqueta de status da subcategoria (só os que pedem ação). */
+export const ETIQUETA_STATUS: Partial<Record<StatusOrcamento, string>> = {
+  bad: 'estouro',
+  warn: 'à frente do ritmo',
+};
+
+export const MESES_LONGOS = [
+  'Janeiro',
+  'Fevereiro',
+  'Março',
+  'Abril',
+  'Maio',
+  'Junho',
+  'Julho',
+  'Agosto',
+  'Setembro',
+  'Outubro',
+  'Novembro',
+  'Dezembro',
+] as const;
+
+const MESES_CURTOS = [
+  'jan',
+  'fev',
+  'mar',
+  'abr',
+  'mai',
+  'jun',
+  'jul',
+  'ago',
+  'set',
+  'out',
+  'nov',
+  'dez',
+] as const;
+
+/** `{2026, 9}` → "set/26" (mês 1–12). */
+export const mesCurto = ({ ano, mes }: AnoMes): string =>
+  `${MESES_CURTOS[mes - 1]}/${String(ano).slice(-2)}`;
+
+/** `{2026, 10}` → "Outubro 2026" (mês 1–12). */
+export const mesLongo = ({ ano, mes }: AnoMes): string => `${MESES_LONGOS[mes - 1]} ${ano}`;
+
+/** Número pt-BR com 2 casas, sem "R$" (colunas da tabela). */
+export const num = (n: number): string => formatNumber(n, 2);
+
+/** Percentual pt-BR com `casas` casas ("75,1%"); `null` → "—". */
+export const pct = (n: number | null, casas = 1): string =>
+  n === null ? '—' : `${formatNumber(n, casas)}%`;
+
+/** Diferença (orçado − realizado): "—" se zero, sinal "−" se negativa. */
+export function textoDiferenca(d: number): { texto: string; negativa: boolean } {
+  if (Math.abs(d) < 0.005) return { texto: '—', negativa: false };
+  return { texto: `${d < 0 ? '−' : ''}${num(Math.abs(d))}`, negativa: d < 0 };
+}
+
+/** "1 subcategoria" / "5 subcategorias". */
+export const plural = (n: number, um: string, varios: string): string =>
+  `${n} ${n === 1 ? um : varios}`;
+
+/** Texto do tooltip Lançado | Consolidado (P1; T30 revisto no Apêndice C do desenho). */
+export const TEXTO_FONTE_P1 =
+  'Lançado: tudo o que está no Fluxo do mês. Consolidado: só valores marcados como Pago/Recebido';

@@ -1,7 +1,8 @@
 /**
  * Estado do Orçamento v2 para o dono dos dados (`GET /api/cashflow/orcamento/v2/acesso`, desenho
  * técnico §8): a página do Fluxo de Caixa mostra o v2 só com `liberada && ativado` e a tela de
- * hoje em qualquer outro caso (inclusive enquanto carrega ou se a chamada falhar).
+ * hoje quando a resposta diz o contrário. Sem resposta (carregando ou falha) a página não decide:
+ * esqueleto ou erro com "Tentar de novo" — a tela antiga nunca aparece para quem está ativado.
  *
  * `ativar` (POST /ativar, idempotente com advisory lock no servidor) serve ao ACESSO=todos (E5);
  * na fase beta a ativação é só pelo script. Depois dela, o acesso e o v2 são invalidados.
@@ -28,6 +29,14 @@ export interface AtivacaoOrcamentoV2Resposta {
 /** O servidor guarda o estado 60 s em cache; aqui 30 s bastam (a página remonta pouco). */
 const STALE_MS = 30_000;
 
+/**
+ * Uma nova tentativa só (a aba fica no esqueleto enquanto isso; o padrão global seriam ~7 s) e
+ * nenhuma em 4xx, que não muda repetindo.
+ */
+export function deveRepetirAcesso(falhas: number, erro: Error): boolean {
+  return falhas < 1 && !/\b4\d\d\b/.test(erro.message);
+}
+
 export function useOrcamentoV2Acesso() {
   const queryClient = useQueryClient();
   const { csrfFetch } = useCsrf();
@@ -35,12 +44,13 @@ export function useOrcamentoV2Acesso() {
   const query = useQuery<AcessoOrcamentoV2Resposta>({
     queryKey: queryKeys.cashflow.orcamentoV2Acesso(),
     staleTime: STALE_MS,
+    retry: deveRepetirAcesso,
     queryFn: async ({ signal }) => {
       const res = await fetch('/api/cashflow/orcamento/v2/acesso', {
         credentials: 'include',
         signal,
       });
-      if (!res.ok) throw new Error('Erro ao consultar o Orçamento v2');
+      if (!res.ok) throw new Error(`Erro ao consultar o Orçamento v2 (${res.status})`);
       return res.json();
     },
   });

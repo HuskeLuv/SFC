@@ -2,38 +2,48 @@
 import ComponentCard from '@/components/common/ComponentCard';
 import DataTableTwo from '@/components/tables/DataTables/TableTwo/DataTableTwo';
 import OrcamentoVsRealSection from '@/components/cashflow/orcamento/OrcamentoVsRealSection';
+import OrcamentoV2Section, {
+  EsqueletoOrcamentoV2,
+} from '@/components/cashflow/orcamentoV2/OrcamentoV2Section';
 import ConectarBancoCard from '@/components/conexoes/ConectarBancoCard';
 import CashflowMonthView from '@/components/cashflow/mobile/CashflowMonthView';
-import { useIsBelowLg } from '@/hooks/useMediaQuery';
-import { MOBILE_MEDIA_QUERY } from '@/lib/ui/mobile';
+import { useStableIsBelowLg } from '@/hooks/useStableIsBelowLg';
+import { useOrcamentoV2Acesso } from '@/hooks/useOrcamentoV2Acesso';
+import { SELO_TEXTO } from '@/lib/orcamento/tons';
 import { useSidebar } from '@/context/SidebarContext';
 import { useCashflowYear } from '@/context/CashflowYearContext';
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 
 type Modo = 'planilha' | 'orcamento';
 
 /**
- * `useIsBelowLg` com a TROCA de layout adiada (1s) depois da montagem: a planilha de desktop e a
- * visão do mês guardam estado próprio (grupo em edição, modal de importação) que se perde ao
- * trocar de árvore. Uma oscilação curta da largura (screenshot de página inteira, barra do
- * navegador) não pode desmontar a planilha; a primeira leitura no cliente vale na hora.
+ * Aba Orçamento: o Orçamento v2 só para `liberada && ativado` (desenho técnico §8); quem a
+ * resposta diz que não usa o v2 — flag desligada, fora do beta, não ativado — vê a tela de hoje,
+ * sem mudança. A tela de hoje só aparece com a resposta em mãos: sem ela, esqueleto enquanto
+ * carrega e, se a consulta falhar, um erro com "Tentar de novo" (a tela antiga nunca aparece
+ * para quem já está ativado). O acesso só é consultado com a aba aberta (a Planilha não paga a
+ * chamada).
  */
-function useStableIsBelowLg(): boolean {
-  const raw = useIsBelowLg();
-  const [stable, setStable] = useState(false);
-  const mountedRef = useRef(false);
-  useEffect(() => {
-    if (!mountedRef.current) {
-      mountedRef.current = true;
-      setStable(
-        typeof window.matchMedia === 'function' && window.matchMedia(MOBILE_MEDIA_QUERY).matches,
-      );
-      return;
-    }
-    const timer = setTimeout(() => setStable(raw), 1000);
-    return () => clearTimeout(timer);
-  }, [raw]);
-  return stable;
+function AbaOrcamento() {
+  const acesso = useOrcamentoV2Acesso();
+  if (!acesso.data) {
+    if (acesso.loading || !acesso.error) return <EsqueletoOrcamentoV2 />;
+    return (
+      <div className="flex h-48 flex-col items-center justify-center gap-3 text-center">
+        <p role="alert" className={`text-sm ${SELO_TEXTO.estourou}`}>
+          Não foi possível carregar o orçamento.
+        </p>
+        <button
+          type="button"
+          onClick={() => void acesso.refetch()}
+          className="rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:bg-white/[0.03] dark:text-gray-200 dark:hover:bg-white/5"
+        >
+          Tentar de novo
+        </button>
+      </div>
+    );
+  }
+  return acesso.usarV2 ? <OrcamentoV2Section /> : <OrcamentoVsRealSection />;
 }
 
 const MODOS: { value: Modo; label: string }[] = [
@@ -111,7 +121,7 @@ export default function FluxoDeCaixa() {
           ) : (
             // Abaixo de lg sem rolagem própria: a barra do mês do Orçamento gruda na da página.
             <div className="flex-1 min-h-0 overflow-y-auto pr-1 max-lg:overflow-visible max-lg:pr-0">
-              <OrcamentoVsRealSection />
+              <AbaOrcamento />
             </div>
           )}
         </div>
