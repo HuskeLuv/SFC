@@ -1,5 +1,6 @@
 import { test, expect, type Page } from '@playwright/test';
 import { writesAllowed } from './helpers/api';
+import { expectNoHorizontalOverflow } from './helpers/horizontalOverflow';
 import {
   ORCAMENTO_V2_STORAGE,
   brl,
@@ -48,11 +49,9 @@ test('390 px: cartões sem tabela, sem rolagem horizontal, sub em duas linhas', 
   await expect(page.locator('[data-mf-orcamento-v2-rolagem]')).toHaveCount(0);
   await expect(page.locator('[data-mf-orcamento-mobile]')).toHaveCount(0);
 
-  const largura = await page.evaluate(() => ({
-    scroll: document.documentElement.scrollWidth,
-    viewport: window.innerWidth,
-  }));
-  expect(largura.scroll, 'sem rolagem horizontal').toBeLessThanOrEqual(largura.viewport);
+  // Largura FIXA do viewport (390), nunca innerWidth: com isMobile a viewport de layout estica.
+  const W = page.viewportSize()!.width;
+  await expectNoHorizontalOverflow(page, 'orçamento v2 (cartões)');
 
   // Duas linhas: o campo do orçado fica inteiro abaixo do nome.
   const linha = subMobile(page, 'Uber');
@@ -64,7 +63,7 @@ test('390 px: cartões sem tabela, sem rolagem horizontal, sub em duas linhas', 
   expect(nome, 'nome da subcategoria').not.toBeNull();
   expect(campo, 'campo do orçado').not.toBeNull();
   expect(campo!.y, 'orçado na segunda linha').toBeGreaterThanOrEqual(nome!.y + nome!.height);
-  expect(campo!.x + campo!.width).toBeLessThanOrEqual(largura.viewport);
+  expect(campo!.x + campo!.width, 'campo do orçado dentro da tela').toBeLessThanOrEqual(W);
 });
 
 test('editar o orçado no cartão persiste depois do reload', async ({ page }) => {
@@ -88,9 +87,5 @@ test('editar o orçado no cartão persiste depois do reload', async ({ page }) =
     subMobile(page, 'Uber').getByRole('textbox', { name: 'Orçado de Uber em Transporte' }),
   ).toHaveValue(brl(valor));
 
-  const largura = await page.evaluate(() => ({
-    scroll: document.documentElement.scrollWidth,
-    viewport: window.innerWidth,
-  }));
-  expect(largura.scroll, 'sem rolagem horizontal').toBeLessThanOrEqual(largura.viewport);
+  await expectNoHorizontalOverflow(page, 'orçamento v2 (cartões) depois da edição');
 });
