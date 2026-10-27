@@ -65,6 +65,20 @@ export const num = (n: number): string => formatNumber(n, 2);
 export const pct = (n: number | null, casas = 1): string =>
   n === null ? '—' : `${formatNumber(n, casas)}%`;
 
+/** Distância do traço (em fração) abaixo da qual o % consumido ganha uma casa decimal. */
+export const FAIXA_DECIMAL_RITMO = 0.01;
+
+/**
+ * % consumido da coluna/cartão: 0 casas, ou 1 casa quando está a menos de 1 p.p. do traço do
+ * ritmo num período em andamento (ritmo < 1). Sem isso, 87,0% (azul) e 87,2% (laranja, já
+ * passou do traço) apareciam os dois como "87%" com cores diferentes (QA 27/10).
+ */
+export function textoConsumido(consumido: number | null, ritmo: number): string {
+  if (consumido === null) return '—';
+  const perto = ritmo < 1 && Math.abs(consumido - ritmo) < FAIXA_DECIMAL_RITMO;
+  return `${formatNumber(consumido * 100, perto ? 1 : 0)}%`;
+}
+
 /** Diferença (orçado − realizado): "—" se zero, sinal "−" se negativa. */
 export function textoDiferenca(d: number): { texto: string; negativa: boolean } {
   if (Math.abs(d) < 0.005) return { texto: '—', negativa: false };

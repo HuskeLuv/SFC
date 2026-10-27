@@ -2,8 +2,7 @@
 
 import type { StatusOrcamento } from '@/lib/orcamento/regras';
 import { SELO_TEXTO, TOM_FUNDO } from '@/lib/orcamento/tons';
-import { formatNumber } from '@/utils/format';
-import { TOM_DO_STATUS } from './apresentacao';
+import { TOM_DO_STATUS, textoConsumido } from './apresentacao';
 
 interface BarraConsumoProps {
   /** Fração (0,9083) do payload; `null` = sem orçado ("—"). */
@@ -56,7 +55,7 @@ export default function BarraConsumo({ consumido, status, ritmo, tituloRitmo }: 
           destaque ? SELO_TEXTO[tom] : 'text-gray-600 dark:text-gray-300'
         }`}
       >
-        {formatNumber(pct, 0)}%
+        {textoConsumido(consumido, ritmo)}
       </span>
     </span>
   );

@@ -119,9 +119,10 @@ describe('OrcamentoV2Section (desktop)', () => {
     );
     expect(container.querySelector('tr[data-mf-linha="total"]')).toHaveTextContent('18.114,90');
     expect(container.querySelector('[data-mf-kpi="disponivel"]')).toHaveTextContent('R$ 1.938,90');
+    // 75,09% a menos de 1 p.p. do traço (74,2% no dia 23) → uma casa decimal
     expect(
       container.querySelector(`tr[data-item-id="${mercado.id}"] [data-mf-consumo]`),
-    ).toHaveTextContent('75%');
+    ).toHaveTextContent('75,1%');
 
     const [url, init] = chamadas('PUT', '/api/cashflow/orcamento/v2/subcategorias/')[0];
     expect(url).toBe(`/api/cashflow/orcamento/v2/subcategorias/${mercado.id}/orcado`);
