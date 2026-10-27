@@ -345,6 +345,8 @@ export interface ResumoOrcamento {
   disponivel: number;
   sobraPrevista: number | null;
   indicePoupanca: number | null;
+  /** Orçado das categorias de poupança (Planejamento Financeiro): parte da sobra, não gasto. */
+  orcadoObjetivos: number;
   totalCategorias: number;
   totalSubcategorias: number;
   contagens: ContagensOrcamento;
@@ -356,8 +358,9 @@ export interface ResumoOrcamento {
  * - Orçado = Σ categorias; % da receita = Orçado ÷ Receita;
  * - Realizado e "% do orçado" (Realizado ÷ Orçado);
  * - Disponível = Orçado − Realizado (pode ficar negativo);
- * - Sobra prevista = Receita − Orçado; Índice de poupança = (Receita − Orçado) ÷ Receita (Q3:
- *   fórmula da spec, com Planejamento contando como orçado);
+ * - Sobra prevista = Receita − Orçado dos GASTOS; Índice de poupança = Sobra ÷ Receita. O orçado
+ *   das categorias de poupança (Planejamento Financeiro) conta como poupança, não como gasto —
+ *   decisão do Wellington em 27/10 (antes, orçar 10% para a Reserva derrubava o índice 10 p.p.);
  * - status do Total = `statusCategoria` sobre as categorias.
  */
 export function calcularResumo(
@@ -365,11 +368,14 @@ export function calcularResumo(
     orcado: number;
     realizado: number;
     status: StatusOrcamento;
+    poupanca?: boolean;
     subcategorias: SubParaFiltro[];
   }[],
   receita: number | null,
 ): ResumoOrcamento {
   const orcado = soma(categorias.map((c) => c.orcado));
+  const orcadoObjetivos = soma(categorias.filter((c) => c.poupanca).map((c) => c.orcado));
+  const orcadoGastos = orcado - orcadoObjetivos;
   const realizado = soma(categorias.map((c) => c.realizado));
   const comReceita = temReceita(receita);
   return {
@@ -378,8 +384,9 @@ export function calcularResumo(
     realizado,
     realizadoPctOrcado: orcado > 0 ? arred1((realizado / orcado) * 100) : null,
     disponivel: diferenca(orcado, realizado),
-    sobraPrevista: comReceita ? arred2(receita - orcado) : null,
-    indicePoupanca: comReceita ? arred1(((receita - orcado) / receita) * 100) : null,
+    sobraPrevista: comReceita ? arred2(receita - orcadoGastos) : null,
+    indicePoupanca: comReceita ? arred1(((receita - orcadoGastos) / receita) * 100) : null,
+    orcadoObjetivos,
     totalCategorias: categorias.length,
     totalSubcategorias: categorias.reduce((a, c) => a + c.subcategorias.length, 0),
     contagens: contarStatus(categorias),

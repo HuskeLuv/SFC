@@ -86,10 +86,14 @@ export default function HeroiOrcamento({ data }: { data: OrcamentoV2Response }) 
     resumo.sobraPrevista === null ? (
       'sem receita prevista'
     ) : resumo.sobraPrevista >= 0 ? (
-      `sobra ${formatBRL(resumo.sobraPrevista)} para investir`
+      `sobra ${formatBRL(resumo.sobraPrevista)} para investir${
+        resumo.orcadoObjetivos > 0
+          ? ` (inclui ${formatBRL(resumo.orcadoObjetivos)} em objetivos)`
+          : ''
+      }`
     ) : (
       <span className={SELO_TEXTO.estourou}>
-        orçado passa da receita em {formatBRL(Math.abs(resumo.sobraPrevista))}
+        gastos orçados passam da receita em {formatBRL(Math.abs(resumo.sobraPrevista))}
       </span>
     );
 
