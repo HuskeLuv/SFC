@@ -109,4 +109,35 @@ describe('KpisOrcamento', () => {
       'text-[#D92D20]',
     );
   });
+
+  it('Disponível: "?" com a explicação e a linha do que passou do orçado', () => {
+    const data = montarPayload();
+    const bad = data.categorias.flatMap((c) => c.subcategorias).filter((s) => s.status === 'bad');
+    const excesso = bad.reduce((t, s) => t + Math.max(0, s.realizado - s.orcado), 0);
+    const { container } = render(<KpisOrcamento data={data} />);
+    expect(
+      screen.getByRole('button', { name: /^Ajuda: Sobra do orçado total/ }),
+    ).toBeInTheDocument();
+    const linha = kpi(container, 'disponivel').querySelector('[data-mf-kpi-excesso]')!;
+    expect(bad.length).toBeGreaterThan(1);
+    expect(linha).toHaveTextContent(`acima do orçado em ${bad.length} subcategorias`);
+    expect(linha.textContent!.replace(/\s/g, ' ')).toContain(
+      excesso.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+    );
+  });
+
+  it('sem estouro, sem a linha do excesso', () => {
+    const base = montarPayload();
+    const data = {
+      ...base,
+      categorias: base.categorias.map((c) => ({
+        ...c,
+        subcategorias: c.subcategorias.map((s) =>
+          s.status === 'bad' ? { ...s, status: 'ok' as const } : s,
+        ),
+      })),
+    };
+    const { container } = render(<KpisOrcamento data={data} />);
+    expect(kpi(container, 'disponivel').querySelector('[data-mf-kpi-excesso]')).toBeNull();
+  });
 });

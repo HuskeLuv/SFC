@@ -171,7 +171,7 @@ describe('OrcamentoV2Section (desktop)', () => {
   it('T30: o "?" mostra o texto da P1 revisto', async () => {
     renderSecao();
     await screen.findByRole('button', { name: 'Recolher todas' });
-    const ajuda = screen.getByRole('button', { name: /^Ajuda:/ });
+    const ajuda = screen.getByRole('button', { name: /^Ajuda: Lançado/ });
     fireEvent.focus(ajuda);
     expect(await screen.findByRole('tooltip')).toHaveTextContent(
       'Lançado: tudo o que está no Fluxo do mês. Consolidado: só valores marcados como Pago/Recebido',

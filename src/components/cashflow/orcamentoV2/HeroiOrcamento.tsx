@@ -5,7 +5,7 @@ import { SELO_TEXTO } from '@/lib/orcamento/tons';
 import type { OrcamentoV2Response } from '@/types/orcamentoV2';
 import { formatBRL, formatNumber } from '@/utils/format';
 import MedidorRitmo from './MedidorRitmo';
-import { pct, plural } from './apresentacao';
+import { pct, plural, textoExcesso } from './apresentacao';
 
 /** Tint azul dos cartões de destaque (MYFINANCE_TONS fundoSelecionado/bordaSelecionada). */
 const AZUL = 'border-[#DCE6F2] bg-[#EDF2F8] dark:border-gray-800 dark:bg-white/[0.06]';
@@ -64,6 +64,7 @@ export default function HeroiOrcamento({ data }: { data: OrcamentoV2Response }) 
   const corrente = referencia.fase === 'corrente';
   const mostrarRitmo = anual || corrente;
   const restantes = referencia.diasNoMes - referencia.dia;
+  const excesso = textoExcesso(data.categorias);
 
   const apoioReceita: ReactNode =
     receitaPrevista.valor === null ? (
@@ -142,6 +143,12 @@ export default function HeroiOrcamento({ data }: { data: OrcamentoV2Response }) 
           </span>
           {!anual && corrente && <span>{plural(restantes, 'dia restante', 'dias restantes')}</span>}
         </div>
+        {excesso && (
+          <p data-mf-heroi-excesso="" className={`mt-1 text-[11px] ${SELO_TEXTO.estourou}`}>
+            {excesso}
+            {resumo.disponivel >= 0 && ', compensados pela folga das outras'}
+          </p>
+        )}
       </div>
 
       <div className="grid grid-cols-2 gap-2.5">
