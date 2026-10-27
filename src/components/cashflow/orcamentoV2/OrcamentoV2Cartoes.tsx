@@ -177,6 +177,7 @@ export default function OrcamentoV2Cartoes({
             <CartaoCategoria
               categoria={data.categorias.find((c) => c.id === v.id) ?? v}
               subcategorias={v.subcategorias}
+              mostrarTodas={filtro.ativo}
               aberta={filtro.ativo || !recolhidas.has(v.id)}
               onAlternar={() => alternar(v.id)}
               ritmo={referencia.ritmo}

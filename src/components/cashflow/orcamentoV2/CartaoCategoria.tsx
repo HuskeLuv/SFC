@@ -1,6 +1,6 @@
 'use client';
 
-import { useId } from 'react';
+import { useId, useState } from 'react';
 import { twMerge } from 'tailwind-merge';
 import { TABLE_MOBILE_STYLES } from '@/components/ui/table/tableStyles';
 import type { SalvarOrcadoEntrada } from '@/hooks/useOrcamentoV2';
@@ -22,7 +22,13 @@ export interface CartaoCategoriaProps {
   onSalvarOrcado: (entrada: SalvarOrcadoEntrada) => Promise<unknown>;
   /** Subs que passaram no filtro/busca (R-10); sem isso, todas as da categoria. */
   subcategorias?: CategoriaV2['subcategorias'];
+  /** Filtro/busca ativos: lista tudo o que passou, sem agrupar as vazias. */
+  mostrarTodas?: boolean;
 }
+
+/** Sub sem orçado e sem realizado no período: vai para o grupo "+ N sem valores". */
+const semValores = (s: CategoriaV2['subcategorias'][number]) =>
+  Math.abs(s.orcado) < 0.005 && Math.abs(s.realizado) < 0.005;
 
 const ETIQUETA =
   'inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 text-[11px] font-semibold whitespace-nowrap dark:bg-white/[0.06]';
@@ -44,8 +50,15 @@ export default function CartaoCategoria({
   rotuloReal,
   onSalvarOrcado,
   subcategorias = c.subcategorias,
+  mostrarTodas = false,
 }: CartaoCategoriaProps) {
   const corpoId = useId();
+  // Celular (decisão do Wellington, 27/10): primeiro as subs com orçado ou gasto; as vazias ficam
+  // num grupo que abre com um toque. Uma vez aberto, fica aberto (a sub que ganha orçado não pula).
+  const [verVazias, setVerVazias] = useState(false);
+  const vazias = mostrarTodas ? [] : subcategorias.filter(semValores);
+  const visiveis =
+    mostrarTodas || verVazias ? subcategorias : subcategorias.filter((s) => !semValores(s));
   const tom = TOM_DO_STATUS[c.status];
   const destaque = c.status === 'warn' || c.status === 'bad';
   const consumido = textoConsumido(c.consumido, ritmo);
@@ -139,7 +152,7 @@ export default function CartaoCategoria({
           data-mf-cartao-subs=""
           className="mx-4 mb-1 border-t border-gray-200 dark:border-gray-800"
         >
-          {subcategorias.map((s) => (
+          {visiveis.map((s) => (
             <LinhaSubMobile
               key={s.id}
               sub={s}
@@ -151,6 +164,19 @@ export default function CartaoCategoria({
               onSalvarOrcado={onSalvarOrcado}
             />
           ))}
+          {vazias.length > 0 && (
+            <button
+              type="button"
+              data-mf-cartao-vazias=""
+              aria-expanded={verVazias}
+              onClick={() => setVerVazias((v) => !v)}
+              className="min-h-10 w-full py-2 text-left text-xs font-medium text-mf-patrimonio dark:text-mf-tranquilidade"
+            >
+              {verVazias
+                ? 'Ocultar as subcategorias sem valores'
+                : `+ ${plural(vazias.length, 'subcategoria', 'subcategorias')} sem valores`}
+            </button>
+          )}
         </div>
       )}
     </div>
