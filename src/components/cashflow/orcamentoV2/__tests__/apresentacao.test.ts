@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { textoConsumido } from '../apresentacao';
+import { textoConsumido, textoTolerancia } from '../apresentacao';
 
 describe('textoConsumido', () => {
   const ritmo = 27 / 31; // 87,1%
@@ -22,5 +22,18 @@ describe('textoConsumido', () => {
 
   it('sem orçado → "—"', () => {
     expect(textoConsumido(null, ritmo)).toBe('—');
+  });
+});
+
+describe('textoTolerancia', () => {
+  it('acima do orçado sem virar estouro → explica a margem', () => {
+    expect(textoTolerancia(300, 301, 'ok')).toMatch(/^R\$\s1,00 acima do orçado, dentro da margem/);
+  });
+
+  it('estouro, dentro do orçado, centavo de arredondamento ou sem orçado → null', () => {
+    expect(textoTolerancia(800, 805, 'bad')).toBeNull();
+    expect(textoTolerancia(300, 290, 'ok')).toBeNull();
+    expect(textoTolerancia(300, 300.004, 'ok')).toBeNull();
+    expect(textoTolerancia(0, 120, 'bad')).toBeNull();
   });
 });

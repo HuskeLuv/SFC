@@ -5,7 +5,15 @@ import { SELO_TEXTO } from '@/lib/orcamento/tons';
 import type { CategoriaV2 } from '@/types/orcamentoV2';
 import BarraConsumo from './BarraConsumo';
 import IconeCategoria from './IconeCategoria';
-import { TOM_DO_STATUS, num, pct, plural, textoDiferenca } from './apresentacao';
+import {
+  CLASSE_COM_AJUDA,
+  TOM_DO_STATUS,
+  num,
+  pct,
+  plural,
+  textoDiferenca,
+  textoTolerancia,
+} from './apresentacao';
 
 interface LinhaCategoriaProps {
   categoria: CategoriaV2;
@@ -46,6 +54,7 @@ export default function LinhaCategoria({
               : []),
           ];
   const dif = textoDiferenca(c.diferenca);
+  const tolerancia = textoTolerancia(c.orcado, c.realizado, c.status);
 
   return (
     <tr
@@ -111,8 +120,9 @@ export default function LinhaCategoria({
               ? 'text-gray-400 dark:text-gray-500'
               : ''
         }`}
+        title={tolerancia ?? undefined}
       >
-        {dif.texto}
+        <span className={tolerancia ? CLASSE_COM_AJUDA : undefined}>{dif.texto}</span>
       </td>
       <td className={TABLE_STYLES.td}>
         <BarraConsumo
@@ -120,6 +130,7 @@ export default function LinhaCategoria({
           status={c.status}
           ritmo={ritmo}
           tituloRitmo={tituloRitmo}
+          ajuda={tolerancia}
         />
       </td>
       {/* Menu da categoria (renomear, reordenar, excluir) é da E2 (CRUD de categoria). */}

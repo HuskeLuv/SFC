@@ -9,7 +9,15 @@ import type { SalvarOrcadoEntrada } from '@/hooks/useOrcamentoV2';
 import { formatNumber } from '@/utils/format';
 import BarraConsumo from './BarraConsumo';
 import MenuSubcategoria, { type MenuSubcategoriaProps } from './MenuSubcategoria';
-import { ETIQUETA_STATUS, TOM_DO_STATUS, num, pct, textoDiferenca } from './apresentacao';
+import {
+  CLASSE_COM_AJUDA,
+  ETIQUETA_STATUS,
+  TOM_DO_STATUS,
+  num,
+  pct,
+  textoDiferenca,
+  textoTolerancia,
+} from './apresentacao';
 
 export interface LinhaSubcategoriaProps {
   sub: SubcategoriaV2;
@@ -156,6 +164,7 @@ export default function LinhaSubcategoria({
   const etiquetaStatus = ETIQUETA_STATUS[sub.status];
   const pctReceita = sub.orcado > 0 ? pctDe(sub.orcado, receita) : null;
   const dif = textoDiferenca(sub.diferenca);
+  const tolerancia = textoTolerancia(sub.orcado, sub.realizado, sub.status);
 
   return (
     <tr
@@ -309,8 +318,9 @@ export default function LinhaSubcategoria({
               ? 'text-gray-400 dark:text-gray-500'
               : ''
         }`}
+        title={tolerancia ?? undefined}
       >
-        {dif.texto}
+        <span className={tolerancia ? CLASSE_COM_AJUDA : undefined}>{dif.texto}</span>
       </td>
       <td className={TABLE_STYLES.td}>
         <BarraConsumo
@@ -318,6 +328,7 @@ export default function LinhaSubcategoria({
           status={sub.status}
           ritmo={ritmo}
           tituloRitmo={tituloRitmo}
+          ajuda={tolerancia}
         />
       </td>
       <td className={`${TABLE_STYLES.td} text-center`}>

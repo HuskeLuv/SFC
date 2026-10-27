@@ -79,6 +79,23 @@ export function textoConsumido(consumido: number | null, ritmo: number): string 
   return `${formatNumber(consumido * 100, perto ? 1 : 0)}%`;
 }
 
+/** Sublinhado pontilhado de "passe o mouse para ver a explicação". */
+export const CLASSE_COM_AJUDA = 'cursor-help underline decoration-dotted underline-offset-2';
+
+/**
+ * Explicação de quem passou do orçado sem virar estouro (até 0,5% de tolerância, R-08): sem ela,
+ * "100%" azul ao lado de "−1,00" vermelho parecia contraditório (QA 27/10). `null` nos demais casos.
+ */
+export function textoTolerancia(
+  orcado: number,
+  realizado: number,
+  status: StatusOrcamento,
+): string | null {
+  const acima = realizado - orcado;
+  if (!(orcado > 0) || acima < 0.005 || status === 'bad') return null;
+  return `${formatBRL(acima)} acima do orçado, dentro da margem de arredondamento (até 0,5%): não conta como estouro.`;
+}
+
 /** Diferença (orçado − realizado): "—" se zero, sinal "−" se negativa. */
 export function textoDiferenca(d: number): { texto: string; negativa: boolean } {
   if (Math.abs(d) < 0.005) return { texto: '—', negativa: false };
