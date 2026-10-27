@@ -21,6 +21,8 @@ export interface CartaoCategoriaProps {
   /** "real" ou "previsto" (mês futuro no Lançado). */
   rotuloReal: string;
   onSalvarOrcado: (entrada: SalvarOrcadoEntrada) => Promise<unknown>;
+  /** Subs que passaram no filtro/busca (R-10); sem isso, todas as da categoria. */
+  subcategorias?: CategoriaV2['subcategorias'];
 }
 
 const ETIQUETA =
@@ -42,6 +44,7 @@ export default function CartaoCategoria({
   mostrarRitmo,
   rotuloReal,
   onSalvarOrcado,
+  subcategorias = c.subcategorias,
 }: CartaoCategoriaProps) {
   const corpoId = useId();
   const tom = TOM_DO_STATUS[c.status];
@@ -137,7 +140,7 @@ export default function CartaoCategoria({
           data-mf-cartao-subs=""
           className="mx-4 mb-1 border-t border-gray-200 dark:border-gray-800"
         >
-          {c.subcategorias.map((s) => (
+          {subcategorias.map((s) => (
             <LinhaSubMobile
               key={s.id}
               sub={s}

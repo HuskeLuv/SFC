@@ -6,6 +6,12 @@ import { validarNomeSubcategoria } from '@/lib/orcamento/regras';
 import { SELO_TEXTO } from '@/lib/orcamento/tons';
 import type { CategoriaV2, OrcamentoV2Response } from '@/types/orcamentoV2';
 import type { MarcarFixaEntrada, SalvarOrcadoEntrada } from '@/hooks/useOrcamentoV2';
+import {
+  BuscaSubcategoria,
+  ChipsFiltro,
+  NadaNoFiltro,
+  useFiltroOrcamento,
+} from './FiltrosOrcamento';
 import LinhaCategoria from './LinhaCategoria';
 import LinhaSubcategoria from './LinhaSubcategoria';
 import LinhaTotal from './LinhaTotal';
@@ -50,7 +56,9 @@ const MOTIVO_NOME = {
  * categoria recolhíveis (preferência global salva com debounce), subcategorias editáveis, a linha
  * "+ Adicionar subcategoria em X" fechando cada grupo aberto e a linha Total.
  *
- * Chips de filtro e busca são da E2; aqui ficam só "Recolher todas" / "Expandir todas".
+ * Acima dela, chips de filtro + busca (R-10) e "Recolher todas" / "Expandir todas". Com filtro ou
+ * busca ativos, as categorias com resultado ficam abertas (sem mexer na preferência) e a linha de
+ * adicionar some — a sub nova não passaria no filtro. A linha Total segue o mês inteiro.
  */
 export default function OrcamentoV2Tabela({
   data,
@@ -91,6 +99,8 @@ export default function OrcamentoV2Tabela({
       recolhidas.has(id) ? [...recolhidas].filter((x) => x !== id) : [...recolhidas, id],
     );
 
+  const filtro = useFiltroOrcamento(data.categorias);
+
   // ── Adicionar subcategoria ────────────────────────────────────────────────────────────────
   const [adicionandoEm, setAdicionandoEm] = useState<string | null>(null);
 
@@ -103,9 +113,11 @@ export default function OrcamentoV2Tabela({
         : 'mês inteiro';
   const rotuloReal = referencia.rotuloRealizado === 'previsto' ? 'Previsto (R$)' : 'Realizado (R$)';
 
-  const linhasCategoria = (c: CategoriaV2) => {
-    const aberta = !recolhidas.has(c.id);
+  // `c` é a categoria original (contadores e "n de m"); `subs`, as que passaram no filtro.
+  const linhasCategoria = (c: CategoriaV2, subs: CategoriaV2['subcategorias']) => {
+    const aberta = filtro.ativo || !recolhidas.has(c.id);
     const nomes = c.subcategorias.map((s) => s.nome);
+    const adicionar = aberta && !filtro.ativo;
     return (
       <Fragment key={c.id}>
         <LinhaCategoria
@@ -116,17 +128,17 @@ export default function OrcamentoV2Tabela({
           tituloRitmo={tituloRitmo}
         />
         {aberta &&
-          c.subcategorias.map((s, i) => (
+          subs.map((s, i) => (
             <LinhaSubcategoria
               key={s.id}
               sub={s}
               categoriaNome={c.nome}
               poupanca={c.poupanca}
-              irmaos={nomes.filter((_n, j) => j !== i)}
+              irmaos={nomes.filter((n) => n !== s.nome)}
               receita={data.receitaPrevista.valor}
               ritmo={referencia.ritmo}
               tituloRitmo={tituloRitmo}
-              ultima={i === c.subcategorias.length - 1 && adicionandoEm !== c.id}
+              ultima={i === subs.length - 1 && !(adicionar && adicionandoEm === c.id)}
               onSalvarOrcado={onSalvarOrcado}
               onAlternarFixa={() => onMarcarFixa({ itemId: s.id, fixa: !s.fixa })}
               onRenomear={(nome) => onRenomearSub(c.id, s.id, nome)}
@@ -134,7 +146,7 @@ export default function OrcamentoV2Tabela({
               onExcluir={onExcluirSub}
             />
           ))}
-        {aberta && adicionandoEm === c.id && (
+        {adicionar && adicionandoEm === c.id && (
           <NovaSubcategoria
             categoria={c}
             irmaos={nomes}
@@ -147,7 +159,7 @@ export default function OrcamentoV2Tabela({
             onErroFora={onErroCriarSub}
           />
         )}
-        {aberta && (
+        {adicionar && (
           <tr data-mf-linha="adicionar" className={TABLE_STYLES.row}>
             <td colSpan={7} className={`${TABLE_STYLES.td} py-2 pl-12`}>
               <button
@@ -166,10 +178,12 @@ export default function OrcamentoV2Tabela({
 
   return (
     <div className="space-y-3">
-      <div className="flex flex-wrap items-center justify-end gap-2">
+      <div className="flex flex-wrap items-center gap-2">
+        <ChipsFiltro estado={filtro} contagens={data.resumo.contagens} className="flex-wrap" />
+        <BuscaSubcategoria estado={filtro} className="min-w-[220px] flex-1 sm:max-w-xs" />
         <button
           type="button"
-          className={BTN_SM}
+          className={`${BTN_SM} ml-auto`}
           onClick={() => definirRecolhidas(data.categorias.map((c) => c.id))}
         >
           <svg
@@ -230,7 +244,17 @@ export default function OrcamentoV2Tabela({
             </tr>
           </thead>
           <tbody>
-            {data.categorias.map(linhasCategoria)}
+            {filtro.ativo && filtro.visiveis.length === 0 ? (
+              <tr className={TABLE_STYLES.row}>
+                <td colSpan={7} className={`${TABLE_STYLES.td} py-6 text-center`}>
+                  <NadaNoFiltro estado={filtro} />
+                </td>
+              </tr>
+            ) : (
+              filtro.visiveis.map((v) =>
+                linhasCategoria(data.categorias.find((c) => c.id === v.id) ?? v, v.subcategorias),
+              )
+            )}
             <LinhaTotal
               resumo={data.resumo}
               visao={visao}
