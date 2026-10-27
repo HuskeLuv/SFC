@@ -114,15 +114,32 @@ export function ritmoDoMes(
 export const diasNoAno = (ano: number): number => (bissexto(ano) ? 366 : 365);
 
 /**
- * R-15 (spec §5 e R-06), ritmo do acumulado (jan..mes0) com `mes0` corrente: dias decorridos no
- * ano ÷ dias do ano (23/out/2026 = 296/365 = 0,811). Período já fechado = 1 e período que termina
- * no futuro = 1 (mesma leitura de previsto do R-06/Q18).
+ * R-15 (spec §5 e R-06), ritmo do acumulado (inicio0..mes0) com `mes0` corrente: dias decorridos
+ * desde o 1º dia de `inicio0` ÷ dias do período inteiro (até o fim de `mes0`), a mesma janela do
+ * orçado acumulado. Revisto em 27/10 (decisão do Wellington): antes era dias do ano ÷ 365, que
+ * comparava o orçado de jan..out com a fração do ANO e deixava quase tudo "à frente do ritmo"
+ * (23/out: 296/365 = 0,811; agora 296/304 = 0,974 com o período começando em janeiro). Período já
+ * fechado = 1 e período que termina no futuro = 1 (mesma leitura de previsto do R-06/Q18).
  */
-export function ritmoDoAno(ano: number, mes0: number, hojeSP: HojeSP): number {
+export function ritmoDoAno(ano: number, mes0: number, hojeSP: HojeSP, inicio0 = 0): number {
   const fase = faseDoMes(ano, mes0, hojeSP);
   if (fase !== 'corrente') return 1;
-  const decorridos = diasAteFimDoMes(ano, mes0 - 1) + ritmoDoMes(ano, mes0, hojeSP).dia;
-  return decorridos / diasNoAno(ano);
+  const antes = diasAteFimDoMes(ano, inicio0 - 1);
+  const decorridos = diasAteFimDoMes(ano, mes0 - 1) - antes + ritmoDoMes(ano, mes0, hojeSP).dia;
+  return decorridos / (diasAteFimDoMes(ano, mes0) - antes);
+}
+
+/**
+ * R-15 (revisto 27/10): o acumulado começa no 1º mês (0–11, até `mes0`) com algum orçado; sem
+ * nenhum orçado no período, janeiro. Quem começou a orçar em agosto vê "ago–out", e os meses
+ * anteriores não entram na receita, no realizado nem no ritmo.
+ */
+export function inicioDoAcumulado(
+  orcadoTotalPorMes: (number | null | undefined)[],
+  mes0: number,
+): number {
+  for (let m = 0; m <= mes0; m++) if ((orcadoTotalPorMes[m] ?? 0) > 0) return m;
+  return 0;
 }
 
 // ─── Orçado (R-01, R-17) ────────────────────────────────────────────────────────────────────
@@ -406,26 +423,28 @@ export function orcadoAcumulado(
   return soma(parcelas);
 }
 
-/** R-15: receita acumulada = Σ das receitas mensais conhecidas de jan..mes0; `null` se nenhuma. */
+/** R-15: receita acumulada = Σ das receitas mensais conhecidas de inicio0..mes0; `null` se nenhuma. */
 export function receitaAcumulada(
   receitaPorMes: (number | null | undefined)[],
   mes0: number,
+  inicio0 = 0,
 ): number | null {
   const conhecidas: number[] = [];
-  for (let m = 0; m <= mes0; m++) {
+  for (let m = inicio0; m <= mes0; m++) {
     const r = receitaPorMes[m];
     if (typeof r === 'number') conhecidas.push(r);
   }
   return conhecidas.length > 0 ? soma(conhecidas) : null;
 }
 
-/** R-15: meses (0–11) de jan..mes0 sem nenhum orçado (tooltip "meses sem orçamento: x"). */
+/** R-15: meses (0–11) de inicio0..mes0 sem nenhum orçado (tooltip "meses sem orçamento: x"). */
 export function mesesSemOrcamento(
   orcadoTotalPorMes: (number | null | undefined)[],
   mes0: number,
+  inicio0 = 0,
 ): number[] {
   const meses: number[] = [];
-  for (let m = 0; m <= mes0; m++) {
+  for (let m = inicio0; m <= mes0; m++) {
     if (!((orcadoTotalPorMes[m] ?? 0) > 0)) meses.push(m);
   }
   return meses;

@@ -34,6 +34,7 @@ import {
   calcularCategoria,
   calcularResumo,
   calcularSubcategoria,
+  inicioDoAcumulado,
   mesesSemOrcamento,
   orcadoAcumulado,
   orcadoEfetivo,
@@ -139,10 +140,7 @@ export function montarOrcamentoV2(entrada: EntradaMontagem): OrcamentoV2Response
   const porAno = visao === 'ano';
 
   const doMes = ritmoDoMes(ano, mes0, hojeSP);
-  const ritmo = porAno ? ritmoDoAno(ano, mes0, hojeSP) : doMes.ritmo;
-
   const receitaValores = Array.from({ length: MESES }, (_, m) => receitaPorMes[m]?.valor ?? null);
-  const receita = porAno ? receitaAcumulada(receitaValores, mes0) : receitaValores[mes0];
 
   const orcadoPorChave = new Map<string, Orcado>();
   for (const o of orcados) {
@@ -151,9 +149,24 @@ export function montarOrcamentoV2(entrada: EntradaMontagem): OrcamentoV2Response
   const orcadoDe = (itemId: string, a: number, m: number): Orcado | undefined =>
     orcadoPorChave.get(`${itemId}|${a}|${m}`);
 
+  // Acumulado (R-15 revisto): orçado total de cada mês nas subcategorias visíveis, para achar o
+  // 1º mês com orçado — o período começa nele (receita, realizado e ritmo inclusive).
+  const orcadoTotalPorMes = Array<number>(MESES).fill(0);
+  if (porAno) {
+    for (const { group } of collectCategorias(arvore))
+      for (const item of itensAchatados(group))
+        for (let m = 0; m < MESES; m++) {
+          const o = orcadoDe(item.id, ano, m);
+          if (o) orcadoTotalPorMes[m] += orcadoEfetivo(o, receitaValores[m]);
+        }
+  }
+  const inicio0 = porAno ? inicioDoAcumulado(orcadoTotalPorMes, mes0) : mes0;
+
+  const ritmo = porAno ? ritmoDoAno(ano, mes0, hojeSP, inicio0) : doMes.ritmo;
+  const receita = porAno ? receitaAcumulada(receitaValores, mes0, inicio0) : receitaValores[mes0];
+
   const anterior = mesAnterior(ano, mes0);
   let copiarTemOrcado = false;
-  const orcadoTotalPorMes = Array<number>(MESES).fill(0);
 
   const categorias: CategoriaV2[] = collectCategorias(arvore).map(({ group }) => {
     const canonico = canonicalName(group);
@@ -170,7 +183,7 @@ export function montarOrcamentoV2(entrada: EntradaMontagem): OrcamentoV2Response
 
       const realMeses = realizadoPorMes(item, fonte);
       const realizado = porAno
-        ? realMeses.slice(0, mes0 + 1).reduce((a, b) => a + b, 0)
+        ? realMeses.slice(inicio0, mes0 + 1).reduce((a, b) => a + b, 0)
         : realMeses[mes0];
 
       const anteriorOrcado = orcadoDe(item.id, anterior.ano, anterior.mes - 1);
@@ -180,9 +193,6 @@ export function montarOrcamentoV2(entrada: EntradaMontagem): OrcamentoV2Response
       let pct: number | null;
       if (porAno) {
         const orcadosMeses = Array.from({ length: MESES }, (_, m) => orcadoDe(item.id, ano, m));
-        orcadosMeses.forEach((o, m) => {
-          if (o) orcadoTotalPorMes[m] += orcadoEfetivo(o, receitaValores[m]);
-        });
         const algum = orcadosMeses.slice(0, mes0 + 1).some((o) => o && temOrcado(o));
         valor = algum ? orcadoAcumulado(orcadosMeses, receitaValores, mes0) : null;
         pct = null;
@@ -226,7 +236,7 @@ export function montarOrcamentoV2(entrada: EntradaMontagem): OrcamentoV2Response
 
   const receitaMes = receitaPorMes[mes0] ?? { valor: null, origem: 'nenhuma' as const };
   const receitaPrevista: ReceitaPrevistaV2 = porAno
-    ? { valor: receita, origem: origemAcumulada(receitaPorMes.slice(0, mes0 + 1)) }
+    ? { valor: receita, origem: origemAcumulada(receitaPorMes.slice(inicio0, mes0 + 1)) }
     : {
         valor: receitaMes.valor,
         origem: receitaMes.origem,
@@ -256,7 +266,10 @@ export function montarOrcamentoV2(entrada: EntradaMontagem): OrcamentoV2Response
       avisoGeralPendente: prefs?.estruturaCriadaEm != null && prefs.avisoGeralVistoEm == null,
     },
     ...(porAno
-      ? { mesesSemOrcamento: mesesSemOrcamento(orcadoTotalPorMes, mes0).map((m) => m + 1) }
+      ? {
+          inicioAcumulado: inicio0 + 1,
+          mesesSemOrcamento: mesesSemOrcamento(orcadoTotalPorMes, mes0, inicio0).map((m) => m + 1),
+        }
       : {}),
     categorias,
   };

@@ -58,6 +58,18 @@ export const mesCurto = ({ ano, mes }: AnoMes): string =>
 /** `{2026, 10}` → "Outubro 2026" (mês 1–12). */
 export const mesLongo = ({ ano, mes }: AnoMes): string => `${MESES_LONGOS[mes - 1]} ${ano}`;
 
+/** 1º mês (1–12) do acumulado: o 1º com orçado, vindo do servidor (R-15 revisto); padrão janeiro. */
+export const inicioAcumulado = (data: { inicioAcumulado?: number }): number =>
+  data.inicioAcumulado ?? 1;
+
+/** Período do acumulado em abreviações: "ago–out" (ou só "out" quando começa no próprio mês). */
+export function periodoCurto(data: { inicioAcumulado?: number; mes: number }): string {
+  const ini = inicioAcumulado(data);
+  return ini < data.mes
+    ? `${MESES_CURTOS[ini - 1]}–${MESES_CURTOS[data.mes - 1]}`
+    : MESES_CURTOS[data.mes - 1];
+}
+
 /** Número pt-BR com 2 casas, sem "R$" (colunas da tabela). */
 export const num = (n: number): string => formatNumber(n, 2);
 

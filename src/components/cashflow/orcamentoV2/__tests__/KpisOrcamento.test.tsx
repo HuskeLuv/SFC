@@ -89,15 +89,16 @@ describe('KpisOrcamento', () => {
   });
 
   it('Acumulado do ano: rótulos do ano e meses sem orçado', () => {
-    const data = montarPayload({ visao: 'ano' });
+    // começou a orçar em agosto e pulou setembro
+    const data = { ...montarPayload({ visao: 'ano' }), inicioAcumulado: 8, mesesSemOrcamento: [9] };
     const { container } = render(<KpisOrcamento data={data} />);
     expect(kpi(container, 'receita')).toHaveTextContent('Receita prevista no ano');
-    expect(kpi(container, 'receita')).toHaveTextContent('Janeiro a Outubro 2026');
+    expect(kpi(container, 'receita')).toHaveTextContent('Agosto a Outubro 2026');
     expect(kpi(container, 'orcado')).toHaveTextContent('Orçado no ano');
     expect(kpi(container, 'realizado')).toHaveTextContent('Lançado até 23/10');
     expect(kpi(container, 'realizado')).toHaveTextContent('do ano passou');
     expect(data.mesesSemOrcamento?.length).toBeGreaterThan(0);
-    expect(kpi(container, 'orcado')).toHaveTextContent('sem orçado em jan');
+    expect(kpi(container, 'orcado')).toHaveTextContent('sem orçado em set');
   });
 
   it('disponível negativo em vermelho', () => {

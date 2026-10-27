@@ -130,7 +130,9 @@ export interface OrcamentoV2Response {
   /** Alvo do botão "Copiar de <mês anterior>". */
   copiarDe: AnoMes & { temOrcado: boolean };
   prefs: PrefsOrcamentoV2;
-  /** Só na visão ano: meses (1–12) de jan..mês sem nenhum orçado. */
+  /** Só na visão ano: 1º mês (1–12) do acumulado = o 1º com orçado (R-15 revisto 27/10). */
+  inicioAcumulado?: number;
+  /** Só na visão ano: meses (1–12) de inicioAcumulado..mês sem nenhum orçado. */
   mesesSemOrcamento?: number[];
   categorias: CategoriaV2[];
 }
