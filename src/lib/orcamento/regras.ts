@@ -34,10 +34,12 @@ export interface Orcado {
 
 /** R-08: "estouro" só acima de 100,5% (centavos de arredondamento não acendem vermelho). */
 export const TOLERANCIA_ESTOURO = 1.005;
-/** R-08: "à frente do ritmo" a partir de 80% consumido… */
+/**
+ * R-08: "à frente do ritmo" a partir de 80% consumido e já depois do traço do ritmo (fração do
+ * período decorrida). A spec pedia 10 p.p. acima do traço; o Pedro (27/10) pediu laranja assim
+ * que a barra cruza o traço, mantido o piso de 80% para o começo do mês não acender tudo.
+ */
 export const LIMIAR_A_FRENTE = 0.8;
-/** …e 10 p.p. acima da fração do período decorrida. */
-export const MARGEM_RITMO = 0.1;
 /** R-18: nome de subcategoria com 1–60 caracteres. */
 export const NOME_MAX = 60;
 
@@ -192,7 +194,8 @@ export function consumido(orcado: number, realizado: number): number | null {
  * - orçado 0 → 'bad' se houve gasto, senão 'none';
  * - consumido > 1,005 → 'bad' (mesmo fixa);
  * - fixa → 'ok' (fixa só avisa quando passa);
- * - consumido ≥ 0,80 e (consumido − ritmo) ≥ 0,10 → 'warn' ("à frente do ritmo");
+ * - consumido ≥ 0,80 e consumido > ritmo, com ritmo < 1 → 'warn' ("à frente do ritmo"; mês
+ *   fechado ou futuro tem ritmo 1, e entre 100% e 100,5% não é estouro nem "à frente");
  * - senão 'ok'.
  */
 export function statusSubcategoria(
@@ -205,7 +208,7 @@ export function statusSubcategoria(
   if (passouDaTolerancia(orcado, realizado)) return 'bad';
   const p = realizado / orcado;
   if (fixa) return 'ok';
-  if (p >= LIMIAR_A_FRENTE - EPS && p - ritmo >= MARGEM_RITMO - EPS) return 'warn';
+  if (ritmo < 1 && p >= LIMIAR_A_FRENTE - EPS && p - ritmo > EPS) return 'warn';
   return 'ok';
 }
 
