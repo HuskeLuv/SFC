@@ -64,8 +64,8 @@ describe('carregarOrcamentoV2', () => {
       realizado: 16_176,
       disponivel: 1_838.9,
       orcadoPctReceita: 75.1,
-      sobraPrevista: 5_985.1,
-      indicePoupanca: 24.9,
+      sobraPrevista: 8_695.1,
+      indicePoupanca: 36.2,
       contagens: { estouro: 6, aFrente: 6, semOrcamento: 12 },
     });
     expect(r.referencia).toMatchObject({ dia: 23, fase: 'corrente' });

@@ -149,10 +149,15 @@ export default function KpisOrcamento({ data }: { data: OrcamentoV2Response }) {
           {formatBRL(resumo.sobraPrevista)}
         </b>{' '}
         para investir
+        {resumo.orcadoObjetivos > 0 && (
+          <span data-mf-kpi-objetivos="" className="block">
+            inclui {formatBRL(resumo.orcadoObjetivos)} em objetivos
+          </span>
+        )}
       </>
     ) : (
       <>
-        orçado passa da receita em{' '}
+        gastos orçados passam da receita em{' '}
         <b className={`font-semibold ${SELO_TEXTO.estourou}`}>
           {formatBRL(Math.abs(resumo.sobraPrevista))}
         </b>

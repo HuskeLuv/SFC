@@ -104,6 +104,8 @@ export interface ResumoOrcamentoV2 {
   disponivel: number;
   sobraPrevista: number | null;
   indicePoupanca: number | null;
+  /** Orçado em Planejamento Financeiro: já está dentro da sobra prevista. */
+  orcadoObjetivos: number;
   totalCategorias: number;
   totalSubcategorias: number;
   contagens: ContagensOrcamento;

@@ -29,8 +29,9 @@ describe('KpisOrcamento', () => {
     expect(kpi(container, 'realizado')).toHaveTextContent('90% do orçado · 74% do mês passou');
     expect(kpi(container, 'disponivel')).toHaveTextContent('R$ 1.838,90');
     expect(kpi(container, 'disponivel')).toHaveTextContent('orçado − realizado · 8 dias restantes');
-    expect(kpi(container, 'indice')).toHaveTextContent('24,9%');
-    expect(kpi(container, 'indice')).toHaveTextContent('sobra prevista R$ 5.985,10 para investir');
+    expect(kpi(container, 'indice')).toHaveTextContent('36,2%');
+    expect(kpi(container, 'indice')).toHaveTextContent('sobra prevista R$ 8.695,10 para investir');
+    expect(kpi(container, 'indice')).toHaveTextContent('inclui R$ 2.710,00 em objetivos');
   });
 
   it('receita nas 3 origens: fluxo, média de 3 meses e nenhuma (com o link para o Fluxo)', () => {

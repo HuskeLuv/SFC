@@ -43,7 +43,12 @@ function montar(cats: CategoriaAnexoB[], receita: number | null = ANEXO_B_RECEIT
       geral: s.geral,
       ...calcularSubcategoria(s, receita, ritmo),
     }));
-    return { nome: c.nome, ...calcularCategoria(subcategorias, receita), subcategorias };
+    return {
+      nome: c.nome,
+      poupanca: c.poupanca,
+      ...calcularCategoria(subcategorias, receita),
+      subcategorias,
+    };
   });
 }
 
@@ -329,14 +334,15 @@ describe('KPIs (§4.2, T01–T03)', () => {
       realizado: 16_176,
       disponivel: 1_838.9,
       orcadoPctReceita: 75.1,
-      sobraPrevista: 5_985.1,
+      sobraPrevista: 8_695.1,
+      orcadoObjetivos: 2_710,
       totalCategorias: 13,
       totalSubcategorias: 82,
     });
   });
 
-  it('T02: índice de poupança (24.000 − 18.014,90) ÷ 24.000 = 24,9%', () => {
-    expect(resumo.indicePoupanca).toBe(24.9);
+  it('T02 (revisto 27/10): índice = (24.000 − 15.304,90 de gastos) ÷ 24.000 = 36,2%; Planejamento conta como poupança', () => {
+    expect(resumo.indicePoupanca).toBe(36.2);
   });
 
   it('T03: KPI Realizado = 90% do orçado', () => {
@@ -408,7 +414,7 @@ describe('R-17 % da receita', () => {
     expect(orcadoEfetivo({ valor: null, pct: null }, 24_000)).toBe(0);
   });
 
-  it('T23: Entrada apartamento R$ → % = 6,3% (= 1.512,00); Planejamento 2.722; índice 24,9%', () => {
+  it('T23: Entrada apartamento R$ → % = 6,3% (= 1.512,00); Planejamento 2.722; índice 36,2%', () => {
     const conv = converterModo('pct', ENTRADA, ANEXO_B_RECEITA);
     expect(conv).toEqual({ valor: null, pct: 6.3 });
     const t = montar(comSub('Planejamento Financeiro', 'Entrada apartamento', conv));
@@ -417,10 +423,10 @@ describe('R-17 % da receita', () => {
     expect(entrada.orcado).toBe(1512);
     expect(calcularCategoria([entrada], ANEXO_B_RECEITA).pctReceita).toBe(6.3);
     expect(plan.orcado).toBe(2722);
-    expect(calcularResumo(t, ANEXO_B_RECEITA).indicePoupanca).toBe(24.9);
+    expect(calcularResumo(t, ANEXO_B_RECEITA).indicePoupanca).toBe(36.2);
   });
 
-  it('T24: 6,3 → 7% = 1.680,00; Planejamento 2.890; total 18.194,90; índice 24,2%', () => {
+  it('T24: 6,3 → 7% = 1.680,00; Planejamento 2.890; total 18.194,90; índice não muda (36,2%)', () => {
     const t = montar(
       comSub('Planejamento Financeiro', 'Entrada apartamento', { valor: null, pct: 7 }),
     );
@@ -428,7 +434,9 @@ describe('R-17 % da receita', () => {
     expect(plan.orcado).toBe(2890);
     const r = calcularResumo(t, ANEXO_B_RECEITA);
     expect(r.orcado).toBe(18_194.9);
-    expect(r.indicePoupanca).toBe(24.2);
+    // mais meta em objetivo não derruba o índice: é poupança, não gasto
+    expect(r.indicePoupanca).toBe(36.2);
+    expect(r.orcadoObjetivos).toBe(2_890);
   });
 
   it('T25: % → R$ → % volta ao mesmo valor (7% → 1.680,00 → 7,0%)', () => {

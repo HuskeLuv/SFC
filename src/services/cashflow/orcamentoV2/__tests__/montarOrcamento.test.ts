@@ -81,12 +81,13 @@ describe('montarOrcamentoV2 — Anexo B (outubro/2026, dia 23, receita 24.000)',
     expect(r.resumo.realizado).toBe(16_176);
     expect(r.resumo.disponivel).toBe(1_838.9);
     expect(r.resumo.orcadoPctReceita).toBe(75.1);
-    expect(r.resumo.sobraPrevista).toBe(5_985.1);
+    expect(r.resumo.sobraPrevista).toBe(8_695.1);
+    expect(r.resumo.orcadoObjetivos).toBe(2_710);
     expect(r.resumo.realizadoPctOrcado).toBe(89.8);
   });
 
-  it('T02: índice de poupança = (24.000 − 18.014,90) ÷ 24.000 = 24,9%', () => {
-    expect(r.resumo.indicePoupanca).toBe(24.9);
+  it('T02 (revisto 27/10): índice = (24.000 − 15.304,90 de gastos) ÷ 24.000 = 36,2%', () => {
+    expect(r.resumo.indicePoupanca).toBe(36.2);
   });
 
   it('T04: contadores dos chips (Estouro 6 · À frente 6 · Sem orçamento 12; R-08 revisto)', () => {
@@ -180,7 +181,7 @@ describe('montarOrcamentoV2 — Anexo B (outubro/2026, dia 23, receita 24.000)',
 });
 
 describe('montarOrcamentoV2 — mapeamento da árvore (§2)', () => {
-  it('T33: Investimentos fica fora (D12); aportes não entram; índice = (Receita − Orçado) ÷ Receita', () => {
+  it('T33: Investimentos fica fora (D12); aportes não entram; índice = (Receita − Orçado dos gastos) ÷ Receita', () => {
     const r = montar();
     expect(r.categorias.some((c) => c.nome === 'Investimentos')).toBe(false);
     const ids = r.categorias.flatMap((c) => c.subcategorias.map((s) => s.id));
@@ -190,7 +191,9 @@ describe('montarOrcamentoV2 — mapeamento da árvore (§2)', () => {
     expect(ids).not.toContain('it-salario');
     expect(r.resumo.realizado).toBe(16_176);
     expect(r.resumo.indicePoupanca).toBe(
-      Math.round(((ANEXO_B_RECEITA - r.resumo.orcado) / ANEXO_B_RECEITA) * 1000) / 10,
+      Math.round(
+        ((ANEXO_B_RECEITA - (r.resumo.orcado - r.resumo.orcadoObjetivos)) / ANEXO_B_RECEITA) * 1000,
+      ) / 10,
     );
   });
 
@@ -349,7 +352,7 @@ describe('montarOrcamentoV2 — receita', () => {
     const r = montar({ orcados });
     expect(r.categorias[plan].subcategorias[1]).toMatchObject({ orcado: 1_512, pct: 6.3 });
     expect(r.categorias[plan].orcado).toBe(2_722);
-    expect(r.resumo.indicePoupanca).toBe(24.9);
+    expect(r.resumo.indicePoupanca).toBe(36.2);
   });
 
   it('média de 3 meses: origem e meses base vão no payload', () => {
