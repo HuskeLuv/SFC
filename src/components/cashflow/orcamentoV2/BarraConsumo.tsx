@@ -2,7 +2,7 @@
 
 import type { StatusOrcamento } from '@/lib/orcamento/regras';
 import { SELO_TEXTO, TOM_FUNDO } from '@/lib/orcamento/tons';
-import { TOM_DO_STATUS, textoConsumido } from './apresentacao';
+import { CLASSE_COM_AJUDA, TOM_DO_STATUS, textoConsumido } from './apresentacao';
 
 interface BarraConsumoProps {
   /** Fração (0,9083) do payload; `null` = sem orçado ("—"). */
@@ -12,6 +12,8 @@ interface BarraConsumoProps {
   ritmo: number;
   /** Texto do traço ("ritmo do mês: dia 23 de 31"). */
   tituloRitmo: string;
+  /** Explicação ao passar o mouse no % (ex.: dentro da tolerância de arredondamento). */
+  ajuda?: string | null;
 }
 
 /**
@@ -19,7 +21,13 @@ interface BarraConsumoProps {
  * do status que o servidor mandou (tons de `lib/orcamento/tons`); o texto só ganha cor quando o
  * status pede ação (à frente do ritmo / estouro).
  */
-export default function BarraConsumo({ consumido, status, ritmo, tituloRitmo }: BarraConsumoProps) {
+export default function BarraConsumo({
+  consumido,
+  status,
+  ritmo,
+  tituloRitmo,
+  ajuda,
+}: BarraConsumoProps) {
   if (consumido === null) {
     return (
       <span className="inline-flex items-center gap-2" data-mf-consumo="none">
@@ -54,8 +62,11 @@ export default function BarraConsumo({ consumido, status, ritmo, tituloRitmo }: 
         className={`w-11 text-right text-xs font-semibold tabular-nums ${
           destaque ? SELO_TEXTO[tom] : 'text-gray-600 dark:text-gray-300'
         }`}
+        title={ajuda ?? undefined}
       >
-        {textoConsumido(consumido, ritmo)}
+        <span className={ajuda ? CLASSE_COM_AJUDA : undefined}>
+          {textoConsumido(consumido, ritmo)}
+        </span>
       </span>
     </span>
   );

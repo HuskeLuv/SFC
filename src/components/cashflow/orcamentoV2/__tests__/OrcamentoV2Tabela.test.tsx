@@ -511,3 +511,32 @@ describe('OrcamentoV2Tabela — contadores da categoria', () => {
     expect(linhaCategoria(container, lazer.id)).toHaveTextContent('2 estouros');
   });
 });
+
+describe('OrcamentoV2Tabela — tolerância de arredondamento', () => {
+  it('301 de 300 (azul, 100%): diferença e % explicam a margem ao passar o mouse', () => {
+    const data = montarPayload();
+    const s = categoriaDe(data, 'Lazer').subcategorias[0];
+    Object.assign(s, {
+      orcado: 300,
+      realizado: 301,
+      diferenca: -1,
+      consumido: 301 / 300,
+      status: 'ok',
+    });
+    const { container } = renderTabela(data);
+    const tds = linhaSub(container, s.id).querySelectorAll('td');
+    const titulo = /1,00 acima do orçado, dentro da margem de arredondamento/;
+    expect(tds[4].getAttribute('title')).toMatch(titulo);
+    const titulos = Array.from(tds[5].querySelectorAll('[title]')).map((e) =>
+      e.getAttribute('title'),
+    );
+    expect(titulos.some((t) => titulo.test(t ?? ''))).toBe(true);
+  });
+
+  it('sub dentro do orçado não ganha a explicação', () => {
+    const data = montarPayload();
+    const s = categoriaDe(data, 'Habitação').subcategorias[0];
+    const { container } = renderTabela(data);
+    expect(linhaSub(container, s.id).querySelectorAll('td')[4].getAttribute('title')).toBeNull();
+  });
+});
