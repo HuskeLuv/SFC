@@ -75,7 +75,11 @@ describe('OrcamentoV2Cartoes — celular', () => {
     expect(card).toHaveTextContent(
       `${hab.qtdComOrcamento} de ${hab.subcategorias.length} subcategorias com orçamento`,
     );
-    expect(card.querySelectorAll('[data-mf-sub-mobile]')).toHaveLength(hab.subcategorias.length);
+    // subs sem orçado e sem gasto ficam no grupo "+ N sem valores" (Geral vazia, no Anexo B)
+    const vazias = hab.subcategorias.filter((s) => s.orcado === 0 && s.realizado === 0);
+    expect(card.querySelectorAll('[data-mf-sub-mobile]')).toHaveLength(
+      hab.subcategorias.length - vazias.length,
+    );
 
     // Total do mês com as contagens do resumo.
     expect(container.querySelector('[data-mf-orcamento-total-mobile]')).toHaveTextContent(
@@ -257,5 +261,26 @@ describe('OrcamentoV2Cartoes — herói', () => {
     const linha = container.querySelector('[data-mf-heroi-excesso]')!;
     expect(linha).toHaveTextContent('acima do orçado em');
     expect(linha).not.toHaveTextContent('compensados');
+  });
+});
+
+describe('OrcamentoV2Cartoes — subcategorias sem valores', () => {
+  it('ficam num grupo que abre com um toque; com filtro, aparecem todas', () => {
+    const data = montarPayload();
+    const dep = categoriaDe(data, 'Despesas com dependentes');
+    const { container } = renderCartoes(data);
+    const card = cartao(container, dep.id);
+    expect(card.querySelectorAll('[data-mf-sub-mobile]')).toHaveLength(0);
+    const botao = card.querySelector<HTMLButtonElement>('[data-mf-cartao-vazias]')!;
+    expect(botao).toHaveTextContent(`+ ${dep.subcategorias.length} subcategorias sem valores`);
+    expect(botao).toHaveAttribute('aria-expanded', 'false');
+    fireEvent.click(botao);
+    expect(card.querySelectorAll('[data-mf-sub-mobile]')).toHaveLength(dep.subcategorias.length);
+    expect(botao).toHaveTextContent('Ocultar as subcategorias sem valores');
+    fireEvent.click(botao);
+    fireEvent.click(screen.getByRole('button', { name: /^Sem orçamento/ }));
+    const filtrado = cartao(container, dep.id);
+    expect(filtrado.querySelector('[data-mf-cartao-vazias]')).toBeNull();
+    expect(filtrado.querySelectorAll('[data-mf-sub-mobile]').length).toBeGreaterThan(0);
   });
 });
