@@ -193,13 +193,13 @@ describe('R-15 acumulado do ano', () => {
 });
 
 describe('R-08 status da subcategoria', () => {
-  it('T08: Uber/99 → −38,40, 138%, estouro; Transporte 85% ok com "1 estouro"', () => {
+  it('T08: Uber/99 → −38,40, 138%, estouro; Transporte 85% laranja com "1 estouro" e "2 à frente"', () => {
     const s = sub('Transporte', 'Uber / 99');
     expect(s.diferenca).toBe(-38.4);
     expect(Math.round(s.consumido! * 100)).toBe(138);
     expect(s.status).toBe('bad');
     const t = cat('Transporte');
-    expect(t).toMatchObject({ status: 'ok', qtdEstouro: 1, qtdAFrente: 0 });
+    expect(t).toMatchObject({ status: 'warn', qtdEstouro: 1, qtdAFrente: 2 });
     expect(Math.round(t.consumido! * 100)).toBe(85);
   });
 
@@ -235,19 +235,31 @@ describe('R-08 status da subcategoria', () => {
     expect(Math.round(pets.consumido! * 100)).toBe(81);
   });
 
-  it('T12: Mercado 80% mas só 6 p.p. acima do ritmo → ok', () => {
-    expect(sub('Habitação', 'Mercado').status).toBe('ok');
+  it('T12 (R-08 revisto): Mercado 80% com o mês em 74% já passou do traço → à frente', () => {
+    expect(sub('Habitação', 'Mercado').status).toBe('warn');
   });
 
-  it('limites de 80% e 10 p.p. são inclusivos', () => {
+  it('piso de 80% inclusivo; o traço precisa ser ultrapassado', () => {
     expect(statusSubcategoria(100, 80, false, 0.7)).toBe('warn');
     expect(statusSubcategoria(100, 79.99, false, 0.5)).toBe('ok');
-    expect(statusSubcategoria(100, 85, false, 0.75)).toBe('warn');
-    expect(statusSubcategoria(100, 85, false, 0.7501)).toBe('ok');
+    expect(statusSubcategoria(100, 85, false, 0.8499)).toBe('warn');
+    expect(statusSubcategoria(100, 85, false, 0.85)).toBe('ok');
+    expect(statusSubcategoria(100, 85, false, 0.9)).toBe('ok');
+  });
+
+  it('caso do Pedro (26/10, traço em 84%): 330 de 355 (93%) já é laranja', () => {
+    const { ritmo } = ritmoDoMes(2026, 9, { ano: 2026, mes0: 9, dia: 26 });
+    expect(statusSubcategoria(355, 330, false, ritmo)).toBe('warn');
+    expect(statusSubcategoria(400, 330, false, ritmo)).toBe('ok');
+  });
+
+  it('início do mês: passar do traço abaixo de 80% não acende', () => {
+    expect(statusSubcategoria(100, 50, false, 0.1)).toBe('ok');
   });
 
   it('mês fechado (ritmo 1): nunca "à frente", só estouro', () => {
     expect(statusSubcategoria(100, 100, false, 1)).toBe('ok');
+    expect(statusSubcategoria(100, 100.4, false, 1)).toBe('ok');
     expect(statusSubcategoria(100, 101, false, 1)).toBe('bad');
   });
 
@@ -283,12 +295,12 @@ describe('R-09 status da categoria e da linha Total', () => {
     expect(Math.round(l.consumido! * 100)).toBe(87);
   });
 
-  it('T05: Habitação = soma das subs, 91%, sem etiqueta', () => {
+  it('T05: Habitação = soma das subs, 91%, laranja por Mercado', () => {
     expect(cat('Habitação')).toMatchObject({
       orcado: 5250,
       realizado: 4768.8,
       diferenca: 481.2,
-      status: 'ok',
+      status: 'warn',
       qtdComOrcamento: 8,
     });
   });
@@ -302,9 +314,9 @@ describe('R-09 status da categoria e da linha Total', () => {
     ).toBe('bad');
   });
 
-  it('Total usa a mesma regra sobre as categorias: warn por Pets e Lazer, 1 categoria em estouro', () => {
+  it('Total usa a mesma regra sobre as categorias: warn por 4 categorias, 1 categoria em estouro', () => {
     const total = statusCategoria(tela);
-    expect(total).toEqual({ status: 'warn', qtdEstouro: 1, qtdAFrente: 2 });
+    expect(total).toEqual({ status: 'warn', qtdEstouro: 1, qtdAFrente: 4 });
   });
 });
 
@@ -332,8 +344,8 @@ describe('KPIs (§4.2, T01–T03)', () => {
     expect(Math.round(resumo.realizadoPctOrcado!)).toBe(90);
   });
 
-  it('T04: contadores dos chips 6 / 3 / 12', () => {
-    expect(resumo.contagens).toEqual({ estouro: 6, aFrente: 3, semOrcamento: 12 });
+  it('T04: contadores dos chips 6 / 6 / 12 (R-08 revisto: eram 3 à frente)', () => {
+    expect(resumo.contagens).toEqual({ estouro: 6, aFrente: 6, semOrcamento: 12 });
     expect(contarStatus(tela)).toEqual(resumo.contagens);
   });
 
@@ -488,8 +500,10 @@ describe('R-10 filtros e busca', () => {
     ]);
   });
 
-  it('À frente do ritmo → Ração, Restaurantes, Bar/Cafés', () => {
+  it('À frente do ritmo → Mercado, Combustível, Estacionamento, Ração, Restaurantes, Bar/Cafés', () => {
     expect(nomes(filtrarCategorias(tela, 'aFrente', ''))).toEqual([
+      ['Habitação', ['Mercado']],
+      ['Transporte', ['Combustível', 'Estacionamento / Pedágio']],
       ['Animais de estimação', ['Ração']],
       ['Lazer', ['Restaurantes', 'Bar / Cafés']],
     ]);

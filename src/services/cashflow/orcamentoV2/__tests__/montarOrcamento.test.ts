@@ -89,8 +89,8 @@ describe('montarOrcamentoV2 — Anexo B (outubro/2026, dia 23, receita 24.000)',
     expect(r.resumo.indicePoupanca).toBe(24.9);
   });
 
-  it('T04: contadores dos chips (Estouro 6 · À frente 3 · Sem orçamento 12)', () => {
-    expect(r.resumo.contagens).toEqual({ estouro: 6, aFrente: 3, semOrcamento: 12 });
+  it('T04: contadores dos chips (Estouro 6 · À frente 6 · Sem orçamento 12; R-08 revisto)', () => {
+    expect(r.resumo.contagens).toEqual({ estouro: 6, aFrente: 6, semOrcamento: 12 });
   });
 
   it('13 categorias e 82 subcategorias (D1–D4), na ordem da árvore', () => {
@@ -105,9 +105,9 @@ describe('montarOrcamentoV2 — Anexo B (outubro/2026, dia 23, receita 24.000)',
     expect(h.realizado).toBe(4_768.8);
     expect(h.diferenca).toBe(481.2);
     expect(pct0(h.consumido)).toBe(91);
-    expect(h.status).toBe('ok');
+    expect(h.status).toBe('warn');
     expect(h.qtdEstouro).toBe(0);
-    expect(h.qtdAFrente).toBe(0);
+    expect(h.qtdAFrente).toBe(1);
     expect(h.pctReceita).toBe(21.9);
   });
 

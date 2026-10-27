@@ -66,7 +66,7 @@ describe('carregarOrcamentoV2', () => {
       orcadoPctReceita: 75.1,
       sobraPrevista: 5_985.1,
       indicePoupanca: 24.9,
-      contagens: { estouro: 6, aFrente: 3, semOrcamento: 12 },
+      contagens: { estouro: 6, aFrente: 6, semOrcamento: 12 },
     });
     expect(r.referencia).toMatchObject({ dia: 23, fase: 'corrente' });
     expect(r.referencia.atualizadoEm).toBe(AGORA.toISOString());

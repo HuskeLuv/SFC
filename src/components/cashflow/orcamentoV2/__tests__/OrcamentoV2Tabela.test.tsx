@@ -58,7 +58,7 @@ describe('OrcamentoV2Tabela — Anexo B', () => {
     ths.forEach((th) => expect(th.className).toContain('sticky'));
   });
 
-  it('T05: linha de Habitação = soma das subcategorias, sem etiqueta', () => {
+  it('T05: linha de Habitação = soma das subcategorias, "1 à frente do ritmo" (Mercado)', () => {
     const data = montarPayload();
     const hab = categoriaDe(data, 'Habitação');
     const { container } = renderTabela(data);
@@ -69,7 +69,7 @@ describe('OrcamentoV2Tabela — Anexo B', () => {
     expect(tds[3]).toHaveTextContent('4.768,80');
     expect(tds[4]).toHaveTextContent('481,20');
     expect(tds[5]).toHaveTextContent('91%');
-    expect(tr.querySelector('[data-mf-etiqueta]')).toBeNull();
+    expect(tr.querySelector('[data-mf-etiqueta]')).toHaveTextContent('1 à frente do ritmo');
     // O orçado da categoria não é editável.
     expect(tds[2].querySelector('input')).toBeNull();
   });

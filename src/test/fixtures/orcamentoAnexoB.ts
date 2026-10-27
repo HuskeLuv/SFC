@@ -2,7 +2,8 @@
  * Massa do Anexo B da spec do Orçamento v2 (ticket 86e3v8p3u): outubro/2026, referência dia 23,
  * receita prevista R$ 24.000,00, 13 categorias e 82 subcategorias (Investimentos fora, D12).
  * Os valores são os do protótipo; os esperados por linha (status e % consumido) também vêm do
- * Anexo B. Erros aritméticos da spec (D1–D5: 87 subs, 14 categorias, T06, T35) NÃO estão aqui —
+ * Anexo B, menos o R-08 revisto em 27/10 (laranja assim que passa do traço, piso de 80%): Mercado,
+ * Combustível e Estacionamento (80–83% com o mês em 74%) viraram "à frente". Erros aritméticos da spec (D1–D5: 87 subs, 14 categorias, T06, T35) NÃO estão aqui —
  * ver o Apêndice C do desenho técnico. Fixa = coluna "Flag"; Planejamento é sempre fixa (R-07).
  */
 
@@ -92,7 +93,7 @@ export const ANEXO_B: CategoriaAnexoB[] = [
       ['Água', true, 90, 84.2, ok, 94],
       ['Gás', true, 60, 0, ok, 0],
       ['Internet / TV', true, 150, 149.9, ok, 100],
-      ['Mercado', false, 1400, 1126.3, ok, 80],
+      ['Mercado', false, 1400, 1126.3, warn, 80],
       ['Diarista', true, 480, 360, ok, 75],
       geral(),
     ],
@@ -101,20 +102,20 @@ export const ANEXO_B: CategoriaAnexoB[] = [
       realizado: 4768.8,
       diferenca: 481.2,
       consumidoPct: 91,
-      status: ok,
+      status: warn,
       qtdEstouro: 0,
-      qtdAFrente: 0,
+      qtdAFrente: 1,
     },
   ),
   categoria(
     'Transporte',
     [
       ['Parcela do carro', true, 1100, 1100, ok, 100],
-      ['Combustível', false, 500, 412.6, ok, 83],
+      ['Combustível', false, 500, 412.6, warn, 83],
       ['Seguro', true, 180, 180, ok, 100],
       ['IPVA / Licenciamento', true, 150, 0, ok, 0],
       ['Manutenção', false, 120, 0, ok, 0],
-      ['Estacionamento / Pedágio', false, 80, 64, ok, 80],
+      ['Estacionamento / Pedágio', false, 80, 64, warn, 80],
       ['Uber / 99', false, 100, 138.4, bad, 138],
       geral(),
     ],
@@ -123,9 +124,9 @@ export const ANEXO_B: CategoriaAnexoB[] = [
       realizado: 1895,
       diferenca: 335,
       consumidoPct: 85,
-      status: ok,
+      status: warn,
       qtdEstouro: 1,
-      qtdAFrente: 0,
+      qtdAFrente: 2,
     },
   ),
   categoria(
