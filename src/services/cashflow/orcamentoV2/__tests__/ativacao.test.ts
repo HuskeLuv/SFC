@@ -514,6 +514,17 @@ describe('ativarOrcamentoV2 --aplicar', () => {
     expect(nomes.slice(0, 2)).toEqual(['Aluguel / Prestação', 'Condomínio']);
   });
 
+  it('modelo sem Reserva (como em prod): o usuário novo ganha a Reserva de emergência em Planejamento', async () => {
+    banco.dados.cashflowItem = banco.dados.cashflowItem.filter((i) => i.id !== 'tpl-res');
+    const r = await ativarOrcamentoV2('u2', { dryRun: false, hoje: HOJE });
+    expect(r.status).toBe('ativado');
+    const plan = categoriasDaArvore(banco.arvoreMesclada('u2', 2026)).find(
+      (c) => c.chave === 'tpl-plan',
+    )!;
+    expect(plan.grupo.items.map((i) => i.name)).toEqual(['Reserva de emergência', 'Geral']);
+    expect(plan.grupo.items[0].userId).toBe('u2');
+  });
+
   it('meta de subgrupo: com a da categoria = duplicada; sozinha = copiada e relatada à parte', async () => {
     await cenarioPersonalizado();
     const viagens = banco.inserir('cashflowGroup', {

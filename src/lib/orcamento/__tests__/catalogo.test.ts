@@ -154,14 +154,16 @@ describe('fixaPadrao', () => {
 });
 
 describe('sugestões (P4)', () => {
-  it('Planejamento Financeiro não recebe sugestões e nenhuma categoria sugere a Geral', () => {
-    expect(SUBCATEGORIAS_SUGERIDAS['Planejamento Financeiro']).toEqual([]);
-    expect(sugestoesFaltantes('Planejamento Financeiro', [])).toEqual([]);
+  it('Planejamento Financeiro só recebe a Reserva de emergência e nenhuma categoria sugere a Geral', () => {
+    expect(SUBCATEGORIAS_SUGERIDAS['Planejamento Financeiro'].map((s) => s.nome)).toEqual([
+      'Reserva de emergência',
+    ]);
+    expect(sugestoesFaltantes('Planejamento Financeiro', ['Reserva de Emergencia'])).toEqual([]);
     for (const lista of Object.values(SUBCATEGORIAS_SUGERIDAS)) {
       expect(lista.map((s) => s.nome)).not.toContain(NOME_GERAL);
     }
-    // 82 − 13 Gerais − 4 ilustrativas de Planejamento
-    expect(Object.values(SUBCATEGORIAS_SUGERIDAS).flat()).toHaveLength(65);
+    // 82 − 13 Gerais − 3 objetivos ilustrativos de Planejamento
+    expect(Object.values(SUBCATEGORIAS_SUGERIDAS).flat()).toHaveLength(66);
   });
 
   it('não sugere o que a categoria já tem (pelo nome normalizado ou alias)', () => {
