@@ -7,6 +7,12 @@ import { SELO_TEXTO } from '@/lib/orcamento/tons';
 import type { CategoriaV2, FonteOrcamento, VisaoOrcamento } from '@/types/orcamentoV2';
 import AvisoGeral from './AvisoGeral';
 import CartaoCategoria from './CartaoCategoria';
+import {
+  BuscaSubcategoria,
+  ChipsFiltro,
+  NadaNoFiltro,
+  useFiltroOrcamento,
+} from './FiltrosOrcamento';
 import { GraficoOrcamentoCelular } from './GraficoOrcamento';
 import HeroiOrcamento from './HeroiOrcamento';
 import { DEBOUNCE_PREFS_MS } from './OrcamentoV2Tabela';
@@ -24,6 +30,8 @@ const opcao = (ativa: boolean) =>
   }`;
 const BTN_MES =
   'flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-gray-200 bg-white text-lg text-gray-600 disabled:opacity-40 dark:border-gray-800 dark:bg-white/[0.03] dark:text-gray-300';
+
+const SEM_CATEGORIAS: CategoriaV2[] = [];
 
 /** Esqueleto dos cartões (herói + cartões), no lugar do conteúdo enquanto o GET carrega. */
 function EsqueletoCartoes() {
@@ -50,7 +58,9 @@ function EsqueletoCartoes() {
  * nada rola na horizontal em 320–430 px (T31/M01).
  *
  * Recolher/expandir usa a mesma preferência do desktop (`prefs.categoriasRecolhidas`, com o mesmo
- * debounce). Chips, busca, gráfico, menu ⋯ e CRUD de subcategoria no celular são da E5.
+ * debounce). Chips em rolagem horizontal + busca de largura total (R-10): com filtro ou busca
+ * ativos, os cartões com resultado abrem sem mexer na preferência. Menu ⋯ e CRUD de subcategoria
+ * no celular são da E5.
  */
 export default function OrcamentoV2Cartoes({
   data,
@@ -99,6 +109,8 @@ export default function OrcamentoV2Cartoes({
     { valor: 'mes', rotulo: 'Mês' },
     { valor: 'ano', rotulo: 'Acumulado' },
   ];
+  const filtro = useFiltroOrcamento(data?.categorias ?? SEM_CATEGORIAS);
+
   const fontes: { valor: FonteOrcamento; rotulo: string }[] = [
     { valor: 'lancado', rotulo: 'Lançado' },
     { valor: 'consolidado', rotulo: 'Consolidado' },
@@ -128,6 +140,13 @@ export default function OrcamentoV2Cartoes({
         <HeroiOrcamento data={data} />
         <GraficoOrcamentoCelular data={data} />
 
+        <ChipsFiltro
+          estado={filtro}
+          contagens={resumo.contagens}
+          className="overflow-x-auto pb-1 [scrollbar-width:none]"
+        />
+        <BuscaSubcategoria estado={filtro} placeholder="Buscar subcategoria" />
+
         <div className="flex items-center justify-between gap-2">
           <h3 className="text-[15px] font-semibold text-gray-800 dark:text-white/90">
             Por categoria
@@ -143,16 +162,23 @@ export default function OrcamentoV2Cartoes({
 
         <ResponsiveCardList<CategoriaV2>
           columns={[]}
-          rows={data.categorias}
+          rows={filtro.visiveis}
           getRowKey={(c) => c.id}
           ariaLabel="Orçamento por categoria"
           getRowAttributes={(c) => ({ 'data-categoria-id': c.id })}
-          emptyState="Nenhuma categoria de despesa no Fluxo de Caixa deste ano."
-          renderMobileCard={(c) => (
+          emptyState={
+            filtro.ativo ? (
+              <NadaNoFiltro estado={filtro} />
+            ) : (
+              'Nenhuma categoria de despesa no Fluxo de Caixa deste ano.'
+            )
+          }
+          renderMobileCard={(v) => (
             <CartaoCategoria
-              categoria={c}
-              aberta={!recolhidas.has(c.id)}
-              onAlternar={() => alternar(c.id)}
+              categoria={data.categorias.find((c) => c.id === v.id) ?? v}
+              subcategorias={v.subcategorias}
+              aberta={filtro.ativo || !recolhidas.has(v.id)}
+              onAlternar={() => alternar(v.id)}
               ritmo={referencia.ritmo}
               mostrarRitmo={mostrarRitmo}
               rotuloReal={rotuloReal}

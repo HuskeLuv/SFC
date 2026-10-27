@@ -427,3 +427,75 @@ describe('OrcamentoV2Tabela — Anexo B', () => {
     expect(total).toHaveTextContent('75,1%');
   });
 });
+
+describe('OrcamentoV2Tabela — chips e busca (R-10)', () => {
+  const subsVisiveis = (container: HTMLElement) =>
+    Array.from(container.querySelectorAll<HTMLElement>('tr[data-mf-linha="sub"]')).map((tr) =>
+      tr.getAttribute('data-item-id'),
+    );
+
+  it('chips com os contadores do payload; "Todas" começa selecionado', () => {
+    const data = montarPayload();
+    renderTabela(data);
+    const { estouro, aFrente, semOrcamento } = data.resumo.contagens;
+    expect(screen.getByRole('button', { name: 'Todas' })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByRole('button', { name: `Estouro ${estouro}` })).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: `À frente do ritmo ${aFrente}` }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: `Sem orçamento ${semOrcamento}` }),
+    ).toBeInTheDocument();
+  });
+
+  it('Estouro mostra só as subs em estouro, abre as recolhidas sem salvar a preferência', () => {
+    vi.useFakeTimers();
+    const base = montarPayload();
+    const data = {
+      ...base,
+      prefs: { ...base.prefs, categoriasRecolhidas: base.categorias.map((c) => c.id) },
+    };
+    const { container, props } = renderTabela(data);
+    expect(subsVisiveis(container)).toHaveLength(0);
+    fireEvent.click(screen.getByRole('button', { name: /^Estouro/ }));
+    const esperadas = data.categorias.flatMap((c) =>
+      c.subcategorias.filter((s) => s.status === 'bad').map((s) => s.id),
+    );
+    expect(esperadas).toHaveLength(data.resumo.contagens.estouro);
+    expect(subsVisiveis(container)).toEqual(esperadas);
+    // Linha da categoria continua com o "n de m" da categoria inteira; não há "+ Adicionar".
+    const lazer = categoriaDe(data, 'Lazer');
+    expect(linhaCategoria(container, lazer.id)).toHaveTextContent(
+      `${lazer.qtdComOrcamento} de ${lazer.subcategorias.length} subcategorias com orçamento`,
+    );
+    expect(container.querySelector('tr[data-mf-linha="adicionar"]')).toBeNull();
+    act(() => vi.advanceTimersByTime(DEBOUNCE_PREFS_MS * 2));
+    expect(props.onSalvarRecolhidas).not.toHaveBeenCalled();
+  });
+
+  it('busca sem acento/caixa: "ifood" acha Delivery / iFood; nome da categoria mostra todas as subs', () => {
+    const data = montarPayload();
+    const { container } = renderTabela(data);
+    const busca = screen.getByRole('searchbox', { name: 'Buscar subcategoria' });
+    fireEvent.change(busca, { target: { value: 'ifood' } });
+    expect(subsVisiveis(container)).toEqual([subDe(data, 'Lazer', 'Delivery / iFood').id]);
+    fireEvent.change(busca, { target: { value: 'saude' } });
+    expect(subsVisiveis(container)).toEqual(
+      categoriaDe(data, 'Saúde').subcategorias.map((s) => s.id),
+    );
+  });
+
+  it('nada no filtro → mensagem e "Limpar filtros" volta para Todas', () => {
+    const { container } = renderTabela();
+    fireEvent.change(screen.getByRole('searchbox', { name: 'Buscar subcategoria' }), {
+      target: { value: 'zzz inexistente' },
+    });
+    expect(container.querySelector('[data-mf-orcamento-vazio-filtro]')).toHaveTextContent(
+      'Nenhuma categoria corresponde ao filtro.',
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Limpar filtros' }));
+    expect(screen.getByRole('button', { name: 'Todas' })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByRole('searchbox', { name: 'Buscar subcategoria' })).toHaveValue('');
+    expect(subsVisiveis(container).length).toBeGreaterThan(0);
+  });
+});

@@ -209,3 +209,31 @@ describe('OrcamentoV2Cartoes — celular', () => {
     );
   });
 });
+
+describe('OrcamentoV2Cartoes — chips e busca (R-10)', () => {
+  it('Sem orçamento abre os cartões com resultado e lista só essas subs (nunca a Geral)', () => {
+    const base = montarPayload();
+    const data = {
+      ...base,
+      prefs: { ...base.prefs, categoriasRecolhidas: base.categorias.map((c) => c.id) },
+    };
+    const { container, salvarPrefs } = renderCartoes(data);
+    expect(container.querySelector('[data-mf-sub-mobile]')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: /^Sem orçamento/ }));
+    expect(container.querySelectorAll('[data-mf-sub-mobile]')).toHaveLength(
+      data.resumo.contagens.semOrcamento,
+    );
+    expect(salvarPrefs.mutate).not.toHaveBeenCalled();
+  });
+
+  it('busca sem resultado → "Limpar filtros" volta a lista', () => {
+    const data = montarPayload();
+    const { container } = renderCartoes(data);
+    fireEvent.change(screen.getByRole('searchbox', { name: 'Buscar subcategoria' }), {
+      target: { value: 'zzz inexistente' },
+    });
+    expect(container.querySelector('[data-mf-orcamento-vazio-filtro]')).not.toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Limpar filtros' }));
+    expect(container.querySelectorAll('li[data-mf-card]')).toHaveLength(data.categorias.length);
+  });
+});
