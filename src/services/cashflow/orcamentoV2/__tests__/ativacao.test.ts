@@ -336,6 +336,8 @@ describe('ativarOrcamentoV2 --aplicar', () => {
     // prefs
     expect(banco.dados.cashflowOrcamentoPrefs).toHaveLength(1);
     expect(banco.dados.cashflowOrcamentoPrefs[0].estruturaCriadaEm).toBeInstanceOf(Date);
+    // orçados foram para as Gerais → o aviso fica pendente
+    expect(banco.dados.cashflowOrcamentoPrefs[0].avisoGeralVistoEm ?? null).toBeNull();
     // tabela antiga intocada
     expect(banco.dados.cashflowOrcamento).toHaveLength(8);
   });
@@ -496,6 +498,10 @@ describe('ativarOrcamentoV2 --aplicar', () => {
     expect(r.mudancas.gruposPersonalizados).toBe(5);
     expect(r.mudancas.geraisCriadas).toBe(5);
     expect(r.mudancas.sugestoesCriadas).toBeGreaterThan(0);
+    // nenhum orçado copiado → o aviso "orçados anteriores em Geral" já nasce visto
+    expect(r.mudancas.orcadosInseridos).toBe(0);
+    const prefs = banco.dados.cashflowOrcamentoPrefs.find((p) => p.userId === 'u2')!;
+    expect(prefs.avisoGeralVistoEm).toBeInstanceOf(Date);
 
     const categorias = categoriasDaArvore(banco.arvoreMesclada('u2', 2026));
     const plan = categorias.find((c) => c.chave === 'tpl-plan')!;

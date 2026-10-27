@@ -39,7 +39,7 @@ export default function LinhaCategoria({
         ? [{ texto: 'sem orçamento', status: 'none' }]
         : [
             ...(c.qtdEstouro > 0
-              ? [{ texto: `${c.qtdEstouro} estouro`, status: 'bad' as const }]
+              ? [{ texto: plural(c.qtdEstouro, 'estouro', 'estouros'), status: 'bad' as const }]
               : []),
             ...(c.qtdAFrente > 0
               ? [{ texto: `${c.qtdAFrente} à frente do ritmo`, status: 'warn' as const }]
