@@ -54,6 +54,8 @@ export interface CategoriaCatalogo {
 
 export const NOME_GERAL = 'Geral';
 export const NOME_PLANEJAMENTO_FINANCEIRO = 'Planejamento Financeiro';
+/** Única sugestão do catálogo em Planejamento Financeiro (ver `SUBCATEGORIAS_SUGERIDAS`). */
+export const NOME_RESERVA = 'Reserva de emergência';
 
 const fixa = (nome: string): SubcategoriaCatalogo => ({ nome, fixa: true });
 const variavel = (nome: string): SubcategoriaCatalogo => ({ nome, fixa: false });
@@ -225,7 +227,7 @@ export const CATEGORIAS_ORCAMENTO: readonly CategoriaCatalogo[] = [
       fixa('Viagem Japão 2028'),
       fixa('Entrada apartamento'),
       fixa('Viagem praia dez/26'),
-      fixa('Reserva de emergência'),
+      fixa(NOME_RESERVA),
       fixa(NOME_GERAL),
     ],
   },
@@ -392,13 +394,17 @@ export function fixaPadrao(
 
 /**
  * Sugestões do catálogo por categoria (P4): o Anexo A sem a Geral (garantida à parte, por
- * `garantirGerais`). Planejamento Financeiro não recebe sugestões.
+ * `garantirGerais`). Em Planejamento Financeiro, só a Reserva de emergência: os outros itens do
+ * Anexo A são objetivos de exemplo (Viagem Japão 2028…), não sugestões, e sem nenhuma sub ali a
+ * categoria de poupança nasce só com a Geral (QA 27/10).
  */
 export const SUBCATEGORIAS_SUGERIDAS: Readonly<Record<string, readonly SubcategoriaCatalogo[]>> =
   Object.fromEntries(
     CATEGORIAS_ORCAMENTO.map((c) => [
       c.nomeCanonico,
-      c.poupanca ? [] : c.subcategorias.filter((s) => s.nome !== NOME_GERAL),
+      c.poupanca
+        ? c.subcategorias.filter((s) => s.nome === NOME_RESERVA)
+        : c.subcategorias.filter((s) => s.nome !== NOME_GERAL),
     ]),
   );
 
