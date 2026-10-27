@@ -1044,10 +1044,13 @@ async function gravarFaseB(
         select: { userId: true },
       });
       const agora = new Date();
+      // O aviso "Seus orçados anteriores estão em Geral" só faz sentido se algum orçado foi para
+      // as Gerais; sem nenhum (usuário novo ou sem metas), ele nasce como visto.
+      const semAviso = linhas.length === 0 ? { avisoGeralVistoEm: agora } : {};
       await tx.cashflowOrcamentoPrefs.upsert({
         where: { userId },
-        create: { userId, estruturaCriadaEm: agora, fonte: 'lancado' },
-        update: { estruturaCriadaEm: agora, fonte: 'lancado' },
+        create: { userId, estruturaCriadaEm: agora, fonte: 'lancado', ...semAviso },
+        update: { estruturaCriadaEm: agora, fonte: 'lancado', ...semAviso },
       });
 
       const itensSugeridos: string[] = [];

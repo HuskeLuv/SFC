@@ -499,3 +499,15 @@ describe('OrcamentoV2Tabela — chips e busca (R-10)', () => {
     expect(subsVisiveis(container).length).toBeGreaterThan(0);
   });
 });
+
+describe('OrcamentoV2Tabela — contadores da categoria', () => {
+  it('plural: "2 estouros" (e "1 estouro" no singular)', () => {
+    const data = montarPayload();
+    const lazer = categoriaDe(data, 'Lazer');
+    const { container, rerender, props } = renderTabela(data);
+    expect(linhaCategoria(container, lazer.id)).toHaveTextContent('1 estouro');
+    lazer.qtdEstouro = 2;
+    rerender(<OrcamentoV2Tabela {...props} data={{ ...data }} />);
+    expect(linhaCategoria(container, lazer.id)).toHaveTextContent('2 estouros');
+  });
+});
