@@ -388,28 +388,32 @@ describe('montarOrcamentoV2 — visão ano (R-15, Q7)', () => {
     return montar({ arvore, orcados, visao: 'ano' });
   }
 
-  it('soma jan..out do orçado (pct pela receita de cada mês) e do realizado', () => {
+  it('período começa no 1º mês com orçado (set): soma set..out do orçado e do realizado', () => {
     const r = montarAno();
+    expect(r.inicioAcumulado).toBe(9);
     const mercado = r.categorias[indiceCategoria('Habitação')].subcategorias[6];
+    // o realizado de agosto (900) fica fora: antes do 1º mês com orçado
     expect(mercado).toMatchObject({
       orcado: 2_700,
       valor: 2_700,
       pct: null,
-      realizado: 3_026.3,
+      realizado: 2_126.3,
       editavelOrcado: false,
     });
     const entrada = r.categorias[plan].subcategorias[1];
     expect(entrada.orcado).toBe(2_600);
     expect(r.resumo.orcado).toBe(20_414.9);
-    expect(r.resumo.realizado).toBe(18_076);
+    expect(r.resumo.realizado).toBe(17_176);
   });
 
-  it('receita acumulada, ritmo do ano e meses sem orçamento (1–12)', () => {
+  it('receita, ritmo e meses sem orçamento só do período (set..out)', () => {
     const r = montarAno();
-    expect(r.receitaPrevista).toEqual({ valor: 66_000, origem: 'fluxo' });
-    expect(r.referencia.ritmo).toBeCloseTo(296 / 365, 10);
+    // agosto (20.000) fica fora: o período começa em setembro
+    expect(r.receitaPrevista).toEqual({ valor: 46_000, origem: 'fluxo' });
+    // 1º/set..23/out = 30 + 23 = 53 dias de 61 (set + out)
+    expect(r.referencia.ritmo).toBeCloseTo(53 / 61, 10);
     expect(r.referencia.fase).toBe('corrente');
-    expect(r.mesesSemOrcamento).toEqual([1, 2, 3, 4, 5, 6, 7, 8]);
+    expect(r.mesesSemOrcamento).toEqual([]);
     expect(r.categorias.every((c) => c.subcategorias.every((s) => !s.editavelOrcado))).toBe(true);
   });
 

@@ -165,7 +165,9 @@ describe('carregarOrcamentoV2', () => {
   it('visao=ano repassa a visão (somente leitura)', async () => {
     const r = await carregarOrcamentoV2('u1', { ano: 2026, mes0: 9, visao: 'ano' }, AGORA);
     expect(r.visao).toBe('ano');
-    expect(r.mesesSemOrcamento).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9]);
-    expect(r.receitaPrevista).toEqual({ valor: 240_000, origem: 'fluxo' });
+    // só outubro tem orçado → o acumulado começa (e termina) em outubro
+    expect(r.inicioAcumulado).toBe(10);
+    expect(r.mesesSemOrcamento).toEqual([]);
+    expect(r.receitaPrevista).toEqual({ valor: 24_000, origem: 'fluxo' });
   });
 });

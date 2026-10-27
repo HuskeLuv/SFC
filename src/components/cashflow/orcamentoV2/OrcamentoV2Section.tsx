@@ -17,7 +17,7 @@ import KpisOrcamento from './KpisOrcamento';
 import OrcamentoV2Cartoes from './OrcamentoV2Cartoes';
 import OrcamentoV2Moldura from './OrcamentoV2Moldura';
 import OrcamentoV2Tabela from './OrcamentoV2Tabela';
-import { plural } from './apresentacao';
+import { MESES_LONGOS, inicioAcumulado, plural } from './apresentacao';
 
 /** Mês aberto por padrão (1–12): o corrente no ano corrente; dezembro no passado; janeiro no futuro. */
 function mesPadrao(ano: number): number {
@@ -32,9 +32,10 @@ export function textoReferencia(data: OrcamentoV2Response): string {
   const mm = String(data.mes).padStart(2, '0');
   const dd = String(r.dia || r.diasNoMes).padStart(2, '0');
   if (visao === 'ano') {
+    const de = MESES_LONGOS[inicioAcumulado(data) - 1].toLowerCase();
     return r.fase === 'futuro'
-      ? `Acumulado de janeiro a ${mm}/${data.ano}`
-      : `Acumulado de janeiro até ${dd}/${mm}`;
+      ? `Acumulado de ${de} a ${mm}/${data.ano}`
+      : `Acumulado de ${de} até ${dd}/${mm}`;
   }
   if (r.fase === 'corrente') {
     const restantes = r.diasNoMes - r.dia;

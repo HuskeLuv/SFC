@@ -11,7 +11,7 @@
 import { useState } from 'react';
 import type { StatusOrcamento } from '@/lib/orcamento/regras';
 import type { CategoriaV2, OrcamentoV2Response } from '@/types/orcamentoV2';
-import { mesLongo, num } from './apresentacao';
+import { mesLongo, num, periodoCurto } from './apresentacao';
 
 /** Rótulo curto do eixo (spec v.8, ABBR); a chave é o nome normalizado da categoria. */
 const ABREVIADO: Record<string, string> = {
@@ -78,12 +78,9 @@ function Legenda() {
   );
 }
 
-/** "Outubro 2026" ou "Acumulado jan–out 2026". */
+/** "Outubro 2026" ou "Acumulado ago–out 2026" (a partir do 1º mês com orçado). */
 function rotuloPeriodo(data: OrcamentoV2Response): string {
-  if (data.visao === 'ano') {
-    const ate = mesLongo({ ano: data.ano, mes: data.mes }).split(' ')[0].slice(0, 3).toLowerCase();
-    return `Acumulado ${data.mes > 1 ? `jan–${ate}` : 'jan'} ${data.ano}`;
-  }
+  if (data.visao === 'ano') return `Acumulado ${periodoCurto(data)} ${data.ano}`;
   return mesLongo({ ano: data.ano, mes: data.mes });
 }
 

@@ -10,6 +10,7 @@ import {
   diferenca,
   faseDoMes,
   filtrarCategorias,
+  inicioDoAcumulado,
   mesesSemOrcamento,
   normalizarBusca,
   orcadoAcumulado,
@@ -159,13 +160,26 @@ describe('R-06 ritmo do mês', () => {
 });
 
 describe('R-15 acumulado do ano', () => {
-  it('ritmo do período corrente = dias decorridos no ano ÷ dias do ano', () => {
-    // 1º/jan..23/out = 273 + 23 = 296 dias; 2026 tem 365.
-    expect(ritmoDoAno(2026, 9, HOJE)).toBeCloseTo(296 / 365, 10);
+  it('ritmo do período corrente = dias decorridos ÷ dias do período (até o fim do mês)', () => {
+    // 1º/jan..23/out = 273 + 23 = 296 dias, de 304 (jan..out).
+    expect(ritmoDoAno(2026, 9, HOJE)).toBeCloseTo(296 / 304, 10);
     expect(ritmoDoAno(2026, 11, { ano: 2026, mes0: 11, dia: 31 })).toBe(1);
     expect(ritmoDoAno(2026, 11, { ano: 2026, mes0: 11, dia: 1 })).toBeCloseTo(335 / 365, 10);
-    // ano bissexto: 31 + 29 = 60 dias até 29/fev, de 366
-    expect(ritmoDoAno(2028, 1, { ano: 2028, mes0: 1, dia: 29 })).toBeCloseTo(60 / 366, 10);
+    // ano bissexto: 31 + 29 = 60 dias até 29/fev, de 60 (jan..fev) → período completo
+    expect(ritmoDoAno(2028, 1, { ano: 2028, mes0: 1, dia: 29 })).toBe(1);
+    // período começando em agosto: 1º/ago..23/out = 31 + 30 + 23 = 84, de 92
+    expect(ritmoDoAno(2026, 9, HOJE, 7)).toBeCloseTo(84 / 92, 10);
+    // começa no próprio mês = ritmo do mês
+    expect(ritmoDoAno(2026, 9, HOJE, 9)).toBeCloseTo(23 / 31, 10);
+  });
+
+  it('início do acumulado = 1º mês com orçado (sem nenhum → janeiro)', () => {
+    const porMes = [0, 0, 0, 0, 0, 0, 0, 500, 0, 300, 900, 0];
+    expect(inicioDoAcumulado(porMes, 9)).toBe(7);
+    expect(inicioDoAcumulado(porMes, 6)).toBe(0);
+    expect(inicioDoAcumulado(Array(12).fill(0), 9)).toBe(0);
+    expect(mesesSemOrcamento(porMes, 9, 7)).toEqual([8]);
+    expect(receitaAcumulada([1, 1, 1, 1, 1, 1, 1, 10, 20, 30, 40, 50], 9, 7)).toBe(60);
   });
 
   it('período fechado ou que termina no futuro = 1', () => {

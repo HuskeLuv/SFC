@@ -8,6 +8,7 @@ import { formatBRL, formatNumber } from '@/utils/format';
 import {
   MESES_LONGOS,
   TEXTO_DISPONIVEL,
+  inicioAcumulado,
   TOM_DO_STATUS,
   mesLongo,
   pct,
@@ -85,7 +86,11 @@ export default function KpisOrcamento({ data }: { data: OrcamentoV2Response }) {
   const n = receitaPrevista.mesesBase?.length ?? 3;
   const apoioReceita: ReactNode =
     receitaPrevista.origem === 'fluxo' ? (
-      `do Fluxo de Caixa · ${anual ? `Janeiro a ${mesLongo(data)}` : mesLongo(data)}`
+      `do Fluxo de Caixa · ${
+        anual && inicioAcumulado(data) < data.mes
+          ? `${MESES_LONGOS[inicioAcumulado(data) - 1]} a ${mesLongo(data)}`
+          : mesLongo(data)
+      }`
     ) : receitaPrevista.origem === 'media3m' ? (
       `média dos últimos ${n === 1 ? 'mês' : `${n} meses`}`
     ) : (
