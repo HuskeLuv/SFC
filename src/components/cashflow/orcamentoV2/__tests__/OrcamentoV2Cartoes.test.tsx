@@ -237,3 +237,25 @@ describe('OrcamentoV2Cartoes — chips e busca (R-10)', () => {
     expect(container.querySelectorAll('li[data-mf-card]')).toHaveLength(data.categorias.length);
   });
 });
+
+describe('OrcamentoV2Cartoes — herói', () => {
+  it('com estouros, mostra quanto passou do orçado abaixo do Disponível', () => {
+    const data = montarPayload();
+    const qtd = data.categorias
+      .flatMap((c) => c.subcategorias)
+      .filter((s) => s.status === 'bad').length;
+    const { container } = renderCartoes(data);
+    expect(container.querySelector('[data-mf-heroi-excesso]')).toHaveTextContent(
+      `acima do orçado em ${qtd} subcategorias, compensados pela folga das outras`,
+    );
+  });
+
+  it('disponível negativo: sem a frase da compensação', () => {
+    const base = montarPayload();
+    const data = { ...base, resumo: { ...base.resumo, disponivel: -50 } };
+    const { container } = renderCartoes(data);
+    const linha = container.querySelector('[data-mf-heroi-excesso]')!;
+    expect(linha).toHaveTextContent('acima do orçado em');
+    expect(linha).not.toHaveTextContent('compensados');
+  });
+});

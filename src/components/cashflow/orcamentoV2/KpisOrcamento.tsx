@@ -1,10 +1,19 @@
 'use client';
 
 import type { ReactNode } from 'react';
+import Tooltip from '@/components/ui/tooltip/Tooltip';
 import { SELO_TEXTO, TOM_FUNDO } from '@/lib/orcamento/tons';
 import type { OrcamentoV2Response } from '@/types/orcamentoV2';
 import { formatBRL, formatNumber } from '@/utils/format';
-import { MESES_LONGOS, TOM_DO_STATUS, mesLongo, pct, plural } from './apresentacao';
+import {
+  MESES_LONGOS,
+  TEXTO_DISPONIVEL,
+  TOM_DO_STATUS,
+  mesLongo,
+  pct,
+  plural,
+  textoExcesso,
+} from './apresentacao';
 
 /** Tint azul dos cartões 1 e 5 (MYFINANCE_TONS fundoSelecionado/bordaSelecionada) e cinza nos demais. */
 const CARTAO_AZUL = 'border-[#DCE6F2] bg-[#EDF2F8] dark:border-gray-800 dark:bg-white/[0.06]';
@@ -17,10 +26,13 @@ function Cartao({
   apoio,
   azul = false,
   valorClassName = 'text-gray-900 dark:text-white/90',
+  ajuda,
   children,
 }: {
   id: string;
   rotulo: string;
+  /** Texto do "?" ao lado do rótulo. */
+  ajuda?: string;
   valor: string;
   apoio: ReactNode;
   azul?: boolean;
@@ -32,7 +44,20 @@ function Cartao({
       data-mf-kpi={id}
       className={`min-w-0 rounded-xl border p-4 ${azul ? CARTAO_AZUL : CARTAO_CINZA}`}
     >
-      <p className="text-xs font-medium text-gray-500 dark:text-gray-400">{rotulo}</p>
+      <div className="flex items-center gap-1.5 text-xs font-medium text-gray-500 dark:text-gray-400">
+        <p>{rotulo}</p>
+        {ajuda && (
+          <Tooltip content={ajuda} placement="bottom">
+            <button
+              type="button"
+              aria-label={`Ajuda: ${ajuda}`}
+              className="flex h-4 w-4 items-center justify-center rounded-full border border-gray-300 text-[10px] font-semibold text-gray-500 hover:border-gray-400 hover:text-gray-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0079F2] dark:border-gray-600 dark:text-gray-400 dark:hover:text-gray-200"
+            >
+              ?
+            </button>
+          </Tooltip>
+        )}
+      </div>
       <p className={`mt-1 text-xl font-semibold tabular-nums ${valorClassName}`}>{valor}</p>
       <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">{apoio}</div>
       {children}
@@ -111,6 +136,7 @@ export default function KpisOrcamento({ data }: { data: OrcamentoV2Response }) {
     : !anual && corrente
       ? `orçado − realizado · ${plural(restantes, 'dia restante', 'dias restantes')}`
       : 'orçado − realizado';
+  const excesso = textoExcesso(data.categorias);
 
   // ── Índice de poupança ────────────────────────────────────────────────────────────────────
   const apoioIndice: ReactNode =
@@ -197,7 +223,17 @@ export default function KpisOrcamento({ data }: { data: OrcamentoV2Response }) {
         valorClassName={
           resumo.disponivel < 0 ? SELO_TEXTO.estourou : 'text-gray-900 dark:text-white/90'
         }
-        apoio={apoioDisponivel}
+        ajuda={TEXTO_DISPONIVEL}
+        apoio={
+          <>
+            {apoioDisponivel}
+            {excesso && (
+              <span data-mf-kpi-excesso="" className={`block ${SELO_TEXTO.estourou}`}>
+                {excesso}
+              </span>
+            )}
+          </>
+        }
       />
       <Cartao
         id="indice"

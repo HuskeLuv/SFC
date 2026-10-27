@@ -4,8 +4,8 @@
  */
 import type { StatusOrcamento } from '@/lib/orcamento/regras';
 import type { TomOrcamento } from '@/lib/orcamento/tons';
-import { formatNumber } from '@/utils/format';
-import type { AnoMes } from '@/types/orcamentoV2';
+import { formatBRL, formatNumber } from '@/utils/format';
+import type { AnoMes, CategoriaV2 } from '@/types/orcamentoV2';
 
 /** Status do payload → tom de `lib/orcamento/tons` (desenho técnico §8). */
 export const TOM_DO_STATUS: Record<StatusOrcamento, TomOrcamento> = {
@@ -76,5 +76,32 @@ export const plural = (n: number, um: string, varios: string): string =>
   `${n} ${n === 1 ? um : varios}`;
 
 /** Texto do tooltip Lançado | Consolidado (P1; T30 revisto no Apêndice C do desenho). */
+/** Ajuda do KPI "Disponível" (QA 27/10: "Disponível R$ 67" ao lado de 4 estouros intrigava). */
+export const TEXTO_DISPONIVEL =
+  'Sobra do orçado total (orçado − realizado). O que uma subcategoria passou do orçado é compensado pela folga das outras.';
+
+/**
+ * Quanto as subcategorias em estouro passaram do orçado (inclui gasto sem orçado), e quantas são.
+ * Soma só as linhas 'bad': dentro da tolerância de arredondamento não conta.
+ */
+export function excessoDoOrcado(categorias: CategoriaV2[]): { valor: number; qtd: number } {
+  let valor = 0;
+  let qtd = 0;
+  for (const c of categorias)
+    for (const s of c.subcategorias)
+      if (s.status === 'bad') {
+        valor += Math.max(0, s.realizado - s.orcado);
+        qtd += 1;
+      }
+  return { valor: Math.round(valor * 100) / 100, qtd };
+}
+
+/** "R$ 425,00 acima do orçado em 4 subcategorias" (null sem estouro). */
+export function textoExcesso(categorias: CategoriaV2[]): string | null {
+  const { valor, qtd } = excessoDoOrcado(categorias);
+  if (qtd === 0) return null;
+  return `${formatBRL(valor)} acima do orçado em ${plural(qtd, 'subcategoria', 'subcategorias')}`;
+}
+
 export const TEXTO_FONTE_P1 =
   'Lançado: tudo o que está no Fluxo do mês. Consolidado: só valores marcados como Pago/Recebido';
