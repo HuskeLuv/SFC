@@ -6,11 +6,10 @@ import { TABLE_MOBILE_STYLES } from '@/components/ui/table/tableStyles';
 import type { SalvarOrcadoEntrada } from '@/hooks/useOrcamentoV2';
 import { SELO_TEXTO } from '@/lib/orcamento/tons';
 import type { CategoriaV2 } from '@/types/orcamentoV2';
-import { formatNumber } from '@/utils/format';
 import IconeCategoria from './IconeCategoria';
 import LinhaSubMobile from './LinhaSubMobile';
 import MedidorRitmo from './MedidorRitmo';
-import { TOM_DO_STATUS, num, pct, plural } from './apresentacao';
+import { TOM_DO_STATUS, num, pct, plural, textoConsumido } from './apresentacao';
 
 export interface CartaoCategoriaProps {
   categoria: CategoriaV2;
@@ -49,7 +48,7 @@ export default function CartaoCategoria({
   const corpoId = useId();
   const tom = TOM_DO_STATUS[c.status];
   const destaque = c.status === 'warn' || c.status === 'bad';
-  const consumido = c.consumido === null ? '—' : `${formatNumber(c.consumido * 100, 0)}%`;
+  const consumido = textoConsumido(c.consumido, ritmo);
   const negativa = c.diferenca < -0.005;
   const resumoSubs = `${c.qtdComOrcamento} de ${plural(
     c.subcategorias.length,

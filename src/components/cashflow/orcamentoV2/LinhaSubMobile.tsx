@@ -3,9 +3,8 @@
 import type { SalvarOrcadoEntrada } from '@/hooks/useOrcamentoV2';
 import { SELO_TEXTO } from '@/lib/orcamento/tons';
 import type { SubcategoriaV2 } from '@/types/orcamentoV2';
-import { formatNumber } from '@/utils/format';
 import MedidorRitmo from './MedidorRitmo';
-import { ETIQUETA_STATUS, TOM_DO_STATUS, num } from './apresentacao';
+import { ETIQUETA_STATUS, TOM_DO_STATUS, num, textoConsumido } from './apresentacao';
 import { useCampoOrcado } from './useCampoOrcado';
 
 export interface LinhaSubMobileProps {
@@ -44,7 +43,7 @@ export default function LinhaSubMobile({
   const tom = TOM_DO_STATUS[sub.status];
   const etiquetaStatus = ETIQUETA_STATUS[sub.status];
   const destaque = sub.status === 'warn' || sub.status === 'bad';
-  const consumido = sub.consumido === null ? '—' : `${formatNumber(sub.consumido * 100, 0)}%`;
+  const consumido = textoConsumido(sub.consumido, ritmo);
 
   return (
     <div
