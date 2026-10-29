@@ -358,9 +358,34 @@ async function syncTesouroAssetCatalog(): Promise<void> {
   logger.info(`   ✅ ${synced} títulos no catálogo`);
 }
 
+/** Janela em que a ponte confere o histórico dos ativos e preenche os dias que faltam. */
+const JANELA_PONTE_DIAS = 30;
+
+/**
+ * Dias que a ponte grava no histórico de um ativo: os que ainda não estão lá e, sempre, o mais
+ * recente (o PU do dia pode ser republicado). Sem isso, quando a fonte volta com vários dias de
+ * uma vez (out/2026: parada de 16/10 a 23/10), só o último dia chegava ao asset_price_history.
+ */
+export function precosParaGravar<T extends { baseDate: Date }>(
+  precos: T[],
+  diasNoHistorico: Set<string>,
+): T[] {
+  if (precos.length === 0) return [];
+  const maisRecente = precos.reduce(
+    (max, p) => (p.baseDate > max ? p.baseDate : max),
+    precos[0].baseDate,
+  );
+  return precos.filter(
+    (p) =>
+      p.baseDate.getTime() === maisRecente.getTime() ||
+      !diasNoHistorico.has(p.baseDate.toISOString()),
+  );
+}
+
 /**
  * For each Tesouro asset in the user's portfolio that has explicit bond type + maturity,
- * look up the latest sellPU from TesouroDiretoPrice and update Asset.currentPrice.
+ * look up the latest sellPU from TesouroDiretoPrice and update Asset.currentPrice. The price
+ * history gets the days of the last JANELA_PONTE_DIAS that it is missing (precosParaGravar).
  */
 async function bridgeTesouroToAssetPrices(latestBaseDate: Date): Promise<void> {
   logger.info('🔗 Atualizando preços de ativos Tesouro vinculados...');
@@ -378,52 +403,70 @@ async function bridgeTesouroToAssetPrices(latestBaseDate: Date): Promise<void> {
     return;
   }
 
+  const desde = new Date(latestBaseDate);
+  desde.setUTCDate(desde.getUTCDate() - JANELA_PONTE_DIAS);
+
   let bridged = 0;
+  let dias = 0;
   for (const fi of tesourAssets) {
     if (!fi.tesouroBondType || !fi.tesouroMaturity) continue;
 
-    const price = await prisma.tesouroDiretoPrice.findFirst({
+    const prices = await prisma.tesouroDiretoPrice.findMany({
       where: {
         bondType: fi.tesouroBondType,
         maturityDate: fi.tesouroMaturity,
+        baseDate: { gte: desde },
+        sellPU: { not: null },
       },
-      orderBy: { baseDate: 'desc' },
+      orderBy: { baseDate: 'asc' },
       select: { sellPU: true, baseDate: true },
     });
 
-    if (!price?.sellPU) continue;
+    const latest = prices[prices.length - 1];
+    if (!latest?.sellPU) continue;
+
+    const historico = await prisma.assetPriceHistory.findMany({
+      where: { symbol: fi.asset.symbol, date: { gte: desde } },
+      select: { date: true },
+    });
+    const gravar = precosParaGravar(prices, new Set(historico.map((h) => h.date.toISOString())));
 
     const now = new Date();
     await prisma.$transaction([
       prisma.asset.update({
         where: { id: fi.asset.id },
         data: {
-          currentPrice: price.sellPU,
+          currentPrice: latest.sellPU,
           priceUpdatedAt: now,
           source: 'tesouro_gov',
         },
       }),
-      prisma.assetPriceHistory.upsert({
-        where: {
-          symbol_date: {
-            symbol: fi.asset.symbol,
-            date: latestBaseDate,
+      ...gravar.map((p) =>
+        prisma.assetPriceHistory.upsert({
+          where: {
+            symbol_date: {
+              symbol: fi.asset.symbol,
+              date: p.baseDate,
+            },
           },
-        },
-        update: { price: price.sellPU },
-        create: {
-          assetId: fi.asset.id,
-          symbol: fi.asset.symbol,
-          price: price.sellPU,
-          currency: 'BRL',
-          source: 'TESOURO_GOV',
-          date: latestBaseDate,
-        },
-      }),
+          update: { price: p.sellPU! },
+          create: {
+            assetId: fi.asset.id,
+            symbol: fi.asset.symbol,
+            price: p.sellPU!,
+            currency: 'BRL',
+            source: 'TESOURO_GOV',
+            date: p.baseDate,
+          },
+        }),
+      ),
     ]);
 
     bridged++;
+    dias += gravar.length;
   }
 
-  logger.info(`   ✅ ${bridged} ativos Tesouro atualizados com PU de venda`);
+  logger.info(
+    `   ✅ ${bridged} ativos Tesouro atualizados com PU de venda (${dias} dias no histórico)`,
+  );
 }
