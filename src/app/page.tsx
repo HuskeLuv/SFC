@@ -1,10 +1,10 @@
 import type { Metadata } from 'next';
-import { cookies } from 'next/headers';
+import { cookies, headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { jwtVerify } from 'jose';
 import LandingPage from '@/components/landing/LandingPage';
 
-export const metadata: Metadata = {
+const METADATA: Metadata = {
   title: 'My Finance — O hub de finanças pessoais',
   description:
     'Orçamento, dívidas, investimentos, aposentadoria, sonhos e educação financeira em um único hub. Análises profissionais (TWR, MWR, proventos, FGC) e curso incluído.',
@@ -16,6 +16,22 @@ export const metadata: Metadata = {
     locale: 'pt_BR',
   },
 };
+
+/**
+ * Prévia para revisão (Pedro, 29/10/2026): no subdomínio abaixo a landing aparece sempre, mesmo com
+ * LANDING_PUBLICA desligada, e sem indexação. O Caddy protege o subdomínio com usuário e senha.
+ */
+const HOST_PREVIA = 'site.appmyfinance.com.br';
+
+async function ehPrevia(): Promise<boolean> {
+  const host = (await headers()).get('host') ?? '';
+  return host.split(':')[0].toLowerCase() === HOST_PREVIA;
+}
+
+export async function generateMetadata(): Promise<Metadata> {
+  if (!(await ehPrevia())) return METADATA;
+  return { ...METADATA, robots: { index: false, follow: false } };
+}
 
 /** Sessão válida → app; caso contrário a página pública. `redirect()` fica fora do try (lança). */
 async function hasValidSession(): Promise<boolean> {
@@ -39,6 +55,7 @@ async function hasValidSession(): Promise<boolean> {
 const LANDING_PUBLICA = false;
 
 export default async function Home() {
+  if (await ehPrevia()) return <LandingPage />;
   if (await hasValidSession()) {
     redirect('/carteira');
   }
