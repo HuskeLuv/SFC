@@ -334,7 +334,7 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
       propostas.length === 1 ? descreverPropostaUnica(propostas[0]) : descreverEvento(eventos[0]);
   } else {
     const partes: string[] = [];
-    if (propostas.length > 0) partes.push(descreverLote(propostas, [], false));
+    if (propostas.length > 0) partes.push(descreverLote(propostas));
     if (eventos.length > 0) {
       partes.push(`Na agenda:\n${eventos.map((e) => `- ${resumoEvento(e)}`).join('\n')}`);
     }
@@ -468,8 +468,8 @@ function descreverPropostaUnica(p: PropostaResposta): string {
   );
 }
 
-/** Texto do lote: uma linha por item, as falhas em seguida, e o aviso se a lista foi cortada. */
-function descreverLote(propostas: PropostaResposta[], falhas: string[], cortada: boolean): string {
+/** Texto do lote: uma linha por item (falhas, aviso de lista cortada e a frase final vêm de quem chama). */
+function descreverLote(propostas: PropostaResposta[]): string {
   const linhas = propostas.map((p) => {
     const periodo = p.recorrente
       ? `${brl(p.valor)} por mês, ${p.periodo} (${p.celulas.length} meses)`
@@ -477,21 +477,8 @@ function descreverLote(propostas: PropostaResposta[], falhas: string[], cortada:
     const origem = p.descricao ? ` — ${p.descricao}` : '';
     return `- ${p.linha} (${grupoCurto(p.grupo)})${origem}: ${periodo}.${avisoMesesComValor(p)}`;
   });
-  const partes = [
+  return [
     `Montei ${propostas.length} ${propostas.length === 1 ? 'lançamento' : 'lançamentos'}:`,
     ...linhas,
-  ];
-  if (falhas.length > 0) {
-    partes.push(
-      `Não consegui ${falhas.length === 1 ? 'este' : 'estes'}:`,
-      ...falhas.map((f) => `- ${f}`),
-    );
-  }
-  if (cortada) {
-    partes.push(
-      'A lista era longa e pode ter ficado incompleta: confira os itens e mande o que faltou em outra mensagem.',
-    );
-  }
-  partes.push('Confira no cartão e confirme para gravar.');
-  return partes.join('\n');
+  ].join('\n');
 }

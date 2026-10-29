@@ -482,7 +482,8 @@ describe('POST /api/assistente', () => {
         '- Internet (Saúde) — Fibra: R$ 300,00 por mês, janeiro a dezembro/2026 (12 meses).',
       );
       expect(texto).not.toContain('incompleta');
-      expect(texto).toContain('Confira no cartão e confirme');
+      // uma vez só (ticket 86e386rd6: a frase saía duplicada no lote)
+      expect(texto.match(/Confira no cartão e confirme para gravar\./g)).toHaveLength(1);
       expect(mocks.registrarMensagem).toHaveBeenCalledWith(
         expect.objectContaining({ motor: 'ia+t', propostaGerada: true }),
       );
