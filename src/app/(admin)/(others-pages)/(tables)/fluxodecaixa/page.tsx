@@ -23,9 +23,20 @@ type Modo = 'planilha' | 'orcamento';
  * carrega e, se a consulta falhar, um erro com "Tentar de novo" (a tela antiga nunca aparece
  * para quem já está ativado). O acesso só é consultado com a aba aberta (a Planilha não paga a
  * chamada).
+ *
+ * Liberada e ainda não ativado (ACESSO=todos): a aba chama POST /ativar uma vez, com esqueleto
+ * até o acesso voltar ativado. Se a ativação falhar (409 abortada, 500 desfeita), fica a tela de
+ * hoje: o usuário não perde o orçamento, e a próxima visita tenta de novo.
  */
 function AbaOrcamento() {
   const acesso = useOrcamentoV2Acesso();
+  const { mutate: ativar, isIdle, isError } = acesso.ativar;
+  const ativarAgora = acesso.precisaAtivar && isIdle;
+  useEffect(() => {
+    if (ativarAgora) ativar();
+  }, [ativarAgora, ativar]);
+
+  if (acesso.precisaAtivar && !isError) return <EsqueletoOrcamentoV2 />;
   if (!acesso.data) {
     if (acesso.loading || !acesso.error) return <EsqueletoOrcamentoV2 />;
     return (
