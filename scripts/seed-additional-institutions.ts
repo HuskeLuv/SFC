@@ -22,6 +22,10 @@ import prisma from '../src/lib/prisma';
  *
  * CNPJs deixados em null quando a entidade legal varia/foi rebrandada
  * (ex.: Easynvest → NuInvest sob raiz XP) ou não temos certeza pública.
+ *
+ * Não desfaz o import do Bacen (scripts/instituicoes/importar-bacen.ts, ClickUp 86e2xqh69):
+ * cnpj null aqui não apaga o cnpj que o import preencheu, e as colunas do Bacen
+ * (tipoBacen, conglomeradoBacen, apelidos, cnpjCalculado) nunca são tocadas.
  */
 
 const ADDITIONAL_INSTITUTIONS: Array<{
@@ -164,7 +168,7 @@ async function main() {
     if (
       existing &&
       existing.nome === inst.name &&
-      existing.cnpj === inst.cnpj &&
+      (inst.cnpj === null || existing.cnpj === inst.cnpj) &&
       existing.status === 'ATIVA'
     ) {
       unchanged += 1;
@@ -182,7 +186,7 @@ async function main() {
         },
         update: {
           nome: inst.name,
-          cnpj: inst.cnpj,
+          ...(inst.cnpj ? { cnpj: inst.cnpj } : {}),
           status: 'ATIVA',
         },
       });
