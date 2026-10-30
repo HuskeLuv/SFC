@@ -17,12 +17,17 @@ const createRequest = (params: Record<string, string>) => {
 };
 
 type Where = { AND: Array<Record<string, unknown>> };
-const ultimaChamada = () =>
-  mockPrisma.institution.findMany.mock.calls.at(-1)![0] as {
-    where: Where;
-    take: number;
-    orderBy: unknown;
-  };
+const SO_CATALOGO = { NOT: { codigo: { startsWith: 'BCB-' } } };
+const SO_BACEN = { codigo: { startsWith: 'BCB-' } };
+type Chamada = { where: Where; take: number; orderBy: unknown };
+/** 1ª consulta do último GET (linhas do catálogo), sem a cláusula do prefixo BCB-. */
+const ultimaChamada = (): Chamada => {
+  const chamadas = mockPrisma.institution.findMany.mock.calls.map((c) => c[0] as Chamada);
+  const ehCatalogo = (f: Record<string, unknown>) =>
+    JSON.stringify(f) === JSON.stringify(SO_CATALOGO);
+  const c = chamadas.filter((x) => x.where.AND.some(ehCatalogo)).at(-1)!;
+  return { ...c, where: { AND: c.where.AND.filter((f) => !ehCatalogo(f)) } };
+};
 /** Valores interpolados no SQL da busca: [COM_ACENTO, SEM_ACENTO, busca, ..., porCnpj, porCnpj]. */
 const valoresDaBusca = () => mockPrisma.$queryRaw.mock.calls.at(-1)!.slice(1) as unknown[];
 const sqlDaBusca = () => (mockPrisma.$queryRaw.mock.calls.at(-1)![0] as string[]).join('?');
@@ -111,7 +116,7 @@ describe('GET /api/institutions', () => {
   });
 
   it('resposta traz os campos novos (aditivos)', async () => {
-    mockPrisma.institution.findMany.mockResolvedValue([
+    mockPrisma.institution.findMany.mockResolvedValueOnce([
       {
         id: 'i1',
         nome: 'Banco BTG Pactual S.A.',
@@ -143,5 +148,33 @@ describe('GET /api/institutions', () => {
         },
       ],
     });
+  });
+});
+
+describe('GET /api/institutions — ordem catálogo antes do Bacen', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('completa o limite com as linhas BCB- depois das do catálogo', async () => {
+    mockPrisma.institution.findMany
+      .mockResolvedValueOnce([{ id: 'c1', nome: 'XP', codigo: '102' }])
+      .mockResolvedValueOnce([{ id: 'b1', nome: 'AGORACRED', codigo: 'BCB-1' }]);
+    const res = await GET(createRequest({ limit: '2' }));
+    const data = await res.json();
+    expect(data.institutions.map((i: { id: string }) => i.id)).toEqual(['c1', 'b1']);
+    const [primeira, segunda] = mockPrisma.institution.findMany.mock.calls.map((c) => c[0]);
+    expect(primeira.where.AND).toContainEqual(SO_CATALOGO);
+    expect(primeira.take).toBe(2);
+    expect(segunda.where.AND).toContainEqual(SO_BACEN);
+    expect(segunda.take).toBe(1);
+  });
+
+  it('catálogo já enche o limite: não consulta as linhas BCB-', async () => {
+    mockPrisma.institution.findMany.mockResolvedValueOnce([
+      { id: 'c1', nome: 'XP', codigo: '102' },
+    ]);
+    await GET(createRequest({ limit: '1' }));
+    expect(mockPrisma.institution.findMany).toHaveBeenCalledTimes(1);
   });
 });
