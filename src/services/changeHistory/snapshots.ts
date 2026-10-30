@@ -52,6 +52,8 @@ interface FixedIncomeRow {
   taxExempt: boolean;
   tesouroBondType: string | null;
   tesouroMaturity: Date | null;
+  /** Banco emissor (FGC, ClickUp 86e2xqh69). Opcional: snapshots antigos não têm. */
+  emissorInstitutionId?: string | null;
 }
 
 const pickTransacao = (tx: TransacaoRow) => ({
@@ -92,6 +94,7 @@ const pickFixedIncome = (fi: FixedIncomeRow) => ({
   taxExempt: fi.taxExempt,
   tesouroBondType: fi.tesouroBondType,
   tesouroMaturity: iso(fi.tesouroMaturity),
+  emissorInstitutionId: fi.emissorInstitutionId ?? null,
 });
 
 /**

@@ -68,6 +68,8 @@ interface SnapshotFixedIncome {
   taxExempt: boolean;
   tesouroBondType: string | null;
   tesouroMaturity: string | null;
+  /** Banco emissor (FGC). Ausente em snapshots anteriores ao 86e2xqh69 → fallback corretora. */
+  emissorInstitutionId?: string | null;
 }
 
 interface SnapshotTransacao {
@@ -90,6 +92,13 @@ async function safePlanejamentoObjetivoId(id: string | null | undefined): Promis
     select: { id: true },
   });
   return sonho ? sonho.id : null;
+}
+
+/** Emissor pode ter saído do catálogo — degrada pra null (fallback corretora), não FK órfã. */
+async function safeEmissorInstitutionId(id: string | null | undefined): Promise<string | null> {
+  if (!id) return null;
+  const inst = await prisma.institution.findUnique({ where: { id }, select: { id: true } });
+  return inst ? inst.id : null;
 }
 
 /** Recria um Portfolio zerado a partir da meta do snapshot (recalc preenche). */
@@ -138,6 +147,7 @@ async function recreateFixedIncomeIfMissing(
       taxExempt: fi.taxExempt,
       tesouroBondType: fi.tesouroBondType,
       tesouroMaturity: fi.tesouroMaturity ? new Date(fi.tesouroMaturity) : null,
+      emissorInstitutionId: await safeEmissorInstitutionId(fi.emissorInstitutionId),
     },
   });
 }
