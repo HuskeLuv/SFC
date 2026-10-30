@@ -1,46 +1,26 @@
 import { useQuery } from '@tanstack/react-query';
 import { queryKeys } from '@/lib/queryKeys';
 import type { SemCoberturaFgc } from '@/services/analises/semCoberturaFgc';
+import type {
+  AvisoConglomerado,
+  FgcResumo,
+  InstitutionFgcGroup,
+} from '@/services/analises/agruparCoberturaFgc';
 
-interface AssetFgcInfo {
-  id: string;
-  nome: string;
-  produto: string;
-  valorAtual: number;
-  valorInvestido: number;
-  vencimento: string | null;
-  coberto: boolean;
-  isentoIR: boolean;
-}
-
-interface InstitutionFgcGroup {
-  instituicaoId: string;
-  instituicaoNome: string;
-  cnpj: string | null;
-  ativos: AssetFgcInfo[];
-  totalCoberto: number;
-  totalNaoCoberto: number;
-  totalValor: number;
-  limiteFgc: number;
-  percentualUtilizado: number;
-  excedente: number;
-}
-
-interface FgcResumo {
-  totalEfetivamenteCoberto: number;
-  totalNaoCoberto: number;
-  totalExcedente: number;
-  totalValorRendaFixa: number;
-  percentualCoberto: number;
-  limiteGlobal: number;
-  limitePorInstituicao: number;
-  totalAtivos: number;
-  totalInstituicoes: number;
-}
+export type {
+  AssetFgcInfo,
+  AvisoConglomerado,
+  FgcResumo,
+  FonteInstituicao,
+  InstitutionFgcGroup,
+} from '@/services/analises/agruparCoberturaFgc';
 
 export interface CoberturaFgcResponse {
   resumo: FgcResumo;
+  /** Grupos por banco emissor (raiz do CNPJ); sem emissor, pela corretora (86e2xqh69). */
   instituicoes: InstitutionFgcGroup[];
+  /** Grupos do mesmo conglomerado do Bacen: só aviso, o limite continua por emissor. */
+  avisosConglomerado?: AvisoConglomerado[];
   /** O resto da carteira, fora do FGC, por classe (ClickUp 86e2vvde3). */
   semCobertura?: SemCoberturaFgc;
 }
