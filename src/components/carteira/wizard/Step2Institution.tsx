@@ -1,6 +1,7 @@
 'use client';
 import React from 'react';
-import { WizardFormData, WizardErrors } from '@/types/wizard';
+import { WizardFormData, WizardErrors, ehTipoAtivoRendaFixa } from '@/types/wizard';
+import { rotuloCnpj } from '@/lib/instituicoes/cnpj';
 import InstitutionPicker from './shared/InstitutionPicker';
 
 interface Step2InstitutionProps {
@@ -22,7 +23,21 @@ export default function Step2Institution({
       responseShape="institutions"
       selectedId={formData.instituicaoId}
       selectedName={formData.instituicao}
-      onChange={({ id, nome }) => onFormDataChange({ instituicao: nome, instituicaoId: id })}
+      label={
+        ehTipoAtivoRendaFixa(formData.tipoAtivo)
+          ? 'Corretora ou banco onde você investe *'
+          : undefined
+      }
+      // O tipo do Bacen (corretora N2 avisa no emissor) e o CNPJ seguem para o banco emissor
+      // pré-preenchido da renda fixa (ClickUp 86e2xqh69).
+      onChange={({ id, nome, cnpj, cnpjCalculado, tipoBacen }) =>
+        onFormDataChange({
+          instituicao: nome,
+          instituicaoId: id,
+          instituicaoTipoBacen: tipoBacen ?? null,
+          instituicaoCnpjRotulo: rotuloCnpj({ cnpj, cnpjCalculado }) ?? '',
+        })
+      }
       error={errors.instituicao}
       onErrorClear={() => onErrorsChange({ instituicao: undefined })}
       placeholder="Digite o nome da instituição (ex: Itaú, Bradesco, XP Investimentos)"
