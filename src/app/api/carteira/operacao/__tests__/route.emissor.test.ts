@@ -163,6 +163,18 @@ describe('POST /api/carteira/operacao — banco emissor (86e2xqh69)', () => {
     expect(mockPrisma.stockTransaction.create).not.toHaveBeenCalled();
   });
 
+  it('emissor INATIVA dá 404 (o picker só lista as ATIVA)', async () => {
+    mockPrisma.institution.findUnique.mockImplementation(
+      async ({ where }: { where: { id: string } }) =>
+        where.id === 'inst-inativa'
+          ? { ...BANCO_XP, id: 'inst-inativa', status: 'INATIVA' }
+          : (CATALOGO[where.id] ?? null),
+    );
+    const res = await POST(createRequest(cdbPre({ emissorInstituicaoId: 'inst-inativa' })));
+    expect(res.status).toBe(404);
+    expect(mockPrisma.fixedIncomeAsset.create).not.toHaveBeenCalled();
+  });
+
   it('corretora pura (N2) diferente da corretora da compra dá 400', async () => {
     const res = await POST(createRequest(cdbPre({ emissorInstituicaoId: XP_CCTVM.id })));
     expect(res.status).toBe(400);

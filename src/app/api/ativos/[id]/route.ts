@@ -966,9 +966,10 @@ export const PATCH = withErrorHandler(
       if (emissorInstituicaoId) {
         const emissor = await prisma.institution.findUnique({
           where: { id: emissorInstituicaoId },
-          select: { id: true, nome: true, tipoBacen: true, codigo: true },
+          select: { id: true, nome: true, tipoBacen: true, codigo: true, status: true },
         });
-        if (!emissor) {
+        // Inativa só passa se já era o emissor gravado (o picker lista só as ATIVA).
+        if (!emissor || (emissor.status === 'INATIVA' && emissor.id !== fi.emissorInstitutionId)) {
           return NextResponse.json({ error: 'Banco emissor não encontrado' }, { status: 404 });
         }
         emissorEscolhido = { id: emissor.id, nome: emissor.nome };

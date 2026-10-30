@@ -1120,9 +1120,9 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
     } else {
       const emissor = await prisma.institution.findUnique({
         where: { id: emissorInstituicaoId },
-        select: { id: true, tipoBacen: true, codigo: true },
+        select: { id: true, tipoBacen: true, codigo: true, status: true },
       });
-      if (!emissor) {
+      if (!emissor || emissor.status === 'INATIVA') {
         return NextResponse.json({ error: 'Banco emissor não encontrado' }, { status: 404 });
       }
       // A corretora pré-preenchida passa (acima); outra instituição que não emite, não.
