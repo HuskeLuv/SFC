@@ -10,6 +10,7 @@ import {
   type MapaManual,
   type PlanoImportacao,
 } from '../planejarImportacao';
+import { juntarApelidos, separarApelidos } from '../apelidos';
 import { cnpjMatriz } from '@/lib/instituicoes/cnpj';
 
 const FIX = path.join(__dirname, 'fixtures');
@@ -118,7 +119,7 @@ describe('planejarImportacao', () => {
       cnpjCalculado: true,
       tipoBacen: 'B1',
       conglomeradoBacen: 'C0082475',
-      apelidos: 'xp banco xp',
+      apelidos: 'xp | banco xp',
       status: 'ATIVA',
     });
     // Sem STR, o nome é o do IF.data.
@@ -232,7 +233,7 @@ describe('planejarImportacao', () => {
   });
 
   it("Nu Financeira ganha o apelido 'nubank' e a Nu Pagamentos (N4) não", () => {
-    expect(criados.get('BCB-30680829')?.apelidos?.split(' ')).toContain('nubank');
+    expect(separarApelidos(criados.get('BCB-30680829')?.apelidos)).toContain('nubank');
     expect(criados.get('BCB-30680829')?.tipoBacen).toBe('N1');
     expect(plano.preencherTipo).toContainEqual(
       expect.objectContaining({ id: 'id-FIN-NUBANK', valor: 'N4' }),
@@ -307,6 +308,22 @@ describe('planejarImportacao', () => {
     expect(plano.resumo.criar).toBe(plano.criar.length);
     expect(plano.resumo.casadosPorRegra.compe).toBe(2);
     expect(plano.apelidosSemRegistro).toContain('33923798'); // Banco Master
+  });
+});
+
+describe('apelidos em frases', () => {
+  it("juntarApelidos separa as frases com ' | ' e não repete frase", () => {
+    expect(juntarApelidos(null, ['c6', 'c6 bank'])).toBe('c6 | c6 bank');
+    expect(juntarApelidos('c6 | c6 bank', ['C6 Bank', 'c6'])).toBe('c6 | c6 bank');
+    expect(juntarApelidos('banco j safra', ['Mercado Pago'])).toBe('banco j safra | mercado pago');
+  });
+
+  it('separarApelidos devolve as frases inteiras', () => {
+    expect(separarApelidos('mercado pago | banco j safra')).toEqual([
+      'mercado pago',
+      'banco j safra',
+    ]);
+    expect(separarApelidos(null)).toEqual([]);
   });
 });
 

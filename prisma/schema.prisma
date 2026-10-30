@@ -830,7 +830,7 @@ model Institution {
   tipoBacen         String?
   /// CodConglomeradoPrudencial do IF.data (C00xxxxx).
   conglomeradoBacen String?
-  /// Termos de busca em minúsculas, sem acento, separados por espaço.
+  /// Frases de busca (apelidos) em minúsculas, sem acento, separadas por ' | '.
   apelidos          String?
   /// true quando o cnpj foi calculado a partir da raiz (matriz 0001 + dígitos verificadores).
   cnpjCalculado     Boolean            @default(false)

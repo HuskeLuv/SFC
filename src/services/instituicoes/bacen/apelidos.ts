@@ -41,19 +41,30 @@ export const APELIDOS_POR_RAIZ: Readonly<Record<string, readonly string[]>> = {
   '10664513': ['agibank'],
 };
 
-/** Junta frases de busca num texto só (minúsculas, sem acento), sem repetir frase já contida. */
+/**
+ * Separador das frases no campo `apelidos`. Cada frase é um apelido inteiro ('mercado pago',
+ * 'banco j safra'): o casamento do Open Finance (casarEmissor) compara o nome do emissor com a
+ * frase inteira, nunca com uma palavra solta dela ('safra', 'pago'). A busca do catálogo usa
+ * `contains`, então continua achando por qualquer pedaço.
+ */
+export const SEPARADOR_APELIDOS = ' | ';
+
+/** Frases do campo `apelidos` (minúsculas, sem acento), na ordem, sem repetição. */
+export function separarApelidos(texto: string | null | undefined): string[] {
+  const frases: string[] = [];
+  for (const parte of (texto ?? '').split('|')) {
+    const frase = normalizarBusca(parte);
+    if (frase && !frases.includes(frase)) frases.push(frase);
+  }
+  return frases;
+}
+
+/** Junta frases de busca num texto só (minúsculas, sem acento), sem repetir frase. */
 export function juntarApelidos(
   atual: string | null | undefined,
   frases: readonly string[],
 ): string {
-  let texto = normalizarBusca(atual);
-  for (const f of frases) {
-    const frase = normalizarBusca(f);
-    if (!frase) continue;
-    if (` ${texto} `.includes(` ${frase} `)) continue;
-    texto = texto ? `${texto} ${frase}` : frase;
-  }
-  return texto;
+  return separarApelidos([atual ?? '', ...frases].join('|')).join(SEPARADOR_APELIDOS);
 }
 
 /**
