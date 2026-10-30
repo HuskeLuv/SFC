@@ -366,7 +366,8 @@ const BOTAO_SECUNDARIO =
 /**
  * Banco emissor da renda fixa coberta pelo FGC (ClickUp 86e2xqh69), no molde do
  * InstitutionSelect: botão com o nome, o CNPJ e "Editar"; ou "Não informado" + "Informar
- * emissor". Escolher na lista salva na hora; "Usar a corretora" manda null. O deep link
+ * emissor". Escolher na lista salva na hora; "Usar a corretora" manda null (sem corretora, como
+ * no Open Finance, o botão vira "Remover emissor"). O deep link
  * ?editar=emissor (Cobertura FGC) abre já editando, com foco no campo.
  */
 const EmissorSelect: React.FC<{
@@ -451,9 +452,11 @@ const EmissorSelect: React.FC<{
       setAviso(
         novoNome
           ? `Emissor atualizado. A Cobertura FGC já considera o ${novoNome.replace(/\.$/, '')}.`
-          : `Emissor removido. A Cobertura FGC volta a usar a corretora${
-              corretoraNome ? ` (${corretoraNome})` : ''
-            }.`,
+          : corretoraId
+            ? `Emissor removido. A Cobertura FGC volta a usar a corretora${
+                corretoraNome ? ` (${corretoraNome})` : ''
+              }.`
+            : 'Emissor removido. A Cobertura FGC não sabe em qual banco este título conta.',
       );
       fechar();
     } finally {
@@ -496,7 +499,7 @@ const EmissorSelect: React.FC<{
                 disabled={saving}
                 className={`${BOTAO_SECUNDARIO} text-brand-500 dark:text-brand-400`}
               >
-                Usar a corretora
+                {corretoraId ? 'Usar a corretora' : 'Remover emissor'}
               </button>
             )}
             <button
