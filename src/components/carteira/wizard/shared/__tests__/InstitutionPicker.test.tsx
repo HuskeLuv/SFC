@@ -82,7 +82,8 @@ describe('InstitutionPicker', () => {
 
     expect(await screen.findByText('XP Investimentos')).toBeInTheDocument();
     expect(screen.getByText('Itaú')).toBeInTheDocument();
-    expect(screen.getByText('102')).toBeInTheDocument();
+    // o codigo é texto técnico: nunca vira subtítulo
+    expect(screen.queryByText('102')).not.toBeInTheDocument();
     // alvo de toque de 44 px em qualquer largura (no desktop também)
     expect(screen.getByText('Itaú').closest('button')?.className).toMatch(/(^|\s)min-h-11(\s|$)/);
   });
@@ -175,6 +176,154 @@ describe('InstitutionPicker', () => {
 
     expect(onChange).toHaveBeenCalledWith({ id: 'inst-1', nome: 'XP Investimentos' });
     expect(onErrorClear).toHaveBeenCalled();
+  });
+
+  it('subtítulo é "tipo · CNPJ" e nunca o codigo BCB-...', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      mockFetchResponse({
+        institutions: [
+          {
+            id: 'inst-btg',
+            nome: 'Banco BTG Pactual S.A.',
+            codigo: 'BCB-30306294',
+            cnpj: '30306294000145',
+            cnpjCalculado: true,
+            tipoBacen: 'B1',
+          },
+          {
+            id: 'inst-itau',
+            nome: 'Itaú Unibanco S.A.',
+            codigo: '341',
+            cnpj: '60701190000104',
+            cnpjCalculado: false,
+            tipoBacen: null,
+          },
+          { id: 'inst-x', nome: 'Sem dados', codigo: 'COR-X', cnpj: null, tipoBacen: null },
+        ],
+      }),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(
+      <InstitutionPicker
+        endpoint="/api/institutions?papel=emissor"
+        selectedId=""
+        selectedName=""
+        onChange={vi.fn()}
+      />,
+    );
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+    expect(fetchMock.mock.calls[0][0]).toContain('/api/institutions?papel=emissor&search=');
+    fireEvent.focus(screen.getByPlaceholderText(/Digite o nome da instituição/i));
+
+    expect(await screen.findByText('Banco · CNPJ 30.306.294')).toBeInTheDocument();
+    expect(screen.getByText('CNPJ 60.701.190/0001-04')).toBeInTheDocument();
+    expect(screen.queryByText(/BCB-/)).not.toBeInTheDocument();
+    expect(screen.queryByText('COR-X')).not.toBeInTheDocument();
+    // sem tipo e sem CNPJ: só o nome, sem subtítulo
+    const semDados = screen.getByText('Sem dados').closest('button')!;
+    expect(semDados.querySelectorAll('div')).toHaveLength(1);
+  });
+
+  it('onChange recebe cnpj, cnpjCalculado e tipoBacen quando a API os traz', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      mockFetchResponse({
+        institutions: [
+          {
+            id: 'inst-xp',
+            nome: 'XP Investimentos CCTVM',
+            codigo: '102',
+            cnpj: '02332886000104',
+            cnpjCalculado: false,
+            tipoBacen: 'N2',
+          },
+        ],
+      }),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+    const onChange = vi.fn();
+
+    render(
+      <InstitutionPicker
+        endpoint="/api/institutions"
+        selectedId=""
+        selectedName=""
+        onChange={onChange}
+      />,
+    );
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+    fireEvent.focus(screen.getByPlaceholderText(/Digite o nome da instituição/i));
+    fireEvent.click(await screen.findByText('XP Investimentos CCTVM'));
+
+    expect(onChange).toHaveBeenCalledWith({
+      id: 'inst-xp',
+      nome: 'XP Investimentos CCTVM',
+      cnpj: '02332886000104',
+      cnpjCalculado: false,
+      tipoBacen: 'N2',
+    });
+  });
+
+  it('inputId vai para o id do input (padrão "instituicao")', () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(mockFetchResponse({ institutions: [] })));
+    const { unmount } = render(
+      <InstitutionPicker endpoint={null} selectedId="" selectedName="" onChange={vi.fn()} />,
+    );
+    expect(screen.getByPlaceholderText(/Digite o nome da instituição/i)).toHaveAttribute(
+      'id',
+      'instituicao',
+    );
+    unmount();
+
+    render(
+      <InstitutionPicker
+        endpoint={null}
+        selectedId=""
+        selectedName=""
+        onChange={vi.fn()}
+        inputId="emissor"
+        label="Banco emissor"
+      />,
+    );
+    const input = screen.getByPlaceholderText(/Digite o nome da instituição/i);
+    expect(input).toHaveAttribute('id', 'emissor');
+    expect(screen.getByLabelText('Banco emissor')).toBe(input);
+  });
+
+  it('emptyMessage aparece quando a busca não acha nada', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(mockFetchResponse({ institutions: [] }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(
+      <InstitutionPicker
+        endpoint="/api/institutions?papel=emissor"
+        selectedId=""
+        selectedName="zzzz"
+        onChange={vi.fn()}
+        emptyMessage="Não achou? Busque pelo CNPJ."
+      />,
+    );
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+    fireEvent.focus(screen.getByPlaceholderText(/Digite o nome da instituição/i));
+    expect(await screen.findByText('Não achou? Busque pelo CNPJ.')).toBeInTheDocument();
+  });
+
+  it('sem emptyMessage, busca vazia não abre a lista (comportamento antigo)', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(mockFetchResponse({ institutions: [] }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(
+      <InstitutionPicker
+        endpoint="/api/institutions"
+        selectedId=""
+        selectedName="zzzz"
+        onChange={vi.fn()}
+      />,
+    );
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+    fireEvent.focus(screen.getByPlaceholderText(/Digite o nome da instituição/i));
+    await waitFor(() => expect(screen.queryByText(/Carregando/i)).not.toBeInTheDocument());
+    expect(screen.queryByText(/Nenhum resultado/i)).not.toBeInTheDocument();
   });
 
   it('refaz busca na API quando o usuário digita no input (debounced)', async () => {
