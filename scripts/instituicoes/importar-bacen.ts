@@ -229,18 +229,22 @@ function imprimirPlano(plano: PlanoImportacao) {
 
 /** Grava o plano. `m` é preenchido aos poucos: se algo falhar, ele tem o que já foi gravado. */
 async function aplicar(plano: PlanoImportacao, inicio: Date, m: Mudancas): Promise<void> {
-  for (let i = 0; i < plano.criar.length; i += LOTE_CREATE) {
-    await prisma.institution.createMany({
-      data: plano.criar.slice(i, i + LOTE_CREATE),
-      skipDuplicates: true,
-    });
-  }
-  if (plano.criar.length) {
-    const criados = await prisma.institution.findMany({
-      where: { codigo: { in: plano.criar.map((c) => c.codigo) }, createdAt: { gte: inicio } },
-      select: { codigo: true },
-    });
-    m.codigosCriados = criados.map((c) => c.codigo).sort();
+  try {
+    for (let i = 0; i < plano.criar.length; i += LOTE_CREATE) {
+      await prisma.institution.createMany({
+        data: plano.criar.slice(i, i + LOTE_CREATE),
+        skipDuplicates: true,
+      });
+    }
+  } finally {
+    // No finally: se um lote falhar no meio, a reversão ainda apaga os lotes já gravados.
+    if (plano.criar.length) {
+      const criados = await prisma.institution.findMany({
+        where: { codigo: { in: plano.criar.map((c) => c.codigo) }, createdAt: { gte: inicio } },
+        select: { codigo: true },
+      });
+      m.codigosCriados = criados.map((c) => c.codigo).sort();
+    }
   }
 
   for (const p of plano.preencherCnpj) {
