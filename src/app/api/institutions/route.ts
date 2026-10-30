@@ -8,6 +8,30 @@ import { normalizarBusca } from '@/lib/instituicoes/normalizarNome';
 
 const LIMIT_PADRAO = 200;
 const LIMIT_MAXIMO = 500;
+const BUSCA_MAXIMA = 100;
+
+// translate() tira o acento sem depender da extensão unaccent; maiúsculas acentuadas entram
+// porque lower() de não-ASCII depende do locale do banco.
+const COM_ACENTO = 'áàâãäéèêëíìîïóòôõöúùûüçñÁÀÂÃÄÉÈÊËÍÌÎÏÓÒÔÕÖÚÙÛÜÇÑ';
+const SEM_ACENTO = 'aaaaaeeeeiiiiooooouuuucnaaaaaeeeeiiiiooooouuuucn';
+
+/**
+ * Ids que casam com a busca: nome e codigo sem acento nem caixa, apelidos e, com 4 ou mais
+ * dígitos, o início do CNPJ. strpos em vez de LIKE: '%' e '_' digitados não viram curinga.
+ */
+async function idsDaBusca(search: string): Promise<string[]> {
+  const busca = normalizarBusca(search.slice(0, BUSCA_MAXIMA));
+  if (!busca) return [];
+  const digitos = somenteDigitos(busca);
+  const porCnpj = digitos.length >= 4 ? digitos : null;
+  const linhas = await prisma.$queryRaw<Array<{ id: string }>>`
+    SELECT id FROM institutions
+    WHERE strpos(translate(lower(nome), ${COM_ACENTO}, ${SEM_ACENTO}), ${busca}) > 0
+       OR strpos(translate(lower(codigo), ${COM_ACENTO}, ${SEM_ACENTO}), ${busca}) > 0
+       OR strpos(coalesce(apelidos, ''), ${busca}) > 0
+       OR (${porCnpj}::text IS NOT NULL AND strpos(coalesce(cnpj, ''), ${porCnpj}) = 1)`;
+  return linhas.map((l) => l.id);
+}
 
 /** limit entre 1 e 500; inválido vira o padrão. */
 function lerLimit(valor: string | null): number {
@@ -19,8 +43,8 @@ function lerLimit(valor: string | null): number {
 /**
  * GET /api/institutions?search=&limit=&papel=emissor
  *
- * Catálogo de instituições ATIVAS, por nome asc. A busca procura no nome, no codigo, nos
- * apelidos (sem acento, minúsculas) e, com 4 ou mais dígitos, no início do CNPJ.
+ * Catálogo de instituições ATIVAS, por nome asc. A busca (sem acento nem caixa, até 100
+ * caracteres) procura no nome, no codigo, nos apelidos e, com 4 ou mais dígitos, no início do CNPJ.
  * papel=emissor deixa só quem emite renda fixa coberta pelo FGC: Tcb emissor ou sem tipo
  * conhecido, fora das linhas com prefixo de código não emissor (COR-, PREV-, RESERVA-...).
  */
@@ -33,15 +57,7 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
   const filtros: Prisma.InstitutionWhereInput[] = [{ status: 'ATIVA' }];
 
   if (search) {
-    const termos: Prisma.InstitutionWhereInput[] = [
-      { nome: { contains: search, mode: 'insensitive' } },
-      { codigo: { contains: search, mode: 'insensitive' } },
-    ];
-    const busca = normalizarBusca(search);
-    if (busca) termos.push({ apelidos: { contains: busca } });
-    const digitos = somenteDigitos(search);
-    if (digitos.length >= 4) termos.push({ cnpj: { startsWith: digitos } });
-    filtros.push({ OR: termos });
+    filtros.push({ id: { in: await idsDaBusca(search) } });
   }
 
   if (papel === 'emissor') {

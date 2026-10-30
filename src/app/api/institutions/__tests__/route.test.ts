@@ -5,6 +5,7 @@ import { CODIGO_PREFIXOS_NAO_EMISSOR, TIPOS_BACEN_EMISSORES } from '@/lib/fgc/pr
 
 const mockPrisma = vi.hoisted(() => ({
   institution: { findMany: vi.fn() },
+  $queryRaw: vi.fn(),
 }));
 
 vi.mock('@/lib/prisma', () => ({ default: mockPrisma, prisma: mockPrisma }));
@@ -22,17 +23,15 @@ const ultimaChamada = () =>
     take: number;
     orderBy: unknown;
   };
-const termosDaBusca = () => {
-  const busca = ultimaChamada().where.AND.find(
-    (f) => Array.isArray(f.OR) && (f.OR as Array<Record<string, unknown>>).some((t) => 'nome' in t),
-  );
-  return (busca?.OR ?? []) as Array<Record<string, unknown>>;
-};
+/** Valores interpolados no SQL da busca: [COM_ACENTO, SEM_ACENTO, busca, ..., porCnpj, porCnpj]. */
+const valoresDaBusca = () => mockPrisma.$queryRaw.mock.calls.at(-1)!.slice(1) as unknown[];
+const sqlDaBusca = () => (mockPrisma.$queryRaw.mock.calls.at(-1)![0] as string[]).join('?');
 
 describe('GET /api/institutions', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockPrisma.institution.findMany.mockResolvedValue([]);
+    mockPrisma.$queryRaw.mockResolvedValue([{ id: 'i1' }, { id: 'i2' }]);
   });
 
   it('sem busca: só ATIVA, por nome, limit padrão 200', async () => {
@@ -53,33 +52,43 @@ describe('GET /api/institutions', () => {
     expect(ultimaChamada().take).toBe(200);
   });
 
-  it('busca por nome e codigo (como antes)', async () => {
-    await GET(createRequest({ search: 'Itaú' }));
-    const termos = termosDaBusca();
-    expect(termos).toContainEqual({ nome: { contains: 'Itaú', mode: 'insensitive' } });
-    expect(termos).toContainEqual({ codigo: { contains: 'Itaú', mode: 'insensitive' } });
-    expect(termos).toContainEqual({ apelidos: { contains: 'itau' } });
-    expect(termos.some((t) => 'cnpj' in t)).toBe(false);
+  it('busca sem acento nem caixa em nome, codigo e apelidos; filtra pelos ids achados', async () => {
+    await GET(createRequest({ search: 'Itaú BBA' }));
+    const valores = valoresDaBusca();
+    expect(valores[2]).toBe('itau bba');
+    expect(sqlDaBusca()).toContain('translate(lower(nome)');
+    expect(sqlDaBusca()).toContain('apelidos');
+    expect(sqlDaBusca()).not.toMatch(/LIKE/i);
+    expect(valores.at(-1)).toBeNull();
+    expect(ultimaChamada().where.AND).toContainEqual({ id: { in: ['i1', 'i2'] } });
   });
 
-  it("busca 'nubank' gera o filtro de apelidos", async () => {
-    await GET(createRequest({ search: 'NuBank' }));
-    expect(termosDaBusca()).toContainEqual({ apelidos: { contains: 'nubank' } });
+  it("'%' e '_' chegam como texto literal (strpos, sem curinga)", async () => {
+    await GET(createRequest({ search: '%_' }));
+    expect(valoresDaBusca()).toContain('%_');
   });
 
-  it("busca '3326' gera o filtro de cnpj startsWith", async () => {
+  it('busca corta em 100 caracteres', async () => {
+    await GET(createRequest({ search: 'a'.repeat(300) }));
+    expect(valoresDaBusca()).toContain('a'.repeat(100));
+  });
+
+  it("busca '3326' e CNPJ formatado procuram o início do CNPJ pelos dígitos", async () => {
     await GET(createRequest({ search: '3326' }));
-    expect(termosDaBusca()).toContainEqual({ cnpj: { startsWith: '3326' } });
-  });
-
-  it('busca com CNPJ formatado usa só os dígitos', async () => {
+    expect(valoresDaBusca().at(-1)).toBe('3326');
     await GET(createRequest({ search: '33.264.668' }));
-    expect(termosDaBusca()).toContainEqual({ cnpj: { startsWith: '33264668' } });
+    expect(valoresDaBusca().at(-1)).toBe('33264668');
   });
 
   it('busca com menos de 4 dígitos não filtra por cnpj', async () => {
     await GET(createRequest({ search: '341' }));
-    expect(termosDaBusca().some((t) => 'cnpj' in t)).toBe(false);
+    expect(valoresDaBusca().at(-1)).toBeNull();
+  });
+
+  it('busca só com espaços não consulta o banco', async () => {
+    await GET(createRequest({ search: '   ' }));
+    expect(mockPrisma.$queryRaw).not.toHaveBeenCalled();
+    expect(ultimaChamada().where).toEqual({ AND: [{ status: 'ATIVA' }] });
   });
 
   it('papel=emissor: tipos emissores ou sem tipo, e o NOT dos prefixos não emissores', async () => {
