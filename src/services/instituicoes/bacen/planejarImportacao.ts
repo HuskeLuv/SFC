@@ -181,7 +181,7 @@ const PALAVRAS_FRACAS = new Set(
     'pagamento pagamentos ip sociedade scfi cfi scd servicos digital grupo group ex legado ' +
     'conta global internacional international holding asset securities capital gestao ' +
     'participacoes seguros seguradora previdencia vida leasing arrendamento mercantil direto ' +
-    'imobiliario nacional regional estado acesso solucoes plataforma'
+    'imobiliario nacional regional estado acesso solucoes plataforma com exchange brokers'
   ).split(' '),
 );
 
@@ -276,6 +276,17 @@ export function planejarImportacao(entrada: EntradaPlano): PlanoImportacao {
     return tokensFortes(nome).filter((t) => tokensBacen.has(t));
   };
 
+  /** Token forte em comum ou um nome normalizado contido no outro ('Banco do Brasil'). */
+  const nomeBate = (nome: string, raiz: string): boolean => {
+    if (tokensEmComum(nome, raiz).length > 0) return true;
+    const n = normalizarNomeInstituicao(nome);
+    const p = participantes.get(raiz);
+    return [registroPorRaiz.get(raiz)?.nome, p?.nomeExtenso, p?.nomeReduzido].some((b) => {
+      const nb = normalizarNomeInstituicao(b);
+      return !!nb && (contemFrase(nb, n) || contemFrase(n, nb));
+    });
+  };
+
   const aplicarCasamento = (inst: InstituicaoCatalogo, raiz: string, regra: RegraCasamento) => {
     const reg = registroPorRaiz.get(raiz) ?? null;
     const base = { id: inst.id, codigo: inst.codigo, nome: inst.nome };
@@ -300,7 +311,7 @@ export function planejarImportacao(entrada: EntradaPlano): PlanoImportacao {
       regra,
       nomeBacen: reg?.nome ?? participantes.get(raiz)?.nomeExtenso ?? null,
       tcb: reg?.tcb ?? null,
-      nomeEmComum: tokensEmComum(inst.nome, raiz).length > 0,
+      nomeEmComum: nomeBate(inst.nome, raiz),
     });
 
     if (reg) {

@@ -160,6 +160,8 @@ describe('planejarImportacao', () => {
     });
     expect(plano.casamentos.find((c) => c.id === 'id-380')?.nomeEmComum).toBe(false); // Rico
     expect(plano.casamentos.find((c) => c.id === 'id-102')?.nomeEmComum).toBe(true);
+    // Só palavras genéricas, mas o nome normalizado é o mesmo
+    expect(plano.casamentos.find((c) => c.id === 'id-001')?.nomeEmComum).toBe(true);
   });
 
   it('casa pelo COMPE com nome em comum e preenche o cnpj calculado (Pine 643, Ailos 085)', () => {
