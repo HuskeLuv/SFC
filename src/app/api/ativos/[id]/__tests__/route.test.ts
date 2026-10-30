@@ -7,7 +7,8 @@ const mockPrisma = vi.hoisted(() => ({
   portfolio: { findFirst: vi.fn() },
   stockTransaction: { findMany: vi.fn(), update: vi.fn() },
   institution: { findUnique: vi.fn() },
-  fixedIncomeAsset: { findFirst: vi.fn().mockResolvedValue(null) },
+  fixedIncomeAsset: { findFirst: vi.fn().mockResolvedValue(null), update: vi.fn() },
+  bankInvestment: { findFirst: vi.fn().mockResolvedValue(null) },
   assetCorporateAction: { findMany: vi.fn().mockResolvedValue([]) },
   $transaction: vi.fn(),
 }));
@@ -356,6 +357,212 @@ describe('PATCH /api/ativos/[id] — Bug #11', () => {
 
     const res = await callPATCH({ instituicaoId: 'inst-1' });
     expect(res.status).toBe(400);
+  });
+});
+
+describe('PATCH /api/ativos/[id] — banco emissor (86e2xqh69)', () => {
+  const BTG = { id: 'inst-btg', nome: 'BTG Pactual', tipoBacen: 'B1', codigo: '208' };
+  const BANCO_XP = { id: 'inst-bxp', nome: 'Banco XP', tipoBacen: 'B1', codigo: '348' };
+  const INTER = { id: 'inst-inter', nome: 'Banco Inter', tipoBacen: 'B1', codigo: '077' };
+  const XP_CCTVM = { id: 'inst-xpc', nome: 'XP CCTVM', tipoBacen: 'N2', codigo: '102' };
+  const CATALOGO: Record<string, typeof BTG> = {
+    [BTG.id]: BTG,
+    [BANCO_XP.id]: BANCO_XP,
+    [INTER.id]: INTER,
+    [XP_CCTVM.id]: XP_CCTVM,
+  };
+
+  const portfolioCom = (symbol: string) => ({
+    id: 'pf-1',
+    assetId: 'asset-1',
+    asset: { symbol, name: 'CDB Banco XP 2028', source: 'manual' },
+  });
+  const fiCom = (extra: Record<string, unknown> = {}) => ({
+    id: 'fi-1',
+    type: 'CDB_PRE',
+    tesouroBondType: null,
+    emissorInstitutionId: null,
+    emissor: null,
+    ...extra,
+  });
+  const notasDa = (instituicaoId: string) => [
+    { id: 'tx-1', notes: JSON.stringify({ operation: { instituicaoId } }) },
+  ];
+  const changesGravados = () =>
+    mockPrisma.userChangeLog.create.mock.calls[0]?.[0]?.data?.changes as
+      | Array<{ field: string; label: string; before: unknown; after: unknown }>
+      | undefined;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockRequireAuthWithActing.mockResolvedValue({
+      payload: { id: 'user-1', email: 'u@t.com', role: 'user' },
+      targetUserId: 'user-1',
+      actingClient: null,
+    });
+    mockPrisma.$transaction.mockImplementation(async (ops: Promise<unknown>[]) => Promise.all(ops));
+    mockPrisma.portfolio.findFirst.mockResolvedValue(portfolioCom('RENDA-FIXA-1'));
+    mockPrisma.fixedIncomeAsset.findFirst.mockResolvedValue(fiCom());
+    mockPrisma.fixedIncomeAsset.update.mockResolvedValue({});
+    mockPrisma.bankInvestment.findFirst.mockResolvedValue(null);
+    mockPrisma.stockTransaction.findMany.mockResolvedValue(notasDa(BTG.id));
+    mockPrisma.stockTransaction.update.mockResolvedValue({});
+    mockPrisma.userChangeLog.create.mockResolvedValue({ id: 'log-1' });
+    mockPrisma.institution.findUnique.mockImplementation(
+      async ({ where }: { where: { id: string } }) => CATALOGO[where.id] ?? null,
+    );
+  });
+
+  it('grava o emissor e registra "Banco emissor: Mesmo da corretora → Banco XP"', async () => {
+    const res = await callPATCH({ emissorInstituicaoId: BANCO_XP.id });
+    expect(res.status).toBe(200);
+    const data = await res.json();
+    expect(data.emissor).toEqual({ id: BANCO_XP.id, nome: 'Banco XP' });
+    expect(mockPrisma.fixedIncomeAsset.update).toHaveBeenCalledWith({
+      where: { id: 'fi-1' },
+      data: { emissorInstitutionId: BANCO_XP.id },
+    });
+    expect(mockPrisma.fixedIncomeAsset.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { userId: 'user-1', assetId: 'asset-1' } }),
+    );
+    expect(changesGravados()).toEqual([
+      expect.objectContaining({
+        field: 'emissor',
+        label: 'Banco emissor',
+        before: 'Mesmo da corretora',
+        after: 'Banco XP',
+      }),
+    ]);
+    // As notes (corretora) não mudam.
+    expect(mockPrisma.stockTransaction.update).not.toHaveBeenCalled();
+  });
+
+  it('null limpa o emissor ("usar a corretora")', async () => {
+    mockPrisma.fixedIncomeAsset.findFirst.mockResolvedValue(
+      fiCom({ emissorInstitutionId: BANCO_XP.id, emissor: { id: BANCO_XP.id, nome: 'Banco XP' } }),
+    );
+    const res = await callPATCH({ emissorInstituicaoId: null });
+    expect(res.status).toBe(200);
+    expect((await res.json()).emissor).toBeNull();
+    expect(mockPrisma.fixedIncomeAsset.update).toHaveBeenCalledWith({
+      where: { id: 'fi-1' },
+      data: { emissorInstitutionId: null },
+    });
+    expect(changesGravados()).toEqual([
+      expect.objectContaining({ before: 'Banco XP', after: 'Mesmo da corretora' }),
+    ]);
+  });
+
+  it('emissor inexistente dá 404 e não grava', async () => {
+    const res = await callPATCH({ emissorInstituicaoId: 'inst-fantasma' });
+    expect(res.status).toBe(404);
+    expect((await res.json()).error).toBe('Banco emissor não encontrado');
+    expect(mockPrisma.fixedIncomeAsset.update).not.toHaveBeenCalled();
+  });
+
+  it('corretora pura (N2) que não é a corretora do ativo dá 400', async () => {
+    const res = await callPATCH({ emissorInstituicaoId: XP_CCTVM.id });
+    expect(res.status).toBe(400);
+    expect(mockPrisma.fixedIncomeAsset.update).not.toHaveBeenCalled();
+  });
+
+  it('a própria corretora N2 como emissor passa', async () => {
+    mockPrisma.stockTransaction.findMany.mockResolvedValue(notasDa(XP_CCTVM.id));
+    const res = await callPATCH({ emissorInstituicaoId: XP_CCTVM.id });
+    expect(res.status).toBe(200);
+  });
+
+  it.each([
+    ['CRI', 'RENDA-FIXA-1', fiCom({ type: 'CRI_PRE' })],
+    ['LF', 'RENDA-FIXA-1', fiCom({ type: 'LF_PRE' })],
+    ['Tesouro', 'TD-TESOURO-SELIC-2029', fiCom({ tesouroBondType: 'Tesouro Selic' })],
+    ['DEBENTURE-', 'DEBENTURE-XYZ-1', fiCom()],
+    ['FUNDO-', 'FUNDO-RF-1', fiCom()],
+  ])('%s dá 400 "não tem banco emissor"', async (_nome, symbol, fi) => {
+    mockPrisma.portfolio.findFirst.mockResolvedValue(portfolioCom(symbol));
+    mockPrisma.fixedIncomeAsset.findFirst.mockResolvedValue(fi);
+    const res = await callPATCH({ emissorInstituicaoId: BANCO_XP.id });
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toBe('Este investimento não tem banco emissor para o FGC.');
+    expect(mockPrisma.fixedIncomeAsset.update).not.toHaveBeenCalled();
+  });
+
+  it('ativo sem renda fixa (ação) dá 400', async () => {
+    mockPrisma.portfolio.findFirst.mockResolvedValue(portfolioCom('PETR4'));
+    mockPrisma.fixedIncomeAsset.findFirst.mockResolvedValue(null);
+    const res = await callPATCH({ emissorInstituicaoId: BANCO_XP.id });
+    expect(res.status).toBe(400);
+  });
+
+  it('PLUGGY-RF- com subtype DEBENTURE dá 400; com CDB aceita', async () => {
+    mockPrisma.portfolio.findFirst.mockResolvedValue(portfolioCom('PLUGGY-RF-abc'));
+    mockPrisma.bankInvestment.findFirst.mockResolvedValue({ subtype: 'DEBENTURE' });
+    const negado = await callPATCH({ emissorInstituicaoId: BANCO_XP.id });
+    expect(negado.status).toBe(400);
+    expect(mockPrisma.bankInvestment.findFirst).toHaveBeenCalledWith({
+      where: { userId: 'user-1', fixedIncomeAssetId: 'fi-1' },
+      select: { subtype: true },
+    });
+
+    mockPrisma.bankInvestment.findFirst.mockResolvedValue({ subtype: 'CDB' });
+    const aceito = await callPATCH({ emissorInstituicaoId: BANCO_XP.id });
+    expect(aceito.status).toBe(200);
+  });
+
+  it('trocar a corretora leva o emissor junto quando era igual à anterior', async () => {
+    mockPrisma.fixedIncomeAsset.findFirst.mockResolvedValue(
+      fiCom({ emissorInstitutionId: BTG.id, emissor: { id: BTG.id, nome: 'BTG Pactual' } }),
+    );
+    const res = await callPATCH({ instituicaoId: INTER.id });
+    expect(res.status).toBe(200);
+    expect((await res.json()).emissor).toEqual({ id: INTER.id, nome: 'Banco Inter' });
+    expect(mockPrisma.fixedIncomeAsset.update).toHaveBeenCalledWith({
+      where: { id: 'fi-1' },
+      data: { emissorInstitutionId: INTER.id },
+    });
+    expect(changesGravados()).toEqual([
+      expect.objectContaining({ field: 'emissor', before: 'BTG Pactual', after: 'Banco Inter' }),
+    ]);
+  });
+
+  it('trocar a corretora mantém o emissor quando era diferente', async () => {
+    mockPrisma.fixedIncomeAsset.findFirst.mockResolvedValue(
+      fiCom({ emissorInstitutionId: BANCO_XP.id, emissor: { id: BANCO_XP.id, nome: 'Banco XP' } }),
+    );
+    const res = await callPATCH({ instituicaoId: INTER.id });
+    expect(res.status).toBe(200);
+    expect((await res.json()).emissor).toEqual({ id: BANCO_XP.id, nome: 'Banco XP' });
+    expect(mockPrisma.fixedIncomeAsset.update).not.toHaveBeenCalled();
+    // Sem diff de emissor: a corretora continua registrada sem before-state.
+    expect(changesGravados()).toBeUndefined();
+  });
+
+  it('trocar a corretora sem emissor gravado não inventa um', async () => {
+    const res = await callPATCH({ instituicaoId: INTER.id });
+    expect(res.status).toBe(200);
+    expect((await res.json()).emissor).toBeNull();
+    expect(mockPrisma.fixedIncomeAsset.update).not.toHaveBeenCalled();
+  });
+
+  it('consultor agindo pelo cliente grava no FI do cliente (targetUserId)', async () => {
+    mockRequireAuthWithActing.mockResolvedValue({
+      payload: { id: 'consultor-1', email: 'c@t.com', role: 'consultant' },
+      targetUserId: 'cliente-9',
+      actingClient: { id: 'cliente-9' },
+    });
+    const res = await callPATCH({ emissorInstituicaoId: BANCO_XP.id });
+    expect(res.status).toBe(200);
+    expect(mockPrisma.portfolio.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: 'pf-1', userId: 'cliente-9' } }),
+    );
+    expect(mockPrisma.fixedIncomeAsset.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { userId: 'cliente-9', assetId: 'asset-1' } }),
+    );
+    expect(mockPrisma.userChangeLog.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ userId: 'cliente-9', actorId: 'consultor-1' }),
+      }),
+    );
   });
 });
 

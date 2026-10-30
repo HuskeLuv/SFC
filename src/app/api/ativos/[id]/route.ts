@@ -33,6 +33,7 @@ import { isAtivoEmDolar, posicaoEmDolar } from '@/lib/ativoEmDolar';
 import { getCotacaoDolarHoje } from '@/services/market/cambioUsdBrl';
 
 import { withErrorHandler } from '@/utils/apiErrorHandler';
+import { aceitaEmissor, ehInstituicaoEmissora } from '@/lib/fgc/produtosCobertos';
 import { parseRangeMonths } from '@/utils/rangeQuery';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -269,6 +270,7 @@ type FixedIncomeRecord = {
   taxExempt: boolean;
   tesouroBondType: string | null;
   tesouroMaturity: Date | null;
+  emissorInstitutionId?: string | null;
 };
 
 const buildFixedIncomeResponse = async (
@@ -394,12 +396,20 @@ const buildFixedIncomeResponse = async (
     portfolio.userId,
     portfolio.assetId ?? null,
   );
+  // Banco emissor (FGC, ClickUp 86e2xqh69): null = sem emissor (a Cobertura FGC usa a corretora).
+  const emissor = fi.emissorInstitutionId
+    ? await prisma.institution.findUnique({
+        where: { id: fi.emissorInstitutionId },
+        select: { id: true, nome: true },
+      })
+    : null;
 
   return NextResponse.json({
     ativo: {
       nome: portfolio.asset?.name || fi.description,
       ticker: portfolio.asset?.symbol || '',
       instituicao,
+      emissor,
       vinculoPlanejamento: vinculoPlanejamentoDTO(portfolio),
     },
     posicao: {
@@ -871,11 +881,23 @@ export const GET = withErrorHandler(
 const patchSchema = z
   .object({
     instituicaoId: z.string().min(1).max(255).optional(),
+    // Banco emissor da RF coberta pelo FGC (ClickUp 86e2xqh69). null = "usar a corretora".
+    emissorInstituicaoId: z.string().min(1).max(255).nullable().optional(),
     ...vinculoPlanejamentoFields,
   })
-  .refine((data) => data.instituicaoId !== undefined || data.vinculoTipo !== undefined, {
-    message: 'Nenhum campo para atualizar',
-  });
+  .refine(
+    (data) =>
+      data.instituicaoId !== undefined ||
+      data.emissorInstituicaoId !== undefined ||
+      data.vinculoTipo !== undefined,
+    { message: 'Nenhum campo para atualizar' },
+  );
+
+const MSG_SEM_EMISSOR = 'Este investimento não tem banco emissor para o FGC.';
+const MSG_NAO_EMISSOR =
+  'Esta instituição não emite títulos cobertos pelo FGC. Escolha o banco emissor.';
+/** Valor do histórico quando o emissor fica vazio (a Cobertura FGC usa a corretora). */
+const EMISSOR_PADRAO_LABEL = 'Mesmo da corretora';
 
 export const PATCH = withErrorHandler(
   async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
@@ -903,10 +925,76 @@ export const PATCH = withErrorHandler(
       return NextResponse.json({ error: 'Portfólio sem ativo vinculado' }, { status: 400 });
     }
 
+    const { instituicaoId, emissorInstituicaoId } = parsed.data;
+    const mexeNoEmissor = emissorInstituicaoId !== undefined;
+
+    // Banco emissor (ClickUp 86e2xqh69). O FI só é lido quando o emissor ou a corretora mudam.
+    const fi =
+      mexeNoEmissor || instituicaoId !== undefined
+        ? await prisma.fixedIncomeAsset.findFirst({
+            where: { userId: targetUserId, assetId: portfolio.assetId },
+            select: {
+              id: true,
+              type: true,
+              tesouroBondType: true,
+              emissorInstitutionId: true,
+              emissor: { select: { id: true, nome: true } },
+            },
+          })
+        : null;
+
+    // Validação ANTES de qualquer escrita.
+    let emissorEscolhido: { id: string; nome: string } | null = null;
+    if (mexeNoEmissor) {
+      if (!fi) return NextResponse.json({ error: MSG_SEM_EMISSOR }, { status: 400 });
+      const symbol = portfolio.asset?.symbol ?? null;
+      const pluggySubtype = /^PLUGGY-RF-/i.test(symbol ?? '')
+        ? ((
+            await prisma.bankInvestment.findFirst({
+              where: { userId: targetUserId, fixedIncomeAssetId: fi.id },
+              select: { subtype: true },
+            })
+          )?.subtype ?? null)
+        : null;
+      const aceita = aceitaEmissor({
+        type: fi.type,
+        tesouroBondType: fi.tesouroBondType,
+        assetSymbol: symbol,
+        pluggySubtype,
+      });
+      if (!aceita) return NextResponse.json({ error: MSG_SEM_EMISSOR }, { status: 400 });
+      if (emissorInstituicaoId) {
+        const emissor = await prisma.institution.findUnique({
+          where: { id: emissorInstituicaoId },
+          select: { id: true, nome: true, tipoBacen: true, codigo: true },
+        });
+        if (!emissor) {
+          return NextResponse.json({ error: 'Banco emissor não encontrado' }, { status: 404 });
+        }
+        emissorEscolhido = { id: emissor.id, nome: emissor.nome };
+        // Instituição que não emite só passa se for a própria corretora (pré-preenchimento).
+        if (ehInstituicaoEmissora(emissor) === false && emissor.id !== fi.emissorInstitutionId) {
+          const corretora =
+            instituicaoId ??
+            (await resolveInstituicaoForPortfolio(targetUserId, portfolio.assetId)).id;
+          if (emissor.id !== corretora) {
+            return NextResponse.json({ error: MSG_NAO_EMISSOR }, { status: 400 });
+          }
+        }
+      }
+    }
+
+    // Corretora anterior, lida ANTES de reescrever as notes: se o emissor era igual a ela,
+    // o emissor acompanha a corretora corrigida (decisão 4 do Wellington).
+    const corretoraAnterior =
+      instituicaoId !== undefined
+        ? await resolveInstituicaoForPortfolio(targetUserId, portfolio.assetId)
+        : null;
+
     let institution: { id: string; nome: string } | null = null;
-    if (parsed.data.instituicaoId !== undefined) {
+    if (instituicaoId !== undefined) {
       institution = await prisma.institution.findUnique({
-        where: { id: parsed.data.instituicaoId },
+        where: { id: instituicaoId },
         select: { id: true, nome: true },
       });
       if (!institution) {
@@ -945,6 +1033,29 @@ export const PATCH = withErrorHandler(
       await prisma.$transaction(updates);
     }
 
+    // Emissor final: o escolhido; ou, sem escolha, acompanha a corretora corrigida quando era
+    // igual à anterior; senão fica como está.
+    const emissorAntes = fi?.emissor ?? null;
+    let emissorDepois = emissorAntes;
+    if (mexeNoEmissor) {
+      emissorDepois = emissorEscolhido;
+    } else if (
+      fi &&
+      institution &&
+      emissorAntes &&
+      corretoraAnterior?.id &&
+      emissorAntes.id === corretoraAnterior.id
+    ) {
+      emissorDepois = { id: institution.id, nome: institution.nome };
+    }
+    const emissorMudou = fi !== null && (emissorDepois?.id ?? null) !== (emissorAntes?.id ?? null);
+    if (fi && emissorMudou) {
+      await prisma.fixedIncomeAsset.update({
+        where: { id: fi.id },
+        data: { emissorInstitutionId: emissorDepois?.id ?? null },
+      });
+    }
+
     // Vínculo com planejamento (retroativo): grava no Portfolio e
     // re-sincroniza o realizado dos sonhos afetados.
     if (parsed.data.vinculoTipo !== undefined) {
@@ -968,8 +1079,20 @@ export const PATCH = withErrorHandler(
       }
     }
 
-    // Instituição anterior vive dentro do JSON `notes` de cada transação (pode
-    // variar entre elas) — sem before-state único, registra sem diff.
+    // A corretora vive no JSON `notes` de cada transação (pode variar entre elas) — sem
+    // before-state único, registra sem diff. O emissor tem before/after (o backfill do
+    // Open Finance usa o campo 'emissor' para não sobrescrever a escolha do usuário).
+    const changes = emissorMudou
+      ? [
+          {
+            field: 'emissor',
+            label: 'Banco emissor',
+            before: emissorAntes?.nome ?? EMISSOR_PADRAO_LABEL,
+            after: emissorDepois?.nome ?? EMISSOR_PADRAO_LABEL,
+            format: 'text' as const,
+          },
+        ]
+      : undefined;
     await recordChange({
       request,
       auth,
@@ -978,11 +1101,15 @@ export const PATCH = withErrorHandler(
       entity: 'ativo',
       entityId: portfolioId,
       entityLabel: assetEntityLabel(portfolio.asset),
+      changes,
     });
 
     return NextResponse.json({
       success: true,
       ...(institution ? { instituicao: { id: institution.id, nome: institution.nome } } : {}),
+      ...(fi
+        ? { emissor: emissorDepois ? { id: emissorDepois.id, nome: emissorDepois.nome } : null }
+        : {}),
     });
   },
 );
