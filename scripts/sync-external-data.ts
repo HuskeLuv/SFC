@@ -13,19 +13,22 @@ interface InstituicaoData {
 async function fetchInstituicoes(): Promise<InstituicaoData[]> {
   try {
     console.log('🔍 Buscando dados de instituições financeiras do Bacen...');
-    
+
     // Tentar buscar da API do Bacen (exemplo de endpoint)
     // Nota: A API real do Bacen pode ter um endpoint diferente
-    const response = await fetch('https://www.bcb.gov.br/api/servico/sitebcb/estatisticas/instituicoes-financeiras', {
-      headers: {
-        'Accept': 'application/json',
+    const response = await fetch(
+      'https://www.bcb.gov.br/api/servico/sitebcb/estatisticas/instituicoes-financeiras',
+      {
+        headers: {
+          Accept: 'application/json',
+        },
       },
-    });
+    );
 
     if (response.ok) {
       const data = await response.json();
       console.log(`✅ ${data.length || 0} instituições encontradas na API do Bacen`);
-      return data.map((item: any) => ({
+      return data.map((item: Record<string, string | undefined>) => ({
         codigo: item.codigo || item.code || String(Math.random()),
         nome: item.nome || item.name,
         cnpj: item.cnpj || item.cnpj,
@@ -33,9 +36,9 @@ async function fetchInstituicoes(): Promise<InstituicaoData[]> {
     } else {
       throw new Error(`HTTP ${response.status}`);
     }
-  } catch (error) {
+  } catch {
     console.log('⚠️  API do Bacen indisponível, criando dados de exemplo...');
-    
+
     // Dados de exemplo das principais instituições financeiras brasileiras
     return [
       { codigo: '001', nome: 'Banco do Brasil S.A.', cnpj: '00000000000191' },
@@ -47,7 +50,11 @@ async function fetchInstituicoes(): Promise<InstituicaoData[]> {
       { codigo: '748', nome: 'Banco Cooperativo Sicredi S.A.', cnpj: '01181521000169' },
       { codigo: '260', nome: 'Nu Pagamentos S.A.', cnpj: '18236120000166' },
       { codigo: '290', nome: 'PagSeguro Internet S.A.', cnpj: '08561701000101' },
-      { codigo: '323', nome: 'Mercado Pago - Instituição de Pagamento Ltda.', cnpj: '10573521000110' },
+      {
+        codigo: '323',
+        nome: 'Mercado Pago - Instituição de Pagamento Ltda.',
+        cnpj: '10573521000110',
+      },
       { codigo: '077', nome: 'Banco Inter S.A.', cnpj: '00416968000101' },
       { codigo: '197', nome: 'Stone Pagamentos S.A.', cnpj: '16501555000157' },
       { codigo: '208', nome: 'BTG Pactual S.A.', cnpj: '30306294000145' },
@@ -65,9 +72,11 @@ async function fetchInstituicoes(): Promise<InstituicaoData[]> {
 /**
  * Sincroniza instituições financeiras no banco de dados
  */
-async function syncInstituicoes(instituicoes: InstituicaoData[]): Promise<{ inserted: number; updated: number }> {
+async function syncInstituicoes(
+  instituicoes: InstituicaoData[],
+): Promise<{ inserted: number; updated: number }> {
   console.log('💾 Sincronizando instituições no banco de dados...');
-  
+
   let inserted = 0;
   let updated = 0;
 
@@ -82,7 +91,8 @@ async function syncInstituicoes(instituicoes: InstituicaoData[]): Promise<{ inse
         where: { codigo: instituicao.codigo },
         update: {
           nome: instituicao.nome,
-          cnpj: instituicao.cnpj || null,
+          // Não apaga nem troca o cnpj que o import do Bacen preencheu (ClickUp 86e2xqh69).
+          ...(instituicao.cnpj && !existing?.cnpj ? { cnpj: instituicao.cnpj } : {}),
           status: 'ATIVA',
         },
         create: {
@@ -130,7 +140,6 @@ async function main() {
     console.log('📊 RESUMO:');
     console.log(`   • Instituições: ${result.inserted} inseridas, ${result.updated} atualizadas`);
     console.log(`   • Tempo total: ${duration.toFixed(2)}s\n`);
-
   } catch (error) {
     console.error('\n❌ Erro durante a sincronização:', error);
     throw error;
@@ -151,4 +160,3 @@ if (require.main === module) {
 
 // Exportar funções para uso programático
 export { fetchInstituicoes, syncInstituicoes, main as syncExternalData };
-

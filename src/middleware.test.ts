@@ -80,6 +80,12 @@ describe('Middleware', () => {
       expect(new URL(res.headers.get('location')!).pathname).toBe('/signin');
     });
 
+    it('should require JWT on /api/emissores (rota removida, deixou de ser pública)', async () => {
+      const res = await middleware(createRequest('/api/emissores'));
+      expect(res.status).toBe(307);
+      expect(new URL(res.headers.get('location')!).pathname).toBe('/signin');
+    });
+
     it('should allow /api/public routes without JWT token', async () => {
       const res = await middleware(createRequest('/api/public/health'));
       expect(res.status).not.toBe(307);

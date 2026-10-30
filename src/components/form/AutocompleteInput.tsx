@@ -42,6 +42,11 @@ interface AutocompleteInputProps {
   className?: string;
   /** Teclado do celular: 'characters' para códigos (tickers). */
   autoCapitalize?: string;
+  /**
+   * Mensagem quando a busca (2+ caracteres) não acha nada. Sem ela, a lista fica fechada
+   * quando não há opções (comportamento antigo).
+   */
+  emptyMessage?: React.ReactNode;
 }
 
 const AutocompleteInput: React.FC<AutocompleteInputProps> = ({
@@ -57,6 +62,7 @@ const AutocompleteInput: React.FC<AutocompleteInputProps> = ({
   hint,
   className = '',
   autoCapitalize,
+  emptyMessage,
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [highlightedIndex, setHighlightedIndex] = useState(-1);
@@ -124,6 +130,8 @@ const AutocompleteInput: React.FC<AutocompleteInputProps> = ({
 
   // Não filtrar no frontend - a busca é feita na API
   const filteredOptions = options;
+  const mostrarVazio =
+    emptyMessage != null && value.trim().length >= 2 && !loading && filteredOptions.length === 0;
 
   return (
     <div className={`relative ${className}`}>
@@ -163,7 +171,7 @@ const AutocompleteInput: React.FC<AutocompleteInputProps> = ({
         )}
 
         {/* Dropdown */}
-        {isOpen && (filteredOptions.length > 0 || loading) && (
+        {isOpen && (filteredOptions.length > 0 || loading || mostrarVazio) && (
           <div
             ref={dropdownRef}
             className="absolute z-50 mt-1 w-full rounded-lg border border-gray-200 bg-white shadow-lg dark:border-gray-700 dark:bg-gray-800"
@@ -173,8 +181,11 @@ const AutocompleteInput: React.FC<AutocompleteInputProps> = ({
                 Carregando...
               </div>
             ) : filteredOptions.length === 0 ? (
-              <div className="p-3 text-center text-sm text-gray-500 dark:text-gray-400">
-                Nenhum resultado encontrado
+              <div
+                role="status"
+                className="p-3 text-center text-sm text-gray-600 dark:text-gray-400"
+              >
+                {emptyMessage ?? 'Nenhum resultado encontrado'}
               </div>
             ) : (
               <div className="max-h-60 overflow-y-auto max-lg:max-h-[40dvh]">
@@ -191,7 +202,7 @@ const AutocompleteInput: React.FC<AutocompleteInputProps> = ({
                   >
                     <div className="font-medium">{highlightMatch(option.label, value)}</div>
                     {option.subtitle && (
-                      <div className="text-xs text-gray-500 dark:text-gray-400">
+                      <div className="text-xs text-gray-600 dark:text-gray-400">
                         {option.subtitle}
                       </div>
                     )}

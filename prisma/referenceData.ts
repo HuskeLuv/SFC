@@ -63,6 +63,10 @@ export const INSTITUTIONS: { code: string; name: string; cnpj: string | null; st
  * Upsert idempotente do catálogo de instituições (por `codigo`). Seguro de rodar
  * em produção a qualquer momento: não toca em dados de usuário, só na tabela de
  * referência. Retorna a quantidade de instituições no catálogo.
+ *
+ * Não desfaz o import do Bacen (scripts/instituicoes/importar-bacen.ts, ClickUp 86e2xqh69):
+ * cnpj null no seed não apaga o cnpj gravado, e tipoBacen/conglomeradoBacen/apelidos/
+ * cnpjCalculado nunca são tocados.
  */
 export async function seedInstitutions(prisma: PrismaClient): Promise<number> {
   for (const institution of INSTITUTIONS) {
@@ -72,7 +76,7 @@ export async function seedInstitutions(prisma: PrismaClient): Promise<number> {
       where: { codigo: institution.code },
       update: {
         nome: institution.name,
-        cnpj: institution.cnpj,
+        ...(institution.cnpj ? { cnpj: institution.cnpj } : {}),
         status: statusEnum,
       },
       create: {

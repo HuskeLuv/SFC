@@ -784,28 +784,32 @@ model SyncPriceLog {
 }
 
 model FixedIncomeAsset {
-  id              String                @id @default(uuid())
-  userId          String
-  user            User                  @relation(fields: [userId], references: [id])
-  assetId         String                @unique
-  asset           Asset                 @relation(fields: [assetId], references: [id])
-  type            FixedIncomeType
-  description     String
-  startDate       DateTime
-  maturityDate    DateTime
-  investedAmount  Float
-  annualRate      Float
-  indexer         FixedIncomeIndexer?
-  indexerPercent  Float?
-  liquidityType   FixedIncomeLiquidity?
-  taxExempt       Boolean               @default(false)
-  tesouroBondType String? // "Tesouro Selic", "Tesouro IPCA+", etc. — vincula a TesouroDiretoPrice
-  tesouroMaturity DateTime? // Vencimento do titulo Tesouro — vincula a TesouroDiretoPrice
-  createdAt       DateTime              @default(now())
-  updatedAt       DateTime              @updatedAt
+  id                   String                @id @default(uuid())
+  userId               String
+  user                 User                  @relation(fields: [userId], references: [id])
+  assetId              String                @unique
+  asset                Asset                 @relation(fields: [assetId], references: [id])
+  type                 FixedIncomeType
+  description          String
+  startDate            DateTime
+  maturityDate         DateTime
+  investedAmount       Float
+  annualRate           Float
+  indexer              FixedIncomeIndexer?
+  indexerPercent       Float?
+  liquidityType        FixedIncomeLiquidity?
+  taxExempt            Boolean               @default(false)
+  tesouroBondType      String? // "Tesouro Selic", "Tesouro IPCA+", etc. — vincula a TesouroDiretoPrice
+  tesouroMaturity      DateTime? // Vencimento do titulo Tesouro — vincula a TesouroDiretoPrice
+  /// Banco emissor (CDB/LC/LCI/LCA/RDB/DPGE/LIG/RDC) para a Cobertura FGC. null = usar a corretora.
+  emissorInstitutionId String?
+  emissor              Institution?          @relation("FixedIncomeEmissor", fields: [emissorInstitutionId], references: [id], onDelete: SetNull)
+  createdAt            DateTime              @default(now())
+  updatedAt            DateTime              @updatedAt
 
   @@index([userId])
   @@index([assetId])
+  @@index([emissorInstitutionId])
   @@map("fixed_income_assets")
 }
 
@@ -817,17 +821,28 @@ enum InstitutionStatus {
 
 // Instituições financeiras (corretoras e bancos de investimento)
 model Institution {
-  id        String            @id @default(cuid())
-  codigo    String            @unique // Código identificador da instituição
-  nome      String // Nome da instituição
-  cnpj      String? // CNPJ da instituição (opcional)
-  status    InstitutionStatus @default(ATIVA)
-  createdAt DateTime          @default(now())
-  updatedAt DateTime          @updatedAt
+  id                String             @id @default(cuid())
+  codigo            String             @unique // Código identificador da instituição
+  nome              String // Nome da instituição
+  cnpj              String? // CNPJ da instituição (opcional)
+  status            InstitutionStatus  @default(ATIVA)
+  /// Tcb do IF.data do Bacen (B1, B2, B3S, B3C, B4, N1, N2, N4) ou 'NAO_EMISSOR' (linha antiga que não emite).
+  tipoBacen         String?
+  /// CodConglomeradoPrudencial do IF.data (C00xxxxx).
+  conglomeradoBacen String?
+  /// Frases de busca (apelidos) em minúsculas, sem acento, separadas por ' | '.
+  apelidos          String?
+  /// true quando o cnpj foi calculado a partir da raiz (matriz 0001 + dígitos verificadores).
+  cnpjCalculado     Boolean            @default(false)
+  emissoesRendaFixa FixedIncomeAsset[] @relation("FixedIncomeEmissor")
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
 
   @@index([codigo])
   @@index([cnpj])
   @@index([status])
+  @@index([tipoBacen])
+  @@index([conglomeradoBacen])
   @@map("institutions")
 }
 
@@ -1764,6 +1779,8 @@ model BankInvestment {
   issueDate            DateTime?
   dueDate              DateTime?
   issuer               String?
+  /// CNPJ do emissor informado pelo provedor (issuerCNPJ), só dígitos.
+  issuerCnpj           String?
   status               String? // ACTIVE | TOTAL_WITHDRAWAL…
   providerDate         DateTime?
   /**
