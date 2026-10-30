@@ -20,6 +20,7 @@ const mockPrisma = vi.hoisted(() => {
     bankLoan: { update: vi.fn(), findMany: vi.fn() },
     divida: { create: vi.fn(), findFirst: vi.fn(), update: vi.fn() },
     dividaPagamento: { createMany: vi.fn() },
+    institution: { findMany: vi.fn() },
     $transaction: vi.fn(async (fn: (t: typeof tx) => Promise<unknown>) => fn(tx)),
   };
 });
@@ -69,6 +70,7 @@ const base = {
   issueDate: new Date('2026-01-10T00:00:00Z'),
   dueDate: new Date('2028-01-10T00:00:00Z'),
   issuer: 'Banco do Pluggy',
+  issuerCnpj: null,
   status: 'ACTIVE',
   providerDate: new Date(), // posição do dia (não desatualizada)
   ativo: true,
@@ -101,6 +103,7 @@ beforeEach(() => {
   mockPrisma.fiiMonthly.findFirst.mockResolvedValue(null);
   mockPrisma.fixedIncomeAsset.findFirst.mockResolvedValue(null);
   mockPrisma.tesouroDiretoPrice.findFirst.mockResolvedValue(null);
+  mockPrisma.institution.findMany.mockResolvedValue([]);
 });
 
 describe('mapeamentos', () => {
@@ -332,6 +335,8 @@ describe('importarInvestimento', () => {
         startDate: new Date('2026-01-10T00:00:00Z'),
         maturityDate: new Date('2028-01-10T00:00:00Z'),
         taxExempt: false,
+        // emissor 'Banco do Pluggy' não está no catálogo: fica para a corretora
+        emissorInstitutionId: null,
       }),
     });
     expect(mockPrisma.tx.portfolio.create).toHaveBeenCalledWith({
@@ -418,8 +423,11 @@ describe('importarInvestimento', () => {
           taxExempt: false,
           tesouroBondType: 'Tesouro IPCA+',
           tesouroMaturity: vencimento,
+          emissorInstitutionId: null,
         }),
       });
+      // Tesouro não tem banco emissor: nem consulta o catálogo.
+      expect(mockPrisma.institution.findMany).not.toHaveBeenCalled();
       expect(mockPrisma.bankInvestment.update).toHaveBeenLastCalledWith({
         where: { id: 'bi-1' },
         data: expect.objectContaining({ importStatus: 'importado', fixedIncomeAssetId: 'fi-1' }),
@@ -761,6 +769,8 @@ describe('reconexão não duplica (origem estável)', () => {
     mockPrisma.portfolio.findFirst.mockResolvedValue({ id: 'port-antigo' });
     expect(await importarInvestimento({ ...cdb, id: 'bi-novo' }, 7)).toBe('vinculado');
     expect(mockPrisma.tx.asset.create).not.toHaveBeenCalled();
+    // o caminho 'vinculado' não mexe no emissor
+    expect(mockPrisma.institution.findMany).not.toHaveBeenCalled();
     expect(mockPrisma.tx.stockTransaction.create).not.toHaveBeenCalled();
     expect(mockPrisma.bankInvestment.update).toHaveBeenCalledWith({
       where: { id: 'bi-novo' },
