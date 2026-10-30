@@ -38,6 +38,7 @@ import { CAMPO_SUBGRUPO_PORTFOLIO, isSubgrupoValido, overrideEfetivo } from '@/l
 import { runCvmFundSync } from '@/services/pricing/cvmFundSync';
 import { applyCorporateActionsToUserPositions } from '@/services/portfolio/applyCorporateActions';
 import { tesouroDestinoDaCompra } from '@/services/portfolio/moverInvestimento';
+import { aceitaEmissor, ehInstituicaoEmissora } from '@/lib/fgc/produtosCobertos';
 import {
   recordChange,
   diffFields,
@@ -69,6 +70,10 @@ const FUNDO_DESTINOS_VALIDOS: Set<string> = new Set([
 
 /** Título de catálogo (Tesouro) já vinculado a outra conta — vira 409 limpo. */
 class TituloEmOutraContaError extends Error {}
+/** Emissor escolhido que é corretora/instituição de pagamento (ClickUp 86e2xqh69). */
+const MSG_NAO_EMISSOR =
+  'Esta instituição não emite títulos cobertos pelo FGC. Escolha o banco emissor.';
+
 /** Structural validation for the operacao request body (common fields). */
 const operacaoBaseSchema = z
   .object({
@@ -98,7 +103,12 @@ const operacaoBaseSchema = z
     moeda: z.string().max(50).optional(),
     nomePersonalizado: z.string().max(255).optional(),
     precoUnitario: z.number().finite().optional(),
-    emissorId: z.string().max(255).optional(),
+    // Banco emissor da renda fixa coberta pelo FGC (ClickUp 86e2xqh69). ''/null = não
+    // informado → grava a corretora (fallback de sempre na Cobertura FGC).
+    emissorInstituicaoId: z.preprocess(
+      (v) => (v === '' || v === null ? undefined : v),
+      z.string().max(255).optional(),
+    ),
     periodo: z.string().max(100).optional(),
     taxaJurosAnual: z.number().finite().optional(),
     taxaFixaAnual: z.number().finite().optional(),
@@ -270,8 +280,7 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
     moeda,
     nomePersonalizado,
     precoUnitario,
-    emissorId,
-    periodo,
+    emissorInstituicaoId,
     taxaJurosAnual,
     taxaFixaAnual,
     rendaFixaTipo,
@@ -330,6 +339,14 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
       {
         error: 'Tipo de ativo inválido. Não é possível adicionar um tipo desconhecido.',
       },
+      { status: 400 },
+    );
+  }
+  // O wizard manda 'renda-fixa' (pré), '-posfixada' ou '-hibrida'; 'renda-fixa-prefixada' só
+  // existe como destino do Tesouro/fundo (o ramo dele aqui era código morto).
+  if (tipoAtivo === 'renda-fixa-prefixada') {
+    return NextResponse.json(
+      { error: 'Tipo de ativo inválido. Use Renda Fixa pré, pós ou híbrida.' },
       { status: 400 },
     );
   }
@@ -479,17 +496,6 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
       return NextResponse.json(
         {
           error: 'Método deve ser: valor ou percentual',
-        },
-        { status: 400 },
-      );
-    }
-  } else if (tipoAtivo === 'renda-fixa-prefixada') {
-    // Fluxo com emissor/ativo específico (busca por assetId)
-    if (!dataInicio || !emissorId || !periodo || !valorAplicado || !taxaJurosAnual) {
-      return NextResponse.json(
-        {
-          error:
-            'Campos obrigatórios para este tipo: dataInicio, emissorId, periodo, valorAplicado, taxaJurosAnual',
         },
         { status: 400 },
       );
@@ -979,7 +985,6 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
   if (
     (tipoAtivo === 'conta-corrente' ||
       tipoAtivo === 'poupanca' ||
-      tipoAtivo === 'renda-fixa-prefixada' ||
       tipoAtivo === 'renda-fixa-posfixada' ||
       tipoAtivo === 'renda-fixa') &&
     valorAplicado <= 0
@@ -1093,6 +1098,29 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
 
     if (!instituicao) {
       return NextResponse.json({ error: 'Instituição não encontrada' }, { status: 404 });
+    }
+  }
+
+  // Banco emissor (ClickUp 86e2xqh69): só na renda fixa manual coberta pelo FGC
+  // (CDB/LC/LCI/LCA/RDB/DPGE/LIG/RDC). Omitido → a corretora (o FGC fica igual ao de
+  // antes). Tesouro, reserva, debênture e fundo gravam null (reserva: só na edição).
+  let emissorParaGravar: string | null = null;
+  if (isRendaFixa && aceitaEmissor({ type: rendaFixaTipo })) {
+    if (!emissorInstituicaoId || emissorInstituicaoId === instituicao?.id) {
+      emissorParaGravar = instituicao?.id ?? null;
+    } else {
+      const emissor = await prisma.institution.findUnique({
+        where: { id: emissorInstituicaoId },
+        select: { id: true, tipoBacen: true, codigo: true },
+      });
+      if (!emissor) {
+        return NextResponse.json({ error: 'Banco emissor não encontrado' }, { status: 404 });
+      }
+      // A corretora pré-preenchida passa (acima); outra instituição que não emite, não.
+      if (ehInstituicaoEmissora(emissor) === false) {
+        return NextResponse.json({ error: MSG_NAO_EMISSOR }, { status: 400 });
+      }
+      emissorParaGravar = emissor.id;
     }
   }
 
@@ -1793,7 +1821,6 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
   } else if (
     tipoAtivo === 'conta-corrente' ||
     tipoAtivo === 'poupanca' ||
-    tipoAtivo === 'renda-fixa-prefixada' ||
     tipoAtivo === 'renda-fixa-posfixada' ||
     tipoAtivo === 'renda-fixa' ||
     tipoAtivo === 'renda-fixa-hibrida'
@@ -2315,6 +2342,8 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
       taxExempt: isTesouroRendaFixa || isTesouroReserva ? false : Boolean(rendaFixaTaxExempt),
       tesouroBondType,
       tesouroMaturity,
+      // Só a RF bancária manual leva emissor; Tesouro, reserva e debênture ficam null.
+      emissorInstitutionId: isRendaFixa ? emissorParaGravar : null,
     };
   }
 
