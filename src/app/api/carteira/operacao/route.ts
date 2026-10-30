@@ -1074,8 +1074,17 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
 
   if (tipoAtivo === 'emergency' || tipoAtivo === 'opportunity') {
     // Para reservas, buscar ou criar instituição genérica
+    // Só a linha genérica (codigo RESERVA-* ou nome exato "Reserva"): o import do Bacen traz
+    // bancos com "Reserva" no nome (ex.: RESERVA BANCO COMERCIAL S.A.), que não podem virar a
+    // instituição da reserva.
     instituicao = await prisma.institution.findFirst({
-      where: { nome: { contains: 'Reserva', mode: 'insensitive' } },
+      where: {
+        OR: [
+          { codigo: { startsWith: 'RESERVA-' } },
+          { nome: { equals: 'Reserva', mode: 'insensitive' } },
+        ],
+      },
+      orderBy: { codigo: 'asc' },
     });
 
     if (!instituicao) {
