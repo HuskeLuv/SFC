@@ -14,6 +14,7 @@ import {
   MOEDA_ATIVO_EUA_LABEL,
   RENDA_FIXA_TIPOS,
   RENDA_FIXA_TIPOS_HIBRIDOS,
+  rendaFixaPedeEmissor,
 } from '@/types/wizard';
 import { formatBRL, formatUSD } from '@/utils/format';
 
@@ -35,6 +36,8 @@ export default function Step5Confirmation({
   // Ativo já movido de aba pelo usuário: a prévia de caixa usa a aba efetiva (a mesma do
   // servidor). Enquanto a consulta carrega, o aviso de caixa não aparece (sem nome de aba errado).
   const categoriaEfetiva = useCategoriaEfetivaAtivo(formData.assetId);
+  // Renda fixa coberta pelo FGC: "Corretora" + "Emissor" e a faixa do limite (ClickUp 86e2xqh69).
+  const pedeEmissor = rendaFixaPedeEmissor(formData);
   // Auto-submit quando entrar na tela de confirmação
   useEffect(() => {
     if (autoSubmit && !loading) {
@@ -598,7 +601,23 @@ export default function Step5Confirmation({
         <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-4">
           <div className="space-y-2">
             {renderFieldValue('Tipo de Ativo', formData.tipoAtivo, getTipoAtivoLabel)}
-            {renderFieldValue('Instituição', formData.instituicao)}
+            {renderFieldValue(pedeEmissor ? 'Corretora' : 'Instituição', formData.instituicao)}
+            {pedeEmissor && formData.emissorInstituicaoNome && (
+              <div
+                data-mf-confirma-emissor=""
+                className="flex justify-between gap-3 py-2 border-b border-gray-100 dark:border-gray-700"
+              >
+                <span className="text-sm text-gray-600 dark:text-gray-400">Emissor:</span>
+                <span className="text-right text-sm font-medium text-gray-900 dark:text-white">
+                  {formData.emissorInstituicaoNome}
+                  {formData.emissorInstituicaoCnpjRotulo && (
+                    <span className="block text-xs font-normal text-gray-600 dark:text-gray-400">
+                      {formData.emissorInstituicaoCnpjRotulo}
+                    </span>
+                  )}
+                </span>
+              </div>
+            )}
             {renderFieldValue('Ativo', formData.ativo)}
 
             {renderAssetTypeSpecificFields()}
@@ -607,6 +626,17 @@ export default function Step5Confirmation({
           </div>
         </div>
       </div>
+
+      {pedeEmissor && formData.emissorInstituicaoNome && (
+        <p
+          data-mf-confirma-fgc=""
+          className="rounded-lg border border-[#DCE6F2] bg-[#EDF2F8] px-3 py-2.5 text-sm text-mf-seguranca dark:border-mf-tranquilidade/30 dark:bg-mf-tranquilidade/[0.14] dark:text-mf-tranquilidade"
+        >
+          Na Cobertura FGC, este título entra no limite do{' '}
+          <b className="font-semibold">{formData.emissorInstituicaoNome}</b> (até R$ 250 mil por
+          CPF), somado a outros títulos do mesmo banco.
+        </p>
+      )}
 
       {!categoriaEfetiva.carregando && (
         <UsarCaixaField

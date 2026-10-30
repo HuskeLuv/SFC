@@ -8,29 +8,14 @@ import { valuatePortfolioItem } from '@/services/portfolio/itemValuation';
 import { getAssetPrices } from '@/services/pricing/assetPriceService';
 import { getCotacaoDolarHoje } from '@/services/market/cambioUsdBrl';
 import { resumirSemCobertura, type ItemSemCobertura } from '@/services/analises/semCoberturaFgc';
+import { aceitaEmissor, isFgcCovered, produtoFgc } from '@/lib/fgc/produtosCobertos';
+import {
+  agruparCoberturaFgc,
+  type InstRef,
+  type ItemFgc,
+} from '@/services/analises/agruparCoberturaFgc';
 
-/** FGC coverage limit per CPF per institution (CNPJ). */
-const FGC_LIMIT_PER_INSTITUTION = 250_000;
-
-/** FGC total coverage cap per CPF across all institutions (renewed every 4 years). */
-const FGC_TOTAL_CAP = 1_000_000;
-
-/**
- * Fixed income types covered by FGC.
- * Covered: CDB, LC, LCI, LCA, RDB, DPGE, LIG, RDC
- * NOT covered: CRI, CRA, LF, LFS (Letras Financeiras > R$250k by definition)
- */
-const FGC_COVERED_PREFIXES = ['CDB', 'LC', 'LCI', 'LCA', 'RDB', 'DPGE', 'LIG', 'RDC'];
-
-function isFgcCovered(fixedIncomeType: string): boolean {
-  // FixedIncomeType enum values are like CDB_PRE, LCI_HIB, etc.
-  const prefix = fixedIncomeType.split('_')[0];
-  return FGC_COVERED_PREFIXES.includes(prefix);
-}
-
-function getProductLabel(fixedIncomeType: string): string {
-  return fixedIncomeType.split('_')[0];
-}
+const SIMBOLO_PLUGGY_RF = /^PLUGGY-RF-/i;
 
 export const GET = withErrorHandler(async (request: NextRequest) => {
   const { targetUserId } = await requireAuthWithActing(request);
@@ -89,17 +74,82 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     }
   }
 
-  // 5. Fetch institution details
-  const institutionIds = [...new Set(institutionIdByAssetId.values())];
+  // 5. Emissor gravado em cada FI (o tipo do pricer não traz a coluna) e, do Open Finance, o
+  // subtipo e o emissor (texto) que o Pluggy mandou para cada título.
+  const fiIds = fixedIncomeAssets.map((fi) => fi.id);
+  const [emissoresFi, bankInvestments] =
+    fiIds.length > 0
+      ? await Promise.all([
+          prisma.fixedIncomeAsset.findMany({
+            where: { userId: targetUserId, id: { in: fiIds } },
+            select: { id: true, emissorInstitutionId: true },
+          }),
+          prisma.bankInvestment.findMany({
+            where: { userId: targetUserId, fixedIncomeAssetId: { in: fiIds } },
+            select: { fixedIncomeAssetId: true, subtype: true, issuer: true },
+          }),
+        ])
+      : [[], []];
+  const emissorIdByFiId = new Map<string, string>();
+  for (const fi of emissoresFi) {
+    if (fi.emissorInstitutionId) emissorIdByFiId.set(fi.id, fi.emissorInstitutionId);
+  }
+  const bankInvestmentByFiId = new Map<string, { subtype: string | null; issuer: string | null }>();
+  for (const bi of bankInvestments) {
+    if (bi.fixedIncomeAssetId && !bankInvestmentByFiId.has(bi.fixedIncomeAssetId)) {
+      bankInvestmentByFiId.set(bi.fixedIncomeAssetId, { subtype: bi.subtype, issuer: bi.issuer });
+    }
+  }
+
+  // 6. Corretoras (notes) e emissores (FI) no catálogo.
+  const emissorIds = [...emissorIdByFiId.values()];
+  const institutionIds = [...new Set([...institutionIdByAssetId.values(), ...emissorIds])];
   const institutions =
     institutionIds.length > 0
       ? await prisma.institution.findMany({
           where: { id: { in: institutionIds } },
+          select: {
+            id: true,
+            nome: true,
+            cnpj: true,
+            cnpjCalculado: true,
+            tipoBacen: true,
+            codigo: true,
+            conglomeradoBacen: true,
+          },
         })
       : [];
-  const institutionById = new Map(institutions.map((i) => [i.id, i]));
+  const institutionById = new Map<string, InstRef>(
+    institutions.map((i) => [
+      i.id,
+      {
+        id: i.id,
+        nome: i.nome,
+        cnpj: i.cnpj,
+        cnpjCalculado: i.cnpjCalculado,
+        tipoBacen: i.tipoBacen,
+        codigo: i.codigo,
+        conglomerado: i.conglomeradoBacen,
+      },
+    ]),
+  );
+  /** Corretora das notes; fora do catálogo vira um grupo com nome genérico (como antes). */
+  const corretoraRef = (instId: string | undefined): InstRef | null => {
+    if (!instId) return null;
+    return (
+      institutionById.get(instId) ?? {
+        id: instId,
+        nome: 'Instituição não identificada',
+        cnpj: null,
+        cnpjCalculado: false,
+        tipoBacen: null,
+        codigo: null,
+        conglomerado: null,
+      }
+    );
+  };
 
-  // 6. Valor atual com a mesma prioridade da aba Renda Fixa: marcação na curva quando
+  // 7. Valor atual com a mesma prioridade da aba Renda Fixa: marcação na curva quando
   // produz valor > investido (rendimento acumulado), caso contrário avgPrice*quantity
   // (edição manual ou valor inicial). Não usar `avgPrice > 0` como gatilho único: na
   // criação avgPrice = valorAplicado, e a curva nunca seria preferida.
@@ -120,32 +170,8 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     return valorCalculado;
   };
 
-  // 7. Build FGC coverage data grouped by institution
-  interface AssetFgcInfo {
-    id: string;
-    nome: string;
-    produto: string;
-    valorAtual: number;
-    valorInvestido: number;
-    vencimento: string | null;
-    coberto: boolean;
-    isentoIR: boolean;
-  }
-
-  interface InstitutionGroup {
-    instituicaoId: string;
-    instituicaoNome: string;
-    cnpj: string | null;
-    ativos: AssetFgcInfo[];
-    totalCoberto: number;
-    totalNaoCoberto: number;
-    totalValor: number;
-    limiteFgc: number;
-    percentualUtilizado: number;
-    excedente: number;
-  }
-
-  const institutionGroups = new Map<string, InstitutionGroup>();
+  // 8. Itens da cobertura (renda fixa com FI + depósitos), agrupados por emissor adiante.
+  const itensFgc: ItemFgc[] = [];
   // Fora do FGC (ClickUp 86e2vvde3): Tesouro aqui; as demais classes depois do loop.
   const semCoberturaItens: ItemSemCobertura[] = [];
 
@@ -165,15 +191,8 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
   for (const item of portfolio) {
     if (!item.assetId) continue;
     const fi = fixedIncomeByAssetId.get(item.assetId);
-
-    const instId = institutionIdByAssetId.get(item.assetId) || 'desconhecida';
-    const inst = instId !== 'desconhecida' ? institutionById.get(instId) : null;
-    const instName = inst?.nome || 'Instituição não identificada';
-    const cnpj = inst?.cnpj || null;
-
-    let asset: AssetFgcInfo;
-    let valorAtual: number;
-    let coberto: boolean;
+    const corretora = corretoraRef(institutionIdByAssetId.get(item.assetId));
+    const symbol = item.asset?.symbol ?? null;
 
     if (fi) {
       // Tesouro Direto não é coberto pelo FGC (tem garantia do Tesouro Nacional).
@@ -186,64 +205,70 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
         });
         continue;
       }
-      valorAtual = calculateCurrentValue(fi, item);
-      coberto = isFgcCovered(fi.type);
-      asset = {
-        id: item.id,
-        nome: fi.description || item.asset?.name || 'Renda Fixa',
-        produto: getProductLabel(fi.type),
-        valorAtual,
-        valorInvestido: fi.investedAmount,
-        vencimento: fi.maturityDate.toISOString(),
+      const valorAtual = calculateCurrentValue(fi, item);
+      const coberto = isFgcCovered(fi.type);
+      const bi = bankInvestmentByFiId.get(fi.id) ?? null;
+      const openFinance = Boolean(bi) || SIMBOLO_PLUGGY_RF.test(symbol ?? '');
+      const aceita = aceitaEmissor({
+        type: fi.type,
+        tesouroBondType: fi.tesouroBondType,
+        assetSymbol: symbol,
+        pluggySubtype: bi?.subtype ?? null,
+      });
+      const emissorId = emissorIdByFiId.get(fi.id);
+      // Emissor apagado do catálogo (ou produto que não aceita emissor): fica no fallback.
+      const emissor = aceita && emissorId ? (institutionById.get(emissorId) ?? null) : null;
+      itensFgc.push({
+        ativo: {
+          id: item.id,
+          nome: fi.description || item.asset?.name || 'Renda Fixa',
+          produto: produtoFgc(fi.type),
+          valorAtual,
+          valorInvestido: fi.investedAmount,
+          vencimento: fi.maturityDate.toISOString(),
+          coberto,
+          isentoIR: ehIsentoDeIr(
+            fi.type,
+            ehTesouroDireto(fi.tesouroBondType, symbol),
+            fi.taxExempt,
+          ),
+        },
         coberto,
-        isentoIR: ehIsentoDeIr(
-          fi.type,
-          ehTesouroDireto(fi.tesouroBondType, item.asset?.symbol),
-          fi.taxExempt,
-        ),
-      };
+        valorAtual,
+        temFi: true,
+        aceita,
+        deposito: false,
+        emissor,
+        corretora,
+        origem: openFinance ? 'openFinance' : 'manual',
+        emissorInformadoTexto: openFinance && !emissor ? bi?.issuer?.trim() || null : null,
+      });
     } else {
-      const deposit = getDepositInfo(item.asset?.symbol ?? null);
+      const deposit = getDepositInfo(symbol);
       if (!deposit) continue;
-      valorAtual = item.totalInvested ?? item.avgPrice * item.quantity;
-      coberto = true;
-      asset = {
-        id: item.id,
-        nome: item.asset?.name || deposit.produto,
-        produto: deposit.produto,
+      const valorAtual = item.totalInvested ?? item.avgPrice * item.quantity;
+      itensFgc.push({
+        ativo: {
+          id: item.id,
+          nome: item.asset?.name || deposit.produto,
+          produto: deposit.produto,
+          valorAtual,
+          valorInvestido: valorAtual,
+          vencimento: null,
+          coberto: true,
+          isentoIR: deposit.isentoIR,
+        },
+        coberto: true,
         valorAtual,
-        valorInvestido: valorAtual,
-        vencimento: null,
-        coberto,
-        isentoIR: deposit.isentoIR,
-      };
-    }
-
-    const groupKey = inst?.cnpj || instId; // Group by CNPJ when available (same CNPJ = same FGC limit)
-    if (!institutionGroups.has(groupKey)) {
-      institutionGroups.set(groupKey, {
-        instituicaoId: instId,
-        instituicaoNome: instName,
-        cnpj,
-        ativos: [],
-        totalCoberto: 0,
-        totalNaoCoberto: 0,
-        totalValor: 0,
-        limiteFgc: FGC_LIMIT_PER_INSTITUTION,
-        percentualUtilizado: 0,
-        excedente: 0,
+        temFi: false,
+        aceita: false,
+        deposito: true,
+        emissor: null,
+        corretora,
+        origem: 'manual',
+        emissorInformadoTexto: null,
       });
     }
-
-    const group = institutionGroups.get(groupKey)!;
-    group.ativos.push(asset);
-
-    if (coberto) {
-      group.totalCoberto += valorAtual;
-    } else {
-      group.totalNaoCoberto += valorAtual;
-    }
-    group.totalValor += valorAtual;
   }
 
   // 7b. O resto da carteira (ações, FIIs, fundos, cripto, previdência...) não tem FGC. Valor
@@ -278,53 +303,16 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     semCoberturaItens.push({ classe: v.categoria, valorAtual: v.valorAtualBRL });
   }
 
-  // Calculate percentages and excedent per institution
-  const instituicoes = Array.from(institutionGroups.values()).map((group) => {
-    const percentual = (group.totalCoberto / FGC_LIMIT_PER_INSTITUTION) * 100;
-    const excedente = Math.max(0, group.totalCoberto - FGC_LIMIT_PER_INSTITUTION);
-    return {
-      ...group,
-      percentualUtilizado: Math.round(percentual * 100) / 100,
-      excedente: Math.round(excedente * 100) / 100,
-      totalCoberto: Math.round(group.totalCoberto * 100) / 100,
-      totalNaoCoberto: Math.round(group.totalNaoCoberto * 100) / 100,
-      totalValor: Math.round(group.totalValor * 100) / 100,
-    };
-  });
-
-  // Sort by total covered value descending
-  instituicoes.sort((a, b) => b.totalCoberto - a.totalCoberto);
-
-  // 8. Calculate global summary
-  const totalCoberto = instituicoes.reduce(
-    (sum, i) => sum + Math.min(i.totalCoberto, FGC_LIMIT_PER_INSTITUTION),
-    0,
-  );
-  const totalEfetivamenteCoberto = Math.min(totalCoberto, FGC_TOTAL_CAP);
-  const totalNaoCoberto = instituicoes.reduce((sum, i) => sum + i.totalNaoCoberto, 0);
-  const totalExcedente = instituicoes.reduce((sum, i) => sum + i.excedente, 0);
-  const totalValorRendaFixa = instituicoes.reduce((sum, i) => sum + i.totalValor, 0);
-  const totalAtivos = instituicoes.reduce((sum, i) => sum + i.ativos.length, 0);
+  // 9. Grupos por emissor (raiz do CNPJ), totais e avisos de conglomerado.
+  const { grupos, avisosConglomerado, resumo, totais } = agruparCoberturaFgc(itensFgc);
 
   return NextResponse.json({
-    resumo: {
-      totalEfetivamenteCoberto: Math.round(totalEfetivamenteCoberto * 100) / 100,
-      totalNaoCoberto: Math.round(totalNaoCoberto * 100) / 100,
-      totalExcedente: Math.round(totalExcedente * 100) / 100,
-      totalValorRendaFixa: Math.round(totalValorRendaFixa * 100) / 100,
-      percentualCoberto:
-        totalValorRendaFixa > 0
-          ? Math.round((totalEfetivamenteCoberto / totalValorRendaFixa) * 100 * 100) / 100
-          : 0,
-      limiteGlobal: FGC_TOTAL_CAP,
-      limitePorInstituicao: FGC_LIMIT_PER_INSTITUTION,
-      totalAtivos,
-      totalInstituicoes: instituicoes.length,
-    },
-    instituicoes,
+    resumo,
+    instituicoes: grupos,
+    avisosConglomerado,
     semCobertura: resumirSemCobertura(semCoberturaItens, {
-      totalValor: totalValorRendaFixa,
-      totalEfetivamenteCoberto,
+      totalValor: totais.totalValorRendaFixa,
+      totalEfetivamenteCoberto: totais.totalEfetivamenteCoberto,
     }),
   });
 });

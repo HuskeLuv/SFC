@@ -1,4 +1,5 @@
 import type { FundoSubtipo } from '@/lib/fundoTypes';
+import { aceitaEmissor } from '@/lib/fgc/produtosCobertos';
 
 export interface WizardStep {
   id: string;
@@ -29,12 +30,6 @@ export interface Asset {
   source: string;
 }
 
-export interface Emissor {
-  id: string;
-  nome: string;
-  tipo: string;
-}
-
 export interface WizardFormData {
   /**
    * 'planejar' (16/09/2026): inclui o ativo na aba SEM posição, só com
@@ -56,6 +51,20 @@ export interface WizardFormData {
   // Passo 2: Instituição
   instituicao: string;
   instituicaoId: string;
+  /** Tcb do Bacen da instituição do passo 2 (B1, N2...); null quando o catálogo não sabe. */
+  instituicaoTipoBacen: string | null;
+  /** rotuloCnpj da instituição do passo 2 ('' sem CNPJ); vira o do emissor pré-preenchido. */
+  instituicaoCnpjRotulo: string;
+
+  /**
+   * Banco emissor da renda fixa coberta pelo FGC (ClickUp 86e2xqh69). Nasce igual à corretora do
+   * passo 2 e a acompanha até o usuário trocá-lo (emissorEditado). Só emissorInstituicaoId vai
+   * para a API; nome, rótulo e a marca de edição ficam na tela.
+   */
+  emissorInstituicaoId: string;
+  emissorInstituicaoNome: string;
+  emissorInstituicaoCnpjRotulo: string;
+  emissorEditado: boolean;
 
   // Passo 3: Ativo
   ativo: string;
@@ -86,8 +95,6 @@ export interface WizardFormData {
   taxaFixaAnual?: number; // Parte fixa para Renda Fixa Híbrida
   percentualCDI: number;
   indexador: string;
-  emissor: string;
-  emissorId: string;
   periodo: string;
   descricao: string;
   observacoes: string;
@@ -195,7 +202,7 @@ export interface WizardErrors {
   taxaFixaAnual?: string;
   percentualCDI?: string;
   indexador?: string;
-  emissor?: string;
+  emissorInstituicaoId?: string;
   periodo?: string;
   descricao?: string;
   nomePersonalizado?: string;
@@ -330,6 +337,37 @@ export const RENDA_FIXA_TIPOS_HIBRIDOS = [
   { value: 'RDC_HIB', label: 'RDC Híbrido' },
   { value: 'LIG_HIB', label: 'LIG Híbrido' },
 ];
+
+/** Tipo de ativo da renda fixa bancária do wizard (pré, pós ou híbrida). */
+export function ehTipoAtivoRendaFixa(tipoAtivo: string | null | undefined): boolean {
+  return (
+    tipoAtivo === 'renda-fixa' ||
+    tipoAtivo === 'renda-fixa-posfixada' ||
+    tipoAtivo === 'renda-fixa-hibrida'
+  );
+}
+
+/**
+ * A renda fixa do wizard pede banco emissor? Só os produtos cobertos pelo FGC (CDB, LC, LCI, LCA,
+ * RDB, DPGE, LIG, RDC); LF, LFS, CRI e CRA não. Tesouro, debênture e fundo não passam por aqui.
+ */
+export function rendaFixaPedeEmissor(
+  formData: Pick<WizardFormData, 'tipoAtivo' | 'rendaFixaTipo'>,
+): boolean {
+  return (
+    ehTipoAtivoRendaFixa(formData.tipoAtivo) && aceitaEmissor({ type: formData.rendaFixaTipo })
+  );
+}
+
+/** Rótulo do produto da renda fixa como o passo 3 mostra: 'CDB Pré', 'CDB' (pós), 'CDB Híbrido'. */
+export function rotuloProdutoRendaFixa(
+  formData: Pick<WizardFormData, 'tipoAtivo' | 'rendaFixaTipo'>,
+): string {
+  const tipos =
+    formData.tipoAtivo === 'renda-fixa-hibrida' ? RENDA_FIXA_TIPOS_HIBRIDOS : RENDA_FIXA_TIPOS;
+  const label = tipos.find((t) => t.value === formData.rendaFixaTipo)?.label ?? '';
+  return formData.tipoAtivo === 'renda-fixa-posfixada' ? label.replace(/ Pré$/, '') : label;
+}
 
 /**
  * Carteira EUA em US$ (out/2026): Stocks EUA e REITs são sempre em dólar — o campo de moeda do

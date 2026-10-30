@@ -3,12 +3,17 @@
  * contas e TODOS os investimentos, página a página) ao lado do que está em bank_investments. Serve
  * para separar "o banco/Pluggy não mandou" de "chegou e não importamos" (ticket do Leonardo,
  * 23/10/2026: CDBs do BTG não apareceram). Não grava nada, nem no banco nem no Pluggy (sem
- * updateItem/PATCH). Não imprime CPF, número de conta nem credenciais.
+ * updateItem/PATCH). Não imprime CPF, número de conta nem credenciais. Na renda fixa mostra o
+ * emissor (issuer e issuerCNPJ), o casamento com o catálogo e o emissor gravado (FGC).
  *
  *   npx tsx --env-file=.env scripts/pluggy/inspecionar-item.ts --conexao=<bank_connections.id>
  */
 import { prisma } from '../../src/lib/prisma';
 import { getPluggyClient } from '../../src/lib/pluggy';
+import {
+  carregarIndiceEmissores,
+  casarEmissor,
+} from '../../src/services/instituicoes/casarEmissor';
 
 const arg = (nome: string) =>
   process.argv.find((a) => a.startsWith(`--${nome}=`))?.slice(nome.length + 3) ?? null;
@@ -74,7 +79,7 @@ async function main() {
   console.log(`\n== investimentos no Pluggy (${investimentos.length}, ${totalPaginas} página(s))`);
   for (const i of investimentos) {
     console.log(
-      `  ${i.type}/${i.subtype ?? '-'} ${i.name} code=${i.code ?? '-'} saldo=${brl(i.balance)} status=${i.status ?? '-'} emissor=${i.issuer ?? '-'} data=${data(i.date)}`,
+      `  ${i.type}/${i.subtype ?? '-'} ${i.name} code=${i.code ?? '-'} saldo=${brl(i.balance)} status=${i.status ?? '-'} emissor=${i.issuer ?? '-'} cnpjEmissor=${i.issuerCNPJ ?? '-'} data=${data(i.date)}`,
     );
   }
 
@@ -86,14 +91,33 @@ async function main() {
       subtype: true,
       name: true,
       importStatus: true,
+      issuer: true,
+      issuerCnpj: true,
+      fixedIncomeAssetId: true,
     },
   });
+  // Emissor (FGC): o que o Pluggy informou, o casamento com o catálogo e o que está gravado no FI.
+  const indice = await carregarIndiceEmissores(prisma);
+  const fis = await prisma.fixedIncomeAsset.findMany({
+    where: { id: { in: nossos.map((n) => n.fixedIncomeAssetId).filter((x): x is string => !!x) } },
+    select: { id: true, emissor: { select: { nome: true } } },
+  });
+  const emissorDoFi = new Map(fis.map((f) => [f.id, f.emissor?.nome ?? null]));
   const noPluggy = new Set(investimentos.map((i) => i.id));
   const nossosIds = new Set(nossos.map((n) => n.providerInvestmentId));
   console.log(`\n== bank_investments (${nossos.length})`);
   for (const n of nossos) {
     const marca = noPluggy.has(n.providerInvestmentId) ? '' : '  <- não está mais no Pluggy';
     console.log(`  ${n.type}/${n.subtype ?? '-'} ${n.name} → ${n.importStatus}${marca}`);
+    if (n.type === 'FIXED_INCOME') {
+      const casado = casarEmissor(indice, { cnpj: n.issuerCnpj, nome: n.issuer });
+      const gravado = n.fixedIncomeAssetId
+        ? (emissorDoFi.get(n.fixedIncomeAssetId) ?? 'usar a corretora')
+        : '-';
+      console.log(
+        `    emissor=${n.issuer ?? '-'} cnpjEmissor=${n.issuerCnpj ?? '-'} casamento=${casado ? `${casado.nome} (${casado.via})` : '-'} gravado=${gravado}`,
+      );
+    }
   }
   const faltando = investimentos.filter((i) => !nossosIds.has(i.id));
   console.log(`\nno Pluggy e não em bank_investments: ${faltando.length}`);

@@ -9,6 +9,8 @@ import { normalizarBusca } from '@/lib/instituicoes/normalizarNome';
 const LIMIT_PADRAO = 200;
 const LIMIT_MAXIMO = 500;
 const BUSCA_MAXIMA = 100;
+/** Prefixo do codigo das linhas criadas pelo import do Bacen (scripts/instituicoes/importar-bacen.ts). */
+const PREFIXO_BACEN = 'BCB-';
 
 // translate() tira o acento sem depender da extensão unaccent; maiúsculas acentuadas entram
 // porque lower() de não-ASCII depende do locale do banco.
@@ -71,11 +73,23 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     });
   }
 
-  const institutions = await prisma.institution.findMany({
-    where: { AND: filtros },
+  // As linhas do catálogo do app (nomes amigáveis, as corretoras que os usuários usam) vêm
+  // antes das ~1.600 criadas pelo import do Bacen (codigo BCB-*), que só completam o limite.
+  const doCatalogo = await prisma.institution.findMany({
+    where: { AND: [...filtros, { NOT: { codigo: { startsWith: PREFIXO_BACEN } } }] },
     take: limit,
     orderBy: { nome: 'asc' },
   });
+  const institutions =
+    doCatalogo.length < limit
+      ? doCatalogo.concat(
+          await prisma.institution.findMany({
+            where: { AND: [...filtros, { codigo: { startsWith: PREFIXO_BACEN } }] },
+            take: limit - doCatalogo.length,
+            orderBy: { nome: 'asc' },
+          }),
+        )
+      : doCatalogo;
 
   return NextResponse.json({
     success: true,

@@ -41,6 +41,13 @@ import { recalculatePortfolioFromTransactions } from '@/services/portfolio/portf
 import { syncDividaRecordToCashflow } from '@/services/dividas/dividaCashflowSync';
 import { gerarCronograma } from '@/services/dividas/amortizacao';
 import { FUNDO_TYPES_ALL } from '@/lib/fundoTypes';
+import { SUBTIPOS_PLUGGY_COM_EMISSOR } from '@/lib/fgc/produtosCobertos';
+import { somenteDigitos } from '@/lib/instituicoes/cnpj';
+import {
+  carregarIndiceEmissores,
+  casarEmissor,
+  type IndiceEmissores,
+} from '@/services/instituicoes/casarEmissor';
 import { tipoAssetFundoPluggy, tipoFiiImportado } from './secaoImportada';
 
 export const NOTA_IMPORTACAO = 'Importado do banco (Open Finance)';
@@ -83,6 +90,8 @@ export function mapInvestment(i: Investment, connectionId: string, userId: strin
     issueDate: dt(x.issueDate),
     dueDate: dt(x.dueDate),
     issuer: (x.issuer as string | undefined) ?? null,
+    // Fora de chaveInvestimento: o CNPJ não pode mudar a identidade da posição.
+    issuerCnpj: somenteDigitos(i.issuerCNPJ ?? '') || null,
     status: (x.status as string | undefined) ?? null,
     providerDate: dt(x.date),
     ativo: true,
@@ -398,10 +407,34 @@ async function marcar(
   else await prisma.bankLoan.update({ where: { id }, data });
 }
 
-/** Importa uma posição de investimento pendente. Devolve o status final. */
+/** A renda fixa do Pluggy tem banco emissor para casar com o catálogo (FGC)? */
+export function rendaFixaComEmissor(inv: Pick<BankInvestment, 'type' | 'subtype'>): boolean {
+  return (
+    inv.type === 'FIXED_INCOME' && !!inv.subtype && SUBTIPOS_PLUGGY_COM_EMISSOR.has(inv.subtype)
+  );
+}
+
+/** Índice do catálogo, best-effort: falha ao ler não impede a importação (emissor fica null). */
+async function indiceEmissoresSeguro(): Promise<IndiceEmissores | null> {
+  try {
+    return await carregarIndiceEmissores(prisma);
+  } catch (error: unknown) {
+    logger.warn('[pluggy carteira] catálogo de emissores indisponível', {
+      msg: error instanceof Error ? error.message : 'erro',
+    });
+    return null;
+  }
+}
+
+/**
+ * Importa uma posição de investimento pendente. Devolve o status final.
+ * `indice`: catálogo de emissores já carregado (importarPendentes carrega uma vez); sem ele, é
+ * carregado aqui quando a posição é renda fixa com emissor. null = sem catálogo (não casa).
+ */
 export async function importarInvestimento(
   inv: BankInvestment,
   connectorId?: number | null,
+  indice?: IndiceEmissores | null,
 ): Promise<string> {
   if (inv.importStatus !== 'pendente') return inv.importStatus;
   const balance = Number(inv.balance);
@@ -571,6 +604,15 @@ export async function importarInvestimento(
       // Tesouro guarda a quantidade de títulos: o pricer usa investido/qty como PU de compra.
       const quantidade = tesouro && inv.quantity && inv.quantity > 0 ? inv.quantity : 1;
       const preco = Math.round((investido / quantidade) * 1_000_000) / 1_000_000;
+      // Banco emissor (FGC): só CDB/LC/LCI/LCA/RDB/LIG fora do Tesouro. Debênture, LF, CRI e CRA
+      // não têm emissor coberto. Sem certeza (CNPJ/nome/apelido), fica null = usar a corretora.
+      let emissorInstitutionId: string | null = null;
+      if (!tesouro && rendaFixaComEmissor(inv)) {
+        const catalogo = indice === undefined ? await indiceEmissoresSeguro() : indice;
+        emissorInstitutionId = catalogo
+          ? (casarEmissor(catalogo, { cnpj: inv.issuerCnpj, nome: inv.issuer })?.id ?? null)
+          : null;
+      }
       const r = await prisma.$transaction(async (tx) => {
         const asset = await tx.asset.create({
           data: { symbol, name: nome, type: 'bond', currency: 'BRL', source: 'pluggy' },
@@ -615,6 +657,7 @@ export async function importarInvestimento(
             taxExempt: !tesouro && ISENTOS.has(inv.subtype ?? ''),
             tesouroBondType: tesouro?.bondType ?? null,
             tesouroMaturity: tesouro?.maturity ?? null,
+            emissorInstitutionId,
           },
         });
         return { asset, port, fi };
@@ -857,8 +900,10 @@ export async function importarPendentes(userId: string): Promise<ImportacaoResul
     where: { userId, importStatus: 'pendente', ativo: true },
     include: { connection: { select: { connectorId: true } } },
   });
+  // Catálogo de emissores: carregado uma vez, só se houver renda fixa com emissor.
+  const indice = invs.some(rendaFixaComEmissor) ? await indiceEmissoresSeguro() : null;
   for (const { connection, ...inv } of invs) {
-    conta(await importarInvestimento(inv, connection?.connectorId));
+    conta(await importarInvestimento(inv, connection?.connectorId, indice));
   }
   const loans = await prisma.bankLoan.findMany({
     where: { userId, importStatus: 'pendente', ativo: true },

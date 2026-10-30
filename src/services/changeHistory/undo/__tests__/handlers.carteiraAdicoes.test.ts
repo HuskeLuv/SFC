@@ -3,8 +3,13 @@ import { NextRequest } from 'next/server';
 import type { UserChangeLog } from '@prisma/client';
 
 const mockPrisma = vi.hoisted(() => ({
-  stockTransaction: { findFirst: vi.fn(), delete: vi.fn() },
-  portfolio: { findFirst: vi.fn(), updateMany: vi.fn() },
+  stockTransaction: { findFirst: vi.fn(), delete: vi.fn(), create: vi.fn() },
+  portfolio: { findFirst: vi.fn(), updateMany: vi.fn(), create: vi.fn() },
+  asset: { findUnique: vi.fn() },
+  // Banco emissor no FI recriado (ClickUp 86e2xqh69).
+  fixedIncomeAsset: { findFirst: vi.fn(), create: vi.fn() },
+  institution: { findUnique: vi.fn() },
+  planejamentoObjetivo: { findUnique: vi.fn() },
   watchlist: { create: vi.fn() },
   cashflowItem: { findFirst: vi.fn(), delete: vi.fn() },
   cashflowValue: { deleteMany: vi.fn() },
@@ -31,6 +36,7 @@ vi.mock('@/services/portfolio/caixaParaInvestir', async (importOriginal) => ({
 }));
 
 import { CARTEIRA_UNDO_HANDLERS } from '../handlers/carteira';
+import { buildAtivoSnapshot, buildTransacaoSnapshot } from '../../snapshots';
 import { UndoError } from '../types';
 import type { UndoContext } from '../types';
 
@@ -392,5 +398,97 @@ describe('operacao.registrar que ABSORVEU um planejado', () => {
     await CARTEIRA_UNDO_HANDLERS['operacao.registrar'].execute(ctx(makeEntry({})));
     expect(mockPrisma.watchlist.create).not.toHaveBeenCalled();
     expect(mockPrisma.portfolio.findFirst).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('Desfazer exclusão mantém o banco emissor da renda fixa (86e2xqh69)', () => {
+  const fiRow = {
+    type: 'CDB_PRE',
+    description: 'CDB Banco XP 2028',
+    startDate: new Date('2026-01-10T00:00:00Z'),
+    maturityDate: new Date('2028-01-10T00:00:00Z'),
+    investedAmount: 10000,
+    annualRate: 14.35,
+    indexer: 'PRE',
+    indexerPercent: null,
+    liquidityType: null,
+    taxExempt: false,
+    tesouroBondType: null,
+    tesouroMaturity: null,
+    emissorInstitutionId: 'inst-bxp',
+  };
+  const portfolioMeta = {
+    id: 'port-rf',
+    assetId: 'asset-rf',
+    objetivo: 0,
+    estrategia: null,
+    tipoFii: null,
+    regiaoEtf: null,
+    planejamentoObjetivoId: null,
+    vinculoAposentadoria: false,
+  };
+  const txRow = {
+    id: 'tx-rf',
+    assetId: 'asset-rf',
+    type: 'compra',
+    quantity: 1,
+    price: 10000,
+    total: 10000,
+    date: new Date('2026-01-10T00:00:00Z'),
+    fees: 0,
+    notes: JSON.stringify({ operation: { instituicaoId: 'inst-btg' } }),
+  };
+
+  beforeEach(() => {
+    mockPrisma.asset.findUnique.mockResolvedValue({ id: 'asset-rf' });
+    mockPrisma.fixedIncomeAsset.findFirst.mockResolvedValue(null);
+    mockPrisma.portfolio.create.mockResolvedValue({ id: 'port-rf' });
+  });
+
+  it('o snapshot da transação leva o emissor', () => {
+    const snap = buildTransacaoSnapshot(txRow, { portfolio: portfolioMeta, fixedIncome: fiRow });
+    expect((snap.meta?.fixedIncome as { emissorInstitutionId: string }).emissorInstitutionId).toBe(
+      'inst-bxp',
+    );
+  });
+
+  it('transacao.excluir: o FI recriado mantém o emissor', async () => {
+    mockPrisma.portfolio.findFirst.mockResolvedValue(null);
+    mockPrisma.institution.findUnique.mockResolvedValue({ id: 'inst-bxp' });
+    const snapshot = buildTransacaoSnapshot(txRow, {
+      portfolio: portfolioMeta,
+      fixedIncome: fiRow,
+    });
+    await CARTEIRA_UNDO_HANDLERS['transacao.excluir'].execute(
+      ctx(makeEntry({ action: 'transacao.excluir', entityId: 'tx-rf', snapshot })),
+    );
+    expect(mockPrisma.fixedIncomeAsset.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ type: 'CDB_PRE', emissorInstitutionId: 'inst-bxp' }),
+    });
+  });
+
+  it('ativo.remover: emissor apagado do catálogo vira null (fallback corretora)', async () => {
+    mockPrisma.portfolio.findFirst.mockResolvedValue(null);
+    mockPrisma.institution.findUnique.mockResolvedValue(null);
+    const snapshot = buildAtivoSnapshot(portfolioMeta, [txRow], fiRow)!;
+    await CARTEIRA_UNDO_HANDLERS['ativo.remover'].execute(
+      ctx(makeEntry({ action: 'ativo.remover', entityId: 'port-rf', snapshot })),
+    );
+    expect(mockPrisma.fixedIncomeAsset.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ emissorInstitutionId: null }),
+    });
+  });
+
+  it('snapshot antigo (sem emissor) recria o FI sem emissor, sem consultar o catálogo', async () => {
+    mockPrisma.portfolio.findFirst.mockResolvedValue(null);
+    const { emissorInstitutionId: _semEmissor, ...fiAntigo } = fiRow;
+    const snapshot = buildAtivoSnapshot(portfolioMeta, [txRow], fiAntigo)!;
+    await CARTEIRA_UNDO_HANDLERS['ativo.remover'].execute(
+      ctx(makeEntry({ action: 'ativo.remover', entityId: 'port-rf', snapshot })),
+    );
+    expect(mockPrisma.institution.findUnique).not.toHaveBeenCalled();
+    expect(mockPrisma.fixedIncomeAsset.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ emissorInstitutionId: null }),
+    });
   });
 });

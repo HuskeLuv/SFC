@@ -6,6 +6,8 @@ import { isCorporateActionAuditTx } from '@/services/portfolio/corporateActions'
 import { posicaoEmDolar } from '@/lib/ativoEmDolar';
 
 import { withErrorHandler } from '@/utils/apiErrorHandler';
+import { aceitaEmissor, ehInstituicaoEmissora } from '@/lib/fgc/produtosCobertos';
+
 const tipoOperacaoMap: Record<string, string> = {
   compra: 'Aporte',
   venda: 'Resgate',
@@ -21,6 +23,57 @@ const parseInstituicaoIdFromNotes = (notes: string | null): string | null => {
     return null;
   }
 };
+
+type EmissorInfo = {
+  emissor: { id: string; nome: string; cnpj: string | null; cnpjCalculado: boolean } | null;
+  aceitaEmissor: boolean;
+  /** Texto do emissor que o Open Finance mandou e não casou com o catálogo. */
+  emissorInformadoOpenFinance: string | null;
+};
+
+const SEM_EMISSOR: EmissorInfo = {
+  emissor: null,
+  aceitaEmissor: false,
+  emissorInformadoOpenFinance: null,
+};
+
+async function carregarEmissor(
+  userId: string,
+  assetId: string | null,
+  symbol: string,
+): Promise<EmissorInfo> {
+  if (!assetId) return SEM_EMISSOR;
+  const fi = await prisma.fixedIncomeAsset.findFirst({
+    where: { userId, assetId },
+    select: {
+      id: true,
+      type: true,
+      tesouroBondType: true,
+      emissor: { select: { id: true, nome: true, cnpj: true, cnpjCalculado: true } },
+    },
+  });
+  if (!fi) return SEM_EMISSOR;
+  const doPluggy = /^PLUGGY-RF-/i.test(symbol);
+  const bankInvestment = doPluggy
+    ? await prisma.bankInvestment.findFirst({
+        where: { userId, fixedIncomeAssetId: fi.id },
+        select: { subtype: true, issuer: true },
+      })
+    : null;
+  const aceita = aceitaEmissor({
+    type: fi.type,
+    tesouroBondType: fi.tesouroBondType,
+    assetSymbol: symbol,
+    pluggySubtype: bankInvestment?.subtype ?? null,
+  });
+  if (!aceita) return SEM_EMISSOR;
+  return {
+    emissor: fi.emissor,
+    aceitaEmissor: true,
+    emissorInformadoOpenFinance:
+      !fi.emissor && bankInvestment?.issuer?.trim() ? bankInvestment.issuer.trim() : null,
+  };
+}
 
 export const GET = withErrorHandler(
   async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
@@ -48,6 +101,7 @@ export const GET = withErrorHandler(
 
     let instituicaoId: string | null = null;
     let instituicaoNome: string | null = null;
+    let corretoraEmissora: boolean | null = null;
     for (const tx of transactions) {
       const instId = parseInstituicaoIdFromNotes(tx.notes);
       if (instId) {
@@ -55,10 +109,14 @@ export const GET = withErrorHandler(
         if (inst) {
           instituicaoId = inst.id;
           instituicaoNome = inst.nome;
+          corretoraEmissora = ehInstituicaoEmissora(inst);
           break;
         }
       }
     }
+
+    // Banco emissor da renda fixa coberta pelo FGC (ClickUp 86e2xqh69).
+    const emissorInfo = await carregarEmissor(targetUserId, portfolio.assetId, ticker);
 
     const comprasAsc = [...transactions]
       .filter((t) => t.type === 'compra')
@@ -127,6 +185,9 @@ export const GET = withErrorHandler(
       nome,
       instituicaoNome,
       instituicaoId,
+      ...emissorInfo,
+      // ehInstituicaoEmissora da corretora atual: false = corretora pura/IP (aviso âmbar).
+      corretoraEmissora,
       // Vínculo com planejamento (Portfolio) — editável na página.
       vinculoPlanejamento: portfolio.vinculoAposentadoria
         ? { tipo: 'aposentadoria' as const, objetivoId: null }

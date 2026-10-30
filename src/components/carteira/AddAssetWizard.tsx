@@ -6,7 +6,13 @@ import { useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '@/lib/queryKeys';
 import Sidebar from '@/components/ui/sidebar/Sidebar';
 import Button from '@/components/ui/button/Button';
-import { WizardFormData, WizardErrors, WizardStep, TIPOS_ATIVO } from '@/types/wizard';
+import {
+  WizardFormData,
+  WizardErrors,
+  WizardStep,
+  TIPOS_ATIVO,
+  rendaFixaPedeEmissor,
+} from '@/types/wizard';
 import Step1AssetType from './wizard/Step1AssetType';
 import Step2Institution from './wizard/Step2Institution';
 import Step3Asset from './wizard/Step3Asset';
@@ -70,6 +76,12 @@ const INITIAL_FORM_DATA: WizardFormData = {
   rendaFixaTaxExempt: false,
   instituicao: '',
   instituicaoId: '',
+  instituicaoTipoBacen: null,
+  instituicaoCnpjRotulo: '',
+  emissorInstituicaoId: '',
+  emissorInstituicaoNome: '',
+  emissorInstituicaoCnpjRotulo: '',
+  emissorEditado: false,
   ativo: '',
   assetId: '',
   dataCompra: '',
@@ -86,8 +98,6 @@ const INITIAL_FORM_DATA: WizardFormData = {
   taxaFixaAnual: 0,
   percentualCDI: 0,
   indexador: '',
-  emissor: '',
-  emissorId: '',
   periodo: '',
   descricao: '',
   observacoes: '',
@@ -176,6 +186,53 @@ export function aplicarPreset(preset: AddAssetWizardPreset): {
   };
   const stepId = !assetId ? 'asset' : preset.operacao === 'planejar' ? 'info' : 'institution';
   return { formData, stepId };
+}
+
+/** Erro de quem tenta avançar a renda fixa coberta sem banco emissor. */
+export const ERRO_EMISSOR_OBRIGATORIO = 'Escolha o banco emissor na lista.';
+
+/**
+ * Aplica uma mudança do formulário. Quando a corretora (instituicaoId) muda, o banco emissor
+ * acompanha enquanto o usuário não o trocou, ou enquanto ainda é igual à corretora anterior.
+ * Depois de trocado para outro banco, o emissor fica.
+ */
+export function mesclarFormData(
+  prev: WizardFormData,
+  newData: Partial<WizardFormData>,
+): WizardFormData {
+  const next = { ...prev, ...newData };
+  const corretoraMudou =
+    newData.instituicaoId !== undefined && newData.instituicaoId !== prev.instituicaoId;
+  if (!corretoraMudou) return next;
+  const emissorSegueCorretora =
+    !prev.emissorEditado ||
+    !prev.emissorInstituicaoId ||
+    prev.emissorInstituicaoId === prev.instituicaoId;
+  if (!emissorSegueCorretora) return next;
+  return {
+    ...next,
+    emissorInstituicaoId: next.instituicaoId,
+    emissorInstituicaoNome: next.instituicao,
+    emissorInstituicaoCnpjRotulo: next.instituicaoCnpjRotulo,
+    emissorEditado: false,
+  };
+}
+
+/**
+ * Corpo do POST /api/carteira/operacao: tira os campos que só servem à tela e manda
+ * emissorInstituicaoId só na renda fixa coberta pelo FGC (contrato da fatia B).
+ */
+export function corpoOperacao(apiFormData: WizardFormData, pedeEmissor: boolean) {
+  const {
+    emissorInstituicaoId,
+    emissorInstituicaoNome: _emissorNome,
+    emissorInstituicaoCnpjRotulo: _emissorRotulo,
+    emissorEditado: _emissorEditado,
+    instituicaoTipoBacen: _tipoBacen,
+    instituicaoCnpjRotulo: _instituicaoRotulo,
+    ...resto
+  } = apiFormData;
+  return pedeEmissor && emissorInstituicaoId ? { ...resto, emissorInstituicaoId } : resto;
 }
 
 function getVisibleStepIds(formData: WizardFormData): string[] {
@@ -393,6 +450,8 @@ export default function AddAssetWizard({
             ? true
             : !!formData.rendaFixaIndexer && ['CDI', 'IPCA'].includes(formData.rendaFixaIndexer);
 
+        const isEmissorValido = !rendaFixaPedeEmissor(formData) || !!formData.emissorInstituicaoId;
+
         return !!(
           formData.rendaFixaTipo &&
           dataInicio &&
@@ -401,7 +460,8 @@ export default function AddAssetWizard({
           isTaxaFixaValida &&
           formData.descricao &&
           hasValidDates &&
-          isIndexerValid
+          isIndexerValid &&
+          isEmissorValido
         );
       }
 
@@ -690,7 +750,19 @@ export default function AddAssetWizard({
     }
   };
 
+  // Renda fixa coberta sem banco emissor: o Avançar fica ativo e o clique mostra o erro no campo
+  // (o botão travado não diria o que falta).
+  const faltaEmissor =
+    currentStepId === 'info' &&
+    formData.operacao === 'compra' &&
+    rendaFixaPedeEmissor(formData) &&
+    !formData.emissorInstituicaoId;
+
   const handleNext = () => {
+    if (faltaEmissor) {
+      setErrors((prev) => ({ ...prev, emissorInstituicaoId: ERRO_EMISSOR_OBRIGATORIO }));
+      return;
+    }
     // Ao sair do passo de Informações (onde a cotação é digitada) com
     // divergência de preço não confirmada, abre o popup em vez de avançar.
     if (currentStepId === 'info' && hasHistoricClose && !isPriceConfirmed) {
@@ -723,7 +795,7 @@ export default function AddAssetWizard({
   };
 
   const handleFormDataChange = useCallback((newData: Partial<WizardFormData>) => {
-    setFormData((prev) => ({ ...prev, ...newData }));
+    setFormData((prev) => mesclarFormData(prev, newData));
   }, []);
 
   const handleErrorsChange = useCallback((newErrors: Partial<WizardErrors>) => {
@@ -859,7 +931,7 @@ export default function AddAssetWizard({
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(apiFormData),
+        body: JSON.stringify(corpoOperacao(apiFormData, rendaFixaPedeEmissor(formData))),
       });
 
       if (response.ok) {
@@ -929,7 +1001,7 @@ export default function AddAssetWizard({
   };
 
   const currentStepMeta = steps.find((step) => step.id === currentStepId);
-  const canProceed = currentStepMeta?.isValid || false;
+  const canProceed = currentStepMeta?.isValid || faltaEmissor;
   const isLastStep = currentStep === visibleStepIds.length - 1;
   const isPlanejar = formData.operacao === 'planejar';
   const submitLabel = loading ? 'Salvando...' : isPlanejar ? 'Planejar' : 'Confirmar';
