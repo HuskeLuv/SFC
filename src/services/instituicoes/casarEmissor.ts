@@ -5,8 +5,8 @@
  * 1. A raiz do issuerCNPJ bate com a raiz do cnpj de um registro. Com vários registros na mesma
  *    raiz, prefere o que emite (tipoBacen emissor), depois o tipo desconhecido, depois o mais
  *    antigo (e o id, para desempatar de forma determinística).
- * 2. Senão, o nome normalizado do issuer é igual ao nome normalizado ou a um apelido de
- *    EXATAMENTE um registro que pode emitir (ehInstituicaoEmissora !== false).
+ * 2. Senão, o nome normalizado do issuer é igual ao nome normalizado ou a um apelido (a frase
+ *    inteira, nunca uma palavra dela) de EXATAMENTE um registro que pode emitir (ehInstituicaoEmissora !== false).
  * 3. Senão, null.
  *
  * Também traz a seleção pura do backfill (scripts/pluggy/backfill-emissor-rf.ts): o FI cujo
@@ -15,7 +15,8 @@
 import type { PrismaClient } from '@prisma/client';
 import { aceitaEmissor, ehInstituicaoEmissora } from '@/lib/fgc/produtosCobertos';
 import { cnpjRaiz } from '@/lib/instituicoes/cnpj';
-import { normalizarBusca, normalizarNomeInstituicao } from '@/lib/instituicoes/normalizarNome';
+import { normalizarNomeInstituicao } from '@/lib/instituicoes/normalizarNome';
+import { separarApelidos } from './bacen/apelidos';
 
 export interface InstituicaoIndice {
   id: string;
@@ -30,7 +31,7 @@ export interface InstituicaoIndice {
 export interface IndiceEmissores {
   /** raiz do CNPJ (8 dígitos) → registros, já na ordem de preferência. */
   porRaiz: Map<string, InstituicaoIndice[]>;
-  /** nome normalizado ou apelido → registros que podem emitir. */
+  /** nome normalizado ou frase de apelido → registros que podem emitir. */
   porTermo: Map<string, InstituicaoIndice[]>;
 }
 
@@ -68,12 +69,12 @@ function adicionar(
   else if (!lista.some((i) => i.id === inst.id)) lista.push(inst);
 }
 
-/** Termos de um apelido: minúsculas, sem acento, separados por espaço. */
+/**
+ * Termos de um apelido: cada FRASE inteira, normalizada como nome ('mercado pago', 'banco j
+ * safra'). Nunca palavra solta: 'Safra' não pode casar com o Banco J. Safra pelo apelido.
+ */
 function termosApelido(apelidos: string | null): string[] {
-  return normalizarBusca(apelidos)
-    .split(' ')
-    .map((t) => t.trim())
-    .filter(Boolean);
+  return separarApelidos(apelidos).map((frase) => normalizarNomeInstituicao(frase));
 }
 
 /** Monta o índice a partir das instituições (puro). */

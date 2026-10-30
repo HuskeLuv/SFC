@@ -33,7 +33,7 @@ const catalogo: InstituicaoIndice[] = [
   inst('nu-fin', 'NU FINANCEIRA S.A. - SCFI', {
     cnpj: '30680829000143',
     tipoBacen: 'N1',
-    apelidos: 'nubank nu',
+    apelidos: 'nubank | nu',
   }),
   inst('inter-1', 'Banco Inter', { cnpj: '00416968000101' }),
   inst('inter-2', 'Banco Inter', { codigo: 'FIN-INTER2' }),
@@ -97,6 +97,23 @@ describe('casarEmissor', () => {
       nome: 'NU FINANCEIRA S.A. - SCFI',
       via: 'apelido',
     });
+  });
+
+  it('apelido casa pela frase inteira, nunca por uma palavra dela', () => {
+    const marcas = montarIndiceEmissores([
+      inst('mp', 'MERCADO CRÉDITO SCFI S.A.', { tipoBacen: 'N1', apelidos: 'mercado pago' }),
+      inst('c6', 'BANCO C6 S.A.', { tipoBacen: 'B1', apelidos: 'c6 | c6 bank' }),
+      inst('jsafra', 'Banco J. Safra S.A.', { tipoBacen: 'B1', apelidos: 'banco j safra' }),
+    ]);
+    expect(casarEmissor(marcas, { nome: 'Mercado Pago' })).toMatchObject({
+      id: 'mp',
+      via: 'apelido',
+    });
+    expect(casarEmissor(marcas, { nome: 'C6 Bank' })?.id).toBe('c6');
+    expect(casarEmissor(marcas, { nome: 'C6' })?.id).toBe('c6');
+    expect(casarEmissor(marcas, { nome: 'Safra' })).toBeNull();
+    expect(casarEmissor(marcas, { nome: 'Pago' })).toBeNull();
+    expect(casarEmissor(marcas, { nome: 'Bank' })).toBeNull();
   });
 
   it('nome que bate com 2 registros dá null', () => {
