@@ -152,6 +152,29 @@ describe('planejarImportacao', () => {
     expect(p.criar.map((c) => c.codigo)).toContain('BCB-62232889');
   });
 
+  it('banco com nome só de palavras genéricas casa pelo cnpj no segundo run', () => {
+    const reg = {
+      raiz: '33222241',
+      nome: 'BANCO NACIONAL DE INVESTIMENTOS S.A.',
+      tcb: 'B2',
+      segmento: 'Banco de Investimento',
+      conglomerado: null,
+    };
+    const p = planejarImportacao({
+      existentes: [
+        inst('BCB-33222241', 'BANCO NACIONAL DE INVESTIMENTOS S.A.', cnpjMatriz('33222241'), {
+          tipoBacen: 'B2',
+          cnpjCalculado: true,
+        }),
+      ],
+      registros: [reg],
+      participantes: new Map(),
+    });
+    expect(p.ambiguos).toEqual([]);
+    expect(p.casamentos[0]).toMatchObject({ regra: 'cnpj', nomeEmComum: true });
+    expect(p.resumo.totalMudancas).toBe(0);
+  });
+
   it('cnpj sem nome em comum fora desse caso casa, marcado para conferir', () => {
     expect(plano.casamentos.find((c) => c.id === 'id-FIN-NUBANK')).toMatchObject({
       regra: 'cnpj',

@@ -415,7 +415,7 @@ export function planejarImportacao(entrada: EntradaPlano): PlanoImportacao {
       if (
         nomeDeCorretora &&
         (TIPOS_BACEN_EMISSORES as readonly string[]).includes(reg.tcb) &&
-        tokensEmComum(inst.nome, raiz).length === 0
+        !nomeBate(inst.nome, raiz)
       ) {
         ambiguo(
           inst,
@@ -443,7 +443,7 @@ export function planejarImportacao(entrada: EntradaPlano): PlanoImportacao {
       const raiz = raizPorCompe.get(codigo);
       const reg = raiz ? registroPorRaiz.get(raiz) : undefined;
       if (raiz && reg) {
-        if (tokensEmComum(inst.nome, raiz).length > 0) {
+        if (nomeBate(inst.nome, raiz)) {
           if (nomeDeCorretora && (reg.tcb === 'B1' || reg.tcb === 'B2')) {
             ambiguo(
               inst,
