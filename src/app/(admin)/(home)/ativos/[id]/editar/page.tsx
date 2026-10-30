@@ -2,8 +2,8 @@
 
 import { logger } from '@/lib/logger';
 
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
 import ProtectedRoute from '@/components/auth/ProtectedRoute';
@@ -17,6 +17,7 @@ import { DropdownItem } from '@/components/ui/dropdown/DropdownItem';
 import EditableField from '@/components/carteira/shared/EditableField';
 import InstitutionPicker from '@/components/carteira/wizard/shared/InstitutionPicker';
 import { invalidatePortfolioDerivedQueries } from '@/lib/invalidatePortfolio';
+import { rotuloCnpj } from '@/lib/instituicoes/cnpj';
 import { useObjetivos } from '@/hooks/usePlanejamentoSonhos';
 import { formatWallClockDate, toDateInputValue } from '@/utils/formatDate';
 import { formatAssetDisplayTitle } from '@/utils/assetDisplayName';
@@ -182,6 +183,14 @@ interface EditarPayload {
   nome: string;
   instituicaoNome: string | null;
   instituicaoId: string | null;
+  /** Banco emissor da RF coberta pelo FGC (ClickUp 86e2xqh69); null = usa a corretora. */
+  emissor?: { id: string; nome: string; cnpj: string | null; cnpjCalculado: boolean } | null;
+  /** O investimento tem banco emissor para o FGC (CDB, LCI, LCA...)? */
+  aceitaEmissor?: boolean;
+  /** A corretora atual emite? false = corretora pura/instituição de pagamento. */
+  corretoraEmissora?: boolean | null;
+  /** Texto do emissor que o Open Finance mandou e não casou com o catálogo. */
+  emissorInformadoOpenFinance?: string | null;
   vinculoPlanejamento: { tipo: 'sonho' | 'aposentadoria'; objetivoId: string | null } | null;
   movimentacaoInicial: {
     id: string;
@@ -347,9 +356,244 @@ const InstitutionSelect: React.FC<{
   );
 };
 
+/** Mensagem da busca sem resultado no picker do emissor. */
+const emissorVazio = (busca: string) =>
+  `Nenhum banco encontrado para “${busca.trim()}”. Confira o nome na nota de negociação ou busque pelo CNPJ.`;
+
+const BOTAO_SECUNDARIO =
+  'inline-flex min-h-11 items-center rounded-md px-2 text-sm font-medium transition-colors hover:bg-gray-100 disabled:opacity-60 dark:hover:bg-gray-800';
+
+/**
+ * Banco emissor da renda fixa coberta pelo FGC (ClickUp 86e2xqh69), no molde do
+ * InstitutionSelect: botão com o nome, o CNPJ e "Editar"; ou "Não informado" + "Informar
+ * emissor". Escolher na lista salva na hora; "Usar a corretora" manda null. O deep link
+ * ?editar=emissor (Cobertura FGC) abre já editando, com foco no campo.
+ */
+const EmissorSelect: React.FC<{
+  emissor: { id: string; nome: string; cnpj: string | null; cnpjCalculado: boolean } | null;
+  corretoraNome: string | null;
+  corretoraId: string | null;
+  corretoraEmissora: boolean | null;
+  informadoOpenFinance: string | null;
+  abrirAoMontar: boolean;
+  onAberto: () => void;
+  /** Devolve a mensagem de erro, ou null quando salvou. */
+  onChange: (id: string | null) => Promise<string | null>;
+}> = ({
+  emissor,
+  corretoraNome,
+  corretoraId,
+  corretoraEmissora,
+  informadoOpenFinance,
+  abrirAoMontar,
+  onAberto,
+  onChange,
+}) => {
+  const [isEditing, setIsEditing] = useState(abrirAoMontar);
+  const [saving, setSaving] = useState(false);
+  const [draftId, setDraftId] = useState<string>(emissor?.id ?? '');
+  const [draftNome, setDraftNome] = useState<string>(emissor?.nome ?? '');
+  const [erro, setErro] = useState<string | null>(null);
+  const [aviso, setAviso] = useState<string | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const focarTriggerRef = useRef(false);
+
+  // Picker aberto (clique ou deep link): foco no campo e rola até ele.
+  useEffect(() => {
+    if (!isEditing) return;
+    const input = document.getElementById('emissor') as HTMLInputElement | null;
+    input?.focus({ preventScroll: true });
+    containerRef.current?.scrollIntoView?.({ block: 'center' });
+  }, [isEditing]);
+
+  // O deep link vale uma vez (a página não reabre o picker numa recarga).
+  useEffect(() => {
+    if (abrirAoMontar) onAberto();
+  }, [abrirAoMontar, onAberto]);
+
+  // Depois de salvar ou cancelar, o foco volta para "Editar" / "Informar emissor".
+  useEffect(() => {
+    if (!isEditing && focarTriggerRef.current) {
+      focarTriggerRef.current = false;
+      triggerRef.current?.focus();
+    }
+  }, [isEditing, emissor]);
+
+  useEffect(() => {
+    if (!aviso) return;
+    const timer = setTimeout(() => setAviso(null), 6000);
+    return () => clearTimeout(timer);
+  }, [aviso]);
+
+  const abrir = () => {
+    setDraftId(emissor?.id ?? '');
+    setDraftNome(emissor?.nome ?? '');
+    setErro(null);
+    setAviso(null);
+    setIsEditing(true);
+  };
+
+  const fechar = () => {
+    focarTriggerRef.current = true;
+    setIsEditing(false);
+  };
+
+  const salvar = async (novoId: string | null, novoNome: string | null) => {
+    setSaving(true);
+    setErro(null);
+    try {
+      const falha = await onChange(novoId);
+      if (falha) {
+        setErro(falha);
+        return;
+      }
+      setAviso(
+        novoNome
+          ? `Emissor atualizado. A Cobertura FGC já considera o ${novoNome.replace(/\.$/, '')}.`
+          : `Emissor removido. A Cobertura FGC volta a usar a corretora${
+              corretoraNome ? ` (${corretoraNome})` : ''
+            }.`,
+      );
+      fechar();
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handlePickerChange = async (next: { id: string; nome: string }) => {
+    setDraftId(next.id);
+    setDraftNome(next.nome);
+    // Salva só quando o usuário ESCOLHE na lista; digitar só atualiza o rascunho.
+    if (!next.id) return;
+    if (next.id === emissor?.id) {
+      fechar();
+      return;
+    }
+    await salvar(next.id, next.nome);
+  };
+
+  const corretoraComoEmissor =
+    !!emissor && corretoraEmissora === false && emissor.id === corretoraId;
+  const cnpj = emissor ? rotuloCnpj(emissor) : null;
+
+  return (
+    <div ref={containerRef} className="space-y-1">
+      {/* Ações do modo edição na linha do rótulo: abaixo do campo, a lista aberta as cobriria. */}
+      <div className="flex max-w-md flex-wrap items-center gap-x-2">
+        <label
+          htmlFor="emissor"
+          className="mr-auto block text-xs font-medium text-gray-500 dark:text-gray-400"
+        >
+          Banco emissor
+        </label>
+        {isEditing && (
+          <div className="flex items-center gap-1">
+            {emissor && (
+              <button
+                type="button"
+                onClick={() => void salvar(null, null)}
+                disabled={saving}
+                className={`${BOTAO_SECUNDARIO} text-brand-500 dark:text-brand-400`}
+              >
+                Usar a corretora
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={fechar}
+              disabled={saving}
+              className={`${BOTAO_SECUNDARIO} -mr-2 text-gray-500 hover:text-gray-700 dark:text-gray-400`}
+            >
+              Cancelar
+            </button>
+          </div>
+        )}
+      </div>
+      {isEditing ? (
+        <div className="w-full max-w-md">
+          <InstitutionPicker
+            inputId="emissor"
+            endpoint="/api/institutions?papel=emissor"
+            responseShape="institutions"
+            selectedId={draftId}
+            selectedName={draftNome}
+            onChange={handlePickerChange}
+            label=""
+            placeholder="Busque pelo nome ou CNPJ do banco"
+            emptyMessage={emissorVazio(draftNome)}
+          />
+          <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+            Escolha na lista para salvar.
+          </p>
+        </div>
+      ) : emissor ? (
+        <button
+          ref={triggerRef}
+          type="button"
+          onClick={abrir}
+          aria-label={`Editar emissor: ${emissor.nome}`}
+          className="flex min-h-11 items-center gap-2 rounded-md px-1 py-0.5 text-left text-sm font-normal text-gray-800 transition-colors hover:bg-gray-100 max-lg:text-base dark:text-gray-200 dark:hover:bg-gray-800"
+        >
+          <span className="flex flex-col">
+            <span>{emissor.nome}</span>
+            {cnpj && <span className="text-xs text-gray-500 dark:text-gray-400">{cnpj}</span>}
+          </span>
+          <span className="text-xs text-brand-500 dark:text-brand-400">Editar</span>
+        </button>
+      ) : (
+        <div className="space-y-0.5">
+          <p className="text-sm text-gray-800 max-lg:text-base dark:text-gray-200">Não informado</p>
+          <p className="max-w-md text-xs text-gray-500 dark:text-gray-400">
+            {corretoraNome
+              ? `A Cobertura FGC está usando a corretora (${corretoraNome}) para este título.`
+              : 'A Cobertura FGC não sabe em qual banco este título conta.'}
+          </p>
+          <button
+            ref={triggerRef}
+            type="button"
+            onClick={abrir}
+            className={`${BOTAO_SECUNDARIO} -ml-2 text-brand-500 dark:text-brand-400`}
+          >
+            Informar emissor
+          </button>
+        </div>
+      )}
+      {!isEditing && !emissor && informadoOpenFinance && (
+        <p className="max-w-md text-xs text-gray-500 dark:text-gray-400">
+          O Open Finance informou “{informadoOpenFinance}”.
+        </p>
+      )}
+      {!isEditing && corretoraComoEmissor && (
+        <p className="max-w-md text-xs text-amber-700 dark:text-[#FBBF24]">
+          Corretoras normalmente não emitem CDB. Confira o banco emissor na nota de negociação.
+        </p>
+      )}
+      {erro && (
+        <p role="alert" className="max-w-md text-xs text-[#D92D20] dark:text-[#F97066]">
+          {erro}
+        </p>
+      )}
+      <p
+        role="status"
+        className={
+          aviso
+            ? 'max-w-md rounded-lg border border-[#DCE6F2] bg-[#EDF2F8] px-3 py-2 text-xs text-gray-700 dark:border-gray-700 dark:bg-white/5 dark:text-gray-300'
+            : 'sr-only'
+        }
+      >
+        {aviso ?? ''}
+      </p>
+    </div>
+  );
+};
+
 const AtivoEditarContent = () => {
   const params = useParams();
   const router = useRouter();
+  const searchParams = useSearchParams();
+  // Deep link da Cobertura FGC (?editar=emissor): abre o picker do emissor uma vez.
+  const [abrirEmissor, setAbrirEmissor] = useState(searchParams?.get('editar') === 'emissor');
   const { csrfFetch } = useCsrf();
   const queryClient = useQueryClient();
   const id = params?.id as string;
@@ -466,6 +710,36 @@ const AtivoEditarContent = () => {
       } catch (err) {
         logger.error('Erro de rede ao atualizar instituição:', err);
         setError('Erro de rede ao salvar instituição');
+      }
+    },
+    [id, loadData, csrfFetch, queryClient],
+  );
+
+  /**
+   * Banco emissor (ClickUp 86e2xqh69): PATCH {emissorInstituicaoId} (null = usar a corretora).
+   * Sem recálculo (quantidade e preço não mudam); recarga silenciosa para o foco voltar ao
+   * botão. Devolve a mensagem de erro, ou null quando salvou.
+   */
+  const handleUpdateEmissor = useCallback(
+    async (emissorInstituicaoId: string | null): Promise<string | null> => {
+      if (!id) return 'Ativo não encontrado';
+      try {
+        const res = await csrfFetch(`/api/ativos/${id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ emissorInstituicaoId }),
+        });
+        if (!res.ok) {
+          const errBody = await res.json().catch(() => ({}));
+          logger.error('Erro ao salvar emissor:', res.status, errBody);
+          return (errBody as { error?: string }).error || 'Não foi possível salvar o emissor.';
+        }
+        invalidatePortfolioDerivedQueries(queryClient);
+        await loadData({ silent: true });
+        return null;
+      } catch (err) {
+        logger.error('Erro de rede ao atualizar emissor:', err);
+        return 'Erro de rede ao salvar o emissor.';
       }
     },
     [id, loadData, csrfFetch, queryClient],
@@ -1066,7 +1340,8 @@ const AtivoEditarContent = () => {
             <div className="p-4 sm:p-6">
               <div className="space-y-1">
                 <p className="text-xs font-medium text-gray-500 dark:text-gray-400">
-                  Instituição financeira
+                  {/* RF coberta pelo FGC separa corretora e emissor; o resto segue igual. */}
+                  {data.aceitaEmissor ? 'Corretora' : 'Instituição financeira'}
                 </p>
                 <InstitutionSelect
                   currentId={data.instituicaoId}
@@ -1074,6 +1349,21 @@ const AtivoEditarContent = () => {
                   onChange={handleUpdateInstituicao}
                 />
               </div>
+
+              {data.aceitaEmissor && (
+                <div className="mt-4" data-campo="emissor">
+                  <EmissorSelect
+                    emissor={data.emissor ?? null}
+                    corretoraNome={data.instituicaoNome}
+                    corretoraId={data.instituicaoId}
+                    corretoraEmissora={data.corretoraEmissora ?? null}
+                    informadoOpenFinance={data.emissorInformadoOpenFinance ?? null}
+                    abrirAoMontar={abrirEmissor}
+                    onAberto={() => setAbrirEmissor(false)}
+                    onChange={handleUpdateEmissor}
+                  />
+                </div>
+              )}
 
               <div className="mt-4 space-y-1">
                 <p className="text-xs font-medium text-gray-500 dark:text-gray-400">
