@@ -11,6 +11,7 @@ import {
   type PlanoImportacao,
 } from '../planejarImportacao';
 import { juntarApelidos, separarApelidos } from '../apelidos';
+import { MAPA_MANUAL_PADRAO } from '../mapaManualPadrao';
 import { cnpjMatriz } from '@/lib/instituicoes/cnpj';
 
 const FIX = path.join(__dirname, 'fixtures');
@@ -286,6 +287,29 @@ describe('planejarImportacao', () => {
     expect(p.preencherTipo).toContainEqual(expect.objectContaining({ id: 'id-066', valor: 'B1' }));
     expect(ids(p.ambiguos)).not.toContain('id-066');
     expect(p.criar.map((c) => c.codigo)).not.toContain('BCB-02801938');
+  });
+
+  it('mapa padrão: Bradesco BBI e Banco Master sem cnpj ganham a raiz; N26 vira NAO_EMISSOR', () => {
+    const p = planejar(
+      [
+        inst('237-BBI', 'Bradesco BBI'),
+        inst('243', 'Banco Master'),
+        inst('FIN-N26', 'N26 Brasil'),
+        inst('FIN-WILL', 'Will Bank'),
+      ],
+      MAPA_MANUAL_PADRAO,
+    );
+    expect(p.preencherCnpj).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: 'id-237-BBI', valor: cnpjMatriz('06271464') }),
+        expect.objectContaining({ id: 'id-243', valor: cnpjMatriz('33923798') }),
+        expect.objectContaining({ id: 'id-FIN-WILL', valor: cnpjMatriz('23862762') }),
+      ]),
+    );
+    expect(p.marcarNaoEmissor).toEqual([
+      expect.objectContaining({ id: 'id-FIN-N26', motivo: 'mapa' }),
+    ]);
+    expect(p.ambiguos).toEqual([]);
   });
 
   it('mapa manual inválido vai para ambíguos', () => {

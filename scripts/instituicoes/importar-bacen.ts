@@ -16,7 +16,8 @@
  *   --anomes=AAAAMM    trimestre do IF.data (padrão: o último com dados, até 4 para trás)
  *   --ifdata=arq.json  IF.data baixado à mão (resposta do Olinda ou lista) em vez da API
  *   --str=arq.csv      ParticipantesSTR.csv baixado à mão em vez do site do Bacen
- *   --mapa=mapa.json   {"<codigo>": "<raiz de 8 dígitos>" | "NAO_EMISSOR"} — sempre vence
+ *   --mapa=mapa.json   {"<codigo>": "<raiz de 8 dígitos>" | "NAO_EMISSOR"} — soma ao mapa padrão
+ *                      (bacen/mapaManualPadrao.ts) e sempre vence
  *   --saida=rel.json   relatório (+ rel.json.reverter.sql com a reversão campo a campo)
  *
  * Reverter: rodar as instruções do .reverter.sql (cada campo só nos ids que o import preencheu;
@@ -41,6 +42,7 @@ import {
   type MapaManual,
   type PlanoImportacao,
 } from '../../src/services/instituicoes/bacen/planejarImportacao';
+import { MAPA_MANUAL_PADRAO } from '../../src/services/instituicoes/bacen/mapaManualPadrao';
 
 const APLICAR = process.argv.includes('--apply');
 const arg = (nome: string) =>
@@ -333,10 +335,13 @@ async function main() {
   const inicio = new Date();
 
   const [ifdata, str] = await Promise.all([carregarIfData(), carregarStr()]);
-  const mapaManual = carregarMapa();
+  // O mapa padrão (src/services/instituicoes/bacen/mapaManualPadrao.ts) entra sempre; o --mapa vence.
+  const mapaManual: MapaManual = { ...MAPA_MANUAL_PADRAO, ...carregarMapa() };
   console.log(`IF.data: ${ifdata.origem} → ${ifdata.registros.length} ativas`);
   console.log(`STR: ${str.origem} → ${str.participantes.size} participantes`);
-  if (MAPA_ARQ) console.log(`Mapa manual: ${MAPA_ARQ} (${Object.keys(mapaManual).length} códigos)`);
+  console.log(
+    `Mapa manual: padrão${MAPA_ARQ ? ` + ${MAPA_ARQ}` : ''} (${Object.keys(mapaManual).length} códigos)`,
+  );
 
   const existentes = await prisma.institution.findMany({
     select: {
