@@ -9,7 +9,8 @@
  * - Nunca muda nome, status nem codigo de linha existente.
  * - CNPJ preenchido só via cnpjMatriz(raiz), com cnpjCalculado=true.
  * - Casamento de linha existente, em ordem: (d) mapa manual {codigo: raiz | 'NAO_EMISSOR'};
- *   (a) cnpj com raiz no IF.data; codigo 'BCB-<raiz>' (linha criada por um import anterior);
+ *   (a) cnpj com raiz no IF.data (nome de corretora + raiz de emissor sem nome em comum →
+ *   `ambiguos`: cnpj errado no seed); codigo 'BCB-<raiz>' (linha criada por um import anterior);
  *   (b) codigo COMPE de 3 dígitos → STR → raiz, com um token forte do nome em comum (marca de
  *   corretora no nome + Tcb B1/B2 → `ambiguos`); (c) nome normalizado idêntico ao de exatamente
  *   um registro.
@@ -18,7 +19,11 @@
  *   corretora ou nome 'Reserva' recebem tipoBacen='NAO_EMISSOR' (só se o tipo for nulo).
  * - Rodar de novo sobre o resultado não muda nada.
  */
-import { CODIGO_PREFIXOS_NAO_EMISSOR, TIPO_BACEN_NAO_EMISSOR } from '@/lib/fgc/produtosCobertos';
+import {
+  CODIGO_PREFIXOS_NAO_EMISSOR,
+  TIPOS_BACEN_EMISSORES,
+  TIPO_BACEN_NAO_EMISSOR,
+} from '@/lib/fgc/produtosCobertos';
 import { cnpjMatriz, cnpjRaiz } from '@/lib/instituicoes/cnpj';
 import {
   NOME_DE_CORRETORA,
@@ -88,6 +93,8 @@ export interface Casamento {
   regra: RegraCasamento;
   nomeBacen: string | null;
   tcb: string | null;
+  /** Nome da linha tem token forte em comum com o do Bacen (false = conferir no relatório). */
+  nomeEmComum: boolean;
 }
 
 export interface Conflito {
@@ -256,6 +263,19 @@ export function planejarImportacao(entrada: EntradaPlano): PlanoImportacao {
 
   const ordenados = [...existentes].sort((a, b) => a.codigo.localeCompare(b.codigo));
 
+  /** Tokens fortes do nome da linha que aparecem no Bacen (IF.data, STR e apelidos da raiz). */
+  const tokensEmComum = (nome: string, raiz: string): string[] => {
+    const p = participantes.get(raiz);
+    const nomesBacen = [
+      registroPorRaiz.get(raiz)?.nome ?? '',
+      p?.nomeExtenso ?? '',
+      p?.nomeReduzido ?? '',
+      ...(apelidosPorRaiz[raiz] ?? []),
+    ];
+    const tokensBacen = new Set(nomesBacen.flatMap((n) => tokensFortes(n)));
+    return tokensFortes(nome).filter((t) => tokensBacen.has(t));
+  };
+
   const aplicarCasamento = (inst: InstituicaoCatalogo, raiz: string, regra: RegraCasamento) => {
     const reg = registroPorRaiz.get(raiz) ?? null;
     const base = { id: inst.id, codigo: inst.codigo, nome: inst.nome };
@@ -280,6 +300,7 @@ export function planejarImportacao(entrada: EntradaPlano): PlanoImportacao {
       regra,
       nomeBacen: reg?.nome ?? participantes.get(raiz)?.nomeExtenso ?? null,
       tcb: reg?.tcb ?? null,
+      nomeEmComum: tokensEmComum(inst.nome, raiz).length > 0,
     });
 
     if (reg) {
@@ -366,12 +387,34 @@ export function planejarImportacao(entrada: EntradaPlano): PlanoImportacao {
       continue;
     }
 
-    // (a) já tem cnpj: casa pela raiz; sem registro ativo, fica como está.
+    const nomeNorm = normalizarNomeInstituicao(inst.nome);
+    const nomeDeCorretora = NOME_DE_CORRETORA.test(nomeNorm);
+
+    // (a) já tem cnpj: casa pela raiz; sem registro ativo, fica como está. Trava: linha com nome
+    // de corretora cujo cnpj aponta para um EMISSOR sem nenhum nome em comum (cnpj errado no
+    // seed, ex. 'Avenue Securities DTVM' com a raiz do BB-BI) vai para ambíguos.
     if (inst.cnpj) {
       comCnpjNoFim.add(inst.id);
       const raiz = cnpjRaiz(inst.cnpj);
-      if (raiz && registroPorRaiz.has(raiz)) aplicarCasamento(inst, raiz, 'cnpj');
-      else sobras.push(inst);
+      const reg = raiz ? registroPorRaiz.get(raiz) : undefined;
+      if (!raiz || !reg) {
+        sobras.push(inst);
+        continue;
+      }
+      if (
+        nomeDeCorretora &&
+        (TIPOS_BACEN_EMISSORES as readonly string[]).includes(reg.tcb) &&
+        tokensEmComum(inst.nome, raiz).length === 0
+      ) {
+        ambiguo(
+          inst,
+          `cnpj do catálogo é de ${reg.nome} (${reg.tcb}), sem nome em comum com a corretora`,
+          [raiz],
+        );
+        sobras.push(inst);
+        continue;
+      }
+      aplicarCasamento(inst, raiz, 'cnpj');
       continue;
     }
 
@@ -382,7 +425,6 @@ export function planejarImportacao(entrada: EntradaPlano): PlanoImportacao {
       continue;
     }
 
-    const nomeNorm = normalizarNomeInstituicao(inst.nome);
     let motivoCompe: { motivo: string; raiz: string } | null = null;
 
     // (b) COMPE de 3 dígitos → STR → raiz do IF.data, com token forte em comum.
@@ -390,11 +432,8 @@ export function planejarImportacao(entrada: EntradaPlano): PlanoImportacao {
       const raiz = raizPorCompe.get(codigo);
       const reg = raiz ? registroPorRaiz.get(raiz) : undefined;
       if (raiz && reg) {
-        const nomesBacen = [reg.nome, participantes.get(raiz)?.nomeExtenso ?? ''];
-        const tokensBacen = new Set(nomesBacen.flatMap((n) => tokensFortes(n)));
-        const emComum = tokensFortes(inst.nome).filter((t) => tokensBacen.has(t));
-        if (emComum.length > 0) {
-          if (NOME_DE_CORRETORA.test(nomeNorm) && (reg.tcb === 'B1' || reg.tcb === 'B2')) {
+        if (tokensEmComum(inst.nome, raiz).length > 0) {
+          if (nomeDeCorretora && (reg.tcb === 'B1' || reg.tcb === 'B2')) {
             ambiguo(
               inst,
               `COMPE ${codigo} é de ${reg.nome} (${reg.tcb}), mas o nome da linha é de corretora`,

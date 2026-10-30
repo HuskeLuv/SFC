@@ -140,6 +140,28 @@ describe('planejarImportacao', () => {
     expect(plano.casamentos.find((c) => c.id === 'id-001')?.regra).toBe('cnpj');
   });
 
+  it('cnpj de corretora que aponta para um banco sem nome em comum vai para ambíguos', () => {
+    // Caso real do seed: 'Avenue Securities DTVM' com a raiz do BB-Banco de Investimento (B2).
+    const p = planejar([inst('508', 'Fulano Securities DTVM', '62232889000190')]);
+    expect(p.ambiguos).toEqual([expect.objectContaining({ id: 'id-508', raizes: ['62232889'] })]);
+    expect(p.preencherTipo).toEqual([]);
+    expect(p.marcarNaoEmissor).toEqual([
+      expect.objectContaining({ id: 'id-508', motivo: 'nome-corretora' }),
+    ]);
+    // A raiz não foi casada: o Daycoval nasce como linha nova.
+    expect(p.criar.map((c) => c.codigo)).toContain('BCB-62232889');
+  });
+
+  it('cnpj sem nome em comum fora desse caso casa, marcado para conferir', () => {
+    expect(plano.casamentos.find((c) => c.id === 'id-FIN-NUBANK')).toMatchObject({
+      regra: 'cnpj',
+      tcb: 'N4',
+      nomeEmComum: false,
+    });
+    expect(plano.casamentos.find((c) => c.id === 'id-380')?.nomeEmComum).toBe(false); // Rico
+    expect(plano.casamentos.find((c) => c.id === 'id-102')?.nomeEmComum).toBe(true);
+  });
+
   it('casa pelo COMPE com nome em comum e preenche o cnpj calculado (Pine 643, Ailos 085)', () => {
     expect(plano.preencherCnpj).toContainEqual(
       expect.objectContaining({ id: 'id-643', valor: cnpjMatriz('62144175') }),
