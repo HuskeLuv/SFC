@@ -277,6 +277,8 @@ describe('Saúde Financeira (painel) — olho fechado (desktop)', () => {
     // Eixos (risco × cobertura) ficam.
     const eixoY = capturado.options!.yaxis as ApexYAxis;
     expect((eixoY.labels!.formatter as (v: number) => string)(3)).toBe('Total');
+    // Eixo de categorias: sem largura reservada (a área do gráfico não encolhe nem pula).
+    expect(eixoY.labels!.minWidth).toBeUndefined();
   });
 
   it('formulários: o valor do campo fica (decisão 3)', () => {

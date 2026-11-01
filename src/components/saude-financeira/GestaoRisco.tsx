@@ -154,7 +154,16 @@ export default function GestaoRisco() {
     mobileHeight: 260,
   });
   // Esconder valores: o tooltip (custo anual) troca o R$ pela pílula; as bolhas ficam (decisão 7).
-  const opcoesGrafico = useOpcoesGraficoSensiveis(chartOptions);
+  // O eixo Y é de categorias (Nenhuma/Parcial/Total), não de dinheiro: volta o original, sem o
+  // `labels.minWidth` que o hook reserva — senão a área do gráfico encolhe e as bolhas pulam.
+  const opcoesMascaradas = useOpcoesGraficoSensiveis(chartOptions);
+  const opcoesGrafico = useMemo(
+    () =>
+      opcoesMascaradas === chartOptions
+        ? chartOptions
+        : { ...opcoesMascaradas, yaxis: chartOptions.yaxis },
+    [opcoesMascaradas, chartOptions],
+  );
   const chaveGrafico = useChaveGraficoSensivel();
 
   // Celular: confirmação em sheet (sem desktopMessage — o desktop não passa por aqui).
