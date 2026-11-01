@@ -82,17 +82,30 @@ const semSentinela = (saida: string) =>
 // teste mudaria o estado do provider aqui. Sem canal, cada teste fica com o estado que pediu.
 vi.stubGlobal('BroadcastChannel', undefined);
 
+/**
+ * O jsdom não mede texto: um canvas falso com 7px por caractere. O eixo Y escondido reserva a
+ * largura do rótulo mais largo de hoje — "R$ 10000K" (topo redondo de 9.876.543) = 9 × 7 = 63px.
+ */
+const LARGURA_EIXO_MEDIDA = 63;
+
 beforeEach(() => {
   ambiente.isBelowLg = false;
+  vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockImplementation(
+    () =>
+      ({
+        font: '',
+        measureText: (t: string) => ({ width: t.length * 7 }),
+      }) as unknown as CanvasRenderingContext2D,
+  );
 });
 
 describe('LineChartCarteiraHistorico (Histórico de patrimônio)', () => {
-  it('(a) desktop, olho fechado: eixo Y sem rótulo com 56px e tooltip com pílula', async () => {
+  it('(a) desktop, olho fechado: eixo Y sem rótulo com a largura de hoje e tooltip com pílula', async () => {
     const o = await opcoesDoChart(<LineChartCarteiraHistorico data={historico} />, true);
     const labels = eixoY(o).labels!;
     expect((labels.formatter as Fn)(2000000)).toBe('');
     expect((labels.formatter as Fn)(SENTINELAS.saldo)).toBe('');
-    expect(labels.minWidth).toBe(56);
+    expect(labels.minWidth).toBe(LARGURA_EIXO_MEDIDA);
     const tip = tooltipY(o)(1234.5);
     expect(tip).toContain('mf-pilula-grafico');
     expect(tip).not.toMatch(/\d/);
@@ -111,7 +124,7 @@ describe('LineChartCarteiraHistorico (Histórico de patrimônio)', () => {
     const o = await opcoesDoChart(<LineChartCarteiraHistorico data={historico} />, true);
     expect(o.chart!.height).toBe(180);
     expect((eixoY(o).labels!.formatter as Fn)(2000000)).toBe('');
-    expect(eixoY(o).labels!.minWidth).toBe(56);
+    expect(eixoY(o).labels!.minWidth).toBe(LARGURA_EIXO_MEDIDA);
     expect(tooltipY(o)(1234.5)).not.toMatch(/\d/);
   });
 

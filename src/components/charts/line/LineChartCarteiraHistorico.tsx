@@ -8,6 +8,7 @@ import { useIsBelowLg } from '@/hooks/useMediaQuery';
 import { useTheme } from '@/context/ThemeContext';
 import { deepMergeOptions } from '../ApexChartWrapper';
 import { useOpcoesGraficoSensiveis } from '../useOpcoesGraficoSensiveis';
+import { useValoresOcultos } from '@/context/ValoresOcultosContext';
 
 const hasFunctionValue = (value: unknown): boolean => {
   if (typeof value === 'function') {
@@ -103,8 +104,35 @@ interface LineChartCarteiraHistoricoProps {
   moeda?: 'BRL' | 'USD';
 }
 
-/** Eixo "R$ 2000K": esconde mesmo sem depender do símbolo; 56px reservados no eixo Y. */
-const OPCOES_VALORES_OCULTOS = { eixosSemSimbolo: true, larguraEixoY: 56 } as const;
+/** Rótulo do eixo Y ("R$ 2000K"). */
+const rotuloEixoY = (simbolo: string, val: number) => `${simbolo} ${(val / 1000).toFixed(0)}K`;
+
+/** Topo "redondo" do eixo (7.900 → 8.000; 9.600 → 10.000), como o forceNiceScale do Apex. */
+const topoRedondo = (v: number) => {
+  if (v <= 0) return 0;
+  const passo = 10 ** Math.floor(Math.log10(v));
+  return Math.ceil(v / passo) * passo;
+};
+
+/** Largura padrão do eixo Y escondido quando não dá para medir (SSR, jsdom). */
+const LARGURA_EIXO_Y_PADRAO = 56;
+
+/**
+ * Esconder valores: largura do rótulo mais largo do eixo Y, medida na fonte do gráfico, para o
+ * eixo vazio reservar o MESMO espaço de hoje (sem pulo da área do gráfico nem rótulos do eixo X
+ * girando no celular). Mede o maior valor e o topo "redondo" que o Apex costuma pôr no eixo.
+ */
+function medirLarguraEixoY(textos: string[], fontSize: number): number {
+  if (typeof document === 'undefined') return LARGURA_EIXO_Y_PADRAO;
+  try {
+    const ctx = document.createElement('canvas').getContext('2d');
+    if (!ctx) return LARGURA_EIXO_Y_PADRAO;
+    ctx.font = `400 ${fontSize}px ${getComputedStyle(document.body).fontFamily}`;
+    return Math.ceil(Math.max(...textos.map((t) => ctx.measureText(t).width)));
+  } catch {
+    return LARGURA_EIXO_Y_PADRAO;
+  }
+}
 
 type PeriodoId = '1M' | '3M' | '6M' | 'YTD' | '1A' | 'MAX';
 
@@ -284,7 +312,7 @@ export default function LineChartCarteiraHistorico({
             fontSize: '12px',
           },
           formatter: (val: number) => {
-            return `${simbolo} ${(val / 1000).toFixed(0)}K`;
+            return rotuloEixoY(simbolo, val);
           },
         },
       },
@@ -365,7 +393,30 @@ export default function LineChartCarteiraHistorico({
   // Esconder valores (decisão 7): sobre as opções FINAIS (já com as do celular). Eixo Y sem
   // rótulo com a largura reservada, tooltip com o mês e pílulas; linhas, área, legenda e yAxisMin
   // ficam. Olho aberto devolve a mesma referência.
-  const opcoesSeguras = useOpcoesGraficoSensiveis(chartOptions, OPCOES_VALORES_OCULTOS);
+  const { ativo: valoresOcultos } = useValoresOcultos();
+  const maiorValor = useMemo(
+    () =>
+      filteredData.reduce(
+        (max, item) => Math.max(max, Math.abs(item.valorAplicado), Math.abs(item.saldoBruto)),
+        0,
+      ),
+    [filteredData],
+  );
+  const larguraEixoY = useMemo(
+    () =>
+      valoresOcultos
+        ? medirLarguraEixoY(
+            [rotuloEixoY(simbolo, maiorValor), rotuloEixoY(simbolo, topoRedondo(maiorValor))],
+            isBelowLg ? 11 : 12,
+          )
+        : LARGURA_EIXO_Y_PADRAO,
+    [valoresOcultos, simbolo, maiorValor, isBelowLg],
+  );
+  const opcoesSeguras = useOpcoesGraficoSensiveis(chartOptions, {
+    // Eixo "R$ 2000K": esconde mesmo sem depender do símbolo.
+    eixosSemSimbolo: true,
+    larguraEixoY,
+  });
 
   const series = useMemo(
     () => [
