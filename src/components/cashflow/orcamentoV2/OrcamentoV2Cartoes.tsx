@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { Sensivel } from '@/components/common/valores/Sensivel';
 import { ResponsiveCardList } from '@/components/ui/table/ResponsiveTable';
 import { TABLE_MOBILE_STYLES } from '@/components/ui/table/tableStyles';
 import { SELO_TEXTO } from '@/lib/orcamento/tons';
@@ -203,10 +204,10 @@ export default function OrcamentoV2Cartoes({
           </div>
           <div className="text-right tabular-nums">
             <p className="text-sm font-semibold text-gray-800 dark:text-white/90">
-              {num(resumo.realizado)}
+              <Sensivel>{num(resumo.realizado)}</Sensivel>
             </p>
             <p className="text-[11px] font-normal text-gray-500 dark:text-gray-400">
-              de {num(resumo.orcado)}
+              de <Sensivel>{num(resumo.orcado)}</Sensivel>
               {resumo.realizadoPctOrcado !== null && ` · ${pct(resumo.realizadoPctOrcado, 0)}`}
             </p>
           </div>

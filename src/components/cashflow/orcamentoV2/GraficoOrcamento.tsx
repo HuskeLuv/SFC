@@ -7,8 +7,14 @@
  *
  * Orçado em cinza (`transparencia` #CCCCCC; cinza neutro no escuro) e Real na cor do status que o
  * servidor mandou (tons de `lib/orcamento/tons`, §8). Nada é recalculado aqui.
+ *
+ * Esconder valores (decisão 7): as barras ficam; com o olho fechado o eixo Y fica sem rótulos
+ * (a margem PL continua reservada), o título de cada barra sai mascarado ("R$ •••••") e o
+ * "real/orçado" do celular vira pílula.
  */
 import { useState } from 'react';
+import { Sensivel } from '@/components/common/valores/Sensivel';
+import { useValoresOcultos } from '@/context/ValoresOcultosContext';
 import type { StatusOrcamento } from '@/lib/orcamento/regras';
 import type { CategoriaV2, OrcamentoV2Response } from '@/types/orcamentoV2';
 import { mesLongo, num, periodoCurto } from './apresentacao';
@@ -101,6 +107,7 @@ const PT = 14;
 const PB = 34;
 
 function BarrasVerticais({ categorias }: { categorias: CategoriaV2[] }) {
+  const { ativo, mascarar } = useValoresOcultos();
   const n = Math.max(1, categorias.length);
   const max = Math.max(...categorias.map((c) => Math.max(c.orcado, c.realizado)), 0) * 1.12 || 1;
   const bw = (W - PL - PR) / n;
@@ -122,22 +129,24 @@ function BarrasVerticais({ categorias }: { categorias: CategoriaV2[] }) {
             y2={y(max * f)}
             className="stroke-gray-100 dark:stroke-gray-800"
           />
-          <text
-            x={PL - 8}
-            y={y(max * f) + 4}
-            textAnchor="end"
-            fontSize={10.5}
-            className="fill-gray-400 dark:fill-gray-500"
-          >
-            {eixo(max * f)}
-          </text>
+          {!ativo && (
+            <text
+              x={PL - 8}
+              y={y(max * f) + 4}
+              textAnchor="end"
+              fontSize={10.5}
+              className="fill-gray-400 dark:fill-gray-500"
+            >
+              {eixo(max * f)}
+            </text>
+          )}
         </g>
       ))}
       {categorias.map((c, i) => {
         const x = PL + bw * i;
         return (
           <g key={c.id} data-mf-grafico-categoria={c.id}>
-            <title>{tituloBarra(c)}</title>
+            <title>{mascarar(tituloBarra(c))}</title>
             <rect
               x={x + bw * 0.18}
               y={y(c.orcado)}
@@ -215,6 +224,7 @@ export default function GraficoOrcamento({
 
 /** Celular: barras horizontais (só categorias com orçado ou real), começa recolhido. */
 export function GraficoOrcamentoCelular({ data }: { data: OrcamentoV2Response }) {
+  const { mascarar } = useValoresOcultos();
   const [aberto, setAberto] = useState(false);
   const categorias = data.categorias.filter((c) => c.orcado || c.realizado);
   const max = Math.max(...categorias.map((c) => Math.max(c.orcado, c.realizado)), 0) || 1;
@@ -240,7 +250,7 @@ export function GraficoOrcamentoCelular({ data }: { data: OrcamentoV2Response })
             <div
               key={c.id}
               data-mf-grafico-categoria={c.id}
-              title={tituloBarra(c)}
+              title={mascarar(tituloBarra(c))}
               className="grid grid-cols-[5.5rem_minmax(0,1fr)_auto] items-center gap-2 text-xs"
             >
               <span className="truncate text-gray-600 dark:text-gray-300">{abreviado(c.nome)}</span>
@@ -257,10 +267,12 @@ export function GraficoOrcamentoCelular({ data }: { data: OrcamentoV2Response })
                 />
               </span>
               <span className="text-right tabular-nums text-gray-700 dark:text-gray-200">
-                {Math.round(c.realizado).toLocaleString('pt-BR')}
-                <small className="text-gray-400 dark:text-gray-500">
-                  /{Math.round(c.orcado).toLocaleString('pt-BR')}
-                </small>
+                <Sensivel>
+                  {Math.round(c.realizado).toLocaleString('pt-BR')}
+                  <small className="text-gray-400 dark:text-gray-500">
+                    /{Math.round(c.orcado).toLocaleString('pt-BR')}
+                  </small>
+                </Sensivel>
               </span>
             </div>
           ))}

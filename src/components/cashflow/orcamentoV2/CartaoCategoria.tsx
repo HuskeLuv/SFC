@@ -2,6 +2,7 @@
 
 import { useId, useState } from 'react';
 import { twMerge } from 'tailwind-merge';
+import { Sensivel } from '@/components/common/valores/Sensivel';
 import { TABLE_MOBILE_STYLES } from '@/components/ui/table/tableStyles';
 import type { SalvarOrcadoEntrada } from '@/hooks/useOrcamentoV2';
 import { SELO_TEXTO } from '@/lib/orcamento/tons';
@@ -118,11 +119,23 @@ export default function CartaoCategoria({
 
         <span className="mt-2.5 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5 text-xs tabular-nums text-gray-500 dark:text-gray-400">
           <span className="min-w-0">
-            <b className="font-semibold text-gray-800 dark:text-white/90">{num(c.realizado)}</b> de{' '}
-            {num(c.orcado)}
+            <b className="font-semibold text-gray-800 dark:text-white/90">
+              <Sensivel>{num(c.realizado)}</Sensivel>
+            </b>{' '}
+            de <Sensivel>{num(c.orcado)}</Sensivel>
           </span>
           <span className={negativa ? `font-semibold ${SELO_TEXTO.estourou}` : ''}>
-            {negativa ? `−${num(Math.abs(c.diferenca))} a mais` : `${num(c.diferenca)} disponível`}
+            {negativa ? (
+              <>
+                <Sensivel>{`−${num(Math.abs(c.diferenca))}`}</Sensivel>
+                {' a mais'}
+              </>
+            ) : (
+              <>
+                <Sensivel>{num(c.diferenca)}</Sensivel>
+                {' disponível'}
+              </>
+            )}
           </span>
         </span>
         <MedidorRitmo

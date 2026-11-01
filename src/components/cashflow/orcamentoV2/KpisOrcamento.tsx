@@ -1,6 +1,7 @@
 'use client';
 
 import type { ReactNode } from 'react';
+import { Sensivel, TextoSensivel } from '@/components/common/valores/Sensivel';
 import Tooltip from '@/components/ui/tooltip/Tooltip';
 import { SELO_TEXTO, TOM_FUNDO } from '@/lib/orcamento/tons';
 import type { OrcamentoV2Response } from '@/types/orcamentoV2';
@@ -34,7 +35,7 @@ function Cartao({
   rotulo: string;
   /** Texto do "?" ao lado do rótulo. */
   ajuda?: string;
-  valor: string;
+  valor: ReactNode;
   apoio: ReactNode;
   azul?: boolean;
   valorClassName?: string;
@@ -151,12 +152,12 @@ export default function KpisOrcamento({ data }: { data: OrcamentoV2Response }) {
       <>
         sobra prevista{' '}
         <b className="font-semibold text-gray-700 dark:text-gray-200">
-          {formatBRL(resumo.sobraPrevista)}
+          <Sensivel>{formatBRL(resumo.sobraPrevista)}</Sensivel>
         </b>{' '}
         para investir
         {resumo.orcadoObjetivos > 0 && (
           <span data-mf-kpi-objetivos="" className="block">
-            inclui {formatBRL(resumo.orcadoObjetivos)} em objetivos
+            inclui <Sensivel>{formatBRL(resumo.orcadoObjetivos)}</Sensivel> em objetivos
           </span>
         )}
       </>
@@ -164,7 +165,7 @@ export default function KpisOrcamento({ data }: { data: OrcamentoV2Response }) {
       <>
         gastos orçados passam da receita em{' '}
         <b className={`font-semibold ${SELO_TEXTO.estourou}`}>
-          {formatBRL(Math.abs(resumo.sobraPrevista))}
+          <Sensivel>{formatBRL(Math.abs(resumo.sobraPrevista))}</Sensivel>
         </b>
       </>
     );
@@ -177,13 +178,19 @@ export default function KpisOrcamento({ data }: { data: OrcamentoV2Response }) {
         id="receita"
         azul
         rotulo={anual ? 'Receita prevista no ano' : 'Receita prevista do mês'}
-        valor={receitaPrevista.valor === null ? '—' : formatBRL(receitaPrevista.valor)}
+        valor={
+          receitaPrevista.valor === null ? (
+            '—'
+          ) : (
+            <Sensivel>{formatBRL(receitaPrevista.valor)}</Sensivel>
+          )
+        }
         apoio={apoioReceita}
       />
       <Cartao
         id="orcado"
         rotulo={anual ? 'Orçado no ano' : 'Orçado'}
-        valor={formatBRL(resumo.orcado)}
+        valor={<Sensivel>{formatBRL(resumo.orcado)}</Sensivel>}
         apoio={
           <>
             {resumo.orcadoPctReceita !== null && (
@@ -206,7 +213,7 @@ export default function KpisOrcamento({ data }: { data: OrcamentoV2Response }) {
       <Cartao
         id="realizado"
         rotulo={rotuloRealizado}
-        valor={formatBRL(resumo.realizado)}
+        valor={<Sensivel>{formatBRL(resumo.realizado)}</Sensivel>}
         apoio={apoioRealizado}
       >
         {resumo.realizadoPctOrcado !== null && (
@@ -229,7 +236,7 @@ export default function KpisOrcamento({ data }: { data: OrcamentoV2Response }) {
       <Cartao
         id="disponivel"
         rotulo={anual ? 'Disponível no ano' : 'Disponível no mês'}
-        valor={formatBRL(resumo.disponivel)}
+        valor={<Sensivel>{formatBRL(resumo.disponivel)}</Sensivel>}
         valorClassName={
           resumo.disponivel < 0 ? SELO_TEXTO.estourou : 'text-gray-900 dark:text-white/90'
         }
@@ -239,7 +246,7 @@ export default function KpisOrcamento({ data }: { data: OrcamentoV2Response }) {
             {apoioDisponivel}
             {excesso && (
               <span data-mf-kpi-excesso="" className={`block ${SELO_TEXTO.estourou}`}>
-                {excesso}
+                <TextoSensivel texto={excesso} />
               </span>
             )}
           </>
