@@ -11,6 +11,11 @@ import { useIsBelowLg } from '@/hooks/useMediaQuery';
 import { useResponsiveConfirm } from '@/components/ui/sheet/useResponsiveConfirm';
 import { useMobileChart } from '@/components/charts/mobileChartOptions';
 import {
+  useChaveGraficoSensivel,
+  useOpcoesGraficoSensiveis,
+} from '@/components/charts/useOpcoesGraficoSensiveis';
+import { Sensivel } from '@/components/common/valores/Sensivel';
+import {
   COBERTURA_EIXO,
   RISCO_EIXO,
   SEGURO_COBERTURA_BADGE,
@@ -148,6 +153,9 @@ export default function GestaoRisco() {
     desktopHeight: 300,
     mobileHeight: 260,
   });
+  // Esconder valores: o tooltip (custo anual) troca o R$ pela pílula; as bolhas ficam (decisão 7).
+  const opcoesGrafico = useOpcoesGraficoSensiveis(chartOptions);
+  const chaveGrafico = useChaveGraficoSensivel();
 
   // Celular: confirmação em sheet (sem desktopMessage — o desktop não passa por aqui).
   const handleDeleteMobile = (seguro: SeguroDTO) =>
@@ -235,10 +243,11 @@ export default function GestaoRisco() {
         <>
           <div className="mt-2">
             <ReactApexChart
+              key={chaveGrafico}
               type="bubble"
               height={chartHeight}
               series={chart.series}
-              options={chartOptions}
+              options={opcoesGrafico}
             />
           </div>
 
@@ -287,10 +296,14 @@ export default function GestaoRisco() {
                     <td
                       className={`${TABLE_STYLES.td} text-right text-gray-900 dark:text-white/90`}
                     >
-                      {formatBRL(s.custoAnual)}
+                      <Sensivel>{formatBRL(s.custoAnual)}</Sensivel>
                     </td>
                     <td className={`${TABLE_STYLES.td} text-right`}>
-                      {s.capitalSegurado != null ? formatBRL(s.capitalSegurado) : '—'}
+                      {s.capitalSegurado != null ? (
+                        <Sensivel>{formatBRL(s.capitalSegurado)}</Sensivel>
+                      ) : (
+                        '—'
+                      )}
                     </td>
                     <td className={`${TABLE_STYLES.td} text-right print:hidden`}>
                       {confirmDeleteId === s.id ? (

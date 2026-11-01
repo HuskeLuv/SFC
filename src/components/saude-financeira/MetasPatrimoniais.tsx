@@ -9,6 +9,7 @@ import type {
   SaudeFinanceiraIndicadores,
 } from '@/hooks/useSaudeFinanceira';
 import { DEFAULT_SAUDE_CONFIG } from '@/services/saudeFinanceira/indicadores';
+import { Sensivel } from '@/components/common/valores/Sensivel';
 import MetasConfigForm from './MetasConfigForm';
 import { formatBRL, formatPercent } from './utils';
 
@@ -60,7 +61,7 @@ function MetaRow({ titulo, descricao, benchmark, indisponivel, isBelowLg }: Meta
             >
               {formatPercent(atingido, 0)}
             </span>
-            {formatBRL(atual)} de {formatBRL(necessario)}
+            <Sensivel>{formatBRL(atual)}</Sensivel> de <Sensivel>{formatBRL(necessario)}</Sensivel>
           </p>
         ) : null}
       </div>
