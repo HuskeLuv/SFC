@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, type ChangeEvent, type KeyboardEvent } from 'react';
 import type { SalvarOrcadoEntrada } from '@/hooks/useOrcamentoV2';
 import { parsePctBR, parseValorBR } from '@/lib/orcamento/regras';
+import { useValoresOcultos } from '@/context/ValoresOcultosContext';
 import type { SubcategoriaV2 } from '@/types/orcamentoV2';
 import { formatNumber } from '@/utils/format';
 import { num } from './apresentacao';
@@ -18,6 +19,12 @@ export function textoOrcado(sub: SubcategoriaV2): string {
  * Enter ou sair do campo confirma; inválido NÃO salva, mostra o erro e restaura o anterior; vazio
  * limpa; Esc desfaz. Em % só nas subs que já estão em % (o botão R$/% é da E2). A gravação é
  * otimista no hook (`salvarOrcado`); o erro do servidor volta para junto do campo.
+ *
+ * Esconder valores (padrão EditableValorCell da Fase 1): com o olho fechado, o campo em R$
+ * PARADO vira pílula (`oculto`): quem desenha troca o <input> por um botão com <Sensivel> que,
+ * ao ser tocado ou focado, chama `abrir()` — aí o input volta com o número e o foco. Ao sair do
+ * campo, a pílula volta. Em % o campo fica como está (percentual é visível). Olho aberto: nada
+ * muda (`oculto` sempre falso, sem autoFocus).
  */
 export function useCampoOrcado(
   sub: SubcategoriaV2,
@@ -28,6 +35,10 @@ export function useCampoOrcado(
   const [erro, setErro] = useState<string | null>(null);
   const focadoRef = useRef(false);
   const cancelarRef = useRef(false);
+  const { ativo } = useValoresOcultos();
+  const [editando, setEditando] = useState(false);
+  const oculto = ativo && !emPct && !editando && texto.trim() !== '';
+  const abrir = () => setEditando(true);
 
   // O payload muda (resposta do servidor, outra visão): o campo acompanha, menos durante a edição.
   const atual = textoOrcado(sub);
@@ -76,7 +87,11 @@ export function useCampoOrcado(
     'aria-invalid': erro ? true : undefined,
     onFocus: () => {
       focadoRef.current = true;
+      // Em edição o campo nunca vira pílula (nem se o olho fechar com o foco aqui).
+      setEditando(true);
     },
+    // Aberto pela pílula (olho fechado): o input nasce com o foco.
+    ...(ativo && editando ? { autoFocus: true } : {}),
     onChange: (e: ChangeEvent<HTMLInputElement>) => {
       setTexto(e.target.value);
       if (erro) setErro(null);
@@ -90,6 +105,7 @@ export function useCampoOrcado(
     },
     onBlur: () => {
       focadoRef.current = false;
+      setEditando(false);
       if (cancelarRef.current) {
         cancelarRef.current = false;
         setErro(null);
@@ -100,5 +116,5 @@ export function useCampoOrcado(
     },
   };
 
-  return { emPct, erro, inputProps };
+  return { emPct, erro, inputProps, oculto, abrir };
 }

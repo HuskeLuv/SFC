@@ -1,12 +1,13 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
+import { Sensivel } from '@/components/common/valores/Sensivel';
 import { TABLE_STYLES } from '@/components/ui/table/tableStyles';
-import { parsePctBR, parseValorBR, pctDe, validarNomeSubcategoria } from '@/lib/orcamento/regras';
+import { useValoresOcultos } from '@/context/ValoresOcultosContext';
+import { pctDe, validarNomeSubcategoria } from '@/lib/orcamento/regras';
 import { SELO_TEXTO } from '@/lib/orcamento/tons';
 import type { SubcategoriaV2 } from '@/types/orcamentoV2';
 import type { SalvarOrcadoEntrada } from '@/hooks/useOrcamentoV2';
-import { formatNumber } from '@/utils/format';
 import BarraConsumo from './BarraConsumo';
 import MenuSubcategoria, { type MenuSubcategoriaProps } from './MenuSubcategoria';
 import {
@@ -18,6 +19,7 @@ import {
   textoDiferenca,
   textoTolerancia,
 } from './apresentacao';
+import { useCampoOrcado } from './useCampoOrcado';
 
 export interface LinhaSubcategoriaProps {
   sub: SubcategoriaV2;
@@ -51,12 +53,6 @@ const MOTIVO_NOME = {
   duplicado: 'Já existe uma subcategoria com esse nome nesta categoria.',
 } as const;
 
-/** Texto do campo de orçado a partir do payload ('' = sem orçado). */
-function textoOrcado(sub: SubcategoriaV2): string {
-  if (sub.pct !== null) return formatNumber(sub.pct, 1);
-  return sub.valor !== null ? num(sub.valor) : '';
-}
-
 /**
  * Linha de subcategoria (spec §4.5): nome com recuo e linha-guia, etiquetas "padrão" (Geral),
  * "fixa" e de status; % da receita; orçado editável inline (R$, ou % nas subs que já estão em %
@@ -81,49 +77,14 @@ export default function LinhaSubcategoria({
   onBuscarImpacto,
   onExcluir,
 }: LinhaSubcategoriaProps) {
-  const emPct = sub.pct !== null;
-  const [texto, setTexto] = useState(() => textoOrcado(sub));
-  const [erroOrcado, setErroOrcado] = useState<string | null>(null);
-  const focadoRef = useRef(false);
-  const cancelarRef = useRef(false);
-
-  // O payload muda (resposta do servidor, outra visão): o campo acompanha, menos durante a edição.
-  const atual = textoOrcado(sub);
-  useEffect(() => {
-    if (!focadoRef.current) setTexto(atual);
-  }, [atual]);
-
-  const confirmarOrcado = () => {
-    const t = texto.trim();
-    let entrada: SalvarOrcadoEntrada | null = null;
-    if (t === '') {
-      if (sub.valor !== null || sub.pct !== null) entrada = { itemId: sub.id, valor: null };
-    } else if (emPct) {
-      const p = parsePctBR(t);
-      if (p === null) {
-        setErroOrcado('Use um percentual entre 0 e 100, com até 1 casa (ex.: 6,5).');
-        setTexto(atual);
-        return;
-      }
-      if (p !== sub.pct) entrada = { itemId: sub.id, pct: p };
-    } else {
-      const v = parseValorBR(t);
-      if (v === null) {
-        setErroOrcado('Valor inválido. Use o formato 1.500,00.');
-        setTexto(atual);
-        return;
-      }
-      if (v !== sub.valor) entrada = { itemId: sub.id, valor: v };
-    }
-    setErroOrcado(null);
-    if (!entrada) {
-      setTexto(atual);
-      return;
-    }
-    onSalvarOrcado(entrada).catch((e: unknown) => {
-      setErroOrcado(e instanceof Error ? e.message : 'Não foi possível salvar o orçado.');
-    });
-  };
+  const {
+    emPct,
+    erro: erroOrcado,
+    inputProps,
+    oculto: orcadoOculto,
+    abrir: abrirOrcado,
+  } = useCampoOrcado(sub, onSalvarOrcado);
+  const { mascarar } = useValoresOcultos();
 
   // ── Renomear ───────────────────────────────────────────────────────────────────────────────
   const [renomeando, setRenomeando] = useState(false);
@@ -247,48 +208,34 @@ export default function LinhaSubcategoria({
         {sub.editavelOrcado ? (
           <span className="inline-flex flex-col items-end">
             <span className="inline-flex items-center gap-1">
-              <input
-                type="text"
-                inputMode="decimal"
-                value={texto}
-                placeholder={emPct ? '0,0' : '0,00'}
-                onFocus={() => {
-                  focadoRef.current = true;
-                }}
-                onChange={(e) => {
-                  setTexto(e.target.value);
-                  if (erroOrcado) setErroOrcado(null);
-                }}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') e.currentTarget.blur();
-                  if (e.key === 'Escape') {
-                    cancelarRef.current = true;
-                    e.currentTarget.blur();
+              {orcadoOculto ? (
+                // Olho fechado: o orçado parado vira pílula; tocar/focar abre o campo com o número.
+                <button
+                  type="button"
+                  data-mf-orcado-oculto=""
+                  onClick={abrirOrcado}
+                  onFocus={abrirOrcado}
+                  aria-label={`Orçado de ${sub.nome} em ${categoriaNome}: valor oculto. Editar`}
+                  className={INPUT}
+                >
+                  <Sensivel>{inputProps.value}</Sensivel>
+                </button>
+              ) : (
+                <input
+                  {...inputProps}
+                  aria-label={
+                    emPct
+                      ? `Orçado de ${sub.nome} em % da receita`
+                      : `Orçado de ${sub.nome} em ${categoriaNome}`
                   }
-                }}
-                onBlur={() => {
-                  focadoRef.current = false;
-                  if (cancelarRef.current) {
-                    cancelarRef.current = false;
-                    setErroOrcado(null);
-                    setTexto(atual);
-                    return;
-                  }
-                  confirmarOrcado();
-                }}
-                aria-label={
-                  emPct
-                    ? `Orçado de ${sub.nome} em % da receita`
-                    : `Orçado de ${sub.nome} em ${categoriaNome}`
-                }
-                aria-invalid={erroOrcado ? true : undefined}
-                className={INPUT}
-              />
+                  className={INPUT}
+                />
+              )}
               {emPct && <span className="text-xs text-gray-500 dark:text-gray-400">%</span>}
             </span>
             {emPct && (
               <small className="mt-0.5 text-[11px] text-gray-500 dark:text-gray-400">
-                = {num(sub.orcado)}
+                = <Sensivel>{num(sub.orcado)}</Sensivel>
               </small>
             )}
             {erroOrcado && (
@@ -299,13 +246,13 @@ export default function LinhaSubcategoria({
           </span>
         ) : (
           <span className="tabular-nums text-gray-700 dark:text-gray-200">
-            {sub.orcado > 0 ? num(sub.orcado) : '—'}
+            {sub.orcado > 0 ? <Sensivel>{num(sub.orcado)}</Sensivel> : '—'}
           </span>
         )}
       </td>
       <td className={`${TABLE_STYLES.td} text-right tabular-nums`}>
         {sub.realizado !== 0 ? (
-          num(sub.realizado)
+          <Sensivel>{num(sub.realizado)}</Sensivel>
         ) : (
           <span className="text-gray-400 dark:text-gray-500">—</span>
         )}
@@ -318,9 +265,11 @@ export default function LinhaSubcategoria({
               ? 'text-gray-400 dark:text-gray-500'
               : ''
         }`}
-        title={tolerancia ?? undefined}
+        title={tolerancia ? mascarar(tolerancia) : undefined}
       >
-        <span className={tolerancia ? CLASSE_COM_AJUDA : undefined}>{dif.texto}</span>
+        <span className={tolerancia ? CLASSE_COM_AJUDA : undefined}>
+          {dif.texto === '—' ? dif.texto : <Sensivel>{dif.texto}</Sensivel>}
+        </span>
       </td>
       <td className={TABLE_STYLES.td}>
         <BarraConsumo
