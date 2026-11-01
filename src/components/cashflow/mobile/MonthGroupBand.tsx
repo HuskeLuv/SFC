@@ -5,6 +5,7 @@ import { CardSectionBand } from '@/components/ui/table/CardSectionBand';
 import type { MonthGroup } from '@/lib/cashflow/monthViewModel';
 import { formatBRL, formatPct } from '@/utils/format';
 import { Sensivel } from '@/components/common/valores/Sensivel';
+import { useValoresOcultos } from '@/context/ValoresOcultosContext';
 
 /**
  * Faixa de um grupo na visão do mês (PWA fase 2, protótipo cenário a), com os 3 níveis da
@@ -101,6 +102,7 @@ export default function MonthGroupBand({
   showAnnual,
   onActions,
 }: MonthGroupBandProps) {
+  const { ativo: valoresOcultos } = useValoresOcultos();
   const subtotal = <Sensivel>{formatBRL(group.monthSubtotal)}</Sensivel>;
   const annual =
     showAnnual && group.groupType !== 'saldo' ? (
@@ -119,7 +121,7 @@ export default function MonthGroupBand({
           aria-expanded={expanded}
           aria-controls={contentId}
           onClick={onToggle}
-          className="mf-sup-inverso grid min-h-12 min-w-0 flex-1 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 rounded-[14px] bg-mf-patrimonio py-1.5 pr-3 pl-2.5 text-left text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0079F2] dark:bg-mf-seguranca dark:text-mf-escolha"
+          className={`${valoresOcultos ? 'mf-sup-inverso ' : ''}grid min-h-12 min-w-0 flex-1 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 rounded-[14px] bg-mf-patrimonio py-1.5 pr-3 pl-2.5 text-left text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0079F2] dark:bg-mf-seguranca dark:text-mf-escolha`}
         >
           <Caret expanded={expanded} />
           <span className="min-w-0">
