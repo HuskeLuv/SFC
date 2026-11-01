@@ -21,7 +21,7 @@ import {
   TABLE_SECTION_STYLE,
 } from '@/components/ui/table/tableStyles';
 import { useIsBelowLg } from '@/hooks/useMediaQuery';
-import AssetCardSections, { AssetTabMobileSummary } from './AssetCardSections';
+import AssetCardSections, { AssetTabMobileSummary, celulaSensivel } from './AssetCardSections';
 import { COLUNAS_VISIVEIS_PLANEJADO, type AssetMobileRole } from './mobileColumnRoles';
 import { isSubgrupoValido, type CategoriaMovivel } from '@/lib/carteiraMover';
 import type { MoverAlvo } from '@/types/carteiraMover';
@@ -39,8 +39,9 @@ import {
   SecaoDropRow,
 } from '@/components/carteira/mover/SecaoDropRow';
 import { MovidoBadge, SoltarAquiChip } from '@/components/carteira/mover/MovidoBadge';
+import type { SensibilidadeValor } from '@/utils/valoresOcultos';
 
-export { COLUNAS_VISIVEIS_PLANEJADO };
+export { COLUNAS_VISIVEIS_PLANEJADO, celulaSensivel };
 
 const MIN_PLACEHOLDER_ROWS = 4;
 
@@ -76,6 +77,13 @@ export interface ColumnDef<TAtivo, TSecao = Record<string, unknown>> {
   renderSectionTotal?: (secao: TSecao, formatters: Formatters) => ReactNode;
   /** Render the cell content for the grand total row. Return '-' to show a dash. */
   renderGrandTotal?: (totalGeral: Record<string, unknown>, formatters: Formatters) => ReactNode;
+  /**
+   * Esconder valores: como o conteúdo da coluna (linha, subtotal da seção, total geral e cartão
+   * do celular) reage ao olho. 'auto' (padrão) esconde só strings com R$/US$; 'sensivel' sempre
+   * (preço médio, valor dentro de <span>); 'sensivel-curto' sempre, pílula curta (quantidade);
+   * 'visivel' nunca (cotação atual). Célula editável não precisa: ela mesma esconde o texto.
+   */
+  valor?: SensibilidadeValor;
 }
 
 export interface Formatters {
@@ -101,6 +109,8 @@ export interface MetricCardConfig {
   getColor?: (resumo: Record<string, unknown>, necessidadeAporte?: number) => MetricCardColor;
   /** Linha de apoio sob o valor (ex.: abas EUA: "equivale a R$ X"). Sem cor de alta/baixa. */
   getSubtitle?: (resumo: Record<string, unknown>) => string | null | undefined;
+  /** Esconder valores: como o valor do card reage ao olho (padrão 'auto': só R$/US$). */
+  valor?: SensibilidadeValor;
 }
 
 /**
@@ -366,7 +376,9 @@ function GenericSection<TAtivo, TSecao>({
             );
           }
 
-          const content = col.renderSectionTotal ? col.renderSectionTotal(secao, formatters) : '-';
+          const content = col.renderSectionTotal
+            ? celulaSensivel(col.renderSectionTotal(secao, formatters), col.valor)
+            : '-';
 
           return (
             <td
@@ -485,7 +497,7 @@ function GenericSection<TAtivo, TSecao>({
                   }
                 }
 
-                const content = col.render(ativo, formatters);
+                const content = celulaSensivel(col.render(ativo, formatters), col.valor);
                 return (
                   <td key={col.key} className={className}>
                     {idx === 0 ? comAlca(content) : content}
@@ -838,12 +850,14 @@ export default function GenericAssetTable<TAtivo, TSecao>({
         label: c.title,
         value: c.getValue(resumo, necessidadeAporteTotalCalculada),
         negative: c.getColor?.(resumo, necessidadeAporteTotalCalculada) === 'error',
+        valor: c.valor,
       }));
     const mobileContent = (
       <div className="space-y-4">
         {topo}
         <AssetTabMobileSummary
           heroLabel="Valor atualizado"
+          heroValor={heroCard?.valor}
           heroValue={
             heroCard
               ? heroCard.getValue(resumo, necessidadeAporteTotalCalculada)
@@ -914,7 +928,9 @@ export default function GenericAssetTable<TAtivo, TSecao>({
           );
         }
 
-        const content = col.renderGrandTotal ? col.renderGrandTotal(totalGeral, formatters) : '-';
+        const content = col.renderGrandTotal
+          ? celulaSensivel(col.renderGrandTotal(totalGeral, formatters), col.valor)
+          : '-';
 
         return (
           <td key={col.key} className={`${TABLE_STYLES.compact.td} font-semibold ${alignClass}`}>
@@ -1053,6 +1069,7 @@ export default function GenericAssetTable<TAtivo, TSecao>({
               color={
                 card.getColor ? card.getColor(resumo, necessidadeAporteTotalCalculada) : card.color
               }
+              valor={card.valor}
             />
           );
         })}

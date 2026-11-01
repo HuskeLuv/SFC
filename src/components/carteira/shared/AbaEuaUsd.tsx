@@ -5,12 +5,16 @@
  * linha "Equivale a (R$)" pela cotação de hoje e o Caixa para Investir (R$) numa linha
  * própria, fora do total em US$.
  *
+ * Esconder valores: os valores (US$ e R$) viram pílula; a cotação do dólar ("US$ 1 = R$ …") é
+ * dado de mercado e fica visível (<ValorVisivel>).
+ *
  * Cores: só a paleta My Finance (src/constants/brandColors.ts — MYFINANCE_BRAND/MYFINANCE_TONS,
  * em classes arbitrárias como no resto do app) e os cinzas do tema.
  */
 import React, { type ReactNode } from 'react';
 import { formatBRL, formatUSD } from '@/utils/format';
 import { TABLE_STYLES } from '@/components/ui/table/tableStyles';
+import { Sensivel, ValorVisivel } from '@/components/common/valores/Sensivel';
 import {
   LinhaTotalExtra,
   type ColumnDef,
@@ -63,7 +67,9 @@ export function FaixaCambioEua({
             Valores da aba em <b className="font-semibold">dólar</b>. Equivalente em reais pela
             cotação de hoje:
           </span>
-          <span className="font-semibold text-gray-900 tabular-nums dark:text-white">{cambio}</span>
+          <span className="font-semibold text-gray-900 tabular-nums dark:text-white">
+            <ValorVisivel>{cambio}</ValorVisivel>
+          </span>
           <span className="text-xs text-gray-500 dark:text-gray-400">câmbio de mercado</span>
         </>
       ) : (
@@ -104,7 +110,7 @@ export function ValorUsdComBrl({
   return (
     <span className="inline-flex flex-col items-end">
       <span className="tabular-nums">
-        {formatUSD(usd)}
+        <Sensivel>{formatUSD(usd)}</Sensivel>
         {linha?.aproximado ? (
           <span className="ml-1 text-[11px] font-normal text-gray-500 dark:text-gray-400">
             aprox.
@@ -113,7 +119,7 @@ export function ValorUsdComBrl({
       </span>
       {brl != null ? (
         <span className="text-[11px] font-normal text-gray-500 tabular-nums dark:text-gray-400">
-          {formatBRL(brl)}
+          <Sensivel>{formatBRL(brl)}</Sensivel>
         </span>
       ) : null}
     </span>
@@ -176,7 +182,7 @@ export function LinhasTotalAbaEua<TAtivo, TSecao>({
 }) {
   const brl = aba?.totalBRL ?? null;
   const cambio = linhaCambio(aba);
-  const sub = (texto: string) => (
+  const sub = (texto: ReactNode) => (
     <span className="block text-[11px] font-normal text-gray-500 dark:text-gray-400">{texto}</span>
   );
   return (
@@ -191,17 +197,17 @@ export function LinhasTotalAbaEua<TAtivo, TSecao>({
             ? {
                 valorTotal: (
                   <>
-                    {formatBRL(brl.valorAplicado)}
+                    <Sensivel>{formatBRL(brl.valorAplicado)}</Sensivel>
                     {sub('custo pelo câmbio de cada compra')}
                   </>
                 ),
                 valorAtualizado: (
                   <>
-                    {formatBRL(brl.valorAtualizado)}
-                    {cambio ? sub(cambio) : null}
+                    <Sensivel>{formatBRL(brl.valorAtualizado)}</Sensivel>
+                    {cambio ? sub(<ValorVisivel>{cambio}</ValorVisivel>) : null}
                   </>
                 ),
-                proventos: formatBRL(brl.proventos),
+                proventos: <Sensivel>{formatBRL(brl.proventos)}</Sensivel>,
               }
             : { valorAtualizado: sub('sem a cotação do dólar') }
         }
@@ -216,7 +222,7 @@ export function LinhasTotalAbaEua<TAtivo, TSecao>({
               </span>
             </span>
             <span className="font-semibold tabular-nums">
-              {formatBRL(aba?.caixaParaInvestirBRL ?? 0)}
+              <Sensivel>{formatBRL(aba?.caixaParaInvestirBRL ?? 0)}</Sensivel>
             </span>
           </div>
         </td>
@@ -239,13 +245,17 @@ export function TotaisAbaEuaMobile({ aba }: { aba: CamposAbaEua | null | undefin
   return (
     <div className="space-y-2 border-t border-gray-200 pt-3 dark:border-gray-700">
       <dl className="grid grid-cols-2 gap-x-3 gap-y-2">
-        {item('Aplicado em US$', formatUSD(usd?.valorAplicado ?? 0))}
-        {item('Atualizado em US$', formatUSD(usd?.valorAtualizado ?? 0))}
-        {brl ? item('Custo em R$', formatBRL(brl.valorAplicado)) : null}
-        {brl ? item('Equivale a (R$)', formatBRL(brl.valorAtualizado)) : null}
+        {item('Aplicado em US$', <Sensivel>{formatUSD(usd?.valorAplicado ?? 0)}</Sensivel>)}
+        {item('Atualizado em US$', <Sensivel>{formatUSD(usd?.valorAtualizado ?? 0)}</Sensivel>)}
+        {brl ? item('Custo em R$', <Sensivel>{formatBRL(brl.valorAplicado)}</Sensivel>) : null}
+        {brl
+          ? item('Equivale a (R$)', <Sensivel>{formatBRL(brl.valorAtualizado)}</Sensivel>)
+          : null}
       </dl>
       {cambio ? (
-        <p className="text-[11px] text-gray-500 dark:text-gray-400">{cambio} · câmbio de mercado</p>
+        <p className="text-[11px] text-gray-500 dark:text-gray-400">
+          <ValorVisivel>{cambio}</ValorVisivel> · câmbio de mercado
+        </p>
       ) : null}
       <div className="flex items-center justify-between gap-2 rounded-md bg-gray-50 px-3 py-2 text-sm dark:bg-white/5">
         <span>
@@ -253,7 +263,7 @@ export function TotaisAbaEuaMobile({ aba }: { aba: CamposAbaEua | null | undefin
           <span className="text-[11px] text-gray-500 dark:text-gray-400">(R$, fora do total)</span>
         </span>
         <span className="font-semibold tabular-nums">
-          {formatBRL(aba?.caixaParaInvestirBRL ?? 0)}
+          <Sensivel>{formatBRL(aba?.caixaParaInvestirBRL ?? 0)}</Sensivel>
         </span>
       </div>
     </div>

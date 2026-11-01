@@ -17,6 +17,7 @@ import MobileEditSheet from '@/components/ui/sheet/MobileEditSheet';
 import { TABLE_MOBILE_STYLES } from '@/components/ui/table/tableStyles';
 import { useCarteiraResumoContextOptional } from '@/context/CarteiraResumoContext';
 import type { CaixaSaveFailure, SaveCaixaFn } from '@/lib/caixaParaInvestirClient';
+import { Sensivel, TextoSensivel } from '@/components/common/valores/Sensivel';
 
 type CaixaParaInvestirCardProps = {
   title?: string;
@@ -196,7 +197,9 @@ const CaixaParaInvestirCard: React.FC<CaixaParaInvestirCardProps> = ({
             disabled={sheetAjustando}
             className="mt-2 inline-flex min-h-11 w-full items-center justify-center rounded-xl border border-mf-patrimonio px-3 text-sm font-semibold text-mf-patrimonio disabled:opacity-60 dark:border-mf-tranquilidade dark:text-mf-tranquilidade"
           >
-            Aumentar o total para {formatBRL(sheetFailure.totalNecessario)} e salvar
+            <TextoSensivel
+              texto={`Aumentar o total para ${formatBRL(sheetFailure.totalNecessario)} e salvar`}
+            />
           </button>
         )}
         {definirCaixaProventos && (
@@ -231,7 +234,9 @@ const CaixaParaInvestirCard: React.FC<CaixaParaInvestirCardProps> = ({
             <p className={CARD_TITLE_CLASS} title={title}>
               {title}
             </p>
-            <p className={CARD_VALUE_CLASS}>{formattedValue}</p>
+            <p className={CARD_VALUE_CLASS}>
+              <Sensivel>{formattedValue}</Sensivel>
+            </p>
           </div>
           {!readOnly && (
             <button
@@ -275,7 +280,9 @@ const CaixaParaInvestirCard: React.FC<CaixaParaInvestirCardProps> = ({
             {detalhes.map(({ rotulo, valor }) => (
               <div key={rotulo} className="flex items-baseline gap-1">
                 <dt className="opacity-80">{rotulo}</dt>
-                <dd className="whitespace-nowrap font-medium tabular-nums">{formatBRL(valor)}</dd>
+                <dd className="whitespace-nowrap font-medium tabular-nums">
+                  <Sensivel>{formatBRL(valor)}</Sensivel>
+                </dd>
               </div>
             ))}
             {escopo === 'total' && proventosDesde && (
@@ -289,8 +296,9 @@ const CaixaParaInvestirCard: React.FC<CaixaParaInvestirCardProps> = ({
 
         {caixa && caixa.livre < 0 && (
           <p className="mt-1 text-xs font-medium text-[#B45309] dark:text-amber-300">
-            As reservas das abas passam do total em {formatBRL(-caixa.livre)}. Ajuste o total ou as
-            reservas.
+            <TextoSensivel
+              texto={`As reservas das abas passam do total em ${formatBRL(-caixa.livre)}. Ajuste o total ou as reservas.`}
+            />
           </p>
         )}
 
@@ -371,7 +379,9 @@ const CaixaParaInvestirCard: React.FC<CaixaParaInvestirCardProps> = ({
           aria-label="Editar caixa para investir"
         />
       ) : (
-        <p className={CARD_VALUE_CLASS}>{formattedValue}</p>
+        <p className={CARD_VALUE_CLASS}>
+          <Sensivel>{formattedValue}</Sensivel>
+        </p>
       )}
 
       {isEditing && failure?.totalNecessario != null && (
@@ -381,7 +391,9 @@ const CaixaParaInvestirCard: React.FC<CaixaParaInvestirCardProps> = ({
           onClick={() => void handleSaveValue({ ajustarTotal: true })}
           disabled={isSaving}
         >
-          Aumentar o total para {formatBRL(failure.totalNecessario)} e salvar
+          <TextoSensivel
+            texto={`Aumentar o total para ${formatBRL(failure.totalNecessario)} e salvar`}
+          />
         </button>
       )}
 
@@ -417,7 +429,9 @@ const CaixaParaInvestirCard: React.FC<CaixaParaInvestirCardProps> = ({
           {detalhes.map(({ rotulo, valor }) => (
             <div key={rotulo} className="flex items-baseline gap-1">
               <dt>{rotulo}</dt>
-              <dd className="whitespace-nowrap font-medium">{formatBRL(valor)}</dd>
+              <dd className="whitespace-nowrap font-medium">
+                <Sensivel>{formatBRL(valor)}</Sensivel>
+              </dd>
             </div>
           ))}
           {escopo === 'total' && proventosDesde && (
@@ -434,8 +448,9 @@ const CaixaParaInvestirCard: React.FC<CaixaParaInvestirCardProps> = ({
 
       {!isEditing && caixa && caixa.livre < 0 && (
         <p className="mt-1 text-xs font-medium text-amber-600 dark:text-amber-400">
-          As reservas das abas passam do total em {formatBRL(-caixa.livre)}. Ajuste o total ou as
-          reservas.
+          <TextoSensivel
+            texto={`As reservas das abas passam do total em ${formatBRL(-caixa.livre)}. Ajuste o total ou as reservas.`}
+          />
         </p>
       )}
     </div>
