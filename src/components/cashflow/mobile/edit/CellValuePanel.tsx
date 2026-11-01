@@ -8,7 +8,7 @@ import type { CashflowValueChange } from '@/hooks/useCashflowMutations';
 import { evaluateFormula, isFormula } from '@/utils/formulaParser';
 import { formatDecimalInput, parseDecimalInput } from '@/lib/ui/numberInput';
 import { formatBRL } from '@/utils/format';
-import { Sensivel } from '@/components/common/valores/Sensivel';
+import { Sensivel, TextoSensivel } from '@/components/common/valores/Sensivel';
 import { cashflowColorCss, type CashflowColorValue } from '@/utils/cashflowColorLegend';
 import { cellColorLabel, normalizeCellColor } from '@/lib/cashflow/cellColor';
 import { READONLY_REASON_TEXT } from '@/lib/cashflow/itemCapabilities';
@@ -376,7 +376,9 @@ export function CellValuePanel({
         </div>
         {valorBanco > 0 ? (
           <div data-mf-parte-banco="">
-            <InfoNote>{textoParteBanco(valorBanco)}</InfoNote>
+            <InfoNote>
+              <TextoSensivel texto={textoParteBanco(valorBanco)} />
+            </InfoNote>
           </div>
         ) : null}
         <FormulaKeyBar
