@@ -28,14 +28,14 @@ const eslintConfig = [
       ],
     },
   },
-  // Esconder valores: valor em dinheiro no JSX sem <Sensivel>/<ValorVisivel>. 'warn' enquanto as
-  // fatias 1–4 da Fase 1 integram; vira 'error' no PR de fechamento (eslint/valoresOcultos.mjs).
+  // Esconder valores: valor em dinheiro no JSX sem <Sensivel>/<ValorVisivel>. 'error' desde o
+  // fechamento da Fase 1, com zero ocorrências nas pastas cobertas (eslint/valoresOcultos.mjs).
   {
     files: GLOBS_VALORES_OCULTOS,
     ignores: IGNORES_VALORES_OCULTOS,
     plugins: { mf: pluginValoresOcultos },
     rules: {
-      "mf/valor-sem-sensivel": "warn",
+      "mf/valor-sem-sensivel": "error",
     },
   },
 ];

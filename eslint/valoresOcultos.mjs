@@ -10,8 +10,8 @@
  * Strings devolvidas por render/getValue/cell (fora do JSX) não são acusadas: a autodetecção de
  * R$/US$ dos componentes compartilhados e os testes com sentinelas cobrem esses casos.
  *
- * Nível: 'warn' nas pastas da Fase 1 enquanto as fatias 1–4 integram; vira 'error' no PR de
- * fechamento da Fase 1. Cada fase acrescenta os seus globs em GLOBS_VALORES_OCULTOS.
+ * Nível: 'error' nas pastas da Fase 1 (fechada com zero ocorrências). Cada fase acrescenta os
+ * seus globs em GLOBS_VALORES_OCULTOS.
  */
 
 const NOMES_FORMATTER = /^(format(BRL|USD|Currency|Moeda|BRLCompact|BRLCurto)|formatarMoeda)$/;
