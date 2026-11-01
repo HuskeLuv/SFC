@@ -1,4 +1,5 @@
 'use client';
+import { Sensivel } from '@/components/common/valores/Sensivel';
 import React from 'react';
 import { quantoFaltaClass } from '@/components/carteira/shared/quantoFaltaClass';
 import { formatPct } from '@/utils/format';
@@ -150,7 +151,7 @@ export default function FimFiaTable({ totalCarteira = 0 }: FimFiaTableProps) {
       render: (a, f) =>
         a.isAutoUpdated ? (
           <span title="Sincronizado automaticamente (cota CVM)">
-            {f.formatCurrency(a.valorAtualizado)}
+            <Sensivel>{f.formatCurrency(a.valorAtualizado)}</Sensivel>
           </span>
         ) : (
           <EditableValorCell

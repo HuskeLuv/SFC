@@ -1,4 +1,5 @@
 'use client';
+import { ValorVisivel } from '@/components/common/valores/Sensivel';
 import React from 'react';
 import { quantoFaltaClass } from '@/components/carteira/shared/quantoFaltaClass';
 import { formatPct } from '@/utils/format';
@@ -100,6 +101,7 @@ export default function OpcoesTable({ totalCarteira = 0 }: OpcoesTableProps) {
     },
     {
       key: 'quantidade',
+      valor: 'sensivel-curto',
       header: 'Quantidade',
       align: 'right',
       render: (a, f) => f.formatNumber(a.quantidade),
@@ -108,6 +110,7 @@ export default function OpcoesTable({ totalCarteira = 0 }: OpcoesTableProps) {
     },
     {
       key: 'precoAquisicao',
+      valor: 'sensivel',
       header: 'Preço Aquisição',
       align: 'right',
       render: (a, f) => f.formatCurrency(a.precoAquisicao),
@@ -124,10 +127,13 @@ export default function OpcoesTable({ totalCarteira = 0 }: OpcoesTableProps) {
     },
     {
       key: 'cotacaoAtual',
+      valor: 'visivel',
       header: 'Cotação em Tempo Real',
       align: 'right',
       render: (a, f) => (
-        <span className="text-gray-900 dark:text-white">{f.formatCurrency(a.cotacaoAtual)}</span>
+        <span className="text-gray-900 dark:text-white">
+          <ValorVisivel>{f.formatCurrency(a.cotacaoAtual)}</ValorVisivel>
+        </span>
       ),
       renderSectionTotal: () => '-',
       renderGrandTotal: () => '-',

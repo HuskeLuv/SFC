@@ -1,4 +1,5 @@
 'use client';
+import { ValorVisivel } from '@/components/common/valores/Sensivel';
 import React, { useMemo } from 'react';
 import { quantoFaltaClass } from '@/components/carteira/shared/quantoFaltaClass';
 import { useMoedasCriptos } from '@/hooks/useMoedasCriptos';
@@ -203,6 +204,7 @@ export default function MoedasCriptosTable({ totalCarteira = 0 }: MoedasCriptosT
     },
     {
       key: 'quantidade',
+      valor: 'sensivel-curto',
       header: 'Quantidade',
       align: 'right',
       render: (a, f) => f.formatNumber(a.quantidade),
@@ -211,6 +213,7 @@ export default function MoedasCriptosTable({ totalCarteira = 0 }: MoedasCriptosT
     },
     {
       key: 'precoAquisicao',
+      valor: 'sensivel',
       header: 'Preco Aquisicao',
       align: 'right',
       render: (a, f) => f.formatCurrency(a.precoAquisicao),
@@ -227,10 +230,13 @@ export default function MoedasCriptosTable({ totalCarteira = 0 }: MoedasCriptosT
     },
     {
       key: 'cotacaoAtual',
+      valor: 'visivel',
       header: 'Cotacao em Tempo Real',
       align: 'right',
       render: (a, f) => (
-        <span className="text-gray-900 dark:text-white">{f.formatCurrency(a.cotacaoAtual)}</span>
+        <span className="text-gray-900 dark:text-white">
+          <ValorVisivel>{f.formatCurrency(a.cotacaoAtual)}</ValorVisivel>
+        </span>
       ),
       renderSectionTotal: () => '-',
       renderGrandTotal: () => '-',

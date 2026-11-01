@@ -1,4 +1,5 @@
 'use client';
+import { ConteudoSensivel, Sensivel, ValorVisivel } from '@/components/common/valores/Sensivel';
 import React, { useState, useMemo } from 'react';
 import { formatPct } from '@/utils/format';
 import { usePrevidenciaSeguros } from '@/hooks/usePrevidenciaSeguros';
@@ -56,7 +57,9 @@ const PrevidenciaSegurosMetricCard: React.FC<PrevidenciaSegurosMetricCardProps> 
   return (
     <div className={`rounded-lg p-4 ${colorClasses[color]}`}>
       <p className="text-xs font-medium opacity-80 mb-1">{title}</p>
-      <p className="text-xl font-semibold">{value}</p>
+      <p className="text-xl font-semibold">
+        <ConteudoSensivel>{value}</ConteudoSensivel>
+      </p>
     </div>
   );
 };
@@ -148,25 +151,25 @@ const PrevidenciaSegurosTableRow: React.FC<PrevidenciaSegurosTableRowProps> = ({
         )}
       </td>
       <td className={`${TABLE_STYLES.compact.td} text-right`}>
-        {planejado ? traco : formatNumber(ativo.quantidade)}
+        {planejado ? traco : <Sensivel curto>{formatNumber(ativo.quantidade)}</Sensivel>}
       </td>
       <td className={`${TABLE_STYLES.compact.td} text-right`}>
-        {planejado ? traco : formatCurrency(ativo.precoAquisicao)}
+        {planejado ? traco : <Sensivel>{formatCurrency(ativo.precoAquisicao)}</Sensivel>}
       </td>
       <td className={`${TABLE_STYLES.compact.td} text-right`}>
-        {planejado ? traco : formatCurrency(ativo.valorTotal)}
+        {planejado ? traco : <Sensivel>{formatCurrency(ativo.valorTotal)}</Sensivel>}
       </td>
       <td className={`${TABLE_STYLES.compact.td} text-right`}>
         {planejado && !(ativo.cotacaoAtual > 0) ? (
           traco
         ) : (
           <span className="text-gray-900 dark:text-white">
-            {formatCurrency(ativo.cotacaoAtual)}
+            <ValorVisivel>{formatCurrency(ativo.cotacaoAtual)}</ValorVisivel>
           </span>
         )}
       </td>
       <td className={`${TABLE_STYLES.compact.td} text-right`}>
-        {planejado ? traco : formatCurrency(ativo.valorAtualizado)}
+        {planejado ? traco : <Sensivel>{formatCurrency(ativo.valorAtualizado)}</Sensivel>}
       </td>
       <td className={`${TABLE_STYLES.compact.td} text-right`}>
         {planejado ? traco : formatPercentage(ativo.riscoPorAtivo)}
@@ -208,7 +211,7 @@ const PrevidenciaSegurosTableRow: React.FC<PrevidenciaSegurosTableRowProps> = ({
         </span>
       </td>
       <td className={`${TABLE_STYLES.compact.td} text-right`}>
-        {formatCurrency(ativo.necessidadeAporte)}
+        <Sensivel>{formatCurrency(ativo.necessidadeAporte)}</Sensivel>
       </td>
       <td className={`${TABLE_STYLES.compact.td} text-right`}>
         {planejado ? traco : formatPercentage(ativo.rentabilidade)}
@@ -483,15 +486,15 @@ export default function PrevidenciaSegurosTable({
                 <td className={`${TABLE_STYLES.compact.td} text-center`}>-</td>
                 <td className={`${TABLE_STYLES.compact.td} text-center`}>-</td>
                 <td className={`${TABLE_STYLES.compact.td} text-right`}>
-                  {formatNumber(data?.totalGeral?.quantidade || 0)}
+                  <Sensivel curto>{formatNumber(data?.totalGeral?.quantidade || 0)}</Sensivel>
                 </td>
                 <td className={`${TABLE_STYLES.compact.td} text-center`}>-</td>
                 <td className={`${TABLE_STYLES.compact.td} text-right`}>
-                  {formatCurrency(data?.totalGeral?.valorAplicado || 0)}
+                  <Sensivel>{formatCurrency(data?.totalGeral?.valorAplicado || 0)}</Sensivel>
                 </td>
                 <td className={`${TABLE_STYLES.compact.td} text-center`}>-</td>
                 <td className={`${TABLE_STYLES.compact.td} text-right`}>
-                  {formatCurrency(data?.totalGeral?.valorAtualizado || 0)}
+                  <Sensivel>{formatCurrency(data?.totalGeral?.valorAtualizado || 0)}</Sensivel>
                 </td>
                 <td className={`${TABLE_STYLES.compact.td} text-right`}>
                   {formatPercentage(data?.totalGeral?.risco || 0)}
@@ -508,7 +511,7 @@ export default function PrevidenciaSegurosTable({
                   </span>
                 </td>
                 <td className={`${TABLE_STYLES.compact.td} text-right`}>
-                  {formatCurrency(data?.totalGeral?.necessidadeAporte || 0)}
+                  <Sensivel>{formatCurrency(data?.totalGeral?.necessidadeAporte || 0)}</Sensivel>
                 </td>
                 <td className={`${TABLE_STYLES.compact.td} text-right`}>
                   {formatPercentage(data?.totalGeral?.rentabilidade || 0)}
@@ -526,15 +529,21 @@ export default function PrevidenciaSegurosTable({
                       -
                     </td>
                     <td className={`${TABLE_STYLES.compact.td} text-right text-white`}>
-                      {formatNumber(secao.ativos.reduce((s, a) => s + a.quantidade, 0))}
+                      <Sensivel curto>
+                        {formatNumber(secao.ativos.reduce((s, a) => s + a.quantidade, 0))}
+                      </Sensivel>
                     </td>
                     <td className={`${TABLE_STYLES.compact.td} text-center text-white`}>-</td>
                     <td className={`${TABLE_STYLES.compact.td} text-right text-white`}>
-                      {formatCurrency(secao.ativos.reduce((s, a) => s + a.valorTotal, 0))}
+                      <Sensivel>
+                        {formatCurrency(secao.ativos.reduce((s, a) => s + a.valorTotal, 0))}
+                      </Sensivel>
                     </td>
                     <td className={`${TABLE_STYLES.compact.td} text-center text-white`}>-</td>
                     <td className={`${TABLE_STYLES.compact.td} text-right text-white`}>
-                      {formatCurrency(secao.ativos.reduce((s, a) => s + a.valorAtualizado, 0))}
+                      <Sensivel>
+                        {formatCurrency(secao.ativos.reduce((s, a) => s + a.valorAtualizado, 0))}
+                      </Sensivel>
                     </td>
                     <td className={`${TABLE_STYLES.compact.td} text-right text-white`}>
                       {formatPercentage(secao.ativos.reduce((s, a) => s + a.riscoPorAtivo, 0))}
@@ -549,7 +558,9 @@ export default function PrevidenciaSegurosTable({
                       {formatPercentage(secao.ativos.reduce((s, a) => s + a.quantoFalta, 0))}
                     </td>
                     <td className={`${TABLE_STYLES.compact.td} text-right text-white`}>
-                      {formatCurrency(secao.ativos.reduce((s, a) => s + a.necessidadeAporte, 0))}
+                      <Sensivel>
+                        {formatCurrency(secao.ativos.reduce((s, a) => s + a.necessidadeAporte, 0))}
+                      </Sensivel>
                     </td>
                     <td className={`${TABLE_STYLES.compact.td} text-right text-white`}>
                       {secao.ativos.length > 0
@@ -619,9 +630,15 @@ function buildMobileColumns(
       render: (a) => a.modalidade,
     },
     { key: 'subclasse', header: 'Subclasse', mobile: 'hidden', render: (a) => a.subclasse },
-    { key: 'quantidade', header: 'Quantidade', render: (a, f) => f.formatNumber(a.quantidade) },
+    {
+      key: 'quantidade',
+      valor: 'sensivel-curto',
+      header: 'Quantidade',
+      render: (a, f) => f.formatNumber(a.quantidade),
+    },
     {
       key: 'precoAquisicao',
+      valor: 'sensivel',
       header: 'Preço Aquisição',
       mobileLabel: 'Preço aquisição',
       render: (a, f) => f.formatCurrency(a.precoAquisicao),
@@ -634,6 +651,7 @@ function buildMobileColumns(
     },
     {
       key: 'cotacaoAtual',
+      valor: 'visivel',
       header: 'Cotação em Tempo Real',
       render: (a, f) => f.formatCurrency(a.cotacaoAtual),
     },
