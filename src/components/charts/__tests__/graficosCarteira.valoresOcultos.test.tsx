@@ -78,10 +78,6 @@ const semSentinela = (saida: string) =>
     expect(saida).not.toContain(forma);
   });
 
-// O BroadcastChannel do Node atravessa os workers do vitest: o clique no olho em outro arquivo de
-// teste mudaria o estado do provider aqui. Sem canal, cada teste fica com o estado que pediu.
-vi.stubGlobal('BroadcastChannel', undefined);
-
 /**
  * O jsdom não mede texto: um canvas falso com 7px por caractere. O eixo Y escondido reserva a
  * largura do rótulo mais largo de hoje — "R$ 10000K" (topo redondo de 9.876.543) = 9 × 7 = 63px.

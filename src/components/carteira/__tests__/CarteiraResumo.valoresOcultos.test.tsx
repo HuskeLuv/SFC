@@ -145,9 +145,6 @@ const esperarMercado = () =>
 
 beforeEach(() => {
   stubFetch(indicadores);
-  // O BroadcastChannel do Node atravessa os workers do vitest: o clique no olho em outro arquivo de
-  // teste mudaria o estado do provider aqui. Sem canal, cada teste fica com o estado que pediu.
-  vi.stubGlobal('BroadcastChannel', undefined);
   window.history.replaceState(null, '', '/carteira');
 });
 afterEach(() => {

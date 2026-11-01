@@ -23,10 +23,6 @@ import {
 } from '@/test/valoresOcultos';
 import { formatBRL } from '@/utils/format';
 
-// O BroadcastChannel do Node atravessa os workers do vitest: o clique no olho em outro arquivo de
-// teste mudaria o estado do provider aqui. Sem canal, cada teste fica com o estado que pediu.
-vi.stubGlobal('BroadcastChannel', undefined);
-
 const zero = { valor: 0, percentual: 0 };
 const distribuicao = {
   reservaEmergencia: { valor: SENTINELAS.precoMedio * 1000, percentual: 1 },
