@@ -10,9 +10,9 @@
  * Strings devolvidas por render/getValue/cell (fora do JSX) não são acusadas: a autodetecção de
  * R$/US$ dos componentes compartilhados e os testes com sentinelas cobrem esses casos.
  *
- * Nível: 'error' nas pastas da Fase 1 e da Fase 2 (ambas fechadas com zero ocorrências). A Fase 2
- * fica em GLOBS_VALORES_OCULTOS_FASE2 (bloco próprio por causa da opção `formattersExtras`). A Fase 3
- * (Planejar) fica em GLOBS_VALORES_OCULTOS_FASE3, em 'warn' até o fechamento da fase.
+ * Nível: 'error' nas pastas das Fases 1, 2 e 3 (todas fechadas com zero ocorrências). A Fase 2
+ * fica em GLOBS_VALORES_OCULTOS_FASE2 (bloco próprio por causa da opção `formattersExtras`) e a
+ * Fase 3 (Planejar) em GLOBS_VALORES_OCULTOS_FASE3.
  *
  * Fluxo de caixa: o formatCurrency DEPRECATED (src/utils/formatters.ts) é formatNumber, sem "R$".
  * A regra pega formatCurrency/formatBRL no JSX e, na Fase 2, o num() do Orçamento v2 (opção
@@ -193,7 +193,7 @@ export const IGNORES_VALORES_OCULTOS_FASE2 = [
 ];
 
 /**
- * Fase 3 ('warn' até o fechamento; o integrador passa para 'error'): Planejar — Sonhos e
+ * Fase 3 ('error' desde o fechamento, com zero ocorrências): Planejar — Sonhos e
  * Aposentadoria (/planejamento-financeiro). Sem `formattersExtras`: o formatPremissa do
  * PremissasCard devolve dinheiro, % e anos, então marque à mão e confira pelo innerText (e2e).
  */

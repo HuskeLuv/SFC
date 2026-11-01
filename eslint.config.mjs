@@ -53,14 +53,14 @@ const eslintConfig = [
       "mf/valor-sem-sensivel": ["error", OPCOES_VALORES_OCULTOS_FASE2],
     },
   },
-  // Fase 3 (Planejar: Sonhos e Aposentadoria): 'warn' enquanto as fatias marcam as telas; o
-  // integrador passa para 'error' no fechamento, com zero ocorrências.
+  // Fase 3 (Planejar: Sonhos e Aposentadoria): 'error' desde o fechamento da fase, com zero
+  // ocorrências.
   {
     files: GLOBS_VALORES_OCULTOS_FASE3,
     ignores: IGNORES_VALORES_OCULTOS_FASE3,
     plugins: { mf: pluginValoresOcultos },
     rules: {
-      "mf/valor-sem-sensivel": "warn",
+      "mf/valor-sem-sensivel": "error",
     },
   },
 ];
