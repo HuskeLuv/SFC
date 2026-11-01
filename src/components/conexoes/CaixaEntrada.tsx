@@ -6,6 +6,7 @@ import LoadingSpinner from '@/components/common/LoadingSpinner';
 import { Table, TableBody, TableCell, TableHeader, TableRow } from '@/components/ui/table';
 import { TABLE_HEADER_STYLE, TABLE_STYLES } from '@/components/ui/table/tableStyles';
 import { formatBRL } from '@/utils/format';
+import { Sensivel } from '@/components/common/valores/Sensivel';
 import { useIsBelowLg } from '@/hooks/useMediaQuery';
 import MobilePageState from '@/components/ui/mobile/MobilePageState';
 import CaixaEntradaCards from './mobile/CaixaEntradaCards';
@@ -301,8 +302,10 @@ export default function CaixaEntrada({ onAviso }: { onAviso: (msg: string) => vo
                       <TableCell
                         className={`${TABLE_STYLES.td} whitespace-nowrap text-right font-medium tabular-nums ${saida ? 'text-red-600 dark:text-red-400' : 'text-emerald-600 dark:text-emerald-400'}`}
                       >
-                        {saida ? '−' : '+'}
-                        {formatBRL(Math.abs(p.amount))}
+                        <Sensivel>
+                          {saida ? '−' : '+'}
+                          {formatBRL(Math.abs(p.amount))}
+                        </Sensivel>
                       </TableCell>
                       <TableCell className={TABLE_STYLES.td}>
                         <select

@@ -5,6 +5,7 @@ import Image from 'next/image';
 import Badge from '@/components/ui/badge/Badge';
 import Button from '@/components/ui/button/Button';
 import { formatBRL } from '@/utils/format';
+import { Sensivel } from '@/components/common/valores/Sensivel';
 import { useIsBelowLg } from '@/hooks/useMediaQuery';
 import MobileStatusPill, { type MobileStatusTone } from '@/components/ui/mobile/MobileStatusPill';
 import {
@@ -204,11 +205,11 @@ function ConexaoCardDesktop({
                           : 'text-gray-800 dark:text-white/90'
                       }`}
                     >
-                      {formatBRL(a.balance)}
+                      <Sensivel>{formatBRL(a.balance)}</Sensivel>
                     </p>
                     {a.type === 'CREDIT' && a.creditLimit != null ? (
                       <p className="text-xs text-gray-500 dark:text-gray-400">
-                        limite {formatBRL(a.creditLimit)}
+                        limite <Sensivel>{formatBRL(a.creditLimit)}</Sensivel>
                       </p>
                     ) : null}
                   </div>
@@ -393,11 +394,11 @@ function ConexaoCardMobile({
                           : 'text-gray-800 dark:text-white/90'
                       }`}
                     >
-                      {formatBRL(a.balance)}
+                      <Sensivel>{formatBRL(a.balance)}</Sensivel>
                     </p>
                     {a.type === 'CREDIT' && a.creditLimit != null ? (
                       <p className="text-xs text-gray-500 dark:text-gray-400">
-                        limite {formatBRL(a.creditLimit)}
+                        limite <Sensivel>{formatBRL(a.creditLimit)}</Sensivel>
                       </p>
                     ) : null}
                   </div>

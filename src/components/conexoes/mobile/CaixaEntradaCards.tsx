@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react';
 import { formatBRL } from '@/utils/format';
+import { Sensivel, TextoSensivel } from '@/components/common/valores/Sensivel';
 import type { OpcaoLinha, PendenteDTO } from '@/hooks/useConexoesBancarias';
 import LinhaFluxoPickerSheet from './LinhaFluxoPickerSheet';
 import { rotuloCompetencia } from '@/services/pluggy/competenciaCartao';
@@ -121,8 +122,10 @@ export default function CaixaEntradaCards({
                       : 'text-mf-patrimonio dark:text-mf-tranquilidade'
                   }`}
                 >
-                  {saida ? '−' : '+'}
-                  {formatBRL(Math.abs(p.amount))}
+                  <Sensivel>
+                    {saida ? '−' : '+'}
+                    {formatBRL(Math.abs(p.amount))}
+                  </Sensivel>
                 </span>
               </div>
 
@@ -207,9 +210,11 @@ export default function CaixaEntradaCards({
           if (pickerDe) setEscolha(pickerDe.id, itemId);
         }}
         assunto={
-          pickerDe
-            ? `${pickerDe.merchantName ?? pickerDe.description} · ${pickerDe.amount < 0 ? '−' : '+'}${formatBRL(Math.abs(pickerDe.amount))}`
-            : undefined
+          pickerDe ? (
+            <TextoSensivel
+              texto={`${pickerDe.merchantName ?? pickerDe.description} · ${pickerDe.amount < 0 ? '−' : '+'}${formatBRL(Math.abs(pickerDe.amount))}`}
+            />
+          ) : undefined
         }
       />
     </div>

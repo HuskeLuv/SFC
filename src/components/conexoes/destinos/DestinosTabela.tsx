@@ -10,6 +10,7 @@ import {
 import { rotuloVia, type DestinoImportadoItem } from '@/lib/pluggyDestinos';
 import type { CategoriaMovivel } from '@/lib/carteiraMover';
 import { formatBRL } from '@/utils/format';
+import { Sensivel } from '@/components/common/valores/Sensivel';
 import DestinoPainelLinha from './DestinoPainelLinha';
 import {
   ehRevisavel,
@@ -313,7 +314,7 @@ export default function DestinosTabela({
                           'text-right whitespace-nowrap tabular-nums',
                         )}
                       >
-                        {formatBRL(item.saldo)}
+                        <Sensivel>{formatBRL(item.saldo)}</Sensivel>
                       </td>
                       <td className={twMerge(TABLE_STYLES.td, 'py-2')}>
                         {revisavel && editavel ? (
