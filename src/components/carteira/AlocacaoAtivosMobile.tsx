@@ -231,7 +231,7 @@ export default function AlocacaoAtivosMobile({
                   </span>
                 )}
                 <span className="shrink-0 text-[15px] font-semibold tabular-nums text-gray-800 dark:text-white/90">
-                  <Sensivel>{formatarMoeda(linha.total)}</Sensivel>
+                  <Sensivel curto>{formatarMoeda(linha.total)}</Sensivel>
                 </span>
               </div>
 

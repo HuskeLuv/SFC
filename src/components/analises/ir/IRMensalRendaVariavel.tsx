@@ -104,7 +104,7 @@ export default function IRMensalRendaVariavel() {
                 if (r.lucroBruto < 0)
                   return (
                     <span className="text-[#D92D20] dark:text-[#F97066]">
-                      Prej. <Sensivel>{formatBRL(Math.abs(r.lucroBruto))}</Sensivel>
+                      Prej. <Sensivel curto>{formatBRL(Math.abs(r.lucroBruto))}</Sensivel>
                     </span>
                   );
                 return '—';
@@ -166,7 +166,7 @@ export default function IRMensalRendaVariavel() {
                             <div className="text-gray-500">—</div>
                             {r.lucroBruto < 0 && (
                               <div className="text-xs text-red-500 dark:text-red-400">
-                                Prej. <Sensivel>{formatBRL(Math.abs(r.lucroBruto))}</Sensivel>
+                                Prej. <Sensivel curto>{formatBRL(Math.abs(r.lucroBruto))}</Sensivel>
                               </div>
                             )}
                           </div>
