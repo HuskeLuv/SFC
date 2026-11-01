@@ -41,6 +41,7 @@ import ModalPlanejar, {
 import { COR_LINK } from '@/constants/analiseAtivosVisual';
 import { desvioAlvo } from '@/services/analiseAtivos/regras/carteira/desvioAlvo';
 import { formatarTexto } from '@/services/analiseAtivos/textos';
+import { Sensivel, ValorVisivel } from '@/components/common/valores/Sensivel';
 import { TEXTOS_ACOES_CARTEIRA } from '@/services/analiseAtivos/textosAcoesCarteira';
 import { TEXTOS_EUA } from '@/services/analiseAtivos/textosEua';
 import { formatBRL, formatPct, formatUSD } from '@/utils/format';
@@ -103,7 +104,7 @@ function Dado({
   rotulo: string;
   valor: React.ReactNode;
   carregando: boolean;
-  nota?: string;
+  nota?: React.ReactNode;
 }) {
   return (
     <div className="flex min-w-0 flex-col gap-0.5">
@@ -245,7 +246,9 @@ export default function BlocoNaCarteira({
               {TP.valorAlvo}:{' '}
               <span className="font-semibold text-gray-700 tabular-nums dark:text-gray-200">
                 <Numero
-                  valor={alvoValor !== null ? dinheiroInteiro(alvoValor) : '—'}
+                  valor={
+                    alvoValor !== null ? <Sensivel>{dinheiroInteiro(alvoValor)}</Sensivel> : '—'
+                  }
                   carregando={carregando && alvoValor === null}
                 />
               </span>
@@ -290,7 +293,7 @@ export default function BlocoNaCarteira({
           />
           <Dado
             rotulo={t.quantidade}
-            valor={formatarQuantidade(dados.quantidade ?? 0)}
+            valor={<Sensivel curto>{formatarQuantidade(dados.quantidade ?? 0)}</Sensivel>}
             carregando={false}
           />
         </dl>
@@ -328,16 +331,22 @@ export default function BlocoNaCarteira({
       >
         <Dado
           rotulo={t.quantidade}
-          valor={formatarQuantidade(linha?.quantidade ?? dados.quantidade ?? 0)}
+          valor={
+            <Sensivel curto>
+              {formatarQuantidade(linha?.quantidade ?? dados.quantidade ?? 0)}
+            </Sensivel>
+          }
           carregando={carregando && !linha}
         />
         <Dado
           rotulo={t.valor}
-          valor={linha ? dinheiro(linha.valorAtualizado) : '—'}
+          valor={linha ? <Sensivel>{dinheiro(linha.valorAtualizado)}</Sensivel> : '—'}
           nota={
-            dados.linhaEmDolar && dados.valorAtualizadoBRL !== null
-              ? `≈ ${formatBRL(dados.valorAtualizadoBRL)}`
-              : undefined
+            dados.linhaEmDolar && dados.valorAtualizadoBRL !== null ? (
+              <>
+                ≈ <Sensivel>{formatBRL(dados.valorAtualizadoBRL)}</Sensivel>
+              </>
+            ) : undefined
           }
           carregando={carregando}
         />
@@ -352,11 +361,13 @@ export default function BlocoNaCarteira({
         )}
         <Dado
           rotulo={t.precoMedio}
-          valor={linha ? dinheiro(linha.precoAquisicao) : '—'}
+          valor={linha ? <Sensivel>{dinheiro(linha.precoAquisicao)}</Sensivel> : '—'}
           nota={
-            dados.linhaEmDolar && linha && dados.cotacaoDolar !== null
-              ? `≈ ${formatBRL(linha.precoAquisicao * dados.cotacaoDolar)}`
-              : undefined
+            dados.linhaEmDolar && linha && dados.cotacaoDolar !== null ? (
+              <>
+                ≈ <Sensivel>{formatBRL(linha.precoAquisicao * dados.cotacaoDolar)}</Sensivel>
+              </>
+            ) : undefined
           }
           carregando={carregando}
         />
@@ -412,10 +423,13 @@ export default function BlocoNaCarteira({
         ) : null}
         {cotacaoDiverge && linha ? (
           <p data-nota-cotacao="">
-            {formatarTexto(t.cotacaoDiferente, {
-              valor: dinheiro(linha.cotacaoAtual),
-              data: dataCurta(precoData),
-            })}
+            {/* cotação = dado de mercado: fica visível com o olho fechado */}
+            <ValorVisivel>
+              {formatarTexto(t.cotacaoDiferente, {
+                valor: dinheiro(linha.cotacaoAtual),
+                data: dataCurta(precoData),
+              })}
+            </ValorVisivel>
           </p>
         ) : null}
       </div>

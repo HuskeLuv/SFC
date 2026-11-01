@@ -1,11 +1,18 @@
+'use client';
+
 /**
  * Barra "posição × alvo" do card "Na sua carteira": a posição preenche a barra e o alvo planejado é
  * um traço vertical. v2.5 (fatia C, caso 33): posição e alvo na MESMA base (% da carteira TOTAL),
  * com 1 casa decimal ('3,8%'); o texto ao lado fala em DESVIO, nunca em "faltam". Elemento NÃO textual em
  * patrimonio/tranquilidade; textos em cinza do app. role="img" com o rótulo completo para leitor de
  * tela. Textos de textosAcoesCarteira.
+ *
+ * Esconder valores (Fase 5): o desvio em R$/US$ do `rotuloReferencia` vira pílula (TextoSensivel)
+ * e sai do rótulo acessível (mascarar); os % ficam.
  */
 import type { ReactNode } from 'react';
+import { TextoSensivel } from '@/components/common/valores/Sensivel';
+import { useValoresOcultos } from '@/context/ValoresOcultosContext';
 import { formatarTexto } from '@/services/analiseAtivos/textos';
 import { TEXTOS_ACOES_CARTEIRA } from '@/services/analiseAtivos/textosAcoesCarteira';
 import { formatNumber } from '@/utils/format';
@@ -36,6 +43,7 @@ export default function BarraPesoAlvo({
   ariaLabel,
   acaoReferencia,
 }: BarraPesoAlvoProps) {
+  const { mascarar } = useValoresOcultos();
   const ref = referencia ?? 0;
   // Com alvo: escala folgada em torno de posição e alvo. Sem alvo: 0–100%.
   const max = referencia === null ? 100 : Math.max(valor, ref, 0.0001) * 1.3;
@@ -47,14 +55,14 @@ export default function BarraPesoAlvo({
     <div className="flex min-w-0 flex-col gap-1.5" data-barra-peso="">
       <div
         role="img"
-        aria-label={
+        aria-label={mascarar(
           ariaLabel ??
-          formatarTexto(TEXTOS_ACOES_CARTEIRA.barraPeso.aria, {
-            rotulo,
-            valor: valorTxt,
-            referencia: rotuloReferencia,
-          })
-        }
+            formatarTexto(TEXTOS_ACOES_CARTEIRA.barraPeso.aria, {
+              rotulo,
+              valor: valorTxt,
+              referencia: rotuloReferencia,
+            }),
+        )}
         className="relative mt-1 h-2 rounded-full bg-gray-100 dark:bg-white/10"
       >
         <span
@@ -74,7 +82,7 @@ export default function BarraPesoAlvo({
       <div className="flex flex-wrap justify-between gap-x-2.5 gap-y-1 text-xs text-gray-500 dark:text-gray-400">
         <span>{rotulo}</span>
         <span>
-          {rotuloReferencia}
+          <TextoSensivel texto={rotuloReferencia} />
           {acaoReferencia ? <> · {acaoReferencia}</> : null}
         </span>
       </div>
