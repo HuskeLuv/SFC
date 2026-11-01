@@ -4,6 +4,7 @@ import React from 'react';
 import { CardSectionBand } from '@/components/ui/table/CardSectionBand';
 import type { MonthGroup } from '@/lib/cashflow/monthViewModel';
 import { formatBRL, formatPct } from '@/utils/format';
+import { Sensivel } from '@/components/common/valores/Sensivel';
 
 /**
  * Faixa de um grupo na visão do mês (PWA fase 2, protótipo cenário a), com os 3 níveis da
@@ -100,9 +101,13 @@ export default function MonthGroupBand({
   showAnnual,
   onActions,
 }: MonthGroupBandProps) {
-  const subtotal = formatBRL(group.monthSubtotal);
+  const subtotal = <Sensivel>{formatBRL(group.monthSubtotal)}</Sensivel>;
   const annual =
-    showAnnual && group.groupType !== 'saldo' ? `ano ${formatBRL(group.annual)}` : null;
+    showAnnual && group.groupType !== 'saldo' ? (
+      <>
+        ano <Sensivel>{formatBRL(group.annual)}</Sensivel>
+      </>
+    ) : null;
 
   if (group.level === 1) {
     return (
