@@ -2,6 +2,7 @@ import React from 'react';
 import { TableRow } from '@/components/ui/table';
 import { CashflowItem } from '@/types/cashflow';
 import { formatCurrency } from '@/utils/formatters';
+import { Sensivel } from '@/components/common/valores/Sensivel';
 import { FixedCell, MonthCell, AnnualCell } from './GridCells';
 import { GRID } from './cashflowGridStyles';
 
@@ -28,9 +29,11 @@ export const NewItemRow: React.FC<NewItemRowProps> = ({ item }) => (
     <FixedCell col={3} className={`text-right ${GRID.editingBg}`} />
     {Array.from({ length: 12 }).map((_, index) => (
       <MonthCell key={index} index={index} className="cursor-default">
-        {formatCurrency(0)}
+        <Sensivel>{formatCurrency(0)}</Sensivel>
       </MonthCell>
     ))}
-    <AnnualCell className={GRID.editingBg}>{formatCurrency(0)}</AnnualCell>
+    <AnnualCell className={GRID.editingBg}>
+      <Sensivel>{formatCurrency(0)}</Sensivel>
+    </AnnualCell>
   </TableRow>
 );

@@ -1,6 +1,8 @@
 'use client';
 
+import { Sensivel } from '@/components/common/valores/Sensivel';
 import { TABLE_STYLES } from '@/components/ui/table/tableStyles';
+import { useValoresOcultos } from '@/context/ValoresOcultosContext';
 import { SELO_TEXTO } from '@/lib/orcamento/tons';
 import type { CategoriaV2 } from '@/types/orcamentoV2';
 import BarraConsumo from './BarraConsumo';
@@ -53,6 +55,7 @@ export default function LinhaCategoria({
               ? [{ texto: `${c.qtdAFrente} à frente do ritmo`, status: 'warn' as const }]
               : []),
           ];
+  const { mascarar } = useValoresOcultos();
   const dif = textoDiferenca(c.diferenca);
   const tolerancia = textoTolerancia(c.orcado, c.realizado, c.status);
 
@@ -105,13 +108,15 @@ export default function LinhaCategoria({
       </td>
       <td className={`${TABLE_STYLES.td} text-right`}>
         <b className="font-semibold tabular-nums text-gray-900 dark:text-white/90">
-          {num(c.orcado)}
+          <Sensivel>{num(c.orcado)}</Sensivel>
         </b>
         <small className="block text-[11px] text-gray-500 dark:text-gray-400">
           soma das subcategorias
         </small>
       </td>
-      <td className={`${TABLE_STYLES.td} text-right tabular-nums`}>{num(c.realizado)}</td>
+      <td className={`${TABLE_STYLES.td} text-right tabular-nums`}>
+        <Sensivel curto>{num(c.realizado)}</Sensivel>
+      </td>
       <td
         className={`${TABLE_STYLES.td} text-right tabular-nums ${
           dif.negativa
@@ -120,9 +125,11 @@ export default function LinhaCategoria({
               ? 'text-gray-400 dark:text-gray-500'
               : ''
         }`}
-        title={tolerancia ?? undefined}
+        title={tolerancia ? mascarar(tolerancia) : undefined}
       >
-        <span className={tolerancia ? CLASSE_COM_AJUDA : undefined}>{dif.texto}</span>
+        <span className={tolerancia ? CLASSE_COM_AJUDA : undefined}>
+          {dif.texto === '—' ? dif.texto : <Sensivel curto>{dif.texto}</Sensivel>}
+        </span>
       </td>
       <td className={TABLE_STYLES.td}>
         <BarraConsumo

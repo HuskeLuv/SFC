@@ -8,6 +8,7 @@ import { CollapseButton } from './CollapseButton';
 import { EditButton } from './EditButton';
 import { SaveCancelButtons } from './SaveCancelButtons';
 import { ColorOption } from './ColorPickerButton';
+import { Sensivel } from '@/components/common/valores/Sensivel';
 import { FixedCell, MonthCell, AnnualCell } from './GridCells';
 import { GRID, SECTION_CLASS } from './cashflowGridStyles';
 import { groupLevel } from './groupLevel';
@@ -174,10 +175,12 @@ export const GroupHeader: React.FC<GroupHeaderProps> = ({
       )}
       {groupTotals.map((value, index) => (
         <MonthCell key={index} index={index}>
-          {formatCurrency(value || 0)}
+          <Sensivel>{formatCurrency(value || 0)}</Sensivel>
         </MonthCell>
       ))}
-      <AnnualCell className={sectionClass}>{formatCurrency(groupAnnualTotal)}</AnnualCell>
+      <AnnualCell className={sectionClass}>
+        <Sensivel>{formatCurrency(groupAnnualTotal)}</Sensivel>
+      </AnnualCell>
     </TableRow>
   );
 };

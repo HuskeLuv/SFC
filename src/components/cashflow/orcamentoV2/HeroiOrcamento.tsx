@@ -1,6 +1,7 @@
 'use client';
 
 import type { ReactNode } from 'react';
+import { Sensivel, TextoSensivel } from '@/components/common/valores/Sensivel';
 import { SELO_TEXTO } from '@/lib/orcamento/tons';
 import type { OrcamentoV2Response } from '@/types/orcamentoV2';
 import { formatBRL, formatNumber } from '@/utils/format';
@@ -34,7 +35,7 @@ function Quadro({
 }: {
   id: string;
   rotulo: string;
-  valor: string;
+  valor: ReactNode;
   apoio: ReactNode;
   azul?: boolean;
 }) {
@@ -86,14 +87,17 @@ export default function HeroiOrcamento({ data }: { data: OrcamentoV2Response }) 
     resumo.sobraPrevista === null ? (
       'sem receita prevista'
     ) : resumo.sobraPrevista >= 0 ? (
-      `sobra ${formatBRL(resumo.sobraPrevista)} para investir${
-        resumo.orcadoObjetivos > 0
-          ? ` (inclui ${formatBRL(resumo.orcadoObjetivos)} em objetivos)`
-          : ''
-      }`
+      <TextoSensivel
+        texto={`sobra ${formatBRL(resumo.sobraPrevista)} para investir${
+          resumo.orcadoObjetivos > 0
+            ? ` (inclui ${formatBRL(resumo.orcadoObjetivos)} em objetivos)`
+            : ''
+        }`}
+      />
     ) : (
       <span className={SELO_TEXTO.estourou}>
-        gastos orçados passam da receita em {formatBRL(Math.abs(resumo.sobraPrevista))}
+        gastos orçados passam da receita em{' '}
+        <Sensivel>{formatBRL(Math.abs(resumo.sobraPrevista))}</Sensivel>
       </span>
     );
 
@@ -107,12 +111,12 @@ export default function HeroiOrcamento({ data }: { data: OrcamentoV2Response }) 
           data-mf-heroi-realizado=""
           className="mt-1 break-words text-[26px] leading-tight font-bold tabular-nums text-gray-900 dark:text-white/90"
         >
-          {formatBRL(resumo.realizado)}
+          <Sensivel>{formatBRL(resumo.realizado)}</Sensivel>
         </p>
         <p className="mt-1.5 text-xs text-gray-500 tabular-nums dark:text-gray-400">
           de{' '}
           <b className="font-semibold text-gray-800 dark:text-white/90">
-            {formatBRL(resumo.orcado)}
+            <Sensivel>{formatBRL(resumo.orcado)}</Sensivel>
           </b>{' '}
           orçados
           {resumo.realizadoPctOrcado !== null && (
@@ -142,14 +146,14 @@ export default function HeroiOrcamento({ data }: { data: OrcamentoV2Response }) 
                 resumo.disponivel < 0 ? SELO_TEXTO.estourou : 'text-gray-800 dark:text-white/90'
               }`}
             >
-              {formatBRL(resumo.disponivel)}
+              <Sensivel>{formatBRL(resumo.disponivel)}</Sensivel>
             </b>
           </span>
           {!anual && corrente && <span>{plural(restantes, 'dia restante', 'dias restantes')}</span>}
         </div>
         {excesso && (
           <p data-mf-heroi-excesso="" className={`mt-1 text-[11px] ${SELO_TEXTO.estourou}`}>
-            {excesso}
+            <TextoSensivel texto={excesso} />
             {resumo.disponivel >= 0 && ', compensados pela folga das outras'}
           </p>
         )}
@@ -160,7 +164,13 @@ export default function HeroiOrcamento({ data }: { data: OrcamentoV2Response }) 
           id="receita"
           azul
           rotulo={anual ? 'Receita prevista no ano' : 'Receita prevista'}
-          valor={receitaPrevista.valor === null ? '—' : formatBRL(receitaPrevista.valor)}
+          valor={
+            receitaPrevista.valor === null ? (
+              '—'
+            ) : (
+              <Sensivel>{formatBRL(receitaPrevista.valor)}</Sensivel>
+            )
+          }
           apoio={apoioReceita}
         />
         <Quadro

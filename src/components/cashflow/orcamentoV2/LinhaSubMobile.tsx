@@ -1,5 +1,6 @@
 'use client';
 
+import { Sensivel, TextoSensivel } from '@/components/common/valores/Sensivel';
 import type { SalvarOrcadoEntrada } from '@/hooks/useOrcamentoV2';
 import { SELO_TEXTO } from '@/lib/orcamento/tons';
 import type { SubcategoriaV2 } from '@/types/orcamentoV2';
@@ -20,6 +21,8 @@ export interface LinhaSubMobileProps {
 
 const ETIQUETA =
   'inline-flex shrink-0 items-center rounded-full px-1.5 py-px text-[10.5px] font-semibold whitespace-nowrap';
+const CAMPO =
+  'h-10 w-full min-w-0 bg-transparent text-right text-base tabular-nums text-gray-800 placeholder:text-gray-400 focus:outline-none dark:text-gray-100 dark:placeholder:text-gray-500';
 const ETIQUETA_NEUTRA = `${ETIQUETA} bg-gray-100 text-gray-500 dark:bg-white/[0.06] dark:text-gray-400`;
 
 /**
@@ -39,7 +42,7 @@ export default function LinhaSubMobile({
   rotuloReal,
   onSalvarOrcado,
 }: LinhaSubMobileProps) {
-  const { emPct, erro, inputProps } = useCampoOrcado(sub, onSalvarOrcado);
+  const { emPct, erro, inputProps, oculto, abrir } = useCampoOrcado(sub, onSalvarOrcado);
   const tom = TOM_DO_STATUS[sub.status];
   const etiquetaStatus = ETIQUETA_STATUS[sub.status];
   const destaque = sub.status === 'warn' || sub.status === 'bad';
@@ -70,7 +73,8 @@ export default function LinhaSubMobile({
           <span className="block">
             {rotuloReal}{' '}
             <b className="font-semibold text-gray-800 dark:text-white/90">
-              {sub.realizado !== 0 ? num(sub.realizado) : '—'}
+              {/* Pílula curta: a de 5,5em alargava a coluna e quebrava o nome (linha mais alta). */}
+              {sub.realizado !== 0 ? <Sensivel curto>{num(sub.realizado)}</Sensivel> : '—'}
             </b>
           </span>
           <span
@@ -91,21 +95,35 @@ export default function LinhaSubMobile({
             <span className="shrink-0 text-xs font-medium text-gray-500 dark:text-gray-400">
               {emPct ? '%' : 'R$'}
             </span>
-            <input
-              {...inputProps}
-              aria-label={
-                emPct
-                  ? `Orçado de ${sub.nome} em % da receita`
-                  : `Orçado de ${sub.nome} em ${categoriaNome}`
-              }
-              className="h-10 w-full min-w-0 bg-transparent text-right text-base tabular-nums text-gray-800 placeholder:text-gray-400 focus:outline-none dark:text-gray-100 dark:placeholder:text-gray-500"
-            />
+            {oculto ? (
+              // Olho fechado: o orçado parado vira pílula; tocar abre o campo com o número.
+              <button
+                type="button"
+                data-mf-orcado-oculto=""
+                onClick={abrir}
+                onFocus={abrir}
+                aria-label={`Orçado de ${sub.nome} em ${categoriaNome}: valor oculto. Editar`}
+                className={CAMPO}
+              >
+                <Sensivel>{inputProps.value}</Sensivel>
+              </button>
+            ) : (
+              <input
+                {...inputProps}
+                aria-label={
+                  emPct
+                    ? `Orçado de ${sub.nome} em % da receita`
+                    : `Orçado de ${sub.nome} em ${categoriaNome}`
+                }
+                className={CAMPO}
+              />
+            )}
           </label>
         ) : (
           <p className="min-w-0 flex-1 basis-0 text-xs tabular-nums text-gray-500 dark:text-gray-400">
             orçado{' '}
             <b className="font-semibold text-gray-800 dark:text-white/90">
-              {sub.orcado > 0 ? num(sub.orcado) : '—'}
+              {sub.orcado > 0 ? <Sensivel>{num(sub.orcado)}</Sensivel> : '—'}
             </b>
           </p>
         )}
@@ -120,7 +138,7 @@ export default function LinhaSubMobile({
       </div>
       {emPct && sub.editavelOrcado && (
         <p className="mt-1 text-[11px] tabular-nums text-gray-500 dark:text-gray-400">
-          = R$ {num(sub.orcado)}
+          <TextoSensivel texto={`= R$ ${num(sub.orcado)}`} />
         </p>
       )}
       {erro && (

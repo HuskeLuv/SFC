@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react';
 import { formatBRL } from '@/utils/format';
+import { Sensivel, TextoSensivel } from '@/components/common/valores/Sensivel';
 import { nivelOrcamento } from '@/lib/cashflow/orcamentoNivel';
 import type { OrcamentoLinha } from './OrcamentoTable';
 import { OrcamentoMeter, tomDoNivel } from './OrcamentoMobileList';
@@ -71,10 +72,11 @@ export default function OrcamentoResumoMobile({
               }`}
             >
               {sobra >= 0 ? 'Sobram ' : 'Passou '}
-              {formatBRL(Math.abs(sobra))}
+              <Sensivel>{formatBRL(Math.abs(sobra))}</Sensivel>
             </p>
             <p className="mt-0.5 text-[13.5px] text-gray-600 tabular-nums dark:text-gray-300">
-              Real {formatBRL(totais.real)} de {formatBRL(totais.meta)} orçados
+              Real <Sensivel>{formatBRL(totais.real)}</Sensivel> de{' '}
+              <Sensivel>{formatBRL(totais.meta)}</Sensivel> orçados
               {nivelTotal.pct !== null ? ` · ${nivelTotal.pct}%` : ''}
             </p>
             <div className="mt-2.5">
@@ -84,7 +86,10 @@ export default function OrcamentoResumoMobile({
         ) : (
           <p className="mt-1 text-sm text-gray-600 dark:text-gray-300">
             Nenhuma meta definida ainda. Toque numa categoria abaixo para definir. Real da janela:{' '}
-            <b className="font-semibold tabular-nums">{formatBRL(totais.real)}</b>.
+            <b className="font-semibold tabular-nums">
+              <Sensivel>{formatBRL(totais.real)}</Sensivel>
+            </b>
+            .
           </p>
         )}
       </div>
@@ -112,11 +117,15 @@ export default function OrcamentoResumoMobile({
                 </span>
                 <span>
                   <b className="font-semibold">{linha.nome}</b>{' '}
-                  {estourou
-                    ? `passou do orçado em ${formatBRL(linha.real - meta)} (${nivel.pct}%).`
-                    : nivel.status === 'atingido'
-                      ? 'atingiu o orçado.'
-                      : `já usou ${nivel.pct}% do orçado. Restam ${formatBRL(meta - linha.real)}.`}
+                  <TextoSensivel
+                    texto={
+                      estourou
+                        ? `passou do orçado em ${formatBRL(linha.real - meta)} (${nivel.pct}%).`
+                        : nivel.status === 'atingido'
+                          ? 'atingiu o orçado.'
+                          : `já usou ${nivel.pct}% do orçado. Restam ${formatBRL(meta - linha.real)}.`
+                    }
+                  />
                 </span>
               </li>
             );

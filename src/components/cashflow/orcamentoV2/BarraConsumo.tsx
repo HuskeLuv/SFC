@@ -1,5 +1,6 @@
 'use client';
 
+import { useValoresOcultos } from '@/context/ValoresOcultosContext';
 import type { StatusOrcamento } from '@/lib/orcamento/regras';
 import { SELO_TEXTO, TOM_FUNDO } from '@/lib/orcamento/tons';
 import { CLASSE_COM_AJUDA, TOM_DO_STATUS, textoConsumido } from './apresentacao';
@@ -28,6 +29,7 @@ export default function BarraConsumo({
   tituloRitmo,
   ajuda,
 }: BarraConsumoProps) {
+  const { mascarar } = useValoresOcultos();
   if (consumido === null) {
     return (
       <span className="inline-flex items-center gap-2" data-mf-consumo="none">
@@ -62,7 +64,7 @@ export default function BarraConsumo({
         className={`w-11 text-right text-xs font-semibold tabular-nums ${
           destaque ? SELO_TEXTO[tom] : 'text-gray-600 dark:text-gray-300'
         }`}
-        title={ajuda ?? undefined}
+        title={ajuda ? mascarar(ajuda) : undefined}
       >
         <span className={ajuda ? CLASSE_COM_AJUDA : undefined}>
           {textoConsumido(consumido, ritmo)}

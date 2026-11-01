@@ -9,6 +9,10 @@ import { formatBRL } from '@/utils/format';
 import type { OrcamentoCategoria } from '@/services/cashflow/orcamentoVsReal';
 import { coresPorNome } from './orcamentoCores';
 import { MYFINANCE_BRAND } from '@/constants/brandColors';
+import {
+  useChaveGraficoSensivel,
+  useOpcoesGraficoSensiveis,
+} from '@/components/charts/useOpcoesGraficoSensiveis';
 
 const ReactApexChart = dynamic(() => import('react-apexcharts'), { ssr: false });
 
@@ -255,6 +259,13 @@ export default function OrcamentoMensalChart({
     };
   }, [isMobile, visao, porCategoria, anual, isDarkMode]);
 
+  // Esconder valores (decisão 7): mascara as opções FINAIS de cada variante — eixo de R$ sem rótulo
+  // (largura reservada), tooltip com pílula, "R$ •••••" no eixo de valor das barras horizontais.
+  // As barras ficam. Olho aberto devolve a mesma referência; a chave remonta ao alternar.
+  const optionsSensiveis = useOpcoesGraficoSensiveis(options);
+  const mobileOptionsSensiveis = useOpcoesGraficoSensiveis(mobileOptions ?? options);
+  const chaveSensivel = useChaveGraficoSensivel();
+
   const series = useMemo(() => {
     if (isMobile && visao === 'mes') {
       // Real de cada categoria no vermelho quando passa do orçado (cor por ponto).
@@ -322,8 +333,8 @@ export default function OrcamentoMensalChart({
         ) : null}
         <ReactApexChart
           // Remonta ao trocar de visão: o Apex não desfaz `horizontal` numa atualização.
-          key={visao}
-          options={mobileOptions}
+          key={`${visao}-${chaveSensivel}`}
+          options={mobileOptionsSensiveis}
           series={series}
           type="bar"
           height={visao === 'mes' ? 36 * barras + 80 : 320}
@@ -339,7 +350,13 @@ export default function OrcamentoMensalChart({
       <h4 className="mb-2 text-sm font-medium text-gray-800 dark:text-white/90">
         Orçamento vs. Atual{visao === 'mes' ? ` — ${MONTHS[mes]}` : ''}
       </h4>
-      <ReactApexChart options={options} series={series} type="bar" height={280} />
+      <ReactApexChart
+        key={chaveSensivel}
+        options={optionsSensiveis}
+        series={series}
+        type="bar"
+        height={280}
+      />
     </div>
   );
 }

@@ -10,6 +10,8 @@ import React, {
 } from 'react';
 import BottomSheet from '@/components/ui/sheet/BottomSheet';
 import { formatBRL } from '@/utils/format';
+import { Sensivel } from '@/components/common/valores/Sensivel';
+import { useValoresOcultos } from '@/context/ValoresOcultosContext';
 
 /**
  * Barra do mês do Fluxo de caixa no celular (PWA fase 2, protótipo cenário b): setas de 44px,
@@ -165,6 +167,7 @@ export default function MonthStepper({
   className = '',
 }: MonthStepperProps) {
   const [pickerOpen, setPickerOpen] = useState(false);
+  const { mascarar } = useValoresOcultos();
   const nameRef = useRef<HTMLButtonElement>(null);
   const labelRef = useRef<HTMLElement>(null);
   const previous = useRef({ year, month });
@@ -350,7 +353,7 @@ export default function MonthStepper({
             const selected = i === month;
             const label = [
               name,
-              saldo !== null ? `saldo ${formatBRL(saldo)}` : null,
+              saldo !== null ? mascarar(`saldo ${formatBRL(saldo)}`) : null,
               st === 'atual' ? 'mês atual' : null,
               st === 'previsto' ? 'previsto' : null,
             ]
@@ -385,7 +388,7 @@ export default function MonthStepper({
                       : 'text-gray-700 dark:text-gray-300'
                   }`}
                 >
-                  {saldo !== null ? formatBRL(saldo) : '—'}
+                  {saldo !== null ? <Sensivel>{formatBRL(saldo)}</Sensivel> : '—'}
                 </span>
                 {st === 'previsto' ? (
                   <span className="text-[11px] text-gray-500 dark:text-gray-400">Previsto</span>

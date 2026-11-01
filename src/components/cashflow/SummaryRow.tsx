@@ -1,6 +1,7 @@
 import React from 'react';
 import { TableRow } from '@/components/ui/table';
 import { formatCurrency, formatPercent } from '@/utils/formatters';
+import { Sensivel } from '@/components/common/valores/Sensivel';
 import { FixedCell, MonthCell, AnnualCell } from './GridCells';
 import {
   GRID,
@@ -59,7 +60,12 @@ const SummaryRowComponent: React.FC<SummaryRowProps> = ({
   cellClass,
 }) => {
   const bg = SUMMARY_CLASS[variant];
-  const formatValue = format === 'currency' ? formatCurrency : formatPercent;
+  // Dinheiro vira pílula com o olho fechado; % (índices, inflação) fica visível.
+  const renderValue = (value: number | null) => {
+    if (value === null) return EMPTY;
+    if (format === 'currency') return <Sensivel>{formatCurrency(value)}</Sensivel>;
+    return formatPercent(value);
+  };
 
   const valueClass = (value: number | null) => {
     const custom = cellClass?.(value);
@@ -79,12 +85,10 @@ const SummaryRowComponent: React.FC<SummaryRowProps> = ({
       <FixedCell col={3} className={bg} />
       {cells.map((value, index) => (
         <MonthCell key={index} index={index} className={valueClass(value)}>
-          {value === null ? EMPTY : formatValue(value)}
+          {renderValue(value)}
         </MonthCell>
       ))}
-      <AnnualCell className={`${bg} ${valueClass(annual)}`}>
-        {annual === null ? EMPTY : formatValue(annual)}
-      </AnnualCell>
+      <AnnualCell className={`${bg} ${valueClass(annual)}`}>{renderValue(annual)}</AnnualCell>
     </TableRow>
   );
 };

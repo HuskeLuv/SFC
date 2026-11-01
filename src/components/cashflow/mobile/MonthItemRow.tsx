@@ -4,6 +4,7 @@ import React from 'react';
 import { cashflowColorCss } from '@/utils/cashflowColorLegend';
 import type { MonthItem } from '@/lib/cashflow/monthViewModel';
 import { formatBRL } from '@/utils/format';
+import { Sensivel } from '@/components/common/valores/Sensivel';
 
 /**
  * Uma linha do fluxo na visão do mês (PWA fase 2). Botão inteiro (mín. 52px) que abre o sheet da
@@ -105,7 +106,10 @@ function MonthItemRowComponent({ item, showAnnual, onOpen }: MonthItemRowProps) 
             />
           ) : null}
           {hasValue ? (
-            formatBRL(item.monthValue)
+            // A pílula é item do inline-flex: a margem devolve a altura da linha (1lh).
+            <Sensivel className="my-[calc((1lh_-_0.72em)/2)]">
+              {formatBRL(item.monthValue)}
+            </Sensivel>
           ) : (
             <>
               <span aria-hidden="true">—</span>
@@ -115,7 +119,7 @@ function MonthItemRowComponent({ item, showAnnual, onOpen }: MonthItemRowProps) 
         </span>
         {showAnnual ? (
           <small className="text-[11.5px] whitespace-nowrap text-gray-500 tabular-nums dark:text-gray-400">
-            ano {formatBRL(item.annual)}
+            ano <Sensivel>{formatBRL(item.annual)}</Sensivel>
           </small>
         ) : null}
       </span>

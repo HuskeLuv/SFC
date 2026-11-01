@@ -3,6 +3,8 @@
 import React from 'react';
 import type { MonthDerived } from '@/lib/cashflow/monthViewModel';
 import { formatBRL, formatPct } from '@/utils/format';
+import { Sensivel } from '@/components/common/valores/Sensivel';
+import { useValoresOcultos } from '@/context/ValoresOcultosContext';
 import { signClass } from './MonthSummaryCard';
 
 /**
@@ -14,6 +16,22 @@ import { signClass } from './MonthSummaryCard';
 export function formatDerived(value: number | null, format: MonthDerived['format']): string {
   if (value === null) return '–';
   return format === 'percent' ? formatPct(value) : formatBRL(value);
+}
+
+/**
+ * Valor da linha calculada já formatado: em R$ vira pílula com o olho fechado; % e o '–' sem
+ * cálculo ficam visíveis.
+ */
+export function DerivedValue({
+  value,
+  format,
+}: {
+  value: number | null;
+  format: MonthDerived['format'];
+}) {
+  const text = formatDerived(value, format);
+  if (value === null || format !== 'currency') return <>{text}</>;
+  return <Sensivel>{text}</Sensivel>;
 }
 
 export const CalcIcon = ({ size = 15 }: { size?: number }) => (
@@ -38,12 +56,15 @@ export interface MonthDerivedRowProps {
 function MonthDerivedRowComponent({ row, onOpen, single = false }: MonthDerivedRowProps) {
   const text = formatDerived(row.value, row.format);
   const color = row.format === 'currency' ? signClass(row.value) : '';
+  const { mascarar } = useValoresOcultos();
   return (
     <button
       type="button"
       data-mf-fluxo-derived={row.key}
       aria-haspopup="dialog"
-      aria-label={`${row.label}, ${text === '–' ? 'sem cálculo' : text}, calculado, ver a conta`}
+      aria-label={mascarar(
+        `${row.label}, ${text === '–' ? 'sem cálculo' : text}, calculado, ver a conta`,
+      )}
       onClick={() => onOpen(row)}
       className={`grid min-h-[52px] w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-x-2.5 px-3.5 py-2 text-left focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[#0079F2] ${
         row.emphasis
@@ -68,7 +89,7 @@ function MonthDerivedRowComponent({ row, onOpen, single = false }: MonthDerivedR
         className={`text-[15px] font-semibold whitespace-nowrap tabular-nums ${color}`}
         aria-hidden="true"
       >
-        {text}
+        <DerivedValue value={row.value} format={row.format} />
       </span>
     </button>
   );

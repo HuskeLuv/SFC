@@ -4,7 +4,7 @@ import React from 'react';
 import BottomSheet from '@/components/ui/sheet/BottomSheet';
 import type { DerivedKey, MonthDerived } from '@/lib/cashflow/monthViewModel';
 import { MONTH_NAMES } from './MonthStepper';
-import { CalcIcon, formatDerived } from './MonthDerivedRow';
+import { CalcIcon, DerivedValue } from './MonthDerivedRow';
 import { signClass } from './MonthSummaryCard';
 
 /**
@@ -60,7 +60,7 @@ export default function DerivedInfoSheet({ row, year, month, onClose }: DerivedI
                   'text-gray-800 dark:text-white/90'
                 }`}
               >
-                {formatDerived(row.value, row.format)}
+                <DerivedValue value={row.value} format={row.format} />
               </p>
             </div>
             <span className="inline-flex items-center gap-1.5 text-xs font-medium text-gray-500 dark:text-gray-400">

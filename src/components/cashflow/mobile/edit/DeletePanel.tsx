@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react';
 import { formatBRL } from '@/utils/format';
+import { TextoSensivel } from '@/components/common/valores/Sensivel';
 import {
   InfoNote,
   PrimaryButton,
@@ -79,9 +80,13 @@ export function DeletePanel({
           )}
           <p>
             Os valores do ano somem
-            {filled > 0
-              ? ` (${filled} ${filled === 1 ? 'mês' : 'meses'} de ${year}, ${formatBRL(total)})`
-              : ''}
+            {filled > 0 ? (
+              <TextoSensivel
+                texto={` (${filled} ${filled === 1 ? 'mês' : 'meses'} de ${year}, ${formatBRL(total)})`}
+              />
+            ) : (
+              ''
+            )}
             .{' '}
             {linhaPadrao ? (
               // Ticket 06/10/2026: linha padrão sai só da planilha do usuário (oculta).

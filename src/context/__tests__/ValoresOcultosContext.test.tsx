@@ -143,7 +143,7 @@ describe('ValoresOcultosContext', () => {
   });
 
   it('ativo só nas rotas cobertas; a cobertura local vale em qualquer rota', () => {
-    navegacao.pathname = '/fluxodecaixa';
+    navegacao.pathname = '/historico-alteracoes';
     const { result } = renderHook(() => useValoresOcultos(), { wrapper: wrapper(true, true) });
     expect(result.current).toMatchObject({ ocultos: true, rotaCoberta: false, ativo: false });
     expect(result.current.mascarar('R$ 1,00')).toBe('R$ 1,00');
@@ -159,8 +159,9 @@ describe('ValoresOcultosContext', () => {
     expect(screen.getByText('true')).toBeInTheDocument();
   });
 
-  it('sub-rotas de /ativos, /carteira e do consultor são cobertas', () => {
-    for (const rota of ['/ativos/abc', '/carteira', '/consultor/c1', '/dashboard/consultor']) {
+  it('sub-rotas de /ativos, /carteira, do consultor e o fluxo de caixa são cobertas', () => {
+    const rotas = ['/ativos/abc', '/carteira', '/consultor/c1', '/dashboard/consultor'];
+    for (const rota of [...rotas, '/fluxodecaixa']) {
       navegacao.pathname = rota;
       const { result, unmount } = renderHook(() => useValoresOcultos(), {
         wrapper: wrapper(true, true),

@@ -2,6 +2,7 @@
 
 import { useId, useState } from 'react';
 import { twMerge } from 'tailwind-merge';
+import { Sensivel } from '@/components/common/valores/Sensivel';
 import { TABLE_MOBILE_STYLES } from '@/components/ui/table/tableStyles';
 import type { SalvarOrcadoEntrada } from '@/hooks/useOrcamentoV2';
 import { SELO_TEXTO } from '@/lib/orcamento/tons';
@@ -116,13 +117,26 @@ export default function CartaoCategoria({
           </svg>
         </span>
 
+        {/* Pílulas CURTAS: com as de 5,5em a linha quebrava a 320 px e o cartão crescia. */}
         <span className="mt-2.5 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5 text-xs tabular-nums text-gray-500 dark:text-gray-400">
           <span className="min-w-0">
-            <b className="font-semibold text-gray-800 dark:text-white/90">{num(c.realizado)}</b> de{' '}
-            {num(c.orcado)}
+            <b className="font-semibold text-gray-800 dark:text-white/90">
+              <Sensivel curto>{num(c.realizado)}</Sensivel>
+            </b>{' '}
+            de <Sensivel curto>{num(c.orcado)}</Sensivel>
           </span>
           <span className={negativa ? `font-semibold ${SELO_TEXTO.estourou}` : ''}>
-            {negativa ? `−${num(Math.abs(c.diferenca))} a mais` : `${num(c.diferenca)} disponível`}
+            {negativa ? (
+              <>
+                <Sensivel curto>{`−${num(Math.abs(c.diferenca))}`}</Sensivel>
+                {' a mais'}
+              </>
+            ) : (
+              <>
+                <Sensivel curto>{num(c.diferenca)}</Sensivel>
+                {' disponível'}
+              </>
+            )}
           </span>
         </span>
         <MedidorRitmo

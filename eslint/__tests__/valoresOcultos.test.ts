@@ -36,6 +36,12 @@ tester.run('mf/valor-sem-sensivel', regra, {
     // toLocaleString sem objeto de opções e format de algo que não é *Formatter.
     'const a = <p>{d.toLocaleString("pt-BR")}</p>;',
     'const a = <p>{dateFns.format(d, "MM/yyyy")}</p>;',
+    // Sem a opção formattersExtras, num() não é formatter.
+    'const a = <p>{num(v)}</p>;',
+    {
+      code: 'const a = <p><Sensivel>{num(v)}</Sensivel></p>;',
+      options: [{ formattersExtras: ['num'] }],
+    },
   ],
   invalid: [
     { code: 'const a = <p>{formatBRL(v)}</p>;', errors: valor },
@@ -54,6 +60,12 @@ tester.run('mf/valor-sem-sensivel', regra, {
     },
     // Dentro de uma prop de render, o texto do <td> continua acusado.
     { code: 'const a = <Lista render={(i) => <td>{formatBRL(i)}</td>} />;', errors: valor },
+    // Fase 2: formatter local sem símbolo (num do Orçamento v2) via formattersExtras.
+    {
+      code: 'const a = <td>{x > 0 ? num(x) : "—"}</td>;',
+      options: [{ formattersExtras: ['num'] }],
+      errors: valor,
+    },
     // Sensivel em volta de OUTRO trecho não protege este.
     {
       code: 'const a = <p><Sensivel>{formatBRL(a)}</Sensivel>{formatBRL(b)}</p>;',

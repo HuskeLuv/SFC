@@ -1,5 +1,6 @@
 'use client';
 
+import { Sensivel } from '@/components/common/valores/Sensivel';
 import { TABLE_STYLES } from '@/components/ui/table/tableStyles';
 import { SELO_TEXTO } from '@/lib/orcamento/tons';
 import type { ResumoOrcamentoV2, VisaoOrcamento } from '@/types/orcamentoV2';
@@ -35,12 +36,16 @@ export default function LinhaTotal({
       <td className={`${TABLE_STYLES.td} text-right tabular-nums`}>
         {pct(resumo.orcadoPctReceita)}
       </td>
-      <td className={`${TABLE_STYLES.td} text-right tabular-nums`}>{num(resumo.orcado)}</td>
-      <td className={`${TABLE_STYLES.td} text-right tabular-nums`}>{num(resumo.realizado)}</td>
+      <td className={`${TABLE_STYLES.td} text-right tabular-nums`}>
+        <Sensivel>{num(resumo.orcado)}</Sensivel>
+      </td>
+      <td className={`${TABLE_STYLES.td} text-right tabular-nums`}>
+        <Sensivel curto>{num(resumo.realizado)}</Sensivel>
+      </td>
       <td
         className={`${TABLE_STYLES.td} text-right tabular-nums ${dif.negativa ? SELO_TEXTO.estourou : ''}`}
       >
-        {dif.texto}
+        {dif.texto === '—' ? dif.texto : <Sensivel curto>{dif.texto}</Sensivel>}
       </td>
       <td className={TABLE_STYLES.td}>
         <BarraConsumo

@@ -2,6 +2,7 @@
 
 import React from 'react';
 import { formatBRL, formatPct } from '@/utils/format';
+import { Sensivel } from '@/components/common/valores/Sensivel';
 
 /**
  * Cartão "Saldo de {mês}" da visão do mês (PWA fase 2, protótipo cenário a): saldo do mês em
@@ -56,7 +57,7 @@ export default function MonthSummaryCard({
               signClass(saldo) || 'text-gray-800 dark:text-white/90'
             }`}
           >
-            {formatBRL(saldo)}
+            <Sensivel>{formatBRL(saldo)}</Sensivel>
           </p>
         </div>
         {poupanca !== null ? (
@@ -77,13 +78,13 @@ export default function MonthSummaryCard({
         <div className="min-w-0">
           <dt className="text-xs text-gray-500 dark:text-gray-400">Entradas</dt>
           <dd className="truncate text-[15px] font-semibold text-gray-800 tabular-nums dark:text-white/90">
-            {formatBRL(entradas)}
+            <Sensivel>{formatBRL(entradas)}</Sensivel>
           </dd>
         </div>
         <div className="min-w-0">
           <dt className="text-xs text-gray-500 dark:text-gray-400">Despesas</dt>
           <dd className="truncate text-[15px] font-semibold text-gray-800 tabular-nums dark:text-white/90">
-            {formatBRL(despesas)}
+            <Sensivel>{formatBRL(despesas)}</Sensivel>
           </dd>
         </div>
       </dl>
@@ -99,7 +100,8 @@ export default function MonthSummaryCard({
       <div className="mt-2.5 flex items-baseline justify-between gap-2 border-t border-gray-100 pt-2.5 text-[13px] text-gray-600 tabular-nums max-[359px]:mt-2 max-[359px]:pt-2 dark:border-gray-800 dark:text-gray-300">
         <span className="min-w-0">Saldo Conta Corrente do mês anterior</span>
         <b className={`font-semibold whitespace-nowrap ${signClass(saldoCcAnterior)}`}>
-          {saldoCcAnterior === null ? '–' : formatBRL(saldoCcAnterior)}
+          {/* Pílula curta: a de 5,5em quebrava o rótulo em duas linhas a 390px. */}
+          {saldoCcAnterior === null ? '–' : <Sensivel curto>{formatBRL(saldoCcAnterior)}</Sensivel>}
         </b>
       </div>
     </section>
