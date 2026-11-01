@@ -10,6 +10,7 @@ import {
   type AposentadoriaEvento,
 } from '@/services/planejamento/aposentadoria';
 import type { PlanoUpsertPayload } from '@/hooks/useAposentadoria';
+import { ConteudoSensivel, Sensivel } from '@/components/common/valores/Sensivel';
 import { formatBRL, fPct, MONTH_OPTIONS } from './utils';
 import type { AutoField, AutoValues } from './autoFields';
 
@@ -245,8 +246,9 @@ function MoneyField({
         <label htmlFor={id} className="text-xs text-gray-500 dark:text-gray-400">
           {label}
         </label>
+        {/* Eco do campo fora dele: vira pílula; o campo continua com o número (decisão 3). */}
         <span className="text-xs font-semibold text-gray-800 dark:text-white/90">
-          {formatBRL(value)}
+          <Sensivel>{formatBRL(value)}</Sensivel>
         </span>
       </div>
       <div className="flex">
@@ -308,6 +310,7 @@ export function AutoBadge({
   return (
     <p className="mt-1 flex flex-wrap items-center gap-1 text-[10px] text-gray-400">
       <span aria-hidden>✎</span> manual
+      {/* Valor automático (só leitura): o R$ vira pílula com o olho fechado; o % fica. */}
       {autoValue != null ? (
         <button
           type="button"
@@ -315,7 +318,7 @@ export function AutoBadge({
           className="rounded border border-gray-300 px-1.5 py-0.5 text-brand-600 hover:bg-brand-50 dark:border-gray-700 dark:text-brand-400 dark:hover:bg-brand-900/10"
           title={`Voltar ao automático (${label})`}
         >
-          ↺ usar {format(autoValue)} ({label})
+          ↺ usar <ConteudoSensivel>{format(autoValue)}</ConteudoSensivel> ({label})
         </button>
       ) : null}
     </p>

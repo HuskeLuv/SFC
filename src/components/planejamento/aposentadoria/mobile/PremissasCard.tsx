@@ -2,6 +2,8 @@
 
 import { getRetiroNom } from '@/services/planejamento/aposentadoria';
 import type { PlanoUpsertPayload } from '@/hooks/useAposentadoria';
+import { Sensivel } from '@/components/common/valores/Sensivel';
+import { useValoresOcultos } from '@/context/ValoresOcultosContext';
 import { PARAM_FIELDS, type ParamFieldKey } from '../LeftPanel';
 import { formatBRL, fPct } from '../utils';
 
@@ -41,6 +43,7 @@ interface PremissasCardProps {
  * naquele campo. Só é montado no ramo mobile (`useIsBelowLg`).
  */
 export default function PremissasCard({ params, onOpen, savedLabel }: PremissasCardProps) {
+  const { mascarar } = useValoresOcultos();
   return (
     <section
       data-mf-mobile=""
@@ -62,20 +65,23 @@ export default function PremissasCard({ params, onOpen, savedLabel }: PremissasC
         {PREMISSAS_CARD_ORDER.map((key) => {
           const meta = PARAM_FIELDS[key];
           const value = formatPremissa(params, key);
+          // Resumo só leitura (o campo fica no PremissasSheet): o R$ vira pílula curta (decisão 6,
+          // cartão do celular); idades e % ficam.
+          const emReais = meta.kind === 'currency';
           return (
             <button
               key={key}
               type="button"
               data-premissa={key}
               onClick={() => onOpen(key)}
-              aria-label={`${meta.cardLabel}: ${value}. Tocar para editar`}
+              aria-label={mascarar(`${meta.cardLabel}: ${value}. Tocar para editar`)}
               className="flex min-h-11 min-w-0 flex-col items-start justify-center rounded-xl bg-gray-50 px-2.5 py-2 text-left active:bg-gray-100 dark:bg-white/[0.04] dark:active:bg-white/[0.08]"
             >
               <span className="w-full truncate text-[11px] text-gray-500 dark:text-gray-400">
                 {meta.cardLabel}
               </span>
               <span className="w-full truncate text-sm font-semibold tabular-nums text-gray-900 dark:text-white/90">
-                {value}
+                {emReais ? <Sensivel curto>{value}</Sensivel> : value}
               </span>
             </button>
           );

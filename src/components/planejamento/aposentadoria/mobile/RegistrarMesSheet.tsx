@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import BottomSheet from '@/components/ui/sheet/BottomSheet';
 import MobileSaveToast from '@/components/ui/sheet/MobileSaveToast';
 import MobileNumberField, {
@@ -11,6 +11,7 @@ import MobileNumberField, {
 import { formatDecimalInput, parseDecimalInput } from '@/lib/ui/numberInput';
 import { off2date } from '@/services/planejamento/aposentadoria';
 import type { PlanoUpsertPayload } from '@/hooks/useAposentadoria';
+import { Sensivel, TextoSensivel } from '@/components/common/valores/Sensivel';
 import { formatBRL, formatBRLCompact, fMonth, fPct } from '../utils';
 
 /** (ano, mês 1-12) → 'AAAA-MM' do input type=month. */
@@ -47,7 +48,7 @@ interface MoneyTextFieldProps {
   /** String numérica do formulário do desktop (aporteStr/patStr: '1500.5'). */
   raw: string;
   setRaw: (value: string) => void;
-  hint?: string;
+  hint?: ReactNode;
 }
 
 /**
@@ -250,19 +251,23 @@ export default function RegistrarMesSheet({
             </p>
           </div>
 
+          {/* Formulário visível (decisão 3): os campos mostram o número; o apoio fora deles
+              (necessário, sugestão da carteira, Δ vs plano) vira pílula com o olho fechado. */}
           <MoneyTextField
             id="registrar-mes-aporte"
             label="Aporte do mês"
             raw={aporteStr}
             setRaw={setAporteStr}
-            hint={`Necessário: ${formatBRL(preview.aporteNecessario)}`}
+            hint={<TextoSensivel texto={`Necessário: ${formatBRL(preview.aporteNecessario)}`} />}
           />
           <MoneyTextField
             id="registrar-mes-patrimonio"
             label="Patrimônio final do mês"
             raw={patStr}
             setRaw={setPatStr}
-            hint={`Necessário: ${formatBRL(preview.patrimonioNecessario)}`}
+            hint={
+              <TextoSensivel texto={`Necessário: ${formatBRL(preview.patrimonioNecessario)}`} />
+            }
           />
 
           {sugestao && !editingExists ? (
@@ -271,8 +276,12 @@ export default function RegistrarMesSheet({
                 <span className="font-semibold text-gray-900 dark:text-white/90">
                   Da sua carteira:
                 </span>{' '}
-                aporte {formatBRL(sugestao.aporteReal)} · patrimônio{' '}
-                {sugestao.patFinal != null ? formatBRL(sugestao.patFinal) : '—'}
+                aporte <Sensivel>{formatBRL(sugestao.aporteReal)}</Sensivel> · patrimônio{' '}
+                {sugestao.patFinal != null ? (
+                  <Sensivel>{formatBRL(sugestao.patFinal)}</Sensivel>
+                ) : (
+                  '—'
+                )}
               </p>
               <button
                 type="button"
@@ -314,9 +323,13 @@ export default function RegistrarMesSheet({
                   dPat != null && dPat < 0 ? negClass : 'text-gray-900 dark:text-white/90'
                 }`}
               >
-                {dPat != null
-                  ? `${dPat >= 0 ? '+' : ''}${formatBRLCompact(dPat)} (${dPatPct.toFixed(1).replace('.', ',')}%)`
-                  : '—'}
+                {dPat != null ? (
+                  <TextoSensivel
+                    texto={`${dPat >= 0 ? '+' : ''}${formatBRLCompact(dPat)} (${dPatPct.toFixed(1).replace('.', ',')}%)`}
+                  />
+                ) : (
+                  '—'
+                )}
               </dd>
             </div>
           </dl>
