@@ -1,7 +1,7 @@
 'use client';
 
 import dynamic from 'next/dynamic';
-import { useMemo } from 'react';
+import { useMemo, useRef } from 'react';
 import type { ApexOptions } from 'apexcharts';
 import { useTheme } from '@/context/ThemeContext';
 import type { ParcelaCronograma } from '@/hooks/useDividas';
@@ -10,6 +10,14 @@ import {
   mobileYAxis,
   useMobileChart,
 } from '@/components/charts/mobileChartOptions';
+import {
+  useChaveGraficoSensivel,
+  useOpcoesGraficoSensiveis,
+} from '@/components/charts/useOpcoesGraficoSensiveis';
+import {
+  rotulosDoEixoY,
+  useLarguraEixoYOculto,
+} from '@/components/planejamento/aposentadoria/charts/useLarguraEixoYOculto';
 import { MYFINANCE_BRAND } from '@/constants/brandColors';
 import { formatCurrency } from '@/utils/formatters';
 import { formatYearMonth } from './utils';
@@ -92,14 +100,22 @@ export default function CronogramaChart({ cronograma, parcelasPagas }: Cronogram
     [rows],
   );
 
+  const { maxParcela, maxSaldo } = useMemo(
+    () => ({
+      maxParcela: Math.max(
+        0,
+        ...rows.map(
+          (r) => (r.amortizacaoCorrigida ?? r.amortizacao) + (r.jurosCorrigido ?? r.juros),
+        ),
+      ),
+      maxSaldo: Math.max(0, ...rows.map((r) => r.saldoDevedorCorrigido ?? r.saldoDevedor)),
+    }),
+    [rows],
+  );
+
   const options: ApexOptions = useMemo(() => {
     const textColor = isDark ? '#9ca3af' : '#6b7280';
     const pagoAte = parcelasPagas > 0 ? cronograma[parcelasPagas - 1]?.mes : null;
-    const maxParcela = Math.max(
-      0,
-      ...rows.map((r) => (r.amortizacaoCorrigida ?? r.amortizacao) + (r.jurosCorrigido ?? r.juros)),
-    );
-    const maxSaldo = Math.max(0, ...rows.map((r) => r.saldoDevedorCorrigido ?? r.saldoDevedor));
     return {
       chart: {
         id: 'divida-cronograma',
@@ -177,7 +193,7 @@ export default function CronogramaChart({ cronograma, parcelasPagas }: Cronogram
         : undefined,
       grid: { borderColor: isDark ? '#1f2937' : '#e5e7eb' },
     };
-  }, [isDark, cronograma, parcelasPagas, rows]);
+  }, [isDark, cronograma, parcelasPagas, maxParcela, maxSaldo]);
 
   // PWA fase 3: no celular, 220px, eixo em R$ compacto (o secundário sem rótulo), legenda
   // embaixo e só a paleta My Finance (sem o verde da marcação "Pago até aqui").
@@ -214,8 +230,28 @@ export default function CronogramaChart({ cronograma, parcelasPagas }: Cronogram
   const chart = useMobileChart(options, { extra: mobileExtra, desktopHeight: 320 });
   const ultima = cronograma[cronograma.length - 1];
 
+  // Esconder valores (decisão 7): sobre as opções FINAIS (já com as do celular). Os dois eixos Y
+  // em R$ (parcela e saldo) saem sem rótulo com a largura de hoje reservada; o tooltip (formatter
+  // próprio com R$) vira pílula. Séries, legenda, eixo X e a marcação "Pago até aqui" ficam.
+  // Olho aberto devolve a mesma referência; a chave remonta ao alternar.
+  const containerRef = useRef<HTMLDivElement>(null);
+  const rotulosEixo = useMemo(() => {
+    const eixos = Array.isArray(chart.options.yaxis) ? chart.options.yaxis : [chart.options.yaxis];
+    const saldo = eixos.find((e) => e?.seriesName === 'Saldo devedor');
+    return [
+      ...rotulosDoEixoY(chart.options, niceMax(maxParcela)),
+      ...(saldo ? rotulosDoEixoY({ yaxis: saldo }, niceMax(maxSaldo)) : []),
+    ];
+  }, [chart.options, maxParcela, maxSaldo]);
+  const larguraEixoY = useLarguraEixoYOculto(containerRef, rotulosEixo);
+  const opcoes = useOpcoesGraficoSensiveis(chart.options, { larguraEixoY });
+  const chaveSensivel = useChaveGraficoSensivel();
+
   return (
-    <div className="rounded-2xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-white/[0.03]">
+    <div
+      ref={containerRef}
+      className="rounded-2xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-white/[0.03]"
+    >
       <h3 className="mb-2 text-sm font-semibold text-gray-900 dark:text-white/90">
         Composição das parcelas
       </h3>
@@ -230,14 +266,21 @@ export default function CronogramaChart({ cronograma, parcelasPagas }: Cronogram
           )}
         >
           <ReactApexChart
-            options={chart.options}
+            key={chaveSensivel}
+            options={opcoes}
             series={series}
             type="line"
             height={chart.height}
           />
         </div>
       ) : (
-        <ReactApexChart options={chart.options} series={series} type="line" height={chart.height} />
+        <ReactApexChart
+          key={chaveSensivel}
+          options={opcoes}
+          series={series}
+          type="line"
+          height={chart.height}
+        />
       )}
     </div>
   );
