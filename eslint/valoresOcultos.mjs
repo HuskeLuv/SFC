@@ -240,10 +240,17 @@ export const IGNORES_VALORES_OCULTOS_FASE4 = ['**/__tests__/**'];
  * os arquivos com dado do USUÁRIO (posição, quantidade, preço médio, valor na carteira, meta de
  * renda, plano). Dado de MERCADO (cotação, preço-teto, dividendos por cota, fundamentos, gráficos
  * de cotação/fundamentos) fica visível sem marcação e por isso fica fora do lint (globs
- * explícitos). Atenção: aliases como `const dinheiro = formatBRL`, formatarNumeroBR com "R$" em
- * template string e toLocaleString sem opções não são acusados — marque à mão e confira pelo
+ * explícitos). Os helpers locais de dinheiro (brl/usd/dinheiro*) entram por
+ * OPCOES_VALORES_OCULTOS_FASE5. Atenção: formatarNumeroBR com "R$" em template string, quantidade
+ * em formatNumber/formatarQuantidade e toLocaleString sem opções não são acusados — marque à mão e confira pelo
  * innerText (e2e, coletarNumerosDaPosicao com ignorarPercentuais).
  */
+export const OPCOES_VALORES_OCULTOS_FASE5 = {
+  // brl/usd: helpers locais dos Relatórios (toLocaleString com style 'currency'); dinheiro*: os da
+  // Análise de Ativos (BlocoNaCarteira, ModalPlanejar, ModalVerNaCarteira, ModalRegistrarOperacao).
+  formattersExtras: ['brl', 'usd', 'dinheiro', 'dinheiro0', 'dinheiroInteiro', 'dinheiroAba'],
+};
+
 export const GLOBS_VALORES_OCULTOS_FASE5 = [
   'src/components/relatorios/**/*.{ts,tsx}',
   'src/app/(admin)/(home)/relatorios/**/*.{ts,tsx}',

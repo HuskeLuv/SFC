@@ -13,6 +13,7 @@ import {
   IGNORES_VALORES_OCULTOS_FASE4,
   IGNORES_VALORES_OCULTOS_FASE5,
   OPCOES_VALORES_OCULTOS_FASE2,
+  OPCOES_VALORES_OCULTOS_FASE5,
   pluginValoresOcultos,
 } from "./eslint/valoresOcultos.mjs";
 
@@ -84,7 +85,7 @@ const eslintConfig = [
     ignores: IGNORES_VALORES_OCULTOS_FASE5,
     plugins: { mf: pluginValoresOcultos },
     rules: {
-      "mf/valor-sem-sensivel": "warn",
+      "mf/valor-sem-sensivel": ["warn", OPCOES_VALORES_OCULTOS_FASE5],
     },
   },
 ];
