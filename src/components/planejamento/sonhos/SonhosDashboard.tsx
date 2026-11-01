@@ -11,7 +11,8 @@ import SonhosObjetivoCard from './SonhosObjetivoCard';
 import SonhosObjetivosTable from './SonhosObjetivosTable';
 import SonhosObjetivoInlineForm from './SonhosObjetivoInlineForm';
 import ReservaEmergenciaWidget from './ReservaEmergenciaWidget';
-import { Sensivel, TextoSensivel } from '@/components/common/valores/Sensivel';
+import { Sensivel } from '@/components/common/valores/Sensivel';
+import { useValoresOcultos } from '@/context/ValoresOcultosContext';
 import { formatBRLCompact, CATEGORY_LONG_LABELS } from './utils';
 import SonhoCardMobile from './mobile/SonhoCardMobile';
 import { MobileMetricGrid } from '@/components/ui/mobile/MobileMetricGrid';
@@ -44,6 +45,9 @@ export default function SonhosDashboard({ objetivos, onSelectObjetivo }: SonhosD
   const [creating, setCreating] = useState(false);
   const { contexto } = usePlanejamentoContexto();
   const isBelowLg = useIsBelowLg();
+  // Olho fechado: a dica "de R$ X total" da grade do celular leva pílula CURTA (a de 5,5em quebra
+  // a linha a 320px e muda a altura do cartão). Olho aberto: a mesma string de hoje.
+  const { ativo: valoresOcultos } = useValoresOcultos();
   // Celular: sem a alternância Cards/Tabela — sempre cartões.
   const efetivo = isBelowLg ? 'cards' : view;
 
@@ -124,7 +128,13 @@ export default function SonhosDashboard({ objetivos, onSelectObjetivo }: SonhosD
             {
               label: 'Patrimônio Alocado',
               value: <Sensivel>{formatBRLCompact(stats.totalAlocado)}</Sensivel>,
-              hint: <TextoSensivel texto={`de ${formatBRLCompact(stats.totalMeta)} total`} />,
+              hint: valoresOcultos ? (
+                <>
+                  de <Sensivel curto>{formatBRLCompact(stats.totalMeta)}</Sensivel> total
+                </>
+              ) : (
+                `de ${formatBRLCompact(stats.totalMeta)} total`
+              ),
             },
             {
               label: 'Aporte Mensal Ativo',
