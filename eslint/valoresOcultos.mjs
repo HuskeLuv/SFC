@@ -233,3 +233,38 @@ export const GLOBS_VALORES_OCULTOS_FASE4 = [
  * é prop e a regra não acusa.
  */
 export const IGNORES_VALORES_OCULTOS_FASE4 = ['**/__tests__/**'];
+
+/**
+ * Fase 5 ('warn' enquanto a fase está aberta; o integrador passa para 'error' no fechamento):
+ * Relatórios (a TELA — o PDF do servidor não muda), Conexões bancárias e, na Análise de Ativos, SÓ
+ * os arquivos com dado do USUÁRIO (posição, quantidade, preço médio, valor na carteira, meta de
+ * renda, plano). Dado de MERCADO (cotação, preço-teto, dividendos por cota, fundamentos, gráficos
+ * de cotação/fundamentos) fica visível sem marcação e por isso fica fora do lint (globs
+ * explícitos). Atenção: aliases como `const dinheiro = formatBRL`, formatarNumeroBR com "R$" em
+ * template string e toLocaleString sem opções não são acusados — marque à mão e confira pelo
+ * innerText (e2e, coletarNumerosDaPosicao com ignorarPercentuais).
+ */
+export const GLOBS_VALORES_OCULTOS_FASE5 = [
+  'src/components/relatorios/**/*.{ts,tsx}',
+  'src/app/(admin)/(home)/relatorios/**/*.{ts,tsx}',
+  'src/components/conexoes/**/*.{ts,tsx}',
+  'src/app/(admin)/(others-pages)/conexoes-bancarias/**/*.{ts,tsx}',
+  'src/components/analiseAtivos/ativo/usuario/**/*.{ts,tsx}',
+  'src/components/analiseAtivos/ativo/acoes/BarraAcoesAtivo.tsx',
+  'src/components/analiseAtivos/ativo/acoes/ModalVerNaCarteira.tsx',
+  'src/components/analiseAtivos/ativo/acoes/ModalRegistrarOperacao.tsx',
+  'src/components/analiseAtivos/ativo/acoes/ModalPlanejar.tsx',
+  'src/components/analiseAtivos/ativo/cenarios/BlocoMetaRenda.tsx',
+  'src/components/analiseAtivos/ativo/cenarios/ConfirmarObjetivoPlanejamento.tsx',
+  'src/components/analiseAtivos/ativo/cenarios/LinhaSuaPosicao.tsx',
+  'src/components/analiseAtivos/quadro/CelulaNaCarteira.tsx',
+];
+
+/**
+ * Formulários da Fase 5 ficam visíveis (decisão 3): ModalRegistrarOperacao e ModalPlanejar
+ * continuam no lint porque o texto de apoio fora do campo (total da operação, posição, preço
+ * médio, valor do plano) vira pílula; o `value` de input é prop e a regra não acusa. FormPremissas
+ * (premissas de mercado: LPA, VPA, DPA) e os modais de conectar/autorizar das Conexões não têm
+ * valor do usuário — FormPremissas fica fora dos globs.
+ */
+export const IGNORES_VALORES_OCULTOS_FASE5 = ['**/__tests__/**'];
