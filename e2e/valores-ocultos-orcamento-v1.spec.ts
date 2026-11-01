@@ -64,6 +64,15 @@ test.describe('computador 1280', () => {
     await expect(page.locator(`${ESCOPO} table tbody tr`).first()).toBeVisible();
   }
 
+  /**
+   * O ApexCharts desenha o eixo Y depois da tabela (e remonta o gráfico quando o olho muda, pela
+   * key): espera os rótulos antes de colher os números, senão a coleta pega o gráfico sem eixo.
+   */
+  const esperarEixoDoGrafico = (page: Page) =>
+    expect(
+      page.locator(`${ESCOPO} .apexcharts-yaxis-label`).filter({ hasText: /\d/ }).first(),
+    ).toBeAttached();
+
   const alturasDasLinhas = (page: Page) =>
     page
       .locator(`${ESCOPO} table tbody tr`)
@@ -74,6 +83,7 @@ test.describe('computador 1280', () => {
   }) => {
     test.setTimeout(180_000);
     await abrir(page);
+    await esperarEixoDoGrafico(page);
 
     const nums = await coletarNumerosDaPosicao(page, ESCOPO, NUMEROS);
     expect(nums.length).toBeGreaterThan(0);
@@ -118,6 +128,7 @@ test.describe('computador 1280', () => {
 
     // Reabre o olho: os mesmos números voltam.
     await alternarOlho(page, false);
+    await esperarEixoDoGrafico(page);
     expect(await coletarNumerosDaPosicao(page, ESCOPO, NUMEROS)).toEqual(nums);
     expect(await page.locator(`${ESCOPO} .mf-sensivel`).count()).toBe(0);
   });
