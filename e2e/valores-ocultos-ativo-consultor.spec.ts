@@ -89,10 +89,14 @@ async function conferirTela(page: Page, url: string, pronto: string) {
     .toBeGreaterThanOrEqual(graficos);
   await page.waitForTimeout(1_000);
   await expect(page.locator('[data-mf-content] .mf-sensivel').first()).toBeVisible();
-  // A pílula não alarga a página: no celular o viewport de layout ficaria > 390px.
-  expect((await tamanhoDoDocumento(page)).largura, 'largura do documento').toBeLessThanOrEqual(
-    larguraAberto,
-  );
+  // A pílula não cria rolagem horizontal nova (no celular o viewport de layout ficaria > 390px).
+  // Página que já rola com o olho aberto (consultor no computador) tem largura instável entre
+  // cargas: aí não há o que comparar.
+  if (larguraAberto <= (page.viewportSize()?.width ?? 0)) {
+    expect((await tamanhoDoDocumento(page)).largura, 'largura do documento').toBeLessThanOrEqual(
+      larguraAberto,
+    );
+  }
 
   const ficam = await numerosQuePodemFicar(page);
   await expectNumerosAusentes(
