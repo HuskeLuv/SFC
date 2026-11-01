@@ -160,7 +160,11 @@ for (const variante of VARIANTES) {
       await alternarOlho(page, false);
       await expect(rotulosEixo.first()).toHaveText(/R\$/);
       await expect(page.locator('[data-mf-content] .mf-sensivel')).toHaveCount(0);
-      expect(await coletarValoresExpostos(page)).toEqual(expect.arrayContaining([valores[0]]));
+      // 1º valor fora do eixo (o total no topo): o eixo e o que depende do período foram lidos em
+      // Máx e agora a tela está em 1A.
+      const total = valores.find((v) => !/K$/.test(v.trim()));
+      expect(total).toBeDefined();
+      expect(await coletarValoresExpostos(page)).toEqual(expect.arrayContaining([total]));
       await expect(periodo1A).toHaveAttribute('aria-pressed', 'true');
       expect(
         await page.evaluate(() => (window as unknown as { __mfSemReload?: boolean }).__mfSemReload),
