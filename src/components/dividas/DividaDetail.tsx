@@ -9,6 +9,8 @@ import { useResponsiveConfirm } from '@/components/ui/sheet/useResponsiveConfirm
 import { MobileActionSheet, MobileMoreButton } from '@/components/ui/sheet/MobileActionSheet';
 import { MobileMetricGrid } from '@/components/ui/mobile/MobileMetricGrid';
 import { MobileStatusPill } from '@/components/ui/mobile/MobileStatusPill';
+import { Sensivel, TextoSensivel } from '@/components/common/valores/Sensivel';
+import { useValoresOcultos } from '@/context/ValoresOcultosContext';
 import {
   useDivida,
   useDividaCronograma,
@@ -61,6 +63,7 @@ export default function DividaDetail({
   const [menuOpen, setMenuOpen] = useState(false);
   const isBelowLg = useIsBelowLg();
   const { confirmAndRun, confirmSheet } = useResponsiveConfirm();
+  const { mascarar } = useValoresOcultos();
 
   const isFinanciamento = divida.modalidade === 'financiamento';
   // Detalhe (com pagamentos) + cronograma vêm de queries próprias — a lista
@@ -124,7 +127,9 @@ export default function DividaDetail({
     confirmAndRun(
       {
         title: 'Remover este pagamento?',
-        message: `${formatBRL(p.valor)} · ${formatYearMonth(p.month)}. O saldo e o cronograma são recalculados sem ele.`,
+        message: mascarar(
+          `${formatBRL(p.valor)} · ${formatYearMonth(p.month)}. O saldo e o cronograma são recalculados sem ele.`,
+        ),
         confirmLabel: 'Remover',
         danger: true,
         busyLabel: 'Removendo…',
@@ -281,7 +286,7 @@ export default function DividaDetail({
           items={[
             {
               label: indexada ? 'Saldo (corrigido)' : 'Saldo Devedor',
-              value: formatBRLCompact(saldoExibido),
+              value: <Sensivel>{formatBRLCompact(saldoExibido)}</Sensivel>,
               hint:
                 indexada && cronogramaData
                   ? `${INDEXADOR_LABELS[divida.indexador]} ×${cronogramaData.fatorIndexacao.toFixed(4)}`
@@ -291,11 +296,15 @@ export default function DividaDetail({
               ? [
                   {
                     label: 'Próxima Parcela',
-                    value: resumo?.proximaParcela
-                      ? formatBRLCompact(
+                    value: resumo?.proximaParcela ? (
+                      <Sensivel>
+                        {formatBRLCompact(
                           resumo.proximaParcelaCorrigida ?? resumo.proximaParcela.parcela,
-                        )
-                      : '—',
+                        )}
+                      </Sensivel>
+                    ) : (
+                      '—'
+                    ),
                     hint: resumo?.proximaParcela
                       ? `nº ${resumo.proximaParcela.numero} · ${formatYearMonth(resumo.proximaParcela.mes)}`
                       : 'todas pagas',
@@ -432,7 +441,7 @@ export default function DividaDetail({
               >
                 <div>
                   <span className="font-medium text-gray-900 dark:text-white/90">
-                    {formatBRL(p.valor)}
+                    <Sensivel curto>{formatBRL(p.valor)}</Sensivel>
                   </span>
                   <span className="ml-2 text-xs text-gray-500 dark:text-gray-400">
                     {formatYearMonth(p.month)}
@@ -443,7 +452,7 @@ export default function DividaDetail({
                     {p.tipo === 'amortizacao_prazo'
                       ? ` · amortização (quitou ${p.parcelaNumero ?? '?'} parcela${(p.parcelaNumero ?? 0) !== 1 ? 's' : ''} do fim)`
                       : ''}
-                    {p.notes ? ` · ${p.notes}` : ''}
+                    {p.notes ? <TextoSensivel texto={` · ${p.notes}`} /> : ''}
                   </span>
                 </div>
                 <button

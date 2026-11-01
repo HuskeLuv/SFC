@@ -4,6 +4,7 @@ import React, { useMemo, useState } from 'react';
 import CardSectionBand from '@/components/ui/table/CardSectionBand';
 import { MobileStatusPill } from '@/components/ui/mobile/MobileStatusPill';
 import type { ParcelaCronograma } from '@/hooks/useDividas';
+import { Sensivel } from '@/components/common/valores/Sensivel';
 import { formatBRL, formatYearMonth } from '../utils';
 
 interface CronogramaListaProps {
@@ -112,7 +113,8 @@ export default function CronogramaLista({
         </span>
       </div>
       <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-        Total de juros: {formatBRL(totais.juros)} · Amortização: {formatBRL(totais.amortizacao)}
+        Total de juros: <Sensivel curto>{formatBRL(totais.juros)}</Sensivel> · Amortização:{' '}
+        <Sensivel curto>{formatBRL(totais.amortizacao)}</Sensivel>
       </p>
 
       <div className="mt-3 space-y-2">
@@ -170,16 +172,22 @@ export default function CronogramaLista({
                             ) : null}
                           </span>
                           <span className="block text-xs text-gray-500 tabular-nums dark:text-gray-400">
-                            juros {semMoeda(r.jurosCorrigido ?? r.juros)} · amort.{' '}
-                            {semMoeda(r.amortizacaoCorrigida ?? r.amortizacao)}
+                            juros <Sensivel curto>{semMoeda(r.jurosCorrigido ?? r.juros)}</Sensivel>{' '}
+                            · amort.{' '}
+                            <Sensivel curto>
+                              {semMoeda(r.amortizacaoCorrigida ?? r.amortizacao)}
+                            </Sensivel>
                           </span>
                         </span>
                         <span className="shrink-0 text-right">
                           <span className="block text-sm font-semibold text-gray-900 tabular-nums dark:text-white/90">
-                            {formatBRL(r.parcelaCorrigida ?? r.parcela)}
+                            <Sensivel curto>{formatBRL(r.parcelaCorrigida ?? r.parcela)}</Sensivel>
                           </span>
                           <span className="block text-xs text-gray-500 tabular-nums dark:text-gray-400">
-                            saldo {formatBRL(r.saldoDevedorCorrigido ?? r.saldoDevedor)}
+                            saldo{' '}
+                            <Sensivel curto>
+                              {formatBRL(r.saldoDevedorCorrigido ?? r.saldoDevedor)}
+                            </Sensivel>
                           </span>
                         </span>
                       </li>
