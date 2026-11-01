@@ -14,6 +14,7 @@ import {
 import { ResponsiveCardList } from '@/components/ui/table/ResponsiveTable';
 import { useIsBelowLg } from '@/hooks/useMediaQuery';
 import type { ProventoData } from '@/hooks/useProventos';
+import { Sensivel } from '@/components/common/valores/Sensivel';
 
 const FILTER_OPTIONS = [
   { value: 'all', label: 'Todos' },
@@ -242,11 +243,13 @@ export default function ProventosAgenda() {
                   <p className="text-sm font-medium text-gray-700 dark:text-gray-300">
                     Total:{' '}
                     <span className="text-brand-500">
-                      R${' '}
-                      {total.toLocaleString('pt-BR', {
-                        minimumFractionDigits: 2,
-                        maximumFractionDigits: 2,
-                      })}
+                      <Sensivel>
+                        R${' '}
+                        {total.toLocaleString('pt-BR', {
+                          minimumFractionDigits: 2,
+                          maximumFractionDigits: 2,
+                        })}
+                      </Sensivel>
                     </span>
                   </p>
                 </div>
@@ -273,11 +276,13 @@ export default function ProventosAgenda() {
                         cell: (p) => (
                           <>
                             <span className="block">
-                              R${' '}
-                              {p.valor.toLocaleString('pt-BR', {
-                                minimumFractionDigits: 2,
-                                maximumFractionDigits: 2,
-                              })}
+                              <Sensivel>
+                                R${' '}
+                                {p.valor.toLocaleString('pt-BR', {
+                                  minimumFractionDigits: 2,
+                                  maximumFractionDigits: 2,
+                                })}
+                              </Sensivel>
                             </span>
                             <span
                               className={`block text-xs font-medium ${
@@ -321,11 +326,13 @@ export default function ProventosAgenda() {
                             <td
                               className={`${TABLE_STYLES.td} text-right font-medium text-gray-900 dark:text-white`}
                             >
-                              R${' '}
-                              {provento.valor.toLocaleString('pt-BR', {
-                                minimumFractionDigits: 2,
-                                maximumFractionDigits: 2,
-                              })}
+                              <Sensivel>
+                                R${' '}
+                                {provento.valor.toLocaleString('pt-BR', {
+                                  minimumFractionDigits: 2,
+                                  maximumFractionDigits: 2,
+                                })}
+                              </Sensivel>
                             </td>
                             <td className={`${TABLE_STYLES.td} text-center`}>
                               <Badge

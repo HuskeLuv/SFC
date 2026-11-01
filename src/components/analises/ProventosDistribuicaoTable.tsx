@@ -3,6 +3,7 @@ import { GroupedProventoData } from '@/hooks/useProventos';
 import { TABLE_STYLES, TABLE_HEADER_STYLE } from '@/components/ui/table/tableStyles';
 import { ResponsiveCardList } from '@/components/ui/table/ResponsiveTable';
 import { useIsBelowLg } from '@/hooks/useMediaQuery';
+import { Sensivel } from '@/components/common/valores/Sensivel';
 
 type GroupByType = 'ativo' | 'classe' | 'tipo';
 
@@ -92,6 +93,7 @@ export default function ProventosDistribuicaoTable({
             id: 'total',
             header: 'Total acumulado',
             mobile: 'value',
+            valor: 'sensivel',
             cell: ([, data]) => formatCurrency(data.total),
           },
           {
@@ -119,6 +121,7 @@ export default function ProventosDistribuicaoTable({
                   id: 'qtd',
                   header: 'Qtd. atual',
                   mobile: 'detail' as const,
+                  valor: 'sensivel-curto' as const,
                   cell: ([, data]: Entry) =>
                     data.quantidadeAtual != null ? formatNumber(data.quantidadeAtual) : '—',
                 },
@@ -126,6 +129,7 @@ export default function ProventosDistribuicaoTable({
                   id: 'pm',
                   header: 'P. médio atual',
                   mobile: 'detail' as const,
+                  valor: 'sensivel' as const,
                   cell: ([, data]: Entry) =>
                     data.precoMedio != null ? formatCurrency(data.precoMedio) : '—',
                 },
@@ -133,6 +137,7 @@ export default function ProventosDistribuicaoTable({
                   id: 'ult',
                   header: 'Últ. provento',
                   mobile: 'detail' as const,
+                  valor: 'sensivel' as const,
                   cell: ([, data]: Entry) =>
                     data.ultimoProvento != null ? formatCurrency(data.ultimoProvento) : '—',
                 },
@@ -164,7 +169,7 @@ export default function ProventosDistribuicaoTable({
                 <tr key={name} className={`${TABLE_STYLES.row} ${TABLE_STYLES.rowHover}`}>
                   <td className={TABLE_STYLES.td}>{name}</td>
                   <td className={`${TABLE_STYLES.td} text-right font-medium`}>
-                    {formatCurrency(data.total)}
+                    <Sensivel>{formatCurrency(data.total)}</Sensivel>
                   </td>
                   <td className={`${TABLE_STYLES.td} text-right`}>{percentage.toFixed(2)}%</td>
                 </tr>
@@ -241,10 +246,18 @@ export default function ProventosDistribuicaoTable({
                   )}
                 </td>
                 <td className={`${TABLE_STYLES.compact.td} text-right`}>
-                  {data.quantidadeAtual != null ? formatNumber(data.quantidadeAtual) : '—'}
+                  {data.quantidadeAtual != null ? (
+                    <Sensivel curto>{formatNumber(data.quantidadeAtual)}</Sensivel>
+                  ) : (
+                    '—'
+                  )}
                 </td>
                 <td className={`${TABLE_STYLES.compact.td} text-right`}>
-                  {data.precoMedio != null ? formatCurrency(data.precoMedio) : '—'}
+                  {data.precoMedio != null ? (
+                    <Sensivel>{formatCurrency(data.precoMedio)}</Sensivel>
+                  ) : (
+                    '—'
+                  )}
                 </td>
                 <td className={`${TABLE_STYLES.compact.td} text-right`}>
                   {data.yoc != null ? formatPercent(data.yoc) : '—'}
@@ -253,10 +266,14 @@ export default function ProventosDistribuicaoTable({
                   {data.dividendYield != null ? formatPercent(data.dividendYield) : '—'}
                 </td>
                 <td className={`${TABLE_STYLES.compact.td} text-right`}>
-                  {data.ultimoProvento != null ? formatCurrency(data.ultimoProvento) : '—'}
+                  {data.ultimoProvento != null ? (
+                    <Sensivel>{formatCurrency(data.ultimoProvento)}</Sensivel>
+                  ) : (
+                    '—'
+                  )}
                 </td>
                 <td className={`${TABLE_STYLES.compact.td} text-right font-medium`}>
-                  {formatCurrency(data.total)}
+                  <Sensivel>{formatCurrency(data.total)}</Sensivel>
                 </td>
                 <td className={`${TABLE_STYLES.compact.td} text-right`}>
                   {/* A API só manda o nº mágico para FII pelo tipo real, em qualquer aba. */}
@@ -283,7 +300,7 @@ export default function ProventosDistribuicaoTable({
                 Total
               </td>
               <td className={`${TABLE_STYLES.compact.td} text-right font-semibold`}>
-                {formatCurrency(total)}
+                <Sensivel>{formatCurrency(total)}</Sensivel>
               </td>
               <td className={TABLE_STYLES.compact.td} />
             </tr>

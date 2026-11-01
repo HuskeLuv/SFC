@@ -1,5 +1,6 @@
 'use client';
 import React from 'react';
+import { TextoSensivel } from '@/components/common/valores/Sensivel';
 
 interface ProventosKpiCardProps {
   title: string;
@@ -21,11 +22,13 @@ export default function ProventosKpiCard({
         <p className="text-sm text-gray-500 dark:text-gray-400">{title}</p>
       </div>
       <p className="mt-3 text-2xl font-bold text-gray-900 dark:text-white max-lg:mt-2 max-lg:text-xl max-lg:break-words">
-        {bigValue}
+        <TextoSensivel texto={bigValue} />
       </p>
       <div className="mt-4 border-t border-gray-100 pt-3 dark:border-gray-800">
         <p className="text-xs text-gray-500 dark:text-gray-400">{subLabel}</p>
-        <p className="mt-1 text-sm font-semibold text-brand-500">{subValue}</p>
+        <p className="mt-1 text-sm font-semibold text-brand-500">
+          <TextoSensivel texto={subValue} />
+        </p>
       </div>
     </div>
   );

@@ -7,6 +7,8 @@ import { ProventoData } from '@/hooks/useProventos';
 import { useTheme } from '@/context/ThemeContext';
 import { useIsBelowLg } from '@/hooks/useMediaQuery';
 import { deepMergeOptions } from '@/components/charts/ApexChartWrapper';
+import { useOpcoesGraficoSensiveis } from '@/components/charts/useOpcoesGraficoSensiveis';
+import { useValoresOcultos } from '@/context/ValoresOcultosContext';
 
 /** Altura abaixo de lg (PWA fase 1). */
 const MOBILE_CHART_HEIGHT = 260;
@@ -424,6 +426,11 @@ export default function ProventosHistoricoChart({ proventos }: ProventosHistoric
     [isBelowLg, options],
   );
 
+  // Esconder valores (decisão 7): sobre as opções FINAIS (depois das do celular). Eixo Y em R$ sem
+  // rótulo (largura reservada) e o tooltip.custom com pílulas no lugar dos R$; os % ficam.
+  const opcoesFinais = useOpcoesGraficoSensiveis(effectiveOptions);
+  const { mascarar } = useValoresOcultos();
+
   const ariaResumo = useMemo(() => {
     if (!isBelowLg || !hasData) return undefined;
     const total = series.reduce(
@@ -431,11 +438,14 @@ export default function ProventosHistoricoChart({ proventos }: ProventosHistoric
       0,
     );
     const meses = series[0]?.data.length ?? 0;
-    return `Histórico de proventos: ${meses} meses, total de ${total.toLocaleString('pt-BR', {
-      style: 'currency',
-      currency: 'BRL',
-    })} em ${series.length} ${series.length === 1 ? 'ativo' : 'ativos'}.`;
-  }, [isBelowLg, hasData, series]);
+    const totalFormatado = mascarar(
+      total.toLocaleString('pt-BR', {
+        style: 'currency',
+        currency: 'BRL',
+      }),
+    );
+    return `Histórico de proventos: ${meses} meses, total de ${totalFormatado} em ${series.length} ${series.length === 1 ? 'ativo' : 'ativos'}.`;
+  }, [isBelowLg, hasData, series, mascarar]);
 
   if (!hasData) {
     return (
@@ -459,7 +469,7 @@ export default function ProventosHistoricoChart({ proventos }: ProventosHistoric
         aria-label={ariaResumo}
       >
         <ApexChartWrapper
-          options={effectiveOptions}
+          options={opcoesFinais}
           series={series}
           type="bar"
           height={isBelowLg ? MOBILE_CHART_HEIGHT : 350}
