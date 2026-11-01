@@ -3,6 +3,7 @@
 import React from 'react';
 import BottomSheet from '@/components/ui/sheet/BottomSheet';
 import { formatBRL } from '@/utils/format';
+import { TextoSensivel } from '@/components/common/valores/Sensivel';
 import { CARTEIRA_CLASS_TABS, type CarteiraCategoria } from './carteiraTabsConfig';
 
 type Distribuicao = Partial<Record<CarteiraCategoria, { valor: number; percentual: number }>>;
@@ -74,7 +75,7 @@ export default function ClassePickerSheet({
                   {tab.label}
                 </span>
                 <span className="text-[12.5px] tabular-nums text-gray-600 dark:text-gray-400">
-                  {detalhe(tab.categoria)}
+                  <TextoSensivel texto={detalhe(tab.categoria)} />
                 </span>
               </span>
               <span
