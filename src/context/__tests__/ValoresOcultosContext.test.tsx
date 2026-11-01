@@ -159,9 +159,15 @@ describe('ValoresOcultosContext', () => {
     expect(screen.getByText('true')).toBeInTheDocument();
   });
 
-  it('sub-rotas de /ativos, /carteira, do consultor e o fluxo de caixa são cobertas', () => {
+  it('sub-rotas de /ativos, /carteira, do consultor, o fluxo de caixa e as da Fase 5 são cobertas', () => {
     const rotas = ['/ativos/abc', '/carteira', '/consultor/c1', '/dashboard/consultor'];
-    for (const rota of [...rotas, '/fluxodecaixa']) {
+    const fase5 = [
+      '/analise-ativos/WEGE3',
+      '/analise-ativos/salvos',
+      '/relatorios',
+      '/conexoes-bancarias',
+    ];
+    for (const rota of [...rotas, '/fluxodecaixa', ...fase5]) {
       navegacao.pathname = rota;
       const { result, unmount } = renderHook(() => useValoresOcultos(), {
         wrapper: wrapper(true, true),

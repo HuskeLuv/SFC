@@ -7,6 +7,9 @@
  * Fase 2: Fluxo de caixa e Orçamento (v1 e v2 são abas de /fluxodecaixa, sem rota própria).
  * Fase 3: Planejar (/planejamento-financeiro: Sonhos e Aposentadoria são modos da mesma rota).
  * Fase 4: Dívidas (/dividas, com o detalhe da dívida) e Saúde Financeira (/saude-financeira).
+ * Fase 5: Análise de ativos (/analise-ativos, com a página do ativo, comparador, salvos e meus
+ * relatos), Relatórios (/relatorios: a tela; o PDF do servidor não muda) e Conexões bancárias
+ * (/conexoes-bancarias).
  * Cada fase acrescenta as suas rotas aqui; a faixa some quando a última fase fecha.
  */
 export const ROTAS_COM_VALORES_OCULTOS: readonly string[] = [
@@ -18,6 +21,9 @@ export const ROTAS_COM_VALORES_OCULTOS: readonly string[] = [
   '/planejamento-financeiro',
   '/dividas',
   '/saude-financeira',
+  '/analise-ativos',
+  '/relatorios',
+  '/conexoes-bancarias',
 ];
 
 /** A rota (ou uma sub-rota dela) está coberta? */
