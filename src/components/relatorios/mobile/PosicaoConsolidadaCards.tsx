@@ -3,12 +3,16 @@
 import React from 'react';
 import { CATEGORIA_LABELS } from '@/lib/carteiraCategoryColors';
 import { TABLE_MOBILE_STYLES } from '@/components/ui/table/tableStyles';
+import { Sensivel } from '@/components/common/valores/Sensivel';
+import { useValoresOcultos } from '@/context/ValoresOcultosContext';
 import type { PosicaoSecao } from '../PosicaoConsolidada';
 
 /**
  * Posição consolidada no celular (PWA fase 3): uma faixa por categoria com subtotal e % da
  * carteira, os ativos (maior valor primeiro) e o total geral — os MESMOS números da tabela.
  * Montado só no ramo `useIsBelowLg` (`hidden mscreen:block`); a tabela é que imprime.
+ * Esconder valores (Fase 5): R$ vira pílula (na faixa `patrimonio`, cor de superfície inversa);
+ * o % fica.
  */
 
 const brl = (v: number): string =>
@@ -26,6 +30,7 @@ export default function PosicaoConsolidadaCards({
   secoes: PosicaoSecao[];
   totalGeral: number;
 }) {
+  const { ativo: valoresOcultos } = useValoresOcultos();
   return (
     <div data-mf-mobile="" className="space-y-4">
       {secoes.map((secao) => {
@@ -33,10 +38,14 @@ export default function PosicaoConsolidadaCards({
         const label = CATEGORIA_LABELS[secao.categoria] ?? secao.categoria;
         return (
           <section key={secao.categoria} aria-label={label} className="space-y-1">
-            <div className={`${TABLE_MOBILE_STYLES.groupBand} gap-3`}>
+            <div
+              className={`${TABLE_MOBILE_STYLES.groupBand} gap-3${
+                valoresOcultos ? ' mf-sup-inverso' : ''
+              }`}
+            >
               <span className="min-w-0 truncate">{label}</span>
               <span className="shrink-0 tabular-nums">
-                {brl(subtotal)} · {pctOf(subtotal, totalGeral)}
+                <Sensivel>{brl(subtotal)}</Sensivel> · {pctOf(subtotal, totalGeral)}
               </span>
             </div>
             <ul className="divide-y divide-gray-100 px-1 dark:divide-gray-800">
@@ -53,7 +62,7 @@ export default function PosicaoConsolidadaCards({
                     </span>
                     <span className="shrink-0 text-right">
                       <span className="block font-medium tabular-nums text-gray-900 dark:text-white/90">
-                        {brl(ativo.valorAtual)}
+                        <Sensivel>{brl(ativo.valorAtual)}</Sensivel>
                       </span>
                       <span className="block text-xs tabular-nums text-gray-500 dark:text-gray-400">
                         {pctOf(ativo.valorAtual, totalGeral)}
@@ -70,7 +79,7 @@ export default function PosicaoConsolidadaCards({
       >
         <span className="font-semibold">Total Geral</span>
         <span className="shrink-0 text-right font-semibold tabular-nums">
-          {brl(totalGeral)} · 100%
+          <Sensivel>{brl(totalGeral)}</Sensivel> · 100%
         </span>
       </div>
     </div>

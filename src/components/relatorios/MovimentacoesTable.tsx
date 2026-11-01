@@ -3,12 +3,16 @@
 import { TABLE_STYLES, TABLE_HEADER_STYLE } from '@/components/ui/table/tableStyles';
 import { useIsBelowLg } from '@/hooks/useMediaQuery';
 import type { CategoriaCarteira } from '@/services/portfolio/itemValuation';
+import { Sensivel, TextoSensivel } from '@/components/common/valores/Sensivel';
 import MovimentacoesCards from './mobile/MovimentacoesCards';
 
 /**
  * Movimentações do período no relatório (ticket 20/08/2026, formato do
  * extrato dos relatórios Gorila/Kinvo). Presentacional; dados da rota
  * /api/relatorios/movimentacoes.
+ *
+ * Esconder valores (Fase 5): o valor da operação (R$, US$ e o "≈ R$") vira pílula com o olho
+ * fechado; data, operação, ativo e o câmbio da operação (cotação, no title) ficam.
  */
 
 export interface Movimentacao {
@@ -41,16 +45,18 @@ const usd = (v: number): string =>
 
 /** Linha em US$: valor nativo com o R$ ao lado (ou o aviso de câmbio ausente). */
 export function ValorMovimentacao({ mov }: { mov: Movimentacao }) {
-  if (mov.moeda !== 'USD') return <>{brl(mov.total)}</>;
+  if (mov.moeda !== 'USD') return <Sensivel>{brl(mov.total)}</Sensivel>;
   const cotacao =
     mov.cotacaoMoeda != null
       ? `US$ 1 = R$ ${mov.cotacaoMoeda.toLocaleString('pt-BR', { maximumFractionDigits: 4 })}`
       : undefined;
   return (
     <span className="inline-flex flex-col items-end">
-      <span>{usd(mov.totalMoeda ?? 0)}</span>
+      <span>
+        <Sensivel>{usd(mov.totalMoeda ?? 0)}</Sensivel>
+      </span>
       <span className="text-xs font-normal text-gray-500 dark:text-gray-400" title={cotacao}>
-        {mov.valorBRL != null ? `≈ ${brl(mov.valorBRL)}` : 'sem câmbio'}
+        {mov.valorBRL != null ? <TextoSensivel texto={`≈ ${brl(mov.valorBRL)}`} /> : 'sem câmbio'}
       </span>
     </span>
   );

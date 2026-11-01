@@ -1,13 +1,18 @@
 'use client';
 
+import type { ReactNode } from 'react';
 import { MYFINANCE_BRAND } from '@/constants/brandColors';
 import { MobileMetricGrid } from '@/components/ui/mobile/MobileMetricGrid';
 import { useIsBelowLg } from '@/hooks/useMediaQuery';
+import { Sensivel } from '@/components/common/valores/Sensivel';
 
 /**
  * Resumo Executivo do relatório (ticket 20/08/2026, formato Gorila/Kinvo):
  * os números-chave do período em cards, antes dos gráficos. Componente
  * presentacional — todos os valores chegam prontos da página.
+ *
+ * Esconder valores (Fase 5): patrimônio, resultado, proventos e aportes são do usuário e viram
+ * pílula com o olho fechado; a rentabilidade e o CDI (%) ficam.
  */
 
 const brl = (v: number): string =>
@@ -37,11 +42,11 @@ export default function ResumoExecutivo({
   proventosPeriodo,
   aportesLiquidosPeriodo,
 }: ResumoExecutivoProps) {
-  const cards: Array<{ label: string; value: string; accent?: string; sub?: string }> = [
-    { label: 'Patrimônio no fim do período', value: brl(patrimonioFim) },
+  const cards: Array<{ label: string; value: ReactNode; accent?: string; sub?: string }> = [
+    { label: 'Patrimônio no fim do período', value: <Sensivel>{brl(patrimonioFim)}</Sensivel> },
     {
       label: 'Resultado financeiro no período',
-      value: resultadoPeriodo === null ? '—' : brl(resultadoPeriodo),
+      value: resultadoPeriodo === null ? '—' : <Sensivel>{brl(resultadoPeriodo)}</Sensivel>,
       accent: resultadoPeriodo === null ? undefined : resultadoPeriodo >= 0 ? '#12B76A' : '#F04438',
       sub: 'Variação do patrimônio descontados aportes e resgates',
     },
@@ -51,10 +56,11 @@ export default function ResumoExecutivo({
       accent: MYFINANCE_BRAND.outside,
       sub: cdiPeriodo === null ? undefined : `CDI no período: ${pct(cdiPeriodo)}`,
     },
-    { label: 'Proventos recebidos', value: brl(proventosPeriodo) },
+    { label: 'Proventos recebidos', value: <Sensivel>{brl(proventosPeriodo)}</Sensivel> },
     {
       label: 'Aportes líquidos',
-      value: aportesLiquidosPeriodo === null ? '—' : brl(aportesLiquidosPeriodo),
+      value:
+        aportesLiquidosPeriodo === null ? '—' : <Sensivel>{brl(aportesLiquidosPeriodo)}</Sensivel>,
       sub: 'Compras − vendas do período',
     },
   ];

@@ -29,6 +29,7 @@ import MovimentacoesTable, { type Movimentacao } from './MovimentacoesTable';
 import { useIsBelowLg } from '@/hooks/useMediaQuery';
 import { MobileCollapsible } from '@/components/ui/mobile/MobileCollapsible';
 import { MobileTabRail } from '@/components/ui/tabs/MobileTabRail';
+import { Sensivel } from '@/components/common/valores/Sensivel';
 
 /**
  * Seção do relatório (PWA fase 3). Desktop: os filhos como hoje, sem invólucro (fragmento). Celular:
@@ -435,10 +436,14 @@ export default function RelatoriosPage() {
   const nSecoesPosicao = posicaoData?.secoes?.length ?? 0;
   const resumoPosicao =
     nSecoesPosicao > 0 ? `${nSecoesPosicao} ${nSecoesPosicao === 1 ? 'classe' : 'classes'}` : null;
+  // Esconder valores (Fase 5): o total de proventos do resumo da seção (celular), os números do
+  // Fluxo de Caixa Consolidado e a coluna Orçamento são do usuário (pílula com o olho fechado).
   const resumoProventos =
-    proventosTotal != null && proventosTotal > 0
-      ? proventosTotal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
-      : null;
+    proventosTotal != null && proventosTotal > 0 ? (
+      <Sensivel>
+        {proventosTotal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+      </Sensivel>
+    ) : null;
   const nMov = movimentacoesData?.totalNoPeriodo ?? movimentacoesData?.movimentacoes?.length ?? 0;
   const resumoMovimentacoes = movimentacoesData ? `${nMov} no período` : null;
 
@@ -782,19 +787,19 @@ export default function RelatoriosPage() {
                   <div className="rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-white/[0.03]">
                     <p className="text-sm text-gray-500 dark:text-gray-400">Entradas</p>
                     <p className="text-lg font-semibold text-gray-900 dark:text-white">
-                      R$ {formatCurrencyValue(cashflowTotals.entradas)}
+                      <Sensivel>R$ {formatCurrencyValue(cashflowTotals.entradas)}</Sensivel>
                     </p>
                   </div>
                   <div className="rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-white/[0.03]">
                     <p className="text-sm text-gray-500 dark:text-gray-400">Saídas</p>
                     <p className="text-lg font-semibold text-gray-900 dark:text-white">
-                      R$ {formatCurrencyValue(cashflowTotals.despesas)}
+                      <Sensivel>R$ {formatCurrencyValue(cashflowTotals.despesas)}</Sensivel>
                     </p>
                   </div>
                   <div className="rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-white/[0.03]">
                     <p className="text-sm text-gray-500 dark:text-gray-400">Saldo</p>
                     <p className="text-lg font-semibold text-gray-900 dark:text-white">
-                      R$ {formatCurrencyValue(cashflowTotals.total)}
+                      <Sensivel>R$ {formatCurrencyValue(cashflowTotals.total)}</Sensivel>
                     </p>
                   </div>
                 </div>
@@ -828,7 +833,7 @@ export default function RelatoriosPage() {
                             <TableCell
                               className={`${TABLE_STYLES.td} text-right font-medium text-gray-900 dark:text-white`}
                             >
-                              R$ {formatCurrencyValue(row.total)}
+                              <Sensivel>R$ {formatCurrencyValue(row.total)}</Sensivel>
                             </TableCell>
                           </TableRow>
                         ))
