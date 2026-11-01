@@ -2,6 +2,8 @@
 
 import { useState } from 'react';
 import { formatBRL, formatPct } from '@/utils/format';
+import { Sensivel } from '@/components/common/valores/Sensivel';
+import { useValoresOcultos } from '@/context/ValoresOcultosContext';
 import { TABLE_HEADER_BG } from '@/constants/brandColors';
 import { nivelOrcamento } from '@/lib/cashflow/orcamentoNivel';
 import { SELO_TEXTO, TOM_FUNDO } from '@/lib/orcamento/tons';
@@ -42,6 +44,7 @@ export function OrcamentoTable({ linhas, investimentos, totais, onSaveMeta }: Or
   const [draft, setDraft] = useState<string>('');
   const [draftTipo, setDraftTipo] = useState<OrcamentoTipoMeta>('valor');
   const [savingKey, setSavingKey] = useState<string | null>(null);
+  const { mascarar } = useValoresOcultos();
 
   const startEdit = (linha: OrcamentoLinha) => {
     setEditingKey(linha.key);
@@ -114,12 +117,18 @@ export function OrcamentoTable({ linhas, investimentos, totais, onSaveMeta }: Or
     }
     // Exibe a meta DA JANELA (mês = mensal; acumulado = mensal × meses).
     // Meta percentual mostra o % definido + o R$ que ele vale na janela.
+    // Esconder valores: o R$ da meta vira pílula com o botão parado; o % fica (decisão 2).
     const label =
-      linha.metaJanela === null
-        ? 'Definir'
-        : linha.tipoMeta === 'percentual'
-          ? `${formatPct(linha.metaBase ?? 0, 0)} · ${formatBRL(linha.metaJanela)}`
-          : formatBRL(linha.metaJanela);
+      linha.metaJanela === null ? (
+        'Definir'
+      ) : linha.tipoMeta === 'percentual' ? (
+        <>
+          {`${formatPct(linha.metaBase ?? 0, 0)} · `}
+          <Sensivel>{formatBRL(linha.metaJanela)}</Sensivel>
+        </>
+      ) : (
+        <Sensivel>{formatBRL(linha.metaJanela)}</Sensivel>
+      );
     return (
       <button
         type="button"
@@ -168,7 +177,7 @@ export function OrcamentoTable({ linhas, investimentos, totais, onSaveMeta }: Or
         </td>
         <td className="py-2.5 pr-4 text-right">{renderMetaCell(linha)}</td>
         <td className="py-2.5 pr-4 text-right text-sm text-gray-700 dark:text-gray-200">
-          {formatBRL(linha.real)}
+          <Sensivel>{formatBRL(linha.real)}</Sensivel>
         </td>
         <td
           className={`py-2.5 pr-4 text-right text-sm font-medium ${
@@ -179,15 +188,17 @@ export function OrcamentoTable({ linhas, investimentos, totais, onSaveMeta }: Or
                 : SELO_TEXTO.estourou
           }`}
         >
-          {diferenca === null
-            ? '—'
-            : `${diferenca >= 0 ? '+' : '−'}${formatBRL(Math.abs(diferenca))}`}
+          {diferenca === null ? (
+            '—'
+          ) : (
+            <Sensivel>{`${diferenca >= 0 ? '+' : '−'}${formatBRL(Math.abs(diferenca))}`}</Sensivel>
+          )}
         </td>
         <td className="py-2.5">
           {consumo === null ? (
             <span className="text-xs text-gray-400 dark:text-gray-500">—</span>
           ) : (
-            <div className="flex items-center gap-2" title={nivel.texto}>
+            <div className="flex items-center gap-2" title={mascarar(nivel.texto)}>
               <div className="h-2 w-24 overflow-hidden rounded-full bg-gray-100 dark:bg-gray-800">
                 <div
                   data-mf-orcamento-nivel={nivel.status}
@@ -233,10 +244,10 @@ export function OrcamentoTable({ linhas, investimentos, totais, onSaveMeta }: Or
           <tr className="border-b border-gray-200 bg-gray-50 font-medium dark:border-gray-800 dark:bg-white/[0.02]">
             <td className="py-2.5 pr-4 text-sm text-gray-800 dark:text-gray-100">Total</td>
             <td className="py-2.5 pr-4 text-right text-sm text-gray-800 dark:text-gray-100">
-              {formatBRL(totais.meta)}
+              <Sensivel>{formatBRL(totais.meta)}</Sensivel>
             </td>
             <td className="py-2.5 pr-4 text-right text-sm text-gray-800 dark:text-gray-100">
-              {formatBRL(totais.real)}
+              <Sensivel>{formatBRL(totais.real)}</Sensivel>
             </td>
             <td
               className={`py-2.5 pr-4 text-right text-sm ${
@@ -245,7 +256,9 @@ export function OrcamentoTable({ linhas, investimentos, totais, onSaveMeta }: Or
                   : 'text-error-600 dark:text-error-500'
               }`}
             >
-              {`${totais.diferenca >= 0 ? '+' : '−'}${formatBRL(Math.abs(totais.diferenca))}`}
+              <Sensivel>
+                {`${totais.diferenca >= 0 ? '+' : '−'}${formatBRL(Math.abs(totais.diferenca))}`}
+              </Sensivel>
             </td>
             <td className="py-2.5" />
           </tr>

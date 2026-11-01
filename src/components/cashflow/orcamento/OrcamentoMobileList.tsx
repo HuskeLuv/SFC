@@ -3,6 +3,8 @@
 import React, { useState } from 'react';
 import { MobileEditSheet, type MobileEditFailure } from '@/components/ui/sheet/MobileEditSheet';
 import { formatBRL, formatPct } from '@/utils/format';
+import { Sensivel, TextoSensivel } from '@/components/common/valores/Sensivel';
+import { useValoresOcultos } from '@/context/ValoresOcultosContext';
 import { nivelOrcamento, type OrcamentoNivel } from '@/lib/cashflow/orcamentoNivel';
 import { SELO_TEXTO, TOM_FUNDO, type TomOrcamento } from '@/lib/orcamento/tons';
 import type { OrcamentoLinha, OrcamentoTipoMeta } from './OrcamentoTable';
@@ -45,7 +47,8 @@ export function OrcamentoSelo({ nivel, tom }: { nivel: OrcamentoNivel; tom: Tom 
       className={`inline-flex shrink-0 items-center gap-1.5 rounded-full border border-gray-200 bg-white px-2 py-0.5 text-xs font-semibold whitespace-nowrap dark:border-gray-700 dark:bg-white/[0.03] ${SELO_TEXTO[tom]}`}
     >
       <span aria-hidden="true" className={`h-[7px] w-[7px] rounded-full ${TOM_FUNDO[tom]}`} />
-      {nivel.texto}
+      {/* "Faltam R$ …" / "Estourou R$ …": só o valor vira pílula. */}
+      <TextoSensivel texto={nivel.texto} />
     </span>
   );
 }
@@ -129,12 +132,25 @@ function CartaoCategoria({
 }) {
   const nivel = nivelOrcamento(linha.real, linha.metaJanela, linha.isInvestimentos);
   const tom = tomDoNivel(nivel, linha.isInvestimentos);
+  const { mascarar } = useValoresOcultos();
   const meta =
     linha.metaJanela === null
       ? 'sem meta'
       : linha.tipoMeta === 'percentual'
         ? `${formatBRL(linha.metaJanela)} (${formatPct(linha.metaBase ?? 0, 0)} da renda)`
         : formatBRL(linha.metaJanela);
+  // Esconder valores: o R$ da meta vira pílula; o "% da renda" fica (decisão 2).
+  const metaVisivel =
+    linha.metaJanela === null ? (
+      meta
+    ) : linha.tipoMeta === 'percentual' ? (
+      <>
+        <Sensivel>{formatBRL(linha.metaJanela)}</Sensivel>
+        {` (${formatPct(linha.metaBase ?? 0, 0)} da renda)`}
+      </>
+    ) : (
+      <Sensivel>{meta}</Sensivel>
+    );
   const rotulo = [
     linha.nome,
     linha.parentNome ? `em ${linha.parentNome}` : null,
@@ -151,7 +167,7 @@ function CartaoCategoria({
       data-mf-card=""
       data-mf-orcamento-card={linha.key}
       onClick={() => onEditar(linha)}
-      aria-label={rotulo}
+      aria-label={mascarar(rotulo)}
       className="flex w-full flex-col gap-1.5 border-t border-gray-100 px-3.5 py-3 text-left first:border-t-0 active:bg-gray-50 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[#0079F2] dark:border-gray-800 dark:active:bg-white/5"
     >
       <span className="flex min-w-0 flex-wrap items-start justify-between gap-x-2 gap-y-1">
@@ -170,8 +186,10 @@ function CartaoCategoria({
       <OrcamentoMeter pct={nivel.pct} tom={tom} />
       <span className="flex items-baseline justify-between gap-2 text-[12.5px] text-gray-500 tabular-nums dark:text-gray-400">
         <span className="min-w-0">
-          <b className="font-semibold text-gray-800 dark:text-white/90">{formatBRL(linha.real)}</b>{' '}
-          de {meta}
+          <b className="font-semibold text-gray-800 dark:text-white/90">
+            <Sensivel>{formatBRL(linha.real)}</Sensivel>
+          </b>{' '}
+          de {metaVisivel}
           {linha.isInvestimentos ? ' · fora do total' : ''}
         </span>
         <span className="shrink-0 font-medium text-mf-patrimonio dark:text-mf-tranquilidade">
@@ -246,9 +264,9 @@ export default function OrcamentoMobileList({
             <span className="flex items-baseline justify-between gap-2 text-[12.5px] text-gray-500 tabular-nums dark:text-gray-400">
               <span>
                 <b className="font-semibold text-gray-800 dark:text-white/90">
-                  {formatBRL(totais.real)}
+                  <Sensivel>{formatBRL(totais.real)}</Sensivel>
                 </b>{' '}
-                de {formatBRL(totais.meta)}
+                de <Sensivel>{formatBRL(totais.meta)}</Sensivel>
               </span>
               <span
                 className={`shrink-0 font-semibold ${
@@ -258,7 +276,7 @@ export default function OrcamentoMobileList({
                 }`}
               >
                 {totais.diferenca >= 0 ? 'Sobram ' : 'Passou '}
-                {formatBRL(Math.abs(totais.diferenca))}
+                <Sensivel>{formatBRL(Math.abs(totais.diferenca))}</Sensivel>
               </span>
             </span>
           </div>
