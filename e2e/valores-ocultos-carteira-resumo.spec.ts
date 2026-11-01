@@ -103,13 +103,21 @@ for (const variante of VARIANTES) {
       expect(numeros.length).toBeGreaterThan(0);
       const rotulosEixo = grafico(page).locator('.apexcharts-yaxis-label');
       await expect(rotulosEixo.first()).toHaveText(/R\$/);
-      const alturaAntes = (await grafico(page).boundingBox())!.height;
-      const areaAntes = (await grafico(page).locator('.apexcharts-grid').boundingBox())!;
 
       // Período 1A: tem de continuar selecionado depois de alternar.
       const periodo1A = page.getByRole('button', { name: '1A', exact: true });
       await periodo1A.click();
       await expect(periodo1A).toHaveAttribute('aria-pressed', 'true');
+      // Medidas DEPOIS da troca de período (o eixo de 1A pode ter outra largura que o de Máx) e
+      // com o gráfico já parado.
+      let areaAntes = (await grafico(page).locator('.apexcharts-grid').boundingBox())!;
+      await expect(async () => {
+        const agora = (await grafico(page).locator('.apexcharts-grid').boundingBox())!;
+        const parado = agora.x === areaAntes.x && agora.width === areaAntes.width;
+        areaAntes = agora;
+        expect(parado).toBe(true);
+      }).toPass({ timeout: 10_000, intervals: [500] });
+      const alturaAntes = (await grafico(page).boundingBox())!.height;
 
       // Marca na janela: alternar não pode recarregar a página.
       await page.evaluate(() => {
