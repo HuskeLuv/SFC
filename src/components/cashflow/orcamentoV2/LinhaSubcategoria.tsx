@@ -250,9 +250,11 @@ export default function LinhaSubcategoria({
           </span>
         )}
       </td>
+      {/* Realizado e diferença em pílula CURTA (também na categoria e no total): a de 5,5em
+          alargava as colunas, estreitava a do nome e a linha ficava mais alta. */}
       <td className={`${TABLE_STYLES.td} text-right tabular-nums`}>
         {sub.realizado !== 0 ? (
-          <Sensivel>{num(sub.realizado)}</Sensivel>
+          <Sensivel curto>{num(sub.realizado)}</Sensivel>
         ) : (
           <span className="text-gray-400 dark:text-gray-500">—</span>
         )}
@@ -268,7 +270,7 @@ export default function LinhaSubcategoria({
         title={tolerancia ? mascarar(tolerancia) : undefined}
       >
         <span className={tolerancia ? CLASSE_COM_AJUDA : undefined}>
-          {dif.texto === '—' ? dif.texto : <Sensivel>{dif.texto}</Sensivel>}
+          {dif.texto === '—' ? dif.texto : <Sensivel curto>{dif.texto}</Sensivel>}
         </span>
       </td>
       <td className={TABLE_STYLES.td}>

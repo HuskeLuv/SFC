@@ -40,12 +40,12 @@ export default function LinhaTotal({
         <Sensivel>{num(resumo.orcado)}</Sensivel>
       </td>
       <td className={`${TABLE_STYLES.td} text-right tabular-nums`}>
-        <Sensivel>{num(resumo.realizado)}</Sensivel>
+        <Sensivel curto>{num(resumo.realizado)}</Sensivel>
       </td>
       <td
         className={`${TABLE_STYLES.td} text-right tabular-nums ${dif.negativa ? SELO_TEXTO.estourou : ''}`}
       >
-        {dif.texto === '—' ? dif.texto : <Sensivel>{dif.texto}</Sensivel>}
+        {dif.texto === '—' ? dif.texto : <Sensivel curto>{dif.texto}</Sensivel>}
       </td>
       <td className={TABLE_STYLES.td}>
         <BarraConsumo

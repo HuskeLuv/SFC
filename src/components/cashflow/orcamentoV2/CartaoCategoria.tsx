@@ -117,22 +117,23 @@ export default function CartaoCategoria({
           </svg>
         </span>
 
+        {/* Pílulas CURTAS: com as de 5,5em a linha quebrava a 320 px e o cartão crescia. */}
         <span className="mt-2.5 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5 text-xs tabular-nums text-gray-500 dark:text-gray-400">
           <span className="min-w-0">
             <b className="font-semibold text-gray-800 dark:text-white/90">
-              <Sensivel>{num(c.realizado)}</Sensivel>
+              <Sensivel curto>{num(c.realizado)}</Sensivel>
             </b>{' '}
-            de <Sensivel>{num(c.orcado)}</Sensivel>
+            de <Sensivel curto>{num(c.orcado)}</Sensivel>
           </span>
           <span className={negativa ? `font-semibold ${SELO_TEXTO.estourou}` : ''}>
             {negativa ? (
               <>
-                <Sensivel>{`−${num(Math.abs(c.diferenca))}`}</Sensivel>
+                <Sensivel curto>{`−${num(Math.abs(c.diferenca))}`}</Sensivel>
                 {' a mais'}
               </>
             ) : (
               <>
-                <Sensivel>{num(c.diferenca)}</Sensivel>
+                <Sensivel curto>{num(c.diferenca)}</Sensivel>
                 {' disponível'}
               </>
             )}

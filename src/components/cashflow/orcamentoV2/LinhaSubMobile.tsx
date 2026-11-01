@@ -73,7 +73,8 @@ export default function LinhaSubMobile({
           <span className="block">
             {rotuloReal}{' '}
             <b className="font-semibold text-gray-800 dark:text-white/90">
-              {sub.realizado !== 0 ? <Sensivel>{num(sub.realizado)}</Sensivel> : '—'}
+              {/* Pílula curta: a de 5,5em alargava a coluna e quebrava o nome (linha mais alta). */}
+              {sub.realizado !== 0 ? <Sensivel curto>{num(sub.realizado)}</Sensivel> : '—'}
             </b>
           </span>
           <span

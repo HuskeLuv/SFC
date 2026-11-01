@@ -115,7 +115,7 @@ export default function LinhaCategoria({
         </small>
       </td>
       <td className={`${TABLE_STYLES.td} text-right tabular-nums`}>
-        <Sensivel>{num(c.realizado)}</Sensivel>
+        <Sensivel curto>{num(c.realizado)}</Sensivel>
       </td>
       <td
         className={`${TABLE_STYLES.td} text-right tabular-nums ${
@@ -128,7 +128,7 @@ export default function LinhaCategoria({
         title={tolerancia ? mascarar(tolerancia) : undefined}
       >
         <span className={tolerancia ? CLASSE_COM_AJUDA : undefined}>
-          {dif.texto === '—' ? dif.texto : <Sensivel>{dif.texto}</Sensivel>}
+          {dif.texto === '—' ? dif.texto : <Sensivel curto>{dif.texto}</Sensivel>}
         </span>
       </td>
       <td className={TABLE_STYLES.td}>
