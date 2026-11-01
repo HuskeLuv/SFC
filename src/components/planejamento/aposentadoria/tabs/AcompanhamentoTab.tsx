@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import {
   planTraj,
   revisedTraj,
@@ -18,6 +18,8 @@ import { formatBRL, formatBRLCompact, fPct, fMonth } from '../utils';
 import { aaToAm } from '@/utils/rateConversion';
 import { TABLE_STYLES, TABLE_HEADER_STYLE } from '@/components/ui/table/tableStyles';
 import { MobileStatusPill } from '@/components/ui/mobile/MobileStatusPill';
+import { Sensivel, TextoSensivel } from '@/components/common/valores/Sensivel';
+import { useValoresOcultos } from '@/context/ValoresOcultosContext';
 import { useIsBelowLg } from '@/hooks/useMediaQuery';
 import AcompanhamentoCards, { type AcompanhamentoRow } from '../mobile/AcompanhamentoCards';
 import RegistrarMesSheet from '../mobile/RegistrarMesSheet';
@@ -37,10 +39,26 @@ function DeltaBadge({
   mobile = false,
 }: {
   value: number | null;
-  label: string;
+  /** Texto do selo; valores em R$ vêm já em <Sensivel curto> (o selo não quebra linha). */
+  label: ReactNode;
   /** Celular: ponto + palavra, sem verde (PWA fase 3). */
   mobile?: boolean;
 }) {
+  const { ativo } = useValoresOcultos();
+  const sinal = value != null && value >= 0 ? '+' : '';
+  // Olho fechado: o conteúdo vai num span (linha de texto). Num selo flex, a pílula sozinha virava
+  // item flex sem linha e o selo encolhia. Olho aberto: o DOM de hoje.
+  const conteudo = ativo ? (
+    <span>
+      {sinal}
+      {label}
+    </span>
+  ) : (
+    <>
+      {sinal}
+      {label}
+    </>
+  );
   if (mobile) {
     if (value == null) {
       return (
@@ -52,8 +70,7 @@ function DeltaBadge({
     const tone = value > 0.01 ? 'ok' : value < -0.01 ? 'problema' : 'neutro';
     return (
       <MobileStatusPill tone={tone} className="mt-1 max-w-full flex-wrap">
-        {value >= 0 ? '+' : ''}
-        {label}
+        {conteudo}
       </MobileStatusPill>
     );
   }
@@ -72,8 +89,7 @@ function DeltaBadge({
         : 'bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400';
   return (
     <span className={`mt-1 inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold ${cls}`}>
-      {value >= 0 ? '+' : ''}
-      {label}
+      {conteudo}
     </span>
   );
 }
@@ -199,7 +215,7 @@ export default function AcompanhamentoTab({
   const sugestaoMes = derivedByOff.get(curOffset);
 
   return (
-    <div className="space-y-4">
+    <div data-mf-apos-aba="track" className="space-y-4">
       {/* Tags */}
       <div className="flex flex-wrap items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
         <span className="rounded-full border border-gray-200 px-2.5 py-0.5 dark:border-gray-700">
@@ -212,7 +228,7 @@ export default function AcompanhamentoTab({
           Rent. nominal: {fPct(params.rentNom)}
         </span>
         <span className="rounded-full border border-gray-200 px-2.5 py-0.5 dark:border-gray-700">
-          Aporte: {formatBRLCompact(params.aporteM)}/mês
+          Aporte: <Sensivel curto>{formatBRLCompact(params.aporteM)}</Sensivel>/mês
         </span>
       </div>
 
@@ -223,13 +239,20 @@ export default function AcompanhamentoTab({
             Patrimônio
           </p>
           <p className="text-lg font-semibold text-gray-900 dark:text-white/90">
-            {formatBRLCompact(currPat)}
+            <Sensivel>{formatBRLCompact(currPat)}</Sensivel>
           </p>
-          <p className="text-[10px] text-gray-400">Necessário: {formatBRLCompact(reqPat)}</p>
+          <p className="text-[10px] text-gray-400">
+            Necessário: <Sensivel>{formatBRLCompact(reqPat)}</Sensivel>
+          </p>
           <DeltaBadge
             mobile={isBelowLg}
             value={latE ? dPat : null}
-            label={`${formatBRLCompact(Math.abs(dPat))} (${Math.abs(dPatPct).toFixed(1).replace('.', ',')}%)`}
+            label={
+              <>
+                <Sensivel curto>{formatBRLCompact(Math.abs(dPat))}</Sensivel>
+                {` (${Math.abs(dPatPct).toFixed(1).replace('.', ',')}%)`}
+              </>
+            }
           />
         </div>
         <div className="rounded-lg border border-gray-200 p-3 max-lg:min-w-0 dark:border-gray-800">
@@ -237,13 +260,15 @@ export default function AcompanhamentoTab({
             Último Aporte
           </p>
           <p className="text-lg font-semibold text-gray-900 dark:text-white/90">
-            {latE ? formatBRLCompact(latE.aporteReal) : '—'}
+            {latE ? <Sensivel>{formatBRLCompact(latE.aporteReal)}</Sensivel> : '—'}
           </p>
-          <p className="text-[10px] text-gray-400">Necessário: {formatBRLCompact(reqC)}</p>
+          <p className="text-[10px] text-gray-400">
+            Necessário: <Sensivel>{formatBRLCompact(reqC)}</Sensivel>
+          </p>
           <DeltaBadge
             mobile={isBelowLg}
             value={dAporte}
-            label={formatBRLCompact(Math.abs(dAporte ?? 0))}
+            label={<Sensivel curto>{formatBRLCompact(Math.abs(dAporte ?? 0))}</Sensivel>}
           />
         </div>
         <div className="rounded-lg border border-gray-200 p-3 max-lg:min-w-0 dark:border-gray-800">
@@ -261,9 +286,11 @@ export default function AcompanhamentoTab({
             Projeção Revisada
           </p>
           <p className="text-lg font-semibold text-gray-900 dark:text-white/90">
-            {formatBRLCompact(revRet)}
+            <Sensivel>{formatBRLCompact(revRet)}</Sensivel>
           </p>
-          <p className="text-[10px] text-gray-400">Original: {formatBRLCompact(origRet)}</p>
+          <p className="text-[10px] text-gray-400">
+            Original: <Sensivel>{formatBRLCompact(origRet)}</Sensivel>
+          </p>
           {origRet > 0 ? (
             <DeltaBadge
               mobile={isBelowLg}
@@ -277,7 +304,7 @@ export default function AcompanhamentoTab({
       {/* Banner recálculo */}
       {recalcMsg ? (
         <div className="rounded-lg border border-yellow-200 bg-yellow-50 p-3 text-xs text-yellow-800 max-lg:text-[#B45309] dark:border-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-200 dark:max-lg:text-[#FBBF24]">
-          ⚠ {recalcMsg}
+          ⚠ <TextoSensivel texto={recalcMsg} />
         </div>
       ) : null}
 
@@ -392,7 +419,7 @@ export default function AcompanhamentoTab({
               />
             </div>
             <p className="mb-2 text-[10px] text-gray-400">
-              Necessário: {formatBRL(C[curOffset] ?? 0)}
+              Necessário: <Sensivel>{formatBRL(C[curOffset] ?? 0)}</Sensivel>
             </p>
 
             <label className="mb-1 block text-xs text-gray-500 dark:text-gray-400">
@@ -411,7 +438,9 @@ export default function AcompanhamentoTab({
                 className="w-full rounded-r-md border border-gray-300 bg-white px-2 py-1.5 text-right text-sm outline-none focus:border-brand-500 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90"
               />
             </div>
-            <p className="mb-2 text-[10px] text-gray-400">Necessário: {formatBRL(formReqPat)}</p>
+            <p className="mb-2 text-[10px] text-gray-400">
+              Necessário: <Sensivel>{formatBRL(formReqPat)}</Sensivel>
+            </p>
 
             {(() => {
               const sug = derivedByOff.get(curOffset);
@@ -422,8 +451,8 @@ export default function AcompanhamentoTab({
                     <span className="font-semibold text-brand-600 dark:text-brand-400">
                       ✦ Da sua carteira:
                     </span>{' '}
-                    aporte {formatBRL(sug.aporteReal)} · patrimônio{' '}
-                    {sug.patFinal != null ? formatBRL(sug.patFinal) : '—'}
+                    aporte <Sensivel>{formatBRL(sug.aporteReal)}</Sensivel> · patrimônio{' '}
+                    {sug.patFinal != null ? <Sensivel>{formatBRL(sug.patFinal)}</Sensivel> : '—'}
                   </p>
                   <button
                     type="button"
@@ -459,9 +488,13 @@ export default function AcompanhamentoTab({
                 <span
                   className={`font-semibold ${formDPat != null ? (formDPat >= 0 ? 'text-green-600' : 'text-red-600') : ''}`}
                 >
-                  {formDPat != null
-                    ? `${formDPat >= 0 ? '+' : ''}${formatBRLCompact(formDPat)} (${formDPatPct.toFixed(1).replace('.', ',')}%)`
-                    : '—'}
+                  {formDPat != null ? (
+                    <TextoSensivel
+                      texto={`${formDPat >= 0 ? '+' : ''}${formatBRLCompact(formDPat)} (${formDPatPct.toFixed(1).replace('.', ',')}%)`}
+                    />
+                  ) : (
+                    '—'
+                  )}
                 </span>
               </div>
             </div>
@@ -565,11 +598,17 @@ export default function AcompanhamentoTab({
                                   : 'text-gray-400'
                               }
                             >
-                              {e ? formatBRLCompact(e.aporteReal) : '—'}
+                              {e ? (
+                                <Sensivel curto>{formatBRLCompact(e.aporteReal)}</Sensivel>
+                              ) : (
+                                '—'
+                              )}
                             </span>
                           </td>
                           <td className={`${TABLE_STYLES.compact.td} text-right`}>
-                            <span className="text-gray-400">{formatBRLCompact(reqCo)}</span>
+                            <span className="text-gray-400">
+                              <Sensivel curto>{formatBRLCompact(reqCo)}</Sensivel>
+                            </span>
                           </td>
                           <td className={`${TABLE_STYLES.compact.td} text-right`}>
                             <span
@@ -593,11 +632,13 @@ export default function AcompanhamentoTab({
                                   : 'text-gray-400'
                               }
                             >
-                              {e ? formatBRLCompact(e.patFinal) : '—'}
+                              {e ? <Sensivel curto>{formatBRLCompact(e.patFinal)}</Sensivel> : '—'}
                             </span>
                           </td>
                           <td className={`${TABLE_STYLES.compact.td} text-right`}>
-                            <span className="text-gray-400">{formatBRLCompact(reqPa)}</span>
+                            <span className="text-gray-400">
+                              <Sensivel curto>{formatBRLCompact(reqPa)}</Sensivel>
+                            </span>
                           </td>
                           <td className={`${TABLE_STYLES.compact.td} text-right font-semibold`}>
                             <span

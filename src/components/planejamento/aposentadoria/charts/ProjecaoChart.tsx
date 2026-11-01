@@ -1,9 +1,14 @@
 'use client';
 
 import dynamic from 'next/dynamic';
-import { useMemo } from 'react';
+import { useMemo, useRef } from 'react';
 import type { ApexOptions } from 'apexcharts';
 import { mobileYAxis, useMobileChart } from '@/components/charts/mobileChartOptions';
+import {
+  useChaveGraficoSensivel,
+  useOpcoesGraficoSensiveis,
+} from '@/components/charts/useOpcoesGraficoSensiveis';
+import { rotulosDoEixoY, useLarguraEixoYOculto } from './useLarguraEixoYOculto';
 import type { ProjecaoResult } from '@/services/planejamento/aposentadoria';
 import { formatBRLCompact } from '../utils';
 
@@ -148,9 +153,27 @@ export default function ProjecaoChart({ data, apos, vida }: ProjecaoChartProps) 
     extra: mobileExtra,
   });
 
+  // Esconder valores (decisão 7): sobre as opções FINAIS (já com as do celular). Eixo Y sem
+  // rótulo com a largura de hoje reservada, tooltip com pílula; séries, legenda e anotações (idade,
+  // "Hoje") ficam. Olho aberto devolve a mesma referência; a chave remonta ao alternar.
+  const containerRef = useRef<HTMLDivElement>(null);
+  const rotulosEixo = useMemo(() => {
+    const maior = Math.max(0, ...data.accVals, ...data.desVals, ...data.presVals, ...data.consVals);
+    return rotulosDoEixoY(chartOptions, maior);
+  }, [chartOptions, data]);
+  const larguraEixoY = useLarguraEixoYOculto(containerRef, rotulosEixo);
+  const opcoes = useOpcoesGraficoSensiveis(chartOptions, { larguraEixoY });
+  const chaveSensivel = useChaveGraficoSensivel();
+
   return (
-    <div className="w-full">
-      <ReactApexChart options={chartOptions} series={series} type="line" height={height} />
+    <div ref={containerRef} className="w-full">
+      <ReactApexChart
+        key={chaveSensivel}
+        options={opcoes}
+        series={series}
+        type="line"
+        height={height}
+      />
     </div>
   );
 }

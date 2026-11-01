@@ -4,6 +4,7 @@ import { progress } from '@/services/planejamento/planejamentoSonhos';
 import type { PlanejamentoObjetivoDTO } from '@/hooks/usePlanejamentoSonhos';
 import { MobileStatusPill } from '@/components/ui/mobile/MobileStatusPill';
 import { CATEGORY_LONG_LABELS, formatBRLCompact } from '../utils';
+import { Sensivel } from '@/components/common/valores/Sensivel';
 import { sonhoSituacao } from './sonhoSituacao';
 
 interface SonhoCardMobileProps {
@@ -41,10 +42,10 @@ export default function SonhoCardMobile({ objetivo, onClick }: SonhoCardMobilePr
         </div>
         <div className="shrink-0 text-right">
           <p className="text-base font-semibold tabular-nums text-gray-900 dark:text-white/90">
-            {formatBRLCompact(balance)}
+            <Sensivel curto>{formatBRLCompact(balance)}</Sensivel>
           </p>
           <p className="text-xs tabular-nums text-gray-500 dark:text-gray-400">
-            de {formatBRLCompact(objetivo.target)}
+            de <Sensivel curto>{formatBRLCompact(objetivo.target)}</Sensivel>
           </p>
         </div>
       </div>
@@ -65,7 +66,7 @@ export default function SonhoCardMobile({ objetivo, onClick }: SonhoCardMobilePr
             <>
               faltam{' '}
               <strong className="tabular-nums text-gray-900 dark:text-white/90">
-                {formatBRLCompact(restante)}
+                <Sensivel curto>{formatBRLCompact(restante)}</Sensivel>
               </strong>{' '}
               em {mesesRestantes} {mesesRestantes === 1 ? 'mês' : 'meses'}
             </>

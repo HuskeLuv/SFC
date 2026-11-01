@@ -10,8 +10,9 @@
  * Strings devolvidas por render/getValue/cell (fora do JSX) não são acusadas: a autodetecção de
  * R$/US$ dos componentes compartilhados e os testes com sentinelas cobrem esses casos.
  *
- * Nível: 'error' nas pastas da Fase 1 e da Fase 2 (ambas fechadas com zero ocorrências). A Fase 2
- * fica em GLOBS_VALORES_OCULTOS_FASE2 (bloco próprio por causa da opção `formattersExtras`).
+ * Nível: 'error' nas pastas das Fases 1, 2 e 3 (todas fechadas com zero ocorrências). A Fase 2
+ * fica em GLOBS_VALORES_OCULTOS_FASE2 (bloco próprio por causa da opção `formattersExtras`) e a
+ * Fase 3 (Planejar) em GLOBS_VALORES_OCULTOS_FASE3.
  *
  * Fluxo de caixa: o formatCurrency DEPRECATED (src/utils/formatters.ts) é formatNumber, sem "R$".
  * A regra pega formatCurrency/formatBRL no JSX e, na Fase 2, o num() do Orçamento v2 (opção
@@ -190,3 +191,22 @@ export const IGNORES_VALORES_OCULTOS_FASE2 = [
   'src/components/cashflow/mobile/edit/SituacaoPicker.tsx',
   '**/__tests__/**',
 ];
+
+/**
+ * Fase 3 ('error' desde o fechamento, com zero ocorrências): Planejar — Sonhos e
+ * Aposentadoria (/planejamento-financeiro). Sem `formattersExtras`: o formatPremissa do
+ * PremissasCard devolve dinheiro, % e anos, então marque à mão e confira pelo innerText (e2e).
+ */
+export const GLOBS_VALORES_OCULTOS_FASE3 = [
+  'src/components/planejamento/**/*.{ts,tsx}',
+  'src/app/(admin)/(others-pages)/planejamento-financeiro/**/*.{ts,tsx}',
+];
+
+/**
+ * Formulários do Planejar ficam visíveis (decisão 3): os campos mostram o número digitado (o
+ * `value` de input é prop, a regra não acusa). Nenhum deles é formulário PURO — todos têm texto de
+ * apoio/resultado fora do campo (aporte mensal calculado, "Planejado:", variação do patrimônio,
+ * patrimônio projetado), que vira pílula; por isso continuam no lint. Atenção: `hint=` também é
+ * prop e a regra não acusa — marque à mão e confira pelo innerText (e2e).
+ */
+export const IGNORES_VALORES_OCULTOS_FASE3 = ['**/__tests__/**'];

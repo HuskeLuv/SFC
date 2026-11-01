@@ -4,8 +4,10 @@ import { FlatCompat } from "@eslint/eslintrc";
 import {
   GLOBS_VALORES_OCULTOS,
   GLOBS_VALORES_OCULTOS_FASE2,
+  GLOBS_VALORES_OCULTOS_FASE3,
   IGNORES_VALORES_OCULTOS,
   IGNORES_VALORES_OCULTOS_FASE2,
+  IGNORES_VALORES_OCULTOS_FASE3,
   OPCOES_VALORES_OCULTOS_FASE2,
   pluginValoresOcultos,
 } from "./eslint/valoresOcultos.mjs";
@@ -49,6 +51,16 @@ const eslintConfig = [
     plugins: { mf: pluginValoresOcultos },
     rules: {
       "mf/valor-sem-sensivel": ["error", OPCOES_VALORES_OCULTOS_FASE2],
+    },
+  },
+  // Fase 3 (Planejar: Sonhos e Aposentadoria): 'error' desde o fechamento da fase, com zero
+  // ocorrências.
+  {
+    files: GLOBS_VALORES_OCULTOS_FASE3,
+    ignores: IGNORES_VALORES_OCULTOS_FASE3,
+    plugins: { mf: pluginValoresOcultos },
+    rules: {
+      "mf/valor-sem-sensivel": "error",
     },
   },
 ];

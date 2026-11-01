@@ -3,6 +3,8 @@
 import MetricCard from '@/components/carteira/shared/MetricCard';
 import { MobileMetricGrid } from '@/components/ui/mobile/MobileMetricGrid';
 import { chartAriaSummary } from '@/components/charts/mobileChartOptions';
+import { Sensivel, TextoSensivel } from '@/components/common/valores/Sensivel';
+import { useValoresOcultos } from '@/context/ValoresOcultosContext';
 import { useIsBelowLg } from '@/hooks/useMediaQuery';
 import type { ProjecaoResult } from '@/services/planejamento/aposentadoria';
 import type { PlanoUpsertPayload } from '@/hooks/useAposentadoria';
@@ -16,6 +18,7 @@ interface ProjecaoTabProps {
 
 export default function ProjecaoTab({ params, projection }: ProjecaoTabProps) {
   const isBelowLg = useIsBelowLg();
+  const { mascarar } = useValoresOcultos();
   if (!projection) {
     return (
       <div className="rounded-2xl border border-yellow-200 bg-yellow-50 p-4 text-sm text-yellow-800 max-lg:text-[#B45309] dark:border-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-200 dark:max-lg:text-[#FBBF24]">
@@ -41,7 +44,7 @@ export default function ProjecaoTab({ params, projection }: ProjecaoTabProps) {
       : '';
 
   return (
-    <div className="space-y-4">
+    <div data-mf-apos-aba="proj" className="space-y-4">
       {/* Resumo */}
       <div className="rounded-2xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-white/[0.03]">
         <p className="text-[10px] font-semibold uppercase tracking-wider text-brand-500 max-lg:text-mf-patrimonio dark:max-lg:text-mf-tranquilidade">
@@ -51,8 +54,8 @@ export default function ProjecaoTab({ params, projection }: ProjecaoTabProps) {
           O que isso significa?
         </h3>
         <p className="text-sm leading-relaxed text-gray-600 dark:text-gray-300">
-          {p1} {p2} {p3}
-          {p4 ? ` ${p4}` : ''}
+          {/* Esconder valores: só os R$ viram pílula; idades e prazos ficam. */}
+          <TextoSensivel texto={`${p1} ${p2} ${p3}${p4 ? ` ${p4}` : ''}`} />
         </p>
       </div>
 
@@ -62,17 +65,25 @@ export default function ProjecaoTab({ params, projection }: ProjecaoTabProps) {
           items={[
             {
               label: isNow ? 'Patrimônio disponível agora' : `Patrimônio aos ${params.apos} anos`,
-              value: formatBRLCompact(Pr),
+              value: <Sensivel>{formatBRLCompact(Pr)}</Sensivel>,
               hint: 'em R$ de hoje',
             },
             {
               label: 'Saque preservando',
-              value: `${formatBRLCompact(sacPres)}/mês`,
-              hint: diff > 0 ? `+${formatBRLCompact(diff)}/mês consumindo` : 'herança intacta',
+              value: <Sensivel>{`${formatBRLCompact(sacPres)}/mês`}</Sensivel>,
+              hint:
+                // Pílula curta com o "/mês": a de 5,5em quebrava a linha e o cartão crescia.
+                diff > 0 ? (
+                  <>
+                    +<Sensivel curto>{`${formatBRLCompact(diff)}/mês`}</Sensivel> consumindo
+                  </>
+                ) : (
+                  'herança intacta'
+                ),
             },
             {
               label: `Saque consumindo até ${params.vida}`,
-              value: `${formatBRLCompact(sacCons)}/mês`,
+              value: <Sensivel>{`${formatBRLCompact(sacCons)}/mês`}</Sensivel>,
               hint: `${params.vida - params.apos} anos de aposentadoria`,
             },
             {
@@ -98,12 +109,16 @@ export default function ProjecaoTab({ params, projection }: ProjecaoTabProps) {
           <MetricCard
             title="Saque preservando patrimônio"
             value={`${formatBRLCompact(sacPres)}/mês`}
+            // Pílula única para "R$ X/mês": com 'auto' o "/mês" quebrava a linha e o card crescia.
+            valor="sensivel"
             color="success"
             change={diff > 0 ? `+${formatBRLCompact(diff)}/mês consumindo` : 'herança intacta'}
           />
           <MetricCard
             title={`Saque consumindo até ${params.vida} anos`}
             value={`${formatBRLCompact(sacCons)}/mês`}
+            // Pílula única para "R$ X/mês": com 'auto' o "/mês" quebrava a linha e o card crescia.
+            valor="sensivel"
             color="primary"
             change={`${params.vida - params.apos} anos de aposentadoria`}
           />
@@ -132,9 +147,11 @@ export default function ProjecaoTab({ params, projection }: ProjecaoTabProps) {
           <div
             {...chartAriaSummary(
               'Projeção',
-              isNow
-                ? `Hoje: ${formatBRLCompact(Pr)}`
-                : `Aos ${params.apos}: ${formatBRLCompact(Pr)}`,
+              mascarar(
+                isNow
+                  ? `Hoje: ${formatBRLCompact(Pr)}`
+                  : `Aos ${params.apos}: ${formatBRLCompact(Pr)}`,
+              ),
             )}
           >
             <ProjecaoChart data={projection} apos={params.apos} vida={params.vida} />

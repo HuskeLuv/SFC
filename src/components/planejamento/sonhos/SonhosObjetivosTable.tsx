@@ -6,6 +6,7 @@ import { TABLE_STYLES, TABLE_HEADER_STYLE } from '@/components/ui/table/tableSty
 import { progress, pmt } from '@/services/planejamento/planejamentoSonhos';
 import type { PlanejamentoObjetivoDTO } from '@/hooks/usePlanejamentoSonhos';
 import { StatusBadge, CategoryBadge } from './SonhosBadges';
+import { Sensivel } from '@/components/common/valores/Sensivel';
 import { formatBRLCompact, categoryAccent } from './utils';
 
 interface SonhosObjetivosTableProps {
@@ -87,15 +88,15 @@ export default function SonhosObjetivosTable({
                   <CategoryBadge category={g.category} />
                 </TableCell>
                 <TableCell className={`${TABLE_STYLES.td} text-right`}>
-                  {formatBRLCompact(g.target)}
+                  <Sensivel>{formatBRLCompact(g.target)}</Sensivel>
                 </TableCell>
                 <TableCell
                   className={`${TABLE_STYLES.td} text-right font-semibold text-gray-900 dark:text-white/90`}
                 >
-                  {formatBRLCompact(balance)}
+                  <Sensivel>{formatBRLCompact(balance)}</Sensivel>
                 </TableCell>
                 <TableCell className={`${TABLE_STYLES.td} text-right`}>
-                  {formatBRLCompact(pmt(g))}
+                  <Sensivel>{formatBRLCompact(pmt(g))}</Sensivel>
                 </TableCell>
                 <TableCell className={`${TABLE_STYLES.td} text-center`}>{g.months}m</TableCell>
                 <TableCell className={TABLE_STYLES.td}>
@@ -126,14 +127,14 @@ export default function SonhosObjetivosTable({
             <TableCell className={`${TABLE_STYLES.td} font-semibold`}>TOTAL MENSAL ATIVO</TableCell>
             <TableCell className={TABLE_STYLES.td} />
             <TableCell className={`${TABLE_STYLES.td} text-right font-semibold`}>
-              {formatBRLCompact(totals.meta)}
+              <Sensivel>{formatBRLCompact(totals.meta)}</Sensivel>
             </TableCell>
             <TableCell className={`${TABLE_STYLES.td} text-right font-semibold`}>
-              {formatBRLCompact(totals.atual)}
+              <Sensivel>{formatBRLCompact(totals.atual)}</Sensivel>
             </TableCell>
             <TableCell className={`${TABLE_STYLES.td} text-right font-semibold`}>
               <span className="text-brand-600 dark:text-brand-400">
-                {formatBRLCompact(totals.aporteAtivo)}
+                <Sensivel>{formatBRLCompact(totals.aporteAtivo)}</Sensivel>
               </span>
             </TableCell>
             <TableCell className={TABLE_STYLES.td} colSpan={3} />

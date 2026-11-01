@@ -19,6 +19,7 @@ import {
   type ProjecaoResult,
 } from '@/services/planejamento/aposentadoria';
 import type { PlanoUpsertPayload } from '@/hooks/useAposentadoria';
+import { ConteudoSensivel, Sensivel } from '@/components/common/valores/Sensivel';
 import { PARAM_FIELDS, type ParamFieldKey, type ParamFieldMeta } from '../LeftPanel';
 import type { AutoField, AutoValues } from '../autoFields';
 import { formatBRL, formatBRLCompact, fPct, MONTH_OPTIONS } from '../utils';
@@ -128,9 +129,13 @@ function AutoHint({
       <span>
         <span aria-hidden>✎</span> manual
       </span>
+      {/* Valor automático (só leitura, fora do campo): o R$ vira pílula; o % fica. */}
       {autoValue != null ? (
         <button type="button" onClick={() => onResync(field)} className={SHORTCUT}>
-          ↺ usar {format(autoValue)} ({label})
+          {/* Um item flex só: senão a pílula vira item próprio e os espaços em volta somem. */}
+          <span>
+            ↺ usar <ConteudoSensivel>{format(autoValue)}</ConteudoSensivel> ({label})
+          </span>
         </button>
       ) : null}
     </div>
@@ -240,11 +245,12 @@ export default function PremissasSheet({
     const nuncaAcaba = !Number.isFinite(projection.idadeAcaba) || projection.idadeAcaba > 110;
     const acabaAntes = !nuncaAcaba && projection.idadeAcaba < params.vida;
     const dura = nuncaAcaba ? 'sempre' : `${projection.idadeAcaba.toFixed(0)} anos`;
+    // Resultado (só leitura): o patrimônio projetado vira pílula; idades ficam.
     resumo = (
       <p className="text-sm text-gray-700 dark:text-gray-200">
         Aos {params.apos}:{' '}
         <strong className="tabular-nums text-gray-900 dark:text-white">
-          {formatBRLCompact(projection.Pr)}
+          <Sensivel>{formatBRLCompact(projection.Pr)}</Sensivel>
         </strong>{' '}
         · Renda dura até{' '}
         {acabaAntes ? (

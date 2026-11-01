@@ -11,6 +11,8 @@ import SonhosObjetivoCard from './SonhosObjetivoCard';
 import SonhosObjetivosTable from './SonhosObjetivosTable';
 import SonhosObjetivoInlineForm from './SonhosObjetivoInlineForm';
 import ReservaEmergenciaWidget from './ReservaEmergenciaWidget';
+import { Sensivel } from '@/components/common/valores/Sensivel';
+import { useValoresOcultos } from '@/context/ValoresOcultosContext';
 import { formatBRLCompact, CATEGORY_LONG_LABELS } from './utils';
 import SonhoCardMobile from './mobile/SonhoCardMobile';
 import { MobileMetricGrid } from '@/components/ui/mobile/MobileMetricGrid';
@@ -43,6 +45,9 @@ export default function SonhosDashboard({ objetivos, onSelectObjetivo }: SonhosD
   const [creating, setCreating] = useState(false);
   const { contexto } = usePlanejamentoContexto();
   const isBelowLg = useIsBelowLg();
+  // Olho fechado: a dica "de R$ X total" da grade do celular leva pílula CURTA (a de 5,5em quebra
+  // a linha a 320px e muda a altura do cartão). Olho aberto: a mesma string de hoje.
+  const { ativo: valoresOcultos } = useValoresOcultos();
   // Celular: sem a alternância Cards/Tabela — sempre cartões.
   const efetivo = isBelowLg ? 'cards' : view;
 
@@ -122,12 +127,18 @@ export default function SonhosDashboard({ objetivos, onSelectObjetivo }: SonhosD
             },
             {
               label: 'Patrimônio Alocado',
-              value: formatBRLCompact(stats.totalAlocado),
-              hint: `de ${formatBRLCompact(stats.totalMeta)} total`,
+              value: <Sensivel>{formatBRLCompact(stats.totalAlocado)}</Sensivel>,
+              hint: valoresOcultos ? (
+                <>
+                  de <Sensivel curto>{formatBRLCompact(stats.totalMeta)}</Sensivel> total
+                </>
+              ) : (
+                `de ${formatBRLCompact(stats.totalMeta)} total`
+              ),
             },
             {
               label: 'Aporte Mensal Ativo',
-              value: formatBRLCompact(stats.aporteAtivo),
+              value: <Sensivel>{formatBRLCompact(stats.aporteAtivo)}</Sensivel>,
               hint: `${stats.ativos} em andamento`,
             },
             {
@@ -182,16 +193,30 @@ export default function SonhosDashboard({ objetivos, onSelectObjetivo }: SonhosD
           {capacidade.excede ? (
             <>
               ⚠️ Seus aportes planejados (
-              <strong>{formatBRLCompact(capacidade.comprometido)}/mês</strong>) superam sua sobra
-              média de caixa (<strong>{formatBRLCompact(capacidade.sobra)}/mês</strong>). Revise os
-              prazos ou as metas para o plano caber no seu orçamento.
+              <strong>
+                <Sensivel>{formatBRLCompact(capacidade.comprometido)}</Sensivel>/mês
+              </strong>
+              ) superam sua sobra média de caixa (
+              <strong>
+                <Sensivel>{formatBRLCompact(capacidade.sobra)}</Sensivel>/mês
+              </strong>
+              ). Revise os prazos ou as metas para o plano caber no seu orçamento.
             </>
           ) : (
             <>
               Seus aportes planejados (
-              <strong>{formatBRLCompact(capacidade.comprometido)}/mês</strong>) cabem na sua sobra
-              de caixa (<strong>{formatBRLCompact(capacidade.sobra)}/mês</strong>). Folga de{' '}
-              <strong>{formatBRLCompact(capacidade.folga)}/mês</strong>.
+              <strong>
+                <Sensivel>{formatBRLCompact(capacidade.comprometido)}</Sensivel>/mês
+              </strong>
+              ) cabem na sua sobra de caixa (
+              <strong>
+                <Sensivel>{formatBRLCompact(capacidade.sobra)}</Sensivel>/mês
+              </strong>
+              ). Folga de{' '}
+              <strong>
+                <Sensivel>{formatBRLCompact(capacidade.folga)}</Sensivel>/mês
+              </strong>
+              .
             </>
           )}
         </div>

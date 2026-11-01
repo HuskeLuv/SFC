@@ -15,6 +15,7 @@ import MobileNumberField, {
   MOBILE_FIELD_LABEL_CLASS,
 } from '@/components/ui/sheet/MobileNumberField';
 import { useResponsiveConfirm } from '@/components/ui/sheet/useResponsiveConfirm';
+import { Sensivel, TextoSensivel } from '@/components/common/valores/Sensivel';
 import { formatDecimalInput, parseDecimalInput } from '@/lib/ui/numberInput';
 import { categoryFromMonths, pmt, type Status } from '@/services/planejamento/planejamentoSonhos';
 import {
@@ -265,7 +266,11 @@ export default function SonhosObjetivoInlineForm({
               >
                 <span>Aporte necessário</span>
                 <strong className="tabular-nums text-gray-900 dark:text-white/90">
-                  {targetNum > 0 && monthsNum > 0 ? `${formatBRL(aporteMensal)}/mês` : '—'}
+                  {targetNum > 0 && monthsNum > 0 ? (
+                    <TextoSensivel texto={`${formatBRL(aporteMensal)}/mês`} />
+                  ) : (
+                    '—'
+                  )}
                 </strong>
               </p>
               <div className="flex gap-2">
@@ -533,7 +538,7 @@ export default function SonhosObjetivoInlineForm({
             <span>
               Aporte mensal:{' '}
               <strong className="text-emerald-600 dark:text-emerald-400">
-                {formatBRL(aporteMensal)}
+                <Sensivel>{formatBRL(aporteMensal)}</Sensivel>
               </strong>
             </span>
           ) : null}

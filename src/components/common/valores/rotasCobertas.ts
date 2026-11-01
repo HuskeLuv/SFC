@@ -5,6 +5,7 @@
  *
  * Fase 1: Carteira (Resumo, abas e Análise), /ativos/[id] e o painel do consultor.
  * Fase 2: Fluxo de caixa e Orçamento (v1 e v2 são abas de /fluxodecaixa, sem rota própria).
+ * Fase 3: Planejar (/planejamento-financeiro: Sonhos e Aposentadoria são modos da mesma rota).
  * Cada fase acrescenta as suas rotas aqui; a faixa some quando a última fase fecha.
  */
 export const ROTAS_COM_VALORES_OCULTOS: readonly string[] = [
@@ -13,6 +14,7 @@ export const ROTAS_COM_VALORES_OCULTOS: readonly string[] = [
   '/consultor',
   '/dashboard/consultor',
   '/fluxodecaixa',
+  '/planejamento-financeiro',
 ];
 
 /** A rota (ou uma sub-rota dela) está coberta? */

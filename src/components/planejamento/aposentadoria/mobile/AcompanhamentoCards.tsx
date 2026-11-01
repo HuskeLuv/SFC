@@ -2,6 +2,7 @@
 
 import { ResponsiveCardList, type ResponsiveColumn } from '@/components/ui/table/ResponsiveTable';
 import { MobileStatusPill } from '@/components/ui/mobile/MobileStatusPill';
+import { Sensivel } from '@/components/common/valores/Sensivel';
 import { formatBRLCompact, fPct } from '../utils';
 
 /** Uma linha do histórico mensal (os mesmos números da tabela do desktop). */
@@ -36,6 +37,8 @@ interface AcompanhamentoCardsProps {
   onSelect: (off: number) => void;
 }
 
+// Patrimônio e aporte: pílula curta com o olho fechado (decisão 6, cartão do celular); a
+// rentabilidade e o selo ficam.
 const columns: ResponsiveColumn<AcompanhamentoRow>[] = [
   { id: 'mes', header: 'Mês', mobile: 'primary', cell: (r) => r.label },
   { id: 'off', header: 'Mês do plano', mobile: 'subtitle', cell: (r) => `M${r.off}` },
@@ -43,13 +46,15 @@ const columns: ResponsiveColumn<AcompanhamentoRow>[] = [
     id: 'patrimonio',
     header: 'Patrim.',
     mobile: 'value',
-    cell: (r) => (r.patFinal != null ? formatBRLCompact(r.patFinal) : '—'),
+    cell: (r) =>
+      r.patFinal != null ? <Sensivel curto>{formatBRLCompact(r.patFinal)}</Sensivel> : '—',
   },
   {
     id: 'aporte',
     header: 'Aporte',
     mobile: 'field',
-    cell: (r) => (r.aporteReal != null ? formatBRLCompact(r.aporteReal) : '—'),
+    cell: (r) =>
+      r.aporteReal != null ? <Sensivel curto>{formatBRLCompact(r.aporteReal)}</Sensivel> : '—',
   },
   {
     id: 'rent',
