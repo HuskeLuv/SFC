@@ -3,6 +3,8 @@
 import MetricCard from '@/components/carteira/shared/MetricCard';
 import { MobileMetricGrid } from '@/components/ui/mobile/MobileMetricGrid';
 import { chartAriaSummary } from '@/components/charts/mobileChartOptions';
+import { Sensivel, TextoSensivel } from '@/components/common/valores/Sensivel';
+import { useValoresOcultos } from '@/context/ValoresOcultosContext';
 import { useIsBelowLg } from '@/hooks/useMediaQuery';
 import type { ProjecaoResult } from '@/services/planejamento/aposentadoria';
 import type { PlanoUpsertPayload } from '@/hooks/useAposentadoria';
@@ -16,6 +18,7 @@ interface ProjecaoTabProps {
 
 export default function ProjecaoTab({ params, projection }: ProjecaoTabProps) {
   const isBelowLg = useIsBelowLg();
+  const { mascarar } = useValoresOcultos();
   if (!projection) {
     return (
       <div className="rounded-2xl border border-yellow-200 bg-yellow-50 p-4 text-sm text-yellow-800 max-lg:text-[#B45309] dark:border-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-200 dark:max-lg:text-[#FBBF24]">
@@ -51,8 +54,8 @@ export default function ProjecaoTab({ params, projection }: ProjecaoTabProps) {
           O que isso significa?
         </h3>
         <p className="text-sm leading-relaxed text-gray-600 dark:text-gray-300">
-          {p1} {p2} {p3}
-          {p4 ? ` ${p4}` : ''}
+          {/* Esconder valores: só os R$ viram pílula; idades e prazos ficam. */}
+          <TextoSensivel texto={`${p1} ${p2} ${p3}${p4 ? ` ${p4}` : ''}`} />
         </p>
       </div>
 
@@ -62,17 +65,21 @@ export default function ProjecaoTab({ params, projection }: ProjecaoTabProps) {
           items={[
             {
               label: isNow ? 'Patrimônio disponível agora' : `Patrimônio aos ${params.apos} anos`,
-              value: formatBRLCompact(Pr),
+              value: <Sensivel>{formatBRLCompact(Pr)}</Sensivel>,
               hint: 'em R$ de hoje',
             },
             {
               label: 'Saque preservando',
-              value: `${formatBRLCompact(sacPres)}/mês`,
-              hint: diff > 0 ? `+${formatBRLCompact(diff)}/mês consumindo` : 'herança intacta',
+              value: <TextoSensivel texto={`${formatBRLCompact(sacPres)}/mês`} />,
+              hint: (
+                <TextoSensivel
+                  texto={diff > 0 ? `+${formatBRLCompact(diff)}/mês consumindo` : 'herança intacta'}
+                />
+              ),
             },
             {
               label: `Saque consumindo até ${params.vida}`,
-              value: `${formatBRLCompact(sacCons)}/mês`,
+              value: <TextoSensivel texto={`${formatBRLCompact(sacCons)}/mês`} />,
               hint: `${params.vida - params.apos} anos de aposentadoria`,
             },
             {
@@ -132,9 +139,11 @@ export default function ProjecaoTab({ params, projection }: ProjecaoTabProps) {
           <div
             {...chartAriaSummary(
               'Projeção',
-              isNow
-                ? `Hoje: ${formatBRLCompact(Pr)}`
-                : `Aos ${params.apos}: ${formatBRLCompact(Pr)}`,
+              mascarar(
+                isNow
+                  ? `Hoje: ${formatBRLCompact(Pr)}`
+                  : `Aos ${params.apos}: ${formatBRLCompact(Pr)}`,
+              ),
             )}
           >
             <ProjecaoChart data={projection} apos={params.apos} vida={params.vida} />
