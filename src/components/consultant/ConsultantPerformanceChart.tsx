@@ -4,7 +4,10 @@ import dynamic from 'next/dynamic';
 import React, { useMemo } from 'react';
 import ErrorBoundary from '@/components/common/ErrorBoundary';
 import type { ApexOptions } from 'apexcharts';
-import { useOpcoesGraficoSensiveis } from '@/components/charts/useOpcoesGraficoSensiveis';
+import {
+  useChaveGraficoSensivel,
+  useOpcoesGraficoSensiveis,
+} from '@/components/charts/useOpcoesGraficoSensiveis';
 
 const ReactApexChart = dynamic(() => import('react-apexcharts'), {
   ssr: false,
@@ -104,6 +107,7 @@ const ConsultantPerformanceChart: React.FC<ConsultantPerformanceChartProps> = ({
   );
   // Esconder valores: sobre as opções finais (olho aberto = mesma referência).
   const opcoesFinais = useOpcoesGraficoSensiveis(options, { eixosSemSimbolo: true });
+  const chaveSensivel = useChaveGraficoSensivel();
 
   if (isLoading) {
     return (
@@ -151,7 +155,13 @@ const ConsultantPerformanceChart: React.FC<ConsultantPerformanceChartProps> = ({
             </div>
           }
         >
-          <ReactApexChart options={opcoesFinais} series={series} type="area" height={320} />
+          <ReactApexChart
+            key={chaveSensivel}
+            options={opcoesFinais}
+            series={series}
+            type="area"
+            height={320}
+          />
         </ErrorBoundary>
       </div>
     </div>

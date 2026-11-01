@@ -6,7 +6,10 @@ import { ApexOptions } from 'apexcharts';
 import { GroupedProventoData } from '@/hooks/useProventos';
 import { useIsBelowLg } from '@/hooks/useMediaQuery';
 import { PIE_MOBILE_RESPONSIVE } from '@/components/charts/pie/pieMobileResponsive';
-import { useOpcoesGraficoSensiveis } from '@/components/charts/useOpcoesGraficoSensiveis';
+import {
+  useChaveGraficoSensivel,
+  useOpcoesGraficoSensiveis,
+} from '@/components/charts/useOpcoesGraficoSensiveis';
 
 const hasFunctionValue = (value: unknown): boolean => {
   if (typeof value === 'function') return true;
@@ -33,6 +36,7 @@ const ApexChartWrapper = React.memo(
   }) => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const [Chart, setChart] = useState<React.ComponentType<any> | null>(null);
+    const chaveSensivel = useChaveGraficoSensivel();
 
     // JSON-stringify destrói callbacks (formatters); preserva `options` íntegro quando há funções.
     const sanitizedOptions = useMemo(() => {
@@ -65,7 +69,15 @@ const ApexChartWrapper = React.memo(
       );
     }
 
-    return <Chart options={sanitizedOptions} series={series} type={type} height={height} />;
+    return (
+      <Chart
+        key={chaveSensivel}
+        options={sanitizedOptions}
+        series={series}
+        type={type}
+        height={height}
+      />
+    );
   },
 );
 

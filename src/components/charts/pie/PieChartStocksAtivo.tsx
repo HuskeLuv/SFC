@@ -6,6 +6,7 @@ import { CarteiraStockAlocacaoAtivo } from '@/types/carteiraStocks';
 import dynamic from 'next/dynamic';
 import { PIE_MOBILE_RESPONSIVE } from './pieMobileResponsive';
 import { usePizzaSensivel } from './usePizzaSensivel';
+import { useChaveGraficoSensivel } from '../useOpcoesGraficoSensiveis';
 // Dynamically import the ReactApexChart component
 const ReactApexChart = dynamic(() => import('react-apexcharts'), {
   ssr: false,
@@ -133,6 +134,7 @@ const PieChartStocksAtivo: React.FC<PieChartStocksAtivoProps> = ({ data, isDarkM
 
   // Esconder valores: a série é o valor de cada ativo — centro e tooltip mascarados; fatias ficam.
   const opcoesSeguras = usePizzaSensivel(options, { serieEmValor: true });
+  const chaveSensivel = useChaveGraficoSensivel();
 
   const series = data.map((item) => item.valor);
 
@@ -152,7 +154,13 @@ const PieChartStocksAtivo: React.FC<PieChartStocksAtivoProps> = ({ data, isDarkM
   return (
     <div className="flex justify-center">
       <div id="chartStocksAtivo" className="w-full">
-        <ReactApexChart options={opcoesSeguras} series={series} type="donut" height={300} />
+        <ReactApexChart
+          key={chaveSensivel}
+          options={opcoesSeguras}
+          series={series}
+          type="donut"
+          height={300}
+        />
       </div>
     </div>
   );

@@ -181,3 +181,13 @@ export function useOpcoesGraficoSensiveis<T extends ApexOptions>(
     [ativo, options, eixosSemSimbolo, larguraEixoY],
   );
 }
+
+/**
+ * `key` do ReactApexChart: remonta o gráfico ao alternar o olho. O react-apexcharts chama
+ * `updateOptions`, e o Apex MESCLA as opções novas nas antigas: chave criada só no modo oculto
+ * (`labels.minWidth` do eixo Y, `tooltip.y.formatter`, o `total.formatter` da rosca) sobreviveria
+ * ao reabrir o olho. Com a chave desligada o valor é constante (nada remonta).
+ */
+export function useChaveGraficoSensivel(): string {
+  return useValoresOcultos().ativo ? 'valores-ocultos' : 'valores-visiveis';
+}

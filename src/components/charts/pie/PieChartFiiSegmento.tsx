@@ -6,6 +6,7 @@ import { FiiAlocacaoSegmento } from '@/types/fii';
 import dynamic from 'next/dynamic';
 import { PIE_MOBILE_RESPONSIVE } from './pieMobileResponsive';
 import { usePizzaSensivel } from './usePizzaSensivel';
+import { useChaveGraficoSensivel } from '../useOpcoesGraficoSensiveis';
 // Dynamically import the ReactApexChart component
 const ReactApexChart = dynamic(() => import('react-apexcharts'), {
   ssr: false,
@@ -138,6 +139,7 @@ const PieChartFiiSegmento: React.FC<PieChartFiiSegmentoProps> = ({ data, isDarkM
 
   // Esconder valores: tooltip e centro da rosca em R$ mascarados; fatias e % ficam.
   const opcoesSeguras = usePizzaSensivel(options);
+  const chaveSensivel = useChaveGraficoSensivel();
 
   const series = data.map((item) => item.valor);
 
@@ -157,7 +159,13 @@ const PieChartFiiSegmento: React.FC<PieChartFiiSegmentoProps> = ({ data, isDarkM
   return (
     <div className="flex justify-center">
       <div id="chartFiiSegmento" className="w-full">
-        <ReactApexChart options={opcoesSeguras} series={series} type="donut" height={300} />
+        <ReactApexChart
+          key={chaveSensivel}
+          options={opcoesSeguras}
+          series={series}
+          type="donut"
+          height={300}
+        />
       </div>
     </div>
   );

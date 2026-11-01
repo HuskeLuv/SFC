@@ -5,6 +5,7 @@ import React, { useEffect, useState, useMemo } from 'react';
 import { ApexOptions } from 'apexcharts';
 import { useIsBelowLg } from '@/hooks/useMediaQuery';
 import {
+  useChaveGraficoSensivel,
   useOpcoesGraficoSensiveis,
   type OpcoesGraficoSensiveis,
 } from './useOpcoesGraficoSensiveis';
@@ -131,6 +132,7 @@ const ApexChartWrapper: React.FC<ApexChartWrapperProps> = ({
 
   // Esconder valores: sobre as opções FINAIS (mobileOptions incluídas). Olho aberto = mesma ref.
   const finalOptions = useOpcoesGraficoSensiveis(effectiveOptions, valoresOcultos);
+  const chaveSensivel = useChaveGraficoSensivel();
 
   useEffect(() => {
     // Importação dinâmica do ReactApexChart apenas no client-side
@@ -162,7 +164,7 @@ const ApexChartWrapper: React.FC<ApexChartWrapperProps> = ({
     height: isBelowLg && mobileHeight !== undefined ? mobileHeight : height,
   };
 
-  return <Chart {...chartProps} />;
+  return <Chart key={chaveSensivel} {...chartProps} />;
 };
 
 export default ApexChartWrapper;

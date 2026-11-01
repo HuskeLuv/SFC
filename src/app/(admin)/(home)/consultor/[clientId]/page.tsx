@@ -14,7 +14,10 @@ import Badge from '@/components/ui/badge/Badge';
 import dynamic from 'next/dynamic';
 import type { ApexOptions } from 'apexcharts';
 import { useAuth } from '@/hooks/useAuth';
-import { useOpcoesGraficoSensiveis } from '@/components/charts/useOpcoesGraficoSensiveis';
+import {
+  useChaveGraficoSensivel,
+  useOpcoesGraficoSensiveis,
+} from '@/components/charts/useOpcoesGraficoSensiveis';
 import { Sensivel, ValorVisivel } from '@/components/common/valores/Sensivel';
 import type { SensibilidadeValor } from '@/utils/valoresOcultos';
 
@@ -358,6 +361,7 @@ const ClientConsultantDetailPage = () => {
   );
   // Esconder valores: sobre as opções finais (olho aberto = mesma referência).
   const wealthOptionsFinais = useOpcoesGraficoSensiveis(wealthOptions, { eixosSemSimbolo: true });
+  const chaveSensivel = useChaveGraficoSensivel();
 
   const totalBalances = detail?.balances?.total;
   const monthlyBalances = detail?.balances?.monthly;
@@ -536,6 +540,7 @@ const ClientConsultantDetailPage = () => {
                 <div className="mt-6">
                   {wealthSeries.length ? (
                     <ReactApexChart
+                      key={chaveSensivel}
                       options={wealthOptionsFinais}
                       series={[
                         {

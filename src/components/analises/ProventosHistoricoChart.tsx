@@ -7,7 +7,10 @@ import { ProventoData } from '@/hooks/useProventos';
 import { useTheme } from '@/context/ThemeContext';
 import { useIsBelowLg } from '@/hooks/useMediaQuery';
 import { deepMergeOptions } from '@/components/charts/ApexChartWrapper';
-import { useOpcoesGraficoSensiveis } from '@/components/charts/useOpcoesGraficoSensiveis';
+import {
+  useChaveGraficoSensivel,
+  useOpcoesGraficoSensiveis,
+} from '@/components/charts/useOpcoesGraficoSensiveis';
 import { useValoresOcultos } from '@/context/ValoresOcultosContext';
 
 /** Altura abaixo de lg (PWA fase 1). */
@@ -53,6 +56,7 @@ const ApexChartWrapper = React.memo(
   }) => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const [Chart, setChart] = useState<React.ComponentType<any> | null>(null);
+    const chaveSensivel = useChaveGraficoSensivel();
 
     const sanitizedOptions = useMemo(() => {
       if (hasFunctionValue(options)) {
@@ -87,7 +91,15 @@ const ApexChartWrapper = React.memo(
       );
     }
 
-    return <Chart options={sanitizedOptions} series={series} type={type} height={height} />;
+    return (
+      <Chart
+        key={chaveSensivel}
+        options={sanitizedOptions}
+        series={series}
+        type={type}
+        height={height}
+      />
+    );
   },
 );
 
