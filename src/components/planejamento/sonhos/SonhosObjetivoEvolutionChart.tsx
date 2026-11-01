@@ -4,6 +4,11 @@ import dynamic from 'next/dynamic';
 import { useMemo } from 'react';
 import type { ApexOptions } from 'apexcharts';
 import { mobileYAxis, useMobileChart } from '@/components/charts/mobileChartOptions';
+import {
+  useChaveGraficoSensivel,
+  useOpcoesGraficoSensiveis,
+} from '@/components/charts/useOpcoesGraficoSensiveis';
+import { useValoresOcultos } from '@/context/ValoresOcultosContext';
 import { addMonths, planned } from '@/services/planejamento/planejamentoSonhos';
 import type { PlanejamentoObjetivoDTO } from '@/hooks/usePlanejamentoSonhos';
 import { formatBRL, formatBRLCompact, formatYearMonth, categoryAccent } from './utils';
@@ -28,6 +33,9 @@ export default function SonhosObjetivoEvolutionChart({
   objetivo,
 }: SonhosObjetivoEvolutionChartProps) {
   const accent = categoryAccent(objetivo.category);
+  // Esconder valores: o rótulo da meta é texto (não formatter) — o hook do Apex não o vê.
+  const { mascarar } = useValoresOcultos();
+  const chaveSensivel = useChaveGraficoSensivel();
 
   const { categories, plannedSeries, actualSeries, realizedIdxs } = useMemo(() => {
     const n = objetivo.months;
@@ -144,7 +152,7 @@ export default function SonhosObjetivoEvolutionChart({
             borderColor: '#EF4444',
             strokeDashArray: 6,
             label: {
-              text: `Meta · ${formatBRL(objetivo.target)}`,
+              text: mascarar(`Meta · ${formatBRL(objetivo.target)}`),
               borderColor: '#EF4444',
               style: { color: '#fff', background: '#EF4444', fontSize: '10px' },
               position: 'right',
@@ -162,7 +170,7 @@ export default function SonhosObjetivoEvolutionChart({
         strokeDashArray: 3,
       },
     }),
-    [objetivo.id, objetivo.target, objetivo.months, accent, categories, realizedIdxs],
+    [objetivo.id, objetivo.target, objetivo.months, accent, categories, realizedIdxs, mascarar],
   );
 
   // Celular (PWA fase 3): 190px, sem zoom/toolbar, eixo em R$ compacto, meta em vermelho da
@@ -182,7 +190,7 @@ export default function SonhosObjetivoEvolutionChart({
             borderColor: '#D92D20',
             strokeDashArray: 6,
             label: {
-              text: `Meta · ${formatBRLCompact(objetivo.target)}`,
+              text: mascarar(`Meta · ${formatBRLCompact(objetivo.target)}`),
               borderColor: '#D92D20',
               style: { color: '#fff', background: '#D92D20', fontSize: '9px' },
               position: 'right',
@@ -191,13 +199,16 @@ export default function SonhosObjetivoEvolutionChart({
         ],
       },
     }),
-    [options, objetivo.target],
+    [options, objetivo.target, mascarar],
   );
   const {
     options: chartOptions,
     height,
     isBelowLg,
   } = useMobileChart(options, { desktopHeight: 320, mobileHeight: 190, extra: mobileExtra });
+  // Olho fechado: eixo Y sem rótulo (largura reservada) e tooltip com pílulas, sobre as opções
+  // FINAIS (depois das do celular).
+  const opcoes = useOpcoesGraficoSensiveis(chartOptions);
 
   const series = useMemo(
     () =>
@@ -215,7 +226,13 @@ export default function SonhosObjetivoEvolutionChart({
 
   return (
     <div className="w-full">
-      <ReactApexChart options={chartOptions} series={series} type="line" height={height} />
+      <ReactApexChart
+        key={chaveSensivel}
+        options={opcoes}
+        series={series}
+        type="line"
+        height={height}
+      />
     </div>
   );
 }
