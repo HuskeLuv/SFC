@@ -4,6 +4,7 @@ import { useEffect, useRef } from 'react';
 import type { EvolucaoPonto, SnapshotData } from '@/hooks/useSaudeFinanceira';
 import { useIsBelowLg } from '@/hooks/useMediaQuery';
 import { MobileStatusPill } from '@/components/ui/mobile/MobileStatusPill';
+import { Sensivel } from '@/components/common/valores/Sensivel';
 import { STATUS_TONE } from './StatusHero';
 import { formatBRLCompact, formatPercent, MONTH_NAMES_PT, STATUS_META } from './utils';
 import { TABLE_STYLES, TABLE_HEADER_STYLE } from '@/components/ui/table/tableStyles';
@@ -19,30 +20,46 @@ interface LinhaIndicador {
   chave: string;
   label: string;
   render: (data: SnapshotData) => string;
+  /** Valor em dinheiro: vira pílula curta com o olho fechado (% fica visível). */
+  dinheiro?: boolean;
 }
 
 const LINHAS: LinhaIndicador[] = [
-  { chave: 'renda', label: 'Renda mensal', render: (d) => formatBRLCompact(d.rendaMensal) },
-  { chave: 'gasto', label: 'Gasto mensal', render: (d) => formatBRLCompact(d.gastoMensal) },
+  {
+    chave: 'renda',
+    label: 'Renda mensal',
+    dinheiro: true,
+    render: (d) => formatBRLCompact(d.rendaMensal),
+  },
+  {
+    chave: 'gasto',
+    label: 'Gasto mensal',
+    dinheiro: true,
+    render: (d) => formatBRLCompact(d.gastoMensal),
+  },
   {
     chave: 'poupanca',
     label: 'Poupança mensal',
+    dinheiro: true,
     render: (d) => formatBRLCompact(d.poupancaMensal),
   },
   { chave: 'taxa', label: 'Taxa de poupança', render: (d) => formatPercent(d.taxaPoupanca) },
   {
     chave: 'altaLiquidez',
     label: 'Invest. alta liquidez',
+    dinheiro: true,
     render: (d) => formatBRLCompact(d.ativosAltaLiquidez),
   },
   {
     chave: 'baixaLiquidez',
     label: 'Invest. baixa liquidez',
+    dinheiro: true,
     render: (d) => formatBRLCompact(d.ativosBaixaLiquidez),
   },
   {
     chave: 'totalInvestimentos',
     label: 'Total de ativos',
+    dinheiro: true,
     render: (d) => formatBRLCompact(d.ativosAltaLiquidez + d.ativosBaixaLiquidez),
   },
   {
@@ -53,6 +70,7 @@ const LINHAS: LinhaIndicador[] = [
   {
     chave: 'patrimonioLiquido',
     label: 'Patrimônio líquido',
+    dinheiro: true,
     render: (d) => formatBRLCompact(d.patrimonioLiquido),
   },
 ];
@@ -116,7 +134,11 @@ export default function EvolucaoTabela({ snapshots }: EvolucaoTabelaProps) {
                   key={`${p.year}-${p.month}`}
                   className={`${TABLE_STYLES.compact.td} text-right font-medium text-gray-900 dark:text-white/90`}
                 >
-                  {linha.render(p.data)}
+                  {linha.dinheiro ? (
+                    <Sensivel curto>{linha.render(p.data)}</Sensivel>
+                  ) : (
+                    linha.render(p.data)
+                  )}
                 </td>
               ))}
             </tr>

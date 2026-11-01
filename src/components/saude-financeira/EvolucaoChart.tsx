@@ -1,12 +1,20 @@
 'use client';
 
 import dynamic from 'next/dynamic';
-import { useMemo } from 'react';
+import { useMemo, useRef } from 'react';
 import type { ApexOptions } from 'apexcharts';
 import { useSaudeFinanceiraEvolucao } from '@/hooks/useSaudeFinanceira';
 import { formatBRL, MONTH_NAMES_PT } from './utils';
 import EvolucaoTabela from './EvolucaoTabela';
 import { mobileYAxis, useMobileChart } from '@/components/charts/mobileChartOptions';
+import {
+  useChaveGraficoSensivel,
+  useOpcoesGraficoSensiveis,
+} from '@/components/charts/useOpcoesGraficoSensiveis';
+import {
+  rotulosDoEixoY,
+  useLarguraEixoYOculto,
+} from '@/components/planejamento/aposentadoria/charts/useLarguraEixoYOculto';
 
 const ReactApexChart = dynamic(() => import('react-apexcharts'), { ssr: false });
 
@@ -78,6 +86,18 @@ export default function EvolucaoChart() {
     mobileHeight: 220,
   });
 
+  // Esconder valores (decisão 7): sobre as opções FINAIS (já com as do celular). Eixo Y em R$ sem
+  // rótulo com a largura de hoje reservada, tooltip com pílula; séries, legenda e meses ficam.
+  // Olho aberto devolve a mesma referência; a chave remonta o gráfico ao alternar.
+  const containerRef = useRef<HTMLDivElement>(null);
+  const rotulosEixo = useMemo(() => {
+    const maior = Math.max(0, ...chart.series.flatMap((s) => s.data));
+    return rotulosDoEixoY(chartOptions, maior);
+  }, [chartOptions, chart.series]);
+  const larguraEixoY = useLarguraEixoYOculto(containerRef, rotulosEixo);
+  const opcoes = useOpcoesGraficoSensiveis(chartOptions, { larguraEixoY });
+  const chaveSensivel = useChaveGraficoSensivel();
+
   return (
     <div className="print:break-inside-avoid rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03]">
       <h3
@@ -99,12 +119,13 @@ export default function EvolucaoChart() {
         </p>
       ) : (
         <>
-          <div className="mt-2">
+          <div ref={containerRef} className="mt-2">
             <ReactApexChart
+              key={chaveSensivel}
               type="line"
               height={chartHeight}
               series={chart.series}
-              options={chartOptions}
+              options={opcoes}
             />
           </div>
           <EvolucaoTabela snapshots={snapshots} />
