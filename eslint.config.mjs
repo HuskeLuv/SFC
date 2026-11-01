@@ -65,14 +65,14 @@ const eslintConfig = [
       "mf/valor-sem-sensivel": "error",
     },
   },
-  // Fase 4 (Dívidas e Saúde Financeira): 'warn' enquanto a fase está aberta; o integrador passa
-  // para 'error' no fechamento.
+  // Fase 4 (Dívidas e Saúde Financeira): 'error' desde o fechamento da fase, com zero
+  // ocorrências.
   {
     files: GLOBS_VALORES_OCULTOS_FASE4,
     ignores: IGNORES_VALORES_OCULTOS_FASE4,
     plugins: { mf: pluginValoresOcultos },
     rules: {
-      "mf/valor-sem-sensivel": "warn",
+      "mf/valor-sem-sensivel": "error",
     },
   },
 ];

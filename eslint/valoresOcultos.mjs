@@ -10,9 +10,10 @@
  * Strings devolvidas por render/getValue/cell (fora do JSX) não são acusadas: a autodetecção de
  * R$/US$ dos componentes compartilhados e os testes com sentinelas cobrem esses casos.
  *
- * Nível: 'error' nas pastas das Fases 1, 2 e 3 (todas fechadas com zero ocorrências). A Fase 2
- * fica em GLOBS_VALORES_OCULTOS_FASE2 (bloco próprio por causa da opção `formattersExtras`) e a
- * Fase 3 (Planejar) em GLOBS_VALORES_OCULTOS_FASE3.
+ * Nível: 'error' nas pastas das Fases 1, 2, 3 e 4 (todas fechadas com zero ocorrências). A Fase 2
+ * fica em GLOBS_VALORES_OCULTOS_FASE2 (bloco próprio por causa da opção `formattersExtras`), a
+ * Fase 3 (Planejar) em GLOBS_VALORES_OCULTOS_FASE3 e a Fase 4 (Dívidas e Saúde Financeira) em
+ * GLOBS_VALORES_OCULTOS_FASE4.
  *
  * Fluxo de caixa: o formatCurrency DEPRECATED (src/utils/formatters.ts) é formatNumber, sem "R$".
  * A regra pega formatCurrency/formatBRL no JSX e, na Fase 2, o num() do Orçamento v2 (opção
@@ -212,7 +213,7 @@ export const GLOBS_VALORES_OCULTOS_FASE3 = [
 export const IGNORES_VALORES_OCULTOS_FASE3 = ['**/__tests__/**'];
 
 /**
- * Fase 4 ('warn' até o fechamento; o integrador passa para 'error'): Dívidas (/dividas, com o
+ * Fase 4 ('error' desde o fechamento, com zero ocorrências): Dívidas (/dividas, com o
  * detalhe e o cronograma) e Saúde Financeira (/saude-financeira). formatBRL/formatBRLCompact dos
  * utils.ts das duas pastas já são reconhecidos. Números montados à mão (toFixed, formatCurrency
  * sem "R$" via formatNumber, template strings) e props como `hint=`/`change=` não são acusados —
