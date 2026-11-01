@@ -1,7 +1,7 @@
 'use client';
 
 import dynamic from 'next/dynamic';
-import { useMemo } from 'react';
+import { useMemo, useRef } from 'react';
 import type { ApexOptions } from 'apexcharts';
 import { mobileYAxis, useMobileChart } from '@/components/charts/mobileChartOptions';
 import {
@@ -34,7 +34,7 @@ export default function SonhosObjetivoEvolutionChart({
 }: SonhosObjetivoEvolutionChartProps) {
   const accent = categoryAccent(objetivo.category);
   // Esconder valores: o rótulo da meta é texto (não formatter) — o hook do Apex não o vê.
-  const { mascarar } = useValoresOcultos();
+  const { ativo, mascarar } = useValoresOcultos();
   const chaveSensivel = useChaveGraficoSensivel();
 
   const { categories, plannedSeries, actualSeries, realizedIdxs } = useMemo(() => {
@@ -208,7 +208,19 @@ export default function SonhosObjetivoEvolutionChart({
   } = useMobileChart(options, { desktopHeight: 320, mobileHeight: 190, extra: mobileExtra });
   // Olho fechado: eixo Y sem rótulo (largura reservada) e tooltip com pílulas, sobre as opções
   // FINAIS (depois das do celular).
-  const opcoes = useOpcoesGraficoSensiveis(chartOptions);
+  // Ao fechar o olho com o gráfico na tela, o eixo vazio reserva a largura real dos rótulos de
+  // hoje (sem pulo); abrindo já com o olho fechado vale a largura padrão do hook.
+  const containerRef = useRef<HTMLDivElement>(null);
+  const larguraEixoY = useMemo(() => {
+    if (!ativo) return undefined;
+    const rotulos = containerRef.current?.querySelectorAll('.apexcharts-yaxis-label') ?? [];
+    const medida = Math.max(
+      0,
+      ...Array.from(rotulos, (r) => (r.textContent?.trim() ? r.getBoundingClientRect().width : 0)),
+    );
+    return medida > 0 ? Math.ceil(medida) : undefined;
+  }, [ativo]);
+  const opcoes = useOpcoesGraficoSensiveis(chartOptions, { larguraEixoY });
 
   const series = useMemo(
     () =>
@@ -225,7 +237,7 @@ export default function SonhosObjetivoEvolutionChart({
   );
 
   return (
-    <div className="w-full">
+    <div ref={containerRef} className="w-full">
       <ReactApexChart
         key={chaveSensivel}
         options={opcoes}
