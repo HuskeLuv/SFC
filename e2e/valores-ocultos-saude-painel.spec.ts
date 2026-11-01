@@ -207,10 +207,10 @@ test.describe('esconder valores — Saúde Financeira, painel (desktop 1280)', (
     await expect(page.locator('#seguro-custo')).toHaveValue('2345.61');
     await expect(page.locator('#seguro-capital')).toHaveValue('765432.19');
     if (!process.env.CI) {
-      await page.screenshot({
-        path: 'test-results/valores-ocultos-saude-painel-desktop.png',
-        fullPage: true,
-      });
+      // Só a janela: o fullPage redimensiona a viewport e, com a máquina carregada, a casca
+      // remonta e fecha o formulário (o Cancelar some e o teste estoura o tempo).
+      await page.locator('#seguro-custo').scrollIntoViewIfNeeded();
+      await page.screenshot({ path: 'test-results/valores-ocultos-saude-painel-desktop.png' });
     }
     await page.getByRole('button', { name: 'Cancelar' }).click();
 
