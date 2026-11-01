@@ -10,6 +10,8 @@ import {
   TABLE_SECTION_STYLE,
   TABLE_STYLES,
 } from './tableStyles';
+import { ConteudoSensivel } from '@/components/common/valores/Sensivel';
+import type { SensibilidadeValor } from '@/utils/valoresOcultos';
 
 /**
  * Tabela que vira lista de cartões abaixo de lg (PWA fase 0).
@@ -52,6 +54,11 @@ export interface ResponsiveColumn<T> {
   highlight?: boolean;
   thClassName?: string;
   tdClassName?: string;
+  /**
+   * Esconder valores: como o conteúdo da célula reage ao olho (desktop e cartão). 'auto' (padrão)
+   * esconde só strings com R$/US$; 'sensivel'/'sensivel-curto' sempre; 'visivel' nunca.
+   */
+  valor?: SensibilidadeValor;
 }
 
 export interface ResponsiveTableGroup {
@@ -85,6 +92,11 @@ const MAX_GRID_FIELDS = 3;
 
 const alignClassOf = (align: ResponsiveColumn<unknown>['align'] = 'left') =>
   ({ left: 'text-left', center: 'text-center', right: 'text-right' })[align];
+
+/** Conteúdo da coluna com o modo do "esconder valores" (no modo visível, o DOM é o de sempre). */
+const sensivel = (modo: SensibilidadeValor | undefined, node: ReactNode) => (
+  <ConteudoSensivel modo={modo}>{node}</ConteudoSensivel>
+);
 
 export const resolveMobileRole = <T,>(col: ResponsiveColumn<T>, index: number) =>
   col.mobile ?? (index === 0 ? 'primary' : 'field');
@@ -182,7 +194,9 @@ export function ResponsiveTable<T>({
                       {section.group.label}
                     </td>
                     {section.group.subtotal !== undefined && columns.length > 1 && (
-                      <td className={twMerge(tdBase, 'text-right')}>{section.group.subtotal}</td>
+                      <td className={twMerge(tdBase, 'text-right')}>
+                        {sensivel('auto', section.group.subtotal)}
+                      </td>
                     )}
                   </tr>
                 )}
@@ -205,7 +219,7 @@ export function ResponsiveTable<T>({
                           col.tdClassName,
                         )}
                       >
-                        {col.cell(row, index)}
+                        {sensivel(col.valor, col.cell(row, index))}
                       </td>
                     ))}
                   </tr>
@@ -218,7 +232,11 @@ export function ResponsiveTable<T>({
               <tr className={TABLE_STYLES.totalRow}>
                 {columns.map((col, i) => (
                   <td key={col.id} className={twMerge(tdBase, alignClassOf(col.align))}>
-                    {col.id in total.cells ? total.cells[col.id] : i === 0 ? total.label : null}
+                    {col.id in total.cells
+                      ? sensivel(col.valor, total.cells[col.id])
+                      : i === 0
+                        ? total.label
+                        : null}
                   </td>
                 ))}
               </tr>
@@ -354,7 +372,10 @@ export function ResponsiveCardList<T>({
   const labelOf = (col: ResponsiveColumn<T>) => col.mobileLabel ?? col.header;
   // No cabeçalho de um cartão expansível (um <button>) só entra texto.
   const headCell = (col: ResponsiveColumn<T>, row: T, index: number) =>
-    expandable && col.mobileCell ? col.mobileCell(row, index) : col.cell(row, index);
+    sensivel(
+      col.valor,
+      expandable && col.mobileCell ? col.mobileCell(row, index) : col.cell(row, index),
+    );
 
   const renderCardHead = (row: T, index: number) => (
     <>
@@ -389,7 +410,7 @@ export function ResponsiveCardList<T>({
             <div key={col.id} className="flex items-baseline justify-between gap-3">
               <dt className={TABLE_MOBILE_STYLES.dt}>{labelOf(col)}</dt>
               <dd className={twMerge(TABLE_MOBILE_STYLES.dd, 'text-right')}>
-                {col.cell(row, index)}
+                {sensivel(col.valor, col.cell(row, index))}
               </dd>
             </div>
           ))}
@@ -406,7 +427,9 @@ export function ResponsiveCardList<T>({
         {cols.map((col) => (
           <div key={col.id} className="min-w-0">
             <dt className={TABLE_MOBILE_STYLES.cardDetailLabel}>{labelOf(col)}</dt>
-            <dd className={TABLE_MOBILE_STYLES.cardDetailValue}>{col.cell(row, index)}</dd>
+            <dd className={TABLE_MOBILE_STYLES.cardDetailValue}>
+              {sensivel(col.valor, col.cell(row, index))}
+            </dd>
           </div>
         ))}
       </dl>
@@ -500,7 +523,7 @@ export function ResponsiveCardList<T>({
             <li className={TABLE_MOBILE_STYLES.groupBand}>
               <span className="min-w-0">{section.group.label}</span>
               {section.group.subtotal !== undefined && (
-                <span className="tabular-nums">{section.group.subtotal}</span>
+                <span className="tabular-nums">{sensivel('auto', section.group.subtotal)}</span>
               )}
             </li>
           )}
@@ -520,7 +543,9 @@ export function ResponsiveCardList<T>({
                 : total.label}
             </span>
             {valueCol && valueCol.id in total.cells && (
-              <span className="tabular-nums">{total.cells[valueCol.id]}</span>
+              <span className="tabular-nums">
+                {sensivel(valueCol.valor, total.cells[valueCol.id])}
+              </span>
             )}
           </div>
           {totalFields.length > 0 && (
@@ -529,7 +554,7 @@ export function ResponsiveCardList<T>({
                 <div key={col.id} className="flex items-baseline justify-between gap-3">
                   <dt className={TABLE_MOBILE_STYLES.dt}>{labelOf(col)}</dt>
                   <dd className={twMerge(TABLE_MOBILE_STYLES.dd, 'text-right')}>
-                    {total.cells[col.id]}
+                    {sensivel(col.valor, total.cells[col.id])}
                   </dd>
                 </div>
               ))}

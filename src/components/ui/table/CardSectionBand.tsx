@@ -3,12 +3,13 @@
 import React, { type ReactNode } from 'react';
 import { twMerge } from 'tailwind-merge';
 import { TABLE_MOBILE_STYLES } from './tableStyles';
+import { ConteudoSensivel } from '@/components/common/valores/Sensivel';
 
 export interface CardSectionBandProps {
   /** id do bloco que a faixa abre/fecha (vai no `aria-controls`). */
   id: string;
   label: ReactNode;
-  /** Subtotal já formatado (ex.: 'R$ 12.345,67'). */
+  /** Subtotal já formatado (ex.: 'R$ 12.345,67'). Esconder valores: R$/US$ viram pílula. */
   subtotal?: ReactNode;
   /** Quantidade de ativos da seção ('1 ativo' / 'N ativos'). */
   count?: number;
@@ -65,7 +66,9 @@ export function CardSectionBand({
         </span>
       )}
       {subtotal !== undefined && subtotal !== null && (
-        <span className="shrink-0 tabular-nums">{subtotal}</span>
+        <span className="shrink-0 tabular-nums">
+          <ConteudoSensivel>{subtotal}</ConteudoSensivel>
+        </span>
       )}
     </button>
   );
